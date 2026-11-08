@@ -17,14 +17,19 @@ public partial class Hud : CanvasLayer
 	public TouchButton AutopilotButton { get; } = new("Autopilot") { Toggle = true };
 	public TouchButton FastButton { get; } = new("Zeitraffer") { Toggle = true };
 	public TouchButton DockButton { get; } = new("Andocken");
+	public TouchButton LaserButton { get; } = new("Laser (halten)");
+	public TouchButton TractorButton { get; } = new("Traktor") { Toggle = true };
+	public TouchButton AutoMineButton { get; } = new("Auto-Mining") { Toggle = true };
 
-	public event Action? MapPressed, EconomyPressed, MenuPressed, DockPressed, AutopilotPressed, FastPressed;
+	public event Action? MapPressed, EconomyPressed, MenuPressed, DockPressed, AutopilotPressed, FastPressed, TractorPressed, AutoMinePressed;
 
 	/// <summary>Liefert die Bildschirmposition des Ziels (oder null), damit der Marker gezeichnet werden kann.</summary>
 	public Func<Vector2?>? TargetScreenPosition { get; set; }
 
 	readonly Label _status = new();
 	readonly Label _target = new();
+	readonly Label _cargo = new();
+	readonly Label _mining = new();
 	readonly Label _toast = new();
 	readonly ProgressBar _hull = new() { MaxValue = 100, ShowPercentage = false, CustomMinimumSize = new Vector2(220, 14) };
 	readonly ColorRect _flash = new() { Color = Colors.White, MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
@@ -45,7 +50,10 @@ public partial class Hud : CanvasLayer
 		_status.AddThemeFontSizeOverride("font_size", 20);
 		_target.AddThemeFontSizeOverride("font_size", 18);
 		_target.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.4f));
-		top.AddChild(_status); top.AddChild(_hull); top.AddChild(_target);
+		_cargo.AddThemeFontSizeOverride("font_size", 18);
+		_mining.AddThemeFontSizeOverride("font_size", 18);
+		_mining.AddThemeColorOverride("font_color", new Color(0.5f, 1f, 0.7f));
+		top.AddChild(_status); top.AddChild(_hull); top.AddChild(_target); top.AddChild(_cargo); top.AddChild(_mining);
 		root.AddChild(top);
 
 		// Hinweistext oben Mitte
@@ -72,6 +80,16 @@ public partial class Hud : CanvasLayer
 		root.AddChild(col);
 		DockButton.Visible = false;
 
+		// Abbau-Knöpfe links neben der Hauptspalte (gut mit dem Daumen erreichbar)
+		var mineCol = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+		mineCol.AddThemeConstantOverride("separation", 8);
+		foreach (var b in new[] { LaserButton, TractorButton, AutoMineButton }) mineCol.AddChild(b);
+		mineCol.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
+		mineCol.Position = new Vector2(-350, -230); mineCol.Size = new Vector2(160, 200);
+		root.AddChild(mineCol);
+		TractorButton.Pressed += () => TractorPressed?.Invoke();
+		AutoMineButton.Pressed += () => AutoMinePressed?.Invoke();
+
 		DockButton.Pressed += () => DockPressed?.Invoke();
 		AutopilotButton.Pressed += () => AutopilotPressed?.Invoke();
 		FastButton.Pressed += () => FastPressed?.Invoke();
@@ -97,11 +115,13 @@ public partial class Hud : CanvasLayer
 
 	public bool AnyModalOpen => Map.Visible || Dock.Visible || Menu.Visible;
 
-	public void SetStatus(string text, float hull, string? target)
+	public void SetStatus(string text, float hull, string? target, string? cargo = null, string? mining = null)
 	{
 		_status.Text = text;
 		_hull.Value = hull;
 		_target.Text = target ?? "";
+		_cargo.Text = cargo ?? "";
+		_mining.Text = mining ?? "";
 	}
 
 	public void Toast(string text, float seconds = 2.5f)

@@ -11,6 +11,9 @@ public partial class TouchButton : Control
 	public bool On { get => _on; set { _on = value; QueueRedraw(); } }
 	public event Action? Pressed;
 
+	/// <summary>True, solange ein Finger/die Maus gedrückt hält (für Dauerfeuer).</summary>
+	public bool Held => _down;
+
 	static readonly StyleBoxFlat Normal = Make(new Color(0.08f, 0.12f, 0.2f, 0.78f));
 	static readonly StyleBoxFlat Pressed_ = Make(new Color(0.30f, 0.45f, 0.65f, 0.95f));
 	static readonly StyleBoxFlat Active = Make(new Color(0.15f, 0.55f, 0.35f, 0.9f));

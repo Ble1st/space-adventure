@@ -5,7 +5,7 @@ using Godot;
 
 namespace SpaceAdventure.World;
 
-public enum SfxId { Hit, Jump, Dock, Click, Explosion }
+public enum SfxId { Hit, Jump, Dock, Click, Explosion, Pickup }
 
 /// <summary>
 /// Prozedural erzeugte Klänge (keine Audiodateien nötig). Später durch echte Assets ersetzbar,
@@ -15,7 +15,7 @@ public partial class Sfx : Node
 {
 	const int Rate = 22050;
 	readonly Dictionary<SfxId, AudioStreamWav> _sounds = new();
-	AudioStreamPlayer _oneShot = null!, _thrust = null!;
+	AudioStreamPlayer _oneShot = null!, _thrust = null!, _laser = null!;
 
 	public override void _Ready()
 	{
@@ -24,6 +24,7 @@ public partial class Sfx : Node
 		_sounds[SfxId.Explosion] = Make(0.9f, t => (Noise(rng) * 0.8f + Sine(55, t) * 0.6f) * Decay(t, 0.9f, 3.5f));
 		_sounds[SfxId.Jump] = Make(0.7f, t => Sine(200 + 1100 * t / 0.7f * (t / 0.7f), t) * 0.5f * Mathf.Sin(Mathf.Pi * t / 0.7f));
 		_sounds[SfxId.Dock] = Make(0.35f, t => (t < 0.15f ? Sine(660, t) : t < 0.2f ? 0f : Sine(880, t)) * 0.4f * Decay(t, 0.35f, 2f));
+		_sounds[SfxId.Pickup] = Make(0.09f, t => Sine(700 + 500 * t / 0.09f, t) * 0.35f * Decay(t, 0.09f, 3f));
 		_sounds[SfxId.Click] = Make(0.05f, t => Sine(1000, t) * 0.4f * Decay(t, 0.05f, 4f));
 
 		_oneShot = new AudioStreamPlayer { VolumeDb = -6f };
@@ -35,7 +36,15 @@ public partial class Sfx : Node
 		_thrust = new AudioStreamPlayer { Stream = loop, VolumeDb = -80f };
 		AddChild(_thrust);
 		_thrust.Play();
+
+		// Laser: gesägter Brummton mit leichtem Vibrato, nur hörbar während des Feuerns
+		var buzz = Make(0.5f, t => ((t * 140f % 1f) * 2f - 1f) * 0.35f * (0.8f + 0.2f * Sine(14, t)), loop: true);
+		_laser = new AudioStreamPlayer { Stream = buzz, VolumeDb = -80f };
+		AddChild(_laser);
+		_laser.Play();
 	}
+
+	public void SetLaser(bool on) => _laser.VolumeDb = on ? -16f : -80f;
 
 	public void Play(SfxId id)
 	{

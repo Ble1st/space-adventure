@@ -6,7 +6,7 @@ namespace SpaceAdventure;
 
 /// <summary>
 /// Skriptierter Durchlauf ohne Anzeige: godot-mono --headless --path godot --fixed-fps 60 -- --selftest
-/// Prüft Autopilot über mehrere Sektoren, Sprünge, Andocken, Oberflächen-Panels, Speichern und Laden.
+/// Prüft Autopilot über mehrere Sektoren, Sprünge, Andocken, Oberflächen-Panels, Speichern und Laden sowie den Auto-Mining-Kreislauf (Feld anfliegen, abbauen, verkaufen).
 /// Beendet mit Exit-Code 0 bei Erfolg, sonst 1.
 /// </summary>
 public partial class SelfTest : Node
@@ -58,6 +58,19 @@ public partial class SelfTest : Node
 					Log($"Tick {_m.Session.U.Tick}, Stationen {_m.Session.U.Stations.Count}, Schiffe {_m.Session.U.Ships.Count}");
 					Next();
 				}
+				break;
+			case 7: // Auto-Mining: aus Delta zum Feld fliegen, abbauen
+				_m.TestStartMining();
+				Check(_m.TestMinerEnabled, "Auto-Mining gestartet");
+				Next(); break;
+			case 8:
+				if (_m.TestCargoUnits > 10f) { Log($"Fracht {_m.TestCargoUnits:0} nach {_frame - _stageStart} Frames in {_m.Session.U.Sectors[_m.Session.U.PlayerSector].Name} ({_m.TestMinerStatus})"); Next(); }
+				else if (!_m.TestMinerEnabled) Fail("Auto-Mining beendete sich: " + _m.TestMinerStatus);
+				else if (_frame - _stageStart > 30_000) Fail("Keine Fracht abgebaut, Status: " + _m.TestMinerStatus);
+				break;
+			case 9: // verkaufen
+				if (_m.TestSales >= 1) { Log($"Verkauf nach {_frame - _stageStart} Frames, Credits {_m.Session.Player.Credits:0}"); Check(_m.Session.Player.Credits > 500f, "Credits gestiegen"); Next(); }
+				else if (_frame - _stageStart > 40_000) Fail("Kein Verkauf, Status: " + _m.TestMinerStatus);
 				break;
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }

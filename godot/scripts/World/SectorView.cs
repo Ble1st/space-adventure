@@ -28,6 +28,8 @@ public partial class SectorView : Node3D
 	public List<Obstacle> Obstacles { get; private set; } = new();
 	public List<(GateId Id, Vector3 Pos)> Gates { get; } = new();
 	public List<PickTarget> Targets { get; } = new();
+	/// <summary>NPC-Miner, die laut Simulation gerade abbauen (angezeigte Position), für die Laser-Darstellung.</summary>
+	public List<(ShipId Id, Vector3 Pos)> MiningShips { get; } = new();
 	public SectorId Sector => _sector;
 
 	/// <summary>True, wenn Sektor gewechselt oder Stationen hinzugekommen/entfernt wurden.</summary>
@@ -69,6 +71,7 @@ public partial class SectorView : Node3D
 		var neighbours = snaps.Select(x => (x.Id, x.Position)).ToList();
 		neighbours.Add((Avoidance.Player, new Vec2(playerPos.X, playerPos.Z)));
 		var seen = new HashSet<ShipId>();
+		MiningShips.Clear();
 
 		foreach (var s in snaps)
 		{
@@ -89,6 +92,7 @@ public partial class SectorView : Node3D
 			var shown2 = new Vec2(shown.X, shown.Z);
 			Collision.Resolve(ref shown2, Collision.ShipRadius, Obstacles, out _);   // Ausweichen führt nie in Hindernisse
 			m.Pivot.Position = new Vector3(shown2.X, 0, shown2.Y);
+			if (s.Mining) MiningShips.Add((s.Id, m.Pivot.Position));
 			if (s.Moving)
 			{
 				m.Yaw = Mathf.LerpAngle(m.Yaw, Mathf.Atan2(-s.Direction.X, -s.Direction.Y), 1f - Mathf.Exp(-10f * delta));

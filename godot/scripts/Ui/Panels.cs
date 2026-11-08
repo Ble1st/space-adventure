@@ -143,8 +143,10 @@ public partial class EconomyPanel : PanelContainer
 public partial class DockPanel : PanelContainer
 {
 	public event Action? Undock;
+	public event Action? SellAll;
 	readonly Label _label = new();
 	readonly TouchButton _undock = new("Abdocken", new Vector2(200, 56));
+	readonly TouchButton _sell = new("Alles verkaufen", new Vector2(240, 56));
 
 	public DockPanel()
 	{
@@ -153,12 +155,16 @@ public partial class DockPanel : PanelContainer
 		var box = new VBoxContainer();
 		_label.AddThemeFontSizeOverride("font_size", 18);
 		box.AddChild(_label);
-		box.AddChild(_undock);
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 12);
+		row.AddChild(_sell); row.AddChild(_undock);
+		box.AddChild(row);
 		AddChild(box);
 		_undock.Pressed += () => Undock?.Invoke();
+		_sell.Pressed += () => SellAll?.Invoke();
 	}
 
-	public void Open(Universe u, Station st)
+	public void Open(Universe u, Station st, Ship? ship = null)
 	{
 		var sb = new StringBuilder();
 		string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
@@ -168,6 +174,15 @@ public partial class DockPanel : PanelContainer
 		sb.AppendLine($"{"Ware",-10}{"Bestand",9}{"Soll",7}{"Preis",9}");
 		foreach (var (gid, e) in st.Market.OrderBy(k => k.Key.Value))
 			sb.AppendLine($"{u.Goods[gid].Name,-10}{e.Amount,9:0}{e.Target,7:0}{e.Price,9:0.0}");
+		if (ship != null)
+		{
+			sb.AppendLine();
+			sb.AppendLine($"Deine Fracht ({ship.UsedVolume(u):0}/{ship.CargoCapacity:0}):  Credits {ship.Credits:0}");
+			if (ship.Cargo.Count == 0) sb.AppendLine("  leer");
+			foreach (var (g, units) in ship.Cargo)
+				sb.AppendLine($"  {u.Goods[g].Name,-10}{units,7:0}" + (st.Market.TryGetValue(g, out var e) ? $"   Kurs {e.Price:0.0}" : "   (wird hier nicht gekauft)"));
+			sb.AppendLine($"  Erlös bei Verkauf: {SpaceSim.Core.Trading.TradeActions.Quote(ship, st):0}");
+		}
 		_label.Text = sb.ToString();
 		Visible = true;
 	}

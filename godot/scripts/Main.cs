@@ -6,8 +6,10 @@ using SpaceAdventure.Game;
 using SpaceAdventure.Ui;
 using SpaceAdventure.World;
 using SpaceSim.Core.Events;
+using SpaceSim.Core.Mining;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
+using SpaceSim.Core.Trading;
 
 namespace SpaceAdventure;
 
@@ -29,6 +31,17 @@ public partial class Main : Node3D
 	Hud _hud = null!;
 	Fx _fx = null!;
 	Sfx _sfx = null!;
+	MiningView _mining = null!;
+
+	// Abbau: Spieler-Mikrosimulation (flüchtig), Automodus und manuelle Bedienung
+	readonly OreChunks _chunks = new();
+	readonly MiningAutopilot _miner = new();
+	bool _tractorOn;
+	int _mineTarget = -1;
+	string _mineHint = "";
+	float _hintCooldown;
+	MiningStep? _miningStep;
+	int _sales;
 
 	NavTarget? _target;
 	StationId? _targetStation;
@@ -50,6 +63,7 @@ public partial class Main : Node3D
 		BuildStars();
 
 		_view = new SectorView(); AddChild(_view);
+		_mining = new MiningView(); AddChild(_mining);
 		_player = new PlayerShip(); AddChild(_player);
 		_fx = new Fx(); AddChild(_fx);
 		_sfx = new Sfx(); AddChild(_sfx);
@@ -66,6 +80,9 @@ public partial class Main : Node3D
 		_hud.FastPressed += () => _fast = _hud.FastButton.On;
 		_hud.DockPressed += DockAtNearest;
 		_hud.Dock.Undock += Undock;
+		_hud.Dock.SellAll += SellAllHere;
+		_hud.TractorPressed += () => { _sfx.Play(SfxId.Click); _tractorOn = _hud.TractorButton.On; };
+		_hud.AutoMinePressed += () => SetAutoMining(_hud.AutoMineButton.On);
 		_player.Hit += OnPlayerHit;
 
 		bool selftest = OS.GetCmdlineUserArgs().Contains("--selftest");
@@ -107,6 +124,8 @@ public partial class Main : Node3D
 		u.Events.Raised += OnSimEvent;
 		_target = null; _targetStation = null; _docked = null; _autopilot = false;
 		_hud.AutopilotButton.On = false;
+		SetAutoMining(false, announce: false);
+		_chunks.Clear(); _mineTarget = -1; _mining.ClearPlayer(); _mining.ResetNpc();
 		_hud.Dock.Visible = false;
 		_view.Rebuild(u);
 		var p = PlayerData;
@@ -153,6 +172,7 @@ public partial class Main : Node3D
 		switch (e)
 		{
 			case StationBuilt b: _hud.Toast($"Neue Station: {_session.U.Stations[b.Station].Name}"); break;
+			case PlayerSold: _sales++; break;
 			case StationRemoved r when r.Reason == "bankrupt": _hud.Toast("Station aufgegeben (Pleite)"); break;
 		}
 	}
@@ -166,15 +186,20 @@ public partial class Main : Node3D
 		_hitFlash = Mathf.Max(0f, _hitFlash - delta);
 
 		_session.Advance(delta, _fast ? 10f : 1f);
-		if (_view.NeedsRebuild(_session.U)) _view.Rebuild(_session.U);
+		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _chunks.Clear(); _mineTarget = -1; }
 
 		bool frozen = _hud.AnyModalOpen || _docked != null;
+		_miningStep = _miner.Enabled && !frozen
+			? _miner.Step(_session.U, _chunks, PlayerData, new Vec2(_player.Position.X, _player.Position.Z))
+			: null;
+		if (!_miner.Enabled && _hud.AutoMineButton.On) { _hud.AutoMineButton.On = false; _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
 		var (dir, throttle, speedScale) = frozen ? (Vector2.Zero, 0f, 1f) : ReadSteering();
 		_player.Locked = _docked != null;
 		_player.Step(delta, dir, throttle, speedScale, _view);
 		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(throttle, 0.3f, 1f) : 0f);
 
 		if (!frozen) { CheckGates(); UpdateDockButton(); }
+		UpdateMining(delta, frozen);
 		SyncPlayerData();
 
 		_view.Animate(delta);
@@ -197,7 +222,7 @@ public partial class Main : Node3D
 			(Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down) ? 1 : 0) - (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) ? 1 : 0));
 		if (keys != Vector2.Zero) manual = keys.Normalized();
 
-		if (manual.Length() > 0.1f) { CancelAutopilot(); return (manual, manual.Length(), 1f); }
+		if (manual.Length() > 0.1f) { CancelAutopilot(); if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (manuelle Steuerung)"); return (manual, manual.Length(), 1f); }
 
 		if (_pointerFinger >= 0 && Time.GetTicksMsec() / 1000.0 - _pointerDownAt > 0.2)
 		{
@@ -209,6 +234,13 @@ public partial class Main : Node3D
 			}
 		}
 
+		if (_miner.Enabled && _miningStep is { } ms)
+		{
+			if (ms.Nav is { } nav) { _targetStation = ms.DockAt; _target = nav; return Autopilot(nav); }
+			if (ms.Waypoint is { } wp)
+				return (new Vector2(wp.X - _player.Position.X, wp.Y - _player.Position.Z), ms.Throttle, 1f);
+			return (Vector2.Zero, 0f, 1f);
+		}
 		if (_autopilot && _target is { } target) return Autopilot(target);
 		return (Vector2.Zero, 0f, 1f);
 	}
@@ -249,6 +281,7 @@ public partial class Main : Node3D
 		u.MoveShip(PlayerData, far.Sector);
 		u.PlayerSector = far.Sector;
 		_view.Rebuild(u);
+		_mining.ResetNpc(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = -1;
 
 		var gpos = new Vector3(far.Position.X, 0, far.Position.Y);
 		var dir = (-gpos).Normalized();
@@ -333,7 +366,17 @@ public partial class Main : Node3D
 		var tw = CreateTween();
 		tw.TweenProperty(_player, "position", new Vector3(spot.X, 0, spot.Y), 0.6);
 		_sfx.Play(SfxId.Dock);
-		_hud.Dock.Open(u, st);
+		_hud.Dock.Open(u, st, PlayerData);
+		if (_miner.Enabled)
+		{
+			var sale = _miner.OnDocked(u, PlayerData, st);
+			if (sale is { Revenue: > 0 }) { _sfx.Play(SfxId.Pickup); _hud.Toast($"Verkauft für {sale.Revenue:0} Credits"); }
+			_hud.Dock.Open(u, st, PlayerData);
+			// Nach kurzer Pause automatisch abdocken und weiterarbeiten
+			var timer = GetTree().CreateTimer(1.6);
+			timer.Timeout += () => { if (_docked == id) Undock(); };
+			if (!_miner.Enabled) { _hud.AutoMineButton.On = false; _hud.Toast(_miner.Status, 3.5f); }
+		}
 	}
 
 	void Undock()
@@ -348,6 +391,12 @@ public partial class Main : Node3D
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		if (_hud == null || _hud.AnyModalOpen) return;
+		if (@event is InputEventKey { Pressed: true, Echo: false } key)
+		{
+			if (key.Keycode == Key.G) { _tractorOn = !_tractorOn; _hud.TractorButton.On = _tractorOn; _sfx.Play(SfxId.Click); }
+			else if (key.Keycode == Key.M) SetAutoMining(!_miner.Enabled);
+			return;
+		}
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
 
 		if (!motion && pressed && _pointerFinger < 0)
@@ -375,6 +424,20 @@ public partial class Main : Node3D
 	void TryPickTarget(Vector2 screen)
 	{
 		if (GroundPoint(screen) is not { } ground) return;
+		var sector = _session.U.Sectors[_session.U.PlayerSector];
+		int ast = -1; float astD = 3f;
+		for (int i = 0; i < sector.Asteroids.Count; i++)
+		{
+			var a = sector.Asteroids[i];
+			float d = new Vector2(ground.X - a.Position.X, ground.Z - a.Position.Y).Length() - a.Radius;
+			if (d < astD) { astD = d; ast = i; }
+		}
+		if (ast >= 0)
+		{
+			if (_chunks.IsMinable(sector, ast)) { _mineTarget = ast; _sfx.Play(SfxId.Click); _hud.Toast("Laserziel gesetzt – Laser halten (Taste F)"); }
+			else _hud.Toast("Kein Erz in diesem Asteroiden");
+			return;
+		}
 		var best = _view.Targets.Where(t => t.Position.DistanceTo(ground) < 22f).OrderBy(t => t.Position.DistanceTo(ground)).FirstOrDefault();
 		if (best.Label == null) return;
 		var u = _session.U;
@@ -429,7 +492,11 @@ public partial class Main : Node3D
 				: float.NaN;
 			target = float.IsNaN(d) ? $"Ziel: {t.Label} (anderer Sektor)" : $"Ziel: {t.Label}  {d:0} m";
 		}
-		_hud.SetStatus(status, PlayerData.Hull, target);
+		float used = PlayerData.UsedVolume(u);
+		string cargo = $"Fracht {used:0}/{PlayerData.CargoCapacity:0}" +
+			(PlayerData.Cargo.Count > 0 ? "  (" + string.Join(", ", PlayerData.Cargo.Select(kv => $"{u.Goods[kv.Key].Name} {kv.Value:0}")) + ")" : "");
+		string? mining = _miner.Enabled ? "Auto-Mining: " + _miner.Status : _tractorOn ? "Traktorstrahl an" : null;
+		_hud.SetStatus(status, PlayerData.Hull, target, cargo, mining);
 	}
 
 	// ───────── Statische Szene ─────────
@@ -466,6 +533,95 @@ public partial class Main : Node3D
 		AddChild(new MultiMeshInstance3D { Multimesh = mm, MaterialOverride = Gfx.Mat(new Color(0.9f, 0.95f, 1f), 2f) });
 	}
 
+	// ───────── Abbau ─────────
+
+	void SetAutoMining(bool on, string? message = null, bool announce = true)
+	{
+		if (on)
+		{
+			CancelAutopilot(); _target = null; _targetStation = null;
+			_miner.Start();
+			_hud.AutoMineButton.On = true;
+			if (announce) _hud.Toast("Auto-Mining an – Stick bewegen zum Abbrechen");
+		}
+		else
+		{
+			if (_miner.Enabled) _miner.Stop(message ?? "");
+			_hud.AutoMineButton.On = false;
+			if (announce && message != null) _hud.Toast(message);
+		}
+	}
+
+	void Hint(string text)
+	{
+		if (_hintCooldown > 0f) return;
+		_hintCooldown = 1.5f;
+		_hud.Toast(text, 1.5f);
+	}
+
+	/// <summary>Laser und Traktorstrahl des Spielers (manuell oder durch den Automodus), Brocken, Strahldarstellung, NPC-Laser.</summary>
+	void UpdateMining(float delta, bool frozen)
+	{
+		var u = _session.U;
+		var ship = PlayerData;
+		var sector = u.Sectors[u.PlayerSector];
+		var pos = new Vec2(_player.Position.X, _player.Position.Z);
+		_hintCooldown = Mathf.Max(0f, _hintCooldown - delta);
+		if (_mineTarget >= 0 && !_chunks.IsMinable(sector, _mineTarget)) _mineTarget = -1;
+
+		bool fire = false, tractor = _tractorOn;
+		int aim = -1;
+		if (!frozen)
+		{
+			if (_miningStep is { } ms) { fire = ms.Fire; tractor |= ms.Tractor; aim = ms.Aim; }
+			else
+			{
+				fire = _hud.LaserButton.Held || Input.IsKeyPressed(Key.F);
+				aim = _mineTarget >= 0 ? _mineTarget : _chunks.Nearest(sector, pos, MiningRules.LaserRange);
+			}
+		}
+
+		Vector3? hit = null;
+		if (fire)
+		{
+			if (aim < 0) Hint("Kein abbaubarer Asteroid in Reichweite");
+			else switch (_chunks.Mine(u, ship, sector, aim, pos, delta))
+			{
+				case MineResult.Ok:
+					var a = sector.Asteroids[aim];
+					var dir = (pos - a.Position).Normalized();
+					hit = new Vector3(a.Position.X + dir.X * a.Radius, 0, a.Position.Y + dir.Y * a.Radius);
+					break;
+				case MineResult.OutOfRange: Hint("Zu weit entfernt – näher heranfliegen"); break;
+				case MineResult.CargoFull: Hint("Laderaum voll"); break;
+				case MineResult.Depleted: Hint("Dieses Feld ist erschöpft"); break;
+				case MineResult.NotMinable: Hint("Kein Erz in diesem Asteroiden"); break;
+			}
+		}
+
+		tractor &= !frozen;
+		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
+		_sfx.SetLaser(hit != null);
+
+		int shown = fire && aim >= 0 ? aim : _mineTarget;
+		if (shown >= 0 && shown < sector.Asteroids.Count)
+			_mining.SetTarget(new Vector3(sector.Asteroids[shown].Position.X, 0, sector.Asteroids[shown].Position.Y), sector.Asteroids[shown].Radius);
+		else _mining.SetTarget(null, 0f);
+
+		double time = Time.GetTicksMsec() / 1000.0;
+		_mining.UpdatePlayer(_player.Position, hit, tractor, _chunks.Chunks, time);
+		_mining.UpdateNpc(_view.MiningShips, sector, time);
+	}
+
+	void SellAllHere()
+	{
+		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
+		var result = TradeActions.SellAll(_session.U, PlayerData, st);
+		_sfx.Play(result.Revenue > 0 ? SfxId.Pickup : SfxId.Click);
+		_hud.Toast(result.Revenue > 0 ? $"Verkauft für {result.Revenue:0} Credits" : "Hier gibt es nichts zu verkaufen");
+		_hud.Dock.Open(_session.U, st, PlayerData);
+	}
+
 	// ───────── Zugriff für den Selbsttest ─────────
 
 	internal GameSession Session => _session;
@@ -477,4 +633,9 @@ public partial class Main : Node3D
 	internal void TestUndock() => Undock();
 	internal bool TestSave() { SaveNow(manual: false); return SaveService.Exists; }
 	internal void TestMenu(string a) => OnMenu(a);
+	internal void TestStartMining() => SetAutoMining(true);
+	internal float TestCargoUnits => PlayerData.Cargo.Values.Sum();
+	internal int TestSales => _sales;
+	internal bool TestMinerEnabled => _miner.Enabled;
+	internal string TestMinerStatus => _miner.Status;
 }

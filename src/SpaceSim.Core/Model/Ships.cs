@@ -22,6 +22,13 @@ public sealed class Ship
     public MinePhase MinePhase;
     public Transit? Transit;
 
+    /// <summary>Belegter Laderaum (Einheiten × Volumen je Einheit).</summary>
+    public float UsedVolume(Universe u) => Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
+
+    /// <summary>Wie viele Einheiten der Ware noch in den Laderaum passen.</summary>
+    public float FreeUnits(Universe u, GoodId good) =>
+        MathF.Max(0f, (CargoCapacity - UsedVolume(u)) / u.Goods[good].VolumePerUnit);
+
     /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     public long NextThinkTick;
     /// <summary>Tick, seit dem das Schiff keinen Auftrag mehr hat (-1 = beschäftigt).</summary>

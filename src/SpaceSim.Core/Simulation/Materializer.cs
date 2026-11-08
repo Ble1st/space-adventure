@@ -3,7 +3,7 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Core.Simulation;
 
 /// <summary>Momentaufnahme eines Schiffs für die Darstellung. Direction ist normiert.</summary>
-public readonly record struct ShipSnapshot(ShipId Id, ShipRole Role, Vec2 Position, Vec2 Direction, bool Moving);
+public readonly record struct ShipSnapshot(ShipId Id, ShipRole Role, Vec2 Position, Vec2 Direction, bool Moving, bool Mining = false);
 
 /// <summary>
 /// Leitet aus dem abstrakten Zustand (Fahrplan, Ankunftspositionen) ab, welche Schiffe zu einem
@@ -19,7 +19,8 @@ public static class Materializer
         {
             var ship = u.Ships[id];
             if (ship.Role == ShipRole.Player) continue;
-            result.Add(new ShipSnapshot(ship.Id, ship.Role, ship.Position, new Vec2(0, -1), false));
+            result.Add(new ShipSnapshot(ship.Id, ship.Role, ship.Position, new Vec2(0, -1), false,
+                Mining: ship.Role == ShipRole.Miner && ship.MinePhase == MinePhase.Mining));
         }
         foreach (var id in u.Tracker.TransitIn(sector))
         {

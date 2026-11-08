@@ -12,6 +12,22 @@ public sealed class Sector
     public List<StationId> Stations = new();
     public List<ResourceField> Fields = new();
     public List<Obstacle> Asteroids = new();
+
+    /// <summary>
+    /// Rohstofffeld, zu dessen Gürtel eine Position gehört (nächstes Feld im <see cref="MiningRules.BeltRadius"/>).
+    /// Asteroiden sind keine eigenen Erzspeicher: Abgebaut wird immer aus dem Bestand des Feldes.
+    /// </summary>
+    public ResourceField? FieldFor(Vec2 p)
+    {
+        ResourceField? best = null;
+        float bestD = Mining.MiningRules.BeltRadius;
+        foreach (var f in Fields)
+        {
+            float d = Vec2.Distance(p, f.Position);
+            if (d <= bestD) { bestD = d; best = f; }
+        }
+        return best;
+    }
 }
 
 public sealed class Gate

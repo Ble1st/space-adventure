@@ -9,6 +9,8 @@ public sealed record TradeCompleted(ShipId Ship, StationId From, StationId To, G
 public sealed record MineDelivered(ShipId Ship, StationId To, GoodId Good, float Amount, float Revenue) : SimEvent;
 public sealed record StationBuilt(StationId Station, SectorId Sector, string TypeKey) : SimEvent;
 public sealed record StationRemoved(StationId Station, SectorId Sector, string Reason) : SimEvent;
+public sealed record OreCollected(ShipId Ship, GoodId Good, float Units) : SimEvent;
+public sealed record PlayerSold(ShipId Ship, StationId Station, GoodId Good, float Units, float Revenue) : SimEvent;
 public sealed record ShipSpawned(ShipId Ship) : SimEvent;
 public sealed record ShipRemoved(ShipId Ship, string Reason) : SimEvent;
 
