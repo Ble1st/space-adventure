@@ -10,30 +10,53 @@ namespace SpaceSim.Core.Simulation;
 public static class PathPlanner
 {
     public const float Margin = 3f;
-    const int MaxDepth = 6;
+    /// <summary>Maximale Verschachtelungstiefe der Umwege.</summary>
+    public const int MaxDepth = 16;
+    /// <summary>Obergrenze für Umweg-Entscheidungen pro Pfad, begrenzt den Rechenaufwand in dichten Feldern.</summary>
+    public const int MaxExpansions = 256;
 
     public static List<Vec2> Plan(Vec2 from, Vec2 to, IReadOnlyList<Obstacle> obstacles)
     {
         var pts = new List<Vec2> { from };
-        Append(from, to, obstacles, 0, pts);
+        int budget = MaxExpansions;
+        Append(from, to, obstacles, 0, pts, ref budget);
         return pts;
     }
 
-    static void Append(Vec2 a, Vec2 b, IReadOnlyList<Obstacle> obs, int depth, List<Vec2> pts)
+    static void Append(Vec2 a, Vec2 b, IReadOnlyList<Obstacle> obs, int depth, List<Vec2> pts, ref int budget)
     {
         var blocker = FirstBlocker(a, b, obs);
-        if (blocker is null || depth >= MaxDepth) { pts.Add(b); return; }
+        if (blocker is null || depth >= MaxDepth || budget <= 0) { pts.Add(b); return; }
+        budget--;
 
         var o = blocker.Value;
         var dir = (b - a).Normalized();
         var perp = new Vec2(-dir.Y, dir.X);
         float off = (o.Radius + Margin) * 1.4f;
-        var w1 = o.Position + perp * off;
-        var w2 = o.Position - perp * off;
+        var w1 = PushOut(o.Position + perp * off, obs);
+        var w2 = PushOut(o.Position - perp * off, obs);
         var w = Cost(a, w1, b, obs) <= Cost(a, w2, b, obs) ? w1 : w2;
 
-        Append(a, w, obs, depth + 1, pts);
-        Append(w, b, obs, depth + 1, pts);
+        Append(a, w, obs, depth + 1, pts, ref budget);
+        Append(w, b, obs, depth + 1, pts, ref budget);
+    }
+
+    /// <summary>Schiebt einen Wegpunkt aus allen Hindernissen heraus, in denen er landet (z.B. Asteroidenketten).</summary>
+    static Vec2 PushOut(Vec2 w, IReadOnlyList<Obstacle> obs)
+    {
+        for (int i = 0; i < 12; i++)
+        {
+            bool moved = false;
+            foreach (var o in obs)
+            {
+                float r = (o.Radius + Margin) * 1.4f;
+                if (Vec2.Distance(w, o.Position) >= (o.Radius + Margin)) continue;
+                w = o.Position + (w - o.Position).Normalized() * r;
+                moved = true;
+            }
+            if (!moved) break;
+        }
+        return w;
     }
 
     static float Cost(Vec2 a, Vec2 w, Vec2 b, IReadOnlyList<Obstacle> obs) =>

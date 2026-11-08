@@ -18,7 +18,6 @@ public partial class Main : Node3D
 	const float Thrust = 40f, MaxSpeed = 45f, TurnSpeed = 3.5f;
 	const float TickInterval = 0.25f;
 	const float GateRadius = 10f;
-	const float DodgeRadius = 18f;
 	static readonly Vector3 CamOffset = new(0, 38, 24);
 
 	Universe _u = null!;
@@ -256,6 +255,8 @@ public partial class Main : Node3D
 		double tick = _u.Tick + _tickAcc / TickInterval;
 		var snaps = Materializer.Snapshot(_u, _u.PlayerSector, tick);
 		var seen = new HashSet<ShipId>();
+		var neighbours = snaps.Select(x => (x.Id, x.Position)).ToList();
+		neighbours.Add((Avoidance.Player, new Vec2(_ship.Position.X, _ship.Position.Z)));
 		foreach (var s in snaps)
 		{
 			seen.Add(s.Id);
@@ -269,14 +270,14 @@ public partial class Main : Node3D
 				_sectorRoot.AddChild(pivot);
 				_markers[s.Id] = m = new Marker { Pivot = pivot };
 			}
-			// Ausweichen (nur Darstellung): NPCs weichen dem Spielerschiff seitlich aus, die Simulation bleibt unberührt
-			var away = target - _ship.Position;
-			float dist = away.Length();
-			var desired = Vector3.Zero;
-			if (dist < DodgeRadius)
-				desired = (dist > 0.01f ? away / dist : Vector3.Right) * Mathf.Min((DodgeRadius - dist) * 0.8f, 9f);
-			m.Offset = m.Offset.Lerp(desired, 1f - Mathf.Exp(-5f * delta));
-			m.Pivot.Position = target + m.Offset;
+			// Ausweichen (nur Darstellung): Schiffe weichen einander und dem Spieler seitlich aus,
+			// die Simulation bleibt unberührt. Der Versatz darf nicht in Hindernisse führen.
+			var desired = Avoidance.Desired(s.Id, s.Position, neighbours);
+			m.Offset = m.Offset.Lerp(new Vector3(desired.X, 0, desired.Y), 1f - Mathf.Exp(-5f * delta));
+			var shown = target + m.Offset;
+			var shown2 = new Vec2(shown.X, shown.Z);
+			Collision.Resolve(ref shown2, Collision.ShipRadius, _obstacles, out _);
+			m.Pivot.Position = new Vector3(shown2.X, 0, shown2.Y);
 			if (s.Moving)
 			{
 				float want = Mathf.Atan2(-s.Direction.X, -s.Direction.Y);

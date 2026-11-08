@@ -241,6 +241,28 @@ public class AvoidanceTests
         }
     }
 
+    [Fact]
+    public void Plan_GoesAroundLongWall_OfOverlappingObstacles()
+    {
+        var obs = new List<Obstacle>();
+        for (int y = -60; y <= 60; y += 12) obs.Add(new Obstacle(new Vec2(0, y), 8f));
+        var pts = PathPlanner.Plan(new Vec2(-60, 0), new Vec2(60, 0), obs);
+        AssertClear(pts, obs);
+    }
+
+    [Fact]
+    public void Plan_NodeBudget_KeepsPlanningBounded()
+    {
+        // Dichtes Gitter: darf nicht explodieren und muss einen Pfad bis zum Ziel liefern
+        var obs = new List<Obstacle>();
+        for (int x = -40; x <= 40; x += 14)
+            for (int y = -40; y <= 40; y += 14) obs.Add(new Obstacle(new Vec2(x + 3, y + 3), 5f));
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var pts = PathPlanner.Plan(new Vec2(-80, -80), new Vec2(80, 80), obs);
+        Assert.True(sw.ElapsedMilliseconds < 200, $"Planung dauerte {sw.ElapsedMilliseconds} ms");
+        Assert.Equal(new Vec2(80, 80), pts[^1]);
+    }
+
     static void AssertClear(List<Vec2> pts, IReadOnlyList<Obstacle> obs)
     {
         for (int i = 1; i < pts.Count; i++)
@@ -255,5 +277,34 @@ public class AvoidanceTests
                 Assert.True(d >= o.Radius, $"Segment {i} schneidet Hindernis bei {o.Position} (Abstand {d:0.0} < {o.Radius})");
             }
         }
+    }
+}
+
+
+public class ShipAvoidanceTests
+{
+    [Fact]
+    public void Desired_IsZero_WhenFarAway()
+    {
+        var d = Avoidance.Desired(new ShipId(1), new Vec2(0, 0), new[] { (new ShipId(2), new Vec2(100, 0)) });
+        Assert.Equal(0f, d.Length);
+    }
+
+    [Fact]
+    public void Desired_PointsAwayFromNeighbour_AndIsClamped()
+    {
+        var d = Avoidance.Desired(new ShipId(1), new Vec2(0, 0), new[] { (new ShipId(2), new Vec2(5, 0)) });
+        Assert.True(d.X < 0 && MathF.Abs(d.Y) < 1e-4f);
+        var crowded = Enumerable.Range(2, 10).Select(i => (new ShipId(i), new Vec2(1, 0))).ToList();
+        Assert.True(Avoidance.Desired(new ShipId(1), new Vec2(0, 0), crowded).Length <= Avoidance.MaxOffset + 1e-3f);
+    }
+
+    [Fact]
+    public void Desired_ShipsOnTopOfEachOther_DodgeInOppositeDirections()
+    {
+        var p = new Vec2(10, 10);
+        var a = Avoidance.Desired(new ShipId(1), p, new[] { (new ShipId(2), p) });
+        var b = Avoidance.Desired(new ShipId(2), p, new[] { (new ShipId(1), p) });
+        Assert.True(a.Dot(b) < 0f);
     }
 }
