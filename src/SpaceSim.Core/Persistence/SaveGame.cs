@@ -1,0 +1,101 @@
+using SpaceSim.Core.Model;
+
+namespace SpaceSim.Core.Persistence;
+
+// Speicherformat (JSON). Bewusst getrennt vom Laufzeitmodell: Das Modell darf sich ändern, das Format wird versioniert
+// und über Migrationen in SaveGameJson angehoben. Ids sind einfache ints, Dictionaries nutzen int-Schlüssel.
+
+public sealed class SaveGame
+{
+    public const int CurrentVersion = 1;
+
+    public int Version { get; set; } = CurrentVersion;
+    public string SavedAtUtc { get; set; } = "";
+    public long Tick { get; set; }
+    public ulong Seed { get; set; }
+    public ulong RngState { get; set; }
+    public long LastStationBuildTick { get; set; }
+    public int NextShipId { get; set; }
+    public int NextStationId { get; set; }
+    public int PlayerSector { get; set; }
+    public int PlayerShip { get; set; }
+    public EconomyRules Rules { get; set; } = new();
+
+    public List<GoodSave> Goods { get; set; } = new();
+    public List<StationTypeSave> StationTypes { get; set; } = new();
+    public List<FactionSave> Factions { get; set; } = new();
+    public List<SectorSave> Sectors { get; set; } = new();
+    public List<GateSave> Gates { get; set; } = new();
+    public List<StationSave> Stations { get; set; } = new();
+    public List<ShipSave> Ships { get; set; } = new();
+}
+
+public sealed class GoodSave { public int Id { get; set; } public string Name { get; set; } = ""; public float BasePrice { get; set; } public float Volume { get; set; } }
+
+public sealed class RecipeSave
+{
+    public int Ticks { get; set; }
+    public Dictionary<int, float> In { get; set; } = new();
+    public Dictionary<int, float> Out { get; set; } = new();
+}
+
+public sealed class StationTypeSave
+{
+    public string Key { get; set; } = ""; public string Name { get; set; } = "";
+    public float BuildCost { get; set; } public float Upkeep { get; set; } public float Income { get; set; }
+    public List<RecipeSave> Recipes { get; set; } = new();
+}
+
+public sealed class FactionSave
+{
+    public int Id { get; set; } public string Name { get; set; } = "";
+    public Dictionary<int, float> Relations { get; set; } = new();
+    public List<int> Territory { get; set; } = new();
+}
+
+public sealed class FieldSave { public int Good { get; set; } public Vec2 Pos { get; set; } public float Amount { get; set; } public float RegenPerTick { get; set; } public float Capacity { get; set; } }
+
+public sealed class SectorSave
+{
+    public int Id { get; set; } public string Name { get; set; } = ""; public int Owner { get; set; }
+    public Vec2 Map { get; set; } public float Radius { get; set; }
+    public List<int> Gates { get; set; } = new();
+    public List<int> Stations { get; set; } = new();
+    public List<FieldSave> Fields { get; set; } = new();
+    public List<Obstacle> Asteroids { get; set; } = new();
+}
+
+public sealed class GateSave { public int Id { get; set; } public int Sector { get; set; } public Vec2 Pos { get; set; } public int Target { get; set; } public bool Open { get; set; } }
+
+public sealed class StockSave { public float Amount { get; set; } public float Target { get; set; } public float Price { get; set; } }
+
+public sealed class StationSave
+{
+    public int Id { get; set; } public string Type { get; set; } = ""; public string Name { get; set; } = "";
+    public int Sector { get; set; } public int Owner { get; set; } public Vec2 Pos { get; set; }
+    public float Credits { get; set; } public bool Essential { get; set; } public long BelowLimitSince { get; set; }
+    public List<RecipeSave> Recipes { get; set; } = new();
+    public Dictionary<int, StockSave> Market { get; set; } = new();
+}
+
+public sealed class OrderSave { public string Kind { get; set; } = ""; public int A { get; set; } public int B { get; set; } public int C { get; set; } }
+public sealed class LegSave { public int Sector { get; set; } public Vec2 From { get; set; } public Vec2 To { get; set; } public long Start { get; set; } public long End { get; set; } }
+
+public sealed class TransitSave
+{
+    public long StartTick { get; set; } public long ArrivalTick { get; set; }
+    public int ToSector { get; set; } public Vec2 ToPosition { get; set; }
+    public List<LegSave> Legs { get; set; } = new();
+}
+
+public sealed class ShipSave
+{
+    public int Id { get; set; } public int Faction { get; set; } public string Role { get; set; } = "";
+    public float CargoCapacity { get; set; } public float Credits { get; set; } public float Hull { get; set; }
+    public int Sector { get; set; } public Vec2 Pos { get; set; }
+    public OrderSave? Order { get; set; }
+    public string Phase { get; set; } = ""; public string MinePhase { get; set; } = "";
+    public TransitSave? Transit { get; set; }
+    public long NextThinkTick { get; set; } public long IdleSince { get; set; }
+    public Dictionary<int, float> Cargo { get; set; } = new();
+}
