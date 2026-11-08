@@ -60,6 +60,8 @@ public static class DemoUniverse
         for (int i = 4; i <= 5; i++)
             AddShip(u, i, ShipRole.Miner, union.Id, a, credits: 1000).CargoCapacity = 60f;
 
+        foreach (var s in u.Sectors.Values) AsteroidGenerator.Populate(u, s, seed: s.Id.Value * 7919);
+
         var player = AddShip(u, 100, ShipRole.Player, union.Id, a, credits: 500);
         u.PlayerShip = player.Id;
         u.PlayerSector = a.Id;
@@ -99,7 +101,11 @@ public static class DemoUniverse
 
     static Ship AddShip(Universe u, int id, ShipRole role, FactionId faction, Sector sector, float credits)
     {
-        var ship = new Ship { Id = new(id), Role = role, Faction = faction, Credits = credits, Sector = sector.Id };
+        var ship = new Ship
+        {
+            Id = new(id), Role = role, Faction = faction, Credits = credits, Sector = sector.Id,
+            Position = sector.Stations.Count > 0 ? u.Stations[sector.Stations[0]].Position : default,
+        };
         u.Ships[ship.Id] = ship;
         sector.Ships.Add(ship.Id);
         return ship;

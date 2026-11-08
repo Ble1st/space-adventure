@@ -24,7 +24,9 @@ dotnet test --filter "FullyQualifiedName~Economy_RunsStably_WithoutPlayer"   # s
 1. Simulation layer: every sector exists as plain data in `Universe` and is always simulated.
 2. Presentation layer: only the sector containing the player (`Universe.PlayerSector`) is materialized as a Godot scene. On a jump it is unloaded and the target sector is built from data. Remote sectors are simulated abstractly (LOD) to save CPU and battery on mobile.
 
-**Abstract travel instead of physics.** Ships outside the player's sector have no position; they carry a `Transit` (start/arrival tick, target sector). Travel time is computed from gate hops (`Universe.Hops`, BFS over open gates), not flown. When the player enters a sector, ships there are meant to be materialized by interpolating from their transit state, and frozen again on leaving (not implemented yet).
+**Abstract travel with materialization.** Ships outside the player's sector are not simulated physically. `Travel.Plan` turns a trip into contiguous `Leg`s (one straight flight per sector: start -> gate, gate -> gate, ..., gate -> destination; speed `Travel.ShipSpeed` units/tick); `Transit` stores them and `ArrivalTick` is the last leg's end. A ship physically exists in exactly one sector at any time, so `Materializer.Snapshot(universe, sector, fractionalTick)` can derive positions of all NPC ships in the player's sector (moving ships by interpolating the active leg, parked ones at `Ship.Position`). The Godot view only renders that snapshot; it must not invent ship positions. `Ship.Position`/`Ship.Sector` are only updated on arrival; mid-trip location comes from the legs. `Sector.Ships` therefore lists ships by their last arrival, not live location. AI scoring uses `Travel.Ticks` (same plan, so estimates match reality).
+
+**Obstacles, avoidance, collision.** Asteroids (`Sector.Asteroids`, generated deterministically by `Demo/AsteroidGenerator`) and station bodies (`Station.BodyRadius`) are circular `Obstacle`s (`Universe.GetObstacles`). `PathPlanner` routes legs around them with waypoints, so travel time, materialized flight paths and AI estimates all include detours; it ignores obstacles that already contain the start or end point. Ships never target a station/field center but `Station.DockPoint(shipId)` / `ResourceField.WorkPoint(shipId)` (outside the obstacle, inside the asteroid-free zone). Collision (`Collision.Resolve`) is only applied to the player ship in the view, plus a cosmetic NPC dodge offset away from the player in `Main.cs`; neither feeds back into the simulation. Keep asteroid sizes in the view equal to `Obstacle.Radius`.
 
 **Data model conventions:**
 - Entities reference each other by typed ID structs (`SectorId`, `ShipId`, ...), never by object reference. Everything lives in `Dictionary<Id, T>` on `Universe`. This keeps save/load (JSON) simple and avoids cycles.
@@ -38,7 +40,7 @@ dotnet test --filter "FullyQualifiedName~Economy_RunsStably_WithoutPlayer"   # s
 
 ## Not yet implemented
 
-Fighter/patrol AI, faction AI and relations logic, ship materialization on sector entry, save/load, combat, missions, and any connection between the Godot project and `SpaceSim.Core`.
+Fighter/patrol AI, faction AI and relations logic, save/load, combat, missions, and any connection between the Godot project and `SpaceSim.Core`.
 
 ## Godot project (`godot/`)
 
@@ -54,4 +56,4 @@ dotnet build godot                                        # build only the Godot
 
 `godot/SpaceAdventure.csproj` (Godot.NET.Sdk/4.7.2, net8.0) references `../src/SpaceSim.Core`. It is deliberately **not** in `SpaceSim.slnx`, so root-level `dotnet test` stays independent of Godot.
 
-`godot/scripts/Main.cs` is the single scene script (scene `scenes/main.tscn` is just a `Node3D` with it). It builds `DemoUniverse`, steps `SimulationRunner` at a fixed 4 ticks/s from `_Process`, and materializes only `Universe.PlayerSector`: stations, gates and asteroids from Core data, plus markers for traders currently in that sector (`Transit == null`). Flying into a gate calls `Universe.MoveShip`, rebuilds the sector scene and places the ship at the counterpart gate. Space plane is XZ (`Vec2.Y` -> world Z) with a tilted perspective camera for 2.5D. Controls: arrows/WASD, hold mouse/touch to fly toward the pointer, `T` fast-forwards the simulation.
+`godot/scripts/Main.cs` is the single scene script (scene `scenes/main.tscn` is just a `Node3D` with it). It builds `DemoUniverse`, steps `SimulationRunner` at a fixed 4 ticks/s from `_Process`, and materializes only `Universe.PlayerSector`: stations, gates and asteroids from Core data, plus NPC ships from `Materializer`. Flying into a gate calls `Universe.MoveShip`, rebuilds the sector scene and places the ship at the counterpart gate. Space plane is XZ (`Vec2.Y` -> world Z) with a tilted perspective camera for 2.5D. Controls: arrows/WASD, hold mouse/touch to fly toward the pointer, `T` fast-forwards the simulation.

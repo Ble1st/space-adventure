@@ -18,6 +18,7 @@ public partial class Main : Node3D
 	const float Thrust = 40f, MaxSpeed = 45f, TurnSpeed = 3.5f;
 	const float TickInterval = 0.25f;
 	const float GateRadius = 10f;
+	const float DodgeRadius = 18f;
 	static readonly Vector3 CamOffset = new(0, 38, 24);
 
 	Universe _u = null!;
@@ -31,6 +32,9 @@ public partial class Main : Node3D
 	MeshInstance3D _flame = null!;
 	readonly List<MeshInstance3D> _gateRings = new();
 	readonly List<MeshInstance3D> _asteroids = new();
+	List<Obstacle> _obstacles = new();
+	float _hitCooldown;
+	float _flash;
 	readonly List<(GateId id, Vector3 pos)> _gates = new();
 	readonly Dictionary<ShipId, Marker> _markers = new();
 
@@ -40,7 +44,7 @@ public partial class Main : Node3D
 	float _jumpCooldown;
 	double _time;
 
-	sealed class Marker { public Node3D Node = null!; public Vector3 Center; public float Angle, Radius; }
+	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; }
 
 	public override void _Ready()
 	{
@@ -68,7 +72,6 @@ public partial class Main : Node3D
 		_tickAcc += delta * (Input.IsKeyPressed(Key.T) ? 10f : 1f);
 		int steps = 0;
 		while (_tickAcc >= TickInterval && steps < 50) { _sim.Step(_u); _tickAcc -= TickInterval; steps++; }
-		if (steps > 0) SyncMarkers();
 
 		UpdateShip(delta);
 		CheckGates();
@@ -78,11 +81,7 @@ public partial class Main : Node3D
 
 		foreach (var r in _gateRings) r.RotateZ(delta * 0.8f);
 		foreach (var a in _asteroids) { a.RotateY(delta * 0.2f); a.RotateX(delta * 0.1f); }
-		foreach (var m in _markers.Values)
-		{
-			float ang = m.Angle + (float)_time * 0.3f;
-			m.Node.Position = m.Center + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * m.Radius;
-		}
+		UpdateShips(delta);
 		UpdateHud();
 	}
 
@@ -119,9 +118,51 @@ public partial class Main : Node3D
 		_vel = _vel.LimitLength(MaxSpeed);
 		_vel *= 1f - 0.4f * delta;
 		_ship.Position += _vel * delta;
+		ResolveCollisions(delta);
 		_ship.Rotation = new Vector3(0, _heading, Mathf.Lerp(_ship.Rotation.Z, -turn * 0.4f, 1f - Mathf.Exp(-8f * delta)));
 		_flame.Visible = thrusting;
 		_flame.Scale = new Vector3(1, 1, 0.8f + GD.Randf() * 0.5f);
+	}
+
+	/// <summary>
+	/// Spielerschiff gegen Asteroiden, Stationen und NPC-Schiffe (Kreise in der Spielebene): herausschieben,
+	/// Geschwindigkeit an der Berührungsnormalen reflektieren, bei hartem Aufprall Hüllenschaden.
+	/// </summary>
+	void ResolveCollisions(float delta)
+	{
+		_hitCooldown = Mathf.Max(0f, _hitCooldown - delta);
+		_flash = Mathf.Max(0f, _flash - delta);
+
+		var all = new List<Obstacle>(_obstacles);
+		foreach (var m in _markers.Values)
+			all.Add(new Obstacle(new Vec2(m.Pivot.Position.X, m.Pivot.Position.Z), Collision.ShipRadius));
+
+		var pos = new Vec2(_ship.Position.X, _ship.Position.Z);
+		if (!Collision.Resolve(ref pos, Collision.ShipRadius, all, out var n)) return;
+
+		_ship.Position = new Vector3(pos.X, 0, pos.Y);
+		var normal = new Vector3(n.X, 0, n.Y);
+		float vn = _vel.Dot(normal);
+		if (vn >= 0f) return;
+		_vel -= normal * (1.4f * vn);   // Rückprall mit 40 % Restenergie
+		float impact = -vn;
+		if (impact > 4f && _hitCooldown <= 0f)
+		{
+			_playerData.Hull = Mathf.Max(0f, _playerData.Hull - (impact - 4f) * 0.8f);
+			_hitCooldown = 0.4f;
+			_flash = 0.6f;
+			if (_playerData.Hull <= 0f) Respawn();
+		}
+	}
+
+	/// <summary>Hülle zerstört: Reparatur und Neustart an der Station des Sektors.</summary>
+	void Respawn()
+	{
+		var sector = _u.Sectors[_u.PlayerSector];
+		var spot = sector.Stations.Count > 0 ? _u.Stations[sector.Stations[0]].DockPoint(_playerData.Id) : new Vec2(0, 0);
+		_ship.Position = new Vector3(spot.X, 0, spot.Y);
+		_vel = Vector3.Zero;
+		_playerData.Hull = Ship.MaxHull;
 	}
 
 	void CheckGates()
@@ -161,27 +202,16 @@ public partial class Main : Node3D
 		foreach (var sid in sector.Stations) BuildStation(_u.Stations[sid]);
 		foreach (var gid in sector.Gates) BuildGate(_u.Gates[gid]);
 
-		var rng = new RandomNumberGenerator { Seed = (ulong)sector.Id.Value * 7919UL };
-		foreach (var f in sector.Fields)
-			for (int i = 0; i < 14; i++)
-				AddAsteroid(rng, new Vector3(f.Position.X, 0, f.Position.Y) + RandomOffset(rng, 25f));
-		for (int i = 0; i < 25; i++)
-		{
-			var p = new Vector3(rng.RandfRange(-160, 160), 0, rng.RandfRange(-160, 160));
-			if (p.Length() > 30f) AddAsteroid(rng, p);
-		}
-		SyncMarkers();
+		for (int i = 0; i < sector.Asteroids.Count; i++) AddAsteroid(sector.Asteroids[i], i);
+		_obstacles = _u.GetObstacles(sector.Id);
 	}
 
-	static Vector3 RandomOffset(RandomNumberGenerator rng, float r) =>
-		new(rng.RandfRange(-r, r), rng.RandfRange(-2, 2), rng.RandfRange(-r, r));
-
-	void AddAsteroid(RandomNumberGenerator rng, Vector3 pos)
+	/// <summary>Asteroiden kommen aus den Core-Daten (gleiche Radien wie für Kollision und Ausweichpfade).</summary>
+	void AddAsteroid(Obstacle o, int index)
 	{
-		float r = rng.RandfRange(1.5f, 6f), g = rng.RandfRange(0.3f, 0.5f);
-		var mesh = new SphereMesh { Radius = r, Height = r * 2f, RadialSegments = 8, Rings = 5 };
-		var a = Mesh(mesh, Mat(new Color(g + 0.1f, g, g - 0.1f), 0f, 0.1f), pos, _sectorRoot);
-		a.Scale = new Vector3(rng.RandfRange(0.7f, 1.3f), rng.RandfRange(0.7f, 1.3f), rng.RandfRange(0.7f, 1.3f));
+		float g = 0.3f + (index * 37 % 20) / 100f;
+		var mesh = new SphereMesh { Radius = o.Radius, Height = o.Radius * 2f, RadialSegments = 8, Rings = 5 };
+		var a = Mesh(mesh, Mat(new Color(g + 0.1f, g, g - 0.1f), 0f, 0.1f), new Vector3(o.Position.X, 0, o.Position.Y), _sectorRoot);
 		_asteroids.Add(a);
 	}
 
@@ -217,32 +247,47 @@ public partial class Main : Node3D
 		_gates.Add((g.Id, pos));
 	}
 
-	/// <summary>Händler, die gerade im Sektor sind (nicht unterwegs), als kleine Marker um die erste Station.</summary>
-	void SyncMarkers()
+	/// <summary>
+	/// NPC-Schiffe aus der Core-Materialisierung: erscheinen am Gate, fliegen ihre Teilstrecke
+	/// (Position zum gebrochenen Tick) und verschwinden am Ausgangsgate. Stehende Schiffe parken um ihr Ziel.
+	/// </summary>
+	void UpdateShips(float delta)
 	{
-		var sector = _u.Sectors[_u.PlayerSector];
-		var wanted = sector.Ships
-			.Select(id => _u.Ships[id])
-			.Where(s => (s.Role == ShipRole.Trader || s.Role == ShipRole.Miner) && s.Transit == null)
-			.ToList();
-
-		foreach (var id in _markers.Keys.Where(id => wanted.All(s => s.Id != id)).ToList())
+		double tick = _u.Tick + _tickAcc / TickInterval;
+		var snaps = Materializer.Snapshot(_u, _u.PlayerSector, tick);
+		var seen = new HashSet<ShipId>();
+		foreach (var s in snaps)
 		{
-			_markers[id].Node.QueueFree();
-			_markers.Remove(id);
+			seen.Add(s.Id);
+			var target = new Vector3(s.Position.X, 0, s.Position.Y);
+			if (!_markers.TryGetValue(s.Id, out var m))
+			{
+				var color = s.Role == ShipRole.Miner ? new Color(0.4f, 1f, 0.4f) : new Color(1f, 0.7f, 0.2f);
+				var pivot = new Node3D { Position = target };
+				var hull = Mesh(new PrismMesh { Size = new Vector3(2f, 3f, 0.8f) }, Mat(color, 1f), Vector3.Zero, pivot);
+				hull.RotationDegrees = new Vector3(-90, 0, 0);
+				_sectorRoot.AddChild(pivot);
+				_markers[s.Id] = m = new Marker { Pivot = pivot };
+			}
+			// Ausweichen (nur Darstellung): NPCs weichen dem Spielerschiff seitlich aus, die Simulation bleibt unberührt
+			var away = target - _ship.Position;
+			float dist = away.Length();
+			var desired = Vector3.Zero;
+			if (dist < DodgeRadius)
+				desired = (dist > 0.01f ? away / dist : Vector3.Right) * Mathf.Min((DodgeRadius - dist) * 0.8f, 9f);
+			m.Offset = m.Offset.Lerp(desired, 1f - Mathf.Exp(-5f * delta));
+			m.Pivot.Position = target + m.Offset;
+			if (s.Moving)
+			{
+				float want = Mathf.Atan2(-s.Direction.X, -s.Direction.Y);
+				m.Yaw = Mathf.LerpAngle(m.Yaw, want, 1f - Mathf.Exp(-10f * delta));
+				m.Pivot.Rotation = new Vector3(0, m.Yaw, 0);
+			}
 		}
-		var stationCenter = sector.Stations.Count > 0
-			? new Vector3(_u.Stations[sector.Stations[0]].Position.X, 0, _u.Stations[sector.Stations[0]].Position.Y)
-			: Vector3.Zero;
-		foreach (var s in wanted.Where(s => !_markers.ContainsKey(s.Id)))
+		foreach (var id in _markers.Keys.Where(id => !seen.Contains(id)).ToList())
 		{
-			// Miner beim Abbau schweben über dem Rohstofffeld, alle anderen kreisen um die Station
-			bool mining = s.Role == ShipRole.Miner && s.MinePhase == MinePhase.Mining && sector.Fields.Count > 0;
-			var center = mining ? new Vector3(sector.Fields[0].Position.X, 0, sector.Fields[0].Position.Y) : stationCenter;
-			var color = s.Role == ShipRole.Miner ? new Color(0.4f, 1f, 0.4f) : new Color(1f, 0.7f, 0.2f);
-			var node = Mesh(new PrismMesh { Size = new Vector3(2f, 3f, 0.8f) }, Mat(color, 1f), center, _sectorRoot);
-			node.RotationDegrees = new Vector3(-90, 0, 0);
-			_markers[s.Id] = new Marker { Node = node, Center = center, Angle = s.Id.Value * 2.4f, Radius = mining ? 10f : 22f + s.Id.Value * 3f };
+			_markers[id].Pivot.QueueFree();
+			_markers.Remove(id);
 		}
 	}
 
@@ -252,7 +297,7 @@ public partial class Main : Node3D
 	{
 		var sector = _u.Sectors[_u.PlayerSector];
 		var sb = new StringBuilder();
-		sb.AppendLine($"{sector.Name}   Tick {_u.Tick}   Speed {(int)_vel.Length()}   [T] Zeitraffer");
+		sb.AppendLine($"{sector.Name}   Tick {_u.Tick}   Speed {(int)_vel.Length()}   Hülle {(int)_playerData.Hull}%{(_flash > 0f ? "   KOLLISION!" : "")}   [T] Zeitraffer");
 		foreach (var sid in sector.Stations)
 		{
 			var st = _u.Stations[sid];

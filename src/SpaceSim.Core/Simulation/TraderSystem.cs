@@ -44,12 +44,13 @@ public sealed class TraderSystem : ISimSystem
         if (best is null) return;
         ship.Order = best;
         ship.Phase = TradePhase.GoingToBuy;
-        Travel.Start(u, ship, u.Stations[best.Buy].Sector);
+        Travel.Start(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
     }
 
     static void Arrive(Universe u, Ship ship, Transit t)
     {
         u.MoveShip(ship, t.ToSector);
+        ship.Position = t.ToPosition;
         ship.Transit = null;
         if (ship.Order is not TradeOrder order) { ship.Phase = TradePhase.Idle; return; }
 
@@ -69,7 +70,7 @@ public sealed class TraderSystem : ISimSystem
                 ship.Credits -= cost;
                 ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
                 ship.Phase = TradePhase.GoingToSell;
-                Travel.Start(u, ship, u.Stations[order.Sell].Sector);
+                Travel.Start(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
             }
             else { ship.Order = null; ship.Phase = TradePhase.Idle; }
         }

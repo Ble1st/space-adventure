@@ -10,6 +10,7 @@ public sealed class Sector
     public List<StationId> Stations = new();
     public List<ShipId> Ships = new();
     public List<ResourceField> Fields = new();
+    public List<Obstacle> Asteroids = new();
 }
 
 public sealed class Gate
@@ -29,4 +30,10 @@ public sealed class ResourceField
     public float RegenPerTick;
     /// <summary>Obergrenze für Regeneration; 0 = unbegrenzt.</summary>
     public float Capacity;
+
+    /// <summary>Freie Zone um den Feldmittelpunkt, in der keine Asteroiden liegen.</summary>
+    public const float ClearRadius = 18f;
+
+    /// <summary>Arbeitsposition eines Miners (je Schiff leicht versetzt).</summary>
+    public Vec2 WorkPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * 8f;
 }

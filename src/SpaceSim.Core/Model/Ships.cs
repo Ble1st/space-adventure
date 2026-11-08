@@ -12,6 +12,8 @@ public sealed class Ship
     public float CargoCapacity = 100f;
     public Dictionary<GoodId, float> Cargo = new();
     public float Credits;
+    public const float MaxHull = 100f;
+    public float Hull = MaxHull;
 
     public SectorId Sector;
     public Vec2 Position;
@@ -27,7 +29,13 @@ public sealed class Transit
     public long StartTick;
     public long ArrivalTick;
     public SectorId ToSector;
+    public Vec2 ToPosition;
+    /// <summary>Zeitlich lückenlose Teilstrecken, je eine pro durchflogenem Sektor (Gate zu Gate).</summary>
+    public List<Leg> Legs = new();
 }
+
+/// <summary>Geradeausflug innerhalb eines Sektors zwischen StartTick (inkl.) und EndTick (exkl.).</summary>
+public sealed record Leg(SectorId Sector, Vec2 From, Vec2 To, long StartTick, long EndTick);
 
 public abstract record ShipOrder;
 public sealed record TradeOrder(StationId Buy, StationId Sell, GoodId Good) : ShipOrder;

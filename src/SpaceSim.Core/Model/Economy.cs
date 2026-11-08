@@ -31,6 +31,12 @@ public sealed class Station
     public FactionId Owner;
     public Vec2 Position;
     public float Credits;
+
+    /// <summary>Kollisionsradius des Stationskörpers (inkl. Ring).</summary>
+    public const float BodyRadius = 15f;
+
+    /// <summary>Parkposition eines Schiffs an der Station, knapp außerhalb des Körpers.</summary>
+    public Vec2 DockPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * 22f;
     public List<Recipe> Production = new();
     public Dictionary<GoodId, StockEntry> Market = new();
 

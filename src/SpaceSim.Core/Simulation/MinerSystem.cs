@@ -35,6 +35,7 @@ public sealed class MinerSystem : ISimSystem
     static void PickOrder(Universe u, Ship ship)
     {
         MineOrder? best = null;
+        Vec2 bestFieldPos = default;
         float bestScore = 0f;
         foreach (var sector in u.Sectors.Values)
         {
@@ -48,21 +49,23 @@ public sealed class MinerSystem : ISimSystem
                 {
                     if (!st.Market.TryGetValue(field.Good, out var e) || e.Price < good.BasePrice * MinPriceFactor) continue;
                     if (u.Hops(sector.Id, st.Sector) < 0) continue;
-                    float time = Travel.Ticks(u, ship.Sector, sector.Id) + mineTicks + Travel.Ticks(u, sector.Id, st.Sector);
+                    float time = Travel.Ticks(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id)) + mineTicks
+                               + Travel.Ticks(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id));
                     float score = e.Price / time;
-                    if (score > bestScore) { bestScore = score; best = new MineOrder(sector.Id, field.Good, st.Id); }
+                    if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, field.Good, st.Id); }
                 }
             }
         }
         if (best is null) return;
         ship.Order = best;
         ship.MinePhase = MinePhase.GoingToField;
-        Travel.Start(u, ship, best.Sector);
+        Travel.Start(u, ship, best.Sector, bestFieldPos);
     }
 
     static void Arrive(Universe u, Ship ship, Transit t)
     {
         u.MoveShip(ship, t.ToSector);
+        ship.Position = t.ToPosition;
         ship.Transit = null;
         if (ship.Order is not MineOrder order) { ship.MinePhase = MinePhase.Idle; return; }
 
@@ -99,7 +102,7 @@ public sealed class MinerSystem : ISimSystem
             if (ship.Cargo.GetValueOrDefault(order.Good) > 0f)
             {
                 ship.MinePhase = MinePhase.GoingToStation;
-                Travel.Start(u, ship, u.Stations[order.DeliverTo].Sector);
+                Travel.Start(u, ship, u.Stations[order.DeliverTo].Sector, u.Stations[order.DeliverTo].DockPoint(ship.Id));
             }
             else { ship.Order = null; ship.MinePhase = MinePhase.Idle; }
             return;
