@@ -60,13 +60,16 @@ public static class Travel
     {
         var legs = Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos)
                    ?? new List<Leg> { new(toSector, toPos, toPos, u.Tick, u.Tick + 1) };   // unerreichbar: sofort "teleportieren"
-        ship.Transit = new Transit
+        // Treibstoffkosten: Sink, Credits verschwinden aus dem Umlauf
+        float distance = legs.Sum(l => Vec2.Distance(l.From, l.To));
+        ship.Credits -= MathF.Min(ship.Credits, distance * u.Rules.FuelCostPerUnit);
+        u.StartTransit(ship, new Transit
         {
             StartTick = u.Tick,
             ArrivalTick = legs[^1].EndTick,
             ToSector = toSector,
             ToPosition = toPos,
             Legs = legs,
-        };
+        });
     }
 }

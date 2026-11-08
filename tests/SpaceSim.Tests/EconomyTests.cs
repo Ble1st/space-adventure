@@ -30,8 +30,7 @@ public class EconomyTests
         a.Stations.Add(mine.Id); b.Stations.Add(smelter.Id);
 
         var ship = new Ship { Id = new(1), Role = ShipRole.Trader, Credits = 1000, Sector = a.Id };
-        u.Ships[ship.Id] = ship;
-        a.Ships.Add(ship.Id);
+        u.AddShip(ship);
         return u;
     }
 
@@ -306,5 +305,35 @@ public class ShipAvoidanceTests
         var a = Avoidance.Desired(new ShipId(1), p, new[] { (new ShipId(2), p) });
         var b = Avoidance.Desired(new ShipId(2), p, new[] { (new ShipId(1), p) });
         Assert.True(a.Dot(b) < 0f);
+    }
+}
+
+public class DeterminismTests
+{
+    [Fact]
+    public void SameSeed_SameTicks_SameHash()
+    {
+        ulong Run()
+        {
+            var u = SpaceSim.Core.Demo.DemoUniverse.Create();
+            new SimulationRunner().Run(u, 3_000);
+            return SpaceSim.Core.Diagnostics.UniverseHash.Compute(u);
+        }
+        Assert.Equal(Run(), Run());
+    }
+
+    [Fact]
+    public void Tracker_MatchesShipState_AfterLongRun()
+    {
+        var u = SpaceSim.Core.Demo.DemoUniverse.Create();
+        new SimulationRunner().Run(u, 3_000);
+        foreach (var ship in u.Ships.Values)
+        {
+            if (ship.Transit is null) Assert.Contains(ship.Id, u.Tracker.ParkedIn(ship.Sector));
+            else foreach (var leg in ship.Transit.Legs) Assert.Contains(ship.Id, u.Tracker.TransitIn(leg.Sector));
+        }
+        // keine Leichen im Index
+        foreach (var sec in u.Sectors.Keys)
+            foreach (var id in u.Tracker.ParkedIn(sec)) Assert.Null(u.Ships[id].Transit);
     }
 }

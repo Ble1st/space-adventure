@@ -1,18 +1,129 @@
+using SpaceSim.Core.Events;
+
 namespace SpaceSim.Core.Model;
 
 public sealed class Universe
 {
     public long Tick;
+    public ulong Seed = 1;
+    public DeterministicRng Rng = new(1);
+
     public Dictionary<SectorId, Sector> Sectors = new();
     public Dictionary<GateId, Gate> Gates = new();
     public Dictionary<StationId, Station> Stations = new();
     public Dictionary<ShipId, Ship> Ships = new();
     public Dictionary<FactionId, Faction> Factions = new();
     public Dictionary<GoodId, Good> Goods = new();
+    public Dictionary<string, StationType> StationTypes = new();
+    public EconomyRules Rules = new();
 
     /// <summary>Der einzige Sektor, der als Godot-Szene materialisiert ist.</summary>
     public SectorId PlayerSector;
     public ShipId PlayerShip;
+
+    /// <summary>Ereignisbus und Schiffsindex sind abgeleitet und gehören nicht zum Spielstand.</summary>
+    public SimEvents Events { get; } = new();
+    public ShipTracker Tracker { get; } = new();
+
+    /// <summary>Zählt Änderungen an Sektorinhalten (Stationen gebaut/entfernt), damit die Darstellung neu aufbauen kann.</summary>
+    public int StructureVersion { get; private set; }
+
+    int _nextShipId = 1000, _nextStationId = 1000;
+    public ShipId NewShipId() => new(_nextShipId++);
+    public StationId NewStationId() => new(_nextStationId++);
+    /// <summary>Für den Spielstand: Zähler wiederherstellen.</summary>
+    public (int ship, int station) IdCounters { get => (_nextShipId, _nextStationId); set => (_nextShipId, _nextStationId) = value; }
+
+    // ───────── Schiffe ─────────
+
+    public void AddShip(Ship s)
+    {
+        Ships[s.Id] = s;
+        if (s.Transit is { } t) Tracker.AddTransit(t, s.Id); else Tracker.AddParked(s.Sector, s.Id);
+        if (s.Id.Value >= _nextShipId) _nextShipId = s.Id.Value + 1;
+        Events.Publish(new ShipSpawned(s.Id));
+    }
+
+    public void RemoveShip(ShipId id, string reason)
+    {
+        if (!Ships.TryGetValue(id, out var s)) return;
+        if (s.Transit is { } t) Tracker.RemoveTransit(t, id); else Tracker.RemoveParked(s.Sector, id);
+        Ships.Remove(id);
+        Events.Publish(new ShipRemoved(id, reason));
+    }
+
+    public void StartTransit(Ship s, Transit t)
+    {
+        if (s.Transit is { } old) Tracker.RemoveTransit(old, s.Id); else Tracker.RemoveParked(s.Sector, s.Id);
+        s.Transit = t;
+        Tracker.AddTransit(t, s.Id);
+    }
+
+    /// <summary>Ankunft: Schiff wird am Zielort geparkt.</summary>
+    public void FinishTransit(Ship s)
+    {
+        var t = s.Transit!;
+        Tracker.RemoveTransit(t, s.Id);
+        s.Transit = null;
+        s.Sector = t.ToSector;
+        s.Position = t.ToPosition;
+        Tracker.AddParked(s.Sector, s.Id);
+    }
+
+    /// <summary>Setzt ein geparktes Schiff in einen anderen Sektor (z.B. Sprung des Spielers).</summary>
+    public void MoveShip(Ship ship, SectorId to)
+    {
+        Tracker.RemoveParked(ship.Sector, ship.Id);
+        ship.Sector = to;
+        Tracker.AddParked(to, ship.Id);
+    }
+
+    /// <summary>Baut den abgeleiteten Schiffsindex neu auf (nach dem Laden).</summary>
+    public void RebuildTracker()
+    {
+        foreach (var s in Ships.Values)
+            if (s.Transit is { } t) Tracker.AddTransit(t, s.Id); else Tracker.AddParked(s.Sector, s.Id);
+    }
+
+    // ───────── Stationen ─────────
+
+    public void AddStation(Station st)
+    {
+        Stations[st.Id] = st;
+        var sector = Sectors[st.Sector];
+        if (!sector.Stations.Contains(st.Id)) sector.Stations.Add(st.Id);
+        if (st.Id.Value >= _nextStationId) _nextStationId = st.Id.Value + 1;
+        StructureVersion++;
+    }
+
+    /// <summary>Entfernt eine Station; Schiffe, deren Auftrag sie betrifft, verlieren Auftrag und (gebundene) Fracht.</summary>
+    public void RemoveStation(StationId id, string reason)
+    {
+        if (!Stations.TryGetValue(id, out var st)) return;
+        Stations.Remove(id);
+        Sectors[st.Sector].Stations.Remove(id);
+        foreach (var ship in Ships.Values)
+        {
+            bool affected = ship.Order switch
+            {
+                TradeOrder o => o.Buy == id || o.Sell == id,
+                MineOrder m => m.DeliverTo == id,
+                GoToOrder g => g.Target == id,
+                _ => false,
+            };
+            if (!affected) continue;
+            ship.Order = null;
+            ship.Phase = TradePhase.Idle;
+            ship.MinePhase = MinePhase.Idle;
+            ship.Cargo.Clear();
+        }
+        StructureVersion++;
+        Events.Publish(new StationRemoved(id, st.Sector, reason));
+    }
+
+    public void NotifyStationBuilt(Station st) => Events.Publish(new StationBuilt(st.Id, st.Sector, st.TypeKey));
+
+    // ───────── Raum ─────────
 
     /// <summary>Statische Hindernisse eines Sektors: Asteroiden und Stationskörper.</summary>
     public List<Obstacle> GetObstacles(SectorId sector)
@@ -22,13 +133,6 @@ public sealed class Universe
         list.AddRange(s.Asteroids);
         foreach (var id in s.Stations) list.Add(new Obstacle(Stations[id].Position, Station.BodyRadius));
         return list;
-    }
-
-    public void MoveShip(Ship ship, SectorId to)
-    {
-        if (Sectors.TryGetValue(ship.Sector, out var from)) from.Ships.Remove(ship.Id);
-        ship.Sector = to;
-        Sectors[to].Ships.Add(ship.Id);
     }
 
     /// <summary>Kürzester Weg als Liste der zu durchfliegenden Gates (BFS), null wenn nicht erreichbar.</summary>
@@ -62,4 +166,15 @@ public sealed class Universe
 
     /// <summary>Anzahl Gate-Sprünge zwischen zwei Sektoren, -1 wenn nicht erreichbar.</summary>
     public int Hops(SectorId from, SectorId to) => FindRoute(from, to)?.Count ?? -1;
+
+    // Erreichbarkeit wird je Tick zwischengespeichert: KI-Systeme fragen sie in verschachtelten Schleifen ab.
+    readonly Dictionary<(SectorId, SectorId), bool> _reach = new();
+    long _reachTick = -1;
+
+    public bool IsReachable(SectorId from, SectorId to)
+    {
+        if (_reachTick != Tick) { _reach.Clear(); _reachTick = Tick; }
+        if (!_reach.TryGetValue((from, to), out var r)) _reach[(from, to)] = r = FindRoute(from, to) is not null;
+        return r;
+    }
 }

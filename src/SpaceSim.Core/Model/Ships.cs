@@ -21,6 +21,11 @@ public sealed class Ship
     public TradePhase Phase;
     public MinePhase MinePhase;
     public Transit? Transit;
+
+    /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
+    public long NextThinkTick;
+    /// <summary>Tick, seit dem das Schiff keinen Auftrag mehr hat (-1 = beschäftigt).</summary>
+    public long IdleSince = -1;
 }
 
 /// <summary>Abstrakte Reise statt Physik: Schiffe außerhalb des Spielersektors haben nur einen Fahrplan.</summary>

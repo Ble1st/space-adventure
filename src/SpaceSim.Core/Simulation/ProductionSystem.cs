@@ -4,7 +4,7 @@ namespace SpaceSim.Core.Simulation;
 
 public sealed class ProductionSystem : ISimSystem
 {
-    public void Step(Universe u)
+    public void Step(Universe u, int dt)
     {
         foreach (var st in u.Stations.Values)
             foreach (var r in st.Production)

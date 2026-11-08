@@ -23,9 +23,24 @@ public sealed class StockEntry
     public float Price;
 }
 
+public sealed class StationType
+{
+    public string Key = "";
+    public string Name = "";
+    public List<Recipe> Recipes = new();
+    public float BuildCost = 5000f;
+    public float UpkeepPerTick = 0.05f;
+    /// <summary>Einnahmen aus Verkäufen außerhalb der simulierten Welt (Faucet).</summary>
+    public float IncomePerTick;
+}
+
 public sealed class Station
 {
     public StationId Id;
+    public string TypeKey = "";
+    /// <summary>Wesentliche Stationen werden nie wegen Pleite aufgegeben.</summary>
+    public bool Essential;
+    public long BelowLimitSince = -1;
     public string Name = "";
     public SectorId Sector;
     public FactionId Owner;

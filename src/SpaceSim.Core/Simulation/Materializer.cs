@@ -14,24 +14,23 @@ public static class Materializer
     public static List<ShipSnapshot> Snapshot(Universe u, SectorId sector, double tick)
     {
         var result = new List<ShipSnapshot>();
-        foreach (var ship in u.Ships.Values)
-        {
-            if (ship.Role == ShipRole.Player) continue;
 
-            if (ship.Transit is null)
-            {
-                if (ship.Sector == sector)
-                    result.Add(new ShipSnapshot(ship.Id, ship.Role, ship.Position, new Vec2(0, -1), false));
-                continue;
-            }
+        foreach (var id in u.Tracker.ParkedIn(sector))
+        {
+            var ship = u.Ships[id];
+            if (ship.Role == ShipRole.Player) continue;
+            result.Add(new ShipSnapshot(ship.Id, ship.Role, ship.Position, new Vec2(0, -1), false));
+        }
+        foreach (var id in u.Tracker.TransitIn(sector))
+        {
+            var ship = u.Ships[id];
+            if (ship.Role == ShipRole.Player || ship.Transit is null) continue;
             foreach (var leg in ship.Transit.Legs)
             {
                 if (leg.Sector != sector || tick < leg.StartTick || tick >= leg.EndTick) continue;
                 float f = (float)((tick - leg.StartTick) / (double)(leg.EndTick - leg.StartTick));
                 var pos = Vec2.Lerp(leg.From, leg.To, f);
-                float dx = leg.To.X - leg.From.X, dy = leg.To.Y - leg.From.Y;
-                float len = MathF.Sqrt(dx * dx + dy * dy);
-                var dir = len > 0.001f ? new Vec2(dx / len, dy / len) : new Vec2(0, -1);
+                var dir = (leg.To - leg.From).Normalized();
                 result.Add(new ShipSnapshot(ship.Id, ship.Role, pos, dir, true));
                 break;
             }

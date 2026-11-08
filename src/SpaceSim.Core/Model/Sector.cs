@@ -3,12 +3,13 @@ namespace SpaceSim.Core.Model;
 public sealed class Sector
 {
     public SectorId Id;
+    /// <summary>Lage auf der Sternenkarte (nur Darstellung).</summary>
+    public Vec2 MapPosition;
     public string Name = "";
     public FactionId Owner;
     public float Radius = 10_000f;
     public List<GateId> Gates = new();
     public List<StationId> Stations = new();
-    public List<ShipId> Ships = new();
     public List<ResourceField> Fields = new();
     public List<Obstacle> Asteroids = new();
 }

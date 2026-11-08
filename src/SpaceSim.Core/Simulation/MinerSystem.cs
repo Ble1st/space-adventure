@@ -1,3 +1,4 @@
+using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Simulation;
@@ -12,8 +13,9 @@ public sealed class MinerSystem : ISimSystem
     public const float ExtractPerTick = 2f;
     /// <summary>Mindestpreis relativ zum Basispreis, ab dem sich Abbau lohnt.</summary>
     public const float MinPriceFactor = 0.5f;
+    public const int ThinkInterval = 10;
 
-    public void Step(Universe u)
+    public void Step(Universe u, int dt)
     {
         foreach (var ship in u.Ships.Values)
         {
@@ -26,20 +28,27 @@ public sealed class MinerSystem : ISimSystem
             }
             switch (ship.MinePhase)
             {
-                case MinePhase.Idle: PickOrder(u, ship); break;
+                case MinePhase.Idle:
+                    if (u.Tick < ship.NextThinkTick) break;
+                    if (!PickOrder(u, ship))
+                    {
+                        ship.NextThinkTick = u.Tick + ThinkInterval + ship.Id.Value % 7;
+                        if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
+                    }
+                    break;
                 case MinePhase.Mining: Mine(u, ship); break;
             }
         }
     }
 
-    static void PickOrder(Universe u, Ship ship)
+    static bool PickOrder(Universe u, Ship ship)
     {
         MineOrder? best = null;
         Vec2 bestFieldPos = default;
         float bestScore = 0f;
         foreach (var sector in u.Sectors.Values)
         {
-            if (u.Hops(ship.Sector, sector.Id) < 0) continue;
+            if (!u.IsReachable(ship.Sector, sector.Id)) continue;
             foreach (var field in sector.Fields)
             {
                 if (field.Amount < 1f) continue;
@@ -48,7 +57,7 @@ public sealed class MinerSystem : ISimSystem
                 foreach (var st in u.Stations.Values)
                 {
                     if (!st.Market.TryGetValue(field.Good, out var e) || e.Price < good.BasePrice * MinPriceFactor) continue;
-                    if (u.Hops(sector.Id, st.Sector) < 0) continue;
+                    if (!u.IsReachable(sector.Id, st.Sector)) continue;
                     float time = Travel.Ticks(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id)) + mineTicks
                                + Travel.Ticks(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id));
                     float score = e.Price / time;
@@ -56,18 +65,22 @@ public sealed class MinerSystem : ISimSystem
                 }
             }
         }
-        if (best is null) return;
+        if (best is null) return false;
+        ship.IdleSince = -1;
         ship.Order = best;
         ship.MinePhase = MinePhase.GoingToField;
         Travel.Start(u, ship, best.Sector, bestFieldPos);
+        return true;
     }
 
     static void Arrive(Universe u, Ship ship, Transit t)
     {
-        u.MoveShip(ship, t.ToSector);
-        ship.Position = t.ToPosition;
-        ship.Transit = null;
-        if (ship.Order is not MineOrder order) { ship.MinePhase = MinePhase.Idle; return; }
+        u.FinishTransit(ship);
+        if (ship.Order is not MineOrder order || !u.Stations.ContainsKey(order.DeliverTo))
+        {
+            ship.Order = null; ship.MinePhase = MinePhase.Idle; ship.Cargo.Clear();
+            return;
+        }
 
         if (ship.MinePhase == MinePhase.GoingToField)
         {
@@ -85,6 +98,8 @@ public sealed class MinerSystem : ISimSystem
             ship.Cargo.Remove(order.Good);
             ship.Order = null;
             ship.MinePhase = MinePhase.Idle;
+            ship.IdleSince = u.Tick;
+            u.Events.Publish(new MineDelivered(ship.Id, order.DeliverTo, order.Good, amount, revenue));
         }
     }
 

@@ -1,3 +1,4 @@
+using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Simulation;
@@ -5,7 +6,10 @@ namespace SpaceSim.Core.Simulation;
 /// <summary>Händler-KI: sucht die beste Handelsspanne, reist abstrakt (Fahrplan) und handelt bei Ankunft.</summary>
 public sealed class TraderSystem : ISimSystem
 {
-    public void Step(Universe u)
+    /// <summary>Ticks, die ein Schiff ohne Auftrag wartet, bevor es erneut nach Geschäften sucht.</summary>
+    public const int ThinkInterval = 10;
+
+    public void Step(Universe u, int dt)
     {
         foreach (var ship in u.Ships.Values)
         {
@@ -15,14 +19,18 @@ public sealed class TraderSystem : ISimSystem
             {
                 if (u.Tick >= t.ArrivalTick) Arrive(u, ship, t);
             }
-            else if (ship.Order is null)
+            else if (ship.Order is null && u.Tick >= ship.NextThinkTick)
             {
-                PickOrder(u, ship);
+                if (!PickOrder(u, ship))
+                {
+                    ship.NextThinkTick = u.Tick + ThinkInterval + ship.Id.Value % 7;
+                    if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
+                }
             }
         }
     }
 
-    static void PickOrder(Universe u, Ship ship)
+    static bool PickOrder(Universe u, Ship ship)
     {
         TradeOrder? best = null;
         float bestMargin = 0f;
@@ -30,29 +38,34 @@ public sealed class TraderSystem : ISimSystem
             foreach (var buy in u.Stations.Values)
             {
                 if (!buy.Market.TryGetValue(good.Id, out var b) || b.Amount < 1f) continue;
+                if (!u.IsReachable(ship.Sector, buy.Sector)) continue;
                 foreach (var sell in u.Stations.Values)
                 {
                     if (sell.Id == buy.Id || !sell.Market.TryGetValue(good.Id, out var s)) continue;
                     float margin = s.Price - b.Price;
-                    if (margin > bestMargin && u.Hops(buy.Sector, sell.Sector) >= 0)
+                    if (margin > bestMargin && u.IsReachable(buy.Sector, sell.Sector))
                     {
                         bestMargin = margin;
                         best = new TradeOrder(buy.Id, sell.Id, good.Id);
                     }
                 }
             }
-        if (best is null) return;
+        if (best is null) return false;
         ship.Order = best;
         ship.Phase = TradePhase.GoingToBuy;
+        ship.IdleSince = -1;
         Travel.Start(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
+        return true;
     }
 
     static void Arrive(Universe u, Ship ship, Transit t)
     {
-        u.MoveShip(ship, t.ToSector);
-        ship.Position = t.ToPosition;
-        ship.Transit = null;
-        if (ship.Order is not TradeOrder order) { ship.Phase = TradePhase.Idle; return; }
+        u.FinishTransit(ship);
+        if (ship.Order is not TradeOrder order || !u.Stations.ContainsKey(order.Buy) || !u.Stations.ContainsKey(order.Sell))
+        {
+            ship.Order = null; ship.Phase = TradePhase.Idle; ship.Cargo.Clear();
+            return;
+        }
 
         if (ship.Phase == TradePhase.GoingToBuy)
         {
@@ -72,7 +85,7 @@ public sealed class TraderSystem : ISimSystem
                 ship.Phase = TradePhase.GoingToSell;
                 Travel.Start(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
             }
-            else { ship.Order = null; ship.Phase = TradePhase.Idle; }
+            else { ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick; }
         }
         else if (ship.Phase == TradePhase.GoingToSell)
         {
@@ -86,6 +99,8 @@ public sealed class TraderSystem : ISimSystem
             ship.Cargo.Remove(order.Good);
             ship.Order = null;
             ship.Phase = TradePhase.Idle;
+            ship.IdleSince = u.Tick;
+            u.Events.Publish(new TradeCompleted(ship.Id, order.Buy, order.Sell, order.Good, amount, revenue));
         }
     }
 }

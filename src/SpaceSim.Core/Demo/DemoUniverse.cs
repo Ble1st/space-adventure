@@ -106,8 +106,7 @@ public static class DemoUniverse
             Id = new(id), Role = role, Faction = faction, Credits = credits, Sector = sector.Id,
             Position = sector.Stations.Count > 0 ? u.Stations[sector.Stations[0]].Position : default,
         };
-        u.Ships[ship.Id] = ship;
-        sector.Ships.Add(ship.Id);
+        u.AddShip(ship);
         return ship;
     }
 }

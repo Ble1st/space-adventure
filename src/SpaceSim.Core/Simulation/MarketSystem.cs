@@ -5,7 +5,7 @@ namespace SpaceSim.Core.Simulation;
 /// <summary>Preis = Basispreis * (Wunschbestand / Bestand), begrenzt auf 0.25x … 4x.</summary>
 public sealed class MarketSystem : ISimSystem
 {
-    public void Step(Universe u)
+    public void Step(Universe u, int dt)
     {
         foreach (var st in u.Stations.Values)
             foreach (var (goodId, e) in st.Market)
