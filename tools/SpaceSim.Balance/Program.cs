@@ -20,7 +20,7 @@ var csv = new StringBuilder();
 var header = new List<string> { "tick", "stations", "traders", "miners", "stationCredits", "shipCredits" };
 header.AddRange(u.Goods.Values.Select(g => "price_" + g.Name));
 csv.AppendLine(string.Join(",", header));
-Console.WriteLine($"{"tick",7} {"stat",4} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10}  " + string.Join(" ", u.Goods.Values.Select(g => g.Name.PadLeft(9))) + "   (Preis/Basis)");
+Console.WriteLine($"{"tick",7} {"stat",4} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
@@ -30,7 +30,7 @@ for (int t = 0; t <= ticks; t += every)
     var snap = EconomyStats.Snapshot(u);
     history.Add(snap);
     Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0}  " +
-                      string.Join(" ", snap.Goods.Select(g => g.PriceRatio.ToString("0.00", CultureInfo.InvariantCulture).PadLeft(9))));
+                      string.Join(" ", snap.Goods.Select(g => g.PriceRatio.ToString("0.0", CultureInfo.InvariantCulture).PadLeft(5))));
     var row = new List<string> { snap.Tick.ToString(), snap.Stations.ToString(), snap.Traders.ToString(), snap.Miners.ToString(),
         snap.StationCredits.ToString("0", CultureInfo.InvariantCulture), snap.ShipCredits.ToString("0", CultureInfo.InvariantCulture) };
     row.AddRange(snap.Goods.Select(g => g.AvgPrice.ToString("0.00", CultureInfo.InvariantCulture)));

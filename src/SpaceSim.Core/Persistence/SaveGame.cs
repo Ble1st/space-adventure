@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -24,6 +24,7 @@ public sealed class SaveGame
     public EconomyRules Rules { get; set; } = new();
 
     public List<GoodSave> Goods { get; set; } = new();
+    public List<AsteroidClassSave> AsteroidClasses { get; set; } = new();
     public List<StationTypeSave> StationTypes { get; set; } = new();
     public List<FactionSave> Factions { get; set; } = new();
     public List<SectorSave> Sectors { get; set; } = new();
@@ -32,7 +33,20 @@ public sealed class SaveGame
     public List<ShipSave> Ships { get; set; } = new();
 }
 
-public sealed class GoodSave { public int Id { get; set; } public string Name { get; set; } = ""; public float BasePrice { get; set; } public float Volume { get; set; } }
+public sealed class GoodSave
+{
+    public int Id { get; set; } public string Key { get; set; } = ""; public string Name { get; set; } = "";
+    public string Color { get; set; } = "#c8c8c8"; public float BasePrice { get; set; } public float Volume { get; set; }
+}
+
+public sealed class YieldSave { public int Good { get; set; } public float Weight { get; set; } }
+
+public sealed class AsteroidClassSave
+{
+    public string Key { get; set; } = ""; public string Name { get; set; } = ""; public string Color { get; set; } = "#8a7a6a";
+    public float ChunkChance { get; set; } = 0.5f; public float OreFactor { get; set; } = 1f;
+    public List<YieldSave> Yields { get; set; } = new();
+}
 
 public sealed class RecipeSave
 {
@@ -57,10 +71,13 @@ public sealed class FactionSave
 
 public sealed class FieldSave
 {
-    public int Good { get; set; } public Vec2 Pos { get; set; }
+    public string Class { get; set; } = "";
+    public Vec2 Pos { get; set; }
     public int TargetAsteroids { get; set; } = 14;
     public int RespawnTicks { get; set; } = 120;
 
+    // Nur Format v1/v2 (ein Erz je Feld, Vorrat im Feld); wird beim Laden umgerechnet und nicht mehr geschrieben
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Good { get; set; }
     // Nur Format v1 (Vorrat lag im Feld); wird beim Laden in Asteroiden-Erz umgerechnet und nicht mehr geschrieben
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Amount { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float RegenPerTick { get; set; }
@@ -70,7 +87,11 @@ public sealed class FieldSave
 public sealed class AsteroidSave
 {
     public int Id { get; set; } public Vec2 Pos { get; set; } public float BaseRadius { get; set; }
-    public int Good { get; set; } public float Ore { get; set; } public float MaxOre { get; set; }
+    public string Class { get; set; } = "";
+    public float Ore { get; set; } public float MaxOre { get; set; }
+
+    /// <summary>Nur Format v2: einzelne Erzsorte statt Klasse.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Good { get; set; }
 }
 
 public sealed class SectorSave

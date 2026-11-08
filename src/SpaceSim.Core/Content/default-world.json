@@ -1,77 +1,1085 @@
 {
-  "seed": 20260101,
-  "goods": [
-    { "key": "ore",    "name": "Erz",       "basePrice": 10, "volume": 1 },
-    { "key": "metal",  "name": "Metall",    "basePrice": 25, "volume": 1 },
-    { "key": "energy", "name": "Energie",   "basePrice": 8,  "volume": 1 },
-    { "key": "food",   "name": "Nahrung",   "basePrice": 14, "volume": 1 },
-    { "key": "parts",  "name": "Bauteile",  "basePrice": 60, "volume": 2 }
-  ],
-  "stationTypes": [
-    { "key": "mine",       "name": "Erzmine",    "buildCost": 4000, "upkeep": 0.05, "income": 0.8,
-      "recipes": [ { "ticks": 5, "out": { "ore": 1 } }, { "ticks": 10, "in": { "metal": 1 } } ] },
-    { "key": "powerplant", "name": "Kraftwerk",  "buildCost": 3500, "upkeep": 0.05, "income": 0.4,
-      "recipes": [ { "ticks": 5, "out": { "energy": 10 } } ] },
-    { "key": "smelter",    "name": "Schmelze",   "buildCost": 5000, "upkeep": 0.08, "income": 1.2,
-      "recipes": [ { "ticks": 5, "in": { "ore": 6, "energy": 2 }, "out": { "metal": 4 } } ] },
-    { "key": "farm",       "name": "Farm",       "buildCost": 3500, "upkeep": 0.05, "income": 0.6,
-      "recipes": [ { "ticks": 5, "in": { "energy": 1 }, "out": { "food": 2 } } ] },
-    { "key": "factory",    "name": "Fabrik",     "buildCost": 6000, "upkeep": 0.1,  "income": 1.2,
-      "recipes": [ { "ticks": 10, "in": { "metal": 4, "energy": 2 }, "out": { "parts": 4 } } ] },
-    { "key": "colony",     "name": "Kolonie",    "buildCost": 7000, "upkeep": 0.1,  "income": 6,
-      "recipes": [ { "ticks": 10, "in": { "food": 4, "parts": 1 } } ] },
-    { "key": "shipyard",   "name": "Werft",      "buildCost": 8000, "upkeep": 0.12, "income": 4,
-      "recipes": [ { "ticks": 10, "in": { "parts": 2, "metal": 2 } } ] }
-  ],
-  "factions": [
-    { "id": 1, "name": "Terranische Union" },
-    { "id": 2, "name": "Freie Händler" }
-  ],
-  "sectors": [
-    { "id": 1, "name": "Sektor Alpha", "owner": 1, "map": [0, 0],
-      "fields": [
-        { "good": "ore", "pos": [60, 60],   "belt": 14, "respawn": 90 },
-        { "good": "ore", "pos": [-80, 80],  "belt": 14, "respawn": 90 }
+ "seed": 20260101,
+ "rules": {
+  "maxTraders": 14,
+  "maxMiners": 8
+ },
+ "goods": [
+  {
+   "key": "iron_ore",
+   "name": "Eisenerz",
+   "basePrice": 10,
+   "volume": 1,
+   "color": "#a0522d"
+  },
+  {
+   "key": "ice",
+   "name": "Eis",
+   "basePrice": 8,
+   "volume": 1,
+   "color": "#bfe9ff"
+  },
+  {
+   "key": "copper_ore",
+   "name": "Kupfererz",
+   "basePrice": 16,
+   "volume": 1,
+   "color": "#cd7f32"
+  },
+  {
+   "key": "silicon",
+   "name": "Silizium",
+   "basePrice": 14,
+   "volume": 1,
+   "color": "#8fa0b8"
+  },
+  {
+   "key": "titanium_ore",
+   "name": "Titanerz",
+   "basePrice": 32,
+   "volume": 1,
+   "color": "#b8c4d6"
+  },
+  {
+   "key": "platinum_ore",
+   "name": "Platinerz",
+   "basePrice": 90,
+   "volume": 1,
+   "color": "#e5e4e2"
+  },
+  {
+   "key": "energy",
+   "name": "Energie",
+   "basePrice": 8,
+   "volume": 1,
+   "color": "#ffe14d"
+  },
+  {
+   "key": "steel",
+   "name": "Stahl",
+   "basePrice": 24,
+   "volume": 1,
+   "color": "#7f8c9a"
+  },
+  {
+   "key": "water",
+   "name": "Wasser",
+   "basePrice": 18,
+   "volume": 1,
+   "color": "#4aa3ff"
+  },
+  {
+   "key": "hydrogen",
+   "name": "Wasserstoff",
+   "basePrice": 36,
+   "volume": 1,
+   "color": "#ffd6a5"
+  },
+  {
+   "key": "copper",
+   "name": "Kupfer",
+   "basePrice": 35,
+   "volume": 1,
+   "color": "#e08a4a"
+  },
+  {
+   "key": "wafers",
+   "name": "Siliziumwafer",
+   "basePrice": 36,
+   "volume": 1,
+   "color": "#6c7fd1"
+  },
+  {
+   "key": "titanium",
+   "name": "Titan",
+   "basePrice": 70,
+   "volume": 1,
+   "color": "#cfd8e6"
+  },
+  {
+   "key": "platinum",
+   "name": "Platin",
+   "basePrice": 220,
+   "volume": 1,
+   "color": "#f4f4f4"
+  },
+  {
+   "key": "electronics",
+   "name": "Elektronik",
+   "basePrice": 90,
+   "volume": 1,
+   "color": "#44d17a"
+  },
+  {
+   "key": "hull_plates",
+   "name": "Hüllenplatten",
+   "basePrice": 100,
+   "volume": 1,
+   "color": "#9aa7b3"
+  },
+  {
+   "key": "fuel_cells",
+   "name": "Brennstoffzellen",
+   "basePrice": 110,
+   "volume": 1,
+   "color": "#ff9f43"
+  },
+  {
+   "key": "life_support",
+   "name": "Lebenserhaltung",
+   "basePrice": 90,
+   "volume": 1,
+   "color": "#7ddfd3"
+  },
+  {
+   "key": "food",
+   "name": "Nahrung",
+   "basePrice": 14,
+   "volume": 1,
+   "color": "#9bd36a"
+  },
+  {
+   "key": "consumer_goods",
+   "name": "Konsumgüter",
+   "basePrice": 140,
+   "volume": 1,
+   "color": "#d97ad9"
+  },
+  {
+   "key": "luxury_goods",
+   "name": "Luxusgüter",
+   "basePrice": 500,
+   "volume": 1,
+   "color": "#ffd700"
+  },
+  {
+   "key": "ship_kit",
+   "name": "Schiffsbausatz",
+   "basePrice": 500,
+   "volume": 3,
+   "color": "#ff6b6b"
+  }
+ ],
+ "asteroidClasses": [
+  {
+   "key": "metal_rock",
+   "name": "Metallasteroid",
+   "color": "#b0764a",
+   "chunkChance": 0.5,
+   "oreFactor": 1.0,
+   "yields": {
+    "iron_ore": 4,
+    "copper_ore": 4,
+    "titanium_ore": 2
+   }
+  },
+  {
+   "key": "ice_rock",
+   "name": "Eisasteroid",
+   "color": "#bfe9ff",
+   "chunkChance": 0.55,
+   "oreFactor": 1.0,
+   "yields": {
+    "ice": 1
+   }
+  },
+  {
+   "key": "silicate_rock",
+   "name": "Gesteinsasteroid",
+   "color": "#8a8f9c",
+   "chunkChance": 0.5,
+   "oreFactor": 1.0,
+   "yields": {
+    "silicon": 6,
+    "iron_ore": 2
+   }
+  },
+  {
+   "key": "rare_rock",
+   "name": "Seltener Brocken",
+   "color": "#d8c46a",
+   "chunkChance": 0.3,
+   "oreFactor": 0.7,
+   "yields": {
+    "titanium_ore": 4,
+    "platinum_ore": 1
+   }
+  }
+ ],
+ "stationTypes": [
+  {
+   "key": "solar_plant",
+   "name": "Solarkraftwerk",
+   "buildCost": 4000,
+   "upkeep": 0.05,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {},
+     "out": {
+      "energy": 8
+     }
+    }
+   ]
+  },
+  {
+   "key": "steelworks",
+   "name": "Stahlwerk",
+   "buildCost": 5000,
+   "upkeep": 0.08,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "iron_ore": 3,
+      "energy": 1
+     },
+     "out": {
+      "steel": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "water_plant",
+   "name": "Wasserwerk",
+   "buildCost": 3500,
+   "upkeep": 0.05,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "ice": 1,
+      "energy": 1
+     },
+     "out": {
+      "water": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "electrolysis",
+   "name": "Elektrolyse",
+   "buildCost": 4500,
+   "upkeep": 0.06,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "ice": 2,
+      "energy": 2
+     },
+     "out": {
+      "hydrogen": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "copper_smelter",
+   "name": "Kupferhütte",
+   "buildCost": 5000,
+   "upkeep": 0.08,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "copper_ore": 3,
+      "energy": 1
+     },
+     "out": {
+      "copper": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "wafer_fab",
+   "name": "Waferfabrik",
+   "buildCost": 6000,
+   "upkeep": 0.1,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "silicon": 3,
+      "energy": 2
+     },
+     "out": {
+      "wafers": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "titanium_works",
+   "name": "Titanhütte",
+   "buildCost": 7000,
+   "upkeep": 0.1,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 6,
+     "in": {
+      "titanium_ore": 3,
+      "energy": 2
+     },
+     "out": {
+      "titanium": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "platinum_refinery",
+   "name": "Platinraffinerie",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 8,
+     "in": {
+      "platinum_ore": 2,
+      "energy": 2
+     },
+     "out": {
+      "platinum": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "powerplant",
+   "name": "Kraftwerk",
+   "buildCost": 3500,
+   "upkeep": 0.05,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "hydrogen": 1
+     },
+     "out": {
+      "energy": 20
+     }
+    }
+   ]
+  },
+  {
+   "key": "farm",
+   "name": "Farm",
+   "buildCost": 3500,
+   "upkeep": 0.05,
+   "income": 0.8,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "water": 1,
+      "energy": 1
+     },
+     "out": {
+      "food": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "electronics_fab",
+   "name": "Elektronikfabrik",
+   "buildCost": 8000,
+   "upkeep": 0.12,
+   "income": 2,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "copper": 2,
+      "wafers": 2
+     },
+     "out": {
+      "electronics": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "plating_works",
+   "name": "Panzerwerk",
+   "buildCost": 8000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "steel": 4,
+      "titanium": 1
+     },
+     "out": {
+      "hull_plates": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "fuel_cell_fab",
+   "name": "Brennstoffzellenfabrik",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "hydrogen": 4,
+      "platinum": 1
+     },
+     "out": {
+      "fuel_cells": 4
+     }
+    }
+   ]
+  },
+  {
+   "key": "life_support_fab",
+   "name": "Lebenserhaltungswerk",
+   "buildCost": 7000,
+   "upkeep": 0.1,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "water": 3,
+      "electronics": 1
+     },
+     "out": {
+      "life_support": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "goods_factory",
+   "name": "Konsumgüterfabrik",
+   "buildCost": 7000,
+   "upkeep": 0.1,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "steel": 1,
+      "electronics": 1
+     },
+     "out": {
+      "consumer_goods": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "luxury_workshop",
+   "name": "Luxuswerkstatt",
+   "buildCost": 10000,
+   "upkeep": 0.14,
+   "income": 2,
+   "recipes": [
+    {
+     "ticks": 12,
+     "in": {
+      "platinum": 1,
+      "electronics": 2
+     },
+     "out": {
+      "luxury_goods": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "shipyard",
+   "name": "Werft",
+   "buildCost": 12000,
+   "upkeep": 0.15,
+   "income": 2,
+   "recipes": [
+    {
+     "ticks": 20,
+     "in": {
+      "hull_plates": 2,
+      "electronics": 1,
+      "fuel_cells": 1
+     },
+     "out": {
+      "ship_kit": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "colony",
+   "name": "Kolonie",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 8,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "food": 4,
+      "consumer_goods": 1,
+      "life_support": 1
+     },
+     "out": {}
+    },
+    {
+     "ticks": 20,
+     "in": {
+      "luxury_goods": 1
+     },
+     "out": {}
+    }
+   ]
+  }
+ ],
+ "factions": [
+  {
+   "id": 1,
+   "name": "Terranische Union"
+  },
+  {
+   "id": 2,
+   "name": "Freie Händler"
+  }
+ ],
+ "sectors": [
+  {
+   "id": 1,
+   "name": "Sektor Alpha",
+   "owner": 1,
+   "map": [
+    0,
+    0
+   ],
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      60,
+      60
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "ice_rock",
+     "pos": [
+      -80,
+      80
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 1,
+     "type": "steelworks",
+     "name": "Stahlwerk Alpha",
+     "pos": [
+      -60,
+      -45
+     ],
+     "essential": true
+    },
+    {
+     "id": 2,
+     "type": "copper_smelter",
+     "name": "Kupferhütte Alpha",
+     "pos": [
+      30,
+      -40
+     ],
+     "essential": true
+    },
+    {
+     "id": 3,
+     "type": "water_plant",
+     "name": "Wasserwerk Alpha",
+     "pos": [
+      -10,
+      35
+     ],
+     "essential": true
+    },
+    {
+     "id": 4,
+     "type": "powerplant",
+     "name": "Kraftwerk Alpha",
+     "pos": [
+      -115,
+      5
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
       ],
-      "stations": [
-        { "id": 1, "type": "mine",       "name": "Erzmine Alpha",    "pos": [-60, -40], "essential": true,
-          "stock": { "ore": [300, 150], "metal": [20, 60] } },
-        { "id": 2, "type": "powerplant", "name": "Kraftwerk Alpha",  "pos": [30, -20],  "essential": true,
-          "stock": { "energy": [100, 100] } }
-      ] },
-    { "id": 2, "name": "Sektor Beta", "owner": 1, "map": [1, 0],
-      "stations": [
-        { "id": 3, "type": "smelter", "name": "Schmelze Beta", "pos": [0, -50],  "essential": true,
-          "stock": { "ore": [50, 150], "energy": [30, 60], "metal": [10, 80] } },
-        { "id": 4, "type": "factory", "name": "Fabrik Beta",   "pos": [20, 60],  "essential": true,
-          "stock": { "metal": [20, 60], "energy": [20, 40], "parts": [0, 40] } }
-      ] },
-    { "id": 3, "name": "Sektor Gamma", "owner": 2, "map": [2, 0],
-      "stations": [
-        { "id": 5, "type": "farm",   "name": "Farm Gamma",    "pos": [40, 40],   "essential": true,
-          "stock": { "energy": [20, 40], "food": [30, 80] } },
-        { "id": 6, "type": "colony", "name": "Kolonie Gamma", "pos": [-30, -50], "essential": true,
-          "stock": { "food": [20, 80], "parts": [0, 40] } }
-      ] },
-    { "id": 4, "name": "Sektor Delta", "owner": 2, "map": [1, 1],
-      "stations": [
-        { "id": 7, "type": "shipyard",   "name": "Werft Delta",     "pos": [30, 0],   "essential": true,
-          "stock": { "parts": [0, 60], "metal": [0, 60] } },
-        { "id": 8, "type": "powerplant", "name": "Kraftwerk Delta", "pos": [-40, 40], "essential": true,
-          "stock": { "energy": [100, 100] } }
-      ] }
-  ],
-  "gates": [
-    { "a": { "id": 1, "sector": 1, "pos": [90, -70] }, "b": { "id": 2, "sector": 2, "pos": [-90, 0] } },
-    { "a": { "id": 3, "sector": 2, "pos": [90, 30] },  "b": { "id": 4, "sector": 3, "pos": [-90, -30] } },
-    { "a": { "id": 5, "sector": 2, "pos": [0, 100] },  "b": { "id": 6, "sector": 4, "pos": [0, -100] } }
-  ],
-  "ships": [
-    { "role": "trader", "faction": 1, "sector": 1, "credits": 1000, "cargo": 100, "count": 2 },
-    { "role": "trader", "faction": 1, "sector": 2, "credits": 1000, "cargo": 100, "count": 2 },
-    { "role": "trader", "faction": 2, "sector": 3, "credits": 1000, "cargo": 100, "count": 1 },
-    { "role": "trader", "faction": 2, "sector": 4, "credits": 1000, "cargo": 100, "count": 1 },
-    { "role": "miner",  "faction": 1, "sector": 1, "credits": 1000, "cargo": 60,  "count": 1 }
-  ],
-  "player": { "faction": 1, "sector": 1, "credits": 500 }
+      "energy": [
+       120,
+       100
+      ]
+     }
+    },
+    {
+     "id": 20,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Alpha",
+     "pos": [
+      -30,
+      -85
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Sektor Beta",
+   "owner": 1,
+   "map": [
+    1,
+    0
+   ],
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 5,
+     "type": "wafer_fab",
+     "name": "Waferfabrik Beta",
+     "pos": [
+      -30,
+      -50
+     ],
+     "essential": true
+    },
+    {
+     "id": 6,
+     "type": "electronics_fab",
+     "name": "Elektronikfabrik Beta",
+     "pos": [
+      35,
+      -10
+     ],
+     "essential": true
+    },
+    {
+     "id": 7,
+     "type": "electrolysis",
+     "name": "Elektrolyse Beta",
+     "pos": [
+      -50,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 8,
+     "type": "goods_factory",
+     "name": "Konsumgüterfabrik Beta",
+     "pos": [
+      50,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 21,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Beta",
+     "pos": [
+      -20,
+      60
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Sektor Gamma",
+   "owner": 2,
+   "map": [
+    2,
+    0
+   ],
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      -70,
+      -60
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 9,
+     "type": "farm",
+     "name": "Farm Gamma",
+     "pos": [
+      50,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 10,
+     "type": "colony",
+     "name": "Kolonie Gamma",
+     "pos": [
+      5,
+      -45
+     ],
+     "essential": true
+    },
+    {
+     "id": 11,
+     "type": "life_support_fab",
+     "name": "Lebenserhaltung Gamma",
+     "pos": [
+      -30,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 12,
+     "type": "luxury_workshop",
+     "name": "Luxuswerkstatt Gamma",
+     "pos": [
+      60,
+      -40
+     ],
+     "essential": true
+    },
+    {
+     "id": 13,
+     "type": "electrolysis",
+     "name": "Elektrolyse Gamma",
+     "pos": [
+      -60,
+      -5
+     ],
+     "essential": true
+    },
+    {
+     "id": 22,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Gamma",
+     "pos": [
+      30,
+      -85
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Sektor Delta",
+   "owner": 2,
+   "map": [
+    1,
+    1
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      75,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      -80,
+      -60
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 14,
+     "type": "titanium_works",
+     "name": "Titanhütte Delta",
+     "pos": [
+      30,
+      10
+     ],
+     "essential": true
+    },
+    {
+     "id": 15,
+     "type": "platinum_refinery",
+     "name": "Platinraffinerie Delta",
+     "pos": [
+      -40,
+      35
+     ],
+     "essential": true
+    },
+    {
+     "id": 16,
+     "type": "plating_works",
+     "name": "Panzerwerk Delta",
+     "pos": [
+      -30,
+      -45
+     ],
+     "essential": true
+    },
+    {
+     "id": 17,
+     "type": "fuel_cell_fab",
+     "name": "Brennstoffzellen Delta",
+     "pos": [
+      65,
+      -35
+     ],
+     "essential": true
+    },
+    {
+     "id": 18,
+     "type": "shipyard",
+     "name": "Werft Delta",
+     "pos": [
+      5,
+      65
+     ],
+     "essential": true
+    },
+    {
+     "id": 19,
+     "type": "powerplant",
+     "name": "Kraftwerk Delta",
+     "pos": [
+      -110,
+      30
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ]
+     }
+    },
+    {
+     "id": 23,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Delta",
+     "pos": [
+      -60,
+      95
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 24,
+     "type": "steelworks",
+     "name": "Stahlwerk Delta",
+     "pos": [
+      -60,
+      -5
+     ],
+     "essential": true
+    }
+   ]
+  }
+ ],
+ "gates": [
+  {
+   "a": {
+    "id": 1,
+    "sector": 1,
+    "pos": [
+     90,
+     -70
+    ]
+   },
+   "b": {
+    "id": 2,
+    "sector": 2,
+    "pos": [
+     -90,
+     0
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 3,
+    "sector": 2,
+    "pos": [
+     90,
+     30
+    ]
+   },
+   "b": {
+    "id": 4,
+    "sector": 3,
+    "pos": [
+     -90,
+     -30
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 5,
+    "sector": 2,
+    "pos": [
+     0,
+     100
+    ]
+   },
+   "b": {
+    "id": 6,
+    "sector": 4,
+    "pos": [
+     0,
+     -100
+    ]
+   }
+  }
+ ],
+ "ships": [
+  {
+   "role": "trader",
+   "faction": 1,
+   "sector": 1,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 2
+  },
+  {
+   "role": "trader",
+   "faction": 1,
+   "sector": 2,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 3
+  },
+  {
+   "role": "trader",
+   "faction": 2,
+   "sector": 3,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 2
+  },
+  {
+   "role": "trader",
+   "faction": 2,
+   "sector": 4,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "faction": 1,
+   "sector": 1,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "faction": 1,
+   "sector": 2,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 1
+  },
+  {
+   "role": "miner",
+   "faction": 2,
+   "sector": 3,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 1
+  },
+  {
+   "role": "miner",
+   "faction": 2,
+   "sector": 4,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  }
+ ],
+ "player": {
+  "faction": 1,
+  "sector": 1,
+  "credits": 500
+ }
 }

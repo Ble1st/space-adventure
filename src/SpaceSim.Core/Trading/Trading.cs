@@ -19,7 +19,7 @@ public static class TradeActions
             float have = ship.Cargo[good];
             if (have <= 0f || !station.Market.TryGetValue(good, out var entry) || entry.Price <= 0f) continue;
 
-            float units = MathF.Min(have, MathF.Max(0f, station.Credits) / entry.Price);
+            float units = MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / entry.Price), station.AcceptableUnits(good, u.Rules));
             if (units <= 0f) continue;
             float pay = units * entry.Price;
             entry.Amount += units;
@@ -28,29 +28,31 @@ public static class TradeActions
             if (have - units <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - units;
             revenue += pay;
             sold[good] = units;
-            u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, units, pay));
+            if (ship.Role == ShipRole.Player) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, units, pay));
+            else u.Events.Publish(new MineDelivered(ship.Id, station.Id, good, units, pay));
         }
         return new SaleResult(revenue, sold, ship.Cargo.Values.Sum());
     }
 
     /// <summary>Erwarteter Erlös der aktuellen Fracht an dieser Station (ohne zu verkaufen).</summary>
-    public static float Quote(Ship ship, Station station)
+    public static float Quote(Universe u, Ship ship, Station station)
     {
         float total = 0f;
         foreach (var (good, have) in ship.Cargo)
             if (station.Market.TryGetValue(good, out var e) && e.Price > 0f)
-                total += MathF.Min(have, MathF.Max(0f, station.Credits) / e.Price) * e.Price;
+                total += MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / e.Price), station.AcceptableUnits(good, u.Rules)) * e.Price;
         return total;
     }
 
     /// <summary>Beste Verkaufsstation für die Fracht: Erlös pro Reisezeit, nur erreichbare Stationen.</summary>
-    public static Station? BestBuyer(Universe u, Ship ship, SectorId fromSector, Vec2 fromPos)
+    public static Station? BestBuyer(Universe u, Ship ship, SectorId fromSector, Vec2 fromPos, StationId? exclude = null)
     {
         Station? best = null;
         float bestScore = 0f;
         foreach (var st in u.Stations.Values)
         {
-            float quote = Quote(ship, st);
+            if (st.Id == exclude) continue;
+            float quote = Quote(u, ship, st);
             if (quote <= 0f) continue;
             float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id));
             if (float.IsPositiveInfinity(time)) continue;

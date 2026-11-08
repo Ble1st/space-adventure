@@ -12,7 +12,8 @@ public sealed class Asteroid
     public int Id;
     public Vec2 Position;
     public float BaseRadius;
-    public GoodId Good;
+    /// <summary>Schlüssel der <see cref="AsteroidClass"/>; leer = erzloser Felsen (nur Hindernis).</summary>
+    public string ClassKey = "";
     public float Ore;
     public float MaxOre;
 

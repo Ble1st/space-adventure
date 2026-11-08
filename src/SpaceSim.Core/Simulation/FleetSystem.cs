@@ -24,20 +24,36 @@ public sealed class FleetSystem : ISimSystem
                 u.RemoveShip(ship.Id, "bankrupt");
     }
 
+    /// <summary>
+    /// Schiffsbau: Ein neues Schiff entsteht nur, wenn eine erreichbare Werft einen Schiffsbausatz (Regel <c>ShipKitGoodKey</c>) auf Lager hat.
+    /// Der Bausatz wird verbraucht, die Werft erhält den Schiffspreis; das neue Schiff startet an der Werft. Damit hängt das Flottenwachstum
+    /// an der ganzen Kette Erz → Veredelung → Komponenten → Bausatz. Spätere Schiffsklassen setzen hier an (Bausatz je Klasse).
+    /// </summary>
     static void Expand(Universe u, ShipRole role, int max)
     {
         var rules = u.Rules;
         if (u.Ships.Values.Count(s => s.Role == role) >= max) return;
+        var kit = u.FindGood(rules.ShipKitGoodKey);
+        if (kit is null) return;
+
         var parent = u.Ships.Values
             .Where(s => s.Role == role && s.Transit is null && s.Credits >= rules.FleetExpandCredits)
             .OrderByDescending(s => s.Credits).ThenBy(s => s.Id.Value).FirstOrDefault();
         if (parent is null) return;
 
-        parent.Credits -= rules.NewShipCost + rules.NewShipStartCredits;   // Schiffsbau vernichtet NewShipCost
+        var yard = u.Stations.Values
+            .Where(s => s.Market.TryGetValue(kit.Id, out var e) && e.Amount >= 1f && u.IsReachable(parent.Sector, s.Sector))
+            .OrderBy(s => Travel.Estimate(u, parent.Sector, parent.Position, s.Sector, s.Position)).ThenBy(s => s.Id.Value).FirstOrDefault();
+        if (yard is null) return;   // keine Werft mit Bausatz: kein neues Schiff
+
+        yard.Market[kit.Id].Amount -= 1f;
+        yard.Credits += rules.NewShipCost;
+        parent.Credits -= rules.NewShipCost + rules.NewShipStartCredits;
+        var id = u.NewShipId();
         u.AddShip(new Ship
         {
-            Id = u.NewShipId(), Role = role, Faction = parent.Faction, CargoCapacity = parent.CargoCapacity,
-            Sector = parent.Sector, Position = parent.Position, Credits = rules.NewShipStartCredits,
+            Id = id, Role = role, Faction = parent.Faction, CargoCapacity = parent.CargoCapacity,
+            Sector = yard.Sector, Position = yard.DockPoint(id), Credits = rules.NewShipStartCredits,
         });
     }
 }

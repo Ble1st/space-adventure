@@ -75,7 +75,7 @@ public partial class SectorView : Node3D
 			if (!_rocks.TryGetValue(a.Id, out var rock))
 			{
 				var minable = a.Minable;
-				var color = minable ? new Color(0.62f, 0.45f, 0.28f) : new Color(0.4f, 0.4f, 0.42f);
+				var color = minable && u.AsteroidClasses.TryGetValue(a.ClassKey, out var cls) ? Color.FromHtml(cls.Color) : new Color(0.4f, 0.4f, 0.42f);
 				var mat = Gfx.Mat(color, minable ? 0.5f : 0f, 0.1f);
 				var mesh = new SphereMesh { Radius = a.BaseRadius, Height = a.BaseRadius * 2f, RadialSegments = 8, Rings = 5 };
 				var node = Gfx.Mesh(mesh, mat, new Vector3(a.Position.X, 0, a.Position.Y), _root);
@@ -194,7 +194,7 @@ public partial class SectorView : Node3D
 
 	void BuildFieldMarker(Universe u, ResourceField f)
 	{
-		var label = Gfx.Label($"{u.Goods[f.Good].Name}-Feld", new Vector3(f.Position.X, 4, f.Position.Y));
+		var label = Gfx.Label(u.AsteroidClasses.TryGetValue(f.ClassKey, out var cls) ? $"{cls.Name}-Gürtel" : "Rohstoffgürtel", new Vector3(f.Position.X, 4, f.Position.Y));
 		_root.AddChild(label);
 	}
 }

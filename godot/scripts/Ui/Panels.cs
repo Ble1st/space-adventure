@@ -104,7 +104,7 @@ public partial class EconomyPanel : PanelContainer
 	{
 		AddThemeStyleboxOverride("panel", UiStyle.Panel());
 		MouseFilter = MouseFilterEnum.Ignore;
-		_label.AddThemeFontSizeOverride("font_size", 16);
+		_label.AddThemeFontSizeOverride("font_size", 13);   // über 20 Waren: kompakt, damit alles auf den Bildschirm passt
 		AddChild(_label);
 		Visible = false;
 	}
@@ -181,7 +181,7 @@ public partial class DockPanel : PanelContainer
 			if (ship.Cargo.Count == 0) sb.AppendLine("  leer");
 			foreach (var (g, units) in ship.Cargo)
 				sb.AppendLine($"  {u.Goods[g].Name,-10}{units,7:0}" + (st.Market.TryGetValue(g, out var e) ? $"   Kurs {e.Price:0.0}" : "   (wird hier nicht gekauft)"));
-			sb.AppendLine($"  Erlös bei Verkauf: {SpaceSim.Core.Trading.TradeActions.Quote(ship, st):0}");
+			sb.AppendLine($"  Erlös bei Verkauf: {SpaceSim.Core.Trading.TradeActions.Quote(u, ship, st):0}");
 		}
 		_label.Text = sb.ToString();
 		Visible = true;

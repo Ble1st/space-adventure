@@ -87,10 +87,56 @@ public static class SaveGameJson
         s.Version = 2;
     }
 
+    /// <summary>
+    /// v2 → v3: Felder und Asteroiden trugen eine einzelne Erzsorte (<c>Good</c>); jetzt gehören sie zu einer Asteroidenklasse mit
+    /// Erzmischung. Jede alte Sorte wird zu einer Klasse "legacy_&lt;id&gt;" mit genau dieser Sorte. Bergbauaufträge verweisen statt auf die
+    /// Ware auf den Feldindex.
+    /// </summary>
+    static void MigrateV2ToV3(SaveGame s)
+    {
+        var classes = new Dictionary<int, string>();
+        string ClassFor(int good)
+        {
+            if (good <= 0) return "";
+            if (!classes.TryGetValue(good, out var key))
+            {
+                key = "legacy_" + good;
+                classes[good] = key;
+                var name = s.Goods.FirstOrDefault(g => g.Id == good)?.Name ?? ("Ware " + good);
+                s.AsteroidClasses.Add(new AsteroidClassSave
+                {
+                    Key = key, Name = name + "-Asteroid",
+                    Yields = new List<YieldSave> { new() { Good = good, Weight = 1f } },
+                });
+            }
+            return key;
+        }
+
+        var sectorFields = new Dictionary<int, List<FieldSave>>();
+        foreach (var sector in s.Sectors)
+        {
+            foreach (var f in sector.Fields) { f.Class = ClassFor(f.Good); f.Good = 0; }
+            foreach (var r in sector.Rocks) { r.Class = ClassFor(r.Good); r.Good = 0; }
+            sectorFields[sector.Id] = sector.Fields;
+        }
+        foreach (var ship in s.Ships)
+        {
+            if (ship.Order is not { Kind: "mine" } order) continue;
+            // Alt: B = Warenid. Neu: B = Index des Feldes dieser Ware im Sektor
+            string key = ClassFor(order.B);
+            var fields = sectorFields.GetValueOrDefault(order.A) ?? new List<FieldSave>();
+            int idx = fields.FindIndex(f => f.Class == key);
+            if (idx < 0) { ship.Order = null; ship.MinePhase = "Idle"; ship.Cargo.Clear(); continue; }
+            order.B = idx;
+        }
+        s.Version = 3;
+    }
+
     /// <summary>Hebt ältere Spielstände schrittweise auf das aktuelle Format. Bei Formatänderungen hier je Version einen Schritt ergänzen.</summary>
     static SaveGame Migrate(SaveGame s)
     {
         if (s.Version < 2) MigrateV1ToV2(s);
+        if (s.Version < 3) MigrateV2ToV3(s);
         return s;
     }
 }

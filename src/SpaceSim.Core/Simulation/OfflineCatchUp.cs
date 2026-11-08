@@ -20,7 +20,7 @@ public readonly record struct CatchUpResult(long TicksRun, long TicksWanted)
 /// </summary>
 public static class OfflineCatchUp
 {
-    public const long DefaultMaxTicks = 20_000;   // ~83 Minuten Spielzeit, auf Mobilgeräten wenige Sekunden
+    public const long DefaultMaxTicks = 10_000;   // ~42 Minuten Spielzeit; bei ~0,3 ms/Tick am Desktop gut 3 s, auf Mobilgeräten entsprechend länger
 
     public static CatchUpResult Run(Universe u, SimulationRunner runner, TimeSpan elapsed, long maxTicks = DefaultMaxTicks)
     {

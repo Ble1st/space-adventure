@@ -7,6 +7,7 @@ public sealed class WorldDef
     public ulong Seed { get; set; } = 1;
     public Model.EconomyRules? Rules { get; set; }
     public List<GoodDef> Goods { get; set; } = new();
+    public List<AsteroidClassDef> AsteroidClasses { get; set; } = new();
     public List<StationTypeDef> StationTypes { get; set; } = new();
     public List<FactionDef> Factions { get; set; } = new();
     public List<SectorDef> Sectors { get; set; } = new();
@@ -21,6 +22,20 @@ public sealed class GoodDef
     public string Name { get; set; } = "";
     public float BasePrice { get; set; } = 10;
     public float Volume { get; set; } = 1;
+    public string Color { get; set; } = "#c8c8c8";
+}
+
+public sealed class AsteroidClassDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Color { get; set; } = "#8a7a6a";
+    /// <summary>Wahrscheinlichkeit pro Laserschuss, einen Brocken zu lösen.</summary>
+    public float ChunkChance { get; set; } = 0.5f;
+    /// <summary>Multipliziert den Erzvorrat der Asteroiden dieser Klasse.</summary>
+    public float OreFactor { get; set; } = 1f;
+    /// <summary>Erzsorte (Warenschlüssel) → Gewicht in der Mischung.</summary>
+    public Dictionary<string, float> Yields { get; set; } = new();
 }
 
 public sealed class RecipeDef
@@ -56,7 +71,8 @@ public sealed class SectorDef
 
 public sealed class FieldDef
 {
-    public string Good { get; set; } = "";
+    /// <summary>Schlüssel der Asteroidenklasse des Gürtels.</summary>
+    public string Class { get; set; } = "";
     public float[] Pos { get; set; } = { 0, 0 };
     /// <summary>Soll-Anzahl Erz-Asteroiden im Gürtel.</summary>
     public int Belt { get; set; } = 14;

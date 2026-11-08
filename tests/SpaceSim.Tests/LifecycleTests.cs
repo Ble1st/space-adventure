@@ -73,19 +73,43 @@ public class LifecycleTests
         Assert.Equal("farm", built.Single().TypeKey);
     }
 
+    static Station Yard(Universe u) => u.Stations.Values.First(s => s.TypeKey == "shipyard");
+
     [Fact]
-    public void RichTrader_BuysAnotherShip_UpToCap()
+    public void RichTrader_BuysAnotherShip_FromAYardKit_UpToCap()
     {
         var u = DemoUniverse.Create();
+        var yard = Yard(u);
+        yard.Stock(DemoUniverse.ShipKit).Amount = 5f;
+        int before = u.Ships.Values.Count(s => s.Role == ShipRole.Trader);
         var rich = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
         rich.Credits = 20_000f;
-        new FleetSystem().Step(u, 20);
-        Assert.Equal(7, u.Ships.Values.Count(s => s.Role == ShipRole.Trader));
+        float yardCredits = yard.Credits;
 
-        u.Rules.MaxTraders = 7;
+        new FleetSystem().Step(u, 20);
+
+        Assert.Equal(before + 1, u.Ships.Values.Count(s => s.Role == ShipRole.Trader));
+        Assert.Equal(4f, yard.Market[DemoUniverse.ShipKit].Amount);            // ein Bausatz verbraucht
+        Assert.Equal(yardCredits + u.Rules.NewShipCost, yard.Credits, 2);      // Werft bekommt den Preis
+        var created = u.Ships.Values.OrderByDescending(s => s.Id.Value).First();
+        Assert.Equal(yard.Sector, created.Sector);                              // neues Schiff startet an der Werft
+        Assert.Contains(created.Id, u.Tracker.ParkedIn(yard.Sector));
+
+        u.Rules.MaxTraders = before + 1;
         rich.Credits = 20_000f;
         new FleetSystem().Step(u, 20);
-        Assert.Equal(7, u.Ships.Values.Count(s => s.Role == ShipRole.Trader));
+        Assert.Equal(before + 1, u.Ships.Values.Count(s => s.Role == ShipRole.Trader));   // Obergrenze
+    }
+
+    [Fact]
+    public void WithoutAShipKit_NoNewShipIsBuilt()
+    {
+        var u = DemoUniverse.Create();
+        foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(DemoUniverse.ShipKit, out var e)) e.Amount = 0f;
+        int before = u.Ships.Count;
+        u.Ships.Values.First(s => s.Role == ShipRole.Trader).Credits = 50_000f;
+        new FleetSystem().Step(u, 20);
+        Assert.Equal(before, u.Ships.Count);
     }
 
     [Fact]
@@ -138,7 +162,7 @@ public class WorldBuilderTests
     [Fact]
     public void UnknownGood_IsReportedWithItsName()
     {
-        var json = WorldBuilder.DefaultWorldJson().Replace("\"good\": \"ore\"", "\"good\": \"unobtainium\"");
+        var json = WorldBuilder.DefaultWorldJson().Replace("\"platinum_ore\": 1", "\"unobtainium\": 1");
         var ex = Assert.Throws<WorldFormatException>(() => WorldBuilder.Build(WorldBuilder.Parse(json)));
         Assert.Contains("unobtainium", ex.Message);
     }
@@ -193,7 +217,8 @@ public class NavigatorTests
     {
         var u = DemoUniverse.Create();
         var ship = u.PlayerShip;
-        var target = Navigator.ForStation(u, new StationId(7), ship);   // Werft Delta: Alpha → Beta → Delta
+        var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");   // Werft Delta: Alpha → Beta → Delta
+        var target = Navigator.ForStation(u, yard.Id, ship);
         var (arrived, steps, clearance) = Fly(u, new SectorId(1), new Vec2(0, 0), target);
         Assert.True(arrived, $"nicht angekommen nach {steps} Schritten");
         Assert.True(clearance > Collision.ShipRadius, $"Mindestabstand zu Hindernissen {clearance:0.0} <= Schiffsradius");
@@ -204,7 +229,7 @@ public class NavigatorTests
     {
         var u = DemoUniverse.Create();
         var target = Navigator.ForStation(u, new StationId(2), u.PlayerShip);
-        var (arrived, _, _) = Fly(u, new SectorId(1), new Vec2(-120, 120), target);
+        var (arrived, _, _) = Fly(u, new SectorId(1), new Vec2(72, -56), target);   // Ankunftspunkt am Gate
         Assert.True(arrived);
     }
 

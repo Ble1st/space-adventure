@@ -56,6 +56,7 @@ public sealed record Leg(SectorId Sector, Vec2 From, Vec2 To, long StartTick, lo
 
 public abstract record ShipOrder;
 public sealed record TradeOrder(StationId Buy, StationId Sell, GoodId Good) : ShipOrder;
-public sealed record MineOrder(SectorId Sector, GoodId Good, StationId DeliverTo) : ShipOrder;
+/// <summary>Abbau an einem Rohstofffeld (Index in <see cref="Sector.Fields"/>); verkauft wird, was die Zielstation führt.</summary>
+public sealed record MineOrder(SectorId Sector, int Field, StationId DeliverTo) : ShipOrder;
 public sealed record PatrolOrder(SectorId Sector) : ShipOrder;
 public sealed record GoToOrder(StationId Target) : ShipOrder;

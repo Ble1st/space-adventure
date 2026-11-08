@@ -38,7 +38,8 @@ public sealed class Gate
 
 public sealed class ResourceField
 {
-    public GoodId Good;
+    /// <summary>Asteroidenklasse des Gürtels (bestimmt Erzsorten, Reichtum, Trefferchance).</summary>
+    public string ClassKey = "";
     public Vec2 Position;
     /// <summary>Soll-Anzahl abbaubarer Asteroiden im Gürtel; fehlende wachsen nach.</summary>
     public int TargetAsteroids = 14;

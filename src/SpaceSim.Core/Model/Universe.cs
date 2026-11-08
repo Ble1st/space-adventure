@@ -15,6 +15,7 @@ public sealed class Universe
     public Dictionary<FactionId, Faction> Factions = new();
     public Dictionary<GoodId, Good> Goods = new();
     public Dictionary<string, StationType> StationTypes = new();
+    public Dictionary<string, AsteroidClass> AsteroidClasses = new();
     public EconomyRules Rules = new();
     public long LastStationBuildTick = -1_000_000;
 
@@ -36,6 +37,9 @@ public sealed class Universe
     public StationId NewStationId() => new(_nextStationId++);
     /// <summary>Für den Spielstand: Zähler wiederherstellen.</summary>
     public (int ship, int station) IdCounters { get => (_nextShipId, _nextStationId); set => (_nextShipId, _nextStationId) = value; }
+
+    /// <summary>Ware über ihren Datenschlüssel; null, wenn unbekannt.</summary>
+    public Good? FindGood(string key) => Goods.Values.FirstOrDefault(g => g.Key == key);
 
     // ───────── Schiffe ─────────
 
@@ -183,4 +187,26 @@ public sealed class Universe
     }
 
     public bool IsReachable(SectorId from, SectorId to) => CachedRoute(from, to) is not null;
+
+    // Marktindex: Welche Stationen führen eine Ware? Händler-KI muss so nicht für jede Ware alle Stationen durchsuchen.
+    readonly Dictionary<GoodId, List<Station>> _tradingIndex = new();
+    long _indexTick = -1;
+    int _indexVersion = -1;
+
+    /// <summary>Stationen mit Marktposition für diese Ware (je Tick und Stationsänderung zwischengespeichert).</summary>
+    public IReadOnlyList<Station> StationsTrading(GoodId good)
+    {
+        if (_indexTick != Tick || _indexVersion != StructureVersion)
+        {
+            _tradingIndex.Clear();
+            foreach (var st in Stations.Values)
+                foreach (var g in st.Market.Keys)
+                {
+                    if (!_tradingIndex.TryGetValue(g, out var list)) _tradingIndex[g] = list = new List<Station>();
+                    list.Add(st);
+                }
+            _indexTick = Tick; _indexVersion = StructureVersion;
+        }
+        return _tradingIndex.TryGetValue(good, out var l) ? l : Array.Empty<Station>();
+    }
 }

@@ -22,7 +22,16 @@ public partial class MiningView : Node3D
 	readonly List<Node3D> _tractorBeams = new();
 	readonly List<MeshInstance3D> _chunks = new();
 	readonly SphereMesh _chunkMesh = new() { Radius = 0.7f, Height = 1.4f, RadialSegments = 8, Rings = 4 };
-	readonly Material _oreMat = Gfx.Mat(OreColor, 2.5f);
+	readonly Dictionary<GoodId, Material> _oreMats = new();
+
+	/// <summary>Farbe einer Erzsorte (von der Hauptszene gesetzt, stammt aus den Inhaltsdaten).</summary>
+	public Func<GoodId, Color> GoodColor { get; set; } = _ => OreColor;
+
+	Material OreMaterial(GoodId good)
+	{
+		if (!_oreMats.TryGetValue(good, out var m)) _oreMats[good] = m = Gfx.Mat(GoodColor(good), 2.5f);
+		return m;
+	}
 
 	double _laserUntil;
 	Vector3 _laserTarget;
@@ -78,12 +87,13 @@ public partial class MiningView : Node3D
 		}
 		else _laser.Visible = false;
 
-		while (_chunks.Count < chunks.Count) _chunks.Add(Gfx.Mesh(_chunkMesh, _oreMat, Vector3.Zero, this));
+		while (_chunks.Count < chunks.Count) _chunks.Add(Gfx.Mesh(_chunkMesh, OreMaterial(default), Vector3.Zero, this));
 		for (int i = 0; i < _chunks.Count; i++)
 		{
 			bool used = i < chunks.Count;
 			_chunks[i].Visible = used;
 			if (!used) continue;
+			_chunks[i].MaterialOverride = OreMaterial(chunks[i].Good);   // jede Sorte hat ihre Farbe
 			_chunks[i].Position = new Vector3(chunks[i].Position.X, 0, chunks[i].Position.Y);
 			_chunks[i].Scale = Vector3.One * ChunkScale(chunks[i].Units);   // größere Brocken sind sichtbar größer
 		}
@@ -119,14 +129,14 @@ public partial class MiningView : Node3D
 	// ───────── NPC-Miner (aus Simulationsereignissen) ─────────
 
 	/// <summary>Ein NPC-Miner hat geschossen: Laserblitz zum Asteroiden; bei einem Treffer fliegt ein Brocken zu seinem Schiff.</summary>
-	public void NpcShot(ShipId ship, Vector3 target, float units, double now)
+	public void NpcShot(ShipId ship, Vector3 target, float units, GoodId good, double now)
 	{
 		if (!_npcBeams.TryGetValue(ship, out var beam)) _npcBeams[ship] = beam = new NpcBeam { Pivot = MakeBeam(LaserColor, 0.14f, 3f) };
 		beam.Target = target;
 		beam.Until = now + FlashSeconds;
 		if (units <= 0f) return;
 
-		var chunk = Gfx.Mesh(_chunkMesh, _oreMat, target, this);
+		var chunk = Gfx.Mesh(_chunkMesh, OreMaterial(good), target, this);
 		chunk.Scale = Vector3.One * ChunkScale(units);
 		_flying.Add(new FlyingChunk { Node = chunk, From = target, Last = target, Ship = ship, Start = now, Duration = 1.1 });
 	}

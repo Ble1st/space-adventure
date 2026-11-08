@@ -3,7 +3,11 @@ namespace SpaceSim.Core.Model;
 public sealed class Good
 {
     public GoodId Id;
+    /// <summary>Stabiler Schlüssel aus den Inhaltsdaten ("iron_ore"); Verweise zwischen Daten und Regeln laufen darüber.</summary>
+    public string Key = "";
     public string Name = "";
+    /// <summary>Farbe für Brocken und Anzeige (#RRGGBB).</summary>
+    public string Color = "#c8c8c8";
     public float BasePrice;
     public float VolumePerUnit = 1f;
 }
@@ -54,6 +58,13 @@ public sealed class Station
     public Vec2 DockPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * 22f;
     public List<Recipe> Production = new();
     public Dictionary<GoodId, StockEntry> Market = new();
+
+    /// <summary>
+    /// Wie viele Einheiten die Station noch annimmt, bevor ihr Lager voll ist (Wunschbestand × <see cref="EconomyRules.OverstockFactor"/>).
+    /// Eine volle Station kauft nicht mehr – sonst würde Beifang einer Erzmischung ewig auf Halde landen.
+    /// </summary>
+    public float AcceptableUnits(GoodId good, EconomyRules rules) =>
+        Market.TryGetValue(good, out var e) ? MathF.Max(0f, e.Target * rules.OverstockFactor - e.Amount) : 0f;
 
     public StockEntry Stock(GoodId good)
     {

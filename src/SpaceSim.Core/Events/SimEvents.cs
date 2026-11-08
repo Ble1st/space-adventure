@@ -12,7 +12,7 @@ public sealed record StationRemoved(StationId Station, SectorId Sector, string R
 public sealed record OreCollected(ShipId Ship, GoodId Good, float Units) : SimEvent;
 public sealed record PlayerSold(ShipId Ship, StationId Station, GoodId Good, float Units, float Revenue) : SimEvent;
 /// <summary>Ein NPC-Miner hat einen Laserschuss abgegeben (Units = 0: Fehlschuss). Die Darstellung zeigt ihn, wenn er im Spielersektor fällt.</summary>
-public sealed record MinerShot(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units) : SimEvent;
+public sealed record MinerShot(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units, GoodId Good = default) : SimEvent;
 public sealed record AsteroidDepleted(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record AsteroidRespawned(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record ShipSpawned(ShipId Ship) : SimEvent;

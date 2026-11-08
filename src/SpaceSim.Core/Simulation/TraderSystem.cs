@@ -23,8 +23,8 @@ public sealed class TraderSystem : ISimSystem
             {
                 if (!PickOrder(u, ship))
                 {
-                    ship.NextThinkTick = u.Tick + ThinkInterval + ship.Id.Value % 7;
                     if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
+                    ship.NextThinkTick = u.Tick + IdleBackoff(u, ship) + ship.Id.Value % 7;
                 }
             }
         }
@@ -34,6 +34,13 @@ public sealed class TraderSystem : ISimSystem
     /// Bewertet jede Kauf-/Verkaufsstation je Ware nach Gewinn pro Tick (Spanne × Menge / Reisezeit).
     /// Bestände, die andere Händler bereits angefahren haben, gelten als reserviert; sonst würden alle auf dieselbe Route laufen.
     /// </summary>
+    /// <summary>
+    /// Wartezeit bis zur nächsten Suche: wächst mit der Dauer der Arbeitslosigkeit (bis zum Fünffachen). Wer lange nichts findet,
+    /// muss nicht jede Sekunde den ganzen Markt durchsuchen – das spart bei vielen Schiffen den Hauptteil der Rechenzeit.
+    /// </summary>
+    public static int IdleBackoff(Universe u, Ship ship) =>
+        ThinkInterval * (1 + (int)Math.Min(4, Math.Max(0, u.Tick - ship.IdleSince) / 100));
+
     static bool PickOrder(Universe u, Ship ship)
     {
         var reserved = new Dictionary<(StationId, GoodId), float>();
@@ -46,19 +53,23 @@ public sealed class TraderSystem : ISimSystem
         foreach (var good in u.Goods.Values)
         {
             float capacityUnits = ship.CargoCapacity / good.VolumePerUnit;
-            foreach (var buy in u.Stations.Values)
+            var traders = u.StationsTrading(good.Id);
+            if (traders.Count < 2) continue;
+            foreach (var buy in traders)
             {
-                if (!buy.Market.TryGetValue(good.Id, out var b)) continue;
+                var b = buy.Market[good.Id];
                 float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
                 if (available < 1f) continue;
                 float units = MathF.Min(capacityUnits, available);
                 float toBuy = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id));
                 if (float.IsPositiveInfinity(toBuy)) continue;
-                foreach (var sell in u.Stations.Values)
+                foreach (var sell in traders)
                 {
-                    if (sell.Id == buy.Id || !sell.Market.TryGetValue(good.Id, out var s)) continue;
+                    if (sell.Id == buy.Id) continue;
+                    var s = sell.Market[good.Id];
                     float margin = s.Price - b.Price;
                     if (margin <= 0f || !CanAfford(sell, s.Price, units)) continue;
+                    if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(units, 5f)) continue;   // Lager voll: nimmt nichts mehr
                     float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id));
                     if (float.IsPositiveInfinity(toSell)) continue;
                     float score = margin * units / (toBuy + toSell);

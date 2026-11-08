@@ -15,7 +15,13 @@ public static class UniverseSerializer
             PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
         };
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
-            s.Goods.Add(new GoodSave { Id = g.Id.Value, Name = g.Name, BasePrice = g.BasePrice, Volume = g.VolumePerUnit });
+            s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit });
+        foreach (var c in u.AsteroidClasses.Values)
+            s.AsteroidClasses.Add(new AsteroidClassSave
+            {
+                Key = c.Key, Name = c.Name, Color = c.Color, ChunkChance = c.ChunkChance, OreFactor = c.OreFactor,
+                Yields = c.Yields.Select(y => new YieldSave { Good = y.Good.Value, Weight = y.Weight }).ToList(),
+            });
         foreach (var t in u.StationTypes.Values)
             s.StationTypes.Add(new StationTypeSave
             {
@@ -34,8 +40,8 @@ public static class UniverseSerializer
             {
                 Id = sec.Id.Value, Name = sec.Name, Owner = sec.Owner.Value, Map = sec.MapPosition, Radius = sec.Radius,
                 Gates = sec.Gates.Select(g => g.Value).ToList(), Stations = sec.Stations.Select(x => x.Value).ToList(),
-                Fields = sec.Fields.Select(f => new FieldSave { Good = f.Good.Value, Pos = f.Position, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
-                Rocks = sec.Asteroids.Select(a => new AsteroidSave { Id = a.Id, Pos = a.Position, BaseRadius = a.BaseRadius, Good = a.Good.Value, Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
+                Fields = sec.Fields.Select(f => new FieldSave { Class = f.ClassKey, Pos = f.Position, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
+                Rocks = sec.Asteroids.Select(a => new AsteroidSave { Id = a.Id, Pos = a.Position, BaseRadius = a.BaseRadius, Class = a.ClassKey, Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
             s.Gates.Add(new GateSave { Id = g.Id.Value, Sector = g.Sector.Value, Pos = g.Position, Target = g.Target.Value, Open = g.Open });
@@ -70,7 +76,13 @@ public static class UniverseSerializer
             PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
         };
         foreach (var g in s.Goods)
-            u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Name = g.Name, BasePrice = g.BasePrice, VolumePerUnit = g.Volume };
+            u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume };
+        foreach (var c in s.AsteroidClasses)
+            u.AsteroidClasses[c.Key] = new AsteroidClass
+            {
+                Key = c.Key, Name = c.Name, Color = c.Color, ChunkChance = c.ChunkChance, OreFactor = c.OreFactor,
+                Yields = c.Yields.Select(y => new Yield(new GoodId(y.Good), y.Weight)).ToList(),
+            };
         foreach (var t in s.StationTypes)
             u.StationTypes[t.Key] = new StationType
             {
@@ -89,8 +101,8 @@ public static class UniverseSerializer
             {
                 Id = new SectorId(sec.Id), Name = sec.Name, Owner = new FactionId(sec.Owner), MapPosition = sec.Map, Radius = sec.Radius,
                 Gates = sec.Gates.Select(g => new GateId(g)).ToList(), Stations = sec.Stations.Select(x => new StationId(x)).ToList(),
-                Fields = sec.Fields.Select(f => new ResourceField { Good = new GoodId(f.Good), Position = f.Pos, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
-                Asteroids = sec.Rocks.Select(a => new Asteroid { Id = a.Id, Position = a.Pos, BaseRadius = a.BaseRadius, Good = new GoodId(a.Good), Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
+                Fields = sec.Fields.Select(f => new ResourceField { ClassKey = f.Class, Position = f.Pos, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
+                Asteroids = sec.Rocks.Select(a => new Asteroid { Id = a.Id, Position = a.Pos, BaseRadius = a.BaseRadius, ClassKey = a.Class, Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
             };
         foreach (var g in s.Gates)
             u.Gates[new GateId(g.Id)] = new Gate { Id = new GateId(g.Id), Sector = new SectorId(g.Sector), Position = g.Pos, Target = new GateId(g.Target), Open = g.Open };
@@ -138,7 +150,7 @@ public static class UniverseSerializer
     static OrderSave ToSave(ShipOrder o) => o switch
     {
         TradeOrder t => new OrderSave { Kind = "trade", A = t.Buy.Value, B = t.Sell.Value, C = t.Good.Value },
-        MineOrder m => new OrderSave { Kind = "mine", A = m.Sector.Value, B = m.Good.Value, C = m.DeliverTo.Value },
+        MineOrder m => new OrderSave { Kind = "mine", A = m.Sector.Value, B = m.Field, C = m.DeliverTo.Value },
         PatrolOrder p => new OrderSave { Kind = "patrol", A = p.Sector.Value },
         GoToOrder g => new OrderSave { Kind = "goto", A = g.Target.Value },
         _ => throw new NotSupportedException($"Unbekannter Auftrag {o.GetType().Name}"),
@@ -147,7 +159,7 @@ public static class UniverseSerializer
     static ShipOrder FromSave(OrderSave o) => o.Kind switch
     {
         "trade" => new TradeOrder(new StationId(o.A), new StationId(o.B), new GoodId(o.C)),
-        "mine" => new MineOrder(new SectorId(o.A), new GoodId(o.B), new StationId(o.C)),
+        "mine" => new MineOrder(new SectorId(o.A), o.B, new StationId(o.C)),
         "patrol" => new PatrolOrder(new SectorId(o.A)),
         "goto" => new GoToOrder(new StationId(o.A)),
         _ => throw new SaveFormatException($"Unbekannte Auftragsart '{o.Kind}'"),

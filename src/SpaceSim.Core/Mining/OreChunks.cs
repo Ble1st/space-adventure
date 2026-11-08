@@ -29,7 +29,7 @@ public sealed class OreChunks
     public OreChunks(ulong seed = 0xC0FFEE) => _rng = new DeterministicRng(seed);
 
     /// <summary>Ein Schuss ist gefallen: Asteroid und freigesetzte Einheiten (0 = Fehlschuss ohne Brocken).</summary>
-    public event Action<Asteroid, float>? Shot;
+    public event Action<Asteroid, LaserShot.Result>? Shot;
 
     /// <summary>Der Laser ist nachgeladen und kann feuern.</summary>
     public bool Ready => _cooldown <= 0f;
@@ -37,9 +37,12 @@ public sealed class OreChunks
     /// <summary>Beim Sektorwechsel/Laden: schwebende Brocken verschwinden.</summary>
     public void Clear() { Chunks.Clear(); _cooldown = 0f; }
 
-    float InFlight(GoodId g) => Chunks.Where(c => c.Good == g).Sum(c => c.Units);
+    /// <summary>Volumen der noch schwebenden Brocken (reservierter Laderaum, damit der Laser nicht über die Kapazität hinaus feuert).</summary>
+    float InFlightVolume(Universe u) => Chunks.Sum(c => c.Units * u.Goods[c.Good].VolumePerUnit);
 
     public bool IsMinable(Sector sector, Asteroid? a) => a != null && a.Minable && sector.Asteroids.Contains(a);
+
+    static bool HasClass(Universe u, Asteroid a) => u.AsteroidClasses.ContainsKey(a.ClassKey);
 
     /// <summary>Nächster abbaubarer Asteroid (Abstand Schiff–Oberfläche), optional nur innerhalb von <paramref name="maxEdge"/>.</summary>
     public Asteroid? Nearest(Sector sector, Vec2 shipPos, float maxEdge = float.MaxValue)
@@ -62,25 +65,25 @@ public sealed class OreChunks
     public MineResult TryFire(Universe u, Ship ship, Sector sector, Asteroid a, Vec2 shipPos)
     {
         if (_cooldown > 0f) return MineResult.Cooldown;
-        if (!IsMinable(sector, a)) return MineResult.NotMinable;
+        if (!IsMinable(sector, a) || !HasClass(u, a)) return MineResult.NotMinable;
         if (Vec2.Distance(shipPos, a.Position) - a.Radius > MiningRules.LaserRange) return MineResult.OutOfRange;
-        if (ship.FreeUnits(u, a.Good) - InFlight(a.Good) < MiningRules.MinChunkUnits) return MineResult.CargoFull;
+        if (ship.CargoCapacity - ship.UsedVolume(u) - InFlightVolume(u) < MiningRules.MinChunkUnits) return MineResult.CargoFull;
 
         _cooldown = MiningRules.ShotInterval;
-        float units = LaserShot.Roll(_rng, a);
-        if (units > 0f)
+        var shot = LaserShot.Roll(_rng, u.AsteroidClasses[a.ClassKey], a);
+        if (shot.Hit)
         {
             var toShip = (shipPos - a.Position).Normalized();
             var side = new Vec2(-toShip.Y, toShip.X);
             Chunks.Add(new OreChunk
             {
-                Good = a.Good, Units = units,
+                Good = shot.Good, Units = shot.Units,
                 Position = a.Position + toShip * a.Radius,
                 Velocity = toShip * _rng.Range(3f, 8f) + side * _rng.Range(-5f, 5f),
             });
-            Belt.Remove(u, sector, a, units);   // Erz verlässt den Asteroiden (schrumpft, bei 0 weg)
+            Belt.Remove(u, sector, a, shot.Units);   // Erz verlässt den Asteroiden (schrumpft, bei 0 weg)
         }
-        Shot?.Invoke(a, units);
+        Shot?.Invoke(a, shot);
         return MineResult.Fired;
     }
 

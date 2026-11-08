@@ -27,8 +27,9 @@ public partial class SelfTest : Node
 		{
 			case 0: // Autopilot zur Werft Delta (3 Sektoren weiter)
 				_startSector = u.PlayerSector;
-				_m.TestSetStationTarget(new StationId(7));
-				Log($"Start in {u.Sectors[_startSector].Name}, Ziel Werft Delta");
+				var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
+				_m.TestSetStationTarget(yard.Id);
+				Log($"Start in {u.Sectors[_startSector].Name}, Ziel {yard.Name}");
 				Next(); break;
 			case 1:
 				if (_m.Docked) { Log($"Angedockt in {u.Sectors[u.PlayerSector].Name} nach {_frame} Frames, Tick {u.Tick}"); Check(u.PlayerSector.Value == 4, "Dock-Sektor ist Delta"); Check(_m.TestHits == 0, $"Autopilot-Flug ohne harte Kollision (Treffer: {_m.TestHits})"); Next(); }

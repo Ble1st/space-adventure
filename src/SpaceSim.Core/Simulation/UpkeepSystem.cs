@@ -21,7 +21,7 @@ public sealed class UpkeepSystem : ISimSystem
             if (ship.Role is ShipRole.Trader or ShipRole.Miner)
             {
                 ship.Credits -= MathF.Min(ship.Credits, upkeep);
-                if (ship.Credits > 0f) ship.Credits -= ship.Credits * u.Rules.ShipWealthTax * dt;
+                if (ship.Credits > u.Rules.WealthTaxFree) ship.Credits -= (ship.Credits - u.Rules.WealthTaxFree) * u.Rules.ShipWealthTax * dt;
             }
     }
 }

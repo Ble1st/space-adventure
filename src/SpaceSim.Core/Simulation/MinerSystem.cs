@@ -1,20 +1,23 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Mining;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Trading;
 
 namespace SpaceSim.Core.Simulation;
 
 /// <summary>
-/// Miner-KI: wählt Feld + Abnehmerstation mit dem besten Preis pro Zeit, fliegt abstrakt zum Feld,
-/// baut dort mit denselben Laserschüssen ab wie der Spieler (Nachladezeit, Trefferwahrscheinlichkeit, zufällige Brockengröße,
-/// Erz stammt aus dem Asteroiden), liefert aus und verkauft. Baut nicht ab, wenn der Preis zu niedrig ist
-/// (verhindert endlose Überproduktion).
+/// Miner-KI: wählt Rohstofffeld + Abnehmerstation mit dem besten Wert pro Zeit, fliegt abstrakt zum Feld,
+/// baut dort mit denselben Laserschüssen ab wie der Spieler (Nachladezeit, Trefferchance der Asteroidenklasse, zufällige
+/// Brockengröße und Erzsorte, Erz stammt aus dem Asteroiden), liefert aus und verkauft, was die Station führt. Bleibt Fracht übrig,
+/// fährt der Miner die nächste Station an, die sie kauft. Baut nicht ab, wenn die Mischung kaum etwas wert ist.
 /// </summary>
 public sealed class MinerSystem : ISimSystem
 {
-    /// <summary>Mindestpreis relativ zum Basispreis, ab dem sich Abbau lohnt.</summary>
+    /// <summary>Mindestwert der Mischung an der Zielstation relativ zu ihrem Basiswert, ab dem sich Abbau lohnt.</summary>
     public const float MinPriceFactor = 0.5f;
     public const int ThinkInterval = 10;
+    /// <summary>Abschlag je weiterem Miner am selben Feld.</summary>
+    public const float CrowdPenalty = 0.6f;
 
     public void Step(Universe u, int dt)
     {
@@ -33,13 +36,24 @@ public sealed class MinerSystem : ISimSystem
                     if (u.Tick < ship.NextThinkTick) break;
                     if (!PickOrder(u, ship))
                     {
-                        ship.NextThinkTick = u.Tick + ThinkInterval + ship.Id.Value % 7;
                         if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
+                        ship.NextThinkTick = u.Tick + TraderSystem.IdleBackoff(u, ship) + ship.Id.Value % 7;
                     }
                     break;
                 case MinePhase.Mining: Mine(u, ship); break;
             }
         }
+    }
+
+    /// <summary>Erwarteter Erlös einer Einheit der Mischung dieser Klasse an dieser Station (Preise der Waren, die sie kauft).</summary>
+    static float MixValue(Universe u, AsteroidClass cls, Station st)
+    {
+        float total = cls.Yields.Sum(y => y.Weight);
+        if (total <= 0f) return 0f;
+        float value = 0f;
+        foreach (var y in cls.Yields)
+            if (st.Market.TryGetValue(y.Good, out var e) && st.AcceptableUnits(y.Good, u.Rules) >= 5f) value += y.Weight / total * e.Price;
+        return value;
     }
 
     static bool PickOrder(Universe u, Ship ship)
@@ -50,20 +64,29 @@ public sealed class MinerSystem : ISimSystem
         foreach (var sector in u.Sectors.Values)
         {
             if (!u.IsReachable(ship.Sector, sector.Id)) continue;
-            foreach (var field in sector.Fields)
+            for (int fi = 0; fi < sector.Fields.Count; fi++)
             {
-                if (Belt.OreIn(sector, field) < 1f) continue;
-                var good = u.Goods[field.Good];
-                float mineTicks = ship.CargoCapacity / good.VolumePerUnit / (MiningRules.ExpectedOrePerSecond * SimClock.TickInterval);
+                var field = sector.Fields[fi];
+                if (!u.AsteroidClasses.TryGetValue(field.ClassKey, out var cls) || Belt.OreIn(sector, field) < 1f) continue;
+
+                float orePerTick = cls.ChunkChance * MiningRules.MeanChunkUnits / MiningRules.ShotInterval * SimClock.TickInterval;
+                float mineTicks = ship.CargoCapacity / MathF.Max(0.01f, orePerTick);
+                float basis = cls.MeanBasePrice(u);
+                // Gedränge am Feld mindert den Wert: Jeder weitere Miner teilt sich dieselben Asteroiden und drückt den Preis (Herdenschutz)
+                int crowd = 0;
+                foreach (var other in u.Ships.Values)
+                    if (other != ship && other.Order is MineOrder mo && mo.Sector == sector.Id && mo.Field == fi) crowd++;
+                float crowding = 1f / (1f + CrowdPenalty * crowd);
                 foreach (var st in u.Stations.Values)
                 {
-                    if (!st.Market.TryGetValue(field.Good, out var e) || e.Price < good.BasePrice * MinPriceFactor) continue;
-                    if (!TraderSystem.CanAfford(st, e.Price, ship.CargoCapacity / good.VolumePerUnit)) continue;
+                    float value = MixValue(u, cls, st);
+                    if (value < basis * MinPriceFactor) continue;
+                    if (!TraderSystem.CanAfford(st, value, ship.CargoCapacity)) continue;
                     if (!u.IsReachable(sector.Id, st.Sector)) continue;
                     float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id)) + mineTicks
                                + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id));
-                    float score = e.Price / time;
-                    if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, field.Good, st.Id); }
+                    float score = value / time * crowding;
+                    if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, fi, st.Id); }
                 }
             }
         }
@@ -92,18 +115,23 @@ public sealed class MinerSystem : ISimSystem
         else if (ship.MinePhase == MinePhase.GoingToStation)
         {
             var st = u.Stations[order.DeliverTo];
-            var stock = st.Stock(order.Good);
-            float amount = ship.Cargo.GetValueOrDefault(order.Good);
-            float paid = stock.Price > 0 ? MathF.Min(amount, MathF.Max(0f, st.Credits) / stock.Price) : 0f;
-            float revenue = paid * stock.Price;
-            stock.Amount += amount;
-            st.Credits -= revenue;
-            ship.Credits += revenue;
-            ship.Cargo.Remove(order.Good);
+            TradeActions.SellAll(u, ship, st);   // veröffentlicht je Ware ein MineDelivered
+
+            if (ship.Cargo.Values.Sum() > 0.001f)
+            {
+                // Rest, den diese Station nicht kauft oder nicht bezahlen kann: nächste Station, die ihn nimmt
+                var next = TradeActions.BestBuyer(u, ship, ship.Sector, ship.Position, exclude: st.Id);
+                if (next != null)
+                {
+                    ship.Order = order with { DeliverTo = next.Id };
+                    Travel.Start(u, ship, next.Sector, next.DockPoint(ship.Id));
+                    return;
+                }
+                ship.Cargo.Clear();   // niemand will es: über Bord
+            }
             ship.Order = null;
             ship.MinePhase = MinePhase.Idle;
             ship.IdleSince = u.Tick;
-            u.Events.Publish(new MineDelivered(ship.Id, order.DeliverTo, order.Good, paid, revenue));
         }
     }
 
@@ -112,11 +140,12 @@ public sealed class MinerSystem : ISimSystem
         if (ship.Order is not MineOrder order) { ship.MinePhase = MinePhase.Idle; return; }
 
         var sector = u.Sectors[ship.Sector];
-        var field = sector.Fields.FirstOrDefault(f => f.Good == order.Good && Belt.OreIn(sector, f) > 0.01f);
+        ResourceField? field = order.Field >= 0 && order.Field < sector.Fields.Count ? sector.Fields[order.Field] : null;
+        bool cargoFull = ship.CargoCapacity - ship.UsedVolume(u) < MiningRules.MinChunkUnits;
 
-        if (field is null || ship.FreeUnits(u, order.Good) < MiningRules.MinChunkUnits)
+        if (field is null || cargoFull || Belt.OreIn(sector, field) < 0.01f)
         {
-            if (ship.Cargo.GetValueOrDefault(order.Good) > 0f)
+            if (ship.Cargo.Values.Sum() > 0f)
             {
                 ship.MinePhase = MinePhase.GoingToStation;
                 Travel.Start(u, ship, u.Stations[order.DeliverTo].Sector, u.Stations[order.DeliverTo].DockPoint(ship.Id));
@@ -129,16 +158,16 @@ public sealed class MinerSystem : ISimSystem
         ship.ShotTimer = MathF.Min(ship.ShotTimer + SimClock.TickInterval, MiningRules.ShotInterval + SimClock.TickInterval);
         if (ship.ShotTimer < MiningRules.ShotInterval) return;
         var rock = PickRock(sector, field, ship);
-        if (rock is null) return;
+        if (rock is null || !u.AsteroidClasses.TryGetValue(rock.ClassKey, out var cls)) return;
 
         ship.ShotTimer -= MiningRules.ShotInterval;
-        float units = LaserShot.Roll(u.Rng, rock);
-        if (units > 0f)
+        var shot = LaserShot.Roll(u.Rng, cls, rock);
+        if (shot.Hit)
         {
-            Belt.Remove(u, sector, rock, units);
-            ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + MathF.Min(units, ship.FreeUnits(u, order.Good));   // Traktorstrahl lädt ein
+            Belt.Remove(u, sector, rock, shot.Units);
+            ship.Cargo[shot.Good] = ship.Cargo.GetValueOrDefault(shot.Good) + MathF.Min(shot.Units, ship.FreeUnits(u, shot.Good));   // Traktorstrahl lädt ein
         }
-        u.Events.Publish(new MinerShot(sector.Id, ship.Id, rock.Id, rock.Position, rock.Radius, units));
+        u.Events.Publish(new MinerShot(sector.Id, ship.Id, rock.Id, rock.Position, rock.Radius, shot.Units, shot.Good));
     }
 
     /// <summary>Asteroid im Gürtel des Feldes, auf den der Miner feuert: bleibt beim selben, bis er leer ist; sonst der nächste in Laserreichweite.</summary>

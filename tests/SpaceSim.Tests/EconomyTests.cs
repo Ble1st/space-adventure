@@ -105,9 +105,10 @@ public class MinerTests
     public void Miners_DoNotMine_WhenPriceTooLow()
     {
         var u = SpaceSim.Core.Demo.DemoUniverse.Create();
+        var rawOres = u.AsteroidClasses.Values.SelectMany(c => c.Yields).Select(y => y.Good).Distinct().ToList();
         foreach (var st in u.Stations.Values)
         {
-            st.Stock(SpaceSim.Core.Demo.DemoUniverse.Ore).Amount = 100_000;   // Überangebot → Preis am Boden
+            foreach (var ore in rawOres) st.Stock(ore).Amount = 100_000;   // Überangebot aller Rohstoffe → Preise am Boden
             st.Production.Clear();
         }
         foreach (var s in u.Ships.Values.Where(s => s.Role == ShipRole.Trader).ToList()) u.Ships.Remove(s.Id);

@@ -7,7 +7,7 @@ namespace SpaceSim.Core.Mining;
 public static class Belt
 {
     public static IEnumerable<Asteroid> AsteroidsOf(Sector s, ResourceField f) =>
-        s.Asteroids.Where(a => a.Minable && a.Good == f.Good && ReferenceEquals(s.FieldFor(a.Position), f));
+        s.Asteroids.Where(a => a.Minable && a.ClassKey == f.ClassKey && ReferenceEquals(s.FieldFor(a.Position), f));
 
     public static float OreIn(Sector s, ResourceField f) => AsteroidsOf(s, f).Sum(a => a.Ore);
 
@@ -50,8 +50,9 @@ public static class BeltPlacement
             float r = range(1.5f, 6f);
             if (avoid is { } av && Vec2.Distance(p, av.Pos) < av.Radius + r) continue;
             if (!Fits(u, s, p, r)) continue;
-            float ore = Asteroid.OrePerArea * r * r * range(0.6f, 1.4f);
-            return new Asteroid { Id = u.NewAsteroidId(), Position = p, BaseRadius = r, Good = f.Good, Ore = ore, MaxOre = ore };
+            float factor = u.AsteroidClasses.TryGetValue(f.ClassKey, out var cls) ? cls.OreFactor : 1f;
+            float ore = Asteroid.OrePerArea * r * r * range(0.6f, 1.4f) * factor;
+            return new Asteroid { Id = u.NewAsteroidId(), Position = p, BaseRadius = r, ClassKey = f.ClassKey, Ore = ore, MaxOre = ore };
         }
         return null;
     }

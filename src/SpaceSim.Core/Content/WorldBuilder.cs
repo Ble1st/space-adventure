@@ -51,10 +51,18 @@ public static class WorldBuilder
         {
             var g = def.Goods[i];
             if (!goodByKey.TryAdd(g.Key, new GoodId(i + 1))) throw new WorldFormatException($"Ware '{g.Key}' doppelt");
-            u.Goods[new GoodId(i + 1)] = new Good { Id = new GoodId(i + 1), Name = g.Name, BasePrice = g.BasePrice, VolumePerUnit = g.Volume };
+            u.Goods[new GoodId(i + 1)] = new Good { Id = new GoodId(i + 1), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume };
         }
         GoodId Good(string key) =>
             goodByKey.TryGetValue(key, out var id) ? id : throw new WorldFormatException($"Unbekannte Ware '{key}'");
+
+        foreach (var c in def.AsteroidClasses)
+        {
+            var cls = new AsteroidClass { Key = c.Key, Name = c.Name, Color = c.Color, ChunkChance = c.ChunkChance, OreFactor = c.OreFactor };
+            foreach (var (k, w) in c.Yields) cls.Yields.Add(new Yield(Good(k), w));
+            if (cls.Yields.Count == 0) throw new WorldFormatException($"Asteroidenklasse '{c.Key}' hat keine Erzsorten");
+            if (!u.AsteroidClasses.TryAdd(cls.Key, cls)) throw new WorldFormatException($"Asteroidenklasse '{c.Key}' doppelt");
+        }
 
         foreach (var t in def.StationTypes)
         {
@@ -82,7 +90,7 @@ public static class WorldBuilder
             foreach (var fd in sd.Fields)
                 sector.Fields.Add(new ResourceField
                 {
-                    Good = Good(fd.Good), Position = V(fd.Pos), TargetAsteroids = fd.Belt, RespawnTicks = fd.Respawn,
+                    ClassKey = u.AsteroidClasses.ContainsKey(fd.Class) ? fd.Class : throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Asteroidenklasse '{fd.Class}'"), Position = V(fd.Pos), TargetAsteroids = fd.Belt, RespawnTicks = fd.Respawn,
                 });
         }
 

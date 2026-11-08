@@ -44,7 +44,7 @@ public class MiningTests
         ship.CargoCapacity = 1_000_000f;     // Laderaum soll das Feuern nicht begrenzen
         var chunks = new OreChunks(seed: 7);
         int shots = 0, hits = 0;
-        chunks.Shot += (_, units) => { shots++; if (units > 0) hits++; };
+        chunks.Shot += (_, r) => { shots++; if (r.Hit) hits++; };
 
         Fire(chunks, u, ship, sector, rock, InRange(rock), seconds: 60f);
 
@@ -95,7 +95,7 @@ public class MiningTests
         for (int i = 0; i < 300; i++) total += chunks.Update(u, ship, pos, tractor: true, dt: 0.05f);
 
         Assert.Equal(inSpace, total, 3);
-        Assert.Equal(total, ship.Cargo[rock.Good], 3);
+        Assert.Equal(total, ship.UsedVolume(u), 3);
         Assert.Empty(chunks.Chunks);
     }
 
@@ -150,13 +150,14 @@ public class MiningTests
     {
         var (u, ship, sector, rock) = Setup();
         rock.Ore = rock.MaxOre = 100_000f;
-        ship.Cargo[rock.Good] = ship.CargoCapacity;
+        var oreGood = u.AsteroidClasses[rock.ClassKey].Yields[0].Good;
+        ship.Cargo[oreGood] = ship.CargoCapacity;
         var chunks = new OreChunks();
         Assert.Equal(MineResult.CargoFull, chunks.TryFire(u, ship, sector, rock, InRange(rock)));
 
-        ship.Cargo[rock.Good] = ship.CargoCapacity - 1f;   // nur 1 Einheit Platz
+        ship.Cargo[oreGood] = ship.CargoCapacity - 1f;   // nur 1 Einheit Platz
         var pos = InRange(rock);
-        chunks.Chunks.Add(new OreChunk { Good = rock.Good, Units = 5f, Position = pos });
+        chunks.Chunks.Add(new OreChunk { Good = oreGood, Units = 5f, Position = pos });
         chunks.Update(u, ship, pos, tractor: true, 0.05f);
         Assert.Equal(ship.CargoCapacity, ship.UsedVolume(u), 3);
         Assert.Equal(4f, chunks.Chunks.Single().Units, 3);   // Rest bleibt draußen
@@ -229,12 +230,12 @@ public class IndividualFireTests
     {
         var u = DemoUniverse.Create();
         var sector = u.Sectors[new SectorId(1)];
-        var field = sector.Fields[0];
+        var field = sector.Fields[0];   // Metallasteroid-Gürtel
         var miner = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
         miner.CargoCapacity = 1_000_000f;
         miner.Cargo.Clear();
         miner.Position = field.WorkPoint(miner.Id);
-        miner.Order = new MineOrder(sector.Id, field.Good, new StationId(1));
+        miner.Order = new MineOrder(sector.Id, 0, new StationId(1));
         miner.MinePhase = MinePhase.Mining;
         miner.Credits = 0;
         var shots = new List<MinerShot>();
@@ -281,7 +282,7 @@ public class IndividualFireTests
         var system = new MinerSystem();
         for (int i = 0; i < 600; i++) system.Step(u, 1);
 
-        float mined = miner.Cargo.GetValueOrDefault(field.Good);
+        float mined = miner.UsedVolume(u);
         Assert.True(mined > 50f, $"Es sollte nennenswert Erz abgebaut worden sein ({mined:0})");
         Assert.Equal(oreBefore - mined, Belt.OreIn(sector, field), 2);
         Assert.Equal(shots.Sum(x => x.Units), mined, 2);
@@ -351,12 +352,14 @@ public class RespawnTests
         u.Events.Raised += e => { if (e is AsteroidRespawned r) respawned.Add(r); };
 
         foreach (var rock in Belt.AsteroidsOf(sector, field).Take(8).ToList()) Belt.Remove(u, sector, rock, rock.Ore);
-        Assert.Equal(field.TargetAsteroids - 8, Belt.AsteroidsOf(sector, field).Count());
+        int missing = field.TargetAsteroids - Belt.AsteroidsOf(sector, field).Count();   // abgebaute plus evtl. bei der Erzeugung nicht untergebrachte
+        Assert.True(missing >= 8);
 
-        new SimulationRunner(new ISimModule[] { new ResourceModule() }).Run(u, field.RespawnTicks * 12);
+        var respawn = new AsteroidRespawnSystem();   // nur das Respawn-System, damit keine NPC-Miner dazwischen abbauen
+        for (int t = 0; t < field.RespawnTicks * 30; t += 10) { u.Tick = t; respawn.Step(u, 10); }
 
         Assert.Equal(field.TargetAsteroids, Belt.AsteroidsOf(sector, field).Count());
-        Assert.Equal(8, respawned.Count);
+        Assert.Equal(missing, respawned.Count);
     }
 
     [Fact]
@@ -421,24 +424,38 @@ public class RespawnTests
         Assert.Equal(SpaceSim.Core.Diagnostics.UniverseHash.Compute(u), SpaceSim.Core.Diagnostics.UniverseHash.Compute(loaded));
     }
 
-    [Fact]
-    public void OldSaveFormat_IsMigrated_OreMovesFromFieldIntoRocks()
+    static string AsLegacyJson(Universe u, int version)
     {
-        var u = DemoUniverse.Create();
         var save = SpaceSim.Core.Persistence.UniverseSerializer.ToSave(u, DateTimeOffset.UtcNow);
-
-        // Format v1 nachbauen: Vorrat im Feld, Asteroiden als bloße Hindernisse
-        save.Version = 1;
+        int GoodOf(string cls) => save.AsteroidClasses.First(c => c.Key == cls).Yields[0].Good;   // alte Formate kannten genau eine Sorte je Feld
+        save.Version = version;
         foreach (var s in save.Sectors)
         {
-            s.Asteroids = s.Rocks.Select(r => new Obstacle(r.Pos, r.BaseRadius)).ToList();
-            s.Rocks = new();
-            foreach (var f in s.Fields) { f.Amount = 2_000f; f.RegenPerTick = 0.5f; f.Capacity = 3_000f; }
+            foreach (var f in s.Fields) { f.Good = f.Class != "" ? GoodOf(f.Class) : 0; f.Class = ""; }
+            if (version == 1)
+            {
+                s.Asteroids = s.Rocks.Select(r => new Obstacle(r.Pos, r.BaseRadius)).ToList();
+                s.Rocks = new();
+                foreach (var f in s.Fields) { f.Amount = 2_000f; f.RegenPerTick = 0.5f; f.Capacity = 3_000f; }
+            }
+            else foreach (var r in s.Rocks) { r.Good = r.Class != "" ? GoodOf(r.Class) : 0; r.Class = ""; }
         }
-        save.NextAsteroidId = 1;
-        var json = System.Text.Json.JsonSerializer.Serialize(save, new System.Text.Json.JsonSerializerOptions { IncludeFields = true });
+        save.AsteroidClasses = new();
+        save.NextAsteroidId = version == 1 ? 1 : save.NextAsteroidId;
+        foreach (var ship in save.Ships.Where(sh => sh.Order is { Kind: "mine" }))
+        {
+            // Alte Aufträge nannten die Ware statt des Feldes
+            var field = save.Sectors.First(sec => sec.Id == ship.Order!.A).Fields[ship.Order!.B];
+            ship.Order!.B = field.Good;
+        }
+        return System.Text.Json.JsonSerializer.Serialize(save, new System.Text.Json.JsonSerializerOptions { IncludeFields = true });
+    }
 
-        var (loaded, _) = SpaceSim.Core.Persistence.SaveGameJson.Read(json);
+    [Fact]
+    public void FormatV1_IsMigrated_OreMovesFromFieldIntoRocks()
+    {
+        var u = DemoUniverse.Create();
+        var (loaded, _) = SpaceSim.Core.Persistence.SaveGameJson.Read(AsLegacyJson(u, version: 1));
 
         var alpha = loaded.Sectors[new SectorId(1)];
         float oreTotal = alpha.Fields.Sum(f => Belt.OreIn(alpha, f));
@@ -446,6 +463,24 @@ public class RespawnTests
         Assert.Contains(alpha.Asteroids, a => !a.Minable);               // Hindernisse ohne Erz bleiben
         Assert.True(loaded.NextAsteroidId > alpha.Asteroids.Max(a => a.Id));
         new SimulationRunner().Run(loaded, 2_000);                       // läuft weiter
+    }
+
+    [Fact]
+    public void FormatV2_IsMigrated_SingleOreFieldsBecomeLegacyClasses_AndOrdersFollow()
+    {
+        var u = DemoUniverse.Create();
+        new SimulationRunner().Run(u, 400);   // damit Miner Aufträge haben
+        int miningOrders = u.Ships.Values.Count(s => s.Order is MineOrder);
+        float oreBefore = u.Sectors.Values.Sum(sec => sec.Asteroids.Sum(a => a.Ore));
+
+        var (loaded, _) = SpaceSim.Core.Persistence.SaveGameJson.Read(AsLegacyJson(u, version: 2));
+
+        Assert.All(loaded.Sectors.Values.SelectMany(s => s.Fields), f => Assert.StartsWith("legacy_", f.ClassKey));
+        Assert.All(loaded.AsteroidClasses.Values, c => Assert.Single(c.Yields));
+        Assert.Equal(oreBefore, loaded.Sectors.Values.Sum(sec => sec.Asteroids.Sum(a => a.Ore)), 1);
+        Assert.Equal(miningOrders, loaded.Ships.Values.Count(s => s.Order is MineOrder));
+        new SimulationRunner().Run(loaded, 3_000);
+        Assert.All(loaded.Ships.Values, s => Assert.True(float.IsFinite(s.Credits)));
     }
 }
 
@@ -492,7 +527,7 @@ public class TradeActionTests
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 1);
         var ship = u.Ships[u.PlayerShip];
-        var plant = u.Stations[new StationId(2)];   // Kraftwerk: führt keine Erz-Marktposition
+        var plant = u.Stations[new StationId(2)];   // Kupferhütte: kauft Kupfererz, aber kein Eisenerz
         ship.Cargo[DemoUniverse.Ore] = 10f;
         var sale = TradeActions.SellAll(u, ship, plant);
         Assert.Equal(0f, sale.Revenue);
@@ -617,8 +652,8 @@ public class MiningAutopilotTests
         var h = new Harness();
         h.U.Sectors[new SectorId(1)].Asteroids.RemoveAll(a => a.Minable);
         var beta = h.U.Sectors[new SectorId(2)];
-        beta.Fields.Add(new ResourceField { Good = DemoUniverse.Ore, Position = new Vec2(60, 60) });
-        beta.Asteroids.Add(new Asteroid { Id = 9_999, Position = new Vec2(80, 60), BaseRadius = 5f, Good = DemoUniverse.Ore, Ore = 500, MaxOre = 500 });
+        beta.Fields.Add(new ResourceField { ClassKey = "metal_rock", Position = new Vec2(60, 60) });
+        beta.Asteroids.Add(new Asteroid { Id = 9_999, Position = new Vec2(80, 60), BaseRadius = 5f, ClassKey = "metal_rock", Ore = 500, MaxOre = 500 });
 
         h.Auto.Start();
         var step = h.Auto.Step(h.U, h.Chunks, h.Ship, h.Pos);

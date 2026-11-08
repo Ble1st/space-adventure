@@ -69,7 +69,7 @@ public partial class Main : Node3D
 		BuildStars();
 
 		_view = new SectorView(); AddChild(_view);
-		_mining = new MiningView(); AddChild(_mining);
+		_mining = new MiningView { GoodColor = id => GoodColor(id) }; AddChild(_mining);
 		_player = new PlayerShip(); AddChild(_player);
 		_fx = new Fx(); AddChild(_fx);
 		_sfx = new Sfx(); AddChild(_sfx);
@@ -546,8 +546,9 @@ public partial class Main : Node3D
 	/// Ein Spielerschuss ist gefallen: Ton, Laserblitz, bei Treffer Funken – und Rückstoß: Das Schiff wird
 	/// vom Asteroiden weggestoßen (echte Geschwindigkeitsänderung, deshalb bremst die Automatik im Haltemodus aktiv).
 	/// </summary>
-	void OnShot(Asteroid rock, float units)
+	void OnShot(Asteroid rock, LaserShot.Result result)
 	{
+		float units = result.Units;
 		var pos = new Vec2(_player.Position.X, _player.Position.Z);
 		var toShip = (pos - rock.Position).Normalized();
 		var surface = new Vector3(rock.Position.X + toShip.X * rock.Radius, 0, rock.Position.Y + toShip.Y * rock.Radius);
@@ -555,8 +556,10 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Zap);
 		_mining.FirePlayer(surface, Time.GetTicksMsec() / 1000.0);
 		_player.Velocity += new Vector3(toShip.X, 0, toShip.Y) * MiningRules.RecoilImpulse;
-		if (units > 0f) _fx.Burst(surface, new Color(1f, 0.75f, 0.3f), 5 + (int)units, 7f, 0.5f);
+		if (units > 0f) _fx.Burst(surface, GoodColor(result.Good), 5 + (int)units, 7f, 0.5f);
 	}
+
+	Color GoodColor(GoodId good) => _session.U.Goods.TryGetValue(good, out var g) ? Color.FromHtml(g.Color) : new Color(1f, 0.75f, 0.3f);
 
 	/// <summary>Ein NPC-Miner hat laut Simulation geschossen. Im Spielersektor zeigen wir Blitz, fliegenden Brocken und Rückstoß.</summary>
 	void OnMinerShot(MinerShot shot)
@@ -567,9 +570,9 @@ public partial class Main : Node3D
 		var away = (sp - rockPos).Normalized();
 		var surface = rockPos + away * shot.AsteroidRadius;
 
-		_mining.NpcShot(shot.Ship, surface, shot.Units, Time.GetTicksMsec() / 1000.0);
+		_mining.NpcShot(shot.Ship, surface, shot.Units, shot.Good, Time.GetTicksMsec() / 1000.0);
 		_view.Kick(shot.Ship, away * (MiningRules.RecoilImpulse * 0.4f));   // Rückstoß, verhältnismäßig zum Spielerschiff
-		if (shot.Units > 0f) _fx.Burst(surface, new Color(1f, 0.75f, 0.3f), 4 + (int)shot.Units, 6f, 0.4f);
+		if (shot.Units > 0f) _fx.Burst(surface, GoodColor(shot.Good), 4 + (int)shot.Units, 6f, 0.4f);
 	}
 
 	void UpdateHud()
