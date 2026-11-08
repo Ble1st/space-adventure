@@ -4,56 +4,60 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Mobile 2.5D space game (inspired by Interstellar Pilot 2) with a fully autonomous economy and factions that run without player input. The world consists of multiple sectors; each sector is its own instance, and the only way between them is via jumpgates. Planned engine: Godot 4 with C# (Android first; C# iOS export in Godot is immature). The Godot project does not exist yet; only the simulation core does.
+Mobile-first 2.5D space game (inspired by Interstellar Pilot 2) with a fully autonomous economy and factions that run without player input. The world is a graph of sectors; each sector is its own instance and the only way between them is via jumpgates. Stack: engine-independent C# core + Godot 4.7.2 (.NET build) as the view. The user communicates in German.
+
+**Architecture is the top priority.** Features must be added as separate modules/systems behind clear seams (registration, interfaces, events, data files), not by growing central classes. Keep `SpaceSim.Core` free of Godot and file IO.
 
 ## Commands
 
-The SDK installed is .NET 10, but `SpaceSim.Core` targets `net8.0` (what Godot 4 C# requires), so avoid APIs newer than .NET 8 in Core. The test project targets `net10.0` because only the .NET 10 runtime is installed.
+The .NET 10 SDK is installed; `SpaceSim.Core` targets `net8.0`, the test and tool projects `net10.0`, the Godot project `net9.0` (the Godot 4.7 Android template only accepts net9.0 for C#).
 
 ```
-dotnet build
-dotnet test
+dotnet build                       # solution (Core, tests, balance tool; NOT the Godot project)
+dotnet test                        # all unit tests (~5 s, includes long deterministic runs)
 dotnet test --filter "FullyQualifiedName~Economy_RunsStably_WithoutPlayer"   # single test
+dotnet run --project tools/SpaceSim.Balance -- --ticks 60000 --every 5000    # headless economy report (also: --seed N --world file.json --csv out.csv); exit code 1 if prices degenerate
+
+dotnet build godot                 # build the Godot C# project
+godot-mono --path godot            # run the game (use godot-mono, NOT godot: plain godot cannot run C#)
+godot-mono --path godot -e         # open the editor
+godot-mono --headless --path godot --fixed-fps 60 -- --selftest   # scripted headless run: autopilot across sectors, docking, panels, save/load; prints SELFTEST OK, uses its own save file
 ```
 
-## Architecture
+`godot-mono` is a symlink in `~/.local/bin` to `~/.local/opt/godot-mono/`. Godot prints harmless "Leaked unsafe reference"/ObjectDB warnings when quitting from code.
 
-**Simulation core is engine-independent.** `src/SpaceSim.Core` must never reference Godot. Godot code (to be added) is only a view over it. This keeps the economy testable headless and fast-forwardable (e.g. thousands of ticks in a unit test).
+## Core architecture (`src/SpaceSim.Core`)
 
-**Two layers:**
-1. Simulation layer: every sector exists as plain data in `Universe` and is always simulated.
-2. Presentation layer: only the sector containing the player (`Universe.PlayerSector`) is materialized as a Godot scene. On a jump it is unloaded and the target sector is built from data. Remote sectors are simulated abstractly (LOD) to save CPU and battery on mobile.
+**Two layers.** Simulation layer: every sector exists as plain data in `Universe` and is always simulated. Presentation layer: only `Universe.PlayerSector` is materialized as a Godot scene. Core must never reference Godot; the view must not invent simulation state.
 
-**Abstract travel with materialization.** Ships outside the player's sector are not simulated physically. `Travel.Plan` turns a trip into contiguous `Leg`s (one straight flight per sector: start -> gate, gate -> gate, ..., gate -> destination; speed `Travel.ShipSpeed` units/tick); `Transit` stores them and `ArrivalTick` is the last leg's end. A ship physically exists in exactly one sector at any time, so `Materializer.Snapshot(universe, sector, fractionalTick)` can derive positions of all NPC ships in the player's sector (moving ships by interpolating the active leg, parked ones at `Ship.Position`). The Godot view only renders that snapshot; it must not invent ship positions. `Ship.Position`/`Ship.Sector` are only updated on arrival; mid-trip location comes from the legs. `Sector.Ships` therefore lists ships by their last arrival, not live location. AI scoring uses `Travel.Ticks` (same plan, so estimates match reality).
+**Modules and systems.** `SimulationRunner` builds its system list from `ISimModule`s (`Modules/DefaultModules.cs`: Production, Resources, Trade, Lifecycle) via `SimulationBuilder.Add(system, interval)`. Order matters (production/market before AI, lifecycle last). A system with `interval > 1` runs every n ticks and receives `dt = n` (simulation LOD) — it must scale by `dt`. To add behavior: write an `ISimSystem`, register it in a module (or a new module in `DefaultModules()`).
 
-**Obstacles, avoidance, collision.** Asteroids (`Sector.Asteroids`, generated deterministically by `Demo/AsteroidGenerator`) and station bodies (`Station.BodyRadius`) are circular `Obstacle`s (`Universe.GetObstacles`). `PathPlanner` routes legs around them with waypoints, so travel time, materialized flight paths and AI estimates all include detours; it ignores obstacles that already contain the start or end point. Ships never target a station/field center but `Station.DockPoint(shipId)` / `ResourceField.WorkPoint(shipId)` (outside the obstacle, inside the asteroid-free zone). Collision (`Collision.Resolve`) is only applied to the player ship in the view, plus a cosmetic dodge offset (`Avoidance.Desired`: ships step aside from each other and from the player, then get pushed back out of obstacles) in `Main.cs`; neither feeds back into the simulation, so two NPC fleets may still cross in the data model. `PathPlanner` recursion is bounded by `MaxDepth` and a `MaxExpansions` node budget and pushes waypoints out of neighbouring obstacles. Keep asteroid sizes in the view equal to `Obstacle.Radius`.
+**Events.** `Universe.Events` (`SimEvents`) is a synchronous bus (`TradeCompleted`, `MineDelivered`, `StationBuilt/Removed`, `ShipSpawned/Removed`). Stats, UI toasts etc. subscribe; systems publish. The bus is not persisted — re-subscribe after loading (the view does this in `Main.AttachSession`).
 
-**Data model conventions:**
-- Entities reference each other by typed ID structs (`SectorId`, `ShipId`, ...), never by object reference. Everything lives in `Dictionary<Id, T>` on `Universe`. This keeps save/load (JSON) simple and avoids cycles.
-- Jumpgates are the edges of the sector graph; each `Gate.Target` points to the counterpart gate in the neighboring sector. A closed gate (`Open = false`) blocks routing, which is the hook for war/blockades.
-- Ship behavior is expressed as `ShipOrder` records (`TradeOrder`, `MineOrder`, ...) and consumed with pattern matching.
-- Use `Universe.MoveShip` to change a ship's sector so `Sector.Ships` stays consistent.
+**Content is data-driven.** `Content/default-world.json` (embedded resource) defines goods (referenced by string key, `GoodId` = index+1), station types with recipes, factions, sectors, gates, stations, fields, ships. `WorldBuilder.Parse/Build` validates and throws `WorldFormatException` with the offending name. `DemoUniverse.Create()` is just `WorldBuilder.BuildDefault()`. Core never reads files; callers pass JSON text. Tuning knobs live in `EconomyRules` (JSON `rules` section, also saved).
 
-**Systems pipeline.** `SimulationRunner` runs `ISimSystem`s in order each tick, then increments `Universe.Tick`. Default order matters: `ProductionSystem` → `MarketSystem` → `RegenSystem` → `MinerSystem` → `TraderSystem`. Add new simulation behavior as a new `ISimSystem` rather than extending existing ones.
+**Space and travel.** Entities reference each other by typed ID structs in dictionaries on `Universe`. Jumpgates are the edges of the sector graph (`Universe.FindRoute`, per-tick cached via `CachedRoute`/`IsReachable`; `Gate.Open=false` blocks). Ships outside the player's sector have no physics: `Travel.Plan` turns a trip into contiguous `Leg`s (one per sector, detouring around obstacles via `PathPlanner`), `Transit` stores them, `ArrivalTick` is the last leg's end. `Travel.Start` also charges fuel (a money sink). `Travel.Estimate` is the cheap (straight-line) variant for AI scoring. Obstacles (`Obstacle`) are asteroids (generated by `Demo/AsteroidGenerator`) and station bodies. Ships target `Station.DockPoint(shipId)` / `ResourceField.WorkPoint(shipId)`, never centers. `Ship.Position`/`Sector` are only updated on arrival; mid-trip location comes from the legs.
 
-**Economy model.** Price is derived per station and good: `BasePrice * clamp(Target / max(Amount, 1), 0.25, 4)`. Stations produce through `Recipe`s (inputs → outputs per cycle). Traders pick the best price margin between a buy and a sell station that are connected by gates, travel via `Transit`, and trade on arrival. Miners (`MinerSystem`) extract from `Sector.Fields`, pick field + station by best price per travel time, and refuse to mine when the price is below `MinPriceFactor` × base price, which caps overproduction. Trader and miner travel both go through `Travel.Start`. Stability of this loop is the core design risk, so verify changes with long headless runs (see `EconomyTests`).
+**Ship index.** `Universe.Tracker` (`ShipTracker`) maps sector → parked ships / ships with a leg in that sector. Always mutate ship placement through `Universe.AddShip/RemoveShip/StartTransit/FinishTransit/MoveShip`, never by writing `Ship.Sector`/`Transit` directly. `Materializer.Snapshot(u, sector, fractionalTick)` uses the index to derive where each NPC ship is (moving ships by interpolating the active leg, parked ones at `Ship.Position`); the view renders that.
 
-## Not yet implemented
+**Economy.** Price per station and good = `BasePrice * clamp(Target / max(Amount,1), 0.25, 4)` (`MarketSystem`). `ProductionSystem` runs station recipes. `TraderSystem` scores routes by profit per tick (margin × units / `Travel.Estimate`) with stock reservations by other traders; stations only pay what they have (`TraderSystem.CanAfford`, leftover cargo is dumped). `MinerSystem` mines fields and refuses to mine below `MinPriceFactor` × base price. Money flow (`UpkeepSystem`): station income (faucet) and upkeep, wealth taxes, ship upkeep, fuel, ship/station purchases (sinks); without sinks credits pile up at ships. `StationLifecycleSystem`: bankrupt non-`Essential` stations are removed (`Universe.RemoveStation` cancels referencing orders), scarce goods (avg price > `BuildPriceRatio`) trigger a new producer station funded by the richest station *or ship* (investors). `FleetSystem`: rich ships buy ships up to `MaxTraders/MaxMiners`, idle broke ones are abandoned. Idle AI ships only re-think every ~10 ticks (`Ship.NextThinkTick`).
 
-Fighter/patrol AI, faction AI and relations logic, save/load, combat, missions, and any connection between the Godot project and `SpaceSim.Core`.
+**Determinism.** All randomness goes through `Universe.Rng` (`DeterministicRng`, state saved). `Diagnostics/UniverseHash` hashes simulation state; tests assert same seed → same hash and save → load → continue is bit-identical. Never use `System.Random`/time/hash-order-dependent iteration inside systems.
+
+**Persistence.** `Persistence/SaveGame` DTOs (versioned, `Migrate` hook in `SaveGameJson`) are separate from the runtime model; `UniverseSerializer` converts both ways; derived state (Events, Tracker, caches) is rebuilt. When adding persistent state to `Universe`/`Ship`/`Station`, update DTOs + serializer + `UniverseHash` and bump `SaveGame.CurrentVersion` with a migration if the format breaks. `OfflineCatchUp` replays missed time (capped, `SimClock` = 4 ticks/s).
+
+**Navigation/avoidance/collision.** `Navigator.Next` gives the player autopilot the next waypoint (route gates + `PathPlanner`). `Collision.Resolve` (circles) is applied to the player in the view; `Avoidance.Desired` is a purely cosmetic sidestep between NPCs/player in the view. Neither feeds back into the simulation, so two NPC fleets may still cross in the data model. `PathPlanner` recursion is bounded by `MaxDepth` and a `MaxExpansions` node budget. Keep asteroid sizes in the view equal to `Obstacle.Radius`.
+
+**Diagnostics.** `EconomyStats.Snapshot` and `RouteRecorder` (event-based) feed the in-game economy panel and `tools/SpaceSim.Balance`. Use the balance tool after any economy change: it caught money explosions and herding that unit tests missed.
 
 ## Godot project (`godot/`)
 
-Uses the **.NET build** of Godot 4.7.2: run it with `godot-mono` (`~/.local/bin/godot-mono` -> `~/.local/opt/godot-mono/`). Plain `godot` is the standard build and cannot run C#.
+`godot/SpaceAdventure.csproj` (Godot.NET.Sdk/4.7.2) references the Core and is deliberately **not** in `SpaceSim.slnx`. `scripts/Main.cs` is only the composition root (wiring, steering priority stick > pointer > autopilot, gate jumps, docking). Components: `Game/GameSession` (universe + fixed-step simulation), `Game/SaveService` (user:// file, atomic write; `UseFile` for tests), `World/SectorView` (builds sector from Core data, renders NPC ships), `World/PlayerShip` (flight model, collision), `World/Fx`/`Sfx` (particles; procedurally generated audio, no asset files), `Ui/Hud` + `Ui/Panels` (map, economy debug, dock, menu), `Ui/TouchButton`/`VirtualStick` (multi-touch aware; `Ui/Pointer` unifies mouse and touch — on touch devices only touch events are handled). Plain primitive meshes are used; there are no art assets yet. Autosave every 30 s and on pause/close.
 
-```
-godot-mono --path godot                                   # run the game
-godot-mono --path godot -e                                # open the editor
-godot-mono --headless --path godot --build-solutions --quit   # build C# via Godot
-godot-mono --headless --path godot --quit-after 300       # headless smoke test (look for errors)
-dotnet build godot                                        # build only the Godot C# project
-```
+Space plane is XZ (`Vec2.Y` → world Z), tilted perspective camera for 2.5D. Controls: stick/WASD/arrows, hold pointer to fly toward it, tap a station/gate for autopilot target, buttons for map/economy/time lapse/menu/dock.
 
-`godot/SpaceAdventure.csproj` (Godot.NET.Sdk/4.7.2, net8.0) references `../src/SpaceSim.Core`. It is deliberately **not** in `SpaceSim.slnx`, so root-level `dotnet test` stays independent of Godot.
+**Android:** `godot/export_presets.cfg` has an "Android" preset (arm64, debug keystore from editor settings, SDK paths already set in the user's editor settings). Export currently fails only because the **.NET export templates** (`~/.local/share/godot/export_templates/4.7.2.stable.mono/`) are not installed (install via Editor → Manage Export Templates in godot-mono). C# on Android is experimental. Touch input and mobile performance are untested on a real device. Export command: `godot-mono --headless --path godot --export-debug "Android" ../build/space-adventure.apk`.
 
-`godot/scripts/Main.cs` is the single scene script (scene `scenes/main.tscn` is just a `Node3D` with it). It builds `DemoUniverse`, steps `SimulationRunner` at a fixed 4 ticks/s from `_Process`, and materializes only `Universe.PlayerSector`: stations, gates and asteroids from Core data, plus NPC ships from `Materializer`. Flying into a gate calls `Universe.MoveShip`, rebuilds the sector scene and places the ship at the counterpart gate. Space plane is XZ (`Vec2.Y` -> world Z) with a tilted perspective camera for 2.5D. Controls: arrows/WASD, hold mouse/touch to fly toward the pointer, `T` fast-forwards the simulation.
+## Not yet implemented
+
+Player trading/cargo/credits flow at stations (dock panel is read-only), combat/weapons, faction behavior (relations, war, closed gates — fields exist but nothing uses them), missions, ship equipment, real 3D models/textures, on-device Android testing.
