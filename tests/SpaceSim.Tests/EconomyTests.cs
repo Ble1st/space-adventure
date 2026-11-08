@@ -92,11 +92,12 @@ public class MinerTests
     {
         var u = SpaceSim.Core.Demo.DemoUniverse.Create();
         float fieldsBefore = u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore);
+        var founders = u.Ships.Values.Where(s => s.Role == ShipRole.Miner).Select(s => s.Id).ToList();   // später gekaufte Schiffe starten mit weniger
         new SimulationRunner().Run(u, 2_000);
 
-        var miners = u.Ships.Values.Where(s => s.Role == ShipRole.Miner).ToList();
-        Assert.Equal(2, miners.Count);
-        Assert.All(miners, m => Assert.True(m.Credits > 1000f, "Miner sollte Gewinn gemacht haben"));
+        Assert.NotEmpty(founders);
+        foreach (var id in founders)
+            Assert.True(u.Ships[id].Credits > 1000f, "Ein Gründungs-Miner sollte Gewinn gemacht haben");
         Assert.NotEqual(fieldsBefore, u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore));   // Abbau und Respawn haben den Gürtel verändert
     }
 

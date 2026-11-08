@@ -55,7 +55,7 @@ public static class UniverseSerializer
                 Order = sh.Order is null ? null : ToSave(sh.Order),
                 Phase = sh.Phase.ToString(), MinePhase = sh.MinePhase.ToString(),
                 Transit = sh.Transit is null ? null : ToSave(sh.Transit),
-                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince,
+                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
             });
         return s;
@@ -111,7 +111,7 @@ public static class UniverseSerializer
                 Order = sh.Order is null ? null : FromSave(sh.Order),
                 Phase = Enum.Parse<TradePhase>(sh.Phase), MinePhase = Enum.Parse<MinePhase>(sh.MinePhase),
                 Transit = sh.Transit is null ? null : FromSave(sh.Transit),
-                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince,
+                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
             };
             u.Ships[ship.Id] = ship;   // AddShip würde ein ShipSpawned-Ereignis auslösen

@@ -17,7 +17,7 @@ public partial class Hud : CanvasLayer
 	public TouchButton AutopilotButton { get; } = new("Autopilot") { Toggle = true };
 	public TouchButton FastButton { get; } = new("Zeitraffer") { Toggle = true };
 	public TouchButton DockButton { get; } = new("Andocken");
-	public TouchButton LaserButton { get; } = new("Laser (halten)");
+	public TouchButton LaserButton { get; } = new("Feuer (F)");
 	public TouchButton TractorButton { get; } = new("Traktor") { Toggle = true };
 	public TouchButton AutoMineButton { get; } = new("Auto-Mining") { Toggle = true };
 

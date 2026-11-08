@@ -6,12 +6,12 @@ namespace SpaceSim.Core.Simulation;
 
 /// <summary>
 /// Miner-KI: wählt Feld + Abnehmerstation mit dem besten Preis pro Zeit, fliegt abstrakt zum Feld,
-/// baut dort Tick für Tick ab, liefert aus und verkauft. Baut nicht ab, wenn der Preis zu niedrig ist
+/// baut dort mit denselben Laserschüssen ab wie der Spieler (Nachladezeit, Trefferwahrscheinlichkeit, zufällige Brockengröße,
+/// Erz stammt aus dem Asteroiden), liefert aus und verkauft. Baut nicht ab, wenn der Preis zu niedrig ist
 /// (verhindert endlose Überproduktion).
 /// </summary>
 public sealed class MinerSystem : ISimSystem
 {
-    public const float ExtractPerTick = 2f;
     /// <summary>Mindestpreis relativ zum Basispreis, ab dem sich Abbau lohnt.</summary>
     public const float MinPriceFactor = 0.5f;
     public const int ThinkInterval = 10;
@@ -54,7 +54,7 @@ public sealed class MinerSystem : ISimSystem
             {
                 if (Belt.OreIn(sector, field) < 1f) continue;
                 var good = u.Goods[field.Good];
-                float mineTicks = ship.CargoCapacity / good.VolumePerUnit / ExtractPerTick;
+                float mineTicks = ship.CargoCapacity / good.VolumePerUnit / (MiningRules.ExpectedOrePerSecond * SimClock.TickInterval);
                 foreach (var st in u.Stations.Values)
                 {
                     if (!st.Market.TryGetValue(field.Good, out var e) || e.Price < good.BasePrice * MinPriceFactor) continue;
@@ -87,6 +87,7 @@ public sealed class MinerSystem : ISimSystem
         if (ship.MinePhase == MinePhase.GoingToField)
         {
             ship.MinePhase = MinePhase.Mining;
+            ship.ShotTimer = 0f; ship.MineAsteroid = 0;
         }
         else if (ship.MinePhase == MinePhase.GoingToStation)
         {
@@ -110,13 +111,10 @@ public sealed class MinerSystem : ISimSystem
     {
         if (ship.Order is not MineOrder order) { ship.MinePhase = MinePhase.Idle; return; }
 
-        var good = u.Goods[order.Good];
         var sector = u.Sectors[ship.Sector];
         var field = sector.Fields.FirstOrDefault(f => f.Good == order.Good && Belt.OreIn(sector, f) > 0.01f);
-        float used = ship.Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
-        float free = ship.CargoCapacity - used;
 
-        if (field is null || free < 0.01f)
+        if (field is null || ship.FreeUnits(u, order.Good) < MiningRules.MinChunkUnits)
         {
             if (ship.Cargo.GetValueOrDefault(order.Good) > 0f)
             {
@@ -127,7 +125,33 @@ public sealed class MinerSystem : ISimSystem
             return;
         }
 
-        float amount = Belt.Take(u, sector, field, MathF.Min(ExtractPerTick, free / good.VolumePerUnit));
-        ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
+        // Jeder Tick lädt die Waffe nach; ist sie bereit, fällt genau ein Schuss (nie mehrere auf einmal)
+        ship.ShotTimer = MathF.Min(ship.ShotTimer + SimClock.TickInterval, MiningRules.ShotInterval + SimClock.TickInterval);
+        if (ship.ShotTimer < MiningRules.ShotInterval) return;
+        var rock = PickRock(sector, field, ship);
+        if (rock is null) return;
+
+        ship.ShotTimer -= MiningRules.ShotInterval;
+        float units = LaserShot.Roll(u.Rng, rock);
+        if (units > 0f)
+        {
+            Belt.Remove(u, sector, rock, units);
+            ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + MathF.Min(units, ship.FreeUnits(u, order.Good));   // Traktorstrahl lädt ein
+        }
+        u.Events.Publish(new MinerShot(sector.Id, ship.Id, rock.Id, rock.Position, rock.Radius, units));
+    }
+
+    /// <summary>Asteroid im Gürtel des Feldes, auf den der Miner feuert: bleibt beim selben, bis er leer ist; sonst der nächste in Laserreichweite.</summary>
+    static Asteroid? PickRock(Sector sector, ResourceField field, Ship ship)
+    {
+        if (ship.MineAsteroid != 0)
+        {
+            var current = sector.Asteroids.FirstOrDefault(a => a.Id == ship.MineAsteroid);
+            if (current is { Minable: true }) return current;
+        }
+        var rocks = Belt.AsteroidsOf(sector, field).OrderBy(a => Vec2.Distance(a.Position, ship.Position) - a.Radius).ThenBy(a => a.Id).ToList();
+        var pick = rocks.FirstOrDefault(a => Vec2.Distance(a.Position, ship.Position) - a.Radius <= MiningRules.LaserRange) ?? rocks.FirstOrDefault();
+        ship.MineAsteroid = pick?.Id ?? 0;
+        return pick;
     }
 }

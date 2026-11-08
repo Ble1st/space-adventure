@@ -24,7 +24,7 @@ public class MiningTests
     /// <summary>Feuert so lange, bis <paramref name="seconds"/> Spielzeit vergangen ist.</summary>
     static void Fire(OreChunks c, Universe u, Ship ship, Sector sector, Asteroid a, Vec2 pos, float seconds)
     {
-        for (float t = 0; t < seconds; t += 0.05f) { c.Mine(u, ship, sector, a, pos, 0.05f); c.Update(u, ship, pos, tractor: false, 0.05f); }
+        for (float t = 0; t < seconds; t += 0.05f) { c.TryFire(u, ship, sector, a, pos); c.Update(u, ship, pos, tractor: false, 0.05f); }
     }
 
     [Fact]
@@ -32,12 +32,12 @@ public class MiningTests
     {
         var (u, ship, sector, rock) = Setup();
         var chunks = new OreChunks();
-        Assert.Equal(MineResult.OutOfRange, chunks.Mine(u, ship, sector, rock, new Vec2(5000, 5000), 1f));
+        Assert.Equal(MineResult.OutOfRange, chunks.TryFire(u, ship, sector, rock, new Vec2(5000, 5000)));
         Assert.Empty(chunks.Chunks);
     }
 
     [Fact]
-    public void Shots_FireAtAFixedRate_AndOnlySometimesYieldAChunk()
+    public void Shots_AreLimitedByTheReloadTime_AndOnlySometimesYieldAChunk()
     {
         var (u, ship, sector, rock) = Setup();
         rock.Ore = rock.MaxOre = 100_000f;   // soll nicht leerlaufen
@@ -134,13 +134,15 @@ public class MiningTests
         for (int i = 0; i < 4_000 && sector.Asteroids.Contains(rock); i++)
         {
             ship.Cargo.Clear();   // Laderaum nie voll
-            chunks.Mine(u, ship, sector, rock, InRange(rock), 0.05f);
+            chunks.TryFire(u, ship, sector, rock, InRange(rock));
+            chunks.Update(u, ship, InRange(rock), false, 0.05f);
             if (i == 40) Assert.True(rock.Radius < radiusBefore, "schrumpft während des Abbaus");
         }
 
         Assert.DoesNotContain(rock, sector.Asteroids);
         Assert.Single(events);
-        Assert.Equal(MineResult.NotMinable, chunks.Mine(u, ship, sector, rock, InRange(rock), 0.1f));
+        chunks.Update(u, ship, InRange(rock), false, 1f);   // nachladen
+        Assert.Equal(MineResult.NotMinable, chunks.TryFire(u, ship, sector, rock, InRange(rock)));
     }
 
     [Fact]
@@ -150,7 +152,7 @@ public class MiningTests
         rock.Ore = rock.MaxOre = 100_000f;
         ship.Cargo[rock.Good] = ship.CargoCapacity;
         var chunks = new OreChunks();
-        Assert.Equal(MineResult.CargoFull, chunks.Mine(u, ship, sector, rock, InRange(rock), 1f));
+        Assert.Equal(MineResult.CargoFull, chunks.TryFire(u, ship, sector, rock, InRange(rock)));
 
         ship.Cargo[rock.Good] = ship.CargoCapacity - 1f;   // nur 1 Einheit Platz
         var pos = InRange(rock);
@@ -167,7 +169,7 @@ public class MiningTests
         var inert = sector.Asteroids.First(a => !a.Minable);
         var chunks = new OreChunks();
         Assert.False(chunks.IsMinable(sector, inert));
-        Assert.Equal(MineResult.NotMinable, chunks.Mine(u, ship, sector, inert, InRange(inert), 1f));
+        Assert.Equal(MineResult.NotMinable, chunks.TryFire(u, ship, sector, inert, InRange(inert)));
     }
 
     [Fact]
@@ -180,6 +182,146 @@ public class MiningTests
         float d = Vec2.Distance(pos, best.Position) - best.Radius;
         foreach (var a in sector.Asteroids.Where(a => a.Minable))
             Assert.True(Vec2.Distance(pos, a.Position) - a.Radius >= d - 1e-3f);
+    }
+}
+
+public class IndividualFireTests
+{
+    static (Universe u, Ship ship, Sector sector, Asteroid rock) Setup()
+    {
+        var u = DemoUniverse.Create();
+        var sector = u.Sectors[u.PlayerSector];
+        return (u, u.Ships[u.PlayerShip], sector, sector.Asteroids.First(a => a.Minable));
+    }
+
+    [Fact]
+    public void OneTrigger_IsOneShot_AndTheLaserMustReloadBeforeTheNext()
+    {
+        var (u, ship, sector, rock) = Setup();
+        rock.Ore = rock.MaxOre = 10_000f;
+        var pos = rock.Position + new Vec2(1, 0) * (rock.Radius + 20f);
+        var chunks = new OreChunks(seed: 1);
+        int shots = 0;
+        chunks.Shot += (_, _) => shots++;
+
+        Assert.True(chunks.Ready);
+        Assert.Equal(MineResult.Fired, chunks.TryFire(u, ship, sector, rock, pos));
+        Assert.False(chunks.Ready);
+        for (int i = 0; i < 20; i++) Assert.Equal(MineResult.Cooldown, chunks.TryFire(u, ship, sector, rock, pos));   // "Halten" feuert nicht
+        Assert.Equal(1, shots);
+
+        chunks.Update(u, ship, pos, false, MiningRules.ShotInterval + 0.01f);
+        Assert.True(chunks.Ready);
+        Assert.Equal(MineResult.Fired, chunks.TryFire(u, ship, sector, rock, pos));
+        Assert.Equal(2, shots);
+    }
+
+    [Fact]
+    public void Recoil_IsConfigured()
+    {
+        Assert.True(MiningRules.RecoilImpulse > 0f);
+        Assert.True(MiningRules.RecoilImpulse < 14f, "Rückstoß allein darf keinen Aufprallschaden verursachen");
+    }
+
+    // ───────── NPC-Miner benutzen dieselbe Schussregel ─────────
+
+    static (Universe u, Ship miner, Sector sector, ResourceField field, List<MinerShot> shots) NpcSetup()
+    {
+        var u = DemoUniverse.Create();
+        var sector = u.Sectors[new SectorId(1)];
+        var field = sector.Fields[0];
+        var miner = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
+        miner.CargoCapacity = 1_000_000f;
+        miner.Cargo.Clear();
+        miner.Position = field.WorkPoint(miner.Id);
+        miner.Order = new MineOrder(sector.Id, field.Good, new StationId(1));
+        miner.MinePhase = MinePhase.Mining;
+        miner.Credits = 0;
+        var shots = new List<MinerShot>();
+        u.Events.Raised += e => { if (e is MinerShot m) shots.Add(m); };
+        return (u, miner, sector, field, shots);
+    }
+
+    [Fact]
+    public void NpcMiner_FiresIndividualShots_AtMostOnePerTick_AtTheReloadRate()
+    {
+        var (u, miner, _, _, shots) = NpcSetup();
+        var system = new MinerSystem();
+        int perTickMax = 0, ticks = 400;
+        for (int i = 0; i < ticks; i++)
+        {
+            int before = shots.Count;
+            system.Step(u, 1);
+            perTickMax = Math.Max(perTickMax, shots.Count - before);
+        }
+        Assert.Equal(1, perTickMax);
+        double seconds = ticks * SimClock.TickInterval;
+        Assert.InRange(shots.Count / seconds, 1.0 / MiningRules.ShotInterval * 0.85, 1.0 / MiningRules.ShotInterval * 1.05);
+    }
+
+    [Fact]
+    public void NpcMiner_UsesTheSameHitChanceAndChunkSizes_AsThePlayer()
+    {
+        var (u, miner, _, _, shots) = NpcSetup();
+        var system = new MinerSystem();
+        for (int i = 0; i < 2_500 && shots.Count < 600; i++) system.Step(u, 1);
+
+        double hitRate = shots.Count(x => x.Units > 0) / (double)shots.Count;
+        Assert.InRange(hitRate, MiningRules.ChunkChance - 0.08, MiningRules.ChunkChance + 0.08);
+        var sizes = shots.Where(x => x.Units > 0).Select(x => x.Units).ToList();
+        Assert.True(sizes.Distinct().Count() >= 3, "NPC-Brocken sollen unterschiedlich groß sein");
+        Assert.InRange(sizes.Average(), 2.0, 3.4);   // Erwartung ≈ 2,7 (kleine Reste kurz vor leeren Asteroiden drücken etwas)
+    }
+
+    [Fact]
+    public void NpcMiner_OreIsConserved_BetweenAsteroidsAndCargo()
+    {
+        var (u, miner, sector, field, shots) = NpcSetup();
+        float oreBefore = Belt.OreIn(sector, field);
+        var system = new MinerSystem();
+        for (int i = 0; i < 600; i++) system.Step(u, 1);
+
+        float mined = miner.Cargo.GetValueOrDefault(field.Good);
+        Assert.True(mined > 50f, $"Es sollte nennenswert Erz abgebaut worden sein ({mined:0})");
+        Assert.Equal(oreBefore - mined, Belt.OreIn(sector, field), 2);
+        Assert.Equal(shots.Sum(x => x.Units), mined, 2);
+    }
+
+    [Fact]
+    public void NpcMiner_ShootsTheSameRockUntilItIsEmpty_ThenPicksAnother()
+    {
+        var (u, miner, sector, field, shots) = NpcSetup();
+        var system = new MinerSystem();
+        for (int i = 0; i < 1_500; i++) system.Step(u, 1);
+        var ids = shots.Select(x => x.Asteroid).Distinct().ToList();
+        Assert.True(ids.Count >= 2, "Nach einem leeren Asteroiden wird der nächste gewählt");
+        // Bis zum Wechsel feuert er stets auf denselben Felsen
+        var runs = new List<int>();
+        foreach (var x in shots) if (runs.Count == 0 || runs[^1] != x.Asteroid) runs.Add(x.Asteroid);
+        Assert.Equal(runs.Count, runs.Distinct().Count());
+    }
+
+    [Fact]
+    public void NpcMining_StopsWhenTheCargoIsFull_AndNeverOverfills()
+    {
+        var (u, miner, _, field, _) = NpcSetup();
+        miner.CargoCapacity = 20f;
+        var system = new MinerSystem();
+        for (int i = 0; i < 2_000; i++) system.Step(u, 1);
+        Assert.True(miner.UsedVolume(u) <= 20f + 1e-3f);
+        Assert.NotEqual(MinePhase.Mining, miner.MinePhase);   // ist zur Lieferung losgefahren
+    }
+
+    [Fact]
+    public void NpcMiningState_SurvivesSaveAndLoad()
+    {
+        var (u, miner, _, _, _) = NpcSetup();
+        var system = new MinerSystem();
+        for (int i = 0; i < 40; i++) system.Step(u, 1);
+        var (loaded, _) = SpaceSim.Core.Persistence.SaveGameJson.Read(SpaceSim.Core.Persistence.SaveGameJson.Write(u, DateTimeOffset.UtcNow));
+        var copy = loaded.Ships[miner.Id];
+        Assert.Equal(miner.ShotTimer, copy.ShotTimer, 3);
+        Assert.Equal(miner.MineAsteroid, copy.MineAsteroid);
     }
 }
 
@@ -412,7 +554,7 @@ public class MiningAutopilotTests
                 else if (step.Waypoint is { } wp)
                     Pos += (wp - Pos).Normalized() * MathF.Min(speed * dt * step.Throttle, Vec2.Distance(wp, Pos));
 
-                if (step.Fire && step.Aim is { } rock) Chunks.Mine(U, Ship, U.Sectors[U.PlayerSector], rock, Pos, dt);
+                if (step.Fire && step.Aim is { } rock) Chunks.TryFire(U, Ship, U.Sectors[U.PlayerSector], rock, Pos);
                 Chunks.Update(U, Ship, Pos, step.Tractor, dt);
                 if (until?.Invoke() == true) return;
             }

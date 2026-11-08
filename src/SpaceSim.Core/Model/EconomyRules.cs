@@ -25,7 +25,9 @@ public sealed class EconomyRules
     public float BankruptcyLimit = -3000f;       // darunter wird eine Station aufgegeben
     public int BankruptcyTicks = 400;
     public float BuildPriceRatio = 1.6f;         // Ware gilt als knapp, wenn Durchschnittspreis > Basispreis * Faktor
+    /// <summary>Ware gilt als im Überangebot, wenn der Durchschnittspreis darunter liegt: dann entsteht ein Verbraucher.</summary>
+    public float GlutPriceRatio = 0.4f;
     public int BuildCooldown = 1500;
-    public int MaxStations = 20;
-    public int MaxStationsPerSector = 6;
+    public int MaxStations = 30;
+    public int MaxStationsPerSector = 8;
 }

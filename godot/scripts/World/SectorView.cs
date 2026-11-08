@@ -15,7 +15,7 @@ public readonly record struct PickTarget(string Kind, int Id, Vector3 Position, 
 /// </summary>
 public partial class SectorView : Node3D
 {
-	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; }
+	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; }
 
 	Universe? _u;
 	SectorId _sector;
@@ -100,6 +100,12 @@ public partial class SectorView : Node3D
 		Obstacles = u.GetObstacles(_sector);
 	}
 
+	/// <summary>Angezeigte Position eines NPC-Schiffs; null, wenn es nicht im Sektor ist.</summary>
+	public Vector3? ShipPosition(ShipId id) => _markers.TryGetValue(id, out var m) ? m.Pivot.Position : null;
+
+	/// <summary>Rückstoß eines abgefeuerten Lasers: Das Schiff wird kurz weggestoßen und federt zurück (nur Darstellung).</summary>
+	public void Kick(ShipId id, Vector3 impulse) { if (_markers.TryGetValue(id, out var m)) m.Recoil += impulse; }
+
 	/// <summary>Aktuelle (angezeigte) Positionen der NPC-Schiffe als Kollisionskreise.</summary>
 	public IEnumerable<Obstacle> ShipBodies() =>
 		_markers.Values.Select(m => new Obstacle(new Vec2(m.Pivot.Position.X, m.Pivot.Position.Z), Collision.ShipRadius));
@@ -131,7 +137,8 @@ public partial class SectorView : Node3D
 			}
 			var desired = Avoidance.Desired(s.Id, s.Position, neighbours);
 			m.Offset = m.Offset.Lerp(new Vector3(desired.X, 0, desired.Y), 1f - Mathf.Exp(-5f * delta));
-			var shown = target + m.Offset;
+			m.Recoil = m.Recoil.Lerp(Vector3.Zero, 1f - Mathf.Exp(-6f * delta));
+			var shown = target + m.Offset + m.Recoil;
 			var shown2 = new Vec2(shown.X, shown.Z);
 			Collision.Resolve(ref shown2, Collision.ShipRadius, Obstacles, out _);   // Ausweichen führt nie in Hindernisse
 			m.Pivot.Position = new Vector3(shown2.X, 0, shown2.Y);

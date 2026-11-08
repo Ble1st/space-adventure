@@ -11,6 +11,9 @@ public partial class TouchButton : Control
 	public bool On { get => _on; set { _on = value; QueueRedraw(); } }
 	public event Action? Pressed;
 
+	/// <summary>Sofort beim Aufsetzen des Fingers (für Einzelschüsse), nicht erst beim Loslassen.</summary>
+	public event Action? Down;
+
 	/// <summary>True, solange ein Finger/die Maus gedrückt hält (für Dauerfeuer).</summary>
 	public bool Held => _down;
 
@@ -41,7 +44,7 @@ public partial class TouchButton : Control
 	{
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
 		bool inside = new Rect2(Vector2.Zero, Size).HasPoint(pos);
-		if (!motion && pressed && inside && _finger < 0) { _finger = idx; _down = true; QueueRedraw(); AcceptEvent(); }
+		if (!motion && pressed && inside && _finger < 0) { _finger = idx; _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
 		else if (idx == _finger && !pressed && !motion)
 		{
 			bool fire = _down && inside;

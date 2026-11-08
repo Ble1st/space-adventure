@@ -118,5 +118,6 @@ public sealed class ShipSave
     public string Phase { get; set; } = ""; public string MinePhase { get; set; } = "";
     public TransitSave? Transit { get; set; }
     public long NextThinkTick { get; set; } public long IdleSince { get; set; }
+    public float ShotTimer { get; set; } public int MineAsteroid { get; set; }
     public Dictionary<int, float> Cargo { get; set; } = new();
 }

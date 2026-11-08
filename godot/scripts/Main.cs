@@ -37,6 +37,7 @@ public partial class Main : Node3D
 	readonly OreChunks _chunks = new();
 	readonly MiningAutopilot _miner = new();
 	bool _tractorOn;
+	bool _fireRequested;   // Einzelschuss angefordert (Tipp auf "Feuer" oder Taste F)
 	Asteroid? _mineTarget;
 	float _sinceHit = 99f;
 	int _hitCount;
@@ -86,6 +87,7 @@ public partial class Main : Node3D
 		_hud.DockPressed += DockAtNearest;
 		_hud.Dock.Undock += Undock;
 		_hud.Dock.SellAll += SellAllHere;
+		_hud.LaserButton.Down += () => _fireRequested = true;
 		_hud.TractorPressed += () => { _sfx.Play(SfxId.Click); _tractorOn = _hud.TractorButton.On; };
 		_hud.AutoMinePressed += () => SetAutoMining(_hud.AutoMineButton.On);
 		_player.Hit += OnPlayerHit;
@@ -181,6 +183,7 @@ public partial class Main : Node3D
 		{
 			case StationBuilt b: _hud.Toast($"Neue Station: {_session.U.Stations[b.Station].Name}"); break;
 			case PlayerSold: _sales++; break;
+			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case StationRemoved r when r.Reason == "bankrupt": _hud.Toast("Station aufgegeben (Pleite)"); break;
 		}
 	}
@@ -441,7 +444,8 @@ public partial class Main : Node3D
 		if (_hud == null || _hud.AnyModalOpen) return;
 		if (@event is InputEventKey { Pressed: true, Echo: false } key)
 		{
-			if (key.Keycode == Key.G) { _tractorOn = !_tractorOn; _hud.TractorButton.On = _tractorOn; _sfx.Play(SfxId.Click); }
+			if (key.Keycode == Key.F) _fireRequested = true;
+			else if (key.Keycode == Key.G) { _tractorOn = !_tractorOn; _hud.TractorButton.On = _tractorOn; _sfx.Play(SfxId.Click); }
 			else if (key.Keycode == Key.M) SetAutoMining(!_miner.Enabled);
 			return;
 		}
@@ -481,7 +485,7 @@ public partial class Main : Node3D
 		}
 		if (rock != null)
 		{
-			if (rock.Minable) { _mineTarget = rock; _sfx.Play(SfxId.Click); _hud.Toast($"Laserziel gesetzt (Erz {rock.Ore:0}) – Laser halten (Taste F)"); }
+			if (rock.Minable) { _mineTarget = rock; _sfx.Play(SfxId.Click); _hud.Toast($"Laserziel gesetzt (Erz {rock.Ore:0}) – jeder Tipp auf Feuer (Taste F) ist ein Schuss"); }
 			else _hud.Toast("Kein Erz in diesem Asteroiden");
 			return;
 		}
@@ -538,15 +542,34 @@ public partial class Main : Node3D
 		_hud.Toast("Schiff zerstört – repariert an der Station", 3.5f);
 	}
 
-	/// <summary>Ein Laserschuss ist gefallen: Ton, Aufblitzen und bei einem Treffer Funken am Asteroiden.</summary>
+	/// <summary>
+	/// Ein Spielerschuss ist gefallen: Ton, Laserblitz, bei Treffer Funken – und Rückstoß: Das Schiff wird
+	/// vom Asteroiden weggestoßen (echte Geschwindigkeitsänderung, deshalb bremst die Automatik im Haltemodus aktiv).
+	/// </summary>
 	void OnShot(Asteroid rock, float units)
 	{
-		_sfx.Play(SfxId.Zap);
-		_mining.Pulse(Time.GetTicksMsec() / 1000.0);
-		if (units <= 0f) return;
 		var pos = new Vec2(_player.Position.X, _player.Position.Z);
-		var dir = (pos - rock.Position).Normalized();
-		_fx.Burst(new Vector3(rock.Position.X + dir.X * rock.Radius, 0, rock.Position.Y + dir.Y * rock.Radius), new Color(1f, 0.75f, 0.3f), 5 + (int)units, 7f, 0.5f);
+		var toShip = (pos - rock.Position).Normalized();
+		var surface = new Vector3(rock.Position.X + toShip.X * rock.Radius, 0, rock.Position.Y + toShip.Y * rock.Radius);
+
+		_sfx.Play(SfxId.Zap);
+		_mining.FirePlayer(surface, Time.GetTicksMsec() / 1000.0);
+		_player.Velocity += new Vector3(toShip.X, 0, toShip.Y) * MiningRules.RecoilImpulse;
+		if (units > 0f) _fx.Burst(surface, new Color(1f, 0.75f, 0.3f), 5 + (int)units, 7f, 0.5f);
+	}
+
+	/// <summary>Ein NPC-Miner hat laut Simulation geschossen. Im Spielersektor zeigen wir Blitz, fliegenden Brocken und Rückstoß.</summary>
+	void OnMinerShot(MinerShot shot)
+	{
+		var shipPos = _view.ShipPosition(shot.Ship);
+		if (shipPos is not { } sp) return;
+		var rockPos = new Vector3(shot.AsteroidPosition.X, 0, shot.AsteroidPosition.Y);
+		var away = (sp - rockPos).Normalized();
+		var surface = rockPos + away * shot.AsteroidRadius;
+
+		_mining.NpcShot(shot.Ship, surface, shot.Units, Time.GetTicksMsec() / 1000.0);
+		_view.Kick(shot.Ship, away * (MiningRules.RecoilImpulse * 0.4f));   // Rückstoß, verhältnismäßig zum Spielerschiff
+		if (shot.Units > 0f) _fx.Burst(surface, new Color(1f, 0.75f, 0.3f), 4 + (int)shot.Units, 6f, 0.4f);
 	}
 
 	void UpdateHud()
@@ -643,32 +666,30 @@ public partial class Main : Node3D
 		Asteroid? aim = null;
 		if (!frozen)
 		{
-			if (_miningStep is { } ms) { fire = ms.Fire; tractor |= ms.Tractor; aim = ms.Aim; }
+			if (_miningStep is { } ms) { fire = ms.Fire; tractor |= ms.Tractor; aim = ms.Aim; }   // Automatik: feuert, sobald nachgeladen
 			else
 			{
-				fire = _hud.LaserButton.Held || Input.IsKeyPressed(Key.F);
+				fire = _fireRequested;   // Spieler: ein Tipp / Tastendruck = ein Schuss
 				aim = _mineTarget ?? _chunks.Nearest(sector, pos, MiningRules.LaserRange);
 			}
 		}
+		_fireRequested = false;
 
-		Vector3? hit = null;
 		if (fire)
 		{
 			if (aim == null) Hint("Kein abbaubarer Asteroid in Reichweite");
-			else switch (_chunks.Mine(u, ship, sector, aim, pos, delta))
+			else switch (_chunks.TryFire(u, ship, sector, aim, pos))
 			{
-				case MineResult.Ok:
-					var dir = (pos - aim.Position).Normalized();
-					hit = new Vector3(aim.Position.X + dir.X * aim.Radius, 0, aim.Position.Y + dir.Y * aim.Radius);
-					break;
 				case MineResult.OutOfRange: Hint("Zu weit entfernt – näher heranfliegen"); break;
 				case MineResult.CargoFull: Hint("Laderaum voll"); break;
 				case MineResult.NotMinable: Hint("Kein Erz mehr in diesem Asteroiden"); break;
+				// Fired: OnShot erledigt Ton, Blitz und Rückstoß; Cooldown: Waffe lädt noch – stillschweigend ignorieren
 			}
 		}
 
 		tractor &= !frozen;
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
+		_hud.LaserButton.On = _chunks.Ready;   // grün = nachgeladen
 
 		var shown = fire && aim != null ? aim : _mineTarget;
 		if (shown != null && sector.Asteroids.Contains(shown))
@@ -676,8 +697,8 @@ public partial class Main : Node3D
 		else _mining.SetTarget(null, 0f);
 
 		double time = Time.GetTicksMsec() / 1000.0;
-		_mining.UpdatePlayer(_player.Position, hit, tractor, _chunks.Chunks, time);
-		_mining.UpdateNpc(_view.MiningShips, sector, time);
+		_mining.UpdatePlayer(_player.Position, tractor, _chunks.Chunks, time);
+		_mining.UpdateNpc(_view.ShipPosition, time);
 	}
 
 	void SellAllHere()

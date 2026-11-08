@@ -6,8 +6,8 @@ namespace SpaceSim.Core.Simulation;
 /// <summary>
 /// Stationen entstehen bei Knappheit und verschwinden bei Pleite:
 /// - Pleite: Credits dauerhaft unter dem Limit → Station wird aufgegeben (wesentliche Stationen nie).
-/// - Bau: Ist eine Ware im Schnitt deutlich teurer als ihr Basispreis, baut die reichste Station einer Fraktion
-///   eine Produktionsstätte für diese Ware in einem freien Sektor der Fraktion.
+/// - Bau: Ist eine Ware im Schnitt deutlich teurer als ihr Basispreis, baut ein Investor (Station oder Schiff) eine
+///   Produktionsstätte für sie; ist eine Ware dauerhaft sehr billig, entsteht stattdessen ein Verbraucher dafür.
 /// </summary>
 public sealed class StationLifecycleSystem : ISimSystem
 {
@@ -32,21 +32,24 @@ public sealed class StationLifecycleSystem : ISimSystem
         var rules = u.Rules;
         if (u.Stations.Count >= rules.MaxStations || u.Tick - u.LastStationBuildTick < rules.BuildCooldown) return;
 
-        // Knappste Ware bestimmen (höchster Durchschnittspreis relativ zum Basispreis)
-        GoodId? scarce = null;
-        float worst = rules.BuildPriceRatio;
+        // Knappste Ware (höchster Durchschnittspreis relativ zum Basispreis) und am stärksten überversorgte Ware (niedrigster)
+        GoodId? scarce = null, glut = null;
+        float worst = rules.BuildPriceRatio, lowest = rules.GlutPriceRatio;
         foreach (var good in u.Goods.Values)
         {
             var prices = u.Stations.Values.Where(s => s.Market.ContainsKey(good.Id)).Select(s => s.Market[good.Id].Price).ToList();
             if (prices.Count == 0 || good.BasePrice <= 0) continue;
             float ratio = prices.Average() / good.BasePrice;
             if (ratio > worst) { worst = ratio; scarce = good.Id; }
+            if (ratio < lowest && ratio > 0f) { lowest = ratio; glut = good.Id; }
         }
-        if (scarce is null) return;
 
-        var type = u.StationTypes.Values
-            .Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(scarce.Value)))
-            .OrderBy(t => t.BuildCost).FirstOrDefault();
+        // Knappheit → Produzent der Ware bauen; sonst bei Überangebot → Verbraucher der Ware bauen (Nachfrage wächst mit billigem Angebot)
+        StationType? type = null;
+        if (scarce is { } sc)
+            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(sc))).OrderBy(t => t.BuildCost).FirstOrDefault();
+        else if (glut is { } gl)
+            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl))).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;
 
         float cost = type.BuildCost * rules.StationBuildCostFactor;

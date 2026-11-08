@@ -226,3 +226,23 @@ public class NavigatorTests
         Assert.Equal("Sektor Beta", t.Label);
     }
 }
+
+public class GlutTests
+{
+    [Fact]
+    public void CheapGood_TriggersConstructionOfAConsumer()
+    {
+        var u = DemoUniverse.Create();
+        // alles im Gleichgewicht, nur Nahrung massiv im Überangebot → Kolonie (Verbraucher) entsteht
+        foreach (var st in u.Stations.Values) foreach (var e in st.Market.Values) e.Amount = e.Target;
+        foreach (var st in u.Stations.Values)
+            if (st.Market.TryGetValue(DemoUniverse.Food, out var f)) f.Amount = f.Target * 10f;
+        u.Ships.Values.First(s => s.Role == ShipRole.Trader).Credits = 50_000f;
+
+        var built = new List<StationBuilt>();
+        u.Events.Raised += e => { if (e is StationBuilt b) built.Add(b); };
+        new SimulationRunner().Run(u, 120);
+
+        Assert.Equal("colony", built.Single().TypeKey);
+    }
+}

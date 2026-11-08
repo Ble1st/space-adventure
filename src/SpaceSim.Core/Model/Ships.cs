@@ -30,6 +30,11 @@ public sealed class Ship
         MathF.Max(0f, (CargoCapacity - UsedVolume(u)) / u.Goods[good].VolumePerUnit);
 
     /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
+    /// <summary>Nachladeuhr des Mining-Lasers (NPC-Miner), in Sekunden Spielzeit.</summary>
+    public float ShotTimer;
+    /// <summary>Asteroid-Id, auf den der NPC-Miner gerade feuert (0 = keiner).</summary>
+    public int MineAsteroid;
+
     public long NextThinkTick;
     /// <summary>Tick, seit dem das Schiff keinen Auftrag mehr hat (-1 = beschäftigt).</summary>
     public long IdleSince = -1;
