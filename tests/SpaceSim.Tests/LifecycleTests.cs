@@ -159,3 +159,70 @@ public class WorldBuilderTests
         Assert.Equal(Run(7), Run(7));
     }
 }
+
+public class NavigatorTests
+{
+    /// <summary>Simuliert ein Schiff, das stur dem Wegpunkt folgt und Gates beim Berühren durchfliegt (wie die Darstellung).</summary>
+    static (bool arrived, int steps, float minClearance) Fly(Universe u, SectorId sector, Vec2 pos, NavTarget target)
+    {
+        float minClear = float.MaxValue;
+        for (int step = 0; step < 6_000; step++)
+        {
+            var nav = Navigator.Next(u, sector, pos, target);
+            if (nav.Status == NavStatus.Arrived) return (true, step, minClear);
+            if (nav.Status == NavStatus.Unreachable) return (false, step, minClear);
+
+            var d = nav.Waypoint - pos;
+            pos += d.Normalized() * MathF.Min(2.5f, d.Length);
+
+            foreach (var o in u.GetObstacles(sector))
+                minClear = MathF.Min(minClear, Vec2.Distance(pos, o.Position) - o.Radius);
+
+            if (nav.Gate is { } g && Vec2.Distance(pos, u.Gates[g].Position) < 10f)
+            {
+                var far = u.Gates[u.Gates[g].Target];
+                sector = far.Sector;
+                pos = far.Position + (new Vec2(0, 0) - far.Position).Normalized() * 22f;
+            }
+        }
+        return (false, 6_000, minClear);
+    }
+
+    [Fact]
+    public void Autopilot_FlysAcrossSeveralSectors_WithoutTouchingObstacles()
+    {
+        var u = DemoUniverse.Create();
+        var ship = u.PlayerShip;
+        var target = Navigator.ForStation(u, new StationId(7), ship);   // Werft Delta: Alpha → Beta → Delta
+        var (arrived, steps, clearance) = Fly(u, new SectorId(1), new Vec2(0, 0), target);
+        Assert.True(arrived, $"nicht angekommen nach {steps} Schritten");
+        Assert.True(clearance > Collision.ShipRadius, $"Mindestabstand zu Hindernissen {clearance:0.0} <= Schiffsradius");
+    }
+
+    [Fact]
+    public void Autopilot_SameSector_ArrivesAtDockPoint()
+    {
+        var u = DemoUniverse.Create();
+        var target = Navigator.ForStation(u, new StationId(2), u.PlayerShip);
+        var (arrived, _, _) = Fly(u, new SectorId(1), new Vec2(-120, 120), target);
+        Assert.True(arrived);
+    }
+
+    [Fact]
+    public void ClosedGate_MakesSectorUnreachable()
+    {
+        var u = DemoUniverse.Create();
+        foreach (var g in u.Gates.Values) g.Open = false;
+        var nav = Navigator.Next(u, new SectorId(1), new Vec2(0, 0), Navigator.ForSector(u, new SectorId(3), u.PlayerShip));
+        Assert.Equal(NavStatus.Unreachable, nav.Status);
+    }
+
+    [Fact]
+    public void ForSector_TargetsFirstStationDock()
+    {
+        var u = DemoUniverse.Create();
+        var t = Navigator.ForSector(u, new SectorId(2), u.PlayerShip);
+        Assert.Equal(new SectorId(2), t.Sector);
+        Assert.Equal("Sektor Beta", t.Label);
+    }
+}
