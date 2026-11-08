@@ -1,0 +1,112 @@
+using SpaceSim.Core.Model;
+
+namespace SpaceSim.Core.Simulation;
+
+/// <summary>
+/// Miner-KI: wählt Feld + Abnehmerstation mit dem besten Preis pro Zeit, fliegt abstrakt zum Feld,
+/// baut dort Tick für Tick ab, liefert aus und verkauft. Baut nicht ab, wenn der Preis zu niedrig ist
+/// (verhindert endlose Überproduktion).
+/// </summary>
+public sealed class MinerSystem : ISimSystem
+{
+    public const float ExtractPerTick = 2f;
+    /// <summary>Mindestpreis relativ zum Basispreis, ab dem sich Abbau lohnt.</summary>
+    public const float MinPriceFactor = 0.5f;
+
+    public void Step(Universe u)
+    {
+        foreach (var ship in u.Ships.Values)
+        {
+            if (ship.Role != ShipRole.Miner) continue;
+
+            if (ship.Transit is { } t)
+            {
+                if (u.Tick >= t.ArrivalTick) Arrive(u, ship, t);
+                continue;
+            }
+            switch (ship.MinePhase)
+            {
+                case MinePhase.Idle: PickOrder(u, ship); break;
+                case MinePhase.Mining: Mine(u, ship); break;
+            }
+        }
+    }
+
+    static void PickOrder(Universe u, Ship ship)
+    {
+        MineOrder? best = null;
+        float bestScore = 0f;
+        foreach (var sector in u.Sectors.Values)
+        {
+            if (u.Hops(ship.Sector, sector.Id) < 0) continue;
+            foreach (var field in sector.Fields)
+            {
+                if (field.Amount < 1f) continue;
+                var good = u.Goods[field.Good];
+                float mineTicks = ship.CargoCapacity / good.VolumePerUnit / ExtractPerTick;
+                foreach (var st in u.Stations.Values)
+                {
+                    if (!st.Market.TryGetValue(field.Good, out var e) || e.Price < good.BasePrice * MinPriceFactor) continue;
+                    if (u.Hops(sector.Id, st.Sector) < 0) continue;
+                    float time = Travel.Ticks(u, ship.Sector, sector.Id) + mineTicks + Travel.Ticks(u, sector.Id, st.Sector);
+                    float score = e.Price / time;
+                    if (score > bestScore) { bestScore = score; best = new MineOrder(sector.Id, field.Good, st.Id); }
+                }
+            }
+        }
+        if (best is null) return;
+        ship.Order = best;
+        ship.MinePhase = MinePhase.GoingToField;
+        Travel.Start(u, ship, best.Sector);
+    }
+
+    static void Arrive(Universe u, Ship ship, Transit t)
+    {
+        u.MoveShip(ship, t.ToSector);
+        ship.Transit = null;
+        if (ship.Order is not MineOrder order) { ship.MinePhase = MinePhase.Idle; return; }
+
+        if (ship.MinePhase == MinePhase.GoingToField)
+        {
+            ship.MinePhase = MinePhase.Mining;
+        }
+        else if (ship.MinePhase == MinePhase.GoingToStation)
+        {
+            var st = u.Stations[order.DeliverTo];
+            var stock = st.Stock(order.Good);
+            float amount = ship.Cargo.GetValueOrDefault(order.Good);
+            float revenue = amount * stock.Price;
+            stock.Amount += amount;
+            st.Credits -= revenue;
+            ship.Credits += revenue;
+            ship.Cargo.Remove(order.Good);
+            ship.Order = null;
+            ship.MinePhase = MinePhase.Idle;
+        }
+    }
+
+    static void Mine(Universe u, Ship ship)
+    {
+        if (ship.Order is not MineOrder order) { ship.MinePhase = MinePhase.Idle; return; }
+
+        var good = u.Goods[order.Good];
+        var field = u.Sectors[ship.Sector].Fields.FirstOrDefault(f => f.Good == order.Good && f.Amount > 0f);
+        float used = ship.Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
+        float free = ship.CargoCapacity - used;
+
+        if (field is null || free < 0.01f)
+        {
+            if (ship.Cargo.GetValueOrDefault(order.Good) > 0f)
+            {
+                ship.MinePhase = MinePhase.GoingToStation;
+                Travel.Start(u, ship, u.Stations[order.DeliverTo].Sector);
+            }
+            else { ship.Order = null; ship.MinePhase = MinePhase.Idle; }
+            return;
+        }
+
+        float amount = MathF.Min(MathF.Min(ExtractPerTick, field.Amount), free / good.VolumePerUnit);
+        field.Amount -= amount;
+        ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
+    }
+}

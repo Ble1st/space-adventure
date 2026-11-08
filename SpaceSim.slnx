@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SpaceSim.Core/SpaceSim.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SpaceSim.Tests/SpaceSim.Tests.csproj" />
+  </Folder>
+</Solution>
