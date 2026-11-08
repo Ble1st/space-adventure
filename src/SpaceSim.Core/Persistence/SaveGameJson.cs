@@ -38,10 +38,59 @@ public static class SaveGameJson
         }
     }
 
+    /// <summary>
+    /// v1 → v2: Der Erzvorrat lag im Rohstofffeld, Asteroiden waren reine Hindernisse. Jetzt trägt jeder Gürtel-Asteroid
+    /// seinen Anteil des alten Feldvorrats; Asteroiden außerhalb jedes Gürtels bleiben erzlose Hindernisse.
+    /// </summary>
+    static void MigrateV1ToV2(SaveGame s)
+    {
+        int nextId = Math.Max(1, s.NextAsteroidId);
+        foreach (var sector in s.Sectors)
+        {
+            var legacy = sector.Asteroids ?? new List<Obstacle>();
+            int FieldOf(Obstacle o)
+            {
+                int best = -1; float bestD = Mining.MiningRules.BeltRadius;
+                for (int i = 0; i < sector.Fields.Count; i++)
+                {
+                    float d = Vec2.Distance(o.Position, sector.Fields[i].Pos);
+                    if (d <= bestD) { bestD = d; best = i; }
+                }
+                return best;
+            }
+            var belongs = legacy.Select(FieldOf).ToList();
+            for (int i = 0; i < legacy.Count; i++)
+            {
+                var o = legacy[i];
+                int f = belongs[i];
+                float ore = 0f; int good = 0;
+                if (f >= 0)
+                {
+                    int n = belongs.Count(x => x == f);
+                    ore = sector.Fields[f].Amount / Math.Max(1, n);
+                    good = sector.Fields[f].Good;
+                }
+                sector.Rocks.Add(new AsteroidSave
+                {
+                    Id = nextId++, Pos = o.Position, BaseRadius = o.Radius, Good = good,
+                    Ore = ore, MaxOre = Math.Max(ore, f >= 0 ? Asteroid.OrePerArea * o.Radius * o.Radius : 0f),
+                });
+            }
+            sector.Asteroids = null;
+            foreach (var field in sector.Fields)
+            {
+                field.TargetAsteroids = Math.Max(field.TargetAsteroids, 8);
+                field.Amount = field.RegenPerTick = field.Capacity = 0f;
+            }
+        }
+        s.NextAsteroidId = nextId;
+        s.Version = 2;
+    }
+
     /// <summary>Hebt ältere Spielstände schrittweise auf das aktuelle Format. Bei Formatänderungen hier je Version einen Schritt ergänzen.</summary>
     static SaveGame Migrate(SaveGame s)
     {
-        // Version 1 ist die erste; künftig: if (s.Version < 2) { ...; s.Version = 2; }
+        if (s.Version < 2) MigrateV1ToV2(s);
         return s;
     }
 }

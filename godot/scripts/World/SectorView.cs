@@ -22,7 +22,8 @@ public partial class SectorView : Node3D
 	int _structureVersion = -1;
 	Node3D _root = null!;
 	readonly List<MeshInstance3D> _gateRings = new();
-	readonly List<MeshInstance3D> _asteroids = new();
+	sealed class RockNode { public MeshInstance3D Node = null!; public float Scale; public float Spin; public Vector3 Pos; public float Radius; }
+	readonly Dictionary<int, RockNode> _rocks = new();
 	readonly Dictionary<ShipId, Marker> _markers = new();
 
 	public List<Obstacle> Obstacles { get; private set; } = new();
@@ -31,6 +32,9 @@ public partial class SectorView : Node3D
 	/// <summary>NPC-Miner, die laut Simulation gerade abbauen (angezeigte Position), für die Laser-Darstellung.</summary>
 	public List<(ShipId Id, Vector3 Pos)> MiningShips { get; } = new();
 	public SectorId Sector => _sector;
+
+	/// <summary>Ein Asteroid ist leer abgebaut worden und verschwindet (Ort, Radius) – für Effekte.</summary>
+	public event System.Action<Vector3, float>? AsteroidGone;
 
 	/// <summary>True, wenn Sektor gewechselt oder Stationen hinzugekommen/entfernt wurden.</summary>
 	public bool NeedsRebuild(Universe u) => _u != u || _sector != u.PlayerSector || _structureVersion != u.StructureVersion;
@@ -41,12 +45,12 @@ public partial class SectorView : Node3D
 		_root?.QueueFree();
 		_root = new Node3D { Name = "Sector" };
 		AddChild(_root);
-		_gateRings.Clear(); _asteroids.Clear(); _markers.Clear(); Gates.Clear(); Targets.Clear();
+		_gateRings.Clear(); _rocks.Clear(); _markers.Clear(); Gates.Clear(); Targets.Clear();
 
 		var sector = u.Sectors[_sector];
 		foreach (var sid in sector.Stations) BuildStation(u.Stations[sid]);
 		foreach (var gid in sector.Gates) BuildGate(u, u.Gates[gid]);
-		for (int i = 0; i < sector.Asteroids.Count; i++) BuildAsteroid(sector.Asteroids[i], i);
+		SyncAsteroids(u, 1f, instant: true);
 		foreach (var f in sector.Fields) BuildFieldMarker(u, f);
 		Obstacles = u.GetObstacles(_sector);
 	}
@@ -54,7 +58,46 @@ public partial class SectorView : Node3D
 	public void Animate(float delta)
 	{
 		foreach (var r in _gateRings) r.RotateZ(delta * 0.8f);
-		foreach (var a in _asteroids) { a.RotateY(delta * 0.2f); a.RotateX(delta * 0.1f); }
+		foreach (var r in _rocks.Values) { r.Node.RotateY(delta * r.Spin); r.Node.RotateX(delta * r.Spin * 0.5f); }
+	}
+
+	/// <summary>
+	/// Gleicht die Asteroiden-Szene mit den Core-Daten ab: neue (Respawn) wachsen ein, abgebaute schrumpfen mit ihrem Restvorrat,
+	/// leere verschwinden. Aktualisiert außerdem die Kollisionskreise.
+	/// </summary>
+	public void SyncAsteroids(Universe u, float delta, bool instant = false)
+	{
+		var sector = u.Sectors[_sector];
+		var live = new HashSet<int>();
+		foreach (var a in sector.Asteroids)
+		{
+			live.Add(a.Id);
+			if (!_rocks.TryGetValue(a.Id, out var rock))
+			{
+				var minable = a.Minable;
+				var color = minable ? new Color(0.62f, 0.45f, 0.28f) : new Color(0.4f, 0.4f, 0.42f);
+				var mat = Gfx.Mat(color, minable ? 0.5f : 0f, 0.1f);
+				var mesh = new SphereMesh { Radius = a.BaseRadius, Height = a.BaseRadius * 2f, RadialSegments = 8, Rings = 5 };
+				var node = Gfx.Mesh(mesh, mat, new Vector3(a.Position.X, 0, a.Position.Y), _root);
+				var rng = new RandomNumberGenerator { Seed = (ulong)a.Id * 2654435761UL };
+				node.Rotation = new Vector3(rng.Randf() * Mathf.Tau, rng.Randf() * Mathf.Tau, 0);
+				rock = new RockNode { Node = node, Scale = instant ? a.Radius / a.BaseRadius : 0.05f, Spin = rng.RandfRange(0.1f, 0.3f), Pos = node.Position, Radius = a.Radius };
+				node.Scale = Vector3.One * rock.Scale;
+				_rocks[a.Id] = rock;
+			}
+			float target = a.Radius / a.BaseRadius;
+			rock.Scale = instant ? target : Mathf.Lerp(rock.Scale, target, 1f - Mathf.Exp(-4f * delta));
+			rock.Node.Scale = Vector3.One * rock.Scale;
+			rock.Radius = a.Radius;
+		}
+		foreach (var id in _rocks.Keys.Where(id => !live.Contains(id)).ToList())
+		{
+			var r = _rocks[id];
+			AsteroidGone?.Invoke(r.Pos, r.Radius);
+			r.Node.QueueFree();
+			_rocks.Remove(id);
+		}
+		Obstacles = u.GetObstacles(_sector);
 	}
 
 	/// <summary>Aktuelle (angezeigte) Positionen der NPC-Schiffe als Kollisionskreise.</summary>
@@ -65,11 +108,11 @@ public partial class SectorView : Node3D
 	/// NPC-Schiffe aus der Core-Materialisierung: erscheinen am Gate, fliegen ihre Teilstrecke und verschwinden am Ausgangsgate.
 	/// Ausweichen (Schiff↔Schiff, Schiff↔Spieler) ist reine Darstellung und verändert die Simulation nicht.
 	/// </summary>
-	public void UpdateShips(Universe u, double tick, Vector3 playerPos, float delta)
+	public void UpdateShips(Universe u, double tick, Vector3? playerPos, float delta)
 	{
 		var snaps = Materializer.Snapshot(u, _sector, tick);
 		var neighbours = snaps.Select(x => (x.Id, x.Position)).ToList();
-		neighbours.Add((Avoidance.Player, new Vec2(playerPos.X, playerPos.Z)));
+		if (playerPos is { } pp) neighbours.Add((Avoidance.Player, new Vec2(pp.X, pp.Z)));
 		var seen = new HashSet<ShipId>();
 		MiningShips.Clear();
 
@@ -140,13 +183,6 @@ public partial class SectorView : Node3D
 		root.AddChild(Gfx.Label($"Jumpgate → {target.Name}", new Vector3(0, 8, 0)));
 		Gates.Add((g.Id, pos));
 		Targets.Add(new PickTarget("gate", g.Id.Value, pos, $"Gate → {target.Name}"));
-	}
-
-	void BuildAsteroid(Obstacle o, int index)
-	{
-		float g = 0.3f + (index * 37 % 20) / 100f;
-		var mesh = new SphereMesh { Radius = o.Radius, Height = o.Radius * 2f, RadialSegments = 8, Rings = 5 };
-		_asteroids.Add(Gfx.Mesh(mesh, Gfx.Mat(new Color(g + 0.1f, g, g - 0.1f), 0f, 0.1f), new Vector3(o.Position.X, 0, o.Position.Y), _root));
 	}
 
 	void BuildFieldMarker(Universe u, ResourceField f)

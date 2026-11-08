@@ -24,7 +24,7 @@ public static class UniverseHash
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
-            foreach (var f in sec.Fields) MixF(f.Amount);
+            foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); }
         return h;
     }
 }

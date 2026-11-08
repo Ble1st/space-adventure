@@ -30,6 +30,8 @@ public sealed class Universe
     public int StructureVersion { get; private set; }
 
     int _nextShipId = 1000, _nextStationId = 1000;
+    public int NextAsteroidId { get; set; } = 1;
+    public int NewAsteroidId() => NextAsteroidId++;
     public ShipId NewShipId() => new(_nextShipId++);
     public StationId NewStationId() => new(_nextStationId++);
     /// <summary>Für den Spielstand: Zähler wiederherstellen.</summary>
@@ -131,7 +133,7 @@ public sealed class Universe
     {
         var s = Sectors[sector];
         var list = new List<Obstacle>(s.Asteroids.Count + s.Stations.Count);
-        list.AddRange(s.Asteroids);
+        foreach (var a in s.Asteroids) list.Add(a.ToObstacle());
         foreach (var id in s.Stations) list.Add(new Obstacle(Stations[id].Position, Station.BodyRadius));
         return list;
     }

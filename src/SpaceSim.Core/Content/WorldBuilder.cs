@@ -82,8 +82,7 @@ public static class WorldBuilder
             foreach (var fd in sd.Fields)
                 sector.Fields.Add(new ResourceField
                 {
-                    Good = Good(fd.Good), Position = V(fd.Pos), Amount = fd.Amount,
-                    Capacity = fd.Capacity, RegenPerTick = fd.Regen,
+                    Good = Good(fd.Good), Position = V(fd.Pos), TargetAsteroids = fd.Belt, RespawnTicks = fd.Respawn,
                 });
         }
 
@@ -141,7 +140,7 @@ public static class WorldBuilder
         return new Ship
         {
             Id = id, Role = role, Faction = new FactionId(faction), Sector = sector, Credits = credits, CargoCapacity = cargo,
-            Position = sec.Stations.Count > 0 ? u.Stations[sec.Stations[0]].Position : default,
+            Position = sec.Stations.Count > 0 ? u.Stations[sec.Stations[0]].DockPoint(id) : default,
         };
     }
 

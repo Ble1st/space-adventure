@@ -5,7 +5,7 @@ namespace SpaceSim.Core.Simulation;
 /// <summary>
 /// Weicht statischen Kreis-Hindernissen aus: aus einer Geraden wird ein Polygonzug mit Umweg-Wegpunkten.
 /// Läuft im Core, damit Reisezeit (Simulation) und Flugbahn (Darstellung) identisch sind.
-/// Hindernisse, die Start oder Ziel (inkl. Sicherheitsabstand) enthalten, werden ignoriert.
+/// Hindernisse, die das Ziel enthalten, oder den Start, wenn man sich davon wegbewegt, werden ignoriert.
 /// </summary>
 public static class PathPlanner
 {
@@ -73,7 +73,10 @@ public static class PathPlanner
         foreach (var o in obs)
         {
             float r = o.Radius + Margin;
-            if (Vec2.Distance(a, o.Position) < r || Vec2.Distance(b, o.Position) < r) continue;
+            // Ziel im Hindernis (z.B. Andockpunkt am Rand): ignorieren. Start im Hindernis: nur ignorieren, wenn man sich davon
+            // wegbewegt – sonst wäre es genau das Hindernis, in das man hineinfliegt.
+            if (Vec2.Distance(b, o.Position) < r) continue;
+            if (Vec2.Distance(a, o.Position) < r && ab.Dot(a - o.Position) >= 0f) continue;
             float t = len2 > 1e-6f ? Math.Clamp((o.Position - a).Dot(ab) / len2, 0f, 1f) : 0f;
             if (Vec2.Distance(a + ab * t, o.Position) < r && t < bestT) { best = o; bestT = t; }
         }

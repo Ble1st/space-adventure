@@ -5,7 +5,7 @@ using Godot;
 
 namespace SpaceAdventure.World;
 
-public enum SfxId { Hit, Jump, Dock, Click, Explosion, Pickup }
+public enum SfxId { Hit, Jump, Dock, Click, Explosion, Pickup, Zap, Crack }
 
 /// <summary>
 /// Prozedural erzeugte Klänge (keine Audiodateien nötig). Später durch echte Assets ersetzbar,
@@ -25,6 +25,8 @@ public partial class Sfx : Node
 		_sounds[SfxId.Jump] = Make(0.7f, t => Sine(200 + 1100 * t / 0.7f * (t / 0.7f), t) * 0.5f * Mathf.Sin(Mathf.Pi * t / 0.7f));
 		_sounds[SfxId.Dock] = Make(0.35f, t => (t < 0.15f ? Sine(660, t) : t < 0.2f ? 0f : Sine(880, t)) * 0.4f * Decay(t, 0.35f, 2f));
 		_sounds[SfxId.Pickup] = Make(0.09f, t => Sine(700 + 500 * t / 0.09f, t) * 0.35f * Decay(t, 0.09f, 3f));
+		_sounds[SfxId.Zap] = Make(0.11f, t => Sine(1500 - 1100 * t / 0.11f, t) * 0.3f * Decay(t, 0.11f, 4f));
+		_sounds[SfxId.Crack] = Make(0.25f, t => (Noise(rng) * 0.6f + Sine(160, t) * 0.4f) * Decay(t, 0.25f, 5f));
 		_sounds[SfxId.Click] = Make(0.05f, t => Sine(1000, t) * 0.4f * Decay(t, 0.05f, 4f));
 
 		_oneShot = new AudioStreamPlayer { VolumeDb = -6f };

@@ -50,7 +50,7 @@ public sealed class SectorDef
     public float[] Map { get; set; } = { 0, 0 };
     public List<FieldDef> Fields { get; set; } = new();
     public List<StationDef> Stations { get; set; } = new();
-    /// <summary>Anzahl Hintergrund-Asteroiden; Felder erhalten zusätzlich einen Asteroidengürtel.</summary>
+    /// <summary>Anzahl erzloser Hintergrund-Asteroiden (Hindernisse); Felder erhalten zusätzlich ihren Erzgürtel.</summary>
     public int Asteroids { get; set; } = 25;
 }
 
@@ -58,9 +58,10 @@ public sealed class FieldDef
 {
     public string Good { get; set; } = "";
     public float[] Pos { get; set; } = { 0, 0 };
-    public float Amount { get; set; } = 1000;
-    public float Capacity { get; set; }
-    public float Regen { get; set; }
+    /// <summary>Soll-Anzahl Erz-Asteroiden im Gürtel.</summary>
+    public int Belt { get; set; } = 14;
+    /// <summary>Mittlere Ticks bis zum Nachwachsen eines fehlenden Asteroiden.</summary>
+    public int Respawn { get; set; } = 120;
 }
 
 public sealed class StationDef

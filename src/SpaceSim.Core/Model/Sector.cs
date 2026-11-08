@@ -11,12 +11,9 @@ public sealed class Sector
     public List<GateId> Gates = new();
     public List<StationId> Stations = new();
     public List<ResourceField> Fields = new();
-    public List<Obstacle> Asteroids = new();
+    public List<Asteroid> Asteroids = new();
 
-    /// <summary>
-    /// Rohstofffeld, zu dessen Gürtel eine Position gehört (nächstes Feld im <see cref="MiningRules.BeltRadius"/>).
-    /// Asteroiden sind keine eigenen Erzspeicher: Abgebaut wird immer aus dem Bestand des Feldes.
-    /// </summary>
+    /// <summary>Rohstofffeld, zu dessen Gürtel eine Position gehört (nächstes Feld im <see cref="Mining.MiningRules.BeltRadius"/>).</summary>
     public ResourceField? FieldFor(Vec2 p)
     {
         ResourceField? best = null;
@@ -43,10 +40,10 @@ public sealed class ResourceField
 {
     public GoodId Good;
     public Vec2 Position;
-    public float Amount;
-    public float RegenPerTick;
-    /// <summary>Obergrenze für Regeneration; 0 = unbegrenzt.</summary>
-    public float Capacity;
+    /// <summary>Soll-Anzahl abbaubarer Asteroiden im Gürtel; fehlende wachsen nach.</summary>
+    public int TargetAsteroids = 14;
+    /// <summary>Mittlere Ticks, bis ein fehlender Asteroid nachwächst (Respawn).</summary>
+    public int RespawnTicks = 120;
 
     /// <summary>Freie Zone um den Feldmittelpunkt, in der keine Asteroiden liegen.</summary>
     public const float ClearRadius = 18f;

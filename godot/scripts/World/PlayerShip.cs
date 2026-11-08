@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Godot;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
@@ -12,13 +13,21 @@ namespace SpaceAdventure.World;
 public partial class PlayerShip : Node3D
 {
 	const float Thrust = 40f, MaxSpeed = 45f, TurnRate = 7f;
+	/// <summary>Erst ab dieser Aufprallgeschwindigkeit an Asteroiden/Stationen gibt es Schaden; darunter nur Abprallen.</summary>
+	public const float HardImpact = 14f;
+	/// <summary>Seitliche Restgeschwindigkeit wird abgebaut (Flugassistent): das Schiff folgt seiner Nase und driftet nicht in Hindernisse.</summary>
+	const float LateralDamping = 3.2f;
 
 	public Vector3 Velocity { get; set; }
 	public bool Locked { get; set; }
 	public float Heading { get; set; }
 	public bool Thrusting { get; private set; }
 
-	/// <summary>Aufprallstärke und Ort; nur bei hartem Aufprall.</summary>
+	/// <summary>Restzeit, in der Treffer keinen Schaden machen (nach Abdocken, Neustart, Sprung).</summary>
+	public float Grace { get; set; }
+	public void GiveGrace(float seconds) => Grace = Mathf.Max(Grace, seconds);
+
+	/// <summary>Nur bei hartem Aufprall auf ein festes Hindernis (Aufprallgeschwindigkeit, Ort); nie bei NPC-Schiffen.</summary>
 	public event Action<float, Vector3>? Hit;
 	float _hitCooldown;
 	MeshInstance3D _flame = null!;
@@ -48,9 +57,11 @@ public partial class PlayerShip : Node3D
 	/// <param name="dir">Gewünschte Flugrichtung in der Spielebene (x → Welt-X, y → Welt-Z), beliebige Länge.</param>
 	/// <param name="throttle">0..1</param>
 	/// <param name="speedScale">Begrenzt die Höchstgeschwindigkeit (z.B. beim Anflug).</param>
-	public void Step(float delta, Vector2 dir, float throttle, float speedScale, SectorView view)
+	/// <param name="brake">Haltemodus (z.B. Automatik arbeitet am Asteroiden): Restgeschwindigkeit stark abbauen.</param>
+	public void Step(float delta, Vector2 dir, float throttle, float speedScale, SectorView view, bool brake = false)
 	{
 		_hitCooldown = Mathf.Max(0f, _hitCooldown - delta);
+		Grace = Mathf.Max(0f, Grace - delta);
 		if (Locked) { Velocity = Velocity.Lerp(Vector3.Zero, 1f - Mathf.Exp(-6f * delta)); Thrusting = false; Show(false); return; }
 
 		float turn = 0f;
@@ -66,8 +77,13 @@ public partial class PlayerShip : Node3D
 			Velocity += Vector3.Forward.Rotated(Vector3.Up, Heading) * Thrust * throttle * align * delta;
 		}
 		Thrusting = thrust;
+		// Flugassistent: Geschwindigkeit quer zur Blickrichtung abbauen
+		var forward = Vector3.Forward.Rotated(Vector3.Up, Heading);
+		var lateral = Velocity - forward * Velocity.Dot(forward);
+		Velocity -= lateral * (1f - Mathf.Exp(-LateralDamping * delta));
 		Velocity = Velocity.LimitLength(MaxSpeed * speedScale);
 		Velocity *= 1f - 0.4f * delta;
+		if (!thrust) Velocity *= Mathf.Exp(-(brake ? 3.0f : 0.8f) * delta);   // Stick loslassen bremst sanft, im Haltemodus kräftig
 		Position += Velocity * delta;
 		ResolveCollisions(view);
 
@@ -78,19 +94,34 @@ public partial class PlayerShip : Node3D
 
 	void Show(bool thrust) { _flame.Visible = thrust; _trail.Emitting = thrust; }
 
+	/// <summary>
+	/// Feste Hindernisse (Asteroiden, Stationen): Abprallen, bei hartem Aufprall Schaden (außer in der Schonfrist).
+	/// NPC-Schiffe: nur sanft auseinanderschieben, nie Schaden – sie weichen ohnehin aus.
+	/// </summary>
 	void ResolveCollisions(SectorView view)
 	{
-		var all = new System.Collections.Generic.List<Obstacle>(view.Obstacles);
-		all.AddRange(view.ShipBodies());
 		var pos = new Vec2(Position.X, Position.Z);
-		if (!Collision.Resolve(ref pos, Collision.ShipRadius, all, out var n)) return;
 
-		Position = new Vector3(pos.X, 0, pos.Y);
-		var normal = new Vector3(n.X, 0, n.Y);
-		float vn = Velocity.Dot(normal);
-		if (vn >= 0f) return;
-		Velocity -= normal * (1.4f * vn);   // Rückprall mit 40 % Restenergie
-		float impact = -vn;
-		if (impact > 4f && _hitCooldown <= 0f) { _hitCooldown = 0.4f; Hit?.Invoke(impact, Position); }
+		if (Collision.Resolve(ref pos, Collision.ShipRadius, view.Obstacles, out var n))
+		{
+			Position = new Vector3(pos.X, 0, pos.Y);
+			var normal = new Vector3(n.X, 0, n.Y);
+			float vn = Velocity.Dot(normal);
+			if (vn < 0f)
+			{
+				Velocity -= normal * (1.4f * vn);   // Rückprall mit 40 % Restenergie
+				float impact = -vn;
+				if (impact > HardImpact && _hitCooldown <= 0f && Grace <= 0f) { _hitCooldown = 0.6f; Hit?.Invoke(impact, Position); }
+			}
+		}
+
+		pos = new Vec2(Position.X, Position.Z);
+		if (Collision.Resolve(ref pos, Collision.ShipRadius, view.ShipBodies().ToList(), out var m))
+		{
+			Position = new Vector3(pos.X, 0, pos.Y);
+			var normal = new Vector3(m.X, 0, m.Y);
+			float vn = Velocity.Dot(normal);
+			if (vn < 0f) Velocity -= normal * (0.6f * vn);   // weich abbremsen statt abprallen
+		}
 	}
 }

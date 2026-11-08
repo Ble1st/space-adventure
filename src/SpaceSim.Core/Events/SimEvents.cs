@@ -11,6 +11,8 @@ public sealed record StationBuilt(StationId Station, SectorId Sector, string Typ
 public sealed record StationRemoved(StationId Station, SectorId Sector, string Reason) : SimEvent;
 public sealed record OreCollected(ShipId Ship, GoodId Good, float Units) : SimEvent;
 public sealed record PlayerSold(ShipId Ship, StationId Station, GoodId Good, float Units, float Revenue) : SimEvent;
+public sealed record AsteroidDepleted(SectorId Sector, int Asteroid) : SimEvent;
+public sealed record AsteroidRespawned(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record ShipSpawned(ShipId Ship) : SimEvent;
 public sealed record ShipRemoved(ShipId Ship, string Reason) : SimEvent;
 

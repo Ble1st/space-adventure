@@ -1,4 +1,5 @@
 using SpaceSim.Core.Events;
+using SpaceSim.Core.Mining;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Simulation;
@@ -51,7 +52,7 @@ public sealed class MinerSystem : ISimSystem
             if (!u.IsReachable(ship.Sector, sector.Id)) continue;
             foreach (var field in sector.Fields)
             {
-                if (field.Amount < 1f) continue;
+                if (Belt.OreIn(sector, field) < 1f) continue;
                 var good = u.Goods[field.Good];
                 float mineTicks = ship.CargoCapacity / good.VolumePerUnit / ExtractPerTick;
                 foreach (var st in u.Stations.Values)
@@ -110,7 +111,8 @@ public sealed class MinerSystem : ISimSystem
         if (ship.Order is not MineOrder order) { ship.MinePhase = MinePhase.Idle; return; }
 
         var good = u.Goods[order.Good];
-        var field = u.Sectors[ship.Sector].Fields.FirstOrDefault(f => f.Good == order.Good && f.Amount > 0f);
+        var sector = u.Sectors[ship.Sector];
+        var field = sector.Fields.FirstOrDefault(f => f.Good == order.Good && Belt.OreIn(sector, f) > 0.01f);
         float used = ship.Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
         float free = ship.CargoCapacity - used;
 
@@ -125,8 +127,7 @@ public sealed class MinerSystem : ISimSystem
             return;
         }
 
-        float amount = MathF.Min(MathF.Min(ExtractPerTick, field.Amount), free / good.VolumePerUnit);
-        field.Amount -= amount;
+        float amount = Belt.Take(u, sector, field, MathF.Min(ExtractPerTick, free / good.VolumePerUnit));
         ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
     }
 }

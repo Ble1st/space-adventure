@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Persistence;
@@ -7,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -17,6 +18,7 @@ public sealed class SaveGame
     public long LastStationBuildTick { get; set; }
     public int NextShipId { get; set; }
     public int NextStationId { get; set; }
+    public int NextAsteroidId { get; set; } = 1;
     public int PlayerSector { get; set; }
     public int PlayerShip { get; set; }
     public EconomyRules Rules { get; set; } = new();
@@ -53,7 +55,23 @@ public sealed class FactionSave
     public List<int> Territory { get; set; } = new();
 }
 
-public sealed class FieldSave { public int Good { get; set; } public Vec2 Pos { get; set; } public float Amount { get; set; } public float RegenPerTick { get; set; } public float Capacity { get; set; } }
+public sealed class FieldSave
+{
+    public int Good { get; set; } public Vec2 Pos { get; set; }
+    public int TargetAsteroids { get; set; } = 14;
+    public int RespawnTicks { get; set; } = 120;
+
+    // Nur Format v1 (Vorrat lag im Feld); wird beim Laden in Asteroiden-Erz umgerechnet und nicht mehr geschrieben
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Amount { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float RegenPerTick { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Capacity { get; set; }
+}
+
+public sealed class AsteroidSave
+{
+    public int Id { get; set; } public Vec2 Pos { get; set; } public float BaseRadius { get; set; }
+    public int Good { get; set; } public float Ore { get; set; } public float MaxOre { get; set; }
+}
 
 public sealed class SectorSave
 {
@@ -62,7 +80,10 @@ public sealed class SectorSave
     public List<int> Gates { get; set; } = new();
     public List<int> Stations { get; set; } = new();
     public List<FieldSave> Fields { get; set; } = new();
-    public List<Obstacle> Asteroids { get; set; } = new();
+    public List<AsteroidSave> Rocks { get; set; } = new();
+
+    /// <summary>Nur Format v1 (Asteroiden ohne Erz).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<Obstacle>? Asteroids { get; set; }
 }
 
 public sealed class GateSave { public int Id { get; set; } public int Sector { get; set; } public Vec2 Pos { get; set; } public int Target { get; set; } public bool Open { get; set; } }

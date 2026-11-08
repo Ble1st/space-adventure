@@ -68,7 +68,7 @@ public class PersistenceTests
     [Fact]
     public void NewerVersion_IsRejected_WithClearMessage()
     {
-        var json = SaveGameJson.Write(DemoUniverse.Create(), Now).Replace("\"Version\":1", "\"Version\":99");
+        var json = SaveGameJson.Write(DemoUniverse.Create(), Now).Replace($"\"Version\":{SaveGame.CurrentVersion}", "\"Version\":99");
         var ex = Assert.Throws<SaveFormatException>(() => SaveGameJson.Read(json));
         Assert.Contains("neueren Version", ex.Message);
     }

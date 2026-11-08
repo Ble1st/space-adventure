@@ -11,8 +11,8 @@ public sealed class ProductionModule : ISimModule
 public sealed class ResourceModule : ISimModule
 {
     public string Name => "Resources";
-    // Regeneration ist langsam und idempotent skalierbar → seltener rechnen
-    public void Register(SimulationBuilder b) => b.Add(new RegenSystem(), interval: 4).Add(new MinerSystem());
+    // Respawn ist ein seltenes Zufallsereignis → mit Intervall (Wahrscheinlichkeit skaliert mit dt)
+    public void Register(SimulationBuilder b) => b.Add(new AsteroidRespawnSystem(), interval: 10).Add(new MinerSystem());
 }
 
 public sealed class TradeModule : ISimModule

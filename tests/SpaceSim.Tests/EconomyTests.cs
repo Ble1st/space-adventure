@@ -91,13 +91,13 @@ public class MinerTests
     public void Miners_ExtractOreAndEarnCredits()
     {
         var u = SpaceSim.Core.Demo.DemoUniverse.Create();
-        float fieldsBefore = u.Sectors[new SectorId(1)].Fields.Sum(f => f.Amount);
+        float fieldsBefore = u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore);
         new SimulationRunner().Run(u, 2_000);
 
         var miners = u.Ships.Values.Where(s => s.Role == ShipRole.Miner).ToList();
         Assert.Equal(2, miners.Count);
         Assert.All(miners, m => Assert.True(m.Credits > 1000f, "Miner sollte Gewinn gemacht haben"));
-        Assert.True(u.Sectors[new SectorId(1)].Fields.Sum(f => f.Amount) < fieldsBefore);
+        Assert.NotEqual(fieldsBefore, u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore));   // Abbau und Respawn haben den Gürtel verändert
     }
 
     [Fact]
@@ -335,5 +335,25 @@ public class DeterminismTests
         // keine Leichen im Index
         foreach (var sec in u.Sectors.Keys)
             foreach (var id in u.Tracker.ParkedIn(sec)) Assert.Null(u.Ships[id].Transit);
+    }
+}
+
+public class PlannerStartInsideTests
+{
+    [Fact]
+    public void StartingNearAnObstacleAndMovingTowardIt_StillDetours()
+    {
+        var obs = new[] { new Obstacle(new Vec2(0, 0), 2f) };
+        var start = new Vec2(-4, 0);   // innerhalb von Radius + Sicherheitsabstand
+        var pts = PathPlanner.Plan(start, new Vec2(40, 0), obs);
+        Assert.True(pts.Count > 2, "Der Weg darf nicht geradeaus durch das Hindernis führen");
+    }
+
+    [Fact]
+    public void StartingNearAnObstacleAndMovingAway_IsStraight()
+    {
+        var obs = new[] { new Obstacle(new Vec2(0, 0), 2f) };
+        var pts = PathPlanner.Plan(new Vec2(4, 0), new Vec2(40, 0), obs);
+        Assert.Equal(2, pts.Count);
     }
 }

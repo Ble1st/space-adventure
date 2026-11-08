@@ -30,8 +30,8 @@
   "sectors": [
     { "id": 1, "name": "Sektor Alpha", "owner": 1, "map": [0, 0],
       "fields": [
-        { "good": "ore", "pos": [60, 60],   "amount": 3000, "capacity": 3000, "regen": 0.5 },
-        { "good": "ore", "pos": [-80, 80],  "amount": 3000, "capacity": 3000, "regen": 0.5 }
+        { "good": "ore", "pos": [60, 60],   "belt": 14, "respawn": 90 },
+        { "good": "ore", "pos": [-80, 80],  "belt": 14, "respawn": 90 }
       ],
       "stations": [
         { "id": 1, "type": "mine",       "name": "Erzmine Alpha",    "pos": [-60, -40], "essential": true,

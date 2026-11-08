@@ -37,7 +37,12 @@ public partial class Main : Node3D
 	readonly OreChunks _chunks = new();
 	readonly MiningAutopilot _miner = new();
 	bool _tractorOn;
-	int _mineTarget = -1;
+	Asteroid? _mineTarget;
+	float _sinceHit = 99f;
+	int _hitCount;
+	string _lastHit = "";
+	float _lowestHull = 100f;
+	bool _transition;   // Ein-/Ausdocken läuft (Schiff animiert, keine Kollision)
 	string _mineHint = "";
 	float _hintCooldown;
 	MiningStep? _miningStep;
@@ -84,6 +89,8 @@ public partial class Main : Node3D
 		_hud.TractorPressed += () => { _sfx.Play(SfxId.Click); _tractorOn = _hud.TractorButton.On; };
 		_hud.AutoMinePressed += () => SetAutoMining(_hud.AutoMineButton.On);
 		_player.Hit += OnPlayerHit;
+		_view.AsteroidGone += (pos, r) => { _fx.Burst(pos, new Color(1f, 0.7f, 0.3f), 22, 10f); _sfx.Play(SfxId.Crack); };
+		_chunks.Shot += OnShot;
 
 		bool selftest = OS.GetCmdlineUserArgs().Contains("--selftest");
 		if (selftest)
@@ -125,7 +132,8 @@ public partial class Main : Node3D
 		_target = null; _targetStation = null; _docked = null; _autopilot = false;
 		_hud.AutopilotButton.On = false;
 		SetAutoMining(false, announce: false);
-		_chunks.Clear(); _mineTarget = -1; _mining.ClearPlayer(); _mining.ResetNpc();
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc();
+		_transition = false; _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
 		_hud.Dock.Visible = false;
 		_view.Rebuild(u);
 		var p = PlayerData;
@@ -186,7 +194,12 @@ public partial class Main : Node3D
 		_hitFlash = Mathf.Max(0f, _hitFlash - delta);
 
 		_session.Advance(delta, _fast ? 10f : 1f);
-		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _chunks.Clear(); _mineTarget = -1; }
+		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _chunks.Clear(); _mineTarget = null; }
+		_view.SyncAsteroids(_session.U, delta);
+
+		// Hülle regeneriert langsam, wenn eine Weile nichts getroffen hat
+		_sinceHit += delta;
+		if (_sinceHit > 5f && PlayerData.Hull < Ship.MaxHull) PlayerData.Hull = Mathf.Min(Ship.MaxHull, PlayerData.Hull + 3f * delta);
 
 		bool frozen = _hud.AnyModalOpen || _docked != null;
 		_miningStep = _miner.Enabled && !frozen
@@ -194,8 +207,9 @@ public partial class Main : Node3D
 			: null;
 		if (!_miner.Enabled && _hud.AutoMineButton.On) { _hud.AutoMineButton.On = false; _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
 		var (dir, throttle, speedScale) = frozen ? (Vector2.Zero, 0f, 1f) : ReadSteering();
-		_player.Locked = _docked != null;
-		_player.Step(delta, dir, throttle, speedScale, _view);
+		_player.Locked = _docked != null || _transition;
+		bool hold = _miner.Enabled && _miningStep is { Nav: null, Waypoint: null };   // Automatik arbeitet an Ort und Stelle
+		_player.Step(delta, dir, throttle, speedScale, _view, brake: hold);
 		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(throttle, 0.3f, 1f) : 0f);
 
 		if (!frozen) { CheckGates(); UpdateDockButton(); }
@@ -203,7 +217,7 @@ public partial class Main : Node3D
 		SyncPlayerData();
 
 		_view.Animate(delta);
-		_view.UpdateShips(_session.U, _session.FractionalTick, _player.Position, delta);
+		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta);   // angedockt: niemand weicht dem unsichtbaren Schiff aus
 		_cam.Position = _cam.Position.Lerp(_player.Position + CamOffset, 1f - Mathf.Exp(-6f * delta));
 		_cam.LookAt(_cam.Position - CamOffset);
 
@@ -238,8 +252,8 @@ public partial class Main : Node3D
 		{
 			if (ms.Nav is { } nav) { _targetStation = ms.DockAt; _target = nav; return Autopilot(nav); }
 			if (ms.Waypoint is { } wp)
-				return (new Vector2(wp.X - _player.Position.X, wp.Y - _player.Position.Z), ms.Throttle, 1f);
-			return (Vector2.Zero, 0f, 1f);
+				return (new Vector2(wp.X - _player.Position.X, wp.Y - _player.Position.Z), ms.Throttle, ClearanceScale());
+			return (Vector2.Zero, 0f, ClearanceScale());
 		}
 		if (_autopilot && _target is { } target) return Autopilot(target);
 		return (Vector2.Zero, 0f, 1f);
@@ -262,8 +276,17 @@ public partial class Main : Node3D
 		var to = new Vector2(step.Waypoint.X - _player.Position.X, step.Waypoint.Y - _player.Position.Z);
 		// Im Zielsektor sanft abbremsen, damit das Schiff nicht über den Parkpunkt hinausschießt
 		float final = u.PlayerSector == target.Sector ? Vec2.Distance(new Vec2(_player.Position.X, _player.Position.Z), target.Position) : 999f;
-		float scale = Mathf.Clamp(final / 40f, 0.25f, 1f);
+		float scale = Mathf.Min(Mathf.Clamp(final / 40f, 0.25f, 1f), ClearanceScale());
 		return (to, 1f, scale);
+	}
+
+	/// <summary>Drosselt den Autopiloten in der Nähe fester Hindernisse, damit er mit Schwung nicht in Asteroiden oder Stationen läuft.</summary>
+	float ClearanceScale()
+	{
+		float edge = float.MaxValue;
+		foreach (var o in _view.Obstacles)
+			edge = Mathf.Min(edge, new Vector2(_player.Position.X - o.Position.X, _player.Position.Z - o.Position.Y).Length() - o.Radius - Collision.ShipRadius);
+		return Mathf.Clamp(edge / 30f, 0.22f, 1f);   // bei Berührungsnähe ~10 u/s, unter der Schadensschwelle
 	}
 
 	void CheckGates()
@@ -281,7 +304,8 @@ public partial class Main : Node3D
 		u.MoveShip(PlayerData, far.Sector);
 		u.PlayerSector = far.Sector;
 		_view.Rebuild(u);
-		_mining.ResetNpc(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = -1;
+		_mining.ResetNpc(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
+		_player.GiveGrace(1.5f);
 
 		var gpos = new Vector3(far.Position.X, 0, far.Position.Y);
 		var dir = (-gpos).Normalized();
@@ -355,35 +379,59 @@ public partial class Main : Node3D
 
 	void DockAtNearest() { if (NearestStation(out _) is { } sid) Dock(sid); }
 
+	/// <summary>Andocken: Das Schiff fliegt in die Station hinein und verschwindet (unsichtbar, keine Kollision); die Hülle wird repariert.</summary>
 	void Dock(StationId id)
 	{
 		var u = _session.U;
 		var st = u.Stations[id];
 		_docked = id;
-		_player.Locked = true;
-		var spot = st.DockPoint(u.PlayerShip);
-		// Sanft zum Parkpunkt gleiten
+		_transition = true;
+		_player.Velocity = Vector3.Zero;
+		_miningStep = null;
+
+		var center = new Vector3(st.Position.X, 0, st.Position.Y);
 		var tw = CreateTween();
-		tw.TweenProperty(_player, "position", new Vector3(spot.X, 0, spot.Y), 0.6);
+		tw.TweenProperty(_player, "position", center, 0.7);
+		tw.Parallel().TweenProperty(_player, "scale", Vector3.One * 0.1f, 0.7);
+		tw.TweenCallback(Callable.From(() => { _player.Visible = false; _transition = false; }));
+
+		bool repaired = PlayerData.Hull < Ship.MaxHull - 0.5f;
+		PlayerData.Hull = Ship.MaxHull;
 		_sfx.Play(SfxId.Dock);
 		_hud.Dock.Open(u, st, PlayerData);
+		if (repaired) _hud.Toast("Hülle repariert");
 		if (_miner.Enabled)
 		{
 			var sale = _miner.OnDocked(u, PlayerData, st);
 			if (sale is { Revenue: > 0 }) { _sfx.Play(SfxId.Pickup); _hud.Toast($"Verkauft für {sale.Revenue:0} Credits"); }
 			_hud.Dock.Open(u, st, PlayerData);
 			// Nach kurzer Pause automatisch abdocken und weiterarbeiten
-			var timer = GetTree().CreateTimer(1.6);
+			var timer = GetTree().CreateTimer(1.8);
 			timer.Timeout += () => { if (_docked == id) Undock(); };
 			if (!_miner.Enabled) { _hud.AutoMineButton.On = false; _hud.Toast(_miner.Status, 3.5f); }
 		}
 	}
 
+	/// <summary>Abdocken: Das Schiff taucht aus der Station auf und fliegt zum Parkpunkt; danach kurze Schonfrist ohne Schaden.</summary>
 	void Undock()
 	{
+		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
 		_sfx.Play(SfxId.Click);
-		_docked = null; _player.Locked = false;
+		_docked = null;
+		_transition = true;
 		_hud.Dock.Visible = false;
+
+		var spot = st.DockPoint(_session.U.PlayerShip);
+		_player.Position = new Vector3(st.Position.X, 0, st.Position.Y);
+		_player.Scale = Vector3.One * 0.1f;
+		_player.Visible = true;
+		var outward = new Vector3(spot.X - st.Position.X, 0, spot.Y - st.Position.Y).Normalized();
+		_player.Heading = Mathf.Atan2(-outward.X, -outward.Z);
+
+		var tw = CreateTween();
+		tw.TweenProperty(_player, "position", new Vector3(spot.X, 0, spot.Y), 0.7);
+		tw.Parallel().TweenProperty(_player, "scale", Vector3.One, 0.7);
+		tw.TweenCallback(Callable.From(() => { _transition = false; _player.Velocity = outward * 8f; _player.GiveGrace(2.5f); }));
 	}
 
 	// ───────── Zeiger in der Welt ─────────
@@ -425,16 +473,15 @@ public partial class Main : Node3D
 	{
 		if (GroundPoint(screen) is not { } ground) return;
 		var sector = _session.U.Sectors[_session.U.PlayerSector];
-		int ast = -1; float astD = 3f;
-		for (int i = 0; i < sector.Asteroids.Count; i++)
+		Asteroid? rock = null; float rockD = 3f;
+		foreach (var a in sector.Asteroids)
 		{
-			var a = sector.Asteroids[i];
 			float d = new Vector2(ground.X - a.Position.X, ground.Z - a.Position.Y).Length() - a.Radius;
-			if (d < astD) { astD = d; ast = i; }
+			if (d < rockD) { rockD = d; rock = a; }
 		}
-		if (ast >= 0)
+		if (rock != null)
 		{
-			if (_chunks.IsMinable(sector, ast)) { _mineTarget = ast; _sfx.Play(SfxId.Click); _hud.Toast("Laserziel gesetzt – Laser halten (Taste F)"); }
+			if (rock.Minable) { _mineTarget = rock; _sfx.Play(SfxId.Click); _hud.Toast($"Laserziel gesetzt (Erz {rock.Ore:0}) – Laser halten (Taste F)"); }
 			else _hud.Toast("Kein Erz in diesem Asteroiden");
 			return;
 		}
@@ -455,9 +502,17 @@ public partial class Main : Node3D
 
 	// ───────── Rückmeldung ─────────
 
+	/// <summary>Harter Aufprall auf Asteroid/Station (Schwelle <see cref="PlayerShip.HardImpact"/>); leichte Stöße prallen nur ab.</summary>
 	void OnPlayerHit(float impact, Vector3 point)
 	{
-		PlayerData.Hull = Mathf.Max(0f, PlayerData.Hull - (impact - 4f) * 0.8f);
+		_hitCount++;
+		var uu = _session.U;
+		var near = _view.Obstacles.OrderBy(o => new Vector2(point.X - o.Position.X, point.Z - o.Position.Y).Length() - o.Radius).First();
+		_lastHit = $"Aufprall {impact:0.0} u/s bei ({point.X:0},{point.Z:0}) in {uu.Sectors[uu.PlayerSector].Name}, Tempo {_player.Velocity.Length():0}, " +
+		           $"Auto-Mining={_miner.Enabled} ({_miner.Status}), Hindernis r={near.Radius:0.0} bei ({near.Position.X:0},{near.Position.Y:0}), Grace={_player.Grace:0.0}, Step={(_miningStep is { } ms ? $"nav={ms.Nav?.Label} wp={ms.Waypoint?.X:0},{ms.Waypoint?.Y:0} thr={ms.Throttle:0.0} fire={ms.Fire}" : "keiner")}, Autopilot={_autopilot}, Ziel={_target?.Label}, Transition={_transition}, Docked={_docked}, Clear={ClearanceScale():0.00}";
+		_lowestHull = Mathf.Min(_lowestHull, PlayerData.Hull);
+		PlayerData.Hull = Mathf.Max(0f, PlayerData.Hull - (impact - PlayerShip.HardImpact) * 0.5f - 2f);
+		_sinceHit = 0f;
 		_hitFlash = 0.4f;
 		_sfx.Play(SfxId.Hit);
 		_fx.Burst(point, new Color(1f, 0.7f, 0.3f), 14, 14f);
@@ -465,7 +520,7 @@ public partial class Main : Node3D
 		if (PlayerData.Hull <= 0f) Respawn();
 	}
 
-	/// <summary>Hülle zerstört: Explosion, Reparatur und Neustart an der Station des Sektors.</summary>
+	/// <summary>Hülle zerstört: Explosion, Reparatur und Neustart an der Station des Sektors (mit Schonfrist).</summary>
 	void Respawn()
 	{
 		var u = _session.U;
@@ -475,9 +530,23 @@ public partial class Main : Node3D
 		var spot = sector.Stations.Count > 0 ? u.Stations[sector.Stations[0]].DockPoint(u.PlayerShip) : new Vec2(0, 0);
 		_player.Position = new Vector3(spot.X, 0, spot.Y);
 		_player.Velocity = Vector3.Zero;
+		_player.GiveGrace(3f);
 		PlayerData.Hull = Ship.MaxHull;
+		_chunks.Clear();
 		CancelAutopilot();
+		if (_miner.Enabled) SetAutoMining(false, "Auto-Mining unterbrochen (Schiff zerstört)");
 		_hud.Toast("Schiff zerstört – repariert an der Station", 3.5f);
+	}
+
+	/// <summary>Ein Laserschuss ist gefallen: Ton, Aufblitzen und bei einem Treffer Funken am Asteroiden.</summary>
+	void OnShot(Asteroid rock, float units)
+	{
+		_sfx.Play(SfxId.Zap);
+		_mining.Pulse(Time.GetTicksMsec() / 1000.0);
+		if (units <= 0f) return;
+		var pos = new Vec2(_player.Position.X, _player.Position.Z);
+		var dir = (pos - rock.Position).Normalized();
+		_fx.Burst(new Vector3(rock.Position.X + dir.X * rock.Radius, 0, rock.Position.Y + dir.Y * rock.Radius), new Color(1f, 0.75f, 0.3f), 5 + (int)units, 7f, 0.5f);
 	}
 
 	void UpdateHud()
@@ -496,6 +565,7 @@ public partial class Main : Node3D
 		string cargo = $"Fracht {used:0}/{PlayerData.CargoCapacity:0}" +
 			(PlayerData.Cargo.Count > 0 ? "  (" + string.Join(", ", PlayerData.Cargo.Select(kv => $"{u.Goods[kv.Key].Name} {kv.Value:0}")) + ")" : "");
 		string? mining = _miner.Enabled ? "Auto-Mining: " + _miner.Status : _tractorOn ? "Traktorstrahl an" : null;
+		if (_mineTarget is { } rock) mining = (mining == null ? "" : mining + "   ") + $"Ziel-Asteroid: Erz {rock.Ore:0}/{rock.MaxOre:0}";
 		_hud.SetStatus(status, PlayerData.Hull, target, cargo, mining);
 	}
 
@@ -567,45 +637,42 @@ public partial class Main : Node3D
 		var sector = u.Sectors[u.PlayerSector];
 		var pos = new Vec2(_player.Position.X, _player.Position.Z);
 		_hintCooldown = Mathf.Max(0f, _hintCooldown - delta);
-		if (_mineTarget >= 0 && !_chunks.IsMinable(sector, _mineTarget)) _mineTarget = -1;
+		if (_mineTarget != null && !_chunks.IsMinable(sector, _mineTarget)) _mineTarget = null;
 
 		bool fire = false, tractor = _tractorOn;
-		int aim = -1;
+		Asteroid? aim = null;
 		if (!frozen)
 		{
 			if (_miningStep is { } ms) { fire = ms.Fire; tractor |= ms.Tractor; aim = ms.Aim; }
 			else
 			{
 				fire = _hud.LaserButton.Held || Input.IsKeyPressed(Key.F);
-				aim = _mineTarget >= 0 ? _mineTarget : _chunks.Nearest(sector, pos, MiningRules.LaserRange);
+				aim = _mineTarget ?? _chunks.Nearest(sector, pos, MiningRules.LaserRange);
 			}
 		}
 
 		Vector3? hit = null;
 		if (fire)
 		{
-			if (aim < 0) Hint("Kein abbaubarer Asteroid in Reichweite");
+			if (aim == null) Hint("Kein abbaubarer Asteroid in Reichweite");
 			else switch (_chunks.Mine(u, ship, sector, aim, pos, delta))
 			{
 				case MineResult.Ok:
-					var a = sector.Asteroids[aim];
-					var dir = (pos - a.Position).Normalized();
-					hit = new Vector3(a.Position.X + dir.X * a.Radius, 0, a.Position.Y + dir.Y * a.Radius);
+					var dir = (pos - aim.Position).Normalized();
+					hit = new Vector3(aim.Position.X + dir.X * aim.Radius, 0, aim.Position.Y + dir.Y * aim.Radius);
 					break;
 				case MineResult.OutOfRange: Hint("Zu weit entfernt – näher heranfliegen"); break;
 				case MineResult.CargoFull: Hint("Laderaum voll"); break;
-				case MineResult.Depleted: Hint("Dieses Feld ist erschöpft"); break;
-				case MineResult.NotMinable: Hint("Kein Erz in diesem Asteroiden"); break;
+				case MineResult.NotMinable: Hint("Kein Erz mehr in diesem Asteroiden"); break;
 			}
 		}
 
 		tractor &= !frozen;
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
-		_sfx.SetLaser(hit != null);
 
-		int shown = fire && aim >= 0 ? aim : _mineTarget;
-		if (shown >= 0 && shown < sector.Asteroids.Count)
-			_mining.SetTarget(new Vector3(sector.Asteroids[shown].Position.X, 0, sector.Asteroids[shown].Position.Y), sector.Asteroids[shown].Radius);
+		var shown = fire && aim != null ? aim : _mineTarget;
+		if (shown != null && sector.Asteroids.Contains(shown))
+			_mining.SetTarget(new Vector3(shown.Position.X, 0, shown.Position.Y), shown.Radius);
 		else _mining.SetTarget(null, 0f);
 
 		double time = Time.GetTicksMsec() / 1000.0;
@@ -636,6 +703,9 @@ public partial class Main : Node3D
 	internal void TestStartMining() => SetAutoMining(true);
 	internal float TestCargoUnits => PlayerData.Cargo.Values.Sum();
 	internal int TestSales => _sales;
+	internal int TestHits => _hitCount;
+	internal string TestLastHit => _lastHit;
+	internal float TestLowestHull => _lowestHull;
 	internal bool TestMinerEnabled => _miner.Enabled;
 	internal string TestMinerStatus => _miner.Status;
 }

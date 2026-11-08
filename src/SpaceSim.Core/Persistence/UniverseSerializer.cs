@@ -11,7 +11,7 @@ public static class UniverseSerializer
         {
             SavedAtUtc = now.ToUniversalTime().ToString("o"),
             Tick = u.Tick, Seed = u.Seed, RngState = u.Rng.State, LastStationBuildTick = u.LastStationBuildTick,
-            NextShipId = u.IdCounters.ship, NextStationId = u.IdCounters.station,
+            NextShipId = u.IdCounters.ship, NextStationId = u.IdCounters.station, NextAsteroidId = u.NextAsteroidId,
             PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
         };
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
@@ -34,12 +34,12 @@ public static class UniverseSerializer
             {
                 Id = sec.Id.Value, Name = sec.Name, Owner = sec.Owner.Value, Map = sec.MapPosition, Radius = sec.Radius,
                 Gates = sec.Gates.Select(g => g.Value).ToList(), Stations = sec.Stations.Select(x => x.Value).ToList(),
-                Fields = sec.Fields.Select(f => new FieldSave { Good = f.Good.Value, Pos = f.Position, Amount = f.Amount, RegenPerTick = f.RegenPerTick, Capacity = f.Capacity }).ToList(),
-                Asteroids = sec.Asteroids.ToList(),
+                Fields = sec.Fields.Select(f => new FieldSave { Good = f.Good.Value, Pos = f.Position, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
+                Rocks = sec.Asteroids.Select(a => new AsteroidSave { Id = a.Id, Pos = a.Position, BaseRadius = a.BaseRadius, Good = a.Good.Value, Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
             s.Gates.Add(new GateSave { Id = g.Id.Value, Sector = g.Sector.Value, Pos = g.Position, Target = g.Target.Value, Open = g.Open });
-        foreach (var st in u.Stations.Values.OrderBy(x => x.Id.Value))
+        foreach (var st in u.Stations.Values)
             s.Stations.Add(new StationSave
             {
                 Id = st.Id.Value, Type = st.TypeKey, Name = st.Name, Sector = st.Sector.Value, Owner = st.Owner.Value, Pos = st.Position,
@@ -47,7 +47,7 @@ public static class UniverseSerializer
                 Recipes = st.Production.Select(ToSave).ToList(),
                 Market = st.Market.ToDictionary(kv => kv.Key.Value, kv => new StockSave { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price }),
             });
-        foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
+        foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
             {
                 Id = sh.Id.Value, Faction = sh.Faction.Value, Role = sh.Role.ToString(), CargoCapacity = sh.CargoCapacity,
@@ -65,7 +65,7 @@ public static class UniverseSerializer
     {
         var u = new Universe
         {
-            Tick = s.Tick, Seed = s.Seed, LastStationBuildTick = s.LastStationBuildTick, Rules = s.Rules,
+            Tick = s.Tick, Seed = s.Seed, LastStationBuildTick = s.LastStationBuildTick, Rules = s.Rules, NextAsteroidId = s.NextAsteroidId,
             Rng = new DeterministicRng(s.Seed) { State = s.RngState },
             PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
         };
@@ -89,8 +89,8 @@ public static class UniverseSerializer
             {
                 Id = new SectorId(sec.Id), Name = sec.Name, Owner = new FactionId(sec.Owner), MapPosition = sec.Map, Radius = sec.Radius,
                 Gates = sec.Gates.Select(g => new GateId(g)).ToList(), Stations = sec.Stations.Select(x => new StationId(x)).ToList(),
-                Fields = sec.Fields.Select(f => new ResourceField { Good = new GoodId(f.Good), Position = f.Pos, Amount = f.Amount, RegenPerTick = f.RegenPerTick, Capacity = f.Capacity }).ToList(),
-                Asteroids = sec.Asteroids.ToList(),
+                Fields = sec.Fields.Select(f => new ResourceField { Good = new GoodId(f.Good), Position = f.Pos, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
+                Asteroids = sec.Rocks.Select(a => new Asteroid { Id = a.Id, Position = a.Pos, BaseRadius = a.BaseRadius, Good = new GoodId(a.Good), Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
             };
         foreach (var g in s.Gates)
             u.Gates[new GateId(g.Id)] = new Gate { Id = new GateId(g.Id), Sector = new SectorId(g.Sector), Position = g.Pos, Target = new GateId(g.Target), Open = g.Open };

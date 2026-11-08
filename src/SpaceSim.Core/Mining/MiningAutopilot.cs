@@ -6,7 +6,7 @@ namespace SpaceSim.Core.Mining;
 
 /// <summary>Was die Darstellung in diesem Frame tun soll. Genau eines von: Nav (Autopilot zu einem Ziel), Waypoint (lokal fliegen), nichts.</summary>
 public readonly record struct MiningStep(
-    NavTarget? Nav, StationId? DockAt, Vec2? Waypoint, float Throttle, int Aim, bool Fire, bool Tractor);
+    NavTarget? Nav, StationId? DockAt, Vec2? Waypoint, float Throttle, Asteroid? Aim, bool Fire, bool Tractor);
 
 /// <summary>
 /// Automodus für den Spieler: Asteroid suchen → anfliegen → beschießen und Brocken einsammeln → bei vollem Laderaum
@@ -21,29 +21,29 @@ public sealed class MiningAutopilot
     public Phase Current { get; private set; } = Phase.Seek;
     public string Status { get; private set; } = "";
 
-    int _asteroid = -1;
+    Asteroid? _target;
 
-    public void Start() { Enabled = true; Current = Phase.Seek; _asteroid = -1; Status = "Suche Asteroid …"; }
-    public void Stop(string status = "") { Enabled = false; Status = status; _asteroid = -1; }
+    public void Start() { Enabled = true; Current = Phase.Seek; _target = null; Status = "Suche Asteroid …"; }
+    public void Stop(string status = "") { Enabled = false; Status = status; _target = null; }
 
     public MiningStep Step(Universe u, OreChunks chunks, Ship ship, Vec2 pos)
     {
-        var none = new MiningStep(null, null, null, 0f, -1, false, false);
+        var none = new MiningStep(null, null, null, 0f, null, false, false);
         if (!Enabled) return none;
 
         var sector = u.Sectors[u.PlayerSector];
         bool chunksNear = chunks.Chunks.Any(c => Vec2.Distance(c.Position, pos) <= MiningRules.TractorRange);
 
         // Zielasteroid prüfen
-        if (Current == Phase.Mine && !chunks.IsMinable(sector, _asteroid)) { _asteroid = -1; Current = chunksNear ? Phase.Mine : Phase.Seek; }
+        if (Current == Phase.Mine && !chunks.IsMinable(sector, _target)) { _target = null; Current = Phase.Seek; }
 
         switch (Current)
         {
             case Phase.Seek:
             {
                 if (ship.Cargo.Values.Sum() > 0f && NearlyFull(u, ship)) { Current = Phase.Sell; goto case Phase.Sell; }
-                int idx = chunks.Nearest(sector, pos);
-                if (idx >= 0) { _asteroid = idx; Current = Phase.Mine; Status = "Abbau"; goto case Phase.Mine; }
+                var rock = chunks.Nearest(sector, pos);
+                if (rock != null) { _target = rock; Current = Phase.Mine; Status = "Abbau"; goto case Phase.Mine; }
 
                 // Nichts mehr im Sektor: Ladung verkaufen oder anderes Feld suchen
                 if (ship.Cargo.Values.Sum() > 0f) { Current = Phase.Sell; goto case Phase.Sell; }
@@ -55,8 +55,7 @@ public sealed class MiningAutopilot
 
             case Phase.Mine:
             {
-                if (_asteroid < 0) { Current = Phase.Seek; return none; }
-                var a = sector.Asteroids[_asteroid];
+                if (_target is not { } a) { Current = Phase.Seek; return none; }
                 float edge = Vec2.Distance(pos, a.Position) - a.Radius;
                 bool fullNow = NearlyFull(u, ship);
 
@@ -71,7 +70,7 @@ public sealed class MiningAutopilot
                     return none with { Waypoint = pts.Count > 1 ? pts[1] : stand, Throttle = 1f, Tractor = chunksNear };
                 }
                 Status = fullNow ? "Brocken einsammeln" : "Abbau";
-                return none with { Aim = _asteroid, Fire = !fullNow, Tractor = true };
+                return none with { Aim = a, Fire = !fullNow, Tractor = true };
             }
 
             case Phase.Sell:
@@ -90,7 +89,7 @@ public sealed class MiningAutopilot
     {
         if (!Enabled) return null;
         var result = TradeActions.SellAll(u, ship, station);
-        Current = Phase.Seek; _asteroid = -1;
+        Current = Phase.Seek; _target = null;
         Status = result.Revenue > 0 ? $"Verkauft für {result.Revenue:0}" : "Nichts verkauft";
         // Konnte nichts verkauft werden (Station pleite o.ä.), nicht endlos weiterfahren
         if (result.Revenue <= 0f && ship.Cargo.Values.Sum() > 0f) Stop("Station kauft nicht – Automatik gestoppt");
@@ -98,7 +97,7 @@ public sealed class MiningAutopilot
     }
 
     static bool NearlyFull(Universe u, Ship ship) =>
-        ship.CargoCapacity - ship.UsedVolume(u) < MiningRules.ChunkUnits * 1.01f;
+        ship.CargoCapacity - ship.UsedVolume(u) < MiningRules.MinChunkUnits * 1.01f;
 
     /// <summary>Nächster erreichbarer Sektor mit Erzvorrat im Feld.</summary>
     static NavTarget? FindOtherSector(Universe u, Ship ship, Vec2 pos)
@@ -108,7 +107,7 @@ public sealed class MiningAutopilot
         foreach (var s in u.Sectors.Values)
         {
             if (s.Id == u.PlayerSector) continue;
-            foreach (var f in s.Fields.Where(f => f.Amount >= MiningRules.ChunkUnits))
+            foreach (var f in s.Fields.Where(f => Belt.OreIn(s, f) >= MiningRules.MinChunkUnits))
             {
                 float t = Travel.Estimate(u, u.PlayerSector, pos, s.Id, f.WorkPoint(ship.Id));
                 if (t < bestTime) { bestTime = t; best = new NavTarget(s.Id, f.WorkPoint(ship.Id), $"Feld in {s.Name}"); }

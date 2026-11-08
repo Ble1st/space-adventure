@@ -9,84 +9,88 @@ public sealed class OreChunk
     public GoodId Good;
     public float Units;
     public float Age;
-    public ResourceField Field = null!;
 }
 
-public enum MineResult { Ok, OutOfRange, NotMinable, Depleted, CargoFull }
+public enum MineResult { Ok, OutOfRange, NotMinable, CargoFull }
 
 /// <summary>
-/// Echtzeit-Mikrosimulation des Spielerabbaus im aktuellen Sektor: Laser löst Erzbrocken aus dem Asteroiden,
-/// der Traktorstrahl zieht sie ins Schiff. Flüchtig (nicht gespeichert); erst beim Einfangen wird der Bestand
-/// des Rohstofffelds verringert und die Fracht erhöht, damit unabgeholte Brocken nichts verbrauchen.
-/// Engine-unabhängig und testbar; die Darstellung zeigt nur Brocken und Strahlen.
+/// Echtzeit-Mikrosimulation des Spielerabbaus im aktuellen Sektor. Der Laser feuert in festen Abständen
+/// (<see cref="MiningRules.ShotInterval"/>); jeder Schuss löst mit Wahrscheinlichkeit <see cref="MiningRules.ChunkChance"/>
+/// einen Brocken mit zufälliger Größe (<see cref="MiningRules.ChunkTable"/>) aus dem Asteroiden. Das Erz verlässt den
+/// Asteroiden beim Lösen (er schrumpft, bei 0 verschwindet er und wächst später per Respawn nach); der Traktorstrahl
+/// zieht die Brocken ein. Nicht eingesammelte Brocken verfallen. Flüchtig (nicht gespeichert), engine-unabhängig, testbar.
 /// </summary>
 public sealed class OreChunks
 {
     public List<OreChunk> Chunks { get; } = new();
-    readonly Dictionary<int, float> _progress = new();
-    readonly DeterministicRng _rng = new(0xC0FFEE);
+    readonly DeterministicRng _rng;
+    float _shotTimer = MiningRules.ShotInterval * 0.5f;
+    bool _firedThisFrame;
+
+    public OreChunks(ulong seed = 0xC0FFEE) => _rng = new DeterministicRng(seed);
+
+    /// <summary>Ein Schuss ist gefallen: Asteroid und freigesetzte Einheiten (0 = Fehlschuss ohne Brocken).</summary>
+    public event Action<Asteroid, float>? Shot;
 
     /// <summary>Beim Sektorwechsel/Laden: schwebende Brocken verschwinden.</summary>
-    public void Clear() { Chunks.Clear(); _progress.Clear(); }
+    public void Clear() { Chunks.Clear(); _shotTimer = MiningRules.ShotInterval * 0.5f; }
 
-    float Reserved(ResourceField f) => Chunks.Where(c => c.Field == f).Sum(c => c.Units);
-    float ReservedGood(GoodId g) => Chunks.Where(c => c.Good == g).Sum(c => c.Units);
+    float InFlight(GoodId g) => Chunks.Where(c => c.Good == g).Sum(c => c.Units);
 
-    public bool IsMinable(Sector sector, int asteroid)
+    public bool IsMinable(Sector sector, Asteroid? a) => a != null && a.Minable && sector.Asteroids.Contains(a);
+
+    /// <summary>Nächster abbaubarer Asteroid (Abstand Schiff–Oberfläche), optional nur innerhalb von <paramref name="maxEdge"/>.</summary>
+    public Asteroid? Nearest(Sector sector, Vec2 shipPos, float maxEdge = float.MaxValue)
     {
-        if (asteroid < 0 || asteroid >= sector.Asteroids.Count) return false;
-        var f = sector.FieldFor(sector.Asteroids[asteroid].Position);
-        return f != null && f.Amount - Reserved(f) >= MiningRules.ChunkUnits;
-    }
-
-    /// <summary>Nächster abbaubarer Asteroid (Abstand Schiff–Oberfläche), optional nur innerhalb von <paramref name="maxEdge"/>; -1 wenn keiner.</summary>
-    public int Nearest(Sector sector, Vec2 shipPos, float maxEdge = float.MaxValue)
-    {
-        int best = -1;
+        Asteroid? best = null;
         float bestEdge = maxEdge;
-        for (int i = 0; i < sector.Asteroids.Count; i++)
+        foreach (var a in sector.Asteroids)
         {
-            var a = sector.Asteroids[i];
+            if (!a.Minable) continue;
             float edge = Vec2.Distance(shipPos, a.Position) - a.Radius;
-            if (edge <= bestEdge && IsMinable(sector, i)) { best = i; bestEdge = edge; }
+            if (edge <= bestEdge) { best = a; bestEdge = edge; }
         }
         return best;
     }
 
-    /// <summary>Beschießt einen Asteroiden für <paramref name="dt"/> Sekunden; erzeugt bei genug Fortschritt Erzbrocken.</summary>
-    public MineResult Mine(Universe u, Ship ship, Sector sector, int asteroid, Vec2 shipPos, float dt)
+    /// <summary>Beschießt einen Asteroiden für <paramref name="dt"/> Sekunden (kann mehrere oder keinen Schuss auslösen).</summary>
+    public MineResult Mine(Universe u, Ship ship, Sector sector, Asteroid a, Vec2 shipPos, float dt)
     {
-        if (asteroid < 0 || asteroid >= sector.Asteroids.Count) return MineResult.NotMinable;
-        var a = sector.Asteroids[asteroid];
-        var field = sector.FieldFor(a.Position);
-        if (field is null) return MineResult.NotMinable;
+        if (!IsMinable(sector, a)) return MineResult.NotMinable;
         if (Vec2.Distance(shipPos, a.Position) - a.Radius > MiningRules.LaserRange) return MineResult.OutOfRange;
-        if (field.Amount - Reserved(field) < MiningRules.ChunkUnits) return MineResult.Depleted;
-        if (ship.FreeUnits(u, field.Good) - ReservedGood(field.Good) < MiningRules.ChunkUnits) return MineResult.CargoFull;
+        if (ship.FreeUnits(u, a.Good) - InFlight(a.Good) < MiningRules.MinChunkUnits) return MineResult.CargoFull;
 
-        float p = _progress.GetValueOrDefault(asteroid) + MiningRules.OrePerSecond * dt;
-        while (p >= MiningRules.ChunkUnits
-               && field.Amount - Reserved(field) >= MiningRules.ChunkUnits
-               && ship.FreeUnits(u, field.Good) - ReservedGood(field.Good) >= MiningRules.ChunkUnits)
+        _firedThisFrame = true;
+        _shotTimer += dt;
+        while (_shotTimer >= MiningRules.ShotInterval && a.Minable)
         {
-            p -= MiningRules.ChunkUnits;
-            var toShip = (shipPos - a.Position).Normalized();
-            var side = new Vec2(-toShip.Y, toShip.X);
-            Chunks.Add(new OreChunk
+            _shotTimer -= MiningRules.ShotInterval;
+            float units = 0f;
+            if (_rng.NextDouble() < MiningRules.ChunkChance)
             {
-                Good = field.Good, Units = MiningRules.ChunkUnits, Field = field,
-                Position = a.Position + toShip * a.Radius,
-                Velocity = toShip * _rng.Range(3f, 8f) + side * _rng.Range(-5f, 5f),
-            });
+                units = MathF.Min(MiningRules.RollChunkUnits(_rng), a.Ore);
+                var toShip = (shipPos - a.Position).Normalized();
+                var side = new Vec2(-toShip.Y, toShip.X);
+                Chunks.Add(new OreChunk
+                {
+                    Good = a.Good, Units = units,
+                    Position = a.Position + toShip * a.Radius,
+                    Velocity = toShip * _rng.Range(3f, 8f) + side * _rng.Range(-5f, 5f),
+                });
+                Belt.Remove(u, sector, a, units);   // Erz verlässt den Asteroiden (schrumpft, bei 0 weg)
+            }
+            Shot?.Invoke(a, units);
         }
-        _progress[asteroid] = Math.Min(p, MiningRules.ChunkUnits);
         return MineResult.Ok;
     }
 
-    /// <summary>Bewegt die Brocken; mit Traktorstrahl werden sie angezogen und bei Berührung in den Laderaum geladen.</summary>
+    /// <summary>Bewegt die Brocken; mit Traktorstrahl werden sie angezogen und bei Berührung (soweit Platz ist) in den Laderaum geladen.</summary>
     /// <returns>Eingesammelte Einheiten in diesem Schritt.</returns>
     public float Update(Universe u, Ship ship, Vec2 shipPos, bool tractor, float dt)
     {
+        if (!_firedThisFrame) _shotTimer = MiningRules.ShotInterval * 0.5f;   // Feuerpause: nächster Schuss nicht sofort
+        _firedThisFrame = false;
+
         float collected = 0f;
         for (int i = Chunks.Count - 1; i >= 0; i--)
         {
@@ -98,21 +102,22 @@ public sealed class OreChunks
             float dist = to.Length;
             if (tractor && dist <= MiningRules.TractorRange)
             {
-                var dir = to * (1f / MathF.Max(dist, 0.001f));
-                c.Velocity += dir * MiningRules.TractorAccel * dt;
+                c.Velocity += to * (1f / MathF.Max(dist, 0.001f)) * MiningRules.TractorAccel * dt;
                 if (c.Velocity.Length > MiningRules.TractorSpeed) c.Velocity = c.Velocity.Normalized() * MiningRules.TractorSpeed;
             }
             else c.Velocity *= MathF.Exp(-0.9f * dt);   // ohne Strahl driften sie langsam aus
             c.Position += c.Velocity * dt;
 
             if (Vec2.Distance(c.Position, shipPos) > MiningRules.CollectRadius) continue;
-            if (ship.FreeUnits(u, c.Good) < c.Units) { c.Velocity = (c.Position - shipPos).Normalized() * 6f; continue; }   // Laderaum voll: abprallen
+            float take = MathF.Min(ship.FreeUnits(u, c.Good), c.Units);
+            if (take < 0.001f) { c.Velocity = (c.Position - shipPos).Normalized() * 6f; continue; }   // Laderaum voll: abprallen
 
-            ship.Cargo[c.Good] = ship.Cargo.GetValueOrDefault(c.Good) + c.Units;
-            c.Field.Amount = MathF.Max(0f, c.Field.Amount - c.Units);
-            collected += c.Units;
-            u.Events.Publish(new OreCollected(ship.Id, c.Good, c.Units));
-            Chunks.RemoveAt(i);
+            ship.Cargo[c.Good] = ship.Cargo.GetValueOrDefault(c.Good) + take;
+            c.Units -= take;
+            collected += take;
+            u.Events.Publish(new OreCollected(ship.Id, c.Good, take));
+            if (c.Units < 0.001f) Chunks.RemoveAt(i);
+            else c.Velocity = (c.Position - shipPos).Normalized() * 6f;   // Rest schwebt weiter
         }
         return collected;
     }

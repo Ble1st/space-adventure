@@ -23,7 +23,12 @@ public partial class MiningView : Node3D
 	readonly SphereMesh _chunkMesh = new() { Radius = 0.7f, Height = 1.4f, RadialSegments = 8, Rings = 4 };
 	readonly Material _oreMat = Gfx.Mat(OreColor, 2.5f);
 
-	sealed class NpcRig { public Node3D Root = null!; public Node3D Laser = null!; public MeshInstance3D[] Chunks = null!; public int Asteroid = -1; }
+	sealed class NpcRig { public Node3D Root = null!; public Node3D Laser = null!; public MeshInstance3D[] Chunks = null!; public Asteroid? Asteroid; }
+
+	double _pulseUntil;
+
+	/// <summary>Ein Schuss ist gefallen: Strahl blitzt kurz dicker auf.</summary>
+	public void Pulse(double now) => _pulseUntil = now + 0.12;
 
 	public MiningView()
 	{
@@ -65,8 +70,8 @@ public partial class MiningView : Node3D
 		if (laserHit is { } hit)
 		{
 			Place(_laser, ship + (hit - ship).Normalized() * 2.5f, hit);
-			float pulse = 0.8f + 0.2f * Mathf.Sin((float)time * 40f);
-			_laser.Scale = new Vector3(pulse, pulse, _laser.Scale.Z);
+			float thick = time < _pulseUntil ? 1.8f : 0.55f;   // dünner Dauerstrahl, kurzes Aufblitzen pro Schuss
+			_laser.Scale = new Vector3(thick, thick, _laser.Scale.Z);
 		}
 		else _laser.Visible = false;
 
@@ -115,10 +120,10 @@ public partial class MiningView : Node3D
 		{
 			active.Add(id);
 			if (!_npc.TryGetValue(id, out var rig)) _npc[id] = rig = MakeNpcRig();
-			if (rig.Asteroid < 0 || rig.Asteroid >= sector.Asteroids.Count) rig.Asteroid = NearestAsteroid(sector, pos);
-			if (rig.Asteroid < 0) { rig.Root.Visible = false; continue; }
+			if (rig.Asteroid == null || !rig.Asteroid.Minable || !sector.Asteroids.Contains(rig.Asteroid)) rig.Asteroid = NearestAsteroid(sector, pos);
+			if (rig.Asteroid == null) { rig.Root.Visible = false; continue; }
 
-			var a = sector.Asteroids[rig.Asteroid];
+			var a = rig.Asteroid;
 			var center = new Vector3(a.Position.X, 0, a.Position.Y);
 			var surface = center + (pos - center).Normalized() * a.Radius;
 			rig.Root.Visible = true;
@@ -151,15 +156,14 @@ public partial class MiningView : Node3D
 		return new NpcRig { Root = root, Laser = laser, Chunks = chunks };
 	}
 
-	static int NearestAsteroid(Sector sector, Vector3 pos)
+	static Asteroid? NearestAsteroid(Sector sector, Vector3 pos)
 	{
-		int best = -1; float bestD = 70f;
-		for (int i = 0; i < sector.Asteroids.Count; i++)
+		Asteroid? best = null; float bestD = 70f;
+		foreach (var a in sector.Asteroids)
 		{
-			var a = sector.Asteroids[i];
-			if (sector.FieldFor(a.Position) == null) continue;
+			if (!a.Minable) continue;
 			float d = new Vector2(pos.X - a.Position.X, pos.Z - a.Position.Y).Length() - a.Radius;
-			if (d < bestD) { bestD = d; best = i; }
+			if (d < bestD) { bestD = d; best = a; }
 		}
 		return best;
 	}
