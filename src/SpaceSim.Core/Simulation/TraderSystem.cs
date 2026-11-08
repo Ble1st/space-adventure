@@ -30,26 +30,42 @@ public sealed class TraderSystem : ISimSystem
         }
     }
 
+    /// <summary>
+    /// Bewertet jede Kauf-/Verkaufsstation je Ware nach Gewinn pro Tick (Spanne × Menge / Reisezeit).
+    /// Bestände, die andere Händler bereits angefahren haben, gelten als reserviert; sonst würden alle auf dieselbe Route laufen.
+    /// </summary>
     static bool PickOrder(Universe u, Ship ship)
     {
+        var reserved = new Dictionary<(StationId, GoodId), float>();
+        foreach (var o in u.Ships.Values)
+            if (o.Order is TradeOrder to && o.Phase == TradePhase.GoingToBuy)
+                reserved[(to.Buy, to.Good)] = reserved.GetValueOrDefault((to.Buy, to.Good)) + o.CargoCapacity / u.Goods[to.Good].VolumePerUnit;
+
         TradeOrder? best = null;
-        float bestMargin = 0f;
+        float bestScore = 0f;
         foreach (var good in u.Goods.Values)
+        {
+            float capacityUnits = ship.CargoCapacity / good.VolumePerUnit;
             foreach (var buy in u.Stations.Values)
             {
-                if (!buy.Market.TryGetValue(good.Id, out var b) || b.Amount < 1f) continue;
-                if (!u.IsReachable(ship.Sector, buy.Sector)) continue;
+                if (!buy.Market.TryGetValue(good.Id, out var b)) continue;
+                float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
+                if (available < 1f) continue;
+                float units = MathF.Min(capacityUnits, available);
+                float toBuy = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id));
+                if (float.IsPositiveInfinity(toBuy)) continue;
                 foreach (var sell in u.Stations.Values)
                 {
                     if (sell.Id == buy.Id || !sell.Market.TryGetValue(good.Id, out var s)) continue;
                     float margin = s.Price - b.Price;
-                    if (margin > bestMargin && u.IsReachable(buy.Sector, sell.Sector))
-                    {
-                        bestMargin = margin;
-                        best = new TradeOrder(buy.Id, sell.Id, good.Id);
-                    }
+                    if (margin <= 0f || !CanAfford(sell, s.Price, units)) continue;
+                    float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id));
+                    if (float.IsPositiveInfinity(toSell)) continue;
+                    float score = margin * units / (toBuy + toSell);
+                    if (score > bestScore) { bestScore = score; best = new TradeOrder(buy.Id, sell.Id, good.Id); }
                 }
             }
+        }
         if (best is null) return false;
         ship.Order = best;
         ship.Phase = TradePhase.GoingToBuy;
@@ -57,6 +73,9 @@ public sealed class TraderSystem : ISimSystem
         Travel.Start(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
         return true;
     }
+
+    /// <summary>Käufer muss einen nennenswerten Teil einer Ladung bezahlen können, sonst lohnt die Fahrt nicht.</summary>
+    public static bool CanAfford(Station buyer, float price, float units) => buyer.Credits > 0.25f * units * price;
 
     static void Arrive(Universe u, Ship ship, Transit t)
     {
@@ -92,7 +111,9 @@ public sealed class TraderSystem : ISimSystem
             var st = u.Stations[order.Sell];
             var stock = st.Stock(order.Good);
             float amount = ship.Cargo.GetValueOrDefault(order.Good);
-            float revenue = amount * stock.Price;
+            // Die Station zahlt nur, was sie hat; der Rest der Ladung wird ohne Bezahlung abgeladen
+            float paid = stock.Price > 0 ? MathF.Min(amount, MathF.Max(0f, st.Credits) / stock.Price) : 0f;
+            float revenue = paid * stock.Price;
             stock.Amount += amount;
             st.Credits -= revenue;
             ship.Credits += revenue;
@@ -100,7 +121,7 @@ public sealed class TraderSystem : ISimSystem
             ship.Order = null;
             ship.Phase = TradePhase.Idle;
             ship.IdleSince = u.Tick;
-            u.Events.Publish(new TradeCompleted(ship.Id, order.Buy, order.Sell, order.Good, amount, revenue));
+            u.Events.Publish(new TradeCompleted(ship.Id, order.Buy, order.Sell, order.Good, paid, revenue));
         }
     }
 }

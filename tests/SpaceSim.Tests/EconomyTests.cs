@@ -20,10 +20,10 @@ public class EconomyTests
         u.Gates[ga.Id] = ga; u.Gates[gb.Id] = gb;
         a.Gates.Add(ga.Id); b.Gates.Add(gb.Id);
 
-        var mine = new Station { Id = new(1), Name = "Mine", Sector = a.Id };
+        var mine = new Station { Id = new(1), Name = "Mine", Sector = a.Id, Credits = 10_000f };
         mine.Production.Add(new Recipe { Outputs = { [ore.Id] = 5f }, TicksPerCycle = 5 });
         mine.Stock(ore.Id).Amount = 200;
-        var smelter = new Station { Id = new(2), Name = "Schmelze", Sector = b.Id };
+        var smelter = new Station { Id = new(2), Name = "Schmelze", Sector = b.Id, Credits = 10_000f };
         smelter.Stock(ore.Id).Amount = 0;
         smelter.Stock(ore.Id).Target = 100;
         u.Stations[mine.Id] = mine; u.Stations[smelter.Id] = smelter;

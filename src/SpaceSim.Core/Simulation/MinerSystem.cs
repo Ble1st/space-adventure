@@ -57,9 +57,10 @@ public sealed class MinerSystem : ISimSystem
                 foreach (var st in u.Stations.Values)
                 {
                     if (!st.Market.TryGetValue(field.Good, out var e) || e.Price < good.BasePrice * MinPriceFactor) continue;
+                    if (!TraderSystem.CanAfford(st, e.Price, ship.CargoCapacity / good.VolumePerUnit)) continue;
                     if (!u.IsReachable(sector.Id, st.Sector)) continue;
-                    float time = Travel.Ticks(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id)) + mineTicks
-                               + Travel.Ticks(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id));
+                    float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id)) + mineTicks
+                               + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id));
                     float score = e.Price / time;
                     if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, field.Good, st.Id); }
                 }
@@ -91,7 +92,8 @@ public sealed class MinerSystem : ISimSystem
             var st = u.Stations[order.DeliverTo];
             var stock = st.Stock(order.Good);
             float amount = ship.Cargo.GetValueOrDefault(order.Good);
-            float revenue = amount * stock.Price;
+            float paid = stock.Price > 0 ? MathF.Min(amount, MathF.Max(0f, st.Credits) / stock.Price) : 0f;
+            float revenue = paid * stock.Price;
             stock.Amount += amount;
             st.Credits -= revenue;
             ship.Credits += revenue;
@@ -99,7 +101,7 @@ public sealed class MinerSystem : ISimSystem
             ship.Order = null;
             ship.MinePhase = MinePhase.Idle;
             ship.IdleSince = u.Tick;
-            u.Events.Publish(new MineDelivered(ship.Id, order.DeliverTo, order.Good, amount, revenue));
+            u.Events.Publish(new MineDelivered(ship.Id, order.DeliverTo, order.Good, paid, revenue));
         }
     }
 

@@ -16,6 +16,7 @@ public sealed class Universe
     public Dictionary<GoodId, Good> Goods = new();
     public Dictionary<string, StationType> StationTypes = new();
     public EconomyRules Rules = new();
+    public long LastStationBuildTick = -1_000_000;
 
     /// <summary>Der einzige Sektor, der als Godot-Szene materialisiert ist.</summary>
     public SectorId PlayerSector;
@@ -167,14 +168,17 @@ public sealed class Universe
     /// <summary>Anzahl Gate-Sprünge zwischen zwei Sektoren, -1 wenn nicht erreichbar.</summary>
     public int Hops(SectorId from, SectorId to) => FindRoute(from, to)?.Count ?? -1;
 
-    // Erreichbarkeit wird je Tick zwischengespeichert: KI-Systeme fragen sie in verschachtelten Schleifen ab.
-    readonly Dictionary<(SectorId, SectorId), bool> _reach = new();
-    long _reachTick = -1;
+    // Routen werden je Tick zwischengespeichert: KI-Systeme fragen sie in verschachtelten Schleifen ab
+    // (Gates können sich zwischen Ticks ändern, innerhalb eines Ticks nicht).
+    readonly Dictionary<(SectorId, SectorId), List<GateId>?> _routes = new();
+    long _routesTick = -1;
 
-    public bool IsReachable(SectorId from, SectorId to)
+    public List<GateId>? CachedRoute(SectorId from, SectorId to)
     {
-        if (_reachTick != Tick) { _reach.Clear(); _reachTick = Tick; }
-        if (!_reach.TryGetValue((from, to), out var r)) _reach[(from, to)] = r = FindRoute(from, to) is not null;
+        if (_routesTick != Tick) { _routes.Clear(); _routesTick = Tick; }
+        if (!_routes.TryGetValue((from, to), out var r)) _routes[(from, to)] = r = FindRoute(from, to);
         return r;
     }
+
+    public bool IsReachable(SectorId from, SectorId to) => CachedRoute(from, to) is not null;
 }

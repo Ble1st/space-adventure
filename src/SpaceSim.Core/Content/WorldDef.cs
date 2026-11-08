@@ -1,0 +1,91 @@
+namespace SpaceSim.Core.Content;
+
+// Datenmodell der Weltdatei (JSON). Reine DTOs: Änderungen am Dateiformat bleiben hier lokalisiert.
+
+public sealed class WorldDef
+{
+    public ulong Seed { get; set; } = 1;
+    public Model.EconomyRules? Rules { get; set; }
+    public List<GoodDef> Goods { get; set; } = new();
+    public List<StationTypeDef> StationTypes { get; set; } = new();
+    public List<FactionDef> Factions { get; set; } = new();
+    public List<SectorDef> Sectors { get; set; } = new();
+    public List<GateLinkDef> Gates { get; set; } = new();
+    public List<ShipGroupDef> Ships { get; set; } = new();
+    public PlayerDef Player { get; set; } = new();
+}
+
+public sealed class GoodDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public float BasePrice { get; set; } = 10;
+    public float Volume { get; set; } = 1;
+}
+
+public sealed class RecipeDef
+{
+    public int Ticks { get; set; } = 10;
+    public Dictionary<string, float> In { get; set; } = new();
+    public Dictionary<string, float> Out { get; set; } = new();
+}
+
+public sealed class StationTypeDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public float BuildCost { get; set; } = 5000;
+    public float Upkeep { get; set; } = 0.05f;
+    public float Income { get; set; }
+    public List<RecipeDef> Recipes { get; set; } = new();
+}
+
+public sealed class FactionDef { public int Id { get; set; } public string Name { get; set; } = ""; }
+
+public sealed class SectorDef
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public int Owner { get; set; }
+    public float[] Map { get; set; } = { 0, 0 };
+    public List<FieldDef> Fields { get; set; } = new();
+    public List<StationDef> Stations { get; set; } = new();
+    /// <summary>Anzahl Hintergrund-Asteroiden; Felder erhalten zusätzlich einen Asteroidengürtel.</summary>
+    public int Asteroids { get; set; } = 25;
+}
+
+public sealed class FieldDef
+{
+    public string Good { get; set; } = "";
+    public float[] Pos { get; set; } = { 0, 0 };
+    public float Amount { get; set; } = 1000;
+    public float Capacity { get; set; }
+    public float Regen { get; set; }
+}
+
+public sealed class StationDef
+{
+    public int Id { get; set; }
+    public string Type { get; set; } = "";
+    public string Name { get; set; } = "";
+    public float[] Pos { get; set; } = { 0, 0 };
+    public bool Essential { get; set; }
+    public float Credits { get; set; } = 10_000;
+    /// <summary>Ware → [Bestand, Wunschbestand]. Fehlende Waren aus den Rezepten bekommen Standardwerte.</summary>
+    public Dictionary<string, float[]> Stock { get; set; } = new();
+}
+
+public sealed class GateEndDef { public int Id { get; set; } public int Sector { get; set; } public float[] Pos { get; set; } = { 0, 0 }; }
+public sealed class GateLinkDef { public GateEndDef A { get; set; } = new(); public GateEndDef B { get; set; } = new(); }
+
+public sealed class ShipGroupDef
+{
+    public string Role { get; set; } = "trader";
+    public int Faction { get; set; }
+    public int Sector { get; set; }
+    public float Credits { get; set; } = 1000;
+    public float Cargo { get; set; } = 100;
+    public int Count { get; set; } = 1;
+}
+
+public sealed class PlayerDef { public int Faction { get; set; } = 1; public int Sector { get; set; } = 1; public float Credits { get; set; } = 500; }

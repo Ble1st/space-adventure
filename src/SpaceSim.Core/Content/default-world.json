@@ -1,0 +1,77 @@
+{
+  "seed": 20260101,
+  "goods": [
+    { "key": "ore",    "name": "Erz",       "basePrice": 10, "volume": 1 },
+    { "key": "metal",  "name": "Metall",    "basePrice": 25, "volume": 1 },
+    { "key": "energy", "name": "Energie",   "basePrice": 8,  "volume": 1 },
+    { "key": "food",   "name": "Nahrung",   "basePrice": 14, "volume": 1 },
+    { "key": "parts",  "name": "Bauteile",  "basePrice": 60, "volume": 2 }
+  ],
+  "stationTypes": [
+    { "key": "mine",       "name": "Erzmine",    "buildCost": 4000, "upkeep": 0.05, "income": 0,
+      "recipes": [ { "ticks": 5, "out": { "ore": 1 } }, { "ticks": 10, "in": { "metal": 1 } } ] },
+    { "key": "powerplant", "name": "Kraftwerk",  "buildCost": 3500, "upkeep": 0.05, "income": 0,
+      "recipes": [ { "ticks": 5, "out": { "energy": 10 } } ] },
+    { "key": "smelter",    "name": "Schmelze",   "buildCost": 5000, "upkeep": 0.08, "income": 0,
+      "recipes": [ { "ticks": 5, "in": { "ore": 6, "energy": 2 }, "out": { "metal": 4 } } ] },
+    { "key": "farm",       "name": "Farm",       "buildCost": 3500, "upkeep": 0.05, "income": 0,
+      "recipes": [ { "ticks": 5, "in": { "energy": 1 }, "out": { "food": 3 } } ] },
+    { "key": "factory",    "name": "Fabrik",     "buildCost": 6000, "upkeep": 0.1,  "income": 0,
+      "recipes": [ { "ticks": 10, "in": { "metal": 4, "energy": 2 }, "out": { "parts": 4 } } ] },
+    { "key": "colony",     "name": "Kolonie",    "buildCost": 7000, "upkeep": 0.1,  "income": 6,
+      "recipes": [ { "ticks": 10, "in": { "food": 4, "parts": 1 } } ] },
+    { "key": "shipyard",   "name": "Werft",      "buildCost": 8000, "upkeep": 0.12, "income": 4,
+      "recipes": [ { "ticks": 10, "in": { "parts": 2, "metal": 2 } } ] }
+  ],
+  "factions": [
+    { "id": 1, "name": "Terranische Union" },
+    { "id": 2, "name": "Freie Händler" }
+  ],
+  "sectors": [
+    { "id": 1, "name": "Sektor Alpha", "owner": 1, "map": [0, 0],
+      "fields": [
+        { "good": "ore", "pos": [60, 60],   "amount": 3000, "capacity": 3000, "regen": 0.5 },
+        { "good": "ore", "pos": [-80, 80],  "amount": 3000, "capacity": 3000, "regen": 0.5 }
+      ],
+      "stations": [
+        { "id": 1, "type": "mine",       "name": "Erzmine Alpha",    "pos": [-60, -40], "essential": true,
+          "stock": { "ore": [300, 150], "metal": [20, 60] } },
+        { "id": 2, "type": "powerplant", "name": "Kraftwerk Alpha",  "pos": [30, -20],  "essential": true,
+          "stock": { "energy": [100, 100] } }
+      ] },
+    { "id": 2, "name": "Sektor Beta", "owner": 1, "map": [1, 0],
+      "stations": [
+        { "id": 3, "type": "smelter", "name": "Schmelze Beta", "pos": [0, -50],  "essential": true,
+          "stock": { "ore": [50, 150], "energy": [30, 60], "metal": [10, 80] } },
+        { "id": 4, "type": "factory", "name": "Fabrik Beta",   "pos": [20, 60],  "essential": true,
+          "stock": { "metal": [20, 60], "energy": [20, 40], "parts": [0, 40] } }
+      ] },
+    { "id": 3, "name": "Sektor Gamma", "owner": 2, "map": [2, 0],
+      "stations": [
+        { "id": 5, "type": "farm",   "name": "Farm Gamma",    "pos": [40, 40],   "essential": true,
+          "stock": { "energy": [20, 40], "food": [30, 80] } },
+        { "id": 6, "type": "colony", "name": "Kolonie Gamma", "pos": [-30, -50], "essential": true,
+          "stock": { "food": [20, 80], "parts": [0, 40] } }
+      ] },
+    { "id": 4, "name": "Sektor Delta", "owner": 2, "map": [1, 1],
+      "stations": [
+        { "id": 7, "type": "shipyard",   "name": "Werft Delta",     "pos": [30, 0],   "essential": true,
+          "stock": { "parts": [0, 60], "metal": [0, 60] } },
+        { "id": 8, "type": "powerplant", "name": "Kraftwerk Delta", "pos": [-40, 40], "essential": true,
+          "stock": { "energy": [100, 100] } }
+      ] }
+  ],
+  "gates": [
+    { "a": { "id": 1, "sector": 1, "pos": [90, -70] }, "b": { "id": 2, "sector": 2, "pos": [-90, 0] } },
+    { "a": { "id": 3, "sector": 2, "pos": [90, 30] },  "b": { "id": 4, "sector": 3, "pos": [-90, -30] } },
+    { "a": { "id": 5, "sector": 2, "pos": [0, 100] },  "b": { "id": 6, "sector": 4, "pos": [0, -100] } }
+  ],
+  "ships": [
+    { "role": "trader", "faction": 1, "sector": 1, "credits": 1000, "cargo": 100, "count": 2 },
+    { "role": "trader", "faction": 1, "sector": 2, "credits": 1000, "cargo": 100, "count": 2 },
+    { "role": "trader", "faction": 2, "sector": 3, "credits": 1000, "cargo": 100, "count": 1 },
+    { "role": "trader", "faction": 2, "sector": 4, "credits": 1000, "cargo": 100, "count": 1 },
+    { "role": "miner",  "faction": 1, "sector": 1, "credits": 1000, "cargo": 60,  "count": 1 }
+  ],
+  "player": { "faction": 1, "sector": 1, "credits": 500 }
+}

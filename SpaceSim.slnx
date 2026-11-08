@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SpaceSim.Tests/SpaceSim.Tests.csproj" />
+  <Project Path="tools/SpaceSim.Balance/SpaceSim.Balance.csproj" />
   </Folder>
 </Solution>

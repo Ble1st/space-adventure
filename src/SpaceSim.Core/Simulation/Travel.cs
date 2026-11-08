@@ -49,7 +49,26 @@ public static class Travel
         return start + dur;
     }
 
-    /// <summary>Geschätzte Reisedauer in Ticks; PositiveInfinity wenn nicht erreichbar.</summary>
+    /// <summary>
+    /// Schnelle Schätzung der Reisedauer ohne Umwegplanung (Luftlinie je Sektor, Route aus dem Tick-Cache).
+    /// Für KI-Bewertungen in verschachtelten Schleifen; PositiveInfinity wenn nicht erreichbar.
+    /// </summary>
+    public static float Estimate(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos)
+    {
+        var route = u.CachedRoute(fromSector, toSector);
+        if (route is null) return float.PositiveInfinity;
+        float dist = 0f;
+        var pos = fromPos;
+        foreach (var gid in route)
+        {
+            var gate = u.Gates[gid];
+            dist += Vec2.Distance(pos, gate.Position);
+            pos = u.Gates[gate.Target].Position;
+        }
+        return (dist + Vec2.Distance(pos, toPos)) / ShipSpeed + route.Count + 1;
+    }
+
+    /// <summary>Genaue Reisedauer in Ticks inkl. Umwege; PositiveInfinity wenn nicht erreichbar.</summary>
     public static float Ticks(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos)
     {
         var legs = Plan(u, 0, fromSector, fromPos, toSector, toPos);

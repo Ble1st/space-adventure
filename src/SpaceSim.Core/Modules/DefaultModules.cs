@@ -24,5 +24,7 @@ public sealed class TradeModule : ISimModule
 public sealed class LifecycleModule : ISimModule
 {
     public string Name => "Lifecycle";
-    public void Register(SimulationBuilder b) { /* wird in der Wirtschaftserweiterung befüllt */ }
+    // Seltene, kostengünstige Prüfungen: Skalierung über dt bzw. Zeitstempel
+    public void Register(SimulationBuilder b) =>
+        b.Add(new UpkeepSystem(), interval: 10).Add(new StationLifecycleSystem(), interval: 20).Add(new FleetSystem(), interval: 20);
 }

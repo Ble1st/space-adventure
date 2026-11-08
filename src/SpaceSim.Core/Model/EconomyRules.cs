@@ -6,6 +6,11 @@ public sealed class EconomyRules
     // Sinks
     public float FuelCostPerUnit = 0.02f;        // Credits je geflogener Einheit
     public float ShipUpkeepPerTick = 0.01f;      // Wartung je Schiff
+    /// <summary>Anteil des Vermögens, der pro Tick verschwindet (Gebühren, Versicherung). Stabilisiert den Geldumlauf.</summary>
+    public float ShipWealthTax = 0.0003f;
+    public float StationWealthTax = 0.0003f;
+    /// <summary>Mindestreserve, die ein Investor nach einem Stationsbau behalten muss.</summary>
+    public float InvestorReserve = 2000f;
     public float NewShipCost = 1500f;            // vernichtet beim Kauf eines Schiffs
     public float StationBuildCostFactor = 1f;    // Multiplikator auf StationType.BuildCost
 
@@ -13,7 +18,7 @@ public sealed class EconomyRules
     public float FleetExpandCredits = 4000f;     // Schwelle, ab der ein Schiff ein weiteres kauft
     public float NewShipStartCredits = 800f;
     public int MaxTraders = 10;
-    public int MaxMiners = 8;
+    public int MaxMiners = 4;
     public int ShipBankruptTicks = 600;          // untätig und pleite → Schiff wird aufgegeben
 
     // Stationen
