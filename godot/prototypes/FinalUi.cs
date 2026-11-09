@@ -257,7 +257,7 @@ public static class FinalUi
 			("Handel", "8 Waren · Preise steigen", true), ("Reparatur & Tanken", "Hülle 82 % · Sprit 72 %", false),
 			("Ausrüster", "3 Module im Lager", false), ("Werft", "Bausatz verfügbar", false),
 			("Hangar", "4 Schiffe", false), ("Station-Info", "Rezepte, Zoll, Ruf", false),
-			("Taxi", "ab 120 Cr", false), ("Aufträge", "2 offen", false),
+			("Taxi", "ab 40 Cr · du reist allein", false), ("Aufträge", "2 offen", false),
 		};
 		for (int i = 0; i < items.Length; i++)
 		{
@@ -592,45 +592,50 @@ public static class FinalUi
 			g.Text(new Vector2(714, 290), "Hinweise", 15, Dim);
 			g.Text(new Vector2(714, 320), "▮ Gate nach Delta gesperrt (Terra – Teck)", 15, Orange);
 			g.Text(new Vector2(714, 350), "▮ Piratenmeldung im Sektor Gamma", 15, Red);
-			g.Text(new Vector2(714, 380), "▮ Taxi nach Beta empfohlen: 2 Sprünge", 15, Dim);
+			g.Text(new Vector2(714, 380), "▮ Taxi nach Beta: dort wartet dein Skiff Spatz", 15, Dim);
 		});
 	}
 
-	// ───────────── Taxi ─────────────
+	// ───────────── Taxi (der Spieler reist allein, das Schiff bleibt im Hangar) ─────────────
 	public static void Taxi(Control root, ProtoData d)
 	{
 		var c = Shell(root, d, "Taxi", false);
-		G(c, 0, 0, 640, 44, g => g.Text(new Vector2(16, 32), "Ziel wählen · Fracht und Schiff reisen mit", 18, Cyan));
+		G(c, 0, 0, 640, 44, g => g.Text(new Vector2(16, 32), "Ziel wählen · du reist allein, dein Schiff bleibt im Hangar", 17, Cyan));
 		float y = 48;
 		int i = 0;
-		foreach (var (name, jumps, time, price, note, ok) in new[]
+		foreach (var (name, jumps, time, price, note, ok, ship, shipOk) in new[]
 		{
-			("Handelsstation Beta", 1, "2 min", 120, "Zoll inklusive", true),
-			("Kolonie Gamma", 2, "5 min", 260, "Piratenmeldung · Eskorte +80", true),
-			("Werft Delta", 3, "8 min", 0, "Gate gesperrt (Terra – Teck)", false),
-			("Raffinerie Alpha-2", 0, "1 min", 40, "gleicher Sektor", true),
+			("Handelsstation Beta", 1, "2 min", 120, "Zoll inklusive", true, "Dort wartet: Spatz (dein Skiff)", true),
+			("Kolonie Gamma", 2, "5 min", 260, "Piratenmeldung im Sektor", true, "Kein eigenes Schiff · Leihschiff ab 180 Cr", false),
+			("Werft Delta", 3, "8 min", 0, "Gate gesperrt (Terra – Teck)", false, "Dort wartet: nichts", false),
+			("Raffinerie Alpha-2", 0, "1 min", 40, "gleicher Sektor", true, "Kein eigenes Schiff · Leihschiff ab 60 Cr", false),
 		})
 		{
-			var cn = name; var cj = jumps; var ct = time; var cp = price; var cno = note; var cok = ok; bool sel = i == 0;
-			var row = Win(c, 10, y, 620, sel ? 160 : 82, sel ? new Color(0.12f, 0.22f, 0.4f, 0.95f) : Card, sel ? Cyan : (cok ? Edge : new Color(Red, 0.5f)), 10);
-			G(row, 0, 0, 620, sel ? 160 : 82, g =>
+			var cn = name; var cj = jumps; var ct = time; var cp = price; var cno = note; var cok = ok; var csh = ship; var cso = shipOk; bool sel = i == 0;
+			var row = Win(c, 10, y, 620, sel ? 172 : 86, sel ? new Color(0.12f, 0.22f, 0.4f, 0.95f) : Card, sel ? Cyan : (cok ? Edge : new Color(Red, 0.5f)), 10);
+			G(row, 0, 0, 620, sel ? 172 : 86, g =>
 			{
 				g.Text(new Vector2(16, 32), cn, 21, cok ? White : Dim);
-				g.Text(new Vector2(16, 58), $"{cj} {(cj == 1 ? "Sprung" : "Sprünge")} · {ct}", 15, Dim);
-				g.Text(new Vector2(16, 76), cno, 13, cok ? Dim : Red);
+				g.Text(new Vector2(16, 56), $"{cj} {(cj == 1 ? "Sprung" : "Sprünge")} · {ct}", 15, Dim);
+				g.Text(new Vector2(16, 74), cno, 13, cok ? Dim : Red);
 				if (cok) g.TextR(604, 36, $"{N0(cp)} Cr", 22, Orange);
 				else g.TextR(604, 36, "nicht erreichbar", 16, Red);
-				if (sel) { g.Text(new Vector2(16, 112), "Sprit und Zoll sind im Preis enthalten.", 13, Dim); g.Text(new Vector2(16, 132), "Das Schiff wird im Zielhafen abgestellt.", 13, Dim); }
+				if (cok) g.TextR(604, 74, csh, 13, cso ? Green : Orange);
+				if (sel)
+				{
+					g.Text(new Vector2(16, 108), "Falke bleibt auf Liegeplatz 3 (12 Cr je Tag).", 13, Dim);
+					g.Text(new Vector2(16, 128), "Fracht und Credits des Schiffs bleiben dort.", 13, Dim);
+					g.Text(new Vector2(16, 148), "Am Ziel wählst du das Schiff im Andock-Menü.", 13, Dim);
+				}
 			});
-			if (sel) At(row, B("Taxi buchen · 120 Cr", 250, 46, BuyC, 19, null, 10, Green), 354, 100);
-			y += (sel ? 160 : 82) + 8;
+			if (sel) At(row, B("Taxi buchen · 120 Cr", 250, 46, BuyC, 19, null, 10, Green), 354, 112);
+			y += (sel ? 172 : 86) + 8;
 			i++;
 		}
-		// Kartenkarte rechts
 		var map = Win(c, 660, 10, 370, 520, Card, null, 10);
 		G(map, 0, 0, 370, 520, g =>
 		{
-			g.Text(new Vector2(16, 34), "Route", 20, Cyan);
+			g.Text(new Vector2(16, 34), "Route · deine Schiffe", 20, Cyan);
 			var pos = new[] { new Vector2(70, 180), new Vector2(190, 120), new Vector2(300, 200), new Vector2(250, 330) };
 			var names = new[] { "Alpha", "Beta", "Gamma", "Delta" };
 			g.DrawLine(pos[0], pos[1], Green, 4);
@@ -644,10 +649,15 @@ public static class FinalUi
 				g.DrawCircle(pos[k], here ? 16 : 13, here ? new Color(Cyan, 0.9f) : dest ? Green : new Color(Dim, 0.6f));
 				g.Text(pos[k] + new Vector2(-40, 34), names[k], 15, White, HorizontalAlignment.Center, 80);
 			}
+			// Eigene Schiffe auf der Karte
+			Ship(g, pos[0] + new Vector2(24, -24), 9, new Color(0.25f, 0.33f, 0.5f), Cyan);
+			g.Text(pos[0] + new Vector2(36, -26), "Falke", 12, Cyan);
+			Ship(g, pos[1] + new Vector2(24, -22), 9, new Color(0.25f, 0.33f, 0.5f), Green);
+			g.Text(pos[1] + new Vector2(36, -24), "Spatz", 12, Green);
 			g.Text(new Vector2(16, 410), "Von Alpha nach Beta", 16, White);
-			g.Text(new Vector2(16, 436), "1 Sprung · 2 min", 15, Dim);
+			g.Text(new Vector2(16, 436), "1 Sprung · 2 min · du reist allein", 15, Dim);
 			g.Text(new Vector2(16, 462), "Fahndung: sauber · kein Zoll-Hinweis", 14, Green);
-			g.Text(new Vector2(16, 488), "Taxi nur mit freier Route", 13, Dim);
+			g.Text(new Vector2(16, 488), "Dort wartet dein Skiff Spatz im Hangar", 13, Dim);
 		});
 	}
 }
