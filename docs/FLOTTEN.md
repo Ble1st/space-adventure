@@ -234,6 +234,28 @@ Das Kampfsystem fehlt noch. Damit Polizei und Piraten trotzdem sinnvoll werden, 
 - Im Spielersektor ersetzt später ein echter Kampf (Ansicht, Waffen, Schilde) diese Variante, und die Simulation übernimmt das Ergebnis. Der Core bleibt unverändert, weil nur der Auflöser wechselt.
 - Das ist für NPC gegen NPC ohnehin der richtige Weg, weil ohne Physik außerhalb des Spielersektors nur ein Würfelwurf möglich ist.
 
+## 7a. Eroberung (zunächst abgeschaltet)
+
+Regel `rules.allowStationCapture` (JSON, im Save), **Standard aus**. Das Flag entspricht dem Szenario-Schalter `AllowStationCapture` der Referenz. Solange es aus ist, wirken Kriege nur über Sperren, Embargo, Blockade, Handel und Plünderung von Schiffen; Stationen werden weder erobert noch zerstört. Der Entwurf für später:
+
+**Grundregel:** Erobern darf nur, wer mit dem Besitzer im Kriegszustand ist (Fehde: einzelne Stationen eines Akteurs, Krieg: auch Behörden, totaler Krieg: auch das HQ). Sonst ist es Piraterie.
+
+1. **Belagern:** Der Verband sperrt Zufahrt und Versorgung; die Station verliert Nachschub, Kunden und Einnahmen.
+2. **Niederkämpfen:** Hülle und Schild sinken (abstrakt über den Auflöser, später im Kampf). Wachen und Schiffe verteidigen.
+3. **Wehrlos:** Bei null Verteidigung hat der Angreifer drei Optionen.
+
+| Option | Folge |
+|---|---|
+| Erobern (Enterkommando) | Besitzer wechselt; die Station arbeitet weiter |
+| Plündern | Fracht und ein Teil der Kasse wandern ab, Station bleibt beim Besitzer |
+| Zerstören | Station verschwindet (`StationRemoved`), Rohstoffe als Beute |
+
+**Folgen einer Eroberung:** Lager und Kasse bleiben zur Hälfte, der Rest ist Beute. Für eine Frist läuft die Produktion mit halber Leistung. Regierungsstationen (`Government`) sind nicht übernehmbar, nur zerstörbar oder entkernbar; ihr Verlust löst Regierungskrise oder Kontrollverlust aus. Kolonien erzeugen Unruhe und verkleinern den Bevölkerungspool. Eroberte Fabriken liefern nicht mehr an die alte Seite (Kriegswirtschaft, im Balance-Tool beobachten).
+
+**Schutz gegen Weltuntergang:** Verliert ein Akteur die letzte Station, wird er ein **Exilakteur** (nur Schiffe, kann neu bauen). Die Schutzeigenschaften stehen in STATIONEN.md ("`Essential` aufgedröselt"): `Capturable`, `Destructible`, `Immortal`.
+
+**Abhängigkeiten:** Kampf (oder der abstrakte Auflöser), Fraktionsverhalten, Stationsdienste und die Akteur/Fraktion-Unterscheidung.
+
 ## 8. Architektur
 
 | Baustein | Aufgabe |
@@ -250,6 +272,8 @@ Das Kampfsystem fehlt noch. Damit Polizei und Piraten trotzdem sinnvoll werden, 
 Alle in neuen oder bestehenden Modulen registriert (`DefaultModules()`), alle Zufallsentscheide über `Universe.Rng`, damit die Determinismus-Tests gelten.
 
 ## 9. Risiken
+
+- **Eroberung** ist abgeschaltet; sobald sie eingeschaltet wird, gelten zusätzlich die Risiken aus Abschnitt 7a (Kriegswirtschaft, Kettenbruch).
 
 - **Rechenzeit:** Scans und Patrouillen pro Tick wären teuer. Systeme laufen mit Intervall (LOD), Verbände planen einmal.
 - **Wirtschaftlicher Schaden:** Zu viele Piraten ruinieren den Handel, zu viel Polizei die Fraktionskasse. Beides mit `tools/SpaceSim.Balance` messen (Verlustquote, Polizeianteil am Haushalt).

@@ -18,7 +18,7 @@ Alle Zahlen sind Startwerte zum Tunen (Fracht / Hülle / Tempo).
 | **Skiff** (Einstieg) | *Pip* (30 / 60 / schnell), *Nomad* (50 / 80 / mittel) | keines, leichter Bausatz |
 | **Kurier** | *Swift* (20 / 50 / sehr schnell), für wertvolle Waren pro Volumen | Elektronik |
 | **Leichter Frachter** | *Mule* (120 / 100 / mittel), *Hauler* (180 / 120 / langsam) | Hüllenplatten |
-| **Schwerer Frachter** | *Behemoth* (500 / 250 / langsam) | Hüllenplatten, Lebenserhaltung (Crew) |
+| **Schwerer Frachter** | *Behemoth* (500 / 250 / langsam) | Hüllenplatten, Titan |
 | **Bergbauer leicht** | *Pickaxe* (60 / 100, Laser Stufe 1) | Hüllenplatten |
 | **Bergbauer schwer** | *Rockbreaker* (150 / 200, Laser Stufe 2) | Hüllenplatten, Titan, Brennstoffzellen |
 | **Tanker** | *Cistern* (nur Flüssig-/Gasgüter, hohe Kapazität) | Stahl |
@@ -34,7 +34,7 @@ Alle Zahlen sind Startwerte zum Tunen (Fracht / Hülle / Tempo).
 
 - Der eine `ship_kit` wird in Stufen aufgeteilt: `ship_kit_light`, `ship_kit_medium`, `ship_kit_heavy`, später `ship_kit_capital`. Die Werft stellt sie aus mehr oder anderen Komponenten her.
 - Das Zusatzmaterial des Modells verbraucht die Werft beim Kauf aus dem eigenen Lager. So gibt es wenige neue Waren, aber viele Modelle.
-- Leichte Schiffe brauchen nur Eisen, Kupfer, Silizium. Titan und Platin sind das Tor zu schweren und Kampfschiffen. Lebenserhaltung bindet Farm und Wasserkette an die Flotte.
+- Leichte Schiffe brauchen nur Eisen, Kupfer, Silizium. Titan und Platin sind das Tor zu schweren und Kampfschiffen. Treibstoff bindet die Gas- und Wasserstoffketten an die Flotte (siehe SCHIFFSSLOTS.md, Abschnitt 3).
 
 ## 3. Multirole: Fähigkeiten statt fester Rolle
 
@@ -71,7 +71,7 @@ Die Slotzahl ist der Preis der Vielseitigkeit: Wer wenige Slots hat, muss sich e
 ## 4. Schlachtschiffe (Capital-Klasse)
 
 - **Bau nur an der Hub-Werft** (Stationsgröße "Hub", höchstens eine pro Sektor) mit `ship_kit_capital`: Platin, Titan, viel Hüllenplatten.
-- **Hoher Unterhalt** (`UpkeepSystem`, Treibstoff, Crew über Lebenserhaltung). Eine Fraktion kann sich nur wenige leisten; das ist die natürliche Bremse.
+- **Hoher Unterhalt** (`UpkeepSystem`, Treibstoff; Besatzung ist zurückgestellt, siehe SCHIFFSSLOTS.md, Abschnitt 11). Eine Fraktion kann sich nur wenige leisten; das ist die natürliche Bremse.
 - **Viele Slots, wenig Tempo**, etwa 6 Waffen, 2 Werkzeug, 1 Frachtraum.
 - **Rolle:** Machtfaktor statt Händler. Es bewacht Sektoren, sichert Gates, eskortiert. Das setzt Fraktionsverhalten (Beziehungen, Krieg, geschlossene Gates) voraus und kommt daher nach diesem System.
 - **Modelle:** *Bulwark* (defensiv), *Warhammer* (Angriff). Ein Carrier mit Hangar-Slots würde ich weglassen.

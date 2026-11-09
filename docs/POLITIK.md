@@ -97,6 +97,25 @@ Die Art (`Kind`: Staat, Gilde, Gesetzlose, Spieler) bleibt als Etikett. **Was ei
 
 **Warum:** Eine feste Trennung bricht beim ersten Aufsteiger. Eine Zahl erlaubt stufenloses Wachstum, und der Spieler wächst nach denselben Regeln wie jeder NPC.
 
+### Akteur und Fraktion (entschieden)
+
+**Akteur** ist ein Wirtschaftssubjekt: Besitz, Konto, Fahndung, Ruf. **Fraktion** ist eine politische Organisation: Sektoren, Politik, Beziehungen, Krieg. Eine Fraktion ist ein Akteur mit **Politik-Fähigkeit** (ab Firma); jeder andere Akteur hat sie nicht.
+
+| | Akteur | Fraktion |
+|---|---|---|
+| Wesen | besitzt und handelt | herrscht und verhandelt |
+| Besitz und Konto | ja | über die Kasse der Organisation |
+| Fahndung und Ruf | persönlich | als Gruppe (Staatsruf) |
+| Politik (Sperren, Zoll) | nein | ja |
+| Krieg | Fehde möglich | Krieg, totaler Krieg |
+| Beziehungen | Abweichungen | Hauptbeziehungen |
+| HQ und Sektoren | Büro, Firmensitz | Hauptquartier, Sektorbehörde |
+
+- **Mitgliedschaft:** Ein Akteur kann Mitglied einer Fraktion sein (Bürger, Gildenmitglied, Söldner) oder unabhängig. Er erbt Beziehungen, Schutz und Pflichten (Steuer), behält aber Besitz und Fahndung.
+- **Spieler:** immer ein Akteur. Er startet unabhängig oder als Mitglied (Startpaket) und kann ab einer Größe eine eigene Fraktion gründen.
+- **Migration:** `Ship.Faction` (heute Eigentümer) wird `Ship.Owner` (ein Akteur); `Actor.Faction` ist die Mitgliedschaft. Jede bestehende Fraktion wird ein Akteur der Art Staat, der zugleich Fraktion ist. Der Spieler wird ein Einzelakteur mit Mitgliedschaft in der bisherigen Fraktion, damit sich beim Laden nichts ändert.
+- **Effektive Beziehung eines Schiffs:** persönliche Abweichung, sonst Beziehung seiner Fraktion, sonst Vorgabe der Art.
+
 ### Einzelschiffe träge anlegen
 
 - Alle freien Schiffe teilen sich die Sammelgruppe **Freie**; ihre Beziehungen sind einmal gespeichert.
@@ -126,7 +145,7 @@ Heute baut bei Knappheit der **reichste** Teilnehmer eine Station oder kauft ein
 |---|---|---|
 | Fehde | auch Kleinakteure | betrifft nur Schiffe und Stationen der Beteiligten |
 | Krieg | Firmen aufwärts | Gebiete werden angegriffen, Gates gesperrt, Embargo |
-| Totaler Krieg | Konzerne und Staaten | Ziel ist das HQ, Tribut oder Sektorverlust |
+| Totaler Krieg | Konzerne und Staaten | Ziel ist das HQ, Tribut oder Sektorverlust (Eroberung ist zunächst abgeschaltet, siehe FLOTTEN.md) |
 
 - Erklären verlangt einen **Kriegsgrund** (Beziehung unter Schwelle, Vorfall, Gebietsverletzung) und eine **Kriegskasse**; die KI wertet das Stärkeverhältnis aus und erklärt selten, wenn sie klar unterlegen wäre.
 - Kriege enden durch **Kriegsmüdigkeit** (Dauer, Verluste, leere Kasse), Waffenstillstand oder Tribut; Dritte können vermitteln oder beitreten.
@@ -220,7 +239,7 @@ Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.m
 - Gilt eine Sperre für Sektoren oder für einzelne Gates? Vorschlag: Sektor-Stufen als Voreinstellung, Gate-Ausnahmen erlaubt.
 - Soll die Spielerfraktion früh (direkt nach dem Bauschiff) oder erst am Ende kommen?
 - Wie hart soll der Erstzugriff der Großen sein? Vorschlag: weich (nur höheres Gewicht).
-- Darf ein Kleinakteur Sektoren erobern oder nur Stationen halten? Vorschlag: erlauben, aber nur mit Einfluss über Stationen und nur gegen schwache Besitzer.
+- Darf ein Kleinakteur Sektoren erobern oder nur Stationen halten? Eroberung von Stationen ist zunächst abgeschaltet; Sektoren wechseln über Einfluss (Abschnitt 8).
 - Soll der Spieler Polizeigewalt bekommen, sobald er Dominanz erreicht, oder bleibt Polizei immer KI?
 - Soll ein freies Schiff sofort ein eigener Akteur sein (einfacher, teurer) oder träge zum Akteur werden (Vorschlag)?
 - Darf der Spieler einer Fraktion beitreten und aufsteigen, oder bleibt er unabhängig?

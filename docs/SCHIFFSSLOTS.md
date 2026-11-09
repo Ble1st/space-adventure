@@ -2,6 +2,8 @@
 
 **Status: reine Planung, nichts davon ist umgesetzt.** Ergänzt [SCHIFFE.md](SCHIFFE.md) (Klassen, Modelle, Multirole). Alle Zahlen sind Startwerte zum Tunen mit `tools/SpaceSim.Balance`.
 
+**Zurückgestellt (nur Referenz und Planung, nicht im ersten Modulsatz):** Sprungantrieb (Abschnitt 4), Tarnfeld (Abschnitt 6), Besatzung und Lebenserhaltung für Schiffe (Abschnitt 11). Die Kolonie verbraucht Lebenserhaltung weiter, Schiffe tun es vorerst nicht.
+
 ## 1. Was Slots sind
 
 Ein Schiff besteht aus einer **Klasse** (Rumpf, Größe, Basismasse) mit einer festen Liste von **Slots**. In jeden Slot passt genau ein **Modul** einer bestimmten Art. Die Module bestimmen alle Werte des Schiffs. Dadurch sind Rolle und Leistung eine Frage der Ausrüstung und nicht des Schiffstyps.
@@ -23,9 +25,9 @@ Ein Schiff besteht aus einer **Klasse** (Rumpf, Größe, Basismasse) mit einer f
 | `weapon` | Waffen | Geschütz, Rakete (später) | Schaden, Energiebedarf |
 | `tool` | Werkzeug | Mining-Laser I/II, Traktor, Spaltlaser, Bauausleger | Fähigkeit und Leistung |
 | `cargo` | Fracht | Frachtmodul, Tank, Flüssigtank | Laderaum, Frachttyp, Treibstofftank |
-| `utility` | Sonstiges | Sensor, **Sprungantrieb**, **Tarnfeld**, Lebenserhaltung | Sonderfunktionen |
+| `utility` | Sonstiges | Sensor; später Sprungantrieb, Tarnfeld | Sonderfunktionen |
 
-Sprungantrieb und Tarnfeld sitzen bewusst im selben Slottyp `utility`: Wer beides will, braucht zwei Slots und genug Leistung. Das ist die Entscheidung, die Vielseitigkeit kostet (Abschnitt 6).
+Sprungantrieb und Tarnfeld (beide zurückgestellt) sitzen bewusst im selben Slottyp `utility`: Wer beides will, braucht zwei Slots und genug Leistung. Das ist die Entscheidung, die Vielseitigkeit kostet (Abschnitt 6).
 
 ### Fähigkeiten aus Modulen
 
@@ -50,13 +52,14 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
     "cost": { "steel": 4, "electronics": 2 }, "upkeep": 0.2 },
   { "key": "chem_engine_s", "slot": "engine", "size": "S", "tier": 1,
     "stats": { "thrust": 40, "fuelUse": 1.0 }, "powerDraw": 3, "mass": 3,
-    "fuel": [ { "good": "hydrogen", "efficiency": 1.0 } ],
+    "fuel": [ { "good": "propellant", "efficiency": 1.0 } ],
     "cost": { "steel": 3, "electronics": 1 } },
   { "key": "mining_laser_1", "slot": "tool", "size": "S", "tier": 1,
     "grants": ["Mining"], "stats": { "chunkChanceMult": 1.0, "chunkSizeMult": 1.0 },
     "powerDraw": 2, "mass": 1, "cost": { "electronics": 2, "copper": 2 } },
   { "key": "cargo_s", "slot": "cargo", "size": "S", "tier": 1,
     "stats": { "capacity": 30 }, "mass": 2, "cost": { "steel": 2 } },
+  // Zurückgestellt (nur Referenz): Sprungantrieb und Tarnfeld stehen nicht im ersten Modulsatz.
   { "key": "jump_drive_s", "slot": "utility", "size": "S", "tier": 1,
     "grants": ["Jump"], "stats": { "jumpRange": 1500, "chargeTicks": 120, "cooldownTicks": 600, "jumpFuel": 6 },
     "powerDraw": 6, "mass": 5, "cost": { "electronics": 4, "platinum": 2, "fuel_cells": 2 } },
@@ -98,26 +101,51 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
 | Unterhalt | Summe `upkeep` der Module; höhere Stufen kosten mehr (`UpkeepSystem`) |
 | Fähigkeiten | Vereinigung aller `grants` |
 
+### Module sind Waren, drei Modulfabriken (entschieden)
+
+Ein **Slot** ist der Platz am Schiff, ein **Modul** (Schiffsbauteil) steckt darin, zum Beispiel Laser oder Triebwerk. Jedes Modul bekommt automatisch eine **Ware** gleichen Schlüssels (mit Volumen) in `goods`. Das `cost`-Feld des Moduls wird das **Rezept** der Fabrik. Das Lager einer Station verkauft Module, der Ausrüster baut sie ein.
+
+Statt einer Fabrik für alles oder einer Fabrik je Bauteil gibt es **drei Fabriken nach Fachgebiet**:
+
+| Fabrik | Stellt her | Zutaten (Schwerpunkt) |
+|---|---|---|
+| **Antriebs- und Energiewerk** | Reaktoren, Triebwerke, Tanks | Stahl, Titan, Brennstoffzellen |
+| **Waffen- und Schildwerk** | Geschütze, Schilde, Panzerung | Platin, Wafer, Titan, Hüllenplatten |
+| **Systemwerk** | Laser, Traktor, Sensoren, Automatisierung; später Sprungantrieb und Tarnfeld | Elektronik, Wafer |
+
+- **Stufe nach Stationsgröße:** Eine kleine Fabrik stellt Mk1 her, eine mittlere Mk2, ein Hub Mk3. Das spart Typen und macht Größe zu einer Entscheidung.
+- **Warum nicht eine einzige Fabrik:** Sie wäre ein Totalausfall-Punkt, bräuchte alle Zutaten zugleich und würde die Ketten nivellieren.
+- **Warum nicht eine pro Bauteil:** 20 und mehr Stationstypen wären zu viel Pflege und würden die Wirtschaft zerstückeln.
+- **Erster Modulsatz:** Reaktor, Triebwerke, Tank, Laser, Traktor, Frachtmodul, Schild, Panzerung. Sprungantrieb und Tarnfeld kommen erst später ins Systemwerk.
+
 ## 3. Treibstoff (entschieden)
 
-Treibstoff wird eine echte Ware mit eigenem Tank, **für alle Schiffe** (Spieler und NPCs, gleiche Regeln). NPCs tanken beim Reiseantritt automatisch an der besten erreichbaren Station mit passendem Treibstoff. Die Routenbewertung bezieht Treibstoffkosten und -verfügbarkeit mit ein.
+Treibstoff ist eine eigene Ware mit eigenem Tank, **für alle Schiffe** (Spieler und NPCs, gleiche Regeln). **Wasserstoff, Wasser, Energie und Brennstoffzellen sind kein Schiffstreibstoff.** Wasserstoff ist nur Rohstoff für die Treibstoffherstellung; Brennstoffzellen bleiben ein Bauteil für Bausätze und Module. NPCs tanken beim Reiseantritt automatisch an der besten erreichbaren Station mit passendem Treibstoff. Die Routenbewertung bezieht Treibstoffkosten und -verfügbarkeit mit ein.
 
-| Treibstoff | Quelle (Ware) | Antrieb | Reichweite je Einheit | Charakter |
-|---|---|---|---|---|
-| **Wasserstoff** | `hydrogen` | Chemisch | niedrig | billig, überall, Standard für Skiffs |
-| **Wasser** | `water` | Ionenantrieb | mittel | sehr billig, geringer Schub |
-| **Brennstoffzellen** | `fuel_cells` | Elektrisch/Hybrid | hoch | teuer, kompakt; für Kurier und schnelle Schiffe |
-| **Fusionsgas** (später) | neue Ware aus Wasser/Eis | Fusion | sehr hoch | Fregatten, Schlachtschiffe, schwere Frachter; braucht eine Anreicherungsstation |
-| **Energie** | `energy` | Solarsegel | unbegrenzt, schwach | nur Mini-Schiffe |
+| Treibstoff | Herkunft | Antrieb | Eigenschaft |
+|---|---|---|---|
+| **Treibstoff** (`propellant`) | Treibstoffraffinerie: Wasserstoff + Energie → Treibstoff | chemisch | billig, viel Verbrauch, Standard für Skiffs und Frachter |
+| **Ionengas** (`ion_gas`) | Gasernte-Plattform (Edelgas aus Nebel oder Gasriesen), Gasraffinerie | Ionenantrieb | sparsam, geringer Schub, für lange Strecken |
+| **Fusionsbrennstoff** (`fusion_fuel`) | Anreicherung: Eis + Energie + Platin als Katalysator | Fusion | sehr hohe Reichweite, nur große Schiffe |
+
+Neue Stationen dafür (Startwerte, siehe STATIONEN.md):
+
+| Station | Rezept (Start) |
+|---|---|
+| Treibstoffraffinerie | 3 Wasserstoff + 1 Energie → 4 Treibstoff |
+| Gasernte-Plattform | liefert die neue Rohware `gas` |
+| Gasraffinerie | 2 Gas + 1 Energie → 1 Ionengas |
+| Anreicherungsanlage | 4 Eis + 2 Energie + 1 Platin → 1 Fusionsbrennstoff |
 
 - Der Antrieb nennt seine zulässigen Treibstoffe mit `efficiency`; ein Mehrstoffantrieb nutzt zuerst, was an Bord ist.
 - Das Schiff führt `Fuel` als Menge je Treibstoffware, **getrennt vom Laderaum**; die Tankgröße kommt aus einem Tankmodul oder der Klasse.
-- **Start:** drei Arten (Wasserstoff, Wasser, Brennstoffzellen) plus Energie für die Minis. Fusionsgas kommt mit der Kapitalklasse.
+- **Reaktoren verbrauchen keinen Treibstoff**, sie haben nur eine Leistungsbilanz (hält das System klein). Ein Betriebsstoff für Kapitalreaktoren ist später möglich.
+- **Start:** `propellant` allein reicht für die ersten Modelle; Ionengas und Fusionsbrennstoff kommen mit der Gasernte und der Kapitalklasse.
 - **Gate-Sprünge sind treibstofffrei**, nur die Strecke im Sektor kostet Treibstoff. Sonst bleiben Schiffe in Sektoren ohne Tankstelle hängen.
-- **Liegenbleiber:** Notlösungen sind Rückflug auf Reserve, Schleppdienst und Notkauf zum Aufpreis. Das ist die Henne-Ei-Logik wie beim Notbau.
-- **Wirtschaft:** neue Nachfrage nach Wasserstoff, Wasser und Brennstoffzellen aus der Flotte; teurer Treibstoff lenkt die KI zu sparsameren Antrieben.
+- **Liegenbleiber:** Notlösungen sind Rückflug auf Reserve, Schleppdienst und Notkauf zum Aufpreis (Henne-Ei-Logik wie beim Notbau).
+- **Wirtschaft:** Wasserstoff konkurriert weiter mit dem Kraftwerk, aber nur über die Verarbeitungsstufe, was die Nachfrage dämpft. Trotzdem vor der Umsetzung mit `tools/SpaceSim.Balance` prüfen, ob die Energieversorgung der Startwelt leidet.
 
-## 4. Sprungantrieb
+## 4. Sprungantrieb (zurückgestellt, nur Referenz und Planung)
 
 Der Sprungantrieb ist ein Utility-Modul (Fähigkeit `Jump`), mit dem ein Schiff **ohne Gate** in einen anderen Sektor springt.
 
@@ -125,7 +153,7 @@ Der Sprungantrieb ist ein Utility-Modul (Fähigkeit `Jump`), mit dem ein Schiff 
 
 - **Reichweite:** Sprung in Sektoren innerhalb von `jumpRange` auf der Sternenkarte. `Sector.MapPosition` existiert schon, ist heute aber nur Darstellung; mit dem Sprungantrieb wird sie **Spieldaten** (die Kartenlage muss dann stimmig bleiben, und der Wert gehört in Hash und Save-Prüfung). Wenn dieser Abstand zu ungenau ist, wären Gate-Hops die Alternative.
 - **Aufladen:** `chargeTicks` ohne Bewegung, dann der Sprung; danach `cooldownTicks`.
-- **Treibstoff:** `jumpFuel` je Sprung, bevorzugt Brennstoffzellen oder Fusionsgas. Das macht Sprünge teuer und die Treibstoffkette strategisch.
+- **Treibstoff:** `jumpFuel` je Sprung, bevorzugt Fusionsbrennstoff. Das macht Sprünge teuer und die Treibstoffkette strategisch.
 - **Massenschatten:** Kein Sprung in der Nähe großer Massen (Stationen, Gates, große Asteroiden). Das Schiff muss erst aus der Zone fliegen. Das nutzt die vorhandenen Hindernisse (`Obstacle`).
 - **Ankunft:** An einer zufälligen sicheren Position am Sektorrand oder bei einem Zielpunkt, deterministisch über `Universe.Rng`, mit Schonfrist (`Grace`) nach dem Sprung.
 - **Sprungsperre:** Fraktionsstationen und Gates können ein Sperrfeld haben, das Ankunft und Abflug im Umkreis verhindert. Das ist die Verteidigung gegen Sprungantriebe.
@@ -167,7 +195,7 @@ Heute hat `Gate` nur `Open` (Standard `true`); `FindRoute` ignoriert geschlossen
 - **Architektur:** `Gate.Open` wird durch einen Zugriff `gate.CanPass(ship, universe)` ersetzt. `FindRoute` bekommt dafür das Mobilitätsprofil und die Fraktion des Schiffs. Save: `GateSave` erhält Zustand und Politik, plus Migration (alle bisher `Open`).
 - **Blockadebrecher** (später): Fähigkeit, Sperren mit Panzerung, Zollzahlung oder Tarnfeld zu passieren; mit Sprungantrieb gar nicht erst mit dem Gate.
 
-## 6. Tarnfeld
+## 6. Tarnfeld (zurückgestellt, nur Referenz und Planung)
 
 Ein Utility-Modul mit der Fähigkeit `Stealth`. Es senkt die Wahrscheinlichkeit, von Fraktionen entdeckt zu werden. Es ist ein Gegenpol zu Sprungsperre und Gate-Kontrolle, nicht Unsichtbarkeit.
 
@@ -197,7 +225,7 @@ IStationService
 |---|---|---|
 | `trade` | Waren kaufen und verkaufen | wie heute (`TradeActions`) |
 | `repair` | Hülle gegen Credits und **Hüllenplatten aus dem Stationslager** | verbraucht Platten, Station zahlt aus Bestand |
-| `refuel` | Tank gegen Treibstoffware | Treibstoff wird Ware (Abschnitt 3) |
+| `refuel` | Tank gegen Treibstoff (`propellant`, `ion_gas`, `fusion_fuel`) | Treibstoff ist eine Ware (Abschnitt 3) |
 | `outfitter` | Module ein- und ausbauen | Module sind Waren aus dem Stationslager |
 | `upgrade` | Module verbessern (Abschnitt 8) | Materialien, Wahrscheinlichkeit |
 | `shipdealer` | Schiff kaufen (`BuyShip`) | Bausatz und Zusatzmaterial aus dem Lager |
@@ -250,8 +278,8 @@ Bestehende Schiffe verbessern ihre Module.
 3. **Slot-Format:** Content-Abschnitte, `WorldBuilder`-Prüfung, `ShipStats`, Save v4 mit `ModelKey`, Slotliste und `Fit`. Zuerst Einheitsmodelle, die das heutige Verhalten nachbilden.
 4. **Module als Waren** und **`outfitter`**, danach `shipdealer` und Startpakete.
 5. **NPC-Güteklassen und `upgrade`-Dienst** mit `UpgradeSystem`.
-6. **Gate-Zugangsmodell** und Mobilitätsprofil in der Routensuche (Voraussetzung für Sprungantrieb und Sperren), danach **Sprungantrieb**.
-7. **Tarnfeld** mit `IDetectionCheck`, erst wenn Gate-Kontrolle und Fraktionsverhalten stehen.
+6. **Gate-Zugangsmodell** und Mobilitätsprofil in der Routensuche (Voraussetzung für Sprungantrieb und Sperren), danach **Sprungantrieb** (zurückgestellt).
+7. **Tarnfeld** (zurückgestellt) mit `IDetectionCheck`, erst wenn Gate-Kontrolle und Fraktionsverhalten stehen.
 
 ## 10. Noch offen
 
@@ -260,3 +288,13 @@ Bestehende Schiffe verbessern ihre Module.
 - Soll es Sprungsperren als eigene Station oder Station-Dienst geben?
 - Tarnung: Gilt sie auch für Handel (Stationen verweigern Tarnschiffe)?
 - Zahlen: Güteklassenchancen, Upgrade-Chancen, Mitleidszähler, Sprungkosten.
+
+## 11. Zurückgestellt: Besatzung und Lebenserhaltung für Schiffe
+
+Das Besatzungssystem würde den Umfang sprengen und kommt später. Bis dahin gilt: **Schiffe brauchen keine Besatzung und keine Lebenserhaltung.** Kolonien verbrauchen `life_support` unverändert. Damit die Idee nicht verloren geht, der Stand der Überlegung:
+
+- Besatzung ist abstrakt: Zahl in Einheiten und Erfahrungsstufe (Neuling, Normal, Veteran, Elite), Mindest- und Wunschbesatzung je Klasse.
+- Kosten: Sold als Unterhalt, Lebenserhaltung als Verbrauch (beim Tanken mitgekauft).
+- Herkunft: Kolonien erzeugen einen Bevölkerungspool, Rekrutierung an Bars und Heuerbüros, die Werft braucht Besatzung für Neubauten. Verluste verkleinern den Pool.
+- NPC-Schiffe haben nur Zahl und gewürfelte Erfahrung, der Spieler ist Kapitän mit Rang.
+- Offene Fragen: Besatzung als Zahl oder Personen, handelbare Ware oder Pool an der Station, Betriebsstoff für Kapitalreaktoren.

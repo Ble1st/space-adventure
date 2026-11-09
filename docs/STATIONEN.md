@@ -34,11 +34,22 @@ Ausgangswelt: Alpha (Eisen, Kupfer, Wasser, Energie), Beta (Silizium, Elektronik
 | Station | Zweck |
 |---|---|
 | Recyclinganlage | Schrott und Wracks werden zu Eisen, Kupfer, Titan. Schließt Kreisläufe. |
-| Chemiefabrik | Wasser, Eis, Silizium → Kunststoff, Treibstoff. Neues Zwischenprodukt. |
+| Chemiefabrik | Wasser, Eis, Silizium → Kunststoff. Neues Zwischenprodukt (Schiffstreibstoff entsteht in der Treibstoffraffinerie). |
 | Pharmalabor | Wasser, Chemikalien, Platin → Medikamente. Zweite Endnachfrage neben der Kolonie. |
 | Waffenfabrik | Stahl, Elektronik, Titan → Waffensysteme (mit Kampf). |
-| Schildgenerator-Werk | Platin, Elektronik, Energie → Schildmodule. |
-| Triebwerkswerk | Titan, Brennstoffzellen, Platin → Antriebe. |
+
+### Schiffsbauteile und Treibstoff (entschieden, siehe SCHIFFSSLOTS.md)
+| Station | Stellt her | Hinweis |
+|---|---|---|
+| **Antriebs- und Energiewerk** | Reaktoren, Triebwerke, Tanks | Stufe nach Stationsgröße (klein Mk1, mittel Mk2, Hub Mk3) |
+| **Waffen- und Schildwerk** | Geschütze, Schilde, Panzerung | gleiche Staffelung |
+| **Systemwerk** | Laser, Traktor, Sensoren, Automatisierung; später Sprungantrieb und Tarnfeld | gleiche Staffelung |
+| **Treibstoffraffinerie** | 3 Wasserstoff + 1 Energie → 4 Treibstoff | Startwerte |
+| **Gasernte-Plattform** | Rohware `gas` | siehe Rohstoffe |
+| **Gasraffinerie** | 2 Gas + 1 Energie → 1 Ionengas | Startwerte |
+| **Anreicherungsanlage** | 4 Eis + 2 Energie + 1 Platin → 1 Fusionsbrennstoff | Startwerte |
+
+Module sind Waren; jedes Modul hat eine Ware gleichen Schlüssels, sein `cost` ist das Rezept der Fabrik.
 
 ### Rohstoffe und Fundorte
 | Station | Zweck |
@@ -181,5 +192,22 @@ Hier geht es um Machtstrukturen (siehe [POLITIK.md](POLITIK.md)). Alle sind **Di
 - **Hauptquartier als Hub:** Pro Sektor gibt es höchstens eine Hub-Station, also konkurriert das Hauptquartier mit anderen Großstationen (zum Beispiel einer Werft) um den Platz. Das Warum: Es macht das HQ zu einem greifbaren Ziel und bindet es an knappen Raum.
 - **Hub-Konflikt:** Auch die Werft für Kapitalschiffe ist eine Hub-Werft (SCHIFFE.md). Da es pro Sektor nur einen Hub gibt, liegen Hauptquartier und Kapitalwerft in verschiedenen Sektoren, oder die Hauptstadt hat nur eines von beiden. Das ist gewollt (Entscheidung zwischen Verwaltung und Rüstung), aber noch nicht abschließend festgelegt.
 - **Sektor-HQ ist keine Hub-Station:** Es ist mittelgroß, damit jeder kontrollierte Sektor eine bekommen kann, ohne den Hubplatz zu blockieren. Das Hauptquartier liegt in der Hauptstadt, die Sektorbehörden in den übrigen Sektoren.
-- **Voraussetzungen:** Eine Sektorbehörde braucht mindestens **Dominanz** im Sektor (über 50 % Einfluss). Ein Hauptquartier braucht die Größenklasse Staat. Beide sind `essential`: Sie werden nicht durch Pleite entfernt, nur durch Zerstörung oder Eroberung.
+- **Voraussetzungen:** Eine Sektorbehörde braucht mindestens **Dominanz** im Sektor (über 50 % Einfluss). Ein Hauptquartier braucht die Größenklasse Staat. Beide sind bankrottgeschützt und `Government` (siehe unten); ihr Verlust folgt eigenen Regeln.
 - **Verlust:** Fällt ein Hauptquartier aus, folgt eine Regierungskrise. Fällt eine Sektorbehörde aus, sinkt die Kontrolle im Sektor auf Präsenz oder Einfluss.
+
+### `Essential` aufgedröselt (entschieden)
+
+**Heute** ist `Station.Essential` ein einzelnes Flag (aus der JSON, im Save), das an genau einer Stelle wirkt: `StationLifecycleSystem` entfernt bankrotte Stationen nicht, wenn es gesetzt ist. Alle Startstationen sind `essential`. Die Docs haben das Wort für mehr benutzt (Zerstörung, Eroberung, HQ). Das wird in getrennte Eigenschaften zerlegt:
+
+| Eigenschaft | Bedeutung | Quelle |
+|---|---|---|
+| `BankruptcyProtected` (heute `Essential`) | wird bei Pleite nicht entfernt | JSON, Startwelt, Regierungsstationen |
+| `Critical` | einzige oder letzte erreichbare Station einer Kette; löst den Notbau früher aus | **abgeleitet**, nicht gespeichert |
+| `Government` | Hauptquartier, Firmensitz, Sektor-HQ, Büro: eigene Verlustregeln (Regierungskrise, Kontrollverlust) | aus dem Dienst |
+| `Capturable` | kann erobert werden | Regel `allowStationCapture` (derzeit aus) und Typ; Regierungsstationen nie |
+| `Destructible` | kann zerstört werden | Typ; Standard ja, erst mit Kampf relevant |
+| `Immortal` | unzerstörbar (Tutorial, Szenario) | nur JSON |
+
+- `Critical` wird beim Prüfen berechnet (gibt es eine andere erreichbare Station, die dieselbe Ware herstellt?) und ist kein Save-Feld.
+- Die JSON-Eigenschaft `essential` bleibt zunächst als Alias für `BankruptcyProtected` erhalten, damit alte Welten und Saves unverändert laden.
+- Eigene Eigenschaften machen jede Regel prüfbar und verhindern, dass ein Flag unbeabsichtigt mehr schützt als gedacht.
