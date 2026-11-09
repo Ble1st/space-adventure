@@ -135,7 +135,7 @@ Eine Station entsteht in einem **Bauprojekt** und braucht echte Materialien und 
 1. Das Lifecycle-System entscheidet wie bisher, dass ein Typ an einem Ort fehlt, und legt ein **Bauprojekt** an (`BuildSite`): Typ, Position, Besitzer, noch fehlende Materialien. Es verbraucht noch keine Station.
 2. Ein **Bauschiff** (Fähigkeit `Construction`) übernimmt den Auftrag. Es holt Stahl, Hüllenplatten und Elektronik bei Stationen, die sie liefern, und fliegt zur Baustelle.
 3. Es liefert Material ab (Event `ConstructionDelivered`). Sind alle Materialien da, erscheint die Station (`StationBuilt`) und der Besitzer zahlt den Credit-Anteil.
-4. Die Baustelle ist ein eigenes Objekt im Sektor: Sie hat eine Position, ist ein Hindernis und kann vom Spieler gesehen und beliefert werden. Der Spieler kann selbst Material hinbringen und dafür bezahlt werden.
+4. Die Baustelle ist ein eigenes Objekt im Sektor: Sie hat eine Position, ist ein Hindernis und kann vom Spieler gesehen und beliefert werden. **Spielerbau (entschieden):** Der Spieler bringt Material hin und bekommt den Marktpreis (freier Handel an der Baustelle, ohne Missionssystem), über dieselbe Handelslogik wie an Stationen.
 
 Das Bauschiff ist ein normales Schiff mit der Fähigkeit `Construction`; es nutzt dieselbe Handels-Logik wie Händler, aber sein Ziel ist die Baustelle statt eines Marktes. Es kann nebenbei Fracht transportieren und, mit Laser, selbst Material schürfen (*Foreman*).
 
@@ -150,10 +150,15 @@ Sobald Bau echte Materialien braucht, entstehen Abhängigkeitskreise:
 Die Lösungen sind gestaffelt und sollen zusammen verhindern, dass die Welt in einen Zustand ohne Weg zurück gerät:
 
 1. **Bestandsschutz:** Bestehende Stationen bleiben unverändert. Sie müssen nicht nachträglich "gebaut" worden sein. Das Bauschiffsystem gilt nur für neue Stationen. Die vorhandene Markierung `Essential` verhindert, dass die letzte Station einer kritischen Kette (Stahl, Plattierung, Werft) entfernt wird.
-2. **Notbau gegen Deadlock:** Wenn für ein Bauprojekt kein Lieferant oder kein Bauschiff erreichbar ist, fällt das System auf den heutigen Weg zurück: nur Credits, mit **Aufschlag** (zum Beispiel doppelte Kosten). So gibt es immer einen Weg, aber er ist teuer, und die Wirtschaft hat einen Anreiz, die normale Kette am Leben zu halten.
+2. **Notbau gegen Deadlock (entschieden):**
+   - *Auslöser nach Zustand:* Er greift erst, wenn das Projekt **blockiert** ist (kein erreichbarer Lieferant hat das Material auf Lager oder kein Bauschiff ist erreichbar) und das seit einer Frist anhält. Die Frist verhindert, dass Material, das gerade unterwegs ist, umgangen wird.
+   - *Nur Fehlendes ersetzen:* Nur die fehlenden Materialien werden durch Credits ersetzt (Grundpreis × Aufschlag). Die Credits verschwinden (Geldsenke), die Ware entsteht aus dem Nichts; das ist nur im Notfall vertretbar.
+   - *Kritikalität:* Stationen kritischer Ketten (Stahl, Plattierung, Werft) lösen den Notbau früher aus als unkritische.
+   - *Bremse:* Pro Fraktion läuft höchstens ein Notbau gleichzeitig, mit Abkühlzeit. Das Balance-Tool misst den Anteil des Notbaus an allen Neubauten, er darf nicht zum Normalfall werden.
+   - *Werte in `EconomyRules` (JSON):* Aufschlag, Frist, Kritikalitätsfaktor, Abkühlzeit. Startwerte zum Tunen: Aufschlag x2, Frist 2000 Ticks (etwa 8 Minuten Spielzeit bei 4 Ticks/s).
 3. **Zyklenfreie Baukosten:** Die Baukosten eines Typs dürfen keine Ware verlangen, die nur dieser Typ herstellt. Ein `ContentTests`-Test prüft den Abhängigkeitsgraphen: Jeder Stationstyp muss aus der Startwelt oder über den Notbau erreichbar sein.
 4. **Startbestand an Bauschiffen:** Die Startwelt enthält pro Fraktion mindestens ein Bauschiff, damit die Mechanik von Anfang an läuft und nicht erst nach dem Kauf eines Bausatzes.
-5. **Zeitgrenzen für Baustellen:** Ein Projekt ohne Fortschritt verfällt nach einer Frist, die Credits gehen zurück, bereits gelieferte Materialien bleiben als Lager an der Baustelle oder gehen verloren (Entscheidung offen). Wird das Bauschiff entfernt, lässt sich das Projekt neu vergeben.
+5. **Zeitgrenzen für Baustellen:** Ein Projekt ohne Fortschritt verfällt nach einer Frist, die Credits gehen zurück. Bereits gelieferte Materialien **bleiben als Lager an der Baustelle** (entschieden) und können von einem neuen Projekt oder vom Spieler aufgenommen werden. Wird das Bauschiff entfernt, lässt sich das Projekt neu vergeben.
 6. **Migration:** Save v4 legt eine leere Baustellenliste an. Bestehende Welten laufen unverändert weiter, bis ein neues Projekt entsteht. Ein Schalter in `EconomyRules` (JSON) erlaubt zunächst den alten Direktbau, bis genug Bauschiffe existieren.
 
 ### Architektur
@@ -164,19 +169,20 @@ Neu wären das Modell `BuildSite`, ein `ConstructionSystem` (Module "Lifecycle")
 Der Brecher ist ein schweres Bergbauschiff, dessen **Spaltlaser** große Asteroiden in kleinere zerlegt.
 
 - **Spaltregel:** Ein Spaltschuss teilt einen Asteroiden in 2 bis 4 Fragmente mit derselben `ClassKey`. Das Erz wird auf die Fragmente verteilt (ein kleiner Teil geht als Staub verloren, damit Spalten nicht kostenlos Erz erzeugt). Der Radius jedes Fragments folgt wie bisher aus dem Resterz.
-- **Warum:** Normale Miner holen Erz in einzelnen Chunks aus dem Asteroiden. Sehr große Asteroiden sind für schwache Laser unattraktiv oder gar nicht abbaubar (mögliche Regel: `Hardness` pro Asteroidenklasse, Mindeststufe des Lasers). Der Brecher macht sie für alle abbaubar und erhöht dadurch das nutzbare Erz eines Gürtels.
+- **Laserstärke (entschieden):** Es gibt **keine Härte und keine Sperre**. Ein stärkerer Laser hat eine **bessere Chance auf Ertrag und mehr Erz je Schuss** (Laserstufe geht in `LaserShot.Roll` ein: höhere `ChunkChance`, größere Chunks). So bleibt jeder Fels für jeden Laser abbaubar, und höhere Stufen sind einfach effizienter. Das gilt für den Spieler und die NPC-Miner gleichermaßen.
+- **Warum Brecher:** Große Asteroiden sind für wenige Spieler gleichzeitig nutzbar. Der Brecher zerlegt sie, sodass mehrere Miner parallel arbeiten können, und erhöht das nutzbare Erz eines Gürtels.
 - **Wirtschaftliche Rolle:** Er erschließt Erz, statt es selbst zu liefern. Spieler und NPCs können ihn zusätzlich als Dienstleistung nutzen (Gürtel "vorbereiten").
 - **Beziehung zu bestehenden Systemen:**
-  - `ResourceField.TargetAsteroids` und `AsteroidRespawnSystem`: Fragmente erhöhen die Zahl der Asteroiden. Respawn darf erst wieder greifen, wenn die Zahl unter dem Ziel liegt, und es braucht eine harte Obergrenze pro Gürtel (Performance, Hindernisse für `PathPlanner`).
+  - `ResourceField.TargetAsteroids` und `AsteroidRespawnSystem`: Fragmente erhöhen die Zahl der Asteroiden. Respawn darf erst wieder greifen, wenn die Zahl unter dem Ziel liegt. **Limit pro Gürtel (entschieden):** eine Obergrenze als Vielfaches von `TargetAsteroids` plus eine Mindestgröße der Fragmente (Performance, Hindernisse für `PathPlanner`).
   - `BeltPlacement`: Fragmente werden in der Nähe des Ursprungsfelsens platziert und müssen die Platzregeln einhalten, sonst überlappen sie Hindernisse.
   - Determinismus: Alle Würfe laufen über `Universe.Rng`. Fragment-Ids sind sequenziell und gehören zum Save.
   - Event `AsteroidSplit` für Darstellung und Statistik; die Ansicht zeigt Spaltung nur im Spielersektor.
-- **Risiken:** Mehr nutzbares Erz kann die Wirtschaft aus dem Gleichgewicht bringen (Erzpreise fallen, Miner verlieren). Balancetest nötig. Außerdem darf ein Brecher nicht jeden Gürtel in Hunderte Brocken zerlegen; Obergrenze und Mindestgröße der Fragmente verhindern das.
+- **Risiken:** Mehr nutzbares Erz kann die Wirtschaft aus dem Gleichgewicht bringen (Erzpreise fallen, Miner verlieren), ebenso die höhere Ausbeute starker Laser. Balancetest nötig.
 - **Modelle:** *Quarry* (reiner Brecher), *Rockbreaker II* (Brecher mit größerem Frachtraum).
 
 ## 12. Kampf-Platzhalter (nur Dokumentation)
 
-Die Kampfklassen werden zunächst **nur hier beschrieben**. Es gibt weder JSON-Einträge noch Code, bis das Kampfsystem eingeplant ist. Später können sie mit einem Flag `reserved` in der JSON stehen, damit Klassenliste und Bausatzstufen schon stimmen.
+Die Kampfklassen werden zunächst **nur hier beschrieben** (entschieden, ebenso: kein Kämpfer-Startpaket, bis es Kampf gibt). Es gibt weder JSON-Einträge noch Code, bis das Kampfsystem eingeplant ist. Später können sie mit einem Flag `reserved` in der JSON stehen, damit Klassenliste und Bausatzstufen schon stimmen.
 
 | Klasse | Modelle | Voraussetzungen |
 |---|---|---|
@@ -189,7 +195,4 @@ Das Kampfsystem selbst (Waffen, Schilde, Patrouille, Piraten) steht auf der Road
 
 ## 13. Noch offen
 
-- Bei verfallenen Baustellen: Verbleiben gelieferte Materialien an der Baustelle oder gehen sie verloren?
-- Aufschlag und Frist des Notbaus (Zahlen für die Balance).
-- Ob Fragmente beim Asteroidenbrecher ein Mindestgrößenlimit pro Gürtel bekommen oder ein globales Limit pro Sektor.
-- Spielertätigkeit auf Baustellen: bezahlte Lieferaufträge (Missionen) oder freier Handel an der Baustelle?
+Keine inhaltlichen Fragen mehr offen. Die Zahlen (Notbau-Aufschlag und -Frist, Fragmentlimit, Laserstufenbonus) sind Startwerte und werden mit `tools/SpaceSim.Balance` getunt, sobald die jeweilige Funktion existiert.
