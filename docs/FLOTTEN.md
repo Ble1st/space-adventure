@@ -117,6 +117,38 @@ Ein **`SecuritySystem`** verteilt die verfügbaren Polizeischiffe nach Bedrohung
 
 Eine **Gegenfraktion** (Ausgestoßene) mit Räubern, die ihr Revier nach Beute wählen: unbewachte Routen mit wertvoller Fracht. Sie schwächen die Wirtschaft (verlorene Fracht), erzeugen Bedrohung und damit Nachfrage nach Polizei und Eskorten.
 
+### Polizeistufen, Zuständigkeit, Finanzierung
+
+Die Stationsformen (Polizeiwache, Patrouillenbasis, Sektor-HQ) stehen in [STATIONEN.md](STATIONEN.md), Abschnitt 5; die Kontrollstufen in [POLITIK.md](POLITIK.md), Abschnitt 8.
+
+| Stufe | Wer | Aufgabe |
+|---|---|---|
+| **Wache** (Stationssicherheit) | jede Station mit Dienst `police` | Zoll, Scan beim Andocken, Festsetzen, Kopfgeldbüro |
+| **Sektorpolizei** | Sektor-HQ mit Patrouillenbasis | Patrouille, Gate-Kontrolle, Abfangen im Sektor |
+| **Flottenpolizei / Marine** | Hauptquartier | Konvois, Verfolgung über Sektoren, Gegen-Piraten, Sperrdurchsetzung |
+
+**Zuständigkeit:** Polizei handelt nur im eigenen Hoheitsgebiet.
+
+| Gebiet | Befugnis |
+|---|---|
+| Eigener Sektor (Kontrolle) | volle Polizeigewalt |
+| Eigener Sektor (nur Dominanz) | Scan, Zoll, Festnahme bei Haftbefehl |
+| Verbündeter Sektor | Rechtshilfe, Verfolgung bis zur Grenze |
+| Neutral oder umkämpft | nur Schutz eigener Konvois; Verträge möglich |
+| Feindlicher Sektor | keine Befugnis |
+
+**Warum:** Die Zuständigkeit verhindert, dass eine Fraktion überall Recht durchsetzt, und macht Grenzen spielerisch relevant.
+
+**Finanzierung:** Zölle, Strafen und Steuern speisen die Fraktionskasse. Polizeischiffe verursachen Unterhalt, Treibstoff und Reparaturen und erzeugen damit echte Nachfrage nach Hüllenplatten und Treibstoff. **Warum:** Polizei als Kostenstelle begrenzt sie von selbst, denn sie wächst nur, wenn die Kasse es hergibt.
+
+**Schutzverträge:** Kleinere Akteure ohne eigene Polizei können Sicherheit **mieten** (Söldner oder Schutz einer größeren Fraktion), gegen laufende Zahlung. **Warum:** Kleine bekommen einen Weg, ihre Stationen zu schützen, und es entstehen Beziehungen, die verschwinden, wenn man nicht zahlt.
+
+**Fahndung** gilt je Hoheitsgebiet; Auslieferung nur unter Verbündeten.
+
+### Geschwader nach Größe
+
+Die Zahl der Verbände und Schiffe je Geschwader hängt von der Größe des Akteurs ab (Befehlskapazität, siehe POLITIK.md, Abschnitt 7): Kleinfirma ein Geschwader, Firma bis zu drei, Konzern und Staat mehr, bestimmt durch Firmensitz oder Hauptquartier. **Warum:** Befehlsgewalt ist die Grenze der Macht; ohne sie wächst die Rechenlast mit jeder Flotte.
+
 ## 7. Begegnungen ohne Kampfsystem
 
 Das Kampfsystem fehlt noch. Damit Polizei und Piraten trotzdem sinnvoll werden, gibt es eine **abstrakte Auflösung**:
@@ -164,3 +196,4 @@ Alle in neuen oder bestehenden Modulen registriert (`DefaultModules()`), alle Zu
 - Soll es für den Spieler Polizeiarbeit geben (Kopfgeld, Eskortenaufträge) oder nur Besitz und Befehle?
 - Startet die Welt mit Piraten, oder entstehen sie durch Pleiten und Fahndung?
 - Hat jede Fraktion eine eigene Polizeiflotte, oder teilen sich Verbündete die Lage?
+- Wie viele Geschwader sind je Größenklasse erlaubt (Richtwerte: 1 / 3 / mehr)?

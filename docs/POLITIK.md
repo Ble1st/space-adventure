@@ -1,6 +1,6 @@
 # Politik: Kontrollpunkte, Sperren, Folgen (Planung)
 
-**Status: reine Planung, nichts davon ist umgesetzt.** Setzt das Fraktionsverhalten voraus. Heute hat `Faction` nur `Relations` und `Territory`, die nichts benutzt, und `Gate` nur den Schalter `Open` (siehe [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), Abschnitte 4–6). Fortsetzung: [FLOTTEN.md](FLOTTEN.md).
+**Status: reine Planung, nichts davon ist umgesetzt.** Setzt das Fraktionsverhalten voraus. Heute hat `Faction` nur `Relations` und `Territory`, die nichts benutzt, und `Gate` nur den Schalter `Open` (siehe [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), Abschnitte 4–6). Fortsetzung: [FLOTTEN.md](FLOTTEN.md). Stationsformen für Regierung: [STATIONEN.md](STATIONEN.md), Abschnitt 5.
 
 ## 1. Kontrollpunkt
 
@@ -78,8 +78,129 @@ Der Spieler besitzt heute keinen Sektor und keine Fraktion. Für Sperren braucht
 
 Reihenfolge: Beziehungen, Zugangsmodell, Kontrollpunkte und Politik, zuletzt Spielerfraktion. Sprungantrieb und Tarnfeld hängen am Zugangsmodell.
 
-## 6. Offene Entscheidungen
+## 6. Akteure und Größe
+
+Statt harter Arten (Staat, Konzern, Einzelschiff) gibt es **einen Akteurtyp** (`Faction` / `Actor`) mit einer **Größenzahl**, aus Besitz berechnet:
+
+`Größe = Schiffe × Gewicht + Stationen × Gewicht + Sektoreinfluss × Gewicht + Kasse / Skala`
+
+Die Art (`Kind`: Staat, Gilde, Gesetzlose, Spieler) bleibt als Etikett. **Was ein Akteur darf, hängt von der Größe ab.** Richtwerte:
+
+| Klasse | Richtwert | Typisch |
+|---|---|---|
+| Einzelakteur | 1 Schiff, keine Station | freier Händler, Spieler am Anfang |
+| Kleinfirma | 2–5 Schiffe oder 1 Station | Werftbesitzer, kleiner Schürfbetrieb |
+| Firma | mehrere Stationen, 6+ Schiffe | regionaler Händler |
+| Konzern | Stationen in mehreren Sektoren | großer Wirtschaftsakteur |
+| Staat | kontrolliert Sektoren | die heutigen Fraktionen |
+
+**Warum:** Eine feste Trennung bricht beim ersten Aufsteiger. Eine Zahl erlaubt stufenloses Wachstum, und der Spieler wächst nach denselben Regeln wie jeder NPC.
+
+### Einzelschiffe träge anlegen
+
+- Alle freien Schiffe teilen sich die Sammelgruppe **Freie**; ihre Beziehungen sind einmal gespeichert.
+- Ein Einzelschiff wird erst zum eigenen Akteur, wenn es etwas Besonderes tut (Station bauen, weiteres Schiff kaufen, Verbrechen, vom Spieler geführt). Davor ist `Ship.Credits` seine Kasse.
+- **Aufstieg** Einzelakteur → Kleinfirma → Firma → Konzern ergibt sich aus Besitz; **Abstieg** ohne Besitz und Geld entfernt den Akteur (wie eine bankrotte Station).
+- **Warum:** Tausende Mini-Fraktionen würden die Beziehungen quadratisch aufblähen. Träges Anlegen und Sammelgruppe halten das klein.
+
+### Beziehungen sparsam speichern
+
+- Vorgabewerte nach Art und Gruppe (Staat–Staat, Staat–Freie, alle–Gesetzlose).
+- Nur Abweichungen werden als Eintrag gespeichert; Änderungen entstehen aus Ereignissen (Handelsverlust durch Sperre, Überfall, Bündnis), nicht aus Neuberechnung aller Paare.
+- Einzelne Schiffe haben keinen Ruf bei jedem, sondern ein **Fahndungsniveau** bei den Staaten, mit denen sie Ärger haben.
+- **Warum:** Rechenzeit und Speicher bleiben linear.
+
+### Zukauf durch kleinere Akteure
+
+Heute baut bei Knappheit der **reichste** Teilnehmer eine Station oder kauft ein Schiff. Neu:
+
+1. **Erstzugriff für Große:** Der Akteur, der den Bedarf strategisch decken will (Besitz im Sektor, passende Kette, Politik), entscheidet zuerst.
+2. **Zweitzugriff für Kleine:** Winkt er ab (Budget, kein Interesse, Reserve zu niedrig), dürfen kleinere Akteure mit genug Geld einspringen. Die Wahl ist eine **gewichtete Ziehung** über `Universe.Rng`: Gewicht = Geld über der Schwelle × Appetit der Größenklasse. Kleine kaufen **seltener** (Appetit etwa 0,25 gegenüber 1,0 bei Großen).
+
+**Warum:** So bleibt die Welt in Bewegung, wenn die Großen stocken, und es entstehen kleine Firmen, die aufsteigen. Der Vorrang der Großen verhindert Chaos, die Ziehung verhindert, dass ein Einzelner alles bekommt. Das Balance-Tool zeigt die Verteilung der Neubauten auf Größenklassen. Der Erstzugriff ist weich: Große haben nur höheres Gewicht, keine absolute Priorität.
+
+### Krieg: jeder darf, es kostet
+
+| Stufe | Wer | Wirkung |
+|---|---|---|
+| Fehde | auch Kleinakteure | betrifft nur Schiffe und Stationen der Beteiligten |
+| Krieg | Firmen aufwärts | Gebiete werden angegriffen, Gates gesperrt, Embargo |
+| Totaler Krieg | Konzerne und Staaten | Ziel ist das HQ, Tribut oder Sektorverlust |
+
+- Erklären verlangt einen **Kriegsgrund** (Beziehung unter Schwelle, Vorfall, Gebietsverletzung) und eine **Kriegskasse**; die KI wertet das Stärkeverhältnis aus und erklärt selten, wenn sie klar unterlegen wäre.
+- Kriege enden durch **Kriegsmüdigkeit** (Dauer, Verluste, leere Kasse), Waffenstillstand oder Tribut; Dritte können vermitteln oder beitreten.
+- **Warum:** Wer Krieg nur großen Staaten erlaubt, nimmt Spielern und kleinen Gruppen Spielraum. Kosten und Grund verhindern ständige Kriege. Die Stufen halten kleine Konflikte klein. Kriegsmüdigkeit stoppt ewige Kriege, die die Wirtschaft aushungern.
+
+## 7. Hauptquartier, Firmensitz, Sektor-HQ
+
+Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.md), Abschnitt 5. Hier die politische Bedeutung:
+
+| Größe des Akteurs | Was möglich ist |
+|---|---|
+| Einzelakteur | kein HQ; Eigentum an Station und Schiff |
+| Kleinfirma | **Büro** an einer eigenen Station: Konto, Zoll auf der eigenen Station, ein Geschwader |
+| Firma | **Firmensitz** (Medium): Verträge, bis zu 3 Geschwader, Fehde, kleine Wachstation |
+| Konzern | Firmensitz plus **Sektor-HQs** in bis zu N Sektoren, Sektorpolitik bis Stufe 2 |
+| Staat | **Hauptquartier** (Hub, genau eines) plus **Sektor-HQ** in jedem kontrollierten Sektor |
+
+- **Hauptquartier (Hub):** Krieg und Frieden, Diplomatie, Steuerrahmen, Forschung, Gesamtbudget. Liegt in der Hauptstadt.
+- **Sektor-HQ (Sektorbehörde, Medium):** Durchsetzung vor Ort: Gate-Einstellungen, Zoll, Polizeibasis, Baugenehmigung, Sektorsperre. Es ist **keine Hub-Station**, damit jeder kontrollierte Sektor eine haben kann.
+- **Verlust:** Fällt das Hauptquartier aus, folgt eine **Regierungskrise** mit Frist: Kasse eingefroren, keine Kriegserklärung, Diplomatie ausgesetzt, Neuaufbau kostet Geld. Fällt ein Sektor-HQ aus, sinkt die Kontrolle im Sektor.
+- **Umzug** des Hauptquartiers ist teuer und mit Ruhezeit möglich.
+- **Warum:** Das HQ legt die Richtung fest, die Behörde setzt sie am Ort um. Die Rechenlast bleibt lokal, und ein verlorener Sektor schwächt nicht gleich das ganze Reich. Es spiegelt auch, dass Zentralmacht und Durchsetzung vor Ort verschiedene Dinge sind.
+
+| | **Hauptquartier** (global, eines) | **Sektor-HQ** (lokal, mehrere) |
+|---|---|---|
+| Krieg und Frieden | ja | nein |
+| Diplomatie, Verträge | ja | nein |
+| Steuersätze, Haushalt | Rahmen | innerhalb des Rahmens |
+| Forschung | ja | nein |
+| Sperren, Zoll, Embargo | Richtlinie | Durchsetzung im Sektor |
+| Polizeibasis, Patrouillen | Gesamtbudget | Einsatz im Sektor |
+| Baugenehmigung | Grundsatz | Einzelentscheidung |
+| Bei Verlust | Regierungskrise | Sektor sinkt auf Präsenz oder Einfluss |
+
+## 8. Sektorkontrolle
+
+**Kontrolle** entsteht aus dem **Einfluss** jedes Akteurs: Stationen (nach Typ gewichtet), Sektor-HQ oder Wache, Gate-Kontrolle, Patrouillenpräsenz. `Sector.Owner` existiert schon und wird dann **abgeleitet**, nicht von Hand gesetzt. Änderungen haben Hysterese, damit der Besitzer nicht flackert.
+
+| Stufe | Bedingung | Rechte |
+|---|---|---|
+| **Präsenz** | mindestens eine eigene Station | Steuern auf die eigene Station |
+| **Einfluss** | größter Anteil, aber unter 50 % | Zoll an eigenen Gates der Station, Hausrecht in den eigenen Anlagen |
+| **Dominanz** | über 50 % und Wache oder Sektor-HQ | Sektorzoll, Sperrstufe 1–2, Polizeibefugnis, Baugenehmigung für Fremde |
+| **Kontrolle** | Dominanz, Sektor-HQ und Patrouillenabdeckung | Sperrstufe 3–5, Sprungsperre, Embargo, Tribut, Kriegsgrund bei Gebietsverletzung |
+| **Umkämpft** | zwei Akteure über 30 % | niemand höher als Stufe 1; Konflikte entstehen |
+
+**Warum:** Einfluss beruht auf tatsächlicher Präsenz, nicht auf einer Behauptung. Sektoren werden erobert und verloren: Wer Stationen baut, wächst, wer sie verliert, verliert Rechte. Die Stufen verbinden Sperren (Abschnitt 2) mit echtem Aufwand: Ein Sektor ist erst dicht, wenn jemand ihn durchsetzen kann. „Umkämpft“ ist der natürliche Auslöser von Konflikten, und niemand soll einen Sektor schließen, den er nicht durchsetzen kann.
+
+## 9. Weitere Annahmen und ihr Grund
+
+- **Kriegsmüdigkeit statt Frieden per Zufall:** Sonst enden Kriege nie oder zufällig.
+- **Hysterese bei Kontrolle, Sperren und Krieg:** Ohne sie flackert der Zustand bei kleinen Ausschlägen, und die Wirtschaft schwankt.
+- **Gewichtete Ziehung statt „der Reichste“:** Reiche sollen bevorzugt werden, aber nicht immer gewinnen; sonst entstehen Monopole.
+- **Zölle und Strafen fließen in die Kasse, nicht ins Nichts:** Sonst gäbe es eine Geldquelle ohne Senke, und das Balance-Tool fände die Geldmenge nicht stimmig.
+- **Gründung von Akteuren nur mit Besitz, Gebühr und Frist:** Sonst umgehen Spieler Fahndung und Ruf mit Schalenfirmen.
+- **Politik nur für Akteure mit Besitz:** Das `FactionPolicySystem` läuft nur für Akteure über einer Besitzschwelle. Das hält die Rechenzeit klein und verhindert, dass ein Einzelschiff einen Krieg erklärt. Einzelakteure entscheiden nur über ihr Schiff.
+- **Spieler und NPC nutzen dieselben Regeln:** Einziger Unterschied ist die Entscheidungsquelle (Oberfläche statt KI). Das macht das Spiel erklärbar und testbar.
+
+## 10. Reihenfolge der Fraktionsarbeit
+
+1. Größenzahl und Größenklassen, Zukauf mit Erst- und Zweitzugriff (nur Investitionswahl in der Wirtschaft).
+2. Fraktionskasse und Beziehungsmodell.
+3. Einflussberechnung, abgeleiteter `Sector.Owner`, Sektorstufen.
+4. Dienst `headquarters`, Büro, Firmensitz, Sektor-HQ (siehe STATIONEN.md, Abschnitt 5).
+5. Polizeistufen und Zuständigkeit (FLOTTEN.md), Schutzverträge.
+6. Krieg mit Stufen, Kriegsgrund, Müdigkeit.
+7. Spielerfraktion nutzt dieselben Regeln.
+
+## 11. Offene Entscheidungen
 
 - Gilt eine Sperre für Sektoren oder für einzelne Gates? Vorschlag: Sektor-Stufen als Voreinstellung, Gate-Ausnahmen erlaubt.
+- Hat eine Fraktion eine eigene Kasse (`Treasury`)? Vorschlag: ja, gespeist aus Zöllen und Steuern.
 - Soll die Spielerfraktion früh (direkt nach dem Bauschiff) oder erst am Ende kommen?
-- Hat eine Fraktion eine eigene Kasse (`Treasury`)? Heute besitzen nur Stationen und Schiffe Credits; Zölle, Strafen und Polizeikosten brauchen einen Ort. Vorschlag: ja, gespeist aus Zöllen und Steuern.
+- Wie hart soll der Erstzugriff der Großen sein? Vorschlag: weich (nur höheres Gewicht).
+- Darf ein Kleinakteur Sektoren erobern oder nur Stationen halten? Vorschlag: erlauben, aber nur mit Einfluss über Stationen und nur gegen schwache Besitzer.
+- Soll der Spieler Polizeigewalt bekommen, sobald er Dominanz erreicht, oder bleibt Polizei immer KI?
+- Soll ein freies Schiff sofort ein eigener Akteur sein (einfacher, teurer) oder träge zum Akteur werden (Vorschlag)?
+- Darf der Spieler einer Fraktion beitreten und aufsteigen, oder bleibt er unabhängig?

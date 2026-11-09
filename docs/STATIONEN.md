@@ -1,6 +1,6 @@
 # Stationen
 
-Abschnitt 1 beschreibt den Ist-Zustand (umgesetzt). Die Abschnitte 2 bis 4 sind **Planung, nichts davon ist umgesetzt**.
+Abschnitt 1 beschreibt den Ist-Zustand (umgesetzt). Die Abschnitte 2 bis 5 sind **Planung, nichts davon ist umgesetzt**.
 
 ## 1. Bestehende Stationstypen (18)
 Werte aus `Content/default-world.json`. Rezept: Dauer in Ticks, Eingänge → Ausgänge.
@@ -113,3 +113,50 @@ Dagegen: weniger Preise für Zwischenprodukte (schlechter lesbar), Klumpenrisiko
 Statt harter Fusionen: ein Stationstyp besteht aus **Modulen** (`recipes: [...]`, `services: [...]`), frei kombinierbar in der JSON. Die Systeme laufen schon pro Rezept; neu wäre nur eine `IStationService`-Schnittstelle für Dienste im Dock-Panel.
 Drei Größen: **klein** (ein Rezept, am Feld), **mittel** (zwei bis drei Rezepte), **Hub** (Dienste + Handel, höchstens einer pro Sektor).
 Zuerst Servicehubs und Werft bündeln. Bei den Produktionsketten nur Wasserkomplex, Energiekomplex und Halbleiterwerk, weil deren Zwischenprodukte kaum separat gehandelt werden. Den Rest getrennt lassen, damit die Märkte lebendig bleiben.
+
+## 5. Funktionen, Dienste und Regierungsstationen (Planung)
+
+### Bestehende Stationen nach Funktion
+
+Heute haben alle Stationen genau eine Funktion: den **Markt** (Handel) und das kostenlose Andocken mit Reparatur. Die Tabelle ordnet die 18 Typen nach ihrer Rolle in der Kette und nennt, **welche Dienste** (siehe [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), Abschnitt 7) natürlich zu ihnen passen. Das Warum: Der Dienst sitzt dort, wo die Ware sowieso entsteht, damit sein Preis aus der Wirtschaft kommt.
+
+| Gruppe | Typ | Funktion | Natürlicher Dienst (Vorschlag) |
+|---|---|---|---|
+| Energie | Solarkraftwerk | Energie ohne Eingang | – |
+| Energie | Kraftwerk | viel Energie aus Wasserstoff | – |
+| Veredelung | Stahlwerk | Eisenerz → Stahl | – |
+| Veredelung | Wasserwerk | Eis → Wasser | `refuel` (Wasser für Ionenantriebe) |
+| Veredelung | Elektrolyse | Eis → Wasserstoff | `refuel` (Wasserstoff) |
+| Veredelung | Kupferhütte | Kupfererz → Kupfer | – |
+| Veredelung | Waferfabrik | Silizium → Wafer | – |
+| Veredelung | Titanhütte | Titanerz → Titan | – |
+| Veredelung | Platinraffinerie | Platinerz → Platin | – |
+| Komponenten | Elektronikfabrik | Kupfer + Wafer → Elektronik | `outfitter` (Elektronikmodule) |
+| Komponenten | Panzerwerk | Stahl + Titan → Hüllenplatten | `repair` (verbraucht Hüllenplatten) |
+| Komponenten | Brennstoffzellenfabrik | Wasserstoff + Platin → Brennstoffzellen | `refuel` (Brennstoffzellen) |
+| Komponenten | Lebenserhaltungswerk | Wasser + Elektronik → Lebenserhaltung | – |
+| Endgüter | Farm | Wasser + Energie → Nahrung | – |
+| Endgüter | Konsumgüterfabrik | Stahl + Elektronik → Konsumgut | – |
+| Endgüter | Luxuswerkstatt | Platin + Elektronik → Luxusgut | – |
+| Schiffe | Werft | Hüllenplatten + Elektronik + Brennstoffzelle → Bausatz | `shipdealer`, `upgrade` |
+| Nachfrage und Geldquelle | Kolonie | verbraucht Nahrung, Konsum-, Luxusgüter, Lebenserhaltung; Einkommen 8 | Missionsbüro, Bar (später) |
+
+Alle Typen bieten außerdem den Dienst `trade`.
+
+### Regierungsstationen (neu)
+
+Hier geht es um Machtstrukturen (siehe [POLITIK.md](POLITIK.md)). Alle sind **Dienste auf Stationen**, nicht Produktionsketten. Sie passen ins Stationsmodul-Modell (`recipes` + `services` frei kombinierbar).
+
+| Form | Größe | Wer baut sie | Dienste | Anzahl |
+|---|---|---|---|---|
+| **Hauptquartier** | Hub | Staat | `headquarters`, `treasury`, `diplomacy`, `police_hq` | genau eines je Fraktion |
+| **Firmensitz** | Medium | Firma, Konzern | `headquarters_company`, `treasury`, Verträge | eines je Akteur |
+| **Sektor-HQ** (Sektorbehörde) | Medium | Staat, Konzern mit Dominanz im Sektor | `sector_authority`, `customs`, `police_base`, Baugenehmigung | höchstens eine je Sektor und Besitzer |
+| **Büro** | Dienst an Station | Kleinfirma | `office` (Konto, Zoll auf der eigenen Station) | eines je Station |
+| **Polizeiwache** | Dienst oder Klein | jede Fraktion mit Station | `police` (Scan, Zoll, Kopfgeldbüro) | je Station |
+| **Patrouillenbasis** | Medium | Staat, Konzern | `police_base` (Heimat, Tanken, Reparieren für Polizeischiffe) | je Sektor mit Bedarf |
+
+- **Hauptquartier als Hub:** Pro Sektor gibt es höchstens eine Hub-Station, also konkurriert das Hauptquartier mit anderen Großstationen (zum Beispiel einer Werft) um den Platz. Das Warum: Es macht das HQ zu einem greifbaren Ziel und bindet es an knappen Raum.
+- **Sektor-HQ ist keine Hub-Station:** Es ist mittelgroß, damit jeder kontrollierte Sektor eine bekommen kann, ohne den Hubplatz zu blockieren. Das Hauptquartier liegt in der Hauptstadt, die Sektorbehörden in den übrigen Sektoren.
+- **Voraussetzungen:** Eine Sektorbehörde braucht mindestens **Dominanz** im Sektor (über 50 % Einfluss). Ein Hauptquartier braucht die Größenklasse Staat. Beide sind `essential`: Sie werden nicht durch Pleite entfernt, nur durch Zerstörung oder Eroberung.
+- **Verlust:** Fällt ein Hauptquartier aus, folgt eine Regierungskrise. Fällt eine Sektorbehörde aus, sinkt die Kontrolle im Sektor auf Präsenz oder Einfluss.
