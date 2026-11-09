@@ -4,19 +4,23 @@ using System.Linq;
 using Godot;
 using SpaceAdventure.Game;
 using SpaceAdventure.Ui;
+using SpaceAdventure.Ui.Kit;
+using SpaceAdventure.Ui.Screens;
 using SpaceAdventure.World;
 using SpaceSim.Core.Events;
+using SpaceSim.Core.Flight;
 using SpaceSim.Core.Mining;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
-using SpaceSim.Core.Trading;
+using SpaceSim.Core.Weapons;
 
 namespace SpaceAdventure;
 
 /// <summary>
 /// Kompositionswurzel: verdrahtet Session, Sektoransicht, Spielerschiff und Oberfläche und übersetzt Eingaben in
 /// Steuerwünsche. Neue Features hängen sich als eigene Komponenten an, statt diese Klasse aufzublähen.
-/// Steuerung: Stick/WASD/Pfeile, Maus oder Finger gedrückt halten = zum Zeiger fliegen, Antippen eines Ziels = Autopilot-Ziel.
+/// Lenkpriorität: Tempo-Slider und Wendetasten/Tasten > Zeiger (gedrückt halten = zum Zeiger fliegen) > Autopilot;
+/// manuelle Bedienung bricht Autopilot und Auto-Mining ab. Antippen eines Ziels = Autopilot-Ziel.
 /// </summary>
 public partial class Main : Node3D
 {
@@ -53,7 +57,7 @@ public partial class Main : Node3D
 	StationId? _targetStation;
 	StationId? _docked;
 	bool _autopilot, _fast;
-	float _jumpCooldown, _autosave;
+	float _jumpCooldown, _autosave, _dockRefresh, _ccRefresh;
 	float _hitFlash;
 
 	// Zeiger in der Welt (nicht über Oberfläche): Halten = fliegen, Antippen = Ziel wählen
@@ -77,33 +81,89 @@ public partial class Main : Node3D
 		_hud = new Hud(); AddChild(_hud);
 
 		_hud.TargetScreenPosition = ScreenPositionOfTarget;
-		_hud.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
+		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
+		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
+		_hud.Flight.FastPressed += () => { _fast = _hud.Flight.FastOn; _sfx.Play(SfxId.Click); };
+		_hud.Flight.AutopilotPressed += ToggleAutopilot;
+		_hud.Flight.AutoMinePressed += () => SetAutoMining(_hud.Flight.AutoMineOn);
+		_hud.Flight.ContextPressed += ContextAction;
+		_hud.Flight.BayDown += OnBayDown;
+		_hud.Flight.AllFire += FireReadyBays;
+		_hud.Command.Action += OnCommandAction;
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
-		_hud.EconomyPressed += () => { _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); };
-		_hud.MenuPressed += () => { _sfx.Play(SfxId.Click); _hud.Menu.Visible = true; };
-		_hud.Menu.Action += OnMenu;
-		_hud.AutopilotPressed += ToggleAutopilot;
-		_hud.FastPressed += () => _fast = _hud.FastButton.On;
-		_hud.DockPressed += DockAtNearest;
-		_hud.Dock.Undock += Undock;
-		_hud.Dock.SellAll += SellAllHere;
-		_hud.Dock.Buy += BuyHere;
-		_hud.Dock.Sell += SellHere;
-		_hud.LaserButton.Down += () => _fireRequested = true;
-		_hud.TractorPressed += () => { _sfx.Play(SfxId.Click); _tractorOn = _hud.TractorButton.On; };
-		_hud.AutoMinePressed += () => SetAutoMining(_hud.AutoMineButton.On);
+		_hud.DockMenu.AreaSelected += OnDockArea;
+		_hud.DockMenu.UndockPressed += Undock;
+		_hud.DockTrade.AreaSelected += OnDockArea;
+		_hud.DockTrade.BackToMenu += ShowDockMenu;
+		_hud.DockTrade.UndockPressed += Undock;
+		_hud.DockTrade.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.DockInfo.AreaSelected += OnDockArea;
+		_hud.DockInfo.BackToMenu += ShowDockMenu;
+		_hud.DockInfo.UndockPressed += Undock;
+		_hud.DockHangar.AreaSelected += OnDockArea;
+		_hud.DockHangar.BackToMenu += ShowDockMenu;
+		_hud.DockHangar.UndockPressed += Undock;
+		_hud.DockPlaceholder.AreaSelected += OnDockArea;
+		_hud.DockPlaceholder.BackToMenu += ShowDockMenu;
+		_hud.DockPlaceholder.UndockPressed += Undock;
+		// Kommandozentrale (UI.md Abschnitt 4): Bereiche der linken Leiste, „← Flug“, echte Aktionen
+		_hud.CcUniverse.AreaSelected += OpenCcArea;
+		_hud.CcSector.AreaSelected += OpenCcArea;
+		_hud.CcFactions.AreaSelected += OpenCcArea;
+		_hud.CcMyFaction.AreaSelected += OpenCcArea;
+		_hud.CcFleet.AreaSelected += OpenCcArea;
+		_hud.CcAssets.AreaSelected += OpenCcArea;
+		_hud.CcComms.AreaSelected += OpenCcArea;
+		_hud.CcSystem.AreaSelected += OpenCcArea;
+		_hud.CcUniverse.BackToFlight += CloseCommand;
+		_hud.CcSector.BackToFlight += CloseCommand;
+		_hud.CcFactions.BackToFlight += CloseCommand;
+		_hud.CcMyFaction.BackToFlight += CloseCommand;
+		_hud.CcFleet.BackToFlight += CloseCommand;
+		_hud.CcAssets.BackToFlight += CloseCommand;
+		_hud.CcComms.BackToFlight += CloseCommand;
+		_hud.CcSystem.BackToFlight += CloseCommand;
+		_hud.CcUniverse.OpenSectorMap += sec => { _hud.CcSector.SelectedSector = sec; OpenCcArea(CommandAreas.Sector); };
+		_hud.CcUniverse.PlanRoute += sec =>
+		{
+			var uu = _session.U;
+			int hops = uu.FindRoute(uu.PlayerSector, sec)?.Count ?? -1;
+			SetTarget(Navigator.ForSector(uu, sec, uu.PlayerShip), null);
+			_hud.Toast($"Autopilot: Route nach {uu.Sectors[sec].Name} ({hops} {(hops == 1 ? "Sprung" : "Sprünge")})");
+		};
+		_hud.CcSector.AutopilotRequested += (nav, st) => SetTarget(nav, st);
+		_hud.CcFactions.CommsRequested += () => OpenCcArea(CommandAreas.Comms);
+		_hud.CcFactions.TerritoryRequested += f =>
+		{
+			var uu = _session.U;
+			_hud.CcUniverse.CurrentLayer = UniverseScreen.Layer.Faction;
+			_hud.CcUniverse.MarkFaction = f;
+			var terr = uu.Sectors.Values.FirstOrDefault(s => s.Owner == f);
+			_hud.CcUniverse.SelectedSector = terr?.Id ?? uu.PlayerSector;
+			OpenCcArea(CommandAreas.Universe);
+		};
+		_hud.CcFleet.AutoMiningToggled += on => SetAutoMining(on);
+		_hud.CcSystem.SystemAction += a => OnMenu(a);
 		_player.Hit += OnPlayerHit;
 		_view.AsteroidGone += (pos, r) => { _fx.Burst(pos, new Color(1f, 0.7f, 0.3f), 22, 10f); _sfx.Play(SfxId.Crack); };
 		_chunks.Shot += OnShot;
 
-		bool selftest = OS.GetCmdlineUserArgs().Contains("--selftest");
-		if (selftest)
+		var args = OS.GetCmdlineUserArgs();
+		bool selftest = args.Contains("--selftest");
+		int shotIdx = Array.IndexOf(args, "--ui-shots");
+		string? shotDir = shotIdx >= 0 && shotIdx + 1 < args.Length ? args[shotIdx + 1] : null;
+		if (selftest || shotDir != null)
 		{
-			SaveService.UseFile("selftest.json");
-			DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath("user://selftest.json"));   // immer frisch beginnen
+			SaveService.UseFile(selftest ? "selftest.json" : "ui-shots.json");
+			DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(selftest ? "user://selftest.json" : "user://ui-shots.json"));   // immer frisch beginnen
 		}
 		StartSession();
 		if (selftest) AddChild(new SelfTest(this));
+		if (shotDir != null)
+		{
+			if (!System.IO.Path.IsPathRooted(shotDir)) shotDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), shotDir);
+			AddChild(new UiShots(this, shotDir));
+		}
 	}
 
 	// ───────── Spielstand ─────────
@@ -134,11 +194,13 @@ public partial class Main : Node3D
 		var u = _session.U;
 		u.Events.Raised += OnSimEvent;
 		_target = null; _targetStation = null; _docked = null; _autopilot = false;
-		_hud.AutopilotButton.On = false;
+		_hud.Flight.SetAutopilot(false);
+		_hud.Flight.SetSlider(0f);
+		_hud.Screens.Hide();
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc();
 		_transition = false; _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
-		_hud.Dock.Visible = false;
+		_hud.Flight.Visible = true;   // Dock-Bildschirme wurden über Screens.Hide() geschlossen
 		_view.Rebuild(u);
 		var p = PlayerData;
 		_player.Position = new Vector3(p.Position.X, 0, p.Position.Y);
@@ -158,7 +220,64 @@ public partial class Main : Node3D
 				break;
 			case "new": _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); AttachSession(); _hud.Toast("Neues Spiel"); break;
 		}
-		if (action != "save") _hud.Menu.Visible = false;
+		if (action != "save") _hud.Screens.Hide();
+	}
+
+	/// <summary>Aktionen des Hamburger-Menüs: Bereiche der Kommandozentrale öffnen Vollbild-Bildschirme, dazu Karte/Wirtschaft/Spielstand plus Schließen.</summary>
+	void OnCommandAction(string action)
+	{
+		switch (action)
+		{
+			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); break;
+			case "economy": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); break;
+			case "save": case "load": case "new": OnMenu(action); break;
+			case "close": _sfx.Play(SfxId.Click); _hud.Screens.Hide(); if (_docked == null) _hud.Flight.Visible = true; break;
+			default:
+				if (CommandAreas.All.Any(a => a.Id == action)) OpenCcArea(action);
+				break;
+		}
+	}
+
+	/// <summary>Öffnet einen Bereich der Kommandozentrale im Vollbild (wie ein Tipp in der linken Leiste).</summary>
+	void OpenCcArea(string areaId)
+	{
+		var u = _session.U;
+		_hud.CcCtx.U = u;
+		_hud.CcCtx.Player = PlayerData;
+		_hud.CcCtx.FractionalTick = () => _session.FractionalTick;
+		_hud.CcCtx.AutoMiningOn = () => _miner.Enabled;
+		_hud.CcCtx.Docked = _docked;
+		if (areaId == CommandAreas.Sector && _hud.CcSector.SelectedSector == null) _hud.CcSector.SelectedSector = u.PlayerSector;
+		IScreen screen = areaId switch
+		{
+			CommandAreas.Universe => _hud.CcUniverse,
+			CommandAreas.Sector => _hud.CcSector,
+			CommandAreas.Factions => _hud.CcFactions,
+			CommandAreas.MyFaction => _hud.CcMyFaction,
+			CommandAreas.Fleet => _hud.CcFleet,
+			CommandAreas.Assets => _hud.CcAssets,
+			CommandAreas.Comms => _hud.CcComms,
+			CommandAreas.System => _hud.CcSystem,
+			_ => _hud.CcUniverse,
+		};
+		if (screen is CommandScreen cs) cs.AreaId = areaId;
+		_hud.Flight.Visible = false;
+		_hud.Screens.Show(screen);
+		_sfx.Play(SfxId.Click);
+	}
+
+	/// <summary>„← Flug“: Kommandozentrale schließen, zurück zum Flug-HUD.</summary>
+	void CloseCommand()
+	{
+		_sfx.Play(SfxId.Click);
+		_hud.Screens.Hide();
+		if (_docked == null) _hud.Flight.Visible = true;
+	}
+
+	void ToggleCommand()
+	{
+		if (_hud.Screens.Current == _hud.Command) _hud.Screens.Hide();
+		else { _hud.Map.Visible = false; _hud.Screens.Show(_hud.Command); }
 	}
 
 	void SaveNow(bool manual)
@@ -210,14 +329,14 @@ public partial class Main : Node3D
 		_miningStep = _miner.Enabled && !frozen
 			? _miner.Step(_session.U, _chunks, PlayerData, new Vec2(_player.Position.X, _player.Position.Z))
 			: null;
-		if (!_miner.Enabled && _hud.AutoMineButton.On) { _hud.AutoMineButton.On = false; _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
-		var (dir, throttle, speedScale) = frozen ? (Vector2.Zero, 0f, 1f) : ReadSteering();
+		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
+		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(delta);
 		_player.Locked = _docked != null || _transition;
 		bool hold = _miner.Enabled && _miningStep is { Nav: null, Waypoint: null };   // Automatik arbeitet an Ort und Stelle
-		_player.Step(delta, dir, throttle, speedScale, _view, brake: hold);
-		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(throttle, 0.3f, 1f) : 0f);
+		_player.Step(delta, turn, dir, throttle, speedScale, _view, brake: hold);
+		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(Mathf.Abs(throttle), 0.3f, 1f) : 0f);
 
-		if (!frozen) { CheckGates(); UpdateDockButton(); }
+		if (!frozen) CheckGates();
 		UpdateMining(delta, frozen);
 		SyncPlayerData();
 
@@ -228,20 +347,40 @@ public partial class Main : Node3D
 
 		UpdateHud();
 		_hud.Economy.Refresh(_session);
+		if (_docked != null)   // Dock-Bildschirme aktualisieren sich selbst, gedrosselt (Marktpreise bewegen sich)
+		{
+			_dockRefresh += delta;
+			if (_dockRefresh >= 1f) { _dockRefresh = 0f; _hud.Screens.Current?.Refresh(); }
+		}
+		if (_hud.Screens.Current is CommandScreen cc)   // Kommandozentrale likewise
+		{
+			_ccRefresh += delta;
+			if (_ccRefresh >= 0.5f) { _ccRefresh = 0f; cc.Refresh(); }
+		}
 		_autosave += delta;
 		if (_autosave >= AutosaveSeconds) { _autosave = 0f; SaveNow(manual: false); }
 	}
 
-	/// <summary>Steuerwunsch aus Stick/Tastatur (Vorrang), Zeiger oder Autopilot.</summary>
-	(Vector2 dir, float throttle, float speedScale) ReadSteering()
+	/// <summary>
+	/// Steuerwunsch nach Lenkpriorität: Tempo-Slider und Wendetasten/Tasten (manuell) > Zeiger (halten) > Autopilot.
+	/// Manuelle Bedienung bricht Autopilot und Auto-Mining ab. Rückgabe: Richtung, Solltempo (-1..1), Skalierung, Dreheingang.
+	/// </summary>
+	(Vector2 dir, float throttle, float speedScale, float turn) ReadSteering(float delta)
 	{
-		var manual = _hud.Stick.Value;
-		var keys = new Vector2(
-			(Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right) ? 1 : 0) - (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left) ? 1 : 0),
-			(Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down) ? 1 : 0) - (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) ? 1 : 0));
-		if (keys != Vector2.Zero) manual = keys.Normalized();
+		var flight = _hud.Flight;
+		float turnKeys = (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right) ? 1 : 0) - (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left) ? 1 : 0);
+		float sliderKeys = (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) ? 1 : 0) - (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down) ? 1 : 0);
+		if (sliderKeys != 0f) flight.SetSlider(flight.SliderValue + sliderKeys * delta * 0.8f);   // W/S bzw. Pfeile verstellen den Slider
+		float turn = turnKeys + (flight.TurnRightHeld ? 1f : 0f) - (flight.TurnLeftHeld ? 1f : 0f);
+		float slider = flight.SliderValue;
 
-		if (manual.Length() > 0.1f) { CancelAutopilot(); if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (manuelle Steuerung)"); return (manual, manual.Length(), 1f); }
+		if (turn != 0f || Mathf.Abs(slider) > 0.001f)   // manuell: Slider und/oder Wenden
+		{
+			CancelAutopilot();
+			if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (manuelle Steuerung)");
+			var fwd = new Vector2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading));
+			return (fwd, Throttle.SliderToFraction(slider), 1f, turn);
+		}
 
 		if (_pointerFinger >= 0 && Time.GetTicksMsec() / 1000.0 - _pointerDownAt > 0.2)
 		{
@@ -249,20 +388,22 @@ public partial class Main : Node3D
 			if (ground is { } g)
 			{
 				var d = g - _player.Position;
-				if (d.Length() > 3f) { CancelAutopilot(); return (new Vector2(d.X, d.Z), 1f, 1f); }
+				if (d.Length() > 3f) { CancelAutopilot(); return (new Vector2(d.X, d.Z), 1f, 1f, 0f); }
 			}
 		}
 
 		if (_miner.Enabled && _miningStep is { } ms)
 		{
-			if (ms.Nav is { } nav) { _targetStation = ms.DockAt; _target = nav; return Autopilot(nav); }
+			if (ms.Nav is { } nav) { _targetStation = ms.DockAt; _target = nav; return WithTurn(Autopilot(nav)); }
 			if (ms.Waypoint is { } wp)
-				return (new Vector2(wp.X - _player.Position.X, wp.Y - _player.Position.Z), ms.Throttle, ClearanceScale());
-			return (Vector2.Zero, 0f, ClearanceScale());
+				return (new Vector2(wp.X - _player.Position.X, wp.Y - _player.Position.Z), ms.Throttle, ClearanceScale(), 0f);
+			return (Vector2.Zero, 0f, ClearanceScale(), 0f);
 		}
-		if (_autopilot && _target is { } target) return Autopilot(target);
-		return (Vector2.Zero, 0f, 1f);
+		if (_autopilot && _target is { } target) return WithTurn(Autopilot(target));
+		return (Vector2.Zero, 0f, 1f, 0f);
 	}
+
+	static (Vector2, float, float, float) WithTurn((Vector2 dir, float throttle, float speedScale) s) => (s.dir, s.throttle, s.speedScale, 0f);
 
 	(Vector2, float, float) Autopilot(NavTarget target)
 	{
@@ -329,7 +470,7 @@ public partial class Main : Node3D
 	void SetTarget(NavTarget target, StationId? station)
 	{
 		_target = target; _targetStation = station;
-		_autopilot = true; _hud.AutopilotButton.On = true;
+		_autopilot = true; _hud.Flight.SetAutopilot(true);
 		_sfx.Play(SfxId.Click);
 		_hud.Toast($"Autopilot: {target.Label}");
 	}
@@ -337,14 +478,14 @@ public partial class Main : Node3D
 	void ToggleAutopilot()
 	{
 		_sfx.Play(SfxId.Click);
-		if (_target == null) { _hud.AutopilotButton.On = false; _hud.Toast("Kein Ziel – Station oder Gate antippen, oder Karte öffnen"); return; }
-		_autopilot = _hud.AutopilotButton.On;
+		if (_target == null) { _hud.Flight.SetAutopilot(false); _hud.Toast("Kein Ziel – Station oder Gate antippen, oder Karte öffnen"); return; }
+		_autopilot = _hud.Flight.AutopilotOn;
 	}
 
 	void CancelAutopilot()
 	{
 		if (!_autopilot) return;
-		_autopilot = false; _hud.AutopilotButton.On = false;
+		_autopilot = false; _hud.Flight.SetAutopilot(false);
 	}
 
 	Vector2? ScreenPositionOfTarget()
@@ -364,9 +505,24 @@ public partial class Main : Node3D
 		return _cam.UnprojectPosition(world);
 	}
 
-	void UpdateDockButton()
+	/// <summary>Nähestes Gate innerhalb von <paramref name="maxDist"/> (für die Kontexttaste „Springen“).</summary>
+	GateId? NearestGate(float maxDist)
 	{
-		_hud.DockButton.Visible = NearestStation(out _) != null;
+		GateId? best = null; float bestD = maxDist;
+		foreach (var (id, pos) in _view.Gates)
+		{
+			float d = _player.Position.DistanceTo(pos);
+			if (d < bestD) { bestD = d; best = id; }
+		}
+		return best;
+	}
+
+	/// <summary>Kontexttaste: nahe einer Station „Andocken“, am Gate „Springen“ (vorhandene Logik).</summary>
+	void ContextAction()
+	{
+		if (NearestStation(out _) is { } sid) { _sfx.Play(SfxId.Click); Dock(sid); return; }
+		if (NearestGate(60f) is { } gid) { _sfx.Play(SfxId.Click); Jump(gid); return; }
+		_hud.Toast("Nichts in Reichweite – näher an Station oder Gate fliegen");
 	}
 
 	StationId? NearestStation(out float distance)
@@ -383,6 +539,44 @@ public partial class Main : Node3D
 	}
 
 	void DockAtNearest() { if (NearestStation(out _) is { } sid) Dock(sid); }
+
+	/// <summary>Setzt den Dock-Kontext und öffnet das Andock-Menü (erscheint beim Andocken wie bisher das Panel).</summary>
+	void ShowDockMenu()
+	{
+		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
+		_hud.DockCtx.U = _session.U;
+		_hud.DockCtx.Station = st;
+		_hud.DockCtx.Ship = PlayerData;
+		_hud.DockCtx.Services = _session.Services;
+		_hud.Flight.Visible = false;
+		_hud.Screens.Show(_hud.DockMenu);
+	}
+
+	/// <summary>Öffnet einen Dock-Bereich: echte Bereiche nur mit Dienst aus <see cref="SpaceSim.Core.Services.StationServices.ForStation"/>, sonst die Platzhalterseite.</summary>
+	void OnDockArea(string areaId)
+	{
+		if (_docked is null) return;
+		var u = _session.U;
+		var st = u.Stations[_docked.Value];
+		var def = DockAreas.Build(u, st, _session.Services).FirstOrDefault(d => d.Id == areaId);
+		if (def == null) return;
+		if (!def.Available)
+		{
+			_hud.DockPlaceholder.OpenWith(def);
+			_hud.Screens.Show(_hud.DockPlaceholder);
+			return;
+		}
+		IScreen screen = areaId switch
+		{
+			DockAreas.Trade => _hud.DockTrade,
+			DockAreas.Info => _hud.DockInfo,
+			DockAreas.Hangar => _hud.DockHangar,
+			_ => _hud.DockMenu,
+		};
+		if (screen is DockAreaScreen area) area.AreaId = areaId;
+		_hud.Screens.Show(screen);
+		_sfx.Play(SfxId.Click);
+	}
 
 	/// <summary>Andocken: Das Schiff fliegt in die Station hinein und verschwindet (unsichtbar, keine Kollision); die Hülle wird repariert.</summary>
 	void Dock(StationId id)
@@ -403,28 +597,29 @@ public partial class Main : Node3D
 		bool repaired = PlayerData.Hull < Ship.MaxHull - 0.5f;
 		PlayerData.Hull = Ship.MaxHull;
 		_sfx.Play(SfxId.Dock);
-		_hud.Dock.Open(u, st, PlayerData);
+		ShowDockMenu();
 		if (repaired) _hud.Toast("Hülle repariert");
 		if (_miner.Enabled)
 		{
 			var sale = _miner.OnDocked(u, PlayerData, st);
 			if (sale is { Revenue: > 0 }) { _sfx.Play(SfxId.Pickup); _hud.Toast($"Verkauft für {sale.Revenue:0} Credits"); }
-			_hud.Dock.Open(u, st, PlayerData);
+			_hud.DockMenu.Refresh();   // Anzeige aktualisieren (Credits/Fracht nach dem Auto-Verkauf)
 			// Nach kurzer Pause automatisch abdocken und weiterarbeiten
 			var timer = GetTree().CreateTimer(1.8);
 			timer.Timeout += () => { if (_docked == id) Undock(); };
-			if (!_miner.Enabled) { _hud.AutoMineButton.On = false; _hud.Toast(_miner.Status, 3.5f); }
+			if (!_miner.Enabled) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }
 		}
 	}
 
-	/// <summary>Abdocken: Das Schiff taucht aus der Station auf und fliegt zum Parkpunkt; danach kurze Schonfrist ohne Schaden.</summary>
+	/// <summary>Abdocken: Das Schiff taucht aus der Station auf und fliegt zum Parkpunkt; danach kurze Schonfrist ohne Schaden. Funktioniert aus jedem Dock-Bereich.</summary>
 	void Undock()
 	{
 		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
 		_sfx.Play(SfxId.Click);
 		_docked = null;
 		_transition = true;
-		_hud.Dock.Visible = false;
+		_hud.Screens.Hide();          // schließt Andock-Menü und jeden offenen Bereich
+		_hud.Flight.Visible = true;
 
 		var spot = st.DockPoint(_session.U.PlayerShip);
 		_player.Position = new Vector3(st.Position.X, 0, st.Position.Y);
@@ -447,7 +642,7 @@ public partial class Main : Node3D
 		if (@event is InputEventKey { Pressed: true, Echo: false } key)
 		{
 			if (key.Keycode == Key.F) _fireRequested = true;
-			else if (key.Keycode == Key.G) { _tractorOn = !_tractorOn; _hud.TractorButton.On = _tractorOn; _sfx.Play(SfxId.Click); }
+			else if (key.Keycode == Key.G) { _tractorOn = !_tractorOn; _sfx.Play(SfxId.Click); }
 			else if (key.Keycode == Key.M) SetAutoMining(!_miner.Enabled);
 			return;
 		}
@@ -577,24 +772,187 @@ public partial class Main : Node3D
 		if (shot.Units > 0f) _fx.Burst(surface, GoodColor(shot.Good), 4 + (int)shot.Units, 6f, 0.4f);
 	}
 
+	// ───────── Flug-HUD: Daten aus der Simulation an die Oberfläche ─────────
+
+	BayView[] _bayViews = Array.Empty<BayView>();
+	BayState[] _bayStates = Array.Empty<BayState>();
+	Vec2? _bayAimPos;      // aktuelles Laserziel (für Winkel/Anzeigen)
+	float _bayAimRadius;
+
 	void UpdateHud()
 	{
 		var u = _session.U;
-		string status = $"{u.Sectors[u.PlayerSector].Name}   Tick {u.Tick}   Speed {(int)_player.Velocity.Length()}   Credits {(int)PlayerData.Credits}";
-		string? target = null;
+		var sector = u.Sectors[u.PlayerSector];
+		var pos = new Vec2(_player.Position.X, _player.Position.Z);
+		float headingDeg = Mathf.RadToDeg(_player.Heading);
+		UpdateBays(sector, pos, headingDeg);
+
+		var d = new FlightHudData
+		{
+			Hull = PlayerData.Hull,
+			Credits = PlayerData.Credits,
+			SectorName = sector.Name,
+			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",
+			AutopilotOn = _autopilot,
+			AutoMineOn = _miner.Enabled,
+			TractorOn = _tractorOn,
+			FastOn = _fast,
+			SliderValue = _hud.Flight.SliderValue,
+			Speed = _player.Velocity.Length(),
+			Bays = _bayViews,
+		};
+
+		// Zielkarte: Autopilot-Ziel, sonst Laserziel
+		Vec2? targetWorld = null;
 		if (_target is { } t)
 		{
-			float d = t.Sector == u.PlayerSector
-				? new Vector2(_player.Position.X - t.Position.X, _player.Position.Z - t.Position.Y).Length()
-				: float.NaN;
-			target = float.IsNaN(d) ? $"Ziel: {t.Label} (anderer Sektor)" : $"Ziel: {t.Label}  {d:0} m";
+			d.TargetName = t.Label;
+			d.TargetHasInfo = true;
+			if (t.Sector == u.PlayerSector)
+			{
+				targetWorld = t.Position;
+				d.TargetDistance = Vec2.Distance(pos, t.Position);
+				d.TargetInfo = $"Entfernung {d.TargetDistance:0} m";
+			}
+			else d.TargetInfo = "anderer Sektor – über Gate fliegen";
 		}
-		float used = PlayerData.UsedVolume(u);
-		string cargo = $"Fracht {used:0}/{PlayerData.CargoCapacity:0}" +
-			(PlayerData.Cargo.Count > 0 ? "  (" + string.Join(", ", PlayerData.Cargo.Select(kv => $"{u.Goods[kv.Key].Name} {kv.Value:0}")) + ")" : "");
-		string? mining = _miner.Enabled ? "Auto-Mining: " + _miner.Status : _tractorOn ? "Traktorstrahl an" : null;
-		if (_mineTarget is { } rock) mining = (mining == null ? "" : mining + "   ") + $"Ziel-Asteroid: Erz {rock.Ore:0}/{rock.MaxOre:0}";
-		_hud.SetStatus(status, PlayerData.Hull, target, cargo, mining);
+		else if (_mineTarget is { } rock && _bayAimPos is { } aim)
+		{
+			targetWorld = aim;
+			d.TargetName = "Laserziel: Asteroid";
+			d.TargetDistance = Vec2.Distance(pos, aim) - rock.Radius;
+			d.TargetInfo = $"Erz {rock.Ore:0}/{rock.MaxOre:0} · Kante {d.TargetDistance:0} m";
+			d.TargetHasInfo = true;
+		}
+		if (targetWorld is { } tw)
+		{
+			float rel = FiringArc.Normalize180(FiringArc.Bearing(tw - pos) - headingDeg);
+			d.TargetRelBearing = rel;
+			d.TargetScreen = _cam.IsPositionBehind(new Vector3(tw.X, 0, tw.Y)) ? null : _cam.UnprojectPosition(new Vector3(tw.X, 0, tw.Y));
+			d.TargetInArc = _bayStates.Length > 0 && _bayStates[0] is BayState.Ready or BayState.Reloading;
+			var bay = WeaponBays.PlayerDefault[0];
+			d.TargetArc = _bayStates.Length > 0 && _bayStates[0] == BayState.OutsideArc && _bayAimPos is { } a
+				? TurnHintText(bay, headingDeg, pos, a)
+				: _bayStates.Length > 0 && _bayStates[0] == BayState.Ready ? "Im Feuerwinkel: Laser" : "";
+		}
+
+		// Kontexttaste: nahe Station „Andocken“, am Gate „Springen“
+		if (NearestStation(out float sd) is { } sid && sd < 55f)
+			d.ContextLabel = $"Andocken: {u.Stations[sid].Name}";
+		else if (NearestGate(60f) is { } gid)
+		{
+			var far = u.Gates[u.Gates[gid].Target];
+			d.ContextLabel = $"Springen: {u.Sectors[far.Sector].Name}";
+		}
+
+		// Feuerwinkel-Kegel um das Schiff
+		d.ShipScreen = _cam.IsPositionBehind(_player.Position) ? null : _cam.UnprojectPosition(_player.Position);
+		d.ShipHeadingDeg = headingDeg;
+
+		int ready = 0, fire = 0;
+		var bays = WeaponBays.PlayerDefault;
+		for (int i = 0; i < _bayViews.Length; i++)
+		{
+			if (bays[i].Key == "tractor") continue;   // Traktor ist Umschalter, keine Feuerwaffe
+			fire++;
+			if (_bayStates[i] == BayState.Ready) ready++;
+		}
+		d.ReadyBays = ready;
+		d.FireBays = fire;
+
+		_hud.Flight.Refresh(d);
+	}
+
+	/// <summary>Zustände der Waffenschächte als reine Core-Funktion (FiringArc) auswerten.</summary>
+	void UpdateBays(Sector sector, Vec2 pos, float headingDeg)
+	{
+		var bays = WeaponBays.PlayerDefault;
+		_bayViews = new BayView[bays.Count];
+		_bayStates = new BayState[bays.Count];
+		for (int i = 0; i < bays.Count; i++)
+		{
+			var bay = bays[i];
+			Vec2? target = null;
+			float radius = 0f;
+			bool reloaded = true;
+			if (bay.Key == "laser")
+			{
+				var aim = _mineTarget ?? _chunks.Nearest(sector, pos, MiningRules.LaserRange);
+				target = aim?.Position;
+				radius = aim?.Radius ?? 0f;
+				reloaded = _chunks.Ready;
+				if (i == 0) { _bayAimPos = target; _bayAimRadius = radius; }
+			}
+			else   // Traktor: Ziel ist die nächste Beute in Reichweite
+			{
+				OreChunk? best = null; float bd = bay.Range;
+				foreach (var c in _chunks.Chunks)
+				{
+					float dd = Vec2.Distance(c.Position, pos);
+					if (dd <= bd) { bd = dd; best = c; }
+				}
+				target = best?.Position;
+			}
+			var st = FiringArc.State(bay, headingDeg, pos, target, radius, reloaded, _chunks.ReloadProgress);
+			_bayStates[i] = st;
+			string place = bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°";
+			string detail = st switch
+			{
+				BayState.Ready => bay.Key == "tractor" ? (_tractorOn ? "AN" : "aus") : "FEUER",
+				BayState.OutsideArc => TurnHintText(bay, headingDeg, pos, target!.Value),
+				BayState.Reloading => "lädt nach",
+				_ => bay.Key == "tractor" ? "keine Beute" : "kein Ziel",
+			};
+			_bayViews[i] = new BayView { Name = bay.Name, Place = place, Detail = detail, State = st, Reload = _chunks.ReloadProgress, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
+		}
+	}
+
+	static string FacingName(Facing f) => f switch
+	{
+		Facing.Bow => "Bug", Facing.Port => "Backbord", Facing.Starboard => "Steuerbord", _ => "Heck",
+	};
+
+	/// <summary>Drehhinweis als Text: „◀ 41° drehen“ (links/Backbord) bzw. „▶ 41° drehen“.</summary>
+	static string TurnHintText(WeaponBay bay, float headingDeg, Vec2 pos, Vec2 target)
+	{
+		float h = FiringArc.TurnHintDegrees(bay, headingDeg, pos, target);
+		if (h > 0.5f) return $"◀ {h:0}° drehen";
+		if (h < -0.5f) return $"▶ {-h:0}° drehen";
+		return "drehen";
+	}
+
+	/// <summary>Finger auf einer Waffenschacht-Taste: Laser feuert einen Schuss (nur bereit und im Winkel), Traktor ist Umschalter.</summary>
+	void OnBayDown(int index)
+	{
+		var bays = WeaponBays.PlayerDefault;
+		if (index < 0 || index >= bays.Count) return;
+		if (_docked != null || _hud.AnyModalOpen) return;
+		if (bays[index].Key == "tractor")
+		{
+			_tractorOn = !_tractorOn;
+			_sfx.Play(SfxId.Click);
+			_hud.Toast(_tractorOn ? "Traktorstrahl an" : "Traktorstrahl aus");
+			return;
+		}
+		switch (_bayStates[index])
+		{
+			case BayState.Ready: _fireRequested = true; break;
+			case BayState.OutsideArc:
+				if (_bayAimPos is { } a) Hint(TurnHintText(bays[index], Mathf.RadToDeg(_player.Heading), new Vec2(_player.Position.X, _player.Position.Z), a));
+				break;
+			case BayState.Reloading: break;   // lädt noch – ein weiterer Schuss ist nicht möglich
+			default: Hint("Kein Ziel in Reichweite"); break;
+		}
+	}
+
+	/// <summary>„Alle Feuer“: löst nur bereite Waffen im Winkel aus (hier: der Laser).</summary>
+	void FireReadyBays()
+	{
+		var bays = WeaponBays.PlayerDefault;
+		bool any = false;
+		for (int i = 0; i < bays.Count; i++)
+			if (bays[i].Key != "tractor" && _bayStates[i] == BayState.Ready) { _fireRequested = true; any = true; }
+		if (!any) Hint("Keine Waffe bereit und im Winkel");
 	}
 
 	// ───────── Statische Szene ─────────
@@ -639,13 +997,13 @@ public partial class Main : Node3D
 		{
 			CancelAutopilot(); _target = null; _targetStation = null;
 			_miner.Start();
-			_hud.AutoMineButton.On = true;
-			if (announce) _hud.Toast("Auto-Mining an – Stick bewegen zum Abbrechen");
+			_hud.Flight.SetAutoMine(true);
+			if (announce) _hud.Toast("Auto-Mining an – Slider oder Wenden bewegen zum Abbrechen");
 		}
 		else
 		{
 			if (_miner.Enabled) _miner.Stop(message ?? "");
-			_hud.AutoMineButton.On = false;
+			_hud.Flight.SetAutoMine(false);
 			if (announce && message != null) _hud.Toast(message);
 		}
 	}
@@ -694,7 +1052,6 @@ public partial class Main : Node3D
 
 		tractor &= !frozen;
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
-		_hud.LaserButton.On = _chunks.Ready;   // grün = nachgeladen
 
 		var shown = fire && aim != null ? aim : _mineTarget;
 		if (shown != null && sector.Asteroids.Contains(shown))
@@ -706,38 +1063,6 @@ public partial class Main : Node3D
 		_mining.UpdateNpc(_view.ShipPosition, time);
 	}
 
-	void SellAllHere()
-	{
-		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
-		var result = TradeActions.SellAll(_session.U, PlayerData, st);
-		_sfx.Play(result.Revenue > 0 ? SfxId.Pickup : SfxId.Click);
-		_hud.Toast(result.Revenue > 0 ? $"Verkauft für {result.Revenue:0} Credits" : "Hier gibt es nichts zu verkaufen");
-		_hud.Dock.Open(_session.U, st, PlayerData);
-	}
-
-	void BuyHere(GoodId good, int units)
-	{
-		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
-		var u = _session.U;
-		float want = units > 0 ? units : TradeActions.MaxBuyable(u, PlayerData, st, good);
-		var r = TradeActions.Buy(u, PlayerData, st, good, want);
-		_sfx.Play(r.Units > 0 ? SfxId.Pickup : SfxId.Click);
-		_hud.Toast(r.Units > 0
-			? $"{r.Units:0} × {u.Goods[good].Name} für {r.Cost:0} gekauft"
-			: r.Outcome switch { BuyOutcome.OutOfStock => "Nicht auf Lager", BuyOutcome.NoCredits => "Zu wenig Credits", BuyOutcome.NoSpace => "Laderaum voll", _ => "Wird hier nicht verkauft" });
-		_hud.Dock.Open(u, st, PlayerData);
-	}
-
-	void SellHere(GoodId good)
-	{
-		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
-		var u = _session.U;
-		var r = TradeActions.Sell(u, PlayerData, st, good, PlayerData.Cargo.GetValueOrDefault(good));
-		_sfx.Play(r.Revenue > 0 ? SfxId.Pickup : SfxId.Click);
-		_hud.Toast(r.Revenue > 0 ? $"Verkauft für {r.Revenue:0} Credits" : "Die Station nimmt davon nichts ab");
-		_hud.Dock.Open(u, st, PlayerData);
-	}
-
 	// ───────── Zugriff für den Selbsttest ─────────
 
 	internal GameSession Session => _session;
@@ -745,6 +1070,18 @@ public partial class Main : Node3D
 	internal PlayerShip Player => _player;
 	internal SectorView View => _view;
 	internal bool Docked => _docked != null;
+	internal StationId? TestDockedStation => _docked;
+	/// <summary>Bereichsliste der angedockten Station (Daten aus ForStation) – Selbsttest prüft Handel/Platzhalter.</summary>
+	internal IReadOnlyList<DockAreaDef> TestDockAreas() =>
+		_docked is { } id && _session.U.Stations.TryGetValue(id, out var st)
+			? DockAreas.Build(_session.U, st, _session.Services)
+			: Array.Empty<DockAreaDef>();
+	/// <summary>Öffnet einen Dock-Bereich wie ein Tipp im Menü (Selbsttest/Screenshots).</summary>
+	internal void TestOpenDockArea(string areaId) => OnDockArea(areaId);
+	/// <summary>Dockt an der nächsten Station an (Screenshots).</summary>
+	internal void TestDockNearest() => DockAtNearest();
+	/// <summary>Ist der Bildschirm mit dieser Id gerade exklusiv geöffnet?</summary>
+	internal bool TestScreenOpen(string id) => _hud.Screens.TryGet(id, out var s) && _hud.Screens.Current == s;
 	internal void TestSetStationTarget(StationId id) { var u = _session.U; SetTarget(Navigator.ForStation(u, id, u.PlayerShip), id); }
 	internal void TestUndock() => Undock();
 	internal bool TestSave() { SaveNow(manual: false); return SaveService.Exists; }
@@ -757,4 +1094,82 @@ public partial class Main : Node3D
 	internal float TestLowestHull => _lowestHull;
 	internal bool TestMinerEnabled => _miner.Enabled;
 	internal string TestMinerStatus => _miner.Status;
+
+	// ── Hooks für Slider-, Waffen- und Screenshot-Prüfungen ──
+
+	/// <summary>Setzt den Tempo-Slider (Test: 50 % beschleunigt, -1 = Rückwärtsgrenze 20 %).</summary>
+	internal void TestSetSlider(float v) => _hud.Flight.SetSlider(v);
+	internal float TestSliderValue => _hud.Flight.SliderValue;
+	/// <summary>Zielfluggeschwindigkeit des aktuellen Sliderwerts (Core-Funktion Throttle).</summary>
+	internal float TestTargetSpeed => Throttle.TargetSpeed(_hud.Flight.SliderValue, PlayerShip.MaxSpeed);
+	/// <summary>Geschwindigkeit entlang der Schiffsnase (negativ = rückwärts).</summary>
+	internal float TestForwardSpeed => _player.Velocity.Dot(Vector3.Forward.Rotated(Vector3.Up, _player.Heading));
+	/// <summary>Teleportiert das Schiff neben den nächsten abbaubaren Asteroiden und setzt das Laserziel.</summary>
+	internal void TestAimAtNearestRock()
+	{
+		var u = _session.U;
+		var sector = u.Sectors[u.PlayerSector];
+		var rock = sector.Asteroids.FirstOrDefault(a => a.Minable);
+		if (rock == null) return;
+		var pos = rock.Position + new Vec2(rock.Radius + 15f, 0);
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Velocity = Vector3.Zero;
+		_player.GiveGrace(5f);
+		_mineTarget = rock;
+		CancelAutopilot();
+		if (_miner.Enabled) SetAutoMining(false);
+		_cam.Position = _player.Position + CamOffset;
+	}
+	/// <summary>Teleportiert das Schiff in Andocknähe der nächsten Station (Kontexttaste wird sichtbar).</summary>
+	internal void TestTeleportNearStation()
+	{
+		var u = _session.U;
+		Station? best = null; float bd = float.MaxValue;
+		var here = new Vec2(_player.Position.X, _player.Position.Z);
+		foreach (var sid in u.Sectors[u.PlayerSector].Stations)
+		{
+			var st = u.Stations[sid];
+			float d = Vec2.Distance(here, st.Position);
+			if (d < bd) { bd = d; best = st; }
+		}
+		if (best == null) return;
+		var st2 = best;
+		float r = 12f;
+		foreach (var o in _view.Obstacles)
+			if (new Vector2(o.Position.X - st2.Position.X, o.Position.Y - st2.Position.Y).Length() < 1f) r = o.Radius;
+		var pos = st2.Position + new Vec2(r + 25f, 0);
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Velocity = Vector3.Zero;
+		_player.GiveGrace(5f);
+		_mineTarget = null;
+		CancelAutopilot();
+		_cam.Position = _player.Position + CamOffset;
+	}
+	/// <summary>Ein Schuss aus der Waffenschacht-Taste (Test: Zustand wechselt danach auf Nachladen).</summary>
+	internal void TestFireWeapon() => _fireRequested = true;
+	internal bool TestLaserReady => _chunks.Ready;
+	internal string TestBayState(int i) => i < _bayStates.Length ? _bayStates[i].ToString() : "?";
+	/// <summary>Öffnet das Hamburger-Menü (Screenshot-Werkzeug).</summary>
+	internal void TestOpenCommand() { if (_hud.Screens.Current != _hud.Command) ToggleCommand(); }
+
+	// ── Hooks für die Kommandozentrale (Selbsttest/Screenshots) ──
+
+	/// <summary>Öffnet einen Kommandozentralen-Bereich wie ein Tipp in der Leiste (Selbsttest/Screenshots).</summary>
+	internal void TestOpenCcArea(string areaId) => OpenCcArea(areaId);
+	/// <summary>„← Flug“: schließt die Kommandozentrale (Selbsttest).</summary>
+	internal void TestCloseCommand() => CloseCommand();
+	/// <summary>Sektor in der Universumskarte wählen (Selbsttest/Screenshots).</summary>
+	internal void TestCcSelectSector(SectorId s) => _hud.CcUniverse.TestSelect(s);
+	/// <summary>Sprungzahl der Route zum gewählten Sektor, passend zu Universe.FindRoute.</summary>
+	internal int TestCcRouteHops => _hud.CcUniverse.TestRouteHops;
+	/// <summary>„Route planen/Autopilot“ für den gewählten Sektor auslösen (Selbsttest).</summary>
+	internal void TestCcPlanRoute() => _hud.CcUniverse.TestPlanRoute();
+	/// <summary>Fraktion in der Fraktionsliste wählen (Screenshots).</summary>
+	internal void TestCcSelectFaction(FactionId f) => _hud.CcFactions.TestSelect(f);
+	/// <summary>Schiffsdetail im Besitz öffnen (Screenshots).</summary>
+	internal void TestCcOpenShipDetail() => _hud.CcAssets.TestOpenShipDetail();
+	/// <summary>Sektoransicht der Kommandozentrale auf einen Sektor setzen (Screenshots).</summary>
+	internal void TestCcSelectSectorView(SectorId s) => _hud.CcSector.TestSelectSector(s);
+	/// <summary>Aktuelles Autopilot-Ziel (Selbsttest: „Route planen“/„Autopilot hierhin“ setzt ein Ziel).</summary>
+	internal NavTarget? TestAutopilotTarget => _target;
 }

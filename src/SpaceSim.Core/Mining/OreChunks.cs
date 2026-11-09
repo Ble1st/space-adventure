@@ -34,6 +34,9 @@ public sealed class OreChunks
     /// <summary>Der Laser ist nachgeladen und kann feuern.</summary>
     public bool Ready => _cooldown <= 0f;
 
+    /// <summary>Nachlade-Fortschritt 0..1 (0 = direkt nach dem Schuss, 1 = bereit) – für den Balken der Waffentaste.</summary>
+    public float ReloadProgress => 1f - Math.Clamp(_cooldown / MiningRules.ShotInterval, 0f, 1f);
+
     /// <summary>Beim Sektorwechsel/Laden: schwebende Brocken verschwinden.</summary>
     public void Clear() { Chunks.Clear(); _cooldown = 0f; }
 

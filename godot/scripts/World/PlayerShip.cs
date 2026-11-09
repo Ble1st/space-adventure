@@ -1,18 +1,24 @@
 using System;
 using System.Linq;
 using Godot;
+using SpaceSim.Core.Flight;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 
 namespace SpaceAdventure.World;
 
 /// <summary>
-/// Spielerschiff: Darstellung, Flugmodell und Kollision. Bekommt pro Frame nur Steuerwunsch (Richtung + Schub)
-/// und weiß nichts über Eingabegeräte, Autopilot oder Menüs.
+/// Spielerschiff: Darstellung, Flugmodell und Kollision. Bekommt pro Frame nur Steuerwunsch (Drehung, Richtung,
+/// Solltempo) und weiß nichts über Eingabegeräte, Autopilot oder Menüs.
 /// </summary>
 public partial class PlayerShip : Node3D
 {
-	const float Thrust = 40f, MaxSpeed = 45f, TurnRate = 7f;
+	const float Thrust = 40f, BrakeAccel = 60f;
+	/// <summary>Höchstgeschwindigkeit in Einheiten/s (Volle Pulle am Tempo-Slider).</summary>
+	public const float MaxSpeed = 45f;
+	const float TurnRate = 7f;
+	/// <summary>Drehgeschwindigkeit der Wendetasten (Halten) in rad/s.</summary>
+	const float TurnSpeed = 3.2f;
 	/// <summary>Erst ab dieser Aufprallgeschwindigkeit an Asteroiden/Stationen gibt es Schaden; darunter nur Abprallen.</summary>
 	public const float HardImpact = 14f;
 	/// <summary>Seitliche Restgeschwindigkeit wird abgebaut (Flugassistent): das Schiff folgt seiner Nase und driftet nicht in Hindernisse.</summary>
@@ -54,40 +60,60 @@ public partial class PlayerShip : Node3D
 		AddChild(_trail);
 	}
 
-	/// <param name="dir">Gewünschte Flugrichtung in der Spielebene (x → Welt-X, y → Welt-Z), beliebige Länge.</param>
-	/// <param name="throttle">0..1</param>
+	/// <param name="turn">Dreheingang -1..1 (Wendetasten/Tasten); das Schiff dreht nur, solange gehalten wird.</param>
+	/// <param name="dir">Gewünschte Flugrichtung in der Spielebene (x → Welt-X, y → Welt-Z); bei manuellem Sliderflug die Schiffsnase.</param>
+	/// <param name="throttle">Solltempo als Anteil der <see cref="MaxSpeed"/> (-1..1, negativ = rückwärts, über SpaceSim.Core.Flight.Throttle begrenzt).</param>
 	/// <param name="speedScale">Begrenzt die Höchstgeschwindigkeit (z.B. beim Anflug).</param>
 	/// <param name="brake">Haltemodus (z.B. Automatik arbeitet am Asteroiden): Restgeschwindigkeit stark abbauen.</param>
-	public void Step(float delta, Vector2 dir, float throttle, float speedScale, SectorView view, bool brake = false)
+	public void Step(float delta, float turn, Vector2 dir, float throttle, float speedScale, SectorView view, bool brake = false)
 	{
 		_hitCooldown = Mathf.Max(0f, _hitCooldown - delta);
 		Grace = Mathf.Max(0f, Grace - delta);
 		if (Locked) { Velocity = Velocity.Lerp(Vector3.Zero, 1f - Mathf.Exp(-6f * delta)); Thrusting = false; Show(false); return; }
 
-		float turn = 0f;
-		bool thrust = throttle > 0.05f && dir.LengthSquared() > 1e-4f;
-		if (thrust)
+		bool thrust = dir.LengthSquared() > 1e-4f && Mathf.Abs(throttle) > 0.001f;
+		float turnVis = 0f;
+		if (turn != 0f)
+		{
+			Heading += turn * TurnSpeed * delta;
+			turnVis = turn * TurnSpeed;
+		}
+		else if (thrust)
 		{
 			float want = Mathf.Atan2(-dir.X, -dir.Y);
-			float diff = Mathf.AngleDifference(Heading, want);
 			float before = Heading;
 			Heading = Mathf.LerpAngle(Heading, want, 1f - Mathf.Exp(-TurnRate * delta));
-			turn = Mathf.AngleDifference(before, Heading) / Mathf.Max(delta, 0.001f);
-			float align = Mathf.Max(0f, Mathf.Cos(diff));   // nicht quer zur Flugrichtung beschleunigen
-			Velocity += Vector3.Forward.Rotated(Vector3.Up, Heading) * Thrust * throttle * align * delta;
+			turnVis = Mathf.AngleDifference(before, Heading) / Mathf.Max(delta, 0.001f);
+		}
+		var forward = Vector3.Forward.Rotated(Vector3.Up, Heading);
+		if (thrust)
+		{
+			float align = Mathf.Max(0f, Mathf.Cos(Mathf.AngleDifference(Heading, Mathf.Atan2(-dir.X, -dir.Y))));   // nicht quer zur Flugrichtung beschleunigen
+			if (align > 0.01f)
+			{
+				// Solltempo entlang der Nase regeln (Slider/Autopilot geben den Anteil vor, negativ = rückwärts)
+				float target = throttle * MaxSpeed * speedScale;
+				float f = Velocity.Dot(forward);
+				float accel = Mathf.Clamp((target - f) * 5f, -BrakeAccel, Thrust);
+				Velocity += forward * accel * align * delta;
+			}
 		}
 		Thrusting = thrust;
 		// Flugassistent: Geschwindigkeit quer zur Blickrichtung abbauen
-		var forward = Vector3.Forward.Rotated(Vector3.Up, Heading);
 		var lateral = Velocity - forward * Velocity.Dot(forward);
 		Velocity -= lateral * (1f - Mathf.Exp(-LateralDamping * delta));
+		// Grenzen: vorwärts höchstens MaxSpeed, rückwärts höchstens 20 % (Throttle.ReverseShare)
+		float fNow = Velocity.Dot(forward);
+		var lat = Velocity - forward * fNow;
+		fNow = Mathf.Clamp(fNow, -MaxSpeed * Throttle.ReverseShare * speedScale, MaxSpeed * speedScale);
+		Velocity = forward * fNow + lat;
 		Velocity = Velocity.LimitLength(MaxSpeed * speedScale);
 		Velocity *= 1f - 0.4f * delta;
-		if (!thrust) Velocity *= Mathf.Exp(-(brake ? 3.0f : 0.8f) * delta);   // Stick loslassen bremst sanft, im Haltemodus kräftig
+		if (!thrust) Velocity *= Mathf.Exp(-(brake ? 3.0f : 0.8f) * delta);   // kein Schub bremst sanft, im Haltemodus kräftig
 		Position += Velocity * delta;
 		ResolveCollisions(view);
 
-		Rotation = new Vector3(0, Heading, Mathf.Lerp(Rotation.Z, Mathf.Clamp(turn * 0.12f, -0.5f, 0.5f), 1f - Mathf.Exp(-8f * delta)));
+		Rotation = new Vector3(0, Heading, Mathf.Lerp(Rotation.Z, Mathf.Clamp(turnVis * 0.12f, -0.5f, 0.5f), 1f - Mathf.Exp(-8f * delta)));
 		Show(thrust);
 		_flame.Scale = new Vector3(1, 1, 0.8f + GD.Randf() * 0.5f);
 	}

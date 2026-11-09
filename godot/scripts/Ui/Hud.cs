@@ -1,37 +1,46 @@
 using System;
 using Godot;
+using SpaceAdventure.Ui.Kit;
+using SpaceAdventure.Ui.Screens;
 
 namespace SpaceAdventure.Ui;
 
 /// <summary>
-/// Bedienoberfläche: Stick, Knöpfe, Statusanzeige, Hinweise, Zielmarker und die modalen Panels.
-/// Enthält keine Spiellogik, sondern meldet Eingaben über Ereignisse an den Aufrufer.
+/// Komposition der Bedienoberfläche: Flug-HUD, Hamburger-Menü und die Dock-Bildschirme (Andock-Menü plus
+/// Bereiche) als registrierte Bildschirme (Ui/Kit, Ui/Screens), dazu die bestehenden Panels (Karte,
+/// Wirtschaft). Hinweise, Zielmarker und Vollbild-Blitz liegen hier. Enthält keine Spiellogik, sondern meldet
+/// Eingaben über Ereignisse.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
-	public VirtualStick Stick { get; } = new();
+	public FlightHud Flight { get; } = new();
+	public CommandMenu Command { get; } = new();
 	public MapOverlay Map { get; } = new();
 	public EconomyPanel Economy { get; } = new();
-	public DockPanel Dock { get; } = new();
-	public MenuPanel Menu { get; } = new();
-	public TouchButton AutopilotButton { get; } = new("Autopilot") { Toggle = true };
-	public TouchButton FastButton { get; } = new("Zeitraffer") { Toggle = true };
-	public TouchButton DockButton { get; } = new("Andocken");
-	public TouchButton LaserButton { get; } = new("Feuer (F)");
-	public TouchButton TractorButton { get; } = new("Traktor") { Toggle = true };
-	public TouchButton AutoMineButton { get; } = new("Auto-Mining") { Toggle = true };
+	// Dock (UI.md Abschnitt 3): Auswahlmenü plus Vollbild-Bereiche; der Kontext hält Main aktuell
+	public DockContext DockCtx { get; } = new();
+	public DockMenu DockMenu { get; } = new();
+	public TradeScreen DockTrade { get; } = new();
+	public StationInfoScreen DockInfo { get; } = new();
+	public HangarScreen DockHangar { get; } = new();
+	public PlaceholderAreaScreen DockPlaceholder { get; } = new();
+	// Kommandozentrale (UI.md Abschnitt 4): Vollbild-Bereiche mit linker Leiste; Kontext hält Main aktuell
+	public CommandContext CcCtx { get; } = new();
+	public UniverseScreen CcUniverse { get; } = new();
+	public SectorScreen CcSector { get; } = new();
+	public FactionsScreen CcFactions { get; } = new();
+	public MyFactionScreen CcMyFaction { get; } = new();
+	public FleetScreen CcFleet { get; } = new();
+	public AssetsScreen CcAssets { get; } = new();
+	public CommsScreen CcComms { get; } = new();
+	public SystemScreen CcSystem { get; } = new();
+	/// <summary>Registry aller Bildschirme; ein neuer Bildschirm ist eine Klasse plus ein Register-Aufruf.</summary>
+	public ScreenRegistry Screens { get; } = new();
 
-	public event Action? MapPressed, EconomyPressed, MenuPressed, DockPressed, AutopilotPressed, FastPressed, TractorPressed, AutoMinePressed;
-
-	/// <summary>Liefert die Bildschirmposition des Ziels (oder null), damit der Marker gezeichnet werden kann.</summary>
+	/// <summary>Liefert die Bildschirmposition des Autopilot-Ziels (oder null), damit der Marker gezeichnet werden kann.</summary>
 	public Func<Vector2?>? TargetScreenPosition { get; set; }
 
-	readonly Label _status = new();
-	readonly Label _target = new();
-	readonly Label _cargo = new();
-	readonly Label _mining = new();
 	readonly Label _toast = new();
-	readonly ProgressBar _hull = new() { MaxValue = 100, ShowPercentage = false, CustomMinimumSize = new Vector2(220, 14) };
 	readonly ColorRect _flash = new() { Color = Colors.White, MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
 	readonly TargetMarker _marker = new();
 	Tween? _toastTween;
@@ -42,19 +51,38 @@ public partial class Hud : CanvasLayer
 		root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		AddChild(root);
 
+		Screens.Register(Flight);
+		Screens.Register(Command);
+		Screens.Register(DockMenu);
+		Screens.Register(DockTrade);
+		Screens.Register(DockInfo);
+		Screens.Register(DockHangar);
+		Screens.Register(DockPlaceholder);
+		DockMenu.Ctx = DockCtx;
+		DockTrade.Ctx = DockCtx;
+		DockInfo.Ctx = DockCtx;
+		DockHangar.Ctx = DockCtx;
+		DockPlaceholder.Ctx = DockCtx;
+		Screens.Register(CcUniverse);
+		Screens.Register(CcSector);
+		Screens.Register(CcFactions);
+		Screens.Register(CcMyFaction);
+		Screens.Register(CcFleet);
+		Screens.Register(CcAssets);
+		Screens.Register(CcComms);
+		Screens.Register(CcSystem);
+		CcUniverse.Ctx = CcCtx;
+		CcSector.Ctx = CcCtx;
+		CcFactions.Ctx = CcCtx;
+		CcMyFaction.Ctx = CcCtx;
+		CcFleet.Ctx = CcCtx;
+		CcAssets.Ctx = CcCtx;
+		CcComms.Ctx = CcCtx;
+		CcSystem.Ctx = CcCtx;
+
 		_marker.Hud = this;
 		root.AddChild(_marker);
-
-		// Status oben links
-		var top = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(16, 10) };
-		_status.AddThemeFontSizeOverride("font_size", 20);
-		_target.AddThemeFontSizeOverride("font_size", 18);
-		_target.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.4f));
-		_cargo.AddThemeFontSizeOverride("font_size", 18);
-		_mining.AddThemeFontSizeOverride("font_size", 18);
-		_mining.AddThemeColorOverride("font_color", new Color(0.5f, 1f, 0.7f));
-		top.AddChild(_status); top.AddChild(_hull); top.AddChild(_target); top.AddChild(_cargo); top.AddChild(_mining);
-		root.AddChild(top);
+		root.AddChild(Flight);
 
 		// Hinweistext oben Mitte
 		_toast.HorizontalAlignment = HorizontalAlignment.Center;
@@ -65,64 +93,32 @@ public partial class Hud : CanvasLayer
 		_toast.Position = new Vector2(-400, 70); _toast.Size = new Vector2(800, 40);
 		root.AddChild(_toast);
 
-		// Stick unten links
-		Stick.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomLeft);
-		Stick.Position = new Vector2(24, -264); Stick.Size = new Vector2(240, 240);
-		root.AddChild(Stick);
-
-		// Knöpfe unten rechts
-		var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-		col.AddThemeConstantOverride("separation", 8);
-		foreach (var b in new[] { DockButton, AutopilotButton, new TouchButton("Karte"), new TouchButton("Wirtschaft"), FastButton, new TouchButton("Menü") })
-			col.AddChild(b);
-		col.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
-		col.Position = new Vector2(-180, -460); col.Size = new Vector2(160, 440);
-		root.AddChild(col);
-		DockButton.Visible = false;
-
-		// Abbau-Knöpfe links neben der Hauptspalte (gut mit dem Daumen erreichbar)
-		var mineCol = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-		mineCol.AddThemeConstantOverride("separation", 8);
-		foreach (var b in new[] { LaserButton, TractorButton, AutoMineButton }) mineCol.AddChild(b);
-		mineCol.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
-		mineCol.Position = new Vector2(-350, -230); mineCol.Size = new Vector2(160, 200);
-		root.AddChild(mineCol);
-		TractorButton.Pressed += () => TractorPressed?.Invoke();
-		AutoMineButton.Pressed += () => AutoMinePressed?.Invoke();
-
-		DockButton.Pressed += () => DockPressed?.Invoke();
-		AutopilotButton.Pressed += () => AutopilotPressed?.Invoke();
-		FastButton.Pressed += () => FastPressed?.Invoke();
-		((TouchButton)col.GetChild(2)).Pressed += () => MapPressed?.Invoke();
-		((TouchButton)col.GetChild(3)).Pressed += () => EconomyPressed?.Invoke();
-		((TouchButton)col.GetChild(5)).Pressed += () => MenuPressed?.Invoke();
-
-		// Wirtschaftspanel oben rechts, Dock/Menü zentriert, Karte vollflächig
+		// Panels: Wirtschaft oben rechts, Karte vollflächig; Dock-Bildschirme kommen ans Ende (liegen oben)
 		Economy.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
 		Economy.Position = new Vector2(-470, 10);
 		root.AddChild(Economy);
-		foreach (var c in new Control[] { Dock, Menu })
-		{
-			c.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
-			c.GrowHorizontal = Control.GrowDirection.Both; c.GrowVertical = Control.GrowDirection.Both;
-			root.AddChild(c);
-		}
 		root.AddChild(Map);
+		root.AddChild(Command);
+		root.AddChild(DockMenu);
+		root.AddChild(DockTrade);
+		root.AddChild(DockInfo);
+		root.AddChild(DockHangar);
+		root.AddChild(DockPlaceholder);
+		root.AddChild(CcUniverse);
+		root.AddChild(CcSector);
+		root.AddChild(CcFactions);
+		root.AddChild(CcMyFaction);
+		root.AddChild(CcFleet);
+		root.AddChild(CcAssets);
+		root.AddChild(CcComms);
+		root.AddChild(CcSystem);
 
 		_flash.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		root.AddChild(_flash);
 	}
 
-	public bool AnyModalOpen => Map.Visible || Dock.Visible || Menu.Visible;
-
-	public void SetStatus(string text, float hull, string? target, string? cargo = null, string? mining = null)
-	{
-		_status.Text = text;
-		_hull.Value = hull;
-		_target.Text = target ?? "";
-		_cargo.Text = cargo ?? "";
-		_mining.Text = mining ?? "";
-	}
+	/// <summary>Ein Modal (Karte, Hamburger-Menü, Dock-Menü/-Bereich) ist offen – Weltzeiger und Tasten bleiben gesperrt.</summary>
+	public bool AnyModalOpen => Map.Visible || Screens.Current != null;
 
 	public void Toast(string text, float seconds = 2.5f)
 	{

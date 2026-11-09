@@ -1,12 +1,18 @@
 # Oberfläche (Entwurf)
 
-**Status: Entwurf. Nichts davon ist im Spiel umgesetzt.** Die Bilder entstanden als Godot-Prototyp (`godot/prototypes/`, kein Teil des Spiels). Sie lassen sich neu erzeugen:
+**Status: Stufen 1 (Flug-HUD, Abschnitt 2), 2 (Andock-Menü/Dock-Bereiche, Abschnitt 3) und 3 (Kommandozentrale, Abschnitt 4) sind umgesetzt** in `godot/scripts/Ui/` (Kit unter `Ui/Kit/`, Bildschirme unter `Ui/Screens/`, Platzhalter zentral in `Ui/UiPlaceholders.cs`). Die Bilder entstanden als Godot-Prototyp (`godot/prototypes/`, kein Teil des Spiels). Sie lassen sich neu erzeugen:
 
 ```
 dotnet build godot
 godot-mono --path godot res://prototypes/proto.tscn -- --backdrop out/backdrop.png
 godot-mono --path godot res://prototypes/proto.tscn -- --final out out/backdrop.png     # Flug-HUD und Dock-Bereiche
 godot-mono --path godot res://prototypes/proto.tscn -- --shots out out/backdrop.png     # fünf frühere Varianten
+```
+
+**Screenshot-Werkzeug fürs Review der echten Oberfläche** (nicht headless, braucht DISPLAY): Lädt eine Demo-Welt, wartet bis die Szene steht, und speichert über `RenderingServer.FramePostDraw` + `Viewport.GetTexture().GetImage().SavePng()` vier PNGs, dann beendet sich das Spiel.
+
+```
+godot-mono --path godot -- --ui-shots build/ui-shots/     # 01-04 Flug-HUD/Hamburger, 05-11 Dock, 12-22 Kommandozentrale
 ```
 
 Verweise: [UMSETZUNGSPLAN.md](UMSETZUNGSPLAN.md), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) (Dienste, Feuerwinkel), [POLITIK.md](POLITIK.md) (Spielerkasse).
@@ -20,7 +26,9 @@ Verweise: [UMSETZUNGSPLAN.md](UMSETZUNGSPLAN.md), [SCHIFFSSLOTS.md](SCHIFFSSLOTS
 
 ## 2. Flug-HUD
 
-- **Steuerung:** Wendetasten ◀ und ▶ (große Haltetasten) unten links; Tempo als **waagerechter Slider unten rechts am Bildrand** von STOPP bis MAX, der Griff zeigt den Prozentwert, daneben steht die Geschwindigkeit. Links von STOPP liegt ein kurzer **langsamer Rückwärtsbereich** mit höchstens **20 % der Höchstgeschwindigkeit** (entschieden). Der virtuelle Stick entfällt. Der Slider bleibt stehen, bis man ihn ändert. **Wenden bleibt bei Haltetasten** (entschieden).
+**Status: umgesetzt** (`Ui/Screens/FlightHud.cs`, Slider `Ui/Kit/KitSlider.cs`, Waffenzustände `SpaceSim.Core/Weapons/FiringArc.cs` mit Tests, Slider-Rechnung `SpaceSim.Core/Flight/Throttle.cs` mit Tests). Schild, Sprit und Leistung sind gedämpfte Platzhalter (`UiPlaceholders`), Hülle und Credits echt. Der Mining-Laser sitzt als 360°-Turm, damit sich das Spielverhalten nicht ändert.
+
+- **Steuerung:** Wendetasten ◀ und ▶ (große Haltetasten) unten links; Tempo als **waagerechter Slider unten rechts am Bildrand** von STOPP bis MAX, der Griff zeigt den Prozentwert, daneben steht die Geschwindigkeit. Links von STOPP liegt ein kurzer **langsamer Rückwärtsbereich** mit höchstens **20 % der Höchstgeschwindigkeit** (entschieden). Der virtuelle Stick entfällt. Der Slider bleibt stehen, bis man ihn ändert. **Wenden bleibt bei Haltetasten** (entschieden). Tastatur: A/D bzw. Pfeile drehen, W/S bzw. Pfeile hoch/runter verstellen den Slider. Lenkpriorität: Slider/Tasten > Zeiger > Autopilot; manuelle Bedienung bricht Autopilot und Auto-Mining ab.
 - **Hamburger-Menü** unten links öffnet die Kommandozentrale (Abschnitt 4): Karte, Fraktionen, Meine Fraktion, Flotte, Besitz, Comms (mit Zähler), Speichern, Einstellungen. Die Schalter für Autopilot und Auto-Mining bleiben vorerst an der Zielkarte.
 - **Waffen:** Rechts am Rand **eine Taste je Waffenschacht** (Laser, Geschütz, Traktor). Jede Taste zeigt den Feuerwinkel als Symbol und den Zustand:
 
@@ -36,6 +44,8 @@ Verweise: [UMSETZUNGSPLAN.md](UMSETZUNGSPLAN.md), [SCHIFFSSLOTS.md](SCHIFFSSLOTS
 - **Kontexttaste:** Nahe einer Station erscheint „Andocken“, am Gate „Springen“.
 
 ## 3. Andock-Menü und Dock-Bereiche
+
+**Status: umgesetzt** (`Ui/Screens/DockMenu.cs`, `DockAreaScreen.cs` + `TradeScreen.cs`, `StationInfoScreen.cs`, `HangarScreen.cs`, `PlaceholderAreaScreen.cs`; Bereichsliste datengetrieben in `DockAreas.cs`, Registry-Instanz in `GameSession.Services`). Das alte `DockPanel` entfällt. Handel: Zeilen und Aktionen ausschließlich über `IStationService.Offers`/`Execute` (`buy:<id>`/`sell:<id>`/`sell_all`), Liste/Kacheln umschaltbar, Zeile antippen klappt Stepper/Summe/Kaufen/Verkaufen auf, rechte Spalte Schiff mit Fracht/Laderaum/Credits echt, beste Verkaufsstelle je Ware über `MarketInfo.BestBuyerForGood` (Core, getestet). **Platzhalter:** Reparatur & Tanken, Ausrüster, Werft, Taxi, Aufträge (gedämpft mit „Bald“, kurze Erklärseite, Texte in `UiPlaceholders`); „Rückgängig“ und Preisverlauf-Trends im Handel; Ruf/Zoll/Sperrstufe/Hinweise der Station-Info; fremde/weitere Schiffe und Steuern/Befehle/Verkaufen/Heim schicken im Hangar; Liegeplätze/Gebühr. Schiffwechsel erst in Stufe 3.
 
 Beim Andocken erscheint zuerst ein **kleines Auswahlmenü**:
 
@@ -66,6 +76,8 @@ Das **Taxi bringt den Spieler allein zu einer anderen Station, das Schiff bleibt
 - Die Routenkarte markiert die eigenen Schiffe an ihren Standorten.
 
 ## 4. Kommandozentrale
+
+**Status: umgesetzt** (`Ui/Screens/CommandCenter.cs` als Basis wie `DockAreaScreen` – Vollbild, linke Leiste mit den Bereichen plus „System“, Inhalt rechts, „← Flug“ unten links; `CommandMenu.cs` öffnet die Bereiche; registriert in `ScreenRegistry`). Echt angebunden: Sektorkarte (Sektoren/Gates/Fraktions-Halos/Spieler/Stationszahl), Ebenen Fraktion/Schiffe/Preise (Preise über die Core-Funktion `SectorEconomy.PriceLevel`, getestet), Sektor-Draufsicht (Stationen, Gürtel, Gates, NPC-Schiffe via `Materializer`, Spieler), Route über `Universe.FindRoute` (Sprungzahl + Weg), „Sektorkarte öffnen“, „Route planen/Autopilot“ und „Autopilot hierhin“ (setzen das Autopilot-Ziel in Main wie die Sternenkarte), Fraktionsliste (Name, Farbe, Stationen, Schiffe, Vermögen), „Gebiet auf Karte“, Kasse der Person (= Credits des Spielerschiffs, so beschriftet – wandert später zur Person, siehe POLITIK.md), Zahl eigener Schiffe/Stationen, Gesamtwert (Credits + Fracht zu Basispreisen über `SectorEconomy.TotalValue`, getestet), Flottenliste mit Auftrag aus `Ship.Order`/Auto-Mining, Besitz-Tabs und Schiffsdetail, Auto-Mining-Schalter in der Flotte (einzige echte Befehlswirkung). **Platzhalter** (gedämpft, „Platzhalter“/„Bald“, Texte zentral in `UiPlaceholders.cs`): Sicherheitsebene, Taxi buchen (Preis-Platzhalter), Beziehung/Art/Persönlichkeit/Ereignisse der Fraktionen, Größenstufe/Fortschritt/Mitgliedschaft/Unterhalt/Liegegebühr/Einnahmen/Ruf/Fähigkeiten, Befehlsraster/Verhalten/Befehlskapazität, „In dieses Schiff wechseln“ („Bereits aktiv“ bzw. „Bald (Phase 12)“ – der Spieler besitzt nur ein Schiff), Befehle/Heim schicken/Verkaufen, gesamter Comms-Bereich (Nachrichten, Antworten mit Folgenvorschau; Zähler am Hamburger-Menü).
 
 Das Hamburger-Menü öffnet die Kommandozentrale im Vollbild, gebaut wie das Dock: linke Leiste, Inhalt rechts, „← Flug“ unten links.
 

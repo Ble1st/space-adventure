@@ -40,11 +40,11 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 **Ziel:** Das Dock-Panel kennt Dienste statt fester Knöpfe. Verhalten bleibt gleich.
 - `IStationService` (`Key`, `IsAvailable`, `Offers`, `Execute`), Registry `StationServices`, Event `ServicePerformed`.
 - Der heutige Markt (`TradeActions.Buy/Sell/SellAll`) wird der Dienst `trade`; die JSON-Station-Typen bekommen `services: ["trade"]`, Standard für bestehende Typen.
-- `DockPanel` (`godot/scripts/Ui/Panels.cs`) zeichnet generisch aus `Offers`.
+- Dock-Oberfläche zeichnet generisch aus `Offers` (umgesetzt mit UI Stufe 2: Andock-Menü und Bereiche unter `godot/scripts/Ui/Screens/`, `DockAreas` baut die Bereichsliste aus `ForStation`).
 - **Tests:** Dienst-Registry, `trade` als Dienst liefert dieselben Ergebnisse wie `TradeActions`; Selbsttest unverändert grün.
 - **Abnahme:** Kein sichtbarer Unterschied im Spiel, aber neue Dienste lassen sich allein per JSON und Registrierung ergänzen.
 
-**Stand:** Schritt 1 (Core: `IStationService`, `StationServices`, `TradeService`, Event `ServicePerformed`, 16 Tests) und 1b (Nachbesserung: `ServiceOffer` mit Ware/Bestand/an Bord, strikte Angebotsschlüssel, Event nur bei Erfolg, Fehlpfad-Tests) sind umgesetzt. Schritt 2 (Dienste je Stationstyp: `services` in JSON, Standard `["trade"]`, Prüfung beim Weltaufbau, Speicherung ohne Versionssprung, `StationServices.ForStation`, 9 Tests) ist umgesetzt. Offen: Schritt 3 (`DockPanel` zeichnet aus `Offers`).
+**Stand:** Schritt 1 (Core: `IStationService`, `StationServices`, `TradeService`, Event `ServicePerformed`, 16 Tests) und 1b (Nachbesserung: `ServiceOffer` mit Ware/Bestand/an Bord, strikte Angebotsschlüssel, Event nur bei Erfolg, Fehlpfad-Tests) sind umgesetzt. Schritt 2 (Dienste je Stationstyp: `services` in JSON, Standard `["trade"]`, Prüfung beim Weltaufbau, Speicherung ohne Versionssprung, `StationServices.ForStation`, 9 Tests) ist umgesetzt. Schritt 3 ist umgesetzt (UI-Umsetzung Stufe 2): Das Dock besteht aus Andock-Menü und Vollbild-Bereichen (`godot/scripts/Ui/Screens/`, Registry-Instanz in `GameSession.Services`); der Handel zeichnet Zeilen aus `IStationService.Offers` und führt Aktionen nur über `IStationService.Execute` aus (`buy:<id>`/`sell:<id>`/`sell_all`), das alte `DockPanel` entfällt. Selbsttest prüft Kauf/Verkauf/„Alles verkaufen“ über Dienst+Oberfläche, die Bereichsliste (Handel nur mit Dienst „trade“, Platzhalter inaktiv) und Abdocken aus einem Bereich; `MarketInfo` (beste Verkaufsstelle je Ware, Nachfrage/Überschuss) ist reine Core-Funktion mit Tests.
 
 ## Phase 2: Fähigkeiten und Steuerer
 

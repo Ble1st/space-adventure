@@ -7,7 +7,6 @@ using SpaceAdventure.Game;
 using SpaceSim.Core.Diagnostics;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
-using SpaceSim.Core.Trading;
 
 namespace SpaceAdventure.Ui;
 
@@ -138,109 +137,4 @@ public partial class EconomyPanel : PanelContainer
 	}
 
 	static string Short(string s) => s.Length > 14 ? s[..14] : s;
-}
-
-/// <summary>Stationsansicht beim Andocken: Marktliste mit Kaufen/Verkaufen je Ware, Fracht und Abdocken.</summary>
-public partial class DockPanel : PanelContainer
-{
-	public event Action? Undock;
-	public event Action? SellAll;
-	/// <summary>Kauf einer Ware; Menge 0 = so viel wie möglich.</summary>
-	public event Action<GoodId, int>? Buy;
-	/// <summary>Verkauf der gesamten Fracht einer Ware.</summary>
-	public event Action<GoodId>? Sell;
-	readonly Label _label = new();
-	readonly VBoxContainer _rows = new();
-	readonly TouchButton _undock = new("Abdocken", new Vector2(200, 56));
-	readonly TouchButton _sell = new("Alles verkaufen", new Vector2(240, 56));
-
-	public DockPanel()
-	{
-		AddThemeStyleboxOverride("panel", UiStyle.Panel(0.94f));
-		Visible = false;
-		CustomMinimumSize = new Vector2(1000, 600);
-		var box = new VBoxContainer();
-		_label.AddThemeFontSizeOverride("font_size", 18);
-		box.AddChild(_label);
-		var scroll = new ScrollContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-		_rows.AddThemeConstantOverride("separation", 6);
-		_rows.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		scroll.AddChild(_rows);
-		box.AddChild(scroll);
-		var row = new HBoxContainer();
-		row.AddThemeConstantOverride("separation", 12);
-		row.AddChild(_sell); row.AddChild(_undock);
-		box.AddChild(row);
-		AddChild(box);
-		_undock.Pressed += () => Undock?.Invoke();
-		_sell.Pressed += () => SellAll?.Invoke();
-	}
-
-	public void Open(Universe u, Station st, Ship? ship = null)
-	{
-		var sb = new StringBuilder();
-		string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
-		sb.AppendLine($"{st.Name}  ({type})   Fraktion: {u.Factions[st.Owner].Name}   Kasse: {st.Credits:0}");
-		if (ship != null)
-		{
-			sb.Append($"Deine Credits: {ship.Credits:0}   Laderaum {ship.UsedVolume(u):0}/{ship.CargoCapacity:0}   Erlös bei Verkauf: {TradeActions.Quote(u, ship, st):0}");
-		}
-		_label.Text = sb.ToString();
-
-		foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }
-		foreach (var (gid, e) in st.Market.OrderBy(k => k.Key.Value))
-		{
-			var good = u.Goods[gid];
-			float held = ship?.Cargo.GetValueOrDefault(gid) ?? 0f;
-			var line = new HBoxContainer();
-			line.AddThemeConstantOverride("separation", 8);
-			var info = new Label
-			{
-				Text = $"{good.Name,-10} Preis {e.Price,6:0.0}   Bestand {e.Amount,5:0}   an Bord {held,4:0}",
-				CustomMinimumSize = new Vector2(520, 0),
-				VerticalAlignment = VerticalAlignment.Center,
-			};
-			info.AddThemeFontSizeOverride("font_size", 17);
-			line.AddChild(info);
-			if (ship != null)
-			{
-				float max = TradeActions.MaxBuyable(u, ship, st, gid);
-				AddBtn(line, "Kauf 1", max >= 1, () => Buy?.Invoke(gid, 1));
-				AddBtn(line, "Kauf 10", max >= 1, () => Buy?.Invoke(gid, 10));
-				AddBtn(line, $"Max {max:0}", max >= 1, () => Buy?.Invoke(gid, 0));
-				AddBtn(line, "Verkaufen", held > 0f, () => Sell?.Invoke(gid));
-			}
-			_rows.AddChild(line);
-		}
-		Visible = true;
-	}
-
-	static void AddBtn(Control parent, string text, bool enabled, Action onPress)
-	{
-		var b = new TouchButton(text, new Vector2(110, 48));
-		if (!enabled) b.Modulate = new Color(1, 1, 1, 0.35f);
-		else b.Pressed += onPress;
-		parent.AddChild(b);
-	}
-}
-
-public partial class MenuPanel : PanelContainer
-{
-	public event Action<string>? Action;
-
-	public MenuPanel()
-	{
-		AddThemeStyleboxOverride("panel", UiStyle.Panel(0.95f));
-		Visible = false;
-		var box = new VBoxContainer();
-		box.AddThemeConstantOverride("separation", 10);
-		foreach (var (id, text) in new[] { ("save", "Speichern"), ("load", "Laden"), ("new", "Neues Spiel"), ("close", "Zurück") })
-		{
-			var b = new TouchButton(text, new Vector2(260, 56));
-			string key = id;
-			b.Pressed += () => Action?.Invoke(key);
-			box.AddChild(b);
-		}
-		AddChild(box);
-	}
 }

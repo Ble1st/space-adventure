@@ -2,6 +2,7 @@ using System;
 using SpaceSim.Core.Content;
 using SpaceSim.Core.Diagnostics;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Services;
 using SpaceSim.Core.Simulation;
 
 namespace SpaceAdventure.Game;
@@ -16,6 +17,8 @@ public sealed class GameSession
     public RouteRecorder Routes { get; private set; } = null!;
     public SimulationRunner Runner { get; } = new();
     public Ship Player => U.Ships[U.PlayerShip];
+    /// <summary>Registry der Stationsdienste (Instanz beim Aufrufer, kein globaler Zustand); die Dock-Bereiche lesen daraus.</summary>
+    public StationServices Services { get; } = StationServices.Default();
 
     /// <summary>Wird nach jedem Austausch des Universums ausgelöst (neues Spiel, Laden).</summary>
     public event Action? UniverseReplaced;
