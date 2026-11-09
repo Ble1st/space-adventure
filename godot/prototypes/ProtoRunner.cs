@@ -23,6 +23,8 @@ public partial class ProtoRunner : Control
 		{
 			int i = Array.IndexOf(args, "--backdrop");
 			if (i >= 0) { await CaptureBackdrop(args[i + 1]); GetTree().Quit(0); return; }
+			i = Array.IndexOf(args, "--final");
+			if (i >= 0) { await CaptureFinal(args[i + 1], args[i + 2]); GetTree().Quit(0); return; }
 			i = Array.IndexOf(args, "--shots");
 			if (i >= 0) { await CaptureShots(args[i + 1], args[i + 2]); GetTree().Quit(0); return; }
 			GD.PrintErr("Aufruf: -- --backdrop out.png | --shots outdir backdrop.png");
@@ -50,6 +52,26 @@ public partial class ProtoRunner : Control
 		foreach (var c in main.GetChildren()) if (c is Hud h) h.Visible = false;
 		await Frames(this, 3);
 		await Save(outPath);
+	}
+
+	async Task CaptureFinal(string outDir, string backdrop)
+	{
+		var tex = ImageTexture.CreateFromImage(Image.LoadFromFile(backdrop));
+		var data = ProtoData.Create();
+		foreach (var name in FinalUi.Screens)
+		{
+			foreach (var c in GetChildren()) c.QueueFree();
+			await Frames(this, 2);
+			var bg = new TextureRect { Texture = tex, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale };
+			bg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+			AddChild(bg);
+			var layer = new Control();
+			layer.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+			AddChild(layer);
+			FinalUi.Build(name, layer, data);
+			await Frames(this, 4);
+			await Save(Path.Combine(outDir, $"final_{name}.png"));
+		}
 	}
 
 	async Task CaptureShots(string outDir, string backdrop)
