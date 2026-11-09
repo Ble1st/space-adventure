@@ -7,7 +7,7 @@ namespace SpaceAdventure.Prototypes;
 /// <summary>Finale Oberfläche: Kontext-HUD, kleines Andock-Menü und Dock-Bereiche (Handel, Tanken, Ausrüster, Hangar, Info, Taxi).</summary>
 public static class FinalUi
 {
-	public static readonly string[] Screens = { "hud", "menu", "handel", "kacheln", "tanken", "ausruester", "hangar", "info", "taxi" };
+	public static readonly string[] Screens = { "hud", "bays", "menu", "handel", "kacheln", "tanken", "ausruester", "hangar", "info", "taxi" };
 
 	static readonly Color Act = new(0.2f, 0.38f, 0.62f, 0.95f);
 	static readonly Color BuyC = new(0.15f, 0.45f, 0.28f, 0.95f);
@@ -20,6 +20,7 @@ public static class FinalUi
 		switch (name)
 		{
 			case "hud": Hud(root, d); break;
+			case "bays": Bays(root, d); break;
 			case "menu": Menu(root, d); break;
 			case "handel": Handel(root, d); break;
 			case "kacheln": Kacheln(root, d); break;
@@ -31,12 +32,67 @@ public static class FinalUi
 		}
 	}
 
-	static void Stick(Control root, float x, float y)
+	static void StickUnused(Control root, float x, float y)
 		=> G(root, x, y, 220, 220, g => { var c = new Vector2(110, 110); g.DrawCircle(c, 100, new Color(1, 1, 1, 0.07f)); g.DrawArc(c, 100, 0, Mathf.Tau, 64, new Color(1, 1, 1, 0.35f), 2); g.DrawCircle(c, 38, new Color(1, 1, 1, 0.28f)); });
 
 	// ───────────── Flug-HUD ─────────────
+	static void Wedge(Gfx g, Vector2 c, float r, float centerDeg, float halfDeg, Color fill, Color edge)
+	{
+		var pts = new System.Collections.Generic.List<Vector2> { c };
+		const int n = 28;
+		for (int i = 0; i <= n; i++)
+		{
+			float a = Mathf.DegToRad(centerDeg - halfDeg + 2 * halfDeg * i / n - 90);
+			pts.Add(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+		}
+		g.DrawColoredPolygon(pts.ToArray(), fill);
+		pts.Add(c);
+		g.DrawPolyline(pts.ToArray(), edge, 1.5f, true);
+	}
+
+	enum BayState { InArc, Outside, Reloading, NoTarget }
+
+	/// <summary>Eine Taste je Waffenschacht: Name, Feuerwinkel als Mini-Symbol und Zustand (im Winkel, außerhalb, lädt nach).</summary>
+	static void BayButton(Control parent, float x, float y, string name, string place, float centerDeg, float halfDeg, BayState st, string detail, float reload = 0f)
+	{
+		var (border, fill, txt) = st switch
+		{
+			BayState.InArc => (Green, new Color(0.1f, 0.34f, 0.2f, 0.95f), Green),
+			BayState.Outside => (Orange, new Color(0.3f, 0.2f, 0.06f, 0.92f), Orange),
+			BayState.Reloading => (Dim, new Color(0.08f, 0.12f, 0.2f, 0.92f), Dim),
+			_ => (new Color(Dim, 0.4f), new Color(0.05f, 0.08f, 0.14f, 0.85f), Dim),
+		};
+		var w = Win(parent, x, y, 176, 68, fill, border, 12);
+		var cn = name; var cp = place; var cd = detail; var cs = st; var cc = centerDeg; var ch = halfDeg; var cr = reload; var tc = txt; var bc = border;
+		G(w, 0, 0, 176, 68, g =>
+		{
+			var c = new Vector2(30, 36);
+			g.DrawCircle(c, 22, new Color(0, 0, 0, 0.35f));
+			Wedge(g, c, 20, cc, ch, new Color(bc, 0.45f), bc);
+			g.DrawCircle(c, 3.5f, White);
+			g.Text(new Vector2(62, 28), cn, 17, White);
+			g.Text(new Vector2(62, 46), cp, 12, Dim);
+			g.Text(new Vector2(62, 62), cd, 13, tc);
+			if (cs == BayState.Reloading) { g.DrawRect(new Rect2(62, 31, 100, 4), new Color(0, 0, 0, 0.5f)); g.DrawRect(new Rect2(62, 31, 100 * cr, 4), Cyan); }
+		});
+	}
+
 	public static void Hud(Control root, ProtoData d)
 	{
+		var shipC = new Vector2(640, 362);
+		// Feuerwinkel um das Schiff
+		G(root, 0, 0, 1280, 720, g =>
+		{
+			Wedge(g, shipC, 290, 0, 40, new Color(Orange, 0.07f), new Color(Orange, 0.45f));
+			Wedge(g, shipC, 290, -90, 50, new Color(Green, 0.10f), new Color(Green, 0.6f));
+			Wedge(g, shipC, 290, 90, 50, new Color(Dim, 0.05f), new Color(Dim, 0.3f));
+			var tgt = new Vector2(232, 296);
+			g.DrawLine(shipC + (tgt - shipC).Normalized() * 40, tgt, new Color(Green, 0.8f), 2f, true);
+			g.Text(new Vector2(410, 310), "81° ◀", 16, Green);
+		});
+		G(root, 188, 252, 88, 88, g => Brackets(g, new Rect2(4, 4, 80, 80), 16, Green, 2));
+
+		// Status oben links
 		var st = At(root, Pnl(new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10, 10), 14, 12, 300, 132);
 		var sv = V(5); st.AddChild(sv);
 		foreach (var (n, v, c, t) in new[] { ("Hülle", d.Hull, Green, "82"), ("Schild", d.Shield, Cyan, "64"), ("Sprit", d.Fuel * 100, Orange, "72"), ("Leistung", 75f, Dim, "9/12") })
@@ -48,40 +104,125 @@ public static class FinalUi
 		}
 		At(root, L($"{N0(d.PlayerCredits)} Credits", 20, Orange), 20, 150);
 
-		// Funkfeed
-		var feed = At(root, Pnl(new Color(0.03f, 0.05f, 0.1f, 0.6f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 8, 8), 14, 190, 330, 60);
-		var fr = H(10); feed.AddChild(fr);
-		var face = Pnl(new Color(0.12f, 0.2f, 0.34f), Edge, 6, 0); face.CustomMinimumSize = new Vector2(40, 40); fr.AddChild(face);
-		var fv = V(0); fr.AddChild(fv);
-		fv.AddChild(L("Hafenkontrolle", 15, Cyan));
-		fv.AddChild(L("Andockfreigabe erteilt", 14, White));
-
-		// Sektorchip oben Mitte
+		// Sektorchip und Funkfeed oben Mitte
 		var chip = At(root, Pnl(new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 20, 6), 420, 12, 430, 42);
 		var cr = H(12); chip.AddChild(cr);
 		cr.AddChild(L(d.Sector, 18, Cyan)); cr.AddChild(L("Terra · Kontrolle", 15, Dim)); cr.AddChild(L("Sicherheit ▮▮▮▯", 15, Green));
+		var feed = At(root, Pnl(new Color(0.03f, 0.05f, 0.1f, 0.6f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 8, 8), 420, 62, 330, 56);
+		var fr = H(10); feed.AddChild(fr);
+		var face = Pnl(new Color(0.12f, 0.2f, 0.34f), Edge, 6, 0); face.CustomMinimumSize = new Vector2(36, 36); fr.AddChild(face);
+		var fv = V(0); fr.AddChild(fv);
+		fv.AddChild(L("Hafenkontrolle", 14, Cyan)); fv.AddChild(L("Erzfrachter Mule: Route frei", 13, White));
 
-		// Karte und Menü oben rechts
+		// Karte und Zeit oben rechts
 		At(root, B("Karte", 110, 50, null, 18, null, 25), 1030, 12);
-		At(root, B("Menü", 100, 50, null, 18, null, 25), 1150, 12);
+		At(root, B("Zeit ×1", 110, 50, null, 17, null, 25), 1150, 12);
 
-		// Zielkarte mit Radar
-		var tg = At(root, Pnl(new Color(0.03f, 0.05f, 0.1f, 0.72f), Orange, 12, 12), 930, 72, 340, 132);
+		// Zielkarte mit Radar und Schnellschaltern
+		var tg = At(root, Pnl(new Color(0.03f, 0.05f, 0.1f, 0.72f), Green, 12, 12), 930, 72, 340, 132);
 		var tv = V(2); tg.AddChild(tv);
-		tv.AddChild(L("Handelsstation Alpha", 19, Orange));
-		tv.AddChild(L("Terra · freundlich · 340 m", 15, Dim));
-		tv.AddChild(L("Handel · Reparatur · Taxi · Hangar", 14, White));
-		tv.AddChild(L("Zoll 4 %   Fahndung: sauber", 14, Green));
-		G(root, 1196, 80, 64, 64, g => { var c = new Vector2(32, 32); g.DrawCircle(c, 30, new Color(0, 0.08f, 0.04f, 0.8f)); g.DrawArc(c, 30, 0, Mathf.Tau, 48, Green, 2); g.DrawArc(c, 15, 0, Mathf.Tau, 32, new Color(Green, 0.4f), 1); g.DrawCircle(c, 3, Cyan); g.DrawCircle(c + new Vector2(10, -12), 3, Orange); g.DrawCircle(c + new Vector2(-14, 8), 3, Orange); });
+		tv.AddChild(L("Asteroid Ae-14 · Eisenerz", 18, Green));
+		tv.AddChild(L("Erz 340 · 410 m · Winkel 81° links", 15, Dim));
+		tv.AddChild(L("Im Feuerwinkel: Laser 2", 15, White));
+		tv.AddChild(L("Ertrag/Schuss ▮▮▮▯▯  Chance 62 %", 14, Dim));
+		G(root, 1196, 80, 64, 64, g => { var c = new Vector2(32, 32); g.DrawCircle(c, 30, new Color(0, 0.08f, 0.04f, 0.8f)); g.DrawArc(c, 30, 0, Mathf.Tau, 48, Green, 2); g.DrawArc(c, 15, 0, Mathf.Tau, 32, new Color(Green, 0.4f), 1); g.DrawCircle(c, 3, Cyan); g.DrawCircle(c + new Vector2(-24, -6), 3, Green); g.DrawCircle(c + new Vector2(10, -12), 3, Orange); });
+		At(root, B("Autopilot", 160, 42, null, 16, null, 21), 930, 212);
+		At(root, B("Auto-Mining", 170, 42, null, 16, null, 21), 1100, 212);
 
-		G(root, 300, 12, 134, 134, g => Brackets(g, new Rect2(4, 4, 126, 126), 18, Orange, 2));
-		Stick(root, 30, 450);
-		At(root, B("Andocken", 150, 150, new Color(0.15f, 0.5f, 0.3f, 0.95f), 24, null, 75, Green), 1090, 540);
-		At(root, B("Feuer", 84, 84, null, 17, null, 42), 984, 560);
-		At(root, B("Traktor", 84, 84, null, 17, null, 42), 996, 462);
-		At(root, B("Auto", 84, 84, null, 17, null, 42), 1090, 410);
-		var toast = At(root, Pnl(new Color(0.03f, 0.1f, 0.06f, 0.8f), Green, 18, 6), 470, 650, 340, 44);
+		// ── Steuerung links: Tempo-Slider, Wenden, Hamburger ──
+		G(root, 14, 176, 110, 456, g =>
+		{
+			g.Text(new Vector2(0, 20), "TEMPO", 14, Dim, HorizontalAlignment.Center, 110);
+			g.Text(new Vector2(0, 46), "148 m/s", 18, White, HorizontalAlignment.Center, 110);
+			float cx = 44, top = 84, bot = 430, pct = 0.62f;
+			float ty = bot - pct * (bot - top);
+			g.DrawRect(new Rect2(cx - 7, top, 14, bot - top), new Color(1, 1, 1, 0.16f));
+			g.DrawRect(new Rect2(cx - 7, ty, 14, bot - ty), new Color(Cyan, 0.8f));
+			foreach (var (lab, f) in new[] { ("MAX", 1f), ("75", 0.75f), ("50", 0.5f), ("25", 0.25f), ("STOPP", 0f) })
+			{
+				float y = bot - f * (bot - top);
+				g.DrawLine(new Vector2(cx + 12, y), new Vector2(cx + 24, y), new Color(1, 1, 1, 0.5f), 2);
+				g.Text(new Vector2(cx + 28, y + 5), lab, 12, Dim);
+			}
+			var th = new Rect2(cx - 32, ty - 19, 64, 38);
+			g.DrawRect(th, new Color(0.2f, 0.38f, 0.62f, 0.97f)); g.DrawRect(th, Cyan, false, 2);
+			g.Text(new Vector2(cx - 32, ty + 6), "62 %", 18, White, HorizontalAlignment.Center, 64);
+		});
+		At(root, L("WENDEN", 13, Dim, HorizontalAlignment.Center), 160, 560, 220, 20);
+		At(root, B("◀", 106, 96, null, 40, null, 18), 140, 584);
+		At(root, B("▶", 106, 96, null, 40, null, 18), 258, 584);
+		var hb = At(root, B("", 60, 60, null, 24, null, 30), 16, 644);
+		G(hb, 0, 0, 60, 60, g => { foreach (var yy in new[] { 20f, 30f, 40f }) g.DrawRect(new Rect2(16, yy, 28, 4), White); });
+
+		// ── Waffen rechts, je Bay eine Taste ──
+		float by = 296;
+		BayButton(root, 1090, by, "Laser 1", "Bug · ±40°", 0, 40, BayState.Outside, "◀ 41° drehen"); by += 76;
+		BayButton(root, 1090, by, "Laser 2", "Backbord · ±50°", -90, 50, BayState.InArc, "FEUER"); by += 76;
+		BayButton(root, 1090, by, "Laser 3", "Steuerbord · ±50°", 90, 50, BayState.Outside, "außerhalb"); by += 76;
+		BayButton(root, 1090, by, "Traktor", "Bug · ±30°", 0, 30, BayState.NoTarget, "keine Beute"); by += 76;
+		var all = B("Alle\nFeuer", 120, 120, new Color(0.15f, 0.5f, 0.3f, 0.95f), 20, null, 60, Green);
+		At(root, all, 960, 560);
+		At(root, L("1 von 3 bereit", 13, Green, HorizontalAlignment.Center), 960, 684, 120, 20);
+
+		var toast = At(root, Pnl(new Color(0.03f, 0.1f, 0.06f, 0.8f), Green, 18, 6), 470, 656, 340, 44);
 		toast.AddChild(L("Verkauft für 640 Credits", 20, Green, HorizontalAlignment.Center));
+	}
+
+	// ───────────── Legende der Laser-Tasten ─────────────
+	public static void Bays(Control root, ProtoData d)
+	{
+		ProtoVariants.Dim(root, 0.88f);
+		G(root, 40, 20, 1200, 60, g =>
+		{
+			g.Text(new Vector2(0, 30), "Laser-Tasten und Feuerwinkel", 28, Cyan);
+			g.Text(new Vector2(0, 54), "Jede Waffenschacht hat eine eigene Taste. Das Symbol zeigt ihren Winkel, die Farbe, ob das Ziel gerade im Winkel liegt.", 16, Dim);
+		});
+		// Winkeldiagramm
+		var diag = Win(root, 40, 100, 520, 580, Card, Edge, 12);
+		G(diag, 0, 0, 520, 580, g =>
+		{
+			var c = new Vector2(260, 300);
+			Wedge(g, c, 220, 0, 40, new Color(Orange, 0.12f), new Color(Orange, 0.7f));
+			Wedge(g, c, 220, -90, 50, new Color(Green, 0.16f), new Color(Green, 0.8f));
+			Wedge(g, c, 220, 90, 50, new Color(Dim, 0.07f), new Color(Dim, 0.4f));
+			Ship(g, c, 34, new Color(0.25f, 0.33f, 0.5f), Cyan);
+			g.Text(new Vector2(c.X - 60, c.Y - 232), "Laser 1 · Bug", 14, Orange, HorizontalAlignment.Center, 120);
+			g.Text(new Vector2(c.X - 232, c.Y - 4), "Laser 2", 14, Green, HorizontalAlignment.Left);
+			g.Text(new Vector2(c.X + 140, c.Y - 4), "Laser 3", 14, Dim, HorizontalAlignment.Left);
+			var t = c + new Vector2(-170, -28);
+			g.DrawCircle(t, 9, Green); g.DrawArc(t, 15, 0, Mathf.Tau, 24, Green, 2);
+			g.Text(t + new Vector2(-30, -22), "Ziel", 14, Green);
+			g.Text(new Vector2(0, 560), "Beispiel: Ziel liegt 81° links, also nur im Winkel von Laser 2", 14, Dim, HorizontalAlignment.Center, 520);
+			g.Text(new Vector2(16, 30), "Draufsicht, Bug oben", 15, Dim);
+		});
+		// Zustände
+		float y = 100;
+		var rows = new (string, string, BayState, string, float, float, float)[]
+		{
+			("Im Winkel und bereit", "Grün. Die Taste feuert sofort.", BayState.InArc, "FEUER", 0, -90, 50),
+			("Ziel außerhalb", "Orange. Der Hinweis nennt, wie weit zu drehen ist. Die Taste ist gesperrt.", BayState.Outside, "◀ 41° drehen", 0, 0, 40),
+			("Lädt nach", "Grau mit Balken. Nach dem Schuss, bis die Waffe wieder bereit ist.", BayState.Reloading, "lädt nach", 0.6f, 90, 50),
+			("Kein Ziel oder keine Beute", "Gedämpft. Zum Beispiel der Traktor ohne Brocken in Reichweite.", BayState.NoTarget, "keine Beute", 0, 0, 30),
+		};
+		foreach (var (t, desc, st, detail, rl, cd, hd) in rows)
+		{
+			var card = Win(root, 590, y, 650, 126, Card, Edge, 12);
+			BayButton(card, 18, 29, "Laser", "Bug · ±40°", cd, hd, st, detail, rl);
+			var ct = t; var cdesc = desc;
+			G(card, 214, 0, 420, 126, g =>
+			{
+				g.Text(new Vector2(0, 46), ct, 22, White);
+				var words = cdesc.Split(' '); string line = ""; float yy = 76;
+				foreach (var w in words)
+				{
+					if ((line + " " + w).Length > 46) { g.Text(new Vector2(0, yy), line, 15, Dim); yy += 22; line = w; }
+					else line = line.Length == 0 ? w : line + " " + w;
+				}
+				g.Text(new Vector2(0, yy), line, 15, Dim);
+			});
+			y += 138;
+		}
+		G(root, 590, 656, 650, 40, g => g.Text(new Vector2(0, 26), "„Alle Feuer“ löst nur Waffen aus, die im Winkel liegen und bereit sind.", 15, Dim));
 	}
 
 	// ───────────── Kleines Andock-Menü ─────────────
