@@ -12,6 +12,11 @@ public sealed record StationRemoved(StationId Station, SectorId Sector, string R
 public sealed record OreCollected(ShipId Ship, GoodId Good, float Units) : SimEvent;
 public sealed record PlayerSold(ShipId Ship, StationId Station, GoodId Good, float Units, float Revenue) : SimEvent;
 public sealed record PlayerBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
+/// <summary>
+/// Ein Stationsdienst wurde ausgeführt. Wird nur bei Erfolg veröffentlicht (mindestens eine Einheit bewegt, bei "alles verkaufen" Erlös &gt; 0);
+/// Units = bewegte Einheiten, Credits = Veränderung der Schiffs-Credits (negativ = Zahlung), Offer = ausgeführter Angebots-Schlüssel ohne Ware ("buy", "sell", "sell_all"), Good = default bei "alles verkaufen".
+/// </summary>
+public sealed record ServicePerformed(ShipId Ship, StationId Station, string Service, string Offer, GoodId Good, float Units, float Credits) : SimEvent;
 /// <summary>Ein NPC-Miner hat einen Laserschuss abgegeben (Units = 0: Fehlschuss). Die Darstellung zeigt ihn, wenn er im Spielersektor fällt.</summary>
 public sealed record MinerShot(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units, GoodId Good = default) : SimEvent;
 public sealed record AsteroidDepleted(SectorId Sector, int Asteroid) : SimEvent;

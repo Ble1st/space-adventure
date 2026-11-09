@@ -44,6 +44,8 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Tests:** Dienst-Registry, `trade` als Dienst liefert dieselben Ergebnisse wie `TradeActions`; Selbsttest unverändert grün.
 - **Abnahme:** Kein sichtbarer Unterschied im Spiel, aber neue Dienste lassen sich allein per JSON und Registrierung ergänzen.
 
+**Stand:** Schritt 1 (Core: `IStationService`, `StationServices`, `TradeService`, Event `ServicePerformed`, 16 Tests) und 1b (Nachbesserung: `ServiceOffer` mit Ware/Bestand/an Bord, strikte Angebotsschlüssel, Event nur bei Erfolg, Fehlpfad-Tests) sind umgesetzt. Offen: Schritt 2 (Dienste je Stationstyp in JSON, Standard `["trade"]`, ohne Save-Bruch) und Schritt 3 (`DockPanel` zeichnet aus `Offers`).
+
 ## Phase 2: Fähigkeiten und Steuerer
 
 **Ziel:** Systeme fragen `Capability`, nicht `ShipRole`. Verhalten bleibt gleich.
