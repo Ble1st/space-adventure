@@ -92,8 +92,8 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
 "shipClasses": [
   { "key": "skiff", "name": "Skiff", "size": "S", "baseHull": 60, "baseMass": 10,
     "slots": [ { "type": "reactor", "size": "S" }, { "type": "engine", "size": "S" },
-               { "type": "tool", "size": "S" }, { "type": "cargo", "size": "S" },
-               { "type": "utility", "size": "S" } ],
+               { "type": "tool", "size": "S", "facing": "bow", "arc": 40 },
+               { "type": "cargo", "size": "S" }, { "type": "utility", "size": "S" } ],
     "kit": "ship_kit_light" }
 ],
 "shipModels": [
@@ -104,6 +104,7 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
 ```
 
 - **Slots der Klasse** stehen in fester Reihenfolge, `fit` füllt sie per Index. `null` ist ein leerer Slot.
+- **Feuerwinkel (entschieden):** Waffen- und Werkzeug-Slots (`weapon`, `tool`) haben eine Ausrichtung `facing` (`bow` Bug, `port` Backbord, `starboard` Steuerbord, `stern` Heck) und einen halben Öffnungswinkel `arc` in Grad. Ein Modul darf den Winkel einengen (`arcMax`). Ein Ziel ist **im Feuerwinkel**, wenn der Winkel zwischen Schiffsausrichtung plus `facing` und Zielrichtung höchstens `arc` beträgt. Die Oberfläche zeigt je Schacht eine Taste mit Winkelsymbol und Zustand (im Winkel, außerhalb mit Drehhinweis, lädt nach, kein Ziel); „Alle Feuer“ löst nur bereite Waffen im Winkel aus (siehe [UI.md](UI.md)). Die Winkelprüfung ist reine Geometrie im Core (`FireArc.Contains`) und wird für NPC-Schüsse mit derselben Regel verwendet.
 - **Gespeichert** wird pro Schiff `ModelKey`, die **Slotliste** und `Fit`. Alles andere (Tempo, Schild, Fähigkeiten, Unterhalt) wird beim Laden aus Klasse und Fit berechnet (`ShipStats`, reiner Core-Code, gut testbar).
 - **Slotliste pro Schiff:** Sie ist nicht nur die der Klasse, weil einzelne Schiffe Bonusslots oder größere Slots haben können (Abschnitt 8). Ohne Abweichung entspricht sie der Klasse.
 - **Prüfungen:** `WorldBuilder` validiert unbekannte Keys, falsche Slotart, zu große Module und die Leistungsbilanz und wirft `WorldFormatException` mit dem Namen des Modells. `ContentTests` stellen sicher, dass jedes Modell baubar ist, also seine Kosten aus der Erzkette herstellbar sind.
@@ -250,7 +251,7 @@ Die Dienste kommen **vor** den Slots, weil der Ausrüster einer ist und die Schn
 
 ```text
 IStationService
-  Key                                       "trade", "repair", "refuel", "outfitter", "shipdealer", "upgrade"
+  Key                                       "trade", "repair", "refuel", "outfitter", "shipdealer", "upgrade", "hangar", "taxi", "rental"
   IsAvailable(Universe, Station, Ship)      läuft hier / kann das Schiff das nutzen?
   Offers(Universe, Station, Ship)           Liste von Angeboten (Text, Preis, Menge)
   Execute(Universe, Station, Ship, Offer)   Ergebnis, Event `ServicePerformed`
@@ -266,7 +267,32 @@ IStationService
 | `refuel` | Tank gegen Treibstoff (`propellant`, `ion_gas`, `fusion_fuel`) | Treibstoff ist eine Ware (Abschnitt 3) |
 | `outfitter` | Module ein- und ausbauen | Module sind Waren aus dem Stationslager |
 | `upgrade` | Module verbessern (Abschnitt 8) | Materialien, Wahrscheinlichkeit |
-| `shipdealer` | Schiff kaufen (`BuyShip`) | Bausatz und Zusatzmaterial aus dem Lager |
+| `shipdealer` | Schiff kaufen (`BuyShip`) | Bausatz und Zusatzmaterial aus dem Lager; Parameter `classes`, `maxSize`, `assembly` (siehe „Kleine Schiffe an anderen Stationen“) |
+| `hangar` | Angedockte Schiffe ansehen, wechseln, Befehle geben, nach Hause schicken | Liegeplätze und Liegegebühr je Tag |
+| `taxi` | Der **Spieler** reist gegen Gebühr zu einer anderen Station, das **Schiff bleibt** im Hangar | Geld an der Person (POLITIK.md, „Spielerkasse“); Preis aus Strecke, Zoll und Lage |
+| `rental` | Leihschiff (Standardmodell) gegen Gebühr und Pfand | damit der Spieler nie ohne Schiff festsitzt |
+
+### Kleine Schiffe an anderen Stationen (entschieden)
+
+Nicht nur die Werft verkauft Schiffe. Kleine Schiffe gibt es auch an **Handelsstationen**, **Ausrüstern (Equipmentshops)** und **Raffinerien**, über den Dienst `shipdealer` mit Einschränkung:
+
+```json
+"services": [ { "key": "shipdealer", "classes": ["skiff", "courier"], "maxSize": "S", "assembly": 0.10 } ]
+```
+
+- **Montage statt eigener Herstellung:** Die Station baut das Schiff beim Kauf aus einem **leichten Bausatz** (`ship_kit_light`) und den Zusatzmaterialien des Modells zusammen. Beides liegt als Ware im Stationslager und wird über den normalen Handel nachgeliefert. Der Preis ist Bausatz- und Materialpreis plus `assembly` (Montagegebühr). Fehlt der Bausatz, ist das Schiff nicht lieferbar; das Angebot zeigt den Grund.
+- **Wer verkauft was:**
+
+| Stationstyp | Klassen | Besonderheit |
+|---|---|---|
+| Handelsstation | Skiff, Kurier | Standardmodelle, schnell verfügbar |
+| Ausrüster | Skiff | mit gewähltem Modulpaket vorgerüstet |
+| Raffinerie | Bergbauer leicht, kleiner Tanker | passt zur Rolle der Station (Erz, Flüssigstoffe) |
+| Werft | alle Klassen | baut auch mittlere und schwere Schiffe; braucht die passenden Bausatzstufen |
+
+- **Grenzen:** Mittlere und schwere Klassen, Kampfschiffe und Kapitalschiffe gibt es nur an der Werft. Die Größe der Station begrenzt die Auswahl (kleine Station: ein Modell, mittlere: mehrere).
+- **Warum:** Die Schiffskette bleibt an Bausätze und Ketten gebunden, aber der Spieler muss für ein erstes kleines Schiff nicht zur Werft reisen. Das verteilt Nachfrage nach Bausätzen auf mehrere Orte und macht Bausätze zu einer Handelsware.
+- **Leihschiff (`rental`, Vorschlag):** Ein einfaches Standardmodell (zum Beispiel das Skiff *Pip*) gegen Gebühr, Tagesmiete und Pfand, an Stationen mit Hangar. Es ist der Ausweg, wenn der Spieler nach dem Taxi an einem Ort ohne eigenes Schiff ankommt.
 
 Heute repariert das Andocken die Hülle kostenlos, und Treibstoff ist nur ein Credit-Abzug. Beides werden mit den Diensten echte Kosten und Nachfrage.
 
@@ -314,7 +340,7 @@ Bestehende Schiffe verbessern ihre Module.
 1. **Dienste-Rahmen** (`IStationService`, Registry, generisches Dock-Panel) mit `trade` als erstem Dienst. Keine Verhaltensänderung.
 2. **`repair`** (Hüllenplatten), dann **`refuel`** mit `Ship.Fuel` für alle Schiffe (Save-Änderung).
 3. **Slot-Format:** Content-Abschnitte, `WorldBuilder`-Prüfung, `ShipStats`, Save v4 mit `ModelKey`, Slotliste und `Fit`. Zuerst Einheitsmodelle, die das heutige Verhalten nachbilden.
-4. **Module als Waren** und **`outfitter`**, danach `shipdealer` und Startpakete.
+4. **Module als Waren** und **`outfitter`**, danach `shipdealer` (zuerst Werft, dann kleine Schiffe an Handelsstation, Ausrüster und Raffinerie) und Startpakete. `hangar`, `taxi` und `rental` kommen mit der Spielerflotte.
 5. **NPC-Güteklassen und `upgrade`-Dienst** mit `UpgradeSystem`.
 6. **Gate-Zugangsmodell** und Mobilitätsprofil in der Routensuche (Voraussetzung für Sprungantrieb und Sperren), danach **Sprungantrieb** (zurückgestellt).
 7. **Tarnfeld** (zurückgestellt) mit `IDetectionCheck`, erst wenn Gate-Kontrolle und Fraktionsverhalten stehen.

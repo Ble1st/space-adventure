@@ -2,7 +2,7 @@
 
 Gesamtplan für alles, was in den Planungsdokumenten steht. Reihenfolge nach Abhängigkeit und nach dem Grundsatz **Tiefe vor Breite**: Zuerst wird die Schiffs- und Handelskette vollständig, dann folgen Welt, Politik und Flotten. Der Plan ist ein Vorschlag, nichts davon ist begonnen. Größen: **S** (kleiner Schritt), **M** (mehrere Dateien, eigene Tests), **L** (neues Teilsystem mit Save-Änderung und Balance-Arbeit).
 
-Verweise: [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), [STATIONEN.md](STATIONEN.md), [POLITIK.md](POLITIK.md), [FLOTTEN.md](FLOTTEN.md), [FORSCHUNG.md](FORSCHUNG.md), [ROADMAP.md](ROADMAP.md).
+Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), [STATIONEN.md](STATIONEN.md), [POLITIK.md](POLITIK.md), [FLOTTEN.md](FLOTTEN.md), [FORSCHUNG.md](FORSCHUNG.md), [ROADMAP.md](ROADMAP.md).
 
 ## 0. Arbeitsregeln für jede Phase
 
@@ -82,9 +82,10 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Modul-Waren:** Jedes Modul bekommt automatisch eine Ware in `goods`; sein `cost` wird das Rezept.
 - **Drei Fabriken:** Antriebs- und Reaktorwerk, Waffen- und Schildwerk, Systemwerk, Stufe nach Stationsgröße (klein Mk1, mittel Mk2, Hub Mk3). Zuerst erster Modulsatz: Reaktor, Speicherbank, Triebwerk, Tank, Frachtmodule, Laser, Traktor, Schild, Panzerung.
 - **Bausatzstufen:** `ship_kit` in `ship_kit_light/medium/heavy`; `EconomyRules.ShipKitGoodKey` wird je Klasse gewählt; `FleetSystem` und Werftrezepte angepasst.
-- **Dienste:** `outfitter` (Module ein- und ausbauen), `shipdealer` (`BuyShip`), Handelsstation als neuer Typ.
+- **Spielerkasse:** Das Geld des Spielers wandert von `Ship.Credits` in die Kasse des Spielerakteurs (Person); `TradeActions` buchen auf die Kasse des Besitzers (`Universe.WalletOf`). Das ist Voraussetzung für Schiffskauf, mehrere Schiffe und Taxi.
+- **Dienste:** `outfitter` (Module ein- und ausbauen), `shipdealer` (`BuyShip`), Handelsstation als neuer Typ. Kleine Schiffe auch an Handelsstation, Ausrüster und Raffinerie (Montage aus leichtem Bausatz, siehe SCHIFFSSLOTS.md).
 - **Startpakete** (`player.startOptions`): Schürfer, Händler, Generalist.
-- **Save v6:** Module als Waren sind Content; Spieler-Fit bleibt im Schiff.
+- **Save v6:** Module als Waren sind Content; Spieler-Fit bleibt im Schiff; Spielerkasse (Migration von `Ship.Credits`).
 - **Tests:** Rezepte stimmen mit `cost`, Werft verbraucht Bausatz und Zusatzmaterial, Spielerkauf, Umrüstung ändert `ShipStats`.
 - **Balance:** Neue Nachfrage nach Titan und Platin; `tools/SpaceSim.Balance` auf Preisentgleisung prüfen.
 
@@ -148,6 +149,8 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **`IOrderExecutor`** pro Befehlstyp: `GoTo`, `Hold`, `Patrol`, `Guard`, `Escort`, `Follow`, `Trade`, `Mine`, `Build`, `Return` und weitere; Ebenen Notfall > Befehl > Automatik; Verhaltensregeln.
 - **Spielerflotte:** Flottenliste und Befehlsmenü (höchstens drei Schritte), Automatikaufträge mit Grenzen.
 - **`OrderSave`** erweitern (heute drei Ganzzahlen).
+- **Hangar, Taxi, Leihschiff:** Dienste `hangar`, `taxi`, `rental`; Schiffe haben einen Standort (angedockt an einer Station, `Ship.DockedAt`); das Taxi bewegt nur den Spieler, das Schiff bleibt.
+- **Oberfläche:** Andock-Menü, Dock-Bereiche, Flug-HUD mit Tempo-Slider und Laser-Tasten (siehe [UI.md](UI.md)).
 - **Save v12:** Verbände, Befehle, Heimatbasis.
 
 ## Phase 13: Forschung

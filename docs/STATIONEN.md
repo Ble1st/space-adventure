@@ -171,10 +171,14 @@ Heute haben alle Stationen genau eine Funktion: den **Markt** (Handel) und das k
 | Endgüter | Farm | Wasser + Energie → Nahrung | – |
 | Endgüter | Konsumgüterfabrik | Stahl + Elektronik → Konsumgut | – |
 | Endgüter | Luxuswerkstatt | Platin + Elektronik → Luxusgut | – |
-| Schiffe | Werft | Hüllenplatten + Elektronik + Brennstoffzelle → Bausatz | `shipdealer`, `upgrade` |
+| Schiffe | Werft | Hüllenplatten + Elektronik + Brennstoffzelle → Bausatz | `shipdealer` (alle Klassen), `upgrade`, `hangar` |
 | Nachfrage und Geldquelle | Kolonie | verbraucht Nahrung, Konsum-, Luxusgüter, Lebenserhaltung; Einkommen 8 | Missionsbüro, Bar (später) |
 
 Alle Typen bieten außerdem den Dienst `trade`.
+
+**Kleine Schiffe** gibt es nicht nur an der Werft: Handelsstation (Skiff, Kurier), Ausrüster (Skiff mit Modulpaket) und Raffinerie (leichter Bergbauer, kleiner Tanker) bieten `shipdealer` mit Einschränkung; sie montieren das Schiff aus einem leichten Bausatz im Stationslager (siehe [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), „Kleine Schiffe an anderen Stationen“).
+
+**Hangar, Taxi und Leihschiff:** Stationen mit Liegeplätzen bieten `hangar` (angedockte Schiffe, Liegegebühr), viele auch `taxi` (der Spieler reist allein, das Schiff bleibt) und `rental` (Leihschiff). Das Andock-Menü zeigt zuerst die angedockten Schiffe und die verfügbaren Bereiche (siehe [UI.md](UI.md)).
 
 ### Regierungsstationen (neu)
 

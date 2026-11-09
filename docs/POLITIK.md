@@ -116,10 +116,22 @@ Die Art (`Kind`: Staat, Gilde, Gesetzlose, Spieler) bleibt als Etikett. **Was ei
 - **Migration:** `Ship.Faction` (heute Eigentümer) wird `Ship.Owner` (ein Akteur); `Actor.Faction` ist die Mitgliedschaft. Jede bestehende Fraktion wird ein Akteur der Art Staat, der zugleich Fraktion ist. Der Spieler wird ein Einzelakteur mit Mitgliedschaft in der bisherigen Fraktion, damit sich beim Laden nichts ändert.
 - **Effektive Beziehung eines Schiffs:** persönliche Abweichung, sonst Beziehung seiner Fraktion, sonst Vorgabe der Art.
 
+### Spielerkasse: das Geld hängt an der Person (entschieden)
+
+Heute hängt das Geld des Spielers am Schiff (`Ship.Credits`). Das trägt nicht, sobald der Spieler ohne Schiff reist (**Taxi**, siehe [UI.md](UI.md)), mehrere Schiffe besitzt (**Hangar**, Spielerflotte) oder Schiffe verkauft.
+
+- **Der Spieler ist von Anfang an ein ausdrücklicher Akteur (Person)** mit eigener Kasse `Actor.Credits`. Einnahmen und Ausgaben des Spielers (Verkauf, Kauf, Taxi, Reparatur, Zoll) laufen über diese Kasse, nicht über das Schiff.
+- **Handelsaktionen** (`TradeActions.Buy/Sell/SellAll`) buchen auf die Kasse des **Besitzers** des handelnden Schiffs (`Universe.WalletOf(ship)`), nicht mehr auf `ship.Credits`. Für NPC-Einzelschiffe, die nur implizite Akteure sind, ist das Schiff die Kasse; das Verhalten bleibt gleich.
+- **Schiffe sind Besitz, keine Geldbeutel.** Verkauft der Spieler ein Schiff, fließt der Erlös in seine Kasse. Verliert er ein Schiff, bleibt sein Geld.
+- **Geld bei der Person, Fracht beim Schiff:** Fracht und Treibstoff bleiben im Schiff, beim Taxi bleiben sie also mit dem Schiff zurück.
+- **Migration:** Das heutige `Ship.Credits` des Spielerschiffs wird in die Kasse des Spielerakteurs übernommen; für NPC-Schiffe ändert sich nichts. Ein Save-Format erhöht die Version.
+- **Warum:** Sonst gäbe es drei unlösbare Fälle: reisen ohne Schiff, Schiff verlieren und dabei das Geld verlieren, und Schiffe verkaufen oder tauschen, ohne dass das Geld mitwandert.
+- **Prüfung:** `EconomyStats` und das Balance-Tool zählen die Geldmenge nach Akteuren; die Summe aus Spielerkasse und Schiffen darf sich durch Taxi und Schiffswechsel nicht ändern.
+
 ### Einzelschiffe träge anlegen
 
 - Alle freien Schiffe teilen sich die Sammelgruppe **Freie**; ihre Beziehungen sind einmal gespeichert.
-- Ein Einzelschiff wird erst zum eigenen Akteur, wenn es etwas Besonderes tut (Station bauen, weiteres Schiff kaufen, Verbrechen, vom Spieler geführt). Davor ist `Ship.Credits` seine Kasse.
+- Ein Einzelschiff wird erst zum eigenen Akteur, wenn es etwas Besonderes tut (Station bauen, weiteres Schiff kaufen, Verbrechen, vom Spieler geführt). Davor ist das Schiff der implizite Akteur und `Ship.Credits` seine Kasse (nur für NPC-Einzelschiffe, siehe „Spielerkasse“ unten).
 - **Aufstieg** Einzelakteur → Kleinfirma → Firma → Konzern ergibt sich aus Besitz; **Abstieg** ohne Besitz und Geld entfernt den Akteur (wie eine bankrotte Station).
 - **Warum:** Tausende Mini-Fraktionen würden die Beziehungen quadratisch aufblähen. Träges Anlegen und Sammelgruppe halten das klein.
 
@@ -153,7 +165,7 @@ Heute baut bei Knappheit der **reichste** Teilnehmer eine Station oder kauft ein
 
 ### Fraktionskasse (entschieden)
 
-Akteure mit Besitz haben eine **Kasse** (`Treasury`), gespeist aus Zöllen, Steuern und Strafen, belastet durch Polizei, Unterhalt und Kopfgeld. Bei Einzelakteuren ist `Ship.Credits` die Kasse. Alle Übertragungen laufen über Ereignisse, damit das Balance-Tool die Geldmenge prüfen kann.
+Akteure mit Besitz haben eine **Kasse** (`Treasury`), gespeist aus Zöllen, Steuern und Strafen, belastet durch Polizei, Unterhalt und Kopfgeld. Bei träge angelegten NPC-Einzelschiffen ist `Ship.Credits` die Kasse des impliziten Akteurs, beim Spieler und bei jedem ausdrücklich angelegten Akteur gehört sie dem **Akteur** (siehe „Spielerkasse“). Alle Übertragungen laufen über Ereignisse, damit das Balance-Tool die Geldmenge prüfen kann.
 
 ### Persönlichkeitswerte (entschieden, nach dem Vorbild der Referenz)
 
