@@ -53,6 +53,8 @@ public sealed class StationTypeDef
     public float Upkeep { get; set; } = 0.05f;
     public float Income { get; set; }
     public List<RecipeDef> Recipes { get; set; } = new();
+    /// <summary>Dienst-Schlüssel, die dieser Typ anbietet; fehlt das Feld, ist der Standard ["trade"] (Handel).</summary>
+    public List<string> Services { get; set; } = new() { SpaceSim.Core.Services.TradeService.ServiceKey };
 }
 
 public sealed class FactionDef { public int Id { get; set; } public string Name { get; set; } = ""; }

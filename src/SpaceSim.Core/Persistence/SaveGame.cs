@@ -60,6 +60,8 @@ public sealed class StationTypeSave
     public string Key { get; set; } = ""; public string Name { get; set; } = "";
     public float BuildCost { get; set; } public float Upkeep { get; set; } public float Income { get; set; }
     public List<RecipeSave> Recipes { get; set; } = new();
+    /// <summary>Dienst-Schlüssel des Typs. Fehlt das Feld (Spielstände vor dieser Erweiterung), gilt der Standard ["trade"].</summary>
+    public List<string>? Services { get; set; }
 }
 
 public sealed class FactionSave

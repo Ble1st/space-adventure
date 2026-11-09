@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Services;
 
@@ -26,6 +27,20 @@ public sealed class StationServices
 
     /// <summary>Alle registrierten Dienst-Schlüssel in Registrierungsreihenfolge.</summary>
     public IReadOnlyList<string> Keys => _services.Select(s => s.Key).ToArray();
+
+    /// <summary>
+    /// Die verfügbaren Dienste einer Station in der Reihenfolge ihrer Typ-Liste (<see cref="StationType.Services"/>).
+    /// Unbekannte Schlüssel und Dienste, die an dieser Station nicht verfügbar sind (<see cref="IStationService.IsAvailable"/>), bleiben weg.
+    /// </summary>
+    public IReadOnlyList<IStationService> ForStation(Universe u, Station station)
+    {
+        if (!u.StationTypes.TryGetValue(station.TypeKey, out var type)) return Array.Empty<IStationService>();
+        var list = new List<IStationService>(type.Services.Count);
+        foreach (var key in type.Services)
+            if (_byKey.TryGetValue(key, out var service) && service.IsAvailable(u, station))
+                list.Add(service);
+        return list;
+    }
 
     /// <summary>Standard-Registry mit dem Handelsdienst ("trade").</summary>
     public static StationServices Default()

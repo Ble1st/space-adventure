@@ -64,9 +64,20 @@ public static class WorldBuilder
             if (!u.AsteroidClasses.TryAdd(cls.Key, cls)) throw new WorldFormatException($"Asteroidenklasse '{c.Key}' doppelt");
         }
 
+        var knownServices = Services.StationServices.Default();
         foreach (var t in def.StationTypes)
         {
-            var type = new StationType { Key = t.Key, Name = t.Name, BuildCost = t.BuildCost, UpkeepPerTick = t.Upkeep, IncomePerTick = t.Income };
+            var type = new StationType
+            {
+                Key = t.Key, Name = t.Name, BuildCost = t.BuildCost, UpkeepPerTick = t.Upkeep, IncomePerTick = t.Income,
+                Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey } : new List<string>(t.Services),
+            };
+            var seenServices = new HashSet<string>();
+            foreach (var key in type.Services)
+            {
+                if (!knownServices.TryGet(key, out _)) throw new WorldFormatException($"Stationstyp '{t.Key}': unbekannter Dienst '{key}'");
+                if (!seenServices.Add(key)) throw new WorldFormatException($"Stationstyp '{t.Key}': Dienst '{key}' doppelt");
+            }
             foreach (var r in t.Recipes)
             {
                 var recipe = new Recipe { TicksPerCycle = r.Ticks };

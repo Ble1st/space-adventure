@@ -27,6 +27,7 @@ public static class UniverseSerializer
             {
                 Key = t.Key, Name = t.Name, BuildCost = t.BuildCost, Upkeep = t.UpkeepPerTick, Income = t.IncomePerTick,
                 Recipes = t.Recipes.Select(ToSave).ToList(),
+                Services = new List<string>(t.Services),
             });
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
             s.Factions.Add(new FactionSave
@@ -88,6 +89,8 @@ public static class UniverseSerializer
             {
                 Key = t.Key, Name = t.Name, BuildCost = t.BuildCost, UpkeepPerTick = t.Upkeep, IncomePerTick = t.Income,
                 Recipes = t.Recipes.Select(FromSave).ToList(),
+                // Alte Spielstände ohne das Feld bekommen den Standard ["trade"]
+                Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey } : new List<string>(t.Services),
             };
         foreach (var f in s.Factions)
             u.Factions[new FactionId(f.Id)] = new Faction

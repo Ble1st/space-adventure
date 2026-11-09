@@ -36,6 +36,8 @@ public sealed class StationType
     public float UpkeepPerTick = 0.05f;
     /// <summary>Einnahmen aus Verkäufen außerhalb der simulierten Welt (Faucet).</summary>
     public float IncomePerTick;
+    /// <summary>Dienst-Schlüssel, die Stationen dieses Typs anbieten, in Reihenfolge; Standard ["trade"] (Handel).</summary>
+    public List<string> Services = new() { "trade" };
 }
 
 public sealed class Station
