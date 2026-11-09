@@ -70,6 +70,28 @@ Ausgangswelt: Alpha (Eisen, Kupfer, Wasser, Energie), Beta (Silizium, Elektronik
 | Forschungsstation | Schaltet Technologien frei, siehe [FORSCHUNG.md](FORSCHUNG.md). |
 | Fraktions-Hauptquartier | Essenziell, Ankerpunkt für Beziehungen und Krieg. |
 
+### Handel und Finanzen (neu, nicht umgesetzt)
+| Station | Funktion | Warum |
+|---|---|---|
+| **Handelsstation** (Handelsposten) | Marktplatz ohne Produktion für viele Waren, kleine Marge, hoher Durchsatz; Medium, in Knotensektoren | Hält Bestände vieler Waren vor, dämpft Preisspitzen und löst das Pendelhandel-Problem durch einen Knoten |
+| **Börse** | Preis- und Lagerinformation anderer Stationen, Versteigerung beschlagnahmter Fracht | Information ist ein Spielzug; Beschlagnahme kehrt in die Wirtschaft zurück |
+| **Lagerhaus / Depot** | Waren gegen Gebühr einlagern (Spieler und Akteure) | Zeit wird Dimension im Handel; Grundlage für Baustellenlager; Ziel für Plünderung |
+| **Frachtterminal** | Sammelpunkt für Konvois, Eskortverträge, Verbandsbildung | Die Konvoimechanik braucht einen Treffpunkt |
+| **Bank** | Kredite, Zinsen, Konten | Geldsenke und -quelle; bindet den Zukauf kleiner Akteure an Kapital |
+| **Versicherung** | Deckt Verluste durch Überfall/Zerstörung gegen Prämie, Prämie folgt der Bedrohung des Sektors | Verbindet Piraten, Polizei und Wirtschaft |
+
+### Sicherheit und Infrastruktur (neu, nicht umgesetzt)
+| Station | Funktion | Warum |
+|---|---|---|
+| **Rettungs- und Schleppdienst** | Holt havarierte Schiffe ab (Sprit leer, Hülle kaputt), gegen Gebühr | Löst Liegenbleiber aus dem Treibstoffkonzept; Dienst für den Spieler |
+| **Sensorstation / Radarposten** | Erhöht die Sensorstärke im Sektor, liefert Daten für die Lagekarte | Wahrnehmung wird eine Investition, die man bauen und verteidigen kann |
+| **Sprungbake** | Markiert Ankunftspunkte, erzeugt oder hebt Sprungsperren auf | Sprungantrieb und Sperren brauchen einen räumlichen Anker |
+| **Gericht / Haftanstalt** | Verwahrt Festgesetzte Schiffe und Fracht, verwaltet Bußgeld und Haft | Strafe bekommt einen Ort; Beschlagnahme geht an die Börse |
+| **Kopfgeldbüro** | Nimmt Jäger an, zahlt Kopfgeld aus der Fraktionskasse (`bounty`) | Rolle als Jäger für Spieler und NPCs; verbindet Fahndung mit Einkommen |
+| **Schwarzmarkt / Piratenversteck** | Illegaler Markt, keine Zölle, keine Polizeikontrolle im Versteck | Ohne Gegenpol hat die Polizei nichts zu tun und Embargos sind folgenlos |
+
+**Empfohlene Reihenfolge der Stationsideen:** Handelsstation, Lagerhaus, Rettungsdienst, Kopfgeldbüro mit Gericht; danach Sensorstation, Bank, Versicherung; Börse, Sprungbake und Schwarzmarkt mit Piraten und Sprungantrieb.
+
 ### Spezielle Orte
 Alien-Artefakt-Lager (seltene Güter, Missionen), Raumdock-Hotel (reine Geldsenke), Schiffsfriedhof (Wrackfeld mit zufälliger Bergung).
 

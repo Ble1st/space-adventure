@@ -117,6 +117,46 @@ Ein **`SecuritySystem`** verteilt die verfügbaren Polizeischiffe nach Bedrohung
 
 Eine **Gegenfraktion** (Ausgestoßene) mit Räubern, die ihr Revier nach Beute wählen: unbewachte Routen mit wertvoller Fracht. Sie schwächen die Wirtschaft (verlorene Fracht), erzeugen Bedrohung und damit Nachfrage nach Polizei und Eskorten.
 
+### Was die Polizei kann (entschieden)
+
+| Fähigkeit | Was genau | Voraussetzung / Grenze |
+|---|---|---|
+| **Wahrnehmen** | Schiffe im Sektor, an Gates und Stationen entdecken | Sensorstärke gegen Tarnstärke; Treffer als Wurf über `Universe.Rng` |
+| **Kontrollieren** | Fracht prüfen, Zoll kassieren, Lizenzen kontrollieren | nur an Kontrollpunkten oder nach dem Abfangen |
+| **Abfangen** | Schiff stoppen, Frachtprüfung erzwingen | Schiff im Sektor, Patrouille in Reichweite, Stärke reicht |
+| **Bestrafen** | Bußgeld, Beschlagnahme, Festsetzung, Kopfgeld | nur im Hoheitsgebiet und nach Fahndungsstufe |
+| **Schützen** | Patrouille, Eskorte, Gate- und Stationswache | begrenzt durch Schiffszahl und Heimatbasis |
+| **Durchsetzen** | Sperrstufen, Blockade, Sprungsperre | nur bei Kontrolle über den Sektor |
+| **Helfen** | Havarierte Schiffe schleppen, Liegenbleiber retten | Rettungsdienst (Station, siehe STATIONEN.md) |
+
+**Grenzen:** Die Polizei handelt nicht außerhalb des Hoheitsgebiets (nur Verträge oder Rechtshilfe), sieht nicht alles (Tarnfelder, fehlende Sensorabdeckung), ist nicht überall (jedes Schiff kostet Unterhalt und hat eine Heimatbasis) und straft nicht unbegrenzt (Beschlagnahmen belasten die Wirtschaft). **Warum:** Eine Polizei, die jedes Schiff immer entdeckt und überall wirkt, würde Schmuggel und Tarnung wertlos machen.
+
+**Verbrechen und Folgen:**
+
+| Verbrechen | Beispiel | Folge (Fahndungsstufe) |
+|---|---|---|
+| Zollhinterziehung | Gate ohne Zahlung passiert | Bußgeld (2) |
+| Schmuggel | verbotene Ware an Bord | Beschlagnahme, Festsetzung (3) |
+| Gebietsverletzung | gesperrten Sektor betreten | Abweisung, Bußgeld, Fahndung (2–3) |
+| Flucht vor Kontrolle | Abfangen ignoriert | Fahndung erhöht, Angriff auf Sicht (4) |
+| Piraterie | Frachter überfallen | Kopfgeld, Angriff auf Sicht (4) |
+| Zerstörung | Schiff oder Station zerstört | Kopfgeld, Haftbefehl (4) |
+| Unlizenzierte Tarnung | Tarnfeld im Hoheitsgebiet ohne Lizenz | Bußgeld, Beschlagnahme des Moduls (2–3) |
+
+**Fahndungsniveau („Heat“):**
+
+| Stufe | Name | Verhalten der Polizei |
+|---|---|---|
+| 0 | sauber | normal |
+| 1 | auffällig | öfter gescannt |
+| 2 | verwarnt | Bußgeld bei Kontrolle |
+| 3 | gesucht | Abfangen, Beschlagnahme, Festsetzung |
+| 4 | Staatsfeind | Angriff auf Sicht, Kopfgeld |
+
+Das Niveau steigt durch Vorfälle und **fällt mit der Zeit** (Verfall), schneller bei bezahltem Bußgeld. Es gilt **je Hoheitsgebiet**, nicht global. Optional später: Bestechung gegen Gebühr mit Erfolgschance (bei Misserfolg steigt das Niveau), als Gegenmittel für Schmuggler.
+
+**Simulation:** Kontrollen laufen an Kontrollpunkten ereignisbasiert (Durchflug, Andocken), Patrouillen würfeln in einem Intervall (LOD), wie oft sie ein Schiff im Sektor kontrollieren; die Rate hängt von Streifenzahl, Sektorgröße und Sensorstärke ab. Die Reaktionszeit ist die Flugzeit (`Travel.Estimate`) der nächsten Patrouille zum Vorfall; wer schneller wegkommt (Sprungantrieb), entkommt. Alles deterministisch über `Universe.Rng`.
+
 ### Polizeistufen, Zuständigkeit, Finanzierung
 
 Die Stationsformen (Polizeiwache, Patrouillenbasis, Sektor-HQ) stehen in [STATIONEN.md](STATIONEN.md), Abschnitt 5; die Kontrollstufen in [POLITIK.md](POLITIK.md), Abschnitt 8.
