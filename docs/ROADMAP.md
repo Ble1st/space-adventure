@@ -26,3 +26,18 @@ Stand der Durchsicht der Dokumente (alles Planung, keine Code-Fehler):
 6. **Sprungreichweite:** hängt an `Sector.MapPosition`, die heute nur Darstellung ist.
 7. **Tarnfeld im Hoheitsgebiet:** „unlizenziert“ setzt ein Lizenzsystem voraus, das nirgends beschrieben ist.
 8. **Persönlichkeitswerte und Wirtschaft:** Sie verändern Zukauf und Zölle und müssen im Balance-Tool beobachtet werden.
+
+### Zweite Durchsicht: Module, Waren und Lücken
+
+9. **Module sind Waren, stehen aber nicht in `goods`:** SCHIFFSSLOTS.md definiert Module in einem eigenen Abschnitt mit `cost`, sagt aber, sie lägen als Waren im Stationslager. Entscheidung offen. Empfehlung: Jedes Modul bekommt automatisch eine Ware gleichen Schlüssels (mit Volumen); das `cost`-Feld wird das Rezept einer Modulfabrik; der Ausrüster verkauft und baut aus dem Lager ein.
+10. **Wer stellt die Module her?** In der Ideenliste gibt es nur Schildgenerator-Werk und Triebwerkswerk. Reaktoren, Panzerung, Laser, Tanks, Sprungantrieb und Tarnfeld haben keine Fabrik. Es braucht Modulfabriken (zum Beispiel Reaktor-, Waffen-, Utility-Werk), sonst sind die Module nicht herstellbar.
+11. **Warenform fehlt:** Tanker und Gefahrgut setzen eine Eigenschaft der Ware voraus (fest, flüssig, Gas, gefährlich). Die `goods`-Einträge haben sie nicht.
+12. **Besatzung fehlt:** SCHIFFE.md verlangt Lebenserhaltung für große Frachter und Kapitalschiffe als laufenden Verbrauch; kein Dokument beschreibt Besatzung oder diesen Verbrauch.
+13. **Fähigkeit `Research` für Schiffe:** wird nirgends gebraucht. Streichen oder definieren.
+14. **Namenskollision „Energie“:** `energy` ist eine Ware (Strom der Stationen), `power` die Reaktorleistung eines Schiffs, und „Energie“ steht auch als Treibstoff (Solarsegel). Drei Bedeutungen, besser trennen.
+15. **Bausatz:** Im Code gibt es einen `EconomyRules.ShipKitGoodKey` (ein Schlüssel). Die Planung hat vier Stufen; `FleetSystem` und die Werftrezepte müssten pro Klasse wählen.
+16. **Treibstoff gegen Kraftwerke:** Wasserstoff speist das Kraftwerk und soll zugleich Schiffe antreiben. Neue Nachfrage kann die Energieversorgung der Startwelt verdrängen. Vor der Umsetzung mit `tools/SpaceSim.Balance` testen.
+17. **Spieler gehört heute einer Fraktion:** In der JSON hat der Spieler `player.faction`. Mit dem Akteurmodell wird er ein eigener Akteur; Unterhalt, Beziehungen und Startpakete müssen darauf migriert werden.
+18. **Eroberung:** Sektorkontrolle und Totaler Krieg sprechen von Eroberung. Was mit einer eroberten Station passiert (Besitzerwechsel, Zerstörung, Plünderung), ist nirgends beschrieben; `Station.Owner` existiert, aber `Essential` schützt nur vor Pleite.
+
+Geprüft und in Ordnung: alle Code-Bezeichner, die die Dokumente als vorhanden nennen (`TradeActions`, `FindRoute`, `UpkeepSystem`, `PatrolOrder` und weitere), existieren; alle Warenschlüssel in den JSON-Beispielen stimmen jetzt mit `default-world.json` überein (neue Schlüssel wie `ship_kit_light` sind bewusst Planung); die Wahrscheinlichkeiten der Güteklassen summieren sich auf 100 %; Sektor-HQ und Dominanz sind nicht zirkulär (die Wache genügt für Dominanz).
