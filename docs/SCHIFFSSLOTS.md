@@ -12,17 +12,31 @@ Ein Schiff besteht aus einer **Klasse** (Rumpf, Größe, Basismasse) mit einer f
 - **Größe:** S, M, L, XL (Kapitalschiffe). Ein Modul passt, wenn seine Art stimmt und seine Größe höchstens der Slotgröße entspricht.
 - **Pflichtslots:** Reaktor und Antrieb. Ohne sie ist der Fit ungültig.
 - **Stufe (Tier):** Mk1 bis Mk3 (später mehr). Höhere Stufen verlangen seltenere Erze.
-- **Leistungsbilanz:** Die Summe des Energiebedarfs aller Module darf die Reaktorleistung nicht übersteigen. Sie wird beim Einbauen geprüft, nicht pro Tick simuliert (NPC-Schiffe haben außerhalb des Spielersektors ohnehin keine Physik).
+- **Leistungsbilanz:** Die Dauerlast aller Module (`powerDraw`) darf die Reaktorleistung (`powerOutput`) nicht übersteigen. Kurzzeitige Spitzen (`peakDraw`, zum Beispiel Waffen) darf eine **Speicherbank** abdecken. Die Prüfung findet beim Einbauen statt, nicht pro Tick (NPC-Schiffe haben außerhalb des Spielersektors ohnehin keine Physik).
+
+### Leistung und Energie (entschieden)
+
+Zwei Begriffe, die nicht vermischt werden:
+
+| Begriff | Schlüssel | Wo | Bedeutung |
+|---|---|---|---|
+| **Leistung** | `power` (`powerOutput`, `powerDraw`, `peakDraw`) | **Schiffe** | was der Reaktor bereitstellt und die Module ziehen; Einheit „Leistung“ |
+| **Energie** | `energy` | **Stationen und Produktion** | die Ware, die Kraftwerke herstellen und Fabriken verbrauchen |
+
+Energie (die Ware) ist weder Schiffstreibstoff noch Schiffsleistung. Reaktoren stellen Leistung bereit, ohne die Ware `energy` oder Treibstoff zu verbrauchen.
+
+**Speicherbank (neues Modul, Slotart `storage`):** Sie puffert Leistung. Sie hat eine Kapazität (`powerStorage`) und lädt sich aus dem Überschuss des Reaktors auf. Module mit Spitzenlast (Waffen, später Sprungantrieb und Tarnfeld) dürfen die Dauerleistung kurzzeitig überschreiten, solange die Bank reicht. Für NPC-Schiffe genügt die statische Prüfung beim Einbau (`Spitzenlast − Reaktorüberschuss` über Dauer ≤ Kapazität). Eine dynamische Ladung gibt es höchstens in der Ansicht des Spielers.
 
 ### Slotarten
 
 | Art | Zweck | Beispiele | Wirkung |
 |---|---|---|---|
-| `reactor` | Energie | Fusionsreaktor Mk1–3 | liefert Leistung |
+| `reactor` | Leistung | Fusionsreaktor Mk1–3 | liefert Dauerleistung (`powerOutput`) |
+| `storage` | Speicher | Speicherbank Mk1–3 | puffert Leistung (`powerStorage`), deckt Spitzen |
 | `engine` | Antrieb | Chemischer, Ionen-, Hybridantrieb | Schub, Treibstoffart und -verbrauch |
 | `shield` | Schild | Schildgenerator | Kapazität, Regeneration |
 | `armor` | Panzerung | Plattierung, Titanpanzer | Hülle, aber Masse |
-| `weapon` | Waffen | Geschütz, Rakete (später) | Schaden, Energiebedarf |
+| `weapon` | Waffen | Geschütz, Rakete (später) | Schaden, Leistungsbedarf |
 | `tool` | Werkzeug | Mining-Laser I/II, Traktor, Spaltlaser, Bauausleger | Fähigkeit und Leistung |
 | `cargo` | Fracht | Frachtmodul, Tank, Flüssigtank | Laderaum, Frachttyp, Treibstofftank |
 | `utility` | Sonstiges | Sensor; später Sprungantrieb, Tarnfeld | Sonderfunktionen |
@@ -40,6 +54,7 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
 ```json
 "slotTypes": [
   { "key": "reactor", "name": "Reaktor",   "required": 1 },
+  { "key": "storage", "name": "Speicher" },
   { "key": "engine",  "name": "Antrieb",   "required": 1 },
   { "key": "shield",  "name": "Schild" },
   { "key": "tool",    "name": "Werkzeug" },
@@ -48,7 +63,7 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
 ],
 "modules": [
   { "key": "reactor_mk1", "slot": "reactor", "size": "S", "tier": 1,
-    "stats": { "power": 10 }, "mass": 4,
+    "stats": { "powerOutput": 10 }, "mass": 4,
     "cost": { "steel": 4, "electronics": 2 }, "upkeep": 0.2 },
   { "key": "chem_engine_s", "slot": "engine", "size": "S", "tier": 1,
     "stats": { "thrust": 40, "fuelUse": 1.0 }, "powerDraw": 3, "mass": 3,
@@ -57,8 +72,15 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
   { "key": "mining_laser_1", "slot": "tool", "size": "S", "tier": 1,
     "grants": ["Mining"], "stats": { "chunkChanceMult": 1.0, "chunkSizeMult": 1.0 },
     "powerDraw": 2, "mass": 1, "cost": { "electronics": 2, "copper": 2 } },
+  { "key": "power_bank_s", "slot": "storage", "size": "S", "tier": 1,
+    "stats": { "powerStorage": 20 }, "mass": 2,
+    "cost": { "steel": 2, "electronics": 2, "copper": 2 } },
   { "key": "cargo_s", "slot": "cargo", "size": "S", "tier": 1,
-    "stats": { "capacity": 30 }, "mass": 2, "cost": { "steel": 2 } },
+    "holds": "solid", "stats": { "capacity": 30 }, "mass": 2, "cost": { "steel": 2 } },
+  { "key": "canister_bay_s", "slot": "cargo", "size": "S", "tier": 1,
+    "holds": "liquid", "stats": { "capacity": 30 }, "mass": 3, "cost": { "steel": 2, "titanium": 1 } },
+  { "key": "universal_bay_s", "slot": "cargo", "size": "S", "tier": 1,
+    "holds": "any", "stats": { "capacity": 20 }, "mass": 3, "cost": { "steel": 3, "titanium": 1 } },
   // Zurückgestellt (nur Referenz): Sprungantrieb und Tarnfeld stehen nicht im ersten Modulsatz.
   { "key": "jump_drive_s", "slot": "utility", "size": "S", "tier": 1,
     "grants": ["Jump"], "stats": { "jumpRange": 1500, "chargeTicks": 120, "cooldownTicks": 600, "jumpFuel": 6 },
@@ -91,7 +113,7 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
 
 | Wert | Berechnung |
 |---|---|
-| Leistungsbilanz | Summe `power` der Reaktoren ≥ Summe `powerDraw`; sonst Fit ungültig |
+| Leistungsbilanz | Summe `powerOutput` ≥ Summe `powerDraw`; Spitzenlast nur mit ausreichender Speicherbank (`powerStorage`); sonst Fit ungültig |
 | Tempo | Schub ÷ Gesamtmasse (Klasse + Module + Fracht), begrenzt |
 | Hülle | `baseHull` + Panzerung |
 | Schild | Kapazität und Regeneration des Schildmoduls |
@@ -101,6 +123,22 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
 | Unterhalt | Summe `upkeep` der Module; höhere Stufen kosten mehr (`UpkeepSystem`) |
 | Fähigkeiten | Vereinigung aller `grants` |
 
+### Warenform und Kanister (entschieden)
+
+Jede Ware in `goods` bekommt eine **Form** (`form`): `solid` (fest) oder `liquid` (Flüssigstoff). Gase werden verdichtet und zählen als `liquid`.
+
+| Form | Waren (Start) |
+|---|---|
+| `liquid` | `water`, `hydrogen`, `propellant`; später `ion_gas`, `fusion_fuel` |
+| `solid` | alle übrigen (Erze, Eis, Metalle, Komponenten, Güter, Bausätze, Module) |
+
+- **Flüssigstoffe reisen in Kanistern:** Ein Frachtmodul hat `holds`: `solid`, `liquid` oder `any`. Das **Standardfrachtmodul** fasst nur feste Waren, der **Kanisterraum** (`canister_bay`) nur Flüssigstoffe, der **Universalraum** beides, aber mit geringerer Kapazität (etwa 70 %). Kanister sind Teil des Moduls, keine eigene Ware (ein Pfandsystem mit Leerkanistern wäre zu aufwendig).
+- **Der Treibstofftank** (Antriebsgruppe) ist vom Laderaum getrennt. Treibstoff als Handelsware (`propellant`) dagegen liegt im Kanisterraum.
+- **Tanker:** eine Klasse mit viel Kanisterkapazität, zum Beispiel für Wasser, Wasserstoff und Treibstoff.
+- **Migration:** Bestehende Schiffe bekommen ein Universalraum-Modul mit 100 % Kapazität, damit sich beim Laden nichts ändert. Neue Modelle nutzen die getrennten Räume.
+- **Gefahrgut** (`hazard`) ist ein späterer, eigener Marker und noch nicht Teil dieser Entscheidung.
+- **Content-Test:** Jede Ware hat eine Form, und jedes Modell kann seine Ware tragen oder weiß, dass es sie nicht kann.
+
 ### Module sind Waren, drei Modulfabriken (entschieden)
 
 Ein **Slot** ist der Platz am Schiff, ein **Modul** (Schiffsbauteil) steckt darin, zum Beispiel Laser oder Triebwerk. Jedes Modul bekommt automatisch eine **Ware** gleichen Schlüssels (mit Volumen) in `goods`. Das `cost`-Feld des Moduls wird das **Rezept** der Fabrik. Das Lager einer Station verkauft Module, der Ausrüster baut sie ein.
@@ -109,7 +147,7 @@ Statt einer Fabrik für alles oder einer Fabrik je Bauteil gibt es **drei Fabrik
 
 | Fabrik | Stellt her | Zutaten (Schwerpunkt) |
 |---|---|---|
-| **Antriebs- und Energiewerk** | Reaktoren, Triebwerke, Tanks | Stahl, Titan, Brennstoffzellen |
+| **Antriebs- und Reaktorwerk** | Reaktoren, Speicherbänke, Triebwerke, Treibstofftanks, Frachtmodule | Stahl, Titan, Brennstoffzellen |
 | **Waffen- und Schildwerk** | Geschütze, Schilde, Panzerung | Platin, Wafer, Titan, Hüllenplatten |
 | **Systemwerk** | Laser, Traktor, Sensoren, Automatisierung; später Sprungantrieb und Tarnfeld | Elektronik, Wafer |
 

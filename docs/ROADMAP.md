@@ -1,6 +1,6 @@
 # Roadmap (Vorschlag)
 
-Reihenfolge nach Nutzen und Abhängigkeit. Nichts davon ist beschlossen.
+Reihenfolge nach Nutzen und Abhängigkeit. Nichts davon ist beschlossen. Der ausgearbeitete Gesamtplan steht in [UMSETZUNGSPLAN.md](UMSETZUNGSPLAN.md).
 
 1. **Spieler kauft Güter** – erledigt (`TradeActions.Buy/Sell`, Dock-Panel). Schiffe kaufen folgt mit den Schiffsklassen (Schritt 4 unten).
 2. **Stationsdienste** (`IStationService`): Handel als Dienst, Reparatur, Tanken (Treibstoff als Ware), Ausrüster. Schaden und Treibstoff werden zu echten Kosten. Details in [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md).
@@ -31,10 +31,10 @@ Stand der Durchsicht der Dokumente (alles Planung, keine Code-Fehler):
 
 9. **Erledigt (siehe SCHIFFSSLOTS.md, „Module sind Waren“).** **Module sind Waren, stehen aber nicht in `goods`:** SCHIFFSSLOTS.md definiert Module in einem eigenen Abschnitt mit `cost`, sagt aber, sie lägen als Waren im Stationslager. Entscheidung offen. Empfehlung: Jedes Modul bekommt automatisch eine Ware gleichen Schlüssels (mit Volumen); das `cost`-Feld wird das Rezept einer Modulfabrik; der Ausrüster verkauft und baut aus dem Lager ein.
 10. **Erledigt: drei Modulfabriken.** **Wer stellt die Module her?** In der Ideenliste gibt es nur Schildgenerator-Werk und Triebwerkswerk. Reaktoren, Panzerung, Laser, Tanks, Sprungantrieb und Tarnfeld haben keine Fabrik. Es braucht Modulfabriken (zum Beispiel Reaktor-, Waffen-, Utility-Werk), sonst sind die Module nicht herstellbar.
-11. **Warenform fehlt:** Tanker und Gefahrgut setzen eine Eigenschaft der Ware voraus (fest, flüssig, Gas, gefährlich). Die `goods`-Einträge haben sie nicht.
+11. **Erledigt: Flüssigstoffe in Kanistern (SCHIFFSSLOTS.md, „Warenform und Kanister“).** **Warenform fehlt:** Tanker und Gefahrgut setzen eine Eigenschaft der Ware voraus (fest, flüssig, Gas, gefährlich). Die `goods`-Einträge haben sie nicht.
 12. **Zurückgestellt (SCHIFFSSLOTS.md, Abschnitt 11); Lebenserhaltung für Schiffe entfällt vorerst.** **Besatzung fehlt:** SCHIFFE.md verlangt Lebenserhaltung für große Frachter und Kapitalschiffe als laufenden Verbrauch; kein Dokument beschreibt Besatzung oder diesen Verbrauch.
 13. **Fähigkeit `Research` für Schiffe:** wird nirgends gebraucht. Streichen oder definieren.
-14. **Teilweise erledigt: Treibstoff ist von Energie getrennt; `power` (Reaktorleistung) und die Ware `energy` bleiben zu trennen, z. B. `power` → Leistung.** **Namenskollision „Energie“:** `energy` ist eine Ware (Strom der Stationen), `power` die Reaktorleistung eines Schiffs, und „Energie“ steht auch als Treibstoff (Solarsegel). Drei Bedeutungen, besser trennen.
+14. **Erledigt: Leistung (`power`, Schiffe, Reaktor und Speicherbank) und Energie (`energy`, Stationen und Produktion) sind getrennt; Treibstoff ist eine eigene Ware.** **Namenskollision „Energie“:** `energy` ist eine Ware (Strom der Stationen), `power` die Reaktorleistung eines Schiffs, und „Energie“ steht auch als Treibstoff (Solarsegel). Drei Bedeutungen, besser trennen.
 15. **Bausatz:** Im Code gibt es einen `EconomyRules.ShipKitGoodKey` (ein Schlüssel). Die Planung hat vier Stufen; `FleetSystem` und die Werftrezepte müssten pro Klasse wählen.
 16. **Entschärft durch eine Verarbeitungsstufe (Treibstoffraffinerie), Balance-Test bleibt.** **Treibstoff gegen Kraftwerke:** Wasserstoff speist das Kraftwerk und soll zugleich Schiffe antreiben. Neue Nachfrage kann die Energieversorgung der Startwelt verdrängen. Vor der Umsetzung mit `tools/SpaceSim.Balance` testen.
 17. **Erledigt (POLITIK.md, „Akteur und Fraktion“).** **Spieler gehört heute einer Fraktion:** In der JSON hat der Spieler `player.faction`. Mit dem Akteurmodell wird er ein eigener Akteur; Unterhalt, Beziehungen und Startpakete müssen darauf migriert werden.

@@ -41,7 +41,7 @@ Ausgangswelt: Alpha (Eisen, Kupfer, Wasser, Energie), Beta (Silizium, Elektronik
 ### Schiffsbauteile und Treibstoff (entschieden, siehe SCHIFFSSLOTS.md)
 | Station | Stellt her | Hinweis |
 |---|---|---|
-| **Antriebs- und Energiewerk** | Reaktoren, Triebwerke, Tanks | Stufe nach Stationsgröße (klein Mk1, mittel Mk2, Hub Mk3) |
+| **Antriebs- und Reaktorwerk** | Reaktoren, Speicherbänke, Triebwerke, Treibstofftanks, Frachtmodule | Stufe nach Stationsgröße (klein Mk1, mittel Mk2, Hub Mk3) |
 | **Waffen- und Schildwerk** | Geschütze, Schilde, Panzerung | gleiche Staffelung |
 | **Systemwerk** | Laser, Traktor, Sensoren, Automatisierung; später Sprungantrieb und Tarnfeld | gleiche Staffelung |
 | **Treibstoffraffinerie** | 3 Wasserstoff + 1 Energie → 4 Treibstoff | Startwerte |

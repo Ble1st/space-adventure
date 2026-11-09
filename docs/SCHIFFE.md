@@ -21,7 +21,7 @@ Alle Zahlen sind Startwerte zum Tunen (Fracht / Hülle / Tempo).
 | **Schwerer Frachter** | *Behemoth* (500 / 250 / langsam) | Hüllenplatten, Titan |
 | **Bergbauer leicht** | *Pickaxe* (60 / 100, Laser Stufe 1) | Hüllenplatten |
 | **Bergbauer schwer** | *Rockbreaker* (150 / 200, Laser Stufe 2) | Hüllenplatten, Titan, Brennstoffzellen |
-| **Tanker** | *Cistern* (nur Flüssig-/Gasgüter, hohe Kapazität) | Stahl |
+| **Tanker** | *Cistern* (viel Kanisterraum, nur Flüssigstoffe, hohe Kapazität) | Stahl, Titan |
 | **Bauschiff** | *Foreman* (baut Stationen) | Stahl, Elektronik, Plattierung |
 | **Asteroidenbrecher** | *Quarry*, *Rockbreaker II* | Titan, Brennstoffzellen, Hüllenplatten |
 | **Korvette** (später) | *Sting*, *Hornet* | `ship_kit_medium`, Platin |
@@ -54,7 +54,7 @@ Jede Klasse hat feste Slots, ein Modell belegt sie ab Werk, Spieler können sie 
 | Frachtraum | Standard, Gefahrgut, Flüssigtank | `Cargo` |
 | Werkzeug | Mining-Laser I/II, Traktor, Bauausleger, Spaltlaser | `Mining`, `Construction` |
 | Waffen | Geschütz, Rakete | `Combat` |
-| Antrieb / Kern | Reaktor, Sprungantrieb, Schild | Tempo, Hülle, Energie |
+| Antrieb / Kern | Reaktor, Sprungantrieb, Schild | Tempo, Hülle, Leistung |
 
 Die Slotzahl ist der Preis der Vielseitigkeit: Wer wenige Slots hat, muss sich entscheiden. Spezialisten bleiben in ihrer Aufgabe besser, ein Generalist ist nie die beste Wahl für eine Einzelaufgabe, sondern die flexibelste.
 
@@ -98,7 +98,7 @@ Die Slotzahl ist der Preis der Vielseitigkeit: Wer wenige Slots hat, muss sich e
 
 ## 7. Risiken
 
-- **Balance:** Ein Generalist darf nicht fast so gut schürfen wie ein Spezialist. Die Strafe (weniger Fracht, schwächerer Laser durch Energieteilung) muss messbar sein; vor dem KI-Kauf mit `tools/SpaceSim.Balance` prüfen.
+- **Balance:** Ein Generalist darf nicht fast so gut schürfen wie ein Spezialist. Die Strafe (weniger Fracht, schwächerer Laser durch geteilte Leistung) muss messbar sein; vor dem KI-Kauf mit `tools/SpaceSim.Balance` prüfen.
 - **Herdenverhalten:** Ein einheitlicher Job-Score lässt alle Schiffe gleichzeitig dieselbe Aufgabe wählen. Die Crowd-Penalty der Miner muss auf alle Aufgaben ausgeweitet werden.
 - **Umfang:** Der Umbau von `ShipRole` betrifft viele Stellen. Er lohnt sich eher vor dem Kampf als danach.
 - **Zählgrenzen:** Ein Behemoth darf nicht viele kleine Schiffe verdrängen, deshalb Kapazität statt Stückzahl zählen.
