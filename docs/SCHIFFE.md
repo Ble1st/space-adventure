@@ -11,6 +11,8 @@ Beide stehen in der JSON mit eigenen Schlüsseln. Ein Schiff speichert nur `Mode
 
 ## 2. Klassen und Modelle
 
+Jede Klasse hat auch einen **Liegegebührsatz** für fremde Stationen (kleine Klassen wenig, schwere Klassen viel); siehe [UI.md](UI.md).
+
 Alle Zahlen sind Startwerte zum Tunen (Fracht / Hülle / Tempo).
 
 | Klasse | Modelle | Zusatzmaterial |

@@ -20,7 +20,7 @@ Verweise: [UMSETZUNGSPLAN.md](UMSETZUNGSPLAN.md), [SCHIFFSSLOTS.md](SCHIFFSSLOTS
 
 ## 2. Flug-HUD
 
-- **Steuerung:** Wendetasten ◀ und ▶ (große Haltetasten) unten links; Tempo als **waagerechter Slider unten rechts am Bildrand** von STOPP bis MAX, der Griff zeigt den Prozentwert, daneben steht die Geschwindigkeit. Links von STOPP liegt ein kurzer **langsamer Rückwärtsbereich** (entschieden). Der virtuelle Stick entfällt. Der Slider bleibt stehen, bis man ihn ändert. **Wenden bleibt bei Haltetasten** (entschieden).
+- **Steuerung:** Wendetasten ◀ und ▶ (große Haltetasten) unten links; Tempo als **waagerechter Slider unten rechts am Bildrand** von STOPP bis MAX, der Griff zeigt den Prozentwert, daneben steht die Geschwindigkeit. Links von STOPP liegt ein kurzer **langsamer Rückwärtsbereich** mit höchstens **20 % der Höchstgeschwindigkeit** (entschieden). Der virtuelle Stick entfällt. Der Slider bleibt stehen, bis man ihn ändert. **Wenden bleibt bei Haltetasten** (entschieden).
 - **Hamburger-Menü** unten links öffnet die Kommandozentrale (Abschnitt 4): Karte, Fraktionen, Meine Fraktion, Flotte, Besitz, Comms (mit Zähler), Speichern, Einstellungen. Die Schalter für Autopilot und Auto-Mining bleiben vorerst an der Zielkarte.
 - **Waffen:** Rechts am Rand **eine Taste je Waffenschacht** (Laser, Geschütz, Traktor). Jede Taste zeigt den Feuerwinkel als Symbol und den Zustand:
 
@@ -61,7 +61,7 @@ Das **Taxi bringt den Spieler allein zu einer anderen Station, das Schiff bleibt
 
 - Die Liste zeigt je Ziel Preis, Dauer, Zoll und Lage, und ob dort ein eigenes Schiff wartet („Dort wartet: Spatz“) oder ein Leihschiff nötig ist („Kein eigenes Schiff · Leihschiff ab 180 Cr“).
 - Gesperrte Routen (Gate zu, Embargo) sind nicht buchbar und zeigen den Grund.
-- Das zurückbleibende Schiff kostet **Liegegebühr nur an fremden Stationen** (zum Beispiel 12 Cr je Tag); an eigenen Stationen ist sie gratis (entschieden).
+- Das zurückbleibende Schiff kostet **Liegegebühr nur an fremden Stationen**, **abhängig von der Schiffsklasse** (kleine Schiffe wenig, schwere viel); an eigenen Stationen ist sie gratis (entschieden). Beispielwerte: Skiff und Kurier 12 Cr je Tag, leichter Frachter und Bergbauer 24, schwerer Frachter 60, später Kampfschiffe mehr.
 - Am Ziel wählt der Spieler im Andock-Menü ein dort wartendes eigenes Schiff oder mietet eines (`rental`).
 - Die Routenkarte markiert die eigenen Schiffe an ihren Standorten.
 
@@ -83,14 +83,12 @@ Das Hamburger-Menü öffnet die Kommandozentrale im Vollbild, gebaut wie das Doc
 
 Im Besitz öffnet Tippen auf ein Schiff ein **Detailfenster** (Zustand, Module, Auftrag, Standort, Unterhalt, Wert). Der Knopf **„In dieses Schiff wechseln“** setzt den Spieler in das gewählte Schiff, **dort, wo es ist**:
 
-- Das **alte Schiff bleibt an Ort und Stelle**: angedockt im Hangar (Liegegebühr nur an fremden Stationen), sonst hält es Position. Ein Befehl des gewählten Schiffs wird beendet; ein Schiff im freien Raum bleibt ungeschützt (Warnhinweis).
+- Das **alte Schiff bleibt an Ort und Stelle**: angedockt im Hangar (Liegegebühr nur an fremden Stationen), sonst gilt: **Hat es einen Befehl, führt es ihn weiter; hat es keinen, hält es die Position** (entschieden). Ein Schiff im freien Raum bleibt ungeschützt (Warnhinweis).
 - Das **Geld bleibt bei der Person** (POLITIK.md, „Spielerkasse“); Fracht und Treibstoff bleiben im jeweiligen Schiff.
 - Weitere Knöpfe im Fenster: Befehle, Heim schicken, Verkaufen.
 
 ## 5. Offene Fragen
 
-- Wie langsam ist Rückwärtsfahren genau (Anteil der Höchstgeschwindigkeit)?
-- Was passiert mit einem Schiff im freien Raum, wenn man es verlässt: Position halten oder Befehl weiterführen?
 - Leihschiff: welches Standardmodell, welche Miete und welches Pfand?
-- Liegegebühr an fremden Stationen: Höhe, mit oder ohne Freitage, abhängig vom Ruf bei der Station?
+- Liegegebühr an fremden Stationen: genaue Staffel je Klasse, mit oder ohne Freitage, Rabatt bei gutem Ruf?
 - Aufträge im Andock-Menü sind Platzhalter, bis es Missionen gibt.
