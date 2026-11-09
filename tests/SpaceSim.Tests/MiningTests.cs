@@ -487,6 +487,58 @@ public class RespawnTests
 public class TradeActionTests
 {
     [Fact]
+    public void Buy_MovesGoodsAndMoney_AndRespectsLimits()
+    {
+        var u = DemoUniverse.Create();
+        new SimulationRunner().Run(u, 1);
+        var ship = u.Ships[u.PlayerShip];
+        var st = u.Stations.Values.First(s => s.Market.Values.Any(m => m.Amount >= 20f && m.Price > 0f));
+        var good = st.Market.First(kv => kv.Value.Amount >= 20f && kv.Value.Price > 0f).Key;
+        var e = st.Market[good];
+        ship.Cargo.Clear(); ship.Credits = 1_000_000f;
+        float stock = e.Amount, price = e.Price, stCredits = st.Credits;
+
+        var r = TradeActions.Buy(u, ship, st, good, 10f);
+
+        Assert.Equal(10f, r.Units);
+        Assert.Equal(BuyOutcome.Ok, r.Outcome);
+        Assert.Equal(10f * price, r.Cost, 2);
+        Assert.Equal(stock - 10f, e.Amount, 3);
+        Assert.Equal(stCredits + r.Cost, st.Credits, 2);
+        Assert.Equal(10f, ship.Cargo[good]);
+
+        ship.Credits = price * 2.5f;
+        var poor = TradeActions.Buy(u, ship, st, good, 10f);
+        Assert.Equal(2f, poor.Units);
+        Assert.Equal(BuyOutcome.NoCredits, poor.Outcome);
+
+        ship.Credits = 0f;
+        Assert.Equal(BuyOutcome.NoCredits, TradeActions.Buy(u, ship, st, good, 1f).Outcome);
+
+        ship.Credits = 1_000_000f; ship.Cargo.Clear(); ship.CargoCapacity = 3f * u.Goods[good].VolumePerUnit;
+        var tight = TradeActions.Buy(u, ship, st, good, 10f);
+        Assert.Equal(3f, tight.Units);
+        Assert.Equal(BuyOutcome.NoSpace, tight.Outcome);
+    }
+
+    [Fact]
+    public void Buy_UnknownGood_IsRejected_AndSellSingleGoodOnlyTouchesThatGood()
+    {
+        var u = DemoUniverse.Create();
+        new SimulationRunner().Run(u, 1);
+        var ship = u.Ships[u.PlayerShip];
+        var mine = u.Stations[new StationId(1)];
+        ship.Cargo[DemoUniverse.Ore] = 30f;
+        ship.Cargo[new GoodId(999)] = 5f;
+        Assert.Equal(BuyOutcome.NotSold, TradeActions.Buy(u, ship, mine, new GoodId(999), 1f).Outcome);
+
+        var sale = TradeActions.Sell(u, ship, mine, DemoUniverse.Ore, 10f);
+        Assert.Equal(10f, sale.Sold[DemoUniverse.Ore], 3);
+        Assert.Equal(20f, ship.Cargo[DemoUniverse.Ore], 3);
+        Assert.Equal(5f, ship.Cargo[new GoodId(999)]);
+    }
+
+    [Fact]
     public void SellAll_PaysAtStationPrice_AndMovesGoods()
     {
         var u = DemoUniverse.Create();

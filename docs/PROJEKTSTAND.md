@@ -30,4 +30,4 @@ Privates, mobiles 2.5D-Weltraumspiel (Vorbild Interstellar Pilot 2) mit einer au
 - Kein visueller Test und kein Test auf einem Gerät (kein Display in der Entwicklungsumgebung).
 
 ## Noch nicht umgesetzt
-Kauf von Gütern durch den Spieler (nur Verkauf), Waffen/Kampf, Fraktionsverhalten (Beziehungen, Krieg, geschlossene Gates), Missionen, Schiffsausrüstung, echte Modelle/Texturen, Test auf Android-Gerät.
+Kauf von Schiffen durch den Spieler (Güterhandel existiert seit dem Dock-Panel), Waffen/Kampf, Fraktionsverhalten (Beziehungen, Krieg, geschlossene Gates), Missionen, Schiffsausrüstung, echte Modelle/Texturen, Test auf Android-Gerät.

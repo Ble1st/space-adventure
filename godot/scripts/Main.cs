@@ -87,6 +87,8 @@ public partial class Main : Node3D
 		_hud.DockPressed += DockAtNearest;
 		_hud.Dock.Undock += Undock;
 		_hud.Dock.SellAll += SellAllHere;
+		_hud.Dock.Buy += BuyHere;
+		_hud.Dock.Sell += SellHere;
 		_hud.LaserButton.Down += () => _fireRequested = true;
 		_hud.TractorPressed += () => { _sfx.Play(SfxId.Click); _tractorOn = _hud.TractorButton.On; };
 		_hud.AutoMinePressed += () => SetAutoMining(_hud.AutoMineButton.On);
@@ -711,6 +713,29 @@ public partial class Main : Node3D
 		_sfx.Play(result.Revenue > 0 ? SfxId.Pickup : SfxId.Click);
 		_hud.Toast(result.Revenue > 0 ? $"Verkauft für {result.Revenue:0} Credits" : "Hier gibt es nichts zu verkaufen");
 		_hud.Dock.Open(_session.U, st, PlayerData);
+	}
+
+	void BuyHere(GoodId good, int units)
+	{
+		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
+		var u = _session.U;
+		float want = units > 0 ? units : TradeActions.MaxBuyable(u, PlayerData, st, good);
+		var r = TradeActions.Buy(u, PlayerData, st, good, want);
+		_sfx.Play(r.Units > 0 ? SfxId.Pickup : SfxId.Click);
+		_hud.Toast(r.Units > 0
+			? $"{r.Units:0} × {u.Goods[good].Name} für {r.Cost:0} gekauft"
+			: r.Outcome switch { BuyOutcome.OutOfStock => "Nicht auf Lager", BuyOutcome.NoCredits => "Zu wenig Credits", BuyOutcome.NoSpace => "Laderaum voll", _ => "Wird hier nicht verkauft" });
+		_hud.Dock.Open(u, st, PlayerData);
+	}
+
+	void SellHere(GoodId good)
+	{
+		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
+		var u = _session.U;
+		var r = TradeActions.Sell(u, PlayerData, st, good, PlayerData.Cargo.GetValueOrDefault(good));
+		_sfx.Play(r.Revenue > 0 ? SfxId.Pickup : SfxId.Click);
+		_hud.Toast(r.Revenue > 0 ? $"Verkauft für {r.Revenue:0} Credits" : "Die Station nimmt davon nichts ab");
+		_hud.Dock.Open(u, st, PlayerData);
 	}
 
 	// ───────── Zugriff für den Selbsttest ─────────

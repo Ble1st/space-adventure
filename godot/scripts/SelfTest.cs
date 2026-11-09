@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using SpaceSim.Core.Model;
@@ -39,6 +40,15 @@ public partial class SelfTest : Node
 				_m.HudRef.Economy.Visible = true; _m.HudRef.Economy.Refresh(_m.Session, force: true);
 				_m.HudRef.Map.Open(u, u.PlayerSector, null);
 				_m.HudRef.Menu.Visible = true;
+				{ // Kaufen am Dock: erste Ware mit Bestand, dann zurückverkaufen
+					var st = u.Stations[u.Stations.Values.First(x => x.Sector == u.PlayerSector).Id];
+					var pl = _m.Session.Player; pl.Credits = 100000f;
+					var gid = st.Market.First(k => k.Value.Amount >= 5f && k.Value.Price > 0f).Key;
+					float before = pl.Cargo.GetValueOrDefault(gid);
+					var r = SpaceSim.Core.Trading.TradeActions.Buy(u, pl, st, gid, 5f);
+					Check(r.Units == 5f && pl.Cargo.GetValueOrDefault(gid) == before + 5f, "Kaufen im Dock-Zustand");
+					_m.HudRef.Dock.Open(u, st, pl);
+				}
 				Next(); break;
 			case 3:
 				_m.HudRef.Map.Visible = false; _m.HudRef.Menu.Visible = false; _m.TestUndock();
