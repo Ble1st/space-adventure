@@ -77,7 +77,7 @@ Die Slotzahl ist der Preis der Vielseitigkeit: Wer wenige Slots hat, muss sich e
 
 ## 5. Brecher: drei Lesarten
 
-Die Bedeutung ist nicht festgelegt. Empfehlung ist Lesart 1.
+**Entschieden: Lesart 1 (Asteroidenbrecher).** Die anderen beiden bleiben als spätere Optionen stehen.
 
 1. **Asteroidenbrecher (empfohlen):** schweres Bergbauschiff, dessen Spaltlaser große Asteroiden in mehrere kleinere zerlegt, die dieselbe Erzmischung tragen. Passt zu `Asteroid.Ore`, `AsteroidClass` und `AsteroidRespawnSystem`. Er verschafft Zugang zu Erz, produziert aber keines.
 2. **Blockadebrecher:** gepanzerter Frachter/Kurier, der durch gesperrte Gates (`Gate.Open=false`) oder feindliche Sektoren liefert. Braucht Fraktionskonflikt und Kampf.
@@ -110,9 +110,86 @@ Die Bedeutung ist nicht festgelegt. Empfehlung ist Lesart 1.
 4. Ausrüster als Dock-Service, `BuyShip` für den Spieler.
 5. Später, nach Kampf und Fraktionsverhalten: Fregatten, Schlachtschiffe, Blockadebrecher. In der JSON dürfen sie vorher reserviert werden, die KI baut sie noch nicht. Abwracker mit dem Recycling.
 
-## 9. Offene Entscheidungen
+## 9. Startpakete (entschieden)
 
-- Startschiff des Spielers: Skiff *Pip* (klein, Aufrüsten als Motivation) oder *Prospector*?
-- Bauschiff schon in der Klassenphase oder erst nach den Schiffsklassen? (Dann bauen Fraktionen Stationen mit einem Schiff, das Stahl und Hüllenplatten liefert.)
-- Welche Lesart von "Brecher" ist gemeint?
-- Kampf-Platzhalter schon in der JSON oder erst mit dem Kampfsystem?
+Der Spieler startet nicht mit einem festen Schiff, sondern wählt ein **Startpaket**. Es ist ein Eintrag in der JSON (`player.startOptions`): Schiffsmodell, Startcredits, optional Startausrüstung und Startsektor. Alle Pakete nutzen dieselben Systeme; nur die Ausgangslage unterscheidet sich.
+
+| Paket | Schiff | Idee |
+|---|---|---|
+| **Schürfer** | *Prospector* (Skiff mit Laser) | Erz abbauen und selbst verkaufen; wenig Credits, dafür sofort produktiv |
+| **Händler** | *Nomad* (Skiff, mehr Fracht) | Etwas mehr Startgeld, kein Laser; lebt von Preisunterschieden |
+| **Generalist** | *Tinker* oder *Pip* mit Werkzeug-Slot | Von allem etwas, nichts richtig |
+| **Kämpfer** (später) | Korvette | Reserviert, erst mit dem Kampfsystem |
+| **Bauer** (später) | *Foreman* | Reserviert, erst mit dem Bauschiffsystem (Abschnitt 10) |
+
+Die Pakete sind austauschbar, weil das Fähigkeitenmodell (Abschnitt 3) die Rolle nicht mehr festlegt: Wer als Schürfer beginnt, kann später Fracht oder Waffen nachrüsten. Das Paket ist in `SaveGame` nicht nötig; nur das Schiff zählt.
+
+## 10. Bauschiff genauer
+
+### Heute
+`StationLifecycleSystem` baut eine neue Station, wenn eine Ware knapp ist. Der reichste Teilnehmer (Station oder Schiff) zahlt die Baukosten in **Credits**, und die Station erscheint sofort am Zielort. Es werden keine Materialien verbraucht und kein Schiff gebraucht.
+
+### Ziel
+Eine Station entsteht in einem **Bauprojekt** und braucht echte Materialien und ein Schiff, das sie liefert:
+
+1. Das Lifecycle-System entscheidet wie bisher, dass ein Typ an einem Ort fehlt, und legt ein **Bauprojekt** an (`BuildSite`): Typ, Position, Besitzer, noch fehlende Materialien. Es verbraucht noch keine Station.
+2. Ein **Bauschiff** (Fähigkeit `Construction`) übernimmt den Auftrag. Es holt Stahl, Hüllenplatten und Elektronik bei Stationen, die sie liefern, und fliegt zur Baustelle.
+3. Es liefert Material ab (Event `ConstructionDelivered`). Sind alle Materialien da, erscheint die Station (`StationBuilt`) und der Besitzer zahlt den Credit-Anteil.
+4. Die Baustelle ist ein eigenes Objekt im Sektor: Sie hat eine Position, ist ein Hindernis und kann vom Spieler gesehen und beliefert werden. Der Spieler kann selbst Material hinbringen und dafür bezahlt werden.
+
+Das Bauschiff ist ein normales Schiff mit der Fähigkeit `Construction`; es nutzt dieselbe Handels-Logik wie Händler, aber sein Ziel ist die Baustelle statt eines Marktes. Es kann nebenbei Fracht transportieren und, mit Laser, selbst Material schürfen (*Foreman*).
+
+### Das Henne-Ei-Problem
+
+Sobald Bau echte Materialien braucht, entstehen Abhängigkeitskreise:
+
+- **Materialkreis:** Eine Stahlhütte braucht Stahl zum Bauen, den nur Stahlhütten herstellen. Fällt die letzte Stahlhütte aus, kann keine neue gebaut werden.
+- **Werftkreis:** Ein Bauschiff entsteht aus einem Bausatz der Werft; die Werft braucht Hüllenplatten, die ein Plattierwerk herstellt. Fehlt eine Station in der Kette, gibt es keine Bauschiffe, also keine neuen Stationen und keine Reparatur der Kette.
+- **Startwelt:** Alle bestehenden Stationen und die Startflotte sind ohne Bauschiff entstanden. Alte Spielstände haben weder Baustellen noch Bauschiffe.
+
+Die Lösungen sind gestaffelt und sollen zusammen verhindern, dass die Welt in einen Zustand ohne Weg zurück gerät:
+
+1. **Bestandsschutz:** Bestehende Stationen bleiben unverändert. Sie müssen nicht nachträglich "gebaut" worden sein. Das Bauschiffsystem gilt nur für neue Stationen. Die vorhandene Markierung `Essential` verhindert, dass die letzte Station einer kritischen Kette (Stahl, Plattierung, Werft) entfernt wird.
+2. **Notbau gegen Deadlock:** Wenn für ein Bauprojekt kein Lieferant oder kein Bauschiff erreichbar ist, fällt das System auf den heutigen Weg zurück: nur Credits, mit **Aufschlag** (zum Beispiel doppelte Kosten). So gibt es immer einen Weg, aber er ist teuer, und die Wirtschaft hat einen Anreiz, die normale Kette am Leben zu halten.
+3. **Zyklenfreie Baukosten:** Die Baukosten eines Typs dürfen keine Ware verlangen, die nur dieser Typ herstellt. Ein `ContentTests`-Test prüft den Abhängigkeitsgraphen: Jeder Stationstyp muss aus der Startwelt oder über den Notbau erreichbar sein.
+4. **Startbestand an Bauschiffen:** Die Startwelt enthält pro Fraktion mindestens ein Bauschiff, damit die Mechanik von Anfang an läuft und nicht erst nach dem Kauf eines Bausatzes.
+5. **Zeitgrenzen für Baustellen:** Ein Projekt ohne Fortschritt verfällt nach einer Frist, die Credits gehen zurück, bereits gelieferte Materialien bleiben als Lager an der Baustelle oder gehen verloren (Entscheidung offen). Wird das Bauschiff entfernt, lässt sich das Projekt neu vergeben.
+6. **Migration:** Save v4 legt eine leere Baustellenliste an. Bestehende Welten laufen unverändert weiter, bis ein neues Projekt entsteht. Ein Schalter in `EconomyRules` (JSON) erlaubt zunächst den alten Direktbau, bis genug Bauschiffe existieren.
+
+### Architektur
+Neu wären das Modell `BuildSite`, ein `ConstructionSystem` (Module "Lifecycle") und die Events `ConstructionStarted/Delivered/Completed/Abandoned`. `StationLifecycleSystem` entscheidet nur noch, **ob** etwas gebaut wird, nicht mehr **wie**. `UniverseHash` und `SaveGame` bekommen die Baustellenliste. Die Balance muss danach mit `tools/SpaceSim.Balance` neu geprüft werden, weil Materialverbrauch die Nachfrage nach Stahl und Hüllenplatten dauerhaft erhöht.
+
+## 11. Asteroidenbrecher (entschieden)
+
+Der Brecher ist ein schweres Bergbauschiff, dessen **Spaltlaser** große Asteroiden in kleinere zerlegt.
+
+- **Spaltregel:** Ein Spaltschuss teilt einen Asteroiden in 2 bis 4 Fragmente mit derselben `ClassKey`. Das Erz wird auf die Fragmente verteilt (ein kleiner Teil geht als Staub verloren, damit Spalten nicht kostenlos Erz erzeugt). Der Radius jedes Fragments folgt wie bisher aus dem Resterz.
+- **Warum:** Normale Miner holen Erz in einzelnen Chunks aus dem Asteroiden. Sehr große Asteroiden sind für schwache Laser unattraktiv oder gar nicht abbaubar (mögliche Regel: `Hardness` pro Asteroidenklasse, Mindeststufe des Lasers). Der Brecher macht sie für alle abbaubar und erhöht dadurch das nutzbare Erz eines Gürtels.
+- **Wirtschaftliche Rolle:** Er erschließt Erz, statt es selbst zu liefern. Spieler und NPCs können ihn zusätzlich als Dienstleistung nutzen (Gürtel "vorbereiten").
+- **Beziehung zu bestehenden Systemen:**
+  - `ResourceField.TargetAsteroids` und `AsteroidRespawnSystem`: Fragmente erhöhen die Zahl der Asteroiden. Respawn darf erst wieder greifen, wenn die Zahl unter dem Ziel liegt, und es braucht eine harte Obergrenze pro Gürtel (Performance, Hindernisse für `PathPlanner`).
+  - `BeltPlacement`: Fragmente werden in der Nähe des Ursprungsfelsens platziert und müssen die Platzregeln einhalten, sonst überlappen sie Hindernisse.
+  - Determinismus: Alle Würfe laufen über `Universe.Rng`. Fragment-Ids sind sequenziell und gehören zum Save.
+  - Event `AsteroidSplit` für Darstellung und Statistik; die Ansicht zeigt Spaltung nur im Spielersektor.
+- **Risiken:** Mehr nutzbares Erz kann die Wirtschaft aus dem Gleichgewicht bringen (Erzpreise fallen, Miner verlieren). Balancetest nötig. Außerdem darf ein Brecher nicht jeden Gürtel in Hunderte Brocken zerlegen; Obergrenze und Mindestgröße der Fragmente verhindern das.
+- **Modelle:** *Quarry* (reiner Brecher), *Rockbreaker II* (Brecher mit größerem Frachtraum).
+
+## 12. Kampf-Platzhalter (nur Dokumentation)
+
+Die Kampfklassen werden zunächst **nur hier beschrieben**. Es gibt weder JSON-Einträge noch Code, bis das Kampfsystem eingeplant ist. Später können sie mit einem Flag `reserved` in der JSON stehen, damit Klassenliste und Bausatzstufen schon stimmen.
+
+| Klasse | Modelle | Voraussetzungen |
+|---|---|---|
+| **Korvette** | *Sting*, *Hornet* | `ship_kit_medium`, Platin, Waffen-Slots |
+| **Fregatte** | *Warden*, *Lancer* | Titan, Platin, Fraktionsverhalten |
+| **Schlachtschiff** | *Bulwark*, *Warhammer* | Hub-Werft, `ship_kit_capital` |
+| **Blockadebrecher** | *Smuggler* | Fraktionssystem, geschlossene Gates |
+
+Das Kampfsystem selbst (Waffen, Schilde, Patrouille, Piraten) steht auf der Roadmap hinter dem Fraktionsverhalten.
+
+## 13. Noch offen
+
+- Bei verfallenen Baustellen: Verbleiben gelieferte Materialien an der Baustelle oder gehen sie verloren?
+- Aufschlag und Frist des Notbaus (Zahlen für die Balance).
+- Ob Fragmente beim Asteroidenbrecher ein Mindestgrößenlimit pro Gürtel bekommen oder ein globales Limit pro Sektor.
+- Spielertätigkeit auf Baustellen: bezahlte Lieferaufträge (Missionen) oder freier Handel an der Baustelle?
