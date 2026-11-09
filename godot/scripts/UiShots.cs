@@ -48,7 +48,8 @@ public partial class UiShots : Node
 			case 3: _m.TestTeleportNearStation(); _stage = 4; _wait = 15; break;
 			case 4: Capture("03-hud-nahe-station-kontext.png"); _stage = 5; _wait = 15; break;
 			case 5: _m.TestOpenCommand(); _stage = 6; _wait = 15; break;
-			case 6: Capture("04-hamburger-menue.png"); _m.HudRef.Screens.Hide(); _stage = 7; _wait = 10; break;
+			case 6: Capture("04-hamburger-menue.png"); _stage = 60; _wait = 10; break;
+			case 60: _m.HudRef.Screens.Hide(); _stage = 7; _wait = 10; break;   // Schließen erst im Folgeframe, sonst fehlt das Menü im Bild
 			// ── Dock-Bilder (UI.md Abschnitt 3) ──
 			case 7: _m.TestTeleportNearStation(); _stage = 8; _wait = 15; break;
 			case 8: _m.TestDockNearest(); _stage = 9; _wait = 90; break;   // Einflug-Tween abwarten

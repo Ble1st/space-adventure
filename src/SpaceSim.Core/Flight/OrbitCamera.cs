@@ -11,6 +11,15 @@ public readonly record struct CamVec3(float X, float Y, float Z)
     public static CamVec3 Lerp(CamVec3 a, CamVec3 b, float t) => new(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t, a.Z + (b.Z - a.Z) * t);
 }
 
+/// <summary>Kameramodus: frei schwenkbar oder auf das gewählte Ziel gesperrt (Target-Lock).</summary>
+public enum CameraMode
+{
+    /// <summary>Spieler schwenkt Yaw und Pitch selbst.</summary>
+    Free,
+    /// <summary>Yaw wird automatisch so geführt, dass das Ziel vor dem Schiff liegt (Kamera hinter dem Schiff, vom Ziel weg blickend); Pitch und Zoom bleiben frei.</summary>
+    TargetLock,
+}
+
 /// <summary>
 /// Reine Rechnung der frei schwenkbaren Flugkamera (engine-unabhängig, ohne Godot): Die Kamera umkreist das Schiff
 /// (Schiff = Drehpunkt) und bleibt dabei immer auf das Schiff ausgerichtet. <see cref="YawDeg"/> ist der Drehwinkel
@@ -51,6 +60,13 @@ public sealed class OrbitCamera
     public float PitchDeg { get; private set; }
     /// <summary>Abstand zum Schiff, geklemmt auf [<see cref="MinDistance"/>, <see cref="MaxDistance"/>].</summary>
     public float Distance { get; private set; }
+    /// <summary>Kameramodus (Standard: frei).</summary>
+    public CameraMode Mode { get; set; } = CameraMode.Free;
+    /// <summary>
+    /// Schwenkrichtung umkehren. Standard (false) = „die Welt greifen“: Wischen nach rechts schiebt die Szene nach rechts
+    /// (die Kamera wandert nach links), Wischen nach oben schiebt sie nach oben (die Kamera sinkt).
+    /// </summary>
+    public bool InvertDrag { get; set; }
 
     public OrbitCamera() => Reset();
 
@@ -78,10 +94,16 @@ public sealed class OrbitCamera
     }
 
     /// <summary>
-    /// Schwenken per Bildschirm-Pixel (Zwei-Finger-Wischen oder Mauszug): nach rechts = Kamera um das Schiff
-    /// nach rechts, nach oben = Kamera steigt (Pitch wächst).
+    /// Schwenken per Bildschirm-Pixel (Finger- oder Mauszug). Standard („Welt greifen“): Zug nach rechts dreht die Kamera nach
+    /// links um das Schiff (die Szene folgt dem Finger), Zug nach oben senkt die Kamera (Pitch sinkt). <see cref="InvertDrag"/>
+    /// kehrt beides um. Im Modus <see cref="CameraMode.TargetLock"/> wirkt nur die senkrechte Bewegung (Yaw führt das Ziel).
     /// </summary>
-    public void OrbitDrag(float dxPx, float dyPx) => Orbit(dxPx * DegPerPixelYaw, -dyPx * DegPerPixelPitch);
+    public void OrbitDrag(float dxPx, float dyPx)
+    {
+        float sign = InvertDrag ? -1f : 1f;
+        float dYaw = Mode == CameraMode.TargetLock ? 0f : -dxPx * DegPerPixelYaw * sign;
+        Orbit(dYaw, dyPx * DegPerPixelPitch * sign);
+    }
 
     /// <summary>Zoom um einen Faktor (&lt; 1 = näher heran, z. B. Pinch-Verhältnis oder Mausrad-Stufe).</summary>
     public void Zoom(float factor) => Distance = Clamp(Distance * factor, MinDistance, MaxDistance);
@@ -105,6 +127,38 @@ public sealed class OrbitCamera
     {
         float t = 1f - MathF.Exp(-rate * MathF.Max(delta, 0f));
         return CamVec3.Lerp(current, target, t);
+    }
+
+    /// <summary>
+    /// Yaw in Grad, bei dem die Kamera genau auf der dem Ziel abgewandten Seite des Schiffs steht (das Ziel liegt vor dem
+    /// Schiff, in Blickrichtung). <paramref name="dx"/>/<paramref name="dz"/> = Vektor Schiff → Ziel in der XZ-Ebene.
+    /// Liegt das Ziel (fast) auf dem Schiff, ist die Richtung unbestimmt: dann <c>null</c>.
+    /// </summary>
+    public static float? YawToward(float dx, float dz)
+    {
+        if (dx * dx + dz * dz < MinLockDistance * MinLockDistance) return null;
+        return Wrap360(MathF.Atan2(-dx, -dz) * 180f / MathF.PI);
+    }
+
+    /// <summary>Unterhalb dieser Entfernung zum Ziel (Einheiten) wird der Yaw im Target-Lock nicht mehr nachgeführt.</summary>
+    public const float MinLockDistance = 1.5f;
+
+    /// <summary>Kürzeste Winkeldifferenz von <paramref name="from"/> nach <paramref name="to"/> in Grad, im Bereich (-180, 180].</summary>
+    public static float ShortestAngleDelta(float from, float to)
+    {
+        float d = Wrap360(to - from);
+        return d > 180f ? d - 360f : d;
+    }
+
+    /// <summary>
+    /// Target-Lock: führt den Yaw weich auf das Ziel (Vektor Schiff → Ziel) nach, auf dem kürzesten Weg.
+    /// Wirkt nur im Modus <see cref="CameraMode.TargetLock"/>; ohne Ziel oder bei zu kleiner Entfernung bleibt der Yaw stehen.
+    /// </summary>
+    public void FollowTarget(float dx, float dz, float delta, float rate = 4f)
+    {
+        if (Mode != CameraMode.TargetLock || YawToward(dx, dz) is not { } want) return;
+        float t = 1f - MathF.Exp(-rate * MathF.Max(delta, 0f));
+        YawDeg = Wrap360(YawDeg + ShortestAngleDelta(YawDeg, want) * t);
     }
 
     /// <summary>Winkel auf [0, 360) gewickelt.</summary>

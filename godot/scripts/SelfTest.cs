@@ -248,6 +248,58 @@ public partial class SelfTest : Node
 					Next();
 				}
 				break;
+			case 23: // Touch/Maus steuert nur die Kamera: ein Wisch schwenkt, gibt dem Schiff aber keinen Befehl
+			{
+				_m.TestStopAutomation();   // Autopilot/Auto-Mining würden selbst Tempo geben
+				float yawBefore = _m.TestCamAngles.Yaw;
+				float throttle = _m.TestSwipe(new Vector2(600, 300), new Vector2(700, 300));
+				float yawAfter = _m.TestCamAngles.Yaw;
+				Check(System.Math.Abs(throttle) < 0.001f, $"Wisch gibt dem Schiff keine Flugrichtung/kein Tempo (Soll {throttle:0.00}, Auto-Mining {_m.TestMinerEnabled})");
+				Check(System.Math.Abs(OrbitCamera.ShortestAngleDelta(yawBefore, yawAfter)) > 5f, $"Wisch schwenkt die Kamera (Yaw {yawBefore:0} → {yawAfter:0})");
+				Check(OrbitCamera.ShortestAngleDelta(yawBefore, yawAfter) < 0f, "Wisch nach rechts dreht die Kamera nach links um das Schiff (Szene folgt dem Finger)");
+				_m.TestCameraAction("cam_invert");
+				Check(_m.TestCamInvert, "Menü: Schwenken invertieren schaltet um");
+				float y2 = _m.TestCamAngles.Yaw;
+				_m.TestSwipe(new Vector2(600, 300), new Vector2(700, 300));
+				Check(OrbitCamera.ShortestAngleDelta(y2, _m.TestCamAngles.Yaw) > 0f, "Invertiert: Wisch nach rechts dreht die Kamera nach rechts");
+				_m.TestCameraAction("cam_invert");
+				Next(); break;
+			}
+			case 24: // Hamburger-Menü: Zoom und Modus
+			{
+				_m.TestResetCam();
+				float d0 = _m.TestCamAngles.Dist;
+				_m.TestCameraAction("zoom_in");
+				Check(_m.TestCamAngles.Dist < d0 - 1f, "Menü: Zoom + geht näher heran");
+				_m.TestCameraAction("zoom_out");
+				Check(System.Math.Abs(_m.TestCamAngles.Dist - d0) < 0.5f, "Menü: Zoom − geht zurück");
+				_m.TestCameraAction("cam_lock");
+				Check(_m.TestCamMode == CameraMode.TargetLock, "Menü: Target-Lock aktiv");
+				Next(); break;
+			}
+			case 25: // Target-Lock: Ziel (Station im Sektor) liegt vor dem Schiff, Kamera dahinter
+			{
+				var uni = _m.Session.U;
+				var st = uni.Stations.Values.FirstOrDefault(x => x.Sector == uni.PlayerSector);
+				if (st == null) { Log("Target-Lock-Test übersprungen: keine Station im Sektor"); _m.TestCameraAction("cam_free"); Next(); break; }
+				_m.TestSetStationTarget(st.Id);
+				Check(_m.TestHasLockTarget, "Target-Lock hat ein Ziel (Station)");
+				Next(); break;
+			}
+			case 26:
+				if (_frame - _stageStart > 240)   // weiches Nachführen abwarten
+				{
+					if (_m.TestLockGeometry() is { } g)
+					{
+						float dot = g.ToTarget.Dot(g.ToCamera);
+						// Das Schiff driftet noch und die Kamera folgt weich (kleiner Nachlauf): Toleranz ≈ 30°
+						Check(dot < -0.85f, $"Target-Lock: Kamera steht auf der dem Ziel abgewandten Seite (Skalarprodukt {dot:0.00})");
+					}
+					_m.TestCameraAction("cam_free");
+					Check(_m.TestCamMode == CameraMode.Free, "Menü: Freie Kamera aktiv");
+					Next();
+				}
+				break;
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

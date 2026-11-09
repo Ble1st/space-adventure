@@ -61,7 +61,7 @@ public partial class FlightHud : Control, IScreen
 	public Control Node => this;
 	public bool IsOpen => Visible;
 
-	public event Action? HamburgerPressed, MapPressed, FastPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire, CameraResetPressed;
+	public event Action? HamburgerPressed, MapPressed, FastPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire, CommandPressed;
 	/// <summary>Finger auf einer Waffenschacht-Taste (Index in <see cref="FlightHudData.Bays"/>).</summary>
 	public event Action<int>? BayDown;
 
@@ -69,7 +69,7 @@ public partial class FlightHud : Control, IScreen
 	KitBar _hullBar = null!;
 	Label _hullVal = null!;
 	Label _credits = null!, _sector = null!, _factionChip = null!;
-	KitButton _mapBtn = null!, _fastBtn = null!, _camBtn = null!;
+	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
 	Radar _radar = null!;
@@ -100,6 +100,13 @@ public partial class FlightHud : Control, IScreen
 	public bool AutopilotOn => _autopilotBtn.On;
 	public bool AutoMineOn => _autoMineBtn.On;
 	public bool FastOn => _fastBtn.On;
+
+	/// <summary>Zähler ungelesener Comms-Nachrichten am Kommando-Knopf (0 = keine Anzeige).</summary>
+	public void SetCommandBadge(int unread)
+	{
+		_cmdBtn.Detail = unread > 0 ? $"Comms: {unread}" : "";
+		_cmdBtn.DetailColor = UiKit.Orange;
+	}
 
 	public void SetSlider(float v) => _slider.SetValue(v, notify: false);
 	public void SetAutopilot(bool on) => _autopilotBtn.On = on;
@@ -137,13 +144,13 @@ public partial class FlightHud : Control, IScreen
 		_factionChip = Text("", 15, UiKit.Dim);
 		cr.AddChild(_sector); cr.AddChild(_factionChip);
 
-		// ── Karte und Zeitraffer oben rechts, daneben „Kamera ↺“ (Standardansicht) ──
+		// ── Kommandozentrale, Karte und Zeitraffer oben rechts ──
 		_mapBtn = At(this, new KitButton("Karte", new Vector2(110, 50)) { FontSize = 18 }, 1030, 12);
 		_fastBtn = At(this, new KitButton("Zeit ×1", new Vector2(110, 50)) { FontSize = 17, Toggle = true }, 1150, 12);
-		_camBtn = At(this, new KitButton("Kamera ↺", new Vector2(160, 56)) { FontSize = 17 }, 862, 8);
+		_cmdBtn = At(this, new KitButton("Kommando", new Vector2(160, 56)) { FontSize = 18 }, 862, 8);
 		_mapBtn.Pressed += () => MapPressed?.Invoke();
 		_fastBtn.Pressed += () => FastPressed?.Invoke();
-		_camBtn.Pressed += () => CameraResetPressed?.Invoke();
+		_cmdBtn.Pressed += () => CommandPressed?.Invoke();
 
 		// ── Zielkarte rechts unter der oberen Leiste ──
 		var card = Win(this, 930, 72, 340, 132, new Color(0.03f, 0.05f, 0.1f, 0.72f), UiKit.Green, 12);

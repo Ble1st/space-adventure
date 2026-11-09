@@ -92,17 +92,92 @@ public class OrbitCameraTests
     }
 
     [Fact]
-    public void OrbitDrag_BildschirmPixelWerdenZuWinkeln()
+    public void OrbitDrag_WeltGreifen_SzeneFolgtDemFinger()
     {
         var c = new OrbitCamera();
-        c.OrbitDrag(100f, 0f);    // 100 px nach rechts
-        Assert.Equal(100f * OrbitCamera.DegPerPixelYaw, c.YawDeg, 3);
-        c.OrbitDrag(0f, -100f);   // 100 px nach oben = Kamera steigt
+        c.OrbitDrag(100f, 0f);    // 100 px nach rechts: Kamera wandert nach links um das Schiff
+        Assert.Equal(OrbitCamera.Wrap360(-100f * OrbitCamera.DegPerPixelYaw), c.YawDeg, 3);
+        Assert.True(c.Offset().X < 0f);   // links vom Schiff
+        c.OrbitDrag(0f, 100f);    // 100 px nach unten: Kamera steigt (Szene folgt dem Finger nach unten)
         Assert.Equal(OrbitCamera.DefaultPitchDeg + 100f * OrbitCamera.DegPerPixelPitch, c.PitchDeg, 3);
-        c.OrbitDrag(0f, -10000f); // weit nach oben ziehen: Pitch klemmt oben
+        c.OrbitDrag(0f, 10000f);  // weit nach unten ziehen: Pitch klemmt oben
         Assert.Equal(OrbitCamera.MaxPitchDeg, c.PitchDeg, 4);
-        c.OrbitDrag(0f, 10000f);  // weit nach unten ziehen: Pitch klemmt unten
+        c.OrbitDrag(0f, -10000f); // weit nach oben ziehen: Pitch klemmt unten
         Assert.Equal(OrbitCamera.MinPitchDeg, c.PitchDeg, 4);
+    }
+
+    [Fact]
+    public void OrbitDrag_Invertiert_KehrtBeideAchsenUm()
+    {
+        var normal = new OrbitCamera();
+        var inv = new OrbitCamera { InvertDrag = true };
+        normal.OrbitDrag(40f, 30f);
+        inv.OrbitDrag(40f, 30f);
+        Assert.Equal(OrbitCamera.Wrap360(-40f * OrbitCamera.DegPerPixelYaw), normal.YawDeg, 3);
+        Assert.Equal(OrbitCamera.Wrap360(40f * OrbitCamera.DegPerPixelYaw), inv.YawDeg, 3);
+        Assert.Equal(OrbitCamera.DefaultPitchDeg + 30f * OrbitCamera.DegPerPixelPitch, normal.PitchDeg, 3);
+        Assert.Equal(OrbitCamera.DefaultPitchDeg - 30f * OrbitCamera.DegPerPixelPitch, inv.PitchDeg, 3);
+    }
+
+    [Fact]
+    public void OrbitDrag_TargetLock_AendertNurDenPitch()
+    {
+        var c = new OrbitCamera { Mode = CameraMode.TargetLock };
+        c.OrbitDrag(200f, 20f);
+        Assert.Equal(0f, c.YawDeg, 4);
+        Assert.Equal(OrbitCamera.DefaultPitchDeg + 20f * OrbitCamera.DegPerPixelPitch, c.PitchDeg, 3);
+    }
+
+    [Theory]
+    [InlineData(0f, -10f)]    // Ziel nördlich (-Z): Kamera südlich (+Z) = Yaw 0, wie die Standardansicht
+    [InlineData(10f, 0f)]     // Ziel östlich: Kamera westlich
+    [InlineData(0f, 10f)]     // Ziel südlich: Kamera nördlich
+    [InlineData(-10f, 0f)]    // Ziel westlich: Kamera östlich
+    [InlineData(7f, -3f)]
+    [InlineData(-4f, 9f)]
+    public void YawToward_KameraStehtAufDerDemZielAbgewandtenSeite(float dx, float dz)
+    {
+        var c = new OrbitCamera();
+        var yaw = OrbitCamera.YawToward(dx, dz);
+        Assert.NotNull(yaw);
+        c.SetAngles(yaw!.Value, 45f, 50f);
+        var o = c.Offset();
+        // Offset (Schiff → Kamera) zeigt exakt entgegengesetzt zur Richtung Schiff → Ziel
+        float len = MathF.Sqrt(dx * dx + dz * dz), ol = MathF.Sqrt(o.X * o.X + o.Z * o.Z);
+        Assert.Equal(-dx / len, o.X / ol, 3);
+        Assert.Equal(-dz / len, o.Z / ol, 3);
+    }
+
+    [Fact]
+    public void YawToward_ZielAufDemSchiff_IstUnbestimmt()
+    {
+        Assert.Null(OrbitCamera.YawToward(0f, 0f));
+        Assert.Null(OrbitCamera.YawToward(0.5f, 0.5f));
+    }
+
+    [Theory]
+    [InlineData(10f, 350f, -20f)]
+    [InlineData(350f, 10f, 20f)]
+    [InlineData(0f, 180f, 180f)]
+    [InlineData(90f, 90f, 0f)]
+    public void ShortestAngleDelta_GehtDenKuerzestenWeg(float from, float to, float expected)
+        => Assert.Equal(expected, OrbitCamera.ShortestAngleDelta(from, to), 3);
+
+    [Fact]
+    public void FollowTarget_Frei_AendertNichts_TargetLock_FuehrtDenYawAufsZiel()
+    {
+        var free = new OrbitCamera();
+        free.FollowTarget(10f, 0f, 1f);
+        Assert.Equal(0f, free.YawDeg, 4);
+
+        var lockCam = new OrbitCamera { Mode = CameraMode.TargetLock };
+        float want = OrbitCamera.YawToward(10f, 0f)!.Value;
+        for (int i = 0; i < 200; i++) lockCam.FollowTarget(10f, 0f, 0.05f);
+        Assert.Equal(want, lockCam.YawDeg, 1);
+
+        float stay = lockCam.YawDeg;
+        lockCam.FollowTarget(0.2f, 0.2f, 1f);   // Ziel praktisch auf dem Schiff: bleibt stehen
+        Assert.Equal(stay, lockCam.YawDeg, 4);
     }
 
     [Fact]
