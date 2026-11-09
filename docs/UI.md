@@ -20,8 +20,8 @@ Verweise: [UMSETZUNGSPLAN.md](UMSETZUNGSPLAN.md), [SCHIFFSSLOTS.md](SCHIFFSSLOTS
 
 ## 2. Flug-HUD
 
-- **Steuerung:** Wendetasten ◀ und ▶ (große Haltetasten) unten links; Tempo als **waagerechter Slider unten rechts am Bildrand** von STOPP bis MAX, der Griff zeigt den Prozentwert, daneben steht die Geschwindigkeit. Der virtuelle Stick entfällt. Der Slider bleibt stehen, bis man ihn ändert.
-- **Hamburger-Menü** unten links: zunächst leerer Platzhalter, später Karte, Schiff, Flotte, Aufträge, Einstellungen sowie die Schalter für Autopilot und Auto-Mining.
+- **Steuerung:** Wendetasten ◀ und ▶ (große Haltetasten) unten links; Tempo als **waagerechter Slider unten rechts am Bildrand** von STOPP bis MAX, der Griff zeigt den Prozentwert, daneben steht die Geschwindigkeit. Links von STOPP liegt ein kurzer **langsamer Rückwärtsbereich** (entschieden). Der virtuelle Stick entfällt. Der Slider bleibt stehen, bis man ihn ändert. **Wenden bleibt bei Haltetasten** (entschieden).
+- **Hamburger-Menü** unten links öffnet die Kommandozentrale (Abschnitt 4): Karte, Fraktionen, Meine Fraktion, Flotte, Besitz, Comms (mit Zähler), Speichern, Einstellungen. Die Schalter für Autopilot und Auto-Mining bleiben vorerst an der Zielkarte.
 - **Waffen:** Rechts am Rand **eine Taste je Waffenschacht** (Laser, Geschütz, Traktor). Jede Taste zeigt den Feuerwinkel als Symbol und den Zustand:
 
 | Zustand | Darstellung | Bedeutung |
@@ -61,14 +61,36 @@ Das **Taxi bringt den Spieler allein zu einer anderen Station, das Schiff bleibt
 
 - Die Liste zeigt je Ziel Preis, Dauer, Zoll und Lage, und ob dort ein eigenes Schiff wartet („Dort wartet: Spatz“) oder ein Leihschiff nötig ist („Kein eigenes Schiff · Leihschiff ab 180 Cr“).
 - Gesperrte Routen (Gate zu, Embargo) sind nicht buchbar und zeigen den Grund.
-- Das zurückbleibende Schiff kostet Liegegebühr (zum Beispiel 12 Cr je Tag).
+- Das zurückbleibende Schiff kostet **Liegegebühr nur an fremden Stationen** (zum Beispiel 12 Cr je Tag); an eigenen Stationen ist sie gratis (entschieden).
 - Am Ziel wählt der Spieler im Andock-Menü ein dort wartendes eigenes Schiff oder mietet eines (`rental`).
 - Die Routenkarte markiert die eigenen Schiffe an ihren Standorten.
 
-## 4. Offene Fragen
+## 4. Kommandozentrale
 
-- Soll „Wenden“ später auch als waagerechter Slider mit Rückfederung wählbar sein?
-- Rückwärtsfahren: unterhalb von STOPP oder gar nicht?
+Das Hamburger-Menü öffnet die Kommandozentrale im Vollbild, gebaut wie das Dock: linke Leiste, Inhalt rechts, „← Flug“ unten links.
+
+| Bereich | Inhalt |
+|---|---|
+| Universum | Sektoren mit Fraktionsfarben als Halo, Gates offen, gesperrt oder mit Zoll, eigene Schiffe als Symbole, Warnungen. Ebenen schaltbar (Fraktion, Sicherheit, Preise, Schiffe). Tippen wählt einen Sektor; die Karte rechts zeigt Besitzer, Kontrolle, Sicherheit, Stationen, eigene Schiffe, Route, Taxipreis. Knöpfe: Sektorkarte öffnen, Route planen, Taxi buchen. |
+| Sektor | Draufsicht auf den Sektor: Stationen, Gürtel, Gates (mit Ziel und Zoll), eigene und fremde Schiffe. Der Umschalter „Universum / Sektor“ oben wechselt die Ebene. Knöpfe: Autopilot hierhin, Andocken, Info öffnen. |
+| Fraktionen | Liste aller bekannten Fraktionen mit Beziehung (−100 bis +100), Art, Lage; Detail mit Persönlichkeit (Aggression, Gier, Kooperation, Gesetzestreue), Lage, Beziehungen zu anderen, Beziehung zum Spieler, letzten Ereignissen. Knöpfe: Kontakt aufnehmen, Gebiet auf Karte. |
+| Meine Fraktion | Größenstufe und Fortschritt zur nächsten Stufe (Beiträge von Schiffen, Stationen, Kasse), Kasse der Person, Mitgliedschaft (Beitreten, Gründen ab Kleinfirma), Unterhalt, Liegegebühr, Einnahmen; Ruf und Fahndung je Fraktion; Fähigkeiten nach Größe mit Schloss für Gesperrtes. |
+| Flotte | Verbände mit Anführer, aktuellem Befehl, Heimatbasis, Ebene und Notfallregel; Befehlsraster (Fliegen, Halten, Handel, Schürfen, Patrouille, Wache, Eskorte, Heimkehr), gesperrt nach Fähigkeit; Verhalten (Passiv, Verteidigen, Angriff, Feuer halten); Automatik mit Reichweite und Budget; Befehlskapazität im Kopf. |
+| Besitz | Kasse, Zahl der Schiffe, Stationen, Verträge, Gesamtwert; Tabs Schiffe, Stationen, Verträge, Lager; je Schiff Standort, Auftrag, Hülle, Sprit. Tippen öffnet ein Detailfenster. |
+| Comms | Posteingang (Zoll, Warnungen, Angebote) und Verhandlungsfenster mit Antworten und **Folgenvorschau** (Ruf, Kosten, Chance): Vertrag annehmen, Tarif verhandeln, Passierschein kaufen, Schutzvertrag, Krieg erklären (rot, nur mit Kriegsgrund). Ignorieren kostet keinen Ruf, Angebote verfallen. |
+
+### Schiff wechseln (entschieden)
+
+Im Besitz öffnet Tippen auf ein Schiff ein **Detailfenster** (Zustand, Module, Auftrag, Standort, Unterhalt, Wert). Der Knopf **„In dieses Schiff wechseln“** setzt den Spieler in das gewählte Schiff, **dort, wo es ist**:
+
+- Das **alte Schiff bleibt an Ort und Stelle**: angedockt im Hangar (Liegegebühr nur an fremden Stationen), sonst hält es Position. Ein Befehl des gewählten Schiffs wird beendet; ein Schiff im freien Raum bleibt ungeschützt (Warnhinweis).
+- Das **Geld bleibt bei der Person** (POLITIK.md, „Spielerkasse“); Fracht und Treibstoff bleiben im jeweiligen Schiff.
+- Weitere Knöpfe im Fenster: Befehle, Heim schicken, Verkaufen.
+
+## 5. Offene Fragen
+
+- Wie langsam ist Rückwärtsfahren genau (Anteil der Höchstgeschwindigkeit)?
+- Was passiert mit einem Schiff im freien Raum, wenn man es verlässt: Position halten oder Befehl weiterführen?
 - Leihschiff: welches Standardmodell, welche Miete und welches Pfand?
-- Liegegebühr im Hangar: je Tag, je Schiff, mit oder ohne Freitage?
+- Liegegebühr an fremden Stationen: Höhe, mit oder ohne Freitage, abhängig vom Ruf bei der Station?
 - Aufträge im Andock-Menü sind Platzhalter, bis es Missionen gibt.

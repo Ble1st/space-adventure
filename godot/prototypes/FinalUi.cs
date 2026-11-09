@@ -7,7 +7,7 @@ namespace SpaceAdventure.Prototypes;
 /// <summary>Finale Oberfläche: Kontext-HUD, kleines Andock-Menü und Dock-Bereiche (Handel, Tanken, Ausrüster, Hangar, Info, Taxi).</summary>
 public static class FinalUi
 {
-	public static readonly string[] Screens = { "hud", "bays", "menu", "handel", "kacheln", "tanken", "ausruester", "hangar", "info", "taxi" };
+	public static readonly string[] Screens = { "hud", "bays", "menu", "handel", "kacheln", "tanken", "ausruester", "hangar", "info", "taxi", "hamburger", "universe", "sector", "factions", "myfaction", "fleet", "assets", "asset", "comms" };
 
 	static readonly Color Act = new(0.2f, 0.38f, 0.62f, 0.95f);
 	static readonly Color BuyC = new(0.15f, 0.45f, 0.28f, 0.95f);
@@ -29,6 +29,7 @@ public static class FinalUi
 			case "hangar": Hangar(root, d); break;
 			case "info": Info(root, d); break;
 			case "taxi": Taxi(root, d); break;
+			default: FinalUi2.Build(name, root, d); break;
 		}
 	}
 
@@ -135,15 +136,19 @@ public static class FinalUi
 			g.Text(new Vector2(0, 28), "TEMPO", 14, Dim);
 			g.Text(new Vector2(0, 50), "148 m/s", 18, White);
 			float left = 100, right = 570, cy = 30, pct = 0.62f;
-			float tx = left + pct * (right - left);
-			g.DrawRect(new Rect2(left, cy - 7, right - left, 14), new Color(1, 1, 1, 0.16f));
-			g.DrawRect(new Rect2(left, cy - 7, tx - left, 14), new Color(Cyan, 0.8f));
+			float stop = left + 0.14f * (right - left);
+			float tx = stop + pct * (right - stop);
+			g.DrawRect(new Rect2(left, cy - 7, stop - left, 14), new Color(Orange, 0.35f));
+			g.DrawRect(new Rect2(stop, cy - 7, right - stop, 14), new Color(1, 1, 1, 0.16f));
+			g.DrawRect(new Rect2(stop, cy - 7, tx - stop, 14), new Color(Cyan, 0.8f));
+			g.Text(new Vector2(left, cy - 12), "◀ rückw.", 11, Orange);
 			foreach (var (lab, f) in new[] { ("STOPP", 0f), ("25", 0.25f), ("50", 0.5f), ("75", 0.75f), ("MAX", 1f) })
 			{
-				float x = left + f * (right - left);
+				float x = stop + f * (right - stop);
 				g.DrawLine(new Vector2(x, cy + 11), new Vector2(x, cy + 21), new Color(1, 1, 1, 0.5f), 2);
-				g.Text(new Vector2(x - 30, cy + 36), lab, 12, Dim, HorizontalAlignment.Center, 60);
+				if (f > 0) g.Text(new Vector2(x - 30, cy + 36), lab, 12, Dim, HorizontalAlignment.Center, 60);
 			}
+			g.Text(new Vector2(stop - 8, cy + 36), "STOPP", 12, White);
 			var th = new Rect2(tx - 32, cy - 19, 64, 38);
 			g.DrawRect(th, new Color(0.2f, 0.38f, 0.62f, 0.97f)); g.DrawRect(th, Cyan, false, 2);
 			g.Text(new Vector2(tx - 32, cy + 6), "62 %", 18, White, HorizontalAlignment.Center, 64);
@@ -269,7 +274,7 @@ public static class FinalUi
 			var l2 = L(sub, 14, Dim); l2.Position = new Vector2(16, 38); b.AddChild(l2);
 		}
 		At(card, B("Abdocken", 540, 64, new Color(0.15f, 0.5f, 0.3f, 0.95f), 24, null, 12, Green), 20, 540);
-		G(card, 20, 612, 540, 28, g => g.Text(new Vector2(0, 18), "Liegegebühr 0 Cr · Hülle repariert beim Andocken", 13, Dim, HorizontalAlignment.Center, 540));
+		G(card, 20, 612, 540, 28, g => g.Text(new Vector2(0, 18), "Liegegebühr 12 Cr/Tag je Schiff (fremde Station) · Hülle repariert beim Andocken", 13, Dim, HorizontalAlignment.Center, 540));
 	}
 
 	// ───────────── Gemeinsames Gerüst der Dock-Bereiche ─────────────
@@ -508,7 +513,7 @@ public static class FinalUi
 	public static void Hangar(Control root, ProtoData d)
 	{
 		var c = Shell(root, d, "Hangar", false);
-		G(c, 0, 0, 1040, 40, g => g.Text(new Vector2(16, 30), "Angedockte Schiffe · Liegeplätze 4 von 6 belegt", 18, Cyan));
+		G(c, 0, 0, 1040, 40, g => { g.Text(new Vector2(16, 30), "Angedockte Schiffe · Liegeplätze 4 von 6 belegt", 18, Cyan); g.TextR(1020, 30, "Liegegebühr 12 Cr/Tag · nur an fremden Stationen", 14, Dim); });
 		float y = 48;
 		foreach (var (name, model, job, hull, fuel, cargo, active, foreign) in new[]
 		{
@@ -623,7 +628,7 @@ public static class FinalUi
 				if (cok) g.TextR(604, 74, csh, 13, cso ? Green : Orange);
 				if (sel)
 				{
-					g.Text(new Vector2(16, 108), "Falke bleibt auf Liegeplatz 3 (12 Cr je Tag).", 13, Dim);
+					g.Text(new Vector2(16, 108), "Falke bleibt auf Liegeplatz 3 (12 Cr/Tag, fremde Station).", 13, Dim);
 					g.Text(new Vector2(16, 128), "Fracht und Credits des Schiffs bleiben dort.", 13, Dim);
 					g.Text(new Vector2(16, 148), "Am Ziel wählst du das Schiff im Andock-Menü.", 13, Dim);
 				}

@@ -268,7 +268,7 @@ IStationService
 | `outfitter` | Module ein- und ausbauen | Module sind Waren aus dem Stationslager |
 | `upgrade` | Module verbessern (Abschnitt 8) | Materialien, Wahrscheinlichkeit |
 | `shipdealer` | Schiff kaufen (`BuyShip`) | Bausatz und Zusatzmaterial aus dem Lager; Parameter `classes`, `maxSize`, `assembly` (siehe „Kleine Schiffe an anderen Stationen“) |
-| `hangar` | Angedockte Schiffe ansehen, wechseln, Befehle geben, nach Hause schicken | Liegeplätze und Liegegebühr je Tag |
+| `hangar` | Angedockte Schiffe ansehen, wechseln, Befehle geben, nach Hause schicken | Liegeplätze; Liegegebühr je Tag **nur an fremden Stationen**, an eigenen gratis |
 | `taxi` | Der **Spieler** reist gegen Gebühr zu einer anderen Station, das **Schiff bleibt** im Hangar | Geld an der Person (POLITIK.md, „Spielerkasse“); Preis aus Strecke, Zoll und Lage |
 | `rental` | Leihschiff (Standardmodell) gegen Gebühr und Pfand | damit der Spieler nie ohne Schiff festsitzt |
 
