@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using SpaceSim.Core.Flight;
 using SpaceSim.Core.Model;
 
 namespace SpaceAdventure;
@@ -16,6 +17,9 @@ namespace SpaceAdventure;
 /// aktualisieren ohne Ausnahme, die Universum-Sektorwahl liefert Route/Sprungzahl passend zu
 /// Universe.FindRoute, „Route planen/Autopilot“ setzt ein Autopilot-Ziel und „← Flug“ schließt alles.
 /// Beendet mit Exit-Code 0 bei Erfolg, sonst 1.
+/// Kamera (UI.md Abschnitt 2): (a) Standardansicht == früherer fester Offset (0, 38, 24), (b) Test-Hook Yaw 90°/Pitch 45° –
+/// Kamera blickt weiter aufs Schiff und hält den Abstand, (c) Bildschirm→Welt-Roundtrip des Schiffsmittelpunkts mit
+/// gedrehter Kamera, (d) „Kamera ↺“ setzt auf die Standardansicht zurück.
 /// </summary>
 public partial class SelfTest : Node
 {
@@ -194,6 +198,56 @@ public partial class SelfTest : Node
 				}
 				catch (System.Exception ex) { Fail("Kommandozentrale warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
+			case 18: // Kamera (a): Standardansicht == früherer fester Offset (0, 38, 24), ohne dass eine Eingabe fiel
+				if (_frame - _stageStart > 30)
+				{
+					var (yaw, pitch, dist) = _m.TestCamAngles;
+					Check(System.Math.Abs(yaw - OrbitCamera.DefaultYawDeg) < 0.01f
+						&& System.Math.Abs(pitch - OrbitCamera.DefaultPitchDeg) < 0.01f
+						&& System.Math.Abs(dist - OrbitCamera.DefaultDistance) < 0.01f,
+						"Kamera startet in der Standardansicht (Yaw 0, Standard-Neigung/-Abstand)");
+					var off = _m.TestCamOffset;
+					var legacy = new Vector3(0, OrbitCamera.LegacyOffsetY, OrbitCamera.LegacyOffsetZ);
+					Check(off.DistanceTo(legacy) < 0.5f, $"Standard-Kameraoffset == früherer fester Offset (0,38,24); ist {off}");
+					Next();
+				}
+				break;
+			case 19: // Kamera (b): Test-Hook setzt Yaw 90°, Pitch 45°, Abstand 50
+				_m.TestSetCam(90f, 45f, 50f);
+				Next(); break;
+			case 20:
+				if (_frame - _stageStart > 5)
+				{
+					var cp = _m.TestCamPos;
+					var pp = _m.Player.Position;
+					float d = cp.DistanceTo(pp);
+					Check(System.Math.Abs(d - 50f) < 0.5f, $"Gedrehte Kamera: Abstand zum Schiff == eingestellte Distanz 50 (ist {d:0.00})");
+					Check((pp - cp).Normalized().Dot(_m.TestCamForward) > 0.999f, "Gedrehte Kamera blickt weiter direkt auf das Schiff (Blickrichtung zeigt aufs Schiff)");
+					// (c): Bildschirm → Welt mit gedrehter Kamera: Schiffsmittelpunkt projizieren und zurückrechnen
+					var screen = _m.TestProject(pp);
+					var ground = _m.TestGroundPoint(screen);
+					Check(ground.HasValue && new Vector2(ground.Value.X - pp.X, ground.Value.Z - pp.Z).Length() < 0.5f,
+						$"Bildschirm→Welt-Roundtrip des Schiffsmittelpunkts mit gedrehter Kamera (Abweichung {(ground.HasValue ? new Vector2(ground.Value.X - pp.X, ground.Value.Z - pp.Z).Length() : -1):0.000})");
+					Next();
+				}
+				break;
+			case 21: // Kamera (d): „Kamera ↺“ setzt zurück
+				_m.TestResetCam();
+				Next(); break;
+			case 22:
+				if (_frame - _stageStart > 120)   // weiches Nachführen abwarten
+				{
+					var (yaw, pitch, dist) = _m.TestCamAngles;
+					Check(System.Math.Abs(yaw - OrbitCamera.DefaultYawDeg) < 0.01f
+						&& System.Math.Abs(pitch - OrbitCamera.DefaultPitchDeg) < 0.01f
+						&& System.Math.Abs(dist - OrbitCamera.DefaultDistance) < 0.01f,
+						"„Kamera ↺“ setzt Yaw/Pitch/Abstand auf die Standardansicht zurück");
+					var off = _m.TestCamOffset;
+					var legacy = new Vector3(0, OrbitCamera.LegacyOffsetY, OrbitCamera.LegacyOffsetZ);
+					Check(off.DistanceTo(legacy) < 0.05f, $"„Kamera ↺“: Kamera-Offset == früherer fester Offset (0,38,24); ist {off}");
+					Next();
+				}
+				break;
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

@@ -21,12 +21,15 @@ namespace SpaceAdventure;
 /// Steuerwünsche. Neue Features hängen sich als eigene Komponenten an, statt diese Klasse aufzublähen.
 /// Lenkpriorität: Tempo-Slider und Wendetasten/Tasten > Zeiger (gedrückt halten = zum Zeiger fliegen) > Autopilot;
 /// manuelle Bedienung bricht Autopilot und Auto-Mining ab. Antippen eines Ziels = Autopilot-Ziel.
+/// Kamera: frei um das Schiff schwenkbar (Rechnung in SpaceSim.Core.Flight.OrbitCamera), bleibt immer auf das
+/// Schiff ausgerichtet; Standardansicht = früherer fester Offset (0, 38, 24). Zwei Finger schwenken/zoomen,
+/// rechte/mittlere Maustaste + Rad am Desktop; „Kamera ↺“ setzt zurück. Wird nicht im Spielstand gespeichert.
 /// </summary>
 public partial class Main : Node3D
 {
 	const float GateRadius = 10f;
 	const float AutosaveSeconds = 30f;
-	static readonly Vector3 CamOffset = new(0, 38, 24);
+	const float WheelZoomIn = 0.88f, WheelZoomOut = 1f / 0.88f;
 
 	GameSession _session = null!;
 	SectorView _view = null!;
@@ -36,6 +39,10 @@ public partial class Main : Node3D
 	Fx _fx = null!;
 	Sfx _sfx = null!;
 	MiningView _mining = null!;
+
+	// Kamera: Winkel/Abstand als reine Core-Rechnung, Ist-Offset folgt weich (Standard = früherer CamOffset 0,38,24)
+	readonly OrbitCamera _orbit = new();
+	CamVec3 _camOffset;
 
 	// Abbau: Spieler-Mikrosimulation (flüchtig), Automodus und manuelle Bedienung
 	readonly OreChunks _chunks = new();
@@ -65,6 +72,11 @@ public partial class Main : Node3D
 	Vector2 _pointerPos, _pointerStart;
 	double _pointerDownAt;
 
+	// Kamera-Gesten: alle aktiven Touch-Finger (ab zweien schwenkt/zoomt die Kamera), Mauszug mit rechter/mittlerer Taste
+	readonly Dictionary<int, Vector2> _touch = new();
+	bool _camMouseDrag;
+	float _pinchLast;
+
 	Ship PlayerData => _session.Player;
 
 	public override void _Ready()
@@ -87,6 +99,7 @@ public partial class Main : Node3D
 		_hud.Flight.AutopilotPressed += ToggleAutopilot;
 		_hud.Flight.AutoMinePressed += () => SetAutoMining(_hud.Flight.AutoMineOn);
 		_hud.Flight.ContextPressed += ContextAction;
+		_hud.Flight.CameraResetPressed += ResetCamera;
 		_hud.Flight.BayDown += OnBayDown;
 		_hud.Flight.AllFire += FireReadyBays;
 		_hud.Command.Action += OnCommandAction;
@@ -205,7 +218,24 @@ public partial class Main : Node3D
 		var p = PlayerData;
 		_player.Position = new Vector3(p.Position.X, 0, p.Position.Y);
 		_player.Velocity = Vector3.Zero; _player.Locked = false;
-		_cam.Position = _player.Position + CamOffset;
+		_camOffset = _orbit.Offset();   // gewählte Ansicht bleibt erhalten (nicht im Spielstand gespeichert)
+		SnapCam();
+	}
+
+	/// <summary>Setzt die Kamera hart auf Schiff + aktuellen Orbit-Offset und richtet sie auf das Schiff aus (Neustart, Sprung, Teleport).</summary>
+	void SnapCam()
+	{
+		var o = _camOffset;
+		_cam.Position = _player.Position + new Vector3(o.X, o.Y, o.Z);
+		_cam.LookAt(_player.Position);
+	}
+
+	/// <summary>„Kamera ↺“: Yaw/Pitch/Abstand auf die Standardansicht zurücksetzen (weicher Übergang über Follow).</summary>
+	void ResetCamera()
+	{
+		_orbit.Reset();
+		_sfx.Play(SfxId.Click);
+		_hud.Toast("Kamera zurückgesetzt");
 	}
 
 	void OnMenu(string action)
@@ -342,8 +372,11 @@ public partial class Main : Node3D
 
 		_view.Animate(delta);
 		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta);   // angedockt: niemand weicht dem unsichtbaren Schiff aus
-		_cam.Position = _cam.Position.Lerp(_player.Position + CamOffset, 1f - Mathf.Exp(-6f * delta));
-		_cam.LookAt(_cam.Position - CamOffset);
+		// Kamera: Ist-Offset folgt weich dem Orbit-Soll-Offset, Kamera sitzt auf Schiff + Offset und blickt auf das Schiff
+		_camOffset = OrbitCamera.Follow(_camOffset, _orbit.Offset(), delta);
+		var co = _camOffset;
+		_cam.Position = _player.Position + new Vector3(co.X, co.Y, co.Z);
+		_cam.LookAt(_player.Position);
 
 		UpdateHud();
 		_hud.Economy.Refresh(_session);
@@ -460,7 +493,8 @@ public partial class Main : Node3D
 		_player.Heading = Mathf.Atan2(-dir.X, -dir.Z);
 		_player.Velocity = dir * 12f;
 		_jumpCooldown = 2f;
-		_cam.Position = _player.Position + CamOffset;
+		_camOffset = _orbit.Offset();   // gewählte Ansicht bleibt nach dem Sprung erhalten
+		SnapCam();
 		_hud.Flash(new Color(0.6f, 0.85f, 1f));
 		_sfx.Play(SfxId.Jump);
 		_hud.Toast(u.Sectors[far.Sector].Name);
@@ -635,11 +669,11 @@ public partial class Main : Node3D
 		tw.TweenCallback(Callable.From(() => { _transition = false; _player.Velocity = outward * 8f; _player.GiveGrace(2.5f); }));
 	}
 
-	// ───────── Zeiger in der Welt ─────────
+	// ───────── Zeiger in der Welt und Kamera-Gesten ─────────
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
-		if (_hud == null || _hud.AnyModalOpen) return;
+		if (_hud == null || _hud.AnyModalOpen) return;   // Menüs/Dock: Eingaben gehören der Oberfläche, Kamera bleibt stehen
 		if (@event is InputEventKey { Pressed: true, Echo: false } key)
 		{
 			if (key.Keycode == Key.F) _fireRequested = true;
@@ -647,8 +681,76 @@ public partial class Main : Node3D
 			else if (key.Keycode == Key.M) SetAutoMining(!_miner.Enabled);
 			return;
 		}
-		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
 
+		if (!Pointer.TouchMode)
+		{
+			// Maus: rechte oder mittlere Taste ziehen = Kamera schwenken, Mausrad = Zoom; linke Taste bleibt Welt-Zeiger
+			if (@event is InputEventMouseButton mb && (mb.ButtonIndex == MouseButton.Right || mb.ButtonIndex == MouseButton.Middle))
+			{
+				_camMouseDrag = mb.Pressed;
+				return;
+			}
+			if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
+			{
+				_orbit.Zoom(wheel.ButtonIndex == MouseButton.WheelUp ? WheelZoomIn : WheelZoomOut);
+				return;
+			}
+			if (@event is InputEventMouseMotion mm && _camMouseDrag)
+			{
+				_orbit.OrbitDrag(mm.Relative.X, mm.Relative.Y);
+				return;
+			}
+			if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
+			HandlePointer(idx, pos, pressed, motion);
+			return;
+		}
+
+		// Touch: alle Finger verfolgen; ab zwei Fingern gehört die Geste der Kamera (Schwenken + Pinch-Zoom),
+		// ein einzelner Finger bleibt Welt-Zeiger (Antippen = Ziel, Halten = zum Zeiger fliegen)
+		if (@event is InputEventScreenTouch t)
+		{
+			if (t.Pressed)
+			{
+				_touch[t.Index] = t.Position;
+				if (_touch.Count >= 2) { _pointerFinger = -1; _pinchLast = PinchDistance(); }   // zweiter Finger: Kamera-Geste, Welt-Zeiger endet
+				else HandlePointer(t.Index, t.Position, pressed: true, motion: false);
+			}
+			else
+			{
+				_touch.Remove(t.Index);
+				if (_pointerFinger == t.Index) HandlePointer(t.Index, t.Position, pressed: false, motion: false);
+				if (_touch.Count < 2) _pinchLast = 0f;
+			}
+			return;
+		}
+		if (@event is InputEventScreenDrag d && _touch.TryGetValue(d.Index, out var prev))
+		{
+			var delta = d.Position - prev;
+			_touch[d.Index] = d.Position;
+			if (_touch.Count >= 2)
+			{
+				_orbit.OrbitDrag(delta.X / _touch.Count, delta.Y / _touch.Count);   // Schwerpunkt der aktiven Finger
+				float pinch = PinchDistance();
+				if (_pinchLast > 0f) _orbit.Zoom(_pinchLast / Mathf.Max(pinch, 1f));   // Finger auseinander = hineinzoomen
+				_pinchLast = pinch;
+			}
+			else HandlePointer(d.Index, d.Position, pressed: true, motion: true);
+		}
+	}
+
+	/// <summary>Abstand der ersten beiden aktiven Touch-Finger (Pinch); 0 bei weniger als zwei Fingern.</summary>
+	float PinchDistance()
+	{
+		if (_touch.Count < 2) return 0f;
+		var e = _touch.Values.GetEnumerator();
+		e.MoveNext(); var a = e.Current;
+		e.MoveNext();
+		return a.DistanceTo(e.Current);
+	}
+
+	/// <summary>Welt-Zeiger (ein Finger / linke Maustaste): press = Finger setzen, drag = Position, loslassen = ggf. Antippen.</summary>
+	void HandlePointer(int idx, Vector2 pos, bool pressed, bool motion)
+	{
 		if (!motion && pressed && _pointerFinger < 0)
 		{
 			_pointerFinger = idx; _pointerPos = _pointerStart = pos;
@@ -846,9 +948,14 @@ public partial class Main : Node3D
 			d.ContextLabel = $"Springen: {u.Sectors[far.Sector].Name}";
 		}
 
-		// Feuerwinkel-Kegel um das Schiff
+		// Feuerwinkel-Kegel um das Schiff: Bildschirmwinkel der Nase direkt projiziert (stimmt mit gedrehter Kamera)
 		d.ShipScreen = _cam.IsPositionBehind(_player.Position) ? null : _cam.UnprojectPosition(_player.Position);
-		d.ShipHeadingDeg = headingDeg;
+		if (d.ShipScreen is { } sp0)
+		{
+			var nose = Vector3.Forward.Rotated(Vector3.Up, _player.Heading);
+			var sp1 = _cam.UnprojectPosition(_player.Position + nose * 10f);
+			d.ShipScreenNoseDeg = Mathf.RadToDeg(Mathf.Atan2(sp1.Y - sp0.Y, sp1.X - sp0.X));
+		}
 
 		int ready = 0, fire = 0;
 		var bays = WeaponBays.PlayerDefault;
@@ -1123,7 +1230,8 @@ public partial class Main : Node3D
 		_mineTarget = rock;
 		CancelAutopilot();
 		if (_miner.Enabled) SetAutoMining(false);
-		_cam.Position = _player.Position + CamOffset;
+		_camOffset = _orbit.Offset();
+		SnapCam();
 	}
 	/// <summary>Teleportiert das Schiff in Andocknähe der nächsten Station (Kontexttaste wird sichtbar).</summary>
 	internal void TestTeleportNearStation()
@@ -1148,7 +1256,8 @@ public partial class Main : Node3D
 		_player.GiveGrace(5f);
 		_mineTarget = null;
 		CancelAutopilot();
-		_cam.Position = _player.Position + CamOffset;
+		_camOffset = _orbit.Offset();
+		SnapCam();
 	}
 	/// <summary>Ein Schuss aus der Waffenschacht-Taste (Test: Zustand wechselt danach auf Nachladen).</summary>
 	internal void TestFireWeapon() => _fireRequested = true;
@@ -1177,4 +1286,28 @@ public partial class Main : Node3D
 	internal void TestCcSelectSectorView(SectorId s) => _hud.CcSector.TestSelectSector(s);
 	/// <summary>Aktuelles Autopilot-Ziel (Selbsttest: „Route planen“/„Autopilot hierhin“ setzt ein Ziel).</summary>
 	internal NavTarget? TestAutopilotTarget => _target;
+
+	// ── Hooks für die Kamera-Prüfungen (Selbsttest/Screenshots) ──
+
+	/// <summary>Setzt Kamera-Winkel/-Abstand direkt (geklemmt im Core) und schnappt die Kamera darauf.</summary>
+	internal void TestSetCam(float yawDeg, float pitchDeg, float distance)
+	{
+		_orbit.SetAngles(yawDeg, pitchDeg, distance);
+		_camOffset = _orbit.Offset();
+		SnapCam();
+	}
+	/// <summary>„Kamera ↺“ wie ein Tipp auf den Knopf (Selbsttest).</summary>
+	internal void TestResetCam() => ResetCamera();
+	/// <summary>Aktuelle Kamera-Winkel und -Abstand (Selbsttest).</summary>
+	internal (float Yaw, float Pitch, float Dist) TestCamAngles => (_orbit.YawDeg, _orbit.PitchDeg, _orbit.Distance);
+	/// <summary>Aktueller Ist-Offset der Kamera relativ zum Schiff (Selbsttest).</summary>
+	internal Vector3 TestCamOffset => new(_camOffset.X, _camOffset.Y, _camOffset.Z);
+	internal Camera3D TestCam => _cam;
+	internal Vector3 TestCamPos => _cam.Position;
+	/// <summary>Bildschirm → Welt: Schnitt des Kamerastrahls durch diesen Pixel mit der XZ-Ebene (wie „Halten fliegt zum Zeiger“).</summary>
+	internal Vector3? TestGroundPoint(Vector2 screen) => GroundPoint(screen);
+	/// <summary>Welt → Bildschirm: projiziert einen Weltpunkt (Roundtrip-Prüfung mit gedrehter Kamera).</summary>
+	internal Vector2 TestProject(Vector3 world) => _cam.UnprojectPosition(world);
+	/// <summary>Blickrichtung der Kamera (Einheitsvektor); Selbsttest prüft „blickt aufs Schiff“.</summary>
+	internal Vector3 TestCamForward => -_cam.GlobalTransform.Basis.Z;
 }

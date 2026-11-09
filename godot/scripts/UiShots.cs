@@ -13,7 +13,8 @@ namespace SpaceAdventure;
 /// (h) Handel Kacheln, (i) Station-Info, (j) Hangar, (k) Platzhalter-Bereich, dann die
 /// Kommandozentrale (UI.md Abschnitt 4): (l) Menü, (m) Universum (Fraktionsebene), (n) Universum mit
 /// gewähltem Sektor, (o) Sektor, (p) Fraktionsliste, (q) Fraktionsdetail, (r) Meine Fraktion,
-/// (s) Flotte, (t) Besitz, (u) Schiffsdetail, (v) Comms – dann Ende.
+/// (s) Flotte, (t) Besitz, (u) Schiffsdetail, (v) Comms, (w) Flug-HUD mit gedrehter Kamera
+/// (Yaw 60°, Pitch 40°) – dann Ende.
 /// Aufruf: godot-mono --path godot -- --ui-shots build/ui-shots/
 /// </summary>
 public partial class UiShots : Node
@@ -92,6 +93,8 @@ public partial class UiShots : Node
 			case 44: _m.TestOpenCcArea("comms"); _stage = 45; _wait = 20; break;
 			case 45: Capture("22-cc-comms.png"); _stage = 46; _wait = 10; break;
 			case 46: _m.TestCloseCommand(); _stage = 47; _wait = 10; break;
+			case 47: _m.TestSetCam(60f, 40f, 55f); _stage = 48; _wait = 20; break;   // Kamera drehen (HUD bleibt sichtbar)
+			case 48: Capture("23-hud-kamera-gedreht.png"); _stage = 49; _wait = 5; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

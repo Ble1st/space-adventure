@@ -42,15 +42,17 @@ public sealed class FlightHudData
 	public int ReadyBays, FireBays;
 	// Feuerwinkel-Kegel um das Schiff
 	public Vector2? ShipScreen;
-	public float ShipHeadingDeg;
+	/// <summary>Bildschirmwinkel der Schiffsnase in Grad (atan2, y nach unten) – hängt von der Kameradrehung ab, Basis der Kegel.</summary>
+	public float ShipScreenNoseDeg;
 	public Vector2? TargetScreen;
 	public bool TargetInArc;
 }
 
 /// <summary>
 /// Flug-HUD (UI.md Abschnitt 2): Statusleiste oben (Hülle und Credits echt, Schild/Sprit/Leistung Platzhalter),
-/// Sektorchip Mitte, Karte und Zeitraffer rechts, Zielkarte mit Autopilot/Auto-Mining und Kontexttaste,
-/// unten links Hamburger-Menü und Wendetasten, unten rechts der Tempo-Slider, rechts die Waffenschächte.
+/// Sektorchip Mitte, Karte, Zeitraffer und „Kamera ↺“ (Standardansicht) oben rechts, Zielkarte mit Autopilot/Auto-Mining
+/// und Kontexttaste, unten links Hamburger-Menü und Wendetasten (RÜCK als eigene kleinere Haltetaste dazwischen),
+/// unten rechts der Tempo-Slider, rechts die Waffenschächte.
 /// </summary>
 public partial class FlightHud : Control, IScreen
 {
@@ -59,7 +61,7 @@ public partial class FlightHud : Control, IScreen
 	public Control Node => this;
 	public bool IsOpen => Visible;
 
-	public event Action? HamburgerPressed, MapPressed, FastPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire;
+	public event Action? HamburgerPressed, MapPressed, FastPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire, CameraResetPressed;
 	/// <summary>Finger auf einer Waffenschacht-Taste (Index in <see cref="FlightHudData.Bays"/>).</summary>
 	public event Action<int>? BayDown;
 
@@ -67,7 +69,7 @@ public partial class FlightHud : Control, IScreen
 	KitBar _hullBar = null!;
 	Label _hullVal = null!;
 	Label _credits = null!, _sector = null!, _factionChip = null!;
-	KitButton _mapBtn = null!, _fastBtn = null!;
+	KitButton _mapBtn = null!, _fastBtn = null!, _camBtn = null!;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
 	Radar _radar = null!;
@@ -135,11 +137,13 @@ public partial class FlightHud : Control, IScreen
 		_factionChip = Text("", 15, UiKit.Dim);
 		cr.AddChild(_sector); cr.AddChild(_factionChip);
 
-		// ── Karte und Zeitraffer oben rechts ──
+		// ── Karte und Zeitraffer oben rechts, daneben „Kamera ↺“ (Standardansicht) ──
 		_mapBtn = At(this, new KitButton("Karte", new Vector2(110, 50)) { FontSize = 18 }, 1030, 12);
 		_fastBtn = At(this, new KitButton("Zeit ×1", new Vector2(110, 50)) { FontSize = 17, Toggle = true }, 1150, 12);
+		_camBtn = At(this, new KitButton("Kamera ↺", new Vector2(160, 56)) { FontSize = 17 }, 862, 8);
 		_mapBtn.Pressed += () => MapPressed?.Invoke();
 		_fastBtn.Pressed += () => FastPressed?.Invoke();
+		_camBtn.Pressed += () => CameraResetPressed?.Invoke();
 
 		// ── Zielkarte rechts unter der oberen Leiste ──
 		var card = Win(this, 930, 72, 340, 132, new Color(0.03f, 0.05f, 0.1f, 0.72f), UiKit.Green, 12);
@@ -160,8 +164,9 @@ public partial class FlightHud : Control, IScreen
 		At(this, Text("WENDEN", 13, UiKit.Dim, HorizontalAlignment.Center), 100, 560, 260, 20);
 		_turnL = At(this, new KitButton("◀", new Vector2(120, 100)) { FontSize = 44 }, 96, 584);
 		_turnR = At(this, new KitButton("▶", new Vector2(120, 100)) { FontSize = 44 }, 230, 584);
-		At(this, Text("RÜCKWÄRTS · max 20 %", 13, UiKit.Dim, HorizontalAlignment.Center), 470, 560, 160, 20);
-		_reverse = At(this, new KitButton("RÜCK", new Vector2(160, 100)) { FontSize = 26 }, 470, 584);
+		// RÜCK: 50 % der Kanten (80x56, Mindest-Trefferfläche), mittig zwischen Wendetasten (bis x=350) und Slider (ab x=660)
+		At(this, Text("RÜCK · max 20 %", 13, UiKit.Dim, HorizontalAlignment.Center), 410, 566, 200, 20);
+		_reverse = At(this, new KitButton("RÜCK", new Vector2(80, 56)) { FontSize = 20 }, 470, 590);
 		_hamburger = At(this, new KitButton("", new Vector2(60, 60)), 16, 644);
 		_hamburger.Symbol = g => { foreach (var yy in new[] { 20f, 30f, 40f }) g.DrawRect(new Rect2(16, yy, 28, 4), UiKit.White); };
 		_hamburger.Pressed += () => HamburgerPressed?.Invoke();
@@ -327,7 +332,9 @@ public partial class FlightHud : Control, IScreen
 					BayState.Reloading => (new Color(UiKit.Dim, 0.05f), new Color(UiKit.Dim, 0.3f)),
 					_ => (new Color(UiKit.Dim, 0.04f), new Color(UiKit.Dim, 0.25f)),
 				};
-				float center = d.ShipHeadingDeg + FiringArc.FacingOffset(bay.Facing);
+				// Bildschirmwinkel: Nase ist direkt projiziert (Kamera kann gedreht sein); Backbord (+90°) liegt
+				// auf dem Bildschirm 90° gegen den Uhrzeigersinn (y nach unten) von der Nase
+				float center = d.ShipScreenNoseDeg - FiringArc.FacingOffset(bay.Facing);
 				if (bay.ArcDegrees >= 360f)
 				{
 					DrawCircle(ship, r, fill);
@@ -339,7 +346,7 @@ public partial class FlightHud : Control, IScreen
 				const int n = 28;
 				for (int k = 0; k <= n; k++)
 				{
-					float a = Mathf.DegToRad(center - half + 2 * half * k / n - 90);
+					float a = Mathf.DegToRad(center - half + 2 * half * k / n);
 					pts.Add(ship + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
 				}
 				DrawColoredPolygon(pts.ToArray(), fill);
