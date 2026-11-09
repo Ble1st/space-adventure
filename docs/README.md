@@ -9,6 +9,8 @@ Planungs- und Designdokumente des Weltraumspiels. Die technische Architektur und
 | [FORSCHUNG.md](FORSCHUNG.md) | Plan für die Forschungsstation und das Technologiesystem |
 | [SCHIFFE.md](SCHIFFE.md) | Schiffsklassen, Modelle, Multirole mit Slots, Schlachtschiffe und Brecher |
 | [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) | Slots und Module, Treibstoffarten, Sprungantrieb, geschlossene Gates, Tarnfeld, Stationsdienste, NPC-Güteklassen und Upgrades |
+| [POLITIK.md](POLITIK.md) | Kontrollpunkte, Sektorsperren in Stufen, politische Folgen, Spielerfraktion |
+| [FLOTTEN.md](FLOTTEN.md) | Verbände, Befehle, eigene Flotten, Polizei, Piraten, abstrakte Begegnungen |
 | [ROADMAP.md](ROADMAP.md) | Vorgeschlagene Reihenfolge der nächsten Features |
 
-Status der Inhalte: **STATIONEN** (Abschnitte 2 und 3), **FORSCHUNG** und **SCHIFFE** und **SCHIFFSSLOTS** sind reine Planung, nichts davon ist umgesetzt.
+Status der Inhalte: **STATIONEN** (Abschnitte 2 und 3), **FORSCHUNG** und **SCHIFFE**, **SCHIFFSSLOTS**, **POLITIK** und **FLOTTEN** sind reine Planung, nichts davon ist umgesetzt.
