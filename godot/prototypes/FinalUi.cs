@@ -129,28 +129,28 @@ public static class FinalUi
 		At(root, B("Autopilot", 160, 42, null, 16, null, 21), 930, 212);
 		At(root, B("Auto-Mining", 170, 42, null, 16, null, 21), 1100, 212);
 
-		// ── Steuerung links: Tempo-Slider, Wenden, Hamburger ──
-		G(root, 14, 176, 110, 456, g =>
+		// ── Steuerung: Wenden und Hamburger links, Tempo-Slider unten rechts am Bildrand ──
+		G(root, 660, 646, 600, 68, g =>
 		{
-			g.Text(new Vector2(0, 20), "TEMPO", 14, Dim, HorizontalAlignment.Center, 110);
-			g.Text(new Vector2(0, 46), "148 m/s", 18, White, HorizontalAlignment.Center, 110);
-			float cx = 44, top = 84, bot = 430, pct = 0.62f;
-			float ty = bot - pct * (bot - top);
-			g.DrawRect(new Rect2(cx - 7, top, 14, bot - top), new Color(1, 1, 1, 0.16f));
-			g.DrawRect(new Rect2(cx - 7, ty, 14, bot - ty), new Color(Cyan, 0.8f));
-			foreach (var (lab, f) in new[] { ("MAX", 1f), ("75", 0.75f), ("50", 0.5f), ("25", 0.25f), ("STOPP", 0f) })
+			g.Text(new Vector2(0, 28), "TEMPO", 14, Dim);
+			g.Text(new Vector2(0, 50), "148 m/s", 18, White);
+			float left = 100, right = 570, cy = 30, pct = 0.62f;
+			float tx = left + pct * (right - left);
+			g.DrawRect(new Rect2(left, cy - 7, right - left, 14), new Color(1, 1, 1, 0.16f));
+			g.DrawRect(new Rect2(left, cy - 7, tx - left, 14), new Color(Cyan, 0.8f));
+			foreach (var (lab, f) in new[] { ("STOPP", 0f), ("25", 0.25f), ("50", 0.5f), ("75", 0.75f), ("MAX", 1f) })
 			{
-				float y = bot - f * (bot - top);
-				g.DrawLine(new Vector2(cx + 12, y), new Vector2(cx + 24, y), new Color(1, 1, 1, 0.5f), 2);
-				g.Text(new Vector2(cx + 28, y + 5), lab, 12, Dim);
+				float x = left + f * (right - left);
+				g.DrawLine(new Vector2(x, cy + 11), new Vector2(x, cy + 21), new Color(1, 1, 1, 0.5f), 2);
+				g.Text(new Vector2(x - 30, cy + 36), lab, 12, Dim, HorizontalAlignment.Center, 60);
 			}
-			var th = new Rect2(cx - 32, ty - 19, 64, 38);
+			var th = new Rect2(tx - 32, cy - 19, 64, 38);
 			g.DrawRect(th, new Color(0.2f, 0.38f, 0.62f, 0.97f)); g.DrawRect(th, Cyan, false, 2);
-			g.Text(new Vector2(cx - 32, ty + 6), "62 %", 18, White, HorizontalAlignment.Center, 64);
+			g.Text(new Vector2(tx - 32, cy + 6), "62 %", 18, White, HorizontalAlignment.Center, 64);
 		});
-		At(root, L("WENDEN", 13, Dim, HorizontalAlignment.Center), 160, 560, 220, 20);
-		At(root, B("◀", 106, 96, null, 40, null, 18), 140, 584);
-		At(root, B("▶", 106, 96, null, 40, null, 18), 258, 584);
+		At(root, L("WENDEN", 13, Dim, HorizontalAlignment.Center), 100, 560, 260, 20);
+		At(root, B("◀", 120, 100, null, 44, null, 20), 96, 584);
+		At(root, B("▶", 120, 100, null, 44, null, 20), 230, 584);
 		var hb = At(root, B("", 60, 60, null, 24, null, 30), 16, 644);
 		G(hb, 0, 0, 60, 60, g => { foreach (var yy in new[] { 20f, 30f, 40f }) g.DrawRect(new Rect2(16, yy, 28, 4), White); });
 
@@ -161,10 +161,10 @@ public static class FinalUi
 		BayButton(root, 1090, by, "Laser 3", "Steuerbord · ±50°", 90, 50, BayState.Outside, "außerhalb"); by += 76;
 		BayButton(root, 1090, by, "Traktor", "Bug · ±30°", 0, 30, BayState.NoTarget, "keine Beute"); by += 76;
 		var all = B("Alle\nFeuer", 120, 120, new Color(0.15f, 0.5f, 0.3f, 0.95f), 20, null, 60, Green);
-		At(root, all, 960, 560);
-		At(root, L("1 von 3 bereit", 13, Green, HorizontalAlignment.Center), 960, 684, 120, 20);
+		At(root, all, 940, 440);
+		At(root, L("1 von 3 bereit", 13, Green, HorizontalAlignment.Center), 940, 564, 120, 20);
 
-		var toast = At(root, Pnl(new Color(0.03f, 0.1f, 0.06f, 0.8f), Green, 18, 6), 470, 656, 340, 44);
+		var toast = At(root, Pnl(new Color(0.03f, 0.1f, 0.06f, 0.8f), Green, 18, 6), 420, 596, 340, 44);
 		toast.AddChild(L("Verkauft für 640 Credits", 20, Green, HorizontalAlignment.Center));
 	}
 
