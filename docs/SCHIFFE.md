@@ -24,6 +24,7 @@ Alle Zahlen sind Startwerte zum Tunen (Fracht / Hülle / Tempo).
 | **Tanker** | *Cistern* (nur Flüssig-/Gasgüter, hohe Kapazität) | Stahl |
 | **Bauschiff** | *Foreman* (baut Stationen) | Stahl, Elektronik, Plattierung |
 | **Asteroidenbrecher** | *Quarry*, *Rockbreaker II* | Titan, Brennstoffzellen, Hüllenplatten |
+| **Korvette** (später) | *Sting*, *Hornet* | `ship_kit_medium`, Platin |
 | **Fregatte** (später) | *Warden*, *Lancer* | Platin, Titan |
 | **Schlachtschiff** (später) | *Bulwark*, *Warhammer* | Hub-Werft, Kapital-Bausatz |
 | **Blockadebrecher** (später) | *Smuggler* | braucht Fraktionssystem |
@@ -42,7 +43,7 @@ Heute hängt die gesamte KI an `ShipRole`. Neu wird sie in zwei Dinge aufgeteilt
 - **Fähigkeiten (Capabilities)** hängen am Schiff: `Cargo`, `Mining`, `Combat`, `Construction`, `Research`, `Salvage`. Sie ergeben sich aus Klasse, Modell und eingebauten Modulen.
 - **Aufgabe (Job)** ist Zustand: Handeln, Schürfen, Patrouille, Bauen. Die KI wählt sie unter den Aufgaben, die das Schiff kann.
 
-Der Spieler ist ein Schiff ohne KI-Wahl; `ShipRole.Player` entfällt als Fähigkeit.
+Der Spieler ist ein Schiff ohne KI-Wahl. `ShipRole.Player` entfällt als Fähigkeit; der Spieler wird stattdessen über einen **Steuerer** (`Controller = Player`) erkannt. Das ist nötig, weil heute `TradeActions` und die Ereignisse (`PlayerSold`, `PlayerBought`) und `Materializer` die Rolle `Player` abfragen.
 
 ### Slots
 

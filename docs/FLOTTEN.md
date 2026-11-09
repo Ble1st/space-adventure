@@ -23,9 +23,9 @@ Daraus folgt für die Architektur: **Polizei ist keine Sonderlogik, sondern eine
 
 ## 2. Bestehendes
 
-`Ship.Order` ist ein `ShipOrder`-Record; es gibt bereits `TradeOrder`, `MineOrder`, `PatrolOrder(SectorId)` und `GoToOrder(StationId)`. Die beiden letzten werden noch nicht ausgeführt. `OrderSave` speichert Befehle als `Kind` mit drei Ganzzahlen. `Faction` hat `Relations` und `Territory`, aber keine Kasse. Der Name `FleetSystem` ist schon vergeben (er kauft Schiffe), deshalb heißen die neuen Teile **Verband** und **Geschwader**.
+`Ship.Order` ist ein `ShipOrder`-Record; es gibt bereits `TradeOrder`, `MineOrder`, `PatrolOrder(SectorId)` und `GoToOrder(StationId)`. Die beiden letzten werden noch nicht ausgeführt. `OrderSave` speichert Befehle als `Kind` mit drei Ganzzahlen. `Faction` hat `Relations` und `Territory`, aber keine Kasse. Der Name `FleetSystem` ist schon vergeben (er kauft Schiffe), deshalb heißt die neue Einheit **Verband** (Begriff in allen Dokumenten; „Flotte“ meint die Gesamtheit der Schiffe eines Akteurs).
 
-## 3. Verband (Geschwader)
+## 3. Verband
 
 Ein Verband ist eine Gruppe von Schiffen mit einem **Anführer**, einer Formation und einem gemeinsamen Befehl.
 
@@ -34,6 +34,43 @@ Ein Verband ist eine Gruppe von Schiffen mit einem **Anführer**, einer Formatio
 - **Tempo:** Der Verband fliegt mit dem langsamsten Mitglied.
 - **Zusammensetzung:** Er braucht passende Fähigkeiten (Patrouille braucht `Combat`, Eskorte `Combat` und ein Begleitziel). Gemischte Verbände (ein Frachter mit Eskorte) sind erlaubt.
 - **Auflösung:** Fällt der Anführer aus, übernimmt das nächste Mitglied; fehlt der Treibstoff, kehrt der Verband um.
+
+## 3a. Referenz: Interstellar Pilot 2 und Verbände (entschieden)
+
+Befund aus `~/ip2-decomp/docs/04-flotten-und-befehle.md` (Dekompilat-Analyse, zeigt Klassen und Felder, kaum Regeln) und dem Quellcode von `InterstellarPilot-OpenFrontier`:
+
+- Die Flotte ist ein eigenes Objekt (`ModelFleet`) mit Heimatbasis, Strategie, Formation und Befehlsliste. Das Flag `ExcludeFromFactionAI` nimmt sie aus der Fraktions-KI.
+- Limits: `Fleet.MaxFleetPilots = 8` (vermutlich Obergrenze je Flotte, nicht ausdrücklich dokumentiert), je Fraktion `MaxFleetUnitCount` und für KI-Gruppen `MaxGroupUnitCount`.
+- Befehle: Bewegen, Patrouille, Handel (autonom und manuell), Abbauen, Plündern, Angreifen, Schützen, Wiederbewaffnen, Reparieren, Schleppen, Station bauen, Schiff verkaufen, Flotte beitreten, Erkunden, Passagiere, Kopfgeld, Heimkehr, Warten.
+- Formationen: sechs feste Entwürfe (Linie, V, Stern, Box).
+- „Hyperschlaf“: Flotten führen Befehle aus, während der Spieler weg ist; bei uns entspricht das `OfflineCatchUp`.
+- Nicht belegt: ob und zu welchen Kosten der Spieler Flotten frei anlegen darf.
+
+### Frei anlegen, aber begrenzt
+
+**Frei** (kostenlos): Verbände anlegen, benennen, auflösen, zusammenführen; Schiffe zuordnen (`JoinFleet`); Befehle geben, soweit die Fähigkeiten reichen; Formation wählen (nur Darstellung ohne Wirkung auf die Simulation).
+
+**Begrenzt:**
+1. **Mitglieder je Verband:** höchstens 8 (Richtwert wie in der Referenz; Kapital- und Frachtverbände können später eine eigene Grenze bekommen). **Warum:** hält Rechenzeit und Bedienung klein.
+2. **Befehlskapazität des Akteurs** (Anzahl Verbände und Schiffe) hängt von der Größe ab (Büro, Firmensitz, Hauptquartier, siehe POLITIK.md). **Warum:** die Obergrenze ist politisch und wirtschaftlich begründet.
+3. **Heimatbasis:** Jeder Verband braucht eine eigene Station zum Tanken und Reparieren. **Warum:** sonst wären Verbände kostenlos und ohne Versorgungsweg.
+4. **Unterhalt** für jedes Schiff, auch im Verband.
+5. **Befehle nach Fähigkeit:** `Patrol`, `Escort`, `Blockade` setzen `Combat` voraus, `Mine` setzt `Mining` voraus. Gemischte Verbände (Frachter mit Eskorte) sind erlaubt; ein Befehl gilt für die Mitglieder, die ihn können, die übrigen folgen dem Anführer.
+6. **Automatikauftrag:** Ein Verband ohne Befehl arbeitet im Rahmen seiner Fähigkeiten über das `JobAssignmentSystem`, mit Reichweite und Budget als Grenzen. Das ist das Gegenstück zu `ExcludeFromFactionAI`.
+
+### Übernommen aus der Referenz
+
+| Aus der Referenz | Bei uns |
+|---|---|
+| Heimatbasis je Flotte | ja |
+| Autonome Befehle (Handel, Passagiere, Kopfgeld) | ja, als Automatikaufträge mit Grenzen |
+| `Tow`, `Rearm`, `Repair` | ja, mit Rettungsdienst und Stationsdiensten |
+| `Scavenge`, `ClaimUnit` | später, mit Wracks |
+| `Explore` | später, wenn Sektoren verborgen sind |
+| `JoinFleet` | ja |
+| Feste Formationen | nur Darstellung |
+| Persönlichkeitswerte der Fraktionen | ja, siehe POLITIK.md, Abschnitt 6 |
+| Banditen-Fraktionen | ja, als Piraten |
 
 ## 4. Befehle
 
@@ -185,9 +222,9 @@ Die Stationsformen (Polizeiwache, Patrouillenbasis, Sektor-HQ) stehen in [STATIO
 
 **Fahndung** gilt je Hoheitsgebiet; Auslieferung nur unter Verbündeten.
 
-### Geschwader nach Größe
+### Verbände nach Größe
 
-Die Zahl der Verbände und Schiffe je Geschwader hängt von der Größe des Akteurs ab (Befehlskapazität, siehe POLITIK.md, Abschnitt 7): Kleinfirma ein Geschwader, Firma bis zu drei, Konzern und Staat mehr, bestimmt durch Firmensitz oder Hauptquartier. **Warum:** Befehlsgewalt ist die Grenze der Macht; ohne sie wächst die Rechenlast mit jeder Flotte.
+Die Zahl der Verbände und Schiffe je Verband hängt von der Größe des Akteurs ab (Befehlskapazität, siehe POLITIK.md, Abschnitt 7): Kleinfirma ein Verband, Firma bis zu drei, Konzern und Staat mehr, bestimmt durch Firmensitz oder Hauptquartier. **Warum:** Befehlsgewalt ist die Grenze der Macht; ohne sie wächst die Rechenlast mit jeder Flotte.
 
 ## 7. Begegnungen ohne Kampfsystem
 
@@ -236,4 +273,6 @@ Alle in neuen oder bestehenden Modulen registriert (`DefaultModules()`), alle Zu
 - Soll es für den Spieler Polizeiarbeit geben (Kopfgeld, Eskortenaufträge) oder nur Besitz und Befehle?
 - Startet die Welt mit Piraten, oder entstehen sie durch Pleiten und Fahndung?
 - Hat jede Fraktion eine eigene Polizeiflotte, oder teilen sich Verbündete die Lage?
-- Wie viele Geschwader sind je Größenklasse erlaubt (Richtwerte: 1 / 3 / mehr)?
+- Wie viele Verbände sind je Größenklasse erlaubt (Richtwerte: 1 / 3 / mehr)?
+
+- Gemischte Verbände: erlaubt (Entscheidung steht in Abschnitt 3a); offen ist nur, wie Befehle an Mitglieder ohne passende Fähigkeit aufgeteilt werden.

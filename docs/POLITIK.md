@@ -33,6 +33,7 @@ Die Stufen gelten für alle Gates des Sektors; Einzelne Gates dürfen Ausnahmen 
 | 5 Abriegelung | niemand rein oder raus | Schiffe sitzen fest |
 
 - **Richtung:** Einreise und Ausreise werden getrennt gesteuert (Stufe 4 sperrt nur die Einreise).
+- **Zusammenhang mit den Gate-Zuständen:** Die Stufen hier sind Politik; die Zustände des Gates (offen, eingeschränkt, geschlossen, zerstört) stehen in [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), Abschnitt 5. Stufen 1–3 setzen `Restricted`, Stufen 4–5 setzen für alle `Deny`; physisch geschlossen wird ein Gate nur durch Wartung, Ereignis oder Zerstörung.
 - **Physisch oder rechtlich:** *Physisch geschlossen* heißt, das Gate ist wirklich zu (Wartung, Zerstörung) und kann nur per Sprungantrieb umgangen werden. *Rechtlich eingeschränkt* heißt, das Gate funktioniert und Scanner kontrollieren es. Das ist undicht (Tarnfeld, Entdeckungswurf).
 - **Kosten:** Durchsetzung hat laufende Kosten im `UpkeepSystem`. Wer nicht zahlt, hat nur eine Sperre auf dem Papier.
 - **Dauer:** Jede Sperre hat Mindestdauer (Hysterese) und Ablauf. Keine dauerhafte Schließung durch Fraktionen (entschieden: mit Ablauf, damit die Welt nicht erstarrt).
@@ -131,6 +132,26 @@ Heute baut bei Knappheit der **reichste** Teilnehmer eine Station oder kauft ein
 - Kriege enden durch **Kriegsmüdigkeit** (Dauer, Verluste, leere Kasse), Waffenstillstand oder Tribut; Dritte können vermitteln oder beitreten.
 - **Warum:** Wer Krieg nur großen Staaten erlaubt, nimmt Spielern und kleinen Gruppen Spielraum. Kosten und Grund verhindern ständige Kriege. Die Stufen halten kleine Konflikte klein. Kriegsmüdigkeit stoppt ewige Kriege, die die Wirtschaft aushungern.
 
+### Fraktionskasse (entschieden)
+
+Akteure mit Besitz haben eine **Kasse** (`Treasury`), gespeist aus Zöllen, Steuern und Strafen, belastet durch Polizei, Unterhalt und Kopfgeld. Bei Einzelakteuren ist `Ship.Credits` die Kasse. Alle Übertragungen laufen über Ereignisse, damit das Balance-Tool die Geldmenge prüfen kann.
+
+### Persönlichkeitswerte (entschieden, nach dem Vorbild der Referenz)
+
+Die Referenz (`~/ip2-decomp/docs/08-fraktionen-krieg-intel.md`) gibt jeder Fraktion Werte wie `Aggression`, `Virtue`, `Greed`, `Cooperation` und `TradeEfficiency`. Wir übernehmen vier, jeweils zwischen 0 und 1:
+
+| Wert | Wirkung | Beispiel |
+|---|---|---|
+| **Aggression** | senkt die Schwelle für Kriegserklärung, Fehde und Angriff auf Sicht | aggressive Akteure erklären früher Krieg |
+| **Gier** | erhöht den Appetit beim Zukauf und den Zoll; senkt die Bereitschaft zu Frieden mit Tribut | gierige Akteure kaufen häufiger zu |
+| **Kooperation** | Bündnisse, Waffenstillstand, Schutzverträge | kooperative Akteure schließen leichter Bündnisse |
+| **Gesetzestreue** (Referenz: `Virtue`) | Strenge der Polizei und Neigung zu Schmuggel | gesetzestreue Akteure verbieten mehr, handeln nie mit verbotener Ware |
+
+- **Herkunft:** Benannte Fraktionen bekommen Werte aus der JSON, erzeugte Akteure würfeln sie bei der Anlage über `Universe.Rng` (Mittelwert nach Art, etwa höhere Aggression bei Gesetzlosen).
+- **Veränderung:** langsam durch Ereignisse (verlorener Krieg senkt Aggression, Verrat senkt Kooperation), mit Grenzen, damit Akteure erkennbar bleiben.
+- **Speichern:** Werte gehören in den Akteur, in `SaveGame`, `UniverseSerializer` und `UniverseHash`.
+- **Warum:** Ohne sie handeln alle Akteure identisch, wenn die Zahlen gleich sind. Mit ihnen unterscheidet sich eine zurückhaltende Handelsfirma von einem kriegerischen Staat bei gleicher Größe.
+
 ## 7. Hauptquartier, Firmensitz, Sektor-HQ
 
 Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.md), Abschnitt 5. Hier die politische Bedeutung:
@@ -138,8 +159,8 @@ Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.m
 | Größe des Akteurs | Was möglich ist |
 |---|---|
 | Einzelakteur | kein HQ; Eigentum an Station und Schiff |
-| Kleinfirma | **Büro** an einer eigenen Station: Konto, Zoll auf der eigenen Station, ein Geschwader |
-| Firma | **Firmensitz** (Medium): Verträge, bis zu 3 Geschwader, Fehde, kleine Wachstation |
+| Kleinfirma | **Büro** an einer eigenen Station: Konto, Zoll auf der eigenen Station, ein Verband |
+| Firma | **Firmensitz** (Medium): Verträge, bis zu 3 Verbände, Fehde, kleine Wachstation |
 | Konzern | Firmensitz plus **Sektor-HQs** in bis zu N Sektoren, Sektorpolitik bis Stufe 2 |
 | Staat | **Hauptquartier** (Hub, genau eines) plus **Sektor-HQ** in jedem kontrollierten Sektor |
 
@@ -154,7 +175,7 @@ Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.m
 | Krieg und Frieden | ja | nein |
 | Diplomatie, Verträge | ja | nein |
 | Steuersätze, Haushalt | Rahmen | innerhalb des Rahmens |
-| Forschung | ja | nein |
+| Forschung | Budget und Richtung (Durchführung in der Forschungsstation, siehe FORSCHUNG.md) | nein |
 | Sperren, Zoll, Embargo | Richtlinie | Durchsetzung im Sektor |
 | Polizeibasis, Patrouillen | Gesamtbudget | Einsatz im Sektor |
 | Baugenehmigung | Grundsatz | Einzelentscheidung |
@@ -197,7 +218,6 @@ Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.m
 ## 11. Offene Entscheidungen
 
 - Gilt eine Sperre für Sektoren oder für einzelne Gates? Vorschlag: Sektor-Stufen als Voreinstellung, Gate-Ausnahmen erlaubt.
-- Hat eine Fraktion eine eigene Kasse (`Treasury`)? Vorschlag: ja, gespeist aus Zöllen und Steuern.
 - Soll die Spielerfraktion früh (direkt nach dem Bauschiff) oder erst am Ende kommen?
 - Wie hart soll der Erstzugriff der Großen sein? Vorschlag: weich (nur höheres Gewicht).
 - Darf ein Kleinakteur Sektoren erobern oder nur Stationen halten? Vorschlag: erlauben, aber nur mit Einfluss über Stationen und nur gegen schwache Besitzer.

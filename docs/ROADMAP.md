@@ -13,3 +13,16 @@ Reihenfolge nach Nutzen und Abhängigkeit. Nichts davon ist beschlossen.
 9. **Missionen**, Assets, Test auf einem Android-Gerät.
 
 Nach jeder Wirtschaftsänderung: `tools/SpaceSim.Balance` laufen lassen.
+
+## Bekannte offene Widersprüche in der Planung
+
+Stand der Durchsicht der Dokumente (alles Planung, keine Code-Fehler):
+
+1. **Forschung:** FORSCHUNG.md bindet sie an die Forschungsstation und Fraktion; POLITIK.md legt Budget und Richtung ins HQ. Offen: Wem gehört der Technologiestand bei Einzelakteuren und beim Spieler ohne HQ? Vorschlag: Der Akteur mit Forschungsstation besitzt ihn, das HQ steuert nur das Budget.
+2. **Hub-Konflikt:** Hauptquartier und Kapitalwerft sind beide Hub-Stationen, aber es gibt nur einen Hub je Sektor (STATIONEN.md, Abschnitt 5).
+3. **Größe/Klasse:** Das Wort „Klasse“ steht für Schiffsklasse, Asteroidenklasse und Größenklasse eines Akteurs. In künftigen Texten besser „Größenstufe“ für Akteure.
+4. **Mehrere medium Stationen je Sektor:** Es ist nicht festgelegt, wie viele mittelgroße Stationen ein Sektor fasst (Sektor-HQ, Firmensitz, Patrouillenbasis, Handelsstation konkurrieren).
+5. **Polizeiwache:** als Dienst oder als kleine Station beschrieben; noch zu entscheiden.
+6. **Sprungreichweite:** hängt an `Sector.MapPosition`, die heute nur Darstellung ist.
+7. **Tarnfeld im Hoheitsgebiet:** „unlizenziert“ setzt ein Lizenzsystem voraus, das nirgends beschrieben ist.
+8. **Persönlichkeitswerte und Wirtschaft:** Sie verändern Zukauf und Zölle und müssen im Balance-Tool beobachtet werden.

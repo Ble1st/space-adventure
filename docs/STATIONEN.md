@@ -179,6 +179,7 @@ Hier geht es um Machtstrukturen (siehe [POLITIK.md](POLITIK.md)). Alle sind **Di
 | **Patrouillenbasis** | Medium | Staat, Konzern | `police_base` (Heimat, Tanken, Reparieren für Polizeischiffe) | je Sektor mit Bedarf |
 
 - **Hauptquartier als Hub:** Pro Sektor gibt es höchstens eine Hub-Station, also konkurriert das Hauptquartier mit anderen Großstationen (zum Beispiel einer Werft) um den Platz. Das Warum: Es macht das HQ zu einem greifbaren Ziel und bindet es an knappen Raum.
+- **Hub-Konflikt:** Auch die Werft für Kapitalschiffe ist eine Hub-Werft (SCHIFFE.md). Da es pro Sektor nur einen Hub gibt, liegen Hauptquartier und Kapitalwerft in verschiedenen Sektoren, oder die Hauptstadt hat nur eines von beiden. Das ist gewollt (Entscheidung zwischen Verwaltung und Rüstung), aber noch nicht abschließend festgelegt.
 - **Sektor-HQ ist keine Hub-Station:** Es ist mittelgroß, damit jeder kontrollierte Sektor eine bekommen kann, ohne den Hubplatz zu blockieren. Das Hauptquartier liegt in der Hauptstadt, die Sektorbehörden in den übrigen Sektoren.
 - **Voraussetzungen:** Eine Sektorbehörde braucht mindestens **Dominanz** im Sektor (über 50 % Einfluss). Ein Hauptquartier braucht die Größenklasse Staat. Beide sind `essential`: Sie werden nicht durch Pleite entfernt, nur durch Zerstörung oder Eroberung.
 - **Verlust:** Fällt ein Hauptquartier aus, folgt eine Regierungskrise. Fällt eine Sektorbehörde aus, sinkt die Kontrolle im Sektor auf Präsenz oder Einfluss.

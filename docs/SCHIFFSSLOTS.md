@@ -55,12 +55,14 @@ Fünf Abschnitte in `default-world.json`, die aufeinander verweisen: `slotTypes`
   { "key": "mining_laser_1", "slot": "tool", "size": "S", "tier": 1,
     "grants": ["Mining"], "stats": { "chunkChanceMult": 1.0, "chunkSizeMult": 1.0 },
     "powerDraw": 2, "mass": 1, "cost": { "electronics": 2, "copper": 2 } },
+  { "key": "cargo_s", "slot": "cargo", "size": "S", "tier": 1,
+    "stats": { "capacity": 30 }, "mass": 2, "cost": { "steel": 2 } },
   { "key": "jump_drive_s", "slot": "utility", "size": "S", "tier": 1,
     "grants": ["Jump"], "stats": { "jumpRange": 1500, "chargeTicks": 120, "cooldownTicks": 600, "jumpFuel": 6 },
-    "powerDraw": 6, "mass": 5, "cost": { "electronics": 4, "platinum": 2, "fuel_cell": 2 } },
+    "powerDraw": 6, "mass": 5, "cost": { "electronics": 4, "platinum": 2, "fuel_cells": 2 } },
   { "key": "cloak_s", "slot": "utility", "size": "S", "tier": 1,
     "grants": ["Stealth"], "stats": { "stealth": 1.0 }, "powerDraw": 5, "mass": 2,
-    "cost": { "electronics": 3, "wafer": 4, "platinum": 1 } }
+    "cost": { "electronics": 3, "wafers": 4, "platinum": 1 } }
 ],
 "shipClasses": [
   { "key": "skiff", "name": "Skiff", "size": "S", "baseHull": 60, "baseMass": 10,
@@ -104,7 +106,7 @@ Treibstoff wird eine echte Ware mit eigenem Tank, **für alle Schiffe** (Spieler
 |---|---|---|---|---|
 | **Wasserstoff** | `hydrogen` | Chemisch | niedrig | billig, überall, Standard für Skiffs |
 | **Wasser** | `water` | Ionenantrieb | mittel | sehr billig, geringer Schub |
-| **Brennstoffzellen** | `fuel_cell` | Elektrisch/Hybrid | hoch | teuer, kompakt; für Kurier und schnelle Schiffe |
+| **Brennstoffzellen** | `fuel_cells` | Elektrisch/Hybrid | hoch | teuer, kompakt; für Kurier und schnelle Schiffe |
 | **Fusionsgas** (später) | neue Ware aus Wasser/Eis | Fusion | sehr hoch | Fregatten, Schlachtschiffe, schwere Frachter; braucht eine Anreicherungsstation |
 | **Energie** | `energy` | Solarsegel | unbegrenzt, schwach | nur Mini-Schiffe |
 
@@ -121,7 +123,7 @@ Der Sprungantrieb ist ein Utility-Modul (Fähigkeit `Jump`), mit dem ein Schiff 
 
 ### Regeln
 
-- **Reichweite:** Sprung in Sektoren innerhalb von `jumpRange` auf der Sternenkarte. `Sector.MapPosition` existiert schon (heute nur Darstellung) und liefert die Entfernung. Wenn dieser Abstand zu ungenau ist, wären Gate-Hops die Alternative.
+- **Reichweite:** Sprung in Sektoren innerhalb von `jumpRange` auf der Sternenkarte. `Sector.MapPosition` existiert schon, ist heute aber nur Darstellung; mit dem Sprungantrieb wird sie **Spieldaten** (die Kartenlage muss dann stimmig bleiben, und der Wert gehört in Hash und Save-Prüfung). Wenn dieser Abstand zu ungenau ist, wären Gate-Hops die Alternative.
 - **Aufladen:** `chargeTicks` ohne Bewegung, dann der Sprung; danach `cooldownTicks`.
 - **Treibstoff:** `jumpFuel` je Sprung, bevorzugt Brennstoffzellen oder Fusionsgas. Das macht Sprünge teuer und die Treibstoffkette strategisch.
 - **Massenschatten:** Kein Sprung in der Nähe großer Massen (Stationen, Gates, große Asteroiden). Das Schiff muss erst aus der Zone fliegen. Das nutzt die vorhandenen Hindernisse (`Obstacle`).
@@ -154,6 +156,7 @@ Heute hat `Gate` nur `Open` (Standard `true`); `FindRoute` ignoriert geschlossen
 | `Restricted` | je Fraktion: erlaubt, Zoll oder gesperrt | Fraktionspolitik |
 | `Destroyed` | dauerhaft kaputt, Wiederaufbau nötig | Kampf, später Bauschiff |
 
+- **Zustände sind physisch, Sperrstufen rechtlich:** Die Zustände dieser Tabelle beschreiben das Gate selbst. Die Sperrstufen 0–5 aus [POLITIK.md](POLITIK.md) (Abschnitt 2) sind Politik und werden auf `Restricted` abgebildet (Stufen 1–3) oder setzen die Politik für alle auf `Deny` (Stufen 4–5), ohne das Gate physisch zu schließen. Physisch `Closed` wird ein Gate nur durch Wartung, Ereignis oder Zerstörung.
 - **Zugangsregel pro Fraktion:** `GateAccess` mit Besitzerfraktion und Politik je andere Fraktion (`Allow`, `Toll`, `Deny`). `Toll` verlangt einen Betrag (Geldsenke, Einnahme der Besitzerfraktion).
 - **Auslöser:** Ein `FactionPolicySystem` (Teil des Fraktionsverhaltens) ändert die Politik nach Beziehungen: Krieg schließt, Frieden öffnet. Entscheidungen haben Hysterese und Mindestdauer, damit Gates nicht flackern.
 - **Schiffe unterwegs:** Eine Reise über ein Gate, das sich schließt, wird beim nächsten Nachdenken neu geplant. Schiffe, die den Sektor nicht mehr verlassen können, werden untätig und warten.
