@@ -114,8 +114,10 @@ public partial class SelfTest : Node
 				{
 					Log($"Slider 50 %: Vorwärtsgeschwindigkeit {_m.TestForwardSpeed:0.0} m/s");
 					Check(_m.TestForwardSpeed <= 22.6f, "Slider 50 % wird nicht schneller als das Zieltempo");
-					_m.TestSetSlider(-1f);
-					Check(System.Math.Abs(_m.TestTargetSpeed + 9f) < 0.01f, "Rückwärtsgrenze: Slider -1 → -9 m/s (20 % von 45)");
+					Check(_m.TestRightTurnNoseX > 0.01f, "Rechts-Taste dreht die Nase nach rechts");
+					_m.TestSetSlider(0f);
+					_m.TestSetReverse(true);
+					Check(System.Math.Abs(_m.TestTargetSpeed + 9f) < 0.01f, "Rückwärts-Haltetaste → -9 m/s (20 % von 45), unabhängig vom Slider");
 					Next();
 				}
 				else if (_frame - _stageStart > 900) Fail("Schiff beschleunigt nicht auf Slider-Tempo");
@@ -124,7 +126,8 @@ public partial class SelfTest : Node
 				if (_m.TestForwardSpeed < -5f)
 				{
 					Check(_m.TestForwardSpeed >= -9.6f, $"Rückwärtsfahrt höchstens 20 % (ist {_m.TestForwardSpeed:0.0} m/s, Ziel -9 m/s)");
-					Log($"Rückwärts {_m.TestForwardSpeed:0.0} m/s bei Slider -1");
+					Log($"Rückwärts {_m.TestForwardSpeed:0.0} m/s mit Rückwärts-Taste");
+					_m.TestSetReverse(false);
 					_m.TestSetSlider(0f);
 					Next();
 				}

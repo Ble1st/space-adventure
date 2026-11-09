@@ -65,6 +65,12 @@ public partial class PlayerShip : Node3D
 	/// <param name="throttle">Solltempo als Anteil der <see cref="MaxSpeed"/> (-1..1, negativ = rückwärts, über SpaceSim.Core.Flight.Throttle begrenzt).</param>
 	/// <param name="speedScale">Begrenzt die Höchstgeschwindigkeit (z.B. beim Anflug).</param>
 	/// <param name="brake">Haltemodus (z.B. Automatik arbeitet am Asteroiden): Restgeschwindigkeit stark abbauen.</param>
+	/// <summary>
+	/// Kursänderung für einen Dreheingang (+1 = rechts, -1 = links). Godot dreht positiv gegen den Uhrzeigersinn
+	/// (von oben gesehen, Nase = -Z), also nach LINKS – „rechts“ muss deshalb den Kurs verkleinern.
+	/// </summary>
+	public static float HeadingChange(float turn, float delta) => -turn * TurnSpeed * delta;
+
 	public void Step(float delta, float turn, Vector2 dir, float throttle, float speedScale, SectorView view, bool brake = false)
 	{
 		_hitCooldown = Mathf.Max(0f, _hitCooldown - delta);
@@ -75,8 +81,9 @@ public partial class PlayerShip : Node3D
 		float turnVis = 0f;
 		if (turn != 0f)
 		{
-			Heading += turn * TurnSpeed * delta;
-			turnVis = turn * TurnSpeed;
+			float dh = HeadingChange(turn, delta);
+			Heading += dh;
+			turnVis = dh / Mathf.Max(delta, 0.001f);
 		}
 		else if (thrust)
 		{

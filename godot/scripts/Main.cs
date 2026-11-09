@@ -369,17 +369,18 @@ public partial class Main : Node3D
 	{
 		var flight = _hud.Flight;
 		float turnKeys = (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right) ? 1 : 0) - (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left) ? 1 : 0);
-		float sliderKeys = (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) ? 1 : 0) - (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down) ? 1 : 0);
-		if (sliderKeys != 0f) flight.SetSlider(flight.SliderValue + sliderKeys * delta * 0.8f);   // W/S bzw. Pfeile verstellen den Slider
+		if (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up)) flight.SetSlider(flight.SliderValue + delta * 0.8f);   // W bzw. Pfeil hoch erhöht den Slider
+		if (Input.IsKeyPressed(Key.X)) flight.SetSlider(0f);                                                              // X = STOPP
+		bool reverse = _testReverse || flight.ReverseHeld || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down);                    // eigene Rückwärts-Haltetaste
 		float turn = turnKeys + (flight.TurnRightHeld ? 1f : 0f) - (flight.TurnLeftHeld ? 1f : 0f);
 		float slider = flight.SliderValue;
 
-		if (turn != 0f || Mathf.Abs(slider) > 0.001f)   // manuell: Slider und/oder Wenden
+		if (turn != 0f || reverse || Mathf.Abs(slider) > 0.001f)   // manuell: Slider, Rückwärts und/oder Wenden
 		{
 			CancelAutopilot();
 			if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (manuelle Steuerung)");
 			var fwd = new Vector2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading));
-			return (fwd, Throttle.SliderToFraction(slider), 1f, turn);
+			return (fwd, Throttle.Fraction(slider, reverse), 1f, turn);
 		}
 
 		if (_pointerFinger >= 0 && Time.GetTicksMsec() / 1000.0 - _pointerDownAt > 0.2)
@@ -1101,7 +1102,11 @@ public partial class Main : Node3D
 	internal void TestSetSlider(float v) => _hud.Flight.SetSlider(v);
 	internal float TestSliderValue => _hud.Flight.SliderValue;
 	/// <summary>Zielfluggeschwindigkeit des aktuellen Sliderwerts (Core-Funktion Throttle).</summary>
-	internal float TestTargetSpeed => Throttle.TargetSpeed(_hud.Flight.SliderValue, PlayerShip.MaxSpeed);
+	internal float TestTargetSpeed => Throttle.TargetSpeed(_hud.Flight.SliderValue, _testReverse, PlayerShip.MaxSpeed);
+	bool _testReverse;
+	internal void TestSetReverse(bool held) => _testReverse = held;
+	/// <summary>Nase-X nach einer Rechts-Drehung aus Kurs 0: muss positiv (rechts auf dem Bildschirm) sein.</summary>
+	internal float TestRightTurnNoseX => Vector3.Forward.Rotated(Vector3.Up, PlayerShip.HeadingChange(1f, 0.1f)).X;
 	/// <summary>Geschwindigkeit entlang der Schiffsnase (negativ = rückwärts).</summary>
 	internal float TestForwardSpeed => _player.Velocity.Dot(Vector3.Forward.Rotated(Vector3.Up, _player.Heading));
 	/// <summary>Teleportiert das Schiff neben den nächsten abbaubaren Asteroiden und setzt das Laserziel.</summary>

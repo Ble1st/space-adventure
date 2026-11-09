@@ -4,17 +4,13 @@ using Godot;
 namespace SpaceAdventure.Ui.Kit;
 
 /// <summary>
-/// Waagerechter Tempo-Slider am unteren Bildrand: links von STOPP ein kurzer Rückwärtsbereich
-/// (<see cref="ReverseFraction"/> der Spur, gedehnt auf höchstens 20 % der Höchstgeschwindigkeit, siehe
-/// SpaceSim.Core.Flight.Throttle), rechts STOPP (0) bis MAX (1). Wert <see cref="Value"/> in [-1, 1];
-/// der Slider bleibt stehen, bis er geändert wird (Ziehen oder Tasten W/S bzw. Pfeile hoch/runter).
-/// Der Griff zeigt den Prozentwert, links daneben steht die Geschwindigkeit.
+/// Waagerechter Tempo-Slider am unteren Bildrand: STOPP (0) bis MAX (1), nur vorwärts. Rückwärts ist eine eigene
+/// Haltetaste (siehe SpaceSim.Core.Flight.Throttle). Der Slider bleibt stehen, bis er geändert wird
+/// (Ziehen oder Taste W/Pfeil hoch, X = STOPP). Der Griff zeigt den Prozentwert, links daneben steht die Geschwindigkeit.
 /// </summary>
 public partial class KitSlider : Control
 {
 	public float Value { get; private set; }
-	/// <summary>Anteil der Spur links von STOPP (Rückwärtsbereich).</summary>
-	public float ReverseFraction { get; set; } = 0.14f;
 	string _caption = "TEMPO";
 	public string Caption { get => _caption; set { _caption = value; QueueRedraw(); } }
 	string _speedText = "";
@@ -34,12 +30,12 @@ public partial class KitSlider : Control
 	float Left => 100f;
 	float Right => Size.X - 30f;
 	float Cy => 30f;
-	float StopX => Left + ReverseFraction * (Right - Left);
+	float StopX => Left;
 
-	/// <summary>Setzt den Sliderwert (gekappt auf [-1, 1]); Test-Hooks und Tastatur nutzen das.</summary>
+	/// <summary>Setzt den Sliderwert (gekappt auf [0, 1]); Test-Hooks und Tastatur nutzen das.</summary>
 	public void SetValue(float v, bool notify = true)
 	{
-		v = Mathf.Clamp(v, -1f, 1f);
+		v = Mathf.Clamp(v, 0f, 1f);
 		if (Mathf.Abs(v - Value) < 1e-5f) return;
 		Value = v;
 		QueueRedraw();
@@ -48,12 +44,10 @@ public partial class KitSlider : Control
 
 	float ValueAt(float x)
 	{
-		float stop = StopX;
-		if (x <= stop) return Mathf.Clamp((x - stop) / (stop - Left), -1f, 0f);
-		return Mathf.Clamp((x - stop) / (Right - stop), 0f, 1f);
+		return Mathf.Clamp((x - Left) / (Right - Left), 0f, 1f);
 	}
 
-	float XOf(float v) => v <= 0f ? StopX + v * (StopX - Left) : StopX + v * (Right - StopX);
+	float XOf(float v) => Left + v * (Right - Left);
 
 	public override void _GuiInput(InputEvent @event)
 	{
@@ -69,17 +63,14 @@ public partial class KitSlider : Control
 		float left = Left, right = Right, cy = Cy, stop = StopX;
 		DrawString(font, new Vector2(0, 26), Caption, HorizontalAlignment.Left, -1, 14, UiKit.Dim);
 		DrawString(font, new Vector2(0, 50), SpeedText, HorizontalAlignment.Left, -1, 18, UiKit.White);
-		DrawRect(new Rect2(left, cy - 7, stop - left, 14), new Color(UiKit.Orange, 0.35f));
 		DrawRect(new Rect2(stop, cy - 7, right - stop, 14), new Color(1, 1, 1, 0.16f));
 		float tx = XOf(Value);
 		if (Value > 0f) DrawRect(new Rect2(stop, cy - 7, tx - stop, 14), new Color(UiKit.Cyan, 0.8f));
-		// „◀ rück“ steht unter der Rückwärtszone – der Griff (liegt bei ≤ 0 über der Zone) darf es nicht verdecken
-		DrawString(font, new Vector2(left + 2, cy + 36), "◀ rück", HorizontalAlignment.Left, -1, 11, UiKit.Orange);
 		foreach (var (lab, f) in new[] { ("STOPP", 0f), ("25", 0.25f), ("50", 0.5f), ("75", 0.75f), ("MAX", 1f) })
 		{
 			float x = stop + f * (right - stop);
 			DrawLine(new Vector2(x, cy + 11), new Vector2(x, cy + 20), new Color(1, 1, 1, 0.5f), 2);
-			DrawString(font, f > 0 ? new Vector2(x - 30, cy + 36) : new Vector2(stop - 8, cy + 36), lab,
+			DrawString(font, f > 0 ? new Vector2(x - 30, cy + 36) : new Vector2(stop - 14, cy + 36), lab,
 				f > 0 ? HorizontalAlignment.Center : HorizontalAlignment.Left, f > 0 ? 60 : -1, 12, f > 0 ? UiKit.Dim : UiKit.White);
 		}
 		var th = new Rect2(tx - 32, cy - 19, 64, 38);

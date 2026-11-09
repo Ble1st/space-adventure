@@ -33,7 +33,7 @@ public sealed class FlightHudData
 	// Schalter
 	public bool AutopilotOn, AutoMineOn, TractorOn, FastOn;
 	// Slider
-	public float SliderValue;           // -1..1
+	public float SliderValue;           // 0..1 (nur vorwärts)
 	public float Speed;                 // m/s Ist
 	// Kontexttaste
 	public string ContextLabel = "";    // "Andocken …" / "Springen …" / "" = versteckt
@@ -73,7 +73,7 @@ public partial class FlightHud : Control, IScreen
 	Radar _radar = null!;
 	KitButton _autopilotBtn = null!, _autoMineBtn = null!, _contextBtn = null!;
 	// unten links
-	KitButton _turnL = null!, _turnR = null!, _hamburger = null!;
+	KitButton _turnL = null!, _turnR = null!, _reverse = null!, _hamburger = null!;
 	// Slider
 	KitSlider _slider = null!;
 	// Waffenschächte
@@ -93,6 +93,7 @@ public partial class FlightHud : Control, IScreen
 
 	public bool TurnLeftHeld => _turnL.Held;
 	public bool TurnRightHeld => _turnR.Held;
+	public bool ReverseHeld => _reverse.Held;
 	public float SliderValue => _slider.Value;
 	public bool AutopilotOn => _autopilotBtn.On;
 	public bool AutoMineOn => _autoMineBtn.On;
@@ -159,6 +160,8 @@ public partial class FlightHud : Control, IScreen
 		At(this, Text("WENDEN", 13, UiKit.Dim, HorizontalAlignment.Center), 100, 560, 260, 20);
 		_turnL = At(this, new KitButton("◀", new Vector2(120, 100)) { FontSize = 44 }, 96, 584);
 		_turnR = At(this, new KitButton("▶", new Vector2(120, 100)) { FontSize = 44 }, 230, 584);
+		At(this, Text("RÜCKWÄRTS · max 20 %", 13, UiKit.Dim, HorizontalAlignment.Center), 470, 560, 160, 20);
+		_reverse = At(this, new KitButton("RÜCK", new Vector2(160, 100)) { FontSize = 26 }, 470, 584);
 		_hamburger = At(this, new KitButton("", new Vector2(60, 60)), 16, 644);
 		_hamburger.Symbol = g => { foreach (var yy in new[] { 20f, 30f, 40f }) g.DrawRect(new Rect2(16, yy, 28, 4), UiKit.White); };
 		_hamburger.Pressed += () => HamburgerPressed?.Invoke();
