@@ -39,13 +39,33 @@ public class FuelModelTests
         return ShipStats.Compute(cls, fit);
     }
 
-    /// <summary>Demotet einen aktuellen v5-Save auf v4: Version 4, Fuel der Schiffe, propellant-Ware und die neuen Content-Felder (Fuel der Module, BaseFuel der Klassen) entfernt.</summary>
-    internal static string ToV4Json(string v5Json)
+    /// <summary>
+    /// Demotet einen aktuellen Save (v6) auf v5: Version 5, die Waren aus Phase 5a (Bausatzstufen, Modul-Waren; Ids ab 24) entfernt,
+    /// ship_kit_light heißt wieder ship_kit, die neuen Content-Felder (Kit der Klassen, Name der Module, Color der Slotarten,
+    /// Stocks der Stationstypen) entfernt. Stationen und Märkte bleiben (sie verweisen auf dieselben Ids, die die Migration wieder anhängt).
+    /// </summary>
+    internal static string ToV5Json(string v6Json)
     {
-        var node = JsonNode.Parse(v5Json)!.AsObject();
+        var node = JsonNode.Parse(v6Json)!.AsObject();
+        node["Version"] = 5;
+        var goods = node["Goods"]!.AsArray();
+        for (int i = goods.Count - 1; i >= 0; i--) if ((int)goods[i]!["Id"]! >= DemoUniverse.ShipKitMedium.Value) goods.RemoveAt(i);
+        foreach (var g in goods) if ((string?)g!["Key"] == "ship_kit_light") { g["Key"] = "ship_kit"; g["Name"] = "Schiffsbausatz"; }
+        node["Rules"]!["ShipKitGoodKey"] = "ship_kit";
+        foreach (var c in node["ShipClasses"]!.AsArray()) c!.AsObject().Remove("Kit");
+        foreach (var m in node["Modules"]!.AsArray()) m!.AsObject().Remove("Name");
+        foreach (var t in node["SlotTypes"]!.AsArray()) t!.AsObject().Remove("Color");
+        foreach (var t in node["StationTypes"]!.AsArray()) t!.AsObject().Remove("Stocks");
+        return node.ToJsonString();
+    }
+
+    /// <summary>Demotet einen aktuellen Save auf v4 (über <see cref="ToV5Json"/>): Version 4, Fuel der Schiffe, propellant-Ware und die neuen Content-Felder (Fuel der Module, BaseFuel der Klassen) entfernt.</summary>
+    internal static string ToV4Json(string v6Json)
+    {
+        var node = JsonNode.Parse(ToV5Json(v6Json))!.AsObject();
         node["Version"] = 4;
         var goods = node["Goods"]!.AsArray();
-        goods.RemoveAt(goods.Count - 1);   // propellant war die letzte Ware
+        goods.RemoveAt(goods.Count - 1);   // propellant war die letzte Ware vor Phase 5a
         foreach (var m in node["Modules"]!.AsArray()) m!.AsObject().Remove("Fuel");
         foreach (var c in node["ShipClasses"]!.AsArray()) c!.AsObject().Remove("BaseFuel");
         foreach (var sh in node["Ships"]!.AsArray()) sh!.AsObject().Remove("Fuel");
@@ -61,7 +81,9 @@ public class FuelModelTests
         Assert.Equal("Treibstoff", p.Name);
         Assert.Equal(GoodForm.Liquid, p.Form);
         Assert.Equal(1f, p.VolumePerUnit);
-        Assert.Equal(u.Goods.Keys.Max(k => k.Value), p.Id.Value);   // ans Ende angehängt: GoodIds der übrigen Waren stabil
+        // ans Ende angehängt: GoodIds der übrigen Waren stabil; dahinter folgen nur die Waren aus Phase 5a (Bausatzstufen, Modul-Waren)
+        Assert.Equal(23, p.Id.Value);
+        Assert.All(u.Goods.Values.Where(g => g.Id.Value > p.Id.Value), g => Assert.True(g.Key.StartsWith("ship_kit_") || u.Modules.ContainsKey(g.Key), g.Key));
         Assert.InRange(p.BasePrice, u.Goods[DemoUniverse.Water].BasePrice, u.Goods[DemoUniverse.Hydrogen].BasePrice * 1.2f);
         // Phase 4b: Treibstoffraffinerie (3 Wasserstoff + 1 Energie → 4 Treibstoff); zwei Startwelt-Raffinerien führen propellant im Markt
         var type = Assert.Single(u.StationTypes.Values, t => t.Key == "fuel_refinery");
@@ -220,7 +242,7 @@ public class FuelModelTests
     [Fact]
     public void SaveLoad_V5_Roundtrip_IdentischInklHashFuelUndContent()
     {
-        Assert.Equal(5, SaveGame.CurrentVersion);
+        Assert.Equal(6, SaveGame.CurrentVersion);   // v6 (Phase 5a); Fuel kam mit v5
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
@@ -264,7 +286,9 @@ public class FuelModelTests
         var prop = loaded.Goods.Values.Single(g => g.Key == "propellant");
         Assert.Equal(23, prop.Id.Value);
         Assert.Equal(GoodForm.Liquid, prop.Form);
-        Assert.All(loaded.Goods.Values.Where(g => g.Key != "propellant"), g => Assert.True(g.Id.Value < 23));
+        Assert.All(loaded.Goods.Values.Where(g => g.Key != "propellant" && g.Id.Value < DemoUniverse.ShipKitMedium.Value), g => Assert.True(g.Id.Value < 23));
+        // Phase 5a (Kettenmigration v5→v6): dahinter nur Bausatzstufen und Modul-Waren
+        Assert.All(loaded.Goods.Values.Where(g => g.Id.Value > 23), g => Assert.True(g.Key.StartsWith("ship_kit_") || loaded.Modules.ContainsKey(g.Key), g.Key));
         // geänderter Slot-Content nachgereicht
         Assert.Equal(new FuelType(prop.Id, 1f), Assert.Single(loaded.Modules["chem_engine_s"].FuelTypes));
         Assert.Equal(200f, loaded.ShipClasses["unit_trader"].BaseFuel);

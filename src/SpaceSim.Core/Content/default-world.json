@@ -3,7 +3,9 @@
  "rules": {
   "maxTraders": 14,
   "maxMiners": 8,
-  "repairPlatesPerHull": 0.05
+  "repairPlatesPerHull": 0.05,
+  "maxStations": 33,
+  "maxStationsPerSector": 9
  },
  "goods": [
   {
@@ -156,8 +158,8 @@
    "color": "#ffd700"
   },
   {
-   "key": "ship_kit",
-   "name": "Schiffsbausatz",
+   "key": "ship_kit_light",
+   "name": "Leichter Schiffsbausatz",
    "basePrice": 500,
    "volume": 3,
    "color": "#ff6b6b"
@@ -169,6 +171,20 @@
    "volume": 1,
    "color": "#ffaa33",
    "form": "liquid"
+  },
+  {
+   "key": "ship_kit_medium",
+   "name": "Mittlerer Schiffsbausatz",
+   "basePrice": 1200,
+   "volume": 6,
+   "color": "#e8505b"
+  },
+  {
+   "key": "ship_kit_heavy",
+   "name": "Schwerer Schiffsbausatz",
+   "basePrice": 2100,
+   "volume": 10,
+   "color": "#c0392b"
   }
  ],
  "asteroidClasses": [
@@ -541,10 +557,68 @@
       "fuel_cells": 1
      },
      "out": {
-      "ship_kit": 1
+      "ship_kit_light": 1
+     }
+    },
+    {
+     "ticks": 40,
+     "in": {
+      "hull_plates": 4,
+      "electronics": 2,
+      "fuel_cells": 2,
+      "titanium": 2
+     },
+     "out": {
+      "ship_kit_medium": 1
+     }
+    },
+    {
+     "ticks": 60,
+     "in": {
+      "hull_plates": 6,
+      "electronics": 3,
+      "fuel_cells": 3,
+      "platinum": 2
+     },
+     "out": {
+      "ship_kit_heavy": 1
      }
     }
-   ]
+   ],
+   "stocks": {
+    "ship_kit_medium": [
+     16,
+     5
+    ],
+    "ship_kit_heavy": [
+     16,
+     5
+    ],
+    "titanium": [
+     10,
+     10
+    ],
+    "platinum": [
+     5,
+     5
+    ],
+    "reactor_mk1": [
+     2,
+     5
+    ],
+    "chem_engine_s": [
+     2,
+     5
+    ],
+    "mining_laser_1": [
+     2,
+     5
+    ],
+    "cargo_universal_100": [
+     2,
+     5
+    ]
+   }
   },
   {
    "key": "colony",
@@ -600,6 +674,60 @@
      }
     }
    ]
+  },
+  {
+   "key": "drive_works",
+   "name": "Antriebs- und Reaktorwerk",
+   "buildCost": 15000,
+   "upkeep": 0.15,
+   "income": 1,
+   "moduleFactory": {
+    "slots": [
+     "reactor",
+     "storage",
+     "engine",
+     "cargo"
+    ],
+    "maxTier": 1,
+    "ticks": 20,
+    "target": 5
+   },
+   "recipes": []
+  },
+  {
+   "key": "weapons_works",
+   "name": "Waffen- und Schildwerk",
+   "buildCost": 15000,
+   "upkeep": 0.15,
+   "income": 1,
+   "moduleFactory": {
+    "slots": [
+     "weapon",
+     "shield",
+     "armor"
+    ],
+    "maxTier": 1,
+    "ticks": 20,
+    "target": 5
+   },
+   "recipes": []
+  },
+  {
+   "key": "systems_works",
+   "name": "Systemwerk",
+   "buildCost": 15000,
+   "upkeep": 0.15,
+   "income": 1,
+   "moduleFactory": {
+    "slots": [
+     "tool",
+     "utility"
+    ],
+    "maxTier": 1,
+    "ticks": 20,
+    "target": 5
+   },
+   "recipes": []
   }
  ],
  "factions": [
@@ -731,6 +859,16 @@
        100
       ]
      }
+    },
+    {
+     "id": 27,
+     "type": "drive_works",
+     "name": "Antriebswerk Alpha",
+     "pos": [
+      -110,
+      -90
+     ],
+     "essential": true
     }
    ]
   },
@@ -833,6 +971,16 @@
        100
       ]
      }
+    },
+    {
+     "id": 28,
+     "type": "systems_works",
+     "name": "Systemwerk Beta",
+     "pos": [
+      -60,
+      -120
+     ],
+     "essential": true
     }
    ]
   },
@@ -921,6 +1069,16 @@
        100
       ]
      }
+    },
+    {
+     "id": 29,
+     "type": "weapons_works",
+     "name": "Waffen- und Schildwerk Gamma",
+     "pos": [
+      0,
+      95
+     ],
+     "essential": true
     }
    ]
   },
@@ -1112,45 +1270,55 @@
   {
    "key": "reactor",
    "name": "Reaktor",
-   "required": true
+   "required": true,
+   "color": "#ff8c42"
   },
   {
    "key": "storage",
-   "name": "Speicher"
+   "name": "Speicher",
+   "color": "#ffd166"
   },
   {
    "key": "engine",
    "name": "Antrieb",
-   "required": true
+   "required": true,
+   "color": "#f25f5c"
   },
   {
    "key": "shield",
-   "name": "Schild"
+   "name": "Schild",
+   "color": "#4cc9f0"
   },
   {
    "key": "armor",
-   "name": "Panzerung"
+   "name": "Panzerung",
+   "color": "#8d99ae"
   },
   {
    "key": "weapon",
-   "name": "Waffe"
+   "name": "Waffe",
+   "color": "#e63946"
   },
   {
    "key": "tool",
-   "name": "Werkzeug"
+   "name": "Werkzeug",
+   "color": "#80ed99"
   },
   {
    "key": "cargo",
-   "name": "Fracht"
+   "name": "Fracht",
+   "color": "#c9a66b"
   },
   {
    "key": "utility",
-   "name": "Utility"
+   "name": "Utility",
+   "color": "#b892ff"
   }
  ],
  "modules": [
   {
    "key": "reactor_mk1",
+   "name": "Fusionsreaktor Mk1",
    "slot": "reactor",
    "size": "S",
    "tier": 1,
@@ -1166,6 +1334,7 @@
   },
   {
    "key": "chem_engine_s",
+   "name": "Chemisches Triebwerk S",
    "slot": "engine",
    "size": "S",
    "tier": 1,
@@ -1188,6 +1357,7 @@
   },
   {
    "key": "mining_laser_1",
+   "name": "Mining-Laser Mk1",
    "slot": "tool",
    "size": "S",
    "tier": 1,
@@ -1207,6 +1377,7 @@
   },
   {
    "key": "cargo_universal_100",
+   "name": "Universalfrachtraum 100",
    "slot": "cargo",
    "size": "S",
    "tier": 1,
@@ -1224,6 +1395,7 @@
   },
   {
    "key": "cargo_universal_60",
+   "name": "Universalfrachtraum 60",
    "slot": "cargo",
    "size": "S",
    "tier": 1,
@@ -1241,6 +1413,7 @@
   },
   {
    "key": "cargo_solid_s",
+   "name": "Frachtmodul S",
    "slot": "cargo",
    "size": "S",
    "tier": 1,
@@ -1258,6 +1431,7 @@
   },
   {
    "key": "canister_bay_s",
+   "name": "Kanisterraum S",
    "slot": "cargo",
    "size": "S",
    "tier": 1,
@@ -1275,6 +1449,7 @@
   },
   {
    "key": "cargo_universal_70",
+   "name": "Universalfrachtraum 70",
    "slot": "cargo",
    "size": "S",
    "tier": 1,
@@ -1288,6 +1463,87 @@
    "mass": 3,
    "cost": {
     "steel": 5
+   }
+  },
+  {
+   "key": "power_bank_s",
+   "name": "Speicherbank S",
+   "slot": "storage",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "powerStorage": 20
+   },
+   "mass": 2,
+   "cost": {
+    "steel": 2,
+    "copper": 2,
+    "fuel_cells": 1
+   }
+  },
+  {
+   "key": "fuel_tank_s",
+   "name": "Treibstofftank S",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "fuelCapacity": 100
+   },
+   "mass": 2,
+   "cost": {
+    "steel": 3,
+    "titanium": 1
+   }
+  },
+  {
+   "key": "tractor_beam_s",
+   "name": "Traktorstrahl S",
+   "slot": "tool",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "tractorRange": 30,
+    "tractorPull": 1
+   },
+   "powerDraw": 1,
+   "mass": 1,
+   "cost": {
+    "electronics": 2,
+    "wafers": 1
+   }
+  },
+  {
+   "key": "shield_mk1",
+   "name": "Schildgenerator Mk1",
+   "slot": "shield",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "shieldCapacity": 40,
+    "shieldRegen": 0.5
+   },
+   "powerDraw": 2,
+   "mass": 2,
+   "cost": {
+    "platinum": 1,
+    "wafers": 2,
+    "electronics": 1
+   }
+  },
+  {
+   "key": "armor_plating_s",
+   "name": "Panzerplattierung S",
+   "slot": "armor",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "armor": 40
+   },
+   "mass": 4,
+   "cost": {
+    "hull_plates": 2,
+    "titanium": 1
    }
   }
  ],
@@ -1316,7 +1572,8 @@
      "type": "cargo",
      "size": "S"
     }
-   ]
+   ],
+   "kit": "ship_kit_light"
   },
   {
    "key": "unit_miner",
@@ -1342,7 +1599,8 @@
      "type": "cargo",
      "size": "S"
     }
-   ]
+   ],
+   "kit": "ship_kit_light"
   }
  ],
  "shipModels": [

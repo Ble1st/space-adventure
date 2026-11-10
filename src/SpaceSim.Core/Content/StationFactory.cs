@@ -2,7 +2,7 @@ using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Content;
 
-/// <summary>Erzeugt Stationen aus Stationstypen. Wird vom Welt-Builder und vom Stationsbau der Wirtschaft verwendet.</summary>
+/// <summary>Erzeugt Stationen aus Stationstypen (Rezepte und Lagerposten <see cref="StationType.Stocks"/>). Wird vom Welt-Builder und vom Stationsbau der Wirtschaft verwendet.</summary>
 public static class StationFactory
 {
     public const float DefaultStock = 50f, DefaultTarget = 100f;
@@ -23,6 +23,13 @@ public static class StationFactory
                 var e = st.Stock(g);
                 if (e.Amount == 0 && e.Target == 100f) { e.Amount = DefaultStock; e.Target = DefaultTarget; }
             }
+        }
+        // Phase 5a: Lager ohne Rezept (stocks) — zusätzliche Markteinträge; für Rezeptwaren Anfangs-/Wunschbestand des Typs
+        foreach (var s in type.Stocks)
+        {
+            var e = st.Stock(s.Good);
+            e.Amount = s.Amount;
+            e.Target = s.Target;
         }
         return st;
     }

@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -72,7 +72,12 @@ public sealed class StationTypeSave
     public List<RecipeSave> Recipes { get; set; } = new();
     /// <summary>Dienst-Schlüssel des Typs. Fehlt das Feld (Spielstände vor dieser Erweiterung), gilt der Standard ["trade"].</summary>
     public List<string>? Services { get; set; }
+    /// <summary>Lager ohne Rezept (Phase 5a, v6); fehlt in älteren Spielständen = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<StationStockSave>? Stocks { get; set; }
 }
+
+/// <summary>Lagerposten eines Stationstyps (Phase 5a): GoodId, Anfangs- und Wunschbestand.</summary>
+public sealed class StationStockSave { public int Good { get; set; } public float Amount { get; set; } public float Target { get; set; } }
 
 public sealed class FactionSave
 {
@@ -145,7 +150,12 @@ public sealed class ShipSlotSave
     public float? Arc { get; set; }
 }
 
-public sealed class SlotTypeSave { public string Key { get; set; } = ""; public string Name { get; set; } = ""; public bool Required { get; set; } }
+public sealed class SlotTypeSave
+{
+    public string Key { get; set; } = ""; public string Name { get; set; } = ""; public bool Required { get; set; }
+    /// <summary>Farbe der Modul-Waren (Phase 5a); fehlt in älteren Spielständen.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Color { get; set; }
+}
 
 /// <summary>Ein zulässiger Treibstoff eines Antriebsmoduls im Save (Warenschlüssel wie in cost, damit GoodIds nicht verschoben werden müssen).</summary>
 public sealed class FuelSave
@@ -157,6 +167,8 @@ public sealed class FuelSave
 public sealed class ModuleSave
 {
     public string Key { get; set; } = "";
+    /// <summary>Anzeigename (Phase 5a); fehlt in älteren Spielständen (dann = Schlüssel).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Name { get; set; }
     public string Slot { get; set; } = "";
     public string Size { get; set; } = "S";
     public int Tier { get; set; } = 1;
@@ -182,6 +194,8 @@ public sealed class ShipClassSave
     /// <summary>Tankkapazität des Rumpfs; fehlt in v4-Saves (die Migration reicht sie aus der Default-Welt nach).</summary>
     public float BaseFuel { get; set; }
     public List<ShipSlotSave> Slots { get; set; } = new();
+    /// <summary>Bausatz-Warenschlüssel der Klasse (Phase 5a); null = Regel ShipKitGoodKey.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Kit { get; set; }
 }
 
 public sealed class ShipModelSave

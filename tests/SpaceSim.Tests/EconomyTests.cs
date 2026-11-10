@@ -112,6 +112,8 @@ public class MinerTests
             st.Production.Clear();
         }
         foreach (var s in u.Ships.Values.Where(s => s.Role == ShipRole.Trader).ToList()) u.Ships.Remove(s.Id);
+        // kein Stationsneubau: eine neue Station hätte einen frischen (teuren) Erzmarkt, und dann wäre Schürfen richtig
+        u.Rules.MaxStations = u.Stations.Count;
         new SimulationRunner().Run(u, 200);
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Miner), m => Assert.Null(m.Order));
     }

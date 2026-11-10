@@ -13,6 +13,8 @@ public sealed class SlotType
     public string Name = "";
     /// <summary>Pflichtslot: ein Fit ohne Modul in diesem Slot ist ungültig (Reaktor, Antrieb).</summary>
     public bool Required;
+    /// <summary>Anzeigefarbe (#RRGGBB) der Modul-Waren dieser Slotart (Phase 5a); null = Standardfarbe.</summary>
+    public string? Color;
 }
 
 /// <summary>Ein zulässiger Treibstoff eines Antriebsmoduls: Ware + efficiency (Phase 4).</summary>
@@ -22,6 +24,8 @@ public sealed record FuelType(GoodId Good, float Efficiency);
 public sealed class Module
 {
     public string Key = "";
+    /// <summary>Anzeigename (auch Name der Modul-Ware, Phase 5a); leer = Schlüssel.</summary>
+    public string Name = "";
     /// <summary>Slotart-Schlüssel, in die dieses Modul passt.</summary>
     public string Slot = "";
     public SlotSize Size = SlotSize.S;
@@ -40,7 +44,7 @@ public sealed class Module
     public float Upkeep;
     /// <summary>Welche Warenform das Frachtmodul fasst; Standard Any (bei Nicht-Frachtmodulen ohne Bedeutung).</summary>
     public ModuleHolds Holds = ModuleHolds.Any;
-    /// <summary>Herstellkosten: Warenschlüssel → Menge (Rezept der Modulfabrik, erst ab Phase 5).</summary>
+    /// <summary>Herstellkosten: Warenschlüssel → Menge. Seit Phase 5a das Rezept der Modulfabrik (Eingänge; Ausgang 1 Modul-Ware gleichen Schlüssels).</summary>
     public Dictionary<string, float> Cost = new();
     /// <summary>Zulässige Treibstoffe des Antriebs (Ware → efficiency); leer bei Nicht-Antrieben. Verbrauch erst ab Phase 4b.</summary>
     public List<FuelType> FuelTypes = new();
@@ -69,6 +73,8 @@ public sealed class ShipClass
     /// <summary>Tankkapazität des Rumpfs; Standard 0. Zusammen mit fuelCapacity-Modulen ergibt sich <see cref="ShipStats.FuelCapacity"/>.</summary>
     public float BaseFuel;
     public List<ClassSlot> Slots = new();
+    /// <summary>Warenschlüssel des Bausatzes, aus dem die Werft Schiffe dieser Klasse baut (Phase 5a: ship_kit_light/medium/heavy); null = Regel <see cref="EconomyRules.ShipKitGoodKey"/>.</summary>
+    public string? Kit;
 }
 
 /// <summary>Schiffsmodell: eine Klasse mit festem Fit (Modulschlüssel pro Slot, null = leerer Slot).</summary>

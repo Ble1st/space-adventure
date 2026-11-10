@@ -42,8 +42,10 @@ public sealed class StationLifecycleSystem : ISimSystem
             var entries = u.Stations.Values.Where(s => s.Market.ContainsKey(good.Id)).Select(s => s.Market[good.Id]).ToList();
             if (entries.Count == 0) continue;
             float ratio = entries.Sum(e => e.Target) / MathF.Max(1f, entries.Sum(e => e.Amount));
-            if (ratio > worst) { worst = ratio; scarce = good.Id; }
-            if (ratio < lowest && ratio > 0f) { lowest = ratio; glut = good.Id; }
+            // Phase 5a: nur Waren, auf die ein Stationstyp antworten kann (Erzeuger bei Knappheit, Rezept-Verbraucher bei Überangebot).
+            // Sonst blockiert eine Ware ohne Verbraucher-Typ (Module, Bausatzstufen auf Halde) jeden Verbraucherbau für andere Waren.
+            if (ratio > worst && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)))) { worst = ratio; scarce = good.Id; }
+            if (ratio < lowest && ratio > 0f && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Inputs.ContainsKey(good.Id)))) { lowest = ratio; glut = good.Id; }
         }
 
         // Knappheit → Produzent der Ware bauen; sonst bei Überangebot → Verbraucher der Ware bauen (Nachfrage wächst mit billigem Angebot)
