@@ -30,6 +30,7 @@ public static class UniverseHash
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
             foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); }
         MixF(u.PlayerWallet.Credits); Mix((ulong)u.PlayerWallet.Faction.Value);   // Phase 5b: Spielerkasse gehört zum Spielstand
+        Mix((ulong)u.PlayerShip.Value);   // Phase 5c: aktives Schiff kann wechseln (Kauf, Hangar)
         return h;
     }
 }

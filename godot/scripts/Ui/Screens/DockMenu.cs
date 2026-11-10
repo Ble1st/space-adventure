@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using Godot;
 using SpaceAdventure.Ui.Kit;
@@ -72,6 +73,8 @@ public sealed partial class DockMenu : Control, IScreen
 		var chips = At(card, new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 20, 102, 540, 92);
 		chips.AddThemeConstantOverride("separation", 8);
 		chips.AddChild(new ShipChip(ship, true));
+		// Phase 5c: eigene Schiffe, die hier geparkt liegen (Wechsel im Hangar); fremde bleiben Platzhalter
+		foreach (var own in SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Take(2)) chips.AddChild(new ShipChip(own, false));
 		chips.AddChild(new ShipChip(null, false));   // weitere Schiffe: Platzhalter
 
 		// Bereiche darunter, je mit Untertitel
@@ -126,7 +129,7 @@ public sealed partial class DockMenu : Control, IScreen
 				var closed = new System.Collections.Generic.List<Vector2>(pts) { pts[0] };
 				DrawPolyline(closed.ToArray(), Cyan, 1.5f, true);
 				DrawString(font, new Vector2(0, 66), $"#{ _ship.Id.Value}", HorizontalAlignment.Center, 122, 15, White);
-				DrawString(font, new Vector2(0, 80), "aktiv", HorizontalAlignment.Center, 122, 12, Dim);
+				DrawString(font, new Vector2(0, 80), _sel ? "aktiv" : "im Hangar", HorizontalAlignment.Center, 122, 12, Dim);
 				DrawRect(new Rect2(14, 84, 94, 4), new Color(0, 0, 0, 0.5f));
 				DrawRect(new Rect2(14, 84, 94 * Mathf.Clamp(_ship.Hull / _ship.MaxHull, 0f, 1f), 4), _ship.Hull > 60f ? Green : Orange);
 			}

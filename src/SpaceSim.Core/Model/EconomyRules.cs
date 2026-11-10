@@ -44,6 +44,11 @@ public sealed class EconomyRules
     public string ShipKitGoodKey = "ship_kit_light";
     /// <summary>Verarbeitungsaufschlag der Modul-Waren (Phase 5a): Basispreis = Summe der Zutatenpreise (Modul-cost) × diesen Faktor.</summary>
     public float ModuleMarkup = 1.3f;
+    /// <summary>
+    /// Phase 5c: KI-Neubauten nutzen dieselbe Kaufregel wie der Spieler — Bausatz plus je eingebautem Modul eine Modul-Ware aus dem
+    /// Werftlager, Preis = Marktpreis × (1 + Montagegebühr). false = konservativ wie vor 5c (nur der Bausatz, Pauschale <see cref="NewShipCost"/>).
+    /// </summary>
+    public bool FleetBuysModules = true;
     public int MaxStations = 30;
     public int MaxStationsPerSector = 8;
 }

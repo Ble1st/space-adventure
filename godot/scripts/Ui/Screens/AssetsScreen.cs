@@ -13,9 +13,8 @@ namespace SpaceAdventure.Ui.Screens;
 /// Daten (Spielerkasse + Fracht zu Basispreisen über <see cref="SectorEconomy.PlayerNetWorth"/>, klar beschriftet). Tabs Schiffe,
 /// Stationen, Verträge, Lager. Schiffe: das Spielerschiff mit Standort, Auftrag, Hülle, Fracht (alles echt).
 /// Tippen auf ein Schiff öffnet ein Detailfenster mit „In dieses Schiff wechseln“: für das aktive Schiff
-/// „Bereits aktiv“, sonst gesperrt „Bald (Phase 12)“, weil der Spieler nur ein Schiff besitzt. Befehle,
-/// Heim schicken, Verkaufen: Platzhalter. Echtes Schiffwechseln braucht Besitz mehrerer Schiffe im Core
-/// und gehört nicht in diese Stufe.
+/// „Bereits aktiv“, sonst gesperrt mit dem Hinweis, dass der Wechsel im Hangar der Station geschieht, an der das Schiff
+/// liegt (Phase 5c; Fernwechsel ab Phase 12). Befehle, Heim schicken, Verkaufen: Platzhalter.
 /// </summary>
 public sealed partial class AssetsScreen : CommandScreen
 {

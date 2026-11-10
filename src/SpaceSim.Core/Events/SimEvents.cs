@@ -28,6 +28,15 @@ public sealed record FuelBought(ShipId Ship, StationId Station, GoodId Good, flo
 /// <summary>Notkauf bei leerem Tank (Phase 4b): Treibstoff zum Aufpreis (2× Basispreis), der Erlös fließt an keine Station und verschwindet (Geldsenke).</summary>
 public sealed record EmergencyRefuel(ShipId Ship, GoodId Good, float Units, float Cost) : SimEvent;
 
+/// <summary>Der Spieler hat an einer Station ein Schiff gekauft (Phase 5c, Dienst „shipdealer“): neues Schiff, Modell, Preis.</summary>
+public sealed record ShipPurchased(ShipId Ship, StationId Station, string ModelKey, float Price) : SimEvent;
+/// <summary>KI-Neubau (Phase 5c, <see cref="Simulation.FleetSystem"/>): Werft, Preis und ob die Module des Fits aus dem Werftlager verbraucht wurden (sonst nur der Bausatz).</summary>
+public sealed record FleetShipBuilt(ShipId Ship, StationId Yard, bool WithModules, float Price) : SimEvent;
+/// <summary>Der Spieler steuert jetzt ein anderes eigenes Schiff (Phase 5c: nach Kauf oder Wechsel im Hangar); das alte bleibt geparkt.</summary>
+public sealed record ActiveShipChanged(ShipId Old, ShipId New, StationId Station) : SimEvent;
+/// <summary>Ein Modul wurde ein- oder ausgebaut (Phase 5c, Dienst „outfitter“): Slot-Index, neues und altes Modul (null = leer).</summary>
+public sealed record ShipRefitted(ShipId Ship, StationId Station, int Slot, string? Installed, string? Removed) : SimEvent;
+
 /// <summary>Einfacher synchroner Ereignisbus. Wird nicht gespeichert; Abonnenten (Statistik, Darstellung) hängen sich nach dem Laden neu an.</summary>
 public sealed class SimEvents
 {

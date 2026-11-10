@@ -38,9 +38,18 @@ public static class WorldBuilder
         return reader.ReadToEnd();
     }
 
-    public static Universe BuildDefault(ulong? seed = null) => Build(Parse(DefaultWorldJson()), seed);
+    /// <summary>Baut die Standardwelt; <paramref name="startOption"/> wählt ein Startpaket (<c>player.startOptions</c>), null = Spielereintrag wie bisher.</summary>
+    public static Universe BuildDefault(ulong? seed = null, string? startOption = null) => Build(Parse(DefaultWorldJson()), seed, startOption);
 
-    public static Universe Build(WorldDef def, ulong? seedOverride = null)
+    /// <summary>Die Startpakete der Standardwelt (für die Auswahl bei „Neues Spiel“).</summary>
+    public static IReadOnlyList<StartOptionDef> DefaultStartOptions() => Parse(DefaultWorldJson()).Player.StartOptions;
+
+    /// <summary>
+    /// Baut ein Universum aus der Weltbeschreibung. <paramref name="startOption"/> ist der Schlüssel eines Startpakets aus
+    /// <c>player.startOptions</c> (Phase 5c): Es bestimmt Modell, Startcredits und optional den Startsektor des Spielerschiffs;
+    /// null = der Spielereintrag selbst (bisheriges Verhalten). Ein unbekannter Schlüssel wirft <see cref="WorldFormatException"/>.
+    /// </summary>
+    public static Universe Build(WorldDef def, ulong? seedOverride = null, string? startOption = null)
     {
         var u = new Universe { Seed = seedOverride ?? def.Seed };
         u.Rng = new DeterministicRng(u.Seed);
@@ -109,6 +118,18 @@ public static class WorldBuilder
                     type.Stocks.Add(new StationStock(gid, v[0], v[1]));
                 }
             if (t.ModuleFactory is { } mf) AddModuleRecipes(u, t.Key, type, mf, Good);
+            if (t.ShipDealer is { } sd)
+            {
+                if (sd.Classes is not null)
+                    foreach (var c in sd.Classes)
+                        if (!u.ShipClasses.ContainsKey(c)) throw new WorldFormatException($"Stationstyp '{t.Key}': unbekannte Schiffsklasse '{c}' in shipDealer");
+                if (sd.Assembly < 0f) throw new WorldFormatException($"Stationstyp '{t.Key}': shipDealer.assembly muss >= 0 sein");
+                type.ShipDealer = new ShipDealerConfig
+                {
+                    Classes = sd.Classes is null ? null : new List<string>(sd.Classes),
+                    MaxSize = ParseSize(sd.MaxSize, $"Stationstyp '{t.Key}'"), Assembly = sd.Assembly,
+                };
+            }
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -164,9 +185,29 @@ public static class WorldBuilder
             for (int i = 0; i < group.Count; i++) u.AddShip(NewShip(u, new ShipId(nextShip++), role, group.Faction, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model));
         }
 
+        // Phase 5c: Startpakete prüfen (Schlüssel eindeutig, Modell und Sektor bekannt) und ggf. das gewählte anwenden
+        var seenOptions = new HashSet<string>();
+        foreach (var o in def.Player.StartOptions)
+        {
+            if (!seenOptions.Add(o.Key)) throw new WorldFormatException($"Startpaket '{o.Key}' doppelt");
+            if (!u.ShipModels.ContainsKey(o.Model)) throw new WorldFormatException($"Startpaket '{o.Key}': unbekanntes Schiffsmodell '{o.Model}'");
+            if (o.Sector is { } os && !u.Sectors.ContainsKey(new SectorId(os))) throw new WorldFormatException($"Startpaket '{o.Key}': unbekannter Sektor {os}");
+        }
+        string? playerModel = def.Player.Model;
+        float playerCredits = def.Player.Credits;
+        int playerSector = def.Player.Sector;
+        if (startOption is not null)
+        {
+            var o = def.Player.StartOptions.FirstOrDefault(x => x.Key == startOption)
+                    ?? throw new WorldFormatException($"Unbekanntes Startpaket '{startOption}'");
+            playerModel = o.Model;
+            playerCredits = o.Credits;
+            playerSector = o.Sector ?? def.Player.Sector;
+        }
+
         // Phase 5b: das Startgeld gehört der Person (Spielerkasse), nicht dem Schiff
-        var player = NewShip(u, new ShipId(100), ShipRole.Player, def.Player.Faction, new SectorId(def.Player.Sector), 0f, 100, def.Player.Model);
-        u.PlayerWallet = new PlayerWallet { Credits = def.Player.Credits, Faction = new FactionId(def.Player.Faction) };
+        var player = NewShip(u, new ShipId(100), ShipRole.Player, def.Player.Faction, new SectorId(playerSector), 0f, 100, playerModel);
+        u.PlayerWallet = new PlayerWallet { Credits = playerCredits, Faction = new FactionId(def.Player.Faction) };
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
@@ -268,25 +309,9 @@ public static class WorldBuilder
         foreach (var md in def.ShipModels)
         {
             if (!u.ShipClasses.TryGetValue(md.Class, out var cls)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekannte Klasse '{md.Class}'");
-            if (md.Fit.Count != cls.Slots.Count) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Fit hat {md.Fit.Count} Einträge, Klasse '{cls.Key}' hat {cls.Slots.Count} Slots");
-            var fit = new List<Module?>(md.Fit.Count);
-            for (int i = 0; i < md.Fit.Count; i++)
-            {
-                var key = md.Fit[i];
-                if (key is null) { fit.Add(null); continue; }
-                if (!u.Modules.TryGetValue(key, out var module)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekanntes Modul '{key}'");
-                var slot = cls.Slots[i];
-                if (module.Slot != slot.Type) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' (Slotart '{module.Slot}') passt nicht in Slot '{slot.Type}'");
-                if (module.Size > slot.Size) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' ({module.Size}) ist größer als der Slot ({slot.Size})");
-                fit.Add(module);
-            }
-            for (int i = 0; i < cls.Slots.Count; i++)
-                if (fit[i] is null && u.SlotTypes[cls.Slots[i].Type].Required)
-                    throw new WorldFormatException($"Schiffsmodell '{md.Key}': Pflichtslot '{cls.Slots[i].Type}' ist leer");
-            var stats = ShipStats.Compute(cls, fit);
-            if (stats.PowerOutput < stats.PowerDraw) throw new WorldFormatException($"Schiffsmodell '{md.Key}': powerOutput {stats.PowerOutput} < powerDraw {stats.PowerDraw}");
-            if (stats.PeakDraw - (stats.PowerOutput - stats.PowerDraw) > stats.PowerStorage)
-                throw new WorldFormatException($"Schiffsmodell '{md.Key}': Spitzenlast {stats.PeakDraw} übersteigt die Speicherbank ({stats.PowerStorage} + Reaktorüberschuss {stats.PowerOutput - stats.PowerDraw})");
+            // Phase 5c: dieselbe Fit-Regel wie zur Laufzeit beim Ausrüster (FitRules), hier mit dem Modellnamen als Präfix
+            if (FitRules.Check(u.SlotTypes, u.Modules, cls, cls.Slots, md.Fit) is { } issue)
+                throw new WorldFormatException($"Schiffsmodell '{md.Key}': {issue.Message}");
             if (!u.ShipModels.TryAdd(md.Key, new ShipModel { Key = md.Key, ClassKey = md.Class, Name = md.Name, Fit = new List<string?>(md.Fit) }))
                 throw new WorldFormatException($"Schiffsmodell '{md.Key}' doppelt");
         }
@@ -338,6 +363,7 @@ public static class WorldBuilder
             if (ship.RecomputeStats(u))
             {
                 ship.CargoCapacity = ship.Stats.Cargo;   // Laderaum aus dem Modell; Fähigkeiten leitet AddShip aus Stats ab
+                ship.Hull = ship.MaxHull;                 // Phase 5c: Hülle des Modells (Skiffs haben weniger als die Pauschale 100)
                 ship.FillFuel();                          // Phase 4: neuer Tank voll (erster zulässiger Treibstoff, z. B. propellant)
             }
             else

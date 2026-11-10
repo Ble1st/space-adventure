@@ -1,0 +1,197 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Godot;
+using SpaceAdventure.Ui.Kit;
+using SpaceSim.Core.Model;
+using SpaceSim.Core.Services;
+using static SpaceAdventure.Ui.Kit.UiKit;
+
+namespace SpaceAdventure.Ui.Screens;
+
+/// <summary>
+/// Dock-Bereich „Ausrüster“ (UI.md Abschnitt 3, Phase 5c): links die Slots des Schiffs mit eingebautem Modul und die
+/// Leistungsbilanz, rechts für den gewählten Slot die Angebote des Dienstes „outfitter“ – ausschließlich aus
+/// <see cref="IStationService.Offers"/> („fit:&lt;Slot&gt;:&lt;Modul&gt;“, „remove:&lt;Slot&gt;“), ausgeführt nur über
+/// <see cref="IStationService.Execute"/>. Je Angebot Preis, Herkunft (Lager/Fracht) und die Wirkung auf die Schiffswerte
+/// (Vorher/Nachher aus <see cref="OutfitterService.Preview"/>, reine Core-Rechnung über ShipStats) samt Grund, warum ein
+/// Einbau gerade nicht geht. Die Ergebnismeldung kommt aus <see cref="ServiceResult.Message"/>.
+/// </summary>
+public sealed partial class OutfitterScreen : DockAreaScreen
+{
+	public override string Id => "dock.outfitter";
+	public OutfitterScreen() => AreaId = DockAreas.Outfitter;
+
+	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
+	public event Action<bool>? Executed;
+
+	string _message = "";
+	bool _msgOk = true;
+	int _slot = -1;
+	int _rows;
+	ScrollContainer? _scroll;
+	int _scrollV;
+
+	IStationService? Service =>
+		Ctx.Services.ForStation(Ctx.U, Ctx.Station).FirstOrDefault(s => s.Key == OutfitterService.ServiceKey);
+
+	protected override void Rebuild()
+	{
+		if (_scroll != null && IsInstanceValid(_scroll)) _scrollV = _scroll.ScrollVertical;
+		base.Rebuild();
+		if (_scroll != null) _scroll.ScrollVertical = _scrollV;
+	}
+
+	protected override void BuildContent(Control inner)
+	{
+		var u = Ctx.U; var ship = Ctx.Ship;
+		float w = inner.Size.X > 0 ? inner.Size.X : 1020f;
+		_rows = 0;
+		_scroll = null;
+		At(inner, Text(_message.Length > 0 ? _message : "Slot wählen, dann ein Modul aus dem Lager (oder der Fracht) einbauen. Ausgebaute Module kauft die Station an, sonst landen sie in der Fracht.",
+			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 36);
+
+		var svc = Service;
+		var cls = ship.HasModel && u.ShipModels.TryGetValue(ship.ModelKey, out var model) ? u.ShipClasses.GetValueOrDefault(model.ClassKey) : null;
+		if (svc is null || cls is null)
+		{
+			At(inner, Text(svc is null ? "Diese Station hat keinen Ausrüster." : "Dieses Schiff hat kein Modell und kann nicht umgerüstet werden.", 16, new Color(Dim, 0.8f)), 0, 48, w, 26);
+			return;
+		}
+		var offers = svc.Offers(u, Ctx.Station, ship);
+		if (_slot < 0 || _slot >= ship.Slots.Count) _slot = FirstSlotWithOffers(offers, ship);
+
+		// ── links: Slots ──
+		At(inner, Text($"Slots · {(u.ShipModels.TryGetValue(ship.ModelKey, out var m) ? m.Name : ship.ModelKey)} ({cls.Name})", 17, Cyan), 0, 40, 330, 24);
+		float y = 68f;
+		for (int i = 0; i < ship.Slots.Count; i++)
+		{
+			var slot = ship.Slots[i];
+			string type = u.SlotTypes.TryGetValue(slot.Type, out var st) ? st.Name : slot.Type;
+			string mod = ship.Fit[i] is { } key ? (u.Modules.TryGetValue(key, out var mm) && mm.Name.Length > 0 ? mm.Name : key) : "– leer –";
+			bool required = st?.Required ?? false;
+			var b = At(inner, new KitButton($"{i + 1} · {type} {slot.Size}{(required ? " (Pflicht)" : "")}", new Vector2(330, 56))
+			{ AlignLeft = true, FontSize = 15, Sub = mod, State = i == _slot ? KitButtonState.On : KitButtonState.Normal }, 0, y);
+			int idx = i;
+			b.Pressed += () => { _slot = idx; _message = ""; Invalidate(); };
+			y += 60f;
+		}
+
+		// ── links unten: Leistungsbilanz (echt aus ShipStats) ──
+		var s = ship.Stats;
+		float py = Math.Max(y + 6f, 440f);
+		At(inner, Text($"Leistung {s.PowerDraw:0.#} / {s.PowerOutput:0.#}", 14, Dim), 0, py, 200, 20);
+		var bar = At(inner, new KitBar(120, 12, Green), 205, py + 4);
+		bar.Set(s.PowerDraw, s.PowerDraw > s.PowerOutput ? Red : Green, Math.Max(1f, s.PowerOutput));
+		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Speicher {s.PowerStorage:0.#}", 14, Dim), 0, py + 24, 330, 20);
+		At(inner, Text($"Fracht {s.Cargo:0} · Hülle {s.Hull:0} · Tempo {s.Speed:0.0} · Tank {s.FuelCapacity:0}", 13, new Color(Dim, 0.9f)), 0, py + 46, 330, 20);
+
+		// ── rechts: Angebote für den gewählten Slot ──
+		float rx = 345f, rw = w - rx;
+		var cur = ship.Slots[_slot];
+		string curType = u.SlotTypes.TryGetValue(cur.Type, out var ct) ? ct.Name : cur.Type;
+		At(inner, Text($"Slot {_slot + 1}: {curType} ({cur.Size})", 17, Cyan), rx, 40, rw, 24);
+		var slotOffers = offers.Where(o => OfferSlot(o.Key) == _slot).ToList();
+		_scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, rx, 68, rw, 520 - 68 - 4);
+		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		box.AddThemeConstantOverride("separation", 6);
+		_scroll.AddChild(box);
+		if (slotOffers.Count == 0)
+			box.AddChild(Text(ship.Fit[_slot] is null ? "Kein passendes Modul auf Lager." : "Kein passendes Modul auf Lager; Pflichtslots lassen sich nur tauschen.", 15, new Color(Dim, 0.8f)));
+		foreach (var o in slotOffers)
+		{
+			box.AddChild(OfferRow(o, rw - 14));
+			_rows++;
+		}
+	}
+
+	/// <summary>Eine Angebotszeile: Name, Herkunft/Preis, Wirkung (Vorher → Nachher) bzw. Grund, Taste.</summary>
+	Control OfferRow(ServiceOffer o, float w)
+	{
+		var u = Ctx.U; var ship = Ctx.Ship;
+		bool remove = o.Key.StartsWith(OutfitterService.Remove + ":", StringComparison.Ordinal);
+		string? moduleKey = remove ? null : o.Key[(o.Key.LastIndexOf(':') + 1)..];
+		var p = OutfitterService.Preview(u, Ctx.Station, ship, _slot, moduleKey);
+		bool can = o.Amount >= 1f;
+
+		var row = new Control { CustomMinimumSize = new Vector2(w, 82), MouseFilter = MouseFilterEnum.Pass };
+		var bg = new Panel { MouseFilter = MouseFilterEnum.Ignore };
+		bg.AddThemeStyleboxOverride("panel", Box(Card, can ? Edge : new Color(Dim, 0.25f), 10, 1, 0));
+		row.AddChild(bg);
+		bg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		var chip = new ColorRect { Color = DockAreaScreen.GoodColorOf(u, o.Good), MouseFilter = MouseFilterEnum.Ignore };
+		At(row, chip, 10, 12, 12, 12);
+		At(row, Text(o.Text, 16, White), 30, 4, w - 200, 24);
+		string source = remove
+			? (o.Price > 0f ? $"Station kauft an: {o.Price:0} Cr" : "Station nimmt nicht an → in die Fracht")
+			: (o.Price <= 0f ? $"aus der Fracht ({o.Held:0} an Bord) · kostenlos" : $"Lager {o.Stock:0.#} · {o.Price:0} Cr");
+		At(row, Text(source, 13, Dim), 30, 28, w - 200, 20);
+		string effect = p is null ? "" : !p.Valid
+			? (p.Issue is { } issue ? FitRules.Describe(issue) : p.CargoProblem ?? "")
+			: Diff(p.Before, p.After);
+		if (p is { Valid: true } && !can) effect = "Nicht genügend Credits · " + effect;
+		At(row, Text(effect, 13, p is { Valid: true } && can ? Green : Orange), 30, 52, w - 200, 22);
+		var b = At(row, new KitButton(remove ? "Ausbauen" : ship.Fit[_slot] is null ? "Einbauen" : "Tauschen", new Vector2(150, 56))
+		{ FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 160, 13);
+		string key = o.Key;
+		if (can) b.Pressed += () => Execute(key);
+		return row;
+	}
+
+	/// <summary>Wirkung als Text: nur geänderte Werte, „Name alt→neu“.</summary>
+	static string Diff(ShipStats a, ShipStats b)
+	{
+		var parts = new List<string>();
+		void Add(string name, float x, float y, string fmt = "0")
+		{
+			if (MathF.Abs(x - y) > 0.01f) parts.Add($"{name} {x.ToString(fmt)}→{y.ToString(fmt)}");
+		}
+		Add("Fracht", a.Cargo, b.Cargo);
+		Add("Hülle", a.Hull, b.Hull);
+		Add("Tempo", a.Speed, b.Speed, "0.0");
+		Add("Leistung frei", a.PowerOutput - a.PowerDraw, b.PowerOutput - b.PowerDraw, "0.#");
+		Add("Speicher", a.PowerStorage, b.PowerStorage);
+		Add("Tank", a.FuelCapacity, b.FuelCapacity);
+		bool mineA = a.Capabilities.HasFlag(Capability.Mining), mineB = b.Capabilities.HasFlag(Capability.Mining);
+		if (mineA != mineB) parts.Add(mineB ? "+Schürfen" : "−Schürfen");
+		bool cargoA = a.Capabilities.HasFlag(Capability.Cargo), cargoB = b.Capabilities.HasFlag(Capability.Cargo);
+		if (cargoA != cargoB) parts.Add(cargoB ? "+Fracht" : "−Fracht");
+		return parts.Count == 0 ? "Werte unverändert" : string.Join(" · ", parts);
+	}
+
+	static int OfferSlot(string key)
+	{
+		var parts = key.Split(':');
+		return parts.Length >= 2 && int.TryParse(parts[1], out int i) ? i : -1;
+	}
+
+	static int FirstSlotWithOffers(IReadOnlyList<ServiceOffer> offers, Ship ship)
+	{
+		for (int i = 0; i < ship.Slots.Count; i++)
+			if (offers.Any(o => OfferSlot(o.Key) == i && o.Amount >= 1f)) return i;
+		return 0;
+	}
+
+	/// <summary>Führt ein Angebot über den Dienst aus und zeigt dessen Meldung.</summary>
+	public ServiceResult Execute(string offer)
+	{
+		var svc = Service;
+		var r = svc is null
+			? new ServiceResult(false, 0f, 0f, "Dienst ist an dieser Station nicht verfügbar.")
+			: svc.Execute(Ctx.U, Ctx.Station, Ctx.Ship, new ServiceRequest(offer, default, 0f));
+		_message = r.Message;
+		_msgOk = r.Success;
+		Executed?.Invoke(r.Success);
+		Invalidate();
+		return r;
+	}
+
+	// ── Zugriff für Selbsttest/Bildschirmfotos ──
+	public int TestRowCount => _rows;
+	public string TestMessage => _message;
+	public int TestSelectedSlot => _slot;
+	public void TestSelectSlot(int slot) { _slot = slot; _message = ""; Invalidate(); }
+	/// <summary>Angebots-Schlüssel des gewählten Slots, wie die Oberfläche sie zeigt (aus Offers).</summary>
+	public IReadOnlyList<ServiceOffer> TestSlotOffers() =>
+		Service is { } s ? s.Offers(Ctx.U, Ctx.Station, Ctx.Ship).Where(o => OfferSlot(o.Key) == _slot).ToList() : new List<ServiceOffer>();
+}

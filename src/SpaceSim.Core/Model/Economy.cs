@@ -49,6 +49,28 @@ public sealed class StationType
     /// deren Anfangs-/Wunschbestand fest. Händler beliefern solche Lager über den normalen Handel.
     /// </summary>
     public List<StationStock> Stocks = new();
+    /// <summary>
+    /// Schiffshändler (Phase 5c, Dienst „shipdealer“): welche Schiffsklassen die Station aus ihrem Lager montiert und verkauft;
+    /// null = Station verkauft keine Schiffe.
+    /// </summary>
+    public ShipDealerConfig? ShipDealer;
+}
+
+/// <summary>
+/// Einschränkung des Schiffshändlers eines Stationstyps (SCHIFFSSLOTS.md, „Kleine Schiffe an anderen Stationen“): erlaubte Klassen
+/// (null = alle), größte Klassengröße und Montagegebühr als Anteil auf Bausatz- und Materialpreis.
+/// </summary>
+public sealed class ShipDealerConfig
+{
+    /// <summary>Erlaubte Klassen-Schlüssel; null = alle Klassen (Werft).</summary>
+    public List<string>? Classes;
+    /// <summary>Größte Klassengröße, die die Station verkauft.</summary>
+    public SlotSize MaxSize = SlotSize.XL;
+    /// <summary>Montagegebühr: Kaufpreis = (Bausatz + Module zum Marktpreis) × (1 + Assembly).</summary>
+    public float Assembly;
+
+    /// <summary>Darf diese Station Schiffe dieser Klasse verkaufen?</summary>
+    public bool Allows(ShipClass cls) => cls.Size <= MaxSize && (Classes is null || Classes.Contains(cls.Key));
 }
 
 /// <summary>Lagerposten eines Stationstyps: Ware, Anfangsbestand, Wunschbestand (Phase 5a, <see cref="StationType.Stocks"/>).</summary>

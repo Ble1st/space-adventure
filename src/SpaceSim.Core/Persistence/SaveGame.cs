@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -82,6 +82,16 @@ public sealed class StationTypeSave
     public List<string>? Services { get; set; }
     /// <summary>Lager ohne Rezept (Phase 5a, v6); fehlt in älteren Spielständen = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<StationStockSave>? Stocks { get; set; }
+    /// <summary>Schiffshändler (Phase 5c, v8); fehlt = Station verkauft keine Schiffe.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipDealerSave? ShipDealer { get; set; }
+}
+
+/// <summary>Schiffshändler eines Stationstyps (Phase 5c): erlaubte Klassen (null = alle), Höchstgröße als Text, Montagegebühr.</summary>
+public sealed class ShipDealerSave
+{
+    public List<string>? Classes { get; set; }
+    public string MaxSize { get; set; } = "XL";
+    public float Assembly { get; set; }
 }
 
 /// <summary>Lagerposten eines Stationstyps (Phase 5a): GoodId, Anfangs- und Wunschbestand.</summary>

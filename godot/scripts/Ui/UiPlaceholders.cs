@@ -28,8 +28,8 @@ public static class UiPlaceholders
 	public static string DockAreaText(string areaId) => areaId switch
 	{
 		"repair" => "Reparatur und Tanken gibt es nur an Stationen mit dem passenden Dienst: Treibstoff an Treibstoffraffinerien, Reparatur an Panzerwerken und Werften (verbraucht Hüllenplatten aus dem Stationslager). Diese Station bietet es nicht an oder ihr Lager ist gerade leer.",
-		"outfitter" => "Ausrüster: Schiffsskizze mit antippbaren Slots, Modulvergleich und Upgrade. Kommt mit Phase 5/3 (Module, Slots).",
-		"shipyard" => "Werft: Schiffsmodelle mit Werten, Preis und Bausatz-Verfügbarkeit. Kommt mit dem Schiffskauf (geplant).",
+		"outfitter" => "Ausrüster gibt es an Werften und Handelsstationen: Module aus dem Stationslager ein- und ausbauen. Diese Station führt keine Module.",
+		"shipyard" => "Schiffe kaufen kannst du an Werften (alle Klassen) und an Handelsstationen (kleine Schiffe der Skiff-Klasse). Diese Station verkauft keine Schiffe.",
 		"taxi" => "Taxi: Du reist allein zu einer anderen Station, dein Schiff bleibt im Hangar (Liegegebühr an fremden Stationen je Schiffsklasse). Kommt mit Phase 12 (Hangar, Taxi, Leihschiff).",
 		"missions" => "Aufträge: Offene Missionen der Station und Fraktionen. Kommt mit Phase 9+ (Akteure, Missionen).",
 		_ => "Dieser Bereich ist noch nicht gebaut.",
@@ -42,7 +42,7 @@ public static class UiPlaceholders
 	/// <summary>Platzhalter für Ruf, Zoll, Sperrstufe und Hinweise der Station-Info (Politik fehlt noch, Phase 10/11).</summary>
 	public const string PoliticsSoon = "Ruf, Zoll, Sperrstufe und Hinweise: " + Tag + " (" + Soon + ", Politik ab Phase 10)";
 	/// <summary>Platzhalter für fremde/weitere eigene Schiffe und deren Aktionen im Hangar (kommt mit Phase 12).</summary>
-	public const string HangarSoon = "Weitere eigene und fremde Schiffe, Steuern, Befehle, Verkaufen, Heim schicken: " + Tag + " (" + Soon + ", Phase 12)";
+	public const string HangarSoon = "Fremde Schiffe, Befehle, Verkaufen, Heim schicken: " + Tag + " (" + Soon + ", Phase 12)";
 
 	// ── Kommandozentrale (UI.md Abschnitt 4) ──
 
@@ -152,6 +152,6 @@ public static class UiPlaceholders
 	public const string ShipUpkeepText = "Unterhalt 14 Cr/Tag – " + Tag;
 	/// <summary>Wert eines Schiffs im Detailfenster (Platzhalter; der Gesamtwert in der Übersicht ist echt).</summary>
 	public const string ShipValueText = "Wert ≈ 9.800 Cr – " + Tag;
-	/// <summary>Hinweis, warum „In dieses Schiff wechseln“ noch gesperrt ist (der Spieler besitzt nur ein Schiff).</summary>
-	public const string ShipSwitchSoon = Soon + " (Phase 12) – du besitzt nur ein Schiff";
+	/// <summary>Hinweis, wo man in ein anderes eigenes Schiff wechselt (Phase 5c: im Hangar der Station, an der es liegt; Fernwechsel ab Phase 12).</summary>
+	public const string ShipSwitchSoon = "Im Hangar der Station wechseln, an der es liegt";
 }

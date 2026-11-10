@@ -18,14 +18,14 @@ public static class Materializer
         foreach (var id in u.Tracker.ParkedIn(sector))
         {
             var ship = u.Ships[id];
-            if (ship.IsPlayer) continue;
+            if (ship.Id == u.PlayerShip) continue;   // das aktive Spielerschiff rendert die Ansicht selbst; geparkte eigene Schiffe erscheinen (Phase 5c)
             result.Add(new ShipSnapshot(ship.Id, ship.Role, ship.Position, new Vec2(0, -1), false,
                 Mining: ship.Role == ShipRole.Miner && ship.MinePhase == MinePhase.Mining));
         }
         foreach (var id in u.Tracker.TransitIn(sector))
         {
             var ship = u.Ships[id];
-            if (ship.IsPlayer || ship.Transit is null) continue;
+            if (ship.Id == u.PlayerShip || ship.Transit is null) continue;
             foreach (var leg in ship.Transit.Legs)
             {
                 if (leg.Sector != sector || tick < leg.StartTick || tick >= leg.EndTick) continue;

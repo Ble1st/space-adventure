@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v7).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v8).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -22,7 +22,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 2 | Fähigkeiten und Steuerer statt fester Rolle | M | – |
 | 3 | Slot- und Modulmodell, Warenform und Kanister, Leistung und Speicherbank | L | v4 |
 | 4 | Treibstoff: Ware, Tank, Tanken, Reparatur, Rettungsdienst | L | v5 |
-| 5 | Modul-Waren, drei Modulfabriken (5a), Spielerkasse (5b), Ausrüster, Schiffskauf, Startpakete (5c) | L | v6 (5a), v7 (5b) |
+| 5 | Modul-Waren, drei Modulfabriken (5a), Spielerkasse (5b), Ausrüster, Schiffskauf, Startpakete (5c) | L | v6 (5a), v7 (5b), v8 (5c) |
 | 6 | Multirole: Job-Zuteilung, Kapazitätsgrenzen, erste Multirole-Modelle | M | – |
 | 7 | NPC-Güteklassen und Upgrades | M | v7 |
 | 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v8 |
@@ -167,6 +167,26 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Save v6:** Spieler-Fit bleibt im Schiff; Module als Waren sind Content.
 - **Tests:** Werft verbraucht Bausatz und Zusatzmaterial, Spielerkauf, Umrüstung ändert `ShipStats`, ungültiger Einbau wird abgelehnt.
 - **Balance (alle Teilschritte):** Neue Nachfrage nach Titan und Platin; `tools/SpaceSim.Balance` auf Preisentgleisung prüfen.
+
+**Stand (5c):** umgesetzt auf Branch `phase5-module`.
+- **Gemeinsame Fit-Regel:** `Model/FitRules.Check` (Fit-Länge, Modul bekannt, Slotart, Größe, Pflichtslots, Leistungsbilanz und Spitzenlast) ist eine reine Funktion; der `WorldBuilder` prüft die Modelle damit (gleiche Meldungen), der Ausrüster jeden Umbau zur Laufzeit.
+- **Dienst `outfitter`:** Angebote `fit:<Slot>:<Modul>` (aus der Fracht kostenlos, sonst aus dem Stationslager zum Marktpreis) und `remove:<Slot>` (nur Nicht-Pflichtslots; Pflichtslots nur per Tausch). Ausgebaute Module kauft die Station zum Marktpreis an, soweit sie annimmt und zahlen kann, sonst gehen sie in die Fracht. Ungültiges (Slotart, Größe, Leistung, Spitzenlast, Pflichtslot, Fracht passt nicht mehr, Lager, Credits, falscher Schlüssel) wird ohne Zustandsänderung und ohne Event abgelehnt. `OutfitterService.Preview` liefert Vorher/Nachher-Werte für die Oberfläche. Ohne Mining-Modul feuert der Laser nicht (`MineResult.NoLaser`).
+- **Schiffskauf:** gemeinsame Regel `Simulation/ShipPurchase` (Bausatz der Klasse + je Modul des Fits eine Modul-Ware aus dem Stationslager, Preis = Marktpreis × (1 + Montagegebühr), Geld an die Station). Dienst `shipdealer` (`buy:<Modell>`), Stationstyp-Feld `shipDealer { classes, maxSize, assembly }`: Werft alle Klassen (5 %), Handelsstation nur Skiffs (10 %). Das gekaufte Schiff gehört dem Spieler und wird sofort aktiv; das alte bleibt als Spielerbesitz an der Station geparkt und lässt sich im Hangar dieser Station wieder übernehmen (`Simulation/PlayerFleet`, Event `ActiveShipChanged`).
+- **KI:** `FleetSystem.Expand` nutzt dieselbe Regel, wenn eine Werft Bausatz und alle Module vorrätig hat, sonst wie vor 5c nur den Bausatz zur Pauschale (Regel `FleetBuysModules`, Event `FleetShipBuilt`). `ProductionSystem` lässt bei mehreren fälligen Rezepten das knappste Produkt zuerst laufen.
+- **Inhalte:** Handelsstation (`trade_station`, nur `stocks`, Dienste trade/outfitter/shipdealer) als „Handelsstation Beta“ im Knotensektor Beta; Werft mit Ausrüster, Schiffshändler und weiteren Modul-Lagerposten; Skiff-Klasse mit *Pip*, *Nomad*, *Prospector* aus den Mk1-Modulen; Startpakete `player.startOptions` (Schürfer/Prospector 300 Cr, Händler/Nomad 1500 Cr, Generalist/Pip 800 Cr) mit `WorldBuilder.BuildDefault(startOption: …)`, ohne Wahl wie bisher.
+- **Oberfläche:** Dock-Bereiche „Ausrüster“ (Slots, Leistungsbilanz, Angebote je Slot mit Preis, Herkunft und Vorher/Nachher) und „Werft“ (Modelle mit Preis, Werten, Material vorhanden/fehlt) zeichnen nur aus `Offers` und führen nur über `Execute` aus; Hangar und Andock-Menü zeigen eigene geparkte Schiffe („Übernehmen“); „Neues Spiel“ mit Auswahl der Startpakete. `--ui-shots` um beide Bereiche und die Startpakete erweitert, Selbsttest tauscht an der Werft ein Modul, kauft ein Schiff und wechselt zurück.
+- **Save v8:** `StationTypeSave.ShipDealer`; Migration v7→v8 ergänzt Skiff-Klasse/-Modelle, Dienste, Schiffshändler, Lagerposten und die Handelsstation. Mehrere Spielerschiffe brauchen kein neues Feld (Besitz = Steuerer „Player“, aktiv = `PlayerShip`, jetzt im Hash). Mit dem echten v2-Spielstand geprüft (20000 Ticks, 872 Handelsfahrten, Flotte 14 → 14).
+- **Prüfung:** 330 Tests (14 neu in `OutfitterShipyardTests`), Selbsttest OK. Balance (frischer Release-Build): Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“, je 14/8 Schiffe, 0 Notkäufe; Seeds 1–4 bei 20000 alle grün, je 14/8, 0 Notkäufe. Titan und Platin bleiben im Band (Titan ≈0,3–0,5×, Platin ≈0,7–0,9×, Platinerz ≈0,8×).
+
+**Abweichungen und offene Punkte (5c):**
+- **KI kauft nur bevorzugt mit Modulen:** Mit der strikten Regel (Bausatz + Module) blieb die KI-Flotte auf Seed 2 bei 12 Händlern stehen, weil das Antriebswerk keine Triebwerke liefern konnte. Deshalb Rückfall auf den Bausatz, wenn eine Werft die Module nicht vorrätig hat. KI-Neubauten mit Modulen: 2–4 von 7–10 je 20000 Ticks, 18 von 28 bei 60000.
+- **Wer nimmt Module ab:** KI-Neubauten an der Werft (Reaktor, Triebwerk, Frachtraum, Laser), der Spieler über Ausrüster und Schiffskauf, und das Nachfüllen der Lagerposten von Werft und Handelsstation durch Händler (≈70–90 Modul-Einheiten je 20000 Ticks statt 28 in 5a).
+- **Modulfabriken unterkapitalisiert (bekannte Schwäche):** Sie stecken ihr Startgeld in Module ohne Abnehmer (Speicherbank, Schild, Panzerung, Frachtmodule auf Halde) und können danach Elektronik zum Knappheitspreis nicht mehr anzahlen; Reaktor und Triebwerk bleiben bei 20000 Ticks knapp (Reaktor 2–2,9×, unter der Warnschwelle 3,0; bei 60000 Ticks ≈0,6×). Verworfen: Händler liefern nur, was der Abnehmer bezahlen kann (blockierte arme Werften, Flotten fielen auf 9–11 Händler), kleinere Fabrik-Wunschbestände (Module ohne Abnehmer fallen unter 0,3×), Fabrik-Einnahmen 2 (kaum Wirkung).
+- **Skiff-Werte weichen von SCHIFFE.md ab** (Pip 60/60, Nomad 100/60 statt 30/60 und 50/80): Die Klasse hat zwei Frachtslots, die Modelle nutzen nur vorhandene Mk1-Module (kein neues Modul, damit die Modul-GoodIds stabil bleiben). Pip ist nicht schneller als Nomad (8,0 vs. 8,4).
+- **Raffinerie verkauft keine Schiffe:** Ihre Klassen (Bergbauer leicht, kleiner Tanker) gibt es noch nicht. Einen eigenen Stationstyp „Ausrüster“ gibt es nicht; der Dienst sitzt an Werft und Handelsstation.
+- **Handelsstation führt nur Schiffsware** (leichter Bausatz, Skiff-Module), keine Handelsgüter — Lagerposten ohne Rezept wären sonst eine einmalige Senke für diese Waren. Skiffs sind dort teuer (≈4000–5000 Cr), solange ihre Modul-Lager knapp sind.
+- **Schiffwechsel nur an der Station, an der das Schiff liegt;** Fernwechsel, Liegegebühr, Verkaufen und Befehle für geparkte Schiffe bleiben Phase 12. Das Startpaket wird nicht gespeichert (wie geplant).
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
 
 ## Phase 6: Multirole
 

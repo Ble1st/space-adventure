@@ -96,6 +96,9 @@ public static class UniverseSerializer
                 Recipes = t.Recipes.Select(ToSave).ToList(),
                 Services = new List<string>(t.Services),
                 Stocks = t.Stocks.Count == 0 ? null : t.Stocks.Select(x => new StationStockSave { Good = x.Good.Value, Amount = x.Amount, Target = x.Target }).ToList(),
+                ShipDealer = t.ShipDealer is { } sd
+                    ? new ShipDealerSave { Classes = sd.Classes is null ? null : new List<string>(sd.Classes), MaxSize = sd.MaxSize.ToString(), Assembly = sd.Assembly }
+                    : null,
             });
         WriteSlotContent(u, s);
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
@@ -167,6 +170,10 @@ public static class UniverseSerializer
                 // Alte Spielstände ohne das Feld bekommen den Standard ["trade"]
                 Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey } : new List<string>(t.Services),
                 Stocks = t.Stocks is null ? new List<StationStock>() : t.Stocks.Select(x => new StationStock(new GoodId(x.Good), x.Amount, x.Target)).ToList(),
+                // Phase 5c: Schiffshändler (fehlt in älteren Ständen = keiner; die Migration v7→v8 ergänzt die Werft)
+                ShipDealer = t.ShipDealer is { } sd
+                    ? new ShipDealerConfig { Classes = sd.Classes is null ? null : new List<string>(sd.Classes), MaxSize = Enum.Parse<SlotSize>(sd.MaxSize, ignoreCase: true), Assembly = sd.Assembly }
+                    : null,
             };
         ReadSlotContent(s, u);
         foreach (var f in s.Factions)
