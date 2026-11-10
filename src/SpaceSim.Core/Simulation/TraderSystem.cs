@@ -48,13 +48,14 @@ public sealed class TraderSystem : ISimSystem
         var reserved = new Dictionary<(StationId, GoodId), float>();
         foreach (var o in u.Ships.Values)
             if (o.Order is TradeOrder to && o.Phase == TradePhase.GoingToBuy)
-                reserved[(to.Buy, to.Good)] = reserved.GetValueOrDefault((to.Buy, to.Good)) + o.CargoCapacity / u.Goods[to.Good].VolumePerUnit;
+                reserved[(to.Buy, to.Good)] = reserved.GetValueOrDefault((to.Buy, to.Good)) + o.CapacityVolumeFor(u, to.Good) / u.Goods[to.Good].VolumePerUnit;
 
         TradeOrder? best = null;
         float bestScore = 0f;
         foreach (var good in u.Goods.Values)
         {
-            float capacityUnits = ship.CargoCapacity / good.VolumePerUnit;
+            float capacityUnits = ship.CapacityVolumeFor(u, good.Id) / good.VolumePerUnit;
+            if (capacityUnits < 1f) continue;   // Ware passt nicht in den Laderaum (Frachtform-Regel)
             var traders = u.StationsTrading(good.Id);
             if (traders.Count < 2) continue;
             foreach (var buy in traders)
@@ -104,7 +105,7 @@ public sealed class TraderSystem : ISimSystem
             var st = u.Stations[order.Buy];
             var stock = st.Stock(order.Good);
             var good = u.Goods[order.Good];
-            float free = ship.CargoCapacity - ship.Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
+            float free = ship.FreeVolumeFor(u, order.Good);   // Frachtform-Regel: Flüssigkeiten nur in liquid+any
             float amount = MathF.Min(MathF.Min(free / good.VolumePerUnit, stock.Amount),
                                      stock.Price > 0 ? ship.Credits / stock.Price : 0f);
             if (amount > 0)

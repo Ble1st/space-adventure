@@ -19,6 +19,12 @@ public sealed class ShipStats
     public float PowerStorage;
     /// <summary>Laderaum: Summe der Kapazitäten (stats capacity) aller Frachtmodule; holds any zählt voll, die 70%-Regel steckt in den Modul-Daten.</summary>
     public float Cargo;
+    /// <summary>Feststoff-Laderaum: Summe der Kapazitäten der Frachtmodule mit holds solid (0 = keiner).</summary>
+    public float CargoSolid;
+    /// <summary>Flüssigstoff-Laderaum (Kanister): Summe der Kapazitäten der Frachtmodule mit holds liquid (0 = keiner).</summary>
+    public float CargoLiquid;
+    /// <summary>Universal-Laderaum: Summe der Kapazitäten der Frachtmodule mit holds any; wird zwischen den Formen geteilt.</summary>
+    public float CargoAny;
     /// <summary>Hülle: baseHull der Klasse + Panzerung (Summe stats armor).</summary>
     public float Hull;
     /// <summary>Gesamtmasse: baseMass der Klasse + Summe der Modulmassen.</summary>
@@ -53,7 +59,16 @@ public sealed class ShipStats
             foreach (var c in m.Grants) s.Capabilities |= c;
             if (m.Stats.TryGetValue("powerOutput", out var output)) s.PowerOutput += output;
             if (m.Stats.TryGetValue("powerStorage", out var storage)) s.PowerStorage += storage;
-            if (m.Stats.TryGetValue("capacity", out var capacity)) s.Cargo += capacity;
+            if (m.Stats.TryGetValue("capacity", out var capacity))
+            {
+                s.Cargo += capacity;
+                switch (m.Holds)
+                {
+                    case ModuleHolds.Solid: s.CargoSolid += capacity; break;
+                    case ModuleHolds.Liquid: s.CargoLiquid += capacity; break;
+                    default: s.CargoAny += capacity; break;
+                }
+            }
             if (m.Stats.TryGetValue("armor", out var armor)) s.Hull += armor;
             if (m.Stats.TryGetValue("thrust", out var thrust)) s.Thrust += thrust;
             if (m.Grants.Contains(Capability.Mining))

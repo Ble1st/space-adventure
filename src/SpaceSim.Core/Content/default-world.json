@@ -1136,6 +1136,57 @@
    "cost": {
     "steel": 3
    }
+  },
+  {
+   "key": "cargo_solid_s",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 30
+   },
+   "holds": "solid",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   }
+  },
+  {
+   "key": "canister_bay_s",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 30
+   },
+   "holds": "liquid",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   }
+  },
+  {
+   "key": "cargo_universal_70",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 70
+   },
+   "holds": "any",
+   "mass": 3,
+   "cost": {
+    "steel": 5
+   }
   }
  ],
  "shipClasses": [

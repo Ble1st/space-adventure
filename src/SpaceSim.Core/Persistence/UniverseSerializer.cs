@@ -73,7 +73,7 @@ public static class UniverseSerializer
             PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
         };
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
-            s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit });
+            s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit, Form = g.Form.ToString().ToLowerInvariant() });
         foreach (var c in u.AsteroidClasses.Values)
             s.AsteroidClasses.Add(new AsteroidClassSave
             {
@@ -140,7 +140,7 @@ public static class UniverseSerializer
             PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
         };
         foreach (var g in s.Goods)
-            u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume };
+            u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form) };
         foreach (var c in s.AsteroidClasses)
             u.AsteroidClasses[c.Key] = new AsteroidClass
             {
@@ -265,5 +265,12 @@ public static class UniverseSerializer
     {
         StartTick = t.StartTick, ArrivalTick = t.ArrivalTick, ToSector = new SectorId(t.ToSector), ToPosition = t.ToPosition,
         Legs = t.Legs.Select(l => new Leg(new SectorId(l.Sector), l.From, l.To, l.Start, l.End)).ToList(),
+    };
+
+    /// <summary>Warenform aus dem Save; fehlt das Feld (alte Spielstände), ist solid der Standard.</summary>
+    static GoodForm ParseForm(string? form) => form?.ToLowerInvariant() switch
+    {
+        "liquid" => GoodForm.Liquid,
+        _ => GoodForm.Solid,
     };
 }

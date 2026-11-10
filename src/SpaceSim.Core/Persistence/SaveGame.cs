@@ -45,6 +45,8 @@ public sealed class GoodSave
 {
     public int Id { get; set; } public string Key { get; set; } = ""; public string Name { get; set; } = "";
     public string Color { get; set; } = "#c8c8c8"; public float BasePrice { get; set; } public float Volume { get; set; }
+    /// <summary>Warenform (solid/liquid); fehlt in alten Spielständen → solid. Additiv, daher kein Versionssprung.</summary>
+    public string? Form { get; set; }
 }
 
 public sealed class YieldSave { public int Good { get; set; } public float Weight { get; set; } }

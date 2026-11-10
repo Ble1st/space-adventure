@@ -97,7 +97,7 @@ public sealed class MiningAutopilot
     }
 
     static bool NearlyFull(Universe u, Ship ship) =>
-        ship.CargoCapacity - ship.UsedVolume(u) < MiningRules.MinChunkUnits * 1.01f;
+        ship.FreeVolumeForForm(u, GoodForm.Solid) < MiningRules.MinChunkUnits * 1.01f;   // Erz ist fest
 
     /// <summary>Nächster erreichbarer Sektor mit Erzvorrat im Feld.</summary>
     static NavTarget? FindOtherSector(Universe u, Ship ship, Vec2 pos)

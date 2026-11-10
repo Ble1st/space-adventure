@@ -13,7 +13,7 @@ public sealed class Good
     public string Color = "#c8c8c8";
     public float BasePrice;
     public float VolumePerUnit = 1f;
-    /// <summary>Warenform aus den Inhaltsdaten; wird nicht gespeichert (Content, kein Spielstand), beim Laden aus dem Save daher <see cref="GoodForm.Solid"/>.</summary>
+    /// <summary>Warenform aus den Inhaltsdaten; wird als eigener (optionaler) Wert im Save mitgespeichert (alte Spielstände ohne das Feld laden als <see cref="GoodForm.Solid"/>).</summary>
     public GoodForm Form = GoodForm.Solid;
 }
 

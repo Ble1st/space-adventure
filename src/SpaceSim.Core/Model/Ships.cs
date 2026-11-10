@@ -83,9 +83,49 @@ public sealed class Ship
     /// <summary>Belegter Laderaum (Einheiten × Volumen je Einheit).</summary>
     public float UsedVolume(Universe u) => Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
 
-    /// <summary>Wie viele Einheiten der Ware noch in den Laderaum passen.</summary>
+    /// <summary>Hat das Schiff getrennte Laderäume (mindestens ein solid- oder liquid-Frachtmodul)? Nein = ein Gesamtladeraum (kein Modell oder nur any-Module), dann verhält sich alles wie bisher.</summary>
+    public bool HasSeparatedHolds => HasModel && (Stats.CargoSolid > 0f || Stats.CargoLiquid > 0f);
+
+    /// <summary>Belegtes Volumen einer Warenform (feste bzw. flüssige Waren getrennt).</summary>
+    public float UsedVolume(Universe u, GoodForm form)
+    {
+        float sum = 0f;
+        foreach (var kv in Cargo)
+            if (u.Goods[kv.Key].Form == form) sum += kv.Value * u.Goods[kv.Key].VolumePerUnit;
+        return sum;
+    }
+
+    /// <summary>Laderaum-Volumen, das eine Warenform aufnehmen kann: ohne getrennte Räume die Gesamtkapazität, sonst solid+any bzw. liquid+any (der any-Raum wird geteilt).</summary>
+    public float CapacityVolumeFor(GoodForm form)
+    {
+        if (!HasSeparatedHolds) return CargoCapacity;
+        return form == GoodForm.Liquid ? Stats.CargoLiquid + Stats.CargoAny : Stats.CargoSolid + Stats.CargoAny;
+    }
+
+    /// <summary>Laderaum-Volumen, das eine konkrete Ware aufnehmen kann (nur ihre Form zählt).</summary>
+    public float CapacityVolumeFor(Universe u, GoodId good) => CapacityVolumeFor(u.Goods[good].Form);
+
+    /// <summary>
+    /// Freies Volumen für eine Warenform: ohne getrennte Räume wie bisher <c>CargoCapacity − UsedVolume</c>. Mit getrennten
+    /// Räumen ist der any-Anteil zwischen den Formen teilbar; zulässig bleibt eine Ladung, wenn usedSolid ≤ solid+any,
+    /// usedLiquid ≤ liquid+any und usedSolid+usedLiquid ≤ solid+liquid+any (jeweils in Volumen).
+    /// </summary>
+    public float FreeVolumeForForm(Universe u, GoodForm form)
+    {
+        if (!HasSeparatedHolds) return MathF.Max(0f, CargoCapacity - UsedVolume(u));
+        float usedSolid = UsedVolume(u, GoodForm.Solid), usedLiquid = UsedVolume(u, GoodForm.Liquid);
+        float total = Stats.CargoSolid + Stats.CargoLiquid + Stats.CargoAny;
+        float free = MathF.Min(CapacityVolumeFor(form) - (form == GoodForm.Liquid ? usedLiquid : usedSolid),
+                               total - usedSolid - usedLiquid);
+        return MathF.Max(0f, free);
+    }
+
+    /// <summary>Freies Volumen für eine konkrete Ware unter der Frachtform-Regel (feste Waren in solid+any, Flüssigkeiten in liquid+any).</summary>
+    public float FreeVolumeFor(Universe u, GoodId good) => FreeVolumeForForm(u, u.Goods[good].Form);
+
+    /// <summary>Wie viele Einheiten der Ware noch in den Laderaum passen (Frachtform-Regel siehe <see cref="FreeVolumeFor"/>).</summary>
     public float FreeUnits(Universe u, GoodId good) =>
-        MathF.Max(0f, (CargoCapacity - UsedVolume(u)) / u.Goods[good].VolumePerUnit);
+        MathF.Max(0f, FreeVolumeFor(u, good) / u.Goods[good].VolumePerUnit);
 
     /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     /// <summary>Nachladeuhr des Mining-Lasers (NPC-Miner), in Sekunden Spielzeit.</summary>

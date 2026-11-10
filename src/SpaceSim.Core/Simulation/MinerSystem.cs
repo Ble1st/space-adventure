@@ -72,7 +72,7 @@ public sealed class MinerSystem : ISimSystem
                 if (!u.AsteroidClasses.TryGetValue(field.ClassKey, out var cls) || Belt.OreIn(sector, field) < 1f) continue;
 
                 float orePerTick = cls.ChunkChance * MiningRules.MeanChunkUnits / MiningRules.ShotInterval * SimClock.TickInterval;
-                float mineTicks = ship.CargoCapacity / MathF.Max(0.01f, orePerTick);
+                float mineTicks = ship.CapacityVolumeFor(GoodForm.Solid) / MathF.Max(0.01f, orePerTick);   // Erz ist fest
                 float basis = cls.MeanBasePrice(u);
                 // Gedränge am Feld mindert den Wert: Jeder weitere Miner teilt sich dieselben Asteroiden und drückt den Preis (Herdenschutz)
                 int crowd = 0;
@@ -83,7 +83,7 @@ public sealed class MinerSystem : ISimSystem
                 {
                     float value = MixValue(u, cls, st);
                     if (value < basis * MinPriceFactor) continue;
-                    if (!TraderSystem.CanAfford(st, value, ship.CargoCapacity)) continue;
+                    if (!TraderSystem.CanAfford(st, value, ship.CapacityVolumeFor(GoodForm.Solid))) continue;
                     if (!u.IsReachable(sector.Id, st.Sector)) continue;
                     float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id), ship) + mineTicks
                                + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id), ship);
@@ -143,7 +143,7 @@ public sealed class MinerSystem : ISimSystem
 
         var sector = u.Sectors[ship.Sector];
         ResourceField? field = order.Field >= 0 && order.Field < sector.Fields.Count ? sector.Fields[order.Field] : null;
-        bool cargoFull = ship.CargoCapacity - ship.UsedVolume(u) < MiningRules.MinChunkUnits;
+        bool cargoFull = ship.FreeVolumeForForm(u, GoodForm.Solid) < MiningRules.MinChunkUnits;   // Erz ist fest
 
         if (field is null || cargoFull || Belt.OreIn(sector, field) < 0.01f)
         {
@@ -163,7 +163,7 @@ public sealed class MinerSystem : ISimSystem
         if (rock is null || !u.AsteroidClasses.TryGetValue(rock.ClassKey, out var cls)) return;
 
         ship.ShotTimer -= MiningRules.ShotInterval;
-        var shot = LaserShot.Roll(u.Rng, cls, rock);
+        var shot = LaserShot.Roll(u.Rng, cls, rock, ship.Stats.LaserChunkChanceMult, ship.Stats.LaserChunkSizeMult);
         if (shot.Hit)
         {
             Belt.Remove(u, sector, rock, shot.Units);

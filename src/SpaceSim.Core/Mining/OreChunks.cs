@@ -43,6 +43,9 @@ public sealed class OreChunks
     /// <summary>Volumen der noch schwebenden Brocken (reservierter Laderaum, damit der Laser nicht über die Kapazität hinaus feuert).</summary>
     float InFlightVolume(Universe u) => Chunks.Sum(c => c.Units * u.Goods[c.Good].VolumePerUnit);
 
+    /// <summary>Volumen der noch schwebenden Brocken einer Warenform.</summary>
+    float InFlightVolume(Universe u, GoodForm form) => Chunks.Where(c => u.Goods[c.Good].Form == form).Sum(c => c.Units * u.Goods[c.Good].VolumePerUnit);
+
     public bool IsMinable(Sector sector, Asteroid? a) => a != null && a.Minable && sector.Asteroids.Contains(a);
 
     static bool HasClass(Universe u, Asteroid a) => u.AsteroidClasses.ContainsKey(a.ClassKey);
@@ -70,10 +73,15 @@ public sealed class OreChunks
         if (_cooldown > 0f) return MineResult.Cooldown;
         if (!IsMinable(sector, a) || !HasClass(u, a)) return MineResult.NotMinable;
         if (Vec2.Distance(shipPos, a.Position) - a.Radius > MiningRules.LaserRange) return MineResult.OutOfRange;
-        if (ship.CargoCapacity - ship.UsedVolume(u) - InFlightVolume(u) < MiningRules.MinChunkUnits) return MineResult.CargoFull;
+        // Laderaum voll? Ohne getrennte Räume zählt alles zusammen, sonst pro Form (die Brockensorte steht erst nach dem Schuss fest)
+        bool cargoFull = ship.HasSeparatedHolds
+            ? MathF.Max(ship.FreeVolumeForForm(u, GoodForm.Solid) - InFlightVolume(u, GoodForm.Solid),
+                        ship.FreeVolumeForForm(u, GoodForm.Liquid) - InFlightVolume(u, GoodForm.Liquid)) < MiningRules.MinChunkUnits
+            : ship.CargoCapacity - ship.UsedVolume(u) - InFlightVolume(u) < MiningRules.MinChunkUnits;
+        if (cargoFull) return MineResult.CargoFull;
 
         _cooldown = MiningRules.ShotInterval;
-        var shot = LaserShot.Roll(_rng, u.AsteroidClasses[a.ClassKey], a);
+        var shot = LaserShot.Roll(_rng, u.AsteroidClasses[a.ClassKey], a, ship.Stats.LaserChunkChanceMult, ship.Stats.LaserChunkSizeMult);
         if (shot.Hit)
         {
             var toShip = (shipPos - a.Position).Normalized();

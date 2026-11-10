@@ -38,7 +38,7 @@ public class SlotModelTests
     {
         var u = DemoUniverse.Create();
         Assert.Equal(9, u.SlotTypes.Count);
-        Assert.Equal(5, u.Modules.Count);
+        Assert.Equal(8, u.Modules.Count);
         Assert.Equal(2, u.ShipClasses.Count);
         Assert.Equal(5, u.ShipModels.Count);
         Assert.True(u.SlotTypes["reactor"].Required);
