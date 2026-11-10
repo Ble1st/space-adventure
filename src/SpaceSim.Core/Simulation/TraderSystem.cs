@@ -70,6 +70,7 @@ public sealed class TraderSystem : ISimSystem
             if (traders.Count < 2) continue;
             foreach (var buy in traders)
             {
+                if (buy.IsStockOnly(good.Id)) continue;   // Phase 5a: Lager ohne Rezept beliefern, nicht leerkaufen
                 var b = buy.Market[good.Id];
                 float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
                 if (available < 1f) continue;
@@ -88,10 +89,14 @@ public sealed class TraderSystem : ISimSystem
                     // Die Station zahlt nur, was ihre Kasse hergibt (der Rest der Ladung wird ohne Bezahlung abgeladen): mit dem
                     // tatsächlichen Erlös rechnen statt arme Abnehmer ganz zu überspringen. Sonst verhungert eine Station, deren
                     // Eingangsware knapp und damit teuer ist, endgültig — sie kann die volle Ladung nie zu 25 % anzahlen.
-                    float paidUnits = MathF.Min(units, MathF.Max(0f, sell.Credits) / s.Price);
-                    float profit = paidUnits * s.Price - units * b.Price;
+                    // Phase 5a: Händler kaufen nur, was der Abnehmer noch annimmt (Wunschbestand × OverstockFactor). Vorher wurde der Rest
+                    // unbezahlt abgeladen; bei kleinen Wunschbeständen (Modulfabriken, Lager) drückte das die Preise dauerhaft auf 0,25×.
+                    float load = MathF.Min(units, MathF.Floor(sell.AcceptableUnits(good.Id, u.Rules)));
+                    if (load < 1f) continue;
+                    float paidUnits = MathF.Min(load, MathF.Max(0f, sell.Credits) / s.Price);
+                    float profit = paidUnits * s.Price - load * b.Price;
                     if (profit <= 0f) continue;
-                    if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(units, 5f)) continue;   // Lager voll: nimmt nichts mehr
+                    if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(load, 5f)) continue;   // Lager voll: nimmt nichts mehr
                     float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship);
                     if (float.IsPositiveInfinity(toSell)) continue;
                     // Phase 4b: Treibstoffkosten der Runde (Hin- und Rückfahrt) vom Gewinn abziehen
@@ -166,6 +171,9 @@ public sealed class TraderSystem : ISimSystem
             float free = ship.FreeVolumeFor(u, order.Good);   // Frachtform-Regel: Flüssigkeiten nur in liquid+any
             float amount = MathF.Min(MathF.Min(free / good.VolumePerUnit, stock.Amount),
                                      stock.Price > 0 ? ship.Credits / stock.Price : 0f);
+            // Phase 5a: nur so viel kaufen, wie der Abnehmer jetzt noch annimmt (sonst würde der Rest dort unbezahlt abgeladen)
+            var sellSt = u.Stations[order.Sell];
+            amount = MathF.Min(amount, MathF.Floor(sellSt.AcceptableUnits(order.Good, u.Rules)));
             if (amount > 0)
             {
                 float cost = amount * stock.Price;

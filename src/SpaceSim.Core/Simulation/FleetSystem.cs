@@ -25,21 +25,30 @@ public sealed class FleetSystem : ISimSystem
     }
 
     /// <summary>
-    /// Schiffsbau: Ein neues Schiff entsteht nur, wenn eine erreichbare Werft einen Schiffsbausatz (Regel <c>ShipKitGoodKey</c>) auf Lager hat.
+    /// Bausatz-Warenschlüssel für ein Schiff wie <paramref name="ship"/> (Phase 5a): <see cref="ShipClass.Kit"/> der Klasse seines Modells,
+    /// sonst (kein Modell, Klasse ohne Bausatz) die Regel <see cref="EconomyRules.ShipKitGoodKey"/>.
+    /// </summary>
+    public static string KitKeyFor(Universe u, Ship ship) =>
+        ship.HasModel && u.ShipModels.TryGetValue(ship.ModelKey, out var model) && u.ShipClasses.TryGetValue(model.ClassKey, out var cls)
+            && cls.Kit is { Length: > 0 } kit ? kit : u.Rules.ShipKitGoodKey;
+
+    /// <summary>
+    /// Schiffsbau: Ein neues Schiff entsteht nur, wenn eine erreichbare Werft einen Schiffsbausatz der passenden Stufe auf Lager hat.
     /// Der Bausatz wird verbraucht, die Werft erhält den Schiffspreis; das neue Schiff startet an der Werft. Damit hängt das Flottenwachstum
-    /// an der ganzen Kette Erz → Veredelung → Komponenten → Bausatz. Spätere Schiffsklassen setzen hier an (Bausatz je Klasse).
+    /// an der ganzen Kette Erz → Veredelung → Komponenten → Bausatz; die Bausatzstufe kommt aus der Schiffsklasse (<see cref="KitKeyFor"/>).
     /// </summary>
     static void Expand(Universe u, ShipRole role, int max)
     {
         var rules = u.Rules;
         if (u.Ships.Values.Count(s => s.Role == role) >= max) return;
-        var kit = u.FindGood(rules.ShipKitGoodKey);
-        if (kit is null) return;
 
         var parent = u.Ships.Values
             .Where(s => s.Role == role && s.Transit is null && s.Credits >= rules.FleetExpandCredits)
             .OrderByDescending(s => s.Credits).ThenBy(s => s.Id.Value).FirstOrDefault();
         if (parent is null) return;
+        // Phase 5a: Bausatzstufe nach der Schiffsklasse des neuen Schiffs (= Klasse des Elternschiffs), sonst die Regel
+        var kit = u.FindGood(KitKeyFor(u, parent));
+        if (kit is null) return;
 
         var yard = u.Stations.Values
             .Where(s => s.Market.TryGetValue(kit.Id, out var e) && e.Amount >= 1f && u.IsReachable(parent.Sector, s.Sector))

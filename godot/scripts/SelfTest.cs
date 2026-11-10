@@ -128,6 +128,19 @@ public partial class SelfTest : Node
 					var all = _m.HudRef.DockTrade.TestExecute("sell_all", 0f);
 					Check(all.Success && pl.Cargo.GetValueOrDefault(gid) == 0f, "„Alles verkaufen“ (sell_all) über die Oberfläche räumt die Ware ab");
 				}
+				{ // Phase 5a: Modul-Waren im Werftlager (stocks) erscheinen im Handel und lassen sich über die Oberfläche kaufen
+					var st = u.Stations[_m.TestDockedStation!.Value];
+					var pl = _m.Session.Player; pl.Credits = 100000f;
+					var reactor = u.FindGood("reactor_mk1")!.Id;
+					Check(st.Market.ContainsKey(reactor) && st.IsStockOnly(reactor), "Werft führt den Reaktor als Lagerware ohne Rezept (stocks)");
+					st.Market[reactor].Amount = System.Math.Max(st.Market[reactor].Amount, 3f);
+					var offers = _m.Session.Services.ForStation(u, st).First(s => s.Key == "trade").Offers(u, st, pl);
+					Check(offers.Any(o => o.Key == $"buy:{reactor.Value}"), "Handel bietet die Modul-Ware reactor_mk1 an (IStationService.Offers)");
+					var b = _m.HudRef.DockTrade.TestExecute($"buy:{reactor.Value}", 1f);
+					Check(b.Success && pl.Cargo.GetValueOrDefault(reactor) == 1f, "Modul-Ware über Dienst+Oberfläche gekauft (landet im Laderaum)");
+					var s = _m.HudRef.DockTrade.TestExecute($"sell:{reactor.Value}", 1f);
+					Check(s.Success && pl.Cargo.GetValueOrDefault(reactor) == 0f, "Modul-Ware zurückverkauft");
+				}
 				Next(); break;
 			case 3: // Abdocken aus einem offenen Bereich heraus
 				_m.TestUndock();

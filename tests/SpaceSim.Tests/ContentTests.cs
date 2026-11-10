@@ -16,8 +16,23 @@ public class ContentTests
         Assert.Equal("energy", u.Goods[DemoUniverse.Energy].Key);
         Assert.Equal("steel", u.Goods[DemoUniverse.Steel].Key);
         Assert.Equal("food", u.Goods[DemoUniverse.Food].Key);
-        Assert.Equal("ship_kit", u.Goods[DemoUniverse.ShipKit].Key);
+        Assert.Equal("ship_kit_light", u.Goods[DemoUniverse.ShipKit].Key);   // Phase 5a: früher ship_kit, Id 22 unverändert
+        Assert.Equal(22, DemoUniverse.ShipKitLight.Value);
         Assert.Equal("propellant", u.Goods[DemoUniverse.Propellant].Key);
+        Assert.Equal("ship_kit_medium", u.Goods[DemoUniverse.ShipKitMedium].Key);
+        Assert.Equal("ship_kit_heavy", u.Goods[DemoUniverse.ShipKitHeavy].Key);
+        // alle übrigen Konstanten (Phase 5a darf keine Id verschieben)
+        var expected = new (GoodId Id, string Key)[]
+        {
+            (DemoUniverse.IronOre, "iron_ore"), (DemoUniverse.Ice, "ice"), (DemoUniverse.CopperOre, "copper_ore"), (DemoUniverse.Silicon, "silicon"),
+            (DemoUniverse.TitaniumOre, "titanium_ore"), (DemoUniverse.PlatinumOre, "platinum_ore"), (DemoUniverse.Energy, "energy"), (DemoUniverse.Steel, "steel"),
+            (DemoUniverse.Water, "water"), (DemoUniverse.Hydrogen, "hydrogen"), (DemoUniverse.Copper, "copper"), (DemoUniverse.Wafers, "wafers"),
+            (DemoUniverse.Titanium, "titanium"), (DemoUniverse.Platinum, "platinum"), (DemoUniverse.Electronics, "electronics"), (DemoUniverse.HullPlates, "hull_plates"),
+            (DemoUniverse.FuelCells, "fuel_cells"), (DemoUniverse.LifeSupport, "life_support"), (DemoUniverse.Food, "food"), (DemoUniverse.ConsumerGoods, "consumer_goods"),
+            (DemoUniverse.LuxuryGoods, "luxury_goods"),
+        };
+        Assert.All(expected, e => Assert.Equal(e.Key, u.Goods[e.Id].Key));
+        Assert.Equal(DemoUniverse.FirstModuleGoodId, u.Goods.Values.Where(g => u.Modules.ContainsKey(g.Key)).Min(g => g.Id.Value));
     }
 
     [Fact]
@@ -45,8 +60,11 @@ public class ContentTests
             bool produced = raw.Contains(good.Id) || u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)));
             Assert.True(produced, $"{good.Key} wird nirgends erzeugt");
             bool used = u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Inputs.ContainsKey(good.Id)));
-            bool kit = good.Key == u.Rules.ShipKitGoodKey;   // Bausatz wird von der Flottenlogik verbraucht
-            Assert.True(used || kit || shipFuel, $"{good.Key} wird nirgends verbraucht");
+            bool kit = good.Key == u.Rules.ShipKitGoodKey || u.ShipClasses.Values.Any(c => c.Kit == good.Key);   // Bausatz wird von der Flottenlogik verbraucht
+            // Phase 5a: mittlere/schwere Bausätze (noch keine Klasse) und Modul-Waren haben noch keinen Verbraucher — Abnehmer kommen
+            // mit Schiffskauf/Ausrüster (Phase 5c); bis dahin liegen sie in Werft-Lagern (stocks) oder auf Halde der Fabrik
+            bool phase5aStock = good.Key.StartsWith("ship_kit_") || u.Modules.ContainsKey(good.Key);
+            Assert.True(used || kit || shipFuel || phase5aStock, $"{good.Key} wird nirgends verbraucht");
         }
     }
 
@@ -77,7 +95,7 @@ public class ContentTests
     public void ShipKit_NeedsTheWholeChain_TitaniumPlatinumElectronicsFuelCells()
     {
         var u = DemoUniverse.Create();
-        var yard = u.StationTypes["shipyard"].Recipes.Single();
+        var yard = u.StationTypes["shipyard"].Recipes.Single(r => r.Outputs.ContainsKey(DemoUniverse.ShipKitLight));
         var inputs = yard.Inputs.Keys.Select(g => u.Goods[g].Key).ToHashSet();
         Assert.Superset(new HashSet<string> { "hull_plates", "electronics", "fuel_cells" }, inputs);
         Assert.Contains(u.StationTypes.Values, t => t.Recipes.Any(r => r.Outputs.ContainsKey(DemoUniverse.HullPlates) && r.Inputs.ContainsKey(DemoUniverse.Titanium)));

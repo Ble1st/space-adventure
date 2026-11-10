@@ -99,7 +99,7 @@ public class ShipFitTests
     [Fact]
     public void SaveLoad_V4_Roundtrip_IdentischInklHashModellSlotsFit()
     {
-        Assert.Equal(5, SaveGame.CurrentVersion);   // v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
+        Assert.Equal(6, SaveGame.CurrentVersion);   // v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);

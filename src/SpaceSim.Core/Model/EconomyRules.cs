@@ -37,8 +37,13 @@ public sealed class EconomyRules
     public int BuildCooldown = 1500;
     /// <summary>Produktion pausiert, wenn ein Ausgabegut mehr als Wunschbestand × diesen Faktor lagert (verhindert endlosen Lagerstau).</summary>
     public float OverstockFactor = 3f;
-    /// <summary>Ware (Schlüssel), aus der neue Schiffe gebaut werden: Eine Werft muss einen Bausatz liefern.</summary>
-    public string ShipKitGoodKey = "ship_kit";
+    /// <summary>
+    /// Ware (Schlüssel), aus der neue Schiffe gebaut werden, wenn die Schiffsklasse keinen eigenen Bausatz nennt (<see cref="ShipClass.Kit"/>):
+    /// Eine Werft muss einen Bausatz liefern. Seit Phase 5a heißt der frühere „ship_kit“ „ship_kit_light“ (Migration v5→v6).
+    /// </summary>
+    public string ShipKitGoodKey = "ship_kit_light";
+    /// <summary>Verarbeitungsaufschlag der Modul-Waren (Phase 5a): Basispreis = Summe der Zutatenpreise (Modul-cost) × diesen Faktor.</summary>
+    public float ModuleMarkup = 1.3f;
     public int MaxStations = 30;
     public int MaxStationsPerSector = 8;
 }

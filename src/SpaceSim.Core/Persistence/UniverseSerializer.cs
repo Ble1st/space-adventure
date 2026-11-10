@@ -9,7 +9,7 @@ public static class UniverseSerializer
     public static void WriteSlotContent(Universe u, SaveGame s)
     {
         s.SlotTypes = u.SlotTypes.Values.OrderBy(t => t.Key)
-            .Select(t => new SlotTypeSave { Key = t.Key, Name = t.Name, Required = t.Required }).ToList();
+            .Select(t => new SlotTypeSave { Key = t.Key, Name = t.Name, Required = t.Required, Color = t.Color }).ToList();
         s.Modules = u.Modules.Values.OrderBy(m => m.Key).Select(m => ToSave(m, u)).ToList();
         s.ShipClasses = u.ShipClasses.Values.OrderBy(c => c.Key).Select(ToSave).ToList();
         s.ShipModels = u.ShipModels.Values.OrderBy(m => m.Key)
@@ -23,7 +23,7 @@ public static class UniverseSerializer
         var goodId = new Dictionary<string, GoodId>();
         foreach (var g in s.Goods) if (g.Key.Length > 0) goodId.TryAdd(g.Key, new GoodId(g.Id));
         foreach (var t in s.SlotTypes)
-            u.SlotTypes[t.Key] = new SlotType { Key = t.Key, Name = t.Name, Required = t.Required };
+            u.SlotTypes[t.Key] = new SlotType { Key = t.Key, Name = t.Name, Required = t.Required, Color = t.Color };
         foreach (var m in s.Modules)
             u.Modules[m.Key] = FromSave(m, goodId);
         foreach (var c in s.ShipClasses)
@@ -34,7 +34,7 @@ public static class UniverseSerializer
 
     static ModuleSave ToSave(Module m, Universe u) => new()
     {
-        Key = m.Key, Slot = m.Slot, Size = m.Size.ToString(), Tier = m.Tier,
+        Key = m.Key, Name = m.Name.Length > 0 && m.Name != m.Key ? m.Name : null, Slot = m.Slot, Size = m.Size.ToString(), Tier = m.Tier,
         Grants = m.Grants.Select(g => g.ToString()).ToList(),
         Stats = new Dictionary<string, float>(m.Stats),
         PowerDraw = m.PowerDraw, PeakDraw = m.PeakDraw, Mass = m.Mass, Upkeep = m.Upkeep,
@@ -45,7 +45,7 @@ public static class UniverseSerializer
 
     static Module FromSave(ModuleSave m, Dictionary<string, GoodId> goodId) => new()
     {
-        Key = m.Key, Slot = m.Slot, Size = Enum.Parse<SlotSize>(m.Size, ignoreCase: true), Tier = m.Tier,
+        Key = m.Key, Name = m.Name ?? m.Key, Slot = m.Slot, Size = Enum.Parse<SlotSize>(m.Size, ignoreCase: true), Tier = m.Tier,
         Grants = m.Grants.Select(g => Enum.Parse<Capability>(g, ignoreCase: true)).ToList(),
         Stats = new Dictionary<string, float>(m.Stats),
         PowerDraw = m.PowerDraw, PeakDraw = m.PeakDraw, Mass = m.Mass, Upkeep = m.Upkeep,
@@ -58,13 +58,13 @@ public static class UniverseSerializer
     static ShipClassSave ToSave(ShipClass c) => new()
     {
         Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(ToSave).ToList(),
+        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit,
     };
 
     static ShipClass FromSave(ShipClassSave c) => new()
     {
         Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(FromSave).ToList(),
+        Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit,
     };
 
     static ShipSlotSave ToSave(ClassSlot s) => new() { Type = s.Type, Size = s.Size.ToString(), Facing = s.Facing, Arc = s.Arc };
@@ -94,6 +94,7 @@ public static class UniverseSerializer
                 Key = t.Key, Name = t.Name, BuildCost = t.BuildCost, Upkeep = t.UpkeepPerTick, Income = t.IncomePerTick,
                 Recipes = t.Recipes.Select(ToSave).ToList(),
                 Services = new List<string>(t.Services),
+                Stocks = t.Stocks.Count == 0 ? null : t.Stocks.Select(x => new StationStockSave { Good = x.Good.Value, Amount = x.Amount, Target = x.Target }).ToList(),
             });
         WriteSlotContent(u, s);
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
@@ -163,6 +164,7 @@ public static class UniverseSerializer
                 Recipes = t.Recipes.Select(FromSave).ToList(),
                 // Alte Spielstände ohne das Feld bekommen den Standard ["trade"]
                 Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey } : new List<string>(t.Services),
+                Stocks = t.Stocks is null ? new List<StationStock>() : t.Stocks.Select(x => new StationStock(new GoodId(x.Good), x.Amount, x.Target)).ToList(),
             };
         ReadSlotContent(s, u);
         foreach (var f in s.Factions)

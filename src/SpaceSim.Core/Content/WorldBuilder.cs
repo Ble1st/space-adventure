@@ -60,6 +60,16 @@ public static class WorldBuilder
         // Slot-/Modul-Content (Phase 3: Daten + Validierung; wird von Schiffen über Modell/Slots/Fit genutzt)
         LoadSlotContent(u, def);
 
+        // Phase 5a: Module sind Waren — je Modul eine Ware gleichen Schlüssels, hinter den JSON-Waren nach Modulschlüssel,
+        // damit die GoodIds der JSON-Waren (und die DemoUniverse-Konstanten) stabil bleiben
+        foreach (var m in ModuleGoods.InGoodOrder(u.Modules.Values, m => m.Key))
+        {
+            if (goodByKey.ContainsKey(m.Key)) throw new WorldFormatException($"Modul '{m.Key}': eine Ware gleichen Schlüssels steht schon in goods");
+            var id = new GoodId(u.Goods.Count + 1);
+            u.Goods[id] = ModuleGoods.Create(u, m, id);
+            goodByKey[m.Key] = id;
+        }
+
         foreach (var c in def.AsteroidClasses)
         {
             var cls = new AsteroidClass { Key = c.Key, Name = c.Name, Color = c.Color, ChunkChance = c.ChunkChance, OreFactor = c.OreFactor };
@@ -89,6 +99,16 @@ public static class WorldBuilder
                 foreach (var (k, v) in r.Out) recipe.Outputs[Good(k)] = v;
                 type.Recipes.Add(recipe);
             }
+            // Phase 5a: Lager ohne Rezept (stocks) und Modulfabrik (je Modul ein Rezept aus seiner cost)
+            if (t.Stocks is not null)
+                foreach (var (k, v) in t.Stocks)
+                {
+                    if (!goodByKey.TryGetValue(k, out var gid)) throw new WorldFormatException($"Stationstyp '{t.Key}': unbekannte Ware '{k}' in stocks");
+                    if (v.Length != 2) throw new WorldFormatException($"Stationstyp '{t.Key}': stocks '{k}' braucht [Anfangsbestand, Wunschbestand]");
+                    if (v[0] < 0f || v[1] <= 0f) throw new WorldFormatException($"Stationstyp '{t.Key}': stocks '{k}' braucht Anfangsbestand >= 0 und Wunschbestand > 0");
+                    type.Stocks.Add(new StationStock(gid, v[0], v[1]));
+                }
+            if (t.ModuleFactory is { } mf) AddModuleRecipes(u, t.Key, type, mf, Good);
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -152,6 +172,33 @@ public static class WorldBuilder
     }
 
     /// <summary>
+    /// Modulfabrik (Phase 5a): je passendem Modul (Slotart in der Liste, Stufe ≤ maxTier, mit cost) ein Rezept
+    /// cost → 1 Modul-Ware, in der Reihenfolge der Modulschlüssel; die Ausgänge bekommen einen Lagerposten (Ziel = target), die
+    /// Zutaten einen mit inputTarget, sofern stocks sie nicht schon nennt.
+    /// </summary>
+    static void AddModuleRecipes(Universe u, string typeKey, StationType type, ModuleFactoryDef mf, Func<string, GoodId> good)
+    {
+        foreach (var slot in mf.Slots)
+            if (!u.SlotTypes.ContainsKey(slot)) throw new WorldFormatException($"Stationstyp '{typeKey}': unbekannte Slotart '{slot}' in moduleFactory");
+        if (mf.Ticks <= 0 || mf.Target <= 0f || mf.InputTarget <= 0f) throw new WorldFormatException($"Stationstyp '{typeKey}': moduleFactory braucht ticks > 0, target > 0 und inputTarget > 0");
+        int made = 0;
+        foreach (var m in ModuleGoods.InGoodOrder(u.Modules.Values, m => m.Key))
+        {
+            if (!mf.Slots.Contains(m.Slot) || m.Tier > mf.MaxTier || m.Cost.Count == 0) continue;
+            var recipe = new Recipe { TicksPerCycle = mf.Ticks };
+            foreach (var (k, v) in m.Cost.OrderBy(kv => kv.Key, StringComparer.Ordinal)) recipe.Inputs[good(k)] = v;
+            var outGood = good(m.Key);
+            recipe.Outputs[outGood] = 1f;
+            type.Recipes.Add(recipe);
+            if (!type.Stocks.Any(x => x.Good == outGood)) type.Stocks.Add(new StationStock(outGood, mf.Target, mf.Target));
+            foreach (var input in recipe.Inputs.Keys)
+                if (!type.Stocks.Any(x => x.Good == input)) type.Stocks.Add(new StationStock(input, mf.InputTarget, mf.InputTarget));
+            made++;
+        }
+        if (made == 0) throw new WorldFormatException($"Stationstyp '{typeKey}': moduleFactory erzeugt kein Modul");
+    }
+
+    /// <summary>
     /// Lädt die Slot-/Modul-Content-Sektionen (slotTypes, modules, shipClasses, shipModels) samt Validierung in das
     /// Universum. Wird von <see cref="Build"/> und von der Save-Migration (Default-Welt-Registry) genutzt.
     /// </summary>
@@ -167,7 +214,7 @@ public static class WorldBuilder
             goodForm[g.Key] = ParseForm(g.Form, g.Key);
         }
         foreach (var st in def.SlotTypes)
-            if (!u.SlotTypes.TryAdd(st.Key, new SlotType { Key = st.Key, Name = st.Name, Required = st.Required }))
+            if (!u.SlotTypes.TryAdd(st.Key, new SlotType { Key = st.Key, Name = st.Name, Required = st.Required, Color = st.Color }))
                 throw new WorldFormatException($"Slotart '{st.Key}' doppelt");
 
         foreach (var md in def.Modules)
@@ -195,7 +242,7 @@ public static class WorldBuilder
             }
             var module = new Module
             {
-                Key = md.Key, Slot = md.Slot, Size = ParseSize(md.Size, $"Modul '{md.Key}'"), Tier = md.Tier,
+                Key = md.Key, Name = md.Name ?? md.Key, Slot = md.Slot, Size = ParseSize(md.Size, $"Modul '{md.Key}'"), Tier = md.Tier,
                 Grants = grants, Stats = new Dictionary<string, float>(md.Stats),
                 PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw, Mass = md.Mass, Upkeep = md.Upkeep,
                 Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost, FuelTypes = fuel,
@@ -211,7 +258,8 @@ public static class WorldBuilder
                 if (!u.SlotTypes.TryGetValue(s.Type, out _)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Slotart '{s.Type}'");
                 slots.Add(new ClassSlot { Type = s.Type, Size = ParseSize(s.Size, $"Schiffsklasse '{cd.Key}'"), Facing = s.Facing, Arc = s.Arc });
             }
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots };
+            if (cd.Kit is { } kit && !goodId.ContainsKey(kit)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Bausatz-Ware '{kit}'");
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit };
             if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
         }
 

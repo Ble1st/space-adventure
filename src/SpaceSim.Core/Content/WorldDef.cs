@@ -42,6 +42,8 @@ public sealed class SlotTypeDef
     public string Name { get; set; } = "";
     /// <summary>Pflichtslot: ein Fit ohne Modul in diesem Slot ist ungültig.</summary>
     public bool Required { get; set; }
+    /// <summary>Farbe der Modul-Waren dieser Slotart (#RRGGBB, Phase 5a); fehlt = Standardfarbe.</summary>
+    public string? Color { get; set; }
 }
 
 /// <summary>Ein zulässiger Treibstoff eines Antriebsmoduls: Warenschlüssel + efficiency (Phase 4).</summary>
@@ -56,6 +58,8 @@ public sealed class FuelEntryDef
 public sealed class ModuleDef
 {
     public string Key { get; set; } = "";
+    /// <summary>Anzeigename, zugleich Name der automatisch angelegten Modul-Ware (Phase 5a); fehlt = Schlüssel.</summary>
+    public string? Name { get; set; }
     /// <summary>Slotart-Schlüssel, in die dieses Modul passt.</summary>
     public string Slot { get; set; } = "";
     /// <summary>Größe S/M/L/XL als Text.</summary>
@@ -74,7 +78,7 @@ public sealed class ModuleDef
     public float Upkeep { get; set; }
     /// <summary>Warenform, die das Frachtmodul fasst: solid/liquid/any; fehlt = any.</summary>
     public string? Holds { get; set; }
-    /// <summary>Herstellkosten: Warenschlüssel → Menge.</summary>
+    /// <summary>Herstellkosten: Warenschlüssel → Menge; zugleich das Rezept der Modulfabrik und Grundlage des Warenpreises (Phase 5a).</summary>
     public Dictionary<string, float> Cost { get; set; } = new();
     /// <summary>Zulässige Treibstoffe des Antriebsmoduls (good = Warenschlüssel, liquid, efficiency > 0, keine Dopplung).</summary>
     public List<FuelEntryDef> Fuel { get; set; } = new();
@@ -104,6 +108,8 @@ public sealed class ShipClassDef
     /// <summary>Tankkapazität des Rumpfs (baseFuel); Standard 0. Zusammen mit fuelCapacity-Modulen (z. B. Tanks) ergibt sich ShipStats.FuelCapacity.</summary>
     public float BaseFuel { get; set; }
     public List<ClassSlotDef> Slots { get; set; } = new();
+    /// <summary>Bausatz-Warenschlüssel der Klasse (Phase 5a, z. B. ship_kit_light); fehlt = Regel <c>shipKitGoodKey</c>.</summary>
+    public string? Kit { get; set; }
 }
 
 public sealed class ShipModelDef
@@ -146,6 +152,30 @@ public sealed class StationTypeDef
     public List<RecipeDef> Recipes { get; set; } = new();
     /// <summary>Dienst-Schlüssel, die dieser Typ anbietet; fehlt das Feld, ist der Standard ["trade"] (Handel).</summary>
     public List<string> Services { get; set; } = new() { SpaceSim.Core.Services.TradeService.ServiceKey };
+    /// <summary>
+    /// Lager ohne Rezept (Phase 5a): Ware → [Anfangsbestand, Wunschbestand]. Legt zusätzlich zu den Rezepten Markteinträge an;
+    /// für Rezeptwaren setzt der Eintrag Anfangs-/Wunschbestand. Fehlt das Feld, gibt es keine.
+    /// </summary>
+    public Dictionary<string, float[]>? Stocks { get; set; }
+    /// <summary>Modulfabrik (Phase 5a): erzeugt je passendem Modul ein Rezept aus dessen <c>cost</c>; fehlt = keine Modulfabrik.</summary>
+    public ModuleFactoryDef? ModuleFactory { get; set; }
+}
+
+/// <summary>
+/// Modulfabrik eines Stationstyps (Phase 5a): Für jedes Modul, dessen Slotart in <see cref="Slots"/> steht und dessen Stufe höchstens
+/// <see cref="MaxTier"/> ist (und das eine <c>cost</c> hat), entsteht ein Rezept: Eingänge = <c>cost</c>, Ausgang = 1 Modul-Ware, alle
+/// <see cref="Ticks"/> Ticks. Reihenfolge nach Modulschlüssel. Die Ausgänge bekommen den Lagerposten [<see cref="Target"/>, <see cref="Target"/>],
+/// die Zutaten [<see cref="InputTarget"/>, <see cref="InputTarget"/>], sofern <c>stocks</c> sie nicht selbst nennt.
+/// </summary>
+public sealed class ModuleFactoryDef
+{
+    public List<string> Slots { get; set; } = new();
+    public int MaxTier { get; set; } = 1;
+    public int Ticks { get; set; } = 20;
+    public float Target { get; set; } = 5;
+    /// <summary>Wunschbestand der Zutaten (Anfangsbestand = Wunschbestand), sofern <c>stocks</c> sie nicht nennt. Klein halten: Eine Fabrik
+    /// ohne Abnehmer hortet sonst bis Wunschbestand × OverstockFactor von jeder Zutat (z. B. Elektronik), die anderen Ketten fehlt.</summary>
+    public float InputTarget { get; set; } = 10;
 }
 
 public sealed class FactionDef { public int Id { get; set; } public string Name { get; set; } = ""; }

@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v4).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v6).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -120,6 +120,26 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Lager ohne Rezept:** Stationstypen bekommen `stocks` (Waren mit Zielbestand), die zusätzlich zum Rezept Markteinträge anlegen (heute entstehen Märkte nur aus Rezepten). Nötig für Ausrüster, Handelsstation und die Montage kleiner Schiffe. Händler beliefern sie über den normalen Handel.
 - **Bausatzstufen:** `ship_kit` in `ship_kit_light/medium/heavy` (`ship_kit_capital` später mit der Hub-Werft); `EconomyRules.ShipKitGoodKey` wird je Klasse gewählt; `FleetSystem` und Werftrezepte angepasst.
 - **Tests:** Jedes Modul hat genau eine Ware, Rezepte stimmen mit `cost`, `GoodId`-Konstanten unverändert, Content-Test „jedes Modell ist baubar“.
+
+**Stand (5a):** umgesetzt auf Branch `phase5-module`.
+- **Modul-Waren:** `WorldBuilder` hängt je Modul eine Ware gleichen Schlüssels hinter die JSON-Waren (nach Modulschlüssel, erste Id 26), Regeln in `Content/ModuleGoods.cs`: fest, Volumen = Masse (mind. 1), Basispreis = Σ Zutatenpreise × `ModuleMarkup` (1,3), Farbe nach Slotart, Name aus dem neuen Modulfeld `name`.
+- **Erster Modulsatz Mk1:** vorhandene Module der Einheitsmodelle unverändert; neu Speicherbank, Treibstofftank (Frachtslot, `fuelCapacity` 100), Traktorstrahl, Schildgenerator, Panzerplattierung. Titan steckt in Tank und Panzerung, Platin im Schild, Brennstoffzellen in der Speicherbank.
+- **Drei Fabriken:** Stationstypen mit `moduleFactory` (Slotarten, Höchststufe, Takt, Wunschbestände); die Rezepte entstehen automatisch aus `cost`, damit Rezept und Modul nie auseinanderlaufen. Antriebswerk Alpha, Systemwerk Beta, Waffen- und Schildwerk Gamma (Delta ist mit 8 Stationen voll).
+- **`stocks`:** Lagerposten am Stationstyp (`[Anfang, Ziel]`), auch für Lebenszyklus-Neubauten. Händler beliefern solche Lager, kaufen dort aber nicht ein. Erster Nutzer: Die Werft führt Reaktor, Triebwerk, Laser und Frachtraum 100.
+- **Bausatzstufen:** `ship_kit` heißt `ship_kit_light` (Id 22 bleibt), `ship_kit_medium`/`ship_kit_heavy` angehängt, Werft mit drei Rezepten; `kit` an der Schiffsklasse, Rückfall auf `ShipKitGoodKey`. Die KI-Flotte wächst weiter auf 14/8.
+- **Save v6** mit Migration v5→v6 (Umbenennung, Anhängen, Fabriken und Werftstufen nachgereicht); mit dem echten v2-Spielstand geprüft.
+- **Prüfung:** 306 Tests, Selbsttest OK (Modul-Ware im Werfthandel). Balance: Standard-Seed bei 20000 und 60000 Ticks „Preise im Zielbereich“ (13/8 bzw. 14/8 Schiffe, 0 Notkäufe); Seeds 1–8 bei 20000 alle grün, bei 60000 sieben von acht (Seed 3: Hüllenplatten 0,28×); vor 5a je fünf von acht.
+
+**Abweichungen und offene Punkte (5a):**
+- **Abnehmer der Module:** In 5a nur das Werftlager (je Lauf etwa 25–30 Module). Die Fabriken produzieren bis zum Überbestands-Stopp und stehen dann; Modulpreise liegen dort bei etwa 0,31× Basispreis. Echte Abnehmer kommen mit Ausrüster und Schiffskauf (5c).
+- **Stationsobergrenze angehoben:** `maxStations` 30→33 und `maxStationsPerSector` 8→9 in der Startwelt, sonst verbrauchten die drei Fabriken den Spielraum des Lebenszyklus und Elektronik verknappte (Lebenserhaltung 3,5×, Konsumgüter 4×).
+- **Drei Regeländerungen außerhalb der Fabriken:** (1) Der Markt bietet bei mehreren Rezepten mit derselben Zutat das höchste Gebot (vorher hätte ein Rezept auf Halde das Gebot der anderen gedrückt); (2) der Lebenszyklus betrachtet nur Waren, auf die ein Stationstyp antworten kann (sonst blockierten Module ohne Verbraucher jeden Verbraucherbau); (3) Händler kaufen nur noch so viel, wie der Abnehmer annimmt (vorher wurde der Rest einer vollen Ladung unbezahlt abgeladen; bei den kleinen Wunschbeständen der Fabriken drückte das Titan und Stahl auf 0,25×). Alle drei ändern das NPC-Verhalten (anderer Hash).
+- **Stufe nach Stationsgröße** gibt es noch nicht (keine Stationsgrößen); `moduleFactory.maxTier` ist der Platz dafür.
+- **Mittlere/schwere Bausätze** starten über dem Überbestands-Deckel und werden erst produziert, wenn eine Klasse sie verbraucht; noch keine Klasse nutzt sie.
+- **Schild-, Traktor- und Tankwerte** sind reine Daten; `ShipStats` wertet `fuelCapacity` und `armor` aus, Schild und Traktor noch nicht.
+- **Alte Spielstände ohne Warenschlüssel** bekommen Modul-Waren und Bausatzstufen, aber keine Fabriken (Zutaten nicht auflösbar).
+- **Leistung:** Die Simulation ist durch die zusätzlichen Waren etwa 15 % langsamer.
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
 
 **5b – Spielerkasse (Voraussetzung für Schiffskauf, mehrere Schiffe, Taxi)**
 - Das Geld des Spielers wandert von `Ship.Credits` in ein kleines Objekt `PlayerWallet` an `Universe` (die Person); `TradeActions` buchen über `Universe.WalletOf(ship)` (Spielerschiffe: Wallet, NPC-Schiffe: `ship.Credits`, Verhalten bleibt gleich). **Zwischenstufe:** Das Akteurmodell kommt erst in Phase 9, dann wird `PlayerWallet` zur Kasse des Spielerakteurs (POLITIK.md, „Spielerkasse“).

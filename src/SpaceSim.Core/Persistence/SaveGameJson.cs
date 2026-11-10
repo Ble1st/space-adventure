@@ -258,46 +258,186 @@ public static class SaveGameJson
                     Key = refType.Key, Name = refType.Name, BuildCost = refType.BuildCost, Upkeep = refType.Upkeep, Income = refType.Income,
                     Recipes = Recipes(), Services = new List<string>(refType.Services),
                 });
-            foreach (var sd in def.Sectors)
+            AddDefaultStations(s, def, refType.Key, Recipes, null, goodIdByKey);
+        }
+        s.Version = 5;
+    }
+
+    /// <summary>
+    /// Ergänzt die Stationen eines Typs aus der Default-Welt (Migrationen v4→v5 Raffinerien, v5→v6 Modulfabriken): je Default-Sektor,
+    /// der im Save existiert und noch keine Station dieses Typs hat; Bauplatz der Default-Welt, sonst gespiegelte Ausweichplätze frei von
+    /// Stationen, Gates und Gürtelzentren. Markt: Rezeptwaren 50/100, dann die Lagerposten des Typs, dann der Stationsbestand der
+    /// Default-Welt; Preise = Basispreis. Hindernis-Asteroiden am Bauplatz werden entfernt.
+    /// </summary>
+    static void AddDefaultStations(SaveGame s, WorldDef def, string typeKey, Func<List<RecipeSave>> recipes, List<StationStockSave>? stocks, Dictionary<string, int> goodIdByKey)
+    {
+        foreach (var sd in def.Sectors)
+        {
+            var sector = s.Sectors.FirstOrDefault(x => x.Id == sd.Id);
+            if (sector is null) continue;
+            if (s.Stations.Any(st => st.Sector == sd.Id && st.Type == typeKey)) continue;
+            foreach (var std in sd.Stations.Where(x => x.Type == typeKey))
             {
-                var sector = s.Sectors.FirstOrDefault(x => x.Id == sd.Id);
-                if (sector is null) continue;
-                if (s.Stations.Any(st => st.Sector == sd.Id && st.Type == refType.Key)) continue;
-                foreach (var std in sd.Stations.Where(x => x.Type == refType.Key))
+                // Bauplatz der Default-Welt, sonst gespiegelte Ausweichplätze: frei von Stationen, Gates und Gürtelzentren
+                var p0 = new Vec2(std.Pos[0], std.Pos[1]);
+                Vec2? free = null;
+                foreach (var c in new[] { p0, new Vec2(-p0.X, p0.Y), new Vec2(p0.X, -p0.Y), new Vec2(-p0.X, -p0.Y), new Vec2(p0.Y, p0.X), new Vec2(-p0.Y, -p0.X) })
                 {
-                    // Bauplatz der Default-Welt, sonst gespiegelte Ausweichplätze: frei von Stationen, Gates und Gürtelzentren
-                    var p0 = new Vec2(std.Pos[0], std.Pos[1]);
-                    Vec2? free = null;
-                    foreach (var c in new[] { p0, new Vec2(-p0.X, p0.Y), new Vec2(p0.X, -p0.Y), new Vec2(-p0.X, -p0.Y), new Vec2(p0.Y, p0.X), new Vec2(-p0.Y, -p0.X) })
-                    {
-                        if (s.Stations.Any(st => st.Sector == sd.Id && Vec2.Distance(st.Pos, c) < 50f)) continue;
-                        if (s.Gates.Any(g => g.Sector == sd.Id && Vec2.Distance(g.Pos, c) < 50f)) continue;
-                        if (sector.Fields.Any(f => Vec2.Distance(f.Pos, c) < 60f)) continue;
-                        free = c; break;
-                    }
-                    if (free is not { } pos) continue;   // kein Platz: der Notkauf hält die Flotte beweglich
-                    int id = s.Stations.Any(st => st.Id == std.Id) ? Math.Max(s.NextStationId, s.Stations.Max(st => st.Id) + 1) : std.Id;
-                    var save = new StationSave
-                    {
-                        Id = id, Type = refType.Key, Name = std.Name, Sector = sd.Id, Owner = sector.Owner, Pos = pos,
-                        Credits = std.Credits, Essential = std.Essential, BelowLimitSince = -1, Recipes = Recipes(),
-                    };
-                    foreach (var rc in save.Recipes)
-                        foreach (var g in rc.In.Keys.Concat(rc.Out.Keys))
-                            save.Market.TryAdd(g, new StockSave { Amount = 50f, Target = 100f });
-                    foreach (var (key, v) in std.Stock)
-                        if (goodIdByKey.TryGetValue(key, out var gid) && v.Length >= 2)
-                            save.Market[gid] = new StockSave { Amount = v[0], Target = v[1] };
-                    foreach (var (gid, e) in save.Market)
-                        e.Price = s.Goods.First(g => g.Id == gid).BasePrice;
-                    s.Stations.Add(save);
-                    sector.Stations.Add(id);
-                    if (id >= s.NextStationId) s.NextStationId = id + 1;
-                    sector.Rocks.RemoveAll(a => Vec2.Distance(a.Pos, pos) < a.BaseRadius + 30f);
+                    if (s.Stations.Any(st => st.Sector == sd.Id && Vec2.Distance(st.Pos, c) < 50f)) continue;
+                    if (s.Gates.Any(g => g.Sector == sd.Id && Vec2.Distance(g.Pos, c) < 50f)) continue;
+                    if (sector.Fields.Any(f => Vec2.Distance(f.Pos, c) < 60f)) continue;
+                    free = c; break;
+                }
+                if (free is not { } pos) continue;   // kein Platz
+                int id = s.Stations.Any(st => st.Id == std.Id) ? Math.Max(s.NextStationId, s.Stations.Max(st => st.Id) + 1) : std.Id;
+                var save = new StationSave
+                {
+                    Id = id, Type = typeKey, Name = std.Name, Sector = sd.Id, Owner = sector.Owner, Pos = pos,
+                    Credits = std.Credits, Essential = std.Essential, BelowLimitSince = -1, Recipes = recipes(),
+                };
+                foreach (var rc in save.Recipes)
+                    foreach (var g in rc.In.Keys.Concat(rc.Out.Keys))
+                        save.Market.TryAdd(g, new StockSave { Amount = 50f, Target = 100f });
+                if (stocks is not null)
+                    foreach (var x in stocks) save.Market[x.Good] = new StockSave { Amount = x.Amount, Target = x.Target };
+                foreach (var (key, v) in std.Stock)
+                    if (goodIdByKey.TryGetValue(key, out var gid) && v.Length >= 2)
+                        save.Market[gid] = new StockSave { Amount = v[0], Target = v[1] };
+                foreach (var (gid, e) in save.Market)
+                    e.Price = s.Goods.First(g => g.Id == gid).BasePrice;
+                s.Stations.Add(save);
+                sector.Stations.Add(id);
+                if (id >= s.NextStationId) s.NextStationId = id + 1;
+                sector.Rocks.RemoveAll(a => Vec2.Distance(a.Pos, pos) < a.BaseRadius + 30f);
+            }
+        }
+    }
+
+    /// <summary>
+    /// v5 → v6 (Phase 5a): Module sind Waren, drei Modulfabriken, Bausatzstufen. Alle Schritte arbeiten nach Schlüssel und hängen nur an,
+    /// damit bestehende GoodIds nicht verschoben werden:
+    /// 1) Ware ship_kit heißt jetzt ship_kit_light (gleiche Id), Regel ShipKitGoodKey ebenso.
+    /// 2) ship_kit_medium und ship_kit_heavy werden ans Ende der Warenliste angehängt.
+    /// 3) Slot-Content (Slotarten mit Farbe, Module mit Namen und die neuen Mk1-Module, Klassen mit Bausatz) per Upsert nach Schlüssel aus der Default-Welt.
+    /// 4) Je Modul ohne Ware wird eine Modul-Ware angehängt (nach Modulschlüssel; Preis = Σ cost × Basispreis × ModuleMarkup).
+    /// 5) Stationstypen der Default-Welt: fehlende Modulfabrik-Typen werden ergänzt; bei vorhandenen Typen werden fehlende Rezepte
+    ///    (nach Ausgangswaren, z. B. die Bausatzstufen der Werft) und die Lagerposten (stocks) an Typ und bestehenden Stationen nachgetragen.
+    /// 6) Die Modulfabriken der Default-Welt werden gesetzt, wo der Sektor existiert (wie die Raffinerien in v4→v5).
+    /// Sehr alte Welten ohne Warenschlüssel bekommen nur, was sich auflösen lässt.
+    /// </summary>
+    static void MigrateV5ToV6(SaveGame s)
+    {
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var dw = WorldBuilder.Build(def);   // Default-Welt mit Modul-Waren und ausgeklappten Modulfabrik-Rezepten
+
+        // 1) ship_kit → ship_kit_light (Id bleibt)
+        var lightDef = def.Goods.First(g => g.Key == "ship_kit_light");
+        var oldKit = s.Goods.FirstOrDefault(g => g.Key == "ship_kit");
+        if (oldKit is not null && s.Goods.All(g => g.Key != lightDef.Key)) { oldKit.Key = lightDef.Key; oldKit.Name = lightDef.Name; }
+        if (s.Rules.ShipKitGoodKey == "ship_kit") s.Rules.ShipKitGoodKey = lightDef.Key;
+
+        // 2) neue Bausatzstufen anhängen
+        foreach (var key in new[] { "ship_kit_medium", "ship_kit_heavy" })
+        {
+            var gd = def.Goods.FirstOrDefault(g => g.Key == key);
+            if (gd is null || s.Goods.Any(g => g.Key == key)) continue;
+            s.Goods.Add(new GoodSave { Id = NextGoodId(s), Key = gd.Key, Name = gd.Name, Color = gd.Color, BasePrice = gd.BasePrice, Volume = gd.Volume, Form = gd.Form });
+        }
+
+        // 3) Slot-Content per Upsert nach Schlüssel (eigene Einträge des Save bleiben)
+        var content = new SaveGame();
+        UniverseSerializer.WriteSlotContent(dw, content);
+        foreach (var t in content.SlotTypes) Upsert(s.SlotTypes, t, x => x.Key);
+        foreach (var m in content.Modules) Upsert(s.Modules, m, x => x.Key);
+        foreach (var c in content.ShipClasses) Upsert(s.ShipClasses, c, x => x.Key);
+        foreach (var m in content.ShipModels) if (s.ShipModels.All(x => x.Key != m.Key)) s.ShipModels.Add(m);
+
+        // 4) Modul-Waren anhängen (feste Reihenfolge nach Modulschlüssel)
+        float? PriceOf(string key) => s.Goods.FirstOrDefault(g => g.Key == key)?.BasePrice ?? def.Goods.FirstOrDefault(g => g.Key == key)?.BasePrice;
+        foreach (var m in ModuleGoods.InGoodOrder(s.Modules, m => m.Key))
+        {
+            if (s.Goods.Any(g => g.Key == m.Key)) continue;
+            s.Goods.Add(new GoodSave
+            {
+                Id = NextGoodId(s), Key = m.Key, Name = m.Name ?? m.Key,
+                Color = s.SlotTypes.FirstOrDefault(t => t.Key == m.Slot)?.Color ?? ModuleGoods.DefaultColor,
+                BasePrice = ModuleGoods.BasePrice(m.Cost, PriceOf, s.Rules.ModuleMarkup), Volume = ModuleGoods.Volume(m.Mass), Form = "solid",
+            });
+        }
+
+        // 5) Stationstypen: Default-Ids → Schlüssel → Save-Ids
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+        int? Map(GoodId dg) => goodIdByKey.TryGetValue(dw.Goods[dg].Key, out var id) ? id : null;
+        RecipeSave? ConvertRecipe(Recipe r)
+        {
+            var rs = new RecipeSave { Ticks = r.TicksPerCycle };
+            foreach (var (g, v) in r.Inputs) { if (Map(g) is not { } id) return null; rs.In[id] = v; }
+            foreach (var (g, v) in r.Outputs) { if (Map(g) is not { } id) return null; rs.Out[id] = v; }
+            return rs;
+        }
+        List<StationStockSave> ConvertStocks(StationType t) =>
+            t.Stocks.Where(x => Map(x.Good) is not null).Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
+        var addedTypes = new List<StationTypeSave>();
+        foreach (var dt in dw.StationTypes.Values)
+        {
+            var recipes = dt.Recipes.Select(ConvertRecipe).Where(r => r is not null).Select(r => r!).ToList();
+            var stocks = ConvertStocks(dt);
+            var existing = s.StationTypes.FirstOrDefault(t => t.Key == dt.Key);
+            if (existing is null)
+            {
+                // nur die neuen Modulfabriken ergänzen (alle Ausgänge sind Modul-Waren); andere fehlende Typen älterer Welten bleiben weg
+                bool moduleFactory = dt.Recipes.Count > 0 && dt.Recipes.All(r => r.Outputs.Count > 0 && r.Outputs.Keys.All(g => dw.Modules.ContainsKey(dw.Goods[g].Key)));
+                if (!moduleFactory || recipes.Count == 0) continue;   // kein Modulwerk, oder Welt ohne die nötigen Waren
+                var added = new StationTypeSave
+                {
+                    Key = dt.Key, Name = dt.Name, BuildCost = dt.BuildCost, Upkeep = dt.UpkeepPerTick, Income = dt.IncomePerTick,
+                    Recipes = recipes, Services = new List<string>(dt.Services), Stocks = stocks.Count > 0 ? stocks : null,
+                };
+                s.StationTypes.Add(added);
+                addedTypes.Add(added);
+                continue;
+            }
+            // vorhandener Typ: Rezepte mit neuen Ausgangswaren und Lagerposten nachtragen (Typ und bestehende Stationen) — nur wenn
+            // die Welt alle Waren des Default-Typs kennt (sehr alte Welten ohne Schlüssel bleiben unverändert)
+            if (recipes.Count != dt.Recipes.Count) continue;
+            var newRecipes = recipes.Where(r => r.Out.Count > 0 && !existing.Recipes.Any(e => e.Out.Keys.ToHashSet().SetEquals(r.Out.Keys))).ToList();
+            var newStocks = existing.Stocks is null && stocks.Count > 0 ? stocks : new List<StationStockSave>();
+            if (newRecipes.Count == 0 && newStocks.Count == 0) continue;
+            existing.Recipes.AddRange(newRecipes.Select(CloneRecipe));
+            if (newStocks.Count > 0) existing.Stocks = newStocks;
+            foreach (var st in s.Stations.Where(x => x.Type == dt.Key))
+            {
+                foreach (var r in newRecipes)
+                {
+                    st.Recipes.Add(CloneRecipe(r));
+                    foreach (var g in r.In.Keys.Concat(r.Out.Keys))
+                        st.Market.TryAdd(g, new StockSave { Amount = 50f, Target = 100f, Price = s.Goods.First(x => x.Id == g).BasePrice });
+                }
+                foreach (var x in newStocks)
+                {
+                    // Lagerposten des Typs: neue Einträge anlegen, für frisch angelegte Rezeptwaren den Wunschbestand des Typs setzen
+                    bool fresh = !st.Market.TryGetValue(x.Good, out var e) || newRecipes.Any(r => r.Out.ContainsKey(x.Good) || r.In.ContainsKey(x.Good));
+                    if (fresh) st.Market[x.Good] = new StockSave { Amount = x.Amount, Target = x.Target, Price = s.Goods.First(g => g.Id == x.Good).BasePrice };
                 }
             }
         }
-        s.Version = 5;
+
+        // 6) Modulfabriken (neu ergänzte Typen) an ihren Default-Plätzen setzen
+        foreach (var t in addedTypes)
+            AddDefaultStations(s, def, t.Key, () => t.Recipes.Select(CloneRecipe).ToList(), t.Stocks, goodIdByKey);
+
+        s.Version = 6;
+    }
+
+    static int NextGoodId(SaveGame s) => s.Goods.Count == 0 ? 1 : s.Goods.Max(g => g.Id) + 1;
+
+    static RecipeSave CloneRecipe(RecipeSave r) => new() { Ticks = r.Ticks, In = new Dictionary<int, float>(r.In), Out = new Dictionary<int, float>(r.Out) };
+
+    static void Upsert<T>(List<T> list, T item, Func<T, string> key)
+    {
+        int i = list.FindIndex(x => key(x) == key(item));
+        if (i < 0) list.Add(item); else list[i] = item;
     }
 
     /// <summary>Hebt ältere Spielstände schrittweise auf das aktuelle Format. Bei Formatänderungen hier je Version einen Schritt ergänzen.</summary>
@@ -307,6 +447,7 @@ public static class SaveGameJson
         if (s.Version < 3) MigrateV2ToV3(s);
         if (s.Version < 4) MigrateV3ToV4(s);
         if (s.Version < 5) MigrateV4ToV5(s);
+        if (s.Version < 6) MigrateV5ToV6(s);
         return s;
     }
 }

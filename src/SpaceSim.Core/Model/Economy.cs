@@ -43,7 +43,16 @@ public sealed class StationType
     public float IncomePerTick;
     /// <summary>Dienst-Schlüssel, die Stationen dieses Typs anbieten, in Reihenfolge; Standard ["trade"] (Handel).</summary>
     public List<string> Services = new() { "trade" };
+    /// <summary>
+    /// Lager ohne Rezept (Phase 5a): Waren mit Anfangs- und Wunschbestand, für die eine neue Station dieses Typs zusätzlich zu den
+    /// Rezepten einen Markteintrag bekommt (z. B. Module im Werftlager). Steht die Ware auch in einem Rezept, legt der Eintrag
+    /// deren Anfangs-/Wunschbestand fest. Händler beliefern solche Lager über den normalen Handel.
+    /// </summary>
+    public List<StationStock> Stocks = new();
 }
+
+/// <summary>Lagerposten eines Stationstyps: Ware, Anfangsbestand, Wunschbestand (Phase 5a, <see cref="StationType.Stocks"/>).</summary>
+public sealed record StationStock(GoodId Good, float Amount, float Target);
 
 public sealed class Station
 {
@@ -72,6 +81,19 @@ public sealed class Station
     /// </summary>
     public float AcceptableUnits(GoodId good, EconomyRules rules) =>
         Market.TryGetValue(good, out var e) ? MathF.Max(0f, e.Target * rules.OverstockFactor - e.Amount) : 0f;
+
+    /// <summary>
+    /// Lagerware ohne Rezept (Phase 5a, <see cref="StationType.Stocks"/>): Die Station führt die Ware, aber kein Rezept verwendet oder
+    /// erzeugt sie (z. B. Module im Werftlager). KI-Händler beliefern solche Lager, kaufen dort aber nicht ein — sonst pendelt die Ware
+    /// zwischen Lager und Fabrik (die Fabrik kauft ihr leeres Produkt teuer zurück). Spieler und spätere Dienste dürfen dort kaufen.
+    /// </summary>
+    public bool IsStockOnly(GoodId good)
+    {
+        if (!Market.ContainsKey(good)) return false;
+        foreach (var r in Production)
+            if (r.Inputs.ContainsKey(good) || r.Outputs.ContainsKey(good)) return false;
+        return true;
+    }
 
     public StockEntry Stock(GoodId good)
     {
