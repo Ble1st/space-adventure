@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v3).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v4).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -70,6 +70,10 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Heutige Pauschalwerte** (Fracht 100, Hülle 100, Tempo) kommen aus den Einheitsmodellen. `LaserShot.Roll` erhält die Laserstufe (`chunkChanceMult`, `chunkSizeMult`).
 - **Tests:** Ungültige Fits werden abgelehnt; Einheitsmodell reproduziert Verhalten (Hash-Vergleich zu vorher mit denselben Seeds); Migration v3→v4.
 - **Abnahme:** Balance-Lauf liefert dieselben Kennzahlen wie vor der Phase.
+
+**Stand:** Umgesetzt in drei Schritten (Branch `phase3-slots`). **3a:** Content-Abschnitte `slotTypes/modules/shipClasses/shipModels` und `goods[].form`, Validierung im `WorldBuilder` (inkl. Leistungsbilanz und Spitzenlast gegen die Speicherbank), `ShipStats.Compute` als reine Funktion, fünf Einheitsmodelle (`unit_trader_100/60`, `unit_miner_100/60`, `unit_player`), `Capability` um `Jump`/`Stealth` erweitert. **3b:** `Ship.ModelKey/Slots/Fit/Stats`, `MaxHull`, Laderaum und Tempo je Schiff (`Travel.SpeedOf`), Fähigkeiten von Schiffen mit Modell folgen immer dem Fit (`RecomputeStats`), Save v4 mit Migration `MigrateV3ToV4` (Einheitsmodell nach Rolle und Laderaum; die Slot-Content-Sektionen liegen im Save wie Waren und Rezepte), `UniverseHash` mit `ModelKey` und `Fit`. **3c:** Laserstufe in `LaserShot.Roll` (Faktor 1 = unveränderte Zufallsfolge), Frachtformen `solid/liquid/any` (`Ship.FreeVolumeFor`, geteilter Universalraum), `GoodSave.Form`. 250 Tests; Balance-Lauf (20000 Ticks) und Hash byte-identisch zu vor der Phase, Selbsttest OK.
+
+**Bekannte Grenzen:** Die Laserstufe ist im Spiel noch immer 1/1 (nur in Tests stärker); `ShipStats.MaxSpeed` begrenzt das Tempo auf 12; die Leistungsbilanz wird nur im Content geprüft, nicht bei Fit-Änderungen zur Laufzeit (kommt mit dem Ausrüster, Phase 5); Fähigkeiten gespeicherter Schiffe ohne Modell (Fighter) gelten weiter als gespeicherter Wert; `tanker_test` existiert nur in Tests. Die Migration wurde mit einem nachgebauten v3-Save getestet, nicht mit einem echten Altspielstand.
 
 ## Phase 4: Treibstoff
 

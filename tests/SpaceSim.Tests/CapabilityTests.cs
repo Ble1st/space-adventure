@@ -274,19 +274,21 @@ public class CapabilityTests
     }
 
     [Fact]
-    public void Ueberschriebene_Faehigkeiten_UeberlebenSaveLoad_UndHash()
+    public void Ueberschriebene_Faehigkeiten_ModellloserSchiffe_UeberlebenSaveLoad_UndHash()
     {
+        // Schiffe mit Modell leiten ihre Fähigkeiten aus dem Fit ab; ein gespeicherter Wert zählt nur ohne Modell
         var u = DemoUniverse.Create();
-        var trader = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
-        trader.Capabilities = Capability.None;              // ausdrücklich nichts: darf nicht zurückgesetzt werden
-        var miner = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
-        miner.Capabilities = Capability.Mining | Capability.Salvage;
+        var sector = u.Sectors.Keys.First();
+        var none = new Ship { Id = u.NewShipId(), Role = ShipRole.Fighter, Sector = sector, Capabilities = Capability.None };
+        var odd = new Ship { Id = u.NewShipId(), Role = ShipRole.Fighter, Sector = sector, Capabilities = Capability.Combat | Capability.Salvage };
+        u.AddShip(none);
+        u.AddShip(odd);
         var before = UniverseHash.Compute(u);
 
         var (loaded, _) = SaveGameJson.Read(SaveGameJson.Write(u, Now));
 
-        Assert.Equal(Capability.None, loaded.Ships[trader.Id].Capabilities);
-        Assert.Equal(Capability.Mining | Capability.Salvage, loaded.Ships[miner.Id].Capabilities);
+        Assert.Equal(Capability.None, loaded.Ships[none.Id].Capabilities);
+        Assert.Equal(Capability.Combat | Capability.Salvage, loaded.Ships[odd.Id].Capabilities);
         Assert.Equal(before, UniverseHash.Compute(loaded));
         Assert.NotEqual(before, UniverseHash.Compute(DemoUniverse.Create()));
     }

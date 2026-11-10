@@ -213,9 +213,9 @@ public static class UniverseSerializer
             }
             ship.RecomputeStats(u);
             if (modelOk) ship.CargoCapacity = ship.Stats.Cargo;   // Laderaum aus dem Modell
-            // Fähigkeiten: ein gespeicherter Wert gewinnt, sonst hat RecomputeStats sie aus den Modul-Grants abgeleitet
-            if (sh.Capabilities is { } caps) ship.Capabilities = (Capability)caps;
-            else if (!modelOk) ship.Capabilities = CapabilityDefaults.ForRole(role);
+            // Fähigkeiten: mit Modell hat RecomputeStats sie aus dem Fit abgeleitet; ohne Modell gilt der gespeicherte Wert, sonst die Rolle
+            if (!modelOk)
+                ship.Capabilities = sh.Capabilities is { } caps ? (Capability)caps : CapabilityDefaults.ForRole(role);
             u.Ships[ship.Id] = ship;   // AddShip würde ein ShipSpawned-Ereignis auslösen
         }
         u.IdCounters = (s.NextShipId, s.NextStationId);

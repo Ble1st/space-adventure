@@ -52,8 +52,8 @@ public sealed class Ship
     /// <summary>
     /// Berechnet <see cref="Stats"/> neu aus Modell, Slots und Fit (nach Änderung von Fit/Slots und beim Laden).
     /// Ist die Slotliste leer, wird sie von der Klasse des Modells übernommen. Gibt false, wenn das Modell in
-    /// diesem Universum nicht auflösbar ist (dann bleiben die Pauschalwerte: Hülle 100). Fähigkeiten werden aus
-    /// den Modul-Grants abgeleitet, sofern sie nicht ausdrücklich gesetzt wurden (der Set-Flag bleibt unberührt).
+    /// diesem Universum nicht auflösbar ist (dann bleiben die Pauschalwerte: Hülle 100). Fähigkeiten werden bei
+    /// Schiffen mit Modell immer aus den Modul-Grants abgeleitet (gespeicherte Werte zählen nur für Schiffe ohne Modell).
     /// </summary>
     public bool RecomputeStats(Universe u)
     {
@@ -67,7 +67,7 @@ public sealed class Ship
             for (int i = 0; i < Slots.Count; i++)
                 fit.Add(Fit[i] is { } key && u.Modules.TryGetValue(key, out var m) ? m : null);
             Stats = ShipStats.Compute(cls, fit);
-            if (!CapabilitiesSet) _capabilities = Stats.Capabilities;
+            Capabilities = Stats.Capabilities;   // Schiffe mit Modell: Fähigkeiten folgen immer dem Fit
             return true;
         }
         Stats = new ShipStats { Hull = NoModelHull };
@@ -127,12 +127,12 @@ public sealed class Ship
     public float FreeUnits(Universe u, GoodId good) =>
         MathF.Max(0f, FreeVolumeFor(u, good) / u.Goods[good].VolumePerUnit);
 
-    /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     /// <summary>Nachladeuhr des Mining-Lasers (NPC-Miner), in Sekunden Spielzeit.</summary>
     public float ShotTimer;
     /// <summary>Asteroid-Id, auf den der NPC-Miner gerade feuert (0 = keiner).</summary>
     public int MineAsteroid;
 
+    /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     public long NextThinkTick;
     /// <summary>Tick, seit dem das Schiff keinen Auftrag mehr hat (-1 = beschäftigt).</summary>
     public long IdleSince = -1;

@@ -230,4 +230,16 @@ public class ShipFitTests
         }
         Assert.All(bought, s => Assert.Equal(WorldBuilder.UnitModelFor(s.Role, s.CargoCapacity), s.ModelKey));
     }
+
+    [Fact]
+    public void NachSaveLoad_WirdAusbauEinesModulsWeiterInFaehigkeitenSichtbar()
+    {
+        var u = DemoUniverse.Create();
+        var (loaded, _) = SaveGameJson.Read(SaveGameJson.Write(u, new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero)));
+        var miner = loaded.Ships.Values.First(s => s.Role == ShipRole.Miner);
+        Assert.True(miner.Has(Capability.Mining));
+        miner.Fit[miner.Slots.FindIndex(s => s.Type == "tool")] = null;
+        Assert.True(miner.RecomputeStats(loaded));
+        Assert.False(miner.Has(Capability.Mining));
+    }
 }

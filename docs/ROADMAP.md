@@ -51,3 +51,9 @@ Geprüft und in Ordnung: alle Code-Bezeichner, die die Dokumente als vorhanden n
 23. **Offen, Entscheidung vor Phase 8:** `Critical` (abgeleitet) wird in Phase 8 gebraucht, die Aufschlüsselung von `Essential` steht in Phase 10. Vorschlag: In Phase 8 nur `Critical` und `BankruptcyProtected`, der Rest in Phase 10.
 24. **Erledigt (Plan):** Das Startpaket „Generalist“ (Phase 5) nutzt *Pip* mit Werkzeug-Slot; *Tinker* kommt erst mit Phase 6 (SCHIFFE.md, Abschnitt 9, nennt beide).
 25. **Erledigt (Plan):** Die Oberfläche in Phase 12 ist bereits gebaut (Flug-HUD, Andock-Menü, Kommandozentrale); offen bleibt nur die Anbindung an echte Daten (Hangar, Taxi, Flotte).
+
+## Phase 3 abgeschlossen (Stand der Umsetzung)
+
+26. **Erledigt:** Slot-/Modulmodell, Warenform, `ShipStats`, Save v4 (Phase 3a–3c). Beim Abschluss gefundener und behobener Fehler: Nach Speichern/Laden hielten Schiffe mit Modell ihre alten Fähigkeiten fest, ein Ausbau (zum Beispiel des Lasers) wirkte nicht mehr; jetzt folgen die Fähigkeiten von Schiffen mit Modell immer dem Fit.
+27. **Offen für Phase 4/5:** Leistungsbilanz auch zur Laufzeit beim Umrüsten prüfen (Ausrüster); Höchsttempo (`ShipStats.MaxSpeed` = 12) gegen echte Antriebe neu bewerten; Laserstufen als Handelsware.
+
