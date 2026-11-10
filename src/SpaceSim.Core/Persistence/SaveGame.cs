@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -22,6 +22,8 @@ public sealed class SaveGame
     public int PlayerSector { get; set; }
     public int PlayerShip { get; set; }
     public EconomyRules Rules { get; set; } = new();
+    /// <summary>Spielerkasse (Phase 5b, v7); ältere Stände bekommen sie per Migration aus den Credits des Spielerschiffs.</summary>
+    public PlayerWalletSave PlayerWallet { get; set; } = new();
 
     public List<GoodSave> Goods { get; set; } = new();
     public List<AsteroidClassSave> AsteroidClasses { get; set; } = new();
@@ -39,6 +41,12 @@ public sealed class SaveGame
     public List<GateSave> Gates { get; set; } = new();
     public List<StationSave> Stations { get; set; } = new();
     public List<ShipSave> Ships { get; set; } = new();
+}
+
+/// <summary>Kasse der Spielerperson (Phase 5b).</summary>
+public sealed class PlayerWalletSave
+{
+    public float Credits { get; set; } public int Faction { get; set; }
 }
 
 public sealed class GoodSave

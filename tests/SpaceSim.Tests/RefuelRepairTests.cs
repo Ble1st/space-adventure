@@ -26,7 +26,7 @@ public class RefuelRepairTests
         var st = u.Stations[new StationId(25)];
         if (player.Sector != st.Sector) u.MoveShip(player, st.Sector);
         player.Position = st.DockPoint(player.Id);
-        player.Credits = 5_000f;
+        u.WalletOf(player).Credits = 5_000f;
         return (u, player, st);
     }
 
@@ -58,7 +58,7 @@ public class RefuelRepairTests
         var svc = new RefuelService();
         Assert.True(svc.IsAvailable(u, st));
         var e = st.Market[Prop];
-        float price = e.Price, stock = e.Amount, stCr = st.Credits, shCr = player.Credits;
+        float price = e.Price, stock = e.Amount, stCr = st.Credits, shCr = u.WalletOf(player).Credits;
         float expect = MathF.Min(MathF.Floor(stock), 150f);
 
         var offers = svc.Offers(u, st, player);
@@ -72,7 +72,7 @@ public class RefuelRepairTests
         Assert.Equal(50f + expect, player.FuelAmount(Prop));
         Assert.Equal(stock - expect, e.Amount, 3);
         Assert.Equal(stCr + expect * price, st.Credits, 2);
-        Assert.Equal(shCr - expect * price, player.Credits, 2);
+        Assert.Equal(shCr - expect * price, u.WalletOf(player).Credits, 2);
         Assert.Equal(-expect * price, r.Credits, 2);
         Assert.Empty(player.Cargo);   // Treibstoff landet im Tank, nicht im Laderaum
         var ev = Assert.Single(events);
@@ -92,7 +92,7 @@ public class RefuelRepairTests
         Assert.Single(events);
 
         // unbekannte/unsaubere Schlüssel: kein Zustandswechsel, kein Ereignis
-        float fuel = player.TotalFuel, cr = player.Credits, stock = st.Market[Prop].Amount;
+        float fuel = player.TotalFuel, cr = u.WalletOf(player).Credits, stock = st.Market[Prop].Amount;
         foreach (var key in new[] { "refuel:30", "refuel:", "refuel", "fill", "refuel:fill:1", "repair:full", "refuel:-25" })
             Assert.False(svc.Execute(u, st, player, new ServiceRequest(key, default, 0f)).Success);
         // voll
@@ -100,9 +100,9 @@ public class RefuelRepairTests
         Assert.False(svc.Execute(u, st, player, new ServiceRequest("refuel:fill", default, 0f)).Success);
         player.Fuel[Prop] = fuel;
         // pleite
-        player.Credits = 0f;
+        u.WalletOf(player).Credits = 0f;
         Assert.False(svc.Execute(u, st, player, new ServiceRequest("refuel:fill", default, 0f)).Success);
-        player.Credits = cr;
+        u.WalletOf(player).Credits = cr;
         // Lager leer: Dienst nicht verfügbar
         st.Market[Prop].Amount = 0f;
         Assert.False(svc.IsAvailable(u, st));
@@ -110,7 +110,7 @@ public class RefuelRepairTests
         st.Market[Prop].Amount = stock;
 
         Assert.Equal(fuel, player.TotalFuel);
-        Assert.Equal(cr, player.Credits);
+        Assert.Equal(cr, u.WalletOf(player).Credits);
         Assert.Equal(stock, st.Market[Prop].Amount);
         Assert.Single(events);
 
@@ -133,7 +133,7 @@ public class RefuelRepairTests
         var e = st.Market[DemoUniverse.HullPlates];
         e.Amount = 50f;
         Assert.True(svc.IsAvailable(u, st));
-        player.Credits = 5_000f;
+        u.WalletOf(player).Credits = 5_000f;
 
         // unbeschädigt: keine Angebote, kein Erfolg
         Assert.Empty(svc.Offers(u, st, player));
@@ -149,7 +149,7 @@ public class RefuelRepairTests
         float plates = 20f * u.Rules.RepairPlatesPerHull;
         Assert.Equal(50f - plates, e.Amount, 3);
         float cost = plates * price * RepairService.LaborFactor;
-        Assert.Equal(5_000f - cost, player.Credits, 2);
+        Assert.Equal(5_000f - cost, u.WalletOf(player).Credits, 2);
         Assert.Equal(stCr + cost, st.Credits, 2);
 
         Assert.True(svc.Execute(u, st, player, new ServiceRequest("repair:full", default, 0f)).Success);
@@ -165,7 +165,7 @@ public class RefuelRepairTests
         var player = u.Ships[u.PlayerShip];
         var st = Plating(u);
         var svc = new RepairService();
-        player.Credits = 5_000f;
+        u.WalletOf(player).Credits = 5_000f;
         player.Hull = player.MaxHull - 60f;
         st.Market[DemoUniverse.HullPlates].Amount = 1f;   // reicht für 1 / 0,05 = 20 Hüllenpunkte
         var r = svc.Execute(u, st, player, new ServiceRequest("repair:full", default, 0f));
@@ -176,7 +176,7 @@ public class RefuelRepairTests
         Assert.False(svc.IsAvailable(u, st));
         // pleite: nichts passiert
         st.Market[DemoUniverse.HullPlates].Amount = 20f;
-        player.Credits = 0f;
+        u.WalletOf(player).Credits = 0f;
         float hull = player.Hull;
         Assert.False(svc.Execute(u, st, player, new ServiceRequest("repair:full", default, 0f)).Success);
         Assert.Equal(hull, player.Hull);
@@ -221,7 +221,7 @@ public class RefuelRepairTests
     {
         var u = World();
         var player = u.Ships[u.PlayerShip];
-        player.Credits = 5_000f;
+        u.WalletOf(player).Credits = 5_000f;
         Assert.False(Refuel.PlayerEmergency(u, player).Success);   // Tank nicht leer
 
         player.Fuel[Prop] = 0f;
@@ -232,16 +232,16 @@ public class RefuelRepairTests
         var r = Refuel.PlayerEmergency(u, player);
         Assert.True(r.Success);
         Assert.True(player.TotalFuel >= Refuel.Consumption(player, dist, Prop));
-        Assert.Equal(r.Units * u.Goods[Prop].BasePrice * Refuel.EmergencyPriceFactor, 5_000f - player.Credits, 2);
-        Assert.Equal(-(5_000f - player.Credits), r.Credits, 2);
+        Assert.Equal(r.Units * u.Goods[Prop].BasePrice * Refuel.EmergencyPriceFactor, 5_000f - u.WalletOf(player).Credits, 2);
+        Assert.Equal(-(5_000f - u.WalletOf(player).Credits), r.Credits, 2);
         Assert.Equal(stationCredits, u.Stations.Values.Sum(s => s.Credits));   // Geldsenke: keine Station erhält den Erlös
 
         player.Fuel[Prop] = 0f;
-        player.Credits = 1f;
+        u.WalletOf(player).Credits = 1f;
         var broke = Refuel.PlayerEmergency(u, player);
         Assert.False(broke.Success);
         Assert.Equal(0f, player.TotalFuel);
-        Assert.Equal(1f, player.Credits);
+        Assert.Equal(1f, u.WalletOf(player).Credits);
     }
 
     [Fact]

@@ -123,19 +123,20 @@ public static class Refuel
 
     /// <summary>
     /// Kauft Treibstoff an einer Station zum Marktpreis in den Tank (nicht in den Laderaum). Wie <see cref="Trading.TradeActions.Buy"/>:
-    /// begrenzt durch Stationsbestand, Schiffscredits und freien Tankplatz (ganze Einheiten). Bucht Bestand, Stationskasse
-    /// und Schiffscredits und veröffentlicht <see cref="FuelBought"/>. Liefert die gekauften Einheiten.
+    /// begrenzt durch Stationsbestand, Credits der Kasse (<see cref="Universe.WalletOf(Ship)"/>) und freien Tankplatz (ganze Einheiten).
+    /// Bucht Bestand, Stationskasse und Kasse des Schiffs und veröffentlicht <see cref="FuelBought"/>. Liefert die gekauften Einheiten.
     /// </summary>
     public static float BuyFuel(Universe u, Ship ship, Station st, GoodId good, float wantUnits)
     {
         if (wantUnits <= 0f || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) return 0f;
-        float stock = MathF.Floor(e.Amount), afford = MathF.Floor(ship.Credits / e.Price), space = MathF.Floor(ship.FuelSpace);
+        var wallet = u.WalletOf(ship);
+        float stock = MathF.Floor(e.Amount), afford = MathF.Floor(wallet.Credits / e.Price), space = MathF.Floor(ship.FuelSpace);
         float n = MathF.Min(MathF.Min(MathF.Floor(wantUnits), stock), MathF.Min(afford, space));
         if (n <= 0f) return 0f;
         float cost = n * e.Price;
         e.Amount -= n;
         st.Credits += cost;
-        ship.Credits -= cost;
+        wallet.Credits -= cost;
         ship.Fuel[good] = ship.FuelAmount(good) + n;
         u.Events.Publish(new FuelBought(ship.Id, st.Id, good, n, cost));
         return n;
@@ -155,7 +156,7 @@ public static class Refuel
     {
         var good = ActiveFuel(ship);
         if (good is null || !st.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return 0f;
-        float budget = MathF.Floor(FuelBudgetShare * MathF.Max(0f, ship.Credits) / e.Price);
+        float budget = MathF.Floor(FuelBudgetShare * MathF.Max(0f, u.WalletOf(ship).Credits) / e.Price);
         float want = MathF.Min(ship.FuelSpace, MathF.Max(MathF.Ceiling(minUnits), budget));
         return BuyFuel(u, ship, st, good.Value, want);
     }
@@ -170,10 +171,11 @@ public static class Refuel
         if (wantUnits <= 0f || ship.FuelSpace <= 0f) return 0f;
         float price = u.Goods[good].BasePrice * EmergencyPriceFactor;
         // aufrunden: so viel, dass die anvisierte Tankstelle mit Sicherheit erreichbar ist (ganze Einheiten bezahlbar/Tankplatz)
-        float n = MathF.Min(MathF.Min(MathF.Ceiling(wantUnits), MathF.Floor(ship.Credits / price)), MathF.Floor(ship.FuelSpace));
+        var wallet = u.WalletOf(ship);
+        float n = MathF.Min(MathF.Min(MathF.Ceiling(wantUnits), MathF.Floor(wallet.Credits / price)), MathF.Floor(ship.FuelSpace));
         if (n <= 0f) return 0f;
         float cost = n * price;
-        ship.Credits -= cost;   // Geldsenke: keine Station erhält den Erlös
+        wallet.Credits -= cost;   // Geldsenke: keine Station erhält den Erlös
         ship.Fuel[good] = ship.FuelAmount(good) + n;
         u.Events.Publish(new EmergencyRefuel(ship.Id, good, n, cost));
         return n;
@@ -249,7 +251,7 @@ public static class Refuel
         var stop = NearestFuelStation(u, ship, good.Value, ship.FuelAmount(good.Value), exclude: here?.Id);
         if (stop is not null && ship.FuelAmount(good.Value) >= trip
             && (ship.FuelAmount(good.Value) >= DetourFuelFraction * ship.Stats.FuelCapacity
-                || FuelBudgetShare * ship.Credits < MinWorthwhileStopUnits * stop.Market[good.Value].Price))
+                || FuelBudgetShare * u.WalletOf(ship).Credits < MinWorthwhileStopUnits * stop.Market[good.Value].Price))
             return TripPlan.Depart;   // Umweg erst unter der Umweg-Schwelle; darüber tankt das Schiff nur, wo es ohnehin steht
         if (stop is not null)
         {
@@ -303,7 +305,7 @@ public static class Refuel
         float need = MathF.Max(Consumption(player, dist, good) * PlayerEmergencyMargin, 5f);
         float price = u.Goods[good.Value].BasePrice * EmergencyPriceFactor;
         float n = MathF.Min(MathF.Ceiling(need), MathF.Floor(player.FuelSpace));
-        if (n <= 0f || MathF.Floor(player.Credits / price) < n)
+        if (n <= 0f || MathF.Floor(u.WalletOf(player).Credits / price) < n)
             return new(false, 0f, 0f,
                 $"Notruf nicht möglich: {n:0} {u.Goods[good.Value].Name} kosten {n * price:0} Cr (2× Basispreis) – zu wenig Credits.");
         float bought = EmergencyBuy(u, player, good.Value, n);

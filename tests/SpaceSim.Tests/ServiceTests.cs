@@ -73,7 +73,7 @@ public class TradeServiceTests
         var st = u.Stations.Values.First(s => s.Market.Values.Any(m => m.Amount >= 20f && m.Price > 0f));
         var good = st.Market.First(kv => kv.Value.Amount >= 20f && kv.Value.Price > 0f).Key;
         ship.Cargo.Clear();
-        ship.Credits = 1_000_000f;
+        u.WalletOf(ship).Credits = 1_000_000f;
         return (u, ship, st, good);
     }
 
@@ -103,12 +103,12 @@ public class TradeServiceTests
     }
 
     /// <summary>Zustand, den ein fehlgeschlagenes Angebot nicht verändern darf.</summary>
-    static (float Credits, Dictionary<GoodId, float> Cargo, float StationCredits, Dictionary<GoodId, float> Stock) Snapshot(Ship ship, Station st) =>
-        (ship.Credits, new Dictionary<GoodId, float>(ship.Cargo), st.Credits, st.Market.ToDictionary(kv => kv.Key, kv => kv.Value.Amount));
+    static (float Credits, Dictionary<GoodId, float> Cargo, float StationCredits, Dictionary<GoodId, float> Stock) Snapshot(Universe u, Ship ship, Station st) =>
+        (u.WalletOf(ship).Credits, new Dictionary<GoodId, float>(ship.Cargo), st.Credits, st.Market.ToDictionary(kv => kv.Key, kv => kv.Value.Amount));
 
-    static void AssertUnchanged((float Credits, Dictionary<GoodId, float> Cargo, float StationCredits, Dictionary<GoodId, float> Stock) before, Ship ship, Station st)
+    static void AssertUnchanged((float Credits, Dictionary<GoodId, float> Cargo, float StationCredits, Dictionary<GoodId, float> Stock) before, Universe u, Ship ship, Station st)
     {
-        Assert.Equal(before.Credits, ship.Credits, 3);
+        Assert.Equal(before.Credits, u.WalletOf(ship).Credits, 3);
         Assert.Equal(before.Cargo.Count, ship.Cargo.Count);
         foreach (var (g, v) in before.Cargo) Assert.Equal(v, ship.Cargo[g], 3);
         Assert.Equal(before.StationCredits, st.Credits, 3);
@@ -316,13 +316,13 @@ public class TradeServiceTests
     public void Trade_UnknownOffer_FailsWithoutSideEffects()
     {
         var (u, ship, st, good) = Setup();
-        float credits = ship.Credits, stCredits = st.Credits;
+        float credits = u.WalletOf(ship).Credits, stCredits = st.Credits;
         var svc = Trade();
 
         var r = svc.Execute(u, st, ship, new ServiceRequest("gibts_nicht", good, 1f));
 
         Assert.False(r.Success);
-        Assert.Equal(credits, ship.Credits, 3);
+        Assert.Equal(credits, u.WalletOf(ship).Credits, 3);
         Assert.Equal(stCredits, st.Credits, 3);
         Assert.Empty(ship.Cargo);
     }
@@ -339,7 +339,7 @@ public class TradeServiceTests
         var (u, ship, st, good) = Setup();
         ship.Cargo[good] = 5f;   // ein Verkauf hätte etwas zu tun
         var svc = Trade();
-        var before = Snapshot(ship, st);
+        var before = Snapshot(u, ship, st);
         var events = Record(u);
 
         var r = svc.Execute(u, st, ship, new ServiceRequest(key, good, 0f));
@@ -349,7 +349,7 @@ public class TradeServiceTests
         Assert.Equal(0f, r.Units);
         Assert.Equal(0f, r.Credits);
         Assert.Empty(events);
-        AssertUnchanged(before, ship, st);
+        AssertUnchanged(before, u, ship, st);
     }
 
     [Fact]
@@ -383,7 +383,7 @@ public class TradeServiceTests
         switch (failure)
         {
             case BuyFailure.NoCredits:
-                ship.Credits = 0f;
+                u.WalletOf(ship).Credits = 0f;
                 expectedMessage = "Nicht genügend Credits";
                 break;
             case BuyFailure.NoStock:
@@ -396,7 +396,7 @@ public class TradeServiceTests
                 break;
         }
         var svc = Trade();
-        var before = Snapshot(ship, st);
+        var before = Snapshot(u, ship, st);
         var events = Record(u);
 
         var r = svc.Execute(u, st, ship, new ServiceRequest($"{TradeService.Buy}:{good.Value}", good, 0f));
@@ -406,7 +406,7 @@ public class TradeServiceTests
         Assert.Equal(0f, r.Units);
         Assert.Equal(0f, r.Credits);
         Assert.Empty(events);
-        AssertUnchanged(before, ship, st);
+        AssertUnchanged(before, u, ship, st);
     }
 
     [Fact]
@@ -425,11 +425,11 @@ public class TradeServiceTests
         // Station zahlt nicht (Kasse leer)
         ship.Cargo[good] = 10f;
         st.Credits = 0f;
-        var before = Snapshot(ship, st);
+        var before = Snapshot(u, ship, st);
         r = svc.Execute(u, st, ship, new ServiceRequest(key, default, 0f));
         Assert.False(r.Success);
         Assert.Equal("Station kann nichts mehr abnehmen oder bezahlen", r.Message);
-        AssertUnchanged(before, ship, st);
+        AssertUnchanged(before, u, ship, st);
 
         // Ware wird hier nicht geführt
         var foreign = u.Goods.Keys.First(g => !st.Market.ContainsKey(g));
@@ -447,7 +447,7 @@ public class TradeServiceTests
         st.Market.Clear();   // kein Markt
         var svc = Trade();
         Assert.False(svc.IsAvailable(u, st));
-        var before = Snapshot(ship, st);
+        var before = Snapshot(u, ship, st);
         var events = Record(u);
 
         var r = svc.Execute(u, st, ship, new ServiceRequest($"{TradeService.Buy}:{good.Value}", good, 1f));
@@ -455,7 +455,7 @@ public class TradeServiceTests
         Assert.False(r.Success);
         Assert.False(string.IsNullOrWhiteSpace(r.Message));
         Assert.Empty(events);
-        AssertUnchanged(before, ship, st);
+        AssertUnchanged(before, u, ship, st);
     }
 
     [Fact]

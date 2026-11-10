@@ -92,7 +92,7 @@ public sealed partial class DockMenu : Control, IScreen
 		// Große Taste „Abdocken“ unten
 		var undock = At(card, new KitButton("Abdocken", new Vector2(540, 64)) { FontSize = 24, State = KitButtonState.Ready }, 20, 556);
 		undock.Pressed += () => UndockPressed?.Invoke();
-		At(card, Text($"Hülle repariert beim Andocken · {(int)ship.Credits} Credits · Liegeplätze/Gebühr: {UiPlaceholders.Tag}", 13, Dim, HorizontalAlignment.Center), 20, 628, 540, 20);
+		At(card, Text($"Hülle repariert beim Andocken · {(int)u.WalletOf(ship).Credits} Credits · Liegeplätze/Gebühr: {UiPlaceholders.Tag}", 13, Dim, HorizontalAlignment.Center), 20, 628, 540, 20);
 	}
 
 	/// <summary>Karte eines angedockten Schiffs (Hülle echt); null = Platzhalter für weitere Schiffe.</summary>

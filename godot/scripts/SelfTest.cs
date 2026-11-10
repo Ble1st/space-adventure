@@ -79,7 +79,7 @@ public partial class SelfTest : Node
 				}
 				{ // Phase 4c: Verbrauch im Flug, Reparatur an der Werft und Tanken über den Dock-Bereich (nur Offers/Execute)
 					var st = u.Stations[_m.TestDockedStation!.Value];
-					var pl = _m.Session.Player; pl.Credits = 100000f;
+					var pl = _m.Session.Player; _m.Session.U.PlayerWallet.Credits = 100000f;
 					Check(pl.TotalFuel < pl.Stats.FuelCapacity && pl.TotalFuel > 0f, $"Spielerflug hat Treibstoff verbraucht (Tank {pl.TotalFuel:0.0}/{pl.Stats.FuelCapacity:0})");
 					var plates = u.FindGood("hull_plates")!.Id;
 					st.Market[plates].Amount = System.Math.Max(st.Market[plates].Amount, 20f);
@@ -87,10 +87,10 @@ public partial class SelfTest : Node
 					_m.TestOpenDockArea(Ui.Screens.DockAreas.Repair);
 					Check(_m.TestScreenOpen("dock.repair"), "Bereich Reparatur & Tanken an der Werft geöffnet");
 					Check(_m.HudRef.DockRepair.TestRowCount >= 2, "Reparatur zeigt Zeilen aus IStationService.Offers");
-					float platesBefore = st.Market[plates].Amount, crBefore = pl.Credits;
+					float platesBefore = st.Market[plates].Amount, crBefore = _m.Session.U.PlayerWallet.Credits;
 					var rep = _m.HudRef.DockRepair.Execute("repair", "repair:full");
 					Check(rep.Success && pl.Hull >= pl.MaxHull - 0.01f, "Reparatur über Dienst+Oberfläche stellt die Hülle her");
-					Check(st.Market[plates].Amount < platesBefore && pl.Credits < crBefore, "Reparatur verbraucht Hüllenplatten der Station und kostet Credits");
+					Check(st.Market[plates].Amount < platesBefore && _m.Session.U.PlayerWallet.Credits < crBefore, "Reparatur verbraucht Hüllenplatten der Station und kostet Credits");
 					Check(_m.HudRef.DockRepair.TestMessage.Length > 0, "Ergebnismeldung der Reparatur wird angezeigt");
 					// Tanken: dieselbe Seite mit einer Raffinerie als Station (die Werft verkauft keinen Treibstoff)
 					var refinery = u.Stations.Values.First(x => x.TypeKey == "fuel_refinery");
@@ -98,31 +98,32 @@ public partial class SelfTest : Node
 					refinery.Market[prop].Amount = System.Math.Max(refinery.Market[prop].Amount, 60f);
 					_m.HudRef.DockCtx.Station = refinery;
 					pl.Fuel[prop] = 100f;
-					crBefore = pl.Credits;
+					crBefore = _m.Session.U.PlayerWallet.Credits;
 					var fuel = _m.HudRef.DockRepair.Execute("refuel", "refuel:25");
 					Check(fuel.Success && System.Math.Abs(pl.TotalFuel - 125f) < 0.01f, "Tanken über Dienst+Oberfläche füllt den Tank um 25");
-					Check(pl.Credits < crBefore, "Tanken kostet Credits");
+					Check(_m.Session.U.PlayerWallet.Credits < crBefore, "Tanken kostet Credits");
 					_m.HudRef.DockCtx.Station = st;
 				}
 				{ // Handel öffnen und über die Oberfläche (Dienst Execute) kaufen/verkaufen
 					var st = u.Stations[_m.TestDockedStation!.Value];
-					var pl = _m.Session.Player; pl.Credits = 100000f;
+					var pl = _m.Session.Player; _m.Session.U.PlayerWallet.Credits = 100000f;
 					_m.TestOpenDockArea(Ui.Screens.DockAreas.Trade);
 					Check(_m.TestScreenOpen("dock.trade"), "Handel-Bereich über das Menü geöffnet");
 					Check(_m.HudRef.DockTrade.TestRowCount > 0, "Handel zeigt Zeilen aus IStationService.Offers");
 					var gid = st.Market.First(k => k.Value.Amount >= 5f && k.Value.Price > 0f).Key;
 					float before = pl.Cargo.GetValueOrDefault(gid);
-					float creditsBefore = pl.Credits;
+					float creditsBefore = _m.Session.U.PlayerWallet.Credits;
 					float price = st.Market[gid].Price;
 					var buy = _m.HudRef.DockTrade.TestExecute($"buy:{gid.Value}", 5f);
 					Check(buy.Success && buy.Units == 5f, "Kaufen über Dienst+Oberfläche (Execute buy)");
 					Check(pl.Cargo.GetValueOrDefault(gid) == before + 5f, "Fracht nach Kauf um 5 erhöht");
-					Check(System.Math.Abs(pl.Credits - (creditsBefore - 5f * price)) < 0.01f, "Credits nach Kauf um 5 × Preis gesunken");
+					Check(System.Math.Abs(_m.Session.U.PlayerWallet.Credits - (creditsBefore - 5f * price)) < 0.01f, "Credits nach Kauf um 5 × Preis gesunken");
 					Check(_m.HudRef.DockTrade.TestMessage.Length > 0, "Ergebnismeldung (ServiceResult.Message) wird angezeigt");
 					var sell = _m.HudRef.DockTrade.TestExecute($"sell:{gid.Value}", 5f);
 					Check(sell.Success && sell.Units == 5f, "Verkaufen über Dienst+Oberfläche (Execute sell)");
 					Check(pl.Cargo.GetValueOrDefault(gid) == before, "Fracht nach Verkauf wieder auf Anfangsstand");
-					Check(System.Math.Abs(pl.Credits - creditsBefore) < 0.01f, "Credits nach Verkauf wieder hergestellt");
+					Check(System.Math.Abs(_m.Session.U.PlayerWallet.Credits - creditsBefore) < 0.01f, "Credits nach Verkauf wieder hergestellt");
+					Check(pl.Credits == 0f && u.WalletOf(pl) == u.PlayerWallet, "Handel bucht auf die Spielerkasse, das Spielerschiff selbst hat keine Credits (Phase 5b)");
 					// Alles verkaufen über sell_all
 					_m.HudRef.DockTrade.TestExecute($"buy:{gid.Value}", 3f);
 					var all = _m.HudRef.DockTrade.TestExecute("sell_all", 0f);
@@ -130,7 +131,7 @@ public partial class SelfTest : Node
 				}
 				{ // Phase 5a: Modul-Waren im Werftlager (stocks) erscheinen im Handel und lassen sich über die Oberfläche kaufen
 					var st = u.Stations[_m.TestDockedStation!.Value];
-					var pl = _m.Session.Player; pl.Credits = 100000f;
+					var pl = _m.Session.Player; _m.Session.U.PlayerWallet.Credits = 100000f;
 					var reactor = u.FindGood("reactor_mk1")!.Id;
 					Check(st.Market.ContainsKey(reactor) && st.IsStockOnly(reactor), "Werft führt den Reaktor als Lagerware ohne Rezept (stocks)");
 					st.Market[reactor].Amount = System.Math.Max(st.Market[reactor].Amount, 3f);
@@ -152,21 +153,21 @@ public partial class SelfTest : Node
 					float saved = pl.TotalFuel;
 					pl.Fuel[prop] = 0f;
 					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(pl) < 1f, "Leerer Tank deckelt das Tempo (Notantrieb)");
-					float cr = pl.Credits;
+					float cr = _m.Session.U.PlayerWallet.Credits;
 					_m.TestCommand("emergency");
-					Check(pl.TotalFuel > 0f && pl.Credits < cr, $"Notruf liefert Treibstoff gegen Credits (Tank {pl.TotalFuel:0.0})");
+					Check(pl.TotalFuel > 0f && _m.Session.U.PlayerWallet.Credits < cr, $"Notruf liefert Treibstoff gegen Credits (Tank {pl.TotalFuel:0.0})");
 					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(pl) >= 1f, "Nach dem Notruf wieder volles Tempo");
 					pl.Fuel[prop] = saved;
 				}
 				Next(); break;
 			case 4: // Speichern, Spiel verändern, Laden
 				Check(_m.TestSave(), "Speichern");
-				_m.Session.Player.Credits = 12345;
+				_m.Session.U.PlayerWallet.Credits = 12345;
 				_m.TestMenu("load");
 				Next(); break;
 			case 5:
 				Check(_m.Session.U.PlayerSector.Value == 4, "Nach Laden im Sektor Delta");
-				Check(_m.Session.Player.Credits != 12345, "Laden stellt gespeicherten Stand her");
+				Check(_m.Session.U.PlayerWallet.Credits != 12345, "Laden stellt gespeicherten Stand her");
 				Next(); break;
 			case 6: // Wirtschaft läuft weiter, NPC-Schiffe werden dargestellt
 				if (_frame - _stageStart > 600)
@@ -236,7 +237,7 @@ public partial class SelfTest : Node
 				else if (_frame - _stageStart > 30_000) Fail("Keine Fracht abgebaut, Status: " + _m.TestMinerStatus);
 				break;
 			case 16: // verkaufen
-				if (_m.TestSales >= 1) { Log($"Verkauf nach {_frame - _stageStart} Frames, Credits {_m.Session.Player.Credits:0}"); Check(_m.Session.Player.Credits > 500f, "Credits gestiegen"); Check(_m.TestHits == 0, $"Auto-Mining ohne harte Kollision (Treffer: {_m.TestHits}, niedrigste Hülle {_m.TestLowestHull:0}) – {_m.TestLastHit}"); Next(); }
+				if (_m.TestSales >= 1) { Log($"Verkauf nach {_frame - _stageStart} Frames, Credits {_m.Session.U.PlayerWallet.Credits:0}"); Check(_m.Session.U.PlayerWallet.Credits > 500f, "Credits gestiegen"); Check(_m.TestHits == 0, $"Auto-Mining ohne harte Kollision (Treffer: {_m.TestHits}, niedrigste Hülle {_m.TestLowestHull:0}) – {_m.TestLastHit}"); Next(); }
 				else if (_frame - _stageStart > 40_000) Fail("Kein Verkauf, Status: " + _m.TestMinerStatus);
 				break;
 			case 17: // Kommandozentrale (UI.md Abschnitt 4): alle Bereiche öffnen + aktualisieren ohne Ausnahme

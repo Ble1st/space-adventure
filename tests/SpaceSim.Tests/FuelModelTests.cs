@@ -40,13 +40,13 @@ public class FuelModelTests
     }
 
     /// <summary>
-    /// Demotet einen aktuellen Save (v6) auf v5: Version 5, die Waren aus Phase 5a (Bausatzstufen, Modul-Waren; Ids ab 24) entfernt,
+    /// Demotet einen aktuellen Save (über <see cref="WalletTests.ToV6Json"/>) auf v5: Version 5, die Waren aus Phase 5a (Bausatzstufen, Modul-Waren; Ids ab 24) entfernt,
     /// ship_kit_light heißt wieder ship_kit, die neuen Content-Felder (Kit der Klassen, Name der Module, Color der Slotarten,
     /// Stocks der Stationstypen) entfernt. Stationen und Märkte bleiben (sie verweisen auf dieselben Ids, die die Migration wieder anhängt).
     /// </summary>
     internal static string ToV5Json(string v6Json)
     {
-        var node = JsonNode.Parse(v6Json)!.AsObject();
+        var node = JsonNode.Parse(WalletTests.ToV6Json(v6Json))!.AsObject();
         node["Version"] = 5;
         var goods = node["Goods"]!.AsArray();
         for (int i = goods.Count - 1; i >= 0; i--) if ((int)goods[i]!["Id"]! >= DemoUniverse.ShipKitMedium.Value) goods.RemoveAt(i);
@@ -242,7 +242,7 @@ public class FuelModelTests
     [Fact]
     public void SaveLoad_V5_Roundtrip_IdentischInklHashFuelUndContent()
     {
-        Assert.Equal(6, SaveGame.CurrentVersion);   // v6 (Phase 5a); Fuel kam mit v5
+        Assert.Equal(7, SaveGame.CurrentVersion);   // v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);

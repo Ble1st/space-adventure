@@ -31,6 +31,16 @@ public sealed class Universe
     public SectorId PlayerSector;
     public ShipId PlayerShip;
 
+    /// <summary>Kasse der Spielerperson (Phase 5b); gespeichert und gehasht. Siehe <see cref="WalletOf(Ship)"/>.</summary>
+    public PlayerWallet PlayerWallet = new();
+
+    /// <summary>
+    /// Kasse, auf die ein Schiff bucht: Spielerschiffe (<see cref="Ship.IsPlayer"/>) die <see cref="PlayerWallet"/>,
+    /// NPC-Schiffe sich selbst (<see cref="Ship.Credits"/>, Verhalten wie vor Phase 5b). Phase 9 ersetzt die Fallunterscheidung
+    /// durch die Kasse des Besitzers.
+    /// </summary>
+    public ICreditAccount WalletOf(Ship ship) => ship.IsPlayer ? PlayerWallet : ship;
+
     /// <summary>Ereignisbus und Schiffsindex sind abgeleitet und gehören nicht zum Spielstand.</summary>
     public SimEvents Events { get; } = new();
     public ShipTracker Tracker { get; } = new();

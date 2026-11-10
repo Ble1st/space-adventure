@@ -164,7 +164,9 @@ public static class WorldBuilder
             for (int i = 0; i < group.Count; i++) u.AddShip(NewShip(u, new ShipId(nextShip++), role, group.Faction, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model));
         }
 
-        var player = NewShip(u, new ShipId(100), ShipRole.Player, def.Player.Faction, new SectorId(def.Player.Sector), def.Player.Credits, 100, def.Player.Model);
+        // Phase 5b: das Startgeld gehört der Person (Spielerkasse), nicht dem Schiff
+        var player = NewShip(u, new ShipId(100), ShipRole.Player, def.Player.Faction, new SectorId(def.Player.Sector), 0f, 100, def.Player.Model);
+        u.PlayerWallet = new PlayerWallet { Credits = def.Player.Credits, Faction = new FactionId(def.Player.Faction) };
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;

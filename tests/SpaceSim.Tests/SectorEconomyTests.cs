@@ -56,8 +56,9 @@ public class SectorEconomyTests
     [Fact]
     public void TotalValue_IsCreditsPlusCargoAtBasePrice()
     {
+        // NPC-Schiff: das Schiff ist seine eigene Kasse → Credits + Fracht
         var u = DemoUniverse.Create();
-        var ship = u.Ships[u.PlayerShip];
+        var ship = u.Ships.Values.First(s => !s.IsPlayer);
         ship.Credits = 100f;
         ship.Cargo.Clear();
         ship.Cargo[DemoUniverse.IronOre] = 5f;
@@ -69,5 +70,19 @@ public class SectorEconomyTests
 
         ship.Cargo.Clear();
         Assert.Equal(100f, SectorEconomy.TotalValue(u, ship), 3);   // leere Fracht: nur Credits
+    }
+
+    [Fact]
+    public void TotalValue_Spielerschiff_NurFracht_VermoegenMitSpielerkasse()
+    {
+        // Phase 5b: das Geld des Spielers liegt in der Spielerkasse, das Schiff ist nur Besitz (Fracht)
+        var u = DemoUniverse.Create();
+        var ship = u.Ships[u.PlayerShip];
+        u.PlayerWallet.Credits = 100f;
+        ship.Cargo.Clear();
+        ship.Cargo[DemoUniverse.IronOre] = 5f;
+        float cargo = 5f * u.Goods[DemoUniverse.IronOre].BasePrice;
+        Assert.Equal(cargo, SectorEconomy.TotalValue(u, ship), 3);
+        Assert.Equal(100f + cargo, SectorEconomy.PlayerNetWorth(u), 3);
     }
 }

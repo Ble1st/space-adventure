@@ -72,7 +72,7 @@ public partial class UiShots : Node
 				var u = _m.Session.U;
 				var prop = u.FindGood("propellant")!.Id;
 				_m.Session.Player.Fuel[prop] = 80f;
-				_m.Session.Player.Credits = 4000f;
+				_m.Session.U.PlayerWallet.Credits = 4000f;
 				_m.HudRef.DockCtx.Station = u.Stations.Values.First(x => x.TypeKey == "fuel_refinery");
 				_m.HudRef.Screens.Show(_m.HudRef.DockRepair);
 				_stage = 211; _wait = 20; break;

@@ -79,7 +79,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, 20, 10, 1240, 64);
 		At(top, Text(st.Name, 28, Cyan), 0, 6);
 		At(top, Text($"{type} · {faction} · {sector}", 16, Dim), 0, 42);
-		At(top, Text($"{(int)ship.Credits} Credits", 26, Orange, HorizontalAlignment.Right), 940, 0, 300, 32);
+		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", 26, Orange, HorizontalAlignment.Right), 940, 0, 300, 32);
 		At(top, Text($"Kasse der Station {st.Credits:0} Cr", 16, Dim, HorizontalAlignment.Right), 940, 38, 300, 22);
 
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Daten aus DockAreas) ──
@@ -167,7 +167,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		var cargoBar = new KitBar(w - 28, 14, Cyan);
 		cargoBar.Set(ship.UsedVolume(u), Cyan, ship.CargoCapacity);
 		sv.AddChild(cargoBar);
-		sv.AddChild(Text($"{ship.UsedVolume(u):0.#} von {ship.CargoCapacity:0} m³ · {(int)ship.Credits} Credits", 14, White));
+		sv.AddChild(Text($"{ship.UsedVolume(u):0.#} von {ship.CargoCapacity:0} m³ · {(int)u.WalletOf(ship).Credits} Credits", 14, White));
 
 		sv.AddChild(Text("An Bord", 15, Dim));
 		foreach (var (gid, amount) in ship.Cargo)

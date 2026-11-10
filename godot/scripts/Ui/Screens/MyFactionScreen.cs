@@ -8,9 +8,8 @@ using static SpaceAdventure.Ui.Kit.UiKit;
 namespace SpaceAdventure.Ui.Screens;
 
 /// <summary>
-/// Kommandozentrale „Meine Fraktion“ (UI.md Abschnitt 4): Kasse der Person (= Credits des Spielerschiffs –
-/// im Core hängt das Geld heute am Schiff und wandert später zur Person, siehe POLITIK.md „Spielerkasse“,
-/// deshalb so beschriftet), Zahl eigener Schiffe/Stationen (echt). Größenstufe, Fortschritt, Mitgliedschaft,
+/// Kommandozentrale „Meine Fraktion“ (UI.md Abschnitt 4): Kasse der Person (echt: <c>Universe.PlayerWallet</c>,
+/// Phase 5b, POLITIK.md „Spielerkasse“), Zahl eigener Schiffe/Stationen (echt). Größenstufe, Fortschritt, Mitgliedschaft,
 /// Unterhalt, Liegegebühr, Einnahmen, Ruf/Fahndung und Fähigkeiten mit Schloss sind Platzhalter über
 /// <see cref="UiPlaceholders"/>.
 /// </summary>
@@ -21,7 +20,6 @@ public sealed partial class MyFactionScreen : CommandScreen
 	protected override void BuildContent(Control inner)
 	{
 		var u = Ctx.U;
-		var ship = Ctx.Player;
 		int myShips = u.Ships.Values.Count(s => s.IsPlayer);
 		int myStations = 0;   // Spielerbesitz an Stationen gibt es im Core noch nicht
 
@@ -37,9 +35,9 @@ public sealed partial class MyFactionScreen : CommandScreen
 		// ── Karte 2 (rechts oben): Kasse der Person ──
 		var b = CardBg(inner, 524, 12, 486, 250, Card);
 		At(b, Text("Kasse der Person", 18, Cyan), 20, 14, 446, 26);
-		// Das Geld hängt heute am Spielerschiff (Ship.Credits) und wandert später zur Person (POLITIK.md „Spielerkasse“)
-		At(b, Text($"{(int)ship.Credits} Cr", 26, Orange, HorizontalAlignment.Right), 20, 42, 446, 34);
-		WrappedText(b, "= Credits des Spielerschiffs (echt) – wandert später zur Person, siehe POLITIK.md „Spielerkasse“", 20, 80, 446, 12, new Color(Dim, 0.75f), 16);
+		// Phase 5b: das Geld hängt an der Person (Universe.PlayerWallet), nicht am Schiff (POLITIK.md „Spielerkasse“)
+		At(b, Text($"{(int)u.PlayerWallet.Credits} Cr", 26, Orange, HorizontalAlignment.Right), 20, 42, 446, 34);
+		WrappedText(b, "Spielerkasse (echt): Geld der Person, nicht des Schiffs – Handel, Tanken und Reparatur buchen hierauf", 20, 80, 446, 12, new Color(Dim, 0.75f), 16);
 		Row(b, 20, 126, 446, "Unterhalt Schiffe/Tag", UiPlaceholders.MyFactionUpkeep, 14);
 		Row(b, 20, 150, 446, "Liegegebühr/Tag (fremde St.)", UiPlaceholders.MyFactionBerthFee, 14);
 		Row(b, 20, 174, 446, "Einnahmen/Tag (Schätzung)", UiPlaceholders.MyFactionIncome, 14);

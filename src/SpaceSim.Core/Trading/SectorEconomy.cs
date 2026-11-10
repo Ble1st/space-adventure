@@ -42,6 +42,15 @@ public static class SectorEconomy
         return sum;
     }
 
-    /// <summary>Gesamtwert eines Schiffs für die Besitz-Anzeige: Credits + Fracht zu Basispreisen.</summary>
-    public static float TotalValue(Universe u, Ship ship) => ship.Credits + CargoValueBasePrice(u, ship);
+    /// <summary>
+    /// Gesamtwert eines Schiffs für die Besitz-Anzeige: eigene Credits + Fracht zu Basispreisen. Seit Phase 5b hat ein
+    /// Spielerschiff keine eigenen Credits mehr (das Geld liegt in der Spielerkasse, siehe <see cref="PlayerNetWorth"/>),
+    /// sein Wert ist also nur die Fracht; bei NPC-Schiffen ist das Schiff selbst die Kasse.
+    /// </summary>
+    public static float TotalValue(Universe u, Ship ship) =>
+        (ReferenceEquals(u.WalletOf(ship), ship) ? ship.Credits : 0f) + CargoValueBasePrice(u, ship);
+
+    /// <summary>Vermögen der Spielerperson: Spielerkasse + Wert aller Spielerschiffe (<see cref="TotalValue"/>).</summary>
+    public static float PlayerNetWorth(Universe u) =>
+        u.PlayerWallet.Credits + u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value).Sum(s => TotalValue(u, s));
 }
