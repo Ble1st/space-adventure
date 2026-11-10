@@ -65,10 +65,15 @@ public class FuelModelTests
         Assert.InRange(p.BasePrice, u.Goods[DemoUniverse.Water].BasePrice, u.Goods[DemoUniverse.Hydrogen].BasePrice * 1.2f);
         // Phase 4b: Treibstoffraffinerie (3 Wasserstoff + 1 Energie → 4 Treibstoff); zwei Startwelt-Raffinerien führen propellant im Markt
         var type = Assert.Single(u.StationTypes.Values, t => t.Key == "fuel_refinery");
-        var r = Assert.Single(type.Recipes);
+        Assert.Equal(2, type.Recipes.Count);
+        var r = type.Recipes[0];
         Assert.Equal(3f, r.Inputs[DemoUniverse.Hydrogen]);
         Assert.Equal(1f, r.Inputs[DemoUniverse.Energy]);
         Assert.Equal(4f, r.Outputs[p.Id]);
+        // Grundproduktion (Gasförderung) ohne Eingänge: Treibstoff versiegt nicht, wenn die Wasserstoffkette stockt
+        var base_ = type.Recipes[1];
+        Assert.Empty(base_.Inputs);
+        Assert.Equal(1f, base_.Outputs[p.Id]);
         var refineries = u.Stations.Values.Where(st => st.TypeKey == "fuel_refinery").OrderBy(st => st.Id.Value).ToList();
         Assert.Equal(2, refineries.Count);
         Assert.All(refineries, st => Assert.True(st.Market.ContainsKey(p.Id)));

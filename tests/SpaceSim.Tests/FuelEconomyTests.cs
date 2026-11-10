@@ -276,6 +276,22 @@ public class FuelEconomyTests
     }
 
     [Fact]
+    public void Raffinerie_ProduziertGrundmengeAuchOhneWasserstoff()
+    {
+        var u = DemoUniverse.Create();
+        var ref_ = Refinery(u);
+        var good = DemoUniverse.Propellant;
+        ref_.Market[DemoUniverse.Hydrogen].Amount = 0f;
+        ref_.Market[good].Amount = 0f;
+        ref_.Market[good].Target = 100f;
+        var before = ref_.Market[good].Amount;
+        // direkt die Produktion laufen lassen, ohne Händler (Wasserstoff bleibt 0)
+        var prod = new ProductionSystem();
+        for (int i = 0; i < 200; i++) { u.Tick++; ref_.Market[DemoUniverse.Hydrogen].Amount = 0f; prod.Step(u, 1); }
+        Assert.True(ref_.Market[good].Amount >= before + 8f);   // 200 Ticks / 20 → ≥ 10 Zyklen à 1
+    }
+
+    [Fact]
     public void Determinismus_ZweiLaeufeGleicherSeed_und_SaveLoadFortsetzung_BitIdentisch()
     {
         static Universe Run(ulong seed, int ticks)

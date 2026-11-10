@@ -578,6 +578,13 @@
      "out": {
       "propellant": 4
      }
+    },
+    {
+     "ticks": 20,
+     "in": {},
+     "out": {
+      "propellant": 1
+     }
     }
    ]
   }
