@@ -102,7 +102,7 @@ public static class TradeActions
             if (st.Id == exclude) continue;
             float quote = Quote(u, ship, st);
             if (quote <= 0f) continue;
-            float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id));
+            float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id), ship);
             if (float.IsPositiveInfinity(time)) continue;
             float score = quote / (time + 10f);
             if (score > bestScore) { bestScore = score; best = st; }

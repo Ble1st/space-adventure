@@ -43,18 +43,32 @@ public sealed class FleetSystem : ISimSystem
 
         var yard = u.Stations.Values
             .Where(s => s.Market.TryGetValue(kit.Id, out var e) && e.Amount >= 1f && u.IsReachable(parent.Sector, s.Sector))
-            .OrderBy(s => Travel.Estimate(u, parent.Sector, parent.Position, s.Sector, s.Position)).ThenBy(s => s.Id.Value).FirstOrDefault();
+            .OrderBy(s => Travel.Estimate(u, parent.Sector, parent.Position, s.Sector, s.Position, parent)).ThenBy(s => s.Id.Value).FirstOrDefault();
         if (yard is null) return;   // keine Werft mit Bausatz: kein neues Schiff
 
         yard.Market[kit.Id].Amount -= 1f;
         yard.Credits += rules.NewShipCost;
         parent.Credits -= rules.NewShipCost + rules.NewShipStartCredits;
         var id = u.NewShipId();
-        u.AddShip(new Ship
+        // Neukauf übernimmt Modell, Slotliste und Fit des Elternschiffs (Phase 3)
+        var child = new Ship
         {
-            Id = id, Role = role, Capabilities = CapabilityDefaults.ForRole(role), Controller = CapabilityDefaults.ControllerFor(role),
-            Faction = parent.Faction, CargoCapacity = parent.CargoCapacity,
-            Sector = yard.Sector, Position = yard.DockPoint(id), Credits = rules.NewShipStartCredits,
-        });
+            Id = id, Role = role, Controller = CapabilityDefaults.ControllerFor(role),
+            Faction = parent.Faction, Sector = yard.Sector, Position = yard.DockPoint(id), Credits = rules.NewShipStartCredits,
+        };
+        if (parent.HasModel)
+        {
+            child.ModelKey = parent.ModelKey;
+            child.Slots = parent.Slots.Select(s => new ClassSlot { Type = s.Type, Size = s.Size, Facing = s.Facing, Arc = s.Arc }).ToList();
+            child.Fit = new List<string?>(parent.Fit);
+            if (child.RecomputeStats(u)) child.CargoCapacity = child.Stats.Cargo;
+            else { child.ModelKey = ""; child.Slots.Clear(); child.Fit.Clear(); child.CargoCapacity = parent.CargoCapacity; child.Capabilities = CapabilityDefaults.ForRole(role); }
+        }
+        else
+        {
+            child.CargoCapacity = parent.CargoCapacity;
+            child.Capabilities = CapabilityDefaults.ForRole(role);
+        }
+        u.AddShip(child);
     }
 }

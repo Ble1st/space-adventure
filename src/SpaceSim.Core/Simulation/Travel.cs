@@ -9,14 +9,19 @@ namespace SpaceSim.Core.Simulation;
 /// </summary>
 public static class Travel
 {
-    /// <summary>Einheiten pro Tick für NPC-Schiffe.</summary>
+    /// <summary>Einheiten pro Tick für Schiffe ohne Modell.</summary>
     public const float ShipSpeed = 8f;
 
-    public static List<Leg>? Plan(Universe u, long startTick, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos)
+    /// <summary>Tempo des Schiffs aus seinem Modell (<see cref="Ship.Stats"/>.Speed), sonst die Konstante.</summary>
+    public static float SpeedOf(Ship? ship) =>
+        ship is not null && ship.HasModel && ship.Stats.Speed > 0f ? ship.Stats.Speed : ShipSpeed;
+
+    public static List<Leg>? Plan(Universe u, long startTick, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
     {
         var route = u.FindRoute(fromSector, toSector);
         if (route is null) return null;
 
+        float speed = SpeedOf(ship);
         var legs = new List<Leg>();
         long t = startTick;
         var sector = fromSector;
@@ -24,27 +29,27 @@ public static class Travel
         foreach (var gid in route)
         {
             var gate = u.Gates[gid];
-            t = AddSectorLegs(u, legs, sector, pos, gate.Position, t);
+            t = AddSectorLegs(u, legs, sector, pos, gate.Position, t, speed);
             var far = u.Gates[gate.Target];
             sector = far.Sector;
             pos = far.Position;
         }
-        AddSectorLegs(u, legs, sector, pos, toPos, t);
+        AddSectorLegs(u, legs, sector, pos, toPos, t, speed);
         return legs;
     }
 
     /// <summary>Eine Teilstrecke je Segment des ausweichenden Pfads innerhalb eines Sektors.</summary>
-    static long AddSectorLegs(Universe u, List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start)
+    static long AddSectorLegs(Universe u, List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start, float speed)
     {
         var pts = PathPlanner.Plan(from, to, u.GetObstacles(sector));
         long t = start;
-        for (int i = 1; i < pts.Count; i++) t = AddLeg(legs, sector, pts[i - 1], pts[i], t);
+        for (int i = 1; i < pts.Count; i++) t = AddLeg(legs, sector, pts[i - 1], pts[i], t, speed);
         return t;
     }
 
-    static long AddLeg(List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start)
+    static long AddLeg(List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start, float speed)
     {
-        long dur = Math.Max(1, (long)MathF.Ceiling(Vec2.Distance(from, to) / ShipSpeed));
+        long dur = Math.Max(1, (long)MathF.Ceiling(Vec2.Distance(from, to) / speed));
         legs.Add(new Leg(sector, from, to, start, start + dur));
         return start + dur;
     }
@@ -53,7 +58,7 @@ public static class Travel
     /// Schnelle Schätzung der Reisedauer ohne Umwegplanung (Luftlinie je Sektor, Route aus dem Tick-Cache).
     /// Für KI-Bewertungen in verschachtelten Schleifen; PositiveInfinity wenn nicht erreichbar.
     /// </summary>
-    public static float Estimate(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos)
+    public static float Estimate(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
     {
         var route = u.CachedRoute(fromSector, toSector);
         if (route is null) return float.PositiveInfinity;
@@ -65,19 +70,19 @@ public static class Travel
             dist += Vec2.Distance(pos, gate.Position);
             pos = u.Gates[gate.Target].Position;
         }
-        return (dist + Vec2.Distance(pos, toPos)) / ShipSpeed + route.Count + 1;
+        return (dist + Vec2.Distance(pos, toPos)) / SpeedOf(ship) + route.Count + 1;
     }
 
     /// <summary>Genaue Reisedauer in Ticks inkl. Umwege; PositiveInfinity wenn nicht erreichbar.</summary>
-    public static float Ticks(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos)
+    public static float Ticks(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
     {
-        var legs = Plan(u, 0, fromSector, fromPos, toSector, toPos);
+        var legs = Plan(u, 0, fromSector, fromPos, toSector, toPos, ship);
         return legs is null ? float.PositiveInfinity : legs[^1].EndTick;
     }
 
     public static void Start(Universe u, Ship ship, SectorId toSector, Vec2 toPos)
     {
-        var legs = Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos)
+        var legs = Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos, ship)
                    ?? new List<Leg> { new(toSector, toPos, toPos, u.Tick, u.Tick + 1) };   // unerreichbar: sofort "teleportieren"
         // Treibstoffkosten: Sink, Credits verschwinden aus dem Umlauf
         float distance = legs.Sum(l => Vec2.Distance(l.From, l.To));

@@ -1234,6 +1234,17 @@
     "mining_laser_1",
     "cargo_universal_60"
    ]
+  },
+  {
+   "key": "unit_player",
+   "class": "unit_miner",
+   "name": "Einheitsspieler",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "cargo_universal_100"
+   ]
   }
  ],
  "ships": [

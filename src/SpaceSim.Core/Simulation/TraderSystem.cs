@@ -63,7 +63,7 @@ public sealed class TraderSystem : ISimSystem
                 float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
                 if (available < 1f) continue;
                 float units = MathF.Min(capacityUnits, available);
-                float toBuy = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id));
+                float toBuy = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
                 if (float.IsPositiveInfinity(toBuy)) continue;
                 foreach (var sell in traders)
                 {
@@ -72,7 +72,7 @@ public sealed class TraderSystem : ISimSystem
                     float margin = s.Price - b.Price;
                     if (margin <= 0f || !CanAfford(sell, s.Price, units)) continue;
                     if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(units, 5f)) continue;   // Lager voll: nimmt nichts mehr
-                    float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id));
+                    float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship);
                     if (float.IsPositiveInfinity(toSell)) continue;
                     float score = margin * units / (toBuy + toSell);
                     if (score > bestScore) { bestScore = score; best = new TradeOrder(buy.Id, sell.Id, good.Id); }

@@ -10,6 +10,7 @@ public static class UniverseHash
         ulong h = 14695981039346656037UL;
         void Mix(ulong v) { h ^= v; h *= 1099511628211UL; }
         void MixF(float f) => Mix((ulong)BitConverter.SingleToInt32Bits(MathF.Round(f, 3)));
+        void MixString(string t) { Mix((ulong)t.Length); foreach (var c in t) Mix(c); }
 
         Mix((ulong)u.Tick); Mix(u.Rng.State);
         foreach (var st in u.Stations.Values.OrderBy(s => s.Id.Value))
@@ -21,6 +22,8 @@ public static class UniverseHash
         {
             Mix((ulong)s.Id.Value); Mix((ulong)s.Sector.Value); MixF(s.Position.X); MixF(s.Position.Y); MixF(s.Credits);
             Mix(s.Transit is null ? 0UL : (ulong)s.Transit.ArrivalTick); Mix((ulong)s.Phase); Mix((ulong)s.MinePhase); MixF(s.ShotTimer); Mix((ulong)s.MineAsteroid); Mix((ulong)s.Capabilities); Mix((ulong)s.Controller);
+            MixString(s.ModelKey);                                   // Phase 3: Modell und Fit gehören zum Spielstand
+            foreach (var f in s.Fit) { if (f is null) Mix(0UL); else MixString(f); }
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))

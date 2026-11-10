@@ -378,7 +378,7 @@ public partial class Main : Node3D
 
 		// Hülle regeneriert langsam, wenn eine Weile nichts getroffen hat
 		_sinceHit += delta;
-		if (_sinceHit > 5f && PlayerData.Hull < Ship.MaxHull) PlayerData.Hull = Mathf.Min(Ship.MaxHull, PlayerData.Hull + 3f * delta);
+		if (_sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
 
 		bool frozen = _hud.AnyModalOpen || _docked != null;
 		_miningStep = _miner.Enabled && !frozen
@@ -646,8 +646,8 @@ public partial class Main : Node3D
 		tw.Parallel().TweenProperty(_player, "scale", Vector3.One * 0.1f, 0.7);
 		tw.TweenCallback(Callable.From(() => { _player.Visible = false; _transition = false; }));
 
-		bool repaired = PlayerData.Hull < Ship.MaxHull - 0.5f;
-		PlayerData.Hull = Ship.MaxHull;
+		bool repaired = PlayerData.Hull < PlayerData.MaxHull - 0.5f;
+		PlayerData.Hull = PlayerData.MaxHull;
 		_sfx.Play(SfxId.Dock);
 		ShowDockMenu();
 		if (repaired) _hud.Toast("Hülle repariert");
@@ -864,7 +864,7 @@ public partial class Main : Node3D
 		_player.Position = new Vector3(spot.X, 0, spot.Y);
 		_player.Velocity = Vector3.Zero;
 		_player.GiveGrace(3f);
-		PlayerData.Hull = Ship.MaxHull;
+		PlayerData.Hull = PlayerData.MaxHull;
 		_chunks.Clear();
 		CancelAutopilot();
 		if (_miner.Enabled) SetAutoMining(false, "Auto-Mining unterbrochen (Schiff zerstört)");

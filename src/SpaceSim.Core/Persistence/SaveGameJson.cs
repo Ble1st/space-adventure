@@ -1,4 +1,5 @@
 using System.Text.Json;
+using SpaceSim.Core.Content;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Persistence;
@@ -32,7 +33,7 @@ public static class SaveGameJson
             var savedAt = DateTimeOffset.TryParse(save.SavedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var t) ? t : DateTimeOffset.UtcNow;
             return (u, savedAt);
         }
-        catch (Exception e) when (e is KeyNotFoundException or ArgumentException or FormatException or InvalidOperationException)
+        catch (Exception e) when (e is KeyNotFoundException or ArgumentException or FormatException or InvalidOperationException or WorldFormatException)
         {
             throw new SaveFormatException("Spielstand ist inkonsistent: " + e.Message, e);
         }
@@ -132,11 +133,36 @@ public static class SaveGameJson
         s.Version = 3;
     }
 
+    /// <summary>
+    /// v3 → v4: Schiffe bekommen <c>ModelKey</c> (Einheitsmodell nach Rolle und Laderaum, dieselbe Zuordnung wie
+    /// <c>WorldBuilder.UnitModelFor</c>: trader/100 → unit_trader_100, trader/60 → unit_trader_60,
+    /// miner/100 → unit_miner_100, miner/60 → unit_miner_60, player → unit_player, sonst "" ohne Slots).
+    /// Slots/Fit setzt die Migration nicht; sie werden beim Laden aus dem Modell gefüllt. Da v3-Saves die
+    /// Slot-Content-Sektionen nicht kennen, reicht die Migration die Default-Welt-Registry nach (v4-Saves
+    /// speichern die Sektionen selbst wie die übrigen Content-Sektionen).
+    /// </summary>
+    static void MigrateV3ToV4(SaveGame s)
+    {
+        foreach (var ship in s.Ships)
+        {
+            var role = Enum.TryParse<ShipRole>(ship.Role, ignoreCase: true, out var r) ? r : (ShipRole)(-1);
+            ship.ModelKey = WorldBuilder.UnitModelFor(role, ship.CargoCapacity);
+        }
+        if (s.ShipModels.Count == 0 && s.Ships.Any(sh => !string.IsNullOrEmpty(sh.ModelKey)))
+        {
+            var content = new Universe();
+            WorldBuilder.LoadSlotContent(content, WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()));
+            UniverseSerializer.WriteSlotContent(content, s);
+        }
+        s.Version = 4;
+    }
+
     /// <summary>Hebt ältere Spielstände schrittweise auf das aktuelle Format. Bei Formatänderungen hier je Version einen Schritt ergänzen.</summary>
     static SaveGame Migrate(SaveGame s)
     {
         if (s.Version < 2) MigrateV1ToV2(s);
         if (s.Version < 3) MigrateV2ToV3(s);
+        if (s.Version < 4) MigrateV3ToV4(s);
         return s;
     }
 }

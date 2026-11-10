@@ -60,7 +60,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 		}
 
 		// Hülle, Fracht/Laderaum, Credits, Auftrag – echt
-		BarLine(cv, "Hülle", ship.Hull, Ship.MaxHull, ship.Hull > 60f ? Green : Orange, $"{(int)ship.Hull}");
+		BarLine(cv, "Hülle", ship.Hull, ship.MaxHull, ship.Hull > 60f ? Green : Orange, $"{(int)ship.Hull}");
 		BarLine(cv, "Fracht", ship.UsedVolume(u), ship.CargoCapacity, Cyan, $"{ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³");
 		cv.AddChild(Text($"Credits {(int)ship.Credits:0} · Auftrag: {OrderText(u, ship)}", 16, White));
 

@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -26,6 +26,14 @@ public sealed class SaveGame
     public List<GoodSave> Goods { get; set; } = new();
     public List<AsteroidClassSave> AsteroidClasses { get; set; } = new();
     public List<StationTypeSave> StationTypes { get; set; } = new();
+    /// <summary>Slotarten (Content; v3-Saves kennen die Sektionen nicht, die Migration reicht die Default-Welt nach).</summary>
+    public List<SlotTypeSave> SlotTypes { get; set; } = new();
+    /// <summary>Module (Content, wie die Rezepte der Stationstypen im Save abgelegt).</summary>
+    public List<ModuleSave> Modules { get; set; } = new();
+    /// <summary>Schiffsklassen (Content).</summary>
+    public List<ShipClassSave> ShipClasses { get; set; } = new();
+    /// <summary>Schiffsmodelle (Content).</summary>
+    public List<ShipModelSave> ShipModels { get; set; } = new();
     public List<FactionSave> Factions { get; set; } = new();
     public List<SectorSave> Sectors { get; set; } = new();
     public List<GateSave> Gates { get; set; } = new();
@@ -125,6 +133,52 @@ public sealed class StationSave
 public sealed class OrderSave { public string Kind { get; set; } = ""; public int A { get; set; } public int B { get; set; } public int C { get; set; } }
 public sealed class LegSave { public int Sector { get; set; } public Vec2 From { get; set; } public Vec2 To { get; set; } public long Start { get; set; } public long End { get; set; } }
 
+/// <summary>Ein Slot eines Schiffs im Save (Art, Größe, optional facing/arc als Text).</summary>
+public sealed class ShipSlotSave
+{
+    public string Type { get; set; } = "";
+    /// <summary>Slotgröße S/M/L/XL als Text.</summary>
+    public string Size { get; set; } = "S";
+    public string? Facing { get; set; }
+    public float? Arc { get; set; }
+}
+
+public sealed class SlotTypeSave { public string Key { get; set; } = ""; public string Name { get; set; } = ""; public bool Required { get; set; } }
+
+public sealed class ModuleSave
+{
+    public string Key { get; set; } = "";
+    public string Slot { get; set; } = "";
+    public string Size { get; set; } = "S";
+    public int Tier { get; set; } = 1;
+    public List<string> Grants { get; set; } = new();
+    public Dictionary<string, float> Stats { get; set; } = new();
+    public float PowerDraw { get; set; }
+    public float PeakDraw { get; set; }
+    public float Mass { get; set; }
+    public float Upkeep { get; set; }
+    public string Holds { get; set; } = "any";
+    public Dictionary<string, float> Cost { get; set; } = new();
+}
+
+public sealed class ShipClassSave
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Size { get; set; } = "S";
+    public float BaseHull { get; set; } = 100;
+    public float BaseMass { get; set; } = 10;
+    public List<ShipSlotSave> Slots { get; set; } = new();
+}
+
+public sealed class ShipModelSave
+{
+    public string Key { get; set; } = "";
+    public string Class { get; set; } = "";
+    public string Name { get; set; } = "";
+    public List<string?> Fit { get; set; } = new();
+}
+
 public sealed class TransitSave
 {
     public long StartTick { get; set; } public long ArrivalTick { get; set; }
@@ -139,6 +193,12 @@ public sealed class ShipSave
     public int? Capabilities { get; set; }
     /// <summary>Steuerer ("Ai"/"Player"); null in alten Spielständen = aus der Rolle ableiten.</summary>
     public string? Controller { get; set; }
+    /// <summary>Schiffsmodell-Schlüssel; null in v3-Saves (die Migration vergibt das Einheitsmodell nach Rolle/Laderaum).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ModelKey { get; set; }
+    /// <summary>Slotliste des Schiffs; null in v3-Saves (beim Laden aus dem Modell gefüllt).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<ShipSlotSave>? Slots { get; set; }
+    /// <summary>Modul-Schlüssel je Slot (null = leer); null in v3-Saves (beim Laden aus dem Modell gefüllt).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<string?>? Fit { get; set; }
     public float CargoCapacity { get; set; } public float Credits { get; set; } public float Hull { get; set; }
     public int Sector { get; set; } public Vec2 Pos { get; set; }
     public OrderSave? Order { get; set; }

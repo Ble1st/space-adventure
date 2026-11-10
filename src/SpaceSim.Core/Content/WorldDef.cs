@@ -183,6 +183,13 @@ public sealed class ShipGroupDef
     public float Credits { get; set; } = 1000;
     public float Cargo { get; set; } = 100;
     public int Count { get; set; } = 1;
+    /// <summary>Schiffsmodell-Schlüssel; fehlt das Feld, wählt <c>WorldBuilder.NewShip</c> das Einheitsmodell nach Rolle und <see cref="Cargo"/>.</summary>
+    public string? Model { get; set; }
 }
 
-public sealed class PlayerDef { public int Faction { get; set; } = 1; public int Sector { get; set; } = 1; public float Credits { get; set; } = 500; }
+public sealed class PlayerDef
+{
+    public int Faction { get; set; } = 1; public int Sector { get; set; } = 1; public float Credits { get; set; } = 500;
+    /// <summary>Schiffsmodell-Schlüssel; fehlt das Feld, wählt <c>WorldBuilder.NewShip</c> das Einheitsmodell der Spielerrolle.</summary>
+    public string? Model { get; set; }
+}

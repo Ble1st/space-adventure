@@ -141,7 +141,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		hullRow.AddThemeConstantOverride("separation", 8);
 		var hl = Text("Hülle", 15, Dim); hl.CustomMinimumSize = new Vector2(58, 0);
 		var hullBar = new KitBar(w - 150, 12, Green);
-		hullBar.Set(ship.Hull, ship.Hull > 60f ? Green : Orange, Ship.MaxHull);
+		hullBar.Set(ship.Hull, ship.Hull > 60f ? Green : Orange, ship.MaxHull);
 		hullRow.AddChild(hl); hullRow.AddChild(hullBar);
 		hullRow.AddChild(Text($"{(int)ship.Hull}", 15, White));
 		sv.AddChild(hullRow);

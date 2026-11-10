@@ -115,7 +115,7 @@ public sealed partial class AssetsScreen : CommandScreen
 
 		// Zustand (Hülle echt, Schild/Sprit Platzhalter)
 		At(w, Text("Zustand", 17, Cyan), 30, 160, 200, 22);
-		Bar(w, 30, 188, "Hülle", s.Hull, Ship.MaxHull, s.Hull > 60f ? Green : Orange, $"{(int)s.Hull}");
+		Bar(w, 30, 188, "Hülle", s.Hull, s.MaxHull, s.Hull > 60f ? Green : Orange, $"{(int)s.Hull}");
 		Bar(w, 30, 216, "Schild · Sprit", 0f, 1f, new Color(Dim, 0.5f), UiPlaceholders.Tag);
 
 		// Auftrag und Standort (echt)
@@ -178,7 +178,7 @@ public sealed partial class AssetsScreen : CommandScreen
 
 			DrawString(font, new Vector2(660, 22), "Hülle", HorizontalAlignment.Left, -1, 12, Dim);
 			DrawRect(new Rect2(706, 14, 120, 9), new Color(0, 0, 0, 0.5f));
-			DrawRect(new Rect2(706, 14, 120 * Mathf.Clamp(_s.Hull / Ship.MaxHull, 0f, 1f), 9), _s.Hull > 60f ? Green : Orange);
+			DrawRect(new Rect2(706, 14, 120 * Mathf.Clamp(_s.Hull / _s.MaxHull, 0f, 1f), 9), _s.Hull > 60f ? Green : Orange);
 			DrawString(font, new Vector2(836, 22), $"{(int)_s.Hull}", HorizontalAlignment.Left, -1, 13, White);
 			DrawString(font, new Vector2(660, 44), "Fracht", HorizontalAlignment.Left, -1, 12, Dim);
 			DrawRect(new Rect2(706, 36, 120, 9), new Color(0, 0, 0, 0.5f));

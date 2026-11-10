@@ -53,8 +53,10 @@ public sealed class Universe
 
     public void AddShip(Ship s)
     {
+        // Schiffe mit auflösbarem Modell bekommen Stats (und Fähigkeiten, sofern nicht ausdrücklich gesetzt) aus dem Modell
+        bool modelOk = s.HasModel && s.RecomputeStats(this);
         // Fähigkeiten/Steuerer aus der Rolle ableiten, nur wenn der Ersteller sie nicht ausdrücklich gesetzt hat
-        if (!s.CapabilitiesSet) s.Capabilities = CapabilityDefaults.ForRole(s.Role);
+        if (!s.CapabilitiesSet && !modelOk) s.Capabilities = CapabilityDefaults.ForRole(s.Role);
         if (!s.ControllerSet) s.Controller = CapabilityDefaults.ControllerFor(s.Role);
         Ships[s.Id] = s;
         if (s.Transit is { } t) Tracker.AddTransit(t, s.Id); else Tracker.AddParked(s.Sector, s.Id);

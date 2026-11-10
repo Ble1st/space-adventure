@@ -255,7 +255,7 @@ public class CapabilityTests
     [Fact]
     public void SaveLoad_RestoresDerivedCapabilities_AndKeepsHashAndVersion()
     {
-        Assert.Equal(3, SaveGame.CurrentVersion);   // Format bleibt v3, nichts Neues wird gespeichert
+        Assert.Equal(4, SaveGame.CurrentVersion);   // v4: Modell/Slots/Fit der Schiffe werden gespeichert
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 500);
         var before = UniverseHash.Compute(u);

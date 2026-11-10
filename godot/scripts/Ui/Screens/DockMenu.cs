@@ -128,7 +128,7 @@ public sealed partial class DockMenu : Control, IScreen
 				DrawString(font, new Vector2(0, 66), $"#{ _ship.Id.Value}", HorizontalAlignment.Center, 122, 15, White);
 				DrawString(font, new Vector2(0, 80), "aktiv", HorizontalAlignment.Center, 122, 12, Dim);
 				DrawRect(new Rect2(14, 84, 94, 4), new Color(0, 0, 0, 0.5f));
-				DrawRect(new Rect2(14, 84, 94 * Mathf.Clamp(_ship.Hull / SpaceSim.Core.Model.Ship.MaxHull, 0f, 1f), 4), _ship.Hull > 60f ? Green : Orange);
+				DrawRect(new Rect2(14, 84, 94 * Mathf.Clamp(_ship.Hull / _ship.MaxHull, 0f, 1f), 4), _ship.Hull > 60f ? Green : Orange);
 			}
 			else
 			{

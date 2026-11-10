@@ -109,7 +109,7 @@ public sealed class MiningAutopilot
             if (s.Id == u.PlayerSector) continue;
             foreach (var f in s.Fields.Where(f => Belt.OreIn(s, f) >= MiningRules.MinChunkUnits))
             {
-                float t = Travel.Estimate(u, u.PlayerSector, pos, s.Id, f.WorkPoint(ship.Id));
+                float t = Travel.Estimate(u, u.PlayerSector, pos, s.Id, f.WorkPoint(ship.Id), ship);
                 if (t < bestTime) { bestTime = t; best = new NavTarget(s.Id, f.WorkPoint(ship.Id), $"Feld in {s.Name}"); }
             }
         }

@@ -5,6 +5,64 @@ namespace SpaceSim.Core.Persistence;
 /// <summary>Wandelt zwischen Laufzeitmodell (<see cref="Universe"/>) und Speicherformat (<see cref="SaveGame"/>).</summary>
 public static class UniverseSerializer
 {
+    /// <summary>Schreibt die Slot-/Modul-Content-Sektionen (slotTypes, modules, shipClasses, shipModels) in den Save.</summary>
+    public static void WriteSlotContent(Universe u, SaveGame s)
+    {
+        s.SlotTypes = u.SlotTypes.Values.OrderBy(t => t.Key)
+            .Select(t => new SlotTypeSave { Key = t.Key, Name = t.Name, Required = t.Required }).ToList();
+        s.Modules = u.Modules.Values.OrderBy(m => m.Key).Select(ToSave).ToList();
+        s.ShipClasses = u.ShipClasses.Values.OrderBy(c => c.Key).Select(ToSave).ToList();
+        s.ShipModels = u.ShipModels.Values.OrderBy(m => m.Key)
+            .Select(m => new ShipModelSave { Key = m.Key, Class = m.ClassKey, Name = m.Name, Fit = new List<string?>(m.Fit) }).ToList();
+    }
+
+    /// <summary>Stellt die Slot-/Modul-Content-Sektionen aus dem Save im Universum wieder her.</summary>
+    public static void ReadSlotContent(SaveGame s, Universe u)
+    {
+        foreach (var t in s.SlotTypes)
+            u.SlotTypes[t.Key] = new SlotType { Key = t.Key, Name = t.Name, Required = t.Required };
+        foreach (var m in s.Modules)
+            u.Modules[m.Key] = FromSave(m);
+        foreach (var c in s.ShipClasses)
+            u.ShipClasses[c.Key] = FromSave(c);
+        foreach (var m in s.ShipModels)
+            u.ShipModels[m.Key] = new ShipModel { Key = m.Key, ClassKey = m.Class, Name = m.Name, Fit = new List<string?>(m.Fit) };
+    }
+
+    static ModuleSave ToSave(Module m) => new()
+    {
+        Key = m.Key, Slot = m.Slot, Size = m.Size.ToString(), Tier = m.Tier,
+        Grants = m.Grants.Select(g => g.ToString()).ToList(),
+        Stats = new Dictionary<string, float>(m.Stats),
+        PowerDraw = m.PowerDraw, PeakDraw = m.PeakDraw, Mass = m.Mass, Upkeep = m.Upkeep,
+        Holds = m.Holds.ToString().ToLowerInvariant(), Cost = new Dictionary<string, float>(m.Cost),
+    };
+
+    static Module FromSave(ModuleSave m) => new()
+    {
+        Key = m.Key, Slot = m.Slot, Size = Enum.Parse<SlotSize>(m.Size, ignoreCase: true), Tier = m.Tier,
+        Grants = m.Grants.Select(g => Enum.Parse<Capability>(g, ignoreCase: true)).ToList(),
+        Stats = new Dictionary<string, float>(m.Stats),
+        PowerDraw = m.PowerDraw, PeakDraw = m.PeakDraw, Mass = m.Mass, Upkeep = m.Upkeep,
+        Holds = Enum.Parse<ModuleHolds>(m.Holds, ignoreCase: true), Cost = new Dictionary<string, float>(m.Cost),
+    };
+
+    static ShipClassSave ToSave(ShipClass c) => new()
+    {
+        Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass,
+        Slots = c.Slots.Select(ToSave).ToList(),
+    };
+
+    static ShipClass FromSave(ShipClassSave c) => new()
+    {
+        Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass,
+        Slots = c.Slots.Select(FromSave).ToList(),
+    };
+
+    static ShipSlotSave ToSave(ClassSlot s) => new() { Type = s.Type, Size = s.Size.ToString(), Facing = s.Facing, Arc = s.Arc };
+
+    static ClassSlot FromSave(ShipSlotSave s) => new() { Type = s.Type, Size = Enum.Parse<SlotSize>(s.Size, ignoreCase: true), Facing = s.Facing, Arc = s.Arc };
+
     public static SaveGame ToSave(Universe u, DateTimeOffset now)
     {
         var s = new SaveGame
@@ -29,6 +87,7 @@ public static class UniverseSerializer
                 Recipes = t.Recipes.Select(ToSave).ToList(),
                 Services = new List<string>(t.Services),
             });
+        WriteSlotContent(u, s);
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
             s.Factions.Add(new FactionSave
             {
@@ -57,7 +116,11 @@ public static class UniverseSerializer
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
             {
-                Id = sh.Id.Value, Faction = sh.Faction.Value, Role = sh.Role.ToString(), Capabilities = (int)sh.Capabilities, Controller = sh.Controller.ToString(), CargoCapacity = sh.CargoCapacity,
+                Id = sh.Id.Value, Faction = sh.Faction.Value, Role = sh.Role.ToString(), Capabilities = (int)sh.Capabilities, Controller = sh.Controller.ToString(),
+                ModelKey = sh.ModelKey.Length > 0 ? sh.ModelKey : null,
+                Slots = sh.Slots.Count > 0 ? sh.Slots.Select(ToSave).ToList() : null,
+                Fit = sh.Fit.Count > 0 ? new List<string?>(sh.Fit) : null,
+                CargoCapacity = sh.CargoCapacity,
                 Credits = sh.Credits, Hull = sh.Hull, Sector = sh.Sector.Value, Pos = sh.Position,
                 Order = sh.Order is null ? null : ToSave(sh.Order),
                 Phase = sh.Phase.ToString(), MinePhase = sh.MinePhase.ToString(),
@@ -92,6 +155,7 @@ public static class UniverseSerializer
                 // Alte Spielstände ohne das Feld bekommen den Standard ["trade"]
                 Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey } : new List<string>(t.Services),
             };
+        ReadSlotContent(s, u);
         foreach (var f in s.Factions)
             u.Factions[new FactionId(f.Id)] = new Faction
             {
@@ -124,8 +188,10 @@ public static class UniverseSerializer
             {
                 Id = new ShipId(sh.Id), Faction = new FactionId(sh.Faction), Role = role,
                 // gespeichert; alte Spielstände ohne die Felder: aus der Rolle ableiten
-                Capabilities = sh.Capabilities is { } caps ? (Capability)caps : CapabilityDefaults.ForRole(role),
                 Controller = sh.Controller is { } ctl ? Enum.Parse<Controller>(ctl) : CapabilityDefaults.ControllerFor(role),
+                ModelKey = sh.ModelKey ?? "",
+                Slots = sh.Slots is null ? new List<ClassSlot>() : sh.Slots.Select(FromSave).ToList(),
+                Fit = sh.Fit is null ? new List<string?>() : new List<string?>(sh.Fit),
                 CargoCapacity = sh.CargoCapacity,
                 Credits = sh.Credits, Hull = sh.Hull, Sector = new SectorId(sh.Sector), Position = sh.Pos,
                 Order = sh.Order is null ? null : FromSave(sh.Order),
@@ -134,6 +200,22 @@ public static class UniverseSerializer
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
             };
+            // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
+            ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;
+            bool modelOk = false;
+            if (model is not null && u.ShipClasses.TryGetValue(model.ClassKey, out var cls))
+            {
+                modelOk = true;
+                if (ship.Slots.Count == 0)
+                    foreach (var sl in cls.Slots)
+                        ship.Slots.Add(new ClassSlot { Type = sl.Type, Size = sl.Size, Facing = sl.Facing, Arc = sl.Arc });
+                if (ship.Fit.Count == 0) ship.Fit = new List<string?>(model.Fit);
+            }
+            ship.RecomputeStats(u);
+            if (modelOk) ship.CargoCapacity = ship.Stats.Cargo;   // Laderaum aus dem Modell
+            // Fähigkeiten: ein gespeicherter Wert gewinnt, sonst hat RecomputeStats sie aus den Modul-Grants abgeleitet
+            if (sh.Capabilities is { } caps) ship.Capabilities = (Capability)caps;
+            else if (!modelOk) ship.Capabilities = CapabilityDefaults.ForRole(role);
             u.Ships[ship.Id] = ship;   // AddShip würde ein ShipSpawned-Ereignis auslösen
         }
         u.IdCounters = (s.NextShipId, s.NextStationId);

@@ -85,8 +85,8 @@ public sealed class MinerSystem : ISimSystem
                     if (value < basis * MinPriceFactor) continue;
                     if (!TraderSystem.CanAfford(st, value, ship.CargoCapacity)) continue;
                     if (!u.IsReachable(sector.Id, st.Sector)) continue;
-                    float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id)) + mineTicks
-                               + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id));
+                    float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id), ship) + mineTicks
+                               + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id), ship);
                     float score = value / time * crowding;
                     if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, fi, st.Id); }
                 }

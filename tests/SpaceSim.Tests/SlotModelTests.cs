@@ -40,7 +40,7 @@ public class SlotModelTests
         Assert.Equal(9, u.SlotTypes.Count);
         Assert.Equal(5, u.Modules.Count);
         Assert.Equal(2, u.ShipClasses.Count);
-        Assert.Equal(4, u.ShipModels.Count);
+        Assert.Equal(5, u.ShipModels.Count);
         Assert.True(u.SlotTypes["reactor"].Required);
         Assert.True(u.SlotTypes["engine"].Required);
         Assert.False(u.SlotTypes["cargo"].Required);
@@ -189,12 +189,13 @@ public class SlotModelTests
             ("unit_trader_60", ShipRole.Trader, 60f),
             ("unit_miner_100", ShipRole.Miner, 100f),
             ("unit_miner_60", ShipRole.Miner, 60f),
+            ("unit_player", ShipRole.Player, 100f),
         };
         foreach (var (key, role, cargo) in faelle)
         {
             var st = StatsOf(u, key);
             Assert.Equal(cargo, st.Cargo);                                    // Laderaum == bisheriges ships[].cargo
-            Assert.Equal(Ship.MaxHull, st.Hull);                              // Hülle == bisher 100
+            Assert.Equal(100f, st.Hull);                                      // Hülle == bisher 100 (Ship.MaxHull ohne Modell)
             Assert.Equal(Travel.ShipSpeed, st.Speed);                         // Tempo == bisher 8
             Assert.Equal(CapabilityDefaults.ForRole(role), st.Capabilities);  // Fähigkeiten == Ableitung aus der Rolle
             Assert.Equal(10f, st.PowerOutput);
@@ -245,9 +246,9 @@ public class SlotModelTests
     }
 
     [Fact]
-    public void SaveLoad_BleibtV3_AltSavesLadbar_SlotContentStoertNicht()
+    public void SaveLoad_Roundtrip_V4_AltSavesLadbar_SlotContentWirdMitgespeichert()
     {
-        Assert.Equal(3, SaveGame.CurrentVersion);   // Form/ModelKey werden nicht gespeichert, Format bleibt v3
+        Assert.Equal(4, SaveGame.CurrentVersion);   // v4: ModelKey/Slots/Fit je Schiff plus Slot-Content-Sektionen
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 100);
         var before = UniverseHash.Compute(u);
@@ -256,5 +257,6 @@ public class SlotModelTests
 
         Assert.Equal(before, UniverseHash.Compute(loaded));
         Assert.Single(loaded.Ships.Values, s => s.IsPlayer);
+        Assert.NotEmpty(loaded.ShipModels);
     }
 }

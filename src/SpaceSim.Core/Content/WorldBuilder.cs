@@ -57,71 +57,8 @@ public static class WorldBuilder
         GoodId Good(string key) =>
             goodByKey.TryGetValue(key, out var id) ? id : throw new WorldFormatException($"Unbekannte Ware '{key}'");
 
-        // Slot-/Modul-Content (Phase 3a: reine Daten + Validierung; nichts nutzt sie bisher)
-        foreach (var st in def.SlotTypes)
-            if (!u.SlotTypes.TryAdd(st.Key, new SlotType { Key = st.Key, Name = st.Name, Required = st.Required }))
-                throw new WorldFormatException($"Slotart '{st.Key}' doppelt");
-
-        foreach (var md in def.Modules)
-        {
-            if (!u.SlotTypes.TryGetValue(md.Slot, out _)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Slotart '{md.Slot}'");
-            var grants = new List<Capability>();
-            foreach (var g in md.Grants)
-                if (!Enum.TryParse<Capability>(g, ignoreCase: true, out var cap)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Fähigkeit '{g}'");
-                else grants.Add(cap);
-            var cost = new Dictionary<string, float>();
-            foreach (var (k, v) in md.Cost)
-            {
-                if (!goodByKey.ContainsKey(k)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Ware '{k}' in cost");
-                cost[k] = v;
-            }
-            var module = new Module
-            {
-                Key = md.Key, Slot = md.Slot, Size = ParseSize(md.Size, $"Modul '{md.Key}'"), Tier = md.Tier,
-                Grants = grants, Stats = new Dictionary<string, float>(md.Stats),
-                PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw, Mass = md.Mass, Upkeep = md.Upkeep,
-                Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost,
-            };
-            if (!u.Modules.TryAdd(md.Key, module)) throw new WorldFormatException($"Modul '{md.Key}' doppelt");
-        }
-
-        foreach (var cd in def.ShipClasses)
-        {
-            var slots = new List<ClassSlot>();
-            foreach (var s in cd.Slots)
-            {
-                if (!u.SlotTypes.TryGetValue(s.Type, out _)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Slotart '{s.Type}'");
-                slots.Add(new ClassSlot { Type = s.Type, Size = ParseSize(s.Size, $"Schiffsklasse '{cd.Key}'"), Facing = s.Facing, Arc = s.Arc });
-            }
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, Slots = slots };
-            if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
-        }
-
-        foreach (var md in def.ShipModels)
-        {
-            if (!u.ShipClasses.TryGetValue(md.Class, out var cls)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekannte Klasse '{md.Class}'");
-            if (md.Fit.Count != cls.Slots.Count) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Fit hat {md.Fit.Count} Einträge, Klasse '{cls.Key}' hat {cls.Slots.Count} Slots");
-            var fit = new List<Module?>(md.Fit.Count);
-            for (int i = 0; i < md.Fit.Count; i++)
-            {
-                var key = md.Fit[i];
-                if (key is null) { fit.Add(null); continue; }
-                if (!u.Modules.TryGetValue(key, out var module)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekanntes Modul '{key}'");
-                var slot = cls.Slots[i];
-                if (module.Slot != slot.Type) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' (Slotart '{module.Slot}') passt nicht in Slot '{slot.Type}'");
-                if (module.Size > slot.Size) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' ({module.Size}) ist größer als der Slot ({slot.Size})");
-                fit.Add(module);
-            }
-            for (int i = 0; i < cls.Slots.Count; i++)
-                if (fit[i] is null && u.SlotTypes[cls.Slots[i].Type].Required)
-                    throw new WorldFormatException($"Schiffsmodell '{md.Key}': Pflichtslot '{cls.Slots[i].Type}' ist leer");
-            var stats = ShipStats.Compute(cls, fit);
-            if (stats.PowerOutput < stats.PowerDraw) throw new WorldFormatException($"Schiffsmodell '{md.Key}': powerOutput {stats.PowerOutput} < powerDraw {stats.PowerDraw}");
-            if (stats.PeakDraw - (stats.PowerOutput - stats.PowerDraw) > stats.PowerStorage)
-                throw new WorldFormatException($"Schiffsmodell '{md.Key}': Spitzenlast {stats.PeakDraw} übersteigt die Speicherbank ({stats.PowerStorage} + Reaktorüberschuss {stats.PowerOutput - stats.PowerDraw})");
-            if (!u.ShipModels.TryAdd(md.Key, new ShipModel { Key = md.Key, ClassKey = md.Class, Name = md.Name, Fit = new List<string?>(md.Fit) }))
-                throw new WorldFormatException($"Schiffsmodell '{md.Key}' doppelt");
-        }
+        // Slot-/Modul-Content (Phase 3: Daten + Validierung; wird von Schiffen über Modell/Slots/Fit genutzt)
+        LoadSlotContent(u, def);
 
         foreach (var c in def.AsteroidClasses)
         {
@@ -204,15 +141,102 @@ public static class WorldBuilder
         foreach (var group in def.Ships)
         {
             var role = Enum.TryParse<ShipRole>(group.Role, ignoreCase: true, out var r) ? r : throw new WorldFormatException($"Unbekannte Schiffsrolle '{group.Role}'");
-            for (int i = 0; i < group.Count; i++) u.AddShip(NewShip(u, new ShipId(nextShip++), role, group.Faction, new SectorId(group.Sector), group.Credits, group.Cargo));
+            for (int i = 0; i < group.Count; i++) u.AddShip(NewShip(u, new ShipId(nextShip++), role, group.Faction, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model));
         }
 
-        var player = NewShip(u, new ShipId(100), ShipRole.Player, def.Player.Faction, new SectorId(def.Player.Sector), def.Player.Credits, 100);
+        var player = NewShip(u, new ShipId(100), ShipRole.Player, def.Player.Faction, new SectorId(def.Player.Sector), def.Player.Credits, 100, def.Player.Model);
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
         return u;
     }
+
+    /// <summary>
+    /// Lädt die Slot-/Modul-Content-Sektionen (slotTypes, modules, shipClasses, shipModels) samt Validierung in das
+    /// Universum. Wird von <see cref="Build"/> und von der Save-Migration (Default-Welt-Registry) genutzt.
+    /// </summary>
+    public static void LoadSlotContent(Universe u, WorldDef def)
+    {
+        var goodKeys = new HashSet<string>(def.Goods.Select(g => g.Key));
+        foreach (var st in def.SlotTypes)
+            if (!u.SlotTypes.TryAdd(st.Key, new SlotType { Key = st.Key, Name = st.Name, Required = st.Required }))
+                throw new WorldFormatException($"Slotart '{st.Key}' doppelt");
+
+        foreach (var md in def.Modules)
+        {
+            if (!u.SlotTypes.TryGetValue(md.Slot, out _)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Slotart '{md.Slot}'");
+            var grants = new List<Capability>();
+            foreach (var g in md.Grants)
+                if (!Enum.TryParse<Capability>(g, ignoreCase: true, out var cap)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Fähigkeit '{g}'");
+                else grants.Add(cap);
+            var cost = new Dictionary<string, float>();
+            foreach (var (k, v) in md.Cost)
+            {
+                if (!goodKeys.Contains(k)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Ware '{k}' in cost");
+                cost[k] = v;
+            }
+            var module = new Module
+            {
+                Key = md.Key, Slot = md.Slot, Size = ParseSize(md.Size, $"Modul '{md.Key}'"), Tier = md.Tier,
+                Grants = grants, Stats = new Dictionary<string, float>(md.Stats),
+                PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw, Mass = md.Mass, Upkeep = md.Upkeep,
+                Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost,
+            };
+            if (!u.Modules.TryAdd(md.Key, module)) throw new WorldFormatException($"Modul '{md.Key}' doppelt");
+        }
+
+        foreach (var cd in def.ShipClasses)
+        {
+            var slots = new List<ClassSlot>();
+            foreach (var s in cd.Slots)
+            {
+                if (!u.SlotTypes.TryGetValue(s.Type, out _)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Slotart '{s.Type}'");
+                slots.Add(new ClassSlot { Type = s.Type, Size = ParseSize(s.Size, $"Schiffsklasse '{cd.Key}'"), Facing = s.Facing, Arc = s.Arc });
+            }
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, Slots = slots };
+            if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
+        }
+
+        foreach (var md in def.ShipModels)
+        {
+            if (!u.ShipClasses.TryGetValue(md.Class, out var cls)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekannte Klasse '{md.Class}'");
+            if (md.Fit.Count != cls.Slots.Count) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Fit hat {md.Fit.Count} Einträge, Klasse '{cls.Key}' hat {cls.Slots.Count} Slots");
+            var fit = new List<Module?>(md.Fit.Count);
+            for (int i = 0; i < md.Fit.Count; i++)
+            {
+                var key = md.Fit[i];
+                if (key is null) { fit.Add(null); continue; }
+                if (!u.Modules.TryGetValue(key, out var module)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekanntes Modul '{key}'");
+                var slot = cls.Slots[i];
+                if (module.Slot != slot.Type) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' (Slotart '{module.Slot}') passt nicht in Slot '{slot.Type}'");
+                if (module.Size > slot.Size) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' ({module.Size}) ist größer als der Slot ({slot.Size})");
+                fit.Add(module);
+            }
+            for (int i = 0; i < cls.Slots.Count; i++)
+                if (fit[i] is null && u.SlotTypes[cls.Slots[i].Type].Required)
+                    throw new WorldFormatException($"Schiffsmodell '{md.Key}': Pflichtslot '{cls.Slots[i].Type}' ist leer");
+            var stats = ShipStats.Compute(cls, fit);
+            if (stats.PowerOutput < stats.PowerDraw) throw new WorldFormatException($"Schiffsmodell '{md.Key}': powerOutput {stats.PowerOutput} < powerDraw {stats.PowerDraw}");
+            if (stats.PeakDraw - (stats.PowerOutput - stats.PowerDraw) > stats.PowerStorage)
+                throw new WorldFormatException($"Schiffsmodell '{md.Key}': Spitzenlast {stats.PeakDraw} übersteigt die Speicherbank ({stats.PowerStorage} + Reaktorüberschuss {stats.PowerOutput - stats.PowerDraw})");
+            if (!u.ShipModels.TryAdd(md.Key, new ShipModel { Key = md.Key, ClassKey = md.Class, Name = md.Name, Fit = new List<string?>(md.Fit) }))
+                throw new WorldFormatException($"Schiffsmodell '{md.Key}' doppelt");
+        }
+    }
+
+    /// <summary>
+    /// Einheitsmodell je Rolle und Laderaum (dieselbe Zuordnung wie die Save-Migration v3→v4);
+    /// "" = keines (z.B. Fighter oder unbekannte Kapazität).
+    /// </summary>
+    public static string UnitModelFor(ShipRole role, float cargo) => (role, cargo) switch
+    {
+        (ShipRole.Trader, 100f) => "unit_trader_100",
+        (ShipRole.Trader, 60f) => "unit_trader_60",
+        (ShipRole.Miner, 100f) => "unit_miner_100",
+        (ShipRole.Miner, 60f) => "unit_miner_60",
+        (ShipRole.Player, _) => "unit_player",
+        _ => "",
+    };
 
     static Gate AddGate(Universe u, GateEndDef end, GateId target)
     {
@@ -220,15 +244,44 @@ public static class WorldBuilder
         return new Gate { Id = new GateId(end.Id), Sector = new SectorId(end.Sector), Position = V(end.Pos), Target = target };
     }
 
-    public static Ship NewShip(Universe u, ShipId id, ShipRole role, int faction, SectorId sector, float credits, float cargo)
+    /// <summary>
+    /// Erzeugt ein Schiff. <paramref name="model"/> ist der Modell-Schlüssel aus der Weltdatei; fehlt er, wird das
+    /// Einheitsmodell nach Rolle und <paramref name="cargo"/> gewählt (<see cref="UnitModelFor"/>). Ein unbekannter
+    /// expliziter Schlüssel wirft <see cref="WorldFormatException"/>; ein in dieser Welt nicht vorhandenes
+    /// automatisch gewähltes Einheitsmodell lässt das Schiff ohne Modell (Pauschalwerte).
+    /// </summary>
+    public static Ship NewShip(Universe u, ShipId id, ShipRole role, int faction, SectorId sector, float credits, float cargo, string? model = null)
     {
         if (!u.Sectors.TryGetValue(sector, out var sec)) throw new WorldFormatException($"Schiff {id.Value}: unbekannter Sektor {sector.Value}");
-        return new Ship
+        var ship = new Ship
         {
-            Id = id, Role = role, Capabilities = CapabilityDefaults.ForRole(role), Controller = CapabilityDefaults.ControllerFor(role),
-            Faction = new FactionId(faction), Sector = sector, Credits = credits, CargoCapacity = cargo,
+            Id = id, Role = role, Controller = CapabilityDefaults.ControllerFor(role),
+            Faction = new FactionId(faction), Sector = sector, Credits = credits,
             Position = sec.Stations.Count > 0 ? u.Stations[sec.Stations[0]].DockPoint(id) : default,
         };
+        var key = model ?? UnitModelFor(role, cargo);
+        bool known = key.Length > 0 && u.ShipModels.TryGetValue(key, out var m) && u.ShipClasses.ContainsKey(m.ClassKey);
+        if (key.Length > 0 && !known && model is not null)
+            throw new WorldFormatException($"Schiff {id.Value}: unbekanntes Schiffsmodell '{key}'");
+        if (known)
+        {
+            ship.ModelKey = key;
+            ship.Fit = new List<string?>(u.ShipModels[key].Fit);
+            if (ship.RecomputeStats(u))
+                ship.CargoCapacity = ship.Stats.Cargo;   // Laderaum aus dem Modell; Fähigkeiten leitet AddShip aus Stats ab
+            else
+            {
+                ship.ModelKey = "";
+                ship.CargoCapacity = cargo;
+                ship.Capabilities = CapabilityDefaults.ForRole(role);
+            }
+        }
+        else
+        {
+            ship.CargoCapacity = cargo;
+            ship.Capabilities = CapabilityDefaults.ForRole(role);
+        }
+        return ship;
     }
 
     static Vec2 V(float[] a) => a.Length >= 2 ? new Vec2(a[0], a[1]) : throw new WorldFormatException("Position braucht zwei Zahlen");
