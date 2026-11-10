@@ -22,6 +22,12 @@ public static class Refuel
     /// </summary>
     public const float MinFuelReserveFraction = 0.75f;
 
+    /// <summary>Aufschlag des Spieler-Notrufs auf den Luftlinien-Bedarf bis zur nächsten Tankstelle.</summary>
+    public const float PlayerEmergencyMargin = 1.5f;
+
+    /// <summary>Ergebnis des Spieler-Notrufs (<see cref="PlayerEmergency"/>): Success, gekaufte Einheiten, Credit-Veränderung (negativ = Zahlung) und Meldung für die Oberfläche.</summary>
+    public sealed record EmergencyResult(bool Success, float Units, float Credits, string Message);
+
     /// <summary>Ergebnis von <see cref="PrepareTrip"/>.</summary>
     public enum TripPlan
     {
@@ -233,7 +239,15 @@ public static class Refuel
         // 3) Notkauf: so viel Treibstoff, dass die nächste Tankstelle erreichbar ist (Aufpreis, Geldsenke);
         //    danach wird diese Tankstelle angesteuert (dort volltanken), erst dann geht es weiter
         var any = NearestFuelStation(u, ship, good.Value, float.PositiveInfinity);
-        if (any is null) return TripPlan.Stuck;   // nirgends Treibstoff im erreichbaren Raum
+        if (any is null)
+        {
+            // Nirgends Treibstoff im erreichbaren Raum (z. B. alle Raffinerien leer oder Welt ohne Raffinerie): Notkauf direkt
+            // für diese Reise, ohne Reserve. So bleibt die Flotte beweglich; liegen bleibt nur, wer den Aufpreis nicht zahlen kann.
+            float trip = Consumption(ship, dist, good);
+            float lack = trip - ship.FuelAmount(good.Value);
+            if (lack > 0f) EmergencyBuy(u, ship, good.Value, lack);
+            return ship.FuelAmount(good.Value) >= trip ? TripPlan.Depart : TripPlan.Stuck;
+        }
         float needToStop = Consumption(ship, Travel.EstimateDistance(u, ship.Sector, ship.Position, any.Sector, any.DockPoint(ship.Id), ship), good);
         float missing = MathF.Max(0f, needToStop - ship.FuelAmount(good.Value));
         if (missing > 0f) EmergencyBuy(u, ship, good.Value, missing);
@@ -246,5 +260,35 @@ public static class Refuel
         }
         // Notkauf hat nicht für die Tankstelle gereicht: direkt weiter, wenn der Tank für die Reise reicht
         return ship.FuelAmount(good.Value) >= need ? TripPlan.Depart : TripPlan.Stuck;
+    }
+
+    /// <summary>
+    /// Notruf des Spielers (Phase 4c): nur bei leerem Tank und nicht angedockt. Kauft zum doppelten Basispreis
+    /// (<see cref="EmergencyPriceFactor"/>, Geldsenke wie <see cref="EmergencyBuy"/>) genau so viel Treibstoff, dass die
+    /// nächste Tankstelle (<see cref="NearestFuelStation"/>, Luftlinie im Sektor, sonst über Gates —
+    /// <see cref="Travel.EstimateDistance"/>) erreichbar ist, gedeckelt durch die Credits: zu wenig Geld heißt Meldung
+    /// und kein Kauf. Ruft die Simulations-KI nicht auf; <see cref="EmergencyBuy"/> veröffentlicht <see cref="EmergencyRefuel"/>.
+    /// </summary>
+    public static EmergencyResult PlayerEmergency(Universe u, Ship player)
+    {
+        var good = ActiveFuel(player);
+        if (good is null) return new(false, 0f, 0f, "Kein Treibstoffantrieb an Bord – kein Notruf nötig.");
+        if (player.TotalFuel > 0.0001f) return new(false, 0f, 0f, "Tank ist nicht leer – kein Notruf nötig.");
+        if (CurrentStation(u, player) is not null) return new(false, 0f, 0f, "Bereits angedockt – dort direkt tanken.");
+        var stop = NearestFuelStation(u, player, good.Value, float.PositiveInfinity);
+        if (stop is null) return new(false, 0f, 0f, "Keine Tankstelle im erreichbaren Raum – Notruf zwecklos.");
+        float dist = Travel.EstimateDistance(u, player.Sector, player.Position, stop.Sector, stop.DockPoint(player.Id), player);
+        // Der Spieler fliegt von Hand (Umwege, Bremsen): Aufschlag auf die Luftlinie, mindestens ein paar Einheiten
+        float need = MathF.Max(Consumption(player, dist, good) * PlayerEmergencyMargin, 5f);
+        float price = u.Goods[good.Value].BasePrice * EmergencyPriceFactor;
+        float n = MathF.Min(MathF.Ceiling(need), MathF.Floor(player.FuelSpace));
+        if (n <= 0f || MathF.Floor(player.Credits / price) < n)
+            return new(false, 0f, 0f,
+                $"Notruf nicht möglich: {n:0} {u.Goods[good.Value].Name} kosten {n * price:0} Cr (2× Basispreis) – zu wenig Credits.");
+        float bought = EmergencyBuy(u, player, good.Value, n);
+        if (bought <= 0f) return new(false, 0f, 0f, "Notruf fehlgeschlagen.");
+        float cost = bought * price;
+        return new(true, bought, -cost,
+            $"Notruf: {bought:0} {u.Goods[good.Value].Name} für {cost:0} Cr – Tankstelle „{stop.Name}“ in Reichweite.");
     }
 }

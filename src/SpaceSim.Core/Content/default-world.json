@@ -2,7 +2,8 @@
  "seed": 20260101,
  "rules": {
   "maxTraders": 14,
-  "maxMiners": 8
+  "maxMiners": 8,
+  "repairPlatesPerHull": 0.05
  },
  "goods": [
   {
@@ -428,6 +429,10 @@
    "buildCost": 8000,
    "upkeep": 0.12,
    "income": 1.5,
+   "services": [
+    "trade",
+    "repair"
+   ],
    "recipes": [
     {
      "ticks": 10,
@@ -523,6 +528,10 @@
    "buildCost": 12000,
    "upkeep": 0.15,
    "income": 2,
+   "services": [
+    "trade",
+    "repair"
+   ],
    "recipes": [
     {
      "ticks": 20,
@@ -568,6 +577,10 @@
    "buildCost": 9000,
    "upkeep": 0.12,
    "income": 1.5,
+   "services": [
+    "trade",
+    "refuel"
+   ],
    "recipes": [
     {
      "ticks": 5,

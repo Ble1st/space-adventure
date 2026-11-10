@@ -84,13 +84,19 @@ public sealed class TraderSystem : ISimSystem
                     if (sell.Id == buy.Id) continue;
                     var s = sell.Market[good.Id];
                     float margin = s.Price - b.Price;
-                    if (margin <= 0f || !CanAfford(sell, s.Price, units)) continue;
+                    if (margin <= 0f) continue;
+                    // Die Station zahlt nur, was ihre Kasse hergibt (der Rest der Ladung wird ohne Bezahlung abgeladen): mit dem
+                    // tatsächlichen Erlös rechnen statt arme Abnehmer ganz zu überspringen. Sonst verhungert eine Station, deren
+                    // Eingangsware knapp und damit teuer ist, endgültig — sie kann die volle Ladung nie zu 25 % anzahlen.
+                    float paidUnits = MathF.Min(units, MathF.Max(0f, sell.Credits) / s.Price);
+                    float profit = paidUnits * s.Price - units * b.Price;
+                    if (profit <= 0f) continue;
                     if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(units, 5f)) continue;   // Lager voll: nimmt nichts mehr
                     float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship);
                     if (float.IsPositiveInfinity(toSell)) continue;
                     // Phase 4b: Treibstoffkosten der Runde (Hin- und Rückfahrt) vom Gewinn abziehen
                     float fuelCost = Refuel.TripFuelCost(u, ship, buy, sell, distToBuy, fuelPrice);
-                    float score = (margin * units - fuelCost) / (toBuy + toSell);
+                    float score = (profit - fuelCost) / (toBuy + toSell);
                     if (score > bestScore) { bestScore = score; best = new TradeOrder(buy.Id, sell.Id, good.Id); }
                 }
             }

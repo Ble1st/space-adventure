@@ -336,7 +336,7 @@ public class FuelEconomyTests
             Assert.True(s.TotalFuel >= -0.001f, $"negativer Tank bei Schiff {s.Id.Value}");
             Assert.True(s.TotalFuel <= s.Stats.FuelCapacity + 0.001f, $"Tank über Kapazität bei Schiff {s.Id.Value}");
             // kein Schiff hängt dauerhaft im Transit (Ankunft längst vorbei)
-            Assert.True(s.Transit is null || s.Transit.ArrivalTick > u.Tick,
+            Assert.True(s.Transit is null || s.Transit.ArrivalTick >= u.Tick,   // Ankunft im aktuellen Tick wird erst im nächsten Schritt verarbeitet
                 $"Schiff {s.Id.Value} hängt im Transit (Ankunft {s.Transit?.ArrivalTick}, Tick {u.Tick})");
             // kein Tankstopp (GoToOrder) ohne laufende Reise = Geisterauftrag
             Assert.False(s.Order is GoToOrder && s.Transit is null, $"Geister-Tankstopp bei Schiff {s.Id.Value}");

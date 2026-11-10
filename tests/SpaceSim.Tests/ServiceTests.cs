@@ -50,12 +50,13 @@ public class ServiceRegistryTests
     }
 
     [Fact]
-    public void Default_RegistersTrade()
+    public void Default_RegistersAllServicesInFixedOrder()   // Phase 4c: trade, refuel, repair
     {
         var r = StationServices.Default();
-        Assert.Equal(new[] { TradeService.ServiceKey }, r.Keys);
-        Assert.True(r.TryGet(TradeService.ServiceKey, out var s));
-        Assert.IsType<TradeService>(s);
+        Assert.Equal(new[] { TradeService.ServiceKey, RefuelService.ServiceKey, RepairService.ServiceKey }, r.Keys);
+        Assert.IsType<TradeService>(r.TryGet(TradeService.ServiceKey, out var a) ? a : null);
+        Assert.IsType<RefuelService>(r.TryGet(RefuelService.ServiceKey, out var b) ? b : null);
+        Assert.IsType<RepairService>(r.TryGet(RepairService.ServiceKey, out var c) ? c : null);
     }
 }
 

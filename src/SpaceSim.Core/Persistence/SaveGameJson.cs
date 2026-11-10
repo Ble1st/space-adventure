@@ -237,6 +237,55 @@ public static class SaveGameJson
             if (firstFuel is not null && cap > 0f && goodIdByKey.TryGetValue(firstFuel, out var fid))
                 ship.Fuel[fid] = cap;
         }
+
+        // 4) Treibstoffraffinerien nachreichen: Welten vor Phase 4 haben keine Treibstoffquelle, die KI-Flotte bliebe sonst
+        //    nach dem ersten Tank liegen. Stationstyp und die Raffinerien der Default-Welt werden ergänzt, wo der Sektor existiert
+        //    und noch keine Raffinerie steht; Hindernis-Asteroiden am Bauplatz werden entfernt.
+        var refType = def.StationTypes.FirstOrDefault(t => t.Key == "fuel_refinery");
+        if (refType is not null && refType.Recipes.All(r => r.In.Keys.Concat(r.Out.Keys).All(goodIdByKey.ContainsKey)))
+        {
+            List<RecipeSave> Recipes() => refType.Recipes.Select(r => new RecipeSave
+            {
+                Ticks = r.Ticks,
+                In = r.In.ToDictionary(kv => goodIdByKey[kv.Key], kv => kv.Value),
+                Out = r.Out.ToDictionary(kv => goodIdByKey[kv.Key], kv => kv.Value),
+            }).ToList();
+            if (s.StationTypes.All(t => t.Key != refType.Key))
+                s.StationTypes.Add(new StationTypeSave
+                {
+                    Key = refType.Key, Name = refType.Name, BuildCost = refType.BuildCost, Upkeep = refType.Upkeep, Income = refType.Income,
+                    Recipes = Recipes(), Services = new List<string>(refType.Services),
+                });
+            foreach (var sd in def.Sectors)
+            {
+                var sector = s.Sectors.FirstOrDefault(x => x.Id == sd.Id);
+                if (sector is null) continue;
+                if (s.Stations.Any(st => st.Sector == sd.Id && st.Type == refType.Key)) continue;
+                foreach (var std in sd.Stations.Where(x => x.Type == refType.Key))
+                {
+                    var pos = new Vec2(std.Pos[0], std.Pos[1]);
+                    if (s.Stations.Any(st => st.Sector == sd.Id && Vec2.Distance(st.Pos, pos) < 50f)) continue;   // Platz belegt
+                    int id = s.Stations.Any(st => st.Id == std.Id) ? Math.Max(s.NextStationId, s.Stations.Max(st => st.Id) + 1) : std.Id;
+                    var save = new StationSave
+                    {
+                        Id = id, Type = refType.Key, Name = std.Name, Sector = sd.Id, Owner = sector.Owner, Pos = pos,
+                        Credits = std.Credits, Essential = std.Essential, BelowLimitSince = -1, Recipes = Recipes(),
+                    };
+                    foreach (var rc in save.Recipes)
+                        foreach (var g in rc.In.Keys.Concat(rc.Out.Keys))
+                            save.Market.TryAdd(g, new StockSave { Amount = 50f, Target = 100f });
+                    foreach (var (key, v) in std.Stock)
+                        if (goodIdByKey.TryGetValue(key, out var gid) && v.Length >= 2)
+                            save.Market[gid] = new StockSave { Amount = v[0], Target = v[1] };
+                    foreach (var (gid, e) in save.Market)
+                        e.Price = s.Goods.First(g => g.Id == gid).BasePrice;
+                    s.Stations.Add(save);
+                    sector.Stations.Add(id);
+                    if (id >= s.NextStationId) s.NextStationId = id + 1;
+                    sector.Rocks.RemoveAll(a => Vec2.Distance(a.Pos, pos) < a.BaseRadius + 30f);
+                }
+            }
+        }
         s.Version = 5;
     }
 

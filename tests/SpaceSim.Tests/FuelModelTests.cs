@@ -40,7 +40,7 @@ public class FuelModelTests
     }
 
     /// <summary>Demotet einen aktuellen v5-Save auf v4: Version 4, Fuel der Schiffe, propellant-Ware und die neuen Content-Felder (Fuel der Module, BaseFuel der Klassen) entfernt.</summary>
-    static string ToV4Json(string v5Json)
+    internal static string ToV4Json(string v5Json)
     {
         var node = JsonNode.Parse(v5Json)!.AsObject();
         node["Version"] = 4;
