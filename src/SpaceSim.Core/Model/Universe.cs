@@ -58,6 +58,8 @@ public sealed class Universe
         // Fähigkeiten/Steuerer aus der Rolle ableiten, nur wenn der Ersteller sie nicht ausdrücklich gesetzt hat
         if (!s.CapabilitiesSet && !modelOk) s.Capabilities = CapabilityDefaults.ForRole(s.Role);
         if (!s.ControllerSet) s.Controller = CapabilityDefaults.ControllerFor(s.Role);
+        // Phase 4: leerer Tank wird vollgetankt (erster zulässiger Treibstoff); Schiffe ohne Modell/Antrieb bleiben leer
+        if (s.Fuel.Count == 0) s.FillFuel();
         Ships[s.Id] = s;
         if (s.Transit is { } t) Tracker.AddTransit(t, s.Id); else Tracker.AddParked(s.Sector, s.Id);
         if (s.Id.Value >= _nextShipId) _nextShipId = s.Id.Value + 1;

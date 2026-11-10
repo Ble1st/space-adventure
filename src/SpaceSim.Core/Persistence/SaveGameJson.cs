@@ -150,11 +150,94 @@ public static class SaveGameJson
         }
         if (s.ShipModels.Count == 0 && s.Ships.Any(sh => !string.IsNullOrEmpty(sh.ModelKey)))
         {
+            var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
             var content = new Universe();
-            WorldBuilder.LoadSlotContent(content, WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()));
+            // Waren mitladen, damit WriteSlotContent die Treibstoff-GoodIds der Module als Schlüssel schreiben kann
+            for (int i = 0; i < def.Goods.Count; i++)
+            {
+                var g = def.Goods[i];
+                content.Goods[new GoodId(i + 1)] = new Good { Id = new GoodId(i + 1), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume };
+            }
+            WorldBuilder.LoadSlotContent(content, def);
             UniverseSerializer.WriteSlotContent(content, s);
         }
         s.Version = 4;
+    }
+
+    /// <summary>
+    /// v4 → v5: Schiffe bekommen <c>Fuel</c> — Schiffe mit Modell einen vollen Tank ihres ersten zulässigen Treibstoffs
+    /// (in der Default-Welt propellant), Schiffe ohne Modell bleiben leer. Die Content-Sektionen des Save sind v4-Stand:
+    /// Die neue Ware <c>propellant</c> wird ans Ende der Warenliste angehängt (GoodId = Index+1, bestehende Ids verschieben
+    /// sich nicht; die Ware hat noch keinen Erzeuger/Markt — Stationen und ihre Märkte bleiben unberührt, Phase 4b), und
+    /// die geänderten Slot-Content-Einträge (Module mit <c>fuel</c>, Klassen mit <c>baseFuel</c>) werden per Upsert nach
+    /// Schlüssel aus der Default-Welt nachgereicht, wie MigrateV3ToV4 die Slot-Registry nachgereicht hat; eigene Einträge
+    /// des Save, die die Default-Welt nicht kennt, bleiben erhalten.
+    /// </summary>
+    static void MigrateV4ToV5(SaveGame s)
+    {
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+
+        // 1) Ware propellant ans Ende der Warenliste anhängen (GoodIds der bestehenden Waren bleiben stabil)
+        int propId = s.Goods.FirstOrDefault(g => g.Key == "propellant")?.Id ?? 0;
+        var propDef = def.Goods.FirstOrDefault(g => g.Key == "propellant");
+        if (propId == 0 && propDef is not null)
+        {
+            propId = s.Goods.Count + 1;
+            s.Goods.Add(new GoodSave
+            {
+                Id = propId, Key = propDef.Key, Name = propDef.Name, Color = propDef.Color,
+                BasePrice = propDef.BasePrice, Volume = propDef.Volume, Form = propDef.Form,
+            });
+        }
+
+        // 2) Geänderte Module/Klassen (fuel, baseFuel) aus der Default-Welt nachreichen; Slotarten/Modelle haben keine neuen Felder
+        foreach (var md in def.Modules)
+        {
+            var converted = new ModuleSave
+            {
+                Key = md.Key, Slot = md.Slot, Size = md.Size, Tier = md.Tier, Grants = new List<string>(md.Grants),
+                Stats = new Dictionary<string, float>(md.Stats), PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw,
+                Mass = md.Mass, Upkeep = md.Upkeep, Holds = md.Holds ?? "any", Cost = new Dictionary<string, float>(md.Cost),
+                Fuel = md.Fuel.Select(f => new FuelSave { Good = f.Good, Efficiency = f.Efficiency }).ToList(),
+            };
+            int i = s.Modules.FindIndex(m => m.Key == md.Key);
+            if (i < 0) s.Modules.Add(converted); else s.Modules[i] = converted;
+        }
+        foreach (var cd in def.ShipClasses)
+        {
+            var converted = new ShipClassSave
+            {
+                Key = cd.Key, Name = cd.Name, Size = cd.Size, BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel,
+                Slots = cd.Slots.Select(sl => new ShipSlotSave { Type = sl.Type, Size = sl.Size, Facing = sl.Facing, Arc = sl.Arc }).ToList(),
+            };
+            int i = s.ShipClasses.FindIndex(c => c.Key == cd.Key);
+            if (i < 0) s.ShipClasses.Add(converted); else s.ShipClasses[i] = converted;
+        }
+
+        // 3) Schiffe mit Modell: voller Tank des ersten zulässigen Treibstoffs (Kapazität = baseFuel der Klasse + fuelCapacity der Fit-Module)
+        // (alte Spielstände haben Waren ohne Schlüssel — doppelte/leere Schlüssel überspringen)
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+        foreach (var ship in s.Ships)
+        {
+            ship.Fuel ??= new Dictionary<int, float>();
+            if (ship.ModelKey is not { Length: > 0 } mk) continue;   // Schiff ohne Modell: leer
+            var model = s.ShipModels.FirstOrDefault(m => m.Key == mk);
+            var cls = model is null ? null : s.ShipClasses.FirstOrDefault(c => c.Key == model.Class);
+            if (model is null || cls is null) continue;
+            float cap = cls.BaseFuel;
+            string? firstFuel = null;
+            foreach (var fk in model.Fit)
+            {
+                var m = fk is null ? null : s.Modules.FirstOrDefault(x => x.Key == fk);
+                if (m is null) continue;
+                if (m.Stats.TryGetValue("fuelCapacity", out var fc)) cap += fc;
+                if (firstFuel is null && m.Fuel.Count > 0) firstFuel = m.Fuel[0].Good;   // erster zulässiger Treibstoff im Fit
+            }
+            if (firstFuel is not null && cap > 0f && goodIdByKey.TryGetValue(firstFuel, out var fid))
+                ship.Fuel[fid] = cap;
+        }
+        s.Version = 5;
     }
 
     /// <summary>Hebt ältere Spielstände schrittweise auf das aktuelle Format. Bei Formatänderungen hier je Version einen Schritt ergänzen.</summary>
@@ -163,6 +246,7 @@ public static class SaveGameJson
         if (s.Version < 2) MigrateV1ToV2(s);
         if (s.Version < 3) MigrateV2ToV3(s);
         if (s.Version < 4) MigrateV3ToV4(s);
+        if (s.Version < 5) MigrateV4ToV5(s);
         return s;
     }
 }

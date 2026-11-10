@@ -53,6 +53,8 @@ var tail = history.Skip(history.Count * 3 / 4).ToList();
 bool bad = false;
 foreach (var g in u.Goods.Values)
 {
+    // Waren ohne Markt (noch ohne Erzeuger, z. B. propellant bis Phase 4b) haben keinen Preis und keine Stabilität
+    if (!u.Stations.Values.Any(st => st.Market.ContainsKey(g.Id))) continue;
     float avgRatio = tail.Average(h => h.Goods.First(x => x.Good == g.Id).PriceRatio);
     if (avgRatio > 3.0f || avgRatio < 0.3f) { Console.WriteLine($"WARNUNG: {g.Name} im Schnitt bei {avgRatio:0.00}× Basispreis (instabil)"); bad = true; }
 }

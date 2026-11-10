@@ -240,7 +240,7 @@ public class SlotModelTests
         var u = DemoUniverse.Create();
         Assert.Equal(GoodForm.Liquid, u.FindGood("water")!.Form);
         Assert.Equal(GoodForm.Liquid, u.FindGood("hydrogen")!.Form);
-        Assert.All(u.Goods.Values.Where(g => g.Key is not ("water" or "hydrogen")), g => Assert.Equal(GoodForm.Solid, g.Form));
+        Assert.All(u.Goods.Values.Where(g => g.Key is not ("water" or "hydrogen" or "propellant")), g => Assert.Equal(GoodForm.Solid, g.Form));
 
         Invalid(d => d.Goods.First(g => g.Key == "water").Form = "gas", "Ware 'water': unbekannte Form 'gas'");
     }
@@ -248,7 +248,7 @@ public class SlotModelTests
     [Fact]
     public void SaveLoad_Roundtrip_V4_AltSavesLadbar_SlotContentWirdMitgespeichert()
     {
-        Assert.Equal(4, SaveGame.CurrentVersion);   // v4: ModelKey/Slots/Fit je Schiff plus Slot-Content-Sektionen
+        Assert.Equal(5, SaveGame.CurrentVersion);   // v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 100);
         var before = UniverseHash.Compute(u);

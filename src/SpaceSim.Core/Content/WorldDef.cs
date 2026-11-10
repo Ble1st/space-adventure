@@ -44,6 +44,15 @@ public sealed class SlotTypeDef
     public bool Required { get; set; }
 }
 
+/// <summary>Ein zulässiger Treibstoff eines Antriebsmoduls: Warenschlüssel + efficiency (Phase 4).</summary>
+public sealed class FuelEntryDef
+{
+    /// <summary>Warenschlüssel (muss eine flüssige Ware sein).</summary>
+    public string Good { get; set; } = "";
+    /// <summary>Wirkungsgrad; Verbrauch = Menge ÷ efficiency. Muss > 0 sein.</summary>
+    public float Efficiency { get; set; } = 1f;
+}
+
 public sealed class ModuleDef
 {
     public string Key { get; set; } = "";
@@ -55,7 +64,7 @@ public sealed class ModuleDef
     public int Tier { get; set; } = 1;
     /// <summary>Fähigkeitsnamen (Capability), die das Modul verleiht.</summary>
     public List<string> Grants { get; set; } = new();
-    /// <summary>Freie Kennzahlen (z.B. powerOutput, capacity, thrust, armor, chunkChanceMult).</summary>
+    /// <summary>Freie Kennzahlen (z.B. powerOutput, capacity, thrust, armor, chunkChanceMult, fuelCapacity).</summary>
     public Dictionary<string, float> Stats { get; set; } = new();
     /// <summary>Dauer-Leistungsaufnahme.</summary>
     public float PowerDraw { get; set; }
@@ -67,6 +76,8 @@ public sealed class ModuleDef
     public string? Holds { get; set; }
     /// <summary>Herstellkosten: Warenschlüssel → Menge.</summary>
     public Dictionary<string, float> Cost { get; set; } = new();
+    /// <summary>Zulässige Treibstoffe des Antriebsmoduls (good = Warenschlüssel, liquid, efficiency > 0, keine Dopplung).</summary>
+    public List<FuelEntryDef> Fuel { get; set; } = new();
 }
 
 /// <summary>Ein Slot einer Schiffsklasse.</summary>
@@ -90,6 +101,8 @@ public sealed class ShipClassDef
     public string Size { get; set; } = "S";
     public float BaseHull { get; set; } = 100;
     public float BaseMass { get; set; } = 10;
+    /// <summary>Tankkapazität des Rumpfs (baseFuel); Standard 0. Zusammen mit fuelCapacity-Modulen (z. B. Tanks) ergibt sich ShipStats.FuelCapacity.</summary>
+    public float BaseFuel { get; set; }
     public List<ClassSlotDef> Slots { get; set; } = new();
 }
 

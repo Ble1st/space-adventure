@@ -160,6 +160,14 @@
    "basePrice": 500,
    "volume": 3,
    "color": "#ff6b6b"
+  },
+  {
+   "key": "propellant",
+   "name": "Treibstoff",
+   "basePrice": 32,
+   "volume": 1,
+   "color": "#ffaa33",
+   "form": "liquid"
   }
  ],
  "asteroidClasses": [
@@ -1077,6 +1085,12 @@
    "stats": {
     "thrust": 160
    },
+   "fuel": [
+    {
+     "good": "propellant",
+     "efficiency": 1.0
+    }
+   ],
    "powerDraw": 3,
    "mass": 3,
    "cost": {
@@ -1196,6 +1210,7 @@
    "size": "S",
    "baseHull": 100,
    "baseMass": 10,
+   "baseFuel": 200,
    "slots": [
     {
      "type": "reactor",
@@ -1221,6 +1236,7 @@
    "size": "S",
    "baseHull": 100,
    "baseMass": 9,
+   "baseFuel": 200,
    "slots": [
     {
      "type": "reactor",
