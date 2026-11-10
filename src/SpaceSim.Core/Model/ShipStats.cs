@@ -1,0 +1,69 @@
+namespace SpaceSim.Core.Model;
+
+/// <summary>
+/// Reine Ableitung aller Schiffs­werte aus Klasse und Fit (<see cref="Compute"/>). Phase 3a: noch ohne
+/// Verbraucher — Ship.MaxHull, Ship.CargoCapacity und Travel.ShipSpeed bleiben vorerst maßgeblich.
+/// </summary>
+public sealed class ShipStats
+{
+    /// <summary>Höchsttempo; Schub/Gesamtmasse wird darauf begrenzt.</summary>
+    public const float MaxSpeed = 12f;
+
+    /// <summary>Leistung aller Reaktoren (stats powerOutput).</summary>
+    public float PowerOutput;
+    /// <summary>Dauerlast aller Module (Summe powerDraw).</summary>
+    public float PowerDraw;
+    /// <summary>Spitzenlast aller Module (Summe peakDraw), gepuffert von der Speicherbank.</summary>
+    public float PeakDraw;
+    /// <summary>Kapazität der Speicherbänke (Summe stats powerStorage).</summary>
+    public float PowerStorage;
+    /// <summary>Laderaum: Summe der Kapazitäten (stats capacity) aller Frachtmodule; holds any zählt voll, die 70%-Regel steckt in den Modul-Daten.</summary>
+    public float Cargo;
+    /// <summary>Hülle: baseHull der Klasse + Panzerung (Summe stats armor).</summary>
+    public float Hull;
+    /// <summary>Gesamtmasse: baseMass der Klasse + Summe der Modulmassen.</summary>
+    public float Mass;
+    /// <summary>Schub: Summe stats thrust.</summary>
+    public float Thrust;
+    /// <summary>Tempo = Schub / Gesamtmasse, begrenzt auf <see cref="MaxSpeed"/>.</summary>
+    public float Speed;
+    /// <summary>Unterhalt: Summe upkeep der Module.</summary>
+    public float Upkeep;
+    /// <summary>Fähigkeiten: Vereinigung aller grants der Module.</summary>
+    public Capability Capabilities = Capability.None;
+    /// <summary>Laserstufe des Werkzeugmoduls mit Mining (stats chunkChanceMult), sonst 1.</summary>
+    public float LaserChunkChanceMult = 1f;
+    /// <summary>Laserstufe des Werkzeugmoduls mit Mining (stats chunkSizeMult), sonst 1.</summary>
+    public float LaserChunkSizeMult = 1f;
+
+    /// <summary>
+    /// Berechnet die Werte eines Schiffs aus seiner Klasse und dem Fit (ein Eintrag je Slot, null = leer).
+    /// Reine Funktion ohne Universum und ohne Nebeneffekte.
+    /// </summary>
+    public static ShipStats Compute(ShipClass cls, IReadOnlyList<Module?> fit)
+    {
+        var s = new ShipStats { Mass = cls.BaseMass };
+        foreach (var m in fit)
+        {
+            if (m is null) continue;
+            s.Mass += m.Mass;
+            s.PowerDraw += m.PowerDraw;
+            s.PeakDraw += m.PeakDraw;
+            s.Upkeep += m.Upkeep;
+            foreach (var c in m.Grants) s.Capabilities |= c;
+            if (m.Stats.TryGetValue("powerOutput", out var output)) s.PowerOutput += output;
+            if (m.Stats.TryGetValue("powerStorage", out var storage)) s.PowerStorage += storage;
+            if (m.Stats.TryGetValue("capacity", out var capacity)) s.Cargo += capacity;
+            if (m.Stats.TryGetValue("armor", out var armor)) s.Hull += armor;
+            if (m.Stats.TryGetValue("thrust", out var thrust)) s.Thrust += thrust;
+            if (m.Grants.Contains(Capability.Mining))
+            {
+                s.LaserChunkChanceMult = m.Stats.TryGetValue("chunkChanceMult", out var ccm) ? ccm : 1f;
+                s.LaserChunkSizeMult = m.Stats.TryGetValue("chunkSizeMult", out var csm) ? csm : 1f;
+            }
+        }
+        s.Hull += cls.BaseHull;
+        s.Speed = s.Mass > 0f ? MathF.Min(MaxSpeed, s.Thrust / s.Mass) : 0f;
+        return s;
+    }
+}

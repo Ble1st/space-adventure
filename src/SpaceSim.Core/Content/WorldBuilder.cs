@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using SpaceSim.Core.Demo;
 using SpaceSim.Core.Model;
+using Module = SpaceSim.Core.Model.Module;
 
 namespace SpaceSim.Core.Content;
 
@@ -51,10 +52,76 @@ public static class WorldBuilder
         {
             var g = def.Goods[i];
             if (!goodByKey.TryAdd(g.Key, new GoodId(i + 1))) throw new WorldFormatException($"Ware '{g.Key}' doppelt");
-            u.Goods[new GoodId(i + 1)] = new Good { Id = new GoodId(i + 1), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume };
+            u.Goods[new GoodId(i + 1)] = new Good { Id = new GoodId(i + 1), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form, g.Key) };
         }
         GoodId Good(string key) =>
             goodByKey.TryGetValue(key, out var id) ? id : throw new WorldFormatException($"Unbekannte Ware '{key}'");
+
+        // Slot-/Modul-Content (Phase 3a: reine Daten + Validierung; nichts nutzt sie bisher)
+        foreach (var st in def.SlotTypes)
+            if (!u.SlotTypes.TryAdd(st.Key, new SlotType { Key = st.Key, Name = st.Name, Required = st.Required }))
+                throw new WorldFormatException($"Slotart '{st.Key}' doppelt");
+
+        foreach (var md in def.Modules)
+        {
+            if (!u.SlotTypes.TryGetValue(md.Slot, out _)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Slotart '{md.Slot}'");
+            var grants = new List<Capability>();
+            foreach (var g in md.Grants)
+                if (!Enum.TryParse<Capability>(g, ignoreCase: true, out var cap)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Fähigkeit '{g}'");
+                else grants.Add(cap);
+            var cost = new Dictionary<string, float>();
+            foreach (var (k, v) in md.Cost)
+            {
+                if (!goodByKey.ContainsKey(k)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Ware '{k}' in cost");
+                cost[k] = v;
+            }
+            var module = new Module
+            {
+                Key = md.Key, Slot = md.Slot, Size = ParseSize(md.Size, $"Modul '{md.Key}'"), Tier = md.Tier,
+                Grants = grants, Stats = new Dictionary<string, float>(md.Stats),
+                PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw, Mass = md.Mass, Upkeep = md.Upkeep,
+                Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost,
+            };
+            if (!u.Modules.TryAdd(md.Key, module)) throw new WorldFormatException($"Modul '{md.Key}' doppelt");
+        }
+
+        foreach (var cd in def.ShipClasses)
+        {
+            var slots = new List<ClassSlot>();
+            foreach (var s in cd.Slots)
+            {
+                if (!u.SlotTypes.TryGetValue(s.Type, out _)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Slotart '{s.Type}'");
+                slots.Add(new ClassSlot { Type = s.Type, Size = ParseSize(s.Size, $"Schiffsklasse '{cd.Key}'"), Facing = s.Facing, Arc = s.Arc });
+            }
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, Slots = slots };
+            if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
+        }
+
+        foreach (var md in def.ShipModels)
+        {
+            if (!u.ShipClasses.TryGetValue(md.Class, out var cls)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekannte Klasse '{md.Class}'");
+            if (md.Fit.Count != cls.Slots.Count) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Fit hat {md.Fit.Count} Einträge, Klasse '{cls.Key}' hat {cls.Slots.Count} Slots");
+            var fit = new List<Module?>(md.Fit.Count);
+            for (int i = 0; i < md.Fit.Count; i++)
+            {
+                var key = md.Fit[i];
+                if (key is null) { fit.Add(null); continue; }
+                if (!u.Modules.TryGetValue(key, out var module)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekanntes Modul '{key}'");
+                var slot = cls.Slots[i];
+                if (module.Slot != slot.Type) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' (Slotart '{module.Slot}') passt nicht in Slot '{slot.Type}'");
+                if (module.Size > slot.Size) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Modul '{module.Key}' ({module.Size}) ist größer als der Slot ({slot.Size})");
+                fit.Add(module);
+            }
+            for (int i = 0; i < cls.Slots.Count; i++)
+                if (fit[i] is null && u.SlotTypes[cls.Slots[i].Type].Required)
+                    throw new WorldFormatException($"Schiffsmodell '{md.Key}': Pflichtslot '{cls.Slots[i].Type}' ist leer");
+            var stats = ShipStats.Compute(cls, fit);
+            if (stats.PowerOutput < stats.PowerDraw) throw new WorldFormatException($"Schiffsmodell '{md.Key}': powerOutput {stats.PowerOutput} < powerDraw {stats.PowerDraw}");
+            if (stats.PeakDraw - (stats.PowerOutput - stats.PowerDraw) > stats.PowerStorage)
+                throw new WorldFormatException($"Schiffsmodell '{md.Key}': Spitzenlast {stats.PeakDraw} übersteigt die Speicherbank ({stats.PowerStorage} + Reaktorüberschuss {stats.PowerOutput - stats.PowerDraw})");
+            if (!u.ShipModels.TryAdd(md.Key, new ShipModel { Key = md.Key, ClassKey = md.Class, Name = md.Name, Fit = new List<string?>(md.Fit) }))
+                throw new WorldFormatException($"Schiffsmodell '{md.Key}' doppelt");
+        }
 
         foreach (var c in def.AsteroidClasses)
         {
@@ -165,4 +232,31 @@ public static class WorldBuilder
     }
 
     static Vec2 V(float[] a) => a.Length >= 2 ? new Vec2(a[0], a[1]) : throw new WorldFormatException("Position braucht zwei Zahlen");
+
+    /// <summary>Warenform aus dem JSON: fehlt das Feld oder "solid" → Solid, "liquid" → Liquid, sonst Fehler mit Warenname.</summary>
+    static GoodForm ParseForm(string? form, string goodKey) => form?.ToLowerInvariant() switch
+    {
+        null or "solid" => GoodForm.Solid,
+        "liquid" => GoodForm.Liquid,
+        _ => throw new WorldFormatException($"Ware '{goodKey}': unbekannte Form '{form}'"),
+    };
+
+    static SlotSize ParseSize(string size, string owner) => size.ToUpperInvariant() switch
+    {
+        "S" => SlotSize.S,
+        "M" => SlotSize.M,
+        "L" => SlotSize.L,
+        "XL" => SlotSize.XL,
+        _ => throw new WorldFormatException($"{owner}: unbekannte Größe '{size}'"),
+    };
+
+    /// <summary>Frachtform eines Moduls; fehlt das Feld, ist Any der Standard.</summary>
+    static ModuleHolds ParseHolds(string? holds, string owner) => holds?.ToLowerInvariant() switch
+    {
+        null => ModuleHolds.Any,
+        "solid" => ModuleHolds.Solid,
+        "liquid" => ModuleHolds.Liquid,
+        "any" => ModuleHolds.Any,
+        _ => throw new WorldFormatException($"{owner}: unbekannte Frachtform '{holds}'"),
+    };
 }

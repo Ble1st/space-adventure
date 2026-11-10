@@ -16,6 +16,14 @@ public sealed class Universe
     public Dictionary<GoodId, Good> Goods = new();
     public Dictionary<string, StationType> StationTypes = new();
     public Dictionary<string, AsteroidClass> AsteroidClasses = new();
+    /// <summary>Slotarten (Content, leer wenn die Weltdatei keinen Abschnitt hat).</summary>
+    public Dictionary<string, SlotType> SlotTypes = new();
+    /// <summary>Module (Content).</summary>
+    public Dictionary<string, Module> Modules = new();
+    /// <summary>Schiffsklassen (Content).</summary>
+    public Dictionary<string, ShipClass> ShipClasses = new();
+    /// <summary>Schiffsmodelle (Content).</summary>
+    public Dictionary<string, ShipModel> ShipModels = new();
     public EconomyRules Rules = new();
     public long LastStationBuildTick = -1_000_000;
 

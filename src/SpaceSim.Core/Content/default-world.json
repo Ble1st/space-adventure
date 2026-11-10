@@ -66,14 +66,16 @@
    "name": "Wasser",
    "basePrice": 18,
    "volume": 1,
-   "color": "#4aa3ff"
+   "color": "#4aa3ff",
+   "form": "liquid"
   },
   {
    "key": "hydrogen",
    "name": "Wasserstoff",
    "basePrice": 36,
    "volume": 1,
-   "color": "#ffd6a5"
+   "color": "#ffd6a5",
+   "form": "liquid"
   },
   {
    "key": "copper",
@@ -1009,6 +1011,229 @@
      -100
     ]
    }
+  }
+ ],
+ "slotTypes": [
+  {
+   "key": "reactor",
+   "name": "Reaktor",
+   "required": true
+  },
+  {
+   "key": "storage",
+   "name": "Speicher"
+  },
+  {
+   "key": "engine",
+   "name": "Antrieb",
+   "required": true
+  },
+  {
+   "key": "shield",
+   "name": "Schild"
+  },
+  {
+   "key": "armor",
+   "name": "Panzerung"
+  },
+  {
+   "key": "weapon",
+   "name": "Waffe"
+  },
+  {
+   "key": "tool",
+   "name": "Werkzeug"
+  },
+  {
+   "key": "cargo",
+   "name": "Fracht"
+  },
+  {
+   "key": "utility",
+   "name": "Utility"
+  }
+ ],
+ "modules": [
+  {
+   "key": "reactor_mk1",
+   "slot": "reactor",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "powerOutput": 10
+   },
+   "mass": 4,
+   "upkeep": 0.2,
+   "cost": {
+    "steel": 4,
+    "electronics": 2
+   }
+  },
+  {
+   "key": "chem_engine_s",
+   "slot": "engine",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "thrust": 160
+   },
+   "powerDraw": 3,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 1
+   }
+  },
+  {
+   "key": "mining_laser_1",
+   "slot": "tool",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "chunkChanceMult": 1,
+    "chunkSizeMult": 1
+   },
+   "powerDraw": 2,
+   "mass": 1,
+   "cost": {
+    "electronics": 2,
+    "copper": 2
+   }
+  },
+  {
+   "key": "cargo_universal_100",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 100
+   },
+   "holds": "any",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   }
+  },
+  {
+   "key": "cargo_universal_60",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 60
+   },
+   "holds": "any",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   }
+  }
+ ],
+ "shipClasses": [
+  {
+   "key": "unit_trader",
+   "name": "Einheitsfrachter",
+   "size": "S",
+   "baseHull": 100,
+   "baseMass": 10,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    }
+   ]
+  },
+  {
+   "key": "unit_miner",
+   "name": "Einheitsschürfer",
+   "size": "S",
+   "baseHull": 100,
+   "baseMass": 9,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    }
+   ]
+  }
+ ],
+ "shipModels": [
+  {
+   "key": "unit_trader_100",
+   "class": "unit_trader",
+   "name": "Einheitsfrachter 100",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    "cargo_universal_100"
+   ]
+  },
+  {
+   "key": "unit_trader_60",
+   "class": "unit_trader",
+   "name": "Einheitsfrachter 60",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    "cargo_universal_60"
+   ]
+  },
+  {
+   "key": "unit_miner_100",
+   "class": "unit_miner",
+   "name": "Einheitsschürfer 100",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "cargo_universal_100"
+   ]
+  },
+  {
+   "key": "unit_miner_60",
+   "class": "unit_miner",
+   "name": "Einheitsschürfer 60",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "cargo_universal_60"
+   ]
   }
  ],
  "ships": [

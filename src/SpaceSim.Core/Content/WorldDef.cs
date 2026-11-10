@@ -12,6 +12,14 @@ public sealed class WorldDef
     public List<FactionDef> Factions { get; set; } = new();
     public List<SectorDef> Sectors { get; set; } = new();
     public List<GateLinkDef> Gates { get; set; } = new();
+    /// <summary>Slotarten; fehlt der Abschnitt, bleibt die Registry leer und die Welt gültig.</summary>
+    public List<SlotTypeDef> SlotTypes { get; set; } = new();
+    /// <summary>Module; fehlt der Abschnitt, bleibt die Registry leer.</summary>
+    public List<ModuleDef> Modules { get; set; } = new();
+    /// <summary>Schiffsklassen; fehlt der Abschnitt, bleibt die Registry leer.</summary>
+    public List<ShipClassDef> ShipClasses { get; set; } = new();
+    /// <summary>Schiffsmodelle; fehlt der Abschnitt, bleibt die Registry leer.</summary>
+    public List<ShipModelDef> ShipModels { get; set; } = new();
     public List<ShipGroupDef> Ships { get; set; } = new();
     public PlayerDef Player { get; set; } = new();
 }
@@ -23,6 +31,76 @@ public sealed class GoodDef
     public float BasePrice { get; set; } = 10;
     public float Volume { get; set; } = 1;
     public string Color { get; set; } = "#c8c8c8";
+    /// <summary>Warenform "solid" (Standard, Feld fehlt) oder "liquid".</summary>
+    public string? Form { get; set; }
+}
+
+/// <summary>Slotart (Reaktor, Antrieb, …).</summary>
+public sealed class SlotTypeDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>Pflichtslot: ein Fit ohne Modul in diesem Slot ist ungültig.</summary>
+    public bool Required { get; set; }
+}
+
+public sealed class ModuleDef
+{
+    public string Key { get; set; } = "";
+    /// <summary>Slotart-Schlüssel, in die dieses Modul passt.</summary>
+    public string Slot { get; set; } = "";
+    /// <summary>Größe S/M/L/XL als Text.</summary>
+    public string Size { get; set; } = "S";
+    /// <summary>Stufe Mk1–Mk3.</summary>
+    public int Tier { get; set; } = 1;
+    /// <summary>Fähigkeitsnamen (Capability), die das Modul verleiht.</summary>
+    public List<string> Grants { get; set; } = new();
+    /// <summary>Freie Kennzahlen (z.B. powerOutput, capacity, thrust, armor, chunkChanceMult).</summary>
+    public Dictionary<string, float> Stats { get; set; } = new();
+    /// <summary>Dauer-Leistungsaufnahme.</summary>
+    public float PowerDraw { get; set; }
+    /// <summary>Kurzzeitige Spitzenlast.</summary>
+    public float PeakDraw { get; set; }
+    public float Mass { get; set; }
+    public float Upkeep { get; set; }
+    /// <summary>Warenform, die das Frachtmodul fasst: solid/liquid/any; fehlt = any.</summary>
+    public string? Holds { get; set; }
+    /// <summary>Herstellkosten: Warenschlüssel → Menge.</summary>
+    public Dictionary<string, float> Cost { get; set; } = new();
+}
+
+/// <summary>Ein Slot einer Schiffsklasse.</summary>
+public sealed class ClassSlotDef
+{
+    /// <summary>Slotart-Schlüssel.</summary>
+    public string Type { get; set; } = "";
+    /// <summary>Slotgröße S/M/L/XL als Text.</summary>
+    public string Size { get; set; } = "S";
+    /// <summary>Ausrichtung (bow/port/starboard/stern), optional, nur Waffen-/Werkzeug-Slots.</summary>
+    public string? Facing { get; set; }
+    /// <summary>Halber Öffnungswinkel in Grad, optional, nur Waffen-/Werkzeug-Slots.</summary>
+    public float? Arc { get; set; }
+}
+
+public sealed class ShipClassDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>Größe des Rumpfs S/M/L/XL als Text.</summary>
+    public string Size { get; set; } = "S";
+    public float BaseHull { get; set; } = 100;
+    public float BaseMass { get; set; } = 10;
+    public List<ClassSlotDef> Slots { get; set; } = new();
+}
+
+public sealed class ShipModelDef
+{
+    public string Key { get; set; } = "";
+    /// <summary>Klassen-Schlüssel.</summary>
+    public string Class { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>Modulschlüssel je Slot der Klasse; null = leerer Slot; Länge = Slotanzahl der Klasse.</summary>
+    public List<string?> Fit { get; set; } = new();
 }
 
 public sealed class AsteroidClassDef

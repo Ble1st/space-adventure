@@ -1,5 +1,8 @@
 namespace SpaceSim.Core.Model;
 
+/// <summary>Warenform: fest oder flüssig (Gase verdichtet). Flüssigstoffe reisen in Kanistern (Frachtmodul mit holds liquid).</summary>
+public enum GoodForm { Solid, Liquid }
+
 public sealed class Good
 {
     public GoodId Id;
@@ -10,6 +13,8 @@ public sealed class Good
     public string Color = "#c8c8c8";
     public float BasePrice;
     public float VolumePerUnit = 1f;
+    /// <summary>Warenform aus den Inhaltsdaten; wird nicht gespeichert (Content, kein Spielstand), beim Laden aus dem Save daher <see cref="GoodForm.Solid"/>.</summary>
+    public GoodForm Form = GoodForm.Solid;
 }
 
 public sealed class Recipe

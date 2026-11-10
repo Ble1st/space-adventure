@@ -18,6 +18,10 @@ public enum Capability
     Construction = 8,
     /// <summary>Traktor/Bergung: Wracks und verlorene Fracht bergen.</summary>
     Salvage = 16,
+    /// <summary>Sprungantrieb: Sprung in einen Sektor ohne Gate (zurückgestellt, noch kein Modul nutzt sie).</summary>
+    Jump = 32,
+    /// <summary>Tarnfeld: verringerte Entdeckung an Kontrollpunkten (zurückgestellt, noch kein Modul nutzt sie).</summary>
+    Stealth = 64,
 }
 
 /// <summary>Wer ein Schiff steuert: der Spieler selbst oder die KI.</summary>
