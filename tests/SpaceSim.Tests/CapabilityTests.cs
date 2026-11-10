@@ -113,9 +113,10 @@ public class CapabilityTests
 
         Assert.Equal(oreBefore, Belt.OreIn(sector, field));            // Asteroiden-Erz unverändert
         Assert.Equal(5f, miner.Cargo.GetValueOrDefault(DemoUniverse.IronOre));   // Fracht unverändert (leer abgesehen vom Startbestand)
-        Assert.Equal(1, miner.Cargo.Count);
+        Assert.Single(miner.Cargo);
         Assert.Equal(creditsBefore, miner.Credits);                    // weder gekauft noch verkauft
-        Assert.Equal(MinePhase.Mining, miner.MinePhase);                // das System hat das Schiff gar nicht angefasst
+        Assert.Null(miner.Order);                                       // der Auftrag wird sauber freigegeben (nicht eingefroren)
+        Assert.Equal(MinePhase.Idle, miner.MinePhase);
         Assert.DoesNotContain(events, e => e is MinerShot m && m.Ship == miner.Id);
         Assert.DoesNotContain(events, e => e is MineDelivered d && d.Ship == miner.Id);
         Assert.DoesNotContain(events, e => e is TradeCompleted t && t.Ship == miner.Id);
@@ -167,6 +168,88 @@ public class CapabilityTests
         Assert.Empty(noCargo.Cargo);
         Assert.Equal(creditsBefore, noCargo.Credits);
         Assert.DoesNotContain(events, e => e is TradeCompleted t && t.Ship == noCargo.Id);
+    }
+
+    /// <summary>Ein Händler mit Auftrag auf einer laufenden Reise (Welt eingeschwungen, andere Schiffe entfernt).</summary>
+    static (Universe u, Ship trader, Ship other) TraderInTransit()
+    {
+        var u = DemoUniverse.Create();
+        new SimulationRunner().Run(u, 300);
+        var traders = u.Ships.Values.Where(s => s.Role == ShipRole.Trader).ToList();
+        var trader = traders[0];
+        var other = traders[1];
+        foreach (var s in u.Ships.Values.Where(s => s.Id != trader.Id && s.Id != other.Id).ToList()) u.RemoveShip(s.Id, "test");
+        foreach (var s in new[] { trader, other })
+        {
+            if (s.Transit != null) u.FinishTransit(s);
+            s.Order = null; s.Phase = TradePhase.Idle; s.NextThinkTick = 0; s.Cargo.Clear();
+        }
+        var system = new TraderSystem();
+        for (int i = 0; i < 200 && trader.Transit is null; i++) { u.Tick++; system.Step(u, 1); }
+        Assert.NotNull(trader.Transit);   // Voraussetzung: der Händler ist unterwegs
+        Assert.IsType<TradeOrder>(trader.Order);
+        return (u, trader, other);
+    }
+
+    [Fact]
+    public void Trader_LosingCargoCapabilityInTransit_ArrivesAndIsReleased_NotFrozen()
+    {
+        var (u, trader, other) = TraderInTransit();
+        var arrival = trader.Transit!.ArrivalTick;
+        var destSector = trader.Transit!.ToSector;
+        float creditsBefore = trader.Credits;
+        trader.Capabilities = Capability.Combat;   // Frachtraum verloren, mitten auf der Reise
+
+        var system = new TraderSystem();
+        var events = new List<SimEvent>();
+        u.Events.Raised += e => events.Add(e);
+        int steps = (int)(arrival - u.Tick) + 5;   // vorher berechnen: u.Tick wächst in der Schleife
+        for (int i = 0; i < steps; i++) { u.Tick++; system.Step(u, 1); }
+
+        Assert.Null(trader.Transit);                      // die Reise wird beendet (kein ewiger Schwebezustand)
+        Assert.Equal(destSector, trader.Sector);         // das Schiff steht am Ziel
+        Assert.Null(trader.Order);                       // Auftrag freigegeben: keine Geisterreservierung mehr
+        Assert.Equal(TradePhase.Idle, trader.Phase);
+        Assert.Equal(creditsBefore, trader.Credits);     // ohne Frachtraum wird dabei nichts gekauft
+        Assert.DoesNotContain(events, e => e is TradeCompleted t && t.Ship == trader.Id);
+        Assert.NotNull(other);
+    }
+
+    [Fact]
+    public void Trader_LosingCargoCapabilityWithOrder_ReleasesReservationForOthers()
+    {
+        var (u, trader, _) = TraderInTransit();
+        var order = (TradeOrder)trader.Order!;
+        trader.Capabilities = Capability.Combat;
+
+        new TraderSystem().Step(u, 1);   // noch unterwegs: die Reise läuft zu Ende, der Auftrag wird sofort freigegeben
+
+        Assert.Null(trader.Order);
+        Assert.DoesNotContain(u.Ships.Values, s => s.Order is TradeOrder to && to.Buy == order.Buy && to.Good == order.Good && s.Id == trader.Id);
+    }
+
+    [Fact]
+    public void Miner_LosingMiningCapabilityInTransit_ArrivesAndIsReleased_NotFrozen()
+    {
+        var u = DemoUniverse.Create();
+        new SimulationRunner().Run(u, 50);
+        var miner = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
+        foreach (var s in u.Ships.Values.Where(s => s.Id != miner.Id).ToList()) u.RemoveShip(s.Id, "test");
+        if (miner.Transit != null) u.FinishTransit(miner);
+        miner.Order = null; miner.MinePhase = MinePhase.Idle; miner.NextThinkTick = 0; miner.Cargo.Clear();
+        var system = new MinerSystem();
+        for (int i = 0; i < 300 && miner.Transit is null; i++) { u.Tick++; system.Step(u, 1); }
+        Assert.NotNull(miner.Transit);
+        Assert.IsType<MineOrder>(miner.Order);
+        var arrival = miner.Transit!.ArrivalTick;
+
+        miner.Capabilities = Capability.Cargo;   // Werkzeug verloren, mitten auf der Reise
+        int steps = (int)(arrival - u.Tick) + 5;   // vorher berechnen: u.Tick wächst in der Schleife
+        for (int i = 0; i < steps; i++) { u.Tick++; system.Step(u, 1); }
+
+        Assert.Null(miner.Transit);
+        Assert.Null(miner.Order);
+        Assert.Equal(MinePhase.Idle, miner.MinePhase);
     }
 
     [Fact]

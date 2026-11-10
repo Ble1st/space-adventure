@@ -23,8 +23,9 @@ public sealed class MinerSystem : ISimSystem
     {
         foreach (var ship in u.Ships.Values)
         {
-            // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff schürfen können
-            if (ship.Role != ShipRole.Miner || !ship.Has(Capability.Mining)) continue;
+            // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff schürfen können; fehlt das Werkzeug, wird das Schiff freigegeben
+            if (ship.Role != ShipRole.Miner) continue;
+            if (!ship.Has(Capability.Mining)) { JobRelease.Release(u, ship); continue; }
 
             if (ship.Transit is { } t)
             {

@@ -13,8 +13,9 @@ public sealed class TraderSystem : ISimSystem
     {
         foreach (var ship in u.Ships.Values)
         {
-            // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff Frachtraum haben
-            if (ship.Role != ShipRole.Trader || !ship.Has(Capability.Cargo)) continue;
+            // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff Frachtraum haben; fehlt er, wird das Schiff freigegeben
+            if (ship.Role != ShipRole.Trader) continue;
+            if (!ship.Has(Capability.Cargo)) { JobRelease.Release(u, ship); continue; }
 
             if (ship.Transit is { } t)
             {
