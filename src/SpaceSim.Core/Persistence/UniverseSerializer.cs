@@ -10,7 +10,7 @@ public static class UniverseSerializer
     {
         s.SlotTypes = u.SlotTypes.Values.OrderBy(t => t.Key)
             .Select(t => new SlotTypeSave { Key = t.Key, Name = t.Name, Required = t.Required }).ToList();
-        s.Modules = u.Modules.Values.OrderBy(m => m.Key).Select(ToSave).ToList();
+        s.Modules = u.Modules.Values.OrderBy(m => m.Key).Select(m => ToSave(m, u)).ToList();
         s.ShipClasses = u.ShipClasses.Values.OrderBy(c => c.Key).Select(ToSave).ToList();
         s.ShipModels = u.ShipModels.Values.OrderBy(m => m.Key)
             .Select(m => new ShipModelSave { Key = m.Key, Class = m.ClassKey, Name = m.Name, Fit = new List<string?>(m.Fit) }).ToList();
@@ -19,43 +19,51 @@ public static class UniverseSerializer
     /// <summary>Stellt die Slot-/Modul-Content-Sektionen aus dem Save im Universum wieder her.</summary>
     public static void ReadSlotContent(SaveGame s, Universe u)
     {
+        // Alte Spielstände (vor v3) haben Waren ohne Schlüssel — die dürfen nicht in die Schlüssel→Id-Map (doppelt/leer)
+        var goodId = new Dictionary<string, GoodId>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodId.TryAdd(g.Key, new GoodId(g.Id));
         foreach (var t in s.SlotTypes)
             u.SlotTypes[t.Key] = new SlotType { Key = t.Key, Name = t.Name, Required = t.Required };
         foreach (var m in s.Modules)
-            u.Modules[m.Key] = FromSave(m);
+            u.Modules[m.Key] = FromSave(m, goodId);
         foreach (var c in s.ShipClasses)
             u.ShipClasses[c.Key] = FromSave(c);
         foreach (var m in s.ShipModels)
             u.ShipModels[m.Key] = new ShipModel { Key = m.Key, ClassKey = m.Class, Name = m.Name, Fit = new List<string?>(m.Fit) };
     }
 
-    static ModuleSave ToSave(Module m) => new()
+    static ModuleSave ToSave(Module m, Universe u) => new()
     {
         Key = m.Key, Slot = m.Slot, Size = m.Size.ToString(), Tier = m.Tier,
         Grants = m.Grants.Select(g => g.ToString()).ToList(),
         Stats = new Dictionary<string, float>(m.Stats),
         PowerDraw = m.PowerDraw, PeakDraw = m.PeakDraw, Mass = m.Mass, Upkeep = m.Upkeep,
         Holds = m.Holds.ToString().ToLowerInvariant(), Cost = new Dictionary<string, float>(m.Cost),
+        // Treibstoff als Warenschlüssel (wie cost), damit GoodIds im Save nicht verschoben werden müssen
+        Fuel = m.FuelTypes.Select(f => new FuelSave { Good = u.Goods[f.Good].Key, Efficiency = f.Efficiency }).ToList(),
     };
 
-    static Module FromSave(ModuleSave m) => new()
+    static Module FromSave(ModuleSave m, Dictionary<string, GoodId> goodId) => new()
     {
         Key = m.Key, Slot = m.Slot, Size = Enum.Parse<SlotSize>(m.Size, ignoreCase: true), Tier = m.Tier,
         Grants = m.Grants.Select(g => Enum.Parse<Capability>(g, ignoreCase: true)).ToList(),
         Stats = new Dictionary<string, float>(m.Stats),
         PowerDraw = m.PowerDraw, PeakDraw = m.PeakDraw, Mass = m.Mass, Upkeep = m.Upkeep,
         Holds = Enum.Parse<ModuleHolds>(m.Holds, ignoreCase: true), Cost = new Dictionary<string, float>(m.Cost),
+        FuelTypes = m.Fuel.Select(f => new FuelType(
+            goodId.TryGetValue(f.Good, out var gid) ? gid : throw new SaveFormatException($"Modul '{m.Key}': unbekannte Ware '{f.Good}' in fuel"),
+            f.Efficiency)).ToList(),
     };
 
     static ShipClassSave ToSave(ShipClass c) => new()
     {
-        Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass,
+        Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
         Slots = c.Slots.Select(ToSave).ToList(),
     };
 
     static ShipClass FromSave(ShipClassSave c) => new()
     {
-        Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass,
+        Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
         Slots = c.Slots.Select(FromSave).ToList(),
     };
 
@@ -127,6 +135,7 @@ public static class UniverseSerializer
                 Transit = sh.Transit is null ? null : ToSave(sh.Transit),
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                Fuel = sh.Fuel.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
             });
         return s;
     }
@@ -199,6 +208,7 @@ public static class UniverseSerializer
                 Transit = sh.Transit is null ? null : FromSave(sh.Transit),
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                Fuel = sh.Fuel.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
             ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;

@@ -1,5 +1,6 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Trading;
 
 namespace SpaceSim.Core.Simulation;
 
@@ -52,6 +53,15 @@ public sealed class TraderSystem : ISimSystem
 
         TradeOrder? best = null;
         float bestScore = 0f;
+        var fuelGood = Refuel.ActiveFuel(ship);
+        // Treibstoffpreis wie Refuel.FuelPrice (aktuelle Station, sonst Kaufstation, sonst Durchschnitt), aber nur einmal je Suche ermittelt
+        float fuelHere = 0f, fuelAvg = 0f;
+        if (fuelGood is { } fg)
+        {
+            var here = Refuel.CurrentStation(u, ship);
+            if (here is not null && here.Market.TryGetValue(fg, out var he) && he.Price > 0f) fuelHere = he.Price;
+            fuelAvg = Refuel.FuelPrice(u, ship, fg);
+        }
         foreach (var good in u.Goods.Values)
         {
             float capacityUnits = ship.CapacityVolumeFor(u, good.Id) / good.VolumePerUnit;
@@ -66,16 +76,27 @@ public sealed class TraderSystem : ISimSystem
                 float units = MathF.Min(capacityUnits, available);
                 float toBuy = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
                 if (float.IsPositiveInfinity(toBuy)) continue;
+                float fuelPrice = fuelHere > 0f ? fuelHere
+                    : fuelGood is { } fgb && buy.Market.TryGetValue(fgb, out var be) && be.Price > 0f ? be.Price : fuelAvg;
+                float distToBuy = fuelGood is null ? 0f : Travel.EstimateDistance(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
                 foreach (var sell in traders)
                 {
                     if (sell.Id == buy.Id) continue;
                     var s = sell.Market[good.Id];
                     float margin = s.Price - b.Price;
-                    if (margin <= 0f || !CanAfford(sell, s.Price, units)) continue;
+                    if (margin <= 0f) continue;
+                    // Die Station zahlt nur, was ihre Kasse hergibt (der Rest der Ladung wird ohne Bezahlung abgeladen): mit dem
+                    // tatsächlichen Erlös rechnen statt arme Abnehmer ganz zu überspringen. Sonst verhungert eine Station, deren
+                    // Eingangsware knapp und damit teuer ist, endgültig — sie kann die volle Ladung nie zu 25 % anzahlen.
+                    float paidUnits = MathF.Min(units, MathF.Max(0f, sell.Credits) / s.Price);
+                    float profit = paidUnits * s.Price - units * b.Price;
+                    if (profit <= 0f) continue;
                     if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(units, 5f)) continue;   // Lager voll: nimmt nichts mehr
                     float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship);
                     if (float.IsPositiveInfinity(toSell)) continue;
-                    float score = margin * units / (toBuy + toSell);
+                    // Phase 4b: Treibstoffkosten der Runde (Hin- und Rückfahrt) vom Gewinn abziehen
+                    float fuelCost = Refuel.TripFuelCost(u, ship, buy, sell, distToBuy, fuelPrice);
+                    float score = (profit - fuelCost) / (toBuy + toSell);
                     if (score > bestScore) { bestScore = score; best = new TradeOrder(buy.Id, sell.Id, good.Id); }
                 }
             }
@@ -83,7 +104,17 @@ public sealed class TraderSystem : ISimSystem
         if (best is null) return false;
         ship.Order = best;
         ship.Phase = TradePhase.GoingToBuy;
+        long idleBefore = ship.IdleSince;   // ein Liegenbleiber (Stuck) behält seinen Leerlauf-Beginn, sonst wird er nie aufgegeben
         ship.IdleSince = -1;
+        // Phase 4b: Treibstoff für die Reise sichern (Tanken hier oder Tankstopp unterwegs), erst dann starten
+        var plan = Refuel.PrepareTrip(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
+        if (plan == Refuel.TripPlan.FuelStop) return true;   // Order ist jetzt GoToOrder zur Tankstelle, Transit läuft
+        if (plan == Refuel.TripPlan.Stuck)
+        {
+            // pleite: nicht reisen, liegen bleiben (FleetSystem gibt das Schiff nach Leerlauf auf)
+            ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = idleBefore >= 0 ? idleBefore : u.Tick;
+            return false;
+        }
         Travel.Start(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
         return true;
     }
@@ -94,6 +125,33 @@ public sealed class TraderSystem : ISimSystem
     static void Arrive(Universe u, Ship ship, Transit t)
     {
         u.FinishTransit(ship);
+        if (ship.Order is GoToOrder g && u.Stations.ContainsKey(g.Target))
+        {
+            // Tankstopp (Phase 4b): bei Ankunft an der Tankstelle volltanken; ein laufender Verkauf wird danach neu gehangen
+            var st = u.Stations[g.Target];
+            Refuel.TankUp(u, ship, st);
+            ship.Order = null;
+            if (ship.Phase == TradePhase.GoingToSell && ship.Cargo.Count > 0)
+            {
+                var good = ship.Cargo.Keys.OrderBy(k => k.Value).First();
+                var next = TradeActions.BestBuyer(u, ship, ship.Sector, ship.Position);
+                if (next is not null)
+                {
+                    ship.Order = new TradeOrder(st.Id, next.Id, good);
+                    var plan = Refuel.PrepareTrip(u, ship, next.Sector, next.DockPoint(ship.Id));
+                    if (plan == Refuel.TripPlan.FuelStop) return;
+                    if (plan == Refuel.TripPlan.Depart)
+                    {
+                        Travel.Start(u, ship, next.Sector, next.DockPoint(ship.Id));
+                        return;
+                    }
+                }
+            }
+            ship.Order = null;
+            ship.Phase = TradePhase.Idle;
+            ship.IdleSince = u.Tick;
+            return;
+        }
         if (ship.Order is not TradeOrder order || !u.Stations.ContainsKey(order.Buy) || !u.Stations.ContainsKey(order.Sell))
         {
             ship.Order = null; ship.Phase = TradePhase.Idle; ship.Cargo.Clear();
@@ -116,6 +174,14 @@ public sealed class TraderSystem : ISimSystem
                 ship.Credits -= cost;
                 ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
                 ship.Phase = TradePhase.GoingToSell;
+                // Phase 4b: Treibstoff für die Fahrt zum Verkäufer sichern (Tankstopp verwirft den Auftrag, Ankunft hängt ihn neu)
+                var plan = Refuel.PrepareTrip(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
+                if (plan == Refuel.TripPlan.FuelStop) return;
+                if (plan == Refuel.TripPlan.Stuck)
+                {
+                    ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick;
+                    return;
+                }
                 Travel.Start(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
             }
             else { ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick; }

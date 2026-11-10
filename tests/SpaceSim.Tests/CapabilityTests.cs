@@ -255,7 +255,7 @@ public class CapabilityTests
     [Fact]
     public void SaveLoad_RestoresDerivedCapabilities_AndKeepsHashAndVersion()
     {
-        Assert.Equal(4, SaveGame.CurrentVersion);   // v4: Modell/Slots/Fit der Schiffe werden gespeichert
+        Assert.Equal(5, SaveGame.CurrentVersion);   // v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit der Schiffe)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 500);
         var before = UniverseHash.Compute(u);

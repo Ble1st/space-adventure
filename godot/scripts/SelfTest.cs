@@ -71,8 +71,38 @@ public partial class SelfTest : Node
 					}
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Info && a.Available) && areas.Any(a => a.Id == Ui.Screens.DockAreas.Hangar && a.Available),
 						"Station-Info und Hangar sind immer aktiv");
-					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Repair or Ui.Screens.DockAreas.Outfitter or Ui.Screens.DockAreas.Shipyard or Ui.Screens.DockAreas.Taxi or Ui.Screens.DockAreas.Missions)
-						.All(a => !a.Available), "Platzhalterbereiche (Reparatur, Ausrüster, Werft, Taxi, Aufträge) sind nicht aktiv");
+					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Outfitter or Ui.Screens.DockAreas.Shipyard or Ui.Screens.DockAreas.Taxi or Ui.Screens.DockAreas.Missions)
+						.All(a => !a.Available), "Platzhalterbereiche (Ausrüster, Werft, Taxi, Aufträge) sind nicht aktiv");
+					bool repairOrFuel = _m.Session.Services.ForStation(u, st).Any(s => s.Key is "refuel" or "repair");
+					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Repair && a.Available) == repairOrFuel,
+						"Reparatur & Tanken ist genau dann aktiv, wenn ForStation refuel oder repair liefert");
+				}
+				{ // Phase 4c: Verbrauch im Flug, Reparatur an der Werft und Tanken über den Dock-Bereich (nur Offers/Execute)
+					var st = u.Stations[_m.TestDockedStation!.Value];
+					var pl = _m.Session.Player; pl.Credits = 100000f;
+					Check(pl.TotalFuel < pl.Stats.FuelCapacity && pl.TotalFuel > 0f, $"Spielerflug hat Treibstoff verbraucht (Tank {pl.TotalFuel:0.0}/{pl.Stats.FuelCapacity:0})");
+					var plates = u.FindGood("hull_plates")!.Id;
+					st.Market[plates].Amount = System.Math.Max(st.Market[plates].Amount, 20f);
+					pl.Hull = pl.MaxHull - 30f;
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Repair);
+					Check(_m.TestScreenOpen("dock.repair"), "Bereich Reparatur & Tanken an der Werft geöffnet");
+					Check(_m.HudRef.DockRepair.TestRowCount >= 2, "Reparatur zeigt Zeilen aus IStationService.Offers");
+					float platesBefore = st.Market[plates].Amount, crBefore = pl.Credits;
+					var rep = _m.HudRef.DockRepair.Execute("repair", "repair:full");
+					Check(rep.Success && pl.Hull >= pl.MaxHull - 0.01f, "Reparatur über Dienst+Oberfläche stellt die Hülle her");
+					Check(st.Market[plates].Amount < platesBefore && pl.Credits < crBefore, "Reparatur verbraucht Hüllenplatten der Station und kostet Credits");
+					Check(_m.HudRef.DockRepair.TestMessage.Length > 0, "Ergebnismeldung der Reparatur wird angezeigt");
+					// Tanken: dieselbe Seite mit einer Raffinerie als Station (die Werft verkauft keinen Treibstoff)
+					var refinery = u.Stations.Values.First(x => x.TypeKey == "fuel_refinery");
+					var prop = u.FindGood("propellant")!.Id;
+					refinery.Market[prop].Amount = System.Math.Max(refinery.Market[prop].Amount, 60f);
+					_m.HudRef.DockCtx.Station = refinery;
+					pl.Fuel[prop] = 100f;
+					crBefore = pl.Credits;
+					var fuel = _m.HudRef.DockRepair.Execute("refuel", "refuel:25");
+					Check(fuel.Success && System.Math.Abs(pl.TotalFuel - 125f) < 0.01f, "Tanken über Dienst+Oberfläche füllt den Tank um 25");
+					Check(pl.Credits < crBefore, "Tanken kostet Credits");
+					_m.HudRef.DockCtx.Station = st;
 				}
 				{ // Handel öffnen und über die Oberfläche (Dienst Execute) kaufen/verkaufen
 					var st = u.Stations[_m.TestDockedStation!.Value];
@@ -103,6 +133,18 @@ public partial class SelfTest : Node
 				_m.TestUndock();
 				Check(!_m.Docked, "Abdocken aus dem Handelsbereich");
 				Check(_m.HudRef.Screens.Current == null, "Dock-Bildschirme nach dem Abdocken geschlossen");
+				{ // Phase 4c: leerer Tank → Notantrieb, Notruf aus dem Menü füllt bis zur nächsten Tankstelle
+					var pl = _m.Session.Player;
+					var prop = u.FindGood("propellant")!.Id;
+					float saved = pl.TotalFuel;
+					pl.Fuel[prop] = 0f;
+					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(pl) < 1f, "Leerer Tank deckelt das Tempo (Notantrieb)");
+					float cr = pl.Credits;
+					_m.TestCommand("emergency");
+					Check(pl.TotalFuel > 0f && pl.Credits < cr, $"Notruf liefert Treibstoff gegen Credits (Tank {pl.TotalFuel:0.0})");
+					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(pl) >= 1f, "Nach dem Notruf wieder volles Tempo");
+					pl.Fuel[prop] = saved;
+				}
 				Next(); break;
 			case 4: // Speichern, Spiel verändern, Laden
 				Check(_m.TestSave(), "Speichern");

@@ -4,7 +4,10 @@ namespace SpaceSim.Core.Model;
 public sealed class EconomyRules
 {
     // Sinks
-    public float FuelCostPerUnit = 0.02f;        // Credits je geflogener Einheit
+    /// <summary>Frühere Credit-Pauschale je geflogener Einheit. Seit Phase 4b verbrauchen KI-Schiffe echten Treibstoff (siehe Simulation.Refuel); der Wert wird nicht mehr abgebucht, bleibt aber Datenbestand alter Spielstände.</summary>
+    public float FuelCostPerUnit = 0.02f;
+    /// <summary>Hüllenplatten je repariertem Hüllenpunkt (Dienst „repair“, Phase 4c); der Arbeitsaufschlag wird extra in Credits berechnet. Fehlt das Feld in alten Spielständen, gilt der Standard 0,05 (additiv, kein Versionssprung).</summary>
+    public float RepairPlatesPerHull = 0.05f;
     public float ShipUpkeepPerTick = 0.01f;      // Wartung je Schiff
     /// <summary>Anteil des Vermögens, der pro Tick verschwindet (Gebühren, Versicherung). Stabilisiert den Geldumlauf.</summary>
     public float ShipWealthTax = 0.0003f;

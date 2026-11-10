@@ -87,6 +87,29 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Risiken und Prüfung:** Wasserstoff konkurriert mit dem Kraftwerk; Balance-Lauf auf Energiemangel in der Startwelt prüfen. Liegenbleiber dürfen die Simulation nicht festfahren (Notkauf, Schlepp, Rückflug).
 - **Tests:** Verbrauch, Tanken, Nachschub, leerer Tank, Rettungsdienst, Determinismus, Migration v4→v5.
 
+**Stand:** Phase 4 ist in drei Schritten umgesetzt (Branch `phase4-treibstoff`).
+- **4a (Datenmodell):** `propellant`, `baseFuel`/`fuelCapacity`, Antriebs-`fuel`-Liste mit `efficiency`, `Ship.Fuel`, Save v5 mit Migration v4→v5.
+- **4b (Wirtschaft):** Stationstyp Treibstoffraffinerie (3 Wasserstoff + 1 Energie → 4 Treibstoff, dazu eine Grundproduktion ohne Eingänge: 1 Treibstoff je 20 Ticks) mit zwei Instanzen (Beta, Alpha). `Travel.Start` verbraucht echten Treibstoff (Strecke in Sektoren × `fuelUse` 0,002 / `efficiency`, Gate-Sprünge frei) statt der Credit-Pauschale. `Simulation/Refuel.cs`: Tanken an der aktuellen Station, Tankstopp über `GoToOrder`, Notkauf zum doppelten Basispreis als Geldsenke. `TraderSystem` zieht die Treibstoffkosten der Runde vom Gewinn ab.
+- **4c (Dienste und Spieler):** Dienste `refuel` (`refuel:fill`, `refuel:25/50/100`, Marktpreis) und `repair` (`repair:full`, `repair:half`; verbraucht Hüllenplatten, `EconomyRules.RepairPlatesPerHull` 0,05, Arbeitsaufschlag 1,5 × Plattenpreis). Raffinerien führen `refuel`, Panzerwerk und Werft `repair`. Der Spieler verbraucht im Flug Treibstoff (`Flight/PlayerFuel`), bei leerem Tank gilt der Notantrieb (20 % Tempo), der Notruf im Menü liefert Treibstoff zum doppelten Basispreis bis zur nächsten Tankstelle. Dock-Bereich „Reparatur & Tanken“ (`RepairFuelScreen`), echte Tankanzeige im HUD und im Dock.
+- **Prüfung:** 287 Tests, Selbsttest OK. Balance: Standard-Seed bei 20000 und 60000 Ticks „Preise im Zielbereich“; Seeds 1–8: 5 von 8 grün bei 20000, 5 von 8 bei 60000; Händler/Miner bleiben bei 14/8; 0 Notkäufe.
+
+**Bei der Prüfung der Phasen 1–4 gefundene und behobene Fehler:**
+1. **Alte Spielstände ohne Raffinerie:** Die Migration v4→v5 gab Schiffen Tanks, der Welt aber keine Treibstoffquelle; nach dem ersten Tank wäre die KI-Flotte liegengeblieben. Die Migration ergänzt jetzt Stationstyp und Raffinerien (in sehr alten Welten ohne Wasserstoff/Energie nur mit der Grundproduktion); zusätzlich hält ein Notkauf die Schiffe beweglich, wenn nirgends Treibstoff erreichbar ist. Mit einer Kopie des echten v2-Spielstands geprüft (2 Raffinerien, Flotte tankt, 0 Notkäufe über 40000 Ticks).
+2. **Tanken fraß das Betriebskapital:** KI-Schiffe tankten für ihr gesamtes Geld voll und konnten danach keine Ware kaufen. Jetzt gilt ein Tankbudget (30 % der Credits über den Reisebedarf hinaus); ein Umweg zur Tankstelle erst unter 25 % Tank.
+3. **Liegenbleiber wurden nie aufgegeben:** Der Leerlauf-Zähler startete bei jedem Planungsversuch neu. Ein Schiff ohne Geld und Treibstoff wird jetzt nach `ShipBankruptTicks` entfernt.
+4. **Arme Abnehmer verhungerten:** Händler übersprangen Stationen, die nicht 25 % einer vollen Ladung anzahlen konnten. Knappe Eingangsware wurde so teuer, dass die Station nie mehr beliefert wurde (z. B. Farm ohne Wasser, Nahrung auf 4× Basispreis). Die Bewertung rechnet jetzt mit dem tatsächlich zahlbaren Erlös.
+5. **Treibstoffpreis stieg über lange Läufe** (60000 Ticks, 5 von 8 Seeds bei 4×): behoben durch die Grundproduktion der Raffinerie.
+
+**Abweichungen vom Plan und offene Punkte (nicht behoben, Entscheidung nötig):**
+- **Treibstoff ist für den Spieler kaum spürbar:** Ein Flug über drei Sektoren kostet etwa 1 von 200 Einheiten. `fuelUse` 0,002 wurde auf die Stabilität der KI-Wirtschaft abgestimmt. Stellräder: eigener Verbrauch für das Spielermodell, kleinerer Tank oder höherer Verbrauch mit neuer Balance.
+- **Reparatur kostet in der Praxis nichts:** Andocken repariert weiter automatisch und die Hülle regeneriert im Flug. Der Dienst `repair` funktioniert, wird aber erst gebraucht, wenn diese beiden Automatiken entfallen (sinnvoll mit dem Kampf).
+- **Rettungs- und Schleppdienst als Station** fehlt; Ersatz sind Notkauf (KI) und Notruf (Spieler).
+- **Tankgröße** kommt aus der Schiffsklasse (`baseFuel` 200), nicht aus einem Tankmodul, wie im Plan entschieden. Der Modul-Stat `fuelCapacity` existiert, kein Startmodell nutzt ihn.
+- **Phase 3, Unterhalt:** `ShipStats.Upkeep` wird berechnet, aber `UpkeepSystem` rechnet weiter pauschal (`ShipUpkeepPerTick`). Ebenso ungenutzt: Masse und Schub; das Spielerschiff fliegt mit festem Tempo (`PlayerShip.MaxSpeed`), nicht mit `Stats.Speed`.
+- **Phase 3, Leistung:** Die Leistungsbilanz wird nur beim Laden des Contents geprüft, nicht zur Laufzeit; die Laserstufe ist im Spiel überall 1/1.
+- **Wirtschaft allgemein:** Über 60000 Ticks geraten auf einzelnen Seeds einzelne Waren in den Warnbereich (in den geprüften Läufen immer Überangebot um 0,3× Basispreis). Händler fahren teils dieselbe Ware zwischen zwei Stationen hin und her. Ein Verbot (Handel nur Erzeuger→Verbraucher) sättigt die ganze Wirtschaft und wurde verworfen.
+- **Nicht geprüft:** Handtest im Spiel und Test auf einem Android-Gerät.
+
 ## Phase 5: Module als Waren, Fabriken, Ausrüster, Schiffskauf
 
 **Ziel:** Der Spieler kann Schiffe und Module kaufen und umrüsten; NPCs nutzen dieselben Regeln. **Größe L, in drei Teilschritten umzusetzen (5a, 5b, 5c), je mit eigenem Test- und Balance-Lauf.**

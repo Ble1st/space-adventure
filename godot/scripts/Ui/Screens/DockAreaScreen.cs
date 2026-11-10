@@ -148,7 +148,17 @@ public abstract partial class DockAreaScreen : Control, IScreen
 
 		var phRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		phRow.AddThemeConstantOverride("separation", 8);
-		var pl = Text("Schild · Sprit", 15, new Color(Dim, 0.7f)); pl.CustomMinimumSize = new Vector2(88, 0);
+		var fuelRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		fuelRow.AddThemeConstantOverride("separation", 8);
+		var fl = Text("Sprit", 15, Dim); fl.CustomMinimumSize = new Vector2(58, 0);
+		float fuelCap = ship.Stats.FuelCapacity;
+		var fuelBar = new KitBar(w - 150, 12, Orange);
+		fuelBar.Set(ship.TotalFuel, fuelCap > 0f && ship.TotalFuel < 0.2f * fuelCap ? Red : Orange, MathF.Max(1f, fuelCap));
+		fuelRow.AddChild(fl); fuelRow.AddChild(fuelBar);
+		fuelRow.AddChild(Text(fuelCap > 0f ? $"{(int)ship.TotalFuel}" : "–", 15, White));
+		sv.AddChild(fuelRow);
+
+		var pl = Text("Schild", 15, new Color(Dim, 0.7f)); pl.CustomMinimumSize = new Vector2(88, 0);
 		phRow.AddChild(pl);
 		phRow.AddChild(Text(UiPlaceholders.Tag, 12, new Color(Dim, 0.55f)));
 		sv.AddChild(phRow);

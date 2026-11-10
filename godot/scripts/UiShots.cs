@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.IO;
 using Godot;
@@ -65,7 +66,18 @@ public partial class UiShots : Node
 			case 18: _m.TestOpenDockArea("hangar"); _stage = 19; _wait = 20; break;
 			case 19: Capture("10-dock-hangar.png"); _stage = 20; _wait = 10; break;
 			case 20: _m.TestOpenDockArea("repair"); _stage = 21; _wait = 20; break;
-			case 21: Capture("11-dock-bereich-platzhalter.png"); _stage = 22; _wait = 10; break;
+			case 21: Capture("11-dock-bereich-platzhalter.png"); _stage = 210; _wait = 10; break;
+			case 210: // Reparatur & Tanken (Phase 4c) mit einer Raffinerie als Station, Tank halb leer
+			{
+				var u = _m.Session.U;
+				var prop = u.FindGood("propellant")!.Id;
+				_m.Session.Player.Fuel[prop] = 80f;
+				_m.Session.Player.Credits = 4000f;
+				_m.HudRef.DockCtx.Station = u.Stations.Values.First(x => x.TypeKey == "fuel_refinery");
+				_m.HudRef.Screens.Show(_m.HudRef.DockRepair);
+				_stage = 211; _wait = 20; break;
+			}
+			case 211: Capture("11b-dock-reparatur-tanken.png"); _stage = 22; _wait = 10; break;
 			// ── Kommandozentrale (UI.md Abschnitt 4) ──
 			// Aufnahme und Zustandsänderung nie im selben Frame (FramePostDraw feuert nach _Process):
 			// jeder Schritt wechselt nur eine Sache, die Aufnahme passiert im Folgeframe

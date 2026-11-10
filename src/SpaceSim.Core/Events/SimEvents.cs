@@ -23,6 +23,10 @@ public sealed record AsteroidDepleted(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record AsteroidRespawned(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record ShipSpawned(ShipId Ship) : SimEvent;
 public sealed record ShipRemoved(ShipId Ship, string Reason) : SimEvent;
+/// <summary>Ein Schiff hat an einer Station Treibstoff in den Tank gekauft (Marktpreis; Bestand, Stationskasse und Schiffscredits sind gebucht). Phase 4b.</summary>
+public sealed record FuelBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
+/// <summary>Notkauf bei leerem Tank (Phase 4b): Treibstoff zum Aufpreis (2× Basispreis), der Erlös fließt an keine Station und verschwindet (Geldsenke).</summary>
+public sealed record EmergencyRefuel(ShipId Ship, GoodId Good, float Units, float Cost) : SimEvent;
 
 /// <summary>Einfacher synchroner Ereignisbus. Wird nicht gespeichert; Abonnenten (Statistik, Darstellung) hängen sich nach dem Laden neu an.</summary>
 public sealed class SimEvents

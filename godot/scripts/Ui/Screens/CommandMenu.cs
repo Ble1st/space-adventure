@@ -19,7 +19,7 @@ public partial class CommandMenu : Control, IScreen
 
 	/// <summary>
 	/// Aktion eines Eintrags: "map", "economy", "save", "load", "new", "close" oder Kamera-Aktionen
-	/// "zoom_in", "zoom_out", "cam_free", "cam_lock", "cam_invert", "cam_reset".
+	/// "zoom_in", "zoom_out", "cam_free", "cam_lock", "cam_invert", "cam_reset", sowie "emergency" (Notruf, Phase 4c).
 	/// </summary>
 	public event Action<string>? Action;
 
@@ -28,6 +28,7 @@ public partial class CommandMenu : Control, IScreen
 	{
 		("Karte", "Sternenkarte öffnen", "map"),
 		("Wirtschaft", "Debug-Übersicht", "economy"),
+		("Notruf", "Treibstoff zum Aufpreis bei leerem Tank", "emergency"),
 		("Speichern", "", "save"),
 		("Laden", "", "load"),
 		("Neues Spiel", "", "new"),

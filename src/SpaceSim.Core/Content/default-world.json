@@ -2,7 +2,8 @@
  "seed": 20260101,
  "rules": {
   "maxTraders": 14,
-  "maxMiners": 8
+  "maxMiners": 8,
+  "repairPlatesPerHull": 0.05
  },
  "goods": [
   {
@@ -160,6 +161,14 @@
    "basePrice": 500,
    "volume": 3,
    "color": "#ff6b6b"
+  },
+  {
+   "key": "propellant",
+   "name": "Treibstoff",
+   "basePrice": 32,
+   "volume": 1,
+   "color": "#ffaa33",
+   "form": "liquid"
   }
  ],
  "asteroidClasses": [
@@ -420,6 +429,10 @@
    "buildCost": 8000,
    "upkeep": 0.12,
    "income": 1.5,
+   "services": [
+    "trade",
+    "repair"
+   ],
    "recipes": [
     {
      "ticks": 10,
@@ -515,6 +528,10 @@
    "buildCost": 12000,
    "upkeep": 0.15,
    "income": 2,
+   "services": [
+    "trade",
+    "repair"
+   ],
    "recipes": [
     {
      "ticks": 20,
@@ -551,6 +568,36 @@
       "luxury_goods": 1
      },
      "out": {}
+    }
+   ]
+  },
+  {
+   "key": "fuel_refinery",
+   "name": "Treibstoffraffinerie",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "services": [
+    "trade",
+    "refuel"
+   ],
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "hydrogen": 3,
+      "energy": 1
+     },
+     "out": {
+      "propellant": 4
+     }
+    },
+    {
+     "ticks": 20,
+     "in": {},
+     "out": {
+      "propellant": 1
+     }
     }
    ]
   }
@@ -660,6 +707,30 @@
        100
       ]
      }
+    },
+    {
+     "id": 26,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Alpha",
+     "pos": [
+      40,
+      -115
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ],
+      "propellant": [
+       100,
+       100
+      ]
+     }
     }
    ]
   },
@@ -734,6 +805,30 @@
      "essential": true,
      "stock": {
       "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 25,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Beta",
+     "pos": [
+      -100,
+      -60
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ],
+      "propellant": [
        100,
        100
       ]
@@ -1075,8 +1170,15 @@
    "size": "S",
    "tier": 1,
    "stats": {
-    "thrust": 160
+    "thrust": 160,
+    "fuelUse": 0.002
    },
+   "fuel": [
+    {
+     "good": "propellant",
+     "efficiency": 1.0
+    }
+   ],
    "powerDraw": 3,
    "mass": 3,
    "cost": {
@@ -1196,6 +1298,7 @@
    "size": "S",
    "baseHull": 100,
    "baseMass": 10,
+   "baseFuel": 200,
    "slots": [
     {
      "type": "reactor",
@@ -1221,6 +1324,7 @@
    "size": "S",
    "baseHull": 100,
    "baseMass": 9,
+   "baseFuel": 200,
    "slots": [
     {
      "type": "reactor",

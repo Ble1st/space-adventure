@@ -61,7 +61,11 @@ public sealed class FleetSystem : ISimSystem
             child.ModelKey = parent.ModelKey;
             child.Slots = parent.Slots.Select(s => new ClassSlot { Type = s.Type, Size = s.Size, Facing = s.Facing, Arc = s.Arc }).ToList();
             child.Fit = new List<string?>(parent.Fit);
-            if (child.RecomputeStats(u)) child.CargoCapacity = child.Stats.Cargo;
+            if (child.RecomputeStats(u))
+            {
+                child.CargoCapacity = child.Stats.Cargo;
+                child.FillFuel();   // Phase 4: Neuschiff startet mit vollem Tank (erster zulässiger Treibstoff)
+            }
             else { child.ModelKey = ""; child.Slots.Clear(); child.Fit.Clear(); child.CargoCapacity = parent.CargoCapacity; child.Capabilities = CapabilityDefaults.ForRole(role); }
         }
         else

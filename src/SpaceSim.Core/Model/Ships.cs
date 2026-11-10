@@ -34,6 +34,8 @@ public sealed class Ship
     const float NoModelHull = 100f;
     public float CargoCapacity = 100f;
     public Dictionary<GoodId, float> Cargo = new();
+    /// <summary>Treibstoff an Bord je Ware, getrennt vom Laderaum; Summe ≤ <see cref="ShipStats.FuelCapacity"/>. Schiffe ohne Modell: leer (Kapazität 0).</summary>
+    public Dictionary<GoodId, float> Fuel = new();
     public float Credits;
     /// <summary>Hüllenmaximum des Schiffs; kommt aus <see cref="Stats"/> (Schiff ohne Modell: 100 wie bisher).</summary>
     public float MaxHull => Stats.Hull;
@@ -68,10 +70,41 @@ public sealed class Ship
                 fit.Add(Fit[i] is { } key && u.Modules.TryGetValue(key, out var m) ? m : null);
             Stats = ShipStats.Compute(cls, fit);
             Capabilities = Stats.Capabilities;   // Schiffe mit Modell: Fähigkeiten folgen immer dem Fit
+            ClampFuel();
             return true;
         }
         Stats = new ShipStats { Hull = NoModelHull };
+        ClampFuel();
         return false;
+    }
+
+    /// <summary>Koppelt den Tankinhalt an die Kapazität (Invariante Summe ≤ <see cref="ShipStats.FuelCapacity"/>; z. B. nach Fit-Änderung oder Content-Wechsel). Überschuss wird von der höchsten GoodId abgebaut.</summary>
+    void ClampFuel()
+    {
+        float total = TotalFuel;
+        if (total <= Stats.FuelCapacity) return;
+        foreach (var k in Fuel.Keys.OrderByDescending(k => k.Value).ToList())
+        {
+            float take = MathF.Min(Fuel[k], total - Stats.FuelCapacity);
+            Fuel[k] -= take;
+            total -= take;
+            if (Fuel[k] <= 0f) Fuel.Remove(k);
+            if (total <= Stats.FuelCapacity) break;
+        }
+    }
+
+    /// <summary>Treibstoffmenge einer Ware an Bord (0, wenn keine).</summary>
+    public float FuelAmount(GoodId good) => Fuel.TryGetValue(good, out var a) ? a : 0f;
+    /// <summary>Treibstoff gesamt an Bord (alle zulässigen Waren; der Tank fasst sie gemeinsam).</summary>
+    public float TotalFuel => Fuel.Sum(kv => kv.Value);
+    /// <summary>Freier Tankplatz gesamt.</summary>
+    public float FuelSpace => MathF.Max(0f, Stats.FuelCapacity - TotalFuel);
+    /// <summary>Tankt den ersten zulässigen Treibstoff voll auf (Neubau, Migration); ohne Modell/Antrieb/Kapazität: leer.</summary>
+    public void FillFuel()
+    {
+        Fuel.Clear();
+        if (Stats.FuelTypes.Count > 0 && Stats.FuelCapacity > 0f)
+            Fuel[Stats.FuelTypes[0].Good] = Stats.FuelCapacity;
     }
 
     /// <summary>Steuert der Spieler dieses Schiff selbst?</summary>

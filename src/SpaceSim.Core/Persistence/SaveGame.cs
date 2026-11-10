@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -147,6 +147,13 @@ public sealed class ShipSlotSave
 
 public sealed class SlotTypeSave { public string Key { get; set; } = ""; public string Name { get; set; } = ""; public bool Required { get; set; } }
 
+/// <summary>Ein zulässiger Treibstoff eines Antriebsmoduls im Save (Warenschlüssel wie in cost, damit GoodIds nicht verschoben werden müssen).</summary>
+public sealed class FuelSave
+{
+    public string Good { get; set; } = "";
+    public float Efficiency { get; set; } = 1f;
+}
+
 public sealed class ModuleSave
 {
     public string Key { get; set; } = "";
@@ -161,6 +168,8 @@ public sealed class ModuleSave
     public float Upkeep { get; set; }
     public string Holds { get; set; } = "any";
     public Dictionary<string, float> Cost { get; set; } = new();
+    /// <summary>Zulässige Treibstoffe des Antriebs; fehlt in v4-Saves (die Migration reicht sie aus der Default-Welt nach).</summary>
+    public List<FuelSave> Fuel { get; set; } = new();
 }
 
 public sealed class ShipClassSave
@@ -170,6 +179,8 @@ public sealed class ShipClassSave
     public string Size { get; set; } = "S";
     public float BaseHull { get; set; } = 100;
     public float BaseMass { get; set; } = 10;
+    /// <summary>Tankkapazität des Rumpfs; fehlt in v4-Saves (die Migration reicht sie aus der Default-Welt nach).</summary>
+    public float BaseFuel { get; set; }
     public List<ShipSlotSave> Slots { get; set; } = new();
 }
 
@@ -209,4 +220,6 @@ public sealed class ShipSave
     public long NextThinkTick { get; set; } public long IdleSince { get; set; }
     public float ShotTimer { get; set; } public int MineAsteroid { get; set; }
     public Dictionary<int, float> Cargo { get; set; } = new();
+    /// <summary>Treibstoff an Bord je Ware (GoodId → Menge); fehlt in v4-Saves (die Migration trägt einen vollen Tank nach).</summary>
+    public Dictionary<int, float> Fuel { get; set; } = new();
 }

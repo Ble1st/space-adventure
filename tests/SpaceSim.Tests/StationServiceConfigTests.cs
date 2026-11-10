@@ -26,12 +26,23 @@ public class StationServiceConfigTests
     }
 
     [Fact]
-    public void DefaultWorld_WithoutServicesField_GetsTradeAsStandard()
+    public void DefaultWorld_WithoutServicesField_GetsTradeAsStandard()   // Phase 4c: Raffinerie/Panzerwerk/Werft führen explizite Listen
     {
         var u = WorldBuilder.BuildDefault();
         Assert.NotEmpty(u.StationTypes);
         foreach (var t in u.StationTypes.Values)
-            Assert.Equal(new[] { TradeService.ServiceKey }, t.Services);
+        {
+            if (t.Key is "fuel_refinery") Assert.Equal(new[] { "trade", "refuel" }, t.Services);
+            else if (t.Key is "plating_works" or "shipyard") Assert.Equal(new[] { "trade", "repair" }, t.Services);
+            else Assert.Equal(new[] { TradeService.ServiceKey }, t.Services);
+        }
+    }
+
+    [Fact]
+    public void NewServiceKeys_RefuelAndRepair_AreAccepted()
+    {
+        var u = WorldBuilder.Build(WorldBuilder.Parse(WorldWithServices("solar_plant", "[\"trade\", \"refuel\", \"repair\"]")));
+        Assert.Equal(new[] { "trade", "refuel", "repair" }, u.StationTypes["solar_plant"].Services);
     }
 
     [Fact]

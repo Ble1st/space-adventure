@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using SpaceSim.Core.Content;
 using SpaceSim.Core.Diagnostics;
+using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 
@@ -17,10 +18,19 @@ var runner = new SimulationRunner();
 var routes = new RouteRecorder(u);
 var csv = new StringBuilder();
 
-var header = new List<string> { "tick", "stations", "traders", "miners", "stationCredits", "shipCredits" };
+// Phase 4b: Treibstoff-Kennzahlen zählen (Tankkäufe an Stationen, Notkäufe zum Aufpreis)
+int fuelBuys = 0, notk = 0;
+float fuelBuyCost = 0f, notkCost = 0f;
+u.Events.Raised += e =>
+{
+    if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
+    else if (e is FuelBought fb) { fuelBuys++; fuelBuyCost += fb.Cost; }
+};
+
+var header = new List<string> { "tick", "stations", "traders", "miners", "stationCredits", "shipCredits", "tank", "notk" };
 header.AddRange(u.Goods.Values.Select(g => "price_" + g.Name));
 csv.AppendLine(string.Join(",", header));
-Console.WriteLine($"{"tick",7} {"stat",4} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
+Console.WriteLine($"{"tick",7} {"stat",4} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"tank",5} {"notk",5}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
@@ -29,10 +39,11 @@ for (int t = 0; t <= ticks; t += every)
     if (t > 0) runner.Run(u, every);
     var snap = EconomyStats.Snapshot(u);
     history.Add(snap);
-    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0}  " +
+    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {fuelBuys,5} {notk,5}  " +
                       string.Join(" ", snap.Goods.Select(g => g.PriceRatio.ToString("0.0", CultureInfo.InvariantCulture).PadLeft(5))));
     var row = new List<string> { snap.Tick.ToString(), snap.Stations.ToString(), snap.Traders.ToString(), snap.Miners.ToString(),
-        snap.StationCredits.ToString("0", CultureInfo.InvariantCulture), snap.ShipCredits.ToString("0", CultureInfo.InvariantCulture) };
+        snap.StationCredits.ToString("0", CultureInfo.InvariantCulture), snap.ShipCredits.ToString("0", CultureInfo.InvariantCulture),
+        fuelBuys.ToString(), notk.ToString() };
     row.AddRange(snap.Goods.Select(g => g.AvgPrice.ToString("0.00", CultureInfo.InvariantCulture)));
     csv.AppendLine(string.Join(",", row));
 }
@@ -40,6 +51,13 @@ sw.Stop();
 
 Console.WriteLine();
 Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.Max(1.0, sw.ElapsedMilliseconds):0.0} Ticks/ms), Hash {UniverseHash.Compute(u):X16}");
+var prop = u.FindGood("propellant");
+if (prop is not null)
+{
+    var tailProp = history.Skip(history.Count * 3 / 4).Select(h => h.Goods.First(x => x.Good == prop.Id).PriceRatio).ToList();
+    float propAvg = tailProp.Count > 0 ? tailProp.Average() : 0f;
+    Console.WriteLine($"Treibstoff (propellant): {fuelBuys} Tankkäufe an Stationen ({fuelBuyCost:0} Cr), {notk} Notkäufe ({notkCost:0} Cr), Ø Preis/Basis letzte 25%: {propAvg:0.00}");
+}
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))
 {
@@ -53,6 +71,8 @@ var tail = history.Skip(history.Count * 3 / 4).ToList();
 bool bad = false;
 foreach (var g in u.Goods.Values)
 {
+    // Waren ohne Markt (noch ohne Erzeuger, z. B. propellant bis Phase 4b) haben keinen Preis und keine Stabilität
+    if (!u.Stations.Values.Any(st => st.Market.ContainsKey(g.Id))) continue;
     float avgRatio = tail.Average(h => h.Goods.First(x => x.Good == g.Id).PriceRatio);
     if (avgRatio > 3.0f || avgRatio < 0.3f) { Console.WriteLine($"WARNUNG: {g.Name} im Schnitt bei {avgRatio:0.00}× Basispreis (instabil)"); bad = true; }
 }

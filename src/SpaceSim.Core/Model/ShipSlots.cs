@@ -15,6 +15,9 @@ public sealed class SlotType
     public bool Required;
 }
 
+/// <summary>Ein zulässiger Treibstoff eines Antriebsmoduls: Ware + efficiency (Phase 4).</summary>
+public sealed record FuelType(GoodId Good, float Efficiency);
+
 /// <summary>Modul (Schiffsbauteil): sitzt in genau einem Slot und bestimmt mit seinen Stats die Schiffs­werte.</summary>
 public sealed class Module
 {
@@ -39,6 +42,8 @@ public sealed class Module
     public ModuleHolds Holds = ModuleHolds.Any;
     /// <summary>Herstellkosten: Warenschlüssel → Menge (Rezept der Modulfabrik, erst ab Phase 5).</summary>
     public Dictionary<string, float> Cost = new();
+    /// <summary>Zulässige Treibstoffe des Antriebs (Ware → efficiency); leer bei Nicht-Antrieben. Verbrauch erst ab Phase 4b.</summary>
+    public List<FuelType> FuelTypes = new();
 }
 
 /// <summary>Ein Slot einer Schiffsklasse, in fester Reihenfolge; der Fit füllt sie per Index.</summary>
@@ -61,6 +66,8 @@ public sealed class ShipClass
     public SlotSize Size = SlotSize.S;
     public float BaseHull = 100f;
     public float BaseMass = 10f;
+    /// <summary>Tankkapazität des Rumpfs; Standard 0. Zusammen mit fuelCapacity-Modulen ergibt sich <see cref="ShipStats.FuelCapacity"/>.</summary>
+    public float BaseFuel;
     public List<ClassSlot> Slots = new();
 }
 

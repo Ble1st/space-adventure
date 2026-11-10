@@ -157,7 +157,15 @@ public static class WorldBuilder
     /// </summary>
     public static void LoadSlotContent(Universe u, WorldDef def)
     {
-        var goodKeys = new HashSet<string>(def.Goods.Select(g => g.Key));
+        // Waren-Schlüssel → Id (Position + 1, dieselbe Regel wie in Build) und Form, auch für den Standalone-Aufruf aus der Save-Migration
+        var goodId = new Dictionary<string, GoodId>();
+        var goodForm = new Dictionary<string, GoodForm>();
+        for (int i = 0; i < def.Goods.Count; i++)
+        {
+            var g = def.Goods[i];
+            if (!goodId.TryAdd(g.Key, new GoodId(i + 1))) throw new WorldFormatException($"Ware '{g.Key}' doppelt");
+            goodForm[g.Key] = ParseForm(g.Form, g.Key);
+        }
         foreach (var st in def.SlotTypes)
             if (!u.SlotTypes.TryAdd(st.Key, new SlotType { Key = st.Key, Name = st.Name, Required = st.Required }))
                 throw new WorldFormatException($"Slotart '{st.Key}' doppelt");
@@ -172,15 +180,25 @@ public static class WorldBuilder
             var cost = new Dictionary<string, float>();
             foreach (var (k, v) in md.Cost)
             {
-                if (!goodKeys.Contains(k)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Ware '{k}' in cost");
+                if (!goodId.ContainsKey(k)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Ware '{k}' in cost");
                 cost[k] = v;
+            }
+            // Treibstoffliste des Antriebs: Ware bekannt und flüssig, efficiency > 0, keine Dopplung (Phase 4)
+            var fuel = new List<FuelType>();
+            foreach (var f in md.Fuel)
+            {
+                if (!goodId.TryGetValue(f.Good, out var gid)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Ware '{f.Good}' in fuel");
+                if (goodForm[f.Good] != GoodForm.Liquid) throw new WorldFormatException($"Modul '{md.Key}': Ware '{f.Good}' in fuel ist nicht flüssig (form: liquid)");
+                if (f.Efficiency <= 0f) throw new WorldFormatException($"Modul '{md.Key}': efficiency {f.Efficiency} für Ware '{f.Good}' in fuel muss > 0 sein");
+                if (fuel.Any(x => x.Good == gid)) throw new WorldFormatException($"Modul '{md.Key}': Ware '{f.Good}' doppelt in fuel");
+                fuel.Add(new FuelType(gid, f.Efficiency));
             }
             var module = new Module
             {
                 Key = md.Key, Slot = md.Slot, Size = ParseSize(md.Size, $"Modul '{md.Key}'"), Tier = md.Tier,
                 Grants = grants, Stats = new Dictionary<string, float>(md.Stats),
                 PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw, Mass = md.Mass, Upkeep = md.Upkeep,
-                Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost,
+                Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost, FuelTypes = fuel,
             };
             if (!u.Modules.TryAdd(md.Key, module)) throw new WorldFormatException($"Modul '{md.Key}' doppelt");
         }
@@ -193,7 +211,7 @@ public static class WorldBuilder
                 if (!u.SlotTypes.TryGetValue(s.Type, out _)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Slotart '{s.Type}'");
                 slots.Add(new ClassSlot { Type = s.Type, Size = ParseSize(s.Size, $"Schiffsklasse '{cd.Key}'"), Facing = s.Facing, Arc = s.Arc });
             }
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, Slots = slots };
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots };
             if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
         }
 
@@ -268,7 +286,10 @@ public static class WorldBuilder
             ship.ModelKey = key;
             ship.Fit = new List<string?>(u.ShipModels[key].Fit);
             if (ship.RecomputeStats(u))
+            {
                 ship.CargoCapacity = ship.Stats.Cargo;   // Laderaum aus dem Modell; Fähigkeiten leitet AddShip aus Stats ab
+                ship.FillFuel();                          // Phase 4: neuer Tank voll (erster zulässiger Treibstoff, z. B. propellant)
+            }
             else
             {
                 ship.ModelKey = "";

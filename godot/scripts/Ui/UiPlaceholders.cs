@@ -4,7 +4,7 @@ namespace SpaceAdventure.Ui;
 
 /// <summary>
 /// Sammelstelle für ALLE erfundenen Anzeigewerte der Oberfläche (Platzhalter). Nichts davon stammt aus der
-/// Simulation und nichts wird gespeichert: Schild, Sprit/Treibstofftanks, Leistung und noch nicht gebaute
+/// Simulation und nichts wird gespeichert: Schild, Leistung und noch nicht gebaute
 /// Bereiche (Comms-Zähler, Sicherheit …) fehlen im Core und werden hier als gedämpfte Platzhalter geführt.
 /// Echte Werte (Credits, Hülle, Fracht, Sektoren, Stationen …) lesen die Bildschirme immer aus dem Core.
 /// </summary>
@@ -17,8 +17,6 @@ public static class UiPlaceholders
 
 	/// <summary>Schild in Prozent (Platzhalter, das Simulationsmodell kennt noch keine Schilde).</summary>
 	public static float ShieldPercent => 64f;
-	/// <summary>Sprit in Prozent (Platzhalter, Treibstofftanks gibt es noch nicht).</summary>
-	public static float FuelPercent => 72f;
 	/// <summary>Leistungsanzeige (Platzhalter, Leistungsbilanz der Module fehlt noch).</summary>
 	public static string PowerText => "9/12";
 	/// <summary>Sicherheitsanzeige des Sektors (Platzhalter).</summary>
@@ -29,7 +27,7 @@ public static class UiPlaceholders
 	/// <summary>Erklärtext je Platzhalter-Bereich des Andock-Menüs (Schlüssel = Bereichs-Id, siehe DockAreas).</summary>
 	public static string DockAreaText(string areaId) => areaId switch
 	{
-		"repair" => "Reparatur und Tanken: Reparatur verbraucht Hüllenplatten aus dem Stationslager, Treibstoff je Antriebsart zum Marktpreis. Kommt mit Phase 4 (Treibstoff/Reparatur).",
+		"repair" => "Reparatur und Tanken gibt es nur an Stationen mit dem passenden Dienst: Treibstoff an Treibstoffraffinerien, Reparatur an Panzerwerken und Werften (verbraucht Hüllenplatten aus dem Stationslager). Diese Station bietet es nicht an oder ihr Lager ist gerade leer.",
 		"outfitter" => "Ausrüster: Schiffsskizze mit antippbaren Slots, Modulvergleich und Upgrade. Kommt mit Phase 5/3 (Module, Slots).",
 		"shipyard" => "Werft: Schiffsmodelle mit Werten, Preis und Bausatz-Verfügbarkeit. Kommt mit dem Schiffskauf (geplant).",
 		"taxi" => "Taxi: Du reist allein zu einer anderen Station, dein Schiff bleibt im Hangar (Liegegebühr an fremden Stationen je Schiffsklasse). Kommt mit Phase 12 (Hangar, Taxi, Leihschiff).",
