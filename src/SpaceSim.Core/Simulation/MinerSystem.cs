@@ -96,6 +96,15 @@ public sealed class MinerSystem : ISimSystem
         ship.IdleSince = -1;
         ship.Order = best;
         ship.MinePhase = MinePhase.GoingToField;
+        // Phase 4b: Treibstoff für die Fahrt zum Feld sichern (Tankstopp unterwegs oder Notkauf)
+        var plan = Refuel.PrepareTrip(u, ship, best.Sector, bestFieldPos);
+        if (plan == Refuel.TripPlan.FuelStop) return true;   // Order ist jetzt GoToOrder zur Tankstelle, Transit läuft
+        if (plan == Refuel.TripPlan.Stuck)
+        {
+            // pleite: nicht reisen, liegen bleiben (FleetSystem gibt das Schiff nach Leerlauf auf)
+            ship.Order = null; ship.MinePhase = MinePhase.Idle; ship.IdleSince = u.Tick;
+            return false;
+        }
         Travel.Start(u, ship, best.Sector, bestFieldPos);
         return true;
     }
@@ -103,6 +112,32 @@ public sealed class MinerSystem : ISimSystem
     static void Arrive(Universe u, Ship ship, Transit t)
     {
         u.FinishTransit(ship);
+        if (ship.Order is GoToOrder g && u.Stations.ContainsKey(g.Target))
+        {
+            // Tankstopp (Phase 4b): bei Ankunft volltanken; eine laufende Auslieferung wird danach an den besten Käufer neu gehangen
+            var st = u.Stations[g.Target];
+            Refuel.TankUp(u, ship, st);
+            ship.Order = null;
+            if (ship.MinePhase == MinePhase.GoingToStation && ship.Cargo.Values.Sum() > 0.001f)
+            {
+                var next = TradeActions.BestBuyer(u, ship, ship.Sector, ship.Position);
+                if (next is not null)
+                {
+                    ship.Order = new MineOrder(ship.Sector, -1, next.Id);   // Feld -1: nur noch ausliefern
+                    var plan = Refuel.PrepareTrip(u, ship, next.Sector, next.DockPoint(ship.Id));
+                    if (plan == Refuel.TripPlan.FuelStop) return;
+                    if (plan == Refuel.TripPlan.Depart)
+                    {
+                        Travel.Start(u, ship, next.Sector, next.DockPoint(ship.Id));
+                        return;
+                    }
+                }
+            }
+            ship.Order = null;
+            ship.MinePhase = MinePhase.Idle;
+            ship.IdleSince = u.Tick;
+            return;
+        }
         if (ship.Order is not MineOrder order || !u.Stations.ContainsKey(order.DeliverTo))
         {
             ship.Order = null; ship.MinePhase = MinePhase.Idle; ship.Cargo.Clear();
@@ -126,6 +161,14 @@ public sealed class MinerSystem : ISimSystem
                 if (next != null)
                 {
                     ship.Order = order with { DeliverTo = next.Id };
+                    // Phase 4b: Treibstoff für die Fahrt zur nächsten Station sichern
+                    var plan = Refuel.PrepareTrip(u, ship, next.Sector, next.DockPoint(ship.Id));
+                    if (plan == Refuel.TripPlan.FuelStop) return;
+                    if (plan == Refuel.TripPlan.Stuck)
+                    {
+                        ship.Order = null; ship.MinePhase = MinePhase.Idle; ship.IdleSince = u.Tick;
+                        return;
+                    }
                     Travel.Start(u, ship, next.Sector, next.DockPoint(ship.Id));
                     return;
                 }
@@ -150,6 +193,14 @@ public sealed class MinerSystem : ISimSystem
             if (ship.Cargo.Values.Sum() > 0f)
             {
                 ship.MinePhase = MinePhase.GoingToStation;
+                // Phase 4b: Treibstoff für die Fahrt zur Abnehmerstation sichern
+                var plan = Refuel.PrepareTrip(u, ship, u.Stations[order.DeliverTo].Sector, u.Stations[order.DeliverTo].DockPoint(ship.Id));
+                if (plan == Refuel.TripPlan.FuelStop) return;
+                if (plan == Refuel.TripPlan.Stuck)
+                {
+                    ship.Order = null; ship.MinePhase = MinePhase.Idle; ship.IdleSince = u.Tick;
+                    return;
+                }
                 Travel.Start(u, ship, u.Stations[order.DeliverTo].Sector, u.Stations[order.DeliverTo].DockPoint(ship.Id));
             }
             else { ship.Order = null; ship.MinePhase = MinePhase.Idle; }

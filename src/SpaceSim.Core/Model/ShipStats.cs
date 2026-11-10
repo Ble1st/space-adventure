@@ -45,6 +45,8 @@ public sealed class ShipStats
     public float FuelCapacity;
     /// <summary>Zulässige Treibstoffe der Antriebsmodule (Ware → efficiency); bei mehreren Antrieben Vereinigung, höchste efficiency je Ware.</summary>
     public List<FuelType> FuelTypes = new();
+    /// <summary>Treibstoffverbrauch der Antriebsmodule: Summe stats fuelUse (Einheiten Treibstoff je geflogener Einheit, vor efficiency). 0 = kein Verbrauch.</summary>
+    public float FuelUsePerUnit;
 
     /// <summary>
     /// Berechnet die Werte eines Schiffs aus seiner Klasse und dem Fit (ein Eintrag je Slot, null = leer).
@@ -64,6 +66,7 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("powerOutput", out var output)) s.PowerOutput += output;
             if (m.Stats.TryGetValue("powerStorage", out var storage)) s.PowerStorage += storage;
             if (m.Stats.TryGetValue("fuelCapacity", out var fuelCap)) s.FuelCapacity += fuelCap;
+            if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // Phase 4b: Verbrauchsrate des Antriebs
             foreach (var f in m.FuelTypes)
             {
                 int idx = s.FuelTypes.FindIndex(x => x.Good == f.Good);

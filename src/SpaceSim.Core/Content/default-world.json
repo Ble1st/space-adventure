@@ -561,6 +561,25 @@
      "out": {}
     }
    ]
+  },
+  {
+   "key": "fuel_refinery",
+   "name": "Treibstoffraffinerie",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "hydrogen": 3,
+      "energy": 1
+     },
+     "out": {
+      "propellant": 4
+     }
+    }
+   ]
   }
  ],
  "factions": [
@@ -668,6 +687,30 @@
        100
       ]
      }
+    },
+    {
+     "id": 26,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Alpha",
+     "pos": [
+      40,
+      -115
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ],
+      "propellant": [
+       100,
+       100
+      ]
+     }
     }
    ]
   },
@@ -742,6 +785,30 @@
      "essential": true,
      "stock": {
       "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 25,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Beta",
+     "pos": [
+      -100,
+      -60
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ],
+      "propellant": [
        100,
        100
       ]
@@ -1083,7 +1150,8 @@
    "size": "S",
    "tier": 1,
    "stats": {
-    "thrust": 160
+    "thrust": 160,
+    "fuelUse": 0.002
    },
    "fuel": [
     {

@@ -41,12 +41,12 @@ public class ContentTests
         var raw = u.AsteroidClasses.Values.SelectMany(c => c.Yields).Select(y => y.Good).ToHashSet();
         foreach (var good in u.Goods.Values)
         {
-            bool noProducerYet = good.Key == "propellant";   // Treibstoff noch ohne Erzeuger/Verbraucher (Phase 4b)
+            bool shipFuel = good.Key == "propellant";   // Treibstoff (Phase 4b): von der Raffinerie erzeugt, von Schiffen verbraucht (kein Rezept-Verbraucher)
             bool produced = raw.Contains(good.Id) || u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)));
-            Assert.True(produced || noProducerYet, $"{good.Key} wird nirgends erzeugt");
+            Assert.True(produced, $"{good.Key} wird nirgends erzeugt");
             bool used = u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Inputs.ContainsKey(good.Id)));
             bool kit = good.Key == u.Rules.ShipKitGoodKey;   // Bausatz wird von der Flottenlogik verbraucht
-            Assert.True(used || kit || noProducerYet, $"{good.Key} wird nirgends verbraucht");
+            Assert.True(used || kit || shipFuel, $"{good.Key} wird nirgends verbraucht");
         }
     }
 

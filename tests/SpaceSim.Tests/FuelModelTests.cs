@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using SpaceSim.Core.Content;
 using SpaceSim.Core.Demo;
 using SpaceSim.Core.Diagnostics;
+using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Persistence;
 using SpaceSim.Core.Simulation;
@@ -11,7 +12,7 @@ namespace SpaceSim.Tests;
 /// <summary>
 /// Phase 4a: Treibstoff-Datenmodell — Ware propellant (liquid, ans Ende der goods-Liste), baseFuel der Klassen,
 /// fuel-Liste der Antriebsmodule (Validierung), fuelCapacity-Stat, ShipStats.FuelCapacity/FuelTypes, Ship.Fuel mit
-/// vollem Tank bei Neubau, Save v5 mit Migration v4→v5. Noch OHNE Verbrauch: Travel.Start bleibt Credit-Pauschale.
+/// vollem Tank bei Neubau, Save v5 mit Migration v4→v5. Verbrauch/Tanken/Notkauf: siehe FuelEconomyTests (Phase 4b).
 /// </summary>
 public class FuelModelTests
 {
@@ -52,7 +53,7 @@ public class FuelModelTests
     }
 
     [Fact]
-    public void Propellant_LiquidAnsEndeDerWarenliste_NochOhneMarkt()
+    public void Propellant_LiquidAnsEndeDerWarenliste_RaffinerieErzeugtUndHandeltIhn()
     {
         var u = DemoUniverse.Create();
         var p = u.Goods[DemoUniverse.Propellant];
@@ -62,9 +63,15 @@ public class FuelModelTests
         Assert.Equal(1f, p.VolumePerUnit);
         Assert.Equal(u.Goods.Keys.Max(k => k.Value), p.Id.Value);   // ans Ende angehängt: GoodIds der übrigen Waren stabil
         Assert.InRange(p.BasePrice, u.Goods[DemoUniverse.Water].BasePrice, u.Goods[DemoUniverse.Hydrogen].BasePrice * 1.2f);
-        // noch ohne Erzeuger/Verbraucher und ohne Stationsmarkt (kommt in Phase 4b)
-        Assert.DoesNotContain(u.StationTypes.Values.SelectMany(t => t.Recipes).SelectMany(r => r.Inputs.Keys.Concat(r.Outputs.Keys)), g => g == p.Id);
-        Assert.DoesNotContain(u.Stations.Values, st => st.Market.ContainsKey(p.Id));
+        // Phase 4b: Treibstoffraffinerie (3 Wasserstoff + 1 Energie → 4 Treibstoff); zwei Startwelt-Raffinerien führen propellant im Markt
+        var type = Assert.Single(u.StationTypes.Values, t => t.Key == "fuel_refinery");
+        var r = Assert.Single(type.Recipes);
+        Assert.Equal(3f, r.Inputs[DemoUniverse.Hydrogen]);
+        Assert.Equal(1f, r.Inputs[DemoUniverse.Energy]);
+        Assert.Equal(4f, r.Outputs[p.Id]);
+        var refineries = u.Stations.Values.Where(st => st.TypeKey == "fuel_refinery").OrderBy(st => st.Id.Value).ToList();
+        Assert.Equal(2, refineries.Count);
+        Assert.All(refineries, st => Assert.True(st.Market.ContainsKey(p.Id)));
     }
 
     [Fact]
@@ -183,32 +190,26 @@ public class FuelModelTests
     }
 
     [Fact]
-    public void FleetSystem_Expand_NeueSchiffeHabenVollenTank()
+    public void FleetSystem_Expand_NeueSchiffeStartenMitVollemTank_TankBleibtInGrenzen()
     {
         var u = DemoUniverse.Create();
+        var spawnFuel = new List<float>();
+        u.Events.Raised += e =>
+        {
+            if (e is ShipSpawned sp && u.Ships.TryGetValue(sp.Ship, out var s) && s.HasModel)
+                spawnFuel.Add(s.TotalFuel);
+        };
         new SimulationRunner().Run(u, 20_000);   // Flottenwachstum erzeugt neue Schiffe (Ids ab 1000)
         Assert.Contains(u.Ships.Values, s => s.Id.Value >= 1000);
+        Assert.NotEmpty(spawnFuel);
+        Assert.All(spawnFuel, f => Assert.Equal(200f, f));   // bei Erzeugung voller Tank (Phase 4a); danach echter Verbrauch (Phase 4b)
+        // nach 20k Ticks: Tank nie negativ und nie über Kapazität, nur zulässige Treibstoffwaren an Bord
         Assert.All(u.Ships.Values.Where(s => s.HasModel), s =>
         {
-            Assert.Equal(s.Stats.FuelCapacity, s.TotalFuel);
-            Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(DemoUniverse.Propellant));
+            Assert.True(s.TotalFuel >= -0.001f && s.TotalFuel <= s.Stats.FuelCapacity + 0.001f,
+                $"Tank {s.TotalFuel} außerhalb [0, {s.Stats.FuelCapacity}]");
+            Assert.All(s.Fuel.Keys, g => Assert.Contains(s.Stats.FuelTypes, f => f.Good == g));
         });
-    }
-
-    [Fact]
-    public void TravelStart_BleibtCreditPauschale_TankWirdNichtAngetastet()
-    {
-        var u = DemoUniverse.Create();
-        var ship = u.Ships.Values.First(s => s.Role == ShipRole.Trader && s.Transit is null);
-        float fuelBefore = ship.TotalFuel;
-        float creditsBefore = ship.Credits;
-        var to = u.Sectors.Keys.First(x => x != ship.Sector);
-        Travel.Start(u, ship, to, new Vec2(0, 0));
-        Assert.NotNull(ship.Transit);
-        float distance = ship.Transit.Legs.Sum(l => Vec2.Distance(l.From, l.To));
-        float charge = MathF.Min(creditsBefore, distance * u.Rules.FuelCostPerUnit);
-        Assert.Equal(creditsBefore - charge, ship.Credits, 3);
-        Assert.Equal(fuelBefore, ship.TotalFuel);   // Phase 4a: noch kein Treibstoffverbrauch
     }
 
     [Fact]
@@ -229,7 +230,7 @@ public class FuelModelTests
             var orig = u.Ships[s.Id];
             Assert.Equal(orig.Fuel.Count, s.Fuel.Count);
             foreach (var (g, a) in orig.Fuel) Assert.Equal(a, s.Fuel[g], 3);
-            Assert.Equal(200f, s.FuelAmount(DemoUniverse.Propellant));
+            Assert.Equal(orig.TotalFuel, s.TotalFuel, 3);   // Phase 4b: Tanks werden geleert, Roundtrip bleibt exakt
             Assert.Equal(200f, s.Stats.FuelCapacity);
         }
         // Content liegt im Save: propellant, fuel des Antriebs, baseFuel der Klassen
@@ -239,8 +240,8 @@ public class FuelModelTests
         Assert.Equal(new FuelType(prop.Id, 1f), Assert.Single(loaded.Modules["chem_engine_s"].FuelTypes));
         Assert.Equal(200f, loaded.ShipClasses["unit_trader"].BaseFuel);
         Assert.Equal(200f, loaded.ShipClasses["unit_miner"].BaseFuel);
-        // Stationen handeln propellant noch nicht
-        Assert.DoesNotContain(loaded.Stations.Values, st => st.Market.ContainsKey(prop.Id));
+        // die Raffinerien der Startwelt handeln propellant (Phase 4b)
+        Assert.All(loaded.Stations.Values.Where(st => st.TypeKey == "fuel_refinery"), st => Assert.True(st.Market.ContainsKey(prop.Id)));
     }
 
     [Fact]
@@ -262,8 +263,8 @@ public class FuelModelTests
         // geänderter Slot-Content nachgereicht
         Assert.Equal(new FuelType(prop.Id, 1f), Assert.Single(loaded.Modules["chem_engine_s"].FuelTypes));
         Assert.Equal(200f, loaded.ShipClasses["unit_trader"].BaseFuel);
-        // Stationsmärkte unberührt: propellant hat keinen Markt
-        Assert.DoesNotContain(loaded.Stations.Values, st => st.Market.ContainsKey(prop.Id));
+        // Raffinerien handeln propellant (Markt-Einträge liefen mit dem Save; propellant hängt per Migration am Ende der Warenliste)
+        Assert.All(loaded.Stations.Values.Where(st => st.TypeKey == "fuel_refinery"), st => Assert.True(st.Market.ContainsKey(prop.Id)));
         // jedes Schiff mit Modell hat einen vollen Tank propellant
         foreach (var s in loaded.Ships.Values)
         {

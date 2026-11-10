@@ -62,6 +62,12 @@ public static class Travel
     {
         var route = u.CachedRoute(fromSector, toSector);
         if (route is null) return float.PositiveInfinity;
+        return DistanceAlong(u, route, fromPos, toPos) / SpeedOf(ship) + route.Count + 1;
+    }
+
+    /// <summary>Luftlinien-Strecke entlang der Route innerhalb der Sektoren (Gate-Sprünge zählen nicht); PositiveInfinity wenn nicht erreichbar.</summary>
+    static float DistanceAlong(Universe u, List<GateId> route, Vec2 fromPos, Vec2 toPos)
+    {
         float dist = 0f;
         var pos = fromPos;
         foreach (var gid in route)
@@ -70,8 +76,27 @@ public static class Travel
             dist += Vec2.Distance(pos, gate.Position);
             pos = u.Gates[gate.Target].Position;
         }
-        return (dist + Vec2.Distance(pos, toPos)) / SpeedOf(ship) + route.Count + 1;
+        return dist + Vec2.Distance(pos, toPos);
     }
+
+    /// <summary>Geschätzte Strecke innerhalb der Sektoren (Luftlinie je Sektor, Gate-Sprünge frei); PositiveInfinity wenn nicht erreichbar.</summary>
+    public static float EstimateDistance(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
+    {
+        var route = u.CachedRoute(fromSector, toSector);
+        if (route is null) return float.PositiveInfinity;
+        return DistanceAlong(u, route, fromPos, toPos);
+    }
+
+    /// <summary>Geplante Strecke innerhalb der Sektoren inkl. Umwege (Summe der Legs; Gate-Sprünge sind frei); 0 wenn nicht erreichbar.</summary>
+    public static float PlannedDistance(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
+    {
+        var legs = Plan(u, 0, fromSector, fromPos, toSector, toPos, ship);
+        return legs is null ? 0f : legs.Sum(l => Vec2.Distance(l.From, l.To));
+    }
+
+    /// <summary>Treibstoffbedarf der geschätzten Strecke (Phase 4b: Strecke × fuelUse / efficiency); 0 ohne Antrieb.</summary>
+    public static float EstimateFuel(Universe u, Ship? ship, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos) =>
+        Refuel.Consumption(ship, EstimateDistance(u, fromSector, fromPos, toSector, toPos, ship));
 
     /// <summary>Genaue Reisedauer in Ticks inkl. Umwege; PositiveInfinity wenn nicht erreichbar.</summary>
     public static float Ticks(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
@@ -84,9 +109,11 @@ public static class Travel
     {
         var legs = Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos, ship)
                    ?? new List<Leg> { new(toSector, toPos, toPos, u.Tick, u.Tick + 1) };   // unerreichbar: sofort "teleportieren"
-        // Treibstoffkosten: Sink, Credits verschwinden aus dem Umlauf
+        // Treibstoffverbrauch (Phase 4b): Strecke innerhalb der Sektoren × fuelUse / efficiency wird aus dem Tank gebucht
+        // (Gate-Sprünge sind frei; die Legs liegen je Sektor, Sprünge dazwischen kosten nichts). KI-Schiffe stellen den
+        // Treibstoff vorher über Refuel sicher; der Tankdeckel verhindert negative Stände.
         float distance = legs.Sum(l => Vec2.Distance(l.From, l.To));
-        ship.Credits -= MathF.Min(ship.Credits, distance * u.Rules.FuelCostPerUnit);
+        Refuel.Consume(ship, distance);
         u.StartTransit(ship, new Transit
         {
             StartTick = u.Tick,
