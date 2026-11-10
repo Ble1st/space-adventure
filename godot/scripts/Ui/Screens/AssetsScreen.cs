@@ -31,7 +31,7 @@ public sealed partial class AssetsScreen : CommandScreen
 	{
 		var u = Ctx.U;
 		var ship = Ctx.Player;
-		int myShips = u.Ships.Values.Count(s => s.Role == ShipRole.Player);
+		int myShips = u.Ships.Values.Count(s => s.IsPlayer);
 		int myStations = 0;   // Spielerbesitz an Stationen gibt es im Core noch nicht
 		float total = SectorEconomy.TotalValue(u, ship);
 
@@ -73,7 +73,7 @@ public sealed partial class AssetsScreen : CommandScreen
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 8);
 		At(inner, list, 12, 128, 998, 380);
-		foreach (var s in u.Ships.Values.Where(s => s.Role == ShipRole.Player).OrderBy(s => s.Id.Value))
+		foreach (var s in u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value))
 		{
 			bool active = s.Id == u.PlayerShip;
 			var row = new PanelContainer { MouseFilter = MouseFilterEnum.Stop };

@@ -13,7 +13,8 @@ public sealed class TraderSystem : ISimSystem
     {
         foreach (var ship in u.Ships.Values)
         {
-            if (ship.Role != ShipRole.Trader) continue;
+            // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff Frachtraum haben
+            if (ship.Role != ShipRole.Trader || !ship.Has(Capability.Cargo)) continue;
 
             if (ship.Transit is { } t)
             {

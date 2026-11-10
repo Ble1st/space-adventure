@@ -33,7 +33,7 @@ public static class TradeActions
             if (have - units <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - units;
             revenue += pay;
             sold[good] = units;
-            if (ship.Role == ShipRole.Player) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, units, pay));
+            if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, units, pay));
             else u.Events.Publish(new MineDelivered(ship.Id, station.Id, good, units, pay));
         }
         return new SaleResult(revenue, sold, ship.Cargo.Values.Sum());
@@ -52,7 +52,7 @@ public static class TradeActions
         station.Credits += cost;
         ship.Credits -= cost;
         ship.Cargo[good] = ship.Cargo.GetValueOrDefault(good) + n;
-        if (ship.Role == ShipRole.Player) u.Events.Publish(new PlayerBought(ship.Id, station.Id, good, n, cost));
+        if (ship.IsPlayer) u.Events.Publish(new PlayerBought(ship.Id, station.Id, good, n, cost));
         var outcome = n < MathF.Floor(units) ? (n == stock ? BuyOutcome.OutOfStock : n == afford ? BuyOutcome.NoCredits : BuyOutcome.NoSpace) : BuyOutcome.Ok;
         return new BuyResult(n, cost, outcome);
     }
@@ -78,7 +78,7 @@ public static class TradeActions
         ship.Credits += pay;
         if (have - n <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - n;
         sold[good] = n;
-        if (ship.Role == ShipRole.Player) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, n, pay));
+        if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, n, pay));
         return new SaleResult(pay, sold, ship.Cargo.Values.Sum());
     }
 

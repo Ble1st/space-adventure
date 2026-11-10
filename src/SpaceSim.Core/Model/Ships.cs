@@ -8,7 +8,12 @@ public sealed class Ship
 {
     public ShipId Id;
     public FactionId Faction;
+    /// <summary>Aktuelle Aufgabe / Etikett (gespeichert, Anzeige); nicht mehr für Entscheidungen benutzt.</summary>
     public ShipRole Role;
+    /// <summary>Fähigkeiten des Schiffs; nicht gespeichert, beim Entstehen aus <see cref="Role"/> abgeleitet (<see cref="CapabilityDefaults"/>).</summary>
+    public Capability Capabilities;
+    /// <summary>Wer das Schiff steuert; nicht gespeichert, beim Entstehen aus <see cref="Role"/> abgeleitet.</summary>
+    public Controller Controller;
     public float CargoCapacity = 100f;
     public Dictionary<GoodId, float> Cargo = new();
     public float Credits;
@@ -21,6 +26,15 @@ public sealed class Ship
     public TradePhase Phase;
     public MinePhase MinePhase;
     public Transit? Transit;
+
+    /// <summary>Hat das Schiff diese Fähigkeit (oder diese Kombination)?</summary>
+    public bool Has(Capability c) => (Capabilities & c) == c;
+
+    /// <summary>Steuert der Spieler dieses Schiff selbst?</summary>
+    public bool IsPlayer => Controller == Controller.Player;
+
+    /// <summary>Wirtschaftlich aktives KI-Schiff (Händler oder Miner): Fracht- oder Schürffähigkeit, von der KI gesteuert.</summary>
+    public bool IsEconomyAi => Controller == Controller.Ai && (Has(Capability.Cargo) || Has(Capability.Mining));
 
     /// <summary>Belegter Laderaum (Einheiten × Volumen je Einheit).</summary>
     public float UsedVolume(Universe u) => Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);

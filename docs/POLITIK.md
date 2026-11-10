@@ -124,6 +124,7 @@ Heute hängt das Geld des Spielers am Schiff (`Ship.Credits`). Das trägt nicht,
 - **Handelsaktionen** (`TradeActions.Buy/Sell/SellAll`) buchen auf die Kasse des **Besitzers** des handelnden Schiffs (`Universe.WalletOf(ship)`), nicht mehr auf `ship.Credits`. Für NPC-Einzelschiffe, die nur implizite Akteure sind, ist das Schiff die Kasse; das Verhalten bleibt gleich.
 - **Schiffe sind Besitz, keine Geldbeutel.** Verkauft der Spieler ein Schiff, fließt der Erlös in seine Kasse. Verliert er ein Schiff, bleibt sein Geld.
 - **Geld bei der Person, Fracht beim Schiff:** Fracht und Treibstoff bleiben im Schiff, beim Taxi bleiben sie also mit dem Schiff zurück.
+- **Zwischenstufe (Plan Phase 5):** Die Spielerkasse kommt vor dem Akteurmodell (Phase 9). Bis dahin ist die Person ein kleines Objekt `PlayerWallet` an `Universe` (Kasse, Besitzer-Fraktion), `WalletOf(ship)` liefert sie für Spielerschiffe und `ship.Credits` für NPCs; Phase 9 macht daraus die Kasse des Spielerakteurs.
 - **Migration:** Das heutige `Ship.Credits` des Spielerschiffs wird in die Kasse des Spielerakteurs übernommen; für NPC-Schiffe ändert sich nichts. Ein Save-Format erhöht die Version.
 - **Warum:** Sonst gäbe es drei unlösbare Fälle: reisen ohne Schiff, Schiff verlieren und dabei das Geld verlieren, und Schiffe verkaufen oder tauschen, ohne dass das Geld mitwandert.
 - **Prüfung:** `EconomyStats` und das Balance-Tool zählen die Geldmenge nach Akteuren; die Summe aus Spielerkasse und Schiffen darf sich durch Taxi und Schiffswechsel nicht ändern.

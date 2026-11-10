@@ -22,7 +22,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 	{
 		var u = Ctx.U;
 		var ship = Ctx.Player;
-		int myShips = u.Ships.Values.Count(s => s.Role == ShipRole.Player);
+		int myShips = u.Ships.Values.Count(s => s.IsPlayer);
 		int myStations = 0;   // Spielerbesitz an Stationen gibt es im Core noch nicht
 
 		// ── Karte 1 (links oben): Du ──

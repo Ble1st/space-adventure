@@ -51,6 +51,8 @@ Ausgangswelt: Alpha (Eisen, Kupfer, Wasser, Energie), Beta (Silizium, Elektronik
 
 Module sind Waren; jedes Modul hat eine Ware gleichen Schlüssels, sein `cost` ist das Rezept der Fabrik.
 
+**Lagerführung ohne Rezept (offen, siehe UMSETZUNGSPLAN.md Phase 5):** Ausrüster, Handelsstation und Raffinerie sollen Module bzw. `ship_kit_light` im Lager führen und verkaufen, haben aber kein Rezept, aus dem der Markt entsteht (heute legt `StationFactory` Markteinträge nur aus Rezepten an). Vorschlag: Stationstypen bekommen eine Liste `stocks` (Waren mit Zielbestand), die zusätzlich zum Rezept Markteinträge erzeugt; Händler beliefern sie über den normalen Handel.
+
 ### Rohstoffe und Fundorte
 | Station | Zweck |
 |---|---|

@@ -23,7 +23,8 @@ public sealed class MinerSystem : ISimSystem
     {
         foreach (var ship in u.Ships.Values)
         {
-            if (ship.Role != ShipRole.Miner) continue;
+            // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff schürfen können
+            if (ship.Role != ShipRole.Miner || !ship.Has(Capability.Mining)) continue;
 
             if (ship.Transit is { } t)
             {

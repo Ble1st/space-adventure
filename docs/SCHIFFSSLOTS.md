@@ -45,7 +45,7 @@ Sprungantrieb und Tarnfeld (beide zurückgestellt) sitzen bewusst im selben Slot
 
 ### Fähigkeiten aus Modulen
 
-`Capability` (Flags) wächst auf: `Cargo`, `Mining`, `Combat`, `Construction`, `Research`, `Salvage`, **`Jump`**, **`Stealth`**. Ein Modul trägt sie über `grants` ein; das Schiff hat die Vereinigung aller.
+`Capability` (Flags) wächst auf: `Cargo`, `Mining`, `Combat`, `Construction`, `Salvage`, **`Jump`**, **`Stealth`** (`Research` ist als Schiffsfähigkeit gestrichen, Forschung gehört dem Akteur). Ein Modul trägt sie über `grants` ein; das Schiff hat die Vereinigung aller.
 
 ## 2. Datenformat (JSON)
 
@@ -338,8 +338,8 @@ Bestehende Schiffe verbessern ihre Module.
 ## 9. Reihenfolge
 
 1. **Dienste-Rahmen** (`IStationService`, Registry, generisches Dock-Panel) mit `trade` als erstem Dienst. Keine Verhaltensänderung.
-2. **`repair`** (Hüllenplatten), dann **`refuel`** mit `Ship.Fuel` für alle Schiffe (Save-Änderung).
-3. **Slot-Format:** Content-Abschnitte, `WorldBuilder`-Prüfung, `ShipStats`, Save v4 mit `ModelKey`, Slotliste und `Fit`. Zuerst Einheitsmodelle, die das heutige Verhalten nachbilden.
+2. **Slot-Format:** Content-Abschnitte, `WorldBuilder`-Prüfung, `ShipStats`, Save v4 mit `ModelKey`, Slotliste und `Fit`. Zuerst Einheitsmodelle, die das heutige Verhalten nachbilden (entschieden: **vor** dem Treibstoff, weil Tank, Antrieb mit Treibstoffliste und Warenform im Modell stecken).
+3. **`repair`** (Hüllenplatten), dann **`refuel`** mit `Ship.Fuel` für alle Schiffe (Save-Änderung).
 4. **Module als Waren** und **`outfitter`**, danach `shipdealer` (zuerst Werft, dann kleine Schiffe an Handelsstation, Ausrüster und Raffinerie) und Startpakete. `hangar`, `taxi` und `rental` kommen mit der Spielerflotte.
 5. **NPC-Güteklassen und `upgrade`-Dienst** mit `UpgradeSystem`.
 6. **Gate-Zugangsmodell** und Mobilitätsprofil in der Routensuche (Voraussetzung für Sprungantrieb und Sperren), danach **Sprungantrieb** (zurückgestellt).

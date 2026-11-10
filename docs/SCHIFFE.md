@@ -42,7 +42,7 @@ Alle Zahlen sind Startwerte zum Tunen (Fracht / Hülle / Tempo).
 
 Heute hängt die gesamte KI an `ShipRole`. Neu wird sie in zwei Dinge aufgeteilt:
 
-- **Fähigkeiten (Capabilities)** hängen am Schiff: `Cargo`, `Mining`, `Combat`, `Construction`, `Research`, `Salvage`. Sie ergeben sich aus Klasse, Modell und eingebauten Modulen.
+- **Fähigkeiten (Capabilities)** hängen am Schiff: `Cargo`, `Mining`, `Combat`, `Construction`, `Salvage` (`Research` entfällt: Forschung gehört dem Akteur, nicht dem Schiff; `Jump` und `Stealth` kommen mit den zurückgestellten Modulen). Sie ergeben sich aus Klasse, Modell und eingebauten Modulen.
 - **Aufgabe (Job)** ist Zustand: Handeln, Schürfen, Patrouille, Bauen. Die KI wählt sie unter den Aufgaben, die das Schiff kann.
 
 Der Spieler ist ein Schiff ohne KI-Wahl. `ShipRole.Player` entfällt als Fähigkeit; der Spieler wird stattdessen über einen **Steuerer** (`Controller = Player`) erkannt. Das ist nötig, weil heute `TradeActions` und die Ereignisse (`PlayerSold`, `PlayerBought`) und `Materializer` die Rolle `Player` abfragen.
@@ -95,7 +95,7 @@ Die Slotzahl ist der Preis der Vielseitigkeit: Wer wenige Slots hat, muss sich e
 5. **Pro-Schiff-Werte:** `MaxHull`, Tempo, Fracht, Laserstufe, Spritverbrauch kommen aus dem Modell.
 6. **Save v4:** Schiff speichert `ModelKey`, Module, aktuelle Aufgabe. Alte Schiffe werden nach altem `Role` auf Standardmodelle migriert. `UniverseHash` und DTOs müssen mit.
 7. **Kauf:** `BuyShip` nutzt dieselbe Regel für Spieler und NPCs. Bausatz und Zusatzmaterial gehen aus dem Werftlager, die Werft bekommt das Geld. Der Spieler konkurriert um knappe Bausätze.
-8. **Ausrüster (`IStationService`):** Slots ändern ist der Dock-Dienst "Ausrüster". Module sind Waren oder Bauteile (zum Beispiel Laser aus Elektronik und Platin).
+8. **Ausrüster (`IStationService`):** Slots ändern ist der Dock-Dienst "Ausrüster". Module sind Waren (SCHIFFSSLOTS.md, „Module sind Waren“): Jedes Modul hat eine Ware gleichen Schlüssels, die eine der drei Modulfabriken nach dem `cost`-Rezept herstellt; der Ausrüster verkauft sie aus dem Stationslager und baut sie ein.
 9. **NPCs bauen nicht um:** Sie kaufen nur fertige Modelle. Das ist einfacher und besser balancierbar.
 
 ## 7. Risiken

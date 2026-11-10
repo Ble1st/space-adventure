@@ -119,9 +119,13 @@ public static class UniverseSerializer
             };
         foreach (var sh in s.Ships)
         {
+            var role = Enum.Parse<ShipRole>(sh.Role);
             var ship = new Ship
             {
-                Id = new ShipId(sh.Id), Faction = new FactionId(sh.Faction), Role = Enum.Parse<ShipRole>(sh.Role), CargoCapacity = sh.CargoCapacity,
+                Id = new ShipId(sh.Id), Faction = new FactionId(sh.Faction), Role = role,
+                // nicht gespeichert: Fähigkeiten/Steuerer aus der gespeicherten Rolle ableiten
+                Capabilities = CapabilityDefaults.ForRole(role), Controller = CapabilityDefaults.ControllerFor(role),
+                CargoCapacity = sh.CargoCapacity,
                 Credits = sh.Credits, Hull = sh.Hull, Sector = new SectorId(sh.Sector), Position = sh.Pos,
                 Order = sh.Order is null ? null : FromSave(sh.Order),
                 Phase = Enum.Parse<TradePhase>(sh.Phase), MinePhase = Enum.Parse<MinePhase>(sh.MinePhase),

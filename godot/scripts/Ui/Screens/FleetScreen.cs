@@ -24,7 +24,7 @@ public sealed partial class FleetScreen : CommandScreen
 	protected override void BuildContent(Control inner)
 	{
 		var u = Ctx.U;
-		var ships = u.Ships.Values.Where(s => s.Role == ShipRole.Player).OrderBy(s => s.Id.Value).ToList();
+		var ships = u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value).ToList();
 
 		// ── Liste links: die Schiffe des Spielers ──
 		At(inner, Text("Deine Schiffe", 18, Cyan), 12, 12, 360, 24);

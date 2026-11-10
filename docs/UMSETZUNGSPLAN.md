@@ -22,7 +22,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 2 | Fähigkeiten und Steuerer statt fester Rolle | M | – |
 | 3 | Slot- und Modulmodell, Warenform und Kanister, Leistung und Speicherbank | L | v4 |
 | 4 | Treibstoff: Ware, Tank, Tanken, Reparatur, Rettungsdienst | L | v5 |
-| 5 | Modul-Waren, drei Modulfabriken, Ausrüster, Schiffskauf, Startpakete | L | v6 |
+| 5 | Modul-Waren, drei Modulfabriken (5a), Spielerkasse (5b), Ausrüster, Schiffskauf, Startpakete (5c) | L | v6 |
 | 6 | Multirole: Job-Zuteilung, Kapazitätsgrenzen, erste Multirole-Modelle | M | – |
 | 7 | NPC-Güteklassen und Upgrades | M | v7 |
 | 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v8 |
@@ -54,12 +54,16 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - `TraderSystem` und `MinerSystem` prüfen die Fähigkeit; `FleetSystem`, `UpkeepSystem`, `EconomyStats`, `StationLifecycleSystem` und `SectorView` folgen.
 - `Research` als Schiffsfähigkeit wird gestrichen, weil kein Dokument sie braucht.
 - **Tests:** Fähigkeit ohne Mining lässt Miner leer; alle bestehenden Tests unverändert; `UniverseHash` gleich.
-- Ein erster Versuch lag schon vor (Fähigkeiten aus Rolle abgeleitet); er wurde bewusst verworfen, bis die Planung steht, und kann neu begonnen werden.
+- Ein erster Versuch lag schon vor (Fähigkeiten aus Rolle abgeleitet); er wurde bewusst verworfen, bis die Planung steht, und wurde neu umgesetzt.
+
+**Stand:** Umgesetzt (Branch `phase2-faehigkeiten`): `Capability` (ohne `Research`) und `Controller` in `Model/Capability.cs`, `Ship.Capabilities/Controller/Has/IsPlayer/IsEconomyAi`, Ableitung aus der Rolle an allen Entstehungsstellen (`WorldBuilder.NewShip`, `Universe.AddShip`, `UniverseSerializer.FromSave`, `FleetSystem.Expand`), nichts wird gespeichert (v3 bleibt). `TradeActions`, `Materializer` und die Oberfläche erkennen den Spieler über `IsPlayer`; `TraderSystem` und `MinerSystem` verlangen zusätzlich `Cargo` bzw. `Mining`; `FleetSystem`, `UpkeepSystem`, `EconomyStats`, `StationLifecycleSystem` zählen über `IsEconomyAi`. 7 neue Tests, 209 insgesamt; Balance-Lauf (20000 Ticks) und Hash sind byte-identisch zu vorher.
+**Bekannte Schwächen (bewusst, bis Phase 3 und 6):** (1) `Capability.None` gilt in `AddShip` als „nicht gesetzt“ und wird aus der Rolle abgeleitet; ein Schiff ohne jede Fähigkeit lässt sich erst mit dem Modulmodell ausdrücken. (2) Wird einem Schiff mit Auftrag die Fähigkeit entzogen, bleibt der Auftrag stehen, bis `JobAssignmentSystem` (Phase 6) ihn neu zuteilt. (3) Fähigkeiten werden nicht gespeichert, ein Überschreiben zur Laufzeit geht beim Laden verloren; ab Phase 3 kommen sie aus `ShipStats` (Klasse und Fit).
 
 ## Phase 3: Slot- und Modulmodell, Warenform, Leistung
 
 **Ziel:** Schiffe bestehen aus Klasse, Slots und Modulen. Einheitsmodelle bilden das heutige Verhalten nach.
 - **Content:** Abschnitte `slotTypes`, `modules`, `shipClasses`, `shipModels` in `WorldDef`; `WorldBuilder` validiert (Schlüssel, Slotart, Größe, Leistungsbilanz, Frachtform) und wirft `WorldFormatException`.
+- **Module in Phase 3:** `modules` ist eine eigene Content-Sektion (Registry für `Fit` und `ShipStats`); die **Waren zu den Modulen** entstehen erst in Phase 5 (siehe dort), Phase 3 verändert `goods` nicht außer um `form`.
 - **Warenform:** `goods[].form` (`solid`/`liquid`); Frachtmodule mit `holds`; Universalraum (100 %) für migrierte Schiffe.
 - **Leistung:** `ShipStats` rechnet `powerOutput`, `powerDraw`, `peakDraw`, Speicherbank (`powerStorage`) und leitet Tempo, Hülle, Laderaum, Laserleistung, Unterhalt und Fähigkeiten ab. `Ship.MaxHull` wird pro Schiff.
 - **Save v4:** `ModelKey`, Slotliste und `Fit` je Schiff; Migration bildet bestehende Schiffe auf Einheitsmodelle ab; `UniverseHash` erweitert.
@@ -70,6 +74,7 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 ## Phase 4: Treibstoff
 
 **Ziel:** Treibstoff ist eine echte Ware; Reparatur und Tanken kosten.
+- **Voraussetzung:** Phase 3 (Tank- und Antriebsmodule, `form: liquid`, `ShipStats`). Entschieden: Slots vor Treibstoff, die Tankgröße kommt aus dem Tankmodul.
 - **Waren und Stationen:** `propellant` (Flüssigstoff), `Treibstoffraffinerie` (3 Wasserstoff + 1 Energie → 4 Treibstoff), später `gas`, `ion_gas`, `fusion_fuel` mit Gasernte, Gasraffinerie und Anreicherungsanlage.
 - **Schiff:** `Ship.Fuel` je Treibstoffware, Treibstofftank-Modul, Antrieb nennt zulässige Treibstoffe mit `efficiency`. `Travel.Start` rechnet echten Verbrauch statt der Credit-Pauschale (`Travel.cs`); Gate-Sprünge bleiben frei.
 - **Dienste:** `refuel` und `repair` (verbraucht Hüllenplatten aus dem Stationslager), Rettungs- und Schleppdienst als Station mit Dienst für Liegenbleiber.
@@ -80,23 +85,34 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 
 ## Phase 5: Module als Waren, Fabriken, Ausrüster, Schiffskauf
 
-**Ziel:** Der Spieler kann Schiffe und Module kaufen und umrüsten; NPCs nutzen dieselben Regeln.
-- **Modul-Waren:** Jedes Modul bekommt automatisch eine Ware in `goods`; sein `cost` wird das Rezept.
-- **Drei Fabriken:** Antriebs- und Reaktorwerk, Waffen- und Schildwerk, Systemwerk, Stufe nach Stationsgröße (klein Mk1, mittel Mk2, Hub Mk3). Zuerst erster Modulsatz: Reaktor, Speicherbank, Triebwerk, Tank, Frachtmodule, Laser, Traktor, Schild, Panzerung.
-- **Bausatzstufen:** `ship_kit` in `ship_kit_light/medium/heavy`; `EconomyRules.ShipKitGoodKey` wird je Klasse gewählt; `FleetSystem` und Werftrezepte angepasst.
-- **Spielerkasse:** Das Geld des Spielers wandert von `Ship.Credits` in die Kasse des Spielerakteurs (Person); `TradeActions` buchen auf die Kasse des Besitzers (`Universe.WalletOf`). Das ist Voraussetzung für Schiffskauf, mehrere Schiffe und Taxi.
-- **Dienste:** `outfitter` (Module ein- und ausbauen), `shipdealer` (`BuyShip`), Handelsstation als neuer Typ. Kleine Schiffe auch an Handelsstation, Ausrüster und Raffinerie (Montage aus leichtem Bausatz, siehe SCHIFFSSLOTS.md).
-- **Startpakete** (`player.startOptions`): Schürfer, Händler, Generalist.
-- **Save v6:** Module als Waren sind Content; Spieler-Fit bleibt im Schiff; Spielerkasse (Migration von `Ship.Credits`).
-- **Tests:** Rezepte stimmen mit `cost`, Werft verbraucht Bausatz und Zusatzmaterial, Spielerkauf, Umrüstung ändert `ShipStats`.
-- **Balance:** Neue Nachfrage nach Titan und Platin; `tools/SpaceSim.Balance` auf Preisentgleisung prüfen.
+**Ziel:** Der Spieler kann Schiffe und Module kaufen und umrüsten; NPCs nutzen dieselben Regeln. **Größe L, in drei Teilschritten umzusetzen (5a, 5b, 5c), je mit eigenem Test- und Balance-Lauf.**
+
+**5a – Module als Waren, drei Fabriken, Bausatzstufen**
+- **Modul-Waren (SCHIFFSSLOTS.md, „Module sind Waren“):** `WorldBuilder` legt zu jedem Modul automatisch eine Ware gleichen Schlüssels an, **angehängt hinter den JSON-Waren in fester Reihenfolge** (nach Modulschlüssel), damit `GoodId` (Index+1) und die Konstanten in `DemoUniverse` stabil bleiben. Eigenschaften: `form = solid`, `Volume` aus der Modulmasse, `BasePrice` = Summe der Zutatenpreise (`cost`) mal Verarbeitungsaufschlag (`EconomyRules.ModuleMarkup`), Farbe nach Slotart. **`cost` wird das Rezept** der Fabrik.
+- **Drei Fabriken:** Antriebs- und Reaktorwerk, Waffen- und Schildwerk, Systemwerk als neue Stationstypen in der JSON, Stufe nach Stationsgröße (klein Mk1, mittel Mk2, Hub Mk3). Erster Modulsatz: Reaktor, Speicherbank, Triebwerk, Tank, Frachtmodule, Laser, Traktor, Schild, Panzerung. Verteilung in der Startwelt als offene Entscheidung (siehe unten).
+- **Lager ohne Rezept:** Stationstypen bekommen `stocks` (Waren mit Zielbestand), die zusätzlich zum Rezept Markteinträge anlegen (heute entstehen Märkte nur aus Rezepten). Nötig für Ausrüster, Handelsstation und die Montage kleiner Schiffe. Händler beliefern sie über den normalen Handel.
+- **Bausatzstufen:** `ship_kit` in `ship_kit_light/medium/heavy` (`ship_kit_capital` später mit der Hub-Werft); `EconomyRules.ShipKitGoodKey` wird je Klasse gewählt; `FleetSystem` und Werftrezepte angepasst.
+- **Tests:** Jedes Modul hat genau eine Ware, Rezepte stimmen mit `cost`, `GoodId`-Konstanten unverändert, Content-Test „jedes Modell ist baubar“.
+
+**5b – Spielerkasse (Voraussetzung für Schiffskauf, mehrere Schiffe, Taxi)**
+- Das Geld des Spielers wandert von `Ship.Credits` in ein kleines Objekt `PlayerWallet` an `Universe` (die Person); `TradeActions` buchen über `Universe.WalletOf(ship)` (Spielerschiffe: Wallet, NPC-Schiffe: `ship.Credits`, Verhalten bleibt gleich). **Zwischenstufe:** Das Akteurmodell kommt erst in Phase 9, dann wird `PlayerWallet` zur Kasse des Spielerakteurs (POLITIK.md, „Spielerkasse“).
+- **Save:** Spielerkasse, Migration von `Ship.Credits` des Spielerschiffs; `UniverseHash` und `EconomyStats` zählen die Geldmenge nach Kassen.
+- **Tests:** Summe aus Wallet und Schiffen ändert sich durch Handel nicht außer durch dieselben Flüsse wie vorher; Migration; Hash-Vergleich NPC-Wirtschaft unverändert.
+
+**5c – Dienste und Schiffskauf**
+- **Dienste:** `outfitter` (Module ein- und ausbauen, Waren aus dem Stationslager; ausgebaute Module wandern ins Lager oder in die Fracht), `shipdealer` (`BuyShip`, Bausatz und Zusatzmaterial aus dem Lager, Werft bekommt das Geld), Handelsstation als neuer Typ. Kleine Schiffe auch an Handelsstation, Ausrüster und Raffinerie (Montage aus `ship_kit_light`, siehe SCHIFFSSLOTS.md).
+- **Modelle der Skiff-Klasse** (*Pip*, *Nomad*, *Prospector*) kommen hier in die JSON, weil die Startpakete sie brauchen; Phase 3 liefert nur die Einheitsmodelle.
+- **Startpakete** (`player.startOptions`): Schürfer (*Prospector*), Händler (*Nomad*), Generalist (*Pip* mit Werkzeug-Slot; *Tinker* kommt erst in Phase 6).
+- **Save v6:** Spieler-Fit bleibt im Schiff; Module als Waren sind Content.
+- **Tests:** Werft verbraucht Bausatz und Zusatzmaterial, Spielerkauf, Umrüstung ändert `ShipStats`, ungültiger Einbau wird abgelehnt.
+- **Balance (alle Teilschritte):** Neue Nachfrage nach Titan und Platin; `tools/SpaceSim.Balance` auf Preisentgleisung prüfen.
 
 ## Phase 6: Multirole
 
 **Ziel:** Schiffe wählen ihre Aufgabe nach Fähigkeit und Gewinn.
 - `JobAssignmentSystem` wählt für untätige Schiffe die beste Aufgabe unter den Fähigkeiten (vorhandenes Scoring), mit Mindestdauer und Hysterese.
 - `FleetSystem` zählt Kapazität statt Schiffe; Herdenschutz (Crowd-Penalty) für alle Aufgaben.
-- Erste Multirole-Modelle (*Prospector*, *Tinker*) und der Rest der Klassen aus SCHIFFE.md (ohne Kampfklassen).
+- Erstes Multirole-Modell (*Tinker*) und der Rest der Klassen aus SCHIFFE.md (ohne Kampfklassen); *Prospector* gibt es seit Phase 5.
 - **Tests:** Aufgabenwechsel flackert nicht; Generalist ist schlechter als Spezialist; Balance-Lauf auf Verdrängung.
 
 ## Phase 7: Güteklassen und Upgrades
@@ -109,7 +125,7 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 ## Phase 8: Bau, Brecher, Lagerhaus
 
 - **Bauschiff** (Fähigkeit `Construction`) und `BuildSite`; `ConstructionSystem`; Spieler liefert per freiem Handel.
-- **Notbau** (zustandsabhängig, nur fehlende Materialien, Kritikalität, Bremse); `Critical` abgeleitet (STATIONEN.md).
+- **Notbau** (zustandsabhängig, nur fehlende Materialien, Kritikalität, Bremse); dafür die **kleine Aufspaltung von `Essential`**: `Critical` (abgeleitet) und `BankruptcyProtected` (STATIONEN.md). Der Rest der Aufschlüsselung (`Government`, `Capturable`, `Destructible`, `Immortal`) bleibt in Phase 10.
 - **Zyklenfreie Baukosten** als Content-Test; Startbestand an Bauschiffen je Fraktion.
 - **Asteroidenbrecher:** Spaltlaser, Fragmente mit Limit je Gürtel, Event `AsteroidSplit`.
 - **Lagerhaus** als Station mit Dienst für Baustellenlager.
@@ -152,7 +168,7 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Spielerflotte:** Flottenliste und Befehlsmenü (höchstens drei Schritte), Automatikaufträge mit Grenzen.
 - **`OrderSave`** erweitern (heute drei Ganzzahlen).
 - **Hangar, Taxi, Leihschiff:** Dienste `hangar`, `taxi`, `rental`; Schiffe haben einen Standort (angedockt an einer Station, `Ship.DockedAt`); das Taxi bewegt nur den Spieler, das Schiff bleibt.
-- **Oberfläche:** Andock-Menü, Dock-Bereiche, Flug-HUD mit Tempo-Slider und Laser-Tasten (siehe [UI.md](UI.md)).
+- **Oberfläche:** Flug-HUD, Andock-Menü, Dock-Bereiche und Kommandozentrale sind **bereits gebaut** (UI.md); hier bleibt nur die Anbindung der Platzhalter an echte Daten (Hangar, Taxi, Flotte, Schiffwechsel, Befehle).
 - **Save v12:** Verbände, Befehle, Heimatbasis.
 
 ## Phase 13: Forschung
@@ -168,14 +184,15 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 | Sprungantrieb, Tarnfeld | Referenz und Planung; brauchen Gate-Zugang und Fahndung |
 | Besatzung und Lebenserhaltung für Schiffe | sprengt den Umfang |
 | Blockadebrecher, Abwracker, Fregatten, Schlachtschiffe | hängen an Kampf, Politik und Wracks |
-| Android-Test auf einem Gerät | unabhängig; sobald die .NET-Exporttemplates installiert sind |
+| Android-Test auf einem Gerät | unabhängig; Exporttemplates sind installiert, die Debug-APK baut (`build/space-adventure.apk`); offen ist nur der Test auf einem Gerät (Touch, Leistung) |
 
 ## Reihenfolge und Abhängigkeiten
 
 ```text
-1 Dienste ──► 4 Treibstoff/Reparatur ──► 5 Module, Fabriken, Schiffskauf ──► 6 Multirole ──► 7 Güte/Upgrades
-2 Fähigkeiten ──► 3 Slots/Module ──┘                                         │
-                                                                            ▼
+1 Dienste ───────────────────────────┐
+2 Fähigkeiten ──► 3 Slots/Module ──► 4 Treibstoff ──► 5 Module, Fabriken, Kasse, Schiffskauf ──► 6 Multirole ──► 7 Güte/Upgrades
+                                                                                                        │
+                                                                                                        ▼
                               8 Bau/Brecher ──► 9 Akteure ──► 10 Gate/Sektor ──► 11 Polizei ──► 12 Verbände ──► 13 Forschung
 ```
 
@@ -187,7 +204,8 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 
 - **Phase 3:** Genaue Slotzahl je Klasse und die Zahlen der Einheitsmodelle (damit der Hash-Vergleich stimmt).
 - **Phase 4:** Wie viel Treibstoff ein Gate-freier Sektorflug typischerweise kostet; Tankgröße der Einheitsmodelle.
-- **Phase 5:** Preise und Rezepte der ersten Modulreihe, Verteilung der drei Fabriken in der Startwelt.
+- **Phase 5:** Preise und Rezepte der ersten Modulreihe, Verteilung der drei Fabriken in der Startwelt, Verarbeitungsaufschlag der Modul-Waren (`ModuleMarkup`), Form von `stocks` am Stationstyp (ROADMAP.md, Punkte 20 und 21).
+- **Phase 8:** Umfang der `Essential`-Aufspaltung (Vorschlag: nur `Critical` und `BankruptcyProtected`, ROADMAP.md, Punkt 23).
 - **Phase 9:** Ob Einzelschiffe sofort oder träge Akteure werden (Vorschlag: träge); Beitritt des Spielers zu Fraktionen.
 - **Phase 10:** Sperren je Sektor oder je Gate (Vorschlag: Sektor mit Gate-Ausnahmen).
 - **Jede Phase:** Nach dem Lauf des Balance-Tools entscheiden, ob Startwerte angepasst werden.

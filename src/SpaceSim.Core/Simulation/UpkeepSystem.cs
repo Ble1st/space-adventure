@@ -18,7 +18,7 @@ public sealed class UpkeepSystem : ISimSystem
 
         float upkeep = u.Rules.ShipUpkeepPerTick * dt;
         foreach (var ship in u.Ships.Values)
-            if (ship.Role is ShipRole.Trader or ShipRole.Miner)
+            if (ship.IsEconomyAi)
             {
                 ship.Credits -= MathF.Min(ship.Credits, upkeep);
                 if (ship.Credits > u.Rules.WealthTaxFree) ship.Credits -= (ship.Credits - u.Rules.WealthTaxFree) * u.Rules.ShipWealthTax * dt;

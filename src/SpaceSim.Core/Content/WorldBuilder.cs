@@ -158,7 +158,8 @@ public static class WorldBuilder
         if (!u.Sectors.TryGetValue(sector, out var sec)) throw new WorldFormatException($"Schiff {id.Value}: unbekannter Sektor {sector.Value}");
         return new Ship
         {
-            Id = id, Role = role, Faction = new FactionId(faction), Sector = sector, Credits = credits, CargoCapacity = cargo,
+            Id = id, Role = role, Capabilities = CapabilityDefaults.ForRole(role), Controller = CapabilityDefaults.ControllerFor(role),
+            Faction = new FactionId(faction), Sector = sector, Credits = credits, CargoCapacity = cargo,
             Position = sec.Stations.Count > 0 ? u.Stations[sec.Stations[0]].DockPoint(id) : default,
         };
     }

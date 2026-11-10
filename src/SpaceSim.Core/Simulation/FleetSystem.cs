@@ -18,7 +18,7 @@ public sealed class FleetSystem : ISimSystem
 
     static void Abandon(Universe u)
     {
-        foreach (var ship in u.Ships.Values.Where(s => s.Role is ShipRole.Trader or ShipRole.Miner).ToList())
+        foreach (var ship in u.Ships.Values.Where(s => s.IsEconomyAi).ToList())
             if (ship.Transit is null && ship.Order is null && ship.IdleSince >= 0
                 && u.Tick - ship.IdleSince > u.Rules.ShipBankruptTicks && ship.Credits < 50f)
                 u.RemoveShip(ship.Id, "bankrupt");
@@ -52,7 +52,8 @@ public sealed class FleetSystem : ISimSystem
         var id = u.NewShipId();
         u.AddShip(new Ship
         {
-            Id = id, Role = role, Faction = parent.Faction, CargoCapacity = parent.CargoCapacity,
+            Id = id, Role = role, Capabilities = CapabilityDefaults.ForRole(role), Controller = CapabilityDefaults.ControllerFor(role),
+            Faction = parent.Faction, CargoCapacity = parent.CargoCapacity,
             Sector = yard.Sector, Position = yard.DockPoint(id), Credits = rules.NewShipStartCredits,
         });
     }

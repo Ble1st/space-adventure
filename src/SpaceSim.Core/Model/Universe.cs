@@ -45,6 +45,9 @@ public sealed class Universe
 
     public void AddShip(Ship s)
     {
+        // Fähigkeiten/Steuerer aus der Rolle ableiten, falls der Ersteller sie nicht gesetzt hat (kein Schiff mit Capability.None)
+        if (s.Capabilities == Capability.None) s.Capabilities = CapabilityDefaults.ForRole(s.Role);
+        if (s.Controller == Controller.Ai && s.Role == ShipRole.Player) s.Controller = Controller.Player;
         Ships[s.Id] = s;
         if (s.Transit is { } t) Tracker.AddTransit(t, s.Id); else Tracker.AddParked(s.Sector, s.Id);
         if (s.Id.Value >= _nextShipId) _nextShipId = s.Id.Value + 1;

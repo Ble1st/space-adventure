@@ -24,7 +24,7 @@ public static class EconomyStats
             u.Tick, u.Stations.Count,
             u.Ships.Values.Count(s => s.Role == ShipRole.Trader), u.Ships.Values.Count(s => s.Role == ShipRole.Miner),
             u.Stations.Values.Sum(s => s.Credits),
-            u.Ships.Values.Where(s => s.Role is ShipRole.Trader or ShipRole.Miner).Sum(s => s.Credits), goods);
+            u.Ships.Values.Where(s => s.IsEconomyAi).Sum(s => s.Credits), goods);
     }
 }
 

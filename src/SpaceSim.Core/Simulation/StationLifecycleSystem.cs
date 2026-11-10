@@ -58,7 +58,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         // Investor: reichster Teilnehmer (Station oder Händler-/Minenschiff), der Baukosten plus Reserve aufbringen kann
         float need = cost + rules.InvestorReserve;
         var stationInvestor = u.Stations.Values.Where(s => s.Credits >= need).OrderByDescending(s => s.Credits).FirstOrDefault();
-        var shipInvestor = u.Ships.Values.Where(s => s.Role is ShipRole.Trader or ShipRole.Miner && s.Credits >= need)
+        var shipInvestor = u.Ships.Values.Where(s => s.IsEconomyAi && s.Credits >= need)
                                          .OrderByDescending(s => s.Credits).FirstOrDefault();
         if (stationInvestor is null && shipInvestor is null) return;
         bool useShip = shipInvestor is not null && (stationInvestor is null || shipInvestor.Credits > stationInvestor.Credits);
