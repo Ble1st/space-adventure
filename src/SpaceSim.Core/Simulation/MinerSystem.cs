@@ -93,6 +93,7 @@ public sealed class MinerSystem : ISimSystem
             }
         }
         if (best is null) return false;
+        long idleBefore = ship.IdleSince;   // ein Liegenbleiber (Stuck) behält seinen Leerlauf-Beginn, sonst wird er nie aufgegeben
         ship.IdleSince = -1;
         ship.Order = best;
         ship.MinePhase = MinePhase.GoingToField;
@@ -102,7 +103,7 @@ public sealed class MinerSystem : ISimSystem
         if (plan == Refuel.TripPlan.Stuck)
         {
             // pleite: nicht reisen, liegen bleiben (FleetSystem gibt das Schiff nach Leerlauf auf)
-            ship.Order = null; ship.MinePhase = MinePhase.Idle; ship.IdleSince = u.Tick;
+            ship.Order = null; ship.MinePhase = MinePhase.Idle; ship.IdleSince = idleBefore >= 0 ? idleBefore : u.Tick;
             return false;
         }
         Travel.Start(u, ship, best.Sector, bestFieldPos);

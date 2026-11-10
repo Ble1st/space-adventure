@@ -242,9 +242,11 @@ public static class SaveGameJson
         //    nach dem ersten Tank liegen. Stationstyp und die Raffinerien der Default-Welt werden ergänzt, wo der Sektor existiert
         //    und noch keine Raffinerie steht; Hindernis-Asteroiden am Bauplatz werden entfernt.
         var refType = def.StationTypes.FirstOrDefault(t => t.Key == "fuel_refinery");
-        if (refType is not null && refType.Recipes.All(r => r.In.Keys.Concat(r.Out.Keys).All(goodIdByKey.ContainsKey)))
+        //    Sehr alte Welten kennen Wasserstoff/Energie nicht als Schlüssel: dort bleibt nur die Rezeptur ohne Eingänge (Gasförderung).
+        var usable = refType?.Recipes.Where(r => r.In.Keys.Concat(r.Out.Keys).All(goodIdByKey.ContainsKey)).ToList();
+        if (refType is not null && usable is { Count: > 0 })
         {
-            List<RecipeSave> Recipes() => refType.Recipes.Select(r => new RecipeSave
+            List<RecipeSave> Recipes() => usable.Select(r => new RecipeSave
             {
                 Ticks = r.Ticks,
                 In = r.In.ToDictionary(kv => goodIdByKey[kv.Key], kv => kv.Value),
@@ -263,8 +265,17 @@ public static class SaveGameJson
                 if (s.Stations.Any(st => st.Sector == sd.Id && st.Type == refType.Key)) continue;
                 foreach (var std in sd.Stations.Where(x => x.Type == refType.Key))
                 {
-                    var pos = new Vec2(std.Pos[0], std.Pos[1]);
-                    if (s.Stations.Any(st => st.Sector == sd.Id && Vec2.Distance(st.Pos, pos) < 50f)) continue;   // Platz belegt
+                    // Bauplatz der Default-Welt, sonst gespiegelte Ausweichplätze: frei von Stationen, Gates und Gürtelzentren
+                    var p0 = new Vec2(std.Pos[0], std.Pos[1]);
+                    Vec2? free = null;
+                    foreach (var c in new[] { p0, new Vec2(-p0.X, p0.Y), new Vec2(p0.X, -p0.Y), new Vec2(-p0.X, -p0.Y), new Vec2(p0.Y, p0.X), new Vec2(-p0.Y, -p0.X) })
+                    {
+                        if (s.Stations.Any(st => st.Sector == sd.Id && Vec2.Distance(st.Pos, c) < 50f)) continue;
+                        if (s.Gates.Any(g => g.Sector == sd.Id && Vec2.Distance(g.Pos, c) < 50f)) continue;
+                        if (sector.Fields.Any(f => Vec2.Distance(f.Pos, c) < 60f)) continue;
+                        free = c; break;
+                    }
+                    if (free is not { } pos) continue;   // kein Platz: der Notkauf hält die Flotte beweglich
                     int id = s.Stations.Any(st => st.Id == std.Id) ? Math.Max(s.NextStationId, s.Stations.Max(st => st.Id) + 1) : std.Id;
                     var save = new StationSave
                     {

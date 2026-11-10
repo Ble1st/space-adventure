@@ -319,4 +319,41 @@ public class RefuelRepairTests
         Assert.True(trades > 0);   // der Handel läuft weiter, auch wenn die Starttanks längst unter der Reserve sind
         Assert.All(u.Ships.Values, s => Assert.True(s.TotalFuel >= 0f));
     }
+
+    // ───────── Tankbudget und Liegenbleiber ─────────
+
+    [Fact]
+    public void KiTanken_GibtNurTankbudgetAus_BetriebskapitalBleibt()
+    {
+        var (u, _, st) = AtRefinery();
+        var ship = u.Ships.Values.First(s => s.Role == ShipRole.Trader && !s.IsPlayer);
+        if (ship.Transit is not null) u.FinishTransit(ship);
+        ship.Fuel[Prop] = 20f;
+        ship.Credits = 1_000f;
+        st.Market[Prop].Amount = 500f;
+        float price = st.Market[Prop].Price;
+        float bought = Refuel.TankUp(u, ship, st);
+        Assert.Equal(MathF.Floor(Refuel.FuelBudgetShare * 1_000f / price), bought);
+        Assert.True(ship.Credits >= 1_000f * (1f - Refuel.FuelBudgetShare) - 0.01f);
+        // Der Bedarf der anstehenden Reise geht vor dem Budget
+        ship.Credits = 1_000f;
+        ship.Fuel[Prop] = 0f;
+        float need = bought + 5f;
+        Assert.Equal(need, Refuel.TankUp(u, ship, st, need));
+    }
+
+    [Fact]
+    public void Liegenbleiber_OhneGeldUndTreibstoff_WirdAufgegeben_StattEwigZuStehen()
+    {
+        var u = World();
+        var ship = u.Ships.Values.First(s => s.Role == ShipRole.Trader && !s.IsPlayer);
+        if (ship.Transit is not null) u.FinishTransit(ship);
+        ship.Order = null; ship.Phase = TradePhase.Idle; ship.Cargo.Clear();
+        ship.Position = new Vec2(140f, 140f);   // frei im Raum, an keiner Station
+        ship.Fuel[Prop] = 0f;
+        ship.Credits = 0f;
+        var id = ship.Id;
+        new SimulationRunner().Run(u, u.Rules.ShipBankruptTicks + 400);
+        Assert.False(u.Ships.ContainsKey(id), u.Ships.TryGetValue(id, out var x) ? $"idle {x.IdleSince} tick {u.Tick} cr {x.Credits} fuel {x.TotalFuel} order {x.Order} transit {x.Transit != null} pos {x.Position.X},{x.Position.Y} sec {x.Sector.Value}" : "");
+    }
 }

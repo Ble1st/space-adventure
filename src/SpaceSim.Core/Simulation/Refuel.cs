@@ -22,6 +22,12 @@ public static class Refuel
     /// </summary>
     public const float MinFuelReserveFraction = 0.75f;
 
+    /// <summary>Unter diesem Tankanteil fährt ein Schiff eigens zur Tankstelle; darüber tankt es nur an Stationen, an denen es ohnehin steht.</summary>
+    public const float DetourFuelFraction = 0.25f;
+
+    /// <summary>Ein Umweg zur Tankstelle lohnt nur, wenn das Tankbudget dort mindestens so viele Einheiten kauft.</summary>
+    public const float MinWorthwhileStopUnits = 10f;
+
     /// <summary>Aufschlag des Spieler-Notrufs auf den Luftlinien-Bedarf bis zur nächsten Tankstelle.</summary>
     public const float PlayerEmergencyMargin = 1.5f;
 
@@ -135,11 +141,23 @@ public static class Refuel
         return n;
     }
 
-    /// <summary>Tankt an dieser Station so viel auf wie möglich (bis voll). Liefert die gekauften Einheiten.</summary>
-    public static float TankUp(Universe u, Ship ship, Station st)
+    /// <summary>
+    /// Anteil der Schiffscredits, den ein KI-Schiff bei einem Tankvorgang höchstens für Vorrat ausgibt. Ohne diese Grenze
+    /// floss das gesamte Betriebskapital in den Tank: das Schiff konnte keine Ware mehr kaufen und blieb pleite liegen.
+    /// </summary>
+    public const float FuelBudgetShare = 0.3f;
+
+    /// <summary>
+    /// Tankt an dieser Station: mindestens <paramref name="minUnits"/> (Bedarf der anstehenden Reise), darüber hinaus Vorrat
+    /// bis voll, soweit <see cref="FuelBudgetShare"/> der Credits reicht. Liefert die gekauften Einheiten.
+    /// </summary>
+    public static float TankUp(Universe u, Ship ship, Station st, float minUnits = 0f)
     {
         var good = ActiveFuel(ship);
-        return good is null ? 0f : BuyFuel(u, ship, st, good.Value, ship.FuelSpace);
+        if (good is null || !st.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return 0f;
+        float budget = MathF.Floor(FuelBudgetShare * MathF.Max(0f, ship.Credits) / e.Price);
+        float want = MathF.Min(ship.FuelSpace, MathF.Max(MathF.Ceiling(minUnits), budget));
+        return BuyFuel(u, ship, st, good.Value, want);
     }
 
     /// <summary>
@@ -215,26 +233,31 @@ public static class Refuel
         var good = ActiveFuel(ship);
         if (good is null) return TripPlan.Depart;   // kein Antrieb/Tank (z. B. Schiff ohne Modell): kein Verbrauch
         float dist = Travel.PlannedDistance(u, ship.Sector, ship.Position, toSector, toPos, ship);
-        // Der Tank muss für die Reise reichen UND die Reserve halten (sonst tankt das Schiff jetzt, solange es noch hinkommt)
-        float need = MathF.Max(Consumption(ship, dist, good), MinFuelReserveFraction * ship.Stats.FuelCapacity);
+        // Wunsch: Reise plus Reserve (das Schiff tankt, solange es noch hinkommt). Pflicht ist nur der Bedarf der Reise selbst.
+        float trip = Consumption(ship, dist, good);
+        float need = MathF.Max(trip, MinFuelReserveFraction * ship.Stats.FuelCapacity);
         if (ship.FuelAmount(good.Value) >= need) return TripPlan.Depart;
 
-        // 1) an der aktuellen Station tanken, wenn sie den Treibstoff verkauft
+        // 1) an der aktuellen Station tanken, wenn sie den Treibstoff verkauft (Vorrat nur im Rahmen des Tankbudgets)
         var here = CurrentStation(u, ship);
         if (here is not null && here.Market.TryGetValue(good.Value, out var he) && he.Amount > 0f && he.Price > 0f)
-        {
-            TankUp(u, ship, here);
-            if (ship.FuelAmount(good.Value) >= need) return TripPlan.Depart;
-        }
+            TankUp(u, ship, here, trip - ship.FuelAmount(good.Value));
+        if (ship.FuelAmount(good.Value) >= need) return TripPlan.Depart;
 
-        // 2) nächste Tankstelle mit dem Resttank erreichbar? Dann erst dorthin, der eigentliche Auftrag wird danach neu gewählt
+        // 2) nächste Tankstelle mit dem Resttank erreichbar? Dann erst dorthin, der eigentliche Auftrag wird danach neu gewählt.
+        //    Reicht der Tank für die Reise und das Schiff könnte sich ohnehin kaum Vorrat leisten, fährt es direkt.
         var stop = NearestFuelStation(u, ship, good.Value, ship.FuelAmount(good.Value), exclude: here?.Id);
+        if (stop is not null && ship.FuelAmount(good.Value) >= trip
+            && (ship.FuelAmount(good.Value) >= DetourFuelFraction * ship.Stats.FuelCapacity
+                || FuelBudgetShare * ship.Credits < MinWorthwhileStopUnits * stop.Market[good.Value].Price))
+            return TripPlan.Depart;   // Umweg erst unter der Umweg-Schwelle; darüber tankt das Schiff nur, wo es ohnehin steht
         if (stop is not null)
         {
             ship.Order = new GoToOrder(stop.Id);
             Travel.Start(u, ship, stop.Sector, stop.DockPoint(ship.Id));
             return TripPlan.FuelStop;
         }
+        if (ship.FuelAmount(good.Value) >= trip) return TripPlan.Depart;   // keine Tankstelle in Reichweite, aber die Reise selbst geht
 
         // 3) Notkauf: so viel Treibstoff, dass die nächste Tankstelle erreichbar ist (Aufpreis, Geldsenke);
         //    danach wird diese Tankstelle angesteuert (dort volltanken), erst dann geht es weiter
@@ -243,7 +266,6 @@ public static class Refuel
         {
             // Nirgends Treibstoff im erreichbaren Raum (z. B. alle Raffinerien leer oder Welt ohne Raffinerie): Notkauf direkt
             // für diese Reise, ohne Reserve. So bleibt die Flotte beweglich; liegen bleibt nur, wer den Aufpreis nicht zahlen kann.
-            float trip = Consumption(ship, dist, good);
             float lack = trip - ship.FuelAmount(good.Value);
             if (lack > 0f) EmergencyBuy(u, ship, good.Value, lack);
             return ship.FuelAmount(good.Value) >= trip ? TripPlan.Depart : TripPlan.Stuck;
@@ -259,7 +281,7 @@ public static class Refuel
             return TripPlan.FuelStop;
         }
         // Notkauf hat nicht für die Tankstelle gereicht: direkt weiter, wenn der Tank für die Reise reicht
-        return ship.FuelAmount(good.Value) >= need ? TripPlan.Depart : TripPlan.Stuck;
+        return ship.FuelAmount(good.Value) >= trip ? TripPlan.Depart : TripPlan.Stuck;
     }
 
     /// <summary>

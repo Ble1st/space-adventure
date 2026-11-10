@@ -30,7 +30,8 @@ public sealed class DockAreaDef
 
 /// <summary>
 /// Baut die Bereichsliste des Andock-Menüs aus den Daten: Handel nur, wenn <see cref="StationServices.ForStation"/>
-/// den Dienst „trade“ liefert; Station-Info und Hangar immer; alle übrigen Bereiche als gedämpfte Platzhalter.
+/// den Dienst „trade“ liefert; „Reparatur &amp; Tanken“, wenn sie „refuel“ oder „repair“ liefert; Station-Info und Hangar
+/// immer; alle übrigen Bereiche als gedämpfte Platzhalter.
 /// </summary>
 public static class DockAreas
 {
@@ -73,7 +74,11 @@ public static class DockAreas
 		// Reparatur & Tanken: verfügbar, sobald die Station „refuel“ oder „repair“ liefert (Phase 4c)
 		var offered = services.ForStation(u, st).Select(s => s.Key).ToList();
 		bool refuel = offered.Contains(RefuelService.ServiceKey), repair = offered.Contains(RepairService.ServiceKey);
-		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur" : UiPlaceholders.Soon;
+		// Führt der Stationstyp den Dienst, ist er aber gerade nicht lieferbar (Lager leer), steht das dort statt „Bald“
+		bool listed = u.StationTypes.TryGetValue(st.TypeKey, out var type)
+			&& type.Services.Any(k => k is RefuelService.ServiceKey or RepairService.ServiceKey);
+		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur"
+			: listed ? "Lager leer" : "Nicht an dieser Station";
 		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair), Sub = repairSub, Available = refuel || repair });
 		list.Add(new DockAreaDef { Id = Outfitter, Label = LabelFor(Outfitter), Sub = UiPlaceholders.Soon, Available = false });
 		list.Add(new DockAreaDef { Id = Shipyard, Label = LabelFor(Shipyard), Sub = UiPlaceholders.Soon, Available = false });

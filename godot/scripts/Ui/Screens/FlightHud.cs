@@ -127,9 +127,9 @@ public partial class FlightHud : Control, IScreen
 		var status = Win(this, 14, 12, 300, 168, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
 		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 10, 280, 148);
 		sv.AddThemeConstantOverride("separation", 7);
-		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal);
+		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
 		BarRow(sv, "Schild", UiKit.Cyan, UiPlaceholders.ShieldPercent, placeholder: true);
-		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal);
+		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal!);
 		var powRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		powRow.AddThemeConstantOverride("separation", 8);
 		var pl = Text("Leistung", 16, UiKit.Dim); pl.CustomMinimumSize = new Vector2(66, 0);

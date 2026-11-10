@@ -104,6 +104,7 @@ public sealed class TraderSystem : ISimSystem
         if (best is null) return false;
         ship.Order = best;
         ship.Phase = TradePhase.GoingToBuy;
+        long idleBefore = ship.IdleSince;   // ein Liegenbleiber (Stuck) behält seinen Leerlauf-Beginn, sonst wird er nie aufgegeben
         ship.IdleSince = -1;
         // Phase 4b: Treibstoff für die Reise sichern (Tanken hier oder Tankstopp unterwegs), erst dann starten
         var plan = Refuel.PrepareTrip(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
@@ -111,7 +112,7 @@ public sealed class TraderSystem : ISimSystem
         if (plan == Refuel.TripPlan.Stuck)
         {
             // pleite: nicht reisen, liegen bleiben (FleetSystem gibt das Schiff nach Leerlauf auf)
-            ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick;
+            ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = idleBefore >= 0 ? idleBefore : u.Tick;
             return false;
         }
         Travel.Start(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
