@@ -62,7 +62,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 		// Hülle, Fracht/Laderaum, Credits, Auftrag – echt
 		BarLine(cv, "Hülle", ship.Hull, ship.MaxHull, ship.Hull > 60f ? Green : Orange, $"{(int)ship.Hull}");
 		BarLine(cv, "Fracht", ship.UsedVolume(u), ship.CargoCapacity, Cyan, $"{ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³");
-		cv.AddChild(Text($"Credits {(int)ship.Credits:0} · Auftrag: {OrderText(u, ship)}", 16, White));
+		cv.AddChild(Text($"Credits {(int)u.WalletOf(ship).Credits:0} · Auftrag: {OrderText(u, ship)}", 16, White));
 
 		// Platzhalter-Hinweis für fremde/weitere eigene Schiffe (unterhalb der Karte, ohne Überlappung)
 		At(inner, Text(UiPlaceholders.HangarSoon, 14, new Color(Dim, 0.75f)), 0, 268, w - 8, 40);

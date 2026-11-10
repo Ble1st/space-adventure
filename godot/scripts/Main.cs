@@ -952,7 +952,7 @@ public partial class Main : Node3D
 			Hull = PlayerData.Hull,
 			Fuel = PlayerData.TotalFuel,
 			FuelCapacity = PlayerData.Stats.FuelCapacity,
-			Credits = PlayerData.Credits,
+			Credits = _session.U.WalletOf(PlayerData).Credits,   // Phase 5b: Spielerkasse
 			SectorName = sector.Name,
 			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",
 			AutopilotOn = _autopilot,

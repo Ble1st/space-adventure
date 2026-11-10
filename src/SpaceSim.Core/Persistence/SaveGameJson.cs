@@ -430,6 +430,27 @@ public static class SaveGameJson
         s.Version = 6;
     }
 
+    /// <summary>
+    /// v6 → v7 (Phase 5b, Spielerkasse): Das Geld des Spielers hängt an der Person, nicht am Schiff. Die Credits aller
+    /// Spielerschiffe (Steuerer „Player“, in alten Ständen ohne Steuerer die Rolle „Player“) wandern in die Spielerkasse,
+    /// die Schiffe behalten 0. Fraktion der Kasse = die des gespeicherten Spielerschiffs. NPC-Schiffe bleiben unverändert.
+    /// </summary>
+    static void MigrateV6ToV7(SaveGame s)
+    {
+        var wallet = new PlayerWalletSave();
+        foreach (var sh in s.Ships.OrderBy(x => x.Id))
+        {
+            bool player = sh.Controller is { } c ? c == nameof(Controller.Player) : sh.Role == nameof(ShipRole.Player);
+            if (!player) continue;
+            wallet.Credits += sh.Credits;
+            sh.Credits = 0f;
+        }
+        var main = s.Ships.FirstOrDefault(x => x.Id == s.PlayerShip);
+        if (main is not null) wallet.Faction = main.Faction;
+        s.PlayerWallet = wallet;
+        s.Version = 7;
+    }
+
     static int NextGoodId(SaveGame s) => s.Goods.Count == 0 ? 1 : s.Goods.Max(g => g.Id) + 1;
 
     static RecipeSave CloneRecipe(RecipeSave r) => new() { Ticks = r.Ticks, In = new Dictionary<int, float>(r.In), Out = new Dictionary<int, float>(r.Out) };
@@ -448,6 +469,7 @@ public static class SaveGameJson
         if (s.Version < 4) MigrateV3ToV4(s);
         if (s.Version < 5) MigrateV4ToV5(s);
         if (s.Version < 6) MigrateV5ToV6(s);
+        if (s.Version < 7) MigrateV6ToV7(s);
         return s;
     }
 }

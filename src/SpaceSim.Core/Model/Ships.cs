@@ -4,7 +4,7 @@ public enum ShipRole { Trader, Miner, Fighter, Player }
 public enum TradePhase { Idle, GoingToBuy, GoingToSell }
 public enum MinePhase { Idle, GoingToField, Mining, GoingToStation }
 
-public sealed class Ship
+public sealed class Ship : ICreditAccount
 {
     public ShipId Id;
     public FactionId Faction;
@@ -36,7 +36,12 @@ public sealed class Ship
     public Dictionary<GoodId, float> Cargo = new();
     /// <summary>Treibstoff an Bord je Ware, getrennt vom Laderaum; Summe ≤ <see cref="ShipStats.FuelCapacity"/>. Schiffe ohne Modell: leer (Kapazität 0).</summary>
     public Dictionary<GoodId, float> Fuel = new();
+    /// <summary>
+    /// Kasse des Schiffs als impliziter Akteur (NPC-Einzelschiffe). Spielerschiffe buchen nicht hierauf, sondern auf die
+    /// <see cref="PlayerWallet"/>; ihr Wert bleibt 0. Buchende Stellen nutzen <see cref="Universe.WalletOf(Ship)"/>.
+    /// </summary>
     public float Credits;
+    float ICreditAccount.Credits { get => Credits; set => Credits = value; }
     /// <summary>Hüllenmaximum des Schiffs; kommt aus <see cref="Stats"/> (Schiff ohne Modell: 100 wie bisher).</summary>
     public float MaxHull => Stats.Hull;
     public float Hull = NoModelHull;

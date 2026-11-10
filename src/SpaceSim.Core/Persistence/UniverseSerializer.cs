@@ -79,6 +79,7 @@ public static class UniverseSerializer
             Tick = u.Tick, Seed = u.Seed, RngState = u.Rng.State, LastStationBuildTick = u.LastStationBuildTick,
             NextShipId = u.IdCounters.ship, NextStationId = u.IdCounters.station, NextAsteroidId = u.NextAsteroidId,
             PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
+            PlayerWallet = new PlayerWalletSave { Credits = u.PlayerWallet.Credits, Faction = u.PlayerWallet.Faction.Value },
         };
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
             s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit, Form = g.Form.ToString().ToLowerInvariant() });
@@ -148,6 +149,7 @@ public static class UniverseSerializer
             Tick = s.Tick, Seed = s.Seed, LastStationBuildTick = s.LastStationBuildTick, Rules = s.Rules, NextAsteroidId = s.NextAsteroidId,
             Rng = new DeterministicRng(s.Seed) { State = s.RngState },
             PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
+            PlayerWallet = new PlayerWallet { Credits = s.PlayerWallet.Credits, Faction = new FactionId(s.PlayerWallet.Faction) },
         };
         foreach (var g in s.Goods)
             u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form) };

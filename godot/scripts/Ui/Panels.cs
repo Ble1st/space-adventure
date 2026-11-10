@@ -120,7 +120,7 @@ public partial class EconomyPanel : PanelContainer
 		var sb = new StringBuilder();
 		sb.AppendLine($"WIRTSCHAFT   Tick {snap.Tick}");
 		sb.AppendLine($"Stationen {snap.Stations}   Händler {snap.Traders}   Miner {snap.Miners}");
-		sb.AppendLine($"Credits: Stationen {snap.StationCredits:0}   Schiffe {snap.ShipCredits:0}");
+		sb.AppendLine($"Credits: Stationen {snap.StationCredits:0}   Schiffe {snap.ShipCredits:0}   Spieler {snap.PlayerCredits:0}");
 		sb.AppendLine();
 		sb.AppendLine($"{"Ware",-10}{"Preis",7}{"/Basis",8}{"Bestand",10}");
 		foreach (var g in snap.Goods)

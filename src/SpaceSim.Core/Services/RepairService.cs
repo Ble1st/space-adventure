@@ -61,7 +61,7 @@ public sealed class RepairService : IStationService
         foreach (var (key, label, share) in new[] { (Full, "Hülle voll reparieren", 1f), (Half, "Hülle halb reparieren", 0.5f) })
         {
             float amount = ByStock(u, station, good.Value, missing * share);
-            if (pricePerHull > 0f) amount = MathF.Min(amount, ship.Credits / pricePerHull);
+            if (pricePerHull > 0f) amount = MathF.Min(amount, u.WalletOf(ship).Credits / pricePerHull);
             offers.Add(new ServiceOffer($"{ServiceKey}:{key}", label, pricePerHull, MathF.Max(0f, amount), good.Value, e.Amount, 0f));
         }
         return offers;
@@ -90,7 +90,7 @@ public sealed class RepairService : IStationService
         float want = missing * (full ? 1f : 0.5f);
         float amount = ByStock(u, station, good, want);
         float pricePerHull = PricePerHull(u, station, good);
-        if (pricePerHull > 0f) amount = MathF.Min(amount, ship.Credits / pricePerHull);
+        if (pricePerHull > 0f) amount = MathF.Min(amount, u.WalletOf(ship).Credits / pricePerHull);
         if (amount <= 0.0001f)
             return new ServiceResult(false, 0f, 0f,
                 station.Market[good].Amount <= 0f ? "Keine Hüllenplatten mehr auf Lager." : "Nicht genügend Credits für die Reparatur.");
@@ -99,7 +99,7 @@ public sealed class RepairService : IStationService
         float cost = plates * station.Market[good].Price * LaborFactor;
         station.Market[good].Amount -= plates;   // Platten gehen aus dem Stationslager ab
         station.Credits += cost;
-        ship.Credits -= cost;
+        u.WalletOf(ship).Credits -= cost;   // Spieler: Spielerkasse, NPC: Schiff
         ship.Hull = MathF.Min(ship.MaxHull, ship.Hull + amount);
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, request.Offer, good, amount, -cost));
         bool partial = amount < want - 0.0001f;

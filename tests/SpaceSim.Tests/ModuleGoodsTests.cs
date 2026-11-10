@@ -323,7 +323,7 @@ public class ModuleGoodsTests
     [Fact]
     public void SaveLoad_V6_Roundtrip_ContentUndFortsetzungBitIdentisch()
     {
-        Assert.Equal(6, SaveGame.CurrentVersion);
+        Assert.Equal(7, SaveGame.CurrentVersion);
         var u = DemoUniverse.Create();
         var runner = new SimulationRunner();
         runner.Run(u, 3_000);

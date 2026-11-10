@@ -10,7 +10,7 @@ namespace SpaceAdventure.Ui.Screens;
 
 /// <summary>
 /// Kommandozentrale „Besitz“ (UI.md Abschnitt 4): Kasse, Zahl Schiffe/Stationen und Gesamtwert aus echten
-/// Daten (Credits + Fracht zu Basispreisen über <see cref="SectorEconomy"/>, klar beschriftet). Tabs Schiffe,
+/// Daten (Spielerkasse + Fracht zu Basispreisen über <see cref="SectorEconomy.PlayerNetWorth"/>, klar beschriftet). Tabs Schiffe,
 /// Stationen, Verträge, Lager. Schiffe: das Spielerschiff mit Standort, Auftrag, Hülle, Fracht (alles echt).
 /// Tippen auf ein Schiff öffnet ein Detailfenster mit „In dieses Schiff wechseln“: für das aktive Schiff
 /// „Bereits aktiv“, sonst gesperrt „Bald (Phase 12)“, weil der Spieler nur ein Schiff besitzt. Befehle,
@@ -33,17 +33,17 @@ public sealed partial class AssetsScreen : CommandScreen
 		var ship = Ctx.Player;
 		int myShips = u.Ships.Values.Count(s => s.IsPlayer);
 		int myStations = 0;   // Spielerbesitz an Stationen gibt es im Core noch nicht
-		float total = SectorEconomy.TotalValue(u, ship);
+		float total = SectorEconomy.PlayerNetWorth(u);   // Spielerkasse + Fracht aller Spielerschiffe
 
 		// ── Kopf: Kasse, Zahlen, Gesamtwert (echt) ──
 		float x = 20;
-		foreach (var (label, val, col) in new[] { ("Kasse", $"{(int)ship.Credits} Cr", Orange), ("Schiffe", myShips.ToString(), White), ("Stationen", myStations.ToString(), White), ("Gesamtwert", $"≈ {total:0} Cr", White) })
+		foreach (var (label, val, col) in new[] { ("Kasse", $"{(int)u.PlayerWallet.Credits} Cr", Orange), ("Schiffe", myShips.ToString(), White), ("Stationen", myStations.ToString(), White), ("Gesamtwert", $"≈ {total:0} Cr", White) })
 		{
 			At(inner, Text(val, 22, col), x, 8, 190, 28);
 			At(inner, Text(label, 13, Dim), x, 38, 190, 18);
 			x += 200;
 		}
-		At(inner, Text("Credits + Fracht (Basis)", 11, new Color(Dim, 0.75f)), 620, 58, 190, 16);
+		At(inner, Text("Kasse + Fracht (Basis)", 11, new Color(Dim, 0.75f)), 620, 58, 190, 16);
 
 		// ── Tabs ──
 		float tx = 12;
@@ -172,7 +172,7 @@ public sealed partial class AssetsScreen : CommandScreen
 				? $"angedockt an {st.Name}"
 				: $"{(_u.Sectors.TryGetValue(_s.Sector, out var sec) ? sec.Name : "?")} · ({_s.Position.X:0}/{_s.Position.Y:0})";
 			DrawString(font, new Vector2(96, 26), $"Schiff #{_s.Id.Value}", HorizontalAlignment.Left, -1, 20, White);
-			DrawString(font, new Vector2(96, 48), $"{ort} · Fracht {_s.UsedVolume(_u):0.#}/{_s.CargoCapacity:0} m³ · {(int)_s.Credits} Cr", HorizontalAlignment.Left, -1, 13, Dim);
+			DrawString(font, new Vector2(96, 48), $"{ort} · Fracht {_s.UsedVolume(_u):0.#}/{_s.CargoCapacity:0} m³ · Wert ≈ {SectorEconomy.TotalValue(_u, _s):0} Cr", HorizontalAlignment.Left, -1, 13, Dim);
 			DrawString(font, new Vector2(420, 26), OrderText(_u, _s), HorizontalAlignment.Left, -1, 14, White);
 			DrawString(font, new Vector2(420, 48), _s.Transit != null ? "im Transit" : "geparkt", HorizontalAlignment.Left, -1, 12, Dim);
 

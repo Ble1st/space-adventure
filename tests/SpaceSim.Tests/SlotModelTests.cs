@@ -248,7 +248,7 @@ public class SlotModelTests
     [Fact]
     public void SaveLoad_Roundtrip_V4_AltSavesLadbar_SlotContentWirdMitgespeichert()
     {
-        Assert.Equal(6, SaveGame.CurrentVersion);   // v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
+        Assert.Equal(7, SaveGame.CurrentVersion);   // v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 100);
         var before = UniverseHash.Compute(u);

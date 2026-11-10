@@ -10,7 +10,7 @@ namespace SpaceSim.Core.Services;
 /// Stationskasse, Schiffscredits; der Treibstoff landet im Tank, nicht im Laderaum). Angebote mit strikten Schlüsseln:
 /// „refuel:fill“ (volltanken, so viel Platz/Credits/Bestand erlauben) und „refuel:25“/„refuel:50“/„refuel:100“
 /// (feste Stufen). Verfügbar an Stationen, die mindestens einen zulässigen Treibstoff (laut Antriebsmodulen) mit
-/// Bestand und Preis führen. Der Spieler kauft auf dieser Schiene in Credits; die NPC-Logik (<see cref="Refuel.TankUp"/>)
+/// Bestand und Preis führen. Der Spieler kauft auf dieser Schiene in Credits (Spielerkasse über Universe.WalletOf); die NPC-Logik (<see cref="Refuel.TankUp"/>)
 /// bleibt unverändert.
 /// </summary>
 public sealed class RefuelService : IStationService
@@ -37,8 +37,8 @@ public sealed class RefuelService : IStationService
     }
 
     /// <summary>Höchstmenge, die <see cref="Refuel.BuyFuel"/> jetzt liefern würde (Bestand, Credits, Tankplatz; ganze Einheiten).</summary>
-    static float MaxFill(Ship ship, StockEntry e) =>
-        MathF.Max(0f, MathF.Min(MathF.Min(MathF.Floor(e.Amount), MathF.Floor(ship.Credits / e.Price)), MathF.Floor(ship.FuelSpace)));
+    static float MaxFill(Universe u, Ship ship, StockEntry e) =>
+        MathF.Max(0f, MathF.Min(MathF.Min(MathF.Floor(e.Amount), MathF.Floor(u.WalletOf(ship).Credits / e.Price)), MathF.Floor(ship.FuelSpace)));
 
     /// <summary>
     /// Angebote für den Treibstoff des Schiffs: „refuel:fill“ plus eine Zeile je fester Stufe. Price = Marktpreis je
@@ -52,7 +52,7 @@ public sealed class RefuelService : IStationService
         if (good is null || !station.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return offers;
         string name = u.Goods[good.Value].Name;
         float held = ship.FuelAmount(good.Value);
-        float max = MaxFill(ship, e);
+        float max = MaxFill(u, ship, e);
         offers.Add(new ServiceOffer($"{ServiceKey}:{Fill}", $"Volltanken ({name})", e.Price, max, good.Value, e.Amount, held));
         foreach (int t in Tiers)
             offers.Add(new ServiceOffer($"{ServiceKey}:{t}", $"{t} {name} tanken", e.Price, MathF.Min(t, max), good.Value, e.Amount, held));
@@ -79,11 +79,11 @@ public sealed class RefuelService : IStationService
             return new ServiceResult(false, 0f, 0f, "Tank ist bereits voll.");
         if (e.Amount <= 0f)
             return new ServiceResult(false, 0f, 0f, "Kein Treibstoff mehr auf Lager.");
-        if (ship.Credits < e.Price)
+        if (u.WalletOf(ship).Credits < e.Price)
             return new ServiceResult(false, 0f, 0f, "Nicht genügend Credits für eine Einheit Treibstoff.");
 
         float want = fill ? ship.FuelSpace : tier;
-        float bought = Refuel.BuyFuel(u, ship, station, good.Value, want);   // bucht Bestand, Stationskasse, Schiffscredits, Tank
+        float bought = Refuel.BuyFuel(u, ship, station, good.Value, want);   // bucht Bestand, Stationskasse, Kasse des Schiffs (WalletOf), Tank
         if (bought <= 0f)
             return new ServiceResult(false, 0f, 0f, "Tanken fehlgeschlagen.");
         float cost = bought * e.Price;

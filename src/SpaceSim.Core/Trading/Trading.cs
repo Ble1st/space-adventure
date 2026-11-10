@@ -11,7 +11,8 @@ public enum BuyOutcome { Ok, NotSold, OutOfStock, NoCredits, NoSpace }
 /// <summary>Ergebnis eines Einkaufs: tatsächlich gekaufte Einheiten und Kosten; Outcome nennt den begrenzenden Grund, wenn weniger als gewünscht gekauft wurde.</summary>
 public sealed record BuyResult(float Units, float Cost, BuyOutcome Outcome);
 
-/// <summary>Verkauf der Fracht eines Schiffs an eine Station (Spieler und Automatik). Gleiche Regeln wie für NPC-Händler.</summary>
+/// <summary>Verkauf der Fracht eines Schiffs an eine Station (Spieler und Automatik). Gleiche Regeln wie für NPC-Händler.
+/// Geld bucht auf die Kasse des Schiffs (<see cref="Universe.WalletOf(Ship)"/>): Spieler → Spielerkasse, NPC → Schiff.</summary>
 public static class TradeActions
 {
     /// <summary>Verkauft alle Waren, die die Station führt, zum aktuellen Preis. Die Station zahlt nur, was sie hat; der Rest bleibt an Bord.</summary>
@@ -19,6 +20,7 @@ public static class TradeActions
     {
         float revenue = 0f;
         var sold = new Dictionary<GoodId, float>();
+        var wallet = u.WalletOf(ship);
         foreach (var good in ship.Cargo.Keys.ToList())
         {
             float have = ship.Cargo[good];
@@ -29,7 +31,7 @@ public static class TradeActions
             float pay = units * entry.Price;
             entry.Amount += units;
             station.Credits -= pay;
-            ship.Credits += pay;
+            wallet.Credits += pay;
             if (have - units <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - units;
             revenue += pay;
             sold[good] = units;
@@ -43,14 +45,15 @@ public static class TradeActions
     public static BuyResult Buy(Universe u, Ship ship, Station station, GoodId good, float units)
     {
         if (units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f) return new BuyResult(0f, 0f, BuyOutcome.NotSold);
-        float stock = MathF.Floor(e.Amount), afford = MathF.Floor(ship.Credits / e.Price), space = MathF.Floor(ship.FreeUnits(u, good));
+        var wallet = u.WalletOf(ship);
+        float stock = MathF.Floor(e.Amount), afford = MathF.Floor(wallet.Credits / e.Price), space = MathF.Floor(ship.FreeUnits(u, good));
         float n = MathF.Min(MathF.Min(MathF.Floor(units), stock), MathF.Min(afford, space));
         if (n <= 0f)
             return new BuyResult(0f, 0f, stock <= 0f ? BuyOutcome.OutOfStock : afford <= 0f ? BuyOutcome.NoCredits : BuyOutcome.NoSpace);
         float cost = n * e.Price;
         e.Amount -= n;
         station.Credits += cost;
-        ship.Credits -= cost;
+        wallet.Credits -= cost;
         ship.Cargo[good] = ship.Cargo.GetValueOrDefault(good) + n;
         if (ship.IsPlayer) u.Events.Publish(new PlayerBought(ship.Id, station.Id, good, n, cost));
         var outcome = n < MathF.Floor(units) ? (n == stock ? BuyOutcome.OutOfStock : n == afford ? BuyOutcome.NoCredits : BuyOutcome.NoSpace) : BuyOutcome.Ok;
@@ -60,7 +63,7 @@ public static class TradeActions
     /// <summary>Höchstmenge, die <see cref="Buy"/> für diese Ware jetzt liefern würde.</summary>
     public static float MaxBuyable(Universe u, Ship ship, Station station, GoodId good) =>
         station.Market.TryGetValue(good, out var e) && e.Price > 0f
-            ? MathF.Max(0f, MathF.Min(MathF.Min(MathF.Floor(e.Amount), MathF.Floor(ship.Credits / e.Price)), MathF.Floor(ship.FreeUnits(u, good))))
+            ? MathF.Max(0f, MathF.Min(MathF.Min(MathF.Floor(e.Amount), MathF.Floor(u.WalletOf(ship).Credits / e.Price)), MathF.Floor(ship.FreeUnits(u, good))))
             : 0f;
 
     /// <summary>Verkauft bis zu <paramref name="units"/> Einheiten einer einzelnen Ware (gleiche Regeln wie <see cref="SellAll"/>).</summary>
@@ -75,7 +78,7 @@ public static class TradeActions
         float pay = n * e.Price;
         e.Amount += n;
         station.Credits -= pay;
-        ship.Credits += pay;
+        u.WalletOf(ship).Credits += pay;
         if (have - n <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - n;
         sold[good] = n;
         if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, n, pay));

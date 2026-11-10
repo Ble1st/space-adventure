@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v6).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v7).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -22,7 +22,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 2 | Fähigkeiten und Steuerer statt fester Rolle | M | – |
 | 3 | Slot- und Modulmodell, Warenform und Kanister, Leistung und Speicherbank | L | v4 |
 | 4 | Treibstoff: Ware, Tank, Tanken, Reparatur, Rettungsdienst | L | v5 |
-| 5 | Modul-Waren, drei Modulfabriken (5a), Spielerkasse (5b), Ausrüster, Schiffskauf, Startpakete (5c) | L | v6 |
+| 5 | Modul-Waren, drei Modulfabriken (5a), Spielerkasse (5b), Ausrüster, Schiffskauf, Startpakete (5c) | L | v6 (5a), v7 (5b) |
 | 6 | Multirole: Job-Zuteilung, Kapazitätsgrenzen, erste Multirole-Modelle | M | – |
 | 7 | NPC-Güteklassen und Upgrades | M | v7 |
 | 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v8 |
@@ -145,6 +145,20 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - Das Geld des Spielers wandert von `Ship.Credits` in ein kleines Objekt `PlayerWallet` an `Universe` (die Person); `TradeActions` buchen über `Universe.WalletOf(ship)` (Spielerschiffe: Wallet, NPC-Schiffe: `ship.Credits`, Verhalten bleibt gleich). **Zwischenstufe:** Das Akteurmodell kommt erst in Phase 9, dann wird `PlayerWallet` zur Kasse des Spielerakteurs (POLITIK.md, „Spielerkasse“).
 - **Save:** Spielerkasse, Migration von `Ship.Credits` des Spielerschiffs; `UniverseHash` und `EconomyStats` zählen die Geldmenge nach Kassen.
 - **Tests:** Summe aus Wallet und Schiffen ändert sich durch Handel nicht außer durch dieselben Flüsse wie vorher; Migration; Hash-Vergleich NPC-Wirtschaft unverändert.
+
+**Stand (5b):** umgesetzt auf Branch `phase5-module`.
+- **Kasse:** `Model/Wallet.cs` mit `ICreditAccount` (nur `Credits`) und `PlayerWallet` (Credits, Fraktion); `Ship` implementiert `ICreditAccount` über sein Feld `Credits`. `Universe.PlayerWallet` ist die Kasse der Person, `Universe.WalletOf(ship)` liefert sie für Spielerschiffe (`IsPlayer`) und das Schiff selbst für NPCs. Spielerschiffe behalten `Credits = 0`; die Startwelt legt `player.credits` in die Kasse.
+- **Umgestellt auf `WalletOf`:** `TradeActions` (Kauf, Verkauf, Alles verkaufen, Höchstmenge), `Refuel.BuyFuel/TankUp/EmergencyBuy/PlayerEmergency` und die Budgetprüfung in `PrepareTrip`, Dienste `refuel` und `repair` (der Dienst `trade` bucht über `TradeActions`), alle Geldanzeigen der Oberfläche (Flug-HUD, Andock-Menü und -Bereiche, Hangar, Kommandozentrale, „Meine Fraktion“, „Besitz“ mit `SectorEconomy.PlayerNetWorth`), Selbsttest und UI-Bilder.
+- **Bewusst bei `ship.Credits` geblieben** (nur KI-Schiffe): `TraderSystem`, `UpkeepSystem` (Unterhalt und Vermögenssteuer nur für `IsEconomyAi`, der Spieler bleibt wie bisher unbesteuert), `FleetSystem`, `StationLifecycleSystem`.
+- **Save v7:** `SaveGame.PlayerWallet`, Migration v6→v7 übernimmt die Credits aller Spielerschiffe (Steuerer „Player“, ohne Steuerer-Feld Rolle „Player“) in die Kasse. `UniverseHash` mischt die Kasse ein; `EconomyStats` führt `PlayerCredits` und `TotalCredits`, das Balance-Tool eine Spalte `plCredits`. Mit dem echten v2-Spielstand geprüft (Kasse = alte Schiffscredits 1120, 20000 Ticks, 872 Handelsfahrten).
+- **NPC-Wirtschaft unverändert:** gleicher Temporärtest (bitgenauer Hash über alles außer dem Spielergeld) nach 20000 Ticks auf dem Stand von 5a und von 5b, Standard-Seed und Seeds 1–3: identisch; Balance-CSV bis auf die neue Spalte byte-identisch; dauerhafter Test mit Kasse 500 gegen 9 999 999.
+- **Prüfung:** 316 Tests (9 neu in `WalletTests`), Selbsttest OK. Balance unverändert gegenüber 5a: Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“ (13/8 bzw. 14/8, 0 Notkäufe), Seeds 1–4 bei 20000 grün.
+
+**Abweichungen und offene Punkte (5b):**
+- **Abstraktion als Schnittstelle** statt reiner Lese-/Buchungsfunktionen: `ICreditAccount` mit `Credits`; Buchungen bleiben `kasse.Credits -= x`, damit die Gleitkomma-Arithmetik der NPCs exakt gleich bleibt. Phase 9 lässt `WalletOf` die Kasse des Besitzers liefern.
+- **Fraktionsvermögen** (`FactionsScreen`) zählt Stationen und Schiffscredits, also nicht mehr das Geld des Spielers; die Person ist keine Fraktionskasse.
+- **„Besitz“-Gesamtwert** = Spielerkasse + Fracht aller Spielerschiffe; der Schiffswert (`TotalValue`) eines Spielerschiffs ist nur noch seine Fracht.
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
 
 **5c – Dienste und Schiffskauf**
 - **Dienste:** `outfitter` (Module ein- und ausbauen, Waren aus dem Stationslager; ausgebaute Module wandern ins Lager oder in die Fracht), `shipdealer` (`BuyShip`, Bausatz und Zusatzmaterial aus dem Lager, Werft bekommt das Geld), Handelsstation als neuer Typ. Kleine Schiffe auch an Handelsstation, Ausrüster und Raffinerie (Montage aus `ship_kit_light`, siehe SCHIFFSSLOTS.md).

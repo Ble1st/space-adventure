@@ -495,7 +495,7 @@ public class TradeActionTests
         var st = u.Stations.Values.First(s => s.Market.Values.Any(m => m.Amount >= 20f && m.Price > 0f));
         var good = st.Market.First(kv => kv.Value.Amount >= 20f && kv.Value.Price > 0f).Key;
         var e = st.Market[good];
-        ship.Cargo.Clear(); ship.Credits = 1_000_000f;
+        ship.Cargo.Clear(); u.WalletOf(ship).Credits = 1_000_000f;
         float stock = e.Amount, price = e.Price, stCredits = st.Credits;
 
         var r = TradeActions.Buy(u, ship, st, good, 10f);
@@ -507,15 +507,15 @@ public class TradeActionTests
         Assert.Equal(stCredits + r.Cost, st.Credits, 2);
         Assert.Equal(10f, ship.Cargo[good]);
 
-        ship.Credits = price * 2.5f;
+        u.WalletOf(ship).Credits = price * 2.5f;
         var poor = TradeActions.Buy(u, ship, st, good, 10f);
         Assert.Equal(2f, poor.Units);
         Assert.Equal(BuyOutcome.NoCredits, poor.Outcome);
 
-        ship.Credits = 0f;
+        u.WalletOf(ship).Credits = 0f;
         Assert.Equal(BuyOutcome.NoCredits, TradeActions.Buy(u, ship, st, good, 1f).Outcome);
 
-        ship.Credits = 1_000_000f; ship.Cargo.Clear(); ship.CargoCapacity = 3f * u.Goods[good].VolumePerUnit;
+        u.WalletOf(ship).Credits = 1_000_000f; ship.Cargo.Clear(); ship.CargoCapacity = 3f * u.Goods[good].VolumePerUnit;
         var tight = TradeActions.Buy(u, ship, st, good, 10f);
         Assert.Equal(3f, tight.Units);
         Assert.Equal(BuyOutcome.NoSpace, tight.Outcome);
@@ -545,13 +545,13 @@ public class TradeActionTests
         var ship = u.Ships[u.PlayerShip];
         var mine = u.Stations[new StationId(1)];
         ship.Cargo[DemoUniverse.Ore] = 50f;
-        float credits = ship.Credits, price = mine.Market[DemoUniverse.Ore].Price, stock = mine.Market[DemoUniverse.Ore].Amount;
-        if (price <= 0) { new SimulationRunner().Run(u, 1); price = mine.Market[DemoUniverse.Ore].Price; credits = ship.Credits; stock = mine.Market[DemoUniverse.Ore].Amount; }
+        float credits = u.WalletOf(ship).Credits, price = mine.Market[DemoUniverse.Ore].Price, stock = mine.Market[DemoUniverse.Ore].Amount;
+        if (price <= 0) { new SimulationRunner().Run(u, 1); price = mine.Market[DemoUniverse.Ore].Price; credits = u.WalletOf(ship).Credits; stock = mine.Market[DemoUniverse.Ore].Amount; }
 
         var sale = TradeActions.SellAll(u, ship, mine);
 
         Assert.Equal(50f * price, sale.Revenue, 2);
-        Assert.Equal(credits + sale.Revenue, ship.Credits, 2);
+        Assert.Equal(credits + sale.Revenue, u.WalletOf(ship).Credits, 2);
         Assert.Equal(stock + 50f, mine.Market[DemoUniverse.Ore].Amount, 2);
         Assert.Empty(ship.Cargo);
     }
@@ -663,15 +663,15 @@ public class MiningAutopilotTests
         var h = new Harness();
         var alpha = h.U.Sectors[new SectorId(1)];
         float oreBefore = alpha.Asteroids.Sum(a => a.Ore);
-        float credits = h.Ship.Credits;
+        float credits = h.U.WalletOf(h.Ship).Credits;
         h.Auto.Start();
 
         h.Run(900, until: () => h.Sales >= 2);
 
         Assert.True(h.Sales >= 2, $"Verkäufe: {h.Sales}, Status: {h.Auto.Status}");
         Assert.True(h.Revenue > 0f);
-        Assert.True(h.Ship.Credits > credits, "Credits sollten durch Verkäufe gestiegen sein");
-        Assert.True(h.Ship.Credits > credits + 100f, "Der Abbau sollte sich lohnen");
+        Assert.True(h.U.WalletOf(h.Ship).Credits > credits, "Credits sollten durch Verkäufe gestiegen sein");
+        Assert.True(h.U.WalletOf(h.Ship).Credits > credits + 100f, "Der Abbau sollte sich lohnen");
         Assert.True(h.Auto.Enabled, h.Auto.Status);
     }
 

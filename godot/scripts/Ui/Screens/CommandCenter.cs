@@ -133,7 +133,7 @@ public abstract partial class CommandScreen : Control, IScreen
 		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, 20, 10, 1240, 64);
 		At(top, Text("Kommandozentrale", 28, Cyan), 0, 6);
 		At(top, Text($"{Title} · aktuell: {sector}", 16, Dim), 0, 42);
-		At(top, Text($"{(int)ship.Credits} Credits", 26, Orange, HorizontalAlignment.Right), 940, 0, 300, 32);
+		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", 26, Orange, HorizontalAlignment.Right), 940, 0, 300, 32);
 		At(top, Text($"Schiff #{ship.Id.Value} · {sector}", 15, Dim, HorizontalAlignment.Right), 940, 38, 300, 22);
 
 		// ── Linke Leiste: Wechsel zwischen den Bereichen ──

@@ -16,7 +16,7 @@ public class ShipFitTests
     /// <summary>Demotet einen aktuellen v4-Save auf v3: Version 3, neue Schiffsfelder und Content-Sektionen entfernt.</summary>
     static string ToV3Json(string v4Json)
     {
-        var node = JsonNode.Parse(v4Json)!.AsObject();
+        var node = JsonNode.Parse(WalletTests.ToV6Json(v4Json))!.AsObject();   // Spielerkasse zurück aufs Schiff (vor v7)
         node["Version"] = 3;
         node.Remove("SlotTypes");
         node.Remove("Modules");
@@ -99,7 +99,7 @@ public class ShipFitTests
     [Fact]
     public void SaveLoad_V4_Roundtrip_IdentischInklHashModellSlotsFit()
     {
-        Assert.Equal(6, SaveGame.CurrentVersion);   // v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
+        Assert.Equal(7, SaveGame.CurrentVersion);   // v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);

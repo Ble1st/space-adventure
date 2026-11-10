@@ -5,8 +5,17 @@ namespace SpaceSim.Core.Diagnostics;
 
 public sealed record GoodStat(GoodId Good, string Name, float AvgPrice, float PriceRatio, float TotalStock);
 
+/// <summary>
+/// Momentaufnahme. Geldmenge nach Kassen (Phase 5b): <see cref="StationCredits"/> (alle Stationen), <see cref="ShipCredits"/>
+/// (wirtschaftlich aktive KI-Schiffe, je Schiff eine Kasse), <see cref="PlayerCredits"/> (Spielerkasse plus etwaige Restcredits
+/// auf Spielerschiffen, im Normalfall 0). <see cref="TotalCredits"/> ist die Summe der drei.
+/// </summary>
 public sealed record EconomySnapshot(
-    long Tick, int Stations, int Traders, int Miners, float StationCredits, float ShipCredits, IReadOnlyList<GoodStat> Goods);
+    long Tick, int Stations, int Traders, int Miners, float StationCredits, float ShipCredits, IReadOnlyList<GoodStat> Goods,
+    float PlayerCredits = 0f)
+{
+    public float TotalCredits => StationCredits + ShipCredits + PlayerCredits;
+}
 
 /// <summary>Momentaufnahme der Wirtschaft für Balancing-Werkzeug und Debug-Ansicht.</summary>
 public static class EconomyStats
@@ -24,7 +33,8 @@ public static class EconomyStats
             u.Tick, u.Stations.Count,
             u.Ships.Values.Count(s => s.Role == ShipRole.Trader), u.Ships.Values.Count(s => s.Role == ShipRole.Miner),
             u.Stations.Values.Sum(s => s.Credits),
-            u.Ships.Values.Where(s => s.IsEconomyAi).Sum(s => s.Credits), goods);
+            u.Ships.Values.Where(s => s.IsEconomyAi).Sum(s => s.Credits), goods,
+            u.PlayerWallet.Credits + u.Ships.Values.Where(s => s.IsPlayer).Sum(s => s.Credits));
     }
 }
 
