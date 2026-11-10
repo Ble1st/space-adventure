@@ -70,7 +70,11 @@ public static class DockAreas
 			int wares = st.Market.Count(kv => kv.Value.Price > 0f);
 			list.Add(new DockAreaDef { Id = Trade, Label = LabelFor(Trade), Sub = $"{wares} Waren", Available = true });
 		}
-		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair), Sub = UiPlaceholders.Soon, Available = false });
+		// Reparatur & Tanken: verfügbar, sobald die Station „refuel“ oder „repair“ liefert (Phase 4c)
+		var offered = services.ForStation(u, st).Select(s => s.Key).ToList();
+		bool refuel = offered.Contains(RefuelService.ServiceKey), repair = offered.Contains(RepairService.ServiceKey);
+		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur" : UiPlaceholders.Soon;
+		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair), Sub = repairSub, Available = refuel || repair });
 		list.Add(new DockAreaDef { Id = Outfitter, Label = LabelFor(Outfitter), Sub = UiPlaceholders.Soon, Available = false });
 		list.Add(new DockAreaDef { Id = Shipyard, Label = LabelFor(Shipyard), Sub = UiPlaceholders.Soon, Available = false });
 		list.Add(new DockAreaDef { Id = Hangar, Label = LabelFor(Hangar), Sub = "Angedockte Schiffe", Available = true });

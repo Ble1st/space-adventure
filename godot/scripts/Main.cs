@@ -115,6 +115,10 @@ public partial class Main : Node3D
 		_hud.DockInfo.AreaSelected += OnDockArea;
 		_hud.DockInfo.BackToMenu += ShowDockMenu;
 		_hud.DockInfo.UndockPressed += Undock;
+		_hud.DockRepair.AreaSelected += OnDockArea;
+		_hud.DockRepair.BackToMenu += ShowDockMenu;
+		_hud.DockRepair.UndockPressed += Undock;
+		_hud.DockRepair.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockHangar.AreaSelected += OnDockArea;
 		_hud.DockHangar.BackToMenu += ShowDockMenu;
 		_hud.DockHangar.UndockPressed += Undock;
@@ -273,11 +277,25 @@ public partial class Main : Node3D
 				break;
 			case "cam_invert": _sfx.Play(SfxId.Click); _orbit.InvertDrag = !_orbit.InvertDrag; RefreshCameraMenu(); break;
 			case "cam_reset": ResetCamera(); RefreshCameraMenu(); break;
+			case "emergency": CallEmergency(); break;
 			case "close": _sfx.Play(SfxId.Click); _hud.Screens.Hide(); if (_docked == null) _hud.Flight.Visible = true; break;
 			default:
 				if (CommandAreas.All.Any(a => a.Id == action)) OpenCcArea(action);
 				break;
 		}
+	}
+
+	/// <summary>Notruf (Phase 4c): Treibstoff zum Aufpreis bis zur nächsten Tankstelle, nur bei leerem Tank im Flug.</summary>
+	void CallEmergency()
+	{
+		SyncPlayerData();
+		var r = _docked != null
+			? new Refuel.EmergencyResult(false, 0f, 0f, "Angedockt – Notruf nur im Flug.")
+			: Refuel.PlayerEmergency(_session.U, PlayerData);
+		_sfx.Play(r.Success ? SfxId.Pickup : SfxId.Click);
+		_hud.Screens.Hide();
+		if (_docked == null) _hud.Flight.Visible = true;
+		_hud.Toast(r.Message, 5f);
 	}
 
 	/// <summary>Öffnet einen Bereich der Kommandozentrale im Vollbild (wie ein Tipp in der linken Leiste).</summary>
@@ -388,7 +406,16 @@ public partial class Main : Node3D
 		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(delta);
 		_player.Locked = _docked != null || _transition;
 		bool hold = _miner.Enabled && _miningStep is { Nav: null, Waypoint: null };   // Automatik arbeitet an Ort und Stelle
-		_player.Step(delta, turn, dir, throttle, speedScale, _view, brake: hold);
+		// Treibstoff (Phase 4c): leerer Tank deckelt das Tempo (Notantrieb), die geflogene Strecke wird abgebucht
+		float fuelCap = PlayerFuel.ThrottleCap(PlayerData);
+		var before = _player.Position;
+		_player.Step(delta, turn, dir, throttle, speedScale * fuelCap, _view, brake: hold);
+		if (!_player.Locked)
+		{
+			PlayerFuel.ConsumeFlown(PlayerData, new Vector2(_player.Position.X - before.X, _player.Position.Z - before.Z).Length());
+			if (fuelCap >= 1f && PlayerFuel.ThrottleCap(PlayerData) < 1f)
+				_hud.Toast("Tank leer – Notantrieb. Notruf im Menü oder zur nächsten Tankstelle schleichen.", 5f);
+		}
 		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(Mathf.Abs(throttle), 0.3f, 1f) : 0f);
 
 		if (!frozen) CheckGates();
@@ -623,6 +650,7 @@ public partial class Main : Node3D
 			DockAreas.Trade => _hud.DockTrade,
 			DockAreas.Info => _hud.DockInfo,
 			DockAreas.Hangar => _hud.DockHangar,
+			DockAreas.Repair => _hud.DockRepair,
 			_ => _hud.DockMenu,
 		};
 		if (screen is DockAreaScreen area) area.AreaId = areaId;
@@ -922,6 +950,8 @@ public partial class Main : Node3D
 		var d = new FlightHudData
 		{
 			Hull = PlayerData.Hull,
+			Fuel = PlayerData.TotalFuel,
+			FuelCapacity = PlayerData.Stats.FuelCapacity,
 			Credits = PlayerData.Credits,
 			SectorName = sector.Name,
 			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",
@@ -1215,6 +1245,7 @@ public partial class Main : Node3D
 			: Array.Empty<DockAreaDef>();
 	/// <summary>Öffnet einen Dock-Bereich wie ein Tipp im Menü (Selbsttest/Screenshots).</summary>
 	internal void TestOpenDockArea(string areaId) => OnDockArea(areaId);
+	internal void TestCommand(string action) => OnCommandAction(action);
 	/// <summary>Dockt an der nächsten Station an (Screenshots).</summary>
 	internal void TestDockNearest() => DockAtNearest();
 	/// <summary>Ist der Bildschirm mit dieser Id gerade exklusiv geöffnet?</summary>

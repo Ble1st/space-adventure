@@ -22,6 +22,8 @@ public sealed class BayView
 public sealed class FlightHudData
 {
 	public float Hull, Credits;
+	/// <summary>Tankinhalt und Tankgröße des Spielerschiffs (echt, Phase 4c); Kapazität 0 = kein Treibstoffsystem.</summary>
+	public float Fuel, FuelCapacity;
 	public string SectorName = "", FactionName = "";
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
@@ -66,7 +68,8 @@ public partial class FlightHud : Control, IScreen
 	public event Action<int>? BayDown;
 
 	// oben
-	KitBar _hullBar = null!;
+	KitBar _hullBar = null!, _fuelBar = null!;
+	Label _fuelVal = null!;
 	Label _hullVal = null!;
 	Label _credits = null!, _sector = null!, _factionChip = null!;
 	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
@@ -126,14 +129,14 @@ public partial class FlightHud : Control, IScreen
 		sv.AddThemeConstantOverride("separation", 7);
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal);
 		BarRow(sv, "Schild", UiKit.Cyan, UiPlaceholders.ShieldPercent, placeholder: true);
-		BarRow(sv, "Sprit", UiKit.Orange, UiPlaceholders.FuelPercent, placeholder: true);
+		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal);
 		var powRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		powRow.AddThemeConstantOverride("separation", 8);
 		var pl = Text("Leistung", 16, UiKit.Dim); pl.CustomMinimumSize = new Vector2(66, 0);
 		powRow.AddChild(pl);
 		powRow.AddChild(Text(UiPlaceholders.PowerText, 16, new Color(UiKit.Dim, 0.7f)));
 		sv.AddChild(powRow);
-		sv.AddChild(Text("Schild · Sprit · Leistung: " + UiPlaceholders.Tag, 12, new Color(UiKit.Dim, 0.6f)));
+		sv.AddChild(Text("Schild · Leistung: " + UiPlaceholders.Tag, 12, new Color(UiKit.Dim, 0.6f)));
 		_credits = At(this, Text("", 20, UiKit.Orange), 20, 188, 300, 26);
 
 		// ── Sektorchip oben Mitte (echt: Sektorname und Besitzerfraktion) ──
@@ -274,6 +277,9 @@ public partial class FlightHud : Control, IScreen
 	{
 		_hullBar.Set(d.Hull, d.Hull > 60f ? UiKit.Green : UiKit.Orange);
 		_hullVal.Text = $"{(int)d.Hull}";
+		float fuelPct = d.FuelCapacity > 0f ? 100f * d.Fuel / d.FuelCapacity : 0f;
+		_fuelBar.Set(fuelPct, fuelPct < 20f ? UiKit.Red : UiKit.Orange);   // Warnfarbe unter 20 %
+		_fuelVal.Text = d.FuelCapacity > 0f ? $"{(int)d.Fuel}" : "–";
 		_credits.Text = $"{(int)d.Credits} Credits";
 		_sector.Text = d.SectorName;
 		_factionChip.Text = d.FactionName;

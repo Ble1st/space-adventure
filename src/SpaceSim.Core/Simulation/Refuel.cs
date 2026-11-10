@@ -263,7 +263,7 @@ public static class Refuel
     }
 
     /// <summary>
-    /// Notruf des Spielers (Phase 4c): nur bei leerem Tank und nicht angedockt. Kauft zum doppelten Basispreis
+    /// Notruf des Spielers (Phase 4c): nur bei leerem Tank (ob das Schiff angedockt ist, prüft die Ansicht). Kauft zum doppelten Basispreis
     /// (<see cref="EmergencyPriceFactor"/>, Geldsenke wie <see cref="EmergencyBuy"/>) genau so viel Treibstoff, dass die
     /// nächste Tankstelle (<see cref="NearestFuelStation"/>, Luftlinie im Sektor, sonst über Gates —
     /// <see cref="Travel.EstimateDistance"/>) erreichbar ist, gedeckelt durch die Credits: zu wenig Geld heißt Meldung
@@ -274,7 +274,6 @@ public static class Refuel
         var good = ActiveFuel(player);
         if (good is null) return new(false, 0f, 0f, "Kein Treibstoffantrieb an Bord – kein Notruf nötig.");
         if (player.TotalFuel > 0.0001f) return new(false, 0f, 0f, "Tank ist nicht leer – kein Notruf nötig.");
-        if (CurrentStation(u, player) is not null) return new(false, 0f, 0f, "Bereits angedockt – dort direkt tanken.");
         var stop = NearestFuelStation(u, player, good.Value, float.PositiveInfinity);
         if (stop is null) return new(false, 0f, 0f, "Keine Tankstelle im erreichbaren Raum – Notruf zwecklos.");
         float dist = Travel.EstimateDistance(u, player.Sector, player.Position, stop.Sector, stop.DockPoint(player.Id), player);
