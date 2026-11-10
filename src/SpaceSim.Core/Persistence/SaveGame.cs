@@ -135,6 +135,10 @@ public sealed class TransitSave
 public sealed class ShipSave
 {
     public int Id { get; set; } public int Faction { get; set; } public string Role { get; set; } = "";
+    /// <summary>Fähigkeiten als Flag-Wert; null in alten Spielständen = aus der Rolle ableiten.</summary>
+    public int? Capabilities { get; set; }
+    /// <summary>Steuerer ("Ai"/"Player"); null in alten Spielständen = aus der Rolle ableiten.</summary>
+    public string? Controller { get; set; }
     public float CargoCapacity { get; set; } public float Credits { get; set; } public float Hull { get; set; }
     public int Sector { get; set; } public Vec2 Pos { get; set; }
     public OrderSave? Order { get; set; }

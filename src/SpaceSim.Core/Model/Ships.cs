@@ -10,10 +10,16 @@ public sealed class Ship
     public FactionId Faction;
     /// <summary>Aktuelle Aufgabe / Etikett (gespeichert, Anzeige); nicht mehr für Entscheidungen benutzt.</summary>
     public ShipRole Role;
-    /// <summary>Fähigkeiten des Schiffs; nicht gespeichert, beim Entstehen aus <see cref="Role"/> abgeleitet (<see cref="CapabilityDefaults"/>).</summary>
-    public Capability Capabilities;
-    /// <summary>Wer das Schiff steuert; nicht gespeichert, beim Entstehen aus <see cref="Role"/> abgeleitet.</summary>
-    public Controller Controller;
+    Capability _capabilities;
+    Controller _controller;
+    /// <summary>Wurden die Fähigkeiten ausdrücklich gesetzt (auch auf <see cref="Capability.None"/>)? Sonst leitet <c>Universe.AddShip</c> sie aus der Rolle ab.</summary>
+    public bool CapabilitiesSet { get; private set; }
+    /// <summary>Wurde der Steuerer ausdrücklich gesetzt? Sonst leitet <c>Universe.AddShip</c> ihn aus der Rolle ab.</summary>
+    public bool ControllerSet { get; private set; }
+    /// <summary>Fähigkeiten des Schiffs (gespeichert); ohne ausdrückliches Setzen aus <see cref="Role"/> abgeleitet (<see cref="CapabilityDefaults"/>). Auch <see cref="Capability.None"/> ist ein gültiger gesetzter Wert.</summary>
+    public Capability Capabilities { get => _capabilities; set { _capabilities = value; CapabilitiesSet = true; } }
+    /// <summary>Wer das Schiff steuert (gespeichert); ohne ausdrückliches Setzen aus <see cref="Role"/> abgeleitet.</summary>
+    public Controller Controller { get => _controller; set { _controller = value; ControllerSet = true; } }
     public float CargoCapacity = 100f;
     public Dictionary<GoodId, float> Cargo = new();
     public float Credits;

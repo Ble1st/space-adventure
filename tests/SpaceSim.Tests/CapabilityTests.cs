@@ -272,4 +272,50 @@ public class CapabilityTests
         Assert.True(loaded.Ships[loaded.PlayerShip].IsPlayer);
         Assert.All(loaded.Ships.Values.Where(s => s.Role != ShipRole.Player), s => Assert.False(s.IsPlayer));
     }
+
+    [Fact]
+    public void Ueberschriebene_Faehigkeiten_UeberlebenSaveLoad_UndHash()
+    {
+        var u = DemoUniverse.Create();
+        var trader = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
+        trader.Capabilities = Capability.None;              // ausdrücklich nichts: darf nicht zurückgesetzt werden
+        var miner = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
+        miner.Capabilities = Capability.Mining | Capability.Salvage;
+        var before = UniverseHash.Compute(u);
+
+        var (loaded, _) = SaveGameJson.Read(SaveGameJson.Write(u, Now));
+
+        Assert.Equal(Capability.None, loaded.Ships[trader.Id].Capabilities);
+        Assert.Equal(Capability.Mining | Capability.Salvage, loaded.Ships[miner.Id].Capabilities);
+        Assert.Equal(before, UniverseHash.Compute(loaded));
+        Assert.NotEqual(before, UniverseHash.Compute(DemoUniverse.Create()));
+    }
+
+    [Fact]
+    public void AddShip_BehaeltAusdruecklichGesetztesNone_UndLeitetNurUngesetztesAb()
+    {
+        var u = DemoUniverse.Create();
+        var sector = u.Sectors.Keys.First();
+        var none = new Ship { Id = new ShipId(9001), Role = ShipRole.Trader, Sector = sector, Capabilities = Capability.None };
+        var unset = new Ship { Id = new ShipId(9002), Role = ShipRole.Trader, Sector = sector };
+        u.AddShip(none);
+        u.AddShip(unset);
+        Assert.Equal(Capability.None, none.Capabilities);
+        Assert.False(none.IsEconomyAi);
+        Assert.Equal(Capability.Cargo, unset.Capabilities);
+    }
+
+    [Fact]
+    public void AlterSave_OhneFaehigkeitsFelder_LeitetAusRolleAb()
+    {
+        var u = DemoUniverse.Create();
+        var save = UniverseSerializer.ToSave(u, Now);
+        foreach (var sh in save.Ships) { sh.Capabilities = null; sh.Controller = null; }
+        var loaded = UniverseSerializer.FromSave(save);
+        foreach (var s in loaded.Ships.Values)
+        {
+            Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Capabilities);
+            Assert.Equal(CapabilityDefaults.ControllerFor(s.Role), s.Controller);
+        }
+    }
 }

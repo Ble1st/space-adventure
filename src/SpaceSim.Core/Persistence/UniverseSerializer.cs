@@ -57,7 +57,7 @@ public static class UniverseSerializer
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
             {
-                Id = sh.Id.Value, Faction = sh.Faction.Value, Role = sh.Role.ToString(), CargoCapacity = sh.CargoCapacity,
+                Id = sh.Id.Value, Faction = sh.Faction.Value, Role = sh.Role.ToString(), Capabilities = (int)sh.Capabilities, Controller = sh.Controller.ToString(), CargoCapacity = sh.CargoCapacity,
                 Credits = sh.Credits, Hull = sh.Hull, Sector = sh.Sector.Value, Pos = sh.Position,
                 Order = sh.Order is null ? null : ToSave(sh.Order),
                 Phase = sh.Phase.ToString(), MinePhase = sh.MinePhase.ToString(),
@@ -123,8 +123,9 @@ public static class UniverseSerializer
             var ship = new Ship
             {
                 Id = new ShipId(sh.Id), Faction = new FactionId(sh.Faction), Role = role,
-                // nicht gespeichert: Fähigkeiten/Steuerer aus der gespeicherten Rolle ableiten
-                Capabilities = CapabilityDefaults.ForRole(role), Controller = CapabilityDefaults.ControllerFor(role),
+                // gespeichert; alte Spielstände ohne die Felder: aus der Rolle ableiten
+                Capabilities = sh.Capabilities is { } caps ? (Capability)caps : CapabilityDefaults.ForRole(role),
+                Controller = sh.Controller is { } ctl ? Enum.Parse<Controller>(ctl) : CapabilityDefaults.ControllerFor(role),
                 CargoCapacity = sh.CargoCapacity,
                 Credits = sh.Credits, Hull = sh.Hull, Sector = new SectorId(sh.Sector), Position = sh.Pos,
                 Order = sh.Order is null ? null : FromSave(sh.Order),
