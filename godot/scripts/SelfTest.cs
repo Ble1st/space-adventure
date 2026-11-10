@@ -58,6 +58,17 @@ public partial class SelfTest : Node
 					bool tradeOffered = _m.Session.Services.ForStation(u, st).Any(s => s.Key == "trade");
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Trade && a.Available) == tradeOffered,
 						"Bereichsliste enthält Handel genau dann, wenn ForStation den Dienst trade liefert");
+					{ // Negativfall: Stationstyp ohne Dienste (services: []) zeigt keinen Handelsbereich, Info/Hangar bleiben
+						var type = u.StationTypes[st.TypeKey];
+						var saved = type.Services;
+						type.Services = new List<string>();
+						var bare = Ui.Screens.DockAreas.Build(u, st, _m.Session.Services);
+						type.Services = saved;
+						Check(!bare.Any(a => a.Id == Ui.Screens.DockAreas.Trade), "Stationstyp ohne Dienste: kein Handelsbereich");
+						Check(bare.Any(a => a.Id == Ui.Screens.DockAreas.Info && a.Available) && bare.Any(a => a.Id == Ui.Screens.DockAreas.Hangar && a.Available),
+							"Stationstyp ohne Dienste: Station-Info und Hangar bleiben aktiv");
+						Check(Ui.Screens.DockAreas.Build(u, st, _m.Session.Services).Any(a => a.Id == Ui.Screens.DockAreas.Trade) == tradeOffered, "Dienste-Liste nach dem Negativtest wiederhergestellt");
+					}
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Info && a.Available) && areas.Any(a => a.Id == Ui.Screens.DockAreas.Hangar && a.Available),
 						"Station-Info und Hangar sind immer aktiv");
 					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Repair or Ui.Screens.DockAreas.Outfitter or Ui.Screens.DockAreas.Shipyard or Ui.Screens.DockAreas.Taxi or Ui.Screens.DockAreas.Missions)
