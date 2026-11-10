@@ -71,8 +71,13 @@ public partial class SelfTest : Node
 					}
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Info && a.Available) && areas.Any(a => a.Id == Ui.Screens.DockAreas.Hangar && a.Available),
 						"Station-Info und Hangar sind immer aktiv");
-					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Outfitter or Ui.Screens.DockAreas.Shipyard or Ui.Screens.DockAreas.Taxi or Ui.Screens.DockAreas.Missions)
-						.All(a => !a.Available), "Platzhalterbereiche (Ausrüster, Werft, Taxi, Aufträge) sind nicht aktiv");
+					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Taxi or Ui.Screens.DockAreas.Missions)
+						.All(a => !a.Available), "Platzhalterbereiche (Taxi, Aufträge) sind nicht aktiv");
+					var offered = _m.Session.Services.ForStation(u, st).Select(x => x.Key).ToList();
+					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Outfitter && a.Available) == offered.Contains("outfitter")
+						&& areas.Any(a => a.Id == Ui.Screens.DockAreas.Shipyard && a.Available) == offered.Contains("shipdealer"),
+						"Ausrüster und Werft sind genau dann aktiv, wenn ForStation outfitter bzw. shipdealer liefert (Phase 5c)");
+					Check(offered.Contains("outfitter") && offered.Contains("shipdealer"), "Werft Delta bietet Ausrüster und Schiffskauf");
 					bool repairOrFuel = _m.Session.Services.ForStation(u, st).Any(s => s.Key is "refuel" or "repair");
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Repair && a.Available) == repairOrFuel,
 						"Reparatur & Tanken ist genau dann aktiv, wenn ForStation refuel oder repair liefert");
@@ -141,6 +146,52 @@ public partial class SelfTest : Node
 					Check(b.Success && pl.Cargo.GetValueOrDefault(reactor) == 1f, "Modul-Ware über Dienst+Oberfläche gekauft (landet im Laderaum)");
 					var s = _m.HudRef.DockTrade.TestExecute($"sell:{reactor.Value}", 1f);
 					Check(s.Success && pl.Cargo.GetValueOrDefault(reactor) == 0f, "Modul-Ware zurückverkauft");
+				}
+				{ // Phase 5c: Ausrüster – Frachtmodul tauschen über die Oberfläche (nur Offers/Execute), ShipStats ändern sich
+					var st = u.Stations[_m.TestDockedStation!.Value];
+					var pl = _m.Session.Player; _m.Session.U.PlayerWallet.Credits = 100000f;
+					int cargoSlot = pl.Slots.FindIndex(x => x.Type == "cargo");
+					var g60 = u.FindGood("cargo_universal_60")!.Id;
+					st.Market[g60].Amount = System.Math.Max(st.Market[g60].Amount, 2f);
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Outfitter);
+					Check(_m.TestScreenOpen("dock.outfitter"), "Ausrüster-Bereich über das Menü geöffnet");
+					_m.HudRef.DockOutfitter.TestSelectSlot(cargoSlot);
+					Check(_m.HudRef.DockOutfitter.TestRowCount > 0, "Ausrüster zeigt Zeilen aus IStationService.Offers für den Frachtslot");
+					Check(_m.HudRef.DockOutfitter.TestSlotOffers().Any(o => o.Key == $"fit:{cargoSlot}:cargo_universal_60" && o.Amount >= 1f), "Angebot: Universalfrachtraum 60 einbauen");
+					float cr = _m.Session.U.PlayerWallet.Credits;
+					var g100 = u.FindGood("cargo_universal_100")!.Id;
+					float expect = cr - st.Market[g60].Price + st.Market[g100].Price;   // Einbau aus dem Lager, alter Frachtraum an die Station
+					var fit = _m.HudRef.DockOutfitter.Execute($"fit:{cargoSlot}:cargo_universal_60");
+					Check(System.Math.Abs(_m.Session.U.PlayerWallet.Credits - expect) < 0.05f, "Umrüsten bucht Einbaupreis und Ankauf des alten Moduls auf die Spielerkasse");
+					Check(fit.Success && pl.Fit[cargoSlot] == "cargo_universal_60" && pl.Stats.Cargo == 60f && pl.CargoCapacity == 60f, "Modul getauscht: Laderaum 100 → 60 (ShipStats)");
+					Check(_m.HudRef.DockOutfitter.TestMessage.Length > 0, "Ergebnismeldung des Ausrüsters wird angezeigt");
+					var bad = _m.HudRef.DockOutfitter.Execute($"fit:{cargoSlot}:reactor_mk1");
+					Check(!bad.Success && pl.Fit[cargoSlot] == "cargo_universal_60", "Ungültiger Einbau (falsche Slotart) wird abgelehnt");
+					var back = _m.HudRef.DockOutfitter.Execute($"fit:{cargoSlot}:cargo_universal_100");
+					Check(back.Success && pl.Stats.Cargo == 100f, "Zurückgetauscht auf Laderaum 100");
+				}
+				{ // Phase 5c: Werft – Schiff kaufen (Bausatz + Module aus dem Lager), neues Schiff aktiv, altes im Hangar; zurückwechseln
+					var st = u.Stations[_m.TestDockedStation!.Value];
+					var old = _m.Session.Player;
+					_m.Session.U.PlayerWallet.Credits = 100000f;
+					foreach (var n in SpaceSim.Core.Simulation.ShipPurchase.Materials(u, u.ShipModels["prospector"])!)
+						st.Stock(n.Good).Amount = System.Math.Max(st.Stock(n.Good).Amount, 3f);
+					var kit = u.FindGood("ship_kit_light")!.Id;
+					float kits = st.Market[kit].Amount;
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Shipyard);
+					Check(_m.TestScreenOpen("dock.shipyard"), "Werft-Bereich über das Menü geöffnet");
+					Check(_m.HudRef.DockShipyard.TestRowCount >= 3, $"Werft zeigt Modelle aus IStationService.Offers ({_m.HudRef.DockShipyard.TestRowCount})");
+					var buy = _m.HudRef.DockShipyard.Execute("buy:prospector");
+					var now = _m.Session.Player;
+					Check(buy.Success && now.Id != old.Id && now.ModelKey == "prospector", "Schiff über die Werft-Oberfläche gekauft, neues Schiff ist aktiv");
+					Check(st.Market[kit].Amount == kits - 1f, "Kauf verbraucht einen leichten Bausatz aus dem Werftlager");
+					Check(old.IsPlayer && SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(old), "Altes Schiff bleibt als Spielerbesitz an der Werft");
+					Check(_m.HudRef.DockCtx.Ship == now, "Dock-Kontext zeigt das neue Schiff");
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Hangar);
+					Check(_m.HudRef.DockHangar.TestParkedRows >= 1, "Hangar zeigt das geparkte eigene Schiff");
+					_m.TestSwitchShip(old.Id);
+					Check(_m.Session.Player == old && _m.HudRef.DockCtx.Ship == old, "Hangar „Übernehmen“ wechselt zurück ins alte Schiff");
+					Check(SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(now), "Gekauftes Schiff liegt jetzt im Hangar der Werft");
 				}
 				Next(); break;
 			case 3: // Abdocken aus einem offenen Bereich heraus

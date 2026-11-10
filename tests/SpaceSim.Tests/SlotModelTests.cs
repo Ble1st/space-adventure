@@ -39,8 +39,8 @@ public class SlotModelTests
         var u = DemoUniverse.Create();
         Assert.Equal(9, u.SlotTypes.Count);
         Assert.Equal(13, u.Modules.Count);   // Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung)
-        Assert.Equal(2, u.ShipClasses.Count);
-        Assert.Equal(5, u.ShipModels.Count);
+        Assert.Equal(3, u.ShipClasses.Count);   // Phase 5c: + Skiff
+        Assert.Equal(8, u.ShipModels.Count);    // Phase 5c: + Pip, Nomad, Prospector
         Assert.True(u.SlotTypes["reactor"].Required);
         Assert.True(u.SlotTypes["engine"].Required);
         Assert.False(u.SlotTypes["cargo"].Required);
@@ -248,7 +248,7 @@ public class SlotModelTests
     [Fact]
     public void SaveLoad_Roundtrip_V4_AltSavesLadbar_SlotContentWirdMitgespeichert()
     {
-        Assert.Equal(7, SaveGame.CurrentVersion);   // v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
+        Assert.Equal(8, SaveGame.CurrentVersion);   // v8: Ausrüster/Schiffskauf (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 100);
         var before = UniverseHash.Compute(u);

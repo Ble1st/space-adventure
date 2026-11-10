@@ -11,7 +11,8 @@ public sealed class OreChunk
     public float Age;
 }
 
-public enum MineResult { Fired, Cooldown, OutOfRange, NotMinable, CargoFull }
+/// <summary>Ergebnis eines Laserschusses; <see cref="NoLaser"/> (Phase 5c): Das Schiff hat kein Schürfwerkzeug (keine Fähigkeit Mining, z. B. Nomad).</summary>
+public enum MineResult { Fired, Cooldown, OutOfRange, NotMinable, CargoFull, NoLaser }
 
 /// <summary>
 /// Echtzeit-Mikrosimulation des Spielerabbaus im aktuellen Sektor. Der Laser wird <b>einzeln</b> abgefeuert
@@ -70,6 +71,7 @@ public sealed class OreChunks
     /// </summary>
     public MineResult TryFire(Universe u, Ship ship, Sector sector, Asteroid a, Vec2 shipPos)
     {
+        if (!ship.Has(Capability.Mining)) return MineResult.NoLaser;   // Phase 5c: ohne Mining-Laser im Fit kein Abbau
         if (_cooldown > 0f) return MineResult.Cooldown;
         if (!IsMinable(sector, a) || !HasClass(u, a)) return MineResult.NotMinable;
         if (Vec2.Distance(shipPos, a.Position) - a.Radius > MiningRules.LaserRange) return MineResult.OutOfRange;

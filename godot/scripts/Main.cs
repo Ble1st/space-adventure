@@ -119,6 +119,15 @@ public partial class Main : Node3D
 		_hud.DockRepair.BackToMenu += ShowDockMenu;
 		_hud.DockRepair.UndockPressed += Undock;
 		_hud.DockRepair.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.DockOutfitter.AreaSelected += OnDockArea;
+		_hud.DockOutfitter.BackToMenu += ShowDockMenu;
+		_hud.DockOutfitter.UndockPressed += Undock;
+		_hud.DockOutfitter.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.DockShipyard.AreaSelected += OnDockArea;
+		_hud.DockShipyard.BackToMenu += ShowDockMenu;
+		_hud.DockShipyard.UndockPressed += Undock;
+		_hud.DockShipyard.Executed += ok => _sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		_hud.DockHangar.SwitchRequested += SwitchShip;
 		_hud.DockHangar.AreaSelected += OnDockArea;
 		_hud.DockHangar.BackToMenu += ShowDockMenu;
 		_hud.DockHangar.UndockPressed += Undock;
@@ -255,6 +264,15 @@ public partial class Main : Node3D
 				else _hud.Toast("Laden fehlgeschlagen: " + error, 4f);
 				break;
 			case "new": _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); AttachSession(); _hud.Toast("Neues Spiel"); break;
+			case var a when a.StartsWith("new:", StringComparison.Ordinal):   // Phase 5c: Startpaket (player.startOptions)
+			{
+				string key = a[4..];
+				var name = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().FirstOrDefault(o => o.Key == key)?.Name ?? key;
+				_session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault(startOption: key));
+				AttachSession();
+				_hud.Toast($"Neues Spiel – Startpaket {name}");
+				break;
+			}
 		}
 		if (action != "save") _hud.Screens.Hide();
 	}
@@ -379,6 +397,7 @@ public partial class Main : Node3D
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case StationRemoved r when r.Reason == "bankrupt": _hud.Toast("Station aufgegeben (Pleite)"); break;
+			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
 		}
 	}
 
@@ -651,11 +670,37 @@ public partial class Main : Node3D
 			DockAreas.Info => _hud.DockInfo,
 			DockAreas.Hangar => _hud.DockHangar,
 			DockAreas.Repair => _hud.DockRepair,
+			DockAreas.Outfitter => _hud.DockOutfitter,
+			DockAreas.Shipyard => _hud.DockShipyard,
 			_ => _hud.DockMenu,
 		};
 		if (screen is DockAreaScreen area) area.AreaId = areaId;
 		_hud.Screens.Show(screen);
 		_sfx.Play(SfxId.Click);
+	}
+
+	/// <summary>Hangar „Übernehmen“ (Phase 5c): wechselt an der angedockten Station in ein dort geparktes eigenes Schiff (Core: <see cref="PlayerFleet.SwitchTo"/>).</summary>
+	void SwitchShip(ShipId id)
+	{
+		if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
+		SyncPlayerData();
+		bool ok = PlayerFleet.SwitchTo(_session.U, st, id, out var message);
+		_sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		_hud.Toast(message);
+		_hud.Screens.Current?.Refresh();
+	}
+
+	/// <summary>
+	/// Das aktive Schiff hat gewechselt (Kauf an der Werft oder „Übernehmen“ im Hangar): Dock-Kontext auf das neue Schiff, Abbau-
+	/// Mikrosimulation und Automatik zurücksetzen. Die Ansicht liest das Schiff ohnehin über <see cref="GameSession.Player"/>; das alte
+	/// Schiff liegt jetzt geparkt an der Station und erscheint wie andere Schiffe in der Sektoransicht.
+	/// </summary>
+	void OnActiveShipChanged(ActiveShipChanged e)
+	{
+		_hud.DockCtx.Ship = PlayerData;
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer();
+		SetAutoMining(false, announce: false);
+		_lowestHull = PlayerData.Hull;
 	}
 
 	/// <summary>Andocken: Das Schiff fliegt in die Station hinein und verschwindet (unsichtbar, keine Kollision); die Hülle wird repariert.</summary>
@@ -1213,6 +1258,7 @@ public partial class Main : Node3D
 				case MineResult.OutOfRange: Hint("Zu weit entfernt – näher heranfliegen"); break;
 				case MineResult.CargoFull: Hint("Laderaum voll"); break;
 				case MineResult.NotMinable: Hint("Kein Erz mehr in diesem Asteroiden"); break;
+				case MineResult.NoLaser: Hint("Kein Mining-Laser eingebaut – Ausrüster an Werft oder Handelsstation"); break;
 				// Fired: OnShot erledigt Ton, Blitz und Rückstoß; Cooldown: Waffe lädt noch – stillschweigend ignorieren
 			}
 		}
@@ -1252,6 +1298,7 @@ public partial class Main : Node3D
 	internal bool TestScreenOpen(string id) => _hud.Screens.TryGet(id, out var s) && _hud.Screens.Current == s;
 	internal void TestSetStationTarget(StationId id) { var u = _session.U; SetTarget(Navigator.ForStation(u, id, u.PlayerShip), id); }
 	internal void TestUndock() => Undock();
+	internal void TestSwitchShip(ShipId id) => SwitchShip(id);
 	internal bool TestSave() { SaveNow(manual: false); return SaveService.Exists; }
 	internal void TestMenu(string a) => OnMenu(a);
 	internal void TestStartMining() => SetAutoMining(true);

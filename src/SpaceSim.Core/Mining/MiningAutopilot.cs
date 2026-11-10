@@ -30,6 +30,7 @@ public sealed class MiningAutopilot
     {
         var none = new MiningStep(null, null, null, 0f, null, false, false);
         if (!Enabled) return none;
+        if (!ship.Has(Capability.Mining)) { Stop("Kein Mining-Laser eingebaut"); return none; }   // Phase 5c: Fit ohne Laser
 
         var sector = u.Sectors[u.PlayerSector];
         bool chunksNear = chunks.Chunks.Any(c => Vec2.Distance(c.Position, pos) <= MiningRules.TractorRange);

@@ -451,6 +451,70 @@ public static class SaveGameJson
         s.Version = 7;
     }
 
+    /// <summary>
+    /// v7 → v8 (Phase 5c, Ausrüster und Schiffskauf): Alles nach Schlüssel, nur ergänzend (eigene Einträge des Save bleiben):
+    /// 1) Schiffsklassen und -modelle der Default-Welt, die fehlen (Skiff: Pip, Nomad, Prospector), werden angehängt.
+    /// 2) Stationstypen, die es in Save und Default-Welt gibt: fehlende Dienste (outfitter, shipdealer), der Schiffshändler und fehlende
+    ///    Lagerposten (stocks) werden nachgetragen — an Typ und bestehenden Stationen (neuer Markteintrag mit Preis = Basispreis).
+    /// 3) Die Handelsstation (Typ ohne Rezept, nur stocks) wird als Typ ergänzt und an ihrem Default-Platz gesetzt, wenn alle ihre
+    ///    Lagerwaren auflösbar sind; die Stationsobergrenze steigt je gesetzter Station um 1 (wie in der Default-Welt).
+    /// Mehrere Spielerschiffe brauchen kein neues Feld: Besitz = Steuerer „Player“, aktiv = <c>PlayerShip</c>.
+    /// </summary>
+    static void MigrateV7ToV8(SaveGame s)
+    {
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var dw = WorldBuilder.Build(def);
+        var content = new SaveGame();
+        UniverseSerializer.WriteSlotContent(dw, content);
+        foreach (var c in content.ShipClasses) if (s.ShipClasses.All(x => x.Key != c.Key)) s.ShipClasses.Add(c);
+        foreach (var m in content.ShipModels)
+            if (s.ShipModels.All(x => x.Key != m.Key) && s.ShipClasses.Any(c => c.Key == m.Class)
+                && m.Fit.All(k => k is null || s.Modules.Any(x => x.Key == k)))
+                s.ShipModels.Add(m);
+
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+        int? Map(GoodId dg) => goodIdByKey.TryGetValue(dw.Goods[dg].Key, out var id) ? id : null;
+        float BasePrice(int id) => s.Goods.First(g => g.Id == id).BasePrice;
+        ShipDealerSave? Dealer(StationType t) => t.ShipDealer is { } sd
+            ? new ShipDealerSave { Classes = sd.Classes is null ? null : new List<string>(sd.Classes), MaxSize = sd.MaxSize.ToString(), Assembly = sd.Assembly }
+            : null;
+
+        // 2) vorhandene Typen: Dienste, Schiffshändler, Lagerposten nachtragen
+        foreach (var dt in dw.StationTypes.Values.OrderBy(t => t.Key, StringComparer.Ordinal))
+        {
+            var existing = s.StationTypes.FirstOrDefault(t => t.Key == dt.Key);
+            if (existing is null) continue;
+            var services = existing.Services ?? new List<string> { Services.TradeService.ServiceKey };
+            foreach (var key in dt.Services) if (!services.Contains(key)) services.Add(key);
+            existing.Services = services;
+            existing.ShipDealer ??= Dealer(dt);
+            var newStocks = dt.Stocks.Where(x => Map(x.Good) is { } id && (existing.Stocks is null || existing.Stocks.All(e => e.Good != id)))
+                .Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
+            if (newStocks.Count == 0) continue;
+            existing.Stocks = (existing.Stocks ?? new List<StationStockSave>()).Concat(newStocks).ToList();
+            foreach (var st in s.Stations.Where(x => x.Type == dt.Key))
+                foreach (var x in newStocks)
+                    st.Market.TryAdd(x.Good, new StockSave { Amount = x.Amount, Target = x.Target, Price = BasePrice(x.Good) });
+        }
+
+        // 3) neue Typen ohne Rezept (Handelsstation): ergänzen und an ihren Default-Plätzen setzen
+        foreach (var dt in dw.StationTypes.Values.Where(t => t.Recipes.Count == 0 && t.Stocks.Count > 0).OrderBy(t => t.Key, StringComparer.Ordinal))
+        {
+            if (s.StationTypes.Any(t => t.Key == dt.Key) || dt.Stocks.Any(x => Map(x.Good) is null)) continue;
+            var stocks = dt.Stocks.Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
+            s.StationTypes.Add(new StationTypeSave
+            {
+                Key = dt.Key, Name = dt.Name, BuildCost = dt.BuildCost, Upkeep = dt.UpkeepPerTick, Income = dt.IncomePerTick,
+                Recipes = new List<RecipeSave>(), Services = new List<string>(dt.Services), Stocks = stocks, ShipDealer = Dealer(dt),
+            });
+            int before = s.Stations.Count;
+            AddDefaultStations(s, def, dt.Key, () => new List<RecipeSave>(), stocks, goodIdByKey);
+            s.Rules.MaxStations += s.Stations.Count - before;
+        }
+        s.Version = 8;
+    }
+
     static int NextGoodId(SaveGame s) => s.Goods.Count == 0 ? 1 : s.Goods.Max(g => g.Id) + 1;
 
     static RecipeSave CloneRecipe(RecipeSave r) => new() { Ticks = r.Ticks, In = new Dictionary<int, float>(r.In), Out = new Dictionary<int, float>(r.Out) };
@@ -470,6 +534,7 @@ public static class SaveGameJson
         if (s.Version < 5) MigrateV4ToV5(s);
         if (s.Version < 6) MigrateV5ToV6(s);
         if (s.Version < 7) MigrateV6ToV7(s);
+        if (s.Version < 8) MigrateV7ToV8(s);
         return s;
     }
 }

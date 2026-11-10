@@ -30,8 +30,8 @@ public sealed class DockAreaDef
 
 /// <summary>
 /// Baut die Bereichsliste des Andock-Menüs aus den Daten: Handel nur, wenn <see cref="StationServices.ForStation"/>
-/// den Dienst „trade“ liefert; „Reparatur &amp; Tanken“, wenn sie „refuel“ oder „repair“ liefert; Station-Info und Hangar
-/// immer; alle übrigen Bereiche als gedämpfte Platzhalter.
+/// den Dienst „trade“ liefert; „Reparatur &amp; Tanken“, wenn sie „refuel“ oder „repair“ liefert; Ausrüster und Werft, wenn sie
+/// „outfitter“ bzw. „shipdealer“ liefert (Phase 5c); Station-Info und Hangar immer; Taxi und Aufträge als gedämpfte Platzhalter.
 /// </summary>
 public static class DockAreas
 {
@@ -80,8 +80,12 @@ public static class DockAreas
 		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur"
 			: listed ? "Lager leer" : "Nicht an dieser Station";
 		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair), Sub = repairSub, Available = refuel || repair });
-		list.Add(new DockAreaDef { Id = Outfitter, Label = LabelFor(Outfitter), Sub = UiPlaceholders.Soon, Available = false });
-		list.Add(new DockAreaDef { Id = Shipyard, Label = LabelFor(Shipyard), Sub = UiPlaceholders.Soon, Available = false });
+		// Ausrüster und Werft (Phase 5c): echt, sobald ForStation „outfitter“ bzw. „shipdealer“ liefert
+		bool outfitter = offered.Contains(OutfitterService.ServiceKey), dealer = offered.Contains(ShipDealerService.ServiceKey);
+		int modules = st.Market.Count(kv => kv.Value.Amount >= 1f && u.Goods.TryGetValue(kv.Key, out var g) && u.Modules.ContainsKey(g.Key));
+		list.Add(new DockAreaDef { Id = Outfitter, Label = LabelFor(Outfitter), Sub = outfitter ? $"{modules} Module auf Lager" : "Nicht hier", Available = outfitter });
+		int models = dealer ? ShipDealerService.Models(u, st).Count : 0;
+		list.Add(new DockAreaDef { Id = Shipyard, Label = LabelFor(Shipyard), Sub = dealer ? $"{models} Modelle" : "Nicht hier", Available = dealer });
 		list.Add(new DockAreaDef { Id = Hangar, Label = LabelFor(Hangar), Sub = "Angedockte Schiffe", Available = true });
 		list.Add(new DockAreaDef { Id = Info, Label = LabelFor(Info), Sub = "Dienste & Markt", Available = true });
 		list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = UiPlaceholders.Soon, Available = false });

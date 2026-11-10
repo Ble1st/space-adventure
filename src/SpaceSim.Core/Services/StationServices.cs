@@ -42,13 +42,15 @@ public sealed class StationServices
         return list;
     }
 
-    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c).</summary>
+    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c), outfitter, shipdealer (Phase 5c).</summary>
     public static StationServices Default()
     {
         var registry = new StationServices();
         registry.Register(new TradeService());
         registry.Register(new RefuelService());
         registry.Register(new RepairService());
+        registry.Register(new OutfitterService());
+        registry.Register(new ShipDealerService());
         return registry;
     }
 }

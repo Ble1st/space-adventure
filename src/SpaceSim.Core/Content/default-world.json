@@ -4,7 +4,7 @@
   "maxTraders": 14,
   "maxMiners": 8,
   "repairPlatesPerHull": 0.05,
-  "maxStations": 33,
+  "maxStations": 34,
   "maxStationsPerSector": 9
  },
  "goods": [
@@ -546,7 +546,9 @@
    "income": 2,
    "services": [
     "trade",
-    "repair"
+    "repair",
+    "outfitter",
+    "shipdealer"
    ],
    "recipes": [
     {
@@ -617,7 +619,34 @@
     "cargo_universal_100": [
      2,
      5
+    ],
+    "cargo_universal_60": [
+     2,
+     5
+    ],
+    "cargo_solid_s": [
+     1,
+     3
+    ],
+    "canister_bay_s": [
+     1,
+     3
+    ],
+    "cargo_universal_70": [
+     1,
+     3
+    ],
+    "tractor_beam_s": [
+     1,
+     3
+    ],
+    "fuel_tank_s": [
+     1,
+     3
     ]
+   },
+   "shipDealer": {
+    "assembly": 0.05
    }
   },
   {
@@ -726,6 +755,68 @@
     "maxTier": 1,
     "ticks": 20,
     "target": 5
+   },
+   "recipes": []
+  },
+  {
+   "key": "trade_station",
+   "name": "Handelsstation",
+   "buildCost": 8000,
+   "upkeep": 0.08,
+   "income": 0.8,
+   "services": [
+    "trade",
+    "outfitter",
+    "shipdealer"
+   ],
+   "shipDealer": {
+    "classes": [
+     "skiff"
+    ],
+    "maxSize": "S",
+    "assembly": 0.1
+   },
+   "stocks": {
+    "ship_kit_light": [
+     1,
+     3
+    ],
+    "reactor_mk1": [
+     1,
+     3
+    ],
+    "chem_engine_s": [
+     1,
+     3
+    ],
+    "mining_laser_1": [
+     1,
+     3
+    ],
+    "cargo_solid_s": [
+     1,
+     3
+    ],
+    "canister_bay_s": [
+     1,
+     3
+    ],
+    "cargo_universal_60": [
+     1,
+     3
+    ],
+    "cargo_universal_70": [
+     1,
+     3
+    ],
+    "tractor_beam_s": [
+     1,
+     3
+    ],
+    "fuel_tank_s": [
+     1,
+     3
+    ]
    },
    "recipes": []
   }
@@ -979,6 +1070,16 @@
      "pos": [
       -60,
       -120
+     ],
+     "essential": true
+    },
+    {
+     "id": 30,
+     "type": "trade_station",
+     "name": "Handelsstation Beta",
+     "pos": [
+      -120,
+      60
      ],
      "essential": true
     }
@@ -1601,6 +1702,41 @@
     }
    ],
    "kit": "ship_kit_light"
+  },
+  {
+   "key": "skiff",
+   "name": "Skiff",
+   "size": "S",
+   "baseHull": 60,
+   "baseMass": 6,
+   "baseFuel": 150,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
   }
  ],
  "shipModels": [
@@ -1657,6 +1793,45 @@
     "chem_engine_s",
     "mining_laser_1",
     "cargo_universal_100"
+   ]
+  },
+  {
+   "key": "pip",
+   "class": "skiff",
+   "name": "Pip",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "cargo_solid_s",
+    "canister_bay_s",
+    null
+   ]
+  },
+  {
+   "key": "nomad",
+   "class": "skiff",
+   "name": "Nomad",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    "cargo_universal_70",
+    "cargo_solid_s",
+    null
+   ]
+  },
+  {
+   "key": "prospector",
+   "class": "skiff",
+   "name": "Prospector",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "cargo_universal_60",
+    null,
+    null
    ]
   }
  ],
@@ -1729,6 +1904,29 @@
  "player": {
   "faction": 1,
   "sector": 1,
-  "credits": 500
+  "credits": 500,
+  "startOptions": [
+   {
+    "key": "miner",
+    "name": "Schürfer",
+    "description": "Prospector mit Mining-Laser und 60 m³ Universalfrachtraum. Wenig Geld, sofort produktiv: Erz abbauen und selbst verkaufen.",
+    "model": "prospector",
+    "credits": 300
+   },
+   {
+    "key": "trader",
+    "name": "Händler",
+    "description": "Nomad ohne Laser, dafür 100 m³ Fracht (70 universal + 30 fest). Mehr Startgeld, lebt von Preisunterschieden.",
+    "model": "nomad",
+    "credits": 1500
+   },
+   {
+    "key": "generalist",
+    "name": "Generalist",
+    "description": "Pip mit Werkzeug-Slot (Laser), getrennten Räumen für Feststoffe und Flüssiges (je 30 m³). Von allem etwas.",
+    "model": "pip",
+    "credits": 800
+   }
+  ]
  }
 }

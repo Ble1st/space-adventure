@@ -85,12 +85,17 @@ public class LifecycleTests
         var rich = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
         rich.Credits = 20_000f;
         float yardCredits = yard.Credits;
+        // Phase 5c: dieselbe Kaufregel wie der Spieler — Bausatz + Module des Fits zum Marktpreis × (1 + Montagegebühr)
+        var needs = ShipPurchase.Materials(u, u.ShipClasses[u.ShipModels[rich.ModelKey].ClassKey], rich.Fit)!;
+        float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
+        var stockBefore = needs.ToDictionary(n => n.Good, n => yard.Market[n.Good].Amount);
 
         new FleetSystem().Step(u, 20);
 
         Assert.Equal(before + 1, u.Ships.Values.Count(s => s.Role == ShipRole.Trader));
         Assert.Equal(4f, yard.Market[DemoUniverse.ShipKit].Amount);            // ein Bausatz verbraucht
-        Assert.Equal(yardCredits + u.Rules.NewShipCost, yard.Credits, 2);      // Werft bekommt den Preis
+        foreach (var n in needs) Assert.Equal(stockBefore[n.Good] - n.Units, yard.Market[n.Good].Amount);   // und die Module des Fits
+        Assert.Equal(yardCredits + price, yard.Credits, 2);                    // Werft bekommt den Preis
         var created = u.Ships.Values.OrderByDescending(s => s.Id.Value).First();
         Assert.Equal(yard.Sector, created.Sector);                              // neues Schiff startet an der Werft
         Assert.Contains(created.Id, u.Tracker.ParkedIn(yard.Sector));

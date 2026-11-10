@@ -23,10 +23,13 @@ int fuelBuys = 0, notk = 0;
 float fuelBuyCost = 0f, notkCost = 0f;
 // Phase 5a: Modul-Waren — wie viel Händler an Lager (stocks) liefern
 float moduleDelivered = 0f, moduleRevenue = 0f;
+// Phase 5c: KI-Neubauten mit Modulen (volle Kaufregel) bzw. nur aus dem Bausatz
+int buildsWithModules = 0, buildsKitOnly = 0;
 u.Events.Raised += e =>
 {
     if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
     else if (e is FuelBought fb) { fuelBuys++; fuelBuyCost += fb.Cost; }
+    else if (e is FleetShipBuilt fsb) { if (fsb.WithModules) buildsWithModules++; else buildsKitOnly++; }
     else if (e is TradeCompleted tc && u.Modules.ContainsKey(u.Goods[tc.Good].Key)) { moduleDelivered += tc.Amount; moduleRevenue += tc.Revenue; }
 };
 
@@ -67,6 +70,7 @@ if (u.Modules.Count > 0)
     float atFactories = u.Stations.Values.SelectMany(st => st.Market.Where(kv => moduleGoods.Contains(kv.Key) && !st.IsStockOnly(kv.Key))).Sum(kv => kv.Value.Amount);
     float inStocks = u.Stations.Values.SelectMany(st => st.Market.Where(kv => moduleGoods.Contains(kv.Key) && st.IsStockOnly(kv.Key))).Sum(kv => kv.Value.Amount);
     Console.WriteLine($"Modul-Waren: {moduleDelivered:0} Einheiten von Händlern geliefert ({moduleRevenue:0} Cr); Bestand in Fabriken {atFactories:0}, in Lagern ohne Rezept {inStocks:0}");
+    Console.WriteLine($"KI-Neubauten: {buildsWithModules} mit Modulen aus dem Werftlager, {buildsKitOnly} nur aus dem Bausatz");
 }
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))

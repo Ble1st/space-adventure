@@ -1,16 +1,18 @@
+using System;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Simulation;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
 namespace SpaceAdventure.Ui.Screens;
 
 /// <summary>
-/// Dock-Bereich „Hangar“ (UI.md Abschnitt 3): die angedockten Schiffe, soweit der Core sie kennt – aktuell das
-/// Spielerschiff mit Hülle, Fracht, Laderaum und Auftrag (alles echt). Fremde/weitere eigene Schiffe sowie
-/// „Steuern“, „Befehle“, „Verkaufen“, „Heim schicken“ sind Platzhalter („Bald“); der Wechsel in ein anderes
-/// Schiff kommt erst in Stufe 3 / Phase 12.
+/// Dock-Bereich „Hangar“ (UI.md Abschnitt 3): das aktive Spielerschiff mit Hülle, Fracht, Laderaum und Auftrag (alles echt) und
+/// – seit Phase 5c – die weiteren eigenen Schiffe, die an dieser Station liegen (<see cref="PlayerFleet.ParkedAt"/>), mit
+/// „Übernehmen“ (Wechsel des aktiven Schiffs, ausgeführt in Main über <see cref="PlayerFleet.SwitchTo"/>). Fremde Schiffe sowie
+/// „Steuern“, „Befehle“, „Verkaufen“, „Heim schicken“ sind Platzhalter („Bald“).
 /// </summary>
 public sealed partial class HangarScreen : DockAreaScreen
 {
@@ -64,9 +66,33 @@ public sealed partial class HangarScreen : DockAreaScreen
 		BarLine(cv, "Fracht", ship.UsedVolume(u), ship.CargoCapacity, Cyan, $"{ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³");
 		cv.AddChild(Text($"Credits {(int)u.WalletOf(ship).Credits:0} · Auftrag: {OrderText(u, ship)}", 16, White));
 
-		// Platzhalter-Hinweis für fremde/weitere eigene Schiffe (unterhalb der Karte, ohne Überlappung)
-		At(inner, Text(UiPlaceholders.HangarSoon, 14, new Color(Dim, 0.75f)), 0, 268, w - 8, 40);
+		// Phase 5c: weitere eigene Schiffe, die an dieser Station liegen (Core: PlayerFleet.ParkedAt) – „Übernehmen“ wechselt das aktive Schiff
+		var parked = PlayerFleet.ParkedAt(u, Ctx.Station);
+		At(inner, Text(parked.Count > 0 ? "Deine weiteren Schiffe hier" : "Keine weiteren eigenen Schiffe an dieser Station", 17, parked.Count > 0 ? Cyan : new Color(Dim, 0.8f)), 0, 266, w - 8, 26);
+		float y = 296f;
+		_parkedRows = 0;
+		foreach (var other in parked.Take(3))
+		{
+			string model = u.ShipModels.TryGetValue(other.ModelKey, out var mm) ? mm.Name : "ohne Modell";
+			var row = CardBg(inner, 0, y, w - 8, 58, Card, new Color(Edge, 0.6f), 10, 1);
+			At(row, Text($"#{other.Id.Value} · {model}", 17, White), 14, 4, 360, 26);
+			At(row, Text($"Hülle {(int)other.Hull}/{(int)other.MaxHull} · Fracht {other.UsedVolume(u):0.#}/{other.CargoCapacity:0} m³ · Tank {other.TotalFuel:0}/{other.Stats.FuelCapacity:0}", 13, Dim), 14, 30, 560, 22);
+			var b = At(row, new KitButton("Übernehmen", new Vector2(170, 50)) { FontSize = 16, State = KitButtonState.Ready }, w - 8 - 180, 4);
+			var id = other.Id;
+			b.Pressed += () => SwitchRequested?.Invoke(id);
+			y += 64f;
+			_parkedRows++;
+		}
+
+		// Platzhalter-Hinweis für fremde Schiffe und Aktionen (unterhalb der Liste, ohne Überlappung)
+		At(inner, Text(UiPlaceholders.HangarSoon, 14, new Color(Dim, 0.75f)), 0, Math.Max(y + 4f, 300f), w - 8, 40);
 	}
+
+	/// <summary>„Übernehmen“: der Spieler möchte in dieses eigene, hier geparkte Schiff wechseln (Main führt <see cref="PlayerFleet.SwitchTo"/> aus).</summary>
+	public event Action<ShipId>? SwitchRequested;
+	int _parkedRows;
+	/// <summary>Für den Selbsttest: angezeigte eigene geparkte Schiffe.</summary>
+	public int TestParkedRows => _parkedRows;
 
 	static string FactionName(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var x) ? x.Name : "?";
 

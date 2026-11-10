@@ -159,6 +159,19 @@ public sealed class StationTypeDef
     public Dictionary<string, float[]>? Stocks { get; set; }
     /// <summary>Modulfabrik (Phase 5a): erzeugt je passendem Modul ein Rezept aus dessen <c>cost</c>; fehlt = keine Modulfabrik.</summary>
     public ModuleFactoryDef? ModuleFactory { get; set; }
+    /// <summary>Schiffshändler (Phase 5c): welche Klassen die Station montiert und verkauft; fehlt = keine Schiffe. Nur sinnvoll mit Dienst "shipdealer".</summary>
+    public ShipDealerDef? ShipDealer { get; set; }
+}
+
+/// <summary>
+/// Schiffshändler eines Stationstyps (Phase 5c, SCHIFFSSLOTS.md „Kleine Schiffe an anderen Stationen“): <see cref="Classes"/> (fehlt = alle),
+/// <see cref="MaxSize"/> (Standard XL) und Montagegebühr <see cref="Assembly"/> (Anteil auf Bausatz- und Materialpreis).
+/// </summary>
+public sealed class ShipDealerDef
+{
+    public List<string>? Classes { get; set; }
+    public string MaxSize { get; set; } = "XL";
+    public float Assembly { get; set; }
 }
 
 /// <summary>
@@ -230,9 +243,25 @@ public sealed class ShipGroupDef
     public string? Model { get; set; }
 }
 
+/// <summary>Ein Startpaket: Schiffsmodell, Startcredits und optional Startsektor (fehlt = Sektor des Spielereintrags).</summary>
+public sealed class StartOptionDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Model { get; set; } = "";
+    public float Credits { get; set; } = 500;
+    public int? Sector { get; set; }
+}
+
 public sealed class PlayerDef
 {
     public int Faction { get; set; } = 1; public int Sector { get; set; } = 1; public float Credits { get; set; } = 500;
     /// <summary>Schiffsmodell-Schlüssel; fehlt das Feld, wählt <c>WorldBuilder.NewShip</c> das Einheitsmodell der Spielerrolle.</summary>
     public string? Model { get; set; }
+    /// <summary>
+    /// Startpakete (Phase 5c, SCHIFFE.md Abschnitt 9): wählbar bei "Neues Spiel"; ohne Wahl gilt der Spielereintrag selbst
+    /// (Modell <see cref="Model"/> bzw. Einheitsmodell, <see cref="Credits"/>, <see cref="Sector"/>).
+    /// </summary>
+    public List<StartOptionDef> StartOptions { get; set; } = new();
 }

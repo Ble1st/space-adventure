@@ -11,10 +11,11 @@ namespace SpaceAdventure;
 /// Viewport.GetTexture().GetImage().SavePng PNGs: (a) Flug-HUD im Leerlauf, (b) HUD mit Ziel in
 /// Laserreichweite, (c) HUD nahe an einer Station (Kontexttaste), (d) geöffnetes Hamburger-Menü,
 /// dann das Dock: (e) Andock-Menü, (f) Handel Liste, (g) Handel Liste mit aufgeklappter Zeile,
-/// (h) Handel Kacheln, (i) Station-Info, (j) Hangar, (k) Platzhalter-Bereich, dann die
+/// (h) Handel Kacheln, (i) Station-Info, (j) Hangar, (k) Platzhalter-Bereich, Reparatur &amp; Tanken, Ausrüster (Fracht- und
+/// Werkzeugslot) und Werft an Werft und Handelsstation (Phase 5c), dann die
 /// Kommandozentrale (UI.md Abschnitt 4): (l) Menü, (m) Universum (Fraktionsebene), (n) Universum mit
 /// gewähltem Sektor, (o) Sektor, (p) Fraktionsliste, (q) Fraktionsdetail, (r) Meine Fraktion,
-/// (s) Flotte, (t) Besitz, (u) Schiffsdetail, (v) Comms, (w) Flug-HUD mit gedrehter Kamera
+/// (s) Flotte, (t) Besitz, (u) Schiffsdetail, (v) Comms, System mit Startpaket-Auswahl, (w) Flug-HUD mit gedrehter Kamera
 /// (Yaw 60°, Pitch 40°) – dann Ende.
 /// Aufruf: godot-mono --path godot -- --ui-shots build/ui-shots/
 /// </summary>
@@ -77,7 +78,32 @@ public partial class UiShots : Node
 				_m.HudRef.Screens.Show(_m.HudRef.DockRepair);
 				_stage = 211; _wait = 20; break;
 			}
-			case 211: Capture("11b-dock-reparatur-tanken.png"); _stage = 22; _wait = 10; break;
+			case 211: Capture("11b-dock-reparatur-tanken.png"); _stage = 212; _wait = 10; break;
+			case 212: // Phase 5c: Ausrüster an der Werft, Frachtslot gewählt
+			{
+				var u = _m.Session.U;
+				var yard = u.Stations.Values.First(x => x.TypeKey == "shipyard");
+				_m.Session.U.PlayerWallet.Credits = 4000f;
+				_m.HudRef.DockCtx.Station = yard;
+				_m.HudRef.DockCtx.Ship = _m.Session.Player;
+				_m.HudRef.DockOutfitter.TestSelectSlot(_m.Session.Player.Slots.FindIndex(x => x.Type == "cargo"));
+				_m.HudRef.Screens.Show(_m.HudRef.DockOutfitter);
+				_stage = 213; _wait = 20; break;
+			}
+			case 213: Capture("11c-dock-ausruester.png"); _stage = 214; _wait = 10; break;
+			case 214: _m.HudRef.DockOutfitter.TestSelectSlot(_m.Session.Player.Slots.FindIndex(x => x.Type == "tool")); _stage = 215; _wait = 20; break;
+			case 215: Capture("11d-dock-ausruester-werkzeug.png"); _stage = 216; _wait = 10; break;
+			case 216: _m.HudRef.Screens.Show(_m.HudRef.DockShipyard); _stage = 217; _wait = 20; break;   // Werft: alle Klassen
+			case 217: Capture("11e-dock-werft.png"); _stage = 218; _wait = 10; break;
+			case 218: // Handelsstation: nur Skiffs
+			{
+				var u = _m.Session.U;
+				_m.HudRef.DockCtx.Station = u.Stations.Values.First(x => x.TypeKey == "trade_station");
+				_m.HudRef.Screens.Hide();   // neu öffnen, damit der Bereich mit der anderen Station aufbaut
+				_stage = 2185; _wait = 5; break;
+			}
+			case 2185: _m.HudRef.Screens.Show(_m.HudRef.DockShipyard); _stage = 219; _wait = 20; break;
+			case 219: Capture("11f-dock-werft-handelsstation.png"); _stage = 22; _wait = 10; break;
 			// ── Kommandozentrale (UI.md Abschnitt 4) ──
 			// Aufnahme und Zustandsänderung nie im selben Frame (FramePostDraw feuert nach _Process):
 			// jeder Schritt wechselt nur eine Sache, die Aufnahme passiert im Folgeframe
@@ -104,7 +130,9 @@ public partial class UiShots : Node
 			case 42: _m.TestCcOpenShipDetail(); _stage = 43; _wait = 20; break;
 			case 43: Capture("21-cc-schiffsdetail.png"); _stage = 44; _wait = 10; break;
 			case 44: _m.TestOpenCcArea("comms"); _stage = 45; _wait = 20; break;
-			case 45: Capture("22-cc-comms.png"); _stage = 46; _wait = 10; break;
+			case 45: Capture("22-cc-comms.png"); _stage = 450; _wait = 10; break;
+			case 450: _m.TestOpenCcArea("system"); _m.HudRef.CcSystem.TestChoosing = true; _stage = 451; _wait = 20; break;   // Phase 5c: Startpakete
+			case 451: Capture("22b-cc-system-startpakete.png"); _stage = 46; _wait = 10; break;
 			case 46: _m.TestCloseCommand(); _stage = 47; _wait = 10; break;
 			case 47: _m.TestSetCam(60f, 40f, 55f); _stage = 48; _wait = 20; break;   // Kamera drehen (HUD bleibt sichtbar)
 			case 48: Capture("23-hud-kamera-gedreht.png"); _stage = 49; _wait = 5; break;
