@@ -347,6 +347,10 @@ public class ResearchTests
         started.Clear();
         u.LastStationBuildTick = -1_000_000;
         foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(G(u, "steel"), out var e)) e.Amount = 0f;
+        // Phase 15: der Lebenszyklus baut nur einen Hersteller, dessen Zutaten nicht selbst knapp sind (sonst den Engpass weiter oben) — Erz und Energie füllen
+        foreach (var st in u.Stations.Values)
+            foreach (var key in new[] { "iron_ore", "energy" })
+                if (st.Market.TryGetValue(G(u, key), out var e)) e.Amount = e.Target;
         new StationLifecycleSystem().Step(u, 20);
         Assert.Contains(started, c => c.TypeKey == "steelworks_2");
     }

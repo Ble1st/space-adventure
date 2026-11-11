@@ -45,6 +45,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         // Knappste Ware (höchster Durchschnittspreis relativ zum Basispreis) und am stärksten überversorgte Ware (niedrigster)
         GoodId? scarce = null, glut = null;
         float worst = rules.BuildPriceRatio, lowest = rules.GlutPriceRatio;
+        var ratios = new Dictionary<GoodId, float>();
         foreach (var good in u.Goods.Values)
         {
             // Knappheit aus den Beständen (Wunschbestand / Bestand über alle Stationen), nicht aus Preisen: Preise sind durch die
@@ -54,6 +55,7 @@ public sealed class StationLifecycleSystem : ISimSystem
             var entries = u.Stations.Values.Where(s => !s.IsBuildSite && s.Market.ContainsKey(good.Id)).Select(s => s.Market[good.Id]).ToList();
             if (entries.Count == 0) continue;
             float ratio = entries.Sum(e => e.Target) / MathF.Max(1f, entries.Sum(e => e.Amount));
+            ratios[good.Id] = ratio;
             // Phase 5a: nur Waren, auf die ein Stationstyp antworten kann (Erzeuger bei Knappheit, Rezept-Verbraucher bei Überangebot).
             // Sonst blockiert eine Ware ohne Verbraucher-Typ (Module, Bausatzstufen auf Halde) jeden Verbraucherbau für andere Waren.
             if (ratio > worst && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)))) { worst = ratio; scarce = good.Id; }
@@ -66,7 +68,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         // (Forschungsstation, reiner Treibstoffhersteller) auch nicht
         StationType? type = null;
         if (scarce is { } sc)
-            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(sc)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
+            type = UpstreamProducer(u, sc, ratios, rules.BuildPriceRatio);
         else if (glut is { } gl)
             type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;
@@ -122,6 +124,24 @@ public sealed class StationLifecycleSystem : ISimSystem
         u.AddStation(station);
         u.LastStationBuildTick = u.Tick;
         u.NotifyStationBuilt(station);
+    }
+
+    /// <summary>
+    /// Phase 15: Welcher Stationstyp hilft gegen die Knappheit einer Ware? Der günstigste baubare Hersteller — außer, eine seiner Zutaten ist ein Rohstoff
+    /// ohne baubaren Hersteller (Erz) und selbst knapp (Verhältnis Wunsch/Bestand über <paramref name="threshold"/>): Dann liegt der Engpass beim Bergbau,
+    /// und eine weitere Hütte würde nur um dasselbe Erz konkurrieren, mit leerem Erzlager am 4×-Deckel stehen und den Erzpreis hochtreiben (vorher
+    /// entstanden so mehrere Kupferhütten und Waferfabriken ohne Erz). null = nichts bauen. Hergestellte Zutaten lenken nicht um: Ihr Lager beim
+    /// Verbraucher ist im Betrieb meist niedrig, das sagt nichts über ihr Angebot.
+    /// </summary>
+    public static StationType? UpstreamProducer(Universe u, GoodId good, IReadOnlyDictionary<GoodId, float> ratios, float threshold)
+    {
+        var type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
+        if (type is null) return null;
+        foreach (var r in type.Recipes.Where(r => r.Outputs.ContainsKey(good)))
+            foreach (var g in r.Inputs.Keys)
+                if (ratios.TryGetValue(g, out var x) && x > threshold && !u.StationTypes.Values.Any(t => t.Recipes.Any(rr => rr.Outputs.ContainsKey(g)) && Buildable(u, t)))
+                    return null;
+        return type;
     }
 
     /// <summary>Darf die Wirtschaft diesen Typ bauen? Erforscht (irgendwo), keine Exportsenke, kein Typ eines abgeschalteten Systems.</summary>

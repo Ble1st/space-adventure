@@ -38,6 +38,16 @@ public sealed class EconomyRules
     /// <summary>Produktion pausiert, wenn ein Ausgabegut mehr als Wunschbestand × diesen Faktor lagert (verhindert endlosen Lagerstau).</summary>
     public float OverstockFactor = 3f;
     /// <summary>
+    /// Phase 15: Pausengrenze eines Rezepts, für dessen Produkte keine andere Station eine offene Fehlmenge hat (Anteil am Wunschbestand,
+    /// <see cref="Simulation.ProductionDemand"/>); gefragte Produkte laufen bis <see cref="OverstockFactor"/>. Wert ≥ OverstockFactor = alte Regel.
+    /// </summary>
+    public float NoDemandStockFactor = 1f;
+    /// <summary>
+    /// Phase 15: Annahmegrenze von Regal-Einträgen (Lager ohne Rezept, keine Exportware) als Vielfaches des Wunschbestands; ≥ OverstockFactor = alte Regel.
+    /// Ein volles Regal steht so beim Basispreis statt beim Drittel.
+    /// </summary>
+    public float ShelfOverstockFactor = 1f;
+    /// <summary>
     /// Ware (Schlüssel), aus der neue Schiffe gebaut werden, wenn die Schiffsklasse keinen eigenen Bausatz nennt (<see cref="ShipClass.Kit"/>):
     /// Eine Werft muss einen Bausatz liefern. Seit Phase 5a heißt der frühere „ship_kit“ „ship_kit_light“ (Migration v5→v6).
     /// </summary>
@@ -403,6 +413,35 @@ public sealed class EconomyRules
     public float ExportMarkup = 0.18f;
     /// <summary>Exportsenke: höchstes Gebot für Exportwaren als Vielfaches des Basispreises (sonst böte ein leeres Exportlager 4× und kaufte die Kolonie leer).</summary>
     public float ExportMaxBidFactor = 0.9f;
+
+    // ───────── Phase 15: Wirtschaftskorrekturen (Betriebskapital, Instandhaltung, Subventionen) ─────────
+    /// <summary>
+    /// Steuerfreies Betriebskapital einer Station als Vielfaches ihres Einkaufswerts (Σ Wunschbestand × Basispreis aller Waren, die sie annimmt:
+    /// Zutaten, Lager, Exportwaren; <see cref="Simulation.WorkingCapital"/>). Die Vermögensabgabe trifft nur Geld darüber. 0 = alte Regel (alles besteuert):
+    /// Die Exportsenken verloren so ihre Startkasse an die Fraktionskassen und konnten nur noch wenig ankaufen.
+    /// </summary>
+    public float StationWorkingCapitalShare = 1f;
+    /// <summary>Instandhaltung je Tag (<see cref="DayTicks"/>) als Anteil der Baukosten des Stationstyps, zum Basispreis in Material umgerechnet; 0 = aus.</summary>
+    public float MaintenanceShare = 0.03f;
+    /// <summary>Instandhaltungsmaterial: Ware → Gewicht (Anteil am Wert). Fehlt eine Ware in der Welt, fällt ihr Anteil weg.</summary>
+    public Dictionary<string, float> MaintenanceMaterials = new() { ["steel"] = 0.55f, ["hull_plates"] = 0.3f, ["electronics"] = 0.15f };
+    /// <summary>Wunschbestand eines reinen Instandhaltungs-Eintrags in Tagesbedarfen.</summary>
+    public float MaintenanceStockDays = 2f;
+    /// <summary>Höchstgebot reiner Instandhaltungs-Einträge (Vielfaches des Basispreises), damit sie Fabriken die Zutaten nicht wegbieten.</summary>
+    public float MaintenanceMaxBidFactor = 1.25f;
+    /// <summary>Subvention: Eine notleidende Station bekommt aus der Fraktionskasse Geld bis zu diesem Anteil ihres Betriebskapitals.</summary>
+    public float SubsidyFloorShare = 0.5f;
+    /// <summary>Subvention: höchstens so viel je Station und Tag (<see cref="DayTicks"/>).</summary>
+    public float SubsidyPerDay = 2400f;
+    /// <summary>Subvention: Rücklage, die die Fraktionskasse nicht unterschreitet.</summary>
+    public float SubsidyReserve = 20000f;
+    /// <summary>
+    /// Steuerbremse: Zielanteil aller Fraktionskassen an der Geldmenge (je Fraktion zu gleichen Teilen); je näher eine Kasse ihrem Ziel, desto kleiner der Teil
+    /// der Vermögensabgabe, den sie behält — der Rest verlässt die Welt (<see cref="Simulation.UpkeepSystem.FiscalFactors"/>). 0 = aus (alles in die Kasse).
+    /// </summary>
+    public float TreasuryTargetShare = 0.4f;
+    /// <summary>Händler/Schürfer der KI, die so lange ohne Auftrag liegen (auch mit Geld), werden abgebaut (<see cref="Simulation.FleetSystem"/>); 0 = nie.</summary>
+    public int IdleRetireTicks = 6000;
     /// <summary>
     /// Höchstes Gebot eines Endverbrauchers (Station mit Rezepten ohne Produkte, z. B. Kolonie) als Vielfaches des Basispreises; 4 = kein eigener Deckel
     /// (Code-Standard, wie bis Phase 13). Die Standardwelt setzt 2: sonst bleibt die Kolonie am 4×-Deckel stecken, weil sie dort zu wenig kaufen kann.

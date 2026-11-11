@@ -254,8 +254,9 @@ public class ModuleGoodsTests
         var u = DemoUniverse.Create();
         var yard = u.Stations.Values.Single(s => s.TypeKey == "shipyard");
         yard.Stock(DemoUniverse.ShipKitHeavy).Amount = 100f;   // Halde → 0,25 × Basispreis
-        yard.Stock(DemoUniverse.ShipKitLight).Amount = 10f;    // knapp → teuer
-        yard.Stock(DemoUniverse.HullPlates).Amount = 10f;      // knapp → Knappheitspreis hoch
+        yard.Stock(DemoUniverse.ShipKitMedium).Amount = 100f;  // Phase 15: mittlere Bausätze starten nicht mehr auf Halde — für den Vergleich auf Halde legen
+        yard.Stock(DemoUniverse.ShipKitLight).Amount = yard.Stock(DemoUniverse.ShipKitLight).Target / 10f;    // knapp → teuer (Phase 15: Wunschbestand 10 statt 100)
+        yard.Stock(DemoUniverse.HullPlates).Amount = yard.Stock(DemoUniverse.HullPlates).Target / 10f;      // knapp → Knappheitspreis hoch (4×)
         new MarketSystem().Step(u, 1);
         var light = u.StationTypes["shipyard"].Recipes.Single(r => r.Outputs.ContainsKey(DemoUniverse.ShipKitLight));
         float inBase = light.Inputs.Sum(kv => kv.Value * u.Goods[kv.Key].BasePrice);

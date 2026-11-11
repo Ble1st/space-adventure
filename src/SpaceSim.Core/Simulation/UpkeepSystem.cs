@@ -17,10 +17,14 @@ public sealed class UpkeepSystem : ISimSystem
     {
         var collected = new SortedDictionary<int, float>();
         float sunk = 0f;
+        // Phase 15: Steuerbremse — je größer der Anteil einer Fraktionskasse an der Geldmenge, desto weniger der Abgabe behält sie (FiscalFactors)
+        var factors = FiscalFactors(u);
+        float FactorOf(FactionId? authority) => authority is { } fa && factors.TryGetValue(fa.Value, out var x) ? x : 1f;
         void Route(FactionId? authority, float tax)
         {
             if (tax <= 0f) return;
-            float share = Math.Clamp(u.Rules.TaxToTreasuryShare, 0f, 1f);
+            // Phase 15: Steuerbremse — eine volle Kasse nimmt nur noch einen Teil der Abgabe auf, der Rest verlässt die Welt (wie vor Phase 9)
+            float share = Math.Clamp(u.Rules.TaxToTreasuryShare, 0f, 1f) * FactorOf(authority);
             if (authority is { } f && share > 0f && u.Actors.TryGetValue(f, out var actor))
             {
                 float paid = tax * share;
@@ -60,7 +64,11 @@ public sealed class UpkeepSystem : ISimSystem
         foreach (var st in u.Stations.Values)
             if (!st.IsBuildSite && st.Credits > 0f)
             {
-                float tax = st.Credits * u.Rules.StationWealthTax * dt;
+                // Phase 15: das Betriebskapital (WorkingCapital) bleibt steuerfrei — vorher verloren Einkäufer (Exportsenken, Kolonie, Werft) ihre Kasse
+                // an die Fraktionskassen, die ≈ 90 % des Geldes horteten
+                float taxable = st.Credits - WorkingCapital.Of(u, st);
+                if (taxable <= 0f) continue;
+                float tax = taxable * u.Rules.StationWealthTax * dt;
                 st.Credits -= tax;
                 Route(u.FactionOf(st), tax);
             }
@@ -80,6 +88,30 @@ public sealed class UpkeepSystem : ISimSystem
 
         foreach (var (f, amount) in collected) u.Events.Publish(new TaxCollected(new ActorId(f), amount));
         if (sunk > 0f) u.Events.Publish(new TaxSunk(sunk));
+    }
+
+    /// <summary>
+    /// Phase 15: Steuerbremse je Fraktion (Fraktions-Id → Anteil 0..1 der Vermögensabgabe, den die Kasse behält). Ziel der Kasse ist ihr Anteil
+    /// <see cref="EconomyRules.TreasuryTargetShare"/> ÷ Anzahl Fraktionen an der Geldmenge (Stationen, wirtschaftliche KI-Schiffe, Kassen aller Akteure außer
+    /// dem Spieler); Faktor = 1 − Kasse ÷ Ziel, begrenzt auf 0..1. Die Zahler zahlen dieselbe Abgabe wie immer; was eine volle Kasse nicht aufnimmt,
+    /// verlässt die Welt (<see cref="TaxSunk"/>, die Senke vor Phase 9). Ohne Bremse (Regel 0) horteten die Kassen ≈ 90 % des Geldes, weil ihre Ausgaben
+    /// (Regierungsunterhalt, Polizei, Instandhaltung, Subventionen) die Abgaben nie erreichten, und die Geldmenge wuchs linear. Leere Liste = überall 1.
+    /// </summary>
+    public static Dictionary<int, float> FiscalFactors(Universe u)
+    {
+        var result = new Dictionary<int, float>();
+        if (u.Rules.TreasuryTargetShare <= 0f || u.Factions.Count == 0) return result;
+        double money = 0;
+        foreach (var st in u.Stations.Values) money += Math.Max(0f, st.Credits);
+        foreach (var sh in u.Ships.Values) if (sh.IsEconomyAi) money += Math.Max(0f, sh.Credits);
+        foreach (var a in u.Actors.Values) if (a.Id != u.PlayerActor) money += Math.Max(0f, a.Treasury.Credits);
+        float target = (float)(money * u.Rules.TreasuryTargetShare / u.Factions.Count);
+        foreach (var f in u.Factions.Keys)
+        {
+            float t = u.Actors.TryGetValue(f, out var a) ? a.Treasury.Credits : 0f;
+            result[f.Value] = target <= 0f ? 0f : Math.Clamp(1f - t / target, 0f, 1f);
+        }
+        return result;
     }
 
     /// <summary>Wer die Abgabe eines Schiffs bekommt: die Fraktion seines Besitzers, für freie Einzelschiffe die Fraktion, der der Sektor gehört.</summary>

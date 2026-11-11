@@ -28,6 +28,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestSecurity { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Exportzeile (Phase 14; leer ohne Exportsenke).</summary>
 	public string TestExport { get; private set; } = "";
+	/// <summary>Selbsttest: zuletzt gezeigte Instandhaltung (Phase 15; leer, wenn die Station nicht instand gehalten wird).</summary>
+	public string TestMaintenance { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -61,6 +63,9 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		}
 		else
 			Row(v1, "Schutz", st.BankruptcyProtected ? "vor Pleite geschützt" : StationCriticality.IsCritical(u, st) ? "kritisch (letzte ihrer Kette)" : "keiner");
+		// Phase 15: Instandhaltung (Material über den Handel, die Fraktionskasse erstattet) — „gedeckt“ oder „offen: …“ (reine Core-Anzeige)
+		TestMaintenance = Maintenance.StatusText(u, st) ?? "";
+		if (TestMaintenance.Length > 0) Row(v1, "Instandhaltung", TestMaintenance);
 		v1.AddChild(Text("Angebotene Dienste", 18, Cyan));
 		var services = Ctx.Services.ForStation(u, st);
 		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));

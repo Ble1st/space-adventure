@@ -112,10 +112,14 @@ public class ConstructionTests
         return site;
     }
 
-    /// <summary>Phase 14: Lebenszyklus baut nicht (lange Abkühlzeit), schon angelegte Baustellen verschwinden.</summary>
-    static void NoLifecycleSites(Universe u)
+    /// <summary>
+    /// Phase 15 (statt der Phase-14-Krücke BuildCooldown = int.MaxValue): Nur die Baustellen des Tests laufen — die Regel für gleichzeitige Baustellen
+    /// (<see cref="EconomyRules.MaxActiveSites"/>) steht auf ihrer Zahl, der Lebenszyklus legt also keine weiteren an; die Notbau-Bremse der Fraktion gilt
+    /// damit nur für die Baustellen des Tests. Schon angelegte Baustellen verschwinden.
+    /// </summary>
+    static void OnlyTestSites(Universe u, int sites)
     {
-        u.Rules.BuildCooldown = int.MaxValue;
+        u.Rules.MaxActiveSites = sites;
         foreach (var id in u.Stations.Values.Where(s => s.IsBuildSite).Select(s => s.Id).ToList()) u.RemoveStation(id, "test");
     }
 
@@ -268,7 +272,6 @@ public class ConstructionTests
     public void Bauschiff_HoltMaterial_LiefertUndMontiert_StationEntsteht()
     {
         var u = World();
-        NoLifecycleSites(u);   // Phase 14: das Bauschiff der Fraktion soll diese Baustelle bauen, keine des Lebenszyklus
         var site = Site(u, "farm", 1);
         var id = site.Id;
         var steelBefore = u.Stations.Values.Where(s => !s.IsBuildSite && s.Production.Any(r => r.Outputs.ContainsKey(DemoUniverse.Steel))).Sum(s => s.Market[DemoUniverse.Steel].Amount);
@@ -369,7 +372,7 @@ public class ConstructionTests
     {
         var u = World();
         RemoveBuilders(u);
-        NoLifecycleSites(u);   // Phase 14: die Exportsenken melden am Start Nachfrage nach Endwaren — keine Baustellen des Lebenszyklus in diesem Test
+        OnlyTestSites(u, 1);   // Notbau-Bremse je Fraktion: keine Baustelle des Lebenszyklus darf den Notbau vorwegnehmen
         var site = Site(u, "farm", 1);
         var id = site.Id;
         // ein Teil ist schon da: der Notbau ersetzt nur den Rest
@@ -400,7 +403,7 @@ public class ConstructionTests
     {
         var u = World();
         RemoveBuilders(u);
-        NoLifecycleSites(u);   // Phase 14: die Exportsenken melden am Start Nachfrage nach Endwaren — keine Baustellen des Lebenszyklus in diesem Test
+        OnlyTestSites(u, 2);   // Notbau-Bremse je Fraktion: nur die beiden Baustellen des Tests
         u.Rules.ConstructionPriceFactor = 0.01f;
         var steel = Site(u, "steelworks", 1);   // Stahl ist eine kritische Kette
         var farm = Site(u, "farm", 2);          // gleiche Fraktion (1), nicht kritisch

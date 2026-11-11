@@ -149,8 +149,8 @@ public class ExportPlanetTests
         var player = u.Ships[u.PlayerShip];
         var gamma = St(u, TradeGamma);
         var beta = St(u, TradeBeta);
-        // Handelsposten Gamma führt nur Endwaren: Stahl, Elektronik, Bausatz und Modul werden dort gar nicht gehandelt
-        foreach (var key in new[] { "steel", "electronics", "ship_kit_light", "reactor_mk1" })
+        // Handelsposten Gamma führt als Exportwaren nur Endwaren: Bausatz und Modul werden dort gar nicht gehandelt
+        foreach (var key in new[] { "ship_kit_light", "reactor_mk1" })
         {
             var g = G(u, key);
             player.Cargo.Clear();
@@ -158,6 +158,21 @@ public class ExportPlanetTests
             Assert.False(gamma.Market.ContainsKey(g), key);
             Assert.Equal(0f, TradeActions.Sell(u, player, gamma, g, 1f).Revenue);
         }
+        // Phase 15: Stahl und Elektronik nimmt die Station als Instandhaltungsmaterial an (reiner Instandhaltungs-Eintrag) — aber das wird keine Exportcharge
+        u.Rules.MaintenanceShare = 0.03f;
+        new MaintenanceSystem().Step(u, 50);
+        new MarketSystem().Step(u, 1);
+        foreach (var key in new[] { "steel", "electronics" })
+        {
+            var g = G(u, key);
+            Assert.True(Maintenance.IsPureEntry(u, gamma, g), key);
+            Assert.False(ExportRules.Buys(u, gamma, g), key);
+            gamma.Market[g].Amount = 0f;
+            player.Cargo.Clear();
+            player.Cargo[g] = 1f;
+            TradeActions.Sell(u, player, gamma, g, 1f);
+        }
+        Assert.Empty(gamma.Exports);
         // Handelsstation Beta nimmt Bausatz und Modul in ihr Lager (wie bisher), aber das ist kein Export
         player.Cargo.Clear();
         var kit = G(u, "ship_kit_light");

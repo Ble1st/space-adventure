@@ -2,7 +2,7 @@
  "seed": 20260101,
  "rules": {
   "maxTraders": 14,
-  "maxMiners": 10,
+  "maxMiners": 12,
   "repairPlatesPerHull": 0.05,
   "maxStations": 36,
   "maxStationsPerSector": 10,
@@ -224,8 +224,8 @@
    "chunkChance": 0.5,
    "oreFactor": 1.0,
    "yields": {
-    "iron_ore": 4,
-    "copper_ore": 4,
+    "iron_ore": 3,
+    "copper_ore": 5,
     "titanium_ore": 2
    }
   },
@@ -609,14 +609,12 @@
     }
    ],
    "stocks": {
-    "ship_kit_medium": [
-     16,
-     5
-    ],
-    "ship_kit_heavy": [
-     16,
-     5
-    ],
+    "ship_kit_light": [10, 10],
+    "hull_plates": [20, 20],
+    "electronics": [10, 10],
+    "fuel_cells": [10, 10],
+    "ship_kit_medium": [5, 5],
+    "ship_kit_heavy": [5, 5],
     "titanium": [
      10,
      10

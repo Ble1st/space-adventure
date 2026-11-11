@@ -34,6 +34,10 @@ public sealed class UpgradeSystem : ISimSystem
         var cls = u.ShipModels.TryGetValue(ship.ModelKey, out var model) ? u.ShipClasses.GetValueOrDefault(model.ClassKey) : null;
         if (cls is null) return null;
         float before = job.FleetValue(ship.Stats, u.Rules);
+        // Phase 15: ein Upgrade, das die belegte Kapazität der Aufgabe über Grenze + Überhang höbe (z. B. größeres Frachtmodul), unterbleibt
+        float unitsBefore = ShipJobs.UnitsOf(u, ship, job);
+        float otherUnits = ShipJobs.UsedUnits(u, job) - (ship.Role == job.Role ? unitsBefore : 0f);
+        float room = job.Limit(u.Rules) + u.Rules.FleetCapacityOvershoot;
         UpgradeQuote? best = null;
         float bestGain = 0f;
         foreach (var q in ShipUpgrade.Quotes(u, st, ship))
@@ -45,7 +49,10 @@ public sealed class UpgradeSystem : ISimSystem
                 var key = i == q.Slot ? q.ToModule : ship.Fit[i];
                 fit.Add(key is not null && u.Modules.TryGetValue(key, out var m) ? m : null);
             }
-            float after = job.FleetValue(ShipStats.Compute(cls, fit), u.Rules);
+            var statsAfter = ShipStats.Compute(cls, fit);
+            float unitsAfter = job.Units(statsAfter, statsAfter.Cargo, u.Rules);
+            if (unitsAfter > unitsBefore && otherUnits + unitsAfter > room + 0.0001f) continue;
+            float after = job.FleetValue(statsAfter, u.Rules);
             float gain = (after - before) * q.Chance / MathF.Max(1f, q.Price);
             if (gain > bestGain) { bestGain = gain; best = q; }
         }
