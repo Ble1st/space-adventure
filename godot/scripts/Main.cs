@@ -81,6 +81,8 @@ public partial class Main : Node3D
 	Ship PlayerData => _session.Player;
 	/// <summary>Phase 10: Meldung des letzten Sprungversuchs (Grund einer Ablehnung oder Zollquittung; Selbsttest).</summary>
 	public string LastJumpMessage { get; private set; } = "";
+	/// <summary>Phase 11: letzte Meldung zu Überfall, Kontrolle oder Vorwarnung (Selbsttest).</summary>
+	public string LastSecurityMessage { get; private set; } = "";
 
 	public override void _Ready()
 	{
@@ -133,6 +135,10 @@ public partial class Main : Node3D
 		_hud.DockStorage.BackToMenu += ShowDockMenu;
 		_hud.DockStorage.UndockPressed += Undock;
 		_hud.DockStorage.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.DockAuthority.AreaSelected += OnDockArea;
+		_hud.DockAuthority.BackToMenu += ShowDockMenu;
+		_hud.DockAuthority.UndockPressed += Undock;
+		_hud.DockAuthority.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockHangar.SwitchRequested += SwitchShip;
 		_hud.DockHangar.AreaSelected += OnDockArea;
 		_hud.DockHangar.BackToMenu += ShowDockMenu;
@@ -406,6 +412,17 @@ public partial class Main : Node3D
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case StationRemoved r when r.Reason == "bankrupt": _hud.Toast("Station aufgegeben (Pleite)"); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
+			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
+			case EncounterWarning w when w.Target == _session.U.PlayerShip: _sfx.Play(SfxId.Click); _hud.Toast(w.Message, 6f); LastSecurityMessage = w.Message; break;
+			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
+			case RaidResolved rr when rr.Player: _hud.Toast(rr.Message, 6f); LastSecurityMessage = rr.Message; break;
+			case RaidResolved rn when rn.Sector == _session.U.PlayerSector:
+				_hud.Toast(rn.AttackerWon ? "Piraten überfallen ein Schiff in diesem Sektor" : "Ein Überfall in diesem Sektor wurde abgewehrt", 3.5f); break;
+			case RaiderIntercepted ri when ri.Sector == _session.U.PlayerSector:
+				_hud.Toast(ri.PoliceWon ? (ri.RaiderDestroyed ? "Polizei hat ein Kaperschiff zerstört" : "Polizei vertreibt ein Kaperschiff") : "Ein Kaperschiff entkommt der Polizei", 3.5f); break;
+			case PlayerIntercepted pi: _hud.Toast(pi.Message, 6f); LastSecurityMessage = pi.Message; break;
+			case CrimeReported cr when cr.Actor == _session.U.PlayerActor:
+				_hud.Toast($"Fahndung bei {(_session.U.Factions.TryGetValue(cr.Faction, out var cf) ? cf.Name : "?")}: {SecurityNames.WantedLevel(cr.Level)} ({SecurityNames.Crime(cr.Crime)})", 4.5f); break;
 		}
 	}
 
@@ -703,6 +720,7 @@ public partial class Main : Node3D
 			DockAreas.Outfitter => _hud.DockOutfitter,
 			DockAreas.Shipyard => _hud.DockShipyard,
 			DockAreas.Storage => _hud.DockStorage,
+			DockAreas.Authority => _hud.DockAuthority,
 			_ => _hud.DockMenu,
 		};
 		if (screen is DockAreaScreen area) area.AreaId = areaId;
@@ -1036,6 +1054,10 @@ public partial class Main : Node3D
 			Credits = _session.U.WalletOf(PlayerData).Credits,   // Phase 5b: Spielerkasse
 			SectorName = sector.Name,
 			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",
+			// Phase 11: Lage und Fahndung (echt aus der Lagekarte und dem Fahndungsregister)
+			Security = SecurityInfo.ForSector(u, sector.Id, PlayerData).Summary,
+			Wanted = SecurityInfo.HudLine(u) ?? "",
+			WantedSevere = SpaceSim.Core.Simulation.Wanted.MaxLevel(u, u.PlayerActor) >= 3,
 			AutopilotOn = _autopilot,
 			AutoMineOn = _miner.Enabled,
 			TractorOn = _tractorOn,
@@ -1455,6 +1477,17 @@ public partial class Main : Node3D
 		_jumpCooldown = 0f;
 		Jump(gate);
 		return _session.U.PlayerSector != before;
+	}
+	/// <summary>Phase 11: Teleport an einen Punkt im aktuellen Sektor (Überfall-Test abseits der Stationen).</summary>
+	internal void TestTeleportTo(Vec2 pos)
+	{
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Velocity = Vector3.Zero;
+		_player.GiveGrace(5f);
+		PlayerData.Position = pos;
+		CancelAutopilot();
+		_camOffset = _orbit.Offset();
+		SnapCam();
 	}
 	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (auch Baustelle) und Andocken.</summary>
 	internal void TestDockAt(StationId id) { TestTeleportNear(id); Dock(id); }

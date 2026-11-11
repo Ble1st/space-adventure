@@ -32,7 +32,8 @@ public sealed class DockAreaDef
 /// Baut die Bereichsliste des Andock-Menüs aus den Daten: Handel nur, wenn <see cref="StationServices.ForStation"/>
 /// den Dienst „trade“ liefert; „Reparatur &amp; Tanken“, wenn sie „refuel“ oder „repair“ liefert; Ausrüster und Werft, wenn sie
 /// „outfitter“ bzw. „shipdealer“ liefert (Phase 5c); Station-Info und Hangar immer; Taxi und Aufträge als gedämpfte Platzhalter; an
-/// Stationen mit „storage“ (Lagerhaus, Phase 8) steht statt Taxi der Bereich „Lager“.
+/// Stationen mit „storage“ (Lagerhaus, Phase 8) steht statt Taxi der Bereich „Lager“, an Stationen mit „court“/„bounty“ (Phase 11) statt Aufträge die
+/// „Behörde“.
 /// </summary>
 public static class DockAreas
 {
@@ -46,6 +47,8 @@ public static class DockAreas
 	public const string Missions = "missions";
 	/// <summary>Phase 8: persönliches Lager (Dienst „storage“, Lagerhaus); ersetzt an solchen Stationen die Taxi-Kachel.</summary>
 	public const string Storage = "storage";
+	/// <summary>Phase 11: Behörde (Dienste „court“ und „bounty“, Regierungsstationen); ersetzt dort die Kachel „Aufträge“.</summary>
+	public const string Authority = "authority";
 
 	/// <summary>Anzeige-Label je Bereichs-Id (auch für Dienst-Schlüssel der Station-Info).</summary>
 	public static string LabelFor(string id) => id switch
@@ -59,6 +62,9 @@ public static class DockAreas
 		Taxi => "Taxi",
 		Missions => "Aufträge",
 		Storage => "Lager",
+		Authority => "Behörde",
+		CourtService.ServiceKey => "Gericht",          // Dienst-Schlüssel (Station-Info)
+		BountyService.ServiceKey => "Kopfgeldbüro",
 		_ => id,
 	};
 
@@ -99,7 +105,14 @@ public static class DockAreas
 			list.Add(new DockAreaDef { Id = Storage, Label = LabelFor(Storage), Sub = $"{StorageService.Used(st):0}/{u.Rules.StorageCapacity:0} eingelagert", Available = true });
 		else
 			list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = UiPlaceholders.Soon, Available = false });
-		list.Add(new DockAreaDef { Id = Missions, Label = LabelFor(Missions), Sub = UiPlaceholders.Soon, Available = false });
+		// Phase 11: Gericht und Kopfgeldbüro statt der Aufträge-Platzhalterkachel
+		if (offered.Contains(CourtService.ServiceKey) || offered.Contains(BountyService.ServiceKey))
+		{
+			int open = u.Player.Wanted.Count;
+			list.Add(new DockAreaDef { Id = Authority, Label = LabelFor(Authority), Sub = open > 0 ? $"{open} Strafe{(open == 1 ? "" : "n")} offen" : "Gericht · Kopfgeld", Available = true });
+		}
+		else
+			list.Add(new DockAreaDef { Id = Missions, Label = LabelFor(Missions), Sub = UiPlaceholders.Soon, Available = false });
 		return list;
 	}
 }

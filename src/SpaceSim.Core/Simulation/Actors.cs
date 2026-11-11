@@ -143,7 +143,7 @@ public static class Investors
         if (rules.TreasuryInvests)
             foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
             {
-                if (a.Kind is ActorKind.Player or ActorKind.Free || a.Treasury.Credits < need) continue;
+                if (a.Kind is ActorKind.Player or ActorKind.Free or ActorKind.Outlaw || a.Treasury.Credits < need) continue;   // Phase 11: Piraten bauen keine Stationen
                 list.Add(Make(u, index, InvestorSource.Treasury, a.Id, a.Treasury.Credits, need, null, null));
             }
         foreach (var st in u.Stations.Values.Where(s => !s.IsBuildSite && s.Credits >= need).OrderBy(s => s.Id.Value))

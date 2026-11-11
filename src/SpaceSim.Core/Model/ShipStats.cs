@@ -51,6 +51,10 @@ public sealed class ShipStats
     public float SplitPower;
     /// <summary>Phase 10: Tarnstärke (Summe stats stealth; heute hat kein Modul sie, der Tarnfeld-Baustein ist zurückgestellt). Entdeckung an Kontrollpunkten vergleicht sie mit der Sensorstärke.</summary>
     public float Stealth;
+    /// <summary>Phase 11: Waffenstärke (Summe stats weaponPower der Waffenmodule); Grundlage der abstrakten Begegnungen.</summary>
+    public float WeaponPower;
+    /// <summary>Phase 11: Schildkapazität (Summe stats shieldCapacity); zählt in der Kampfstärke mit.</summary>
+    public float Shield;
 
     /// <summary>
     /// Berechnet die Werte eines Schiffs aus seiner Klasse und dem Fit (ein Eintrag je Slot, null = leer).
@@ -73,6 +77,8 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // Phase 4b: Verbrauchsrate des Antriebs
             if (m.Stats.TryGetValue("splitPower", out var split)) s.SplitPower += split;      // Phase 8: Spaltlaser
             if (m.Stats.TryGetValue("stealth", out var stealth)) s.Stealth += stealth;        // Phase 10: Tarnung (Entdeckung)
+            if (m.Stats.TryGetValue("weaponPower", out var wp)) s.WeaponPower += wp;          // Phase 11: Waffen (abstrakte Begegnungen)
+            if (m.Stats.TryGetValue("shieldCapacity", out var sh)) s.Shield += sh;            // Phase 11: Schild zählt in der Stärke
             foreach (var f in m.FuelTypes)
             {
                 int idx = s.FuelTypes.FindIndex(x => x.Good == f.Good);

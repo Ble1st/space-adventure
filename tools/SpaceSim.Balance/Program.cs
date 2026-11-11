@@ -7,14 +7,18 @@ using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 
 // Headless-Balancing: lässt die Wirtschaft ohne Spieler laufen und gibt Kennzahlen als Tabelle/CSV aus.
-//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv]
+//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off]
 
 var opts = ParseArgs(args);
 int ticks = Int(opts, "ticks", 40_000), every = Int(opts, "every", 2_000);
 ulong? seed = opts.TryGetValue("seed", out var s) ? ulong.Parse(s, CultureInfo.InvariantCulture) : null;
 
 var u = opts.TryGetValue("world", out var path) ? WorldBuilder.Build(WorldBuilder.Parse(File.ReadAllText(path)), seed) : WorldBuilder.BuildDefault(seed);
-var runner = new SimulationRunner();
+// Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
+if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
+// Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
+var securityWatch = new System.Diagnostics.Stopwatch();
+var runner = new SimulationRunner(SimulationRunner.DefaultModules().Select(m => m is SpaceSim.Core.Modules.SecurityModule ? new TimedModule(m, securityWatch) : m));
 var routes = new RouteRecorder(u);
 var csv = new StringBuilder();
 
@@ -82,7 +86,35 @@ u.Events.Raised += e =>
         case RouteBlocked: blocked++; break;
         case SectorOwnerChanged: ownerChanges++; break;
         case TreasuryUpkeep tu when tu.Purpose == "government": govUpkeep += tu.Amount; govUnpaid += tu.Unpaid; break;
-        case TreasuryUpkeep tu: lockUpkeep += tu.Amount; break;
+        case TreasuryUpkeep tu when tu.Purpose == "lock": lockUpkeep += tu.Amount; break;
+    }
+};
+// Phase 11: Polizei, Piraten, Fahndung — Überfälle, Verluste, Abfangen, Polizeikosten, Kasseneinnahmen
+int raids = 0, raidsWon = 0, raidsOnPlayer = 0, victimsLost = 0, raidersLost = 0, intercepts = 0, interceptsWon = 0, raidersBuilt = 0, policeBought = 0, policeGone = 0, policeHelped = 0;
+int crimes = 0, warnings = 0;
+double lootValue = 0, fenced = 0, tradeValue = 0, policeCost = 0, policeUnpaid = 0, pirateCost = 0, fines = 0, bounties = 0;
+var victimsByRole = new SortedDictionary<string, int>(StringComparer.Ordinal);
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case RaidResolved rr:
+            raids++; if (rr.AttackerWon) raidsWon++; if (rr.Player) raidsOnPlayer++; if (rr.VictimDestroyed) victimsLost++; if (rr.RaiderDestroyed) raidersLost++;
+            if (rr.Police.Value != 0) policeHelped++;
+            lootValue += rr.LootValue; fenced += rr.Fenced;
+            break;
+        case RaiderIntercepted ri: intercepts++; if (ri.PoliceWon) interceptsWon++; if (ri.RaiderDestroyed) raidersLost++; break;
+        case RaiderBuilt: raidersBuilt++; break;
+        case PoliceCommissioned: policeBought++; break;
+        case PoliceDecommissioned: policeGone++; break;
+        case TreasuryUpkeep { Purpose: "police" } pu: policeCost += pu.Amount; policeUnpaid += pu.Unpaid; break;
+        case TreasuryUpkeep { Purpose: "pirates" } pc: pirateCost += pc.Amount; break;
+        case TreasuryUpkeep { Purpose: "bounty" } bo: bounties += bo.Amount; break;
+        case TreasuryIncome { Purpose: "fine" } fi: fines += fi.Amount; break;
+        case CrimeReported: crimes++; break;
+        case EncounterWarning: warnings++; break;
+        case TradeCompleted tcv: tradeValue += tcv.Revenue; break;
+        case MineDelivered md: tradeValue += md.Revenue; break;
     }
 };
 u.Events.Raised += e =>
@@ -201,6 +233,24 @@ if (u.Modules.Count > 0)
     foreach (var fsplit in MapConnectivity.Factions(u).Where(x => x.IsSplit))
         Console.WriteLine($"  Für {fsplit.Profile} gesperrt: {string.Join(", ", fsplit.Isolated.Select(id => u.Sectors[id].Name))} (Politik)");
 }
+// Phase 11: Lagekarte, Polizei, Piraten — Verlustquote, Polizeianteil am Haushalt, Rechenzeit der Scans
+{
+    double income = taxIn + tolls + fines;
+    Console.WriteLine($"Sicherheit: {raids} Überfälle ({raidsWon} erfolgreich, {raids - raidsWon} abgewehrt, Polizei griff {policeHelped}× ein, {raidsOnPlayer} auf den Spieler), "
+        + $"{warnings} Vorwarnungen; Abfangen {intercepts} ({interceptsWon} von der Polizei gewonnen); Kaperschiffe verloren {raidersLost}, neu {raidersBuilt}; Opferschiffe verloren {victimsLost}");
+    Console.WriteLine($"Verlustquote: Beute {lootValue:0} Cr (Basiswert) = {(tradeValue > 0 ? 100.0 * lootValue / tradeValue : 0):0.00}% des Handelsumsatzes ({tradeValue:0} Cr); "
+        + $"Hehlerei {fenced:0} Cr; Schiffsverluste {victimsLost}");
+    Console.WriteLine($"Polizei: {u.Factions.Keys.OrderBy(k => k.Value).Select(f => $"{u.Factions[f].Name} {SecuritySystem.PoliceOf(u, f).Count}/{SecuritySystem.Desired(u, f)}").Aggregate((a, b) => a + ", " + b)} (Ist/Soll); "
+        + $"gekauft {policeBought}, abgebaut {policeGone}; Kosten {policeCost:0} Cr (ungedeckt {policeUnpaid:0}) = {(income > 0 ? 100.0 * policeCost / income : 0):0.0}% der Kasseneinnahmen "
+        + $"(Abgaben {taxIn:0} + Zoll {tolls:0} + Strafen {fines:0}); Kopfgeld ausgezahlt {bounties:0}");
+    foreach (var a in u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value))
+        Console.WriteLine($"  Piraten {a.Name}: {u.Ships.Values.Count(x => ThreatMap.IsRaider(x) && x.Owner == a.Id)} Kaperschiffe, Kasse {a.Treasury.Credits:0} Cr, Kosten {pirateCost:0} Cr; Fahndung "
+            + string.Join(", ", a.Wanted.OrderBy(kv => kv.Key.Value).Select(kv => $"{u.Factions[kv.Key].Name} {SecurityNames.WantedLevel(Wanted.Level(u.Rules, kv.Value.Heat))}")));
+    Console.WriteLine("Lagekarte: " + string.Join(", ", u.Sectors.Values.OrderBy(x => x.Id.Value)
+        .Select(x => $"{x.Name} Bedrohung {x.Threat:0.00} Sicherheit {x.Security:0.0} Verkehr {x.Traffic:0}")) + $"; Verbrechen gemeldet {crimes}");
+    Console.WriteLine($"Rechenzeit Sicherheit (Lagekarte, Piraten, Polizei, Fahndung): {securityWatch.Elapsed.TotalMilliseconds:0} ms = "
+        + $"{(sw.ElapsedMilliseconds > 0 ? 100.0 * securityWatch.Elapsed.TotalMilliseconds / sw.ElapsedMilliseconds : 0):0.0}% der Laufzeit");
+}
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))
 {
@@ -237,3 +287,20 @@ static Dictionary<string, string> ParseArgs(string[] a)
     return d;
 }
 static int Int(Dictionary<string, string> d, string k, int def) => d.TryGetValue(k, out var v) ? int.Parse(v) : def;
+
+/// <summary>Hüllt die Systeme eines Moduls in eine gemeinsame Zeitmessung (Phase 11: Rechenzeit der Scans).</summary>
+sealed class TimedModule(ISimModule inner, System.Diagnostics.Stopwatch watch) : ISimModule
+{
+    public string Name => inner.Name;
+    public void Register(SimulationBuilder b)
+    {
+        var tmp = new SimulationBuilder();
+        inner.Register(tmp);
+        foreach (var (system, interval) in tmp.Registered) b.Add(new Timed(system, watch), interval);
+    }
+
+    sealed class Timed(ISimSystem system, System.Diagnostics.Stopwatch watch) : ISimSystem
+    {
+        public void Step(Universe u, int dt) { watch.Start(); system.Step(u, dt); watch.Stop(); }
+    }
+}

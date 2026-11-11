@@ -84,7 +84,7 @@ public class ModuleGoodsTests
         Assert.Equal(10f, u.Modules["reactor_mk1"].Stats["powerOutput"]);
         Assert.Equal(160f, u.Modules["chem_engine_s"].Stats["thrust"]);
         Assert.Equal(100f, u.Modules["cargo_universal_100"].Stats["capacity"]);
-        Assert.All(u.Ships.Values.Where(s => s.HasModel && s.Quality == ShipQuality.Standard && s.Role != ShipRole.Builder), s => Assert.Equal(8f, s.Stats.Speed));   // Phase 7: bessere Gründer sind schneller; Phase 8: Bauschiffe (Foreman) sind keine Einheitsmodelle
+        Assert.All(u.Ships.Values.Where(s => s.HasModel && s.Quality == ShipQuality.Standard && s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate)), s => Assert.Equal(8f, s.Stats.Speed));   // Phase 7: bessere Gründer sind schneller; Phase 8: Bauschiffe (Foreman) sind keine Einheitsmodelle; Phase 11: Polizei/Piraten auch nicht
     }
 
     [Fact]
@@ -331,7 +331,7 @@ public class ModuleGoodsTests
     [Fact]
     public void SaveLoad_V6_Roundtrip_ContentUndFortsetzungBitIdentisch()
     {
-        Assert.Equal(13, SaveGame.CurrentVersion);   // v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c)
+        Assert.Equal(14, SaveGame.CurrentVersion);   // v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c)
         var u = DemoUniverse.Create();
         var runner = new SimulationRunner();
         runner.Run(u, 3_000);

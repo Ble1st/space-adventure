@@ -128,7 +128,14 @@ public partial class SectorView : Node3D
 			var target = new Vector3(s.Position.X, 0, s.Position.Y);
 			if (!_markers.TryGetValue(s.Id, out var m))
 			{
-				var color = s.Role == ShipRole.Miner ? new Color(0.4f, 1f, 0.4f) : new Color(1f, 0.7f, 0.2f);
+				// Phase 11: Polizei blau, Kaperschiffe rot
+				var color = s.Role switch
+				{
+					ShipRole.Miner => new Color(0.4f, 1f, 0.4f),
+					ShipRole.Police => new Color(0.35f, 0.55f, 1f),
+					ShipRole.Pirate => new Color(1f, 0.25f, 0.25f),
+					_ => new Color(1f, 0.7f, 0.2f),
+				};
 				var pivot = new Node3D { Position = target };
 				var hull = Gfx.Mesh(new PrismMesh { Size = new Vector3(2f, 3f, 0.8f) }, Gfx.Mat(color, 1f), Vector3.Zero, pivot);
 				hull.RotationDegrees = new Vector3(-90, 0, 0);

@@ -10,6 +10,8 @@ public sealed class WorldDef
     public List<AsteroidClassDef> AsteroidClasses { get; set; } = new();
     public List<StationTypeDef> StationTypes { get; set; } = new();
     public List<FactionDef> Factions { get; set; } = new();
+    /// <summary>Phase 11: weitere Akteure ohne Fraktion (z. B. Piraten, Art outlaw); Stationen und Schiffsgruppen verweisen über <c>owner</c> auf den Schlüssel.</summary>
+    public List<ActorDef> Actors { get; set; } = new();
     public List<SectorDef> Sectors { get; set; } = new();
     public List<GateLinkDef> Gates { get; set; } = new();
     /// <summary>Slotarten; fehlt der Abschnitt, bleibt die Registry leer und die Welt gültig.</summary>
@@ -125,6 +127,8 @@ public sealed class ShipClassDef
     public float ToolEfficiency { get; set; } = 1f;
     /// <summary>Phase 7: Höchstzahl der Slot-Upgrades (Bonusslots + vergrößerte Slots) je Schiff; fehlt = 1, muss ≥ 0 sein.</summary>
     public int MaxSlotUpgrades { get; set; } = 1;
+    /// <summary>Phase 11: nicht im freien Handel — Schiffshändler verkaufen die Klasse nur, wenn ihre Liste sie nennt (Kaperschiffe).</summary>
+    public bool Restricted { get; set; }
 }
 
 public sealed class ShipModelDef
@@ -188,6 +192,10 @@ public sealed class StationTypeDef
     public bool Capturable { get; set; } = true;
     /// <summary>Phase 10: zerstörbar (Standard ja; erst mit Kampf relevant).</summary>
     public bool Destructible { get; set; } = true;
+    /// <summary>Phase 11: Grundschutz auf der Lagekarte (Wache, Hauptquartier, Sektor-HQ); Standard 0.</summary>
+    public float Security { get; set; }
+    /// <summary>Phase 11: Piratenversteck (Heimat der Kaperschiffe, zählt nicht gegen die Bau-Obergrenzen); Standard nein.</summary>
+    public bool Hideout { get; set; }
 }
 
 /// <summary>
@@ -228,6 +236,16 @@ public sealed class FactionDef
     /// <summary>Hauptbeziehungen zu anderen Fraktionen (Fraktions-Id → −1 … +1); nur Abweichungen von der Vorgabe.</summary>
     public Dictionary<int, float>? Relations { get; set; }
     /// <summary>Startkasse der Fraktion (Phase 9); fehlt = 0.</summary>
+    public float Treasury { get; set; }
+}
+
+/// <summary>Akteur ohne Fraktion in der Weltdatei (Phase 11): Schlüssel für Verweise, Name, Art (outlaw, independent), Persönlichkeit, Startkasse.</summary>
+public sealed class ActorDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "outlaw";
+    public PersonalityDef? Personality { get; set; }
     public float Treasury { get; set; }
 }
 
@@ -276,6 +294,8 @@ public sealed class StationDef
     public bool Immortal { get; set; }
     /// <summary>Ware → [Bestand, Wunschbestand]. Fehlende Waren aus den Rezepten bekommen Standardwerte.</summary>
     public Dictionary<string, float[]> Stock { get; set; } = new();
+    /// <summary>Phase 11: Besitzer als Akteur-Schlüssel aus <c>actors</c> (z. B. Piratenversteck); fehlt = Fraktion des Sektors.</summary>
+    public string? Owner { get; set; }
 }
 
 public sealed class GateEndDef { public int Id { get; set; } public int Sector { get; set; } public float[] Pos { get; set; } = { 0, 0 }; }
@@ -294,7 +314,7 @@ public sealed class ShipGroupDef
     public int Faction { get; set; }
     /// <summary>
     /// Besitzer (Phase 9): "faction" (Standard) = der Fraktionsakteur <see cref="Faction"/>, "free" = freie Einzelschiffe der Sammelgruppe
-    /// „Freie“ (implizite Akteure; <see cref="Faction"/> zählt dann nicht).
+    /// „Freie“ (implizite Akteure; <see cref="Faction"/> zählt dann nicht). Phase 11: sonst der Schlüssel eines Akteurs aus <c>actors</c> (z. B. Piraten).
     /// </summary>
     public string? Owner { get; set; }
     public int Sector { get; set; }

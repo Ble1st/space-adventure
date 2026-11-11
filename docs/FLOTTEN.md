@@ -295,8 +295,8 @@ Alle in neuen oder bestehenden Modulen registriert (`DefaultModules()`), alle Zu
 
 - Sollen Verbände schon vor der Spielerfraktion für NPCs (Polizei) kommen oder erst gleichzeitig?
 - Soll es für den Spieler Polizeiarbeit geben (Kopfgeld, Eskortenaufträge) oder nur Besitz und Befehle?
-- Startet die Welt mit Piraten, oder entstehen sie durch Pleiten und Fahndung?
-- Hat jede Fraktion eine eigene Polizeiflotte, oder teilen sich Verbündete die Lage?
+- ~~Startet die Welt mit Piraten, oder entstehen sie durch Pleiten und Fahndung?~~ Entschieden (Phase 11): Die Welt startet mit einem gesetzlosen Akteur samt Versteck und drei Kaperschiffen.
+- ~~Hat jede Fraktion eine eigene Polizeiflotte, oder teilen sich Verbündete die Lage?~~ Entschieden (Phase 11): eigene Polizei je Fraktion; die Lagekarte ist je Sektor (Sicht des Besitzers).
 - Wie viele Verbände sind je Größenklasse erlaubt (Richtwerte: 1 / 3 / mehr)?
 
 - Gemischte Verbände: erlaubt (Entscheidung steht in Abschnitt 3a); offen ist nur, wie Befehle an Mitglieder ohne passende Fähigkeit aufgeteilt werden.

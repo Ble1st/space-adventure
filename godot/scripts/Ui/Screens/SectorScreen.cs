@@ -127,6 +127,9 @@ public sealed partial class SectorScreen : CommandScreen
 			Color lc = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
 			float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, 110, 268, 13, lc, 16);
 			py = WrappedText(card, $"Für dich: {pol.ForPlayer}", 16, py, 268, 13, lc, 16);
+			// Phase 11: Lagekarte (echt)
+			var sec = SecurityInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
+			py = WrappedText(card, $"Lage: {sec.Summary} · {sec.Patrols} Streife{(sec.Patrols == 1 ? "" : "n")}", 16, py + 2, 268, 13, sec.Threat >= 1f ? Orange : new Color(Dim, 0.95f), 16);
 			At(card, Text("Tippe eine Station oder ein Gate an.", 13, new Color(Dim, 0.75f)), 16, py + 8, 268, 18);
 		}
 
@@ -303,7 +306,13 @@ public sealed partial class SectorScreen : CommandScreen
 			foreach (var sh in snap)
 			{
 				var p = Place(sh.Position);
-				Color col = sh.Mining ? Orange : sh.Role == ShipRole.Miner ? Green : new Color(0.5f, 0.8f, 1f);
+				Color col = sh.Mining ? Orange : sh.Role switch
+				{
+					ShipRole.Miner => Green,
+					ShipRole.Police => new Color(0.35f, 0.55f, 1f),   // Phase 11: Streife
+					ShipRole.Pirate => Red,                          // Phase 11: Kaperschiff
+					_ => new Color(0.5f, 0.8f, 1f),
+				};
 				var dir = sh.Direction.Length > 0.01f ? new Vector2(sh.Direction.X, sh.Direction.Y) : new Vector2(0, -1);
 				float ang = Mathf.Atan2(dir.Y, dir.X) + Mathf.Pi / 2f;
 				var pts = new[]
@@ -322,7 +331,7 @@ public sealed partial class SectorScreen : CommandScreen
 				DrawString(font, p + new Vector2(12, 4), $"du · #{pl.Id.Value}", HorizontalAlignment.Left, -1, 12, Cyan);
 			}
 
-			DrawString(font, new Vector2(12, Size.Y - 10), "◼ Station (Farbe = Besitzer)   ◆ Baustelle   ◯ Gate   ▲ Schiff (orange = schürft)   ▲ cyan = du", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font, new Vector2(12, Size.Y - 10), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ Schiff (orange schürft, blau Polizei, rot Pirat)   ▲ cyan = du", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 		}
 
 		void DrawShip(Vector2 c, float s, Color col)

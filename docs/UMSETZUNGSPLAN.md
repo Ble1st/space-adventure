@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v13).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v14).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -28,7 +28,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v11 |
 | 9 | Akteure, Fraktionen, Kasse, Beziehungen, Persönlichkeit, Zukauf | L | v12 |
 | 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v13 |
-| 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v11 |
+| 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v14 |
 | 12 | Verbände, Befehle, Spielerflotte und Oberfläche | L | v12 |
 | 13 | Forschung | M | v13 |
 | – | Zurückgestellt: Kampf, Eroberung, Sprungantrieb, Tarnfeld, Besatzung, Blockadebrecher, Abwracker | – | – |
@@ -343,6 +343,27 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **`IEncounterResolver`:** abstrakte Auflösung nach Stärke, später durch echten Kampf ersetzbar.
 - **Save v11:** Fahndung, Lagekarte, Piratenzustand.
 - **Prüfung:** Verlustquote, Polizeianteil am Haushalt, Rechenzeit der Scans.
+
+**Stand:** umgesetzt auf Branch `phase11-polizei`.
+- **Lagekarte** (`ThreatMap`, neues Modul „Security“ nach Bau, vor Lebenszyklus): je Sektor Bedrohung (steigt durch Überfälle, abgewehrte Überfälle, Schmuggel; verfällt; Streifen drücken sie), Sicherheit (Grundschutz der Regierungsstationen des Besitzers — HQ 1,5, Sektor-HQ 0,5, Wache 2 — plus Stärke seiner Streifen im Sektor) und Verkehrswert (Fracht der KI-Schiffe im Sektor). Daraus das Routenrisiko für Händler und Miner und die **Patrouillenabdeckung** der Sektorkontrolle (ersetzt die Phase-10-Annahme „HQ oder Wache“; Startstufen unverändert, Beta/Delta erreichen „Kontrolle“, solange eine Streife da ist).
+- **`IEncounterResolver`** mit abstrakter Auflösung nach Stärke (Waffen, Schild, Hülle aus den Modulen) über `Universe.Rng`, austauschbar (`Universe.Encounters`); neues Waffenmodul Laserkanone.
+- **Polizei** (`SecuritySystem`): je Fraktion zwei Wächter (Patrouillenboot) am Hauptquartier, Unterhalt aus der Kasse, Soll nach Territorium und Bedrohung (1–4), Nachkauf über die gemeinsame Kaufregel an der Werft aus der Kasse, Abbau bei dauerhafter Überzahl, Zuweisung nach Bedrohung und Verkehrswert nur im eigenen Gebiet, Streifenflug, Heimkehr zu Reparatur und Tanken, Abfangen lauernder Kaperschiffe, Eingreifen bei Überfällen.
+- **Piraten**: gesetzloser Akteur „Rote Korsaren“ (neuer Weltabschnitt `actors`) mit Versteck in Delta und drei Korsaren; Revierwahl nach Beute gegen Sicherheit, Lauern am Gate, Überfälle auf Schiffe abseits der Stationen (Fracht anteilig weg, Hehlerei in die Piratenkasse, selten Schiffsverlust; die Flotte wächst nach), Heimkehr, Neubau aus der Kasse. Piraten finanzieren keine Stationen.
+- **Spieler**: Überfall nur mit Vorwarnung (15 s; Andocken oder Sektor verlassen = entkommen), Hülle bleibt über 25 %, kein Schiffsverlust; Sieg über ein Kaperschiff bringt Kopfgeld. Beim Nachholen der Offline-Zeit keine Überfälle auf den Spieler.
+- **Fahndung** je Akteur und Hoheitsgebiet (Heat, Stufen sauber … Staatsfeind, Mindestdauer, Verfall, Obergrenze, Strafe); Verbrechen: Schmuggel am Kontrollpunkt, **Zollflucht** (Sprung trotz fehlenden Zolls, früher abgewiesen), Piraterie. Ab Stufe 3 stellt eine Streife den Spieler im Sektor (Vorwarnung, Strafe eingezogen, Schmuggelware beschlagnahmt).
+- **Gericht und Kopfgeldbüro** als Dienste `court`/`bounty` an Hauptquartier, Sektor-HQ und Wache (Strafe zahlen, Rechtshilfe unter nicht feindlichen Fraktionen; Kopfgeld aus der Fraktionskasse; Fahndungsliste).
+- **Oberfläche:** Lage- und Fahndungszeile im Flug-HUD, Meldungen zu Vorwarnung/Überfall/Kontrolle, Universumskarte (Ebene Sicherheit aus der Lagekarte, Detailkarte mit Lage, Streifen, Risiko, Fahndung), Sektoransicht und Station-Info mit Lage, „Meine Fraktion“ mit Fahndung je Fraktion, neuer Dock-Bereich „Behörde“ (ersetzt dort „Aufträge“), Polizei blau und Piraten rot in Sektor und Sektoransicht. Selbsttest erweitert, `--ui-shots` 33–40 angesehen.
+- **Save v14** mit Migration v13→v14 (Content, Grundschutz, Versteck-Typ, Gründer-Polizei, Piraten nur in Welten, deren Flotte Verluste ersetzen kann); mit dem echten v2-Spielstand geprüft (20000 Ticks, 926 Handelsfahrten, Flotte 14 → 14, Polizei ja, Piraten nein).
+- **Prüfung:** 429 Tests (16 neu in `SecurityTests`), Selbsttest OK. Balance (frischer Release-Build): Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“, Kapazität Handel 13,6/14,6, Bergbau 8,5/8,3, 0 Treibstoff-Notkäufe; 46 bzw. 127 Überfälle, **Verlustquote 0,49 % bzw. 0,56 %** des Handelsumsatzes, 0 bzw. 1 Schiffsverlust, **Polizeianteil 6,7 % bzw. 8,1 %** der Kasseneinnahmen, **Rechenzeit** des Sicherheitsmoduls 2,8 % bzw. 1,9 %. Seeds 1–4 bei 20000 alle grün (Handel 12,9–14,8, Bergbau 8,0–8,3, 24–42 Überfälle, Verlustquote 0,28–0,56 %, Polizei 8–9 %).
+
+**Abweichungen und offene Punkte (Phase 11):**
+- **Save-Version v14 statt v11** (Platzhalter im Plan).
+- **Lagekarte je Sektor statt je Fraktion und Sektor:** Die Sicht ist die des Sektorbesitzers (nur er hat dort Polizeigewalt).
+- **Abstrakte Begegnungen ohne Kampfansicht:** Der Spieler gewinnt nur mit Waffen (z. B. Wächter oder Frachter mit Laserkanone); Kopfgeld gibt es daher selten, aktive Kopfgeldjagd fehlt.
+- **Verbrechen:** Angriff und Gebietsverletzung sind nicht verdrahtet (der Spieler greift keine Schiffe an); NPCs schmuggeln nicht. **Zollflucht ändert Phase 10:** Fehlt Geld für den Zoll, springt der Spieler jetzt (Verbrechen) statt abgewiesen zu werden.
+- **Polizei:** kauft nur, wenn die Werft alle Module hat (im Standard-Seed nie); keine Verfolgung über Grenzen, keine Eskorten, keine Schutzverträge. Das Abfangen eines gesuchten Spielers zieht Strafen auch während des Offline-Nachholens ein (angekündigt, nur Strafe/Schmuggelware).
+- **Piraten:** kein Schwarzmarkt, Flotte höchstens drei Kaperschiffe, Kasse meist nahe null; in Welten ohne Warenschlüssel (sehr alte Stände) keine Piraten. Die Zerstörungschance von Opfern wurde halbiert (0,015), weil Ersatzkäufe die knappen Mk1-Module (Reaktor, Triebwerk) über 3× trieben (Seed 4).
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
 
 ## Phase 12: Verbände, Befehle, Spielerflotte
 

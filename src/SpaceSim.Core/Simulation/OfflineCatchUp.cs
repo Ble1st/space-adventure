@@ -26,7 +26,13 @@ public static class OfflineCatchUp
     {
         long wanted = (long)Math.Max(0, elapsed.TotalSeconds * SimClock.TicksPerSecond);
         long run = Math.Min(wanted, maxTicks);
-        for (long i = 0; i < run; i++) runner.Step(u);
+        // Phase 11: Wer nicht spielt, kann nicht auf eine Vorwarnung reagieren — während des Nachholens überfällt niemand den Spieler
+        // (offene Ankündigungen entfallen; NPC-Überfälle laufen weiter)
+        bool raids = u.Rules.PlayerRaids;
+        u.Rules.PlayerRaids = false;
+        u.PendingEncounters.RemoveAll(e => e.Kind == EncounterKind.Raid);
+        try { for (long i = 0; i < run; i++) runner.Step(u); }
+        finally { u.Rules.PlayerRaids = raids; }
         return new CatchUpResult(run, wanted);
     }
 }

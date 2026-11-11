@@ -66,6 +66,17 @@ public static class UniverseHash
             foreach (var (f, v) in sec.Influence.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(v); }
         }
         foreach (var st in u.Stations.Values.Where(s => s.Immortal).OrderBy(s => s.Id.Value)) Mix((ulong)st.Id.Value);
+        // Phase 11: Lagekarte, Fahndung, Kopfgeld, Streitkräfte-Takt, Heimatbasis/Einsatz, angekündigte Begegnungen
+        foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) { MixF(sec.Threat); MixF(sec.Security); MixF(sec.Traffic); }
+        foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
+        {
+            Mix((ulong)a.LastForceTick);
+            foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }
+            foreach (var (f, c) in a.BountyClaims.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(c); }
+        }
+        foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
+        { Mix((ulong)sh.Id.Value); Mix((ulong)sh.HomeBase.Value); Mix((ulong)sh.DutySector.Value); MixF(sh.Hull); }   // Hülle: Überfälle, Rückzug
+        foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); }
         return h;
     }
 }

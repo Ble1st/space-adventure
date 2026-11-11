@@ -83,9 +83,13 @@ public class ActorTests
         {
             if (s.IsPlayer) Assert.Equal(u.PlayerActor, s.Owner);
             else if (s.Role is ShipRole.Trader or ShipRole.Miner) Assert.Equal(u.FreeActor, s.Owner);
+            else if (s.Role == ShipRole.Pirate) Assert.Equal(ActorKind.Outlaw, u.Actors[s.Owner].Kind);   // Phase 11: Kaperschiffe gehören dem gesetzlosen Akteur
             else Assert.True(u.Factions.ContainsKey(new FactionId(s.Owner.Value)));
         }
-        foreach (var st in u.Stations.Values) Assert.Equal(u.Sectors[st.Sector].Owner, u.FactionOf(st));
+        // Phase 11: das Piratenversteck gehört dem gesetzlosen Akteur (ohne Fraktion), alle übrigen Stationen der Sektorfraktion
+        foreach (var st in u.Stations.Values)
+            if (StationProtection.IsHideout(u, st)) Assert.Null(u.FactionOf(st));
+            else Assert.Equal(u.Sectors[st.Sector].Owner, u.FactionOf(st));
         Assert.Null(u.FactionOf(u.Ships.Values.First(s => s.Role == ShipRole.Trader)));
     }
 
@@ -114,7 +118,7 @@ public class ActorTests
         Assert.Contains("unbekannter Fraktion", Assert.Throws<WorldFormatException>(() => WorldBuilder.Build(d2)).Message);
         var d3 = Def(); d3.Factions[0].Id = 1000;
         Assert.Throws<WorldFormatException>(() => WorldBuilder.Build(d3));
-        var d4 = Def(); d4.Ships[0].Owner = "pirates";
+        var d4 = Def(); d4.Ships[0].Owner = "smugglers";   // Phase 11: „pirates“ ist jetzt ein Akteur-Schlüssel der Standardwelt
         Assert.Contains("unbekannter Besitzer", Assert.Throws<WorldFormatException>(() => WorldBuilder.Build(d4)).Message);
     }
 
@@ -263,7 +267,13 @@ public class ActorTests
         b.Rules.TaxToTreasuryShare = 0f;   // alte Geldsenke
         var taxes = new List<TaxCollected>();
         double upkeep = 0;   // Phase 10: Unterhalt der Regierungsstationen und Sperren aus den Kassen
-        a.Events.Raised += e => { if (e is TaxCollected t) taxes.Add(t); else if (e is TreasuryUpkeep k) upkeep += k.Amount; };
+        double income = 0;   // Phase 11: Strafen fließen in Fraktionskassen; Polizei und Kopfgeld zahlen aus ihnen (Piratenkassen zählen hier nicht)
+        a.Events.Raised += e =>
+        {
+            if (e is TaxCollected t) taxes.Add(t);
+            else if (e is TreasuryUpkeep k && a.Factions.ContainsKey(new FactionId(k.Actor.Value))) upkeep += k.Amount;
+            else if (e is TreasuryIncome ti && a.Factions.ContainsKey(new FactionId(ti.Actor.Value))) income += ti.Amount;
+        };
         new SimulationRunner().Run(a, 3000);
         new SimulationRunner().Run(b, 3000);
         // Für alle Zahler ist die Abgabe dieselbe: Stationen und Schiffe identisch, nur die Kassen unterscheiden sich
@@ -274,10 +284,11 @@ public class ActorTests
         Assert.True(treasuries > 0f);
         Assert.Equal(0f, b.Factions.Keys.Sum(f => b.Actors[f].Treasury.Credits));
         // erklärbar: Kasse = Summe der gemeldeten Abgaben (Gleitkomma-Summen über viele kleine Buchungen: relative Toleranz)
-        double net = taxes.Sum(t => (double)t.Amount) - upkeep;
+        double net = taxes.Sum(t => (double)t.Amount) - upkeep + income;
         Assert.InRange(treasuries, net - 1e-4 * net - 1, net + 1e-4 * net + 1);
         var snap = EconomyStats.Snapshot(a);
-        Assert.Equal(treasuries, snap.TreasuryCredits, 1);
+        // Phase 11: die Kassenspalte enthält auch die Kasse des gesetzlosen Akteurs (Piraten)
+        Assert.Equal(treasuries + a.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw).Sum(x => x.Treasury.Credits), snap.TreasuryCredits, 1);
         Assert.Equal(snap.StationCredits + snap.ShipCredits + snap.PlayerCredits + snap.TreasuryCredits, snap.TotalCredits, 1);
     }
 
@@ -286,6 +297,7 @@ public class ActorTests
     {
         var u = Fresh();
         double taxed = 0, invested = 0, refunded = 0, upkeep = 0, tolls = 0;
+        double start = u.Actors.Values.Where(a => a.Id != u.PlayerActor).Sum(a => (double)a.Treasury.Credits);   // Phase 11: Startkasse der Piraten
         u.Events.Raised += e =>
         {
             switch (e)
@@ -293,6 +305,7 @@ public class ActorTests
                 case TaxCollected t: taxed += t.Amount; break;
                 case TreasuryUpkeep k: upkeep += k.Amount; break;   // Phase 10: Regierungsstationen und Sperren zahlen aus der Kasse
                 case TollPaid p: tolls += p.Amount; break;           // Phase 10: Zoll fließt in die Kasse der Sektorfraktion
+                case TreasuryIncome ti: tolls += ti.Amount; break;   // Phase 11: Hehlerei der Piraten, Strafen
                 case InvestorChosen { Source: InvestorSource.Treasury } c: invested += c.Amount; break;
                 case ConstructionAbandoned ab when u.Stations.TryGetValue(ab.Site, out var st) && st.Site is { InvestorActor: > 0 }: refunded += ab.Refund; break;
             }
@@ -301,7 +314,7 @@ public class ActorTests
         // Kassen der Nicht-Spieler-Akteure = Abgaben − Investitionen aus Kassen + Rückzahlungen verfallener Baustellen (relative Toleranz für
         // Gleitkomma-Summen über Tausende kleiner Buchungen)
         double treasuries = u.Actors.Values.Where(a => a.Id != u.PlayerActor).Sum(a => (double)a.Treasury.Credits);
-        double expected = taxed - invested + refunded - upkeep + tolls;
+        double expected = start + taxed - invested + refunded - upkeep + tolls;
         Assert.InRange(treasuries, expected - 1e-4 * taxed - 1, expected + 1e-4 * taxed + 1);
         Assert.True(taxed > 0);
     }
@@ -361,7 +374,7 @@ public class ActorTests
         // eine persönliche Beziehung und ein Akteur mit Kasse sollen den Roundtrip überstehen
         Relations.Set(a, a.PlayerActor, new ActorId(2), -0.3f);
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":13", json);
+        Assert.Contains("\"Version\":14", json);
         Assert.DoesNotContain("PlayerWallet", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
@@ -408,6 +421,7 @@ public class ActorTests
         {
             if (s.IsPlayer) Assert.Equal(loaded.PlayerActor, s.Owner);
             else if (s.Role is ShipRole.Trader or ShipRole.Miner) Assert.Equal(loaded.FreeActor, s.Owner);
+            else if (s.Role == ShipRole.Pirate) Assert.Equal(ActorKind.Outlaw, loaded.Actors[s.Owner].Kind);   // Phase 11: Kaperschiffe des gesetzlosen Akteurs
             else Assert.True(loaded.Factions.ContainsKey(new FactionId(s.Owner.Value)));
         }
         foreach (var f in loaded.Factions.Keys) Assert.True(loaded.Actors.ContainsKey(f));

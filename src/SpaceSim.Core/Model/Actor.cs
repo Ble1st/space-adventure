@@ -70,6 +70,15 @@ public sealed class Actor
     public Dictionary<ActorId, float> Relations = new();
     /// <summary>Tick der Anlage (Aufstieg eines Einzelschiffs).</summary>
     public long CreatedTick;
+    /// <summary>
+    /// Phase 11: Fahndung je Hoheitsgebiet (FLOTTEN.md „Fahndungsniveau“, POLITIK.md: Akteure haben Fahndung): Fraktion → Eintrag; nur Fraktionen,
+    /// mit denen der Akteur Ärger hat (sparsam). Gespeichert.
+    /// </summary>
+    public Dictionary<FactionId, WantedRecord> Wanted = new();
+    /// <summary>Phase 11: noch nicht abgeholtes Kopfgeld je Fraktion (Kopfgeldbüro an deren Regierungsstationen). Gespeichert.</summary>
+    public Dictionary<FactionId, float> BountyClaims = new();
+    /// <summary>Phase 11: Tick der letzten Änderung der Streitkräfte (Polizei gekauft/abgebaut, Kaperschiff neu); Abkühlzeit. Gespeichert.</summary>
+    public long LastForceTick = -1_000_000;
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>
     public bool IsFaction(Universe u) => u.Factions.ContainsKey(new FactionId(Id.Value));
 }

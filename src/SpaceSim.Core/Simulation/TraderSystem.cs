@@ -123,7 +123,10 @@ public sealed class TraderSystem : ISimSystem
                     if (float.IsPositiveInfinity(toSell)) continue;
                     // Phase 4b: Treibstoffkosten der Runde (Hin- und Rückfahrt) vom Gewinn abziehen
                     float fuelCost = Refuel.TripFuelCost(u, ship, buy, sell, distToBuy, fuelPrice);
-                    float score = (profit - fuelCost) / (toBuy + toSell);
+                    // Phase 11: Risikoabschlag der beladenen Fahrt aus der Lagekarte (erwarteter Verlust = Routenrisiko × Wert der Ladung).
+                    // Gleicher Abschlag für alle Händler, gedeckelt je Sektor — er verschiebt Routen, statt alle auf eine zu treiben.
+                    float risk = ThreatMap.RouteRisk(u, buy.Sector, sell.Sector) * load * s.Price;
+                    float score = (profit - fuelCost - risk) / (toBuy + toSell);
                     if (score > bestScore) { bestScore = score; best = new TradeOrder(buy.Id, sell.Id, good.Id); }
                 }
             }

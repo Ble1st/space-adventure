@@ -31,11 +31,17 @@ public static class StationProtection
     public static bool IsDestructible(Universe u, Station st) =>
         !st.Immortal && (!u.StationTypes.TryGetValue(st.TypeKey, out var t) || t.Destructible);
 
-    /// <summary>Stationen, die gegen die Bau-Obergrenzen zählen (ohne Regierungsstationen und Wachen).</summary>
-    public static int CountEconomic(Universe u) => u.Stations.Values.Count(s => !IsOfficial(u, s));
+    /// <summary>Phase 11: Piratenversteck (Typ mit <see cref="StationType.Hideout"/>)?</summary>
+    public static bool IsHideout(Universe u, Station st) => !st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.Hideout;
+
+    /// <summary>Zählt die Station gegen die Bau-Obergrenzen? Nicht: Regierungsstationen, Wachen und (Phase 11) Piratenverstecke.</summary>
+    public static bool IsEconomic(Universe u, Station st) => !IsOfficial(u, st) && !IsHideout(u, st);
+
+    /// <summary>Stationen, die gegen die Bau-Obergrenzen zählen (ohne Regierungsstationen, Wachen und Verstecke).</summary>
+    public static int CountEconomic(Universe u) => u.Stations.Values.Count(s => IsEconomic(u, s));
 
     /// <summary>Stationen eines Sektors, die gegen die Obergrenze je Sektor zählen.</summary>
-    public static int CountEconomic(Universe u, Sector sector) => sector.Stations.Count(id => u.Stations.TryGetValue(id, out var s) && !IsOfficial(u, s));
+    public static int CountEconomic(Universe u, Sector sector) => sector.Stations.Count(id => u.Stations.TryGetValue(id, out var s) && IsEconomic(u, s));
 }
 
 /// <summary>Einfluss in einem Sektor: Anteile je Fraktion (0..1) und Anteil ohne Fraktion (freie/unabhängige Besitzer).</summary>
@@ -45,8 +51,8 @@ public sealed record InfluenceResult(Dictionary<FactionId, float> Shares, float 
 /// Sektorkontrolle (Phase 10, POLITIK.md Abschnitt 8): Einfluss aus tatsächlicher Präsenz — Stationen nach Typ gewichtet
 /// (<see cref="StationType.Influence"/>: Hauptquartier, Sektor-HQ, Wache mehr; Baustellen nichts), gezählt für die Fraktion ihres Besitzers.
 /// Daraus folgen der abgeleitete <see cref="Sector.Owner"/> (Wechsel nur mit Vorsprung <see cref="EconomyRules.OwnerSwitchMargin"/>; ohne Stationen
-/// bleibt der Besitzer), die Kontrollstufe des Besitzers und „umkämpft“. Gate-Kontrolle und Patrouillen kommen mit Phase 11 dazu; bis dahin gelten
-/// Hauptquartier und Polizeiwache als Patrouillenabdeckung.
+/// bleibt der Besitzer), die Kontrollstufe des Besitzers und „umkämpft“. Die Patrouillenabdeckung kommt seit Phase 11 aus der Lagekarte
+/// (<see cref="ThreatMap.HasCoverage"/>).
 /// </summary>
 public static class SectorControl
 {
@@ -76,8 +82,11 @@ public static class SectorControl
     /// <summary>Sektorbehörde vor Ort (Hauptquartier oder Sektor-HQ der Fraktion).</summary>
     public static bool HasAuthority(Universe u, Sector sector, FactionId f) => Has(u, sector, f, GovernmentKind.Headquarters, GovernmentKind.SectorHq);
 
-    /// <summary>Wache bzw. Patrouillenabdeckung (Polizeiwache oder Hauptquartier mit Polizeizentrale; echte Patrouillen ab Phase 11).</summary>
-    public static bool HasPatrol(Universe u, Sector sector, FactionId f) => Has(u, sector, f, GovernmentKind.Police, GovernmentKind.Headquarters);
+    /// <summary>
+    /// Patrouillenabdeckung. Phase 11: aus der Lagekarte (<see cref="ThreatMap.HasCoverage"/>: Grundschutz der Wache/des Hauptquartiers plus echte
+    /// Streifen des Besitzers) statt der Phase-10-Annahme „Hauptquartier oder Polizeiwache im Sektor“.
+    /// </summary>
+    public static bool HasPatrol(Universe u, Sector sector, FactionId f) => ThreatMap.HasCoverage(u, sector, f);
 
     /// <summary>Kontrollstufe einer Fraktion im Sektor nach POLITIK.md Abschnitt 8.</summary>
     public static ControlStage StageOf(Universe u, Sector sector, InfluenceResult inf, FactionId f)

@@ -109,3 +109,34 @@ public sealed record RouteBlocked(ShipId Ship, SectorId Target, string Reason) :
 /// Unpaid = was die Kasse nicht decken konnte.
 /// </summary>
 public sealed record TreasuryUpkeep(ActorId Actor, string Purpose, float Amount, float Unpaid) : SimEvent;
+
+// ───────── Phase 11: Lagekarte, Polizei, Fahndung, Piraten ─────────
+/// <summary>Einnahme einer Kasse außerhalb der Abgaben (Phase 11): Hehlerei der Piraten ("fence"), Strafen ("fine"). Macht die Geldmenge erklärbar.</summary>
+public sealed record TreasuryIncome(ActorId Actor, string Purpose, float Amount) : SimEvent;
+/// <summary>
+/// Überfall aufgelöst (Phase 11, <see cref="Simulation.PirateSystem"/>): Kaperschiff, Opfer, Sektor, ob der Angreifer gewann, Beutewert (Basispreis),
+/// Hehlererlös in die Kasse, zerstörte Schiffe, ob die Polizei eingriff und ob das Opfer der Spieler war.
+/// </summary>
+public sealed record RaidResolved(SectorId Sector, ShipId Raider, ShipId Victim, bool AttackerWon, float LootValue, float Fenced,
+    bool VictimDestroyed, bool RaiderDestroyed, ShipId Police, bool Player, string Message) : SimEvent;
+/// <summary>Eine Streife hat ein lauerndes Kaperschiff gestellt (Phase 11): Sieger, Kaperschiff zerstört oder geflohen.</summary>
+public sealed record RaiderIntercepted(SectorId Sector, ShipId Police, ShipId Raider, bool PoliceWon, bool RaiderDestroyed) : SimEvent;
+/// <summary>Vorwarnung an den Spieler (Phase 11): Begegnung angekündigt (Überfall oder Abfangen), aufgelöst bei <paramref name="DueTick"/>.</summary>
+public sealed record EncounterWarning(EncounterKind Kind, SectorId Sector, ShipId Source, ShipId Target, long DueTick, string Message) : SimEvent;
+/// <summary>Angekündigte Begegnung entfallen: der Spieler hat angedockt oder den Sektor verlassen.</summary>
+public sealed record EncounterEscaped(EncounterKind Kind, ShipId Source, ShipId Target, string Message) : SimEvent;
+/// <summary>Die Polizei hat den Spieler gestellt (Fahndungsstufe „gesucht“): Strafe eingezogen, Schmuggelware beschlagnahmt.</summary>
+public sealed record PlayerIntercepted(SectorId Sector, FactionId Faction, float FineCollected, float SeizedUnits, string Message) : SimEvent;
+/// <summary>Ein Verbrechen wurde gemeldet (Fahndung steigt): Akteur, Fraktion (Hoheitsgebiet), Verbrechen, neue Heat und Stufe.</summary>
+public sealed record CrimeReported(ActorId Actor, FactionId Faction, string Crime, float Heat, int Level) : SimEvent;
+/// <summary>Fahndungsstufe eines Akteurs bei einer Fraktion hat sich geändert (Verbrechen, Verfall, Strafe bezahlt).</summary>
+public sealed record WantedChanged(ActorId Actor, FactionId Faction, int From, int To) : SimEvent;
+/// <summary>Strafe am Gericht bezahlt (in die Kasse der Fraktion).</summary>
+public sealed record FinePaid(ActorId Actor, FactionId Faction, float Amount) : SimEvent;
+/// <summary>Kopfgeld gutgeschrieben (Claim, beim Kopfgeldbüro abzuholen) bzw. ausgezahlt (aus der Fraktionskasse).</summary>
+public sealed record BountyEarned(ActorId Hunter, FactionId Faction, ShipId Target, float Amount) : SimEvent;
+public sealed record BountyPaid(ActorId Hunter, FactionId Faction, float Amount) : SimEvent;
+/// <summary>Polizeischiff gekauft (über die Kaufregel aus der Fraktionskasse) bzw. abgebaut; Kaperschiff neu gebaut.</summary>
+public sealed record PoliceCommissioned(FactionId Faction, ShipId Ship, StationId Yard, float Price) : SimEvent;
+public sealed record PoliceDecommissioned(FactionId Faction, ShipId Ship) : SimEvent;
+public sealed record RaiderBuilt(ActorId Actor, ShipId Ship, float Cost) : SimEvent;

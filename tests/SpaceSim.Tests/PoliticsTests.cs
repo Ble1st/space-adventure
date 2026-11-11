@@ -23,11 +23,12 @@ public class PoliticsTests
     static readonly SectorId Alpha = new(1), Beta = new(2), Gamma = new(3), Delta = new(4);
 
     /// <summary>
-    /// Demotet einen aktuellen Save (v13) auf v12: Regierungstypen und ihre Stationen, Gate-Zustand und Hauptroute, Sperren, Einfluss,
+    /// Demotet einen aktuellen Save (v14, über <see cref="SecurityTests.ToV13Json"/>) auf v12: Regierungstypen und ihre Stationen, Gate-Zustand und Hauptroute, Sperren, Einfluss,
     /// Kontrollstufe, Unsterblichkeit und die Phase-10-Regeln entfallen.
     /// </summary>
     internal static string ToV12Json(string json)
     {
+        json = SecurityTests.ToV13Json(json);   // Phase 11: erst Polizei und Piraten zurückbauen
         var node = JsonNode.Parse(json)!.AsObject();
         if ((int)node["Version"]! < 13) return json;
         node["Version"] = 12;
@@ -115,7 +116,7 @@ public class PoliticsTests
         foreach (var t in new[] { "headquarters", "company_seat", "sector_hq", "office", "police_station" }) Assert.True(u.StationTypes.ContainsKey(t));
         Assert.Equal(GovernmentKind.Police, u.StationTypes["police_station"].Government);
         // Regierungsstationen zählen nicht gegen die Obergrenzen; die Startwelt hat dieselbe Bau-Reserve wie vorher
-        Assert.Equal(u.Stations.Count - 4, StationProtection.CountEconomic(u));
+        Assert.Equal(u.Stations.Count - 4 - 1, StationProtection.CountEconomic(u));   // Phase 11: das Piratenversteck zählt ebenfalls nicht
         // Sektorkontrolle: Hauptquartier = Behörde + Polizeizentrale → Kontrolle; Sektor-HQ ohne Wache → Dominanz
         Assert.Equal(ControlStage.Control, u.Sectors[Alpha].Control);
         Assert.Equal(ControlStage.Dominance, u.Sectors[Beta].Control);
@@ -377,13 +378,23 @@ public class PoliticsTests
         Assert.StartsWith("gesperrt", stp.Customs);
         Assert.Contains(stp.Notes, n => n.Contains("Einreise für dich gesperrt"));
         Assert.Contains(AccessInfo.ForStation(u, u.Stations[new StationId(34)], player).Notes, n => n.StartsWith("Hauptquartier"));
-        // Neutral auf Stufe 1: Zoll, nur wenn die Spielerkasse ihn ganz zahlt
+        // Neutral auf Stufe 1: Zoll. Phase 11 (absichtlich geändert): Reicht die Kasse nicht, springt der Spieler trotzdem — Zollflucht, gezahlt wird,
+        // was da ist, der Rest wird Teil der Strafe (Fahndung bei der Gilde); mit abgeschalteter Sicherheit gilt die alte Abweisung
         Relations.Set(u, Guild, Union, 0f);
         Lock(u, Gamma, 1);
         Assert.Equal("Zoll 8 Cr je Einreise", AccessInfo.ForSector(u, Gamma, player).ForPlayer);
+        u.Rules.SecurityActive = false;
         u.PlayerWallet.Credits = 5f;
         Assert.Contains("zu wenig Credits", GateAccess.TryPlayerJump(u, player, into).Message);
         Assert.Equal(5f, u.PlayerWallet.Credits);
+        u.Rules.SecurityActive = true;
+        var evaded = GateAccess.TryPlayerJump(u, player, into);
+        Assert.True(evaded.Allowed);
+        Assert.StartsWith("Zollflucht", evaded.Message);
+        Assert.Equal(0f, u.PlayerWallet.Credits, 3);
+        Assert.True(u.Player.Wanted.ContainsKey(Guild));
+        Assert.Equal("toll_evasion", u.Player.Wanted[Guild].LastCrime);
+        u.Player.Wanted.Clear();
         u.PlayerWallet.Credits = 100f;
         float treasury = u.Actors[Guild].Treasury.Credits;
         var ok = GateAccess.TryPlayerJump(u, player, into);
@@ -632,7 +643,7 @@ public class PoliticsTests
         runner.Run(u, 300);
         Assert.False(u.Sectors[Gamma].Access.IsOpen);
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":13", json);
+        Assert.Contains("\"Version\":14", json);
         Assert.Contains("\"Destroyed\"", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));

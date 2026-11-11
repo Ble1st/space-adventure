@@ -96,8 +96,6 @@ public static class UiPlaceholders
 	public const string MyFactionBerthFee = "−12 Cr/Tag – " + Tag;
 	/// <summary>Einnahmen pro Tag (Platzhalter).</summary>
 	public const string MyFactionIncome = "+210 Cr/Tag – " + Tag;
-	/// <summary>Fahndung (Platzhalter; Fahndungsniveau je Staat kommt mit Phase 11).</summary>
-	public const string MyFactionWanted = "Fahndung: " + Tag + " (" + Soon + ", ab Phase 11)";
 	/// <summary>Fähigkeiten mit Schloss nach Größenstufe (Platzhalter).</summary>
 	public static (string Name, bool Unlocked, string Note)[] MyFactionAbilities => new[]
 	{

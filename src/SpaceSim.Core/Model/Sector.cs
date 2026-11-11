@@ -19,6 +19,18 @@ public sealed class Sector
     public ControlStage Control;
     /// <summary>Phase 10: Umkämpft — zwei Fraktionen über dem Schwellenanteil (<see cref="EconomyRules.ContestedShare"/>).</summary>
     public bool Contested;
+    /// <summary>
+    /// Phase 11 (Lagekarte, FLOTTEN.md Abschnitt 6): Bedrohung des Sektors — steigt durch Vorfälle (Überfälle, abgewehrte Überfälle, Schmuggel),
+    /// verfällt mit der Zeit und sinkt durch Patrouillen (<see cref="Simulation.ThreatMap"/>). Gespeichert.
+    /// </summary>
+    public float Threat;
+    /// <summary>
+    /// Phase 11: Sicherheitsniveau (geglättet): Grundschutz der Regierungsstationen des Besitzers (<see cref="StationType.Security"/>) plus Stärke der
+    /// Polizeischiffe des Besitzers im Sektor ÷ <see cref="EconomyRules.PoliceStrengthUnit"/>. Gespeichert.
+    /// </summary>
+    public float Security;
+    /// <summary>Phase 11: Verkehrswert (geglättet): Wert der Fracht an Bord der KI-Schiffe im Sektor zum Basispreis — der „Wert des Sektors“ für Polizei und Piraten. Gespeichert.</summary>
+    public float Traffic;
     public float Radius = 10_000f;
     public List<GateId> Gates = new();
     public List<StationId> Stations = new();

@@ -60,13 +60,14 @@ public static class UniverseSerializer
     static ShipClassSave ToSave(ShipClass c) => new()
     {
         Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades,
+        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades, Restricted = c.Restricted,
     };
 
     static ShipClass FromSave(ShipClassSave c) => new()
     {
         Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
         Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency > 0f ? c.ToolEfficiency : 1f, MaxSlotUpgrades = Math.Max(0, c.MaxSlotUpgrades),
+        Restricted = c.Restricted,
     };
 
     static ShipSlotSave ToSave(ClassSlot s) => new() { Type = s.Type, Size = s.Size.ToString(), Facing = s.Facing, Arc = s.Arc };
@@ -91,7 +92,16 @@ public static class UniverseSerializer
                 Cooperation = a.Personality.Cooperation, Lawfulness = a.Personality.Lawfulness,
                 Relations = a.Relations.Count == 0 ? null : a.Relations.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Created = a.CreatedTick,
+                Wanted = a.Wanted.Count == 0 ? null : a.Wanted.OrderBy(kv => kv.Key.Value)
+                    .Select(kv => new WantedSave { Faction = kv.Key.Value, Heat = kv.Value.Heat, LastCrime = kv.Value.LastCrimeTick, Fine = kv.Value.Fine, Crime = kv.Value.LastCrime }).ToList(),
+                BountyClaims = a.BountyClaims.Count == 0 ? null : a.BountyClaims.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                LastForceTick = a.LastForceTick,
             });
+        if (u.PendingEncounters.Count > 0)
+            s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
+            {
+                Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick,
+            }).ToList();
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
             s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit, Form = g.Form.ToString().ToLowerInvariant() });
         foreach (var c in u.AsteroidClasses.Values)
@@ -115,6 +125,8 @@ public static class UniverseSerializer
                 Influence = t.Influence == 1f ? null : t.Influence,
                 Capturable = t.Capturable ? null : false,
                 Destructible = t.Destructible ? null : false,
+                Security = t.Security == 0f ? null : t.Security,
+                Hideout = t.Hideout ? true : null,
             });
         WriteSlotContent(u, s);
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
@@ -136,6 +148,7 @@ public static class UniverseSerializer
                 Influence = sec.Influence.Count == 0 ? null : sec.Influence.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Control = sec.Control == ControlStage.None ? null : sec.Control.ToString(),
                 Contested = sec.Contested,
+                Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
             s.Gates.Add(new GateSave
@@ -177,6 +190,7 @@ public static class UniverseSerializer
                 JobSince = sh.JobSince,
                 Quality = sh.Quality == ShipQuality.Standard ? null : sh.Quality.ToString(),
                 UpgradePity = sh.UpgradePity.Count == 0 ? null : new Dictionary<int, int>(sh.UpgradePity),
+                HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
             });
         return s;
     }
@@ -201,7 +215,17 @@ public static class UniverseSerializer
                 Personality = new Personality(a.Aggression, a.Greed, a.Cooperation, a.Lawfulness),
                 Relations = a.Relations is null ? new Dictionary<ActorId, float>() : a.Relations.ToDictionary(kv => new ActorId(kv.Key), kv => kv.Value),
                 CreatedTick = a.Created,
+                Wanted = a.Wanted is null ? new Dictionary<FactionId, WantedRecord>()
+                    : a.Wanted.ToDictionary(w => new FactionId(w.Faction), w => new WantedRecord { Heat = w.Heat, LastCrimeTick = w.LastCrime, Fine = w.Fine, LastCrime = w.Crime }),
+                BountyClaims = a.BountyClaims is null ? new Dictionary<FactionId, float>() : a.BountyClaims.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
+                LastForceTick = a.LastForceTick,
             };
+        if (s.Encounters is not null)
+            foreach (var e in s.Encounters)
+                u.PendingEncounters.Add(new PendingEncounter
+                {
+                    Kind = Enum.Parse<EncounterKind>(e.Kind), Source = new ShipId(e.Source), Target = new ShipId(e.Target), Sector = new SectorId(e.Sector), DueTick = e.Due,
+                });
         u.NextActorId = s.NextActorId;
         u.EnsureCoreActors();
         foreach (var g in s.Goods)
@@ -230,6 +254,9 @@ public static class UniverseSerializer
                 Influence = t.Influence ?? 1f,
                 Capturable = t.Capturable ?? true,
                 Destructible = t.Destructible ?? true,
+                // Phase 11: fehlt in älteren Ständen = kein Grundschutz, kein Versteck
+                Security = t.Security ?? 0f,
+                Hideout = t.Hideout ?? false,
             };
         ReadSlotContent(s, u);
         foreach (var f in s.Factions)
@@ -251,6 +278,7 @@ public static class UniverseSerializer
                 Influence = sec.Influence is null ? new Dictionary<FactionId, float>() : sec.Influence.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
                 Control = sec.Control is { } ctl ? Enum.Parse<ControlStage>(ctl) : ControlStage.None,
                 Contested = sec.Contested,
+                Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
             };
         foreach (var g in s.Gates)
             u.Gates[new GateId(g.Id)] = new Gate
@@ -299,6 +327,7 @@ public static class UniverseSerializer
                 JobSince = sh.JobSince,
                 Quality = sh.Quality is { } ql ? Enum.Parse<ShipQuality>(ql) : ShipQuality.Standard,
                 UpgradePity = sh.UpgradePity is null ? new Dictionary<int, int>() : new Dictionary<int, int>(sh.UpgradePity),
+                HomeBase = new StationId(sh.HomeBase), DutySector = new SectorId(sh.DutySector),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
             ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;

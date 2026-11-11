@@ -17,7 +17,8 @@ namespace SpaceAdventure;
 /// gewähltem Sektor, (o) Sektor, (p) Fraktionsliste, (q) Fraktionsdetail, (r) Meine Fraktion,
 /// (s) Flotte, (t) Besitz, (u) Schiffsdetail, (v) Comms, System mit Startpaket-Auswahl, (w) Flug-HUD mit gedrehter Kamera
 /// (Yaw 60°, Pitch 40°), Phase 8: Baustelle im Flug, Station-Info der Baustelle, Sektoransicht mit Baustelle, Lager am Lagerhaus,
-/// Flug-HUD mit Spalter – dann Ende.
+/// Flug-HUD mit Spalter, Phase 10: Sperren, Phase 11: HUD mit Fahndung und Lage, Lagekarte, Meine Fraktion, Behörde, Station-Info mit Lage,
+/// Überfall-Warnung, Sektoransicht mit Polizei und Kaperschiff – dann Ende.
 /// Aufruf: godot-mono --path godot -- --ui-shots build/ui-shots/
 /// </summary>
 public partial class UiShots : Node
@@ -230,6 +231,77 @@ public partial class UiShots : Node
 				_m.HudRef.DockCtx.Station = _m.Session.U.Stations.Values.First(x => x.Sector.Value == 3 && x.TypeKey == "colony");
 				_m.TestOpenDockArea("info"); _stage = 503; _wait = 20; break;
 			case 503: Capture("32-dock-station-info-politik.png"); _stage = 504; _wait = 10; break;
+			// ── Phase 11: Lagekarte, Fahndung, Behörde, Überfall-Warnung, Polizei und Piraten im Sektor ──
+			case 504:
+			{
+				_m.HudRef.DockCtx.Station = _m.Session.U.Stations.Values.First(x => x.Sector.Value == 2 && x.Market.Count > 0);
+				_m.TestUndock();
+				var uni = _m.Session.U;
+				SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, uni.Sectors[new SpaceSim.Core.Model.SectorId(3)], 0);
+				SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, uni.Sectors[new SpaceSim.Core.Model.SectorId(4)], 0);
+				SpaceSim.Core.Simulation.Relations.Set(uni, new SpaceSim.Core.Model.FactionId(2), new SpaceSim.Core.Model.FactionId(1), 0.25f);
+				SpaceSim.Core.Simulation.ThreatMap.Report(uni, new SpaceSim.Core.Model.SectorId(4), 3f);
+				SpaceSim.Core.Simulation.ThreatMap.Report(uni, new SpaceSim.Core.Model.SectorId(2), 1.2f);
+				SpaceSim.Core.Simulation.Wanted.Report(uni, uni.PlayerActor, new SpaceSim.Core.Model.FactionId(2), "toll_evasion");
+				SpaceSim.Core.Simulation.Wanted.Report(uni, uni.PlayerActor, new SpaceSim.Core.Model.FactionId(2), "smuggling");
+				uni.Rules.PlayerRaids = false;
+				_stage = 505; _wait = 120; break;
+			}
+			case 505: _m.TestEnterSector(new SpaceSim.Core.Model.SectorId(3)); _stage = 506; _wait = 30; break;
+			case 506: Capture("33-hud-fahndung-lage.png"); _stage = 507; _wait = 10; break;
+			case 507:
+				_m.TestOpenCommand(); _m.TestOpenCcArea("universe");
+				_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Security;
+				_m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(4));
+				_stage = 508; _wait = 20; break;
+			case 508: Capture("34-cc-universum-lagekarte.png"); _stage = 509; _wait = 10; break;
+			case 509: _m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Faction; _m.TestOpenCcArea("myfaction"); _stage = 510; _wait = 20; break;
+			case 510: Capture("35-cc-meine-fraktion-fahndung.png"); _stage = 511; _wait = 10; break;
+			case 511:
+			{
+				_m.TestCloseCommand();
+				var uni = _m.Session.U;
+				uni.Player.BountyClaims[new SpaceSim.Core.Model.FactionId(2)] = 300f;
+				var hq = uni.Stations.Values.First(x => x.Sector.Value == 3 && x.TypeKey == "headquarters");
+				_m.TestDockAt(hq.Id);
+				_stage = 512; _wait = 90; break;
+			}
+			case 512: Capture("36-dock-menue-behoerde.png"); _stage = 513; _wait = 10; break;
+			case 513: _m.TestOpenDockArea("authority"); _stage = 514; _wait = 20; break;
+			case 514: Capture("37-dock-behoerde.png"); _stage = 515; _wait = 10; break;
+			case 515: _m.TestOpenDockArea("info"); _stage = 516; _wait = 20; break;
+			case 516: Capture("38-dock-station-info-lage.png"); _stage = 517; _wait = 10; break;
+			case 517: _m.TestUndock(); _stage = 518; _wait = 120; break;
+			case 518: // Überfall-Vorwarnung: Kaperschiff neben dem Spieler abseits der Stationen
+			{
+				var uni = _m.Session.U;
+				var sector = uni.Sectors[uni.PlayerSector];
+				var gatePos = uni.Gates[sector.Gates[0]].Position;
+				var spot = gatePos;
+				for (int k = 0; k < 24; k++)
+				{
+					var c = gatePos + SpaceSim.Core.Model.Vec2.FromAngle(k * 0.5236f) * (25f + 10f * (k / 12));
+					if (sector.Stations.All(id => SpaceSim.Core.Model.Vec2.Distance(uni.Stations[id].Position, c) > 60f)) { spot = c; break; }
+				}
+				_m.TestTeleportTo(spot);
+				var pl = _m.Session.Player;
+				pl.Cargo[uni.FindGood("food")!.Id] = 40f;
+				var raider = uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(x => x.Id.Value).First();
+				if (raider.Transit != null) uni.FinishTransit(raider);
+				if (raider.Sector != sector.Id) uni.MoveShip(raider, sector.Id);
+				raider.Position = spot + new SpaceSim.Core.Model.Vec2(14f, -6f);
+				raider.Order = new SpaceSim.Core.Model.PatrolOrder(sector.Id);
+				raider.NextThinkTick = uni.Tick + 100_000;
+				uni.Rules.PlayerRaids = true; uni.Rules.RaidRatePerTick = 1f; uni.Rules.PlayerRaidWeight = 1e6f; uni.Rules.InterceptRatePerTick = 0f;
+				uni.Rules.PlayerWarningTicks = 400;
+				_stage = 519; _wait = 5; break;
+			}
+			case 519:
+				if (_m.LastSecurityMessage.StartsWith("Piraten")) { _stage = 520; _wait = 20; }
+				break;
+			case 520: Capture("39-hud-ueberfall-warnung.png"); _stage = 521; _wait = 10; break;
+			case 521: _m.TestOpenCommand(); _m.TestOpenCcArea("sector"); _m.TestCcSelectSectorView(_m.Session.U.PlayerSector); _stage = 522; _wait = 20; break;
+			case 522: Capture("40-cc-sektor-polizei-piraten.png"); _stage = 523; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);
