@@ -336,10 +336,11 @@ public class FuelEconomyTests
             Assert.True(s.TotalFuel >= -0.001f, $"negativer Tank bei Schiff {s.Id.Value}");
             Assert.True(s.TotalFuel <= s.Stats.FuelCapacity + 0.001f, $"Tank über Kapazität bei Schiff {s.Id.Value}");
             // kein Schiff hängt dauerhaft im Transit (Ankunft längst vorbei)
-            // Phase 15 (latente Annahme): Polizei und Piraten laufen im Intervall 5 (Phase 11) — ihre Ankunft wird bis zu 5 Ticks später verarbeitet
-            int slack = s.Role is ShipRole.Police or ShipRole.Pirate ? 5 : 0;
-            Assert.True(s.Transit is null || s.Transit.ArrivalTick >= u.Tick - slack,   // Ankunft im aktuellen Tick wird erst im nächsten Schritt verarbeitet
-                $"Schiff {s.Id.Value} hängt im Transit (Ankunft {s.Transit?.ArrivalTick}, Tick {u.Tick})");
+            // Ankunft im aktuellen Tick wird erst im nächsten Schritt verarbeitet. Phase 16 (exakte Regel statt 5 Ticks Toleranz): Polizei und Piraten laufen
+            // im Intervall 5 (Phase 11) — ihre Ankunft verarbeitet erst der nächste Systemtakt (Tick ≡ 0 mod 5) ab der Ankunft; der darf nicht schon vorbei sein
+            int interval = s.Role is ShipRole.Police or ShipRole.Pirate ? 5 : 1;
+            Assert.True(s.Transit is null || (s.Transit.ArrivalTick + interval - 1) / interval * interval >= u.Tick,
+                $"Schiff {s.Id.Value} hängt im Transit (Ankunft {s.Transit?.ArrivalTick}, Tick {u.Tick}, Takt {interval})");
             // kein Tankstopp (GoToOrder) ohne laufende Reise = Geisterauftrag
             Assert.False(s.Order is GoToOrder && s.Transit is null, $"Geister-Tankstopp bei Schiff {s.Id.Value}");
             // Schiffsindex konsistent (keine Geisterreservierungen)

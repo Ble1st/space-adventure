@@ -414,6 +414,17 @@ public partial class UiShots : Node
 			case 555: Capture("55-dock-handel-exportsenke.png"); _stage = 556; _wait = 10; break;
 			case 556: _m.TestUndock(); _m.TestOpenCommand(); _m.TestOpenCcArea("universe"); _m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(3)); _stage = 557; _wait = 20; break;
 			case 557: Capture("56-cc-universum-planet.png"); _stage = 558; _wait = 10; break;
+			case 558: // Phase 16: Stahl an Bord am Stahlwerk — die Verkaufszeile nennt den Grund („Stellt die Ware selbst her“)
+			{
+				var u = _m.Session.U;
+				var works = u.Stations.Values.First(x => x.TypeKey == "steelworks" && !x.IsBuildSite);
+				_m.TestCloseCommand();
+				_m.Session.Player.Cargo[u.FindGood("steel")!.Id] = 10f;
+				_m.TestDockAt(works.Id);
+				_stage = 559; _wait = 60; break;
+			}
+			case 559: _m.TestOpenDockArea("trade"); _m.HudRef.DockTrade.TestRebuild(); _m.HudRef.DockTrade.TestExpand(_m.Session.U.FindGood("steel")!.Id); _stage = 560; _wait = 20; break;
+			case 560: Capture("57-dock-handel-annahmegrund.png"); _stage = 561; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

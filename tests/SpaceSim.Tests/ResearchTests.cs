@@ -334,6 +334,9 @@ public class ResearchTests
         def.StationTypes.Add(new StationTypeDef { Key = "steelworks_2", Name = "Stahlwerk II", BuildCost = 100, Upkeep = steel.Upkeep, Income = steel.Income, Recipes = steel.Recipes });
         def.Research.Add(new ResearchProjectDef { Key = "steel_tech", Name = "Stahltechnik", Points = 100, Unlocks = new() { "stationType:steelworks_2" } });
         var u = WorldBuilder.Build(def);
+        // Phase 16: der Rohstoff-Filter des Lebenszyklus (Phase 15: kein Hersteller, dessen Erz selbst knapp ist) ist hier abgeschaltet, statt Erz und
+        // Energie künstlich zu füllen — er würde sonst in beiden Hälften „nichts bauen“ liefern und die Sperrprüfung leer laufen lassen
+        u.Rules.BuildChecksRawOre = false;
         u.LastStationBuildTick = -1_000_000;
         foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(G(u, "steel"), out var e)) e.Amount = 0f;
         Assert.False(Research.UnlockedAnywhere(u, UnlockKind.StationType, "steelworks_2"));
@@ -341,16 +344,13 @@ public class ResearchTests
         u.Events.Raised += e => { if (e is ConstructionStarted c) started.Add(c); };
         new StationLifecycleSystem().Step(u, 20);
         Assert.DoesNotContain(started, c => c.TypeKey == "steelworks_2");
+        Assert.Contains(started, c => c.TypeKey == "steelworks");   // nicht leer gelaufen: gebaut wird der erlaubte Typ
         // erforscht (beide Fraktionen): jetzt wird der billigere Typ gewählt
         Complete(u, Union, "steel_tech"); Complete(u, Guild, "steel_tech");
         foreach (var site in u.Stations.Values.Where(s => s.IsBuildSite).ToList()) u.RemoveStation(site.Id, "test");
         started.Clear();
         u.LastStationBuildTick = -1_000_000;
         foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(G(u, "steel"), out var e)) e.Amount = 0f;
-        // Phase 15: der Lebenszyklus baut nur einen Hersteller, dessen Zutaten nicht selbst knapp sind (sonst den Engpass weiter oben) — Erz und Energie füllen
-        foreach (var st in u.Stations.Values)
-            foreach (var key in new[] { "iron_ore", "energy" })
-                if (st.Market.TryGetValue(G(u, key), out var e)) e.Amount = e.Target;
         new StationLifecycleSystem().Step(u, 20);
         Assert.Contains(started, c => c.TypeKey == "steelworks_2");
     }

@@ -197,12 +197,15 @@ Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCr
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
 MapSplit? worstSplit = null, finalSplit = null;
-for (int t = 0; t <= ticks; t += every)
+// Phase 16: der letzte Abschnitt läuft bis genau --ticks, auch wenn --every die Laufzeit nicht teilt (vorher endete der Lauf beim letzten Vielfachen)
+for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += t == ticks ? 1 : chunk)
 {
+    if (t > ticks) break;
     if (t > 0)
-        for (int done = 0; done < every; )
+        for (int done = 0; done < chunk; )
         {
-            int step = Math.Min(WatchEvery, every - done);
+            // Phase 16: bis zum nächsten Vielfachen von WatchEvery laufen — die Messpunkte liegen so unabhängig von --every immer auf denselben Ticks
+            int step = Math.Min(WatchEvery - (int)(u.Tick % WatchEvery), chunk - done);
             runner.Run(u, step);
             done += step;
             if (u.Tick >= watchFrom && u.Tick % WatchEvery == 0)
@@ -252,8 +255,7 @@ Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.
 var prop = u.FindGood("propellant");
 if (prop is not null && u.Rules.FuelActive)
 {
-    var tailProp = history.Skip(history.Count * 3 / 4).Select(h => h.Goods.First(x => x.Good == prop.Id).PriceRatio).ToList();
-    float propAvg = tailProp.Count > 0 ? tailProp.Average() : 0f;
+    float propAvg = watch.AverageRatio(prop.Id, ticks * 3 / 4) ?? 0f;   // Phase 16: dichte Probe
     Console.WriteLine($"Treibstoff (propellant): {fuelBuys} Tankkäufe an Stationen ({fuelBuyCost:0} Cr), {notk} Notkäufe ({notkCost:0} Cr), Ø Preis/Basis letzte 25%: {propAvg:0.00}");
 }
 if (u.Modules.Count > 0)
@@ -273,8 +275,8 @@ if (u.Modules.Count > 0)
     Console.WriteLine("Kapazität: " + string.Join(", ", ShipJobs.Default.Select(j => $"{j.Key} {ShipJobs.UsedUnits(u, j):0.0}/{j.Limit(u.Rules):0} (max {capMax.GetValueOrDefault(j.Key):0.0})"))
         + $"; Aufgabenwechsel: {jobSwitches}; Multirole-Schiffe: {ai.Count(x => ShipJobs.IsMultirole(u, x))}; lange untätig abgebaut: {retired} ({retiredCredits:0} Cr)");
     Console.WriteLine("Modellwahl der KI: " + (chosenModels.Count == 0 ? "keine" : string.Join(", ", chosenModels.Select(kv => $"{kv.Key} {kv.Value}"))));
-    var tailH = history.Skip(history.Count * 3 / 4).ToList();
-    string Ratio(string key) => u.FindGood(key) is { } gg ? tailH.Average(h => h.Goods.First(x => x.Good == gg.Id).PriceRatio).ToString("0.00", CultureInfo.InvariantCulture) : "-";
+    // Phase 16: aus der dichten Probe (alle 20 Ticks im letzten Viertel), nicht aus den --every-Messpunkten
+    string Ratio(string key) => u.FindGood(key) is { } gg && watch.AverageRatio(gg.Id, ticks * 3 / 4) is { } rr ? rr.ToString("0.00", CultureInfo.InvariantCulture) : "-";
     string Grades(int[] g) => $"{g[0]}/{g[1]}/{g[2]}/{g[3]}";
     var founders = u.Ships.Values.Where(x => x.IsEconomyAi).GroupBy(x => x.Quality).OrderBy(g => g.Key).Select(g => $"{ShipQualityNames.Name(g.Key)} {g.Count()}");
     Console.WriteLine($"Güteklassen Neubauten (Standard/Verbessert/Elite/Meisterwerk): gewürfelt {Grades(gradeRolled)}, erreicht {Grades(gradeGot)}; Flotte jetzt: {string.Join(", ", founders)}");
@@ -417,15 +419,29 @@ int hintCount = capHints.Count + idleGoods.Count + cashHints.Count;
 Console.WriteLine(hintCount == 0 ? "Hinweise: keine." : $"Hinweise: {hintCount} ({capHints.Count} Deckel, {idleGoods.Count} Waren ohne Fahrten, {cashHints.Count} leere Kassen)");
 bool strict = opts.TryGetValue("strict", out var strictOpt) && strictOpt == "on";
 
-// Urteil: Preise in den letzten 25 % der Messpunkte dauerhaft am Anschlag deuten auf eine kippende Kette hin
-var tail = history.Skip(history.Count * 3 / 4).ToList();
+// Urteil: Preise im letzten Viertel der Laufzeit dauerhaft am Anschlag deuten auf eine kippende Kette hin.
+// Phase 16: Der Durchschnitt kommt aus der dichten Probe von MarketWatch (alle 20 Ticks ab 3/4 der Laufzeit), nicht aus den --every-Messpunkten —
+// vorher war Seed 2 mit --every 10000 rot (3,21×, zwei Messpunkte) und mit --every 5000 grün. Gleicher Lauf → gleiches Urteil.
+long verdictFrom = ticks * 3L / 4;
+Console.WriteLine($"Urteilsprobe: {watch.SamplesSince(verdictFrom)} Messpunkte ab Tick {verdictFrom} (alle {WatchEvery} Ticks, unabhängig von --every)");
 bool bad = false;
 foreach (var g in u.Goods.Values)
 {
     // Waren ohne Markt (noch ohne Erzeuger, z. B. propellant bis Phase 4b) haben keinen Preis und keine Stabilität
     if (!u.Stations.Values.Any(st => st.Market.ContainsKey(g.Id))) continue;
-    float avgRatio = tail.Average(h => h.Goods.First(x => x.Good == g.Id).PriceRatio);
+    if (watch.AverageRatio(g.Id, verdictFrom) is not { } avgRatio) continue;
     if (avgRatio > 3.0f || avgRatio < 0.3f) { Console.WriteLine($"WARNUNG: {g.Name} im Schnitt bei {avgRatio:0.00}× Basispreis (instabil)"); bad = true; }
+}
+// Phase 16: Spanne der Urteilswerte (knappste und billigste Ware) — macht sichtbar, wie nah ein grüner Lauf an den Grenzen 3,0/0,3 liegt
+{
+    var judged = u.Goods.Values.Where(g => u.Stations.Values.Any(st => st.Market.ContainsKey(g.Id)))
+        .Select(g => (g.Name, R: watch.AverageRatio(g.Id, verdictFrom))).Where(x => x.R is not null).Select(x => (x.Name, R: x.R!.Value)).ToList();
+    if (judged.Count > 0)
+    {
+        var hi = judged.OrderByDescending(x => x.R).Take(3).Select(x => $"{x.Name} {x.R:0.00}×");
+        var lo = judged.OrderBy(x => x.R).Take(3).Select(x => $"{x.Name} {x.R:0.00}×");
+        Console.WriteLine($"Urteilswerte: höchste {string.Join(", ", hi)}; niedrigste {string.Join(", ", lo)}");
+    }
 }
 if (!bad) Console.WriteLine("Urteil: Preise im Zielbereich.");
 // Phase 10: zerfallende Karte (physisch oder für die freien Händler) ist ein eigener Befund mit eigenem Exit-Code

@@ -270,6 +270,10 @@ public class ActorTests
         b.Rules.TaxToTreasuryShare = 0f;   // alte Geldsenke
         // Phase 15: Kassenausgaben (Instandhaltungserstattung, Subvention) und die Steuerbremse hängen vom Kassenstand ab — für den Zahlervergleich aus
         foreach (var w in new[] { a, b }) { w.Rules.MaintenanceShare = 0f; w.Rules.SubsidyPerDay = 0f; w.Rules.TreasuryTargetShare = 0f; }
+        // Phase 16: Polizei und Piraten hängen an der Kasse (Polizeikäufe zahlen aus ihr an die Werft, Unterhalt der Wachen) und wirken über Überfälle auf
+        // die Zahler zurück — seit der Kupferkette hat die Werft die Module öfter auf Lager, und Welt a kauft schon in den ersten 3000 Ticks Polizei.
+        // Für den Zahlervergleich ruht die Sicherheit in beiden Welten.
+        foreach (var w in new[] { a, b }) w.Rules.SecurityActive = false;
         var taxes = new List<TaxCollected>();
         double upkeep = 0;   // Phase 10: Unterhalt der Regierungsstationen und Sperren aus den Kassen
         double income = 0;   // Phase 11: Strafen fließen in Fraktionskassen; Polizei und Kopfgeld zahlen aus ihnen (Piratenkassen zählen hier nicht)

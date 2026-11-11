@@ -31,6 +31,11 @@ public sealed class EconomyRules
     public int BankruptcyTicks = 400;
     /// <summary>Anteil des Produktwerts, den eine Fabrik höchstens für ihre Zutaten bietet (Rest ist ihre Marge). Verhindert, dass Preisspitzen sie ruinieren.</summary>
     public float InputWillingness = 0.85f;
+    /// <summary>
+    /// Phase 16: Die Zahlungsbereitschaft einer Fabrik rechnet ihr Produkt höchstens zum besten Gebot eines Abnehmers (<see cref="Simulation.MarketSystem.BuyerBids"/>),
+    /// nicht zum eigenen Knappheitspreis. false = alte Regel (eigener Preis).
+    /// </summary>
+    public bool WillingnessFromBuyers = true;
     public float BuildPriceRatio = 1.6f;         // Ware gilt als knapp, wenn Durchschnittspreis > Basispreis * Faktor
     /// <summary>Ware gilt als im Überangebot, wenn Wunschbestand / Bestand (über alle Stationen) darunter liegt: dann entsteht ein Verbraucher.</summary>
     public float GlutPriceRatio = 0.4f;
@@ -442,6 +447,11 @@ public sealed class EconomyRules
     public float TreasuryTargetShare = 0.4f;
     /// <summary>Händler/Schürfer der KI, die so lange ohne Auftrag liegen (auch mit Geld), werden abgebaut (<see cref="Simulation.FleetSystem"/>); 0 = nie.</summary>
     public int IdleRetireTicks = 6000;
+    /// <summary>
+    /// Phase 16: Rohstoff-Filter des Lebenszyklus an/aus (Phase 15, <see cref="Simulation.StationLifecycleSystem.UpstreamProducer"/>): kein weiterer Hersteller,
+    /// dessen Erz-Zutat selbst knapp ist. false = alte Regel (immer der günstigste Hersteller) — für Tests, die den Bau eines bestimmten Typs prüfen.
+    /// </summary>
+    public bool BuildChecksRawOre = true;
     /// <summary>
     /// Höchstes Gebot eines Endverbrauchers (Station mit Rezepten ohne Produkte, z. B. Kolonie) als Vielfaches des Basispreises; 4 = kein eigener Deckel
     /// (Code-Standard, wie bis Phase 13). Die Standardwelt setzt 2: sonst bleibt die Kolonie am 4×-Deckel stecken, weil sie dort zu wenig kaufen kann.
