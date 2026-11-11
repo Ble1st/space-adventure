@@ -181,3 +181,7 @@ public sealed record ResearchFunded(FactionId Faction, string Project, float Cre
 public sealed record ExportQueued(StationId Station, GoodId Good, float Amount, float Paid, long DueTick) : SimEvent;
 /// <summary>Eine Charge ging an den Planeten: Ware aus der Welt, die Station erhielt <paramref name="Revenue"/> (= bezahlt × (1 + Aufschlag)); neu geschöpft ist Revenue − Paid.</summary>
 public sealed record GoodsExported(StationId Station, GoodId Good, float Amount, float Paid, float Revenue) : SimEvent;
+
+// ───────── Phase 18: Frachtreste ─────────
+/// <summary>Ein Spielerschiff hat Fracht abgeworfen (Laderaum oder Dienst „trade“, Schlüssel „drop:&lt;id&gt;“): Die Ware verschwindet ohne Erlös aus der Welt.</summary>
+public sealed record CargoJettisoned(ShipId Ship, SectorId Sector, GoodId Good, float Units) : SimEvent;

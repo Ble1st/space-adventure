@@ -52,13 +52,22 @@ public sealed class StationLifecycleSystem : ISimSystem
             // Zahlungsbereitschaft der Fabriken gedeckelt und würden Überangebot vortäuschen.
             // Phase 8: Baustellen sind keine Märkte (ihr Wunschbestand ist eine Stückliste) und zählen nicht mit
             // Phase 14: Exportsenken zählen mit — ihre Nachfrage (leeres Ankauflager) lässt Hersteller von Endwaren entstehen
-            var entries = u.Stations.Values.Where(s => !s.IsBuildSite && s.Market.ContainsKey(good.Id)).Select(s => s.Market[good.Id]).ToList();
-            if (entries.Count == 0) continue;
-            float ratio = entries.Sum(e => e.Target) / MathF.Max(1f, entries.Sum(e => e.Amount));
+            double target = 0, amount = 0;   // in double summiert wie LINQ Sum bis Phase 17
+            bool any = false;
+            foreach (var st in u.Stations.Values)
+            {
+                if (st.IsBuildSite || !st.Market.TryGetValue(good.Id, out var e)) continue;
+                any = true;
+                target += e.Target;
+                amount += e.Amount;
+            }
+            if (!any) continue;
+            float ratio = (float)target / MathF.Max(1f, (float)amount);
             ratios[good.Id] = ratio;
             // Phase 5a: nur Waren, auf die ein Stationstyp antworten kann (Erzeuger bei Knappheit, Rezept-Verbraucher bei Überangebot).
             // Sonst blockiert eine Ware ohne Verbraucher-Typ (Module, Bausatzstufen auf Halde) jeden Verbraucherbau für andere Waren.
-            if (ratio > worst && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)))) { worst = ratio; scarce = good.Id; }
+            if (ratio > worst && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)))
+                && !(rules.BuildFollowsChain && FleetGoodWithProducer(u, good.Id))) { worst = ratio; scarce = good.Id; }
             if (ratio < lowest && ratio > 0f && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Inputs.ContainsKey(good.Id)))) { lowest = ratio; glut = good.Id; }
         }
 
@@ -68,7 +77,8 @@ public sealed class StationLifecycleSystem : ISimSystem
         // (Forschungsstation, reiner Treibstoffhersteller) auch nicht
         StationType? type = null;
         if (scarce is { } sc)
-            type = UpstreamProducer(u, sc, ratios, rules.BuildChecksRawOre ? rules.BuildPriceRatio : float.PositiveInfinity);   // Phase 16: Filter abschaltbar
+            type = UpstreamProducer(u, sc, ratios, rules.BuildChecksRawOre ? rules.BuildPriceRatio : float.PositiveInfinity,   // Phase 16: Filter abschaltbar
+                rules.BuildFollowsChain ? rules.BuildPriceRatio : float.PositiveInfinity);                                    // Phase 18: Bau folgt der Kette
         else if (glut is { } gl)
             type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;
@@ -130,19 +140,58 @@ public sealed class StationLifecycleSystem : ISimSystem
     /// Phase 15: Welcher Stationstyp hilft gegen die Knappheit einer Ware? Der günstigste baubare Hersteller — außer, eine seiner Zutaten ist ein Rohstoff
     /// ohne baubaren Hersteller (Erz) und selbst knapp (Verhältnis Wunsch/Bestand über <paramref name="threshold"/>): Dann liegt der Engpass beim Bergbau,
     /// und eine weitere Hütte würde nur um dasselbe Erz konkurrieren, mit leerem Erzlager am 4×-Deckel stehen und den Erzpreis hochtreiben (vorher
-    /// entstanden so mehrere Kupferhütten und Waferfabriken ohne Erz). null = nichts bauen. Hergestellte Zutaten lenken nicht um: Ihr Lager beim
-    /// Verbraucher ist im Betrieb meist niedrig, das sagt nichts über ihr Angebot.
+    /// entstanden so mehrere Kupferhütten und Waferfabriken ohne Erz). null = nichts bauen.
+    /// Phase 18: Bau folgt der Kette — ist eine <em>hergestellte</em> Zutat des Herstellers selbst knapp (über <paramref name="chainThreshold"/>), liegt der
+    /// Engpass dort: gebaut wird (rekursiv, höchstens <see cref="MaxChainDepth"/> Glieder) der Hersteller der knappsten Zutat statt eines weiteren
+    /// Verbrauchers derselben knappen Zutat (vorher entstand bei Nahrungsknappheit eine zweite Farm, obwohl das Wasser für die erste schon fehlte).
+    /// Die Knappheit gilt über alle Halter der Zutat (auch das Ausgangslager der Hersteller): Ist sie überall leer, begrenzt ihr Angebot.
+    /// <see cref="float.PositiveInfinity"/> = alte Regel (hergestellte Zutaten lenken nicht um).
     /// </summary>
-    public static StationType? UpstreamProducer(Universe u, GoodId good, IReadOnlyDictionary<GoodId, float> ratios, float threshold)
+    public static StationType? UpstreamProducer(Universe u, GoodId good, IReadOnlyDictionary<GoodId, float> ratios, float threshold,
+        float chainThreshold = float.PositiveInfinity) => UpstreamProducer(u, good, ratios, threshold, chainThreshold, 0);
+
+    /// <summary>Phase 18: höchstens so viele Glieder geht der Lebenszyklus die Kette hinauf.</summary>
+    public const int MaxChainDepth = 3;
+
+    static StationType? UpstreamProducer(Universe u, GoodId good, IReadOnlyDictionary<GoodId, float> ratios, float threshold, float chainThreshold, int depth)
     {
-        var type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
+        var type = CheapestProducer(u, good);
         if (type is null) return null;
+        GoodId? bottleneck = null;
+        float worst = chainThreshold;
         foreach (var r in type.Recipes.Where(r => r.Outputs.ContainsKey(good)))
             foreach (var g in r.Inputs.Keys)
-                if (ratios.TryGetValue(g, out var x) && x > threshold && !u.StationTypes.Values.Any(t => t.Recipes.Any(rr => rr.Outputs.ContainsKey(g)) && Buildable(u, t)))
-                    return null;
+            {
+                if (!ratios.TryGetValue(g, out var x)) continue;
+                bool made = CheapestProducer(u, g) is not null;
+                if (!made && x > threshold) return null;
+                if (made && g != good && x > worst) { worst = x; bottleneck = g; }
+            }
+        if (bottleneck is { } b && depth < MaxChainDepth) return UpstreamProducer(u, b, ratios, threshold, chainThreshold, depth + 1);
         return type;
     }
+
+    /// <summary>
+    /// Phase 18: Ware, die kein Rezept verbraucht und keine Exportsenke abnimmt (Schiffsbausätze, Module — sie gehen nur an Flotte und Regale), und für die
+    /// schon eine fertige Herstellerin existiert. Ihre Knappheit löst keinen Bau aus: Eine Werft oder ein Modulwerk schafft 1 Stück je 20–60 Ticks und Rezept,
+    /// die Flotte braucht ein Zehntel davon (gemessen: ≈ 10–20 Neubauten und ≈ 80 Regal-Module je 20000 Ticks gegen ≈ 1000 je Rezept); knapp sind sie,
+    /// wenn ihre Zutaten fehlen (die dann selbst als knapp zählen) oder kurz nach dem Start. Vorher gingen Bauplätze an eine zweite Werft oder ein drittes
+    /// Antriebswerk statt an ein fehlendes Wasserwerk.
+    /// </summary>
+    public static bool FleetGoodWithProducer(Universe u, GoodId good)
+    {
+        foreach (var t in u.StationTypes.Values)
+        {
+            if (t.Export is { } x && x.Goods.Contains(good)) return false;
+            foreach (var r in t.Recipes) if (r.Inputs.ContainsKey(good)) return false;
+        }
+        foreach (var st in u.Stations.Values)
+            if (!st.IsBuildSite && st.Produces(good)) return true;
+        return false;
+    }
+
+    static StationType? CheapestProducer(Universe u, GoodId good) =>
+        u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
 
     /// <summary>Darf die Wirtschaft diesen Typ bauen? Erforscht (irgendwo), keine Exportsenke, kein Typ eines abgeschalteten Systems.</summary>
     static bool Buildable(Universe u, StationType t) =>

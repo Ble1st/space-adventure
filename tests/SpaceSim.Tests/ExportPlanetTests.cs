@@ -298,7 +298,7 @@ public class ExportPlanetTests
         Assert.False(u.Stations.ContainsKey(new StationId(25)));   // Treibstoffraffinerien fehlen
         Assert.False(u.Stations.ContainsKey(new StationId(26)));
         Assert.DoesNotContain(u.Stations.Values, s => s.TypeKey == "fuel_refinery");
-        Assert.Equal(36 - 2, u.Rules.MaxStations);   // Bau-Spielraum bleibt gleich: −2 weggelassene Wirtschaftsstationen
+        Assert.Equal(37 - 2, u.Rules.MaxStations);   // Bau-Spielraum bleibt gleich: −2 weggelassene Wirtschaftsstationen (Phase 18: 37 mit Farm Beta)
         var reg = StationServices.Default();
         Assert.All(u.Stations.Values, s => Assert.False(reg.TryGet("refuel", out var r) && r.IsAvailable(u, s)));
         // Reise ohne Verbrauch, Spieler ohne Verbrauch und ohne Notantrieb, Notruf zwecklos, Planung ohne Tankstopp
@@ -331,7 +331,7 @@ public class ExportPlanetTests
         new SimulationRunner().Run(u, 1);
         Assert.True(u.Rules.FuelActive);
         Assert.True(u.Stations.ContainsKey(new StationId(25)) && u.Stations.ContainsKey(new StationId(26)));
-        Assert.Equal(36, u.Rules.MaxStations);
+        Assert.Equal(37, u.Rules.MaxStations);   // Phase 18: + Farm Beta
         Assert.True(StationServices.Default().TryGet("refuel", out var refuel) && refuel.IsAvailable(u, u.Stations[new StationId(25)]));
         var trader = IdleTrader(u);
         float tank = trader.TotalFuel;

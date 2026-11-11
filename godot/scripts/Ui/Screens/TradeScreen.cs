@@ -34,8 +34,10 @@ public sealed partial class TradeScreen : DockAreaScreen
 		public required string Name;
 		public required Color Color;
 		public required float Price, Stock, Target, Held;
-		public ServiceOffer Buy, Sell;
-		public bool HasBuy, HasSell;
+		public ServiceOffer Buy, Sell, Drop;
+		public bool HasBuy, HasSell, HasDrop;
+		/// <summary>Phase 18: führt die Station die Ware (sonst nur Abwurf-Zeile für Fracht, die sie nicht handelt)?</summary>
+		public bool Traded;
 	}
 
 	IStationService? _svc;
@@ -48,6 +50,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 	bool _msgOk = true;
 	int _scrollV;
 	ScrollContainer? _scroll;
+	readonly KitConfirm _confirm = new();   // Phase 18: „Abwerfen“ erst beim zweiten Tipp
 
 	public TradeScreen() => AreaId = DockAreas.Trade;
 
@@ -104,6 +107,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 				r.Tapped += () => { _expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row); Invalidate(); };
 				r.EditorBuy += q => Buy(row, q);
 				r.EditorSell += q => Sell(row, q);
+				r.EditorDrop += q => Drop(row, q);
 				r.EditorQty += q => _qty = q;
 				if (open) r.SetQty(_qty);
 				box.AddChild(r);
@@ -112,7 +116,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 		else
 		{
 			// ── Kachelmodus: Kacheln oben, Editor-Blatt unten für die gewählte Kachel ──
-			float sheetH = _tileSel != null ? 158f : 0f;
+			float sheetH = _tileSel is { } ts && _rows.FirstOrDefault(r => r.Good == ts) is { } tr ? 26f + Editor.HeightFor(tr) + 6f : 0f;
 			_scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 46, w, fy - 46 - 8 - sheetH);
 			var grid = new GridContainer { Columns = 3, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 			grid.AddThemeConstantOverride("h_separation", 8);
@@ -134,6 +138,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 				ed.SetQty(_qty);
 				ed.Buy += q => Buy(selRow, q);
 				ed.Sell += q => Sell(selRow, q);
+				ed.Drop += q => Drop(selRow, q);
 				ed.QtyChanged += q => _qty = q;
 				At(sheet, ed, 6, 32);
 			}
@@ -162,11 +167,13 @@ public sealed partial class TradeScreen : DockAreaScreen
 					Stock = o.Stock,
 					Target = st.Market.TryGetValue(o.Good, out var e) ? e.Target : 0f,
 					Held = o.Held,
+					Traded = st.Market.TryGetValue(o.Good, out var te) && te.Price > 0f,
 				};
 				byGood[o.Good] = row;
 			}
 			if (o.Key.StartsWith(TradeService.Buy + ':', StringComparison.Ordinal)) { row.Buy = o; row.HasBuy = true; }
 			else if (o.Key.StartsWith(TradeService.Sell + ':', StringComparison.Ordinal)) { row.Sell = o; row.HasSell = true; }
+			else if (o.Key.StartsWith(TradeService.Drop + ':', StringComparison.Ordinal)) { row.Drop = o; row.HasDrop = true; }   // Phase 18
 		}
 		_rows.AddRange(byGood.Values.OrderBy(r => r.Good.Value));
 	}
@@ -187,6 +194,11 @@ public sealed partial class TradeScreen : DockAreaScreen
 
 	void Buy(Row row, float qty) => Execute($"{TradeService.Buy}:{row.Good.Value}", qty);
 	void Sell(Row row, float qty) => Execute($"{TradeService.Sell}:{row.Good.Value}", qty);
+	/// <summary>Phase 18: Abwerfen über den Dienst — die gewählte Menge, ab dem Bestand an Bord alles (Menge 0).</summary>
+	void Drop(Row row, float qty) => Execute($"{TradeService.Drop}:{row.Good.Value}", qty >= row.Held ? 0f : qty);
+
+	/// <summary>Phase 18: „Abwerfen“ zeigen, wenn Ware an Bord ist, die die Station nicht (ganz) nimmt — neben dem Grund.</summary>
+	static bool ShowDrop(Row r) => r.HasDrop && r.Held > 0f && r.Sell.Amount < r.Held - 0.0001f;
 
 	// ── Test-Hooks (Selbsttest, UiShots) ──
 
@@ -221,6 +233,18 @@ public sealed partial class TradeScreen : DockAreaScreen
 	/// <summary>Phase 16: Annahme-Hinweis der Verkaufszeile einer Ware (null = keiner) und ob die Station jetzt etwas davon annimmt.</summary>
 	public string? TestSellNote(GoodId good) => _rows.FirstOrDefault(r => r.Good == good)?.Sell.Note;
 	public bool TestSellEnabled(GoodId good) => _rows.FirstOrDefault(r => r.Good == good) is { } r && CanSell(r);
+	/// <summary>Phase 18: ob die Zeile einer Ware „Abwerfen“ zeigt.</summary>
+	public bool TestDropShown(GoodId good) => _rows.FirstOrDefault(r => r.Good == good) is { } r && ShowDrop(r);
+	/// <summary>Phase 18: ein Tipp auf „Abwerfen“ (wie die Taste: der erste macht scharf, der zweite innerhalb von 3 s führt aus); liefert, ob ausgeführt wurde.</summary>
+	public bool TestTapDrop(GoodId good, float qty)
+	{
+		if (_rows.FirstOrDefault(r => r.Good == good) is not { } row || !ShowDrop(row)) return false;
+		if (!_confirm.Tap(DropKey(row))) return false;
+		Drop(row, qty);
+		return true;
+	}
+	static string DropKey(Row r) => $"drop:{r.Good.Value}";
+
 	/// <summary>Phase 17: ob „Alles verkaufen“ aktiv ist (Angebotsmenge &gt; 0).</summary>
 	public bool TestSellAllEnabled => Ctx.Ship.Cargo.Values.Any(v => v > 0f) && _sellAll.Amount > 0f;
 
@@ -233,7 +257,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 	sealed partial class TradeRow : Control
 	{
 		public event Action? Tapped;
-		public event Action<float>? EditorBuy, EditorSell, EditorQty;
+		public event Action<float>? EditorBuy, EditorSell, EditorQty, EditorDrop;
 
 		readonly TradeScreen _owner;
 		readonly Row _row;
@@ -245,7 +269,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 			_owner = owner;
 			_row = row; _open = open;
 			MouseFilter = MouseFilterEnum.Stop;
-			CustomMinimumSize = new Vector2(w, open ? 56 + 116 : 56);
+			CustomMinimumSize = new Vector2(w, open ? 56 + Editor.HeightFor(row) : 56);
 			Size = CustomMinimumSize;
 		}
 
@@ -258,6 +282,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 				_editor = new Editor(_owner, _row, Size.X);
 				_editor.Buy += q => EditorBuy?.Invoke(q);
 				_editor.Sell += q => EditorSell?.Invoke(q);
+				_editor.Drop += q => EditorDrop?.Invoke(q);
 				_editor.QtyChanged += q => EditorQty?.Invoke(q);
 				AddChild(_editor);
 				_editor.Position = new Vector2(0, 56);
@@ -283,14 +308,14 @@ public sealed partial class TradeScreen : DockAreaScreen
 			// Kopfzeile
 			DrawRect(new Rect2(6, 12, 18, 18), u.Color);
 			DrawString(font, new Vector2(34, 38), u.Name, HorizontalAlignment.Left, -1, 20, White);
-			DrawString(font, new Vector2(220, 38), $"{u.Price:0.0}", HorizontalAlignment.Left, -1, 20, PriceColor(u));
+			DrawString(font, new Vector2(220, 38), u.Traded ? $"{u.Price:0.0}" : "—", HorizontalAlignment.Left, -1, 20, u.Traded ? PriceColor(u) : Dim);
 			float fill = u.Target > 0f ? Mathf.Clamp(u.Stock / u.Target, 0f, 1.4f) / 1.4f : 0f;
 			DrawRect(new Rect2(320, 18, 110, 10), new Color(0, 0, 0, 0.5f));
 			DrawRect(new Rect2(320, 18, 110 * fill, 10), u.Color);
 			DrawString(font, new Vector2(438, 38), $"{u.Stock:0}", HorizontalAlignment.Left, -1, 17, Dim);
 			DrawString(font, new Vector2(500, 38), u.Held > 0f ? $"Bord {u.Held:0}" : "", HorizontalAlignment.Left, -1, 17, Cyan);
 			// Phase 16: warum die Station die Ware nicht (mehr) annimmt — gedimmt unter dem Preis
-			if (u.Sell.Note is { } note) DrawString(font, new Vector2(220, 53), note, HorizontalAlignment.Left, Size.X - 260, 12, SellNoteColor(u));
+			if (NoteOf(u) is { } note) DrawString(font, new Vector2(220, 53), note + (ShowDrop(u) && !_open ? " · antippen: Abwerfen" : ""), HorizontalAlignment.Left, Size.X - 260, 12, SellNoteColor(u));
 			DrawString(font, new Vector2(Size.X - 34, 38), _open ? "▾" : "▸", HorizontalAlignment.Left, -1, 18, Dim);
 		}
 
@@ -308,6 +333,8 @@ public sealed partial class TradeScreen : DockAreaScreen
 
 	/// <summary>Phase 16: Farbe des Annahme-Hinweises — orange, wenn Ware an Bord ist und die Station nichts nimmt, sonst gedimmt.</summary>
 	static Color SellNoteColor(Row r) => r.Held > 0f && !CanSell(r) ? new Color(Orange, 0.9f) : new Color(Dim, 0.8f);
+	/// <summary>Phase 18: Hinweis der Zeile — Annahmegrund des Verkaufs, für nicht gehandelte Fracht der Grund aus dem Abwurf-Angebot.</summary>
+	static string? NoteOf(Row r) => r.HasSell ? r.Sell.Note : r.HasDrop ? r.Drop.Note : null;
 
 	/// <summary>Eine Kachel des Kachelmodus.</summary>
 	sealed partial class TradeTile : Control
@@ -344,7 +371,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 			DrawRect(new Rect2(12, 90, 190, 8), new Color(0, 0, 0, 0.5f));
 			DrawRect(new Rect2(12, 90, 190 * fill, 8), r.Color);
 			DrawString(font, new Vector2(12, 124), $"Bestand {r.Stock:0}", HorizontalAlignment.Left, -1, 14, Dim);
-			if (r.Sell.Note is { } note) DrawString(font, new Vector2(12, 112), note, HorizontalAlignment.Left, 190, 11, SellNoteColor(r));   // Phase 16
+			if (NoteOf(r) is { } note) DrawString(font, new Vector2(12, 112), note, HorizontalAlignment.Left, 190, 11, SellNoteColor(r));   // Phase 16
 			if (r.Held > 0f)
 			{
 				DrawRect(new Rect2(128, 106, 74, 24), new Color(Cyan, 0.25f));
@@ -356,7 +383,10 @@ public sealed partial class TradeScreen : DockAreaScreen
 	/// <summary>Mengen-Editor (Stepper −/Menge/+/Max, Summe, beste Verkaufsstelle, Kaufen/Verkaufen) – in Zeile und Kachel-Blatt.</summary>
 	sealed partial class Editor : Control
 	{
-		public event Action<float>? Buy, Sell, QtyChanged;
+		public event Action<float>? Buy, Sell, Drop, QtyChanged;
+
+		/// <summary>Phase 18: Höhe des Editors — mit „Abwerfen“-Zeile (56 px Touch-Ziel) höher.</summary>
+		public static float HeightFor(Row r) => ShowDrop(r) ? 182f : 116f;
 
 		readonly TradeScreen _owner;
 		readonly Row _row;
@@ -369,7 +399,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 			_owner = owner;
 			_row = row;
 			MouseFilter = MouseFilterEnum.Stop;
-			CustomMinimumSize = new Vector2(w, 116);
+			CustomMinimumSize = new Vector2(w, HeightFor(row));
 			Size = CustomMinimumSize;
 
 			At(this, Text("Menge", 16, Dim), 34, 22);
@@ -385,6 +415,13 @@ public sealed partial class TradeScreen : DockAreaScreen
 			max.Pressed += () => SetQty(Mathf.Max(_row.Buy.Amount, _row.Held));
 			_buyBtn.Pressed += () => Buy?.Invoke(_qty);
 			_sellBtn.Pressed += () => Sell?.Invoke(_qty);
+			// Phase 18: Abwerfen neben dem Grund, wenn die Station die Ware an Bord nicht (ganz) nimmt — erst beim zweiten Tipp (KitConfirm)
+			if (ShowDrop(row))
+			{
+				var drop = At(this, new KitButton("Abwerfen", new Vector2(200, 56)) { FontSize = 19 }, 34, 120);
+				owner._confirm.Wire(drop, DropKey(row), "Abwerfen", () => Drop?.Invoke(_qty));
+				At(this, Text($"Ware verschwindet ohne Erlös · gewählte Menge, „Max“ = alles ({row.Held:0.##} an Bord)", 13, new Color(Dim, 0.85f)), 246, 136, Mathf.Max(100f, w - 260), 22);
+			}
 			RefreshButtons();
 		}
 

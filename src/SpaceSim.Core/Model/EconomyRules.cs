@@ -453,8 +453,19 @@ public sealed class EconomyRules
     /// </summary>
     public bool BuildChecksRawOre = true;
     /// <summary>
+    /// Phase 18: Bau folgt der Kette (<see cref="Simulation.StationLifecycleSystem.UpstreamProducer"/>): Ist eine hergestellte Zutat des Herstellers einer
+    /// knappen Ware selbst knapp (über <see cref="BuildPriceRatio"/>), entsteht ihr Hersteller statt eines weiteren Verbrauchers. false = Regel bis Phase 17.
+    /// </summary>
+    public bool BuildFollowsChain = true;
+    /// <summary>
     /// Höchstes Gebot eines Endverbrauchers (Station mit Rezepten ohne Produkte, z. B. Kolonie) als Vielfaches des Basispreises; 4 = kein eigener Deckel
     /// (Code-Standard, wie bis Phase 13). Die Standardwelt setzt 2: sonst bleibt die Kolonie am 4×-Deckel stecken, weil sie dort zu wenig kaufen kann.
     /// </summary>
     public float ConsumerMaxBidFactor = 4f;
+    /// <summary>
+    /// Phase 18: Ein Rest unter dieser Menge darf die Annahmegrenze einer Station überschreiten, wenn sie die Ware überhaupt annimmt (Annahme &gt; 0, keine
+    /// Baustelle) und die ganze Menge bezahlen kann (<see cref="Trading.TradeActions.SaleUnits(float, float, float, float)"/>): Ein Lagerüberhang unter einer
+    /// Einheit ist unkritisch, und so bleibt nach dem Bergbau kein unverkäuflicher Bruchteil im Laderaum. 0 = Regel von Phase 17.
+    /// </summary>
+    public float SaleRestTolerance = 1f;
 }

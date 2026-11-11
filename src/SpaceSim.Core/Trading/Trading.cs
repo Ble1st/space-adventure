@@ -26,14 +26,36 @@ public static class TradeActions
     /// <param name="have">Bestand an Bord.</param>
     /// <param name="want">gewünschte Menge (≥ <paramref name="have"/> = alles).</param>
     /// <param name="cap">was die Station annimmt und bezahlen kann: min(<see cref="Station.AcceptableUnits(GoodId, EconomyRules)"/>, Kasse ÷ Preis).</param>
-    public static float SaleUnits(float have, float want, float cap)
+    public static float SaleUnits(float have, float want, float cap) => SaleUnits(have, want, cap, cap);
+
+    /// <summary>
+    /// Phase 18: wie <see cref="SaleUnits(float, float, float)"/>, aber „alles“ gilt schon, wenn <paramref name="allCap"/> die ganze Menge deckt — die
+    /// Annahme plus <see cref="EconomyRules.SaleRestTolerance"/> (ein Überhang unter einer Einheit), bezahlbar (<see cref="SaleCaps"/>).
+    /// </summary>
+    public static float SaleUnits(float have, float want, float cap, float allCap)
     {
-        if (have <= 0f || want <= 0f || cap <= 0f) return 0f;
-        if (want >= have && cap >= have) return have;
+        if (have <= 0f || want <= 0f) return 0f;
+        if (want >= have && allCap >= have && allCap > 0f) return have;
+        if (cap <= 0f) return 0f;
         return MathF.Floor(MathF.Min(MathF.Min(want, have), cap));
     }
 
-    /// <summary>Phase 17: was die Station von dieser Ware jetzt annimmt und bezahlen kann (Obergrenze für <see cref="SaleUnits"/>; 0 ohne Preis).</summary>
+    /// <summary>
+    /// Phase 18: beide Obergrenzen eines Verkaufs bei der Kasse <paramref name="credits"/>: <c>Cap</c> = min(Annahme, Kasse ÷ Preis) für ganze Einheiten,
+    /// <c>AllCap</c> = min(Annahme + Resttoleranz, Kasse ÷ Preis) für „alles“, wenn die Station die Ware überhaupt annimmt (Annahme &gt; 0) und keine
+    /// Baustelle ist (deren Stückliste ist genau). (0, 0) ohne Preis.
+    /// </summary>
+    public static (float Cap, float AllCap) SaleCaps(Universe u, Station station, GoodId good, float credits)
+    {
+        if (!station.Market.TryGetValue(good, out var e) || e.Price <= 0f) return (0f, 0f);
+        float pay = MathF.Max(0f, credits) / e.Price;
+        float accept = station.AcceptableUnits(good, u.Rules);
+        float cap = MathF.Min(pay, accept);
+        float allCap = accept > 0f && station.Site is null && u.Rules.SaleRestTolerance > 0f ? MathF.Min(pay, accept + u.Rules.SaleRestTolerance) : cap;
+        return (MathF.Max(0f, cap), MathF.Max(0f, allCap));
+    }
+
+    /// <summary>Phase 17: was die Station von dieser Ware jetzt annimmt und bezahlen kann (Obergrenze für <see cref="SaleUnits(float, float, float)"/>; 0 ohne Preis).</summary>
     public static float SaleCap(Universe u, Station station, GoodId good) =>
         station.Market.TryGetValue(good, out var e) && e.Price > 0f ? MathF.Min(MathF.Max(0f, station.Credits) / e.Price, station.AcceptableUnits(good, u.Rules)) : 0f;
 
@@ -53,7 +75,8 @@ public static class TradeActions
             float have = ship.Cargo[good];
             if (have <= 0f || !station.Market.TryGetValue(good, out var entry) || entry.Price <= 0f) continue;
 
-            float units = SaleUnits(have, have, MathF.Min(MathF.Max(0f, station.Credits) / entry.Price, station.AcceptableUnits(good, u.Rules)));
+            var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
+            float units = SaleUnits(have, have, cap, allCap);
             if (units <= 0f) continue;
             float pay = units * entry.Price;
             entry.Amount += units;
@@ -105,7 +128,8 @@ public static class TradeActions
         var sold = new Dictionary<GoodId, float>();
         if (have <= 0f || units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f)
             return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
-        float n = SaleUnits(have, units, MathF.Min(MathF.Max(0f, station.Credits) / e.Price, station.AcceptableUnits(good, u.Rules)));
+        var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
+        float n = SaleUnits(have, units, cap, allCap);
         if (n <= 0f) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
         float pay = n * e.Price;
         e.Amount += n;
@@ -133,7 +157,8 @@ public static class TradeActions
         foreach (var (good, have) in ship.Cargo.OrderBy(kv => kv.Key.Value))
             if (have > 0f && station.Market.TryGetValue(good, out var e) && e.Price > 0f)
             {
-                float n = SaleUnits(have, have, MathF.Min(MathF.Max(0f, credits) / e.Price, station.AcceptableUnits(good, u.Rules)));
+                var (cap, allCap) = SaleCaps(u, station, good, credits);
+                float n = SaleUnits(have, have, cap, allCap);
                 if (n <= 0f) continue;
                 total += n * e.Price; units += n; credits -= n * e.Price;
             }

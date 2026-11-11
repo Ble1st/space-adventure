@@ -46,8 +46,8 @@ public sealed class MiningAutopilot
                 var rock = chunks.Nearest(sector, pos);
                 if (rock != null) { _target = rock; Current = Phase.Mine; Status = "Abbau"; goto case Phase.Mine; }
 
-                // Nichts mehr im Sektor: Ladung verkaufen oder anderes Feld suchen
-                if (ship.Cargo.Values.Sum() > 0f) { Current = Phase.Sell; goto case Phase.Sell; }
+                // Nichts mehr im Sektor: Ladung verkaufen oder anderes Feld suchen (Phase 18: ein Rest unter RestUnits zählt nicht als Ladung)
+                if (HasLoad(ship)) { Current = Phase.Sell; goto case Phase.Sell; }
                 var target = FindOtherSector(u, ship, pos);
                 if (target is { } nav) { Status = $"Fliege zu {nav.Label}"; return none with { Nav = nav }; }
                 Stop("Kein abbaubares Erz erreichbar");
@@ -92,10 +92,20 @@ public sealed class MiningAutopilot
         var result = TradeActions.SellAll(u, ship, station);
         Current = Phase.Seek; _target = null;
         Status = result.Revenue > 0 ? $"Verkauft für {result.Revenue:0}" : "Nichts verkauft";
-        // Konnte nichts verkauft werden (Station pleite o.ä.), nicht endlos weiterfahren
-        if (result.Revenue <= 0f && ship.Cargo.Values.Sum() > 0f) Stop("Station kauft nicht – Automatik gestoppt");
+        // Konnte nichts verkauft werden (Station pleite o.ä.), nicht endlos weiterfahren. Phase 18: ein Rest unter RestUnits stoppt nicht
+        if (result.Revenue <= 0f && HasLoad(ship)) Stop("Station kauft nicht – Automatik gestoppt");
         return result;
     }
+
+    /// <summary>
+    /// Phase 18: Fracht unter dieser Menge (in Einheiten, alle Waren zusammen) gilt dem Automodus als Rest, nicht als Ladung: Er fliegt dafür keinen Käufer
+    /// an und stoppt nicht, wenn eine Station ihn nicht nimmt — er sucht weiter Erz. Abwerfen bleibt Sache des Spielers (Handelsbereich, Schiffsdetail);
+    /// der Rest belegt weniger als eine Einheit Laderaum und wird beim nächsten Verkauf meist mitgenommen (Resttoleranz, <see cref="EconomyRules.SaleRestTolerance"/>).
+    /// </summary>
+    public const float RestUnits = 1f;
+
+    /// <summary>Phase 18: Ist mehr als ein Rest an Bord?</summary>
+    public static bool HasLoad(Ship ship) => ship.Cargo.Values.Sum() >= RestUnits;
 
     static bool NearlyFull(Universe u, Ship ship) =>
         ship.FreeVolumeForForm(u, GoodForm.Solid) < MiningRules.MinChunkUnits * 1.01f;   // Erz ist fest

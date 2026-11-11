@@ -18,6 +18,11 @@ public sealed class TradeService : IStationService
     public const string Sell = "sell";
     /// <summary>Angebots-Schlüssel Verkauf der gesamten Fracht (ohne Ware, ohne Menge).</summary>
     public const string SellAll = "sell_all";
+    /// <summary>
+    /// Phase 18: Angebots-Schlüssel „Fracht abwerfen“ im Format "drop:&lt;GoodId&gt;" (nur Ware an Bord eines Spielerschiffs; Menge ≤ 0 = alles an Bord):
+    /// die Ware verschwindet ohne Erlös (<see cref="CargoJettison"/>). Der Ausweg für einen Rest, den die Station nicht nimmt.
+    /// </summary>
+    public const string Drop = "drop";
 
     public string Key => ServiceKey;
 
@@ -43,6 +48,15 @@ public sealed class TradeService : IStationService
             offers.Add(new ServiceOffer($"{Buy}:{good.Value}", ExportRules.Buys(u, station, good) ? $"Nur Ankauf (Export): {name}" : $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held));
             offers.Add(new ServiceOffer($"{Sell}:{good.Value}", $"Verkaufen: {name}", entry.Price, sellable, good, entry.Amount, held, held > 0f ? intake.NoteFor(held) : intake.Accepts ? null : intake.Reason));
         }
+        // Phase 18: je Ware an Bord ein Abwurf-Angebot (Menge = an Bord, Preis 0); Hinweis = warum die Station sie nicht (ganz) nimmt, null wenn doch
+        if (ship.IsPlayer)
+            foreach (var (good, held) in ship.Cargo.OrderBy(kv => kv.Key.Value))
+            {
+                if (held <= 0f) continue;
+                var intake = MarketInfo.Acceptance(u, station, good);
+                string? note = intake.SellableFrom(held) >= held - 0.0001f ? null : intake.NoteFor(held) ?? intake.Reason;
+                offers.Add(new ServiceOffer($"{Drop}:{good.Value}", $"Abwerfen: {u.Goods[good].Name}", 0f, held, good, station.Market.TryGetValue(good, out var e) ? e.Amount : 0f, held, note));
+            }
         // Phase 17: Menge = was „Alles verkaufen“ bewegen würde (gleiche Regel wie SellAll), nicht die ganze Fracht — Menge > 0 ⇔ Execute gelingt
         var (allUnits, allRevenue) = TradeActions.Sellable(u, ship, station);
         float cargo = ship.Cargo.Values.Sum();
@@ -89,13 +103,21 @@ public sealed class TradeService : IStationService
                     : r.Unsold > 0.0001f ? "Verkauft, Rest bleibt an Bord" : "Alles verkauft";
                 return new ServiceResult(units > 0f, units, r.Revenue, msg);
             }
+            case Drop:
+            {
+                // Phase 18: Fracht abwerfen — nur Spielerschiffe, nur Ware an Bord; scheitert ohne Zustandsänderung und ohne Ereignis
+                if (CargoJettison.Issue(ship, good) is { } issue) return new ServiceResult(false, 0f, 0f, issue);
+                float units = CargoJettison.Jettison(u, ship, good, request.Units);
+                u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Drop, good, units, 0f));
+                return new ServiceResult(true, units, 0f, $"{units:0.##} {u.Goods[good].Name} abgeworfen");
+            }
             default:
                 return new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{request.Offer}'.");
         }
     }
 
     /// <summary>
-    /// Zerlegt einen Angebots-Schlüssel streng: erlaubt sind nur "buy:&lt;GoodId&gt;", "sell:&lt;GoodId&gt;" und "sell_all".
+    /// Zerlegt einen Angebots-Schlüssel streng: erlaubt sind nur "buy:&lt;GoodId&gt;", "sell:&lt;GoodId&gt;", "drop:&lt;GoodId&gt;" (Phase 18) und "sell_all".
     /// Alles andere (ohne Ware, unlesbare Zahl, unbekannte Aktion, "sell_all:...") gilt als unbekannt.
     /// </summary>
     static bool TryParseOffer(string offer, out string action, out GoodId good)
@@ -107,7 +129,7 @@ public sealed class TradeService : IStationService
         int sep = offer.IndexOf(':');
         if (sep < 0) return false;
         string head = offer[..sep];
-        if (head != Buy && head != Sell) return false;
+        if (head != Buy && head != Sell && head != Drop) return false;
 
         string tail = offer[(sep + 1)..];
         if (tail.Length == 0) return false;

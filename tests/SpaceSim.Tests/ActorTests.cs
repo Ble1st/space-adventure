@@ -187,8 +187,9 @@ public class ActorTests
         foreach (var s in u.Ships.Values) s.Credits = 100f;
         var union = u.Actors[new ActorId(1)];
         union.Treasury.Credits = 1_000_000f;
-        // Knappheit erzwingen: Lebensmittel leer
-        foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(DemoUniverse.Food, out var e)) e.Amount = 0f;
+        // Knappheit erzwingen: Lebensmittel leer. Phase 18: alles andere auf Wunschbestand — die Startlager stehen bei der Hälfte (Verhältnis 2 über
+        // der Baugrenze), und der Bau folgt der Kette (Farm → Wasser → Eis); hier geht es um die Kasse als Investor, nicht um die Kette
+        foreach (var st in u.Stations.Values) foreach (var (g, e) in st.Market) e.Amount = g == DemoUniverse.Food ? 0f : e.Target;
         var events = new List<SimEvent>();
         u.Events.Raised += events.Add;
         new StationLifecycleSystem().Step(u, 20);

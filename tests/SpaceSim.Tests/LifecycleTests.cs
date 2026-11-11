@@ -173,7 +173,7 @@ public class WorldBuilderTests
     [Fact]
     public void UnknownGood_IsReportedWithItsName()
     {
-        var json = WorldBuilder.DefaultWorldJson().Replace("\"platinum_ore\": 1", "\"unobtainium\": 1");
+        var json = WorldBuilder.DefaultWorldJson().Replace("\"platinum_ore\": 2", "\"unobtainium\": 2");
         var ex = Assert.Throws<WorldFormatException>(() => WorldBuilder.Build(WorldBuilder.Parse(json)));
         Assert.Contains("unobtainium", ex.Message);
     }

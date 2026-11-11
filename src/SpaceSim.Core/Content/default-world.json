@@ -4,7 +4,7 @@
   "maxTraders": 14,
   "maxMiners": 12,
   "repairPlatesPerHull": 0.05,
-  "maxStations": 36,
+  "maxStations": 37,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": false,
@@ -224,9 +224,9 @@
    "chunkChance": 0.5,
    "oreFactor": 1.0,
    "yields": {
-    "iron_ore": 3,
+    "iron_ore": 3.5,
     "copper_ore": 5,
-    "titanium_ore": 2
+    "titanium_ore": 1.5
    }
   },
   {
@@ -257,8 +257,8 @@
    "chunkChance": 0.3,
    "oreFactor": 0.7,
    "yields": {
-    "titanium_ore": 4,
-    "platinum_ore": 1
+    "titanium_ore": 3,
+    "platinum_ore": 2
    }
   }
  ],
@@ -308,11 +308,11 @@
     {
      "ticks": 5,
      "in": {
-      "ice": 1,
-      "energy": 1
+      "ice": 2,
+      "energy": 2
      },
      "out": {
-      "water": 1
+      "water": 2
      }
     }
    ]
@@ -536,11 +536,11 @@
     {
      "ticks": 10,
      "in": {
-      "steel": 1,
-      "electronics": 1
+      "steel": 2,
+      "electronics": 2
      },
      "out": {
-      "consumer_goods": 1
+      "consumer_goods": 2
      }
     }
    ]
@@ -1387,6 +1387,16 @@
      ],
      "essential": true,
      "credits": 30000
+    },
+    {
+     "id": 40,
+     "type": "farm",
+     "name": "Farm Beta",
+     "pos": [
+      100,
+      90
+     ],
+     "essential": true
     },
     {
      "id": 33,

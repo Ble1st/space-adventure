@@ -23,6 +23,7 @@ public sealed partial class AssetsScreen : CommandScreen
 	string _tab = "ships";
 	ShipId? _detailShip;
 	string _message = "";
+	readonly KitConfirm _confirm = new();   // Phase 18: „Abwerfen“ erst beim zweiten Tipp
 
 	/// <summary>„In dieses Schiff wechseln“ (Phase 12: auch aus der Ferne; Main führt <see cref="SpaceSim.Core.Simulation.PlayerFleet.SwitchRemote"/> aus).</summary>
 	public event Action<ShipId>? SwitchRequested;
@@ -134,6 +135,9 @@ public sealed partial class AssetsScreen : CommandScreen
 		At(w, Text($"Liegegebühr {(berth > 0f ? $"{berth:0} Cr/Tag" : "keine")} · Materialwert ≈ {SpaceSim.Core.Simulation.Hangar.MaterialValue(u, s):0} Cr · Verkauf ≈ {SpaceSim.Core.Simulation.Hangar.SellPrice(u, s):0} Cr", 14, new Color(Dim, 0.9f)), 30, 376, 560, 20);
 		if (_message.Length > 0) At(w, Text(_message, 14, Orange), 30, 400, 840, 20);
 
+		// Phase 18: Fracht mit „Abwerfen“ (auch im Flug; Regel CargoJettison, zweiter Tipp bestätigt)
+		BuildCargo(w, u, s);
+
 		// Knöpfe unten (Phase 12 echt): Befehle (Flotte), Heim schicken, Verkaufen (an der Station, an der es liegt), Wechseln (auch aus der Ferne)
 		var bSwitch = At(w, new KitButton("In dieses Schiff wechseln", new Vector2(380, 58)) { FontSize = 19, AlignLeft = true, State = active ? KitButtonState.Disabled : KitButtonState.Ready }, 490, 428);
 		if (active) bSwitch.Detail = "Bereits aktiv";
@@ -158,6 +162,51 @@ public sealed partial class AssetsScreen : CommandScreen
 		var bClose = At(w, new KitButton("Schließen", new Vector2(150, 44)) { FontSize = 15 }, 730, 16);
 		bClose.Pressed += () => { _detailShip = null; _message = ""; Invalidate(); };
 	}
+
+	/// <summary>
+	/// Phase 18: Frachtliste des Schiffs (Ware, Menge, Annahme der Station, an der es liegt) mit „Abwerfen“ je Ware — der Ausweg für Reste, die keine
+	/// Station nimmt; die Ware verschwindet ohne Erlös. Ausführung über die Core-Regel <see cref="CargoJettison"/> (kein Stationsdienst nötig, auch im Flug).
+	/// </summary>
+	void BuildCargo(Control w, Universe u, Ship s)
+	{
+		At(w, Text("Fracht", 17, Cyan), 600, 130, 260, 22);
+		var cargo = s.Cargo.Where(kv => kv.Value > 0f).OrderBy(kv => kv.Key.Value).ToList();
+		if (cargo.Count == 0) { At(w, Text("leer", 15, Dim), 600, 158, 260, 20); return; }
+		var scroll = At(w, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 600, 156, 280, 236);
+		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		list.AddThemeConstantOverride("separation", 4);
+		scroll.AddChild(list);
+		foreach (var (good, held) in cargo)
+		{
+			var row = new Control { CustomMinimumSize = new Vector2(266, 58), MouseFilter = MouseFilterEnum.Pass };
+			string name = u.Goods.TryGetValue(good, out var g) ? g.Name : good.Value.ToString();
+			At(row, Text(name, 15, White), 0, 4, 140, 22);
+			At(row, Text($"{held:0.##} an Bord", 13, Dim), 0, 28, 140, 20);
+			var b = At(row, new KitButton("Abwerfen", new Vector2(120, 56)) { FontSize = 16 }, 144, 1);
+			var sid = s.Id; var gid = good;
+			_confirm.Wire(b, $"drop:{sid.Value}:{gid.Value}", "Abwerfen", () => Jettison(sid, gid));
+			list.AddChild(row);
+		}
+	}
+
+	void Jettison(ShipId id, GoodId good)
+	{
+		var u = Ctx.U;
+		if (!u.Ships.TryGetValue(id, out var ship)) return;
+		string name = u.Goods.TryGetValue(good, out var g) ? g.Name : good.Value.ToString();
+		float n = CargoJettison.Jettison(u, ship, good, 0f);
+		_message = n > 0f ? $"{n:0.##} {name} abgeworfen" : CargoJettison.Issue(ship, good) ?? "Nicht möglich";
+		Invalidate();
+	}
+
+	/// <summary>Phase 18 Test-Hook: ein Tipp auf „Abwerfen“ im Schiffsdetail (erster macht scharf, zweiter führt aus); liefert, ob ausgeführt wurde.</summary>
+	public bool TestTapJettison(ShipId id, GoodId good)
+	{
+		if (!_confirm.Tap($"drop:{id.Value}:{good.Value}")) return false;
+		Jettison(id, good);
+		return true;
+	}
+	public string TestMessage => _message;
 
 	/// <summary>Standort: angedockt an einer Station (aktives Schiff: laut Ansicht), unterwegs oder im Raum.</summary>
 	static string OrtText(Universe u, Ship s, StationId? docked) =>

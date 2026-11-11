@@ -36,7 +36,7 @@ public partial class SelfTest : Node
 	int _trades;
 	void CountTrades(SpaceSim.Core.Events.SimEvent e) { if (e is SpaceSim.Core.Events.TradeCompleted t && t.Ship == _secondShip) _trades++; }
 
-	public SelfTest(Main m) { _m = m; }
+	public SelfTest(Main m) { _m = m; SpaceAdventure.Ui.Kit.KitConfirm.DebounceMs = 0; } // der Selbsttest tippt ohne Pause doppelt
 
 	public override void _Process(double delta)
 	{
@@ -175,6 +175,25 @@ public partial class SelfTest : Node
 					var frAll = _m.HudRef.DockTrade.TestExecute("sell_all", 0f);
 					Check(fracOff && !frRefused.Success && !frAll.Success && pl.Cargo.GetValueOrDefault(ironOre) == 3f && frRefused.Message == _m.HudRef.DockTrade.TestSellNote(ironOre),
 						$"Annahme 0,5 < 1: Verkaufen und „Alles verkaufen“ aus, beide abgelehnt, Fracht unverändert ({frRefused.Message})");
+					// Phase 18: Resttoleranz — ein Rest 0,4 an einem Werk, das nur 0,2 annimmt, geht ganz weg (Überhang unter einer Einheit)
+					oreEntry.Amount = oreKeep;
+					oreEntry.Amount += works.AcceptableUnits(ironOre, u.Rules) - 0.2f;
+					pl.Cargo[ironOre] = 0.4f;
+					_m.HudRef.DockTrade.TestRebuild();
+					bool restOn = _m.HudRef.DockTrade.TestSellEnabled(ironOre);
+					var rest = _m.HudRef.DockTrade.TestExecute($"sell:{ironOre.Value}", 1f);
+					Check(restOn && rest.Success && pl.Cargo.GetValueOrDefault(ironOre) == 0f, "Erzrest 0,4 bei Annahme 0,2: Verkaufen aktiv, Rest ganz verkauft (Phase 18, Resttoleranz)");
+					// Phase 18: Abwerfen — Stahl nimmt das Stahlwerk nicht (eigenes Produkt): „Abwerfen“ neben dem Grund, erst der zweite Tipp wirft ab
+					pl.Cargo[steelG] = 2.5f;
+					_m.HudRef.DockTrade.TestRebuild();
+					Check(_m.HudRef.DockTrade.TestDropShown(steelG), "Stahl am Stahlwerk: Taste „Abwerfen“ neben dem Grund");
+					Check(!_m.HudRef.DockTrade.TestDropShown(DemoFood(u)) || pl.Cargo.ContainsKey(DemoFood(u)), "Abwerfen nur für Ware an Bord");
+					bool firstTap = _m.HudRef.DockTrade.TestTapDrop(steelG, 9999f);
+					Check(!firstTap && pl.Cargo.GetValueOrDefault(steelG) == 2.5f, "Erster Tipp auf „Abwerfen“ macht nur scharf, Fracht unverändert");
+					float walletDrop = u.PlayerWallet.Credits;
+					bool secondTap = _m.HudRef.DockTrade.TestTapDrop(steelG, 9999f);
+					Check(secondTap && !pl.Cargo.ContainsKey(steelG) && u.PlayerWallet.Credits == walletDrop && _m.HudRef.DockTrade.TestMessage.Contains("abgeworfen"),
+						$"Zweiter Tipp wirft den Stahl ab, ohne Erlös ({_m.HudRef.DockTrade.TestMessage})");
 					pl.Cargo.Remove(ironOre);
 					oreEntry.Amount = oreKeep; works.Credits = worksCredits;
 					_m.HudRef.DockCtx.Station = st;
@@ -851,6 +870,15 @@ public partial class SelfTest : Node
 				_m.HudRef.CcAssets.TestOpenShipDetail(_secondShip);
 				_m.HudRef.CcAssets.Refresh();
 				Check(_m.TestScreenOpen("cc.assets"), "Besitz zeigt das Zweitschiff im Detailfenster");
+				{ // Phase 18: Abwerfen im Schiffsdetail (aus der Ferne, Core-Regel CargoJettison), zweiter Tipp bestätigt
+					var food = DemoFood(uni);
+					second.Cargo[food] = 0.3f;
+					_m.HudRef.CcAssets.Refresh();
+					bool t1 = _m.HudRef.CcAssets.TestTapJettison(_secondShip, food);
+					bool t2 = _m.HudRef.CcAssets.TestTapJettison(_secondShip, food);
+					Check(!t1 && t2 && !second.Cargo.ContainsKey(food) && _m.HudRef.CcAssets.TestMessage.Contains("abgeworfen"),
+						$"Schiffsdetail: Rest 0,3 Nahrung nach dem zweiten Tipp abgeworfen ({_m.HudRef.CcAssets.TestMessage})");
+				}
 				_m.TestCloseCommand();
 				_m.TestUndock();
 				Next(); break;
@@ -995,6 +1023,9 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	void Log(string s) => GD.Print("[selftest] " + s);
+	/// <summary>Phase 18: Ware „Nahrung“ der Welt (für die Abwurf-Prüfungen).</summary>
+	static SpaceSim.Core.Model.GoodId DemoFood(SpaceSim.Core.Model.Universe u) => u.FindGood("food")!.Id;
+
 	void Check(bool ok, string what) { if (!ok) { _fail += what + "; "; GD.PrintErr("[selftest] FEHLER: " + what); } else Log("ok: " + what); }
 	void Fail(string what) { _fail += what + "; "; GD.PrintErr("[selftest] FEHLER: " + what); _stage = 99; }
 }
