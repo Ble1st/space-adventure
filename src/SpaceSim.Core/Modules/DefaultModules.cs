@@ -57,3 +57,13 @@ public sealed class LifecycleModule : ISimModule
     public void Register(SimulationBuilder b) =>
         b.Add(new UpkeepSystem(), interval: 10).Add(new StationLifecycleSystem(), interval: 20).Add(new FleetSystem(), interval: 20);
 }
+
+/// <summary>
+/// Phase 9: Akteure (POLITIK.md Abschnitt 6). Läuft nach dem Lebenszyklus (Flotte und Stationen haben sich geändert) und entfernt aufgestiegene
+/// Einzelakteure ohne Besitz (Abstieg). Aufstieg, Zukauf und Kassen hängen an den Systemen, in denen sie geschehen (Flotte, Lebenszyklus, Unterhalt).
+/// </summary>
+public sealed class ActorModule : ISimModule
+{
+    public string Name => "Actors";
+    public void Register(SimulationBuilder b) => b.Add(new ActorSystem(), interval: 20);
+}

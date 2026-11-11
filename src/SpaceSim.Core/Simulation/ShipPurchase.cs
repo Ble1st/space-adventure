@@ -80,11 +80,11 @@ public static class ShipPurchase
     /// Tank; Rolle/Steuerer und Güteklasse (Phase 7, Slots/Fit enthalten ihre Wirkung schon) wie übergeben. Das Schiff ist noch nicht im Universum (Aufrufer ruft <see cref="Universe.AddShip"/>).
     /// </summary>
     public static Ship Create(Universe u, ShipId id, string modelKey, IReadOnlyList<ClassSlot> slots, IReadOnlyList<string?> fit,
-        ShipRole role, Controller controller, FactionId faction, Station at, float credits, ShipQuality quality = ShipQuality.Standard)
+        ShipRole role, Controller controller, ActorId owner, Station at, float credits, ShipQuality quality = ShipQuality.Standard)
     {
         var ship = new Ship
         {
-            Id = id, Role = role, Controller = controller, Faction = faction, Sector = at.Sector, Position = at.DockPoint(id), Credits = credits,
+            Id = id, Role = role, Controller = controller, Owner = owner, Sector = at.Sector, Position = at.DockPoint(id), Credits = credits,
             ModelKey = modelKey, Quality = quality,
             Slots = slots.Select(s => new ClassSlot { Type = s.Type, Size = s.Size, Facing = s.Facing, Arc = s.Arc }).ToList(),
             Fit = new List<string?>(fit),

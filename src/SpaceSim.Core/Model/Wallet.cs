@@ -1,10 +1,9 @@
 namespace SpaceSim.Core.Model;
 
 /// <summary>
-/// Eine Kasse: alles, worauf Handel, Dienste und Gebühren Credits buchen. Phase 5b: NPC-Einzelschiffe sind ihre eigene
-/// Kasse (<see cref="Ship.Credits"/>, implizite Akteure), Spielerschiffe buchen auf die <see cref="PlayerWallet"/> der Person.
-/// Ab Phase 9 ist das die Kasse des Akteurs, dem ein Schiff gehört; Aufrufer holen sie immer über
-/// <see cref="Universe.WalletOf(Ship)"/> und nie direkt über das Schiff.
+/// Eine Kasse: alles, worauf Handel, Dienste und Gebühren Credits buchen. NPC-Schiffe, deren Besitzer nicht über eine gemeinsame Kasse
+/// wirtschaftet, sind ihre eigene (Betriebs-)Kasse (<see cref="Ship.Credits"/>); Schiffe des Spielers buchen auf die <see cref="Treasury"/>
+/// ihres Besitzers. Aufrufer holen die Kasse immer über <see cref="Universe.WalletOf(Ship)"/> und nie direkt über das Schiff.
 /// </summary>
 public interface ICreditAccount
 {
@@ -13,12 +12,11 @@ public interface ICreditAccount
 }
 
 /// <summary>
-/// Kasse des Spielers (der Person, nicht des Schiffs; POLITIK.md, „Spielerkasse“). Zwischenstufe bis zum Akteurmodell
-/// (Phase 9): dann wird daraus die Kasse des Spielerakteurs. Geld hängt an der Person, Fracht und Treibstoff am Schiff.
+/// Kasse eines Akteurs (Phase 9, POLITIK.md „Fraktionskasse“): beim Spieler sein ganzes Geld (Phase 5b „Spielerkasse“, Geld hängt an der Person),
+/// bei Fraktionen die Staatskasse, gespeist aus den Vermögensabgaben ihrer Mitglieder (<see cref="Simulation.UpkeepSystem"/>) und ausgegeben für
+/// Stationsbau (Zukauf, <see cref="Simulation.Investors"/>).
 /// </summary>
-public sealed class PlayerWallet : ICreditAccount
+public sealed class Treasury : ICreditAccount
 {
     public float Credits { get; set; }
-    /// <summary>Fraktion, der die Person angehört (Besitzer-Fraktion; heute die des Startschiffs).</summary>
-    public FactionId Faction;
 }

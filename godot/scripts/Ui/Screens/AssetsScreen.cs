@@ -31,7 +31,7 @@ public sealed partial class AssetsScreen : CommandScreen
 		var u = Ctx.U;
 		var ship = Ctx.Player;
 		int myShips = u.Ships.Values.Count(s => s.IsPlayer);
-		int myStations = 0;   // Spielerbesitz an Stationen gibt es im Core noch nicht
+		int myStations = u.Stations.Values.Count(s => s.Owner == u.PlayerActor);   // Phase 9: Besitz über den Spielerakteur (Stationen hat er noch keine)
 		float total = SectorEconomy.PlayerNetWorth(u);   // Spielerkasse + Fracht aller Spielerschiffe
 
 		// ── Kopf: Kasse, Zahlen, Gesamtwert (echt) ──
@@ -106,7 +106,7 @@ public sealed partial class AssetsScreen : CommandScreen
 		// Schiffskarte links
 		At(w, new DockAreaScreen.ShipSketch { CustomMinimumSize = new Vector2(120, 100), Size = new Vector2(120, 100), MouseFilter = MouseFilterEnum.Ignore }, 30, 40);
 		At(w, Text($"Schiff #{s.Id.Value}{(active ? " (aktiv)" : "")}", 30, White), 170, 24, 400, 36);
-		At(w, Text($"{(u.ShipModels.TryGetValue(s.ModelKey, out var md) ? md.Name : "ohne Modell")} · Güteklasse {ShipQualityNames.Name(s.Quality)} · Fraktion {FactionName(u, s.Faction)}", 15, Dim), 170, 62, 600, 20);
+		At(w, Text($"{(u.ShipModels.TryGetValue(s.ModelKey, out var md) ? md.Name : "ohne Modell")} · Güteklasse {ShipQualityNames.Name(s.Quality)} · Besitzer {u.ActorName(s.Owner)}", 15, Dim), 170, 62, 600, 20);
 		string ort = Ctx.Docked is { } dock && active && u.Stations.TryGetValue(dock, out var dst)
 			? $"angedockt an {dst.Name}"
 			: $"{SectorName(u, s.Sector)} · ({s.Position.X:0}/{s.Position.Y:0})";

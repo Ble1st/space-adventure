@@ -40,7 +40,7 @@ public class ConstructionTests
 
     internal static string ToV10Json(string v11Json)
     {
-        var node = JsonNode.Parse(v11Json)!.AsObject();
+        var node = JsonNode.Parse(ActorTests.ToV11Json(v11Json))!.AsObject();   // Phase 9: erst die Akteure zurückbauen
         node["Version"] = 10;
         var types = node["StationTypes"]!.AsArray();
         foreach (var t in types.ToList())
@@ -143,7 +143,7 @@ public class ConstructionTests
         // je Fraktion ein KI-Bauschiff mit Fähigkeit Construction (und keinem Laser)
         foreach (var f in u.Factions.Keys)
         {
-            var b = Assert.Single(u.Ships.Values, s => s.IsAiBuilder && s.Faction == f);
+            var b = Assert.Single(u.Ships.Values, s => s.IsAiBuilder && s.Owner == f);   // Phase 9: Bauschiffe gehören dem Fraktionsakteur
             Assert.Equal(Capability.Cargo | Capability.Construction, b.Capabilities);
             Assert.True(b.CargoCapacity >= 160f);   // 100 + 60 (Gründer können eine bessere Güteklasse würfeln)
             Assert.True(b.IsEconomyAi);
@@ -202,6 +202,8 @@ public class ConstructionTests
         var u = DemoUniverse.Create();
         foreach (var st in u.Stations.Values) foreach (var e in st.Market.Values) e.Amount = e.Target;
         foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(DemoUniverse.Food, out var f)) f.Amount = 0f;
+        // Phase 9: Der Investor kommt aus einer gewichteten Ziehung — hier ist das Schiff der einzige, der Baukosten plus Reserve aufbringt
+        foreach (var st in u.Stations.Values) st.Credits = 1000f;
         var investor = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
         investor.Credits = 50_000f;
         new StationLifecycleSystem().Step(u, 1);
@@ -262,7 +264,7 @@ public class ConstructionTests
         var site = Site(u, "farm", 1);
         var id = site.Id;
         var steelBefore = u.Stations.Values.Where(s => !s.IsBuildSite && s.Production.Any(r => r.Outputs.ContainsKey(DemoUniverse.Steel))).Sum(s => s.Market[DemoUniverse.Steel].Amount);
-        var builder = u.Ships.Values.Single(s => s.IsAiBuilder && s.Faction == site.Owner);
+        var builder = u.Ships.Values.Single(s => s.IsAiBuilder && s.Owner == site.Owner);
         float builderCredits = builder.Credits;
         var events = new List<SimEvent>();
         u.Events.Raised += events.Add;
@@ -342,7 +344,7 @@ public class ConstructionTests
         var site = Site(u, "farm", 1);
         var runner = new SimulationRunner();
         runner.Run(u, 60);
-        var builder = u.Ships.Values.Single(s => s.IsAiBuilder && s.Faction == site.Owner);
+        var builder = u.Ships.Values.Single(s => s.IsAiBuilder && s.Owner == site.Owner);
         Assert.Equal(builder.Id, site.Site!.Builder);
         builder.Fit[builder.Fit.IndexOf("construction_rig_s")] = null;
         builder.RecomputeStats(u);
@@ -379,7 +381,7 @@ public class ConstructionTests
         float expectedCost = bill.Sum(kv => (kv.Value - (kv.Key == DemoUniverse.Steel ? 5f : 0f)) * u.Goods[kv.Key].BasePrice) * u.Rules.EmergencyBuildMarkup;
         Assert.Equal(expectedCost, em.Cost + em.Waived, 0);
         Assert.Equal(0f, em.Waived);   // die Bausumme deckt den Notbau
-        Assert.Equal(emTick, u.Factions[site.Owner].LastEmergencyBuildTick);
+        Assert.Equal(emTick, u.Factions[u.FactionOf(site)!.Value].LastEmergencyBuildTick);
         Assert.False(u.Stations[id].IsBuildSite);   // ohne Bauschiff montiert
         Assert.Equal("farm", u.Stations[id].TypeKey);
     }
@@ -634,7 +636,7 @@ public class ConstructionTests
         var runner = new SimulationRunner();
         runner.Run(u, 300);   // Bauschiff unterwegs, Baustelle beliefert
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":11", json);
+        Assert.Contains("\"Version\":12", json);
         Assert.Contains("\"Site\":", json);
         Assert.Contains("\"PlayerStorage\":", json);
         var (loaded, _) = SaveGameJson.Read(json);
@@ -675,7 +677,7 @@ public class ConstructionTests
         Assert.All(loaded.Stations.Values, s => Assert.True(s.BankruptcyProtected));
         foreach (var f in loaded.Factions.Keys)
         {
-            var b = Assert.Single(loaded.Ships.Values, s => s.IsAiBuilder && s.Faction == f);
+            var b = Assert.Single(loaded.Ships.Values, s => s.IsAiBuilder && s.Owner == f);
             Assert.Equal("foreman", b.ModelKey);
             Assert.Equal(b.Stats.FuelCapacity, b.TotalFuel);
             Assert.Equal(b.MaxHull, b.Hull);

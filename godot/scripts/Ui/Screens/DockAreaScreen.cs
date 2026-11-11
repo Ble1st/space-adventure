@@ -72,7 +72,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 
 		var u = Ctx.U; var st = Ctx.Station; var ship = Ctx.Ship;
 		string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
-		string faction = u.Factions.TryGetValue(st.Owner, out var f) ? f.Name : "?";
+		string faction = u.ActorName(st.Owner);   // Phase 9: Besitzer ist ein Akteur (Fraktionen tragen ihren Namen)
 		string sector = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
 
 		// ── Top-Leiste: Station links, Credits und Stationskasse rechts ──

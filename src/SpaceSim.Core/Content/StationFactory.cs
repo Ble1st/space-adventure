@@ -7,7 +7,7 @@ public static class StationFactory
 {
     public const float DefaultStock = 50f, DefaultTarget = 100f;
 
-    public static Station Create(Universe u, StationId id, StationType type, string name, SectorId sector, Vec2 pos, FactionId owner)
+    public static Station Create(Universe u, StationId id, StationType type, string name, SectorId sector, Vec2 pos, ActorId owner)
     {
         var st = new Station { Id = id, TypeKey = type.Key, Name = name, Sector = sector, Position = pos, Owner = owner, Credits = 10_000 };
         foreach (var r in type.Recipes)

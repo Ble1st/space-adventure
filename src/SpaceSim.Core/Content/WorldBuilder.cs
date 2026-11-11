@@ -144,7 +144,29 @@ public static class WorldBuilder
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
-        foreach (var f in def.Factions) u.Factions[new FactionId(f.Id)] = new Faction { Id = new FactionId(f.Id), Name = f.Name };
+        // Phase 9: jede Fraktion ist zugleich ein Akteur (gleiche Id-Zahl) mit Art, Persönlichkeit und Kasse; Hauptbeziehungen nur als Abweichung
+        foreach (var f in def.Factions)
+        {
+            if (f.Id <= 0 || f.Id >= ActorId.FirstGenerated) throw new WorldFormatException($"Fraktion '{f.Name}': Id {f.Id} muss zwischen 1 und {ActorId.FirstGenerated - 1} liegen");
+            var id = new FactionId(f.Id);
+            if (!u.Factions.TryAdd(id, new Faction { Id = id, Name = f.Name })) throw new WorldFormatException($"Fraktion {f.Id} doppelt");
+            var kind = f.Kind is null ? ActorKind.State
+                : Enum.TryParse<ActorKind>(f.Kind, ignoreCase: true, out var k) && k is ActorKind.State or ActorKind.Guild or ActorKind.Outlaw ? k
+                : throw new WorldFormatException($"Fraktion '{f.Name}': unbekannte Art '{f.Kind}' (state, guild, outlaw)");
+            var p = f.Personality;
+            u.Actors[id] = new Actor
+            {
+                Id = id, Name = f.Name, Kind = kind, Membership = id,
+                Personality = p is null ? Personality.Neutral : new Personality(p.Aggression, p.Greed, p.Cooperation, p.Lawfulness).Clamped(),
+                Treasury = new Treasury { Credits = f.Treasury },
+            };
+        }
+        foreach (var f in def.Factions)
+            foreach (var (other, v) in f.Relations ?? new Dictionary<int, float>())
+            {
+                if (!u.Factions.ContainsKey(new FactionId(other)) || other == f.Id) throw new WorldFormatException($"Fraktion '{f.Name}': Beziehung zu unbekannter Fraktion {other}");
+                u.Factions[new FactionId(f.Id)].Relations[new FactionId(other)] = Math.Clamp(v, -1f, 1f);
+            }
 
         foreach (var sd in def.Sectors)
         {
@@ -193,9 +215,16 @@ public static class WorldBuilder
         foreach (var group in def.Ships)
         {
             var role = Enum.TryParse<ShipRole>(group.Role, ignoreCase: true, out var r) ? r : throw new WorldFormatException($"Unbekannte Schiffsrolle '{group.Role}'");
+            // Phase 9: Besitzer der Gruppe — Fraktionsakteur oder die Sammelgruppe „Freie“ (freie Einzelschiffe, implizite Akteure)
+            ActorId owner = (group.Owner?.ToLowerInvariant()) switch
+            {
+                null or "faction" => new FactionId(group.Faction),
+                "free" => u.FreeActor,
+                _ => throw new WorldFormatException($"Schiffsgruppe '{group.Role}': unbekannter Besitzer '{group.Owner}' (faction, free)"),
+            };
             for (int i = 0; i < group.Count; i++)
             {
-                var ship = NewShip(u, new ShipId(nextShip++), role, group.Faction, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model);
+                var ship = NewShip(u, new ShipId(nextShip++), role, owner, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model);
                 RollFounderQuality(u, ship);
                 u.AddShip(ship);
             }
@@ -222,8 +251,10 @@ public static class WorldBuilder
         }
 
         // Phase 5b: das Startgeld gehört der Person (Spielerkasse), nicht dem Schiff
-        var player = NewShip(u, new ShipId(100), ShipRole.Player, def.Player.Faction, new SectorId(playerSector), 0f, 100, playerModel);
-        u.PlayerWallet = new PlayerWallet { Credits = playerCredits, Faction = new FactionId(def.Player.Faction) };
+        // Phase 9: der Spieler ist ein Einzelakteur; Mitglied der Fraktion des Spielereintrags, seine Kasse ist die Spielerkasse
+        var player = NewShip(u, new ShipId(100), ShipRole.Player, u.PlayerActor, new SectorId(playerSector), 0f, 100, playerModel);
+        u.Player.Treasury.Credits = playerCredits;
+        u.Player.Membership = u.Factions.ContainsKey(new FactionId(def.Player.Faction)) ? new FactionId(def.Player.Faction) : null;
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
@@ -409,13 +440,17 @@ public static class WorldBuilder
     /// expliziter Schlüssel wirft <see cref="WorldFormatException"/>; ein in dieser Welt nicht vorhandenes
     /// automatisch gewähltes Einheitsmodell lässt das Schiff ohne Modell (Pauschalwerte).
     /// </summary>
-    public static Ship NewShip(Universe u, ShipId id, ShipRole role, int faction, SectorId sector, float credits, float cargo, string? model = null)
+    public static Ship NewShip(Universe u, ShipId id, ShipRole role, int faction, SectorId sector, float credits, float cargo, string? model = null) =>
+        NewShip(u, id, role, new ActorId(faction), sector, credits, cargo, model);
+
+    /// <summary>Wie oben, mit ausdrücklichem Besitzer (Phase 9: Fraktionsakteur, Sammelgruppe „Freie“ oder Spieler).</summary>
+    public static Ship NewShip(Universe u, ShipId id, ShipRole role, ActorId owner, SectorId sector, float credits, float cargo, string? model = null)
     {
         if (!u.Sectors.TryGetValue(sector, out var sec)) throw new WorldFormatException($"Schiff {id.Value}: unbekannter Sektor {sector.Value}");
         var ship = new Ship
         {
             Id = id, Role = role, Controller = CapabilityDefaults.ControllerFor(role),
-            Faction = new FactionId(faction), Sector = sector, Credits = credits,
+            Owner = owner, Sector = sector, Credits = credits,
             Position = sec.Stations.Count > 0 ? u.Stations[sec.Stations[0]].DockPoint(id) : default,
         };
         var key = model ?? UnitModelFor(role, cargo);

@@ -139,4 +139,36 @@ public sealed class EconomyRules
     public float StorageFeePerUnit = 0.5f;
     /// <summary>Lagerhaus: Höchstmenge im persönlichen Lager des Spielers je Station (Einheiten).</summary>
     public float StorageCapacity = 500f;
+
+    // ───────── Phase 9: Akteure, Kasse, Zukauf, Beziehungen ─────────
+    /// <summary>Größenzahl (POLITIK.md Abschnitt 6): Gewicht je Schiff im Besitz.</summary>
+    public float ActorShipWeight = 1f;
+    /// <summary>Größenzahl: Gewicht je Station im Besitz.</summary>
+    public float ActorStationWeight = 3f;
+    /// <summary>Größenzahl: Gewicht je kontrolliertem Sektor (Sektorbesitz der Fraktion).</summary>
+    public float ActorSectorWeight = 10f;
+    /// <summary>Größenzahl: Geld (Kasse plus Betriebskassen der eigenen Schiffe und Stationen) ÷ Skala.</summary>
+    public float ActorMoneyScale = 50_000f;
+    /// <summary>Untergrenzen der Größenklassen Kleinfirma, Firma, Konzern, Staat (darunter: Einzelakteur).</summary>
+    public List<float> ActorSizeThresholds = new() { 2f, 6f, 15f, 30f };
+    /// <summary>Appetit beim Zukauf je Größenklasse (Einzelakteur … Staat): Kleine kaufen seltener (POLITIK.md „Zukauf durch kleinere Akteure“).</summary>
+    public List<float> InvestAppetite = new() { 0.25f, 0.5f, 0.75f, 1f, 1f };
+    /// <summary>Anteil der Vermögensabgaben, der in die Kasse der zuständigen Fraktion fließt (Rest verschwindet wie vor Phase 9). 0 = alte Geldsenke.</summary>
+    public float TaxToTreasuryShare = 1f;
+    /// <summary>Dürfen Kassen von Akteuren (Fraktionen, Einzelakteure) Stationen finanzieren (Erstzugriff der Großen)?</summary>
+    public bool TreasuryInvests = true;
+    /// <summary>Lazy-Aufstieg: Ein freies Einzelschiff wird zum eigenen Akteur, sobald es investiert (Schiff kauft Schiff, Schiff finanziert Station).</summary>
+    public bool PromoteInvestors = true;
+    /// <summary>Mittelwerte der gewürfelten Persönlichkeit aufgestiegener Einzelakteure (Aggression, Gier, Kooperation, Gesetzestreue).</summary>
+    public List<float> IndependentPersonality = new() { 0.35f, 0.6f, 0.5f, 0.55f };
+    /// <summary>Streuung (±) der gewürfelten Persönlichkeitswerte.</summary>
+    public float PersonalitySpread = 0.2f;
+    /// <summary>Vorgabe-Beziehung zwischen Akteuren ohne gespeicherte Abweichung (neutral).</summary>
+    public float RelationDefault = 0f;
+    /// <summary>Vorgabe-Beziehung innerhalb derselben Fraktion (Mitglieder untereinander und zur eigenen Fraktion).</summary>
+    public float RelationSameFaction = 0.5f;
+    /// <summary>Vorgabe-Beziehung zwischen Fraktionen und der Sammelgruppe „Freie“ (freie Händler werden geduldet).</summary>
+    public float RelationFree = 0.1f;
+    /// <summary>Vorgabe-Beziehung aller zu Gesetzlosen.</summary>
+    public float RelationOutlaw = -0.6f;
 }

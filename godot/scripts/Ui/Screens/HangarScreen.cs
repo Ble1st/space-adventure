@@ -46,7 +46,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 		var names = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		names.AddThemeConstantOverride("separation", 2);
 		names.AddChild(Text($"Dein Schiff #{ship.Id.Value}", 22, White));
-		names.AddChild(Text($"{ModelName(u, ship)} · Güteklasse {ShipQualityNames.Name(ship.Quality)} · Fraktion {FactionName(u, ship.Faction)}", 14, Dim));
+		names.AddChild(Text($"{ModelName(u, ship)} · Güteklasse {ShipQualityNames.Name(ship.Quality)} · Besitzer {u.ActorName(ship.Owner)}", 14, Dim));
 		names.AddChild(Text("AKTIV – von dir gesteuert", 14, Cyan));
 		top.AddChild(names);
 		var sp = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };

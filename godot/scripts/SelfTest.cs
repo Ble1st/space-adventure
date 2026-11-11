@@ -331,6 +331,18 @@ public partial class SelfTest : Node
 						_m.HudRef.Screens.Current?.Refresh();
 						Check(_m.TestScreenOpen("cc." + id), $"Kommandozentralen-Bereich „{id}“ öffnet und aktualisiert ohne Ausnahme");
 					}
+					// Phase 9: Fraktionen und Meine Fraktion zeigen die echten Akteure (Fraktionen, Sammelgruppe; der Spieler ist Einzelakteur)
+					var rows = _m.HudRef.CcFactions.TestRows;
+					Check(u.Factions.Keys.All(f => rows.Any(r => r.Id == f)) && rows.Any(r => r.Id == u.FreeActor) && rows.All(r => r.Id != u.PlayerActor),
+						$"Fraktionen-Liste aus den Akteuren: {rows.Count} Zeilen (Fraktionen, Einzelakteure, Freie; ohne Spieler)");
+					_m.TestOpenCcArea("factions");
+					_m.TestCcSelectFaction(new FactionId(2));
+					_m.HudRef.Screens.Current?.Refresh();
+					Check(_m.HudRef.CcFactions.Selected == new ActorId(2) && _m.TestScreenOpen("cc.factions"), "Fraktionsdetail der Gilde öffnet ohne Ausnahme");
+					var plShip = u.Ships[u.PlayerShip];
+					Check(plShip.Owner == u.PlayerActor && ReferenceEquals(u.WalletOf(plShip), u.Player.Treasury) && u.Player.Kind == ActorKind.Player,
+						"Spielerschiff gehört dem Spielerakteur und bucht auf seine Kasse (Phase 9)");
+					Check(SpaceSim.Core.Simulation.Relations.Effective(u, new ActorId(2), u.PlayerActor) is >= -1f and <= 1f, "Beziehung der Gilde zum Spieler ist auswertbar");
 					// Universum: Sektorauswahl liefert Route/Sprungzahl passend zu Universe.FindRoute
 					var target = u.Sectors.Keys.First(s => s != u.PlayerSector);
 					_m.TestOpenCcArea("universe");

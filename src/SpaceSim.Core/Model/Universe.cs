@@ -31,15 +31,65 @@ public sealed class Universe
     public SectorId PlayerSector;
     public ShipId PlayerShip;
 
-    /// <summary>Kasse der Spielerperson (Phase 5b); gespeichert und gehasht. Siehe <see cref="WalletOf(Ship)"/>.</summary>
-    public PlayerWallet PlayerWallet = new();
+    /// <summary>
+    /// Akteure (Phase 9): Fraktionsakteure (Id = Fraktions-Id), die Sammelgruppe „Freie“ (<see cref="FreeActor"/>), der Spieler
+    /// (<see cref="PlayerActor"/>) und aufgestiegene Einzelschiffe (<see cref="Simulation.ActorRules.Promote"/>). Gespeichert und gehasht.
+    /// </summary>
+    public Dictionary<ActorId, Actor> Actors = new();
+    /// <summary>Der Spieler als Einzelakteur (Phase 9; seine Kasse ist die Spielerkasse aus Phase 5b).</summary>
+    public ActorId PlayerActor = new(ActorId.FirstGenerated + 1);
+    /// <summary>Sammelgruppe aller freien Einzelschiffe (implizite Akteure, POLITIK.md „Einzelschiffe träge anlegen“).</summary>
+    public ActorId FreeActor = new(ActorId.FirstGenerated);
+    /// <summary>Nächste freie Akteur-Id (gespeichert).</summary>
+    public int NextActorId { get; set; } = ActorId.FirstGenerated + 2;
+
+    public Universe() => EnsureCoreActors();
+
+    /// <summary>Legt Sammelgruppe „Freie“ und Spielerakteur an, falls sie fehlen (neues Universum, Laden).</summary>
+    public void EnsureCoreActors()
+    {
+        if (!Actors.ContainsKey(FreeActor))
+            Actors[FreeActor] = new Actor { Id = FreeActor, Name = "Freie Kapitäne", Kind = ActorKind.Free };
+        if (!Actors.ContainsKey(PlayerActor))
+            Actors[PlayerActor] = new Actor { Id = PlayerActor, Name = "Du", Kind = ActorKind.Player, ShipsUseTreasury = true };
+        if (NextActorId <= Math.Max(FreeActor.Value, PlayerActor.Value)) NextActorId = Math.Max(FreeActor.Value, PlayerActor.Value) + 1;
+    }
+
+    /// <summary>Neue Akteur-Id (fortlaufend ab <see cref="ActorId.FirstGenerated"/>).</summary>
+    public ActorId NewActorId() => new(NextActorId++);
+
+    /// <summary>Der Spielerakteur.</summary>
+    public Actor Player => Actors[PlayerActor];
+
+    /// <summary>Kasse der Spielerperson = Kasse des Spielerakteurs (Phase 5b eingeführt, seit Phase 9 die <see cref="Actor.Treasury"/>).</summary>
+    public Treasury PlayerWallet => Player.Treasury;
 
     /// <summary>
-    /// Kasse, auf die ein Schiff bucht: Spielerschiffe (<see cref="Ship.IsPlayer"/>) die <see cref="PlayerWallet"/>,
-    /// NPC-Schiffe sich selbst (<see cref="Ship.Credits"/>, Verhalten wie vor Phase 5b). Phase 9 ersetzt die Fallunterscheidung
-    /// durch die Kasse des Besitzers.
+    /// Kasse, auf die ein Schiff bucht (Phase 9: „Kasse des Besitzers“): die <see cref="Actor.Treasury"/> des Besitzers, wenn dieser über eine
+    /// gemeinsame Kasse wirtschaftet (<see cref="Actor.ShipsUseTreasury"/>, der Spieler), sonst das Schiff selbst (Betriebskasse
+    /// <see cref="Ship.Credits"/>, Verhalten wie vor Phase 9). Spielergesteuerte Schiffe ohne auflösbaren Besitzer buchen auf die Spielerkasse.
     /// </summary>
-    public ICreditAccount WalletOf(Ship ship) => ship.IsPlayer ? PlayerWallet : ship;
+    public ICreditAccount WalletOf(Ship ship)
+    {
+        if (Actors.TryGetValue(ship.Owner, out var a) && a.ShipsUseTreasury) return a.Treasury;
+        return ship.IsPlayer ? PlayerWallet : ship;
+    }
+
+    /// <summary>Mitgliedschaft eines Akteurs (Fraktion); null = unabhängig oder unbekannt. Fraktionsakteure sind Mitglied ihrer selbst.</summary>
+    public FactionId? FactionOf(ActorId actor)
+    {
+        if (Actors.TryGetValue(actor, out var a)) return a.Membership;
+        return Factions.ContainsKey(new FactionId(actor.Value)) ? new FactionId(actor.Value) : null;
+    }
+
+    /// <summary>Fraktion, der ein Schiff über seinen Besitzer angehört (freie Einzelschiffe: keine).</summary>
+    public FactionId? FactionOf(Ship ship) => FactionOf(ship.Owner);
+
+    /// <summary>Fraktion, der eine Station über ihren Besitzer angehört.</summary>
+    public FactionId? FactionOf(Station station) => FactionOf(station.Owner);
+
+    /// <summary>Anzeigename eines Akteurs ("?" wenn unbekannt).</summary>
+    public string ActorName(ActorId actor) => Actors.TryGetValue(actor, out var a) ? a.Name : "?";
 
     /// <summary>Ereignisbus und Schiffsindex sind abgeleitet und gehören nicht zum Spielstand.</summary>
     public SimEvents Events { get; } = new();
@@ -68,6 +118,8 @@ public sealed class Universe
         // Fähigkeiten/Steuerer aus der Rolle ableiten, nur wenn der Ersteller sie nicht ausdrücklich gesetzt hat
         if (!s.CapabilitiesSet && !modelOk) s.Capabilities = CapabilityDefaults.ForRole(s.Role);
         if (!s.ControllerSet) s.Controller = CapabilityDefaults.ControllerFor(s.Role);
+        // Phase 9: ohne Besitzer gehört ein Spielerschiff dem Spieler, jedes andere ist ein freies Einzelschiff (Sammelgruppe „Freie“)
+        if (s.Owner == ActorId.None) s.Owner = s.IsPlayer ? PlayerActor : FreeActor;
         // Phase 4: leerer Tank wird vollgetankt (erster zulässiger Treibstoff); Schiffe ohne Modell/Antrieb bleiben leer
         if (s.Fuel.Count == 0) s.FillFuel();
         Ships[s.Id] = s;
@@ -240,7 +292,8 @@ public sealed class Universe
         if (_indexTick != Tick || _indexVersion != StructureVersion)
         {
             _tradingIndex.Clear();
-            foreach (var st in Stations.Values)
+            // feste Reihenfolge (Id), nicht die Einfügereihenfolge des Dictionarys (entfernte Stationen geben Plätze frei)
+            foreach (var st in Stations.Values.OrderBy(s => s.Id.Value))
                 foreach (var g in st.Market.Keys)
                 {
                     if (!_tradingIndex.TryGetValue(g, out var list)) _tradingIndex[g] = list = new List<Station>();

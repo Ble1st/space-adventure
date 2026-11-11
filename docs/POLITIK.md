@@ -1,6 +1,6 @@
 # Politik: Kontrollpunkte, Sperren, Folgen (Planung)
 
-**Status: reine Planung, nichts davon ist umgesetzt.** Setzt das Fraktionsverhalten voraus. Heute hat `Faction` nur `Relations` und `Territory`, die nichts benutzt, und `Gate` nur den Schalter `Open` (siehe [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), Abschnitte 4–6). Fortsetzung: [FLOTTEN.md](FLOTTEN.md). Stationsformen für Regierung: [STATIONEN.md](STATIONEN.md), Abschnitt 5.
+**Status: Planung; seit Phase 9 umgesetzt ist Abschnitt 6 in Teilen** (Akteure und Fraktionen, `Ship.Owner`, Sammelgruppe „Freie“ mit trägem Aufstieg, Größenklassen, Zukauf als gewichtete Ziehung, Kassen aus Abgaben, sparsame Beziehungen, Persönlichkeit; siehe UMSETZUNGSPLAN.md Phase 9). Sperren, Kontrollpunkte, Krieg und Sektorkontrolle sind nicht umgesetzt; `Gate` hat nur den Schalter `Open` (siehe [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), Abschnitte 4–6). Fortsetzung: [FLOTTEN.md](FLOTTEN.md). Stationsformen für Regierung: [STATIONEN.md](STATIONEN.md), Abschnitt 5.
 
 ## 1. Kontrollpunkt
 

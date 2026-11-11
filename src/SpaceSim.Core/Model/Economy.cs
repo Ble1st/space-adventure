@@ -102,7 +102,8 @@ public sealed class Station
     public long BelowLimitSince = -1;
     public string Name = "";
     public SectorId Sector;
-    public FactionId Owner;
+    /// <summary>Besitzer (Phase 9: ein Akteur; die Startstationen gehören den Fraktionsakteuren, Id = Fraktions-Id).</summary>
+    public ActorId Owner;
     public Vec2 Position;
     public float Credits;
 

@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 11;
+    public const int CurrentVersion = 12;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -22,8 +22,17 @@ public sealed class SaveGame
     public int PlayerSector { get; set; }
     public int PlayerShip { get; set; }
     public EconomyRules Rules { get; set; } = new();
-    /// <summary>Spielerkasse (Phase 5b, v7); ältere Stände bekommen sie per Migration aus den Credits des Spielerschiffs.</summary>
-    public PlayerWalletSave PlayerWallet { get; set; } = new();
+    /// <summary>
+    /// Spielerkasse (Phase 5b, v7 bis v11); ältere Stände bekommen sie per Migration aus den Credits des Spielerschiffs. Seit v12 ist sie die Kasse
+    /// des Spielerakteurs (<see cref="Actors"/>) und wird nur noch gelesen (Migration v11→v12).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PlayerWalletSave? PlayerWallet { get; set; }
+    /// <summary>Akteure (Phase 9, v12): Fraktionsakteure, Sammelgruppe „Freie“, Spieler, aufgestiegene Einzelakteure.</summary>
+    public List<ActorSave> Actors { get; set; } = new();
+    /// <summary>Id des Spielerakteurs und der Sammelgruppe „Freie“ (v12).</summary>
+    public int PlayerActor { get; set; }
+    public int FreeActor { get; set; }
+    public int NextActorId { get; set; }
 
     public List<GoodSave> Goods { get; set; } = new();
     public List<AsteroidClassSave> AsteroidClasses { get; set; } = new();
@@ -43,7 +52,23 @@ public sealed class SaveGame
     public List<ShipSave> Ships { get; set; } = new();
 }
 
-/// <summary>Kasse der Spielerperson (Phase 5b).</summary>
+/// <summary>
+/// Ein Akteur (Phase 9, v12): Art, Mitgliedschaft (Fraktions-Id, null = unabhängig), Kasse, gemeinsame Kasse für Schiffe, Persönlichkeit,
+/// persönliche Beziehungsabweichungen (Akteur-Id → Wert, nur Abweichungen) und Anlagetick.
+/// </summary>
+public sealed class ActorSave
+{
+    public int Id { get; set; } public string Name { get; set; } = ""; public string Kind { get; set; } = "";
+    public int? Membership { get; set; }
+    public float Credits { get; set; }
+    public bool ShipsUseTreasury { get; set; }
+    public float Aggression { get; set; } = 0.5f; public float Greed { get; set; } = 0.5f;
+    public float Cooperation { get; set; } = 0.5f; public float Lawfulness { get; set; } = 0.5f;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? Relations { get; set; }
+    public long Created { get; set; }
+}
+
+/// <summary>Kasse der Spielerperson (Phase 5b, v7 bis v11; seit v12 nur noch gelesen).</summary>
 public sealed class PlayerWalletSave
 {
     public float Credits { get; set; } public int Faction { get; set; }
@@ -173,6 +198,8 @@ public sealed class BuildSiteSave
     public string Type { get; set; } = "";
     public Dictionary<int, float> Required { get; set; } = new();
     public int InvestorStation { get; set; } public int InvestorShip { get; set; }
+    /// <summary>Akteur, dessen Kasse gezahlt hat (Phase 9, v12); fehlt = keiner.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int InvestorActor { get; set; }
     public float Budget { get; set; } public int Builder { get; set; }
     public long Started { get; set; } public long LastProgress { get; set; } public long BlockedSince { get; set; } = -1;
     public int Assembly { get; set; } public bool Emergency { get; set; } public bool Abandoned { get; set; }
@@ -266,7 +293,11 @@ public sealed class TransitSave
 
 public sealed class ShipSave
 {
-    public int Id { get; set; } public int Faction { get; set; } public string Role { get; set; } = "";
+    public int Id { get; set; } public string Role { get; set; } = "";
+    /// <summary>Fraktion des Schiffs (bis v11, damals zugleich Eigentümer); seit v12 nur noch gelesen (Migration), ersetzt durch <see cref="Owner"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Faction { get; set; }
+    /// <summary>Besitzer (Akteur-Id, Phase 9, v12); null in älteren Ständen (die Migration v11→v12 setzt ihn).</summary>
+    public int? Owner { get; set; }
     /// <summary>Fähigkeiten als Flag-Wert; null in alten Spielständen = aus der Rolle ableiten.</summary>
     public int? Capabilities { get; set; }
     /// <summary>Steuerer ("Ai"/"Player"); null in alten Spielständen = aus der Rolle ableiten.</summary>

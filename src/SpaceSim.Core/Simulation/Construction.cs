@@ -106,7 +106,7 @@ public static class ConstructionRules
     /// verlangter Ware einem Markteintrag (Bestand = geliefert, Wunschbestand = verlangt) und der Bausumme als Treuhandgeld. Der Investor
     /// zahlt die Bausumme vorher selbst. Veröffentlicht <see cref="ConstructionStarted"/>.
     /// </summary>
-    public static Station StartSite(Universe u, StationType type, SectorId sector, Vec2 spot, FactionId owner, float budget, StationId? investorStation, ShipId? investorShip)
+    public static Station StartSite(Universe u, StationType type, SectorId sector, Vec2 spot, ActorId owner, float budget, StationId? investorStation, ShipId? investorShip, ActorId? investorActor = null)
     {
         var siteType = SiteType(u) ?? throw new InvalidOperationException("Keine Baustellen in dieser Welt");
         var bill = Bill(u, type) ?? throw new InvalidOperationException($"Stückliste für '{type.Key}' nicht auflösbar");
@@ -139,7 +139,7 @@ public static class ConstructionRules
         site.Site = new BuildSite
         {
             TypeKey = type.Key, Required = new Dictionary<GoodId, float>(bill), Budget = budget,
-            InvestorStation = investorStation?.Value ?? 0, InvestorShip = investorShip?.Value ?? 0,
+            InvestorStation = investorStation?.Value ?? 0, InvestorShip = investorShip?.Value ?? 0, InvestorActor = investorActor?.Value ?? 0,
             StartedTick = u.Tick, LastProgressTick = u.Tick,
         };
         if (reuse is null) u.AddStation(site);
@@ -225,8 +225,9 @@ public static class ConstructionRules
         bs.Emergency = true;
         bs.BlockedSince = -1;
         bs.LastProgressTick = u.Tick;
-        if (u.Factions.TryGetValue(site.Owner, out var f)) f.LastEmergencyBuildTick = u.Tick;
-        u.Events.Publish(new EmergencyConstruction(site.Id, site.Owner, units, cost, waived, critical));
+        var faction = u.FactionOf(site);
+        if (faction is { } fid && u.Factions.TryGetValue(fid, out var f)) f.LastEmergencyBuildTick = u.Tick;
+        u.Events.Publish(new EmergencyConstruction(site.Id, faction ?? default, units, cost, waived, critical));
     }
 
     /// <summary>
@@ -262,6 +263,7 @@ public static class ConstructionRules
         float refund = MathF.Max(0f, site.Credits);
         if (bs.InvestorStation != 0 && u.Stations.TryGetValue(new StationId(bs.InvestorStation), out var inv) && !inv.IsBuildSite) inv.Credits += refund;
         else if (bs.InvestorShip != 0 && u.Ships.TryGetValue(new ShipId(bs.InvestorShip), out var ship)) ship.Credits += refund;
+        else if (bs.InvestorActor != 0 && u.Actors.TryGetValue(new ActorId(bs.InvestorActor), out var actor)) actor.Treasury.Credits += refund;   // Phase 9: Kasse eines Akteurs
         site.Credits = 0f;
         ReleaseBuilders(u, site.Id);
         bool kept = site.Market.Values.Any(e => e.Amount >= 1f);
@@ -277,7 +279,7 @@ public static class ConstructionRules
     /// <summary>Gibt Bauschiffe frei, deren Auftrag diese Baustelle ist (Fracht bleibt an Bord; das Schiff denkt im nächsten Tick neu).</summary>
     static void ReleaseBuilders(Universe u, StationId site)
     {
-        foreach (var s in u.Ships.Values)
+        foreach (var s in u.Ships.Values.OrderBy(s => s.Id.Value))
             if (s.Order is BuildOrder bo && bo.Site == site && s.Transit is null)
             {
                 s.Order = null;
@@ -293,7 +295,7 @@ public static class ConstructionRules
 ///    Baustelle seit <see cref="EconomyRules.EmergencyBuildTicks"/> (kritisch × <see cref="EconomyRules.EmergencyCriticalFactor"/>) blockiert ist
 ///    und die Fraktion ihre Abkühlzeit hinter sich hat; Verfall ohne Fortschritt; verlassene Baustellen ohne Material verschwinden.
 /// 2) Bauschiffe (Etikett <see cref="ShipRole.Builder"/>, Fähigkeit Construction) als Ausführer der Aufgabe „build“: übernehmen eine Baustelle
-///    (eigene Fraktion zuerst, dann die nächste), holen fehlendes Material bei Herstellern oder Lagern (bezahlt aus dem Treuhandgeld der
+///    (eigene Fraktion zuerst — über die Besitzer, <see cref="Universe.FactionOf(Ship)"/> —, dann die nächste), holen fehlendes Material bei Herstellern oder Lagern (bezahlt aus dem Treuhandgeld der
 ///    Baustelle), liefern es ab und bleiben zur Montage vor Ort. Händler und Spieler beliefern Baustellen zusätzlich über den normalen Handel.
 /// </summary>
 public sealed class ConstructionSystem : ISimSystem
@@ -334,7 +336,7 @@ public sealed class ConstructionSystem : ISimSystem
                 if (bs.BlockedSince < 0) bs.BlockedSince = u.Tick;
                 bool critical = StationCriticality.IsCriticalSite(u, site);
                 long wait = (long)(rules.EmergencyBuildTicks * (critical ? rules.EmergencyCriticalFactor : 1f));
-                long last = u.Factions.TryGetValue(site.Owner, out var f) ? f.LastEmergencyBuildTick : -1_000_000;
+                long last = u.FactionOf(site) is { } fid && u.Factions.TryGetValue(fid, out var f) ? f.LastEmergencyBuildTick : -1_000_000;
                 if (u.Tick - bs.BlockedSince >= wait && u.Tick - last >= rules.EmergencyBuildCooldown)
                     ConstructionRules.Emergency(u, site, critical);
                 continue;   // blockierte Baustellen verfallen nicht: der Notbau löst sie
@@ -346,13 +348,14 @@ public sealed class ConstructionSystem : ISimSystem
 
     static void StepBuilders(Universe u)
     {
-        foreach (var ship in u.Ships.Values)
+        // feste Reihenfolge (Id), nicht die Einfügereihenfolge des Dictionarys: wer zuerst denkt, bekommt die freie Baustelle
+        foreach (var ship in u.Ships.Values.Where(s => s.Role == ShipRole.Builder).OrderBy(s => s.Id.Value).ToList())
         {
             if (ship.Role != ShipRole.Builder || ship.Controller != Controller.Ai) continue;
             if (!ship.Has(Capability.Construction))
             {
                 // Bauausleger ausgebaut: Auftrag fällt weg, Baustelle wird frei (wie JobRelease bei Händlern/Minern)
-                foreach (var s in u.Stations.Values) if (s.Site is { } sb && sb.Builder == ship.Id) sb.Builder = default;
+                foreach (var s in u.Stations.Values.OrderBy(s => s.Id.Value)) if (s.Site is { } sb && sb.Builder == ship.Id) sb.Builder = default;
                 JobRelease.Release(u, ship);
                 continue;
             }
@@ -377,7 +380,7 @@ public sealed class ConstructionSystem : ISimSystem
     public static Station? OpenSite(Universe u, Ship ship) =>
         ConstructionRules.ActiveSites(u)
             .Where(s => s.Site!.Builder.Value == 0 && u.IsReachable(ship.Sector, s.Sector))
-            .OrderBy(s => s.Owner == ship.Faction ? 0 : 1)
+            .OrderBy(s => u.FactionOf(ship) is { } own && u.FactionOf(s) == own ? 0 : 1)
             .ThenBy(s => Travel.Estimate(u, ship.Sector, ship.Position, s.Sector, s.DockPoint(ship.Id), ship))
             .ThenBy(s => s.Id.Value)
             .FirstOrDefault();

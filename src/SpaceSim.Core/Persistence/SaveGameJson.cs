@@ -625,6 +625,51 @@ public static class SaveGameJson
     }
 
     /// <summary>
+    /// v11 → v12 (Phase 9, Akteure und Fraktionen; POLITIK.md „Migration“):
+    /// 1) Jede Fraktion wird ein Akteur gleicher Id-Zahl, Mitglied ihrer selbst, mit leerer Kasse; Art und Persönlichkeit aus der Default-Welt,
+    ///    wenn dort eine Fraktion mit derselben Id und demselben Namen steht, sonst Staat/neutral.
+    /// 2) Sammelgruppe „Freie“ und Spielerakteur (Ids ab 1000, über der größten Fraktions-Id); die Spielerkasse (v7) wird die Kasse des
+    ///    Spielerakteurs, seine Mitgliedschaft die bisherige Fraktion der Kasse — so ändert sich beim Laden für den Spieler nichts.
+    /// 3) <c>Ship.Faction</c> wird <c>Ship.Owner</c>: Spielerschiffe gehören dem Spieler, Händler und Miner werden freie Einzelschiffe (Sammelgruppe,
+    ///    wie die Startwelt), alle übrigen (Bauschiffe, Jäger) dem Akteur ihrer Fraktion. Stationsbesitzer bleiben (Fraktions-Id = Akteur-Id).
+    /// </summary>
+    static void MigrateV11ToV12(SaveGame s)
+    {
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        int baseId = Math.Max(ActorId.FirstGenerated, s.Factions.Count == 0 ? 0 : s.Factions.Max(f => f.Id) + 1);
+        s.Actors = new List<ActorSave>();
+        foreach (var f in s.Factions.OrderBy(f => f.Id))
+        {
+            var df = def.Factions.FirstOrDefault(x => x.Id == f.Id && x.Name == f.Name);
+            var p = df?.Personality;
+            s.Actors.Add(new ActorSave
+            {
+                Id = f.Id, Name = f.Name, Kind = df?.Kind is { } k && Enum.TryParse<ActorKind>(k, true, out var kind) ? kind.ToString() : nameof(ActorKind.State),
+                Membership = f.Id, Aggression = p?.Aggression ?? 0.5f, Greed = p?.Greed ?? 0.5f, Cooperation = p?.Cooperation ?? 0.5f, Lawfulness = p?.Lawfulness ?? 0.5f,
+            });
+        }
+        s.FreeActor = baseId;
+        s.PlayerActor = baseId + 1;
+        s.NextActorId = baseId + 2;
+        s.Actors.Add(new ActorSave { Id = s.FreeActor, Name = "Freie Kapitäne", Kind = nameof(ActorKind.Free) });
+        int? membership = s.PlayerWallet is { } w && s.Factions.Any(f => f.Id == w.Faction) ? w.Faction : null;
+        s.Actors.Add(new ActorSave
+        {
+            Id = s.PlayerActor, Name = "Du", Kind = nameof(ActorKind.Player), Membership = membership, Credits = s.PlayerWallet?.Credits ?? 0f, ShipsUseTreasury = true,
+        });
+        foreach (var sh in s.Ships)
+        {
+            bool player = sh.Controller is { } c ? c == nameof(Controller.Player) : sh.Role == nameof(ShipRole.Player);
+            if (player) sh.Owner = s.PlayerActor;
+            else if (sh.Role is nameof(ShipRole.Trader) or nameof(ShipRole.Miner)) sh.Owner = s.FreeActor;
+            else sh.Owner = s.Factions.Any(f => f.Id == sh.Faction) ? sh.Faction : s.FreeActor;
+            sh.Faction = 0;
+        }
+        s.PlayerWallet = null;
+        s.Version = 12;
+    }
+
+    /// <summary>
     /// Reicht den Content der Default-Welt nach Schlüssel und nur ergänzend nach (gemeinsamer Schritt der Migrationen ab v8→v9):
     /// 1) fehlende Module und je Modul ohne Ware eine Modul-Ware (angehängt nach Modulschlüssel, bestehende GoodIds bleiben);
     /// 2) fehlende Schiffsklassen und -modelle; vorhandene Default-Modelle ohne Aufgabenliste bekommen deren <c>jobs</c>;
@@ -728,6 +773,7 @@ public static class SaveGameJson
         if (s.Version < 9) MigrateV8ToV9(s);
         if (s.Version < 10) MigrateV9ToV10(s);
         if (s.Version < 11) MigrateV10ToV11(s);
+        if (s.Version < 12) MigrateV11ToV12(s);
         return s;
     }
 }

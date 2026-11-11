@@ -24,7 +24,7 @@ public class WalletTests
     /// </summary>
     internal static string ToV6Json(string v7Json)
     {
-        var node = JsonNode.Parse(v7Json)!.AsObject();
+        var node = JsonNode.Parse(ActorTests.ToV11Json(v7Json))!.AsObject();   // Phase 9: Akteure zurückbauen (Spielerkasse wieder PlayerWallet)
         node["Version"] = 6;
         ConstructionTests.RemovePhase8Rules(node);   // Phase 8: die Bau-Regeln gab es damals nicht (Inhalte wie Bauschiffe bleiben, die Migration ergänzt nur)
         if (node["PlayerWallet"] is JsonObject w)
@@ -55,7 +55,7 @@ public class WalletTests
         var u = DemoUniverse.Create();
         var player = u.Ships[u.PlayerShip];
         Assert.Equal(def.Player.Credits, u.PlayerWallet.Credits);
-        Assert.Equal(new FactionId(def.Player.Faction), u.PlayerWallet.Faction);
+        Assert.Equal(new FactionId(def.Player.Faction), u.Player.Membership);   // Phase 9: Mitgliedschaft des Spielerakteurs
         Assert.Equal(0f, player.Credits);
         Assert.Same(u.PlayerWallet, u.WalletOf(player));
         // NPC-Schiffe sind ihre eigene Kasse
@@ -174,11 +174,11 @@ public class WalletTests
         new SimulationRunner().Run(u, 500);
         u.PlayerWallet.Credits = 12_345.5f;
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":11", json);   // Phase 5c: v8, Phase 8: v11
-        Assert.Contains("\"PlayerWallet\"", json);
+        Assert.Contains("\"Version\":12", json);   // Phase 5c: v8, Phase 8: v11, Phase 9: v12
+        Assert.Contains("\"Actors\"", json);        // Phase 9: die Kasse ist die des Spielerakteurs
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(12_345.5f, loaded.PlayerWallet.Credits);
-        Assert.Equal(u.PlayerWallet.Faction, loaded.PlayerWallet.Faction);
+        Assert.Equal(u.Player.Membership, loaded.Player.Membership);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));
         // Fortsetzung bitgleich
         new SimulationRunner().Run(u, 500);
@@ -190,6 +190,8 @@ public class WalletTests
     public void Migration_V6ToV7_SchiffsCreditsWandernInDieKasse_NpcUnveraendert()
     {
         var u = DemoUniverse.Create();
+        // Phase 9: Kassen der Fraktionen und aufgestiegene Akteure gibt es vor v12 nicht — abgeschaltet, damit das Demotieren verlustfrei bleibt
+        u.Rules.TaxToTreasuryShare = 0f; u.Rules.TreasuryInvests = false; u.Rules.PromoteInvestors = false;
         new SimulationRunner().Run(u, 1_000);
         u.PlayerWallet.Credits = 777f;
         var v6 = ToV6Json(SaveGameJson.Write(u, Now));
@@ -199,7 +201,7 @@ public class WalletTests
         var (loaded, _) = SaveGameJson.Read(v6);
         Assert.Equal(777f, loaded.PlayerWallet.Credits);
         Assert.Equal(0f, loaded.Ships[loaded.PlayerShip].Credits);
-        Assert.Equal(u.Ships[u.PlayerShip].Faction, loaded.PlayerWallet.Faction);
+        Assert.Equal(u.Player.Membership, loaded.Player.Membership);
         foreach (var s in u.Ships.Values.Where(s => !s.IsPlayer))
             Assert.Equal(s.Credits, loaded.Ships[s.Id].Credits);
         // Gesamter Zustand inkl. Kasse wie vor dem Demotieren
