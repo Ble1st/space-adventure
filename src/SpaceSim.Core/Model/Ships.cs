@@ -210,6 +210,11 @@ public sealed class Ship : ICreditAccount
     public long NextThinkTick;
     /// <summary>Tick, seit dem das Schiff keinen Auftrag mehr hat (-1 = beschäftigt).</summary>
     public long IdleSince = -1;
+    /// <summary>
+    /// Phase 19: seit wann ein KI-Händler Fracht an Bord hat, die keine erreichbare Station annahm (-1 = keine). Nach
+    /// <see cref="EconomyRules.StrandedCargoTicks"/> wirft er sie im All ab. Gespeichert.
+    /// </summary>
+    public long StrandedSince = -1;
     /// <summary>Phase 6: Tick der letzten Aufgabenzuteilung (Kauf oder Wechsel); Mindestdauer der Aufgabe zählt ab hier (gespeichert).</summary>
     public long JobSince;
     /// <summary>Phase 7: Güteklasse aus dem Kauf (gespeichert; Anzeige — die Wirkung steckt in Slots und Fit).</summary>

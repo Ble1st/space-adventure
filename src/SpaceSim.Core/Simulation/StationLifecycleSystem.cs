@@ -19,7 +19,11 @@ public sealed class StationLifecycleSystem : ISimSystem
     public void Step(Universe u, int dt)
     {
         RemoveBankrupt(u);
-        TryBuild(u);
+        // Phase 19: Knappheit einmal messen — für den Bau und für die Überprüfung des Bestands (Stilllegung/Umwidmung)
+        var scan = Scan(u);
+        StationReview.TrackScarcity(u, scan);
+        if (StationReview.TryRetire(u, scan) is { } forType) { TryBuild(u, scan, forType); return; }
+        TryBuild(u, scan, null);
     }
 
     static void RemoveBankrupt(Universe u)
@@ -33,19 +37,21 @@ public sealed class StationLifecycleSystem : ISimSystem
         }
     }
 
-    static void TryBuild(Universe u)
+    /// <summary>
+    /// Phase 19: Ergebnis einer Knappheitsmessung des Lebenszyklus: Verhältnis Wunsch/Bestand je Ware (über alle fertigen Halter), die knappste und die am
+    /// stärksten überversorgte beantwortbare Ware und alle beantwortbar knappen Waren (Verhältnis über <see cref="EconomyRules.BuildPriceRatio"/>).
+    /// </summary>
+    public sealed record LifecycleScan(Dictionary<GoodId, float> Ratios, GoodId? Scarce, GoodId? Glut, List<GoodId> ScarceGoods);
+
+    /// <summary>Knappheit messen (rein, ohne Zufall): siehe <see cref="LifecycleScan"/>.</summary>
+    public static LifecycleScan Scan(Universe u)
     {
         var rules = u.Rules;
-        // Phase 10: Regierungsstationen und Wachen zählen nicht gegen die Obergrenzen
-        if (StationProtection.CountEconomic(u) >= rules.MaxStations || u.Tick - u.LastStationBuildTick < rules.BuildCooldown) return;
-        // Phase 8: höchstens MaxActiveSites Baustellen gleichzeitig (verlassene zählen nicht)
-        var active = ConstructionRules.ActiveSites(u).ToList();
-        if (active.Count >= rules.MaxActiveSites) return;
-
-        // Knappste Ware (höchster Durchschnittspreis relativ zum Basispreis) und am stärksten überversorgte Ware (niedrigster)
+        // Knappste Ware (höchstes Verhältnis Wunsch/Bestand) und am stärksten überversorgte Ware (niedrigstes)
         GoodId? scarce = null, glut = null;
         float worst = rules.BuildPriceRatio, lowest = rules.GlutPriceRatio;
         var ratios = new Dictionary<GoodId, float>();
+        var scarceGoods = new List<GoodId>();
         foreach (var good in u.Goods.Values)
         {
             // Knappheit aus den Beständen (Wunschbestand / Bestand über alle Stationen), nicht aus Preisen: Preise sind durch die
@@ -66,20 +72,40 @@ public sealed class StationLifecycleSystem : ISimSystem
             ratios[good.Id] = ratio;
             // Phase 5a: nur Waren, auf die ein Stationstyp antworten kann (Erzeuger bei Knappheit, Rezept-Verbraucher bei Überangebot).
             // Sonst blockiert eine Ware ohne Verbraucher-Typ (Module, Bausatzstufen auf Halde) jeden Verbraucherbau für andere Waren.
-            if (ratio > worst && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)))
-                && !(rules.BuildFollowsChain && FleetGoodWithProducer(u, good.Id))) { worst = ratio; scarce = good.Id; }
+            if (ratio > rules.BuildPriceRatio && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)))
+                && !(rules.BuildFollowsChain && FleetGoodWithProducer(u, good.Id)))
+            {
+                scarceGoods.Add(good.Id);
+                if (ratio > worst) { worst = ratio; scarce = good.Id; }
+            }
             if (ratio < lowest && ratio > 0f && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Inputs.ContainsKey(good.Id)))) { lowest = ratio; glut = good.Id; }
         }
+        return new LifecycleScan(ratios, scarce, glut, scarceGoods);
+    }
+
+    /// <summary>Welchen Typ baut der Lebenszyklus gegen die Knappheit dieser Ware (Phase 15/16/18: Rohstoff-Filter, Bau folgt der Kette)? null = nichts.</summary>
+    public static StationType? ProducerFor(Universe u, GoodId good, IReadOnlyDictionary<GoodId, float> ratios) =>
+        UpstreamProducer(u, good, ratios, u.Rules.BuildChecksRawOre ? u.Rules.BuildPriceRatio : float.PositiveInfinity,   // Phase 16: Filter abschaltbar
+            u.Rules.BuildFollowsChain ? u.Rules.BuildPriceRatio : float.PositiveInfinity);                               // Phase 18: Bau folgt der Kette
+
+    /// <summary><paramref name="forced"/> (Phase 19): nach einer Stilllegung der Typ, für den der Platz frei wurde; sonst entscheidet die Messung.</summary>
+    static void TryBuild(Universe u, LifecycleScan scan, StationType? forced)
+    {
+        var rules = u.Rules;
+        // Phase 10: Regierungsstationen und Wachen zählen nicht gegen die Obergrenzen
+        if (StationProtection.CountEconomic(u) >= rules.MaxStations || u.Tick - u.LastStationBuildTick < rules.BuildCooldown) return;
+        // Phase 8: höchstens MaxActiveSites Baustellen gleichzeitig (verlassene zählen nicht)
+        var active = ConstructionRules.ActiveSites(u).ToList();
+        if (active.Count >= rules.MaxActiveSites) return;
 
         // Knappheit → Produzent der Ware bauen; sonst bei Überangebot → Verbraucher der Ware bauen (Nachfrage wächst mit billigem Angebot)
         // Phase 13: nur Stationstypen, die schon irgendeine Fraktion erforscht hat (ohne Sperre: alle)
         // Phase 14: Exportsenken (Handelsstationen an Planeten) baut die Wirtschaft nie selbst, und Typen eines abgeschalteten Systems
         // (Forschungsstation, reiner Treibstoffhersteller) auch nicht
-        StationType? type = null;
-        if (scarce is { } sc)
-            type = UpstreamProducer(u, sc, ratios, rules.BuildChecksRawOre ? rules.BuildPriceRatio : float.PositiveInfinity,   // Phase 16: Filter abschaltbar
-                rules.BuildFollowsChain ? rules.BuildPriceRatio : float.PositiveInfinity);                                    // Phase 18: Bau folgt der Kette
-        else if (glut is { } gl)
+        StationType? type = forced;
+        if (type is null && scan.Scarce is { } sc)
+            type = ProducerFor(u, sc, scan.Ratios);
+        else if (type is null && scan.Glut is { } gl)
             type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;
         if (active.Any(s => s.Site!.TypeKey == type.Key)) return;   // derselbe Typ ist schon im Bau
@@ -194,7 +220,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
 
     /// <summary>Darf die Wirtschaft diesen Typ bauen? Erforscht (irgendwo), keine Exportsenke, kein Typ eines abgeschalteten Systems.</summary>
-    static bool Buildable(Universe u, StationType t) =>
+    internal static bool Buildable(Universe u, StationType t) =>
         t.Export is null && !FeatureSwitches.OmitFromWorld(u, t) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key);
 
     /// <summary>Zufälliger Platz mit Abstand zu Gates, Stationen, Feldern und Asteroiden (deterministisch über u.Rng).</summary>

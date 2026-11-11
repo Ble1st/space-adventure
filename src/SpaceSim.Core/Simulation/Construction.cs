@@ -56,6 +56,45 @@ public static class StationCriticality
 /// </summary>
 public static class ConstructionRules
 {
+    /// <summary>Phase 19: so oft (Ticks) prüft eine blockierte Baustelle ohne erreichbares Bauschiff, ob ihre Fraktion eins kaufen kann.</summary>
+    public const int CommissionInterval = 50;
+
+    /// <summary>
+    /// Phase 19: Bauschiff nachkaufen. Bauschiffe verdienen nur die Baugebühr und werden nach der ersten Bauwelle als mittellos aufgegeben
+    /// (<see cref="FleetSystem"/>); der Flottenkauf der Aufgabe „build“ braucht aber ein Bauschiff als Käufer — ohne eines kam nie wieder eines in die Welt
+    /// (im 200000-Tick-Lauf 0 Bauschiffe am Ende), und jede spätere Baustelle hing am Notbau. Jetzt kauft die Kasse der Fraktion, der die Baustelle gehört,
+    /// ein Modell mit der Aufgabe „build“ über die gemeinsame Kaufregel (<see cref="ShipPurchase"/>: Bausatz und Module aus dem Lager einer erreichbaren
+    /// Werft, Preis an die Werft), solange ihr danach die Rücklage <see cref="EconomyRules.SubsidyReserve"/> bleibt; das Schiff gehört dem Fraktionsakteur und
+    /// bekommt <see cref="EconomyRules.NewShipStartCredits"/> als Betriebsgeld. Regel <see cref="EconomyRules.CommissionBuilders"/>. null = nicht möglich.
+    /// </summary>
+    public static Ship? CommissionBuilder(Universe u, Station site)
+    {
+        var r = u.Rules;
+        if (!r.CommissionBuilders || u.FactionOf(site) is not { } f || !u.Actors.TryGetValue(f, out var actor)) return null;
+        foreach (var model in u.ShipModels.Values.Where(m => m.Jobs.Contains("build")).OrderBy(m => m.Key, StringComparer.Ordinal).ToList())
+        {
+            if (!u.ShipClasses.TryGetValue(model.ClassKey, out var cls) || ShipPurchase.Materials(u, model) is not { } needs) continue;
+            foreach (var yard in u.StationsById().Where(st => !st.IsBuildSite && ShipPurchase.SellsModel(u, st, model)).ToList())
+            {
+                if (!u.IsReachable(yard.Sector, site.Sector) || ShipPurchase.Missing(yard, needs).Count > 0 || !Research.Available(u, yard, UnlockKind.Model, model.Key)) continue;
+                float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
+                float cost = price + r.NewShipStartCredits;
+                if (actor.Treasury.Credits < cost + r.SubsidyReserve) return null;
+                ShipPurchase.Consume(yard, needs);
+                yard.Credits += price;
+                actor.Treasury.Credits -= cost;
+                var ship = ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Builder, Controller.Ai, actor.Id, yard, r.NewShipStartCredits);
+                ship.JobSince = u.Tick;
+                u.AddShip(ship);
+                u.Events.Publish(new TreasuryUpkeep(actor.Id, "builder", cost, 0f));
+                u.Events.Publish(new FleetShipBuilt(ship.Id, yard.Id, true, price));
+                u.Events.Publish(new BuilderCommissioned(f, ship.Id, yard.Id, site.Id, cost));
+                return ship;
+            }
+        }
+        return null;
+    }
+
     /// <summary>Startkapital einer neuen Station (wie beim alten Direktbau).</summary>
     public const float NewStationCredits = 2000f;
     /// <summary>Abstand, ab dem ein Bauschiff als „vor Ort“ gilt.</summary>
@@ -334,6 +373,10 @@ public sealed class ConstructionSystem : ISimSystem
             if (ConstructionRules.IsBlocked(u, site))
             {
                 if (bs.BlockedSince < 0) bs.BlockedSince = u.Tick;
+                // Phase 19: kein Bauschiff mehr in der Welt (nach der ersten Bauwelle aufgegeben) — die Fraktion der Baustelle kauft eins nach
+                if (u.Tick % ConstructionRules.CommissionInterval == 0 && bs.Builder.Value == 0 && !bs.Emergency
+                    && !u.Ships.Values.Any(s => s.IsSiteBuilder && u.IsReachable(s.Sector, site.Sector, GateAccess.ProfileOf(u, s))))
+                    ConstructionRules.CommissionBuilder(u, site);
                 bool critical = StationCriticality.IsCriticalSite(u, site);
                 long wait = (long)(rules.EmergencyBuildTicks * (critical ? rules.EmergencyCriticalFactor : 1f));
                 long last = u.FactionOf(site) is { } fid && u.Factions.TryGetValue(fid, out var f) ? f.LastEmergencyBuildTick : -1_000_000;

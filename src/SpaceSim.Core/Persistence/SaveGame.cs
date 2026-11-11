@@ -16,6 +16,9 @@ public sealed class SaveGame
     public ulong Seed { get; set; }
     public ulong RngState { get; set; }
     public long LastStationBuildTick { get; set; }
+    /// <summary>Phase 19 (additiv): letzte Stilllegung und Knappheit seit (GoodId → Tick).</summary>
+    public long LastStationRetireTick { get; set; } = -1_000_000;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, long>? ScarceSince { get; set; }
     public int NextShipId { get; set; }
     public int NextStationId { get; set; }
     public int NextAsteroidId { get; set; } = 1;
@@ -326,6 +329,10 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<ExportBatchSave>? Exports { get; set; }
     /// <summary>Phase 15 (additiv, v17 bleibt): offene Instandhaltung (Ware → fehlende Einheiten); fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? MaintenanceBacklog { get; set; }
+    /// <summary>Phase 19 (additiv, v17 bleibt): Fertigstellungs-Tick und Auslastung (gleitende Mittel: lief / fehlende Zutaten).</summary>
+    public long BuiltTick { get; set; }
+    public float Activity { get; set; } = 1f;
+    public float Starved { get; set; }
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>
@@ -469,6 +476,8 @@ public sealed class ShipSave
     public Dictionary<int, float> Fuel { get; set; } = new();
     /// <summary>Tick der letzten Aufgabenzuteilung (Phase 6, v9); fehlt in älteren Spielständen = 0.</summary>
     public long JobSince { get; set; }
+    /// <summary>Phase 19 (additiv): seit wann unverkäufliche Fracht an Bord ist; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? StrandedSince { get; set; }
     /// <summary>Güteklasse (Phase 7, v10: Standard/Improved/Elite/Masterwork); fehlt = Standard.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Quality { get; set; }
     /// <summary>Mitleidszähler je Slot (Phase 7, v10; Schlüssel −1 = Bonusslot); fehlt = keine Fehlschläge.</summary>

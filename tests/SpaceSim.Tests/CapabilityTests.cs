@@ -150,6 +150,7 @@ public class CapabilityTests
             s.Order = null; s.Phase = TradePhase.Idle; s.NextThinkTick = 0; s.Cargo.Clear();
         }
         noCargo.Capabilities = Capability.Combat;   // kein Frachtraum
+        control.Credits = MathF.Max(control.Credits, 2000f);   // Phase 19: geplant wird nur, was die Kasse bezahlen kann (die geleerte Ladung war schon bezahlt)
         float creditsBefore = noCargo.Credits;
         var events = new List<SimEvent>();
         u.Events.Raised += e => events.Add(e);

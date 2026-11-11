@@ -184,4 +184,15 @@ public sealed record GoodsExported(StationId Station, GoodId Good, float Amount,
 
 // ───────── Phase 18: Frachtreste ─────────
 /// <summary>Ein Spielerschiff hat Fracht abgeworfen (Laderaum oder Dienst „trade“, Schlüssel „drop:&lt;id&gt;“): Die Ware verschwindet ohne Erlös aus der Welt.</summary>
+/// <summary>
+/// Phase 19: Der Lebenszyklus hat eine dauerhaft kaum ausgelastete Station stillgelegt (<see cref="Simulation.StationReview"/>), um ihren Platz für die
+/// anhaltende Knappheit von <paramref name="ForGood"/> freizumachen (gebaut wird <paramref name="ForType"/>). Payout = Kasse + Lager zum Restwert an den Besitzer.
+/// </summary>
+public sealed record StationRetired(StationId Station, SectorId Sector, string TypeKey, string Name, ActorId Owner, float Payout, float Activity, GoodId ForGood, string ForType) : SimEvent;
+/// <summary>Phase 19 (Messwert): Ein Händler hat bei einer Station mehr abgeladen, als sie annahm (letzter Ausweg ohne weiteren Käufer); Units = Überschuss.</summary>
+public sealed record CargoDumped(ShipId Ship, StationId Station, GoodId Good, float Units) : SimEvent;
+/// <summary>Phase 19: Die Kasse einer Fraktion hat für eine Baustelle ohne erreichbares Bauschiff eins gekauft (<see cref="Simulation.ConstructionRules.CommissionBuilder"/>; dazu <see cref="TreasuryUpkeep"/> „builder“).</summary>
+public sealed record BuilderCommissioned(FactionId Faction, ShipId Ship, StationId Yard, StationId Site, float Cost) : SimEvent;
+/// <summary>Phase 19: Ein KI-Händler hat Fracht, die keine erreichbare Station annahm, im All abgeworfen (statt sie unbezahlt bei einer vollen Station abzuladen).</summary>
+public sealed record CargoDiscarded(ShipId Ship, SectorId Sector, GoodId Good, float Units) : SimEvent;
 public sealed record CargoJettisoned(ShipId Ship, SectorId Sector, GoodId Good, float Units) : SimEvent;

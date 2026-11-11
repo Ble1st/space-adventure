@@ -195,7 +195,7 @@ public sealed partial class AssetsScreen : CommandScreen
 		if (!u.Ships.TryGetValue(id, out var ship)) return;
 		string name = u.Goods.TryGetValue(good, out var g) ? g.Name : good.Value.ToString();
 		float n = CargoJettison.Jettison(u, ship, good, 0f);
-		_message = n > 0f ? $"{n:0.##} {name} abgeworfen" : CargoJettison.Issue(ship, good) ?? "Nicht möglich";
+		_message = n > 0f ? $"{n:0.##} {name} abgeworfen" : CargoJettison.Issue(u, ship, good) ?? "Nicht möglich";
 		Invalidate();
 	}
 

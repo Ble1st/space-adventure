@@ -468,4 +468,42 @@ public sealed class EconomyRules
     /// Einheit ist unkritisch, und so bleibt nach dem Bergbau kein unverkäuflicher Bruchteil im Laderaum. 0 = Regel von Phase 17.
     /// </summary>
     public float SaleRestTolerance = 1f;
+
+    // ───────── Phase 19: Stationsbestand überprüfen (Stilllegung/Umwidmung) ─────────
+    /// <summary>Zeitkonstante (Ticks) des gleitenden Mittelwerts der Stationsauslastung (<see cref="Station.Activity"/>): nach 15000 Ticks ohne Produktion fällt sie von 1 auf 0,08; 0 = keine Messung.</summary>
+    public int UtilizationWindowTicks = 6000;
+    /// <summary>Stilllegung/Umwidmung an (<see cref="Simulation.StationReview"/>); false = Bestand wird nie überprüft (Regel bis Phase 18).</summary>
+    public bool StationRetireActive = true;
+    /// <summary>Stilllegung nur, wenn die Auslastung (<see cref="Station.Activity"/>) darunter liegt („kaum produziert“).</summary>
+    public float RetireMaxActivity = 0.1f;
+    /// <summary>Schonfrist (Ticks) einer neu gebauten Station.</summary>
+    public int RetireGraceTicks = 20000;
+    /// <summary>Höchstens eine Stilllegung je so vielen Ticks (Abklingzeit, kein Pendeln).</summary>
+    public int RetireCooldownTicks = 15000;
+    /// <summary>Die Knappheit, für die ein Platz frei wird, muss mindestens so lange ununterbrochen bestehen (<see cref="Universe.ScarceSince"/>).</summary>
+    public int RetireScarceTicks = 5000;
+    /// <summary>
+    /// Hysterese: Stillgelegt wird nur, wenn keines der Produkte der Station knapp ist — Verhältnis Wunsch/Bestand über alle Halter höchstens dieser Wert
+    /// (1 = mindestens Wunschbestand vorhanden).
+    /// </summary>
+    public float RetireMaxOutputRatio = 1f;
+    /// <summary>Restwert: das Lager geht zu diesem Anteil des Basispreises an den Besitzer (dazu die Stationskasse); der Rest verfällt.</summary>
+    public float RetireSalvageShare = 0.25f;
+    /// <summary>Phase 19: Fraktionskassen kaufen ein Bauschiff nach, wenn eine Baustelle keins erreicht (<see cref="Simulation.ConstructionRules.CommissionBuilder"/>).</summary>
+    public bool CommissionBuilders = true;
+    /// <summary>
+    /// Phase 19: Händler rechnen die Ladung anderer Händler, die schon zu einem Abnehmer unterwegs sind, von dessen Annahme ab (Planung: auch die Kapazität
+    /// derer auf dem Weg zum Einkauf; Einkauf: nur, was schon an Bord ist). Bis Phase 18 nur für Baustellen. false = alte Regel.
+    /// </summary>
+    public bool ReserveIncoming = true;
+    /// <summary>
+    /// Phase 19: So lange (Ticks) behält ein KI-Händler einen Rest, den keine erreichbare Station annimmt, und versucht ihn bei jedem Nachdenken zu verkaufen,
+    /// bevor er ihn im All abwirft (0 = sofort). Ohne Frist verloren Händler das Geld für jeden Rest und gingen reihenweise pleite.
+    /// </summary>
+    public int StrandedCargoTicks = 3000;
+    /// <summary>
+    /// Phase 19: Annahmegrenze der Exportwaren einer Exportsenke als Vielfaches des Wunschbestands (wartende Chargen liegen im Lager); 0 = wie
+    /// <see cref="OverstockFactor"/>. Die Standardwelt senkt <see cref="OverstockFactor"/> auf 2,5 (voller Lagerpreis 0,4× statt 0,33×) und lässt den Senken 3.
+    /// </summary>
+    public float ExportOverstockFactor;
 }

@@ -203,7 +203,8 @@ public class FleetCommandTests
         }
         var trades = ev.OfType<TradeCompleted>().Where(t => t.Ship == nomad.Id).ToList();
         Assert.NotEmpty(trades);
-        Assert.All(trades, t => Assert.True(AutoLimitRules.InRange(u, limits, u.Stations[t.From].Sector) && AutoLimitRules.InRange(u, limits, u.Stations[t.To].Sector)));
+        // Phase 19: ein Restverkauf (Ware aus einer früheren Runde, die die Station nicht ganz nahm) hat keine Einkaufsstation (Id 0)
+        Assert.All(trades, t => Assert.True((t.From.Value == 0 || AutoLimitRules.InRange(u, limits, u.Stations[t.From].Sector)) && AutoLimitRules.InRange(u, limits, u.Stations[t.To].Sector)));
         Assert.Equal(0f, nomad.Credits);                       // Geld bei der Person
         Assert.True(minWallet >= limits.Reserve - 200f);        // Rücklage hält (bis auf Treibstoffkäufe)
     }

@@ -879,6 +879,29 @@ public partial class SelfTest : Node
 					Check(!t1 && t2 && !second.Cargo.ContainsKey(food) && _m.HudRef.CcAssets.TestMessage.Contains("abgeworfen"),
 						$"Schiffsdetail: Rest 0,3 Nahrung nach dem zweiten Tipp abgeworfen ({_m.HudRef.CcAssets.TestMessage})");
 				}
+				{ // Phase 19: Frist der Bestätigung abgelaufen → Beschriftung springt von selbst zurück, ein einzelner Tipp wirft nicht ab
+					var food = DemoFood(uni);
+					second.Cargo[food] = 0.3f;
+					_m.HudRef.CcAssets.TestOpenShipDetail(_secondShip);   // Neuaufbau mit der Frachtzeile
+					string key = $"drop:{_secondShip.Value}:{food.Value}";
+					var btn = SpaceAdventure.Ui.Kit.KitConfirm.Find(_m.HudRef.CcAssets, key);
+					var ticker = btn?.GetChildren().OfType<SpaceAdventure.Ui.Kit.KitConfirmTicker>().FirstOrDefault();
+					bool armedTap = _m.HudRef.CcAssets.TestTapJettison(_secondShip, food);
+					ticker?.Poll();
+					string armedText = btn?.Text ?? "";
+					var realNow = SpaceAdventure.Ui.Kit.KitConfirm.Now;
+					ulong shift = SpaceAdventure.Ui.Kit.KitConfirm.WindowMs + 500;
+					SpaceAdventure.Ui.Kit.KitConfirm.Now = () => realNow() + shift;   // Frist verstreicht
+					ticker?.Poll();
+					string expiredText = btn?.Text ?? "";
+					bool single = _m.HudRef.CcAssets.TestTapJettison(_secondShip, food);
+					SpaceAdventure.Ui.Kit.KitConfirm.Now = realNow;
+					Check(btn is not null && ticker is not null && !armedTap && armedText == "Wirklich?" && expiredText == "Abwerfen" && !single
+						&& second.Cargo.GetValueOrDefault(food) == 0.3f,
+						$"Bestätigung: nach Ablauf der Frist steht wieder „{expiredText}“ (vorher „{armedText}“), ein einzelner Tipp wirft nicht ab");
+					second.Cargo.Remove(food);
+					_m.HudRef.CcAssets.TestOpenShipDetail(_secondShip);
+				}
 				_m.TestCloseCommand();
 				_m.TestUndock();
 				Next(); break;

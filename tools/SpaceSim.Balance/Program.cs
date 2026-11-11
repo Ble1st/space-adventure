@@ -7,7 +7,7 @@ using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 
 // Headless-Balancing: lässt die Wirtschaft ohne Spieler laufen und gibt Kennzahlen als Tabelle/CSV aus.
-//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off] [--research on|off] [--fuel on|off] [--strict on]
+//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off] [--research on|off] [--fuel on|off] [--retire on|off] [--strict on] [--gates "id:closed|open@tick,..."]
 // Exit-Codes: 1 Preise instabil (Durchschnitt), 2 Karte zerfallen, 3 nur mit --strict on: HINWEIS-Zeilen (Deckel, Waren ohne Fahrten, leere Kassen)
 
 var opts = ParseArgs(args);
@@ -20,6 +20,8 @@ worldDef.Rules ??= new EconomyRules();
 // ihre Stationen (Forschungsstationen, Treibstoffraffinerien) in der Welt weg
 if (opts.TryGetValue("research", out var resOpt)) worldDef.Rules.ResearchActive = resOpt == "on";
 if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelOpt == "on";
+// Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
+if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
 var u = WorldBuilder.Build(worldDef, seed);
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
@@ -182,6 +184,23 @@ u.Events.Raised += e =>
         case StationSubsidized ss: subsidies++; subsidized[ss.Station.Value] = subsidized.GetValueOrDefault(ss.Station.Value) + ss.Amount; break;
     }
 };
+// Phase 19: Stilllegungen/Umwidmungen, Auslastung je Station (alle 200 Ticks), Knappheit ohne freien Platz
+var retiredStations = new List<string>();
+int buildersCommissioned = 0, discardCount = 0;
+var discarded = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: von KI-Händlern im All abgeworfen (kein Käufer nahm den Rest)
+var dumped = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: über die Annahme abgeladen (Station: Ware → Einheiten)
+var utilSum = new SortedDictionary<int, (string Name, string Type, bool Protected, double Act, double Starved, int N)>();
+var unanswered = new SortedDictionary<string, int>(StringComparer.Ordinal);
+int capSamples = 0, capFullSamples = 0;
+u.Events.Raised += e =>
+{
+    if (e is CargoDumped cdu) { string dk = $"{u.Stations.GetValueOrDefault(cdu.Station)?.Name ?? "#" + cdu.Station.Value}: {u.Goods[cdu.Good].Name}"; dumped[dk] = dumped.GetValueOrDefault(dk) + cdu.Units; }
+    if (e is BuilderCommissioned) buildersCommissioned++;
+    if (e is CargoDiscarded cdi) { discardCount++; string gk = u.Goods[cdi.Good].Name; discarded[gk] = discarded.GetValueOrDefault(gk) + cdi.Units; }
+    if (e is StationRetired sre)
+        retiredStations.Add($"Tick {u.Tick}: {sre.Name} ({u.StationTypes.GetValueOrDefault(sre.TypeKey)?.Name ?? sre.TypeKey}, Auslastung {100 * sre.Activity:0}%) → "
+            + $"{u.StationTypes.GetValueOrDefault(sre.ForType)?.Name ?? sre.ForType} für {u.Goods[sre.ForGood].Name}, Restwert {sre.Payout:0} Cr");
+};
 // Phase 14: Preise der reinen Verbraucher (Kolonie) je Zutat über die Messpunkte (Preis/Basis)
 var consumerPrices = new SortedDictionary<string, List<float>>(StringComparer.Ordinal);
 u.Events.Raised += e =>
@@ -201,6 +220,16 @@ header.AddRange(u.Goods.Values.Select(g => "price_" + g.Name));
 csv.AppendLine(string.Join(",", header));
 Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"kassen",8} {"tank",5} {"notk",5} {"sperr",5} {"iso",3} {"fp",6} {"erf",3}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
 
+// Tor-Szenario: --gates "1:closed@20000,1:open@60000" schließt/öffnet Tore (beide Enden) zu festen Ticks (auf 20 Ticks genau)
+var gateEvents = new List<(long Tick, int Gate, GateState State)>();
+if (opts.TryGetValue("gates", out var gateSpec))
+    foreach (var part in gateSpec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        var at = part.Split('@'); var gs = at[0].Split(':');
+        gateEvents.Add((long.Parse(at[1], CultureInfo.InvariantCulture), int.Parse(gs[0], CultureInfo.InvariantCulture), Enum.Parse<GateState>(gs[1], true)));
+    }
+gateEvents.Sort();
+int gateNext = 0;
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
 MapSplit? worstSplit = null, finalSplit = null;
@@ -213,6 +242,12 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
         {
             // Phase 16: bis zum nächsten Vielfachen von WatchEvery laufen — die Messpunkte liegen so unabhängig von --every immer auf denselben Ticks
             int step = Math.Min(WatchEvery - (int)(u.Tick % WatchEvery), chunk - done);
+            for (; gateNext < gateEvents.Count && gateEvents[gateNext].Tick <= u.Tick; gateNext++)
+            {
+                var ge = gateEvents[gateNext];
+                GateAccess.SetState(u, u.Gates[new GateId(ge.Gate)], ge.State);
+                Console.WriteLine($"   Tor {ge.Gate} → {ge.State} bei Tick {u.Tick}");
+            }
             runner.Run(u, step);
             done += step;
             if (u.Tick >= watchFrom && u.Tick % WatchEvery == 0)
@@ -220,7 +255,27 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 probeWatch.Start();
                 watch.Sample(u);
                 if (u.Tick % 200 == 0)
+                {
                     foreach (var j in ShipJobs.Default) capMax[j.Key] = MathF.Max(capMax.GetValueOrDefault(j.Key), ShipJobs.UsedUnits(u, j));
+                    // Phase 19: Auslastung je Station und Knappheit, auf die wegen voller Plätze niemand antwortet
+                    foreach (var ust in u.Stations.Values)
+                        if (!ust.IsBuildSite && ust.Production.Count > 0)
+                        {
+                            var cur = utilSum.GetValueOrDefault(ust.Id.Value, (ust.Name, ust.TypeKey, ust.BankruptcyProtected, 0, 0, 0));
+                            utilSum[ust.Id.Value] = (ust.Name, ust.TypeKey, ust.BankruptcyProtected, cur.Act + ust.Activity, cur.Starved + ust.Starved, cur.N + 1);
+                        }
+                    capSamples++;
+                    if (StationProtection.CountEconomic(u) >= u.Rules.MaxStations)
+                    {
+                        capFullSamples++;
+                        var lsc = StationLifecycleSystem.Scan(u);
+                        if (StationReview.PersistentScarcity(u, lsc) is { } pg && StationLifecycleSystem.ProducerFor(u, pg, lsc.Ratios) is { } pt)
+                        {
+                            string uk = $"{u.Goods[pg].Name} ({pt.Name})";
+                            unanswered[uk] = unanswered.GetValueOrDefault(uk) + 1;
+                        }
+                    }
+                }
                 foreach (var xs in u.Stations.Values)
                     if (ExportRules.ConfigOf(u, xs) is not null)
                         exportCashMin[xs.Id.Value] = MathF.Min(exportCashMin.GetValueOrDefault(xs.Id.Value, float.MaxValue), xs.Credits);
@@ -305,7 +360,17 @@ if (u.Modules.Count > 0)
     int direct = directBuilds - sitesDone;
     float share = sitesDone > 0 ? 100f * sitesEmergency / sitesDone : 0f;
     Console.WriteLine($"Bau: {sitesStarted} Baustellen angelegt, {sitesDone} fertig (davon Notbau {sitesEmergency} = {share:0}%), {sitesAbandoned} verfallen, "
-        + $"{u.Stations.Values.Count(x => x.Site is { Abandoned: false })} laufen, {direct} Direktbau; Bauschiffe {u.Ships.Values.Count(x => x.IsAiBuilder)}");
+        + $"{u.Stations.Values.Count(x => x.Site is { Abandoned: false })} laufen, {direct} Direktbau; Bauschiffe {u.Ships.Values.Count(x => x.IsAiBuilder)} (von Fraktionen nachgekauft {buildersCommissioned})");
+    Console.WriteLine($"Stilllegungen/Umwidmungen: {retiredStations.Count}" + (retiredStations.Count == 0 ? "" : " — " + string.Join("; ", retiredStations)));
+    Console.WriteLine($"Plätze voll: {(capSamples > 0 ? 100.0 * capFullSamples / capSamples : 0):0}% der Messzeit; anhaltende Knappheit ohne freien Platz: "
+        + (unanswered.Count == 0 ? "keine" : string.Join(", ", unanswered.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {(capSamples > 0 ? 100.0 * kv.Value / capSamples : 0):0}%"))));
+    // Auslastung je Stationstyp (Mittel über die Messpunkte): lief / fehlende Zutaten / pausiert ohne Abnehmer
+    Console.WriteLine("Auslastung je Stationstyp (lief/Zutaten fehlten, Ø Messzeit): " + string.Join(", ", utilSum.Values.GroupBy(x => x.Type).OrderBy(g => g.Key, StringComparer.Ordinal)
+        .Select(g => $"{u.StationTypes.GetValueOrDefault(g.Key)?.Name ?? g.Key} ×{g.Count()} {100 * g.Average(x => x.Act / x.N):0}/{100 * g.Average(x => x.Starved / x.N):0}%")));
+    var builtUtil = utilSum.Where(kv => !kv.Value.Protected).ToList();
+    if (builtUtil.Count > 0)
+        Console.WriteLine("  Gebaute Stationen: " + string.Join(", ", builtUtil.Select(kv => $"{kv.Value.Name} {100 * kv.Value.Act / kv.Value.N:0}/{100 * kv.Value.Starved / kv.Value.N:0}%"
+            + (u.Stations.ContainsKey(new StationId(kv.Key)) ? "" : " (stillgelegt)"))));
     Console.WriteLine("Baumaterial geliefert: " + (deliveredBy.Count == 0 ? "nichts" : string.Join(", ", deliveredBy.Select(kv => $"{kv.Key} {kv.Value:0}")))
         + (deliveredGood.Count == 0 ? "" : " | " + string.Join(", ", deliveredGood.Select(kv => $"{kv.Key} {kv.Value:0}")))
         + $"; Notbau {emergencyUnits:0} Einheiten für {emergencyCost:0} Cr (erlassen {emergencyWaived:0}); Spaltungen {splits}");
@@ -400,6 +465,8 @@ if (u.Rules.ResearchActive)
         Console.WriteLine($"  {st.Name,-24} Kasse {st.Credits,8:0}; " + string.Join(", ", st.Market.Where(kv => st.Production.Any(r => r.Inputs.ContainsKey(kv.Key) || r.Outputs.ContainsKey(kv.Key))).OrderBy(kv => kv.Key.Value)
             .Select(kv => $"{u.Goods[kv.Key].Name} {kv.Value.Amount:0}/{kv.Value.Target:0} @ {kv.Value.Price / u.Goods[kv.Key].BasePrice:0.00}×")));
 }
+Console.WriteLine("Über die Annahme abgeladen (Händler, letzter Ausweg): " + (dumped.Count == 0 ? "nichts" : string.Join(", ", dumped.OrderByDescending(kv => kv.Value).Take(6).Select(kv => $"{kv.Key} {kv.Value:0}"))));
+Console.WriteLine($"Im All abgeworfen (KI-Händler, Rest ohne Käufer): {discardCount}×" + (discarded.Count == 0 ? "" : " — " + string.Join(", ", discarded.OrderByDescending(kv => kv.Value).Take(6).Select(kv => $"{kv.Key} {kv.Value:0}"))));
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))
 {

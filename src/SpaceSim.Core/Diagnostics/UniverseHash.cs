@@ -29,6 +29,7 @@ public static class UniverseHash
             // Phase 14: wartende Exportchargen (Reihenfolge des Ankaufs)
             foreach (var b in st.Exports) { Mix((ulong)b.Good.Value); MixF(b.Amount); MixF(b.Paid); Mix((ulong)b.DueTick); }
             foreach (var (g, n) in st.MaintenanceBacklog.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }   // Phase 15
+            Mix((ulong)st.BuiltTick); MixF(st.Activity); MixF(st.Starved);   // Phase 19: Auslastung
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
         {
@@ -47,7 +48,7 @@ public static class UniverseHash
             foreach (var f in s.Fit) { if (f is null) Mix(0UL); else MixString(f); }
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
             foreach (var (g, a) in s.Fuel.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }   // Phase 4: Tank gehört zum Spielstand
-            Mix((ulong)s.Role); Mix((ulong)s.JobSince);   // Phase 6: Aufgabe (Etikett) und Beginn der Aufgabe wechseln bei Multirole-Schiffen
+            Mix((ulong)s.Role); Mix((ulong)s.JobSince); Mix((ulong)s.StrandedSince);   // Phase 19: unverkäufliche Fracht seit   // Phase 6: Aufgabe (Etikett) und Beginn der Aufgabe wechseln bei Multirole-Schiffen
             Mix((ulong)s.Quality);                          // Phase 7: Güteklasse, Slotliste (Bonusslots, vergrößerte Slots) und Mitleidszähler
             foreach (var sl in s.Slots) { MixString(sl.Type); Mix((ulong)sl.Size); }
             foreach (var (k, v) in s.UpgradePity.OrderBy(k => k.Key)) { Mix((ulong)(long)k); Mix((ulong)v); }
@@ -55,6 +56,9 @@ public static class UniverseHash
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
             foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); MixF(a.BaseRadius); }
         Mix((ulong)u.NextAsteroidId);   // Phase 8: Fragment-Ids sind fortlaufend
+        // Phase 19: Stilllegung (Abklingzeit, anhaltende Knappheit)
+        Mix((ulong)u.LastStationRetireTick);
+        foreach (var (g, t) in u.ScarceSince.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); Mix((ulong)t); }
         // Phase 9: Akteure (Art, Mitgliedschaft, Kasse — darunter die Spielerkasse aus Phase 5b —, Persönlichkeit, Beziehungsabweichungen)
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {

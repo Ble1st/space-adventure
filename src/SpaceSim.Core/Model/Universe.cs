@@ -28,6 +28,13 @@ public sealed class Universe
     public ResearchCatalog Research { get; } = new();
     public EconomyRules Rules = new();
     public long LastStationBuildTick = -1_000_000;
+    /// <summary>Phase 19: Tick der letzten Stilllegung (Abklingzeit, <see cref="Simulation.StationReview"/>). Gespeichert.</summary>
+    public long LastStationRetireTick = -1_000_000;
+    /// <summary>
+    /// Phase 19: seit wann eine Ware ununterbrochen knapp ist (Lebenszyklus-Messung, nur Waren, auf die ein Hersteller antworten kann). Gespeichert:
+    /// die Stilllegung verlangt eine anhaltende Knappheit.
+    /// </summary>
+    public Dictionary<GoodId, long> ScarceSince = new();
 
     /// <summary>Der einzige Sektor, der als Godot-Szene materialisiert ist.</summary>
     public SectorId PlayerSector;
@@ -293,7 +300,7 @@ public sealed class Universe
             ship.Order = null;
             ship.Phase = TradePhase.Idle;
             ship.MinePhase = MinePhase.Idle;
-            ship.Cargo.Clear();
+            if (!ship.IsPlayer) ship.Cargo.Clear();   // Fracht eigener Schiffe bleibt an Bord
         }
         foreach (var sq in Squadrons.Values) if (sq.HomeBase == id) sq.HomeBase = default;
         StructureVersion++;

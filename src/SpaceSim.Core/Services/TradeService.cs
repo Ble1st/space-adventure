@@ -55,7 +55,10 @@ public sealed class TradeService : IStationService
                 if (held <= 0f) continue;
                 var intake = MarketInfo.Acceptance(u, station, good);
                 string? note = intake.SellableFrom(held) >= held - 0.0001f ? null : intake.NoteFor(held) ?? intake.Reason;
-                offers.Add(new ServiceOffer($"{Drop}:{good.Value}", $"Abwerfen: {u.Goods[good].Name}", 0f, held, good, station.Market.TryGetValue(good, out var e) ? e.Amount : 0f, held, note));
+                // Phase 19: Treuhand-Material einer Baustelle ist gesperrt (Menge 0, Grund als Hinweis)
+                var blocked = CargoJettison.Issue(u, ship, good);
+                offers.Add(new ServiceOffer($"{Drop}:{good.Value}", $"Abwerfen: {u.Goods[good].Name}", 0f, blocked is null ? held : 0f, good,
+                    station.Market.TryGetValue(good, out var e) ? e.Amount : 0f, held, blocked ?? note));
             }
         // Phase 17: Menge = was „Alles verkaufen“ bewegen würde (gleiche Regel wie SellAll), nicht die ganze Fracht — Menge > 0 ⇔ Execute gelingt
         var (allUnits, allRevenue) = TradeActions.Sellable(u, ship, station);
@@ -106,7 +109,7 @@ public sealed class TradeService : IStationService
             case Drop:
             {
                 // Phase 18: Fracht abwerfen — nur Spielerschiffe, nur Ware an Bord; scheitert ohne Zustandsänderung und ohne Ereignis
-                if (CargoJettison.Issue(ship, good) is { } issue) return new ServiceResult(false, 0f, 0f, issue);
+                if (CargoJettison.Issue(u, ship, good) is { } issue) return new ServiceResult(false, 0f, 0f, issue);
                 float units = CargoJettison.Jettison(u, ship, good, request.Units);
                 u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Drop, good, units, 0f));
                 return new ServiceResult(true, units, 0f, $"{units:0.##} {u.Goods[good].Name} abgeworfen");

@@ -62,7 +62,9 @@ public static class ExportRules
             if (st.Market.TryGetValue(g, out var e))
             {
                 e.Price = MathF.Min(e.Price, u.Goods[g].BasePrice * cfg.BidOf(g, u.Rules));
-                e.Overstock = 0f;   // Phase 15: Exportwaren nehmen bis zum Überhang an (wartende Chargen zählen zum Bestand), nicht nur bis zum Regal-Deckel
+                // Phase 15: Exportwaren nehmen bis zum Überhang an (wartende Chargen zählen zum Bestand), nicht nur bis zum Regal-Deckel.
+                // Phase 19: eigener Faktor (ExportOverstockFactor, 0 = OverstockFactor) — die Standardwelt senkt den allgemeinen auf 2,5, die Senken behalten 3
+                e.Overstock = u.Rules.ExportOverstockFactor > 0f ? u.Rules.ExportOverstockFactor : 0f;
             }
     }
 }
