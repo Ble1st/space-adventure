@@ -358,6 +358,7 @@ public class OutfitterShipyardTests
     {
         var u = DemoUniverse.Create();
         u.Rules.FleetBuysModules = false;
+        u.Rules.FleetChoosesModels = false;   // Phase 6: sonst kauft die Modellwahl (immer mit Modulen)
         var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
         var kit = u.FindGood("ship_kit_light")!.Id;
         yard.Stock(kit).Amount = 5f;
@@ -452,7 +453,7 @@ public class OutfitterShipyardTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":8", json);
+        Assert.Contains("\"Version\":10", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.PlayerShip, loaded.PlayerShip);
@@ -485,7 +486,7 @@ public class OutfitterShipyardTests
             if ((string)t!["Key"]! == "trade_station") { types.Remove(t); continue; }
             t.AsObject().Remove("ShipDealer");
             if (t["Services"] is JsonArray sv)
-                foreach (var x in sv.ToList()) if ((string)x! is "outfitter" or "shipdealer") sv.Remove(x);
+                foreach (var x in sv.ToList()) if ((string)x! is "outfitter" or "shipdealer" or "upgrade") sv.Remove(x);   // upgrade kam erst mit Phase 7
             if ((string)t["Key"]! == "shipyard" && t["Stocks"] is JsonArray st)
                 foreach (var x in st.ToList()) if (newYardStocks.Contains((int)x!["Good"]!)) st.Remove(x);
         }

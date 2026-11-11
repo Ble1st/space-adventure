@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 8;
+    public const int CurrentVersion = 10;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -200,6 +200,10 @@ public sealed class ModuleSave
     public Dictionary<string, float> Cost { get; set; } = new();
     /// <summary>Zulässige Treibstoffe des Antriebs; fehlt in v4-Saves (die Migration reicht sie aus der Default-Welt nach).</summary>
     public List<FuelSave> Fuel { get; set; } = new();
+    /// <summary>Zielmodul der Verbesserung (Phase 7, v10); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? UpgradeTo { get; set; }
+    /// <summary>Material je Upgrade-Versuch (Warenschlüssel → Menge, Phase 7, v10); fehlt = keins.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, float>? UpgradeCost { get; set; }
 }
 
 public sealed class ShipClassSave
@@ -214,6 +218,10 @@ public sealed class ShipClassSave
     public List<ShipSlotSave> Slots { get; set; } = new();
     /// <summary>Bausatz-Warenschlüssel der Klasse (Phase 5a); null = Regel ShipKitGoodKey.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Kit { get; set; }
+    /// <summary>Wirkungsgrad der Werkzeug-Slots (Phase 6); fehlt in älteren Spielständen = 1.</summary>
+    public float ToolEfficiency { get; set; } = 1f;
+    /// <summary>Höchstzahl der Slot-Upgrades je Schiff (Phase 7, v10); fehlt in älteren Spielständen = 1.</summary>
+    public int MaxSlotUpgrades { get; set; } = 1;
 }
 
 public sealed class ShipModelSave
@@ -222,6 +230,8 @@ public sealed class ShipModelSave
     public string Class { get; set; } = "";
     public string Name { get; set; } = "";
     public List<string?> Fit { get; set; } = new();
+    /// <summary>KI-Aufgaben des Modells (Phase 6, v9); fehlt in älteren Spielständen (die Migration v8→v9 trägt sie für Default-Modelle nach).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<string>? Jobs { get; set; }
 }
 
 public sealed class TransitSave
@@ -254,4 +264,10 @@ public sealed class ShipSave
     public Dictionary<int, float> Cargo { get; set; } = new();
     /// <summary>Treibstoff an Bord je Ware (GoodId → Menge); fehlt in v4-Saves (die Migration trägt einen vollen Tank nach).</summary>
     public Dictionary<int, float> Fuel { get; set; } = new();
+    /// <summary>Tick der letzten Aufgabenzuteilung (Phase 6, v9); fehlt in älteren Spielständen = 0.</summary>
+    public long JobSince { get; set; }
+    /// <summary>Güteklasse (Phase 7, v10: Standard/Improved/Elite/Masterwork); fehlt = Standard.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Quality { get; set; }
+    /// <summary>Mitleidszähler je Slot (Phase 7, v10; Schlüssel −1 = Bonusslot); fehlt = keine Fehlschläge.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, int>? UpgradePity { get; set; }
 }

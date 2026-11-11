@@ -44,7 +44,11 @@ public sealed class TraderSystem : ISimSystem
     public static int IdleBackoff(Universe u, Ship ship) =>
         ThinkInterval * (1 + (int)Math.Min(4, Math.Max(0, u.Tick - ship.IdleSince) / 100));
 
-    static bool PickOrder(Universe u, Ship ship)
+    /// <summary>
+    /// Beste Handelsrunde für dieses Schiff jetzt (Phase 6 auch für die Aufgabenwahl, <see cref="TradeJob"/>): Auftrag und Bewertung
+    /// = Gewinn nach Treibstoffkosten je Tick Reisezeit (Credits/Tick). Reine Auswertung ohne Zustandsänderung; (null, 0) = nichts lohnt.
+    /// </summary>
+    public static (TradeOrder? Order, float Score) BestTrade(Universe u, Ship ship)
     {
         var reserved = new Dictionary<(StationId, GoodId), float>();
         foreach (var o in u.Ships.Values)
@@ -106,6 +110,12 @@ public sealed class TraderSystem : ISimSystem
                 }
             }
         }
+        return (best, bestScore);
+    }
+
+    static bool PickOrder(Universe u, Ship ship)
+    {
+        var (best, _) = BestTrade(u, ship);
         if (best is null) return false;
         ship.Order = best;
         ship.Phase = TradePhase.GoingToBuy;

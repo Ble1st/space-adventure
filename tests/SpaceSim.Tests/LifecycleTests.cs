@@ -79,6 +79,7 @@ public class LifecycleTests
     public void RichTrader_BuysAnotherShip_FromAYardKit_UpToCap()
     {
         var u = DemoUniverse.Create();
+        u.Rules.FleetChoosesModels = false;   // geprüft wird die Kopierregel (Phase 5c); die Modellwahl der Phase 6 hat eigene Tests
         var yard = Yard(u);
         yard.Stock(DemoUniverse.ShipKit).Amount = 5f;
         int before = u.Ships.Values.Count(s => s.Role == ShipRole.Trader);

@@ -82,8 +82,10 @@ public static class DockAreas
 		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair), Sub = repairSub, Available = refuel || repair });
 		// Ausrüster und Werft (Phase 5c): echt, sobald ForStation „outfitter“ bzw. „shipdealer“ liefert
 		bool outfitter = offered.Contains(OutfitterService.ServiceKey), dealer = offered.Contains(ShipDealerService.ServiceKey);
+		bool upgrade = offered.Contains(UpgradeService.ServiceKey);   // Phase 7: Upgrades sind ein Abschnitt im Ausrüster
 		int modules = st.Market.Count(kv => kv.Value.Amount >= 1f && u.Goods.TryGetValue(kv.Key, out var g) && u.Modules.ContainsKey(g.Key));
-		list.Add(new DockAreaDef { Id = Outfitter, Label = LabelFor(Outfitter), Sub = outfitter ? $"{modules} Module auf Lager" : "Nicht hier", Available = outfitter });
+		string outSub = outfitter ? $"{modules} Module{(upgrade ? " · Upgrades" : " auf Lager")}" : upgrade ? "Upgrades" : "Nicht hier";
+		list.Add(new DockAreaDef { Id = Outfitter, Label = LabelFor(Outfitter), Sub = outSub, Available = outfitter || upgrade });
 		int models = dealer ? ShipDealerService.Models(u, st).Count : 0;
 		list.Add(new DockAreaDef { Id = Shipyard, Label = LabelFor(Shipyard), Sub = dealer ? $"{models} Modelle" : "Nicht hier", Available = dealer });
 		list.Add(new DockAreaDef { Id = Hangar, Label = LabelFor(Hangar), Sub = "Angedockte Schiffe", Available = true });

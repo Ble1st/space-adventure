@@ -224,12 +224,12 @@ public class FuelModelTests
         u.Events.Raised += e =>
         {
             if (e is ShipSpawned sp && u.Ships.TryGetValue(sp.Ship, out var s) && s.HasModel)
-                spawnFuel.Add(s.TotalFuel);
+                spawnFuel.Add(s.TotalFuel - s.Stats.FuelCapacity);
         };
         new SimulationRunner().Run(u, 20_000);   // Flottenwachstum erzeugt neue Schiffe (Ids ab 1000)
         Assert.Contains(u.Ships.Values, s => s.Id.Value >= 1000);
         Assert.NotEmpty(spawnFuel);
-        Assert.All(spawnFuel, f => Assert.Equal(200f, f));   // bei Erzeugung voller Tank (Phase 4a); danach echter Verbrauch (Phase 4b)
+        Assert.All(spawnFuel, f => Assert.Equal(0f, f));   // bei Erzeugung voller Tank (Phase 4a; Phase 6: Klassen mit anderem Tank); danach echter Verbrauch (Phase 4b)
         // nach 20k Ticks: Tank nie negativ und nie über Kapazität, nur zulässige Treibstoffwaren an Bord
         Assert.All(u.Ships.Values.Where(s => s.HasModel), s =>
         {
@@ -242,7 +242,7 @@ public class FuelModelTests
     [Fact]
     public void SaveLoad_V5_Roundtrip_IdentischInklHashFuelUndContent()
     {
-        Assert.Equal(8, SaveGame.CurrentVersion);   // v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
+        Assert.Equal(10, SaveGame.CurrentVersion);   // v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
@@ -258,7 +258,7 @@ public class FuelModelTests
             Assert.Equal(orig.Fuel.Count, s.Fuel.Count);
             foreach (var (g, a) in orig.Fuel) Assert.Equal(a, s.Fuel[g], 3);
             Assert.Equal(orig.TotalFuel, s.TotalFuel, 3);   // Phase 4b: Tanks werden geleert, Roundtrip bleibt exakt
-            Assert.Equal(200f, s.Stats.FuelCapacity);
+            Assert.Equal(orig.Stats.FuelCapacity, s.Stats.FuelCapacity);   // Phase 6: gekaufte Klassen haben andere Tanks (Einheitsmodelle 200)
         }
         // Content liegt im Save: propellant, fuel des Antriebs, baseFuel der Klassen
         var prop = loaded.Goods.Values.Single(g => g.Key == "propellant");

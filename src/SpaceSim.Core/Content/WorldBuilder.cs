@@ -182,7 +182,12 @@ public static class WorldBuilder
         foreach (var group in def.Ships)
         {
             var role = Enum.TryParse<ShipRole>(group.Role, ignoreCase: true, out var r) ? r : throw new WorldFormatException($"Unbekannte Schiffsrolle '{group.Role}'");
-            for (int i = 0; i < group.Count; i++) u.AddShip(NewShip(u, new ShipId(nextShip++), role, group.Faction, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model));
+            for (int i = 0; i < group.Count; i++)
+            {
+                var ship = NewShip(u, new ShipId(nextShip++), role, group.Faction, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model);
+                RollFounderQuality(u, ship);
+                u.AddShip(ship);
+            }
         }
 
         // Phase 5c: Startpakete prüfen (Schlüssel eindeutig, Modell und Sektor bekannt) und ggf. das gewählte anwenden
@@ -212,6 +217,24 @@ public static class WorldBuilder
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
         return u;
+    }
+
+    /// <summary>
+    /// Phase 7: Gründerschiffe der Startwelt würfeln ihre Güteklasse ohne Material (SCHIFFSSLOTS.md Abschnitt 8); Schiffe ohne Modell bleiben Standard.
+    /// Werte, Laderaum, Hülle und Tank folgen dem gewürfelten Fit.
+    /// </summary>
+    static void RollFounderQuality(Universe u, Ship ship)
+    {
+        if (!u.Rules.FounderQuality || !ship.HasModel || !u.ShipModels.TryGetValue(ship.ModelKey, out var model) || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls)) return;
+        var q = Simulation.ShipQualityRoll.Roll(u, cls, ship.Slots, ship.Fit, null, null);
+        ship.Quality = q.Grade;
+        if (q.Grade == ShipQuality.Standard) return;
+        ship.Slots = q.Slots;
+        ship.Fit = q.Fit;
+        ship.RecomputeStats(u);
+        ship.CargoCapacity = ship.Stats.Cargo;
+        ship.Hull = ship.MaxHull;
+        ship.FillFuel();
     }
 
     /// <summary>
@@ -292,7 +315,6 @@ public static class WorldBuilder
             };
             if (!u.Modules.TryAdd(md.Key, module)) throw new WorldFormatException($"Modul '{md.Key}' doppelt");
         }
-
         foreach (var cd in def.ShipClasses)
         {
             var slots = new List<ClassSlot>();
@@ -302,7 +324,9 @@ public static class WorldBuilder
                 slots.Add(new ClassSlot { Type = s.Type, Size = ParseSize(s.Size, $"Schiffsklasse '{cd.Key}'"), Facing = s.Facing, Arc = s.Arc });
             }
             if (cd.Kit is { } kit && !goodId.ContainsKey(kit)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Bausatz-Ware '{kit}'");
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit };
+            if (cd.ToolEfficiency <= 0f || cd.ToolEfficiency > 1f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': toolEfficiency {cd.ToolEfficiency} muss in (0, 1] liegen");
+            if (cd.MaxSlotUpgrades < 0) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': maxSlotUpgrades muss >= 0 sein");
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades };
             if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
         }
 
@@ -312,8 +336,38 @@ public static class WorldBuilder
             // Phase 5c: dieselbe Fit-Regel wie zur Laufzeit beim Ausrüster (FitRules), hier mit dem Modellnamen als Präfix
             if (FitRules.Check(u.SlotTypes, u.Modules, cls, cls.Slots, md.Fit) is { } issue)
                 throw new WorldFormatException($"Schiffsmodell '{md.Key}': {issue.Message}");
-            if (!u.ShipModels.TryAdd(md.Key, new ShipModel { Key = md.Key, ClassKey = md.Class, Name = md.Name, Fit = new List<string?>(md.Fit) }))
+            // Phase 6: KI-Aufgaben — bekannter Schlüssel, keine Dopplung, und der Fit muss die nötige Fähigkeit haben
+            var jobs = new List<string>();
+            if (md.Jobs is not null)
+            {
+                var caps = ShipStats.Compute(cls, md.Fit.Select(k => k is not null ? u.Modules[k] : null).ToList()).Capabilities;
+                foreach (var key in md.Jobs)
+                {
+                    if (Simulation.ShipJobs.ByKey(key) is not { } job) throw new WorldFormatException($"Schiffsmodell '{md.Key}': unbekannte Aufgabe '{key}' in jobs");
+                    if (jobs.Contains(key)) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Aufgabe '{key}' doppelt in jobs");
+                    if ((caps & job.Needs) != job.Needs) throw new WorldFormatException($"Schiffsmodell '{md.Key}': Aufgabe '{key}' braucht die Fähigkeit {job.Needs}, die der Fit nicht hat");
+                    jobs.Add(key);
+                }
+            }
+            if (!u.ShipModels.TryAdd(md.Key, new ShipModel { Key = md.Key, ClassKey = md.Class, Name = md.Name, Fit = new List<string?>(md.Fit), Jobs = jobs }))
                 throw new WorldFormatException($"Schiffsmodell '{md.Key}' doppelt");
+        }
+        // Phase 7: Verbesserungen — Zielmodul bekannt, gleiche Slotart, nicht größer, nicht das Modul selbst; Material bekannt und > 0
+        foreach (var md in def.Modules)
+        {
+            if (md.Upgrade is not { } up) continue;
+            var module = u.Modules[md.Key];
+            if (!u.Modules.TryGetValue(up.To, out var target)) throw new WorldFormatException($"Modul '{md.Key}': unbekanntes Zielmodul '{up.To}' in upgrade");
+            if (target == module) throw new WorldFormatException($"Modul '{md.Key}': upgrade verweist auf sich selbst");
+            if (target.Slot != module.Slot) throw new WorldFormatException($"Modul '{md.Key}': Zielmodul '{up.To}' hat eine andere Slotart ('{target.Slot}')");
+            if (target.Size > module.Size) throw new WorldFormatException($"Modul '{md.Key}': Zielmodul '{up.To}' ist größer ({target.Size})");
+            foreach (var (k, v) in up.Cost)
+            {
+                if (!goodId.ContainsKey(k)) throw new WorldFormatException($"Modul '{md.Key}': unbekannte Ware '{k}' in upgrade.cost");
+                if (v <= 0f) throw new WorldFormatException($"Modul '{md.Key}': upgrade.cost '{k}' muss > 0 sein");
+            }
+            module.UpgradeTo = up.To;
+            module.UpgradeCost = new Dictionary<string, float>(up.Cost);
         }
     }
 

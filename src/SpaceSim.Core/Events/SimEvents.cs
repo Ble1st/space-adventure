@@ -32,10 +32,20 @@ public sealed record EmergencyRefuel(ShipId Ship, GoodId Good, float Units, floa
 public sealed record ShipPurchased(ShipId Ship, StationId Station, string ModelKey, float Price) : SimEvent;
 /// <summary>KI-Neubau (Phase 5c, <see cref="Simulation.FleetSystem"/>): Werft, Preis und ob die Module des Fits aus dem Werftlager verbraucht wurden (sonst nur der Bausatz).</summary>
 public sealed record FleetShipBuilt(ShipId Ship, StationId Yard, bool WithModules, float Price) : SimEvent;
+/// <summary>Phase 6: Die KI-Flotte hat für eine Aufgabe ein Modell gewählt (Kaufwahl nach Aufgabe, Geld und Werftlager; <see cref="Simulation.FleetSystem"/>).</summary>
+public sealed record FleetModelChosen(ShipId Ship, string ModelKey, ShipRole Job, float Price) : SimEvent;
 /// <summary>Der Spieler steuert jetzt ein anderes eigenes Schiff (Phase 5c: nach Kauf oder Wechsel im Hangar); das alte bleibt geparkt.</summary>
 public sealed record ActiveShipChanged(ShipId Old, ShipId New, StationId Station) : SimEvent;
 /// <summary>Ein Modul wurde ein- oder ausgebaut (Phase 5c, Dienst „outfitter“): Slot-Index, neues und altes Modul (null = leer).</summary>
 public sealed record ShipRefitted(ShipId Ship, StationId Station, int Slot, string? Installed, string? Removed) : SimEvent;
+
+/// <summary>Ein Multirole-Schiff hat seine Aufgabe gewechselt (Phase 6, <see cref="Simulation.JobAssignmentSystem"/>): altes und neues Etikett, Bewertungen (Credits/Tick).</summary>
+public sealed record JobChanged(ShipId Ship, ShipRole From, ShipRole To, float FromScore, float ToScore) : SimEvent;
+
+/// <summary>Phase 7: Güteklasse eines neuen Schiffs gewürfelt (Rolled) und erreicht (Grade; niedriger, wenn der Werft Material fehlte).</summary>
+public sealed record ShipQualityRolled(ShipId Ship, ShipQuality Rolled, ShipQuality Grade) : SimEvent;
+/// <summary>Phase 7: Upgrade-Versuch (Dienst „upgrade“ oder NPC-<see cref="Simulation.UpgradeSystem"/>): Art, Slot (−1 Bonusslot), Module, Erfolg, Chance, Preis.</summary>
+public sealed record UpgradeAttempted(ShipId Ship, StationId Station, UpgradeKind Kind, int Slot, string? From, string? To, bool Success, float Chance, float Price) : SimEvent;
 
 /// <summary>Einfacher synchroner Ereignisbus. Wird nicht gespeichert; Abonnenten (Statistik, Darstellung) hängen sich nach dem Laden neu an.</summary>
 public sealed class SimEvents

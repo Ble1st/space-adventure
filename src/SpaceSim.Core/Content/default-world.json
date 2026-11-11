@@ -5,7 +5,8 @@
   "maxMiners": 8,
   "repairPlatesPerHull": 0.05,
   "maxStations": 34,
-  "maxStationsPerSector": 9
+  "maxStationsPerSector": 9,
+  "fleetFlexWeight": 0.75
  },
  "goods": [
   {
@@ -548,7 +549,8 @@
     "trade",
     "repair",
     "outfitter",
-    "shipdealer"
+    "shipdealer",
+    "upgrade"
    ],
    "recipes": [
     {
@@ -643,6 +645,22 @@
     "fuel_tank_s": [
      1,
      3
+    ],
+    "chem_engine_m": [
+     1,
+     2
+    ],
+    "mining_laser_2": [
+     1,
+     2
+    ],
+    "reactor_mk2": [
+     1,
+     2
+    ],
+    "chem_engine_s_mk2": [
+     1,
+     2
     ]
    },
    "shipDealer": {
@@ -717,11 +735,25 @@
      "engine",
      "cargo"
     ],
-    "maxTier": 1,
+    "maxTier": 2,
     "ticks": 20,
     "target": 5
    },
-   "recipes": []
+   "recipes": [],
+   "stocks": {
+    "chem_engine_m": [
+     1,
+     3
+    ],
+    "reactor_mk2": [
+     1,
+     3
+    ],
+    "chem_engine_s_mk2": [
+     1,
+     3
+    ]
+   }
   },
   {
    "key": "weapons_works",
@@ -752,11 +784,17 @@
      "tool",
      "utility"
     ],
-    "maxTier": 1,
+    "maxTier": 2,
     "ticks": 20,
     "target": 5
    },
-   "recipes": []
+   "recipes": [],
+   "stocks": {
+    "mining_laser_2": [
+     1,
+     3
+    ]
+   }
   },
   {
    "key": "trade_station",
@@ -1431,6 +1469,13 @@
    "cost": {
     "steel": 4,
     "electronics": 2
+   },
+   "upgrade": {
+    "to": "reactor_mk2",
+    "cost": {
+     "electronics": 1,
+     "platinum": 1
+    }
    }
   },
   {
@@ -1454,6 +1499,13 @@
    "cost": {
     "steel": 3,
     "electronics": 1
+   },
+   "upgrade": {
+    "to": "chem_engine_s_mk2",
+    "cost": {
+     "electronics": 1,
+     "titanium": 1
+    }
    }
   },
   {
@@ -1474,6 +1526,13 @@
    "cost": {
     "electronics": 2,
     "copper": 2
+   },
+   "upgrade": {
+    "to": "mining_laser_2",
+    "cost": {
+     "electronics": 1,
+     "platinum": 1
+    }
    }
   },
   {
@@ -1510,6 +1569,13 @@
    "mass": 3,
    "cost": {
     "steel": 3
+   },
+   "upgrade": {
+    "to": "cargo_universal_70",
+    "cost": {
+     "titanium": 1,
+     "hull_plates": 1
+    }
    }
   },
   {
@@ -1646,6 +1712,92 @@
     "hull_plates": 2,
     "titanium": 1
    }
+  },
+  {
+   "key": "chem_engine_m",
+   "name": "Chemisches Triebwerk M",
+   "slot": "engine",
+   "size": "M",
+   "tier": 1,
+   "stats": {
+    "thrust": 240,
+    "fuelUse": 0.003
+   },
+   "fuel": [
+    {
+     "good": "propellant",
+     "efficiency": 1.0
+    }
+   ],
+   "powerDraw": 4,
+   "mass": 5,
+   "cost": {
+    "steel": 5,
+    "electronics": 2,
+    "titanium": 1
+   }
+  },
+  {
+   "key": "mining_laser_2",
+   "name": "Mining-Laser Mk2",
+   "slot": "tool",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "chunkChanceMult": 1.3,
+    "chunkSizeMult": 1.25
+   },
+   "powerDraw": 3,
+   "mass": 1,
+   "cost": {
+    "electronics": 3,
+    "copper": 2,
+    "platinum": 1
+   }
+  },
+  {
+   "key": "reactor_mk2",
+   "name": "Fusionsreaktor Mk2",
+   "slot": "reactor",
+   "size": "S",
+   "tier": 2,
+   "stats": {
+    "powerOutput": 14
+   },
+   "mass": 4,
+   "upkeep": 0.25,
+   "cost": {
+    "steel": 4,
+    "electronics": 3,
+    "platinum": 1
+   }
+  },
+  {
+   "key": "chem_engine_s_mk2",
+   "name": "Chemisches Triebwerk S Mk2",
+   "slot": "engine",
+   "size": "S",
+   "tier": 2,
+   "stats": {
+    "thrust": 190,
+    "fuelUse": 0.0018
+   },
+   "fuel": [
+    {
+     "good": "propellant",
+     "efficiency": 1.0
+    }
+   ],
+   "powerDraw": 3,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 2,
+    "titanium": 1
+   }
   }
  ],
  "shipClasses": [
@@ -1737,6 +1889,235 @@
     }
    ],
    "kit": "ship_kit_light"
+  },
+  {
+   "key": "courier",
+   "name": "Kurier",
+   "size": "S",
+   "baseHull": 50,
+   "baseMass": 4,
+   "baseFuel": 120,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "light_freighter",
+   "name": "Leichter Frachter",
+   "size": "M",
+   "baseHull": 100,
+   "baseMass": 16,
+   "baseFuel": 250,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light",
+   "toolEfficiency": 0.85
+  },
+  {
+   "key": "heavy_freighter",
+   "name": "Schwerer Frachter",
+   "size": "L",
+   "baseHull": 250,
+   "baseMass": 30,
+   "baseFuel": 400,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_heavy",
+   "maxSlotUpgrades": 2
+  },
+  {
+   "key": "miner_light",
+   "name": "Bergbauer leicht",
+   "size": "S",
+   "baseHull": 100,
+   "baseMass": 8,
+   "baseFuel": 200,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "miner_heavy",
+   "name": "Bergbauer schwer",
+   "size": "M",
+   "baseHull": 200,
+   "baseMass": 18,
+   "baseFuel": 300,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "armor",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium",
+   "maxSlotUpgrades": 2
+  },
+  {
+   "key": "tanker",
+   "name": "Tanker",
+   "size": "M",
+   "baseHull": 120,
+   "baseMass": 16,
+   "baseFuel": 300,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
   }
  ],
  "shipModels": [
@@ -1749,6 +2130,9 @@
     "chem_engine_s",
     null,
     "cargo_universal_100"
+   ],
+   "jobs": [
+    "trade"
    ]
   },
   {
@@ -1760,6 +2144,9 @@
     "chem_engine_s",
     null,
     "cargo_universal_60"
+   ],
+   "jobs": [
+    "trade"
    ]
   },
   {
@@ -1771,6 +2158,9 @@
     "chem_engine_s",
     "mining_laser_1",
     "cargo_universal_100"
+   ],
+   "jobs": [
+    "mine"
    ]
   },
   {
@@ -1782,6 +2172,9 @@
     "chem_engine_s",
     "mining_laser_1",
     "cargo_universal_60"
+   ],
+   "jobs": [
+    "mine"
    ]
   },
   {
@@ -1831,6 +2224,135 @@
     "mining_laser_1",
     "cargo_universal_60",
     null,
+    null
+   ]
+  },
+  {
+   "key": "swift",
+   "class": "courier",
+   "name": "Swift",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "cargo_solid_s",
+    null
+   ]
+  },
+  {
+   "key": "mule",
+   "class": "light_freighter",
+   "name": "Mule",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    null,
+    null,
+    "cargo_universal_60",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "hauler",
+   "class": "light_freighter",
+   "name": "Hauler",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    null,
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "tinker",
+   "class": "light_freighter",
+   "name": "Tinker",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    null,
+    "cargo_universal_60",
+    null,
+    null
+   ],
+   "jobs": [
+    "trade",
+    "mine"
+   ]
+  },
+  {
+   "key": "behemoth",
+   "class": "heavy_freighter",
+   "name": "Behemoth",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    null
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "pickaxe",
+   "class": "miner_light",
+   "name": "Pickaxe",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "rockbreaker",
+   "class": "miner_heavy",
+   "name": "Rockbreaker",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "mining_laser_2",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "cistern",
+   "class": "tanker",
+   "name": "Cistern",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
     null
    ]
   }
