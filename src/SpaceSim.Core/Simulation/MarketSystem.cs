@@ -57,6 +57,20 @@ public sealed class MarketSystem : ISimSystem
                 var entry = st.Stock(g);
                 entry.Price = Math.Max(u.Goods[g].BasePrice * 0.25f, Math.Min(entry.Price, ceiling));
             }
+            // Phase 14: Endverbraucher (Rezepte ohne Produkte, z. B. Kolonie) bieten höchstens ConsumerMaxBidFactor × Basispreis. Ohne Deckel war die Kolonie
+            // zweistabil: knapper Bestand → 4× Preis → Einnahmen reichen für zu wenig Ware → Bestand bleibt knapp (dauerhaft am Preisdeckel, Kasse leer).
+            if (u.Rules.ConsumerMaxBidFactor < 4f && IsFinalConsumer(st))
+                foreach (var recipe in st.Production)
+                    foreach (var g in recipe.Inputs.Keys)
+                        if (st.Market.TryGetValue(g, out var ce)) ce.Price = MathF.Min(ce.Price, u.Goods[g].BasePrice * u.Rules.ConsumerMaxBidFactor);
         }
+    }
+
+    /// <summary>Phase 14: Endverbraucher — hat Rezepte, die alle nichts herstellen (Kolonie).</summary>
+    public static bool IsFinalConsumer(Station st)
+    {
+        if (st.Production.Count == 0) return false;
+        foreach (var r in st.Production) if (r.Outputs.Count > 0) return false;
+        return true;
     }
 }

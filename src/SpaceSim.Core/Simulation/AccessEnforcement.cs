@@ -41,7 +41,7 @@ public static class AccessEnforcement
             {
                 // Umweg: Mehrstrecke kostet Treibstoff (gegenüber dem Rest der alten Reise)
                 float extra = legs.Sum(l => Vec2.Distance(l.From, l.To)) - Remaining(t, u.Tick);
-                if (extra > 0f) Refuel.Consume(ship, extra);
+                if (extra > 0f) Refuel.Consume(u, ship, extra);
                 u.StartTransit(ship, new Transit { StartTick = u.Tick, ArrivalTick = legs[^1].EndTick, ToSector = t.ToSector, ToPosition = t.ToPosition, Legs = legs });
                 u.Events.Publish(new ShipRerouted(ship.Id, blockedAt.Id, reason));
                 rerouted++;

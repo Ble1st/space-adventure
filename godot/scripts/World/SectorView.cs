@@ -52,7 +52,28 @@ public partial class SectorView : Node3D
 		foreach (var gid in sector.Gates) BuildGate(u, u.Gates[gid]);
 		SyncAsteroids(u, 1f, instant: true);
 		foreach (var f in sector.Fields) BuildFieldMarker(u, f);
+		BuildPlanet(sector);
 		Obstacles = u.GetObstacles(_sector);
+	}
+
+	/// <summary>Phase 14: Kulissen-Planet des Sektors (nur Darstellung, keine Kollision); null ohne Planet.</summary>
+	public MeshInstance3D? PlanetNode { get; private set; }
+
+	/// <summary>
+	/// Phase 14: große Kugel weit unterhalb der Spielfläche (Ebene y = 0) als Kulisse — sie liegt nie zwischen Kamera und Schiff, gehört nicht zu den
+	/// Hindernissen (Collision/PathPlanner kennen sie nicht) und das Antippen rechnet weiter gegen die Ebene.
+	/// </summary>
+	void BuildPlanet(Sector sector)
+	{
+		PlanetNode = null;
+		if (sector.Planet is not { } p) return;
+		var color = Color.FromHtml(p.Color);
+		var mat = Gfx.Mat(color, 0.15f, 0f);
+		mat.Roughness = 0.9f;
+		var mesh = new SphereMesh { Radius = p.Radius, Height = p.Radius * 2f, RadialSegments = 48, Rings = 24 };
+		PlanetNode = Gfx.Mesh(mesh, mat, new Vector3(-p.Radius * 0.6f, -(p.Radius + 260f), -p.Radius * 0.9f), _root!);
+		PlanetNode.Name = "Planet";
+		PlanetNode.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 	}
 
 	public void Animate(float delta)

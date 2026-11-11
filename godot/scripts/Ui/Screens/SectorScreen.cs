@@ -119,9 +119,12 @@ public sealed partial class SectorScreen : CommandScreen
 		{
 			int npcs = UniverseScreen.ShipCountOf(u, sel);
 			At(card, Text(s.Name, 21, Cyan), 16, 10, 268, 28);
+			// Phase 14: Planet des Sektors (Kulisse der 3D-Ansicht, Abnehmer der Exportsenke)
+			TestPlanet = s.Planet?.Name ?? "";
 			var pol = AccessInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
 			At(card, Text($"Besitzer: {pol.Owner} · {pol.Stage}", 14, MapOverlay.FactionColor(s.Owner)), 16, 40, 268, 20);
-			At(card, Text($"{s.Stations.Count} Stationen · {s.Fields.Count} Gürtel · {s.Gates.Count} Gate{(s.Gates.Count == 1 ? "" : "s")}", 14, White), 16, 64, 268, 20);
+			if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · {s.Stations.Count} Stationen · {s.Fields.Count} Gürtel", 13, White), 16, 64, 268, 20);
+			else At(card, Text($"{s.Stations.Count} Stationen · {s.Fields.Count} Gürtel · {s.Gates.Count} Gate{(s.Gates.Count == 1 ? "" : "s")}", 14, White), 16, 64, 268, 20);
 			At(card, Text($"{npcs} fremde Schiffe im Sektor", 14, White), 16, 86, 268, 20);
 			// Phase 10: Sperrstufe statt Platzhalter-Sicherheit
 			Color lc = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
@@ -345,4 +348,7 @@ public sealed partial class SectorScreen : CommandScreen
 			DrawPolyline(closed.ToArray(), col, 1.5f, true);
 		}
 	}
+
+	/// <summary>Selbsttest: Planet in der zuletzt gezeichneten Sektor-Detailkarte (Phase 14; leer ohne Planet).</summary>
+	public string TestPlanet { get; private set; } = "";
 }

@@ -40,6 +40,8 @@ public partial class UiShots : Node
 	{
 		DirAccess.MakeDirRecursiveAbsolute(_dir);
 		GD.Print($"[ui-shots] Zielordner: {_dir}");
+		// Phase 14: --ui-shots-phase14 nimmt nur die Bilder der Phase 14 auf (Standardwelt mit Planeten und Exportsenke)
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase14")) _stage = 548;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -386,6 +388,32 @@ public partial class UiShots : Node
 			case 545: Capture("51-dock-werft-nicht-erforscht.png"); _stage = 546; _wait = 10; break;
 			case 546: _m.TestOpenDockArea("outfitter"); _m.HudRef.DockOutfitter.TestSelectSlot(_m.Session.Player.Slots.FindIndex(sl => sl.Type == "reactor")); _stage = 547; _wait = 20; break;
 			case 547: Capture("52-dock-ausruester-nicht-erforscht.png"); _stage = 548; _wait = 10; break;
+			// Phase 14: Standardwelt (Treibstoff und Forschung aus) — Flug in Gamma mit Planet, Exportsenke in der Stationsinfo, Planet im Universum
+			case 548: _m.TestCloseCommand(); _m.TestUndock(); _m.TestMenu("new"); _stage = 549; _wait = 30; break;
+			case 549:
+			{
+				var u = _m.Session.U;
+				u.Rules.PlayerRaids = false;
+				_m.TestEnterSector(new SpaceSim.Core.Model.SectorId(3));
+				_m.TestTeleportNear(new SpaceSim.Core.Model.StationId(39));
+				_stage = 550; _wait = 40; break;
+			}
+			case 550: Capture("53-flug-gamma-planet-ohne-tank.png"); _stage = 551; _wait = 10; break;
+			case 551:
+			{
+				var u = _m.Session.U;
+				var post = u.Stations[new SpaceSim.Core.Model.StationId(39)];
+				SpaceSim.Core.Simulation.ExportRules.OnDelivered(u, post, u.FindGood("luxury_goods")!.Id, 4f, 2000f);
+				SpaceSim.Core.Simulation.ExportRules.OnDelivered(u, post, u.FindGood("food")!.Id, 60f, 700f);
+				_m.TestDockAt(post.Id);
+				_stage = 552; _wait = 60; break;
+			}
+			case 552: _m.TestOpenDockArea("info"); _stage = 553; _wait = 20; break;
+			case 553: Capture("54-dock-info-export.png"); _stage = 554; _wait = 10; break;
+			case 554: _m.TestOpenDockArea("trade"); _stage = 555; _wait = 20; break;
+			case 555: Capture("55-dock-handel-exportsenke.png"); _stage = 556; _wait = 10; break;
+			case 556: _m.TestUndock(); _m.TestOpenCommand(); _m.TestOpenCcArea("universe"); _m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(3)); _stage = 557; _wait = 20; break;
+			case 557: Capture("56-cc-universum-planet.png"); _stage = 558; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

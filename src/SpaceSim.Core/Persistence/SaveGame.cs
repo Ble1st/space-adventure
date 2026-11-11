@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 16;
+    public const int CurrentVersion = 17;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -142,6 +142,8 @@ public sealed class GoodSave
     public string Color { get; set; } = "#c8c8c8"; public float BasePrice { get; set; } public float Volume { get; set; }
     /// <summary>Warenform (solid/liquid); fehlt in alten Spielständen → solid. Additiv, daher kein Versionssprung.</summary>
     public string? Form { get; set; }
+    /// <summary>Phase 14 (v17): Warenkategorie; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Category { get; set; }
 }
 
 public sealed class YieldSave { public int Good { get; set; } public float Weight { get; set; } }
@@ -187,7 +189,22 @@ public sealed class StationTypeSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? Hideout { get; set; }
     /// <summary>Phase 13 (v16): Forschungsbetrieb; fehlt = keine Forschungsstation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ResearchConfigSave? Research { get; set; }
+    /// <summary>Phase 14 (v17): Exportsenke; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ExportConfigSave? Export { get; set; }
 }
+
+/// <summary>Exportsenke eines Stationstyps (Phase 14, v17): Waren (GoodIds), Kategorien, Verzögerung/Aufschlag (null = Regel), Wunschbestand.</summary>
+public sealed class ExportConfigSave
+{
+    public List<int> Goods { get; set; } = new(); public List<string> Categories { get; set; } = new();
+    public int? DelayTicks { get; set; } public float? Markup { get; set; } public float Target { get; set; } public float TargetValue { get; set; }
+}
+
+/// <summary>Charge einer Exportsenke (Phase 14, v17): Ware, Menge, bezahlter Betrag, Fälligkeit.</summary>
+public sealed class ExportBatchSave { public int Good { get; set; } public float Amount { get; set; } public float Paid { get; set; } public long Due { get; set; } }
+
+/// <summary>Planet eines Sektors (Phase 14, v17).</summary>
+public sealed class PlanetSave { public string Name { get; set; } = ""; public string Color { get; set; } = ""; public float Radius { get; set; } }
 
 /// <summary>Schiffshändler eines Stationstyps (Phase 5c): erlaubte Klassen (null = alle), Höchstgröße als Text, Montagegebühr.</summary>
 public sealed class ShipDealerSave
@@ -260,6 +277,8 @@ public sealed class SectorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Threat { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Security { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Traffic { get; set; }
+    /// <summary>Phase 14 (v17): Planet; fehlt = keiner.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PlanetSave? Planet { get; set; }
 }
 
 /// <summary>Sperre eines Sektors (Phase 10): Stufen für Ein- und Ausreise, Auslöser, Zeiten (Beginn, Ablauf, Abkühlzeit), Durchsetzung.</summary>
@@ -301,6 +320,8 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public BuildSiteSave? Site { get; set; }
     /// <summary>Persönliches Lager des Spielers (Phase 8, v11, Dienst „storage“; GoodId → Menge); fehlt = leer.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? PlayerStorage { get; set; }
+    /// <summary>Phase 14 (v17): wartende Chargen der Exportsenke in Ankaufsreihenfolge; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<ExportBatchSave>? Exports { get; set; }
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>

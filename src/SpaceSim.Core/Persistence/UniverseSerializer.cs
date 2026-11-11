@@ -123,7 +123,7 @@ public static class UniverseSerializer
                 Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick,
             }).ToList();
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
-            s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit, Form = g.Form.ToString().ToLowerInvariant() });
+            s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit, Form = g.Form.ToString().ToLowerInvariant(), Category = g.Category.Length > 0 ? g.Category : null });
         foreach (var c in u.AsteroidClasses.Values)
             s.AsteroidClasses.Add(new AsteroidClassSave
             {
@@ -151,6 +151,10 @@ public static class UniverseSerializer
                 {
                     Ticks = rc.Ticks, Points = rc.Points, Credits = rc.Credits, FundTarget = rc.FundTarget, FundPerTick = rc.FundPerTick,
                     Inputs = rc.Inputs.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                } : null,
+                Export = t.Export is { } ex ? new ExportConfigSave
+                {
+                    Goods = ex.Goods.Select(g => g.Value).ToList(), Categories = new List<string>(ex.Categories), DelayTicks = ex.DelayTicks, Markup = ex.Markup, Target = ex.Target, TargetValue = ex.TargetValue,
                 } : null,
             });
         WriteSlotContent(u, s);
@@ -182,6 +186,7 @@ public static class UniverseSerializer
                 Control = sec.Control == ControlStage.None ? null : sec.Control.ToString(),
                 Contested = sec.Contested,
                 Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
+                Planet = sec.Planet is { } pl ? new PlanetSave { Name = pl.Name, Color = pl.Color, Radius = pl.Radius } : null,
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
             s.Gates.Add(new GateSave
@@ -204,6 +209,7 @@ public static class UniverseSerializer
                     Emergency = bs.Emergency, Abandoned = bs.Abandoned,
                 } : null,
                 PlayerStorage = st.PlayerStorage.Count == 0 ? null : st.PlayerStorage.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                Exports = st.Exports.Count == 0 ? null : st.Exports.Select(b => new ExportBatchSave { Good = b.Good.Value, Amount = b.Amount, Paid = b.Paid, Due = b.DueTick }).ToList(),
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -272,7 +278,7 @@ public static class UniverseSerializer
         u.NextActorId = s.NextActorId;
         u.EnsureCoreActors();
         foreach (var g in s.Goods)
-            u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form) };
+            u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form), Category = g.Category ?? "" };
         foreach (var c in s.AsteroidClasses)
             u.AsteroidClasses[c.Key] = new AsteroidClass
             {
@@ -305,6 +311,11 @@ public static class UniverseSerializer
                 {
                     Ticks = rc.Ticks, Points = rc.Points, Credits = rc.Credits, FundTarget = rc.FundTarget, FundPerTick = rc.FundPerTick,
                     Inputs = rc.Inputs.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                } : null,
+                // Phase 14: fehlt = keine Exportsenke
+                Export = t.Export is { } ex ? new ExportConfig
+                {
+                    Goods = ex.Goods.Select(g => new GoodId(g)).ToList(), Categories = new List<string>(ex.Categories), DelayTicks = ex.DelayTicks, Markup = ex.Markup, Target = ex.Target, TargetValue = ex.TargetValue,
                 } : null,
             };
         ReadSlotContent(s, u);
@@ -341,6 +352,7 @@ public static class UniverseSerializer
                 Control = sec.Control is { } ctl ? Enum.Parse<ControlStage>(ctl) : ControlStage.None,
                 Contested = sec.Contested,
                 Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
+                Planet = sec.Planet is { } pl ? new Planet { Name = pl.Name, Color = pl.Color, Radius = pl.Radius } : null,
             };
         foreach (var g in s.Gates)
             u.Gates[new GateId(g.Id)] = new Gate
@@ -366,6 +378,7 @@ public static class UniverseSerializer
                     Emergency = bs.Emergency, Abandoned = bs.Abandoned,
                 } : null,
                 PlayerStorage = st.PlayerStorage is null ? new Dictionary<GoodId, float>() : st.PlayerStorage.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                Exports = st.Exports is null ? new List<ExportBatch>() : st.Exports.Select(b => new ExportBatch { Good = new GoodId(b.Good), Amount = b.Amount, Paid = b.Paid, DueTick = b.Due }).ToList(),
             };
         foreach (var sh in s.Ships)
         {

@@ -149,7 +149,7 @@ public static class Travel
         // (Gate-Sprünge sind frei; die Legs liegen je Sektor, Sprünge dazwischen kosten nichts). KI-Schiffe stellen den
         // Treibstoff vorher über Refuel sicher; der Tankdeckel verhindert negative Stände.
         float distance = legs.Sum(l => Vec2.Distance(l.From, l.To));
-        Refuel.Consume(ship, distance);
+        Refuel.Consume(u, ship, distance);   // Phase 14: nur bei eingeschaltetem Treibstoff
         u.StartTransit(ship, new Transit
         {
             StartTick = u.Tick,

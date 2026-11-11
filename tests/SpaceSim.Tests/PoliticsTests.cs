@@ -119,7 +119,7 @@ public class PoliticsTests
         foreach (var t in new[] { "headquarters", "company_seat", "sector_hq", "office", "police_station" }) Assert.True(u.StationTypes.ContainsKey(t));
         Assert.Equal(GovernmentKind.Police, u.StationTypes["police_station"].Government);
         // Regierungsstationen zählen nicht gegen die Obergrenzen; die Startwelt hat dieselbe Bau-Reserve wie vorher
-        Assert.Equal(u.Stations.Count - 4 - 1 - 2, StationProtection.CountEconomic(u));   // Phase 11: das Piratenversteck zählt ebenfalls nicht; Phase 13: die zwei Forschungsstationen auch nicht
+        Assert.Equal(u.Stations.Count - 4 - 1, StationProtection.CountEconomic(u));   // Phase 11: das Piratenversteck zählt ebenfalls nicht; Phase 14: die Forschungsstationen fehlen in der Standardwelt (Forschung aus)
         // Sektorkontrolle: Hauptquartier = Behörde + Polizeizentrale → Kontrolle; Sektor-HQ ohne Wache → Dominanz
         Assert.Equal(ControlStage.Control, u.Sectors[Alpha].Control);
         Assert.Equal(ControlStage.Dominance, u.Sectors[Beta].Control);
@@ -520,8 +520,9 @@ public class PoliticsTests
         Assert.True(Relations.Effective(u, Guild, Union) >= 0.15f);
         Assert.False(MapConnectivity.Economy(u).IsSplit);
         Assert.Equal(new[] { Union, Union, Guild, Guild }, u.Sectors.Values.OrderBy(s => s.Id.Value).Select(s => s.Owner));
-        // Regierungsunterhalt ist eine echte Senke der Kassen (6 + 3 Cr/Tick je Fraktion, Phase 13: + 1 Cr/Tick je Forschungsstation), fast vollständig gedeckt
-        Assert.InRange(gov, 20.0 * 20_000 * 0.95, 20.0 * 20_000 * 1.01);
+        // Regierungsunterhalt ist eine echte Senke der Kassen (6 + 3 Cr/Tick je Fraktion; Phase 13: + 1 Cr/Tick je Forschungsstation — Phase 14: in der
+        // Standardwelt ohne Forschungsstationen), fast vollständig gedeckt
+        Assert.InRange(gov, 18.0 * 20_000 * 0.95, 18.0 * 20_000 * 1.01);
         Assert.True(unpaid < 0.01 * gov);
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) >= 12f);
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!) >= 7f);
@@ -617,7 +618,7 @@ public class PoliticsTests
         float stationBefore = hq.Credits;
         new UpkeepSystem().Step(u, 10);
         var paid = Assert.Single(upkeep, t => t.Actor == (ActorId)Union);
-        Assert.Equal((6f + 3f + 1f) * 10, paid.Amount, 3);   // Hauptquartier + Sektor-HQ Beta + Forschungsinstitut (Phase 13)
+        Assert.Equal((6f + 3f) * 10, paid.Amount, 3);   // Hauptquartier + Sektor-HQ Beta (Phase 14: Forschungsinstitut nur mit Forschung)
         Assert.Equal(0f, paid.Unpaid);
         Assert.Equal(stationBefore, hq.Credits, 3);
         upkeep.Clear();
@@ -646,7 +647,7 @@ public class PoliticsTests
         runner.Run(u, 300);
         Assert.False(u.Sectors[Gamma].Access.IsOpen);
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
+        Assert.Contains("\"Version\":17", json);   // Phase 14: v17
         Assert.Contains("\"Destroyed\"", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));

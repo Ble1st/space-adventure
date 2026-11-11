@@ -18,7 +18,7 @@ public class FuelModelTests
 {
     static readonly DateTimeOffset Now = new(2026, 11, 8, 12, 0, 0, TimeSpan.Zero);
 
-    static WorldDef DefaultDef() => WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+    static WorldDef DefaultDef() => TestWorlds.Def();
 
     /// <summary>Wirft die erwartete WorldFormatException (mit Namen) für eine Mutation der Default-Welt.</summary>
     static WorldFormatException Invalid(Action<WorldDef> mutate, string enthaelt)
@@ -75,7 +75,7 @@ public class FuelModelTests
     [Fact]
     public void Propellant_LiquidAnsEndeDerWarenliste_RaffinerieErzeugtUndHandeltIhn()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var p = u.Goods[DemoUniverse.Propellant];
         Assert.Equal("propellant", p.Key);
         Assert.Equal("Treibstoff", p.Name);
@@ -104,7 +104,7 @@ public class FuelModelTests
     [Fact]
     public void ChemEngineS_NenntPropellant_EinheitsklassenHabenBaseFuel200()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var f = Assert.Single(u.Modules["chem_engine_s"].FuelTypes);
         Assert.Equal(new FuelType(DemoUniverse.Propellant, 1f), f);
         Assert.Equal(200f, u.ShipClasses["unit_trader"].BaseFuel);
@@ -134,7 +134,7 @@ public class FuelModelTests
     [Fact]
     public void ShipStats_Einheitsmodelle_Tank200_PropellantEfficiency1()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         foreach (var key in new[] { "unit_trader_100", "unit_trader_60", "unit_miner_100", "unit_miner_60", "unit_player" })
         {
             var st = StatsOf(u, key);
@@ -178,7 +178,7 @@ public class FuelModelTests
     [Fact]
     public void NeueSchiffe_StartenMitVollemTankPropellant()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         // Startwelt: alle Schiffe haben ein Modell und einen vollen Tank
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
         // Phase 8: Bauschiffe (Foreman, Klasse mit eigenem Rumpftank) starten ebenfalls voll, nur mit ihrer eigenen Kapazität
@@ -222,7 +222,7 @@ public class FuelModelTests
     [Fact]
     public void FleetSystem_Expand_NeueSchiffeStartenMitVollemTank_TankBleibtInGrenzen()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var spawnFuel = new List<float>();
         u.Events.Raised += e =>
         {
@@ -245,8 +245,8 @@ public class FuelModelTests
     [Fact]
     public void SaveLoad_V5_Roundtrip_IdentischInklHashFuelUndContent()
     {
-        Assert.Equal(16, SaveGame.CurrentVersion);   // v16: Forschung (Phase 13); v15: Befehle/Verbände/Hangar/Leihschiff (Phase 12); v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
-        var u = DemoUniverse.Create();
+        Assert.Equal(17, SaveGame.CurrentVersion);   // v17: Planeten/Exportsenke/Warenkategorien (Phase 14); v16: Forschung (Phase 13); v15: Befehle/Verbände/Hangar/Leihschiff (Phase 12); v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
+        var u = TestWorlds.Default();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
 
@@ -277,7 +277,7 @@ public class FuelModelTests
     [Fact]
     public void Migration_V4ToV5_PropellantNachgereicht_SchiffeVollerTank_VerhaltenGleich()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var v4Json = ToV4Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":4", v4Json);
         Assert.DoesNotContain("\"Fuel\"", v4Json);
@@ -309,7 +309,7 @@ public class FuelModelTests
         }
 
         // Verhalten gleich: 2000 Ticks ab migriertem Save == 2000 Ticks ab frisch erzeugter Welt gleicher Seed
-        var fresh = DemoUniverse.Create();
+        var fresh = TestWorlds.Default();
         var runner = new SimulationRunner();
         runner.Run(loaded, 2_000);
         runner.Run(fresh, 2_000);

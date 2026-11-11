@@ -25,10 +25,16 @@ public sealed class GameSession
 
     float _acc;
 
-    public static GameSession New()
+    /// <summary>
+    /// Neues Spiel aus der Standardwelt. Phase 14: <paramref name="configure"/> ändert die Weltbeschreibung vor dem Aufbau — der Selbsttest und die
+    /// Bildschirmfotos schalten so Treibstoff und Forschung ein (in der Standardwelt aus), damit ihre Abschnitte weiter laufen.
+    /// </summary>
+    public static GameSession New(Action<WorldDef>? configure = null)
     {
         var s = new GameSession();
-        s.Use(WorldBuilder.BuildDefault());
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        configure?.Invoke(def);
+        s.Use(WorldBuilder.Build(def));
         return s;
     }
 

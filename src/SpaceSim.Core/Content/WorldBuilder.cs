@@ -61,7 +61,7 @@ public static class WorldBuilder
         {
             var g = def.Goods[i];
             if (!goodByKey.TryAdd(g.Key, new GoodId(i + 1))) throw new WorldFormatException($"Ware '{g.Key}' doppelt");
-            u.Goods[new GoodId(i + 1)] = new Good { Id = new GoodId(i + 1), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form, g.Key) };
+            u.Goods[new GoodId(i + 1)] = new Good { Id = new GoodId(i + 1), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form, g.Key), Category = g.Category ?? "" };
         }
         GoodId Good(string key) =>
             goodByKey.TryGetValue(key, out var id) ? id : throw new WorldFormatException($"Unbekannte Ware '{key}'");
@@ -168,6 +168,8 @@ public static class WorldBuilder
                 type.Research = cfg;
             }
             else if (type.Government == GovernmentKind.Research) throw new WorldFormatException($"Stationstyp '{t.Key}': eine Forschungsstation braucht den Abschnitt research");
+            // Phase 14: Exportsenke — Waren aus Kategorien und Einzelnennung, als Lager ohne Rezept (Ankauf über den normalen Handel)
+            if (t.Export is { } ex) type.Export = LoadExport(u, t.Key, type, ex);
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -224,6 +226,13 @@ public static class WorldBuilder
             var owner = new FactionId(sd.Owner);
             if (!u.Factions.TryGetValue(owner, out var faction)) throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Fraktion {sd.Owner}");
             var sector = new Sector { Id = new SectorId(sd.Id), Name = sd.Name, Owner = owner, MapPosition = V(sd.Map) };
+            // Phase 14: Planet (Kulisse, Abnehmer der Exportsenke)
+            if (sd.Planet is { } pd)
+            {
+                if (pd.Name.Trim().Length == 0) throw new WorldFormatException($"Sektor {sd.Id}: Planet braucht einen Namen");
+                if (pd.Radius <= 0f || !float.IsFinite(pd.Radius)) throw new WorldFormatException($"Sektor {sd.Id}: Planet '{pd.Name}' braucht radius > 0");
+                sector.Planet = new Planet { Name = pd.Name, Color = pd.Color, Radius = pd.Radius };
+            }
             if (!u.Sectors.TryAdd(sector.Id, sector)) throw new WorldFormatException($"Sektor {sd.Id} doppelt");
             faction.Territory.Add(sector.Id);
 
@@ -253,10 +262,22 @@ public static class WorldBuilder
             u.Sectors[b.Sector].Gates.Add(b.Id);
         }
 
+        int omittedEconomic = 0;
         foreach (var sd in def.Sectors)
             foreach (var st in sd.Stations)
             {
                 if (!u.StationTypes.TryGetValue(st.Type, out var type)) throw new WorldFormatException($"Station {st.Id}: unbekannter Typ '{st.Type}'");
+                // Phase 14: Exportsenken nur an Planeten
+                if (type.Export is not null && u.Sectors[new SectorId(sd.Id)].Planet is null)
+                    throw new WorldFormatException($"Station {st.Id} ({st.Name}): Typ '{type.Key}' hat eine Exportsenke und braucht einen Sektor mit Planet");
+                // Phase 14: abgeschaltete Systeme — Forschungsstationen ohne Forschung, reine Treibstoffhersteller ohne Treibstoff fehlen in der Welt
+                // (die Ids der übrigen Stationen bleiben, wie sie in der Weltdatei stehen; die Bau-Obergrenze sinkt um weggelassene Wirtschaftsstationen,
+                // damit der Bau-Spielraum gleich bleibt)
+                if (Simulation.FeatureSwitches.OmitFromWorld(u, type))
+                {
+                    if (type.Government == GovernmentKind.None && !type.Hideout) omittedEconomic++;
+                    continue;
+                }
                 ActorId stOwner = st.Owner is { Length: > 0 } ok ? ActorByKey(ok, $"Station {st.Id}") : u.Sectors[new SectorId(sd.Id)].Owner;
                 var station = StationFactory.Create(u, new StationId(st.Id), type, st.Name, new SectorId(sd.Id), V(st.Pos), stOwner);
                 // Phase 10: Regierungsstationen und Wachen sind immer vor Pleite geschützt (Phase 11: Verstecke auch)
@@ -271,6 +292,8 @@ public static class WorldBuilder
                 }
                 u.AddStation(station);
             }
+
+        if (omittedEconomic > 0) u.Rules.MaxStations = Math.Max(0, u.Rules.MaxStations - omittedEconomic);
 
         foreach (var sd in def.Sectors)
             AsteroidGenerator.Populate(u, u.Sectors[new SectorId(sd.Id)], seed: sd.Id * 7919, backgroundCount: sd.Asteroids);
@@ -335,6 +358,40 @@ public static class WorldBuilder
         // Phase 12: Liegeplatz der Startschiffe (am Andockpunkt einer Station = angedockt; das aktive Schiff dockt nur die Ansicht an); das Laden älterer Stände bestimmt ihn genauso
         foreach (var ship in u.Ships.Values.Where(x => x.Transit is null && x.Id != u.PlayerShip).OrderBy(x => x.Id.Value)) ship.DockedAt = u.StationAt(ship.Sector, ship.Position);
         return u;
+    }
+
+    /// <summary>
+    /// Phase 14: Exportsenke eines Stationstyps laden — Waren aus Kategorien (in GoodId-Reihenfolge) und Einzelnennung, ohne Doppelte; jede braucht einen
+    /// Lagerposten ohne Rezept (der Typ darf sie weder herstellen noch verbrauchen), sonst kaufen KI-Händler dort ein. Leere Liste, unbekannte
+    /// Kategorie/Ware oder ungültige Zahlen werfen <see cref="WorldFormatException"/>.
+    /// </summary>
+    static ExportConfig LoadExport(Universe u, string typeKey, StationType type, ExportConfigDef ex)
+    {
+        string who = $"Stationstyp '{typeKey}': export";
+        if (ex.DelayTicks is <= 0) throw new WorldFormatException($"{who}.delayTicks muss > 0 sein");
+        if (ex.Markup is { } mk && (mk < 0f || !float.IsFinite(mk))) throw new WorldFormatException($"{who}.markup muss >= 0 sein");
+        if (ex.Target <= 0f || !float.IsFinite(ex.Target)) throw new WorldFormatException($"{who}.target muss > 0 sein");
+        if (ex.TargetValue < 0f || !float.IsFinite(ex.TargetValue)) throw new WorldFormatException($"{who}.targetValue muss >= 0 sein");
+        var cfg = new ExportConfig { DelayTicks = ex.DelayTicks, Markup = ex.Markup, Target = ex.Target, TargetValue = ex.TargetValue, Categories = new List<string>(ex.Categories) };
+        var set = new SortedSet<int>();
+        foreach (var c in ex.Categories)
+        {
+            var ids = u.Goods.Values.Where(g => g.Category == c).Select(g => g.Id.Value).ToList();
+            if (ids.Count == 0) throw new WorldFormatException($"{who}: Kategorie '{c}' hat keine Waren");
+            set.UnionWith(ids);
+        }
+        foreach (var k in ex.Goods)
+            set.Add((u.FindGood(k) ?? throw new WorldFormatException($"{who}: unbekannte Ware '{k}'")).Id.Value);
+        if (set.Count == 0) throw new WorldFormatException($"{who}: keine Exportwaren (categories oder goods)");
+        foreach (int id in set)
+        {
+            var g = new GoodId(id);
+            if (type.Recipes.Any(r => r.Inputs.ContainsKey(g) || r.Outputs.ContainsKey(g)))
+                throw new WorldFormatException($"{who}: '{u.Goods[g].Key}' steht in einem Rezept des Typs (Exportwaren sind reiner Ankauf)");
+            cfg.Goods.Add(g);
+            if (!type.Stocks.Any(s => s.Good == g)) type.Stocks.Add(new StationStock(g, 0f, cfg.TargetFor(u.Goods[g])));
+        }
+        return cfg;
     }
 
     /// <summary>

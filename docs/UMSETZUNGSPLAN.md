@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v16).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen (Stand heute: v17). Seit Phase 14 gilt (Entscheidung des Nutzers): alte Spielstände sind egal — keine neuen Migrationen, neue Felder möglichst additiv.
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -31,6 +31,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v14 |
 | 12 | Verbände, Befehle, Spielerflotte und Oberfläche | L | v15 |
 | 13 | Forschung | M | v16 |
+| 14 | Exportsenke, Planeten, Schalter für Treibstoff und Forschung | M | v17 |
 | – | Zurückgestellt: Kampf, Eroberung, Sprungantrieb, Tarnfeld, Besatzung, Blockadebrecher, Abwracker | – | – |
 
 Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn das Format wirklich bricht.
@@ -420,6 +421,28 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Tests bewusst angepasst** (Zufallsfolge verschoben): Polizei-Langlauf prüft Kaperschiffe im letzten Viertel (Standard-Seed: Flotte ab Tick ≈18 000 ausgelöscht, baut neu auf), Multirole-Kapazität Spielraum +3 statt +2 (Standard-Seed 16,9/14 durch vier handelnde Tinker).
 - **Balance:** Seeds 1–8 bei 20000 sieben von acht grün (Seed 6: Konsumgüter 3,12×; Phase 12 acht von acht); die Mk1-Modul-Bänder bleiben knapp. KI kauft den Excavator selten (schlechterer Wert je Credit als Einheitsschürfer). Simulation ≈25–30 % langsamer (mehr Handelsrouten und Märkte).
 - **Nicht geprüft:** Handtest der Oberfläche, Android.
+
+## Phase 14: Exportsenke, Planeten, Schalter für Treibstoff und Forschung
+
+**Anlass:** Im Langzeittest flossen Endwaren nicht (Luxusgüter 0 Fahrten, Kolonie Gamma dauerhaft am Preisdeckel 4×, zu arm zum Kaufen); die Wirtschaft hatte keine echte Endnachfrage. Entscheidung des Nutzers: Treibstoff und Forschung abschaltbar (Standard aus), Planeten mit Handelsstationen als Exportsenke.
+
+**Stand:** umgesetzt auf Branch `senke-schalter`.
+- **Schalter:** `rules.fuelActive` (neu) und `rules.researchActive`, in der Standardwelt beide aus. Treibstoff aus: kein Verbrauch (KI und Spieler), kein Tankstopp/Notkauf, keine Treibstoffkosten in der Routenbewertung, kein Notfall „Tank leer“, Dienst `refuel` und Notruf weg; die Treibstoffraffinerien fehlen in der Welt (reine Treibstoffhersteller, datengetrieben erkannt: alle Rezeptausgänge sind Treibstoff eines Antriebsmoduls), die Bau-Obergrenze sinkt entsprechend (36 → 34), der Bau-Spielraum bleibt gleich. Forschung aus: alles frei, Forschungsstationen fehlen (Ids der übrigen Stationen bleiben), kein Budget aus den Kassen, Dienst `research` weg. Oberfläche: Tankanzeige (Flug-HUD, Dock, Hangar, Besitz, Flotte, Werft, Ausrüster) und „Notruf“ ausgeblendet, „Reparatur“ statt „Reparatur & Tanken“, Forschungszeilen in der Kommandozentrale ausgeblendet. Treibstoff- und Forschungstests schalten die Schalter in ihrer Testwelt ein (`TestWorlds`); Balance-Tool `--fuel on|off`, `--research on|off`.
+- **Planeten:** `sectors[].planet` (Name, Farbe, Radius); Beta „Korvan“, Gamma „Thalassa“. Gespeichert, im Hash, Anzeige in Stationsinfo, Universums- und Sektor-Detail, in der 3D-Sektoransicht als große Kugel weit unter der Spielfläche (ohne Kollision).
+- **Warenkategorien:** `goods[].category` (ore, refined, component, end, kit, fuel; Module automatisch „module“).
+- **Exportsenke:** Stationstyp-Abschnitt `export` (Kategorien/Waren, Wunschbestand als Warenwert, optional Verzögerung/Aufschlag). Handelsstation Beta und die neue Handelsstation Gamma (Typ „Planetenhandel“) kaufen Endwaren (Nahrung, Konsumgüter, Luxusgüter) über den normalen Handel und bezahlen sofort; jede Lieferung wird eine gespeicherte Charge, die nach 1200 Ticks an den Planeten geht (Ware weg, Station erhält bezahlt × 1,18). Wartende Chargen zählen zum Bestand (Preis fällt bei viel Zulieferung), Gebot gedeckelt auf 0,9 × Basispreis; Händler und Spieler kaufen dort nicht zurück. Exportstationen nur in Planetensektoren (Prüfung beim Weltaufbau), der Lebenszyklus baut sie nie. Stationsinfo: „Export an <Planet>: n Chargen unterwegs, nächste in m:ss“ (`ExportInfo`). Balance-Tool: Exportmengen/Erlös je Ware, neu geschöpftes Geld, Endwaren-Fahrten, Verbraucherpreise der Kolonie.
+- **Händlerregeln (Ursachen des fehlenden Flusses):** Bewertung und Einkauf nur in der Menge, die der Abnehmer bezahlen kann (vorher galt jede Luxusgüterrunde wegen unbezahlter Restladung als Verlust); Einkauf nur beim Hersteller (vorher kauften Händler der Kolonie ihre Nahrung und dem Lebenserhaltungswerk sein Wasser wieder ab und verkauften es an die Farm — Geldpumpe); Restmengen fahren zum nächsten Käufer statt unbezahlt abgeladen zu werden; Mehrzweckschiffe wechseln nie in eine volle Aufgabe. Endverbraucher bieten höchstens 2 × Basispreis (`consumerMaxBidFactor`).
+- **Inhalt:** Kolonie Einkommen 8 → 20, Rezepte 30 bzw. 80 Ticks (vorher 10/20), Luxus-Wunschbestand 4; `maxMiners` 8 → 10; `maxStations` 35 → 36, `maxStationsPerSector` 9 → 10; Werftlager Schild/Panzerung [1,3].
+- **Save v17** (additiv, keine Migration).
+- **Prüfung:** 481 Tests (12 neu in `ExportPlanetTests`), Selbsttest OK (neue Schlussstufe auf der Standardwelt), `--ui-shots … --ui-shots-phase14` (Bilder 53–56) angesehen. Balance (frischer Release-Build): Standard-Seed 20000 „Preise im Zielbereich“, Kapazität Handel 13,6/14, Bergbau 10,3/10, Export 68 Chargen (bezahlt 47 829 Cr, Erlös 56 438 Cr, neu geschöpft 8 609 Cr; Nahrung 3 641, Konsumgüter 22), Luxusgüter 131 Fahrten, Kolonie zuletzt Nahrung 0,77×, Lebenserhaltung 1,40×, Konsumgüter 1,68×, Luxus 2,00× (nie am alten 4×-Deckel); 60000 Ticks „Preise im Zielbereich“, Handel 14,3/14, Bergbau 10,3/10, Export 359 Chargen (neu geschöpft 40 968 Cr), Luxusgüter 381 Fahrten, Kassen 2,09 Mio. Seeds 1–4 bei 20000 alle grün (Handel 13,7–15,4, Bergbau 10,0–10,3, Luxusgüter 103–138 Fahrten). Mit `--fuel on --research on` (20000): grün, 212 Tankkäufe, 0 Notkäufe.
+
+**Abweichungen und offene Punkte (Phase 14):**
+- **Export nimmt vor allem Nahrung:** Konsum- und Luxusgüter gehen zuerst an die Kolonie (Gebot bis 2×, Senke 0,9×). Mit Senkengebot 1,0× wurde mehr exportiert, dann zog die Elektronikkette Kupfererz bei 60000 Ticks über 3×.
+- **Kasse der Handelsstationen:** pendelt sich bei einigen tausend Credits ein (18 % Aufschlag auf vorwiegend billige Nahrung gegen Vermögensabgabe und, in Beta, Modulankäufe fürs Lager) — zahlungsfähig, aber das begrenzt die Exportmenge.
+- **Geldmenge:** Kassen wachsen schneller als in Phase 13 (kein Forschungsbudget mehr als Senke, Kolonie-Einkommen +12/Tick): 2,1 statt 1,1 Mio. bei 60000 Ticks. Die Exportsenke selbst schöpft wenig (≈0,7 Cr/Tick); die übrigen Stationseinkommen wurden nicht gesenkt.
+- **Weitere Eingriffe außerhalb des Auftrags** (nötig für den Fluss, siehe Stand): Händlerregeln, Endverbraucher-Deckel, Koloniewerte, 10 Bergbauschiffe statt 8.
+- **Tests bewusst angepasst:** Versionsprüfungen 16 → 17; Treibstoff-/Forschungstests mit eingeschaltetem Schalter; Regierungsunterhalt/Stationszählung ohne Forschungsstationen; Fähigkeiten-Roundtrip ohne Mehrzweckschiffe; drei Bautests ohne eigene Baustellen des Lebenszyklus (die Senken melden beim Start Nachfrage); Piraten-Neuanfang prüft das neu gebaute Kaperschiff, nicht sein Überleben bis Tick 12000. Kein Migrationstest entfernt.
+- **Nicht geprüft:** Treibstoff/Forschung mit den neuen Händlerregeln nur in einem Lauf (20000 Ticks) angesehen; Handtest der Oberfläche, Android. Planet nur als einfache Kugel.
 
 ## Zurückgestellt
 

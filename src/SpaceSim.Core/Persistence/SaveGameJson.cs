@@ -1045,6 +1045,8 @@ public static class SaveGameJson
         if (s.Version < 14) MigrateV13ToV14(s);
         if (s.Version < 15) MigrateV14ToV15(s);
         if (s.Version < 16) MigrateV15ToV16(s);
+        // v17 (Phase 14: Planeten, Exportsenke, Warenkategorien) ist additiv; alte Stände laden ohne Planeten und Exportsenken (keine Migration, REGELN)
+        if (s.Version < 17) s.Version = 17;
         return s;
     }
 }

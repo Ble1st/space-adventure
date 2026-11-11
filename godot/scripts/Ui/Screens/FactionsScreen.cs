@@ -135,8 +135,9 @@ public sealed partial class FactionsScreen : CommandScreen
 		}
 
 		// Phase 13: Fraktionen zeigen ihren Forschungsstand (echt, ResearchInfo); andere Akteure weiter die Ereignisse (Platzhalter)
-		if (isFaction && ResearchInfo.ForFaction(u, new FactionId(sel.Value)) is { Total: > 0 } rv)
+		if (u.Rules.ResearchActive && isFaction && ResearchInfo.ForFaction(u, new FactionId(sel.Value)) is { Total: > 0 } rv)   // Phase 14: nur mit Forschung
 		{
+			TestResearchShown = true;
 			At(det, Text("Forschung", 16, Cyan), 18, 316, 120, 22);
 			At(det, Text(rv.Summary, 13, White), 120, 318, 460, 20);
 			float fy = 342;
@@ -152,6 +153,7 @@ public sealed partial class FactionsScreen : CommandScreen
 		}
 		else
 		{
+			TestResearchShown = false;
 			At(det, Text("Letzte Ereignisse", 16, Cyan), 18, 316, 280, 22);
 			float ey = 342;
 			foreach (var ev in UiPlaceholders.FactionEvents)
@@ -199,4 +201,7 @@ public sealed partial class FactionsScreen : CommandScreen
 			if (_sel) DrawString(font, new Vector2(350, 28), "▶", HorizontalAlignment.Left, -1, 14, Cyan);
 		}
 	}
+
+	/// <summary>Selbsttest: zeigt die Detailansicht den Forschungsstand (Phase 14: nur mit eingeschalteter Forschung)?</summary>
+	public bool TestResearchShown { get; private set; }
 }

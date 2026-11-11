@@ -22,7 +22,7 @@ public sealed class ResearchService : IStationService
 
     /// <summary>Verfügbar an fertigen Forschungsstationen einer Fraktion, wenn das Universum Forschungsprojekte hat.</summary>
     public bool IsAvailable(Universe u, Station station) =>
-        u.Research.Count > 0 && Research.ConfigOf(u, station) is not null && Research.TechOf(u, station) is { } f && u.Factions.ContainsKey(f);
+        u.Rules.ResearchActive && u.Research.Count > 0 && Research.ConfigOf(u, station) is not null && Research.TechOf(u, station) is { } f && u.Factions.ContainsKey(f);
 
     /// <summary>Grund, warum der Spieler hier keine Aufträge geben kann (feindliche Fraktion), sonst null.</summary>
     public static string? Refusal(Universe u, Station station, Ship ship)

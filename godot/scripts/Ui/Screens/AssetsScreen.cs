@@ -121,7 +121,9 @@ public sealed partial class AssetsScreen : CommandScreen
 		// Zustand (Phase 12: Hülle, Sprit echt; Schild als Kapazität aus den Modulen)
 		At(w, Text("Zustand", 17, Cyan), 30, 160, 200, 22);
 		Bar(w, 30, 188, "Hülle", s.Hull, s.MaxHull, s.Hull > s.MaxHull * 0.6f ? Green : Orange, $"{(int)s.Hull}");
-		Bar(w, 30, 216, "Sprit", s.TotalFuel, MathF.Max(1f, s.Stats.FuelCapacity), Cyan, $"{s.TotalFuel:0}/{s.Stats.FuelCapacity:0}{(s.Stats.Shield > 0f ? $" · Schild {s.Stats.Shield:0}" : "")}");
+		if (u.Rules.FuelActive)   // Phase 14: Tankanzeige nur mit Treibstoff
+			Bar(w, 30, 216, "Sprit", s.TotalFuel, MathF.Max(1f, s.Stats.FuelCapacity), Cyan, $"{s.TotalFuel:0}/{s.Stats.FuelCapacity:0}{(s.Stats.Shield > 0f ? $" · Schild {s.Stats.Shield:0}" : "")}");
+		else if (s.Stats.Shield > 0f) At(w, Text($"Schild {s.Stats.Shield:0}", 14, Dim), 30, 216, 300, 20);
 
 		// Auftrag und Standort (echt)
 		At(w, Text("Auftrag", 17, Cyan), 30, 256, 200, 22);

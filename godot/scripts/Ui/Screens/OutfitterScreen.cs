@@ -93,7 +93,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		var bar = At(inner, new KitBar(120, 12, Green), 205, py + 4);
 		bar.Set(s.PowerDraw, s.PowerDraw > s.PowerOutput ? Red : Green, Math.Max(1f, s.PowerOutput));
 		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Speicher {s.PowerStorage:0.#}", 14, Dim), 0, py + 24, 330, 20);
-		At(inner, Text($"Fracht {s.Cargo:0} · Hülle {s.Hull:0} · Tempo {s.Speed:0.0} · Tank {s.FuelCapacity:0}", 13, new Color(Dim, 0.9f)), 0, py + 46, 330, 20);
+		At(inner, Text($"Fracht {s.Cargo:0} · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")}", 13, new Color(Dim, 0.9f)), 0, py + 46, 330, 20);
 
 		// ── rechts: Angebote für den gewählten Slot ──
 		float rx = 345f, rw = w - rx;

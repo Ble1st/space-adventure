@@ -18,7 +18,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 	public abstract string Id { get; }
 	/// <summary>Id des angezeigten Bereichs; setzt der Aufrufer vor dem Öffnen (<see cref="DockAreas"/>).</summary>
 	public string AreaId { get; set; } = "";
-	public string Title => DockAreas.LabelFor(AreaId);
+	public string Title => DockAreas.LabelFor(AreaId, Ctx?.U);
 	public Control Node => this;
 	public bool IsOpen => Visible;
 
@@ -158,6 +158,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		fuelBar.Set(ship.TotalFuel, fuelCap > 0f && ship.TotalFuel < 0.2f * fuelCap ? Red : Orange, MathF.Max(1f, fuelCap));
 		fuelRow.AddChild(fl); fuelRow.AddChild(fuelBar);
 		fuelRow.AddChild(Text(fuelCap > 0f ? $"{(int)ship.TotalFuel}" : "–", 15, White));
+		fuelRow.Visible = u.Rules.FuelActive;   // Phase 14: Tankanzeige nur mit Treibstoff
 		sv.AddChild(fuelRow);
 
 		var pl = Text("Schild", 15, new Color(Dim, 0.7f)); pl.CustomMinimumSize = new Vector2(88, 0);

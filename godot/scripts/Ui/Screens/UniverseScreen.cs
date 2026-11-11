@@ -95,8 +95,11 @@ public sealed partial class UniverseScreen : CommandScreen
 
 		var pol = AccessInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
 		At(card, Text(s.Name, 24, Cyan), 16, 10, 268, 32);
+		// Phase 14: Planet des Sektors (in der Zeile mit Stationen und Schiffen)
+		TestPlanet = s.Planet?.Name ?? "";
 		At(card, Text($"{owner} · {pol.Stage}{(isPlayer ? " · du bist hier" : "")}", 15, ownerCol), 16, 44, 268, 22);
-		At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, 68, 268, 20);
+		if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · Stationen {s.Stations.Count} · Schiffe {ships}", 13, White), 16, 68, 268, 20);
+		else At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, 68, 268, 20);
 		// Phase 10: Sperre und Einfluss (echt)
 		Color lockCol = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
 		float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, 92, 268, 13, lockCol, 16);
@@ -327,4 +330,7 @@ public sealed partial class UniverseScreen : CommandScreen
 			DrawPolyline(closed.ToArray(), col, 1.5f, true);
 		}
 	}
+
+	/// <summary>Selbsttest: Planet in der zuletzt gezeichneten Sektor-Detailkarte (Phase 14; leer ohne Planet).</summary>
+	public string TestPlanet { get; private set; } = "";
 }

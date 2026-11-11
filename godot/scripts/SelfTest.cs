@@ -238,11 +238,11 @@ public partial class SelfTest : Node
 					var prop = u.FindGood("propellant")!.Id;
 					float saved = pl.TotalFuel;
 					pl.Fuel[prop] = 0f;
-					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(pl) < 1f, "Leerer Tank deckelt das Tempo (Notantrieb)");
+					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(_m.Session.U, pl) < 1f, "Leerer Tank deckelt das Tempo (Notantrieb)");
 					float cr = _m.Session.U.PlayerWallet.Credits;
 					_m.TestCommand("emergency");
 					Check(pl.TotalFuel > 0f && _m.Session.U.PlayerWallet.Credits < cr, $"Notruf liefert Treibstoff gegen Credits (Tank {pl.TotalFuel:0.0})");
-					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(pl) >= 1f, "Nach dem Notruf wieder volles Tempo");
+					Check(SpaceSim.Core.Flight.PlayerFuel.ThrottleCap(_m.Session.U, pl) >= 1f, "Nach dem Notruf wieder volles Tempo");
 					pl.Fuel[prop] = saved;
 				}
 				Next(); break;
@@ -883,6 +883,66 @@ public partial class SelfTest : Node
 					_m.TestUndock();
 				}
 				catch (System.Exception ex) { Fail("Forschung an Werft/Ausrüster warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 46: // Phase 14: neues Spiel aus der Standardwelt — Treibstoff und Forschung sind dort aus (bis hier lief der Selbsttest mit beiden an)
+			{
+				if (_frame - _stageStart < 30) break;
+				_m.TestMenu("new");
+				Next(); break;
+			}
+			case 47: // Phase 14: Standardwelt — keine Tankanzeige, kein Notruf, keine Forschung; Planeten und Exportsenke
+			{
+				if (_frame - _stageStart < 20) break;
+				try
+				{
+					var uni = _m.Session.U;
+					uni.Rules.PlayerRaids = false;
+					Check(!uni.Rules.FuelActive && !uni.Rules.ResearchActive, "Standardwelt: Treibstoff und Forschung abgeschaltet");
+					Check(!uni.Stations.Values.Any(s => s.TypeKey is "fuel_refinery" or "research_station"), "Standardwelt ohne Treibstoffraffinerien und Forschungsstationen");
+					Check(!_m.HudRef.Flight.TestFuelVisible, "Flug-HUD zeigt ohne Treibstoff keine Tankanzeige");
+					_m.TestOpenCommand();
+					Check(!_m.HudRef.Command.TestEmergencyVisible, "Menü ohne „Notruf“, wenn der Treibstoff aus ist");
+					_m.TestCloseCommand();
+					// Handelsstation Gamma (Planet Thalassa): Exportsenke, keine Forschung, „Reparatur“ ohne „& Tanken“
+					var post = uni.Stations[new StationId(39)];
+					_m.TestDockAt(post.Id);
+					var areas = _m.TestDockAreas();
+					Check(!areas.Any(a => a.Id == Ui.Screens.DockAreas.Research), "Kein Dock-Bereich „Forschung“ ohne Forschung");
+					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Repair && a.Label == "Reparatur"), "Dock-Bereich heißt ohne Treibstoff nur „Reparatur“");
+					var lux = uni.FindGood("luxury_goods")!.Id;
+					var pl = _m.Session.Player;
+					pl.Cargo[lux] = 2f;
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Trade);
+					var sold = _m.HudRef.DockTrade.TestExecute($"sell:{lux.Value}", 2f);
+					Check(sold.Success && post.Exports.Count >= 1, $"Luxusgüter an die Exportsenke verkauft, Charge wartet ({post.Exports.Count})");
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
+					Check(_m.HudRef.DockInfo.TestExport.StartsWith("Export an Thalassa:") && _m.HudRef.DockInfo.TestExport.Contains("unterwegs"),
+						$"Stationsinfo zeigt die Exportzeile („{_m.HudRef.DockInfo.TestExport}“)");
+					Check(_m.View.PlanetNode is not null, "Sektoransicht zeigt den Planeten als Kulisse");
+					_m.TestUndock();
+					// Werft: Reparatur ohne Tank-Abschnitt
+					var yardSt = uni.Stations.Values.First(s => s.TypeKey == "shipyard");
+					_m.TestDockAt(yardSt.Id);
+					pl.Hull = pl.MaxHull - 20f;
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Repair);
+					Check(_m.TestScreenOpen("dock.repair") && !_m.HudRef.DockRepair.TestFuelSection && _m.HudRef.DockRepair.TestRowCount >= 1,
+						"Reparatur-Bereich ohne Tanken, Reparatur-Zeilen da");
+					_m.TestUndock();
+					// Kommandozentrale: Planet im Sektor- und Universums-Detail, Fraktion ohne Forschungsblock
+					_m.TestOpenCommand();
+					_m.TestOpenCcArea("universe");
+					_m.TestCcSelectSector(new SectorId(3));
+					Check(_m.HudRef.CcUniverse.TestPlanet == "Thalassa", "Universum-Detail nennt den Planeten");
+					_m.TestOpenCcArea("sector");
+					_m.TestCcSelectSectorView(new SectorId(2));
+					Check(_m.HudRef.CcSector.TestPlanet == "Korvan", "Sektor-Detail nennt den Planeten");
+					_m.TestOpenCcArea("factions");
+					_m.HudRef.CcFactions.TestSelect(new FactionId(1));
+					Check(!_m.HudRef.CcFactions.TestResearchShown, "Fraktionsdetail ohne Forschungsblock, wenn die Forschung aus ist");
+					_m.TestCloseCommand();
+				}
+				catch (System.Exception ex) { Fail("Standardwelt (Phase 14) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
 			default:

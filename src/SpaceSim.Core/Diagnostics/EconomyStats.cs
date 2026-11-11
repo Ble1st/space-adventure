@@ -89,6 +89,14 @@ public sealed class RouteRecorder
         _routes[key] = (cur.volume + amount, cur.trips + 1);
     }
 
+    /// <summary>Phase 14: Summe aller Fahrten einer Ware (Menge, Anzahl), gleich welche Route.</summary>
+    public (float Volume, int Trips) ByGood(GoodId good)
+    {
+        float v = 0f; int n = 0;
+        foreach (var (k, x) in _routes) if (k.Good == good) { v += x.volume; n += x.trips; }
+        return (v, n);
+    }
+
     public IReadOnlyList<RouteStat> Top(int n) =>
         _routes.OrderByDescending(kv => kv.Value.volume).Take(n)
                .Select(kv => new RouteStat(kv.Key, kv.Value.volume, kv.Value.trips)).ToList();

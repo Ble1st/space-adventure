@@ -43,7 +43,7 @@ public sealed class SimulationRunner
     /// <summary>Reihenfolge ist relevant: Produktion/Markt vor den KI-Systemen (Aufgabenwahl vor ihren Ausführern), Lebenszyklus zuletzt.</summary>
     public static IEnumerable<ISimModule> DefaultModules() => new ISimModule[]
     {
-        new ProductionModule(), new ResearchModule(), new OrderModule(), new JobModule(), new ResourceModule(), new TradeModule(), new UpgradeModule(), new ConstructionModule(), new SecurityModule(), new LifecycleModule(), new ActorModule(), new PoliticsModule(),
+        new ProductionModule(), new ResearchModule(), new ExportModule(), new OrderModule(), new JobModule(), new ResourceModule(), new TradeModule(), new UpgradeModule(), new ConstructionModule(), new SecurityModule(), new LifecycleModule(), new ActorModule(), new PoliticsModule(),
     };
 
     public void Step(Universe u)

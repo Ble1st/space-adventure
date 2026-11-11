@@ -68,6 +68,8 @@ public sealed class GoodDef
     public string Color { get; set; } = "#c8c8c8";
     /// <summary>Warenform "solid" (Standard, Feld fehlt) oder "liquid".</summary>
     public string? Form { get; set; }
+    /// <summary>Phase 14: Warenkategorie (z. B. ore, refined, component, end, kit, fuel); fehlt = keine. Modul-Waren bekommen automatisch "module".</summary>
+    public string? Category { get; set; }
 }
 
 /// <summary>Slotart (Reaktor, Antrieb, …).</summary>
@@ -233,6 +235,34 @@ public sealed class StationTypeDef
     public bool Hideout { get; set; }
     /// <summary>Phase 13: Forschungsbetrieb (nur mit <c>government: "research"</c>); fehlt = keine Forschungsstation.</summary>
     public ResearchConfigDef? Research { get; set; }
+    /// <summary>Phase 14: Exportsenke (Handelsstation an einem Planeten); fehlt = keine. Stationen dieses Typs nur in Sektoren mit Planet.</summary>
+    public ExportConfigDef? Export { get; set; }
+}
+
+/// <summary>
+/// Exportsenke eines Stationstyps (Phase 14): Die Station kauft die Waren der genannten Kategorien (<see cref="Categories"/>, z. B. "end") und/oder
+/// die einzeln genannten Waren (<see cref="Goods"/>) über den normalen Handel an; jede Lieferung wird zu einer Charge, die nach
+/// <see cref="DelayTicks"/> an den Planeten geht (fehlt = Regel <c>exportDelayTicks</c>) und Ankaufpreis × (1 + <see cref="Markup"/>) einbringt
+/// (fehlt = Regel <c>exportMarkup</c>). <see cref="Target"/> ist der Wunschbestand je Exportware (Preisformel über den Bestand inkl. wartender Chargen).
+/// </summary>
+public sealed class ExportConfigDef
+{
+    public List<string> Categories { get; set; } = new();
+    public List<string> Goods { get; set; } = new();
+    public int? DelayTicks { get; set; }
+    public float? Markup { get; set; }
+    public float Target { get; set; } = 20f;
+    /// <summary>Wunschbestand als Warenwert in Credits (Basispreis); &gt; 0 = je Ware max(1, round(targetValue ÷ Basispreis)) statt <see cref="Target"/> —
+    /// teure Waren (Luxusgüter) bekommen kleine, billige (Nahrung) große Wunschbestände, so passt eine Ladung zur Kasse der Station.</summary>
+    public float TargetValue { get; set; }
+}
+
+/// <summary>Phase 14: Planet eines Sektors (Kulisse und Abnehmer der Exportsenke): Name, optional Farbe und Größe für die Ansicht.</summary>
+public sealed class PlanetDef
+{
+    public string Name { get; set; } = "";
+    public string Color { get; set; } = "#5a7fa8";
+    public float Radius { get; set; } = 400f;
 }
 
 /// <summary>
@@ -303,6 +333,8 @@ public sealed class SectorDef
     public List<StationDef> Stations { get; set; } = new();
     /// <summary>Anzahl erzloser Hintergrund-Asteroiden (Hindernisse); Felder erhalten zusätzlich ihren Erzgürtel.</summary>
     public int Asteroids { get; set; } = 25;
+    /// <summary>Phase 14: Planet des Sektors; fehlt = keiner (dann sind keine Exportstationen erlaubt).</summary>
+    public PlanetDef? Planet { get; set; }
 }
 
 public sealed class FieldDef

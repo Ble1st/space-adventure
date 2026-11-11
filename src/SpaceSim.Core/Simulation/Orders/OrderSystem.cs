@@ -64,7 +64,7 @@ public sealed class OrderSystem : ISimSystem
     public static string? EmergencyReason(Universe u, Ship ship)
     {
         if (ship.Hull < u.Rules.EmergencyHullFraction * ship.MaxHull) return "Hülle kritisch";
-        if (ship.Stats.FuelCapacity > 0f && ship.TotalFuel < 0.5f && ship.Transit is null) return "Tank leer";
+        if (u.Rules.FuelActive && ship.Stats.FuelCapacity > 0f && ship.TotalFuel < 0.5f && ship.Transit is null) return "Tank leer";   // Phase 14: nur mit Treibstoff
         return null;
     }
 

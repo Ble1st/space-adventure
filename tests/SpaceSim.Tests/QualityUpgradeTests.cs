@@ -421,7 +421,7 @@ public class QualityUpgradeTests
         new SimulationRunner().Run(u, 500);
 
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
+        Assert.Contains("\"Version\":17", json);   // Phase 14: v17
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));
         var lp = loaded.Ships[player.Id];

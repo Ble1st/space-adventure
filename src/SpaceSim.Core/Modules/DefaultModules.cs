@@ -19,6 +19,16 @@ public sealed class ResearchModule : ISimModule
 }
 
 /// <summary>
+/// Phase 14: Exportsenke (Handelsstationen an Planeten). Läuft direkt nach Produktion/Markt (und Forschung): deckelt die Gebote für Exportwaren, bevor
+/// Händler ihre Ziele wählen, und schickt fällige Chargen an den Planeten (Ware verschwindet, Station erhält Ankauf × (1 + Aufschlag)).
+/// </summary>
+public sealed class ExportModule : ISimModule
+{
+    public string Name => "Export";
+    public void Register(SimulationBuilder b) => b.Add(new ExportSystem());
+}
+
+/// <summary>
 /// Phase 12: Befehle (FLOTTEN.md Abschnitt 4, Ebenen Notfall &gt; Befehl &gt; Automatik) und Hangar (Liegegebühr). Läuft vor der Aufgabenwahl und den
 /// ausführenden Systemen, damit ein neuer Arbeitsbefehl (Handel, Abbau, Bau) im selben Tick ausgeführt wird. Schiffe ohne Befehl kosten nichts.
 /// </summary>

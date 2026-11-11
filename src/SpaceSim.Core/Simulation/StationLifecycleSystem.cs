@@ -50,6 +50,7 @@ public sealed class StationLifecycleSystem : ISimSystem
             // Knappheit aus den Beständen (Wunschbestand / Bestand über alle Stationen), nicht aus Preisen: Preise sind durch die
             // Zahlungsbereitschaft der Fabriken gedeckelt und würden Überangebot vortäuschen.
             // Phase 8: Baustellen sind keine Märkte (ihr Wunschbestand ist eine Stückliste) und zählen nicht mit
+            // Phase 14: Exportsenken zählen mit — ihre Nachfrage (leeres Ankauflager) lässt Hersteller von Endwaren entstehen
             var entries = u.Stations.Values.Where(s => !s.IsBuildSite && s.Market.ContainsKey(good.Id)).Select(s => s.Market[good.Id]).ToList();
             if (entries.Count == 0) continue;
             float ratio = entries.Sum(e => e.Target) / MathF.Max(1f, entries.Sum(e => e.Amount));
@@ -61,11 +62,13 @@ public sealed class StationLifecycleSystem : ISimSystem
 
         // Knappheit → Produzent der Ware bauen; sonst bei Überangebot → Verbraucher der Ware bauen (Nachfrage wächst mit billigem Angebot)
         // Phase 13: nur Stationstypen, die schon irgendeine Fraktion erforscht hat (ohne Sperre: alle)
+        // Phase 14: Exportsenken (Handelsstationen an Planeten) baut die Wirtschaft nie selbst, und Typen eines abgeschalteten Systems
+        // (Forschungsstation, reiner Treibstoffhersteller) auch nicht
         StationType? type = null;
         if (scarce is { } sc)
-            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(sc)) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key)).OrderBy(t => t.BuildCost).FirstOrDefault();
+            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(sc)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
         else if (glut is { } gl)
-            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key)).OrderBy(t => t.BuildCost).FirstOrDefault();
+            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;
         if (active.Any(s => s.Site!.TypeKey == type.Key)) return;   // derselbe Typ ist schon im Bau
 
@@ -120,6 +123,10 @@ public sealed class StationLifecycleSystem : ISimSystem
         u.LastStationBuildTick = u.Tick;
         u.NotifyStationBuilt(station);
     }
+
+    /// <summary>Darf die Wirtschaft diesen Typ bauen? Erforscht (irgendwo), keine Exportsenke, kein Typ eines abgeschalteten Systems.</summary>
+    static bool Buildable(Universe u, StationType t) =>
+        t.Export is null && !FeatureSwitches.OmitFromWorld(u, t) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key);
 
     /// <summary>Zufälliger Platz mit Abstand zu Gates, Stationen, Feldern und Asteroiden (deterministisch über u.Rng).</summary>
     public static Vec2? FindFreeSpot(Universe u, Sector sector)

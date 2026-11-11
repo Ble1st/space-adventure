@@ -98,7 +98,8 @@ public class WalletTests
     [Fact]
     public void Tanken_Reparatur_BuchenAufDieKasse_Notruf_IstDieselbeGeldsenke()
     {
-        var u = World();
+        var u = TestWorlds.WithFuel();   // Phase 14: Treibstoff ist in der Standardwelt aus
+        new SimulationRunner().Run(u, 1);
         var player = u.Ships[u.PlayerShip];
         u.PlayerWallet.Credits = 20_000f;
 
@@ -174,7 +175,7 @@ public class WalletTests
         new SimulationRunner().Run(u, 500);
         u.PlayerWallet.Credits = 12_345.5f;
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":16", json);   // Phase 13: v16   // Phase 5c: v8, Phase 8: v11, Phase 9: v12
+        Assert.Contains("\"Version\":17", json);   // Phase 14: v17   // Phase 5c: v8, Phase 8: v11, Phase 9: v12
         Assert.Contains("\"Actors\"", json);        // Phase 9: die Kasse ist die des Spielerakteurs
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(12_345.5f, loaded.PlayerWallet.Credits);

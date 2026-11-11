@@ -104,7 +104,7 @@ public class ShipFitTests
     [Fact]
     public void SaveLoad_V4_Roundtrip_IdentischInklHashModellSlotsFit()
     {
-        Assert.Equal(16, SaveGame.CurrentVersion);   // v16: Forschung (Phase 13); v15: Befehle/Verbände/Hangar/Leihschiff (Phase 12); v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
+        Assert.Equal(17, SaveGame.CurrentVersion);   // v17: Planeten/Exportsenke/Warenkategorien (Phase 14); v16: Forschung (Phase 13); v15: Befehle/Verbände/Hangar/Leihschiff (Phase 12); v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
@@ -136,7 +136,7 @@ public class ShipFitTests
     [Fact]
     public void Migration_V3ToV4_SchiffeBekommenEinheitsmodelle_VerhaltenGleich()
     {
-        var u = QualityUpgradeTests.WithoutFounderQuality();   // Phase 7: ohne Gütewurf, sonst unterscheiden sich die Fits vom Modell
+        var u = TestWorlds.Default(founderQuality: false);   // Phase 7: ohne Gütewurf; Phase 14: Treibstoff/Forschung an, sonst ergänzt die Kette Raffinerien und Forschungsstationen
         var v3Json = ToV3Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":3", v3Json);
         Assert.DoesNotContain("ModelKey", v3Json);
@@ -162,7 +162,7 @@ public class ShipFitTests
         }
 
         // Verhalten gleich: 2000 Ticks ab dem migrierten Save == 2000 Ticks ab frisch erzeugter Welt gleicher Seed
-        var fresh = QualityUpgradeTests.WithoutFounderQuality();
+        var fresh = TestWorlds.Default(founderQuality: false);
         var runner = new SimulationRunner();
         runner.Run(loaded, 2_000);
         runner.Run(fresh, 2_000);

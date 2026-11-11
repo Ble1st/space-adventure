@@ -389,4 +389,23 @@ public sealed class EconomyRules
     public List<float> ResearchFundAmounts = new() { 500f, 2000f, 10000f };
     /// <summary>Gebühr, um das laufende Projekt einer Fraktion festzulegen (Angebot „commission:&lt;Projekt&gt;“, an die Station).</summary>
     public float ResearchCommissionFee = 500f;
+
+    // ───────── Phase 14: Schalter Treibstoff, Exportsenke ─────────
+    /// <summary>
+    /// Treibstoff an (Phase 4): Reisen verbrauchen Treibstoff, KI-Schiffe tanken, der Dienst „refuel“ und der Notruf gibt es. Aus = niemand verbraucht,
+    /// keine Tankstopps/Notkäufe, keine Treibstoffkosten in der Routenbewertung, kein Notfall „Tank leer“; die Weltdatei lässt dann Stationen weg,
+    /// die nur Treibstoff herstellen (<see cref="Simulation.FeatureSwitches"/>). Standard im Code an (Testwelten), die Standardwelt schaltet ihn ab.
+    /// </summary>
+    public bool FuelActive = true;
+    /// <summary>Exportsenke: Ticks, bis eine angekaufte Charge an den Planeten geht (Stationstyp kann es überschreiben).</summary>
+    public int ExportDelayTicks = 1200;
+    /// <summary>Exportsenke: Erlös einer Charge = bezahlter Ankaufpreis × (1 + Aufschlag) (Stationstyp kann es überschreiben).</summary>
+    public float ExportMarkup = 0.18f;
+    /// <summary>Exportsenke: höchstes Gebot für Exportwaren als Vielfaches des Basispreises (sonst böte ein leeres Exportlager 4× und kaufte die Kolonie leer).</summary>
+    public float ExportMaxBidFactor = 0.9f;
+    /// <summary>
+    /// Höchstes Gebot eines Endverbrauchers (Station mit Rezepten ohne Produkte, z. B. Kolonie) als Vielfaches des Basispreises; 4 = kein eigener Deckel
+    /// (Code-Standard, wie bis Phase 13). Die Standardwelt setzt 2: sonst bleibt die Kolonie am 4×-Deckel stecken, weil sie dort zu wenig kaufen kann.
+    /// </summary>
+    public float ConsumerMaxBidFactor = 4f;
 }

@@ -37,6 +37,7 @@ public class StationServiceConfigTests
             else if (t.Key is "plating_works") Assert.Equal(new[] { "trade", "repair", "hangar" }, t.Services);
             else if (t.Key is "shipyard") Assert.Equal(new[] { "trade", "repair", "outfitter", "shipdealer", "upgrade", "hangar", "taxi", "rental" }, t.Services);   // Phase 5c, Phase 7, Phase 12
             else if (t.Key is "trade_station") Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental" }, t.Services);       // Phase 5c, Phase 12
+            else if (t.Key is "trade_post") Assert.Equal(new[] { "trade", "hangar", "taxi" }, t.Services);   // Phase 14: Handelsstation am Planeten (Exportsenke)
             else if (t.Key is "warehouse") Assert.Equal(new[] { "trade", "storage", "hangar", "taxi" }, t.Services);                            // Phase 8, Phase 12
             else if (t.Key is "headquarters" or "sector_hq") Assert.Equal(new[] { "court", "bounty", "hangar", "taxi" }, t.Services);   // Phase 11: Gericht, Kopfgeldbüro
             else if (t.Key is "police_station") Assert.Equal(new[] { "court", "bounty", "hangar" }, t.Services);

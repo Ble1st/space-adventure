@@ -248,7 +248,7 @@ public class SlotModelTests
     [Fact]
     public void SaveLoad_Roundtrip_V4_AltSavesLadbar_SlotContentWirdMitgespeichert()
     {
-        Assert.Equal(16, SaveGame.CurrentVersion);   // v16: Forschung (Phase 13); v15: Befehle/Verbände/Hangar/Leihschiff (Phase 12); v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8: Ausrüster/Schiffskauf (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
+        Assert.Equal(17, SaveGame.CurrentVersion);   // v17: Planeten/Exportsenke/Warenkategorien (Phase 14); v16: Forschung (Phase 13); v15: Befehle/Verbände/Hangar/Leihschiff (Phase 12); v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8: Ausrüster/Schiffskauf (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 100);
         var before = UniverseHash.Compute(u);

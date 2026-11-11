@@ -29,6 +29,7 @@ public sealed class RefuelService : IStationService
     /// </summary>
     public bool IsAvailable(Universe u, Station station)
     {
+        if (!Refuel.Active(u)) return false;   // Phase 14: Treibstoff abgeschaltet → keine Tankstelle
         foreach (var m in u.Modules.Values)
             foreach (var f in m.FuelTypes)
                 if (station.Market.TryGetValue(f.Good, out var e) && e.Amount > 0f && e.Price > 0f)
@@ -49,7 +50,7 @@ public sealed class RefuelService : IStationService
     {
         var offers = new List<ServiceOffer>(Tiers.Length + 1);
         var good = Refuel.ActiveFuel(ship);
-        if (good is null || !station.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return offers;
+        if (!Refuel.Active(u) || good is null || !station.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return offers;
         string name = u.Goods[good.Value].Name;
         float held = ship.FuelAmount(good.Value);
         float max = MaxFill(u, ship, e);

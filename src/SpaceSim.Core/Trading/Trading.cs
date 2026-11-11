@@ -40,14 +40,15 @@ public static class TradeActions
             if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, units, pay));
             else u.Events.Publish(new MineDelivered(ship.Id, station.Id, good, units, pay));
             if (station.IsBuildSite) ConstructionRules.OnDelivered(u, station, ship, good, units, ship.IsPlayer ? "player" : "trader");
+            ExportRules.OnDelivered(u, station, good, units, pay);   // Phase 14: Exportsenke
         }
         return new SaleResult(revenue, sold, ship.Cargo.Values.Sum());
     }
 
-    /// <summary>Kauft bis zu <paramref name="units"/> Einheiten einer Ware zum Stationspreis. Begrenzt durch Lagerbestand, Credits und Laderaum; die Station behält nichts zurück, was sie nicht liefern kann.</summary>
+    /// <summary>Kauft bis zu <paramref name="units"/> Einheiten einer Ware zum Stationspreis. Phase 14: Exportwaren einer Exportsenke sind reiner Ankauf (nicht käuflich). Begrenzt durch Lagerbestand, Credits und Laderaum; die Station behält nichts zurück, was sie nicht liefern kann.</summary>
     public static BuyResult Buy(Universe u, Ship ship, Station station, GoodId good, float units)
     {
-        if (units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f || IsLiveSite(station)) return new BuyResult(0f, 0f, BuyOutcome.NotSold);
+        if (units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f || IsLiveSite(station) || ExportRules.Buys(u, station, good)) return new BuyResult(0f, 0f, BuyOutcome.NotSold);
         var wallet = u.WalletOf(ship);
         float stock = MathF.Floor(e.Amount), afford = MathF.Floor(wallet.Credits / e.Price), space = MathF.Floor(ship.FreeUnits(u, good));
         float n = MathF.Min(MathF.Min(MathF.Floor(units), stock), MathF.Min(afford, space));
@@ -65,7 +66,7 @@ public static class TradeActions
 
     /// <summary>Höchstmenge, die <see cref="Buy"/> für diese Ware jetzt liefern würde.</summary>
     public static float MaxBuyable(Universe u, Ship ship, Station station, GoodId good) =>
-        !IsLiveSite(station) && station.Market.TryGetValue(good, out var e) && e.Price > 0f
+        !IsLiveSite(station) && !ExportRules.Buys(u, station, good) && station.Market.TryGetValue(good, out var e) && e.Price > 0f
             ? MathF.Max(0f, MathF.Min(MathF.Min(MathF.Floor(e.Amount), MathF.Floor(u.WalletOf(ship).Credits / e.Price)), MathF.Floor(ship.FreeUnits(u, good))))
             : 0f;
 
@@ -89,6 +90,7 @@ public static class TradeActions
         sold[good] = n;
         if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, n, pay));
         if (station.IsBuildSite) ConstructionRules.OnDelivered(u, station, ship, good, n, ship.IsPlayer ? "player" : "trader");
+        ExportRules.OnDelivered(u, station, good, n, pay);   // Phase 14: Exportsenke
         return new SaleResult(pay, sold, ship.Cargo.Values.Sum());
     }
 
@@ -100,6 +102,28 @@ public static class TradeActions
             if (station.Market.TryGetValue(good, out var e) && e.Price > 0f)
                 total += MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / e.Price), station.AcceptableUnits(good, u.Rules)) * e.Price;
         return total;
+    }
+
+    /// <summary>
+    /// Phase 14: Beste Abnehmerin für eine Teilladung einer Ware (Erlös aus angenommener und bezahlbarer Menge pro Reisezeit, nur erreichbare Stationen),
+    /// ohne <paramref name="exclude"/>; null = niemand nimmt sie.
+    /// </summary>
+    public static Station? BestBuyerFor(Universe u, Ship ship, GoodId good, float units, StationId exclude)
+    {
+        Station? best = null;
+        float bestScore = 0f;
+        foreach (var st in u.Stations.Values.OrderBy(x => x.Id.Value))
+        {
+            // Baustellen bekommen nur geplante Lieferungen (Reservierung im Händler), keine Restmengen
+            if (st.Id == exclude || st.IsBuildSite || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) continue;
+            float n = MathF.Min(MathF.Min(units, st.AcceptableUnits(good, u.Rules)), MathF.Max(0f, st.Credits) / e.Price);
+            if (n < 1f) continue;
+            float time = Travel.Estimate(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship);
+            if (float.IsPositiveInfinity(time)) continue;
+            float score = n * e.Price / (time + 10f);
+            if (score > bestScore) { bestScore = score; best = st; }
+        }
+        return best;
     }
 
     /// <summary>Beste Verkaufsstation für die Fracht: Erlös pro Reisezeit, nur erreichbare Stationen.</summary>

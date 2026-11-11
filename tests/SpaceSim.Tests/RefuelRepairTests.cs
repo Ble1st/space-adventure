@@ -33,7 +33,7 @@ public class RefuelRepairTests
     /// <summary>Frische Welt nach einem Tick: die Marktpreise sind gesetzt.</summary>
     static Universe World()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         new SimulationRunner().Run(u, 1);
         return u;
     }
@@ -203,17 +203,17 @@ public class RefuelRepairTests
         var u = World();
         var player = u.Ships[u.PlayerShip];
         Assert.Equal(200f, player.TotalFuel);
-        Assert.Equal(1f, PlayerFuel.ThrottleCap(player));
-        PlayerFuel.ConsumeFlown(player, 1000f);
+        Assert.Equal(1f, PlayerFuel.ThrottleCap(u, player));
+        PlayerFuel.ConsumeFlown(u, player, 1000f);
         Assert.Equal(200f - 1000f * player.Stats.FuelUsePerUnit, player.TotalFuel, 3);
-        PlayerFuel.ConsumeFlown(player, 1e9f);
+        PlayerFuel.ConsumeFlown(u, player, 1e9f);
         Assert.Equal(0f, player.TotalFuel);
-        Assert.Equal(PlayerFuel.EmergencyThrottle, PlayerFuel.ThrottleCap(player));
+        Assert.Equal(PlayerFuel.EmergencyThrottle, PlayerFuel.ThrottleCap(u, player));
         // Schiff ohne Modell: kein Treibstoffsystem, keine Deckelung
         var bare = new Ship { Id = u.NewShipId(), Sector = player.Sector, Role = ShipRole.Fighter };
         u.AddShip(bare);
-        PlayerFuel.ConsumeFlown(bare, 100f);
-        Assert.Equal(1f, PlayerFuel.ThrottleCap(bare));
+        PlayerFuel.ConsumeFlown(u, bare, 100f);
+        Assert.Equal(1f, PlayerFuel.ThrottleCap(u, bare));
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public class RefuelRepairTests
     /// <summary>v4-Save einer Welt, wie sie vor Phase 4 aussah: ohne Raffinerie-Stationen und ohne den Stationstyp.</summary>
     static string V4WithoutRefineries()
     {
-        var node = JsonNode.Parse(FuelModelTests.ToV4Json(SaveGameJson.Write(DemoUniverse.Create(), Now)))!.AsObject();
+        var node = JsonNode.Parse(FuelModelTests.ToV4Json(SaveGameJson.Write(TestWorlds.Default(), Now)))!.AsObject();
         var stations = node["Stations"]!.AsArray();
         var removed = new HashSet<int>();
         for (int i = stations.Count - 1; i >= 0; i--)
@@ -305,7 +305,7 @@ public class RefuelRepairTests
     [Fact]
     public void WeltGanzOhneTreibstoffquelle_NotkaufHaeltSchiffeBeweglich()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         foreach (var st in u.Stations.Values.Where(s => s.TypeKey == "fuel_refinery").ToList())
             u.RemoveStation(st.Id, "test");
         int emergencies = 0, trades = 0;

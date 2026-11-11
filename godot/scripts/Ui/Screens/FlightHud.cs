@@ -24,6 +24,8 @@ public sealed class FlightHudData
 	public float Hull, Credits;
 	/// <summary>Tankinhalt und Tankgröße des Spielerschiffs (echt, Phase 4c); Kapazität 0 = kein Treibstoffsystem.</summary>
 	public float Fuel, FuelCapacity;
+	/// <summary>Phase 14: Treibstoff eingeschaltet (Regel fuelActive)? Aus = Tankzeile ausgeblendet.</summary>
+	public bool FuelActive = true;
 	public string SectorName = "", FactionName = "";
 	/// <summary>Phase 11: Fahndungszeile des Spielers (leer = sauber, dann ausgeblendet) und Lage des Sektors (Sicherheit/Bedrohung).</summary>
 	public string Wanted = "", Security = "";
@@ -76,6 +78,9 @@ public partial class FlightHud : Control, IScreen
 	// oben
 	KitBar _hullBar = null!, _fuelBar = null!;
 	Label _fuelVal = null!;
+	Control _fuelRow = null!;
+	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>
+	public bool TestFuelVisible => _fuelRow.Visible;
 	Label _hullVal = null!;
 	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!;
 	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
@@ -136,6 +141,7 @@ public partial class FlightHud : Control, IScreen
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
 		BarRow(sv, "Schild", UiKit.Cyan, UiPlaceholders.ShieldPercent, placeholder: true);
 		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal!);
+		_fuelRow = (Control)sv.GetChild(sv.GetChildCount() - 1);
 		var powRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		powRow.AddThemeConstantOverride("separation", 8);
 		var pl = Text("Leistung", 16, UiKit.Dim); pl.CustomMinimumSize = new Vector2(66, 0);
@@ -289,6 +295,7 @@ public partial class FlightHud : Control, IScreen
 		float fuelPct = d.FuelCapacity > 0f ? 100f * d.Fuel / d.FuelCapacity : 0f;
 		_fuelBar.Set(fuelPct, fuelPct < 20f ? UiKit.Red : UiKit.Orange);   // Warnfarbe unter 20 %
 		_fuelVal.Text = d.FuelCapacity > 0f ? $"{(int)d.Fuel}" : "–";
+		_fuelRow.Visible = d.FuelActive;   // Phase 14: Treibstoff abgeschaltet → keine Tankanzeige
 		_credits.Text = $"{(int)d.Credits} Credits";
 		_sector.Text = d.SectorName;
 		_factionChip.Text = d.FactionName;
