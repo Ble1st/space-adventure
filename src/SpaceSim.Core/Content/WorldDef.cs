@@ -82,6 +82,17 @@ public sealed class ModuleDef
     public Dictionary<string, float> Cost { get; set; } = new();
     /// <summary>Zulässige Treibstoffe des Antriebsmoduls (good = Warenschlüssel, liquid, efficiency > 0, keine Dopplung).</summary>
     public List<FuelEntryDef> Fuel { get; set; } = new();
+    /// <summary>Phase 7: Verbesserung dieses Moduls (Dienst „upgrade“, Güteklassen); fehlt = keine.</summary>
+    public ModuleUpgradeDef? Upgrade { get; set; }
+}
+
+/// <summary>Verbesserung eines Moduls (Phase 7): Zielmodul gleicher Slotart und Material je Versuch.</summary>
+public sealed class ModuleUpgradeDef
+{
+    /// <summary>Schlüssel des besseren Moduls (gleiche Slotart, nicht größer, nicht das Modul selbst).</summary>
+    public string To { get; set; } = "";
+    /// <summary>Material je Versuch (Warenschlüssel → Menge) aus dem Stationslager.</summary>
+    public Dictionary<string, float> Cost { get; set; } = new();
 }
 
 /// <summary>Ein Slot einer Schiffsklasse.</summary>
@@ -110,6 +121,10 @@ public sealed class ShipClassDef
     public List<ClassSlotDef> Slots { get; set; } = new();
     /// <summary>Bausatz-Warenschlüssel der Klasse (Phase 5a, z. B. ship_kit_light); fehlt = Regel <c>shipKitGoodKey</c>.</summary>
     public string? Kit { get; set; }
+    /// <summary>Phase 6: Wirkungsgrad der Werkzeug-Slots (Laser-Trefferchance × Wert); fehlt = 1. Muss in (0, 1] liegen.</summary>
+    public float ToolEfficiency { get; set; } = 1f;
+    /// <summary>Phase 7: Höchstzahl der Slot-Upgrades (Bonusslots + vergrößerte Slots) je Schiff; fehlt = 1, muss ≥ 0 sein.</summary>
+    public int MaxSlotUpgrades { get; set; } = 1;
 }
 
 public sealed class ShipModelDef
@@ -120,6 +135,8 @@ public sealed class ShipModelDef
     public string Name { get; set; } = "";
     /// <summary>Modulschlüssel je Slot der Klasse; null = leerer Slot; Länge = Slotanzahl der Klasse.</summary>
     public List<string?> Fit { get; set; } = new();
+    /// <summary>Phase 6: KI-Aufgaben dieses Modells ("trade", "mine"); fehlt = keine (Spielermodell, die KI kauft es nicht).</summary>
+    public List<string>? Jobs { get; set; }
 }
 
 public sealed class AsteroidClassDef

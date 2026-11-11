@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v8).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v10).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -23,8 +23,8 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 3 | Slot- und Modulmodell, Warenform und Kanister, Leistung und Speicherbank | L | v4 |
 | 4 | Treibstoff: Ware, Tank, Tanken, Reparatur, Rettungsdienst | L | v5 |
 | 5 | Modul-Waren, drei Modulfabriken (5a), Spielerkasse (5b), Ausrüster, Schiffskauf, Startpakete (5c) | L | v6 (5a), v7 (5b), v8 (5c) |
-| 6 | Multirole: Job-Zuteilung, Kapazitätsgrenzen, erste Multirole-Modelle | M | – |
-| 7 | NPC-Güteklassen und Upgrades | M | v7 |
+| 6 | Multirole: Job-Zuteilung, Kapazitätsgrenzen, erste Multirole-Modelle | M | v9 |
+| 7 | NPC-Güteklassen und Upgrades | M | v10 |
 | 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v8 |
 | 9 | Akteure, Fraktionen, Kasse, Beziehungen, Persönlichkeit, Zukauf | L | v9 |
 | 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v10 |
@@ -196,12 +196,45 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - Erstes Multirole-Modell (*Tinker*) und der Rest der Klassen aus SCHIFFE.md (ohne Kampfklassen); *Prospector* gibt es seit Phase 5.
 - **Tests:** Aufgabenwechsel flackert nicht; Generalist ist schlechter als Spezialist; Balance-Lauf auf Verdrängung.
 
+**Stand:** umgesetzt auf Branch `phase6-multirole`.
+- **Aufgaben als Bausteine:** `IShipJob` mit `TradeJob` und `MineJob` (`Simulation/ShipJobs.cs`): Etikett (`ShipRole` bleibt gespeichert), nötige Fähigkeit, Kapazitätsgrenze, Kapazität je Schiff, Kaufwert und Bewertung über das vorhandene Scoring (`TraderSystem.BestTrade`, `MinerSystem.BestMine`, aus `PickOrder` herausgelöst, Verhalten gleich). Modelle nennen ihre KI-Aufgaben in `shipModels[].jobs` (geprüft gegen die Fähigkeiten des Fits); Einheitsmodelle sind Spezialisten, Spielermodelle haben keine.
+- **`JobAssignmentSystem`** (neues Modul „Jobs“ vor Schürfen und Handel): untätige Multirole-Schiffe wechseln die Aufgabe erst nach `JobMinTicks` (600), nur bei mindestens 25 % besserer Bewertung (`JobSwitchMargin`), mit Herdenschutz auf Aufgabenebene (Bewertung ÷ (1 + 0,5 × Auslastung)) und nicht in eine volle Aufgabe, solange die aktuelle noch etwas einbringt. Event `JobChanged`.
+- **`FleetSystem` zählt Kapazität:** Handel = Frachtraum ÷ 100, Schürfen = Laserstufe; Einheitsmodelle zählen je 1. Die KI wählt das Modell (`ChooseModel`): Kandidaten mit passender Aufgabe, Werft mit Bausatz und allen Modulen, bezahlbar, Grenze höchstens um 0,5 überschritten; gewählt wird der beste Wert je Credit (Wert der Aufgabe + 0,75 × Wert der Zweitaufgaben). Ohne Kandidat gilt die Regel vor Phase 6 (Kopie des Elternschiffs).
+- **Inhalte:** Klassen Kurier (*Swift*), leichter Frachter (*Mule*, *Hauler*, **Tinker** als erstes Multirole-Modell), schwerer Frachter (*Behemoth*), Bergbauer leicht (*Pickaxe*) und schwer (*Rockbreaker*, Laser Mk2), Tanker (*Cistern*); Bausätze light/medium/heavy je Klasse. Neue Module als Waren mit Fabrikrezept: Triebwerk M (Antriebswerk), Mining-Laser Mk2 (Systemwerk, `maxTier` 2). Neuer Klassenwert `toolEfficiency` (Mehrzweckrumpf 0,85: schwächerer Laser).
+- **Save v9:** `JobSince` je Schiff, `jobs` an Modellen, `toolEfficiency` an Klassen, `Role`/`JobSince` im Hash; Migration v8→v9 ergänzt Module, Modul-Waren, Klassen, Modelle, Aufgabenlisten, Fabrikrezepte und Werftlager. Mit dem echten v2-Spielstand geprüft (20000 Ticks, 872 Handelsfahrten, Flotte 14 → 14).
+- **Prüfung:** 345 Tests (15 neu in `MultiroleTests`), Selbsttest OK (Werft bietet Tinker, Behemoth, Rockbreaker). Balance (frischer Release-Build): Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“, je 14/8, 0 Notkäufe; Seeds 1–4 bei 20000 alle grün (14/8, 14/8, 12/8, 14/8), 0 Notkäufe.
+
+**Abweichungen und offene Punkte (Phase 6):**
+- **Multirole wird in den Balance-Läufen selten gekauft** (0–1 Tinker je Lauf, 0 Aufgabenwechsel): Schürflücken füllt meist die Bausatz-Kopie, weil die Werft selten einen Laser vorrätig hat; Tinker werden eher als Händler gekauft. Im ersten Entwurf ohne `toolEfficiency` kaufte die KI 1–4 Tinker, die 1–23-mal wechselten. Der Mechanismus ist durch Tests abgedeckt (Wechsel, Flackerschutz, Hysterese).
+- **Generalist schwächer, beim Schürfen moderat:** Laser 0,85 und langsamer Rumpf ergeben im kontrollierten Szenario −18 % Erz je Arbeitstick (allein fliegender Schürfer; gemessen wird nur die Arbeitszeit, weil ein einzelnes Schiff sonst an der Nachfrage hängt), im Handel −54 %. Stärkere Strafen machen den Tinker für die Kaufwahl wertlos.
+- **Nicht umgesetzt:** Bauschiff (*Foreman*) und Asteroidenbrecher (*Quarry*) — ihre Module und Mechanik gehören zu Phase 8; Zusatzmaterial je Modell (SCHIFFE.md) — Klassen unterscheiden sich über Bausatzstufe und Module; *Swift* und *Cistern* sind nur für den Spieler (ein reiner Flüssigtanker würde als Handelskapazität gezählt, kann aber nur drei Waren fahren). Der Tinker hat keinen Geschützslot belegt (es gibt noch keine Waffen).
+- **Verworfen:** Frachtraum M 200 und Kanisterraum M als neue Module — ohne KI-Abnehmer fielen sie unter 0,3× Basispreis (Warnung); Panzerung im Werftlager aus demselben Grund (Rockbreaker hat dafür Rumpfhülle 200).
+- **Modulfabriken weiter unterkapitalisiert:** Reaktor Ø letzte 25 % (Tabelle) Standard-Seed 2,10 → 2,90, Seeds 1–4 2,65/2,65/2,90/2,65 → 2,90/1,65/2,25/2,90, 60000 Ticks 0,70 → 0,35; Triebwerk S ähnlich gemischt (2,60 → 2,70 Standard). Gleiches Band wie in 5c, keine strukturelle Besserung.
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
+
 ## Phase 7: Güteklassen und Upgrades
 
 - **Güteklassen** beim Schiffskauf (Standard 70 %, Verbessert 20 %, Elite 8 %, Meisterwerk 2 %), Mehrkosten kommen aus dem Werftlager; Startwelt-Schiffe würfeln ohne Material.
 - **Upgrades:** Dienst `upgrade` mit Stufenchancen und Mitleidszähler; `UpgradeSystem` für reiche NPC-Schiffe; Slot-Upgrade selten und je Klasse begrenzt.
 - **Save v7:** Bonusslots in der Slotliste, Mitleidszähler.
 - **Tests:** Wahrscheinlichkeiten über viele Würfe, Determinismus, Material wird verbraucht.
+
+**Stand:** umgesetzt auf Branch `phase6-multirole` (nach Phase 6).
+- **Güteklassen** (`Simulation/ShipQualityRoll`): ein Wurf über `Universe.Rng` (Standard 70 %, Verbessert 20 %, Elite 8 %, Meisterwerk 2 %, Regel `qualityChances`). Verbessert = ein Modul eine Stufe besser (`modules[].upgrade`), Elite = zwei bis drei Module besser, sonst ein Slot eine Größe größer, Meisterwerk = zusätzlich ein Bonusslot (Kopie des Frachtslots, höchstens `maxSlotUpgrades` der Klasse). Bessere Module, Bonusmodul und Slot-Material kommen zusätzlich aus dem Werftlager (die ersetzten Grundmodule nicht); fehlt etwas, fällt der Wurf stufenweise zurück. Gilt für Spielerkauf, KI-Flotte (die Kopie übernimmt jetzt das Modell, nicht die Ausstattung des Elternschiffs) und Gründerschiffe (ohne Material, abschaltbar mit `founderQuality`).
+- **Upgrades** (`Simulation/ShipUpgrade`, gemeinsame Regel): Modul eine Stufe besser (Chance nach Stufe 90/60/30 %), Slot eine Größe größer oder Bonusslot (15 %, je Klasse begrenzt). Jeder Versuch verbraucht Material aus dem Stationslager und Credits (Material × 1,5, an die Station), auch bei Misserfolg; jeder Fehlschlag am selben Slot +10 Prozentpunkte (Mitleidszähler), Erfolg setzt ihn zurück. Dienst `upgrade` an der Werft (strikte Schlüssel `module:`/`slot:`/`bonus:`), `UpgradeSystem` für reiche, untätige NPC-Schiffe an einer Station mit dem Dienst (nur Modul-Upgrades, bestes erwartetes Plus je Credit für ihre Aufgabe).
+- **Inhalte:** Reaktor Mk2 und Triebwerk S Mk2 als neue Module/Waren (Antriebswerk `maxTier` 2), Verbesserungspfade Reaktor, Triebwerk S, Mining-Laser, Frachtraum 60 → 70.
+- **Oberfläche:** Abschnitt „Verbessern“ im Ausrüster (nur aus `Offers`/`Execute`: Chance, Material, Preis, Mitleidszähler, Grund); Güteklasse in Werft (Chancen), Hangar, Besitz und Schiffsdetail; Selbsttest-Schritt (Upgrade über die Oberfläche) und `--ui-shots` `11g-dock-ausruester-upgrade.png`.
+- **Save v10:** Güteklasse, Mitleidszähler je Schiff (Bonusslots stehen in der Slotliste), Verbesserungen der Module, `maxSlotUpgrades`; Güte, Slotliste und Mitleid im Hash; Migration v9→v10 (Content-Nachtrag, Dienst `upgrade` an der Werft). Mit dem echten v2-Spielstand geprüft (20000 Ticks, 872 Handelsfahrten, Flotte 14 → 14).
+- **Prüfung:** 357 Tests (12 neu in `QualityUpgradeTests`), Selbsttest OK. Balance (frischer Release-Build): Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“ (14/8 bzw. 12/8 Schiffe bei voller Handelskapazität, 0 Notkäufe); Seeds 1–4 bei 20000 alle grün, 0 Notkäufe. Neubauten erreichen Standard/Verbessert/Elite/Meisterwerk 6/3/0/0 (Standard-Seed, gewürfelt 5/3/1/0).
+
+**Abweichungen und offene Punkte (Phase 7):**
+- **Save-Version v10 statt v7** (Platzhalter im Plan; v9 belegte Phase 6).
+- **Kein eigener Dock-Bereich „Upgrade“:** Das Andock-Menü hat keinen Platz für eine neunte Kachel; die Upgrades sind ein Abschnitt im Ausrüster (wie im Auftrag als Möglichkeit genannt).
+- **NPC-Upgrades sind selten** (0–3 Versuche je 20000 Ticks): Nur reiche Händler, die gerade an der Werft ausliefern, kommen in Frage. Güteklassen der KI-Neubauten fallen oft zurück, weil der Werft Mk2-Module fehlen.
+- **Spieler würfelt beim Schiffskauf mit** (gleiche Regel wie die NPCs, SCHIFFSSLOTS.md beschreibt nur NPCs); das Startschiff würfelt nicht.
+- **Keine Mk3-Module:** Die Stufenchancen 60 %/30 % greifen nur in den Regeltests. Bonusslots aus dem Dienst sind leer, bis der Spieler ein Modul einbaut; NPCs bauen nie Slots um.
+- **Modulfabriken:** Reaktor/Triebwerk bleiben im Band 1,5–2,9× (Standard-Seed unverändert 2,86 bzw. 2,67), Reaktor Mk2 ≈2,5× bei kleinen Lagern.
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
 
 ## Phase 8: Bau, Brecher, Lagerhaus
 

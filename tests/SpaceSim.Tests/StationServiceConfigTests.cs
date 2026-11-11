@@ -34,7 +34,7 @@ public class StationServiceConfigTests
         {
             if (t.Key is "fuel_refinery") Assert.Equal(new[] { "trade", "refuel" }, t.Services);
             else if (t.Key is "plating_works") Assert.Equal(new[] { "trade", "repair" }, t.Services);
-            else if (t.Key is "shipyard") Assert.Equal(new[] { "trade", "repair", "outfitter", "shipdealer" }, t.Services);   // Phase 5c
+            else if (t.Key is "shipyard") Assert.Equal(new[] { "trade", "repair", "outfitter", "shipdealer", "upgrade" }, t.Services);   // Phase 5c, Phase 7
             else if (t.Key is "trade_station") Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, t.Services);       // Phase 5c
             else Assert.Equal(new[] { TradeService.ServiceKey }, t.Services);
         }

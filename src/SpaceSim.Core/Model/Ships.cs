@@ -174,6 +174,12 @@ public sealed class Ship : ICreditAccount
     public long NextThinkTick;
     /// <summary>Tick, seit dem das Schiff keinen Auftrag mehr hat (-1 = beschäftigt).</summary>
     public long IdleSince = -1;
+    /// <summary>Phase 6: Tick der letzten Aufgabenzuteilung (Kauf oder Wechsel); Mindestdauer der Aufgabe zählt ab hier (gespeichert).</summary>
+    public long JobSince;
+    /// <summary>Phase 7: Güteklasse aus dem Kauf (gespeichert; Anzeige — die Wirkung steckt in Slots und Fit).</summary>
+    public ShipQuality Quality;
+    /// <summary>Phase 7: Mitleidszähler je Slot (Fehlschläge in Folge beim Dienst „upgrade“; Schlüssel −1 = Bonusslot). Jeder Fehlschlag erhöht die nächste Chance.</summary>
+    public Dictionary<int, int> UpgradePity = new();
 }
 
 /// <summary>Abstrakte Reise statt Physik: Schiffe außerhalb des Spielersektors haben nur einen Fahrplan.</summary>

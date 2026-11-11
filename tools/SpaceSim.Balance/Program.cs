@@ -25,11 +25,21 @@ float fuelBuyCost = 0f, notkCost = 0f;
 float moduleDelivered = 0f, moduleRevenue = 0f;
 // Phase 5c: KI-Neubauten mit Modulen (volle Kaufregel) bzw. nur aus dem Bausatz
 int buildsWithModules = 0, buildsKitOnly = 0;
+// Phase 6: Aufgabenwechsel der Multirole-Schiffe und Modellwahl der KI-Flotte
+int jobSwitches = 0;
+var chosenModels = new SortedDictionary<string, int>(StringComparer.Ordinal);
+// Phase 7: Güteklassen der Neubauten (gewürfelt/erreicht) und Upgrade-Versuche der NPCs
+var gradeRolled = new int[4]; var gradeGot = new int[4];
+int upgradeTries = 0, upgradeOk = 0; float upgradeCost = 0f;
 u.Events.Raised += e =>
 {
     if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
     else if (e is FuelBought fb) { fuelBuys++; fuelBuyCost += fb.Cost; }
     else if (e is FleetShipBuilt fsb) { if (fsb.WithModules) buildsWithModules++; else buildsKitOnly++; }
+    else if (e is JobChanged) jobSwitches++;
+    else if (e is ShipQualityRolled sq) { gradeRolled[(int)sq.Rolled]++; gradeGot[(int)sq.Grade]++; }
+    else if (e is UpgradeAttempted ua) { upgradeTries++; if (ua.Success) upgradeOk++; upgradeCost += ua.Price; }
+    else if (e is FleetModelChosen fmc) chosenModels[fmc.ModelKey] = chosenModels.GetValueOrDefault(fmc.ModelKey) + 1;
     else if (e is TradeCompleted tc && u.Modules.ContainsKey(u.Goods[tc.Good].Key)) { moduleDelivered += tc.Amount; moduleRevenue += tc.Revenue; }
 };
 
@@ -71,6 +81,23 @@ if (u.Modules.Count > 0)
     float inStocks = u.Stations.Values.SelectMany(st => st.Market.Where(kv => moduleGoods.Contains(kv.Key) && st.IsStockOnly(kv.Key))).Sum(kv => kv.Value.Amount);
     Console.WriteLine($"Modul-Waren: {moduleDelivered:0} Einheiten von Händlern geliefert ({moduleRevenue:0} Cr); Bestand in Fabriken {atFactories:0}, in Lagern ohne Rezept {inStocks:0}");
     Console.WriteLine($"KI-Neubauten: {buildsWithModules} mit Modulen aus dem Werftlager, {buildsKitOnly} nur aus dem Bausatz");
+}
+// Phase 6: Flotte nach Modell und Aufgabe, belegte Kapazität je Aufgabe, Aufgabenwechsel, Modellwahl, Engpass-Module
+{
+    var ai = u.Ships.Values.Where(x => x.IsEconomyAi).ToList();
+    var byModel = ai.GroupBy(x => (x.ModelKey.Length > 0 ? x.ModelKey : "-") + "/" + x.Role).OrderBy(g => g.Key, StringComparer.Ordinal)
+        .Select(g => $"{g.Key} {g.Count()}");
+    Console.WriteLine("Flotte (Modell/Aufgabe): " + string.Join(", ", byModel));
+    Console.WriteLine("Kapazität: " + string.Join(", ", ShipJobs.Default.Select(j => $"{j.Key} {ShipJobs.UsedUnits(u, j):0.0}/{j.Limit(u.Rules):0}"))
+        + $"; Aufgabenwechsel: {jobSwitches}; Multirole-Schiffe: {ai.Count(x => ShipJobs.IsMultirole(u, x))}");
+    Console.WriteLine("Modellwahl der KI: " + (chosenModels.Count == 0 ? "keine" : string.Join(", ", chosenModels.Select(kv => $"{kv.Key} {kv.Value}"))));
+    var tailH = history.Skip(history.Count * 3 / 4).ToList();
+    string Ratio(string key) => u.FindGood(key) is { } gg ? tailH.Average(h => h.Goods.First(x => x.Good == gg.Id).PriceRatio).ToString("0.00", CultureInfo.InvariantCulture) : "-";
+    string Grades(int[] g) => $"{g[0]}/{g[1]}/{g[2]}/{g[3]}";
+    var founders = u.Ships.Values.Where(x => x.IsEconomyAi).GroupBy(x => x.Quality).OrderBy(g => g.Key).Select(g => $"{ShipQualityNames.Name(g.Key)} {g.Count()}");
+    Console.WriteLine($"Güteklassen Neubauten (Standard/Verbessert/Elite/Meisterwerk): gewürfelt {Grades(gradeRolled)}, erreicht {Grades(gradeGot)}; Flotte jetzt: {string.Join(", ", founders)}");
+    Console.WriteLine($"Upgrades (NPC): {upgradeTries} Versuche, {upgradeOk} gelungen, {upgradeCost:0} Cr");
+    Console.WriteLine($"Engpass-Module (Ø Preis/Basis letzte 25%): Reaktor {Ratio("reactor_mk1")}, Triebwerk {Ratio("chem_engine_s")}, Laser {Ratio("mining_laser_1")}");
 }
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))

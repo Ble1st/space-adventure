@@ -5,6 +5,7 @@ using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Services;
+using SpaceSim.Core.Simulation;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
 namespace SpaceAdventure.Ui.Screens;
@@ -15,7 +16,8 @@ namespace SpaceAdventure.Ui.Screens;
 /// <see cref="IStationService.Offers"/> („fit:&lt;Slot&gt;:&lt;Modul&gt;“, „remove:&lt;Slot&gt;“), ausgeführt nur über
 /// <see cref="IStationService.Execute"/>. Je Angebot Preis, Herkunft (Lager/Fracht) und die Wirkung auf die Schiffswerte
 /// (Vorher/Nachher aus <see cref="OutfitterService.Preview"/>, reine Core-Rechnung über ShipStats) samt Grund, warum ein
-/// Einbau gerade nicht geht. Die Ergebnismeldung kommt aus <see cref="ServiceResult.Message"/>.
+/// Einbau gerade nicht geht. Die Ergebnismeldung kommt aus <see cref="ServiceResult.Message"/>. Phase 7: Abschnitt „Verbessern“ aus dem
+/// Dienst „upgrade“ (Modul des Slots, Slot vergrößern, Bonusslot dieser Slotart) mit Chance, Material, Preis und Mitleidszähler.
 /// </summary>
 public sealed partial class OutfitterScreen : DockAreaScreen
 {
@@ -35,6 +37,10 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 	IStationService? Service =>
 		Ctx.Services.ForStation(Ctx.U, Ctx.Station).FirstOrDefault(s => s.Key == OutfitterService.ServiceKey);
 
+	/// <summary>Phase 7: Dienst „upgrade“ dieser Station (Abschnitt „Verbessern“ im Ausrüster), null = keiner.</summary>
+	IStationService? UpgradeSvc =>
+		Ctx.Services.ForStation(Ctx.U, Ctx.Station).FirstOrDefault(s => s.Key == UpgradeService.ServiceKey);
+
 	protected override void Rebuild()
 	{
 		if (_scroll != null && IsInstanceValid(_scroll)) _scrollV = _scroll.ScrollVertical;
@@ -52,17 +58,19 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 36);
 
 		var svc = Service;
+		var upSvc = UpgradeSvc;
 		var cls = ship.HasModel && u.ShipModels.TryGetValue(ship.ModelKey, out var model) ? u.ShipClasses.GetValueOrDefault(model.ClassKey) : null;
-		if (svc is null || cls is null)
+		if ((svc is null && upSvc is null) || cls is null)
 		{
-			At(inner, Text(svc is null ? "Diese Station hat keinen Ausrüster." : "Dieses Schiff hat kein Modell und kann nicht umgerüstet werden.", 16, new Color(Dim, 0.8f)), 0, 48, w, 26);
+			At(inner, Text(cls is not null ? "Diese Station hat keinen Ausrüster." : "Dieses Schiff hat kein Modell und kann nicht umgerüstet werden.", 16, new Color(Dim, 0.8f)), 0, 48, w, 26);
 			return;
 		}
-		var offers = svc.Offers(u, Ctx.Station, ship);
+		var offers = svc is null ? (IReadOnlyList<ServiceOffer>)Array.Empty<ServiceOffer>() : svc.Offers(u, Ctx.Station, ship);
+		var upOffers = upSvc is null ? (IReadOnlyList<ServiceOffer>)Array.Empty<ServiceOffer>() : upSvc.Offers(u, Ctx.Station, ship);
 		if (_slot < 0 || _slot >= ship.Slots.Count) _slot = FirstSlotWithOffers(offers, ship);
 
 		// ── links: Slots ──
-		At(inner, Text($"Slots · {(u.ShipModels.TryGetValue(ship.ModelKey, out var m) ? m.Name : ship.ModelKey)} ({cls.Name})", 17, Cyan), 0, 40, 330, 24);
+		At(inner, Text($"Slots · {(u.ShipModels.TryGetValue(ship.ModelKey, out var m) ? m.Name : ship.ModelKey)} · {ShipQualityNames.Name(ship.Quality)}", 17, Cyan), 0, 40, 330, 24);
 		float y = 68f;
 		for (int i = 0; i < ship.Slots.Count; i++)
 		{
@@ -70,7 +78,8 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 			string type = u.SlotTypes.TryGetValue(slot.Type, out var st) ? st.Name : slot.Type;
 			string mod = ship.Fit[i] is { } key ? (u.Modules.TryGetValue(key, out var mm) && mm.Name.Length > 0 ? mm.Name : key) : "– leer –";
 			bool required = st?.Required ?? false;
-			var b = At(inner, new KitButton($"{i + 1} · {type} {slot.Size}{(required ? " (Pflicht)" : "")}", new Vector2(330, 56))
+			bool bonus = i >= cls.Slots.Count;   // Phase 7: Bonusslot aus Güteklasse oder Upgrade
+			var b = At(inner, new KitButton($"{i + 1} · {type} {slot.Size}{(required ? " (Pflicht)" : "")}{(bonus ? " · Bonus" : "")}", new Vector2(330, 56))
 			{ AlignLeft = true, FontSize = 15, Sub = mod, State = i == _slot ? KitButtonState.On : KitButtonState.Normal }, 0, y);
 			int idx = i;
 			b.Pressed += () => { _slot = idx; _message = ""; Invalidate(); };
@@ -96,6 +105,16 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);
+		// Phase 7: Abschnitt „Verbessern“ (Dienst „upgrade“): Modul dieses Slots, Slot vergrößern, Bonusslot dieser Slotart
+		_upRows = 0;
+		var slotUps = upOffers.Where(o => OfferSlot(o.Key) == _slot || o.Key == $"bonus:{cur.Type}").ToList();
+		if (slotUps.Count > 0)
+		{
+			box.AddChild(Text("Verbessern · Chance steigt mit jedem Fehlschlag (Mitleidszähler)", 15, Cyan));
+			foreach (var o in slotUps) { box.AddChild(UpgradeRow(o, rw - 14)); _upRows++; }
+			if (svc is not null) box.AddChild(Text("Umrüsten", 15, Cyan));
+		}
+		if (svc is null) return;
 		if (slotOffers.Count == 0)
 			box.AddChild(Text(ship.Fit[_slot] is null ? "Kein passendes Modul auf Lager." : "Kein passendes Modul auf Lager; Pflichtslots lassen sich nur tauschen.", 15, new Color(Dim, 0.8f)));
 		foreach (var o in slotOffers)
@@ -103,6 +122,46 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 			box.AddChild(OfferRow(o, rw - 14));
 			_rows++;
 		}
+	}
+
+	/// <summary>Phase 7: eine Upgrade-Zeile — Änderung und Chance aus dem Angebot, Material/Preis/Mitleid aus <see cref="ShipUpgrade.Quote"/>, Taste „Versuchen“.</summary>
+	Control UpgradeRow(ServiceOffer o, float w)
+	{
+		var u = Ctx.U;
+		var q = ShipUpgrade.Quote(u, Ctx.Station, Ctx.Ship, o.Key);
+		bool can = o.Amount >= 1f;
+		var row = new Control { CustomMinimumSize = new Vector2(w, 82), MouseFilter = MouseFilterEnum.Pass };
+		var bg = new Panel { MouseFilter = MouseFilterEnum.Ignore };
+		bg.AddThemeStyleboxOverride("panel", Box(Card, can ? Orange : new Color(Dim, 0.25f), 10, 1, 0));
+		row.AddChild(bg);
+		bg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		At(row, Text(o.Text, 15, White), 14, 4, w - 180, 24);
+		if (q is not null)
+		{
+			string mat = string.Join(", ", q.Materials.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"));
+			At(row, Text($"Material {mat} · {o.Price:0} Cr · Mitleidszähler {q.Pity}", 13, Dim), 14, 28, w - 190, 20);
+			string state = q.Issue ?? (q.Missing.Count > 0 ? "Fehlt im Lager: " + string.Join(", ", q.Missing.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"))
+				: !q.Affordable ? "Nicht genügend Credits" : "Material wird auch bei Misserfolg verbraucht");
+			At(row, Text(state, 13, can ? Green : Orange), 14, 52, w - 190, 22);
+		}
+		var b = At(row, new KitButton("Versuchen", new Vector2(150, 56)) { FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 160, 13);
+		string key = o.Key;
+		if (can) b.Pressed += () => ExecuteUpgrade(key);
+		return row;
+	}
+
+	/// <summary>Phase 7: führt ein Upgrade-Angebot nur über den Dienst aus; grün bei gelungenem, orange bei misslungenem Versuch.</summary>
+	public ServiceResult ExecuteUpgrade(string offer)
+	{
+		var svc = UpgradeSvc;
+		var r = svc is null
+			? new ServiceResult(false, 0f, 0f, "Upgrades gibt es an dieser Station nicht.")
+			: svc.Execute(Ctx.U, Ctx.Station, Ctx.Ship, new ServiceRequest(offer, default, 0f));
+		_message = r.Message;
+		_msgOk = r.Success && r.Units >= 1f;
+		Executed?.Invoke(_msgOk);
+		Invalidate();
+		return r;
 	}
 
 	/// <summary>Eine Angebotszeile: Name, Herkunft/Preis, Wirkung (Vorher → Nachher) bzw. Grund, Taste.</summary>
@@ -188,6 +247,9 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 
 	// ── Zugriff für Selbsttest/Bildschirmfotos ──
 	public int TestRowCount => _rows;
+	int _upRows;
+	/// <summary>Phase 7: angezeigte Upgrade-Zeilen des gewählten Slots.</summary>
+	public int TestUpgradeRows => _upRows;
 	public string TestMessage => _message;
 	public int TestSelectedSlot => _slot;
 	public void TestSelectSlot(int slot) { _slot = slot; _message = ""; Invalidate(); }

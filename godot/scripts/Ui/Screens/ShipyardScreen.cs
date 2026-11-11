@@ -47,7 +47,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 		_scroll = null;
 		float assembly = u.StationTypes.TryGetValue(Ctx.Station.TypeKey, out var t) && t.ShipDealer is { } sd ? sd.Assembly : 0f;
 		At(inner, Text(_message.Length > 0 ? _message
-			: $"Preis = Bausatz + Module zum Lagerpreis + {assembly * 100f:0} % Montage. Das neue Schiff fliegst du sofort, dein jetziges bleibt hier im Hangar.",
+			: $"Preis = Bausatz + Module + {assembly * 100f:0} % Montage. Güteklasse wird gewürfelt: {QualityOdds(u)}",
 			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 36);
 
 		var svc = Service;
@@ -77,7 +77,8 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 		At(row, Text(o.Text, 18, White), 84, 4, w - 420, 26);
 		var s = q.Stats;
 		string caps = (s.Capabilities.HasFlag(Capability.Mining) ? "Laser" : "kein Laser") + (s.CargoSolid > 0f || s.CargoLiquid > 0f
-			? $" · fest {s.CargoSolid + s.CargoAny:0}/flüssig {s.CargoLiquid + s.CargoAny:0}" : "");
+			? $" · fest {s.CargoSolid + s.CargoAny:0}/flüssig {s.CargoLiquid + s.CargoAny:0}" : "")
+			+ (q.Model.Jobs.Count >= 2 ? " · Mehrzweck" : "");   // Phase 6: Multirole-Modell (KI wählt Handel oder Schürfen)
 		At(row, Text($"Fracht {s.Cargo:0} m³ · Hülle {s.Hull:0} · Tempo {s.Speed:0.0} · Tank {s.FuelCapacity:0} · {caps}", 14, Dim), 84, 32, w - 420, 22);
 		string material = q.Missing.Count == 0
 			? "Material im Lager: " + string.Join(", ", q.Materials.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"))
@@ -89,6 +90,10 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 		if (can) b.Pressed += () => Execute(key);
 		return row;
 	}
+
+	/// <summary>Phase 7: Chancen der Güteklassen aus den Regeln, z. B. „Standard 70 % · Verbessert 20 % · Elite 8 % · Meisterwerk 2 %“.</summary>
+	static string QualityOdds(Universe u) => string.Join(" · ", u.Rules.QualityChances.Take(4)
+		.Select((c, i) => $"{ShipQualityNames.Name((ShipQuality)i)} {c * 100f:0} %"));
 
 	/// <summary>Führt ein Angebot über den Dienst aus, zeigt dessen Meldung und übernimmt bei Erfolg das neue aktive Schiff in den Kontext.</summary>
 	public ServiceResult Execute(string offer)

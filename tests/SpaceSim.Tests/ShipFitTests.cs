@@ -34,7 +34,7 @@ public class ShipFitTests
     [Fact]
     public void Startwelt_SchiffeHabenModellUndWerteWieBisher()
     {
-        var u = DemoUniverse.Create();
+        var u = QualityUpgradeTests.WithoutFounderQuality();   // Phase 7: Gründerschiffe würfeln sonst ihre Güteklasse
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
         foreach (var s in u.Ships.Values)
         {
@@ -99,7 +99,7 @@ public class ShipFitTests
     [Fact]
     public void SaveLoad_V4_Roundtrip_IdentischInklHashModellSlotsFit()
     {
-        Assert.Equal(8, SaveGame.CurrentVersion);   // v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
+        Assert.Equal(10, SaveGame.CurrentVersion);   // v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
@@ -131,7 +131,7 @@ public class ShipFitTests
     [Fact]
     public void Migration_V3ToV4_SchiffeBekommenEinheitsmodelle_VerhaltenGleich()
     {
-        var u = DemoUniverse.Create();
+        var u = QualityUpgradeTests.WithoutFounderQuality();   // Phase 7: ohne Gütewurf, sonst unterscheiden sich die Fits vom Modell
         var v3Json = ToV3Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":3", v3Json);
         Assert.DoesNotContain("ModelKey", v3Json);
@@ -156,7 +156,7 @@ public class ShipFitTests
         }
 
         // Verhalten gleich: 2000 Ticks ab dem migrierten Save == 2000 Ticks ab frisch erzeugter Welt gleicher Seed
-        var fresh = DemoUniverse.Create();
+        var fresh = QualityUpgradeTests.WithoutFounderQuality();
         var runner = new SimulationRunner();
         runner.Run(loaded, 2_000);
         runner.Run(fresh, 2_000);
@@ -224,11 +224,15 @@ public class ShipFitTests
         {
             Assert.NotEmpty(s.ModelKey);
             var model = u.ShipModels[s.ModelKey];
-            Assert.Equal(model.Fit, s.Fit);
-            Assert.Equal(u.ShipClasses[model.ClassKey].Slots.Count, s.Slots.Count);
+            var cls = u.ShipClasses[model.ClassKey];
+            // Phase 7: Standard-Schiffe tragen den Werks-Fit; bessere Güteklassen (Kauf, Gründer) oder Upgrades weichen ab, bleiben aber gültig
+            if (s.Quality == ShipQuality.Standard && s.Slots.Count == cls.Slots.Count && s.Fit.SequenceEqual(model.Fit)) { }
+            else Assert.Null(FitRules.Check(u.SlotTypes, u.Modules, cls, s.Slots, s.Fit));
+            Assert.True(s.Slots.Count >= cls.Slots.Count && s.Slots.Count <= cls.Slots.Count + cls.MaxSlotUpgrades);
             Assert.Equal(s.Stats.Cargo, s.CargoCapacity);
         }
-        Assert.All(bought, s => Assert.Equal(WorldBuilder.UnitModelFor(s.Role, s.CargoCapacity), s.ModelKey));
+        // Phase 6: gekauft wird ein Modell, das die Aufgabe kann (Modellwahl oder Kopie des Elternschiffs)
+        Assert.All(bought, s => Assert.Contains(ShipJobs.ForRole(s.Role)!.Key, u.ShipModels[s.ModelKey].Jobs));
     }
 
     [Fact]

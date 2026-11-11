@@ -92,7 +92,17 @@ public partial class UiShots : Node
 			}
 			case 213: Capture("11c-dock-ausruester.png"); _stage = 214; _wait = 10; break;
 			case 214: _m.HudRef.DockOutfitter.TestSelectSlot(_m.Session.Player.Slots.FindIndex(x => x.Type == "tool")); _stage = 215; _wait = 20; break;
-			case 215: Capture("11d-dock-ausruester-werkzeug.png"); _stage = 216; _wait = 10; break;
+			case 215: Capture("11d-dock-ausruester-werkzeug.png"); _stage = 2151; _wait = 10; break;
+			case 2151: // Phase 7: Abschnitt „Verbessern“ (Dienst „upgrade“) am Triebwerk-Slot, ein Fehlschlag für den Mitleidszähler
+			{
+				var u = _m.Session.U;
+				var pl = _m.Session.Player;
+				int engine = pl.Slots.FindIndex(x => x.Type == "engine");
+				pl.UpgradePity[engine] = 1;
+				_m.HudRef.DockOutfitter.TestSelectSlot(engine);
+				_stage = 2152; _wait = 20; break;
+			}
+			case 2152: Capture("11g-dock-ausruester-upgrade.png"); _stage = 216; _wait = 10; break;
 			case 216: _m.HudRef.Screens.Show(_m.HudRef.DockShipyard); _stage = 217; _wait = 20; break;   // Werft: alle Klassen
 			case 217: Capture("11e-dock-werft.png"); _stage = 218; _wait = 10; break;
 			case 218: // Handelsstation: nur Skiffs

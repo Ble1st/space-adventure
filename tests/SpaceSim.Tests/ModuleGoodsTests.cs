@@ -84,7 +84,7 @@ public class ModuleGoodsTests
         Assert.Equal(10f, u.Modules["reactor_mk1"].Stats["powerOutput"]);
         Assert.Equal(160f, u.Modules["chem_engine_s"].Stats["thrust"]);
         Assert.Equal(100f, u.Modules["cargo_universal_100"].Stats["capacity"]);
-        Assert.All(u.Ships.Values.Where(s => s.HasModel), s => Assert.Equal(8f, s.Stats.Speed));
+        Assert.All(u.Ships.Values.Where(s => s.HasModel && s.Quality == ShipQuality.Standard), s => Assert.Equal(8f, s.Stats.Speed));   // Phase 7: bessere Gründer sind schneller
     }
 
     [Fact]
@@ -138,7 +138,12 @@ public class ModuleGoodsTests
             Assert.All(sector.Stations.Where(x => x != st.Id), x => Assert.True(Vec2.Distance(u.Stations[x].Position, st.Position) > 50f));
             Assert.True(st.Essential);
             // jede Modul-Ware der Fabrik hat einen Markteintrag mit dem Fabrik-Wunschbestand
-            foreach (var r in st.Production) Assert.Equal(5f, st.Market[r.Outputs.Keys.Single()].Target);
+            // (Phase 6: die neuen Module nennen in stocks einen kleineren Wunschbestand, damit Fabriken ohne Abnehmer weniger horten)
+            foreach (var r in st.Production)
+            {
+                var good = r.Outputs.Keys.Single();
+                Assert.Equal(u.StationTypes[key].Stocks.Single(x => x.Good == good).Target, st.Market[good].Target);
+            }
         }
         foreach (var sector in u.Sectors.Values)
             foreach (var f in sector.Fields)
@@ -283,7 +288,9 @@ public class ModuleGoodsTests
     {
         var u = DemoUniverse.Create();
         Assert.Equal("ship_kit_light", u.Rules.ShipKitGoodKey);
-        Assert.All(u.ShipClasses.Values, c => Assert.Equal("ship_kit_light", c.Kit));
+        // Einheits- und Skiff-Klassen bauen aus dem leichten Bausatz; seit Phase 6 nutzt jede Bausatzstufe mindestens eine Klasse
+        Assert.All(new[] { "unit_trader", "unit_miner", "skiff" }, k => Assert.Equal("ship_kit_light", u.ShipClasses[k].Kit));
+        Assert.All(new[] { "ship_kit_light", "ship_kit_medium", "ship_kit_heavy" }, kit => Assert.Contains(u.ShipClasses.Values, c => c.Kit == kit));
         var trader = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
         Assert.Equal("ship_kit_light", FleetSystem.KitKeyFor(u, trader));
         u.ShipClasses["unit_trader"].Kit = null;
@@ -300,6 +307,7 @@ public class ModuleGoodsTests
     {
         var u = DemoUniverse.Create();
         u.ShipClasses["unit_trader"].Kit = "ship_kit_medium";
+        u.Rules.FleetChoosesModels = false;   // geprüft wird die Kopierregel (Phase 5); die Modellwahl der Phase 6 hat eigene Tests
         var yard = u.Stations.Values.Single(s => s.TypeKey == "shipyard");
         yard.Stock(DemoUniverse.ShipKitLight).Amount = 5f;
         yard.Stock(DemoUniverse.ShipKitMedium).Amount = 3f;
@@ -323,7 +331,7 @@ public class ModuleGoodsTests
     [Fact]
     public void SaveLoad_V6_Roundtrip_ContentUndFortsetzungBitIdentisch()
     {
-        Assert.Equal(8, SaveGame.CurrentVersion);   // v8 (Phase 5c)
+        Assert.Equal(10, SaveGame.CurrentVersion);   // v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c)
         var u = DemoUniverse.Create();
         var runner = new SimulationRunner();
         runner.Run(u, 3_000);
@@ -434,7 +442,7 @@ public class ModuleGoodsTests
             {
                 var m = u.Modules[u.Goods[r.Outputs.Keys.Single()].Key];
                 Assert.Equal(m.Cost.Count, r.Inputs.Count);
-                Assert.Equal(5f, st.Market[r.Outputs.Keys.Single()].Target);
+                Assert.Equal(u.StationTypes[key].Stocks.Single(x => x.Good == r.Outputs.Keys.Single()).Target, st.Market[r.Outputs.Keys.Single()].Target);
             }
         }
         // Werft: Bausatzstufen und Lager nachgetragen

@@ -173,7 +173,7 @@ public class WalletTests
         new SimulationRunner().Run(u, 500);
         u.PlayerWallet.Credits = 12_345.5f;
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":8", json);   // Phase 5c: v8
+        Assert.Contains("\"Version\":10", json);   // Phase 5c: v8
         Assert.Contains("\"PlayerWallet\"", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(12_345.5f, loaded.PlayerWallet.Credits);

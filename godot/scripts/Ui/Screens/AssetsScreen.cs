@@ -106,7 +106,7 @@ public sealed partial class AssetsScreen : CommandScreen
 		// Schiffskarte links
 		At(w, new DockAreaScreen.ShipSketch { CustomMinimumSize = new Vector2(120, 100), Size = new Vector2(120, 100), MouseFilter = MouseFilterEnum.Ignore }, 30, 40);
 		At(w, Text($"Schiff #{s.Id.Value}{(active ? " (aktiv)" : "")}", 30, White), 170, 24, 400, 36);
-		At(w, Text($"Rolle {s.Role} · Fraktion {FactionName(u, s.Faction)}", 15, Dim), 170, 62, 400, 20);
+		At(w, Text($"{(u.ShipModels.TryGetValue(s.ModelKey, out var md) ? md.Name : "ohne Modell")} · Güteklasse {ShipQualityNames.Name(s.Quality)} · Fraktion {FactionName(u, s.Faction)}", 15, Dim), 170, 62, 600, 20);
 		string ort = Ctx.Docked is { } dock && active && u.Stations.TryGetValue(dock, out var dst)
 			? $"angedockt an {dst.Name}"
 			: $"{SectorName(u, s.Sector)} · ({s.Position.X:0}/{s.Position.Y:0})";
@@ -170,7 +170,8 @@ public sealed partial class AssetsScreen : CommandScreen
 			string ort = _docked is { } d && _active && _u.Stations.TryGetValue(d, out var st)
 				? $"angedockt an {st.Name}"
 				: $"{(_u.Sectors.TryGetValue(_s.Sector, out var sec) ? sec.Name : "?")} · ({_s.Position.X:0}/{_s.Position.Y:0})";
-			DrawString(font, new Vector2(96, 26), $"Schiff #{_s.Id.Value}", HorizontalAlignment.Left, -1, 20, White);
+			string model = _u.ShipModels.TryGetValue(_s.ModelKey, out var md) ? md.Name : "";
+			DrawString(font, new Vector2(96, 26), $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", HorizontalAlignment.Left, 320, 20, White);
 			DrawString(font, new Vector2(96, 48), $"{ort} · Fracht {_s.UsedVolume(_u):0.#}/{_s.CargoCapacity:0} m³ · Wert ≈ {SectorEconomy.TotalValue(_u, _s):0} Cr", HorizontalAlignment.Left, -1, 13, Dim);
 			DrawString(font, new Vector2(420, 26), OrderText(_u, _s), HorizontalAlignment.Left, -1, 14, White);
 			DrawString(font, new Vector2(420, 48), _s.Transit != null ? "im Transit" : "geparkt", HorizontalAlignment.Left, -1, 12, Dim);

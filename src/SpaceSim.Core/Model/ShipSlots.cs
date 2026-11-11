@@ -48,6 +48,10 @@ public sealed class Module
     public Dictionary<string, float> Cost = new();
     /// <summary>Zulässige Treibstoffe des Antriebs (Ware → efficiency); leer bei Nicht-Antrieben. Verbrauch erst ab Phase 4b.</summary>
     public List<FuelType> FuelTypes = new();
+    /// <summary>Phase 7: Modul, zu dem dieses verbessert werden kann (Dienst „upgrade“, Güteklassen beim Kauf); null = keine Verbesserung.</summary>
+    public string? UpgradeTo;
+    /// <summary>Phase 7: Material je Upgrade-Versuch (Warenschlüssel → Menge) aus dem Stationslager; verbraucht auch bei Misserfolg.</summary>
+    public Dictionary<string, float> UpgradeCost = new();
 }
 
 /// <summary>Ein Slot einer Schiffsklasse, in fester Reihenfolge; der Fit füllt sie per Index.</summary>
@@ -75,6 +79,17 @@ public sealed class ShipClass
     public List<ClassSlot> Slots = new();
     /// <summary>Warenschlüssel des Bausatzes, aus dem die Werft Schiffe dieser Klasse baut (Phase 5a: ship_kit_light/medium/heavy); null = Regel <see cref="EconomyRules.ShipKitGoodKey"/>.</summary>
     public string? Kit;
+    /// <summary>
+    /// Phase 6: Wirkungsgrad der Werkzeug-Slots dieses Rumpfs (Multiplikator auf die Trefferchance des Mining-Lasers); Standard 1.
+    /// Mehrzweckrümpfe (leichter Frachter, Tinker) haben weniger, damit ein Generalist nie so gut schürft wie ein Spezialist
+    /// (SCHIFFE.md Abschnitt 7: „schwächerer Laser durch geteilte Leistung“).
+    /// </summary>
+    public float ToolEfficiency = 1f;
+    /// <summary>
+    /// Phase 7: Höchstzahl der Slot-Upgrades je Schiff dieser Klasse (Bonusslots plus vergrößerte Slots, aus Güteklasse oder Dienst „upgrade“);
+    /// Standard 1. Die genutzte Zahl ergibt sich aus der Slotliste des Schiffs im Vergleich zur Klasse.
+    /// </summary>
+    public int MaxSlotUpgrades = 1;
 }
 
 /// <summary>Schiffsmodell: eine Klasse mit festem Fit (Modulschlüssel pro Slot, null = leerer Slot).</summary>
@@ -86,4 +101,10 @@ public sealed class ShipModel
     public string Name = "";
     /// <summary>Modulschlüssel je Slot der Klasse, null erlaubt; Länge = Slotanzahl der Klasse.</summary>
     public List<string?> Fit = new();
+    /// <summary>
+    /// Phase 6: Aufgaben, die die KI mit diesem Modell ausführen darf (Schlüssel aus <c>ShipJobs</c>, z. B. "trade", "mine").
+    /// Leer = kein KI-Kaufkandidat und keine Aufgabenwahl (Spielermodelle, ältere Spielstände). Ein Eintrag = Spezialist,
+    /// zwei und mehr = Multirole (die <c>JobAssignmentSystem</c> wählt die Aufgabe).
+    /// </summary>
+    public List<string> Jobs = new();
 }

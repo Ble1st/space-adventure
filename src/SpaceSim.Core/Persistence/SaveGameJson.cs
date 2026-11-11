@@ -515,6 +515,122 @@ public static class SaveGameJson
         s.Version = 8;
     }
 
+    /// <summary>
+    /// v8 → v9 (Phase 6, Multirole): Schiffe bekommen <c>JobSince</c> (fehlt = 0, nichts zu tun). Der neue Content wird nach Schlüssel und
+    /// nur ergänzend nachgereicht, eigene Einträge des Save bleiben:
+    /// 1) fehlende Module der Default-Welt (Frachtraum M, Kanisterraum M, Triebwerk M, Mining-Laser Mk2) und je Modul ohne Ware eine Modul-Ware
+    ///    (angehängt nach Modulschlüssel, bestehende GoodIds bleiben);
+    /// 2) fehlende Schiffsklassen und -modelle (Kurier, Frachter, Bergbauer, Tanker; Tinker als erstes Multirole-Modell); vorhandene Modelle der
+    ///    Default-Welt ohne Aufgabenliste bekommen deren <c>jobs</c> (Einheitsmodelle: Handel bzw. Schürfen);
+    /// 3) vorhandene Stationstypen: fehlende Rezepte (nach Ausgangswaren, nur wenn alle Waren auflösbar sind; z. B. die neuen Module der
+    ///    Modulwerke) und fehlende Lagerposten an Typ und Stationen.
+    /// Wird auch beim Anheben älterer Stände durchlaufen; alle Schritte prüfen, was die früheren Migrationen schon ergänzt haben.
+    /// </summary>
+    static void MigrateV8ToV9(SaveGame s)
+    {
+        AddMissingDefaultContent(s);
+        s.Version = 9;
+    }
+
+    /// <summary>
+    /// v9 → v10 (Phase 7, Güteklassen und Upgrades): Schiffe bekommen <c>Quality</c> (fehlt = Standard) und <c>UpgradePity</c> (fehlt = leer);
+    /// Bonusslots stehen ohnehin in der gespeicherten Slotliste. Content nach Schlüssel und nur ergänzend: neue Module (Reaktor Mk2, Triebwerk S Mk2)
+    /// mit Waren, Fabrikrezepten und Werftlager (wie v8→v9), Verbesserungen (<c>upgrade</c>) an den Default-Modulen, die noch keine haben,
+    /// <c>maxSlotUpgrades</c> der Default-Klassen und der Dienst „upgrade“ an den Stationstypen der Default-Welt, die ihn führen (Werft).
+    /// </summary>
+    static void MigrateV9ToV10(SaveGame s)
+    {
+        AddMissingDefaultContent(s);
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        foreach (var md in def.Modules)
+            if (md.Upgrade is { } up && s.Modules.FirstOrDefault(m => m.Key == md.Key) is { UpgradeTo: null } ms && s.Modules.Any(m => m.Key == up.To))
+            { ms.UpgradeTo = up.To; ms.UpgradeCost = new Dictionary<string, float>(up.Cost); }
+        foreach (var cd in def.ShipClasses)
+            if (s.ShipClasses.FirstOrDefault(c => c.Key == cd.Key) is { } cs) cs.MaxSlotUpgrades = cd.MaxSlotUpgrades;
+        s.Version = 10;
+    }
+
+    /// <summary>
+    /// Reicht den Content der Default-Welt nach Schlüssel und nur ergänzend nach (gemeinsamer Schritt der Migrationen ab v8→v9):
+    /// 1) fehlende Module und je Modul ohne Ware eine Modul-Ware (angehängt nach Modulschlüssel, bestehende GoodIds bleiben);
+    /// 2) fehlende Schiffsklassen und -modelle; vorhandene Default-Modelle ohne Aufgabenliste bekommen deren <c>jobs</c>;
+    /// 3) vorhandene Stationstypen: fehlende Dienste, fehlende Rezepte (nach Ausgangswaren, nur wenn alle Waren auflösbar sind) und fehlende
+    ///    Lagerposten an Typ und Stationen.
+    /// </summary>
+    static void AddMissingDefaultContent(SaveGame s)
+    {
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var dw = WorldBuilder.Build(def);
+        var content = new SaveGame();
+        UniverseSerializer.WriteSlotContent(dw, content);
+
+        // 1) Module und ihre Waren
+        foreach (var m in content.Modules) if (s.Modules.All(x => x.Key != m.Key)) s.Modules.Add(m);
+        float? PriceOf(string key) => s.Goods.FirstOrDefault(g => g.Key == key)?.BasePrice ?? def.Goods.FirstOrDefault(g => g.Key == key)?.BasePrice;
+        foreach (var m in ModuleGoods.InGoodOrder(s.Modules, m => m.Key))
+        {
+            if (s.Goods.Any(g => g.Key == m.Key)) continue;
+            s.Goods.Add(new GoodSave
+            {
+                Id = NextGoodId(s), Key = m.Key, Name = m.Name ?? m.Key,
+                Color = s.SlotTypes.FirstOrDefault(t => t.Key == m.Slot)?.Color ?? ModuleGoods.DefaultColor,
+                BasePrice = ModuleGoods.BasePrice(m.Cost, PriceOf, s.Rules.ModuleMarkup), Volume = ModuleGoods.Volume(m.Mass), Form = "solid",
+            });
+        }
+
+        // 2) Klassen, Modelle, Aufgabenlisten
+        foreach (var c in content.ShipClasses) if (s.ShipClasses.All(x => x.Key != c.Key)) s.ShipClasses.Add(c);
+        foreach (var m in content.ShipModels)
+        {
+            var existing = s.ShipModels.FirstOrDefault(x => x.Key == m.Key);
+            if (existing is not null) { existing.Jobs ??= m.Jobs is null ? null : new List<string>(m.Jobs); continue; }
+            if (s.ShipClasses.Any(c => c.Key == m.Class) && m.Fit.All(k => k is null || s.Modules.Any(x => x.Key == k)))
+                s.ShipModels.Add(m);
+        }
+
+        // 3) Stationstypen: Rezepte und Lagerposten nachtragen
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+        int? Map(GoodId dg) => goodIdByKey.TryGetValue(dw.Goods[dg].Key, out var id) ? id : null;
+        float BasePrice(int id) => s.Goods.First(g => g.Id == id).BasePrice;
+        foreach (var dt in dw.StationTypes.Values.OrderBy(t => t.Key, StringComparer.Ordinal))
+        {
+            var existing = s.StationTypes.FirstOrDefault(t => t.Key == dt.Key);
+            if (existing is null) continue;
+            var services = existing.Services ?? new List<string> { Services.TradeService.ServiceKey };
+            foreach (var key in dt.Services) if (!services.Contains(key)) services.Add(key);
+            existing.Services = services;
+            var newRecipes = new List<RecipeSave>();
+            foreach (var r in dt.Recipes)
+            {
+                var rs = new RecipeSave { Ticks = r.TicksPerCycle };
+                bool ok = true;
+                foreach (var (g, v) in r.Inputs) { if (Map(g) is { } id) rs.In[id] = v; else ok = false; }
+                foreach (var (g, v) in r.Outputs) { if (Map(g) is { } id) rs.Out[id] = v; else ok = false; }
+                if (!ok || rs.Out.Count == 0 || existing.Recipes.Any(e => e.Out.Keys.ToHashSet().SetEquals(rs.Out.Keys))) continue;
+                newRecipes.Add(rs);
+            }
+            var newStocks = dt.Stocks.Where(x => Map(x.Good) is { } id && (existing.Stocks is null || existing.Stocks.All(e => e.Good != id)))
+                .Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
+            if (newRecipes.Count == 0 && newStocks.Count == 0) continue;
+            existing.Recipes.AddRange(newRecipes.Select(CloneRecipe));
+            if (newStocks.Count > 0) existing.Stocks = (existing.Stocks ?? new List<StationStockSave>()).Concat(newStocks).ToList();
+            foreach (var st in s.Stations.Where(x => x.Type == dt.Key))
+            {
+                var fresh = new HashSet<int>();
+                foreach (var r in newRecipes)
+                {
+                    st.Recipes.Add(CloneRecipe(r));
+                    foreach (var g in r.In.Keys.Concat(r.Out.Keys))
+                        if (st.Market.TryAdd(g, new StockSave { Amount = 50f, Target = 100f, Price = BasePrice(g) })) fresh.Add(g);
+                }
+                foreach (var x in newStocks)
+                    if (fresh.Contains(x.Good) || !st.Market.ContainsKey(x.Good))
+                        st.Market[x.Good] = new StockSave { Amount = x.Amount, Target = x.Target, Price = BasePrice(x.Good) };
+            }
+        }
+    }
+
     static int NextGoodId(SaveGame s) => s.Goods.Count == 0 ? 1 : s.Goods.Max(g => g.Id) + 1;
 
     static RecipeSave CloneRecipe(RecipeSave r) => new() { Ticks = r.Ticks, In = new Dictionary<int, float>(r.In), Out = new Dictionary<int, float>(r.Out) };
@@ -535,6 +651,8 @@ public static class SaveGameJson
         if (s.Version < 6) MigrateV5ToV6(s);
         if (s.Version < 7) MigrateV6ToV7(s);
         if (s.Version < 8) MigrateV7ToV8(s);
+        if (s.Version < 9) MigrateV8ToV9(s);
+        if (s.Version < 10) MigrateV9ToV10(s);
         return s;
     }
 }

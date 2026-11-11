@@ -93,18 +93,22 @@ public sealed class ShipDealerService : IStationService
         var wallet = u.WalletOf(ship);
         if (!q.Affordable) return Fail($"Nicht genügend Credits ({q.Price:0} Cr nötig).");
 
-        ShipPurchase.Consume(station, q.Materials);
+        // Phase 7: Güteklasse würfeln — bessere Module, Bonusmodul und Slot-Material kommen zusätzlich aus dem Werftlager (der Preis bleibt)
+        var quality = ShipQualityRoll.Roll(u, q.Class, q.Class.Slots, q.Model.Fit, station, q.Materials);
+        ShipPurchase.Consume(station, quality.Materials ?? q.Materials);
         station.Credits += q.Price;
         wallet.Credits -= q.Price;
         var id = u.NewShipId();
-        var bought = ShipPurchase.Create(u, id, modelKey, q.Class.Slots, q.Model.Fit, ShipRole.Player, Controller.Player, u.PlayerWallet.Faction, station, 0f);
+        var bought = ShipPurchase.Create(u, id, modelKey, quality.Slots, quality.Fit, ShipRole.Player, Controller.Player, u.PlayerWallet.Faction, station, 0f, quality.Grade);
         u.AddShip(bought);
+        u.Events.Publish(new ShipQualityRolled(id, quality.Rolled, quality.Grade));
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Buy, u.FindGood(ShipPurchase.KitKeyOf(u, q.Class))!.Id, 1f, -q.Price));
         u.Events.Publish(new ShipPurchased(id, station.Id, modelKey, q.Price));
         // Das gekaufte Schiff wird sofort aktiv; das bisherige bleibt geparkt an dieser Station
         if (ship.Id == u.PlayerShip) PlayerFleet.SwitchTo(u, station, id, out _);
+        string grade = quality.Grade == ShipQuality.Standard ? "" : $" Güteklasse {ShipQualityNames.Name(quality.Grade)}!";
         return new ServiceResult(true, 1f, -q.Price,
-            $"{q.Model.Name} gekauft für {q.Price:0} Cr – du fliegst jetzt Schiff #{id.Value}; #{ship.Id.Value} bleibt hier im Hangar.");
+            $"{q.Model.Name} gekauft für {q.Price:0} Cr –{grade} du fliegst jetzt Schiff #{id.Value}; #{ship.Id.Value} bleibt hier im Hangar.");
     }
 
     static ServiceResult Fail(string message) => new(false, 0f, 0f, message);

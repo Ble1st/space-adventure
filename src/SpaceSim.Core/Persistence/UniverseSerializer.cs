@@ -13,7 +13,7 @@ public static class UniverseSerializer
         s.Modules = u.Modules.Values.OrderBy(m => m.Key).Select(m => ToSave(m, u)).ToList();
         s.ShipClasses = u.ShipClasses.Values.OrderBy(c => c.Key).Select(ToSave).ToList();
         s.ShipModels = u.ShipModels.Values.OrderBy(m => m.Key)
-            .Select(m => new ShipModelSave { Key = m.Key, Class = m.ClassKey, Name = m.Name, Fit = new List<string?>(m.Fit) }).ToList();
+            .Select(m => new ShipModelSave { Key = m.Key, Class = m.ClassKey, Name = m.Name, Fit = new List<string?>(m.Fit), Jobs = m.Jobs.Count > 0 ? new List<string>(m.Jobs) : null }).ToList();
     }
 
     /// <summary>Stellt die Slot-/Modul-Content-Sektionen aus dem Save im Universum wieder her.</summary>
@@ -29,7 +29,7 @@ public static class UniverseSerializer
         foreach (var c in s.ShipClasses)
             u.ShipClasses[c.Key] = FromSave(c);
         foreach (var m in s.ShipModels)
-            u.ShipModels[m.Key] = new ShipModel { Key = m.Key, ClassKey = m.Class, Name = m.Name, Fit = new List<string?>(m.Fit) };
+            u.ShipModels[m.Key] = new ShipModel { Key = m.Key, ClassKey = m.Class, Name = m.Name, Fit = new List<string?>(m.Fit), Jobs = m.Jobs is null ? new List<string>() : new List<string>(m.Jobs) };
     }
 
     static ModuleSave ToSave(Module m, Universe u) => new()
@@ -41,6 +41,7 @@ public static class UniverseSerializer
         Holds = m.Holds.ToString().ToLowerInvariant(), Cost = new Dictionary<string, float>(m.Cost),
         // Treibstoff als Warenschlüssel (wie cost), damit GoodIds im Save nicht verschoben werden müssen
         Fuel = m.FuelTypes.Select(f => new FuelSave { Good = u.Goods[f.Good].Key, Efficiency = f.Efficiency }).ToList(),
+        UpgradeTo = m.UpgradeTo, UpgradeCost = m.UpgradeTo is null ? null : new Dictionary<string, float>(m.UpgradeCost),
     };
 
     static Module FromSave(ModuleSave m, Dictionary<string, GoodId> goodId) => new()
@@ -53,18 +54,19 @@ public static class UniverseSerializer
         FuelTypes = m.Fuel.Select(f => new FuelType(
             goodId.TryGetValue(f.Good, out var gid) ? gid : throw new SaveFormatException($"Modul '{m.Key}': unbekannte Ware '{f.Good}' in fuel"),
             f.Efficiency)).ToList(),
+        UpgradeTo = m.UpgradeTo, UpgradeCost = m.UpgradeCost is null ? new Dictionary<string, float>() : new Dictionary<string, float>(m.UpgradeCost),
     };
 
     static ShipClassSave ToSave(ShipClass c) => new()
     {
         Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit,
+        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades,
     };
 
     static ShipClass FromSave(ShipClassSave c) => new()
     {
         Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit,
+        Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency > 0f ? c.ToolEfficiency : 1f, MaxSlotUpgrades = Math.Max(0, c.MaxSlotUpgrades),
     };
 
     static ShipSlotSave ToSave(ClassSlot s) => new() { Type = s.Type, Size = s.Size.ToString(), Facing = s.Facing, Arc = s.Arc };
@@ -141,6 +143,9 @@ public static class UniverseSerializer
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                JobSince = sh.JobSince,
+                Quality = sh.Quality == ShipQuality.Standard ? null : sh.Quality.ToString(),
+                UpgradePity = sh.UpgradePity.Count == 0 ? null : new Dictionary<int, int>(sh.UpgradePity),
             });
         return s;
     }
@@ -220,6 +225,9 @@ public static class UniverseSerializer
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                JobSince = sh.JobSince,
+                Quality = sh.Quality is { } ql ? Enum.Parse<ShipQuality>(ql) : ShipQuality.Standard,
+                UpgradePity = sh.UpgradePity is null ? new Dictionary<int, int>() : new Dictionary<int, int>(sh.UpgradePity),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
             ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;

@@ -58,7 +58,12 @@ public sealed class MinerSystem : ISimSystem
         return value;
     }
 
-    static bool PickOrder(Universe u, Ship ship)
+    /// <summary>
+    /// Bester Abbauauftrag für dieses Schiff jetzt (Phase 6 auch für die Aufgabenwahl, <see cref="MineJob"/>): Auftrag, Arbeitspunkt am Feld
+    /// und Bewertung = Wert einer Einheit der Mischung je Tick Umlaufzeit, gemindert durch Gedränge am Feld. Reine Auswertung.
+    /// Die Abbaurate berücksichtigt die Laserstufe des Schiffs (bei Stufe 1 wie bisher).
+    /// </summary>
+    public static (MineOrder? Order, Vec2 FieldPos, float Score) BestMine(Universe u, Ship ship)
     {
         MineOrder? best = null;
         Vec2 bestFieldPos = default;
@@ -71,7 +76,9 @@ public sealed class MinerSystem : ISimSystem
                 var field = sector.Fields[fi];
                 if (!u.AsteroidClasses.TryGetValue(field.ClassKey, out var cls) || Belt.OreIn(sector, field) < 1f) continue;
 
-                float orePerTick = cls.ChunkChance * MiningRules.MeanChunkUnits / MiningRules.ShotInterval * SimClock.TickInterval;
+                // Phase 6: Laserstufe des Schiffs (Trefferchance und Brockengröße); Stufe 1 = bisherige Rate
+                float chance = MathF.Min(1f, cls.ChunkChance * ship.Stats.LaserChunkChanceMult);
+                float orePerTick = chance * MiningRules.MeanChunkUnits * ship.Stats.LaserChunkSizeMult / MiningRules.ShotInterval * SimClock.TickInterval;
                 float mineTicks = ship.CapacityVolumeFor(GoodForm.Solid) / MathF.Max(0.01f, orePerTick);   // Erz ist fest
                 float basis = cls.MeanBasePrice(u);
                 // Gedränge am Feld mindert den Wert: Jeder weitere Miner teilt sich dieselben Asteroiden und drückt den Preis (Herdenschutz)
@@ -92,6 +99,12 @@ public sealed class MinerSystem : ISimSystem
                 }
             }
         }
+        return (best, bestFieldPos, bestScore);
+    }
+
+    static bool PickOrder(Universe u, Ship ship)
+    {
+        var (best, bestFieldPos, _) = BestMine(u, ship);
         if (best is null) return false;
         long idleBefore = ship.IdleSince;   // ein Liegenbleiber (Stuck) behält seinen Leerlauf-Beginn, sonst wird er nie aufgegeben
         ship.IdleSince = -1;

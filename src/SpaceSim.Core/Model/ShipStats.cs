@@ -91,6 +91,7 @@ public sealed class ShipStats
                 s.LaserChunkSizeMult = m.Stats.TryGetValue("chunkSizeMult", out var csm) ? csm : 1f;
             }
         }
+        s.LaserChunkChanceMult *= cls.ToolEfficiency;   // Phase 6: Rumpf mit geteilter Leistung (Mehrzweck) schwächt den Laser
         s.Hull += cls.BaseHull;
         s.Speed = s.Mass > 0f ? MathF.Min(MaxSpeed, s.Thrust / s.Mass) : 0f;
         return s;

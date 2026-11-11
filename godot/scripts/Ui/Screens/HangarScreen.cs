@@ -46,7 +46,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 		var names = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		names.AddThemeConstantOverride("separation", 2);
 		names.AddChild(Text($"Dein Schiff #{ship.Id.Value}", 22, White));
-		names.AddChild(Text($"Rolle {ship.Role} · Fraktion {FactionName(u, ship.Faction)}", 14, Dim));
+		names.AddChild(Text($"{ModelName(u, ship)} · Güteklasse {ShipQualityNames.Name(ship.Quality)} · Fraktion {FactionName(u, ship.Faction)}", 14, Dim));
 		names.AddChild(Text("AKTIV – von dir gesteuert", 14, Cyan));
 		top.AddChild(names);
 		var sp = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
@@ -75,7 +75,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 		{
 			string model = u.ShipModels.TryGetValue(other.ModelKey, out var mm) ? mm.Name : "ohne Modell";
 			var row = CardBg(inner, 0, y, w - 8, 58, Card, new Color(Edge, 0.6f), 10, 1);
-			At(row, Text($"#{other.Id.Value} · {model}", 17, White), 14, 4, 360, 26);
+			At(row, Text($"#{other.Id.Value} · {model} · {ShipQualityNames.Name(other.Quality)}", 17, White), 14, 4, 420, 26);
 			At(row, Text($"Hülle {(int)other.Hull}/{(int)other.MaxHull} · Fracht {other.UsedVolume(u):0.#}/{other.CargoCapacity:0} m³ · Tank {other.TotalFuel:0}/{other.Stats.FuelCapacity:0}", 13, Dim), 14, 30, 560, 22);
 			var b = At(row, new KitButton("Übernehmen", new Vector2(170, 50)) { FontSize = 16, State = KitButtonState.Ready }, w - 8 - 180, 4);
 			var id = other.Id;
@@ -94,6 +94,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 	/// <summary>Für den Selbsttest: angezeigte eigene geparkte Schiffe.</summary>
 	public int TestParkedRows => _parkedRows;
 
+	static string ModelName(Universe u, Ship s) => u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : "ohne Modell";
 	static string FactionName(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var x) ? x.Name : "?";
 
 	/// <summary>Auftrag des Schiffs als Text (echt aus <see cref="Ship.Order"/>).</summary>

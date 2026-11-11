@@ -170,6 +170,25 @@ public partial class SelfTest : Node
 					var back = _m.HudRef.DockOutfitter.Execute($"fit:{cargoSlot}:cargo_universal_100");
 					Check(back.Success && pl.Stats.Cargo == 100f, "Zurückgetauscht auf Laderaum 100");
 				}
+				{ // Phase 7: Upgrade im Ausrüster (Dienst „upgrade“, nur Offers/Execute): Triebwerk Mk1 → Mk2, Material und Credits verbraucht
+					var st = u.Stations[_m.TestDockedStation!.Value];
+					var pl = _m.Session.Player; _m.Session.U.PlayerWallet.Credits = 100000f;
+					foreach (var k in new[] { "electronics", "titanium" }) st.Stock(u.FindGood(k)!.Id).Amount = System.Math.Max(st.Stock(u.FindGood(k)!.Id).Amount, 5f);
+					int engineSlot = pl.Slots.FindIndex(x => x.Type == "engine");
+					var saved = u.Rules.UpgradeChances;
+					u.Rules.UpgradeChances = new List<float> { 1f };   // sicherer Erfolg für den Test (der Wurf selbst ist in den Core-Tests geprüft)
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Outfitter);
+					_m.HudRef.DockOutfitter.TestSelectSlot(engineSlot);
+					Check(_m.HudRef.DockOutfitter.TestUpgradeRows > 0, $"Ausrüster zeigt Upgrade-Zeilen aus dem Dienst „upgrade“ ({_m.HudRef.DockOutfitter.TestUpgradeRows})");
+					float speed = pl.Stats.Speed, cr = _m.Session.U.PlayerWallet.Credits;
+					float elec = st.Market[u.FindGood("electronics")!.Id].Amount;
+					var up = _m.HudRef.DockOutfitter.ExecuteUpgrade($"module:{engineSlot}");
+					Check(up.Success && up.Units == 1f && pl.Fit[engineSlot] == "chem_engine_s_mk2" && pl.Stats.Speed > speed,
+						$"Upgrade über die Oberfläche: Triebwerk Mk2, Tempo {speed:0.0} → {pl.Stats.Speed:0.0}");
+					Check(_m.Session.U.PlayerWallet.Credits < cr && st.Market[u.FindGood("electronics")!.Id].Amount == elec - 1f, "Upgrade kostet Credits und Material aus dem Stationslager");
+					Check(!_m.HudRef.DockOutfitter.ExecuteUpgrade("module:99").Success, "Unbekanntes Upgrade-Angebot wird abgelehnt");
+					u.Rules.UpgradeChances = saved;
+				}
 				{ // Phase 5c: Werft – Schiff kaufen (Bausatz + Module aus dem Lager), neues Schiff aktiv, altes im Hangar; zurückwechseln
 					var st = u.Stations[_m.TestDockedStation!.Value];
 					var old = _m.Session.Player;
@@ -181,9 +200,16 @@ public partial class SelfTest : Node
 					_m.TestOpenDockArea(Ui.Screens.DockAreas.Shipyard);
 					Check(_m.TestScreenOpen("dock.shipyard"), "Werft-Bereich über das Menü geöffnet");
 					Check(_m.HudRef.DockShipyard.TestRowCount >= 3, $"Werft zeigt Modelle aus IStationService.Offers ({_m.HudRef.DockShipyard.TestRowCount})");
+					// Phase 6: die Werft verkauft alle Klassen, auch das erste Multirole-Modell (Tinker) und die schweren Klassen
+					var yardOffers = _m.Session.Services.ForStation(u, st).First(s => s.Key == "shipdealer").Offers(u, st, old).Select(o => o.Key).ToList();
+					Check(yardOffers.Contains("buy:tinker") && yardOffers.Contains("buy:behemoth") && yardOffers.Contains("buy:rockbreaker"),
+						$"Werft bietet Tinker, Behemoth und Rockbreaker an ({yardOffers.Count} Modelle)");
+					Check(_m.HudRef.DockShipyard.TestRowCount == yardOffers.Count, "Werft zeigt jedes Angebot als Zeile");
 					var buy = _m.HudRef.DockShipyard.Execute("buy:prospector");
 					var now = _m.Session.Player;
 					Check(buy.Success && now.Id != old.Id && now.ModelKey == "prospector", "Schiff über die Werft-Oberfläche gekauft, neues Schiff ist aktiv");
+					Check(System.Enum.IsDefined(now.Quality) && (now.Quality == SpaceSim.Core.Model.ShipQuality.Standard || buy.Message.Contains(SpaceSim.Core.Model.ShipQualityNames.Name(now.Quality))),
+						$"Gekauftes Schiff hat eine Güteklasse ({SpaceSim.Core.Model.ShipQualityNames.Name(now.Quality)}), die Meldung nennt sie");
 					Check(st.Market[kit].Amount == kits - 1f, "Kauf verbraucht einen leichten Bausatz aus dem Werftlager");
 					Check(old.IsPlayer && SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(old), "Altes Schiff bleibt als Spielerbesitz an der Werft");
 					Check(_m.HudRef.DockCtx.Ship == now, "Dock-Kontext zeigt das neue Schiff");
