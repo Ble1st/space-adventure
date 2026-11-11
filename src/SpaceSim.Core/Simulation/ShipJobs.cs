@@ -128,7 +128,7 @@ public static class ShipJobs
     public static float UsedUnits(Universe u, IShipJob job)
     {
         float sum = 0f;
-        foreach (var s in u.Ships.Values.OrderBy(s => s.Id.Value))
+        foreach (var s in u.ShipsById())
             if (s.Role == job.Role && s.Controller == Controller.Ai) sum += UnitsOf(u, s, job);
         return sum;
     }

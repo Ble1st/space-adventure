@@ -198,6 +198,8 @@ public sealed class ExportConfigSave
 {
     public List<int> Goods { get; set; } = new(); public List<string> Categories { get; set; } = new();
     public int? DelayTicks { get; set; } public float? Markup { get; set; } public float Target { get; set; } public float TargetValue { get; set; }
+    /// <summary>Phase 17: Höchstgebot je Exportware (GoodId → × Basispreis); fehlt = Regel (additiv, keine neue Version).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? Bids { get; set; }
 }
 
 /// <summary>Charge einer Exportsenke (Phase 14, v17): Ware, Menge, bezahlter Betrag, Fälligkeit.</summary>

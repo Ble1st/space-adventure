@@ -59,6 +59,15 @@ public static class Maintenance
     public static bool IsPureEntry(Universe u, Station st, GoodId g)
     {
         if (!st.IsStockOnly(g) || !u.Rules.MaintenanceMaterials.ContainsKey(u.Goods[g].Key)) return false;
+        return IsPureTypeEntry(u, st, g);
+    }
+
+    /// <summary>
+    /// Phase 17: der Typ-Teil von <see cref="IsPureEntry"/> (keine Exportware, kein Typ-Lagerposten) — für Aufrufer, die schon wissen, dass der Eintrag
+    /// ein Lager ohne Rezept ist und die Ware ein Instandhaltungsmaterial (Markt-Takt über die aufgelösten Instandhaltungswaren).
+    /// </summary>
+    public static bool IsPureTypeEntry(Universe u, Station st, GoodId g)
+    {
         if (!u.StationTypes.TryGetValue(st.TypeKey, out var t)) return false;
         if (t.Export is { } x && x.Goods.Contains(g)) return false;
         foreach (var stock in t.Stocks) if (stock.Good == g) return false;
@@ -90,7 +99,7 @@ public sealed class MaintenanceSystem : ISimSystem
         var paid = new SortedDictionary<int, (float Paid, float Unpaid)>();
         bool touched = false;
         float day = MathF.Max(1f, u.Rules.DayTicks);
-        foreach (var st in u.Stations.Values.OrderBy(s => s.Id.Value).ToList())
+        foreach (var st in u.StationsById().ToList())
         {
             if (!Maintenance.Applies(u, st) || u.FactionOf(st) is not { } faction) continue;
             var type = u.StationTypes[st.TypeKey];
@@ -140,7 +149,7 @@ public sealed class SubsidySystem : ISimSystem
     {
         if (u.Rules.SubsidyPerDay <= 0f || u.Rules.SubsidyFloorShare <= 0f) return;
         float cap = u.Rules.SubsidyPerDay * dt / MathF.Max(1f, u.Rules.DayTicks);
-        var stations = u.Stations.Values.Where(s => !s.IsBuildSite && s.Market.Count > 0).OrderBy(s => s.Id.Value).ToList();
+        var stations = u.StationsById().Where(s => !s.IsBuildSite && s.Market.Count > 0).ToList();
         foreach (var f in u.Factions.Keys.OrderBy(k => k.Value))
         {
             if (!u.Actors.TryGetValue(f, out var actor)) continue;

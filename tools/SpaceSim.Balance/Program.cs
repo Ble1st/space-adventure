@@ -25,7 +25,14 @@ var u = WorldBuilder.Build(worldDef, seed);
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
-var runner = new SimulationRunner(SimulationRunner.DefaultModules().Select(m => m is SpaceSim.Core.Modules.SecurityModule ? new TimedModule(m, securityWatch) : m));
+// Phase 17: Rechenzeit je System (jedes System eines Moduls bekommt eine eigene Stoppuhr; die Sicherheits-Systeme laufen zusätzlich auf der Sammeluhr)
+var systemWatches = new List<(string Name, System.Diagnostics.Stopwatch Watch)>();
+// --systemtime off: ohne die Uhren je System (nur die Sammeluhr der Sicherheit wie vor Phase 17) — zum Prüfen des Messaufwands
+bool perSystem = !(opts.TryGetValue("systemtime", out var stOpt) && stOpt == "off");
+var runner = new SimulationRunner(SimulationRunner.DefaultModules().Select(m =>
+    perSystem ? new TimedModule(m, m is SpaceSim.Core.Modules.SecurityModule ? securityWatch : null, systemWatches)
+    : m is SpaceSim.Core.Modules.SecurityModule ? new TimedModule(m, securityWatch, null) : m));
+var probeWatch = new System.Diagnostics.Stopwatch();   // Phase 17: Messaufwand des Tools selbst (MarketWatch-Probe, Kapazität, Exportkassen)
 var routes = new RouteRecorder(u);
 // Phase 15: Deckel-, Kassen- und Fahrtenmessung je Station/Ware (alle 20 Ticks, nach dem Einschwingen = erste 10 % der Laufzeit)
 var watch = new MarketWatch(u);
@@ -210,12 +217,14 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             done += step;
             if (u.Tick >= watchFrom && u.Tick % WatchEvery == 0)
             {
+                probeWatch.Start();
                 watch.Sample(u);
                 if (u.Tick % 200 == 0)
                     foreach (var j in ShipJobs.Default) capMax[j.Key] = MathF.Max(capMax.GetValueOrDefault(j.Key), ShipJobs.UsedUnits(u, j));
                 foreach (var xs in u.Stations.Values)
                     if (ExportRules.ConfigOf(u, xs) is not null)
                         exportCashMin[xs.Id.Value] = MathF.Min(exportCashMin.GetValueOrDefault(xs.Id.Value, float.MaxValue), xs.Credits);
+                probeWatch.Stop();
             }
         }
     var snap = EconomyStats.Snapshot(u);
@@ -251,7 +260,15 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
 sw.Stop();
 
 Console.WriteLine();
-Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.Max(1.0, sw.ElapsedMilliseconds):0.0} Ticks/ms), Hash {UniverseHash.Compute(u):X16}");
+Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.Max(1.0, sw.ElapsedMilliseconds):0.0} Ticks/ms, {sw.Elapsed.TotalMilliseconds / Math.Max(1, ticks):0.000} ms/Tick), Hash {UniverseHash.Compute(u):X16}");
+// Phase 17: Rechenzeit je System (Top 5 in % der Laufzeit; der Rest ist Ereignisauswertung, Messpunkte und Messaufwand des Tools)
+{
+    double total = Math.Max(1.0, sw.Elapsed.TotalMilliseconds);
+    var bySystem = systemWatches.GroupBy(x => x.Name).Select(g => (Name: g.Key, Ms: g.Sum(x => x.Watch.Elapsed.TotalMilliseconds))).OrderByDescending(x => x.Ms).ToList();
+    double simMs = bySystem.Sum(x => x.Ms);
+    if (perSystem) Console.WriteLine("Rechenzeit je System (Top 5): " + string.Join(", ", bySystem.Take(5).Select(x => $"{x.Name} {100 * x.Ms / total:0.0}%"))
+        + $"; alle Systeme {100 * simMs / total:0.0}%, Messprobe des Tools {100 * probeWatch.Elapsed.TotalMilliseconds / total:0.0}%");
+}
 var prop = u.FindGood("propellant");
 if (prop is not null && u.Rules.FuelActive)
 {
@@ -398,7 +415,10 @@ if (opts.TryGetValue("dump", out var dumpOpt) && dumpOpt == "on")
             .Select(kv => $"{u.Goods[kv.Key].Key} {kv.Value.Amount:0}/{kv.Value.Target:0}@{kv.Value.Price / MathF.Max(0.01f, u.Goods[kv.Key].BasePrice):0.00}")));
 
 // Phase 15: HINWEIS-Block — Dauerzustände, die der Durchschnitt wegmittelt (Deckel je Station und Ware, gehandelte Waren ohne Fahrten, leere Kassen)
-var capHints = watch.CapHints(u);
+// Phase 17: Exportsenken mit leerem Lager am Gebotsdeckel sind unbefriedigte Exportnachfrage (kein Fehler) — eigene Rubrik, zählt nicht als Hinweis
+var allCapHints = watch.CapHints(u);
+var exportDemand = allCapHints.Where(h => MarketWatch.IsExportDemand(u, h)).ToList();
+var capHints = allCapHints.Where(h => !MarketWatch.IsExportDemand(u, h)).ToList();
 var idleGoods = watch.IdleGoods(u);
 var cashHints = watch.CashHints(u);
 Console.WriteLine($"Deckel/Kassen-Messung: {watch.Samples} Messpunkte ab Tick {watchFrom} (alle {WatchEvery} Ticks)");
@@ -409,6 +429,12 @@ foreach (var key in new[] { "reactor_mk1", "chem_engine_s" })
             var (up, low) = watch.Share(yard.Id, mg.Id);
             Console.WriteLine($"  {yard.Name}: {mg.Name} {100 * up:0}% am oberen Deckel, {100 * low:0}% am unteren");
         }
+// Phase 17: Anteil der Messzeit, in dem jede Exportsenke je Exportware leer am Gebotsdeckel stand (Ziel: unter 50 %)
+foreach (var ex in u.Stations.Values.Where(x => ExportRules.ConfigOf(u, x) is not null).OrderBy(x => x.Id.Value))
+    Console.WriteLine($"  Exportsenke {ex.Name}: leer am Gebotsdeckel " + string.Join(", ", ExportRules.ConfigOf(u, ex)!.Goods.Select(g => $"{u.Goods[g].Name} {100 * watch.Share(ex.Id, g).Upper:0}%"))
+        + " | Gebot " + string.Join(", ", ExportRules.ConfigOf(u, ex)!.Goods.Select(g => $"{u.Goods[g].Name} {ExportRules.ConfigOf(u, ex)!.BidOf(g, u.Rules):0.00}×")));
+foreach (var h in exportDemand)
+    Console.WriteLine($"EXPORTNACHFRAGE: {u.Stations[h.Station].Name}: {u.Goods[h.Good].Name} {100 * h.UpperShare:0}% der Messzeit leer am Gebotsdeckel — unbefriedigte Exportnachfrage, kein Fehler (Ø {h.AvgRatio:0.00}×)");
 foreach (var h in capHints)
     Console.WriteLine($"HINWEIS: {u.Stations[h.Station].Name}: {u.Goods[h.Good].Name} {(h.UpperShare >= h.LowerShare ? $"{100 * h.UpperShare:0}% der Messzeit am oberen Deckel (Bestand leer)" : $"{100 * h.LowerShare:0}% der Messzeit am unteren Deckel")} (Ø {h.AvgRatio:0.00}×)");
 foreach (var g in idleGoods)
@@ -462,19 +488,32 @@ static Dictionary<string, string> ParseArgs(string[] a)
 }
 static int Int(Dictionary<string, string> d, string k, int def) => d.TryGetValue(k, out var v) ? int.Parse(v) : def;
 
-/// <summary>Hüllt die Systeme eines Moduls in eine gemeinsame Zeitmessung (Phase 11: Rechenzeit der Scans).</summary>
-sealed class TimedModule(ISimModule inner, System.Diagnostics.Stopwatch watch) : ISimModule
+/// <summary>
+/// Hüllt die Systeme eines Moduls in Zeitmessungen: eine eigene Uhr je System (Phase 17: Rechenzeit je System) und optional eine gemeinsame
+/// Sammeluhr (Phase 11: Rechenzeit der Sicherheits-Scans). Reihenfolge und Intervalle bleiben unverändert.
+/// </summary>
+sealed class TimedModule(ISimModule inner, System.Diagnostics.Stopwatch? group, List<(string Name, System.Diagnostics.Stopwatch Watch)>? perSystem) : ISimModule
 {
     public string Name => inner.Name;
     public void Register(SimulationBuilder b)
     {
         var tmp = new SimulationBuilder();
         inner.Register(tmp);
-        foreach (var (system, interval) in tmp.Registered) b.Add(new Timed(system, watch), interval);
+        foreach (var (system, interval) in tmp.Registered)
+        {
+            System.Diagnostics.Stopwatch? own = null;
+            if (perSystem is not null) { own = new System.Diagnostics.Stopwatch(); perSystem.Add((system.GetType().Name, own)); }
+            b.Add(new Timed(system, own, group), interval);
+        }
     }
 
-    sealed class Timed(ISimSystem system, System.Diagnostics.Stopwatch watch) : ISimSystem
+    sealed class Timed(ISimSystem system, System.Diagnostics.Stopwatch? own, System.Diagnostics.Stopwatch? group) : ISimSystem
     {
-        public void Step(Universe u, int dt) { watch.Start(); system.Step(u, dt); watch.Stop(); }
+        public void Step(Universe u, int dt)
+        {
+            own?.Start(); group?.Start();
+            system.Step(u, dt);
+            group?.Stop(); own?.Stop();
+        }
     }
 }

@@ -21,7 +21,7 @@ public sealed class PirateSystem : ISimSystem
     {
         if (!u.Rules.SecurityActive) return;
         ResolvePending(u);
-        foreach (var raider in u.Ships.Values.Where(ThreatMap.IsRaider).OrderBy(s => s.Id.Value).ToList())
+        foreach (var raider in u.ShipsById().Where(ThreatMap.IsRaider).ToList())
             if (u.Ships.ContainsKey(raider.Id)) StepRaider(u, raider, dt);
         if (u.Tick % BookingTicks < dt) Book(u, BookingTicks);
     }
@@ -53,7 +53,7 @@ public sealed class PirateSystem : ISimSystem
     static Station? Home(Universe u, Ship s)
     {
         if (u.Stations.TryGetValue(s.HomeBase, out var h)) return h;
-        var hideout = u.Stations.Values.Where(st => st.Owner == s.Owner && IsHideout(u, st)).OrderBy(st => st.Id.Value).FirstOrDefault();
+        var hideout = u.StationsById().Where(st => st.Owner == s.Owner && IsHideout(u, st)).FirstOrDefault();
         if (hideout is not null) s.HomeBase = hideout.Id;
         return hideout;
     }
@@ -362,7 +362,7 @@ public sealed class PirateSystem : ISimSystem
                 a.Treasury.Credits -= paid;
                 u.Events.Publish(new TreasuryUpkeep(a.Id, "pirates", paid, upkeep - paid));
             }
-            var hideout = u.Stations.Values.Where(st => st.Owner == a.Id && IsHideout(u, st)).OrderBy(st => st.Id.Value).FirstOrDefault();
+            var hideout = u.StationsById().Where(st => st.Owner == a.Id && IsHideout(u, st)).FirstOrDefault();
             // Phase 13 (Korrektur): eine ausgelöschte Flotte fängt neu an — kleine Einnahme aus dem Versteck und halber Preis für das erste Kaperschiff
             if (hideout is not null && raiders.Count == 0 && r.PirateIdleIncomePerTick > 0f)
             {

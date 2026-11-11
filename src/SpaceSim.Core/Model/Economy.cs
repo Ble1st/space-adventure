@@ -175,9 +175,12 @@ public sealed class Station
     /// Eine volle Station kauft nicht mehr – sonst würde Beifang einer Erzmischung ewig auf Halde landen.
     /// </summary>
     public float AcceptableUnits(GoodId good, EconomyRules rules) =>
-        !Market.TryGetValue(good, out var e) ? 0f
+        !Market.TryGetValue(good, out var e) ? 0f : AcceptableUnits(e, rules);
+
+    /// <summary>Wie <see cref="AcceptableUnits(GoodId, EconomyRules)"/> für einen schon nachgeschlagenen Markteintrag dieser Station (Phase 17: spart die Suche).</summary>
+    public float AcceptableUnits(StockEntry e, EconomyRules rules) =>
         // Phase 8: Eine Baustelle nimmt genau das noch fehlende Material an (verlangt − geliefert); verlassene Baustellen nichts mehr
-        : Site is { } site ? (site.Abandoned ? 0f : MathF.Max(0f, e.Target - e.Amount))
+        Site is { } site ? (site.Abandoned ? 0f : MathF.Max(0f, e.Target - e.Amount))
         : e.NoIntake ? 0f
         : MathF.Max(0f, e.Target * (e.Overstock > 0f ? e.Overstock : rules.OverstockFactor) - e.Amount);
 
@@ -186,26 +189,71 @@ public sealed class Station
     /// erzeugt sie (z. B. Module im Werftlager). KI-Händler beliefern solche Lager, kaufen dort aber nicht ein — sonst pendelt die Ware
     /// zwischen Lager und Fabrik (die Fabrik kauft ihr leeres Produkt teuer zurück). Spieler und spätere Dienste dürfen dort kaufen.
     /// </summary>
-    public bool IsStockOnly(GoodId good)
-    {
-        if (!Market.ContainsKey(good)) return false;
-        foreach (var r in Production)
-            if (r.Inputs.ContainsKey(good) || r.Outputs.ContainsKey(good)) return false;
-        return true;
-    }
+    public bool IsStockOnly(GoodId good) => Market.ContainsKey(good) && RoleOf(good) == 0;
 
     /// <summary>Phase 15: Verbraucht ein Rezept der Station diese Ware?</summary>
-    public bool Consumes(GoodId good)
-    {
-        foreach (var r in Production) if (r.Inputs.ContainsKey(good)) return true;
-        return false;
-    }
+    public bool Consumes(GoodId good) => (RoleOf(good) & RoleInput) != 0;
 
     /// <summary>Phase 14: Stellt eine Rezeptzeile der Station diese Ware her? KI-Händler kaufen nur beim Hersteller ein.</summary>
-    public bool Produces(GoodId good)
+    public bool Produces(GoodId good) => (RoleOf(good) & RoleOutput) != 0;
+
+    /// <summary>Bits von <see cref="RoleOf"/>: Zutat eines Rezepts bzw. Produkt eines Rezepts.</summary>
+    public const byte RoleInput = 1, RoleOutput = 2;
+
+    // Phase 17 (Leistung): Rolle je Ware über alle Rezepte (Zutat/Produkt), einmal aufgebaut statt bei jeder Abfrage alle Rezepte zu durchsuchen.
+    // Rezepte werden zur Laufzeit nur als Ganzes angehängt, entfernt oder ausgetauscht (Fabrik, Bauabschluss = neue Station, Laden, Tests), nie in ihren
+    // Zutaten/Produkten verändert. Gültig daher, solange es dieselbe Liste mit derselben Länge und demselben ersten und letzten Rezept ist (O(1)-Prüfung
+    // bei jeder Abfrage).
+    byte[] _roles = Array.Empty<byte>();
+    List<Recipe>? _rolesList;
+    int _rolesCount = -1;
+    Recipe? _rolesFirst, _rolesLast;
+
+    /// <summary>Rolle der Ware in den Rezepten der Station: 0 = keine, <see cref="RoleInput"/>, <see cref="RoleOutput"/> (oder beides).</summary>
+    public byte RoleOf(GoodId good) => RoleIn(Roles(), good);
+
+    /// <summary>
+    /// Rollen aller Waren (Index = <see cref="GoodId.Value"/>, siehe <see cref="RoleIn"/>), einmal geprüft — für Schleifen über viele Waren einer Station.
+    /// Das Feld gilt nur, solange die Rezepte der Station nicht geändert werden.
+    /// </summary>
+    public byte[] Roles()
     {
-        foreach (var r in Production) if (r.Outputs.ContainsKey(good)) return true;
-        return false;
+        if (!RolesValid()) RebuildRoles();
+        return _roles;
+    }
+
+    /// <summary>Rolle einer Ware in einem Feld aus <see cref="Roles"/>.</summary>
+    public static byte RoleIn(byte[] roles, GoodId good)
+    {
+        int i = good.Value;
+        return (uint)i < (uint)roles.Length ? roles[i] : (byte)0;
+    }
+
+    bool RolesValid()
+    {
+        var list = Production;
+        int n = list.Count;
+        return ReferenceEquals(list, _rolesList) && n == _rolesCount
+            && (n == 0 || (ReferenceEquals(list[0], _rolesFirst) && ReferenceEquals(list[n - 1], _rolesLast)));
+    }
+
+    void RebuildRoles()
+    {
+        int max = 0;
+        foreach (var r in Production)
+        {
+            foreach (var g in r.Inputs.Keys) max = Math.Max(max, g.Value);
+            foreach (var g in r.Outputs.Keys) max = Math.Max(max, g.Value);
+        }
+        var roles = new byte[max + 1];
+        foreach (var r in Production)
+        {
+            foreach (var g in r.Inputs.Keys) if (g.Value >= 0) roles[g.Value] |= RoleInput;
+            foreach (var g in r.Outputs.Keys) if (g.Value >= 0) roles[g.Value] |= RoleOutput;
+        }
+        int n = Production.Count;
+        _roles = roles; _rolesList = Production; _rolesCount = n;
+        _rolesFirst = n > 0 ? Production[0] : null; _rolesLast = n > 0 ? Production[n - 1] : null;
     }
 
     public StockEntry Stock(GoodId good)

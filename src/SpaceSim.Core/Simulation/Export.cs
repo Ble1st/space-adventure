@@ -55,13 +55,13 @@ public static class ExportRules
         return n;
     }
 
-    /// <summary>Höchstes Gebot für Exportwaren: Basispreis × <see cref="EconomyRules.ExportMaxBidFactor"/> (nach dem Markt angewandt).</summary>
+    /// <summary>Höchstes Gebot für Exportwaren: Basispreis × <see cref="ExportConfig.BidOf"/> (Phase 17 je Ware, sonst <see cref="EconomyRules.ExportMaxBidFactor"/>; nach dem Markt angewandt).</summary>
     public static void CapBids(Universe u, Station st, ExportConfig cfg)
     {
         foreach (var g in cfg.Goods)
             if (st.Market.TryGetValue(g, out var e))
             {
-                e.Price = MathF.Min(e.Price, u.Goods[g].BasePrice * u.Rules.ExportMaxBidFactor);
+                e.Price = MathF.Min(e.Price, u.Goods[g].BasePrice * cfg.BidOf(g, u.Rules));
                 e.Overstock = 0f;   // Phase 15: Exportwaren nehmen bis zum Überhang an (wartende Chargen zählen zum Bestand), nicht nur bis zum Regal-Deckel
             }
     }
@@ -83,7 +83,7 @@ public sealed class ExportSystem : ISimSystem
         if (!ReferenceEquals(_for, u) || _version != u.StructureVersion)
         {
             _stations.Clear();
-            _stations.AddRange(u.Stations.Values.Where(s => u.StationTypes.TryGetValue(s.TypeKey, out var t) && t.Export is not null).OrderBy(s => s.Id.Value));
+            _stations.AddRange(u.StationsById().Where(s => u.StationTypes.TryGetValue(s.TypeKey, out var t) && t.Export is not null));
             _version = u.StructureVersion;
             _for = u;
         }

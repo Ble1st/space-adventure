@@ -36,14 +36,18 @@ public sealed class TradeService : IStationService
             if (entry.Price <= 0f) continue;
             string name = u.Goods[good].Name;
             float held = ship.Cargo.GetValueOrDefault(good);
-            // Phase 16: Annahmestatus (Menge und Grund) — dieselbe Regel wie der Verkauf
+            // Phase 16: Annahmestatus (Menge und Grund) — dieselbe Regel wie der Verkauf. Phase 17: Angebotsmenge = was „Verkaufen“ der ganzen Ladung
+            // bewegen würde (TradeActions.SaleUnits: alles, wenn die Station alles nimmt, auch einen Bruchteil; sonst ganze Einheiten) — Menge > 0 ⇔ Execute gelingt
             var intake = MarketInfo.Acceptance(u, station, good);
-            float sellable = MathF.Min(held, intake.Units);
+            float sellable = intake.SellableFrom(held);
             offers.Add(new ServiceOffer($"{Buy}:{good.Value}", ExportRules.Buys(u, station, good) ? $"Nur Ankauf (Export): {name}" : $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held));
             offers.Add(new ServiceOffer($"{Sell}:{good.Value}", $"Verkaufen: {name}", entry.Price, sellable, good, entry.Amount, held, held > 0f ? intake.NoteFor(held) : intake.Accepts ? null : intake.Reason));
         }
+        // Phase 17: Menge = was „Alles verkaufen“ bewegen würde (gleiche Regel wie SellAll), nicht die ganze Fracht — Menge > 0 ⇔ Execute gelingt
+        var (allUnits, allRevenue) = TradeActions.Sellable(u, ship, station);
         float cargo = ship.Cargo.Values.Sum();
-        offers.Add(new ServiceOffer(SellAll, "Alles verkaufen", TradeActions.Quote(u, ship, station), cargo, default, 0f, 0f));
+        offers.Add(new ServiceOffer(SellAll, "Alles verkaufen", allRevenue, allUnits, default, 0f, 0f,
+            cargo > 0f && allUnits <= 0f ? "Station nimmt nichts von der Fracht an" : null));
         return offers;
     }
 
@@ -80,8 +84,10 @@ public sealed class TradeService : IStationService
             {
                 var r = TradeActions.SellAll(u, ship, station);
                 float units = r.Sold.Values.Sum();
-                if (r.Revenue > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, SellAll, default, units, r.Revenue));
-                return new ServiceResult(r.Revenue > 0f, units, r.Revenue, r.Revenue > 0f ? "Alles verkauft" : "Nichts zu verkaufen");
+                if (units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, SellAll, default, units, r.Revenue));
+                string msg = units <= 0f ? (ship.Cargo.Values.Sum() > 0f ? "Station nimmt nichts von der Fracht an" : "Nichts zu verkaufen")
+                    : r.Unsold > 0.0001f ? "Verkauft, Rest bleibt an Bord" : "Alles verkauft";
+                return new ServiceResult(units > 0f, units, r.Revenue, msg);
             }
             default:
                 return new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{request.Offer}'.");
@@ -118,9 +124,10 @@ public sealed class TradeService : IStationService
     /// <remarks>Phase 16: derselbe Grund wie im Angebot (<see cref="MarketInfo.Acceptance"/>).</remarks>
     static string SellFailure(Universe u, Station station, Ship ship, GoodId good)
     {
-        if (ship.Cargo.GetValueOrDefault(good) <= 0f) return "Nichts an Bord";
+        float held = ship.Cargo.GetValueOrDefault(good);
+        if (held <= 0f) return "Nichts an Bord";
         var intake = MarketInfo.Acceptance(u, station, good);
-        return intake.Reason ?? "Station kann nichts mehr abnehmen oder bezahlen";
+        return intake.NoteFor(held) ?? intake.Reason ?? "Station kann nichts mehr abnehmen oder bezahlen";
     }
 
     static string OutcomeText(BuyOutcome o) => o switch

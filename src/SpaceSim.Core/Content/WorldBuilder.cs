@@ -391,6 +391,23 @@ public static class WorldBuilder
             cfg.Goods.Add(g);
             if (!type.Stocks.Any(s => s.Good == g)) type.Stocks.Add(new StationStock(g, 0f, cfg.TargetFor(u.Goods[g])));
         }
+        // Phase 17: Höchstgebot je Ware oder Kategorie (Ware gewinnt über Kategorie); nur Exportwaren dieser Senke, Faktor in (0, 4]
+        if (ex.Bids is { } bids)
+        {
+            foreach (var (key, f) in bids.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+            {
+                if (!(f > 0f && f <= 4f)) throw new WorldFormatException($"{who}.bids['{key}'] muss in (0, 4] liegen");
+                bool isGood = u.FindGood(key) is { } kg && cfg.Goods.Contains(kg.Id);
+                bool isCategory = cfg.Goods.Any(g => u.Goods[g].Category == key);
+                if (!isGood && !isCategory) throw new WorldFormatException($"{who}.bids: '{key}' ist weder eine Exportware noch eine Kategorie der Senke");
+            }
+            foreach (var g in cfg.Goods)
+            {
+                var good = u.Goods[g];
+                if (bids.TryGetValue(good.Key, out var byGood)) cfg.Bids[g] = byGood;
+                else if (bids.TryGetValue(good.Category, out var byCat)) cfg.Bids[g] = byCat;
+            }
+        }
         return cfg;
     }
 

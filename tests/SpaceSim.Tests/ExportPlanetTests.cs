@@ -107,7 +107,8 @@ public class ExportPlanetTests
         var lux = G(u, "luxury_goods");
         player.Cargo[lux] = 3f;
         float wallet = u.PlayerWallet.Credits, stationBefore = st.Credits, price = st.Market[lux].Price;
-        Assert.True(price > 0f && price <= u.Goods[lux].BasePrice * u.Rules.ExportMaxBidFactor + 0.01f);   // Gebotsdeckel
+        // Gebotsdeckel (Phase 17: je Ware aus export.bids, Luxusgüter 1,25×; sonst die Regel)
+        Assert.True(price > 0f && price <= u.Goods[lux].BasePrice * ExportRules.ConfigOf(u, st)!.BidOf(lux, u.Rules) + 0.01f);
         var queued = new List<ExportQueued>();
         var exported = new List<GoodsExported>();
         u.Events.Raised += e => { if (e is ExportQueued q) queued.Add(q); else if (e is GoodsExported x) exported.Add(x); };

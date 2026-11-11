@@ -17,7 +17,7 @@ public sealed class UpgradeSystem : ISimSystem
     public void Step(Universe u, int dt)
     {
         var rules = u.Rules;
-        foreach (var ship in u.Ships.Values.OrderBy(s => s.Id.Value).ToList())
+        foreach (var ship in u.ShipsById())   // Schnappschuss nach Id (Phase 17: zwischengespeichert)
         {
             if (!ship.IsEconomyAi || !ship.HasModel || ship.Transit is not null || ship.Order is not null) continue;
             if (ship.Credits < rules.UpgradeMinCredits) continue;

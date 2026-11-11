@@ -15,11 +15,11 @@ public static class PlayerFleet
     public const float ParkedRadius = Universe.DockRadius;
 
     /// <summary>Alle Spielerschiffe, nach Id.</summary>
-    public static IReadOnlyList<Ship> Owned(Universe u) => u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value).ToList();
+    public static IReadOnlyList<Ship> Owned(Universe u) => u.ShipsById().Where(s => s.IsPlayer).ToList();
 
     /// <summary>Eigene, nicht aktive Schiffe, die an dieser Station angedockt liegen.</summary>
     public static IReadOnlyList<Ship> ParkedAt(Universe u, Station st) =>
-        u.Ships.Values.Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Transit is null && s.DockedAt == st.Id).OrderBy(s => s.Id.Value).ToList();
+        u.ShipsById().Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Transit is null && s.DockedAt == st.Id).ToList();
 
     /// <summary>
     /// Macht ein eigenes, an dieser Station angedocktes Schiff zum aktiven Schiff. Das bisherige aktive Schiff (angedockt an derselben Station, das

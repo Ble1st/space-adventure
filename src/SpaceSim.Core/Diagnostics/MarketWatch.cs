@@ -100,7 +100,7 @@ public sealed class MarketWatch
     /// </summary>
     public static float UpperCap(Universe u, Station st, GoodId g)
     {
-        if (ExportRules.Buys(u, st, g)) return MathF.Min(4f, u.Rules.ExportMaxBidFactor);
+        if (ExportRules.ConfigOf(u, st) is { } ex && ex.Goods.Contains(g)) return MathF.Min(4f, ex.BidOf(g, u.Rules));   // Phase 17: Gebot je Ware
         if (MarketSystem.IsFinalConsumer(st) && st.Production.Any(r => r.Inputs.ContainsKey(g))) return MathF.Min(4f, u.Rules.ConsumerMaxBidFactor);
         if (u.Rules.ResearchActive && u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.Research is not null && st.IsStockOnly(g)) return MathF.Min(4f, u.Rules.ResearchMaxBidFactor);
         return 4f;
@@ -112,6 +112,13 @@ public sealed class MarketWatch
             .OrderBy(kv => kv.Key.Item1.Value).ThenBy(kv => kv.Key.Item2.Value)
             .Select(kv => new CapHint(kv.Key.Item1, kv.Key.Item2, (float)kv.Value.Up / kv.Value.N, (float)kv.Value.Low / kv.Value.N, (float)(kv.Value.Sum / kv.Value.N)))
             .ToList();
+
+    /// <summary>
+    /// Phase 17: Ist der Deckel-Hinweis eine unbefriedigte Exportnachfrage (Exportsenke mit leerem Lager am Gebotsdeckel)? Das ist kein Fehler der Wirtschaft:
+    /// Die Senke nimmt jede Menge, die übrig ist; leer heißt nur, dass gerade nichts übrig ist. Das Werkzeug führt solche Einträge in einer eigenen Rubrik.
+    /// </summary>
+    public static bool IsExportDemand(Universe u, CapHint h) =>
+        h.UpperShare >= h.LowerShare && u.Stations.TryGetValue(h.Station, out var st) && ExportRules.Buys(u, st, h.Good);
 
     /// <summary>Anteil der Messpunkte am oberen/unteren Deckel für einen Eintrag (0, wenn nie gemessen).</summary>
     public (float Upper, float Lower) Share(StationId station, GoodId good) =>
