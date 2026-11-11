@@ -107,19 +107,27 @@ public sealed partial class SectorScreen : CommandScreen
 		{
 			var target = u.Sectors[u.Gates[g.Target].Sector];
 			At(card, Text($"Gate → {target.Name}", 21, Cyan), 16, 10, 268, 28);
-			At(card, Text(g.Open ? "offen" : "gesperrt", 15, g.Open ? Green : Red), 16, 42, 268, 20);
-			At(card, Text($"Sprung von {s.Name} nach {target.Name}", 14, White), 16, 68, 268, 20);
-			At(card, Text("„Autopilot hierhin“ fliegt zum Gate.", 13, new Color(Dim, 0.75f)), 16, 94, 268, 18);
+			// Phase 10: Zustand und Urteil des Kontrollpunkts für dich (echt aus AccessInfo)
+			var gp = AccessInfo.ForGate(u, g, u.Ships[u.PlayerShip]);
+			Color gc = gp.Denied || !g.Open ? Red : gp.Toll > 0f ? Orange : Green;
+			At(card, Text($"Zustand: {gp.State}", 15, gc), 16, 42, 268, 20);
+			WrappedText(card, gp.Verdict, 16, 66, 268, 13, gc, 16);
+			At(card, Text($"Sprung von {s.Name} nach {target.Name}", 14, White), 16, 104, 268, 20);
+			At(card, Text("„Autopilot hierhin“ fliegt zum Gate.", 13, new Color(Dim, 0.75f)), 16, 128, 268, 18);
 		}
 		else
 		{
 			int npcs = UniverseScreen.ShipCountOf(u, sel);
 			At(card, Text(s.Name, 21, Cyan), 16, 10, 268, 28);
-			At(card, Text($"Besitzer: {FactionName(u, s.Owner)}", 14, MapOverlay.FactionColor(s.Owner)), 16, 40, 268, 20);
-			At(card, Text($"{s.Stations.Count} Stationen · {s.Fields.Count} Gürtel · {s.Gates.Count} Gate{(s.Gates.Count == 1 ? "" : "s")}", 14, White), 16, 66, 268, 20);
-			At(card, Text($"{npcs} fremde Schiffe im Sektor", 14, White), 16, 90, 268, 20);
-			At(card, Text($"Sicherheit: {UiPlaceholders.SecurityText} {UiPlaceholders.Tag}", 13, new Color(Dim, 0.75f)), 16, 114, 268, 20);
-			At(card, Text("Tippe eine Station oder ein Gate an.", 13, new Color(Dim, 0.75f)), 16, 140, 268, 18);
+			var pol = AccessInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
+			At(card, Text($"Besitzer: {pol.Owner} · {pol.Stage}", 14, MapOverlay.FactionColor(s.Owner)), 16, 40, 268, 20);
+			At(card, Text($"{s.Stations.Count} Stationen · {s.Fields.Count} Gürtel · {s.Gates.Count} Gate{(s.Gates.Count == 1 ? "" : "s")}", 14, White), 16, 64, 268, 20);
+			At(card, Text($"{npcs} fremde Schiffe im Sektor", 14, White), 16, 86, 268, 20);
+			// Phase 10: Sperrstufe statt Platzhalter-Sicherheit
+			Color lc = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
+			float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, 110, 268, 13, lc, 16);
+			py = WrappedText(card, $"Für dich: {pol.ForPlayer}", 16, py, 268, 13, lc, 16);
+			At(card, Text("Tippe eine Station oder ein Gate an.", 13, new Color(Dim, 0.75f)), 16, py + 8, 268, 18);
 		}
 
 		// Knöpfe unten: „Autopilot hierhin“ (echt, nur aktueller Sektor bzw. über Route) und „Info“
@@ -134,23 +142,26 @@ public sealed partial class SectorScreen : CommandScreen
 		bBack.Pressed += () => RaiseAreaSelected(CommandAreas.Universe);
 	}
 
-	/// <summary>Ist „Autopilot hierhin“ möglich und wohin? Echt über <see cref="Navigator"/>/<see cref="Universe.FindRoute"/>.</summary>
+	/// <summary>Phase 10: Mobilitätsprofil des Spielerschiffs (Routen respektieren Sperren).</summary>
+	static MobilityProfile PlayerProfile(Universe u) => GateAccess.ProfileOf(u, u.Ships[u.PlayerShip]);
+
+	/// <summary>Ist „Autopilot hierhin“ möglich und wohin? Echt über <see cref="Navigator"/>/<see cref="Universe.FindRoute"/> mit deinem Profil.</summary>
 	bool CanAutopilot(Universe u, SectorId sel, out NavTarget nav, out StationId? dock)
 	{
 		nav = default; dock = null;
 		if (_selStation is { } sid && u.Stations.TryGetValue(sid, out var st))
 		{
-			if (st.Sector != u.PlayerSector) { if (!u.IsReachable(u.PlayerSector, st.Sector)) return false; nav = Navigator.ForSector(u, st.Sector, u.PlayerShip); return true; }
+			if (st.Sector != u.PlayerSector) { if (!u.IsReachable(u.PlayerSector, st.Sector, PlayerProfile(u))) return false; nav = Navigator.ForSector(u, st.Sector, u.PlayerShip); return true; }
 			nav = Navigator.ForStation(u, sid, u.PlayerShip); dock = sid; return true;
 		}
 		if (_selGate is { } gid && u.Gates.TryGetValue(gid, out var g))
 		{
 			var target = u.Gates[g.Target].Sector;
-			if (sel != u.PlayerSector && !u.IsReachable(u.PlayerSector, sel)) return false;
+			if (sel != u.PlayerSector && !u.IsReachable(u.PlayerSector, sel, PlayerProfile(u))) return false;
 			nav = Navigator.ForSector(u, target, u.PlayerShip); return true;
 		}
 		if (sel == u.PlayerSector) return false;   // nichts angetippt
-		if (!u.IsReachable(u.PlayerSector, sel)) return false;
+		if (!u.IsReachable(u.PlayerSector, sel, PlayerProfile(u))) return false;
 		nav = Navigator.ForSector(u, sel, u.PlayerShip); return true;
 	}
 
@@ -251,8 +262,11 @@ public sealed partial class SectorScreen : CommandScreen
 				var gp = Place(g.Position);
 				var target = _u.Sectors[_u.Gates[g.Target].Sector];
 				DrawCircle(gp, 13f, PanelSolid);
-				DrawArc(gp, 13f, 0, Mathf.Tau, 24, g.Open ? Green : Red, 3f, true);
-				DrawString(font, gp + new Vector2(-70, -22), $"→ {target.Name}{(g.Open ? "" : " · gesperrt")}", HorizontalAlignment.Center, 140, 12, g.Open ? Green : Red);
+				// Phase 10: rot = geschlossen oder für dich gesperrt, orange = eingeschränkt (Zoll/Kontrolle)
+				var gpol = AccessInfo.ForGate(_u, g, _u.Ships[_u.PlayerShip]);
+				Color gcol = !g.Open || gpol.Denied ? Red : g.State == GateState.Restricted ? Orange : Green;
+				DrawArc(gp, 13f, 0, Mathf.Tau, 24, gcol, 3f, true);
+				DrawString(font, gp + new Vector2(-70, -22), $"→ {target.Name}{(!g.Open ? " · geschlossen" : gpol.Denied ? " · gesperrt" : g.State == GateState.Restricted ? " · Kontrolle" : "")}", HorizontalAlignment.Center, 140, 12, gcol);
 			}
 
 			// Stationen: Label radial nach außen versetzt, damit die Namen sich nicht stapeln

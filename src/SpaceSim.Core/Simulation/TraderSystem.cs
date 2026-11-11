@@ -24,6 +24,8 @@ public sealed class TraderSystem : ISimSystem
             }
             else if (ship.Order is null && u.Tick >= ship.NextThinkTick)
             {
+                // Phase 10: Fracht ohne Auftrag (Reise wegen einer Sperre angehalten, Abnehmer weggefallen) zuerst verkaufen
+                if (SellStranded(u, ship)) continue;
                 if (!PickOrder(u, ship))
                 {
                     if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
@@ -70,6 +72,8 @@ public sealed class TraderSystem : ISimSystem
         TradeOrder? best = null;
         float bestScore = 0f;
         var fuelGood = Refuel.ActiveFuel(ship);
+        // Phase 10: Die Verkaufsfahrt geht beladen — mit diesem Profil schätzen, damit ein Embargo die Route schon hier ausschließt
+        var ladenProfile = GateAccess.ProfileOf(u, ship) with { Laden = true };
         // Treibstoffpreis wie Refuel.FuelPrice (aktuelle Station, sonst Kaufstation, sonst Durchschnitt), aber nur einmal je Suche ermittelt
         float fuelHere = 0f, fuelAvg = 0f;
         if (fuelGood is { } fg)
@@ -115,7 +119,7 @@ public sealed class TraderSystem : ISimSystem
                     float profit = paidUnits * s.Price - load * b.Price;
                     if (profit <= 0f) continue;
                     if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(load, 5f)) continue;   // Lager voll: nimmt nichts mehr
-                    float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship);
+                    float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship, ladenProfile);
                     if (float.IsPositiveInfinity(toSell)) continue;
                     // Phase 4b: Treibstoffkosten der Runde (Hin- und Rückfahrt) vom Gewinn abziehen
                     float fuelCost = Refuel.TripFuelCost(u, ship, buy, sell, distToBuy, fuelPrice);
@@ -146,6 +150,25 @@ public sealed class TraderSystem : ISimSystem
         }
         Travel.Start(u, ship, u.Stations[best.Buy].Sector, u.Stations[best.Buy].DockPoint(ship.Id));
         return true;
+    }
+
+    /// <summary>
+    /// Phase 10: Ein Händler ohne Auftrag mit Fracht an Bord (angehaltene Reise hinter einer Sperre, weggefallener Abnehmer) fährt sie zum besten
+    /// erreichbaren Käufer, statt sie dauerhaft mitzuschleppen. false = keine Fracht oder kein Käufer erreichbar.
+    /// </summary>
+    static bool SellStranded(Universe u, Ship ship)
+    {
+        var good = ship.Cargo.Where(kv => kv.Value > 0.001f).Select(kv => kv.Key).OrderBy(g => g.Value).FirstOrDefault();
+        if (good.Value == 0) return false;
+        var buyer = TradeActions.BestBuyer(u, ship, ship.Sector, ship.Position);
+        if (buyer is null || !buyer.Market.ContainsKey(good)) return false;
+        ship.Order = new TradeOrder(buyer.Id, buyer.Id, good);
+        ship.Phase = TradePhase.GoingToSell;
+        ship.IdleSince = -1;
+        var plan = Refuel.PrepareTrip(u, ship, buyer.Sector, buyer.DockPoint(ship.Id));
+        if (plan == Refuel.TripPlan.FuelStop) return true;
+        if (plan == Refuel.TripPlan.Stuck) { AccessEnforcement.Release(u, ship); return false; }
+        return Travel.Start(u, ship, buyer.Sector, buyer.DockPoint(ship.Id));
     }
 
     /// <summary>Käufer muss einen nennenswerten Teil einer Ladung bezahlen können, sonst lohnt die Fahrt nicht.</summary>

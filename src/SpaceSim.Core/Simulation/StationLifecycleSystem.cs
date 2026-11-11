@@ -36,7 +36,8 @@ public sealed class StationLifecycleSystem : ISimSystem
     static void TryBuild(Universe u)
     {
         var rules = u.Rules;
-        if (u.Stations.Count >= rules.MaxStations || u.Tick - u.LastStationBuildTick < rules.BuildCooldown) return;
+        // Phase 10: Regierungsstationen und Wachen zählen nicht gegen die Obergrenzen
+        if (StationProtection.CountEconomic(u) >= rules.MaxStations || u.Tick - u.LastStationBuildTick < rules.BuildCooldown) return;
         // Phase 8: höchstens MaxActiveSites Baustellen gleichzeitig (verlassene zählen nicht)
         var active = ConstructionRules.ActiveSites(u).ToList();
         if (active.Count >= rules.MaxActiveSites) return;
@@ -84,8 +85,8 @@ public sealed class StationLifecycleSystem : ISimSystem
         Vec2? spot = null;
         bool sites = ConstructionRules.UsesSites(u, type);
         foreach (var candidate in u.Sectors.Values
-                     .Where(s => (investorFaction is null || s.Owner == investorFaction) && s.Stations.Count < rules.MaxStationsPerSector)
-                     .OrderBy(s => s.Stations.Count).ThenBy(s => s.Id.Value))
+                     .Where(s => (investorFaction is null || s.Owner == investorFaction) && StationProtection.CountEconomic(u, s) < rules.MaxStationsPerSector)
+                     .OrderBy(s => StationProtection.CountEconomic(u, s)).ThenBy(s => s.Id.Value))
         {
             // Phase 8: eine verlassene Baustelle im Sektor wird mit ihrem Material übernommen (kein neuer Bauplatz nötig)
             var abandoned = sites ? candidate.Stations.Select(id => u.Stations[id]).FirstOrDefault(s => s.Site is { Abandoned: true }) : null;

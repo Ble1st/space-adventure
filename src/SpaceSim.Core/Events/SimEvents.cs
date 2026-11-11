@@ -85,3 +85,27 @@ public sealed record InvestorChosen(string Purpose, Simulation.InvestorSource So
 public sealed record ActorPromoted(ActorId Actor, ShipId Ship) : SimEvent;
 /// <summary>Ein Akteur ohne Besitz und Geld wurde entfernt (Abstieg).</summary>
 public sealed record ActorRemoved(ActorId Actor, string Reason) : SimEvent;
+
+// ───────── Phase 10: Gate-Zugang, Sperren, Sektorkontrolle, Regierungsstationen ─────────
+/// <summary>Zustand eines Gates hat sich geändert (offen, eingeschränkt, geschlossen, zerstört).</summary>
+public sealed record GateStateChanged(GateId Gate, GateState From, GateState To) : SimEvent;
+/// <summary>
+/// Sperrstufe eines Sektors hat sich geändert (<see cref="Simulation.FactionPolicySystem"/>): Einreise-/Ausreisestufe vorher und nachher, die Fraktion
+/// dahinter (Besitzer), gegen wen (schlechteste Beziehung) und warum ("relation", "expired", "stage", "owner").
+/// </summary>
+public sealed record SectorAccessChanged(SectorId Sector, FactionId Authority, int FromEntry, int ToEntry, int FromExit, int ToExit, FactionId? Against, string Reason) : SimEvent;
+/// <summary>Der abgeleitete Besitzer eines Sektors hat gewechselt (Einfluss, mit Hysterese).</summary>
+public sealed record SectorOwnerChanged(SectorId Sector, FactionId From, FactionId To) : SimEvent;
+/// <summary>Kontrollstufe oder „umkämpft“ eines Sektors hat sich geändert.</summary>
+public sealed record SectorControlChanged(SectorId Sector, ControlStage From, ControlStage To, bool Contested) : SimEvent;
+/// <summary>Zoll an einem Gate gezahlt (von der Kasse des Schiffs an die Kasse der Sektorfraktion).</summary>
+public sealed record TollPaid(ShipId Ship, GateId Gate, FactionId To, float Amount) : SimEvent;
+/// <summary>Eine laufende Reise wurde wegen einer Sperre über einen Umweg neu geplant.</summary>
+public sealed record ShipRerouted(ShipId Ship, GateId BlockedGate, string Reason) : SimEvent;
+/// <summary>Ein Ziel ist für das Schiff nicht (mehr) erreichbar: Reise nicht angetreten oder angehalten, Auftrag frei, Fracht bleibt.</summary>
+public sealed record RouteBlocked(ShipId Ship, SectorId Target, string Reason) : SimEvent;
+/// <summary>
+/// Unterhalt aus einer Fraktionskasse gezahlt (Geldsenke): Regierungsstationen ("government") und Durchsetzung von Sperren ("lock");
+/// Unpaid = was die Kasse nicht decken konnte.
+/// </summary>
+public sealed record TreasuryUpkeep(ActorId Actor, string Purpose, float Amount, float Unpaid) : SimEvent;

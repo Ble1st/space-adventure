@@ -17,7 +17,7 @@ public class LifecycleTests
         float trade0 = ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!), mine0 = ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!);
         new SimulationRunner().Run(u, 30_000);
 
-        Assert.True(u.Stations.Count <= u.Rules.MaxStations);
+        Assert.True(StationProtection.CountEconomic(u) <= u.Rules.MaxStations);   // Phase 10: Regierungsstationen zählen nicht gegen die Obergrenze
         // Phase 6: die Grenzen zählen Kapazität (Frachtraum ÷ 100, Laserstufe), nicht Stückzahl — höchstens um FleetCapacityOvershoot überschritten
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) <= MathF.Max(trade0, u.Rules.MaxTraders + u.Rules.FleetCapacityOvershoot) + 0.001f);
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!) <= MathF.Max(mine0, u.Rules.MaxMiners + u.Rules.FleetCapacityOvershoot) + 1.0f);   // + ein Gründer-Mk2-Überhang

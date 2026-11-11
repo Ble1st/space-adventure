@@ -68,9 +68,11 @@ public sealed class MinerSystem : ISimSystem
         MineOrder? best = null;
         Vec2 bestFieldPos = default;
         float bestScore = 0f;
+        var profile = GateAccess.ProfileOf(u, ship);   // Phase 10: Gate-Zugang des Schiffs
+        var laden = profile with { Laden = true };     // ausgeliefert wird beladen (Embargo)
         foreach (var sector in u.Sectors.Values)
         {
-            if (!u.IsReachable(ship.Sector, sector.Id)) continue;
+            if (!u.IsReachable(ship.Sector, sector.Id, profile)) continue;
             for (int fi = 0; fi < sector.Fields.Count; fi++)
             {
                 var field = sector.Fields[fi];
@@ -91,9 +93,9 @@ public sealed class MinerSystem : ISimSystem
                     float value = MixValue(u, cls, st);
                     if (value < basis * MinPriceFactor) continue;
                     if (!TraderSystem.CanAfford(st, value, ship.CapacityVolumeFor(GoodForm.Solid))) continue;
-                    if (!u.IsReachable(sector.Id, st.Sector)) continue;
+                    if (!u.IsReachable(sector.Id, st.Sector, laden)) continue;
                     float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id), ship) + mineTicks
-                               + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id), ship);
+                               + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id), ship, laden);
                     float score = value / time * crowding;
                     if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, fi, st.Id); }
                 }

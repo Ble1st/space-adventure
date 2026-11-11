@@ -235,10 +235,19 @@ public sealed class Universe
         return list;
     }
 
-    /// <summary>Kürzester Weg als Liste der zu durchfliegenden Gates (BFS), null wenn nicht erreichbar.</summary>
-    public List<GateId>? FindRoute(SectorId from, SectorId to)
+    /// <summary>
+    /// Kürzester Weg als Liste der zu durchfliegenden Gates (BFS), null wenn nicht erreichbar. Ohne Profil zählt nur der physische Zustand der
+    /// Gates (Weltkarte); mit Mobilitätsprofil (Phase 10) nur Gates, die der Zugang für dieses Profil nicht abweist
+    /// (<see cref="Simulation.GateAccess.CanTraverse"/>). Zoll verhindert die Passage nicht.
+    /// </summary>
+    public List<GateId>? FindRoute(SectorId from, SectorId to) => FindRoute(from, to, MobilityProfile.Physical);
+
+    /// <inheritdoc cref="FindRoute(SectorId, SectorId)"/>
+    public List<GateId>? FindRoute(SectorId from, SectorId to, MobilityProfile profile)
     {
         if (from == to) return new List<GateId>();
+        if (!Sectors.ContainsKey(from)) return null;
+        profile = Normalize(profile);
         var prev = new Dictionary<SectorId, (SectorId from, GateId gate)>();
         var seen = new HashSet<SectorId> { from };
         var queue = new Queue<SectorId>();
@@ -250,7 +259,9 @@ public sealed class Universe
             {
                 var gate = Gates[gid];
                 if (!gate.Open || !Gates.TryGetValue(gate.Target, out var far)) continue;
-                if (!seen.Add(far.Sector)) continue;
+                if (seen.Contains(far.Sector)) continue;
+                if (!profile.IsPhysical && !Simulation.GateAccess.CanTraverse(this, gate, profile)) continue;
+                seen.Add(far.Sector);
                 prev[far.Sector] = (s, gid);
                 if (far.Sector == to)
                 {
@@ -264,22 +275,62 @@ public sealed class Universe
         return null;
     }
 
-    /// <summary>Anzahl Gate-Sprünge zwischen zwei Sektoren, -1 wenn nicht erreichbar.</summary>
+    /// <summary>Anzahl Gate-Sprünge zwischen zwei Sektoren, -1 wenn nicht erreichbar (physisch).</summary>
     public int Hops(SectorId from, SectorId to) => FindRoute(from, to)?.Count ?? -1;
 
-    // Routen werden je Tick zwischengespeichert: KI-Systeme fragen sie in verschachtelten Schleifen ab
-    // (Gates können sich zwischen Ticks ändern, innerhalb eines Ticks nicht).
-    readonly Dictionary<(SectorId, SectorId), List<GateId>?> _routes = new();
-    long _routesTick = -1;
+    /// <summary>
+    /// Zählt Änderungen am Gate-Zugang (Sperrstufen, Gate-Zustände, Sektorbesitz, Beziehungen mit Wirkung). Routen-Cache und
+    /// <see cref="AccessRestricted"/> bauen danach neu auf. Abgeleitet, nicht gespeichert.
+    /// </summary>
+    public int AccessVersion { get; private set; }
 
-    public List<GateId>? CachedRoute(SectorId from, SectorId to)
+    /// <summary>Markiert eine Änderung am Gate-Zugang (Phase 10).</summary>
+    public void TouchAccess() => AccessVersion++;
+
+    bool _restricted;
+    long _restrictedTick = -1;
+    int _restrictedVersion = -1;
+
+    /// <summary>
+    /// Gilt irgendwo eine Sperre oder ist ein Gate nicht offen? Ohne jede Einschränkung ist jedes Profil gleichwertig mit dem physischen
+    /// (gemeinsamer Routen-Cache, keine Zugangsprüfung) — der Normalfall der Startwelt kostet so nichts.
+    /// </summary>
+    public bool AccessRestricted
     {
-        if (_routesTick != Tick) { _routes.Clear(); _routesTick = Tick; }
-        if (!_routes.TryGetValue((from, to), out var r)) _routes[(from, to)] = r = FindRoute(from, to);
+        get
+        {
+            if (_restrictedTick != Tick || _restrictedVersion != AccessVersion)
+            {
+                _restricted = Sectors.Values.Any(s => !s.Access.IsOpen) || Gates.Values.Any(g => g.State != GateState.Open);
+                _restrictedTick = Tick; _restrictedVersion = AccessVersion;
+            }
+            return _restricted;
+        }
+    }
+
+    /// <summary>Ohne Einschränkungen ist jedes Profil physisch (gleiche Routen, gemeinsamer Cache).</summary>
+    MobilityProfile Normalize(MobilityProfile p) => p.IsPhysical || !AccessRestricted ? MobilityProfile.Physical : p;
+
+    // Routen werden je Tick zwischengespeichert: KI-Systeme fragen sie in verschachtelten Schleifen ab
+    // (Gates können sich zwischen Ticks ändern, innerhalb eines Ticks nur über TouchAccess). Phase 10: Cache nach Profil getrennt.
+    readonly Dictionary<(SectorId, SectorId, MobilityProfile), List<GateId>?> _routes = new();
+    long _routesTick = -1;
+    int _routesVersion = -1;
+
+    public List<GateId>? CachedRoute(SectorId from, SectorId to) => CachedRoute(from, to, MobilityProfile.Physical);
+
+    public List<GateId>? CachedRoute(SectorId from, SectorId to, MobilityProfile profile)
+    {
+        if (_routesTick != Tick || _routesVersion != AccessVersion) { _routes.Clear(); _routesTick = Tick; _routesVersion = AccessVersion; }
+        profile = Normalize(profile);
+        if (!_routes.TryGetValue((from, to, profile), out var r)) _routes[(from, to, profile)] = r = FindRoute(from, to, profile);
         return r;
     }
 
     public bool IsReachable(SectorId from, SectorId to) => CachedRoute(from, to) is not null;
+
+    /// <summary>Erreichbar für dieses Mobilitätsprofil (Phase 10)?</summary>
+    public bool IsReachable(SectorId from, SectorId to, MobilityProfile profile) => CachedRoute(from, to, profile) is not null;
 
     // Marktindex: Welche Stationen führen eine Ware? Händler-KI muss so nicht für jede Ware alle Stationen durchsuchen.
     readonly Dictionary<GoodId, List<Station>> _tradingIndex = new();

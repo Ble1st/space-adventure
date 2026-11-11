@@ -55,6 +55,17 @@ public static class UniverseHash
             foreach (var (k, v) in f.Relations.OrderBy(k => k.Key.Value)) { Mix((ulong)k.Value); MixF(v); }
         Mix((ulong)u.PlayerActor.Value); Mix((ulong)u.FreeActor.Value); Mix((ulong)u.NextActorId);
         Mix((ulong)u.PlayerShip.Value);   // Phase 5c: aktives Schiff kann wechseln (Kauf, Hangar)
+        // Phase 10: Gate-Zustände, Sektorbesitz, Sperren (Stufen, Zeiten, Durchsetzung), Einfluss, Kontrollstufe, umkämpft, unsterbliche Stationen
+        foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value)) { Mix((ulong)g.Id.Value); Mix((ulong)g.State); Mix(g.MainRoute ? 1UL : 0UL); }
+        foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
+        {
+            var a = sec.Access;
+            Mix((ulong)sec.Id.Value); Mix((ulong)sec.Owner.Value); Mix((ulong)a.EntryLevel); Mix((ulong)a.ExitLevel); Mix((ulong)(a.Against?.Value ?? -1));
+            Mix((ulong)a.SinceTick); Mix((ulong)a.ExpiresTick); Mix((ulong)a.CooldownUntil); Mix(a.Enforced ? 1UL : 0UL);
+            Mix((ulong)sec.Control); Mix(sec.Contested ? 1UL : 0UL);
+            foreach (var (f, v) in sec.Influence.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(v); }
+        }
+        foreach (var st in u.Stations.Values.Where(s => s.Immortal).OrderBy(s => s.Id.Value)) Mix((ulong)st.Id.Value);
         return h;
     }
 }

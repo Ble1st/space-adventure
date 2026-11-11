@@ -49,6 +49,8 @@ public sealed class ShipStats
     public float FuelUsePerUnit;
     /// <summary>Phase 8: Spaltlaser (Asteroidenbrecher, stats splitPower); 0 = kein Spaltlaser.</summary>
     public float SplitPower;
+    /// <summary>Phase 10: Tarnstärke (Summe stats stealth; heute hat kein Modul sie, der Tarnfeld-Baustein ist zurückgestellt). Entdeckung an Kontrollpunkten vergleicht sie mit der Sensorstärke.</summary>
+    public float Stealth;
 
     /// <summary>
     /// Berechnet die Werte eines Schiffs aus seiner Klasse und dem Fit (ein Eintrag je Slot, null = leer).
@@ -70,6 +72,7 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("fuelCapacity", out var fuelCap)) s.FuelCapacity += fuelCap;
             if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // Phase 4b: Verbrauchsrate des Antriebs
             if (m.Stats.TryGetValue("splitPower", out var split)) s.SplitPower += split;      // Phase 8: Spaltlaser
+            if (m.Stats.TryGetValue("stealth", out var stealth)) s.Stealth += stealth;        // Phase 10: Tarnung (Entdeckung)
             foreach (var f in m.FuelTypes)
             {
                 int idx = s.FuelTypes.FindIndex(x => x.Good == f.Good);

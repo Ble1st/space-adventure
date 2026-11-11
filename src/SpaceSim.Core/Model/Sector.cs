@@ -6,7 +6,19 @@ public sealed class Sector
     /// <summary>Lage auf der Sternenkarte (nur Darstellung).</summary>
     public Vec2 MapPosition;
     public string Name = "";
+    /// <summary>
+    /// Besitzerfraktion. Phase 10: abgeleitet aus dem Einfluss (<see cref="Simulation.SectorControl"/>, mit Hysterese), Startwert aus der Weltdatei;
+    /// ein Sektor ohne Stationen behält seinen Besitzer.
+    /// </summary>
     public FactionId Owner;
+    /// <summary>Phase 10: Sperre des Sektors (Stufen 0–5 für Ein- und Ausreise), gesetzt vom <see cref="Simulation.FactionPolicySystem"/>.</summary>
+    public SectorAccess Access = new();
+    /// <summary>Phase 10: Einflussanteile je Fraktion (0..1, nur Fraktionen mit Anteil &gt; 0), zuletzt berechnet von <see cref="Simulation.SectorControl"/>.</summary>
+    public Dictionary<FactionId, float> Influence = new();
+    /// <summary>Phase 10: Kontrollstufe des Besitzers (Präsenz … Kontrolle).</summary>
+    public ControlStage Control;
+    /// <summary>Phase 10: Umkämpft — zwei Fraktionen über dem Schwellenanteil (<see cref="EconomyRules.ContestedShare"/>).</summary>
+    public bool Contested;
     public float Radius = 10_000f;
     public List<GateId> Gates = new();
     public List<StationId> Stations = new();
@@ -33,7 +45,22 @@ public sealed class Gate
     public SectorId Sector;
     public Vec2 Position;
     public GateId Target;
-    public bool Open = true;
+    /// <summary>
+    /// Phase 10: Zustand des Gates (offen, eingeschränkt, geschlossen, zerstört). Geschlossen/zerstört sperrt physisch für alle; eingeschränkt
+    /// setzt das Zugangsmodell, solange an einem Ende eine Sperrstufe gilt. Änderungen über <see cref="Simulation.GateAccess.SetState"/>.
+    /// </summary>
+    public GateState State = GateState.Open;
+    /// <summary>
+    /// Phase 10: Hauptroute (POLITIK.md „eine Hauptroute je Region bleibt offen“) — Ausnahme von der Sektorsperre: hier gilt höchstens
+    /// <see cref="EconomyRules.MainRouteMaxLevel"/>. Aus der Weltdatei (<c>mainRoute</c> am Gate-Paar), gespeichert.
+    /// </summary>
+    public bool MainRoute;
+    /// <summary>Physisch passierbar (offen oder eingeschränkt)? Früher ein eigener Schalter; ein Setzen schließt bzw. öffnet das Gate.</summary>
+    public bool Open
+    {
+        get => State is GateState.Open or GateState.Restricted;
+        set => State = value ? (State is GateState.Closed or GateState.Destroyed ? GateState.Open : State) : GateState.Closed;
+    }
 }
 
 public sealed class ResourceField

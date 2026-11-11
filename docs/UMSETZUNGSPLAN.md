@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v12).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v13).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -27,7 +27,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 7 | NPC-Güteklassen und Upgrades | M | v10 |
 | 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v11 |
 | 9 | Akteure, Fraktionen, Kasse, Beziehungen, Persönlichkeit, Zukauf | L | v12 |
-| 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v10 |
+| 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v13 |
 | 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v11 |
 | 12 | Verbände, Befehle, Spielerflotte und Oberfläche | L | v12 |
 | 13 | Forschung | M | v13 |
@@ -312,6 +312,28 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Save v10:** Gate-Zustand und Politik, Einfluss.
 - **Prüfung:** Balance meldet zerfallende Karte oder isolierte Sektoren.
 
+**Stand:** umgesetzt auf Branch `phase10-gates`.
+- **Gate-Zustände** offen/eingeschränkt/geschlossen/zerstört (`Gate.State`; `Gate.Open` ist abgeleitet). Geschlossen und zerstört sperren physisch für alle (nur über `GateAccess.SetState`), „eingeschränkt“ folgt aus den Sperrstufen. **Mobilitätsprofil** (Besitzer, beladen, Tarnstärke) in `FindRoute`/`CachedRoute`/`IsReachable`, Cache nach Profil getrennt; ohne jede Einschränkung ist jedes Profil physisch (keine Mehrkosten, gleiche Routen). Alle KI-Planer (Händler, Miner, Flotte, Bauschiffe, Tanken) planen mit dem Profil des Schiffs, Verkaufsfahrten mit dem beladenen Profil.
+- **Kontrollpunkte** (`IAccessCheck`, Registry `AccessChecks`): Politik (Mitglieder frei; Stufe 1–3 Zoll für Nichtverbündete, Stufe 3 keine Gegner, Stufe 4 niemand hinein, Stufe 5 auch niemand hinaus), Ware (Embargo ab Stufe 2: beladene Gegner abgewiesen; Schmuggelware aus den Regeln an der echten Fracht), Entdeckung (Tarnstärke gegen Sensorstärke, deterministisch). Zoll beim Reiseantritt an die Kasse der Sektorfraktion; unerreichbare Ziele werden nicht mehr „teleportiert“ (Auftrag frei, Fracht bleibt).
+- **Sperrstufen 0–5** je Sektor mit **Richtung** (Ein-/Ausreise), **Mindestdauer** (2000 Ticks), **Hysterese** (0,1), **Ablauf** (12000) mit Abkühlzeit (4000), gedeckelt durch die Kontrollstufe (Dominanz bis 2, Kontrolle bis 5, umkämpft höchstens 1), **Hauptroute** als Gate-Ausnahme (höchstens Stufe 3; in der Startwelt sind alle drei Gate-Paare Hauptroute). Durchsetzung kostet die Kasse (0,5 Cr/Tick je Stufe), ohne Geld gilt die Sperre nur auf dem Papier. `FactionPolicySystem` (Modul „Politics“) entscheidet aus der schlechtesten Beziehung der Sektorfraktion (Schwellen nach Aggression verschoben); `SetLevel` ist derselbe Weg für Spielerfraktion, Tests und Szenarien.
+- **Beziehungen bewegen sich** (alle 100 Ticks): Drift zum Ruhewert aus Kooperation, Aggression und gemeinsamem Handel; umkämpfte Sektoren und Sperren der Gegenseite (gewichtet mit dem Handel) senken sie — so entstehen Sperren und Gegensperren aus der Mechanik. In der Startwelt bleiben beide Beziehungen freundlich (0,17–0,30).
+- **Durchsetzung für laufende Reisen:** Ändert sich ein Zugang, werden Reisen über nun gesperrte Gates vom aktuellen Ort neu geplant oder angehalten (Auftrag frei, Fracht bleibt) — keine Geisteraufträge. Händler ohne Auftrag mit Fracht verkaufen sie zuerst.
+- **Sektorkontrolle:** Einfluss aus Stationen nach Typ gewichtet, abgeleiteter `Sector.Owner` mit Wechsel-Hysterese, Stufen Präsenz/Einfluss/Dominanz/Kontrolle, „umkämpft“ ab zwei Fraktionen über 30 %; Territorium folgt.
+- **Regierungsstationen:** Typen Hauptquartier, Firmensitz, Sektor-HQ, Büro, Polizeiwache (Einflussgewicht, Unterhalt aus der Kasse, vor Pleite geschützt, zählen nicht gegen die Bau-Obergrenzen). Startwelt: Hauptquartier der Union (Alpha), Gildenhaus Gamma (Hauptquartier), Sektor-HQ in Beta und Delta → Alpha/Gamma Kontrolle, Beta/Delta Dominanz. **`Essential` fertig aufgeschlüsselt:** `Government`, `Capturable` (Regel `allowStationCapture`, aus), `Destructible`, `Immortal` (nur JSON) neben `BankruptcyProtected`/`Critical`.
+- **Oberfläche:** Universumskarte (Ebene Fraktion mit Kontrollstufe/umkämpft, Ebene Sicherheit echt, Gates nach Zustand und „für dich gesperrt“, Detailkarte mit Sperre, Einfluss, Gate-Urteilen und Route nach deinem Profil), Sektoransicht, Sternenkarte und Station-Info (Ruf, Zoll, Sperrstufe, Hinweise echt aus `AccessInfo`). Sprünge prüfen den Kontrollpunkt (Ablehnung mit Grund, Zoll aus der Spielerkasse), Autopilot und Routenplanung respektieren das Profil. Selbsttest erweitert, `--ui-shots` 29–32 angesehen.
+- **Save v13** mit Migration v12→v13 (Hauptrouten, Regierungstypen und -stationen, Sperren offen, Einfluss beim ersten Laden berechnet); mit dem echten v2-Spielstand geprüft (20000 Ticks, 874 Handelsfahrten, Flotte 14 → 14).
+- **Prüfung:** Balance-Tool mit Spalten `sperr`/`iso`, Politik-Zusammenfassung und **Warnung + Exit-Code 2** bei zerfallender Karte (physisch oder für freie Händler); mit einer Testwelt (feindliche Fraktionen, ohne Hauptrouten) geprüft: Sperren bis Stufe 5, Gegensperre, „Karte zerfallen“, Exit 2. 413 Tests (19 neu in `PoliticsTests`), Selbsttest OK. Balance (frischer Release-Build): Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“, Kapazität Handel 14,8 / Bergbau 7,6 (20000) bzw. 15,2 / 8,5 (60000), 0 Treibstoff-Notkäufe, 0 Sperren, Karte zusammenhängend; Seeds 1–4 bei 20000 alle grün (Handel 13,2–14,5, Bergbau 7,6–8,3). Kassen: Regierungsunterhalt 18 Cr/Tick = 35 % (20000) bzw. 40 % (60000) der Abgaben, Kassen 0,64 statt 0,98 Mio. bzw. 1,57 statt 2,6 Mio.
+
+**Abweichungen und offene Punkte (Phase 10):**
+- **Save-Version v13 statt v10** (Platzhalter im Plan).
+- **In der Startwelt entsteht nie eine Sperre:** Die Beziehungen bleiben freundlich, und kein Investor baut in fremden Sektoren (umkämpft wird nichts). Sperren entstehen real aus der Mechanik (umkämpfte Sektoren → Meinungsverlust → Sperre → Gegensperre), aber nur in Tests und eigenen Welten. Ereignisse, die Gates schließen oder zerstören (Wartung, Kampf), gibt es noch nicht — nur die Schnittstelle.
+- **Hauptroute statt abgeleiteter Engpässe:** Die Startkarte ist ein Stern um Beta; jedes Gate ist die einzige Verbindung, daher sind alle drei Paare Hauptroute (höchstens Stufe 3). Freie Händler (neutral) zahlen dort höchstens Zoll; Stufe 4–5 wirkt nur an Gates ohne Hauptroute.
+- **Zoll beim Reiseantritt** für die ganze Route (nicht beim Durchflug); die NPC-Routenbewertung rechnet ihn nicht ein. Entdeckung ohne Würfel (es gibt kein Tarnmodul). Ausreisestufen 1–4 wirken nicht (nur die Abriegelung sperrt die Ausreise).
+- **Patrouillenabdeckung** ist bis Phase 11 ein Ersatz (Hauptquartier oder Polizeiwache). Firmensitz und Büro sind nur Typen ohne Instanz und ohne eigene Dienste (`headquarters`, `customs` usw. aus STATIONEN.md sind keine Stationsdienste geworden: Regierungsstationen haben keinen Markt; was sie tun, zeigt die Station-Info).
+- **Keine Spielerfraktion**, keine Politikmaske in der Oberfläche, kein Krieg, Tribut oder Vermitteln; „Unbeteiligte reagieren auf Betroffenheit“ fehlt.
+- **Fehlerkorrektur nebenbei:** Die Kopie-Regel des `FleetSystem` hielt die Kapazitätsgrenze nicht ein (ein kopierter Hauler konnte sie überschreiten) — jetzt geprüft. Über Aufgabenwechsel von Multirole-Schiffen kann die Handelskapazität weiterhin über der Grenze liegen (15,2/14 bei 60000 Ticks, Phase-6-Verhalten).
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
+
 ## Phase 11: Polizei, Fahndung, Piraten
 
 - **Lagekarte** (Bedrohung, Sicherheit) zuerst nur als Beobachtung (Statistik, Anzeige).
@@ -368,5 +390,5 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Phase 5:** Preise und Rezepte der ersten Modulreihe, Verteilung der drei Fabriken in der Startwelt, Verarbeitungsaufschlag der Modul-Waren (`ModuleMarkup`), Form von `stocks` am Stationstyp (ROADMAP.md, Punkte 20 und 21).
 - **Phase 8:** ~~Umfang der `Essential`-Aufspaltung~~ entschieden und umgesetzt: nur `Critical` (abgeleitet) und `BankruptcyProtected` (ROADMAP.md, Punkt 23).
 - **Phase 9:** ~~Ob Einzelschiffe sofort oder träge Akteure werden~~ entschieden und umgesetzt: träge (Aufstieg beim ersten Investieren). Beitritt des Spielers zu Fraktionen: vorerst nicht — Mitglied der Fraktion des Startpakets, Beitreten/Gründen mit der Politik (Phase 10).
-- **Phase 10:** Sperren je Sektor oder je Gate (Vorschlag: Sektor mit Gate-Ausnahmen).
+- **Phase 10:** ~~Sperren je Sektor oder je Gate~~ entschieden und umgesetzt: je Sektor (Ein- und Ausreise getrennt), Gate-Ausnahme über die Hauptroute (`mainRoute`, dort höchstens Stufe 3).
 - **Jede Phase:** Nach dem Lauf des Balance-Tools entscheiden, ob Startwerte angepasst werden.

@@ -219,7 +219,7 @@ public static class Refuel
         var good = ActiveFuel(ship);
         if (good is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
         float d = distanceToBuy
-                + Travel.EstimateDistance(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship);
+                + Travel.EstimateDistance(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), GateAccess.ProfileOf(u, ship) with { Laden = true });
         return Consumption(ship, d, good) * fuelPrice;
     }
 

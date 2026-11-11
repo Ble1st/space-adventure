@@ -25,6 +25,7 @@ public class ActorTests
     /// </summary>
     internal static string ToV11Json(string v12Json)
     {
+        v12Json = PoliticsTests.ToV12Json(v12Json);   // Phase 10: erst auf v12 zurück
         var node = JsonNode.Parse(v12Json)!.AsObject();
         if ((int)node["Version"]! < 12) return v12Json;
         node["Version"] = 11;
@@ -261,17 +262,20 @@ public class ActorTests
         a.Rules.TreasuryInvests = b.Rules.TreasuryInvests = false;   // Kassen nur füllen, nicht ausgeben: sonst zahlt ein anderer Investor
         b.Rules.TaxToTreasuryShare = 0f;   // alte Geldsenke
         var taxes = new List<TaxCollected>();
-        a.Events.Raised += e => { if (e is TaxCollected t) taxes.Add(t); };
+        double upkeep = 0;   // Phase 10: Unterhalt der Regierungsstationen und Sperren aus den Kassen
+        a.Events.Raised += e => { if (e is TaxCollected t) taxes.Add(t); else if (e is TreasuryUpkeep k) upkeep += k.Amount; };
         new SimulationRunner().Run(a, 3000);
         new SimulationRunner().Run(b, 3000);
         // Für alle Zahler ist die Abgabe dieselbe: Stationen und Schiffe identisch, nur die Kassen unterscheiden sich
-        foreach (var st in a.Stations.Values) Assert.Equal(b.Stations[st.Id].Credits, st.Credits);
+        // (Phase 10: Regierungsstationen zahlen ihren Unterhalt aus der Kasse — ohne Kasse aus der eigenen; sie sind keine Abgabenzahler)
+        foreach (var st in a.Stations.Values.Where(s => !StationProtection.IsOfficial(a, s))) Assert.Equal(b.Stations[st.Id].Credits, st.Credits);
         foreach (var s in a.Ships.Values) Assert.Equal(b.Ships[s.Id].Credits, s.Credits);
         float treasuries = a.Factions.Keys.Sum(f => a.Actors[f].Treasury.Credits);
         Assert.True(treasuries > 0f);
         Assert.Equal(0f, b.Factions.Keys.Sum(f => b.Actors[f].Treasury.Credits));
         // erklärbar: Kasse = Summe der gemeldeten Abgaben (Gleitkomma-Summen über viele kleine Buchungen: relative Toleranz)
-        Assert.InRange(treasuries, taxes.Sum(t => (double)t.Amount) * 0.9999, taxes.Sum(t => (double)t.Amount) * 1.0001);
+        double net = taxes.Sum(t => (double)t.Amount) - upkeep;
+        Assert.InRange(treasuries, net - 1e-4 * net - 1, net + 1e-4 * net + 1);
         var snap = EconomyStats.Snapshot(a);
         Assert.Equal(treasuries, snap.TreasuryCredits, 1);
         Assert.Equal(snap.StationCredits + snap.ShipCredits + snap.PlayerCredits + snap.TreasuryCredits, snap.TotalCredits, 1);
@@ -281,12 +285,14 @@ public class ActorTests
     public void Geldmenge_Kassen_SindAusEreignissenErklaerbar_20000Ticks()
     {
         var u = Fresh();
-        double taxed = 0, invested = 0, refunded = 0;
+        double taxed = 0, invested = 0, refunded = 0, upkeep = 0, tolls = 0;
         u.Events.Raised += e =>
         {
             switch (e)
             {
                 case TaxCollected t: taxed += t.Amount; break;
+                case TreasuryUpkeep k: upkeep += k.Amount; break;   // Phase 10: Regierungsstationen und Sperren zahlen aus der Kasse
+                case TollPaid p: tolls += p.Amount; break;           // Phase 10: Zoll fließt in die Kasse der Sektorfraktion
                 case InvestorChosen { Source: InvestorSource.Treasury } c: invested += c.Amount; break;
                 case ConstructionAbandoned ab when u.Stations.TryGetValue(ab.Site, out var st) && st.Site is { InvestorActor: > 0 }: refunded += ab.Refund; break;
             }
@@ -295,7 +301,7 @@ public class ActorTests
         // Kassen der Nicht-Spieler-Akteure = Abgaben − Investitionen aus Kassen + Rückzahlungen verfallener Baustellen (relative Toleranz für
         // Gleitkomma-Summen über Tausende kleiner Buchungen)
         double treasuries = u.Actors.Values.Where(a => a.Id != u.PlayerActor).Sum(a => (double)a.Treasury.Credits);
-        double expected = taxed - invested + refunded;
+        double expected = taxed - invested + refunded - upkeep + tolls;
         Assert.InRange(treasuries, expected - 1e-4 * taxed - 1, expected + 1e-4 * taxed + 1);
         Assert.True(taxed > 0);
     }
@@ -355,7 +361,7 @@ public class ActorTests
         // eine persönliche Beziehung und ein Akteur mit Kasse sollen den Roundtrip überstehen
         Relations.Set(a, a.PlayerActor, new ActorId(2), -0.3f);
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":12", json);
+        Assert.Contains("\"Version\":13", json);
         Assert.DoesNotContain("PlayerWallet", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));

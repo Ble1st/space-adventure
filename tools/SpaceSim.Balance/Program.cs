@@ -69,6 +69,22 @@ u.Events.Raised += e =>
         case ActorRemoved: removedActors++; break;
     }
 };
+// Phase 10: Politik — Sperränderungen, Zoll, Umwege/Abbrüche, Kassen-Unterhalt (Regierungsstationen, Sperren), Besitzerwechsel
+int accessChanges = 0, rerouted = 0, blocked = 0, ownerChanges = 0, maxLevelSeen = 0;
+double tolls = 0, govUpkeep = 0, govUnpaid = 0, lockUpkeep = 0;
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case SectorAccessChanged sac: accessChanges++; maxLevelSeen = Math.Max(maxLevelSeen, sac.ToEntry); break;
+        case TollPaid tp: tolls += tp.Amount; break;
+        case ShipRerouted: rerouted++; break;
+        case RouteBlocked: blocked++; break;
+        case SectorOwnerChanged: ownerChanges++; break;
+        case TreasuryUpkeep tu when tu.Purpose == "government": govUpkeep += tu.Amount; govUnpaid += tu.Unpaid; break;
+        case TreasuryUpkeep tu: lockUpkeep += tu.Amount; break;
+    }
+};
 u.Events.Raised += e =>
 {
     if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
@@ -81,23 +97,32 @@ u.Events.Raised += e =>
     else if (e is TradeCompleted tc && u.Modules.ContainsKey(u.Goods[tc.Good].Key)) { moduleDelivered += tc.Amount; moduleRevenue += tc.Revenue; }
 };
 
-var header = new List<string> { "tick", "stations", "sites", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "treasuryCredits", "tank", "notk" };
+var header = new List<string> { "tick", "stations", "sites", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "treasuryCredits", "tank", "notk", "locks", "isolated" };
 header.AddRange(u.Goods.Values.Select(g => "price_" + g.Name));
 csv.AppendLine(string.Join(",", header));
-Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"kassen",8} {"tank",5} {"notk",5}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
+Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"kassen",8} {"tank",5} {"notk",5} {"sperr",5} {"iso",3}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
+MapSplit? worstSplit = null, finalSplit = null;
 for (int t = 0; t <= ticks; t += every)
 {
     if (t > 0) runner.Run(u, every);
     var snap = EconomyStats.Snapshot(u);
     history.Add(snap);
-    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Sites,3} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {snap.TreasuryCredits,8:0} {fuelBuys,5} {notk,5}  " +
+    // Phase 10: Sperren und Zerfall der Karte (physisch oder für die freien Händler = die Wirtschaft)
+    int locks = u.Sectors.Values.Count(x => !x.Access.IsOpen);
+    var phys = MapConnectivity.Physical(u);
+    var econ = MapConnectivity.Economy(u);
+    var split = phys.Isolated.Count >= econ.Isolated.Count ? phys : econ;
+    if (split.IsSplit && (worstSplit is null || split.Isolated.Count > worstSplit.Isolated.Count)) worstSplit = split;
+    if (t == ticks) finalSplit = split.IsSplit ? split : null;
+    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Sites,3} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {snap.TreasuryCredits,8:0} {fuelBuys,5} {notk,5} {locks,5} {split.Isolated.Count,3}  " +
                       string.Join(" ", snap.Goods.Select(g => g.PriceRatio.ToString("0.0", CultureInfo.InvariantCulture).PadLeft(5))));
     var row = new List<string> { snap.Tick.ToString(), snap.Stations.ToString(), snap.Sites.ToString(), snap.Traders.ToString(), snap.Miners.ToString(),
         snap.StationCredits.ToString("0", CultureInfo.InvariantCulture), snap.ShipCredits.ToString("0", CultureInfo.InvariantCulture),
-        snap.PlayerCredits.ToString("0", CultureInfo.InvariantCulture), snap.TreasuryCredits.ToString("0", CultureInfo.InvariantCulture), fuelBuys.ToString(), notk.ToString() };
+        snap.PlayerCredits.ToString("0", CultureInfo.InvariantCulture), snap.TreasuryCredits.ToString("0", CultureInfo.InvariantCulture), fuelBuys.ToString(), notk.ToString(),
+        locks.ToString(), split.Isolated.Count.ToString() };
     row.AddRange(snap.Goods.Select(g => g.AvgPrice.ToString("0.00", CultureInfo.InvariantCulture)));
     csv.AppendLine(string.Join(",", row));
 }
@@ -159,6 +184,23 @@ if (u.Modules.Count > 0)
         Console.WriteLine($"  {a.Name,-26} {ActorNames.Kind(a.Kind),-20} {ActorNames.Size(a.Class),-12} Kasse {a.Treasury,9:0}  {a.Ships,3} Schiffe {a.Stations,3} Stationen  Größe {a.Size:0.0}");
     Console.WriteLine("Zukauf: " + (investBy.Count == 0 ? "keiner" : string.Join(", ", investBy.Select(kv => $"{kv.Key} {kv.Value}"))));
 }
+// Phase 10: Gate-Zugang, Sektorkontrolle, Beziehungen, Regierungsstationen
+{
+    Console.WriteLine($"Politik: {accessChanges} Sperränderungen (höchste Stufe {maxLevelSeen}), {u.Sectors.Values.Count(x => !x.Access.IsOpen)} Sektoren gesperrt; "
+        + $"Zoll {tolls:0} Cr; Reisen umgeplant {rerouted}, angehalten/nicht angetreten {blocked}; Besitzerwechsel {ownerChanges}");
+    Console.WriteLine($"Kassen-Unterhalt: Regierungsstationen {govUpkeep:0} Cr (ungedeckt {govUnpaid:0}), Sperren {lockUpkeep:0} Cr — "
+        + $"{(taxIn > 0 ? 100.0 * (govUpkeep + lockUpkeep) / taxIn : 0):0}% der Abgaben in Kassen");
+    foreach (var sec in u.Sectors.Values.OrderBy(x => x.Id.Value))
+    {
+        string inf = string.Join(" ", sec.Influence.OrderByDescending(kv => kv.Value).Select(kv => $"{(u.Factions.TryGetValue(kv.Key, out var f) ? f.Name : "?")} {kv.Value:P0}"));
+        Console.WriteLine($"  {sec.Name,-14} {(u.Factions.TryGetValue(sec.Owner, out var of) ? of.Name : "?"),-20} {AccessNames.Stage(sec.Control),-10}{(sec.Contested ? " umkämpft" : "")}  "
+            + $"Sperre {sec.Access.EntryLevel}/{sec.Access.ExitLevel}{(sec.Access.Enforced ? "" : " (Papier)")}  Einfluss {inf}");
+    }
+    var fs = u.Factions.Keys.OrderBy(k => k.Value).ToList();
+    Console.WriteLine("Beziehungen: " + string.Join(", ", fs.SelectMany(a => fs.Where(b => b != a).Select(b => $"{u.Factions[a].Name}→{u.Factions[b].Name} {Relations.Effective(u, a, b):0.00}"))));
+    foreach (var fsplit in MapConnectivity.Factions(u).Where(x => x.IsSplit))
+        Console.WriteLine($"  Für {fsplit.Profile} gesperrt: {string.Join(", ", fsplit.Isolated.Select(id => u.Sectors[id].Name))} (Politik)");
+}
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))
 {
@@ -178,9 +220,15 @@ foreach (var g in u.Goods.Values)
     if (avgRatio > 3.0f || avgRatio < 0.3f) { Console.WriteLine($"WARNUNG: {g.Name} im Schnitt bei {avgRatio:0.00}× Basispreis (instabil)"); bad = true; }
 }
 if (!bad) Console.WriteLine("Urteil: Preise im Zielbereich.");
+// Phase 10: zerfallende Karte (physisch oder für die freien Händler) ist ein eigener Befund mit eigenem Exit-Code
+bool splitBad = worstSplit is not null;
+if (worstSplit is not null)
+    Console.WriteLine($"WARNUNG: Karte zerfallen ({worstSplit.Profile}): isolierte Sektoren {string.Join(", ", worstSplit.Isolated.Select(id => u.Sectors[id].Name))} "
+        + $"(größter Block {worstSplit.Largest}/{worstSplit.Sectors}){(finalSplit is null ? ", am Ende wieder verbunden" : ", am Ende noch zerfallen")}");
+else Console.WriteLine("Karte: zusammenhängend (physisch und für freie Händler, an allen Messpunkten).");
 
 if (opts.TryGetValue("csv", out var csvPath)) { File.WriteAllText(csvPath, csv.ToString()); Console.WriteLine("CSV: " + csvPath); }
-return bad ? 1 : 0;
+return bad ? 1 : splitBad ? 2 : 0;
 
 static Dictionary<string, string> ParseArgs(string[] a)
 {

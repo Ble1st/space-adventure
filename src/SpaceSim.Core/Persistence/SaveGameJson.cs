@@ -25,11 +25,18 @@ public static class SaveGameJson
 
         if (save.Version > SaveGame.CurrentVersion)
             throw new SaveFormatException($"Spielstand stammt aus einer neueren Version ({save.Version} > {SaveGame.CurrentVersion})");
+        int loadedVersion = save.Version;
         save = Migrate(save);
 
         try
         {
             var u = UniverseSerializer.FromSave(save);
+            // Phase 10: Stände vor v13 kennen Einfluss und Kontrollstufe nicht — wie beim Weltaufbau einmal berechnen
+            if (loadedVersion < 13)
+            {
+                foreach (var sector in u.Sectors.Values.OrderBy(x => x.Id.Value)) Simulation.SectorControl.Update(u, sector);
+                Simulation.GateAccess.SyncRestricted(u);
+            }
             var savedAt = DateTimeOffset.TryParse(save.SavedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var t) ? t : DateTimeOffset.UtcNow;
             return (u, savedAt);
         }
@@ -572,7 +579,8 @@ public static class SaveGameJson
         int? Map(GoodId dg) => goodIdByKey.TryGetValue(dw.Goods[dg].Key, out var id) ? id : null;
 
         // 2) Baustellen-Typ und Lagerhaus
-        foreach (var dt in dw.StationTypes.Values.Where(t => t.Recipes.Count == 0 && t.ShipDealer is null).OrderBy(t => t.Key, StringComparer.Ordinal))
+        // Regierungstypen (Phase 10) ergänzt erst die Migration v12→v13
+        foreach (var dt in dw.StationTypes.Values.Where(t => t.Recipes.Count == 0 && t.ShipDealer is null && t.Government == GovernmentKind.None).OrderBy(t => t.Key, StringComparer.Ordinal))
         {
             if (s.StationTypes.Any(t => t.Key == dt.Key) || dt.Stocks.Any(x => Map(x.Good) is null)) continue;
             var stocks = dt.Stocks.Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
@@ -667,6 +675,52 @@ public static class SaveGameJson
         }
         s.PlayerWallet = null;
         s.Version = 12;
+    }
+
+    /// <summary>
+    /// v12 → v13 (Phase 10, Gate-Zugang und Sektorkontrolle):
+    /// 1) Gates: Zustand folgt aus dem alten Schalter <c>Open</c> (beim Laden); Gate-Paare der Default-Welt (gleiche Ids und Sektoren) werden
+    ///    Hauptroute wie dort.
+    /// 2) Regierungs-Stationstypen der Default-Welt (Hauptquartier, Firmensitz, Sektor-HQ, Büro, Polizeiwache) werden ergänzt, wenn sie fehlen,
+    ///    und ihre Default-Stationen gesetzt, wo der Sektor existiert (wie die Raffinerien in v4→v5). Sie zählen nicht gegen die Bau-Obergrenzen.
+    /// 3) Sperren starten offen, Einfluss und Kontrollstufe berechnet die Sektorkontrolle beim ersten Schritt.
+    /// </summary>
+    static void MigrateV12ToV13(SaveGame s)
+    {
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var dw = WorldBuilder.Build(def);
+        foreach (var link in def.Gates.Where(l => l.MainRoute))
+        {
+            var a = s.Gates.FirstOrDefault(g => g.Id == link.A.Id && g.Sector == link.A.Sector);
+            var b = s.Gates.FirstOrDefault(g => g.Id == link.B.Id && g.Sector == link.B.Sector);
+            if (a is null || b is null || a.Target != b.Id) continue;
+            a.MainRoute = b.MainRoute = true;
+        }
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+        foreach (var dt in dw.StationTypes.Values.Where(t => t.Government != GovernmentKind.None).OrderBy(t => t.Key, StringComparer.Ordinal))
+        {
+            if (s.StationTypes.FirstOrDefault(t => t.Key == dt.Key) is { } existing)
+            {
+                // gleicher Schlüssel aus einer früheren Migration oder eigener Welt: Regierungsform nur ergänzen, wenn sie fehlt
+                if (existing.Government is null && existing.Recipes.Count == 0)
+                {
+                    existing.Government = WorldBuilder.GovernmentKey(dt.Government);
+                    existing.Influence ??= dt.Influence == 1f ? null : dt.Influence;
+                    existing.Capturable ??= dt.Capturable ? null : false;
+                }
+                continue;
+            }
+            s.StationTypes.Add(new StationTypeSave
+            {
+                Key = dt.Key, Name = dt.Name, BuildCost = dt.BuildCost, Upkeep = dt.UpkeepPerTick, Income = dt.IncomePerTick,
+                Recipes = new List<RecipeSave>(), Services = new List<string>(dt.Services),
+                Government = WorldBuilder.GovernmentKey(dt.Government), Influence = dt.Influence == 1f ? null : dt.Influence,
+                Capturable = dt.Capturable ? null : false, Destructible = dt.Destructible ? null : false,
+            });
+            AddDefaultStations(s, def, dt.Key, () => new List<RecipeSave>(), null, goodIdByKey);
+        }
+        s.Version = 13;
     }
 
     /// <summary>
@@ -774,6 +828,7 @@ public static class SaveGameJson
         if (s.Version < 10) MigrateV9ToV10(s);
         if (s.Version < 11) MigrateV10ToV11(s);
         if (s.Version < 12) MigrateV11ToV12(s);
+        if (s.Version < 13) MigrateV12ToV13(s);
         return s;
     }
 }

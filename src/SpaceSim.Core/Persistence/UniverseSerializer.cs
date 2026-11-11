@@ -111,6 +111,10 @@ public static class UniverseSerializer
                     ? new ShipDealerSave { Classes = sd.Classes is null ? null : new List<string>(sd.Classes), MaxSize = sd.MaxSize.ToString(), Assembly = sd.Assembly }
                     : null,
                 Construction = t.Construction?.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                Government = Content.WorldBuilder.GovernmentKey(t.Government),
+                Influence = t.Influence == 1f ? null : t.Influence,
+                Capturable = t.Capturable ? null : false,
+                Destructible = t.Destructible ? null : false,
             });
         WriteSlotContent(u, s);
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
@@ -128,14 +132,22 @@ public static class UniverseSerializer
                 Gates = sec.Gates.Select(g => g.Value).ToList(), Stations = sec.Stations.Select(x => x.Value).ToList(),
                 Fields = sec.Fields.Select(f => new FieldSave { Class = f.ClassKey, Pos = f.Position, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
                 Rocks = sec.Asteroids.Select(a => new AsteroidSave { Id = a.Id, Pos = a.Position, BaseRadius = a.BaseRadius, Class = a.ClassKey, Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
+                Access = ToSave(sec.Access),
+                Influence = sec.Influence.Count == 0 ? null : sec.Influence.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                Control = sec.Control == ControlStage.None ? null : sec.Control.ToString(),
+                Contested = sec.Contested,
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
-            s.Gates.Add(new GateSave { Id = g.Id.Value, Sector = g.Sector.Value, Pos = g.Position, Target = g.Target.Value, Open = g.Open });
+            s.Gates.Add(new GateSave
+            {
+                Id = g.Id.Value, Sector = g.Sector.Value, Pos = g.Position, Target = g.Target.Value, Open = g.Open,
+                State = g.State == GateState.Open ? null : g.State.ToString(), MainRoute = g.MainRoute,
+            });
         foreach (var st in u.Stations.Values)
             s.Stations.Add(new StationSave
             {
                 Id = st.Id.Value, Type = st.TypeKey, Name = st.Name, Sector = st.Sector.Value, Owner = st.Owner.Value, Pos = st.Position,
-                Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected, BelowLimitSince = st.BelowLimitSince,
+                Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected, BelowLimitSince = st.BelowLimitSince, Immortal = st.Immortal,
                 Recipes = st.Production.Select(ToSave).ToList(),
                 Market = st.Market.ToDictionary(kv => kv.Key.Value, kv => new StockSave { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price }),
                 Site = st.Site is { } bs ? new BuildSiteSave
@@ -213,6 +225,11 @@ public static class UniverseSerializer
                     ? new ShipDealerConfig { Classes = sd.Classes is null ? null : new List<string>(sd.Classes), MaxSize = Enum.Parse<SlotSize>(sd.MaxSize, ignoreCase: true), Assembly = sd.Assembly }
                     : null,
                 Construction = t.Construction?.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                // Phase 10: fehlt in älteren Ständen = keine Regierungsform, Einfluss 1, eroberbar und zerstörbar
+                Government = Content.WorldBuilder.ParseGovernment(t.Government, t.Key),
+                Influence = t.Influence ?? 1f,
+                Capturable = t.Capturable ?? true,
+                Destructible = t.Destructible ?? true,
             };
         ReadSlotContent(s, u);
         foreach (var f in s.Factions)
@@ -230,14 +247,25 @@ public static class UniverseSerializer
                 Gates = sec.Gates.Select(g => new GateId(g)).ToList(), Stations = sec.Stations.Select(x => new StationId(x)).ToList(),
                 Fields = sec.Fields.Select(f => new ResourceField { ClassKey = f.Class, Position = f.Pos, TargetAsteroids = f.TargetAsteroids, RespawnTicks = f.RespawnTicks }).ToList(),
                 Asteroids = sec.Rocks.Select(a => new Asteroid { Id = a.Id, Position = a.Pos, BaseRadius = a.BaseRadius, ClassKey = a.Class, Ore = a.Ore, MaxOre = a.MaxOre }).ToList(),
+                Access = FromSave(sec.Access),
+                Influence = sec.Influence is null ? new Dictionary<FactionId, float>() : sec.Influence.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
+                Control = sec.Control is { } ctl ? Enum.Parse<ControlStage>(ctl) : ControlStage.None,
+                Contested = sec.Contested,
             };
         foreach (var g in s.Gates)
-            u.Gates[new GateId(g.Id)] = new Gate { Id = new GateId(g.Id), Sector = new SectorId(g.Sector), Position = g.Pos, Target = new GateId(g.Target), Open = g.Open };
+            u.Gates[new GateId(g.Id)] = new Gate
+            {
+                Id = new GateId(g.Id), Sector = new SectorId(g.Sector), Position = g.Pos, Target = new GateId(g.Target),
+                // Phase 10: Zustand; ältere Stände kennen nur Open
+                State = g.State is { } gs ? Enum.Parse<GateState>(gs) : g.Open ? GateState.Open : GateState.Closed,
+                MainRoute = g.MainRoute,
+            };
         foreach (var st in s.Stations)
             u.Stations[new StationId(st.Id)] = new Station
             {
                 Id = new StationId(st.Id), TypeKey = st.Type, Name = st.Name, Sector = new SectorId(st.Sector), Owner = new ActorId(st.Owner),
                 Position = st.Pos, Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected || st.Essential, BelowLimitSince = st.BelowLimitSince,
+                Immortal = st.Immortal,
                 Production = st.Recipes.Select(FromSave).ToList(),
                 Market = st.Market.ToDictionary(kv => new GoodId(kv.Key), kv => new StockEntry { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price }),
                 Site = st.Site is { } bs ? new BuildSite
@@ -339,6 +367,25 @@ public static class UniverseSerializer
     {
         StartTick = t.StartTick, ArrivalTick = t.ArrivalTick, ToSector = new SectorId(t.ToSector), ToPosition = t.ToPosition,
         Legs = t.Legs.Select(l => new Leg(new SectorId(l.Sector), l.From, l.To, l.Start, l.End)).ToList(),
+    };
+
+    /// <summary>Sperre in den Spielstand (null, wenn offen und ohne Zeitstempel — dann gilt der Standard).</summary>
+    static SectorAccessSave? ToSave(SectorAccess a)
+    {
+        var d = new SectorAccess();
+        if (a.EntryLevel == 0 && a.ExitLevel == 0 && a.Against is null && a.SinceTick == d.SinceTick && a.ExpiresTick == d.ExpiresTick
+            && a.CooldownUntil == d.CooldownUntil && a.Enforced) return null;
+        return new SectorAccessSave
+        {
+            Entry = a.EntryLevel, Exit = a.ExitLevel, Against = a.Against?.Value, Since = a.SinceTick, Expires = a.ExpiresTick,
+            Cooldown = a.CooldownUntil, Enforced = a.Enforced,
+        };
+    }
+
+    static SectorAccess FromSave(SectorAccessSave? a) => a is null ? new SectorAccess() : new SectorAccess
+    {
+        EntryLevel = Math.Clamp(a.Entry, 0, 5), ExitLevel = Math.Clamp(a.Exit, 0, 5), Against = a.Against is { } f ? new FactionId(f) : null,
+        SinceTick = a.Since, ExpiresTick = a.Expires, CooldownUntil = a.Cooldown, Enforced = a.Enforced,
     };
 
     /// <summary>Warenform aus dem Save; fehlt das Feld (alte Spielstände), ist solid der Standard.</summary>

@@ -5,7 +5,7 @@ namespace SpaceAdventure.Ui;
 /// <summary>
 /// Sammelstelle für ALLE erfundenen Anzeigewerte der Oberfläche (Platzhalter). Nichts davon stammt aus der
 /// Simulation und nichts wird gespeichert: Schild, Leistung und noch nicht gebaute
-/// Bereiche (Comms-Zähler, Sicherheit …) fehlen im Core und werden hier als gedämpfte Platzhalter geführt.
+/// Bereiche (Comms-Zähler, Schild, Leistung …) fehlen im Core und werden hier als gedämpfte Platzhalter geführt.
 /// Echte Werte (Credits, Hülle, Fracht, Sektoren, Stationen …) lesen die Bildschirme immer aus dem Core.
 /// </summary>
 public static class UiPlaceholders
@@ -19,8 +19,6 @@ public static class UiPlaceholders
 	public static float ShieldPercent => 64f;
 	/// <summary>Leistungsanzeige (Platzhalter, Leistungsbilanz der Module fehlt noch).</summary>
 	public static string PowerText => "9/12";
-	/// <summary>Sicherheitsanzeige des Sektors (Platzhalter).</summary>
-	public static string SecurityText => "▮▮▮▯";
 
 	// ── Dock-Bereiche (UI.md Abschnitt 3): Texte für Bereiche, deren Dienst der Core noch nicht kennt ──
 
@@ -39,8 +37,6 @@ public static class UiPlaceholders
 	public const string UndoSoon = "Rückgängig kommt, sobald der Core eine Transaktionshistorie führt – " + Soon;
 	/// <summary>Platzhalter für Preisverlauf-Trends im Handel (der Core speichert keine Preis-Historie).</summary>
 	public const string TrendSoon = "Preisverlauf: " + Soon;
-	/// <summary>Platzhalter für Ruf, Zoll, Sperrstufe und Hinweise der Station-Info (Politik fehlt noch, Phase 10/11).</summary>
-	public const string PoliticsSoon = "Ruf, Zoll, Sperrstufe und Hinweise: " + Tag + " (" + Soon + ", Politik ab Phase 10)";
 	/// <summary>Platzhalter für fremde/weitere eigene Schiffe und deren Aktionen im Hangar (kommt mit Phase 12).</summary>
 	public const string HangarSoon = "Fremde Schiffe, Befehle, Verkaufen, Heim schicken: " + Tag + " (" + Soon + ", Phase 12)";
 
@@ -110,7 +106,7 @@ public static class UiPlaceholders
 		("Büro an eigener Station", false, "ab Kleinfirma – " + Soon),
 		("Fehde erklären", false, "ab Kleinfirma – " + Soon),
 		("Firmensitz", false, "ab Firma – " + Soon),
-		("Zoll und Sperren", false, "ab Dominanz im Sektor – " + Soon),
+		("Zoll und Sperren", false, "ab Dominanz im Sektor (Regeln seit Phase 10, Spielerfraktion fehlt) – " + Soon),
 	};
 
 	// ── Flotte ──

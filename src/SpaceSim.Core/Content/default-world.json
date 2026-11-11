@@ -910,6 +910,65 @@
      15
     ]
    }
+  },
+  {
+   "key": "headquarters",
+   "name": "Hauptquartier",
+   "government": "headquarters",
+   "influence": 6,
+   "buildCost": 40000,
+   "upkeep": 6,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false
+  },
+  {
+   "key": "company_seat",
+   "name": "Firmensitz",
+   "government": "company_seat",
+   "influence": 3,
+   "buildCost": 20000,
+   "upkeep": 2,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false
+  },
+  {
+   "key": "sector_hq",
+   "name": "Sektor-HQ",
+   "government": "sector_hq",
+   "influence": 4,
+   "buildCost": 20000,
+   "upkeep": 3,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false
+  },
+  {
+   "key": "office",
+   "name": "Büro",
+   "government": "office",
+   "influence": 1.5,
+   "buildCost": 5000,
+   "upkeep": 0.5,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false
+  },
+  {
+   "key": "police_station",
+   "name": "Polizeiwache",
+   "government": "police",
+   "influence": 2,
+   "buildCost": 8000,
+   "upkeep": 1.5,
+   "income": 0,
+   "services": [],
+   "recipes": []
   }
  ],
  "factions": [
@@ -1057,6 +1116,17 @@
       -90
      ],
      "essential": true
+    },
+    {
+     "id": 32,
+     "type": "headquarters",
+     "name": "Hauptquartier der Union",
+     "pos": [
+      130,
+      -25
+     ],
+     "essential": true,
+     "credits": 0
     }
    ]
   },
@@ -1179,6 +1249,17 @@
       60
      ],
      "essential": true
+    },
+    {
+     "id": 33,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Beta",
+     "pos": [
+      -70,
+      95
+     ],
+     "essential": true,
+     "credits": 0
     }
    ]
   },
@@ -1288,6 +1369,17 @@
      ],
      "essential": true,
      "credits": 10000
+    },
+    {
+     "id": 34,
+     "type": "headquarters",
+     "name": "Gildenhaus Gamma",
+     "pos": [
+      105,
+      0
+     ],
+     "essential": true,
+     "credits": 0
     }
    ]
   },
@@ -1415,6 +1507,17 @@
       -5
      ],
      "essential": true
+    },
+    {
+     "id": 35,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Delta",
+     "pos": [
+      60,
+      -95
+     ],
+     "essential": true,
+     "credits": 0
     }
    ]
   }
@@ -1436,7 +1539,8 @@
      -90,
      0
     ]
-   }
+   },
+   "mainRoute": true
   },
   {
    "a": {
@@ -1454,7 +1558,8 @@
      -90,
      -30
     ]
-   }
+   },
+   "mainRoute": true
   },
   {
    "a": {
@@ -1472,7 +1577,8 @@
      0,
      -100
     ]
-   }
+   },
+   "mainRoute": true
   }
  ],
  "slotTypes": [
