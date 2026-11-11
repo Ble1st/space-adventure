@@ -75,7 +75,16 @@ public static class Refuel
         return distance * ship.Stats.FuelUsePerUnit / eff;
     }
 
-    /// <summary>Bucht den Verbrauch einer geflogenen Strecke aus dem Tank (nie negativ; aktives Bord-Treibstoff wird zuerst geleert).</summary>
+    /// <summary>Phase 14: Treibstoff an (<see cref="EconomyRules.FuelActive"/>)? Aus = kein Verbrauch, kein Tanken, keine Treibstoffkosten.</summary>
+    public static bool Active(Universe u) => u.Rules.FuelActive;
+
+    /// <summary>Bucht den Verbrauch einer geflogenen Strecke aus dem Tank, nur wenn Treibstoff an ist (Phase 14).</summary>
+    public static void Consume(Universe u, Ship ship, float distance)
+    {
+        if (Active(u)) Consume(ship, distance);
+    }
+
+    /// <summary>Bucht den Verbrauch einer geflogenen Strecke aus dem Tank (nie negativ; aktives Bord-Treibstoff wird zuerst geleert). Ohne Schalterprüfung.</summary>
     public static void Consume(Ship ship, float distance)
     {
         var good = ActiveFuel(ship);
@@ -128,7 +137,7 @@ public static class Refuel
     /// </summary>
     public static float BuyFuel(Universe u, Ship ship, Station st, GoodId good, float wantUnits)
     {
-        if (wantUnits <= 0f || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) return 0f;
+        if (!Active(u) || wantUnits <= 0f || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) return 0f;
         var wallet = u.WalletOf(ship);
         float stock = MathF.Floor(e.Amount), afford = MathF.Floor(wallet.Credits / e.Price), space = MathF.Floor(ship.FuelSpace);
         float n = MathF.Min(MathF.Min(MathF.Floor(wantUnits), stock), MathF.Min(afford, space));
@@ -155,7 +164,7 @@ public static class Refuel
     public static float TankUp(Universe u, Ship ship, Station st, float minUnits = 0f)
     {
         var good = ActiveFuel(ship);
-        if (good is null || !st.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return 0f;
+        if (!Active(u) || good is null || !st.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return 0f;
         float budget = MathF.Floor(FuelBudgetShare * MathF.Max(0f, u.WalletOf(ship).Credits) / e.Price);
         float want = MathF.Min(ship.FuelSpace, MathF.Max(MathF.Ceiling(minUnits), budget));
         return BuyFuel(u, ship, st, good.Value, want);
@@ -168,7 +177,7 @@ public static class Refuel
     /// </summary>
     public static float EmergencyBuy(Universe u, Ship ship, GoodId good, float wantUnits)
     {
-        if (wantUnits <= 0f || ship.FuelSpace <= 0f) return 0f;
+        if (!Active(u) || wantUnits <= 0f || ship.FuelSpace <= 0f) return 0f;
         float price = u.Goods[good].BasePrice * EmergencyPriceFactor;
         // aufrunden: so viel, dass die anvisierte Tankstelle mit Sicherheit erreichbar ist (ganze Einheiten bezahlbar/Tankplatz)
         var wallet = u.WalletOf(ship);
@@ -204,7 +213,7 @@ public static class Refuel
     public static float TripFuelCost(Universe u, Ship ship, Station buy, Station sell)
     {
         var fuel = ActiveFuel(ship);
-        if (fuel is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
+        if (!Active(u) || fuel is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
         float toBuy = Travel.EstimateDistance(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
         return TripFuelCost(u, ship, buy, sell, toBuy, FuelPrice(u, ship, fuel.Value, buy));
     }
@@ -217,7 +226,7 @@ public static class Refuel
     public static float TripFuelCost(Universe u, Ship ship, Station buy, Station sell, float distanceToBuy, float fuelPrice)
     {
         var good = ActiveFuel(ship);
-        if (good is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
+        if (!Active(u) || good is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
         float d = distanceToBuy
                 + Travel.EstimateDistance(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), GateAccess.ProfileOf(u, ship) with { Laden = true });
         return Consumption(ship, d, good) * fuelPrice;
@@ -233,7 +242,7 @@ public static class Refuel
     public static TripPlan PrepareTrip(Universe u, Ship ship, SectorId toSector, Vec2 toPos)
     {
         var good = ActiveFuel(ship);
-        if (good is null) return TripPlan.Depart;   // kein Antrieb/Tank (z. B. Schiff ohne Modell): kein Verbrauch
+        if (good is null || !Active(u)) return TripPlan.Depart;   // kein Antrieb/Tank (z. B. Schiff ohne Modell) oder Treibstoff abgeschaltet (Phase 14): kein Verbrauch
         float dist = Travel.PlannedDistance(u, ship.Sector, ship.Position, toSector, toPos, ship);
         // Wunsch: Reise plus Reserve (das Schiff tankt, solange es noch hinkommt). Pflicht ist nur der Bedarf der Reise selbst.
         float trip = Consumption(ship, dist, good);
@@ -295,6 +304,7 @@ public static class Refuel
     /// </summary>
     public static EmergencyResult PlayerEmergency(Universe u, Ship player)
     {
+        if (!Active(u)) return new(false, 0f, 0f, "Treibstoff ist abgeschaltet – kein Notruf nötig.");
         var good = ActiveFuel(player);
         if (good is null) return new(false, 0f, 0f, "Kein Treibstoffantrieb an Bord – kein Notruf nötig.");
         if (player.TotalFuel > 0.0001f) return new(false, 0f, 0f, "Tank ist nicht leer – kein Notruf nötig.");

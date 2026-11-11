@@ -32,6 +32,7 @@ public partial class Main : Node3D
 	const float WheelZoomIn = 0.88f, WheelZoomOut = 1f / 0.88f;
 
 	GameSession _session = null!;
+	bool _allSystems;   // Phase 14: Weltaufbau mit eingeschaltetem Treibstoff und Forschung (Selbsttest, Bildschirmfotos)
 	SectorView _view = null!;
 	PlayerShip _player = null!;
 	Camera3D _cam = null!;
@@ -213,6 +214,7 @@ public partial class Main : Node3D
 		string? shotDir = shotIdx >= 0 && shotIdx + 1 < args.Length ? args[shotIdx + 1] : null;
 		if (selftest || shotDir != null)
 		{
+			_allSystems = true;   // Phase 14: Selbsttest/Bildschirmfotos mit Treibstoff und Forschung (Standardwelt: beide aus); der Selbsttest prüft die Standardwelt am Ende
 			SaveService.UseFile(selftest ? "selftest.json" : "ui-shots.json");
 			DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(selftest ? "user://selftest.json" : "user://ui-shots.json"));   // immer frisch beginnen
 		}
@@ -241,7 +243,7 @@ public partial class Main : Node3D
 		else
 		{
 			if (SaveService.Exists) GD.PushWarning("Spielstand nicht ladbar, starte neu: " + error);
-			_session = GameSession.New();
+			_session = GameSession.New(_allSystems ? def => { def.Rules ??= new EconomyRules(); def.Rules.FuelActive = true; def.Rules.ResearchActive = true; } : null);
 			AttachSession();
 			if (SaveService.Exists) _hud.Toast("Spielstand beschädigt – neues Spiel gestartet", 4f);
 		}
@@ -401,7 +403,11 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Überträgt den Kamerazustand (Modus, Invertierung, Abstand) in die Anzeige des Hamburger-Menüs.</summary>
-	void RefreshCameraMenu() => _hud.Command.SetCameraState(_orbit.Mode == CameraMode.TargetLock, _orbit.InvertDrag, _orbit.Distance, LockTargetPosition() != null);
+	void RefreshCameraMenu()
+	{
+		_hud.Command.SetCameraState(_orbit.Mode == CameraMode.TargetLock, _orbit.InvertDrag, _orbit.Distance, LockTargetPosition() != null);
+		_hud.Command.SetFuelActive(_session.U.Rules.FuelActive);   // Phase 14: Notruf nur mit Treibstoff
+	}
 
 	const float MenuZoomStep = 0.85f;
 
@@ -537,13 +543,13 @@ public partial class Main : Node3D
 		_player.Locked = _docked != null || _transition;
 		bool hold = _miner.Enabled && _miningStep is { Nav: null, Waypoint: null };   // Automatik arbeitet an Ort und Stelle
 		// Treibstoff (Phase 4c): leerer Tank deckelt das Tempo (Notantrieb), die geflogene Strecke wird abgebucht
-		float fuelCap = PlayerFuel.ThrottleCap(PlayerData);
+		float fuelCap = PlayerFuel.ThrottleCap(_session.U, PlayerData);
 		var before = _player.Position;
 		_player.Step(delta, turn, dir, throttle, speedScale * fuelCap, _view, brake: hold);
 		if (!_player.Locked)
 		{
-			PlayerFuel.ConsumeFlown(PlayerData, new Vector2(_player.Position.X - before.X, _player.Position.Z - before.Z).Length());
-			if (fuelCap >= 1f && PlayerFuel.ThrottleCap(PlayerData) < 1f)
+			PlayerFuel.ConsumeFlown(_session.U, PlayerData, new Vector2(_player.Position.X - before.X, _player.Position.Z - before.Z).Length());
+			if (fuelCap >= 1f && PlayerFuel.ThrottleCap(_session.U, PlayerData) < 1f)
 				_hud.Toast("Tank leer – Notantrieb. Notruf im Menü oder zur nächsten Tankstelle schleichen.", 5f);
 		}
 		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(Mathf.Abs(throttle), 0.3f, 1f) : 0f);
@@ -1142,6 +1148,7 @@ public partial class Main : Node3D
 			Hull = PlayerData.Hull,
 			Fuel = PlayerData.TotalFuel,
 			FuelCapacity = PlayerData.Stats.FuelCapacity,
+			FuelActive = u.Rules.FuelActive,   // Phase 14
 			Credits = _session.U.WalletOf(PlayerData).Credits,   // Phase 5b: Spielerkasse
 			SectorName = sector.Name,
 			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",

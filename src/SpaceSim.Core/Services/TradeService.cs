@@ -1,5 +1,6 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Simulation;
 using SpaceSim.Core.Trading;
 
 namespace SpaceSim.Core.Services;
@@ -36,7 +37,7 @@ public sealed class TradeService : IStationService
             string name = u.Goods[good].Name;
             float held = ship.Cargo.GetValueOrDefault(good);
             float sellable = MathF.Min(MathF.Min(held, MathF.Max(0f, station.Credits) / entry.Price), station.AcceptableUnits(good, u.Rules));
-            offers.Add(new ServiceOffer($"{Buy}:{good.Value}", $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held));
+            offers.Add(new ServiceOffer($"{Buy}:{good.Value}", ExportRules.Buys(u, station, good) ? $"Nur Ankauf (Export): {name}" : $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held));
             offers.Add(new ServiceOffer($"{Sell}:{good.Value}", $"Verkaufen: {name}", entry.Price, sellable, good, entry.Amount, held));
         }
         float cargo = ship.Cargo.Values.Sum();

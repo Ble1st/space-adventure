@@ -26,6 +26,8 @@ public static class UniverseHash
                 foreach (var (g, n) in bs.Required.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
             }
             foreach (var (g, n) in st.PlayerStorage.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
+            // Phase 14: wartende Exportchargen (Reihenfolge des Ankaufs)
+            foreach (var b in st.Exports) { Mix((ulong)b.Good.Value); MixF(b.Amount); MixF(b.Paid); Mix((ulong)b.DueTick); }
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
         {
@@ -107,6 +109,8 @@ public static class UniverseHash
             }
         }
         Mix((ulong)u.NextSquadronId);
+        // Phase 14: Planeten der Sektoren
+        foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) MixString(sec.Planet?.Name ?? "");
         foreach (var q in u.Squadrons.Values.OrderBy(q => q.Id.Value))
         {
             Mix((ulong)q.Id.Value); Mix((ulong)q.Owner.Value); Mix((ulong)q.Leader.Value); Mix((ulong)q.Formation); Mix((ulong)q.HomeBase.Value); Mix((ulong)q.Rules);

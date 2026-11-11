@@ -77,7 +77,7 @@ public sealed partial class FleetScreen : CommandScreen
 		bool isActive = ship.Id == u.PlayerShip;
 		At(det, Text($"#{ship.Id.Value} {ModelName(u, ship)}{(ship.IsRental ? " (Leihschiff)" : "")}", 20, White), 14, 6, 400, 26);
 		At(det, Text(isActive ? "AKTIV – du steuerst selbst" : Commands.Describe(u, ship), 14, ship.Emergency ? Red : isActive ? Cyan : Orange), 14, 32, 590, 20);
-		At(det, Text($"{Where(u, ship)} · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0} · Regel {CommandNames.Rule(Squadrons.RulesOf(u, ship))}", 13, Dim), 14, 54, 590, 18);
+		At(det, Text($"{Where(u, ship)} · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} {(u.Rules.FuelActive ? $"· Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0} " : "")}· Regel {CommandNames.Rule(Squadrons.RulesOf(u, ship))}", 13, Dim), 14, 54, 590, 18);
 		if (!isActive)
 		{
 			var bSwitch = At(det, new KitButton("Übernehmen", new Vector2(150, 40)) { FontSize = 15, State = KitButtonState.Ready }, 454, 4);

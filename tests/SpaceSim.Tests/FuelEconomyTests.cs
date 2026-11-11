@@ -29,7 +29,7 @@ public class FuelEconomyTests
     [Fact]
     public void TravelStart_VerbrauchtTreibstoff_NurTeilstreckenInSektoren_GateFrei_CreditsUnberuehrt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var ship = u.Ships.Values.First(s => s.Role == ShipRole.Trader && s.Sector == new SectorId(1) && s.Transit is null);
         Assert.Equal(0.002f, ship.Stats.FuelUsePerUnit);   // fuelUse des chem_engine_s in der Startwelt
         var fromSector = ship.Sector;
@@ -71,7 +71,7 @@ public class FuelEconomyTests
     [Fact]
     public void PrepareTrip_LeererTank_AnRaffinerie_TanktAuf_CreditsBestandKasseGebucht()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var ship = ParkedTrader(u);
         var refi = Refinery(u);
         var prop = DemoUniverse.Propellant;
@@ -109,7 +109,7 @@ public class FuelEconomyTests
     [Fact]
     public void PrepareTrip_StationOhneTreibstoff_FahrtZurTankstelle_TankenBeiAnkunft()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         new MarketSystem().Step(u, 1);   // Preise setzen (im laufenden Betrieb macht das MarketSystem vor den KI-Systemen)
         var ship = ParkedTrader(u);
         var steel = u.Stations[new StationId(1)];   // Stahlwerk Alpha führt keinen Treibstoff
@@ -141,7 +141,7 @@ public class FuelEconomyTests
     [Fact]
     public void Notkauf_LeererTank_KeineTankstelleErreichbar_Aufpreis2x_NurErforderlicheMenge_Geldsenke()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         new MarketSystem().Step(u, 1);
         var ship = ParkedTrader(u);
         var steel = u.Stations[new StationId(1)];
@@ -179,7 +179,7 @@ public class FuelEconomyTests
     [Fact]
     public void Notkauf_Pleite_KeinNotkauf_SondernStuck()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         new MarketSystem().Step(u, 1);
         var ship = ParkedTrader(u);
         var steel = u.Stations[new StationId(1)];
@@ -203,7 +203,7 @@ public class FuelEconomyTests
     [Fact]
     public void Raffinerie_ProduziertTreibstoff_und_VerkauftAnSchiff_KasseBestandCreditsKorrekt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var refi = Refinery(u);
         var prop = DemoUniverse.Propellant;
         float p0 = refi.Market[prop].Amount;
@@ -245,7 +245,7 @@ public class FuelEconomyTests
     [Fact]
     public void Haendler_BewertungZiehtTreibstoffkostenAb()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         new MarketSystem().Step(u, 1);
         var ship = ParkedTrader(u);
         var prop = DemoUniverse.Propellant;
@@ -278,7 +278,7 @@ public class FuelEconomyTests
     [Fact]
     public void Raffinerie_ProduziertGrundmengeAuchOhneWasserstoff()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         var ref_ = Refinery(u);
         var good = DemoUniverse.Propellant;
         ref_.Market[DemoUniverse.Hydrogen].Amount = 0f;
@@ -296,7 +296,7 @@ public class FuelEconomyTests
     {
         static Universe Run(ulong seed, int ticks)
         {
-            var u = DemoUniverse.Create(seed);
+            var u = TestWorlds.Default(seed);
             new SimulationRunner().Run(u, ticks);
             return u;
         }
@@ -317,7 +317,7 @@ public class FuelEconomyTests
     [Fact]
     public void Langlauf_20000Ticks_KeineNegativenTanks_KeinDauerTransit_KeineGeister_SpielerTankUnberuehrt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         int notk = 0, tankBuys = 0;
         u.Events.Raised += e =>
         {

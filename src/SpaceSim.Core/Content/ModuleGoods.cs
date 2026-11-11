@@ -28,6 +28,9 @@ public static class ModuleGoods
         modules.OrderBy(key, StringComparer.Ordinal);
 
     /// <summary>Legt die Ware eines Moduls an (form solid, Name = Modulname, Farbe nach Slotart).</summary>
+    /// <summary>Phase 14: Kategorie der Modul-Waren.</summary>
+    public const string ModuleCategory = "module";
+
     public static Good Create(Universe u, Module m, GoodId id)
     {
         var slot = u.SlotTypes.GetValueOrDefault(m.Slot);
@@ -36,7 +39,7 @@ public static class ModuleGoods
             Id = id, Key = m.Key, Name = m.Name.Length > 0 ? m.Name : m.Key,
             Color = slot?.Color ?? DefaultColor,
             BasePrice = BasePrice(m.Cost, k => u.FindGood(k)?.BasePrice, u.Rules.ModuleMarkup),
-            VolumePerUnit = Volume(m.Mass), Form = GoodForm.Solid,
+            VolumePerUnit = Volume(m.Mass), Form = GoodForm.Solid, Category = ModuleCategory,
         };
     }
 

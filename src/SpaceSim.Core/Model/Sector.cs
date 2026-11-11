@@ -32,6 +32,8 @@ public sealed class Sector
     /// <summary>Phase 11: Verkehrswert (geglättet): Wert der Fracht an Bord der KI-Schiffe im Sektor zum Basispreis — der „Wert des Sektors“ für Polizei und Piraten. Gespeichert.</summary>
     public float Traffic;
     public float Radius = 10_000f;
+    /// <summary>Phase 14: Planet des Sektors (Kulisse, Abnehmer der Exportsenke); null = keiner.</summary>
+    public Planet? Planet;
     public List<GateId> Gates = new();
     public List<StationId> Stations = new();
     public List<ResourceField> Fields = new();

@@ -7,17 +7,21 @@ using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 
 // Headless-Balancing: lässt die Wirtschaft ohne Spieler laufen und gibt Kennzahlen als Tabelle/CSV aus.
-//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off] [--research off]
+//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off] [--research on|off] [--fuel on|off]
 
 var opts = ParseArgs(args);
 int ticks = Int(opts, "ticks", 40_000), every = Int(opts, "every", 2_000);
 ulong? seed = opts.TryGetValue("seed", out var s) ? ulong.Parse(s, CultureInfo.InvariantCulture) : null;
 
-var u = opts.TryGetValue("world", out var path) ? WorldBuilder.Build(WorldBuilder.Parse(File.ReadAllText(path)), seed) : WorldBuilder.BuildDefault(seed);
+var worldDef = WorldBuilder.Parse(opts.TryGetValue("world", out var path) ? File.ReadAllText(path) : WorldBuilder.DefaultWorldJson());
+worldDef.Rules ??= new EconomyRules();
+// Phase 13/14: --research on|off und --fuel on|off überschreiben die Regel der Weltdatei — vor dem Weltaufbau, denn abgeschaltete Systeme lassen
+// ihre Stationen (Forschungsstationen, Treibstoffraffinerien) in der Welt weg
+if (opts.TryGetValue("research", out var resOpt)) worldDef.Rules.ResearchActive = resOpt == "on";
+if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelOpt == "on";
+var u = WorldBuilder.Build(worldDef, seed);
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
-// Phase 13: --research off schaltet die Forschung ab (alles frei, Forschungsstationen ruhen; Vergleichslauf)
-if (opts.TryGetValue("research", out var resOpt) && resOpt == "off") u.Rules.ResearchActive = false;
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
 var runner = new SimulationRunner(SimulationRunner.DefaultModules().Select(m => m is SpaceSim.Core.Modules.SecurityModule ? new TimedModule(m, securityWatch) : m));
@@ -135,6 +139,23 @@ u.Events.Raised += e =>
         case ResearchFunded fu: researchPlayer += fu.Credits; break;
     }
 };
+// Phase 14: Exportsenke — exportierte Mengen und Erlös je Ware, neu geschöpftes Geld (Erlös − bezahlter Ankauf)
+var exportUnits = new SortedDictionary<int, float>(); var exportRevenue = new SortedDictionary<int, float>();
+double exportPaid = 0, exportRev = 0; int exportBatches = 0, exportQueued = 0;
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case ExportQueued: exportQueued++; break;
+        case GoodsExported ge:
+            exportBatches++; exportPaid += ge.Paid; exportRev += ge.Revenue;
+            exportUnits[ge.Good.Value] = exportUnits.GetValueOrDefault(ge.Good.Value) + ge.Amount;
+            exportRevenue[ge.Good.Value] = exportRevenue.GetValueOrDefault(ge.Good.Value) + ge.Revenue;
+            break;
+    }
+};
+// Phase 14: Preise der reinen Verbraucher (Kolonie) je Zutat über die Messpunkte (Preis/Basis)
+var consumerPrices = new SortedDictionary<string, List<float>>(StringComparer.Ordinal);
 u.Events.Raised += e =>
 {
     if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
@@ -167,6 +188,15 @@ for (int t = 0; t <= ticks; t += every)
     var split = phys.Isolated.Count >= econ.Isolated.Count ? phys : econ;
     if (split.IsSplit && (worstSplit is null || split.Isolated.Count > worstSplit.Isolated.Count)) worstSplit = split;
     if (t == ticks) finalSplit = split.IsSplit ? split : null;
+    // Phase 14: Preise an den reinen Verbrauchern (Stationen mit Rezepten ohne Produkte, z. B. Kolonie) je Zutat
+    foreach (var cst in u.Stations.Values.Where(x => !x.IsBuildSite && x.Production.Count > 0 && x.Production.All(r => r.Outputs.Count == 0)).OrderBy(x => x.Id.Value))
+        foreach (var gid in cst.Production.SelectMany(r => r.Inputs.Keys).Distinct().OrderBy(g => g.Value))
+            if (cst.Market.TryGetValue(gid, out var ce) && u.Goods[gid].BasePrice > 0f)
+            {
+                string ck = $"{cst.Name}: {u.Goods[gid].Name}";
+                if (!consumerPrices.TryGetValue(ck, out var cl)) consumerPrices[ck] = cl = new List<float>();
+                if (t > 0) cl.Add(ce.Price / u.Goods[gid].BasePrice);
+            }
     // Phase 13: Forschungsstand aller Fraktionen (Summe der FP und der abgeschlossenen Projekte)
     float fp = u.Factions.Values.Sum(f => f.Research.PointsTotal);
     int researched = u.Factions.Values.Sum(f => f.Research.Completed.Count);
@@ -184,7 +214,7 @@ sw.Stop();
 Console.WriteLine();
 Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.Max(1.0, sw.ElapsedMilliseconds):0.0} Ticks/ms), Hash {UniverseHash.Compute(u):X16}");
 var prop = u.FindGood("propellant");
-if (prop is not null)
+if (prop is not null && u.Rules.FuelActive)
 {
     var tailProp = history.Skip(history.Count * 3 / 4).Select(h => h.Goods.First(x => x.Good == prop.Id).PriceRatio).ToList();
     float propAvg = tailProp.Count > 0 ? tailProp.Average() : 0f;
@@ -272,7 +302,8 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Rechenzeit Sicherheit (Lagekarte, Piraten, Polizei, Fahndung): {securityWatch.Elapsed.TotalMilliseconds:0} ms = "
         + $"{(sw.ElapsedMilliseconds > 0 ? 100.0 * securityWatch.Elapsed.TotalMilliseconds / sw.ElapsedMilliseconds : 0):0.0}% der Laufzeit");
 }
-// Phase 13: Forschungsstand je Fraktion, Freischaltungen, Ausgaben
+// Phase 13: Forschungsstand je Fraktion, Freischaltungen, Ausgaben (Phase 14: nur wenn die Forschung an ist)
+if (u.Rules.ResearchActive)
 {
     Console.WriteLine($"Forschung{(u.Rules.ResearchActive ? "" : " (abgeschaltet)")}: {researchCycles} Takte, {researchPoints:0} FP; gestockt {researchStalled}"
         + (stallReasons.Count == 0 ? "" : " (" + string.Join(", ", stallReasons.Select(kv => $"{kv.Key} {kv.Value}")) + ")")
@@ -285,6 +316,31 @@ if (u.Modules.Count > 0)
     double incomeR = taxIn + tolls + fines;
     if (incomeR > 0) Console.WriteLine($"  Forschungsbudget = {100.0 * researchFunding / incomeR:0.0}% der Kasseneinnahmen");
 }
+// Phase 14: Exportsenke, Endwaren-Fluss, Preise an den Verbrauchern
+{
+    var exporters = u.Stations.Values.Where(x => ExportRules.ConfigOf(u, x) is not null).OrderBy(x => x.Id.Value).ToList();
+    if (exporters.Count > 0)
+    {
+        Console.WriteLine($"Export: {exportBatches} Chargen an Planeten ({exportQueued} angekauft), bezahlt {exportPaid:0} Cr, Erlös {exportRev:0} Cr, neu geschöpft {exportRev - exportPaid:0} Cr; "
+            + (exportUnits.Count == 0 ? "nichts exportiert" : string.Join(", ", exportUnits.Select(kv => $"{u.Goods[new GoodId(kv.Key)].Name} {kv.Value:0} ({exportRevenue[kv.Key]:0} Cr)"))));
+        foreach (var ex in exporters)
+            Console.WriteLine($"  {ex.Name,-22} Kasse {ex.Credits,8:0}, {ex.Exports.Count} Chargen unterwegs ({ex.Exports.Sum(b => b.Paid):0} Cr bezahlt); Lager "
+                + string.Join(", ", ExportRules.ConfigOf(u, ex)!.Goods.Select(g => $"{u.Goods[g].Name} {ex.Market.GetValueOrDefault(g)?.Amount ?? 0:0} @ {(ex.Market.GetValueOrDefault(g)?.Price ?? 0) / u.Goods[g].BasePrice:0.00}×")));
+    }
+    var endGoods = u.Goods.Values.Where(g => g.Category == "end").OrderBy(g => g.Id.Value).ToList();
+    if (endGoods.Count > 0)
+        Console.WriteLine("Endwaren-Fahrten: " + string.Join(", ", endGoods.Select(g => { var (vol, trips) = routes.ByGood(g.Id); return $"{g.Name} {trips} Fahrten ({vol:0} Einh.)"; })));
+    foreach (var (k, list) in consumerPrices)
+        if (list.Count > 0)
+        {
+            var tl = list.Skip(list.Count * 3 / 4).ToList();
+            Console.WriteLine($"  Verbraucherpreis {k}: Ø {list.Average():0.00}×, letzte 25% {tl.Average():0.00}×, am Deckel (≥3,9×) {list.Count(x => x >= 3.9f)}/{list.Count} Messpunkte");
+        }
+    // Erzeuger und Verbraucher der Endwaren zum Schluss: Bestand/Wunsch, Preis, Kasse
+    foreach (var st in u.Stations.Values.Where(x => !x.IsBuildSite && ExportRules.ConfigOf(u, x) is null && x.Production.Any(r => r.Outputs.Keys.Concat(r.Inputs.Keys).Any(g => u.Goods[g].Category == "end"))).OrderBy(x => x.Id.Value))
+        Console.WriteLine($"  {st.Name,-24} Kasse {st.Credits,8:0}; " + string.Join(", ", st.Market.Where(kv => st.Production.Any(r => r.Inputs.ContainsKey(kv.Key) || r.Outputs.ContainsKey(kv.Key))).OrderBy(kv => kv.Key.Value)
+            .Select(kv => $"{u.Goods[kv.Key].Name} {kv.Value.Amount:0}/{kv.Value.Target:0} @ {kv.Value.Price / u.Goods[kv.Key].BasePrice:0.00}×")));
+}
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))
 {
@@ -292,6 +348,12 @@ foreach (var r in routes.Top(5))
     string to = u.Stations.GetValueOrDefault(r.Route.To)?.Name ?? $"#{r.Route.To.Value}";
     Console.WriteLine($"  {u.Goods[r.Route.Good].Name,-9} {from} → {to}: {r.Volume:0} in {r.Trips} Fahrten");
 }
+
+// --dump on: alle Stationen mit Kasse und Markt zum Schluss (Fehlersuche)
+if (opts.TryGetValue("dump", out var dumpOpt) && dumpOpt == "on")
+    foreach (var st in u.Stations.Values.OrderBy(x => x.Id.Value))
+        Console.WriteLine($"  #{st.Id.Value,-4} {st.Name,-30} Kasse {st.Credits,9:0}: " + string.Join(", ", st.Market.OrderBy(kv => kv.Key.Value)
+            .Select(kv => $"{u.Goods[kv.Key].Key} {kv.Value.Amount:0}/{kv.Value.Target:0}@{kv.Value.Price / MathF.Max(0.01f, u.Goods[kv.Key].BasePrice):0.00}")));
 
 // Urteil: Preise in den letzten 25 % der Messpunkte dauerhaft am Anschlag deuten auf eine kippende Kette hin
 var tail = history.Skip(history.Count * 3 / 4).ToList();

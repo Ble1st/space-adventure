@@ -19,15 +19,16 @@ public static class PlayerFuel
     /// efficiency des aktiven Treibstoffs; Tank nie negativ) — dieselbe Regel wie <see cref="Refuel.Consume"/> für die
     /// KI-Schiffe, damit die Logik nicht doppelt geschrieben wird.
     /// </summary>
-    public static void ConsumeFlown(Ship ship, float distance) => Refuel.Consume(ship, distance);
+    /// <remarks>Phase 14: Mit abgeschaltetem Treibstoff (<see cref="EconomyRules.FuelActive"/>) verbraucht auch der Spieler nichts.</remarks>
+    public static void ConsumeFlown(Universe u, Ship ship, float distance) => Refuel.Consume(u, ship, distance);
 
     /// <summary>
     /// Tempo-Deckel: 1.0 mit Treibstoff (oder ganz ohne Treibstoffsystem, z. B. Schiff ohne Modell),
     /// <see cref="EmergencyThrottle"/> bei leerem Tank.
     /// </summary>
-    public static float ThrottleCap(Ship ship)
+    public static float ThrottleCap(Universe u, Ship ship)
     {
-        if (Refuel.ActiveFuel(ship) is null) return 1f;   // kein Antrieb/Tank: kein Verbrauch, keine Deckelung
+        if (!Refuel.Active(u) || Refuel.ActiveFuel(ship) is null) return 1f;   // Phase 14: Treibstoff aus = nie gedeckelt   // kein Antrieb/Tank: kein Verbrauch, keine Deckelung
         return ship.TotalFuel > 0.0001f ? 1f : EmergencyThrottle;
     }
 }

@@ -26,6 +26,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestCustoms { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Lage (Phase 11).</summary>
 	public string TestSecurity { get; private set; } = "";
+	/// <summary>Selbsttest: zuletzt gezeigte Exportzeile (Phase 14; leer ohne Exportsenke).</summary>
+	public string TestExport { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -47,6 +49,7 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		Row(v1, "Typ", type);
 		Row(v1, "Besitzer", faction);
 		Row(v1, "Sektor", sector);
+		if (sec?.Planet is { } planet) Row(v1, "Planet", planet.Name);   // Phase 14: Planet des Sektors
 		Row(v1, st.IsBuildSite ? "Treuhand" : "Kasse", $"{st.Credits:0} Cr");
 		// Phase 8: Baustelle — Zieltyp, Materialfortschritt, Bauschiff und Status (echt aus ConstructionInfo); Schutz/Kritikalität sonst
 		if (ConstructionInfo.Of(u, st) is { } site)
@@ -117,6 +120,14 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		Wrapped(v3, $"Lage: {lage.Summary} · {lage.Patrols} Streife{(lage.Patrols == 1 ? "" : "n")}", tw, 15, lage.Threat >= 1f ? Orange : White);
 		int lvl = u.FactionOf(st) is { } sf ? Wanted.LevelOf(u, Ctx.Ship.Owner, sf) : 0;
 		Wrapped(v3, "Fahndung hier: " + SecurityNames.WantedLevel(lvl), tw, 15, lvl >= 3 ? Red : lvl > 0 ? Orange : Green);
+		// Phase 14: Exportsenke — „Export an <Planet>: n Chargen unterwegs, nächste in …“ (reine Core-Anzeige ExportInfo)
+		var ex = ExportInfo.ForStation(u, st);
+		TestExport = ex?.Line ?? "";
+		if (ex is not null)
+		{
+			Wrapped(v3, ex.Line, tw, 15, Cyan);
+			Wrapped(v3, $"Kauft {string.Join(", ", ex.Goods.Select(g => u.Goods[g].Name))} an · Erlös am Planeten +{100f * ex.Markup:0} %", tw, 13, new Color(Dim, 0.95f));
+		}
 		v3.AddChild(Text("Hinweise", 16, Dim));
 		foreach (var note in pol.Notes) Wrapped(v3, "· " + note, tw, 14, new Color(Dim, 0.95f));
 	}

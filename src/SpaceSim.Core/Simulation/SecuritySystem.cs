@@ -189,7 +189,7 @@ public sealed class SecuritySystem : ISimSystem
         if (u.Tick < p.NextThinkTick) return;
         var home = u.Stations.GetValueOrDefault(p.HomeBase);
         if (home is null && u.FactionOf(p) is { } f && HomeBaseFor(u, f, p.Sector) is { } h) { p.HomeBase = h.Id; home = h; }
-        bool needsBase = p.Hull < u.Rules.RetreatHull * p.MaxHull || p.Stats.FuelCapacity > 0f && p.TotalFuel < 0.3f * p.Stats.FuelCapacity;
+        bool needsBase = p.Hull < u.Rules.RetreatHull * p.MaxHull || u.Rules.FuelActive && p.Stats.FuelCapacity > 0f && p.TotalFuel < 0.3f * p.Stats.FuelCapacity;
         if (home is not null && (needsBase || p.DutySector == default))
         {
             if (p.Sector == home.Sector && Vec2.Distance(p.Position, home.Position) <= u.Rules.StationSafeRadius)

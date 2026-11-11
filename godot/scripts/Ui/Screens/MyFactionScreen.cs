@@ -44,7 +44,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 		string membership = u.Player.Membership is { } m ? FactionName(u, m) : "keiner Fraktion (unabhängig)";
 		WrappedText(a, $"Mitglied von: {membership}", 20, 178, 460, 14, new Color(Dim, 0.95f), 19);
 		// Phase 13: Forschungsstand der eigenen Fraktion (echt, ResearchInfo); ohne Mitgliedschaft der Hinweis zur Größe
-		if (u.Player.Membership is { } mf && ResearchInfo.ForFaction(u, mf) is { Total: > 0 } rv)
+		// Phase 14: mit abgeschalteter Forschung keine Forschungszeile
+		if (u.Rules.ResearchActive && u.Player.Membership is { } mf && ResearchInfo.ForFaction(u, mf) is { Total: > 0 } rv)
 			WrappedText(a, $"Forschung: {rv.Summary}", 20, 206, 460, 13, Cyan, 17);
 		else
 			WrappedText(a, "Weitere Schiffe, eine eigene Station oder mehr Geld heben die Stufe.", 20, 206, 460, 13, new Color(Dim, 0.75f), 17);

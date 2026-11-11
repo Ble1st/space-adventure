@@ -49,7 +49,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 		var card = CardBg(inner, 0, 28, w - 8, 78, new Color(0.12f, 0.22f, 0.4f, 0.95f), Cyan, 10, 2);
 		At(card, new ShipSketch { CustomMinimumSize = new Vector2(48, 40), Size = new Vector2(48, 40), MouseFilter = MouseFilterEnum.Ignore }, 12, 14);
 		At(card, Text($"Dein Schiff #{ship.Id.Value} · {ModelName(u, ship)} · {ShipQualityNames.Name(ship.Quality)}{(ship.IsRental ? " · Leihschiff" : "")}", 20, White), 72, 6, 640, 28);
-		At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³ · Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
+		At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive ? $" · Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
 
 		// ── Eigene Schiffe hier (Dienst „hangar“) ──
 		float lw = 610f;
@@ -64,7 +64,7 @@ public sealed partial class HangarScreen : DockAreaScreen
 			var row = CardBg(inner, 0, y, lw - 8, 108, Card, new Color(Edge, 0.6f), 10, 1);
 			At(row, Text($"#{other.Id.Value} · {ModelName(u, other)} · {ShipQualityNames.Name(other.Quality)}{(other.IsRental ? " · Leihschiff" : "")}", 17, White), 12, 4, 420, 24);
 			float berth = Hangar.BerthFeeNow(u, other);
-			At(row, Text($"{Commands.Describe(u, other)} · Hülle {(int)other.Hull}/{(int)other.MaxHull} · Tank {other.TotalFuel:0}" + (berth > 0f ? $" · {berth:0} Cr/Tag" : ""), 13, Dim), 12, 28, lw - 30, 20);
+			At(row, Text($"{Commands.Describe(u, other)} · Hülle {(int)other.Hull}/{(int)other.MaxHull}{(u.Rules.FuelActive ? $" · Tank {other.TotalFuel:0}" : "")}" + (berth > 0f ? $" · {berth:0} Cr/Tag" : ""), 13, Dim), 12, 28, lw - 30, 20);
 			float bx = 12;
 			foreach (var (action, label) in new[] { (HangarService.Switch, "Übernehmen"), (HangarService.Home, "Heim"), (HangarService.SellShip, "Verkaufen") })
 			{

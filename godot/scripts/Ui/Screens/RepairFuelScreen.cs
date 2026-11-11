@@ -36,12 +36,15 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 	{
 		float w = inner.Size.X > 0 ? inner.Size.X : 670f;
 		_rows = 0;
-		At(inner, Text(_message.Length > 0 ? _message : "Tanken zum Marktpreis der Station, Reparatur verbraucht Hüllenplatten aus ihrem Lager.",
+		bool fuel = Ctx.U.Rules.FuelActive;   // Phase 14: ohne Treibstoff nur die Reparatur
+		At(inner, Text(_message.Length > 0 ? _message
+				: fuel ? "Tanken zum Marktpreis der Station, Reparatur verbraucht Hüllenplatten aus ihrem Lager." : "Reparatur verbraucht Hüllenplatten aus dem Lager der Station.",
 			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 40);
 
 		float y = 48f;
-		y = Section(inner, "Tanken", RefuelService.ServiceKey, "Diese Station verkauft keinen Treibstoff für dein Schiff.", y, w);
-		Section(inner, "Reparatur", RepairService.ServiceKey, "Diese Station hat keine Hüllenplatten für Reparaturen.", y + 14f, w);
+		if (fuel) y = Section(inner, "Tanken", RefuelService.ServiceKey, "Diese Station verkauft keinen Treibstoff für dein Schiff.", y, w) + 14f;
+		_fuelSection = fuel;
+		Section(inner, "Reparatur", RepairService.ServiceKey, "Diese Station hat keine Hüllenplatten für Reparaturen.", y, w);
 	}
 
 	/// <summary>Eine Dienstgruppe: Überschrift plus je Angebot eine Zeile mit Menge, Preis und Ausführen-Taste.</summary>
@@ -89,5 +92,8 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 
 	// ── Zugriff für Selbsttest/Bildschirmfotos ──
 	public int TestRowCount => _rows;
+	/// <summary>Selbsttest: wurde der Abschnitt „Tanken“ gezeichnet (Phase 14: nur mit Treibstoff)?</summary>
+	public bool TestFuelSection => _fuelSection;
+	bool _fuelSection;
 	public string TestMessage => _message;
 }

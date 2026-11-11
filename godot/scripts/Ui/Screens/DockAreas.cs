@@ -53,10 +53,10 @@ public static class DockAreas
 	public const string Research = "research";
 
 	/// <summary>Anzeige-Label je Bereichs-Id (auch für Dienst-Schlüssel der Station-Info).</summary>
-	public static string LabelFor(string id) => id switch
+	public static string LabelFor(string id, Universe? u = null) => id switch
 	{
 		Trade => "Handel",
-		Repair => "Reparatur & Tanken",
+		Repair => u is { Rules.FuelActive: false } ? "Reparatur" : "Reparatur & Tanken",   // Phase 14: ohne Treibstoff nur Reparatur
 		Outfitter => "Ausrüster",
 		Shipyard => "Werft",
 		Hangar => "Hangar",
@@ -93,7 +93,7 @@ public static class DockAreas
 			&& type.Services.Any(k => k is RefuelService.ServiceKey or RepairService.ServiceKey);
 		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur"
 			: listed ? "Lager leer" : "Nicht an dieser Station";
-		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair), Sub = repairSub, Available = refuel || repair });
+		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair, u), Sub = repairSub, Available = refuel || repair });
 		// Ausrüster und Werft (Phase 5c): echt, sobald ForStation „outfitter“ bzw. „shipdealer“ liefert
 		bool outfitter = offered.Contains(OutfitterService.ServiceKey), dealer = offered.Contains(ShipDealerService.ServiceKey);
 		bool upgrade = offered.Contains(UpgradeService.ServiceKey);   // Phase 7: Upgrades sind ein Abschnitt im Ausrüster

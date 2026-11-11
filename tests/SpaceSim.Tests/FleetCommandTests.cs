@@ -159,7 +159,9 @@ public class FleetCommandTests
     [Fact]
     public void Folgen_UndHeimkehr_MitVersorgung()
     {
-        var u = World();
+        var u = TestWorlds.WithFuel();   // Phase 14: Versorgung mit Treibstoff an der Raffinerie (in der Standardwelt aus)
+        new SimulationRunner().Run(u, 1);
+        u.PlayerWallet.Credits = 20_000f;
         var leader = Own(u, "nomad", St(u, 1));
         var follower = Own(u, "pip", St(u, 2));
         Commands.Give(u, leader, new GoToCommand(default, default, St(u, 30).Id), out _);
@@ -539,7 +541,7 @@ public class FleetCommandTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
+        Assert.Contains("\"Version\":17", json);   // Phase 14: v17
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Single(loaded.Squadrons);

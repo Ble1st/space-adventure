@@ -338,7 +338,7 @@ public class MultiroleTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
+        Assert.Contains("\"Version\":17", json);   // Phase 14: v17
         Assert.Contains("\"Jobs\":[\"trade\",\"mine\"]", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));

@@ -35,9 +35,10 @@ public sealed class JobAssignmentSystem : ISimSystem
             foreach (var job in jobs)
             {
                 if (job == current) continue;
-                // Herdenschutz: keine Flucht in eine volle Aufgabe, solange die aktuelle noch etwas einbringt — sonst kauft die Flotte für die
-                // verlassene Aufgabe nach und wächst über ihre Kapazitätsgrenzen hinaus
-                if (currentScore > 0f && !HasRoom(u, ship, job)) continue;
+                // Herdenschutz: keine Flucht in eine volle Aufgabe — sonst kauft die Flotte für die verlassene Aufgabe nach und wächst über ihre
+                // Kapazitätsgrenzen hinaus. Phase 14: auch dann nicht, wenn die aktuelle Aufgabe gerade nichts einbringt (vorher erlaubt): Im 60000-Tick-Lauf
+                // kaufte die Flotte so 24 Tinker für den Bergbau, die sofort in den vollen Handel wechselten (Handel 28/14).
+                if (!HasRoom(u, ship, job)) continue;
                 float score = Rated(u, ship, job);
                 if (score > bestScore) { bestScore = score; best = job; }
             }

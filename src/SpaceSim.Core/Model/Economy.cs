@@ -15,6 +15,8 @@ public sealed class Good
     public float VolumePerUnit = 1f;
     /// <summary>Warenform aus den Inhaltsdaten; wird als eigener (optionaler) Wert im Save mitgespeichert (alte Spielstände ohne das Feld laden als <see cref="GoodForm.Solid"/>).</summary>
     public GoodForm Form = GoodForm.Solid;
+    /// <summary>Phase 14: Warenkategorie aus den Inhaltsdaten (ore, refined, component, end, kit, fuel; Modul-Waren "module"); "" = keine. Gespeichert.</summary>
+    public string Category = "";
 }
 
 public sealed class Recipe
@@ -85,6 +87,8 @@ public sealed class StationType
     /// Budget aus der Fraktionskasse; null = keine Forschungsstation.
     /// </summary>
     public ResearchConfig? Research;
+    /// <summary>Phase 14: Exportsenke (JSON <c>export</c>); null = keine. Stationen dieses Typs stehen nur in Sektoren mit Planet.</summary>
+    public ExportConfig? Export;
 }
 
 /// <summary>
@@ -131,6 +135,8 @@ public sealed class Station
     /// Persönliches Lager des Spielers an dieser Station (Phase 8, Dienst „storage“ am Lagerhaus): Ware → Menge. Getrennt vom Markt; gespeichert.
     /// </summary>
     public Dictionary<GoodId, float> PlayerStorage = new();
+    /// <summary>Phase 14: angekaufte Chargen der Exportsenke, in Ankaufsreihenfolge; gespeichert. Leer bei Stationen ohne Exportsenke.</summary>
+    public List<ExportBatch> Exports = new();
     public long BelowLimitSince = -1;
     public string Name = "";
     public SectorId Sector;
@@ -168,6 +174,13 @@ public sealed class Station
         foreach (var r in Production)
             if (r.Inputs.ContainsKey(good) || r.Outputs.ContainsKey(good)) return false;
         return true;
+    }
+
+    /// <summary>Phase 14: Stellt eine Rezeptzeile der Station diese Ware her? KI-Händler kaufen nur beim Hersteller ein.</summary>
+    public bool Produces(GoodId good)
+    {
+        foreach (var r in Production) if (r.Outputs.ContainsKey(good)) return true;
+        return false;
     }
 
     public StockEntry Stock(GoodId good)

@@ -36,6 +36,12 @@ public partial class CommandMenu : Control, IScreen
 
 	readonly KitWindow _win;
 	KitButton _free = null!, _lock = null!, _invert = null!;
+	KitButton? _emergency;
+
+	/// <summary>Phase 14: Notruf nur mit eingeschaltetem Treibstoff anzeigen.</summary>
+	public void SetFuelActive(bool on) { if (_emergency is not null) _emergency.Visible = on; }
+	/// <summary>Selbsttest: ist der Menüpunkt „Notruf“ sichtbar?</summary>
+	public bool TestEmergencyVisible => _emergency?.Visible ?? false;
 	Label _zoomText = null!, _modeHint = null!;
 
 	public CommandMenu()
@@ -92,6 +98,7 @@ public partial class CommandMenu : Control, IScreen
 			var b = new KitButton(label, new Vector2(540, 52)) { AlignLeft = true, FontSize = 19, Sub = sub };
 			string k = key;
 			b.Pressed += () => Action?.Invoke(k);
+			if (k == "emergency") _emergency = b;
 			list.AddChild(b);
 		}
 		scroll.AddChild(list);

@@ -171,3 +171,9 @@ public sealed record ResearchCompleted(FactionId Faction, string Project, long T
 /// <summary>Der Spieler hat ein Projekt beauftragt (Gebühr an die Station) bzw. mitfinanziert (Credits → FP).</summary>
 public sealed record ResearchCommissioned(FactionId Faction, string Project, float Fee) : SimEvent;
 public sealed record ResearchFunded(FactionId Faction, string Project, float Credits, float Points) : SimEvent;
+
+// ───────── Phase 14: Exportsenke ─────────
+/// <summary>Eine Lieferung an eine Exportsenke wurde zur Charge (bezahlt beim Ankauf, fällig zum Tick <paramref name="DueTick"/>).</summary>
+public sealed record ExportQueued(StationId Station, GoodId Good, float Amount, float Paid, long DueTick) : SimEvent;
+/// <summary>Eine Charge ging an den Planeten: Ware aus der Welt, die Station erhielt <paramref name="Revenue"/> (= bezahlt × (1 + Aufschlag)); neu geschöpft ist Revenue − Paid.</summary>
+public sealed record GoodsExported(StationId Station, GoodId Good, float Amount, float Paid, float Revenue) : SimEvent;

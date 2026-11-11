@@ -41,7 +41,13 @@ public class ResearchTests
     static readonly FactionId Union = new(1), Guild = new(2);
     const string Fusion = "fusion_mk3", Lasers = "precision_lasers", Deep = "deep_mining";
 
-    static Universe Fresh() => QualityUpgradeTests.WithoutFounderQuality();
+    static Universe Fresh()
+    {
+        // Phase 14: Forschung (und Treibstoff) wie bis Phase 13 eingeschaltet; ohne Gründer-Güteklassen
+        var def = TestWorlds.Def();
+        def.Rules!.FounderQuality = false;
+        return WorldBuilder.Build(def);
+    }
 
     /// <summary>Schließt ein Projekt für eine Fraktion ab (über dieselbe Buchung wie Station und Spieler).</summary>
     static void Complete(Universe u, FactionId f, string key)
@@ -65,7 +71,7 @@ public class ResearchTests
         return p;
     }
 
-    static WorldDef Def() => WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+    static WorldDef Def() => TestWorlds.Def();
 
     // ───────── Content und Validierung ─────────
 
@@ -216,6 +222,7 @@ public class ResearchTests
     public void Werft_GesperrtesModell_SichtbarAberNichtKaufbar_NachForschungKaufbar()
     {
         var (u, yard, player) = QualityUpgradeTests.AtYard();   // Werft Delta gehört der Gilde, Lager gefüllt
+        u.Rules.ResearchActive = true;   // Phase 14: Standardwelt hat die Forschung aus
         var dealer = new ShipDealerService();
         var offer = dealer.Offers(u, yard, player).Single(o => o.Key == "buy:excavator");
         Assert.Equal(0f, offer.Amount);
@@ -243,6 +250,7 @@ public class ResearchTests
     public void Ausruester_GesperrtesModul_NichtErforscht_AusDerFrachtErlaubt()
     {
         var (u, yard, player) = QualityUpgradeTests.AtYard();
+        u.Rules.ResearchActive = true;   // Phase 14: Standardwelt hat die Forschung aus
         var outfitter = new OutfitterService();
         int reactor = player.Slots.FindIndex(s => s.Type == "reactor");
         string key = $"fit:{reactor}:reactor_mk3";
@@ -263,6 +271,7 @@ public class ResearchTests
     public void Upgrade_AufGesperrtesZiel_MitGrund_NachForschungMoeglich()
     {
         var (u, yard, player) = QualityUpgradeTests.AtYard();
+        u.Rules.ResearchActive = true;   // Phase 14: Standardwelt hat die Forschung aus
         int reactor = player.Slots.FindIndex(s => s.Type == "reactor");
         player.Fit[reactor] = "reactor_mk2";
         player.RecomputeStats(u);
@@ -280,11 +289,12 @@ public class ResearchTests
         // Gründerschiffe würfeln ohne Werft: über viele Seeds nie ein gesperrtes Modul (Reaktor Mk2 → Mk3, Laser Mk2 → Mk3 wären Ziele)
         for (ulong seed = 1; seed <= 12; seed++)
         {
-            var u = WorldBuilder.BuildDefault(seed);
+            var u = TestWorlds.Default(seed);
             Assert.All(u.Ships.Values, s => Assert.DoesNotContain(s.Fit, k => k is "reactor_mk3" or "mining_laser_3"));
         }
         // Werftwurf: Elite (zwei Module besser) mit Mk2-Modell und vollem Mk3-Lager bleibt ohne Mk3, solange die Werftfraktion nicht forscht
         var (w, yard, _) = QualityUpgradeTests.AtYard();
+        w.Rules.ResearchActive = true;   // Phase 14: Standardwelt hat die Forschung aus
         var model = w.ShipModels["rockbreaker_ii"];
         var cls = w.ShipClasses[model.ClassKey];
         w.Rules.QualityChances = new List<float> { 0f, 0f, 1f, 0f };
@@ -302,6 +312,7 @@ public class ResearchTests
     public void KiFlotte_KauftGesperrtesModellNicht()
     {
         var (u, yard, _) = QualityUpgradeTests.AtYard();
+        u.Rules.ResearchActive = true;   // Phase 14: Standardwelt hat die Forschung aus
         var buyer = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
         buyer.Credits = 1_000_000f;
         u.MoveShip(buyer, yard.Sector);
@@ -429,7 +440,7 @@ public class ResearchTests
     [Fact]
     public void Langlauf_20000Ticks_ForschungFindetStatt_GeldErklaerbar_NichtsGesperrtesHergestellt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default();
         int done = 0;
         double funded = 0, salary = 0;
         var producedLocked = new List<string>();
@@ -460,7 +471,7 @@ public class ResearchTests
     [Fact]
     public void Determinismus_UndSaveRoundtrip_V16_MitForschungsstand_BitIdentisch()
     {
-        var a = DemoUniverse.Create(); var b = DemoUniverse.Create();
+        var a = TestWorlds.Default(); var b = TestWorlds.Default();
         new SimulationRunner().Run(a, 3000);
         new SimulationRunner().Run(b, 3000);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
@@ -469,7 +480,7 @@ public class ResearchTests
         a.Factions[Guild].Research.Commissioned = true;
         a.Factions[Guild].Research.PlayerFunded = 1234f;
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":16", json);
+        Assert.Contains("\"Version\":17", json);
         Assert.Contains("\"Research\":[", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
@@ -485,7 +496,7 @@ public class ResearchTests
     [Fact]
     public void Migration_V15ToV16_ProjekteErgaenzt_HashGleich()
     {
-        var fresh = DemoUniverse.Create();
+        var fresh = TestWorlds.Default();
         var v15 = ToV15Json(SaveGameJson.Write(fresh, Now), full: true);
         Assert.Contains("\"Version\":15", v15);
         Assert.DoesNotContain("fusion_mk3", v15);
@@ -522,7 +533,7 @@ public class ResearchTests
     [Fact]
     public void Migration_RealistischerV15Stand_BekommtForschungsstationenModuleUndProjekte_UndLaeuft()
     {
-        var v15 = RealisticV15(DemoUniverse.Create());
+        var v15 = RealisticV15(TestWorlds.Default());
         Assert.DoesNotContain("research_station", v15);
         Assert.DoesNotContain("reactor_mk3", v15);
         var (u, _) = SaveGameJson.Read(v15);
@@ -543,7 +554,7 @@ public class ResearchTests
     public void Migration_OhneAufloesbareForschung_BleibtAllesFrei()
     {
         // Welt ohne Warenschlüssel für die Forschungsgüter (wie sehr alte Stände): kein Forschungsstations-Typ, keine Projekte, nichts gesperrt
-        var node = JsonNode.Parse(RealisticV15(DemoUniverse.Create()))!.AsObject();
+        var node = JsonNode.Parse(RealisticV15(TestWorlds.Default()))!.AsObject();
         foreach (var g in node["Goods"]!.AsArray()) if ((string)g!["Key"]! == "energy") g["Key"] = "";
         var (u, _) = SaveGameJson.Read(node.ToJsonString());
         Assert.Equal(0, u.Research.Count);

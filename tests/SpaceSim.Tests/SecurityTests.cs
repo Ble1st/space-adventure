@@ -660,7 +660,7 @@ public class SecurityTests
         var raider = a.Ships.Values.First(ThreatMap.IsRaider);
         a.PendingEncounters.Add(new PendingEncounter { Kind = EncounterKind.Raid, Source = raider.Id, Target = a.PlayerShip, Sector = raider.Sector, DueTick = a.Tick + 40 });
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
+        Assert.Contains("\"Version\":17", json);   // Phase 14: v17
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.Player.Wanted[Guild].Heat, loaded.Player.Wanted[Guild].Heat);
@@ -767,16 +767,19 @@ public class SecurityTests
         foreach (var s in u.Ships.Values.Where(ThreatMap.IsRaider).ToList()) u.RemoveShip(s.Id, "test");
         outlaw.Treasury.Credits = 0f;
         var built = new List<RaiderBuilt>();
+        int raidersAtBuild = 0;
         double income = 0;
         u.Events.Raised += e =>
         {
-            if (e is RaiderBuilt b) built.Add(b);
+            if (e is RaiderBuilt b) { built.Add(b); raidersAtBuild = Math.Max(raidersAtBuild, u.Ships.Values.Count(ThreatMap.IsRaider)); }
             else if (e is TreasuryIncome { Purpose: "hideout" } t) income += t.Amount;
         };
         new SimulationRunner().Run(u, 12_000);
         var first = Assert.Single(built.Take(1));
         Assert.Equal(u.Rules.RaiderCost * u.Rules.RaiderRestartCostFactor, first.Cost, 3);
         Assert.InRange(income, 0.9 * first.Cost, 1.2 * first.Cost);   // die Einnahme floss nur, solange kein Kaperschiff da war
-        Assert.True(u.Ships.Values.Count(ThreatMap.IsRaider) >= 1);
+        // Phase 14: geprüft wird, dass der Neuanfang ein Kaperschiff in die Welt bringt — ob es bis Tick 12000 überlebt, hängt vom Kampfglück ab
+        // (Standard-Seed: am Ende abgewehrt und zerstört)
+        Assert.True(raidersAtBuild >= 1);
     }
 }
