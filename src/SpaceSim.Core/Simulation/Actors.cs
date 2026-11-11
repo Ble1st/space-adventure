@@ -22,12 +22,12 @@ public static class ActorRules
     {
         var acc = new Dictionary<ActorId, (int ships, int stations, int sectors, float money)>();
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value)) acc[a.Id] = (0, 0, 0, a.Treasury.Credits);
-        foreach (var s in u.Ships.Values.OrderBy(s => s.Id.Value))
+        foreach (var s in u.ShipsById())
         {
             if (s.Owner == u.FreeActor || !acc.TryGetValue(s.Owner, out var h)) continue;
             acc[s.Owner] = (h.ships + 1, h.stations, h.sectors, h.money + s.Credits);
         }
-        foreach (var st in u.Stations.Values.OrderBy(s => s.Id.Value))
+        foreach (var st in u.StationsById())
         {
             if (!acc.TryGetValue(st.Owner, out var h)) continue;
             acc[st.Owner] = (h.ships, h.stations + 1, h.sectors, h.money + (st.IsBuildSite ? 0f : st.Credits));
@@ -146,9 +146,9 @@ public static class Investors
                 if (a.Kind is ActorKind.Player or ActorKind.Free or ActorKind.Outlaw || a.Treasury.Credits < need) continue;   // Phase 11: Piraten bauen keine Stationen
                 list.Add(Make(u, index, InvestorSource.Treasury, a.Id, a.Treasury.Credits, need, null, null));
             }
-        foreach (var st in u.Stations.Values.Where(s => !s.IsBuildSite && s.Credits >= need).OrderBy(s => s.Id.Value))
+        foreach (var st in u.StationsById().Where(s => !s.IsBuildSite && s.Credits >= need).ToList())
             list.Add(Make(u, index, InvestorSource.Station, st.Owner, st.Credits, need, st, null));
-        foreach (var sh in u.Ships.Values.Where(s => s.IsEconomyAi && s.Credits >= need).OrderBy(s => s.Id.Value))
+        foreach (var sh in u.ShipsById().Where(s => s.IsEconomyAi && s.Credits >= need).ToList())
             list.Add(Make(u, index, InvestorSource.Ship, sh.Owner, sh.Credits, need, null, sh));
         return list;
     }

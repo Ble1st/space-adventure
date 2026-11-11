@@ -18,22 +18,66 @@ public static class ProductionDemand
     /// <summary>Offene Fehlmenge je Ware über alle Stationen, die die Ware führen und nicht herstellen (Baustellen: das noch fehlende Material).</summary>
     public static void OpenDemand(Universe u, Dictionary<GoodId, float> into) => OpenDemand(u, into, new HashSet<GoodId>());
 
-    /// <summary>Wie <see cref="OpenDemand(Universe, Dictionary{GoodId, float})"/> mit wiederverwendetem Hilfspuffer (Produkte der jeweiligen Station).</summary>
+    /// <summary>Wie <see cref="OpenDemand(Universe, Dictionary{GoodId, float})"/>; <paramref name="outputs"/> wird nicht mehr gebraucht (Phase 17: Rollen-Cache der Station).</summary>
     public static void OpenDemand(Universe u, Dictionary<GoodId, float> into, HashSet<GoodId> outputs)
     {
         into.Clear();
         foreach (var st in u.Stations.Values)
         {
             if (st.Site is { Abandoned: true }) continue;
-            outputs.Clear();
-            foreach (var r in st.Production) foreach (var g in r.Outputs.Keys) outputs.Add(g);
+            var roles = st.Roles();
             foreach (var (g, e) in st.Market)
             {
                 float missing = e.Target - e.Amount;
-                if (missing <= 0f || outputs.Contains(g)) continue;
+                if (missing <= 0f || (Station.RoleIn(roles, g) & Station.RoleOutput) != 0) continue;   // Phase 17: Rollen-Cache der Station statt eines Produkt-Puffers je Station
                 into[g] = into.GetValueOrDefault(g) + missing;
             }
         }
+    }
+
+    /// <summary>
+    /// Phase 17 (Leistung): wie <see cref="OpenDemand(Universe, Dictionary{GoodId, float})"/> in ein Feld je Waren-Id (fehlende Waren = 0; gleiche
+    /// Summationsreihenfolge, also dieselben Werte). Liefert das (bei Bedarf vergrößerte) Feld zurück.
+    /// </summary>
+    public static float[] OpenDemand(Universe u, float[]? into)
+    {
+        int n = u.GoodIdBound;
+        if (into is null || into.Length < n) into = new float[n]; else Array.Clear(into);
+        foreach (var st in u.Stations.Values)
+        {
+            if (st.Site is { Abandoned: true }) continue;
+            var roles = st.Roles();
+            foreach (var (g, e) in st.Market)
+            {
+                float missing = e.Target - e.Amount;
+                if (missing <= 0f || (Station.RoleIn(roles, g) & Station.RoleOutput) != 0) continue;
+                if ((uint)g.Value < (uint)into.Length) into[g.Value] = into[g.Value] + missing;
+            }
+        }
+        return into;
+    }
+
+    static float DemandIn(float[] demand, GoodId g) => (uint)g.Value < (uint)demand.Length ? demand[g.Value] : 0f;
+
+    /// <summary>Wie <see cref="Demanded(Recipe, IReadOnlyDictionary{GoodId, float})"/> mit dem Feld aus <see cref="OpenDemand(Universe, float[])"/>.</summary>
+    public static bool Demanded(Recipe r, float[] demand)
+    {
+        foreach (var g in r.Outputs.Keys)
+            if (DemandIn(demand, g) > 0f) return true;
+        return false;
+    }
+
+    /// <summary>Wie <see cref="Saturated(Universe, Station, Recipe, IReadOnlyDictionary{GoodId, float})"/> mit dem Feld aus <see cref="OpenDemand(Universe, float[])"/>.</summary>
+    public static bool Saturated(Universe u, Station st, Recipe r, float[] demand)
+    {
+        if (r.Outputs.Count == 0) return false;
+        foreach (var g in r.Outputs.Keys)
+        {
+            var e = st.Stock(g);
+            float factor = DemandIn(demand, g) > 0f ? u.Rules.OverstockFactor : MathF.Min(u.Rules.OverstockFactor, u.Rules.NoDemandStockFactor);
+            if (e.Amount <= e.Target * factor) return false;
+        }
+        return true;
     }
 
     /// <summary>Hat irgendeine andere Station eine offene Fehlmenge für ein Produkt dieses Rezepts?</summary>

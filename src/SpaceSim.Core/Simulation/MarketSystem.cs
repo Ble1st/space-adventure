@@ -13,36 +13,41 @@ namespace SpaceSim.Core.Simulation;
 public sealed class MarketSystem : ISimSystem
 {
     // Wiederverwendeter Puffer: höchstes Gebot je Zutat über alle Rezepte einer Station
-    readonly Dictionary<GoodId, float> _ceiling = new();
+    // Phase 17: Feld je Waren-Id (+ Stempel „gesetzt in dieser Station“) und Liste der gesetzten Waren in Einfügereihenfolge (= Reihenfolge des
+    // früheren Dictionarys, das nie Einträge entfernte)
+    float[] _ceiling = Array.Empty<float>();
+    int[] _ceilingStamp = Array.Empty<int>();
+    int _stamp;
+    readonly List<GoodId> _ceilingGoods = new();
     // Phase 15: offene Fehlmenge je Ware (ProductionDemand) und die Zutaten, die ein nicht pausiertes Rezept der Station braucht
-    readonly Dictionary<GoodId, float> _demand = new();
-    readonly HashSet<GoodId> _scratch = new();
+    float[]? _demand;
     readonly HashSet<GoodId> _wanted = new();
-    // Phase 15: Produkte und Zutaten der gerade bearbeiteten Station (einmal je Station und Tick statt je Eintrag über alle Rezepte)
-    readonly HashSet<GoodId> _outs = new(), _ins = new();
     // Phase 16: höchstes Gebot je Ware bei Stationen, die sie annehmen (Preise des Vortakts) — der Wert, den ein Hersteller für sein Produkt erzielen kann
-    readonly Dictionary<GoodId, float> _bid = new();
+    // Phase 17: Feld je Waren-Id; 0 = kein Abnehmer (ein Gebot ist immer > 0, BuyerBids nimmt nur positive Preise)
+    float[] _bid = Array.Empty<float>();
 
     public void Step(Universe u, int dt)
     {
-        ProductionDemand.OpenDemand(u, _demand, _scratch);
-        if (u.Rules.WillingnessFromBuyers) BuyerBids(u, _bid); else _bid.Clear();
+        var demand = _demand = ProductionDemand.OpenDemand(u, _demand);
+        int bound = u.GoodIdBound;
+        if (_bid.Length < bound) { _bid = new float[bound]; _ceiling = new float[bound]; _ceilingStamp = new int[bound]; }
+        if (u.Rules.WillingnessFromBuyers) BuyerBids(u, _bid); else Array.Clear(_bid);
         foreach (var st in u.Stations.Values)
         {
             if (st.IsBuildSite)
             {
                 // Phase 8: Baustellen bieten einen festen Preis für ihr Material (Basispreis × Faktor), unabhängig vom Liefergrad
-                foreach (var (goodId, e) in st.Market) e.Price = u.Goods[goodId].BasePrice * u.Rules.ConstructionPriceFactor;
+                foreach (var (goodId, e) in st.Market) e.Price = u.GoodOf(goodId).BasePrice * u.Rules.ConstructionPriceFactor;
                 continue;
             }
-            _outs.Clear(); _ins.Clear();
-            foreach (var r in st.Production) { foreach (var g in r.Outputs.Keys) _outs.Add(g); foreach (var g in r.Inputs.Keys) _ins.Add(g); }
+            // Phase 17: Rollen je Ware aus dem Rollen-Cache der Station (Zutat/Produkt) statt zweier Puffer je Station und Tick
+            var roles = st.Roles();
             foreach (var (goodId, e) in st.Market)
             {
                 float factor = Math.Clamp(e.Target / Math.Max(e.Amount, 1f), 0.25f, 4f);
-                e.Price = u.Goods[goodId].BasePrice * factor;
+                e.Price = u.GoodOf(goodId).BasePrice * factor;
                 e.Overstock = 0f;
-                e.NoIntake = _outs.Contains(goodId) && !_ins.Contains(goodId);   // Phase 15: Hersteller kaufen ihr eigenes Produkt nicht zu
+                e.NoIntake = Station.RoleIn(roles, goodId) == Station.RoleOutput;   // Phase 15: Hersteller kaufen ihr eigenes Produkt nicht zu
             }
             // Phase 15: Regal-Einträge (Lager ohne Rezept: Werft- und Handelsstationsregale, Lagerhaus) nehmen nur bis zum Wunschbestand × ShelfOverstockFactor
             // an (vorher × OverstockFactor 3): Die reiche Handelsstation Beta horte sonst bis 9 Reaktoren, die der Werft fehlten, und unbenutzte Module
@@ -50,18 +55,19 @@ public sealed class MarketSystem : ISimSystem
             // Forschungsstationen verbrauchen ihr Lager (Takt-Güter) — kein Regal, sie behalten den Überhang als Puffer
             if (u.Rules.ShelfOverstockFactor < u.Rules.OverstockFactor && !(u.StationTypes.TryGetValue(st.TypeKey, out var stType) && stType.Research is not null))
                 foreach (var (goodId, e) in st.Market)
-                    if (!_outs.Contains(goodId) && !_ins.Contains(goodId)) e.Overstock = u.Rules.ShelfOverstockFactor;   // = Station.IsStockOnly
+                    if (Station.RoleIn(roles, goodId) == 0) e.Overstock = u.Rules.ShelfOverstockFactor;   // = Station.IsStockOnly
             // Phase 15: reine Instandhaltungs-Einträge bieten höchstens MaintenanceMaxBidFactor × Basispreis (sie sollen Fabriken nicht die Zutaten wegbieten)
             if (u.Rules.MaintenanceShare > 0f)
                 foreach (var goodId in MaintenanceGoods(u))
-                    if (st.Market.TryGetValue(goodId, out var e) && !_outs.Contains(goodId) && !_ins.Contains(goodId) && Maintenance.IsPureEntry(u, st, goodId))
-                        e.Price = MathF.Min(e.Price, u.Goods[goodId].BasePrice * u.Rules.MaintenanceMaxBidFactor);
+                    if (st.Market.TryGetValue(goodId, out var e) && Station.RoleIn(roles, goodId) == 0 && Maintenance.IsPureTypeEntry(u, st, goodId))
+                        e.Price = MathF.Min(e.Price, u.GoodOf(goodId).BasePrice * u.Rules.MaintenanceMaxBidFactor);
 
             // Zahlungsbereitschaft je Zutat: das höchste Gebot über alle Rezepte, die sie verwenden (Phase 5a). Eine Station mit
             // mehreren Rezepten (Modulfabrik, Werft mit Bausatzstufen) bietet, was ihre lohnendste Verwendung trägt; mit dem
             // Minimum würde ein Rezept auf Halde (Produkt billig) das Gebot für alle anderen drücken. Bei einem Rezept je Zutat
             // ist das Ergebnis dasselbe wie vorher.
-            _ceiling.Clear();
+            _stamp++;
+            _ceilingGoods.Clear();
             foreach (var recipe in st.Production)
             {
                 if (recipe.Outputs.Count == 0) continue;
@@ -71,38 +77,41 @@ public sealed class MarketSystem : ISimSystem
                 foreach (var (g, qty) in recipe.Outputs)
                 {
                     float own = st.Stock(g).Price;
-                    outValue += qty * (_bid.TryGetValue(g, out var bid) ? MathF.Min(own, bid) : own);
+                    float bid = (uint)g.Value < (uint)_bid.Length ? _bid[g.Value] : 0f;
+                    outValue += qty * (bid > 0f ? MathF.Min(own, bid) : own);
                 }
                 float inBase = 0f;
-                foreach (var (g, qty) in recipe.Inputs) inBase += qty * u.Goods[g].BasePrice;
+                foreach (var (g, qty) in recipe.Inputs) inBase += qty * u.GoodOf(g).BasePrice;
                 if (inBase <= 0f) continue;
 
                 foreach (var (g, qty) in recipe.Inputs)
                 {
                     if (recipe.Outputs.ContainsKey(g)) continue;   // Zwischenprodukt der eigenen Station
-                    float ceiling = outValue * u.Rules.InputWillingness * (qty * u.Goods[g].BasePrice / inBase) / qty;
-                    _ceiling[g] = _ceiling.TryGetValue(g, out var c) ? MathF.Max(c, ceiling) : ceiling;
+                    float ceiling = outValue * u.Rules.InputWillingness * (qty * u.GoodOf(g).BasePrice / inBase) / qty;
+                    int gi = g.Value;
+                    if (_ceilingStamp[gi] == _stamp) _ceiling[gi] = MathF.Max(_ceiling[gi], ceiling);
+                    else { _ceilingStamp[gi] = _stamp; _ceiling[gi] = ceiling; _ceilingGoods.Add(g); }
                 }
             }
-            foreach (var (g, ceiling) in _ceiling)
+            foreach (var g in _ceilingGoods)
             {
                 var entry = st.Stock(g);
-                entry.Price = Math.Max(u.Goods[g].BasePrice * 0.25f, Math.Min(entry.Price, ceiling));
+                entry.Price = Math.Max(u.GoodOf(g).BasePrice * 0.25f, Math.Min(entry.Price, _ceiling[g.Value]));
             }
             // Phase 15: Zutaten, die nur Rezepte mit vollem Lager brauchen (ProductionDemand.Saturated), nimmt die Station nur noch bis zum Wunschbestand an
             // (statt bis zum Überhang) — sie bindet kein Geld in Material für Ware, die niemand abnimmt (vorher kaufte z. B. die Werft 250 Hüllenplatten für
             // 77 Bausätze auf Halde und war dann pleite). Der Preis bleibt der Knappheitspreis (ein Bodenpreis hätte den Markt als Schwemme erscheinen lassen).
-            if (_ceiling.Count > 0)
+            if (_ceilingGoods.Count > 0)
             {
                 _wanted.Clear();
                 bool paused = false;
                 foreach (var recipe in st.Production)
                 {
-                    if (recipe.Outputs.Count == 0 || !ProductionDemand.Saturated(u, st, recipe, _demand)) foreach (var g in recipe.Inputs.Keys) _wanted.Add(g);
+                    if (recipe.Outputs.Count == 0 || !ProductionDemand.Saturated(u, st, recipe, demand)) foreach (var g in recipe.Inputs.Keys) _wanted.Add(g);
                     else paused = true;
                 }
                 if (paused)
-                    foreach (var g in _ceiling.Keys)
+                    foreach (var g in _ceilingGoods)
                         if (!_wanted.Contains(g)) st.Stock(g).Overstock = MathF.Min(u.Rules.OverstockFactor, u.Rules.NoDemandStockFactor);
             }
             // Phase 14: Endverbraucher (Rezepte ohne Produkte, z. B. Kolonie) bieten höchstens ConsumerMaxBidFactor × Basispreis. Ohne Deckel war die Kolonie
@@ -110,7 +119,7 @@ public sealed class MarketSystem : ISimSystem
             if (u.Rules.ConsumerMaxBidFactor < 4f && IsFinalConsumer(st))
                 foreach (var recipe in st.Production)
                     foreach (var g in recipe.Inputs.Keys)
-                        if (st.Market.TryGetValue(g, out var ce)) ce.Price = MathF.Min(ce.Price, u.Goods[g].BasePrice * u.Rules.ConsumerMaxBidFactor);
+                        if (st.Market.TryGetValue(g, out var ce)) ce.Price = MathF.Min(ce.Price, u.GoodOf(g).BasePrice * u.Rules.ConsumerMaxBidFactor);
         }
     }
 
@@ -138,13 +147,25 @@ public sealed class MarketSystem : ISimSystem
     public static void BuyerBids(Universe u, Dictionary<GoodId, float> into)
     {
         into.Clear();
+        var arr = new float[u.GoodIdBound];
+        BuyerBids(u, arr);
+        for (int i = 0; i < arr.Length; i++)   // Schlüssel wie vorher: jede Ware mit mindestens einem Abnehmer (Gebote sind > 0)
+            if (arr[i] > 0f) into[new GoodId(i)] = arr[i];
+    }
+
+    /// <summary>Phase 17 (Leistung): wie <see cref="BuyerBids(Universe, Dictionary{GoodId, float})"/> in ein Feld je Waren-Id (0 = kein Abnehmer).</summary>
+    public static void BuyerBids(Universe u, float[] into)
+    {
+        Array.Clear(into);
         foreach (var st in u.Stations.Values)
         {
             if (st.IsBuildSite) continue;
+            var roles = st.Roles();
             foreach (var (g, e) in st.Market)
             {
-                if (e.Price <= 0f || (st.Produces(g) && !st.Consumes(g))) continue;
-                if (!into.TryGetValue(g, out var cur) || e.Price > cur) into[g] = e.Price;
+                if (e.Price <= 0f || Station.RoleIn(roles, g) == Station.RoleOutput) continue;   // reiner Hersteller (Produces && !Consumes)
+                int i = g.Value;
+                if ((uint)i < (uint)into.Length && e.Price > into[i]) into[i] = e.Price;
             }
         }
     }

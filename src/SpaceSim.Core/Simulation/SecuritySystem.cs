@@ -23,7 +23,7 @@ public sealed class SecuritySystem : ISimSystem
         ResolvePending(u);
         if (u.Tick % ManageTicks < dt)
             foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList()) Manage(u, f, ManageTicks);
-        foreach (var police in u.Ships.Values.Where(ThreatMap.IsPolice).OrderBy(s => s.Id.Value).ToList()) StepPolice(u, police);
+        foreach (var police in u.ShipsById().Where(ThreatMap.IsPolice).ToList()) StepPolice(u, police);
         foreach (var s in u.Ships.Values)
             if (s.Transit is null && s.Id != u.PlayerShip && !ThreatMap.IsPolice(s) && !ThreatMap.IsRaider(s) && s.Hull < s.MaxHull)
                 s.Hull = MathF.Min(s.MaxHull, s.Hull + u.Rules.NpcHullRegenPerTick * dt);
@@ -34,7 +34,7 @@ public sealed class SecuritySystem : ISimSystem
 
     /// <summary>Polizeischiffe einer Fraktion (feste Reihenfolge).</summary>
     public static List<Ship> PoliceOf(Universe u, FactionId f) =>
-        u.Ships.Values.Where(s => ThreatMap.IsPolice(s) && u.FactionOf(s) == f).OrderBy(s => s.Id.Value).ToList();
+        u.ShipsById().Where(s => ThreatMap.IsPolice(s) && u.FactionOf(s) == f).ToList();
 
     /// <summary>Sektoren, für die die Fraktion zuständig ist (Besitzer), feste Reihenfolge.</summary>
     public static List<Sector> Territory(Universe u, FactionId f) => u.Sectors.Values.Where(s => s.Owner == f).OrderBy(s => s.Id.Value).ToList();
@@ -92,7 +92,7 @@ public sealed class SecuritySystem : ISimSystem
             || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls) || ShipPurchase.Materials(u, model) is not { } needs) return null;
         var home = HomeBaseFor(u, f, null);
         if (home is null) return null;
-        foreach (var yard in u.Stations.Values.Where(st => !st.IsBuildSite && ShipPurchase.SellsModel(u, st, model)).OrderBy(st => st.Id.Value))
+        foreach (var yard in u.StationsById().Where(st => !st.IsBuildSite && ShipPurchase.SellsModel(u, st, model)).ToList())
         {
             if (!u.IsReachable(yard.Sector, home.Sector) || ShipPurchase.Missing(yard, needs).Count > 0) continue;
             float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));

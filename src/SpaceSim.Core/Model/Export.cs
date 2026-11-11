@@ -36,6 +36,15 @@ public sealed class ExportConfig
     /// <summary>Wunschbestand einer Exportware nach dieser Konfiguration.</summary>
     public float TargetFor(Good good) => TargetValue > 0f && good.BasePrice > 0f ? MathF.Max(1f, MathF.Round(TargetValue / good.BasePrice)) : Target;
 
+    /// <summary>
+    /// Phase 17: höchstes Gebot je Exportware als Vielfaches des Basispreises (aus <c>export.bids</c> der Weltdatei, je Ware aufgelöst); fehlt eine Ware,
+    /// gilt <see cref="EconomyRules.ExportMaxBidFactor"/>.
+    /// </summary>
+    public Dictionary<GoodId, float> Bids = new();
+
+    /// <summary>Höchstgebot (× Basispreis) für diese Exportware.</summary>
+    public float BidOf(GoodId good, EconomyRules r) => Bids.TryGetValue(good, out var f) ? f : r.ExportMaxBidFactor;
+
     public int Delay(EconomyRules r) => Math.Max(1, DelayTicks ?? r.ExportDelayTicks);
     public float MarkupOf(EconomyRules r) => MathF.Max(0f, Markup ?? r.ExportMarkup);
 }

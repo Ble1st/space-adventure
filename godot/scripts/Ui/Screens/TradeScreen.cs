@@ -26,6 +26,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
 	public event Action<bool>? Executed;
+	ServiceOffer _sellAll;   // Phase 17: Angebot „Alles verkaufen“ (Menge = was es bewegt)
 
 	sealed class Row
 	{
@@ -77,7 +78,9 @@ public sealed partial class TradeScreen : DockAreaScreen
 		float fy = inner.Size.Y - 56;
 		var sellAll = At(inner, new KitButton("Alles verkaufen", new Vector2(220, 52)) { FontSize = 18 }, 0, fy);
 		bool anyCargo = Ctx.Ship.Cargo.Values.Any(v => v > 0f);
+		// Phase 17: aktiv genau dann, wenn „Alles verkaufen“ etwas bewegt (Angebotsmenge des Dienstes, gleiche Regel wie die Ausführung)
 		if (!anyCargo) { sellAll.State = KitButtonState.Disabled; sellAll.Sub = "Fracht leer"; }
+		else if (_sellAll.Amount <= 0f) { sellAll.State = KitButtonState.Disabled; sellAll.Sub = "Station nimmt nichts an"; }
 		else sellAll.Pressed += () => Execute(TradeService.SellAll, 0f);
 		At(inner, new KitButton("Rückgängig", new Vector2(170, 52)) { FontSize = 18, State = KitButtonState.Disabled, Sub = UiPlaceholders.Soon }, 232, fy);   // Text: UiPlaceholders.UndoSoon
 
@@ -140,11 +143,13 @@ public sealed partial class TradeScreen : DockAreaScreen
 	void LoadRows()
 	{
 		_rows.Clear();
+		_sellAll = default;
 		if (_svc == null) return;
 		var u = Ctx.U; var st = Ctx.Station;
 		var byGood = new Dictionary<GoodId, Row>();
 		foreach (var o in _svc.Offers(u, st, Ctx.Ship))
 		{
+			if (o.Key == TradeService.SellAll) { _sellAll = o; continue; }   // Phase 17: Fußzeile, Menge = was der Verkauf bewegt
 			if (o.Good.Value == 0) continue;   // „alles verkaufen“ ist Fußzeile, keine Ware
 			if (!byGood.TryGetValue(o.Good, out var row))
 			{
@@ -215,7 +220,12 @@ public sealed partial class TradeScreen : DockAreaScreen
 	public string TestMessage => _message;
 	/// <summary>Phase 16: Annahme-Hinweis der Verkaufszeile einer Ware (null = keiner) und ob die Station jetzt etwas davon annimmt.</summary>
 	public string? TestSellNote(GoodId good) => _rows.FirstOrDefault(r => r.Good == good)?.Sell.Note;
-	public bool TestSellEnabled(GoodId good) => _rows.FirstOrDefault(r => r.Good == good) is { } r && r.Held >= 1f && r.Sell.Amount >= 1f;
+	public bool TestSellEnabled(GoodId good) => _rows.FirstOrDefault(r => r.Good == good) is { } r && CanSell(r);
+	/// <summary>Phase 17: ob „Alles verkaufen“ aktiv ist (Angebotsmenge &gt; 0).</summary>
+	public bool TestSellAllEnabled => Ctx.Ship.Cargo.Values.Any(v => v > 0f) && _sellAll.Amount > 0f;
+
+	/// <summary>Phase 17: Verkauf möglich ⇔ der Dienst würde etwas bewegen (Angebotsmenge &gt; 0; auch ein Bruchteil an Bord, den die Station ganz nimmt).</summary>
+	static bool CanSell(Row r) => r.Held > 0f && r.Sell.Amount > 0f;
 	public int TestRowCount => _rows.Count;
 	public bool TestTiles => _tiles;
 
@@ -297,7 +307,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 	}
 
 	/// <summary>Phase 16: Farbe des Annahme-Hinweises — orange, wenn Ware an Bord ist und die Station nichts nimmt, sonst gedimmt.</summary>
-	static Color SellNoteColor(Row r) => r.Held >= 1f && r.Sell.Amount < 1f ? new Color(Orange, 0.9f) : new Color(Dim, 0.8f);
+	static Color SellNoteColor(Row r) => r.Held > 0f && !CanSell(r) ? new Color(Orange, 0.9f) : new Color(Dim, 0.8f);
 
 	/// <summary>Eine Kachel des Kachelmodus.</summary>
 	sealed partial class TradeTile : Control
@@ -391,7 +401,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 		{
 			_buyBtn.State = _row.Buy.Amount >= 1f && _qty >= 1f ? KitButtonState.Ready : KitButtonState.Disabled;
 			// Phase 16: deaktiviert, wenn die Station nichts annimmt (Grund steht in der Zeile)
-			_sellBtn.State = _row.Held >= 1f && _row.Sell.Amount >= 1f && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
+			_sellBtn.State = CanSell(_row) && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
 		}
 
 		public override void _Draw()

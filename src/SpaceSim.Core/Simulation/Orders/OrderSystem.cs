@@ -109,7 +109,7 @@ public sealed class HangarSystem : ISimSystem
         }
         float total = 0f;
         ActorId owner = default;
-        foreach (var ship in u.Ships.Values.Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Command is not null && !s.IsRental).OrderBy(s => s.Id.Value))
+        foreach (var ship in u.ShipsById().Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Command is not null && !s.IsRental).ToList())
         {
             var wallet = u.WalletOf(ship);
             float due = MathF.Min(u.Rules.ShipUpkeepPerTick * dt, MathF.Max(0f, wallet.Credits));

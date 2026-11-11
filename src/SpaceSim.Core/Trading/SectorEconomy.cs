@@ -52,5 +52,5 @@ public static class SectorEconomy
 
     /// <summary>Vermögen der Spielerperson: Spielerkasse + Wert aller Spielerschiffe (<see cref="TotalValue"/>).</summary>
     public static float PlayerNetWorth(Universe u) =>
-        u.PlayerWallet.Credits + u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value).Sum(s => TotalValue(u, s));
+        u.PlayerWallet.Credits + u.ShipsById().Where(s => s.IsPlayer).Sum(s => TotalValue(u, s));
 }

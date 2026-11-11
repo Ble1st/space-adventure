@@ -53,7 +53,7 @@ public static class ThreatMap
     {
         var result = new Dictionary<SectorId, (float, float)>();
         foreach (var sec in u.Sectors.Values) result[sec.Id] = (BaseSecurity(u, sec, sec.Owner), 0f);
-        foreach (var s in u.Ships.Values.OrderBy(x => x.Id.Value))
+        foreach (var s in u.ShipsById())
         {
             if (s.IsPlayer) continue;
             var (where, _) = Where(u, s);

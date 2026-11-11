@@ -155,6 +155,7 @@ public static class UniverseSerializer
                 Export = t.Export is { } ex ? new ExportConfigSave
                 {
                     Goods = ex.Goods.Select(g => g.Value).ToList(), Categories = new List<string>(ex.Categories), DelayTicks = ex.DelayTicks, Markup = ex.Markup, Target = ex.Target, TargetValue = ex.TargetValue,
+                    Bids = ex.Bids.Count == 0 ? null : ex.Bids.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 } : null,
             });
         WriteSlotContent(u, s);
@@ -317,6 +318,7 @@ public static class UniverseSerializer
                 Export = t.Export is { } ex ? new ExportConfig
                 {
                     Goods = ex.Goods.Select(g => new GoodId(g)).ToList(), Categories = new List<string>(ex.Categories), DelayTicks = ex.DelayTicks, Markup = ex.Markup, Target = ex.Target, TargetValue = ex.TargetValue,
+                    Bids = ex.Bids is null ? new Dictionary<GoodId, float>() : ex.Bids.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 } : null,
             };
         ReadSlotContent(s, u);

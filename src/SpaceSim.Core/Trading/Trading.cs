@@ -15,7 +15,32 @@ public sealed record BuyResult(float Units, float Cost, BuyOutcome Outcome);
 /// Geld bucht auf die Kasse des Schiffs (<see cref="Universe.WalletOf(Ship)"/>): Spieler → Spielerkasse, NPC → Schiff.</summary>
 public static class TradeActions
 {
-    /// <summary>Verkauft alle Waren, die die Station führt, zum aktuellen Preis. Die Station zahlt nur, was sie hat; der Rest bleibt an Bord.</summary>
+    /// <summary>
+    /// Phase 17: die eine Mengenregel jedes Verkaufs an eine Station (Dienst „trade“, <see cref="Sell"/>, <see cref="SellAll"/>, Mining-Autopilot, NPC-Miner,
+    /// Angebotsmenge, Annahmehinweis, <see cref="Quote(Universe, Ship, Station)"/>): Nimmt die Station alles an Bord (<paramref name="cap"/> ≥
+    /// <paramref name="have"/>) und ist alles gewünscht, geht alles — auch ein Bruchteil einer Einheit aus dem Bergbau, damit kein unverkäuflicher Rest
+    /// hängen bleibt. Sonst werden nur ganze Einheiten bewegt (abgerundet); unter einer Einheit verkauft sie nichts. Vorher verkaufte
+    /// <see cref="Sell"/> auch einen Bruchteil, wenn die Station weniger als eine Einheit annahm oder bezahlen konnte, während der Handelsbereich
+    /// „Lager voll“ bzw. „Station kann nicht zahlen“ meldete.
+    /// </summary>
+    /// <param name="have">Bestand an Bord.</param>
+    /// <param name="want">gewünschte Menge (≥ <paramref name="have"/> = alles).</param>
+    /// <param name="cap">was die Station annimmt und bezahlen kann: min(<see cref="Station.AcceptableUnits(GoodId, EconomyRules)"/>, Kasse ÷ Preis).</param>
+    public static float SaleUnits(float have, float want, float cap)
+    {
+        if (have <= 0f || want <= 0f || cap <= 0f) return 0f;
+        if (want >= have && cap >= have) return have;
+        return MathF.Floor(MathF.Min(MathF.Min(want, have), cap));
+    }
+
+    /// <summary>Phase 17: was die Station von dieser Ware jetzt annimmt und bezahlen kann (Obergrenze für <see cref="SaleUnits"/>; 0 ohne Preis).</summary>
+    public static float SaleCap(Universe u, Station station, GoodId good) =>
+        station.Market.TryGetValue(good, out var e) && e.Price > 0f ? MathF.Min(MathF.Max(0f, station.Credits) / e.Price, station.AcceptableUnits(good, u.Rules)) : 0f;
+
+    /// <summary>
+    /// Verkauft alle Waren, die die Station führt, zum aktuellen Preis. Die Station zahlt nur, was sie hat; der Rest bleibt an Bord.
+    /// Phase 17: je Ware nach <see cref="SaleUnits"/> (alles, wenn die Station alles nimmt, sonst ganze Einheiten).
+    /// </summary>
     public static SaleResult SellAll(Universe u, Ship ship, Station station)
     {
         float revenue = 0f;
@@ -28,7 +53,7 @@ public static class TradeActions
             float have = ship.Cargo[good];
             if (have <= 0f || !station.Market.TryGetValue(good, out var entry) || entry.Price <= 0f) continue;
 
-            float units = MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / entry.Price), station.AcceptableUnits(good, u.Rules));
+            float units = SaleUnits(have, have, MathF.Min(MathF.Max(0f, station.Credits) / entry.Price, station.AcceptableUnits(good, u.Rules)));
             if (units <= 0f) continue;
             float pay = units * entry.Price;
             entry.Amount += units;
@@ -73,14 +98,14 @@ public static class TradeActions
     /// <summary>Laufende Baustelle (Phase 8): nimmt nur Material an und verkauft nichts zurück; verlassene Baustellen verkaufen ihr Lager.</summary>
     static bool IsLiveSite(Station station) => station.Site is { Abandoned: false };
 
-    /// <summary>Verkauft bis zu <paramref name="units"/> Einheiten einer einzelnen Ware (gleiche Regeln wie <see cref="SellAll"/>).</summary>
+    /// <summary>Verkauft bis zu <paramref name="units"/> Einheiten einer einzelnen Ware (gleiche Regeln wie <see cref="SellAll"/>, Menge nach <see cref="SaleUnits"/>).</summary>
     public static SaleResult Sell(Universe u, Ship ship, Station station, GoodId good, float units)
     {
         float have = ship.Cargo.GetValueOrDefault(good);
         var sold = new Dictionary<GoodId, float>();
         if (have <= 0f || units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f)
             return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
-        float n = MathF.Min(MathF.Min(units, have), MathF.Min(MathF.Max(0f, station.Credits) / e.Price, station.AcceptableUnits(good, u.Rules)));
+        float n = SaleUnits(have, units, MathF.Min(MathF.Max(0f, station.Credits) / e.Price, station.AcceptableUnits(good, u.Rules)));
         if (n <= 0f) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
         float pay = n * e.Price;
         e.Amount += n;
@@ -94,20 +119,25 @@ public static class TradeActions
         return new SaleResult(pay, sold, ship.Cargo.Values.Sum());
     }
 
-    /// <summary>Erwarteter Erlös der aktuellen Fracht an dieser Station (ohne zu verkaufen).</summary>
-    public static float Quote(Universe u, Ship ship, Station station) => Quote(u, ship, station, 0f);
+    /// <summary>
+    /// Erwarteter Erlös der aktuellen Fracht an dieser Station (ohne zu verkaufen): je Ware die Menge nach <see cref="SaleUnits"/> (Phase 17: dieselbe Regel
+    /// wie <see cref="SellAll"/>; Phase 16 zählte hier schon nur ganze Einheiten oder einen ganz genommenen Rest, verkaufte aber Bruchteile).
+    /// Wie SellAll rechnet sie mit der Kasse, die nach den vorigen Waren übrig bleibt.
+    /// </summary>
+    public static float Quote(Universe u, Ship ship, Station station) => Sellable(u, ship, station).Revenue;
 
-    /// <summary>Wie <see cref="Quote(Universe, Ship, Station)"/>; Phase 16: Waren, von denen die Station weniger als <paramref name="minUnits"/> nimmt, zählen nicht.</summary>
-    public static float Quote(Universe u, Ship ship, Station station, float minUnits)
+    /// <summary>Phase 17: was <see cref="SellAll"/> jetzt bewegen würde — Einheiten und Erlös (reine Auswertung, gleiche Reihenfolge und Regel).</summary>
+    public static (float Units, float Revenue) Sellable(Universe u, Ship ship, Station station)
     {
-        float total = 0f;
+        float total = 0f, units = 0f, credits = station.Credits;
         foreach (var (good, have) in ship.Cargo.OrderBy(kv => kv.Key.Value))
-            if (station.Market.TryGetValue(good, out var e) && e.Price > 0f)
+            if (have > 0f && station.Market.TryGetValue(good, out var e) && e.Price > 0f)
             {
-                float n = MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / e.Price), station.AcceptableUnits(good, u.Rules));
-                if (n > 0f && n >= MathF.Min(minUnits, have)) total += n * e.Price;   // ein Rest unter einer Einheit zählt, wenn die Station ihn ganz nimmt
+                float n = SaleUnits(have, have, MathF.Min(MathF.Max(0f, credits) / e.Price, station.AcceptableUnits(good, u.Rules)));
+                if (n <= 0f) continue;
+                total += n * e.Price; units += n; credits -= n * e.Price;
             }
-        return total;
+        return (units, total);
     }
 
     /// <summary>
@@ -145,7 +175,7 @@ public static class TradeActions
         foreach (var st in u.Stations.Values)
         {
             if (st.Id == exclude) continue;
-            float quote = Quote(u, ship, st, minUnits: 1f);
+            float quote = Quote(u, ship, st);
             if (quote <= 0f) continue;
             float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id), ship);
             if (float.IsPositiveInfinity(time)) continue;

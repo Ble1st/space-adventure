@@ -255,6 +255,11 @@ public sealed class ExportConfigDef
     /// <summary>Wunschbestand als Warenwert in Credits (Basispreis); &gt; 0 = je Ware max(1, round(targetValue ÷ Basispreis)) statt <see cref="Target"/> —
     /// teure Waren (Luxusgüter) bekommen kleine, billige (Nahrung) große Wunschbestände, so passt eine Ladung zur Kasse der Station.</summary>
     public float TargetValue { get; set; }
+    /// <summary>
+    /// Phase 17: höchstes Gebot je Ware oder Kategorie als Vielfaches des Basispreises (statt <see cref="Model.EconomyRules.ExportMaxBidFactor"/>);
+    /// Schlüssel = Warenschlüssel (gewinnt) oder Kategorie der Senke, Wert in (0, 4].
+    /// </summary>
+    public Dictionary<string, float>? Bids { get; set; }
 }
 
 /// <summary>Phase 14: Planet eines Sektors (Kulisse und Abnehmer der Exportsenke): Name, optional Farbe und Größe für die Ansicht.</summary>

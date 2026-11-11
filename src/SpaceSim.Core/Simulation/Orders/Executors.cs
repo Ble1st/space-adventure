@@ -219,7 +219,7 @@ public sealed class BuildExecutor : WorkExecutor
 
     public override void Stop(Universe u, Ship ship, ShipCommand command)
     {
-        foreach (var st in u.Stations.Values.OrderBy(s => s.Id.Value))
+        foreach (var st in u.StationsById())
             if (st.Site is { } bs && bs.Builder == ship.Id) bs.Builder = default;
         base.Stop(u, ship, command);
     }

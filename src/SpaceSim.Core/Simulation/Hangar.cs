@@ -12,7 +12,7 @@ public static class Hangar
 {
     /// <summary>Alle Schiffe, die an dieser Station angedockt liegen (nicht unterwegs), nach Id — eigene wie fremde.</summary>
     public static IReadOnlyList<Ship> DockedShips(Universe u, Station st) =>
-        u.Ships.Values.Where(s => s.Transit is null && s.DockedAt == st.Id).OrderBy(s => s.Id.Value).ToList();
+        u.ShipsById().Where(s => s.Transit is null && s.DockedAt == st.Id).ToList();
 
     /// <summary>Fremde (nicht eigene) Schiffe an dieser Station.</summary>
     public static IReadOnlyList<Ship> ForeignDocked(Universe u, Station st, ActorId me) =>

@@ -63,8 +63,14 @@ public sealed class MinerSystem : ISimSystem
     /// und Bewertung = Wert einer Einheit der Mischung je Tick Umlaufzeit, gemindert durch Gedränge am Feld. Reine Auswertung.
     /// Die Abbaurate berücksichtigt die Laserstufe des Schiffs (bei Stufe 1 wie bisher).
     /// </summary>
+    [ThreadStatic] static Dictionary<(AsteroidClass, StationId), float>? t_mix;
+    [ThreadStatic] static Dictionary<AsteroidClass, float>? t_basis;
+
     public static (MineOrder? Order, Vec2 FieldPos, float Score) BestMine(Universe u, Ship ship)
     {
+        var mixOf = t_mix ??= new Dictionary<(AsteroidClass, StationId), float>();
+        var basisOf = t_basis ??= new Dictionary<AsteroidClass, float>();
+        mixOf.Clear(); basisOf.Clear();
         MineOrder? best = null;
         Vec2 bestFieldPos = default;
         float bestScore = 0f;
@@ -78,13 +84,13 @@ public sealed class MinerSystem : ISimSystem
             for (int fi = 0; fi < sector.Fields.Count; fi++)
             {
                 var field = sector.Fields[fi];
-                if (!u.AsteroidClasses.TryGetValue(field.ClassKey, out var cls) || Belt.OreIn(sector, field) < 1f) continue;
+                if (!u.AsteroidClasses.TryGetValue(field.ClassKey, out var cls) || !Belt.HasOre(sector, field, 1f)) continue;
 
                 // Phase 6: Laserstufe des Schiffs (Trefferchance und Brockengröße); Stufe 1 = bisherige Rate
                 float chance = MathF.Min(1f, cls.ChunkChance * ship.Stats.LaserChunkChanceMult);
                 float orePerTick = chance * MiningRules.MeanChunkUnits * ship.Stats.LaserChunkSizeMult / MiningRules.ShotInterval * SimClock.TickInterval;
                 float mineTicks = ship.CapacityVolumeFor(GoodForm.Solid) / MathF.Max(0.01f, orePerTick);   // Erz ist fest
-                float basis = cls.MeanBasePrice(u);
+                if (!basisOf.TryGetValue(cls, out float basis)) basisOf[cls] = basis = cls.MeanBasePrice(u);
                 // Gedränge am Feld mindert den Wert: Jeder weitere Miner teilt sich dieselben Asteroiden und drückt den Preis (Herdenschutz)
                 int crowd = 0;
                 foreach (var other in u.Ships.Values)
@@ -93,7 +99,9 @@ public sealed class MinerSystem : ISimSystem
                 foreach (var st in u.Stations.Values)
                 {
                     if (limits is not null && !AutoLimitRules.InRange(u, limits, st.Sector)) continue;
-                    float value = MixValue(u, cls, st);
+                    // Phase 17: Mischungswert je Klasse und Station nur einmal je Aufruf (reine Funktion; Felder gleicher Klasse teilen ihn)
+                    var key = (cls, st.Id);
+                    if (!mixOf.TryGetValue(key, out float value)) mixOf[key] = value = MixValue(u, cls, st);
                     if (value < basis * MinPriceFactor) continue;
                     if (!TraderSystem.CanAfford(st, value, ship.CapacityVolumeFor(GoodForm.Solid))) continue;
                     if (!u.IsReachable(sector.Id, st.Sector, laden)) continue;
@@ -209,7 +217,7 @@ public sealed class MinerSystem : ISimSystem
         ResourceField? field = order.Field >= 0 && order.Field < sector.Fields.Count ? sector.Fields[order.Field] : null;
         bool cargoFull = ship.FreeVolumeForForm(u, GoodForm.Solid) < MiningRules.MinChunkUnits;   // Erz ist fest
 
-        if (field is null || cargoFull || Belt.OreIn(sector, field) < 0.01f)
+        if (field is null || cargoFull || !Belt.HasOre(sector, field, 0.01f))
         {
             if (ship.Cargo.Values.Sum() > 0f)
             {

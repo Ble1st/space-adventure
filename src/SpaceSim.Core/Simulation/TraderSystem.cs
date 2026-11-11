@@ -50,9 +50,20 @@ public sealed class TraderSystem : ISimSystem
     /// Beste Handelsrunde für dieses Schiff jetzt (Phase 6 auch für die Aufgabenwahl, <see cref="TradeJob"/>): Auftrag und Bewertung
     /// = Gewinn nach Treibstoffkosten je Tick Reisezeit (Credits/Tick). Reine Auswertung ohne Zustandsänderung; (null, 0) = nichts lohnt.
     /// </summary>
+    // Phase 17 (Leistung): wiederverwendete Puffer der Bewertung (je Thread; BestTrade ruft sich nicht selbst auf). Reine Zwischenwerte eines Aufrufs.
+    [ThreadStatic] static Dictionary<(StationId, GoodId), float>? t_reserved;
+    [ThreadStatic] static Dictionary<StationId, (float ToBuy, float DistToBuy, float FuelPrice)>? t_buyLeg;
+    [ThreadStatic] static Dictionary<(StationId, StationId), (float ToSell, float FuelCost, float Risk)>? t_sellLeg;
+
     public static (TradeOrder? Order, float Score) BestTrade(Universe u, Ship ship)
     {
-        var reserved = new Dictionary<(StationId, GoodId), float>();
+        var reserved = t_reserved ??= new Dictionary<(StationId, GoodId), float>();
+        reserved.Clear();
+        // Phase 17: Reisezeiten, Treibstoffkosten und Routenrisiko hängen nur an Kauf-/Verkaufsstation, nicht an der Ware — je Aufruf einmal je Station
+        // bzw. Stationspaar berechnet (gleiche Formeln, gleiche Werte) statt für jede Ware erneut
+        var buyLegs = t_buyLeg ??= new Dictionary<StationId, (float, float, float)>();
+        var sellLegs = t_sellLeg ??= new Dictionary<(StationId, StationId), (float, float, float)>();
+        buyLegs.Clear(); sellLegs.Clear();
         foreach (var o in u.Ships.Values)
             if (o.Order is TradeOrder to && o.Phase == TradePhase.GoingToBuy)
                 reserved[(to.Buy, to.Good)] = reserved.GetValueOrDefault((to.Buy, to.Good)) + o.CapacityVolumeFor(u, to.Good) / u.Goods[to.Good].VolumePerUnit;
@@ -87,18 +98,20 @@ public sealed class TraderSystem : ISimSystem
         }
         foreach (var good in u.Goods.Values)
         {
-            float capacityUnits = ship.CapacityVolumeFor(u, good.Id) / good.VolumePerUnit;
+            float capacityUnits = ship.CapacityVolumeFor(good.Form) / good.VolumePerUnit;
             if (capacityUnits < 1f) continue;   // Ware passt nicht in den Laderaum (Frachtform-Regel)
             var traders = u.StationsTrading(good.Id);
             if (traders.Count < 2) continue;
-            foreach (var buy in traders)
+            var entries = u.StationsTradingEntries(good.Id);   // Phase 17: Eintrag i = Markt der Station i (spart die Suche je Paar)
+            for (int bi = 0; bi < traders.Count; bi++)
             {
-                if (buy.IsStockOnly(good.Id)) continue;   // Phase 5a: Lager ohne Rezept beliefern, nicht leerkaufen
-                // Phase 14: nur beim Hersteller einkaufen (Rezeptausgang). Vorher kauften Händler Zutaten bei Verbrauchern wieder auf und fuhren sie zum
-                // nächsten Verbraucher (Nahrung Kolonie → Farm, Wasser Lebenserhaltung → Farm): Der Verbraucher kaufte teuer und verkaufte billig zurück,
-                // die Kolonie blutete so aus (dauerhaft am Preisdeckel, Kasse leer).
+                var buy = traders[bi];
+                // Phase 5a: Lager ohne Rezept beliefern, nicht leerkaufen (IsStockOnly). Phase 14: nur beim Hersteller einkaufen (Rezeptausgang). Vorher
+                // kauften Händler Zutaten bei Verbrauchern wieder auf und fuhren sie zum nächsten Verbraucher (Nahrung Kolonie → Farm, Wasser Lebenserhaltung
+                // → Farm): Der Verbraucher kaufte teuer und verkaufte billig zurück, die Kolonie blutete so aus (dauerhaft am Preisdeckel, Kasse leer).
+                // Beides zusammen = die Station stellt die Ware her (ein Lager ohne Rezept stellt nichts her).
                 if (!buy.Produces(good.Id)) continue;
-                var b = buy.Market[good.Id];
+                var b = entries[bi];
                 float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
                 if (available < 1f) continue;
                 float units = MathF.Min(capacityUnits, available);
@@ -108,16 +121,23 @@ public sealed class TraderSystem : ISimSystem
                     units = MathF.Min(units, MathF.Floor(spendable / b.Price));
                     if (units < 1f) continue;
                 }
-                float toBuy = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
-                if (float.IsPositiveInfinity(toBuy)) continue;
-                float fuelPrice = fuelHere > 0f ? fuelHere
-                    : fuelGood is { } fgb && buy.Market.TryGetValue(fgb, out var be) && be.Price > 0f ? be.Price : fuelAvg;
-                float distToBuy = fuelGood is null ? 0f : Travel.EstimateDistance(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
-                foreach (var sell in traders)
+                if (!buyLegs.TryGetValue(buy.Id, out var leg))
                 {
+                    float tb = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
+                    float fp = fuelHere > 0f ? fuelHere
+                        : fuelGood is { } fgb && buy.Market.TryGetValue(fgb, out var be) && be.Price > 0f ? be.Price : fuelAvg;
+                    float db = fuelGood is null || float.IsPositiveInfinity(tb) ? 0f : Travel.EstimateDistance(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
+                    buyLegs[buy.Id] = leg = (tb, db, fp);
+                }
+                float toBuy = leg.ToBuy;
+                if (float.IsPositiveInfinity(toBuy)) continue;
+                float fuelPrice = leg.FuelPrice, distToBuy = leg.DistToBuy;
+                for (int si = 0; si < traders.Count; si++)
+                {
+                    var sell = traders[si];
                     if (sell.Id == buy.Id) continue;
                     if (limits is not null && !AutoLimitRules.InRange(u, limits, sell.Sector)) continue;
-                    var s = sell.Market[good.Id];
+                    var s = entries[si];
                     float margin = s.Price - b.Price;
                     if (margin <= 0f) continue;
                     // Die Station zahlt nur, was ihre Kasse hergibt (der Rest der Ladung wird ohne Bezahlung abgeladen): mit dem
@@ -125,7 +145,8 @@ public sealed class TraderSystem : ISimSystem
                     // Eingangsware knapp und damit teuer ist, endgültig — sie kann die volle Ladung nie zu 25 % anzahlen.
                     // Phase 5a: Händler kaufen nur, was der Abnehmer noch annimmt (Wunschbestand × OverstockFactor). Vorher wurde der Rest
                     // unbezahlt abgeladen; bei kleinen Wunschbeständen (Modulfabriken, Lager) drückte das die Preise dauerhaft auf 0,25×.
-                    float accept = sell.AcceptableUnits(good.Id, u.Rules);
+                    float acceptAll = sell.AcceptableUnits(s, u.Rules);
+                    float accept = acceptAll;
                     if (incoming is not null && sell.IsBuildSite) accept -= incoming.GetValueOrDefault((sell.Id, good.Id));
                     float load = MathF.Min(units, MathF.Floor(accept));
                     // Phase 14: nur so viel einplanen, wie der Abnehmer bezahlen kann (beim Einkauf gilt dieselbe Grenze). Vorher rechnete die Bewertung mit
@@ -136,14 +157,20 @@ public sealed class TraderSystem : ISimSystem
                     float paidUnits = MathF.Min(load, MathF.Max(0f, sell.Credits) / s.Price);
                     float profit = paidUnits * s.Price - load * b.Price;
                     if (profit <= 0f) continue;
-                    if (sell.AcceptableUnits(good.Id, u.Rules) < MathF.Min(load, 5f)) continue;   // Lager voll: nimmt nichts mehr
-                    float toSell = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship, ladenProfile);
+                    if (acceptAll < MathF.Min(load, 5f)) continue;   // Lager voll: nimmt nichts mehr
+                    if (!sellLegs.TryGetValue((buy.Id, sell.Id), out var sl))
+                    {
+                        float ts = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship, ladenProfile);
+                        sellLegs[(buy.Id, sell.Id)] = sl = float.IsPositiveInfinity(ts) ? (ts, 0f, 0f)
+                            : (ts, Refuel.TripFuelCost(u, ship, buy, sell, distToBuy, fuelPrice), ThreatMap.RouteRisk(u, buy.Sector, sell.Sector));
+                    }
+                    float toSell = sl.ToSell;
                     if (float.IsPositiveInfinity(toSell)) continue;
                     // Phase 4b: Treibstoffkosten der Runde (Hin- und Rückfahrt) vom Gewinn abziehen
-                    float fuelCost = Refuel.TripFuelCost(u, ship, buy, sell, distToBuy, fuelPrice);
+                    float fuelCost = sl.FuelCost;
                     // Phase 11: Risikoabschlag der beladenen Fahrt aus der Lagekarte (erwarteter Verlust = Routenrisiko × Wert der Ladung).
                     // Gleicher Abschlag für alle Händler, gedeckelt je Sektor — er verschiebt Routen, statt alle auf eine zu treiben.
-                    float risk = ThreatMap.RouteRisk(u, buy.Sector, sell.Sector) * load * s.Price;
+                    float risk = sl.Risk * load * s.Price;
                     float score = (profit - fuelCost - risk) / (toBuy + toSell);
                     if (score > bestScore) { bestScore = score; best = new TradeOrder(buy.Id, sell.Id, good.Id); }
                 }

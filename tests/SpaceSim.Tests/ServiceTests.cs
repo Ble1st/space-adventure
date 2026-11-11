@@ -165,14 +165,15 @@ public class TradeServiceTests
         Assert.Equal(entry.Price, buy.Price, 3);
         Assert.Equal(entry.Price, sell.Price, 3);
         Assert.Equal(TradeActions.MaxBuyable(u, ship, st, good), buy.Amount, 3);
-        Assert.Equal(MathF.Min(MathF.Min(7f, st.Credits / entry.Price), st.AcceptableUnits(good, u.Rules)), sell.Amount, 3);
+        // Phase 17: Angebotsmenge nach der Mengenregel des Verkaufs (alles, wenn die Station alles nimmt, sonst ganze Einheiten)
+        Assert.Equal(TradeActions.SaleUnits(7f, 7f, MathF.Min(st.Credits / entry.Price, st.AcceptableUnits(good, u.Rules))), sell.Amount, 3);
 
         var all = offers.Single(o => o.Key == TradeService.SellAll);
         Assert.Equal(default(GoodId), all.Good);
         Assert.Equal(0f, all.Stock);
         Assert.Equal(0f, all.Held);
         Assert.Equal(TradeActions.Quote(u, ship, st), all.Price, 3);
-        Assert.Equal(ship.Cargo.Values.Sum(), all.Amount, 3);
+        Assert.Equal(TradeActions.Sellable(u, ship, st).Units, all.Amount, 3);   // Phase 17: was „Alles verkaufen“ bewegt
     }
 
     [Fact]
@@ -187,8 +188,9 @@ public class TradeServiceTests
         var sell = svc.Offers(u, st, ship).Single(o => o.Key == $"{TradeService.Sell}:{good.Value}");
 
         Assert.True(price > 0f);
-        Assert.Equal(2.5f, sell.Amount, 3);
-        Assert.Equal(price * 2.5f, sell.Price * sell.Amount, 3);
+        // Phase 17: nur ganze Einheiten, wenn die Station nicht alles nimmt (vorher 2,5 — der Verkauf bewegte den Bruchteil, die Anzeige nicht)
+        Assert.Equal(2f, sell.Amount, 3);
+        Assert.Equal(price * 2f, sell.Price * sell.Amount, 3);
     }
 
     [Fact]

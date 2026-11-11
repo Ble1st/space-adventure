@@ -112,7 +112,7 @@ public static class ConstructionRules
         var bill = Bill(u, type) ?? throw new InvalidOperationException($"Stückliste für '{type.Key}' nicht auflösbar");
         var sec = u.Sectors[sector];
         string shortName = sec.Name.Split(' ').Last();
-        var reuse = u.Stations.Values.Where(s => s.Sector == sector && s.Site is { Abandoned: true }).OrderBy(s => s.Id.Value).FirstOrDefault();
+        var reuse = u.StationsById().Where(s => s.Sector == sector && s.Site is { Abandoned: true }).FirstOrDefault();
         Station site;
         if (reuse is not null)
         {
@@ -279,7 +279,7 @@ public static class ConstructionRules
     /// <summary>Gibt Bauschiffe frei, deren Auftrag diese Baustelle ist (Fracht bleibt an Bord; das Schiff denkt im nächsten Tick neu).</summary>
     static void ReleaseBuilders(Universe u, StationId site)
     {
-        foreach (var s in u.Ships.Values.OrderBy(s => s.Id.Value))
+        foreach (var s in u.ShipsById())
             if (s.Order is BuildOrder bo && bo.Site == site && s.Transit is null)
             {
                 s.Order = null;
@@ -311,7 +311,7 @@ public sealed class ConstructionSystem : ISimSystem
     static void StepSites(Universe u, int dt)
     {
         var rules = u.Rules;
-        foreach (var site in u.Stations.Values.Where(s => s.Site is not null).OrderBy(s => s.Id.Value).ToList())
+        foreach (var site in u.StationsById().Where(s => s.Site is not null).ToList())
         {
             var bs = site.Site!;
             if (bs.Abandoned)
@@ -349,14 +349,14 @@ public sealed class ConstructionSystem : ISimSystem
     static void StepBuilders(Universe u)
     {
         // feste Reihenfolge (Id), nicht die Einfügereihenfolge des Dictionarys: wer zuerst denkt, bekommt die freie Baustelle
-        foreach (var ship in u.Ships.Values.Where(s => s.Role == ShipRole.Builder).OrderBy(s => s.Id.Value).ToList())
+        foreach (var ship in u.ShipsById().Where(s => s.Role == ShipRole.Builder).ToList())
         {
             // Phase 12: auch Spielerschiffe mit Befehl „Bauen“ (Ausführer ist dieses System)
             if (ship.Role != ShipRole.Builder || (ship.Controller != Controller.Ai && ship.Command is not BuildCommand)) continue;
             if (!ship.Has(Capability.Construction))
             {
                 // Bauausleger ausgebaut: Auftrag fällt weg, Baustelle wird frei (wie JobRelease bei Händlern/Minern)
-                foreach (var s in u.Stations.Values.OrderBy(s => s.Id.Value)) if (s.Site is { } sb && sb.Builder == ship.Id) sb.Builder = default;
+                foreach (var s in u.StationsById()) if (s.Site is { } sb && sb.Builder == ship.Id) sb.Builder = default;
                 JobRelease.Release(u, ship);
                 continue;
             }

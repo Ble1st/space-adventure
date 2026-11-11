@@ -99,8 +99,8 @@ public static class Refuel
     /// <summary>Die Station, an der das Schiff gerade angedockt ist (Position = ihr Dockpunkt), sonst null.</summary>
     public static Station? CurrentStation(Universe u, Ship ship)
     {
-        foreach (var st in u.Stations.Values.Where(s => s.Sector == ship.Sector).OrderBy(s => s.Id.Value))
-            if (Vec2.Distance(st.DockPoint(ship.Id), ship.Position) < 1f) return st;
+        foreach (var st in u.StationsById())
+            if (st.Sector == ship.Sector && Vec2.Distance(st.DockPoint(ship.Id), ship.Position) < 1f) return st;
         return null;
     }
 
@@ -201,7 +201,7 @@ public static class Refuel
         if (preferred is not null && preferred.Market.TryGetValue(good, out var pe) && pe.Price > 0f) return pe.Price;
         float sum = 0f;
         int n = 0;
-        foreach (var st in u.Stations.Values.OrderBy(s => s.Id.Value))
+        foreach (var st in u.StationsById())
             if (st.Market.TryGetValue(good, out var e) && e.Price > 0f) { sum += e.Price; n++; }
         return n > 0 ? sum / n : u.Goods[good].BasePrice;
     }
@@ -225,8 +225,9 @@ public static class Refuel
     /// </summary>
     public static float TripFuelCost(Universe u, Ship ship, Station buy, Station sell, float distanceToBuy, float fuelPrice)
     {
+        if (!Active(u)) return 0f;   // Phase 17: Schalter zuerst (spart die Treibstoffwahl bei abgeschaltetem Treibstoff; gleiches Ergebnis)
         var good = ActiveFuel(ship);
-        if (!Active(u) || good is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
+        if (good is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
         float d = distanceToBuy
                 + Travel.EstimateDistance(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), GateAccess.ProfileOf(u, ship) with { Laden = true });
         return Consumption(ship, d, good) * fuelPrice;

@@ -156,6 +156,27 @@ public partial class SelfTest : Node
 					var bestSteel = SpaceSim.Core.Trading.MarketInfo.BestBuyerForGood(u, steelG);
 					Check(bestSteel is null || SpaceSim.Core.Trading.MarketInfo.Acceptance(u, bestSteel, steelG).Accepts, "Beste bekannte Verkaufsstelle für Stahl nimmt Stahl an");
 					pl.Cargo.Remove(steelG);
+					// Phase 17: Bruchteil-Regel — ein Erzrest unter einer Einheit, den das Stahlwerk ganz nimmt, ist verkäuflich (Taste aktiv ⇔ Verkauf gelingt);
+					// nimmt das Werk weniger als eine Einheit an, ist Verkaufen (und „Alles verkaufen“) aus und der Verkauf wird mit demselben Grund abgelehnt
+					var ironOre = u.FindGood("iron_ore")!.Id;
+					var oreEntry = works.Stock(ironOre);
+					float oreKeep = oreEntry.Amount, worksCredits = works.Credits;
+					works.Credits = 100000f;
+					pl.Cargo[ironOre] = 0.4f;
+					_m.HudRef.DockTrade.TestRebuild();
+					bool fracOn = _m.HudRef.DockTrade.TestSellEnabled(ironOre) && _m.HudRef.DockTrade.TestSellAllEnabled;
+					var frac = _m.HudRef.DockTrade.TestExecute($"sell:{ironOre.Value}", 1f);
+					Check(fracOn && frac.Success && pl.Cargo.GetValueOrDefault(ironOre) == 0f, "Erzrest 0,4: Verkaufen aktiv und der Rest wird ganz verkauft (Phase 17)");
+					oreEntry.Amount += works.AcceptableUnits(ironOre, u.Rules) - 0.5f;   // Werk nimmt nur noch 0,5 an
+					pl.Cargo[ironOre] = 3f;
+					_m.HudRef.DockTrade.TestRebuild();
+					bool fracOff = !_m.HudRef.DockTrade.TestSellEnabled(ironOre) && !_m.HudRef.DockTrade.TestSellAllEnabled;
+					var frRefused = _m.HudRef.DockTrade.TestExecute($"sell:{ironOre.Value}", 3f);
+					var frAll = _m.HudRef.DockTrade.TestExecute("sell_all", 0f);
+					Check(fracOff && !frRefused.Success && !frAll.Success && pl.Cargo.GetValueOrDefault(ironOre) == 3f && frRefused.Message == _m.HudRef.DockTrade.TestSellNote(ironOre),
+						$"Annahme 0,5 < 1: Verkaufen und „Alles verkaufen“ aus, beide abgelehnt, Fracht unverändert ({frRefused.Message})");
+					pl.Cargo.Remove(ironOre);
+					oreEntry.Amount = oreKeep; works.Credits = worksCredits;
 					_m.HudRef.DockCtx.Station = st;
 					_m.HudRef.DockTrade.TestRebuild();
 				}

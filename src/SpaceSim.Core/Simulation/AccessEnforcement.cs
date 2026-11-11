@@ -15,7 +15,7 @@ public static class AccessEnforcement
     public static (int Rerouted, int Stopped) Revalidate(Universe u)
     {
         int rerouted = 0, stopped = 0;
-        foreach (var ship in u.Ships.Values.Where(s => s.Transit is not null && s.Id != u.PlayerShip).OrderBy(s => s.Id.Value).ToList())
+        foreach (var ship in u.ShipsById().Where(s => s.Transit is not null && s.Id != u.PlayerShip).ToList())
         {
             var t = ship.Transit!;
             var profile = GateAccess.ProfileOf(u, ship);

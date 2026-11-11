@@ -130,6 +130,39 @@ public sealed class Universe
     /// <summary>Ware über ihren Datenschlüssel; null, wenn unbekannt.</summary>
     public Good? FindGood(string key) => Goods.Values.FirstOrDefault(g => g.Key == key);
 
+    // Phase 17 (Leistung): Waren als Feld nach Id (Index = GoodId.Value) für die heißen Schleifen (Markt, Handel). Je Tick (und bei geänderter Anzahl)
+    // neu gefüllt — die Warenliste ändert sich nur beim Weltaufbau/Laden, die Warenobjekte selbst werden nicht kopiert.
+    Good?[] _goodsById = Array.Empty<Good?>();
+    long _goodsTick = -1;
+    int _goodsCount = -1;
+
+    /// <summary>Phase 17: obere Schranke der Waren-Ids (größte Id + 1) — Länge für Felder, die je Ware indiziert werden.</summary>
+    public int GoodIdBound
+    {
+        get
+        {
+            if (_goodsTick != Tick || _goodsCount != Goods.Count) RebuildGoods();
+            return _goodsById.Length;
+        }
+    }
+
+    /// <summary>Ware zur Id wie <c>Goods[id]</c> (wirft bei unbekannter Id), über ein je Tick aufgebautes Feld statt des Dictionarys.</summary>
+    public Good GoodOf(GoodId id)
+    {
+        if (_goodsTick != Tick || _goodsCount != Goods.Count) RebuildGoods();
+        int i = id.Value;
+        return (uint)i < (uint)_goodsById.Length && _goodsById[i] is { } g ? g : Goods[id];
+    }
+
+    void RebuildGoods()
+    {
+        int max = 0;
+        foreach (var k in Goods.Keys) max = Math.Max(max, k.Value);
+        if (_goodsById.Length != max + 1) _goodsById = new Good?[max + 1]; else Array.Clear(_goodsById);
+        foreach (var (k, g) in Goods) if (k.Value >= 0) _goodsById[k.Value] = g;
+        _goodsTick = Tick; _goodsCount = Goods.Count;
+    }
+
     // ───────── Schiffe ─────────
 
     public void AddShip(Ship s)
@@ -376,13 +409,23 @@ public sealed class Universe
     // (Gates können sich zwischen Ticks ändern, innerhalb eines Ticks nur über TouchAccess). Phase 10: Cache nach Profil getrennt.
     readonly Dictionary<(SectorId, SectorId, MobilityProfile), List<GateId>?> _routes = new();
     long _routesTick = -1;
-    int _routesVersion = -1;
+    int _routesVersion = -1, _routesGates = -1, _routesSectors = -1;
+    bool _routesUnrestricted;
 
     public List<GateId>? CachedRoute(SectorId from, SectorId to) => CachedRoute(from, to, MobilityProfile.Physical);
 
     public List<GateId>? CachedRoute(SectorId from, SectorId to, MobilityProfile profile)
     {
-        if (_routesTick != Tick || _routesVersion != AccessVersion) { _routes.Clear(); _routesTick = Tick; _routesVersion = AccessVersion; }
+        if (_routesTick != Tick || _routesVersion != AccessVersion)
+        {
+            // Phase 17 (Leistung): Ohne jede Einschränkung (alle Gates offen, keine Sperre) hängen Routen nur an der Gate-Topologie — dann bleibt der
+            // Cache über Ticks stehen, solange auch beim Füllen nichts eingeschränkt war und die Zahl der Sektoren und Gates gleich ist
+            bool keep = _routesVersion == AccessVersion && _routesUnrestricted && !AccessRestricted
+                && Gates.Count == _routesGates && Sectors.Count == _routesSectors;
+            if (!keep) _routes.Clear();
+            _routesTick = Tick; _routesVersion = AccessVersion;
+            _routesUnrestricted = !AccessRestricted; _routesGates = Gates.Count; _routesSectors = Sectors.Count;
+        }
         profile = Normalize(profile);
         if (!_routes.TryGetValue((from, to, profile), out var r)) _routes[(from, to, profile)] = r = FindRoute(from, to, profile);
         return r;
@@ -396,23 +439,70 @@ public sealed class Universe
     // Marktindex: Welche Stationen führen eine Ware? Händler-KI muss so nicht für jede Ware alle Stationen durchsuchen.
     readonly Dictionary<GoodId, List<Station>> _tradingIndex = new();
     long _indexTick = -1;
-    int _indexVersion = -1;
+    int _indexVersion = -1, _indexEntries = -1, _indexStations = -1;
 
     /// <summary>Stationen mit Marktposition für diese Ware (je Tick und Stationsänderung zwischengespeichert).</summary>
     public IReadOnlyList<Station> StationsTrading(GoodId good)
     {
         if (_indexTick != Tick || _indexVersion != StructureVersion)
         {
-            _tradingIndex.Clear();
+            // Phase 17 (Leistung): Der Index hängt nur an der Stationsmenge und den Markteinträgen. Markteinträge kommen zur Laufzeit nur hinzu
+            // (Station.Stock), also zeigt die Gesamtzahl der Einträge jede Änderung an; ist sie wie beim letzten Aufbau (und die Stationsmenge gleich),
+            // bleibt der Index stehen, statt je Tick neu gebaut zu werden. Innerhalb eines Ticks gilt wie bisher nur die Strukturversion.
+            int entries = 0;
+            foreach (var st in Stations.Values) entries += st.Market.Count;
+            if (_indexVersion == StructureVersion && entries == _indexEntries && Stations.Count == _indexStations) { _indexTick = Tick; goto done; }
+            _indexEntries = entries; _indexStations = Stations.Count;
+            _tradingIndex.Clear();   // neue Listen: eine laufende Schleife über eine alte Liste behält ihren Schnappschuss
             // feste Reihenfolge (Id), nicht die Einfügereihenfolge des Dictionarys (entfernte Stationen geben Plätze frei)
-            foreach (var st in Stations.Values.OrderBy(s => s.Id.Value))
-                foreach (var g in st.Market.Keys)
+            _tradingEntries.Clear();
+            foreach (var st in StationsById())
+                foreach (var (g, e) in st.Market)
                 {
-                    if (!_tradingIndex.TryGetValue(g, out var list)) _tradingIndex[g] = list = new List<Station>();
+                    if (!_tradingIndex.TryGetValue(g, out var list)) { _tradingIndex[g] = list = new List<Station>(); _tradingEntries[g] = new List<StockEntry>(); }
                     list.Add(st);
+                    _tradingEntries[g].Add(e);
                 }
             _indexTick = Tick; _indexVersion = StructureVersion;
         }
+        done:
         return _tradingIndex.TryGetValue(good, out var l) ? l : Array.Empty<Station>();
+    }
+
+    readonly Dictionary<GoodId, List<StockEntry>> _tradingEntries = new();
+
+    /// <summary>
+    /// Phase 17 (Leistung): die Markteinträge dieser Ware in derselben Reihenfolge wie <see cref="StationsTrading"/> (Eintrag i gehört zu Station i).
+    /// Nur direkt nach <see cref="StationsTrading"/> für dieselbe Ware verwenden (gleicher Indexstand).
+    /// </summary>
+    public IReadOnlyList<StockEntry> StationsTradingEntries(GoodId good) =>
+        _tradingEntries.TryGetValue(good, out var l) ? l : Array.Empty<StockEntry>();
+
+    // Phase 17 (Leistung): Schiffe und Stationen nach Id geordnet, zwischengespeichert. Gültig, solange das Dictionary dieselben Objekte enthält
+    // (gleiche Anzahl, jedes gemerkte Objekt noch unter seiner Id) — exakt geprüft bei jedem Aufruf, auch wenn Tests das Dictionary direkt ändern.
+    // Ein Neuaufbau legt eine neue Liste an, damit eine laufende Schleife über die alte Liste ihren Schnappschuss behält (wie vorher mit ToList()).
+    List<Ship> _shipsById = new();
+    List<Station> _stationsById = new();
+
+    /// <summary>Alle Schiffe nach Id geordnet (Schnappschuss; gleiche Reihenfolge wie <c>Ships.Values.OrderBy(s =&gt; s.Id.Value)</c>).</summary>
+    public IReadOnlyList<Ship> ShipsById()
+    {
+        if (!SnapshotValid(_shipsById, Ships, s => s.Id)) _shipsById = Ships.Values.OrderBy(s => s.Id.Value).ToList();
+        return _shipsById;
+    }
+
+    /// <summary>Alle Stationen nach Id geordnet (Schnappschuss; gleiche Reihenfolge wie <c>Stations.Values.OrderBy(s =&gt; s.Id.Value)</c>).</summary>
+    public IReadOnlyList<Station> StationsById()
+    {
+        if (!SnapshotValid(_stationsById, Stations, s => s.Id)) _stationsById = Stations.Values.OrderBy(s => s.Id.Value).ToList();
+        return _stationsById;
+    }
+
+    static bool SnapshotValid<TId, T>(List<T> list, Dictionary<TId, T> dict, Func<T, TId> id) where TId : notnull where T : class
+    {
+        if (list.Count != dict.Count) return false;
+        foreach (var x in list)
+            if (!dict.TryGetValue(id(x), out var cur) || !ReferenceEquals(cur, x)) return false;
+        return true;
     }
 }

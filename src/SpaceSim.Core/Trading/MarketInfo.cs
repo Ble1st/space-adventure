@@ -39,17 +39,28 @@ public enum IntakeLimit
 /// </summary>
 public readonly record struct Intake(float Units, IntakeLimit Limit, string? Reason)
 {
+    /// <summary>
+    /// Phase 17: ungerundete Obergrenze eines Verkaufs (min(Annahme, Kasse ÷ Preis), wie <see cref="TradeActions.SaleCap"/>); <see cref="Units"/> ist 0,
+    /// sobald sie unter einer Einheit liegt. Damit nimmt die Station einen Rest unter einer Einheit an, wenn er ganz hineinpasst.
+    /// </summary>
+    public float Cap { get; init; }
+
     /// <summary>Nimmt die Station überhaupt etwas (mindestens eine Einheit)?</summary>
     public bool Accepts => Units >= 1f;
 
+    /// <summary>Phase 17: was ein Verkauf von <paramref name="held"/> Einheiten hier bewegen würde (<see cref="TradeActions.SaleUnits"/>: alles oder ganze Einheiten).</summary>
+    public float SellableFrom(float held) => TradeActions.SaleUnits(held, held, Cap);
+
     /// <summary>
-    /// Hinweis für eine Verkaufszeile mit <paramref name="held"/> Einheiten an Bord: der Grund, wenn die Station nichts nimmt; nimmt sie weniger, als an Bord
-    /// ist, der Grund der Begrenzung („Baustelle: nur noch n“, „kann nur n bezahlen“) oder „nimmt noch n“; sonst null.
+    /// Hinweis für eine Verkaufszeile mit <paramref name="held"/> Einheiten an Bord: der Grund, wenn ein Verkauf nichts bewegen würde; bewegt er weniger, als an
+    /// Bord ist, der Grund der Begrenzung („Baustelle: nur noch n“, „kann nur n bezahlen“) oder „nimmt noch n“; sonst null. Phase 17: nach derselben
+    /// Mengenregel wie der Verkauf (<see cref="SellableFrom"/>), also auch für einen Bruchteil an Bord.
     /// </summary>
     public string? NoteFor(float held)
     {
-        if (!Accepts) return Reason ?? "Nimmt nichts an";
-        if (held > Units + 0.001f) return Reason ?? $"nimmt noch {MathF.Floor(Units):0}";
+        float n = SellableFrom(held);
+        if (n <= 0f) return Reason ?? (Cap > 0f ? "Nimmt weniger als eine Einheit an" : "Nimmt nichts an");
+        if (n < held - 0.001f) return Reason ?? $"nimmt noch {MathF.Floor(Units):0}";
         return null;
     }
 }
@@ -81,21 +92,27 @@ public static class MarketInfo
             return new Intake(0f, IntakeLimit.NotTraded, ExportRules.ConfigOf(u, st) is not null ? "Nimmt nur Endwaren" : "Handelt diese Ware nicht");
         float accept = st.AcceptableUnits(good, u.Rules);
         float pay = MathF.Max(0f, st.Credits) / e.Price;
-        if (st.Site is { } site)
+        float cap = MathF.Max(0f, MathF.Min(pay, accept));   // Phase 17: wie TradeActions.SaleCap
+        return Classify() with { Cap = cap };
+
+        Intake Classify()
         {
-            if (site.Abandoned) return new Intake(0f, IntakeLimit.Site, "Verlassene Baustelle");
-            if (accept < 1f) return new Intake(0f, IntakeLimit.Site, "Baustelle: Material vollständig");
+            if (st.Site is { } site)
+            {
+                if (site.Abandoned) return new Intake(0f, IntakeLimit.Site, "Verlassene Baustelle");
+                if (accept < 1f) return new Intake(0f, IntakeLimit.Site, accept > 0f ? $"Baustelle: nur noch {accept:0.#}" : "Baustelle: Material vollständig");
+                if (pay < accept) return Paid(accept, pay);
+                return new Intake(accept, IntakeLimit.Site, $"Baustelle: nur noch {MathF.Floor(accept):0}");
+            }
+            if (e.NoIntake) return new Intake(0f, IntakeLimit.OwnProduct, "Stellt die Ware selbst her");
+            if (accept < 1f)
+            {
+                bool paused = e.Overstock > 0f && st.Consumes(good) && !st.Produces(good);
+                return paused ? new Intake(0f, IntakeLimit.Paused, "Kein Bedarf: Produktion pausiert") : new Intake(0f, IntakeLimit.Full, "Lager voll");
+            }
             if (pay < accept) return Paid(accept, pay);
-            return new Intake(accept, IntakeLimit.Site, $"Baustelle: nur noch {MathF.Floor(accept):0}");
+            return new Intake(accept, IntakeLimit.None, null);
         }
-        if (e.NoIntake) return new Intake(0f, IntakeLimit.OwnProduct, "Stellt die Ware selbst her");
-        if (accept < 1f)
-        {
-            bool paused = e.Overstock > 0f && st.Consumes(good) && !st.Produces(good);
-            return paused ? new Intake(0f, IntakeLimit.Paused, "Kein Bedarf: Produktion pausiert") : new Intake(0f, IntakeLimit.Full, "Lager voll");
-        }
-        if (pay < accept) return Paid(accept, pay);
-        return new Intake(accept, IntakeLimit.None, null);
 
         static Intake Paid(float accept, float pay) =>
             pay < 1f ? new Intake(0f, IntakeLimit.Credits, "Station kann nicht zahlen") : new Intake(pay, IntakeLimit.Credits, $"kann nur {MathF.Floor(pay):0} bezahlen");

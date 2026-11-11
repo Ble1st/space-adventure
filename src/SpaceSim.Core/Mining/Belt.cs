@@ -11,6 +11,22 @@ public static class Belt
 
     public static float OreIn(Sector s, ResourceField f) => AsteroidsOf(s, f).Sum(a => a.Ore);
 
+    /// <summary>
+    /// Phase 17 (Leistung): genau <c>OreIn(s, f) &gt;= threshold</c>, bricht aber ab, sobald die Teilsumme die Schwelle erreicht (alle Summanden sind
+    /// positiv — abbaubare Asteroiden haben Erz &gt; 0,001 —, die Summe wächst also nur; summiert wie <see cref="OreIn"/> in double, Vergleich als float).
+    /// </summary>
+    public static bool HasOre(Sector s, ResourceField f, float threshold)
+    {
+        double sum = 0;
+        foreach (var a in s.Asteroids)
+        {
+            if (!a.Minable || a.ClassKey != f.ClassKey || !ReferenceEquals(s.FieldFor(a.Position), f)) continue;
+            sum += a.Ore;
+            if ((float)sum >= threshold) return true;
+        }
+        return (float)sum >= threshold;
+    }
+
     /// <summary>Abstrakter Abbau (NPC-Miner): entnimmt <paramref name="amount"/> aus den Asteroiden, nahe am Feldmittelpunkt zuerst. Leere Asteroiden verschwinden.</summary>
     public static float Take(Universe u, Sector s, ResourceField f, float amount)
     {

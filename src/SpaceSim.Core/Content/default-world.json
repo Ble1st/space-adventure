@@ -866,7 +866,8 @@
    "services": ["trade", "outfitter", "shipdealer", "hangar", "taxi", "rental"],
    "export": {
     "categories": ["end"],
-    "targetValue": 3000
+    "targetValue": 3000,
+    "bids": { "consumer_goods": 1.25, "luxury_goods": 1.25 }
    },
    "shipDealer": {
     "classes": [
@@ -928,7 +929,8 @@
    "services": ["trade", "hangar", "taxi"],
    "export": {
     "categories": ["end"],
-    "targetValue": 3000
+    "targetValue": 3000,
+    "bids": { "consumer_goods": 1.25, "luxury_goods": 1.25 }
    },
    "recipes": []
   },

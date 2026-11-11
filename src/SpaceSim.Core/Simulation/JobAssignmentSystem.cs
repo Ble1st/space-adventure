@@ -19,11 +19,11 @@ public sealed class JobAssignmentSystem : ISimSystem
 
     public void Step(Universe u, int dt)
     {
-        foreach (var ship in u.Ships.Values.OrderBy(s => s.Id.Value).ToList())
+        foreach (var ship in u.ShipsById())   // Schnappschuss nach Id (Phase 17: zwischengespeichert statt je Tick sortiert)
         {
-            if (!IsIdle(u, ship)) continue;
+            if (!IsIdle(u, ship) || ship.Controller != Controller.Ai) continue;   // Phase 17: billige Prüfung vor der Aufgabenliste
             var jobs = ShipJobs.Of(u, ship).Where(_jobs.Contains).ToList();
-            if (jobs.Count < 2 || ship.Controller != Controller.Ai) continue;
+            if (jobs.Count < 2) continue;
             var current = ShipJobs.ForRole(ship.Role);
             if (current is not null && !jobs.Contains(current)) current = null;
             // Mindestdauer zuerst prüfen: spart die teure Bewertung (Handelsscoring über alle Märkte)
