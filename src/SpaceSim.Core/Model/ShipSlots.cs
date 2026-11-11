@@ -90,6 +90,11 @@ public sealed class ShipClass
     /// Standard 1. Die genutzte Zahl ergibt sich aus der Slotliste des Schiffs im Vergleich zur Klasse.
     /// </summary>
     public int MaxSlotUpgrades = 1;
+    /// <summary>
+    /// Phase 11: nicht im freien Handel (JSON <c>restricted</c>): Schiffshändler verkaufen die Klasse nur, wenn ihre Liste sie ausdrücklich nennt
+    /// (Kaperschiffe der Piraten).
+    /// </summary>
+    public bool Restricted;
 }
 
 /// <summary>Schiffsmodell: eine Klasse mit festem Fit (Modulschlüssel pro Slot, null = leerer Slot).</summary>

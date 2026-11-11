@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 13;
+    public const int CurrentVersion = 14;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -50,6 +50,8 @@ public sealed class SaveGame
     public List<GateSave> Gates { get; set; } = new();
     public List<StationSave> Stations { get; set; } = new();
     public List<ShipSave> Ships { get; set; } = new();
+    /// <summary>Phase 11 (v14): angekündigte Begegnungen mit dem Spieler (Überfall, Abfangen); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<PendingEncounterSave>? Encounters { get; set; }
 }
 
 /// <summary>
@@ -66,9 +68,28 @@ public sealed class ActorSave
     public float Cooperation { get; set; } = 0.5f; public float Lawfulness { get; set; } = 0.5f;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? Relations { get; set; }
     public long Created { get; set; }
+    /// <summary>Phase 11 (v14): Fahndung je Fraktion; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WantedSave>? Wanted { get; set; }
+    /// <summary>Phase 11 (v14): offenes Kopfgeld je Fraktion; fehlt = keins.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? BountyClaims { get; set; }
+    /// <summary>Phase 11 (v14): letzte Änderung der Streitkräfte (Abkühlzeit).</summary>
+    public long LastForceTick { get; set; } = -1_000_000;
 }
 
 /// <summary>Kasse der Spielerperson (Phase 5b, v7 bis v11; seit v12 nur noch gelesen).</summary>
+/// <summary>Fahndungseintrag (Phase 11, v14).</summary>
+public sealed class WantedSave
+{
+    public int Faction { get; set; } public float Heat { get; set; } public long LastCrime { get; set; } public float Fine { get; set; }
+    public string Crime { get; set; } = "";
+}
+
+/// <summary>Angekündigte Begegnung (Phase 11, v14).</summary>
+public sealed class PendingEncounterSave
+{
+    public string Kind { get; set; } = ""; public int Source { get; set; } public int Target { get; set; } public int Sector { get; set; } public long Due { get; set; }
+}
+
 public sealed class PlayerWalletSave
 {
     public float Credits { get; set; } public int Faction { get; set; }
@@ -119,6 +140,10 @@ public sealed class StationTypeSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? Capturable { get; set; }
     /// <summary>Zerstörbar (Phase 10, v13); fehlt = ja.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? Destructible { get; set; }
+    /// <summary>Phase 11 (v14): Grundschutz auf der Lagekarte; fehlt = 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Security { get; set; }
+    /// <summary>Phase 11 (v14): Piratenversteck; fehlt = nein.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? Hideout { get; set; }
 }
 
 /// <summary>Schiffshändler eines Stationstyps (Phase 5c): erlaubte Klassen (null = alle), Höchstgröße als Text, Montagegebühr.</summary>
@@ -186,6 +211,10 @@ public sealed class SectorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Control { get; set; }
     /// <summary>Umkämpft (Phase 10, v13).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Contested { get; set; }
+    /// <summary>Phase 11 (v14): Lagekarte — Bedrohung, Sicherheit, Verkehrswert; fehlt = 0 (Sicherheit und Verkehr misst das Laden neu).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Threat { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Security { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Traffic { get; set; }
 }
 
 /// <summary>Sperre eines Sektors (Phase 10): Stufen für Ein- und Ausreise, Auslöser, Zeiten (Beginn, Ablauf, Abkühlzeit), Durchsetzung.</summary>
@@ -309,6 +338,8 @@ public sealed class ShipClassSave
     public float ToolEfficiency { get; set; } = 1f;
     /// <summary>Höchstzahl der Slot-Upgrades je Schiff (Phase 7, v10); fehlt in älteren Spielständen = 1.</summary>
     public int MaxSlotUpgrades { get; set; } = 1;
+    /// <summary>Nicht im freien Handel (Phase 11, v14); fehlt = nein.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Restricted { get; set; }
 }
 
 public sealed class ShipModelSave
@@ -361,4 +392,8 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Quality { get; set; }
     /// <summary>Mitleidszähler je Slot (Phase 7, v10; Schlüssel −1 = Bonusslot); fehlt = keine Fehlschläge.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, int>? UpgradePity { get; set; }
+    /// <summary>Heimatbasis (Station-Id, Phase 11, v14); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int HomeBase { get; set; }
+    /// <summary>Einsatzsektor (Phase 11, v14); fehlt = keiner.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int DutySector { get; set; }
 }

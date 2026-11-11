@@ -96,7 +96,9 @@ public sealed class MinerSystem : ISimSystem
                     if (!u.IsReachable(sector.Id, st.Sector, laden)) continue;
                     float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id), ship) + mineTicks
                                + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id), ship, laden);
-                    float score = value / time * crowding;
+                    // Phase 11: Risikoabschlag aus der Lagekarte — Liegezeit im Feldsektor und beladene Fahrt zur Station
+                    float risk = MathF.Min(0.5f, ThreatMap.RiskOf(u, sector.Id) + ThreatMap.RouteRisk(u, sector.Id, st.Sector));
+                    float score = value / time * crowding * (1f - risk);
                     if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, fi, st.Id); }
                 }
             }

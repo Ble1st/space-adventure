@@ -147,6 +147,11 @@ public static class WorldBuilder
             type.Influence = t.Influence;
             type.Capturable = t.Capturable && type.Government is not (GovernmentKind.Headquarters or GovernmentKind.CompanySeat or GovernmentKind.SectorHq or GovernmentKind.Office);
             type.Destructible = t.Destructible;
+            // Phase 11: Grundschutz (Lagekarte) und Piratenversteck
+            if (t.Security < 0f || !float.IsFinite(t.Security)) throw new WorldFormatException($"Stationstyp '{t.Key}': security muss >= 0 sein");
+            type.Security = t.Security;
+            type.Hideout = t.Hideout;
+            if (type.Hideout && type.Government != GovernmentKind.None) throw new WorldFormatException($"Stationstyp '{t.Key}': ein Versteck kann keine Regierungsstation sein");
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -173,6 +178,27 @@ public static class WorldBuilder
                 if (!u.Factions.ContainsKey(new FactionId(other)) || other == f.Id) throw new WorldFormatException($"Fraktion '{f.Name}': Beziehung zu unbekannter Fraktion {other}");
                 u.Factions[new FactionId(f.Id)].Relations[new FactionId(other)] = Math.Clamp(v, -1f, 1f);
             }
+
+        // Phase 11: Akteure ohne Fraktion (Piraten) mit Schlüssel; Ids fortlaufend nach Freien und Spieler
+        var actorByKey = new Dictionary<string, ActorId>(StringComparer.Ordinal);
+        foreach (var ad in def.Actors)
+        {
+            if (ad.Key.Length == 0 || ad.Key is "faction" or "free" || !actorByKey.TryAdd(ad.Key, default))
+                throw new WorldFormatException($"Akteur '{ad.Name}': Schlüssel '{ad.Key}' leer, reserviert oder doppelt");
+            var kind = Enum.TryParse<ActorKind>(ad.Kind, ignoreCase: true, out var ak) && ak is ActorKind.Outlaw or ActorKind.Independent ? ak
+                : throw new WorldFormatException($"Akteur '{ad.Key}': unbekannte Art '{ad.Kind}' (outlaw, independent)");
+            var id = u.NewActorId();
+            actorByKey[ad.Key] = id;
+            var p = ad.Personality;
+            u.Actors[id] = new Actor
+            {
+                Id = id, Name = ad.Name, Kind = kind,
+                Personality = p is null ? Personality.Neutral : new Personality(p.Aggression, p.Greed, p.Cooperation, p.Lawfulness).Clamped(),
+                Treasury = new Treasury { Credits = ad.Treasury },
+            };
+        }
+        ActorId ActorByKey(string key, string owner) =>
+            actorByKey.TryGetValue(key, out var a) ? a : throw new WorldFormatException($"{owner}: unbekannter Besitzer '{key}'");
 
         foreach (var sd in def.Sectors)
         {
@@ -212,9 +238,10 @@ public static class WorldBuilder
             foreach (var st in sd.Stations)
             {
                 if (!u.StationTypes.TryGetValue(st.Type, out var type)) throw new WorldFormatException($"Station {st.Id}: unbekannter Typ '{st.Type}'");
-                var station = StationFactory.Create(u, new StationId(st.Id), type, st.Name, new SectorId(sd.Id), V(st.Pos), u.Sectors[new SectorId(sd.Id)].Owner);
-                // Phase 10: Regierungsstationen und Wachen sind immer vor Pleite geschützt
-                station.BankruptcyProtected = st.Essential || st.BankruptcyProtected || type.Government != GovernmentKind.None;
+                ActorId stOwner = st.Owner is { Length: > 0 } ok ? ActorByKey(ok, $"Station {st.Id}") : u.Sectors[new SectorId(sd.Id)].Owner;
+                var station = StationFactory.Create(u, new StationId(st.Id), type, st.Name, new SectorId(sd.Id), V(st.Pos), stOwner);
+                // Phase 10: Regierungsstationen und Wachen sind immer vor Pleite geschützt (Phase 11: Verstecke auch)
+                station.BankruptcyProtected = st.Essential || st.BankruptcyProtected || type.Government != GovernmentKind.None || type.Hideout;
                 station.Immortal = st.Immortal;
                 station.Credits = st.Credits;
                 foreach (var (k, v) in st.Stock)
@@ -238,12 +265,15 @@ public static class WorldBuilder
             {
                 null or "faction" => new FactionId(group.Faction),
                 "free" => u.FreeActor,
-                _ => throw new WorldFormatException($"Schiffsgruppe '{group.Role}': unbekannter Besitzer '{group.Owner}' (faction, free)"),
+                _ => actorByKey.TryGetValue(group.Owner!, out var oa) ? oa
+                    : throw new WorldFormatException($"Schiffsgruppe '{group.Role}': unbekannter Besitzer '{group.Owner}' (faction, free oder Akteur-Schlüssel)"),
             };
             for (int i = 0; i < group.Count; i++)
             {
                 var ship = NewShip(u, new ShipId(nextShip++), role, owner, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model);
-                RollFounderQuality(u, ship);
+                // Phase 11: Polizei und Kaperschiffe sind keine Gründerschiffe der Wirtschaft (keine Güteklasse); sie starten an ihrer Heimatbasis
+                if (role is ShipRole.Police or ShipRole.Pirate) PlaceAtHomeBase(u, ship);
+                else RollFounderQuality(u, ship);
                 u.AddShip(ship);
             }
         }
@@ -276,10 +306,27 @@ public static class WorldBuilder
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
+        // Phase 11: Lagekarte der Startwelt (Sicherheit aus Grundschutz und Streifen, Verkehr) vor der Sektorkontrolle (Patrouillenabdeckung)
+        Simulation.ThreatMap.Initialize(u);
         // Phase 10: Sektorkontrolle der Startwelt gleich berechnen (Einfluss, Stufe, umkämpft); Besitzer aus der Weltdatei bleibt der Startwert
         foreach (var sector in u.Sectors.Values.OrderBy(s => s.Id.Value)) Simulation.SectorControl.Update(u, sector);
         Simulation.GateAccess.SyncRestricted(u);
         return u;
+    }
+
+    /// <summary>
+    /// Phase 11: Polizei- und Kaperschiffe der Startwelt bekommen ihre Heimatbasis (Wache/Hauptquartier der Fraktion bzw. Versteck des Akteurs, im
+    /// Startsektor zuerst) und liegen dort.
+    /// </summary>
+    static void PlaceAtHomeBase(Universe u, Ship ship)
+    {
+        Station? home = ship.Role == ShipRole.Pirate
+            ? u.Stations.Values.Where(st => st.Owner == ship.Owner && Simulation.StationProtection.IsHideout(u, st))
+                .OrderBy(st => st.Sector == ship.Sector ? 0 : 1).ThenBy(st => st.Id.Value).FirstOrDefault()
+            : u.FactionOf(ship.Owner) is { } f ? Simulation.SecuritySystem.HomeBaseFor(u, f, ship.Sector) : null;
+        if (home is null) return;
+        ship.HomeBase = home.Id;
+        if (home.Sector == ship.Sector) ship.Position = home.DockPoint(ship.Id);
     }
 
     /// <summary>
@@ -389,7 +436,7 @@ public static class WorldBuilder
             if (cd.Kit is { } kit && !goodId.ContainsKey(kit)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Bausatz-Ware '{kit}'");
             if (cd.ToolEfficiency <= 0f || cd.ToolEfficiency > 1f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': toolEfficiency {cd.ToolEfficiency} muss in (0, 1] liegen");
             if (cd.MaxSlotUpgrades < 0) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': maxSlotUpgrades muss >= 0 sein");
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades };
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades, Restricted = cd.Restricted };
             if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
         }
 

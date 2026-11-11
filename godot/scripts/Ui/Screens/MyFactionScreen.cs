@@ -13,11 +13,13 @@ namespace SpaceAdventure.Ui.Screens;
 /// Kommandozentrale „Meine Fraktion“ (UI.md Abschnitt 4), seit Phase 9 aus dem Spielerakteur (<see cref="Universe.Player"/>): Größenklasse und
 /// Fortschritt zur nächsten Klasse (Größenzahl aus dem Besitz, <see cref="ActorRules"/>), eigene Schiffe und Stationen (Besitzer = du),
 /// Mitgliedschaft, Kasse der Person und die Beziehungen der Fraktionen zu dir (<see cref="Relations.Effective"/>). Unterhalt, Liegegebühr,
-/// Einnahmen, Fahndung und die Fähigkeiten mit Schloss sind weiter Platzhalter über <see cref="UiPlaceholders"/>.
+/// Einnahmen und die Fähigkeiten mit Schloss sind weiter Platzhalter über <see cref="UiPlaceholders"/>; die Fahndung je Fraktion ist seit Phase 11 echt.
 /// </summary>
 public sealed partial class MyFactionScreen : CommandScreen
 {
 	public override string Id => "cc.myfaction";
+	/// <summary>Selbsttest: zuletzt gezeigte Fahndungszeile (Phase 11).</summary>
+	public string TestWanted { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -55,18 +57,27 @@ public sealed partial class MyFactionScreen : CommandScreen
 		At(b, new KitButton("Beitreten", new Vector2(150, 46)) { FontSize = 16, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 20, 204);
 		At(b, new KitButton("Gründen (ab Kleinfirma)", new Vector2(240, 46)) { FontSize = 15, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 180, 204);
 
-		// ── Karte 3 (links unten): Beziehungen der Fraktionen zu dir (echt), Fahndung (Platzhalter) ──
+		// ── Karte 3 (links unten): Beziehungen der Fraktionen zu dir und Fahndung (echt) ──
 		var rep = CardBg(inner, 12, 274, 500, 234, Card);
 		At(rep, Text("Beziehungen und Fahndung", 18, Cyan), 20, 14, 460, 26);
-		At(rep, Text(UiPlaceholders.MyFactionWanted, 13, new Color(Dim, 0.8f)), 20, 44, 460, 20);
+		// Phase 11: Fahndung je Hoheitsgebiet und offenes Kopfgeld (echt, SecurityInfo.ForPlayer)
+		var wanted = SecurityInfo.ForPlayer(u);
+		float claims = wanted.Sum(w => w.BountyClaim);
+		string summary = wanted.All(w => w.Level == 0) ? "Fahndung: überall sauber" : "Fahndung: " + string.Join(", ", wanted.Where(w => w.Level > 0).Select(w => $"{w.FactionName} {w.LevelText}"));
+		At(rep, Text(summary + (claims > 0f ? $" · Kopfgeld offen {claims:0} Cr" : ""), 13, wanted.Any(w => w.Level >= 3) ? Red : wanted.Any(w => w.Level > 0) ? Orange : Green), 20, 44, 460, 20);
+		TestWanted = summary;
 		float ry = 72;
 		foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value).Take(4))
 		{
 			float v = Relations.Effective(u, f.Id, u.PlayerActor);
+			var w = wanted.FirstOrDefault(x => x.Faction == f.Id);
 			At(rep, new ColorRect { Color = MapOverlay.FactionColor(f.Id), CustomMinimumSize = new Vector2(12, 12), Size = new Vector2(12, 12), MouseFilter = MouseFilterEnum.Ignore }, 22, ry + 3);
 			At(rep, Text(f.Name, 15, White), 42, ry, 240, 20);
 			At(rep, Text($"{Relations.Label(v)} ({(v > 0 ? "+" : "")}{v:0.00})", 14, v >= 0.15f ? Green : v <= -0.15f ? Red : White, HorizontalAlignment.Right), 280, ry, 200, 20);
-			ry += 30;
+			string wl = w.Level > 0 ? $"Fahndung {w.LevelText} ({w.Crime}) · Strafe {w.Fine:0} Cr" : "Fahndung: sauber";
+			if (w.BountyClaim > 0f) wl += $" · Kopfgeld {w.BountyClaim:0} Cr";
+			At(rep, Text(wl, 12, w.Level >= 3 ? Red : w.Level > 0 ? Orange : new Color(Dim, 0.85f)), 42, ry + 20, 440, 16);
+			ry += 42;
 		}
 
 		// ── Karte 4 (rechts unten): Fähigkeiten mit Schloss ──

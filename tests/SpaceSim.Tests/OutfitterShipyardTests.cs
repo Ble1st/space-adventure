@@ -73,11 +73,12 @@ public class OutfitterShipyardTests
         Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, u.StationTypes["trade_station"].Services);
         var services = StationServices.Default();
         Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, services.ForStation(u, trade).Select(s => s.Key));
-        // Handelsstation montiert nur Skiffs, die Werft alle Klassen
+        // Handelsstation montiert nur Skiffs, die Werft alle Klassen außer den nicht frei gehandelten (Phase 11: Kaperschiff)
         Assert.All(ShipDealerService.Models(u, trade), m => Assert.Equal("skiff", m.ClassKey));
         Assert.Equal(3, ShipDealerService.Models(u, trade).Count);
         var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
-        Assert.Equal(u.ShipModels.Count, ShipDealerService.Models(u, yard).Count);
+        Assert.Equal(u.ShipModels.Values.Count(m => !u.ShipClasses[m.ClassKey].Restricted), ShipDealerService.Models(u, yard).Count);
+        Assert.DoesNotContain(ShipDealerService.Models(u, yard), m => m.Key == "corsair");
         Assert.Contains("outfitter", services.ForStation(u, yard).Select(s => s.Key));
         // Raffinerie: kein Schiffshändler (ihre Klassen „Bergbauer leicht“/„kleiner Tanker“ gibt es noch nicht)
         Assert.Null(u.StationTypes["fuel_refinery"].ShipDealer);
@@ -454,7 +455,7 @@ public class OutfitterShipyardTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":13", json);
+        Assert.Contains("\"Version\":14", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.PlayerShip, loaded.PlayerShip);

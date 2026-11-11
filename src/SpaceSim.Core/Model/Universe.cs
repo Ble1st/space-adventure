@@ -91,6 +91,18 @@ public sealed class Universe
     /// <summary>Anzeigename eines Akteurs ("?" wenn unbekannt).</summary>
     public string ActorName(ActorId actor) => Actors.TryGetValue(actor, out var a) ? a.Name : "?";
 
+    /// <summary>
+    /// Phase 11: angekündigte Begegnungen mit dem Spieler (Überfall, Abfangen) mit Vorwarnzeit; gespeichert. Aufgelöst von
+    /// <see cref="Simulation.PirateSystem"/> bzw. <see cref="Simulation.SecuritySystem"/>.
+    /// </summary>
+    public List<PendingEncounter> PendingEncounters = new();
+
+    /// <summary>
+    /// Phase 11: Auflöser für Begegnungen (FLOTTEN.md Abschnitt 7). Standard ist die abstrakte Auflösung nach Stärke über <see cref="Rng"/>; ein echtes
+    /// Kampfsystem kann ihn später ersetzen, ohne dass sich Polizei und Piraten ändern. Nicht gespeichert (Verhalten, kein Zustand).
+    /// </summary>
+    public Simulation.IEncounterResolver Encounters { get; set; } = new Simulation.AbstractEncounterResolver();
+
     /// <summary>Ereignisbus und Schiffsindex sind abgeleitet und gehören nicht zum Spielstand.</summary>
     public SimEvents Events { get; } = new();
     public ShipTracker Tracker { get; } = new();

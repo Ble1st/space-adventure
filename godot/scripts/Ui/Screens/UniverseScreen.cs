@@ -102,6 +102,11 @@ public sealed partial class UniverseScreen : CommandScreen
 		float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, 92, 268, 13, lockCol, 16);
 		py = WrappedText(card, $"Für dich: {pol.ForPlayer}", 16, py, 268, 13, lockCol, 16);
 		py = WrappedText(card, $"Einfluss: {pol.Influence}", 16, py + 2, 268, 12, new Color(Dim, 0.9f), 16);
+		// Phase 11: Lagekarte und deine Fahndung beim Besitzer (echt)
+		var sec = SecurityInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
+		py = WrappedText(card, $"Lage: {sec.Summary} · {sec.Patrols} Streife{(sec.Patrols == 1 ? "" : "n")}{(sec.RiskPercent >= 0.5f ? $" · Risiko {sec.RiskPercent:0} %" : "")}", 16, py, 268, 12,
+			sec.Threat >= 2.5f ? Red : sec.Threat >= 1f ? Orange : new Color(Dim, 0.95f), 16);
+		if (sec.PlayerLevel > 0) py = WrappedText(card, $"Fahndung hier: {sec.PlayerWanted}", 16, py, 268, 12, sec.PlayerLevel >= 3 ? Red : Orange, 16);
 
 		// Gates mit Ziel, Zustand und Urteil des Kontrollpunkts für dich
 		float gy = py + 6;
@@ -235,9 +240,10 @@ public sealed partial class UniverseScreen : CommandScreen
 						haloA = 0.4f;
 						break;
 					case UniverseScreen.Layer.Security:
-						// Phase 10: Sperrstufe des Sektors; rot, wenn du nicht hineinkommst
+						// Phase 10: Sperrstufe des Sektors (rot, wenn du nicht hineinkommst); Phase 11: sonst die Lagekarte — Bedrohung gegen Sicherheit
 						var sp = AccessInfo.ForSector(_u, s.Id, _u.Ships[_u.PlayerShip]);
-						halo = sp.PlayerDenied ? Red : sp.EntryLevel >= 3 ? Orange : sp.EntryLevel > 0 ? new Color(1f, 0.9f, 0.3f) : Green;
+						halo = sp.PlayerDenied ? Red : sp.EntryLevel >= 3 ? Orange
+							: s.Threat >= 2.5f ? Red : s.Threat >= 1f ? Orange : s.Threat >= 0.25f || s.Security < 1f ? new Color(1f, 0.9f, 0.3f) : Green;
 						haloA = 0.4f;
 						break;
 					default:   // Schiffe
@@ -254,7 +260,9 @@ public sealed partial class UniverseScreen : CommandScreen
 				string sub = layer switch
 				{
 					UniverseScreen.Layer.Prices => $"{SectorEconomy.PriceLevel(_u, s.Id):0.00}× · {s.Stations.Count} St.",
-					UniverseScreen.Layer.Security => $"Stufe {s.Access.Level(AccessDirection.Entry)} · {AccessNames.Level(s.Access.Level(AccessDirection.Entry))}",
+					UniverseScreen.Layer.Security => s.Access.Level(AccessDirection.Entry) > 0
+						? $"Stufe {s.Access.Level(AccessDirection.Entry)} · {AccessNames.Level(s.Access.Level(AccessDirection.Entry))}"
+						: $"Sicherheit {SecurityNames.Security(s.Security)} · Bedrohung {SecurityNames.Threat(s.Threat)}",
 					UniverseScreen.Layer.Ships => $"{ShipCountOf(_u, s.Id)} Schiffe · {s.Stations.Count} St.",
 					_ => $"{FactionName(_u, s.Owner)} · {AccessNames.Stage(s.Control)}{(s.Contested ? " · umkämpft" : "")}",
 				};
@@ -287,7 +295,7 @@ public sealed partial class UniverseScreen : CommandScreen
 			DrawLine(new Vector2(78, 26), new Vector2(92, 26), Orange, 2f);
 			DrawLine(new Vector2(196, 26), new Vector2(210, 26), Red, 2f);
 			if (layer == UniverseScreen.Layer.Security)
-				DrawString(font2, new Vector2(12, 46), "Sperrstufe: grün offen · gelb Zoll/Kontrolle · orange ab Stufe 3 · rot: für dich gesperrt", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+				DrawString(font2, new Vector2(12, 46), "Lage: grün sicher · gelb schwach geschützt · orange bedroht/Sperre ab 3 · rot stark bedroht/gesperrt", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 			if (layer == UniverseScreen.Layer.Prices)
 				DrawString(font2, new Vector2(12, 46), "Preise: grün günstig · rot teuer (× Basis)", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 		}

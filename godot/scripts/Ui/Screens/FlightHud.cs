@@ -25,6 +25,9 @@ public sealed class FlightHudData
 	/// <summary>Tankinhalt und Tankgröße des Spielerschiffs (echt, Phase 4c); Kapazität 0 = kein Treibstoffsystem.</summary>
 	public float Fuel, FuelCapacity;
 	public string SectorName = "", FactionName = "";
+	/// <summary>Phase 11: Fahndungszeile des Spielers (leer = sauber, dann ausgeblendet) und Lage des Sektors (Sicherheit/Bedrohung).</summary>
+	public string Wanted = "", Security = "";
+	public bool WantedSevere;
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
 	public string TargetInfo = "Station, Gate oder Asteroid antippen";
@@ -59,6 +62,9 @@ public sealed class FlightHudData
 public partial class FlightHud : Control, IScreen
 {
 	public string Id => "flight";
+	/// <summary>Selbsttest: angezeigte Fahndungs- und Lagezeile (Phase 11).</summary>
+	public string TestWanted => _wanted.Visible ? _wanted.Text : "";
+	public string TestSecurity => _security.Text;
 	public string Title => "Flug";
 	public Control Node => this;
 	public bool IsOpen => Visible;
@@ -71,7 +77,7 @@ public partial class FlightHud : Control, IScreen
 	KitBar _hullBar = null!, _fuelBar = null!;
 	Label _fuelVal = null!;
 	Label _hullVal = null!;
-	Label _credits = null!, _sector = null!, _factionChip = null!;
+	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!;
 	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
@@ -146,6 +152,9 @@ public partial class FlightHud : Control, IScreen
 		_sector = Text("", 18, UiKit.Cyan);
 		_factionChip = Text("", 15, UiKit.Dim);
 		cr.AddChild(_sector); cr.AddChild(_factionChip);
+		// Phase 11: Lage des Sektors unter dem Chip, Fahndung (nur wenn gesucht) darunter
+		_security = At(this, Text("", 13, UiKit.Dim, HorizontalAlignment.Center), 420, 56, 430, 18);
+		_wanted = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 74, 430, 20);
 
 		// ── Kommandozentrale, Karte und Zeitraffer oben rechts ──
 		_mapBtn = At(this, new KitButton("Karte", new Vector2(110, 50)) { FontSize = 18 }, 1030, 12);
@@ -283,6 +292,10 @@ public partial class FlightHud : Control, IScreen
 		_credits.Text = $"{(int)d.Credits} Credits";
 		_sector.Text = d.SectorName;
 		_factionChip.Text = d.FactionName;
+		_security.Text = d.Security;
+		_wanted.Text = d.Wanted;
+		_wanted.Visible = d.Wanted.Length > 0;
+		_wanted.AddThemeColorOverride("font_color", d.WantedSevere ? UiKit.Red : UiKit.Orange);
 		_fastBtn.Text = d.FastOn ? "Zeit ×10" : "Zeit ×1";
 		_fastBtn.On = d.FastOn;
 		_autopilotBtn.On = d.AutopilotOn;

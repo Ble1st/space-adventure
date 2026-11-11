@@ -37,7 +37,8 @@ public class StationServiceConfigTests
             else if (t.Key is "shipyard") Assert.Equal(new[] { "trade", "repair", "outfitter", "shipdealer", "upgrade" }, t.Services);   // Phase 5c, Phase 7
             else if (t.Key is "trade_station") Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, t.Services);       // Phase 5c
             else if (t.Key is "warehouse") Assert.Equal(new[] { "trade", "storage" }, t.Services);                            // Phase 8
-            else if (t.Government != SpaceSim.Core.Model.GovernmentKind.None) Assert.Empty(t.Services);                         // Phase 10: Regierungsstationen ohne Markt
+            else if (t.Key is "headquarters" or "sector_hq" or "police_station") Assert.Equal(new[] { "court", "bounty" }, t.Services);   // Phase 11: Gericht, Kopfgeldbüro
+            else if (t.Government != SpaceSim.Core.Model.GovernmentKind.None || t.Hideout) Assert.Empty(t.Services);              // Phase 10: Regierungsstationen ohne Markt
             else Assert.Equal(new[] { TradeService.ServiceKey }, t.Services);
         }
     }

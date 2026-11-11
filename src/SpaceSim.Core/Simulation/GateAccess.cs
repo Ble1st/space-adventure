@@ -15,8 +15,11 @@ public readonly record struct AccessContext(Universe U, Gate Gate, Sector Sector
     public float Relation => Relations.Effective(U, Authority, Profile.Actor);
 }
 
-/// <summary>Ergebnis einer Prüfung: Politik, Zoll (Credits), Grund (Anzeige); <see cref="Undetected"/> = die Entdeckung hat das Schiff nicht bemerkt.</summary>
-public readonly record struct AccessVerdict(AccessPolicy Policy, float Toll, string Reason, bool Undetected = false)
+/// <summary>
+/// Ergebnis einer Prüfung: Politik, Zoll (Credits), Grund (Anzeige); <see cref="Undetected"/> = die Entdeckung hat das Schiff nicht bemerkt;
+/// <see cref="Crime"/> (Phase 11) = die Ablehnung ist zugleich ein Verbrechen (Schlüssel aus <see cref="EconomyRules.CrimeHeat"/>, z. B. Schmuggel).
+/// </summary>
+public readonly record struct AccessVerdict(AccessPolicy Policy, float Toll, string Reason, bool Undetected = false, string? Crime = null)
 {
     public static readonly AccessVerdict Allow = new(AccessPolicy.Allow, 0f, "");
 }
@@ -74,7 +77,7 @@ public sealed class CargoCheck : IAccessCheck
         if (ctx.Ship is { } ship && r.Contraband.Count > 0)
             foreach (var g in ship.Cargo.Keys.OrderBy(g => g.Value))
                 if (ship.Cargo[g] > 0.001f && ctx.U.Goods.TryGetValue(g, out var good) && r.Contraband.Contains(good.Key))
-                    return new AccessVerdict(AccessPolicy.Deny, 0f, $"{ctx.Sector.Name}: Schmuggelware an Bord ({good.Name})");
+                    return new AccessVerdict(AccessPolicy.Deny, 0f, $"{ctx.Sector.Name}: Schmuggelware an Bord ({good.Name})", Crime: "smuggling");
         return AccessVerdict.Allow;
     }
 }
@@ -116,8 +119,11 @@ public sealed class AccessChecks
 /// <summary>Ergebnis eines Spielersprungs: erlaubt, gezahlter Zoll, Meldung (Grund der Ablehnung oder Zollquittung).</summary>
 public readonly record struct PlayerJump(bool Allowed, float Toll, string Message);
 
-/// <summary>Ergebnis einer Gate-Passage: Politik, Zoll (Summe beider Seiten), Grund und die Fraktion, die den Zoll bekommt.</summary>
-public readonly record struct GatePassage(AccessPolicy Policy, float Toll, string Reason, FactionId? TollTo)
+/// <summary>
+/// Ergebnis einer Gate-Passage: Politik, Zoll (Summe beider Seiten), Grund und die Fraktion, die den Zoll bekommt. Phase 11: <see cref="Crime"/> und
+/// <see cref="Authority"/> = die Ablehnung ist ein Verbrechen im Hoheitsgebiet dieser Fraktion (Schmuggel am Kontrollpunkt).
+/// </summary>
+public readonly record struct GatePassage(AccessPolicy Policy, float Toll, string Reason, FactionId? TollTo, string? Crime = null, FactionId? Authority = null)
 {
     public bool Allowed => Policy != AccessPolicy.Deny;
 }
@@ -173,10 +179,10 @@ public static class GateAccess
         if (profile.IsPhysical) return new GatePassage(AccessPolicy.Allow, 0f, "", null);
         checks ??= AccessChecks.Standard;
         var exit = CheckSide(u, gate, u.Sectors[gate.Sector], AccessDirection.Exit, profile, ship, checks);
-        if (exit.Policy == AccessPolicy.Deny) return new GatePassage(AccessPolicy.Deny, 0f, exit.Reason, null);
+        if (exit.Policy == AccessPolicy.Deny) return new GatePassage(AccessPolicy.Deny, 0f, exit.Reason, null, exit.Crime, u.Sectors[gate.Sector].Owner);
         var farSector = u.Sectors[far.Sector];
         var entry = CheckSide(u, far, farSector, AccessDirection.Entry, profile, ship, checks);
-        if (entry.Policy == AccessPolicy.Deny) return new GatePassage(AccessPolicy.Deny, 0f, entry.Reason, null);
+        if (entry.Policy == AccessPolicy.Deny) return new GatePassage(AccessPolicy.Deny, 0f, entry.Reason, null, entry.Crime, farSector.Owner);
         float toll = exit.Toll + entry.Toll;
         string reason = entry.Reason.Length > 0 ? entry.Reason : exit.Reason;
         return new GatePassage(toll > 0f ? AccessPolicy.Toll : AccessPolicy.Allow, toll, reason, toll > 0f ? farSector.Owner : null);
@@ -202,18 +208,36 @@ public static class GateAccess
     }
 
     /// <summary>
-    /// Sprung des Spielers durch ein Gate (Phase 10): dieselbe Prüfung wie für NPCs mit der echten Fracht. Abgewiesen → kein Sprung, Grund als Meldung.
-    /// Zoll → nur wenn die Kasse ihn ganz zahlen kann (sonst abgewiesen), dann bezahlt (<see cref="PayToll"/>). Liefert, ob gesprungen werden darf.
+    /// Sprung des Spielers durch ein Gate (Phase 10): dieselbe Prüfung wie für NPCs mit der echten Fracht. Abgewiesen → kein Sprung, Grund als Meldung;
+    /// Phase 11: ist die Ablehnung ein Verbrechen (Schmuggelware entdeckt), wird es gemeldet (Fahndung, Lagekarte). Zoll → bezahlt, soweit die Kasse
+    /// reicht (<see cref="PayToll"/>); reicht sie nicht, springt der Spieler trotzdem — das ist Zollflucht (Phase 11: Verbrechen, der Rest wird Teil der
+    /// Strafe; vorher wurde der Sprung abgewiesen). Liefert, ob gesprungen werden darf.
     /// </summary>
     public static PlayerJump TryPlayerJump(Universe u, Ship ship, Gate gate)
     {
         var pass = Evaluate(u, gate, ProfileOf(u, ship), ship);
-        if (!pass.Allowed) return new PlayerJump(false, 0f, $"Sprung verweigert: {pass.Reason}");
+        if (!pass.Allowed)
+        {
+            if (pass.Crime is { } crime && pass.Authority is { } auth && u.Rules.SecurityActive)
+            {
+                Wanted.Report(u, ship.Owner, auth, crime);
+                if (u.Gates.TryGetValue(gate.Target, out var farGate)) ThreatMap.Report(u, farGate.Sector, u.Rules.SmugglingThreat);
+                return new PlayerJump(false, 0f, $"Sprung verweigert: {pass.Reason} — {SecurityNames.Crime(crime)} gemeldet (Fahndung: {SecurityNames.WantedLevel(Wanted.LevelOf(u, ship.Owner, auth))})");
+            }
+            return new PlayerJump(false, 0f, $"Sprung verweigert: {pass.Reason}");
+        }
         if (pass.Toll > 0f)
         {
-            if (u.WalletOf(ship).Credits < pass.Toll) return new PlayerJump(false, 0f, $"Sprung verweigert: Zoll {pass.Toll:0} Cr, zu wenig Credits");
-            float paid = PayToll(u, ship, gate, pass);
             string who = pass.TollTo is { } f && u.Factions.TryGetValue(f, out var fac) ? fac.Name : "Sektor";
+            float due = pass.Toll;
+            if (!u.Rules.SecurityActive && u.WalletOf(ship).Credits < due) return new PlayerJump(false, 0f, $"Sprung verweigert: Zoll {due:0} Cr, zu wenig Credits");
+            float paid = PayToll(u, ship, gate, pass);
+            if (paid + 0.01f < due && pass.TollTo is { } authority && u.Rules.SecurityActive)
+            {
+                Wanted.Report(u, ship.Owner, authority, "toll_evasion", extraFine: due - paid);
+                return new PlayerJump(true, paid, $"Zollflucht: {paid:0} von {due:0} Cr an {who} gezahlt — Fahndung: {SecurityNames.WantedLevel(Wanted.LevelOf(u, ship.Owner, authority))}");
+            }
+            if (paid + 0.01f < due) return new PlayerJump(false, 0f, $"Sprung verweigert: Zoll {due:0} Cr, zu wenig Credits");
             return new PlayerJump(true, paid, $"Zoll {paid:0} Cr an {who}");
         }
         return new PlayerJump(true, 0f, "");

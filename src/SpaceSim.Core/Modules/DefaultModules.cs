@@ -50,6 +50,18 @@ public sealed class ConstructionModule : ISimModule
     public void Register(SimulationBuilder b) => b.Add(new ConstructionSystem());
 }
 
+/// <summary>
+/// Phase 11: Sicherheit (FLOTTEN.md Abschnitte 6–7). Läuft nach Handel und Bau (Reisen sind geplant, Fracht ist an Bord) und vor dem Lebenszyklus, damit
+/// verlorene Schiffe im selben Tick vom <see cref="FleetSystem"/> nachgekauft werden können: Lagekarte (Beobachtung), Piraten (Revier, Überfälle,
+/// Abfangen durch Streifen), Polizei (Unterhalt, Soll, Kauf, Zuweisung, Streife, gesuchter Spieler) und Verfall der Fahndung.
+/// </summary>
+public sealed class SecurityModule : ISimModule
+{
+    public string Name => "Security";
+    public void Register(SimulationBuilder b) =>
+        b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new WantedSystem(), interval: 50);
+}
+
 public sealed class LifecycleModule : ISimModule
 {
     public string Name => "Lifecycle";

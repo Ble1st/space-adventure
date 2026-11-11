@@ -27,6 +27,7 @@ public partial class Hud : CanvasLayer
 	public OutfitterScreen DockOutfitter { get; } = new();
 	public ShipyardScreen DockShipyard { get; } = new();
 	public StorageScreen DockStorage { get; } = new();
+	public AuthorityScreen DockAuthority { get; } = new();
 	public PlaceholderAreaScreen DockPlaceholder { get; } = new();
 	// Kommandozentrale (UI.md Abschnitt 4): Vollbild-Bereiche mit linker Leiste; Kontext hält Main aktuell
 	public CommandContext CcCtx { get; } = new();
@@ -65,6 +66,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(DockOutfitter);
 		Screens.Register(DockShipyard);
 		Screens.Register(DockStorage);
+		Screens.Register(DockAuthority);
 		Screens.Register(DockPlaceholder);
 		DockMenu.Ctx = DockCtx;
 		DockTrade.Ctx = DockCtx;
@@ -74,6 +76,7 @@ public partial class Hud : CanvasLayer
 		DockOutfitter.Ctx = DockCtx;
 		DockShipyard.Ctx = DockCtx;
 		DockStorage.Ctx = DockCtx;
+		DockAuthority.Ctx = DockCtx;
 		DockPlaceholder.Ctx = DockCtx;
 		Screens.Register(CcUniverse);
 		Screens.Register(CcSector);
@@ -102,7 +105,7 @@ public partial class Hud : CanvasLayer
 		_toast.Modulate = new Color(1, 1, 1, 0);
 		_toast.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_toast.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
-		_toast.Position = new Vector2(-400, 70); _toast.Size = new Vector2(800, 40);
+		_toast.Position = new Vector2(-400, 100); _toast.Size = new Vector2(800, 40);   // Phase 11: unter Lage- und Fahndungszeile des Sektorchips
 		root.AddChild(_toast);
 
 		// Panels: Wirtschaft oben rechts, Karte vollflächig; Dock-Bildschirme kommen ans Ende (liegen oben)
@@ -119,6 +122,7 @@ public partial class Hud : CanvasLayer
 		root.AddChild(DockOutfitter);
 		root.AddChild(DockShipyard);
 		root.AddChild(DockStorage);
+		root.AddChild(DockAuthority);
 		root.AddChild(DockPlaceholder);
 		root.AddChild(CcUniverse);
 		root.AddChild(CcSector);

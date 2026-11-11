@@ -14,7 +14,7 @@ namespace SpaceAdventure.Ui.Screens;
 /// angebotenen Dienste (echt aus <see cref="SpaceSim.Core.Services.StationServices.ForStation"/>), dazu eine
 /// Marktübersicht mit Nachfrage/Überschuss aus Bestand gegen Wunschbestand (echt aus <see cref="Station.Market"/>,
 /// Einordnung über <see cref="MarketInfo"/>). Phase 10: Ruf (Beziehung des Besitzers zu dir), Zoll, Sperrstufe und Hinweise echt aus
-/// <see cref="AccessInfo.ForStation"/>.
+/// <see cref="AccessInfo.ForStation"/>; Phase 11: Lage im Sektor (<see cref="SecurityInfo.ForSector"/>) und deine Fahndung bei der Fraktion der Station.
 /// </summary>
 public sealed partial class StationInfoScreen : DockAreaScreen
 {
@@ -24,6 +24,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	/// <summary>Selbsttest: zuletzt gezeigte Sperrstufe und Zoll (Phase 10).</summary>
 	public string TestLock { get; private set; } = "";
 	public string TestCustoms { get; private set; } = "";
+	/// <summary>Selbsttest: zuletzt gezeigte Lage (Phase 11).</summary>
+	public string TestSecurity { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -109,6 +111,12 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		Wrapped(v3, "Ruf bei dir: " + pol.Reputation, tw, 15, White);
 		Wrapped(v3, "Zoll: " + pol.Customs, tw, 15, pol.Customs == "kein Zoll" ? Green : pol.Customs.StartsWith("gesperrt") ? Red : Orange);
 		Wrapped(v3, "Sperrstufe: " + pol.Lock, tw, 15, pol.Lock == "Offen" ? Green : Orange);
+		// Phase 11: Lage im Sektor (Lagekarte) und deine Fahndung bei der Fraktion der Station (echt)
+		var lage = SecurityInfo.ForSector(u, st.Sector, Ctx.Ship);
+		TestSecurity = lage.Summary;
+		Wrapped(v3, $"Lage: {lage.Summary} · {lage.Patrols} Streife{(lage.Patrols == 1 ? "" : "n")}", tw, 15, lage.Threat >= 1f ? Orange : White);
+		int lvl = u.FactionOf(st) is { } sf ? Wanted.LevelOf(u, Ctx.Ship.Owner, sf) : 0;
+		Wrapped(v3, "Fahndung hier: " + SecurityNames.WantedLevel(lvl), tw, 15, lvl >= 3 ? Red : lvl > 0 ? Orange : Green);
 		v3.AddChild(Text("Hinweise", 16, Dim));
 		foreach (var note in pol.Notes) Wrapped(v3, "· " + note, tw, 14, new Color(Dim, 0.95f));
 	}

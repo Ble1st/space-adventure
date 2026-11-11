@@ -42,6 +42,7 @@ public static class CapabilityDefaults
         ShipRole.Fighter => Capability.Combat,
         ShipRole.Player => Capability.Cargo | Capability.Mining,
         ShipRole.Builder => Capability.Cargo | Capability.Construction,
+        ShipRole.Police or ShipRole.Pirate => Capability.Combat,   // Phase 11
         _ => Capability.None,
     };
 

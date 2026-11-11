@@ -32,6 +32,8 @@ public static class SaveGameJson
         {
             var u = UniverseSerializer.FromSave(save);
             // Phase 10: Stände vor v13 kennen Einfluss und Kontrollstufe nicht — wie beim Weltaufbau einmal berechnen
+            // Phase 11: Stände vor v14 kennen die Lagekarte nicht — Sicherheit und Verkehr einmal messen (vor der Sektorkontrolle, Patrouillenabdeckung)
+            if (loadedVersion < 14 && u.Sectors.Values.All(x => x.Security == 0f && x.Traffic == 0f && x.Threat == 0f)) Simulation.ThreatMap.Initialize(u);
             if (loadedVersion < 13)
             {
                 foreach (var sector in u.Sectors.Values.OrderBy(x => x.Id.Value)) Simulation.SectorControl.Update(u, sector);
@@ -579,8 +581,8 @@ public static class SaveGameJson
         int? Map(GoodId dg) => goodIdByKey.TryGetValue(dw.Goods[dg].Key, out var id) ? id : null;
 
         // 2) Baustellen-Typ und Lagerhaus
-        // Regierungstypen (Phase 10) ergänzt erst die Migration v12→v13
-        foreach (var dt in dw.StationTypes.Values.Where(t => t.Recipes.Count == 0 && t.ShipDealer is null && t.Government == GovernmentKind.None).OrderBy(t => t.Key, StringComparer.Ordinal))
+        // Regierungstypen (Phase 10) ergänzt erst die Migration v12→v13, das Piratenversteck (Phase 11) die Migration v13→v14
+        foreach (var dt in dw.StationTypes.Values.Where(t => t.Recipes.Count == 0 && t.ShipDealer is null && t.Government == GovernmentKind.None && !t.Hideout).OrderBy(t => t.Key, StringComparer.Ordinal))
         {
             if (s.StationTypes.Any(t => t.Key == dt.Key) || dt.Stocks.Any(x => Map(x.Good) is null)) continue;
             var stocks = dt.Stocks.Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
@@ -724,6 +726,115 @@ public static class SaveGameJson
     }
 
     /// <summary>
+    /// v13 → v14 (Phase 11, Polizei, Fahndung, Piraten; alles nach Schlüssel und nur ergänzend):
+    /// 1) Content der Default-Welt (<see cref="AddMissingDefaultContent"/>): Laserkanone als Modul-Ware (Rezept im Waffenwerk), Klassen Patrouillenboot und
+    ///    Kaperschiff, Modelle Wächter und Korsar, Dienste Gericht/Kopfgeldbüro an den Regierungstypen, Werftlager für Waffen/Schild/Panzerung.
+    /// 2) Grundschutz (<c>security</c>) der Regierungstypen aus der Default-Welt, wo er fehlt; Typ Piratenversteck.
+    /// 3) Gründer-Polizei je Fraktion wie in der Default-Welt (an ihrer Heimatbasis, voller Tank), wenn das Modell auflösbar ist und die Fraktion eine
+    ///    Regierungsstation hat.
+    /// 4) Piraten: der gesetzlose Akteur der Default-Welt (falls es noch keinen gesetzlosen Akteur gibt) mit Kasse und Persönlichkeit, sein Versteck, wo der
+    ///    Sektor existiert, und seine Kaperschiffe (wenn das Modell auflösbar ist) — nur, wenn die Flotte Verluste ersetzen kann (Bausatz-Ware auflösbar;
+    ///    sehr alte Stände ohne Warenschlüssel bekommen keine Piraten, ihre Flotte könnte nicht nachwachsen).
+    /// Neue Schiffe bekommen Ids in der Lücke hinter den Gründerschiffen (unter der Spieler-Id) wie beim Weltaufbau, sonst fortlaufende. Ist die Sicherheit
+    /// abgeschaltet (Regel <c>SecurityActive</c>), entfallen 3) und 4).
+    /// Fahndung leer, Lagekarte ohne Bedrohung; Sicherheit und Verkehr misst das Laden.
+    /// </summary>
+    static void MigrateV13ToV14(SaveGame s)
+    {
+        AddMissingDefaultContent(s);
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var dw = WorldBuilder.Build(def);
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+
+        // 2) Grundschutz der Regierungstypen, Typ Piratenversteck
+        foreach (var dt in dw.StationTypes.Values.OrderBy(t => t.Key, StringComparer.Ordinal))
+        {
+            var existing = s.StationTypes.FirstOrDefault(t => t.Key == dt.Key);
+            if (existing is not null) { if (existing.Security is null && dt.Security > 0f) existing.Security = dt.Security; continue; }
+            if (!dt.Hideout) continue;
+            s.StationTypes.Add(new StationTypeSave
+            {
+                Key = dt.Key, Name = dt.Name, BuildCost = dt.BuildCost, Upkeep = dt.UpkeepPerTick, Income = dt.IncomePerTick,
+                Recipes = new List<RecipeSave>(), Services = new List<string>(dt.Services), Influence = dt.Influence == 1f ? null : dt.Influence,
+                Capturable = dt.Capturable ? null : false, Destructible = dt.Destructible ? null : false, Hideout = true,
+            });
+        }
+
+        // Gründer-Polizei und Piraten nur, wenn die Sicherheit nicht abgeschaltet ist (eigene Welten, Tests)
+        if (!s.Rules.SecurityActive) { s.Version = 14; return; }
+        // Neue Schiffe: in der Lücke hinter den Gründerschiffen (Ids unter der Spieler-Id, wie der Weltaufbau sie vergibt), sonst fortlaufend
+        int founderLimit = s.PlayerShip > 0 ? s.PlayerShip : 100;
+        int nextFounder = s.Ships.Where(x => x.Id < founderLimit).Select(x => x.Id).DefaultIfEmpty(0).Max() + 1;
+        int NextShipId()
+        {
+            if (nextFounder < founderLimit && s.Ships.All(x => x.Id != nextFounder)) return nextFounder++;
+            nextFounder = int.MaxValue;
+            return Math.Max(s.NextShipId, s.Ships.Count == 0 ? 1 : s.Ships.Max(x => x.Id) + 1);
+        }
+        ShipSave? NewShip(string modelKey, string role, int owner, StationSave at)
+        {
+            var model = s.ShipModels.FirstOrDefault(m => m.Key == modelKey);
+            var cls = model is null ? null : s.ShipClasses.FirstOrDefault(c => c.Key == model.Class);
+            if (model is null || cls is null || !model.Fit.All(k => k is null || s.Modules.Any(m => m.Key == k))) return null;
+            var fitted = model.Fit.Where(k => k is not null).Select(k => s.Modules.First(m => m.Key == k)).ToList();
+            float fuelCap = cls.BaseFuel + fitted.Sum(m => m.Stats.GetValueOrDefault("fuelCapacity"));
+            var fuelKey = fitted.SelectMany(m => m.Fuel).Select(f => f.Good).FirstOrDefault();
+            int id = NextShipId();
+            var sh = new ShipSave
+            {
+                Id = id, Owner = owner, Role = role, Controller = nameof(Controller.Ai), ModelKey = model.Key, CargoCapacity = 0f, Credits = 0f,
+                Hull = cls.BaseHull + fitted.Sum(m => m.Stats.GetValueOrDefault("armor")), Sector = at.Sector, Pos = at.Pos + Vec2.FromAngle(id * 2.4f) * 22f,
+                Phase = nameof(TradePhase.Idle), MinePhase = nameof(MinePhase.Idle), NextThinkTick = s.Tick, IdleSince = -1, JobSince = s.Tick, HomeBase = at.Id,
+            };
+            if (fuelKey is not null && goodIdByKey.TryGetValue(fuelKey, out var fuelId) && fuelCap > 0f) sh.Fuel[fuelId] = fuelCap;
+            s.Ships.Add(sh);
+            if (id >= s.NextShipId) s.NextShipId = id + 1;
+            return sh;
+        }
+        // 3) Gründer-Polizei je Fraktion (Heimatbasis: Wache, sonst Hauptquartier, sonst Sektor-HQ)
+        int Rank(StationSave st) => s.StationTypes.FirstOrDefault(t => t.Key == st.Type)?.Government switch
+        {
+            "police" => 0, "headquarters" => 1, "sector_hq" => 2, null => 9, _ => 3,
+        };
+        foreach (var f in s.Factions.OrderBy(f => f.Id))
+        {
+            if (s.Ships.Any(x => x.Role == nameof(ShipRole.Police) && x.Owner == f.Id)) continue;
+            var home = s.Stations.Where(st => st.Owner == f.Id && Rank(st) < 9).OrderBy(Rank).ThenBy(st => st.Id).FirstOrDefault();
+            if (home is null) continue;
+            foreach (var g in def.Ships.Where(g => g.Role.Equals("police", StringComparison.OrdinalIgnoreCase) && g.Faction == f.Id))
+                for (int i = 0; i < g.Count; i++)
+                    if (g.Model is { } mk) NewShip(mk, nameof(ShipRole.Police), f.Id, home);
+        }
+        // 4) Piraten: Akteur, Versteck, Kaperschiffe (nach der Polizei, wie in der Weltdatei)
+        var hideoutType = dw.StationTypes.Values.FirstOrDefault(t => t.Hideout);
+        // nur in Welten, deren Flotte Verluste ersetzen kann (Bausatz-Ware auflösbar) — sehr alte Stände ohne Warenschlüssel bauen keine Schiffe nach
+        bool canRebuild = goodIdByKey.ContainsKey(s.Rules.ShipKitGoodKey);
+        if (canRebuild && !s.Actors.Any(a => a.Kind == nameof(ActorKind.Outlaw)) && hideoutType is not null && s.StationTypes.Any(t => t.Key == hideoutType.Key))
+            foreach (var ad in def.Actors.Where(a => a.Kind.Equals("outlaw", StringComparison.OrdinalIgnoreCase)))
+            {
+                int actorId = Math.Max(s.NextActorId, s.Actors.Count == 0 ? ActorId.FirstGenerated : s.Actors.Max(a => a.Id) + 1);
+                s.NextActorId = actorId + 1;
+                var p = ad.Personality;
+                s.Actors.Add(new ActorSave
+                {
+                    Id = actorId, Name = ad.Name, Kind = nameof(ActorKind.Outlaw), Credits = ad.Treasury, Created = s.Tick,
+                    Aggression = p?.Aggression ?? 0.5f, Greed = p?.Greed ?? 0.5f, Cooperation = p?.Cooperation ?? 0.5f, Lawfulness = p?.Lawfulness ?? 0.5f,
+                });
+                int before = s.Stations.Count;
+                AddDefaultStations(s, def, hideoutType.Key, () => new List<RecipeSave>(), null, goodIdByKey);
+                foreach (var st in s.Stations.Skip(before)) { st.Owner = actorId; st.BankruptcyProtected = true; st.Essential = false; }
+                var hideout = s.Stations.Skip(before).FirstOrDefault();
+                if (hideout is null) continue;
+                foreach (var g in def.Ships.Where(g => g.Owner == ad.Key))
+                    for (int i = 0; i < g.Count; i++)
+                        if (g.Model is { } mk) NewShip(mk, nameof(ShipRole.Pirate), actorId, hideout);
+            }
+
+        s.Version = 14;
+    }
+
+    /// <summary>
     /// Reicht den Content der Default-Welt nach Schlüssel und nur ergänzend nach (gemeinsamer Schritt der Migrationen ab v8→v9):
     /// 1) fehlende Module und je Modul ohne Ware eine Modul-Ware (angehängt nach Modulschlüssel, bestehende GoodIds bleiben);
     /// 2) fehlende Schiffsklassen und -modelle; vorhandene Default-Modelle ohne Aufgabenliste bekommen deren <c>jobs</c>;
@@ -829,6 +940,7 @@ public static class SaveGameJson
         if (s.Version < 11) MigrateV10ToV11(s);
         if (s.Version < 12) MigrateV11ToV12(s);
         if (s.Version < 13) MigrateV12ToV13(s);
+        if (s.Version < 14) MigrateV13ToV14(s);
         return s;
     }
 }

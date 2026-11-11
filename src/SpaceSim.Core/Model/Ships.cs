@@ -1,7 +1,11 @@
 namespace SpaceSim.Core.Model;
 
-/// <summary>Aufgabe/Etikett eines Schiffs (gespeichert als Text). Phase 8: <see cref="Builder"/> = Bauschiff (<see cref="Simulation.ConstructionSystem"/>).</summary>
-public enum ShipRole { Trader, Miner, Fighter, Player, Builder }
+/// <summary>
+/// Aufgabe/Etikett eines Schiffs (gespeichert als Text). Phase 8: <see cref="Builder"/> = Bauschiff (<see cref="Simulation.ConstructionSystem"/>).
+/// Phase 11: <see cref="Police"/> = Polizeischiff einer Fraktion (<see cref="Simulation.SecuritySystem"/>), <see cref="Pirate"/> = Kaperschiff eines
+/// gesetzlosen Akteurs (<see cref="Simulation.PirateSystem"/>).
+/// </summary>
+public enum ShipRole { Trader, Miner, Fighter, Player, Builder, Police, Pirate }
 public enum TradePhase { Idle, GoingToBuy, GoingToSell }
 public enum MinePhase { Idle, GoingToField, Mining, GoingToStation }
 
@@ -190,6 +194,10 @@ public sealed class Ship : ICreditAccount
     public ShipQuality Quality;
     /// <summary>Phase 7: Mitleidszähler je Slot (Fehlschläge in Folge beim Dienst „upgrade“; Schlüssel −1 = Bonusslot). Jeder Fehlschlag erhöht die nächste Chance.</summary>
     public Dictionary<int, int> UpgradePity = new();
+    /// <summary>Phase 11: Heimatbasis (Polizei: Wache/Hauptquartier der Fraktion, Piraten: Versteck) zum Reparieren und Auftanken; default = keine (gespeichert).</summary>
+    public StationId HomeBase;
+    /// <summary>Phase 11: Einsatzsektor (Polizei: zugewiesene Patrouille, Piraten: gewähltes Jagdrevier); default = keiner (gespeichert).</summary>
+    public SectorId DutySector;
 }
 
 /// <summary>Abstrakte Reise statt Physik: Schiffe außerhalb des Spielersektors haben nur einen Fahrplan.</summary>

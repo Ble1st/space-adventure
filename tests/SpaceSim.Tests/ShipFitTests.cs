@@ -38,7 +38,10 @@ public class ShipFitTests
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
         // Phase 8: der Startbestand an Bauschiffen (je Fraktion ein Foreman) gehört nicht zur Einheitsflotte
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal("foreman", s.ModelKey));
-        foreach (var s in u.Ships.Values.Where(s => s.Role != ShipRole.Builder))
+        // Phase 11: Polizei (Wächter) und Kaperschiffe (Korsar) gehören ebenfalls nicht zur Einheitsflotte
+        Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Police), s => Assert.Equal("warden", s.ModelKey));
+        Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Pirate), s => Assert.Equal("corsair", s.ModelKey));
+        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate)))
         {
             var expectedModel = WorldBuilder.UnitModelFor(s.Role, s.Role == ShipRole.Miner ? 60f : 100f);
             Assert.Equal(expectedModel, s.ModelKey);
@@ -101,7 +104,7 @@ public class ShipFitTests
     [Fact]
     public void SaveLoad_V4_Roundtrip_IdentischInklHashModellSlotsFit()
     {
-        Assert.Equal(13, SaveGame.CurrentVersion);   // v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
+        Assert.Equal(14, SaveGame.CurrentVersion);   // v14: Polizei/Fahndung/Piraten (Phase 11); v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
@@ -147,7 +150,7 @@ public class ShipFitTests
         // Slot-Content kam mit der Migration aus der Default-Welt-Registry
         Assert.True(loaded.ShipModels.ContainsKey("unit_trader_100"));
         Assert.All(loaded.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal("foreman", s.ModelKey));   // Phase 8: Bauschiff-Rolle → Foreman
-        foreach (var s in loaded.Ships.Values.Where(s => s.Role != ShipRole.Builder))
+        foreach (var s in loaded.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate)))   // Phase 11: Polizei/Piraten eigene Modelle
         {
             var model = loaded.ShipModels[s.ModelKey];
             Assert.Equal(model.Fit, s.Fit);                            // Fit beim Laden aus dem Modell gefüllt
@@ -221,7 +224,8 @@ public class ShipFitTests
     {
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 20_000);   // Flottenwachstum erzeugt neue Schiffe (Ids ab 1000)
-        var bought = u.Ships.Values.Where(s => s.Id.Value >= 1000).ToList();
+        // Phase 11: neue Polizei- und Kaperschiffe (Kasse statt Flottenwachstum) sind keine KI-Neubauten einer Aufgabe
+        var bought = u.Ships.Values.Where(s => s.Id.Value >= 1000 && s.Role is not (ShipRole.Police or ShipRole.Pirate)).ToList();
         Assert.NotEmpty(bought);
         foreach (var s in u.Ships.Values)
         {

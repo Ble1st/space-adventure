@@ -174,7 +174,7 @@ public class WalletTests
         new SimulationRunner().Run(u, 500);
         u.PlayerWallet.Credits = 12_345.5f;
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":13", json);   // Phase 5c: v8, Phase 8: v11, Phase 9: v12
+        Assert.Contains("\"Version\":14", json);   // Phase 5c: v8, Phase 8: v11, Phase 9: v12
         Assert.Contains("\"Actors\"", json);        // Phase 9: die Kasse ist die des Spielerakteurs
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(12_345.5f, loaded.PlayerWallet.Credits);
@@ -194,6 +194,8 @@ public class WalletTests
         u.Rules.TaxToTreasuryShare = 0f; u.Rules.TreasuryInvests = false; u.Rules.PromoteInvestors = false;
         // Phase 10: Regierungsstationen gibt es vor v13 nicht (die Migration setzt sie neu mit leerer Kasse) — ihr Unterhalt bleibt hier aus
         foreach (var t in u.StationTypes.Values.Where(t => t.Government != GovernmentKind.None)) t.UpkeepPerTick = 0f;
+        // Phase 11: Polizei und Piraten gibt es vor v14 nicht (die Migration setzt sie neu) — hier abgeschaltet und entfernt
+        SecurityTests.WithoutSecurity(u);
         new SimulationRunner().Run(u, 1_000);
         u.PlayerWallet.Credits = 777f;
         var v6 = ToV6Json(SaveGameJson.Write(u, Now));

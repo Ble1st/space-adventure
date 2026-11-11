@@ -669,6 +669,18 @@
     "split_laser_s": [
      1,
      2
+    ],
+    "weapon_laser_s": [
+     2,
+     4
+    ],
+    "shield_mk1": [
+     1,
+     2
+    ],
+    "armor_plating_s": [
+     1,
+     2
     ]
    },
    "shipDealer": {
@@ -916,10 +928,11 @@
    "name": "Hauptquartier",
    "government": "headquarters",
    "influence": 6,
+   "security": 1.5,
    "buildCost": 40000,
    "upkeep": 6,
    "income": 0,
-   "services": [],
+   "services": ["court", "bounty"],
    "recipes": [],
    "capturable": false
   },
@@ -940,10 +953,11 @@
    "name": "Sektor-HQ",
    "government": "sector_hq",
    "influence": 4,
+   "security": 0.5,
    "buildCost": 20000,
    "upkeep": 3,
    "income": 0,
-   "services": [],
+   "services": ["court", "bounty"],
    "recipes": [],
    "capturable": false
   },
@@ -964,11 +978,24 @@
    "name": "Polizeiwache",
    "government": "police",
    "influence": 2,
+   "security": 2,
    "buildCost": 8000,
    "upkeep": 1.5,
    "income": 0,
-   "services": [],
+   "services": ["court", "bounty"],
    "recipes": []
+  },
+  {
+   "key": "pirate_hideout",
+   "name": "Piratenversteck",
+   "hideout": true,
+   "influence": 0,
+   "buildCost": 10000,
+   "upkeep": 0,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false
   }
  ],
  "factions": [
@@ -985,6 +1012,15 @@
    "kind": "guild",
    "personality": { "aggression": 0.3, "greed": 0.7, "cooperation": 0.55, "lawfulness": 0.45 },
    "relations": { "1": 0.25 }
+  }
+ ],
+ "actors": [
+  {
+   "key": "pirates",
+   "name": "Rote Korsaren",
+   "kind": "outlaw",
+   "personality": { "aggression": 0.9, "greed": 0.9, "cooperation": 0.1, "lawfulness": 0.0 },
+   "treasury": 6000
   }
  ],
  "sectors": [
@@ -1518,6 +1554,17 @@
      ],
      "essential": true,
      "credits": 0
+    },
+    {
+     "id": 36,
+     "type": "pirate_hideout",
+     "name": "Versteck der Roten Korsaren",
+     "owner": "pirates",
+     "pos": [
+      215,
+      -195
+     ],
+     "credits": 0
     }
    ]
   }
@@ -2014,6 +2061,24 @@
     "hull_plates": 1,
     "electronics": 1
    }
+  },
+  {
+   "key": "weapon_laser_s",
+   "name": "Laserkanone",
+   "slot": "weapon",
+   "size": "S",
+   "tier": 1,
+   "grants": ["Combat"],
+   "stats": {
+    "weaponPower": 6
+   },
+   "powerDraw": 3,
+   "mass": 2,
+   "cost": {
+    "electronics": 2,
+    "copper": 2,
+    "titanium": 1
+   }
   }
  ],
  "shipClasses": [
@@ -2417,6 +2482,42 @@
    ],
    "kit": "ship_kit_medium",
    "maxSlotUpgrades": 2
+  },
+  {
+   "key": "patrol_craft",
+   "name": "Patrouillenboot",
+   "size": "M",
+   "baseHull": 140,
+   "baseMass": 14,
+   "baseFuel": 250,
+   "slots": [
+    { "type": "reactor", "size": "S" },
+    { "type": "engine", "size": "M" },
+    { "type": "weapon", "size": "S", "facing": "bow", "arc": 60 },
+    { "type": "weapon", "size": "S", "facing": "bow", "arc": 60 },
+    { "type": "shield", "size": "S" },
+    { "type": "armor", "size": "S" },
+    { "type": "utility", "size": "S" }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "raider",
+   "name": "Kaperschiff",
+   "size": "S",
+   "baseHull": 80,
+   "baseMass": 7,
+   "baseFuel": 200,
+   "restricted": true,
+   "slots": [
+    { "type": "reactor", "size": "S" },
+    { "type": "engine", "size": "S" },
+    { "type": "weapon", "size": "S", "facing": "bow", "arc": 60 },
+    { "type": "weapon", "size": "S", "facing": "bow", "arc": 60 },
+    { "type": "shield", "size": "S" },
+    { "type": "utility", "size": "S" }
+   ],
+   "kit": "ship_kit_light"
   }
  ],
  "shipModels": [
@@ -2704,6 +2805,33 @@
    "jobs": [
     "mine"
    ]
+  },
+  {
+   "key": "warden",
+   "class": "patrol_craft",
+   "name": "Wächter",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_m",
+    "weapon_laser_s",
+    "weapon_laser_s",
+    "shield_mk1",
+    "armor_plating_s",
+    null
+   ]
+  },
+  {
+   "key": "corsair",
+   "class": "raider",
+   "name": "Korsar",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_s",
+    "weapon_laser_s",
+    "weapon_laser_s",
+    "shield_mk1",
+    null
+   ]
   }
  ],
  "ships": [
@@ -2796,6 +2924,30 @@
    "cargo": 160,
    "count": 1,
    "model": "foreman"
+  },
+  {
+   "role": "police",
+   "faction": 1,
+   "sector": 1,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "police",
+   "faction": 2,
+   "sector": 3,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "pirate",
+   "owner": "pirates",
+   "sector": 4,
+   "credits": 0,
+   "count": 3,
+   "model": "corsair"
   }
  ],
  "player": {

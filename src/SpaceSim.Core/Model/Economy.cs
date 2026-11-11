@@ -70,6 +70,16 @@ public sealed class StationType
     public bool Capturable = true;
     /// <summary>Phase 10: Kann eine Station dieses Typs zerstört werden (erst mit Kampf relevant)? Standard ja.</summary>
     public bool Destructible = true;
+    /// <summary>
+    /// Phase 11: Grundschutz einer Station dieses Typs auf der Lagekarte (JSON <c>security</c>, Standard 0): Wache, Hauptquartier und Sektor-HQ
+    /// sichern ihren Sektor auch ohne Streife ein Stück ab (zählt nur für die Fraktion des Besitzers, die den Sektor hält).
+    /// </summary>
+    public float Security;
+    /// <summary>
+    /// Phase 11: Piratenversteck (JSON <c>hideout</c>): Heimat der Kaperschiffe eines gesetzlosen Akteurs. Zählt nicht gegen die Bau-Obergrenzen, geht
+    /// nicht pleite und hat keinen Einfluss auf die Sektorkontrolle (Einfluss 0 in der Weltdatei).
+    /// </summary>
+    public bool Hideout;
 }
 
 /// <summary>
@@ -86,7 +96,7 @@ public sealed class ShipDealerConfig
     public float Assembly;
 
     /// <summary>Darf diese Station Schiffe dieser Klasse verkaufen?</summary>
-    public bool Allows(ShipClass cls) => cls.Size <= MaxSize && (Classes is null || Classes.Contains(cls.Key));
+    public bool Allows(ShipClass cls) => cls.Size <= MaxSize && (Classes is null ? !cls.Restricted : Classes.Contains(cls.Key));
 }
 
 /// <summary>Lagerposten eines Stationstyps: Ware, Anfangsbestand, Wunschbestand (Phase 5a, <see cref="StationType.Stocks"/>).</summary>

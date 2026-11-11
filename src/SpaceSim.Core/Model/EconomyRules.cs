@@ -227,4 +227,113 @@ public sealed class EconomyRules
     public float ContestOpinionLoss = 0.02f;
     /// <summary>Beziehungen: Meinungsverlust je Schritt und Sperrstufe, die eine Fraktion gegen die andere durchsetzt (× (0,5 + Handelsanteil)).</summary>
     public float LockOpinionLoss = 0.005f;
+
+    // ───────── Phase 11: Lagekarte, Polizei, Fahndung, Piraten, Begegnungen (FLOTTEN.md Abschnitte 6–7) ─────────
+    /// <summary>Schalter für Polizei und Piraten (Systeme laufen, tun aber nichts, wenn aus). Fehlen die Felder in alten Spielständen, gelten die Standards.</summary>
+    public bool SecurityActive = true;
+    /// <summary>Piraten überfallen auch den Spieler (mit Vorwarnung). Aus = nur NPCs.</summary>
+    public bool PlayerRaids = true;
+    /// <summary>Lagekarte: Verfall der Bedrohung je Tick (Anteil; 0,0004 ≈ Halbwertszeit 1700 Ticks).</summary>
+    public float ThreatDecayPerTick = 0.0004f;
+    /// <summary>Lagekarte: Patrouillen senken die Bedrohung je Tick um Sicherheit × Wert.</summary>
+    public float PatrolSuppressionPerTick = 0.0001f;
+    /// <summary>Lagekarte: Bedrohung je Überfall (erfolgreich) bzw. abgewehrtem Überfall.</summary>
+    public float RaidThreat = 1f;
+    public float RepelledThreat = 0.5f;
+    /// <summary>Lagekarte: Bedrohung je entdecktem Schmuggel (Kontrollpunkt).</summary>
+    public float SmugglingThreat = 0.3f;
+    /// <summary>Lagekarte: Glättung von Sicherheit und Verkehrswert je Messung (0..1).</summary>
+    public float SecuritySmoothing = 0.25f;
+    /// <summary>Lagekarte: Stärke eines Polizeischiffs ÷ diesen Wert = sein Beitrag zur Sicherheit.</summary>
+    public float PoliceStrengthUnit = 10f;
+    /// <summary>Patrouillenabdeckung (Kontrollstufe „Kontrolle“, Phase 10): Sicherheit des Besitzers mindestens so hoch.</summary>
+    public float CoverageSecurity = 1f;
+    /// <summary>Routenrisiko je Sektor: Anteil des Frachtwerts = Wert × Bedrohung ÷ (1 + Sicherheit), höchstens <see cref="MaxSectorRisk"/>.</summary>
+    public float RiskPerThreat = 0.03f;
+    public float MaxSectorRisk = 0.25f;
+
+    /// <summary>Polizei: Modell der Polizeischiffe (Content), Kauf über die gemeinsame Kaufregel aus der Fraktionskasse.</summary>
+    public string PoliceModel = "warden";
+    /// <summary>Polizei: Streifen je Sektor des Territoriums ohne Bedrohung, zusätzlich je Bedrohungspunkt (Summe aufgerundet).</summary>
+    public float PolicePerSector = 1f;
+    public float PolicePerThreat = 0.5f;
+    /// <summary>Polizei: Grenzen je Fraktion.</summary>
+    public int PoliceMinPerFaction = 1;
+    public int PoliceMaxPerFaction = 4;
+    /// <summary>Polizei: Unterhalt je Schiff und Tick aus der Fraktionskasse (Senke).</summary>
+    public float PoliceUpkeepPerTick = 0.8f;
+    /// <summary>Polizei: Kauf nur, wenn danach diese Reserve in der Kasse bleibt.</summary>
+    public float PoliceReserve = 15000f;
+    /// <summary>Polizei: Abkühlzeit zwischen Kauf/Abbau je Fraktion; Abbau erst nach so langer Überzahl.</summary>
+    public int PoliceChangeCooldown = 2000;
+    public int PoliceDecommissionTicks = 6000;
+    /// <summary>Polizei: Verweildauer an einem Streifenpunkt (Ticks), dann nächster Punkt.</summary>
+    public int PatrolDwellTicks = 150;
+    /// <summary>Polizei und Piraten: unter diesem Hüllenanteil zurück zur Heimatbasis (Reparatur).</summary>
+    public float RetreatHull = 0.5f;
+    /// <summary>Reparatur an der Heimatbasis: Credits je Hüllenpunkt aus der Kasse des Besitzers.</summary>
+    public float BaseRepairPerHull = 2f;
+    /// <summary>Abfangen: Chance je Tick und Streife im Sektor, ein lauerndes Kaperschiff zu stellen.</summary>
+    public float InterceptRatePerTick = 0.0006f;
+    /// <summary>Überfall mit Streife im Sektor: Chance je Streife, dass sie eingreift (höchstens <see cref="PoliceResponseMax"/>).</summary>
+    public float PoliceResponseChance = 0.4f;
+    public float PoliceResponseMax = 0.8f;
+
+    /// <summary>Piraten: Modell der Kaperschiffe, Höchstzahl je gesetzlosem Akteur, Kosten eines Neubaus aus dessen Kasse (Senke), Abkühlzeit.</summary>
+    public string PirateModel = "corsair";
+    public int MaxRaidersPerActor = 3;
+    public float RaiderCost = 2000f;
+    public int RaiderRebuildTicks = 3000;
+    /// <summary>Piraten: Unterhalt je Kaperschiff und Tick aus der Kasse des Akteurs (Senke).</summary>
+    public float RaiderUpkeepPerTick = 0.05f;
+    /// <summary>Piraten: Chance je Tick, dass ein lauerndes Kaperschiff zuschlägt (geteilt durch 1 + Abschreckung × Sicherheit).</summary>
+    public float RaidRatePerTick = 0.008f;
+    public float RaidSecurityDeterrence = 0.3f;
+    /// <summary>Piraten: höchstens so lange lauern (Ticks), dann heim; nach der Heimkehr so lange ruhen.</summary>
+    public int PirateLurkTicks = 2500;
+    public int PirateRestTicks = 600;
+    /// <summary>Piraten: Mindestwert der Beute (Fracht zum Basispreis), sonst kein Überfall.</summary>
+    public float MinLootValue = 200f;
+    /// <summary>Piraten: Anteil des Basiswerts, den die Hehlerei für die Beute zahlt (in die Kasse des Akteurs).</summary>
+    public float FenceShare = 0.6f;
+    /// <summary>Piraten: Abneigung gegen Sicherheit bei der Revierwahl (Gewicht = (Verkehr + 500) ÷ (1 + Wert × Sicherheit)).</summary>
+    public float PirateSecurityAversion = 1f;
+    /// <summary>Spieler: Vorwarnzeit einer Begegnung (Ticks), Gewicht des Spielers bei der Opferwahl, Schutzradius um Stationen.</summary>
+    public int PlayerWarningTicks = 60;
+    public float PlayerRaidWeight = 0.5f;
+    public float StationSafeRadius = 35f;
+    /// <summary>Spieler: Ein Überfall lässt mindestens diesen Hüllenanteil übrig (nichts, was den Spieler ohne Vorwarnung ruiniert).</summary>
+    public float PlayerMinHull = 0.25f;
+
+    /// <summary>Begegnungen: Exponent des Stärkevergleichs (Siegchance = A^k ÷ (A^k + D^k)).</summary>
+    public float EncounterExponent = 1.5f;
+    /// <summary>Begegnungen: Beuteanteil der Fracht beim Sieg des Angreifers (gleichverteilt).</summary>
+    public float LootMin = 0.3f;
+    public float LootMax = 0.6f;
+    /// <summary>Begegnungen: Hüllenschaden (Anteil der Maximalhülle) für Verlierer und Sieger (gleichverteilt bis zum Wert).</summary>
+    public float LoserDamage = 0.45f;
+    public float WinnerDamage = 0.12f;
+    /// <summary>Begegnungen: Grundchance, dass der Verlierer zerstört wird (× √Überlegenheit des Siegers, höchstens 0,5).</summary>
+    public float DestroyChance = 0.015f;
+    /// <summary>Begegnungen: Grundchance, dass ein unterlegenes Kaperschiff gegen die Polizei zerstört wird (statt zu fliehen).</summary>
+    public float RaiderDestroyChance = 0.35f;
+    /// <summary>NPC-Schiffe reparieren ihre Hülle langsam, solange sie an einer Station liegen (je Tick).</summary>
+    public float NpcHullRegenPerTick = 0.05f;
+
+    /// <summary>Fahndung: Heat je Verbrechen (Schlüssel).</summary>
+    public Dictionary<string, float> CrimeHeat = new() { ["smuggling"] = 2.5f, ["toll_evasion"] = 1.5f, ["piracy"] = 1.2f, ["assault"] = 3f };
+    /// <summary>Fahndung: Strafe je Verbrechen (Credits, Gericht).</summary>
+    public Dictionary<string, float> CrimeFine = new() { ["smuggling"] = 400f, ["toll_evasion"] = 100f, ["piracy"] = 800f, ["assault"] = 1000f };
+    /// <summary>Fahndung: Schwellen der Stufen 1–4 (auffällig, verwarnt, gesucht, Staatsfeind); Heat höchstens <see cref="WantedMaxHeat"/>.</summary>
+    public List<float> WantedLevels = new() { 1f, 2f, 3f, 4f };
+    public float WantedMaxHeat = 5f;
+    /// <summary>Fahndung: Verfall je Tick nach der Mindestdauer seit dem letzten Verbrechen.</summary>
+    public float WantedDecayPerTick = 0.0003f;
+    public int WantedMinTicks = 1000;
+    /// <summary>Gericht: Strafe zusätzlich je Heat-Punkt.</summary>
+    public float FinePerHeat = 100f;
+    /// <summary>Gericht: Rechtshilfe — Strafen anderer Fraktionen werden angenommen, wenn deren Beziehung zur Gerichtsfraktion mindestens so hoch ist.</summary>
+    public float ExtraditionRelation = 0f;
+    /// <summary>Kopfgeld je Fahndungsstufe des Besitzers eines besiegten Kaperschiffs (mindestens Stufe 1), ausgezahlt aus der Fraktionskasse.</summary>
+    public float BountyPerLevel = 150f;
 }

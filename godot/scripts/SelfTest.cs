@@ -42,6 +42,8 @@ public partial class SelfTest : Node
 		{
 			case 0: // Autopilot zur Werft Delta (3 Sektoren weiter)
 				_startSector = u.PlayerSector;
+				// Phase 11: Piraten überfallen den Spieler erst im eigenen Überfall-Test (sonst verändern sie Fracht und Kasse der Handelsprüfungen)
+				u.Rules.PlayerRaids = false;
 				var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
 				_m.TestSetStationTarget(yard.Id);
 				Log($"Start in {u.Sectors[_startSector].Name}, Ziel {yard.Name}");
@@ -621,6 +623,113 @@ public partial class SelfTest : Node
 					catch (System.Exception ex) { Fail("Gate-Zugang warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 					Next();
 				}
+				break;
+			case 35: // Phase 11: Lagekarte, Fahndung, Behörde (Gericht, Kopfgeldbüro), Überfall mit Vorwarnung
+				_m.TestEnterSector(new SectorId(3));
+				SpaceSim.Core.Simulation.Wanted.Report(u, u.PlayerActor, new FactionId(2), "toll_evasion");
+				Next(); break;
+			case 36:
+				if (_frame - _stageStart > 3)
+				{
+					try
+					{
+						var uni = _m.Session.U;
+						var guild = new FactionId(2);
+						var pl = _m.Session.Player;
+						Check(_m.HudRef.Flight.TestSecurity.StartsWith("Sicherheit"), $"Flug-HUD zeigt die Lage echt („{_m.HudRef.Flight.TestSecurity}“)");
+						Check(_m.HudRef.Flight.TestWanted.Contains("auffällig") && _m.HudRef.Flight.TestWanted.Contains("Freie Händler"), $"Flug-HUD zeigt die Fahndung („{_m.HudRef.Flight.TestWanted}“)");
+						_m.TestOpenCommand();
+						_m.TestOpenCcArea("myfaction");
+						Check(_m.HudRef.CcMyFaction.TestWanted.Contains("Freie Händler") && _m.HudRef.CcMyFaction.TestWanted.Contains("auffällig"), $"Meine Fraktion zeigt die Fahndung je Fraktion („{_m.HudRef.CcMyFaction.TestWanted}“)");
+						_m.TestOpenCcArea("universe");
+						_m.TestCcSelectSector(new SectorId(4));
+						_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Security;
+						_m.HudRef.Screens.Current?.Refresh();
+						Check(_m.TestScreenOpen("cc.universe"), "Universumskarte: Ebene Sicherheit aus der Lagekarte zeichnet ohne Ausnahme");
+						_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Faction;
+						_m.TestCloseCommand();
+						// Behörde am Gildenhaus Gamma: Strafe bezahlen (Fahndung gelöscht), Kopfgeld abholen
+						var hq = uni.Stations.Values.First(s => s.Sector.Value == 3 && s.TypeKey == "headquarters");
+						_m.TestDockAt(hq.Id);
+						Check(_m.Docked, "Am Gildenhaus angedockt");
+						Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Authority && a.Available), "Andock-Menü zeigt den Bereich „Behörde“ (Dienste court/bounty)");
+						_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
+						Check(_m.HudRef.DockInfo.TestSecurity.StartsWith("Sicherheit"), $"Station-Info zeigt die Lage echt („{_m.HudRef.DockInfo.TestSecurity}“)");
+						_m.TestOpenDockArea(Ui.Screens.DockAreas.Authority);
+						Check(_m.TestScreenOpen("dock.authority"), "Behörde geöffnet");
+						Check(_m.HudRef.DockAuthority.TestRowCount >= 1, "Behörde zeigt die offene Strafe aus IStationService.Offers");
+						float fine = SpaceSim.Core.Simulation.Wanted.FineOf(uni, uni.Player.Wanted[guild]);
+						uni.PlayerWallet.Credits += fine + 10f;
+						float before = uni.PlayerWallet.Credits;
+						var paid = _m.HudRef.DockAuthority.Execute("court", $"pay:{guild.Value}");
+						Check(paid.Success && !uni.Player.Wanted.ContainsKey(guild) && System.Math.Abs(before - fine - uni.PlayerWallet.Credits) < 0.5f,
+							$"Strafe {fine:0} Cr bezahlt, Fahndung gelöscht („{paid.Message}“)");
+						Check(!_m.HudRef.DockAuthority.Execute("court", "pay:x").Success, "Unbekannter Gerichts-Schlüssel wird abgewiesen");
+						uni.Player.BountyClaims[guild] = 250f;
+						uni.Actors[guild].Treasury.Credits += 1000f;
+						before = uni.PlayerWallet.Credits;
+						var got = _m.HudRef.DockAuthority.Execute("bounty", $"claim:{guild.Value}");
+						Check(got.Success && System.Math.Abs(uni.PlayerWallet.Credits - before - 250f) < 0.5f && !uni.Player.BountyClaims.ContainsKey(guild), $"Kopfgeld abgeholt („{got.Message}“)");
+						_m.TestUndock();
+					}
+					catch (System.Exception ex) { Fail("Behörde/Fahndung warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+					Next();
+				}
+				break;
+			case 37: // Überfall auf den Spieler: Vorwarnung, dann andocken = entkommen (nichts verloren)
+			{
+				if (_frame - _stageStart < 90) break;   // Abdock-Bewegung abwarten (sie setzt die Position sonst zurück)
+				var uni = _m.Session.U;
+				var pl = _m.Session.Player;
+				var sector = uni.Sectors[uni.PlayerSector];
+				var gatePos = uni.Gates[sector.Gates[0]].Position;
+				Vec2 spot = gatePos;
+				for (int k = 0; k < 24; k++)
+				{
+					var c = gatePos + Vec2.FromAngle(k * 0.5236f) * (25f + 10f * (k / 12));
+					if (sector.Stations.All(id => Vec2.Distance(uni.Stations[id].Position, c) > 60f)) { spot = c; break; }
+				}
+				_m.TestTeleportTo(spot);
+				foreach (var kv in pl.Cargo.ToList()) pl.Cargo.Remove(kv.Key);
+				pl.Cargo[uni.FindGood("food")!.Id] = 40f;
+				var raider = uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(s => s.Id.Value).First();
+				if (raider.Transit != null) uni.FinishTransit(raider);
+				if (raider.Sector != sector.Id) uni.MoveShip(raider, sector.Id);
+				raider.Position = spot + new Vec2(12f, 0f);
+				raider.Order = new PatrolOrder(sector.Id);
+				raider.NextThinkTick = uni.Tick + 100_000;
+				uni.PendingEncounters.Clear();
+				uni.Rules.PlayerRaids = true;
+				uni.Rules.RaidRatePerTick = 1f;
+				uni.Rules.PlayerRaidWeight = 1e6f;
+				uni.Rules.InterceptRatePerTick = 0f;
+				uni.Rules.PlayerWarningTicks = 12;
+				Next(); break;
+			}
+			case 38:
+				if (_m.LastSecurityMessage.StartsWith("Piraten"))
+				{
+					var uni = _m.Session.U;
+					Check(uni.PendingEncounters.Any(e => e.Target == uni.PlayerShip), $"Vorwarnung vor dem Überfall angezeigt („{_m.LastSecurityMessage}“)");
+					var near = uni.Stations[uni.Sectors[uni.PlayerSector].Stations.OrderBy(id => id.Value).First()];
+					_m.TestDockAt(near.Id);
+					Check(_m.Docked, "Angedockt, um dem Überfall zu entgehen");
+					Next();
+				}
+				else if (_frame - _stageStart > 1500) Fail("Keine Überfall-Vorwarnung");
+				break;
+			case 39:
+				if (_m.LastSecurityMessage.Contains("entkommen"))
+				{
+					var uni = _m.Session.U;
+					var pl = _m.Session.Player;
+					Check(pl.Cargo.GetValueOrDefault(uni.FindGood("food")!.Id) == 40f, "Angedockt entkommen: keine Fracht verloren");
+					uni.Rules.PlayerRaids = false;
+					uni.Rules.RaidRatePerTick = new EconomyRules().RaidRatePerTick;
+					_m.TestUndock();
+					Next();
+				}
+				else if (_frame - _stageStart > 3000) Fail($"Überfall nicht aufgelöst („{_m.LastSecurityMessage}“)");
 				break;
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
