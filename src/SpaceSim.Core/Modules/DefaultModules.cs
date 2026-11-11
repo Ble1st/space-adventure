@@ -103,11 +103,13 @@ public sealed class LifecycleModule : ISimModule
 /// <summary>
 /// Phase 9: Akteure (POLITIK.md Abschnitt 6). Läuft nach dem Lebenszyklus (Flotte und Stationen haben sich geändert) und entfernt aufgestiegene
 /// Einzelakteure ohne Besitz (Abstieg). Aufstieg, Zukauf und Kassen hängen an den Systemen, in denen sie geschehen (Flotte, Lebenszyklus, Unterhalt).
+/// Phase 15: dazu die Ausgaben der Fraktionskassen (<see cref="MaintenanceSystem"/>, <see cref="SubsidySystem"/>).
 /// </summary>
 public sealed class ActorModule : ISimModule
 {
     public string Name => "Actors";
-    public void Register(SimulationBuilder b) => b.Add(new ActorSystem(), interval: 20);
+    // Phase 15: Ausgaben der Fraktionskassen — Stationsinstandhaltung (Material über den Handel, Kasse erstattet) und Subvention notleidender Stationen
+    public void Register(SimulationBuilder b) => b.Add(new ActorSystem(), interval: 20).Add(new MaintenanceSystem(), interval: 50).Add(new SubsidySystem(), interval: 50);
 }
 
 /// <summary>

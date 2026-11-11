@@ -778,8 +778,8 @@ public class SecurityTests
         var first = Assert.Single(built.Take(1));
         Assert.Equal(u.Rules.RaiderCost * u.Rules.RaiderRestartCostFactor, first.Cost, 3);
         Assert.InRange(income, 0.9 * first.Cost, 1.2 * first.Cost);   // die Einnahme floss nur, solange kein Kaperschiff da war
-        // Phase 14: geprüft wird, dass der Neuanfang ein Kaperschiff in die Welt bringt — ob es bis Tick 12000 überlebt, hängt vom Kampfglück ab
-        // (Standard-Seed: am Ende abgewehrt und zerstört)
         Assert.True(raidersAtBuild >= 1);
+        // Phase 15 (wieder geschärft): Nach dem Neuanfang gibt es zum Schluss Kaperschiffe — die Flotte stirbt nicht wieder aus
+        Assert.True(u.Ships.Values.Count(ThreatMap.IsRaider) >= 1, $"Kaperschiffe am Ende: {u.Ships.Values.Count(ThreatMap.IsRaider)}, gebaut {built.Count}, Kasse {outlaw.Treasury.Credits:0}");
     }
 }

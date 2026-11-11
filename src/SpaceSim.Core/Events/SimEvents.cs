@@ -113,6 +113,10 @@ public sealed record TreasuryUpkeep(ActorId Actor, string Purpose, float Amount,
 // ───────── Phase 11: Lagekarte, Polizei, Fahndung, Piraten ─────────
 /// <summary>Einnahme einer Kasse außerhalb der Abgaben (Phase 11): Hehlerei der Piraten ("fence"), Strafen ("fine"). Macht die Geldmenge erklärbar.</summary>
 public sealed record TreasuryIncome(ActorId Actor, string Purpose, float Amount) : SimEvent;
+/// <summary>Phase 15: Ein KI-Schiff hat sehr lange nichts gefunden und wurde abgebaut (<see cref="Simulation.FleetSystem"/>); Credits = sein Betriebsgeld, ToOwner = an die Kasse des Besitzers (sonst verlässt es die Welt).</summary>
+public sealed record ShipRetired(ShipId Ship, ActorId Owner, float Credits, bool ToOwner) : SimEvent;
+/// <summary>Phase 15: Die Kasse einer Fraktion hat eine notleidende Station gestützt (<see cref="Simulation.SubsidySystem"/>; zusätzlich <see cref="TreasuryUpkeep"/> „subsidy“).</summary>
+public sealed record StationSubsidized(StationId Station, ActorId Actor, float Amount) : SimEvent;
 /// <summary>
 /// Überfall aufgelöst (Phase 11, <see cref="Simulation.PirateSystem"/>): Kaperschiff, Opfer, Sektor, ob der Angreifer gewann, Beutewert (Basispreis),
 /// Hehlererlös in die Kasse, zerstörte Schiffe, ob die Polizei eingriff und ob das Opfer der Spieler war.

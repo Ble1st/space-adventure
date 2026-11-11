@@ -34,12 +34,15 @@ public static class ShipQualityRoll
     /// Bedarf auf Lager haben: <paramref name="baseNeeds"/> (was der Kauf ohnehin verbraucht: Bausatz, ggf. Module des Fits) abzüglich der
     /// ersetzten Grundmodule plus besserer Module, Bonusmodul und Slot-Material. Ergebnis: tatsächliche Güteklasse, Slots, Fit und Gesamtbedarf.
     /// </summary>
+    /// <remarks>Phase 15: <paramref name="accept"/> (optional) lehnt ein Ergebnis ab — dann gilt die nächst niedrigere Stufe (die KI-Flotte prüft so, dass
+    /// eine bessere Güteklasse mit Bonus-Frachtslot die Kapazitätsgrenze ihrer Aufgabe nicht sprengt). Wie beim Rückfall wegen fehlenden Materials ziehen die
+    /// niedrigeren Stufen weitere Zufallszahlen (deterministisch über <see cref="Universe.Rng"/>).</remarks>
     public static QualityOutcome Roll(Universe u, ShipClass cls, IReadOnlyList<ClassSlot> slots, IReadOnlyList<string?> fit,
-        Station? yard, IReadOnlyList<MaterialNeed>? baseNeeds)
+        Station? yard, IReadOnlyList<MaterialNeed>? baseNeeds, Func<List<ClassSlot>, List<string?>, bool>? accept = null)
     {
         var rolled = RollGrade(u.Rng, u.Rules.QualityChances);
         for (var grade = rolled; grade > ShipQuality.Standard; grade--)
-            if (TryApply(u, cls, slots, fit, grade, yard, baseNeeds) is { } done)
+            if (TryApply(u, cls, slots, fit, grade, yard, baseNeeds) is { } done && (accept is null || accept(done.Slots, done.Fit)))
                 return done with { Rolled = rolled };
         return new QualityOutcome(rolled, ShipQuality.Standard, Copy(slots), new List<string?>(fit), baseNeeds);
     }

@@ -25,9 +25,23 @@ public sealed class FleetSystem : ISimSystem
     static void Abandon(Universe u)
     {
         foreach (var ship in u.Ships.Values.Where(s => s.IsEconomyAi).ToList())
-            if (ship.Transit is null && ship.Order is null && ship.IdleSince >= 0
-                && u.Tick - ship.IdleSince > u.Rules.ShipBankruptTicks && ship.Credits < 50f)
-                u.RemoveShip(ship.Id, "bankrupt");
+        {
+            if (ship.Transit is not null || ship.Order is not null || ship.IdleSince < 0) continue;
+            long idle = u.Tick - ship.IdleSince;
+            if (idle > u.Rules.ShipBankruptTicks && ship.Credits < 50f) { u.RemoveShip(ship.Id, "bankrupt"); continue; }
+            // Phase 15: Auch ein Schiff mit Geld, das sehr lange nichts findet (z. B. ein Mehrzweckschiff, dessen Aufgabe nichts einbringt und dessen andere
+            // Aufgabe voll ist), wird abgebaut statt ewig zu liegen; sein Platz in der Kapazität wird frei, die Flotte kauft bei Bedarf nach.
+            // Sein Betriebsgeld geht an den Besitzer (eigener Akteur mit Kasse), bei freien Einzelschiffen verlässt es mit dem Kapitän die Welt.
+            if (u.Rules.IdleRetireTicks > 0 && idle > u.Rules.IdleRetireTicks && ship.Role is ShipRole.Trader or ShipRole.Miner && ship.Cargo.Values.Sum() < 0.001f)
+            {
+                float credits = MathF.Max(0f, ship.Credits);
+                bool toOwner = ship.Owner != u.FreeActor && u.Actors.TryGetValue(ship.Owner, out var owner) && owner.Id != u.PlayerActor;
+                if (toOwner) u.Actors[ship.Owner].Treasury.Credits += credits;
+                ship.Credits = 0f;
+                u.Events.Publish(new ShipRetired(ship.Id, ship.Owner, credits, toOwner));
+                u.RemoveShip(ship.Id, "retired");
+            }
+        }
     }
 
     /// <summary>
@@ -82,6 +96,16 @@ public sealed class FleetSystem : ISimSystem
     }
 
     /// <summary>
+    /// Phase 15: Hält eine gewürfelte Ausstattung (bessere Güteklasse, z. B. Bonus-Frachtslot) die Kapazitätsgrenze der Aufgabe samt Überhang ein? Vorher
+    /// prüfte die Kaufwahl nur das Werksmodell; ein Meisterwerk-Frachter mit zusätzlichem Frachtmodul hob den Handel auf 14,8/14.
+    /// </summary>
+    static Func<List<ClassSlot>, List<string?>, bool> Fits(Universe u, IShipJob job, ShipClass cls, float used, float limit) => (slots, fit) =>
+    {
+        var stats = ShipStats.Compute(cls, fit.Select(k => k is not null && u.Modules.TryGetValue(k, out var m) ? m : null).ToList());
+        return used + job.Units(stats, stats.Cargo, u.Rules) <= limit + u.Rules.FleetCapacityOvershoot + 0.0001f;
+    };
+
+    /// <summary>
     /// Phase 9: Nach dem Kauf steigt ein freies Einzelschiff zum eigenen Akteur auf (lazy, POLITIK.md „Einzelschiffe träge anlegen“); das neue
     /// Schiff gehört dann diesem Akteur (sonst dem Besitzer des Käufers). Meldet die Ziehung als <see cref="InvestorChosen"/>.
     /// </summary>
@@ -117,7 +141,7 @@ public sealed class FleetSystem : ISimSystem
         if (rules.FleetChoosesModels && ChooseModel(u, job, parent, used, limit) is { } choice)
         {
             // Phase 7: Güteklasse würfeln; bessere Module kommen zusätzlich aus dem Werftlager (Mehrkosten trägt die Werft)
-            var q = ShipQualityRoll.Roll(u, choice.Class, choice.Class.Slots, choice.Model.Fit, choice.Yard, choice.Materials);
+            var q = ShipQualityRoll.Roll(u, choice.Class, choice.Class.Slots, choice.Model.Fit, choice.Yard, choice.Materials, Fits(u, job, choice.Class, used, limit));
             ShipPurchase.Consume(choice.Yard, q.Materials ?? choice.Materials);
             choice.Yard.Credits += choice.Price;
             parent.Credits -= choice.Price + rules.NewShipStartCredits;
@@ -162,7 +186,7 @@ public sealed class FleetSystem : ISimSystem
 
         float price = withModules ? ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard)) : rules.NewShipCost;
         // Phase 7: Güteklasse würfeln (Mehrkosten aus dem Werftlager, sonst Rückfall auf die nächste Stufe)
-        QualityOutcome? quality = parent.HasModel && cls is not null ? ShipQualityRoll.Roll(u, cls, baseSlots, baseFit, yard, needs) : null;
+        QualityOutcome? quality = parent.HasModel && cls is not null ? ShipQualityRoll.Roll(u, cls, baseSlots, baseFit, yard, needs, Fits(u, job, cls, used, limit)) : null;
         ShipPurchase.Consume(yard, quality?.Materials ?? needs);
         yard.Credits += price;
         parent.Credits -= price + rules.NewShipStartCredits;

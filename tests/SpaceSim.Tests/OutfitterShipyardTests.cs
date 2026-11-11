@@ -528,7 +528,8 @@ public class OutfitterShipyardTests
         Assert.Equal(orig.Id, trade.Id);
         Assert.Equal(orig.Position, trade.Position);
         Assert.True(trade.BankruptcyProtected);
-        Assert.Equal(orig.Market.Keys.OrderBy(k => k.Value), trade.Market.Keys.OrderBy(k => k.Value));
+        // Phase 15: reine Instandhaltungs-Einträge entstehen erst im Lauf (die Migration legt die Station neu an, sie bekommt sie beim ersten Instandhaltungsschritt)
+        Assert.Equal(orig.Market.Keys.Where(k => !Maintenance.IsPureEntry(u, orig, k)).OrderBy(k => k.Value), trade.Market.Keys.OrderBy(k => k.Value));
         Assert.Equal(u.Rules.MaxStations, m.Rules.MaxStations);
         Assert.Equal(u.StationTypes["shipyard"].Services, m.StationTypes["shipyard"].Services);
         Assert.Equal(0.05f, m.StationTypes["shipyard"].ShipDealer!.Assembly);

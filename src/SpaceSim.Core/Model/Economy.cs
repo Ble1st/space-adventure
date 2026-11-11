@@ -32,6 +32,18 @@ public sealed class StockEntry
     /// <summary>Wunschbestand. Amount unter Target erhöht den Preis, darüber senkt er ihn.</summary>
     public float Target = 100f;
     public float Price;
+    /// <summary>
+    /// Phase 15: abgeleitete Annahmegrenze dieses Eintrags als Vielfaches des Wunschbestands (0 = <see cref="EconomyRules.OverstockFactor"/>). Wird jeden
+    /// Tick vom <see cref="Simulation.MarketSystem"/> gesetzt (Regale ohne Rezept: <see cref="EconomyRules.ShelfOverstockFactor"/>, Exportwaren wieder der
+    /// Überhang); nicht gespeichert, nicht im Hash — vor dem ersten Markt-Tick gilt die Regel.
+    /// </summary>
+    public float Overstock;
+    /// <summary>
+    /// Phase 15: abgeleitet (jeden Tick vom <see cref="Simulation.MarketSystem"/>, nicht gespeichert): reiner Produkt-Eintrag — die Station stellt die Ware
+    /// her und verbraucht sie in keinem Rezept, sie nimmt also keine Lieferung an. Vorher fuhren Händler Energie zwischen Solar- und Kraftwerk hin und
+    /// her (und Wasser zwischen Wasserwerken): Der Hersteller mit dem kleineren Lager kaufte sein eigenes Produkt teuer zu und ging pleite.
+    /// </summary>
+    public bool NoIntake;
 }
 
 public sealed class StationType
@@ -137,6 +149,11 @@ public sealed class Station
     public Dictionary<GoodId, float> PlayerStorage = new();
     /// <summary>Phase 14: angekaufte Chargen der Exportsenke, in Ankaufsreihenfolge; gespeichert. Leer bei Stationen ohne Exportsenke.</summary>
     public List<ExportBatch> Exports = new();
+    /// <summary>
+    /// Phase 15: offene Instandhaltung (Ware → fehlende Einheiten, höchstens ein Tagesbedarf; <see cref="Simulation.MaintenanceSystem"/>). Nur ein Statuswert:
+    /// ohne Material verfällt nichts, die Station holt nach, sobald Material da ist. Gespeichert.
+    /// </summary>
+    public Dictionary<GoodId, float> MaintenanceBacklog = new();
     public long BelowLimitSince = -1;
     public string Name = "";
     public SectorId Sector;
@@ -161,7 +178,8 @@ public sealed class Station
         !Market.TryGetValue(good, out var e) ? 0f
         // Phase 8: Eine Baustelle nimmt genau das noch fehlende Material an (verlangt − geliefert); verlassene Baustellen nichts mehr
         : Site is { } site ? (site.Abandoned ? 0f : MathF.Max(0f, e.Target - e.Amount))
-        : MathF.Max(0f, e.Target * rules.OverstockFactor - e.Amount);
+        : e.NoIntake ? 0f
+        : MathF.Max(0f, e.Target * (e.Overstock > 0f ? e.Overstock : rules.OverstockFactor) - e.Amount);
 
     /// <summary>
     /// Lagerware ohne Rezept (Phase 5a, <see cref="StationType.Stocks"/>): Die Station führt die Ware, aber kein Rezept verwendet oder
@@ -174,6 +192,13 @@ public sealed class Station
         foreach (var r in Production)
             if (r.Inputs.ContainsKey(good) || r.Outputs.ContainsKey(good)) return false;
         return true;
+    }
+
+    /// <summary>Phase 15: Verbraucht ein Rezept der Station diese Ware?</summary>
+    public bool Consumes(GoodId good)
+    {
+        foreach (var r in Production) if (r.Inputs.ContainsKey(good)) return true;
+        return false;
     }
 
     /// <summary>Phase 14: Stellt eine Rezeptzeile der Station diese Ware her? KI-Händler kaufen nur beim Hersteller ein.</summary>

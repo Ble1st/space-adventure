@@ -197,6 +197,8 @@ public class WalletTests
         foreach (var t in u.StationTypes.Values.Where(t => t.Government != GovernmentKind.None)) t.UpkeepPerTick = 0f;
         // Phase 11: Polizei und Piraten gibt es vor v14 nicht (die Migration setzt sie neu) — hier abgeschaltet und entfernt
         SecurityTests.WithoutSecurity(u);
+        // Phase 15: Instandhaltung (neue Markteinträge auch an Regierungsstationen) und Subventionen aus den Kassen gibt es vor v13 ebenfalls nicht
+        u.Rules.MaintenanceShare = 0f; u.Rules.SubsidyPerDay = 0f;
         new SimulationRunner().Run(u, 1_000);
         u.PlayerWallet.Credits = 777f;
         var v6 = ToV6Json(SaveGameJson.Write(u, Now));

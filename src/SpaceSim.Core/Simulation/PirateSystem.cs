@@ -85,7 +85,7 @@ public sealed class PirateSystem : ISimSystem
 
     /// <summary>
     /// Reparatur und Auftanken an der Heimatbasis aus der Kasse des Besitzers (Polizei und Piraten): Hülle zu <see cref="EconomyRules.BaseRepairPerHull"/>
-    /// je Punkt, Treibstoff zum Basispreis; was die Kasse nicht deckt, bleibt aus. Ereignis <see cref="TreasuryUpkeep"/> mit <paramref name="purpose"/>.
+    /// je Punkt, Treibstoff zum Basispreis (nur bei eingeschaltetem Treibstoff, Phase 15); was die Kasse nicht deckt, bleibt aus. Ereignis <see cref="TreasuryUpkeep"/> mit <paramref name="purpose"/>.
     /// </summary>
     public static void ServiceAtBase(Universe u, Ship s, string purpose)
     {
@@ -99,7 +99,8 @@ public sealed class PirateSystem : ISimSystem
             spent += fix * u.Rules.BaseRepairPerHull;
             owner.Treasury.Credits -= fix * u.Rules.BaseRepairPerHull;
         }
-        if (Refuel.ActiveFuel(s) is { } fuel && s.FuelSpace > 0f && u.Goods.TryGetValue(fuel, out var good))
+        // Phase 15: Treibstoff aus = kein Tanken aus der Kasse (vorher zahlte die Kasse auch bei fuelActive=false für den Tank)
+        if (Refuel.Active(u) && Refuel.ActiveFuel(s) is { } fuel && s.FuelSpace > 0f && u.Goods.TryGetValue(fuel, out var good))
         {
             float units = MathF.Min(s.FuelSpace, MathF.Max(0f, owner.Treasury.Credits) / MathF.Max(0.01f, good.BasePrice));
             s.Fuel[fuel] = s.FuelAmount(fuel) + units;

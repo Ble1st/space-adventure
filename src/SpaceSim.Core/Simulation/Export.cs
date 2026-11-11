@@ -60,7 +60,10 @@ public static class ExportRules
     {
         foreach (var g in cfg.Goods)
             if (st.Market.TryGetValue(g, out var e))
+            {
                 e.Price = MathF.Min(e.Price, u.Goods[g].BasePrice * u.Rules.ExportMaxBidFactor);
+                e.Overstock = 0f;   // Phase 15: Exportwaren nehmen bis zum Überhang an (wartende Chargen zählen zum Bestand), nicht nur bis zum Regal-Deckel
+            }
     }
 }
 

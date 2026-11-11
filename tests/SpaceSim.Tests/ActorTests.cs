@@ -268,6 +268,8 @@ public class ActorTests
         a.Rules.ResearchActive = b.Rules.ResearchActive = false;
         a.StationTypes["research_station"].UpkeepPerTick = b.StationTypes["research_station"].UpkeepPerTick = 0f;
         b.Rules.TaxToTreasuryShare = 0f;   // alte Geldsenke
+        // Phase 15: Kassenausgaben (Instandhaltungserstattung, Subvention) und die Steuerbremse hängen vom Kassenstand ab — für den Zahlervergleich aus
+        foreach (var w in new[] { a, b }) { w.Rules.MaintenanceShare = 0f; w.Rules.SubsidyPerDay = 0f; w.Rules.TreasuryTargetShare = 0f; }
         var taxes = new List<TaxCollected>();
         double upkeep = 0;   // Phase 10: Unterhalt der Regierungsstationen und Sperren aus den Kassen
         double income = 0;   // Phase 11: Strafen fließen in Fraktionskassen; Polizei und Kopfgeld zahlen aus ihnen (Piratenkassen zählen hier nicht)

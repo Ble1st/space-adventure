@@ -919,6 +919,9 @@ public partial class SelfTest : Node
 					_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
 					Check(_m.HudRef.DockInfo.TestExport.StartsWith("Export an Thalassa:") && _m.HudRef.DockInfo.TestExport.Contains("unterwegs"),
 						$"Stationsinfo zeigt die Exportzeile („{_m.HudRef.DockInfo.TestExport}“)");
+					// Phase 15: Instandhaltung der Station (Material über den Handel, Kasse erstattet) als Statuszeile
+					string maint = _m.HudRef.DockInfo.TestMaintenance;
+					Check(maint == "gedeckt" || maint.StartsWith("offen: "), $"Stationsinfo zeigt die Instandhaltung („{maint}“)");
 					Check(_m.View.PlanetNode is not null, "Sektoransicht zeigt den Planeten als Kulisse");
 					_m.TestUndock();
 					// Werft: Reparatur ohne Tank-Abschnitt

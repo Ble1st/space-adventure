@@ -28,6 +28,7 @@ public static class UniverseHash
             foreach (var (g, n) in st.PlayerStorage.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
             // Phase 14: wartende Exportchargen (Reihenfolge des Ankaufs)
             foreach (var b in st.Exports) { Mix((ulong)b.Good.Value); MixF(b.Amount); MixF(b.Paid); Mix((ulong)b.DueTick); }
+            foreach (var (g, n) in st.MaintenanceBacklog.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }   // Phase 15
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
         {

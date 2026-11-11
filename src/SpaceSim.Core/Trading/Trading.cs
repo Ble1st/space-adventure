@@ -112,7 +112,8 @@ public static class TradeActions
     {
         Station? best = null;
         float bestScore = 0f;
-        foreach (var st in u.Stations.Values.OrderBy(x => x.Id.Value))
+        // Phase 15: ohne Sortierung je Aufruf (keine Allokation); Gleichstand entscheidet die kleinere Id — dasselbe Ergebnis wie die frühere Id-Reihenfolge
+        foreach (var st in u.Stations.Values)
         {
             // Baustellen bekommen nur geplante Lieferungen (Reservierung im Händler), keine Restmengen
             if (st.Id == exclude || st.IsBuildSite || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) continue;
@@ -121,7 +122,7 @@ public static class TradeActions
             float time = Travel.Estimate(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship);
             if (float.IsPositiveInfinity(time)) continue;
             float score = n * e.Price / (time + 10f);
-            if (score > bestScore) { bestScore = score; best = st; }
+            if (score > bestScore || (score == bestScore && best is not null && st.Id.Value < best.Id.Value)) { bestScore = score; best = st; }
         }
         return best;
     }
