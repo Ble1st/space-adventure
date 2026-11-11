@@ -30,16 +30,34 @@ public sealed class ProductionSystem : ISimSystem
             // Phase 15: Rezepte, deren Produkte ein Abnehmer gerade braucht (offene Fehlmenge), laufen vor solchen ohne Abnehmer.
             if (_due.Count > 1) _due.Sort((a, b) => a.Demanded != b.Demanded ? b.Demanded.CompareTo(a.Demanded)
                 : a.Priority != b.Priority ? b.Priority.CompareTo(a.Priority) : a.Index.CompareTo(b.Index));
+            bool ran = false, starved = false;
             foreach (var (r, _, _, _) in _due)
             {
-                if (!HasInputs(st, r)) continue;
+                if (!HasInputs(st, r)) { starved = true; continue; }
                 // Lager voll: nicht weiter auf Halde produzieren (wirkt wie ein Absatzdeckel, Angebot folgt der Nachfrage). Phase 15: ohne Abnehmer schon
                 // beim kleinen Puffer (ProductionDemand.Saturated)
                 if (ProductionDemand.Saturated(u, st, r, demand)) continue;
                 foreach (var kv in r.Inputs) st.Stock(kv.Key).Amount -= kv.Value;
                 foreach (var kv in r.Outputs) st.Stock(kv.Key).Amount += kv.Value;
+                ran = true;
             }
+            if (_due.Count > 0) Measure(u, st, ran, !ran && starved);
         }
+    }
+
+    /// <summary>
+    /// Phase 19: Auslastung der Station nachführen — gleitender Mittelwert über <see cref="EconomyRules.UtilizationWindowTicks"/>; ein fälliger Takt zählt
+    /// mit dem Gewicht des kürzesten Rezepttakts der Station (dann wiegt jeder Takt so viel Zeit, wie bis zum nächsten vergeht).
+    /// </summary>
+    static void Measure(Universe u, Station st, bool ran, bool starved)
+    {
+        int window = u.Rules.UtilizationWindowTicks;
+        if (window <= 0) return;
+        int period = int.MaxValue;
+        foreach (var r in st.Production) if (r.TicksPerCycle > 0 && r.TicksPerCycle < period) period = r.TicksPerCycle;
+        float a = MathF.Min(1f, (float)period / window);
+        st.Activity += a * ((ran ? 1f : 0f) - st.Activity);
+        st.Starved += a * ((starved ? 1f : 0f) - st.Starved);
     }
 
     static bool HasInputs(Station st, Recipe r)

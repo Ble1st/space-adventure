@@ -174,10 +174,11 @@ public sealed class SubsidySystem : ISimSystem
 
     /// <summary>
     /// Darf die Station subventioniert werden? Regierungsstationen und Wachen immer (sie haben seit der Instandhaltung einen Markt und müssen ihre Lieferungen
-    /// bezahlen können), sonst geschützte, kritische Stationen, Endverbraucher (Kolonie) und Exportsenken; Verstecke nie.
+    /// bezahlen können), sonst geschützte, kritische Stationen, Endverbraucher (Kolonie) und Exportsenken; Verstecke nie. Phase 19: eine nur kritische Station,
+    /// die dauerhaft kaum produziert und deren Produkte nicht knapp sind (<see cref="StationReview.Useless"/>), bekommt nichts mehr.
     /// </summary>
     public static bool Eligible(Universe u, Station st) =>
         !StationProtection.IsHideout(u, st)
         && (StationProtection.IsOfficial(u, st) || st.BankruptcyProtected || MarketSystem.IsFinalConsumer(st) || ExportRules.ConfigOf(u, st) is not null
-            || StationCriticality.IsCritical(u, st));
+            || (StationCriticality.IsCritical(u, st) && !StationReview.Useless(u, st)));   // Phase 19: dauerhaft nutzlose Stationen nicht ewig stützen
 }

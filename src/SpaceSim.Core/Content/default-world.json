@@ -9,6 +9,8 @@
   "fleetFlexWeight": 0.75,
   "fuelActive": false,
   "consumerMaxBidFactor": 2,
+  "overstockFactor": 2.5,
+  "exportOverstockFactor": 3,
   "researchActive": false
  },
  "goods": [

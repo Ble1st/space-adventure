@@ -119,7 +119,9 @@ public class EconomyFixTests
         new MarketSystem().Step(u, 1);
         new ExportSystem().Step(u, 1);
         Assert.Equal(beta.Market[reactor].Target, beta.AcceptableUnits(reactor, u.Rules), 3);
-        Assert.Equal(beta.Market[food].Target * u.Rules.OverstockFactor, beta.AcceptableUnits(food, u.Rules), 3);
+        // Phase 19: Exportwaren mit eigenem Überhang-Faktor (ExportOverstockFactor; Standardwelt 3, allgemein 2,5)
+        float exportFactor = u.Rules.ExportOverstockFactor > 0f ? u.Rules.ExportOverstockFactor : u.Rules.OverstockFactor;
+        Assert.Equal(beta.Market[food].Target * exportFactor, beta.AcceptableUnits(food, u.Rules), 3);
         // ein volles Regal steht beim Basispreis, nicht beim Drittel
         beta.Market[reactor].Amount = beta.Market[reactor].Target;
         new MarketSystem().Step(u, 1);
@@ -402,12 +404,14 @@ public class EconomyFixTests
         // Flottenkapazität hält (Grenze + Überhang; Gründer mit Laser Mk2 zählen beim Bergbau mehr als 1)
         Assert.True(maxTrade <= u.Rules.MaxTraders + u.Rules.FleetCapacityOvershoot + 0.001f, $"Handel max {maxTrade}");
         Assert.True(maxMine <= u.Rules.MaxMiners + u.Rules.FleetCapacityOvershoot + 1.0f, $"Bergbau max {maxMine}");
-        Assert.True(u.Ships.Values.Count(s => s.Role == ShipRole.Trader) >= 12, "Händler brechen nicht ein");
+        // Phase 19: gezählt in Kapazitätseinheiten (Phase-6-Semantik) statt Schiffen — die Flotte kauft jetzt auch einen Behemoth (5 Einheiten)
+        Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) >= 12f, "Händler brechen nicht ein");
         // keine Geisteraufträge: Auftrag mit Reise oder an der Station/am Feld in Arbeit; GoTo/Bau nie ohne Reise am falschen Ort
         foreach (var s in u.Ships.Values)
         {
             Assert.False(s.Order is GoToOrder && s.Transit is null, $"Geister-GoTo bei Schiff {s.Id.Value}");
-            if (s.Order is TradeOrder to) Assert.True(u.Stations.ContainsKey(to.Buy) && u.Stations.ContainsKey(to.Sell), $"Handelsauftrag ins Leere bei Schiff {s.Id.Value}");
+            // Phase 19: ein Restverkauf hat keine Einkaufsstation (Id 0) und ist immer auf dem Weg zum Käufer
+            if (s.Order is TradeOrder to) Assert.True((u.Stations.ContainsKey(to.Buy) || (to.Buy.Value == 0 && s.Phase == TradePhase.GoingToSell)) && u.Stations.ContainsKey(to.Sell), $"Handelsauftrag ins Leere bei Schiff {s.Id.Value}");
             if (s.Transit is null) Assert.Contains(s.Id, u.Tracker.ParkedIn(s.Sector));
         }
         // Endwaren fließen: alle drei Endwaren wurden gefahren, Nahrung und Konsumgüter auch exportiert

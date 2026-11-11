@@ -198,7 +198,8 @@ public sealed partial class TradeScreen : DockAreaScreen
 	void Drop(Row row, float qty) => Execute($"{TradeService.Drop}:{row.Good.Value}", qty >= row.Held ? 0f : qty);
 
 	/// <summary>Phase 18: „Abwerfen“ zeigen, wenn Ware an Bord ist, die die Station nicht (ganz) nimmt — neben dem Grund.</summary>
-	static bool ShowDrop(Row r) => r.HasDrop && r.Held > 0f && r.Sell.Amount < r.Held - 0.0001f;
+	// Phase 19: ein gesperrter Abwurf (Treuhand-Material einer Baustelle) hat Menge 0 — keine Taste, der Grund steht als Hinweis
+	static bool ShowDrop(Row r) => r.HasDrop && r.Drop.Amount > 0f && r.Held > 0f && r.Sell.Amount < r.Held - 0.0001f;
 
 	// ── Test-Hooks (Selbsttest, UiShots) ──
 

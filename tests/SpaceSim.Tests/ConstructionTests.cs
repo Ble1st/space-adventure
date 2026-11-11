@@ -306,6 +306,7 @@ public class ConstructionTests
         var u = World();
         RemoveBuilders(u);
         u.Rules.EmergencyBuildTicks = 1_000_000;   // kein Notbau: nur Händler liefern
+        u.Rules.CommissionBuilders = false;        // Phase 19: und die Fraktion kauft kein Bauschiff nach
         var site = Site(u, "farm", 1);
         var delivered = new List<ConstructionDelivered>();
         u.Events.Raised += e => { if (e is ConstructionDelivered d && d.Site == site.Id) delivered.Add(d); };
@@ -373,6 +374,7 @@ public class ConstructionTests
         var u = World();
         RemoveBuilders(u);
         OnlyTestSites(u, 1);   // Notbau-Bremse je Fraktion: keine Baustelle des Lebenszyklus darf den Notbau vorwegnehmen
+        u.Rules.CommissionBuilders = false;   // Phase 19: die Fraktion kauft kein Bauschiff nach (geprüft wird der Bau ohne Bauschiff)
         var site = Site(u, "farm", 1);
         var id = site.Id;
         // ein Teil ist schon da: der Notbau ersetzt nur den Rest

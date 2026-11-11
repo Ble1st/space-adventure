@@ -26,6 +26,7 @@ public sealed class TraderSystem : ISimSystem
             {
                 // Phase 10: Fracht ohne Auftrag (Reise wegen einer Sperre angehalten, Abnehmer weggefallen) zuerst verkaufen
                 if (SellStranded(u, ship)) continue;
+                DiscardUnsellable(u, ship);   // Phase 19: niemand nimmt die Fracht — nach der Frist im All abwerfen statt sie ewig mitzuschleppen
                 if (!PickOrder(u, ship))
                 {
                     if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
@@ -69,10 +70,13 @@ public sealed class TraderSystem : ISimSystem
                 reserved[(to.Buy, to.Good)] = reserved.GetValueOrDefault((to.Buy, to.Good)) + o.CapacityVolumeFor(u, to.Good) / u.Goods[to.Good].VolumePerUnit;
 
         // Phase 8: Baustellen nehmen nur die fehlende Menge an; was andere Händler schon dorthin fahren (unterwegs zum Kauf: ihre Kapazität,
-        // unterwegs zum Verkauf: ihre Ladung), gilt als vergeben — sonst fahren alle dieselbe Lieferung und laden sie unbezahlt ab
+        // unterwegs zum Verkauf: ihre Ladung), gilt als vergeben — sonst fahren alle dieselbe Lieferung und laden sie unbezahlt ab.
+        // Phase 19: für alle Abnehmer (Regel ReserveIncoming) — seit kein Händler mehr über die Annahme ablädt, blieb der zweite Händler auf einer Ladung
+        // sitzen, die schon ein anderer brachte, warf sie ab und verlor das Geld dafür (KI-Händler gingen reihenweise pleite)
         Dictionary<(StationId, GoodId), float>? incoming = null;
+        bool reserveAll = u.Rules.ReserveIncoming;
         foreach (var o in u.Ships.Values)
-            if (o != ship && o.Order is TradeOrder io && u.Stations.TryGetValue(io.Sell, out var target) && target.IsBuildSite)
+            if (o != ship && o.Order is TradeOrder io && u.Stations.TryGetValue(io.Sell, out var target) && (reserveAll || target.IsBuildSite))
             {
                 incoming ??= new Dictionary<(StationId, GoodId), float>();
                 float amount = o.Phase == TradePhase.GoingToSell ? o.Cargo.GetValueOrDefault(io.Good)
@@ -84,7 +88,9 @@ public sealed class TraderSystem : ISimSystem
         float bestScore = 0f;
         // Phase 12: Grenzen eines Automatikauftrags (Spielerflotte: Reichweite, höchster Einkaufspreis, Rücklage); KI ohne Befehl: keine
         var limits = AutoLimitRules.Of(ship);
-        float spendable = limits is null ? 0f : AutoLimitRules.Spendable(u, ship, limits);
+        // Phase 19: auch ohne Automatikgrenzen nur planen, was die eigene Kasse bezahlen kann — sonst fuhr ein mittelloses Schiff immer wieder zur
+        // Kaufstation, konnte dort nichts kaufen und plante sofort neu (Leerlauf nie erreicht, nie als pleite aufgegeben)
+        float spendable = limits is null ? MathF.Max(0f, u.WalletOf(ship).Credits) : AutoLimitRules.Spendable(u, ship, limits);
         var fuelGood = Refuel.Active(u) ? Refuel.ActiveFuel(ship) : null;   // Phase 14: Treibstoff aus = keine Treibstoffkosten
         // Phase 10: Die Verkaufsfahrt geht beladen — mit diesem Profil schätzen, damit ein Embargo die Route schon hier ausschließt
         var ladenProfile = GateAccess.ProfileOf(u, ship) with { Laden = true };
@@ -115,12 +121,10 @@ public sealed class TraderSystem : ISimSystem
                 float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
                 if (available < 1f) continue;
                 float units = MathF.Min(capacityUnits, available);
-                if (limits is not null)
-                {
-                    if (!AutoLimitRules.InRange(u, limits, buy.Sector) || !AutoLimitRules.PriceOk(limits, good, b.Price) || b.Price <= 0f) continue;
-                    units = MathF.Min(units, MathF.Floor(spendable / b.Price));
-                    if (units < 1f) continue;
-                }
+                if (limits is not null && (!AutoLimitRules.InRange(u, limits, buy.Sector) || !AutoLimitRules.PriceOk(limits, good, b.Price))) continue;
+                if (b.Price <= 0f) continue;
+                units = MathF.Min(units, MathF.Floor(spendable / b.Price));
+                if (units < 1f) continue;
                 if (!buyLegs.TryGetValue(buy.Id, out var leg))
                 {
                     float tb = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
@@ -147,7 +151,7 @@ public sealed class TraderSystem : ISimSystem
                     // unbezahlt abgeladen; bei kleinen Wunschbeständen (Modulfabriken, Lager) drückte das die Preise dauerhaft auf 0,25×.
                     float acceptAll = sell.AcceptableUnits(s, u.Rules);
                     float accept = acceptAll;
-                    if (incoming is not null && sell.IsBuildSite) accept -= incoming.GetValueOrDefault((sell.Id, good.Id));
+                    if (incoming is not null) accept -= incoming.GetValueOrDefault((sell.Id, good.Id));
                     float load = MathF.Min(units, MathF.Floor(accept));
                     // Phase 14: nur so viel einplanen, wie der Abnehmer bezahlen kann (beim Einkauf gilt dieselbe Grenze). Vorher rechnete die Bewertung mit
                     // voller Ladung und unbezahltem Rest: Bei teuren Waren und knapper Kasse des Abnehmers (Kolonie, Exportsenke) galt jede Runde als
@@ -206,11 +210,15 @@ public sealed class TraderSystem : ISimSystem
     /// </summary>
     static bool SellStranded(Universe u, Ship ship)
     {
-        var good = ship.Cargo.Where(kv => kv.Value > 0.001f).Select(kv => kv.Key).OrderBy(g => g.Value).FirstOrDefault();
-        if (good.Value == 0) return false;
+        if (!ship.Cargo.Values.Any(n => n > 0.001f)) return false;
         var buyer = TradeActions.BestBuyer(u, ship, ship.Sector, ship.Position);
-        if (buyer is null || !buyer.Market.ContainsKey(good)) return false;
-        ship.Order = new TradeOrder(buyer.Id, buyer.Id, good);
+        if (buyer is null) return false;
+        if (AutoLimitRules.Of(ship) is { } lim && !AutoLimitRules.InRange(u, lim, buyer.Sector)) return false;   // Phase 19: Automatik bleibt im Umkreis
+        // Phase 19: die (kleinste) Ware an Bord, die dieser Käufer führt — vorher galt nur die erste Ware an Bord, und eine andere blieb liegen
+        var good = ship.Cargo.Where(kv => kv.Value > 0.001f && buyer.Market.ContainsKey(kv.Key)).Select(kv => kv.Key).OrderBy(g => g.Value).FirstOrDefault();
+        if (good.Value == 0) return false;
+        // Phase 19: ohne Einkaufsstation (Id 0) — die Ware stammt aus einer früheren Runde, der Käufer ist nicht ihr Hersteller
+        ship.Order = new TradeOrder(default, buyer.Id, good);
         ship.Phase = TradePhase.GoingToSell;
         ship.IdleSince = -1;
         var plan = Refuel.PrepareTrip(u, ship, buyer.Sector, buyer.DockPoint(ship.Id));
@@ -252,7 +260,9 @@ public sealed class TraderSystem : ISimSystem
             ship.IdleSince = u.Tick;
             return;
         }
-        if (ship.Order is not TradeOrder order || !u.Stations.ContainsKey(order.Buy) || !u.Stations.ContainsKey(order.Sell))
+        // Phase 19: ein Restverkauf (SellStranded) hat keine Einkaufsstation (Id 0)
+        if (ship.Order is not TradeOrder order || !(u.Stations.ContainsKey(order.Buy) || (order.Buy.Value == 0 && ship.Phase == TradePhase.GoingToSell))
+            || !u.Stations.ContainsKey(order.Sell))
         {
             ship.Order = null; ship.Phase = TradePhase.Idle; ship.Cargo.Clear();
             return;
@@ -270,8 +280,9 @@ public sealed class TraderSystem : ISimSystem
             float amount = MathF.Min(MathF.Min(free / good.VolumePerUnit, stock.Amount),
                                      stock.Price > 0 ? money / stock.Price : 0f);
             // Phase 5a: nur so viel kaufen, wie der Abnehmer jetzt noch annimmt (sonst würde der Rest dort unbezahlt abgeladen)
+            // Phase 19: abzüglich der Ladung anderer Händler, die schon auf dem Weg dorthin sind (ReserveIncoming)
             var sellSt = u.Stations[order.Sell];
-            amount = MathF.Min(amount, MathF.Floor(sellSt.AcceptableUnits(order.Good, u.Rules)));
+            amount = MathF.Min(amount, MathF.Floor(sellSt.AcceptableUnits(order.Good, u.Rules) - (u.Rules.ReserveIncoming ? LadenTowards(u, ship, sellSt.Id, order.Good) : 0f)));
             // Phase 14: nur so viel kaufen, wie der Abnehmer jetzt bezahlen kann (wie in der Bewertung)
             if (sellSt.Market.TryGetValue(order.Good, out var se) && se.Price > 0f)
                 amount = MathF.Min(amount, MathF.Floor(MathF.Max(0f, sellSt.Credits) / se.Price));
@@ -317,35 +328,66 @@ public sealed class TraderSystem : ISimSystem
             var stock = st.Stock(order.Good);
             float have = ship.Cargo.GetValueOrDefault(order.Good);
             // Phase 14: Die Station nimmt nur, was sie noch annimmt und bezahlen kann. Ein Rest (andere Händler waren schneller, Kasse inzwischen knapp)
-            // fährt zum nächsten Käufer; nur wenn es keinen gibt, wird er wie früher ohne Bezahlung abgeladen.
-            float amount = have;
-            float take = stock.Price > 0f ? MathF.Min(have, MathF.Min(MathF.Max(0f, st.AcceptableUnits(order.Good, u.Rules)), MathF.Max(0f, st.Credits) / stock.Price)) : 0f;
-            if (have - take > 0.5f && TradeActions.BestBuyerFor(u, ship, order.Good, have - take, st.Id) is { } rest)
+            // fährt zum nächsten Käufer.
+            // Phase 19: Menge nach der gemeinsamen Verkaufsregel (ganze Einheiten bis zur Annahme, alles bei einem Überhang unter der Resttoleranz,
+            // TradeActions.SaleUnits). Einen Rest ohne weiteren Käufer lädt der Händler nicht mehr unbezahlt über die Annahme ab (vorher: Wasserstoff, Titan,
+            // Elektronik in kleinen Lagern dauerhaft am unteren Preisdeckel) — er behält ihn und versucht es beim nächsten Nachdenken (SellStranded);
+            // findet sich dann niemand, wirft ein KI-Händler ihn im All ab.
+            var (cap, allCap) = stock.Price > 0f ? TradeActions.SaleCaps(u, st, order.Good, MathF.Max(0f, st.Credits)) : (0f, 0f);
+            float amount = TradeActions.SaleUnits(have, have, cap, allCap);
+            if (st.IsBuildSite) amount = MathF.Min(have, MathF.Max(0f, st.AcceptableUnits(stock, u.Rules)));   // Baustelle: genau die fehlende Menge (Treuhand zahlt)
+            if (amount > 0.0001f) Deliver(u, ship, st, stock, order, amount);
+            float rest = ship.Cargo.GetValueOrDefault(order.Good);
+            if (rest <= 0.0001f) ship.Cargo.Remove(order.Good);
+            else if (TradeActions.BestBuyerFor(u, ship, order.Good, rest, st.Id) is { } next)
             {
-                amount = take;
-                if (amount > 0.0001f) Deliver(u, ship, st, stock, order, amount);
-                ship.Cargo[order.Good] = have - amount;
-                ship.Order = new TradeOrder(order.Buy, rest.Id, order.Good);
+                ship.Order = new TradeOrder(order.Buy, next.Id, order.Good);
                 ship.Phase = TradePhase.GoingToSell;
-                var restPlan = Refuel.PrepareTrip(u, ship, rest.Sector, rest.DockPoint(ship.Id));
+                var restPlan = Refuel.PrepareTrip(u, ship, next.Sector, next.DockPoint(ship.Id));
                 if (restPlan == Refuel.TripPlan.FuelStop) return;
-                if (restPlan == Refuel.TripPlan.Depart && Travel.Start(u, ship, rest.Sector, rest.DockPoint(ship.Id))) return;
-                // Weiterfahrt nicht möglich: Rest hier abladen (alte Regel)
-                stock = st.Stock(order.Good);
-                amount = ship.Cargo.GetValueOrDefault(order.Good);
-                ship.Order = order;
+                if (restPlan == Refuel.TripPlan.Depart && Travel.Start(u, ship, next.Sector, next.DockPoint(ship.Id))) return;
             }
-            Deliver(u, ship, st, stock, order, amount);
-            ship.Cargo.Remove(order.Good);
             ship.Order = null;
             ship.Phase = TradePhase.Idle;
             ship.IdleSince = u.Tick;
         }
     }
 
+    /// <summary>Phase 19: Ladung dieser Ware, die andere Händler gerade zu dieser Station fahren (unterwegs zum Verkauf).</summary>
+    static float LadenTowards(Universe u, Ship ship, StationId station, GoodId good)
+    {
+        float sum = 0f;
+        foreach (var o in u.Ships.Values)
+            if (o != ship && o.Order is TradeOrder io && io.Sell == station && io.Good == good && o.Phase == TradePhase.GoingToSell)
+                sum += o.Cargo.GetValueOrDefault(good);
+        return sum;
+    }
+
+    /// <summary>
+    /// Phase 19: Ein KI-Händler behält Fracht, die gerade keine erreichbare Station annimmt, höchstens <see cref="EconomyRules.StrandedCargoTicks"/> lang (er
+    /// versucht sie bei jedem Nachdenken zu verkaufen und fährt mit dem übrigen Laderaum weiter) und wirft sie dann im All ab (wie Schürfer ihre unverkäuflichen
+    /// Reste) — statt sie unbezahlt bei einer vollen Station abzuladen. Spielerschiffe behalten sie (die Person entscheidet, <see cref="Trading.CargoJettison"/>).
+    /// </summary>
+    static void DiscardUnsellable(Universe u, Ship ship)
+    {
+        if (!ship.Cargo.Values.Any(n => n > 0.0001f)) { ship.Cargo.Clear(); ship.StrandedSince = -1; return; }
+        if (ship.IsPlayer) return;
+        if (ship.StrandedSince < 0) { ship.StrandedSince = u.Tick; return; }
+        if (u.Tick - ship.StrandedSince < u.Rules.StrandedCargoTicks) return;   // Frist: behalten und beim nächsten Nachdenken wieder versuchen
+        ship.StrandedSince = -1;
+        foreach (var (g, n) in ship.Cargo.OrderBy(kv => kv.Key.Value).ToList())
+        {
+            if (n > 0.0001f) u.Events.Publish(new CargoDiscarded(ship.Id, ship.Sector, g, n));
+            ship.Cargo.Remove(g);
+        }
+    }
+
     /// <summary>Verkauf einer Teilmenge an die Station: sie zahlt, was ihre Kasse hergibt (Rest unbezahlt), Ereignisse und Buchungshaken.</summary>
     static void Deliver(Universe u, Ship ship, Station st, StockEntry stock, TradeOrder order, float amount)
     {
+        // Phase 19: Menge über der Annahme der Station (Abladen als letzter Ausweg) als Messwert melden
+        float over = amount - MathF.Max(0f, st.AcceptableUnits(stock, u.Rules));
+        if (over > 0.0001f) u.Events.Publish(new CargoDumped(ship.Id, st.Id, order.Good, over));
         float paid = stock.Price > 0 ? MathF.Min(amount, MathF.Max(0f, st.Credits) / stock.Price) : 0f;
         float revenue = paid * stock.Price;
         stock.Amount += amount;

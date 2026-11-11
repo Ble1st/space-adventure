@@ -155,6 +155,15 @@ public sealed class Station
     /// </summary>
     public Dictionary<GoodId, float> MaintenanceBacklog = new();
     public long BelowLimitSince = -1;
+    /// <summary>Phase 19: Tick, an dem die Station fertig wurde (Startwelt 0); Schonfrist der Stilllegung. Gespeichert.</summary>
+    public long BuiltTick;
+    /// <summary>
+    /// Phase 19: Auslastung — gleitender Mittelwert (Fenster <see cref="EconomyRules.UtilizationWindowTicks"/>) des Anteils der fälligen Produktionstakte, in
+    /// denen mindestens ein Rezept lief (<see cref="Simulation.ProductionSystem"/>); 1 bei Baubeginn. Gespeichert und gehasht.
+    /// </summary>
+    public float Activity = 1f;
+    /// <summary>Phase 19: wie <see cref="Activity"/>, Anteil der fälligen Takte, in denen nichts lief, weil Zutaten fehlten (der Rest pausierte ohne Abnehmer).</summary>
+    public float Starved;
     public string Name = "";
     public SectorId Sector;
     /// <summary>Besitzer (Phase 9: ein Akteur; die Startstationen gehören den Fraktionsakteuren, Id = Fraktions-Id).</summary>

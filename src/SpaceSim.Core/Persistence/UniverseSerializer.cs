@@ -100,6 +100,7 @@ public static class UniverseSerializer
         {
             SavedAtUtc = now.ToUniversalTime().ToString("o"),
             Tick = u.Tick, Seed = u.Seed, RngState = u.Rng.State, LastStationBuildTick = u.LastStationBuildTick,
+            LastStationRetireTick = u.LastStationRetireTick, ScarceSince = u.ScarceSince.Count == 0 ? null : u.ScarceSince.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
             NextShipId = u.IdCounters.ship, NextStationId = u.IdCounters.station, NextAsteroidId = u.NextAsteroidId,
             PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
             PlayerActor = u.PlayerActor.Value, FreeActor = u.FreeActor.Value, NextActorId = u.NextActorId,
@@ -212,6 +213,7 @@ public static class UniverseSerializer
                 PlayerStorage = st.PlayerStorage.Count == 0 ? null : st.PlayerStorage.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Exports = st.Exports.Count == 0 ? null : st.Exports.Select(b => new ExportBatchSave { Good = b.Good.Value, Amount = b.Amount, Paid = b.Paid, Due = b.DueTick }).ToList(),
                 MaintenanceBacklog = st.MaintenanceBacklog.Count == 0 ? null : st.MaintenanceBacklog.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved,
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -228,7 +230,7 @@ public static class UniverseSerializer
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                JobSince = sh.JobSince,
+                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince < 0 ? null : sh.StrandedSince,
                 Quality = sh.Quality == ShipQuality.Standard ? null : sh.Quality.ToString(),
                 UpgradePity = sh.UpgradePity.Count == 0 ? null : new Dictionary<int, int>(sh.UpgradePity),
                 HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
@@ -250,7 +252,9 @@ public static class UniverseSerializer
     {
         var u = new Universe
         {
-            Tick = s.Tick, Seed = s.Seed, LastStationBuildTick = s.LastStationBuildTick, Rules = s.Rules, NextAsteroidId = s.NextAsteroidId,
+            Tick = s.Tick, Seed = s.Seed, LastStationBuildTick = s.LastStationBuildTick, Rules = s.Rules,
+            LastStationRetireTick = s.LastStationRetireTick,
+            ScarceSince = s.ScarceSince is null ? new Dictionary<GoodId, long>() : s.ScarceSince.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value), NextAsteroidId = s.NextAsteroidId,
             Rng = new DeterministicRng(s.Seed) { State = s.RngState },
             PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
         };
@@ -383,6 +387,7 @@ public static class UniverseSerializer
                 PlayerStorage = st.PlayerStorage is null ? new Dictionary<GoodId, float>() : st.PlayerStorage.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Exports = st.Exports is null ? new List<ExportBatch>() : st.Exports.Select(b => new ExportBatch { Good = new GoodId(b.Good), Amount = b.Amount, Paid = b.Paid, DueTick = b.Due }).ToList(),
                 MaintenanceBacklog = st.MaintenanceBacklog is null ? new Dictionary<GoodId, float>() : st.MaintenanceBacklog.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved,
             };
         foreach (var sh in s.Ships)
         {
@@ -403,7 +408,7 @@ public static class UniverseSerializer
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
-                JobSince = sh.JobSince,
+                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince ?? -1,
                 Quality = sh.Quality is { } ql ? Enum.Parse<ShipQuality>(ql) : ShipQuality.Standard,
                 UpgradePity = sh.UpgradePity is null ? new Dictionary<int, int>() : new Dictionary<int, int>(sh.UpgradePity),
                 HomeBase = new StationId(sh.HomeBase), DutySector = new SectorId(sh.DutySector),
