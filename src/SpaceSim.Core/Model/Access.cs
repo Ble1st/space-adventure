@@ -23,9 +23,10 @@ public enum ControlStage { None, Presence, Influence, Dominance, Control }
 /// <summary>
 /// Regierungsform eines Stationstyps (Phase 10, STATIONEN.md „Regierungsstationen“). Hauptquartier, Firmensitz, Sektor-HQ und Büro sind
 /// <c>Government</c> (eigene Verlustregeln, nie eroberbar); die Polizeiwache ist ein Stationstyp mit Einfluss und Patrouillenabdeckung
-/// (Polizei-Logik folgt in Phase 11).
+/// (Polizei-Logik folgt in Phase 11). Phase 13: Forschungsstation (Unterhalt und Budget aus der Fraktionskasse, nicht eroberbar wie Behörden ist sie
+/// aber nicht: sie zählt wie die Wache nur als „offiziell“).
 /// </summary>
-public enum GovernmentKind { None, Headquarters, CompanySeat, SectorHq, Office, Police }
+public enum GovernmentKind { None, Headquarters, CompanySeat, SectorHq, Office, Police, Research }
 
 /// <summary>
 /// Sperre eines Sektors (Phase 10, POLITIK.md Abschnitt 2; Entscheidung: Sperren je Sektor, Gates mit Ausnahmen über
@@ -107,6 +108,7 @@ public static class AccessNames
         GovernmentKind.SectorHq => "Sektor-HQ",
         GovernmentKind.Office => "Büro",
         GovernmentKind.Police => "Polizeiwache",
+        GovernmentKind.Research => "Forschungsstation",
         _ => "",
     };
 }

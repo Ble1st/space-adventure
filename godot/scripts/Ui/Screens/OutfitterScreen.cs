@@ -180,7 +180,9 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		bg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		var chip = new ColorRect { Color = DockAreaScreen.GoodColorOf(u, o.Good), MouseFilter = MouseFilterEnum.Ignore };
 		At(row, chip, 10, 12, 12, 12);
-		At(row, Text(o.Text, 16, White), 30, 4, w - 200, 24);
+		// Phase 13: der Sperrgrund steht in der Wirkungszeile — der Titel bleibt kurz (sonst läuft er unter die Taste)
+		string title = o.Text.IndexOf(" – nicht erforscht", StringComparison.Ordinal) is var cut and > 0 ? o.Text[..cut] : o.Text;
+		At(row, Text(title, 16, White), 30, 4, w - 200, 24);
 		string source = remove
 			? (o.Price > 0f ? $"Station kauft an: {o.Price:0} Cr" : "Station nimmt nicht an → in die Fracht")
 			: (o.Price <= 0f ? $"aus der Fracht ({o.Held:0} an Bord) · kostenlos" : $"Lager {o.Stock:0.#} · {o.Price:0} Cr");
@@ -188,7 +190,10 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		string effect = p is null ? "" : !p.Valid
 			? (p.Issue is { } issue ? FitRules.Describe(issue) : p.CargoProblem ?? "")
 			: Diff(p.Before, p.After);
-		if (p is { Valid: true } && !can) effect = "Nicht genügend Credits · " + effect;
+		// Phase 13: gesperrtes Modul (für die Fraktion der Station nicht erforscht) — sichtbar, aber nicht einbaubar
+		string? locked = moduleKey is null || o.Held >= 1f ? null : SpaceSim.Core.Simulation.Research.LockText(u, Ctx.Station, UnlockKind.Module, moduleKey);
+		if (locked is not null) { effect = $"Nicht erforscht ({u.Research.LockOf(UnlockKind.Module, moduleKey!)?.Name}) — " + effect; can = false; }
+		else if (p is { Valid: true } && !can) effect = "Nicht genügend Credits · " + effect;
 		At(row, Text(effect, 13, p is { Valid: true } && can ? Green : Orange), 30, 52, w - 200, 22);
 		var b = At(row, new KitButton(remove ? "Ausbauen" : ship.Fit[_slot] is null ? "Einbauen" : "Tauschen", new Vector2(150, 56))
 		{ FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 160, 13);

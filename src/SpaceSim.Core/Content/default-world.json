@@ -672,6 +672,14 @@
     "armor_plating_s": [
      1,
      2
+    ],
+    "reactor_mk3": [
+     0,
+     1
+    ],
+    "mining_laser_3": [
+     0,
+     1
     ]
    },
    "shipDealer": {
@@ -743,7 +751,7 @@
      "engine",
      "cargo"
     ],
-    "maxTier": 2,
+    "maxTier": 3,
     "ticks": 20,
     "target": 5
    },
@@ -760,6 +768,10 @@
     "chem_engine_s_mk2": [
      1,
      3
+    ],
+    "reactor_mk3": [
+     1,
+     1
     ]
    }
   },
@@ -792,7 +804,7 @@
      "tool",
      "utility"
     ],
-    "maxTier": 2,
+    "maxTier": 3,
     "ticks": 20,
     "target": 5
    },
@@ -809,6 +821,10 @@
     "split_laser_s": [
      1,
      3
+    ],
+    "mining_laser_3": [
+     1,
+     1
     ]
    }
   },
@@ -977,6 +993,50 @@
    "services": [],
    "recipes": [],
    "capturable": false
+  },
+  {
+   "key": "research_station",
+   "name": "Forschungsstation",
+   "government": "research",
+   "influence": 0,
+   "buildCost": 25000,
+   "upkeep": 1,
+   "income": 0,
+   "services": ["trade", "research", "hangar"],
+   "recipes": [],
+   "capturable": false,
+   "stocks": {
+    "electronics": [
+     6,
+     10
+    ],
+    "energy": [
+     20,
+     30
+    ],
+    "platinum": [
+     2,
+     4
+    ],
+    "wafers": [
+     4,
+     8
+    ],
+    "titanium": [
+     3,
+     6
+    ]
+   },
+   "research": {
+    "ticks": 10,
+    "points": 5,
+    "credits": 10,
+    "inputs": {
+     "energy": 2
+    },
+    "fundTarget": 5000,
+    "fundPerTick": 8
+   }
   }
  ],
  "factions": [
@@ -1133,6 +1193,17 @@
       -90
      ],
      "essential": true
+    },
+    {
+     "id": 37,
+     "type": "research_station",
+     "name": "Forschungsinstitut der Union",
+     "pos": [
+      -40,
+      -140
+     ],
+     "essential": true,
+     "credits": 5000
     },
     {
      "id": 32,
@@ -1386,6 +1457,17 @@
      ],
      "essential": true,
      "credits": 10000
+    },
+    {
+     "id": 38,
+     "type": "research_station",
+     "name": "Gildenlabor Gamma",
+     "pos": [
+      120,
+      120
+     ],
+     "essential": true,
+     "credits": 5000
     },
     {
      "id": 34,
@@ -1960,6 +2042,34 @@
     "electronics": 3,
     "copper": 2,
     "platinum": 1
+   },
+   "upgrade": {
+    "to": "mining_laser_3",
+    "cost": {
+     "electronics": 2,
+     "platinum": 1
+    }
+   }
+  },
+  {
+   "key": "mining_laser_3",
+   "name": "Mining-Laser Mk3",
+   "slot": "tool",
+   "size": "S",
+   "tier": 3,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "chunkChanceMult": 1.6,
+    "chunkSizeMult": 1.5
+   },
+   "powerDraw": 4,
+   "mass": 1,
+   "cost": {
+    "electronics": 4,
+    "copper": 2,
+    "platinum": 2
    }
   },
   {
@@ -1977,6 +2087,30 @@
     "steel": 4,
     "electronics": 3,
     "platinum": 1
+   },
+   "upgrade": {
+    "to": "reactor_mk3",
+    "cost": {
+     "electronics": 2,
+     "platinum": 1
+    }
+   }
+  },
+  {
+   "key": "reactor_mk3",
+   "name": "Fusionsreaktor Mk3",
+   "slot": "reactor",
+   "size": "S",
+   "tier": 3,
+   "stats": {
+    "powerOutput": 18
+   },
+   "mass": 4,
+   "upkeep": 0.3,
+   "cost": {
+    "steel": 4,
+    "electronics": 4,
+    "platinum": 2
    }
   },
   {
@@ -2813,6 +2947,23 @@
     "shield_mk1",
     null
    ]
+  },
+  {
+   "key": "excavator",
+   "class": "miner_heavy",
+   "name": "Excavator",
+   "fit": [
+    "reactor_mk3",
+    "chem_engine_m",
+    "mining_laser_3",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
   }
  ],
  "ships": [
@@ -2958,5 +3109,47 @@
     "credits": 800
    }
   ]
- }
+ },
+ "research": [
+  {
+   "key": "fusion_mk3",
+   "name": "Fusionstechnik Mk3",
+   "description": "Dichtere Plasmaeinschlüsse: Reaktor Mk3 mit 18 Leistung. Verbraucht zusätzlich Platin.",
+   "points": 3000,
+   "unlocks": [
+    "module:reactor_mk3"
+   ],
+   "inputs": {
+    "platinum": 0.05
+   }
+  },
+  {
+   "key": "precision_lasers",
+   "name": "Präzisionslaser",
+   "description": "Gepulste Bohrlaser: Mining-Laser Mk3 löst öfter und größere Brocken. Verbraucht zusätzlich Wafer.",
+   "points": 3000,
+   "unlocks": [
+    "module:mining_laser_3"
+   ],
+   "inputs": {
+    "wafers": 0.2
+   }
+  },
+  {
+   "key": "deep_mining",
+   "name": "Tiefbau-Schürfer",
+   "description": "Schwerer Bergbaurumpf mit Reaktor Mk3 und Laser Mk3: das Schürfschiff Excavator. Verbraucht zusätzlich Titan.",
+   "points": 5000,
+   "requires": [
+    "fusion_mk3",
+    "precision_lasers"
+   ],
+   "unlocks": [
+    "model:excavator"
+   ],
+   "inputs": {
+    "titanium": 0.2
+   }
+  }
+ ]
 }

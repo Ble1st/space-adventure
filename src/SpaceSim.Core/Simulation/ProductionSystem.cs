@@ -9,6 +9,7 @@ public sealed class ProductionSystem : ISimSystem
 
     public void Step(Universe u, int dt)
     {
+        bool locks = u.Rules.ResearchActive && u.Research.HasModuleLocks;
         foreach (var st in u.Stations.Values)
         {
             _due.Clear();
@@ -16,6 +17,8 @@ public sealed class ProductionSystem : ISimSystem
             {
                 var r = st.Production[i];
                 if (r.TicksPerCycle <= 0 || u.Tick % r.TicksPerCycle != 0) continue;
+                // Phase 13: Module, die die Fraktion der Station noch nicht erforscht hat, stellt sie nicht her
+                if (locks && !OutputsAvailable(u, st, r)) continue;
                 _due.Add((r, Priority(u, st, r), i));
             }
             // Phase 5c: Teilen sich mehrere Rezepte einer Station die Zutaten (Modulfabriken, Werft), läuft zuerst das Rezept, dessen
@@ -31,6 +34,13 @@ public sealed class ProductionSystem : ISimSystem
                 foreach (var kv in r.Outputs) st.Stock(kv.Key).Amount += kv.Value;
             }
         }
+    }
+
+    static bool OutputsAvailable(Universe u, Station st, Recipe r)
+    {
+        foreach (var g in r.Outputs.Keys)
+            if (!Research.GoodAvailable(u, st, g)) return false;
+        return true;
     }
 
     /// <summary>Knappheit der Produkte eines Rezepts: Σ Marktpreis / Σ Basispreis der Ausgänge (0 ohne Ausgänge).</summary>

@@ -30,6 +30,8 @@ public partial class Hud : CanvasLayer
 	public ShipyardScreen DockShipyard { get; } = new();
 	public StorageScreen DockStorage { get; } = new();
 	public AuthorityScreen DockAuthority { get; } = new();
+	/// <summary>Phase 13: Forschung (Dienst „research“ an Forschungsstationen).</summary>
+	public ResearchScreen DockResearch { get; } = new();
 	public PlaceholderAreaScreen DockPlaceholder { get; } = new();
 	// Kommandozentrale (UI.md Abschnitt 4): Vollbild-Bereiche mit linker Leiste; Kontext hält Main aktuell
 	public CommandContext CcCtx { get; } = new();
@@ -70,6 +72,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(DockShipyard);
 		Screens.Register(DockStorage);
 		Screens.Register(DockAuthority);
+		Screens.Register(DockResearch);
 		Screens.Register(DockPlaceholder);
 		DockMenu.Ctx = DockCtx;
 		DockTrade.Ctx = DockCtx;
@@ -81,6 +84,7 @@ public partial class Hud : CanvasLayer
 		DockShipyard.Ctx = DockCtx;
 		DockStorage.Ctx = DockCtx;
 		DockAuthority.Ctx = DockCtx;
+		DockResearch.Ctx = DockCtx;
 		DockPlaceholder.Ctx = DockCtx;
 		Screens.Register(CcUniverse);
 		Screens.Register(CcSector);
@@ -128,6 +132,7 @@ public partial class Hud : CanvasLayer
 		root.AddChild(DockShipyard);
 		root.AddChild(DockStorage);
 		root.AddChild(DockAuthority);
+		root.AddChild(DockResearch);
 		root.AddChild(DockPlaceholder);
 		root.AddChild(CcUniverse);
 		root.AddChild(CcSector);

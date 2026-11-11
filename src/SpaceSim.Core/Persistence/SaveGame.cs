@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 15;
+    public const int CurrentVersion = 16;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -56,6 +56,35 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
     /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
     public int NextSquadronId { get; set; } = 1;
+    /// <summary>Phase 13 (v16): Forschungsprojekte (Content wie Rezepte und Module); fehlt = keine Forschung, alles frei.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<ResearchProjectSave>? Research { get; set; }
+}
+
+/// <summary>Forschungsprojekt (Phase 13, v16): Freischaltungen als Text („module:key“ …), Zusatzverbrauch als GoodId → Einheiten.</summary>
+public sealed class ResearchProjectSave
+{
+    public string Key { get; set; } = ""; public string Name { get; set; } = ""; public string Description { get; set; } = "";
+    public float Points { get; set; }
+    public List<string> Requires { get; set; } = new();
+    public List<string> Unlocks { get; set; } = new();
+    public Dictionary<int, float> Inputs { get; set; } = new();
+}
+
+/// <summary>Forschungsbetrieb eines Stationstyps (Phase 13, v16).</summary>
+public sealed class ResearchConfigSave
+{
+    public int Ticks { get; set; } public float Points { get; set; } public float Credits { get; set; }
+    public Dictionary<int, float> Inputs { get; set; } = new();
+    public float FundTarget { get; set; } public float FundPerTick { get; set; }
+}
+
+/// <summary>Forschungsstand einer Fraktion (Phase 13, v16).</summary>
+public sealed class ResearchStateSave
+{
+    public string? Current { get; set; } public bool Commissioned { get; set; }
+    public Dictionary<string, float> Progress { get; set; } = new();
+    public Dictionary<string, long> Completed { get; set; } = new();
+    public float PointsTotal { get; set; } public float Spent { get; set; } public float PlayerFunded { get; set; }
 }
 
 /// <summary>Verband (Phase 12, v15): Besitzer, Name, Anführer, Mitglieder (Anführer zuerst), Formation, Heimatbasis, Verhaltensregel.</summary>
@@ -156,6 +185,8 @@ public sealed class StationTypeSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Security { get; set; }
     /// <summary>Phase 11 (v14): Piratenversteck; fehlt = nein.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? Hideout { get; set; }
+    /// <summary>Phase 13 (v16): Forschungsbetrieb; fehlt = keine Forschungsstation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ResearchConfigSave? Research { get; set; }
 }
 
 /// <summary>Schiffshändler eines Stationstyps (Phase 5c): erlaubte Klassen (null = alle), Höchstgröße als Text, Montagegebühr.</summary>
@@ -176,6 +207,8 @@ public sealed class FactionSave
     public List<int> Territory { get; set; } = new();
     /// <summary>Tick des letzten Notbaus (Phase 8, v11); fehlt = lange her.</summary>
     public long LastEmergencyBuildTick { get; set; } = -1_000_000;
+    /// <summary>Phase 13 (v16): Forschungsstand; fehlt = nichts erforscht.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ResearchStateSave? Research { get; set; }
 }
 
 public sealed class FieldSave

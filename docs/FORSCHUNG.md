@@ -1,4 +1,6 @@
-# Forschung und Technologie (Plan, nicht umgesetzt)
+# Forschung und Technologie
+
+> **Stand:** In Phase 13 umgesetzt (Save v16) — Projekte im Weltdatei-Abschnitt `research`, Forschungsstationen je Fraktion, fraktionsweite Freischaltungen (Mk3-Module, Excavator), Dienst „research“ (beauftragen, mitfinanzieren). Abweichungen (Verbrauch ohne Elektronik als Hauptgut, nur Modul-/Modell-Freischaltungen) stehen in [UMSETZUNGSPLAN.md](UMSETZUNGSPLAN.md), Phase 13.
 
 ## Idee
 Die Forschungsstation ist eine **Wissenssenke mit Langzeitwirkung**: Sie verbraucht teure Güter und liefert keine Ware, sondern schaltet über die Zeit neue Möglichkeiten frei. Sie ist die einzige Station, die den *Inhalt* der Wirtschaft verändert und nicht nur ihre Mengen.

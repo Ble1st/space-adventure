@@ -76,7 +76,7 @@ public static class AccessInfo
         string customs = sp.ForPlayer == "frei" ? "kein Zoll" : sp.ForPlayer;
         var notes = new List<string>();
         var kind = StationProtection.KindOf(u, st);
-        if (kind != GovernmentKind.None) notes.Add($"{AccessNames.Government(kind)} — {(StationProtection.IsGovernment(u, st) ? "Regierungsstation, Unterhalt aus der Kasse" : "Wache, Unterhalt aus der Kasse")}");
+        if (kind != GovernmentKind.None) notes.Add($"{AccessNames.Government(kind)} — {(StationProtection.IsGovernment(u, st) ? "Regierungsstation, Unterhalt aus der Kasse" : kind == GovernmentKind.Research ? "Forschung, Unterhalt und Budget aus der Kasse" : "Wache, Unterhalt aus der Kasse")}");
         if (st.Immortal) notes.Add("unzerstörbar");
         notes.Add($"Sektor: {sp.Owner} · {sp.Stage}");
         if (sp.Contested) notes.Add("Umkämpft: höchstens Stufe 1 durchsetzbar");

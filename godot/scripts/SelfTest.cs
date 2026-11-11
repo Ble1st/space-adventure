@@ -818,6 +818,73 @@ public partial class SelfTest : Node
 				_m.TestUndock();
 				Next(); break;
 			}
+			case 44: // Phase 13: Forschung — Forschungsinstitut der Union: Bereich „Forschung“, beauftragen, mitfinanzieren, strenge Schlüssel; Kommandozentrale
+			{
+				if (_frame - _stageStart < 90) break;   // Abdock-Bewegung abwarten
+				try
+				{
+					var uni = _m.Session.U;
+					var union = uni.Factions[new FactionId(1)];
+					var lab = uni.Stations.Values.First(st => st.TypeKey == "research_station" && SpaceSim.Core.Simulation.Research.TechOf(uni, st) == union.Id);
+					uni.PlayerWallet.Credits += 20_000f;
+					_m.TestDockAt(lab.Id);
+					Check(_m.Docked, "Am Forschungsinstitut angedockt");
+					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Research && a.Available), "Andock-Menü zeigt den Bereich „Forschung“ (Dienst research)");
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Research);
+					Check(_m.TestScreenOpen("dock.research"), "Forschung geöffnet");
+					Check(_m.HudRef.DockResearch.TestRowCount == uni.Research.Count && _m.HudRef.DockResearch.TestFundButtons == uni.Rules.ResearchFundAmounts.Count,
+						$"Forschung zeigt {_m.HudRef.DockResearch.TestRowCount} Projekte und {_m.HudRef.DockResearch.TestFundButtons} Beträge aus ResearchInfo/Offers");
+					string? running = SpaceSim.Core.Simulation.Research.Peek(uni, union.Research)?.Key;
+					string target = SpaceSim.Core.Simulation.Research.AvailableProjects(uni, union.Research).Select(p => p.Key).FirstOrDefault(k => k != running) ?? running!;
+					float before = uni.PlayerWallet.Credits;
+					if (target == running)
+						Check(!_m.HudRef.DockResearch.Execute($"commission:{target}").Success, "Das laufende Projekt lässt sich nicht noch einmal beauftragen");
+					else
+					{
+						var c = _m.HudRef.DockResearch.Execute($"commission:{target}");
+						Check(c.Success && union.Research.Current == target && System.Math.Abs(before - uni.Rules.ResearchCommissionFee - uni.PlayerWallet.Credits) < 0.5f,
+							$"Projekt beauftragt, Gebühr gebucht („{c.Message}“)");
+					}
+					float pts = union.Research.Progress.GetValueOrDefault(target);
+					var f = _m.HudRef.DockResearch.Execute("fund:2000");
+					Check(f.Success && union.Research.Progress.GetValueOrDefault(target) > pts, $"Mitfinanziert: +FP („{f.Message}“)");
+					Check(!_m.HudRef.DockResearch.Execute("fund:7").Success && !_m.HudRef.DockResearch.Execute("commission:x").Success, "Unbekannte Forschungs-Schlüssel werden abgewiesen");
+					_m.TestOpenCommand();
+					_m.TestOpenCcArea("factions");
+					_m.HudRef.CcFactions.TestSelect(union.Id);
+					Check(_m.TestScreenOpen("cc.factions"), "Fraktionen zeigen den Forschungsstand ohne Ausnahme");
+					_m.TestOpenCcArea("myfaction");
+					Check(_m.TestScreenOpen("cc.myfaction"), "Meine Fraktion zeigt die Forschung der eigenen Fraktion");
+					_m.TestCloseCommand();
+					_m.TestUndock();
+				}
+				catch (System.Exception ex) { Fail("Forschung warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 45: // Phase 13: Werft und Ausrüster zeigen nicht Erforschtes; nach der Forschung der Werftfraktion kaufbar
+			{
+				if (_frame - _stageStart < 90) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var yardSt = uni.Stations.Values.First(s => s.TypeKey == "shipyard");
+					var guild = uni.Factions[SpaceSim.Core.Simulation.Research.TechOf(uni, yardSt)!.Value];
+					_m.TestDockAt(yardSt.Id);
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Shipyard);
+					int locked = _m.HudRef.DockShipyard.TestLockedRows;
+					Check(locked >= 1 && !guild.Research.IsCompleted("deep_mining"), $"Werft zeigt {locked} nicht erforschte(s) Modell(e) (Excavator) sichtbar, aber gesperrt");
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Outfitter);
+					_m.HudRef.DockOutfitter.TestSelectSlot(_m.Session.Player.Slots.FindIndex(sl => sl.Type == "reactor"));
+					var mk3 = _m.HudRef.DockOutfitter.TestSlotOffers().FirstOrDefault(o => o.Key.EndsWith(":reactor_mk3"));
+					Check(mk3.Key is not null && mk3.Amount == 0f && mk3.Text.Contains("nicht erforscht"), $"Ausrüster zeigt Reaktor Mk3 als „nicht erforscht“ („{mk3.Text}“)");
+					foreach (var p in uni.Research.Projects) SpaceSim.Core.Simulation.Research.AddPoints(uni, guild, p, p.Points);
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Shipyard);
+					Check(_m.HudRef.DockShipyard.TestLockedRows == 0, "Nach der Forschung der Gilde ist an ihrer Werft nichts mehr gesperrt");
+					_m.TestUndock();
+				}
+				catch (System.Exception ex) { Fail("Forschung an Werft/Ausrüster warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

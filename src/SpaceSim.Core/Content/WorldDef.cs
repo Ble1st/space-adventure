@@ -24,6 +24,39 @@ public sealed class WorldDef
     public List<ShipModelDef> ShipModels { get; set; } = new();
     public List<ShipGroupDef> Ships { get; set; } = new();
     public PlayerDef Player { get; set; } = new();
+    /// <summary>Phase 13: Forschungsprojekte (FORSCHUNG.md „Architektur“); fehlt der Abschnitt, ist alles frei.</summary>
+    public List<ResearchProjectDef> Research { get; set; } = new();
+}
+
+/// <summary>
+/// Forschungsprojekt der Weltdatei (Phase 13): Schlüssel, Name, Beschreibung, nötige FP (<c>points</c>), Voraussetzungen (<c>requires</c>, nur
+/// früher aufgeführte Projekte), Freischaltungen (<c>unlocks</c>: "module:&lt;key&gt;", "model:&lt;key&gt;", "stationType:&lt;key&gt;") und
+/// Zusatzverbrauch je Forschungstakt (<c>inputs</c>: Warenschlüssel → Einheiten).
+/// </summary>
+public sealed class ResearchProjectDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public float Points { get; set; } = 1000;
+    public List<string> Requires { get; set; } = new();
+    public List<string> Unlocks { get; set; } = new();
+    public Dictionary<string, float> Inputs { get; set; } = new();
+}
+
+/// <summary>
+/// Forschungsbetrieb eines Stationstyps (Phase 13, nur mit <c>government: "research"</c>): alle <c>ticks</c> Ticks ein Takt mit <c>points</c> FP,
+/// Personalkosten <c>credits</c> und Grundverbrauch <c>inputs</c> (Warenschlüssel → Einheiten); Budget aus der Fraktionskasse bis <c>fundTarget</c>,
+/// höchstens <c>fundPerTick</c> je Tick.
+/// </summary>
+public sealed class ResearchConfigDef
+{
+    public int Ticks { get; set; } = 10;
+    public float Points { get; set; } = 5;
+    public float Credits { get; set; }
+    public Dictionary<string, float> Inputs { get; set; } = new();
+    public float FundTarget { get; set; }
+    public float FundPerTick { get; set; }
 }
 
 public sealed class GoodDef
@@ -198,6 +231,8 @@ public sealed class StationTypeDef
     public float Security { get; set; }
     /// <summary>Phase 11: Piratenversteck (Heimat der Kaperschiffe, zählt nicht gegen die Bau-Obergrenzen); Standard nein.</summary>
     public bool Hideout { get; set; }
+    /// <summary>Phase 13: Forschungsbetrieb (nur mit <c>government: "research"</c>); fehlt = keine Forschungsstation.</summary>
+    public ResearchConfigDef? Research { get; set; }
 }
 
 /// <summary>

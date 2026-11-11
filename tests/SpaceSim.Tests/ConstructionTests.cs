@@ -636,7 +636,7 @@ public class ConstructionTests
         var runner = new SimulationRunner();
         runner.Run(u, 300);   // Bauschiff unterwegs, Baustelle beliefert
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
+        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
         Assert.Contains("\"Site\":", json);
         Assert.Contains("\"PlayerStorage\":", json);
         var (loaded, _) = SaveGameJson.Read(json);

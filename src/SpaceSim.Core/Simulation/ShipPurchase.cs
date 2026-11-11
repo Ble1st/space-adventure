@@ -65,6 +65,13 @@ public static class ShipPurchase
     public static bool Sells(Universe u, Station st, ShipClass cls) =>
         u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.ShipDealer is { } cfg && cfg.Allows(cls);
 
+    /// <summary>
+    /// Phase 13: Darf diese Station gerade dieses Modell verkaufen — Klasse erlaubt und das Modell für die Fraktion der Station erforscht
+    /// (<see cref="Research.Available"/>)? Gilt für Spieler, KI-Flotte und Polizei gleich.
+    /// </summary>
+    public static bool SellsModel(Universe u, Station st, ShipModel model) =>
+        u.ShipClasses.TryGetValue(model.ClassKey, out var cls) && Sells(u, st, cls) && Research.Available(u, st, UnlockKind.Model, model.Key);
+
     /// <summary>Montagegebühr der Station (0 ohne Schiffshändler).</summary>
     public static float AssemblyOf(Universe u, Station st) =>
         u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.ShipDealer is { } cfg ? cfg.Assembly : 0f;

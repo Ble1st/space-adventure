@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v15).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v16).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -30,7 +30,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v13 |
 | 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v14 |
 | 12 | Verbände, Befehle, Spielerflotte und Oberfläche | L | v15 |
-| 13 | Forschung | M | v13 |
+| 13 | Forschung | M | v16 |
 | – | Zurückgestellt: Kampf, Eroberung, Sprungantrieb, Tarnfeld, Besatzung, Blockadebrecher, Abwracker | – | – |
 
 Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn das Format wirklich bricht.
@@ -400,6 +400,26 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 ## Phase 13: Forschung
 
 - `research`-Sektion, `ResearchSystem`, Freischaltungen über `IsUnlocked`, Besitzer ist der Akteur mit Forschungsstation (Budget vom HQ). Details in [FORSCHUNG.md](FORSCHUNG.md).
+
+**Stand:** umgesetzt auf Branch `phase13-forschung`.
+- **Inhalte:** Abschnitt `research` in der Weltdatei (Projekt: Schlüssel, Name, Beschreibung, FP, Voraussetzungen nur früher genannter Projekte, Freischaltungen `module:`/`model:`/`stationType:`, Zusatzverbrauch je Takt). Startwelt: drei Projekte — *Fusionstechnik Mk3* (3000 FP, Platin) → Reaktor Mk3, *Präzisionslaser* (3000 FP, Wafer) → Mining-Laser Mk3, *Tiefbau-Schürfer* (5000 FP, braucht beide, Titan) → Schürfschiff *Excavator*. Die Mk3-Module sind Waren mit Fabrikrezept (Antriebs-/Systemwerk, `maxTier` 3, Phase-5a-Mechanismus), kleine Lager (Fabrik [1,1], Werft [0,1]) und Verbesserungspfade Mk2 → Mk3 (Phase 7). Alles, was Startflotte, KI-Flotte, Polizei und Stationsbau heute brauchen, nennt kein Projekt und ist frei.
+- **Forschungsstation:** Stationstyp `research_station` mit neuer Regierungsform „research“ (offiziell: Unterhalt aus der Fraktionskasse, vor Pleite geschützt, zählt nicht gegen die Bau-Obergrenzen, Einfluss 0), Lager für Energie, Elektronik, Platin, Wafer, Titan, Dienste Handel/Forschung/Hangar. Je Fraktion eine: „Forschungsinstitut der Union“ (Alpha) und „Gildenlabor Gamma“.
+- **`ResearchSystem`** (eigenes Modul „Research“ direkt nach Produktion/Markt): Gebotsdeckel 1,25 × Basispreis für die Takt-Güter, Budget aus der Kasse der Besitzerfraktion bis 5000 Cr (höchstens 8 Cr/Tick, `TreasuryUpkeep` „research“ — die Senke für die wachsenden Kassen), alle 10 Ticks ein Takt: 2 Energie + Zusatzverbrauch des Projekts aus dem Lager, 10 Cr Personal (Senke), 5 FP auf das laufende Projekt der Fraktion; fehlt etwas, stockt die Forschung. Die Heuristik wählt das am weitesten fortgeschrittene verfügbare Projekt, sonst die Content-Reihenfolge; ein Auftrag des Spielers hat Vorrang. Abschluss → `ResearchCompleted`.
+- **Freischaltungen über `Research.IsUnlocked`** (fraktionsweit; eine Station nutzt den Stand ihrer Besitzer- bzw. Sektorfraktion): Produktion (Fabrik stellt gesperrte Module nicht her), Werft/KI-Flotte/Polizeikauf (`ShipPurchase.SellsModel`), Ausrüster (gesperrte Module „nicht erforscht“ sichtbar, aus dem Lager nicht einbaubar, aus der eigenen Fracht schon), Upgrades (Grund „nicht erforscht“), Güteklassen (nur erforschte Ziele, Gründer nur freie Module), Stationsbau (Typ muss für die Investorfraktion erforscht sein). Regel `researchActive` aus = alles frei.
+- **Spieler:** Dienst `research` — Projekt beauftragen (500 Cr Gebühr an die Station) und das laufende Projekt mitfinanzieren (500/2000/10000 Cr, 20 Cr je FP; so kommt er früher an neue Module und Schiffe); Güter liefert er über den normalen Handel. Feindliche Fraktionen nehmen nichts an.
+- **Oberfläche:** neuer Dock-Bereich „Forschung“ (`ResearchScreen`: Projekte mit Status, Balken, Freischaltungen, „Beauftragen“; Betrieb der Station mit Verbrauch, Stockungsgrund, Kasse, voraussichtlicher Dauer; „Mitfinanzieren“) aus `ResearchInfo` und `Offers`/`Execute`; Kommandozentrale: Fraktionsdetail mit Forschungsstand (statt des Ereignis-Platzhalters), „Meine Fraktion“ mit der Forschung der eigenen Fraktion; Werft und Ausrüster zeigen Gesperrtes als „nicht erforscht“. Selbsttest erweitert, `--ui-shots` 48–52 angesehen.
+- **Save v16** mit Migration v15→v16 (Content, Verbesserungspfade, Forschungsstationen, Projekte nur bei auflösbarem Inhalt und vorhandener Station, sonst bleibt alles frei); mit dem echten v2-Spielstand geprüft (keine Forschung, alles frei, 20000 Ticks, 926 Handelsfahrten, Flotte 14 → 14, Speichern/Laden hash-gleich).
+- **Balance-Tool:** Spalten `fp`/`erf`, Forschungszeile (Takte, FP, Stockungsgründe, Budget aus Kassen, Personal, Güter, Spieler), Freischaltungen mit Tick, Stand je Fraktion, Forschungsbudget als Anteil der Kasseneinnahmen; `--research off` für Vergleichsläufe.
+- **Prüfung:** 469 Tests (17 neu in `ResearchTests`, 1 neu in `SecurityTests`), Selbsttest OK. Balance (frischer Release-Build): Standard-Seed 20000 Ticks „Preise im Zielbereich“, Kapazität Handel 16,9/14, Bergbau 7,6/8, 0 Notkäufe, Verlustquote 0,25 %, 4 Freischaltungen (beide Fraktionen Fusionstechnik und Präzisionslaser), Forschungsbudget 181 000 Cr = 15,8 % der Kasseneinnahmen; 60000 Ticks „Preise im Zielbereich“, Handel 14,2/14, Bergbau 8,5/8, 0 Notkäufe, Verlustquote 0,25 %, alle 6 Freischaltungen (letzte bei Tick ≈23 000), Kassen 1,10 statt 1,57 Mio. Seeds 1–4 bei 20000 alle grün (Handel 13,2–15,2, Bergbau 7,6–8,3, Verlustquote 0,30–0,57 %, 2–4 Freischaltungen); Seeds 1–6 bei 60000 alle grün.
+
+**Abweichungen und offene Punkte (Phase 13):**
+- **Save-Version v16 statt v13** (Platzhalter im Plan).
+- **Elektronik ist nicht der Hauptverbrauch** (FORSCHUNG.md): Mit 0,2–0,5 Elektronik je Takt kippten auf drei von acht Seeds Reaktor/Triebwerk Mk1 oder Konsumgüter über 3× (die Elektronikkette ist seit Phase 5c der Engpass). Die Forschung verbraucht deshalb Energie, Personalgeld und kleine Projektzusätze (Platin, Wafer, Titan).
+- **Nur ein kleiner Satz Freischaltungen:** Module und ein Modell. Der Mechanismus kann Stationstypen sperren (im Test geprüft), die Startwelt nutzt es nicht; Rezept-, Waren-/Erz-Freischaltungen und „Verbesserungen“ (Nachladen, ChunkChance, Treibstoff) fehlen. Kein exklusiver Frühzugriff für Geldgeber (nur Beschleunigung), keine Forschungsmissionen; eine zerstörte Forschungsstation nimmt nichts zurück.
+- **Korrekturen außerhalb der Forschung:** (1) Speichern/Laden war nach Entfernen und Neuanlegen von Schiffen nicht bitgleich (Einfügereihenfolge der Dictionaries); jetzt werden die Lücken geschlossen, Fracht wird in Waren-Id-Reihenfolge verkauft. (2) Piraten-Neuanfang (Phase 11): Eine ausgelöschte Piratenflotte bekam nie wieder Geld und blieb weg (Verlustquote ≈0,1 % in langen Läufen, auch schon in Phase 12); jetzt kleine Versteck-Einnahme ohne Flotte und halber Preis für das erste Kaperschiff.
+- **Tests bewusst angepasst** (Zufallsfolge verschoben): Polizei-Langlauf prüft Kaperschiffe im letzten Viertel (Standard-Seed: Flotte ab Tick ≈18 000 ausgelöscht, baut neu auf), Multirole-Kapazität Spielraum +3 statt +2 (Standard-Seed 16,9/14 durch vier handelnde Tinker).
+- **Balance:** Seeds 1–8 bei 20000 sieben von acht grün (Seed 6: Konsumgüter 3,12×; Phase 12 acht von acht); die Mk1-Modul-Bänder bleiben knapp. KI kauft den Excavator selten (schlechterer Wert je Credit als Einheitsschürfer). Simulation ≈25–30 % langsamer (mehr Handelsrouten und Märkte).
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
 
 ## Zurückgestellt
 

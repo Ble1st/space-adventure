@@ -60,11 +60,12 @@ public sealed class StationLifecycleSystem : ISimSystem
         }
 
         // Knappheit → Produzent der Ware bauen; sonst bei Überangebot → Verbraucher der Ware bauen (Nachfrage wächst mit billigem Angebot)
+        // Phase 13: nur Stationstypen, die schon irgendeine Fraktion erforscht hat (ohne Sperre: alle)
         StationType? type = null;
         if (scarce is { } sc)
-            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(sc))).OrderBy(t => t.BuildCost).FirstOrDefault();
+            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(sc)) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key)).OrderBy(t => t.BuildCost).FirstOrDefault();
         else if (glut is { } gl)
-            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl))).OrderBy(t => t.BuildCost).FirstOrDefault();
+            type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key)).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;
         if (active.Any(s => s.Site!.TypeKey == type.Key)) return;   // derselbe Typ ist schon im Bau
 
@@ -79,6 +80,8 @@ public sealed class StationLifecycleSystem : ISimSystem
         var investorFaction = investor.Ship is { } invShip && invShip.Owner == u.FreeActor
             ? (u.Sectors.TryGetValue(invShip.Sector, out var home) && u.Factions.ContainsKey(home.Owner) ? (FactionId?)home.Owner : null)
             : u.FactionOf(investor.Holder);
+        // Phase 13: gebaut wird nur, was die Fraktion des Investors erforscht hat (unabhängige Investoren: was irgendwo erforscht ist)
+        if (investorFaction is not null && !Research.IsUnlocked(u, investorFaction, UnlockKind.StationType, type.Key)) return;
 
         // Sektoren der Fraktion des Investors (unabhängige Investoren: alle), dünn besiedelte zuerst; der erste mit freiem Platz bekommt die Station
         Sector? sector = null;

@@ -134,13 +134,31 @@ public sealed partial class FactionsScreen : CommandScreen
 			oy += 34;
 		}
 
-		// Ereignisse (Platzhalter: Politik und Ereignisse kommen ab Phase 10)
-		At(det, Text("Letzte Ereignisse", 16, Cyan), 18, 316, 280, 22);
-		float ey = 342;
-		foreach (var ev in UiPlaceholders.FactionEvents)
+		// Phase 13: Fraktionen zeigen ihren Forschungsstand (echt, ResearchInfo); andere Akteure weiter die Ereignisse (Platzhalter)
+		if (isFaction && ResearchInfo.ForFaction(u, new FactionId(sel.Value)) is { Total: > 0 } rv)
 		{
-			At(det, Text("▮ " + ev, 13, new Color(Dim, 0.85f)), 18, ey, 560, 18);
-			ey += 20;
+			At(det, Text("Forschung", 16, Cyan), 18, 316, 120, 22);
+			At(det, Text(rv.Summary, 13, White), 120, 318, 460, 20);
+			float fy = 342;
+			foreach (var pv in rv.Projects)
+			{
+				var col = pv.Status == ResearchStatus.Done ? Green : pv.Status == ResearchStatus.Running ? Cyan : new Color(Dim, 0.85f);
+				string st = pv.Status == ResearchStatus.Done ? "erforscht" : $"{ResearchInfo.StatusName(pv.Status)} {pv.Fraction:P0}";
+				At(det, Text($"{pv.Project.Name} — {st}", 13, col), 18, fy, 330, 18);
+				fy += 20;
+			}
+			string lab = rv.Stations.Count == 0 ? "keine Forschungsstation" : string.Join(" · ", rv.Stations.Select(x => $"{x.Station.Name}: {x.Stalled ?? "läuft"}"));
+			WrappedText(det, lab, 18, fy + 2, 560, 11, new Color(Dim, 0.85f), 14);
+		}
+		else
+		{
+			At(det, Text("Letzte Ereignisse", 16, Cyan), 18, 316, 280, 22);
+			float ey = 342;
+			foreach (var ev in UiPlaceholders.FactionEvents)
+			{
+				At(det, Text("▮ " + ev, 13, new Color(Dim, 0.85f)), 18, ey, 560, 18);
+				ey += 20;
+			}
 		}
 
 		// Knöpfe

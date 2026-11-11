@@ -6,10 +6,10 @@ namespace SpaceSim.Core.Services;
 
 /// <summary>Kaufangebot eines Schiffsmodells an einer Station: Werte, Preis, Material und was davon im Lager fehlt.</summary>
 public sealed record ShipQuote(ShipModel Model, ShipClass Class, ShipStats Stats, float Price, IReadOnlyList<MaterialNeed> Materials,
-    IReadOnlyList<MaterialNeed> Missing, bool Affordable)
+    IReadOnlyList<MaterialNeed> Missing, bool Affordable, string? Locked = null)
 {
-    /// <summary>Material vollständig im Lager und bezahlbar.</summary>
-    public bool Buyable => Missing.Count == 0 && Affordable;
+    /// <summary>Erforscht (Phase 13), Material vollständig im Lager und bezahlbar.</summary>
+    public bool Buyable => Locked is null && Missing.Count == 0 && Affordable;
 }
 
 /// <summary>
@@ -54,7 +54,9 @@ public sealed class ShipDealerService : IStationService
         if (needs is null) return null;
         var stats = ShipStats.Compute(cls, model.Fit.Select(k => k is not null && u.Modules.TryGetValue(k, out var m) ? m : null).ToList());
         float price = ShipPurchase.Price(u, station, needs, ShipPurchase.AssemblyOf(u, station));
-        return new ShipQuote(model, cls, stats, price, needs, ShipPurchase.Missing(station, needs), u.WalletOf(buyer).Credits >= price);
+        // Phase 13: gesperrte Modelle bleiben sichtbar („nicht erforscht“), sind aber nicht kaufbar
+        return new ShipQuote(model, cls, stats, price, needs, ShipPurchase.Missing(station, needs), u.WalletOf(buyer).Credits >= price,
+            Research.LockText(u, station, UnlockKind.Model, model.Key));
     }
 
     /// <summary>
@@ -88,6 +90,7 @@ public sealed class ShipDealerService : IStationService
         if (!IsAvailable(u, station)) return Fail($"Dienst '{Key}' ist an dieser Station nicht verfügbar.");
         if (!ship.IsPlayer) return Fail("Nur der Spieler kauft hier Schiffe.");
         if (Quote(u, station, ship, modelKey) is not { } q) return Fail("Dieses Modell wird hier nicht verkauft.");
+        if (q.Locked is { } locked) return Fail($"{q.Model.Name}: {locked}.");
         if (q.Missing.Count > 0)
             return Fail("Nicht lieferbar, im Lager fehlt: " + string.Join(", ", q.Missing.Select(m => $"{m.Units:0}× {u.Goods[m.Good].Name}")) + ".");
         var wallet = u.WalletOf(ship);

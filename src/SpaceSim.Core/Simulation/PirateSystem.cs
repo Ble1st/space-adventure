@@ -362,16 +362,24 @@ public sealed class PirateSystem : ISimSystem
                 u.Events.Publish(new TreasuryUpkeep(a.Id, "pirates", paid, upkeep - paid));
             }
             var hideout = u.Stations.Values.Where(st => st.Owner == a.Id && IsHideout(u, st)).OrderBy(st => st.Id.Value).FirstOrDefault();
-            if (hideout is null || raiders.Count >= r.MaxRaidersPerActor || a.Treasury.Credits < r.RaiderCost || u.Tick - a.LastForceTick < r.RaiderRebuildTicks) continue;
+            // Phase 13 (Korrektur): eine ausgelöschte Flotte fängt neu an — kleine Einnahme aus dem Versteck und halber Preis für das erste Kaperschiff
+            if (hideout is not null && raiders.Count == 0 && r.PirateIdleIncomePerTick > 0f)
+            {
+                float income = r.PirateIdleIncomePerTick * ticks;
+                a.Treasury.Credits += income;
+                u.Events.Publish(new TreasuryIncome(a.Id, "hideout", income));
+            }
+            float cost = raiders.Count == 0 ? r.RaiderCost * Math.Clamp(r.RaiderRestartCostFactor, 0f, 1f) : r.RaiderCost;
+            if (hideout is null || raiders.Count >= r.MaxRaidersPerActor || a.Treasury.Credits < cost || u.Tick - a.LastForceTick < r.RaiderRebuildTicks) continue;
             if (!u.ShipModels.TryGetValue(r.PirateModel, out var model) || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls)) continue;
             var ship = ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Pirate, Controller.Ai, a.Id, hideout, 0f);
             ship.HomeBase = hideout.Id;
             ship.NextThinkTick = u.Tick + r.PirateRestTicks;
-            a.Treasury.Credits -= r.RaiderCost;
+            a.Treasury.Credits -= cost;
             a.LastForceTick = u.Tick;
             u.AddShip(ship);
-            u.Events.Publish(new TreasuryUpkeep(a.Id, "pirates", r.RaiderCost, 0f));
-            u.Events.Publish(new RaiderBuilt(a.Id, ship.Id, r.RaiderCost));
+            u.Events.Publish(new TreasuryUpkeep(a.Id, "pirates", cost, 0f));
+            u.Events.Publish(new RaiderBuilt(a.Id, ship.Id, cost));
         }
     }
 }

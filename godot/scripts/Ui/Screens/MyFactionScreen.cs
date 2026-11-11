@@ -43,7 +43,11 @@ public sealed partial class MyFactionScreen : CommandScreen
 		WrappedText(a, $"Eigene Schiffe: {me.Ships} · eigene Stationen: {me.Stations} · Kasse {me.Treasury:0} Cr (Größe = Schiffe × {u.Rules.ActorShipWeight:0} + Stationen × {u.Rules.ActorStationWeight:0} + Kasse ÷ {u.Rules.ActorMoneyScale:0})", 20, 124, 460, 13, White, 18);
 		string membership = u.Player.Membership is { } m ? FactionName(u, m) : "keiner Fraktion (unabhängig)";
 		WrappedText(a, $"Mitglied von: {membership}", 20, 178, 460, 14, new Color(Dim, 0.95f), 19);
-		WrappedText(a, "Weitere Schiffe, eine eigene Station oder mehr Geld heben die Stufe.", 20, 206, 460, 13, new Color(Dim, 0.75f), 17);
+		// Phase 13: Forschungsstand der eigenen Fraktion (echt, ResearchInfo); ohne Mitgliedschaft der Hinweis zur Größe
+		if (u.Player.Membership is { } mf && ResearchInfo.ForFaction(u, mf) is { Total: > 0 } rv)
+			WrappedText(a, $"Forschung: {rv.Summary}", 20, 206, 460, 13, Cyan, 17);
+		else
+			WrappedText(a, "Weitere Schiffe, eine eigene Station oder mehr Geld heben die Stufe.", 20, 206, 460, 13, new Color(Dim, 0.75f), 17);
 
 		// ── Karte 2 (rechts oben): Kasse der Person ──
 		var b = CardBg(inner, 524, 12, 486, 250, Card);

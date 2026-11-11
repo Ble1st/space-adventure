@@ -152,8 +152,27 @@ public static class WorldBuilder
             type.Security = t.Security;
             type.Hideout = t.Hideout;
             if (type.Hideout && type.Government != GovernmentKind.None) throw new WorldFormatException($"Stationstyp '{t.Key}': ein Versteck kann keine Regierungsstation sein");
+            // Phase 13: Forschungsbetrieb nur an Forschungsstationen (Regierungsform research), und eine Forschungsstation braucht ihn
+            if (t.Research is { } rd)
+            {
+                if (type.Government != GovernmentKind.Research) throw new WorldFormatException($"Stationstyp '{t.Key}': research braucht government \"research\"");
+                if (rd.Ticks <= 0 || rd.Points <= 0f || rd.Credits < 0f || rd.FundTarget < 0f || rd.FundPerTick < 0f)
+                    throw new WorldFormatException($"Stationstyp '{t.Key}': research braucht ticks > 0, points > 0 und credits, fundTarget, fundPerTick >= 0");
+                var cfg = new ResearchConfig { Ticks = rd.Ticks, Points = rd.Points, Credits = rd.Credits, FundTarget = rd.FundTarget, FundPerTick = rd.FundPerTick };
+                foreach (var (k, v) in rd.Inputs)
+                {
+                    if (!goodByKey.TryGetValue(k, out var gid)) throw new WorldFormatException($"Stationstyp '{t.Key}': unbekannte Ware '{k}' in research.inputs");
+                    if (v <= 0f) throw new WorldFormatException($"Stationstyp '{t.Key}': research.inputs '{k}' muss > 0 sein");
+                    cfg.Inputs[gid] = v;
+                }
+                type.Research = cfg;
+            }
+            else if (type.Government == GovernmentKind.Research) throw new WorldFormatException($"Stationstyp '{t.Key}': eine Forschungsstation braucht den Abschnitt research");
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
+
+        // Phase 13: Forschungsprojekte (nach Modulen, Modellen und Stationstypen: Freischaltungen verweisen darauf)
+        LoadResearch(u, def, Good);
 
         // Phase 9: jede Fraktion ist zugleich ein Akteur (gleiche Id-Zahl) mit Art, Persönlichkeit und Kasse; Hauptbeziehungen nur als Abweichung
         foreach (var f in def.Factions)
@@ -306,6 +325,8 @@ public static class WorldBuilder
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
+        // Phase 13: die Startwelt darf nichts brauchen, was erst erforscht werden muss (FORSCHUNG.md „Totlauf“)
+        ValidateResearchStart(u, def);
         // Phase 11: Lagekarte der Startwelt (Sicherheit aus Grundschutz und Streifen, Verkehr) vor der Sektorkontrolle (Patrouillenabdeckung)
         Simulation.ThreatMap.Initialize(u);
         // Phase 10: Sektorkontrolle der Startwelt gleich berechnen (Einfluss, Stufe, umkämpft); Besitzer aus der Weltdatei bleibt der Startwert
@@ -314,6 +335,91 @@ public static class WorldBuilder
         // Phase 12: Liegeplatz der Startschiffe (am Andockpunkt einer Station = angedockt; das aktive Schiff dockt nur die Ansicht an); das Laden älterer Stände bestimmt ihn genauso
         foreach (var ship in u.Ships.Values.Where(x => x.Transit is null && x.Id != u.PlayerShip).OrderBy(x => x.Id.Value)) ship.DockedAt = u.StationAt(ship.Sector, ship.Position);
         return u;
+    }
+
+    /// <summary>
+    /// Phase 13: Forschungsprojekte laden und prüfen — Schlüssel eindeutig, FP &gt; 0, Voraussetzungen nur früher aufgeführte Projekte (damit zyklenfrei),
+    /// Freischaltungen lesbar und vorhanden, jede gehört genau einem Projekt, Zusatzverbrauch bekannte Waren &gt; 0. Gesperrte Module dürfen in keinem
+    /// Rezept als Zutat stehen; ein freies Modell darf kein gesperrtes Modul tragen, ein gesperrtes nur Module seines Projekts oder seiner Voraussetzungen.
+    /// </summary>
+    static void LoadResearch(Universe u, WorldDef def, Func<string, GoodId> good)
+    {
+        foreach (var pd in def.Research)
+        {
+            string who = $"Forschungsprojekt '{pd.Key}'";
+            if (pd.Key.Length == 0 || u.Research.Get(pd.Key) is not null) throw new WorldFormatException($"{who}: Schlüssel leer oder doppelt");
+            if (pd.Points <= 0f || !float.IsFinite(pd.Points)) throw new WorldFormatException($"{who}: points muss > 0 sein");
+            var p = new ResearchProject { Key = pd.Key, Name = pd.Name.Length > 0 ? pd.Name : pd.Key, Description = pd.Description, Points = pd.Points };
+            foreach (var r in pd.Requires)
+            {
+                if (u.Research.Get(r) is null) throw new WorldFormatException($"{who}: Voraussetzung '{r}' unbekannt oder erst später aufgeführt");
+                if (!p.Requires.Contains(r)) p.Requires.Add(r);
+            }
+            foreach (var text in pd.Unlocks)
+            {
+                if (!ResearchUnlock.TryParse(text, out var x)) throw new WorldFormatException($"{who}: Freischaltung '{text}' unlesbar (module:, model:, stationType:)");
+                bool exists = x.Kind switch
+                {
+                    UnlockKind.Module => u.Modules.ContainsKey(x.Key),
+                    UnlockKind.Model => u.ShipModels.ContainsKey(x.Key),
+                    _ => u.StationTypes.ContainsKey(x.Key),
+                };
+                if (!exists) throw new WorldFormatException($"{who}: Freischaltung '{text}' verweist auf unbekannten Inhalt");
+                if (u.Research.LockOf(x.Kind, x.Key) is { } other) throw new WorldFormatException($"{who}: '{text}' schaltet schon Projekt '{other.Key}' frei");
+                p.Unlocks.Add(x);
+            }
+            foreach (var (k, v) in pd.Inputs)
+            {
+                if (v <= 0f) throw new WorldFormatException($"{who}: inputs '{k}' muss > 0 sein");
+                p.Inputs[good(k)] = v;
+            }
+            u.Research.Add(p);
+        }
+        if (u.Research.Count == 0) return;
+        // Totlauf: gesperrte Module nie als Rezept-Zutat (die Kette bliebe stehen, bis jemand forscht)
+        foreach (var t in u.StationTypes.Values)
+            foreach (var r in t.Recipes)
+                foreach (var g in r.Inputs.Keys)
+                    if (u.Modules.ContainsKey(u.Goods[g].Key) && u.Research.LockOf(UnlockKind.Module, u.Goods[g].Key) is { } lp)
+                        throw new WorldFormatException($"Stationstyp '{t.Key}': Zutat '{u.Goods[g].Key}' ist erst mit Forschung '{lp.Key}' verfügbar");
+        foreach (var m in u.ShipModels.Values)
+        {
+            var mp = u.Research.LockOf(UnlockKind.Model, m.Key);
+            var allowed = new HashSet<string>(StringComparer.Ordinal);
+            if (mp is not null) Closure(u, mp, allowed);
+            foreach (var k in m.Fit)
+                if (k is not null && u.Research.LockOf(UnlockKind.Module, k) is { } lp && !allowed.Contains(lp.Key))
+                    throw new WorldFormatException(mp is null
+                        ? $"Schiffsmodell '{m.Key}': Modul '{k}' ist erst mit Forschung '{lp.Key}' verfügbar, das Modell selbst aber frei"
+                        : $"Schiffsmodell '{m.Key}': Modul '{k}' braucht Forschung '{lp.Key}', die weder '{mp.Key}' noch dessen Voraussetzung ist");
+        }
+    }
+
+    /// <summary>Projekt und alle (transitiven) Voraussetzungen.</summary>
+    static void Closure(Universe u, ResearchProject p, HashSet<string> into)
+    {
+        if (!into.Add(p.Key)) return;
+        foreach (var r in p.Requires) if (u.Research.Get(r) is { } rp) Closure(u, rp, into);
+    }
+
+    /// <summary>Phase 13: Startschiffe, Startpakete, Spielermodell und Stationen der Startwelt dürfen nichts Gesperrtes nutzen.</summary>
+    static void ValidateResearchStart(Universe u, WorldDef def)
+    {
+        if (u.Research.Count == 0) return;
+        foreach (var ship in u.Ships.Values.OrderBy(x => x.Id.Value))
+        {
+            if (ship.HasModel && u.Research.LockOf(UnlockKind.Model, ship.ModelKey) is { } p)
+                throw new WorldFormatException($"Schiff {ship.Id.Value}: Modell '{ship.ModelKey}' ist erst mit Forschung '{p.Key}' verfügbar");
+            foreach (var k in ship.Fit)
+                if (k is not null && u.Research.LockOf(UnlockKind.Module, k) is { } mp)
+                    throw new WorldFormatException($"Schiff {ship.Id.Value}: Modul '{k}' ist erst mit Forschung '{mp.Key}' verfügbar");
+        }
+        foreach (var o in def.Player.StartOptions)
+            if (u.Research.LockOf(UnlockKind.Model, o.Model) is { } p)
+                throw new WorldFormatException($"Startpaket '{o.Key}': Modell '{o.Model}' ist erst mit Forschung '{p.Key}' verfügbar");
+        foreach (var st in u.Stations.Values.OrderBy(x => x.Id.Value))
+            if (u.Research.LockOf(UnlockKind.StationType, st.TypeKey) is { } p)
+                throw new WorldFormatException($"Station {st.Id.Value}: Typ '{st.TypeKey}' ist erst mit Forschung '{p.Key}' verfügbar");
     }
 
     /// <summary>
@@ -508,7 +614,8 @@ public static class WorldBuilder
         "sector_hq" => GovernmentKind.SectorHq,
         "office" => GovernmentKind.Office,
         "police" => GovernmentKind.Police,
-        _ => throw new WorldFormatException($"Stationstyp '{typeKey}': unbekannte Regierungsform '{key}' (headquarters, company_seat, sector_hq, office, police)"),
+        "research" => GovernmentKind.Research,
+        _ => throw new WorldFormatException($"Stationstyp '{typeKey}': unbekannte Regierungsform '{key}' (headquarters, company_seat, sector_hq, office, police, research)"),
     };
 
     /// <summary>Schlüssel einer Regierungsform für Weltdatei und Spielstand.</summary>
@@ -519,6 +626,7 @@ public static class WorldBuilder
         GovernmentKind.SectorHq => "sector_hq",
         GovernmentKind.Office => "office",
         GovernmentKind.Police => "police",
+        GovernmentKind.Research => "research",
         _ => null,
     };
 

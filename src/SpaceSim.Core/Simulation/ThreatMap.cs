@@ -19,7 +19,7 @@ public static class ThreatMap
     public static float CargoValue(Universe u, Ship s)
     {
         float v = 0f;
-        foreach (var (g, n) in s.Cargo) if (n > 0f && u.Goods.TryGetValue(g, out var good)) v += n * good.BasePrice;
+        foreach (var (g, n) in s.Cargo.OrderBy(kv => kv.Key.Value)) if (n > 0f && u.Goods.TryGetValue(g, out var good)) v += n * good.BasePrice;
         return v;
     }
 

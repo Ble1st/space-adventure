@@ -139,7 +139,23 @@ public sealed class Ship : ICreditAccount
     public bool IsSiteBuilder => Role == ShipRole.Builder && Has(Capability.Construction) && (Controller == Controller.Ai || Command is BuildCommand);
 
     /// <summary>Belegter Laderaum (Einheiten × Volumen je Einheit).</summary>
-    public float UsedVolume(Universe u) => Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
+    public float UsedVolume(Universe u)
+    {
+        // feste Reihenfolge (GoodId aufsteigend), damit die Gleitkomma-Summe nach Speichern/Laden gleich bleibt (Einfügereihenfolge geht verloren);
+        // ohne Allokation, Frachträume haben nur wenige Waren
+        float sum = 0f;
+        int last = int.MinValue;
+        for (int n = 0; n < Cargo.Count; n++)
+        {
+            int next = int.MaxValue;
+            float amount = 0f;
+            foreach (var (g, a) in Cargo) if (g.Value > last && g.Value < next) { next = g.Value; amount = a; }
+            if (next == int.MaxValue) break;
+            sum += amount * u.Goods[new GoodId(next)].VolumePerUnit;
+            last = next;
+        }
+        return sum;
+    }
 
     /// <summary>Hat das Schiff getrennte Laderäume (mindestens ein solid- oder liquid-Frachtmodul)? Nein = ein Gesamtladeraum (kein Modell oder nur any-Module), dann verhält sich alles wie bisher.</summary>
     public bool HasSeparatedHolds => HasModel && (Stats.CargoSolid > 0f || Stats.CargoLiquid > 0f);

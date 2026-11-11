@@ -21,7 +21,9 @@ public static class TradeActions
         float revenue = 0f;
         var sold = new Dictionary<GoodId, float>();
         var wallet = u.WalletOf(ship);
-        foreach (var good in ship.Cargo.Keys.ToList())
+        // feste Reihenfolge (GoodId), nicht die Einfügereihenfolge des Dictionarys: die geht beim Speichern/Laden nach Entnahmen verloren
+        // (Phase 13 gefunden: sonst verkauft ein geladener Stand bei knapper Stationskasse in anderer Reihenfolge)
+        foreach (var good in ship.Cargo.Keys.OrderBy(k => k.Value).ToList())
         {
             float have = ship.Cargo[good];
             if (have <= 0f || !station.Market.TryGetValue(good, out var entry) || entry.Price <= 0f) continue;
@@ -94,7 +96,7 @@ public static class TradeActions
     public static float Quote(Universe u, Ship ship, Station station)
     {
         float total = 0f;
-        foreach (var (good, have) in ship.Cargo)
+        foreach (var (good, have) in ship.Cargo.OrderBy(kv => kv.Key.Value))
             if (station.Market.TryGetValue(good, out var e) && e.Price > 0f)
                 total += MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / e.Price), station.AcceptableUnits(good, u.Rules)) * e.Price;
         return total;

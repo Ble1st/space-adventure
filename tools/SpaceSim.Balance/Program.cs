@@ -7,7 +7,7 @@ using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 
 // Headless-Balancing: lässt die Wirtschaft ohne Spieler laufen und gibt Kennzahlen als Tabelle/CSV aus.
-//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off]
+//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off] [--research off]
 
 var opts = ParseArgs(args);
 int ticks = Int(opts, "ticks", 40_000), every = Int(opts, "every", 2_000);
@@ -16,6 +16,8 @@ ulong? seed = opts.TryGetValue("seed", out var s) ? ulong.Parse(s, CultureInfo.I
 var u = opts.TryGetValue("world", out var path) ? WorldBuilder.Build(WorldBuilder.Parse(File.ReadAllText(path)), seed) : WorldBuilder.BuildDefault(seed);
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
+// Phase 13: --research off schaltet die Forschung ab (alles frei, Forschungsstationen ruhen; Vergleichslauf)
+if (opts.TryGetValue("research", out var resOpt) && resOpt == "off") u.Rules.ResearchActive = false;
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
 var runner = new SimulationRunner(SimulationRunner.DefaultModules().Select(m => m is SpaceSim.Core.Modules.SecurityModule ? new TimedModule(m, securityWatch) : m));
@@ -117,6 +119,22 @@ u.Events.Raised += e =>
         case MineDelivered md: tradeValue += md.Revenue; break;
     }
 };
+// Phase 13: Forschung — FP, Takte (gelaufen/gestockt nach Grund), Personalkosten, verbrauchte Güter (Basiswert), Budget aus den Kassen, Abschlüsse
+double researchPoints = 0, researchSalary = 0, researchGoods = 0, researchFunding = 0, researchPlayer = 0;
+int researchCycles = 0, researchStalled = 0;
+var stallReasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var researchDone = new List<string>();
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case ResearchCycle rc when rc.Stalled is null: researchCycles++; researchPoints += rc.Points; researchSalary += rc.Credits; researchGoods += rc.GoodsValue; break;
+        case ResearchCycle rc: researchStalled++; stallReasons[rc.Stalled!] = stallReasons.GetValueOrDefault(rc.Stalled!) + 1; break;
+        case ResearchCompleted done: researchDone.Add($"{u.Factions[done.Faction].Name}: {u.Research.Get(done.Project)?.Name ?? done.Project} (Tick {done.Tick})"); break;
+        case TreasuryUpkeep { Purpose: "research" } rf: researchFunding += rf.Amount; break;
+        case ResearchFunded fu: researchPlayer += fu.Credits; break;
+    }
+};
 u.Events.Raised += e =>
 {
     if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
@@ -129,10 +147,10 @@ u.Events.Raised += e =>
     else if (e is TradeCompleted tc && u.Modules.ContainsKey(u.Goods[tc.Good].Key)) { moduleDelivered += tc.Amount; moduleRevenue += tc.Revenue; }
 };
 
-var header = new List<string> { "tick", "stations", "sites", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "treasuryCredits", "tank", "notk", "locks", "isolated" };
+var header = new List<string> { "tick", "stations", "sites", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "treasuryCredits", "tank", "notk", "locks", "isolated", "researchPoints", "researched" };
 header.AddRange(u.Goods.Values.Select(g => "price_" + g.Name));
 csv.AppendLine(string.Join(",", header));
-Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"kassen",8} {"tank",5} {"notk",5} {"sperr",5} {"iso",3}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
+Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"kassen",8} {"tank",5} {"notk",5} {"sperr",5} {"iso",3} {"fp",6} {"erf",3}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
@@ -149,12 +167,15 @@ for (int t = 0; t <= ticks; t += every)
     var split = phys.Isolated.Count >= econ.Isolated.Count ? phys : econ;
     if (split.IsSplit && (worstSplit is null || split.Isolated.Count > worstSplit.Isolated.Count)) worstSplit = split;
     if (t == ticks) finalSplit = split.IsSplit ? split : null;
-    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Sites,3} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {snap.TreasuryCredits,8:0} {fuelBuys,5} {notk,5} {locks,5} {split.Isolated.Count,3}  " +
+    // Phase 13: Forschungsstand aller Fraktionen (Summe der FP und der abgeschlossenen Projekte)
+    float fp = u.Factions.Values.Sum(f => f.Research.PointsTotal);
+    int researched = u.Factions.Values.Sum(f => f.Research.Completed.Count);
+    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Sites,3} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {snap.TreasuryCredits,8:0} {fuelBuys,5} {notk,5} {locks,5} {split.Isolated.Count,3} {fp,6:0} {researched,3}  " +
                       string.Join(" ", snap.Goods.Select(g => g.PriceRatio.ToString("0.0", CultureInfo.InvariantCulture).PadLeft(5))));
     var row = new List<string> { snap.Tick.ToString(), snap.Stations.ToString(), snap.Sites.ToString(), snap.Traders.ToString(), snap.Miners.ToString(),
         snap.StationCredits.ToString("0", CultureInfo.InvariantCulture), snap.ShipCredits.ToString("0", CultureInfo.InvariantCulture),
         snap.PlayerCredits.ToString("0", CultureInfo.InvariantCulture), snap.TreasuryCredits.ToString("0", CultureInfo.InvariantCulture), fuelBuys.ToString(), notk.ToString(),
-        locks.ToString(), split.Isolated.Count.ToString() };
+        locks.ToString(), split.Isolated.Count.ToString(), fp.ToString("0", CultureInfo.InvariantCulture), researched.ToString() };
     row.AddRange(snap.Goods.Select(g => g.AvgPrice.ToString("0.00", CultureInfo.InvariantCulture)));
     csv.AppendLine(string.Join(",", row));
 }
@@ -250,6 +271,19 @@ if (u.Modules.Count > 0)
         .Select(x => $"{x.Name} Bedrohung {x.Threat:0.00} Sicherheit {x.Security:0.0} Verkehr {x.Traffic:0}")) + $"; Verbrechen gemeldet {crimes}");
     Console.WriteLine($"Rechenzeit Sicherheit (Lagekarte, Piraten, Polizei, Fahndung): {securityWatch.Elapsed.TotalMilliseconds:0} ms = "
         + $"{(sw.ElapsedMilliseconds > 0 ? 100.0 * securityWatch.Elapsed.TotalMilliseconds / sw.ElapsedMilliseconds : 0):0.0}% der Laufzeit");
+}
+// Phase 13: Forschungsstand je Fraktion, Freischaltungen, Ausgaben
+{
+    Console.WriteLine($"Forschung{(u.Rules.ResearchActive ? "" : " (abgeschaltet)")}: {researchCycles} Takte, {researchPoints:0} FP; gestockt {researchStalled}"
+        + (stallReasons.Count == 0 ? "" : " (" + string.Join(", ", stallReasons.Select(kv => $"{kv.Key} {kv.Value}")) + ")")
+        + $"; Ausgaben: Budget aus Kassen {researchFunding:0} Cr, Personal {researchSalary:0} Cr (Senke), Güter {researchGoods:0} Cr (Basiswert), Spieler {researchPlayer:0} Cr");
+    Console.WriteLine("Freischaltungen: " + (researchDone.Count == 0 ? "keine" : string.Join("; ", researchDone)));
+    foreach (var f in u.Factions.Keys.OrderBy(k => k.Value))
+        if (ResearchInfo.ForFaction(u, f) is { } rv)
+            Console.WriteLine($"  {rv.Name,-20} {rv.Summary}; {rv.PointsTotal:0} FP gesamt, Personal {rv.Spent:0} Cr"
+                + string.Concat(rv.Stations.Select(st => $"; {st.Station.Name}: {(st.Stalled ?? "läuft")}, Kasse {st.Credits:0}")));
+    double incomeR = taxIn + tolls + fines;
+    if (incomeR > 0) Console.WriteLine($"  Forschungsbudget = {100.0 * researchFunding / incomeR:0.0}% der Kasseneinnahmen");
 }
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))

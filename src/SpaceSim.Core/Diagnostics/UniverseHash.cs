@@ -27,7 +27,15 @@ public static class UniverseHash
             }
             foreach (var (g, n) in st.PlayerStorage.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
         }
-        foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value)) Mix((ulong)f.LastEmergencyBuildTick);
+        foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
+        {
+            Mix((ulong)f.LastEmergencyBuildTick);
+            // Phase 13: Forschungsstand (laufendes Projekt, FP je Projekt, Abschlüsse, Summen)
+            var r = f.Research;
+            MixString(r.Current ?? ""); Mix(r.Commissioned ? 1UL : 0UL); MixF(r.PointsTotal); MixF(r.Spent); MixF(r.PlayerFunded);
+            foreach (var (k, v) in r.Progress.OrderBy(kv => kv.Key, StringComparer.Ordinal)) { MixString(k); MixF(v); }
+            foreach (var (k, t) in r.Completed.OrderBy(kv => kv.Key, StringComparer.Ordinal)) { MixString(k); Mix((ulong)t); }
+        }
         foreach (var s in u.Ships.Values.OrderBy(s => s.Id.Value))
         {
             Mix((ulong)s.Id.Value); Mix((ulong)s.Owner.Value); Mix((ulong)s.Sector.Value); MixF(s.Position.X); MixF(s.Position.Y); MixF(s.Credits);
