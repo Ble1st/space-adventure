@@ -138,7 +138,9 @@ public class OpenPointsTests
         var r2 = autopilot.OnDocked(u, ship, st);
         Assert.Equal(27.3f, r2!.Sold[ore], 3);
         Assert.False(ship.Cargo.ContainsKey(ore));
-        // ein reiner Bruchteil wird an einer Station verkauft, die ihn ganz nimmt — und nicht an einer, die weniger als ihn nimmt
+        // ein reiner Bruchteil wird an einer Station verkauft, die ihn ganz nimmt — und (Regel von Phase 17, ohne Resttoleranz) nicht an einer, die weniger
+        // als ihn nimmt; Phase 18 nimmt ihn dort mit (Resttoleranz_NimmtRestUnterEinerEinheit)
+        u.Rules.SaleRestTolerance = 0f;
         ship.Cargo[ore] = 0.37f;
         Limit(u, st, ore, 0.2f, 1_000_000f);
         Assert.Equal(0f, TradeActions.Quote(u, ship, st));
@@ -153,6 +155,7 @@ public class OpenPointsTests
     public void Annahmehinweis_FolgtDerMengenregel()
     {
         var (u, _, st, ore) = SellSetup();
+        u.Rules.SaleRestTolerance = 0f;   // Regel von Phase 17; mit Resttoleranz siehe Resttoleranz_NimmtRestUnterEinerEinheit
         Limit(u, st, ore, 0.5f, 1_000_000f);
         var intake = MarketInfo.Acceptance(u, st, ore);
         Assert.False(intake.Accepts);              // keine ganze Einheit
@@ -161,6 +164,49 @@ public class OpenPointsTests
         Assert.Equal(intake.Reason, intake.NoteFor(3f));
         Limit(u, st, ore, 2.5f, 1_000_000f);
         Assert.Equal("nimmt noch 2", MarketInfo.Acceptance(u, st, ore).NoteFor(3f));
+    }
+
+    /// <summary>
+    /// Phase 18: Ein Überhang unter einer Einheit über die Annahme ist unkritisch — nimmt die Station die Ware überhaupt an und kann sie die ganze Menge
+    /// bezahlen, geht alles; Anzeige (Angebotsmenge, Hinweis) und Ausführung folgen derselben Regel. Nicht bei voller Station (Annahme 0), nicht bei
+    /// knapper Kasse, nicht bei Baustellen (genaue Stückliste), und ein Überhang ab einer Einheit bleibt bei ganzen Einheiten.
+    /// </summary>
+    [Fact]
+    public void Resttoleranz_NimmtRestUnterEinerEinheit()
+    {
+        Assert.Equal(1f, new EconomyRules().SaleRestTolerance);
+        var trade = new TradeService();
+        var (u, ship, st, ore) = SellSetup();
+        void Reset() => st.Market[ore].Amount = 0f;   // Annahme jedes Mal frisch setzen (ein Verkauf über die Grenze lässt sie bei 0 stehen)
+        float price = st.Market[ore].Price;
+        // Rest 0,37 an einer Station, die nur 0,2 annimmt: geht ganz weg
+        ship.Cargo[ore] = 0.37f;
+        Reset(); Limit(u, st, ore, 0.2f, 1_000_000f);
+        var offer = trade.Offers(u, st, ship).Single(o => o.Key == $"sell:{ore.Value}");
+        Assert.Equal(0.37f, offer.Amount, 4);
+        Assert.Null(offer.Note);
+        Assert.Equal(0.37f, TradeActions.SellAll(u, ship, st).Sold[ore], 4);
+        Assert.False(ship.Cargo.ContainsKey(ore));
+        // 3,4 an Bord, Annahme 2,5: Überhang 0,9 → alles; 4 an Bord: Überhang 1,5 → nur ganze Einheiten (2), Hinweis „nimmt noch 2“
+        ship.Cargo[ore] = 3.4f;
+        Reset(); Limit(u, st, ore, 2.5f, 1_000_000f);
+        Assert.Equal(3.4f, TradeActions.Sellable(u, ship, st).Units, 4);
+        Assert.Null(MarketInfo.Acceptance(u, st, ore).NoteFor(3.4f));
+        Assert.Equal("nimmt noch 2", MarketInfo.Acceptance(u, st, ore).NoteFor(4f));
+        Assert.Equal(3.4f, trade.Execute(u, st, ship, new ServiceRequest($"sell:{ore.Value}", default, 0f)).Units, 4);
+        // volle Station (Annahme 0): der Rest bleibt
+        ship.Cargo[ore] = 0.4f;
+        Reset(); Limit(u, st, ore, 0f, 1_000_000f);
+        Assert.Equal(0f, TradeActions.Sellable(u, ship, st).Units);
+        Assert.False(trade.Execute(u, st, ship, new ServiceRequest($"sell:{ore.Value}", default, 0f)).Success);
+        // knappe Kasse: nur, wenn die ganze Menge bezahlt werden kann
+        Reset(); Limit(u, st, ore, 0.2f, 0.3f * price);
+        Assert.Equal(0f, TradeActions.Sellable(u, ship, st).Units);
+        Reset(); Limit(u, st, ore, 0.2f, 0.5f * price);
+        Assert.Equal(0.4f, TradeActions.Sellable(u, ship, st).Units, 4);
+        // Regel aus: wie Phase 17
+        u.Rules.SaleRestTolerance = 0f;
+        Assert.Equal(0f, TradeActions.Sellable(u, ship, st).Units);
     }
 
     // ───────── Leistung (Phase 17): Zwischenspeicher ändern nichts am Ergebnis ─────────

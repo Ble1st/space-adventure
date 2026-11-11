@@ -45,11 +45,14 @@ public readonly record struct Intake(float Units, IntakeLimit Limit, string? Rea
     /// </summary>
     public float Cap { get; init; }
 
+    /// <summary>Phase 18: Obergrenze für „alles an Bord“ (Annahme + Resttoleranz, bezahlbar; <see cref="TradeActions.SaleCaps"/>). Standard = <see cref="Cap"/>.</summary>
+    public float AllCap { get; init; }
+
     /// <summary>Nimmt die Station überhaupt etwas (mindestens eine Einheit)?</summary>
     public bool Accepts => Units >= 1f;
 
     /// <summary>Phase 17: was ein Verkauf von <paramref name="held"/> Einheiten hier bewegen würde (<see cref="TradeActions.SaleUnits"/>: alles oder ganze Einheiten).</summary>
-    public float SellableFrom(float held) => TradeActions.SaleUnits(held, held, Cap);
+    public float SellableFrom(float held) => TradeActions.SaleUnits(held, held, Cap, MathF.Max(Cap, AllCap));
 
     /// <summary>
     /// Hinweis für eine Verkaufszeile mit <paramref name="held"/> Einheiten an Bord: der Grund, wenn ein Verkauf nichts bewegen würde; bewegt er weniger, als an
@@ -93,7 +96,8 @@ public static class MarketInfo
         float accept = st.AcceptableUnits(good, u.Rules);
         float pay = MathF.Max(0f, st.Credits) / e.Price;
         float cap = MathF.Max(0f, MathF.Min(pay, accept));   // Phase 17: wie TradeActions.SaleCap
-        return Classify() with { Cap = cap };
+        var (_, allCap) = TradeActions.SaleCaps(u, st, good, st.Credits);   // Phase 18: Rest unter einer Einheit
+        return Classify() with { Cap = cap, AllCap = allCap };
 
         Intake Classify()
         {
