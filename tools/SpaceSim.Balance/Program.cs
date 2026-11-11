@@ -50,6 +50,25 @@ u.Events.Raised += e =>
     else if (e is AsteroidSplit) splits++;
     else if (e is StationBuilt) directBuilds++;   // abzüglich der fertigen Baustellen = Direktbau
 };
+// Phase 9: Kassen und Zukauf — Abgaben in Kassen (und ohne Empfänger), Investitionen nach Quelle und Größenklasse, Auf-/Abstiege
+double taxIn = 0, taxSunk = 0, treasuryInvested = 0;
+var investBy = new SortedDictionary<string, int>(StringComparer.Ordinal);
+int promoted = 0, removedActors = 0;
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case TaxCollected tcol: taxIn += tcol.Amount; break;
+        case TaxSunk ts: taxSunk += ts.Amount; break;
+        case InvestorChosen ic:
+            string key = $"{(ic.Purpose == "station" ? "Station" : "Schiff")} aus {ic.Source switch { InvestorSource.Treasury => "Kasse", InvestorSource.Station => "Stationskasse", _ => "Schiffskasse" }} ({ActorNames.Size(ic.Class)})";
+            investBy[key] = investBy.GetValueOrDefault(key) + 1;
+            if (ic.Source == InvestorSource.Treasury) treasuryInvested += ic.Amount;
+            break;
+        case ActorPromoted: promoted++; break;
+        case ActorRemoved: removedActors++; break;
+    }
+};
 u.Events.Raised += e =>
 {
     if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
@@ -62,10 +81,10 @@ u.Events.Raised += e =>
     else if (e is TradeCompleted tc && u.Modules.ContainsKey(u.Goods[tc.Good].Key)) { moduleDelivered += tc.Amount; moduleRevenue += tc.Revenue; }
 };
 
-var header = new List<string> { "tick", "stations", "sites", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "tank", "notk" };
+var header = new List<string> { "tick", "stations", "sites", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "treasuryCredits", "tank", "notk" };
 header.AddRange(u.Goods.Values.Select(g => "price_" + g.Name));
 csv.AppendLine(string.Join(",", header));
-Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"tank",5} {"notk",5}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
+Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"kassen",8} {"tank",5} {"notk",5}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
@@ -74,11 +93,11 @@ for (int t = 0; t <= ticks; t += every)
     if (t > 0) runner.Run(u, every);
     var snap = EconomyStats.Snapshot(u);
     history.Add(snap);
-    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Sites,3} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {fuelBuys,5} {notk,5}  " +
+    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Sites,3} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {snap.TreasuryCredits,8:0} {fuelBuys,5} {notk,5}  " +
                       string.Join(" ", snap.Goods.Select(g => g.PriceRatio.ToString("0.0", CultureInfo.InvariantCulture).PadLeft(5))));
     var row = new List<string> { snap.Tick.ToString(), snap.Stations.ToString(), snap.Sites.ToString(), snap.Traders.ToString(), snap.Miners.ToString(),
         snap.StationCredits.ToString("0", CultureInfo.InvariantCulture), snap.ShipCredits.ToString("0", CultureInfo.InvariantCulture),
-        snap.PlayerCredits.ToString("0", CultureInfo.InvariantCulture), fuelBuys.ToString(), notk.ToString() };
+        snap.PlayerCredits.ToString("0", CultureInfo.InvariantCulture), snap.TreasuryCredits.ToString("0", CultureInfo.InvariantCulture), fuelBuys.ToString(), notk.ToString() };
     row.AddRange(snap.Goods.Select(g => g.AvgPrice.ToString("0.00", CultureInfo.InvariantCulture)));
     csv.AppendLine(string.Join(",", row));
 }
@@ -127,6 +146,18 @@ if (u.Modules.Count > 0)
     Console.WriteLine("Baumaterial geliefert: " + (deliveredBy.Count == 0 ? "nichts" : string.Join(", ", deliveredBy.Select(kv => $"{kv.Key} {kv.Value:0}")))
         + (deliveredGood.Count == 0 ? "" : " | " + string.Join(", ", deliveredGood.Select(kv => $"{kv.Key} {kv.Value:0}")))
         + $"; Notbau {emergencyUnits:0} Einheiten für {emergencyCost:0} Cr (erlassen {emergencyWaived:0}); Spaltungen {splits}");
+}
+// Phase 9: Akteure, Kassen, Zukauf, Beziehungen
+{
+    var snap = history[^1];
+    Console.WriteLine($"Geldmenge: Stationen {snap.StationCredits:0} + Schiffe {snap.ShipCredits:0} + Spieler {snap.PlayerCredits:0} + Kassen {snap.TreasuryCredits:0} = {snap.TotalCredits:0} Cr; "
+        + $"Abgaben in Kassen {taxIn:0}, ohne Empfänger {taxSunk:0}, aus Kassen investiert {treasuryInvested:0}");
+    var actors = snap.Actors ?? Array.Empty<ActorStat>();
+    Console.WriteLine($"Akteure: {actors.Count} ({promoted} aufgestiegen, {removedActors} abgestiegen); Beziehungseinträge {Relations.StoredEntries(u)}; "
+        + "Größenklassen " + string.Join(", ", actors.GroupBy(a => a.Class).OrderBy(g => g.Key).Select(g => $"{ActorNames.Size(g.Key)} {g.Count()}")));
+    foreach (var a in actors.Where(a => a.Kind != ActorKind.Independent || a.Ships + a.Stations > 1).Take(12))
+        Console.WriteLine($"  {a.Name,-26} {ActorNames.Kind(a.Kind),-20} {ActorNames.Size(a.Class),-12} Kasse {a.Treasury,9:0}  {a.Ships,3} Schiffe {a.Stations,3} Stationen  Größe {a.Size:0.0}");
+    Console.WriteLine("Zukauf: " + (investBy.Count == 0 ? "keiner" : string.Join(", ", investBy.Select(kv => $"{kv.Key} {kv.Value}"))));
 }
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))

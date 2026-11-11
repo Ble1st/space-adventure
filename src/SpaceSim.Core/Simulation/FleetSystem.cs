@@ -82,8 +82,18 @@ public sealed class FleetSystem : ISimSystem
     }
 
     /// <summary>
-    /// Schiffsbau für eine Aufgabe: Liegt die belegte Kapazität unter der Grenze, kauft das reichste Schiff dieser Aufgabe (ab
-    /// <see cref="EconomyRules.FleetExpandCredits"/>) ein neues. Phase 6: zuerst die Kaufwahl <see cref="ChooseModel"/>; findet sie nichts
+    /// Phase 9: Nach dem Kauf steigt ein freies Einzelschiff zum eigenen Akteur auf (lazy, POLITIK.md „Einzelschiffe träge anlegen“); das neue
+    /// Schiff gehört dann diesem Akteur (sonst dem Besitzer des Käufers). Meldet die Ziehung als <see cref="InvestorChosen"/>.
+    /// </summary>
+    static ActorId Bought(Universe u, Ship parent, Investor pick, int candidates, float paid)
+    {
+        u.Events.Publish(new InvestorChosen("ship", pick.Source, pick.Holder, pick.Class, paid, candidates));
+        return ActorRules.Promote(u, parent);
+    }
+
+    /// <summary>
+    /// Schiffsbau für eine Aufgabe: Liegt die belegte Kapazität unter der Grenze, kauft ein Schiff dieser Aufgabe (ab
+    /// <see cref="EconomyRules.FleetExpandCredits"/>, Phase 9: gewichtete Ziehung statt des reichsten) ein neues. Phase 6: zuerst die Kaufwahl <see cref="ChooseModel"/>; findet sie nichts
     /// (z. B. Werft ohne passende Module, Content ohne <c>jobs</c>), gilt die Regel vor Phase 6 — eine Kopie des Elternschiffs, bevorzugt mit den
     /// Modulen aus dem Werftlager (Phase 5c), sonst nur aus dem Bausatz zur Pauschale <see cref="EconomyRules.NewShipCost"/>, damit
     /// Modulengpässe das Flottenwachstum nicht blockieren. Werften sind Stationen, deren Typ die Klasse verkauft; Welten ganz ohne
@@ -97,10 +107,12 @@ public sealed class FleetSystem : ISimSystem
         if (used >= limit) return;
 
         var role = job.Role;
-        var parent = u.Ships.Values
-            .Where(s => s.Role == role && s.Controller == Controller.Ai && s.Transit is null && s.Credits >= rules.FleetExpandCredits)
-            .OrderByDescending(s => s.Credits).ThenBy(s => s.Id.Value).FirstOrDefault();
-        if (parent is null) return;
+        // Phase 9: Zukauf — statt des reichsten Schiffs zieht eine gewichtete Ziehung den Käufer (Geld über der Schwelle × Appetit der
+        // Größenklasse seines Besitzers × Gier, Investors)
+        var candidates = Investors.ForShip(u, role, rules.FleetExpandCredits);
+        var pick = Investors.Draw(u, candidates);
+        if (pick?.Ship is not { } parent) return;
+        float before = parent.Credits;
 
         if (rules.FleetChoosesModels && ChooseModel(u, job, parent, used, limit) is { } choice)
         {
@@ -110,7 +122,8 @@ public sealed class FleetSystem : ISimSystem
             choice.Yard.Credits += choice.Price;
             parent.Credits -= choice.Price + rules.NewShipStartCredits;
             var newId = u.NewShipId();
-            var bought = ShipPurchase.Create(u, newId, choice.Model.Key, q.Slots, q.Fit, role, Controller.Ai, parent.Faction, choice.Yard, rules.NewShipStartCredits, q.Grade);
+            var owner = Bought(u, parent, pick, candidates.Count, before - parent.Credits);
+            var bought = ShipPurchase.Create(u, newId, choice.Model.Key, q.Slots, q.Fit, role, Controller.Ai, owner, choice.Yard, rules.NewShipStartCredits, q.Grade);
             bought.JobSince = u.Tick;
             u.AddShip(bought);
             u.Events.Publish(new FleetShipBuilt(bought.Id, choice.Yard.Id, true, choice.Price));
@@ -149,16 +162,17 @@ public sealed class FleetSystem : ISimSystem
         yard.Credits += price;
         parent.Credits -= price + rules.NewShipStartCredits;
         var id = u.NewShipId();
+        var childOwner = Bought(u, parent, pick, candidates.Count, before - parent.Credits);
         // Neukauf übernimmt das Modell des Elternschiffs (Phase 3), seit Phase 7 mit eigener Güteklasse
         Ship child;
         if (quality is not null)
-            child = ShipPurchase.Create(u, id, parent.ModelKey, quality.Slots, quality.Fit, role, CapabilityDefaults.ControllerFor(role), parent.Faction, yard, rules.NewShipStartCredits, quality.Grade);
+            child = ShipPurchase.Create(u, id, parent.ModelKey, quality.Slots, quality.Fit, role, CapabilityDefaults.ControllerFor(role), childOwner, yard, rules.NewShipStartCredits, quality.Grade);
         else
         {
             child = new Ship
             {
                 Id = id, Role = role, Controller = CapabilityDefaults.ControllerFor(role),
-                Faction = parent.Faction, Sector = yard.Sector, Position = yard.DockPoint(id), Credits = rules.NewShipStartCredits,
+                Owner = childOwner, Sector = yard.Sector, Position = yard.DockPoint(id), Credits = rules.NewShipStartCredits,
                 CargoCapacity = parent.CargoCapacity,
             };
             child.Capabilities = CapabilityDefaults.ForRole(role);

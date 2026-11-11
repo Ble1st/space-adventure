@@ -8,7 +8,12 @@ public enum MinePhase { Idle, GoingToField, Mining, GoingToStation }
 public sealed class Ship : ICreditAccount
 {
     public ShipId Id;
-    public FactionId Faction;
+    /// <summary>
+    /// Besitzer (Phase 9, ersetzt <c>Ship.Faction</c>): ein Akteur. Fraktionsschiffe gehören dem Fraktionsakteur, Spielerschiffe dem Spieler,
+    /// freie Einzelschiffe der Sammelgruppe <see cref="Universe.FreeActor"/> (impliziter Akteur, bis es aufsteigt). Die Fraktion folgt aus dem
+    /// Besitzer (<see cref="Universe.FactionOf(Ship)"/>).
+    /// </summary>
+    public ActorId Owner;
     /// <summary>Aktuelle Aufgabe / Etikett (gespeichert, Anzeige); nicht mehr für Entscheidungen benutzt.</summary>
     public ShipRole Role;
     Capability _capabilities;
@@ -38,8 +43,9 @@ public sealed class Ship : ICreditAccount
     /// <summary>Treibstoff an Bord je Ware, getrennt vom Laderaum; Summe ≤ <see cref="ShipStats.FuelCapacity"/>. Schiffe ohne Modell: leer (Kapazität 0).</summary>
     public Dictionary<GoodId, float> Fuel = new();
     /// <summary>
-    /// Kasse des Schiffs als impliziter Akteur (NPC-Einzelschiffe). Spielerschiffe buchen nicht hierauf, sondern auf die
-    /// <see cref="PlayerWallet"/>; ihr Wert bleibt 0. Buchende Stellen nutzen <see cref="Universe.WalletOf(Ship)"/>.
+    /// Betriebskasse des Schiffs (NPC-Schiffe: freie Einzelschiffe als implizite Akteure und Eigenbetriebe von Fraktionen/Einzelakteuren).
+    /// Spielerschiffe buchen nicht hierauf, sondern auf die Kasse ihres Besitzers; ihr Wert bleibt 0. Buchende Stellen nutzen
+    /// <see cref="Universe.WalletOf(Ship)"/>.
     /// </summary>
     public float Credits;
     float ICreditAccount.Credits { get => Credits; set => Credits = value; }

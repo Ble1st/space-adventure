@@ -244,7 +244,7 @@ public class FuelModelTests
     [Fact]
     public void SaveLoad_V5_Roundtrip_IdentischInklHashFuelUndContent()
     {
-        Assert.Equal(11, SaveGame.CurrentVersion);   // v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
+        Assert.Equal(12, SaveGame.CurrentVersion);   // v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);

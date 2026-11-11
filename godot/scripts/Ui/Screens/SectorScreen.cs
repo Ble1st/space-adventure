@@ -72,7 +72,7 @@ public sealed partial class SectorScreen : CommandScreen
 		{
 			string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
 			At(card, Text(st.Name, 21, Cyan), 16, 10, 268, 28);
-			At(card, Text($"{type} · {FactionName(u, st.Owner)} · {SectorName(u, st.Sector)}", 14, Dim), 16, 40, 268, 20);
+			At(card, Text($"{type} · {u.ActorName(st.Owner)} · {SectorName(u, st.Sector)}", 14, Dim), 16, 40, 268, 20);
 			At(card, Text($"Kasse {st.Credits:0} Cr · {st.Market.Count} Waren am Markt", 14, White), 16, 66, 268, 20);
 			if (ConstructionInfo.Of(u, st) is { } site)
 			{
@@ -261,7 +261,7 @@ public sealed partial class SectorScreen : CommandScreen
 				var st = _u.Stations[sid];
 				var p = Place(st.Position);
 				bool sel = _owner._selStation == sid;
-				var col = MapOverlay.FactionColor(st.Owner);
+				var col = MapOverlay.FactionColor(_u.FactionOf(st) ?? default);
 				if (ConstructionInfo.Of(_u, st) is { } site)
 				{
 					// Phase 8: Baustelle als Raute mit Materialbalken (orange = läuft, grau = verlassen)

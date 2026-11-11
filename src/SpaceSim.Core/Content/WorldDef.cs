@@ -210,7 +210,25 @@ public sealed class ModuleFactoryDef
     public float InputTarget { get; set; } = 10;
 }
 
-public sealed class FactionDef { public int Id { get; set; } public string Name { get; set; } = ""; }
+public sealed class FactionDef
+{
+    public int Id { get; set; } public string Name { get; set; } = "";
+    /// <summary>Art des Fraktionsakteurs (Phase 9): state, guild, outlaw; fehlt = state.</summary>
+    public string? Kind { get; set; }
+    /// <summary>Persönlichkeitswerte 0..1 (Phase 9); fehlt = neutral (0,5).</summary>
+    public PersonalityDef? Personality { get; set; }
+    /// <summary>Hauptbeziehungen zu anderen Fraktionen (Fraktions-Id → −1 … +1); nur Abweichungen von der Vorgabe.</summary>
+    public Dictionary<int, float>? Relations { get; set; }
+    /// <summary>Startkasse der Fraktion (Phase 9); fehlt = 0.</summary>
+    public float Treasury { get; set; }
+}
+
+/// <summary>Persönlichkeitswerte eines Akteurs in der Weltdatei (POLITIK.md „Persönlichkeitswerte“).</summary>
+public sealed class PersonalityDef
+{
+    public float Aggression { get; set; } = 0.5f; public float Greed { get; set; } = 0.5f;
+    public float Cooperation { get; set; } = 0.5f; public float Lawfulness { get; set; } = 0.5f;
+}
 
 public sealed class SectorDef
 {
@@ -257,6 +275,11 @@ public sealed class ShipGroupDef
 {
     public string Role { get; set; } = "trader";
     public int Faction { get; set; }
+    /// <summary>
+    /// Besitzer (Phase 9): "faction" (Standard) = der Fraktionsakteur <see cref="Faction"/>, "free" = freie Einzelschiffe der Sammelgruppe
+    /// „Freie“ (implizite Akteure; <see cref="Faction"/> zählt dann nicht).
+    /// </summary>
+    public string? Owner { get; set; }
     public int Sector { get; set; }
     public float Credits { get; set; } = 1000;
     public float Cargo { get; set; } = 100;

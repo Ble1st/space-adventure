@@ -88,44 +88,20 @@ public static class UiPlaceholders
 	/// <summary>Zähler ungelesener Platzhalter-Nachrichten am Hamburger-Menü und im Comms-Bereich.</summary>
 	public static int CommsUnread => CommsMessages.Count(m => m.IsNew);
 
-	/// <summary>Beziehung einer Fraktion zum Spieler (Platzhalter, Politik fehlt im Core noch).</summary>
-	public const string FactionRelationToPlayer = "unbekannt – " + Tag;
-	/// <summary>Art einer Fraktion (Platzhalter, Fraktionsarten gibt es im Core noch nicht).</summary>
-	public const string FactionKind = "unbekannt – " + Tag;
-	/// <summary>Ereignisliste einer Fraktion (Platzhalter).</summary>
+	/// <summary>Ereignisliste einer Fraktion (Platzhalter; Politik und Ereignisse kommen ab Phase 10).</summary>
 	public static string[] FactionEvents => new[] { "Keine Ereignisse aufgezeichnet – " + Tag };
 
-	/// <summary>
-	/// Persönlichkeit einer Fraktion als Balkenwerte 0..1 (Platzhalter; deterministisch aus dem Namen,
-	/// damit die Anzeige stabil bleibt, aber ohne Bezug zur Simulation).
-	/// </summary>
-	public static (float Aggression, float Greed, float Cooperation, float Lawfulness) FactionPersonality(string name)
-	{
-		int h = 7;
-		foreach (var c in name) h = h * 31 + c;
-		float F(int salt) => ((h + salt * 101) & 0xff) / 255f;
-		return (F(1), F(2), F(3), F(4));
-	}
-
-	/// <summary>Beziehungen einer Fraktion zu anderen (Platzhalter, solange <see cref="SpaceSim.Core.Model.Faction.Relations"/> leer ist).</summary>
-	public const string FactionRelationsSoon = "Beziehungen zu anderen Fraktionen: " + Tag + " (" + Soon + ", Politik ab Phase 10)";
-
 	// ── Meine Fraktion ──
+	// Phase 9: Größe, Fortschritt, Mitgliedschaft, Beziehungen und Persönlichkeit sind echt (Akteure im Core); hier bleibt der Rest.
 
-	/// <summary>Größenstufe des Spielers (Platzhalter, Akteursgrößen gibt es im Core noch nicht).</summary>
-	public const string MyFactionSize = "Einzelakteur – " + Tag;
-	/// <summary>Fortschritt zur nächsten Größenstufe (Platzhalter).</summary>
-	public const string MyFactionProgress = "Fortschritt zur nächsten Stufe: " + Tag;
-	/// <summary>Mitgliedschaft (Platzhalter).</summary>
-	public const string MyFactionMembership = "keine eigene Fraktion – " + Tag;
 	/// <summary>Unterhalt pro Tag (Platzhalter).</summary>
 	public const string MyFactionUpkeep = "−42 Cr/Tag – " + Tag;
 	/// <summary>Liegegebühr pro Tag (Platzhalter; echte Staffel je Schiffsklasse kommt mit Phase 12).</summary>
 	public const string MyFactionBerthFee = "−12 Cr/Tag – " + Tag;
 	/// <summary>Einnahmen pro Tag (Platzhalter).</summary>
 	public const string MyFactionIncome = "+210 Cr/Tag – " + Tag;
-	/// <summary>Ruf und Fahndung je Fraktion (Platzhalter, Politik fehlt noch).</summary>
-	public const string MyFactionReputation = "Ruf/Fahndung: " + Tag + " (" + Soon + ", Politik ab Phase 10)";
+	/// <summary>Fahndung (Platzhalter; Fahndungsniveau je Staat kommt mit Phase 11).</summary>
+	public const string MyFactionWanted = "Fahndung: " + Tag + " (" + Soon + ", ab Phase 11)";
 	/// <summary>Fähigkeiten mit Schloss nach Größenstufe (Platzhalter).</summary>
 	public static (string Name, bool Unlocked, string Note)[] MyFactionAbilities => new[]
 	{

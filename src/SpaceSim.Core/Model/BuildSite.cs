@@ -17,6 +17,8 @@ public sealed class BuildSite
     /// <summary>Investor, der das Treuhandgeld eingezahlt hat (Station oder Schiff; 0 = keiner bekannt). Bei Verfall geht der Rest dorthin zurück.</summary>
     public int InvestorStation;
     public int InvestorShip;
+    /// <summary>Phase 9: Akteur, dessen Kasse die Bausumme gezahlt hat (Zukauf aus der Kasse; 0 = keiner). Bei Verfall geht der Rest dorthin zurück.</summary>
+    public int InvestorActor;
     /// <summary>Eingezahlte Bausumme (Treuhand bei Beginn); Grundlage der Montagegebühr.</summary>
     public float Budget;
     /// <summary>Zugeteiltes Bauschiff (0 = keins).</summary>

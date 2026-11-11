@@ -1,5 +1,6 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Simulation;
 
 namespace SpaceSim.Core.Diagnostics;
 
@@ -8,16 +9,21 @@ public sealed record GoodStat(GoodId Good, string Name, float AvgPrice, float Pr
 /// <summary>
 /// Momentaufnahme. Geldmenge nach Kassen (Phase 5b): <see cref="StationCredits"/> (alle Stationen), <see cref="ShipCredits"/>
 /// (wirtschaftlich aktive KI-Schiffe, je Schiff eine Kasse), <see cref="PlayerCredits"/> (Spielerkasse plus etwaige Restcredits
-/// auf Spielerschiffen, im Normalfall 0). <see cref="TotalCredits"/> ist die Summe der drei.
+/// auf Spielerschiffen, im Normalfall 0), Phase 9: <see cref="TreasuryCredits"/> (Kassen aller übrigen Akteure, v. a. der Fraktionen) und
+/// <see cref="Actors"/> je Akteur. <see cref="TotalCredits"/> ist die Summe der vier.
 /// </summary>
 /// <remarks>Phase 8: <see cref="Stations"/> zählt fertige Stationen, <see cref="Sites"/> Baustellen (auch verlassene); Baustellen gehen nicht in die
 /// Preisdurchschnitte ein (ihr Gebot ist fest, ihr Wunschbestand eine Stückliste), ihr Treuhandgeld steht in <see cref="StationCredits"/>.</remarks>
 public sealed record EconomySnapshot(
     long Tick, int Stations, int Traders, int Miners, float StationCredits, float ShipCredits, IReadOnlyList<GoodStat> Goods,
-    float PlayerCredits = 0f, int Sites = 0, int Builders = 0)
+    float PlayerCredits = 0f, int Sites = 0, int Builders = 0, float TreasuryCredits = 0f, IReadOnlyList<ActorStat>? Actors = null)
 {
-    public float TotalCredits => StationCredits + ShipCredits + PlayerCredits;
+    /// <summary>Geldmenge: Stationen + Schiffe + Spieler + Kassen der übrigen Akteure (Phase 9).</summary>
+    public float TotalCredits => StationCredits + ShipCredits + PlayerCredits + TreasuryCredits;
 }
+
+/// <summary>Phase 9: ein Akteur in der Momentaufnahme — Kasse, Besitz, Größenzahl und -klasse.</summary>
+public sealed record ActorStat(ActorId Id, string Name, ActorKind Kind, float Treasury, int Ships, int Stations, int Sectors, float Size, ActorSizeClass Class);
 
 /// <summary>Momentaufnahme der Wirtschaft für Balancing-Werkzeug und Debug-Ansicht.</summary>
 public static class EconomyStats
@@ -37,7 +43,25 @@ public static class EconomyStats
             u.Stations.Values.Sum(s => s.Credits),
             u.Ships.Values.Where(s => s.IsEconomyAi).Sum(s => s.Credits), goods,
             u.PlayerWallet.Credits + u.Ships.Values.Where(s => s.IsPlayer).Sum(s => s.Credits),
-            u.Stations.Values.Count(s => s.IsBuildSite), u.Ships.Values.Count(s => s.IsAiBuilder));
+            u.Stations.Values.Count(s => s.IsBuildSite), u.Ships.Values.Count(s => s.IsAiBuilder),
+            u.Actors.Values.Where(a => a.Id != u.PlayerActor).Sum(a => a.Treasury.Credits), Actors(u));
+    }
+
+    /// <summary>Phase 9: alle Akteure mit Kasse, Besitz und Größe (Id-Reihenfolge; die freien Einzelschiffe zählen bei der Sammelgruppe).</summary>
+    public static IReadOnlyList<ActorStat> Actors(Universe u)
+    {
+        var index = ActorRules.Index(u);
+        var list = new List<ActorStat>();
+        foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
+        {
+            var h = index.TryGetValue(a.Id, out var x) ? x : default;
+            if (a.Id == u.FreeActor) h = h with { Ships = u.Ships.Values.Count(s => s.Owner == a.Id) };
+            float size = ActorRules.Size(u.Rules, h);
+            // Die Sammelgruppe ist kein Unternehmen: jedes freie Schiff ist für sich ein Einzelakteur
+            var cls = a.Id == u.FreeActor ? ActorSizeClass.Single : ActorRules.ClassOf(u.Rules, size);
+            list.Add(new ActorStat(a.Id, a.Name, a.Kind, a.Treasury.Credits, h.Ships, h.Stations, h.Sectors, size, cls));
+        }
+        return list;
     }
 }
 

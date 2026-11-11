@@ -99,7 +99,7 @@ public sealed class ShipDealerService : IStationService
         station.Credits += q.Price;
         wallet.Credits -= q.Price;
         var id = u.NewShipId();
-        var bought = ShipPurchase.Create(u, id, modelKey, quality.Slots, quality.Fit, ShipRole.Player, Controller.Player, u.PlayerWallet.Faction, station, 0f, quality.Grade);
+        var bought = ShipPurchase.Create(u, id, modelKey, quality.Slots, quality.Fit, ShipRole.Player, Controller.Player, u.PlayerActor, station, 0f, quality.Grade);
         u.AddShip(bought);
         u.Events.Publish(new ShipQualityRolled(id, quality.Rolled, quality.Grade));
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Buy, u.FindGood(ShipPurchase.KitKeyOf(u, q.Class))!.Id, 1f, -q.Price));

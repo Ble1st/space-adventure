@@ -129,7 +129,11 @@ public partial class UiShots : Node
 			case 29: Capture("14-cc-universum-gewaehlter-sektor.png"); _stage = 30; _wait = 10; break;
 			case 30: _m.TestOpenCcArea("sector"); _stage = 31; _wait = 20; break;
 			case 31: Capture("15-cc-sektor.png"); _stage = 32; _wait = 10; break;
-			case 32: _m.TestOpenCcArea("factions"); _stage = 33; _wait = 20; break;
+			case 32:
+				// Phase 9: ein freier Händler steigt zum Einzelakteur auf, damit die Liste alle Arten zeigt
+				if (_m.Session.U.Ships.Values.Where(x => x.Role == SpaceSim.Core.Model.ShipRole.Trader && x.Owner == _m.Session.U.FreeActor).OrderBy(x => x.Id.Value).FirstOrDefault() is { } fs)
+					SpaceSim.Core.Simulation.ActorRules.Promote(_m.Session.U, fs);
+				_m.TestOpenCcArea("factions"); _stage = 33; _wait = 20; break;
 			case 33: Capture("16-cc-fraktionen.png"); _stage = 34; _wait = 10; break;
 			case 34: _m.TestCcSelectFaction(new SpaceSim.Core.Model.FactionId(2)); _stage = 35; _wait = 20; break;
 			case 35: Capture("17-cc-fraktionsdetail.png"); _stage = 36; _wait = 10; break;

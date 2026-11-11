@@ -81,8 +81,17 @@ public static class UniverseSerializer
             Tick = u.Tick, Seed = u.Seed, RngState = u.Rng.State, LastStationBuildTick = u.LastStationBuildTick,
             NextShipId = u.IdCounters.ship, NextStationId = u.IdCounters.station, NextAsteroidId = u.NextAsteroidId,
             PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
-            PlayerWallet = new PlayerWalletSave { Credits = u.PlayerWallet.Credits, Faction = u.PlayerWallet.Faction.Value },
+            PlayerActor = u.PlayerActor.Value, FreeActor = u.FreeActor.Value, NextActorId = u.NextActorId,
         };
+        foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
+            s.Actors.Add(new ActorSave
+            {
+                Id = a.Id.Value, Name = a.Name, Kind = a.Kind.ToString(), Membership = a.Membership?.Value, Credits = a.Treasury.Credits,
+                ShipsUseTreasury = a.ShipsUseTreasury, Aggression = a.Personality.Aggression, Greed = a.Personality.Greed,
+                Cooperation = a.Personality.Cooperation, Lawfulness = a.Personality.Lawfulness,
+                Relations = a.Relations.Count == 0 ? null : a.Relations.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                Created = a.CreatedTick,
+            });
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
             s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit, Form = g.Form.ToString().ToLowerInvariant() });
         foreach (var c in u.AsteroidClasses.Values)
@@ -132,7 +141,7 @@ public static class UniverseSerializer
                 Site = st.Site is { } bs ? new BuildSiteSave
                 {
                     Type = bs.TypeKey, Required = bs.Required.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                    InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, Budget = bs.Budget, Builder = bs.Builder.Value,
+                    InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, InvestorActor = bs.InvestorActor, Budget = bs.Budget, Builder = bs.Builder.Value,
                     Started = bs.StartedTick, LastProgress = bs.LastProgressTick, BlockedSince = bs.BlockedSince, Assembly = bs.AssemblyTicks,
                     Emergency = bs.Emergency, Abandoned = bs.Abandoned,
                 } : null,
@@ -141,7 +150,7 @@ public static class UniverseSerializer
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
             {
-                Id = sh.Id.Value, Faction = sh.Faction.Value, Role = sh.Role.ToString(), Capabilities = (int)sh.Capabilities, Controller = sh.Controller.ToString(),
+                Id = sh.Id.Value, Owner = sh.Owner.Value, Role = sh.Role.ToString(), Capabilities = (int)sh.Capabilities, Controller = sh.Controller.ToString(),
                 ModelKey = sh.ModelKey.Length > 0 ? sh.ModelKey : null,
                 Slots = sh.Slots.Count > 0 ? sh.Slots.Select(ToSave).ToList() : null,
                 Fit = sh.Fit.Count > 0 ? new List<string?>(sh.Fit) : null,
@@ -167,8 +176,22 @@ public static class UniverseSerializer
             Tick = s.Tick, Seed = s.Seed, LastStationBuildTick = s.LastStationBuildTick, Rules = s.Rules, NextAsteroidId = s.NextAsteroidId,
             Rng = new DeterministicRng(s.Seed) { State = s.RngState },
             PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
-            PlayerWallet = new PlayerWallet { Credits = s.PlayerWallet.Credits, Faction = new FactionId(s.PlayerWallet.Faction) },
         };
+        // Phase 9: Akteure (die Migration v11→v12 legt sie für ältere Stände an)
+        u.Actors.Clear();
+        u.PlayerActor = new ActorId(s.PlayerActor);
+        u.FreeActor = new ActorId(s.FreeActor);
+        foreach (var a in s.Actors)
+            u.Actors[new ActorId(a.Id)] = new Actor
+            {
+                Id = new ActorId(a.Id), Name = a.Name, Kind = Enum.Parse<ActorKind>(a.Kind), Membership = a.Membership is { } m ? new FactionId(m) : null,
+                Treasury = new Treasury { Credits = a.Credits }, ShipsUseTreasury = a.ShipsUseTreasury,
+                Personality = new Personality(a.Aggression, a.Greed, a.Cooperation, a.Lawfulness),
+                Relations = a.Relations is null ? new Dictionary<ActorId, float>() : a.Relations.ToDictionary(kv => new ActorId(kv.Key), kv => kv.Value),
+                CreatedTick = a.Created,
+            };
+        u.NextActorId = s.NextActorId;
+        u.EnsureCoreActors();
         foreach (var g in s.Goods)
             u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form) };
         foreach (var c in s.AsteroidClasses)
@@ -213,14 +236,14 @@ public static class UniverseSerializer
         foreach (var st in s.Stations)
             u.Stations[new StationId(st.Id)] = new Station
             {
-                Id = new StationId(st.Id), TypeKey = st.Type, Name = st.Name, Sector = new SectorId(st.Sector), Owner = new FactionId(st.Owner),
+                Id = new StationId(st.Id), TypeKey = st.Type, Name = st.Name, Sector = new SectorId(st.Sector), Owner = new ActorId(st.Owner),
                 Position = st.Pos, Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected || st.Essential, BelowLimitSince = st.BelowLimitSince,
                 Production = st.Recipes.Select(FromSave).ToList(),
                 Market = st.Market.ToDictionary(kv => new GoodId(kv.Key), kv => new StockEntry { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price }),
                 Site = st.Site is { } bs ? new BuildSite
                 {
                     TypeKey = bs.Type, Required = bs.Required.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
-                    InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, Budget = bs.Budget, Builder = new ShipId(bs.Builder),
+                    InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, InvestorActor = bs.InvestorActor, Budget = bs.Budget, Builder = new ShipId(bs.Builder),
                     StartedTick = bs.Started, LastProgressTick = bs.LastProgress, BlockedSince = bs.BlockedSince, AssemblyTicks = bs.Assembly,
                     Emergency = bs.Emergency, Abandoned = bs.Abandoned,
                 } : null,
@@ -231,7 +254,7 @@ public static class UniverseSerializer
             var role = Enum.Parse<ShipRole>(sh.Role);
             var ship = new Ship
             {
-                Id = new ShipId(sh.Id), Faction = new FactionId(sh.Faction), Role = role,
+                Id = new ShipId(sh.Id), Owner = new ActorId(sh.Owner ?? sh.Faction), Role = role,
                 // gespeichert; alte Spielstände ohne die Felder: aus der Rolle ableiten
                 Controller = sh.Controller is { } ctl ? Enum.Parse<Controller>(ctl) : CapabilityDefaults.ControllerFor(role),
                 ModelKey = sh.ModelKey ?? "",

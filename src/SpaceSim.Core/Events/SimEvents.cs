@@ -66,3 +66,22 @@ public sealed class SimEvents
     public event Action<SimEvent>? Raised;
     public void Publish(SimEvent e) => Raised?.Invoke(e);
 }
+
+// ───────── Phase 9: Akteure und Kassen ─────────
+/// <summary>
+/// Vermögensabgaben eines Upkeep-Schritts (Phase 9): <paramref name="Amount"/> floss in die Kasse des Akteurs <paramref name="Treasury"/>
+/// (zuständige Fraktion). Je Schritt und Kasse ein Ereignis; Abgaben ohne zuständige Fraktion verschwinden (<see cref="TaxSunk"/>).
+/// </summary>
+public sealed record TaxCollected(ActorId Treasury, float Amount) : SimEvent;
+/// <summary>Vermögensabgaben eines Upkeep-Schritts ohne Empfänger (keine zuständige Fraktion oder <see cref="Model.EconomyRules.TaxToTreasuryShare"/> &lt; 1): Geldsenke.</summary>
+public sealed record TaxSunk(float Amount) : SimEvent;
+/// <summary>
+/// Zukauf (Phase 9, POLITIK.md „Zukauf durch kleinere Akteure“): Die gewichtete Ziehung hat einen Geldgeber gewählt. <paramref name="Purpose"/> =
+/// "station" oder "ship"; <paramref name="Source"/> = Kasse des Akteurs, Betriebskasse einer Station oder eines Schiffs; <paramref name="Holder"/> ist der
+/// Akteur dahinter (bei freien Einzelschiffen die Sammelgruppe, vor dem Aufstieg), <paramref name="Class"/> seine Größenklasse.
+/// </summary>
+public sealed record InvestorChosen(string Purpose, Simulation.InvestorSource Source, ActorId Holder, ActorSizeClass Class, float Amount, int Candidates) : SimEvent;
+/// <summary>Ein freies Einzelschiff ist zum eigenen Akteur aufgestiegen (lazy, beim ersten Investieren).</summary>
+public sealed record ActorPromoted(ActorId Actor, ShipId Ship) : SimEvent;
+/// <summary>Ein Akteur ohne Besitz und Geld wurde entfernt (Abstieg).</summary>
+public sealed record ActorRemoved(ActorId Actor, string Reason) : SimEvent;

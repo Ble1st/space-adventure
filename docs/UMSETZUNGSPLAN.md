@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v11).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v12).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -26,7 +26,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 6 | Multirole: Job-Zuteilung, Kapazitätsgrenzen, erste Multirole-Modelle | M | v9 |
 | 7 | NPC-Güteklassen und Upgrades | M | v10 |
 | 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v11 |
-| 9 | Akteure, Fraktionen, Kasse, Beziehungen, Persönlichkeit, Zukauf | L | v9 |
+| 9 | Akteure, Fraktionen, Kasse, Beziehungen, Persönlichkeit, Zukauf | L | v12 |
 | 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v10 |
 | 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v11 |
 | 12 | Verbände, Befehle, Spielerflotte und Oberfläche | L | v12 |
@@ -279,6 +279,29 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Save v9:** Akteure, Mitgliedschaft, Kasse, Persönlichkeit.
 - **Prüfung:** Geldmenge bleibt erklärbar (`EconomyStats`), keine Beziehungs-Explosion.
 
+**Stand:** umgesetzt auf Branch `phase9-akteure`.
+- **Akteur und Fraktion:** `Actor` (Art, Mitgliedschaft, Kasse `Treasury`, Persönlichkeit, persönliche Beziehungsabweichungen) in `Universe.Actors`. Jede Fraktion ist ein Akteur gleicher Id-Zahl (Art Staat/Gilde/Gesetzlose aus der Weltdatei, Mitglied ihrer selbst); `Faction` behält nur den politischen Teil. `Ship.Faction` ist ersetzt durch `Ship.Owner` (Akteur), `Station.Owner` ist ein Akteur; die Fraktion folgt aus der Mitgliedschaft des Besitzers (`Universe.FactionOf`).
+- **Freie und träger Aufstieg:** Händler und Miner der Startwelt sind freie Einzelschiffe der Sammelgruppe „Freie Kapitäne“ (implizite Akteure, Beziehungen einmal gespeichert). Investiert ein freies Schiff (kauft ein Schiff, finanziert eine Station), wird es zum Akteur „Unabhängig“ (Mitglied der Hoheit seines Sektors, gewürfelte Persönlichkeit) und besitzt, was es kauft. Ohne Besitz und Geld verschwindet der Akteur wieder (`ActorSystem`, eigenes Modul „Actors“). Bauschiffe gehören dem Fraktionsakteur, Spielerschiffe dem Spieler.
+- **Größe:** Größenzahl aus Schiffen, Stationen, Sektoren und Geld (Gewichte und Schwellen in den Regeln), fünf Größenklassen Einzelakteur bis Staat.
+- **Zukauf:** Stationsbau und Flottenwachstum ziehen den Geldgeber gewichtet über `Universe.Rng` (weicher Erstzugriff): Gewicht = Geld über der Schwelle × Appetit der Größenklasse (0,25 … 1) × (0,5 + Gier). Kandidaten für Stationen: Kassen der Akteure, Stationen, Schiffe; für Schiffe: Schiffe der Aufgabe. Das Balance-Tool zeigt die Verteilung nach Quelle und Größenklasse.
+- **Kasse:** Die Vermögensabgaben (bisher Geldsenke) fließen in die Kasse der zuständigen Fraktion (Mitglieder an ihre Fraktion, freie Schiffe an die Hoheit ihres Sektors); für die Zahler ändert sich nichts. Ausgegeben wird die Kasse für Stationsbau (Treuhand, Rückzahlung bei Verfall). Ereignisse `TaxCollected`, `TaxSunk`, `InvestorChosen`, `ActorPromoted`, `ActorRemoved`; `EconomyStats` und Balance-Tool führen Kassen und Akteure.
+- **Beziehungen sparsam:** nur Abweichungen (Fraktion–Fraktion an der Fraktion, persönliche am Akteur), sonst Vorgaben (gleiche Fraktion, Staat–Freie, alle–Gesetzlose). Startwelt: Union ↔ Freie Händler +0,25.
+- **Persönlichkeit:** Aggression, Gier, Kooperation, Gesetzestreue aus der Weltdatei bzw. gewürfelt; wirksam ist vorerst nur die Gier (Appetit beim Zukauf).
+- **Spieler als Einzelakteur:** Die Spielerkasse ist die Kasse des Spielerakteurs; `Universe.WalletOf(ship)` ist die Kasse des Besitzers (nur Akteure mit gemeinsamer Kasse, also der Spieler; NPC-Schiffe behalten ihre Betriebskasse).
+- **Save v12** mit Migration v11→v12; mit dem echten v2-Spielstand geprüft (20000 Ticks, 883 Handelsfahrten, Flotte 14 → 14, Spielerkasse 1120 Cr übernommen).
+- **Oberfläche:** „Fraktionen“ und „Meine Fraktion“ zeigen echte Akteure, Kassen, Größenklassen, Beziehungen und Persönlichkeit; Platzhalter dafür entfernt. Selbsttest erweitert, `--ui-shots` 16–18 angesehen.
+- **Aufräumen aus Phase 8:** Bauschiffe, Freigabe und Marktindex laufen in Id-Reihenfolge (Balance-Hash vor den Phase-9-Änderungen unverändert).
+- **Prüfung:** 394 Tests (15 neu in `ActorTests`), Selbsttest OK. Balance (frischer Release-Build): Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“, Kapazität Handel 14,3–14,4 / Bergbau 8,3, 0 Treibstoff-Notkäufe; Seeds 1–4 bei 20000 alle grün. Umlaufgeld (Stationen + Schiffe) wie vorher ≈ 140 000 Cr; Kassen 0,98 Mio. (20000) bzw. 2,6 Mio. (60000) = die frühere Abgabensenke; 2 gespeicherte Beziehungen in allen Läufen.
+
+**Abweichungen und offene Punkte (Phase 9):**
+- **Save-Version v12 statt v9** (Platzhalter im Plan).
+- **Keine Kassenzusammenlegung bei NPCs:** Fraktionen und aufgestiegene Akteure führen ihre Schiffe als Eigenbetriebe mit eigener Betriebskasse; nur der Spieler bucht auf die Akteurskasse. Die Kasse eines aufgestiegenen Einzelakteurs bleibt deshalb leer.
+- **Kassen wachsen nur:** Einnahmen sind die Abgaben, Ausgaben nur der Stationsbau. Die Staatskassen überragen damit alles Umlaufgeld und gewinnen fast jede Ziehung um Stationen; Polizei, Zoll und Subventionen (Phase 10/11) sollen sie ausgeben. Kassen kaufen keine Schiffe.
+- **Ereignisgetriebene Beziehungsänderungen fehlen** (keine Sperren, Überfälle, Bündnisse vor Phase 10/11); Aggression, Kooperation und Gesetzestreue sind reine Daten.
+- **Spieler:** Mitgliedschaft fest aus dem Startpaket; Beitreten, Austreten und Gründen folgen mit der Politik. Das Startpaket „Mitglied oder unabhängig“ gibt es noch nicht.
+- **Freie Schiffe verlieren ihre alte Fraktionszugehörigkeit** (Migration): Sie zahlen Abgaben an die Hoheit ihres Sektors, ein Aufsteiger wird Mitglied dort.
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
+
 ## Phase 10: Gate-Zugang, Kontrollpunkte, Sektorkontrolle
 
 - **Gate-Zustände** (offen, eingeschränkt, geschlossen, zerstört) und Politik je Fraktion; `FindRoute` mit Mobilitätsprofil (Cache nach Profil).
@@ -344,6 +367,6 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Phase 4:** Wie viel Treibstoff ein Gate-freier Sektorflug typischerweise kostet; Tankgröße der Einheitsmodelle.
 - **Phase 5:** Preise und Rezepte der ersten Modulreihe, Verteilung der drei Fabriken in der Startwelt, Verarbeitungsaufschlag der Modul-Waren (`ModuleMarkup`), Form von `stocks` am Stationstyp (ROADMAP.md, Punkte 20 und 21).
 - **Phase 8:** ~~Umfang der `Essential`-Aufspaltung~~ entschieden und umgesetzt: nur `Critical` (abgeleitet) und `BankruptcyProtected` (ROADMAP.md, Punkt 23).
-- **Phase 9:** Ob Einzelschiffe sofort oder träge Akteure werden (Vorschlag: träge); Beitritt des Spielers zu Fraktionen.
+- **Phase 9:** ~~Ob Einzelschiffe sofort oder träge Akteure werden~~ entschieden und umgesetzt: träge (Aufstieg beim ersten Investieren). Beitritt des Spielers zu Fraktionen: vorerst nicht — Mitglied der Fraktion des Startpakets, Beitreten/Gründen mit der Politik (Phase 10).
 - **Phase 10:** Sperren je Sektor oder je Gate (Vorschlag: Sektor mit Gate-Ausnahmen).
 - **Jede Phase:** Nach dem Lauf des Balance-Tools entscheiden, ob Startwerte angepasst werden.

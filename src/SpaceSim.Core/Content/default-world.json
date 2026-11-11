@@ -915,11 +915,17 @@
  "factions": [
   {
    "id": 1,
-   "name": "Terranische Union"
+   "name": "Terranische Union",
+   "kind": "state",
+   "personality": { "aggression": 0.45, "greed": 0.4, "cooperation": 0.6, "lawfulness": 0.8 },
+   "relations": { "2": 0.25 }
   },
   {
    "id": 2,
-   "name": "Freie Händler"
+   "name": "Freie Händler",
+   "kind": "guild",
+   "personality": { "aggression": 0.3, "greed": 0.7, "cooperation": 0.55, "lawfulness": 0.45 },
+   "relations": { "1": 0.25 }
   }
  ],
  "sectors": [
@@ -2597,6 +2603,7 @@
  "ships": [
   {
    "role": "trader",
+   "owner": "free",
    "faction": 1,
    "sector": 1,
    "credits": 1500,
@@ -2605,6 +2612,7 @@
   },
   {
    "role": "trader",
+   "owner": "free",
    "faction": 1,
    "sector": 2,
    "credits": 1500,
@@ -2613,6 +2621,7 @@
   },
   {
    "role": "trader",
+   "owner": "free",
    "faction": 2,
    "sector": 3,
    "credits": 1500,
@@ -2621,6 +2630,7 @@
   },
   {
    "role": "trader",
+   "owner": "free",
    "faction": 2,
    "sector": 4,
    "credits": 1500,
@@ -2629,6 +2639,7 @@
   },
   {
    "role": "miner",
+   "owner": "free",
    "faction": 1,
    "sector": 1,
    "credits": 1000,
@@ -2637,6 +2648,7 @@
   },
   {
    "role": "miner",
+   "owner": "free",
    "faction": 1,
    "sector": 2,
    "credits": 1000,
@@ -2645,6 +2657,7 @@
   },
   {
    "role": "miner",
+   "owner": "free",
    "faction": 2,
    "sector": 3,
    "credits": 1000,
@@ -2653,6 +2666,7 @@
   },
   {
    "role": "miner",
+   "owner": "free",
    "faction": 2,
    "sector": 4,
    "credits": 1000,

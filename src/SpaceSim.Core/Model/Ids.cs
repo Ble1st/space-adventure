@@ -5,6 +5,20 @@ public readonly record struct GateId(int Value);
 public readonly record struct StationId(int Value);
 public readonly record struct ShipId(int Value);
 public readonly record struct FactionId(int Value);
+
+/// <summary>
+/// Akteur (Phase 9, POLITIK.md Abschnitt 6): Wirtschaftssubjekt mit Besitz und Kasse. Jede Fraktion ist zugleich ein Akteur mit derselben
+/// Id-Zahl (<c>new ActorId(faction.Value)</c>, daher die implizite Umwandlung); weitere Akteure (Spieler, Sammelgruppe „Freie“, aufgestiegene
+/// Einzelschiffe) bekommen Ids ab <see cref="FirstGenerated"/>. <see cref="None"/> (0) = kein Akteur.
+/// </summary>
+public readonly record struct ActorId(int Value)
+{
+    public static readonly ActorId None = new(0);
+    /// <summary>Erste Id für Akteure, die keine Fraktion sind; Fraktions-Ids müssen darunter liegen.</summary>
+    public const int FirstGenerated = 1000;
+    /// <summary>Der Akteur einer Fraktion hat dieselbe Id-Zahl wie die Fraktion.</summary>
+    public static implicit operator ActorId(FactionId f) => new(f.Value);
+}
 public readonly record struct GoodId(int Value);
 
 public readonly record struct Vec2(float X, float Y)
