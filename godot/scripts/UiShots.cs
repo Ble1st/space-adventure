@@ -18,7 +18,8 @@ namespace SpaceAdventure;
 /// (s) Flotte, (t) Besitz, (u) Schiffsdetail, (v) Comms, System mit Startpaket-Auswahl, (w) Flug-HUD mit gedrehter Kamera
 /// (Yaw 60°, Pitch 40°), Phase 8: Baustelle im Flug, Station-Info der Baustelle, Sektoransicht mit Baustelle, Lager am Lagerhaus,
 /// Flug-HUD mit Spalter, Phase 10: Sperren, Phase 11: HUD mit Fahndung und Lage, Lagekarte, Meine Fraktion, Behörde, Station-Info mit Lage,
-/// Überfall-Warnung, Sektoransicht mit Polizei und Kaperschiff – dann Ende.
+/// Überfall-Warnung, Sektoransicht mit Polizei und Kaperschiff, Phase 12: Andock-Menü mit Hangar/Taxi, Hangar mit Flotte und Leihschiff, Taxi,
+/// Flotte mit Befehlsraster und Zielwahl, Schiffsdetail mit Befehlen, Andock-Menü am Lagerhaus (neun Kacheln) – dann Ende.
 /// Aufruf: godot-mono --path godot -- --ui-shots build/ui-shots/
 /// </summary>
 public partial class UiShots : Node
@@ -27,6 +28,7 @@ public partial class UiShots : Node
 	readonly string _dir;
 	int _stage, _wait;
 	SpaceSim.Core.Model.StationId _site;   // Phase 8: Baustelle für die Bildschirmfotos
+	SpaceSim.Core.Model.ShipId _nomad;     // Phase 12: Flottenschiff für die Bildschirmfotos
 
 	public UiShots(Main m, string dir)
 	{
@@ -302,6 +304,58 @@ public partial class UiShots : Node
 			case 520: Capture("39-hud-ueberfall-warnung.png"); _stage = 521; _wait = 10; break;
 			case 521: _m.TestOpenCommand(); _m.TestOpenCcArea("sector"); _m.TestCcSelectSectorView(_m.Session.U.PlayerSector); _stage = 522; _wait = 20; break;
 			case 522: Capture("40-cc-sektor-polizei-piraten.png"); _stage = 523; _wait = 10; break;
+			// ── Phase 12: Spielerflotte, Hangar, Taxi, Leihschiff, Befehle ──
+			case 523:
+			{
+				_m.TestCloseCommand();
+				var u = _m.Session.U;
+				u.Rules.PlayerRaids = false; u.PendingEncounters.Clear();
+				var hub = u.Stations.Values.First(x => x.TypeKey == "trade_station");
+				var yard = u.Stations.Values.First(x => x.TypeKey == "shipyard");
+				SpaceSim.Core.Model.Ship Own(string model, SpaceSim.Core.Model.Station at)
+				{
+					var m = u.ShipModels[model];
+					var s = SpaceSim.Core.Simulation.ShipPurchase.Create(u, u.NewShipId(), m.Key, u.ShipClasses[m.ClassKey].Slots, m.Fit,
+						SpaceSim.Core.Model.ShipRole.Player, SpaceSim.Core.Model.Controller.Player, u.PlayerActor, at, 0f);
+					s.HomeBase = at.Id;
+					u.AddShip(s);
+					return s;
+				}
+				_nomad = Own("nomad", hub).Id;
+				Own("pip", hub);
+				var w = Own("warden", yard);
+				SpaceSim.Core.Simulation.Commands.Give(u, w, new SpaceSim.Core.Model.PatrolCommand(new[] { yard.Sector, hub.Sector }), out _);
+				var pr = Own("prospector", yard);
+				SpaceSim.Core.Simulation.Commands.Give(u, pr, new SpaceSim.Core.Model.MineCommand(new SpaceSim.Core.Model.AutoLimits(yard.Sector, 1, 0f, 0f)), out _);
+				var lead = Own("pip", yard);
+				var sq = SpaceSim.Core.Simulation.Squadrons.Create(u, lead, "Staffel Delta", out _)!;
+				SpaceSim.Core.Simulation.Squadrons.Join(u, sq, Own("pip", yard), out _);
+				var npc = u.Ships.Values.Where(x => !x.IsPlayer && x.Transit is null).OrderBy(x => x.Role == SpaceSim.Core.Model.ShipRole.Trader ? 0 : 1).FirstOrDefault();
+				if (npc is not null) SpaceSim.Core.Simulation.PlayerFleet.Dock(u, npc, hub);   // ein fremdes Schiff im Hangar
+				_m.Session.U.PlayerWallet.Credits = 6000f;
+				_m.TestDockAt(hub.Id);
+				_stage = 524; _wait = 90; break;
+			}
+			case 524: Capture("41-dock-menue-hangar-taxi.png"); _stage = 525; _wait = 10; break;
+			case 525: _m.TestOpenDockArea("hangar"); _stage = 526; _wait = 20; break;
+			case 526: Capture("42-dock-hangar-flotte.png"); _stage = 527; _wait = 10; break;
+			case 527: _m.TestOpenDockArea("taxi"); _stage = 528; _wait = 20; break;
+			case 528: Capture("43-dock-taxi.png"); _stage = 529; _wait = 10; break;
+			case 529: _m.TestFleetSelect(_nomad); _stage = 530; _wait = 20; break;
+			case 530: Capture("44-cc-flotte-befehle.png"); _stage = 531; _wait = 10; break;
+			case 531: _m.HudRef.CcFleet.TestChoose("goto"); _stage = 532; _wait = 20; break;
+			case 532: Capture("45-cc-flotte-zielwahl.png"); _stage = 533; _wait = 10; break;
+			case 533: _m.TestOpenCcArea("assets"); _m.HudRef.CcAssets.TestOpenShipDetail(_nomad); _stage = 534; _wait = 20; break;
+			case 534: Capture("46-cc-schiffsdetail-befehle.png"); _stage = 535; _wait = 10; break;
+			case 535:
+			{
+				_m.TestCloseCommand();
+				_m.TestUndock();
+				var wh = _m.Session.U.Stations.Values.First(x => x.TypeKey == "warehouse");
+				_m.TestDockAt(wh.Id);
+				_stage = 536; _wait = 90; break;
+			}
+			case 536: Capture("47-dock-menue-lagerhaus-neun-kacheln.png"); _stage = 537; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

@@ -71,6 +71,9 @@ public sealed class TraderSystem : ISimSystem
 
         TradeOrder? best = null;
         float bestScore = 0f;
+        // Phase 12: Grenzen eines Automatikauftrags (Spielerflotte: Reichweite, höchster Einkaufspreis, Rücklage); KI ohne Befehl: keine
+        var limits = AutoLimitRules.Of(ship);
+        float spendable = limits is null ? 0f : AutoLimitRules.Spendable(u, ship, limits);
         var fuelGood = Refuel.ActiveFuel(ship);
         // Phase 10: Die Verkaufsfahrt geht beladen — mit diesem Profil schätzen, damit ein Embargo die Route schon hier ausschließt
         var ladenProfile = GateAccess.ProfileOf(u, ship) with { Laden = true };
@@ -95,6 +98,12 @@ public sealed class TraderSystem : ISimSystem
                 float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
                 if (available < 1f) continue;
                 float units = MathF.Min(capacityUnits, available);
+                if (limits is not null)
+                {
+                    if (!AutoLimitRules.InRange(u, limits, buy.Sector) || !AutoLimitRules.PriceOk(limits, good, b.Price) || b.Price <= 0f) continue;
+                    units = MathF.Min(units, MathF.Floor(spendable / b.Price));
+                    if (units < 1f) continue;
+                }
                 float toBuy = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
                 if (float.IsPositiveInfinity(toBuy)) continue;
                 float fuelPrice = fuelHere > 0f ? fuelHere
@@ -103,6 +112,7 @@ public sealed class TraderSystem : ISimSystem
                 foreach (var sell in traders)
                 {
                     if (sell.Id == buy.Id) continue;
+                    if (limits is not null && !AutoLimitRules.InRange(u, limits, sell.Sector)) continue;
                     var s = sell.Market[good.Id];
                     float margin = s.Price - b.Price;
                     if (margin <= 0f) continue;
@@ -219,8 +229,11 @@ public sealed class TraderSystem : ISimSystem
             var stock = st.Stock(order.Good);
             var good = u.Goods[order.Good];
             float free = ship.FreeVolumeFor(u, order.Good);   // Frachtform-Regel: Flüssigkeiten nur in liquid+any
+            // Phase 12: Spielerschiffe buchen auf die Kasse des Besitzers (NPC: das Schiff selbst) und halten die Rücklage ihres Auftrags
+            var wallet = u.WalletOf(ship);
+            float money = AutoLimitRules.Of(ship) is { } lim ? AutoLimitRules.Spendable(u, ship, lim) : wallet.Credits;
             float amount = MathF.Min(MathF.Min(free / good.VolumePerUnit, stock.Amount),
-                                     stock.Price > 0 ? ship.Credits / stock.Price : 0f);
+                                     stock.Price > 0 ? money / stock.Price : 0f);
             // Phase 5a: nur so viel kaufen, wie der Abnehmer jetzt noch annimmt (sonst würde der Rest dort unbezahlt abgeladen)
             var sellSt = u.Stations[order.Sell];
             amount = MathF.Min(amount, MathF.Floor(sellSt.AcceptableUnits(order.Good, u.Rules)));
@@ -229,7 +242,7 @@ public sealed class TraderSystem : ISimSystem
                 float cost = amount * stock.Price;
                 stock.Amount -= amount;
                 st.Credits += cost;
-                ship.Credits -= cost;
+                wallet.Credits -= cost;
                 ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
                 ship.Phase = TradePhase.GoingToSell;
                 // Phase 4b: Treibstoff für die Fahrt zum Verkäufer sichern (Tankstopp verwirft den Auftrag, Ankunft hängt ihn neu)
@@ -270,7 +283,7 @@ public sealed class TraderSystem : ISimSystem
             float revenue = paid * stock.Price;
             stock.Amount += amount;
             st.Credits -= revenue;
-            ship.Credits += revenue;
+            u.WalletOf(ship).Credits += revenue;
             ship.Cargo.Remove(order.Good);
             ship.Order = null;
             ship.Phase = TradePhase.Idle;

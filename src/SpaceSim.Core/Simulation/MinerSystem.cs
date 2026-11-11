@@ -70,9 +70,11 @@ public sealed class MinerSystem : ISimSystem
         float bestScore = 0f;
         var profile = GateAccess.ProfileOf(u, ship);   // Phase 10: Gate-Zugang des Schiffs
         var laden = profile with { Laden = true };     // ausgeliefert wird beladen (Embargo)
+        var limits = AutoLimitRules.Of(ship);          // Phase 12: Reichweite eines Automatikauftrags (KI ohne Befehl: keine)
         foreach (var sector in u.Sectors.Values)
         {
             if (!u.IsReachable(ship.Sector, sector.Id, profile)) continue;
+            if (limits is not null && !AutoLimitRules.InRange(u, limits, sector.Id)) continue;
             for (int fi = 0; fi < sector.Fields.Count; fi++)
             {
                 var field = sector.Fields[fi];
@@ -90,6 +92,7 @@ public sealed class MinerSystem : ISimSystem
                 float crowding = 1f / (1f + CrowdPenalty * crowd);
                 foreach (var st in u.Stations.Values)
                 {
+                    if (limits is not null && !AutoLimitRules.InRange(u, limits, st.Sector)) continue;
                     float value = MixValue(u, cls, st);
                     if (value < basis * MinPriceFactor) continue;
                     if (!TraderSystem.CanAfford(st, value, ship.CapacityVolumeFor(GoodForm.Solid))) continue;

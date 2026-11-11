@@ -23,6 +23,8 @@ public partial class Hud : CanvasLayer
 	public TradeScreen DockTrade { get; } = new();
 	public StationInfoScreen DockInfo { get; } = new();
 	public HangarScreen DockHangar { get; } = new();
+	/// <summary>Phase 12: Taxi (Dienst „taxi“).</summary>
+	public TaxiScreen DockTaxi { get; } = new();
 	public RepairFuelScreen DockRepair { get; } = new();
 	public OutfitterScreen DockOutfitter { get; } = new();
 	public ShipyardScreen DockShipyard { get; } = new();
@@ -62,6 +64,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(DockTrade);
 		Screens.Register(DockInfo);
 		Screens.Register(DockHangar);
+		Screens.Register(DockTaxi);
 		Screens.Register(DockRepair);
 		Screens.Register(DockOutfitter);
 		Screens.Register(DockShipyard);
@@ -72,6 +75,7 @@ public partial class Hud : CanvasLayer
 		DockTrade.Ctx = DockCtx;
 		DockInfo.Ctx = DockCtx;
 		DockHangar.Ctx = DockCtx;
+		DockTaxi.Ctx = DockCtx;
 		DockRepair.Ctx = DockCtx;
 		DockOutfitter.Ctx = DockCtx;
 		DockShipyard.Ctx = DockCtx;
@@ -118,6 +122,7 @@ public partial class Hud : CanvasLayer
 		root.AddChild(DockTrade);
 		root.AddChild(DockInfo);
 		root.AddChild(DockHangar);
+		root.AddChild(DockTaxi);
 		root.AddChild(DockRepair);
 		root.AddChild(DockOutfitter);
 		root.AddChild(DockShipyard);

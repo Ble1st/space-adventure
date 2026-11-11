@@ -129,6 +129,8 @@ public sealed class ShipClassDef
     public int MaxSlotUpgrades { get; set; } = 1;
     /// <summary>Phase 11: nicht im freien Handel — Schiffshändler verkaufen die Klasse nur, wenn ihre Liste sie nennt (Kaperschiffe).</summary>
     public bool Restricted { get; set; }
+    /// <summary>Phase 12: Liegegebühr je Tag an fremden Stationen; fehlt = nach Größe (Regel berthFeeBySize). Muss ≥ 0 sein.</summary>
+    public float BerthFee { get; set; }
 }
 
 public sealed class ShipModelDef
@@ -171,8 +173,8 @@ public sealed class StationTypeDef
     public float Upkeep { get; set; } = 0.05f;
     public float Income { get; set; }
     public List<RecipeDef> Recipes { get; set; } = new();
-    /// <summary>Dienst-Schlüssel, die dieser Typ anbietet; fehlt das Feld, ist der Standard ["trade"] (Handel).</summary>
-    public List<string> Services { get; set; } = new() { SpaceSim.Core.Services.TradeService.ServiceKey };
+    /// <summary>Dienst-Schlüssel, die dieser Typ anbietet; fehlt das Feld, ist der Standard ["trade", "hangar"] (Handel; seit Phase 12 auch Hangar).</summary>
+    public List<string> Services { get; set; } = new() { SpaceSim.Core.Services.TradeService.ServiceKey, SpaceSim.Core.Services.HangarService.ServiceKey };
     /// <summary>
     /// Lager ohne Rezept (Phase 5a): Ware → [Anfangsbestand, Wunschbestand]. Legt zusätzlich zu den Rezepten Markteinträge an;
     /// für Rezeptwaren setzt der Eintrag Anfangs-/Wunschbestand. Fehlt das Feld, gibt es keine.

@@ -20,12 +20,13 @@ public static class Travel
     /// <summary>Mobilitätsprofil der Routensuche (Phase 10): das des Schiffs, ohne Schiff nur der physische Gate-Zustand.</summary>
     public static MobilityProfile ProfileOf(Universe u, Ship? ship) => ship is null ? MobilityProfile.Physical : GateAccess.ProfileOf(u, ship);
 
-    public static List<Leg>? Plan(Universe u, long startTick, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
+    /// <summary>Plant die Teilstrecken. Phase 12: <paramref name="speed"/> überschreibt das Tempo des Schiffs (Verband fliegt mit dem langsamsten Mitglied).</summary>
+    public static List<Leg>? Plan(Universe u, long startTick, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null, float? speed = null)
     {
         var route = u.FindRoute(fromSector, toSector, ProfileOf(u, ship));
         if (route is null) return null;
 
-        float speed = SpeedOf(ship);
+        float v = speed is > 0f ? speed.Value : SpeedOf(ship);
         var legs = new List<Leg>();
         long t = startTick;
         var sector = fromSector;
@@ -33,12 +34,12 @@ public static class Travel
         foreach (var gid in route)
         {
             var gate = u.Gates[gid];
-            t = AddSectorLegs(u, legs, sector, pos, gate.Position, t, speed);
+            t = AddSectorLegs(u, legs, sector, pos, gate.Position, t, v);
             var far = u.Gates[gate.Target];
             sector = far.Sector;
             pos = far.Position;
         }
-        AddSectorLegs(u, legs, sector, pos, toPos, t, speed);
+        AddSectorLegs(u, legs, sector, pos, toPos, t, v);
         return legs;
     }
 
@@ -125,11 +126,11 @@ public static class Travel
     /// (<see cref="GateAccess.PayToll"/>). Ist das Ziel für das Schiff nicht erreichbar (Sperre, geschlossenes Gate), startet keine Reise:
     /// Der Auftrag fällt weg, die Fracht bleibt, das Schiff denkt bald neu (<see cref="RouteBlocked"/>) — früher wurde es ans Ziel „teleportiert“.
     /// </summary>
-    public static bool Start(Universe u, Ship ship, SectorId toSector, Vec2 toPos)
+    public static bool Start(Universe u, Ship ship, SectorId toSector, Vec2 toPos, float? speed = null)
     {
         var profile = ProfileOf(u, ship);
         var route = u.FindRoute(ship.Sector, toSector, profile);
-        var legs = route is null ? null : Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos, ship);
+        var legs = route is null ? null : Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos, ship, speed);
         if (legs is null)
         {
             AccessEnforcement.Release(u, ship);

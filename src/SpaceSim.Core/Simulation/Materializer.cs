@@ -36,6 +36,29 @@ public static class Materializer
                 break;
             }
         }
+        if (u.Squadrons.Count > 0) ApplyFormations(u, result);
         return result;
+    }
+
+    /// <summary>
+    /// Phase 12: Formation der Verbände (nur Darstellung): Mitglieder nahe ihrem Anführer werden um ihn versetzt (Richtung = Flugrichtung des
+    /// Anführers). Die Simulation bleibt unberührt.
+    /// </summary>
+    static void ApplyFormations(Universe u, List<ShipSnapshot> snaps)
+    {
+        var index = new Dictionary<ShipId, int>();
+        for (int i = 0; i < snaps.Count; i++) index[snaps[i].Id] = i;
+        foreach (var sq in u.Squadrons.Values.OrderBy(s => s.Id.Value))
+        {
+            if (!index.TryGetValue(sq.Leader, out int li)) continue;
+            var lead = snaps[li];
+            for (int m = 1; m < sq.Members.Count; m++)
+            {
+                if (!index.TryGetValue(sq.Members[m], out int mi)) continue;
+                var s = snaps[mi];
+                if (Vec2.Distance(s.Position, lead.Position) > 30f) continue;
+                snaps[mi] = s with { Position = lead.Position + Squadrons.Offset(sq.Formation, m, lead.Direction), Direction = lead.Direction, Moving = lead.Moving };
+            }
+        }
     }
 }

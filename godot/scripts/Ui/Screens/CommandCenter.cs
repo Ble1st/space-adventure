@@ -20,6 +20,8 @@ public sealed class CommandContext
 	public Func<bool> AutoMiningOn = () => false;
 	/// <summary>Station, an der der Spieler gerade angedockt ist (sonst null).</summary>
 	public StationId? Docked;
+	/// <summary>Phase 12: Dienst-Registry (Taxi auf der Universumskarte, Verkauf im Besitz); Instanz aus der Sitzung.</summary>
+	public SpaceSim.Core.Services.StationServices Services = SpaceSim.Core.Services.StationServices.Default();
 }
 
 /// <summary>Bereiche der Kommandozentrale (linke Leiste), Reihenfolge wie in UI.md Abschnitt 4.</summary>

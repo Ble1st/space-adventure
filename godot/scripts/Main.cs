@@ -139,8 +139,14 @@ public partial class Main : Node3D
 		_hud.DockAuthority.BackToMenu += ShowDockMenu;
 		_hud.DockAuthority.UndockPressed += Undock;
 		_hud.DockAuthority.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
-		_hud.DockHangar.SwitchRequested += SwitchShip;
+		_hud.DockHangar.Executed += (svc, ok) => _sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		_hud.DockHangar.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
 		_hud.DockHangar.AreaSelected += OnDockArea;
+		// Phase 12: Taxi — die Fahrt ist gebucht (Spieler sitzt am Ziel im neuen Schiff), die Reisezeit vergeht im Zeitraffer
+		_hud.DockTaxi.AreaSelected += OnDockArea;
+		_hud.DockTaxi.BackToMenu += ShowDockMenu;
+		_hud.DockTaxi.UndockPressed += Undock;
+		_hud.DockTaxi.Booked += OnTaxiBooked;
 		_hud.DockHangar.BackToMenu += ShowDockMenu;
 		_hud.DockHangar.UndockPressed += Undock;
 		_hud.DockPlaceholder.AreaSelected += OnDockArea;
@@ -183,6 +189,15 @@ public partial class Main : Node3D
 			OpenCcArea(CommandAreas.Universe);
 		};
 		_hud.CcFleet.AutoMiningToggled += on => SetAutoMining(on);
+		_hud.CcFleet.SwitchRequested += SwitchRemote;
+		_hud.CcAssets.SwitchRequested += SwitchRemote;
+		_hud.CcAssets.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
+		_hud.CcUniverse.TaxiRequested += to =>
+		{
+			if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
+			_hud.DockCtx.U = _session.U; _hud.DockCtx.Station = st; _hud.DockCtx.Ship = PlayerData; _hud.DockCtx.Services = _session.Services;
+			_hud.DockTaxi.Book($"{SpaceSim.Core.Services.TaxiService.Ride}:{to.Value}");
+		};
 		_hud.CcSystem.SystemAction += a => OnMenu(a);
 		_player.Hit += OnPlayerHit;
 		_view.AsteroidGone += (pos, r) => { _fx.Burst(pos, new Color(1f, 0.7f, 0.3f), 22, 10f); _sfx.Play(SfxId.Crack); };
@@ -247,6 +262,8 @@ public partial class Main : Node3D
 		_player.Velocity = Vector3.Zero; _player.Locked = false;
 		_camOffset = _orbit.Offset();   // gewählte Ansicht bleibt erhalten (nicht im Spielstand gespeichert)
 		SnapCam();
+		_reenter = false;
+		if (u.Stations.ContainsKey(p.DockedAt)) EnterActiveShip();   // Phase 12: gespeichert angedockt (oder in ein angedocktes Schiff gewechselt) → Andock-Menü
 	}
 
 	/// <summary>Setzt die Kamera hart auf Schiff + aktuellen Orbit-Offset und richtet sie auf das Schiff aus (Neustart, Sprung, Teleport).</summary>
@@ -337,6 +354,7 @@ public partial class Main : Node3D
 		_hud.CcCtx.FractionalTick = () => _session.FractionalTick;
 		_hud.CcCtx.AutoMiningOn = () => _miner.Enabled;
 		_hud.CcCtx.Docked = _docked;
+		_hud.CcCtx.Services = _session.Services;
 		if (areaId == CommandAreas.Sector && _hud.CcSector.SelectedSector == null) _hud.CcSector.SelectedSector = u.PlayerSector;
 		IScreen screen = areaId switch
 		{
@@ -393,8 +411,70 @@ public partial class Main : Node3D
 
 	void SyncPlayerData()
 	{
+		if (_reenter) return;   // Phase 12: das aktive Schiff hat gewechselt — erst die Ansicht umsetzen, sonst bekäme das neue Schiff die alte Position
 		PlayerData.Position = new Vec2(_player.Position.X, _player.Position.Z);
+		if (_docked == null && !_transition && PlayerData.DockedAt.Value != 0) PlayerFleet.Undock(_session.U, PlayerData);   // fliegt = nicht angedockt
 	}
+
+	/// <summary>Phase 12: Das aktive Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff) — die Ansicht setzt es im nächsten Frame um.</summary>
+	bool _reenter;
+
+	/// <summary>
+	/// Phase 12: Ansicht auf das (neue) aktive Schiff setzen, dort wo es ist: Sektor neu aufbauen, Schiff an seine Position, angedockt → Andock-Menü,
+	/// sonst Flug. Autopilot und Auto-Mining enden, die Kamera behält ihre Einstellung.
+	/// </summary>
+	void EnterActiveShip()
+	{
+		_reenter = false;
+		var u = _session.U; var p = PlayerData;
+		_hud.Screens.Hide();
+		_target = null; _targetStation = null; _autopilot = false; _hud.Flight.SetAutopilot(false);
+		SetAutoMining(false, announce: false);
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc();
+		_transition = false; _player.Scale = Vector3.One; _player.Velocity = Vector3.Zero; _player.GiveGrace(2f);
+		_lowestHull = p.Hull;
+		_view.Rebuild(u);
+		_player.Position = new Vector3(p.Position.X, 0, p.Position.Y);
+		_camOffset = _orbit.Offset();
+		SnapCam();
+		if (u.Stations.TryGetValue(p.DockedAt, out var st))
+		{
+			_docked = st.Id;
+			_player.Visible = false;
+			_player.Position = new Vector3(st.Position.X, 0, st.Position.Y);
+			ShowDockMenu();
+		}
+		else
+		{
+			_docked = null;
+			_player.Visible = true;
+			_hud.Flight.Visible = true;
+		}
+	}
+
+	/// <summary>Phase 12: Fernwechsel (Flotte, Besitz): in das gewählte eigene Schiff, dort wo es ist (Core: <see cref="PlayerFleet.SwitchRemote"/>).</summary>
+	void SwitchRemote(ShipId id)
+	{
+		SyncPlayerData();
+		bool ok = PlayerFleet.SwitchRemote(_session.U, id, out var message);
+		_sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		if (_reenter) EnterActiveShip();
+		_hud.Toast(message, 3.5f);
+	}
+
+	/// <summary>Phase 12: Taxi gebucht — der Spieler sitzt schon im Schiff am Ziel; die Reisezeit vergeht im Zeitraffer, dann übernimmt die Ansicht.</summary>
+	void OnTaxiBooked(bool ok, long ticks)
+	{
+		_sfx.Play(ok ? SfxId.Jump : SfxId.Click);
+		if (!ok) return;
+		long ran = _session.RunTicks(ticks);
+		LastTaxiTicks = ran;
+		if (_reenter) EnterActiveShip();
+		_hud.Toast($"Taxi angekommen ({ran / SimClock.TicksPerSecond:0} s Reise): {(_session.U.Stations.TryGetValue(PlayerData.DockedAt, out var st) ? st.Name : "")}", 3.5f);
+	}
+
+	/// <summary>Für den Selbsttest: Dauer der letzten Taxifahrt in Ticks.</summary>
+	internal long LastTaxiTicks { get; private set; }
 
 	public override void _Notification(int what)
 	{
@@ -431,6 +511,7 @@ public partial class Main : Node3D
 	public override void _Process(double deltaD)
 	{
 		float delta = (float)deltaD;
+		if (_reenter) EnterActiveShip();   // Phase 12: aktives Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff)
 		_jumpCooldown = Mathf.Max(0f, _jumpCooldown - delta);
 		_splitReload = Mathf.Max(0f, _splitReload - delta);
 		_hitFlash = Mathf.Max(0f, _hitFlash - delta);
@@ -716,6 +797,7 @@ public partial class Main : Node3D
 			DockAreas.Trade => _hud.DockTrade,
 			DockAreas.Info => _hud.DockInfo,
 			DockAreas.Hangar => _hud.DockHangar,
+			DockAreas.Taxi => _hud.DockTaxi,
 			DockAreas.Repair => _hud.DockRepair,
 			DockAreas.Outfitter => _hud.DockOutfitter,
 			DockAreas.Shipyard => _hud.DockShipyard,
@@ -731,11 +813,10 @@ public partial class Main : Node3D
 	/// <summary>Hangar „Übernehmen“ (Phase 5c): wechselt an der angedockten Station in ein dort geparktes eigenes Schiff (Core: <see cref="PlayerFleet.SwitchTo"/>).</summary>
 	void SwitchShip(ShipId id)
 	{
-		if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
+		if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out _)) return;
 		SyncPlayerData();
-		bool ok = PlayerFleet.SwitchTo(_session.U, st, id, out var message);
-		_sfx.Play(ok ? SfxId.Dock : SfxId.Click);
-		_hud.Toast(message);
+		var r = _hud.DockHangar.Execute(SpaceSim.Core.Services.HangarService.ServiceKey, $"{SpaceSim.Core.Services.HangarService.Switch}:{id.Value}");   // Phase 12: über den Dienst „hangar“
+		_hud.Toast(r.Message);
 		_hud.Screens.Current?.Refresh();
 	}
 
@@ -746,6 +827,9 @@ public partial class Main : Node3D
 	/// </summary>
 	void OnActiveShipChanged(ActiveShipChanged e)
 	{
+		// Phase 12: liegt das neue Schiff nicht an der Station, an der die Ansicht angedockt ist (Fernwechsel, Taxi, Leihschiff am Ziel), setzt die
+		// Ansicht im nächsten Frame um (EnterActiveShip); an derselben Station wechselt nur der Dock-Kontext
+		if (_docked is not { } here || e.Station != here || PlayerData.Sector != _session.U.PlayerSector || PlayerData.DockedAt != here) _reenter = true;
 		_hud.DockCtx.Ship = PlayerData;
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer();
 		SetAutoMining(false, announce: false);
@@ -758,6 +842,7 @@ public partial class Main : Node3D
 		var u = _session.U;
 		var st = u.Stations[id];
 		_docked = id;
+		PlayerData.DockedAt = id;   // Phase 12: Liegeplatz des aktiven Schiffs (Hangar, Taxi, Liegegebühr)
 		_transition = true;
 		_player.Velocity = Vector3.Zero;
 		_miningStep = null;
@@ -791,6 +876,7 @@ public partial class Main : Node3D
 		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
 		_sfx.Play(SfxId.Click);
 		_docked = null;
+		PlayerFleet.Undock(_session.U, PlayerData);
 		_transition = true;
 		_hud.Screens.Hide();          // schließt Andock-Menü und jeden offenen Bereich
 		_hud.Flight.Visible = true;
@@ -1390,6 +1476,16 @@ public partial class Main : Node3D
 	internal void TestSetStationTarget(StationId id) { var u = _session.U; SetTarget(Navigator.ForStation(u, id, u.PlayerShip), id); }
 	internal void TestUndock() => Undock();
 	internal void TestSwitchShip(ShipId id) => SwitchShip(id);
+	internal void TestSwitchRemote(ShipId id) => SwitchRemote(id);
+	/// <summary>Phase 12: Flotte öffnen mit diesem Schiff gewählt.</summary>
+	internal void TestFleetSelect(ShipId id) { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); }
+	/// <summary>Phase 12: Befehl über die Flotten-Oberfläche geben (wie ein Tipp auf Befehl und Ziel).</summary>
+	internal bool TestFleetGive(ShipId id, ShipCommand cmd)
+	{
+		if (!_session.U.Ships.TryGetValue(id, out var s)) return false;
+		TestFleetSelect(id);
+		return _hud.CcFleet.Give(_session.U, s, cmd);
+	}
 	internal bool TestSave() { SaveNow(manual: false); return SaveService.Exists; }
 	internal void TestMenu(string a) => OnMenu(a);
 	internal void TestStartMining() => SetAutoMining(true);
@@ -1490,7 +1586,7 @@ public partial class Main : Node3D
 		SnapCam();
 	}
 	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (auch Baustelle) und Andocken.</summary>
-	internal void TestDockAt(StationId id) { TestTeleportNear(id); Dock(id); }
+	internal void TestDockAt(StationId id) { TestEnterSector(_session.U.Stations[id].Sector); TestTeleportNear(id); Dock(id); }
 	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (Bildschirmfotos der Baustelle im Flug).</summary>
 	internal void TestTeleportNear(StationId id)
 	{

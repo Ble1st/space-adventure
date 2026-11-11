@@ -85,9 +85,12 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Daten aus DockAreas) ──
 		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, 14, 84, 200, 540);
 		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
-		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		// Phase 12: bis zu neun Bereiche — die Leiste rollt senkrecht, statt Bereiche zu verdrängen
+		var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		rail.AddChild(scroll);
+		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);
-		rail.AddChild(rv);
+		scroll.AddChild(rv);
 		foreach (var def in DockAreas.Build(u, st, Ctx.Services))
 		{
 			var b = new KitButton(DockAreas.ShortLabelFor(def.Id), new Vector2(184, 56)) { AlignLeft = true, FontSize = 16, Sub = def.Sub };
@@ -98,7 +101,6 @@ public abstract partial class DockAreaScreen : Control, IScreen
 				b.State = KitButtonState.On;
 			rv.AddChild(b);
 		}
-		rv.AddChild(new Control { SizeFlagsVertical = Control.SizeFlags.ExpandFill });
 		rv.AddChild(Text($"Schiff: #{ship.Id.Value} (aktiv)", 13, Dim));
 
 		// ── Mittelteil ──

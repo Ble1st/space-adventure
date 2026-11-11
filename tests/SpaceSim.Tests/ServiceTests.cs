@@ -53,7 +53,7 @@ public class ServiceRegistryTests
     public void Default_RegistersAllServicesInFixedOrder()   // Phase 4c: trade, refuel, repair; Phase 5c: outfitter, shipdealer; Phase 7: upgrade; Phase 8: storage; Phase 11: court, bounty
     {
         var r = StationServices.Default();
-        Assert.Equal(new[] { TradeService.ServiceKey, RefuelService.ServiceKey, RepairService.ServiceKey, OutfitterService.ServiceKey, ShipDealerService.ServiceKey, UpgradeService.ServiceKey, StorageService.ServiceKey, CourtService.ServiceKey, BountyService.ServiceKey }, r.Keys);
+        Assert.Equal(new[] { TradeService.ServiceKey, RefuelService.ServiceKey, RepairService.ServiceKey, OutfitterService.ServiceKey, ShipDealerService.ServiceKey, UpgradeService.ServiceKey, StorageService.ServiceKey, CourtService.ServiceKey, BountyService.ServiceKey, HangarService.ServiceKey, TaxiService.ServiceKey, RentalService.ServiceKey }, r.Keys);   // Phase 12: hangar, taxi, rental
         Assert.IsType<TradeService>(r.TryGet(TradeService.ServiceKey, out var a) ? a : null);
         Assert.IsType<RefuelService>(r.TryGet(RefuelService.ServiceKey, out var b) ? b : null);
         Assert.IsType<RepairService>(r.TryGet(RepairService.ServiceKey, out var c) ? c : null);

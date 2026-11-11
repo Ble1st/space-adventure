@@ -140,3 +140,25 @@ public sealed record BountyPaid(ActorId Hunter, FactionId Faction, float Amount)
 public sealed record PoliceCommissioned(FactionId Faction, ShipId Ship, StationId Yard, float Price) : SimEvent;
 public sealed record PoliceDecommissioned(FactionId Faction, ShipId Ship) : SimEvent;
 public sealed record RaiderBuilt(ActorId Actor, ShipId Ship, float Cost) : SimEvent;
+
+// ───────── Phase 12: Befehle, Verbände, Spielerflotte, Hangar, Taxi, Leihschiff ─────────
+/// <summary>Ein Schiff hat einen Befehl bekommen (Ebene „Befehl“).</summary>
+public sealed record CommandGiven(ShipId Ship, string Kind, string Text) : SimEvent;
+/// <summary>Ein Befehl ist beendet: erledigt ("done"), gescheitert ("failed") oder abgebrochen/ersetzt ("cancelled").</summary>
+public sealed record CommandEnded(ShipId Ship, string Kind, string Outcome, string Text) : SimEvent;
+/// <summary>Notfall-Ebene (Hülle kritisch, Tank leer): der Befehl ruht, das Schiff fliegt zur Reparatur; danach geht er weiter.</summary>
+public sealed record EmergencyStarted(ShipId Ship, string Reason) : SimEvent;
+public sealed record EmergencyEnded(ShipId Ship) : SimEvent;
+/// <summary>Verband angelegt, geändert (Beitritt, Austritt, neuer Anführer, Befehl) oder aufgelöst.</summary>
+public sealed record SquadronChanged(SquadronId Squadron, string Change, ShipId Ship) : SimEvent;
+/// <summary>Liegegebühr an einer fremden Station gezahlt (Unpaid = was die Kasse nicht decken konnte).</summary>
+public sealed record BerthFeePaid(ActorId Actor, ShipId Ship, StationId Station, float Amount, float Unpaid) : SimEvent;
+/// <summary>Unterhalt der Spielerflotte (Schiffe mit Befehl) je Takt, Geldsenke wie der Unterhalt der KI-Schiffe.</summary>
+public sealed record FleetUpkeepPaid(ActorId Actor, float Amount) : SimEvent;
+/// <summary>Taxifahrt des Spielers (die Person reist, das Schiff bleibt): Preis und Dauer in Ticks.</summary>
+public sealed record TaxiRide(StationId From, StationId To, float Price, long Ticks) : SimEvent;
+/// <summary>Leihschiff gemietet (Gebühr an die Station, Pfand hinterlegt) bzw. zurückgegeben (Miete aus dem Pfand, Rest erstattet).</summary>
+public sealed record ShipRented(ShipId Ship, StationId Station, float Fee, float Deposit) : SimEvent;
+public sealed record RentalReturned(ShipId Ship, StationId Station, float Rent, float Refund) : SimEvent;
+/// <summary>Der Spieler hat ein eigenes Schiff an einer Station verkauft.</summary>
+public sealed record ShipSold(ShipId Ship, StationId Station, float Price) : SimEvent;

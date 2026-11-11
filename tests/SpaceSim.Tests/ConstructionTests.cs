@@ -125,7 +125,7 @@ public class ConstructionTests
         var u = DemoUniverse.Create();
         Assert.Empty(u.StationTypes["build_site"].Recipes);
         Assert.Equal(new[] { "trade" }, u.StationTypes["build_site"].Services);
-        Assert.Equal(new[] { "trade", "storage" }, u.StationTypes["warehouse"].Services);
+        Assert.Equal(new[] { "trade", "storage", "hangar", "taxi" }, u.StationTypes["warehouse"].Services);   // Phase 12
         var wh = u.Stations.Values.Single(s => s.TypeKey == "warehouse");
         Assert.True(wh.BankruptcyProtected);
         Assert.All(new[] { "steel", "hull_plates", "electronics" }, k => Assert.True(wh.IsStockOnly(u.FindGood(k)!.Id)));
@@ -636,7 +636,7 @@ public class ConstructionTests
         var runner = new SimulationRunner();
         runner.Run(u, 300);   // Bauschiff unterwegs, Baustelle beliefert
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":14", json);
+        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
         Assert.Contains("\"Site\":", json);
         Assert.Contains("\"PlayerStorage\":", json);
         var (loaded, _) = SaveGameJson.Read(json);

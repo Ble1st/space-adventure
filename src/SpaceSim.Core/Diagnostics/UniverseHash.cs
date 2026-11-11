@@ -77,6 +77,33 @@ public static class UniverseHash
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
         { Mix((ulong)sh.Id.Value); Mix((ulong)sh.HomeBase.Value); Mix((ulong)sh.DutySector.Value); MixF(sh.Hull); }   // Hülle: Überfälle, Rückzug
         foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); }
+        // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände
+        foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
+        {
+            Mix((ulong)sh.Id.Value); Mix((ulong)sh.DockedAt.Value); Mix((ulong)sh.Squadron.Value); Mix((ulong)sh.Engagement);
+            Mix((ulong)sh.RentedFrom.Value); Mix((ulong)sh.RentedSince); MixF(sh.RentalDeposit);
+            if (sh.Command is { } c)
+            {
+                MixString(c.Kind); Mix((ulong)sh.CommandSince); Mix((ulong)(uint)sh.CommandStep); Mix(sh.Emergency ? 1UL : 0UL);
+                switch (c)
+                {
+                    case GoToCommand g: Mix((ulong)g.Sector.Value); Mix((ulong)g.Station.Value); MixF(g.Position.X); MixF(g.Position.Y); break;
+                    case PatrolCommand p: foreach (var x in p.Sectors) Mix((ulong)x.Value); break;
+                    case GuardCommand gd: Mix((ulong)gd.Station.Value); break;
+                    case EscortCommand ec: Mix((ulong)ec.Target.Value); break;
+                    case FollowCommand fc: Mix((ulong)fc.Target.Value); break;
+                    case TradeCommand tc: Mix((ulong)tc.Limits.Center.Value); Mix((ulong)(uint)tc.Limits.RadiusJumps); MixF(tc.Limits.MaxBuyFactor); MixF(tc.Limits.Reserve); break;
+                    case MineCommand mc: Mix((ulong)mc.Limits.Center.Value); Mix((ulong)(uint)mc.Limits.RadiusJumps); MixF(mc.Limits.MaxBuyFactor); MixF(mc.Limits.Reserve); break;
+                    case BuildCommand bc: Mix((ulong)bc.Site.Value); break;
+                }
+            }
+        }
+        Mix((ulong)u.NextSquadronId);
+        foreach (var q in u.Squadrons.Values.OrderBy(q => q.Id.Value))
+        {
+            Mix((ulong)q.Id.Value); Mix((ulong)q.Owner.Value); Mix((ulong)q.Leader.Value); Mix((ulong)q.Formation); Mix((ulong)q.HomeBase.Value); Mix((ulong)q.Rules);
+            foreach (var m in q.Members) Mix((ulong)m.Value);
+        }
         return h;
     }
 }

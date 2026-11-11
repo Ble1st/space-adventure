@@ -95,6 +95,10 @@ public sealed class ShipClass
     /// (Kaperschiffe der Piraten).
     /// </summary>
     public bool Restricted;
+    /// <summary>
+    /// Phase 12: Liegegebühr je Tag an fremden Stationen (JSON <c>berthFee</c>; 0 = nach Größe, Regel <see cref="EconomyRules.BerthFeeBySize"/>).
+    /// </summary>
+    public float BerthFee;
 }
 
 /// <summary>Schiffsmodell: eine Klasse mit festem Fit (Modulschlüssel pro Slot, null = leerer Slot).</summary>

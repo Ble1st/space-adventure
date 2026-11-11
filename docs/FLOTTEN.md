@@ -1,6 +1,6 @@
 # Flotten, Befehle, Patrouillen, Polizei (Planung)
 
-**Status: reine Planung, nichts davon ist umgesetzt.** Baut auf [POLITIK.md](POLITIK.md) (Kontrollpunkte, Sperren) und [SCHIFFE.md](SCHIFFE.md) (Fähigkeiten, Aufgaben) auf.
+**Status:** Lagekarte, Polizei, Fahndung, Piraten und abstrakte Begegnungen sind seit Phase 11 umgesetzt; Befehle mit Ausführern (Ebenen Notfall > Befehl > Automatik), Verbände, Verhaltensregeln, Befehlskapazität und die Spielerflotte mit Automatikaufträgen seit Phase 12 (siehe UMSETZUNGSPLAN.md, Abschnitt Phase 12). Offen: Polizei/Piraten über die Befehls-Ausführer, Blockade, Schleppen, echter Kampf. Baut auf [POLITIK.md](POLITIK.md) (Kontrollpunkte, Sperren) und [SCHIFFE.md](SCHIFFE.md) (Fähigkeiten, Aufgaben) auf.
 
 ## 1. Grundidee: ein Fundament für eigene Flotten und Polizei
 

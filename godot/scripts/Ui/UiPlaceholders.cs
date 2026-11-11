@@ -28,7 +28,7 @@ public static class UiPlaceholders
 		"repair" => "Reparatur und Tanken gibt es nur an Stationen mit dem passenden Dienst: Treibstoff an Treibstoffraffinerien, Reparatur an Panzerwerken und Werften (verbraucht Hüllenplatten aus dem Stationslager). Diese Station bietet es nicht an oder ihr Lager ist gerade leer.",
 		"outfitter" => "Ausrüster gibt es an Werften und Handelsstationen: Module aus dem Stationslager ein- und ausbauen. Diese Station führt keine Module.",
 		"shipyard" => "Schiffe kaufen kannst du an Werften (alle Klassen) und an Handelsstationen (kleine Schiffe der Skiff-Klasse). Diese Station verkauft keine Schiffe.",
-		"taxi" => "Taxi: Du reist allein zu einer anderen Station, dein Schiff bleibt im Hangar (Liegegebühr an fremden Stationen je Schiffsklasse). Kommt mit Phase 12 (Hangar, Taxi, Leihschiff).",
+		"taxi" => "Taxi gibt es an Verkehrsknoten (Werft, Handelsstation, Raffinerie, Lagerhaus, Hauptquartier, Sektor-HQ): Du reist allein zu einer Station, an der ein eigenes Schiff wartet oder ein Leihschiff zu haben ist. Diese Station hat keinen Taxistand.",
 		"missions" => "Aufträge: Offene Missionen der Station und Fraktionen. Kommt mit Phase 9+ (Akteure, Missionen).",
 		_ => "Dieser Bereich ist noch nicht gebaut.",
 	};
@@ -37,13 +37,7 @@ public static class UiPlaceholders
 	public const string UndoSoon = "Rückgängig kommt, sobald der Core eine Transaktionshistorie führt – " + Soon;
 	/// <summary>Platzhalter für Preisverlauf-Trends im Handel (der Core speichert keine Preis-Historie).</summary>
 	public const string TrendSoon = "Preisverlauf: " + Soon;
-	/// <summary>Platzhalter für fremde/weitere eigene Schiffe und deren Aktionen im Hangar (kommt mit Phase 12).</summary>
-	public const string HangarSoon = "Fremde Schiffe, Befehle, Verkaufen, Heim schicken: " + Tag + " (" + Soon + ", Phase 12)";
-
 	// ── Kommandozentrale (UI.md Abschnitt 4) ──
-
-	/// <summary>Taxi-Preis für den Platzhalter „Taxi buchen“ in der Universumskarte.</summary>
-	public static int TaxiPrice => 120;
 
 	/// <summary>Eine Platzhalter-Nachricht im Comms-Postfach (Texte und Zahlen zentral hier, nie im Code verstreut).</summary>
 	public sealed record CommsMessage(string From, string Subject, string Body, bool IsNew, CommsAnswer[] Answers);
@@ -92,36 +86,14 @@ public static class UiPlaceholders
 
 	/// <summary>Unterhalt pro Tag (Platzhalter).</summary>
 	public const string MyFactionUpkeep = "−42 Cr/Tag – " + Tag;
-	/// <summary>Liegegebühr pro Tag (Platzhalter; echte Staffel je Schiffsklasse kommt mit Phase 12).</summary>
-	public const string MyFactionBerthFee = "−12 Cr/Tag – " + Tag;
 	/// <summary>Einnahmen pro Tag (Platzhalter).</summary>
 	public const string MyFactionIncome = "+210 Cr/Tag – " + Tag;
 	/// <summary>Fähigkeiten mit Schloss nach Größenstufe (Platzhalter).</summary>
 	public static (string Name, bool Unlocked, string Note)[] MyFactionAbilities => new[]
 	{
-		("Verbände führen", false, "ab Kleinfirma – " + Soon),
-		("Taxi, Hangar, Leihschiff", false, "ab Kleinfirma – " + Soon),
 		("Büro an eigener Station", false, "ab Kleinfirma – " + Soon),
 		("Fehde erklären", false, "ab Kleinfirma – " + Soon),
 		("Firmensitz", false, "ab Firma – " + Soon),
 		("Zoll und Sperren", false, "ab Dominanz im Sektor (Regeln seit Phase 10, Spielerfraktion fehlt) – " + Soon),
 	};
-
-	// ── Flotte ──
-
-	/// <summary>Befehlsraster der Flotte (sichtbar, aber gesperrt – keine Wirkung außer Auto-Mining).</summary>
-	public static string[] FleetCommands => new[] { "Fliegen", "Halten", "Handel", "Schürfen", "Patrouille", "Wache", "Eskorte", "Heimkehr" };
-	/// <summary>Verhalten der Flotte (Platzhalter).</summary>
-	public static string[] FleetBehaviors => new[] { "Passiv", "Verteidigen", "Angriff", "Feuer halten" };
-	/// <summary>Befehlskapazität (Platzhalter).</summary>
-	public const string FleetCommandCapacity = "Befehlskapazität: " + Tag + " (" + Soon + ")";
-
-	// ── Besitz: Schiffsdetail ──
-
-	/// <summary>Unterhalt eines Schiffs im Detailfenster (Platzhalter).</summary>
-	public const string ShipUpkeepText = "Unterhalt 14 Cr/Tag – " + Tag;
-	/// <summary>Wert eines Schiffs im Detailfenster (Platzhalter; der Gesamtwert in der Übersicht ist echt).</summary>
-	public const string ShipValueText = "Wert ≈ 9.800 Cr – " + Tag;
-	/// <summary>Hinweis, wo man in ein anderes eigenes Schiff wechselt (Phase 5c: im Hangar der Station, an der es liegt; Fernwechsel ab Phase 12).</summary>
-	public const string ShipSwitchSoon = "Im Hangar der Station wechseln, an der es liegt";
 }

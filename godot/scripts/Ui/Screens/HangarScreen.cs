@@ -1,127 +1,133 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Services;
 using SpaceSim.Core.Simulation;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
 namespace SpaceAdventure.Ui.Screens;
 
 /// <summary>
-/// Dock-Bereich „Hangar“ (UI.md Abschnitt 3): das aktive Spielerschiff mit Hülle, Fracht, Laderaum und Auftrag (alles echt) und
-/// – seit Phase 5c – die weiteren eigenen Schiffe, die an dieser Station liegen (<see cref="PlayerFleet.ParkedAt"/>), mit
-/// „Übernehmen“ (Wechsel des aktiven Schiffs, ausgeführt in Main über <see cref="PlayerFleet.SwitchTo"/>). Fremde Schiffe sowie
-/// „Steuern“, „Befehle“, „Verkaufen“, „Heim schicken“ sind Platzhalter („Bald“).
+/// Dock-Bereich „Hangar“ (UI.md Abschnitt 3; Phase 12 echt): oben das aktive Schiff, links die eigenen Schiffe, die hier angedockt liegen
+/// (<see cref="Ship.DockedAt"/>) mit Befehl, Liegegebühr und den Aktionen des Dienstes „hangar“ (Übernehmen, Heim schicken, Verkaufen) plus „Befehle“
+/// (öffnet die Flotte in der Kommandozentrale), rechts die fremden Schiffe an dieser Station und der Leihdienst („rental“: mieten, zurückgeben).
+/// Zeilen nur aus <see cref="IStationService.Offers"/>, ausgeführt nur über <see cref="IStationService.Execute"/>; Meldung aus dem Ergebnis.
 /// </summary>
 public sealed partial class HangarScreen : DockAreaScreen
 {
 	public override string Id => "dock.hangar";
 	public HangarScreen() => AreaId = DockAreas.Hangar;
 
+	/// <summary>„Befehle“: die Flotte der Kommandozentrale mit diesem Schiff öffnen (Main).</summary>
+	public event Action<ShipId>? CommandsRequested;
+	/// <summary>Nach jedem Execute (Dienst-Schlüssel, Erfolg) – Main spielt den Ton.</summary>
+	public event Action<string, bool>? Executed;
+
+	string _message = "";
+	bool _msgOk = true;
+	int _parkedRows, _foreignRows;
+	/// <summary>Für den Selbsttest: angezeigte eigene geparkte Schiffe und fremde Schiffe.</summary>
+	public int TestParkedRows => _parkedRows;
+	public int TestForeignRows => _foreignRows;
+
+	IStationService? Svc(string key) => Ctx.Services.ForStation(Ctx.U, Ctx.Station).FirstOrDefault(s => s.Key == key);
+
 	protected override void BuildContent(Control inner)
 	{
-		var u = Ctx.U; var ship = Ctx.Ship;
+		var u = Ctx.U; var ship = Ctx.Ship; var st = Ctx.Station;
 		float w = inner.Size.X > 0 ? inner.Size.X : 1020f;
+		_parkedRows = 0; _foreignRows = 0;
 
-		var head = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		head.AddThemeConstantOverride("separation", 12);
-		At(inner, head, 0, 0, w, 36);
-		head.AddChild(Text("Angedockte Schiffe", 20, Cyan));
-		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
-		head.AddChild(spacer);
-		head.AddChild(Text($"Liegeplätze/Gebühr: {UiPlaceholders.Tag}", 14, Dim));
+		string fee = st.Owner == u.PlayerActor ? "Eigene Station: Liegeplätze gratis"
+			: $"Liegegebühr für geparkte Schiffe: {u.Rules.BerthFeeBySize.GetValueOrDefault("S"):0}–{u.Rules.BerthFeeBySize.GetValueOrDefault("L"):0} Cr/Tag je Klasse";
+		At(inner, Text(_message.Length > 0 ? _message : fee, 15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.9f)), 0, 0, w, 22);
 
-		// Karte des Spielerschiffs (einzige angedockte Schiff, das der Core kennt)
-		var card = At(inner, new PanelContainer(), 0, 44, w - 8, 212);
-		card.AddThemeStyleboxOverride("panel", Box(new Color(0.12f, 0.22f, 0.4f, 0.95f), Cyan, 10, 2, 14));
-		var cv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		cv.AddThemeConstantOverride("separation", 6);
-		card.AddChild(cv);
+		// ── Aktives Schiff ──
+		var card = CardBg(inner, 0, 28, w - 8, 78, new Color(0.12f, 0.22f, 0.4f, 0.95f), Cyan, 10, 2);
+		At(card, new ShipSketch { CustomMinimumSize = new Vector2(48, 40), Size = new Vector2(48, 40), MouseFilter = MouseFilterEnum.Ignore }, 12, 14);
+		At(card, Text($"Dein Schiff #{ship.Id.Value} · {ModelName(u, ship)} · {ShipQualityNames.Name(ship.Quality)}{(ship.IsRental ? " · Leihschiff" : "")}", 20, White), 72, 6, 640, 28);
+		At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³ · Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
 
-		var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		top.AddThemeConstantOverride("separation", 12);
-		cv.AddChild(top);
-		top.AddChild(new ShipSketch { CustomMinimumSize = new Vector2(56, 44), Size = new Vector2(56, 44), MouseFilter = MouseFilterEnum.Ignore });
-		var names = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		names.AddThemeConstantOverride("separation", 2);
-		names.AddChild(Text($"Dein Schiff #{ship.Id.Value}", 22, White));
-		names.AddChild(Text($"{ModelName(u, ship)} · Güteklasse {ShipQualityNames.Name(ship.Quality)} · Besitzer {u.ActorName(ship.Owner)}", 14, Dim));
-		names.AddChild(Text("AKTIV – von dir gesteuert", 14, Cyan));
-		top.AddChild(names);
-		var sp = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
-		top.AddChild(sp);
-		// Aktionen in einer Zeile, sonst wird die Karte zu hoch und überlappt den Platzhalter-Hinweis unten
-		var act = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		act.AddThemeConstantOverride("separation", 6);
-		top.AddChild(act);
-		foreach (var label in new[] { "Steuern", "Befehle", "Verkaufen", "Heim schicken" })
-		{
-			var b = new KitButton(label, new Vector2(118, 44)) { FontSize = 15, State = KitButtonState.Disabled, Sub = UiPlaceholders.Soon };
-			act.AddChild(b);
-		}
-
-		// Hülle, Fracht/Laderaum, Credits, Auftrag – echt
-		BarLine(cv, "Hülle", ship.Hull, ship.MaxHull, ship.Hull > 60f ? Green : Orange, $"{(int)ship.Hull}");
-		BarLine(cv, "Fracht", ship.UsedVolume(u), ship.CargoCapacity, Cyan, $"{ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³");
-		cv.AddChild(Text($"Credits {(int)u.WalletOf(ship).Credits:0} · Auftrag: {OrderText(u, ship)}", 16, White));
-
-		// Phase 5c: weitere eigene Schiffe, die an dieser Station liegen (Core: PlayerFleet.ParkedAt) – „Übernehmen“ wechselt das aktive Schiff
-		var parked = PlayerFleet.ParkedAt(u, Ctx.Station);
-		At(inner, Text(parked.Count > 0 ? "Deine weiteren Schiffe hier" : "Keine weiteren eigenen Schiffe an dieser Station", 17, parked.Count > 0 ? Cyan : new Color(Dim, 0.8f)), 0, 266, w - 8, 26);
-		float y = 296f;
-		_parkedRows = 0;
+		// ── Eigene Schiffe hier (Dienst „hangar“) ──
+		float lw = 610f;
+		var hangar = Svc(HangarService.ServiceKey);
+		var offers = hangar?.Offers(u, st, ship) ?? Array.Empty<ServiceOffer>();
+		var parked = PlayerFleet.ParkedAt(u, st);
+		At(inner, Text(hangar is null ? "Diese Station hat keinen Hangar." : parked.Count > 0 ? "Deine Schiffe hier" : "Keine weiteren eigenen Schiffe an dieser Station", 17,
+			parked.Count > 0 ? Cyan : new Color(Dim, 0.8f)), 0, 114, lw, 24);
+		float y = 142f;
 		foreach (var other in parked.Take(3))
 		{
-			string model = u.ShipModels.TryGetValue(other.ModelKey, out var mm) ? mm.Name : "ohne Modell";
-			var row = CardBg(inner, 0, y, w - 8, 58, Card, new Color(Edge, 0.6f), 10, 1);
-			At(row, Text($"#{other.Id.Value} · {model} · {ShipQualityNames.Name(other.Quality)}", 17, White), 14, 4, 420, 26);
-			At(row, Text($"Hülle {(int)other.Hull}/{(int)other.MaxHull} · Fracht {other.UsedVolume(u):0.#}/{other.CargoCapacity:0} m³ · Tank {other.TotalFuel:0}/{other.Stats.FuelCapacity:0}", 13, Dim), 14, 30, 560, 22);
-			var b = At(row, new KitButton("Übernehmen", new Vector2(170, 50)) { FontSize = 16, State = KitButtonState.Ready }, w - 8 - 180, 4);
+			var row = CardBg(inner, 0, y, lw - 8, 108, Card, new Color(Edge, 0.6f), 10, 1);
+			At(row, Text($"#{other.Id.Value} · {ModelName(u, other)} · {ShipQualityNames.Name(other.Quality)}{(other.IsRental ? " · Leihschiff" : "")}", 17, White), 12, 4, 420, 24);
+			float berth = Hangar.BerthFeeNow(u, other);
+			At(row, Text($"{Commands.Describe(u, other)} · Hülle {(int)other.Hull}/{(int)other.MaxHull} · Tank {other.TotalFuel:0}" + (berth > 0f ? $" · {berth:0} Cr/Tag" : ""), 13, Dim), 12, 28, lw - 30, 20);
+			float bx = 12;
+			foreach (var (action, label) in new[] { (HangarService.Switch, "Übernehmen"), (HangarService.Home, "Heim"), (HangarService.SellShip, "Verkaufen") })
+			{
+				var o = offers.FirstOrDefault(x => x.Key == $"{action}:{other.Id.Value}");
+				bool can = o.Key is not null && o.Amount >= 1f;
+				string text = action == HangarService.SellShip && o.Key is not null ? $"{label} {o.Price:0}" : label;
+				var b = At(row, new KitButton(text, new Vector2(action == HangarService.SellShip ? 150 : 124, 56)) { FontSize = 15, State = can ? (action == HangarService.Switch ? KitButtonState.Ready : KitButtonState.Normal) : KitButtonState.Disabled }, bx, 48);
+				string key = $"{action}:{other.Id.Value}";
+				if (can) b.Pressed += () => Execute(HangarService.ServiceKey, key);
+				bx += action == HangarService.SellShip ? 158 : 132;
+			}
 			var id = other.Id;
-			b.Pressed += () => SwitchRequested?.Invoke(id);
-			y += 64f;
+			var bc = At(row, new KitButton("Befehle", new Vector2(124, 56)) { FontSize = 15 }, bx, 48);
+			bc.Pressed += () => CommandsRequested?.Invoke(id);
+			y += 114f;
 			_parkedRows++;
 		}
+		if (parked.Count > 3) At(inner, Text($"… und {parked.Count - 3} weitere (Flotte in der Kommandozentrale)", 13, Dim), 0, y, lw, 20);
 
-		// Platzhalter-Hinweis für fremde Schiffe und Aktionen (unterhalb der Liste, ohne Überlappung)
-		At(inner, Text(UiPlaceholders.HangarSoon, 14, new Color(Dim, 0.75f)), 0, Math.Max(y + 4f, 300f), w - 8, 40);
+		// ── Rechts: fremde Schiffe und Leihdienst ──
+		float rx = lw + 8, rw = w - rx - 8;
+		var foreign = Hangar.ForeignDocked(u, st, u.PlayerActor).Where(s => s.Id != ship.Id).ToList();
+		At(inner, Text($"Fremde Schiffe hier ({foreign.Count})", 17, Cyan), rx, 114, rw, 24);
+		float fy = 142f;
+		foreach (var f in foreign.Take(4))
+		{
+			string job = f.Role switch { ShipRole.Trader => "Händler", ShipRole.Miner => "Schürfer", ShipRole.Builder => "Bauschiff", ShipRole.Police => "Polizei", ShipRole.Pirate => "Pirat", _ => f.Role.ToString() };
+			At(inner, Text($"#{f.Id.Value} {ModelName(u, f)} · {job}", 15, White), rx, fy, rw, 20);
+			At(inner, Text(u.ActorName(f.Owner), 12, Dim), rx, fy + 20, rw, 16);
+			fy += 40f;
+			_foreignRows++;
+		}
+		if (foreign.Count == 0) { At(inner, Text("Keine fremden Schiffe angedockt.", 14, new Color(Dim, 0.8f)), rx, fy, rw, 20); fy += 28f; }
+
+		var rental = Svc(RentalService.ServiceKey);
+		fy = Math.Max(fy + 8f, 312f);
+		At(inner, Text(rental is null ? "Kein Leihdienst an dieser Station" : "Leihschiff", 17, rental is null ? new Color(Dim, 0.8f) : Cyan), rx, fy, rw, 24);
+		fy += 28f;
+		if (rental is not null)
+			foreach (var o in rental.Offers(u, st, ship).Take(3))
+			{
+				bool can = o.Amount >= 1f;
+				At(inner, Text(o.Text, 13, can ? White : Dim), rx, fy, rw, 36);
+				var b = At(inner, new KitButton(o.Key.StartsWith(RentalService.Rent + ":") ? $"Mieten {o.Price:0}" : "Zurückgeben", new Vector2(rw, 56)) { FontSize = 15, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, rx, fy + 36);
+				string key = o.Key;
+				if (can) b.Pressed += () => Execute(RentalService.ServiceKey, key);
+				fy += 100f;
+			}
 	}
 
-	/// <summary>„Übernehmen“: der Spieler möchte in dieses eigene, hier geparkte Schiff wechseln (Main führt <see cref="PlayerFleet.SwitchTo"/> aus).</summary>
-	public event Action<ShipId>? SwitchRequested;
-	int _parkedRows;
-	/// <summary>Für den Selbsttest: angezeigte eigene geparkte Schiffe.</summary>
-	public int TestParkedRows => _parkedRows;
+	/// <summary>Führt ein Angebot eines Dienstes (hangar oder rental) aus und zeigt dessen Meldung.</summary>
+	public ServiceResult Execute(string service, string offer)
+	{
+		var svc = Svc(service);
+		var r = svc is null
+			? new ServiceResult(false, 0f, 0f, "Dienst an dieser Station nicht verfügbar.")
+			: svc.Execute(Ctx.U, Ctx.Station, Ctx.Ship, new ServiceRequest(offer, default, 0f));
+		_message = r.Message;
+		_msgOk = r.Success;
+		Executed?.Invoke(service, r.Success);
+		Invalidate();
+		return r;
+	}
 
 	static string ModelName(Universe u, Ship s) => u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : "ohne Modell";
-	static string FactionName(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var x) ? x.Name : "?";
-
-	/// <summary>Auftrag des Schiffs als Text (echt aus <see cref="Ship.Order"/>).</summary>
-	static string OrderText(Universe u, Ship ship) => ship.Order switch
-	{
-		null => "kein Auftrag",
-		TradeOrder t => $"Handel {GoodName(u, t.Good)}: {StationName(u, t.Buy)} → {StationName(u, t.Sell)}",
-		MineOrder m => $"Abbau in {SectorName(u, m.Sector)}, liefern an {StationName(u, m.DeliverTo)}",
-		PatrolOrder p => $"Patrouille in {SectorName(u, p.Sector)}",
-		GoToOrder g => $"Flug nach {StationName(u, g.Target)}",
-		_ => ship.Order.GetType().Name,
-	};
-
-	static string GoodName(Universe u, GoodId g) => u.Goods.TryGetValue(g, out var x) ? x.Name : g.Value.ToString();
-	static string StationName(Universe u, StationId id) => u.Stations.TryGetValue(id, out var s) ? s.Name : id.Value.ToString();
-	static string SectorName(Universe u, SectorId id) => u.Sectors.TryGetValue(id, out var s) ? s.Name : id.Value.ToString();
-
-	static void BarLine(Control parent, string name, float value, float max, Color fill, string text)
-	{
-		var r = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		r.AddThemeConstantOverride("separation", 8);
-		var l = Text(name, 15, Dim); l.CustomMinimumSize = new Vector2(58, 0);
-		r.AddChild(l);
-		var bar = new KitBar(420, 12, fill);
-		bar.Set(value, fill, max);
-		r.AddChild(bar);
-		r.AddChild(Text(text, 15, White));
-		parent.AddChild(r);
-	}
 }

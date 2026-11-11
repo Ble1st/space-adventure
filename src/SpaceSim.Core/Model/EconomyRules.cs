@@ -336,4 +336,38 @@ public sealed class EconomyRules
     public float ExtraditionRelation = 0f;
     /// <summary>Kopfgeld je Fahndungsstufe des Besitzers eines besiegten Kaperschiffs (mindestens Stufe 1), ausgezahlt aus der Fraktionskasse.</summary>
     public float BountyPerLevel = 150f;
+
+    // ───────── Phase 12: Befehle, Verbände, Spielerflotte, Hangar, Taxi, Leihschiff (FLOTTEN.md Abschnitte 3–5, UI.md Abschnitt 3) ─────────
+    /// <summary>Befehlskapazität: höchstens so viele einzeln befehligte Schiffe je Größenklasse des Akteurs (Einzelakteur … Staat). Fehlen die Felder in alten Spielständen, gelten die Standards.</summary>
+    public List<int> CommandShips = new() { 4, 8, 16, 32, 64 };
+    /// <summary>Befehlskapazität: höchstens so viele Verbände je Größenklasse (POLITIK.md Abschnitt 7: Kleinfirma einer, Firma bis drei).</summary>
+    public List<int> CommandSquadrons = new() { 1, 1, 3, 6, 12 };
+    /// <summary>Höchstzahl der Mitglieder eines Verbands (Anführer eingeschlossen; Referenz <c>MaxFleetPilots</c>).</summary>
+    public int SquadronMaxMembers = 8;
+    /// <summary>Notfall-Ebene: unter diesem Anteil der Maximalhülle ruht der Befehl, das Schiff fliegt zur Reparatur.</summary>
+    public float EmergencyHullFraction = 0.3f;
+    /// <summary>Piraten überfallen auch nicht aktive Spielerschiffe (ohne Vorwarnung, nie Schiffsverlust). Aus = nur NPCs und das aktive Schiff.</summary>
+    public bool FleetRaids = true;
+    /// <summary>Länge eines Spieltags in Ticks (Liegegebühr, Miete): 2400 = 10 Minuten Spielzeit.</summary>
+    public int DayTicks = 2400;
+    /// <summary>Liegegebühr je Tag an fremden Stationen nach Klassengröße, wenn die Klasse keinen eigenen Satz hat (UI.md: Skiff 12, leichter Frachter 24, schwer 60).</summary>
+    public Dictionary<string, float> BerthFeeBySize = new() { ["S"] = 12f, ["M"] = 24f, ["L"] = 60f, ["XL"] = 120f };
+    /// <summary>Verkauf eines eigenen Schiffs: Anteil des Materialwerts (Bausatz + Module zum Basispreis), den die Station zahlt.</summary>
+    public float ShipSellShare = 0.5f;
+    /// <summary>Taxi: Grundgebühr, je Sprung, je Streckeneinheit (Luftlinie in Sektoren), Tempo und Ticks je Sprung.</summary>
+    public float TaxiBaseFee = 40f;
+    public float TaxiPerJump = 30f;
+    public float TaxiPerUnit = 0.1f;
+    public float TaxiSpeed = 12f;
+    public int TaxiJumpTicks = 8;
+    /// <summary>Leihschiff: Modell, einmalige Gebühr, Miete je angefangenem Tag (aus dem Pfand), Pfand, höchstens so viele gleichzeitig.</summary>
+    public string RentalModel = "pip";
+    public float RentalFee = 60f;
+    public float RentalPerDay = 120f;
+    public float RentalDeposit = 400f;
+    public int RentalMaxPerPlayer = 1;
+    /// <summary>Vorgaben der Automatikaufträge in der Oberfläche: Reichweite (Sprünge), höchster Einkaufspreis (× Basispreis), Rücklage.</summary>
+    public int AutoRadiusJumps = 2;
+    public float AutoMaxBuyFactor = 1.5f;
+    public float AutoReserve = 200f;
 }

@@ -97,6 +97,13 @@ public sealed class Universe
     /// </summary>
     public List<PendingEncounter> PendingEncounters = new();
 
+    /// <summary>Phase 12: Verbände (FLOTTEN.md Abschnitt 3); gespeichert und gehasht.</summary>
+    public Dictionary<SquadronId, Squadron> Squadrons = new();
+    /// <summary>Phase 12: nächste freie Verbands-Id (gespeichert).</summary>
+    public int NextSquadronId { get; set; } = 1;
+    /// <summary>Neue Verbands-Id (fortlaufend).</summary>
+    public SquadronId NewSquadronId() => new(NextSquadronId++);
+
     /// <summary>
     /// Phase 11: Auflöser für Begegnungen (FLOTTEN.md Abschnitt 7). Standard ist die abstrakte Auflösung nach Stärke über <see cref="Rng"/>; ein echtes
     /// Kampfsystem kann ihn später ersetzen, ohne dass sich Polizei und Piraten ändern. Nicht gespeichert (Verhalten, kein Zustand).
@@ -145,6 +152,7 @@ public sealed class Universe
         if (!Ships.TryGetValue(id, out var s)) return;
         if (s.Transit is { } t) Tracker.RemoveTransit(t, id); else Tracker.RemoveParked(s.Sector, id);
         Ships.Remove(id);
+        Simulation.Squadrons.OnShipRemoved(this, s);   // Phase 12: Verband verlassen, Anführer folgt nach
         Events.Publish(new ShipRemoved(id, reason));
     }
 
@@ -152,6 +160,7 @@ public sealed class Universe
     {
         if (s.Transit is { } old) Tracker.RemoveTransit(old, s.Id); else Tracker.RemoveParked(s.Sector, s.Id);
         s.Transit = t;
+        s.DockedAt = default;   // Phase 12: wer abfliegt, liegt nicht mehr angedockt
         Tracker.AddTransit(t, s.Id);
     }
 
@@ -163,7 +172,26 @@ public sealed class Universe
         s.Transit = null;
         s.Sector = t.ToSector;
         s.Position = t.ToPosition;
+        s.DockedAt = StationAt(s.Sector, s.Position);   // Phase 12: Ankunft am Andockpunkt = angedockt
         Tracker.AddParked(s.Sector, s.Id);
+    }
+
+    /// <summary>Phase 12: Höchstabstand vom Stationszentrum, in dem ein liegendes Schiff als angedockt gilt (Andockpunkte liegen bei 22).</summary>
+    public const float DockRadius = 30f;
+
+    /// <summary>Phase 12: Station, an deren Andockpunkt diese Position liegt (nächste innerhalb <see cref="DockRadius"/>, bei Gleichstand kleinste Id); default = keine.</summary>
+    public StationId StationAt(SectorId sector, Vec2 pos)
+    {
+        if (!Sectors.TryGetValue(sector, out var sec)) return default;
+        StationId best = default;
+        float bestD = DockRadius;
+        foreach (var id in sec.Stations.OrderBy(x => x.Value))
+        {
+            if (!Stations.TryGetValue(id, out var st)) continue;
+            float d = Vec2.Distance(pos, st.Position);
+            if (d <= bestD && (best.Value == 0 || d < bestD)) { bestD = d; best = id; }
+        }
+        return best;
     }
 
     /// <summary>Setzt ein geparktes Schiff in einen anderen Sektor (z.B. Sprung des Spielers).</summary>
@@ -171,6 +199,7 @@ public sealed class Universe
     {
         Tracker.RemoveParked(ship.Sector, ship.Id);
         ship.Sector = to;
+        ship.DockedAt = default;
         Tracker.AddParked(to, ship.Id);
     }
 
@@ -200,6 +229,8 @@ public sealed class Universe
         Sectors[st.Sector].Stations.Remove(id);
         foreach (var ship in Ships.Values)
         {
+            if (ship.DockedAt == id) ship.DockedAt = default;   // Phase 12: Liegeplatz weg
+            if (ship.HomeBase == id) ship.HomeBase = default;
             bool affected = ship.Order switch
             {
                 TradeOrder o => o.Buy == id || o.Sell == id,
@@ -214,6 +245,7 @@ public sealed class Universe
             ship.MinePhase = MinePhase.Idle;
             ship.Cargo.Clear();
         }
+        foreach (var sq in Squadrons.Values) if (sq.HomeBase == id) sq.HomeBase = default;
         StructureVersion++;
         Events.Publish(new StationRemoved(id, st.Sector, reason));
     }

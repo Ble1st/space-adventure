@@ -183,7 +183,7 @@ public static class ConstructionRules
     {
         var bs = site.Site!;
         if (!bs.Emergency && bs.Builder.Value == 0
-            && !u.Ships.Values.Any(s => s.IsAiBuilder && u.IsReachable(s.Sector, site.Sector, GateAccess.ProfileOf(u, s))))
+            && !u.Ships.Values.Any(s => s.IsSiteBuilder && u.IsReachable(s.Sector, site.Sector, GateAccess.ProfileOf(u, s))))
             return true;
         foreach (var g in bs.Required.Keys.OrderBy(g => g.Value))
         {
@@ -243,8 +243,8 @@ public static class ConstructionRules
         var st = StationFactory.Create(u, site.Id, type, $"{type.Name} {shortName} {site.Id.Value}", site.Sector, site.Position, site.Owner);
         st.Credits = NewStationCredits;
         var builder = bs.Builder;
-        if (builder.Value != 0 && u.Ships.TryGetValue(builder, out var b) && b.IsAiBuilder)
-            b.Credits += MathF.Min(MathF.Max(0f, site.Credits), bs.Budget * u.Rules.ConstructionFeeShare);
+        if (builder.Value != 0 && u.Ships.TryGetValue(builder, out var b) && b.IsSiteBuilder)
+            u.WalletOf(b).Credits += MathF.Min(MathF.Max(0f, site.Credits), bs.Budget * u.Rules.ConstructionFeeShare);
         ReleaseBuilders(u, site.Id);
         u.ReplaceStation(st);
         u.NotifyStationBuilt(st);
@@ -320,7 +320,7 @@ public sealed class ConstructionSystem : ISimSystem
                 continue;
             }
             if (!u.StationTypes.ContainsKey(bs.TypeKey)) { ConstructionRules.Expire(u, site); continue; }
-            if (bs.Builder.Value != 0 && (!u.Ships.TryGetValue(bs.Builder, out var b) || !b.IsAiBuilder)) bs.Builder = default;
+            if (bs.Builder.Value != 0 && (!u.Ships.TryGetValue(bs.Builder, out var b) || !b.IsSiteBuilder)) bs.Builder = default;
 
             if (bs.Complete(site) && (bs.Emergency || ConstructionRules.BuilderOnSite(u, site)))
             {
@@ -351,7 +351,8 @@ public sealed class ConstructionSystem : ISimSystem
         // feste Reihenfolge (Id), nicht die Einfügereihenfolge des Dictionarys: wer zuerst denkt, bekommt die freie Baustelle
         foreach (var ship in u.Ships.Values.Where(s => s.Role == ShipRole.Builder).OrderBy(s => s.Id.Value).ToList())
         {
-            if (ship.Role != ShipRole.Builder || ship.Controller != Controller.Ai) continue;
+            // Phase 12: auch Spielerschiffe mit Befehl „Bauen“ (Ausführer ist dieses System)
+            if (ship.Role != ShipRole.Builder || (ship.Controller != Controller.Ai && ship.Command is not BuildCommand)) continue;
             if (!ship.Has(Capability.Construction))
             {
                 // Bauausleger ausgebaut: Auftrag fällt weg, Baustelle wird frei (wie JobRelease bei Händlern/Minern)
@@ -396,6 +397,13 @@ public sealed class ConstructionSystem : ISimSystem
         {
             site.Site!.Builder = default;
             site = null;
+        }
+        // Phase 12: Befehl „Bauen“ mit genannter Baustelle zuerst
+        if (site is null && ship.Command is BuildCommand bc && bc.Site.Value != 0 && u.Stations.TryGetValue(bc.Site, out var wanted)
+            && wanted.Site is { Abandoned: false } ws && ws.Builder.Value == 0 && u.IsReachable(ship.Sector, wanted.Sector, GateAccess.ProfileOf(u, ship)))
+        {
+            ws.Builder = ship.Id;
+            site = wanted;
         }
         if (site is null && OpenSite(u, ship) is { } open)
         {
@@ -550,7 +558,7 @@ public sealed class ConstructionSystem : ISimSystem
             if (units <= 0f) continue;
             e.Amount += units;
             st.Credits -= units * e.Price;
-            ship.Credits += units * e.Price;
+            u.WalletOf(ship).Credits += units * e.Price;   // Phase 12: Spieler-Bauschiffe buchen auf die Spielerkasse
             if (ship.Cargo[g] - units <= 0.0001f) ship.Cargo.Remove(g); else ship.Cargo[g] -= units;
             ConstructionRules.OnDelivered(u, st, ship, g, units, "builder");
         }

@@ -70,9 +70,9 @@ public class OutfitterShipyardTests
         var trade = u.Stations.Values.Single(s => s.TypeKey == "trade_station");
         Assert.True(trade.BankruptcyProtected);
         Assert.Empty(trade.Production);   // nur Lager, keine Rezepte
-        Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, u.StationTypes["trade_station"].Services);
+        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental" }, u.StationTypes["trade_station"].Services);   // Phase 12
         var services = StationServices.Default();
-        Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, services.ForStation(u, trade).Select(s => s.Key));
+        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental" }, services.ForStation(u, trade).Select(s => s.Key));
         // Handelsstation montiert nur Skiffs, die Werft alle Klassen außer den nicht frei gehandelten (Phase 11: Kaperschiff)
         Assert.All(ShipDealerService.Models(u, trade), m => Assert.Equal("skiff", m.ClassKey));
         Assert.Equal(3, ShipDealerService.Models(u, trade).Count);
@@ -455,7 +455,7 @@ public class OutfitterShipyardTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":14", json);
+        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.PlayerShip, loaded.PlayerShip);

@@ -446,10 +446,7 @@
    "buildCost": 8000,
    "upkeep": 0.12,
    "income": 1.5,
-   "services": [
-    "trade",
-    "repair"
-   ],
+   "services": ["trade", "repair", "hangar"],
    "recipes": [
     {
      "ticks": 10,
@@ -545,13 +542,7 @@
    "buildCost": 12000,
    "upkeep": 0.15,
    "income": 2,
-   "services": [
-    "trade",
-    "repair",
-    "outfitter",
-    "shipdealer",
-    "upgrade"
-   ],
+   "services": ["trade", "repair", "outfitter", "shipdealer", "upgrade", "hangar", "taxi", "rental"],
    "recipes": [
     {
      "ticks": 20,
@@ -718,10 +709,7 @@
    "buildCost": 9000,
    "upkeep": 0.12,
    "income": 1.5,
-   "services": [
-    "trade",
-    "refuel"
-   ],
+   "services": ["trade", "refuel", "hangar", "taxi"],
    "recipes": [
     {
      "ticks": 5,
@@ -830,11 +818,7 @@
    "buildCost": 8000,
    "upkeep": 0.08,
    "income": 0.8,
-   "services": [
-    "trade",
-    "outfitter",
-    "shipdealer"
-   ],
+   "services": ["trade", "outfitter", "shipdealer", "hangar", "taxi", "rental"],
    "shipDealer": {
     "classes": [
      "skiff"
@@ -904,10 +888,7 @@
    "upkeep": 0.06,
    "income": 0.6,
    "recipes": [],
-   "services": [
-    "trade",
-    "storage"
-   ],
+   "services": ["trade", "storage", "hangar", "taxi"],
    "stocks": {
     "steel": [
      30,
@@ -932,7 +913,7 @@
    "buildCost": 40000,
    "upkeep": 6,
    "income": 0,
-   "services": ["court", "bounty"],
+   "services": ["court", "bounty", "hangar", "taxi"],
    "recipes": [],
    "capturable": false
   },
@@ -957,7 +938,7 @@
    "buildCost": 20000,
    "upkeep": 3,
    "income": 0,
-   "services": ["court", "bounty"],
+   "services": ["court", "bounty", "hangar", "taxi"],
    "recipes": [],
    "capturable": false
   },
@@ -982,7 +963,7 @@
    "buildCost": 8000,
    "upkeep": 1.5,
    "income": 0,
-   "services": ["court", "bounty"],
+   "services": ["court", "bounty", "hangar"],
    "recipes": []
   },
   {

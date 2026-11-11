@@ -85,7 +85,7 @@ public static class ShipPurchase
         var ship = new Ship
         {
             Id = id, Role = role, Controller = controller, Owner = owner, Sector = at.Sector, Position = at.DockPoint(id), Credits = credits,
-            ModelKey = modelKey, Quality = quality,
+            ModelKey = modelKey, Quality = quality, DockedAt = at.Id,   // Phase 12: liegt angedockt an der Werft
             Slots = slots.Select(s => new ClassSlot { Type = s.Type, Size = s.Size, Facing = s.Facing, Arc = s.Arc }).ToList(),
             Fit = new List<string?>(fit),
         };

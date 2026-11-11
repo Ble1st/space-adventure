@@ -34,6 +34,9 @@ public static class SaveGameJson
             // Phase 10: Stände vor v13 kennen Einfluss und Kontrollstufe nicht — wie beim Weltaufbau einmal berechnen
             // Phase 11: Stände vor v14 kennen die Lagekarte nicht — Sicherheit und Verkehr einmal messen (vor der Sektorkontrolle, Patrouillenabdeckung)
             if (loadedVersion < 14 && u.Sectors.Values.All(x => x.Security == 0f && x.Traffic == 0f && x.Threat == 0f)) Simulation.ThreatMap.Initialize(u);
+            // Phase 12: Stände vor v15 kennen keinen Liegeplatz — wie beim Weltaufbau aus der Position bestimmen
+            if (loadedVersion < 15)
+                foreach (var ship in u.Ships.Values.Where(x => x.Transit is null && x.Id != u.PlayerShip).OrderBy(x => x.Id.Value)) ship.DockedAt = u.StationAt(ship.Sector, ship.Position);
             if (loadedVersion < 13)
             {
                 foreach (var sector in u.Sectors.Values.OrderBy(x => x.Id.Value)) Simulation.SectorControl.Update(u, sector);
@@ -835,6 +838,25 @@ public static class SaveGameJson
     }
 
     /// <summary>
+    /// v14 → v15 (Phase 12: Befehle, Verbände, Hangar, Taxi, Leihschiff): Content der Default-Welt ergänzen (<see cref="AddMissingDefaultContent"/>; neue
+    /// Dienste „hangar“, „taxi“, „rental“ an den Default-Typen) und — für Stände mit eigenen Stationstypen (sehr alte Stände) — jedem Typ mit Handel
+    /// außer Baustellen den Dienst „hangar“ geben. Befehle, Verbände und Leihschiffe gibt es noch nicht; den Liegeplatz bestimmt das Laden aus der Position.
+    /// </summary>
+    static void MigrateV14ToV15(SaveGame s)
+    {
+        AddMissingDefaultContent(s);
+        foreach (var t in s.StationTypes)
+        {
+            var services = t.Services ?? new List<string> { Services.TradeService.ServiceKey };
+            if (services.Contains(Services.TradeService.ServiceKey) && !services.Contains(Services.HangarService.ServiceKey) && t.Key != "build_site")
+                services.Add(Services.HangarService.ServiceKey);
+            t.Services = services;
+        }
+        s.NextSquadronId = Math.Max(1, s.NextSquadronId);
+        s.Version = 15;
+    }
+
+    /// <summary>
     /// Reicht den Content der Default-Welt nach Schlüssel und nur ergänzend nach (gemeinsamer Schritt der Migrationen ab v8→v9):
     /// 1) fehlende Module und je Modul ohne Ware eine Modul-Ware (angehängt nach Modulschlüssel, bestehende GoodIds bleiben);
     /// 2) fehlende Schiffsklassen und -modelle; vorhandene Default-Modelle ohne Aufgabenliste bekommen deren <c>jobs</c>;
@@ -941,6 +963,7 @@ public static class SaveGameJson
         if (s.Version < 12) MigrateV11ToV12(s);
         if (s.Version < 13) MigrateV12ToV13(s);
         if (s.Version < 14) MigrateV13ToV14(s);
+        if (s.Version < 15) MigrateV14ToV15(s);
         return s;
     }
 }

@@ -50,6 +50,17 @@ public sealed class GameSession
         return steps;
     }
 
+    /// <summary>
+    /// Phase 12: lässt eine feste Zahl Ticks ohne Darstellung laufen (Taxifahrt: die Reisezeit vergeht im Zeitraffer), höchstens
+    /// <see cref="OfflineCatchUp.DefaultMaxTicks"/>. Gibt die gelaufenen Ticks zurück.
+    /// </summary>
+    public long RunTicks(long ticks)
+    {
+        long n = Math.Clamp(ticks, 0, OfflineCatchUp.DefaultMaxTicks);
+        for (long i = 0; i < n; i++) Runner.Step(U);
+        return n;
+    }
+
     /// <summary>Tick inkl. Bruchteil, für flüssige Positionen zwischen zwei Simulationsschritten.</summary>
     public double FractionalTick => U.Tick + _acc / SimClock.TickInterval;
 }
