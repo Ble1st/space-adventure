@@ -294,6 +294,7 @@ public class MultiroleTests
     public void FleetSystem_KauftGewaehltesModell_VerbrauchtMaterial_NeuesSchiffHatAufgabe()
     {
         var (u, yard, buyer) = RichMinerAtStockedYard(20_000f);
+        u.Rules.QualityChances = new() { 1f, 0f, 0f, 0f };   // Phase 8: Güteklasse fest Standard — geprüft wird der Verbrauch der Grundregel (der Wurf hing sonst vom Zufallsstand ab, den die Bauschiffe der Startwelt verschieben)
         u.Rules.MaxTraders = 0;   // nur die Schürflücke (6/8) zählt
         var mine = ShipJobs.ByKey("mine")!;
         var choice = FleetSystem.ChooseModel(u, mine, buyer, ShipJobs.UsedUnits(u, mine), mine.Limit(u.Rules))!;
@@ -337,7 +338,7 @@ public class MultiroleTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":10", json);
+        Assert.Contains("\"Version\":11", json);
         Assert.Contains("\"Jobs\":[\"trade\",\"mine\"]", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
@@ -430,7 +431,7 @@ public class MultiroleTests
         var yard = m.Stations.Values.First(s => s.TypeKey == "shipyard");
         Assert.True(yard.Market.ContainsKey(m.FindGood("chem_engine_m")!.Id));
         // Bestehende Waren behalten ihre Ids
-        foreach (var g in u.Goods.Values.Where(g => !NewModules.Contains(g.Key) && !QualityUpgradeTests.Phase7Modules.Contains(g.Key))) Assert.Equal(g.Key, m.Goods[g.Id].Key);
+        foreach (var g in u.Goods.Values.Where(g => !NewModules.Contains(g.Key) && !QualityUpgradeTests.Phase7Modules.Contains(g.Key) && !ConstructionTests.Phase8Modules.Contains(g.Key))) Assert.Equal(g.Key, m.Goods[g.Id].Key);
         Assert.Equal(u.Rules.JobMinTicks, m.Rules.JobMinTicks);
 
         int trades = 0;

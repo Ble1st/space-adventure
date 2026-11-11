@@ -201,7 +201,7 @@ Hier geht es um Machtstrukturen (siehe [POLITIK.md](POLITIK.md)). Alle sind **Di
 - **Voraussetzungen:** Eine Sektorbehörde braucht mindestens **Dominanz** im Sektor (über 50 % Einfluss). Ein Hauptquartier braucht die Größenklasse Staat. Beide sind bankrottgeschützt und `Government` (siehe unten); ihr Verlust folgt eigenen Regeln.
 - **Verlust:** Fällt ein Hauptquartier aus, folgt eine Regierungskrise. Fällt eine Sektorbehörde aus, sinkt die Kontrolle im Sektor auf Präsenz oder Einfluss.
 
-### `Essential` aufgedröselt (entschieden)
+### `Essential` aufgedröselt (entschieden; `BankruptcyProtected` und `Critical` umgesetzt in Phase 8)
 
 **Heute** ist `Station.Essential` ein einzelnes Flag (aus der JSON, im Save), das an genau einer Stelle wirkt: `StationLifecycleSystem` entfernt bankrotte Stationen nicht, wenn es gesetzt ist. Alle Startstationen sind `essential`. Die Docs haben das Wort für mehr benutzt (Zerstörung, Eroberung, HQ). Das wird in getrennte Eigenschaften zerlegt:
 

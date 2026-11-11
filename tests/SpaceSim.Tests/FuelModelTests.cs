@@ -181,7 +181,9 @@ public class FuelModelTests
         var u = DemoUniverse.Create();
         // Startwelt: alle Schiffe haben ein Modell und einen vollen Tank
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
-        foreach (var s in u.Ships.Values)
+        // Phase 8: Bauschiffe (Foreman, Klasse mit eigenem Rumpftank) starten ebenfalls voll, nur mit ihrer eigenen Kapazität
+        Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(DemoUniverse.Propellant)));
+        foreach (var s in u.Ships.Values.Where(s => s.Role != ShipRole.Builder))
         {
             Assert.Equal(200f, s.Stats.FuelCapacity);
             Assert.Equal(200f, s.FuelAmount(DemoUniverse.Propellant));
@@ -242,7 +244,7 @@ public class FuelModelTests
     [Fact]
     public void SaveLoad_V5_Roundtrip_IdentischInklHashFuelUndContent()
     {
-        Assert.Equal(10, SaveGame.CurrentVersion);   // v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
+        Assert.Equal(11, SaveGame.CurrentVersion);   // v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6 (Phase 5a); Fuel kam mit v5
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
@@ -295,7 +297,9 @@ public class FuelModelTests
         // Raffinerien handeln propellant (Markt-Einträge liefen mit dem Save; propellant hängt per Migration am Ende der Warenliste)
         Assert.All(loaded.Stations.Values.Where(st => st.TypeKey == "fuel_refinery"), st => Assert.True(st.Market.ContainsKey(prop.Id)));
         // jedes Schiff mit Modell hat einen vollen Tank propellant
-        foreach (var s in loaded.Ships.Values)
+        // Phase 8: die Kettenmigration (v10→v11) setzt je Fraktion ein Bauschiff mit vollem eigenen Tank dazu
+        Assert.All(loaded.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(prop.Id)));
+        foreach (var s in loaded.Ships.Values.Where(s => s.Role != ShipRole.Builder))
         {
             Assert.NotEmpty(s.ModelKey);
             Assert.Equal(200f, s.Stats.FuelCapacity);
@@ -355,7 +359,9 @@ public class FuelModelTests
         Assert.Equal(new FuelType(prop.Id, 1f), Assert.Single(u.Modules["chem_engine_s"].FuelTypes));
         Assert.Equal(200f, u.ShipClasses["unit_trader"].BaseFuel);
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
-        foreach (var s in u.Ships.Values)
+        // Phase 8: Bauschiffe (Foreman, Klasse mit eigenem Rumpftank) starten ebenfalls voll, nur mit ihrer eigenen Kapazität
+        Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(DemoUniverse.Propellant)));
+        foreach (var s in u.Ships.Values.Where(s => s.Role != ShipRole.Builder))
         {
             Assert.Equal(200f, s.Stats.FuelCapacity);
             Assert.Equal(200f, s.FuelAmount(prop.Id));

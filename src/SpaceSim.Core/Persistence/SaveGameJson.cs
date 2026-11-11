@@ -551,6 +551,80 @@ public static class SaveGameJson
     }
 
     /// <summary>
+    /// v10 → v11 (Phase 8, Bau, Brecher, Lagerhaus). Alles nach Schlüssel und nur ergänzend:
+    /// 1) Content der Default-Welt (<see cref="AddMissingDefaultContent"/>): Bauausleger und Spaltlaser als Module mit Waren, Systemwerk-Rezepte
+    ///    und Lagerposten, Klassen Bauschiff und Asteroidenbrecher, Modelle Foreman, Quarry, Rockbreaker II.
+    /// 2) neue Stationstypen ohne Rezept: Baustelle (ohne Waren, immer) und Lagerhaus (nur wenn seine Lagerwaren auflösbar sind) samt der
+    ///    Lagerhaus-Station der Default-Welt; die Stationsobergrenze steigt je gesetzter Station um 1.
+    /// 3) Startbestand an Bauschiffen: je Fraktion ohne KI-Bauschiff ein Foreman (Sektor wie in der Default-Welt, sonst der erste eigene), mit
+    ///    vollem Tank — nur wenn das Modell existiert und die Stückliste auflösbar ist (sonst baut die Welt weiter direkt, z. B. v2-Stände
+    ///    ohne Warenschlüssel).
+    /// 4) <c>Essential</c> heißt jetzt <c>BankruptcyProtected</c> (beim Laden ohnehin gleichbedeutend gelesen).
+    /// Baustellen, Spielerlager und Notbau-Zeitstempel fehlen in v10 und starten leer.
+    /// </summary>
+    static void MigrateV10ToV11(SaveGame s)
+    {
+        AddMissingDefaultContent(s);
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var dw = WorldBuilder.Build(def);
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+        int? Map(GoodId dg) => goodIdByKey.TryGetValue(dw.Goods[dg].Key, out var id) ? id : null;
+
+        // 2) Baustellen-Typ und Lagerhaus
+        foreach (var dt in dw.StationTypes.Values.Where(t => t.Recipes.Count == 0 && t.ShipDealer is null).OrderBy(t => t.Key, StringComparer.Ordinal))
+        {
+            if (s.StationTypes.Any(t => t.Key == dt.Key) || dt.Stocks.Any(x => Map(x.Good) is null)) continue;
+            var stocks = dt.Stocks.Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
+            s.StationTypes.Add(new StationTypeSave
+            {
+                Key = dt.Key, Name = dt.Name, BuildCost = dt.BuildCost, Upkeep = dt.UpkeepPerTick, Income = dt.IncomePerTick,
+                Recipes = new List<RecipeSave>(), Services = new List<string>(dt.Services), Stocks = stocks.Count == 0 ? null : stocks,
+            });
+            int before = s.Stations.Count;
+            AddDefaultStations(s, def, dt.Key, () => new List<RecipeSave>(), stocks, goodIdByKey);
+            s.Rules.MaxStations += s.Stations.Count - before;
+        }
+
+        // 3) ein Bauschiff je Fraktion
+        bool billResolvable = s.Rules.ConstructionMaterials.Keys.All(goodIdByKey.ContainsKey);
+        var model = s.ShipModels.FirstOrDefault(m => m.Key == "foreman");
+        var cls = model is null ? null : s.ShipClasses.FirstOrDefault(c => c.Key == model.Class);
+        if (billResolvable && model is not null && cls is not null && model.Fit.All(k => k is null || s.Modules.Any(m => m.Key == k)))
+        {
+            var fitted = model.Fit.Where(k => k is not null).Select(k => s.Modules.First(m => m.Key == k)).ToList();
+            float fuelCap = cls.BaseFuel + fitted.Sum(m => m.Stats.GetValueOrDefault("fuelCapacity"));
+            var fuelKey = fitted.SelectMany(m => m.Fuel).Select(f => f.Good).FirstOrDefault();
+            float cargo = fitted.Sum(m => m.Stats.GetValueOrDefault("capacity"));
+            float hull = cls.BaseHull + fitted.Sum(m => m.Stats.GetValueOrDefault("armor"));
+            foreach (var f in s.Factions.OrderBy(f => f.Id))
+            {
+                if (s.Ships.Any(x => x.Faction == f.Id && x.Role == nameof(ShipRole.Builder))) continue;
+                int? sectorId = def.Ships.Where(g => g.Role.Equals("builder", StringComparison.OrdinalIgnoreCase) && g.Faction == f.Id)
+                    .Select(g => (int?)g.Sector).FirstOrDefault(id => s.Sectors.Any(x => x.Id == id && x.Owner == f.Id))
+                    ?? s.Sectors.Where(x => x.Owner == f.Id).OrderBy(x => x.Id).Select(x => (int?)x.Id).FirstOrDefault();
+                if (sectorId is not { } sid) continue;
+                int id = Math.Max(s.NextShipId, s.Ships.Count == 0 ? 1 : s.Ships.Max(x => x.Id) + 1);
+                var anchor = s.Stations.Where(x => x.Sector == sid).OrderBy(x => x.Id).FirstOrDefault();
+                var pos = anchor is null ? default : anchor.Pos + Vec2.FromAngle(id * 2.4f) * 22f;
+                var ship = new ShipSave
+                {
+                    Id = id, Faction = f.Id, Role = nameof(ShipRole.Builder), Controller = nameof(Controller.Ai), ModelKey = model.Key,
+                    CargoCapacity = cargo, Credits = 1500f, Hull = hull, Sector = sid, Pos = pos,
+                    Phase = nameof(TradePhase.Idle), MinePhase = nameof(MinePhase.Idle), NextThinkTick = s.Tick, IdleSince = -1, JobSince = s.Tick,
+                };
+                if (fuelKey is not null && goodIdByKey.TryGetValue(fuelKey, out var fuelId) && fuelCap > 0f) ship.Fuel[fuelId] = fuelCap;
+                s.Ships.Add(ship);
+                s.NextShipId = id + 1;
+            }
+        }
+
+        // 4) Essential → BankruptcyProtected
+        foreach (var st in s.Stations) { st.BankruptcyProtected |= st.Essential; st.Essential = false; }
+        s.Version = 11;
+    }
+
+    /// <summary>
     /// Reicht den Content der Default-Welt nach Schlüssel und nur ergänzend nach (gemeinsamer Schritt der Migrationen ab v8→v9):
     /// 1) fehlende Module und je Modul ohne Ware eine Modul-Ware (angehängt nach Modulschlüssel, bestehende GoodIds bleiben);
     /// 2) fehlende Schiffsklassen und -modelle; vorhandene Default-Modelle ohne Aufgabenliste bekommen deren <c>jobs</c>;
@@ -653,6 +727,7 @@ public static class SaveGameJson
         if (s.Version < 8) MigrateV7ToV8(s);
         if (s.Version < 9) MigrateV8ToV9(s);
         if (s.Version < 10) MigrateV9ToV10(s);
+        if (s.Version < 11) MigrateV10ToV11(s);
         return s;
     }
 }

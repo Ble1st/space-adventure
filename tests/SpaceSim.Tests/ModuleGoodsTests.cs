@@ -84,7 +84,7 @@ public class ModuleGoodsTests
         Assert.Equal(10f, u.Modules["reactor_mk1"].Stats["powerOutput"]);
         Assert.Equal(160f, u.Modules["chem_engine_s"].Stats["thrust"]);
         Assert.Equal(100f, u.Modules["cargo_universal_100"].Stats["capacity"]);
-        Assert.All(u.Ships.Values.Where(s => s.HasModel && s.Quality == ShipQuality.Standard), s => Assert.Equal(8f, s.Stats.Speed));   // Phase 7: bessere Gründer sind schneller
+        Assert.All(u.Ships.Values.Where(s => s.HasModel && s.Quality == ShipQuality.Standard && s.Role != ShipRole.Builder), s => Assert.Equal(8f, s.Stats.Speed));   // Phase 7: bessere Gründer sind schneller; Phase 8: Bauschiffe (Foreman) sind keine Einheitsmodelle
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class ModuleGoodsTests
             Assert.All(sector.Fields, f => Assert.True(Vec2.Distance(f.Position, st.Position) > 101f));
             Assert.All(sector.Gates, g => Assert.True(Vec2.Distance(u.Gates[g].Position, st.Position) > 50f));
             Assert.All(sector.Stations.Where(x => x != st.Id), x => Assert.True(Vec2.Distance(u.Stations[x].Position, st.Position) > 50f));
-            Assert.True(st.Essential);
+            Assert.True(st.BankruptcyProtected);
             // jede Modul-Ware der Fabrik hat einen Markteintrag mit dem Fabrik-Wunschbestand
             // (Phase 6: die neuen Module nennen in stocks einen kleineren Wunschbestand, damit Fabriken ohne Abnehmer weniger horten)
             foreach (var r in st.Production)
@@ -274,7 +274,7 @@ public class ModuleGoodsTests
         drive.Market[GoodOf(u, "reactor_mk1").Id].Amount = 1000f;   // Modul noch stärker auf Halde, aber kein Typ verbraucht es
         int before = u.Stations.Count;
         string? builtType = null;
-        u.Events.Raised += e => { if (e is StationBuilt b) builtType = b.TypeKey; };
+        u.Events.Raised += e => { if (e is ConstructionStarted b) builtType = b.TypeKey; };   // Phase 8: Baustelle statt sofortiger Station
         new StationLifecycleSystem().Step(u, 1);
         Assert.Equal(before + 1, u.Stations.Count);
         Assert.NotNull(builtType);
@@ -331,7 +331,7 @@ public class ModuleGoodsTests
     [Fact]
     public void SaveLoad_V6_Roundtrip_ContentUndFortsetzungBitIdentisch()
     {
-        Assert.Equal(10, SaveGame.CurrentVersion);   // v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c)
+        Assert.Equal(11, SaveGame.CurrentVersion);   // v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c)
         var u = DemoUniverse.Create();
         var runner = new SimulationRunner();
         runner.Run(u, 3_000);

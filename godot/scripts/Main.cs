@@ -127,6 +127,10 @@ public partial class Main : Node3D
 		_hud.DockShipyard.BackToMenu += ShowDockMenu;
 		_hud.DockShipyard.UndockPressed += Undock;
 		_hud.DockShipyard.Executed += ok => _sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		_hud.DockStorage.AreaSelected += OnDockArea;
+		_hud.DockStorage.BackToMenu += ShowDockMenu;
+		_hud.DockStorage.UndockPressed += Undock;
+		_hud.DockStorage.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockHangar.SwitchRequested += SwitchShip;
 		_hud.DockHangar.AreaSelected += OnDockArea;
 		_hud.DockHangar.BackToMenu += ShowDockMenu;
@@ -394,6 +398,8 @@ public partial class Main : Node3D
 		switch (e)
 		{
 			case StationBuilt b: _hud.Toast($"Neue Station: {_session.U.Stations[b.Station].Name}"); break;
+			case ConstructionStarted cs when cs.Sector == _session.U.PlayerSector: _hud.Toast($"Neue Baustelle: {_session.U.Stations[cs.Site].Name}"); break;
+			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Toast($"Notbau: {es.Name}"); break;
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case StationRemoved r when r.Reason == "bankrupt": _hud.Toast("Station aufgegeben (Pleite)"); break;
@@ -407,6 +413,7 @@ public partial class Main : Node3D
 	{
 		float delta = (float)deltaD;
 		_jumpCooldown = Mathf.Max(0f, _jumpCooldown - delta);
+		_splitReload = Mathf.Max(0f, _splitReload - delta);
 		_hitFlash = Mathf.Max(0f, _hitFlash - delta);
 
 		_session.Advance(delta, _fast ? 10f : 1f);
@@ -672,6 +679,7 @@ public partial class Main : Node3D
 			DockAreas.Repair => _hud.DockRepair,
 			DockAreas.Outfitter => _hud.DockOutfitter,
 			DockAreas.Shipyard => _hud.DockShipyard,
+			DockAreas.Storage => _hud.DockStorage,
 			_ => _hud.DockMenu,
 		};
 		if (screen is DockAreaScreen area) area.AreaId = areaId;
@@ -981,6 +989,11 @@ public partial class Main : Node3D
 
 	BayView[] _bayViews = Array.Empty<BayView>();
 	BayState[] _bayStates = Array.Empty<BayState>();
+	/// <summary>Schächte des aktiven Schiffs (Phase 8: mit Spaltlaser kommt der Schacht „Spalter“ dazu).</summary>
+	IReadOnlyList<WeaponBay> _bays = WeaponBays.PlayerDefault;
+	/// <summary>Nachladeuhr des Spaltlasers in Sekunden (0 = bereit).</summary>
+	float _splitReload;
+	string _lastSplitIssue = "";
 	Vec2? _bayAimPos;      // aktuelles Laserziel (für Winkel/Anzeigen)
 	float _bayAimRadius;
 
@@ -1062,10 +1075,10 @@ public partial class Main : Node3D
 		}
 
 		int ready = 0, fire = 0;
-		var bays = WeaponBays.PlayerDefault;
+		var bays = _bays;
 		for (int i = 0; i < _bayViews.Length; i++)
 		{
-			if (bays[i].Key == "tractor") continue;   // Traktor ist Umschalter, keine Feuerwaffe
+			if (bays[i].Key is "tractor" or "split") continue;   // Traktor ist Umschalter, der Spalter feuert nur einzeln
 			fire++;
 			if (_bayStates[i] == BayState.Ready) ready++;
 		}
@@ -1078,7 +1091,8 @@ public partial class Main : Node3D
 	/// <summary>Zustände der Waffenschächte als reine Core-Funktion (FiringArc) auswerten.</summary>
 	void UpdateBays(Sector sector, Vec2 pos, float headingDeg)
 	{
-		var bays = WeaponBays.PlayerDefault;
+		_bays = WeaponBays.For(PlayerData.Stats);
+		var bays = _bays;
 		_bayViews = new BayView[bays.Count];
 		_bayStates = new BayState[bays.Count];
 		for (int i = 0; i < bays.Count; i++)
@@ -1095,6 +1109,14 @@ public partial class Main : Node3D
 				reloaded = _chunks.Ready;
 				if (i == 0) { _bayAimPos = target; _bayAimRadius = radius; }
 			}
+			else if (bay.Key == WeaponBays.Splitter.Key)
+			{
+				// Spalter: gewähltes oder nächstes Erz-Ziel in Reichweite, eigene Nachladeuhr
+				var aim = _mineTarget ?? _chunks.Nearest(sector, pos, MiningRules.LaserRange);
+				target = aim?.Position;
+				radius = aim?.Radius ?? 0f;
+				reloaded = _splitReload <= 0f;
+			}
 			else   // Traktor: Ziel ist die nächste Beute in Reichweite
 			{
 				OreChunk? best = null; float bd = bay.Range;
@@ -1105,7 +1127,8 @@ public partial class Main : Node3D
 				}
 				target = best?.Position;
 			}
-			var st = FiringArc.State(bay, headingDeg, pos, target, radius, reloaded, _chunks.ReloadProgress);
+			float progress = bay.Key == WeaponBays.Splitter.Key ? 1f - _splitReload / WeaponBays.SplitReloadSeconds : _chunks.ReloadProgress;
+			var st = FiringArc.State(bay, headingDeg, pos, target, radius, reloaded, progress);
 			_bayStates[i] = st;
 			string place = bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°";
 			string detail = st switch
@@ -1115,7 +1138,7 @@ public partial class Main : Node3D
 				BayState.Reloading => "lädt nach",
 				_ => bay.Key == "tractor" ? "keine Beute" : "kein Ziel",
 			};
-			_bayViews[i] = new BayView { Name = bay.Name, Place = place, Detail = detail, State = st, Reload = _chunks.ReloadProgress, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
+			_bayViews[i] = new BayView { Name = bay.Name, Place = place, Detail = bay.Key == WeaponBays.Splitter.Key && st == BayState.Ready ? "SPALTEN" : detail, State = st, Reload = progress, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 		}
 	}
 
@@ -1136,9 +1159,10 @@ public partial class Main : Node3D
 	/// <summary>Finger auf einer Waffenschacht-Taste: Laser feuert einen Schuss (nur bereit und im Winkel), Traktor ist Umschalter.</summary>
 	void OnBayDown(int index)
 	{
-		var bays = WeaponBays.PlayerDefault;
+		var bays = _bays;
 		if (index < 0 || index >= bays.Count) return;
 		if (_docked != null || _hud.AnyModalOpen) return;
+		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
 		if (bays[index].Key == "tractor")
 		{
 			_tractorOn = !_tractorOn;
@@ -1157,13 +1181,35 @@ public partial class Main : Node3D
 		}
 	}
 
+	/// <summary>
+	/// Phase 8: Spaltschuss des Spaltlasers (Asteroidenbrecher) auf das Laserziel — gleiche Core-Regel wie bei NPC-Brechern
+	/// (<see cref="AsteroidSplitter.Fire"/>): Fragmente erscheinen über den gespiegelten Asteroiden der Sektoransicht.
+	/// </summary>
+	public bool FireSplitter(int index)
+	{
+		_lastSplitIssue = "";
+		if (index < 0 || index >= _bayStates.Length) { _lastSplitIssue = "kein Schacht"; return false; }
+		if (_bayStates[index] == BayState.Reloading) { _lastSplitIssue = "lädt nach"; return false; }
+		var aim = _mineTarget ?? _chunks.Nearest(_session.U.Sectors[_session.U.PlayerSector], new Vec2(_player.Position.X, _player.Position.Z), MiningRules.LaserRange);
+		if (aim is null) { Hint("Kein Ziel in Reichweite"); return false; }
+		SyncPlayerData();
+		var (frags, issue) = AsteroidSplitter.Fire(_session.U, PlayerData, aim.Id);
+		if (frags is null) { _lastSplitIssue = issue ?? "Spalten nicht möglich"; Hint(_lastSplitIssue); _sfx.Play(SfxId.Click); return false; }
+		_splitReload = WeaponBays.SplitReloadSeconds;
+		_mineTarget = frags.OrderByDescending(f => f.Ore).First();
+		_fx.Burst(new Vector3(aim.Position.X, 0, aim.Position.Y), new Color(1f, 0.6f, 0.25f), 24, 10f, 0.6f);
+		_sfx.Play(SfxId.Pickup);
+		_hud.Toast($"Asteroid gespalten: {frags.Count} Fragmente");
+		return true;
+	}
+
 	/// <summary>„Alle Feuer“: löst nur bereite Waffen im Winkel aus (hier: der Laser).</summary>
 	void FireReadyBays()
 	{
-		var bays = WeaponBays.PlayerDefault;
+		var bays = _bays;
 		bool any = false;
-		for (int i = 0; i < bays.Count; i++)
-			if (bays[i].Key != "tractor" && _bayStates[i] == BayState.Ready) { _fireRequested = true; any = true; }
+		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
+			if (bays[i].Key is not ("tractor" or "split") && _bayStates[i] == BayState.Ready) { _fireRequested = true; any = true; }
 		if (!any) Hint("Keine Waffe bereit und im Winkel");
 	}
 
@@ -1368,6 +1414,52 @@ public partial class Main : Node3D
 	}
 	/// <summary>Ein Schuss aus der Waffenschacht-Taste (Test: Zustand wechselt danach auf Nachladen).</summary>
 	internal void TestFireWeapon() => _fireRequested = true;
+	/// <summary>Phase 8: Setzt das Schiff in einen anderen Sektor (wie ein Sprung, ohne Gate) – Test des Lagerhauses in Gamma.</summary>
+	internal void TestEnterSector(SectorId sector)
+	{
+		var u = _session.U;
+		if (u.PlayerSector == sector) return;
+		u.MoveShip(PlayerData, sector);
+		u.PlayerSector = sector;
+		_view.Rebuild(u);
+		_mining.ResetNpc(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
+	}
+	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (auch Baustelle) und Andocken.</summary>
+	internal void TestDockAt(StationId id) { TestTeleportNear(id); Dock(id); }
+	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (Bildschirmfotos der Baustelle im Flug).</summary>
+	internal void TestTeleportNear(StationId id)
+	{
+		var st = _session.U.Stations[id];
+		var pos = st.Position + new Vec2(Station.BodyRadius + 20f, 0);
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Velocity = Vector3.Zero;
+		_player.GiveGrace(5f);
+		_mineTarget = null;
+		CancelAutopilot();
+		_camOffset = _orbit.Offset();
+		SnapCam();
+	}
+	/// <summary>Phase 8: Schiff neben den größten Erz-Asteroiden eines Gürtels setzen und ihn als Ziel wählen (Spalter-Test).</summary>
+	internal Asteroid? TestAimAtBiggestRock()
+	{
+		var u = _session.U;
+		var sector = u.Sectors[u.PlayerSector];
+		var rock = sector.Asteroids.Where(a => a.Minable && sector.FieldFor(a.Position) is { } f && f.ClassKey == a.ClassKey)
+			.OrderByDescending(a => a.Radius).ThenBy(a => a.Id).FirstOrDefault();
+		if (rock == null) return null;
+		var pos = rock.Position + new Vec2(rock.Radius + 15f, 0);
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Velocity = Vector3.Zero;
+		_player.GiveGrace(5f);
+		_mineTarget = rock;
+		CancelAutopilot();
+		if (_miner.Enabled) SetAutoMining(false);
+		return rock;
+	}
+	/// <summary>Phase 8: Schächte des aktiven Schiffs (Schlüssel) und Spaltschuss über die Schacht-Taste.</summary>
+	internal IReadOnlyList<string> TestBayKeys => _bays.Select(b => b.Key).ToList();
+	internal void TestPressBay(int index) { _lastSplitIssue = "nicht ausgelöst"; OnBayDown(index); }
+	internal string TestLastSplitIssue => _lastSplitIssue;
 	internal bool TestLaserReady => _chunks.Ready;
 	internal string TestBayState(int i) => i < _bayStates.Length ? _bayStates[i].ToString() : "?";
 	/// <summary>Öffnet das Hamburger-Menü (Screenshot-Werkzeug).</summary>

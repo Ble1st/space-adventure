@@ -40,6 +40,16 @@ public sealed class UpgradeModule : ISimModule
     public void Register(SimulationBuilder b) => b.Add(new UpgradeSystem());
 }
 
+/// <summary>
+/// Phase 8: Stationsbau über Baustellen (Montage, Notbau, Verfall) und die Bauschiffe als Ausführer der Aufgabe „build“. Läuft nach Handel und
+/// Upgrades (Händler haben ihre Lieferungen gebucht) und vor dem Lebenszyklus, der neue Baustellen anlegt.
+/// </summary>
+public sealed class ConstructionModule : ISimModule
+{
+    public string Name => "Construction";
+    public void Register(SimulationBuilder b) => b.Add(new ConstructionSystem());
+}
+
 public sealed class LifecycleModule : ISimModule
 {
     public string Name => "Lifecycle";

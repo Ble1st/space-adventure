@@ -228,6 +228,12 @@ public sealed class MinerSystem : ISimSystem
         if (rock is null || !u.AsteroidClasses.TryGetValue(rock.ClassKey, out var cls)) return;
 
         ship.ShotTimer -= MiningRules.ShotInterval;
+        // Phase 8: Brecher (Spaltlaser) zerlegen große Brocken zuerst, damit mehrere Miner parallel arbeiten können (gleiche Regel wie der Spieler)
+        if (ship.Stats.SplitPower > 0f && rock.Radius >= u.Rules.NpcSplitMinRadius && AsteroidSplitter.Split(u, sector, rock, ship.Id) is not null)
+        {
+            ship.MineAsteroid = 0;
+            return;
+        }
         var shot = LaserShot.Roll(u.Rng, cls, rock, ship.Stats.LaserChunkChanceMult, ship.Stats.LaserChunkSizeMult);
         if (shot.Hit)
         {

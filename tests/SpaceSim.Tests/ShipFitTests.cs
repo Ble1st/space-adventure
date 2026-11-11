@@ -36,7 +36,9 @@ public class ShipFitTests
     {
         var u = QualityUpgradeTests.WithoutFounderQuality();   // Phase 7: Gründerschiffe würfeln sonst ihre Güteklasse
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
-        foreach (var s in u.Ships.Values)
+        // Phase 8: der Startbestand an Bauschiffen (je Fraktion ein Foreman) gehört nicht zur Einheitsflotte
+        Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal("foreman", s.ModelKey));
+        foreach (var s in u.Ships.Values.Where(s => s.Role != ShipRole.Builder))
         {
             var expectedModel = WorldBuilder.UnitModelFor(s.Role, s.Role == ShipRole.Miner ? 60f : 100f);
             Assert.Equal(expectedModel, s.ModelKey);
@@ -99,7 +101,7 @@ public class ShipFitTests
     [Fact]
     public void SaveLoad_V4_Roundtrip_IdentischInklHashModellSlotsFit()
     {
-        Assert.Equal(10, SaveGame.CurrentVersion);   // v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
+        Assert.Equal(11, SaveGame.CurrentVersion);   // v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff (v4: Modell/Slots/Fit)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 2_000);
         var before = UniverseHash.Compute(u);
@@ -144,7 +146,8 @@ public class ShipFitTests
         Assert.Equal("unit_player", loaded.Ships[loaded.PlayerShip].ModelKey);
         // Slot-Content kam mit der Migration aus der Default-Welt-Registry
         Assert.True(loaded.ShipModels.ContainsKey("unit_trader_100"));
-        foreach (var s in loaded.Ships.Values)
+        Assert.All(loaded.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal("foreman", s.ModelKey));   // Phase 8: Bauschiff-Rolle → Foreman
+        foreach (var s in loaded.Ships.Values.Where(s => s.Role != ShipRole.Builder))
         {
             var model = loaded.ShipModels[s.ModelKey];
             Assert.Equal(model.Fit, s.Fit);                            // Fit beim Laden aus dem Modell gefüllt

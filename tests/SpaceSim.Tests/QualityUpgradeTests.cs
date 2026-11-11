@@ -64,7 +64,7 @@ public class QualityUpgradeTests
     /// </summary>
     internal static string ToV9Json(string v10Json)
     {
-        var node = JsonNode.Parse(v10Json)!.AsObject();
+        var node = JsonNode.Parse(ConstructionTests.ToV10Json(v10Json))!.AsObject();   // Phase 8: erst den Bau-Content entfernen
         node["Version"] = 9;
         RemoveModules(node, Phase7Modules);
         foreach (var m in node["Modules"]!.AsArray()) { m!.AsObject().Remove("UpgradeTo"); m.AsObject().Remove("UpgradeCost"); }
@@ -421,7 +421,7 @@ public class QualityUpgradeTests
         new SimulationRunner().Run(u, 500);
 
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":10", json);
+        Assert.Contains("\"Version\":11", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));
         var lp = loaded.Ships[player.Id];

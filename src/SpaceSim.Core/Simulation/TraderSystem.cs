@@ -55,6 +55,18 @@ public sealed class TraderSystem : ISimSystem
             if (o.Order is TradeOrder to && o.Phase == TradePhase.GoingToBuy)
                 reserved[(to.Buy, to.Good)] = reserved.GetValueOrDefault((to.Buy, to.Good)) + o.CapacityVolumeFor(u, to.Good) / u.Goods[to.Good].VolumePerUnit;
 
+        // Phase 8: Baustellen nehmen nur die fehlende Menge an; was andere Händler schon dorthin fahren (unterwegs zum Kauf: ihre Kapazität,
+        // unterwegs zum Verkauf: ihre Ladung), gilt als vergeben — sonst fahren alle dieselbe Lieferung und laden sie unbezahlt ab
+        Dictionary<(StationId, GoodId), float>? incoming = null;
+        foreach (var o in u.Ships.Values)
+            if (o != ship && o.Order is TradeOrder io && u.Stations.TryGetValue(io.Sell, out var target) && target.IsBuildSite)
+            {
+                incoming ??= new Dictionary<(StationId, GoodId), float>();
+                float amount = o.Phase == TradePhase.GoingToSell ? o.Cargo.GetValueOrDefault(io.Good)
+                    : o.CapacityVolumeFor(u, io.Good) / u.Goods[io.Good].VolumePerUnit;
+                incoming[(io.Sell, io.Good)] = incoming.GetValueOrDefault((io.Sell, io.Good)) + amount;
+            }
+
         TradeOrder? best = null;
         float bestScore = 0f;
         var fuelGood = Refuel.ActiveFuel(ship);
@@ -95,7 +107,9 @@ public sealed class TraderSystem : ISimSystem
                     // Eingangsware knapp und damit teuer ist, endgültig — sie kann die volle Ladung nie zu 25 % anzahlen.
                     // Phase 5a: Händler kaufen nur, was der Abnehmer noch annimmt (Wunschbestand × OverstockFactor). Vorher wurde der Rest
                     // unbezahlt abgeladen; bei kleinen Wunschbeständen (Modulfabriken, Lager) drückte das die Preise dauerhaft auf 0,25×.
-                    float load = MathF.Min(units, MathF.Floor(sell.AcceptableUnits(good.Id, u.Rules)));
+                    float accept = sell.AcceptableUnits(good.Id, u.Rules);
+                    if (incoming is not null && sell.IsBuildSite) accept -= incoming.GetValueOrDefault((sell.Id, good.Id));
+                    float load = MathF.Min(units, MathF.Floor(accept));
                     if (load < 1f) continue;
                     float paidUnits = MathF.Min(load, MathF.Max(0f, sell.Credits) / s.Price);
                     float profit = paidUnits * s.Price - load * b.Price;
@@ -207,6 +221,22 @@ public sealed class TraderSystem : ISimSystem
         else if (ship.Phase == TradePhase.GoingToSell)
         {
             var st = u.Stations[order.Sell];
+            if (!st.Market.ContainsKey(order.Good))
+            {
+                // Phase 8: Der Abnehmer führt die Ware nicht mehr (z. B. Baustelle inzwischen fertig): nächsten Käufer anfahren statt
+                // unbezahlt abzuladen (und der Station einen falschen Markteintrag zu geben)
+                var next = TradeActions.BestBuyer(u, ship, ship.Sector, ship.Position, exclude: st.Id);
+                if (next is not null)
+                {
+                    ship.Order = new TradeOrder(order.Buy, next.Id, order.Good);
+                    var plan = Refuel.PrepareTrip(u, ship, next.Sector, next.DockPoint(ship.Id));
+                    if (plan == Refuel.TripPlan.FuelStop) return;
+                    if (plan == Refuel.TripPlan.Depart) { Travel.Start(u, ship, next.Sector, next.DockPoint(ship.Id)); return; }
+                }
+                ship.Cargo.Remove(order.Good);
+                ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick;
+                return;
+            }
             var stock = st.Stock(order.Good);
             float amount = ship.Cargo.GetValueOrDefault(order.Good);
             // Die Station zahlt nur, was sie hat; der Rest der Ladung wird ohne Bezahlung abgeladen
@@ -220,6 +250,7 @@ public sealed class TraderSystem : ISimSystem
             ship.Phase = TradePhase.Idle;
             ship.IdleSince = u.Tick;
             u.Events.Publish(new TradeCompleted(ship.Id, order.Buy, order.Sell, order.Good, paid, revenue));
+            if (st.IsBuildSite) ConstructionRules.OnDelivered(u, st, ship, order.Good, amount, "trader");
         }
     }
 }

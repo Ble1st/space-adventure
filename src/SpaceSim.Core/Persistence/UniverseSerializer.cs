@@ -101,6 +101,7 @@ public static class UniverseSerializer
                 ShipDealer = t.ShipDealer is { } sd
                     ? new ShipDealerSave { Classes = sd.Classes is null ? null : new List<string>(sd.Classes), MaxSize = sd.MaxSize.ToString(), Assembly = sd.Assembly }
                     : null,
+                Construction = t.Construction?.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
             });
         WriteSlotContent(u, s);
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
@@ -109,6 +110,7 @@ public static class UniverseSerializer
                 Id = f.Id.Value, Name = f.Name,
                 Relations = f.Relations.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Territory = f.Territory.Select(t => t.Value).OrderBy(x => x).ToList(),
+                LastEmergencyBuildTick = f.LastEmergencyBuildTick,
             });
         foreach (var sec in u.Sectors.Values.OrderBy(x => x.Id.Value))
             s.Sectors.Add(new SectorSave
@@ -124,9 +126,17 @@ public static class UniverseSerializer
             s.Stations.Add(new StationSave
             {
                 Id = st.Id.Value, Type = st.TypeKey, Name = st.Name, Sector = st.Sector.Value, Owner = st.Owner.Value, Pos = st.Position,
-                Credits = st.Credits, Essential = st.Essential, BelowLimitSince = st.BelowLimitSince,
+                Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected, BelowLimitSince = st.BelowLimitSince,
                 Recipes = st.Production.Select(ToSave).ToList(),
                 Market = st.Market.ToDictionary(kv => kv.Key.Value, kv => new StockSave { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price }),
+                Site = st.Site is { } bs ? new BuildSiteSave
+                {
+                    Type = bs.TypeKey, Required = bs.Required.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                    InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, Budget = bs.Budget, Builder = bs.Builder.Value,
+                    Started = bs.StartedTick, LastProgress = bs.LastProgressTick, BlockedSince = bs.BlockedSince, Assembly = bs.AssemblyTicks,
+                    Emergency = bs.Emergency, Abandoned = bs.Abandoned,
+                } : null,
+                PlayerStorage = st.PlayerStorage.Count == 0 ? null : st.PlayerStorage.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -179,6 +189,7 @@ public static class UniverseSerializer
                 ShipDealer = t.ShipDealer is { } sd
                     ? new ShipDealerConfig { Classes = sd.Classes is null ? null : new List<string>(sd.Classes), MaxSize = Enum.Parse<SlotSize>(sd.MaxSize, ignoreCase: true), Assembly = sd.Assembly }
                     : null,
+                Construction = t.Construction?.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
             };
         ReadSlotContent(s, u);
         foreach (var f in s.Factions)
@@ -187,6 +198,7 @@ public static class UniverseSerializer
                 Id = new FactionId(f.Id), Name = f.Name,
                 Relations = f.Relations.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
                 Territory = f.Territory.Select(t => new SectorId(t)).ToHashSet(),
+                LastEmergencyBuildTick = f.LastEmergencyBuildTick,
             };
         foreach (var sec in s.Sectors)
             u.Sectors[new SectorId(sec.Id)] = new Sector
@@ -202,9 +214,17 @@ public static class UniverseSerializer
             u.Stations[new StationId(st.Id)] = new Station
             {
                 Id = new StationId(st.Id), TypeKey = st.Type, Name = st.Name, Sector = new SectorId(st.Sector), Owner = new FactionId(st.Owner),
-                Position = st.Pos, Credits = st.Credits, Essential = st.Essential, BelowLimitSince = st.BelowLimitSince,
+                Position = st.Pos, Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected || st.Essential, BelowLimitSince = st.BelowLimitSince,
                 Production = st.Recipes.Select(FromSave).ToList(),
                 Market = st.Market.ToDictionary(kv => new GoodId(kv.Key), kv => new StockEntry { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price }),
+                Site = st.Site is { } bs ? new BuildSite
+                {
+                    TypeKey = bs.Type, Required = bs.Required.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                    InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, Budget = bs.Budget, Builder = new ShipId(bs.Builder),
+                    StartedTick = bs.Started, LastProgressTick = bs.LastProgress, BlockedSince = bs.BlockedSince, AssemblyTicks = bs.Assembly,
+                    Emergency = bs.Emergency, Abandoned = bs.Abandoned,
+                } : null,
+                PlayerStorage = st.PlayerStorage is null ? new Dictionary<GoodId, float>() : st.PlayerStorage.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
             };
         foreach (var sh in s.Ships)
         {
@@ -272,6 +292,7 @@ public static class UniverseSerializer
         MineOrder m => new OrderSave { Kind = "mine", A = m.Sector.Value, B = m.Field, C = m.DeliverTo.Value },
         PatrolOrder p => new OrderSave { Kind = "patrol", A = p.Sector.Value },
         GoToOrder g => new OrderSave { Kind = "goto", A = g.Target.Value },
+        BuildOrder b => new OrderSave { Kind = "build", A = b.Site.Value, B = b.Supplier.Value, C = b.Good.Value },
         _ => throw new NotSupportedException($"Unbekannter Auftrag {o.GetType().Name}"),
     };
 
@@ -281,6 +302,7 @@ public static class UniverseSerializer
         "mine" => new MineOrder(new SectorId(o.A), o.B, new StationId(o.C)),
         "patrol" => new PatrolOrder(new SectorId(o.A)),
         "goto" => new GoToOrder(new StationId(o.A)),
+        "build" => new BuildOrder(new StationId(o.A), new StationId(o.B), new GoodId(o.C)),
         _ => throw new SaveFormatException($"Unbekannte Auftragsart '{o.Kind}'"),
     };
 

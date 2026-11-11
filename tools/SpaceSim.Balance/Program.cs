@@ -31,6 +31,25 @@ var chosenModels = new SortedDictionary<string, int>(StringComparer.Ordinal);
 // Phase 7: Güteklassen der Neubauten (gewürfelt/erreicht) und Upgrade-Versuche der NPCs
 var gradeRolled = new int[4]; var gradeGot = new int[4];
 int upgradeTries = 0, upgradeOk = 0; float upgradeCost = 0f;
+// Phase 8: Bau über Baustellen — angelegt, fertig (davon Notbau), verfallen; Material nach Lieferweg; Notbau-Kosten
+int sitesStarted = 0, sitesDone = 0, sitesEmergency = 0, sitesAbandoned = 0, directBuilds = 0, splits = 0;
+var deliveredBy = new SortedDictionary<string, float>(StringComparer.Ordinal);
+var deliveredGood = new SortedDictionary<string, float>(StringComparer.Ordinal);
+float emergencyCost = 0f, emergencyWaived = 0f, emergencyUnits = 0f;
+u.Events.Raised += e =>
+{
+    if (e is ConstructionStarted) sitesStarted++;
+    else if (e is ConstructionCompleted cc) { sitesDone++; if (cc.Emergency) sitesEmergency++; }
+    else if (e is ConstructionAbandoned) sitesAbandoned++;
+    else if (e is EmergencyConstruction ec) { emergencyCost += ec.Cost; emergencyWaived += ec.Waived; emergencyUnits += ec.Units; }
+    else if (e is ConstructionDelivered cd)
+    {
+        deliveredBy[cd.By] = deliveredBy.GetValueOrDefault(cd.By) + cd.Units;
+        deliveredGood[u.Goods[cd.Good].Name] = deliveredGood.GetValueOrDefault(u.Goods[cd.Good].Name) + cd.Units;
+    }
+    else if (e is AsteroidSplit) splits++;
+    else if (e is StationBuilt) directBuilds++;   // abzüglich der fertigen Baustellen = Direktbau
+};
 u.Events.Raised += e =>
 {
     if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
@@ -43,10 +62,10 @@ u.Events.Raised += e =>
     else if (e is TradeCompleted tc && u.Modules.ContainsKey(u.Goods[tc.Good].Key)) { moduleDelivered += tc.Amount; moduleRevenue += tc.Revenue; }
 };
 
-var header = new List<string> { "tick", "stations", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "tank", "notk" };
+var header = new List<string> { "tick", "stations", "sites", "traders", "miners", "stationCredits", "shipCredits", "playerCredits", "tank", "notk" };
 header.AddRange(u.Goods.Values.Select(g => "price_" + g.Name));
 csv.AppendLine(string.Join(",", header));
-Console.WriteLine($"{"tick",7} {"stat",4} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"tank",5} {"notk",5}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
+Console.WriteLine($"{"tick",7} {"stat",4} {"bau",3} {"trad",4} {"mine",4} {"stCredits",10} {"shCredits",10} {"plCredits",9} {"tank",5} {"notk",5}  " + string.Join(" ", u.Goods.Values.Select(g => (g.Name.Length > 5 ? g.Name[..5] : g.Name).PadLeft(5))) + "   (Preis/Basis)");
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var history = new List<EconomySnapshot>();
@@ -55,9 +74,9 @@ for (int t = 0; t <= ticks; t += every)
     if (t > 0) runner.Run(u, every);
     var snap = EconomyStats.Snapshot(u);
     history.Add(snap);
-    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {fuelBuys,5} {notk,5}  " +
+    Console.WriteLine($"{snap.Tick,7} {snap.Stations,4} {snap.Sites,3} {snap.Traders,4} {snap.Miners,4} {snap.StationCredits,10:0} {snap.ShipCredits,10:0} {snap.PlayerCredits,9:0} {fuelBuys,5} {notk,5}  " +
                       string.Join(" ", snap.Goods.Select(g => g.PriceRatio.ToString("0.0", CultureInfo.InvariantCulture).PadLeft(5))));
-    var row = new List<string> { snap.Tick.ToString(), snap.Stations.ToString(), snap.Traders.ToString(), snap.Miners.ToString(),
+    var row = new List<string> { snap.Tick.ToString(), snap.Stations.ToString(), snap.Sites.ToString(), snap.Traders.ToString(), snap.Miners.ToString(),
         snap.StationCredits.ToString("0", CultureInfo.InvariantCulture), snap.ShipCredits.ToString("0", CultureInfo.InvariantCulture),
         snap.PlayerCredits.ToString("0", CultureInfo.InvariantCulture), fuelBuys.ToString(), notk.ToString() };
     row.AddRange(snap.Goods.Select(g => g.AvgPrice.ToString("0.00", CultureInfo.InvariantCulture)));
@@ -98,6 +117,16 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Güteklassen Neubauten (Standard/Verbessert/Elite/Meisterwerk): gewürfelt {Grades(gradeRolled)}, erreicht {Grades(gradeGot)}; Flotte jetzt: {string.Join(", ", founders)}");
     Console.WriteLine($"Upgrades (NPC): {upgradeTries} Versuche, {upgradeOk} gelungen, {upgradeCost:0} Cr");
     Console.WriteLine($"Engpass-Module (Ø Preis/Basis letzte 25%): Reaktor {Ratio("reactor_mk1")}, Triebwerk {Ratio("chem_engine_s")}, Laser {Ratio("mining_laser_1")}");
+}
+// Phase 8: Bau über Baustellen und Notbau-Anteil
+{
+    int direct = directBuilds - sitesDone;
+    float share = sitesDone > 0 ? 100f * sitesEmergency / sitesDone : 0f;
+    Console.WriteLine($"Bau: {sitesStarted} Baustellen angelegt, {sitesDone} fertig (davon Notbau {sitesEmergency} = {share:0}%), {sitesAbandoned} verfallen, "
+        + $"{u.Stations.Values.Count(x => x.Site is { Abandoned: false })} laufen, {direct} Direktbau; Bauschiffe {u.Ships.Values.Count(x => x.IsAiBuilder)}");
+    Console.WriteLine("Baumaterial geliefert: " + (deliveredBy.Count == 0 ? "nichts" : string.Join(", ", deliveredBy.Select(kv => $"{kv.Key} {kv.Value:0}")))
+        + (deliveredGood.Count == 0 ? "" : " | " + string.Join(", ", deliveredGood.Select(kv => $"{kv.Key} {kv.Value:0}")))
+        + $"; Notbau {emergencyUnits:0} Einheiten für {emergencyCost:0} Cr (erlassen {emergencyWaived:0}); Spaltungen {splits}");
 }
 Console.WriteLine("Top-Handelsrouten:");
 foreach (var r in routes.Top(5))

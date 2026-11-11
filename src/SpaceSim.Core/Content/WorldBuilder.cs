@@ -130,6 +130,17 @@ public static class WorldBuilder
                     MaxSize = ParseSize(sd.MaxSize, $"Stationstyp '{t.Key}'"), Assembly = sd.Assembly,
                 };
             }
+            if (t.Construction is { } cons)
+            {
+                type.Construction = new Dictionary<GoodId, float>();
+                foreach (var (k, v) in cons)
+                {
+                    if (!goodByKey.TryGetValue(k, out var gid)) throw new WorldFormatException($"Stationstyp '{t.Key}': unbekannte Ware '{k}' in construction");
+                    if (v <= 0f) throw new WorldFormatException($"Stationstyp '{t.Key}': construction '{k}' muss > 0 sein");
+                    if (type.Recipes.Any(r => r.Outputs.ContainsKey(gid))) throw new WorldFormatException($"Stationstyp '{t.Key}': construction verlangt '{k}', das der Typ selbst herstellt (zyklische Baukosten)");
+                    type.Construction[gid] = v;
+                }
+            }
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -164,7 +175,7 @@ public static class WorldBuilder
             {
                 if (!u.StationTypes.TryGetValue(st.Type, out var type)) throw new WorldFormatException($"Station {st.Id}: unbekannter Typ '{st.Type}'");
                 var station = StationFactory.Create(u, new StationId(st.Id), type, st.Name, new SectorId(sd.Id), V(st.Pos), u.Sectors[new SectorId(sd.Id)].Owner);
-                station.Essential = st.Essential;
+                station.BankruptcyProtected = st.Essential || st.BankruptcyProtected;
                 station.Credits = st.Credits;
                 foreach (var (k, v) in st.Stock)
                 {
@@ -382,6 +393,7 @@ public static class WorldBuilder
         (ShipRole.Miner, 100f) => "unit_miner_100",
         (ShipRole.Miner, 60f) => "unit_miner_60",
         (ShipRole.Player, _) => "unit_player",
+        (ShipRole.Builder, _) => "foreman",   // Phase 8: Bauschiff
         _ => "",
     };
 

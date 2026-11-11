@@ -31,7 +31,8 @@ public sealed class DockAreaDef
 /// <summary>
 /// Baut die Bereichsliste des Andock-Menüs aus den Daten: Handel nur, wenn <see cref="StationServices.ForStation"/>
 /// den Dienst „trade“ liefert; „Reparatur &amp; Tanken“, wenn sie „refuel“ oder „repair“ liefert; Ausrüster und Werft, wenn sie
-/// „outfitter“ bzw. „shipdealer“ liefert (Phase 5c); Station-Info und Hangar immer; Taxi und Aufträge als gedämpfte Platzhalter.
+/// „outfitter“ bzw. „shipdealer“ liefert (Phase 5c); Station-Info und Hangar immer; Taxi und Aufträge als gedämpfte Platzhalter; an
+/// Stationen mit „storage“ (Lagerhaus, Phase 8) steht statt Taxi der Bereich „Lager“.
 /// </summary>
 public static class DockAreas
 {
@@ -43,6 +44,8 @@ public static class DockAreas
 	public const string Info = "info";
 	public const string Taxi = "taxi";
 	public const string Missions = "missions";
+	/// <summary>Phase 8: persönliches Lager (Dienst „storage“, Lagerhaus); ersetzt an solchen Stationen die Taxi-Kachel.</summary>
+	public const string Storage = "storage";
 
 	/// <summary>Anzeige-Label je Bereichs-Id (auch für Dienst-Schlüssel der Station-Info).</summary>
 	public static string LabelFor(string id) => id switch
@@ -55,6 +58,7 @@ public static class DockAreas
 		Info => "Station-Info",
 		Taxi => "Taxi",
 		Missions => "Aufträge",
+		Storage => "Lager",
 		_ => id,
 	};
 
@@ -90,7 +94,11 @@ public static class DockAreas
 		list.Add(new DockAreaDef { Id = Shipyard, Label = LabelFor(Shipyard), Sub = dealer ? $"{models} Modelle" : "Nicht hier", Available = dealer });
 		list.Add(new DockAreaDef { Id = Hangar, Label = LabelFor(Hangar), Sub = "Angedockte Schiffe", Available = true });
 		list.Add(new DockAreaDef { Id = Info, Label = LabelFor(Info), Sub = "Dienste & Markt", Available = true });
-		list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = UiPlaceholders.Soon, Available = false });
+		// Phase 8: Lagerhaus-Dienst statt der Taxi-Platzhalterkachel (das Menü hat Platz für acht Kacheln)
+		if (offered.Contains(StorageService.ServiceKey))
+			list.Add(new DockAreaDef { Id = Storage, Label = LabelFor(Storage), Sub = $"{StorageService.Used(st):0}/{u.Rules.StorageCapacity:0} eingelagert", Available = true });
+		else
+			list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = UiPlaceholders.Soon, Available = false });
 		list.Add(new DockAreaDef { Id = Missions, Label = LabelFor(Missions), Sub = UiPlaceholders.Soon, Available = false });
 		return list;
 	}

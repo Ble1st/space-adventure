@@ -43,4 +43,14 @@ public static class WeaponBays
         new WeaponBay { Key = "laser", Name = "Laser", Facing = Facing.Bow, ArcDegrees = 360f, Range = MiningRules.LaserRange },
         new WeaponBay { Key = "tractor", Name = "Traktor", Facing = Facing.Bow, ArcDegrees = 360f, Range = MiningRules.TractorRange },
     };
+
+    /// <summary>Phase 8: Spaltlaser (Asteroidenbrecher) als eigener Schacht, Reichweite wie der Mining-Laser.</summary>
+    public static WeaponBay Splitter { get; } = new() { Key = "split", Name = "Spalter", Facing = Facing.Bow, ArcDegrees = 360f, Range = MiningRules.LaserRange };
+
+    /// <summary>Nachladezeit des Spaltlasers in Sekunden (Spielerschacht).</summary>
+    public const float SplitReloadSeconds = 2f;
+
+    /// <summary>Schächte eines Schiffs: Laser und Traktor wie bisher, dazu der Spalter, wenn der Fit einen Spaltlaser hat.</summary>
+    public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.ShipStats stats) =>
+        stats.SplitPower > 0f ? PlayerDefault.Append(Splitter).ToList() : PlayerDefault;
 }

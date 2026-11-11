@@ -141,6 +141,7 @@ public sealed class Universe
                 TradeOrder o => o.Buy == id || o.Sell == id,
                 MineOrder m => m.DeliverTo == id,
                 GoToOrder g => g.Target == id,
+                BuildOrder b => b.Site == id || b.Supplier == id,
                 _ => false,
             };
             if (!affected) continue;
@@ -152,6 +153,21 @@ public sealed class Universe
         StructureVersion++;
         Events.Publish(new StationRemoved(id, st.Sector, reason));
     }
+
+    /// <summary>
+    /// Ersetzt eine Station gleicher Id an Ort und Stelle (Phase 8: fertige Baustelle wird zur Station), ohne Aufträge anderer Schiffe zu
+    /// verwerfen; die Darstellung und der Marktindex bauen neu auf.
+    /// </summary>
+    public void ReplaceStation(Station st)
+    {
+        Stations[st.Id] = st;
+        var sector = Sectors[st.Sector];
+        if (!sector.Stations.Contains(st.Id)) sector.Stations.Add(st.Id);
+        StructureVersion++;
+    }
+
+    /// <summary>Markiert eine Änderung an Sektorinhalten (z. B. Baustelle verlassen, Asteroid gespalten), damit Darstellung und Marktindex neu aufbauen.</summary>
+    public void TouchStructure() => StructureVersion++;
 
     public void NotifyStationBuilt(Station st) => Events.Publish(new StationBuilt(st.Id, st.Sector, st.TypeKey));
 

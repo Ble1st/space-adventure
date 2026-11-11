@@ -54,6 +54,11 @@ public sealed class StationType
     /// null = Station verkauft keine Schiffe.
     /// </summary>
     public ShipDealerConfig? ShipDealer;
+    /// <summary>
+    /// Phase 8: eigene Stückliste für den Bau einer Station dieses Typs (Ware → Einheiten); null = Regel
+    /// <see cref="EconomyRules.ConstructionMaterials"/> × <see cref="EconomyRules.ConstructionMaterialShare"/> der Bausumme.
+    /// </summary>
+    public Dictionary<GoodId, float>? Construction;
 }
 
 /// <summary>
@@ -80,8 +85,20 @@ public sealed class Station
 {
     public StationId Id;
     public string TypeKey = "";
-    /// <summary>Wesentliche Stationen werden nie wegen Pleite aufgegeben.</summary>
-    public bool Essential;
+    /// <summary>
+    /// Vor Pleite geschützt (Phase 8, STATIONEN.md „Essential aufgedröselt“; früher <c>Essential</c>): die Station wird bei Pleite nie
+    /// aufgegeben. Quelle: JSON <c>essential</c> (Alias) bzw. <c>bankruptcyProtected</c>, Startwelt. Ob eine Station die letzte ihrer Kette ist
+    /// (<c>Critical</c>), wird dagegen abgeleitet (<see cref="Simulation.StationCriticality"/>) und nicht gespeichert.
+    /// </summary>
+    public bool BankruptcyProtected;
+    /// <summary>Baustelle (Phase 8): gesetzt, solange die Station im Bau ist (oder als verlassene Baustelle Material lagert); null = fertige Station.</summary>
+    public BuildSite? Site;
+    /// <summary>Ist die Station eine Baustelle (auch verlassen)? Baustellen produzieren nicht, zahlen keinen Unterhalt und gehen nicht pleite.</summary>
+    public bool IsBuildSite => Site is not null;
+    /// <summary>
+    /// Persönliches Lager des Spielers an dieser Station (Phase 8, Dienst „storage“ am Lagerhaus): Ware → Menge. Getrennt vom Markt; gespeichert.
+    /// </summary>
+    public Dictionary<GoodId, float> PlayerStorage = new();
     public long BelowLimitSince = -1;
     public string Name = "";
     public SectorId Sector;
@@ -102,7 +119,10 @@ public sealed class Station
     /// Eine volle Station kauft nicht mehr – sonst würde Beifang einer Erzmischung ewig auf Halde landen.
     /// </summary>
     public float AcceptableUnits(GoodId good, EconomyRules rules) =>
-        Market.TryGetValue(good, out var e) ? MathF.Max(0f, e.Target * rules.OverstockFactor - e.Amount) : 0f;
+        !Market.TryGetValue(good, out var e) ? 0f
+        // Phase 8: Eine Baustelle nimmt genau das noch fehlende Material an (verlangt − geliefert); verlassene Baustellen nichts mehr
+        : Site is { } site ? (site.Abandoned ? 0f : MathF.Max(0f, e.Target - e.Amount))
+        : MathF.Max(0f, e.Target * rules.OverstockFactor - e.Amount);
 
     /// <summary>
     /// Lagerware ohne Rezept (Phase 5a, <see cref="StationType.Stocks"/>): Die Station führt die Ware, aber kein Rezept verwendet oder

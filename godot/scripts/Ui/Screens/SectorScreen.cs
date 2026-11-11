@@ -74,7 +74,20 @@ public sealed partial class SectorScreen : CommandScreen
 			At(card, Text(st.Name, 21, Cyan), 16, 10, 268, 28);
 			At(card, Text($"{type} · {FactionName(u, st.Owner)} · {SectorName(u, st.Sector)}", 14, Dim), 16, 40, 268, 20);
 			At(card, Text($"Kasse {st.Credits:0} Cr · {st.Market.Count} Waren am Markt", 14, White), 16, 66, 268, 20);
-			if (_showInfo)
+			if (ConstructionInfo.Of(u, st) is { } site)
+			{
+				// Phase 8: Baustelle — Zieltyp, Status und Material (echt aus ConstructionInfo)
+				At(card, Text($"Baut: {site.TypeName} · {100f * site.Progress:0} %", 15, Orange), 16, 94, 268, 20);
+				At(card, Text(site.State, 13, White), 16, 116, 268, 18);
+				At(card, Text($"Bauschiff: {site.Builder}", 13, Dim), 16, 136, 268, 18);
+				float sy = 160;
+				foreach (var l in site.Lines)
+				{
+					At(card, Text($"{l.Name}  {l.Delivered:0}/{l.Required:0}", 13, l.Delivered >= l.Required ? Green : White), 24, sy, 268, 18);
+					sy += 19;
+				}
+			}
+			else if (_showInfo)
 			{
 				// „Info“: Marktübersicht der Station (echt aus Station.Market)
 				At(card, Text("Markt (Auswahl)", 14, Dim), 16, 94, 268, 18);
@@ -249,8 +262,21 @@ public sealed partial class SectorScreen : CommandScreen
 				var p = Place(st.Position);
 				bool sel = _owner._selStation == sid;
 				var col = MapOverlay.FactionColor(st.Owner);
-				DrawRect(new Rect2(p - new Vector2(9, 9), new Vector2(18, 18)), new Color(0.06f, 0.1f, 0.2f, 0.95f));
-				DrawRect(new Rect2(p - new Vector2(9, 9), new Vector2(18, 18)), col, false, sel ? 4f : 2f);
+				if (ConstructionInfo.Of(_u, st) is { } site)
+				{
+					// Phase 8: Baustelle als Raute mit Materialbalken (orange = läuft, grau = verlassen)
+					var sc = site.Abandoned ? Dim : Orange;
+					var pts = new[] { p + new Vector2(0, -11), p + new Vector2(11, 0), p + new Vector2(0, 11), p + new Vector2(-11, 0), p + new Vector2(0, -11) };
+					DrawColoredPolygon(pts[..4], new Color(0.06f, 0.1f, 0.2f, 0.95f));
+					DrawPolyline(pts, sc, sel ? 4f : 2f, true);
+					DrawRect(new Rect2(p + new Vector2(-14, 14), new Vector2(28, 4)), new Color(Dim, 0.4f));
+					DrawRect(new Rect2(p + new Vector2(-14, 14), new Vector2(28 * site.Progress, 4)), sc);
+				}
+				else
+				{
+					DrawRect(new Rect2(p - new Vector2(9, 9), new Vector2(18, 18)), new Color(0.06f, 0.1f, 0.2f, 0.95f));
+					DrawRect(new Rect2(p - new Vector2(9, 9), new Vector2(18, 18)), col, false, sel ? 4f : 2f);
+				}
 				if (sel) DrawArc(p, 20f, 0, Mathf.Tau, 24, Cyan, 2f, true);
 				var outward = (p - c);
 				if (outward.Length() < 1f) outward = new Vector2(0, -1);
@@ -282,7 +308,7 @@ public sealed partial class SectorScreen : CommandScreen
 				DrawString(font, p + new Vector2(12, 4), $"du · #{pl.Id.Value}", HorizontalAlignment.Left, -1, 12, Cyan);
 			}
 
-			DrawString(font, new Vector2(12, Size.Y - 10), "◼ Station (Farbe = Besitzer)   ◯ Gate   ▲ Schiff (orange = schürft)   ▲ cyan = du", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font, new Vector2(12, Size.Y - 10), "◼ Station (Farbe = Besitzer)   ◆ Baustelle   ◯ Gate   ▲ Schiff (orange = schürft)   ▲ cyan = du", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 		}
 
 		void DrawShip(Vector2 c, float s, Color col)

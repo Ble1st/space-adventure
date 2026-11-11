@@ -321,6 +321,11 @@ public partial class FlightHud : Control, IScreen
 			b.QueueRedraw();
 		}
 		_ready.Text = d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
+		// Phase 8: mit einem dritten Schacht (Spalter) rutschen „Alle Feuer“ und die Bereit-Zeile unter die Schächte
+		float fireY = Math.Max(490f, 330f + Math.Min(d.Bays.Count, _bayButtons.Count) * 76f + 4f);
+		_allFire.Position = new Vector2(1090, fireY);
+		_ready.Position = new Vector2(1090, fireY + 66f);
+		_ready.Size = new Vector2(176, 16);
 		_arcs.Data = d;
 		_arcs.QueueRedraw();
 	}

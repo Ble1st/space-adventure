@@ -17,7 +17,17 @@ public static class UniverseHash
         {
             Mix((ulong)st.Id.Value); MixF(st.Credits);
             foreach (var (g, e) in st.Market.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(e.Amount); MixF(e.Price); }
+            // Phase 8: Schutz, Baustelle (Typ, Stückliste, Bauschiff, Zeiten, Zustand) und Spielerlager gehören zum Spielstand
+            Mix(st.BankruptcyProtected ? 1UL : 0UL); MixString(st.TypeKey);
+            if (st.Site is { } bs)
+            {
+                MixString(bs.TypeKey); Mix((ulong)bs.Builder.Value); Mix((ulong)bs.LastProgressTick); Mix((ulong)bs.BlockedSince);
+                Mix((ulong)bs.AssemblyTicks); Mix(bs.Emergency ? 1UL : 0UL); Mix(bs.Abandoned ? 1UL : 0UL); MixF(bs.Budget);
+                foreach (var (g, n) in bs.Required.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
+            }
+            foreach (var (g, n) in st.PlayerStorage.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
         }
+        foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value)) Mix((ulong)f.LastEmergencyBuildTick);
         foreach (var s in u.Ships.Values.OrderBy(s => s.Id.Value))
         {
             Mix((ulong)s.Id.Value); Mix((ulong)s.Sector.Value); MixF(s.Position.X); MixF(s.Position.Y); MixF(s.Credits);
@@ -32,7 +42,8 @@ public static class UniverseHash
             foreach (var (k, v) in s.UpgradePity.OrderBy(k => k.Key)) { Mix((ulong)(long)k); Mix((ulong)v); }
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
-            foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); }
+            foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); MixF(a.BaseRadius); }
+        Mix((ulong)u.NextAsteroidId);   // Phase 8: Fragment-Ids sind fortlaufend
         MixF(u.PlayerWallet.Credits); Mix((ulong)u.PlayerWallet.Faction.Value);   // Phase 5b: Spielerkasse gehört zum Spielstand
         Mix((ulong)u.PlayerShip.Value);   // Phase 5c: aktives Schiff kann wechseln (Kauf, Hangar)
         return h;

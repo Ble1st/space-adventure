@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -84,6 +84,8 @@ public sealed class StationTypeSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<StationStockSave>? Stocks { get; set; }
     /// <summary>Schiffshändler (Phase 5c, v8); fehlt = Station verkauft keine Schiffe.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipDealerSave? ShipDealer { get; set; }
+    /// <summary>Eigene Stückliste für den Bau (Phase 8, v11; GoodId → Einheiten); fehlt = Regel.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? Construction { get; set; }
 }
 
 /// <summary>Schiffshändler eines Stationstyps (Phase 5c): erlaubte Klassen (null = alle), Höchstgröße als Text, Montagegebühr.</summary>
@@ -102,6 +104,8 @@ public sealed class FactionSave
     public int Id { get; set; } public string Name { get; set; } = "";
     public Dictionary<int, float> Relations { get; set; } = new();
     public List<int> Territory { get; set; } = new();
+    /// <summary>Tick des letzten Notbaus (Phase 8, v11); fehlt = lange her.</summary>
+    public long LastEmergencyBuildTick { get; set; } = -1_000_000;
 }
 
 public sealed class FieldSave
@@ -150,9 +154,28 @@ public sealed class StationSave
 {
     public int Id { get; set; } public string Type { get; set; } = ""; public string Name { get; set; } = "";
     public int Sector { get; set; } public int Owner { get; set; } public Vec2 Pos { get; set; }
-    public float Credits { get; set; } public bool Essential { get; set; } public long BelowLimitSince { get; set; }
+    public float Credits { get; set; } public long BelowLimitSince { get; set; }
+    /// <summary>Vor Pleite geschützt (Phase 8, v11; früher <see cref="Essential"/>).</summary>
+    public bool BankruptcyProtected { get; set; }
+    /// <summary>Altes Feld (bis v10): gleichbedeutend mit <see cref="BankruptcyProtected"/>; wird nur noch gelesen.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Essential { get; set; }
     public List<RecipeSave> Recipes { get; set; } = new();
     public Dictionary<int, StockSave> Market { get; set; } = new();
+    /// <summary>Baustelle (Phase 8, v11); fehlt = fertige Station. Zusammen bilden diese Einträge die Baustellenliste des Spielstands.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public BuildSiteSave? Site { get; set; }
+    /// <summary>Persönliches Lager des Spielers (Phase 8, v11, Dienst „storage“; GoodId → Menge); fehlt = leer.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? PlayerStorage { get; set; }
+}
+
+/// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>
+public sealed class BuildSiteSave
+{
+    public string Type { get; set; } = "";
+    public Dictionary<int, float> Required { get; set; } = new();
+    public int InvestorStation { get; set; } public int InvestorShip { get; set; }
+    public float Budget { get; set; } public int Builder { get; set; }
+    public long Started { get; set; } public long LastProgress { get; set; } public long BlockedSince { get; set; } = -1;
+    public int Assembly { get; set; } public bool Emergency { get; set; } public bool Abandoned { get; set; }
 }
 
 public sealed class OrderSave { public string Kind { get; set; } = ""; public int A { get; set; } public int B { get; set; } public int C { get; set; } }
