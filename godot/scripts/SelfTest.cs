@@ -142,6 +142,22 @@ public partial class SelfTest : Node
 					_m.HudRef.DockTrade.TestExecute($"buy:{gid.Value}", 3f);
 					var all = _m.HudRef.DockTrade.TestExecute("sell_all", 0f);
 					Check(all.Success && pl.Cargo.GetValueOrDefault(gid) == 0f, "„Alles verkaufen“ (sell_all) über die Oberfläche räumt die Ware ab");
+					// Phase 16: Stahl am Stahlwerk — der Hersteller nimmt sein reines Produkt nicht an; die Zeile nennt den Grund, Verkaufen ist aus
+					var works = u.Stations.Values.First(x => x.TypeKey == "steelworks" && !x.IsBuildSite);
+					var steelG = u.FindGood("steel")!.Id;
+					pl.Cargo[steelG] = 5f;
+					_m.HudRef.DockCtx.Station = works;
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Trade);
+					_m.HudRef.DockTrade.TestRebuild();   // der Bereich ist schon offen: Zeilen der neuen Station laden
+					var note = _m.HudRef.DockTrade.TestSellNote(steelG);
+					Check(note == "Stellt die Ware selbst her" && !_m.HudRef.DockTrade.TestSellEnabled(steelG), $"Stahl am Stahlwerk: Grund sichtbar ({note}), Verkaufen deaktiviert");
+					var refused = _m.HudRef.DockTrade.TestExecute($"sell:{steelG.Value}", 5f);
+					Check(!refused.Success && refused.Message == "Stellt die Ware selbst her" && pl.Cargo.GetValueOrDefault(steelG) == 5f, "Verkauf abgelehnt mit demselben Grund, Fracht unverändert");
+					var bestSteel = SpaceSim.Core.Trading.MarketInfo.BestBuyerForGood(u, steelG);
+					Check(bestSteel is null || SpaceSim.Core.Trading.MarketInfo.Acceptance(u, bestSteel, steelG).Accepts, "Beste bekannte Verkaufsstelle für Stahl nimmt Stahl an");
+					pl.Cargo.Remove(steelG);
+					_m.HudRef.DockCtx.Station = st;
+					_m.HudRef.DockTrade.TestRebuild();
 				}
 				{ // Phase 5a: Modul-Waren im Werftlager (stocks) erscheinen im Handel und lassen sich über die Oberfläche kaufen
 					var st = u.Stations[_m.TestDockedStation!.Value];

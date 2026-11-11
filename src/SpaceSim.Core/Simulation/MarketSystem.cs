@@ -20,10 +20,13 @@ public sealed class MarketSystem : ISimSystem
     readonly HashSet<GoodId> _wanted = new();
     // Phase 15: Produkte und Zutaten der gerade bearbeiteten Station (einmal je Station und Tick statt je Eintrag über alle Rezepte)
     readonly HashSet<GoodId> _outs = new(), _ins = new();
+    // Phase 16: höchstes Gebot je Ware bei Stationen, die sie annehmen (Preise des Vortakts) — der Wert, den ein Hersteller für sein Produkt erzielen kann
+    readonly Dictionary<GoodId, float> _bid = new();
 
     public void Step(Universe u, int dt)
     {
         ProductionDemand.OpenDemand(u, _demand, _scratch);
+        if (u.Rules.WillingnessFromBuyers) BuyerBids(u, _bid); else _bid.Clear();
         foreach (var st in u.Stations.Values)
         {
             if (st.IsBuildSite)
@@ -63,7 +66,13 @@ public sealed class MarketSystem : ISimSystem
             {
                 if (recipe.Outputs.Count == 0) continue;
                 float outValue = 0f;
-                foreach (var (g, qty) in recipe.Outputs) outValue += qty * st.Stock(g).Price;
+                // Phase 16: Produktwert = eigener Preis, höchstens das beste Gebot eines Abnehmers (sonst bot die Kupferhütte bei leerem eigenen Kupferlager
+                // nach ihrem 4×-Knappheitspreis für Erz, verkaufte das Kupfer danach aber nur zum Gebot der Elektronikfabrik und ging pleite)
+                foreach (var (g, qty) in recipe.Outputs)
+                {
+                    float own = st.Stock(g).Price;
+                    outValue += qty * (_bid.TryGetValue(g, out var bid) ? MathF.Min(own, bid) : own);
+                }
                 float inBase = 0f;
                 foreach (var (g, qty) in recipe.Inputs) inBase += qty * u.Goods[g].BasePrice;
                 if (inBase <= 0f) continue;
@@ -118,6 +127,26 @@ public sealed class MarketSystem : ISimSystem
             _maintFor = u.Rules;
         }
         return _maintGoods;
+    }
+
+    /// <summary>
+    /// Phase 16: höchstes aktuelles Gebot je Ware über alle fertigen Stationen, die sie abnehmen (Verbraucher, Regale, Exportsenken, Instandhaltung —
+    /// nicht Hersteller ihres reinen Produkts, <see cref="StockEntry.NoIntake"/>). Waren ohne Abnehmer fehlen in der Liste. Reine Auswertung über die
+    /// gespeicherten Preise des Vortakts; bewusst ohne die abgeleiteten Annahmegrenzen (Überhang), die nach dem Laden erst ein Markttakt wieder setzt —
+    /// sonst liefe ein geladener Stand anders weiter. Ein voller Abnehmer bietet ohnehin wenig (Preis ∝ Wunsch/Bestand).
+    /// </summary>
+    public static void BuyerBids(Universe u, Dictionary<GoodId, float> into)
+    {
+        into.Clear();
+        foreach (var st in u.Stations.Values)
+        {
+            if (st.IsBuildSite) continue;
+            foreach (var (g, e) in st.Market)
+            {
+                if (e.Price <= 0f || (st.Produces(g) && !st.Consumes(g))) continue;
+                if (!into.TryGetValue(g, out var cur) || e.Price > cur) into[g] = e.Price;
+            }
+        }
     }
 
     /// <summary>Phase 14: Endverbraucher — hat Rezepte, die alle nichts herstellen (Kolonie).</summary>

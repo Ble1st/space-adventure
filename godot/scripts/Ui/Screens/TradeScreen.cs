@@ -195,6 +195,15 @@ public sealed partial class TradeScreen : DockAreaScreen
 		_qty = DefaultQty(_rows[0]);
 		Invalidate();
 	}
+	/// <summary>Phase 16: baut die Zeilen neu auf (nach einem Stationswechsel im Test, wenn der Bereich schon offen ist).</summary>
+	public void TestRebuild() => Invalidate();
+	/// <summary>Phase 16: klappt die Zeile einer Ware auf (Screenshot).</summary>
+	public void TestExpand(GoodId good)
+	{
+		if (_rows.FirstOrDefault(r => r.Good == good) is not { } row) return;
+		_tiles = false; _tileSel = null; _expanded = good; _qty = DefaultQty(row);
+		Invalidate();
+	}
 	/// <summary>Schaltet zwischen Liste und Kacheln um (Screenshot).</summary>
 	public void TestSetTiles(bool tiles) { _tiles = tiles; if (!tiles) _tileSel = null; Invalidate(); }
 	public void TestSelectFirstTile()
@@ -204,6 +213,9 @@ public sealed partial class TradeScreen : DockAreaScreen
 		Invalidate();
 	}
 	public string TestMessage => _message;
+	/// <summary>Phase 16: Annahme-Hinweis der Verkaufszeile einer Ware (null = keiner) und ob die Station jetzt etwas davon annimmt.</summary>
+	public string? TestSellNote(GoodId good) => _rows.FirstOrDefault(r => r.Good == good)?.Sell.Note;
+	public bool TestSellEnabled(GoodId good) => _rows.FirstOrDefault(r => r.Good == good) is { } r && r.Held >= 1f && r.Sell.Amount >= 1f;
 	public int TestRowCount => _rows.Count;
 	public bool TestTiles => _tiles;
 
@@ -267,6 +279,8 @@ public sealed partial class TradeScreen : DockAreaScreen
 			DrawRect(new Rect2(320, 18, 110 * fill, 10), u.Color);
 			DrawString(font, new Vector2(438, 38), $"{u.Stock:0}", HorizontalAlignment.Left, -1, 17, Dim);
 			DrawString(font, new Vector2(500, 38), u.Held > 0f ? $"Bord {u.Held:0}" : "", HorizontalAlignment.Left, -1, 17, Cyan);
+			// Phase 16: warum die Station die Ware nicht (mehr) annimmt — gedimmt unter dem Preis
+			if (u.Sell.Note is { } note) DrawString(font, new Vector2(220, 53), note, HorizontalAlignment.Left, Size.X - 260, 12, SellNoteColor(u));
 			DrawString(font, new Vector2(Size.X - 34, 38), _open ? "▾" : "▸", HorizontalAlignment.Left, -1, 18, Dim);
 		}
 
@@ -281,6 +295,9 @@ public sealed partial class TradeScreen : DockAreaScreen
 			};
 		}
 	}
+
+	/// <summary>Phase 16: Farbe des Annahme-Hinweises — orange, wenn Ware an Bord ist und die Station nichts nimmt, sonst gedimmt.</summary>
+	static Color SellNoteColor(Row r) => r.Held >= 1f && r.Sell.Amount < 1f ? new Color(Orange, 0.9f) : new Color(Dim, 0.8f);
 
 	/// <summary>Eine Kachel des Kachelmodus.</summary>
 	sealed partial class TradeTile : Control
@@ -317,6 +334,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 			DrawRect(new Rect2(12, 90, 190, 8), new Color(0, 0, 0, 0.5f));
 			DrawRect(new Rect2(12, 90, 190 * fill, 8), r.Color);
 			DrawString(font, new Vector2(12, 124), $"Bestand {r.Stock:0}", HorizontalAlignment.Left, -1, 14, Dim);
+			if (r.Sell.Note is { } note) DrawString(font, new Vector2(12, 112), note, HorizontalAlignment.Left, 190, 11, SellNoteColor(r));   // Phase 16
 			if (r.Held > 0f)
 			{
 				DrawRect(new Rect2(128, 106, 74, 24), new Color(Cyan, 0.25f));
@@ -372,7 +390,8 @@ public sealed partial class TradeScreen : DockAreaScreen
 		void RefreshButtons()
 		{
 			_buyBtn.State = _row.Buy.Amount >= 1f && _qty >= 1f ? KitButtonState.Ready : KitButtonState.Disabled;
-			_sellBtn.State = _row.Held >= 1f && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
+			// Phase 16: deaktiviert, wenn die Station nichts annimmt (Grund steht in der Zeile)
+			_sellBtn.State = _row.Held >= 1f && _row.Sell.Amount >= 1f && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
 		}
 
 		public override void _Draw()
@@ -382,10 +401,12 @@ public sealed partial class TradeScreen : DockAreaScreen
 			var ctx = _owner.Ctx;
 			var best = ctx != null ? MarketInfo.BestBuyerForGood(ctx.U, _row.Good, ctx.Station.Id) : null;
 			string bestText = best != null
-				? $"beste bekannte Verkaufsstelle: {best.Name} zahlt {best.Market[_row.Good].Price:0.0} (+{best.Market[_row.Good].Price - _row.Price:0.0})"
+				? $"beste bekannte Verkaufsstelle: {best.Name} zahlt {best.Market[_row.Good].Price:0.0} ({best.Market[_row.Good].Price - _row.Price:+0.0;-0.0;0.0})"
 				: "keine andere bekannte Verkaufsstelle";
 			DrawString(font, new Vector2(34, 84), $"Summe {sum:0} Cr · {bestText}", HorizontalAlignment.Left, -1, 14, Dim);
-			DrawString(font, new Vector2(34, 106), UiPlaceholders.TrendSoon, HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.65f));
+			// Phase 16: Annahme-Hinweis des Verkaufsangebots statt des Trend-Platzhalters, wenn vorhanden
+			if (_row.Sell.Note is { } note) DrawString(font, new Vector2(34, 106), $"Verkauf: {note}", HorizontalAlignment.Left, -1, 13, SellNoteColor(_row));
+			else DrawString(font, new Vector2(34, 106), UiPlaceholders.TrendSoon, HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.65f));
 		}
 	}
 }

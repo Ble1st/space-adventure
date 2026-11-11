@@ -68,7 +68,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         // (Forschungsstation, reiner Treibstoffhersteller) auch nicht
         StationType? type = null;
         if (scarce is { } sc)
-            type = UpstreamProducer(u, sc, ratios, rules.BuildPriceRatio);
+            type = UpstreamProducer(u, sc, ratios, rules.BuildChecksRawOre ? rules.BuildPriceRatio : float.PositiveInfinity);   // Phase 16: Filter abschaltbar
         else if (glut is { } gl)
             type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;

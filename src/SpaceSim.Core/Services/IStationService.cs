@@ -14,7 +14,9 @@ namespace SpaceSim.Core.Services;
 /// <param name="Good">Betroffene Ware; bei Angeboten ohne Ware (z.B. "alles verkaufen") <c>default</c>.</param>
 /// <param name="Stock">Lagerbestand der Station für <paramref name="Good"/>; 0 bei Angeboten ohne Ware.</param>
 /// <param name="Held">Menge von <paramref name="Good"/> an Bord des Schiffs; 0 bei Angeboten ohne Ware.</param>
-public readonly record struct ServiceOffer(string Key, string Text, float Price, float Amount, GoodId Good, float Stock, float Held);
+/// <param name="Note">Phase 16: kurzer Hinweis zum Angebot, z. B. beim Verkauf der Grund, warum die Station nichts oder nur einen Teil annimmt
+/// ("Stellt die Ware selbst her", "nimmt noch 12"); null = kein Hinweis.</param>
+public readonly record struct ServiceOffer(string Key, string Text, float Price, float Amount, GoodId Good, float Stock, float Held, string? Note = null);
 
 /// <summary>Anfrage an einen Stationsdienst.</summary>
 /// <param name="Offer">Schlüssel des auszuführenden Angebots (<see cref="ServiceOffer.Key"/>), z.B. "buy:3" oder "sell_all"; der Dienst prüft ihn streng.</param>

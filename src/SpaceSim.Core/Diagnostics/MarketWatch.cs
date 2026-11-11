@@ -26,6 +26,8 @@ public sealed class MarketWatch
     readonly Dictionary<(StationId, GoodId), (int N, int Up, int Low, double Sum)> _entries = new();
     readonly Dictionary<StationId, (int N, int Empty, float Min)> _cash = new();
     readonly Dictionary<GoodId, int> _trips = new();
+    // Phase 16: Preis/Basis je Ware (Durchschnitt über alle fertigen Stationen mit Markteintrag, wie EconomyStats) je Messpunkt, für das rasterunabhängige Urteil
+    readonly List<(long Tick, Dictionary<GoodId, float> Ratios)> _prices = new();
     int _samples;
 
     public MarketWatch(Universe u) => u.Events.Raised += e =>
@@ -47,8 +49,11 @@ public sealed class MarketWatch
     public void Sample(Universe u)
     {
         _samples++;
+        var sums = new Dictionary<GoodId, (double Sum, int N)>();
         foreach (var st in u.Stations.Values)
         {
+            if (!st.IsBuildSite)
+                foreach (var (g, e) in st.Market) { var ps = sums.GetValueOrDefault(g); sums[g] = (ps.Sum + e.Price, ps.N + 1); }
             if (st.IsBuildSite || st.Market.Count == 0) continue;
             foreach (var (g, e) in st.Market)
             {
@@ -65,7 +70,27 @@ public sealed class MarketWatch
             var c = _cash.TryGetValue(st.Id, out var cc) ? cc : (N: 0, Empty: 0, Min: float.MaxValue);
             _cash[st.Id] = (c.N + 1, c.Empty + (st.Credits < EmptyCash ? 1 : 0), MathF.Min(c.Min, st.Credits));
         }
+        var ratios = new Dictionary<GoodId, float>();
+        foreach (var (g, (sum, n)) in sums)
+            if (n > 0 && u.Goods.TryGetValue(g, out var good) && good.BasePrice > 0f) ratios[g] = (float)(sum / n / good.BasePrice);
+        _prices.Add((u.Tick, ratios));
     }
+
+    /// <summary>
+    /// Phase 16: mittlerer Preis/Basis einer Ware über alle Messpunkte ab <paramref name="fromTick"/> (je Messpunkt Durchschnitt über die Stationen, die sie
+    /// führen; Messpunkte ohne Eintrag zählen nicht). Grundlage des Balance-Urteils: Die Probe ist fest (alle 20 Ticks), nicht das Ausgaberaster des Werkzeugs.
+    /// null = keine Messung.
+    /// </summary>
+    public float? AverageRatio(GoodId good, long fromTick)
+    {
+        double sum = 0; int n = 0;
+        foreach (var (tick, ratios) in _prices)
+            if (tick >= fromTick && ratios.TryGetValue(good, out var r)) { sum += r; n++; }
+        return n > 0 ? (float)(sum / n) : null;
+    }
+
+    /// <summary>Phase 16: Anzahl der Messpunkte ab <paramref name="fromTick"/>.</summary>
+    public int SamplesSince(long fromTick) => _prices.Count(p => p.Tick >= fromTick);
 
     /// <summary>
     /// Höchstes Gebot (Preis/Basis) eines Eintrags aus den festen Deckeln: Exportware <see cref="EconomyRules.ExportMaxBidFactor"/>, Zutat eines

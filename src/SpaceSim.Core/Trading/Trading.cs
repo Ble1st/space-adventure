@@ -95,12 +95,18 @@ public static class TradeActions
     }
 
     /// <summary>Erwarteter Erlös der aktuellen Fracht an dieser Station (ohne zu verkaufen).</summary>
-    public static float Quote(Universe u, Ship ship, Station station)
+    public static float Quote(Universe u, Ship ship, Station station) => Quote(u, ship, station, 0f);
+
+    /// <summary>Wie <see cref="Quote(Universe, Ship, Station)"/>; Phase 16: Waren, von denen die Station weniger als <paramref name="minUnits"/> nimmt, zählen nicht.</summary>
+    public static float Quote(Universe u, Ship ship, Station station, float minUnits)
     {
         float total = 0f;
         foreach (var (good, have) in ship.Cargo.OrderBy(kv => kv.Key.Value))
             if (station.Market.TryGetValue(good, out var e) && e.Price > 0f)
-                total += MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / e.Price), station.AcceptableUnits(good, u.Rules)) * e.Price;
+            {
+                float n = MathF.Min(MathF.Min(have, MathF.Max(0f, station.Credits) / e.Price), station.AcceptableUnits(good, u.Rules));
+                if (n > 0f && n >= MathF.Min(minUnits, have)) total += n * e.Price;   // ein Rest unter einer Einheit zählt, wenn die Station ihn ganz nimmt
+            }
         return total;
     }
 
@@ -127,7 +133,11 @@ public static class TradeActions
         return best;
     }
 
-    /// <summary>Beste Verkaufsstation für die Fracht: Erlös pro Reisezeit, nur erreichbare Stationen.</summary>
+    /// <summary>
+    /// Beste Verkaufsstation für die Fracht: Erlös pro Reisezeit, nur erreichbare Stationen. Phase 16: zählt je Ware nur, was die Station in mindestens
+    /// einer ganzen Einheit annimmt und bezahlen kann — sonst fuhr der Mining-Autopilot (und ein NPC-Miner mit Restfracht) für Bruchteile einer Einheit
+    /// zu einer vollen Station und wieder zurück.
+    /// </summary>
     public static Station? BestBuyer(Universe u, Ship ship, SectorId fromSector, Vec2 fromPos, StationId? exclude = null)
     {
         Station? best = null;
@@ -135,7 +145,7 @@ public static class TradeActions
         foreach (var st in u.Stations.Values)
         {
             if (st.Id == exclude) continue;
-            float quote = Quote(u, ship, st);
+            float quote = Quote(u, ship, st, minUnits: 1f);
             if (quote <= 0f) continue;
             float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id), ship);
             if (float.IsPositiveInfinity(time)) continue;

@@ -381,7 +381,12 @@ public class EconomyFixTests
         Assert.False(u.Rules.ResearchActive);
         var watch = new MarketWatch(u);
         var exported = new Dictionary<GoodId, float>();
-        u.Events.Raised += e => { if (e is GoodsExported ge) exported[ge.Good] = exported.GetValueOrDefault(ge.Good) + ge.Amount; };
+        float smelterSubsidy = 0f;   // Phase 16: Kupferhütte Alpha
+        u.Events.Raised += e =>
+        {
+            if (e is GoodsExported ge) exported[ge.Good] = exported.GetValueOrDefault(ge.Good) + ge.Amount;
+            else if (e is StationSubsidized ss && ss.Station.Value == SmelterAlpha) smelterSubsidy += ss.Amount;
+        };
         var runner = new SimulationRunner();
         float maxTrade = 0f, maxMine = 0f;
         for (int t = 1; t <= 20_000; t++)
@@ -414,6 +419,10 @@ public class EconomyFixTests
             Assert.True(watch.EmptyShare(st.Id) < 0.25f, $"{st.Name}: Kasse {100 * watch.EmptyShare(st.Id):0}% leer");
         // Werft: Mk1-Reaktor und -Triebwerk nicht dauernd am Deckel
         foreach (var key in new[] { "reactor_mk1", "chem_engine_s" }) Assert.True(watch.Share(new StationId(Yard), G(u, key)).Upper < 0.5f, key);
+        // Phase 16: Kupferkette — die Kupferhütte lebt nicht von der Subvention (vorher 55 % der Zeit leer, 15 500 Cr Subvention), Kupfererz unter 3×
+        Assert.True(watch.EmptyShare(new StationId(SmelterAlpha)) < 0.25f, $"Kupferhütte: Kasse {100 * watch.EmptyShare(new StationId(SmelterAlpha)):0}% leer");
+        Assert.True(smelterSubsidy < 3000f, $"Kupferhütte: Subvention {smelterSubsidy:0} Cr");
+        Assert.True(watch.AverageRatio(G(u, "copper_ore"), 15_000) < 3f, $"Kupfererz {watch.AverageRatio(G(u, "copper_ore"), 15_000):0.00}×");
         // Kassen horten nicht: deutlich unter der Hälfte des Geldes
         var snap = EconomyStats.Snapshot(u);
         Assert.True(snap.TreasuryCredits < 0.5f * snap.TotalCredits, $"Kassen {snap.TreasuryCredits:0} von {snap.TotalCredits:0}");

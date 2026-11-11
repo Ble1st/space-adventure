@@ -428,7 +428,7 @@ public class TradeServiceTests
         var before = Snapshot(u, ship, st);
         r = svc.Execute(u, st, ship, new ServiceRequest(key, default, 0f));
         Assert.False(r.Success);
-        Assert.Equal("Station kann nichts mehr abnehmen oder bezahlen", r.Message);
+        Assert.Equal("Station kann nicht zahlen", r.Message);   // Phase 16: derselbe Grund wie im Angebot (MarketInfo.Acceptance)
         AssertUnchanged(before, u, ship, st);
 
         // Ware wird hier nicht geführt
@@ -436,7 +436,7 @@ public class TradeServiceTests
         ship.Cargo[foreign] = 5f;
         r = svc.Execute(u, st, ship, new ServiceRequest($"{TradeService.Sell}:{foreign.Value}", default, 0f));
         Assert.False(r.Success);
-        Assert.Equal("Ware wird hier nicht gehandelt", r.Message);
+        Assert.Equal("Handelt diese Ware nicht", r.Message);   // Phase 16: Grund aus MarketInfo.Acceptance
         Assert.Empty(events);
     }
 
