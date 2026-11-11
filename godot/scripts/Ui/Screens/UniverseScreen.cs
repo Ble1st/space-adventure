@@ -4,6 +4,7 @@ using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Simulation;
 using SpaceSim.Core.Trading;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
@@ -11,12 +12,12 @@ namespace SpaceAdventure.Ui.Screens;
 
 /// <summary>
 /// Kommandozentrale „Universum“ (UI.md Abschnitt 4): Sektorkarte aus echten Core-Daten – Sektoren mit
-/// <see cref="Sector.MapPosition"/>, Gates als Linien (offen/gesperrt nach <see cref="Gate.Open"/>),
-/// Fraktionsfarben als Halo nach <see cref="Sector.Owner"/>, Spielerposition, Stationszahl. Ebenen umschaltbar:
-/// Fraktion (echt), Schiffe (echt: NPC-Schiffe je Sektor), Preise (echt: <see cref="SectorEconomy.PriceLevel"/>),
-/// Sicherheit (Platzhalter). Tippen wählt einen Sektor; rechts die Detailkarte mit Route über
-/// <see cref="Universe.FindRoute"/> und den Knöpfen „Sektorkarte öffnen“, „Route planen/Autopilot“ (echt,
-/// setzt das Autopilot-Ziel in Main) und „Taxi buchen“ (Platzhalter).
+/// <see cref="Sector.MapPosition"/>, Gates als Linien (Phase 10: offen, eingeschränkt, geschlossen/zerstört und „für dich gesperrt“ nach
+/// <see cref="GateAccess"/>), Fraktionsfarben als Halo nach <see cref="Sector.Owner"/>, Spielerposition, Stationszahl. Ebenen umschaltbar:
+/// Fraktion (echt, mit Kontrollstufe und „umkämpft“), Schiffe (echt: NPC-Schiffe je Sektor), Preise (echt: <see cref="SectorEconomy.PriceLevel"/>),
+/// Sicherheit (Phase 10 echt: Sperrstufe und Urteil der Kontrollpunkte für dich, <see cref="AccessInfo"/>). Tippen wählt einen Sektor; rechts die
+/// Detailkarte mit Kontrolle, Einfluss, Sperre und Route nach deinem Mobilitätsprofil und den Knöpfen „Sektorkarte öffnen“,
+/// „Route planen/Autopilot“ (echt, setzt das Autopilot-Ziel in Main) und „Taxi buchen“ (Platzhalter).
 /// </summary>
 public sealed partial class UniverseScreen : CommandScreen
 {
@@ -42,8 +43,12 @@ public sealed partial class UniverseScreen : CommandScreen
 	/// <summary>Gewählter Sektor (null aufgelöst auf den Spielersektor).</summary>
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
 
-	/// <summary>Sprungzahl der Route vom Spielersektor zum gewählten Sektor, passend zu <see cref="Universe.FindRoute"/> (-1 = nicht erreichbar).</summary>
-	public int TestRouteHops => Ctx.U.FindRoute(Ctx.U.PlayerSector, Selected)?.Count ?? -1;
+	/// <summary>Sprungzahl der Route vom Spielersektor zum gewählten Sektor nach dem Profil des Spielerschiffs (-1 = nicht erreichbar).</summary>
+	public int TestRouteHops => PlayerRoute(Ctx.U, Selected)?.Count ?? -1;
+
+	/// <summary>Phase 10: Route des Spielers nach seinem Mobilitätsprofil (gesperrte Gates werden umgangen).</summary>
+	internal static List<GateId>? PlayerRoute(Universe u, SectorId to) =>
+		u.FindRoute(u.PlayerSector, to, GateAccess.ProfileOf(u, u.Ships[u.PlayerShip]));
 
 	/// <summary>Test-Hook: Sektor wählen.</summary>
 	public void TestSelect(SectorId s) { SelectedSector = s; Invalidate(); }
@@ -67,8 +72,6 @@ public sealed partial class UniverseScreen : CommandScreen
 			b.Pressed += () => { CurrentLayer = l; Invalidate(); };
 			lx += 102;
 		}
-		if (CurrentLayer == Layer.Security)
-			At(inner, Text($"Sicherheit: {UiPlaceholders.Tag} ({UiPlaceholders.Soon})", 13, new Color(Dim, 0.7f)), 740, 18);
 
 		// ── Karte links ──
 		_map = At(inner, new UniverseMapCanvas { MouseFilter = MouseFilterEnum.Stop }, 0, 56, 700, 464);
@@ -90,41 +93,44 @@ public sealed partial class UniverseScreen : CommandScreen
 		Color ownerCol = MapOverlay.FactionColor(s.Owner);
 		int ships = ShipCountOf(u, sel);
 
+		var pol = AccessInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
 		At(card, Text(s.Name, 24, Cyan), 16, 10, 268, 32);
-		At(card, Text($"Besitzer: {owner}{(isPlayer ? " · du bist hier" : "")}", 15, ownerCol), 16, 44, 268, 22);
-		At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, 72, 268, 20);
+		At(card, Text($"{owner} · {pol.Stage}{(isPlayer ? " · du bist hier" : "")}", 15, ownerCol), 16, 44, 268, 22);
+		At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, 68, 268, 20);
+		// Phase 10: Sperre und Einfluss (echt)
+		Color lockCol = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
+		float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, 92, 268, 13, lockCol, 16);
+		py = WrappedText(card, $"Für dich: {pol.ForPlayer}", 16, py, 268, 13, lockCol, 16);
+		py = WrappedText(card, $"Einfluss: {pol.Influence}", 16, py + 2, 268, 12, new Color(Dim, 0.9f), 16);
 
-		// Gates mit Ziel und Zustand
-		float gy = 100;
-		At(card, Text("Gates", 14, Dim), 16, gy, 268, 18); gy += 20;
-		foreach (var gid in s.Gates.Take(4))
+		// Gates mit Ziel, Zustand und Urteil des Kontrollpunkts für dich
+		float gy = py + 6;
+		int maxGates = gy > 200 ? 2 : 3;
+		foreach (var gid in s.Gates.Take(maxGates))
 		{
 			var g = u.Gates[gid];
 			var target = u.Sectors[u.Gates[g.Target].Sector];
-			At(card, Text($"→ {target.Name}", 14, g.Open ? White : Red), 24, gy, 180, 18);
-			if (!g.Open) At(card, Text("gesperrt", 13, Red), 210, gy, 74, 18);
-			gy += 20;
+			var gp = AccessInfo.ForGate(u, g, u.Ships[u.PlayerShip]);
+			Color gc = gp.Denied || !g.Open ? Red : gp.Toll > 0f ? Orange : White;
+			At(card, Text($"→ {target.Name} · {gp.State}{(gp.Denied ? " · gesperrt" : gp.Toll > 0f ? $" · Zoll {gp.Toll:0}" : "")}", 13, gc), 24, gy, 260, 18);
+			gy += 18;
 		}
-		if (s.Gates.Count > 4) { At(card, Text($"… und {s.Gates.Count - 4} weitere", 12, Dim), 24, gy, 268, 16); gy += 18; }
+		if (s.Gates.Count > maxGates) { At(card, Text($"… und {s.Gates.Count - maxGates} weitere", 12, Dim), 24, gy, 268, 16); gy += 16; }
 
-		// Sicherheit: Platzhalter
-		gy += 6;
-		At(card, Text($"Sicherheit: {UiPlaceholders.SecurityText} {UiPlaceholders.Tag}", 14, new Color(Dim, 0.75f)), 16, gy, 268, 20); gy += 26;
-
-		// Route vom aktuellen Sektor (echt über Universe.FindRoute)
-		var route = u.FindRoute(u.PlayerSector, sel);
+		// Route vom aktuellen Sektor nach deinem Mobilitätsprofil (echt über Universe.FindRoute mit Profil)
+		gy += 4;
+		var route = PlayerRoute(u, sel);
 		int hops = route?.Count ?? -1;
-		At(card, Text("Route", 14, Dim), 16, gy, 268, 18); gy += 20;
 		if (hops < 0)
-			At(card, Text("nicht erreichbar (Gates gesperrt)", 14, Red), 24, gy, 268, 20);
+			WrappedText(card, "Route: nicht erreichbar – " + (GateAccess.BlockReason(u, u.Ships[u.PlayerShip], u.PlayerSector, sel) ?? "Gates gesperrt"), 16, gy, 268, 13, Red, 16);
 		else if (hops == 0)
-			At(card, Text("du bist in diesem Sektor", 14, Green), 24, gy, 268, 20);
+			At(card, Text("Route: du bist in diesem Sektor", 14, Green), 16, gy, 268, 20);
 		else
 		{
-			At(card, Text($"{hops} {(hops == 1 ? "Sprung" : "Sprünge")} ab {SectorName(u, u.PlayerSector)}", 14, White), 24, gy, 268, 20);
+			At(card, Text($"Route: {hops} {(hops == 1 ? "Sprung" : "Sprünge")} ab {SectorName(u, u.PlayerSector)}", 14, White), 16, gy, 268, 20);
 			var way = new List<string>();
 			foreach (var gid in route!) way.Add(SectorName(u, u.Gates[u.Gates[gid].Target].Sector));
-			WrappedText(card, string.Join(" → ", way), 24, gy + 20, 268, 12, new Color(Dim, 0.9f), 15);
+			WrappedText(card, string.Join(" → ", way), 24, gy + 20, 260, 12, new Color(Dim, 0.9f), 15);
 		}
 
 		// Knöpfe unten
@@ -204,8 +210,13 @@ public sealed partial class UniverseScreen : CommandScreen
 				if (!_u.Gates.TryGetValue(g.Target, out var far)) continue;
 				var a = Place(_u.Sectors[g.Sector], center, scale);
 				var b = Place(_u.Sectors[far.Sector], center, scale);
-				if (g.Open) DrawLine(a, b, new Color(Dim, 0.7f), 2.5f);
-				else Dashed(a, b, Red, 3f);
+				// Phase 10: geschlossen/zerstört rot gestrichelt; für dich gesperrt (eine Richtung reicht) rot; eingeschränkt orange
+				var player = _u.Ships[_u.PlayerShip];
+				bool denied = AccessInfo.ForGate(_u, g, player).Denied || AccessInfo.ForGate(_u, far, player).Denied;
+				if (!g.Open) Dashed(a, b, Red, 3f);
+				else if (denied) { DrawLine(a, b, new Color(Red, 0.85f), 3f); DrawCircle((a + b) / 2f, 7f, Red); }
+				else if (g.State == GateState.Restricted || far.State == GateState.Restricted) DrawLine(a, b, new Color(Orange, 0.85f), 3f);
+				else DrawLine(a, b, new Color(Dim, 0.7f), 2.5f);
 			}
 
 			foreach (var s in _u.Sectors.Values)
@@ -224,7 +235,10 @@ public sealed partial class UniverseScreen : CommandScreen
 						haloA = 0.4f;
 						break;
 					case UniverseScreen.Layer.Security:
-						halo = new Color(Dim, 0.35f); haloA = 0.25f;
+						// Phase 10: Sperrstufe des Sektors; rot, wenn du nicht hineinkommst
+						var sp = AccessInfo.ForSector(_u, s.Id, _u.Ships[_u.PlayerShip]);
+						halo = sp.PlayerDenied ? Red : sp.EntryLevel >= 3 ? Orange : sp.EntryLevel > 0 ? new Color(1f, 0.9f, 0.3f) : Green;
+						haloA = 0.4f;
 						break;
 					default:   // Schiffe
 						halo = MapOverlay.FactionColor(s.Owner); haloA = 0.12f;
@@ -240,11 +254,11 @@ public sealed partial class UniverseScreen : CommandScreen
 				string sub = layer switch
 				{
 					UniverseScreen.Layer.Prices => $"{SectorEconomy.PriceLevel(_u, s.Id):0.00}× · {s.Stations.Count} St.",
-					UniverseScreen.Layer.Security => $"{UiPlaceholders.SecurityText} · {s.Stations.Count} St.",
+					UniverseScreen.Layer.Security => $"Stufe {s.Access.Level(AccessDirection.Entry)} · {AccessNames.Level(s.Access.Level(AccessDirection.Entry))}",
 					UniverseScreen.Layer.Ships => $"{ShipCountOf(_u, s.Id)} Schiffe · {s.Stations.Count} St.",
-					_ => $"{FactionName(_u, s.Owner)} · {s.Stations.Count} St.",
+					_ => $"{FactionName(_u, s.Owner)} · {AccessNames.Stage(s.Control)}{(s.Contested ? " · umkämpft" : "")}",
 				};
-				DrawString(font, p + new Vector2(-70, 12), sub, HorizontalAlignment.Center, 140, 12, new Color(Dim, 0.9f));
+				DrawString(font, p + new Vector2(-100, 12), sub, HorizontalAlignment.Center, 200, 11, new Color(Dim, 0.9f));
 
 				// Schiffe-Ebene: NPC-Schiffe als Symbole um den Sektor
 				if (layer == UniverseScreen.Layer.Ships)
@@ -268,9 +282,14 @@ public sealed partial class UniverseScreen : CommandScreen
 
 			// Legende oben im Kartenbereich
 			var font2 = ThemeDB.FallbackFont;
-			DrawString(font2, new Vector2(12, 20), "— offen   - - gesperrt      Tippen wählt einen Sektor", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font2, new Vector2(12, 20), "— offen   — eingeschränkt   — für dich gesperrt   - - geschlossen", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawLine(new Vector2(12, 26), new Vector2(26, 26), new Color(Dim, 0.7f), 2f);
+			DrawLine(new Vector2(78, 26), new Vector2(92, 26), Orange, 2f);
+			DrawLine(new Vector2(196, 26), new Vector2(210, 26), Red, 2f);
+			if (layer == UniverseScreen.Layer.Security)
+				DrawString(font2, new Vector2(12, 46), "Sperrstufe: grün offen · gelb Zoll/Kontrolle · orange ab Stufe 3 · rot: für dich gesperrt", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 			if (layer == UniverseScreen.Layer.Prices)
-				DrawString(font2, new Vector2(Size.X - 330, 20), "Preise: grün günstig · rot teuer (× Basis)", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+				DrawString(font2, new Vector2(12, 46), "Preise: grün günstig · rot teuer (× Basis)", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 		}
 
 		void Dashed(Vector2 a, Vector2 b, Color c, float w)

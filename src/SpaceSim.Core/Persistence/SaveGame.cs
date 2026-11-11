@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 12;
+    public const int CurrentVersion = 13;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -111,6 +111,14 @@ public sealed class StationTypeSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipDealerSave? ShipDealer { get; set; }
     /// <summary>Eigene Stückliste für den Bau (Phase 8, v11; GoodId → Einheiten); fehlt = Regel.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? Construction { get; set; }
+    /// <summary>Regierungsform (Phase 10, v13: headquarters, company_seat, sector_hq, office, police); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Government { get; set; }
+    /// <summary>Einflussgewicht (Phase 10, v13); fehlt = 1.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Influence { get; set; }
+    /// <summary>Eroberbar (Phase 10, v13); fehlt = ja.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? Capturable { get; set; }
+    /// <summary>Zerstörbar (Phase 10, v13); fehlt = ja.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? Destructible { get; set; }
 }
 
 /// <summary>Schiffshändler eines Stationstyps (Phase 5c): erlaubte Klassen (null = alle), Höchstgröße als Text, Montagegebühr.</summary>
@@ -169,9 +177,36 @@ public sealed class SectorSave
 
     /// <summary>Nur Format v1 (Asteroiden ohne Erz).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<Obstacle>? Asteroids { get; set; }
+
+    /// <summary>Sperre des Sektors (Phase 10, v13); fehlt = offen ohne Zeitstempel.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SectorAccessSave? Access { get; set; }
+    /// <summary>Einflussanteile je Fraktions-Id (Phase 10, v13); fehlt = noch nicht berechnet.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? Influence { get; set; }
+    /// <summary>Kontrollstufe des Besitzers (Phase 10, v13: None/Presence/Influence/Dominance/Control); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Control { get; set; }
+    /// <summary>Umkämpft (Phase 10, v13).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Contested { get; set; }
 }
 
-public sealed class GateSave { public int Id { get; set; } public int Sector { get; set; } public Vec2 Pos { get; set; } public int Target { get; set; } public bool Open { get; set; } }
+/// <summary>Sperre eines Sektors (Phase 10): Stufen für Ein- und Ausreise, Auslöser, Zeiten (Beginn, Ablauf, Abkühlzeit), Durchsetzung.</summary>
+public sealed class SectorAccessSave
+{
+    public int Entry { get; set; } public int Exit { get; set; }
+    public int? Against { get; set; }
+    public long Since { get; set; } = -1_000_000; public long Expires { get; set; } = -1; public long Cooldown { get; set; } = -1_000_000;
+    public bool Enforced { get; set; } = true;
+}
+
+public sealed class GateSave
+{
+    public int Id { get; set; } public int Sector { get; set; } public Vec2 Pos { get; set; } public int Target { get; set; }
+    /// <summary>Physisch passierbar (bis v12 der einzige Zustand; seit v13 aus <see cref="State"/> abgeleitet und weiter geschrieben).</summary>
+    public bool Open { get; set; }
+    /// <summary>Zustand (Phase 10, v13: Open/Restricted/Closed/Destroyed); fehlt = aus <see cref="Open"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? State { get; set; }
+    /// <summary>Hauptroute (Phase 10, v13; Gate-Ausnahme von Sektorsperren).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool MainRoute { get; set; }
+}
 
 public sealed class StockSave { public float Amount { get; set; } public float Target { get; set; } public float Price { get; set; } }
 
@@ -182,6 +217,8 @@ public sealed class StationSave
     public float Credits { get; set; } public long BelowLimitSince { get; set; }
     /// <summary>Vor Pleite geschützt (Phase 8, v11; früher <see cref="Essential"/>).</summary>
     public bool BankruptcyProtected { get; set; }
+    /// <summary>Unzerstörbar und nicht eroberbar (Phase 10, v13; nur aus der Weltdatei).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Immortal { get; set; }
     /// <summary>Altes Feld (bis v10): gleichbedeutend mit <see cref="BankruptcyProtected"/>; wird nur noch gelesen.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Essential { get; set; }
     public List<RecipeSave> Recipes { get; set; } = new();

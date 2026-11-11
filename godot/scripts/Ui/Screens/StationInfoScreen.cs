@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
@@ -12,13 +13,17 @@ namespace SpaceAdventure.Ui.Screens;
 /// Dock-Bereich „Station-Info“ (UI.md Abschnitt 3): Name, Typ, Besitzer-Fraktion, Stationskasse, Sektor und die
 /// angebotenen Dienste (echt aus <see cref="SpaceSim.Core.Services.StationServices.ForStation"/>), dazu eine
 /// Marktübersicht mit Nachfrage/Überschuss aus Bestand gegen Wunschbestand (echt aus <see cref="Station.Market"/>,
-/// Einordnung über <see cref="MarketInfo"/>). Ruf, Zoll, Sperrstufe und Hinweise sind Platzhalter (Politik fehlt
-/// im Core noch).
+/// Einordnung über <see cref="MarketInfo"/>). Phase 10: Ruf (Beziehung des Besitzers zu dir), Zoll, Sperrstufe und Hinweise echt aus
+/// <see cref="AccessInfo.ForStation"/>.
 /// </summary>
 public sealed partial class StationInfoScreen : DockAreaScreen
 {
 	public override string Id => "dock.info";
 	public StationInfoScreen() => AreaId = DockAreas.Info;
+
+	/// <summary>Selbsttest: zuletzt gezeigte Sperrstufe und Zoll (Phase 10).</summary>
+	public string TestLock { get; private set; } = "";
+	public string TestCustoms { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -92,20 +97,29 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 			list.AddChild(r);
 		}
 
-		// ── Karte 3: Politik und Hinweise (Platzhalter) ──
+		// ── Karte 3: Politik und Hinweise (Phase 10 echt aus AccessInfo: Ruf = Beziehung des Besitzers zu dir, Zoll und Sperrstufe des Sektors) ──
 		var c3 = CardPanel(inner, 2 * (cw + 10), 0, w - 2 * (cw + 10) - 10, h);
 		var v3 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		v3.AddThemeConstantOverride("separation", 8);
 		c3.AddChild(v3);
 		v3.AddChild(Text("Politik & Hinweise", 22, Cyan));
-		v3.AddChild(Text("Ruf bei dir: " + UiPlaceholders.Tag, 15, new Color(Dim, 0.7f)));
-		v3.AddChild(Text("Zoll: " + UiPlaceholders.Tag, 15, new Color(Dim, 0.7f)));
-		v3.AddChild(Text("Sperrstufe: " + UiPlaceholders.Tag, 15, new Color(Dim, 0.7f)));
-		v3.AddChild(Text("Hinweise: " + UiPlaceholders.Tag, 15, new Color(Dim, 0.7f)));
-		// langer Platzhalter-Hinweis per manuellem Umbruch (Label-Autowrap ist in Karten unzuverlässig)
-		var ph = new Control { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 60) };
-		v3.AddChild(ph);
-		WrappedText(ph, UiPlaceholders.PoliticsSoon, 0, 0, cw - 28, 14, new Color(Dim, 0.85f));
+		var pol = AccessInfo.ForStation(u, st, Ctx.Ship);
+		TestLock = pol.Lock; TestCustoms = pol.Customs;
+		float tw = w - 2 * (cw + 10) - 38;
+		Wrapped(v3, "Ruf bei dir: " + pol.Reputation, tw, 15, White);
+		Wrapped(v3, "Zoll: " + pol.Customs, tw, 15, pol.Customs == "kein Zoll" ? Green : pol.Customs.StartsWith("gesperrt") ? Red : Orange);
+		Wrapped(v3, "Sperrstufe: " + pol.Lock, tw, 15, pol.Lock == "Offen" ? Green : Orange);
+		v3.AddChild(Text("Hinweise", 16, Dim));
+		foreach (var note in pol.Notes) Wrapped(v3, "· " + note, tw, 14, new Color(Dim, 0.95f));
+	}
+
+	/// <summary>Mehrzeiliger Text mit manuellem Umbruch (Label-Autowrap ist in Karten unzuverlässig).</summary>
+	static void Wrapped(Control parent, string text, float width, int size, Color color)
+	{
+		int lines = Math.Max(1, (int)Math.Ceiling(text.Length * size * 0.52f / Math.Max(60f, width)));
+		var holder = new Control { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(0, lines * (size + 6)) };
+		parent.AddChild(holder);
+		WrappedText(holder, text, 0, 0, width, size, color);
 	}
 
 	static PanelContainer CardPanel(Control parent, float x, float y, float w, float h)

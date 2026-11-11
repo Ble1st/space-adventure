@@ -71,9 +71,16 @@ public partial class MapOverlay : Control
 		DrawString(font, new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", HorizontalAlignment.Left, -1, 24, Colors.White);
 		var center = Size / 2f;
 
+		var player = _u.Ships.GetValueOrDefault(_u.PlayerShip);
 		foreach (var g in _u.Gates.Values)
 			if (g.Id.Value < g.Target.Value && _u.Gates.TryGetValue(g.Target, out var far))
-				DrawLine(Place(_u.Sectors[g.Sector], center, 220f), Place(_u.Sectors[far.Sector], center, 220f), new Color(0.3f, 0.6f, 1f, g.Open ? 0.8f : 0.2f), 3f);
+			{
+				// Phase 10: für dich gesperrt (Kontrollpunkt) rot, eingeschränkt orange, geschlossen blass
+				bool denied = player is not null && (SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, g, player).Denied || SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, far, player).Denied);
+				var col = !g.Open ? new Color(0.3f, 0.6f, 1f, 0.2f) : denied ? new Color(1f, 0.35f, 0.3f, 0.9f)
+					: g.State == GateState.Restricted ? new Color(1f, 0.7f, 0.2f, 0.85f) : new Color(0.3f, 0.6f, 1f, 0.8f);
+				DrawLine(Place(_u.Sectors[g.Sector], center, 220f), Place(_u.Sectors[far.Sector], center, 220f), col, 3f);
+			}
 
 		foreach (var s in _u.Sectors.Values)
 		{

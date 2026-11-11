@@ -454,7 +454,7 @@ public class OutfitterShipyardTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":12", json);
+        Assert.Contains("\"Version\":13", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.PlayerShip, loaded.PlayerShip);

@@ -183,7 +183,7 @@ public static class ConstructionRules
     {
         var bs = site.Site!;
         if (!bs.Emergency && bs.Builder.Value == 0
-            && !u.Ships.Values.Any(s => s.IsAiBuilder && u.IsReachable(s.Sector, site.Sector)))
+            && !u.Ships.Values.Any(s => s.IsAiBuilder && u.IsReachable(s.Sector, site.Sector, GateAccess.ProfileOf(u, s))))
             return true;
         foreach (var g in bs.Required.Keys.OrderBy(g => g.Value))
         {
@@ -379,7 +379,7 @@ public sealed class ConstructionSystem : ISimSystem
     /// </summary>
     public static Station? OpenSite(Universe u, Ship ship) =>
         ConstructionRules.ActiveSites(u)
-            .Where(s => s.Site!.Builder.Value == 0 && u.IsReachable(ship.Sector, s.Sector))
+            .Where(s => s.Site!.Builder.Value == 0 && u.IsReachable(ship.Sector, s.Sector, GateAccess.ProfileOf(u, ship)))
             .OrderBy(s => u.FactionOf(ship) is { } own && u.FactionOf(s) == own ? 0 : 1)
             .ThenBy(s => Travel.Estimate(u, ship.Sector, ship.Position, s.Sector, s.DockPoint(ship.Id), ship))
             .ThenBy(s => s.Id.Value)
@@ -391,6 +391,12 @@ public sealed class ConstructionSystem : ISimSystem
     static void Think(Universe u, Ship ship)
     {
         var site = AssignedSite(u, ship);
+        // Phase 10: Ist die zugeteilte Baustelle für dieses Schiff gesperrt, gibt es sie frei (ein anderes Bauschiff darf übernehmen)
+        if (site is not null && !u.IsReachable(ship.Sector, site.Sector, GateAccess.ProfileOf(u, ship)))
+        {
+            site.Site!.Builder = default;
+            site = null;
+        }
         if (site is null && OpenSite(u, ship) is { } open)
         {
             open.Site!.Builder = ship.Id;

@@ -141,6 +141,12 @@ public static class WorldBuilder
                     type.Construction[gid] = v;
                 }
             }
+            // Phase 10: Regierungsform, Einfluss, Eroberbarkeit, Zerstörbarkeit
+            type.Government = ParseGovernment(t.Government, t.Key);
+            if (t.Influence < 0f || !float.IsFinite(t.Influence)) throw new WorldFormatException($"Stationstyp '{t.Key}': influence muss >= 0 sein");
+            type.Influence = t.Influence;
+            type.Capturable = t.Capturable && type.Government is not (GovernmentKind.Headquarters or GovernmentKind.CompanySeat or GovernmentKind.SectorHq or GovernmentKind.Office);
+            type.Destructible = t.Destructible;
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -187,6 +193,16 @@ public static class WorldBuilder
         {
             var a = AddGate(u, link.A, new GateId(link.B.Id));
             var b = AddGate(u, link.B, new GateId(link.A.Id));
+            // Phase 10: Hauptroute und Anfangszustand gelten für beide Enden
+            var state = link.State?.ToLowerInvariant() switch
+            {
+                null or "open" => GateState.Open,
+                "closed" => GateState.Closed,
+                "destroyed" => GateState.Destroyed,
+                _ => throw new WorldFormatException($"Gate {link.A.Id}–{link.B.Id}: unbekannter Zustand '{link.State}' (open, closed, destroyed)"),
+            };
+            a.MainRoute = b.MainRoute = link.MainRoute;
+            a.State = b.State = state;
             u.Gates[a.Id] = a; u.Gates[b.Id] = b;
             u.Sectors[a.Sector].Gates.Add(a.Id);
             u.Sectors[b.Sector].Gates.Add(b.Id);
@@ -197,7 +213,9 @@ public static class WorldBuilder
             {
                 if (!u.StationTypes.TryGetValue(st.Type, out var type)) throw new WorldFormatException($"Station {st.Id}: unbekannter Typ '{st.Type}'");
                 var station = StationFactory.Create(u, new StationId(st.Id), type, st.Name, new SectorId(sd.Id), V(st.Pos), u.Sectors[new SectorId(sd.Id)].Owner);
-                station.BankruptcyProtected = st.Essential || st.BankruptcyProtected;
+                // Phase 10: Regierungsstationen und Wachen sind immer vor Pleite geschützt
+                station.BankruptcyProtected = st.Essential || st.BankruptcyProtected || type.Government != GovernmentKind.None;
+                station.Immortal = st.Immortal;
                 station.Credits = st.Credits;
                 foreach (var (k, v) in st.Stock)
                 {
@@ -258,6 +276,9 @@ public static class WorldBuilder
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
+        // Phase 10: Sektorkontrolle der Startwelt gleich berechnen (Einfluss, Stufe, umkämpft); Besitzer aus der Weltdatei bleibt der Startwert
+        foreach (var sector in u.Sectors.Values.OrderBy(s => s.Id.Value)) Simulation.SectorControl.Update(u, sector);
+        Simulation.GateAccess.SyncRestricted(u);
         return u;
     }
 
@@ -426,6 +447,29 @@ public static class WorldBuilder
         (ShipRole.Player, _) => "unit_player",
         (ShipRole.Builder, _) => "foreman",   // Phase 8: Bauschiff
         _ => "",
+    };
+
+    /// <summary>Regierungsform aus der Weltdatei (Phase 10).</summary>
+    public static GovernmentKind ParseGovernment(string? key, string typeKey) => key?.ToLowerInvariant() switch
+    {
+        null or "" or "none" => GovernmentKind.None,
+        "headquarters" => GovernmentKind.Headquarters,
+        "company_seat" => GovernmentKind.CompanySeat,
+        "sector_hq" => GovernmentKind.SectorHq,
+        "office" => GovernmentKind.Office,
+        "police" => GovernmentKind.Police,
+        _ => throw new WorldFormatException($"Stationstyp '{typeKey}': unbekannte Regierungsform '{key}' (headquarters, company_seat, sector_hq, office, police)"),
+    };
+
+    /// <summary>Schlüssel einer Regierungsform für Weltdatei und Spielstand.</summary>
+    public static string? GovernmentKey(GovernmentKind k) => k switch
+    {
+        GovernmentKind.Headquarters => "headquarters",
+        GovernmentKind.CompanySeat => "company_seat",
+        GovernmentKind.SectorHq => "sector_hq",
+        GovernmentKind.Office => "office",
+        GovernmentKind.Police => "police",
+        _ => null,
     };
 
     static Gate AddGate(Universe u, GateEndDef end, GateId target)

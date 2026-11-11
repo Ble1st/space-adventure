@@ -33,7 +33,11 @@ public static class Navigator
             : new NavTarget(id, new Vec2(0, 0), s.Name);
     }
 
-    public static NavStep Next(Universe u, SectorId sector, Vec2 pos, NavTarget target)
+    /// <summary>
+    /// Nächster Wegpunkt. Phase 10: Mit Schiff folgt die Route dessen Mobilitätsprofil (gesperrte Gates werden umflogen; ohne Weg
+    /// <see cref="NavStatus.Unreachable"/>); ohne Schiff zählt nur der physische Gate-Zustand.
+    /// </summary>
+    public static NavStep Next(Universe u, SectorId sector, Vec2 pos, NavTarget target, Ship? ship = null)
     {
         if (sector == target.Sector)
         {
@@ -41,7 +45,7 @@ public static class Navigator
             return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, target.Position), null);
         }
 
-        var route = u.FindRoute(sector, target.Sector);
+        var route = u.FindRoute(sector, target.Sector, Travel.ProfileOf(u, ship));
         if (route is null || route.Count == 0) return new NavStep(NavStatus.Unreachable, pos, null);
         var gate = u.Gates[route[0]];
         return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, gate.Position), gate.Id);

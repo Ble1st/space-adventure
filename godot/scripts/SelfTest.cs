@@ -347,8 +347,13 @@ public partial class SelfTest : Node
 					var target = u.Sectors.Keys.First(s => s != u.PlayerSector);
 					_m.TestOpenCcArea("universe");
 					_m.TestCcSelectSector(target);
-					int expect = u.FindRoute(u.PlayerSector, target)?.Count ?? -1;
-					Check(_m.TestCcRouteHops == expect, $"Sektorauswahl: Sprungzahl {_m.TestCcRouteHops} passt zu FindRoute ({expect})");
+					// Phase 10: Route nach dem Mobilitätsprofil des Spielerschiffs
+					int expect = u.FindRoute(u.PlayerSector, target, SpaceSim.Core.Simulation.GateAccess.ProfileOf(u, u.Ships[u.PlayerShip]))?.Count ?? -1;
+					Check(_m.TestCcRouteHops == expect, $"Sektorauswahl: Sprungzahl {_m.TestCcRouteHops} passt zu FindRoute mit Spielerprofil ({expect})");
+					_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Security;
+					_m.HudRef.Screens.Current?.Refresh();
+					Check(_m.TestScreenOpen("cc.universe"), "Universumskarte: Ebene Sicherheit (echte Sperrstufen) zeichnet ohne Ausnahme");
+					_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Faction;
 					// „Route planen/Autopilot“ setzt ein Ziel; „← Flug“ schließt alles
 					_m.TestCcPlanRoute();
 					Check(_m.TestAutopilotTarget is { } t && t.Sector == target, "„Route planen/Autopilot“ setzt das Autopilot-Ziel in Main");
@@ -556,6 +561,64 @@ public partial class SelfTest : Node
 					Check(fe.Success && pl.Cargo.GetValueOrDefault(ice) == 7f && !wh.PlayerStorage.ContainsKey(ice), "Abholen über Dienst+Oberfläche");
 					pl.Cargo.Remove(ice);
 					_m.TestUndock();
+					Next();
+				}
+				break;
+			case 33: // Phase 10: Gate-Zugang — Sperre gegen die Union in Gamma, Sprung wird mit Grund abgewiesen, Karte/Station-Info zeigen es
+				_m.TestEnterSector(new SectorId(2));
+				Next(); break;
+			case 34:
+				if (_frame - _stageStart > 3)
+				{
+					try
+					{
+						var uni = _m.Session.U;
+						var gamma = uni.Sectors[new SectorId(3)];
+						var guild = new FactionId(2);
+						var union = new FactionId(1);
+						var pl = _m.Session.Player;
+						foreach (var kv in pl.Cargo.ToList()) pl.Cargo.Remove(kv.Key);
+						SpaceSim.Core.Simulation.Relations.Set(uni, guild, union, -0.9f);
+						int lvl = SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, gamma, 3);
+						Check(lvl == 3 && gamma.Access.EntryLevel == 3, "Gamma (Kontrolle der Gilde) sperrt auf Stufe 3 gegen die Union");
+						var gate = uni.Gates.Values.First(g => g.Sector == uni.PlayerSector && uni.Gates[g.Target].Sector == gamma.Id);
+						Check(gate.State == GateState.Open && uni.Gates[gate.Target].State == GateState.Restricted, "Gate nach Gamma ist auf der Gamma-Seite eingeschränkt");
+						bool jumped = _m.TestJumpThrough(gate.Id);
+						Check(!jumped && uni.PlayerSector.Value == 2, "Sprung nach Gamma wird abgewiesen, das Schiff bleibt in Beta");
+						Check(_m.LastJumpMessage.StartsWith("Sprung verweigert") && _m.LastJumpMessage.Contains("Verbündete"), $"Meldung nennt den Grund: „{_m.LastJumpMessage}“");
+						// Universumskarte: Gamma für dich nicht erreichbar (Profil), Ebene Sicherheit ohne Ausnahme
+						_m.TestOpenCommand();
+						_m.TestOpenCcArea("universe");
+						_m.TestCcSelectSector(gamma.Id);
+						_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Security;
+						_m.HudRef.Screens.Current?.Refresh();
+						Check(_m.TestCcRouteHops == -1, "Universumskarte: Route nach Gamma für dich gesperrt (Mobilitätsprofil)");
+						_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Faction;
+						_m.TestCloseCommand();
+						// Station-Info an einer Station in Gamma zeigt Sperrstufe und Zoll echt (Kontext auf eine Gamma-Station)
+						var beta = uni.Stations.Values.First(x => x.Sector.Value == 2 && x.Market.Count > 0);
+						_m.TestDockAt(beta.Id);
+						Check(_m.Docked, "In Beta angedockt");
+						_m.HudRef.DockCtx.Station = uni.Stations.Values.First(x => x.Sector == gamma.Id && x.Market.Count > 0);
+						_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
+						Check(_m.TestScreenOpen("dock.info"), "Station-Info geöffnet");
+						Check(_m.HudRef.DockInfo.TestLock.StartsWith("Stufe 3") && _m.HudRef.DockInfo.TestCustoms.StartsWith("gesperrt"),
+							$"Station-Info zeigt Sperrstufe „{_m.HudRef.DockInfo.TestLock}“ und Zoll „{_m.HudRef.DockInfo.TestCustoms}“ echt");
+						_m.HudRef.DockCtx.Station = beta;
+						_m.TestUndock();
+						// Zoll: neutral statt feindlich auf Stufe 1 — Sprung erlaubt, Zoll aus der Spielerkasse
+						SpaceSim.Core.Simulation.Relations.Set(uni, guild, union, 0f);
+						SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, gamma, 1);
+						float before = uni.PlayerWallet.Credits;
+						bool jumped2 = _m.TestJumpThrough(gate.Id);
+						Check(jumped2 && uni.PlayerSector == gamma.Id, "Sprung nach Gamma auf Stufe 1 erlaubt");
+						Check(System.Math.Abs(before - uni.PlayerWallet.Credits - uni.Rules.GateTollPerLevel) < 0.01f && _m.LastJumpMessage.Contains("Zoll"),
+							$"Zoll {uni.Rules.GateTollPerLevel:0} Cr aus der Spielerkasse an die Gilde („{_m.LastJumpMessage}“)");
+						SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, gamma, 0);
+						SpaceSim.Core.Simulation.Relations.Set(uni, guild, union, 0.25f);
+						Check(gamma.Access.IsOpen && !uni.AccessRestricted, "Sperre aufgehoben, alle Gates wieder offen");
+					}
+					catch (System.Exception ex) { Fail("Gate-Zugang warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 					Next();
 				}
 				break;

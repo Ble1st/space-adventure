@@ -67,3 +67,14 @@ public sealed class ActorModule : ISimModule
     public string Name => "Actors";
     public void Register(SimulationBuilder b) => b.Add(new ActorSystem(), interval: 20);
 }
+
+/// <summary>
+/// Phase 10: Politik (POLITIK.md Abschnitte 2, 3 und 8). Läuft nach Lebenszyklus und Akteuren (Stationen und Besitz haben sich geändert):
+/// Sektorkontrolle aus dem Einfluss (selten), dann Beziehungen und Sperrstufen der Fraktionen mit Durchsetzungskosten; geänderte Sperren planen
+/// laufende Reisen neu (<see cref="AccessEnforcement"/>). Der Gate-Zugang selbst wird beim Planen und Reisen geprüft (<see cref="GateAccess"/>).
+/// </summary>
+public sealed class PoliticsModule : ISimModule
+{
+    public string Name => "Politics";
+    public void Register(SimulationBuilder b) => b.Add(new SectorControlSystem(), interval: 50).Add(new FactionPolicySystem(), interval: 20);
+}

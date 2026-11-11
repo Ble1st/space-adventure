@@ -1,6 +1,6 @@
 # Politik: Kontrollpunkte, Sperren, Folgen (Planung)
 
-**Status: Planung; seit Phase 9 umgesetzt ist Abschnitt 6 in Teilen** (Akteure und Fraktionen, `Ship.Owner`, Sammelgruppe „Freie“ mit trägem Aufstieg, Größenklassen, Zukauf als gewichtete Ziehung, Kassen aus Abgaben, sparsame Beziehungen, Persönlichkeit; siehe UMSETZUNGSPLAN.md Phase 9). Sperren, Kontrollpunkte, Krieg und Sektorkontrolle sind nicht umgesetzt; `Gate` hat nur den Schalter `Open` (siehe [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md), Abschnitte 4–6). Fortsetzung: [FLOTTEN.md](FLOTTEN.md). Stationsformen für Regierung: [STATIONEN.md](STATIONEN.md), Abschnitt 5.
+**Status: Planung; seit Phase 9 umgesetzt ist Abschnitt 6 in Teilen** (Akteure und Fraktionen, `Ship.Owner`, Sammelgruppe „Freie“ mit trägem Aufstieg, Größenklassen, Zukauf als gewichtete Ziehung, Kassen aus Abgaben, sparsame Beziehungen, Persönlichkeit; siehe UMSETZUNGSPLAN.md Phase 9). **Seit Phase 10 umgesetzt:** Kontrollpunkte (Abschnitt 1, `IAccessCheck` Politik/Ware/Entdeckung am Gate; Station und Sprung-Ankunft noch nicht), Sperrstufen 0–5 je Sektor mit Richtung, Mindestdauer, Hysterese, Ablauf, Hauptroute und Durchsetzungskosten (Abschnitt 2), Beziehungsänderungen aus Handel, umkämpften Sektoren und Sperren (Abschnitt 3, ohne Krieg), Sektorkontrolle (Abschnitt 8) und die Regierungsstationen als Typen (Abschnitt 7, ohne Regierungskrise); siehe UMSETZUNGSPLAN.md Phase 10. Offen: Spielerfraktion (Abschnitt 4), Krieg, Polizei.
 
 ## 1. Kontrollpunkt
 
@@ -249,7 +249,7 @@ Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.m
 
 ## 11. Offene Entscheidungen
 
-- Gilt eine Sperre für Sektoren oder für einzelne Gates? Vorschlag: Sektor-Stufen als Voreinstellung, Gate-Ausnahmen erlaubt.
+- ~~Gilt eine Sperre für Sektoren oder für einzelne Gates?~~ Entschieden (Phase 10): Sektor-Stufen, Gate-Ausnahme über die Hauptroute.
 - Soll die Spielerfraktion früh (direkt nach dem Bauschiff) oder erst am Ende kommen?
 - Wie hart soll der Erstzugriff der Großen sein? Vorschlag: weich (nur höheres Gewicht).
 - Darf ein Kleinakteur Sektoren erobern oder nur Stationen halten? Eroberung von Stationen ist zunächst abgeschaltet; Sektoren wechseln über Einfluss (Abschnitt 8).

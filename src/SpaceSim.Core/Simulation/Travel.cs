@@ -1,3 +1,4 @@
+using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Simulation;
@@ -16,9 +17,12 @@ public static class Travel
     public static float SpeedOf(Ship? ship) =>
         ship is not null && ship.HasModel && ship.Stats.Speed > 0f ? ship.Stats.Speed : ShipSpeed;
 
+    /// <summary>Mobilitätsprofil der Routensuche (Phase 10): das des Schiffs, ohne Schiff nur der physische Gate-Zustand.</summary>
+    public static MobilityProfile ProfileOf(Universe u, Ship? ship) => ship is null ? MobilityProfile.Physical : GateAccess.ProfileOf(u, ship);
+
     public static List<Leg>? Plan(Universe u, long startTick, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
     {
-        var route = u.FindRoute(fromSector, toSector);
+        var route = u.FindRoute(fromSector, toSector, ProfileOf(u, ship));
         if (route is null) return null;
 
         float speed = SpeedOf(ship);
@@ -58,9 +62,16 @@ public static class Travel
     /// Schnelle Schätzung der Reisedauer ohne Umwegplanung (Luftlinie je Sektor, Route aus dem Tick-Cache).
     /// Für KI-Bewertungen in verschachtelten Schleifen; PositiveInfinity wenn nicht erreichbar.
     /// </summary>
-    public static float Estimate(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
+    public static float Estimate(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null) =>
+        Estimate(u, fromSector, fromPos, toSector, toPos, ship, ProfileOf(u, ship));
+
+    /// <summary>
+    /// Schätzung mit ausdrücklichem Mobilitätsprofil (Phase 10): z. B. die Verkaufsfahrt eines noch leeren Händlers mit dem beladenen Profil,
+    /// damit ein Embargo die Route schon bei der Wahl ausschließt.
+    /// </summary>
+    public static float Estimate(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship, MobilityProfile profile)
     {
-        var route = u.CachedRoute(fromSector, toSector);
+        var route = u.CachedRoute(fromSector, toSector, profile);
         if (route is null) return float.PositiveInfinity;
         return DistanceAlong(u, route, fromPos, toPos) / SpeedOf(ship) + route.Count + 1;
     }
@@ -80,9 +91,13 @@ public static class Travel
     }
 
     /// <summary>Geschätzte Strecke innerhalb der Sektoren (Luftlinie je Sektor, Gate-Sprünge frei); PositiveInfinity wenn nicht erreichbar.</summary>
-    public static float EstimateDistance(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)
+    public static float EstimateDistance(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null) =>
+        EstimateDistance(u, fromSector, fromPos, toSector, toPos, ProfileOf(u, ship));
+
+    /// <summary>Geschätzte Strecke mit ausdrücklichem Mobilitätsprofil (Phase 10).</summary>
+    public static float EstimateDistance(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, MobilityProfile profile)
     {
-        var route = u.CachedRoute(fromSector, toSector);
+        var route = u.CachedRoute(fromSector, toSector, profile);
         if (route is null) return float.PositiveInfinity;
         return DistanceAlong(u, route, fromPos, toPos);
     }
@@ -105,10 +120,30 @@ public static class Travel
         return legs is null ? float.PositiveInfinity : legs[^1].EndTick;
     }
 
-    public static void Start(Universe u, Ship ship, SectorId toSector, Vec2 toPos)
+    /// <summary>
+    /// Startet eine Reise. Phase 10: Die Route folgt dem Mobilitätsprofil des Schiffs; Zoll der Gates auf der Route wird beim Antritt fällig
+    /// (<see cref="GateAccess.PayToll"/>). Ist das Ziel für das Schiff nicht erreichbar (Sperre, geschlossenes Gate), startet keine Reise:
+    /// Der Auftrag fällt weg, die Fracht bleibt, das Schiff denkt bald neu (<see cref="RouteBlocked"/>) — früher wurde es ans Ziel „teleportiert“.
+    /// </summary>
+    public static bool Start(Universe u, Ship ship, SectorId toSector, Vec2 toPos)
     {
-        var legs = Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos, ship)
-                   ?? new List<Leg> { new(toSector, toPos, toPos, u.Tick, u.Tick + 1) };   // unerreichbar: sofort "teleportieren"
+        var profile = ProfileOf(u, ship);
+        var route = u.FindRoute(ship.Sector, toSector, profile);
+        var legs = route is null ? null : Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos, ship);
+        if (legs is null)
+        {
+            AccessEnforcement.Release(u, ship);
+            u.Events.Publish(new RouteBlocked(ship.Id, toSector, "Ziel nicht erreichbar"));
+            return false;
+        }
+        // Zoll je Gate der Route (Profil mit echter Fracht), an die Kasse der Sektorfraktion
+        if (!profile.IsPhysical && u.AccessRestricted)
+            foreach (var gid in route!)
+            {
+                var gate = u.Gates[gid];
+                var pass = GateAccess.Evaluate(u, gate, profile, ship);
+                if (pass.Toll > 0f) GateAccess.PayToll(u, ship, gate, pass);
+            }
         // Treibstoffverbrauch (Phase 4b): Strecke innerhalb der Sektoren × fuelUse / efficiency wird aus dem Tank gebucht
         // (Gate-Sprünge sind frei; die Legs liegen je Sektor, Sprünge dazwischen kosten nichts). KI-Schiffe stellen den
         // Treibstoff vorher über Refuel sicher; der Tankdeckel verhindert negative Stände.
@@ -122,5 +157,6 @@ public static class Travel
             ToPosition = toPos,
             Legs = legs,
         });
+        return true;
     }
 }

@@ -67,7 +67,7 @@ public sealed class FleetSystem : ISimSystem
             if (units <= 0f || used + units > limit + rules.FleetCapacityOvershoot) continue;
             if (ShipPurchase.Materials(u, cls, model.Fit) is not { } needs) continue;
             var yard = u.Stations.Values
-                .Where(s => (!dealers || ShipPurchase.Sells(u, s, cls)) && u.IsReachable(buyer.Sector, s.Sector) && ShipPurchase.Missing(s, needs).Count == 0)
+                .Where(s => (!dealers || ShipPurchase.Sells(u, s, cls)) && u.IsReachable(buyer.Sector, s.Sector, GateAccess.ProfileOf(u, buyer)) && ShipPurchase.Missing(s, needs).Count == 0)
                 .OrderBy(s => Travel.Estimate(u, buyer.Sector, buyer.Position, s.Sector, s.Position, buyer)).ThenBy(s => s.Id.Value).FirstOrDefault();
             if (yard is null) continue;
             float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
@@ -132,12 +132,15 @@ public sealed class FleetSystem : ISimSystem
             return;
         }
 
-        // Regel vor Phase 6: Kopie des Elternschiffs. Bausatzstufe nach dessen Klasse (Phase 5a), sonst die Regel
+        // Regel vor Phase 6: Kopie des Elternschiffs. Bausatzstufe nach dessen Klasse (Phase 5a), sonst die Regel.
+        // Phase 10 (Fehlerkorrektur): auch die Kopie hält die Kapazitätsgrenze samt Überhang ein (vorher konnte ein kopierter großer Frachter
+        // die Grenze um mehr als FleetCapacityOvershoot überschreiten)
+        if (used + ShipJobs.UnitsOf(u, parent, job) > limit + rules.FleetCapacityOvershoot) return;
         var cls = ClassOf(u, parent);
         var kit = u.FindGood(ShipPurchase.KitKeyOf(u, cls));
         if (kit is null) return;
         bool dealers = u.StationTypes.Values.Any(t => t.ShipDealer is not null);
-        bool Yard(Station s) => (!dealers || cls is null || ShipPurchase.Sells(u, s, cls)) && u.IsReachable(parent.Sector, s.Sector);
+        bool Yard(Station s) => (!dealers || cls is null || ShipPurchase.Sells(u, s, cls)) && u.IsReachable(parent.Sector, s.Sector, GateAccess.ProfileOf(u, parent));
         Station? Nearest(IReadOnlyList<MaterialNeed> needs) => u.Stations.Values
             .Where(s => ShipPurchase.Missing(s, needs).Count == 0 && Yard(s))
             .OrderBy(s => Travel.Estimate(u, parent.Sector, parent.Position, s.Sector, s.Position, parent)).ThenBy(s => s.Id.Value).FirstOrDefault();

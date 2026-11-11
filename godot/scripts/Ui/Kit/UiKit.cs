@@ -64,9 +64,9 @@ public static class UiKit
 
 	/// <summary>
 	/// Fließtext mit manuellem Zeilenumbruch (ca. Zeichenbreite = size × 0.52): ein Label mit Autowrap ist
-	/// in frei platzierten Controls unzuverlässig, deshalb hier selbst umbrechen.
+	/// in frei platzierten Controls unzuverlässig, deshalb hier selbst umbrechen. Liefert die y-Position unter dem Text.
 	/// </summary>
-	public static void WrappedText(Control parent, string text, float x, float y, float w, int size, Color color, int lineH = 0)
+	public static float WrappedText(Control parent, string text, float x, float y, float w, int size, Color color, int lineH = 0)
 	{
 		if (lineH <= 0) lineH = size + 6;
 		float maxChars = MathF.Max(10f, w / (size * 0.52f));
@@ -84,6 +84,7 @@ public static class UiKit
 			if (line.Length > 0) line.Append(' ');
 			line.Append(word);
 		}
-		if (line.Length > 0) At(parent, Text(line.ToString(), size, color), x, cy, w, lineH);
+		if (line.Length > 0) { At(parent, Text(line.ToString(), size, color), x, cy, w, lineH); cy += lineH; }
+		return cy;
 	}
 }

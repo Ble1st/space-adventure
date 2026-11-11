@@ -171,4 +171,60 @@ public sealed class EconomyRules
     public float RelationFree = 0.1f;
     /// <summary>Vorgabe-Beziehung aller zu Gesetzlosen.</summary>
     public float RelationOutlaw = -0.6f;
+
+    // ───────── Phase 10: Gate-Zugang, Sperrstufen, Kontrollpunkte, Sektorkontrolle, Regierungsstationen ─────────
+    /// <summary>Darf eine Station überhaupt erobert werden (POLITIK.md/FLOTTEN.md: zunächst abgeschaltet, erst nach Kampf)?</summary>
+    public bool AllowStationCapture = false;
+    /// <summary>Höchste Sperrstufe an einem Gate der Hauptroute (Gate-Ausnahme von der Sektorsperre; 3 = nur Feinde bleiben draußen).</summary>
+    public int MainRouteMaxLevel = 3;
+    /// <summary>Zoll je Gate-Passage und Sperrstufe (Stufe 1–3, Nichtmitglieder ohne Bündnis), fließt in die Kasse der Sektorfraktion.</summary>
+    public float GateTollPerLevel = 8f;
+    /// <summary>Beziehung, ab der ein Schiff als Verbündeter gilt (passiert Stufe 1–3 frei).</summary>
+    public float AllyRelation = 0.5f;
+    /// <summary>Beziehung, bis zu der ein Schiff als Gegner gilt (Stufe 2: beladen abgewiesen, Stufe 3: abgewiesen).</summary>
+    public float HostileRelation = -0.15f;
+    /// <summary>Schwellen der Sperrstufen 1–5: die schlechteste Beziehung der Sektorfraktion zu einer anderen Fraktion unter dem Wert i ergibt Stufe i+1.</summary>
+    public List<float> LockThresholds = new() { -0.15f, -0.3f, -0.45f, -0.65f, -0.85f };
+    /// <summary>Verschiebung der Schwellen nach Aggression: (Aggression − 0,5) × Wert wird addiert (aggressive Fraktionen sperren früher).</summary>
+    public float LockAggressionShift = 0.2f;
+    /// <summary>Hysterese: Eine Stufe sinkt erst, wenn die Beziehung um diesen Wert über ihrer Schwelle liegt.</summary>
+    public float LockHysteresis = 0.1f;
+    /// <summary>Mindestdauer einer Sperrstufe in Ticks, bevor sie sich wieder ändern darf.</summary>
+    public int LockMinTicks = 2000;
+    /// <summary>Ablauf: Eine Sperre fällt nach so vielen Ticks auf 0 (keine dauerhafte Schließung).</summary>
+    public int LockMaxTicks = 12000;
+    /// <summary>Abkühlzeit nach einem Ablauf, in der keine neue Sperre entsteht.</summary>
+    public int LockCooldownTicks = 4000;
+    /// <summary>Durchsetzungskosten je Tick und Sperrstufe aus der Kasse der Sektorfraktion (ohne Geld: Sperre auf dem Papier).</summary>
+    public float LockUpkeepPerLevel = 0.5f;
+    /// <summary>Höchste Sperrstufe je Kontrollstufe (keine, Präsenz, Einfluss, Dominanz, Kontrolle).</summary>
+    public List<int> StageMaxLevel = new() { 0, 0, 0, 2, 5 };
+    /// <summary>Höchste Sperrstufe in einem umkämpften Sektor.</summary>
+    public int ContestedMaxLevel = 1;
+    /// <summary>Anteil, ab dem zwei Fraktionen einen Sektor umkämpfen.</summary>
+    public float ContestedShare = 0.3f;
+    /// <summary>Anteil für Dominanz (zusätzlich Sektor-HQ oder Wache).</summary>
+    public float DominanceShare = 0.5f;
+    /// <summary>Besitzerwechsel nur, wenn der neue Spitzenreiter diesen Anteil vor dem bisherigen Besitzer liegt (Hysterese).</summary>
+    public float OwnerSwitchMargin = 0.1f;
+    /// <summary>Sensorstärke eines Gate-Kontrollpunkts (Entdeckung: Tarnstärke darüber passiert unbemerkt).</summary>
+    public float GateSensorStrength = 1f;
+    /// <summary>Schmuggelware (Warenschlüssel), die ab Stufe 1 an Gates abgewiesen wird; leer = keine.</summary>
+    public List<string> Contraband = new();
+    /// <summary>Beziehungen: Ruhewert ohne Einflüsse (Vorgabe).</summary>
+    public float RelationRestBase = 0f;
+    /// <summary>Beziehungen: Gewicht der Kooperation (über 0,5 hebt den Ruhewert).</summary>
+    public float RelationCooperationWeight = 0.5f;
+    /// <summary>Beziehungen: Gewicht der Aggression (über 0,5 senkt den Ruhewert).</summary>
+    public float RelationAggressionWeight = 0.5f;
+    /// <summary>Beziehungen: Gewicht des gemeinsamen Handels (Anteil der Handelsaufträge zwischen den Stationen beider Fraktionen).</summary>
+    public float RelationTradeWeight = 0.4f;
+    /// <summary>Beziehungen: Anteil des Abstands zum Ruhewert, der je Schritt (<see cref="RelationStepTicks"/>) ausgeglichen wird.</summary>
+    public float RelationDriftRate = 0.05f;
+    /// <summary>Beziehungen: Takt der Beziehungsänderung in Ticks.</summary>
+    public int RelationStepTicks = 100;
+    /// <summary>Beziehungen: Meinungsverlust je Schritt und umkämpftem Sektor (beide Seiten).</summary>
+    public float ContestOpinionLoss = 0.02f;
+    /// <summary>Beziehungen: Meinungsverlust je Schritt und Sperrstufe, die eine Fraktion gegen die andere durchsetzt (× (0,5 + Handelsanteil)).</summary>
+    public float LockOpinionLoss = 0.005f;
 }

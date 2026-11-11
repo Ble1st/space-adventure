@@ -331,7 +331,7 @@ public class ModuleGoodsTests
     [Fact]
     public void SaveLoad_V6_Roundtrip_ContentUndFortsetzungBitIdentisch()
     {
-        Assert.Equal(12, SaveGame.CurrentVersion);   // v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c)
+        Assert.Equal(13, SaveGame.CurrentVersion);   // v13: Gate-Zugang/Sektorkontrolle (Phase 10); v12: Akteure (Phase 9); v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8 (Phase 5c)
         var u = DemoUniverse.Create();
         var runner = new SimulationRunner();
         runner.Run(u, 3_000);

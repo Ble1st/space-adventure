@@ -32,9 +32,31 @@ public sealed class UpkeepSystem : ISimSystem
         }
 
         // Phase 8: Baustellen (Treuhandgeld des Investors) zahlen weder Unterhalt noch Vermögensabgabe
+        // Phase 10: Regierungsstationen und Wachen zahlen ihren Unterhalt aus der Kasse des Besitzers (Senke für die Fraktionskassen);
+        // reicht die Kasse nicht, zahlt die Station, soweit sie Geld hat — der Rest bleibt unbezahlt (gemeldet, keine Schulden)
+        var official = new SortedDictionary<int, (float paid, float unpaid)>();
         foreach (var st in u.Stations.Values)
             if (!st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var type))
+            {
+                float stUpkeep = type.UpkeepPerTick * dt;
+                if (type.Government != GovernmentKind.None && stUpkeep > 0f)
+                {
+                    var cur = official.GetValueOrDefault(st.Owner.Value);
+                    if (u.Actors.TryGetValue(st.Owner, out var owner) && owner.Treasury.Credits >= stUpkeep)
+                    {
+                        owner.Treasury.Credits -= stUpkeep;
+                        official[st.Owner.Value] = (cur.paid + stUpkeep, cur.unpaid);
+                        st.Credits += type.IncomePerTick * dt;
+                        continue;
+                    }
+                    float own = Math.Clamp(st.Credits + type.IncomePerTick * dt, 0f, stUpkeep);
+                    official[st.Owner.Value] = (cur.paid, cur.unpaid + stUpkeep - own);
+                    st.Credits += type.IncomePerTick * dt - own;
+                    continue;
+                }
                 st.Credits += (type.IncomePerTick - type.UpkeepPerTick) * dt;
+            }
+        foreach (var (actor, (paid, unpaid)) in official) u.Events.Publish(new TreasuryUpkeep(new ActorId(actor), "government", paid, unpaid));
         foreach (var st in u.Stations.Values)
             if (!st.IsBuildSite && st.Credits > 0f)
             {

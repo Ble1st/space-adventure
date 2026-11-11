@@ -180,6 +180,14 @@ public sealed class StationTypeDef
     public ShipDealerDef? ShipDealer { get; set; }
     /// <summary>Phase 8: eigene Stückliste für den Bau (Warenschlüssel → Einheiten); fehlt = Regel <c>rules.constructionMaterials</c>.</summary>
     public Dictionary<string, float>? Construction { get; set; }
+    /// <summary>Phase 10: Regierungsform (headquarters, company_seat, sector_hq, office, police); fehlt = keine.</summary>
+    public string? Government { get; set; }
+    /// <summary>Phase 10: Einflussgewicht in der Sektorkontrolle (Standard 1).</summary>
+    public float Influence { get; set; } = 1f;
+    /// <summary>Phase 10: eroberbar (Standard ja; Regierungsstationen nie, Regel <c>allowStationCapture</c> derzeit aus).</summary>
+    public bool Capturable { get; set; } = true;
+    /// <summary>Phase 10: zerstörbar (Standard ja; erst mit Kampf relevant).</summary>
+    public bool Destructible { get; set; } = true;
 }
 
 /// <summary>
@@ -264,12 +272,21 @@ public sealed class StationDef
     /// <summary>Vor Pleite geschützt (Phase 8; gleichbedeutend mit dem Alias <see cref="Essential"/>).</summary>
     public bool BankruptcyProtected { get; set; }
     public float Credits { get; set; } = 10_000;
+    /// <summary>Phase 10: unzerstörbar und nicht eroberbar (Tutorial, Szenario); nur aus der Weltdatei.</summary>
+    public bool Immortal { get; set; }
     /// <summary>Ware → [Bestand, Wunschbestand]. Fehlende Waren aus den Rezepten bekommen Standardwerte.</summary>
     public Dictionary<string, float[]> Stock { get; set; } = new();
 }
 
 public sealed class GateEndDef { public int Id { get; set; } public int Sector { get; set; } public float[] Pos { get; set; } = { 0, 0 }; }
-public sealed class GateLinkDef { public GateEndDef A { get; set; } = new(); public GateEndDef B { get; set; } = new(); }
+public sealed class GateLinkDef
+{
+    public GateEndDef A { get; set; } = new(); public GateEndDef B { get; set; } = new();
+    /// <summary>Phase 10: Hauptroute (Gate-Ausnahme von Sektorsperren, höchstens <c>rules.mainRouteMaxLevel</c>).</summary>
+    public bool MainRoute { get; set; }
+    /// <summary>Phase 10: Anfangszustand des Gate-Paars (open, closed, destroyed); fehlt = offen.</summary>
+    public string? State { get; set; }
+}
 
 public sealed class ShipGroupDef
 {

@@ -79,6 +79,8 @@ public partial class Main : Node3D
 	float _pinchLast;
 
 	Ship PlayerData => _session.Player;
+	/// <summary>Phase 10: Meldung des letzten Sprungversuchs (Grund einer Ablehnung oder Zollquittung; Selbsttest).</summary>
+	public string LastJumpMessage { get; private set; } = "";
 
 	public override void _Ready()
 	{
@@ -512,10 +514,13 @@ public partial class Main : Node3D
 	(Vector2, float, float) Autopilot(NavTarget target)
 	{
 		var u = _session.U;
-		var step = Navigator.Next(u, u.PlayerSector, new Vec2(_player.Position.X, _player.Position.Z), target);
+		// Phase 10: Route nach dem Mobilitätsprofil des Spielerschiffs (gesperrte Gates werden umflogen, sonst Meldung mit Grund)
+		var step = Navigator.Next(u, u.PlayerSector, new Vec2(_player.Position.X, _player.Position.Z), target, PlayerData);
 		switch (step.Status)
 		{
-			case NavStatus.Unreachable: _hud.Toast("Kein Weg zum Ziel (Gates gesperrt)"); CancelAutopilot(); return (Vector2.Zero, 0f, 1f);
+			case NavStatus.Unreachable:
+				_hud.Toast("Kein Weg zum Ziel: " + (GateAccess.BlockReason(u, PlayerData, u.PlayerSector, target.Sector) ?? "Gates gesperrt"));
+				CancelAutopilot(); return (Vector2.Zero, 0f, 1f);
 			case NavStatus.Arrived:
 				_hud.Toast($"Ziel erreicht: {target.Label}");
 				CancelAutopilot();
@@ -550,6 +555,24 @@ public partial class Main : Node3D
 	void Jump(GateId gateId)
 	{
 		var u = _session.U;
+		// Phase 10: Kontrollpunkt am Gate — Sperre (mit Grund) oder Zoll aus der Spielerkasse; abgewiesen prallt das Schiff ab
+		var check = GateAccess.TryPlayerJump(u, PlayerData, u.Gates[gateId]);
+		if (!check.Allowed)
+		{
+			LastJumpMessage = check.Message;
+			var gp = u.Gates[gateId].Position;
+			var away = new Vector3(_player.Position.X - gp.X, 0, _player.Position.Z - gp.Y);
+			away = away.LengthSquared() > 0.01f ? away.Normalized() : Vector3.Back;
+			_player.Position = new Vector3(gp.X, 0, gp.Y) + away * (GateRadius + 4f);
+			_player.Velocity = away * 6f;
+			_jumpCooldown = 2f;
+			CancelAutopilot();
+			_sfx.Play(SfxId.Click);
+			_hud.Toast(check.Message);
+			return;
+		}
+		LastJumpMessage = check.Message;
+		if (check.Message.Length > 0) _hud.Toast(check.Message);
 		var far = u.Gates[u.Gates[gateId].Target];
 		u.MoveShip(PlayerData, far.Sector);
 		u.PlayerSector = far.Sector;
@@ -601,7 +624,7 @@ public partial class Main : Node3D
 		if (t.Sector == u.PlayerSector) world = new Vector3(t.Position.X, 0, t.Position.Y);
 		else
 		{
-			var route = u.FindRoute(u.PlayerSector, t.Sector);
+			var route = u.FindRoute(u.PlayerSector, t.Sector, GateAccess.ProfileOf(u, PlayerData));
 			if (route is not { Count: > 0 }) return null;
 			var g = u.Gates[route[0]].Position;
 			world = new Vector3(g.X, 0, g.Y);
@@ -1395,6 +1418,7 @@ public partial class Main : Node3D
 		foreach (var sid in u.Sectors[u.PlayerSector].Stations)
 		{
 			var st = u.Stations[sid];
+			if (st.Market.Count == 0) continue;   // Phase 10: Regierungsstationen ohne Markt überspringen (Test/Bildschirmfotos wollen Handel)
 			float d = Vec2.Distance(here, st.Position);
 			if (d < bd) { bd = d; best = st; }
 		}
@@ -1423,6 +1447,14 @@ public partial class Main : Node3D
 		u.PlayerSector = sector;
 		_view.Rebuild(u);
 		_mining.ResetNpc(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
+	}
+	/// <summary>Phase 10: Sprung durch ein Gate des aktuellen Sektors auslösen (wie das Einfliegen ins Gate); false = abgewiesen.</summary>
+	internal bool TestJumpThrough(GateId gate)
+	{
+		var before = _session.U.PlayerSector;
+		_jumpCooldown = 0f;
+		Jump(gate);
+		return _session.U.PlayerSector != before;
 	}
 	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (auch Baustelle) und Andocken.</summary>
 	internal void TestDockAt(StationId id) { TestTeleportNear(id); Dock(id); }

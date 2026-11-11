@@ -59,6 +59,17 @@ public sealed class StationType
     /// <see cref="EconomyRules.ConstructionMaterials"/> × <see cref="EconomyRules.ConstructionMaterialShare"/> der Bausumme.
     /// </summary>
     public Dictionary<GoodId, float>? Construction;
+    /// <summary>
+    /// Phase 10: Regierungsform (Hauptquartier, Firmensitz, Sektor-HQ, Büro, Polizeiwache; JSON <c>government</c>). Regierungsstationen zahlen
+    /// ihren Unterhalt aus der Kasse des Besitzers, sind vor Pleite geschützt und zählen nicht gegen die Bau-Obergrenzen.
+    /// </summary>
+    public GovernmentKind Government;
+    /// <summary>Phase 10: Einflussgewicht einer Station dieses Typs in der Sektorkontrolle (JSON <c>influence</c>, Standard 1; Baustellen 0).</summary>
+    public float Influence = 1f;
+    /// <summary>Phase 10: Kann eine Station dieses Typs erobert werden (sofern die Regel <see cref="EconomyRules.AllowStationCapture"/> es erlaubt)? Standard ja.</summary>
+    public bool Capturable = true;
+    /// <summary>Phase 10: Kann eine Station dieses Typs zerstört werden (erst mit Kampf relevant)? Standard ja.</summary>
+    public bool Destructible = true;
 }
 
 /// <summary>
@@ -93,6 +104,12 @@ public sealed class Station
     public bool BankruptcyProtected;
     /// <summary>Baustelle (Phase 8): gesetzt, solange die Station im Bau ist (oder als verlassene Baustelle Material lagert); null = fertige Station.</summary>
     public BuildSite? Site;
+    /// <summary>
+    /// Phase 10 (STATIONEN.md „Essential aufgedröselt“): unzerstörbar und nicht eroberbar (Tutorial, Szenario); nur aus der Weltdatei
+    /// (<c>immortal</c>), gespeichert. Die übrigen Eigenschaften (<c>Government</c>, <c>Capturable</c>, <c>Destructible</c>) folgen aus dem Typ
+    /// (<see cref="Simulation.StationProtection"/>).
+    /// </summary>
+    public bool Immortal;
     /// <summary>Ist die Station eine Baustelle (auch verlassen)? Baustellen produzieren nicht, zahlen keinen Unterhalt und gehen nicht pleite.</summary>
     public bool IsBuildSite => Site is not null;
     /// <summary>

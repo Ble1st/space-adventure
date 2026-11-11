@@ -198,6 +198,38 @@ public partial class UiShots : Node
 				_stage = 494; _wait = 30; break;
 			}
 			case 494: Capture("28-hud-spalter.png"); _stage = 495; _wait = 5; break;
+			case 495: // Phase 10: Gilde sieht die Union feindlich — Gamma (Kontrolle) Stufe 3, Delta (Dominanz) Stufe 2
+			{
+				var uni = _m.Session.U;
+				SpaceSim.Core.Simulation.Relations.Set(uni, new SpaceSim.Core.Model.FactionId(2), new SpaceSim.Core.Model.FactionId(1), -0.9f);
+				SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, uni.Sectors[new SpaceSim.Core.Model.SectorId(3)], 3);
+				SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, uni.Sectors[new SpaceSim.Core.Model.SectorId(4)], 2);
+				_m.TestEnterSector(new SpaceSim.Core.Model.SectorId(2));
+				_m.TestOpenCcArea("universe");
+				_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Security;
+				_m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(3));
+				_stage = 496; _wait = 20; break;
+			}
+			case 496: Capture("29-cc-universum-sicherheit-sperre.png"); _stage = 497; _wait = 10; break;
+			case 497:
+				_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Faction;
+				_m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(4));
+				_stage = 498; _wait = 20; break;
+			case 498: Capture("30-cc-universum-fraktion-zoll.png"); _stage = 499; _wait = 10; break;
+			case 499: _m.TestOpenCcArea("sector"); _m.TestCcSelectSectorView(new SpaceSim.Core.Model.SectorId(2)); _stage = 500; _wait = 20; break;
+			case 500: Capture("31-cc-sektor-gesperrtes-gate.png"); _stage = 501; _wait = 10; break;
+			case 501:
+			{
+				_m.TestCloseCommand();
+				var uni = _m.Session.U;
+				var st = uni.Stations.Values.First(x => x.Sector.Value == 2 && x.Market.Count > 0);
+				_m.TestDockAt(st.Id);
+				_stage = 502; _wait = 90; break;
+			}
+			case 502:
+				_m.HudRef.DockCtx.Station = _m.Session.U.Stations.Values.First(x => x.Sector.Value == 3 && x.TypeKey == "colony");
+				_m.TestOpenDockArea("info"); _stage = 503; _wait = 20; break;
+			case 503: Capture("32-dock-station-info-politik.png"); _stage = 504; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);
