@@ -14,4 +14,6 @@ public sealed class Faction
     public HashSet<SectorId> Territory = new();
     /// <summary>Phase 8: Tick des letzten Notbaus dieser Fraktion (Bremse: höchstens einer je Abkühlzeit, <see cref="EconomyRules.EmergencyBuildCooldown"/>); gespeichert.</summary>
     public long LastEmergencyBuildTick = -1_000_000;
+    /// <summary>Phase 13: Forschungsstand der Fraktion (fraktionsweit: gilt für alle ihre Stationen); gespeichert.</summary>
+    public ResearchState Research = new();
 }

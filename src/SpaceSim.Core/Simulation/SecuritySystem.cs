@@ -92,7 +92,7 @@ public sealed class SecuritySystem : ISimSystem
             || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls) || ShipPurchase.Materials(u, model) is not { } needs) return null;
         var home = HomeBaseFor(u, f, null);
         if (home is null) return null;
-        foreach (var yard in u.Stations.Values.Where(st => !st.IsBuildSite && ShipPurchase.Sells(u, st, cls)).OrderBy(st => st.Id.Value))
+        foreach (var yard in u.Stations.Values.Where(st => !st.IsBuildSite && ShipPurchase.SellsModel(u, st, model)).OrderBy(st => st.Id.Value))
         {
             if (!u.IsReachable(yard.Sector, home.Sector) || ShipPurchase.Missing(yard, needs).Count > 0) continue;
             float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
@@ -119,7 +119,8 @@ public sealed class SecuritySystem : ISimSystem
         {
             GovernmentKind.Police => 0, GovernmentKind.Headquarters => 1, GovernmentKind.SectorHq => 2, _ => 3,
         };
-        return u.Stations.Values.Where(st => !st.IsBuildSite && st.Owner == (ActorId)f && StationProtection.IsOfficial(u, st))
+        // Phase 13: Forschungsstationen sind keine Heimatbasis der Polizei
+        return u.Stations.Values.Where(st => !st.IsBuildSite && st.Owner == (ActorId)f && StationProtection.IsOfficial(u, st) && StationProtection.KindOf(u, st) != GovernmentKind.Research)
             .OrderBy(st => near is { } n && st.Sector == n ? 0 : 1).ThenBy(Rank).ThenBy(st => st.Id.Value).FirstOrDefault();
     }
 

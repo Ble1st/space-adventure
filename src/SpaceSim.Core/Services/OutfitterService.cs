@@ -1,5 +1,6 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Simulation;
 
 namespace SpaceSim.Core.Services;
 
@@ -124,6 +125,14 @@ public sealed class OutfitterService : IStationService
                 if (m.Key == ship.Fit[i] || FitRules.SlotIssue(m, slot, i) is not null) continue;
                 float held = ship.Cargo.GetValueOrDefault(g!.Id);
                 bool inStock = station.Market.TryGetValue(g.Id, out var e) && e.Amount >= 1f && e.Price > 0f;
+                // Phase 13: gesperrte Module (für die Fraktion der Station nicht erforscht) bleiben als „nicht erforscht“ sichtbar, ohne Lager nicht einbaubar
+                bool locked = held < 1f && !Research.Available(u, station, UnlockKind.Module, m.Key);
+                if (locked)
+                {
+                    offers.Add(new ServiceOffer($"{Fit}:{i}:{m.Key}", $"Einbauen: {g.Name} (Slot {i + 1} {slotName}) – {Research.LockText(u, station, UnlockKind.Module, m.Key)}",
+                        e?.Price ?? g.BasePrice, 0f, g.Id, e?.Amount ?? 0f, 0f));
+                    continue;
+                }
                 if (held < 1f && !inStock) continue;
                 float price = held >= 1f ? 0f : e!.Price;
                 var p = Preview(u, station, ship, i, m.Key);
@@ -166,6 +175,8 @@ public sealed class OutfitterService : IStationService
             inGood = u.FindGood(moduleKey);
             if (inGood is null) return Fail("Für dieses Modul gibt es keine Ware.");
             fromCargo = ship.Cargo.GetValueOrDefault(inGood.Id) >= 1f;
+            if (!fromCargo && Research.LockText(u, station, UnlockKind.Module, moduleKey) is { } locked)
+                return Fail($"{inGood.Name}: {locked}.");
             if (!fromCargo)
             {
                 if (!station.Market.TryGetValue(inGood.Id, out var e) || e.Price <= 0f || e.Amount < 1f)

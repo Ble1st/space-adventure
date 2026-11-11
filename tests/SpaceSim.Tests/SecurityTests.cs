@@ -660,7 +660,7 @@ public class SecurityTests
         var raider = a.Ships.Values.First(ThreatMap.IsRaider);
         a.PendingEncounters.Add(new PendingEncounter { Kind = EncounterKind.Raid, Source = raider.Id, Target = a.PlayerShip, Sector = raider.Sector, DueTick = a.Tick + 40 });
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
+        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.Player.Wanted[Guild].Heat, loaded.Player.Wanted[Guild].Heat);
@@ -735,9 +735,11 @@ public class SecurityTests
             }
         };
         var runner = new SimulationRunner();
+        int raidersLate = 0;   // Phase 13: höchste Zahl Kaperschiffe im letzten Viertel (eine ausgelöschte Flotte fängt neu an)
         for (int t = 0; t < 20_000; t += 500)
         {
             runner.Run(u, 500);
+            if (u.Tick > 15_000) raidersLate = Math.Max(raidersLate, u.Ships.Values.Count(ThreatMap.IsRaider));
             // keine Geisteraufträge: Polizei und Piraten haben nur Patrouillen- oder Heimflüge, nie Handels-/Abbauaufträge
             Assert.All(u.Ships.Values.Where(s => s.Role is ShipRole.Police or ShipRole.Pirate), s => Assert.True(s.Order is null or PatrolOrder or GoToOrder));
             Assert.All(u.Ships.Values, s => Assert.InRange(s.Hull, 0f, s.MaxHull + 0.01f));
@@ -750,7 +752,31 @@ public class SecurityTests
         // die Flotte hält ihre Kapazität (Neubauten ersetzen Verluste)
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) >= 11f);
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!) >= 6f);
-        Assert.True(u.Ships.Values.Count(ThreatMap.IsRaider) >= 1);
+        // Phase 13: Piraten bleiben im Spiel — im letzten Viertel gab es Kaperschiffe; ist die Flotte gerade ausgelöscht (Standard-Seed ab Tick 18000),
+        // baut der Neuanfang (RaiderRestartCostFactor, PirateIdleIncomePerTick) sie wieder auf, statt sie für immer zu verlieren
+        Assert.True(raidersLate >= 1);
+        Assert.True(u.Ships.Values.Count(ThreatMap.IsRaider) >= 1 || u.Actors.Values.Any(a => a.Kind == ActorKind.Outlaw && a.Treasury.Credits > 0f));
         Assert.All(u.Factions.Keys, f => Assert.True(SecuritySystem.PoliceOf(u, f).Count >= u.Rules.PoliceMinPerFaction));
+    }
+
+    [Fact]
+    public void Piraten_Neuanfang_NachAusloeschung_HalberPreis_EinnahmeNurOhneFlotte()   // Phase 13 (Korrektur an Phase 11)
+    {
+        var u = Fresh();
+        var outlaw = u.Actors.Values.Single(a => a.Kind == ActorKind.Outlaw);
+        foreach (var s in u.Ships.Values.Where(ThreatMap.IsRaider).ToList()) u.RemoveShip(s.Id, "test");
+        outlaw.Treasury.Credits = 0f;
+        var built = new List<RaiderBuilt>();
+        double income = 0;
+        u.Events.Raised += e =>
+        {
+            if (e is RaiderBuilt b) built.Add(b);
+            else if (e is TreasuryIncome { Purpose: "hideout" } t) income += t.Amount;
+        };
+        new SimulationRunner().Run(u, 12_000);
+        var first = Assert.Single(built.Take(1));
+        Assert.Equal(u.Rules.RaiderCost * u.Rules.RaiderRestartCostFactor, first.Cost, 3);
+        Assert.InRange(income, 0.9 * first.Cost, 1.2 * first.Cost);   // die Einnahme floss nur, solange kein Kaperschiff da war
+        Assert.True(u.Ships.Values.Count(ThreatMap.IsRaider) >= 1);
     }
 }

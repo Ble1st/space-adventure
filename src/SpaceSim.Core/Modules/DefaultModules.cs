@@ -9,6 +9,16 @@ public sealed class ProductionModule : ISimModule
 }
 
 /// <summary>
+/// Phase 13: Forschung (FORSCHUNG.md). Läuft direkt nach Produktion und Markt: deckelt die Gebote der Forschungsstationen auf ihre Verbrauchsgüter,
+/// bevor Händler ihre Ziele wählen, füllt ihr Budget aus der Fraktionskasse und bucht je Takt Forschungspunkte; Freischaltungen gelten sofort.
+/// </summary>
+public sealed class ResearchModule : ISimModule
+{
+    public string Name => "Research";
+    public void Register(SimulationBuilder b) => b.Add(new ResearchSystem());
+}
+
+/// <summary>
 /// Phase 12: Befehle (FLOTTEN.md Abschnitt 4, Ebenen Notfall &gt; Befehl &gt; Automatik) und Hangar (Liegegebühr). Läuft vor der Aufgabenwahl und den
 /// ausführenden Systemen, damit ein neuer Arbeitsbefehl (Handel, Abbau, Bau) im selben Tick ausgeführt wird. Schiffe ohne Befehl kosten nichts.
 /// </summary>

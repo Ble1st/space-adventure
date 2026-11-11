@@ -37,6 +37,8 @@ public class PoliticsTests
         foreach (var t in types.ToList())
         {
             var o = t!.AsObject();
+            // Phase 13: Forschungsstationen (Typ mit Forschungsbetrieb) baut ResearchTests.ToV15Json nicht zurück — sie bleiben wie eigener Content stehen
+            if (o["Research"] is not null) continue;
             if (o["Government"] is not null) { gov.Add((string)o["Key"]!); types.Remove(t); continue; }
             o.Remove("Influence"); o.Remove("Capturable"); o.Remove("Destructible");
         }
@@ -108,7 +110,8 @@ public class PoliticsTests
     public void Startwelt_Regierungsstationen_Kontrollstufen_OffeneHauptrouten()
     {
         var u = DemoUniverse.Create();
-        var gov = u.Stations.Values.Where(s => StationProtection.IsOfficial(u, s)).OrderBy(s => s.Id.Value).ToList();
+        // Phase 13: die Forschungsstationen (37, 38) sind ebenfalls offiziell (Unterhalt aus der Kasse), haben aber einen Markt
+        var gov = u.Stations.Values.Where(s => StationProtection.IsOfficial(u, s) && StationProtection.KindOf(u, s) != GovernmentKind.Research).OrderBy(s => s.Id.Value).ToList();
         Assert.Equal(new[] { 32, 33, 34, 35 }, gov.Select(s => s.Id.Value));
         Assert.Equal(GovernmentKind.Headquarters, StationProtection.KindOf(u, u.Stations[new StationId(32)]));
         Assert.Equal(GovernmentKind.SectorHq, StationProtection.KindOf(u, u.Stations[new StationId(33)]));
@@ -116,7 +119,7 @@ public class PoliticsTests
         foreach (var t in new[] { "headquarters", "company_seat", "sector_hq", "office", "police_station" }) Assert.True(u.StationTypes.ContainsKey(t));
         Assert.Equal(GovernmentKind.Police, u.StationTypes["police_station"].Government);
         // Regierungsstationen zählen nicht gegen die Obergrenzen; die Startwelt hat dieselbe Bau-Reserve wie vorher
-        Assert.Equal(u.Stations.Count - 4 - 1, StationProtection.CountEconomic(u));   // Phase 11: das Piratenversteck zählt ebenfalls nicht
+        Assert.Equal(u.Stations.Count - 4 - 1 - 2, StationProtection.CountEconomic(u));   // Phase 11: das Piratenversteck zählt ebenfalls nicht; Phase 13: die zwei Forschungsstationen auch nicht
         // Sektorkontrolle: Hauptquartier = Behörde + Polizeizentrale → Kontrolle; Sektor-HQ ohne Wache → Dominanz
         Assert.Equal(ControlStage.Control, u.Sectors[Alpha].Control);
         Assert.Equal(ControlStage.Dominance, u.Sectors[Beta].Control);
@@ -517,8 +520,8 @@ public class PoliticsTests
         Assert.True(Relations.Effective(u, Guild, Union) >= 0.15f);
         Assert.False(MapConnectivity.Economy(u).IsSplit);
         Assert.Equal(new[] { Union, Union, Guild, Guild }, u.Sectors.Values.OrderBy(s => s.Id.Value).Select(s => s.Owner));
-        // Regierungsunterhalt ist eine echte Senke der Kassen (6 + 3 Cr/Tick je Fraktion), fast vollständig gedeckt
-        Assert.InRange(gov, 18.0 * 20_000 * 0.95, 18.0 * 20_000 * 1.01);
+        // Regierungsunterhalt ist eine echte Senke der Kassen (6 + 3 Cr/Tick je Fraktion, Phase 13: + 1 Cr/Tick je Forschungsstation), fast vollständig gedeckt
+        Assert.InRange(gov, 20.0 * 20_000 * 0.95, 20.0 * 20_000 * 1.01);
         Assert.True(unpaid < 0.01 * gov);
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) >= 12f);
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!) >= 7f);
@@ -614,7 +617,7 @@ public class PoliticsTests
         float stationBefore = hq.Credits;
         new UpkeepSystem().Step(u, 10);
         var paid = Assert.Single(upkeep, t => t.Actor == (ActorId)Union);
-        Assert.Equal((6f + 3f) * 10, paid.Amount, 3);   // Hauptquartier + Sektor-HQ Beta
+        Assert.Equal((6f + 3f + 1f) * 10, paid.Amount, 3);   // Hauptquartier + Sektor-HQ Beta + Forschungsinstitut (Phase 13)
         Assert.Equal(0f, paid.Unpaid);
         Assert.Equal(stationBefore, hq.Credits, 3);
         upkeep.Clear();
@@ -643,7 +646,7 @@ public class PoliticsTests
         runner.Run(u, 300);
         Assert.False(u.Sectors[Gamma].Access.IsOpen);
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
+        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
         Assert.Contains("\"Destroyed\"", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));
@@ -665,7 +668,7 @@ public class PoliticsTests
         Assert.DoesNotContain("headquarters", v12);
         Assert.DoesNotContain("MainRoute", v12);
         var (loaded, _) = SaveGameJson.Read(v12);
-        Assert.Equal(4, loaded.Stations.Values.Count(s => StationProtection.IsOfficial(loaded, s)));
+        Assert.Equal(4, loaded.Stations.Values.Count(s => StationProtection.IsOfficial(loaded, s) && StationProtection.KindOf(loaded, s) != GovernmentKind.Research));   // Phase 13: Forschungsstationen zählen extra
         Assert.All(loaded.Gates.Values, g => { Assert.True(g.MainRoute); Assert.Equal(GateState.Open, g.State); });
         // Nach dem ersten Schritt der Sektorkontrolle sind frische Welt und migrierter Stand gleich
         new SimulationRunner().Run(u, 2000);
@@ -678,7 +681,7 @@ public class PoliticsTests
     {
         var u = DemoUniverse.Create();
         var (loaded, _) = SaveGameJson.Read(FuelModelTests.ToV5Json(SaveGameJson.Write(u, Now)));
-        Assert.Equal(4, loaded.Stations.Values.Count(s => StationProtection.IsOfficial(loaded, s)));
+        Assert.Equal(4, loaded.Stations.Values.Count(s => StationProtection.IsOfficial(loaded, s) && StationProtection.KindOf(loaded, s) != GovernmentKind.Research));   // Phase 13: Forschungsstationen zählen extra
         new SimulationRunner().Run(loaded, 2000);
         Assert.All(loaded.Sectors.Values, s => Assert.NotEqual(ControlStage.None, s.Control));
     }

@@ -264,6 +264,9 @@ public class ActorTests
         var a = Fresh();
         var b = Fresh();
         a.Rules.TreasuryInvests = b.Rules.TreasuryInvests = false;   // Kassen nur füllen, nicht ausgeben: sonst zahlt ein anderer Investor
+        // Phase 13: Forschungsstationen leben aus der Kasse (Budget, Unterhalt) — ohne Kasse liefen sie anders; für diesen Vergleich ruhen sie ohne Unterhalt
+        a.Rules.ResearchActive = b.Rules.ResearchActive = false;
+        a.StationTypes["research_station"].UpkeepPerTick = b.StationTypes["research_station"].UpkeepPerTick = 0f;
         b.Rules.TaxToTreasuryShare = 0f;   // alte Geldsenke
         var taxes = new List<TaxCollected>();
         double upkeep = 0;   // Phase 10: Unterhalt der Regierungsstationen und Sperren aus den Kassen
@@ -374,7 +377,7 @@ public class ActorTests
         // eine persönliche Beziehung und ein Akteur mit Kasse sollen den Roundtrip überstehen
         Relations.Set(a, a.PlayerActor, new ActorId(2), -0.3f);
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
+        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
         Assert.DoesNotContain("PlayerWallet", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));

@@ -80,6 +80,11 @@ public sealed class StationType
     /// nicht pleite und hat keinen Einfluss auf die Sektorkontrolle (Einfluss 0 in der Weltdatei).
     /// </summary>
     public bool Hideout;
+    /// <summary>
+    /// Phase 13: Forschungsbetrieb (JSON <c>research</c>, Stationstyp mit Regierungsform „research“): Takt, FP, Personalkosten, Grundverbrauch und
+    /// Budget aus der Fraktionskasse; null = keine Forschungsstation.
+    /// </summary>
+    public ResearchConfig? Research;
 }
 
 /// <summary>

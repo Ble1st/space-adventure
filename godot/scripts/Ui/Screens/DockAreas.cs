@@ -33,7 +33,7 @@ public sealed class DockAreaDef
 /// den Dienst „trade“ liefert; „Reparatur &amp; Tanken“, wenn sie „refuel“ oder „repair“ liefert; Ausrüster und Werft, wenn sie
 /// „outfitter“ bzw. „shipdealer“ liefert (Phase 5c); Station-Info und Hangar immer (Phase 12: mit Dienst „hangar“ samt fremden Schiffen, Wechsel,
 /// Verkauf und Leihschiff); Taxi echt, wenn die Station „taxi“ liefert (Phase 12); dazu „Lager“ (Phase 8, „storage“) und „Behörde“ (Phase 11,
-/// „court“/„bounty“, statt der Platzhalterkachel „Aufträge“). Es können neun Kacheln werden — Menü und Leiste rollen dann.
+/// „court“/„bounty“, statt der Platzhalterkachel „Aufträge“) und „Forschung“ (Phase 13, „research“). Es können neun Kacheln werden — Menü und Leiste rollen dann.
 /// </summary>
 public static class DockAreas
 {
@@ -49,6 +49,8 @@ public static class DockAreas
 	public const string Storage = "storage";
 	/// <summary>Phase 11: Behörde (Dienste „court“ und „bounty“, Regierungsstationen); ersetzt dort die Kachel „Aufträge“.</summary>
 	public const string Authority = "authority";
+	/// <summary>Phase 13: Forschung (Dienst „research“, Forschungsstationen).</summary>
+	public const string Research = "research";
 
 	/// <summary>Anzeige-Label je Bereichs-Id (auch für Dienst-Schlüssel der Station-Info).</summary>
 	public static string LabelFor(string id) => id switch
@@ -63,6 +65,7 @@ public static class DockAreas
 		Missions => "Aufträge",
 		Storage => "Lager",
 		Authority => "Behörde",
+		Research => "Forschung",
 		CourtService.ServiceKey => "Gericht",          // Dienst-Schlüssel (Station-Info)
 		BountyService.ServiceKey => "Kopfgeldbüro",
 		_ => id,
@@ -110,6 +113,9 @@ public static class DockAreas
 		list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = taxi ? $"{targets} Ziel{(targets == 1 ? "" : "e")} buchbar" : "Nicht hier", Available = taxi });
 		if (offered.Contains(StorageService.ServiceKey))
 			list.Add(new DockAreaDef { Id = Storage, Label = LabelFor(Storage), Sub = $"{StorageService.Used(st):0}/{u.Rules.StorageCapacity:0} eingelagert", Available = true });
+		// Phase 13: Forschung (Projekte ansehen, beauftragen, mitfinanzieren) an Forschungsstationen
+		if (offered.Contains(ResearchService.ServiceKey) && SpaceSim.Core.Simulation.ResearchInfo.ForStation(u, st) is { } rv)
+			list.Add(new DockAreaDef { Id = Research, Label = LabelFor(Research), Sub = $"{rv.Completed}/{rv.Total} erforscht" + (rv.Current is not null ? " · läuft" : ""), Available = true });
 		// Phase 11: Gericht und Kopfgeldbüro statt der Aufträge-Platzhalterkachel (Missionen gibt es noch nicht)
 		if (offered.Contains(CourtService.ServiceKey) || offered.Contains(BountyService.ServiceKey))
 		{

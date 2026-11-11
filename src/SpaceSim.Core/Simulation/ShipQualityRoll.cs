@@ -62,8 +62,10 @@ public static class ShipQualityRoll
         // 1) bessere Module: Verbessert 1, Elite/Meisterwerk 2–3 (zufällige Auswahl unter den möglichen, jeweils mit Lagerbestand)
         int wanted = grade == ShipQuality.Improved ? 1 : 2 + u.Rng.NextInt(2);
         var candidates = new List<int>();
+        // Phase 13: nur erforschte Ziele (Tech-Stand der Werft; Gründerschiffe ohne Werft nur freie Module)
+        var tech = yard is null ? null : Research.TechOf(u, yard);
         for (int i = 0; i < fit.Count; i++)
-            if (UpgradeTarget(u, fit[i], slots[i]) is not null) candidates.Add(i);
+            if (UpgradeTarget(u, fit[i], slots[i]) is { } t && Research.IsUnlocked(u, tech, UnlockKind.Module, t.Key)) candidates.Add(i);
         int done = 0;
         while (done < wanted && candidates.Count > 0)
         {

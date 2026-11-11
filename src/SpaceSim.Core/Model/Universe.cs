@@ -24,6 +24,8 @@ public sealed class Universe
     public Dictionary<string, ShipClass> ShipClasses = new();
     /// <summary>Schiffsmodelle (Content).</summary>
     public Dictionary<string, ShipModel> ShipModels = new();
+    /// <summary>Phase 13: Forschungsprojekte (Content, Weltdatei-Abschnitt <c>research</c>) und Sperr-Index; leer = alles frei.</summary>
+    public ResearchCatalog Research { get; } = new();
     public EconomyRules Rules = new();
     public long LastStationBuildTick = -1_000_000;
 
@@ -147,11 +149,25 @@ public sealed class Universe
         Events.Publish(new ShipSpawned(s.Id));
     }
 
+    /// <summary>
+    /// Schließt die Lücke, die ein Remove im Dictionary hinterlässt (neu aufbauen in bisheriger Reihenfolge). TrimExcess genügt dafür nicht:
+    /// es verdichtet nur, wenn die Kapazität dabei schrumpft.
+    /// </summary>
+    static void Compact<TKey, TValue>(Dictionary<TKey, TValue> d) where TKey : notnull
+    {
+        var items = d.ToList();
+        d.Clear();
+        foreach (var kv in items) d.Add(kv.Key, kv.Value);
+    }
+
     public void RemoveShip(ShipId id, string reason)
     {
         if (!Ships.TryGetValue(id, out var s)) return;
         if (s.Transit is { } t) Tracker.RemoveTransit(t, id); else Tracker.RemoveParked(s.Sector, id);
         Ships.Remove(id);
+        // Phase 13 (Determinismus): Lücken schließen, damit spätere Schiffe hinten angehängt werden wie in einem geladenen Stand — sonst landet ein
+        // neues Schiff im frei gewordenen Platz, und Systeme, die Ships.Values durchlaufen, sähen nach Speichern/Laden eine andere Reihenfolge
+        Compact(Ships);
         Simulation.Squadrons.OnShipRemoved(this, s);   // Phase 12: Verband verlassen, Anführer folgt nach
         Events.Publish(new ShipRemoved(id, reason));
     }
@@ -226,6 +242,7 @@ public sealed class Universe
     {
         if (!Stations.TryGetValue(id, out var st)) return;
         Stations.Remove(id);
+        Compact(Stations);   // wie bei RemoveShip: Einfügereihenfolge wie nach dem Laden
         Sectors[st.Sector].Stations.Remove(id);
         foreach (var ship in Ships.Values)
         {

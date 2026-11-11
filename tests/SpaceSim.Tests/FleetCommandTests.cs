@@ -34,6 +34,7 @@ public class FleetCommandTests
     /// </summary>
     internal static string ToV14Json(string json)
     {
+        json = ResearchTests.ToV15Json(json);   // Phase 13: erst die Forschung zurückbauen
         var node = JsonNode.Parse(json)!.AsObject();
         if ((int)node["Version"]! < 15) return json;
         node["Version"] = 14;
@@ -538,7 +539,7 @@ public class FleetCommandTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":15", json);
+        Assert.Contains("\"Version\":16", json);   // Phase 13: v16
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Single(loaded.Squadrons);

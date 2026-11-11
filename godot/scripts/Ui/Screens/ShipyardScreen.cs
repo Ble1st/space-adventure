@@ -25,7 +25,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 
 	string _message = "";
 	bool _msgOk = true;
-	int _rows;
+	int _rows, _locked;
 	ScrollContainer? _scroll;
 	int _scrollV;
 
@@ -44,6 +44,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 		var u = Ctx.U;
 		float w = inner.Size.X > 0 ? inner.Size.X : 1020f;
 		_rows = 0;
+		_locked = 0;
 		_scroll = null;
 		float assembly = u.StationTypes.TryGetValue(Ctx.Station.TypeKey, out var t) && t.ShipDealer is { } sd ? sd.Assembly : 0f;
 		At(inner, Text(_message.Length > 0 ? _message
@@ -83,9 +84,12 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 		string material = q.Missing.Count == 0
 			? "Material im Lager: " + string.Join(", ", q.Materials.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"))
 			: "Fehlt im Lager: " + string.Join(", ", q.Missing.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"));
-		WrappedText(row, material, 84, 56, w - 84 - 190, 13, q.Missing.Count == 0 ? Green : Orange, 18);   // zweizeilig, endet vor der Kauftaste
+		// Phase 13: gesperrte Modelle bleiben sichtbar — statt des Materials steht, welche Forschung fehlt
+		if (q.Locked is { } locked) material = $"Nicht erforscht: {Ctx.U.Research.LockOf(UnlockKind.Model, q.Model.Key)?.Name ?? locked} — die Fraktion dieser Werft muss es erst erforschen.";
+		WrappedText(row, material, 84, 56, w - 84 - 190, 13, q.Locked is not null ? new Color(0.75f, 0.6f, 1f) : q.Missing.Count == 0 ? Green : Orange, 18);   // zweizeilig, endet vor der Kauftaste
 		At(row, Text(q.Affordable ? $"{o.Price:0} Cr" : $"zu teuer · {o.Price:0} Cr", 20, q.Affordable ? Orange : Red, HorizontalAlignment.Right), w - 316, 6, 300, 28);
 		var b = At(row, new KitButton("Kaufen", new Vector2(150, 56)) { FontSize = 18, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 166, 44);
+		if (q.Locked is not null) _locked++;
 		string key = o.Key;
 		if (can) b.Pressed += () => Execute(key);
 		return row;
@@ -112,5 +116,9 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 
 	// ── Zugriff für Selbsttest/Bildschirmfotos ──
 	public int TestRowCount => _rows;
+	/// <summary>Bildschirmfotos: zu den gesperrten Modellen rollen (Excavator steht in der Schlüsselreihenfolge weit oben, sonst ans Ende).</summary>
+	public void TestScrollToEnd() { if (_scroll != null) { _scrollV = 112 * 2; _scroll.ScrollVertical = _scrollV; } }
+	/// <summary>Phase 13: Zeilen mit gesperrtem (nicht erforschtem) Modell.</summary>
+	public int TestLockedRows => _locked;
 	public string TestMessage => _message;
 }

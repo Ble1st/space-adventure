@@ -139,6 +139,10 @@ public partial class Main : Node3D
 		_hud.DockAuthority.BackToMenu += ShowDockMenu;
 		_hud.DockAuthority.UndockPressed += Undock;
 		_hud.DockAuthority.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.DockResearch.AreaSelected += OnDockArea;
+		_hud.DockResearch.BackToMenu += ShowDockMenu;
+		_hud.DockResearch.UndockPressed += Undock;
+		_hud.DockResearch.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockHangar.Executed += (svc, ok) => _sfx.Play(ok ? SfxId.Dock : SfxId.Click);
 		_hud.DockHangar.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
 		_hud.DockHangar.AreaSelected += OnDockArea;
@@ -803,6 +807,7 @@ public partial class Main : Node3D
 			DockAreas.Shipyard => _hud.DockShipyard,
 			DockAreas.Storage => _hud.DockStorage,
 			DockAreas.Authority => _hud.DockAuthority,
+			DockAreas.Research => _hud.DockResearch,
 			_ => _hud.DockMenu,
 		};
 		if (screen is DockAreaScreen area) area.AreaId = areaId;

@@ -162,3 +162,12 @@ public sealed record ShipRented(ShipId Ship, StationId Station, float Fee, float
 public sealed record RentalReturned(ShipId Ship, StationId Station, float Rent, float Refund) : SimEvent;
 /// <summary>Der Spieler hat ein eigenes Schiff an einer Station verkauft.</summary>
 public sealed record ShipSold(ShipId Ship, StationId Station, float Price) : SimEvent;
+
+// ───────── Phase 13: Forschung ─────────
+/// <summary>Ein Forschungstakt an einer Station: FP auf das Projekt gebucht (oder gestockt: <paramref name="Stalled"/> nennt den Grund), Personalkosten und Basiswert der verbrauchten Güter.</summary>
+public sealed record ResearchCycle(StationId Station, FactionId Faction, string Project, float Points, float Credits, float GoodsValue, string? Stalled) : SimEvent;
+/// <summary>Projekt abgeschlossen: die Freischaltungen gelten ab jetzt für alle Stationen der Fraktion.</summary>
+public sealed record ResearchCompleted(FactionId Faction, string Project, long Tick) : SimEvent;
+/// <summary>Der Spieler hat ein Projekt beauftragt (Gebühr an die Station) bzw. mitfinanziert (Credits → FP).</summary>
+public sealed record ResearchCommissioned(FactionId Faction, string Project, float Fee) : SimEvent;
+public sealed record ResearchFunded(FactionId Faction, string Project, float Credits, float Points) : SimEvent;

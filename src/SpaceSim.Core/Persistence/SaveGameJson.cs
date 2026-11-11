@@ -703,7 +703,8 @@ public static class SaveGameJson
         }
         var goodIdByKey = new Dictionary<string, int>();
         foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
-        foreach (var dt in dw.StationTypes.Values.Where(t => t.Government != GovernmentKind.None).OrderBy(t => t.Key, StringComparer.Ordinal))
+        // Phase 13: Forschungsstationen ergänzt erst die Migration v15→v16 (mit Forschungsbetrieb und Lager)
+        foreach (var dt in dw.StationTypes.Values.Where(t => t.Government != GovernmentKind.None && t.Research is null).OrderBy(t => t.Key, StringComparer.Ordinal))
         {
             if (s.StationTypes.FirstOrDefault(t => t.Key == dt.Key) is { } existing)
             {
@@ -857,6 +858,85 @@ public static class SaveGameJson
     }
 
     /// <summary>
+    /// v15 → v16 (Phase 13, Forschung; alles nach Schlüssel und nur ergänzend):
+    /// 1) Content der Default-Welt (<see cref="AddMissingDefaultContent"/>): Reaktor Mk3 und Mining-Laser Mk3 als Module mit Waren, Fabrikrezepten und
+    ///    Lagerposten, Modell Excavator.
+    /// 2) Verbesserungspfade der Default-Module, die noch keinen haben (Reaktor Mk2 → Mk3, Laser Mk2 → Mk3), wenn Ziel und Material auflösbar sind.
+    /// 3) Forschungsstations-Typ (Regierungsform „research“) samt Default-Stationen, wo der Sektor existiert — nur, wenn Verbrauch und Lager auflösbar sind.
+    /// 4) Forschungsprojekte nur, wenn die Welt danach eine Forschungsstation hat und Freischaltungen und Verbrauch auflösbar sind. Sonst bleibt alles frei
+    ///    (sehr alte Stände ohne Warenschlüssel: keine Forschung, nichts gesperrt). Bestehender Content wird nie gesperrt — die Projekte nennen nur Neues.
+    /// Forschungsstände starten leer.
+    /// </summary>
+    static void MigrateV15ToV16(SaveGame s)
+    {
+        AddMissingDefaultContent(s);
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var dw = WorldBuilder.Build(def);
+        var goodIdByKey = new Dictionary<string, int>();
+        foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
+        int? Map(GoodId dg) => goodIdByKey.TryGetValue(dw.Goods[dg].Key, out var id) ? id : null;
+
+        // 2) Verbesserungspfade
+        foreach (var dm in dw.Modules.Values.OrderBy(m => m.Key, StringComparer.Ordinal))
+        {
+            if (dm.UpgradeTo is not { } to || s.Modules.FirstOrDefault(m => m.Key == dm.Key) is not { } ms || ms.UpgradeTo is not null) continue;
+            if (s.Modules.All(m => m.Key != to) || !dm.UpgradeCost.Keys.All(goodIdByKey.ContainsKey)) continue;
+            ms.UpgradeTo = to;
+            ms.UpgradeCost = new Dictionary<string, float>(dm.UpgradeCost);
+        }
+
+        // 3) Forschungsstationen
+        foreach (var dt in dw.StationTypes.Values.Where(t => t.Research is not null).OrderBy(t => t.Key, StringComparer.Ordinal))
+        {
+            var rc = dt.Research!;
+            if (s.StationTypes.Any(t => t.Key == dt.Key) || rc.Inputs.Keys.Any(g => Map(g) is null) || dt.Stocks.Any(x => Map(x.Good) is null)) continue;
+            var stocks = dt.Stocks.Select(x => new StationStockSave { Good = Map(x.Good)!.Value, Amount = x.Amount, Target = x.Target }).ToList();
+            s.StationTypes.Add(new StationTypeSave
+            {
+                Key = dt.Key, Name = dt.Name, BuildCost = dt.BuildCost, Upkeep = dt.UpkeepPerTick, Income = dt.IncomePerTick,
+                Recipes = new List<RecipeSave>(), Services = new List<string>(dt.Services), Stocks = stocks.Count == 0 ? null : stocks,
+                Government = WorldBuilder.GovernmentKey(dt.Government), Influence = dt.Influence == 1f ? null : dt.Influence,
+                Capturable = dt.Capturable ? null : false, Destructible = dt.Destructible ? null : false,
+                Research = new ResearchConfigSave
+                {
+                    Ticks = rc.Ticks, Points = rc.Points, Credits = rc.Credits, FundTarget = rc.FundTarget, FundPerTick = rc.FundPerTick,
+                    Inputs = rc.Inputs.OrderBy(kv => kv.Key.Value).ToDictionary(kv => Map(kv.Key)!.Value, kv => kv.Value),
+                },
+            });
+            int before = s.Stations.Count;
+            AddDefaultStations(s, def, dt.Key, () => new List<RecipeSave>(), stocks, goodIdByKey);
+            foreach (var st in s.Stations.Skip(before)) { st.BankruptcyProtected = true; st.Essential = false; }
+        }
+
+        // 4) Projekte nur mit Forschungsstation und auflösbarem Inhalt
+        if (s.Research is null && s.StationTypes.Any(t => t.Research is not null) && s.Stations.Any(st => s.StationTypes.Any(t => t.Key == st.Type && t.Research is not null)))
+        {
+            var added = new List<ResearchProjectSave>();
+            foreach (var p in dw.Research.Projects)
+            {
+                bool ok = p.Requires.All(r => added.Any(a => a.Key == r)) && p.Inputs.Keys.All(g => Map(g) is not null)
+                    && p.Unlocks.All(x => x.Kind switch
+                    {
+                        UnlockKind.Module => s.Modules.Any(m => m.Key == x.Key),
+                        UnlockKind.Model => s.ShipModels.Any(m => m.Key == x.Key),
+                        _ => s.StationTypes.Any(t => t.Key == x.Key),
+                    })
+                    // nie bestehenden Inhalt sperren: kein Schiff nutzt die Freischaltung schon
+                    && !p.Unlocks.Any(x => s.Ships.Any(sh => x.Kind == UnlockKind.Model ? sh.ModelKey == x.Key : x.Kind == UnlockKind.Module && sh.Fit is { } fit && fit.Contains(x.Key)));
+                if (!ok) continue;
+                added.Add(new ResearchProjectSave
+                {
+                    Key = p.Key, Name = p.Name, Description = p.Description, Points = p.Points, Requires = new List<string>(p.Requires),
+                    Unlocks = p.Unlocks.Select(x => x.ToString()).ToList(),
+                    Inputs = p.Inputs.OrderBy(kv => kv.Key.Value).ToDictionary(kv => Map(kv.Key)!.Value, kv => kv.Value),
+                });
+            }
+            if (added.Count > 0) s.Research = added;
+        }
+        s.Version = 16;
+    }
+
+    /// <summary>
     /// Reicht den Content der Default-Welt nach Schlüssel und nur ergänzend nach (gemeinsamer Schritt der Migrationen ab v8→v9):
     /// 1) fehlende Module und je Modul ohne Ware eine Modul-Ware (angehängt nach Modulschlüssel, bestehende GoodIds bleiben);
     /// 2) fehlende Schiffsklassen und -modelle; vorhandene Default-Modelle ohne Aufgabenliste bekommen deren <c>jobs</c>;
@@ -964,6 +1044,7 @@ public static class SaveGameJson
         if (s.Version < 13) MigrateV12ToV13(s);
         if (s.Version < 14) MigrateV13ToV14(s);
         if (s.Version < 15) MigrateV14ToV15(s);
+        if (s.Version < 16) MigrateV15ToV16(s);
         return s;
     }
 }

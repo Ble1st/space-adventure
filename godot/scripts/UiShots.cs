@@ -356,6 +356,36 @@ public partial class UiShots : Node
 				_stage = 536; _wait = 90; break;
 			}
 			case 536: Capture("47-dock-menue-lagerhaus-neun-kacheln.png"); _stage = 537; _wait = 10; break;
+			case 537: // Phase 13: Forschungsinstitut der Union — Bereich „Forschung“ mit etwas Fortschritt (ein Projekt erforscht, eins halb)
+			{
+				var u = _m.Session.U;
+				var union = u.Factions[new SpaceSim.Core.Model.FactionId(1)];
+				var fusion = u.Research.Get("fusion_mk3");
+				if (fusion is not null && !union.Research.IsCompleted(fusion.Key)) SpaceSim.Core.Simulation.Research.AddPoints(u, union, fusion, fusion.Points);
+				if (u.Research.Get("precision_lasers") is { } las && !union.Research.IsCompleted(las.Key)) union.Research.Progress[las.Key] = las.Points * 0.45f;
+				_m.TestUndock();
+				var lab = u.Stations.Values.First(x => x.TypeKey == "research_station" && x.Sector.Value == 1);
+				u.PlayerWallet.Credits = 12000f;
+				_m.TestDockAt(lab.Id);
+				_stage = 538; _wait = 90; break;
+			}
+			case 538: Capture("48-dock-menue-forschungsstation.png"); _stage = 539; _wait = 10; break;
+			case 539: _m.TestOpenDockArea("research"); _stage = 540; _wait = 20; break;
+			case 540: Capture("49-dock-forschung.png"); _stage = 541; _wait = 10; break;
+			case 541: _m.TestOpenCommand(); _m.TestOpenCcArea("factions"); _m.HudRef.CcFactions.TestSelect(new SpaceSim.Core.Model.FactionId(1)); _stage = 542; _wait = 20; break;
+			case 542: Capture("50-cc-fraktionen-forschung.png"); _stage = 543; _wait = 10; break;
+			case 543:
+			{
+				_m.TestCloseCommand();
+				_m.TestUndock();
+				var yard = _m.Session.U.Stations.Values.First(x => x.TypeKey == "shipyard");
+				_m.TestDockAt(yard.Id);
+				_stage = 544; _wait = 90; break;
+			}
+			case 544: _m.TestOpenDockArea("shipyard"); _m.HudRef.DockShipyard.TestScrollToEnd(); _stage = 545; _wait = 20; break;
+			case 545: Capture("51-dock-werft-nicht-erforscht.png"); _stage = 546; _wait = 10; break;
+			case 546: _m.TestOpenDockArea("outfitter"); _m.HudRef.DockOutfitter.TestSelectSlot(_m.Session.Player.Slots.FindIndex(sl => sl.Type == "reactor")); _stage = 547; _wait = 20; break;
+			case 547: Capture("52-dock-ausruester-nicht-erforscht.png"); _stage = 548; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

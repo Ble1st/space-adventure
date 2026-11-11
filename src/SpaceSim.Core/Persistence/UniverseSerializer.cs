@@ -70,6 +70,26 @@ public static class UniverseSerializer
         Restricted = c.Restricted, BerthFee = MathF.Max(0f, c.BerthFee),
     };
 
+    static ResearchStateSave? ToSave(ResearchState r) =>
+        r.Current is null && r.Progress.Count == 0 && r.Completed.Count == 0 && r.PointsTotal == 0f && r.Spent == 0f && r.PlayerFunded == 0f ? null
+        : new ResearchStateSave
+        {
+            Current = r.Current, Commissioned = r.Commissioned, PointsTotal = r.PointsTotal, Spent = r.Spent, PlayerFunded = r.PlayerFunded,
+            Progress = r.Progress.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
+            Completed = r.Completed.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
+        };
+
+    static ResearchState FromSave(ResearchStateSave? r)
+    {
+        var state = new ResearchState();
+        if (r is null) return state;
+        state.Current = r.Current; state.Commissioned = r.Commissioned;
+        state.PointsTotal = r.PointsTotal; state.Spent = r.Spent; state.PlayerFunded = r.PlayerFunded;
+        foreach (var (k, v) in r.Progress) state.Progress[k] = v;
+        foreach (var (k, v) in r.Completed) state.Completed[k] = v;
+        return state;
+    }
+
     static ShipSlotSave ToSave(ClassSlot s) => new() { Type = s.Type, Size = s.Size.ToString(), Facing = s.Facing, Arc = s.Arc };
 
     static ClassSlot FromSave(ShipSlotSave s) => new() { Type = s.Type, Size = Enum.Parse<SlotSize>(s.Size, ignoreCase: true), Facing = s.Facing, Arc = s.Arc };
@@ -127,6 +147,11 @@ public static class UniverseSerializer
                 Destructible = t.Destructible ? null : false,
                 Security = t.Security == 0f ? null : t.Security,
                 Hideout = t.Hideout ? true : null,
+                Research = t.Research is { } rc ? new ResearchConfigSave
+                {
+                    Ticks = rc.Ticks, Points = rc.Points, Credits = rc.Credits, FundTarget = rc.FundTarget, FundPerTick = rc.FundPerTick,
+                    Inputs = rc.Inputs.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                } : null,
             });
         WriteSlotContent(u, s);
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
@@ -136,7 +161,15 @@ public static class UniverseSerializer
                 Relations = f.Relations.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Territory = f.Territory.Select(t => t.Value).OrderBy(x => x).ToList(),
                 LastEmergencyBuildTick = f.LastEmergencyBuildTick,
+                Research = ToSave(f.Research),
             });
+        // Phase 13: Forschungsprojekte (Content)
+        if (u.Research.Count > 0)
+            s.Research = u.Research.Projects.Select(p => new ResearchProjectSave
+            {
+                Key = p.Key, Name = p.Name, Description = p.Description, Points = p.Points, Requires = new List<string>(p.Requires),
+                Unlocks = p.Unlocks.Select(x => x.ToString()).ToList(), Inputs = p.Inputs.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+            }).ToList();
         foreach (var sec in u.Sectors.Values.OrderBy(x => x.Id.Value))
             s.Sectors.Add(new SectorSave
             {
@@ -267,6 +300,12 @@ public static class UniverseSerializer
                 // Phase 11: fehlt in älteren Ständen = kein Grundschutz, kein Versteck
                 Security = t.Security ?? 0f,
                 Hideout = t.Hideout ?? false,
+                // Phase 13: fehlt in älteren Ständen = keine Forschungsstation
+                Research = t.Research is { } rc ? new ResearchConfig
+                {
+                    Ticks = rc.Ticks, Points = rc.Points, Credits = rc.Credits, FundTarget = rc.FundTarget, FundPerTick = rc.FundPerTick,
+                    Inputs = rc.Inputs.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                } : null,
             };
         ReadSlotContent(s, u);
         foreach (var f in s.Factions)
@@ -276,7 +315,20 @@ public static class UniverseSerializer
                 Relations = f.Relations.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
                 Territory = f.Territory.Select(t => new SectorId(t)).ToHashSet(),
                 LastEmergencyBuildTick = f.LastEmergencyBuildTick,
+                Research = FromSave(f.Research),
             };
+        // Phase 13: Forschungsprojekte (fehlt = keine Forschung, alles frei)
+        foreach (var p in s.Research ?? new List<ResearchProjectSave>())
+        {
+            var project = new ResearchProject
+            {
+                Key = p.Key, Name = p.Name, Description = p.Description, Points = p.Points, Requires = new List<string>(p.Requires),
+                Inputs = p.Inputs.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+            };
+            foreach (var text in p.Unlocks)
+                project.Unlocks.Add(ResearchUnlock.TryParse(text, out var x) ? x : throw new SaveFormatException($"Forschungsprojekt '{p.Key}': Freischaltung '{text}' unlesbar"));
+            u.Research.Add(project);
+        }
         foreach (var sec in s.Sectors)
             u.Sectors[new SectorId(sec.Id)] = new Sector
             {

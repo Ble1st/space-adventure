@@ -284,6 +284,13 @@ public sealed class EconomyRules
     public int MaxRaidersPerActor = 3;
     public float RaiderCost = 2000f;
     public int RaiderRebuildTicks = 3000;
+    /// <summary>
+    /// Phase 13 (Korrektur an Phase 11): Neuanfang einer ausgelöschten Piratenflotte — ohne Kaperschiff kostet der erste Neubau nur diesen Anteil von
+    /// <see cref="RaiderCost"/>, und das Versteck bringt je Tick <see cref="PirateIdleIncomePerTick"/> aus Hehlerei alter Bestände ein. Sonst blieb eine
+    /// einmal ausgelöschte Flotte mit leerer Kasse für immer weg (Verlustquote fiel in langen Läufen auf fast 0).
+    /// </summary>
+    public float RaiderRestartCostFactor = 0.5f;
+    public float PirateIdleIncomePerTick = 0.1f;
     /// <summary>Piraten: Unterhalt je Kaperschiff und Tick aus der Kasse des Akteurs (Senke).</summary>
     public float RaiderUpkeepPerTick = 0.05f;
     /// <summary>Piraten: Chance je Tick, dass ein lauerndes Kaperschiff zuschlägt (geteilt durch 1 + Abschreckung × Sicherheit).</summary>
@@ -370,4 +377,16 @@ public sealed class EconomyRules
     public int AutoRadiusJumps = 2;
     public float AutoMaxBuyFactor = 1.5f;
     public float AutoReserve = 200f;
+
+    // ───────── Phase 13: Forschung (FORSCHUNG.md) ─────────
+    /// <summary>Forschung an: Projekte sperren ihre Freischaltungen, bis die Fraktion sie erforscht hat. Aus = alles frei, Forschungsstationen ruhen (Vergleichsläufe, Tests).</summary>
+    public bool ResearchActive = true;
+    /// <summary>Forschungsstationen bieten für ihre Verbrauchsgüter höchstens Basispreis × diesen Faktor (sonst überböten sie mit 4× die Fabriken).</summary>
+    public float ResearchMaxBidFactor = 1.25f;
+    /// <summary>Mitfinanzierung durch den Spieler (Dienst „research“): Credits je Forschungspunkt.</summary>
+    public float ResearchCreditsPerPoint = 20f;
+    /// <summary>Wählbare Beträge der Mitfinanzierung (Angebote „fund:&lt;Betrag&gt;“).</summary>
+    public List<float> ResearchFundAmounts = new() { 500f, 2000f, 10000f };
+    /// <summary>Gebühr, um das laufende Projekt einer Fraktion festzulegen (Angebot „commission:&lt;Projekt&gt;“, an die Station).</summary>
+    public float ResearchCommissionFee = 500f;
 }

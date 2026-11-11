@@ -75,7 +75,9 @@ public static class ShipUpgrade
             if (ship.Fit[i] is not { } key || !u.Modules.TryGetValue(key, out var from)) continue;
             if (ShipQualityRoll.UpgradeTarget(u, key, ship.Slots[i]) is not { } to) continue;
             var fit = new List<string?>(ship.Fit) { [i] = to.Key };
-            string? issue = FitRules.Check(u.SlotTypes, u.Modules, cls, ship.Slots, fit) is { } fi ? FitRules.Describe(fi) : null;
+            // Phase 13: Ziel muss für die Fraktion der Station erforscht sein (sichtbar als „nicht erforscht“)
+            string? issue = Research.LockText(u, st, UnlockKind.Module, to.Key) is { } locked ? $"{to.Name} {locked}"
+                : FitRules.Check(u.SlotTypes, u.Modules, cls, ship.Slots, fit) is { } fi ? FitRules.Describe(fi) : null;
             list.Add(Make(u, st, ship, UpgradeKind.Module, i, key, to.Key, ship.Slots[i].Type, ship.Slots[i].Size,
                 BaseChance(u.Rules, from.Tier), from.UpgradeCost, issue));
         }
