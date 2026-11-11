@@ -89,4 +89,54 @@ public sealed class EconomyRules
     public float UpgradeMinCredits = 3000f;
     /// <summary>NPC-Upgrades: höchstens dieser Anteil der Credits für einen Versuch.</summary>
     public float UpgradeBudgetShare = 0.2f;
+
+    // Phase 8: Bau, Notbau, Brecher, Lagerhaus (SCHIFFE.md Abschnitte 10/11, STATIONEN.md). Fehlen die Felder in alten Spielständen, gelten die Standards.
+    /// <summary>Stationsbau über Baustellen (Material + Bauschiff); false = alter Direktbau (Credits, Station erscheint sofort). Auch ohne Schalter
+    /// fällt der Lebenszyklus auf den Direktbau zurück, wenn es den Baustellen-Typ oder eine Material-Ware in der Welt nicht gibt (sehr alte Spielstände).</summary>
+    public bool ConstructionSites = true;
+    /// <summary>Stationstyp der Baustellen (Content: Typ ohne Rezept mit Dienst „trade“).</summary>
+    public string ConstructionSiteType = "build_site";
+    /// <summary>Baumaterial nach Wertanteil (Warenschlüssel → Gewicht): Stückliste = Bausumme × <see cref="ConstructionMaterialShare"/>, verteilt nach
+    /// Gewicht, in Einheiten zum Basispreis. Waren, die der Typ selbst herstellt, fallen weg (zyklenfreie Baukosten), ihr Anteil geht an die übrigen.
+    /// Ein Stationstyp kann eine eigene Liste haben (<c>stationTypes[].construction</c>).</summary>
+    public Dictionary<string, float> ConstructionMaterials = new() { ["steel"] = 0.4f, ["hull_plates"] = 0.35f, ["electronics"] = 0.25f };
+    /// <summary>Anteil der Bausumme, der als Material (zum Basispreis) verlangt wird; der Rest ist der Credit-Anteil.</summary>
+    public float ConstructionMaterialShare = 0.5f;
+    /// <summary>Gebot der Baustelle für Material: Basispreis × Faktor (fester Preis, unabhängig vom Liefergrad).</summary>
+    public float ConstructionPriceFactor = 1.25f;
+    /// <summary>Das Bauschiff kauft Material für die Baustelle höchstens zum Basispreis × Faktor (so reicht das Treuhandgeld auch bei Knappheit; teurer
+    /// heißt: warten, bis Händler liefern oder der Notbau greift — der zahlt denselben Höchstpreis <see cref="EmergencyBuildMarkup"/>).</summary>
+    public float ConstructionMaxBuyFactor = 2f;
+    /// <summary>Montagedauer in Ticks, sobald alles geliefert ist und ein Bauschiff vor Ort ist.</summary>
+    public int ConstructionAssemblyTicks = 200;
+    /// <summary>Montagegebühr für das Bauschiff (Anteil der Bausumme, aus dem Treuhandgeld) bei Fertigstellung.</summary>
+    public float ConstructionFeeShare = 0.1f;
+    /// <summary>Ein Projekt ohne Fortschritt (und ohne Notbau) verfällt nach so vielen Ticks; der Rest des Treuhandgelds geht an den Investor zurück.</summary>
+    public int ConstructionExpiryTicks = 8000;
+    /// <summary>Höchstzahl gleichzeitig laufender Baustellen (verlassene zählen nicht).</summary>
+    public int MaxActiveSites = 2;
+    /// <summary>Kapazitätsgrenze der KI-Bauschiffe (Aufgabe „build“, je Schiff 1).</summary>
+    public int MaxBuilders = 4;
+    /// <summary>Notbau: Frist in Ticks, die eine Baustelle blockiert sein muss (kein Lieferant mit Lager, kein Bauschiff erreichbar, Treuhand reicht nicht).</summary>
+    public int EmergencyBuildTicks = 2000;
+    /// <summary>Notbau: Faktor auf die Frist für kritische Baustellen (letzte Station einer Kette oder Typ einer kritischen Kette).</summary>
+    public float EmergencyCriticalFactor = 0.5f;
+    /// <summary>Notbau: Aufschlag auf den Basispreis der ersetzten Materialien (Geldsenke, die Ware entsteht aus dem Nichts).</summary>
+    public float EmergencyBuildMarkup = 2f;
+    /// <summary>Notbau: Abkühlzeit je Fraktion in Ticks (Bremse: höchstens ein Notbau je Fraktion in dieser Zeit).</summary>
+    public int EmergencyBuildCooldown = 3000;
+    /// <summary>Kritische Ketten (Warenschlüssel): Baustellen für Typen, die eine davon herstellen, lösen den Notbau früher aus (Stahl, Plattierung, Werft).</summary>
+    public List<string> CriticalGoods = new() { "steel", "hull_plates", "ship_kit_light" };
+    /// <summary>Asteroidenbrecher: Obergrenze der Asteroiden eines Gürtels als Vielfaches von <c>TargetAsteroids</c> (Spalten nur darunter).</summary>
+    public float FragmentLimitFactor = 2f;
+    /// <summary>Asteroidenbrecher: kleinster Radius eines Fragments; kleinere Felsen lassen sich nicht weiter spalten.</summary>
+    public float FragmentMinRadius = 1.2f;
+    /// <summary>Asteroidenbrecher: Anteil des Erzes, der beim Spalten als Staub verloren geht (Spalten erzeugt kein Erz).</summary>
+    public float SplitDustLoss = 0.1f;
+    /// <summary>NPC-Brecher spalten nur Felsen ab diesem Radius (große Brocken für mehrere Miner).</summary>
+    public float NpcSplitMinRadius = 4.5f;
+    /// <summary>Lagerhaus (Dienst „storage“): Gebühr je eingelagerter Einheit, an die Station.</summary>
+    public float StorageFeePerUnit = 0.5f;
+    /// <summary>Lagerhaus: Höchstmenge im persönlichen Lager des Spielers je Station (Einheiten).</summary>
+    public float StorageCapacity = 500f;
 }

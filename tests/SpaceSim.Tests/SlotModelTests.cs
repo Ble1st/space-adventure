@@ -38,9 +38,9 @@ public class SlotModelTests
     {
         var u = DemoUniverse.Create();
         Assert.Equal(9, u.SlotTypes.Count);
-        Assert.Equal(17, u.Modules.Count);   // Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
-        Assert.Equal(9, u.ShipClasses.Count);   // Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
-        Assert.Equal(16, u.ShipModels.Count);   // Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
+        Assert.Equal(19, u.Modules.Count);   // Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
+        Assert.Equal(11, u.ShipClasses.Count);   // Phase 8: + Bauschiff, Asteroidenbrecher; Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
+        Assert.Equal(19, u.ShipModels.Count);   // Phase 8: + Foreman, Quarry, Rockbreaker II; Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
         Assert.True(u.SlotTypes["reactor"].Required);
         Assert.True(u.SlotTypes["engine"].Required);
         Assert.False(u.SlotTypes["cargo"].Required);
@@ -248,7 +248,7 @@ public class SlotModelTests
     [Fact]
     public void SaveLoad_Roundtrip_V4_AltSavesLadbar_SlotContentWirdMitgespeichert()
     {
-        Assert.Equal(10, SaveGame.CurrentVersion);   // v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8: Ausrüster/Schiffskauf (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
+        Assert.Equal(11, SaveGame.CurrentVersion);   // v11: Bau/Baustellen/Lagerhaus (Phase 8); v10: Güteklassen/Upgrades (Phase 7); v9: Multirole (Phase 6); v8: Ausrüster/Schiffskauf (Phase 5c); v7: Spielerkasse (Phase 5b); v6: Modul-Waren/Bausatzstufen/stocks (Phase 5a); v5: zusätzlich Fuel je Schiff sowie fuel/baseFuel im Slot-Content (v4: ModelKey/Slots/Fit plus Slot-Content-Sektionen)
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 100);
         var before = UniverseHash.Compute(u);

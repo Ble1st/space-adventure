@@ -42,7 +42,7 @@ public sealed class StationServices
         return list;
     }
 
-    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c), outfitter, shipdealer (Phase 5c), upgrade (Phase 7).</summary>
+    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c), outfitter, shipdealer (Phase 5c), upgrade (Phase 7), storage (Phase 8).</summary>
     public static StationServices Default()
     {
         var registry = new StationServices();
@@ -52,6 +52,7 @@ public sealed class StationServices
         registry.Register(new OutfitterService());
         registry.Register(new ShipDealerService());
         registry.Register(new UpgradeService());
+        registry.Register(new StorageService());
         return registry;
     }
 }

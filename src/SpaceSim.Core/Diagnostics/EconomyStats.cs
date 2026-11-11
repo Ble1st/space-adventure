@@ -10,9 +10,11 @@ public sealed record GoodStat(GoodId Good, string Name, float AvgPrice, float Pr
 /// (wirtschaftlich aktive KI-Schiffe, je Schiff eine Kasse), <see cref="PlayerCredits"/> (Spielerkasse plus etwaige Restcredits
 /// auf Spielerschiffen, im Normalfall 0). <see cref="TotalCredits"/> ist die Summe der drei.
 /// </summary>
+/// <remarks>Phase 8: <see cref="Stations"/> zählt fertige Stationen, <see cref="Sites"/> Baustellen (auch verlassene); Baustellen gehen nicht in die
+/// Preisdurchschnitte ein (ihr Gebot ist fest, ihr Wunschbestand eine Stückliste), ihr Treuhandgeld steht in <see cref="StationCredits"/>.</remarks>
 public sealed record EconomySnapshot(
     long Tick, int Stations, int Traders, int Miners, float StationCredits, float ShipCredits, IReadOnlyList<GoodStat> Goods,
-    float PlayerCredits = 0f)
+    float PlayerCredits = 0f, int Sites = 0, int Builders = 0)
 {
     public float TotalCredits => StationCredits + ShipCredits + PlayerCredits;
 }
@@ -25,16 +27,17 @@ public static class EconomyStats
         var goods = new List<GoodStat>();
         foreach (var g in u.Goods.Values)
         {
-            var entries = u.Stations.Values.Where(s => s.Market.ContainsKey(g.Id)).Select(s => s.Market[g.Id]).ToList();
+            var entries = u.Stations.Values.Where(s => !s.IsBuildSite && s.Market.ContainsKey(g.Id)).Select(s => s.Market[g.Id]).ToList();
             float avg = entries.Count > 0 ? entries.Average(e => e.Price) : 0f;
             goods.Add(new GoodStat(g.Id, g.Name, avg, g.BasePrice > 0 ? avg / g.BasePrice : 0f, entries.Sum(e => e.Amount)));
         }
         return new EconomySnapshot(
-            u.Tick, u.Stations.Count,
+            u.Tick, u.Stations.Values.Count(s => !s.IsBuildSite),
             u.Ships.Values.Count(s => s.Role == ShipRole.Trader), u.Ships.Values.Count(s => s.Role == ShipRole.Miner),
             u.Stations.Values.Sum(s => s.Credits),
             u.Ships.Values.Where(s => s.IsEconomyAi).Sum(s => s.Credits), goods,
-            u.PlayerWallet.Credits + u.Ships.Values.Where(s => s.IsPlayer).Sum(s => s.Credits));
+            u.PlayerWallet.Credits + u.Ships.Values.Where(s => s.IsPlayer).Sum(s => s.Credits),
+            u.Stations.Values.Count(s => s.IsBuildSite), u.Ships.Values.Count(s => s.IsAiBuilder));
     }
 }
 

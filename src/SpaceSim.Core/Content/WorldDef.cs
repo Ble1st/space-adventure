@@ -178,6 +178,8 @@ public sealed class StationTypeDef
     public ModuleFactoryDef? ModuleFactory { get; set; }
     /// <summary>Schiffshändler (Phase 5c): welche Klassen die Station montiert und verkauft; fehlt = keine Schiffe. Nur sinnvoll mit Dienst "shipdealer".</summary>
     public ShipDealerDef? ShipDealer { get; set; }
+    /// <summary>Phase 8: eigene Stückliste für den Bau (Warenschlüssel → Einheiten); fehlt = Regel <c>rules.constructionMaterials</c>.</summary>
+    public Dictionary<string, float>? Construction { get; set; }
 }
 
 /// <summary>
@@ -239,7 +241,10 @@ public sealed class StationDef
     public string Type { get; set; } = "";
     public string Name { get; set; } = "";
     public float[] Pos { get; set; } = { 0, 0 };
+    /// <summary>Alias für <see cref="BankruptcyProtected"/> (Phase 8: <c>essential</c> bleibt lesbar, damit alte Welten unverändert laden).</summary>
     public bool Essential { get; set; }
+    /// <summary>Vor Pleite geschützt (Phase 8; gleichbedeutend mit dem Alias <see cref="Essential"/>).</summary>
+    public bool BankruptcyProtected { get; set; }
     public float Credits { get; set; } = 10_000;
     /// <summary>Ware → [Bestand, Wunschbestand]. Fehlende Waren aus den Rezepten bekommen Standardwerte.</summary>
     public Dictionary<string, float[]> Stock { get; set; } = new();

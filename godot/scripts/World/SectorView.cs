@@ -163,6 +163,7 @@ public partial class SectorView : Node3D
 		var pos = new Vector3(st.Position.X, 0, st.Position.Y);
 		var root = new Node3D { Position = pos };
 		_root.AddChild(root);
+		if (st.IsBuildSite) { BuildSiteBody(st, root, pos); return; }
 		Gfx.Mesh(new CylinderMesh { TopRadius = 4, BottomRadius = 4, Height = 14 }, Gfx.Mat(new Color(0.55f, 0.6f, 0.65f), 0f, 0.9f), Vector3.Zero, root);
 		Gfx.Mesh(new TorusMesh { InnerRadius = 11, OuterRadius = 14 }, Gfx.Mat(new Color(0.4f, 0.45f, 0.55f), 0f, 0.9f), Vector3.Zero, root);
 		for (int i = 0; i < 6; i++)
@@ -172,6 +173,26 @@ public partial class SectorView : Node3D
 				new Vector3(Mathf.Cos(a) * 12.5f, 0.8f, Mathf.Sin(a) * 12.5f), root);
 		}
 		root.AddChild(Gfx.Label(st.Name, new Vector3(0, 6, 0)));
+		Targets.Add(new PickTarget("station", st.Id.Value, pos, st.Name));
+	}
+
+	/// <summary>
+	/// Phase 8: Baustelle — Gerüst statt Station (orangefarbener Ring, vier Streben, Plattform), gleicher Kollisionskörper und Andockpunkt wie
+	/// eine Station; das Etikett nennt den Zieltyp.
+	/// </summary>
+	void BuildSiteBody(Station st, Node3D root, Vector3 pos)
+	{
+		bool abandoned = st.Site!.Abandoned;
+		var steel = Gfx.Mat(abandoned ? new Color(0.45f, 0.42f, 0.38f) : new Color(1f, 0.62f, 0.2f), abandoned ? 0f : 1.2f, 0.8f);
+		Gfx.Mesh(new TorusMesh { InnerRadius = 12, OuterRadius = 13.2f }, steel, Vector3.Zero, root);
+		Gfx.Mesh(new CylinderMesh { TopRadius = 6, BottomRadius = 6, Height = 1.2f }, Gfx.Mat(new Color(0.35f, 0.37f, 0.42f), 0f, 0.9f), new Vector3(0, -2, 0), root);
+		for (int i = 0; i < 4; i++)
+		{
+			float a = Mathf.Tau * i / 4f + 0.4f;
+			Gfx.Mesh(new BoxMesh { Size = new Vector3(0.8f, 10f, 0.8f) }, steel, new Vector3(Mathf.Cos(a) * 8f, 2f, Mathf.Sin(a) * 8f), root);
+		}
+		string type = _u?.StationTypes.TryGetValue(st.Site.TypeKey, out var t) == true ? t!.Name : st.Site.TypeKey;
+		root.AddChild(Gfx.Label(abandoned ? st.Name : $"Baustelle: {type}", new Vector3(0, 7, 0)));
 		Targets.Add(new PickTarget("station", st.Id.Value, pos, st.Name));
 	}
 

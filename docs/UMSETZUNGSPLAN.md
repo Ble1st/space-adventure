@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v10).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v11).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -25,7 +25,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 5 | Modul-Waren, drei Modulfabriken (5a), Spielerkasse (5b), Ausrüster, Schiffskauf, Startpakete (5c) | L | v6 (5a), v7 (5b), v8 (5c) |
 | 6 | Multirole: Job-Zuteilung, Kapazitätsgrenzen, erste Multirole-Modelle | M | v9 |
 | 7 | NPC-Güteklassen und Upgrades | M | v10 |
-| 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v8 |
+| 8 | Bauschiff, Baustellen, Notbau, Asteroidenbrecher, Lagerhaus | L | v11 |
 | 9 | Akteure, Fraktionen, Kasse, Beziehungen, Persönlichkeit, Zukauf | L | v9 |
 | 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v10 |
 | 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v11 |
@@ -246,6 +246,30 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Save v8:** Baustellenliste, Fragment-Ids.
 - **Balance:** Dauerhafte Nachfrage nach Stahl und Hüllenplatten; Anteil Notbau messen.
 
+**Stand:** umgesetzt auf Branch `phase8-bau`.
+- **Baustellen:** Eine Baustelle ist eine Station vom Typ `build_site` mit Datensatz `Station.Site` (Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten, Zustand). Dadurch ist sie Hindernis, sichtbar, andockbar und ein Markt: Bestand = geliefert, Wunschbestand = verlangt, festes Gebot Basispreis × 1,25, sie nimmt nur das Fehlende an und verkauft nichts zurück. Der Lebenszyklus entscheidet nur noch, *ob* gebaut wird: höchstens zwei laufende Baustellen, nie zweimal derselbe Typ, der Investor zahlt die Bausumme als Treuhandgeld ein; ohne Baustellen-Typ oder auflösbare Stückliste (sehr alte Stände) gilt der Direktbau.
+- **Stückliste zyklenfrei:** Bausumme × 0,5 als Stahl/Hüllenplatten/Elektronik (Gewichte 0,4/0,35/0,25) zum Basispreis; Waren, die der Typ selbst herstellt, fallen weg. Eigene Listen je Typ (`construction`) werden geprüft. Content-Test: kein Typ verlangt eine nur von ihm hergestellte Ware, jedes Material hat einen anderen Hersteller-Typ in der Startwelt.
+- **`ConstructionSystem`** (eigenes Modul „Construction“): Bauschiffe (Aufgabe `build` im Job-Register, `BuildJob`, Grenze 4) übernehmen Baustellen (eigene Fraktion zuerst), holen Fehlendes beim nächsten Hersteller oder Lager (höchstens Basispreis × 2, bezahlt aus dem Treuhandgeld), liefern und montieren vor Ort (200 Ticks); Montagegebühr 10 % an das Bauschiff, der Rest des Treuhandgelds ist der Credit-Anteil. Händler beliefern Baustellen über den normalen Handel (Reservierung des schon Unterwegs-Befindlichen), der Spieler per freiem Handel. Verfall nach 8000 Ticks ohne Fortschritt: Treuhand zurück, Material bleibt als Lager (neues Projekt im Sektor übernimmt es).
+- **Notbau:** blockiert (kein Bauschiff erreichbar, kein Lieferant zum Höchstpreis, Treuhand reicht nicht) seit 2000 Ticks (kritisch: 1000) und Abkühlzeit der Fraktion (3000) vorbei → nur das Fehlende entsteht zum Basispreis × 2 aus dem Treuhandgeld (Geldsenke, ungedeckter Rest wird erlassen und gemeldet), Montage ohne Bauschiff. Das Balance-Tool zählt angelegte/fertige/Notbau/verfallene Baustellen und das gelieferte Material nach Weg.
+- **`Essential` aufgespalten (klein):** `BankruptcyProtected` (JSON `essential` als Alias, Save-Feld neu, altes Feld wird gelesen) und `Critical` abgeleitet (`StationCriticality`: letzte erreichbare Herstellerin einer Ware; kritische Stationen gehen nicht pleite, kritische Baustellen — auch Typen der Ketten Stahl, Plattierung, Werft — lösen den Notbau früher aus).
+- **Startbestand:** je Fraktion ein Bauschiff *Foreman* (Bauausleger + 160 Fracht). Neue Module als Waren mit Systemwerk-Rezept: Bauausleger, Spaltlaser; Klassen Bauschiff und Asteroidenbrecher; Modelle Foreman, Quarry, Rockbreaker II.
+- **Asteroidenbrecher:** `AsteroidSplitter` (2–4 Fragmente gleicher Klasse, 10 % Staub, Mindestradius, höchstens 2 × Zielzahl je Gürtel, fortlaufende Ids, Event `AsteroidSplit`), für den Spieler als Schacht „Spalter“ im Flug-HUD, für NPC-Miner mit Spaltlaser (Rockbreaker II) bei großen Brocken.
+- **Lagerhaus:** Typ `warehouse` mit Dienst `storage` (persönliches Lager des Spielers, Gebühr 0,5 Cr je Einheit, 500 Einheiten je Station) und Lagerposten Baumaterial als Baustellenlager für die Bauschiffe; Station „Lagerhaus Gamma“.
+- **Oberfläche:** Baustellen als Gerüst im Sektor, als Raute mit Materialbalken in der Sektoransicht, Status in Station-Info und Sektorkarte (`ConstructionInfo`); Dock-Bereich „Lager“ (`StorageScreen`, ersetzt an Lagerhäusern die Taxi-Kachel). Selbsttest (Baustelle beliefern, Spalter, Lager) und `--ui-shots` 24–28 ergänzt.
+- **Save v11** mit Migration v10→v11 (Content, Baustellen-Typ, Lagerhaus mit Station, ein Bauschiff je Fraktion, `BankruptcyProtected`); mit dem echten v2-Spielstand geprüft (20000 Ticks, 872 Handelsfahrten, Flotte 14 → 14; ohne Warenschlüssel keine Bauschiffe, Direktbau als Rückfall).
+- **Prüfung:** 379 Tests (22 neu in `ConstructionTests`), Selbsttest OK. Balance (frischer Release-Build): Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“, 0 Treibstoff-Notkäufe, je 4 Baustellen fertig, 0 Notbau; Seeds 1–4 bei 20000 alle grün.
+
+**Abweichungen und offene Punkte (Phase 8):**
+- **Save-Version v11 statt v8** (Platzhalter im Plan).
+- **Baustelle als Station mit `Site`-Datensatz** statt eigener Entität: So nutzen Handel, Dock, Darstellung, Hindernisse und Andocken dieselben Wege; die „Baustellenliste“ des Spielstands sind die Stationen mit `Site`.
+- **Keine dauerhafte Material-Nachfrage:** Die Welt erreicht `MaxStations` nach rund 10000 Ticks, danach wird kaum noch gebaut (Pleiten sind selten). Stahl und Hüllenplatten werden nur in der ersten Bauwelle verlangt (≈310–540 Einheiten je Lauf). Ein dauerhafter Verbraucher (Wartung/Verschleiß) wäre ein eigenes Thema.
+- **Notbau griff in den Balance-Läufen nie** (Anteil 0 %), nur in den Tests; das Bauschiff kauft höchstens zum doppelten Basispreis, damit das Treuhandgeld reicht (im ersten Entwurf leerte es die Treuhand bei knappem Stahl und erzwang einen Notbau).
+- **Foreman ohne Laser:** Mit Laser hätte er die Fähigkeit `Mining` und wäre für Flotte und Tests ein Miner; der zweite Werkzeug-Slot bleibt frei. Selbst schürfen tut das Bauschiff nicht.
+- **NPC-Brecher selten:** Nur ein gekaufter Rockbreaker II spaltet (0 Spaltungen in den Balance-Läufen); Quarry ist Spielermodell. Spalten bringt in der abstrakten NPC-Schürfsimulation keinen Durchsatzvorteil (mehrere Miner teilen sich ohnehin einen Felsen).
+- **Lagerhaus:** keine Gebühr über die Zeit, kein Diebstahl/Plünderung; Lager nur an der Station sichtbar.
+- **Kein Startpaket „Bauer“** (der Spieler kann noch keine eigenen Baustellen anlegen).
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
+
 ## Phase 9: Akteure und Fraktionen
 
 - **Akteur/Fraktion:** Akteur als Wirtschaftssubjekt, Fraktion als Akteur mit Politik; `Ship.Owner` statt `Ship.Faction`; Mitgliedschaft; Migration der bestehenden Fraktionen.
@@ -319,7 +343,7 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Phase 3:** Genaue Slotzahl je Klasse und die Zahlen der Einheitsmodelle (damit der Hash-Vergleich stimmt).
 - **Phase 4:** Wie viel Treibstoff ein Gate-freier Sektorflug typischerweise kostet; Tankgröße der Einheitsmodelle.
 - **Phase 5:** Preise und Rezepte der ersten Modulreihe, Verteilung der drei Fabriken in der Startwelt, Verarbeitungsaufschlag der Modul-Waren (`ModuleMarkup`), Form von `stocks` am Stationstyp (ROADMAP.md, Punkte 20 und 21).
-- **Phase 8:** Umfang der `Essential`-Aufspaltung (Vorschlag: nur `Critical` und `BankruptcyProtected`, ROADMAP.md, Punkt 23).
+- **Phase 8:** ~~Umfang der `Essential`-Aufspaltung~~ entschieden und umgesetzt: nur `Critical` (abgeleitet) und `BankruptcyProtected` (ROADMAP.md, Punkt 23).
 - **Phase 9:** Ob Einzelschiffe sofort oder träge Akteure werden (Vorschlag: träge); Beitritt des Spielers zu Fraktionen.
 - **Phase 10:** Sperren je Sektor oder je Gate (Vorschlag: Sektor mit Gate-Ausnahmen).
 - **Jede Phase:** Nach dem Lauf des Balance-Tools entscheiden, ob Startwerte angepasst werden.

@@ -10,11 +10,12 @@ public sealed class UpkeepSystem : ISimSystem
 {
     public void Step(Universe u, int dt)
     {
+        // Phase 8: Baustellen (Treuhandgeld des Investors) zahlen weder Unterhalt noch Vermögensabgabe
         foreach (var st in u.Stations.Values)
-            if (u.StationTypes.TryGetValue(st.TypeKey, out var type))
+            if (!st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var type))
                 st.Credits += (type.IncomePerTick - type.UpkeepPerTick) * dt;
         foreach (var st in u.Stations.Values)
-            if (st.Credits > 0f) st.Credits -= st.Credits * u.Rules.StationWealthTax * dt;
+            if (!st.IsBuildSite && st.Credits > 0f) st.Credits -= st.Credits * u.Rules.StationWealthTax * dt;
 
         float upkeep = u.Rules.ShipUpkeepPerTick * dt;
         foreach (var ship in u.Ships.Values)

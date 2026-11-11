@@ -68,7 +68,7 @@ public class OutfitterShipyardTests
         Assert.Equal(60f, stats("pip").Hull);
 
         var trade = u.Stations.Values.Single(s => s.TypeKey == "trade_station");
-        Assert.True(trade.Essential);
+        Assert.True(trade.BankruptcyProtected);
         Assert.Empty(trade.Production);   // nur Lager, keine Rezepte
         Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, u.StationTypes["trade_station"].Services);
         var services = StationServices.Default();
@@ -240,6 +240,7 @@ public class OutfitterShipyardTests
     public void Spielerkauf_VerbrauchtBausatzUndModule_WerftBekommtGeld_NeuesSchiffAktiv_AltesGeparkt()
     {
         var (u, yard, player) = AtYard();
+        u.Rules.QualityChances = new() { 1f, 0f, 0f, 0f };   // Phase 8: Güteklasse fest Standard — geprüft wird der Verbrauch der Grundregel (der Wurf hing sonst vom Zufallsstand ab, den die Bauschiffe der Startwelt verschieben)
         var model = u.ShipModels["prospector"];
         var needs = ShipPurchase.Materials(u, model)!;
         Assert.Contains(needs, n => u.Goods[n.Good].Key == "ship_kit_light" && n.Units == 1f);
@@ -453,7 +454,7 @@ public class OutfitterShipyardTests
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(b));
 
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":10", json);
+        Assert.Contains("\"Version\":11", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.PlayerShip, loaded.PlayerShip);
@@ -475,7 +476,7 @@ public class OutfitterShipyardTests
     /// </summary>
     internal static string ToV7Json(string v8Json)
     {
-        var node = JsonNode.Parse(v8Json)!.AsObject();
+        var node = JsonNode.Parse(ConstructionTests.ToV10Json(v8Json))!.AsObject();   // Phase 8: erst den Bau-Content entfernen
         node["Version"] = 7;
         var goodIds = node["Goods"]!.AsArray().ToDictionary(g => (string)g!["Key"]!, g => (int)g!["Id"]!);
         var newYardStocks = new[] { "cargo_universal_60", "cargo_solid_s", "canister_bay_s", "cargo_universal_70", "tractor_beam_s", "fuel_tank_s" }
@@ -525,7 +526,7 @@ public class OutfitterShipyardTests
         var orig = u.Stations.Values.Single(s => s.TypeKey == "trade_station");
         Assert.Equal(orig.Id, trade.Id);
         Assert.Equal(orig.Position, trade.Position);
-        Assert.True(trade.Essential);
+        Assert.True(trade.BankruptcyProtected);
         Assert.Equal(orig.Market.Keys.OrderBy(k => k.Value), trade.Market.Keys.OrderBy(k => k.Value));
         Assert.Equal(u.Rules.MaxStations, m.Rules.MaxStations);
         Assert.Equal(u.StationTypes["shipyard"].Services, m.StationTypes["shipyard"].Services);

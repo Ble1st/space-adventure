@@ -19,6 +19,12 @@ public sealed class MarketSystem : ISimSystem
     {
         foreach (var st in u.Stations.Values)
         {
+            if (st.IsBuildSite)
+            {
+                // Phase 8: Baustellen bieten einen festen Preis für ihr Material (Basispreis × Faktor), unabhängig vom Liefergrad
+                foreach (var (goodId, e) in st.Market) e.Price = u.Goods[goodId].BasePrice * u.Rules.ConstructionPriceFactor;
+                continue;
+            }
             foreach (var (goodId, e) in st.Market)
             {
                 float factor = Math.Clamp(e.Target / Math.Max(e.Amount, 1f), 0.25f, 4f);

@@ -13,11 +13,14 @@ public class LifecycleTests
     public void LongRun_StaysBounded()
     {
         var u = DemoUniverse.Create();
+        // Gründer mit besserer Güteklasse (Laser Mk2) zählen von Anfang an mehr als 1 (Phase 7); die Grenze gilt für Neukäufe
+        float trade0 = ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!), mine0 = ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!);
         new SimulationRunner().Run(u, 30_000);
 
         Assert.True(u.Stations.Count <= u.Rules.MaxStations);
-        Assert.True(u.Ships.Values.Count(s => s.Role == ShipRole.Trader) <= u.Rules.MaxTraders);
-        Assert.True(u.Ships.Values.Count(s => s.Role == ShipRole.Miner) <= u.Rules.MaxMiners);
+        // Phase 6: die Grenzen zählen Kapazität (Frachtraum ÷ 100, Laserstufe), nicht Stückzahl — höchstens um FleetCapacityOvershoot überschritten
+        Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) <= MathF.Max(trade0, u.Rules.MaxTraders + u.Rules.FleetCapacityOvershoot) + 0.001f);
+        Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!) <= MathF.Max(mine0, u.Rules.MaxMiners + u.Rules.FleetCapacityOvershoot) + 1.0f);   // + ein Gründer-Mk2-Überhang
         foreach (var s in u.Ships.Values)
             Assert.True(s.Credits >= 0f && s.Credits < 100_000f && float.IsFinite(s.Credits), $"Schiff {s.Id.Value}: {s.Credits}");
         Assert.True(EconomyStats.Snapshot(u).ShipCredits < 300_000f, "Geld darf sich nicht bei den Schiffen aufstauen");
@@ -64,8 +67,9 @@ public class LifecycleTests
             if (st.Market.TryGetValue(DemoUniverse.Food, out var f)) f.Amount = 0f;
         u.Ships.Values.First(s => s.Role == ShipRole.Trader).Credits = 50_000f;
 
-        var built = new List<StationBuilt>();
-        u.Events.Raised += e => { if (e is StationBuilt b) built.Add(b); };
+        // Phase 8: der Lebenszyklus legt eine Baustelle an (zählt als Station); gebaut wird sie vom ConstructionSystem
+        var built = new List<ConstructionStarted>();
+        u.Events.Raised += e => { if (e is ConstructionStarted b) built.Add(b); };
         int before = u.Stations.Count;
         new SimulationRunner().Run(u, 120);
 
@@ -80,6 +84,7 @@ public class LifecycleTests
     {
         var u = DemoUniverse.Create();
         u.Rules.FleetChoosesModels = false;   // geprüft wird die Kopierregel (Phase 5c); die Modellwahl der Phase 6 hat eigene Tests
+        u.Rules.QualityChances = new() { 1f, 0f, 0f, 0f };   // Phase 8: Güteklasse fest Standard — geprüft wird der Verbrauch der Grundregel (der Wurf hing sonst vom Zufallsstand ab, den die Bauschiffe der Startwelt verschieben)
         var yard = Yard(u);
         yard.Stock(DemoUniverse.ShipKit).Amount = 5f;
         int before = u.Ships.Values.Count(s => s.Role == ShipRole.Trader);
@@ -270,8 +275,8 @@ public class GlutTests
             if (st.Market.TryGetValue(DemoUniverse.Food, out var f)) f.Amount = f.Target * 10f;
         u.Ships.Values.First(s => s.Role == ShipRole.Trader).Credits = 50_000f;
 
-        var built = new List<StationBuilt>();
-        u.Events.Raised += e => { if (e is StationBuilt b) built.Add(b); };
+        var built = new List<ConstructionStarted>();   // Phase 8: Baustelle statt sofortiger Station
+        u.Events.Raised += e => { if (e is ConstructionStarted b) built.Add(b); };
         new SimulationRunner().Run(u, 120);
 
         Assert.Equal("colony", built.Single().TypeKey);

@@ -41,6 +41,7 @@ public static class CapabilityDefaults
         ShipRole.Miner => Capability.Cargo | Capability.Mining,
         ShipRole.Fighter => Capability.Combat,
         ShipRole.Player => Capability.Cargo | Capability.Mining,
+        ShipRole.Builder => Capability.Cargo | Capability.Construction,
         _ => Capability.None,
     };
 

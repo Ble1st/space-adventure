@@ -26,6 +26,7 @@ public partial class Hud : CanvasLayer
 	public RepairFuelScreen DockRepair { get; } = new();
 	public OutfitterScreen DockOutfitter { get; } = new();
 	public ShipyardScreen DockShipyard { get; } = new();
+	public StorageScreen DockStorage { get; } = new();
 	public PlaceholderAreaScreen DockPlaceholder { get; } = new();
 	// Kommandozentrale (UI.md Abschnitt 4): Vollbild-Bereiche mit linker Leiste; Kontext hält Main aktuell
 	public CommandContext CcCtx { get; } = new();
@@ -63,6 +64,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(DockRepair);
 		Screens.Register(DockOutfitter);
 		Screens.Register(DockShipyard);
+		Screens.Register(DockStorage);
 		Screens.Register(DockPlaceholder);
 		DockMenu.Ctx = DockCtx;
 		DockTrade.Ctx = DockCtx;
@@ -71,6 +73,7 @@ public partial class Hud : CanvasLayer
 		DockRepair.Ctx = DockCtx;
 		DockOutfitter.Ctx = DockCtx;
 		DockShipyard.Ctx = DockCtx;
+		DockStorage.Ctx = DockCtx;
 		DockPlaceholder.Ctx = DockCtx;
 		Screens.Register(CcUniverse);
 		Screens.Register(CcSector);
@@ -115,6 +118,7 @@ public partial class Hud : CanvasLayer
 		root.AddChild(DockRepair);
 		root.AddChild(DockOutfitter);
 		root.AddChild(DockShipyard);
+		root.AddChild(DockStorage);
 		root.AddChild(DockPlaceholder);
 		root.AddChild(CcUniverse);
 		root.AddChild(CcSector);

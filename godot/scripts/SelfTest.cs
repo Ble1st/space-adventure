@@ -28,6 +28,9 @@ public partial class SelfTest : Node
 	string _fail = "";
 	SectorId _startSector;
 	int _stageStart;
+	StationId _siteId;     // Phase 8: Test-Baustelle
+	int _splitRock;        // Phase 8: gespaltener Asteroid
+	string? _savedTool;    // Phase 8: Werkzeug-Modul vor dem Spaltlaser-Test
 
 	public SelfTest(Main m) { _m = m; }
 
@@ -441,6 +444,106 @@ public partial class SelfTest : Node
 					}
 					_m.TestCameraAction("cam_free");
 					Check(_m.TestCamMode == CameraMode.Free, "Menü: Freie Kamera aktiv");
+					Next();
+				}
+				break;
+			case 27: // Phase 8: Baustelle im Spielersektor anlegen, andocken, Material über die Handel-Oberfläche liefern
+			{
+				try
+				{
+					if (_m.Docked) _m.TestUndock();
+					var uni = _m.Session.U;
+					var sec = uni.Sectors[uni.PlayerSector];
+					var spot = SpaceSim.Core.Simulation.StationLifecycleSystem.FindFreeSpot(uni, sec);
+					Check(spot != null, "Bauplatz für eine Test-Baustelle gefunden");
+					var site = SpaceSim.Core.Simulation.ConstructionRules.StartSite(uni, uni.StationTypes["farm"], sec.Id, spot!.Value, sec.Owner, 3500f, null, null);
+					_siteId = site.Id;
+					_m.TestDockAt(site.Id);
+					Check(_m.Docked && _m.TestDockedStation == site.Id, "An der Baustelle angedockt");
+					var areas = _m.TestDockAreas();
+					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Trade && a.Available), "Baustelle bietet den Handel (Material liefern)");
+				}
+				catch (System.Exception ex) { Fail("Baustelle: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 28:
+				if (_frame - _stageStart > 10)   // ein Simulationstick setzt das Gebot der Baustelle
+				{
+					var uni = _m.Session.U;
+					var site = uni.Stations[_siteId];
+					var pl = _m.Session.Player;
+					var steel = uni.FindGood("steel")!.Id;
+					pl.Cargo[steel] = 5f;
+					float before = site.Market[steel].Amount, cr = uni.PlayerWallet.Credits;
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Trade);
+					var r = _m.HudRef.DockTrade.TestExecute($"sell:{steel.Value}", 5f);
+					Check(r.Success && System.Math.Abs(site.Market[steel].Amount - before - 5f) < 0.01f, "Stahl über die Handel-Oberfläche an die Baustelle geliefert");
+					Check(uni.PlayerWallet.Credits > cr, "Spieler bekommt den Preis der Baustelle (freier Handel)");
+					Check(!_m.HudRef.DockTrade.TestExecute($"buy:{steel.Value}", 1f).Success, "Laufende Baustelle verkauft kein Material zurück");
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
+					Check(_m.TestScreenOpen("dock.info"), "Station-Info an der Baustelle geöffnet");
+					var status = SpaceSim.Core.Simulation.ConstructionInfo.Of(uni, site);
+					Check(status != null && status.Progress > 0f, $"Baustellen-Status aus dem Core ({status?.State}, {100f * (status?.Progress ?? 0f):0} %)");
+					_m.TestUndock();
+					_m.TestOpenCcArea("sector");
+					_m.HudRef.Screens.Current?.Refresh();
+					Check(_m.TestScreenOpen("cc.sector"), "Sektoransicht zeigt die Baustelle ohne Ausnahme");
+					_m.TestCloseCommand();
+					Next();
+				}
+				break;
+			case 29: // Phase 8: Spalter — Spaltlaser einbauen, Schacht erscheint, Spaltschuss zerlegt den Asteroiden
+			{
+				if (_frame - _stageStart < 180) break;   // Abdock-Animation abwarten (sie setzt die Schiffsposition)
+				var uni = _m.Session.U;
+				var pl = _m.Session.Player;
+				int tool = pl.Slots.FindIndex(s => s.Type == "tool");
+				_savedTool = tool >= 0 ? pl.Fit[tool] : null;
+				if (tool >= 0) { pl.Fit[tool] = "split_laser_s"; pl.RecomputeStats(uni); }
+				var rock = _m.TestAimAtBiggestRock();
+				_splitRock = rock?.Id ?? 0;
+				Check(pl.Stats.SplitPower > 0f && rock != null, "Spaltlaser eingebaut und Ziel gewählt");
+				Next(); break;
+			}
+			case 30:
+				if (_frame - _stageStart > 3)
+				{
+					var uni = _m.Session.U;
+					var pl = _m.Session.Player;
+					int idx = _m.TestBayKeys.ToList().IndexOf("split");
+					Check(idx >= 0, "Flug-HUD zeigt den Schacht „Spalter“ (WeaponBays.For)");
+					int before = uni.Sectors[uni.PlayerSector].Asteroids.Count;
+					if (idx >= 0) _m.TestPressBay(idx);
+					Check(!uni.Sectors[uni.PlayerSector].Asteroids.Any(a => a.Id == _splitRock) && uni.Sectors[uni.PlayerSector].Asteroids.Count > before,
+						$"Spaltschuss zerlegt den Asteroiden in Fragmente ({_m.TestLastSplitIssue})");
+					int tool = pl.Slots.FindIndex(s => s.Type == "tool");
+					if (tool >= 0) { pl.Fit[tool] = _savedTool; pl.RecomputeStats(uni); }
+					Next();
+				}
+				break;
+			case 31: // Phase 8: Lagerhaus in Gamma — einlagern und abholen über den Bereich „Lager“
+				_m.TestEnterSector(new SectorId(3));
+				Next(); break;
+			case 32:
+				if (_frame - _stageStart > 3)
+				{
+					var uni = _m.Session.U;
+					var wh = uni.Stations.Values.First(s => s.TypeKey == "warehouse");
+					_m.TestDockAt(wh.Id);
+					Check(_m.Docked, "Am Lagerhaus angedockt");
+					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Storage && a.Available), "Andock-Menü zeigt den Bereich „Lager“");
+					var pl = _m.Session.Player;
+					var ice = uni.FindGood("ice")!.Id;
+					pl.Cargo[ice] = 7f;
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Storage);
+					Check(_m.TestScreenOpen("dock.storage"), "Lager-Bereich geöffnet");
+					Check(_m.HudRef.DockStorage.TestRowCount >= 1, "Lager zeigt Zeilen aus IStationService.Offers");
+					var st = _m.HudRef.DockStorage.Execute($"store:{ice.Value}");
+					Check(st.Success && wh.PlayerStorage.GetValueOrDefault(ice) == 7f && pl.Cargo.GetValueOrDefault(ice) == 0f, "Einlagern über Dienst+Oberfläche");
+					var fe = _m.HudRef.DockStorage.Execute($"fetch:{ice.Value}");
+					Check(fe.Success && pl.Cargo.GetValueOrDefault(ice) == 7f && !wh.PlayerStorage.ContainsKey(ice), "Abholen über Dienst+Oberfläche");
+					pl.Cargo.Remove(ice);
+					_m.TestUndock();
 					Next();
 				}
 				break;

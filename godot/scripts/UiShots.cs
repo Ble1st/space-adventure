@@ -16,7 +16,8 @@ namespace SpaceAdventure;
 /// Kommandozentrale (UI.md Abschnitt 4): (l) Menü, (m) Universum (Fraktionsebene), (n) Universum mit
 /// gewähltem Sektor, (o) Sektor, (p) Fraktionsliste, (q) Fraktionsdetail, (r) Meine Fraktion,
 /// (s) Flotte, (t) Besitz, (u) Schiffsdetail, (v) Comms, System mit Startpaket-Auswahl, (w) Flug-HUD mit gedrehter Kamera
-/// (Yaw 60°, Pitch 40°) – dann Ende.
+/// (Yaw 60°, Pitch 40°), Phase 8: Baustelle im Flug, Station-Info der Baustelle, Sektoransicht mit Baustelle, Lager am Lagerhaus,
+/// Flug-HUD mit Spalter – dann Ende.
 /// Aufruf: godot-mono --path godot -- --ui-shots build/ui-shots/
 /// </summary>
 public partial class UiShots : Node
@@ -24,6 +25,7 @@ public partial class UiShots : Node
 	readonly Main _m;
 	readonly string _dir;
 	int _stage, _wait;
+	SpaceSim.Core.Model.StationId _site;   // Phase 8: Baustelle für die Bildschirmfotos
 
 	public UiShots(Main m, string dir)
 	{
@@ -145,7 +147,53 @@ public partial class UiShots : Node
 			case 451: Capture("22b-cc-system-startpakete.png"); _stage = 46; _wait = 10; break;
 			case 46: _m.TestCloseCommand(); _stage = 47; _wait = 10; break;
 			case 47: _m.TestSetCam(60f, 40f, 55f); _stage = 48; _wait = 20; break;   // Kamera drehen (HUD bleibt sichtbar)
-			case 48: Capture("23-hud-kamera-gedreht.png"); _stage = 49; _wait = 5; break;
+			case 48: Capture("23-hud-kamera-gedreht.png"); _stage = 480; _wait = 5; break;
+			// ── Phase 8: Baustelle, Lagerhaus, Spalter ──
+			case 480: // Baustelle im Startsektor, teilweise beliefert; Kamera zurück
+			{
+				_m.TestResetCam();
+				var u = _m.Session.U;
+				var sec = u.Sectors[u.PlayerSector];
+				var spot = SpaceSim.Core.Simulation.StationLifecycleSystem.FindFreeSpot(u, sec)!.Value;
+				var site = SpaceSim.Core.Simulation.ConstructionRules.StartSite(u, u.StationTypes["goods_factory"], sec.Id, spot, sec.Owner, 7000f, null, null);
+				site.Stock(u.FindGood("steel")!.Id).Amount = 40f;
+				site.Stock(u.FindGood("electronics")!.Id).Amount = 3f;
+				_site = site.Id;
+				_m.TestTeleportNear(site.Id);
+				_stage = 481; _wait = 40; break;
+			}
+			case 481: Capture("24-hud-baustelle.png"); _stage = 482; _wait = 10; break;
+			case 482: _m.TestDockAt(_site); _stage = 483; _wait = 90; break;
+			case 483: _m.TestOpenDockArea("info"); _stage = 484; _wait = 20; break;
+			case 484: Capture("25-dock-baustelle-info.png"); _stage = 485; _wait = 10; break;
+			case 485: _m.TestUndock(); _stage = 486; _wait = 60; break;
+			case 486: _m.TestOpenCcArea("sector"); _m.HudRef.CcSector.TestSelectStation(_site); _stage = 487; _wait = 20; break;
+			case 487: Capture("26-cc-sektor-baustelle.png"); _stage = 488; _wait = 10; break;
+			case 488: _m.TestCloseCommand(); _m.TestEnterSector(new SpaceSim.Core.Model.SectorId(3)); _stage = 489; _wait = 20; break;
+			case 489: // Lagerhaus Gamma: Fracht an Bord, ein Posten schon eingelagert
+			{
+				var u = _m.Session.U;
+				var wh = u.Stations.Values.First(x => x.TypeKey == "warehouse");
+				var pl = _m.Session.Player;
+				pl.Cargo[u.FindGood("ice")!.Id] = 24f;
+				pl.Cargo[u.FindGood("copper_ore")!.Id] = 12f;
+				wh.PlayerStorage[u.FindGood("titanium")!.Id] = 6f;
+				_m.Session.U.PlayerWallet.Credits = 2500f;
+				_m.TestDockAt(wh.Id);
+				_stage = 490; _wait = 90; break;
+			}
+			case 490: _m.TestOpenDockArea("storage"); _stage = 491; _wait = 20; break;
+			case 491: Capture("27-dock-lager.png"); _stage = 492; _wait = 10; break;
+			case 492: _m.TestUndock(); _stage = 493; _wait = 180; break;
+			case 493: // Spaltlaser im Werkzeug-Slot, größter Gürtel-Asteroid als Ziel
+			{
+				var pl = _m.Session.Player;
+				int tool = pl.Slots.FindIndex(x => x.Type == "tool");
+				if (tool >= 0) { pl.Fit[tool] = "split_laser_s"; pl.RecomputeStats(_m.Session.U); }
+				_m.TestAimAtBiggestRock();
+				_stage = 494; _wait = 30; break;
+			}
+			case 494: Capture("28-hud-spalter.png"); _stage = 495; _wait = 5; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

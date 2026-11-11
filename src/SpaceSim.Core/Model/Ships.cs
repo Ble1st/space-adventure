@@ -1,6 +1,7 @@
 namespace SpaceSim.Core.Model;
 
-public enum ShipRole { Trader, Miner, Fighter, Player }
+/// <summary>Aufgabe/Etikett eines Schiffs (gespeichert als Text). Phase 8: <see cref="Builder"/> = Bauschiff (<see cref="Simulation.ConstructionSystem"/>).</summary>
+public enum ShipRole { Trader, Miner, Fighter, Player, Builder }
 public enum TradePhase { Idle, GoingToBuy, GoingToSell }
 public enum MinePhase { Idle, GoingToField, Mining, GoingToStation }
 
@@ -118,6 +119,9 @@ public sealed class Ship : ICreditAccount
     /// <summary>Wirtschaftlich aktives KI-Schiff (Händler oder Miner): Fracht- oder Schürffähigkeit, von der KI gesteuert.</summary>
     public bool IsEconomyAi => Controller == Controller.Ai && (Has(Capability.Cargo) || Has(Capability.Mining));
 
+    /// <summary>Phase 8: von der KI gesteuertes Bauschiff (Etikett <see cref="ShipRole.Builder"/> und Fähigkeit <see cref="Capability.Construction"/>).</summary>
+    public bool IsAiBuilder => Controller == Controller.Ai && Role == ShipRole.Builder && Has(Capability.Construction);
+
     /// <summary>Belegter Laderaum (Einheiten × Volumen je Einheit).</summary>
     public float UsedVolume(Universe u) => Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
 
@@ -202,3 +206,9 @@ public sealed record TradeOrder(StationId Buy, StationId Sell, GoodId Good) : Sh
 public sealed record MineOrder(SectorId Sector, int Field, StationId DeliverTo) : ShipOrder;
 public sealed record PatrolOrder(SectorId Sector) : ShipOrder;
 public sealed record GoToOrder(StationId Target) : ShipOrder;
+/// <summary>
+/// Phase 8: Bauauftrag eines Bauschiffs. <paramref name="Site"/> = Baustelle (Station mit <see cref="Station.Site"/>; default = keine, dann
+/// verkauft das Schiff nur übrige Fracht an <paramref name="Supplier"/>), <paramref name="Supplier"/> = Station, bei der Material geholt wird
+/// (default = keine), <paramref name="Good"/> = geholte Ware.
+/// </summary>
+public sealed record BuildOrder(StationId Site, StationId Supplier, GoodId Good) : ShipOrder;

@@ -64,11 +64,34 @@ public sealed class MineJob : IShipJob
     public float Score(Universe u, Ship ship) => MinerSystem.BestMine(u, ship).Score * ship.CapacityVolumeFor(GoodForm.Solid);
 }
 
-/// <summary>Registry der KI-Aufgaben (feste Reihenfolge: Handel, Schürfen) und gemeinsame Abfragen.</summary>
+/// <summary>
+/// Phase 8: Bauen — Bauschiffe beliefern und montieren Baustellen (<see cref="ConstructionSystem"/>). Kapazität = 1 je Schiff
+/// (Grenze <see cref="EconomyRules.MaxBuilders"/>); Kaufwert wie beim Handel (Material wird gefahren); Bewertung = Montagegebühr der nächsten
+/// freien Baustelle je Tick Anreise (0 = keine Baustelle offen).
+/// </summary>
+public sealed class BuildJob : IShipJob
+{
+    public const string JobKey = "build";
+    public string Key => JobKey;
+    public ShipRole Role => ShipRole.Builder;
+    public Capability Needs => Capability.Construction;
+    public float Limit(EconomyRules rules) => rules.MaxBuilders;
+    public float Units(ShipStats stats, float cargoCapacity, EconomyRules rules) => 1f;
+    public float FleetValue(ShipStats stats, EconomyRules rules) =>
+        MathF.Max(0.25f, stats.Cargo / MathF.Max(1f, rules.TradeCapacityUnit)) * MathF.Min(1.5f, stats.Speed / Travel.ShipSpeed);
+    public float Score(Universe u, Ship ship)
+    {
+        if (ConstructionSystem.OpenSite(u, ship) is not { } site) return 0f;
+        float time = Travel.Estimate(u, ship.Sector, ship.Position, site.Sector, site.DockPoint(ship.Id), ship);
+        return site.Site!.Budget * u.Rules.ConstructionFeeShare / MathF.Max(1f, time + u.Rules.ConstructionAssemblyTicks);
+    }
+}
+
+/// <summary>Registry der KI-Aufgaben (feste Reihenfolge: Handel, Schürfen, Bauen) und gemeinsame Abfragen.</summary>
 public static class ShipJobs
 {
-    /// <summary>Alle Aufgaben in fester Reihenfolge (Reihenfolge = Reihenfolge der Flottenerweiterung, wie vor Phase 6 erst Händler, dann Miner).</summary>
-    public static readonly IReadOnlyList<IShipJob> Default = new IShipJob[] { new TradeJob(), new MineJob() };
+    /// <summary>Alle Aufgaben in fester Reihenfolge (Reihenfolge = Reihenfolge der Flottenerweiterung, wie vor Phase 6 erst Händler, dann Miner; Phase 8: dann Bauschiffe).</summary>
+    public static readonly IReadOnlyList<IShipJob> Default = new IShipJob[] { new TradeJob(), new MineJob(), new BuildJob() };
 
     /// <summary>Aufgabe zum Content-Schlüssel (null = unbekannt).</summary>
     public static IShipJob? ByKey(string key) => Default.FirstOrDefault(j => j.Key == key);

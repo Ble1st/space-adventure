@@ -47,6 +47,19 @@ public sealed record ShipQualityRolled(ShipId Ship, ShipQuality Rolled, ShipQual
 /// <summary>Phase 7: Upgrade-Versuch (Dienst „upgrade“ oder NPC-<see cref="Simulation.UpgradeSystem"/>): Art, Slot (−1 Bonusslot), Module, Erfolg, Chance, Preis.</summary>
 public sealed record UpgradeAttempted(ShipId Ship, StationId Station, UpgradeKind Kind, int Slot, string? From, string? To, bool Success, float Chance, float Price) : SimEvent;
 
+/// <summary>Phase 8: Baustelle angelegt (Stationstyp, Bausumme im Treuhandgeld, Stückliste in Einheiten gesamt).</summary>
+public sealed record ConstructionStarted(StationId Site, SectorId Sector, string TypeKey, float Budget, float MaterialUnits) : SimEvent;
+/// <summary>Phase 8: Material an eine Baustelle geliefert. By: "builder" (Bauschiff im Auftrag), "trader" (KI-Händler), "player", "emergency" (Notbau).</summary>
+public sealed record ConstructionDelivered(StationId Site, ShipId Ship, GoodId Good, float Units, string By) : SimEvent;
+/// <summary>Phase 8: Baustelle fertig, Station steht (zusätzlich <see cref="StationBuilt"/>); Emergency = Notbau hat Material ersetzt.</summary>
+public sealed record ConstructionCompleted(StationId Station, SectorId Sector, string TypeKey, bool Emergency, ShipId Builder) : SimEvent;
+/// <summary>Phase 8: Baustelle verfallen (ohne Fortschritt); Refund = an den Investor zurück, KeptMaterial = bleibt als Lager liegen.</summary>
+public sealed record ConstructionAbandoned(StationId Site, string TypeKey, float Refund, bool KeptMaterial) : SimEvent;
+/// <summary>Phase 8: Notbau — fehlende Materialien gegen Credits (Basispreis × Aufschlag, Geldsenke) ersetzt; Waived = nicht gedeckter Rest.</summary>
+public sealed record EmergencyConstruction(StationId Site, FactionId Faction, float Units, float Cost, float Waived, bool Critical) : SimEvent;
+/// <summary>Phase 8: Ein Spaltlaser hat einen Asteroiden in Fragmente zerlegt (Ids der neuen Fragmente, verlorenes Erz als Staub).</summary>
+public sealed record AsteroidSplit(SectorId Sector, int Asteroid, IReadOnlyList<int> Fragments, float Dust, ShipId Ship) : SimEvent;
+
 /// <summary>Einfacher synchroner Ereignisbus. Wird nicht gespeichert; Abonnenten (Statistik, Darstellung) hängen sich nach dem Laden neu an.</summary>
 public sealed class SimEvents
 {

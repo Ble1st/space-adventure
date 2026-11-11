@@ -2,6 +2,7 @@ using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Simulation;
 using SpaceSim.Core.Trading;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
@@ -39,7 +40,17 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		Row(v1, "Typ", type);
 		Row(v1, "Besitzer", faction);
 		Row(v1, "Sektor", sector);
-		Row(v1, "Kasse", $"{st.Credits:0} Cr");
+		Row(v1, st.IsBuildSite ? "Treuhand" : "Kasse", $"{st.Credits:0} Cr");
+		// Phase 8: Baustelle — Zieltyp, Materialfortschritt, Bauschiff und Status (echt aus ConstructionInfo); Schutz/Kritikalität sonst
+		if (ConstructionInfo.Of(u, st) is { } site)
+		{
+			Row(v1, "Baut", site.TypeName);
+			Row(v1, "Material", $"{100f * site.Progress:0} % geliefert");
+			Row(v1, "Bauschiff", site.Builder);
+			Row(v1, "Status", site.State);
+		}
+		else
+			Row(v1, "Schutz", st.BankruptcyProtected ? "vor Pleite geschützt" : StationCriticality.IsCritical(u, st) ? "kritisch (letzte ihrer Kette)" : "keiner");
 		v1.AddChild(Text("Angebotene Dienste", 18, Cyan));
 		var services = Ctx.Services.ForStation(u, st);
 		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));
@@ -53,7 +64,7 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		var v2 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		v2.AddThemeConstantOverride("separation", 4);
 		c2.AddChild(v2);
-		v2.AddChild(Text("Marktübersicht", 22, Cyan));
+		v2.AddChild(Text(st.IsBuildSite ? "Material (geliefert/verlangt)" : "Marktübersicht", 22, Cyan));
 		var scroll = new ScrollContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
 		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		list.AddThemeConstantOverride("separation", 4);
