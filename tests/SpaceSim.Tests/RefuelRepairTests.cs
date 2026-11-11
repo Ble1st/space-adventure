@@ -192,7 +192,7 @@ public class RefuelRepairTests
         Assert.DoesNotContain("repair", reg.ForStation(u, u.Stations[new StationId(25)]).Select(s => s.Key));
         Assert.Contains("repair", reg.ForStation(u, Plating(u)).Select(s => s.Key));
         var solar = u.Stations.Values.First(s => s.TypeKey == "solar_plant");
-        Assert.Equal(new[] { "trade" }, reg.ForStation(u, solar).Select(s => s.Key));
+        Assert.Equal(new[] { "trade", "hangar" }, reg.ForStation(u, solar).Select(s => s.Key));   // Phase 12: Hangar
     }
 
     // ───────── Spielerverbrauch und Notruf ─────────
@@ -254,7 +254,7 @@ public class RefuelRepairTests
         var (loaded, _) = SaveGameJson.Read(SaveGameJson.Write(u, Now));
         Assert.Equal(37.5f, loaded.Ships[loaded.PlayerShip].FuelAmount(Prop));
         Assert.Equal(0.08f, loaded.Rules.RepairPlatesPerHull);
-        Assert.Equal(new[] { "trade", "refuel" }, loaded.StationTypes["fuel_refinery"].Services);
+        Assert.Equal(new[] { "trade", "refuel", "hangar", "taxi" }, loaded.StationTypes["fuel_refinery"].Services);   // Phase 12
     }
 
     // ───────── alte Welten ohne Raffinerie ─────────

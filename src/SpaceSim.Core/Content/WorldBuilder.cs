@@ -93,7 +93,7 @@ public static class WorldBuilder
             var type = new StationType
             {
                 Key = t.Key, Name = t.Name, BuildCost = t.BuildCost, UpkeepPerTick = t.Upkeep, IncomePerTick = t.Income,
-                Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey } : new List<string>(t.Services),
+                Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey, Services.HangarService.ServiceKey } : new List<string>(t.Services),
             };
             var seenServices = new HashSet<string>();
             foreach (var key in type.Services)
@@ -311,6 +311,8 @@ public static class WorldBuilder
         // Phase 10: Sektorkontrolle der Startwelt gleich berechnen (Einfluss, Stufe, umkämpft); Besitzer aus der Weltdatei bleibt der Startwert
         foreach (var sector in u.Sectors.Values.OrderBy(s => s.Id.Value)) Simulation.SectorControl.Update(u, sector);
         Simulation.GateAccess.SyncRestricted(u);
+        // Phase 12: Liegeplatz der Startschiffe (am Andockpunkt einer Station = angedockt; das aktive Schiff dockt nur die Ansicht an); das Laden älterer Stände bestimmt ihn genauso
+        foreach (var ship in u.Ships.Values.Where(x => x.Transit is null && x.Id != u.PlayerShip).OrderBy(x => x.Id.Value)) ship.DockedAt = u.StationAt(ship.Sector, ship.Position);
         return u;
     }
 
@@ -436,7 +438,8 @@ public static class WorldBuilder
             if (cd.Kit is { } kit && !goodId.ContainsKey(kit)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': unbekannte Bausatz-Ware '{kit}'");
             if (cd.ToolEfficiency <= 0f || cd.ToolEfficiency > 1f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': toolEfficiency {cd.ToolEfficiency} muss in (0, 1] liegen");
             if (cd.MaxSlotUpgrades < 0) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': maxSlotUpgrades muss >= 0 sein");
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades, Restricted = cd.Restricted };
+            if (cd.BerthFee < 0f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': berthFee muss >= 0 sein");
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades, Restricted = cd.Restricted, BerthFee = cd.BerthFee };
             if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
         }
 

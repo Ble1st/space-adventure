@@ -132,6 +132,12 @@ public sealed class Ship : ICreditAccount
     /// <summary>Phase 8: von der KI gesteuertes Bauschiff (Etikett <see cref="ShipRole.Builder"/> und Fähigkeit <see cref="Capability.Construction"/>).</summary>
     public bool IsAiBuilder => Controller == Controller.Ai && Role == ShipRole.Builder && Has(Capability.Construction);
 
+    /// <summary>
+    /// Phase 12: Bauschiff im Einsatz für eine Baustelle — KI-Bauschiffe und Spielerschiffe mit Befehl „Bauen“ (<see cref="BuildCommand"/>), die
+    /// <see cref="Simulation.ConstructionSystem"/> ausführt.
+    /// </summary>
+    public bool IsSiteBuilder => Role == ShipRole.Builder && Has(Capability.Construction) && (Controller == Controller.Ai || Command is BuildCommand);
+
     /// <summary>Belegter Laderaum (Einheiten × Volumen je Einheit).</summary>
     public float UsedVolume(Universe u) => Cargo.Sum(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit);
 
@@ -198,6 +204,35 @@ public sealed class Ship : ICreditAccount
     public StationId HomeBase;
     /// <summary>Phase 11: Einsatzsektor (Polizei: zugewiesene Patrouille, Piraten: gewähltes Jagdrevier); default = keiner (gespeichert).</summary>
     public SectorId DutySector;
+
+    /// <summary>
+    /// Phase 12: Befehl (Ebene „Befehl“ zwischen Notfall und Automatik, FLOTTEN.md Abschnitt 4); null = Automatik. Ausgeführt vom registrierten
+    /// <see cref="Simulation.IOrderExecutor"/> (<see cref="Simulation.OrderSystem"/>). Gespeichert.
+    /// </summary>
+    public ShipCommand? Command;
+    /// <summary>Phase 12: Tick, seit dem der Befehl gilt (gespeichert).</summary>
+    public long CommandSince;
+    /// <summary>Phase 12: Fortschritt des Ausführers (z. B. Index der Streifenrunde, Phase der Heimkehr; gespeichert).</summary>
+    public int CommandStep;
+    /// <summary>Phase 12: Notfall-Ebene aktiv (Hülle kritisch oder Tank leer): der Befehl ruht, das Schiff fliegt zur Reparatur; gespeichert.</summary>
+    public bool Emergency;
+    /// <summary>Phase 12: Verhaltensregel des Schiffs (im Verband gilt die des Verbands); gespeichert.</summary>
+    public Engagement Engagement;
+    /// <summary>Phase 12: Verband, dem das Schiff angehört (default = keiner); gespeichert.</summary>
+    public SquadronId Squadron;
+    /// <summary>
+    /// Phase 12: Station, an der das Schiff angedockt liegt (default = keine, z. B. unterwegs oder im freien Raum). Gesetzt bei Ankunft am Andockpunkt
+    /// (<see cref="Universe.FinishTransit"/>), beim Anlegen und vom Andocken des Spielers; gelöscht beim Abflug. Gespeichert.
+    /// </summary>
+    public StationId DockedAt;
+    /// <summary>Phase 12: Leihschiff — Station, bei der es gemietet wurde (default = eigenes Schiff); gespeichert.</summary>
+    public StationId RentedFrom;
+    /// <summary>Phase 12: Beginn der Miete (Tick) und hinterlegtes Pfand; gespeichert.</summary>
+    public long RentedSince;
+    public float RentalDeposit;
+
+    /// <summary>Phase 12: Leihschiff (nicht verkaufbar, Rückgabe am Leihdienst)?</summary>
+    public bool IsRental => RentedFrom.Value != 0;
 }
 
 /// <summary>Abstrakte Reise statt Physik: Schiffe außerhalb des Spielersektors haben nur einen Fahrplan.</summary>

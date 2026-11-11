@@ -32,14 +32,17 @@ public class StationServiceConfigTests
         Assert.NotEmpty(u.StationTypes);
         foreach (var t in u.StationTypes.Values)
         {
-            if (t.Key is "fuel_refinery") Assert.Equal(new[] { "trade", "refuel" }, t.Services);
-            else if (t.Key is "plating_works") Assert.Equal(new[] { "trade", "repair" }, t.Services);
-            else if (t.Key is "shipyard") Assert.Equal(new[] { "trade", "repair", "outfitter", "shipdealer", "upgrade" }, t.Services);   // Phase 5c, Phase 7
-            else if (t.Key is "trade_station") Assert.Equal(new[] { "trade", "outfitter", "shipdealer" }, t.Services);       // Phase 5c
-            else if (t.Key is "warehouse") Assert.Equal(new[] { "trade", "storage" }, t.Services);                            // Phase 8
-            else if (t.Key is "headquarters" or "sector_hq" or "police_station") Assert.Equal(new[] { "court", "bounty" }, t.Services);   // Phase 11: Gericht, Kopfgeldbüro
+            // Phase 12: Hangar an allen Stationen mit Liegeplätzen, Taxi und Leihschiff an Verkehrsknoten (Standard ohne Feld: trade + hangar)
+            if (t.Key is "fuel_refinery") Assert.Equal(new[] { "trade", "refuel", "hangar", "taxi" }, t.Services);
+            else if (t.Key is "plating_works") Assert.Equal(new[] { "trade", "repair", "hangar" }, t.Services);
+            else if (t.Key is "shipyard") Assert.Equal(new[] { "trade", "repair", "outfitter", "shipdealer", "upgrade", "hangar", "taxi", "rental" }, t.Services);   // Phase 5c, Phase 7, Phase 12
+            else if (t.Key is "trade_station") Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental" }, t.Services);       // Phase 5c, Phase 12
+            else if (t.Key is "warehouse") Assert.Equal(new[] { "trade", "storage", "hangar", "taxi" }, t.Services);                            // Phase 8, Phase 12
+            else if (t.Key is "headquarters" or "sector_hq") Assert.Equal(new[] { "court", "bounty", "hangar", "taxi" }, t.Services);   // Phase 11: Gericht, Kopfgeldbüro
+            else if (t.Key is "police_station") Assert.Equal(new[] { "court", "bounty", "hangar" }, t.Services);
             else if (t.Government != SpaceSim.Core.Model.GovernmentKind.None || t.Hideout) Assert.Empty(t.Services);              // Phase 10: Regierungsstationen ohne Markt
-            else Assert.Equal(new[] { TradeService.ServiceKey }, t.Services);
+            else if (t.Key is "build_site") Assert.Equal(new[] { TradeService.ServiceKey }, t.Services);
+            else Assert.Equal(new[] { TradeService.ServiceKey, HangarService.ServiceKey }, t.Services);
         }
     }
 
@@ -55,7 +58,7 @@ public class StationServiceConfigTests
     {
         var u = WorldBuilder.Build(WorldBuilder.Parse(WorldWithServices("solar_plant", "[]")));
         Assert.Empty(u.StationTypes["solar_plant"].Services);
-        Assert.Equal(new[] { TradeService.ServiceKey }, u.StationTypes["steelworks"].Services);
+        Assert.Equal(new[] { TradeService.ServiceKey, HangarService.ServiceKey }, u.StationTypes["steelworks"].Services);   // Phase 12: Standard mit Hangar
     }
 
     [Fact]
@@ -84,7 +87,7 @@ public class StationServiceConfigTests
         var (loaded, _) = SaveGameJson.Read(json);
 
         Assert.Empty(loaded.StationTypes["solar_plant"].Services);
-        Assert.Equal(new[] { TradeService.ServiceKey }, loaded.StationTypes["steelworks"].Services);
+        Assert.Equal(new[] { TradeService.ServiceKey, HangarService.ServiceKey }, loaded.StationTypes["steelworks"].Services);
     }
 
     [Fact]
@@ -113,7 +116,7 @@ public class StationServiceConfigTests
 
         var services = registry.ForStation(u, st);
 
-        Assert.Equal(new[] { TradeService.ServiceKey }, services.Select(s => s.Key));
+        Assert.Equal(new[] { TradeService.ServiceKey, HangarService.ServiceKey }, services.Select(s => s.Key));   // Phase 12: Hangar
     }
 
     [Fact]
@@ -140,6 +143,6 @@ public class StationServiceConfigTests
         var st = u.Stations.Values.First(s => s.Market.Count > 0);
         st.Market.Clear();
 
-        Assert.Empty(registry.ForStation(u, st));
+        Assert.Equal(new[] { HangarService.ServiceKey }, registry.ForStation(u, st).Select(s => s.Key));   // Phase 12: der Hangar braucht keinen Markt
     }
 }

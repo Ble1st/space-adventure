@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using Godot;
@@ -12,9 +13,8 @@ namespace SpaceAdventure.Ui.Screens;
 /// Kommandozentrale „Besitz“ (UI.md Abschnitt 4): Kasse, Zahl Schiffe/Stationen und Gesamtwert aus echten
 /// Daten (Spielerkasse + Fracht zu Basispreisen über <see cref="SectorEconomy.PlayerNetWorth"/>, klar beschriftet). Tabs Schiffe,
 /// Stationen, Verträge, Lager. Schiffe: das Spielerschiff mit Standort, Auftrag, Hülle, Fracht (alles echt).
-/// Tippen auf ein Schiff öffnet ein Detailfenster mit „In dieses Schiff wechseln“: für das aktive Schiff
-/// „Bereits aktiv“, sonst gesperrt mit dem Hinweis, dass der Wechsel im Hangar der Station geschieht, an der das Schiff
-/// liegt (Phase 5c; Fernwechsel ab Phase 12). Befehle, Heim schicken, Verkaufen: Platzhalter.
+/// Tippen auf ein Schiff öffnet ein Detailfenster mit „In dieses Schiff wechseln“ (Phase 12: auch aus der Ferne, UI.md „Schiff wechseln“),
+/// „Befehle“ (Flotte), „Heim schicken“ (Befehl Heimkehr) und „Verkaufen“ (Dienst „hangar“ der Station, an der es liegt); Liegegebühr und Wert echt.
 /// </summary>
 public sealed partial class AssetsScreen : CommandScreen
 {
@@ -22,9 +22,15 @@ public sealed partial class AssetsScreen : CommandScreen
 
 	string _tab = "ships";
 	ShipId? _detailShip;
+	string _message = "";
+
+	/// <summary>„In dieses Schiff wechseln“ (Phase 12: auch aus der Ferne; Main führt <see cref="SpaceSim.Core.Simulation.PlayerFleet.SwitchRemote"/> aus).</summary>
+	public event Action<ShipId>? SwitchRequested;
+	/// <summary>„Befehle“: in die Flotte wechseln, dieses Schiff gewählt.</summary>
+	public event Action<ShipId>? CommandsRequested;
 
 	/// <summary>Test-Hook: Detailfenster eines Schiffs öffnen.</summary>
-	public void TestOpenShipDetail() { _detailShip = Ctx.Player.Id; Invalidate(); }
+	public void TestOpenShipDetail(ShipId? id = null) { _detailShip = id ?? Ctx.Player.Id; Invalidate(); }
 
 	protected override void BuildContent(Control inner)
 	{
@@ -71,7 +77,9 @@ public sealed partial class AssetsScreen : CommandScreen
 	{
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 8);
-		At(inner, list, 12, 128, 998, 380);
+		// Phase 12: eine Flotte passt nicht auf eine Seite — die Liste rollt
+		var scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 128, 998, 366);
+		scroll.AddChild(list);
 		foreach (var s in u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value))
 		{
 			bool active = s.Id == u.PlayerShip;
@@ -107,32 +115,53 @@ public sealed partial class AssetsScreen : CommandScreen
 		At(w, new DockAreaScreen.ShipSketch { CustomMinimumSize = new Vector2(120, 100), Size = new Vector2(120, 100), MouseFilter = MouseFilterEnum.Ignore }, 30, 40);
 		At(w, Text($"Schiff #{s.Id.Value}{(active ? " (aktiv)" : "")}", 30, White), 170, 24, 400, 36);
 		At(w, Text($"{(u.ShipModels.TryGetValue(s.ModelKey, out var md) ? md.Name : "ohne Modell")} · Güteklasse {ShipQualityNames.Name(s.Quality)} · Besitzer {u.ActorName(s.Owner)}", 15, Dim), 170, 62, 600, 20);
-		string ort = Ctx.Docked is { } dock && active && u.Stations.TryGetValue(dock, out var dst)
-			? $"angedockt an {dst.Name}"
-			: $"{SectorName(u, s.Sector)} · ({s.Position.X:0}/{s.Position.Y:0})";
+		string ort = OrtText(u, s, active ? Ctx.Docked : s.DockedAt);
 		At(w, Text(ort, 16, active ? Cyan : Orange), 170, 88, 500, 22);
 
-		// Zustand (Hülle echt, Schild/Sprit Platzhalter)
+		// Zustand (Phase 12: Hülle, Sprit echt; Schild als Kapazität aus den Modulen)
 		At(w, Text("Zustand", 17, Cyan), 30, 160, 200, 22);
-		Bar(w, 30, 188, "Hülle", s.Hull, s.MaxHull, s.Hull > 60f ? Green : Orange, $"{(int)s.Hull}");
-		Bar(w, 30, 216, "Schild · Sprit", 0f, 1f, new Color(Dim, 0.5f), UiPlaceholders.Tag);
+		Bar(w, 30, 188, "Hülle", s.Hull, s.MaxHull, s.Hull > s.MaxHull * 0.6f ? Green : Orange, $"{(int)s.Hull}");
+		Bar(w, 30, 216, "Sprit", s.TotalFuel, MathF.Max(1f, s.Stats.FuelCapacity), Cyan, $"{s.TotalFuel:0}/{s.Stats.FuelCapacity:0}{(s.Stats.Shield > 0f ? $" · Schild {s.Stats.Shield:0}" : "")}");
 
 		// Auftrag und Standort (echt)
 		At(w, Text("Auftrag", 17, Cyan), 30, 256, 200, 22);
-		At(w, Text(OrderText(u, s), 15, White), 30, 282, 560, 22);
+		At(w, Text(active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(u, s), 15, White), 30, 282, 560, 22);
 		At(w, Text("Standort", 17, Cyan), 30, 316, 200, 22);
 		At(w, Text(ort + (s.Transit != null ? " · im Transit" : ""), 15, White), 30, 342, 560, 22);
-		At(w, Text($"{UiPlaceholders.ShipUpkeepText} · {UiPlaceholders.ShipValueText}", 14, new Color(Dim, 0.8f)), 30, 376, 560, 20);
+		float berth = SpaceSim.Core.Simulation.Hangar.BerthFeeNow(u, s);
+		At(w, Text($"Liegegebühr {(berth > 0f ? $"{berth:0} Cr/Tag" : "keine")} · Materialwert ≈ {SpaceSim.Core.Simulation.Hangar.MaterialValue(u, s):0} Cr · Verkauf ≈ {SpaceSim.Core.Simulation.Hangar.SellPrice(u, s):0} Cr", 14, new Color(Dim, 0.9f)), 30, 376, 560, 20);
+		if (_message.Length > 0) At(w, Text(_message, 14, Orange), 30, 400, 840, 20);
 
-		// Knöpfe unten (linksbündig, damit der Zustandstext rechts nicht über dem Text klebt)
-		var bSwitch = At(w, new KitButton("In dieses Schiff wechseln", new Vector2(380, 58)) { FontSize = 19, AlignLeft = true, State = KitButtonState.Disabled }, 490, 428);
-		bSwitch.Detail = active ? "Bereits aktiv" : UiPlaceholders.ShipSwitchSoon;
-		At(w, new KitButton("Befehle", new Vector2(120, 48)) { FontSize = 16, AlignLeft = true, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 30, 428);
-		At(w, new KitButton("Heim schicken", new Vector2(160, 48)) { FontSize = 16, AlignLeft = true, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 160, 428);
-		At(w, new KitButton("Verkaufen", new Vector2(140, 48)) { FontSize = 16, AlignLeft = true, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 330, 428);
+		// Knöpfe unten (Phase 12 echt): Befehle (Flotte), Heim schicken, Verkaufen (an der Station, an der es liegt), Wechseln (auch aus der Ferne)
+		var bSwitch = At(w, new KitButton("In dieses Schiff wechseln", new Vector2(380, 58)) { FontSize = 19, AlignLeft = true, State = active ? KitButtonState.Disabled : KitButtonState.Ready }, 490, 428);
+		if (active) bSwitch.Detail = "Bereits aktiv";
+		else { var sid = s.Id; bSwitch.Pressed += () => SwitchRequested?.Invoke(sid); }
+		var bCmd = At(w, new KitButton("Befehle", new Vector2(120, 48)) { FontSize = 16, AlignLeft = true, State = active ? KitButtonState.Disabled : KitButtonState.Normal }, 30, 428);
+		if (!active) { var sid = s.Id; bCmd.Pressed += () => CommandsRequested?.Invoke(sid); }
+		bool homeOk = !active && SpaceSim.Core.Simulation.Commands.Check(u, s, new ReturnCommand()) is null;
+		var bHome = At(w, new KitButton("Heim schicken", new Vector2(160, 48)) { FontSize = 16, AlignLeft = true, State = homeOk ? KitButtonState.Normal : KitButtonState.Disabled }, 160, 428);
+		if (homeOk) bHome.Pressed += () => { bool ok = SpaceSim.Core.Simulation.Commands.Give(u, s, new ReturnCommand(), out var m); _message = ok ? m : "Nicht möglich: " + m; Invalidate(); };
+		var dockSt = u.Stations.GetValueOrDefault(s.DockedAt);
+		var hangar = dockSt is null ? null : Ctx.Services.ForStation(u, dockSt).FirstOrDefault(x => x.Key == SpaceSim.Core.Services.HangarService.ServiceKey);
+		bool sellOk = hangar is not null && SpaceSim.Core.Simulation.Hangar.SellIssue(u, dockSt!, s) is null;
+		var bSell = At(w, new KitButton("Verkaufen", new Vector2(140, 48)) { FontSize = 16, AlignLeft = true, State = sellOk ? KitButtonState.Normal : KitButtonState.Disabled }, 330, 428);
+		if (!sellOk) bSell.Detail = active ? "" : dockSt is null ? "nur angedockt" : "";
+		else bSell.Pressed += () =>
+		{
+			var r = hangar!.Execute(u, dockSt!, Ctx.Player, new SpaceSim.Core.Services.ServiceRequest($"{SpaceSim.Core.Services.HangarService.SellShip}:{s.Id.Value}", default, 0f));
+			_message = r.Message;
+			if (r.Success) _detailShip = null;
+			Invalidate();
+		};
 		var bClose = At(w, new KitButton("Schließen", new Vector2(150, 44)) { FontSize = 15 }, 730, 16);
-		bClose.Pressed += () => { _detailShip = null; Invalidate(); };
+		bClose.Pressed += () => { _detailShip = null; _message = ""; Invalidate(); };
 	}
+
+	/// <summary>Standort: angedockt an einer Station (aktives Schiff: laut Ansicht), unterwegs oder im Raum.</summary>
+	static string OrtText(Universe u, Ship s, StationId? docked) =>
+		s.Transit is { } t ? $"unterwegs nach {(u.Sectors.TryGetValue(t.ToSector, out var ts) ? ts.Name : "?")}"
+		: docked is { Value: > 0 } d && u.Stations.TryGetValue(d, out var st) ? $"angedockt an {st.Name}"
+		: $"{(u.Sectors.TryGetValue(s.Sector, out var sec) ? sec.Name : "?")} · ({s.Position.X:0}/{s.Position.Y:0})";
 
 	static void Bar(Control parent, float x, float y, string name, float value, float max, Color fill, string text)
 	{
@@ -167,13 +196,11 @@ public sealed partial class AssetsScreen : CommandScreen
 			var closed = new System.Collections.Generic.List<Vector2>(pts) { pts[0] };
 			DrawPolyline(closed.ToArray(), Cyan, 1.5f, true);
 
-			string ort = _docked is { } d && _active && _u.Stations.TryGetValue(d, out var st)
-				? $"angedockt an {st.Name}"
-				: $"{(_u.Sectors.TryGetValue(_s.Sector, out var sec) ? sec.Name : "?")} · ({_s.Position.X:0}/{_s.Position.Y:0})";
+			string ort = OrtText(_u, _s, _active ? _docked : _s.DockedAt);
 			string model = _u.ShipModels.TryGetValue(_s.ModelKey, out var md) ? md.Name : "";
 			DrawString(font, new Vector2(96, 26), $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", HorizontalAlignment.Left, 320, 20, White);
 			DrawString(font, new Vector2(96, 48), $"{ort} · Fracht {_s.UsedVolume(_u):0.#}/{_s.CargoCapacity:0} m³ · Wert ≈ {SectorEconomy.TotalValue(_u, _s):0} Cr", HorizontalAlignment.Left, -1, 13, Dim);
-			DrawString(font, new Vector2(420, 26), OrderText(_u, _s), HorizontalAlignment.Left, -1, 14, White);
+			DrawString(font, new Vector2(420, 26), _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s), HorizontalAlignment.Left, 230, 14, White);
 			DrawString(font, new Vector2(420, 48), _s.Transit != null ? "im Transit" : "geparkt", HorizontalAlignment.Left, -1, 12, Dim);
 
 			DrawString(font, new Vector2(660, 22), "Hülle", HorizontalAlignment.Left, -1, 12, Dim);

@@ -60,14 +60,14 @@ public static class UniverseSerializer
     static ShipClassSave ToSave(ShipClass c) => new()
     {
         Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades, Restricted = c.Restricted,
+        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades, Restricted = c.Restricted, BerthFee = c.BerthFee,
     };
 
     static ShipClass FromSave(ShipClassSave c) => new()
     {
         Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
         Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency > 0f ? c.ToolEfficiency : 1f, MaxSlotUpgrades = Math.Max(0, c.MaxSlotUpgrades),
-        Restricted = c.Restricted,
+        Restricted = c.Restricted, BerthFee = MathF.Max(0f, c.BerthFee),
     };
 
     static ShipSlotSave ToSave(ClassSlot s) => new() { Type = s.Type, Size = s.Size.ToString(), Facing = s.Facing, Arc = s.Arc };
@@ -191,7 +191,17 @@ public static class UniverseSerializer
                 Quality = sh.Quality == ShipQuality.Standard ? null : sh.Quality.ToString(),
                 UpgradePity = sh.UpgradePity.Count == 0 ? null : new Dictionary<int, int>(sh.UpgradePity),
                 HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
+                Command = sh.Command is null ? null : ToSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
+                Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
+                RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
             });
+        if (u.Squadrons.Count > 0)
+            s.Squadrons = u.Squadrons.Values.OrderBy(q => q.Id.Value).Select(q => new SquadronSave
+            {
+                Id = q.Id.Value, Owner = q.Owner.Value, Name = q.Name, Leader = q.Leader.Value, Members = q.Members.Select(m => m.Value).ToList(),
+                Formation = q.Formation.ToString(), HomeBase = q.HomeBase.Value, Rules = q.Rules.ToString(),
+            }).ToList();
+        s.NextSquadronId = u.NextSquadronId;
         return s;
     }
 
@@ -328,6 +338,9 @@ public static class UniverseSerializer
                 Quality = sh.Quality is { } ql ? Enum.Parse<ShipQuality>(ql) : ShipQuality.Standard,
                 UpgradePity = sh.UpgradePity is null ? new Dictionary<int, int>() : new Dictionary<int, int>(sh.UpgradePity),
                 HomeBase = new StationId(sh.HomeBase), DutySector = new SectorId(sh.DutySector),
+                Command = sh.Command is null ? null : CommandFromSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
+                Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
+                DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
             ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;
@@ -349,6 +362,17 @@ public static class UniverseSerializer
         }
         u.IdCounters = (s.NextShipId, s.NextStationId);
         u.RebuildTracker();
+        // Phase 12: Verbände
+        if (s.Squadrons is not null)
+            foreach (var q in s.Squadrons)
+                u.Squadrons[new SquadronId(q.Id)] = new Squadron
+                {
+                    Id = new SquadronId(q.Id), Owner = new ActorId(q.Owner), Name = q.Name, Leader = new ShipId(q.Leader),
+                    Members = q.Members.Select(m => new ShipId(m)).ToList(),
+                    Formation = Enum.TryParse<Formation>(q.Formation, out var f) ? f : Formation.Line, HomeBase = new StationId(q.HomeBase),
+                    Rules = Enum.TryParse<Engagement>(q.Rules, out var e) ? e : Engagement.Defend,
+                };
+        u.NextSquadronId = Math.Max(s.NextSquadronId, u.Squadrons.Count == 0 ? 1 : u.Squadrons.Keys.Max(k => k.Value) + 1);
         return u;
     }
 
@@ -364,6 +388,43 @@ public static class UniverseSerializer
         TicksPerCycle = r.Ticks,
         Inputs = r.In.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
         Outputs = r.Out.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+    };
+
+    /// <summary>Phase 12: Befehl ins erweiterte <see cref="OrderSave"/> (Art + Ganzzahlen, Listen für Streifenrunde und Kommazahlen).</summary>
+    static OrderSave ToSave(ShipCommand c) => c switch
+    {
+        GoToCommand g => new OrderSave { Kind = CommandKinds.GoTo, A = g.Sector.Value, B = g.Station.Value, Values = new List<float> { g.Position.X, g.Position.Y } },
+        HoldCommand => new OrderSave { Kind = CommandKinds.Hold },
+        PatrolCommand p => new OrderSave { Kind = CommandKinds.Patrol, Ids = p.Sectors.Select(x => x.Value).ToList() },
+        GuardCommand g => new OrderSave { Kind = CommandKinds.Guard, A = g.Station.Value },
+        EscortCommand e => new OrderSave { Kind = CommandKinds.Escort, A = e.Target.Value },
+        FollowCommand f => new OrderSave { Kind = CommandKinds.Follow, A = f.Target.Value },
+        TradeCommand t => LimitsSave(CommandKinds.Trade, t.Limits),
+        MineCommand m => LimitsSave(CommandKinds.Mine, m.Limits),
+        BuildCommand b => new OrderSave { Kind = CommandKinds.Build, A = b.Site.Value },
+        ReturnCommand => new OrderSave { Kind = CommandKinds.Return },
+        _ => throw new InvalidOperationException($"Unbekannter Befehl {c.GetType().Name}"),
+    };
+
+    static OrderSave LimitsSave(string kind, AutoLimits l) =>
+        new() { Kind = kind, A = l.Center.Value, B = l.RadiusJumps, Values = new List<float> { l.MaxBuyFactor, l.Reserve } };
+
+    static AutoLimits LimitsFrom(OrderSave o) =>
+        new(new SectorId(o.A), o.B, o.Values is { Count: > 0 } v ? v[0] : 0f, o.Values is { Count: > 1 } w ? w[1] : 0f);
+
+    static ShipCommand CommandFromSave(OrderSave o) => o.Kind switch
+    {
+        CommandKinds.GoTo => new GoToCommand(new SectorId(o.A), new Vec2(o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f), new StationId(o.B)),
+        CommandKinds.Hold => new HoldCommand(),
+        CommandKinds.Patrol => new PatrolCommand((o.Ids ?? new List<int>()).Select(x => new SectorId(x)).ToList()),
+        CommandKinds.Guard => new GuardCommand(new StationId(o.A)),
+        CommandKinds.Escort => new EscortCommand(new ShipId(o.A)),
+        CommandKinds.Follow => new FollowCommand(new ShipId(o.A)),
+        CommandKinds.Trade => new TradeCommand(LimitsFrom(o)),
+        CommandKinds.Mine => new MineCommand(LimitsFrom(o)),
+        CommandKinds.Build => new BuildCommand(new StationId(o.A)),
+        CommandKinds.Return => new ReturnCommand(),
+        _ => throw new FormatException($"Unbekannter Befehl '{o.Kind}'"),
     };
 
     static OrderSave ToSave(ShipOrder o) => o switch

@@ -42,7 +42,7 @@ public sealed class StationServices
         return list;
     }
 
-    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c), outfitter, shipdealer (Phase 5c), upgrade (Phase 7), storage (Phase 8), court und bounty (Phase 11).</summary>
+    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c), outfitter, shipdealer (Phase 5c), upgrade (Phase 7), storage (Phase 8), court und bounty (Phase 11), hangar, taxi und rental (Phase 12).</summary>
     public static StationServices Default()
     {
         var registry = new StationServices();
@@ -55,6 +55,9 @@ public sealed class StationServices
         registry.Register(new StorageService());
         registry.Register(new CourtService());
         registry.Register(new BountyService());
+        registry.Register(new HangarService());
+        registry.Register(new TaxiService());
+        registry.Register(new RentalService());
         return registry;
     }
 }

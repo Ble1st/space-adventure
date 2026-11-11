@@ -8,7 +8,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 
 1. **Architektur zuerst:** Neue Funktion als `ISimSystem` in einem Modul (`DefaultModules()`), Kopplung über `Universe.Events`, Inhalte in `default-world.json`, `SpaceSim.Core` ohne Godot und Dateizugriff.
 2. **Test zuerst bei Umbauten:** Vor einem Umbau müssen die vorhandenen Tests grün sein; der Umbau darf kein Verhalten ändern, bis die Phase es ausdrücklich will (`UniverseHash`-Tests belegen es).
-3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v14).
+3. **Persistenz:** Neue Zustände in `SaveGame`-DTOs, `UniverseSerializer` und `UniverseHash`; bei Formatbruch `SaveGame.CurrentVersion` erhöhen und eine Migration schreiben (Stand heute: v15).
 4. **Balance:** Nach jeder Wirtschaftsänderung `tools/SpaceSim.Balance` laufen lassen und die Kennzahlen im Commit nennen.
 5. **Abnahme:** `dotnet test`, `godot-mono --headless --path godot --fixed-fps 60 -- --selftest` und, wo sichtbar, ein Handtest der Oberfläche.
 6. **Dokumentation:** `CLAUDE.md` und die betroffenen Dokumente in derselben Phase aktualisieren.
@@ -29,7 +29,7 @@ Verweise: [UI.md](UI.md), [SCHIFFE.md](SCHIFFE.md), [SCHIFFSSLOTS.md](SCHIFFSSLO
 | 9 | Akteure, Fraktionen, Kasse, Beziehungen, Persönlichkeit, Zukauf | L | v12 |
 | 10 | Gate-Zugang, Kontrollpunkte, Sektorkontrolle, Regierungsstationen | L | v13 |
 | 11 | Polizei, Fahndung, Piraten, abstrakte Begegnungen | L | v14 |
-| 12 | Verbände, Befehle, Spielerflotte und Oberfläche | L | v12 |
+| 12 | Verbände, Befehle, Spielerflotte und Oberfläche | L | v15 |
 | 13 | Forschung | M | v13 |
 | – | Zurückgestellt: Kampf, Eroberung, Sprungantrieb, Tarnfeld, Besatzung, Blockadebrecher, Abwracker | – | – |
 
@@ -374,6 +374,28 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Hangar, Taxi, Leihschiff:** Dienste `hangar`, `taxi`, `rental`; Schiffe haben einen Standort (angedockt an einer Station, `Ship.DockedAt`); das Taxi bewegt nur den Spieler, das Schiff bleibt.
 - **Oberfläche:** Flug-HUD, Andock-Menü, Dock-Bereiche und Kommandozentrale sind **bereits gebaut** (UI.md); hier bleibt nur die Anbindung der Platzhalter an echte Daten (Hangar, Taxi, Flotte, Schiffwechsel, Befehle).
 - **Save v12:** Verbände, Befehle, Heimatbasis.
+
+**Stand:** umgesetzt auf Branch `phase12-verbaende`.
+- **Befehle mit Ausführern:** `ShipCommand` (Fliegen, Halten, Handel, Schürfen, Bauen, Patrouille, Wache, Eskorte, Folgen, Heimkehr) in `Ship.Command`, je Befehlstyp ein `IOrderExecutor` in der Registry `OrderExecutors`; `OrderSystem` (neues Modul „Orders“ vor der Aufgabenwahl) mit den Ebenen **Notfall > Befehl > Automatik** (Notfall: Hülle unter 30 % oder Tank leer → nächste Station mit Reparatur, versorgen, Befehl läuft weiter). Arbeitsbefehle setzen nur die Aufgabe; Händler-, Miner- und Bau-System bleiben die Ausführer (Automatik-Ebene), mit den **Grenzen** des Auftrags (Reichweite in Sprüngen um einen Mittelpunkt, höchster Einkaufspreis × Basis, Rücklage in der Kasse). NPCs ohne Befehl laufen unverändert.
+- **Spielerflotte:** eigene Schiffe bekommen Befehle und Automatikaufträge, buchen auf die Spielerkasse (auch ein Bauschiff als Auftragnehmer einer Baustelle: Material aus der Treuhand, Baugebühr an die Kasse), arbeiten beim Offline-Nachholen weiter, zahlen Unterhalt (wie KI-Schiffe) und an fremden Stationen Liegegebühr je Klasse und Tag. **Befehlskapazität** nach Größenklasse (Einzelbefehle 4/8/16/32/64, Verbände 1/1/3/6/12).
+- **Verbände:** Anführer, höchstens 8 Mitglieder, Formation nur Darstellung (Linie, Keil, Stern, Block), Heimatbasis, Verhaltensregel; Bewegungsbefehle plant der Anführer mit dem Tempo des langsamsten Mitglieds, die übrigen folgen; Arbeitsbefehle führt jedes fähige Mitglied aus; Nachfolge bei Ausfall des Anführers.
+- **Verhaltensregeln:** Eskorten und Wachen (Verteidigen/Angriff) stehen Opfern im Überfall bei, Streifen/Wachen mit „Angriff“ stellen lauernde Kaperschiffe; nicht aktive Spielerschiffe können überfallen werden (ohne Vorwarnung, nie Verlust).
+- **Hangar, Liegeplatz, Fernwechsel:** `Ship.DockedAt`; Dienst `hangar` (wechseln, heim schicken, verkaufen; fremde Schiffe sichtbar), Liegegebühr nur an fremden Stationen; Schiffwechsel aus der Ferne (UI.md „dort, wo es ist“), das alte Schiff hält die Position.
+- **Taxi und Leihschiff:** Dienst `taxi` (die Person reist allein zu einer Station mit eigenem Schiff oder Leihschiff; Preis aus Grundgebühr, Sprüngen, Strecke und Zoll; gesperrte Routen mit Grund; die Reisezeit vergeht im Zeitraffer), Dienst `rental` (Pip, Gebühr, Pfand, Miete je angefangenem Tag).
+- **Oberfläche:** Andock-Menü mit echten angedockten Schiffen und rollbarem Raster (bis neun Kacheln, Lager/Behörde verdrängen das Taxi nicht mehr), Hangar, neuer Bereich Taxi, Flotte mit Befehlsraster/Zielwahl/Grenzen/Verhalten/Verbänden, Besitz mit Fernwechsel/Befehlen/Heim/Verkaufen, Taxi auf der Universumskarte, „Meine Fraktion“ mit echter Liegegebühr und Kapazität; Platzhalter dafür aus `UiPlaceholders.cs` entfernt. Selbsttest erweitert, `--ui-shots` 41–47 angesehen.
+- **Save v15** mit Migration v14→v15 (Dienste, Liegeplatz aus der Position), `OrderSave` um Listen erweitert; mit dem echten v2-Spielstand geprüft (20000 Ticks, 926 Handelsfahrten, Flotte 14 → 14, Speichern/Laden hash-gleich).
+- **Prüfung:** 450 Tests (21 neu in `FleetCommandTests`), Selbsttest OK. Balance (frischer Release-Build) identisch zu Phase 11 bis auf den Hash: Standard-Seed 20000 und 60000 Ticks „Preise im Zielbereich“, 14/8 Händler/Miner (Kapazität 13,6/14 bzw. 14,6/14), 0 Notkäufe, Verlustquote 0,49 % bzw. 0,56 %, Polizei 6,7 % bzw. 8,1 % der Kasseneinnahmen; Seeds 1–4 bei 20000 alle grün (Verlustquote 0,28–0,56 %, Polizei 8,1–9,3 %).
+
+**Abweichungen und offene Punkte (Phase 12):**
+- **Save-Version v15 statt v12** (Platzhalter im Plan).
+- **Polizei und Piraten** laufen weiter in ihren Phase-11-Systemen; sie nutzen nur die gemeinsame Streifenpunkt-Regel, und Eskorten/Wachen/Jäger der Spielerflotte greifen in ihre Begegnungen ein. Fraktionen geben Verbänden noch keine Befehle (Reihenfolge des Auftrags: dieser Punkt zuletzt, bewusst offen gelassen, um die Phase-11-Balance nicht zu verschieben).
+- **Heimatbasis** ist für die Spielerflotte eine beliebige Station (Kaufort bzw. Liegeplatz bei der Verbandsgründung), nicht zwingend eine eigene — der Spieler besitzt noch keine Stationen. In der Oberfläche nicht änderbar.
+- **Befehlskapazität:** Einzelbefehle und Verbände getrennt gezählt; Verbandsmitglieder zählen gegen die Verbandsgrenze. Werte sind Startwerte (Entscheidung offen in FLOTTEN.md Abschnitt 11).
+- **Verhaltensregeln** wirken nur in den abstrakten Begegnungen (wer verteidigt, wer jagt); „Passiv“/„Feuer halten“ fliehen nicht eigens.
+- **Blockade, Schleppen, Rettung, Erkunden** und weitere Befehle aus der Referenz fehlen (brauchen Kampf/Wracks/Rettungsdienst).
+- **Taxi** ist in der Simulation sofort, die Reisezeit vergeht im Zeitraffer; Leihschiffe ohne Bestand je Station und ohne Schadensabrechnung.
+- **Spielerflotte** verdient wie ein NPC-Händler, zahlt aber keine Vermögensabgabe; ein Balance-Lauf mit großer Spielerflotte steht aus. Überfälle auf Flottenschiffe laufen auch beim Offline-Nachholen.
+- **Nicht geprüft:** Handtest der Oberfläche, Android.
 
 ## Phase 13: Forschung
 

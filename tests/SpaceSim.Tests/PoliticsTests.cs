@@ -643,7 +643,7 @@ public class PoliticsTests
         runner.Run(u, 300);
         Assert.False(u.Sectors[Gamma].Access.IsOpen);
         var json = SaveGameJson.Write(u, Now);
-        Assert.Contains("\"Version\":14", json);
+        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
         Assert.Contains("\"Destroyed\"", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));

@@ -25,7 +25,7 @@ public sealed class SecuritySystem : ISimSystem
             foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList()) Manage(u, f, ManageTicks);
         foreach (var police in u.Ships.Values.Where(ThreatMap.IsPolice).OrderBy(s => s.Id.Value).ToList()) StepPolice(u, police);
         foreach (var s in u.Ships.Values)
-            if (s.Transit is null && !s.IsPlayer && !ThreatMap.IsPolice(s) && !ThreatMap.IsRaider(s) && s.Hull < s.MaxHull)
+            if (s.Transit is null && s.Id != u.PlayerShip && !ThreatMap.IsPolice(s) && !ThreatMap.IsRaider(s) && s.Hull < s.MaxHull)
                 s.Hull = MathF.Min(s.MaxHull, s.Hull + u.Rules.NpcHullRegenPerTick * dt);
         CheckWantedPlayer(u);
     }

@@ -32,6 +32,10 @@ public partial class SelfTest : Node
 	int _splitRock;        // Phase 8: gespaltener Asteroid
 	string? _savedTool;    // Phase 8: Werkzeug-Modul vor dem Spaltlaser-Test
 
+	ShipId _firstShip, _secondShip;   // Phase 12: erstes Schiff und Zweitschiff der Spielerflotte
+	int _trades;
+	void CountTrades(SpaceSim.Core.Events.SimEvent e) { if (e is SpaceSim.Core.Events.TradeCompleted t && t.Ship == _secondShip) _trades++; }
+
 	public SelfTest(Main m) { _m = m; }
 
 	public override void _Process(double delta)
@@ -76,9 +80,9 @@ public partial class SelfTest : Node
 					}
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Info && a.Available) && areas.Any(a => a.Id == Ui.Screens.DockAreas.Hangar && a.Available),
 						"Station-Info und Hangar sind immer aktiv");
-					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Taxi or Ui.Screens.DockAreas.Missions)
-						.All(a => !a.Available), "Platzhalterbereiche (Taxi, Aufträge) sind nicht aktiv");
 					var offered = _m.Session.Services.ForStation(u, st).Select(x => x.Key).ToList();
+					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Missions).All(a => !a.Available), "Platzhalterbereich Aufträge ist nicht aktiv");
+					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Taxi && a.Available) == offered.Contains("taxi"), "Phase 12: Taxi echt, wenn die Station den Dienst „taxi“ liefert");
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Outfitter && a.Available) == offered.Contains("outfitter")
 						&& areas.Any(a => a.Id == Ui.Screens.DockAreas.Shipyard && a.Available) == offered.Contains("shipdealer"),
 						"Ausrüster und Werft sind genau dann aktiv, wenn ForStation outfitter bzw. shipdealer liefert (Phase 5c)");
@@ -551,6 +555,9 @@ public partial class SelfTest : Node
 					_m.TestDockAt(wh.Id);
 					Check(_m.Docked, "Am Lagerhaus angedockt");
 					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Storage && a.Available), "Andock-Menü zeigt den Bereich „Lager“");
+					// Phase 12: Lager verdrängt das Taxi nicht mehr — neun Kacheln im rollbaren Raster
+					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Taxi && a.Available) && _m.TestDockAreas().Count == 9 && _m.HudRef.DockMenu.TestTiles == 9,
+						$"Lagerhaus: Lager und Taxi nebeneinander, {_m.HudRef.DockMenu.TestTiles} Kacheln im Andock-Menü");
 					var pl = _m.Session.Player;
 					var ice = uni.FindGood("ice")!.Id;
 					pl.Cargo[ice] = 7f;
@@ -731,6 +738,86 @@ public partial class SelfTest : Node
 				}
 				else if (_frame - _stageStart > 3000) Fail($"Überfall nicht aufgelöst („{_m.LastSecurityMessage}“)");
 				break;
+			case 40: // Phase 12: Befehl an das eigene Zweitschiff (an der Werft gekaufter Prospector) über die Flotte der Kommandozentrale
+			{
+				var uni = _m.Session.U;
+				var yardSt = uni.Stations.Values.First(s => s.TypeKey == "shipyard");
+				var tradeSt = uni.Stations.Values.First(s => s.TypeKey == "trade_station");
+				var second = SpaceSim.Core.Simulation.PlayerFleet.Owned(uni).FirstOrDefault(s => s.Id != uni.PlayerShip && s.ModelKey == "prospector");
+				if (second is null) { Fail("Kein Zweitschiff aus dem Werftkauf"); break; }
+				_secondShip = second.Id;
+				_m.TestFleetSelect(second.Id);
+				Check(_m.TestScreenOpen("cc.fleet"), "Flotte der Kommandozentrale geöffnet");
+				Check(_m.HudRef.CcFleet.TestEnabledCommands >= 5, $"Befehlsraster: {_m.HudRef.CcFleet.TestEnabledCommands} Befehle für das Zweitschiff freigegeben");
+				bool ok = _m.TestFleetGive(second.Id, new GoToCommand(default, default, tradeSt.Id));
+				Check(ok && second.Command is GoToCommand, $"Befehl „Fliegen“ zur Handelsstation gegeben ({_m.HudRef.CcFleet.TestMessage})");
+				Check(!_m.TestFleetGive(second.Id, new PatrolCommand(new[] { second.Sector })) && second.Command is GoToCommand, "Patrouille ohne Waffen wird abgelehnt, der Befehl bleibt");
+				_m.Session.RunTicks(600);
+				Check(second.Command is null && second.DockedAt == tradeSt.Id && second.Sector == tradeSt.Sector, $"Zweitschiff ist nach dem Befehl an der Handelsstation angedockt ({second.DockedAt.Value})");
+				_m.TestCloseCommand();
+				Next(); break;
+			}
+			case 41: // Phase 12: Taxi von der Werft zur Handelsstation, wo das Zweitschiff wartet; das alte Schiff bleibt an der Werft
+			{
+				var uni = _m.Session.U;
+				var yardSt = uni.Stations.Values.First(s => s.TypeKey == "shipyard");
+				var tradeSt = uni.Stations.Values.First(s => s.TypeKey == "trade_station");
+				_firstShip = uni.PlayerShip;
+				_m.TestDockAt(yardSt.Id);
+				Check(_m.Docked, "An der Werft angedockt (Taxistand)");
+				_m.TestOpenDockArea(Ui.Screens.DockAreas.Taxi);
+				Check(_m.TestScreenOpen("dock.taxi") && _m.HudRef.DockTaxi.TestRows >= 1, $"Taxi-Bereich zeigt Ziele aus den Angeboten ({_m.HudRef.DockTaxi.TestRows})");
+				float cr = uni.PlayerWallet.Credits;
+				long tick = uni.Tick;
+				var r = _m.HudRef.DockTaxi.Book($"taxi:{tradeSt.Id.Value}");
+				Check(r.Success, $"Taxi gebucht: {r.Message}");
+				Check(uni.PlayerShip == _secondShip && _m.TestDockedStation == tradeSt.Id, "Am Ziel im wartenden eigenen Schiff, angedockt an der Handelsstation");
+				Check(uni.Ships[_firstShip].DockedAt == yardSt.Id, "Das alte Schiff bleibt an der Werft angedockt");
+				Check(uni.PlayerWallet.Credits < cr && uni.Tick >= tick + _m.LastTaxiTicks && _m.LastTaxiTicks > 0, $"Fahrpreis bezahlt, Reisezeit {_m.LastTaxiTicks} Ticks im Zeitraffer vergangen");
+				Next(); break;
+			}
+			case 42: // Phase 12: Hangar an der Handelsstation — fremde Schiffe, Leihschiff mieten und zurückgeben
+			{
+				var uni = _m.Session.U;
+				_m.TestOpenDockArea(Ui.Screens.DockAreas.Hangar);
+				Check(_m.TestScreenOpen("dock.hangar"), "Hangar-Bereich geöffnet");
+				float cr = uni.PlayerWallet.Credits;
+				var rent = _m.HudRef.DockHangar.Execute(SpaceSim.Core.Services.RentalService.ServiceKey, "rent:1");
+				var rented = _m.Session.Player;
+				Check(rent.Success && rented.IsRental && rented.ModelKey == uni.Rules.RentalModel, $"Leihschiff gemietet ({rent.Message})");
+				Check(System.Math.Abs(uni.PlayerWallet.Credits - (cr - uni.Rules.RentalFee - uni.Rules.RentalDeposit)) < 0.05f, "Gebühr und Pfand aus der Kasse");
+				Check(_m.HudRef.DockHangar.TestParkedRows >= 1, "Hangar zeigt das eigene Zweitschiff als geparkt");
+				var back = _m.HudRef.DockHangar.Execute(SpaceSim.Core.Services.RentalService.ServiceKey, $"return:{rented.Id.Value}");
+				Check(back.Success && !uni.Ships.ContainsKey(rented.Id) && uni.PlayerShip == _secondShip, $"Leihschiff zurückgegeben, wieder im eigenen Schiff ({back.Message})");
+				Check(uni.PlayerWallet.Credits > cr - uni.Rules.RentalFee - uni.Rules.RentalDeposit, "Pfand (abzüglich Miete) erstattet");
+				Check(!_m.HudRef.DockHangar.Execute(SpaceSim.Core.Services.HangarService.ServiceKey, "switch:x").Success, "Hangar lehnt einen ungültigen Schlüssel ab");
+				Next(); break;
+			}
+			case 43: // Phase 12: Fernwechsel zurück ins erste Schiff (liegt an der Werft) und Automatikauftrag „Handel“ für das Zweitschiff
+			{
+				var uni = _m.Session.U;
+				var yardSt = uni.Stations.Values.First(s => s.TypeKey == "shipyard");
+				_m.TestSwitchRemote(_firstShip);
+				Check(uni.PlayerShip == _firstShip && uni.PlayerSector == yardSt.Sector && _m.TestDockedStation == yardSt.Id, "Fernwechsel: im ersten Schiff, angedockt an der Werft");
+				var second = uni.Ships[_secondShip];
+				Check(second.DockedAt.Value != 0 && second.Command is null, "Das Zweitschiff bleibt angedockt und hält ohne Befehl die Position");
+				_trades = 0;
+				uni.Events.Raised += CountTrades;
+				bool ok = _m.TestFleetGive(_secondShip, new TradeCommand(new AutoLimits(second.Sector, 2, 1.5f, 500f)));
+				Check(ok && second.Role == ShipRole.Trader, "Automatikauftrag „Handel“ mit Grenzen gegeben");
+				float cr = uni.PlayerWallet.Credits;
+				_m.Session.RunTicks(3000);
+				uni.Events.Raised -= CountTrades;
+				Check(_trades > 0 && second.Command is TradeCommand, $"Zweitschiff handelt automatisch ({_trades} Handelsfahrten) und bucht auf die Spielerkasse ({uni.PlayerWallet.Credits - cr:+0;-0} Cr)");
+				Check(second.Credits == 0f, "Das Flottenschiff selbst hat keine Credits (Geld bei der Person)");
+				_m.TestOpenCcArea(Ui.Screens.CommandAreas.Assets);
+				_m.HudRef.CcAssets.TestOpenShipDetail(_secondShip);
+				_m.HudRef.CcAssets.Refresh();
+				Check(_m.TestScreenOpen("cc.assets"), "Besitz zeigt das Zweitschiff im Detailfenster");
+				_m.TestCloseCommand();
+				_m.TestUndock();
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

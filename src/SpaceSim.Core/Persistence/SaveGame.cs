@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Persistence;
 
 public sealed class SaveGame
 {
-    public const int CurrentVersion = 14;
+    public const int CurrentVersion = 15;
 
     public int Version { get; set; } = CurrentVersion;
     public string SavedAtUtc { get; set; } = "";
@@ -52,6 +52,18 @@ public sealed class SaveGame
     public List<ShipSave> Ships { get; set; } = new();
     /// <summary>Phase 11 (v14): angekündigte Begegnungen mit dem Spieler (Überfall, Abfangen); fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<PendingEncounterSave>? Encounters { get; set; }
+    /// <summary>Phase 12 (v15): Verbände; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
+    /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
+    public int NextSquadronId { get; set; } = 1;
+}
+
+/// <summary>Verband (Phase 12, v15): Besitzer, Name, Anführer, Mitglieder (Anführer zuerst), Formation, Heimatbasis, Verhaltensregel.</summary>
+public sealed class SquadronSave
+{
+    public int Id { get; set; } public int Owner { get; set; } public string Name { get; set; } = "";
+    public int Leader { get; set; } public List<int> Members { get; set; } = new();
+    public string Formation { get; set; } = ""; public int HomeBase { get; set; } public string Rules { get; set; } = "";
 }
 
 /// <summary>
@@ -271,7 +283,16 @@ public sealed class BuildSiteSave
     public int Assembly { get; set; } public bool Emergency { get; set; } public bool Abandoned { get; set; }
 }
 
-public sealed class OrderSave { public string Kind { get; set; } = ""; public int A { get; set; } public int B { get; set; } public int C { get; set; } }
+/// <summary>
+/// Auftrag bzw. Befehl im Save: Art und drei Ganzzahlen (Phase 1–11); Phase 12 (v15) erweitert um optionale Listen für Befehle, die mehr brauchen
+/// (Streifenrunde: Sektor-Ids; Ziele im Raum und Grenzen der Automatik: Kommazahlen).
+/// </summary>
+public sealed class OrderSave
+{
+    public string Kind { get; set; } = ""; public int A { get; set; } public int B { get; set; } public int C { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<int>? Ids { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Values { get; set; }
+}
 public sealed class LegSave { public int Sector { get; set; } public Vec2 From { get; set; } public Vec2 To { get; set; } public long Start { get; set; } public long End { get; set; } }
 
 /// <summary>Ein Slot eines Schiffs im Save (Art, Größe, optional facing/arc als Text).</summary>
@@ -340,6 +361,8 @@ public sealed class ShipClassSave
     public int MaxSlotUpgrades { get; set; } = 1;
     /// <summary>Nicht im freien Handel (Phase 11, v14); fehlt = nein.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Restricted { get; set; }
+    /// <summary>Liegegebühr je Tag (Phase 12, v15); fehlt = nach Größe.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float BerthFee { get; set; }
 }
 
 public sealed class ShipModelSave
@@ -396,4 +419,20 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int HomeBase { get; set; }
     /// <summary>Einsatzsektor (Phase 11, v14); fehlt = keiner.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int DutySector { get; set; }
+    /// <summary>Phase 12 (v15): Befehl (Ebene „Befehl“); fehlt = Automatik.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public OrderSave? Command { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long CommandSince { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int CommandStep { get; set; }
+    /// <summary>Phase 12 (v15): Notfall-Ebene aktiv.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Emergency { get; set; }
+    /// <summary>Phase 12 (v15): Verhaltensregel (Defend/Passive/Attack/HoldFire); fehlt = Defend.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Engagement { get; set; }
+    /// <summary>Phase 12 (v15): Verband (Id); fehlt = keiner.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Squadron { get; set; }
+    /// <summary>Phase 12 (v15): angedockt an (Station-Id); fehlt = nicht angedockt (ältere Stände: beim Laden aus der Position bestimmt).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int DockedAt { get; set; }
+    /// <summary>Phase 12 (v15): Leihschiff — Station, Beginn, Pfand.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RentedFrom { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long RentedSince { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float RentalDeposit { get; set; }
 }

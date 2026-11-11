@@ -9,6 +9,16 @@ public sealed class ProductionModule : ISimModule
 }
 
 /// <summary>
+/// Phase 12: Befehle (FLOTTEN.md Abschnitt 4, Ebenen Notfall &gt; Befehl &gt; Automatik) und Hangar (Liegegebühr). Läuft vor der Aufgabenwahl und den
+/// ausführenden Systemen, damit ein neuer Arbeitsbefehl (Handel, Abbau, Bau) im selben Tick ausgeführt wird. Schiffe ohne Befehl kosten nichts.
+/// </summary>
+public sealed class OrderModule : ISimModule
+{
+    public string Name => "Orders";
+    public void Register(SimulationBuilder b) => b.Add(new OrderSystem()).Add(new HangarSystem(), interval: 50);
+}
+
+/// <summary>
 /// Phase 6: Aufgabenwahl der Multirole-Schiffe. Läuft vor den ausführenden Systemen (Schürfen, Handel), damit ein Wechsel im selben Tick
 /// vom neuen Ausführer übernommen wird.
 /// </summary>

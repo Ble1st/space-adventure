@@ -374,7 +374,7 @@ public class ActorTests
         // eine persönliche Beziehung und ein Akteur mit Kasse sollen den Roundtrip überstehen
         Relations.Set(a, a.PlayerActor, new ActorId(2), -0.3f);
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":14", json);
+        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
         Assert.DoesNotContain("PlayerWallet", json);
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));

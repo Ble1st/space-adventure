@@ -144,8 +144,16 @@ public sealed partial class UniverseScreen : CommandScreen
 		var bRoute = At(card, new KitButton("Route planen / Autopilot", new Vector2(268, 52)) { FontSize = 17 }, 16, 360);
 		if (hops >= 0) bRoute.Pressed += () => PlanRoute?.Invoke(sel);
 		else { bRoute.State = KitButtonState.Disabled; bRoute.Detail = "nicht erreichbar"; }
-		var bTaxi = At(card, new KitButton("Taxi buchen", new Vector2(268, 48)) { FontSize = 17, State = KitButtonState.Disabled, Detail = $"{UiPlaceholders.Soon} · {UiPlaceholders.TaxiPrice} Cr", DetailColor = new Color(Dim, 0.8f) }, 16, 420);
+		// Phase 12: Taxi echt — nur angedockt an einer Station mit Taxi; günstigstes buchbares Ziel im gewählten Sektor (Core: TaxiService.Quote)
+		var from = Ctx.Docked is { } d && u.Stations.TryGetValue(d, out var ds) && Ctx.Services.ForStation(u, ds).Any(x => x.Key == SpaceSim.Core.Services.TaxiService.ServiceKey) ? ds : null;
+		var quote = from is null ? null : SpaceSim.Core.Services.TaxiService.Quotes(u, from, Ctx.Player).Where(q => q.To.Sector == sel && q.Bookable).OrderBy(q => q.Total).FirstOrDefault();
+		var bTaxi = At(card, new KitButton("Taxi buchen", new Vector2(268, 48)) { FontSize = 17, State = quote is null ? KitButtonState.Disabled : KitButtonState.Ready,
+			Detail = quote is not null ? $"{quote.Total:0} Cr → {quote.To.Name}" : from is null ? "nur angedockt (Taxistand)" : "kein Ziel hier", DetailColor = new Color(Dim, 0.9f) }, 16, 420);
+		if (quote is not null) { var to = quote.To.Id; bTaxi.Pressed += () => TaxiRequested?.Invoke(to); }
 	}
+
+	/// <summary>Phase 12: „Taxi buchen“ — Main bucht die Fahrt über den Dienst „taxi“ der angedockten Station.</summary>
+	public event System.Action<StationId>? TaxiRequested;
 
 	/// <summary>Anzahl der NPC-Schiffe in einem Sektor (echt aus dem Schiffsindex, ohne Spieler).</summary>
 	internal static int ShipCountOf(Universe u, SectorId sector)

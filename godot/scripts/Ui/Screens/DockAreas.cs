@@ -31,9 +31,9 @@ public sealed class DockAreaDef
 /// <summary>
 /// Baut die Bereichsliste des Andock-Menüs aus den Daten: Handel nur, wenn <see cref="StationServices.ForStation"/>
 /// den Dienst „trade“ liefert; „Reparatur &amp; Tanken“, wenn sie „refuel“ oder „repair“ liefert; Ausrüster und Werft, wenn sie
-/// „outfitter“ bzw. „shipdealer“ liefert (Phase 5c); Station-Info und Hangar immer; Taxi und Aufträge als gedämpfte Platzhalter; an
-/// Stationen mit „storage“ (Lagerhaus, Phase 8) steht statt Taxi der Bereich „Lager“, an Stationen mit „court“/„bounty“ (Phase 11) statt Aufträge die
-/// „Behörde“.
+/// „outfitter“ bzw. „shipdealer“ liefert (Phase 5c); Station-Info und Hangar immer (Phase 12: mit Dienst „hangar“ samt fremden Schiffen, Wechsel,
+/// Verkauf und Leihschiff); Taxi echt, wenn die Station „taxi“ liefert (Phase 12); dazu „Lager“ (Phase 8, „storage“) und „Behörde“ (Phase 11,
+/// „court“/„bounty“, statt der Platzhalterkachel „Aufträge“). Es können neun Kacheln werden — Menü und Leiste rollen dann.
 /// </summary>
 public static class DockAreas
 {
@@ -72,9 +72,10 @@ public static class DockAreas
 	public static string ShortLabelFor(string id) => id == Repair ? "Reparatur" : LabelFor(id);
 
 	/// <summary>Bereichsliste in der Reihenfolge aus UI.md Abschnitt 3, Handel nur wenn verfügbar.</summary>
-	public static IReadOnlyList<DockAreaDef> Build(Universe u, Station st, StationServices services)
+	public static IReadOnlyList<DockAreaDef> Build(Universe u, Station st, StationServices services, Ship? ship = null)
 	{
-		var list = new List<DockAreaDef>(8);
+		var list = new List<DockAreaDef>(10);
+		ship ??= u.Ships.GetValueOrDefault(u.PlayerShip);
 		bool trade = services.ForStation(u, st).Any(s => s.Key == TradeService.ServiceKey);
 		if (trade)
 		{
@@ -98,14 +99,18 @@ public static class DockAreas
 		list.Add(new DockAreaDef { Id = Outfitter, Label = LabelFor(Outfitter), Sub = outSub, Available = outfitter || upgrade });
 		int models = dealer ? ShipDealerService.Models(u, st).Count : 0;
 		list.Add(new DockAreaDef { Id = Shipyard, Label = LabelFor(Shipyard), Sub = dealer ? $"{models} Modelle" : "Nicht hier", Available = dealer });
-		list.Add(new DockAreaDef { Id = Hangar, Label = LabelFor(Hangar), Sub = "Angedockte Schiffe", Available = true });
+		// Phase 12: Hangar echt (Dienst „hangar“: eigene und fremde Schiffe, Wechsel, Heim schicken, Verkaufen, Leihschiff)
+		bool hangar = offered.Contains(HangarService.ServiceKey);
+		int docked = SpaceSim.Core.Simulation.Hangar.DockedShips(u, st).Count(s => s.Id != u.PlayerShip) + 1;   // + das aktive Schiff (die Ansicht hält es angedockt)
+		list.Add(new DockAreaDef { Id = Hangar, Label = LabelFor(Hangar), Sub = hangar ? $"{docked} Schiff{(docked == 1 ? "" : "e")} angedockt" : "Nur dein Schiff", Available = true });
 		list.Add(new DockAreaDef { Id = Info, Label = LabelFor(Info), Sub = "Dienste & Markt", Available = true });
-		// Phase 8: Lagerhaus-Dienst statt der Taxi-Platzhalterkachel (das Menü hat Platz für acht Kacheln)
+		// Phase 12: Taxi echt (Dienst „taxi“); Lager und Behörde verdrängen keine Kacheln mehr — das Raster rollt bei Bedarf
+		bool taxi = offered.Contains(TaxiService.ServiceKey);
+		int targets = taxi && ship is not null ? TaxiService.Quotes(u, st, ship).Count(q => q.Bookable) : 0;
+		list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = taxi ? $"{targets} Ziel{(targets == 1 ? "" : "e")} buchbar" : "Nicht hier", Available = taxi });
 		if (offered.Contains(StorageService.ServiceKey))
 			list.Add(new DockAreaDef { Id = Storage, Label = LabelFor(Storage), Sub = $"{StorageService.Used(st):0}/{u.Rules.StorageCapacity:0} eingelagert", Available = true });
-		else
-			list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = UiPlaceholders.Soon, Available = false });
-		// Phase 11: Gericht und Kopfgeldbüro statt der Aufträge-Platzhalterkachel
+		// Phase 11: Gericht und Kopfgeldbüro statt der Aufträge-Platzhalterkachel (Missionen gibt es noch nicht)
 		if (offered.Contains(CourtService.ServiceKey) || offered.Contains(BountyService.ServiceKey))
 		{
 			int open = u.Player.Wanted.Count;

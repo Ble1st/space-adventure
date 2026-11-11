@@ -47,6 +47,7 @@ public class SecurityTests
     /// </summary>
     internal static string ToV13Json(string json, bool full = false)
     {
+        json = FleetCommandTests.ToV14Json(json);   // Phase 12: erst Befehle, Verbände, Hangar/Taxi/Leihschiff zurückbauen
         var node = JsonNode.Parse(json)!.AsObject();
         if ((int)node["Version"]! < 14) return json;
         node["Version"] = 13;
@@ -193,7 +194,8 @@ public class SecurityTests
         // Regierungsstationen: Gericht und Kopfgeldbüro, Grundschutz
         foreach (var t in new[] { "headquarters", "sector_hq", "police_station" })
         {
-            Assert.Equal(new[] { "court", "bounty" }, u.StationTypes[t].Services);
+            // Phase 12: dazu Hangar (alle) und Taxi (HQ, Sektor-HQ)
+            Assert.Equal(t == "police_station" ? new[] { "court", "bounty", "hangar" } : new[] { "court", "bounty", "hangar", "taxi" }, u.StationTypes[t].Services);
             Assert.True(u.StationTypes[t].Security > 0f);
         }
         // Piraten: gesetzloser Akteur ohne Fraktion, Versteck in Delta, drei Kaperschiffe dort; Versteck zählt nicht gegen die Bau-Obergrenzen
@@ -658,7 +660,7 @@ public class SecurityTests
         var raider = a.Ships.Values.First(ThreatMap.IsRaider);
         a.PendingEncounters.Add(new PendingEncounter { Kind = EncounterKind.Raid, Source = raider.Id, Target = a.PlayerShip, Sector = raider.Sector, DueTick = a.Tick + 40 });
         var json = SaveGameJson.Write(a, Now);
-        Assert.Contains("\"Version\":14", json);
+        Assert.Contains("\"Version\":15", json);   // Phase 12: v15
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(a.Player.Wanted[Guild].Heat, loaded.Player.Wanted[Guild].Heat);
@@ -693,7 +695,7 @@ public class SecurityTests
         Assert.NotNull(loaded.FindGood("weapon_laser_s"));
         Assert.True(loaded.ShipClasses["raider"].Restricted);
         Assert.Contains(loaded.StationTypes["weapons_works"].Recipes, r => r.Outputs.ContainsKey(loaded.FindGood("weapon_laser_s")!.Id));
-        Assert.Equal(new[] { "court", "bounty" }, loaded.StationTypes["headquarters"].Services);
+        Assert.Equal(new[] { "court", "bounty", "hangar", "taxi" }, loaded.StationTypes["headquarters"].Services);   // Phase 12: Hangar, Taxi
         Assert.Equal(0.5f, loaded.StationTypes["sector_hq"].Security);
         // Polizei je Fraktion, Piraten mit Versteck und Kaperschiffen
         foreach (var f in new[] { Union, Guild })

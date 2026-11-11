@@ -155,7 +155,9 @@ public sealed class PirateSystem : ISimSystem
         {
             if (!u.Ships.TryGetValue(id, out var s) || ThreatMap.IsPolice(s) || ThreatMap.IsRaider(s)) continue;
             bool player = s.IsPlayer;
-            if (player && (!u.Rules.PlayerRaids || s.Id != u.PlayerShip || u.PlayerSector != sector)) continue;
+            // Phase 12: nicht aktive Spielerschiffe (Flotte) nur mit FleetRaids, das aktive nur mit PlayerRaids im Spielersektor
+            if (player && s.Id == u.PlayerShip && (!u.Rules.PlayerRaids || u.PlayerSector != sector)) continue;
+            if (player && s.Id != u.PlayerShip && !u.Rules.FleetRaids) continue;
             var (where, pos) = ThreatMap.Where(u, s);
             if (where != sector || ThreatMap.NearStation(u, sector, pos)) continue;
             float value = ThreatMap.CargoValue(u, s);
@@ -187,7 +189,7 @@ public sealed class PirateSystem : ISimSystem
         double pick = u.Rng.NextDouble() * total;
         var victim = victims[^1].Ship;
         foreach (var (s, w) in victims) { pick -= w; if (pick < 0) { victim = s; break; } }
-        if (victim.IsPlayer)
+        if (victim.Id == u.PlayerShip)   // Phase 12: nur das aktive Schiff bekommt eine Vorwarnung, Flottenschiffe werden sofort aufgelöst
         {
             var pending = new PendingEncounter { Kind = EncounterKind.Raid, Source = raider.Id, Target = victim.Id, Sector = sector.Id, DueTick = u.Tick + u.Rules.PlayerWarningTicks };
             u.PendingEncounters.Add(pending);
@@ -206,8 +208,12 @@ public sealed class PirateSystem : ISimSystem
     public static RaidResolved ResolveRaid(Universe u, Ship raider, Ship victim, Sector sector)
     {
         var r = u.Rules;
-        bool player = victim.IsPlayer;
+        bool player = victim.Id == u.PlayerShip;   // aktives Schiff: Meldung an den Spieler
+        bool own = victim.IsPlayer;                // Spielerschiffe gehen nie verloren (Hüllenboden)
         var defenders = new List<Ship> { victim };
+        // Phase 12: Eskorten und Wachen (Regel Verteidigen/Angriff) stehen dem Opfer bei
+        var escorts = FleetGuards.Escorts(u, victim, sector.Id);
+        defenders.AddRange(escorts);
         var police = PoliceIn(u, sector.Id);
         ShipId helper = default;
         if (police.Count > 0 && u.Rng.NextDouble() < MathF.Min(r.PoliceResponseMax, r.PoliceResponseChance * police.Count))
@@ -215,7 +221,7 @@ public sealed class PirateSystem : ISimSystem
             defenders.Add(police[0]);
             helper = police[0].Id;
         }
-        var outcome = u.Encounters.Resolve(u, new[] { raider }, defenders, player ? 0f : r.DestroyChance);
+        var outcome = u.Encounters.Resolve(u, new[] { raider }, defenders, own ? 0f : r.DestroyChance);
         Func<Ship, float> floor = s => s.IsPlayer ? r.PlayerMinHull : 0.02f;
         float lootValue = 0f, fenced = 0f;
         bool victimDestroyed = false, raiderDestroyed = false;
@@ -240,7 +246,7 @@ public sealed class PirateSystem : ISimSystem
             }
             CombatRules.Damage(defenders, outcome.DefenderDamage, floor);
             CombatRules.Damage(new[] { raider }, outcome.AttackerDamage);
-            victimDestroyed = !player && (outcome.LoserDestroyed || victim.Hull <= 0f);
+            victimDestroyed = !own && (outcome.LoserDestroyed || victim.Hull <= 0f);
             ThreatMap.Report(u, sector.Id, r.RaidThreat);
         }
         else
@@ -248,7 +254,7 @@ public sealed class PirateSystem : ISimSystem
             CombatRules.Damage(defenders, outcome.DefenderDamage, floor);
             CombatRules.Damage(new[] { raider }, outcome.AttackerDamage);
             // gegen den Spieler oder ein Handelsschiff allein flieht ein unterlegener Pirat meist; mit Streife geht er eher verloren
-            float destroyBase = helper.Value != 0 ? r.RaiderDestroyChance : r.RaiderDestroyChance * 0.5f;
+            float destroyBase = helper.Value != 0 || escorts.Count > 0 ? r.RaiderDestroyChance : r.RaiderDestroyChance * 0.5f;
             raiderDestroyed = raider.Hull <= 0f || u.Rng.NextDouble() < destroyBase;
             ThreatMap.Report(u, sector.Id, r.RepelledThreat);
         }
@@ -261,10 +267,11 @@ public sealed class PirateSystem : ISimSystem
                 : raiderDestroyed ? $"Überfall abgewehrt — das Kaperschiff ist zerstört." : "Überfall abgewehrt — die Piraten fliehen.";
         }
         else msg = outcome.AttackerWon ? $"Überfall auf Schiff {victim.Id.Value}: Beute {lootValue:0} Cr" : $"Überfall auf Schiff {victim.Id.Value} abgewehrt";
-        if (raiderDestroyed && player)
+        if (raiderDestroyed && (own || escorts.Any(e => e.IsPlayer)))
         {
             float bounty = Wanted.BountyOn(u, raider.Owner, faction);
-            if (bounty > 0f && u.Actors.TryGetValue(victim.Owner, out var hunter))
+            var claimant = own ? victim.Owner : escorts.First(e => e.IsPlayer).Owner;
+            if (bounty > 0f && u.Actors.TryGetValue(claimant, out var hunter))
             {
                 hunter.BountyClaims[faction] = hunter.BountyClaims.GetValueOrDefault(faction) + bounty;
                 u.Events.Publish(new BountyEarned(hunter.Id, faction, raider.Id, bounty));
@@ -283,9 +290,11 @@ public sealed class PirateSystem : ISimSystem
     static bool TryIntercept(Universe u, Ship raider, int dt)
     {
         var police = PoliceIn(u, raider.Sector);
-        if (police.Count == 0) return false;
-        if (u.Rng.NextDouble() >= u.Rules.InterceptRatePerTick * dt * police.Count) return false;
-        Intercept(u, police[0], raider);
+        var hunters = FleetGuards.Hunters(u, raider.Sector);   // Phase 12: Streifen/Wachen mit Regel „Angriff“
+        int n = police.Count + hunters.Count;
+        if (n == 0) return false;
+        if (u.Rng.NextDouble() >= u.Rules.InterceptRatePerTick * dt * n) return false;
+        Intercept(u, police.Count > 0 ? police[0] : hunters[0], raider);
         return true;
     }
 
@@ -294,13 +303,20 @@ public sealed class PirateSystem : ISimSystem
     {
         var r = u.Rules;
         var outcome = u.Encounters.Resolve(u, new[] { police }, new[] { raider }, r.RaiderDestroyChance);
-        CombatRules.Damage(new[] { police }, outcome.AttackerDamage, _ => 0.05f);
+        CombatRules.Damage(new[] { police }, outcome.AttackerDamage, s => s.IsPlayer ? r.PlayerMinHull : 0.05f);
         CombatRules.Damage(new[] { raider }, outcome.DefenderDamage);
         bool destroyed = outcome.AttackerWon && (outcome.LoserDestroyed || raider.Hull <= 0f);
         var sector = raider.Sector;
         if (outcome.AttackerWon && u.Sectors.TryGetValue(sector, out var sec)) sec.Threat = MathF.Max(0f, sec.Threat - r.RepelledThreat);
         var ev = new RaiderIntercepted(sector, police.Id, raider.Id, outcome.AttackerWon, destroyed);
         u.Events.Publish(ev);
+        if (destroyed && police.IsPlayer && Wanted.BountyOn(u, raider.Owner, u.Sectors.TryGetValue(sector, out var bs) ? bs.Owner : default) is var bounty and > 0f
+            && u.Actors.TryGetValue(police.Owner, out var hunter) && u.Sectors.TryGetValue(sector, out var hs))
+        {
+            // Phase 12: Kopfgeld für die Jagd der Spielerflotte (wie beim abgewehrten Überfall)
+            hunter.BountyClaims[hs.Owner] = hunter.BountyClaims.GetValueOrDefault(hs.Owner) + bounty;
+            u.Events.Publish(new BountyEarned(hunter.Id, hs.Owner, raider.Id, bounty));
+        }
         if (destroyed) u.RemoveShip(raider.Id, "destroyed");
         else if (outcome.AttackerWon) GoHome(u, raider);
         return ev;

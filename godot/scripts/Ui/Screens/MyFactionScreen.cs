@@ -52,7 +52,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 		At(b, Text($"{(int)u.PlayerWallet.Credits} Cr", 26, Orange, HorizontalAlignment.Right), 20, 42, 446, 34);
 		WrappedText(b, "Spielerkasse (echt): Geld der Person, nicht des Schiffs – Handel, Tanken und Reparatur buchen hierauf", 20, 80, 446, 12, new Color(Dim, 0.75f), 16);
 		Row(b, 20, 126, 446, "Unterhalt Schiffe/Tag", UiPlaceholders.MyFactionUpkeep, 14);
-		Row(b, 20, 150, 446, "Liegegebühr/Tag (fremde St.)", UiPlaceholders.MyFactionBerthFee, 14);
+		Row(b, 20, 150, 446, "Liegegebühr/Tag (fremde St.)", $"−{SpaceSim.Core.Simulation.Hangar.BerthFeesPerDay(u, u.PlayerActor):0} Cr/Tag", 14);   // Phase 12 echt
 		Row(b, 20, 174, 446, "Einnahmen/Tag (Schätzung)", UiPlaceholders.MyFactionIncome, 14);
 		At(b, new KitButton("Beitreten", new Vector2(150, 46)) { FontSize = 16, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 20, 204);
 		At(b, new KitButton("Gründen (ab Kleinfirma)", new Vector2(240, 46)) { FontSize = 15, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 180, 204);
@@ -83,9 +83,16 @@ public sealed partial class MyFactionScreen : CommandScreen
 		// ── Karte 4 (rechts unten): Fähigkeiten mit Schloss ──
 		var perm = CardBg(inner, 524, 274, 486, 234, Card);
 		At(perm, Text("Fähigkeiten nach Größe", 18, Cyan), 20, 14, 260, 26);
-		At(perm, Text(UiPlaceholders.Tag, 12, new Color(Dim, 0.6f)), 290, 18, 120, 18);
+		var (capShips, capSquads) = SpaceSim.Core.Simulation.Commands.Capacity(u, u.PlayerActor);
 		float ay = 48;
-		foreach (var (name, unlocked, note) in UiPlaceholders.MyFactionAbilities)
+		// Phase 12 echt: Befehlskapazität und Verbände nach Größe, Taxi/Hangar/Leihschiff für alle; der Rest bleibt Platzhalter
+		var abilities = new[]
+		{
+			("Befehle an eigene Schiffe", true, $"bis {capShips} Schiffe"),
+			("Verbände führen", capSquads > 0, $"bis {capSquads} Verbände"),
+			("Taxi, Hangar, Leihschiff", true, "an Stationen mit Dienst"),
+		}.Concat(UiPlaceholders.MyFactionAbilities);
+		foreach (var (name, unlocked, note) in abilities)
 		{
 			At(perm, Text(unlocked ? "✓" : "🔒", 15, unlocked ? Green : Dim), 20, ay, 24, 20);
 			At(perm, Text(name, 15, unlocked ? White : Dim), 48, ay, 250, 20);
