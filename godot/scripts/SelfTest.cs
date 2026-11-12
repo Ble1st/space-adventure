@@ -1036,24 +1036,57 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Standardwelt (Phase 14) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
-			case 48: // Phase 20: Versorgungspanik — Tor Alpha↔Beta geschlossen, der Rest verliert sein Wasserwerk: Hinweis in der Ansicht, Ersatz-Baustelle
+			case 48: // Phase 20: Versorgungspanik — Alpha abgeschnitten (Phase 21: alle drei Tore Alphas, die Karte hat Ringe), Alpha fehlt Wasserstoff fürs
+			         // Kraftwerk: Hinweis in der Ansicht, Ersatz-Baustelle
 			{
 				if (_frame - _stageStart < 10) break;
 				try
 				{
 					var uni = _m.Session.U;
 					uni.Rules.PlayerRaids = false;
-					var gate = uni.Gates.Values.First(g => g.Sector.Value == 1);
-					SpaceSim.Core.Simulation.GateAccess.SetState(uni, gate, GateState.Closed);
+					var gates = uni.Gates.Values.Where(g => g.Sector.Value == 1).ToList();
+					foreach (var gate in gates) SpaceSim.Core.Simulation.GateAccess.SetState(uni, gate, GateState.Closed);
+					Check(SpaceSim.Core.Simulation.MapParts.Of(uni).IsSplit, "Alpha ohne Tore: Karte zerfallen");
 					_m.Session.RunTicks(uni.Rules.PanicDelayTicks + 100);
 					var msg = _m.LastPanicMessage ?? "";
 					Check(msg.StartsWith("Versorgungspanik"), $"Hinweis zur Versorgungspanik erscheint ({msg})");
 					Check(uni.Stations.Values.Any(s => s.Site is { Panic: true }), "Panik legt eine Ersatz-Baustelle an");
-					SpaceSim.Core.Simulation.GateAccess.SetState(uni, gate, GateState.Open);
+					foreach (var gate in gates) SpaceSim.Core.Simulation.GateAccess.SetState(uni, gate, GateState.Open);
 					_m.Session.RunTicks(40);
-					Check(uni.PanicSince.Count == 0, "Tor wieder offen: keine Panik mehr");
+					Check(uni.PanicSince.Count == 0, "Tore wieder offen: keine Panik mehr");
 				}
 				catch (System.Exception ex) { Fail("Versorgungspanik (Phase 20) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 49: // Phase 21: 11-Sektoren-Karte — Universum (Route je Sektor = FindRoute, herrenlose Sektoren), Sternenkarte, Taxiliste mit allen Zielen
+			{
+				if (_frame - _stageStart < 10) break;
+				try
+				{
+					var uni = _m.Session.U;
+					Check(uni.Sectors.Count == 11, $"Standardwelt hat 11 Sektoren ({uni.Sectors.Count})");
+					_m.TestOpenCommand();
+					_m.TestOpenCcArea("universe");
+					foreach (var sec in uni.Sectors.Values.OrderBy(x => x.Id.Value))
+					{
+						_m.TestCcSelectSector(sec.Id);
+						int want = uni.FindRoute(uni.PlayerSector, sec.Id, SpaceSim.Core.Simulation.GateAccess.ProfileOf(uni, _m.Session.Player))?.Count ?? -1;
+						Check(_m.HudRef.CcUniverse.TestRouteHops == want, $"Universum: Route nach {sec.Name} {_m.HudRef.CcUniverse.TestRouteHops} Sprünge (FindRoute {want})");
+					}
+					Check(uni.Sectors.Values.Count(x => !uni.Factions.ContainsKey(x.Owner)) == 2, "Zwei herrenlose Sektoren");
+					_m.TestCloseCommand();
+					_m.HudRef.Map.Open(uni, uni.PlayerSector, null);
+					Check(_m.HudRef.Map.Visible, "Sternenkarte öffnet");
+					_m.HudRef.Map.Visible = false;
+					_m.TestDockAt(new StationId(30));   // Handelsstation Beta: Taxi
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Taxi);
+					_m.HudRef.DockTaxi.TestRebuild();
+					int rentalStands = uni.Stations.Values.Count(s => s.Id.Value != 30 && !s.IsBuildSite && uni.StationTypes[s.TypeKey].Services.Contains("rental"));
+					Check(_m.HudRef.DockTaxi.TestRows == rentalStands && rentalStands >= 3, $"Taxi listet jedes Ziel mit Leihschiff ({_m.HudRef.DockTaxi.TestRows}/{rentalStands})");
+					Check(_m.HudRef.DockTaxi.TestHidden > 20, $"Taxi fasst Ziele ohne Schiff und Leihdienst zusammen ({_m.HudRef.DockTaxi.TestHidden})");
+					_m.TestUndock();
+				}
+				catch (System.Exception ex) { Fail("11-Sektoren-Karte (Phase 21) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
 			default:

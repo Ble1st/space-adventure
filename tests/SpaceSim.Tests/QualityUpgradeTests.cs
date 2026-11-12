@@ -438,7 +438,7 @@ public class QualityUpgradeTests
     [Fact]
     public void Migration_V9ToV10_ErgaenztModuleVerbesserungenDienstUndSlotgrenzen()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 300);
         var v9 = ToV9Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":9", v9);
@@ -452,7 +452,7 @@ public class QualityUpgradeTests
         Assert.Equal(2, m.ShipClasses["heavy_freighter"].MaxSlotUpgrades);
         Assert.Equal(1, m.ShipClasses["unit_trader"].MaxSlotUpgrades);
         Assert.Contains("upgrade", m.StationTypes["shipyard"].Services);
-        var drive = m.Stations.Values.Single(s => s.TypeKey == "drive_works");
+        var drive = m.Stations.Values.First(s => s.TypeKey == "drive_works");
         Assert.Contains(drive.Production, r => r.Outputs.ContainsKey(m.FindGood("reactor_mk2")!.Id));
         var yard = m.Stations.Values.First(s => s.TypeKey == "shipyard");
         Assert.True(yard.Market.ContainsKey(m.FindGood("chem_engine_s_mk2")!.Id));

@@ -223,8 +223,10 @@ public static class WorldBuilder
 
         foreach (var sd in def.Sectors)
         {
+            // Phase 21: owner 0 (oder fehlend) = herrenloser Sektor — keine Fraktion, kein Gebiet; Besitz entsteht erst durch Einfluss (Stationen)
             var owner = new FactionId(sd.Owner);
-            if (!u.Factions.TryGetValue(owner, out var faction)) throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Fraktion {sd.Owner}");
+            Faction? faction = null;
+            if (sd.Owner != 0 && !u.Factions.TryGetValue(owner, out faction)) throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Fraktion {sd.Owner}");
             var sector = new Sector { Id = new SectorId(sd.Id), Name = sd.Name, Owner = owner, MapPosition = V(sd.Map) };
             // Phase 14: Planet (Kulisse, Abnehmer der Exportsenke)
             if (sd.Planet is { } pd)
@@ -234,7 +236,7 @@ public static class WorldBuilder
                 sector.Planet = new Planet { Name = pd.Name, Color = pd.Color, Radius = pd.Radius };
             }
             if (!u.Sectors.TryAdd(sector.Id, sector)) throw new WorldFormatException($"Sektor {sd.Id} doppelt");
-            faction.Territory.Add(sector.Id);
+            faction?.Territory.Add(sector.Id);
 
             foreach (var fd in sd.Fields)
                 sector.Fields.Add(new ResourceField

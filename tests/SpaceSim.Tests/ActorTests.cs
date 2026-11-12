@@ -344,7 +344,7 @@ public class ActorTests
         var trader = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
         Assert.Equal(u.Rules.RelationFree, Relations.OfShip(u, trader, union), 3);                    // freie Schiffe teilen die Sammelgruppe
         int stored = Relations.StoredEntries(u);
-        Assert.Equal(2, stored);
+        Assert.Equal(u.Factions.Count * (u.Factions.Count - 1), stored);   // Phase 21: drei Fraktionen, jede nennt die beiden anderen (vorher 2)
 
         // persönliche Abweichung des Spielers zur Gilde, dann zurück auf die Vorgabe → Eintrag verschwindet wieder
         Relations.Set(u, u.PlayerActor, guild, -0.4f);
@@ -404,7 +404,7 @@ public class ActorTests
     [Fact]
     public void Migration_V11ToV12_FraktionenWerdenAkteure_SpielerkasseBleibt()
     {
-        var u = Fresh();
+        var u = TestWorlds.Classic();
         u.PlayerWallet.Credits = 4321f;
         var v11 = ToV11Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":11", v11);

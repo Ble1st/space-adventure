@@ -75,8 +75,9 @@ public class EconomyFixTests
         Assert.Equal(bankEntry.Target + 0.5f, bankEntry.Amount, 3);        // pausiert ohne Abnehmer
         Assert.Equal(reactorEntry.Target + 1.5f, reactorEntry.Amount, 3);  // gefragt: läuft weiter
         // Abnehmer gesättigt (Werft und Handelsstation am Wunschbestand): auch der Reaktor pausiert jetzt beim Wunschbestand
-        St(u, Yard).Market[reactor].Amount = St(u, Yard).Market[reactor].Target;
-        St(u, TradeBeta).Market[reactor].Amount = St(u, TradeBeta).Market[reactor].Target;
+        // Phase 21: alle Abnehmer (drei Werften, Handelsstation) — die 11-Sektoren-Welt hat mehr Regale mit Reaktoren
+        foreach (var holder in u.Stations.Values.Where(s => s.Id != works.Id && s.Market.ContainsKey(reactor) && !s.Produces(reactor)))
+            holder.Market[reactor].Amount = MathF.Max(holder.Market[reactor].Amount, holder.Market[reactor].Target);
         u.Tick = 20;
         new ProductionSystem().Step(u, 1);
         Assert.Equal(reactorEntry.Target + 1.5f, reactorEntry.Amount, 3);
@@ -218,9 +219,9 @@ public class EconomyFixTests
         Assert.Equal("gedeckt", Maintenance.StatusText(u, smelter));
         float paid = upkeep.Where(t => t.Actor == union.Id).Sum(t => t.Amount);
         Assert.True(paid > 0f);
-        Assert.Equal(credits + expected, smelter.Credits, 2);   // die Kasse erstattet der Hütte ihr verbrauchtes Material
+        Assert.Equal(credits + expected, smelter.Credits, 0.01);   // die Kasse erstattet der Hütte ihr verbrauchtes Material (Toleranz statt Rundung: float bei ~10 000 Cr)
         Assert.True(paid >= expected - 0.01f);                   // (und anderen Union-Stationen ihres)
-        Assert.Equal(10_000f - paid, union.Treasury.Credits, 2);
+        Assert.Equal(10_000f - paid, union.Treasury.Credits, 0.01);   // Toleranz statt Rundung (float)
         // lange ohne Material: der Rückstand wächst höchstens auf einen Tagesbedarf, nichts verfällt
         foreach (var (g, _) in need) smelter.Market[g].Amount = 0f;
         sys.Step(u, 100_000);

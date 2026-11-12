@@ -137,13 +137,13 @@ public class ConstructionTests
         Assert.Empty(u.StationTypes["build_site"].Recipes);
         Assert.Equal(new[] { "trade" }, u.StationTypes["build_site"].Services);
         Assert.Equal(new[] { "trade", "storage", "hangar", "taxi" }, u.StationTypes["warehouse"].Services);   // Phase 12
-        var wh = u.Stations.Values.Single(s => s.TypeKey == "warehouse");
+        var wh = u.Stations.Values.First(s => s.TypeKey == "warehouse");
         Assert.True(wh.BankruptcyProtected);
         Assert.All(new[] { "steel", "hull_plates", "electronics" }, k => Assert.True(wh.IsStockOnly(u.FindGood(k)!.Id)));
         Assert.Contains(Capability.Construction, u.Modules["construction_rig_s"].Grants);
         Assert.True(u.Modules["split_laser_s"].Stats["splitPower"] > 0f);
         // Module sind Waren mit Rezept im Systemwerk
-        var sys = u.Stations.Values.Single(s => s.TypeKey == "systems_works");
+        var sys = u.Stations.Values.First(s => s.TypeKey == "systems_works");
         foreach (var key in Phase8Modules) Assert.Contains(sys.Production, r => r.Outputs.ContainsKey(u.FindGood(key)!.Id));
         // Foreman: Bauschiff mit Frachtraum, Aufgabe „build“; Brecher-Modelle mit Spaltlaser
         var foreman = u.ShipModels["foreman"];
@@ -405,6 +405,7 @@ public class ConstructionTests
     {
         var u = World();
         RemoveBuilders(u);
+        u.Rules.CommissionBuilders = false;   // Phase 21: wie die anderen Notbau-Tests — die Fraktion kauft kein Bauschiff nach (geprüft wird der Bau ohne Bauschiff)
         OnlyTestSites(u, 2);   // Notbau-Bremse je Fraktion: nur die beiden Baustellen des Tests
         u.Rules.ConstructionPriceFactor = 0.01f;
         var steel = Site(u, "steelworks", 1);   // Stahl ist eine kritische Kette
@@ -605,7 +606,7 @@ public class ConstructionTests
     public void Lagerhaus_EinlagernAbholen_GebuehrKapazitaetStrengeSchluessel()
     {
         var u = World();
-        var wh = u.Stations.Values.Single(s => s.TypeKey == "warehouse");
+        var wh = u.Stations.Values.First(s => s.TypeKey == "warehouse");
         Assert.Contains(StationServices.Default().ForStation(u, wh), x => x.Key == "storage");
         var player = u.Ships[u.PlayerShip];
         player.Cargo[DemoUniverse.IronOre] = 40f;
@@ -646,7 +647,7 @@ public class ConstructionTests
         var abandoned = Site(u, "goods_factory", 2);
         abandoned.Stock(DemoUniverse.Steel).Amount = 4f;
         ConstructionRules.Expire(u, abandoned);
-        u.Stations.Values.Single(s => s.TypeKey == "warehouse").PlayerStorage[DemoUniverse.Ice] = 12f;
+        u.Stations.Values.First(s => s.TypeKey == "warehouse").PlayerStorage[DemoUniverse.Ice] = 12f;
         u.Factions.Values.First().LastEmergencyBuildTick = 77;
         var runner = new SimulationRunner();
         runner.Run(u, 300);   // Bauschiff unterwegs, Baustelle beliefert
@@ -660,7 +661,7 @@ public class ConstructionTests
         Assert.Equal(site.Site!.Required, ls.Required);
         Assert.Equal(site.Site.Builder, ls.Builder);
         Assert.True(loaded.Stations[abandoned.Id].Site!.Abandoned);
-        Assert.Equal(12f, loaded.Stations.Values.Single(s => s.TypeKey == "warehouse").PlayerStorage[DemoUniverse.Ice]);
+        Assert.Equal(12f, loaded.Stations.Values.First(s => s.TypeKey == "warehouse").PlayerStorage[DemoUniverse.Ice]);
         Assert.Equal(77, loaded.Factions.Values.First().LastEmergencyBuildTick);
         runner.Run(u, 2000);
         new SimulationRunner().Run(loaded, 2000);

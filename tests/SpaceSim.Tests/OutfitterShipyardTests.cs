@@ -67,7 +67,7 @@ public class OutfitterShipyardTests
         Assert.True(stats("nomad").Cargo > stats("prospector").Cargo);
         Assert.Equal(60f, stats("pip").Hull);
 
-        var trade = u.Stations.Values.Single(s => s.TypeKey == "trade_station");
+        var trade = u.Stations.Values.First(s => s.TypeKey == "trade_station");
         Assert.True(trade.BankruptcyProtected);
         Assert.Empty(trade.Production);   // nur Lager, keine Rezepte
         Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental" }, u.StationTypes["trade_station"].Services);   // Phase 12
@@ -326,7 +326,7 @@ public class OutfitterShipyardTests
         foreach (var bad in new[] { "buy:", "buy:lorem", "pip", "sell:pip", "" })
             Assert.False(Exec(Dealer, u, yard, player, bad).Success, bad);
         // Handelsstation verkauft keine Einheitsfrachter
-        var trade = u.Stations.Values.Single(s => s.TypeKey == "trade_station");
+        var trade = u.Stations.Values.First(s => s.TypeKey == "trade_station");
         u.PlayerWallet.Credits = 50_000f;
         Assert.False(Exec(Dealer, u, trade, player, "buy:unit_trader_100").Success);
         u.PlayerWallet.Credits = 10f;
@@ -339,7 +339,7 @@ public class OutfitterShipyardTests
     {
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 1);
-        var trade = u.Stations.Values.Single(s => s.TypeKey == "trade_station");
+        var trade = u.Stations.Values.First(s => s.TypeKey == "trade_station");
         var player = u.Ships[u.PlayerShip];
         u.MoveShip(player, trade.Sector);
         u.PlayerSector = trade.Sector;
@@ -384,6 +384,8 @@ public class OutfitterShipyardTests
         var kit = u.FindGood("ship_kit_light")!.Id;
         yard.Stock(kit).Amount = 5f;
         yard.Market[u.FindGood("reactor_mk1")!.Id].Amount = 0f;   // kein Reaktor: volle Regel nicht erfüllbar
+        // Phase 21: die anderen Werften (11-Sektoren-Welt) haben keinen Bausatz — gekauft wird an dieser Werft
+        foreach (var other in u.Stations.Values.Where(s => s.TypeKey == "shipyard" && s.Id != yard.Id)) other.Stock(kit).Amount = 0f;
         u.Ships.Values.First(s => s.Role == ShipRole.Trader).Credits = 20_000f;
         var built = new List<FleetShipBuilt>();
         u.Events.Raised += e => { if (e is FleetShipBuilt b) built.Add(b); };
@@ -523,8 +525,8 @@ public class OutfitterShipyardTests
         Assert.DoesNotContain("trade_station", v7);
         var (m, _) = SaveGameJson.Read(v7);
 
-        var trade = m.Stations.Values.Single(s => s.TypeKey == "trade_station");
-        var orig = u.Stations.Values.Single(s => s.TypeKey == "trade_station");
+        var trade = m.Stations.Values.First(s => s.TypeKey == "trade_station");
+        var orig = u.Stations.Values.First(s => s.TypeKey == "trade_station");
         Assert.Equal(orig.Id, trade.Id);
         Assert.Equal(orig.Position, trade.Position);
         Assert.True(trade.BankruptcyProtected);

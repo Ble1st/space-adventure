@@ -188,7 +188,7 @@ public abstract partial class CommandScreen : Control, IScreen
 	}
 
 	/// <summary>Name einer Fraktion (oder „?“).</summary>
-	protected static string FactionName(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var x) ? x.Name : "?";
+	protected static string FactionName(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var x) ? x.Name : f.Value == 0 ? "herrenlos" : "?";
 	/// <summary>Name eines Sektors (oder „?“).</summary>
 	protected static string SectorName(Universe u, SectorId id) => u.Sectors.TryGetValue(id, out var s) ? s.Name : "?";
 	/// <summary>Name einer Station (oder Id).</summary>

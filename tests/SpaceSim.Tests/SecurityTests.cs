@@ -115,7 +115,7 @@ public class SecurityTests
 
     // ───────── Helfer ─────────
 
-    static Universe Fresh() => DemoUniverse.Create();
+    static Universe Fresh() => TestWorlds.Classic();
 
     /// <summary>Kaperschiff der Startwelt, an einen Ort im Sektor gesetzt (geparkt, lauernd).</summary>
     static Ship Raider(Universe u, SectorId sector, Vec2 pos)
@@ -225,7 +225,7 @@ public class SecurityTests
     [Fact]
     public void Content_UngueltigeAkteureUndBesitzerWerfen()
     {
-        WorldDef Def() => WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        WorldDef Def() => WorldBuilder.Parse(TestWorlds.ClassicJson());
         var d1 = Def(); d1.Actors[0].Kind = "state";
         Assert.Contains("unbekannte Art", Assert.Throws<WorldFormatException>(() => WorldBuilder.Build(d1)).Message);
         var d2 = Def(); d2.Actors.Add(new ActorDef { Key = "pirates", Name = "Doppelt" });

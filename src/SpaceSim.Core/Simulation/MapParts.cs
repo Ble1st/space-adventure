@@ -55,7 +55,20 @@ public static class MapParts
         return c.Value;
     }
 
-    static MapPartition Compute(Universe u)
+    /// <summary>
+    /// Phase 21: Zerlegung der Karte, wenn dieses Gate (beide Enden) zusätzlich geschlossen wäre — rein, ändert nichts. Für die Kartenprüfung
+    /// „welche Einzelsperre zerteilt die Karte?“ (Tests, Balance-Tool <c>--gatelist on</c>).
+    /// </summary>
+    public static MapPartition IfClosed(Universe u, GateId gate)
+    {
+        var far = u.Gates.TryGetValue(gate, out var g) ? g.Target : gate;
+        return Compute(u, gate, far);
+    }
+
+    /// <summary>Phase 21: Zerteilt das Schließen dieses Gates (beide Enden) die heute zusammenhängenden Teile weiter?</summary>
+    public static bool SplitsWhenClosed(Universe u, GateId gate) => IfClosed(u, gate).Parts.Count > Of(u).Parts.Count;
+
+    static MapPartition Compute(Universe u, GateId? skipA = null, GateId? skipB = null)
     {
         var ids = u.Sectors.Keys.OrderBy(s => s.Value).ToList();
         var partOf = new Dictionary<SectorId, int>();
@@ -73,6 +86,7 @@ public static class MapParts
                 members.Add(s);
                 foreach (var gid in u.Sectors[s].Gates)
                 {
+                    if (gid == skipA || gid == skipB) continue;
                     if (!u.Gates.TryGetValue(gid, out var g) || !Passable(g) || !u.Gates.TryGetValue(g.Target, out var far) || !Passable(far)) continue;
                     if (!u.Sectors.ContainsKey(far.Sector) || partOf.ContainsKey(far.Sector)) continue;
                     partOf[far.Sector] = index;

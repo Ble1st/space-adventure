@@ -1,3 +1,4 @@
+using SpaceSim.Core.Content;
 using SpaceSim.Core.Demo;
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Mining;
@@ -197,12 +198,13 @@ public class CargoWaterOreTests
     {
         var u = DemoUniverse.Create();
         var farms = u.Stations.Values.Where(s => s.TypeKey == "farm").ToList();
-        Assert.Equal(2, farms.Count);
+        Assert.True(farms.Count >= 2);   // Phase 21: die 11-Sektoren-Welt hat vier Farmen
         var beta = farms.Single(f => f.Id == new StationId(40));
         Assert.Equal("Farm Beta", beta.Name);
         Assert.True(beta.BankruptcyProtected);
-        Assert.Equal(37 - 2, u.Rules.MaxStations);   // Treibstoff aus: −2 Raffinerien; Spielraum für den Lebenszyklus wie vorher (4 Plätze)
-        Assert.Equal(u.Rules.MaxStations - 4, StationProtection.CountEconomic(u));
+        // Treibstoff aus: −2 Raffinerien gegenüber der Weltdatei; Spielraum für den Lebenszyklus mindestens 4 Plätze (Phase 21: größere Welt, mehr Plätze)
+        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations - 2, u.Rules.MaxStations);
+        Assert.True(u.Rules.MaxStations - StationProtection.CountEconomic(u) >= 4);
         var water = u.StationTypes["water_plant"].Recipes.Single();
         Assert.Equal(2f, water.Outputs[G(u, "water")]);
         Assert.Equal(2f, water.Inputs[G(u, "ice")]);

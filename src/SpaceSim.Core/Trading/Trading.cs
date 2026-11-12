@@ -169,7 +169,8 @@ public static class TradeActions
     /// Phase 14: Beste Abnehmerin für eine Teilladung einer Ware (Erlös aus angenommener und bezahlbarer Menge pro Reisezeit, nur erreichbare Stationen),
     /// ohne <paramref name="exclude"/>; null = niemand nimmt sie.
     /// </summary>
-    public static Station? BestBuyerFor(Universe u, Ship ship, GoodId good, float units, StationId exclude)
+    /// <param name="allowed">Phase 21: optionaler Filter (Automatik-Grenzen eines Flottenschiffs); null = alle Stationen.</param>
+    public static Station? BestBuyerFor(Universe u, Ship ship, GoodId good, float units, StationId exclude, Func<Station, bool>? allowed = null)
     {
         Station? best = null;
         float bestScore = 0f;
@@ -178,6 +179,7 @@ public static class TradeActions
         {
             // Baustellen bekommen nur geplante Lieferungen (Reservierung im Händler), keine Restmengen
             if (st.Id == exclude || st.IsBuildSite || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) continue;
+            if (allowed is not null && !allowed(st)) continue;
             float n = MathF.Min(MathF.Min(units, st.AcceptableUnits(good, u.Rules)), MathF.Max(0f, st.Credits) / e.Price);
             if (n < 1f) continue;
             float time = Travel.Estimate(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship);

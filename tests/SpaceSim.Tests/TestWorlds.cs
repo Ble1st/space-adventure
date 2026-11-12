@@ -32,4 +32,34 @@ public static class TestWorlds
 
     /// <summary>Standardwelt mit eingeschalteter Forschung (Treibstoff wie in der Standardwelt aus).</summary>
     public static Universe WithResearch(ulong? seed = null) => Default(seed, fuel: false, research: true);
+
+    /// <summary>
+    /// Phase 21: die bisherige 4-Sektoren-Standardwelt (Alpha, Beta, Gamma, Delta; Stand Phase 20) als eingebettete Test-Ressource. Tests, die eine
+    /// kleine, kontrollierte Karte brauchen (Sternkarte um Beta, genau eine Werft, Platin nur in Delta, feste Messwerte aus der Kalibrierung),
+    /// bauen diese Welt statt der 11-Sektoren-Standardwelt.
+    /// </summary>
+    public static string ClassicJson()
+    {
+        using var stream = typeof(TestWorlds).Assembly.GetManifestResourceStream("SpaceSim.Tests.Content.classic-world.json")
+            ?? throw new InvalidOperationException("Test-Ressource classic-world.json fehlt");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>Weltbeschreibung der klassischen 4-Sektoren-Welt (Schalter wie in der Datei: Treibstoff und Forschung aus).</summary>
+    public static WorldDef ClassicDef() => WorldBuilder.Parse(ClassicJson());
+
+    /// <summary>Klassische 4-Sektoren-Welt (Phase 20), wie in der Datei.</summary>
+    public static Universe Classic(ulong? seed = null, string? startOption = null) => WorldBuilder.Build(ClassicDef(), seed, startOption);
+
+    /// <summary>Klassische 4-Sektoren-Welt mit den angegebenen Schaltern (wie <see cref="Default"/>).</summary>
+    public static Universe Classic(ulong? seed, bool fuel, bool research, bool founderQuality = true)
+    {
+        var def = ClassicDef();
+        def.Rules ??= new EconomyRules();
+        def.Rules.FuelActive = fuel;
+        def.Rules.ResearchActive = research;
+        def.Rules.FounderQuality = founderQuality;
+        return WorldBuilder.Build(def, seed, null);
+    }
 }

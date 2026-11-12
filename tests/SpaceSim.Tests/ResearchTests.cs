@@ -90,8 +90,8 @@ public class ResearchTests
         Assert.Null(u.Research.LockOf(UnlockKind.Module, "reactor_mk2"));
         // je Fraktion eine Forschungsstation, offiziell (Unterhalt aus der Kasse), vor Pleite geschützt, mit Lager und Dienst
         var labs = u.Stations.Values.Where(st => Research.ConfigOf(u, st) is not null).OrderBy(st => st.Id.Value).ToList();
-        Assert.Equal(new[] { 37, 38 }, labs.Select(st => st.Id.Value));
-        Assert.Equal(new FactionId?[] { Union, Guild }, labs.Select(st => Research.TechOf(u, st)));
+        Assert.Equal(new[] { 37, 38, 75 }, labs.Select(st => st.Id.Value));   // Phase 21: + Forschungszentrum des Montanbunds
+        Assert.Equal(new FactionId?[] { Union, Guild, new FactionId(3) }, labs.Select(st => Research.TechOf(u, st)));
         Assert.All(labs, st =>
         {
             Assert.Equal(GovernmentKind.Research, StationProtection.KindOf(u, st));
@@ -345,8 +345,8 @@ public class ResearchTests
         new StationLifecycleSystem().Step(u, 20);
         Assert.DoesNotContain(started, c => c.TypeKey == "steelworks_2");
         Assert.Contains(started, c => c.TypeKey == "steelworks");   // nicht leer gelaufen: gebaut wird der erlaubte Typ
-        // erforscht (beide Fraktionen): jetzt wird der billigere Typ gewählt
-        Complete(u, Union, "steel_tech"); Complete(u, Guild, "steel_tech");
+        // erforscht (alle Fraktionen; Phase 21: auch der Montanbund — sonst kann der gezogene Investor zu ihm gehören): jetzt wird der billigere Typ gewählt
+        foreach (var f in u.Factions.Keys.OrderBy(f => f.Value).ToList()) Complete(u, f, "steel_tech");
         foreach (var site in u.Stations.Values.Where(s => s.IsBuildSite).ToList()) u.RemoveStation(site.Id, "test");
         started.Clear();
         u.LastStationBuildTick = -1_000_000;
@@ -537,7 +537,7 @@ public class ResearchTests
     [Fact]
     public void Migration_RealistischerV15Stand_BekommtForschungsstationenModuleUndProjekte_UndLaeuft()
     {
-        var v15 = RealisticV15(TestWorlds.Default());
+        var v15 = RealisticV15(TestWorlds.Classic(null, fuel: true, research: true));
         Assert.DoesNotContain("research_station", v15);
         Assert.DoesNotContain("reactor_mk3", v15);
         var (u, _) = SaveGameJson.Read(v15);

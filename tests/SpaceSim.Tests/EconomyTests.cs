@@ -215,6 +215,7 @@ public class AvoidanceTests
     public void DemoUniverse_AllKeyPointPairs_HaveCollisionFreeLegs()
     {
         var u = SpaceSim.Core.Demo.DemoUniverse.Create();
+        var failures = new List<string>();   // Phase 21: alle Fehlschläge sammeln (11 Sektoren), nicht beim ersten abbrechen
         foreach (var sector in u.Sectors.Values)
         {
             var obs = u.GetObstacles(sector.Id);
@@ -224,8 +225,11 @@ public class AvoidanceTests
             points.AddRange(sector.Fields.Select(f => f.WorkPoint(new ShipId(5))));
             foreach (var a in points)
                 foreach (var b in points)
-                    if (a != b) AssertClear(PathPlanner.Plan(a, b, obs), obs);
+                    if (a != b)
+                        try { AssertClear(PathPlanner.Plan(a, b, obs), obs, $"{sector.Name} {a} → {b}"); }
+                        catch (Xunit.Sdk.XunitException e) { failures.Add(e.Message.Split('\n')[^1]); }
         }
+        Assert.True(failures.Count == 0, string.Join("\n", failures));
     }
 
     [Fact]
@@ -266,7 +270,7 @@ public class AvoidanceTests
         Assert.Equal(new Vec2(80, 80), pts[^1]);
     }
 
-    static void AssertClear(List<Vec2> pts, IReadOnlyList<Obstacle> obs)
+    static void AssertClear(List<Vec2> pts, IReadOnlyList<Obstacle> obs, string where = "")
     {
         for (int i = 1; i < pts.Count; i++)
         {
@@ -277,7 +281,7 @@ public class AvoidanceTests
             {
                 float t = len2 > 1e-6f ? Math.Clamp((o.Position - a).Dot(ab) / len2, 0f, 1f) : 0f;
                 float d = Vec2.Distance(a + ab * t, o.Position);
-                Assert.True(d >= o.Radius, $"Segment {i} schneidet Hindernis bei {o.Position} (Abstand {d:0.0} < {o.Radius})");
+                Assert.True(d >= o.Radius, $"{where} Segment {i} von {pts.Count - 1} schneidet Hindernis bei {o.Position} (Abstand {d:0.0} < {o.Radius})");
             }
         }
     }

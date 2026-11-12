@@ -129,9 +129,10 @@ public class ModuleGoodsTests
     public void Startwelt_JeEineFabrik_MitAbstand_GuertelErreichenZielzahl()
     {
         var u = DemoUniverse.Create();
-        foreach (var key in Factories)
+        // Phase 21: jede Fabrik-Art mindestens einmal (die 11-Sektoren-Welt hat ein zweites Antriebs- und Systemwerk), jede mit Abstand
+        foreach (var st in u.Stations.Values.Where(s => Factories.Contains(s.TypeKey)))
         {
-            var st = Assert.Single(u.Stations.Values, s => s.TypeKey == key);
+            var key = st.TypeKey;
             var sector = u.Sectors[st.Sector];
             Assert.All(sector.Fields, f => Assert.True(Vec2.Distance(f.Position, st.Position) > 101f));
             Assert.All(sector.Gates, g => Assert.True(Vec2.Distance(u.Gates[g].Position, st.Position) > 50f));
@@ -145,6 +146,7 @@ public class ModuleGoodsTests
                 Assert.Equal(u.StationTypes[key].Stocks.Single(x => x.Good == good).Target, st.Market[good].Target);
             }
         }
+        Assert.All(Factories, k => Assert.Contains(u.Stations.Values, s => s.TypeKey == k));
         foreach (var sector in u.Sectors.Values)
             foreach (var f in sector.Fields)
                 Assert.Equal(f.TargetAsteroids, SpaceSim.Core.Mining.Belt.AsteroidsOf(sector, f).Count());
@@ -199,7 +201,7 @@ public class ModuleGoodsTests
     public void Stocks_LegenMarkteintraegeAn_AuchBeimNeubauUeberStationFactory()
     {
         var u = DemoUniverse.Create();
-        var yard = u.Stations.Values.Single(s => s.TypeKey == "shipyard");
+        var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
         var reactor = GoodOf(u, "reactor_mk1").Id;
         Assert.Equal(2f, yard.Market[reactor].Amount);
         Assert.Equal(5f, yard.Market[reactor].Target);
@@ -208,7 +210,7 @@ public class ModuleGoodsTests
         Assert.False(yard.IsStockOnly(DemoUniverse.Food));              // nicht geführt
         // stocks setzt bei Rezeptwaren Anfangs-/Wunschbestand (Titan der Werft, Zutaten der Modulfabrik)
         Assert.Equal(10f, yard.Market[DemoUniverse.Titanium].Target);
-        var drive = u.Stations.Values.Single(s => s.TypeKey == "drive_works");
+        var drive = u.Stations.Values.First(s => s.TypeKey == "drive_works");
         Assert.Equal(10f, drive.Market[DemoUniverse.Steel].Target);
         Assert.False(drive.IsStockOnly(DemoUniverse.Steel));
 
@@ -227,7 +229,7 @@ public class ModuleGoodsTests
     public void Stocks_HaendlerBeliefernLager_KaufenDortAberNicht()
     {
         var u = DemoUniverse.Create();
-        var yard = u.Stations.Values.Single(s => s.TypeKey == "shipyard");
+        var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
         var stocked = u.StationTypes["shipyard"].Stocks.Select(s => s.Good).Where(g => yard.IsStockOnly(g)).ToList();
         Assert.NotEmpty(stocked);
         float before = stocked.Sum(g => yard.Market[g].Amount);
@@ -252,7 +254,7 @@ public class ModuleGoodsTests
     {
         // Werft: schwere Bausätze auf Halde (billig) dürfen das Gebot für Hüllenplatten (auch Zutat des leichten Bausatzes) nicht drücken
         var u = DemoUniverse.Create();
-        var yard = u.Stations.Values.Single(s => s.TypeKey == "shipyard");
+        var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
         yard.Stock(DemoUniverse.ShipKitHeavy).Amount = 100f;   // Halde → 0,25 × Basispreis
         yard.Stock(DemoUniverse.ShipKitMedium).Amount = 100f;  // Phase 15: mittlere Bausätze starten nicht mehr auf Halde — für den Vergleich auf Halde legen
         yard.Stock(DemoUniverse.ShipKitLight).Amount = yard.Stock(DemoUniverse.ShipKitLight).Target / 10f;    // knapp → teuer (Phase 15: Wunschbestand 10 statt 100)
@@ -271,7 +273,7 @@ public class ModuleGoodsTests
         var u = DemoUniverse.Create();
         foreach (var st in u.Stations.Values) foreach (var e in st.Market.Values) e.Amount = e.Target;   // alles ausgeglichen
         foreach (var st in u.Stations.Values.Where(s => s.Market.ContainsKey(DemoUniverse.IronOre))) st.Market[DemoUniverse.IronOre].Amount *= 4f;   // Eisenerz-Überangebot
-        var drive = u.Stations.Values.Single(s => s.TypeKey == "drive_works");
+        var drive = u.Stations.Values.First(s => s.TypeKey == "drive_works");
         drive.Market[GoodOf(u, "reactor_mk1").Id].Amount = 1000f;   // Modul noch stärker auf Halde, aber kein Typ verbraucht es
         int before = u.Stations.Count;
         string? builtType = null;
@@ -309,7 +311,9 @@ public class ModuleGoodsTests
         var u = DemoUniverse.Create();
         u.ShipClasses["unit_trader"].Kit = "ship_kit_medium";
         u.Rules.FleetChoosesModels = false;   // geprüft wird die Kopierregel (Phase 5); die Modellwahl der Phase 6 hat eigene Tests
-        var yard = u.Stations.Values.Single(s => s.TypeKey == "shipyard");
+        var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
+        // Phase 21: drei Werften — die anderen haben keinen mittleren Bausatz, damit der Kauf an dieser Werft stattfindet
+        foreach (var other in u.Stations.Values.Where(s => s.TypeKey == "shipyard" && s.Id != yard.Id)) other.Stock(DemoUniverse.ShipKitMedium).Amount = 0f;
         yard.Stock(DemoUniverse.ShipKitLight).Amount = 5f;
         yard.Stock(DemoUniverse.ShipKitMedium).Amount = 3f;
         var rich = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
@@ -366,7 +370,7 @@ public class ModuleGoodsTests
     [Fact]
     public void Migration_V5ToV6_GoodIdsStabil_VerhaltenWieFrischeWelt()
     {
-        var fresh = DemoUniverse.Create();
+        var fresh = TestWorlds.Classic();
         var v5 = FuelModelTests.ToV5Json(SaveGameJson.Write(fresh, Now));
         Assert.Contains("\"Version\":5", v5);
         Assert.Contains("\"Key\":\"ship_kit\"", v5);
@@ -390,7 +394,7 @@ public class ModuleGoodsTests
     /// <summary>Ein v5-Save, wie er vor Phase 5a aussah: ohne Modulfabriken (Typen und Stationen), ohne die neuen Mk1-Module, Werft ohne Bausatzstufen und Lager.</summary>
     static string RealisticV5()
     {
-        var node = JsonNode.Parse(FuelModelTests.ToV5Json(SaveGameJson.Write(DemoUniverse.Create(), Now)))!.AsObject();
+        var node = JsonNode.Parse(FuelModelTests.ToV5Json(SaveGameJson.Write(TestWorlds.Classic(), Now)))!.AsObject();
         var stations = node["Stations"]!.AsArray();
         var removed = new HashSet<int>();
         for (int i = stations.Count - 1; i >= 0; i--)
@@ -447,7 +451,7 @@ public class ModuleGoodsTests
             }
         }
         // Werft: Bausatzstufen und Lager nachgetragen
-        var yard = u.Stations.Values.Single(s => s.TypeKey == "shipyard");
+        var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
         Assert.Equal(3, yard.Production.Count);
         Assert.Equal(3, u.StationTypes["shipyard"].Recipes.Count);
         Assert.True(yard.IsStockOnly(u.FindGood("reactor_mk1")!.Id));

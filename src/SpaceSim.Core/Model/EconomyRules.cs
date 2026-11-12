@@ -130,6 +130,11 @@ public sealed class EconomyRules
     public int ConstructionExpiryTicks = 8000;
     /// <summary>Höchstzahl gleichzeitig laufender Baustellen (verlassene zählen nicht).</summary>
     public int MaxActiveSites = 2;
+    /// <summary>
+    /// Phase 21: Der Lebenszyklus wählt für einen Neubau zuerst Sektoren, in denen die Erz-Zutaten des Typs gefördert werden (dann wie bisher die dünn
+    /// besiedelten). false = Reihenfolge bis Phase 20.
+    /// </summary>
+    public bool BuildNearOre = true;
     /// <summary>Kapazitätsgrenze der KI-Bauschiffe (Aufgabe „build“, je Schiff 1).</summary>
     public int MaxBuilders = 4;
     /// <summary>Notbau: Frist in Ticks, die eine Baustelle blockiert sein muss (kein Lieferant mit Lager, kein Bauschiff erreichbar, Treuhand reicht nicht).</summary>

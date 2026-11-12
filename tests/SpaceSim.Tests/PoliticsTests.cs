@@ -76,7 +76,7 @@ public class PoliticsTests
     /// <summary>Startwelt; optional ohne Hauptrouten (dann wirken Stufen 4–5 an allen Gates) und mit einem zusätzlichen Gate Alpha–Gamma (Umweg).</summary>
     static Universe World(bool mainRoutes = true, bool shortcut = false, Action<EconomyRules>? rules = null)
     {
-        var node = JsonNode.Parse(WorldBuilder.DefaultWorldJson())!.AsObject();
+        var node = JsonNode.Parse(TestWorlds.ClassicJson())!.AsObject();
         var gates = node["gates"]!.AsArray();
         if (!mainRoutes) foreach (var g in gates) g!.AsObject()["mainRoute"] = false;
         if (shortcut)
@@ -109,7 +109,7 @@ public class PoliticsTests
     [Fact]
     public void Startwelt_Regierungsstationen_Kontrollstufen_OffeneHauptrouten()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         // Phase 13: die Forschungsstationen (37, 38) sind ebenfalls offiziell (Unterhalt aus der Kasse), haben aber einen Markt
         var gov = u.Stations.Values.Where(s => StationProtection.IsOfficial(u, s) && StationProtection.KindOf(u, s) != GovernmentKind.Research).OrderBy(s => s.Id.Value).ToList();
         Assert.Equal(new[] { 32, 33, 34, 35 }, gov.Select(s => s.Id.Value));
@@ -137,7 +137,7 @@ public class PoliticsTests
     {
         string Mutate(Action<JsonObject> f)
         {
-            var node = JsonNode.Parse(WorldBuilder.DefaultWorldJson())!.AsObject();
+            var node = JsonNode.Parse(TestWorlds.ClassicJson())!.AsObject();
             f(node);
             return node.ToJsonString();
         }
@@ -157,7 +157,7 @@ public class PoliticsTests
     [Fact]
     public void Essential_Aufgeschluesselt_GovernmentCapturableDestructibleImmortal()
     {
-        var node = JsonNode.Parse(WorldBuilder.DefaultWorldJson())!.AsObject();
+        var node = JsonNode.Parse(TestWorlds.ClassicJson())!.AsObject();
         node["sectors"]![0]!["stations"]![0]!.AsObject()["immortal"] = true;   // Stahlwerk Alpha
         var u = WorldBuilder.Build(WorldBuilder.Parse(node.ToJsonString()));
         var hq = u.Stations[new StationId(32)];
@@ -505,7 +505,7 @@ public class PoliticsTests
     [Fact]
     public void Startwelt_20000Ticks_KeineSperre_BeziehungFreundlich_KarteZusammen_KassenErklaerbar()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         int changes = 0;
         double gov = 0, unpaid = 0;
         u.Events.Raised += e =>
@@ -663,7 +663,7 @@ public class PoliticsTests
     [Fact]
     public void Migration_V12ToV13_RegierungsstationenHauptrouteUndOffeneGates()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var v12 = ToV12Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":12", v12);
         Assert.DoesNotContain("headquarters", v12);
@@ -680,7 +680,7 @@ public class PoliticsTests
     [Fact]
     public void Migration_AlteKette_LaedtUndLaeuft()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var (loaded, _) = SaveGameJson.Read(FuelModelTests.ToV5Json(SaveGameJson.Write(u, Now)));
         Assert.Equal(4, loaded.Stations.Values.Count(s => StationProtection.IsOfficial(loaded, s) && StationProtection.KindOf(loaded, s) != GovernmentKind.Research));   // Phase 13: Forschungsstationen zählen extra
         new SimulationRunner().Run(loaded, 2000);
