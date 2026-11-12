@@ -64,7 +64,8 @@ public class ContentTests
             // Phase 5a: mittlere/schwere Bausätze (noch keine Klasse) und Modul-Waren haben noch keinen Verbraucher — Abnehmer kommen
             // mit Schiffskauf/Ausrüster (Phase 5c); bis dahin liegen sie in Werft-Lagern (stocks) oder auf Halde der Fabrik
             bool phase5aStock = good.Key.StartsWith("ship_kit_") || u.Modules.ContainsKey(good.Key);
-            Assert.True(used || kit || shipFuel || phase5aStock, $"{good.Key} wird nirgends verbraucht");
+            bool ammo = good.Category == "ammo";   // Phase 23: Munition liegt nur als Lagerware (Werft, Wache, Handelsstation); der Verbrauch kommt mit Phase 24
+            Assert.True(used || kit || shipFuel || phase5aStock || ammo, $"{good.Key} wird nirgends verbraucht");
         }
     }
 

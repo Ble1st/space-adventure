@@ -528,4 +528,17 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RentedFrom { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long RentedSince { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float RentalDeposit { get; set; }
+    /// <summary>Phase 23 (additiv): Laufzeitzustand der Bordsysteme; fehlt = voll, ausgeglichen, unbeschädigt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipSystemsSave? Systems { get; set; }
+}
+
+/// <summary>Phase 23: Bordsysteme eines Schiffs als Fehlbeträge (0 = voll), Zustand je Slot (fehlt = alle heil), Leistungsverteilung, Schildpause.</summary>
+public sealed class ShipSystemsSave
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float ShieldMissing { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float ChargeMissing { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float AmmoMissing { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Condition { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Mode { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ShieldPauseUntil { get; set; }
 }

@@ -24,8 +24,11 @@ public interface IEncounterResolver
 /// <summary>Kampfstärke aus den Modulen (Waffen, Schild, Hülle) — gemeinsame Regel für Auflöser, Anzeige und Tests.</summary>
 public static class CombatRules
 {
-    /// <summary>Stärke eines Schiffs: Waffenstärke + Schild ÷ 20 + aktuelle Hülle ÷ 50 + 0,5 (auch ein Frachter wehrt sich ein wenig).</summary>
-    public static float Strength(Ship ship) => ship.Stats.WeaponPower + ship.Stats.Shield / 20f + MathF.Max(0f, ship.Hull) / 50f + 0.5f;
+    /// <summary>
+    /// Stärke eines Schiffs: Waffenstärke + aktueller Schild ÷ 20 + aktuelle Hülle ÷ 50 + 0,5 (auch ein Frachter wehrt sich ein wenig). Phase 23: der
+    /// aktuelle Schild (<see cref="Ship.ShieldNow"/>) statt der Kapazität — ein Schiff mit leergeschossenem Schild ist schwächer, bis er nachgeladen hat.
+    /// </summary>
+    public static float Strength(Ship ship) => ship.Stats.WeaponPower + ship.ShieldNow / 20f + MathF.Max(0f, ship.Hull) / 50f + 0.5f;
 
     /// <summary>Summe der Stärken einer Seite.</summary>
     public static float Strength(IReadOnlyList<Ship> side)
@@ -43,15 +46,16 @@ public static class CombatRules
     }
 
     /// <summary>
-    /// Wendet Hüllenschaden an: das führende Schiff (Index 0) voll, Helfer zur Hälfte; nie unter 0. <paramref name="minHullShare"/> &gt; 0 hält ein
-    /// Schiff über diesem Anteil (Spieler).
+    /// Wendet Schaden an: das führende Schiff (Index 0) voll, Helfer zur Hälfte, jeweils <paramref name="fraction"/> × Maximalhülle. Phase 23: zuerst auf
+    /// den Schild (<see cref="Combat.ShipSystems.Absorb"/>), der Rest auf die Hülle; nie unter 0. <paramref name="minHullShare"/> &gt; 0 hält ein Schiff
+    /// über diesem Anteil der Hülle (Spieler).
     /// </summary>
-    public static void Damage(IReadOnlyList<Ship> side, float fraction, Func<Ship, float>? minHullShare = null)
+    public static void Damage(Universe u, IReadOnlyList<Ship> side, float fraction, Func<Ship, float>? minHullShare = null)
     {
         for (int i = 0; i < side.Count; i++)
         {
             var s = side[i];
-            float dmg = fraction * (i == 0 ? 1f : 0.5f) * s.MaxHull;
+            float dmg = Combat.ShipSystems.Absorb(u, s, fraction * (i == 0 ? 1f : 0.5f) * s.MaxHull);
             float floor = minHullShare is null ? 0f : minHullShare(s) * s.MaxHull;
             s.Hull = MathF.Max(MathF.Min(s.Hull, MathF.Max(floor, s.Hull - dmg)), 0f);
         }

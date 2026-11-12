@@ -424,7 +424,7 @@ public class ActorTests
     [Fact]
     public void Migration_AlteKette_SchiffeBekommenBesitzer()
     {
-        var u = Fresh();
+        var u = TestWorlds.Classic();   // Phase 23: die eingefrorene Migrationskette kennt die Munition der Standardwelt nicht
         u.PlayerWallet.Credits = 999f;
         var (loaded, _) = SaveGameJson.Read(FuelModelTests.ToV5Json(SaveGameJson.Write(u, Now)));
         Assert.Equal(999f, loaded.PlayerWallet.Credits);

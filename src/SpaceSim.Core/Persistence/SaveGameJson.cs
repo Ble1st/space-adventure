@@ -14,6 +14,43 @@ public static class SaveGameJson
 {
     static readonly JsonSerializerOptions Options = new() { IncludeFields = true, WriteIndented = false };
 
+    /// <summary>
+    /// Inhalte der Standardwelt, die erst nach dem Speicherformat v17 dazukamen (Phase 23: Munition und Munitionsmagazin). Die Migrationskette ist
+    /// eingefroren (alte Spielstände sind egal, Entscheidung des Nutzers) und sieht die Standardwelt im Stand v17: Sie trägt diese Waren, Module, Rezepte
+    /// und Lagerposten nicht in alte Stände nach. Spätere Phasen hängen ihre Schlüssel hier an.
+    /// </summary>
+    static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s" };
+    /// <summary>Lagerposten (Stationstyp, Ware), die nach v17 nur für ein spätes Rezept dazukamen (Phase 23: Stahl für die Munition im Waffenwerk).</summary>
+    static readonly (string Type, string Good)[] AfterV17Stocks = { ("weapons_works", "steel") };
+
+    static readonly Lazy<string> MigrationBase = new(() =>
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(WorldBuilder.DefaultWorldJson())!.AsObject();
+        bool Late(string? key) => key is not null && AfterV17Keys.Contains(key);
+        void RemoveWhere(System.Text.Json.Nodes.JsonArray? arr, Func<System.Text.Json.Nodes.JsonNode, bool> drop)
+        {
+            if (arr is null) return;
+            for (int i = arr.Count - 1; i >= 0; i--) if (arr[i] is { } n && drop(n)) arr.RemoveAt(i);
+        }
+        RemoveWhere(root["goods"]?.AsArray(), n => Late((string?)n["key"]));
+        RemoveWhere(root["modules"]?.AsArray(), n => Late((string?)n["key"]));
+        foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+        {
+            if (t is null) continue;
+            RemoveWhere(t["recipes"]?.AsArray(), r =>
+                (r["in"]?.AsObject().Any(kv => Late(kv.Key)) ?? false) || (r["out"]?.AsObject().Any(kv => Late(kv.Key)) ?? false));
+            if (t["stocks"] is System.Text.Json.Nodes.JsonObject stocks)
+            {
+                foreach (var key in stocks.Select(kv => kv.Key).Where(Late).ToList()) stocks.Remove(key);
+                foreach (var (type, good) in AfterV17Stocks) if ((string?)t["key"] == type) stocks.Remove(good);
+            }
+        }
+        return root.ToJsonString();
+    });
+
+    /// <summary>Standardwelt im Stand v17 für die Migrationskette (<see cref="AfterV17Keys"/>).</summary>
+    static string MigrationBaseJson() => MigrationBase.Value;
+
     public static string Write(Universe u, DateTimeOffset now) =>
         JsonSerializer.Serialize(UniverseSerializer.ToSave(u, now), Options);
 
@@ -162,7 +199,7 @@ public static class SaveGameJson
         }
         if (s.ShipModels.Count == 0 && s.Ships.Any(sh => !string.IsNullOrEmpty(sh.ModelKey)))
         {
-            var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+            var def = WorldBuilder.Parse(MigrationBaseJson());
             var content = new Universe();
             // Waren mitladen, damit WriteSlotContent die Treibstoff-GoodIds der Module als Schlüssel schreiben kann
             for (int i = 0; i < def.Goods.Count; i++)
@@ -187,7 +224,7 @@ public static class SaveGameJson
     /// </summary>
     static void MigrateV4ToV5(SaveGame s)
     {
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
 
         // 1) Ware propellant ans Ende der Warenliste anhängen (GoodIds der bestehenden Waren bleiben stabil)
         int propId = s.Goods.FirstOrDefault(g => g.Key == "propellant")?.Id ?? 0;
@@ -340,7 +377,7 @@ public static class SaveGameJson
     /// </summary>
     static void MigrateV5ToV6(SaveGame s)
     {
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         var dw = WorldBuilder.Build(def);   // Default-Welt mit Modul-Waren und ausgeklappten Modulfabrik-Rezepten
 
         // 1) ship_kit → ship_kit_light (Id bleibt)
@@ -475,7 +512,7 @@ public static class SaveGameJson
     /// </summary>
     static void MigrateV7ToV8(SaveGame s)
     {
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         var dw = WorldBuilder.Build(def);
         var content = new SaveGame();
         UniverseSerializer.WriteSlotContent(dw, content);
@@ -554,7 +591,7 @@ public static class SaveGameJson
     static void MigrateV9ToV10(SaveGame s)
     {
         AddMissingDefaultContent(s);
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         foreach (var md in def.Modules)
             if (md.Upgrade is { } up && s.Modules.FirstOrDefault(m => m.Key == md.Key) is { UpgradeTo: null } ms && s.Modules.Any(m => m.Key == up.To))
             { ms.UpgradeTo = up.To; ms.UpgradeCost = new Dictionary<string, float>(up.Cost); }
@@ -578,7 +615,7 @@ public static class SaveGameJson
     static void MigrateV10ToV11(SaveGame s)
     {
         AddMissingDefaultContent(s);
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         var dw = WorldBuilder.Build(def);
         var goodIdByKey = new Dictionary<string, int>();
         foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
@@ -649,7 +686,7 @@ public static class SaveGameJson
     /// </summary>
     static void MigrateV11ToV12(SaveGame s)
     {
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         int baseId = Math.Max(ActorId.FirstGenerated, s.Factions.Count == 0 ? 0 : s.Factions.Max(f => f.Id) + 1);
         s.Actors = new List<ActorSave>();
         foreach (var f in s.Factions.OrderBy(f => f.Id))
@@ -693,7 +730,7 @@ public static class SaveGameJson
     /// </summary>
     static void MigrateV12ToV13(SaveGame s)
     {
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         var dw = WorldBuilder.Build(def);
         foreach (var link in def.Gates.Where(l => l.MainRoute))
         {
@@ -747,7 +784,7 @@ public static class SaveGameJson
     static void MigrateV13ToV14(SaveGame s)
     {
         AddMissingDefaultContent(s);
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         var dw = WorldBuilder.Build(def);
         var goodIdByKey = new Dictionary<string, int>();
         foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
@@ -873,7 +910,7 @@ public static class SaveGameJson
     static void MigrateV15ToV16(SaveGame s)
     {
         AddMissingDefaultContent(s);
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         var dw = WorldBuilder.Build(def);
         var goodIdByKey = new Dictionary<string, int>();
         foreach (var g in s.Goods) if (g.Key.Length > 0) goodIdByKey.TryAdd(g.Key, g.Id);
@@ -948,7 +985,7 @@ public static class SaveGameJson
     /// </summary>
     static void AddMissingDefaultContent(SaveGame s)
     {
-        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        var def = WorldBuilder.Parse(MigrationBaseJson());
         var dw = WorldBuilder.Build(def);
         var content = new SaveGame();
         UniverseSerializer.WriteSlotContent(dw, content);

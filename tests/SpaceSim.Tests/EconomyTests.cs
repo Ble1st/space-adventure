@@ -96,6 +96,9 @@ public class MinerTests
         new SimulationRunner().Run(u, 2_000);
 
         Assert.NotEmpty(founders);
+        // Phase 22/23: ein Gründungs-Miner kann legitim verloren gehen (Überfall, Grund a) — geprüft werden die überlebenden
+        founders = founders.Where(u.Ships.ContainsKey).ToList();
+        Assert.NotEmpty(founders);
         foreach (var id in founders)
             Assert.True(u.Ships[id].Credits > 1000f, "Ein Gründungs-Miner sollte Gewinn gemacht haben");
         Assert.NotEqual(fieldsBefore, u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore));   // Abbau und Respawn haben den Gürtel verändert

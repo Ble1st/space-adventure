@@ -34,6 +34,19 @@ public static class UniverseSerializer
 
     /// <summary>Phase 22: Rentabilitätsmessung speichern (null = noch nicht gemessen).</summary>
     static ProfitMeterSave? ToSave(ProfitMeter m) => m.Since < 0 ? null : new() { Rate = m.Rate, Worth = m.Worth, Loss = m.LossTicks, Since = m.Since };
+    // Phase 23: Bordsysteme (nichts gespeichert, solange alles auf Standard steht)
+    static ShipSystemsSave? ToSave(ShipSystemsState st) => st.IsDefault ? null : new()
+    {
+        ShieldMissing = st.ShieldMissing, ChargeMissing = st.ChargeMissing, AmmoMissing = st.AmmoMissing,
+        Condition = st.Condition.Count == 0 || st.AllIntact ? null : new List<float>(st.Condition),
+        Mode = st.Mode == PowerMode.Balanced ? null : st.Mode.ToString(), ShieldPauseUntil = st.ShieldPauseUntil,
+    };
+    static ShipSystemsState FromSave(ShipSystemsSave? s) => s is null ? new ShipSystemsState() : new ShipSystemsState
+    {
+        ShieldMissing = s.ShieldMissing, ChargeMissing = s.ChargeMissing, AmmoMissing = s.AmmoMissing,
+        Condition = s.Condition is null ? new List<float>() : new List<float>(s.Condition),
+        Mode = s.Mode is { } m && Enum.TryParse<PowerMode>(m, out var pm) ? pm : PowerMode.Balanced, ShieldPauseUntil = s.ShieldPauseUntil,
+    };
     static ProfitMeter FromSave(ProfitMeterSave? m) => m is null ? new ProfitMeter() : new ProfitMeter { Rate = m.Rate, Worth = m.Worth, LossTicks = m.Loss, Since = m.Since };
 
     static ModuleSave ToSave(Module m, Universe u) => new()
@@ -243,6 +256,7 @@ public static class UniverseSerializer
                 Command = sh.Command is null ? null : ToSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
                 RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
+                Systems = ToSave(sh.Systems),
             });
         if (u.Squadrons.Count > 0)
             s.Squadrons = u.Squadrons.Values.OrderBy(q => q.Id.Value).Select(q => new SquadronSave
@@ -425,6 +439,7 @@ public static class UniverseSerializer
                 Command = sh.Command is null ? null : CommandFromSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
                 DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
+                Systems = FromSave(sh.Systems),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
             ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;
@@ -446,6 +461,7 @@ public static class UniverseSerializer
         }
         u.IdCounters = (s.NextShipId, s.NextStationId);
         u.RebuildTracker();
+        u.Recovering.Rebuild(u);   // Phase 23: abgeleitet — Schiffe, denen Schild oder Ladung fehlt
         // Phase 12: Verbände
         if (s.Squadrons is not null)
             foreach (var q in s.Squadrons)

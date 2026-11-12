@@ -618,4 +618,23 @@ public sealed class EconomyRules
     /// </summary>
     public float PirateTreasuryCap = 0f;
     public int ViabilityRestoreCooldown = 10000;
+
+    // ───────── Phase 23: Schiffssysteme (KAMPF.md Abschnitt 3) ─────────
+    /// <summary>Schildregeneration: so viel Schild je Sekunde liefert eine Leistungseinheit des Überschusses (gedeckelt durch stats shieldRegen der Schildmodule).</summary>
+    public float ShieldPerPower = 0.25f;
+    /// <summary>Speicherbank: so viel Ladung je Sekunde liefert eine Leistungseinheit des Überschusses.</summary>
+    public float ChargePerPower = 1f;
+    /// <summary>Nach einem Treffer auf den Schild lädt er so viele Ticks nicht nach (KAMPF.md 3.3 „nach einer kurzen Pause“; 20 Ticks = 5 s).</summary>
+    public int ShieldDelayTicks = 20;
+    /// <summary>Leistungsverteilung: Anteil des Überschusses für das gewählte System (Waffen, Schild oder Antrieb); die anderen beiden teilen sich den Rest. Ausgeglichen = je ein Drittel.</summary>
+    public float PowerFocusShare = 0.6f;
+    /// <summary>Stellung „Antrieb“: Höchsttempo des Spielerschiffs × (1 + Bonus), solange der Reaktor einen Überschuss hat (NPCs wählen die Stellung erst mit Phase 24).</summary>
+    public float EngineModeSpeedBonus = 0.1f;
+    /// <summary>Ein Modul mit Zustand unter diesem Wert ist ausgefallen (Reaktor/Antrieb laufen dann mit halber Leistung). In Phase 23 senkt noch nichts den Zustand.</summary>
+    public float ModuleFailCondition = 0.25f;
+    /// <summary>
+    /// Munition als Ware (KAMPF.md 3.4, wie <see cref="FuelActive"/>): an = Ware „ammo“ mit Rezept und Lagerware. Aus = Magazine gelten als voll, und die
+    /// Weltdatei lässt Rezepte und Lagerposten von Munition weg (<see cref="Simulation.FeatureSwitches"/>). In Phase 23 verbraucht noch niemand Munition.
+    /// </summary>
+    public bool AmmoActive = true;
 }

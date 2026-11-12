@@ -38,7 +38,7 @@ public class SlotModelTests
     {
         var u = DemoUniverse.Create();
         Assert.Equal(9, u.SlotTypes.Count);
-        Assert.Equal(22, u.Modules.Count);   // Phase 13: + Reaktor Mk3, Mining-Laser Mk3; Phase 11: + Laserkanone; Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
+        Assert.Equal(23, u.Modules.Count);   // Phase 23: + Munitionsmagazin; Phase 13: + Reaktor Mk3, Mining-Laser Mk3; Phase 11: + Laserkanone; Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
         Assert.Equal(13, u.ShipClasses.Count);   // Phase 11: + Patrouillenboot, Kaperschiff; Phase 8: + Bauschiff, Asteroidenbrecher; Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
         Assert.Equal(22, u.ShipModels.Count);   // Phase 13: + Excavator; Phase 11: + Wächter, Korsar; Phase 8: + Foreman, Quarry, Rockbreaker II; Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
         Assert.True(u.SlotTypes["reactor"].Required);

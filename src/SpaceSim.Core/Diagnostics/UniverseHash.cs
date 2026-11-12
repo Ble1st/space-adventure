@@ -54,6 +54,10 @@ public static class UniverseHash
             Mix((ulong)s.Quality);                          // Phase 7: Güteklasse, Slotliste (Bonusslots, vergrößerte Slots) und Mitleidszähler
             foreach (var sl in s.Slots) { MixString(sl.Type); Mix((ulong)sl.Size); }
             foreach (var (k, v) in s.UpgradePity.OrderBy(k => k.Key)) { Mix((ulong)(long)k); Mix((ulong)v); }
+            // Phase 23: Bordsysteme (Fehlbeträge, Zustand je Slot, Leistungsverteilung, Schildpause)
+            var sys = s.Systems;
+            MixF(sys.ShieldMissing); MixF(sys.ChargeMissing); MixF(sys.AmmoMissing); Mix((ulong)sys.Mode); Mix((ulong)sys.ShieldPauseUntil);
+            foreach (var c in sys.Condition) MixF(c);
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
             foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); MixF(a.BaseRadius); }

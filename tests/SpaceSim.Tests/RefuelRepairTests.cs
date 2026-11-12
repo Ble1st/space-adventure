@@ -262,7 +262,7 @@ public class RefuelRepairTests
     /// <summary>v4-Save einer Welt, wie sie vor Phase 4 aussah: ohne Raffinerie-Stationen und ohne den Stationstyp.</summary>
     static string V4WithoutRefineries()
     {
-        var node = JsonNode.Parse(FuelModelTests.ToV4Json(SaveGameJson.Write(TestWorlds.Default(), Now)))!.AsObject();
+        var node = JsonNode.Parse(FuelModelTests.ToV4Json(SaveGameJson.Write(TestWorlds.Classic(null, fuel: true, research: true), Now)))!.AsObject();   // Phase 23: klassische Welt (die eingefrorene Kette kennt keine Munition)
         var stations = node["Stations"]!.AsArray();
         var removed = new HashSet<int>();
         for (int i = stations.Count - 1; i >= 0; i--)

@@ -249,15 +249,15 @@ public sealed class PirateSystem : ISimSystem
                 pirates.Treasury.Credits += fenced;
                 u.Events.Publish(new TreasuryIncome(pirates.Id, "fence", fenced));
             }
-            CombatRules.Damage(defenders, outcome.DefenderDamage, floor);
-            CombatRules.Damage(new[] { raider }, outcome.AttackerDamage);
+            CombatRules.Damage(u, defenders, outcome.DefenderDamage, floor);
+            CombatRules.Damage(u, new[] { raider }, outcome.AttackerDamage);
             victimDestroyed = !own && (outcome.LoserDestroyed || victim.Hull <= 0f);
             ThreatMap.Report(u, sector.Id, r.RaidThreat);
         }
         else
         {
-            CombatRules.Damage(defenders, outcome.DefenderDamage, floor);
-            CombatRules.Damage(new[] { raider }, outcome.AttackerDamage);
+            CombatRules.Damage(u, defenders, outcome.DefenderDamage, floor);
+            CombatRules.Damage(u, new[] { raider }, outcome.AttackerDamage);
             // gegen den Spieler oder ein Handelsschiff allein flieht ein unterlegener Pirat meist; mit Streife geht er eher verloren
             float destroyBase = helper.Value != 0 || escorts.Count > 0 ? r.RaiderDestroyChance : r.RaiderDestroyChance * 0.5f;
             raiderDestroyed = raider.Hull <= 0f || u.Rng.NextDouble() < destroyBase;
@@ -309,8 +309,8 @@ public sealed class PirateSystem : ISimSystem
     {
         var r = u.Rules;
         var outcome = u.Encounters.Resolve(u, new[] { police }, new[] { raider }, r.RaiderDestroyChance);
-        CombatRules.Damage(new[] { police }, outcome.AttackerDamage, s => s.IsPlayer ? r.PlayerMinHull : 0.05f);
-        CombatRules.Damage(new[] { raider }, outcome.DefenderDamage);
+        CombatRules.Damage(u, new[] { police }, outcome.AttackerDamage, s => s.IsPlayer ? r.PlayerMinHull : 0.05f);
+        CombatRules.Damage(u, new[] { raider }, outcome.DefenderDamage);
         bool destroyed = outcome.AttackerWon && (outcome.LoserDestroyed || raider.Hull <= 0f);
         var sector = raider.Sector;
         if (outcome.AttackerWon && u.Sectors.TryGetValue(sector, out var sec)) sec.Threat = MathF.Max(0f, sec.Threat - r.RepelledThreat);

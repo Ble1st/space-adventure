@@ -140,7 +140,13 @@ public static class ShipUpgrade
                     break;
             }
             ship.UpgradePity.Remove(pityKey);
+            if (q.Kind == UpgradeKind.Module && q.Slot < ship.Systems.Condition.Count)   // Phase 23: das neue Modul ist heil
+            {
+                ship.Systems.Condition[q.Slot] = 1f;
+                if (ship.Systems.AllIntact) ship.Systems.Condition.Clear();
+            }
             ship.RecomputeStats(u);
+            Combat.ShipSystems.Wake(u, ship);
             ship.CargoCapacity = ship.Stats.Cargo;
             ship.Hull = MathF.Min(ship.Hull, ship.MaxHull);
         }

@@ -518,7 +518,7 @@ public class OutfitterShipyardTests
     [Fact]
     public void Migration_V7ToV8_ErgaenztHandelsstationDiensteUndSkiffs_FlotteHandelt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();   // Phase 23: die eingefrorene Migrationskette kennt die Munition der Standardwelt nicht
         new SimulationRunner().Run(u, 300);
         var v7 = ToV7Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":7", v7);

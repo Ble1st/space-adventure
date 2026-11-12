@@ -4,8 +4,8 @@ namespace SpaceAdventure.Ui;
 
 /// <summary>
 /// Sammelstelle für ALLE erfundenen Anzeigewerte der Oberfläche (Platzhalter). Nichts davon stammt aus der
-/// Simulation und nichts wird gespeichert: Schild, Leistung und noch nicht gebaute
-/// Bereiche (Comms-Zähler, Schild, Leistung …) fehlen im Core und werden hier als gedämpfte Platzhalter geführt.
+/// Simulation und nichts wird gespeichert: noch nicht gebaute Bereiche (Comms-Postfach, Aufträge …) fehlen im Core und werden hier als gedämpfte
+/// Platzhalter geführt. Schild und Leistung sind seit Phase 23 echt (Core: <c>Ship.ShieldNow</c>, <c>ShipStats</c>, <c>Combat.ShipSystems</c>).
 /// Echte Werte (Credits, Hülle, Fracht, Sektoren, Stationen …) lesen die Bildschirme immer aus dem Core.
 /// </summary>
 public static class UiPlaceholders
@@ -14,11 +14,6 @@ public static class UiPlaceholders
 	public const string Tag = "Platzhalter";
 	/// <summary>Beschriftung für noch nicht gebaute Bereiche.</summary>
 	public const string Soon = "Bald";
-
-	/// <summary>Schild in Prozent (Platzhalter, das Simulationsmodell kennt noch keine Schilde).</summary>
-	public static float ShieldPercent => 64f;
-	/// <summary>Leistungsanzeige (Platzhalter, Leistungsbilanz der Module fehlt noch).</summary>
-	public static string PowerText => "9/12";
 
 	// ── Dock-Bereiche (UI.md Abschnitt 3): Texte für Bereiche, deren Dienst der Core noch nicht kennt ──
 

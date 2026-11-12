@@ -18,7 +18,8 @@
   "raiderRebuildTicks": 6000,
   "maxRaidersPerActor": 2,
   "pirateTreasuryCap": 10000,
-  "researchActive": false
+  "researchActive": false,
+  "ammoActive": true
  },
  "goods": [
   {
@@ -223,6 +224,14 @@
    "basePrice": 2100,
    "volume": 10,
    "color": "#c0392b"
+  },
+  {
+   "key": "ammo",
+   "category": "ammo",
+   "name": "Munition",
+   "basePrice": 8,
+   "volume": 1,
+   "color": "#d4a373"
   }
  ],
  "asteroidClasses": [
@@ -715,7 +724,9 @@
     "mining_laser_3": [
      0,
      1
-    ]
+    ],
+    "weapon_magazine_s": [1, 2],
+    "ammo": [3, 8]
    },
    "shipDealer": {
     "assembly": 0.05
@@ -829,7 +840,17 @@
     "ticks": 20,
     "target": 5
    },
-   "recipes": []
+   "recipes": [
+    {
+     "ticks": 20,
+     "in": { "steel": 1, "copper": 1 },
+     "out": { "ammo": 10 }
+    }
+   ],
+   "stocks": {
+    "ammo": [10, 10],
+    "steel": [5, 5]
+   }
   },
   {
    "key": "systems_works",
@@ -886,6 +907,7 @@
     "assembly": 0.1
    },
    "stocks": {
+    "ammo": [3, 8],
     "ship_kit_light": [
      1,
      3
@@ -1037,7 +1059,10 @@
    "upkeep": 1.5,
    "income": 0,
    "services": ["court", "bounty", "hangar"],
-   "recipes": []
+   "recipes": [],
+   "stocks": {
+    "ammo": [3, 8]
+   }
   },
   {
    "key": "pirate_hideout",
@@ -3089,6 +3114,22 @@
     "electronics": 2,
     "copper": 2,
     "titanium": 1
+   }
+  },
+  {
+   "key": "weapon_magazine_s",
+   "name": "Munitionsmagazin",
+   "slot": "utility",
+   "size": "S",
+   "tier": 1,
+   "grants": [],
+   "stats": {
+    "ammoCapacity": 60
+   },
+   "mass": 1,
+   "cost": {
+    "steel": 2,
+    "hull_plates": 1
    }
   }
  ],

@@ -84,15 +84,41 @@ public sealed class Ship : ICreditAccount
             var fit = new List<Module?>(Slots.Count);
             for (int i = 0; i < Slots.Count; i++)
                 fit.Add(Fit[i] is { } key && u.Modules.TryGetValue(key, out var m) ? m : null);
-            Stats = ShipStats.Compute(cls, fit);
+            Stats = ShipStats.Compute(cls, fit, Systems.Condition.Count > 0 ? Systems.Condition : null, u.Rules.ModuleFailCondition);   // Phase 23: ausgefallene Module
             Capabilities = Stats.Capabilities;   // Schiffe mit Modell: Fähigkeiten folgen immer dem Fit
             ClampFuel();
+            ClampSystems();
             return true;
         }
         Stats = new ShipStats { Hull = NoModelHull };
         ClampFuel();
+        ClampSystems();
         return false;
     }
+
+    /// <summary>Phase 23: Fehlbeträge von Schild, Bank und Magazin auf die (neuen) Höchstwerte begrenzen (z. B. nach Ausbau eines Schildmoduls).</summary>
+    void ClampSystems()
+    {
+        Systems.ShieldMissing = Math.Clamp(Systems.ShieldMissing, 0f, Stats.Shield);
+        Systems.ChargeMissing = Math.Clamp(Systems.ChargeMissing, 0f, Stats.PowerStorage);
+        Systems.AmmoMissing = Math.Clamp(Systems.AmmoMissing, 0f, Stats.AmmoCapacity);
+    }
+
+    /// <summary>
+    /// Phase 23: Laufzeitzustand der Bordsysteme (Schild, Speicherbank, Magazin als Fehlbeträge, Zustand je Slot, Leistungsverteilung). Gespeichert und
+    /// gehasht. Fortgeschrieben von <see cref="Combat.ShipSystemsSystem"/>, nur solange etwas fehlt.
+    /// </summary>
+    public ShipSystemsState Systems = new();
+    /// <summary>Phase 23: aktueller Schild (Höchstwert <see cref="ShipStats.Shield"/>). Schreiben nur über <see cref="Combat.ShipSystems"/>, damit das System die Erholung übernimmt.</summary>
+    public float ShieldNow => MathF.Max(0f, Stats.Shield - Systems.ShieldMissing);
+    /// <summary>Phase 23: Ladung der Speicherbank (Höchstwert <see cref="ShipStats.PowerStorage"/>).</summary>
+    public float Charge => MathF.Max(0f, Stats.PowerStorage - Systems.ChargeMissing);
+    /// <summary>Phase 23: Munition im Magazin ohne Rücksicht auf den Schalter <c>ammoActive</c> (mit Schalter: <see cref="Combat.ShipSystems.Ammo"/>).</summary>
+    public float AmmoLoaded => MathF.Max(0f, Stats.AmmoCapacity - Systems.AmmoMissing);
+    /// <summary>Phase 23: Leistungsverteilung (setzen über <see cref="Combat.ShipSystems.SetMode"/>).</summary>
+    public PowerMode PowerMode => Systems.Mode;
+    /// <summary>Phase 23: Zustand eines Slots 0..1.</summary>
+    public float ConditionOf(int slot) => Systems.ConditionOf(slot);
 
     /// <summary>Koppelt den Tankinhalt an die Kapazität (Invariante Summe ≤ <see cref="ShipStats.FuelCapacity"/>; z. B. nach Fit-Änderung oder Content-Wechsel). Überschuss wird von der höchsten GoodId abgebaut.</summary>
     void ClampFuel()

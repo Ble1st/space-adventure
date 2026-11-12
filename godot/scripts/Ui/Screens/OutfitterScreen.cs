@@ -92,7 +92,8 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		At(inner, Text($"Leistung {s.PowerDraw:0.#} / {s.PowerOutput:0.#}", 14, Dim), 0, py, 200, 20);
 		var bar = At(inner, new KitBar(120, 12, Green), 205, py + 4);
 		bar.Set(s.PowerDraw, s.PowerDraw > s.PowerOutput ? Red : Green, Math.Max(1f, s.PowerOutput));
-		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Speicher {s.PowerStorage:0.#}", 14, Dim), 0, py + 24, 330, 20);
+		// Phase 23: Bank und Schild als Laufzeitwerte (aktuell/Kapazität), Magazin
+		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Bank {ship.Charge:0}/{s.PowerStorage:0} · Schild {ship.ShieldNow:0}/{s.Shield:0}{(s.AmmoCapacity > 0f ? $" · Magazin {SpaceSim.Core.Combat.ShipSystems.Ammo(Ctx.U, ship):0}/{s.AmmoCapacity:0}" : "")}", 14, Dim), 0, py + 24, 340, 20);
 		At(inner, Text($"Fracht {s.Cargo:0} · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")}", 13, new Color(Dim, 0.9f)), 0, py + 46, 330, 20);
 
 		// ── rechts: Angebote für den gewählten Slot ──
@@ -215,6 +216,9 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		Add("Tempo", a.Speed, b.Speed, "0.0");
 		Add("Leistung frei", a.PowerOutput - a.PowerDraw, b.PowerOutput - b.PowerDraw, "0.#");
 		Add("Speicher", a.PowerStorage, b.PowerStorage);
+		Add("Schild", a.Shield, b.Shield);              // Phase 23
+		Add("Schildladung/s", a.ShieldRegen, b.ShieldRegen, "0.##");
+		Add("Magazin", a.AmmoCapacity, b.AmmoCapacity);
 		Add("Tank", a.FuelCapacity, b.FuelCapacity);
 		bool mineA = a.Capabilities.HasFlag(Capability.Mining), mineB = b.Capabilities.HasFlag(Capability.Mining);
 		if (mineA != mineB) parts.Add(mineB ? "+Schürfen" : "−Schürfen");

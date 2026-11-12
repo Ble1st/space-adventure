@@ -105,6 +105,18 @@ public sealed partial class AssetsScreen : CommandScreen
 		At(inner, Text(UiPlaceholders.Tag, 13, new Color(Dim, 0.6f)), 24, 184, 400, 20);
 	}
 
+	/// <summary>Phase 23: Zeile der Bordsysteme (Schild, Bank, Magazin, Leistungsbilanz, Verteilung) — nur Core-Werte.</summary>
+	internal static string SystemsLine(Universe u, Ship s)
+	{
+		var parts = new List<string>();
+		parts.Add(s.Stats.Shield > 0f ? $"Schild {s.ShieldNow:0}/{s.Stats.Shield:0}" : "kein Schild");
+		if (s.Stats.PowerStorage > 0f) parts.Add($"Bank {s.Charge:0}/{s.Stats.PowerStorage:0}");
+		if (s.Stats.AmmoCapacity > 0f) parts.Add($"Magazin {SpaceSim.Core.Combat.ShipSystems.Ammo(u, s):0}/{s.Stats.AmmoCapacity:0}");
+		parts.Add($"Leistung {s.Stats.PowerDraw:0}/{s.Stats.PowerOutput:0}");
+		parts.Add($"Verteilung {SpaceSim.Core.Combat.ShipSystems.ModeName(s.PowerMode)}");
+		return string.Join(" · ", parts);
+	}
+
 	void BuildShipDetail(Control inner, Universe u, Ship s)
 	{
 		// abgedunkeltes Overlay + Fenster (wie prototypes/FinalUi2.cs „AssetDetail“)
@@ -119,12 +131,12 @@ public sealed partial class AssetsScreen : CommandScreen
 		string ort = OrtText(u, s, active ? Ctx.Docked : s.DockedAt);
 		At(w, Text(ort, 16, active ? Cyan : Orange), 170, 88, 500, 22);
 
-		// Zustand (Phase 12: Hülle, Sprit echt; Schild als Kapazität aus den Modulen)
+		// Zustand (Phase 12: Hülle, Sprit echt; Phase 23: Schild, Speicherbank, Magazin und Leistung echt aus den Bordsystemen)
 		At(w, Text("Zustand", 17, Cyan), 30, 160, 200, 22);
 		Bar(w, 30, 188, "Hülle", s.Hull, s.MaxHull, s.Hull > s.MaxHull * 0.6f ? Green : Orange, $"{(int)s.Hull}");
 		if (u.Rules.FuelActive)   // Phase 14: Tankanzeige nur mit Treibstoff
-			Bar(w, 30, 216, "Sprit", s.TotalFuel, MathF.Max(1f, s.Stats.FuelCapacity), Cyan, $"{s.TotalFuel:0}/{s.Stats.FuelCapacity:0}{(s.Stats.Shield > 0f ? $" · Schild {s.Stats.Shield:0}" : "")}");
-		else if (s.Stats.Shield > 0f) At(w, Text($"Schild {s.Stats.Shield:0}", 14, Dim), 30, 216, 300, 20);
+			Bar(w, 30, 216, "Sprit", s.TotalFuel, MathF.Max(1f, s.Stats.FuelCapacity), Cyan, $"{s.TotalFuel:0}/{s.Stats.FuelCapacity:0}");
+		At(w, Text(SystemsLine(u, s), 14, Dim), 30, u.Rules.FuelActive ? 236 : 216, 440, 20);
 
 		// Auftrag und Standort (echt)
 		At(w, Text("Auftrag", 17, Cyan), 30, 256, 200, 22);

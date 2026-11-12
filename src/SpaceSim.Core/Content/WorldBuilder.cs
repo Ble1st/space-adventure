@@ -106,6 +106,7 @@ public static class WorldBuilder
                 var recipe = new Recipe { TicksPerCycle = r.Ticks };
                 foreach (var (k, v) in r.In) recipe.Inputs[Good(k)] = v;
                 foreach (var (k, v) in r.Out) recipe.Outputs[Good(k)] = v;
+                if (Simulation.FeatureSwitches.OmitRecipe(u, recipe)) continue;   // Phase 23: Munition abgeschaltet
                 type.Recipes.Add(recipe);
             }
             // Phase 5a: Lager ohne Rezept (stocks) und Modulfabrik (je Modul ein Rezept aus seiner cost)
@@ -115,6 +116,7 @@ public static class WorldBuilder
                     if (!goodByKey.TryGetValue(k, out var gid)) throw new WorldFormatException($"Stationstyp '{t.Key}': unbekannte Ware '{k}' in stocks");
                     if (v.Length != 2) throw new WorldFormatException($"Stationstyp '{t.Key}': stocks '{k}' braucht [Anfangsbestand, Wunschbestand]");
                     if (v[0] < 0f || v[1] <= 0f) throw new WorldFormatException($"Stationstyp '{t.Key}': stocks '{k}' braucht Anfangsbestand >= 0 und Wunschbestand > 0");
+                    if (Simulation.FeatureSwitches.OmitStock(u, gid)) continue;   // Phase 23: Munition abgeschaltet
                     type.Stocks.Add(new StationStock(gid, v[0], v[1]));
                 }
             if (t.ModuleFactory is { } mf) AddModuleRecipes(u, t.Key, type, mf, Good);

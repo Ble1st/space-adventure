@@ -1,0 +1,30 @@
+using SpaceSim.Core.Model;
+using SpaceSim.Core.Simulation;
+
+namespace SpaceSim.Core.Combat;
+
+/// <summary>
+/// Phase 23 (KAMPF.md Abschnitt 3.2): schreibt Schild und Speicherbank der Schiffe fort, denen etwas fehlt (<see cref="Universe.Recovering"/>), nach der
+/// Leistungsregel <see cref="ShipSystems.Advance"/>; skaliert mit <c>dt</c>. Volle Schiffe stehen nicht im Index und kosten nichts. Ist ein Schiff voll
+/// (oder entfernt), fällt es heraus.
+/// </summary>
+public sealed class ShipSystemsSystem : ISimSystem
+{
+    readonly List<int> _buffer = new();
+
+    public void Step(Universe u, int dt)
+    {
+        if (u.Recovering.Count == 0) return;
+        u.Recovering.CopyTo(_buffer);
+        float seconds = ShipSystems.Seconds(dt);
+        foreach (int raw in _buffer)
+        {
+            var id = new ShipId(raw);
+            if (!u.Ships.TryGetValue(id, out var ship)) { u.Recovering.Remove(id); continue; }
+            bool paused = u.Tick < ship.Systems.ShieldPauseUntil;
+            if (ShipSystems.Advance(ship.Stats, ship.Systems, seconds, paused, u.Rules)) continue;
+            ship.Systems.ShieldPauseUntil = 0;   // voll: keine Pause mehr nötig (Standardzustand, nichts im Spielstand)
+            u.Recovering.Remove(id);
+        }
+    }
+}
