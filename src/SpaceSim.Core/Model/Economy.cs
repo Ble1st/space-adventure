@@ -169,6 +169,8 @@ public sealed class Station
     /// nach Wiederverbindung bevorzugt stillgelegt, wenn er überzählig ist. Gespeichert.
     /// </summary>
     public bool Panic;
+    /// <summary>Phase 22: Rentabilitätsmessung (Grund c für die Stilllegung; <see cref="Simulation.Profitability"/>). Gespeichert und gehasht.</summary>
+    public ProfitMeter Profit = new();
     public string Name = "";
     public SectorId Sector;
     /// <summary>Besitzer (Phase 9: ein Akteur; die Startstationen gehören den Fraktionsakteuren, Id = Fraktions-Id).</summary>

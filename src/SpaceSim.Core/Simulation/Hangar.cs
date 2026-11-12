@@ -86,7 +86,7 @@ public static class Hangar
         st.Credits -= price;
         u.WalletOf(ship).Credits += price;
         if (ship.Command is not null) Commands.Cancel(u, ship, "verkauft");
-        u.RemoveShip(ship.Id, "sold");
+        Departures.RemoveShip(u, ship, DepartureReason.Sold, "hangar");   // Phase 22: Entscheidung der Spielerperson, kein Verfall
         u.Events.Publish(new ShipSold(ship.Id, st.Id, price));
         message = $"Schiff #{ship.Id.Value} für {price:0} Cr verkauft.";
         return true;
@@ -168,7 +168,7 @@ public static class Hangar
         wallet.Credits += refund - fromWallet;
         st.Credits += fromDeposit + fromWallet;
         if (ship.Command is not null) Commands.Cancel(u, ship, "zurückgegeben");
-        u.RemoveShip(ship.Id, "rental_returned");
+        Departures.RemoveShip(u, ship, DepartureReason.Returned, "rental");   // Phase 22: Entscheidung der Spielerperson, kein Verfall
         u.Events.Publish(new RentalReturned(ship.Id, st.Id, fromDeposit + fromWallet, refund));
         message = $"Leihschiff zurückgegeben: {RentalDays(u, ship)} Tag(e) Miete {fromDeposit + fromWallet:0} Cr, Pfand-Rest {refund:0} Cr erstattet.";
         return true;

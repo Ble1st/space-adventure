@@ -86,6 +86,11 @@ public sealed class Actor
     public float PoliceNeed = -1f;
     /// <summary>Phase 20: seit diesem Tick ununterbrochen Polizei-Überzahl (Abbau erst nach <see cref="EconomyRules.PoliceDecommissionTicks"/>); −1 = keine. Gespeichert.</summary>
     public long PoliceSurplusSince = -1;
+    /// <summary>
+    /// Phase 22: Tick des letzten Notkaufs zur Wiederherstellung des Mindestbestands (<see cref="Simulation.FactionViability"/>; Bremse
+    /// <see cref="EconomyRules.ViabilityRestoreCooldown"/>). Gespeichert.
+    /// </summary>
+    public long LastRestoreTick = -1_000_000;
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>
     public bool IsFaction(Universe u) => u.Factions.ContainsKey(new FactionId(Id.Value));
 }

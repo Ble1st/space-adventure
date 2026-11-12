@@ -125,6 +125,17 @@ public sealed class ActorSave
     /// <summary>Phase 20 (additiv): geglätteter Polizeibedarf (&lt; 0 = ungemessen) und Überzahl seit.</summary>
     public float PoliceNeed { get; set; } = -1f;
     public long PoliceSurplusSince { get; set; } = -1;
+    /// <summary>Phase 22 (additiv): letzter Notkauf zur Wiederherstellung des Mindestbestands.</summary>
+    public long LastRestoreTick { get; set; } = -1_000_000;
+}
+
+/// <summary>Phase 22 (additiv, v17 bleibt): Rentabilitätsmessung (gleitender Mittelwert, Bezug, Verlust-Ticks, Messbeginn).</summary>
+public sealed class ProfitMeterSave
+{
+    public float Rate { get; set; }
+    public float Worth { get; set; }
+    public int Loss { get; set; }
+    public long Since { get; set; } = -1;
 }
 
 /// <summary>Kasse der Spielerperson (Phase 5b, v7 bis v11; seit v12 nur noch gelesen).</summary>
@@ -342,6 +353,8 @@ public sealed class StationSave
     public float Starved { get; set; }
     /// <summary>Phase 20 (additiv): als Ersatz in einer Versorgungspanik gebaut.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Panic { get; set; }
+    /// <summary>Phase 22 (additiv): Rentabilitätsmessung; fehlt = noch nicht gemessen.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProfitMeterSave? Profit { get; set; }
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>
@@ -489,6 +502,8 @@ public sealed class ShipSave
     public long JobSince { get; set; }
     /// <summary>Phase 19 (additiv): seit wann unverkäufliche Fracht an Bord ist; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? StrandedSince { get; set; }
+    /// <summary>Phase 22 (additiv): Rentabilitätsmessung; fehlt = noch nicht gemessen.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProfitMeterSave? Profit { get; set; }
     /// <summary>Güteklasse (Phase 7, v10: Standard/Improved/Elite/Masterwork); fehlt = Standard.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Quality { get; set; }
     /// <summary>Mitleidszähler je Slot (Phase 7, v10; Schlüssel −1 = Bonusslot); fehlt = keine Fehlschläge.</summary>

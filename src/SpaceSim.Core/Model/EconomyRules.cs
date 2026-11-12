@@ -564,4 +564,58 @@ public sealed class EconomyRules
     public int MinBuildersPerFaction = 1;
     /// <summary>Phase 20: Unterhalt eines Fraktions-Bauschiffs je Tick aus der Fraktionskasse (<c>TreasuryUpkeep</c> „builder“).</summary>
     public float BuilderUpkeepPerTick = 0.2f;
+
+    // ───────── Phase 22: Abgänge nur aus drei Gründen (zerstört, pleite, länger nicht rentabel); Fraktionen bleiben handlungsfähig ─────────
+    /// <summary>Phase 22: Zeitkonstante (Ticks) des gleitenden Mittelwerts der Rentabilität (<see cref="ProfitMeter.Rate"/>); 0 = keine Messung (Grund c aus).</summary>
+    public int ProfitWindowTicks = 20000;
+    /// <summary>Phase 22: Schonfrist nach Kauf/Bau (Ticks), in der nichts wegen Unrentabilität verschwindet.</summary>
+    public int ProfitGraceTicks = 20000;
+    /// <summary>Phase 22: So lange (Ticks) muss der Mittelwert unter null liegen, bevor ein Schiff/eine Station als „länger nicht rentabel“ gilt.</summary>
+    public int UnprofitableTicks = 20000;
+    /// <summary>
+    /// Phase 22: Hysterese — der Verlustzähler (<see cref="ProfitMeter.LossTicks"/>) wird erst zurückgesetzt, wenn der Mittelwert über diesem Wert (Credits je
+    /// Tick) liegt; zwischen 0 und diesem Wert ruht er.
+    /// </summary>
+    public float ProfitableAbove = 0.02f;
+    /// <summary>Phase 22: Pleitegrenze eines KI-Schiffs (Credits; vorher fest 50 im Code).</summary>
+    public float ShipBankruptCredits = 50f;
+    /// <summary>
+    /// Phase 22: Die Handelsbewertung rechnet den Schiffsunterhalt der Fahrzeit mit (<see cref="ShipUpkeepPerTick"/> × Reisezeit). Vorher nahm ein armes Schiff
+    /// Fahrten, deren Spanne (1 Energie, 1 Cr) den Unterhalt nicht deckte, und verlor bei jeder Runde Geld bis zur Pleite. false = Regel bis Phase 21.
+    /// </summary>
+    public bool TripCountsUpkeep = true;
+    /// <summary>
+    /// Phase 22: Zusage einer Lieferung — ein Händler, der für eine Station eingekauft hat, liefert bei Ankunft bis zur normalen Annahme
+    /// (Wunschbestand × <see cref="OverstockFactor"/>), auch wenn die Station inzwischen ein Rezept pausiert hat (Phase 15 nimmt Zutaten pausierter Rezepte nur bis
+    /// zum Wunschbestand). Vorher warf der Händler die ganze Ladung (meist Wasserstoff) nach <see cref="StrandedCargoTicks"/> ab und ging pleite. false = aus.
+    /// </summary>
+    public bool HonourPlannedDelivery = true;
+    /// <summary>
+    /// Phase 22: Kapitalausgleich innerhalb eines Akteurs — fällt das Betriebsgeld eines leeren Schiffs eines aufgestiegenen Akteurs unter die Hälfte von
+    /// <see cref="NewShipStartCredits"/>, gibt das reichste andere Schiff desselben Akteurs (mit mindestens <see cref="FleetExpandCredits"/>) bis zu diesem Betrag ab
+    /// (kein neues Geld). Vorher verarmte ein Schiff einer Firma nach einem Überfall bis zur Pleite, während seine Geschwister Tausende hatten. false = aus.
+    /// </summary>
+    public bool FirmCapitalBalance = true;
+    /// <summary>
+    /// Phase 22: Kein weiterer Hersteller eines Typs, dessen fertige Stationen im Mittel mehr als diesen Anteil der Takte an Zutaten verhungern
+    /// (<see cref="Station.Starved"/>) — sonst baute der Lebenszyklus für knappes Kupfer eine Hütte nach der anderen, die am Erz verhungerte und als unrentabel
+    /// stillgelegt wurde. 0 = aus.
+    /// </summary>
+    public float BuildSkipStarvedShare = 0.5f;
+    /// <summary>Phase 22: Rücklage einer Fraktionskasse = Pflichtunterhalt je Tick × so viele Ticks (<see cref="Simulation.FactionViability.Reserve"/>).</summary>
+    public int FactionReserveTicks = 2400;
+    /// <summary>Phase 22: Fraktionsausgaben nach Vorrang — freiwillige Ausgaben (Subvention, Kauf über Mindestbestand, Investitionen, Forschung, Sperren) halten die Rücklage. false = aus.</summary>
+    public bool FactionKeepsReserve = true;
+    /// <summary>
+    /// Phase 22: Notkauf zur Wiederherstellung des Mindestbestands (Polizei, Bauschiff), wenn der normale Kauf nicht möglich ist: Die Kasse zahlt höchstens
+    /// diesen Anteil des Materialwerts zum Basispreis (der Rest wird erlassen = neues Geld, Ereignis <c>FactionRestored</c>), das Schiff entsteht ohne Werftmaterial
+    /// an der Heimatbasis. Bremse: höchstens ein Notkauf je Fraktion und <see cref="ViabilityRestoreCooldown"/>. 0 = kein Notkauf.
+    /// </summary>
+    public float ViabilityRestoreShare = 0.5f;
+    /// <summary>
+    /// Phase 22: Höchststand der Kasse einer Piratengruppe, bis zu dem die Hehlerei zahlt (darüber verfällt der Beuteerlös). 0 = unbegrenzt (Regel bis Phase 21).
+    /// Standardwelt 10000 (fünf Neubauten): seit Kaperschiffe seltener zerstört werden, wuchsen die Piratenkassen sonst ohne Ausgabe.
+    /// </summary>
+    public float PirateTreasuryCap = 0f;
+    public int ViabilityRestoreCooldown = 10000;
 }

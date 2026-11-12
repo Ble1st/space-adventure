@@ -94,6 +94,7 @@ public sealed class TraderSystem : ISimSystem
         // (Abnehmer pausiert), war er pleite
         float reserve = limits is null && ship.Controller == Controller.Ai ? u.Rules.TraderCashReserve : 0f;
         float spendable = limits is null ? MathF.Max(0f, u.WalletOf(ship).Credits - reserve) : AutoLimitRules.Spendable(u, ship, limits);
+        float upkeepPerTick = u.Rules.TripCountsUpkeep ? u.Rules.ShipUpkeepPerTick : 0f;
         var fuelGood = Refuel.Active(u) ? Refuel.ActiveFuel(ship) : null;   // Phase 14: Treibstoff aus = keine Treibstoffkosten
         // Phase 10: Die Verkaufsfahrt geht beladen — mit diesem Profil schätzen, damit ein Embargo die Route schon hier ausschließt
         var ladenProfile = GateAccess.ProfileOf(u, ship) with { Laden = true };
@@ -178,7 +179,10 @@ public sealed class TraderSystem : ISimSystem
                     // Phase 11: Risikoabschlag der beladenen Fahrt aus der Lagekarte (erwarteter Verlust = Routenrisiko × Wert der Ladung).
                     // Gleicher Abschlag für alle Händler, gedeckelt je Sektor — er verschiebt Routen, statt alle auf eine zu treiben.
                     float risk = sl.Risk * load * s.Price;
-                    float score = (profit - fuelCost - risk) / (toBuy + toSell);
+                    // Phase 22: Schiffsunterhalt der Fahrzeit abziehen — vorher nahmen arme Schiffe Runden, deren Spanne (1 Energie, ≈ 1 Cr) den Unterhalt nicht
+                    // deckte, und verloren bei jeder Fahrt Geld bis zur Pleite (Lauf M: 215 Händler-Pleiten in 144 h)
+                    float upkeep = upkeepPerTick * (toBuy + toSell);
+                    float score = (profit - fuelCost - risk - upkeep) / (toBuy + toSell);
                     if (score > bestScore) { bestScore = score; best = new TradeOrder(buy.Id, sell.Id, good.Id); }
                 }
             }
@@ -338,10 +342,11 @@ public sealed class TraderSystem : ISimSystem
             // TradeActions.SaleUnits). Einen Rest ohne weiteren Käufer lädt der Händler nicht mehr unbezahlt über die Annahme ab (vorher: Wasserstoff, Titan,
             // Elektronik in kleinen Lagern dauerhaft am unteren Preisdeckel) — er behält ihn und versucht es beim nächsten Nachdenken (SellStranded);
             // findet sich dann niemand, wirft ein KI-Händler ihn im All ab.
-            var (cap, allCap) = stock.Price > 0f ? TradeActions.SaleCaps(u, st, order.Good, MathF.Max(0f, st.Credits)) : (0f, 0f);
+            float? honoured = HonouredAcceptance(u, st, stock, order);
+            var (cap, allCap) = stock.Price > 0f ? TradeActions.SaleCaps(u, st, order.Good, MathF.Max(0f, st.Credits), honoured) : (0f, 0f);
             float amount = TradeActions.SaleUnits(have, have, cap, allCap);
             if (st.IsBuildSite) amount = MathF.Min(have, MathF.Max(0f, st.AcceptableUnits(stock, u.Rules)));   // Baustelle: genau die fehlende Menge (Treuhand zahlt)
-            if (amount > 0.0001f) Deliver(u, ship, st, stock, order, amount);
+            if (amount > 0.0001f) Deliver(u, ship, st, stock, order, amount, honoured);
             float rest = ship.Cargo.GetValueOrDefault(order.Good);
             if (rest <= 0.0001f) ship.Cargo.Remove(order.Good);
             // Phase 21: ein Flottenschiff mit Automatik-Grenzen fährt den Rest nur zu Käufern im Umkreis (vorher konnte der Rest aus dem Umkreis führen)
@@ -358,6 +363,18 @@ public sealed class TraderSystem : ISimSystem
             ship.Phase = TradePhase.Idle;
             ship.IdleSince = u.Tick;
         }
+    }
+
+    /// <summary>
+    /// Phase 22: Zusage einer geplanten Lieferung (<see cref="EconomyRules.HonourPlannedDelivery"/>). Hat der Händler für diese Station eingekauft (Runde mit
+    /// Einkaufsstation) und nimmt sie die Ware nur noch bis zum Wunschbestand, weil das verbrauchende Rezept inzwischen pausiert (Phase 15), gilt für diese
+    /// Lieferung die normale Annahme (Wunschbestand × <see cref="EconomyRules.OverstockFactor"/>). null = übliche Annahme.
+    /// </summary>
+    static float? HonouredAcceptance(Universe u, Station st, StockEntry e, TradeOrder order)
+    {
+        if (!u.Rules.HonourPlannedDelivery || order.Buy.Value == 0 || st.IsBuildSite || e.NoIntake || !st.Consumes(order.Good)) return null;
+        if (e.Overstock <= 0f || e.Overstock >= u.Rules.OverstockFactor) return null;
+        return MathF.Max(0f, e.Target * u.Rules.OverstockFactor - e.Amount);
     }
 
     /// <summary>Phase 19: Ladung dieser Ware, die andere Händler gerade zu dieser Station fahren (unterwegs zum Verkauf).</summary>
@@ -390,10 +407,11 @@ public sealed class TraderSystem : ISimSystem
     }
 
     /// <summary>Verkauf einer Teilmenge an die Station: sie zahlt, was ihre Kasse hergibt (Rest unbezahlt), Ereignisse und Buchungshaken.</summary>
-    static void Deliver(Universe u, Ship ship, Station st, StockEntry stock, TradeOrder order, float amount)
+    static void Deliver(Universe u, Ship ship, Station st, StockEntry stock, TradeOrder order, float amount, float? acceptance = null)
     {
         // Phase 19: Menge über der Annahme der Station (Abladen als letzter Ausweg) als Messwert melden
-        float over = amount - MathF.Max(0f, st.AcceptableUnits(stock, u.Rules));
+        // Phase 22: gemessen an der für diese Lieferung geltenden Annahme (zugesagte Lieferung: Wunschbestand × Überbestand)
+        float over = amount - MathF.Max(0f, acceptance ?? st.AcceptableUnits(stock, u.Rules));
         if (over > 0.0001f) u.Events.Publish(new CargoDumped(ship.Id, st.Id, order.Good, over));
         float paid = stock.Price > 0 ? MathF.Min(amount, MathF.Max(0f, st.Credits) / stock.Price) : 0f;
         float revenue = paid * stock.Price;

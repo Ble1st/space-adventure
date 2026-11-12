@@ -169,9 +169,10 @@ public sealed class ResearchSystem : ISimSystem
             if (project is not null) foreach (var g in project.Inputs.Keys) Cap(u, st, g, cap);
 
             // 2) Budget aus der Fraktionskasse (nur solange es etwas zu erforschen gibt)
-            if (project is not null && cfg.FundTarget > 0f && st.Credits < cfg.FundTarget && u.Actors.TryGetValue(st.Owner, out var owner) && owner.Treasury.Credits > 0f)
+            // Phase 22: Forschung ist freiwillig — nur aus dem Teil der Kasse über der Betriebsreserve
+            if (project is not null && cfg.FundTarget > 0f && st.Credits < cfg.FundTarget && u.Actors.TryGetValue(st.Owner, out var owner) && FactionViability.Spendable(u, owner) > 0f)
             {
-                float pay = MathF.Min(MathF.Min(cfg.FundTarget - st.Credits, cfg.FundPerTick * dt), owner.Treasury.Credits);
+                float pay = MathF.Min(MathF.Min(cfg.FundTarget - st.Credits, cfg.FundPerTick * dt), FactionViability.Spendable(u, owner));
                 if (pay > 0f)
                 {
                     owner.Treasury.Credits -= pay;

@@ -48,6 +48,8 @@ public class StationReviewTests
         var idle = AddBuilt(u, "titanium_works", TitanWorksDelta, new Vec2(0, 60));
         idle.Activity = 0.02f;
         idle.BuiltTick = 0;   // lange vor der Messung gebaut
+        // Phase 22: „nutzlos“ = länger nicht rentabel (Rentabilitätsmessung statt Auslastung)
+        idle.Profit.Since = 0; idle.Profit.Rate = -0.5f; idle.Profit.LossTicks = u.Rules.UnprofitableTicks;
         u.RemoveStation(WaterPlantAlpha, "test");
         foreach (var st in u.Stations.Values)
         {
@@ -103,7 +105,7 @@ public class StationReviewTests
         Assert.Equal(DemoUniverse.Water, r.ForGood);
         Assert.Equal("water_plant", r.ForType);
         Assert.False(u.Stations.ContainsKey(idle.Id));
-        Assert.Contains(ev.OfType<StationRemoved>(), x => x.Station == idle.Id && x.Reason == "retired");
+        Assert.Contains(ev.OfType<StationRemoved>(), x => x.Station == idle.Id && x.Reason == "unprofitable");   // Phase 22: Grund c
         // der frei gewordene Platz geht über den normalen Bauweg an den Bedarf: Baustelle für ein Wasserwerk
         Assert.Contains(u.Stations.Values, s => s.Site is { TypeKey: "water_plant" });
         Assert.Equal(u.Tick, u.LastStationRetireTick);
@@ -119,7 +121,6 @@ public class StationReviewTests
     [InlineData("ausgelastet")]
     [InlineData("produkt_knapp")]
     [InlineData("knappheit_kurz")]
-    [InlineData("freier_platz")]
     [InlineData("abklingzeit")]
     [InlineData("kritisch")]
     [InlineData("regel_aus")]
@@ -130,21 +131,45 @@ public class StationReviewTests
         {
             case "geschuetzt": idle.BankruptcyProtected = true; break;
             case "schonfrist": idle.BuiltTick = u.Tick - u.Rules.RetireGraceTicks + 100; break;
-            case "ausgelastet": idle.Activity = u.Rules.RetireMaxActivity + 0.01f; break;
+            case "ausgelastet": idle.Profit.Rate = 0.5f; idle.Profit.LossTicks = 0; break;   // Phase 22: rentabel statt ausgelastet
             case "produkt_knapp":
                 foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(DemoUniverse.Titanium, out var t)) t.Amount = 0f;
                 break;
             case "knappheit_kurz": u.ScarceSince[DemoUniverse.Water] = u.Tick - u.Rules.RetireScarceTicks + 100; break;
-            case "freier_platz": u.Rules.MaxStations += 1; break;
             case "abklingzeit": u.LastStationRetireTick = u.Tick - u.Rules.RetireCooldownTicks + 100; break;
             case "kritisch": u.RemoveStation(TitanWorksDelta, "test"); u.Rules.MaxStations -= 1; break;   // letzte Titanhütte
             case "regel_aus": u.Rules.StationRetireActive = false; break;
         }
         var ev = Capture(u);
         Lifecycle(u);
+        if (fall == "knappheit_kurz")
+        {
+            // Phase 22 (angepasst): eine länger nicht rentable Station verfällt auch ohne anhaltende Knappheit — die kurze Knappheit verhindert nur die
+            // Umwidmung (kein Platz für Wasser reserviert)
+            var r = Assert.Single(ev.OfType<StationRetired>());
+            Assert.Equal(0, r.ForGood.Value);
+            return;
+        }
         Assert.Empty(ev.OfType<StationRetired>());
         Assert.True(u.Stations.ContainsKey(idle.Id));
-        if (fall == "freier_platz") Assert.Contains(u.Stations.Values, s => s.Site is { TypeKey: "water_plant" });   // freier Platz: normaler Bau
+    }
+
+    /// <summary>
+    /// Phase 22 (vorher Ausnahme „freier Platz“): Eine länger nicht rentable Station verfällt auch, wenn noch ein Platz frei ist (Grund c hängt nicht an
+    /// vollen Plätzen); der normale Bau beantwortet die Knappheit.
+    /// </summary>
+    [Fact]
+    public void Stilllegung_FreierPlatz_UnrentableStationVerfaelltTrotzdem_NormalerBau()
+    {
+        var (u, idle) = Scenario();
+        u.Rules.MaxStations += 1;
+        var ev = Capture(u);
+        Lifecycle(u);
+        var r = Assert.Single(ev.OfType<StationRetired>());
+        Assert.Equal(idle.Id, r.Station);
+        Assert.Equal(0, r.ForGood.Value);   // keine Umwidmung nötig
+        Assert.Contains(ev.OfType<StationDeparted>(), d => d.Station == idle.Id && d.Reason == DepartureReason.Unprofitable);
+        Assert.Contains(u.Stations.Values, s => s.Site is { TypeKey: "water_plant" });   // freier Platz: normaler Bau
     }
 
     [Fact]
@@ -155,7 +180,7 @@ public class StationReviewTests
         Assert.True(StationCriticality.IsCritical(u, idle));
         Assert.True(StationReview.Useless(u, idle));
         Assert.False(SubsidySystem.Eligible(u, idle));
-        idle.Activity = 0.5f;   // arbeitet sie, wird sie gestützt
+        idle.Profit.Rate = 0.5f; idle.Profit.LossTicks = 0;   // Phase 22: rentabel, wird sie gestützt
         Assert.True(SubsidySystem.Eligible(u, idle));
     }
 
@@ -174,19 +199,21 @@ public class StationReviewTests
         var ev = Capture(u);
         var runner = new SimulationRunner();
         long waterBuiltAt = -1;
-        for (int i = 0; i < 60; i++)
+        // Phase 22 (angepasst): 90000 statt 60000 Ticks — Grund c braucht Schonfrist und ein langes Fenster dauerhaft negativer Rentabilität (die Hütte verkauft
+        // anfangs ihr Startlager und ist erst danach im Minus), statt der Phase-19-Auslastung unter 10 %
+        for (int i = 0; i < 90; i++)
         {
             runner.Run(u, 1000);
             if (waterBuiltAt < 0 && u.Stations.Values.Any(s => s.TypeKey == "water_plant" && !s.IsBuildSite)) waterBuiltAt = u.Tick;
         }
         var retired = ev.OfType<StationRetired>().ToList();
-        Assert.NotEmpty(retired);
+        Assert.True(retired.Count > 0, $"keine Stilllegung (Rentabilität {extra.Profit.Rate:0.000}, Verlust-Ticks {extra.Profit.LossTicks})");
         Assert.Equal(extra.Id, retired[0].Station);
         Assert.Equal("water_plant", retired[0].ForType);
         Assert.True(waterBuiltAt > 0, "kein Wasserwerk gebaut");
         // kein Pendeln: höchstens eine Stilllegung je Abklingzeit, und das neue Wasserwerk wird nicht wieder stillgelegt
         foreach (var r in retired) Assert.NotEqual("water_plant", r.TypeKey);
-        Assert.True(retired.Count <= 1 + 60_000 / u.Rules.RetireCooldownTicks);
+        Assert.True(retired.Count <= 1 + 90_000 / u.Rules.RetireCooldownTicks);
         Assert.Contains(ev.OfType<StationBuilt>(), b => b.TypeKey == "water_plant");
         // Wasser ist am Ende nicht mehr dauerhaft knapp
         Assert.True(StationReview.Ratio(u, DemoUniverse.Water) < u.Rules.BuildPriceRatio, $"Wasser {StationReview.Ratio(u, DemoUniverse.Water):0.00}");
@@ -218,12 +245,15 @@ public class StationReviewTests
         var u2 = TestWorlds.Classic();
         new SimulationRunner().Run(u2, 1);
         foreach (var b in u2.Ships.Values.Where(s => s.Role == ShipRole.Builder).ToList()) u2.RemoveShip(b.Id, "test");
-        u2.Actors[faction].Treasury.Credits = u2.Rules.SubsidyReserve;
+        // Phase 22 (angepasst): fehlt der Mindestbestand, hat der Ersatz Vorrang und darf in die Rücklage greifen — ohne jedes Geld kein Kauf an der Werft,
+        // der Mindestbestand kommt dann über den ausgewiesenen Notkauf zurück
+        u2.Actors[faction].Treasury.Credits = 0f;
         var st2 = u2.Stations[new StationId(1)];
         ConstructionRules.StartSite(u2, u2.StationTypes["water_plant"], st2.Sector, StationLifecycleSystem.FindFreeSpot(u2, u2.Sectors[st2.Sector])!.Value, st2.Owner, 9000f, st2.Id, null);
         var ev2 = Capture(u2);
         new SimulationRunner().Run(u2, 200);
         Assert.Empty(ev2.OfType<BuilderCommissioned>());
+        Assert.Contains(ev2.OfType<FactionRestored>(), r => r.Faction == faction && r.Role == ShipRole.Builder);
     }
 
     [Fact]

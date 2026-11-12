@@ -73,7 +73,9 @@ public sealed class SecuritySystem : ISimSystem
     public static (int BuyBelow, int SellAbove) Thresholds(Universe u, float need)
     {
         var r = u.Rules;
-        if (need <= 0f) return (0, 0);
+        // Phase 22: auch ohne Bedarf (Fraktion ohne Hoheitsgebiet) nie unter den Mindestbestand — vorher (0, 0): eine Fraktion ohne Sektoren baute ihre letzte
+        // Polizei ab und machte sich handlungsunfähig
+        if (need <= 0f) return (r.PoliceMinPerFaction, r.PoliceMinPerFaction);
         int buy = Math.Clamp((int)MathF.Ceiling(need - r.PoliceBuyMargin - 1e-4f), r.PoliceMinPerFaction, r.PoliceMaxPerFaction);
         int keep = Math.Clamp((int)MathF.Ceiling(need + r.PoliceSellMargin - 1f - 1e-4f), r.PoliceMinPerFaction, r.PoliceMaxPerFaction);
         return (buy, Math.Max(buy, keep));
@@ -101,16 +103,19 @@ public sealed class SecuritySystem : ISimSystem
         var (buyBelow, sellAbove) = Thresholds(u, need);
         if (police.Count > sellAbove) { if (actor.PoliceSurplusSince < 0) actor.PoliceSurplusSince = u.Tick; }
         else actor.PoliceSurplusSince = -1;
-        if (police.Count < buyBelow && u.Tick - actor.LastForceTick >= r.PoliceChangeCooldown)
+        // Phase 22: unter dem Mindestbestand hat der Ersatz Vorrang (ohne Abkühlzeit, darf in die Rücklage greifen)
+        bool belowMin = police.Count < r.PoliceMinPerFaction;
+        if (police.Count < buyBelow && (belowMin || u.Tick - actor.LastForceTick >= r.PoliceChangeCooldown))
         {
-            if (Commission(u, f) is { } ship) police.Add(ship);
+            if (Commission(u, f, belowMin) is { } ship) police.Add(ship);
         }
         else if (police.Count > sellAbove && actor.PoliceSurplusSince >= 0 && u.Tick - actor.PoliceSurplusSince >= r.PoliceDecommissionTicks
                  && u.Tick - actor.LastForceTick >= r.PoliceChangeCooldown)
         {
             var gone = police.OrderBy(s => s.Transit is null ? 0 : 1).ThenByDescending(s => s.Id.Value).First();
             police.Remove(gone);
-            u.RemoveShip(gone.Id, "decommissioned");
+            // Phase 22: Grund c für einen Dienst der Fraktion — lange überzählig (ohne Nutzen), nie unter den Mindestbestand (sellAbove ≥ PoliceMinPerFaction)
+            Departures.RemoveShip(u, gone, DepartureReason.Unprofitable, "decommissioned");
             actor.LastForceTick = u.Tick;
             actor.PoliceSurplusSince = -1;
             u.Events.Publish(new PoliceDecommissioned(f, gone.Id));
@@ -121,8 +126,10 @@ public sealed class SecuritySystem : ISimSystem
     /// <summary>
     /// Kauft ein Polizeischiff aus der Fraktionskasse (gemeinsame Kaufregel: Bausatz + Module aus dem Werftlager, Preis an die Werft), wenn eine erreichbare
     /// Werft das Modell liefern kann und danach <see cref="EconomyRules.PoliceReserve"/> in der Kasse bleibt. null = kein Kauf.
+    /// Phase 22: über dem Mindestbestand bleibt zusätzlich die Betriebsreserve der Fraktion (<see cref="FactionViability.Reserve"/>) unberührt;
+    /// <paramref name="priority"/> (Ersatz unter dem Mindestbestand) verlangt nur den Preis.
     /// </summary>
-    public static Ship? Commission(Universe u, FactionId f)
+    public static Ship? Commission(Universe u, FactionId f, bool priority = false)
     {
         var r = u.Rules;
         if (!u.Actors.TryGetValue(f, out var actor) || !u.ShipModels.TryGetValue(r.PoliceModel, out var model)
@@ -133,7 +140,8 @@ public sealed class SecuritySystem : ISimSystem
         {
             if (!u.IsReachable(yard.Sector, home.Sector) || ShipPurchase.Missing(yard, needs).Count > 0) continue;
             float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
-            if (actor.Treasury.Credits < price + r.PoliceReserve) return null;
+            float keep = priority ? 0f : MathF.Max(r.PoliceReserve, FactionViability.Reserve(u, f) + FactionViability.ReplacementCost(u, f));
+            if (actor.Treasury.Credits < price + keep) return null;
             ShipPurchase.Consume(yard, needs);
             yard.Credits += price;
             actor.Treasury.Credits -= price;

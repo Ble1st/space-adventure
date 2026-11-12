@@ -111,6 +111,13 @@ public enum InvestorSource { Treasury, Station, Ship }
 public sealed record Investor(InvestorSource Source, ActorId Holder, ActorSizeClass Class, float Money, float Weight, Station? Station, Ship? Ship)
 {
     /// <summary>Konto, von dem bezahlt wird.</summary>
+    /// <summary>Phase 22: Die Investition ist kein Geschäftsverlust der Station/des Schiffs — Bezug ihrer Rentabilitätsmessung verschieben.</summary>
+    public void Invested(float amount)
+    {
+        if (Ship is { } s) Profitability.Transfer(s.Profit, -amount);
+        else if (Station is { } st) Profitability.Transfer(st.Profit, -amount);
+    }
+
     public ICreditAccount Account(Universe u) => Source switch
     {
         InvestorSource.Treasury => u.Actors[Holder].Treasury,
@@ -143,8 +150,11 @@ public static class Investors
         if (rules.TreasuryInvests)
             foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
             {
-                if (a.Kind is ActorKind.Player or ActorKind.Free or ActorKind.Outlaw || a.Treasury.Credits < need) continue;   // Phase 11: Piraten bauen keine Stationen
-                list.Add(Make(u, index, InvestorSource.Treasury, a.Id, a.Treasury.Credits, need, null, null));
+                if (a.Kind is ActorKind.Player or ActorKind.Free or ActorKind.Outlaw) continue;   // Phase 11: Piraten bauen keine Stationen
+                // Phase 22: eine Stationsinvestition ist freiwillig — die Betriebsreserve einer Fraktion bleibt (FactionViability.Spendable)
+                float free = FactionViability.Spendable(u, a);
+                if (free < need) continue;
+                list.Add(Make(u, index, InvestorSource.Treasury, a.Id, free, need, null, null));
             }
         foreach (var st in u.StationsById().Where(s => !s.IsBuildSite && s.Credits >= need).ToList())
             list.Add(Make(u, index, InvestorSource.Station, st.Owner, st.Credits, need, st, null));

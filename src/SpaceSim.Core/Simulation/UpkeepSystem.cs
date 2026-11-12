@@ -51,14 +51,18 @@ public sealed class UpkeepSystem : ISimSystem
                         owner.Treasury.Credits -= stUpkeep;
                         official[st.Owner.Value] = (cur.paid + stUpkeep, cur.unpaid);
                         st.Credits += type.IncomePerTick * dt;
+                        Profitability.Transfer(st.Profit, type.IncomePerTick * dt);   // Phase 22: Grundeinkommen ist kein Geschäftsergebnis
                         continue;
                     }
                     float own = Math.Clamp(st.Credits + type.IncomePerTick * dt, 0f, stUpkeep);
                     official[st.Owner.Value] = (cur.paid, cur.unpaid + stUpkeep - own);
                     st.Credits += type.IncomePerTick * dt - own;
+                    Profitability.Transfer(st.Profit, type.IncomePerTick * dt);
                     continue;
                 }
                 st.Credits += (type.IncomePerTick - type.UpkeepPerTick) * dt;
+                // Phase 22: das Grundeinkommen des Typs (Geldquelle) zählt nicht zur Rentabilität — eine Station, die nichts verkauft, trägt nur ihren Unterhalt
+                Profitability.Transfer(st.Profit, type.IncomePerTick * dt);
             }
         foreach (var (actor, (paid, unpaid)) in official) u.Events.Publish(new TreasuryUpkeep(new ActorId(actor), "government", paid, unpaid));
         foreach (var st in u.Stations.Values)
@@ -70,6 +74,7 @@ public sealed class UpkeepSystem : ISimSystem
                 if (taxable <= 0f) continue;
                 float tax = taxable * u.Rules.StationWealthTax * dt;
                 st.Credits -= tax;
+                Profitability.Transfer(st.Profit, -tax);   // Phase 22: Vermögensabgabe zählt nicht zum Geschäftsergebnis (sie trifft Reichtum, nicht Verlust)
                 Route(u.FactionOf(st), tax);
             }
 
@@ -82,6 +87,7 @@ public sealed class UpkeepSystem : ISimSystem
                 {
                     float tax = (ship.Credits - u.Rules.WealthTaxFree) * u.Rules.ShipWealthTax * dt;
                     ship.Credits -= tax;
+                    Profitability.Transfer(ship.Profit, -tax);   // Phase 22: Rentabilität = Erlös − Einkauf − Unterhalt, ohne Vermögensabgabe
                     Route(TaxAuthority(u, ship), tax);
                 }
             }

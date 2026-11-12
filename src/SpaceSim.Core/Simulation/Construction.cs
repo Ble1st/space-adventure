@@ -74,8 +74,10 @@ public static class ConstructionRules
     /// Phase 20: Bauschiff für eine Fraktion kaufen (gemeinsame Regel für die blockierte Baustelle und den Mindestbestand des <see cref="FactionBuilderSystem"/>):
     /// eine von <paramref name="near"/> erreichbare Werft mit Bausatz und Modulen, Preis an die Werft, die Kasse behält <see cref="EconomyRules.SubsidyReserve"/>.
     /// <paramref name="site"/> nur für das Ereignis (default = Mindestbestand). null = nicht möglich.
+    /// Phase 22: ohne <paramref name="priority"/> bleibt zusätzlich die Betriebsreserve der Fraktion unberührt (<see cref="FactionViability.Reserve"/>);
+    /// mit Vorrang (Ersatz unter dem Mindestbestand) genügt der Preis.
     /// </summary>
-    public static Ship? CommissionBuilder(Universe u, FactionId f, SectorId near, StationId site)
+    public static Ship? CommissionBuilder(Universe u, FactionId f, SectorId near, StationId site, bool priority = false)
     {
         var r = u.Rules;
         if (!r.CommissionBuilders || !u.Actors.TryGetValue(f, out var actor)) return null;
@@ -87,7 +89,8 @@ public static class ConstructionRules
                 if (!u.IsReachable(yard.Sector, near) || ShipPurchase.Missing(yard, needs).Count > 0 || !Research.Available(u, yard, UnlockKind.Model, model.Key)) continue;
                 float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
                 float cost = price + r.NewShipStartCredits;
-                if (actor.Treasury.Credits < cost + r.SubsidyReserve) return null;
+                float keep = priority ? 0f : MathF.Max(r.SubsidyReserve, FactionViability.Reserve(u, f) + FactionViability.ReplacementCost(u, f));
+                if (actor.Treasury.Credits < cost + keep) return null;
                 ShipPurchase.Consume(yard, needs);
                 yard.Credits += price;
                 actor.Treasury.Credits -= cost;
@@ -309,14 +312,16 @@ public static class ConstructionRules
     {
         var bs = site.Site!;
         float refund = MathF.Max(0f, site.Credits);
-        if (bs.InvestorStation != 0 && u.Stations.TryGetValue(new StationId(bs.InvestorStation), out var inv) && !inv.IsBuildSite) inv.Credits += refund;
-        else if (bs.InvestorShip != 0 && u.Ships.TryGetValue(new ShipId(bs.InvestorShip), out var ship)) ship.Credits += refund;
+        // Phase 22: die Rückzahlung ist kein Geschäftsergebnis (Bezug der Rentabilitätsmessung verschieben)
+        if (bs.InvestorStation != 0 && u.Stations.TryGetValue(new StationId(bs.InvestorStation), out var inv) && !inv.IsBuildSite) { inv.Credits += refund; Profitability.Transfer(inv.Profit, refund); }
+        else if (bs.InvestorShip != 0 && u.Ships.TryGetValue(new ShipId(bs.InvestorShip), out var ship)) { ship.Credits += refund; Profitability.Transfer(ship.Profit, refund); }
         else if (bs.InvestorActor != 0 && u.Actors.TryGetValue(new ActorId(bs.InvestorActor), out var actor)) actor.Treasury.Credits += refund;   // Phase 9: Kasse eines Akteurs
         site.Credits = 0f;
         ReleaseBuilders(u, site.Id);
         bool kept = site.Market.Values.Any(e => e.Amount >= 1f);
         u.Events.Publish(new ConstructionAbandoned(site.Id, bs.TypeKey, refund, kept));
-        if (!kept) { u.RemoveStation(site.Id, "abandoned"); return; }
+        // Phase 22: eine Baustelle ohne Fortschritt über das lange Fenster ist ein nicht rentables Projekt (Grund c)
+        if (!kept) { Departures.RemoveStation(u, site, DepartureReason.Unprofitable, "site_expired"); return; }
         bs.Abandoned = true;
         bs.Builder = default;
         foreach (var e in site.Market.Values) e.Target = MathF.Max(1f, e.Amount);
@@ -364,7 +369,7 @@ public sealed class ConstructionSystem : ISimSystem
             var bs = site.Site!;
             if (bs.Abandoned)
             {
-                if (site.Market.Values.All(e => e.Amount < 1f)) u.RemoveStation(site.Id, "cleared");
+                if (site.Market.Values.All(e => e.Amount < 1f)) Departures.RemoveStation(u, site, DepartureReason.Unprofitable, "site_cleared");
                 continue;
             }
             if (!u.StationTypes.ContainsKey(bs.TypeKey)) { ConstructionRules.Expire(u, site); continue; }

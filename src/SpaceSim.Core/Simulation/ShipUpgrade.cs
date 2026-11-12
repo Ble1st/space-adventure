@@ -124,6 +124,7 @@ public static class ShipUpgrade
         ShipPurchase.Consume(st, q.Materials);
         var wallet = u.WalletOf(ship);
         wallet.Credits -= q.Price;
+        Profitability.Transfer(ship.Profit, -q.Price);   // Phase 22: Investition (nur gemessene KI-Schiffe)
         st.Credits += q.Price;
         bool success = u.Rng.NextDouble() < q.Chance;
         int pityKey = q.Kind == UpgradeKind.Bonus ? BonusPityKey : q.Slot;

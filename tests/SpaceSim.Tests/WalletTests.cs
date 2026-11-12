@@ -199,6 +199,8 @@ public class WalletTests
         SecurityTests.WithoutSecurity(u);
         // Phase 15: Instandhaltung (neue Markteinträge auch an Regierungsstationen) und Subventionen aus den Kassen gibt es vor v13 ebenfalls nicht
         u.Rules.MaintenanceShare = 0f; u.Rules.SubsidyPerDay = 0f;
+        // Phase 22: die Migration setzt Regierungsstationen neu (ohne Rentabilitätsmessung) — die Messung bleibt hier aus, damit der Stand gleich bleibt
+        u.Rules.ProfitWindowTicks = 0;
         new SimulationRunner().Run(u, 1_000);
         // Phase 18: Das Laden eines Stands vor v13 berechnet die Sektorkontrolle neu; eine Station, die seit dem letzten Kontrolllauf (alle 50 Ticks)
         // fertig wurde, änderte sonst den Einfluss — der Lauf hier bringt den Einfluss auf den Stand, den auch das Laden herstellt

@@ -30,6 +30,7 @@ public static class UniverseHash
             foreach (var b in st.Exports) { Mix((ulong)b.Good.Value); MixF(b.Amount); MixF(b.Paid); Mix((ulong)b.DueTick); }
             foreach (var (g, n) in st.MaintenanceBacklog.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }   // Phase 15
             Mix((ulong)st.BuiltTick); MixF(st.Activity); MixF(st.Starved); Mix(st.Panic ? 1UL : 0UL);   // Phase 19: Auslastung
+            MixF(st.Profit.Rate); MixF(st.Profit.Worth); Mix((ulong)st.Profit.LossTicks); Mix((ulong)st.Profit.Since);   // Phase 22: Rentabilität
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
         {
@@ -48,6 +49,7 @@ public static class UniverseHash
             foreach (var f in s.Fit) { if (f is null) Mix(0UL); else MixString(f); }
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
             foreach (var (g, a) in s.Fuel.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }   // Phase 4: Tank gehört zum Spielstand
+            MixF(s.Profit.Rate); MixF(s.Profit.Worth); Mix((ulong)s.Profit.LossTicks); Mix((ulong)s.Profit.Since);   // Phase 22: Rentabilität
             Mix((ulong)s.Role); Mix((ulong)s.JobSince); Mix((ulong)s.StrandedSince);   // Phase 19: unverkäufliche Fracht seit   // Phase 6: Aufgabe (Etikett) und Beginn der Aufgabe wechseln bei Multirole-Schiffen
             Mix((ulong)s.Quality);                          // Phase 7: Güteklasse, Slotliste (Bonusslots, vergrößerte Slots) und Mitleidszähler
             foreach (var sl in s.Slots) { MixString(sl.Type); Mix((ulong)sl.Size); }
@@ -89,6 +91,7 @@ public static class UniverseHash
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {
             Mix((ulong)a.LastForceTick); MixF(a.PoliceNeed); Mix((ulong)a.PoliceSurplusSince);   // Phase 20
+            Mix((ulong)a.LastRestoreTick);   // Phase 22
             foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }
             foreach (var (f, c) in a.BountyClaims.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(c); }
         }

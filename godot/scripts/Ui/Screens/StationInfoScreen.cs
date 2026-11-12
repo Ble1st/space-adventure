@@ -30,6 +30,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestExport { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Instandhaltung (Phase 15; leer, wenn die Station nicht instand gehalten wird).</summary>
 	public string TestMaintenance { get; private set; } = "";
+	/// <summary>Selbsttest: zuletzt gezeigte Rentabilität (Phase 22; leer, solange nicht gemessen).</summary>
+	public string TestProfit { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -66,6 +68,9 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		// Phase 15: Instandhaltung (Material über den Handel, die Fraktionskasse erstattet) — „gedeckt“ oder „offen: …“ (reine Core-Anzeige)
 		TestMaintenance = Maintenance.StatusText(u, st) ?? "";
 		if (TestMaintenance.Length > 0) Row(v1, "Instandhaltung", TestMaintenance);
+		// Phase 22: Rentabilität (gleitender Netto-Geldfluss, reine Core-Anzeige; Grund c für das Aufgeben einer Station)
+		TestProfit = st.IsBuildSite ? "" : Profitability.Text(u, st.Profit) ?? "";
+		if (TestProfit.Length > 0) Row(v1, "Rentabilität", TestProfit);
 		v1.AddChild(Text("Angebotene Dienste", 18, Cyan));
 		var services = Ctx.Services.ForStation(u, st);
 		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));

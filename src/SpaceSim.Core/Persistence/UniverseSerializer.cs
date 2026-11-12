@@ -32,6 +32,10 @@ public static class UniverseSerializer
             u.ShipModels[m.Key] = new ShipModel { Key = m.Key, ClassKey = m.Class, Name = m.Name, Fit = new List<string?>(m.Fit), Jobs = m.Jobs is null ? new List<string>() : new List<string>(m.Jobs) };
     }
 
+    /// <summary>Phase 22: Rentabilitätsmessung speichern (null = noch nicht gemessen).</summary>
+    static ProfitMeterSave? ToSave(ProfitMeter m) => m.Since < 0 ? null : new() { Rate = m.Rate, Worth = m.Worth, Loss = m.LossTicks, Since = m.Since };
+    static ProfitMeter FromSave(ProfitMeterSave? m) => m is null ? new ProfitMeter() : new ProfitMeter { Rate = m.Rate, Worth = m.Worth, LossTicks = m.Loss, Since = m.Since };
+
     static ModuleSave ToSave(Module m, Universe u) => new()
     {
         Key = m.Key, Name = m.Name.Length > 0 && m.Name != m.Key ? m.Name : null, Slot = m.Slot, Size = m.Size.ToString(), Tier = m.Tier,
@@ -118,7 +122,7 @@ public static class UniverseSerializer
                 Wanted = a.Wanted.Count == 0 ? null : a.Wanted.OrderBy(kv => kv.Key.Value)
                     .Select(kv => new WantedSave { Faction = kv.Key.Value, Heat = kv.Value.Heat, LastCrime = kv.Value.LastCrimeTick, Fine = kv.Value.Fine, Crime = kv.Value.LastCrime }).ToList(),
                 BountyClaims = a.BountyClaims.Count == 0 ? null : a.BountyClaims.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince,
+                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick,
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
@@ -215,7 +219,7 @@ public static class UniverseSerializer
                 PlayerStorage = st.PlayerStorage.Count == 0 ? null : st.PlayerStorage.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Exports = st.Exports.Count == 0 ? null : st.Exports.Select(b => new ExportBatchSave { Good = b.Good.Value, Amount = b.Amount, Paid = b.Paid, Due = b.DueTick }).ToList(),
                 MaintenanceBacklog = st.MaintenanceBacklog.Count == 0 ? null : st.MaintenanceBacklog.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic,
+                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = ToSave(st.Profit),
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -232,7 +236,7 @@ public static class UniverseSerializer
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince < 0 ? null : sh.StrandedSince,
+                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince < 0 ? null : sh.StrandedSince, Profit = ToSave(sh.Profit),
                 Quality = sh.Quality == ShipQuality.Standard ? null : sh.Quality.ToString(),
                 UpgradePity = sh.UpgradePity.Count == 0 ? null : new Dictionary<int, int>(sh.UpgradePity),
                 HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
@@ -279,7 +283,7 @@ public static class UniverseSerializer
                 Wanted = a.Wanted is null ? new Dictionary<FactionId, WantedRecord>()
                     : a.Wanted.ToDictionary(w => new FactionId(w.Faction), w => new WantedRecord { Heat = w.Heat, LastCrimeTick = w.LastCrime, Fine = w.Fine, LastCrime = w.Crime }),
                 BountyClaims = a.BountyClaims is null ? new Dictionary<FactionId, float>() : a.BountyClaims.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
-                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince,
+                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick,
             };
         if (s.Encounters is not null)
             foreach (var e in s.Encounters)
@@ -393,7 +397,7 @@ public static class UniverseSerializer
                 PlayerStorage = st.PlayerStorage is null ? new Dictionary<GoodId, float>() : st.PlayerStorage.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Exports = st.Exports is null ? new List<ExportBatch>() : st.Exports.Select(b => new ExportBatch { Good = new GoodId(b.Good), Amount = b.Amount, Paid = b.Paid, DueTick = b.Due }).ToList(),
                 MaintenanceBacklog = st.MaintenanceBacklog is null ? new Dictionary<GoodId, float>() : st.MaintenanceBacklog.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
-                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic,
+                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = FromSave(st.Profit),
             };
         foreach (var sh in s.Ships)
         {
@@ -414,7 +418,7 @@ public static class UniverseSerializer
                 NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
                 Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
-                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince ?? -1,
+                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince ?? -1, Profit = FromSave(sh.Profit),
                 Quality = sh.Quality is { } ql ? Enum.Parse<ShipQuality>(ql) : ShipQuality.Standard,
                 UpgradePity = sh.UpgradePity is null ? new Dictionary<int, int>() : new Dictionary<int, int>(sh.UpgradePity),
                 HomeBase = new StationId(sh.HomeBase), DutySector = new SectorId(sh.DutySector),
