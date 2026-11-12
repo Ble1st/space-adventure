@@ -127,6 +127,39 @@ public static class CombatSense
         return fallback;
     }
 
+    /// <summary>
+    /// Phase 27 (Fokusfeuer, Taktik-Baustein): der schwächste aktive Gegner (Schild + Hülle) in eigener Waffenreichweite — weil alle Mitglieder einer Seite
+    /// dieselbe Regel anwenden, konzentrieren sie ihr Feuer. Ohne Flottenkampf/Fokusfeuer oder ohne Gegner in Reichweite: <paramref name="fallback"/>. Rein.
+    /// </summary>
+    public static CombatParticipant? Focus(Universe u, Encounter e, CombatParticipant self, Ship ship, CombatParticipant? fallback)
+    {
+        if (!u.Rules.FleetCombat || !u.Rules.CombatFocusFire) return fallback;
+        float reach = MaxRange(u, ship);
+        CombatParticipant? best = null;
+        float bestHp = float.MaxValue;
+        foreach (var q in Enemies(u, e, self))
+        {
+            if (reach > 0f && Distance(self, q) > reach) continue;
+            var s = u.Ships[q.Ship];
+            float hp = s.ShieldNow + s.Hull;
+            if (hp < bestHp) { bestHp = hp; best = q; }
+        }
+        return best ?? fallback;
+    }
+
+    /// <summary>
+    /// Phase 27 (Zielverteilung der Begleiter): der Gegner, der gerade einen Schützling dieser Seite angreift (ein Mitglied derselben Seite, das selbst kein Begleiter
+    /// und keine Polizei ist); null = keiner. Ohne Flottenkampf immer null. Rein.
+    /// </summary>
+    public static CombatParticipant? Attacker(Universe u, Encounter e, CombatParticipant self)
+    {
+        if (!u.Rules.FleetCombat) return null;
+        foreach (var q in Enemies(u, e, self))
+            if (q.Target.Value != 0 && e.Of(q.Target) is { Active: true } ward && ward.Side == self.Side && ward.Ship != self.Ship
+                && ward.Tactic is not (CombatTactics.Escort or CombatTactics.Police)) return q;
+        return null;
+    }
+
     /// <summary>Verhaltensregel (Spielerflotte, Phase 12): im Verband die des Verbands; KI-Schiffe verteidigen sich.</summary>
     public static Engagement RulesOf(Universe u, Ship ship) => ship.IsPlayer ? Squadrons.RulesOf(u, ship) : Engagement.Defend;
 }
@@ -149,7 +182,8 @@ public sealed class RaiderTactic : ICombatTactic
         bool flee = ship.Hull < r.RaiderFleeHull * ship.MaxHull || own < r.RaiderFleeRatio * enemy;
         if (flee) return new TacticDecision(nearest.Ship, CombatMove.Flee, 0f, PowerMode.Engine, true, false);
         var victim = e.Victim.Value != 0 && e.Of(e.Victim) is { Active: true } v && v.Side != self.Side ? v : null;
-        var target = CombatSense.KeepTarget(u, e, self, victim ?? nearest)!;
+        var target = victim ?? CombatSense.Focus(u, e, self, ship, null) ?? CombatSense.KeepTarget(u, e, self, nearest)!;
+        if (!u.Rules.FleetCombat) target = CombatSense.KeepTarget(u, e, self, victim ?? nearest)!;
         float preferred = CombatSense.Preferred(u, ship);
         // Verfolgung: weit hinter dem gewünschten Abstand Stellung „Antrieb“ (holt auf), in Schussweite „Waffen“
         var mode = CombatSense.Distance(self, target) > preferred * 1.15f ? PowerMode.Engine : PowerMode.Weapons;
@@ -170,7 +204,7 @@ public sealed class PoliceTactic : ICombatTactic
         var nearest = CombatSense.Nearest(u, e, self);
         if (nearest is null) return new TacticDecision(default, CombatMove.Hold, 0f, PowerMode.Balanced, false, false);
         if (ship.Hull < u.Rules.PoliceRetreatHull * ship.MaxHull) return new TacticDecision(nearest.Ship, CombatMove.Flee, 0f, PowerMode.Engine, true, false);
-        var target = CombatSense.KeepTarget(u, e, self, nearest)!;
+        var target = CombatSense.Focus(u, e, self, ship, null) ?? CombatSense.KeepTarget(u, e, self, nearest)!;   // Phase 27: Fokusfeuer
         float preferred = CombatSense.Preferred(u, ship);
         var mode = CombatSense.Distance(self, target) > preferred * 1.15f ? PowerMode.Engine : PowerMode.Weapons;   // verfolgt, solange der Gegner in Reichweite ist
         return new TacticDecision(target.Ship, CombatMove.Approach, preferred, mode, true, false);
@@ -193,7 +227,8 @@ public sealed class EscortTactic : ICombatTactic
         if (rules == Engagement.Passive) return new TacticDecision(nearest.Ship, CombatMove.Flee, 0f, PowerMode.Engine, false, false);
         if (rules == Engagement.HoldFire) return new TacticDecision(nearest.Ship, CombatMove.Hold, CombatSense.Preferred(u, ship), PowerMode.Shield, false, false);
         if (ship.Hull < u.Rules.EscortRetreatHull * ship.MaxHull) return new TacticDecision(nearest.Ship, CombatMove.Flee, 0f, PowerMode.Engine, true, false);
-        var target = CombatSense.KeepTarget(u, e, self, nearest)!;
+        // Phase 27: zuerst wer den Schützling angreift, sonst Fokusfeuer
+        var target = CombatSense.Attacker(u, e, self) ?? CombatSense.Focus(u, e, self, ship, null) ?? CombatSense.KeepTarget(u, e, self, nearest)!;
         return new TacticDecision(target.Ship, CombatMove.Approach, CombatSense.Preferred(u, ship), PowerMode.Weapons, true, false);
     }
 }

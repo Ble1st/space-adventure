@@ -675,6 +675,7 @@ public class Phase25Tests
         var def = TestWorlds.Def(fuel: false, research: false);
         def.StationTypes.First(t => t.Key == "shipyard").Stocks!.Remove("power_bank_s");
         Phase26Tests.RevertPhase26(def);   // Phase 26 (Schaden und Bergung) ganz zurückdrehen: Schalter aus, neue Module, Reparaturdienst der Regierungsstationen
+        Phase27Tests.RevertPhase27(def);   // Phase 27 (Flottenkampf) zurückdrehen: Schalter aus
         def.Rules!.SpatialCombat = false;
         // Zusatzschritt „jeder Händler bewaffnet“ zurückdrehen: Handelsmodelle ohne Laser, Klassen ohne angehängten Waffenslot und mit alter Masse,
         // die beiden bewaffneten Varianten von Phase 24 wieder dabei, Bewaffnung zählt ab 0
@@ -695,7 +696,9 @@ public class Phase25Tests
             Fit = new() { "reactor_mk1", "chem_engine_s", null, "weapon_massdriver_s", "cargo_universal_100", "cargo_universal_60", "weapon_magazine_s" } });
         var u = SpaceSim.Core.Content.WorldBuilder.Build(def);
         new SimulationRunner().Run(u, 20000);
-        Assert.Equal(0x75532A3F54AD3D9AUL, UniverseHash.Compute(u));
+        // Phase 27 (Prüfung Phase 26): der Hash mischt zusätzlich Actor.CreatedTick — der Phase-24-Stand 75532A3F54AD3D9A heißt seitdem 68F0D589492ADEDC
+        // (ermittelt auf dem unveränderten Phase-26-Code nur mit der Hash-Erweiterung; kein Verhalten geändert)
+        Assert.Equal(0x68F0D589492ADEDCUL, UniverseHash.Compute(u));
     }
 
     // ───────── Zusatz Phase 25: jeder Händler bewaffnet ─────────

@@ -51,7 +51,7 @@ public partial class CommandMenu : Control, IScreen
 		Visible = false;
 		_win = new KitWindow("Menü", new Vector2(580, 688)) { Position = new Vector2(350, 16) };
 		AddChild(_win);
-		var scroll = new ScrollContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+		var scroll = new KitScroll { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
 		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		list.AddThemeConstantOverride("separation", 8);
 

@@ -25,6 +25,10 @@ public static class CommandKinds
     public const string Mine = "mine";
     public const string Build = "build";
     public const string Return = "return";
+    /// <summary>Phase 27: Lauern (Kaperschiffe der Piratengruppen; kein Spielerbefehl).</summary>
+    public const string Lurk = "lurk";
+    /// <summary>Phase 27: Verfolgen (Polizei verfolgt ein geflohenes Kaperschiff in ihrer Zuständigkeit; kein Spielerbefehl).</summary>
+    public const string Pursue = "pursue";
 }
 
 /// <summary>Fliegen: zu einer Station (andocken) oder zu einem Punkt in einem Sektor (<paramref name="Station"/> default).</summary>
@@ -98,6 +102,25 @@ public sealed record ReturnCommand : ShipCommand
     public override string Kind => CommandKinds.Return;
 }
 
+/// <summary>
+/// Phase 27: Lauern — ein Kaperschiff (oder der Anführer eines Rudels) fliegt zum Lauerposten <paramref name="Spot"/> im Revier <paramref name="Sector"/>
+/// und wartet dort bis <paramref name="Until"/> auf Beute (Überfall nach der Regel von <see cref="Simulation.PirateSystem"/>). Vergibt die Piratengruppe, nicht der Spieler.
+/// </summary>
+public sealed record LurkCommand(SectorId Sector, Vec2 Spot, long Until) : ShipCommand
+{
+    public override string Kind => CommandKinds.Lurk;
+}
+
+/// <summary>
+/// Phase 27: Verfolgen — ein Polizeischiff (oder der Anführer einer Streife) folgt einem geflohenen Kaperschiff innerhalb der Zuständigkeit seiner Fraktion
+/// bis <paramref name="Until"/>. <paramref name="Lead"/> ist der Vorsprung des Ziels (Einheiten): er schrumpft, wenn der Verfolger im selben Sektor schneller ist
+/// oder das Ziel liegt; bei 0 kommt es zum Gefecht. Vergibt die Fraktion, nicht der Spieler.
+/// </summary>
+public sealed record PursueCommand(ShipId Target, float Lead, long Until) : ShipCommand
+{
+    public override string Kind => CommandKinds.Pursue;
+}
+
 /// <summary>Verhaltensregeln (FLOTTEN.md „Rules of Engagement“).</summary>
 public enum Engagement
 {
@@ -149,6 +172,8 @@ public static class CommandNames
         CommandKinds.Mine => "Schürfen",
         CommandKinds.Build => "Bauen",
         CommandKinds.Return => "Heimkehr",
+        CommandKinds.Lurk => "Lauern",
+        CommandKinds.Pursue => "Verfolgen",
         _ => kind,
     };
 

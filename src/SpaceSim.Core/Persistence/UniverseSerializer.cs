@@ -169,6 +169,7 @@ public static class UniverseSerializer
                     Timers = p.Timers.Count == 0 ? null : new List<float>(p.Timers), Courage = p.Courage, DropShare = p.DropShare,
                     PrevMode = p.PrevMode.ToString(), Exit = p.Exit.ToString(),
                     Pos = e.Spatial ? new[] { p.Pos.X, p.Pos.Y, p.Dir.X, p.Dir.Y } : null, WasDockedAt = p.WasDockedAt.Value, Owner = p.Owner.Value,
+                    Refuge = p.RefugeId != 0 ? new[] { p.Refuge, p.RefugeId, p.RefugePos.X, p.RefugePos.Y } : null,   // Phase 27
                 }).ToList(),
             }).ToList();
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
@@ -364,6 +365,8 @@ public static class UniverseSerializer
                         PrevMode = Enum.Parse<PowerMode>(p.PrevMode), Exit = Enum.Parse<CombatExit>(p.Exit),
                         Pos = p.Pos is { Length: >= 4 } ps ? new Vec2(ps[0], ps[1]) : default, Dir = p.Pos is { Length: >= 4 } pd ? new Vec2(pd[2], pd[3]) : new Vec2(0f, -1f),
                         WasDockedAt = new StationId(p.WasDockedAt), Owner = new ActorId(p.Owner),
+                        Refuge = p.Refuge is { Length: >= 4 } rf ? rf[0] : 0f, RefugeId = p.Refuge is { Length: >= 4 } ri ? (int)ri[1] : 0,
+                        RefugePos = p.Refuge is { Length: >= 4 } rp ? new Vec2(rp[2], rp[3]) : default,
                     }).ToList(),
                 });
         foreach (var e in u.Fights.Encounters) Combat.CombatSpace.Derive(e);   // Phase 25: abgeleitete Raumkennung, Zwischenbild = Position
@@ -566,6 +569,9 @@ public static class UniverseSerializer
         MineCommand m => LimitsSave(CommandKinds.Mine, m.Limits),
         BuildCommand b => new OrderSave { Kind = CommandKinds.Build, A = b.Site.Value },
         ReturnCommand => new OrderSave { Kind = CommandKinds.Return },
+        // Phase 27: Lauern (Revier, Posten, Frist) und Verfolgen (Ziel, Vorsprung, Frist)
+        LurkCommand l => new OrderSave { Kind = CommandKinds.Lurk, A = l.Sector.Value, C = (int)l.Until, Values = new List<float> { l.Spot.X, l.Spot.Y } },
+        PursueCommand q => new OrderSave { Kind = CommandKinds.Pursue, A = q.Target.Value, C = (int)q.Until, Values = new List<float> { q.Lead } },
         _ => throw new InvalidOperationException($"Unbekannter Befehl {c.GetType().Name}"),
     };
 
@@ -587,6 +593,8 @@ public static class UniverseSerializer
         CommandKinds.Mine => new MineCommand(LimitsFrom(o)),
         CommandKinds.Build => new BuildCommand(new StationId(o.A)),
         CommandKinds.Return => new ReturnCommand(),
+        CommandKinds.Lurk => new LurkCommand(new SectorId(o.A), new Vec2(o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f), o.C),
+        CommandKinds.Pursue => new PursueCommand(new ShipId(o.A), o.Values?.ElementAtOrDefault(0) ?? 0f, o.C),
         _ => throw new FormatException($"Unbekannter Befehl '{o.Kind}'"),
     };
 

@@ -110,11 +110,23 @@ public abstract partial class CommandScreen : Control, IScreen
 	public void Refresh()
 	{
 		if (!Visible || Ctx == null) return;
-		if (Ctx.U.Tick != _builtTick || _dirty) Rebuild();
+		if (Ctx.U.Tick != _builtTick || _dirty) SafeRebuild();
+	}
+
+	/// <summary>
+	/// Gerätetest Phase 27: Neuaufbau ohne die Rollposition zu verlieren (die Bereiche bauen sich je Tick neu auf — vorher sprang jede Liste viermal je Sekunde
+	/// nach oben) und nie mitten in einem Wisch (der Rollbereich würde unter dem Finger ersetzt).
+	/// </summary>
+	void SafeRebuild()
+	{
+		if (KitScroll.Dragging && GetChildCount() > 0) { _dirty = true; return; }
+		var keep = KitScroll.Capture(this);
+		Rebuild();
+		KitScroll.Restore(this, keep);
 	}
 
 	/// <summary>Setzt die Anzeige nach einer Aktion (z. B. Sektorauswahl) sofort neu auf.</summary>
-	protected void Invalidate() { _dirty = true; Rebuild(); }
+	protected void Invalidate() { _dirty = true; SafeRebuild(); }
 
 	public override void _Draw()
 	{

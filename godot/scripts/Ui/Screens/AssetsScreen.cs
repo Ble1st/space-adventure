@@ -16,9 +16,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Tippen auf ein Schiff öffnet ein Detailfenster mit „In dieses Schiff wechseln“ (Phase 12: auch aus der Ferne, UI.md „Schiff wechseln“),
 /// „Befehle“ (Flotte), „Heim schicken“ (Befehl Heimkehr) und „Verkaufen“ (Dienst „hangar“ der Station, an der es liegt); Liegegebühr und Wert echt.
 /// </summary>
-public sealed partial class AssetsScreen : CommandScreen
+public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.assets";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _tab = "ships"; _detailShip = null; _message = ""; }
 
 	string _tab = "ships";
 	ShipId? _detailShip;
@@ -79,7 +81,7 @@ public sealed partial class AssetsScreen : CommandScreen
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 8);
 		// Phase 12: eine Flotte passt nicht auf eine Seite — die Liste rollt
-		var scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 128, 998, 366);
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 128, 998, 366);
 		scroll.AddChild(list);
 		foreach (var s in u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value))
 		{
@@ -203,7 +205,7 @@ public sealed partial class AssetsScreen : CommandScreen
 		At(w, Text("Fracht", 17, Cyan), 600, 130, 260, 22);
 		var cargo = s.Cargo.Where(kv => kv.Value > 0f).OrderBy(kv => kv.Key.Value).ToList();
 		if (cargo.Count == 0) { At(w, Text("leer", 15, Dim), 600, 158, 260, 20); return; }
-		var scroll = At(w, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 600, 156, 280, 236);
+		var scroll = At(w, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 600, 156, 280, 236);
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 4);
 		scroll.AddChild(list);

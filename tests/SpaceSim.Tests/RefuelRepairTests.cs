@@ -167,10 +167,11 @@ public class RefuelRepairTests
         var svc = new RepairService();
         u.WalletOf(player).Credits = 5_000f;
         player.Hull = player.MaxHull - 60f;
-        st.Market[DemoUniverse.HullPlates].Amount = 1f;   // reicht für 1 / 0,05 = 20 Hüllenpunkte
+        st.Market[DemoUniverse.HullPlates].Amount = 1f;   // reicht für 1 / Regel Hüllenpunkte (Phase 27: Weltdatei 0,02 → 50; vorher 0,05 → 20)
         var r = svc.Execute(u, st, player, new ServiceRequest("repair:full", default, 0f));
         Assert.True(r.Success);
-        Assert.Equal(20f, r.Units, 2);
+        Assert.Equal(1f / u.Rules.RepairPlatesPerHull, r.Units, 2);
+        Assert.True(r.Units < 60f);
         Assert.Contains("reichten nicht", r.Message);
         Assert.Equal(0f, st.Market[DemoUniverse.HullPlates].Amount, 3);
         Assert.False(svc.IsAvailable(u, st));

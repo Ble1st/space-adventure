@@ -19,9 +19,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Laderaum und Credits (echt). „Beste bekannte Verkaufsstelle“ je Ware aus <see cref="MarketInfo"/>, „Rückgängig“
 /// und Preisverlauf-Trends sind Platzhalter.
 /// </summary>
-public sealed partial class TradeScreen : DockAreaScreen
+public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.trade";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 1f; _message = ""; _msgOk = true; _scrollV = 0; }
 	protected override bool ShowShip => true;
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
@@ -96,7 +98,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 		if (!_tiles)
 		{
 			// ── Listenmodus: eine Zeile je Ware, antippen klappt auf ──
-			_scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 46, w, fy - 46 - 8);
+			_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 46, w, fy - 46 - 8);
 			var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 			box.AddThemeConstantOverride("separation", 6);
 			_scroll.AddChild(box);
@@ -117,7 +119,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 		{
 			// ── Kachelmodus: Kacheln oben, Editor-Blatt unten für die gewählte Kachel ──
 			float sheetH = _tileSel is { } ts && _rows.FirstOrDefault(r => r.Good == ts) is { } tr ? 26f + Editor.HeightFor(tr) + 6f : 0f;
-			_scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 46, w, fy - 46 - 8 - sheetH);
+			_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 46, w, fy - 46 - 8 - sheetH);
 			var grid = new GridContainer { Columns = 3, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 			grid.AddThemeConstantOverride("h_separation", 8);
 			grid.AddThemeConstantOverride("v_separation", 8);
@@ -308,7 +310,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 			var font = ThemeDB.FallbackFont;
 			// Kopfzeile
 			DrawRect(new Rect2(6, 12, 18, 18), u.Color);
-			DrawString(font, new Vector2(34, 38), u.Name, HorizontalAlignment.Left, -1, 20, White);
+			DrawString(font, new Vector2(34, 38), KitButton.Fit(font, u.Name, 20, 180f), HorizontalAlignment.Left, -1, 20, White);   // Gerätetest Phase 27: nie über den Preis
 			DrawString(font, new Vector2(220, 38), u.Traded ? $"{u.Price:0.0}" : "—", HorizontalAlignment.Left, -1, 20, u.Traded ? PriceColor(u) : Dim);
 			float fill = u.Target > 0f ? Mathf.Clamp(u.Stock / u.Target, 0f, 1.4f) / 1.4f : 0f;
 			DrawRect(new Rect2(320, 18, 110, 10), new Color(0, 0, 0, 0.5f));
@@ -365,7 +367,7 @@ public sealed partial class TradeScreen : DockAreaScreen
 			DrawRect(new Rect2(Vector2.Zero, Size), _sel ? Cyan : Edge, false, 2f);
 			DrawRect(new Rect2(0, 0, Size.X, 7), r.Color);
 			var font = ThemeDB.FallbackFont;
-			DrawString(font, new Vector2(12, 34), r.Name, HorizontalAlignment.Left, -1, 20, White);
+			DrawString(font, new Vector2(12, 34), KitButton.Fit(font, r.Name, 20, Size.X - 24f), HorizontalAlignment.Left, -1, 20, White);
 			DrawString(font, new Vector2(12, 74), $"{r.Price:0.0}", HorizontalAlignment.Left, -1, 30, White);
 			DrawString(font, new Vector2(112, 70), UiPlaceholders.TrendSoon, HorizontalAlignment.Left, 96, 11, new Color(Dim, 0.7f));
 			float fill = r.Target > 0f ? Mathf.Clamp(r.Stock / r.Target, 0f, 1.4f) / 1.4f : 0f;

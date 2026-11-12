@@ -15,9 +15,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// <see cref="ShipDealerService.Quote"/>: was im Stationslager liegt und was fehlt. Kleine Schiffe gibt es auch an der
 /// Handelsstation. Nach dem Kauf fliegt der Spieler das neue Schiff, das alte bleibt im Hangar dieser Station.
 /// </summary>
-public sealed partial class ShipyardScreen : DockAreaScreen
+public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.shipyard";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _message = ""; _msgOk = true; _scrollV = 0; }
 	public ShipyardScreen() => AreaId = DockAreas.Shipyard;
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton und übernimmt das neue Schiff.</summary>
@@ -53,7 +55,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen
 
 		var svc = Service;
 		if (svc is null) { At(inner, Text("Diese Station verkauft keine Schiffe.", 16, new Color(Dim, 0.8f)), 0, 48, w, 26); return; }
-		_scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 42, w, 520 - 42 - 4);
+		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 42, w, 520 - 42 - 4);
 		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);

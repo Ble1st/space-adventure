@@ -182,6 +182,8 @@ public sealed class CombatParticipantSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float[]? Pos { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int WasDockedAt { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Owner { get; set; }
+    /// <summary>Phase 27: Zuflucht eines Fliehenden [Abstand, Id (&gt; 0 Station, &lt; 0 Tor), x, y]; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float[]? Refuge { get; set; }
 }
 
 public sealed class PlayerWalletSave

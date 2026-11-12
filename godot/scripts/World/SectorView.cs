@@ -41,6 +41,15 @@ public partial class SectorView : Node3D
 	/// <summary>True, wenn Sektor gewechselt oder Stationen hinzugekommen/entfernt wurden.</summary>
 	public bool NeedsRebuild(Universe u) => _u != u || _sector != u.PlayerSector || _structureVersion != u.StructureVersion;
 
+	/// <summary>Gerätetest Phase 27: alle 3D-Beschriftungen des Sektors (Stationen, Tore, Gürtel, Wracks) — Main blendet verdeckte aus.</summary>
+	public List<Label3D> Labels()
+	{
+		var list = new List<Label3D>();
+		void Walk(Node n) { foreach (var c in n.GetChildren()) { if (c is Label3D l) list.Add(l); Walk(c); } }
+		if (_root is not null) Walk(_root);
+		return list;
+	}
+
 	public void Rebuild(Universe u)
 	{
 		_u = u; _sector = u.PlayerSector; _structureVersion = u.StructureVersion;
@@ -69,11 +78,13 @@ public partial class SectorView : Node3D
 	{
 		PlanetNode = null;
 		if (sector.Planet is not { } p) return;
-		var color = Color.FromHtml(p.Color);
-		var mat = Gfx.Mat(color, 0.15f, 0f);
-		mat.Roughness = 0.9f;
+		// Gerätetest Phase 27: der Planet füllte von oben gesehen das halbe Bild (HUD-Texte unlesbar) — jetzt dunkler, weit unten und hinten am Rand
+		// des Blickfelds (die Kamera reicht dafür weiter, Main: Far 4000)
+		var color = Color.FromHtml(p.Color).Darkened(0.55f);
+		var mat = Gfx.Mat(color, 0.05f, 0f);
+		mat.Roughness = 1f;
 		var mesh = new SphereMesh { Radius = p.Radius, Height = p.Radius * 2f, RadialSegments = 48, Rings = 24 };
-		PlanetNode = Gfx.Mesh(mesh, mat, new Vector3(-p.Radius * 0.6f, -(p.Radius + 260f), -p.Radius * 0.9f), _root!);
+		PlanetNode = Gfx.Mesh(mesh, mat, new Vector3(-p.Radius * 0.8f, -(p.Radius + 1300f), -(p.Radius + 1700f)), _root!);
 		PlanetNode.Name = "Planet";
 		PlanetNode.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 	}

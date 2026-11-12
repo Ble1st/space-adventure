@@ -20,6 +20,15 @@ public interface IScreen
 	void Refresh();
 }
 
+/// <summary>
+/// Gerätetest Phase 27: Bildschirm mit Auswahl-/Meldungszustand, der an einer Sitzung hängt (gewählter Sektor, Schiff, Zeile, Meldung). Bei „Neues Spiel“
+/// und „Laden“ setzt Main ihn zurück — sonst zeigte z. B. die Sektoransicht den Sektor der alten Sitzung.
+/// </summary>
+public interface ISessionScreen
+{
+	void ResetSession();
+}
+
 /// <summary>Registry für Bildschirme: eindeutige Ids, exklusives Öffnen der modalen Vollbildschirme.</summary>
 public sealed class ScreenRegistry
 {

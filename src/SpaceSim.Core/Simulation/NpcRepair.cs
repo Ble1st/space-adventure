@@ -117,6 +117,8 @@ public static class NpcRepair
         }
         if (r.DamageActive)
         {
+            // Phase 27 (Prüfung Phase 26, entschieden): Löschen an der eigenen Basis kostet nichts, auch bei leerer Kasse — die Basis ist ein Andockplatz, und
+            // Andocken löscht jeden Brand umsonst (KAMPF.md 3.3, gilt für Spieler und NPC gleich). Bezahlt werden nur Hülle und Module.
             Combat.ModuleDamage.ExtinguishAll(u, s, "repaired");
             foreach (int slot in RepairService.DamagedSlots(s))
             {

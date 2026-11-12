@@ -52,6 +52,13 @@ public partial class KitButton : Control
 		MouseFilter = MouseFilterEnum.Stop;
 	}
 
+	/// <summary>Gerätetest Phase 26: ein Wisch in einer Liste (<see cref="KitScroll"/>) bricht das Drücken ab — beim Loslassen löst die Taste nicht aus.</summary>
+	public void CancelPress()
+	{
+		if (_finger < 0 && !_down) return;
+		_finger = -1; _down = false; QueueRedraw();
+	}
+
 	public void SetState(KitButtonState state, string? detail = null, Color? detailColor = null)
 	{
 		State = state;
@@ -110,7 +117,8 @@ public partial class KitButton : Control
 		var font = ThemeDB.FallbackFont;
 		Color fg = _state == KitButtonState.Disabled ? UiKit.Dim : UiKit.White;
 		bool left = Symbol != null || AlignLeft;
-		float tx = left ? 58f : 0f;
+		// Gerätetest Phase 27: der Platz für ein Symbol (58 px) nur, wenn es eines gibt — linksbündige Tasten ohne Symbol kürzten sonst „Befehle“ zu „Befe…“
+		float tx = Symbol != null ? 58f : left ? 14f : 0f;
 		float tw = left ? -1f : -1f;   // -1 = unbegrenzt
 		if (left)
 		{

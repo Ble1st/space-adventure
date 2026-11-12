@@ -27,6 +27,8 @@ public interface IOrderExecutor
     void Stop(Universe u, Ship ship, ShipCommand command);
     /// <summary>Anzeige des laufenden Befehls.</summary>
     string Describe(Universe u, Ship ship, ShipCommand command);
+    /// <summary>Phase 27: Kann der Spieler diesen Befehl seiner Flotte geben (Befehlsraster)? Lauern und Verfolgen vergeben nur Fraktionen und Piratengruppen.</summary>
+    bool ForPlayer => true;
 }
 
 /// <summary>Registry der Befehls-Ausführer (Registrierungsreihenfolge, doppelter Schlüssel wirft; keine statische Veränderung).</summary>
@@ -48,7 +50,7 @@ public sealed class OrderExecutors
     /// <summary>Alle Befehlstypen in Registrierungsreihenfolge (Befehlsraster der Oberfläche).</summary>
     public IReadOnlyList<IOrderExecutor> All => _list;
 
-    /// <summary>Standard: Fliegen, Halten, Handel, Schürfen, Bauen, Patrouille, Wache, Eskorte, Folgen, Heimkehr.</summary>
+    /// <summary>Standard: Fliegen, Halten, Handel, Schürfen, Bauen, Patrouille, Wache, Eskorte, Folgen, Heimkehr; Phase 27 dazu Lauern und Verfolgen (nicht für den Spieler).</summary>
     public static OrderExecutors CreateDefault()
     {
         var r = new OrderExecutors();
@@ -62,6 +64,8 @@ public sealed class OrderExecutors
         r.Register(new EscortExecutor());
         r.Register(new FollowExecutor());
         r.Register(new ReturnExecutor());
+        r.Register(new LurkExecutor());      // Phase 27: Piratengruppen
+        r.Register(new PursueExecutor());    // Phase 27: Polizei
         return r;
     }
 

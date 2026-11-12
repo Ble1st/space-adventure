@@ -3,8 +3,9 @@ namespace SpaceSim.Core.Model;
 /// <summary>Phase 24: Schadensart einer Waffe (KAMPF.md 3.4): Energie ist stark gegen Schild und schwach gegen Panzerung, kinetisch umgekehrt.</summary>
 public enum DamageType { Energy, Kinetic }
 
-/// <summary>Phase 24: Anlass eines Gefechts (KAMPF.md 4.1); Phase 25: <see cref="Assault"/> = der Spieler greift ein Schiff an (Schuss auf ein fremdes Schiff).</summary>
-public enum EncounterCause { Raid, Intercept, Assault }
+/// <summary>Phase 24: Anlass eines Gefechts (KAMPF.md 4.1); Phase 25: <see cref="Assault"/> = der Spieler greift ein Schiff an (Schuss auf ein fremdes Schiff);
+/// Phase 27: <see cref="Arrest"/> = die Polizei stellt einen gesuchten Spieler (Fahndungsstufe ≥ 3) als echtes Gefecht.</summary>
+public enum EncounterCause { Raid, Intercept, Assault, Arrest }
 
 /// <summary>Phase 24: Bewegung eines Teilnehmers in einem Takt (Abstandszahl statt Physik, KAMPF.md 4.2).</summary>
 public enum CombatMove { Approach, Hold, Flee }
@@ -52,6 +53,14 @@ public sealed class CombatParticipant
     public StationId WasDockedAt;
     /// <summary>Phase 25: Besitzer des Schiffs beim Eintritt (Kopfgeld/Fahndung auch nach der Zerstörung).</summary>
     public ActorId Owner;
+    /// <summary>
+    /// Phase 27: Zuflucht eines Fliehenden — Abstand zur nächsten erreichbaren Zuflucht beim Eintritt (Station, deren Besitzer nicht feindlich ist, oder ein offenes
+    /// Tor) auf der Gefechtslinie; jeder Fluchtschritt verkürzt ihn, bei 0 ist das Schiff entkommen (dockt an bzw. springt). <see cref="RefugeId"/>: &gt; 0 Station,
+    /// &lt; 0 Tor (−Id), 0 = keine Zuflucht. <see cref="RefugePos"/> ist der Zielpunkt im räumlichen Gefecht. Gespeichert und gehasht nur, wenn gesetzt.
+    /// </summary>
+    public float Refuge;
+    public int RefugeId;
+    public Vec2 RefugePos;
     /// <summary>Phase 25: abgeleitet = <see cref="Encounter.Spatial"/> des Gefechts (Abstand aus <see cref="Pos"/> statt <see cref="X"/>); nicht gespeichert.</summary>
     public bool InSpace;
 

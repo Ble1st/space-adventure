@@ -16,9 +16,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// (öffnet die Flotte in der Kommandozentrale), rechts die fremden Schiffe an dieser Station und der Leihdienst („rental“: mieten, zurückgeben).
 /// Zeilen nur aus <see cref="IStationService.Offers"/>, ausgeführt nur über <see cref="IStationService.Execute"/>; Meldung aus dem Ergebnis.
 /// </summary>
-public sealed partial class HangarScreen : DockAreaScreen
+public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.hangar";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _message = ""; _msgOk = true; }
 	public HangarScreen() => AreaId = DockAreas.Hangar;
 
 	/// <summary>„Befehle“: die Flotte der Kommandozentrale mit diesem Schiff öffnen (Main).</summary>
@@ -100,18 +102,18 @@ public sealed partial class HangarScreen : DockAreaScreen
 		if (foreign.Count == 0) { At(inner, Text("Keine fremden Schiffe angedockt.", 14, new Color(Dim, 0.8f)), rx, fy, rw, 20); fy += 28f; }
 
 		var rental = Svc(RentalService.ServiceKey);
-		fy = Math.Max(fy + 8f, 312f);
+		fy = Math.Max(fy + 8f, 290f);   // Gerätetest Phase 27: zwei Angebote passen in den Rahmen (vorher ragte „Zurückgeben“ darüber)
 		At(inner, Text(rental is null ? "Kein Leihdienst an dieser Station" : "Leihschiff", 17, rental is null ? new Color(Dim, 0.8f) : Cyan), rx, fy, rw, 24);
 		fy += 28f;
 		if (rental is not null)
 			foreach (var o in rental.Offers(u, st, ship).Take(3))
 			{
 				bool can = o.Amount >= 1f;
-				At(inner, Text(o.Text, 13, can ? White : Dim), rx, fy, rw, 36);
-				var b = At(inner, new KitButton(o.Key.StartsWith(RentalService.Rent + ":") ? $"Mieten {o.Price:0}" : "Zurückgeben", new Vector2(rw, 56)) { FontSize = 15, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, rx, fy + 36);
+				At(inner, Text(o.Text, 13, can ? White : Dim), rx, fy, rw, 22);
+				var b = At(inner, new KitButton(o.Key.StartsWith(RentalService.Rent + ":") ? $"Mieten {o.Price:0}" : "Zurückgeben", new Vector2(rw, 56)) { FontSize = 15, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, rx, fy + 22);
 				string key = o.Key;
 				if (can) b.Pressed += () => Execute(RentalService.ServiceKey, key);
-				fy += 100f;
+				fy += 84f;
 			}
 	}
 

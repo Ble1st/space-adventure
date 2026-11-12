@@ -64,6 +64,8 @@ public sealed class FlightHudData
 	public bool TargetHostile, AutoFireOn, HasWeapons;
 	/// <summary>Gerätetest: ein Gegner (Gefecht oder Gesetzloser) im Sektor — „Nächster Gegner“ bleibt dann auch ohne Waffe erreichbar.</summary>
 	public bool EnemyNear;
+	/// <summary>Phase 27: Der Spieler kann sich ergeben (Polizei: Strafe zahlen; Kaperer: Fracht abwerfen) — Taste „Ergeben“ sichtbar.</summary>
+	public bool CanSurrender;
 	public string HitWarning = "";
 }
 
@@ -93,8 +95,12 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
 	public event Action<PowerMode>? PowerModePressed;
 	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
-	public event Action? AutoFirePressed, NextEnemyPressed;
-	KitButton _autoFire = null!, _nextEnemy = null!;
+	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed;
+	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!;
+	/// <summary>Phase 27: Selbsttest — Taste „Ergeben“.</summary>
+	public bool TestSurrenderVisible => _surrender.Visible;
+	public Rect2 TestSurrenderRect => new(_surrender.Position, _surrender.Size);
+	public void TestPressSurrender() => SurrenderPressed?.Invoke();
 	Label _tCombat = null!, _hitWarning = null!;
 	/// <summary>Selbsttest: Zielkartenzeile Schild/Hülle, Beschusswarnung, Lage und Größe der Kampftasten.</summary>
 	public string TestTargetCombat => _tCombat.Text;
@@ -114,6 +120,21 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Selbsttest: angezeigte Schild- und Leistungswerte, aktive Stellung.</summary>
 	public string TestShieldText => _shieldVal.Text;
 	public string TestPowerText => _powerVal.Text;
+
+	/// <summary>
+	/// Gerätetest Phase 27: Bildschirmrechtecke der HUD-Elemente (Statusleiste, Tasten, Regler, Zielkarte …) — 3D-Beschriftungen (Stationsnamen), die
+	/// dahinter liegen, blendet Main aus (sie liefen hinter den Drehknöpfen durch). Nur sichtbare direkte Kinder, keine flächigen Ebenen.
+	/// </summary>
+	public List<Rect2> OccupiedRects()
+	{
+		var list = new List<Rect2>();
+		if (!Visible) return list;
+		var screen = GetViewportRect().Size;
+		foreach (var c in GetChildren())
+			if (c is Control ctl && ctl.Visible && ctl.Size.X * ctl.Size.Y < 0.3f * screen.X * screen.Y && ctl.Size.X > 4f && ctl.Size.Y > 4f)
+				list.Add(ctl.GetGlobalRect().Grow(6f));
+		return list;
+	}
 	public PowerMode TestMode => _d.PowerMode;
 	/// <summary>Selbsttest: Taste der Leistungsverteilung auslösen wie ein Fingertipp.</summary>
 	public void TestPressMode(PowerMode m) => PressMode(m);
@@ -123,6 +144,7 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>
 	public bool TestFuelVisible => _fuelRow.Visible;
 	Label _hullVal = null!;
+	Label _powerInfo = null!;
 	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!, _fire = null!;
 	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
 	// Zielkarte
@@ -178,16 +200,22 @@ public partial class FlightHud : Control, IScreen
 		AddChild(_arcs);
 
 		// ── Status oben links: Hülle, Schild, Sprit und Leistung echt (Phase 23) ──
-		var status = Win(this, 14, 12, 300, 168, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
-		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 10, 280, 148);
-		sv.AddThemeConstantOverride("separation", 7);
+		// Gerätetest Phase 27: Credits und Leistungsstellung stehen im Rahmen der Statusleiste (vorher frei über der Szene: orange auf orangem Planeten unlesbar)
+		var status = Win(this, 14, 12, 300, 200, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
+		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 8, 280, 184);
+		sv.AddThemeConstantOverride("separation", 5);
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
 		_shieldBar = BarRow(sv, "Schild", UiKit.Cyan, out _shieldVal!);
 		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal!);
 		_fuelRow = (Control)sv.GetChild(sv.GetChildCount() - 1);
 		// Leistung: Balken = Dauerlast ÷ Reaktorleistung, Wert „Last/Leistung“ (+ Bank, wenn vorhanden)
 		_powerBar = BarRow(sv, "Leistung", PowerColor, out _powerVal!);
-		_credits = At(this, Text("", 20, UiKit.Orange), 20, 188, 300, 26);
+		_powerInfo = Text("", 13, new Color(UiKit.Dim, 0.85f));
+		_powerInfo.ClipText = true; _powerInfo.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _powerInfo.CustomMinimumSize = new Vector2(1, 18);
+		sv.AddChild(_powerInfo);
+		_credits = Text("", 20, UiKit.Orange);
+		_credits.ClipText = true; _credits.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _credits.CustomMinimumSize = new Vector2(1, 26);
+		sv.AddChild(_credits);
 
 		// ── Phase 23: Leistungsverteilung unter den Credits (drei Tasten 96×56, zwischen Statusleiste und Wendetasten nichts überdeckt) ──
 		var modes = new[] { (PowerMode.Weapons, "Waffen"), (PowerMode.Shield, "Schild"), (PowerMode.Engine, "Antrieb") };
@@ -270,6 +298,10 @@ public partial class FlightHud : Control, IScreen
 		_autoFire.Pressed += () => AutoFirePressed?.Invoke();
 		_nextEnemy = At(this, new KitButton("Nächster Gegner", new Vector2(160, 56)) { FontSize = 15 }, 764, 206);
 		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
+		// Phase 27: „Ergeben“ — rechts über „Dauerfeuer“, nur wenn die Polizei oder Kaperer eine Aufgabe annehmen; Bestätigung mit zweitem Tippen (KitConfirm)
+		_surrender = At(this, new KitButton("Ergeben", new Vector2(176, 56)) { FontSize = 16, State = KitButtonState.Warn }, 906, 398);
+		_surrender.Pressed += () => SurrenderPressed?.Invoke();
+		_surrender.Visible = false;
 		_hitWarning = At(this, Text("", 22, UiKit.Red, HorizontalAlignment.Center), 420, 176, 430, 30);   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
 		// Gerätetest (breite Displays): Grundlage merken, dann an die Breite anpassen
 		foreach (var child in GetChildren())
@@ -341,11 +373,12 @@ public partial class FlightHud : Control, IScreen
 		var l = Text(name, 16, placeholder ? new Color(UiKit.Dim, 0.75f) : UiKit.Dim);
 		l.CustomMinimumSize = new Vector2(66, 0);
 		row.AddChild(l);
-		var bar = new KitBar(170, 12, fill);
+		var bar = new KitBar(140, 12, fill);
 		if (placeholder) bar.Modulate = new Color(1, 1, 1, 0.45f);
 		bar.Set(value, fill);
 		row.AddChild(bar);
 		var v = Text(placeholder ? $"{(int)value} %" : "", 14, new Color(UiKit.Dim, 0.7f));
+		v.ClipText = true; v.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; v.CustomMinimumSize = new Vector2(52, 0);
 		row.AddChild(v);
 		valueLabel = v;
 		parent.AddChild(row);
@@ -413,8 +446,10 @@ public partial class FlightHud : Control, IScreen
 		_shieldVal.Text = d.ShieldMax > 0f ? $"{(int)d.Shield}" : "–";
 		float loadPct = d.PowerOutput > 0f ? 100f * d.PowerDraw / d.PowerOutput : 100f;
 		_powerBar.Set(Math.Min(100f, loadPct), d.PowerDraw > d.PowerOutput ? UiKit.Red : PowerColor);
-		_powerVal.Text = $"{d.PowerDraw:0}/{d.PowerOutput:0}" + (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}" : "")
-			+ (d.PowerMode == PowerMode.Balanced ? "" : $" · {SpaceSim.Core.Combat.ShipSystems.ModeName(d.PowerMode)}");   // Gerätetest: Stellung sichtbar
+		_powerVal.Text = $"{d.PowerDraw:0}/{d.PowerOutput:0}";
+		// Gerätetest: Stellung sichtbar — eigene Zeile, damit nichts über den Rahmen ragt
+		_powerInfo.Text = "Stellung " + (d.PowerMode == PowerMode.Balanced ? "ausgeglichen" : SpaceSim.Core.Combat.ShipSystems.ModeName(d.PowerMode))
+			+ (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}/{(int)d.ChargeMax}" : "");
 		foreach (var (mode, b) in _modeButtons) b.On = d.PowerMode == mode;
 		// Phase 26: negative Kasse = Schulden (z. B. laufende Leihmiete)
 		_credits.Text = d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits";
@@ -478,6 +513,7 @@ public partial class FlightHud : Control, IScreen
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
 		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
+		_surrender.Visible = d.CanSurrender;
 		_tCombat.Text = d.TargetCombat;
 		_tCombat.Visible = d.TargetCombat.Length > 0;
 		if (d.TargetCombat.Length > 0) _tName.AddThemeColorOverride("font_color", d.TargetHostile ? UiKit.Red : UiKit.Orange);

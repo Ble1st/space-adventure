@@ -32,13 +32,17 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestMaintenance { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Rentabilität (Phase 22; leer, solange nicht gemessen).</summary>
 	public string TestProfit { get; private set; } = "";
+	/// <summary>Selbsttest Phase 27: Dienst-Chips (deutsche Namen, Komma-getrennt).</summary>
+	public string TestChips { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
 		var u = Ctx.U; var st = Ctx.Station;
 		float w = inner.Size.X > 0 ? inner.Size.X : 1020f;
 		float h = inner.Size.Y > 0 ? inner.Size.Y : 520f;
-		float cw = (w - 20) / 3f;
+		// Gerätetest Phase 27: Spalten mit festen Breiten; jede Zeile kürzt mit „…“ statt in die Nachbarspalte zu laufen
+		float cw = (w - 20) * 0.32f, mw = (w - 20) * 0.37f;
+		_rowW = cw - 32f;
 
 		// ── Karte 1: Allgemein (alles echt) ──
 		var c1 = CardPanel(inner, 0, 0, cw, h);
@@ -75,21 +79,22 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		var services = Ctx.Services.ForStation(u, st);
 		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));
 		// Gerätetest: Dienste-Chips umbrechen (liefen in die Marktspalte)
-		var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(cw - 48f, 0) };
+		var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(cw - 32f, 0) };
 		chips.AddThemeConstantOverride("h_separation", 6);
 		chips.AddThemeConstantOverride("v_separation", 6);
+		TestChips = string.Join(",", services.Select(sv => DockAreas.ServiceName(sv.Key, u)));
 		foreach (var s in services)
-			chips.AddChild(Chip(s.Key switch { "repair" => "Reparatur", "refuel" => "Tanken", _ => DockAreas.LabelFor(s.Key, u) }));   // Dienst, nicht Dockbereich
+			chips.AddChild(Chip(DockAreas.ServiceName(s.Key, u)));   // Dienst, nicht Dockbereich — immer der deutsche Name
 		v1.AddChild(chips);
 
 		// ── Karte 2: Marktübersicht (Nachfrage/Überschuss echt aus Bestand gegen Ziel) ──
-		var c2 = CardPanel(inner, cw + 10, 0, cw, h);
+		var c2 = CardPanel(inner, cw + 10, 0, mw, h);
 		var v2 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		v2.AddThemeConstantOverride("separation", 4);
 		c2.AddChild(v2);
 		v2.AddChild(Text(st.IsBuildSite ? "Material (geliefert/verlangt)" : "Marktübersicht", 22, Cyan));
-		var scroll = new ScrollContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var scroll = new KitScroll { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, CustomMinimumSize = new Vector2(mw - 32f, 0) };
+		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(mw - 44f, 0) };
 		list.AddThemeConstantOverride("separation", 4);
 		scroll.AddChild(list);
 		v2.AddChild(scroll);
@@ -100,30 +105,32 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 			Color col = good != null ? Color.FromHtml(good.Color) : new Color(1f, 0.75f, 0.3f);
 			var (word, wcol) = MarketInfo.Classify(e) switch
 			{
-				MarketPressure.Scarce => ("Nachfrage", Orange),
+				MarketPressure.Scarce => ("knapp", Orange),
 				MarketPressure.Glut => ("Überschuss", Green),
-				_ => ("ausgeglichen", Dim),
+				_ => ("ok", Dim),
 			};
 			var r = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 			r.AddThemeConstantOverride("separation", 8);
 			var chip = new ColorRect { Color = col, CustomMinimumSize = new Vector2(14, 14), Size = new Vector2(14, 14), MouseFilter = MouseFilterEnum.Ignore };
 			r.AddChild(chip);
-			r.AddChild(Text(name, 16, White));
-			var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
-			r.AddChild(spacer);
-			r.AddChild(Text($"{e.Amount:0}/{e.Target:0} · {word} · {e.Price:0.0} Cr", 14, wcol));
+			r.AddChild(Clip(Text(name, 15, White)));
+			var right = Clip(Text($"{e.Amount:0}/{e.Target:0} · {word} · {e.Price:0}", 12, wcol, HorizontalAlignment.Right));
+			right.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+			right.CustomMinimumSize = new Vector2(Math.Min(150f, (mw - 70f) * 0.48f), 0);
+			r.AddChild(right);
 			list.AddChild(r);
 		}
 
 		// ── Karte 3: Politik und Hinweise (Phase 10 echt aus AccessInfo: Ruf = Beziehung des Besitzers zu dir, Zoll und Sperrstufe des Sektors) ──
-		var c3 = CardPanel(inner, 2 * (cw + 10), 0, w - 2 * (cw + 10) - 10, h);
+		float pw = w - (cw + 10) - (mw + 10);
+		var c3 = CardPanel(inner, cw + mw + 20, 0, pw, h);
 		var v3 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		v3.AddThemeConstantOverride("separation", 8);
 		c3.AddChild(v3);
 		v3.AddChild(Text("Politik & Hinweise", 22, Cyan));
 		var pol = AccessInfo.ForStation(u, st, Ctx.Ship);
 		TestLock = pol.Lock; TestCustoms = pol.Customs;
-		float tw = w - 2 * (cw + 10) - 38;
+		float tw = pw - 32;
 		Wrapped(v3, "Ruf bei dir: " + pol.Reputation, tw, 15, White);
 		Wrapped(v3, "Zoll: " + pol.Customs, tw, 15, pol.Customs == "kein Zoll" ? Green : pol.Customs.StartsWith("gesperrt") ? Red : Orange);
 		Wrapped(v3, "Sperrstufe: " + pol.Lock, tw, 15, pol.Lock == "Offen" ? Green : Orange);
@@ -161,13 +168,27 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		return p;
 	}
 
-	static void Row(Control parent, string name, string value)
+	float _rowW = 300f;
+
+	/// <summary>Gerätetest Phase 27: Label kürzt mit „…“ und bestimmt nicht die Breite seines Containers.</summary>
+	static Label Clip(Label l)
 	{
-		var r = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		l.ClipText = true;
+		l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		l.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		l.CustomMinimumSize = new Vector2(1, 0);
+		return l;
+	}
+
+	void Row(Control parent, string name, string value)
+	{
+		var r = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(_rowW, 0), Size = new Vector2(_rowW, 0) };
 		r.AddThemeConstantOverride("separation", 8);
-		var l = Text(name, 15, Dim); l.CustomMinimumSize = new Vector2(150, 0);
+		var l = Clip(Text(name, 14, Dim)); l.SizeFlagsHorizontal = Control.SizeFlags.Fill; l.CustomMinimumSize = new Vector2(Math.Min(118f, _rowW * 0.38f), 0);
 		r.AddChild(l);
-		r.AddChild(Text(value, 16, White));
+		var v = Clip(Text(value, 15, White));
+		v.TooltipText = value;
+		r.AddChild(v);
 		parent.AddChild(r);
 	}
 

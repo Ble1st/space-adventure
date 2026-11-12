@@ -19,9 +19,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Einbau gerade nicht geht. Die Ergebnismeldung kommt aus <see cref="ServiceResult.Message"/>. Phase 7: Abschnitt „Verbessern“ aus dem
 /// Dienst „upgrade“ (Modul des Slots, Slot vergrößern, Bonusslot dieser Slotart) mit Chance, Material, Preis und Mitleidszähler.
 /// </summary>
-public sealed partial class OutfitterScreen : DockAreaScreen
+public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.outfitter";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _message = ""; _msgOk = true; _slot = -1; _scrollV = 0; }
 	public OutfitterScreen() => AreaId = DockAreas.Outfitter;
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
@@ -76,7 +78,12 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 
 		// ── links: Slots ──
 		At(inner, Text($"Slots · {(u.ShipModels.TryGetValue(ship.ModelKey, out var m) ? m.Name : ship.ModelKey)} · {ShipQualityNames.Name(ship.Quality)}", 17, Cyan), 0, 40, 330, 24);
-		float y = 68f;
+		// Gerätetest Phase 27: Slotliste rollt (KitScroll), die Leistungsbilanz steht fest unten im Rahmen — nichts ragt mehr unter den Rahmen
+		float py = 520f - 4f - 88f;
+		var slotScroll = At(inner, new KitScroll(), 0, 68, 336, py - 72);
+		var slotBox = new VBoxContainer();
+		slotBox.AddThemeConstantOverride("separation", 4);
+		slotScroll.AddChild(slotBox);
 		for (int i = 0; i < ship.Slots.Count; i++)
 		{
 			var slot = ship.Slots[i];
@@ -90,18 +97,17 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 				mod += $" · {ship.ConditionOf(i) * 100f:0} %" + (SpaceSim.Core.Combat.ModuleDamage.Failed(u, ship, i) ? " ausgefallen" : "") + (ship.Systems.IsBurning(i) ? " · BRENNT" : "");
 				_damaged++;
 			}
-			var b = At(inner, new KitButton($"{i + 1} · {type} {slot.Size}{(required ? " (Pflicht)" : "")}{(bonus ? " · Bonus" : "")}", new Vector2(330, 56))
-			{ AlignLeft = true, FontSize = 15, Sub = mod, State = i == _slot ? KitButtonState.On : KitButtonState.Normal }, 0, y);
+			var b = new KitButton($"{i + 1} · {type} {slot.Size}{(required ? " (Pflicht)" : "")}{(bonus ? " · Bonus" : "")}", new Vector2(324, 56))
+			{ AlignLeft = true, FontSize = 15, Sub = mod, State = i == _slot ? KitButtonState.On : KitButtonState.Normal };
+			slotBox.AddChild(b);
 			int idx = i;
 			b.Pressed += () => { _slot = idx; _message = ""; Invalidate(); };
-			y += 60f;
 		}
 
 		// ── links unten: Leistungsbilanz (echt aus ShipStats) ──
 		var s = ship.Stats;
-		float py = Math.Max(y + 6f, 440f);
-		At(inner, Text($"Leistung {s.PowerDraw:0.#} / {s.PowerOutput:0.#}", 14, Dim), 0, py, 200, 20);
-		var bar = At(inner, new KitBar(120, 12, Green), 205, py + 4);
+		At(inner, Text($"Leistung {s.PowerDraw:0.#} / {s.PowerOutput:0.#}", 14, Dim), 0, py, 140, 20);
+		var bar = At(inner, new KitBar(170, 10, Green), 150, py + 5, 170, 10);
 		bar.Set(s.PowerDraw, s.PowerDraw > s.PowerOutput ? Red : Green, Math.Max(1f, s.PowerOutput));
 		// Phase 23: Bank und Schild als Laufzeitwerte (aktuell/Kapazität), Magazin
 		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Bank {ship.Charge:0}/{s.PowerStorage:0} · Schild {ship.ShieldNow:0}/{s.Shield:0}{(s.AmmoCapacity > 0f ? $" · Magazin {SpaceSim.Core.Combat.ShipSystems.Ammo(Ctx.U, ship):0}/{s.AmmoCapacity:0}" : "")}", 14, Dim), 0, py + 24, 340, 20);
@@ -116,7 +122,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		string curType = u.SlotTypes.TryGetValue(cur.Type, out var ct) ? ct.Name : cur.Type;
 		At(inner, Text($"Slot {_slot + 1}: {curType} ({cur.Size})", 17, Cyan), rx, 40, rw, 24);
 		var slotOffers = offers.Where(o => OfferSlot(o.Key) == _slot).ToList();
-		_scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, rx, 68, rw, 520 - 68 - 4);
+		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, rx, 68, rw, 520 - 68 - 4);
 		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);

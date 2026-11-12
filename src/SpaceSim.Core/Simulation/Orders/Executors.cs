@@ -381,6 +381,7 @@ public sealed class ReturnExecutor : IOrderExecutor
     /// <summary>Versorgung an der Station: volltanken (Marktpreis, Kasse des Besitzers) und — wenn sie Reparatur anbietet — Hülle reparieren.</summary>
     public static void Service(Universe u, Ship ship, Station st)
     {
+        if (UnitSupport.Serve(u, ship, st)) return;   // Phase 27: Polizei/Piraten an ihrer Basis aus der Kasse des Besitzers
         if (Refuel.ActiveFuel(ship) is { } fuel && st.Market.TryGetValue(fuel, out var e) && e.Amount > 0f && e.Price > 0f && ship.FuelSpace > 0.5f)
             Refuel.BuyFuel(u, ship, st, fuel, ship.FuelSpace);
         // Phase 26: Hülle und Module (repair:all), sobald etwas beschädigt ist

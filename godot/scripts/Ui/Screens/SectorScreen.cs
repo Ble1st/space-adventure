@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using Godot;
@@ -15,9 +16,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Station/Gate wählt sie und zeigt ihre Info rechts; Knöpfe „Autopilot hierhin“ (echt: nur im aktuellen
 /// Sektor bzw. über Route – setzt das Autopilot-Ziel in Main) und „Info“.
 /// </summary>
-public sealed partial class SectorScreen : CommandScreen
+public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.sector";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { SelectedSector = null; _selStation = null; _selGate = null; _showInfo = false; }
 
 	/// <summary>Angezeigter Sektor (null = Spielersektor); setzt der Aufrufer vor dem Öffnen.</summary>
 	public SectorId? SelectedSector { get; set; }
@@ -137,6 +140,12 @@ public sealed partial class SectorScreen : CommandScreen
 			var fights = SpaceSim.Core.Combat.CombatInfo.InSector(u, sel);
 			TestCombat = fights.Count == 0 ? "" : $"Gefecht: {fights[0].Title} · {fights[0].Detail}" + (fights.Count > 1 ? $" (+{fights.Count - 1})" : "");
 			if (TestCombat.Length > 0) py = WrappedText(card, TestCombat, 16, py + 2, 268, 13, Red, 16);
+			// Phase 27: Verbände, Geleit, Verfolgung im Sektor (echt)
+			var links = SpaceSim.Core.Combat.FleetInfo.Links(u, sel);
+			int squads = links.Where(l => l.Kind is "squadron" or "pack").Select(l => l.To).Distinct().Count();
+			int escorts = links.Count(l => l.Kind == "escort"), chases = links.Count(l => l.Kind == "pursuit");
+			TestFleet = squads + escorts + chases == 0 ? "" : $"Flotten: {squads} Verb{(squads == 1 ? "and" : "ände")} · {escorts} Geleit · {chases} Verfolgung";
+			if (TestFleet.Length > 0) py = WrappedText(card, TestFleet, 16, py + 2, 268, 13, Cyan, 16);
 			At(card, Text("Tippe eine Station oder ein Gate an.", 13, new Color(Dim, 0.75f)), 16, py + 8, 268, 18);
 		}
 
@@ -321,6 +330,17 @@ public sealed partial class SectorScreen : CommandScreen
 
 			// NPC-Schiffe (echt über Materializer)
 			var snap = Materializer.Snapshot(_u, s.Id, _owner.Ctx.FractionalTick());
+			// Phase 27: Verbände, Geleit und Verfolgung als Linien zwischen den Schiffen (echt aus FleetInfo: Befehle und Verbände des Core)
+			var posOf = new Dictionary<ShipId, Vector2>();
+			foreach (var sh in snap) posOf[sh.Id] = Place(sh.Position);
+			TestFleetLinks = 0;
+			foreach (var link in SpaceSim.Core.Combat.FleetInfo.Links(_u, s.Id))
+			{
+				if (!posOf.TryGetValue(link.From, out var a) || !posOf.TryGetValue(link.To, out var b)) continue;
+				Color lcol = link.Kind switch { "escort" => Green, "pursuit" => Orange, "pack" => new Color(Red, 0.8f), _ => new Color(0.35f, 0.55f, 1f, 0.9f) };
+				if (link.Kind == "pursuit") DrawDashedLine(a, b, lcol, 2f, 6f); else DrawLine(a, b, lcol, 2f);
+				TestFleetLinks++;
+			}
 			foreach (var sh in snap)
 			{
 				var p = Place(sh.Position);
@@ -358,8 +378,9 @@ public sealed partial class SectorScreen : CommandScreen
 			foreach (var l in labels.OrderBy(l => l.Prio)) layout.Draw(this, l.At, l.Text, l.Size, l.Col, l.Gap);
 			// Legende zweizeilig, gekürzt auf die Breite (lief auf dem Handy über den Rand)
 			float lw = Size.X - 24f;
-			DrawString(font, new Vector2(12, Size.Y - 26), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
-			DrawString(font, new Vector2(12, Size.Y - 8), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "▲ Schiff: orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font, new Vector2(12, Size.Y - 44), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font, new Vector2(12, Size.Y - 26), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "▲ orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font, new Vector2(12, Size.Y - 8), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "Linie: blau Verband, grün Geleit, orange gestrichelt Verfolgung", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 		}
 
 		void DrawShip(Vector2 c, float s, Color col)
@@ -376,6 +397,10 @@ public sealed partial class SectorScreen : CommandScreen
 
 	/// <summary>Selbsttest: Planet in der zuletzt gezeichneten Sektor-Detailkarte (Phase 14; leer ohne Planet).</summary>
 	public string TestPlanet { get; private set; } = "";
+	/// <summary>Phase 27: Flottenzeile der Sektorkarte (Verbände/Geleit/Verfolgung; leer = keine) und Zahl der gezeichneten Verbindungslinien.</summary>
+	public string TestFleet { get; private set; } = "";
+	public static int TestFleetLinks { get; private set; }
+
 	/// <summary>Phase 24: Gefechtszeile der Sektorkarte (leer = kein Gefecht).</summary>
 	public string TestCombat { get; private set; } = "";
 	/// <summary>Phase 26: gezeichnete Wracks/Behälter (aufsummiert über die Zeichendurchläufe; Selbsttest prüft &gt; 0).</summary>

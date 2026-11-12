@@ -101,7 +101,7 @@ public partial class Main : Node3D
 		_player = new PlayerShip(); AddChild(_player);
 		_fx = new Fx(); AddChild(_fx);
 		_sfx = new Sfx(); AddChild(_sfx);
-		_cam = new Camera3D { Fov = 50f, Far = 1000f }; AddChild(_cam);
+		_cam = new Camera3D { Fov = 50f, Far = 4000f }; AddChild(_cam);
 		_hud = new Hud(); AddChild(_hud);
 
 		_hud.TargetScreenPosition = ScreenPositionOfTarget;
@@ -118,12 +118,13 @@ public partial class Main : Node3D
 		// Phase 25: Dauerfeuer und „Nächster Gegner“
 		_hud.Flight.AutoFirePressed += () => { _fight.AutoFire = !_fight.AutoFire; _sfx.Play(SfxId.Click); _hud.Toast(_fight.AutoFire ? "Dauerfeuer an" : "Dauerfeuer aus"); };
 		_hud.Flight.NextEnemyPressed += SelectNextEnemy;
+		_hud.Flight.SurrenderPressed += Surrender;
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
 		_hud.Flight.PowerModePressed += m =>
 		{
 			_sfx.Play(SfxId.Click);
 			SpaceSim.Core.Combat.ShipSystems.SetMode(_session.U, PlayerData, m);
-			_hud.Toast(SpaceSim.Core.Combat.ShipSystems.ModeEffect(PlayerData.PowerMode));   // Gerätetest: spürbare Rückmeldung
+			_hud.Toast(SpaceSim.Core.Combat.ShipSystems.ModeEffect(PlayerData.PowerMode, PlayerData.Stats.PowerStorage > 0f));   // Gerätetest: spürbare Rückmeldung
 		};
 		_hud.Command.Action += OnCommandAction;
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
@@ -274,6 +275,7 @@ public partial class Main : Node3D
 		_hud.Flight.SetAutopilot(false);
 		_hud.Flight.SetSlider(0f);
 		_hud.Screens.Hide();
+		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();   // Gerätetest Phase 27: kein Zustand der alten Sitzung
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset();
 		_transition = false; _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
@@ -286,6 +288,35 @@ public partial class Main : Node3D
 		SnapCam();
 		_reenter = false;
 		if (u.Stations.ContainsKey(p.DockedAt)) EnterActiveShip();   // Phase 12: gespeichert angedockt (oder in ein angedocktes Schiff gewechselt) → Andock-Menü
+	}
+
+	/// <summary>Gerätetest Phase 27: Hindernisse des Sektors plus die Tore (beim Abdocken nicht geradewegs in ein Tor fliegen).</summary>
+	List<Obstacle> ObstaclesWithGates(SectorId sector)
+	{
+		var list = new List<Obstacle>(_view.Obstacles);
+		foreach (var g in _session.U.Gates.Values) if (g.Sector == sector) list.Add(new Obstacle(g.Position, GateRadius + 4f));
+		return list;
+	}
+
+	float _labelCheck;
+	/// <summary>
+	/// Gerätetest Phase 27: 3D-Beschriftungen, die hinter einem HUD-Element liegen (Drehknöpfe, Regler, Statusleiste), werden fast durchsichtig — sie liefen
+	/// sonst unter den Tasten durch und waren unlesbar. Fünfmal je Sekunde geprüft.
+	/// </summary>
+	void HideCoveredLabels(float delta)
+	{
+		_labelCheck -= delta;
+		if (_labelCheck > 0f) return;
+		_labelCheck = 0.2f;
+		var rects = _hud.Flight.OccupiedRects();
+		foreach (var l in _view.Labels())
+		{
+			if (!l.IsInsideTree()) continue;
+			var p = l.GlobalPosition;
+			bool covered = !_cam.IsPositionBehind(p) && rects.Any(r => r.HasPoint(_cam.UnprojectPosition(p)));
+			l.Modulate = new Color(1f, 1f, 1f, covered ? 0.12f : 1f);
+			l.OutlineModulate = new Color(0f, 0f, 0f, covered ? 0.12f : 1f);
+		}
 	}
 
 	/// <summary>Setzt die Kamera hart auf Schiff + aktuellen Orbit-Offset und richtet sie auf das Schiff aus (Neustart, Sprung, Teleport).</summary>
@@ -433,7 +464,13 @@ public partial class Main : Node3D
 	{
 		SyncPlayerData();
 		bool ok = SaveService.Save(_session.U, out var error);
-		if (manual) _hud.Toast(ok ? "Gespeichert" : "Speichern fehlgeschlagen: " + error, ok ? 2f : 4f);
+		if (manual)
+		{
+			_hud.Toast(ok ? "Gespeichert" : "Speichern fehlgeschlagen: " + error, ok ? 2f : 4f);
+			// Gerätetest Phase 27: Rückmeldung auch im System-Bereich der Kommandozentrale (der Toast liegt darunter)
+			if (_hud.Screens.TryGet("cc.system", out var sys) && sys is Ui.Screens.SystemScreen ss)
+				ss.ShowMessage(ok ? $"Gespeichert ({DateTime.Now:HH:mm:ss})" : "Speichern fehlgeschlagen: " + error, ok);
+		}
 		else if (!ok) GD.PushWarning("Autosave fehlgeschlagen: " + error);
 	}
 
@@ -507,6 +544,8 @@ public partial class Main : Node3D
 	internal string? LastDepartureMessage { get; private set; }
 	/// <summary>Phase 24: letzter Gefechtshinweis im Spielersektor (Selbsttest).</summary>
 	internal string? LastCombatMessage { get; private set; }
+	/// <summary>Phase 27: letzte Meldung des Flottenkampfs (Verstärkung, Zuflucht, Verfolgung, Geleit) — Selbsttest.</summary>
+	internal string? LastFleetMessage { get; private set; }
 	/// <summary>Phase 25: letzte Verlustmeldung des aktiven Schiffs (Selbsttest).</summary>
 	internal string? LastLossMessage { get; private set; }
 	int _dropSeq;
@@ -543,6 +582,8 @@ public partial class Main : Node3D
 				_combat.Shot(sf.Shooter, sf.Target, sf.Type, sf.Hit, Time.GetTicksMsec() / 1000.0, sf.Shooter.Value * 37 + _combat.ShotsSeen * 53);
 				if (sf.Hit && _view.ShipPosition(sf.Target) is { } hp) _fx.Burst(hp, sf.Type == DamageType.Energy ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.85f, 0.4f), 4, 5f, 0.3f);
 				break;
+			case EncounterStarted arrest when arrest.Cause == EncounterCause.Arrest:
+				LastCombatMessage = arrest.Message; Danger("Polizei greift an", arrest.Message, 8f); break;
 			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
 				LastCombatMessage = es.Cause == EncounterCause.Assault ? es.Message
 					: SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default);
@@ -573,6 +614,11 @@ public partial class Main : Node3D
 			case RaiderIntercepted ri when ri.Sector == _session.U.PlayerSector:
 				_hud.Toast(ri.PoliceWon ? (ri.RaiderDestroyed ? "Polizei hat ein Kaperschiff zerstört" : "Polizei vertreibt ein Kaperschiff") : "Ein Kaperschiff entkommt der Polizei", 3.5f); break;
 			case PlayerIntercepted pi: _hud.Toast(pi.Message, 6f); LastSecurityMessage = pi.Message; break;
+			// Phase 27: Flottenkampf — Ergeben, Polizeigefecht, Verstärkung, Zuflucht, Verfolgung, Geleit im Spielersektor
+			case PlayerSurrendered ps: _hud.Alert(ps.Message, 6f); LastSecurityMessage = ps.Message; break;
+			case EncounterEnded ae when ae.Cause == EncounterCause.Arrest: _hud.Alert(ae.Message, 6f); LastCombatMessage = ae.Message; break;
+			case CombatJoined or RefugeReached or PursuitStarted or EscortAssigned or ForceSquadron when SpaceSim.Core.Combat.FleetInfo.Toast(_session.U, e) is { } ft:
+				_hud.Toast(ft, 3.5f); LastFleetMessage = ft; break;
 			case CrimeReported cr when cr.Actor == _session.U.PlayerActor:
 				_hud.Toast($"Fahndung bei {(_session.U.Factions.TryGetValue(cr.Faction, out var cf) ? cf.Name : "?")}: {SecurityNames.WantedLevel(cr.Level)} ({SecurityNames.Crime(cr.Crime)})", 4.5f); break;
 		}
@@ -625,6 +671,7 @@ public partial class Main : Node3D
 		if (!frozen && !_reenter && _fight.AutoFire) FireCombatBays(quiet: true);   // Phase 25: Dauerfeuer
 
 		_view.Animate(delta);
+		HideCoveredLabels(delta);
 		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta);   // angedockt: niemand weicht dem unsichtbaren Schiff aus
 		// Kamera: Ist-Offset folgt weich dem Orbit-Soll-Offset, Kamera sitzt auf Schiff + Offset und blickt auf das Schiff
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt)
@@ -753,11 +800,14 @@ public partial class Main : Node3D
 		u.PlayerSector = far.Sector;
 		_view.Rebuild(u);
 		_mining.ResetNpc(); _combat.Reset(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
-		_player.GiveGrace(1.5f);
+		_player.GiveGrace(2.5f);
 
 		var gpos = new Vector3(far.Position.X, 0, far.Position.Y);
-		var dir = (-gpos).Normalized();
-		_player.Position = gpos + dir * 22f;
+		var inward = (-gpos).Normalized();
+		// Gerätetest Phase 27: Austritt in eine freie Richtung (zur Sektormitte, sonst gedreht) — mit Vollschub prallte das Schiff nach der Schonfrist auf Felsen
+		var free = SpaceSim.Core.Flight.UndockPath.Heading(_view.Obstacles, far.Position - new Vec2(inward.X, inward.Z), far.Position);
+		var dir = new Vector3(free.X, 0, free.Y);
+		_player.Position = new Vector3(far.Position.X, 0, far.Position.Y) + dir * 22f;
 		_player.Heading = Mathf.Atan2(-dir.X, -dir.Z);
 		_player.Velocity = dir * 12f;
 		_jumpCooldown = 2f;
@@ -971,7 +1021,9 @@ public partial class Main : Node3D
 		_player.Position = new Vector3(st.Position.X, 0, st.Position.Y);
 		_player.Scale = Vector3.One * 0.1f;
 		_player.Visible = true;
-		var outward = new Vector3(spot.X - st.Position.X, 0, spot.Y - st.Position.Y).Normalized();
+		// Gerätetest Phase 27: Abflug in eine freie Richtung (radial, sonst gedreht) — vorher prallte Vollschub nach der Schonfrist auf Felsen/Nachbarstation
+		var dir = SpaceSim.Core.Flight.UndockPath.Heading(ObstaclesWithGates(st.Sector), st.Position, spot);
+		var outward = new Vector3(dir.X, 0, dir.Y);
 		_player.Heading = Mathf.Atan2(-outward.X, -outward.Z);
 
 		var tw = CreateTween();
@@ -1268,6 +1320,7 @@ public partial class Main : Node3D
 		d.AutoFireOn = _fight.AutoFire;
 		d.HasWeapons = _bays.Any(b => SpaceSim.Core.Combat.PlayerGunnery.SlotOf(b.Key) >= 0);
 		d.EnemyNear = SpaceSim.Core.Combat.PlayerCombat.NextEnemy(_session.U, PlayerData, default).Value != 0;
+		d.CanSurrender = _docked is null && SpaceSim.Core.Combat.PlayerSurrender.Issue(_session.U) is null;   // Phase 27
 		d.HitWarning = _fight.Warning(u, pos, headingDeg, Time.GetTicksMsec() / 1000.0);
 		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var ts) && SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } tsp)
 		{
@@ -1557,6 +1610,20 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Phase 25: Taste „Nächster Gegner“ (Gefechtsgegner, dann Kaperschiffe im Sektor, nach Abstand, zyklisch).</summary>
+	/// <summary>Phase 27: „Ergeben“ — Polizei: Strafe zahlen und Schmuggelware abgeben; Kaperer: Fracht abwerfen, sie drehen ab (Core: PlayerSurrender).</summary>
+	void Surrender()
+	{
+		var res = SpaceSim.Core.Combat.PlayerSurrender.Surrender(_session.U);
+		if (res is null) { _hud.Toast(SpaceSim.Core.Combat.PlayerSurrender.Issue(_session.U) ?? "Ergeben nicht möglich", 3f); return; }
+		_sfx.Play(SfxId.Click);
+		LastSecurityMessage = res.Message;
+	}
+
+	/// <summary>Phase 27: Selbsttest — „Ergeben“ drücken.</summary>
+	internal void TestSurrender() => Surrender();
+	/// <summary>Phase 27: Selbsttest — HUD-Daten sofort neu setzen (sonst erst im nächsten Frame).</summary>
+	internal void SyncHudForTest() => UpdateHud();
+
 	void SelectNextEnemy()
 	{
 		SyncPlayerData();

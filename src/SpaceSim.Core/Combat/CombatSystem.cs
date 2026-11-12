@@ -42,6 +42,8 @@ public sealed class CombatSystem : ISimSystem
                 Engage.Leave(u, e, p, CombatExit.Fled);
         CombatSpace.Sync(u, e);
         if (Ended(e)) { Finish(u, e, Outcome(e)); return; }
+        // Phase 27: Verstärkung (Eskorten, Wachen, Verband, Rudel), die inzwischen im Sektor ist
+        if (r.FleetCombat && r.ReinforceTicks > 0 && (u.Tick - e.StartTick) % r.ReinforceTicks == 0) Reinforcements.Step(u, e);
 
         // 1) Entscheidungen (alle auf demselben Stand; das aktive Spielerschiff entscheidet selbst — Phase 25)
         _decisions.Clear();
@@ -82,6 +84,7 @@ public sealed class CombatSystem : ISimSystem
                 if (!p.Active) continue;
                 p.X += _moves[i];
                 p.Speed = seconds > 0f ? MathF.Abs(_moves[i]) / seconds : 0f;
+                if (p.RefugeId != 0 && p.Move == CombatMove.Flee) p.Refuge -= MathF.Abs(_moves[i]);   // Phase 27: der Fluchtweg führt zur Zuflucht
             }
         }
 
@@ -93,9 +96,10 @@ public sealed class CombatSystem : ISimSystem
             Fire(u, e, p, ship, _decisions[i].Fire, seconds);
         }
 
-        // 5) Flucht gelingt, wenn kein Gegner mehr reicht
+        // 5) Flucht gelingt, wenn kein Gegner mehr reicht — Phase 27: oder die Zuflucht (Station, Tor) erreicht ist
         foreach (var p in e.Participants)
         {
+            if (p.Active && CombatRefuge.Reached(u, p) && u.Ships.TryGetValue(p.Ship, out var refugee) && CombatRefuge.Escape(u, e, p, refugee)) continue;
             // Phase 25: das aktive Spielerschiff entkommt, sobald es außer Reichweite aller Gegner ist (es „flieht“ durch seine Steuerung)
             if (!p.Active || (p.Move != CombatMove.Flee && p.Ship != u.PlayerShip)) continue;
             bool clear = true;
@@ -126,10 +130,16 @@ public sealed class CombatSystem : ISimSystem
             var p = e.Participants[i];
             if (!p.Active || !u.Ships.TryGetValue(p.Ship, out var ship) || ship.Id == u.PlayerShip) { _steps.Add(default); continue; }
             var d = _decisions[i];
+            float speed = Travel.SpeedOf(ship) * ShipSystems.SpeedFactor(u, ship);
+            // Phase 27: ein Fliehender mit Zuflucht fliegt zu ihr (Station, Tor) statt nur geradeaus weg
+            if (d.Move == CombatMove.Flee && p.RefugeId != 0)
+            {
+                _steps.Add(CombatAutopilot.Step(new CombatPilotInput(p.Pos, p.Dir, speed, p.RefugePos, CombatMove.Approach, 0f, 0f, 1f), seconds, u.Rules));
+                continue;
+            }
             var target = d.Target.Value != 0 ? e.Of(d.Target) : null;
             var reference = target is { Active: true } ? target : CombatSense.Nearest(u, e, p);
             if (reference is null) { _steps.Add(new CombatPilotStep(p.Pos, p.Dir, 0f)); continue; }
-            float speed = Travel.SpeedOf(ship) * ShipSystems.SpeedFactor(u, ship);
             var input = new CombatPilotInput(p.Pos, p.Dir, speed, reference.Pos, d.Move, d.Distance, CombatSense.MaxRange(u, ship), (i % 2 == 0) ? 1f : -1f);
             _steps.Add(CombatAutopilot.Step(input, seconds, u.Rules));
         }
@@ -148,6 +158,7 @@ public sealed class CombatSystem : ISimSystem
             }
             var st = _steps[i];
             p.Pos = st.Pos; p.Dir = st.Dir; p.Speed = st.Speed;
+            if (p.RefugeId != 0) p.Refuge = Vec2.Distance(p.Pos, p.RefugePos);   // Phase 27: bleibt beim Übergang Raum → Linie stimmig
             ship.Position = st.Pos;   // die Simulation schreibt die echte Position fort (das Schiff liegt, Sektor unverändert)
         }
     }
@@ -232,7 +243,7 @@ public sealed class CombatSystem : ISimSystem
     /// Aufgabe: Der Teilnehmer wirft seinen Abwurfanteil jeder Ware ab; der Kaperer der Gegenseite nimmt die Beute (Hehlerei in die Piratenkasse wie bisher,
     /// gedeckelt) und bricht ab. false = kein Kaperer da oder nichts abzuwerfen.
     /// </summary>
-    static bool Surrender(Universe u, Encounter e, CombatParticipant p)
+    internal static bool Surrender(Universe u, Encounter e, CombatParticipant p)
     {
         var r = u.Rules;
         CombatParticipant? taker = null;
@@ -337,6 +348,17 @@ public sealed class CombatSystem : ISimSystem
                 : destroyed > 0 ? "Ziel zerstört." + (bounty > 0f ? $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen." : killed > 0 ? " Die Fahndung steigt." : "")
                 : fled > 0 ? "Das Ziel ist entkommen." : "Das Gefecht ist vorbei.";
         }
+        else if (e.Cause == EncounterCause.Arrest)
+        {
+            // Phase 27: Polizeigefecht gegen einen gesuchten Spieler — jede zerstörte Streife ist ein weiterer Angriff (Fahndung)
+            int killed = 0;
+            foreach (var p in e.Participants)
+                if (p.Exit == CombatExit.Destroyed && p.Side == 0 && sector is not null) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
+            msg = victimP?.Exit == CombatExit.Destroyed ? "Die Polizei hat dein Schiff zerstört."
+                : victimP?.Exit == CombatExit.Surrendered ? "Du hast dich der Polizei ergeben."
+                : victimP?.Exit == CombatExit.Fled ? "Du bist der Polizei entkommen — die Fahndung bleibt."
+                : killed > 0 ? "Die Streife ist zerstört — die Fahndung steigt." : "Die Polizei bricht ab.";
+        }
         else
         {
             bool policeWon = raiderP is { Exit: CombatExit.Destroyed or CombatExit.Fled };
@@ -348,6 +370,7 @@ public sealed class CombatSystem : ISimSystem
         u.Events.Publish(new EncounterEnded(e.Id, e.Sector, e.Cause, outcome, u.Tick - e.StartTick, e.Shots, e.Hits, e.Loot, destroyed, fled, surrendered, msg));
         foreach (var p in e.Participants)
             if (p.Exit != CombatExit.Destroyed && p.Exit != CombatExit.Lost && u.Ships.TryGetValue(p.Ship, out var ship)) Engage.Resume(u, ship);
+        PoliceCommands.AfterFight(u, e);   // Phase 27: geflohenes Kaperschiff verfolgen (nur mit Flottenkampf)
     }
 
     /// <summary>Kopfgeld für die Spielerflotte, wenn ihr Schiff auf der Seite <paramref name="side"/> am Gefecht teilnahm und das Kaperschiff zerstört ist.</summary>

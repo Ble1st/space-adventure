@@ -166,9 +166,11 @@ public static class ShipSystems
         ship.Systems.Mode == PowerMode.Engine && Surplus(ship.Stats) > 0f ? 1f + u.Rules.EngineModeSpeedBonus : 1f;
 
     /// <summary>Gerätetest: kurze Rückmeldung zur Wirkung einer Stellung (Meldung beim Umschalten).</summary>
-    public static string ModeEffect(PowerMode m) => m switch
+    public static string ModeEffect(PowerMode m, bool hasBank = true) => m switch
     {
-        PowerMode.Weapons => "Leistung: Waffen — Überschuss lädt die Speicherbank, mit Bank Überladung (schnelleres Nachladen)",
+        // Gerätetest Phase 27: Überladung nur nennen, wo es eine Speicherbank gibt
+        PowerMode.Weapons => hasBank ? "Leistung: Waffen — Überschuss lädt die Speicherbank, Überladung (schnelleres Nachladen)"
+            : "Leistung: Waffen — Überschuss für die Waffen (ohne Speicherbank keine Überladung)",
         PowerMode.Shield => "Leistung: Schild — der Schild lädt schneller nach",
         PowerMode.Engine => "Leistung: Antrieb — +10 % Höchsttempo",
         _ => "Leistung: ausgeglichen",
