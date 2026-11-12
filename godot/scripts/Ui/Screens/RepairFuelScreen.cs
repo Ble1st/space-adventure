@@ -16,9 +16,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Hinweis; rechts das Schiff mit Hülle, Tank und Credits (echt). Bietet die Station nur einen der beiden Dienste,
 /// steht beim anderen ein kurzer Hinweis.
 /// </summary>
-public sealed partial class RepairFuelScreen : DockAreaScreen
+public sealed partial class RepairFuelScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.repair";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _message = ""; _msgOk = true; }
 	public RepairFuelScreen() => AreaId = DockAreas.Repair;
 	protected override bool ShowShip => true;
 
@@ -36,7 +38,7 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 	{
 		// Phase 26: Inhalt in einer Rollfläche (Tanken, Schadensliste, Reparatur mit Modulzeilen und Munition passen nicht mehr auf eine Seite)
 		float w0 = inner.Size.X > 0 ? inner.Size.X : 670f, h0 = inner.Size.Y > 0 ? inner.Size.Y : 520f;
-		var scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 0, w0, h0);
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 0, w0, h0);
 		var content = new Control { MouseFilter = MouseFilterEnum.Pass };
 		scroll.AddChild(content);
 		inner = content;
@@ -84,13 +86,15 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 		foreach (var o in offers)
 		{
 			bool can = o.Amount >= (serviceKey == RefuelService.ServiceKey ? 1f : 0.01f);
-			string unit = serviceKey == RepairService.ServiceKey ? "Hüllenpunkte" : "Einheiten";
+			// Gerätetest Phase 27: Einzahl bei genau 1 („1 Einheit“, „1 Hüllenpunkt“)
+			bool one = MathF.Abs(o.Amount - 1f) < 0.05f;
+			string unit = serviceKey == RepairService.ServiceKey ? (one ? "Hüllenpunkt" : "Hüllenpunkte") : (one ? "Einheit" : "Einheiten");
 			if (serviceKey == RearmService.ServiceKey) can = o.Amount >= 0.01f;
 			// Phase 26: Modulzeilen in Zustandsprozent, „alles“ mit Gesamtpreis
 			string detail = o.Key.StartsWith("repair:module:", StringComparison.Ordinal) ? $"Zustand +{o.Amount * 100f:0} % · {o.Amount * o.Price:0} Cr"
 				: o.Key == "repair:all" ? $"Gesamt ca. {o.Price:0} Cr (Platten und Elektronik aus dem Lager)"
 				: o.Key == "repair:emergency" ? $"{o.Price:0} Cr auf Schuld — nur Funktion (ausgefallene Module, Hülle {Ctx.U.Rules.EmergencyRepairHullShare * 100f:0} %)"
-				: $"{o.Amount:0.#} {unit} · {o.Amount * o.Price:0} Cr ({o.Price:0.#} je Einh.)";
+				: $"{o.Amount:0.#} {unit} · {o.Amount * o.Price:0} Cr ({o.Price:0.#} Cr je {(serviceKey == RepairService.ServiceKey ? "Punkt" : "Einheit")})";
 			// zweizeilig: Angebot oben, Menge/Preis darunter (lange Modulnamen überlappen sonst die Preiszeile)
 			At(inner, Text(o.Text, 16, White), 0, y + 4, w - 150, 24);
 			At(inner, Text(o.Note is { } note && !can ? note : detail, 13, Dim), 0, y + 30, w - 150, 22);

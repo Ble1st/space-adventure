@@ -97,6 +97,7 @@ public static class UniverseHash
         {
             Mix((ulong)a.LastForceTick); MixF(a.PoliceNeed); Mix((ulong)a.PoliceSurplusSince);   // Phase 20
             Mix((ulong)a.LastRestoreTick);   // Phase 22
+            Mix((ulong)a.CreatedTick);       // Phase 27 (Prüfung Phase 26): Gründungszeit (Aufbauzeit der Rücklage hängt daran)
             foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }
             foreach (var (f, c) in a.BountyClaims.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(c); }
         }
@@ -128,6 +129,7 @@ public static class UniverseHash
                 if (e.Spatial) { MixF(p.Pos.X); MixF(p.Pos.Y); MixF(p.Dir.X); MixF(p.Dir.Y); }
                 if (e.Spatial || e.Cause == EncounterCause.Assault) Mix((ulong)p.Owner.Value);
                 if (p.WasDockedAt.Value != 0) Mix((ulong)p.WasDockedAt.Value);
+                if (p.RefugeId != 0) { Mix((ulong)(uint)p.RefugeId + 0x2700u); MixF(p.Refuge); MixF(p.RefugePos.X); MixF(p.RefugePos.Y); }   // Phase 27: Zuflucht
             }
             if (e.Spatial) Mix(0x5A7u);
         }
@@ -151,6 +153,8 @@ public static class UniverseHash
                     case TradeCommand tc: Mix((ulong)tc.Limits.Center.Value); Mix((ulong)(uint)tc.Limits.RadiusJumps); MixF(tc.Limits.MaxBuyFactor); MixF(tc.Limits.Reserve); break;
                     case MineCommand mc: Mix((ulong)mc.Limits.Center.Value); Mix((ulong)(uint)mc.Limits.RadiusJumps); MixF(mc.Limits.MaxBuyFactor); MixF(mc.Limits.Reserve); break;
                     case BuildCommand bc: Mix((ulong)bc.Site.Value); break;
+                    case LurkCommand lc: Mix((ulong)lc.Sector.Value); MixF(lc.Spot.X); MixF(lc.Spot.Y); Mix((ulong)lc.Until); break;   // Phase 27
+                    case PursueCommand pc: Mix((ulong)pc.Target.Value); MixF(pc.Lead); Mix((ulong)pc.Until); break;
                 }
             }
         }

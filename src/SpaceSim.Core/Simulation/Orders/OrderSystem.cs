@@ -74,7 +74,9 @@ public sealed class OrderSystem : ISimSystem
     /// <summary>Notfall: zur nächsten Station mit Reparatur (sonst Heimatbasis), dort versorgen. true = erledigt (oder nicht lösbar).</summary>
     static bool StepEmergency(Universe u, Ship ship)
     {
-        var target = ReturnExecutor.NearestWith(u, ship, Services.RepairService.ServiceKey) ?? ReturnExecutor.Home(u, ship);
+        // Phase 27: Polizei und Piraten (Kasse des Besitzers) versorgen sich an ihrer Heimatbasis, nicht an der nächsten Reparaturstation
+        var target = u.Rules.FleetCombat && UnitSupport.IsServiceUnit(ship) && ReturnExecutor.Home(u, ship) is { } home ? home
+            : ReturnExecutor.NearestWith(u, ship, Services.RepairService.ServiceKey) ?? ReturnExecutor.Home(u, ship);
         if (target is null) return true;   // nirgends Hilfe erreichbar: Befehl weiter (die Hülle regeneriert langsam angedockt)
         var s = OrderMove.MoveTo(u, ship, target.Sector, target.DockPoint(ship.Id), target.Id, out bool there);
         if (there)

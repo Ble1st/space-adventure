@@ -24,6 +24,9 @@ public sealed class LabelLayout
 	/// <summary>Fläche freihalten (z. B. ein Knoten oder Symbol), damit keine Beschriftung darauf landet.</summary>
 	public void Reserve(Rect2 r) => _taken.Add(r);
 
+	/// <summary>Hintergrund unter jeder Beschriftung (Alpha 0 = keiner).</summary>
+	public Color Backdrop { get; set; } = new(0.02f, 0.04f, 0.09f, 0.85f);
+
 	/// <summary>Kreis freihalten.</summary>
 	public void ReserveCircle(Vector2 c, float r) => _taken.Add(new Rect2(c - new Vector2(r, r), new Vector2(2 * r, 2 * r)));
 
@@ -50,6 +53,8 @@ public sealed class LabelLayout
 			foreach (var t in _taken) if (t.Intersects(r)) { free = false; break; }
 			if (!free) continue;
 			_taken.Add(r);
+			// Gerätetest Phase 27: dunkler Hintergrund unter jeder Beschriftung — Linien (Tore, Routen), die darunter laufen, verdecken sie nicht mehr
+			if (Backdrop.A > 0f) canvas.DrawRect(r.Grow(1f), Backdrop);
 			canvas.DrawString(_font, r.Position + new Vector2(2f, size), text, HorizontalAlignment.Left, -1, size, color);
 			return true;
 		}

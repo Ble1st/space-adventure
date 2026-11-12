@@ -807,4 +807,37 @@ public sealed class EconomyRules
     public float EmergencyRepairMargin = 0.05f;
     /// <summary>Kaperer nehmen die Fracht des Wracks ihres Opfers mit (Hehlerei wie Beute).</summary>
     public bool RaidersLootWrecks = true;
+
+    // ───────── Phase 27: Flottenkampf (KAMPF.md Stufe 27) ─────────
+    /// <summary>
+    /// Hauptschalter der Phase 27: Polizei und Piraten über die Befehls-Ausführer (Streife, Lauern, Verfolgen, Eskorte, Heimkehr), Verbände der Fraktionen und
+    /// Rudel der Piratengruppen, Verstärkung laufender Gefechte, Fokusfeuer, Flucht zu Stationen/Toren, Polizeigefecht gegen gesuchte Spieler, Ergeben des Spielers.
+    /// false = Verhalten bis Phase 26 (Testhilfe für den Hash-Vergleich).
+    /// </summary>
+    public bool FleetCombat = true;
+    /// <summary>Ab so vielen Streifen einer Fraktion im selben Einsatzsektor fliegen sie als Verband (Anführer = kleinste Id).</summary>
+    public int PoliceSquadronMin = 2;
+    /// <summary>Höchstzahl Kaperschiffe, die eine Piratengruppe als Rudel (Verband) auf Beutezug schickt; 1 = jedes allein.</summary>
+    public int RaiderPackSize = 2;
+    /// <summary>Geleit: In Sektoren mit mindestens dieser Bedrohung begleitet eine Streife das wertvollste beladene Handelsschiff, solange es im Hoheitsgebiet bleibt.</summary>
+    public float PoliceEscortThreat = 1.5f;
+    /// <summary>Geleit: Mindestwert der Fracht (Basispreis), damit ein Schiff Geleit bekommt.</summary>
+    public float PoliceEscortMinValue = 1500f;
+    /// <summary>Geleit: Höchstdauer einer Begleitung in Ticks.</summary>
+    public int PoliceEscortTicks = 2400;
+    /// <summary>Verfolgung: Höchstdauer in Ticks, nachdem ein Kaperschiff aus einem Gefecht mit der Polizei geflohen ist.</summary>
+    public int PursuitTicks = 1200;
+    /// <summary>Verfolgung: Vorsprung des Geflohenen beim Beginn (Einheiten; Fluchtabstand).</summary>
+    public float PursuitLead = 40f;
+    /// <summary>Verstärkung: Takt (Ticks), in dem laufende Gefechte prüfen, ob Begleiter, Wachen, Verbands- und Rudelmitglieder im Sektor dazukommen.</summary>
+    public int ReinforceTicks = 10;
+    /// <summary>Flucht zu einer Zuflucht (Station mit nicht feindlichem Besitzer oder offenes Tor): erreicht, wenn der Abstand darunter fällt (Raum) bzw. auf 0 (Linie).</summary>
+    public bool CombatRefuge = true;
+    public float CombatRefugeRadius = 12f;
+    /// <summary>Nur eine Zuflucht in höchstens diesem Abstand (beim Eintritt ins Gefecht) zählt — weiter weg holt der Gegner den Fliehenden ein, bevor er sie erreicht.</summary>
+    public float CombatRefugeMaxDistance = 40f;
+    /// <summary>Fokusfeuer: Polizei, Begleiter und Rudel nehmen den schwächsten Gegner in Reichweite (Schild + Hülle) gemeinsam unter Feuer; Begleiter zuerst den, der ihr Schiff angreift.</summary>
+    public bool CombatFocusFire = true;
+    /// <summary>Spieler ergibt sich Kaperern: Anteil jeder Ware, den er abwirft (die Kaperer nehmen ihn und drehen ab).</summary>
+    public float PlayerSurrenderDropShare = 0.5f;
 }

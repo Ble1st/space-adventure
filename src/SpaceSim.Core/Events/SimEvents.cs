@@ -276,3 +276,25 @@ public sealed record ShipRepaired(ShipId Ship, StationId Station, float Hull, in
 public sealed record RepairTripStarted(ShipId Ship, StationId Station, float HullShare) : SimEvent;
 /// <summary>Phase 26: tägliche Leihmiete abgerechnet (aus der Kasse; <paramref name="Debt"/> = was davon ins Minus ging).</summary>
 public sealed record RentCharged(ShipId Ship, StationId Station, int Day, float Amount, float Debt) : SimEvent;
+
+// ───────── Phase 27: Flottenkampf ─────────
+/// <summary>
+/// Phase 27: Ein Schiff ist einem laufenden Gefecht als Verstärkung beigetreten — <paramref name="Reason"/> „escort“ (Geleit/Eskorte), „guard“ (Wache),
+/// „squadron“ (Verbandsmitglied), „pack“ (Rudel des Kaperers), „pursuit“ (Verfolger), „police“ (Streife im Sektor).
+/// </summary>
+public sealed record CombatJoined(int Encounter, ShipId Ship, int Side, string Reason) : SimEvent;
+/// <summary>Phase 27: Ein Fliehender hat seine Zuflucht erreicht — <paramref name="Kind"/> „station“ (angedockt) oder „gate“ (durch das Tor gesprungen).</summary>
+public sealed record RefugeReached(int Encounter, ShipId Ship, string Kind, SectorId Sector) : SimEvent;
+/// <summary>Phase 27: Die Polizei nimmt die Verfolgung eines geflohenen Kaperschiffs auf (Ende: Gefecht, Grenze der Zuständigkeit oder Frist).</summary>
+public sealed record PursuitStarted(ShipId Hunter, ShipId Target, SectorId Sector) : SimEvent;
+/// <summary>Phase 27: Eine Verfolgung ist zu Ende — <paramref name="How"/> „caught“ (Gefecht), „border“ (Zuständigkeit endet), „expired“, „lost“ (Ziel weg), „safe“ (Ziel im Versteck).</summary>
+public sealed record PursuitEnded(ShipId Hunter, ShipId Target, string How) : SimEvent;
+/// <summary>Phase 27: Eine Fraktion bzw. Piratengruppe hat einen Verband gebildet (Streife, Rudel) oder aufgelöst (<paramref name="Formed"/>).</summary>
+public sealed record ForceSquadron(ActorId Owner, SquadronId Squadron, string Kind, int Members, bool Formed) : SimEvent;
+/// <summary>Phase 27: Eine Streife gibt einem Handelsschiff Geleit.</summary>
+public sealed record EscortAssigned(ShipId Police, ShipId Ward, SectorId Sector) : SimEvent;
+/// <summary>
+/// Phase 27: Der Spieler hat sich ergeben — gegenüber der Polizei (<paramref name="ToPolice"/>: Strafe bezahlt, Schmuggelware beschlagnahmt) oder Kaperern
+/// (Fracht abgeworfen, die Kaperer drehen ab).
+/// </summary>
+public sealed record PlayerSurrendered(bool ToPolice, SectorId Sector, float Value, string Message) : SimEvent;

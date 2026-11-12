@@ -19,9 +19,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Detailkarte mit Kontrolle, Einfluss, Sperre und Route nach deinem Mobilitätsprofil und den Knöpfen „Sektorkarte öffnen“,
 /// „Route planen/Autopilot“ (echt, setzt das Autopilot-Ziel in Main) und „Taxi buchen“ (Platzhalter).
 /// </summary>
-public sealed partial class UniverseScreen : CommandScreen
+public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.universe";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { SelectedSector = null; }
 
 	/// <summary>Kartenebene.</summary>
 	public enum Layer { Faction, Ships, Prices, Security }
@@ -142,16 +144,16 @@ public sealed partial class UniverseScreen : CommandScreen
 		}
 
 		// Knöpfe unten
-		var bOpen = At(card, new KitButton("Sektorkarte öffnen", new Vector2(268, 52)) { FontSize = 17 }, 16, 300);
+		var bOpen = At(card, new KitButton("Sektorkarte öffnen", new Vector2(268, 52)) { FontSize = 17 }, 16, 294);
 		bOpen.Pressed += () => OpenSectorMap?.Invoke(sel);
-		var bRoute = At(card, new KitButton("Route planen / Autopilot", new Vector2(268, 52)) { FontSize = 17 }, 16, 360);
+		var bRoute = At(card, new KitButton("Route planen / Autopilot", new Vector2(268, 52)) { FontSize = 17 }, 16, 350);
 		if (hops >= 0) bRoute.Pressed += () => PlanRoute?.Invoke(sel);
 		else { bRoute.State = KitButtonState.Disabled; bRoute.Detail = "nicht erreichbar"; }
 		// Phase 12: Taxi echt — nur angedockt an einer Station mit Taxi; günstigstes buchbares Ziel im gewählten Sektor (Core: TaxiService.Quote)
 		var from = Ctx.Docked is { } d && u.Stations.TryGetValue(d, out var ds) && Ctx.Services.ForStation(u, ds).Any(x => x.Key == SpaceSim.Core.Services.TaxiService.ServiceKey) ? ds : null;
 		var quote = from is null ? null : SpaceSim.Core.Services.TaxiService.Quotes(u, from, Ctx.Player).Where(q => q.To.Sector == sel && q.Bookable).OrderBy(q => q.Total).FirstOrDefault();
-		var bTaxi = At(card, new KitButton("Taxi buchen", new Vector2(268, 48)) { FontSize = 17, State = quote is null ? KitButtonState.Disabled : KitButtonState.Ready,
-			Detail = quote is not null ? $"{quote.Total:0} Cr → {quote.To.Name}" : from is null ? "nur angedockt (Taxistand)" : "kein Ziel hier", DetailColor = new Color(Dim, 0.9f) }, 16, 420);
+		var bTaxi = At(card, new KitButton("Taxi buchen", new Vector2(268, 54)) { FontSize = 16, State = quote is null ? KitButtonState.Disabled : KitButtonState.Ready,
+			Detail = quote is not null ? $"{quote.Total:0} Cr → {quote.To.Name}" : from is null ? "nur angedockt (Taxistand)" : "kein Ziel hier", DetailColor = new Color(Dim, 0.9f) }, 16, 406);
 		if (quote is not null) { var to = quote.To.Id; bTaxi.Pressed += () => TaxiRequested?.Invoke(to); }
 	}
 

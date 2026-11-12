@@ -23,7 +23,9 @@ public sealed class SecuritySystem : ISimSystem
         ResolvePending(u);
         if (u.Tick % ManageTicks < dt)
             foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList()) Manage(u, f, ManageTicks);
-        foreach (var police in u.ShipsById().Where(ThreatMap.IsPolice).ToList()) StepPolice(u, police);
+        // Phase 27: mit Flottenkampf vergibt die Fraktion nur Befehle (Streife, Heimkehr, Geleit, Verfolgung) — die Ausführer fliegen
+        foreach (var police in u.ShipsById().Where(ThreatMap.IsPolice).ToList())
+            if (u.Rules.FleetCombat) PoliceCommands.Step(u, police); else StepPolice(u, police);
         // Phase 26: mit Schadensmodell keine Gratis-Regeneration mehr — Schäden werden bezahlt repariert (NpcRepair)
         if (!u.Rules.DamageActive)
         foreach (var s in u.Ships.Values)
@@ -123,6 +125,7 @@ public sealed class SecuritySystem : ISimSystem
             u.Events.Publish(new PoliceDecommissioned(f, gone.Id));
         }
         Assign(u, f, police);
+        if (r.FleetCombat) PoliceCommands.Organize(u, f, police);   // Phase 27: Verbände je Einsatzsektor, Geleit
     }
 
     /// <summary>
@@ -279,13 +282,16 @@ public sealed class SecuritySystem : ISimSystem
     {
         if (!u.Ships.TryGetValue(u.PlayerShip, out var player) || !u.Sectors.TryGetValue(player.Sector, out var sector)) return;
         if (Wanted.LevelOf(u, player.Owner, sector.Owner) < 3 || u.PendingEncounters.Any(e => e.Target == player.Id)) return;
+        if (u.Rules.FleetCombat && (u.Fights.IsEngaged(player.Id) || player.DockedAt.Value != 0)) return;   // Phase 27: nicht im Gefecht/angedockt ankündigen
         var police = PirateSystem.PoliceIn(u, sector.Id);
         if (police.Count == 0) return;
         var pending = new PendingEncounter { Kind = EncounterKind.Intercept, Source = police[0].Id, Target = player.Id, Sector = sector.Id, DueTick = u.Tick + u.Rules.PlayerWarningTicks };
         u.PendingEncounters.Add(pending);
         string who = u.Factions.TryGetValue(sector.Owner, out var fac) ? fac.Name : "Polizei";
         u.Events.Publish(new EncounterWarning(EncounterKind.Intercept, sector.Id, police[0].Id, player.Id, pending.DueTick,
-            $"Polizei von {who}: Du wirst gesucht — Strafe am Gericht zahlen oder den Sektor verlassen ({u.Rules.PlayerWarningTicks / SimClock.TicksPerSecond:0} s)."));
+            u.Rules.FleetCombat
+                ? $"Polizei von {who}: Du wirst gesucht — ergib dich (Strafe zahlen), dock an oder verlasse den Sektor ({u.Rules.PlayerWarningTicks / SimClock.TicksPerSecond:0} s), sonst greift sie an."
+                : $"Polizei von {who}: Du wirst gesucht — Strafe am Gericht zahlen oder den Sektor verlassen ({u.Rules.PlayerWarningTicks / SimClock.TicksPerSecond:0} s)."));
     }
 
     static void ResolvePending(Universe u)
@@ -299,6 +305,18 @@ public sealed class SecuritySystem : ISimSystem
                 u.Events.Publish(new EncounterEscaped(EncounterKind.Intercept, e.Source, e.Target, "Du hast dich der Kontrolle entzogen."));
                 continue;
             }
+            // Phase 27: die Polizei stellt den gesuchten Spieler im echten Gefecht (nicht angedockt, Spieler kann reagieren — offline bleibt das Abfangen abstrakt)
+            if (u.Rules.FleetCombat && u.Rules.CombatRounds && u.Rules.PlayerRaids)
+            {
+                var police = PirateSystem.PoliceIn(u, sec.Id);
+                if (player.DockedAt.Value != 0 || u.Fights.IsEngaged(player.Id) || police.Count == 0 || Wanted.LevelOf(u, player.Owner, sec.Owner) < 3)
+                {
+                    u.Events.Publish(new EncounterEscaped(EncounterKind.Intercept, e.Source, e.Target, "Du hast dich der Kontrolle entzogen."));
+                    continue;
+                }
+                Combat.Engage.StartArrest(u, police, player, sec);
+                continue;
+            }
             InterceptPlayer(u, player, sec);
         }
     }
@@ -307,9 +325,11 @@ public sealed class SecuritySystem : ISimSystem
     /// Die Polizei stellt den Spieler (Fahndung bei der Sektorfraktion): Schmuggelware wird beschlagnahmt, die Strafe aus der Kasse eingezogen (soweit
     /// vorhanden, in die Fraktionskasse); bezahlt = Eintrag gelöscht, sonst bleibt der Rest als Strafe mit Stufe „verwarnt“. Nichts darüber hinaus.
     /// </summary>
-    public static PlayerIntercepted InterceptPlayer(Universe u, Ship player, Sector sector)
+    public static PlayerIntercepted InterceptPlayer(Universe u, Ship player, Sector sector) => InterceptPlayer(u, player, sector, sector.Owner);
+
+    /// <summary>Phase 27: wie oben, für die Fahndung einer bestimmten Fraktion (Polizei, der sich der Spieler ergibt).</summary>
+    public static PlayerIntercepted InterceptPlayer(Universe u, Ship player, Sector sector, FactionId f)
     {
-        var f = sector.Owner;
         float seized = 0f;
         foreach (var g in player.Cargo.Keys.OrderBy(k => k.Value).ToList())
             if (u.Goods.TryGetValue(g, out var good) && u.Rules.Contraband.Contains(good.Key)) { seized += player.Cargo[g]; player.Cargo.Remove(g); }
@@ -329,7 +349,7 @@ public sealed class SecuritySystem : ISimSystem
             }
             if (collected + 0.5f >= fine) Wanted.SetHeat(u, actor, f, 0f, 0f);
             else Wanted.SetHeat(u, actor, f, MathF.Min(w.Heat, u.Rules.WantedLevels.Count > 1 ? u.Rules.WantedLevels[1] : 2f), fine - collected);
-            msg = $"Polizei: Strafe {collected:0} von {fine:0} Cr eingezogen" + (seized > 0f ? $", {seized:0} Einheiten Schmuggelware beschlagnahmt." : ".");
+            msg = $"Polizei: Strafe {collected:0} von {fine:0} Cr eingezogen" + (seized > 0f ? $", {seized:0} {(MathF.Abs(seized - 1f) < 0.5f ? "Einheit" : "Einheiten")} Schmuggelware beschlagnahmt." : ".");
         }
         else msg = "Polizeikontrolle ohne Befund.";
         var ev = new PlayerIntercepted(sector.Id, f, collected, seized, msg);

@@ -48,6 +48,8 @@ public partial class UiShots : Node
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase25")) _stage = 572;
 		// Phase 26: --ui-shots-phase26 läuft über die Kampfbilder (Falke an der Werft) weiter zu den Schadens- und Bergungsbildern 66–68
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase26")) _stage = 572;
+		// Phase 27: --ui-shots-phase27 wie Phase 26 und weiter zu den Bildern 69–77 (Station-Info, Ausrüster, Hangar, Polizeigefecht, Verband, Startpakete, Comms, Planet, Sternenkarte)
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase27")) _stage = 572;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -543,6 +545,70 @@ public partial class UiShots : Node
 				_stage = 586; _wait = 20; break;
 			}
 			case 586: Capture("68-flug-wrack-brand.png"); _stage = 587; _wait = 10; break;
+			// ── Phase 27: Flottenkampf und Gerätetest-Befunde ──
+			case 587:
+			{
+				var uni = _m.Session.U;
+				SpaceSim.Core.Combat.ModuleDamage.ExtinguishAll(uni, _m.Session.Player, "test");
+				var yard = uni.Stations.Values.First(x => x.Name == "Werft Delta");
+				_m.TestDockAt(yard.Id);
+				_stage = 588_1; _wait = 60; break;
+			}
+			case 588_1: _m.TestOpenDockArea("info"); _stage = 588_2; _wait = 20; break;
+			case 588_2: Capture("69-dock-station-info.png"); _stage = 588_3; _wait = 10; break;
+			case 588_3: _m.TestOpenDockArea("outfitter"); _stage = 588_4; _wait = 20; break;
+			case 588_4: Capture("70-dock-ausruester.png"); _stage = 588_5; _wait = 10; break;
+			case 588_5: _m.TestOpenDockArea("hangar"); _stage = 588_6; _wait = 20; break;
+			case 588_6: Capture("71-dock-hangar.png"); _stage = 588_7; _wait = 10; break;
+			case 588_7: _m.TestUndock(); _stage = 588_8; _wait = 80; break;
+			case 588_8:
+			{
+				// Polizeigefecht gegen den gesuchten Spieler (Taste „Ergeben“)
+				var uni = _m.Session.U;
+				var pl = _m.Session.Player;
+				var sec = uni.Sectors[uni.PlayerSector];
+				SpaceSim.Core.Simulation.Wanted.Report(uni, uni.PlayerActor, sec.Owner, "assault");
+				var cops = SpaceSim.Core.Simulation.SecuritySystem.PoliceOf(uni, sec.Owner).Where(c => !uni.Fights.IsEngaged(c.Id)).Take(2).ToList();
+				int i = 0;
+				foreach (var c in cops)
+				{
+					if (c.Command is not null) SpaceSim.Core.Simulation.Commands.Cancel(uni, c);
+					if (c.Transit is not null) uni.FinishTransit(c);
+					if (c.Sector != uni.PlayerSector) uni.MoveShip(c, uni.PlayerSector);
+					c.Position = pl.Position + new SpaceSim.Core.Model.Vec2(30f + 10f * i, -25f); c.DockedAt = default; i++;
+				}
+				if (cops.Count > 0) SpaceSim.Core.Combat.Engage.StartArrest(uni, cops, pl, sec);
+				_stage = 588_9; _wait = 40; break;
+			}
+			case 588_9: Capture("72-hud-polizeigefecht-ergeben.png"); _stage = 589_1; _wait = 10; break;
+			case 589_1:
+			{
+				_m.TestSurrender();
+				var uni = _m.Session.U;
+				var f = uni.Sectors[uni.PlayerSector].Owner;
+				var cops = SpaceSim.Core.Simulation.SecuritySystem.PoliceOf(uni, f).Where(c => !uni.Fights.IsEngaged(c.Id)).Take(2).ToList();
+				foreach (var c in cops) c.DutySector = uni.PlayerSector;
+				SpaceSim.Core.Simulation.PoliceCommands.Organize(uni, f, SpaceSim.Core.Simulation.SecuritySystem.PoliceOf(uni, f));
+				_m.TestOpenCommand(); _m.TestOpenCcArea("sector");
+				_stage = 589_2; _wait = 30; break;
+			}
+			case 589_2: Capture("73-sektor-verband.png"); _stage = 589_3; _wait = 10; break;
+			case 589_3: _m.TestOpenCcArea("system"); _m.HudRef.CcSystem.TestChoosing = true; _stage = 589_4; _wait = 20; break;
+			case 589_4: Capture("74-system-startpakete.png"); _stage = 589_5; _wait = 10; break;
+			case 589_5: _m.HudRef.CcSystem.TestChoosing = false; _m.TestOpenCcArea("comms"); _stage = 589_6; _wait = 20; break;
+			case 589_6: Capture("75-comms.png"); _stage = 589_7; _wait = 10; break;
+			case 589_7:
+			{
+				_m.TestCloseCommand();
+				var beta = new SpaceSim.Core.Model.SectorId(2);
+				_m.TestEnterSector(beta);
+				_m.TestTeleportTo(new SpaceSim.Core.Model.Vec2(0f, 0f));
+				_stage = 589_8; _wait = 40; break;
+			}
+			case 589_8: Capture("76-flug-beta-planet.png"); _stage = 589_9; _wait = 10; break;
+			case 589_9: _m.HudRef.Map.Open(_m.Session.U, _m.Session.U.PlayerSector, null); _stage = 590_1; _wait = 20; break;
+			case 590_1: Capture("77-sternenkarte.png"); _stage = 590_2; _wait = 10; break;
+			case 590_2: _m.HudRef.Map.Visible = false; _stage = 590_3; _wait = 5; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

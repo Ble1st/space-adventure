@@ -17,9 +17,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Persönlichkeit (<see cref="Actor.Personality"/>) und die Beziehungen zu den anderen Fraktionen und Gruppen (gespeicherte Abweichung oder
 /// Vorgabe). Nur „Letzte Ereignisse“ und „Kontakt aufnehmen“ sind noch Platzhalter (<see cref="UiPlaceholders"/>).
 /// </summary>
-public sealed partial class FactionsScreen : CommandScreen
+public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.factions";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { Selected = null; }
 
 	/// <summary>Angezeigter Akteur (null = erste Fraktion); setzt der Aufrufer oder Antippen.</summary>
 	public ActorId? Selected { get; set; }
@@ -66,7 +68,7 @@ public sealed partial class FactionsScreen : CommandScreen
 		var sel = Selected is { } s && rows.Any(r => r.Id == s) ? s : rows[0].Id;
 
 		// ── Liste links (scrollbar: aufgestiegene Einzelakteure kommen und gehen) ──
-		var scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 12, 12, 404, 500);
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 12, 12, 404, 500);
 		var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);

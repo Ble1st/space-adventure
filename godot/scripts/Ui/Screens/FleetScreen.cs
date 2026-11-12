@@ -17,9 +17,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// (<see cref="Commands"/>, <see cref="Squadrons"/>); der Wechsel in ein Schiff geht an Main (<see cref="SwitchRequested"/>). Auto-Mining des
 /// aktiven Schiffs bleibt ein Schalter der Ansicht.
 /// </summary>
-public sealed partial class FleetScreen : CommandScreen
+public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.fleet";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _sel = null; _pending = null; _message = ""; _msgOk = true; _radius = -2; }
 
 	/// <summary>Auto-Mining umschalten (echte Entsprechung: <see cref="MiningAutopilot"/> des Spielers in Main).</summary>
 	public event Action<bool>? AutoMiningToggled;
@@ -56,7 +58,7 @@ public sealed partial class FleetScreen : CommandScreen
 		var (capShips, capSquads) = Commands.Capacity(u, u.PlayerActor);
 		At(inner, Text("Deine Schiffe", 18, Cyan), 12, 6, 200, 24);
 		At(inner, Text($"Befehle {Commands.Commanded(u, u.PlayerActor)}/{capShips} · Verbände {Squadrons.Of(u, u.PlayerActor).Count}/{capSquads}", 13, Dim), 12, 32, 360, 18);
-		var scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 56, 368, 456);
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 56, 368, 456);
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
@@ -101,7 +103,7 @@ public sealed partial class FleetScreen : CommandScreen
 		_enabledCommands = 0;
 		var missing = new List<string>();
 		int i = 0;
-		foreach (var ex in OrderExecutors.Default.All)
+		foreach (var ex in OrderExecutors.Default.All.Where(e => e.ForPlayer))   // Phase 27: Lauern/Verfolgen nur für Fraktionen und Piraten
 		{
 			string kind = ex.Kind;
 			bool capable = ex.Needs == Capability.None || ship.Has(ex.Needs);
@@ -203,7 +205,7 @@ public sealed partial class FleetScreen : CommandScreen
 					options.Add((Shorten(site.Name, 18), new BuildCommand(site.Id)));
 				break;
 		}
-		var scroll = At(det, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 14, y, 596, 110);
+		var scroll = At(det, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 14, y, 596, 110);
 		var grid = new GridContainer { Columns = 4, MouseFilter = MouseFilterEnum.Ignore };
 		grid.AddThemeConstantOverride("h_separation", 6);
 		grid.AddThemeConstantOverride("v_separation", 6);

@@ -396,7 +396,9 @@ public class EconomyFixTests
         u.Events.Raised += e =>
         {
             if (e is GoodsExported ge) exported[ge.Good] = exported.GetValueOrDefault(ge.Good) + ge.Amount;
-            else if (e is StationSubsidized ss && ss.Station.Value == SmelterAlpha) smelterSubsidy += ss.Amount;
+            // Phase 27: gezählt nach der Anlaufphase (ab Tick 6000) — mit der wirksamen Reparaturregel 0,02 (Weltdatei) und dem Flottenkampf fallen 2600–4600 Cr
+            // Anlauf-Subvention in den ersten 5000 Ticks an (gemessen); die Regel dieses Tests ist „lebt nicht dauerhaft von der Subvention“ (Phase 16: 15 500 Cr)
+            else if (e is StationSubsidized ss && ss.Station.Value == SmelterAlpha && u.Tick >= 6000) smelterSubsidy += ss.Amount;
         };
         var runner = new SimulationRunner();
         float maxTrade = 0f, maxMine = 0f;

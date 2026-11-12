@@ -5,7 +5,7 @@
   "raidRatePerTick": 0.0065,
   "maxTraders": 26,
   "maxMiners": 22,
-  "repairPlatesPerHull": 0.05,
+  "repairPlatesPerHull": 0.02,
   "maxStations": 66,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,

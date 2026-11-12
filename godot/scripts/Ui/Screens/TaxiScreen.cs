@@ -14,9 +14,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// Zeilen aus <see cref="IStationService.Offers"/> des Dienstes „taxi“ (Details aus <see cref="TaxiService.Quote"/>), gebucht nur über
 /// <see cref="IStationService.Execute"/>. Die Reisezeit (Ergebnis: Ticks) lässt Main im Zeitraffer vergehen.
 /// </summary>
-public sealed partial class TaxiScreen : DockAreaScreen
+public sealed partial class TaxiScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.taxi";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _message = ""; _msgOk = true; }
 	public TaxiScreen() => AreaId = DockAreas.Taxi;
 
 	/// <summary>Gebucht: Erfolg und Reisezeit in Ticks (Main lässt die Zeit vergehen und übernimmt das Schiff am Ziel).</summary>
@@ -48,7 +50,7 @@ public sealed partial class TaxiScreen : DockAreaScreen
 		// Phase 21: Ziele in einer Bildlaufliste (vorher die ersten sechs); gezeigt werden nur Ziele, an denen ein eigenes Schiff wartet oder ein Leihschiff
 		// zu haben ist — bei 11 Sektoren gibt es Dutzende Hangar-Stationen ohne beides, die nie buchbar sind (sie stehen als Summe unter der Liste);
 		// buchbare zuerst, dann nach Reisezeit (Reihenfolge aus TaxiService.Quotes)
-		var scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 32, w, 520 - 32 - 4);
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 32, w, 520 - 32 - 4);
 		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);

@@ -36,7 +36,13 @@ public partial class SelfTest : Node
 	int _trades;
 	void CountTrades(SpaceSim.Core.Events.SimEvent e) { if (e is SpaceSim.Core.Events.TradeCompleted t && t.Ship == _secondShip) _trades++; }
 
-	public SelfTest(Main m) { _m = m; SpaceAdventure.Ui.Kit.KitConfirm.DebounceMs = 0; } // der Selbsttest tippt ohne Pause doppelt
+	public SelfTest(Main m)
+	{
+		_m = m; SpaceAdventure.Ui.Kit.KitConfirm.DebounceMs = 0;   // der Selbsttest tippt ohne Pause doppelt
+		// Phase 27: „--selftest-from=67“ beginnt bei einer späteren, in sich geschlossenen Stufe (Entwicklungshilfe; der volle Lauf beginnt bei 0)
+		foreach (var a in OS.GetCmdlineUserArgs())
+			if (a.StartsWith("--selftest-from=") && int.TryParse(a["--selftest-from=".Length..], out int from)) _stage = from;
+	}
 
 	public override void _Process(double delta)
 	{
@@ -761,6 +767,12 @@ public partial class SelfTest : Node
 				raider.Position = spot + new Vec2(12f, 0f);
 				raider.Order = new PatrolOrder(sector.Id);
 				raider.NextThinkTick = uni.Tick + 100_000;
+				// Phase 27: Kaperer laufen über den Befehl „Lauern“ (Posten = hier, Frist weit)
+				if (uni.Rules.FleetCombat)
+				{
+					if (SpaceSim.Core.Simulation.Squadrons.Get(uni, raider) is { } rsq) SpaceSim.Core.Simulation.Squadrons.Disband(uni, rsq);
+					SpaceSim.Core.Simulation.Commands.Give(uni, raider, new LurkCommand(sector.Id, raider.Position, uni.Tick + 100_000), out _, ignoreCapacity: true);
+				}
 				uni.PendingEncounters.Clear();
 				uni.Rules.PlayerRaids = true;
 				uni.Rules.RaidRatePerTick = 1f;
@@ -1603,6 +1615,169 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Testszenario warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
+			// ───────── Phase 27: Flottenkampf und Gerätetest-Befunde ─────────
+			case 68: // Wisch-Rollen (Gerätetest): Startpaket-Liste in „System“, Finger- und Mauszug über eine Taste rollt und löst nichts aus
+			{
+				if (_frame - _stageStart == 1) { _m.TestOpenCommand(); _m.TestOpenCcArea("system"); _m.HudRef.CcSystem.TestChoosing = true; break; }
+				if (_frame - _stageStart < 4) break;
+				var scroll = _m.HudRef.CcSystem.TestChooserScroll;
+				if (scroll is null) { Fail("Startpaket-Liste hat keinen Rollbereich"); break; }
+				var rect = scroll.GetGlobalRect();
+				if (_frame - _stageStart == 4) Log($"Rollbereich {rect}, rollbar {(scroll.GetVScrollBar().MaxValue - scroll.GetVScrollBar().Page):0}, mit Canvas {scroll.GetGlobalTransformWithCanvas().Origin}");
+				if (_frame - _stageStart == 4)
+				{
+					_p27Universe = _m.Session.U;
+					scroll.ScrollVertical = 0;
+					var a = rect.Position + new Vector2(rect.Size.X * 0.4f, rect.Size.Y * 0.7f);
+					Push(new InputEventScreenTouch { Index = 0, Position = a, Pressed = true });
+					for (int i = 1; i <= 4; i++) Push(new InputEventScreenDrag { Index = 0, Position = a - new Vector2(0, 40 * i) });
+					Push(new InputEventScreenTouch { Index = 0, Position = a - new Vector2(0, 160), Pressed = false });
+					break;
+				}
+				if (_frame - _stageStart == 6)
+				{
+					Check(scroll.ScrollVertical > 60, $"Fingerzug rollt die Liste ({scroll.ScrollVertical} px)");
+					scroll.ScrollVertical = 0;
+					// Maus-Zug, Start auf einer „Starten“-Taste: rollt, die Taste löst beim Loslassen nicht aus
+					var b = rect.Position + new Vector2(rect.Size.X - 90f, 50f);
+					Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Position = b, GlobalPosition = b, Pressed = true, ButtonMask = MouseButtonMask.Left });
+					for (int i = 1; i <= 4; i++) { var mp = b - new Vector2(0, 40 * i); Push(new InputEventMouseMotion { Position = mp, GlobalPosition = mp, ButtonMask = MouseButtonMask.Left, Relative = new Vector2(0, -40) }); }
+					var e = b - new Vector2(0, 160);
+					Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Position = e, GlobalPosition = e, Pressed = false });
+					break;
+				}
+				if (_frame - _stageStart < 10) break;
+				Check(scroll.ScrollVertical > 60, $"Mauszug über eine Taste rollt die Liste ({scroll.ScrollVertical} px)");
+				Check(ReferenceEquals(_p27Universe, _m.Session.U), "Zug über „Starten“ startet kein neues Spiel");
+				// Speichern gibt sichtbare Rückmeldung im System-Bereich
+				_m.TestMenu("save");
+				Check(_m.HudRef.CcSystem.TestMessage.StartsWith("Gespeichert"), $"Speichern meldet sich im System-Bereich ({_m.HudRef.CcSystem.TestMessage})");
+				_m.HudRef.CcSystem.TestChoosing = false;
+				_m.TestCloseCommand();
+				Next(); break;
+			}
+			case 69: // Polizeigefecht gegen den gesuchten Spieler: Vorwarnung, „Ergeben“ sichtbar, Gefecht, Ergeben zahlt die Strafe
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				if (_frame - _stageStart == 1)
+				{
+					if (_m.Docked) _m.TestUndock();
+					uni.Rules.PlayerRaids = true;
+					uni.PendingEncounters.Clear();
+					foreach (var r in uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).ToList())
+						if (r.Sector == uni.PlayerSector && !uni.Fights.IsEngaged(r.Id)) { if (r.Transit is not null) uni.FinishTransit(r); uni.MoveShip(r, new SectorId(11)); }
+					break;
+				}
+				if (_frame - _stageStart == 60)
+				{
+					var owner = uni.Sectors[uni.PlayerSector].Owner;
+					_p27Faction = owner;
+					SpaceSim.Core.Simulation.Wanted.Report(uni, uni.PlayerActor, owner, "assault");
+					uni.PlayerWallet.Credits = 40_000f;
+					var cop = SpaceSim.Core.Simulation.SecuritySystem.PoliceOf(uni, owner).First(c => !uni.Fights.IsEngaged(c.Id));
+					if (cop.Command is not null) SpaceSim.Core.Simulation.Commands.Cancel(uni, cop);
+					if (cop.Transit is not null) uni.FinishTransit(cop);
+					if (cop.Sector != uni.PlayerSector) uni.MoveShip(cop, uni.PlayerSector);
+					cop.Position = pl.Position + new Vec2(45f, 0f); cop.DockedAt = default;
+					_p27Police = cop.Id;
+					_m.TestSetFast(true);
+					break;
+				}
+				if (_frame - _stageStart < 60) break;
+				if (uni.PendingEncounters.Any(x => x.Target == pl.Id) && !_p27Warned)
+				{
+					_p27Warned = true;
+					Check(SpaceSim.Core.Combat.PlayerSurrender.Issue(uni) is null, "in der Vorwarnung ist Ergeben möglich");
+				}
+				var fight = uni.Fights.Of(pl.Id);
+				if (fight is null) { if (_frame - _stageStart > 2400) Fail("Polizeigefecht begann nicht"); break; }
+				Check(fight.Cause == SpaceSim.Core.Model.EncounterCause.Arrest, $"Gefecht ist ein Polizeigefecht ({fight.Cause})");
+				Check(_m.LastCombatMessage?.Contains("Polizei") == true, $"Meldung zum Polizeigefecht ({_m.LastCombatMessage})");
+				_m.TestSetFast(false);
+				_m.SyncHudForTest();
+				Check(_m.HudRef.Flight.TestSurrenderVisible, "Taste „Ergeben“ im Gefecht sichtbar");
+				var rr = _m.HudRef.Flight.TestSurrenderRect;
+				Check(rr.Size.X >= 56f && rr.Size.Y >= 56f, "„Ergeben“ mindestens 56 px");
+				_m.HudRef.Flight.TestPressSurrender();
+				Check(!uni.Fights.IsEngaged(pl.Id), "nach dem Ergeben nicht mehr im Gefecht");
+				Check(!uni.Player.Wanted.ContainsKey(_p27Faction), "Strafe bezahlt — Fahndung gelöscht");
+				Check(uni.PlayerWallet.Credits < 40_000f, "Strafe aus der Kasse");
+				Check(_m.HudRef.TestAlert.Contains("Ergeben"), $"Meldung „Ergeben“ ({_m.HudRef.TestAlert})");
+				Next(); break;
+			}
+			case 70: // Sektoransicht: Streifen-Verband als Linie, Flottenzeile in der Karte
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1)
+				{
+					var f = uni.Sectors[uni.PlayerSector].Owner;
+					var cops = SpaceSim.Core.Simulation.SecuritySystem.PoliceOf(uni, f).Where(c => !uni.Fights.IsEngaged(c.Id)).Take(2).ToList();
+					foreach (var c in cops)
+					{
+						if (c.Command is not null) SpaceSim.Core.Simulation.Commands.Cancel(uni, c);
+						if (c.Transit is not null) uni.FinishTransit(c);
+						if (c.Sector != uni.PlayerSector) uni.MoveShip(c, uni.PlayerSector);
+						c.Position = uni.Ships[uni.PlayerShip].Position + new Vec2(60f, 20f * c.Id.Value % 40); c.DockedAt = default;
+						c.DutySector = uni.PlayerSector;
+						c.Hull = c.MaxHull;
+					}
+					SpaceSim.Core.Simulation.PoliceCommands.Organize(uni, f, SpaceSim.Core.Simulation.SecuritySystem.PoliceOf(uni, f));
+					Check(cops.Count == 2 && cops[0].Squadron.Value != 0 && cops[0].Squadron == cops[1].Squadron, "zwei Streifen im selben Sektor bilden einen Verband");
+					_m.TestOpenCommand(); _m.TestOpenCcArea("sector");
+					break;
+				}
+				if (_frame - _stageStart < 5) break;
+				Check(_m.HudRef.CcSector.TestFleet.Contains("Verb"), $"Sektorkarte zeigt den Verband ({_m.HudRef.CcSector.TestFleet})");
+				Check(Ui.Screens.SectorScreen.TestFleetLinks > 0, "Verbandslinie gezeichnet");
+				_m.TestCloseCommand();
+				Next(); break;
+			}
+			case 71: // Gerätetest: Abdocken am Wasserwerk Alpha und sofort Vollschub — kein Schaden
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1)
+				{
+					var wp = uni.Stations.Values.First(s => s.Sector.Value == 1 && s.TypeKey == "water_plant");
+					_m.TestDockAt(wp.Id);
+					break;
+				}
+				if (_frame - _stageStart == 20) { Check(_m.Docked, "am Wasserwerk Alpha angedockt"); _p27Hull = uni.Ships[uni.PlayerShip].Hull; _p27Hits = _m.TestHits; _m.TestUndock(); break; }
+				if (_frame - _stageStart == 70) { _m.TestSetSlider(1f); break; }
+				if (_frame - _stageStart < 70 + 60 * 8) break;
+				_m.TestSetSlider(0f);
+				var hull = uni.Ships[uni.PlayerShip].Hull;
+				Check(_m.TestHits == _p27Hits && hull >= _p27Hull - 0.01f, $"Abdocken mit Vollschub ohne Aufprall (Hülle {_p27Hull:0} → {hull:0}, Treffer {_m.TestHits - _p27Hits}; {_m.TestLastHit})");
+				Next(); break;
+			}
+			case 72: // Station-Info: deutsche Dienstnamen; neues Spiel setzt die Sektoransicht zurück
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1)
+				{
+					var yardD = uni.Stations.Values.First(s => s.Name == "Werft Delta");
+					_m.TestDockAt(yardD.Id);
+					break;
+				}
+				if (_frame - _stageStart == 10) { _m.TestOpenDockArea(Ui.Screens.DockAreas.Info); break; }
+				if (_frame - _stageStart == 14)
+				{
+					var info = (Ui.Screens.StationInfoScreen)_m.HudRef.Screens.Get("dock.info");
+					Check(info.TestChips.Contains("Schiffshändler") && !info.TestChips.Contains("shipdealer") && !info.TestChips.Contains("rearm"), $"Dienst-Chips deutsch ({info.TestChips})");
+					_m.TestUndock();
+					break;
+				}
+				if (_frame - _stageStart == 40)
+				{
+					var other = uni.Sectors.Keys.First(k => k != uni.PlayerSector);
+					_m.TestCcSelectSectorView(other);
+					_m.TestMenu("new");
+					break;
+				}
+				if (_frame - _stageStart < 50) break;
+				Check(_m.HudRef.CcSector.SelectedSector is null, "neues Spiel: Sektoransicht zeigt wieder den eigenen Sektor");
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -1621,6 +1796,14 @@ public partial class SelfTest : Node
 	ulong _p25Rng;
 	ShipId _p25Trader;
 	int _p25LostFrame = -1;
+	/// <summary>Phase 27: Stufen 68–72.</summary>
+	SpaceSim.Core.Model.Universe? _p27Universe;
+	SpaceSim.Core.Model.FactionId _p27Faction;
+	ShipId _p27Police;
+	bool _p27Warned;
+	float _p27Hull;
+	int _p27Hits;
+	void Push(InputEvent e) => GetViewport().PushInput(e, true);
 	/// <summary>Phase 26: Schaden, Reparatur, Bergung (Stufen 63–66).</summary>
 	int _p26Laser, _p26Wreck;
 	float _p26Hull, _p26Cargo, _p26Keep;

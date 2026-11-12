@@ -376,6 +376,7 @@ public class SecurityTests
     public void Ueberfall_AufSpieler_Vorwarnung_Entkommen_UndAufloesungOhneRuin()
     {
         var u = Fresh();
+        u.Rules.FleetCombat = false;   // Phase 27: prüft die Sonderlogik der Kaperer (Schalter aus); die Befehlsform prüft Phase27Tests
         var player = u.Ships[u.PlayerShip];
         u.MoveShip(player, Gamma);
         u.PlayerSector = Gamma;
@@ -521,6 +522,7 @@ public class SecurityTests
     public void Verbrechen_SchmuggelAmKontrollpunkt_ZollfluchtUndPolizeiStelltGesuchte()
     {
         var u = Fresh();
+        u.Rules.FleetCombat = false;   // Phase 27: abstraktes Abfangen (Schalter aus); das Polizeigefecht mit Ergeben prüft Phase27Tests
         var player = u.Ships[u.PlayerShip];
         var into = u.Gates.Values.First(g => g.Sector == Beta && u.Gates[g.Target].Sector == Gamma);
         // Schmuggel: Gamma auf Stufe 1, Wasser ist verboten — Sprung abgewiesen, Verbrechen gemeldet, Bedrohung in Gamma
@@ -607,6 +609,7 @@ public class SecurityTests
     public void Polizei_Abbau_NachDauerhafterUeberzahl()
     {
         var u = Fresh();
+        u.Rules.FleetCombat = false;   // Phase 27: Abbauregel ohne Gefechtsrauschen (verlorene Streifen unterbrechen die Überzahl); Befehle: Phase27Tests
         var f = Guild;
         u.Actors[f].Treasury.Credits = 100_000f;
         u.Rules.PoliceMinPerFaction = 1;

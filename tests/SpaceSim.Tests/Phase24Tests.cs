@@ -227,7 +227,8 @@ public class Phase24Tests
         Assert.Contains(ev.OfType<ShotFired>(), s => s.Shooter == raider.Id && s.Target == victim.Id);
         Assert.DoesNotContain(ev.OfType<ShotFired>(), s => s.Shooter == victim.Id);   // unbewaffnet
         Assert.True(victim.Hull < victim.MaxHull);
-        Assert.IsType<GoToOrder>(raider.Order);   // mit Beute heim (Hehlerei/Reparatur)
+        // mit Beute heim (Hehlerei/Reparatur) — Phase 27: als Befehl „Heimkehr“ der Piratengruppe (ohne Flottenkampf: Reiseauftrag wie bisher)
+        Assert.True(raider.Command is ReturnCommand || raider.Order is GoToOrder);
     }
 
     [Fact]

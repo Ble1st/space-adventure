@@ -98,7 +98,9 @@ public class FleetCommandTests
     public void Registry_AlleBefehle_InFesterReihenfolge_DoppeltWirft()
     {
         var r = OrderExecutors.CreateDefault();
-        Assert.Equal(new[] { "goto", "hold", "trade", "mine", "build", "patrol", "guard", "escort", "follow", "return" }, r.All.Select(e => e.Kind));
+        // Phase 27: Lauern und Verfolgen am Ende (nur für Fraktionen/Piraten, nicht im Befehlsraster des Spielers)
+        Assert.Equal(new[] { "goto", "hold", "trade", "mine", "build", "patrol", "guard", "escort", "follow", "return", "lurk", "pursue" }, r.All.Select(e => e.Kind));
+        Assert.Equal(new[] { "lurk", "pursue" }, r.All.Where(e => !e.ForPlayer).Select(e => e.Kind));
         Assert.Throws<ArgumentException>(() => r.Register(new HoldExecutor()));
         Assert.Equal(Capability.Combat, r.All.First(e => e.Kind == "patrol").Needs);
         Assert.Equal(Capability.Cargo, r.All.First(e => e.Kind == "trade").Needs);
@@ -297,8 +299,9 @@ public class FleetCommandTests
         Assert.True(Squadrons.Command(u, sq, new TradeCommand(AutoLimits.None), out _));
         Assert.All(sq.Members.Select(id => u.Ships[id]), m => Assert.True(m.Command is TradeCommand || m.Command is FollowCommand));
         Squadrons.Disband(u, sq);
-        Assert.Empty(u.Squadrons);
-        Assert.All(u.Ships.Values, s => Assert.Equal(0, s.Squadron.Value));
+        // Phase 27: Fraktionen und Piratengruppen bilden eigene Verbände — geprüft wird nur der eigene
+        Assert.False(u.Squadrons.ContainsKey(sq.Id));
+        Assert.All(u.Ships.Values.Where(s => s.Owner == u.PlayerActor), s => Assert.Equal(0, s.Squadron.Value));
     }
 
     [Fact]
@@ -550,7 +553,7 @@ public class FleetCommandTests
         Assert.Contains("\"Version\":17", json);   // Phase 14: v17
         var (loaded, _) = SaveGameJson.Read(json);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
-        Assert.Single(loaded.Squadrons);
+        Assert.Single(loaded.Squadrons.Values, q => q.Owner == loaded.PlayerActor);   // Phase 27: dazu Verbände der Fraktionen/Piraten
         Assert.Contains(loaded.Ships.Values, s => s.IsRental);
         Assert.Contains(loaded.Ships.Values, s => s.Command is PatrolCommand p && p.Sectors.SequenceEqual(new[] { Beta, Gamma }));
         Assert.Contains(loaded.Ships.Values, s => s.Command is TradeCommand t && t.Limits == new AutoLimits(Beta, 2, 1.5f, 1000f));
@@ -574,7 +577,11 @@ public class FleetCommandTests
     [Fact]
     public void Migration_V14ToV15_HashGleich_UndDiensteNachgetragen()
     {
-        var fresh = World();
+        // Phase 27: v14 kannte keine Befehle; mit Flottenkampf führen Polizei und Piraten ab dem ersten Tick Befehle — die Herabstufung ginge verloren
+        var fresh = DemoUniverse.Create();
+        fresh.Rules.FleetCombat = false;
+        new SimulationRunner().Run(fresh, 1);
+        fresh.PlayerWallet.Credits = 20_000f;
         var v14 = ToV14Json(SaveGameJson.Write(fresh, Now));
         Assert.Contains("\"Version\":14", v14);
         Assert.DoesNotContain("\"hangar\"", v14);
@@ -591,8 +598,10 @@ public class FleetCommandTests
     public void NpcWirtschaft_OhneBefehle_UnveraendertDurchDieBefehlsebene()
     {
         // Gleiche Welt mit und ohne Befehlsmodul: ohne Befehle der Spielerflotte darf die Befehlsebene nichts ändern
+        // Phase 27: gilt für die NPC-Sonderlogik (Schalter aus); mit Flottenkampf laufen Polizei und Piraten selbst über die Befehlsebene (Phase27Tests)
         var a = WorldBuilder.BuildDefault();
         var b = WorldBuilder.BuildDefault();
+        a.Rules.FleetCombat = false; b.Rules.FleetCombat = false;
         var withOrders = new SimulationRunner();
         var without = new SimulationRunner(SimulationRunner.DefaultModules().Where(m => m is not SpaceSim.Core.Modules.OrderModule));
         withOrders.Run(a, 5000);

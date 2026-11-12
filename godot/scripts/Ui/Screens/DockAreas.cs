@@ -71,6 +71,15 @@ public static class DockAreas
 		_ => id,
 	};
 
+	/// <summary>Gerätetest Phase 27: deutscher Name eines Stationsdienstes (Station-Info-Chips; nie der Rohschlüssel).</summary>
+	public static string ServiceName(string key, Universe? u = null) => key switch
+	{
+		"trade" => "Handel", "repair" => "Reparatur", "refuel" => "Tanken", "outfitter" => "Ausrüster", "shipdealer" => "Schiffshändler",
+		"upgrade" => "Verbessern", "storage" => "Lager", "court" => "Gericht", "bounty" => "Kopfgeldbüro", "hangar" => "Hangar", "taxi" => "Taxi",
+		"rental" => "Verleih", "research" => "Forschung", "rearm" => "Munition",
+		_ => LabelFor(key, u),
+	};
+
 	/// <summary>Kurzlabel für die schmale Seitenleiste (dort passt „Reparatur & Tanken“ nicht hin).</summary>
 	public static string ShortLabelFor(string id) => id == Repair ? "Reparatur" : LabelFor(id);
 

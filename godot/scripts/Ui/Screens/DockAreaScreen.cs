@@ -52,11 +52,23 @@ public abstract partial class DockAreaScreen : Control, IScreen
 	public void Refresh()
 	{
 		if (!Visible || Ctx == null) return;
-		if (Ctx.U.Tick != _builtTick || _dirty) Rebuild();
+		if (Ctx.U.Tick != _builtTick || _dirty) SafeRebuild();
+	}
+
+	/// <summary>
+	/// Gerätetest Phase 27: Neuaufbau ohne die Rollposition zu verlieren (die Bereiche bauen sich je Tick neu auf — vorher sprang jede Liste viermal je Sekunde
+	/// nach oben) und nie mitten in einem Wisch (der Rollbereich würde unter dem Finger ersetzt).
+	/// </summary>
+	void SafeRebuild()
+	{
+		if (KitScroll.Dragging && GetChildCount() > 0) { _dirty = true; return; }
+		var keep = KitScroll.Capture(this);
+		Rebuild();
+		KitScroll.Restore(this, keep);
 	}
 
 	/// <summary>Setzt die Anzeige nach einer Aktion (z. B. Kauf) sofort neu auf.</summary>
-	protected void Invalidate() { _dirty = true; Rebuild(); }
+	protected void Invalidate() { _dirty = true; SafeRebuild(); }
 
 	public override void _Draw()
 	{
@@ -86,7 +98,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, 14, 84, 200, 540);
 		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
 		// Phase 12: bis zu neun Bereiche — die Leiste rollt senkrecht, statt Bereiche zu verdrängen
-		var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		var scroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
 		rail.AddChild(scroll);
 		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);

@@ -191,6 +191,24 @@ u.Events.Raised += e =>
             armedBought++; break;
     }
 };
+// Phase 27: Flottenkampf — Verbände, Verstärkung, Zuflucht, Verfolgung, Geleit, Ergeben
+var joinedBy = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var refugeBy = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var pursuitEnds = new SortedDictionary<string, int>(StringComparer.Ordinal);
+int pursuits = 0, escortsAssigned = 0, squadsFormed = 0, packsFormed = 0, arrests = 0;
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case CombatJoined cj: joinedBy[cj.Reason] = joinedBy.GetValueOrDefault(cj.Reason) + 1; break;
+        case RefugeReached rr2: refugeBy[rr2.Kind] = refugeBy.GetValueOrDefault(rr2.Kind) + 1; break;
+        case PursuitStarted: pursuits++; break;
+        case PursuitEnded pe: pursuitEnds[pe.How] = pursuitEnds.GetValueOrDefault(pe.How) + 1; break;
+        case EscortAssigned: escortsAssigned++; break;
+        case ForceSquadron fs when fs.Formed: if (fs.Kind == "pack") packsFormed++; else squadsFormed++; break;
+        case EncounterStarted es2 when es2.Cause == EncounterCause.Arrest: arrests++; break;
+    }
+};
 // Phase 26: Schaden und Bergung — Modulschäden, Brände, Reparaturen, Wracks, Bergung
 int modDamaged = 0, modFailed = 0, firesStarted = 0, wrecksMade = 0, containersMade = 0, wrecksExpired = 0, repairsNpc = 0, repairsBase = 0, repairsPlayer = 0, repairModules = 0;
 double repairCost = 0, repairBaseCost = 0, repairPlates = 0, repairElec = 0, salvagedCargoNpc = 0, salvagedCargoPlayer = 0, wreckCargoMade = 0, wreckCargoExpired = 0;
@@ -642,6 +660,10 @@ if (u.Modules.Count > 0)
         + $"({(fightShots > 0 ? 100.0 * fightHits / fightShots : 0):0}%); Schaden Schild {shieldDmg:0}, Hülle {hullDmg:0}");
     Console.WriteLine("  Ausgänge: " + (fightOutcomes.Count == 0 ? "keine" : string.Join(", ", fightOutcomes.Select(kv => $"{kv.Key} {kv.Value}")))
         + " | je Rolle: " + (exitsByRole.Count == 0 ? "keine" : string.Join(", ", exitsByRole.Select(kv => $"{kv.Key} {kv.Value}"))));
+    Console.WriteLine($"Flottenkampf: {(u.Rules.FleetCombat ? "an" : "aus")}; Streifen-Verbände gebildet {squadsFormed}, Rudel {packsFormed}, jetzt Verbände {u.Squadrons.Count}; "
+        + $"Verstärkung {(joinedBy.Count == 0 ? "keine" : string.Join(", ", joinedBy.Select(kv => $"{kv.Key} {kv.Value}")))}; "
+        + $"Zuflucht {(refugeBy.Count == 0 ? "keine" : string.Join(", ", refugeBy.Select(kv => $"{kv.Key} {kv.Value}")))}; "
+        + $"Verfolgungen {pursuits} ({(pursuitEnds.Count == 0 ? "–" : string.Join(", ", pursuitEnds.Select(kv => $"{kv.Key} {kv.Value}")))}); Geleit {escortsAssigned}; Polizeigefechte gegen den Spieler {arrests}");
     Console.WriteLine("Piraten über die Zeit (je 20000 Ticks: Überfälle, je Gruppe Kaperschiffe/Kasse): " + (pirateTimeline.Count == 0 ? "–" : string.Join(" | ", pirateTimeline)));
     Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "
         + $"{(income > 0 ? 100.0 * ammoPolice / income : 0):0.00}% der Kasseneinnahmen); fehlt jetzt {u.Ships.Values.Sum(x => x.Systems.AmmoMissing):0}");

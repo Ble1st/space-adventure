@@ -53,6 +53,7 @@ public static class Engage
         if (e.Spatial && CombatSense.NearestInSpace(e, p) is { } near && Vec2.Distance(near.Pos, p.Pos) > 1e-3f) p.Dir = (near.Pos - p.Pos).Normalized();
         e.Participants.Add(p);
         u.Fights.Mark(ship.Id, e.Id);
+        CombatRefuge.Assign(u, e, p, ship);   // Phase 27: nächste Zuflucht (Station/Tor) für die Flucht merken
         return p;
     }
 
@@ -92,12 +93,18 @@ public static class Engage
     public static void Resume(Universe u, Ship ship)
     {
         ship.NextThinkTick = u.Tick;
+        if (u.Rules.FleetCombat && ThreatMap.IsRaider(ship)) { PirateCommands.AfterFight(u, ship); return; }   // Phase 27: nach dem Gefecht entscheidet die Gruppe
         if (ship.Command is { } cmd)
         {
             if (!ship.Emergency && OrderExecutors.Default.TryGet(cmd.Kind, out var ex)) ex.Start(u, ship, cmd);
             return;
         }
-        if (ThreatMap.IsRaider(ship)) { PirateSystem.GoHome(u, ship); return; }
+        if (ThreatMap.IsRaider(ship))
+        {
+            // Phase 27: mit Flottenkampf entscheidet die Piratengruppe (Rudel heim bzw. dem Anführer folgen)
+            if (u.Rules.FleetCombat) PirateCommands.AfterFight(u, ship); else PirateSystem.GoHome(u, ship);
+            return;
+        }
         if (ThreatMap.IsPolice(ship)) return;   // die Streife plant beim nächsten Takt neu (Heimkehr bei Schaden oder leerem Magazin)
         if (ship.IsEconomyAi) ship.IdleSince = u.Tick;
         // Schürfer mit Ladung: zum besten Käufer ausliefern (wie nach einem Tankstopp); Händler verkaufen über SellStranded beim nächsten Takt
@@ -143,6 +150,7 @@ public static class Engage
         Wanted.Report(u, raider.Owner, sector.Owner, "piracy");
         u.Events.Publish(new EncounterStarted(e.Id, sector.Id, EncounterCause.Raid, raider.Id, victim.Id,
             $"Gefecht in {sector.Name}: {u.ActorName(raider.Owner)} überfällt Schiff {victim.Id.Value}"));
+        Reinforcements.Step(u, e);   // Phase 27: Rudel des Kaperers, Verband des Opfers
         return e;
     }
 
@@ -159,6 +167,35 @@ public static class Engage
         Join(u, e, raider, 1, CombatTactics.Raider, r.CombatStartDistance, e.Spatial ? raider.Position : null);
         string where = u.Sectors.TryGetValue(raider.Sector, out var sec) ? sec.Name : "?";
         u.Events.Publish(new EncounterStarted(e.Id, raider.Sector, EncounterCause.Intercept, hunter.Id, raider.Id, $"Gefecht in {where}: Streife stellt ein Kaperschiff"));
+        Reinforcements.Step(u, e);   // Phase 27: Streife als Verband, Rudel des Kaperers
         return e;
     }
+
+    /// <summary>
+    /// Phase 27 (KAMPF.md Stufe 27): Die Polizei stellt einen gesuchten Spieler (Fahndungsstufe ≥ 3) als echtes Gefecht — nach der Vorwarnung. Die Streifen der
+    /// Fraktion im Sektor (höchstens ein voller Verband) greifen an; der Spieler kann kämpfen, fliehen oder sich ergeben (<see cref="PlayerSurrender"/>: Strafe zahlen).
+    /// </summary>
+    public static Encounter StartArrest(Universe u, IReadOnlyList<Ship> police, Ship player, Sector sector)
+    {
+        var r = u.Rules;
+        var e = Begin(u, EncounterCause.Arrest, sector.Id);
+        e.Victim = player.Id;
+        e.Police = police[0].Id;
+        var at = player.Position;
+        Join(u, e, player, 1, CombatTactics.Player, r.CombatStartDistance, e.Spatial ? at : null);
+        int n = 0;
+        foreach (var p in police)
+        {
+            if (u.Fights.IsEngaged(p.Id) || n >= Math.Max(1, r.SquadronMaxMembers)) continue;
+            Join(u, e, p, 0, CombatTactics.Police, -HelperOffset(n), e.Spatial ? CombatSpace.Clear(u, sector.Id, CombatSpace.Around(at, p.Position, r.CombatStartDistance + HelperOffset(n))) : null);
+            n++;
+        }
+        string who = u.Factions.TryGetValue(sector.Owner, out var fac) ? fac.Name : "Polizei";
+        u.Events.Publish(new EncounterStarted(e.Id, sector.Id, EncounterCause.Arrest, police[0].Id, player.Id,
+            $"Polizei von {who} greift an — „Ergeben“ zahlt die Strafe, sonst kämpfen oder fliehen."));
+        Reinforcements.Step(u, e);
+        return e;
+    }
+
+    static float HelperOffset(int n) => n * Reinforcements.HelperGap;
 }

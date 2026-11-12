@@ -21,6 +21,9 @@ public sealed class PirateSystem : ISimSystem
     {
         if (!u.Rules.SecurityActive) return;
         ResolvePending(u, dt);
+        // Phase 27: mit Flottenkampf vergibt die Piratengruppe nur noch Befehle (Lauern, Heimkehr; Rudel als Verband) — die Ausführer fliegen
+        if (u.Rules.FleetCombat) PirateCommands.Step(u);
+        else
         foreach (var raider in u.ShipsById().Where(ThreatMap.IsRaider).ToList())
             if (u.Ships.ContainsKey(raider.Id)) StepRaider(u, raider, dt);
         if (u.Tick % BookingTicks < dt) Book(u, BookingTicks);
@@ -51,7 +54,8 @@ public sealed class PirateSystem : ISimSystem
         else GoHome(u, raider);
     }
 
-    static Station? Home(Universe u, Ship s)
+    /// <summary>Heimatbasis (Versteck) eines Kaperschiffs; fehlt sie, das erste Versteck des Besitzers (wird gemerkt).</summary>
+    public static Station? Home(Universe u, Ship s)
     {
         if (u.Stations.TryGetValue(s.HomeBase, out var h)) return h;
         var hideout = u.StationsById().Where(st => st.Owner == s.Owner && IsHideout(u, st)).FirstOrDefault();
@@ -62,7 +66,8 @@ public sealed class PirateSystem : ISimSystem
     /// <summary>Ist die Station ein Piratenversteck?</summary>
     public static bool IsHideout(Universe u, Station st) => StationProtection.IsHideout(u, st);
 
-    static bool AtHome(Universe u, Ship s) =>
+    /// <summary>Liegt das Schiff im Schutzradius seiner Heimatbasis?</summary>
+    public static bool AtHome(Universe u, Ship s) =>
         Home(u, s) is { } h && s.Sector == h.Sector && Vec2.Distance(s.Position, h.Position) <= u.Rules.StationSafeRadius;
 
     static void OnArrive(Universe u, Ship raider)
@@ -121,18 +126,29 @@ public sealed class PirateSystem : ISimSystem
     public static float HuntWeight(Universe u, Sector s) =>
         (MathF.Max(0f, s.Traffic) + 500f) / (1f + u.Rules.PirateSecurityAversion * MathF.Max(0f, s.Security));
 
-    static void ChooseHunt(Universe u, Ship raider)
+    /// <summary>
+    /// Revier und Lauerposten wählen (gewichteter Zug nach <see cref="HuntWeight"/>, Posten nahe einem Gate, etwas abseits); null = kein erreichbares Revier.
+    /// Phase 27: gemeinsam für die Sonderlogik (Schalter aus) und den Lauerbefehl der Piratengruppe.
+    /// </summary>
+    public static (Sector Sector, Vec2 Spot)? PickHunt(Universe u, Ship raider)
     {
         var profile = GateAccess.ProfileOf(u, raider);
         var sectors = u.Sectors.Values.OrderBy(s => s.Id.Value).Where(s => s.Gates.Count > 0 && u.IsReachable(raider.Sector, s.Id, profile)).ToList();
         float total = sectors.Sum(s => HuntWeight(u, s));
-        if (sectors.Count == 0 || total <= 0f) { raider.NextThinkTick = u.Tick + 200; return; }
+        if (sectors.Count == 0 || total <= 0f) return null;
         double pick = u.Rng.NextDouble() * total;
         var target = sectors[^1];
         foreach (var s in sectors) { pick -= HuntWeight(u, s); if (pick < 0) { target = s; break; } }
         // Lauerposten nahe einem Gate (dort kommt der Verkehr vorbei), etwas abseits
         var gate = u.Gates[target.Gates[u.Rng.NextInt(target.Gates.Count)]];
         var spot = gate.Position + Vec2.FromAngle((float)(u.Rng.NextDouble() * Math.PI * 2)) * 30f;
+        return (target, spot);
+    }
+
+    static void ChooseHunt(Universe u, Ship raider)
+    {
+        if (PickHunt(u, raider) is not { } hunt) { raider.NextThinkTick = u.Tick + 200; return; }
+        var (target, spot) = hunt;
         raider.DutySector = target.Id;
         raider.Order = new PatrolOrder(target.Id);
         if (!Travel.Start(u, raider, target.Id, spot)) { raider.Order = null; raider.DutySector = default; raider.NextThinkTick = u.Tick + 200; }
@@ -177,10 +193,15 @@ public sealed class PirateSystem : ISimSystem
         return list;
     }
 
-    static void TryRaid(Universe u, Ship raider, int dt)
+    /// <summary>
+    /// Überfallversuch eines lauernden Kaperschiffs (Chance je Tick, gedämpft durch die Sicherheit). Phase 27: Ein Rudel (Verband) würfelt nur über den
+    /// Anführer, die Chance wächst mit der Zahl der Rudelmitglieder im Sektor (mehr Augen, gleiche Überfallrate je Kaperschiff); sie fallen gemeinsam über das Opfer her.
+    /// </summary>
+    public static void TryRaid(Universe u, Ship raider, int dt)
     {
         var sector = u.Sectors[raider.Sector];
         float p = u.Rules.RaidRatePerTick * dt / (1f + u.Rules.RaidSecurityDeterrence * MathF.Max(0f, sector.Security));
+        if (u.Rules.FleetCombat) p *= PirateCommands.PackIn(u, raider, sector.Id);
         if (u.Rng.NextDouble() >= p) return;
         var victims = Victims(u, sector.Id);
         float total = victims.Sum(v => v.Weight);
@@ -293,7 +314,7 @@ public sealed class PirateSystem : ISimSystem
     }
 
     /// <summary>Eine Streife im Sektor stellt das lauernde Kaperschiff (Chance je Tick und Streife). true = es kam zur Begegnung.</summary>
-    static bool TryIntercept(Universe u, Ship raider, int dt)
+    public static bool TryIntercept(Universe u, Ship raider, int dt)
     {
         var police = PoliceIn(u, raider.Sector);
         var hunters = FleetGuards.Hunters(u, raider.Sector).Where(s => !u.Fights.IsEngaged(s.Id)).ToList();   // Phase 12: Streifen/Wachen mit Regel „Angriff“

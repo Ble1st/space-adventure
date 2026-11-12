@@ -82,7 +82,7 @@ public sealed partial class DockMenu : Control, IScreen
 
 		// Bereiche darunter, je mit Untertitel; bis zu neun Kacheln — das Raster rollt bei Bedarf
 		var defs = DockAreas.Build(u, st, Ctx.Services, ship);
-		var scroll = At(card, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 20, 198, 552, 348);
+		var scroll = At(card, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 20, 198, 552, 348);
 		var grid = new GridContainer { Columns = 2, MouseFilter = MouseFilterEnum.Ignore };
 		grid.AddThemeConstantOverride("h_separation", 10);
 		grid.AddThemeConstantOverride("v_separation", 8);

@@ -12,9 +12,11 @@ namespace SpaceAdventure.Ui.Screens;
 /// zentral in <see cref="UiPlaceholders"/>, deutlich als „Platzhalter / Vorschau“ gekennzeichnet, ohne Wirkung.
 /// Der Zähler ungelesener Nachrichten steht am Hamburger-Menü (<see cref="UiPlaceholders.CommsUnread"/>).
 /// </summary>
-public sealed partial class CommsScreen : CommandScreen
+public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.comms";
+	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	public void ResetSession() { _sel = 0; }
 
 	int _sel;
 
@@ -62,8 +64,8 @@ public sealed partial class CommsScreen : CommandScreen
 		float y = 178;
 		foreach (var a in msg.Answers)
 		{
-			var b = At(dlg, new KitButton(a.Text, new Vector2(614, 52)) { FontSize = 16, AlignLeft = true, State = KitButtonState.Disabled, Sub = a.EffectPreview, Detail = UiPlaceholders.Tag, DetailColor = new Color(Orange, 0.8f) }, 16, y);
-			y += 58;
+			var b = At(dlg, new KitButton(a.Text, new Vector2(614, 72)) { FontSize = 16, AlignLeft = true, State = KitButtonState.Disabled, Sub = a.EffectPreview, Detail = UiPlaceholders.Tag, DetailColor = new Color(Orange, 0.8f) }, 16, y);
+			y += 80;   // Gerätetest Phase 27: drei Zeilen (Antwort, Folgen, Platzhalter) brauchen 72 px
 		}
 		At(dlg, Text("Ignorieren kostet keinen Ruf, Angebote verfallen – alles " + UiPlaceholders.Tag + " (" + UiPlaceholders.Soon + ").", 12, new Color(Dim, 0.75f)), 16, 452, 614, 18);
 	}
