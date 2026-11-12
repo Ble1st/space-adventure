@@ -110,6 +110,7 @@ public class MultiroleTests
         var u = DemoUniverse.Create();
         foreach (var sec in u.Sectors.Values) sec.Fields.Clear();   // keine Erzgürtel: Schürfen bringt nichts
         u.Rules.JobMinTicks = 300;
+        u.Rules.JobIdleSwitchTicks = 300;   // Phase 20: eine Aufgabe ohne Ertrag wird erst nach Leerlauf verlassen — hier wie die Mindestdauer verkürzt
         var tinker = AddAi(u, "tinker", ShipRole.Miner);
         tinker.JobSince = 0;
         var changes = new List<(long Tick, JobChanged E)>();

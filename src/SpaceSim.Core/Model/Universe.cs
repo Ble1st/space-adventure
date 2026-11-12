@@ -35,6 +35,13 @@ public sealed class Universe
     /// die Stilllegung verlangt eine anhaltende Knappheit.
     /// </summary>
     public Dictionary<GoodId, long> ScarceSince = new();
+    /// <summary>
+    /// Phase 20: Versorgungspanik — seit wann in einem Kartenteil (Schlüssel = kleinste Sektor-Id, <see cref="Simulation.MapParts"/>) der letzte Hersteller einer
+    /// dort gebrauchten Ware fehlt (<see cref="Simulation.SupplyPanic"/>). Gespeichert.
+    /// </summary>
+    public Dictionary<(int Part, GoodId Good), long> PanicSince = new();
+    /// <summary>Phase 20: letzte Ausmusterung wegen Leerlauf je Aufgabe und Kartenteil (Kaufsperre <see cref="EconomyRules.ExpandAfterRetireTicks"/>). Gespeichert.</summary>
+    public Dictionary<(string Job, int Part), long> IdleRetiredTick = new();
 
     /// <summary>Der einzige Sektor, der als Godot-Szene materialisiert ist.</summary>
     public SectorId PlayerSector;

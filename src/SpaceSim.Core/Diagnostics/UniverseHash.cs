@@ -22,14 +22,14 @@ public static class UniverseHash
             if (st.Site is { } bs)
             {
                 MixString(bs.TypeKey); Mix((ulong)bs.Builder.Value); Mix((ulong)bs.LastProgressTick); Mix((ulong)bs.BlockedSince);
-                Mix((ulong)bs.AssemblyTicks); Mix((ulong)bs.InvestorActor); Mix(bs.Emergency ? 1UL : 0UL); Mix(bs.Abandoned ? 1UL : 0UL); MixF(bs.Budget);
+                Mix((ulong)bs.AssemblyTicks); Mix((ulong)bs.InvestorActor); Mix(bs.Emergency ? 1UL : 0UL); Mix(bs.Abandoned ? 1UL : 0UL); Mix(bs.Panic ? 1UL : 0UL); MixF(bs.Budget);
                 foreach (var (g, n) in bs.Required.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
             }
             foreach (var (g, n) in st.PlayerStorage.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
             // Phase 14: wartende Exportchargen (Reihenfolge des Ankaufs)
             foreach (var b in st.Exports) { Mix((ulong)b.Good.Value); MixF(b.Amount); MixF(b.Paid); Mix((ulong)b.DueTick); }
             foreach (var (g, n) in st.MaintenanceBacklog.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }   // Phase 15
-            Mix((ulong)st.BuiltTick); MixF(st.Activity); MixF(st.Starved);   // Phase 19: Auslastung
+            Mix((ulong)st.BuiltTick); MixF(st.Activity); MixF(st.Starved); Mix(st.Panic ? 1UL : 0UL);   // Phase 19: Auslastung
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
         {
@@ -59,6 +59,9 @@ public static class UniverseHash
         // Phase 19: Stilllegung (Abklingzeit, anhaltende Knappheit)
         Mix((ulong)u.LastStationRetireTick);
         foreach (var (g, t) in u.ScarceSince.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); Mix((ulong)t); }
+        // Phase 20: Versorgungspanik und Kaufsperre nach Ausmusterung
+        foreach (var (k, t) in u.PanicSince.OrderBy(k => k.Key.Part).ThenBy(k => k.Key.Good.Value)) { Mix((ulong)k.Part); Mix((ulong)k.Good.Value); Mix((ulong)t); }
+        foreach (var (k, t) in u.IdleRetiredTick.OrderBy(k => k.Key.Job, StringComparer.Ordinal).ThenBy(k => k.Key.Part)) { MixString(k.Job); Mix((ulong)k.Part); Mix((ulong)t); }
         // Phase 9: Akteure (Art, Mitgliedschaft, Kasse — darunter die Spielerkasse aus Phase 5b —, Persönlichkeit, Beziehungsabweichungen)
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {
@@ -85,7 +88,7 @@ public static class UniverseHash
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) { MixF(sec.Threat); MixF(sec.Security); MixF(sec.Traffic); }
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {
-            Mix((ulong)a.LastForceTick);
+            Mix((ulong)a.LastForceTick); MixF(a.PoliceNeed); Mix((ulong)a.PoliceSurplusSince);   // Phase 20
             foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }
             foreach (var (f, c) in a.BountyClaims.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(c); }
         }

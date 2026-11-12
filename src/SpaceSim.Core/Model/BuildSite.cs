@@ -35,6 +35,8 @@ public sealed class BuildSite
     public bool Emergency;
     /// <summary>Verfallen: kein Projekt mehr, das gelieferte Material bleibt als Lager liegen (ein neues Projekt im Sektor übernimmt es).</summary>
     public bool Abandoned;
+    /// <summary>Phase 20: Baustelle einer Versorgungspanik (<see cref="Simulation.SupplyPanic"/>); die fertige Station erbt das Kennzeichen. Gespeichert.</summary>
+    public bool Panic;
 
     /// <summary>Wie viel einer Ware noch fehlt (verlangt − geliefert), nie negativ.</summary>
     public float Missing(Station site, GoodId good) =>

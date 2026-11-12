@@ -110,6 +110,29 @@ public static class StationReview
     }
 
     /// <summary>
+    /// Phase 20: Überzahl abbauen. Liegt die Zahl der Wirtschaftsstationen über <see cref="EconomyRules.MaxStations"/> (Panik-Ersatz aus der Notreserve) und hängt
+    /// die Karte wieder zusammen, wird eine dauerhaft nutzlose Station (<see cref="Useless"/>, nicht kritisch) stillgelegt — Panik-Stationen zuerst, dann die
+    /// geringste Auslastung; höchstens eine je <see cref="EconomyRules.RetireCooldownTicks"/>, ohne Neubau an ihrer Stelle. Solange die Karte zerfallen ist,
+    /// bleibt der Ersatz (er ist dort die letzte Herstellerin). true = stillgelegt.
+    /// </summary>
+    public static bool TryRetireSurplus(Universe u, StationLifecycleSystem.LifecycleScan scan)
+    {
+        var rules = u.Rules;
+        if (!rules.StationRetireActive || u.Tick - u.LastStationRetireTick < rules.RetireCooldownTicks) return false;
+        if (StationProtection.CountEconomic(u) <= rules.MaxStations || MapParts.Of(u).IsSplit) return false;
+        Station? pick = null;
+        foreach (var st in u.StationsById())
+        {
+            if (!Useless(u, st, scan.Ratios) || StationCriticality.IsCritical(u, st)) continue;
+            if (st.PlayerStorage.Count > 0 || u.Ships.Values.Any(s => s.IsPlayer && s.DockedAt == st.Id)) continue;
+            if (pick is null || (st.Panic && !pick.Panic) || (st.Panic == pick.Panic && st.Activity < pick.Activity)) pick = st;
+        }
+        if (pick is null) return false;
+        Retire(u, pick, default, "");
+        return true;
+    }
+
+    /// <summary>
     /// Station stilllegen: der Besitzer erhält die Stationskasse (falls positiv) und das Lager zum Restwert (<see cref="EconomyRules.RetireSalvageShare"/> ×
     /// Basispreis; der Rest verfällt), Aufträge werden über <see cref="Universe.RemoveStation"/> storniert, <see cref="StationRetired"/>.
     /// </summary>

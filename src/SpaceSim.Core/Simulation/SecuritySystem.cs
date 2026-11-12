@@ -49,6 +49,36 @@ public sealed class SecuritySystem : ISimSystem
         return Math.Clamp((int)MathF.Ceiling(need - 1e-4f), r.PoliceMinPerFaction, r.PoliceMaxPerFaction);
     }
 
+    /// <summary>Phase 20: ungeglätteter Bedarf Σ (Grundbedarf je Sektor + Bedrohung × Faktor) über das Territorium (ohne Rundung und Grenzen).</summary>
+    public static float RawNeed(Universe u, FactionId f) =>
+        Territory(u, f).Sum(s => u.Rules.PolicePerSector + s.Threat * u.Rules.PolicePerThreat);
+
+    /// <summary>
+    /// Phase 20: geglätteten Bedarf nachführen (<see cref="Actor.PoliceNeed"/>, gleitendes Mittel über <see cref="EconomyRules.PoliceNeedWindowTicks"/>; beim
+    /// ersten Mal der Augenblickswert) und zurückgeben.
+    /// </summary>
+    public static float SmoothNeed(Universe u, Actor actor, FactionId f, int ticks)
+    {
+        float raw = RawNeed(u, f);
+        int window = u.Rules.PoliceNeedWindowTicks;
+        if (actor.PoliceNeed < 0f || window <= 0) actor.PoliceNeed = raw;
+        else actor.PoliceNeed += (raw - actor.PoliceNeed) * MathF.Min(1f, (float)ticks / window);
+        return actor.PoliceNeed;
+    }
+
+    /// <summary>
+    /// Phase 20: Kauf- und Abbau-Schwelle zum geglätteten Bedarf: gekauft wird, solange die Zahl unter ⌈Bedarf − <see cref="EconomyRules.PoliceBuyMargin"/>⌉ liegt,
+    /// abgebaut, wenn sie über ⌈Bedarf + <see cref="EconomyRules.PoliceSellMargin"/> − 1⌉ liegt — beide innerhalb Mindest-/Höchstzahl. Rein.
+    /// </summary>
+    public static (int BuyBelow, int SellAbove) Thresholds(Universe u, float need)
+    {
+        var r = u.Rules;
+        if (need <= 0f) return (0, 0);
+        int buy = Math.Clamp((int)MathF.Ceiling(need - r.PoliceBuyMargin - 1e-4f), r.PoliceMinPerFaction, r.PoliceMaxPerFaction);
+        int keep = Math.Clamp((int)MathF.Ceiling(need + r.PoliceSellMargin - 1f - 1e-4f), r.PoliceMinPerFaction, r.PoliceMaxPerFaction);
+        return (buy, Math.Max(buy, keep));
+    }
+
     /// <summary>Gewicht eines Sektors bei der Zuweisung: Grundbedarf + Bedrohung + Verkehrswert ÷ 20000 (Wert des Sektors).</summary>
     public static float PatrolWeight(Universe u, Sector s) =>
         u.Rules.PolicePerSector + s.Threat * u.Rules.PolicePerThreat + MathF.Max(0f, s.Traffic) / 20000f;
@@ -65,17 +95,24 @@ public sealed class SecuritySystem : ISimSystem
             actor.Treasury.Credits -= paid;
             u.Events.Publish(new TreasuryUpkeep(actor.Id, "police", paid, upkeep - paid));
         }
-        int desired = Desired(u, f);
-        if (police.Count < desired && u.Tick - actor.LastForceTick >= r.PoliceChangeCooldown)
+        // Phase 20: Kauf und Abbau folgen dem geglätteten Bedarf mit Hysterese. Vorher kaufte jeder Überfall (Bedrohung +1 → Soll 3) ein drittes Schiff, das
+        // 6000 Ticks nach dem Kauf wieder abgebaut wurde, sobald die Bedrohung verfallen war (144 h: 344 gekauft, 344 abgebaut, 17,5 % der Kasseneinnahmen).
+        float need = SmoothNeed(u, actor, f, ticks);
+        var (buyBelow, sellAbove) = Thresholds(u, need);
+        if (police.Count > sellAbove) { if (actor.PoliceSurplusSince < 0) actor.PoliceSurplusSince = u.Tick; }
+        else actor.PoliceSurplusSince = -1;
+        if (police.Count < buyBelow && u.Tick - actor.LastForceTick >= r.PoliceChangeCooldown)
         {
             if (Commission(u, f) is { } ship) police.Add(ship);
         }
-        else if (police.Count > desired && u.Tick - actor.LastForceTick >= r.PoliceDecommissionTicks)
+        else if (police.Count > sellAbove && actor.PoliceSurplusSince >= 0 && u.Tick - actor.PoliceSurplusSince >= r.PoliceDecommissionTicks
+                 && u.Tick - actor.LastForceTick >= r.PoliceChangeCooldown)
         {
             var gone = police.OrderBy(s => s.Transit is null ? 0 : 1).ThenByDescending(s => s.Id.Value).First();
             police.Remove(gone);
             u.RemoveShip(gone.Id, "decommissioned");
             actor.LastForceTick = u.Tick;
+            actor.PoliceSurplusSince = -1;
             u.Events.Publish(new PoliceDecommissioned(f, gone.Id));
         }
         Assign(u, f, police);

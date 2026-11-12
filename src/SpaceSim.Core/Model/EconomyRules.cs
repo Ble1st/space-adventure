@@ -275,8 +275,11 @@ public sealed class EconomyRules
     /// <summary>Polizei: Grenzen je Fraktion.</summary>
     public int PoliceMinPerFaction = 1;
     public int PoliceMaxPerFaction = 4;
-    /// <summary>Polizei: Unterhalt je Schiff und Tick aus der Fraktionskasse (Senke).</summary>
-    public float PoliceUpkeepPerTick = 0.8f;
+    /// <summary>
+    /// Polizei: Unterhalt je Schiff und Tick aus der Fraktionskasse (Senke). Phase 20: 0,8 → 0,4 — seit der Fiskalbremse (Phase 15) fließt nur noch ein Teil
+    /// der Abgaben in die Kassen; der Unterhalt der Grundstärke allein war damit ≈ 12 % der Kasseneinnahmen (Phase 11 kalibriert auf 6,7 %).
+    /// </summary>
+    public float PoliceUpkeepPerTick = 0.4f;
     /// <summary>Polizei: Kauf nur, wenn danach diese Reserve in der Kasse bleibt.</summary>
     public float PoliceReserve = 15000f;
     /// <summary>Polizei: Abkühlzeit zwischen Kauf/Abbau je Fraktion; Abbau erst nach so langer Überzahl.</summary>
@@ -506,4 +509,54 @@ public sealed class EconomyRules
     /// <see cref="OverstockFactor"/>. Die Standardwelt senkt <see cref="OverstockFactor"/> auf 2,5 (voller Lagerpreis 0,4× statt 0,33×) und lässt den Senken 3.
     /// </summary>
     public float ExportOverstockFactor;
+    // ───────── Phase 20: Schwächen aus den Langläufen ─────────
+    /// <summary>
+    /// Phase 20: „Panik“ bei Versorgungsabriss (<see cref="Simulation.SupplyPanic"/>): Verliert ein Kartenteil durch ein geschlossenes/zerstörtes Gate den letzten
+    /// Hersteller einer Ware, die dort gebraucht wird, baut der Stationsbau dort dringlich Ersatz. false = keine Panik (Regel bis Phase 19).
+    /// </summary>
+    public bool SupplyPanicActive = true;
+    /// <summary>Phase 20: So lange (Ticks) muss ein Hersteller im Teil fehlen, bevor Panik ausbricht (kurze Schließungen lösen nichts aus).</summary>
+    public int PanicDelayTicks = 1000;
+    /// <summary>Phase 20: Notreserve — so viele Panik-Stationen (samt Baustellen) darf ein Kartenteil über <see cref="MaxStations"/> und die Sektorgrenze hinaus haben.</summary>
+    public int PanicReserveStations = 2;
+    /// <summary>Phase 20: Flottengrenzen je erreichbarem Kartenteil (<see cref="Simulation.FleetCapacity"/>); false = Grenze der Welt wie bis Phase 19.</summary>
+    public bool FleetCapacityByPart = true;
+    /// <summary>
+    /// Phase 20: Kein Neukauf für eine Aufgabe, solange im selben Kartenteil ein arbeitsfähiges Schiff dieser Aufgabe mindestens so lange (Ticks) untätig ist
+    /// (es gibt keine Arbeit für ein weiteres). 0 = aus.
+    /// </summary>
+    public int ExpandIdleTicks = 1000;
+    /// <summary>Phase 20: Nach einer Ausmusterung wegen Leerlauf kauft die Flotte im selben Kartenteil so lange (Ticks) kein Schiff dieser Aufgabe. 0 = aus.</summary>
+    public int ExpandAfterRetireTicks = 6000;
+    /// <summary>
+    /// Phase 20: Pleite ist nur, wer weder Geld noch Fracht hat. Ein Händler mit unverkäuflicher Fracht an Bord versucht sie weiter zu verkaufen
+    /// (<see cref="StrandedCargoTicks"/>), statt nach <see cref="ShipBankruptTicks"/> samt Ladung aufgegeben zu werden. false = Regel bis Phase 19.
+    /// </summary>
+    public bool BankruptNeedsEmptyHold = true;
+    /// <summary>
+    /// Phase 20: Fällt die belegte Kapazität einer Aufgabe in einem Kartenteil unter diesen Anteil ihrer Grenze und kann dort kein Schiff der Aufgabe nachkaufen,
+    /// kauft die Kasse der Besitzerfraktion ein Schiff (<see cref="Simulation.FleetSystem"/>). 0 = aus.
+    /// </summary>
+    public float FleetTreasuryFloorShare = 0.6f;
+    /// <summary>Phase 20: Diese Summe behält ein KI-Händler beim Einkauf als Betriebsreserve (Credits); 0 = alles einsetzen (Regel bis Phase 19).</summary>
+    public float TraderCashReserve = 0f;
+    /// <summary>
+    /// Phase 20: Ein Mehrzweckschiff verlässt eine Aufgabe, die gerade nichts einbringt (Bewertung 0), erst, wenn es mindestens so lange (Ticks) untätig war.
+    /// Vorher genügte ein Augenblickswert 0 direkt nach einer Lieferung (Abnehmer kurz voll), und die Schiffe wechselten alle 600 Ticks. 0 = Regel bis Phase 19.
+    /// </summary>
+    public int JobIdleSwitchTicks = 1500;
+    /// <summary>Phase 20: Geglättete Polizei-Sollstärke — Zeitkonstante (Ticks) des gleitenden Mittels des Bedarfs (<see cref="Actor.PoliceNeed"/>); 0 = Augenblickswert.</summary>
+    public int PoliceNeedWindowTicks = 20000;
+    /// <summary>Phase 20: Gekauft wird erst, wenn der geglättete Bedarf die Schiffszahl um diesen Wert übersteigt.</summary>
+    public float PoliceBuyMargin = 0.5f;
+    /// <summary>
+    /// Phase 20: Abgebaut wird erst, wenn der geglättete Bedarf mindestens um diesen Wert unter der Schiffszahl liegt (Hysterese: muss größer als
+    /// 1 − <see cref="PoliceBuyMargin"/> sein, sonst gibt es keine Lücke zwischen Kauf- und Abbau-Schwelle) — und das ununterbrochen
+    /// <see cref="PoliceDecommissionTicks"/> lang.
+    /// </summary>
+    public float PoliceSellMargin = 0.9f;
+    /// <summary>Phase 20: Mindestbestand an Bauschiffen je Fraktion; die Kasse kauft nach und unterhält sie (<see cref="Simulation.FactionBuilderSystem"/>). 0 = aus.</summary>
+    public int MinBuildersPerFaction = 1;
+    /// <summary>Phase 20: Unterhalt eines Fraktions-Bauschiffs je Tick aus der Fraktionskasse (<c>TreasuryUpkeep</c> „builder“).</summary>
+    public float BuilderUpkeepPerTick = 0.2f;
 }

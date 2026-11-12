@@ -199,7 +199,35 @@ u.Events.Raised += e =>
     if (e is CargoDiscarded cdi) { discardCount++; string gk = u.Goods[cdi.Good].Name; discarded[gk] = discarded.GetValueOrDefault(gk) + cdi.Units; }
     if (e is StationRetired sre)
         retiredStations.Add($"Tick {u.Tick}: {sre.Name} ({u.StationTypes.GetValueOrDefault(sre.TypeKey)?.Name ?? sre.TypeKey}, Auslastung {100 * sre.Activity:0}%) → "
-            + $"{u.StationTypes.GetValueOrDefault(sre.ForType)?.Name ?? sre.ForType} für {u.Goods[sre.ForGood].Name}, Restwert {sre.Payout:0} Cr");
+            + (sre.ForGood.Value == 0 ? "Überzahl abgebaut (Phase 20)" : $"{u.StationTypes.GetValueOrDefault(sre.ForType)?.Name ?? sre.ForType} für {u.Goods[sre.ForGood].Name}")
+            + $", Restwert {sre.Payout:0} Cr");
+};
+// Phase 20: Schiffsabgänge je Aufgabe und Grund, Versorgungspanik
+var roleOf = u.Ships.Values.ToDictionary(x => x.Id.Value, x => x.Role);
+var removedBy = new SortedDictionary<string, SortedDictionary<string, int>>(StringComparer.Ordinal);
+int panicsRaised = 0, panicBuilds = 0, panicDone = 0;
+var panicList = new List<string>();
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case ShipSpawned ssp when u.Ships.TryGetValue(ssp.Ship, out var nsh): roleOf[ssp.Ship.Value] = nsh.Role; break;
+        case JobChanged jch: roleOf[jch.Ship.Value] = jch.To; break;
+        case ShipRemoved srm:
+        {
+            string role = roleOf.TryGetValue(srm.Ship.Value, out var rr) ? rr.ToString() : "?";
+            if (!removedBy.TryGetValue(role, out var reasons)) removedBy[role] = reasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
+            reasons[srm.Reason] = reasons.GetValueOrDefault(srm.Reason) + 1;
+            break;
+        }
+        case SupplyPanicRaised spr:
+            panicsRaised++;
+            if (panicList.Count < 12)
+                panicList.Add($"Tick {u.Tick}: Teil ab {u.Sectors[spr.Part].Name} ohne {u.Goods[spr.Good].Name} (Tor {spr.Gate.Value}) → {(spr.TypeKey is { } tk ? u.StationTypes.GetValueOrDefault(tk)?.Name ?? tk : "im Teil nicht herstellbar")}");
+            break;
+        case SupplyPanicBuild: panicBuilds++; break;
+        case ConstructionCompleted pcc when u.Stations.TryGetValue(pcc.Station, out var pst) && pst.Panic: panicDone++; break;
+    }
 };
 // Phase 14: Preise der reinen Verbraucher (Kolonie) je Zutat über die Messpunkte (Preis/Basis)
 var consumerPrices = new SortedDictionary<string, List<float>>(StringComparer.Ordinal);
@@ -346,6 +374,14 @@ if (u.Modules.Count > 0)
     Console.WriteLine("Flotte (Modell/Aufgabe): " + string.Join(", ", byModel));
     Console.WriteLine("Kapazität: " + string.Join(", ", ShipJobs.Default.Select(j => $"{j.Key} {ShipJobs.UsedUnits(u, j):0.0}/{j.Limit(u.Rules):0} (max {capMax.GetValueOrDefault(j.Key):0.0})"))
         + $"; Aufgabenwechsel: {jobSwitches}; Multirole-Schiffe: {ai.Count(x => ShipJobs.IsMultirole(u, x))}; lange untätig abgebaut: {retired} ({retiredCredits:0} Cr)");
+    // Phase 20: Abgänge je Aufgabe und Grund (raid = Piraten, bankrupt = pleite, retired = lange untätig, decommissioned = Polizei außer Dienst, …)
+    Console.WriteLine("Abgänge je Aufgabe (Grund): " + (removedBy.Count == 0 ? "keine" : string.Join("; ", removedBy.Select(kv => $"{kv.Key} " + string.Join(", ", kv.Value.Select(r => $"{r.Key} {r.Value}"))))));
+    // Phase 20: bei zerfallener Karte die Flottenkapazität je erreichbarem Kartenteil
+    var mparts = MapParts.Of(u);
+    if (mparts.IsSplit)
+        foreach (var mp in mparts.Parts)
+            Console.WriteLine($"  Kartenteil {string.Join("+", mp.Select(id => u.Sectors[id].Name))}: " + string.Join(", ", ShipJobs.Default.Select(j =>
+                $"{j.Key} {FleetCapacity.Used(u, j, mp[0].Value):0.0}/{FleetCapacity.Limit(u, j, mp[0].Value):0.0}")));
     Console.WriteLine("Modellwahl der KI: " + (chosenModels.Count == 0 ? "keine" : string.Join(", ", chosenModels.Select(kv => $"{kv.Key} {kv.Value}"))));
     // Phase 16: aus der dichten Probe (alle 20 Ticks im letzten Viertel), nicht aus den --every-Messpunkten
     string Ratio(string key) => u.FindGood(key) is { } gg && watch.AverageRatio(gg.Id, ticks * 3 / 4) is { } rr ? rr.ToString("0.00", CultureInfo.InvariantCulture) : "-";
@@ -361,6 +397,8 @@ if (u.Modules.Count > 0)
     float share = sitesDone > 0 ? 100f * sitesEmergency / sitesDone : 0f;
     Console.WriteLine($"Bau: {sitesStarted} Baustellen angelegt, {sitesDone} fertig (davon Notbau {sitesEmergency} = {share:0}%), {sitesAbandoned} verfallen, "
         + $"{u.Stations.Values.Count(x => x.Site is { Abandoned: false })} laufen, {direct} Direktbau; Bauschiffe {u.Ships.Values.Count(x => x.IsAiBuilder)} (von Fraktionen nachgekauft {buildersCommissioned})");
+    Console.WriteLine($"Versorgungspanik (Phase 20): {panicsRaised} Panik-Ereignisse, {panicBuilds} Ersatz-Baustellen, {panicDone} fertig; Panik-Stationen jetzt {u.Stations.Values.Count(x => x.Panic)}"
+        + (panicList.Count == 0 ? "" : " — " + string.Join("; ", panicList)));
     Console.WriteLine($"Stilllegungen/Umwidmungen: {retiredStations.Count}" + (retiredStations.Count == 0 ? "" : " — " + string.Join("; ", retiredStations)));
     Console.WriteLine($"Plätze voll: {(capSamples > 0 ? 100.0 * capFullSamples / capSamples : 0):0}% der Messzeit; anhaltende Knappheit ohne freien Platz: "
         + (unanswered.Count == 0 ? "keine" : string.Join(", ", unanswered.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {(capSamples > 0 ? 100.0 * kv.Value / capSamples : 0):0}%"))));

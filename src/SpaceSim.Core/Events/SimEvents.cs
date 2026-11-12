@@ -196,3 +196,13 @@ public sealed record BuilderCommissioned(FactionId Faction, ShipId Ship, Station
 /// <summary>Phase 19: Ein KI-Händler hat Fracht, die keine erreichbare Station annahm, im All abgeworfen (statt sie unbezahlt bei einer vollen Station abzuladen).</summary>
 public sealed record CargoDiscarded(ShipId Ship, SectorId Sector, GoodId Good, float Units) : SimEvent;
 public sealed record CargoJettisoned(ShipId Ship, SectorId Sector, GoodId Good, float Units) : SimEvent;
+
+/// <summary>
+/// Phase 20: Versorgungspanik — im Kartenteil mit dem kleinsten Sektor <paramref name="Part"/> fehlt seit <see cref="Model.EconomyRules.PanicDelayTicks"/> der letzte
+/// Hersteller einer dort gebrauchten Ware, weil das Gate <paramref name="Gate"/> (default = keins gefunden) geschlossen oder zerstört ist. <paramref name="TypeKey"/>:
+/// Stationstyp, den die Panik bauen will (null = im Teil nicht herstellbar).
+/// </summary>
+public sealed record SupplyPanicRaised(SectorId Part, GoodId Good, GateId Gate, string? TypeKey) : SimEvent;
+/// <summary>Phase 20: Ersatz-Baustelle (oder Direktbau) einer Versorgungspanik angelegt.</summary>
+public sealed record SupplyPanicBuild(StationId Site, SectorId Sector, GoodId Good, string TypeKey) : SimEvent;
+

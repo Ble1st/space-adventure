@@ -79,6 +79,13 @@ public sealed class Actor
     public Dictionary<FactionId, float> BountyClaims = new();
     /// <summary>Phase 11: Tick der letzten Änderung der Streitkräfte (Polizei gekauft/abgebaut, Kaperschiff neu); Abkühlzeit. Gespeichert.</summary>
     public long LastForceTick = -1_000_000;
+    /// <summary>
+    /// Phase 20: geglätteter Polizeibedarf der Fraktion (gleitendes Mittel über <see cref="EconomyRules.PoliceNeedWindowTicks"/>); &lt; 0 = noch nicht gemessen.
+    /// Kauf und Abbau folgen diesem Wert mit Hysterese statt dem Augenblickswert der Lagekarte. Gespeichert.
+    /// </summary>
+    public float PoliceNeed = -1f;
+    /// <summary>Phase 20: seit diesem Tick ununterbrochen Polizei-Überzahl (Abbau erst nach <see cref="EconomyRules.PoliceDecommissionTicks"/>); −1 = keine. Gespeichert.</summary>
+    public long PoliceSurplusSince = -1;
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>
     public bool IsFaction(Universe u) => u.Factions.ContainsKey(new FactionId(Id.Value));
 }
