@@ -1,6 +1,6 @@
 # Kampfsystem und Schiffssysteme (Plan)
 
-**Status:** Phasen 23 (Schiffssysteme) und 24 (Trefferregel, Rundengefecht NPC gegen NPC) umgesetzt, Phasen 25–28 Planung. Plan erstellt nach Phase 22. Baut auf [FLOTTEN.md](FLOTTEN.md) (Begegnungen, Verhaltensregeln), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) (Slots, Leistung, Feuerwinkel) und [POLITIK.md](POLITIK.md) (Fahndung) auf.
+**Status:** Phasen 23 (Schiffssysteme), 24 (Trefferregel, Rundengefecht NPC gegen NPC) und 25 (Spielerkampf) umgesetzt, Phasen 26–28 Planung. Plan erstellt nach Phase 22. Baut auf [FLOTTEN.md](FLOTTEN.md) (Begegnungen, Verhaltensregeln), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) (Slots, Leistung, Feuerwinkel) und [POLITIK.md](POLITIK.md) (Fahndung) auf.
 
 **Auslegung:** „Schiffssystem“ heißt hier die Bordsysteme eines Schiffs zur Laufzeit: Schild, Leistung/Speicherbank, Waffen, Hülle und der Zustand einzelner Module. Die Slots und Module selbst gibt es schon; es fehlt ihr Verhalten im Betrieb.
 
@@ -104,10 +104,11 @@ Ein Gefecht endet, wenn eine Seite zerstört, geflohen oder aufgegeben ist oder 
 - **Flucht:** gelingt, wenn das Schiff den Abstand über die Waffenreichweite bringt, eine Station erreicht oder durch ein Tor springt. Schnellere Schiffe entkommen also wirklich.
 - **Aufgabe:** Ein Händler kann Fracht abwerfen; der Kaperer nimmt sie und bricht ab. Das ersetzt den heutigen pauschalen Beuteanteil.
 
-### 4.2a Bewaffnete Handelsschiffe (entschieden)
+### 4.2a Bewaffnete Handelsschiffe (entschieden; seit Phase 25: jeder Händler bewaffnet)
 
-- Frachter mit Waffenslot (der leichte Frachter hat einen) gibt es zusätzlich als bewaffnete Modelle; Bergbauschiffe wehren sich mit dem, was sie haben.
-- Die KI-Flotte bewertet Bewaffnung beim Kauf mit dem Risiko ihrer Routen (Lagekarte): In ruhigen Sektoren lohnt die Waffe nicht, an der Grenze schon.
+- **Jeder Händler trägt eine Waffe** (Entscheidung des Nutzers in Phase 25): Alle Modelle mit Aufgabe Handel haben eine Laserkanone als Turm (Klassen ohne Waffenslot bekamen einen, die Klassen wurden um die Masse der Waffe leichter, Tempo und Frachtraum bleiben). Die getrennten bewaffneten Varianten entfallen; Bergbauschiffe wehren sich mit dem, was sie haben (unbewaffnet).
+- (bis Phase 24:) Frachter mit Waffenslot (der leichte Frachter hat einen) gibt es zusätzlich als bewaffnete Modelle.
+- Die KI-Flotte bewertet Bewaffnung beim Kauf mit dem Risiko ihrer Routen (Lagekarte): In ruhigen Sektoren lohnt die Waffe nicht, an der Grenze schon. Seit Phase 25 zählt dabei nur Bewaffnung über der Grundausstattung (`armedTraderBaseline`, eine Laserkanone).
 - Die Händlertaktik vergleicht die eigene Stärke mit der des Angreifers: kämpfen, fliehen oder Fracht abwerfen.
 - Dasselbe gilt für Flottenschiffe des Spielers; die Verhaltensregel (Verteidigen, Passiv, Feuer einstellen) entscheidet.
 
@@ -164,6 +165,8 @@ Phase 23 und 24 sind die Grundlage; ab Phase 25 merkt der Spieler den Unterschie
 
 **Stand Phase 24:** umgesetzt (siehe UMSETZUNGSPLAN.md, Phase 24): Waffenwerte als Modulwerte mit `damageType`, Laserkanone und kinetisches Geschütz, `Combat/Hit` (eine reine Trefferregel, zwei Zufallszüge je Wurf), Gefechte als gespeicherte Objekte (`Universe.Fights`) mit Positionen auf einer Gefechtslinie, `CombatSystem` mit den Taktiken Kaperer, Polizei, Händler und Begleiter, Flucht über die Reichweite, Frachtabwurf statt Beuteanteil, Munitionsverbrauch und Nachladen der NPCs, bewaffnete Frachtermodelle mit Kaufwahl nach Routenrisiko. Abweichungen: Der Überfall auf das aktive Spielerschiff bleibt abstrakt (Phase 25); Nachladeuhren liegen im Gefecht; Abstandszahl je Teilnehmer statt je Paar. Nach der Prüfung nachkalibriert (Kaperer fliehen früher, größerer Abwurfanteil, Munition nur auf Schüsse mit Aussicht): Verlustquote im Langlauf wieder ≈ 0,5 %, zwei Kaperer je Gruppe.
 
+**Stand Phase 25:** umgesetzt (siehe UMSETZUNGSPLAN.md, Phase 25): Überfall auf das aktive Schiff als echtes Gefecht nach der Warnfrist, Spielerschüsse in Echtzeit über dieselbe Trefferregel (`PlayerGunnery`, gemeinsame Regeln in `Combat/Gunnery`), Waffenschächte je Kampfwaffe mit „keine Leistung/keine Munition“, Dauerfeuer, „Nächster Gegner“, Zielkarte mit Schild/Hülle, Beschusswarnung mit Richtung; Gefechte im Spielersektor räumlich mit gespeicherten Positionen und `CombatAutopilot` (ein Gefecht, Übergang Linie ↔ Raum beim Sektorwechsel); Angriff als Verbrechen „assault“, Kopfgeld auf Gesetzlose, Handelsverweigerung ab Fahndungsstufe 3; Verlust des aktiven Schiffs mit Landeregel (eigene, sonst neutrale Station; eigenes Schiff, Leihschiff oder Notfall-Leihschiff), Flottenschiffe zerstörbar; Dienst `rearm`, Munition aus der Fracht; Jäger „Falke“ und Wächter an der Werft, Startpaket „Jäger“; „Waffen“ wirkt als Überladung mit Speicherbank. Abweichungen: Der Gefechts-Autopilot kennt keine Hindernisse und keine Flucht durch Tore; abgeworfene Fracht ist nur ein Ansichts-Brocken (Wracks Phase 26); der Spieler kann sich nicht ergeben. Nach der Prüfung: Fahndung auch in herrenlosen Sektoren (Opferfraktion, sonst Nachbarsektoren), Angriff im Stationsschutz holt sicher die Polizei und wiegt schwerer, verlorene Leihschiffe verlieren ihr Pfand und zahlen die Miete (Notfall-Leihschiff notfalls auf Schulden), Landung bevorzugt erreichbare Stationen, Gefechtsteilnehmer werden aus Hindernissen geschoben, Überfallrate 0,008 → 0,0065 (Verlustquote Seeds 1–8 im Mittel 0,52 %). **Auch ein Aufprall, der die Hülle leert, zerstört das Schiff wirklich** (Entscheidung des Nutzers) — gleiche Landeregel wie im Gefecht.
+
 ## 7. Risiken
 
 - **Determinismus mit Echtzeiteingabe:** Spielerschüsse fallen zwischen Ticks. Lösung wie beim Bergbau: Der Schuss wird sofort über `Universe.Rng` gewürfelt und gebucht; Speichern mitten im Gefecht sichert das Gefecht mit.
@@ -180,5 +183,5 @@ Phase 23 und 24 sind die Grundlage; ab Phase 25 merkt der Spieler den Unterschie
 | 2 | Munition als Ware | Ja, von Anfang an (Abschnitt 3.4), mit Schalter. |
 | 3 | Gefechte außerhalb des Spielersektors | Dasselbe Rundengefecht mit Abstandszahl. |
 | 4 | Tiefe des Modulschadens | Zustandswert je Modul, dazu Brand mit Löschchance (Abschnitt 3.3). Keine Besatzung. |
-| 5 | Kampfschiffe für den Spieler | Ja; außerdem können sich Handelsschiffe wehren (Abschnitt 4.2a). Kaperschiffe bleiben gesperrt. |
+| 5 | Kampfschiffe für den Spieler | Ja; außerdem können sich Handelsschiffe wehren (Abschnitt 4.2a) — seit Phase 25: **jeder Händler bewaffnet**. Kaperschiffe bleiben gesperrt. |
 | 6 | Händler überfallen | Ja, mit Fahndung. Ein Schwarzmarkt kommt später. |

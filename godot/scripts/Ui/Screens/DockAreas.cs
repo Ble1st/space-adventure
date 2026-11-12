@@ -88,12 +88,14 @@ public static class DockAreas
 		// Reparatur & Tanken: verfügbar, sobald die Station „refuel“ oder „repair“ liefert (Phase 4c)
 		var offered = services.ForStation(u, st).Select(s => s.Key).ToList();
 		bool refuel = offered.Contains(RefuelService.ServiceKey), repair = offered.Contains(RepairService.ServiceKey);
+		bool rearm = offered.Contains(RearmService.ServiceKey);   // Phase 25: Munition nachladen als Abschnitt der Reparatur
 		// Führt der Stationstyp den Dienst, ist er aber gerade nicht lieferbar (Lager leer), steht das dort statt „Bald“
 		bool listed = u.StationTypes.TryGetValue(st.TypeKey, out var type)
-			&& type.Services.Any(k => k is RefuelService.ServiceKey or RepairService.ServiceKey);
-		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur"
+			&& type.Services.Any(k => k is RefuelService.ServiceKey or RepairService.ServiceKey or RearmService.ServiceKey);
+		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur" : rearm ? "Munition"
 			: listed ? "Lager leer" : "Nicht an dieser Station";
-		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair, u), Sub = repairSub, Available = refuel || repair });
+		if (rearm && (refuel || repair)) repairSub += " · Munition";
+		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair, u), Sub = repairSub, Available = refuel || repair || rearm });
 		// Ausrüster und Werft (Phase 5c): echt, sobald ForStation „outfitter“ bzw. „shipdealer“ liefert
 		bool outfitter = offered.Contains(OutfitterService.ServiceKey), dealer = offered.Contains(ShipDealerService.ServiceKey);
 		bool upgrade = offered.Contains(UpgradeService.ServiceKey);   // Phase 7: Upgrades sind ein Abschnitt im Ausrüster

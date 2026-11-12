@@ -19,6 +19,13 @@ public static class Materializer
         {
             var ship = u.Ships[id];
             if (ship.Id == u.PlayerShip) continue;   // das aktive Spielerschiff rendert die Ansicht selbst; geparkte eigene Schiffe erscheinen (Phase 5c)
+            // Phase 25: Teilnehmer eines räumlichen Gefechts stehen an ihrer echten Gefechtsposition (zwischen zwei Ticks interpoliert) und blicken, wohin sie zielen
+            if (u.Fights.Of(id) is { Spatial: true } fight && fight.Of(id) is { } p)
+            {
+                float f = (float)Math.Clamp(tick - u.Tick, 0.0, 1.0);
+                result.Add(new ShipSnapshot(ship.Id, ship.Role, Vec2.Lerp(p.PrevPos, p.Pos, f), p.Dir, true));
+                continue;
+            }
             result.Add(new ShipSnapshot(ship.Id, ship.Role, ship.Position, new Vec2(0, -1), false,
                 Mining: ship.Role == ShipRole.Miner && ship.MinePhase == MinePhase.Mining));
         }

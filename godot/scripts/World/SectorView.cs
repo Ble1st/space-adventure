@@ -124,6 +124,9 @@ public partial class SectorView : Node3D
 	/// <summary>Angezeigte Position eines NPC-Schiffs; null, wenn es nicht im Sektor ist.</summary>
 	public Vector3? ShipPosition(ShipId id) => _markers.TryGetValue(id, out var m) ? m.Pivot.Position : null;
 
+	/// <summary>Phase 25: angezeigte NPC-Schiffe mit Position (Antippen als Ziel).</summary>
+	public IEnumerable<(ShipId Id, Vec2 Pos)> ShipMarkers() => _markers.Select(kv => (kv.Key, new Vec2(kv.Value.Pivot.Position.X, kv.Value.Pivot.Position.Z)));
+
 	/// <summary>Rückstoß eines abgefeuerten Lasers: Das Schiff wird kurz weggestoßen und federt zurück (nur Darstellung).</summary>
 	public void Kick(ShipId id, Vector3 impulse) { if (_markers.TryGetValue(id, out var m)) m.Recoil += impulse; }
 

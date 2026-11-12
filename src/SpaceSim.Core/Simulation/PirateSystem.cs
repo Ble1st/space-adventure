@@ -20,7 +20,7 @@ public sealed class PirateSystem : ISimSystem
     public void Step(Universe u, int dt)
     {
         if (!u.Rules.SecurityActive) return;
-        ResolvePending(u);
+        ResolvePending(u, dt);
         foreach (var raider in u.ShipsById().Where(ThreatMap.IsRaider).ToList())
             if (u.Ships.ContainsKey(raider.Id)) StepRaider(u, raider, dt);
         if (u.Tick % BookingTicks < dt) Book(u, BookingTicks);
@@ -338,9 +338,10 @@ public sealed class PirateSystem : ISimSystem
 
     // ───────── Vorwarnung an den Spieler ─────────
 
-    static void ResolvePending(Universe u)
+    static void ResolvePending(Universe u, int dt)
     {
         if (u.PendingEncounters.Count == 0) return;
+        ApproachPlayer(u, dt);
         foreach (var e in u.PendingEncounters.Where(e => e.Kind == EncounterKind.Raid && u.Tick >= e.DueTick).ToList())
         {
             u.PendingEncounters.Remove(e);
@@ -356,7 +357,28 @@ public sealed class PirateSystem : ISimSystem
                 GoHome(u, raider);
                 continue;
             }
-            ResolveRaid(u, raider, player, u.Sectors[e.Sector]);
+            // Phase 25: der Überfall auf das aktive Schiff ist ein echtes Rundengefecht (räumlich im Spielersektor); der Spieler schießt in Echtzeit zurück
+            if (u.Rules.CombatRounds && !u.Fights.IsEngaged(player.Id)) Combat.Engage.StartRaid(u, raider, player, u.Sectors[e.Sector]);
+            else ResolveRaid(u, raider, player, u.Sectors[e.Sector]);
+        }
+    }
+
+    /// <summary>
+    /// Phase 25: Während der Vorwarnung nimmt der Kaperer wirklich Kurs auf das Spielerschiff — er fliegt im Spielersektor mit seinem Tempo heran, bis auf
+    /// <see cref="EconomyRules.RaidApproachDistance"/> (sichtbar in der Ansicht; das Gefecht beginnt dann aus der Nähe).
+    /// </summary>
+    static void ApproachPlayer(Universe u, int dt)
+    {
+        if (!u.Rules.CombatRounds || !u.Rules.SpatialCombat) return;
+        foreach (var e in u.PendingEncounters)
+        {
+            if (e.Kind != EncounterKind.Raid || e.Sector != u.PlayerSector || !u.Ships.TryGetValue(e.Source, out var raider) || raider.Transit is not null
+                || raider.Sector != e.Sector || !u.Ships.TryGetValue(e.Target, out var player) || player.Sector != e.Sector) continue;
+            var to = player.Position - raider.Position;
+            float dist = to.Length, keep = u.Rules.RaidApproachDistance;
+            if (dist <= keep) continue;
+            float step = MathF.Min(dist - keep, Travel.SpeedOf(raider) * Combat.ShipSystems.Seconds(dt));
+            raider.Position += to * (step / dist);
         }
     }
 

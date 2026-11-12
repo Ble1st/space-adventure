@@ -44,6 +44,8 @@ public partial class UiShots : Node
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase14")) _stage = 548;
 		// Phase 21: --ui-shots-phase21 nur die Karten-Bilder der 11-Sektoren-Welt
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase21")) _stage = 561;
+		// Phase 25: --ui-shots-phase25 nur die Kampfbilder
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase25")) _stage = 572;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -449,6 +451,57 @@ public partial class UiShots : Node
 			case 569: _m.HudRef.Map.Visible = false; _m.TestDockAt(new SpaceSim.Core.Model.StationId(30)); _stage = 570; _wait = 60; break;
 			case 570: _m.TestOpenDockArea("taxi"); _stage = 571; _wait = 20; break;
 			case 571: Capture("62-dock-taxi-liste.png"); _stage = 572; _wait = 10; break;
+			// Phase 25: Spielerkampf — Jäger in Alpha, Kaperer als Ziel, Waffenschächte; Beschusswarnung; Munition im Bereich „Reparatur“
+			case 572:
+			{
+				if (_m.Docked) { _m.TestUndock(); _wait = 40; break; }
+				var uni = _m.Session.U;
+				if (uni.PlayerSector.Value != 1) { _m.TestEnterSector(new SpaceSim.Core.Model.SectorId(1)); _wait = 30; break; }
+				var pl = uni.Ships[uni.PlayerShip];
+				var model = uni.ShipModels["falcon"];
+				var at = uni.StationsById().First(x => !x.IsBuildSite && x.Sector == uni.PlayerSector);
+				var f = SpaceSim.Core.Simulation.ShipPurchase.Create(uni, uni.NewShipId(), model.Key, uni.ShipClasses[model.ClassKey].Slots, model.Fit,
+					SpaceSim.Core.Model.ShipRole.Player, SpaceSim.Core.Model.Controller.Player, uni.PlayerActor, at, 0f);
+				uni.AddShip(f);
+				f.DockedAt = default; f.Position = pl.Position + new SpaceSim.Core.Model.Vec2(6f, 0f);
+				_m.TestSwitchRemote(f.Id);
+				_stage = 573; _wait = 40; break;
+			}
+			case 573:
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				var raider = uni.ShipsById().First(SpaceSim.Core.Simulation.ThreatMap.IsRaider);
+				if (raider.Transit is not null) uni.FinishTransit(raider);
+				raider.Order = new SpaceSim.Core.Model.PatrolOrder(uni.PlayerSector); raider.NextThinkTick = uni.Tick + 100000;
+				if (raider.Sector != uni.PlayerSector) uni.MoveShip(raider, uni.PlayerSector);
+				raider.Position = pl.Position + new SpaceSim.Core.Model.Vec2(4f, -28f); raider.DockedAt = default;
+				_m.TestFace(raider.Position);
+				_m.TestNextEnemy();
+				_stage = 580; _wait = 6; break;
+			}
+			case 580: _m.TestAllFire(); _stage = 574; _wait = 10; break;   // einen Frame später: Schachtzustände für das neue Ziel sind berechnet
+			case 574: Capture("63-flug-kampf-ziel-waffen.png"); _stage = 575; _wait = 10; break;
+			case 575:
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				if (uni.Fights.Of(pl.Id) is null) { _stage = 577; _wait = 5; break; }
+				_m.Session.RunTicks(12);
+				pl.Hull = pl.MaxHull;
+				_stage = 576; _wait = 4; break;
+			}
+			case 576: Capture("64-flug-gefecht-beschuss.png"); _stage = 577; _wait = 10; break;
+			case 577:
+			{
+				SpaceSim.Core.Combat.PlayerCombat.Withdraw(_m.Session.U);
+				var yard = _m.Session.U.StationsById().First(x => x.TypeKey == "shipyard");
+				_m.Session.Player.Systems.AmmoMissing = _m.Session.Player.Stats.AmmoCapacity * 0.6f;
+				_m.TestDockAt(yard.Id);
+				_stage = 578; _wait = 60; break;
+			}
+			case 578: _m.TestOpenDockArea("repair"); _stage = 579; _wait = 20; break;
+			case 579: Capture("65-dock-reparatur-munition.png"); _stage = 581; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

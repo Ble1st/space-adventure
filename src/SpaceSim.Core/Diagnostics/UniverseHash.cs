@@ -112,7 +112,12 @@ public static class UniverseHash
                 Mix((ulong)p.Ship.Value); Mix((ulong)p.Side); MixString(p.Tactic); MixF(p.X); Mix((ulong)p.Target.Value); Mix((ulong)p.Move); MixF(p.Speed);
                 foreach (var t in p.Timers) MixF(t);
                 MixF(p.Courage); MixF(p.DropShare); Mix((ulong)p.PrevMode); Mix((ulong)p.Exit);
+                // Phase 25: nur, wo es gilt (räumliches Gefecht, Angriff des Spielers, gemerkter Liegeplatz) — reine NPC-Linien-Gefechte hashen wie in Phase 24
+                if (e.Spatial) { MixF(p.Pos.X); MixF(p.Pos.Y); MixF(p.Dir.X); MixF(p.Dir.Y); }
+                if (e.Spatial || e.Cause == EncounterCause.Assault) Mix((ulong)p.Owner.Value);
+                if (p.WasDockedAt.Value != 0) Mix((ulong)p.WasDockedAt.Value);
             }
+            if (e.Spatial) Mix(0x5A7u);
         }
         foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); }
         // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände

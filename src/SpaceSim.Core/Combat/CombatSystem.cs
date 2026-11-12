@@ -1,6 +1,7 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
+using SpaceSim.Core.Weapons;
 
 namespace SpaceSim.Core.Combat;
 
@@ -17,6 +18,7 @@ public sealed class CombatSystem : ISimSystem
     readonly CombatTactics _tactics;
     readonly List<TacticDecision> _decisions = new();
     readonly List<float> _moves = new();
+    readonly List<CombatPilotStep> _steps = new();
 
     public CombatSystem(CombatTactics? tactics = null) => _tactics = tactics ?? CombatTactics.Default;
 
@@ -34,12 +36,17 @@ public sealed class CombatSystem : ISimSystem
         // 0) weggefallene Schiffe (anderer Abgang) austragen
         foreach (var p in e.Participants)
             if (p.Active && !u.Ships.ContainsKey(p.Ship)) { p.Exit = CombatExit.Lost; u.Fights.Unmark(p.Ship); }
+        // Phase 25: das aktive Spielerschiff entkommt durch Andocken oder Sprung (Sektor gewechselt); Geometrie folgt dem Spielersektor (Linie ↔ Raum)
+        foreach (var p in e.Participants)
+            if (p.Active && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var me) && (me.Sector != e.Sector || me.DockedAt.Value != 0 || me.Transit is not null))
+                Engage.Leave(u, e, p, CombatExit.Fled);
+        CombatSpace.Sync(u, e);
         if (Ended(e)) { Finish(u, e, Outcome(e)); return; }
 
-        // 1) Entscheidungen (alle auf demselben Stand)
+        // 1) Entscheidungen (alle auf demselben Stand; das aktive Spielerschiff entscheidet selbst — Phase 25)
         _decisions.Clear();
         foreach (var p in e.Participants)
-            _decisions.Add(p.Active ? _tactics.Get(p.Tactic).Decide(u, e, p, u.Ships[p.Ship]) : default);
+            _decisions.Add(p.Active ? TacticFor(u, p).Decide(u, e, p, u.Ships[p.Ship]) : default);
         for (int i = 0; i < e.Participants.Count; i++)
         {
             var p = e.Participants[i];
@@ -60,18 +67,22 @@ public sealed class CombatSystem : ISimSystem
         }
 
         // 3) Bewegung (gleichzeitig: Schritte aus dem alten Stand)
-        _moves.Clear();
-        for (int i = 0; i < e.Participants.Count; i++)
+        if (e.Spatial) MoveInSpace(u, e, seconds);
+        else
         {
-            var p = e.Participants[i];
-            _moves.Add(p.Active ? MoveOf(u, e, p, _decisions[i], seconds) : 0f);
-        }
-        for (int i = 0; i < e.Participants.Count; i++)
-        {
-            var p = e.Participants[i];
-            if (!p.Active) continue;
-            p.X += _moves[i];
-            p.Speed = seconds > 0f ? MathF.Abs(_moves[i]) / seconds : 0f;
+            _moves.Clear();
+            for (int i = 0; i < e.Participants.Count; i++)
+            {
+                var p = e.Participants[i];
+                _moves.Add(p.Active ? MoveOf(u, e, p, _decisions[i], seconds) : 0f);
+            }
+            for (int i = 0; i < e.Participants.Count; i++)
+            {
+                var p = e.Participants[i];
+                if (!p.Active) continue;
+                p.X += _moves[i];
+                p.Speed = seconds > 0f ? MathF.Abs(_moves[i]) / seconds : 0f;
+            }
         }
 
         // 4) Feuer (Teilnehmer und Slots in fester Reihenfolge)
@@ -85,7 +96,8 @@ public sealed class CombatSystem : ISimSystem
         // 5) Flucht gelingt, wenn kein Gegner mehr reicht
         foreach (var p in e.Participants)
         {
-            if (!p.Active || p.Move != CombatMove.Flee) continue;
+            // Phase 25: das aktive Spielerschiff entkommt, sobald es außer Reichweite aller Gegner ist (es „flieht“ durch seine Steuerung)
+            if (!p.Active || (p.Move != CombatMove.Flee && p.Ship != u.PlayerShip)) continue;
             bool clear = true;
             foreach (var q in CombatSense.Enemies(u, e, p))
             {
@@ -98,6 +110,46 @@ public sealed class CombatSystem : ISimSystem
         // 6) Ende
         if (Ended(e)) { Finish(u, e, Outcome(e)); return; }
         if (u.Tick - e.StartTick >= r.CombatMaxTicks) Finish(u, e, "timeout");
+    }
+
+    ICombatTactic TacticFor(Universe u, CombatParticipant p) => _tactics.Get(p.Ship == u.PlayerShip ? CombatTactics.Player : p.Tactic);
+
+    /// <summary>
+    /// Phase 25: Bewegung im räumlichen Gefecht (Spielersektor). NPC-Teilnehmer fliegen über den <see cref="CombatAutopilot"/> (gleichzeitig aus dem alten
+    /// Stand), die Simulation überträgt die Position auf das Schiff; das aktive Spielerschiff steht, wo die Ansicht es hinfliegt.
+    /// </summary>
+    void MoveInSpace(Universe u, Encounter e, float seconds)
+    {
+        _steps.Clear();
+        for (int i = 0; i < e.Participants.Count; i++)
+        {
+            var p = e.Participants[i];
+            if (!p.Active || !u.Ships.TryGetValue(p.Ship, out var ship) || ship.Id == u.PlayerShip) { _steps.Add(default); continue; }
+            var d = _decisions[i];
+            var target = d.Target.Value != 0 ? e.Of(d.Target) : null;
+            var reference = target is { Active: true } ? target : CombatSense.Nearest(u, e, p);
+            if (reference is null) { _steps.Add(new CombatPilotStep(p.Pos, p.Dir, 0f)); continue; }
+            float speed = Travel.SpeedOf(ship) * ShipSystems.SpeedFactor(u, ship);
+            var input = new CombatPilotInput(p.Pos, p.Dir, speed, reference.Pos, d.Move, d.Distance, CombatSense.MaxRange(u, ship), (i % 2 == 0) ? 1f : -1f);
+            _steps.Add(CombatAutopilot.Step(input, seconds, u.Rules));
+        }
+        for (int i = 0; i < e.Participants.Count; i++)
+        {
+            var p = e.Participants[i];
+            if (!p.Active || !u.Ships.TryGetValue(p.Ship, out var ship)) continue;
+            p.PrevPos = p.Pos;
+            if (ship.Id == u.PlayerShip)
+            {
+                var moved = ship.Position - p.Pos;
+                p.Speed = seconds > 0f ? moved.Length / seconds : 0f;
+                if (moved.Length > 1e-3f) p.Dir = moved.Normalized();
+                p.Pos = ship.Position;
+                continue;
+            }
+            var st = _steps[i];
+            p.Pos = st.Pos; p.Dir = st.Dir; p.Speed = st.Speed;
+            ship.Position = st.Pos;   // die Simulation schreibt die echte Position fort (das Schiff liegt, Sektor unverändert)
+        }
     }
 
     static bool Ended(Encounter e)
@@ -137,7 +189,10 @@ public sealed class CombatSystem : ISimSystem
         }
     }
 
-    /// <summary>Waffen des Teilnehmers: Uhren laufen ab; bereite Waffen in Reichweite schießen auf das Ziel.</summary>
+    /// <summary>
+    /// Waffen des Teilnehmers: Uhren laufen ab; bereite Waffen in Reichweite schießen auf das Ziel. Auf der Linie zählt der Feuerwinkel als fester Abschlag,
+    /// im räumlichen Gefecht (Phase 25) muss das Ziel im echten Winkel des Slots liegen. Leistung und Schuss über die gemeinsamen Regeln von <see cref="Gunnery"/>.
+    /// </summary>
     static void Fire(Universe u, Encounter e, CombatParticipant p, Ship ship, bool fire, float seconds)
     {
         var r = u.Rules;
@@ -151,38 +206,27 @@ public sealed class CombatSystem : ISimSystem
             var w = WeaponProfile.Of(m);
             float dist = CombatSense.Distance(p, tp);
             if (dist > w.Range) continue;
-            if (w.AmmoPerShot > 0f && ShipSystems.Ammo(u, ship) < w.AmmoPerShot) continue;   // leeres Magazin: die Waffe schweigt
-            float factor = Hit.ArcFactor(r, slot < ship.Slots.Count ? ship.Slots[slot] : new ClassSlot());
-            if (p.Move == CombatMove.Flee && (slot < ship.Slots.Count ? ship.Slots[slot].Arc ?? 360f : 360f) < 180f) factor *= r.CombatFleeFireFactor;
-            var tProfile = new TargetProfile(target.ShieldNow, target.Stats.Armor, tp.Speed, Signature(u, target));
+            if (!Gunnery.HasAmmo(u, ship, w)) continue;   // leeres Magazin: die Waffe schweigt
+            float factor;
+            if (e.Spatial)
+            {
+                // Phase 25: echter Feuerwinkel aus Blickrichtung und Position
+                if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), FiringArc.Bearing(p.Dir), p.Pos, tp.Pos)) continue;
+                factor = 1f;
+            }
+            else
+            {
+                factor = Hit.ArcFactor(r, slot < ship.Slots.Count ? ship.Slots[slot] : new ClassSlot());
+                if (p.Move == CombatMove.Flee && (slot < ship.Slots.Count ? ship.Slots[slot].Arc ?? 360f : 360f) < 180f) factor *= r.CombatFleeFireFactor;
+            }
+            var tProfile = new TargetProfile(target.ShieldNow, target.Stats.Armor, tp.Speed, Gunnery.Signature(u, target));
             // Munition sparen: Waffen mit Munition schießen erst ab einer Mindest-Trefferchance (Regel, rein — kein Zufallszug)
             if (w.AmmoPerShot > 0f && r.AmmoActive && Hit.Chance(w, tProfile, dist, factor, r) < r.AmmoMinHitChance) continue;
-            // Spitzenlast: aus der Bank, sonst im Takt des Überschusses (Waffenanteil)
-            float reload = w.Reload;
-            if (w.PeakDraw > 0f)
-            {
-                if (ship.Charge >= w.PeakDraw) ShipSystems.Drain(u, ship, w.PeakDraw);
-                else
-                {
-                    float rate = ShipSystems.Split(ship.Systems.Mode, r.PowerFocusShare).Weapons * ShipSystems.Surplus(ship.Stats);
-                    if (rate <= 0f) continue;   // keine Leistung: die Waffe schweigt
-                    reload = MathF.Max(reload, w.PeakDraw / rate);
-                }
-            }
-            if (w.AmmoPerShot > 0f && r.AmmoActive) ship.Systems.AmmoMissing = MathF.Min(ship.Stats.AmmoCapacity, ship.Systems.AmmoMissing + w.AmmoPerShot);
-            var hit = Hit.Roll(u.Rng, w, tProfile, dist, factor, r);
-            p.Timers[slot] = reload;
-            e.Shots++;
-            float floor = target.IsPlayer ? r.PlayerMinHull * target.MaxHull : 0f;   // Spielerflotte: Hüllenboden bis Phase 25
-            float hull = Hit.Apply(u, target, hit, floor);
-            if (hit.Hit) e.Hits++;
-            u.Events.Publish(new ShotFired(e.Id, e.Sector, ship.Id, target.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull));
-            if (target.Hull <= 0f && !target.IsPlayer) Engage.Destroy(u, e, tp, target);
+            if (!Gunnery.DrawPower(u, ship, w, out float reload)) continue;   // keine Leistung: die Waffe schweigt
+            Gunnery.Shoot(u, e, p, ship, slot, m, w, tp, target, dist, factor, reload);
+            if (!p.Active || !u.Ships.ContainsKey(ship.Id)) return;
         }
     }
-
-    static float Signature(Universe u, Ship s) =>
-        u.ShipModels.TryGetValue(s.ModelKey, out var mdl) && u.ShipClasses.TryGetValue(mdl.ClassKey, out var cls) ? Hit.Signature(u.Rules, cls.Size) : 1f;
 
     /// <summary>
     /// Aufgabe: Der Teilnehmer wirft seinen Abwurfanteil jeder Ware ab; der Kaperer der Gegenseite nimmt die Beute (Hehlerei in die Piratenkasse wie bisher,
@@ -192,9 +236,11 @@ public sealed class CombatSystem : ISimSystem
     {
         var r = u.Rules;
         CombatParticipant? taker = null;
-        foreach (var q in CombatSense.Enemies(u, e, p)) if (q.Tactic == CombatTactics.Raider) { taker = q; break; }
+        foreach (var q in CombatSense.Enemies(u, e, p)) if (q.Tactic is CombatTactics.Raider or CombatTactics.Player) { taker = q; break; }
         if (taker is null || !u.Ships.TryGetValue(p.Ship, out var ship) || !u.Ships.TryGetValue(taker.Ship, out var raider)) return false;
+        bool byPlayer = taker.Tactic == CombatTactics.Player;
         float value = 0f;
+        var pos = e.Spatial ? p.Pos : ship.Position;
         foreach (var g in ship.Cargo.Keys.OrderBy(k => k.Value).ToList())
         {
             float take = ship.Cargo[g] * p.DropShare;
@@ -202,8 +248,18 @@ public sealed class CombatSystem : ISimSystem
             float left = ship.Cargo[g] - take;
             if (left <= 0.001f) ship.Cargo.Remove(g); else ship.Cargo[g] = left;
             value += take * u.Goods[g].BasePrice;
+            // Phase 25: dem Spieler wirft das Opfer die Fracht vor die Nase — einsammelbar mit dem Traktorstrahl (Wracks kommen mit Phase 26)
+            if (byPlayer) u.Events.Publish(new CargoDropped(e.Id, e.Sector, ship.Id, pos, g, take));
         }
         if (value <= 0f) return false;
+        if (byPlayer)
+        {
+            e.Loot += value;
+            u.Events.Publish(new CargoSurrendered(e.Id, ship.Id, raider.Id, value));
+            Engage.Leave(u, e, p, CombatExit.Surrendered);
+            Engage.Leave(u, e, taker, CombatExit.Looted);
+            return true;
+        }
         float fenced = value * r.FenceShare;
         if (r.PirateTreasuryCap > 0f && u.Actors.TryGetValue(raider.Owner, out var capped))
             fenced = MathF.Min(fenced, MathF.Max(0f, r.PirateTreasuryCap - capped.Treasury.Credits));
@@ -246,11 +302,34 @@ public sealed class CombatSystem : ISimSystem
         if (e.Cause == EncounterCause.Raid)
         {
             bool won = e.Loot > 0f || victimDestroyed;
+            bool player = victimP?.Tactic == CombatTactics.Player;   // Phase 25: Überfall auf das aktive Spielerschiff
             if (sector is not null) ThreatMap.Report(u, sector.Id, won ? r.RaidThreat : r.RepelledThreat);
-            msg = won ? $"Überfall auf Schiff {e.Victim.Value}: Beute {e.Loot:0} Cr" + (victimDestroyed ? " (Schiff zerstört)" : "")
-                : $"Überfall auf Schiff {e.Victim.Value} abgewehrt" + (raiderDestroyed ? " — Kaperschiff zerstört" : "");
-            if (raiderDestroyed && sector is not null) ClaimBounty(u, e, sector.Owner, side: 1);
-            u.Events.Publish(new RaidResolved(e.Sector, e.Raider, e.Victim, won, e.Loot, e.Fenced, victimDestroyed, raiderDestroyed, e.Police, false, msg));
+            float bounty = raiderDestroyed && sector is not null ? ClaimBounty(u, e, sector.Owner, side: 1) : 0f;
+            if (player)
+                msg = victimDestroyed ? "Dein Schiff wurde von den Piraten zerstört."
+                    : raiderDestroyed ? "Überfall abgewehrt — das Kaperschiff ist zerstört." + (bounty > 0f ? $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen." : "")
+                    : victimP?.Exit == CombatExit.Fled ? "Du bist den Piraten entkommen."
+                    : "Die Piraten drehen ab.";
+            else
+                msg = won ? $"Überfall auf Schiff {e.Victim.Value}: Beute {e.Loot:0} Cr" + (victimDestroyed ? " (Schiff zerstört)" : "")
+                    : $"Überfall auf Schiff {e.Victim.Value} abgewehrt" + (raiderDestroyed ? " — Kaperschiff zerstört" : "");
+            u.Events.Publish(new RaidResolved(e.Sector, e.Raider, e.Victim, won, e.Loot, e.Fenced, victimDestroyed, raiderDestroyed, e.Police, player, msg));
+        }
+        else if (e.Cause == EncounterCause.Assault)
+        {
+            // Phase 25: Angriff des Spielers — Kopfgeld für zerstörte Gesetzlose, jeder andere Abschuss ist ein weiterer Angriff (Fahndung)
+            float bounty = 0f;
+            int killed = 0;
+            foreach (var p in e.Participants)
+            {
+                if (p.Exit != CombatExit.Destroyed || p.Side == 0) continue;
+                if (u.Actors.TryGetValue(p.Owner, out var owner) && owner.Kind == ActorKind.Outlaw && sector is not null)
+                    bounty += PayBounty(u, e, p.Owner, sector.Owner, side: 0, p.Ship);
+                else if (sector is not null) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
+            }
+            msg = e.Loot > 0f ? $"Das Schiff wirft Fracht im Wert von {e.Loot:0} Cr ab — mit dem Traktorstrahl einsammeln."
+                : destroyed > 0 ? "Ziel zerstört." + (bounty > 0f ? $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen." : killed > 0 ? " Die Fahndung steigt." : "")
+                : fled > 0 ? "Das Ziel ist entkommen." : "Das Gefecht ist vorbei.";
         }
         else
         {
@@ -266,16 +345,19 @@ public sealed class CombatSystem : ISimSystem
     }
 
     /// <summary>Kopfgeld für die Spielerflotte, wenn ihr Schiff auf der Seite <paramref name="side"/> am Gefecht teilnahm und das Kaperschiff zerstört ist.</summary>
-    static void ClaimBounty(Universe u, Encounter e, FactionId faction, int side)
+    static float ClaimBounty(Universe u, Encounter e, FactionId faction, int side) => PayBounty(u, e, e.RaiderOwner, faction, side, e.Raider);
+
+    static float PayBounty(Universe u, Encounter e, ActorId outlaw, FactionId faction, int side, ShipId target)
     {
         foreach (var p in e.Participants)
         {
             if (p.Side != side || !u.Ships.TryGetValue(p.Ship, out var s) || !s.IsPlayer) continue;
-            float bounty = Wanted.BountyOn(u, e.RaiderOwner, faction);
-            if (bounty <= 0f || !u.Actors.TryGetValue(s.Owner, out var hunter)) return;
+            float bounty = Wanted.BountyOn(u, outlaw, faction);
+            if (bounty <= 0f || !u.Actors.TryGetValue(s.Owner, out var hunter)) return 0f;
             hunter.BountyClaims[faction] = hunter.BountyClaims.GetValueOrDefault(faction) + bounty;
-            u.Events.Publish(new BountyEarned(hunter.Id, faction, e.Raider, bounty));
-            return;
+            u.Events.Publish(new BountyEarned(hunter.Id, faction, target, bounty));
+            return bounty;
         }
+        return 0f;
     }
 }

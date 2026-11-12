@@ -59,6 +59,7 @@ public sealed class StationServices
         registry.Register(new TaxiService());
         registry.Register(new RentalService());
         registry.Register(new ResearchService());   // Phase 13
+        registry.Register(new RearmService());      // Phase 25
         return registry;
     }
 }

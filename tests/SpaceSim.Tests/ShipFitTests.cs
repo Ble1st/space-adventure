@@ -58,8 +58,10 @@ public class ShipFitTests
             Assert.Equal(100f, s.MaxHull);
             Assert.Equal(100f, s.Hull);
             Assert.Equal(100f, s.Stats.Hull);
-            Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Capabilities);
-            Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Stats.Capabilities);
+            // Phase 25: Händler tragen zusätzlich eine Laserkanone (Combat); Klassen wurden um ihre Masse leichter, das Tempo bleibt 8
+            var armed = s.Role == ShipRole.Trader ? Capability.Combat : Capability.None;
+            Assert.Equal(CapabilityDefaults.ForRole(s.Role) | armed, s.Capabilities);
+            Assert.Equal(CapabilityDefaults.ForRole(s.Role) | armed, s.Stats.Capabilities);
             Assert.Equal(Travel.ShipSpeed, s.Stats.Speed);
             Assert.Equal(Travel.ShipSpeed, Travel.SpeedOf(s));
         }

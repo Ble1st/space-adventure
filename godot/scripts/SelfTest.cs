@@ -1228,6 +1228,238 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Gefecht (Phase 24) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
+			case 54: // Phase 25: Spielerkampf — in einen Jäger (Falke) wechseln, im freien Raum
+			{
+				if (_frame - _stageStart < 5) break;
+				try
+				{
+					var uni = _m.Session.U;
+					if (_m.Docked) { _m.TestUndock(); _stageStart = _frame; break; }
+					// in Alpha (Union) — Fahndung und Kopfgeld brauchen einen Sektorbesitzer
+					if (uni.PlayerSector.Value != 1) { _m.TestEnterSector(new SectorId(1)); _stageStart = _frame; break; }
+					var pl = uni.Ships[uni.PlayerShip];
+					var model = uni.ShipModels["falcon"];
+					var at = uni.StationsById().First(x => !x.IsBuildSite && x.Sector == uni.PlayerSector);
+					var falcon = SpaceSim.Core.Simulation.ShipPurchase.Create(uni, uni.NewShipId(), model.Key, uni.ShipClasses[model.ClassKey].Slots, model.Fit,
+						ShipRole.Player, Controller.Player, uni.PlayerActor, at, 0f);
+					uni.AddShip(falcon);
+					falcon.DockedAt = default;
+					falcon.Position = pl.Position + new Vec2(6f, 0f);
+					_p25Falcon = falcon.Id;
+					_m.TestSwitchRemote(falcon.Id);
+				}
+				catch (System.Exception ex) { Fail("Jäger (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 55: // Phase 25: Kaperer vor dem Bug, „Nächster Gegner“, Zielkarte mit Schild/Hülle, Schuss über die Schachttaste bucht Treffer/Munition/Bank
+			{
+				if (_frame - _stageStart < 8) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var pl = uni.Ships[uni.PlayerShip];
+					Check(pl.Id == _p25Falcon && !_m.Docked, "Spieler fliegt den Falken im freien Raum");
+					var raider = uni.ShipsById().First(SpaceSim.Core.Simulation.ThreatMap.IsRaider);
+					if (raider.Transit is not null) uni.FinishTransit(raider);
+					raider.Order = new PatrolOrder(uni.PlayerSector); raider.NextThinkTick = uni.Tick + 100000;
+					if (raider.Sector != uni.PlayerSector) uni.MoveShip(raider, uni.PlayerSector);
+					raider.Position = pl.Position + new Vec2(0f, -25f); raider.DockedAt = default;
+					_p25Raider = raider.Id;
+					var owner = uni.Sectors[uni.PlayerSector].Owner;
+					SpaceSim.Core.Simulation.Wanted.Report(uni, raider.Owner, owner, "piracy");   // Kopfgeld ausgeschrieben
+					_m.TestFace(raider.Position);
+					_m.TestNextEnemy();
+					Check(_m.TestFight.Target == raider.Id, "„Nächster Gegner“ wählt das Kaperschiff");
+					var keys = _m.TestBayKeys.ToList();
+					int wi = keys.FindIndex(k => k.StartsWith(SpaceSim.Core.Combat.PlayerGunnery.BayPrefix));
+					Check(keys.Count(k => k.StartsWith(SpaceSim.Core.Combat.PlayerGunnery.BayPrefix)) == 2, $"zwei Waffenschächte ({string.Join(",", keys)})");
+					var hud = _m.HudRef.Flight;
+					Check(hud.TestBayRect(wi).Size.Y >= 56f && hud.TestAutoFireRect.Size.Y >= 56f && hud.TestNextEnemyRect.Size.Y >= 56f, "Kampftasten mindestens 56 px");
+					Check(hud.TestNextEnemyVisible, "Taste „Nächster Gegner“ sichtbar");
+					_p25Shots = uni.Fights.Of(pl.Id)?.Shots ?? 0;
+					_p25Charge = pl.Charge;
+					_p25Ammo = pl.AmmoLoaded;
+					_p25Rng = uni.Rng.State;
+				}
+				catch (System.Exception ex) { Fail("Zielwahl (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 56:
+			{
+				if (_frame - _stageStart < 3) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var pl = uni.Ships[uni.PlayerShip];
+					var raider = uni.Ships[_p25Raider];
+					Check(_m.HudRef.Flight.TestTargetCombat.Contains("Hülle"), $"Zielkarte zeigt Schild und Hülle („{_m.HudRef.Flight.TestTargetCombat}“)");
+					_m.TestFace(raider.Position);
+					var keys = _m.TestBayKeys.ToList();
+					int wi = keys.FindIndex(k => k == SpaceSim.Core.Combat.PlayerGunnery.BayPrefix + pl.Fit.IndexOf("weapon_laser_s"));
+					int gi = keys.FindIndex(k => k == SpaceSim.Core.Combat.PlayerGunnery.BayPrefix + pl.Fit.IndexOf("weapon_massdriver_s"));
+					_m.TestPressBay(wi);
+					_m.TestPressBay(gi);
+					var e = uni.Fights.Of(pl.Id);
+					Check(e is not null && e.Shots >= _p25Shots + 2, $"Schachttasten feuern über die Core-Regel ({_m.TestFight.LastMessage})");
+					Check(uni.Rng.State != _p25Rng, "Schuss würfelt über Universe.Rng");
+					Check(pl.Charge < _p25Charge, "Laser zieht Spitzenlast aus der Speicherbank");
+					Check(pl.AmmoLoaded < _p25Ammo, "Geschütz verbraucht Munition aus dem Magazin");
+					Check(SpaceSim.Core.Combat.PlayerGunnery.ReloadLeft(uni, pl, pl.Fit.IndexOf("weapon_laser_s")) > 0f, "Laserschacht lädt nach");
+					raider.Hull = 1f; raider.Systems.ShieldMissing = raider.Stats.Shield;
+					_m.TestFight.AutoFire = true;
+				}
+				catch (System.Exception ex) { Fail("Spielerschuss (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 57: // Dauerfeuer bis zum Abschuss → Kopfgeld
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				pl.Hull = pl.MaxHull;
+				if (uni.Ships.TryGetValue(_p25Raider, out var raider))
+				{
+					// in Reichweite halten (flieht er, holt ihn der Test zurück — geprüft wird der Weg über die Schachttasten)
+					if (Vec2.Distance(raider.Position, pl.Position) > 30f)
+					{
+						raider.Position = pl.Position + new Vec2(0f, -20f);
+						if (uni.Fights.Of(raider.Id)?.Of(raider.Id) is { } rp) { rp.Pos = rp.PrevPos = raider.Position; }
+					}
+					if (!uni.Fights.IsEngaged(raider.Id)) _m.TestSetShipTarget(raider.Id);
+					_m.TestFace(raider.Position);
+					raider.Hull = System.MathF.Min(raider.Hull, 1f); raider.Systems.ShieldMissing = raider.Stats.Shield;
+					if (_frame - _stageStart < 1500) break;
+					Fail("Kaperschiff nach 1500 Frames Dauerfeuer nicht zerstört");
+					Next(); break;
+				}
+				if (_frame - _stageStart < 3 + 0) { break; }
+				_m.Session.RunTicks(2);
+				Check(uni.Actors[uni.PlayerActor].BountyClaims.Values.Sum() > 0f, "Abschuss des Kaperers bringt Kopfgeld");
+				Check(SpaceSim.Core.Simulation.Wanted.MaxLevel(uni, uni.PlayerActor) == 0, "Abschuss eines Gesetzlosen ist kein Verbrechen");
+				_m.TestFight.AutoFire = false;
+				Next(); break;
+			}
+			case 58: // Angriff auf einen Händler → Fahndung, Handel verweigert
+			{
+				if (_frame - _stageStart < 3) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var pl = uni.Ships[uni.PlayerShip];
+					var model = uni.ShipModels["unit_trader_100"];
+					var at = uni.StationsById().First(x => !x.IsBuildSite);
+					var trader = SpaceSim.Core.Simulation.ShipPurchase.Create(uni, uni.NewShipId(), model.Key, uni.ShipClasses[model.ClassKey].Slots, model.Fit,
+						ShipRole.Trader, Controller.Ai, uni.FreeActor, at, 1000f);
+					uni.AddShip(trader);
+					if (trader.Sector != uni.PlayerSector) uni.MoveShip(trader, uni.PlayerSector);
+					trader.Position = pl.Position + new Vec2(12f, -12f); trader.DockedAt = default;
+					trader.NextThinkTick = uni.Tick + 100000;   // bleibt stehen (kein neuer Auftrag während des Tests)
+					_m.TestFace(trader.Position);
+					_m.TestSetShipTarget(trader.Id);
+					_m.Session.RunTicks(9);   // Waffen nachgeladen
+					_p25Trader = trader.Id;
+				}
+				catch (System.Exception ex) { Fail("Angriff (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 59:
+			{
+				if (_frame - _stageStart < 3) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var pl = uni.Ships[uni.PlayerShip];
+					if (uni.Ships.TryGetValue(_p25Trader, out var tr)) _m.TestFace(tr.Position);
+					var keys = _m.TestBayKeys.ToList();
+					_m.TestPressBay(keys.FindIndex(k => k == SpaceSim.Core.Combat.PlayerGunnery.BayPrefix + pl.Fit.IndexOf("weapon_laser_s")));
+					var owner = uni.Sectors[uni.PlayerSector].Owner;
+					int level = SpaceSim.Core.Simulation.Wanted.LevelOf(uni, uni.PlayerActor, owner);
+					Check(level >= uni.Rules.TradeRefusalWantedLevel, $"Angriff auf Händler: Fahndung Stufe {level} ({_m.TestFight.LastMessage}, Sektor {uni.Sectors[uni.PlayerSector].Name})");
+					var st = uni.StationsById().First(x => uni.FactionOf(x) == owner && x.Market.Count > 0 && !x.IsBuildSite);
+					var offers = new SpaceSim.Core.Services.TradeService().Offers(uni, st, pl);
+					Check(offers.Any(o => (o.Note ?? "").Contains("verweigert")), "Handel an einer Station der Fraktion verweigert (Grund im Angebot)");
+					// Fahndung löschen, Gefecht beenden (für die nächsten Stufen)
+					foreach (var a in uni.Actors.Values) a.Wanted.Clear();
+					SpaceSim.Core.Combat.PlayerCombat.Withdraw(uni);
+					_m.Session.RunTicks(2);
+				}
+				catch (System.Exception ex) { Fail("Angriff (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 60: // Verlust des Schiffs → Landung an einer Station im eigenen oder Leihschiff, Geld bleibt
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 3)
+				{
+					var pl = uni.Ships[uni.PlayerShip];
+					_p25Money = uni.WalletOf(pl).Credits;
+					var raider = uni.ShipsById().FirstOrDefault(SpaceSim.Core.Simulation.ThreatMap.IsRaider);
+					if (raider is null) { Fail("kein Kaperschiff für den Verlusttest"); Next(); break; }
+					if (raider.Transit is not null) uni.FinishTransit(raider);
+					if (raider.Sector != uni.PlayerSector) uni.MoveShip(raider, uni.PlayerSector);
+					raider.Position = pl.Position + new Vec2(0f, -20f); raider.DockedAt = default;
+					raider.Hull = raider.MaxHull; raider.Systems.ShieldMissing = 0f; raider.Systems.AmmoMissing = 0f;   // kampfbereit (flieht nicht)
+					pl.Cargo[uni.FindGood("electronics")!.Id] = 5f;
+					SpaceSim.Core.Combat.Engage.StartRaid(uni, raider, pl, uni.Sectors[uni.PlayerSector]);
+				}
+				if (_frame - _stageStart < 4) break;
+				if (uni.Ships.TryGetValue(_p25Falcon, out var old))
+				{
+					old.Hull = System.MathF.Min(old.Hull, 0.5f); old.Systems.ShieldMissing = old.Stats.Shield;
+					if (_frame - _stageStart < 2000) break;
+					Fail("Spielerschiff nach 2000 Frames im Gefecht nicht verloren"); Next(); break;
+				}
+				if (_p25LostFrame < 0) _p25LostFrame = _frame;
+				if (_frame - _p25LostFrame < 6) break;
+				var now = uni.Ships[uni.PlayerShip];
+				Check(_m.LastLossMessage is { Length: > 0 }, $"Verlustmeldung („{_m.LastLossMessage}“)");
+				Check(now.IsPlayer && uni.Stations.ContainsKey(now.DockedAt), "Person sitzt an einer Station im eigenen oder Leihschiff");
+				Check(_m.Docked, "Ansicht zeigt das Andock-Menü der Landestation");
+				Check(System.MathF.Abs(uni.WalletOf(now).Credits - _p25Money) < 0.5f || now.IsRental, $"Geld bleibt ({uni.WalletOf(now).Credits:0} von {_p25Money:0})");
+				Next(); break;
+			}
+			case 61: // rearm über den Bildschirm „Reparatur“: Falke an der Werft, Magazin leer
+			{
+				if (_frame - _stageStart < 5) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var yard2 = uni.StationsById().First(x => x.TypeKey == "shipyard");
+					var model = uni.ShipModels["falcon"];
+					var f2 = SpaceSim.Core.Simulation.ShipPurchase.Create(uni, uni.NewShipId(), model.Key, uni.ShipClasses[model.ClassKey].Slots, model.Fit,
+						ShipRole.Player, Controller.Player, uni.PlayerActor, yard2, 0f);
+					uni.AddShip(f2);
+					SpaceSim.Core.Simulation.PlayerFleet.Dock(uni, f2, yard2);
+					_m.TestSwitchRemote(f2.Id);
+					_p25Falcon = f2.Id;
+					var ammo = SpaceSim.Core.Combat.Rearm.AmmoGood(uni)!;
+					yard2.Market[ammo.Id].Amount = 20f;
+					f2.Systems.AmmoMissing = f2.Stats.AmmoCapacity;
+					uni.WalletOf(f2).Credits = System.MathF.Max(uni.WalletOf(f2).Credits, 2000f);
+				}
+				catch (System.Exception ex) { Fail("rearm-Vorbereitung (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 62:
+			{
+				if (_frame - _stageStart < 8) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var f2 = uni.Ships[_p25Falcon];
+					Check(_m.Docked && uni.PlayerShip == f2.Id, "im Falken an der Werft angedockt");
+					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Repair && a.Available), "Bereich „Reparatur“ verfügbar (mit Munition)");
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Repair);
+					var scr = _m.HudRef.DockRepair;
+					float before = f2.AmmoLoaded;
+					var bad = scr.Execute(SpaceSim.Core.Services.RearmService.ServiceKey, "rearm:7");
+					Check(!bad.Success && f2.AmmoLoaded == before, "rearm: unbekannter Schlüssel abgelehnt ohne Änderung");
+					var r = scr.Execute(SpaceSim.Core.Services.RearmService.ServiceKey, "rearm:10");
+					Check(r.Success && f2.AmmoLoaded >= before + 9.99f, $"rearm über den Bildschirm lädt Munition ({r.Message})");
+					Check(scr.TestMessage == r.Message, "Meldung des Dienstes angezeigt");
+				}
+				catch (System.Exception ex) { Fail("rearm (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -1239,6 +1471,13 @@ public partial class SelfTest : Node
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Phase 23: Hülle und Schild zwischen den Stufen 51 und 52.</summary>
 	float _p23Hull, _p23Shield;
+	/// <summary>Phase 25: Kampfstufen 54–61.</summary>
+	ShipId _p25Falcon, _p25Raider;
+	int _p25Shots;
+	float _p25Charge, _p25Ammo, _p25Money;
+	ulong _p25Rng;
+	ShipId _p25Trader;
+	int _p25LostFrame = -1;
 	void Log(string s) => GD.Print("[selftest] " + s);
 	/// <summary>Phase 18: Ware „Nahrung“ der Welt (für die Abwurf-Prüfungen).</summary>
 	static SpaceSim.Core.Model.GoodId DemoFood(SpaceSim.Core.Model.Universe u) => u.FindGood("food")!.Id;

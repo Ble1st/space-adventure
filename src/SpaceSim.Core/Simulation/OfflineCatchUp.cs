@@ -31,6 +31,7 @@ public static class OfflineCatchUp
         bool raids = u.Rules.PlayerRaids;
         u.Rules.PlayerRaids = false;
         u.PendingEncounters.RemoveAll(e => e.Kind == EncounterKind.Raid);
+        if (run > 0) Combat.PlayerCombat.Withdraw(u);   // Phase 25: ein laufendes Gefecht des Spielers endet (er kann offline nicht reagieren)
         try { for (long i = 0; i < run; i++) runner.Step(u); }
         finally { u.Rules.PlayerRaids = raids; }
         return new CatchUpResult(run, wanted);

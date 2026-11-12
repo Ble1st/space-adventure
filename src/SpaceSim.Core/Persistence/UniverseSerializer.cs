@@ -150,12 +150,13 @@ public static class UniverseSerializer
             s.Fights = u.Fights.Encounters.Select(e => new EncounterSave
             {
                 Id = e.Id, Sector = e.Sector.Value, Start = e.StartTick, Cause = e.Cause.ToString(), Raider = e.Raider.Value, RaiderOwner = e.RaiderOwner.Value,
-                Victim = e.Victim.Value, Police = e.Police.Value, Loot = e.Loot, Fenced = e.Fenced, Shots = e.Shots, Hits = e.Hits,
+                Victim = e.Victim.Value, Police = e.Police.Value, Loot = e.Loot, Fenced = e.Fenced, Shots = e.Shots, Hits = e.Hits, Spatial = e.Spatial,
                 Participants = e.Participants.Select(p => new CombatParticipantSave
                 {
                     Ship = p.Ship.Value, Side = p.Side, Tactic = p.Tactic, X = p.X, Target = p.Target.Value, Move = p.Move.ToString(), Speed = p.Speed,
                     Timers = p.Timers.Count == 0 ? null : new List<float>(p.Timers), Courage = p.Courage, DropShare = p.DropShare,
                     PrevMode = p.PrevMode.ToString(), Exit = p.Exit.ToString(),
+                    Pos = e.Spatial ? new[] { p.Pos.X, p.Pos.Y, p.Dir.X, p.Dir.Y } : null, WasDockedAt = p.WasDockedAt.Value, Owner = p.Owner.Value,
                 }).ToList(),
             }).ToList();
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
@@ -329,14 +330,17 @@ public static class UniverseSerializer
                 {
                     Id = e.Id, Sector = new SectorId(e.Sector), StartTick = e.Start, Cause = Enum.Parse<EncounterCause>(e.Cause), Raider = new ShipId(e.Raider),
                     RaiderOwner = new ActorId(e.RaiderOwner), Victim = new ShipId(e.Victim), Police = new ShipId(e.Police), Loot = e.Loot, Fenced = e.Fenced,
-                    Shots = e.Shots, Hits = e.Hits,
+                    Shots = e.Shots, Hits = e.Hits, Spatial = e.Spatial,
                     Participants = e.Participants.Select(p => new CombatParticipant
                     {
                         Ship = new ShipId(p.Ship), Side = p.Side, Tactic = p.Tactic, X = p.X, Target = new ShipId(p.Target), Move = Enum.Parse<CombatMove>(p.Move),
                         Speed = p.Speed, Timers = p.Timers is null ? new List<float>() : new List<float>(p.Timers), Courage = p.Courage, DropShare = p.DropShare,
                         PrevMode = Enum.Parse<PowerMode>(p.PrevMode), Exit = Enum.Parse<CombatExit>(p.Exit),
+                        Pos = p.Pos is { Length: >= 4 } ps ? new Vec2(ps[0], ps[1]) : default, Dir = p.Pos is { Length: >= 4 } pd ? new Vec2(pd[2], pd[3]) : new Vec2(0f, -1f),
+                        WasDockedAt = new StationId(p.WasDockedAt), Owner = new ActorId(p.Owner),
                     }).ToList(),
                 });
+        foreach (var e in u.Fights.Encounters) Combat.CombatSpace.Derive(e);   // Phase 25: abgeleitete Raumkennung, Zwischenbild = Position
         u.Fights.Rebuild();
         u.NextActorId = s.NextActorId;
         u.EnsureCoreActors();

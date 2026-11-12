@@ -68,6 +68,7 @@ public static class TradeActions
     {
         float revenue = 0f;
         var sold = new Dictionary<GoodId, float>();
+        if (Refusal(u, ship, station) is not null) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());   // Phase 25: gesucht → kein Handel
         var wallet = u.WalletOf(ship);
         // feste Reihenfolge (GoodId), nicht die Einfügereihenfolge des Dictionarys: die geht beim Speichern/Laden nach Entnahmen verloren
         // (Phase 13 gefunden: sonst verkauft ein geladener Stand bei knapper Stationskasse in anderer Reihenfolge)
@@ -97,7 +98,8 @@ public static class TradeActions
     /// <summary>Kauft bis zu <paramref name="units"/> Einheiten einer Ware zum Stationspreis. Phase 14: Exportwaren einer Exportsenke sind reiner Ankauf (nicht käuflich). Begrenzt durch Lagerbestand, Credits und Laderaum; die Station behält nichts zurück, was sie nicht liefern kann.</summary>
     public static BuyResult Buy(Universe u, Ship ship, Station station, GoodId good, float units)
     {
-        if (units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f || IsLiveSite(station) || ExportRules.Buys(u, station, good)) return new BuyResult(0f, 0f, BuyOutcome.NotSold);
+        if (units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f || IsLiveSite(station) || ExportRules.Buys(u, station, good)
+            || Refusal(u, ship, station) is not null) return new BuyResult(0f, 0f, BuyOutcome.NotSold);
         var wallet = u.WalletOf(ship);
         float stock = MathF.Floor(e.Amount), afford = MathF.Floor(wallet.Credits / e.Price), space = MathF.Floor(ship.FreeUnits(u, good));
         float n = MathF.Min(MathF.Min(MathF.Floor(units), stock), MathF.Min(afford, space));
@@ -115,9 +117,22 @@ public static class TradeActions
 
     /// <summary>Höchstmenge, die <see cref="Buy"/> für diese Ware jetzt liefern würde.</summary>
     public static float MaxBuyable(Universe u, Ship ship, Station station, GoodId good) =>
-        !IsLiveSite(station) && !ExportRules.Buys(u, station, good) && station.Market.TryGetValue(good, out var e) && e.Price > 0f
+        !IsLiveSite(station) && !ExportRules.Buys(u, station, good) && Refusal(u, ship, station) is null && station.Market.TryGetValue(good, out var e) && e.Price > 0f
             ? MathF.Max(0f, MathF.Min(MathF.Min(MathF.Floor(e.Amount), MathF.Floor(u.WalletOf(ship).Credits / e.Price)), MathF.Floor(ship.FreeUnits(u, good))))
             : 0f;
+
+    /// <summary>
+    /// Phase 25 (KAMPF.md 4.3 „Überfall durch den Spieler“): Eine Station handelt nicht mit dem aktiven Spielerschiff, wenn die Person bei der Fraktion des
+    /// Stationsbesitzers ab <see cref="EconomyRules.TradeRefusalWantedLevel"/> gesucht wird — Beute ist nur dort verkäuflich, wo man nicht gesucht wird.
+    /// Liefert den Grund (null = Handel erlaubt). Rein.
+    /// </summary>
+    public static string? Refusal(Universe u, Ship ship, Station station)
+    {
+        int min = u.Rules.TradeRefusalWantedLevel;
+        if (min <= 0 || ship.Id != u.PlayerShip || u.FactionOf(station) is not { } f) return null;
+        int level = Wanted.LevelOf(u, u.PlayerActor, f);
+        return level >= min ? $"Handel verweigert: du wirst bei {(u.Factions.TryGetValue(f, out var fa) ? fa.Name : "der Fraktion")} gesucht ({SecurityNames.WantedLevel(level)})." : null;
+    }
 
     /// <summary>Laufende Baustelle (Phase 8): nimmt nur Material an und verkauft nichts zurück; verlassene Baustellen verkaufen ihr Lager.</summary>
     static bool IsLiveSite(Station station) => station.Site is { Abandoned: false };
@@ -127,7 +142,7 @@ public static class TradeActions
     {
         float have = ship.Cargo.GetValueOrDefault(good);
         var sold = new Dictionary<GoodId, float>();
-        if (have <= 0f || units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f)
+        if (have <= 0f || units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f || Refusal(u, ship, station) is not null)
             return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
         var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
         float n = SaleUnits(have, units, cap, allCap);
@@ -155,6 +170,7 @@ public static class TradeActions
     public static (float Units, float Revenue) Sellable(Universe u, Ship ship, Station station)
     {
         float total = 0f, units = 0f, credits = station.Credits;
+        if (Refusal(u, ship, station) is not null) return (0f, 0f);
         foreach (var (good, have) in ship.Cargo.OrderBy(kv => kv.Key.Value))
             if (have > 0f && station.Market.TryGetValue(good, out var e) && e.Price > 0f)
             {

@@ -272,6 +272,10 @@ public class MultiroleTests
     {
         var (u, _, buyer) = RichMinerAtStockedYard(20_000f);
         var mine = ShipJobs.ByKey("mine")!;
+        // Phase 25 („jeder Händler bewaffnet“): die Pflichtwaffe macht den Tinker teurer, und damit gewinnt in der Standardwelt der Spezialist die
+        // Schürflücke. Die Regel selbst (Flexibilität zählt) prüft der Test am Tinker ohne die Waffe
+        var tinker = u.ShipModels["tinker"];
+        for (int i = 0; i < tinker.Fit.Count; i++) if (tinker.Fit[i] is { } k && u.Modules[k].IsWeapon) tinker.Fit[i] = null;
         var choice = FleetSystem.ChooseModel(u, mine, buyer, 6f, 8f);
         Assert.NotNull(choice);
         Assert.Equal("tinker", choice!.Model.Key);

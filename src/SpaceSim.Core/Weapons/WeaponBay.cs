@@ -33,6 +33,10 @@ public enum BayState
     Reloading,
     /// <summary>Kein Ziel in Reichweite (gedämpft).</summary>
     NoTarget,
+    /// <summary>Phase 25: Waffe ohne Leistung (Bank leer und kein Überschuss für die Waffen) — gesperrt.</summary>
+    NoPower,
+    /// <summary>Phase 25: Magazin leer — gesperrt (nachladen über den Dienst „rearm“ oder aus der Fracht).</summary>
+    NoAmmo,
 }
 
 /// <summary>Standard-Schächte des Spielerschiffs. Der Mining-Laser sitzt als 360°-Turm, damit sich das Spielverhalten nicht ändert.</summary>
@@ -53,4 +57,19 @@ public static class WeaponBays
     /// <summary>Schächte eines Schiffs: Laser und Traktor wie bisher, dazu der Spalter, wenn der Fit einen Spaltlaser hat.</summary>
     public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.ShipStats stats) =>
         stats.SplitPower > 0f ? PlayerDefault.Append(Splitter).ToList() : PlayerDefault;
+
+    /// <summary>
+    /// Phase 25: Schächte eines Schiffs mit Kampfwaffen: zuerst die Bergbauschächte wie bisher (der Mining-Laser nur, wenn das Schiff abbauen kann oder keine
+    /// Kampfwaffe hat), dann ein Schacht je Kampfwaffe (Schlüssel „w:&lt;slot&gt;“, Feuerwinkel und Reichweite aus Slot und Modul).
+    /// </summary>
+    public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.Universe u, SpaceSim.Core.Model.Ship ship)
+    {
+        var weapons = SpaceSim.Core.Combat.PlayerGunnery.Bays(u, ship);
+        if (weapons.Count == 0) return For(ship.Stats);
+        var list = new List<WeaponBay>();
+        foreach (var b in For(ship.Stats))
+            if (b.Key != "laser" || ship.Has(SpaceSim.Core.Model.Capability.Mining)) list.Add(b);
+        list.AddRange(weapons);
+        return list;
+    }
 }

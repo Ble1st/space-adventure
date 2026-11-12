@@ -209,7 +209,9 @@ public class StationReviewTests
         var retired = ev.OfType<StationRetired>().ToList();
         Assert.True(retired.Count > 0, $"keine Stilllegung (Rentabilität {extra.Profit.Rate:0.000}, Verlust-Ticks {extra.Profit.LossTicks})");
         Assert.Equal(extra.Id, retired[0].Station);
-        Assert.Equal("water_plant", retired[0].ForType);
+        // Phase 25 (Korrektur, Pfad mit räumlichen Gefechten): die Hütte wird entweder für das Wasserwerk umgewidmet oder ohne Ersatz stillgelegt —
+        // dann baut der Lebenszyklus das Wasserwerk auf dem frei gewordenen Platz; beide Wege enden mit einem Wasserwerk (unten geprüft)
+        Assert.True(retired[0].ForType is "water_plant" or "", $"umgewidmet für '{retired[0].ForType}'");
         Assert.True(waterBuiltAt > 0, "kein Wasserwerk gebaut");
         // kein Pendeln: höchstens eine Stilllegung je Abklingzeit, und das neue Wasserwerk wird nicht wieder stillgelegt
         foreach (var r in retired) Assert.NotEqual("water_plant", r.TypeKey);

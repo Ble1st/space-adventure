@@ -95,9 +95,10 @@ public class Phase24Tests
         // Polizei und Kaperer tragen Laser + Geschütz + Magazin, die bewaffneten Frachter Waffen und die Aufgabe Handel
         Assert.Contains("weapon_massdriver_s", u.ShipModels["warden"].Fit);
         Assert.Contains("weapon_massdriver_s", u.ShipModels["corsair"].Fit);
-        Assert.Contains("weapon_laser_s", u.ShipModels["mule_armed"].Fit);
-        Assert.Contains("weapon_massdriver_s", u.ShipModels["hauler_armed"].Fit);
-        Assert.Contains("trade", u.ShipModels["mule_armed"].Jobs);
+        // Phase 25 („jeder Händler bewaffnet“): die Handelsmodelle selbst tragen die Laserkanone; die Varianten mule_armed/hauler_armed entfallen
+        Assert.Contains("weapon_laser_s", u.ShipModels["mule"].Fit);
+        Assert.Contains("weapon_laser_s", u.ShipModels["hauler"].Fit);
+        Assert.Contains("trade", u.ShipModels["mule"].Jobs);
     }
 
     [Theory]
@@ -201,6 +202,9 @@ public class Phase24Tests
     public void Ueberfall_UnbewaffneterHaendler_GibtAufWirftFrachtAb_KapererNimmtSieUndBrichtAb()
     {
         var (u, raider, victim) = Arena();
+        // Phase 25: jeder Händler trägt eine Laserkanone — für den unbewaffneten Fall wird sie hier ausgebaut
+        for (int i = 0; i < victim.Fit.Count; i++) if (victim.Fit[i] is { } k && u.Modules[k].IsWeapon) victim.Fit[i] = null;
+        victim.RecomputeStats(u);
         var ev = Capture(u);
         var e = Engage.StartRaid(u, raider, victim, u.Sectors[Nebelmark]);
         e.Of(victim.Id)!.Courage = 0.6f;   // gibt früh auf (sonst gewürfelt)
@@ -252,7 +256,7 @@ public class Phase24Tests
     [Fact]
     public void BewaffneterHaendler_WehrtSich_SchiesstZurueck()
     {
-        var (u, raider, armed) = Arena("mule_armed");
+        var (u, raider, armed) = Arena("mule");   // Phase 25: jeder Händler trägt eine Waffe
         var ev = Capture(u);
         Assert.True(CombatSense.Armed(u, armed));
         var e = Engage.StartRaid(u, raider, armed, u.Sectors[Nebelmark]);
@@ -262,8 +266,9 @@ public class Phase24Tests
         Assert.Contains(ev.OfType<ShotFired>(), s => s.Shooter == armed.Id && s.Target == raider.Id);
         Assert.Contains(ev.OfType<ShotFired>(), s => s.Shooter == armed.Id && s.Hit);
         Assert.True(!u.Ships.ContainsKey(raider.Id) || raider.Hull + raider.ShieldNow < raiderHull);
-        // dasselbe Opfer unbewaffnet schießt nie
-        Assert.Equal(0f, u.ShipModels["mule"].Fit.Count(k => k is not null && u.Modules[k].IsWeapon));
+        // Phase 25: die Mule ist jetzt immer bewaffnet; unbewaffnet sind nur noch Bergbauschiffe ohne Waffe
+        Assert.Equal(1f, u.ShipModels["mule"].Fit.Count(k => k is not null && u.Modules[k].IsWeapon));
+        Assert.Equal(0f, u.ShipModels["unit_miner_100"].Fit.Count(k => k is not null && u.Modules[k].IsWeapon));
     }
 
     [Fact]
@@ -313,7 +318,7 @@ public class Phase24Tests
     {
         var (u, raider, _) = Arena();
         var ev = Capture(u);
-        var own = NewShip(u, "mule_armed", ShipRole.Player, u.PlayerActor, 0f, Controller.Player);
+        var own = NewShip(u, "mule", ShipRole.Player, u.PlayerActor, 0f, Controller.Player);
         Place(u, own, Nebelmark, new Vec2(15f, 0f));
         own.Engagement = rules;
         own.Cargo[u.FindGood("electronics")!.Id] = 30f;
@@ -386,6 +391,7 @@ public class Phase24Tests
         var raider = u.ShipsById().First(ThreatMap.IsRaider);
         var police = SecuritySystem.PoliceOf(u, new FactionId(1)).First();
         var home = u.Stations[police.HomeBase];
+        u.PlayerSector = Nebelmark;   // Phase 25: im Spielersektor flöge die Streife räumlich vom Andockpunkt weg — hier geht es um die Linie
         Place(u, police, home.Sector, home.DockPoint(police.Id));
         police.DockedAt = home.Id;
         Place(u, raider, home.Sector, home.DockPoint(police.Id) + new Vec2(25f, 0f));
@@ -441,7 +447,11 @@ public class Phase24Tests
         var ev = Capture(u);
         var ammo = Rearm.AmmoGood(u)!;
         // Händler mit Geschütz an einer Station mit Munitionslager: zahlt selbst, die Station bekommt das Geld, das Lager sinkt
-        var trader = NewShip(u, "hauler_armed", ShipRole.Trader, u.FreeActor, 1000f);
+        var trader = NewShip(u, "hauler", ShipRole.Trader, u.FreeActor, 1000f);
+        // Phase 25: das Geschütz mit Magazin statt der Laserkanone (Varianten-Modell hauler_armed entfiel)
+        trader.Fit[trader.Fit.IndexOf("weapon_laser_s")] = "weapon_massdriver_s";
+        trader.Fit[^1] = "weapon_magazine_s";
+        trader.RecomputeStats(u);
         var yard = u.StationsById().First(s => s.TypeKey == "shipyard");
         var entry = yard.Market[ammo.Id];
         entry.Amount = 50f; entry.Price = ammo.BasePrice;
@@ -487,8 +497,11 @@ public class Phase24Tests
     public void Kaufwahl_BewaffnungLohntNachRoutenrisiko()
     {
         var u = Standard();
-        var armed = ShipStats.Compute(u.ShipClasses["light_freighter"], u.ShipModels["mule_armed"].Fit.Select(k => k is null ? null : u.Modules[k]).ToList());
-        var plain = ShipStats.Compute(u.ShipClasses["light_freighter"], u.ShipModels["mule"].Fit.Select(k => k is null ? null : u.Modules[k]).ToList());
+        // Phase 25: jedes Handelsmodell trägt eine Laserkanone; die Regel wertet nur Bewaffnung über der Grundausstattung (armedTraderBaseline) — hier mit
+        // Grundausstattung 0 die Phase-24-Semantik: bewaffnete Mule gegen eine unbewaffnete
+        u.Rules.ArmedTraderBaseline = 0f;
+        var armed = ShipStats.Compute(u.ShipClasses["light_freighter"], u.ShipModels["mule"].Fit.Select(k => k is null ? null : u.Modules[k]).ToList());
+        var plain = ShipStats.Compute(u.ShipClasses["light_freighter"], u.ShipModels["mule"].Fit.Select(k => k is null || k == "weapon_laser_s" ? null : u.Modules[k]).ToList());
         foreach (var s in u.Sectors.Values) s.Threat = 0f;
         Assert.Equal(0f, FleetSystem.ArmamentBonus(u, armed, Nebelmark));   // ruhig: die Waffe lohnt nicht
         Assert.Equal(0f, FleetSystem.ArmamentBonus(u, plain, Nebelmark));
@@ -499,6 +512,10 @@ public class Phase24Tests
         Assert.True(border > core);
         Assert.Equal(0f, FleetSystem.ArmamentBonus(u, plain, Nebelmark));
         u.Rules.ArmedTraderWeight = 0f;
+        Assert.Equal(0f, FleetSystem.ArmamentBonus(u, armed, Nebelmark));
+        // Standardwelt: Grundausstattung eine Laserkanone — die zählt nicht mehr, nur mehr Bewaffnung
+        u.Rules.ArmedTraderWeight = 40f;
+        u.Rules.ArmedTraderBaseline = 6f;
         Assert.Equal(0f, FleetSystem.ArmamentBonus(u, armed, Nebelmark));
     }
 
