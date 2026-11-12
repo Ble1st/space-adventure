@@ -139,6 +139,13 @@ public sealed class Universe
     /// <see cref="Combat.CombatSystem"/>; Schiffe im Gefecht sind für Handel, Bergbau und Befehle gesperrt.
     /// </summary>
     public Combat.CombatBook Fights { get; } = new();
+    /// <summary>
+    /// Phase 26 (KAMPF.md 4.4): Wracks und Frachtbehälter im All (gespeichert und gehasht, Reihenfolge = Entstehung). Regeln in <see cref="Simulation.Wrecks"/>,
+    /// Verfall in <see cref="Simulation.WreckSystem"/>.
+    /// </summary>
+    public List<Wreck> Wrecks { get; } = new();
+    /// <summary>Phase 26: nächste Wrack-Id (fortlaufend, gespeichert).</summary>
+    public int NextWreckId { get; set; } = 1;
 
     /// <summary>Zählt Änderungen an Sektorinhalten (Stationen gebaut/entfernt), damit die Darstellung neu aufbauen kann.</summary>
     public int StructureVersion { get; private set; }

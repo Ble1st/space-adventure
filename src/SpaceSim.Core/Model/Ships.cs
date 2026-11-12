@@ -280,6 +280,8 @@ public sealed class Ship : ICreditAccount
     /// <summary>Phase 12: Beginn der Miete (Tick) und hinterlegtes Pfand; gespeichert.</summary>
     public long RentedSince;
     public float RentalDeposit;
+    /// <summary>Phase 26: bereits abgerechnete Miettage (die Miete läuft täglich über <see cref="Simulation.HangarSystem"/>, nicht erst bei Rückgabe).</summary>
+    public int RentPaidDays;
 
     /// <summary>Phase 12: Leihschiff (nicht verkaufbar, Rückgabe am Leihdienst)?</summary>
     public bool IsRental => RentedFrom.Value != 0;

@@ -74,9 +74,12 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		v1.AddChild(Text("Angebotene Dienste", 18, Cyan));
 		var services = Ctx.Services.ForStation(u, st);
 		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));
-		var chips = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		chips.AddThemeConstantOverride("separation", 6);
-		foreach (var s in services) chips.AddChild(Chip(DockAreas.LabelFor(s.Key)));
+		// Gerätetest: Dienste-Chips umbrechen (liefen in die Marktspalte)
+		var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(cw - 48f, 0) };
+		chips.AddThemeConstantOverride("h_separation", 6);
+		chips.AddThemeConstantOverride("v_separation", 6);
+		foreach (var s in services)
+			chips.AddChild(Chip(s.Key switch { "repair" => "Reparatur", "refuel" => "Tanken", _ => DockAreas.LabelFor(s.Key, u) }));   // Dienst, nicht Dockbereich
 		v1.AddChild(chips);
 
 		// ── Karte 2: Marktübersicht (Nachfrage/Überschuss echt aus Bestand gegen Ziel) ──

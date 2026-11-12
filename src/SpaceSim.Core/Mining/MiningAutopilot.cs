@@ -33,7 +33,9 @@ public sealed class MiningAutopilot
         if (!ship.Has(Capability.Mining)) { Stop("Kein Mining-Laser eingebaut"); return none; }   // Phase 5c: Fit ohne Laser
 
         var sector = u.Sectors[u.PlayerSector];
-        bool chunksNear = chunks.Chunks.Any(c => Vec2.Distance(c.Position, pos) <= MiningRules.TractorRange);
+        // Gerätetest (Phase 26): nur Brocken zählen, die noch in den Laderaum passen — ein Brocken, dessen Form voll ist (Pip: fester Raum 30), prallte
+        // ewig ab, und der Automodus wartete 30+ s „Brocken einsammeln“, statt verkaufen zu fliegen
+        bool chunksNear = chunks.Chunks.Any(c => Vec2.Distance(c.Position, pos) <= MiningRules.TractorRange && ship.FreeUnits(u, c.Good) > 0.001f);
 
         // Zielasteroid prüfen
         if (Current == Phase.Mine && !chunks.IsMinable(sector, _target)) { _target = null; Current = Phase.Seek; }

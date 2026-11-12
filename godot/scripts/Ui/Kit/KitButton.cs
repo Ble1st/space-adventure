@@ -77,7 +77,9 @@ public partial class KitButton : Control
 
 	StyleBoxFlat Style()
 	{
-		var (bg, border) = _state switch
+		// Gerätetest: ein eingeschalteter Umschalter (On) ist sichtbar aktiv — vorher zeichnete nur State, „On“ blieb unsichtbar
+		var shown = _on && _state == KitButtonState.Normal ? KitButtonState.On : _state;
+		var (bg, border) = shown switch
 		{
 			KitButtonState.On => (new Color(0.15f, 0.55f, 0.35f, 0.9f), UiKit.Green),
 			KitButtonState.Ready => (new Color(0.1f, 0.34f, 0.2f, 0.95f), UiKit.Green),
@@ -88,6 +90,18 @@ public partial class KitButton : Control
 		};
 		if (_down && _state != KitButtonState.Disabled) bg = bg.Lightened(0.18f);
 		return UiKit.Box(bg, border, 12, 2, 0);
+	}
+
+	/// <summary>Gerätetest: kürzt eine Zeile mit „…“, bis sie in <paramref name="maxWidth"/> passt (gemessen mit der Schrift).</summary>
+	public static string Fit(Font font, string text, int size, float maxWidth)
+	{
+		if (maxWidth <= 0f || font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X <= maxWidth) return text;
+		for (int n = text.Length - 1; n > 0; n--)
+		{
+			string t = text[..n].TrimEnd() + "…";
+			if (font.GetStringSize(t, HorizontalAlignment.Left, -1, size).X <= maxWidth) return t;
+		}
+		return "…";
 	}
 
 	public override void _Draw()
@@ -101,16 +115,18 @@ public partial class KitButton : Control
 		if (left)
 		{
 			Symbol?.Invoke(this);
-			DrawString(font, new Vector2(tx, Size.Y * 0.40f), Text, HorizontalAlignment.Left, -1, FontSize, fg);
-			if (Sub.Length > 0) DrawString(font, new Vector2(tx, Size.Y * 0.64f), Sub, HorizontalAlignment.Left, -1, 12, UiKit.Dim);
-			if (Detail.Length > 0) DrawString(font, new Vector2(tx, Size.Y * 0.88f), Detail, HorizontalAlignment.Left, -1, 13, DetailColor);
+			float room = Size.X - tx - 8f;   // Gerätetest: Text endet vor dem Rand (Innenabstand), zu lange Zeilen mit „…“
+			DrawString(font, new Vector2(tx, Size.Y * 0.40f), Fit(font, Text, FontSize, room), HorizontalAlignment.Left, -1, FontSize, fg);
+			if (Sub.Length > 0) DrawString(font, new Vector2(tx, Size.Y * 0.64f), Fit(font, Sub, 12, room), HorizontalAlignment.Left, -1, 12, UiKit.Dim);
+			if (Detail.Length > 0) DrawString(font, new Vector2(tx, Size.Y * 0.88f), Fit(font, Detail, 13, room), HorizontalAlignment.Left, -1, 13, DetailColor);
 		}
 		else
 		{
 			float cy = Size.Y / 2f + FontSize * 0.35f - (Sub.Length > 0 ? 8f : 0f);
-			DrawString(font, new Vector2(0, cy), Text, HorizontalAlignment.Center, Size.X, FontSize, fg);
-			if (Sub.Length > 0) DrawString(font, new Vector2(0, cy + 20f), Sub, HorizontalAlignment.Center, Size.X, 13, UiKit.Dim);
-			if (Detail.Length > 0) DrawString(font, new Vector2(Size.X - 12, cy), Detail, HorizontalAlignment.Right, 400, 14, DetailColor);
+			DrawString(font, new Vector2(6, cy), Fit(font, Text, FontSize, Size.X - 12f), HorizontalAlignment.Center, Size.X - 12f, FontSize, fg);
+			if (Sub.Length > 0) DrawString(font, new Vector2(6, cy + 20f), Fit(font, Sub, 13, Size.X - 12f), HorizontalAlignment.Center, Size.X - 12f, 13, UiKit.Dim);
+			// Gerätetest: Zustandszeile unten in der Taste (vorher rechts außerhalb gezeichnet: „Com…“ am Bildrand)
+			if (Detail.Length > 0) DrawString(font, new Vector2(6, Size.Y - 6), Fit(font, Detail, 12, Size.X - 12f), HorizontalAlignment.Center, Size.X - 12f, 12, DetailColor);
 		}
 		if (_state == KitButtonState.Busy)
 		{

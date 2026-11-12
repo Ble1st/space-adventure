@@ -80,7 +80,7 @@ public partial class MapOverlay : Control
 	public override void _Draw()
 	{
 		if (_u == null) return;
-		DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.03f, 0.08f, 0.94f));
+		DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.03f, 0.08f, 1f));   // Gerätetest: deckend (das HUD schien durch)
 		var font = ThemeDB.FallbackFont;
 		DrawString(font, new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", HorizontalAlignment.Left, -1, 24, Colors.White);
 		var center = MapCenter();
@@ -97,17 +97,20 @@ public partial class MapOverlay : Control
 				DrawLine(Place(_u.Sectors[g.Sector], center, scale), Place(_u.Sectors[far.Sector], center, scale), col, 3f);
 			}
 
+		var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(new Vector2(0, 60), Size - new Vector2(0, 60)), font);
+		foreach (var s in _u.Sectors.Values) layout.ReserveCircle(Place(s, center, scale), 40f);
 		foreach (var s in _u.Sectors.Values)
 		{
 			var p = Place(s, center, scale);
 			var col = FactionColor(s.Owner);
+			DrawCircle(p, 30f, new Color(0.03f, 0.05f, 0.1f, 1f));   // Gerätetest: deckender Knoten — die Torlinien laufen nicht mehr über ihn
 			DrawCircle(p, 30f, new Color(col, 0.35f));
 			DrawArc(p, 30f, 0, Mathf.Tau, 40, col, 3f);
 			if (s.Id == _player) DrawArc(p, 38f, 0, Mathf.Tau, 40, Colors.White, 3f);
 			if (s.Id == _target) DrawArc(p, 46f, 0, Mathf.Tau, 40, Colors.Yellow, 3f);
 			// Phase 21: Name ohne „Sektor “ und kleiner, damit 11 Sektoren nebeneinander lesbar bleiben
-			DrawString(font, p + new Vector2(-70, 50), s.Name.Replace("Sektor ", ""), HorizontalAlignment.Center, 140, 16, Colors.White);
-			DrawString(font, p + new Vector2(-70, 67), (s.Stations.Count == 1 ? "1 Station" : $"{s.Stations.Count} Stationen"), HorizontalAlignment.Center, 140, 12, new Color(0.7f, 0.8f, 1f));
+			// Gerätetest: Name und Stationszahl kollisionsfrei neben dem Knoten (LabelLayout)
+			layout.Draw(this, p, s.Name.Replace("Sektor ", "") + $" · {s.Stations.Count} St.", 14, Colors.White, 40f, 160f);
 		}
 	}
 

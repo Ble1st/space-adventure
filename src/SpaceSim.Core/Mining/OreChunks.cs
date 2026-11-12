@@ -102,8 +102,12 @@ public sealed class OreChunks
 
     /// <summary>Bewegt die Brocken; mit Traktorstrahl werden sie angezogen und bei Berührung (soweit Platz ist) in den Laderaum geladen.</summary>
     /// <returns>Eingesammelte Einheiten in diesem Schritt.</returns>
+    /// <summary>Gerätetest: Ware des zuletzt abgeprallten Brockens (Laderaum für ihre Form voll), sonst null — für eine klare Statusmeldung.</summary>
+    public GoodId? HoldFull { get; private set; }
+
     public float Update(Universe u, Ship ship, Vec2 shipPos, bool tractor, float dt)
     {
+        HoldFull = null;
         _cooldown = MathF.Max(0f, _cooldown - dt);
 
         float collected = 0f;
@@ -125,7 +129,7 @@ public sealed class OreChunks
 
             if (Vec2.Distance(c.Position, shipPos) > MiningRules.CollectRadius) continue;
             float take = MathF.Min(ship.FreeUnits(u, c.Good), c.Units);
-            if (take < 0.001f) { c.Velocity = (c.Position - shipPos).Normalized() * 6f; continue; }   // Laderaum voll: abprallen
+            if (take < 0.001f) { c.Velocity = (c.Position - shipPos).Normalized() * 6f; HoldFull = c.Good; continue; }   // Laderaum voll: abprallen
 
             ship.Cargo[c.Good] = ship.Cargo.GetValueOrDefault(c.Good) + take;
             c.Units -= take;

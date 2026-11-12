@@ -680,14 +680,46 @@ public class MiningAutopilotTests
     }
 
     [Fact]
+    public void Pip_FesterRaumVoll_BrockenDaneben_FliegtVerkaufenStattZuWarten()
+    {
+        // Gerätetest (Phase 26): Pip mit getrennten Räumen (fest 30 / flüssig 30) — fester Raum voll, ein Erzbrocken prallt neben dem Schiff ab. Vorher
+        // zählte er als „Brocken in der Nähe“, der Automodus wartete endlos auf ihn; jetzt fliegt er verkaufen (und meldet den vollen Raum)
+        var h = new Harness();
+        new SimulationRunner().Run(h.U, 1);   // Preise
+        var m = h.U.ShipModels["pip"];
+        var pip = SpaceSim.Core.Simulation.ShipPurchase.Create(h.U, h.U.NewShipId(), m.Key, h.U.ShipClasses[m.ClassKey].Slots, m.Fit, ShipRole.Player, Controller.Player,
+            h.U.PlayerActor, h.U.StationsById().First(), 0f);
+        h.U.AddShip(pip);
+        if (pip.Sector != h.U.PlayerSector) h.U.MoveShip(pip, h.U.PlayerSector);
+        PlayerFleet.Activate(h.U, pip, default);
+        Assert.True(pip.HasSeparatedHolds);
+        var rock = h.U.Sectors[h.U.PlayerSector].Asteroids.First(a => a.Minable);
+        h.Pos = rock.Position + new Vec2(1, 0) * (rock.Radius + 15f);
+        var ore = h.U.FindGood("iron_ore")!.Id;
+        pip.Cargo[ore] = pip.FreeUnits(h.U, ore);   // fester Raum voll
+        Assert.True(pip.FreeUnits(h.U, ore) < 0.001f);
+        h.Chunks.Chunks.Add(new OreChunk { Good = ore, Units = 3f, Position = h.Pos + new Vec2(2f, 0f) });
+        h.Auto.Start();
+        h.Chunks.Update(h.U, pip, h.Pos, tractor: true, 0.05f);
+        Assert.Equal(ore, h.Chunks.HoldFull);   // Grund für die Statusmeldung: Raum für Erz voll
+        MiningStep step = default;
+        for (int i = 0; i < 5; i++) step = h.Auto.Step(h.U, h.Chunks, pip, h.Pos);
+        Assert.Equal(MiningAutopilot.Phase.Sell, h.Auto.Current);
+        Assert.True(step.Nav is not null, h.Auto.Status);
+        Assert.StartsWith("Verkaufe", h.Auto.Status);
+    }
+
+    [Fact]
     public void NeverOverfillsTheCargo()
     {
         var h = new Harness();
         h.Auto.Start();
-        float max = 0f;
-        h.Run(300, until: () => { max = MathF.Max(max, h.Ship.UsedVolume(h.U)); return false; });
-        Assert.True(max <= h.Ship.CargoCapacity + 1e-3f);
-        Assert.True(max > 50f, "Es sollte tatsächlich abgebaut worden sein");
+        float max = 0f, over = 0f;
+        // Phase 26: zu jedem Zeitpunkt prüfen — der Frachtraum kann sich unterwegs ändern (Modulschaden bei einem Überfall lässt ein Frachtmodul ausfallen,
+        // die überzählige Fracht fällt dann als Behälter ins All)
+        h.Run(300, until: () => { float used = h.Ship.UsedVolume(h.U); max = MathF.Max(max, used); over = MathF.Max(over, used - h.Ship.CargoCapacity); return false; });
+        Assert.True(over <= 1e-3f, $"über dem Laderaum um {over:0.###}");
+        Assert.True(max > 50f, $"Es sollte tatsächlich abgebaut worden sein (max {max:0.0}, Status {h.Auto.Status}, Verkäufe {h.Sales})");
     }
 
     [Fact]

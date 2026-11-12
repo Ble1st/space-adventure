@@ -53,6 +53,8 @@ public sealed class ShipStats
     public float Stealth;
     /// <summary>Phase 11: Waffenstärke (Summe stats weaponPower der Waffenmodule); Grundlage der abstrakten Begegnungen.</summary>
     public float WeaponPower;
+    /// <summary>Phase 26: zusätzliche Löschchance je Brandrunde (Summe stats extinguish, Löschanlage); ausgefallene Anlagen löschen nicht.</summary>
+    public float Extinguish;
     /// <summary>Phase 11: Schildkapazität (Summe stats shieldCapacity); zählt in der Kampfstärke mit.</summary>
     public float Shield;
     /// <summary>Phase 23: Schildregeneration je Sekunde (Summe stats shieldRegen), höchstens — gespeist aus dem Reaktorüberschuss (<see cref="Combat.ShipSystems"/>).</summary>
@@ -72,8 +74,8 @@ public sealed class ShipStats
 
     /// <summary>
     /// Phase 23: wie <see cref="Compute(ShipClass, IReadOnlyList{Module?})"/>, aber mit dem Zustand je Slot (<paramref name="condition"/>, fehlender
-    /// Eintrag = 1). Ein Modul unter <paramref name="failBelow"/> ist ausgefallen: Es behält Masse und seine Lager (Fracht, Tank, Magazin, Speicherbank —
-    /// der Inhalt verschwindet nicht) und Panzerung, verliert aber Dauerlast, Fähigkeiten und alle übrigen Werte. Reaktor und Antrieb fallen nie ganz aus, sie liefern
+    /// Eintrag = 1). Ein Modul unter <paramref name="failBelow"/> ist ausgefallen: Es behält Masse, Tank, Magazin und Speicherbank (der Inhalt
+    /// verschwindet nicht) und Panzerung — seit Phase 26 aber nicht mehr seinen Frachtraum, verliert aber Dauerlast, Fähigkeiten und alle übrigen Werte. Reaktor und Antrieb fallen nie ganz aus, sie liefern
     /// die halbe Leistung bzw. den halben Schub (KAMPF.md 3.3: kein Schiff bleibt unrettbar liegen). Reine Funktion.
     /// </summary>
     public static ShipStats Compute(ShipClass cls, IReadOnlyList<Module?> fit, IReadOnlyList<float>? condition, float failBelow)
@@ -104,6 +106,7 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("shieldCapacity", out var sh)) s.Shield += sh;            // Phase 11: Schild zählt in der Stärke
             if (m.Stats.TryGetValue("shieldRegen", out var regen)) s.ShieldRegen += regen;    // Phase 23: Schild lädt nach
             if (m.Stats.TryGetValue("ammoCapacity", out var ammo)) s.AmmoCapacity += ammo;    // Phase 23: Magazin
+            if (m.Stats.TryGetValue("extinguish", out var ext)) s.Extinguish += ext;          // Phase 26: Löschanlage
             foreach (var f in m.FuelTypes)
             {
                 int idx = s.FuelTypes.FindIndex(x => x.Good == f.Good);
@@ -149,16 +152,7 @@ public sealed class ShipStats
         if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // ein halber Antrieb verbraucht weiter
         foreach (var f in m.FuelTypes)
             if (s.FuelTypes.FindIndex(x => x.Good == f.Good) < 0) s.FuelTypes.Add(f);
-        if (m.Stats.TryGetValue("capacity", out var capacity))
-        {
-            s.Cargo += capacity;
-            switch (m.Holds)
-            {
-                case ModuleHolds.Solid: s.CargoSolid += capacity; break;
-                case ModuleHolds.Liquid: s.CargoLiquid += capacity; break;
-                default: s.CargoAny += capacity; break;
-            }
-        }
+        // Phase 26: ein ausgefallenes Frachtmodul hält keine Fracht mehr (die überzählige Fracht fällt als Frachtbehälter ins All, ModuleDamage.Spill)
     }
 
     /// <summary>

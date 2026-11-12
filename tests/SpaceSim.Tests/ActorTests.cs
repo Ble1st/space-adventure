@@ -276,6 +276,12 @@ public class ActorTests
         // die Zahler zurück — seit der Kupferkette hat die Werft die Module öfter auf Lager, und Welt a kauft schon in den ersten 3000 Ticks Polizei.
         // Für den Zahlervergleich ruht die Sicherheit in beiden Welten.
         foreach (var w in new[] { a, b }) w.Rules.SecurityActive = false;
+        // Phase 26: die Reparaturregale der Regierungsstationen (Hüllenplatten, Elektronik) kaufen aus der Stationskasse — die hängt ohne Fraktionskasse
+        // am Unterhalt und wirkte über den Handel auf die Zahler zurück; für den Zahlervergleich ohne Regale (wie bis Phase 25)
+        foreach (var w in new[] { a, b })
+            foreach (var st in w.Stations.Values.Where(s => StationProtection.IsOfficial(w, s)))
+                foreach (var key in new[] { "hull_plates", "electronics" })
+                    if (w.FindGood(key) is { } g && w.StationTypes[st.TypeKey].Stocks.Any(x => x.Good == g.Id)) st.Market.Remove(g.Id);
         var taxes = new List<TaxCollected>();
         double upkeep = 0;   // Phase 10: Unterhalt der Regierungsstationen und Sperren aus den Kassen
         double income = 0;   // Phase 11: Strafen fließen in Fraktionskassen; Polizei und Kopfgeld zahlen aus ihnen (Piratenkassen zählen hier nicht)

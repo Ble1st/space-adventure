@@ -207,7 +207,7 @@ public sealed partial class SectorScreen : CommandScreen
 			foreach (var sid in s.Stations) maxD = Mathf.Max(maxD, _u.Stations[sid].Position.Length);
 			foreach (var f in s.Fields) maxD = Mathf.Max(maxD, f.Position.Length + SpaceSim.Core.Mining.MiningRules.BeltRadius);
 			foreach (var gid in s.Gates) maxD = Mathf.Max(maxD, _u.Gates[gid].Position.Length);
-			if (s.Id == _u.PlayerSector) maxD = Mathf.Max(maxD, _u.Ships[_u.PlayerShip].Position.Length + 40f);
+			// Gerätetest: der Spieler bestimmt den Maßstab nicht mehr (weit draußen ballte er alles in der Mitte) — er wird am Rand gezeigt
 			return (Mathf.Min(Size.X, Size.Y) / 2f - 36f) / maxD;
 		}
 
@@ -238,6 +238,9 @@ public sealed partial class SectorScreen : CommandScreen
 			float scale = ContentScale();
 			var c = Size / 2f;
 			var font = ThemeDB.FallbackFont;
+			// Gerätetest: Beschriftungen werden gesammelt und zum Schluss kollisionsfrei gesetzt (LabelLayout), Symbole halten ihren Platz frei
+			var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(Vector2.Zero, Size - new Vector2(0, 46)), font);
+			var labels = new System.Collections.Generic.List<(int Prio, Vector2 At, string Text, int Size, Color Col, float Gap)>();
 
 			// Sektorscheibe (nur wenn im Bild), Ringe
 			float edge = s.Radius * scale;
@@ -262,7 +265,7 @@ public sealed partial class SectorScreen : CommandScreen
 				DrawArc(p, br, 0, Mathf.Tau, 40, new Color(0.65f, 0.6f, 0.5f, 0.35f), 2f, true);
 				DrawCircle(p, 5f, new Color(0.65f, 0.6f, 0.5f, 0.8f));
 				var cls = _u.AsteroidClasses.TryGetValue(f.ClassKey, out var ac) ? ac.Name : f.ClassKey;
-				DrawString(font, p + new Vector2(-80, br + 16), $"Gürtel · {cls}", HorizontalAlignment.Center, 160, 12, new Color(Dim, 0.9f));
+				labels.Add((4, p + new Vector2(0, br), $"Gürtel · {cls}", 12, new Color(Dim, 0.9f), 6f));
 			}
 
 			// Gates mit Zielsektor
@@ -276,7 +279,8 @@ public sealed partial class SectorScreen : CommandScreen
 				var gpol = AccessInfo.ForGate(_u, g, _u.Ships[_u.PlayerShip]);
 				Color gcol = !g.Open || gpol.Denied ? Red : g.State == GateState.Restricted ? Orange : Green;
 				DrawArc(gp, 13f, 0, Mathf.Tau, 24, gcol, 3f, true);
-				DrawString(font, gp + new Vector2(-70, -22), $"→ {target.Name}{(!g.Open ? " · geschlossen" : gpol.Denied ? " · gesperrt" : g.State == GateState.Restricted ? " · Kontrolle" : "")}", HorizontalAlignment.Center, 140, 12, gcol);
+				layout.ReserveCircle(gp, 14f);
+				labels.Add((2, gp, $"→ {target.Name}{(!g.Open ? " · geschlossen" : gpol.Denied ? " · gesperrt" : g.State == GateState.Restricted ? " · Kontrolle" : "")}", 12, gcol, 16f));
 			}
 
 			// Stationen: Label radial nach außen versetzt, damit die Namen sich nicht stapeln
@@ -302,10 +306,17 @@ public sealed partial class SectorScreen : CommandScreen
 					DrawRect(new Rect2(p - new Vector2(9, 9), new Vector2(18, 18)), col, false, sel ? 4f : 2f);
 				}
 				if (sel) DrawArc(p, 20f, 0, Mathf.Tau, 24, Cyan, 2f, true);
-				var outward = (p - c);
-				if (outward.Length() < 1f) outward = new Vector2(0, -1);
-				var lp = p + outward.Normalized() * 30f;
-				DrawString(font, lp + new Vector2(-80, -6), st.Name, HorizontalAlignment.Center, 160, sel ? 13 : 11, sel ? Cyan : White);
+				layout.ReserveCircle(p, 12f);
+				labels.Add((sel ? 0 : 1, p, st.Name, sel ? 13 : 11, sel ? Cyan : White, 14f));
+			}
+
+			// Phase 26: Wracks (graues Kreuz) und Frachtbehälter (oranges Quadrat), echt aus Universe.Wrecks
+			foreach (var wr in SpaceSim.Core.Simulation.Wrecks.In(_u, s.Id))
+			{
+				var p = Place(wr.Position);
+				if (wr.Kind == WreckKind.Container) DrawRect(new Rect2(p - new Vector2(4, 4), new Vector2(8, 8)), Orange);
+				else { var g = new Color(0.65f, 0.62f, 0.58f); DrawLine(p - new Vector2(6, 6), p + new Vector2(6, 6), g, 2f); DrawLine(p + new Vector2(-6, 6), p + new Vector2(6, -6), g, 2f); }
+				TestWrecks++;
 			}
 
 			// NPC-Schiffe (echt über Materializer)
@@ -335,11 +346,20 @@ public sealed partial class SectorScreen : CommandScreen
 			{
 				var pl = _u.Ships[_u.PlayerShip];
 				var p = Place(pl.Position);
+				// Gerätetest: weit draußen am Kartenrand mit Richtungshinweis statt den Maßstab zu sprengen
+				float rim = Mathf.Min(Size.X, Size.Y) / 2f - 22f;
+				bool outside = (p - c).Length() > rim;
+				if (outside) p = c + (p - c).Normalized() * rim;
 				DrawShip(p, 9f, Cyan);
-				DrawString(font, p + new Vector2(12, 4), $"du · #{pl.Id.Value}", HorizontalAlignment.Left, -1, 12, Cyan);
+				layout.ReserveCircle(p, 10f);
+				labels.Add((0, p, outside ? $"du · #{pl.Id.Value} (außerhalb)" : $"du · #{pl.Id.Value}", 12, Cyan, 12f));
 			}
 
-			DrawString(font, new Vector2(12, Size.Y - 10), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ Schiff (orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht)   ▲ cyan = du", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			foreach (var l in labels.OrderBy(l => l.Prio)) layout.Draw(this, l.At, l.Text, l.Size, l.Col, l.Gap);
+			// Legende zweizeilig, gekürzt auf die Breite (lief auf dem Handy über den Rand)
+			float lw = Size.X - 24f;
+			DrawString(font, new Vector2(12, Size.Y - 26), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font, new Vector2(12, Size.Y - 8), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "▲ Schiff: orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 		}
 
 		void DrawShip(Vector2 c, float s, Color col)
@@ -358,4 +378,6 @@ public sealed partial class SectorScreen : CommandScreen
 	public string TestPlanet { get; private set; } = "";
 	/// <summary>Phase 24: Gefechtszeile der Sektorkarte (leer = kein Gefecht).</summary>
 	public string TestCombat { get; private set; } = "";
+	/// <summary>Phase 26: gezeichnete Wracks/Behälter (aufsummiert über die Zeichendurchläufe; Selbsttest prüft &gt; 0).</summary>
+	public static int TestWrecks;
 }

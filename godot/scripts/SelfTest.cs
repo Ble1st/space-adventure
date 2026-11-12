@@ -1460,6 +1460,149 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("rearm (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
+			case 63: // Phase 26: keine Gratisreparatur beim Andocken — abdocken, Schaden und Brand, HUD-Warnung, wieder andocken
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1) _m.TestUndock();
+				if (_frame - _stageStart < 70) break;
+				var pl = uni.Ships[uni.PlayerShip];
+				if (_frame - _stageStart == 70)
+				{
+					pl.Hull = pl.MaxHull * 0.4f;
+					_p26Laser = pl.Fit.IndexOf("weapon_laser_s");
+					SpaceSim.Core.Combat.ModuleDamage.SetCondition(uni, pl, _p26Laser, 0.4f);
+					SpaceSim.Core.Combat.ModuleDamage.Ignite(uni, pl, pl.Fit.FindIndex(k => k is not null && k.StartsWith("reactor")));
+					uni.Rules.FireExtinguishChance = 0f;
+					break;
+				}
+				if (_frame - _stageStart == 76)
+				{
+					Check(!_m.Docked && pl.Systems.Burning.Count > 0, "Schiff brennt im Flug");
+					Check(_m.HudRef.Flight.TestFire.Contains("BRAND"), $"HUD-Warnung „Brand“ ({_m.HudRef.Flight.TestFire})");
+					_p26Hull = pl.Hull;
+					_m.TestDockNearest();
+					break;
+				}
+				if (_frame - _stageStart < 90) break;
+				Check(_m.Docked, "wieder angedockt");
+				Check(pl.Hull < pl.MaxHull - 1f && pl.Hull <= _p26Hull + 0.5f, $"keine Gratisreparatur beim Andocken (Hülle {pl.Hull:0}/{pl.MaxHull:0})");
+				Check(pl.Systems.Burning.Count == 0, "Andocken löscht den Brand");
+				Check(_m.HudRef.Flight.TestFire.Length == 0 || !_m.HudRef.Flight.Visible, "keine Brandwarnung mehr");
+				uni.Rules.FireExtinguishChance = new SpaceSim.Core.Model.EconomyRules().FireExtinguishChance;
+				Next(); break;
+			}
+			case 64: // Reparatur über den Bildschirm: Schadensliste, Modulzeile, „alles“
+			{
+				if (_frame - _stageStart < 4) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var pl = uni.Ships[uni.PlayerShip];
+					var st = uni.Stations[_m.TestDockedStation!.Value];
+					var plates = SpaceSim.Core.Services.RepairService.PlatesGood(uni)!.Value;
+					var elec = SpaceSim.Core.Services.RepairService.ElectronicsGood(uni)!.Value;
+					if (st.Market.ContainsKey(plates)) st.Market[plates].Amount = 50f;
+					if (st.Market.ContainsKey(elec)) st.Market[elec].Amount = 50f;
+					uni.WalletOf(pl).Credits = System.MathF.Max(uni.WalletOf(pl).Credits, 5000f);
+					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Repair && a.Available), "Bereich „Reparatur“ verfügbar");
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Repair);
+					var scr = _m.HudRef.DockRepair;
+					Check(scr.TestDamageRows >= 1, $"Schadensliste zeigt beschädigte Module ({scr.TestDamageRows})");
+					var bad = scr.Execute(SpaceSim.Core.Services.RepairService.ServiceKey, "repair:module:x");
+					Check(!bad.Success, "unbekannter Reparaturschlüssel abgelehnt");
+					var r = scr.Execute(SpaceSim.Core.Services.RepairService.ServiceKey, "repair:all");
+					Check(r.Success && pl.ConditionOf(_p26Laser) >= 0.999f && pl.Hull >= pl.MaxHull - 0.5f, $"„Alles reparieren“ über den Bildschirm ({r.Message})");
+				}
+				catch (System.Exception ex) { Fail("Reparatur (Phase 26) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 65: // Wrack und Bergung: Schiff mit Bergungsgreifer, Wrack vor dem Bug, Modul bergen, Traktor zieht Fracht
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1)
+				{
+					try
+					{
+						var yard3 = uni.Stations[_m.TestDockedStation!.Value];
+						var model = uni.ShipModels["prospector"];
+						var fit = model.Fit.ToList();
+						int tool = uni.ShipClasses[model.ClassKey].Slots.FindIndex(sl => sl.Type == "tool");
+						fit[tool] = "wreck_grapple_s";
+						var sv = SpaceSim.Core.Simulation.ShipPurchase.Create(uni, uni.NewShipId(), model.Key, uni.ShipClasses[model.ClassKey].Slots, fit,
+							ShipRole.Player, Controller.Player, uni.PlayerActor, yard3, 0f);
+						uni.AddShip(sv);
+						SpaceSim.Core.Simulation.PlayerFleet.Dock(uni, sv, yard3);
+						_m.TestSwitchRemote(sv.Id);
+						_p26Salvager = sv.Id;
+					}
+					catch (System.Exception ex) { Fail("Bergung-Vorbereitung (Phase 26) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+					break;
+				}
+				if (_frame - _stageStart == 8) _m.TestUndock();
+				if (_frame - _stageStart < 80) break;
+				var pl = uni.Ships[uni.PlayerShip];
+				if (_frame - _stageStart == 80)
+				{
+					Check(pl.Id == _p26Salvager && pl.Has(SpaceSim.Core.Model.Capability.Salvage), "Schiff mit Bergungsgreifer aktiv");
+					Check(_m.TestBays.Any(b => b.Key == "salvage"), "Schacht „Bergen“ vorhanden");
+					var food = uni.FindGood("food")!.Id;
+					var w = SpaceSim.Core.Simulation.Wrecks.Drop(uni, uni.PlayerSector, pl.Position + new Vec2(0f, -8f),
+						new System.Collections.Generic.Dictionary<SpaceSim.Core.Model.GoodId, float> { [food] = 6f }, default, "Wrack: Selbsttest")!;
+					w.Kind = SpaceSim.Core.Model.WreckKind.Wreck;
+					w.Modules.Add(new SpaceSim.Core.Model.WreckModule { Key = "reactor_mk1", Condition = 0.8f });
+					_p26Wreck = w.Id;
+					_p26Cargo = pl.Cargo.Values.Sum();
+					break;
+				}
+				if (_frame - _stageStart == 84)
+				{
+					Check(_m.View.WreckCount >= 1, "Wrack in der Sektoransicht gezeichnet");
+					bool ok = _m.TestGrabSalvage();
+					Check(ok && pl.Cargo.GetValueOrDefault(uni.FindGood("reactor_mk1")!.Id) >= 1f, $"Modul geborgen ({_m.TestSalvage.LastMessage})");
+					_m.TestTractor(true);
+					break;
+				}
+				if (_frame - _stageStart < 200) break;
+				Check(_m.TestSalvage.Pulled > 0f, $"Traktorstrahl zieht Fracht aus dem Wrack ({_m.TestSalvage.Pulled:0.#})");
+				Check(SpaceSim.Core.Simulation.Wrecks.Get(uni, _p26Wreck) is null, "leeres Wrack verschwindet");
+				_m.TestTractor(false);
+				// Schulden sichtbar
+				float keep = uni.PlayerWallet.Credits;
+				uni.PlayerWallet.Credits = -250f;
+				_p26Keep = keep;
+				Next(); break;
+			}
+			case 66:
+			{
+				if (_frame - _stageStart < 3) break;
+				var uni = _m.Session.U;
+				Check(_m.HudRef.Flight.TestCredits.Contains("Schulden"), $"HUD zeigt Schulden ({_m.HudRef.Flight.TestCredits})");
+				uni.PlayerWallet.Credits = _p26Keep;
+				Next(); break;
+			}
+			case 67: // Gerätetest: „Testszenario“ starten — Lage vorbereitet; Zeitraffer schaltet bei Gefahr auf ×1 mit wichtiger Meldung
+			{
+				if (_frame - _stageStart == 1) { _m.TestMenu("new:test"); break; }
+				if (_frame - _stageStart < 40) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var pl = uni.Ships[uni.PlayerShip];
+					Check(pl.ModelKey == "tinker" && pl.Has(SpaceSim.Core.Model.Capability.Salvage), "Testszenario: Schiff mit Bergungsgreifer und Waffe");
+					Check(pl.Systems.Condition.Count > 0, "Testszenario: beschädigtes Modul");
+					Check(_m.View.WreckCount >= 1, "Testszenario: Wrack in der Sektoransicht");
+					Check(uni.Ships.Values.Any(s => SpaceSim.Core.Simulation.ThreatMap.IsRaider(s) && s.Sector == uni.PlayerSector), "Testszenario: Kaperschiff im Sektor");
+					Check(_m.HudRef.Flight.TestNextEnemyVisible, "„Nächster Gegner“ erreichbar, wenn ein Gegner im Sektor ist");
+					_m.TestSetFast(true);
+					int slot = pl.Fit.FindIndex(k => k is not null && k.StartsWith("reactor"));
+					SpaceSim.Core.Combat.ModuleDamage.EndFire(uni, pl, slot, "test");
+					SpaceSim.Core.Combat.ModuleDamage.Ignite(uni, pl, slot);
+					Check(!_m.TestFast, "Zeitraffer schaltet bei Brand auf ×1");
+					Check(_m.HudRef.TestAlert.Contains("Zeitraffer aus"), $"wichtige Meldung sichtbar („{_m.HudRef.TestAlert}“)");
+				}
+				catch (System.Exception ex) { Fail("Testszenario warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -1478,6 +1621,10 @@ public partial class SelfTest : Node
 	ulong _p25Rng;
 	ShipId _p25Trader;
 	int _p25LostFrame = -1;
+	/// <summary>Phase 26: Schaden, Reparatur, Bergung (Stufen 63–66).</summary>
+	int _p26Laser, _p26Wreck;
+	float _p26Hull, _p26Cargo, _p26Keep;
+	ShipId _p26Salvager;
 	void Log(string s) => GD.Print("[selftest] " + s);
 	/// <summary>Phase 18: Ware „Nahrung“ der Welt (für die Abwurf-Prüfungen).</summary>
 	static SpaceSim.Core.Model.GoodId DemoFood(SpaceSim.Core.Model.Universe u) => u.FindGood("food")!.Id;

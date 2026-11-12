@@ -191,6 +191,51 @@ u.Events.Raised += e =>
             armedBought++; break;
     }
 };
+// Phase 26: Schaden und Bergung — Modulschäden, Brände, Reparaturen, Wracks, Bergung
+int modDamaged = 0, modFailed = 0, firesStarted = 0, wrecksMade = 0, containersMade = 0, wrecksExpired = 0, repairsNpc = 0, repairsBase = 0, repairsPlayer = 0, repairModules = 0;
+double repairCost = 0, repairBaseCost = 0, repairPlates = 0, repairElec = 0, salvagedCargoNpc = 0, salvagedCargoPlayer = 0, wreckCargoMade = 0, wreckCargoExpired = 0;
+int salvagedModules = 0, wreckModulesMade = 0, wreckModulesExpired = 0;
+var fireEnds = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var repairByShip = new Dictionary<ShipId, double>();
+double hullFracSum = 0; long hullFracN = 0, hullSerious = 0; int repairTrips = 0;
+int brokeTraders = 0, brokeWithRepair = 0, brokeFailed = 0, brokeDamaged = 0; double brokeRepairSum = 0;
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case ModuleDamaged md2: modDamaged++; if (md2.Failed) modFailed++; break;
+        case FireStarted: firesStarted++; break;
+        case RepairTripStarted: repairTrips++; break;
+        case FireEnded fe: fireEnds[fe.How] = fireEnds.GetValueOrDefault(fe.How) + 1; break;
+        case ShipRepaired sr:
+            if (sr.AtBase) { repairsBase++; repairBaseCost += sr.Cost; }
+            else
+            {
+                if (u.Ships.TryGetValue(sr.Ship, out var rs) && rs.IsPlayer) repairsPlayer++; else repairsNpc++;
+                repairByShip[sr.Ship] = repairByShip.GetValueOrDefault(sr.Ship) + sr.Cost;
+                repairCost += sr.Cost; repairPlates += sr.Plates; repairElec += sr.Electronics;
+            }
+            repairModules += sr.Modules;
+            break;
+        case WreckCreated wc:
+            if (wc.Kind == WreckKind.Wreck) wrecksMade++; else containersMade++;
+            wreckCargoMade += wc.CargoUnits; wreckModulesMade += wc.Modules; break;
+        case ShipDeparted { Reason: DepartureReason.Bankrupt, Role: ShipRole.Trader } sdb:
+            brokeTraders++;
+            if (repairByShip.TryGetValue(sdb.Ship, out var paid)) { brokeWithRepair++; brokeRepairSum += paid; }
+            if (u.Ships.TryGetValue(sdb.Ship, out var bs))
+            {
+                if (bs.Fit.Select((k, i) => i).Any(i => SpaceSim.Core.Combat.ModuleDamage.Failed(u, bs, i))) brokeFailed++;
+                if (bs.Hull < bs.MaxHull * 0.999f) brokeDamaged++;
+            }
+            break;
+        case WreckExpired wx: wrecksExpired++; wreckCargoExpired += wx.CargoUnits; wreckModulesExpired += wx.Modules; break;
+        case WreckSalvaged ws:
+            if (ws.Module is not null) salvagedModules++;
+            else if (ws.ByNpc) salvagedCargoNpc += ws.Units; else salvagedCargoPlayer += ws.Units;
+            break;
+    }
+};
 // Phase 13: Forschung — FP, Takte (gelaufen/gestockt nach Grund), Personalkosten, verbrauchte Güter (Basiswert), Budget aus den Kassen, Abschlüsse
 double researchPoints = 0, researchSalary = 0, researchGoods = 0, researchFunding = 0, researchPlayer = 0;
 int researchCycles = 0, researchStalled = 0;
@@ -372,6 +417,9 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 watch.Sample(u);
                 recoveringMax = Math.Max(recoveringMax, u.Recovering.Count);   // Phase 23
                 fightsMax = Math.Max(fightsMax, u.Fights.Count);   // Phase 24
+                if (u.Tick % 200 == 0)   // Phase 26 (Korrektur): mittlere Hüllenquote und Anteil schwer beschädigter Händler/Schürfer
+                    foreach (var es in u.Ships.Values)
+                        if (es.IsEconomyAi) { hullFracSum += es.Hull / MathF.Max(1f, es.MaxHull); hullFracN++; if (NpcRepair.Serious(u, es)) hullSerious++; }
                 if (u.Tick % 200 == 0)
                 {
                     foreach (var j in ShipJobs.Default) capMax[j.Key] = MathF.Max(capMax.GetValueOrDefault(j.Key), ShipJobs.UsedUnits(u, j));
@@ -389,6 +437,9 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                         var issues = FactionViability.Check(u, va.Id);
                         var cur = viaSamples.TryGetValue(va.Id.Value, out var vs) ? vs : (N: 0, Bad: 0, Kinds: new SortedDictionary<string, int>(StringComparer.Ordinal));
                         foreach (var iss in issues) cur.Kinds[iss.Kind.ToString()] = cur.Kinds.GetValueOrDefault(iss.Kind.ToString()) + 1;
+                        // Gerätetest (Phase 26): Rücklage im Aufbau (kein Verstoß) getrennt mitzählen
+                        if (va.IsFaction(u) && FactionViability.ReserveBuilding(u, va) && va.Treasury.Credits < FactionViability.ReserveOf(u, va))
+                            cur.Kinds["RücklageImAufbau(kein Verstoß)"] = cur.Kinds.GetValueOrDefault("RücklageImAufbau(kein Verstoß)") + 1;
                         viaSamples[va.Id.Value] = (cur.N + 1, cur.Bad + (issues.Count > 0 ? 1 : 0), cur.Kinds);
                     }
                     if (StationProtection.CountEconomic(u) >= u.Rules.MaxStations)
@@ -503,6 +554,8 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Engpass-Module (Ø Preis/Basis letzte 25%): Reaktor {Ratio("reactor_mk1")}, Triebwerk {Ratio("chem_engine_s")}, Laser {Ratio("mining_laser_1")}");
     // Phase 23: Stahl und Kupfer tragen die neue Munitionskette (Ø Preis/Basis letzte 25 %, dichte Probe)
     Console.WriteLine($"Stahl/Kupfer/Munition (Ø Preis/Basis letzte 25%): Stahl {Ratio("steel")}, Kupfer {Ratio("copper")}, Munition {Ratio("ammo")}");
+    // Phase 26: Reparaturmaterial und neue Module
+    Console.WriteLine($"Reparaturmaterial (Ø Preis/Basis letzte 25%): Hüllenplatten {Ratio("hull_plates")}, Elektronik {Ratio("electronics")}; Löschanlage {Ratio("wet_suppressor_s")}, Bergungsgreifer {Ratio("wreck_grapple_s")}, Laserkanone {Ratio("weapon_laser_s")}");
 }
 // Phase 8: Bau über Baustellen und Notbau-Anteil
 {
@@ -546,7 +599,7 @@ if (u.Modules.Count > 0)
     {
         string name = u.ActorName(new ActorId(kv.Key));
         var (n, bad, kinds) = kv.Value;
-        return bad == 0 ? $"{name} ja (0 % Verstoß)"
+        return bad == 0 ? $"{name} ja (0 % Verstoß{string.Concat(kinds.Select(k => $", {k.Key} {100.0 * k.Value / Math.Max(1, n):0.#} %"))})"
             : $"{name} {(bad == n ? "nein" : "zeitweise nicht")} ({100.0 * bad / Math.Max(1, n):0.#} % Verstoß: {string.Join(", ", kinds.Select(k => $"{k.Key} {100.0 * k.Value / Math.Max(1, n):0.#} %"))})";
     })) + $"; jetzt: {string.Join(", ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsFaction(u)).OrderBy(a => a.Id.Value).Select(a => $"{a.Name} {FactionViability.Text(u, a.Id)}"))}"));
     Console.WriteLine($"Notkäufe zur Wiederherstellung: {restores.Count}" + (restores.Count == 0 ? "" : " — " + string.Join("; ", restores.Take(8))));
@@ -597,6 +650,16 @@ if (u.Modules.Count > 0)
         Console.WriteLine($"Bewaffnete Händler/Schürfer: jetzt {armedNow.Count} ({string.Join(", ", armedNow.GroupBy(x => x.ModelKey).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key} {g.Count()}"))}); "
             + $"bewaffnete Modelle gekauft {armedBought}");
     }
+    // Phase 26: Schaden und Bergung
+    Console.WriteLine($"Schaden (Phase 26: {(u.Rules.DamageActive ? "an" : "aus")}): Modulschäden {modDamaged} (ausgefallen {modFailed}); Brände {firesStarted} ("
+        + (fireEnds.Count == 0 ? "keine beendet" : string.Join(", ", fireEnds.Select(kv => $"{kv.Key switch { "extinguished" => "gelöscht", "burnt_out" => "ausgebrannt", "docked" => "angedockt", "repaired" => "repariert", _ => kv.Key }} {kv.Value}")))
+        + $"), brennen jetzt {u.Ships.Values.Sum(x => x.Systems.Burning.Count)}; beschädigte Module jetzt {u.Ships.Values.Sum(x => x.Systems.Condition.Count(c => c < 0.999f))}");
+    Console.WriteLine($"Reparaturen: Dienst {repairsNpc} NPC + {repairsPlayer} Spieler für {repairCost:0} Cr (Hüllenplatten {repairPlates:0.#}, Elektronik {repairElec:0.#}); an der Basis aus Kassen {repairsBase} für {repairBaseCost:0} Cr; Module instand gesetzt {repairModules}; "
+        + $"Hülle fehlt jetzt (KI) {u.Ships.Values.Where(x => !x.IsPlayer).Sum(x => MathF.Max(0f, x.MaxHull - x.Hull)):0}");
+    Console.WriteLine($"Hüllenzustand KI (Händler/Schürfer, Probe ab 10 %): mittlere Hüllenquote {(hullFracN > 0 ? hullFracSum / hullFracN : 1):0.000}, schwer beschädigt {(hullFracN > 0 ? 100.0 * hullSerious / hullFracN : 0):0.0} %, Reparaturflüge {repairTrips}");
+    Console.WriteLine($"Händlerpleiten und Reparatur: {brokeTraders} pleite, davon {brokeWithRepair} hatten repariert (zusammen {brokeRepairSum:0} Cr), {brokeDamaged} mit Hüllenschaden, {brokeFailed} mit ausgefallenem Modul");
+    Console.WriteLine($"Wracks: {wrecksMade} entstanden + {containersMade} Frachtbehälter (Fracht {wreckCargoMade:0.#}, Module {wreckModulesMade}); geborgen Fracht {salvagedCargoNpc:0.#} (Kaperer) + {salvagedCargoPlayer:0.#} (Spieler), Module {salvagedModules}; "
+        + $"verfallen {wrecksExpired} (Fracht {wreckCargoExpired:0.#}, Module {wreckModulesExpired}); jetzt {u.Wrecks.Count}");
     Console.WriteLine($"Rechenzeit Sicherheit (Lagekarte, Piraten, Polizei, Fahndung): {securityWatch.Elapsed.TotalMilliseconds:0} ms = "
         + $"{(sw.ElapsedMilliseconds > 0 ? 100.0 * securityWatch.Elapsed.TotalMilliseconds / sw.ElapsedMilliseconds : 0):0.0}% der Laufzeit");
 }

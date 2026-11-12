@@ -287,7 +287,10 @@ public sealed partial class UniverseScreen : CommandScreen
 				}
 				var font = ThemeDB.FallbackFont;
 				// Phase 21: ohne „Sektor “, damit lange Namen (Hephaistos) in die Spalte passen
-				DrawString(font, p + new Vector2(-70, -6), s.Name.Replace("Sektor ", ""), HorizontalAlignment.Center, 140, 16, White);
+				// Gerätetest: Name im Knoten, Unterzeile unter dem Halo, beide auf ihren Platz gekürzt (überlappten auf dem Handy die Nachbarn)
+				float nameW = 2f * rHalo + 12f;
+				string nm = KitButton.Fit(font, s.Name.Replace("Sektor ", ""), 16, nameW);
+				DrawString(font, p + new Vector2(-nameW / 2f, 6), nm, HorizontalAlignment.Center, nameW, 16, White);
 				string sub = layer switch
 				{
 					UniverseScreen.Layer.Prices => $"{SectorEconomy.PriceLevel(_u, s.Id):0.00}× · {s.Stations.Count} St.",
@@ -298,7 +301,8 @@ public sealed partial class UniverseScreen : CommandScreen
 					UniverseScreen.Layer.Ships => $"{ShipCountOf(_u, s.Id)} Schiffe · {s.Stations.Count} St.",
 					_ => $"{FactionName(_u, s.Owner)} · {AccessNames.Stage(s.Control)}{(s.Contested ? " · umkämpft" : "")}",
 				};
-				DrawString(font, p + new Vector2(-100, 12), sub, HorizontalAlignment.Center, 200, 11, new Color(Dim, 0.9f));
+				float subW = 2f * rHalo + 24f;
+				DrawString(font, p + new Vector2(-subW / 2f, rHalo + 13f), KitButton.Fit(font, sub, 11, subW), HorizontalAlignment.Center, subW, 11, new Color(Dim, 0.9f));
 
 				// Schiffe-Ebene: NPC-Schiffe als Symbole um den Sektor
 				if (layer == UniverseScreen.Layer.Ships)

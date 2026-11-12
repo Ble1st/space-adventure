@@ -239,6 +239,7 @@ public sealed class CombatSystem : ISimSystem
         foreach (var q in CombatSense.Enemies(u, e, p)) if (q.Tactic is CombatTactics.Raider or CombatTactics.Player) { taker = q; break; }
         if (taker is null || !u.Ships.TryGetValue(p.Ship, out var ship) || !u.Ships.TryGetValue(taker.Ship, out var raider)) return false;
         bool byPlayer = taker.Tactic == CombatTactics.Player;
+        var dropped = new Dictionary<GoodId, float>();
         float value = 0f;
         var pos = e.Spatial ? p.Pos : ship.Position;
         foreach (var g in ship.Cargo.Keys.OrderBy(k => k.Value).ToList())
@@ -248,9 +249,10 @@ public sealed class CombatSystem : ISimSystem
             float left = ship.Cargo[g] - take;
             if (left <= 0.001f) ship.Cargo.Remove(g); else ship.Cargo[g] = left;
             value += take * u.Goods[g].BasePrice;
-            // Phase 25: dem Spieler wirft das Opfer die Fracht vor die Nase — einsammelbar mit dem Traktorstrahl (Wracks kommen mit Phase 26)
-            if (byPlayer) u.Events.Publish(new CargoDropped(e.Id, e.Sector, ship.Id, pos, g, take));
+            // Phase 25: dem Spieler wirft das Opfer die Fracht vor die Nase — seit Phase 26 als gespeicherter Frachtbehälter (Traktorstrahl)
+            if (byPlayer) { u.Events.Publish(new CargoDropped(e.Id, e.Sector, ship.Id, pos, g, take)); dropped[g] = take; }
         }
+        if (byPlayer && dropped.Count > 0) Wrecks.Drop(u, e.Sector, pos, dropped, ship.Id, "Frachtbehälter");
         if (value <= 0f) return false;
         if (byPlayer)
         {
@@ -304,6 +306,10 @@ public sealed class CombatSystem : ISimSystem
             bool won = e.Loot > 0f || victimDestroyed;
             bool player = victimP?.Tactic == CombatTactics.Player;   // Phase 25: Überfall auf das aktive Spielerschiff
             if (sector is not null) ThreatMap.Report(u, sector.Id, won ? r.RaidThreat : r.RepelledThreat);
+            // Phase 26: der überlebende Kaperer nimmt die Fracht aus dem Wrack seines Opfers mit (Hehlerei wie Beute)
+            if (victimDestroyed && raiderP is { } rp && rp.Exit != CombatExit.Destroyed && rp.Exit != CombatExit.Lost && u.Ships.TryGetValue(rp.Ship, out var looter)
+                && u.Wrecks.FindLast(w => w.From == e.Victim) is { } wreck)
+                e.Loot += Wrecks.LootByRaider(u, looter, wreck);
             float bounty = raiderDestroyed && sector is not null ? ClaimBounty(u, e, sector.Owner, side: 1) : 0f;
             if (player)
                 msg = victimDestroyed ? "Dein Schiff wurde von den Piraten zerstört."

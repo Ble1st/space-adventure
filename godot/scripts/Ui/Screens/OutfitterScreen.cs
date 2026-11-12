@@ -48,11 +48,16 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		if (_scroll != null) _scroll.ScrollVertical = _scrollV;
 	}
 
+	int _damaged;
+	/// <summary>Phase 26 Test-Hook: Zahl der als beschädigt markierten Slots.</summary>
+	public int TestDamagedSlots => _damaged;
+
 	protected override void BuildContent(Control inner)
 	{
 		var u = Ctx.U; var ship = Ctx.Ship;
 		float w = inner.Size.X > 0 ? inner.Size.X : 1020f;
 		_rows = 0;
+		_damaged = 0;
 		_scroll = null;
 		At(inner, Text(_message.Length > 0 ? _message : "Slot wählen, dann ein Modul aus dem Lager (oder der Fracht) einbauen. Ausgebaute Module kauft die Station an, sonst landen sie in der Fracht.",
 			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 36);
@@ -79,6 +84,12 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 			string mod = ship.Fit[i] is { } key ? (u.Modules.TryGetValue(key, out var mm) && mm.Name.Length > 0 ? mm.Name : key) : "– leer –";
 			bool required = st?.Required ?? false;
 			bool bonus = i >= cls.Slots.Count;   // Phase 7: Bonusslot aus Güteklasse oder Upgrade
+			// Phase 26: Schadensliste je Slot (Zustand, ausgefallen, Brand)
+			if (ship.Fit[i] is not null && (ship.ConditionOf(i) < 0.999f || ship.Systems.IsBurning(i)))
+			{
+				mod += $" · {ship.ConditionOf(i) * 100f:0} %" + (SpaceSim.Core.Combat.ModuleDamage.Failed(u, ship, i) ? " ausgefallen" : "") + (ship.Systems.IsBurning(i) ? " · BRENNT" : "");
+				_damaged++;
+			}
 			var b = At(inner, new KitButton($"{i + 1} · {type} {slot.Size}{(required ? " (Pflicht)" : "")}{(bonus ? " · Bonus" : "")}", new Vector2(330, 56))
 			{ AlignLeft = true, FontSize = 15, Sub = mod, State = i == _slot ? KitButtonState.On : KitButtonState.Normal }, 0, y);
 			int idx = i;
@@ -95,6 +106,9 @@ public sealed partial class OutfitterScreen : DockAreaScreen
 		// Phase 23: Bank und Schild als Laufzeitwerte (aktuell/Kapazität), Magazin
 		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Bank {ship.Charge:0}/{s.PowerStorage:0} · Schild {ship.ShieldNow:0}/{s.Shield:0}{(s.AmmoCapacity > 0f ? $" · Magazin {SpaceSim.Core.Combat.ShipSystems.Ammo(Ctx.U, ship):0}/{s.AmmoCapacity:0}" : "")}", 14, Dim), 0, py + 24, 340, 20);
 		At(inner, Text($"Fracht {s.Cargo:0} · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")}", 13, new Color(Dim, 0.9f)), 0, py + 46, 330, 20);
+		// Phase 26: Zusammenfassung der Schäden (beschädigte Module erst reparieren, dann aus-/umbauen)
+		if (_damaged > 0 || ship.Systems.Burning.Count > 0)
+			At(inner, Text("Schäden: " + SpaceSim.Core.Combat.DamageInfo.For(u, ship).Summary + " — erst reparieren", 13, Orange), 0, py + 66, 340, 20);
 
 		// ── rechts: Angebote für den gewählten Slot ──
 		float rx = 345f, rw = w - rx;

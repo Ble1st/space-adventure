@@ -103,7 +103,7 @@ public sealed partial class DockMenu : Control, IScreen
 		float fee = own.Sum(s => SpaceSim.Core.Simulation.Hangar.BerthFeeNow(u, s));
 		string berth = st.Owner == u.PlayerActor ? "eigene Station: Liegeplätze gratis"
 			: fee > 0f ? $"Liegegebühr hier {fee:0} Cr/Tag für {own.Count} Schiff{(own.Count == 1 ? "" : "e")}" : "Liegegebühr nur für geparkte Schiffe";
-		At(card, Text($"Hülle repariert beim Andocken · {(int)u.WalletOf(ship).Credits} Credits · {berth}", 13, Dim, HorizontalAlignment.Center), 20, 628, 540, 20);
+		At(card, Text($"Hülle {(int)ship.Hull}/{(int)ship.MaxHull}{(SpaceSim.Core.Services.RepairService.NeedsRepair(ship) ? " – Reparatur im Dienst „Reparatur“" : "")} · {(int)u.WalletOf(ship).Credits} Credits · {berth}", 13, Dim, HorizontalAlignment.Center), 20, 628, 540, 20);
 	}
 
 	/// <summary>Für den Selbsttest: Zahl der Bereichskacheln.</summary>

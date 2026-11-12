@@ -105,7 +105,7 @@ public static class FactionViability
         if (!a.IsFaction(u)) return list;
         var f = new FactionId(actor.Value);
         float reserve = Reserve(u, f);
-        if (reserve > 0f && a.Treasury.Credits < reserve)
+        if (reserve > 0f && a.Treasury.Credits < reserve && !ReserveBuilding(u, a))
             list.Add(new ViabilityIssue(ViabilityIssueKind.TreasuryBelowReserve, $"Kasse {a.Treasury.Credits:0} unter Rücklage {reserve:0} Cr"));
         if (PoliceRequired(u) && SecuritySystem.PoliceOf(u, f).Count is var pc && pc < u.Rules.PoliceMinPerFaction)
             list.Add(new ViabilityIssue(ViabilityIssueKind.PoliceBelowMinimum, $"Polizei {pc}/{u.Rules.PoliceMinPerFaction}"));
@@ -116,12 +116,24 @@ public static class FactionViability
         return list;
     }
 
+    /// <summary>Gerätetest (Phase 26): Rücklage noch im Aufbau (Fraktion jünger als <see cref="EconomyRules.FactionReserveBuildTicks"/>) — kein Verstoß.</summary>
+    public static bool ReserveBuilding(Universe u, Actor a) => u.Tick - a.CreatedTick < u.Rules.FactionReserveBuildTicks;
+
     /// <summary>Anzeigezeile: „handlungsfähig“ bzw. „nicht handlungsfähig: …“; null für Akteure ohne Invarianten.</summary>
     public static string? Text(Universe u, ActorId actor)
     {
         if (!u.Actors.TryGetValue(actor, out var a) || !(a.Kind == ActorKind.Outlaw || a.IsFaction(u))) return null;
         var issues = Check(u, actor);
-        return issues.Count == 0 ? "handlungsfähig" : "nicht handlungsfähig: " + string.Join(", ", issues.Select(i => i.Text));
+        // Gerätetest (Phase 26): fehlt nur die Rücklage, ist das kein Alarm — die Fraktion handelt, nur freiwillige Ausgaben warten. In der Aufbauzeit
+        // (die Startkassen beginnen leer, die Rücklage wächst aus den Abgaben) „Rücklage im Aufbau“, danach „Rücklage unterschritten“ (bleibt ein Verstoß).
+        float reserve = ReserveOf(u, a);
+        if (issues.Count == 0)
+            return a.IsFaction(u) && reserve > 0f && a.Treasury.Credits < reserve
+                ? $"handlungsfähig – Rücklage im Aufbau ({a.Treasury.Credits:0} von {reserve:0} Cr)"
+                : "handlungsfähig";
+        if (issues.TrueForAll(i => i.Kind == ViabilityIssueKind.TreasuryBelowReserve))
+            return $"handlungsfähig – Rücklage unterschritten ({a.Treasury.Credits:0} von {reserve:0} Cr)";
+        return "nicht handlungsfähig: " + string.Join(", ", issues.Select(i => i.Text));
     }
 
     /// <summary>

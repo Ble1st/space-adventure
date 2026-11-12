@@ -48,6 +48,13 @@ public sealed class JobModule : ISimModule
     public void Register(SimulationBuilder b) => b.Add(new JobAssignmentSystem());
 }
 
+/// <summary>Phase 26: bezahlte Reparatur der KI-Schiffe (vor Händlern und Schürfern; ohne Schaden nur eine Prüfung je Schiff).</summary>
+public sealed class RepairModule : ISimModule
+{
+    public string Name => "Repair";
+    public void Register(SimulationBuilder b) => b.Add(new NpcRepairSystem(), interval: 10);
+}
+
 public sealed class ResourceModule : ISimModule
 {
     public string Name => "Resources";
@@ -105,7 +112,10 @@ public sealed class CombatModule : ISimModule
 {
     public string Name => "Combat";
     public void Register(SimulationBuilder b) =>
-        b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.ShipSystemsSystem()).Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10);
+        b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.ShipSystemsSystem())
+         .Add(new SpaceSim.Core.Combat.FireSystem())                       // Phase 26: Brände über den Erholungsindex
+         .Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10)
+         .Add(new WreckSystem(), interval: 50);                            // Phase 26: Wracks verfallen
 }
 
 public sealed class LifecycleModule : ISimModule

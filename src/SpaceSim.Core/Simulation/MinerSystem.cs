@@ -37,6 +37,7 @@ public sealed class MinerSystem : ISimSystem
             {
                 case MinePhase.Idle:
                     if (u.Tick < ship.NextThinkTick) break;
+                    if (NpcRepair.Seek(u, ship)) break;   // Phase 26: schwer beschädigt (leerer Laderaum) — erst zur Reparatur
                     if (!PickOrder(u, ship))
                     {
                         if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
@@ -142,6 +143,7 @@ public sealed class MinerSystem : ISimSystem
     static void Arrive(Universe u, Ship ship, Transit t)
     {
         u.FinishTransit(ship);
+        NpcRepair.OnArrival(u, ship);   // Phase 26: angedockt an einer Station mit Reparatur — Schäden bezahlt beheben
         if (ship.Order is GoToOrder g && u.Stations.ContainsKey(g.Target))
         {
             // Tankstopp (Phase 4b): bei Ankunft volltanken; eine laufende Auslieferung wird danach an den besten Käufer neu gehangen

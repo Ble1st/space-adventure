@@ -46,6 +46,8 @@ public partial class UiShots : Node
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase21")) _stage = 561;
 		// Phase 25: --ui-shots-phase25 nur die Kampfbilder
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase25")) _stage = 572;
+		// Phase 26: --ui-shots-phase26 läuft über die Kampfbilder (Falke an der Werft) weiter zu den Schadens- und Bergungsbildern 66–68
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase26")) _stage = 572;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -502,6 +504,45 @@ public partial class UiShots : Node
 			}
 			case 578: _m.TestOpenDockArea("repair"); _stage = 579; _wait = 20; break;
 			case 579: Capture("65-dock-reparatur-munition.png"); _stage = 581; _wait = 10; break;
+			case 581:
+			{
+				// Phase 26: beschädigtes Schiff an der Werft — Schadensliste und Modul-Reparaturzeilen
+				var uni = _m.Session.U;
+				var pl = _m.Session.Player;
+				pl.Hull = pl.MaxHull * 0.45f;
+				SpaceSim.Core.Combat.ModuleDamage.SetCondition(uni, pl, pl.Fit.IndexOf("weapon_laser_s"), 0.2f);
+				SpaceSim.Core.Combat.ModuleDamage.SetCondition(uni, pl, pl.Fit.FindIndex(k => k is not null && k.StartsWith("chem_engine")), 0.55f);
+				_m.TestOpenDockArea("trade");   // Bereich neu aufbauen (Reparatur war schon offen)
+				_stage = 588; _wait = 10; break;
+			}
+			case 588: _m.TestOpenDockArea("repair"); _stage = 582; _wait = 20; break;
+			case 582: Capture("66-dock-reparatur-module.png"); _stage = 583; _wait = 10; break;
+			case 583:
+			{
+				_m.TestOpenCommand();
+				_m.TestOpenCcArea("assets");
+				_m.HudRef.CcAssets.TestOpenShipDetail();
+				_stage = 584; _wait = 20; break;
+			}
+			case 584: Capture("67-schiffsdetail-schaeden.png"); _stage = 585; _wait = 10; break;
+			case 585:
+			{
+				_m.TestCloseCommand();
+				var uni = _m.Session.U;
+				if (_m.Docked) { _m.TestUndock(); _wait = 60; break; }
+				var pl = _m.Session.Player;
+				var food = uni.FindGood("food")!.Id;
+				var w = SpaceSim.Core.Simulation.Wrecks.Drop(uni, uni.PlayerSector, pl.Position + new SpaceSim.Core.Model.Vec2(-6f, -14f),
+					new System.Collections.Generic.Dictionary<SpaceSim.Core.Model.GoodId, float> { [food] = 12f }, default, "Wrack: Korsar")!;
+				w.Kind = SpaceSim.Core.Model.WreckKind.Wreck;
+				w.Modules.Add(new SpaceSim.Core.Model.WreckModule { Key = "weapon_laser_s", Condition = 0.7f });
+				SpaceSim.Core.Simulation.Wrecks.Drop(uni, uni.PlayerSector, pl.Position + new SpaceSim.Core.Model.Vec2(8f, -10f),
+					new System.Collections.Generic.Dictionary<SpaceSim.Core.Model.GoodId, float> { [food] = 5f }, default, "Frachtbehälter");
+				uni.Rules.FireExtinguishChance = 0f;
+				SpaceSim.Core.Combat.ModuleDamage.Ignite(uni, pl, pl.Fit.FindIndex(k => k is not null && k.StartsWith("reactor")));
+				_stage = 586; _wait = 20; break;
+			}
+			case 586: Capture("68-flug-wrack-brand.png"); _stage = 587; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

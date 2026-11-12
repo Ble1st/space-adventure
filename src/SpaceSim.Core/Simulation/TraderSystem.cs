@@ -28,6 +28,7 @@ public sealed class TraderSystem : ISimSystem
                 // Phase 10: Fracht ohne Auftrag (Reise wegen einer Sperre angehalten, Abnehmer weggefallen) zuerst verkaufen
                 if (SellStranded(u, ship)) continue;
                 DiscardUnsellable(u, ship);   // Phase 19: niemand nimmt die Fracht — nach der Frist im All abwerfen statt sie ewig mitzuschleppen
+                if (NpcRepair.Seek(u, ship)) continue;   // Phase 26: schwer beschädigt (leerer Laderaum) — erst zur Reparatur
                 if (!PickOrder(u, ship))
                 {
                     if (ship.IdleSince < 0) ship.IdleSince = u.Tick;
@@ -241,6 +242,7 @@ public sealed class TraderSystem : ISimSystem
     static void Arrive(Universe u, Ship ship, Transit t)
     {
         u.FinishTransit(ship);
+        NpcRepair.OnArrival(u, ship);   // Phase 26: angedockt an einer Station mit Reparatur — Schäden bezahlt beheben
         if (ship.Order is GoToOrder g && u.Stations.ContainsKey(g.Target))
         {
             // Tankstopp (Phase 4b): bei Ankunft an der Tankstelle volltanken; ein laufender Verkauf wird danach neu gehangen

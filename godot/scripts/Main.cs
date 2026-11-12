@@ -43,6 +43,8 @@ public partial class Main : Node3D
 	CombatView _combat = null!;   // Phase 24: Schüsse der NPC-Gefechte im Spielersektor
 	/// <summary>Phase 25: Spielerkampf (Zielwahl, Schüsse über die Core-Regel, Dauerfeuer, Beschusswarnung).</summary>
 	readonly CombatController _fight = new();
+	/// <summary>Phase 26: Bergung (gewähltes Wrack, Traktor zieht Fracht, Schacht „Bergen“ birgt Module).</summary>
+	readonly SalvageController _salvage = new();
 
 	// Kamera: Winkel/Abstand als reine Core-Rechnung, Ist-Offset folgt weich (Standard = früherer CamOffset 0,38,24)
 	readonly OrbitCamera _orbit = new();
@@ -117,7 +119,12 @@ public partial class Main : Node3D
 		_hud.Flight.AutoFirePressed += () => { _fight.AutoFire = !_fight.AutoFire; _sfx.Play(SfxId.Click); _hud.Toast(_fight.AutoFire ? "Dauerfeuer an" : "Dauerfeuer aus"); };
 		_hud.Flight.NextEnemyPressed += SelectNextEnemy;
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
-		_hud.Flight.PowerModePressed += m => { _sfx.Play(SfxId.Click); SpaceSim.Core.Combat.ShipSystems.SetMode(_session.U, PlayerData, m); };
+		_hud.Flight.PowerModePressed += m =>
+		{
+			_sfx.Play(SfxId.Click);
+			SpaceSim.Core.Combat.ShipSystems.SetMode(_session.U, PlayerData, m);
+			_hud.Toast(SpaceSim.Core.Combat.ShipSystems.ModeEffect(PlayerData.PowerMode));   // Gerätetest: spürbare Rückmeldung
+		};
 		_hud.Command.Action += OnCommandAction;
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
 		_hud.DockMenu.AreaSelected += OnDockArea;
@@ -532,6 +539,7 @@ public partial class Main : Node3D
 			case ShotFired sf when sf.Sector == _session.U.PlayerSector:
 				_fight.OnShot(_session.U, sf, Time.GetTicksMsec() / 1000.0);
 				if (sf.Target == _session.U.PlayerShip && sf.Hit) { _hud.Flash(new Color(1f, 0.25f, 0.15f), 0.25f); _sfx.Play(SfxId.Hit); _sinceHit = 0f; }
+				if (sf.Target == _session.U.PlayerShip) Danger("du wirst beschossen");
 				_combat.Shot(sf.Shooter, sf.Target, sf.Type, sf.Hit, Time.GetTicksMsec() / 1000.0, sf.Shooter.Value * 37 + _combat.ShotsSeen * 53);
 				if (sf.Hit && _view.ShipPosition(sf.Target) is { } hp) _fx.Burst(hp, sf.Type == DamageType.Energy ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.85f, 0.4f), 4, 5f, 0.3f);
 				break;
@@ -547,17 +555,19 @@ public partial class Main : Node3D
 			case PlayerShipLost lost:
 				_fx.Burst(_player.Position, new Color(1f, 0.5f, 0.2f), 60, 28f, 1.2f);
 				_sfx.Play(SfxId.Explosion);
-				_hud.Toast(lost.Message, 6f);
+				Danger("Schiff verloren", lost.Message, 10f);   // Gerätetest: wichtige Meldung, bleibt bis angetippt
 				LastLossMessage = lost.Message;
 				_reenter = true;
 				break;
-			case CargoDropped drop when drop.Sector == _session.U.PlayerSector: CombatController.SpawnDrops(_chunks, drop, _dropSeq++); break;
+			case CargoDropped drop when drop.Sector == _session.U.PlayerSector && !_session.U.Rules.DamageActive: CombatController.SpawnDrops(_chunks, drop, _dropSeq++); break;
 			case EncounterEnded end when end.Sector == _session.U.PlayerSector && end.Cause == EncounterCause.Assault:
 				_hud.Toast(end.Message, 4f); LastCombatMessage = end.Message; break;
 			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
-			case EncounterWarning w when w.Target == _session.U.PlayerShip: _sfx.Play(SfxId.Click); _hud.Toast(w.Message, 6f); LastSecurityMessage = w.Message; break;
+			case EncounterWarning w when w.Target == _session.U.PlayerShip:
+				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, 8f); LastSecurityMessage = w.Message; break;
+			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
-			case RaidResolved rr when rr.Player: _hud.Toast(rr.Message, 6f); LastSecurityMessage = rr.Message; break;
+			case RaidResolved rr when rr.Player: _hud.Alert(rr.Message, 8f); LastSecurityMessage = rr.Message; break;
 			case RaidResolved rn when rn.Sector == _session.U.PlayerSector:
 				_hud.Toast(rn.AttackerWon ? "Piraten überfallen ein Schiff in diesem Sektor" : "Ein Überfall in diesem Sektor wurde abgewehrt", 3.5f); break;
 			case RaiderIntercepted ri when ri.Sector == _session.U.PlayerSector:
@@ -581,10 +591,11 @@ public partial class Main : Node3D
 		_session.Advance(delta, _fast ? 10f : 1f);
 		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; }
 		_view.SyncAsteroids(_session.U, delta);
+		_view.SyncWrecks(_session.U);   // Phase 26: Wracks und Frachtbehälter
 
-		// Hülle regeneriert langsam, wenn eine Weile nichts getroffen hat
+		// Phase 26: keine Gratis-Regeneration der Hülle mehr (Reparatur nur über den Dienst „repair“); ohne Schadensmodell wie bisher
 		_sinceHit += delta;
-		if (_sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull && !_session.U.Fights.IsEngaged(PlayerData.Id)) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
+		if (!_session.U.Rules.DamageActive && _sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull && !_session.U.Fights.IsEngaged(PlayerData.Id)) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
 
 		bool frozen = _hud.AnyModalOpen || _docked != null;
 		_miningStep = _miner.Enabled && !frozen
@@ -655,6 +666,7 @@ public partial class Main : Node3D
 
 		if (turn != 0f || reverse || Mathf.Abs(slider) > 0.001f)   // manuell: Slider, Rückwärts und/oder Wenden
 		{
+			if (_autopilot) _hud.Toast("Autopilot aus (manuelle Steuerung)");   // Gerätetest: nie mehr still
 			CancelAutopilot();
 			if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (manuelle Steuerung)");
 			var fwd = new Vector2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading));
@@ -762,6 +774,7 @@ public partial class Main : Node3D
 	{
 		_target = target; _targetStation = station;
 		_autopilot = true; _hud.Flight.SetAutopilot(true);
+		_hud.Flight.SetSlider(0f);   // Gerätetest: der Autopilot übernimmt — ein Rest am Regler (1–3 %) hätte ihn sofort wieder abgeschaltet
 		_sfx.Play(SfxId.Click);
 		_hud.Toast($"Autopilot: {target.Label}");
 	}
@@ -771,6 +784,8 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Click);
 		if (_target == null) { _hud.Flight.SetAutopilot(false); _hud.Toast("Kein Ziel – Station oder Gate antippen, oder Karte öffnen"); return; }
 		_autopilot = _hud.Flight.AutopilotOn;
+		if (_autopilot) { _hud.Flight.SetSlider(0f); _hud.Toast($"Autopilot an: {_target.Value.Label}"); }   // Gerätetest: übernimmt den Regler
+		else _hud.Toast("Autopilot aus");
 	}
 
 	void CancelAutopilot()
@@ -902,7 +917,7 @@ public partial class Main : Node3D
 		_lowestHull = PlayerData.Hull;
 	}
 
-	/// <summary>Andocken: Das Schiff fliegt in die Station hinein und verschwindet (unsichtbar, keine Kollision); die Hülle wird repariert.</summary>
+	/// <summary>Andocken: Das Schiff fliegt in die Station hinein und verschwindet (unsichtbar, keine Kollision); ein Brand erlischt (Phase 26: keine Gratisreparatur mehr).</summary>
 	void Dock(StationId id)
 	{
 		var u = _session.U;
@@ -919,11 +934,16 @@ public partial class Main : Node3D
 		tw.Parallel().TweenProperty(_player, "scale", Vector3.One * 0.1f, 0.7);
 		tw.TweenCallback(Callable.From(() => { _player.Visible = false; _transition = false; }));
 
-		bool repaired = PlayerData.Hull < PlayerData.MaxHull - 0.5f;
-		PlayerData.Hull = PlayerData.MaxHull;
+		// Phase 26: keine Gratis-Vollreparatur beim Andocken mehr (Dienst „Reparatur“); Andocken löscht aber jeden Brand
+		bool repaired = !u.Rules.DamageActive && PlayerData.Hull < PlayerData.MaxHull - 0.5f;
+		if (repaired) PlayerData.Hull = PlayerData.MaxHull;
+		bool burned = PlayerData.Systems.Burning.Count > 0;
+		SpaceSim.Core.Combat.ModuleDamage.ExtinguishAll(u, PlayerData, "docked");
 		_sfx.Play(SfxId.Dock);
 		ShowDockMenu();
 		if (repaired) _hud.Toast("Hülle repariert");
+		else if (burned) _hud.Toast("Brand beim Andocken gelöscht");
+		else if (SpaceSim.Core.Services.RepairService.NeedsRepair(PlayerData)) _hud.Toast("Schäden: Reparatur im Dienst „Reparatur“");
 		if (_miner.Enabled)
 		{
 			var sale = _miner.OnDocked(u, PlayerData, st);
@@ -1079,8 +1099,19 @@ public partial class Main : Node3D
 	void TryPickTarget(Vector2 screen)
 	{
 		if (GroundPoint(screen) is not { } ground) return;
+		// Phase 26: Wracks und Frachtbehälter antippbar (Traktor zieht Fracht, „Bergen“ birgt Module)
+		if (_session.U.Rules.DamageActive && SalvageController.Pick(_session.U, new Vec2(ground.X, ground.Z), 4f) is { } wreck)
+		{
+			_salvage.Select(wreck.Id);
+			_sfx.Play(SfxId.Click);
+			_hud.Toast(SpaceSim.Core.Combat.DamageInfo.WreckLine(_session.U, wreck));
+			return;
+		}
 		// Phase 25: Schiffe antippbar (Ziel für die Waffen; Zielkarte zeigt Schild und Hülle)
-		if (CombatController.Pick(_view.ShipMarkers(), new Vec2(ground.X, ground.Z), 6f) is { } picked && _session.U.Ships.TryGetValue(picked, out var ps))
+		// Gerätetest: Trefferfläche im Bildschirmraum (≥ 56 Gerätepixel), nächstes Schiff gewinnt
+		float pickPx = Mathf.Max(40f, 56f * GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, DisplayServer.WindowGetSize().X));
+		if (CombatController.PickScreen(_view.ShipMarkers(), p => _cam.IsPositionBehind(new Vector3(p.X, 0, p.Y)) ? null : _cam.UnprojectPosition(new Vector3(p.X, 0, p.Y)), screen, pickPx) is { } picked
+			&& _session.U.Ships.TryGetValue(picked, out var ps))
 		{
 			_fight.SetTarget(picked);
 			_sfx.Play(SfxId.Click);
@@ -1222,6 +1253,7 @@ public partial class Main : Node3D
 			Security = SecurityInfo.ForSector(u, sector.Id, PlayerData).Summary,
 			Wanted = SecurityInfo.HudLine(u) ?? "",
 			WantedSevere = SpaceSim.Core.Simulation.Wanted.MaxLevel(u, u.PlayerActor) >= 3,
+			Fire = SpaceSim.Core.Combat.DamageInfo.FireWarning(u, PlayerData) ?? "",   // Phase 26
 			AutopilotOn = _autopilot,
 			AutoMineOn = _miner.Enabled,
 			TractorOn = _tractorOn,
@@ -1235,6 +1267,7 @@ public partial class Main : Node3D
 		Vec2? targetWorld = null;
 		d.AutoFireOn = _fight.AutoFire;
 		d.HasWeapons = _bays.Any(b => SpaceSim.Core.Combat.PlayerGunnery.SlotOf(b.Key) >= 0);
+		d.EnemyNear = SpaceSim.Core.Combat.PlayerCombat.NextEnemy(_session.U, PlayerData, default).Value != 0;
 		d.HitWarning = _fight.Warning(u, pos, headingDeg, Time.GetTicksMsec() / 1000.0);
 		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var ts) && SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } tsp)
 		{
@@ -1348,7 +1381,7 @@ public partial class Main : Node3D
 				};
 				string wplace = (bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°") + $" · {bay.Range:0} m";
 				// Phase 25 (Korrektur): lange Modulnamen auf das letzte Wort kürzen („Kinetisches Geschütz“ → „Geschütz“), damit sie in die Taste passen
-				string wname = bay.Name.Length > 13 && bay.Name.LastIndexOf(' ') > 0 ? bay.Name[(bay.Name.LastIndexOf(' ') + 1)..] : bay.Name;
+				string wname = ShortBayName(bay.Name);
 				_bayViews[i] = new BayView { Name = wname, Place = wplace, Detail = wdetail, State = wst,
 					Reload = SpaceSim.Core.Combat.PlayerGunnery.ReloadProgress(_session.U, PlayerData, wslot), Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;
@@ -1369,7 +1402,12 @@ public partial class Main : Node3D
 				radius = aim?.Radius ?? 0f;
 				reloaded = _splitReload <= 0f;
 			}
-			else   // Traktor: Ziel ist die nächste Beute in Reichweite
+			else if (bay.Key == WeaponBays.Salvager.Key)
+			{
+				// Phase 26: Bergungsgreifer — Ziel ist das gewählte bzw. nächste Wrack mit Modulen in Reichweite
+				target = _salvage.Current(_session.U, pos, wantModules: true)?.Position;
+			}
+			else   // Traktor: Ziel ist die nächste Beute in Reichweite (Erzbrocken, sonst Wrack/Frachtbehälter mit Fracht — Phase 26)
 			{
 				OreChunk? best = null; float bd = bay.Range;
 				foreach (var c in _chunks.Chunks)
@@ -1377,7 +1415,7 @@ public partial class Main : Node3D
 					float dd = Vec2.Distance(c.Position, pos);
 					if (dd <= bd) { bd = dd; best = c; }
 				}
-				target = best?.Position;
+				target = best?.Position ?? _salvage.Current(_session.U, pos, wantModules: false)?.Position;
 			}
 			float progress = bay.Key == WeaponBays.Splitter.Key ? 1f - _splitReload / WeaponBays.SplitReloadSeconds : _chunks.ReloadProgress;
 			var st = FiringArc.State(bay, headingDeg, pos, target, radius, reloaded, progress);
@@ -1385,13 +1423,26 @@ public partial class Main : Node3D
 			string place = bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°";
 			string detail = st switch
 			{
-				BayState.Ready => bay.Key == "tractor" ? (_tractorOn ? "AN" : "aus") : "FEUER",
+				BayState.Ready => bay.Key == "tractor" ? (_tractorOn ? "AN" : "aus") : bay.Key == "laser" && _mineTarget is null ? "FEUER · nächster Fels" : "FEUER",   // Gerätetest: ohne gewähltes Ziel sagen, worauf er schießt
 				BayState.OutsideArc => TurnHintText(bay, headingDeg, pos, target!.Value),
 				BayState.Reloading => "lädt nach",
 				_ => bay.Key == "tractor" ? "keine Beute" : "kein Ziel",
 			};
+			if (bay.Key == WeaponBays.Salvager.Key) detail = st == BayState.Ready ? "BERGEN" : st == BayState.NoTarget ? "kein Wrack" : detail;
 			_bayViews[i] = new BayView { Name = bay.Name, Place = place, Detail = bay.Key == WeaponBays.Splitter.Key && st == BayState.Ready ? "SPALTEN" : detail, State = st, Reload = progress, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 		}
+	}
+
+	/// <summary>
+	/// Kurzname einer Waffe für die Schachttaste: lange Namen aufs letzte Wort („Kinetisches Geschütz“ → „Geschütz“, Phase 25), Phase 26 (Prüfung): zusammengesetzte
+	/// Waffenwörter auf ihren ersten Teil („Laserkanone“ → „Laser“), damit der Name die Taste nicht ausfüllt.
+	/// </summary>
+	public static string ShortBayName(string name)
+	{
+		if (name.Length > 13 && name.LastIndexOf(' ') > 0) name = name[(name.LastIndexOf(' ') + 1)..];
+		foreach (var suffix in new[] { "kanone", "geschütz", "werfer" })
+			if (name.Length > 9 && name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && name.Length - suffix.Length >= 3) return name[..^suffix.Length];
+		return name;
 	}
 
 	static string FacingName(Facing f) => f switch
@@ -1415,6 +1466,7 @@ public partial class Main : Node3D
 		if (index < 0 || index >= bays.Count) return;
 		if (_docked != null || _hud.AnyModalOpen) return;
 		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
+		if (bays[index].Key == WeaponBays.Salvager.Key) { GrabSalvage(); return; }
 		if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[index].Key) is int ws and >= 0) { FireWeapon(ws, quiet: false); return; }
 		if (bays[index].Key == "tractor")
 		{
@@ -1456,6 +1508,16 @@ public partial class Main : Node3D
 		return true;
 	}
 
+	/// <summary>Phase 26: Schacht „Bergen“ — ein Modul aus dem gewählten/nächsten Wrack bergen (Core-Regel <see cref="Wrecks.TakeModule"/>). true = geborgen.</summary>
+	public bool GrabSalvage()
+	{
+		SyncPlayerData();
+		bool ok = _salvage.Grab(_session.U, PlayerData);
+		_sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.Toast(_salvage.LastMessage);
+		return ok;
+	}
+
 	/// <summary>„Alle Feuer“: löst nur bereite Waffen im Winkel aus (hier: der Laser).</summary>
 	void FireReadyBays()
 	{
@@ -1463,7 +1525,7 @@ public partial class Main : Node3D
 		bool any = false;
 		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
 		{
-			if (bays[i].Key is "tractor" or "split" || _bayStates[i] != BayState.Ready) continue;
+			if (bays[i].Key is "tractor" or "split" or "salvage" || _bayStates[i] != BayState.Ready) continue;
 			if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) { if (FireWeapon(ws, quiet: true)) any = true; }
 			else { _fireRequested = true; any = true; }
 		}
@@ -1544,6 +1606,7 @@ public partial class Main : Node3D
 		if (on)
 		{
 			CancelAutopilot(); _target = null; _targetStation = null;
+			_hud.Flight.SetSlider(0f);   // Gerätetest: Auto-Mining übernimmt den Regler
 			_miner.Start();
 			_hud.Flight.SetAutoMine(true);
 			if (announce) _hud.Toast("Auto-Mining an – Slider oder Wenden bewegen zum Abbrechen");
@@ -1555,6 +1618,18 @@ public partial class Main : Node3D
 			if (announce && message != null) _hud.Toast(message);
 		}
 	}
+
+	/// <summary>Gerätetest: Gefahr für das eigene Schiff (Überfallwarnung, Beschuss, Brand, Verlust) — der Zeitraffer schaltet auf ×1, mit Meldung.</summary>
+	void Danger(string reason, string? message = null, float seconds = 6f)
+	{
+		if (!_fast) { if (message != null) _hud.Alert(message, seconds); return; }
+		_fast = false;
+		_hud.Alert($"Zeitraffer aus: {reason}" + (message != null ? $" — {message}" : ""), seconds);
+		LastDangerMessage = reason;
+	}
+
+	/// <summary>Selbsttest: letzter Grund, aus dem der Zeitraffer abgeschaltet wurde.</summary>
+	internal string? LastDangerMessage { get; private set; }
 
 	void Hint(string text)
 	{
@@ -1601,6 +1676,11 @@ public partial class Main : Node3D
 
 		tractor &= !frozen;
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
+		// Gerätetest: klarer Grund, warum ein Brocken nicht geladen wird (Laderaum für seine Form voll)
+		if (_chunks.HoldFull is { } full && u.Goods.TryGetValue(full, out var fg))
+			Hint($"Laderaum für {fg.Name} voll ({(fg.Form == GoodForm.Liquid ? "flüssig" : "fest")}) – verkaufen oder abwerfen");
+		// Phase 26: der Traktorstrahl zieht auch Fracht aus Wracks und Frachtbehältern in Reichweite (Core-Regel Wrecks.TakeCargo)
+		if (tractor && !_transition) { SyncPlayerData(); _salvage.Pull(u, ship, true, delta); }
 
 		var shown = fire && aim != null ? aim : _mineTarget;
 		if (shown != null && sector.Asteroids.Contains(shown))
@@ -1724,6 +1804,14 @@ public partial class Main : Node3D
 	internal void TestFace(Vec2 at) { var d = new Vector2(at.X - _player.Position.X, at.Y - _player.Position.Z); _player.Heading = Mathf.Atan2(-d.X, -d.Y); }
 	/// <summary>„Alle Feuer“ wie ein Tipp auf die Taste.</summary>
 	internal void TestAllFire() => FireReadyBays();
+	/// <summary>Phase 26: Bergung (Selbsttest).</summary>
+	internal SalvageController TestSalvage => _salvage;
+	internal bool TestGrabSalvage() => GrabSalvage();
+	internal void TestTractor(bool on) => _tractorOn = on;
+	/// <summary>Gerätetest: Zeitraffer setzen/lesen (Selbsttest der automatischen Abschaltung bei Gefahr).</summary>
+	internal void TestSetFast(bool on) => _fast = on;
+	internal bool TestFast => _fast;
+	internal IReadOnlyList<WeaponBay> TestBays => _bays;
 	/// <summary>Phase 8: Setzt das Schiff in einen anderen Sektor (wie ein Sprung, ohne Gate) – Test des Lagerhauses in Gamma.</summary>
 	internal void TestEnterSector(SectorId sector)
 	{

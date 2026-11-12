@@ -6,8 +6,12 @@ public sealed class EconomyRules
     // Sinks
     /// <summary>Frühere Credit-Pauschale je geflogener Einheit. Seit Phase 4b verbrauchen KI-Schiffe echten Treibstoff (siehe Simulation.Refuel); der Wert wird nicht mehr abgebucht, bleibt aber Datenbestand alter Spielstände.</summary>
     public float FuelCostPerUnit = 0.02f;
-    /// <summary>Hüllenplatten je repariertem Hüllenpunkt (Dienst „repair“, Phase 4c); der Arbeitsaufschlag wird extra in Credits berechnet. Fehlt das Feld in alten Spielständen, gilt der Standard 0,05 (additiv, kein Versionssprung).</summary>
-    public float RepairPlatesPerHull = 0.05f;
+    /// <summary>
+    /// Hüllenplatten je repariertem Hüllenpunkt (Dienst „repair“, Phase 4c); der Arbeitsaufschlag wird extra in Credits berechnet. Phase 26 (Korrektur nach der
+    /// Prüfung): 0,05 → 0,02 für Spieler und NPC gleich (eine Preisregel): mit ≈ 8 Cr je Hüllenpunkt kostete eine volle Händlerhülle ≈ 885 Cr bei ≈ 4000 Cr
+    /// Kapital — die Reparatur trieb Händler in die Pleite (Standard 300000: 14 statt 2); jetzt ≈ 3 Cr je Punkt.
+    /// </summary>
+    public float RepairPlatesPerHull = 0.02f;
     public float ShipUpkeepPerTick = 0.01f;      // Wartung je Schiff
     /// <summary>Anteil des Vermögens, der pro Tick verschwindet (Gebühren, Versicherung). Stabilisiert den Geldumlauf.</summary>
     public float ShipWealthTax = 0.0003f;
@@ -609,6 +613,12 @@ public sealed class EconomyRules
     public float BuildSkipStarvedShare = 0.5f;
     /// <summary>Phase 22: Rücklage einer Fraktionskasse = Pflichtunterhalt je Tick × so viele Ticks (<see cref="Simulation.FactionViability.Reserve"/>).</summary>
     public int FactionReserveTicks = 2400;
+    /// <summary>
+    /// Gerätetest (Phase 26): Aufbauzeit der Rücklage. Die Fraktionskassen beginnen leer und füllen sich aus den Abgaben; in den ersten so vielen Ticks
+    /// nach dem Entstehen der Fraktion ist „Kasse unter Rücklage“ kein Verstoß gegen die Handlungsfähigkeit, sondern „Rücklage im Aufbau“ (gemessen: über
+    /// Seeds 1–8 liegt jede Fraktion in den ersten 1000–2200 Ticks darunter). Die Ausgabenregeln halten die Rücklage trotzdem. 0 = sofort ein Verstoß.
+    /// </summary>
+    public int FactionReserveBuildTicks = 6000;
     /// <summary>Phase 22: Fraktionsausgaben nach Vorrang — freiwillige Ausgaben (Subvention, Kauf über Mindestbestand, Investitionen, Forschung, Sperren) halten die Rücklage. false = aus.</summary>
     public bool FactionKeepsReserve = true;
     /// <summary>
@@ -740,4 +750,61 @@ public sealed class EconomyRules
     public string EmergencyRentalModel = "";
     /// <summary>Räumliches Gefecht des Spielers: Ein Kaperer im Anflug (Vorwarnzeit) nähert sich dem Spieler bis auf diesen Abstand.</summary>
     public float RaidApproachDistance = 60f;
+
+    // ───────── Phase 26: Schaden und Bergung (KAMPF.md 3.3, 4.4, 4.5) ─────────
+    /// <summary>
+    /// Hauptschalter der Phase 26: Modulschaden, Brand, Wracks und Frachtbehälter, bezahlte NPC-Reparatur statt Gratis-Regeneration. false = Verhalten bis
+    /// Phase 25 (keine Zufallszüge für Modulschaden, keine Wracks, liegende NPC-Schiffe regenerieren die Hülle umsonst; Testhilfe für den Hash-Vergleich).
+    /// </summary>
+    public bool DamageActive = true;
+    /// <summary>Modulschaden erst unter diesem Anteil der Höchsthülle (KAMPF.md 3.3: „unter 50 % Hülle“).</summary>
+    public float ModuleDamageHullShare = 0.5f;
+    /// <summary>Anteil der Hüllentreffer unter der Schwelle, die zusätzlich ein zufälliges Modul treffen.</summary>
+    public float ModuleHitChance = 0.35f;
+    /// <summary>Zustandsverlust eines Modultreffers: Grundwert plus Hüllenschaden ÷ Höchsthülle × Faktor.</summary>
+    public float ModuleDamageBase = 0.12f;
+    public float ModuleDamageScale = 2f;
+    /// <summary>Brand: Grundchance je Modultreffer, steigt mit sinkendem Zustand (× (1 + (1 − Zustand) × Faktor)); Reaktor, Antrieb und Magazin × Brennbarkeit.</summary>
+    public float FireChance = 0.08f;
+    public float FireConditionFactor = 2f;
+    public float FireFlammableFactor = 2f;
+    /// <summary>Eine Brandrunde dauert so viele Ticks (4 = 1 s); je Runde verliert das brennende Modul Zustand und die Hülle etwas Schaden.</summary>
+    public int FireRoundTicks = 4;
+    public float FireConditionLoss = 0.04f;
+    /// <summary>Hüllenschaden je Brandrunde als Anteil der Höchsthülle; ein Brand allein zerstört kein Schiff (Hülle bleibt ≥ 1).</summary>
+    public float FireHullDamageShare = 0.005f;
+    /// <summary>Löschchance je Runde ohne Löschanlage; die Löschanlage (Modulwert <c>extinguish</c>) addiert ihren Wert.</summary>
+    public float FireExtinguishChance = 0.12f;
+    /// <summary>NPC-Reparatur: Ein Händler/Schürfer sucht unter diesem Hüllenanteil (oder mit ausgefallenem Modul/Brand) aktiv eine Reparaturstation auf.</summary>
+    public float NpcRepairSeekHull = 0.35f;   // Korrektur: 0,5/0,6 brachten mehr Reparaturflüge, aber nicht weniger Pleiten (gemessen)
+    /// <summary>
+    /// NPC-Reparatur: Leichte Schäden (nicht schwer im Sinne von <see cref="NpcRepairSeekHull"/>) repariert ein Händler/Schürfer nur aus dem Geld über diesem
+    /// Betriebspolster. Korrektur nach der Prüfung: mit der billigeren Reparatur (0,02 Platten je Punkt) und dem kleinen Budgetanteil (0,1) reparieren NPC auch mittlere
+    /// Schäden ab 1000 Cr Polster — mittlere Hüllenquote 0,83–0,89 (vorher 0,57–0,67), Pleiten je 300000 Ticks 2/0/2 (Standard/Seed 3/Seed 4; vorher 14/8/4).
+    /// </summary>
+    public float NpcRepairReserve = 1000f;
+    /// <summary>NPC-Reparatur: höchstens dieser Anteil der Schiffskasse geht in eine Reparatur (der Rest bleibt Betriebsgeld).</summary>
+    public float NpcRepairBudgetShare = 0.1f;
+    /// <summary>Modulreparatur: Material je Zustandspunkt (0..1) und Größenstufe (S 1, M 2, L 3, XL 4) — Hüllenplatten und Elektronik.</summary>
+    public float ModuleRepairPlates = 1f;
+    public float ModuleRepairElectronics = 0.5f;
+    /// <summary>Reparatur an der Heimatbasis (Polizei, Piraten, Fraktionsbauschiffe) aus der Kasse: Credits je Zustandspunkt und Größenstufe.</summary>
+    public float BaseModuleRepairCost = 25f;
+    /// <summary>Wracks: Lebensdauer, Frachtanteil, Überlebenschance je Modul, Restzustand-Spanne (× Zustand beim Abschuss).</summary>
+    public int WreckTicks = 12000;
+    public float WreckCargoShare = 0.5f;
+    public float WreckModuleChance = 0.4f;
+    public float WreckConditionMin = 0.3f;
+    /// <summary>Frachtbehälter (abgeworfene Fracht, überzählige Fracht ausgefallener Frachtmodule): Lebensdauer in Ticks.</summary>
+    public int ContainerTicks = 4800;
+    /// <summary>Bergung: Reichweite (Traktorstrahl, Bergungsgreifer) und Mindestzustand, ab dem ein Modul brauchbar geborgen wird (darunter Schrott).</summary>
+    public float SalvageRange = 30f;
+    public float SalvageMinCondition = 0.5f;
+    /// <summary>Phase 26 (Prüfung Phase 25): Gefechtsfläche eines Sektors (Abstand vom Mittelpunkt), in die <see cref="Combat.CombatSpace.Clear"/> Positionen begrenzt.</summary>
+    public float CombatArenaRadius = 400f;
+    /// <summary>Phase 26 (Prüfung): Notreparatur auf Schuld — Hülle auf diesen Anteil, ausgefallene Module auf Ausfallschwelle + Rand.</summary>
+    public float EmergencyRepairHullShare = 0.25f;
+    public float EmergencyRepairMargin = 0.05f;
+    /// <summary>Kaperer nehmen die Fracht des Wracks ihres Opfers mit (Hehlerei wie Beute).</summary>
+    public bool RaidersLootWrecks = true;
 }

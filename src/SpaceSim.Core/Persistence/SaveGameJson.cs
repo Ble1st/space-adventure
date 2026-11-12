@@ -19,7 +19,7 @@ public static class SaveGameJson
     /// eingefroren (alte Spielstände sind egal, Entscheidung des Nutzers) und sieht die Standardwelt im Stand v17: Sie trägt diese Waren, Module, Rezepte
     /// und Lagerposten nicht in alte Stände nach. Spätere Phasen hängen ihre Schlüssel hier an.
     /// </summary>
-    static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s", "weapon_massdriver_s", "mule_armed", "hauler_armed", "fighter", "falcon" };
+    static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s", "weapon_massdriver_s", "mule_armed", "hauler_armed", "fighter", "falcon", "wet_suppressor_s", "wreck_grapple_s" };   // Phase 26: Löschanlage, Bergungsgreifer
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {
@@ -38,7 +38,12 @@ public static class SaveGameJson
     /// <summary>Phase 25: Grundmasse der Handelsklassen im Stand v17 (die Laserkanone wiegt 2; die Klassen wurden um 2 leichter, damit das Tempo gleich bleibt).</summary>
     static readonly (string Class, float Mass)[] AfterV17ClassMass = { ("unit_trader", 10f), ("light_freighter", 16f), ("heavy_freighter", 30f) };
     /// <summary>Lagerposten (Stationstyp, Ware), die nach v17 nur für ein spätes Rezept dazukamen (Phase 23: Stahl für die Munition im Waffenwerk).</summary>
-    static readonly (string Type, string Good)[] AfterV17Stocks = { ("weapons_works", "steel"), ("shipyard", "power_bank_s") };
+    static readonly (string Type, string Good)[] AfterV17Stocks = { ("weapons_works", "steel"), ("shipyard", "power_bank_s"),
+        // Phase 26: Reparaturlager der Regierungsstationen
+        ("headquarters", "hull_plates"), ("headquarters", "electronics"), ("sector_hq", "hull_plates"), ("sector_hq", "electronics"),
+        ("police_station", "hull_plates"), ("police_station", "electronics") };
+    /// <summary>Phase 26: Stationstypen, die den Dienst „repair“ erst nach v17 bekamen.</summary>
+    static readonly string[] AfterV17RepairTypes = { "headquarters", "sector_hq", "police_station" };
 
     static readonly Lazy<string> MigrationBase = new(() =>
     {
@@ -59,7 +64,7 @@ public static class SaveGameJson
         foreach (var c in root["shipClasses"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             foreach (var (cls, mass) in AfterV17ClassMass)
                 if (c is not null && (string?)c["key"] == cls) c["baseMass"] = mass;
-        RemoveWhere(root["player"]?["startOptions"]?.AsArray(), n => Late((string?)n["model"]));
+        RemoveWhere(root["player"]?["startOptions"]?.AsArray(), n => Late((string?)n["model"]) || n["scenario"] is not null);   // Phase 26: Testszenario
         foreach (var m in root["shipModels"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             foreach (var (model, fit) in AfterV17Fits)
                 if (m is not null && (string?)m["key"] == model)
@@ -79,7 +84,12 @@ public static class SaveGameJson
                 foreach (var (type, good) in AfterV17Stocks) if ((string?)t["key"] == type) stocks.Remove(good);
             }
             // Phase 25: Dienst „rearm“ kam nach v17
-            if (t["services"] is System.Text.Json.Nodes.JsonArray svc) RemoveWhere(svc, n => (string?)n == "rearm");
+            if (t["services"] is System.Text.Json.Nodes.JsonArray svc)
+            {
+                RemoveWhere(svc, n => (string?)n == "rearm");
+                if (AfterV17RepairTypes.Contains((string?)t["key"])) RemoveWhere(svc, n => (string?)n == "repair");   // Phase 26
+            }
+            if (t["stocks"] is System.Text.Json.Nodes.JsonObject st2 && st2.Count == 0) t.AsObject().Remove("stocks");
         }
         return root.ToJsonString();
     });

@@ -149,6 +149,7 @@ public sealed partial class AssetsScreen : CommandScreen
 
 		// Phase 18: Fracht mit „Abwerfen“ (auch im Flug; Regel CargoJettison, zweiter Tipp bestätigt)
 		BuildCargo(w, u, s);
+		BuildDamage(w, u, s);
 
 		// Knöpfe unten (Phase 12 echt): Befehle (Flotte), Heim schicken, Verkaufen (an der Station, an der es liegt), Wechseln (auch aus der Ferne)
 		var bSwitch = At(w, new KitButton("In dieses Schiff wechseln", new Vector2(380, 58)) { FontSize = 19, AlignLeft = true, State = active ? KitButtonState.Disabled : KitButtonState.Ready }, 490, 428);
@@ -179,6 +180,24 @@ public sealed partial class AssetsScreen : CommandScreen
 	/// Phase 18: Frachtliste des Schiffs (Ware, Menge, Annahme der Station, an der es liegt) mit „Abwerfen“ je Ware — der Ausweg für Reste, die keine
 	/// Station nimmt; die Ware verschwindet ohne Erlös. Ausführung über die Core-Regel <see cref="CargoJettison"/> (kein Stationsdienst nötig, auch im Flug).
 	/// </summary>
+	/// <summary>
+	/// Phase 26: Schadensliste (Module mit Zustand, ausgefallen, Brand und Löschchance) — reine Anzeige aus <see cref="SpaceSim.Core.Combat.DamageInfo"/>,
+	/// rechts über der Fracht (höchstens drei Modulzeilen, dann „+n weitere“).
+	/// </summary>
+	void BuildDamage(Control w, Universe u, Ship s)
+	{
+		var d = SpaceSim.Core.Combat.DamageInfo.For(u, s);
+		var hurt = d.Rows.Where(r => r.Condition < 0.999f || r.Burning).ToList();
+		_testDamageRows = hurt.Count;
+		string head = hurt.Count == 0 ? "Schäden: Module intakt" : $"Schäden: {hurt.Count} Modul(e)" + (d.Fires > 0 ? $" · {d.Fires} Brand · Löschen {d.ExtinguishChance * 100f:0} %/Runde" : "");
+		At(w, Text(head, 14, hurt.Count == 0 ? Dim : d.Fires > 0 ? Red : Orange), 600, 64, 290, 20);
+		for (int i = 0; i < hurt.Count && i < 3; i++)
+			At(w, Text(i == 2 && hurt.Count > 3 ? $"+{hurt.Count - 2} weitere" : hurt[i].Text, 13, hurt[i].Failed || hurt[i].Burning ? Red : Orange), 600, 84 + i * 15, 290, 16);
+	}
+	int _testDamageRows;
+	/// <summary>Phase 26 Test-Hook: beschädigte/brennende Module in der Schadensliste des offenen Schiffsdetails.</summary>
+	public int TestDamageRows => _testDamageRows;
+
 	void BuildCargo(Control w, Universe u, Ship s)
 	{
 		At(w, Text("Fracht", 17, Cyan), 600, 130, 260, 22);
@@ -281,10 +300,12 @@ public sealed partial class AssetsScreen : CommandScreen
 
 			string ort = OrtText(_u, _s, _active ? _docked : _s.DockedAt);
 			string model = _u.ShipModels.TryGetValue(_s.ModelKey, out var md) ? md.Name : "";
-			DrawString(font, new Vector2(96, 26), $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", HorizontalAlignment.Left, 320, 20, White);
-			DrawString(font, new Vector2(96, 48), $"{ort} · Fracht {_s.UsedVolume(_u):0.#}/{_s.CargoCapacity:0} m³ · Wert ≈ {SectorEconomy.TotalValue(_u, _s):0} Cr", HorizontalAlignment.Left, -1, 13, Dim);
-			DrawString(font, new Vector2(420, 26), _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s), HorizontalAlignment.Left, 230, 14, White);
-			DrawString(font, new Vector2(420, 48), _s.Transit != null ? "im Transit" : "geparkt", HorizontalAlignment.Left, -1, 12, Dim);
+			// Gerätetest: jede Spalte auf ihre Breite gekürzt (Wert lief in „geparkt“), Zustand des aktiven Schiffs richtig („im Flug“/„angedockt“ statt „geparkt“)
+			DrawString(font, new Vector2(96, 26), KitButton.Fit(font, $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", 20, 310), HorizontalAlignment.Left, -1, 20, White);
+			DrawString(font, new Vector2(96, 48), KitButton.Fit(font, $"{ort} · Fracht {_s.UsedVolume(_u):0.#}/{_s.CargoCapacity:0} m³ · Wert ≈ {SectorEconomy.TotalValue(_u, _s):0} Cr", 13, 310), HorizontalAlignment.Left, -1, 13, Dim);
+			DrawString(font, new Vector2(420, 26), KitButton.Fit(font, _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s), 14, 230), HorizontalAlignment.Left, -1, 14, White);
+			string state = _s.Transit != null ? "im Transit" : _active ? (_docked is not null ? "angedockt" : "im Flug") : _s.DockedAt.Value != 0 ? "angedockt" : "geparkt";
+			DrawString(font, new Vector2(420, 48), state, HorizontalAlignment.Left, -1, 12, Dim);
 
 			DrawString(font, new Vector2(660, 22), "Hülle", HorizontalAlignment.Left, -1, 12, Dim);
 			DrawRect(new Rect2(706, 14, 120, 9), new Color(0, 0, 0, 0.5f));
@@ -295,7 +316,7 @@ public sealed partial class AssetsScreen : CommandScreen
 			DrawRect(new Rect2(706, 36, 120 * Mathf.Clamp(_s.UsedVolume(_u) / _s.CargoCapacity, 0f, 1f), 9), Cyan);
 			DrawString(font, new Vector2(836, 44), $"{_s.UsedVolume(_u):0.#}", HorizontalAlignment.Left, -1, 13, White);
 
-			DrawString(font, new Vector2(954, 26), _active ? "AKTIV" : "Tippen ▸", HorizontalAlignment.Right, -1, 14, _active ? Cyan : Dim);
+			DrawString(font, new Vector2(870, 26), _active ? "AKTIV" : "Tippen ▸", HorizontalAlignment.Right, 74, 14, _active ? Cyan : Dim);   // Gerätetest: rechtsbündig in seiner Spalte (war abgeschnitten)
 		}
 	}
 }

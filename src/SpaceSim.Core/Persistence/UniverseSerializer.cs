@@ -40,12 +40,14 @@ public static class UniverseSerializer
         ShieldMissing = st.ShieldMissing, ChargeMissing = st.ChargeMissing, AmmoMissing = st.AmmoMissing,
         Condition = st.Condition.Count == 0 || st.AllIntact ? null : new List<float>(st.Condition),
         Mode = st.Mode == PowerMode.Balanced ? null : st.Mode.ToString(), ShieldPauseUntil = st.ShieldPauseUntil,
+        Burning = st.Burning.Count == 0 ? null : new List<int>(st.Burning),
     };
     static ShipSystemsState FromSave(ShipSystemsSave? s) => s is null ? new ShipSystemsState() : new ShipSystemsState
     {
         ShieldMissing = s.ShieldMissing, ChargeMissing = s.ChargeMissing, AmmoMissing = s.AmmoMissing,
         Condition = s.Condition is null ? new List<float>() : new List<float>(s.Condition),
         Mode = s.Mode is { } m && Enum.TryParse<PowerMode>(m, out var pm) ? pm : PowerMode.Balanced, ShieldPauseUntil = s.ShieldPauseUntil,
+        Burning = s.Burning is null ? new List<int>() : new List<int>(s.Burning),
     };
     static ProfitMeter FromSave(ProfitMeterSave? m) => m is null ? new ProfitMeter() : new ProfitMeter { Rate = m.Rate, Worth = m.Worth, LossTicks = m.Loss, Since = m.Since };
 
@@ -143,6 +145,16 @@ public static class UniverseSerializer
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
             {
                 Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick,
+            }).ToList();
+        // Phase 26: Wracks und Frachtbehälter
+        if (u.NextWreckId != 1) s.NextWreckId = u.NextWreckId;
+        if (u.Wrecks.Count > 0)
+            s.Wrecks = u.Wrecks.Select(w => new WreckSave
+            {
+                Id = w.Id, Kind = w.Kind.ToString(), Sector = w.Sector.Value, X = w.Position.X, Y = w.Position.Y, Name = w.Name, From = w.From.Value,
+                Created = w.CreatedTick, Expires = w.ExpiresTick,
+                Cargo = w.Cargo.Count == 0 ? null : w.Cargo.OrderBy(k => k.Key.Value).ToDictionary(k => k.Key.Value, k => k.Value),
+                Modules = w.Modules.Count == 0 ? null : w.Modules.Select(m => new WreckModuleSave { Key = m.Key, Condition = m.Condition }).ToList(),
             }).ToList();
         // Phase 24: laufende Gefechte
         s.NextEncounterId = u.Fights.NextId;
@@ -272,7 +284,7 @@ public static class UniverseSerializer
                 HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
                 Command = sh.Command is null ? null : ToSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
-                RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
+                RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit, RentPaidDays = sh.RentPaidDays,
                 Systems = ToSave(sh.Systems),
             });
         if (u.Squadrons.Count > 0)
@@ -322,6 +334,20 @@ public static class UniverseSerializer
                 {
                     Kind = Enum.Parse<EncounterKind>(e.Kind), Source = new ShipId(e.Source), Target = new ShipId(e.Target), Sector = new SectorId(e.Sector), DueTick = e.Due,
                 });
+        // Phase 26: Wracks und Frachtbehälter
+        u.NextWreckId = Math.Max(1, s.NextWreckId);
+        if (s.Wrecks is not null)
+            foreach (var w in s.Wrecks)
+            {
+                var wr = new Wreck
+                {
+                    Id = w.Id, Kind = Enum.TryParse<WreckKind>(w.Kind, out var k) ? k : WreckKind.Wreck, Sector = new SectorId(w.Sector), Position = new Vec2(w.X, w.Y),
+                    Name = w.Name, From = new ShipId(w.From), CreatedTick = w.Created, ExpiresTick = w.Expires,
+                };
+                if (w.Cargo is not null) foreach (var (g, a) in w.Cargo.OrderBy(x => x.Key)) wr.Cargo[new GoodId(g)] = a;
+                if (w.Modules is not null) foreach (var m in w.Modules) wr.Modules.Add(new WreckModule { Key = m.Key, Condition = m.Condition });
+                u.Wrecks.Add(wr);
+            }
         // Phase 24: laufende Gefechte (der Index Schiff → Gefecht ist abgeleitet)
         u.Fights.NextId = Math.Max(1, s.NextEncounterId);
         if (s.Fights is not null)
@@ -476,7 +502,7 @@ public static class UniverseSerializer
                 Command = sh.Command is null ? null : CommandFromSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
                 DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
-                Systems = FromSave(sh.Systems),
+                RentPaidDays = sh.RentPaidDays, Systems = FromSave(sh.Systems),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
             ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;

@@ -504,14 +504,19 @@ public class FleetCommandTests
         Assert.False(rental.Execute(u, station, rented, new ServiceRequest("rent:2", default, 0f)).Success);   // strenger Schlüssel
         Assert.NotNull(Hangar.SellIssue(u, station, rented));                                                    // nicht verkaufbar
 
-        Run(u, u.Rules.DayTicks + 10);   // zwei angefangene Tage
+        float charged = 0f;
+        u.Events.Raised += e => { if (e is RentCharged rc && rc.Ship == rented.Id) charged += rc.Amount; };
+        Run(u, u.Rules.DayTicks + 60);   // zwei angefangene Tage
+        // Phase 26: die Miete läuft täglich (HangarSystem) — zwei Tage sind schon abgerechnet, nicht erst bei der Rückgabe
+        Assert.Equal(2, rented.RentPaidDays);
+        float rent = 2 * u.Rules.RentalPerDay;
+        Assert.Equal(rent, charged, 1);
         wallet = u.PlayerWallet.Credits;
         var back = rental.Execute(u, station, rented, new ServiceRequest($"return:{rented.Id.Value}", default, 0f));
         Assert.True(back.Success, back.Message);
         Assert.False(u.Ships.ContainsKey(rented.Id));
         Assert.Equal(player.Id, u.PlayerShip);   // zurück ins eigene Schiff
-        float rent = 2 * u.Rules.RentalPerDay;
-        Assert.Equal(wallet + u.Rules.RentalDeposit - rent, u.PlayerWallet.Credits, 1);
+        Assert.Equal(wallet + u.Rules.RentalDeposit, u.PlayerWallet.Credits, 1);   // Pfand ganz zurück, keine offenen Tage
     }
 
     // ───────── Determinismus, Save, Migration, NPC-Wirtschaft ─────────

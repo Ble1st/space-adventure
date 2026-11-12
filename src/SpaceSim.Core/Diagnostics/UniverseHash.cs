@@ -58,6 +58,7 @@ public static class UniverseHash
             var sys = s.Systems;
             MixF(sys.ShieldMissing); MixF(sys.ChargeMissing); MixF(sys.AmmoMissing); Mix((ulong)sys.Mode); Mix((ulong)sys.ShieldPauseUntil);
             foreach (var c in sys.Condition) MixF(c);
+            foreach (var b in sys.Burning) Mix((ulong)(b + 1000));   // Phase 26: Brand (Slots); unbeschädigte Schiffe mischen nichts
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
             foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); MixF(a.BaseRadius); }
@@ -101,6 +102,17 @@ public static class UniverseHash
         }
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
         { Mix((ulong)sh.Id.Value); Mix((ulong)sh.HomeBase.Value); Mix((ulong)sh.DutySector.Value); MixF(sh.Hull); }   // Hülle: Überfälle, Rückzug
+        // Phase 26: Wracks und Frachtbehälter (ohne Wrack mischt nichts — Welten ohne Phase 26 hashen wie vorher)
+        if (u.NextWreckId != 1 || u.Wrecks.Count > 0)
+        {
+            Mix((ulong)u.NextWreckId);
+            foreach (var w in u.Wrecks)
+            {
+                Mix((ulong)w.Id); Mix((ulong)w.Kind); Mix((ulong)w.Sector.Value); MixF(w.Position.X); MixF(w.Position.Y); Mix((ulong)w.ExpiresTick);
+                foreach (var (g, a) in w.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
+                foreach (var m in w.Modules) { MixString(m.Key); MixF(m.Condition); }
+            }
+        }
         // Phase 24: laufende Gefechte
         Mix((ulong)u.Fights.NextId);
         foreach (var e in u.Fights.Encounters)
@@ -125,6 +137,7 @@ public static class UniverseHash
         {
             Mix((ulong)sh.Id.Value); Mix((ulong)sh.DockedAt.Value); Mix((ulong)sh.Squadron.Value); Mix((ulong)sh.Engagement);
             Mix((ulong)sh.RentedFrom.Value); Mix((ulong)sh.RentedSince); MixF(sh.RentalDeposit);
+            if (sh.RentPaidDays != 0) Mix((ulong)sh.RentPaidDays + 0x2600u);   // Phase 26: laufende Leihmiete
             if (sh.Command is { } c)
             {
                 MixString(c.Kind); Mix((ulong)sh.CommandSince); Mix((ulong)(uint)sh.CommandStep); Mix(sh.Emergency ? 1UL : 0UL);

@@ -61,7 +61,16 @@ public static class Hangar
                 if (st.Market.TryGetValue(n.Good, out var e) && e.Price > 0f && e.Price < price) price = e.Price;
             sum += n.Units * price;
         }
-        return sum * u.Rules.ShipSellShare;
+        return sum * u.Rules.ShipSellShare * DamageFactor(ship);
+    }
+
+    /// <summary>Phase 26 (Prüfung): Schadensabschlag beim Verkauf = Hüllenquote × mittlerer Zustand der eingebauten Module (einfache Regel).</summary>
+    public static float DamageFactor(Ship ship)
+    {
+        float hull = ship.MaxHull > 0f ? Math.Clamp(ship.Hull / ship.MaxHull, 0f, 1f) : 1f;
+        float sum = 0f; int n = 0;
+        for (int i = 0; i < ship.Fit.Count; i++) if (ship.Fit[i] is not null) { sum += ship.ConditionOf(i); n++; }
+        return hull * (n > 0 ? sum / n : 1f);
     }
 
     /// <summary>Warum dieses eigene Schiff hier nicht verkauft werden kann (null = es geht).</summary>
@@ -100,6 +109,12 @@ public static class Hangar
     /// <summary>Angefangene Miettage seit Beginn (mindestens 1).</summary>
     public static int RentalDays(Universe u, Ship ship) =>
         (int)Math.Max(1, (u.Tick - ship.RentedSince + u.Rules.DayTicks - 1) / Math.Max(1, u.Rules.DayTicks));
+
+    /// <summary>Phase 26: noch nicht (täglich) abgerechnete Miete.</summary>
+    public static float OpenRent(Universe u, Ship ship) => Math.Max(0, RentalDays(u, ship) - ship.RentPaidDays) * u.Rules.RentalPerDay;
+
+    /// <summary>Phase 26: Schulden der Spielerperson (negative Kasse, z. B. aus laufender Leihmiete); 0 = keine.</summary>
+    public static float Debt(Universe u) => MathF.Max(0f, -u.PlayerWallet.Credits);
 
     /// <summary>Warum hier kein Leihschiff zu haben ist (null = es geht).</summary>
     public static string? RentIssue(Universe u, Station st, Ship payer, ShipId ignore = default)
@@ -158,7 +173,7 @@ public static class Hangar
     {
         if (!ship.IsRental) return (0f, 0f);
         var wallet = u.WalletOf(ship);
-        float rent = RentalDays(u, ship) * u.Rules.RentalPerDay;
+        float rent = OpenRent(u, ship);   // Phase 26: bereits täglich abgerechnete Tage zählen nicht doppelt
         float deposit = ship.RentalDeposit;
         float fromWallet = MathF.Max(0f, rent - deposit);
         wallet.Credits -= fromWallet;
@@ -183,7 +198,7 @@ public static class Hangar
             PlayerFleet.Activate(u, own, st.Id);
         }
         var wallet = u.WalletOf(ship);
-        float rent = RentalDays(u, ship) * u.Rules.RentalPerDay;
+        float rent = OpenRent(u, ship);   // Phase 26: bereits täglich abgerechnete Tage zählen nicht doppelt
         float fromDeposit = MathF.Min(rent, ship.RentalDeposit);
         // Phase 25 (Korrektur): ein Notfall-Leihschiff (ohne Pfand) zahlt die Miete ganz — notfalls ins Minus (Schulden bei der Verleihstation), kein
         // Gratis-Kreislauf; reguläre Leihschiffe wie bisher, soweit die Kasse reicht

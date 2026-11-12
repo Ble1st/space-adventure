@@ -674,6 +674,7 @@ public class Phase25Tests
         // Klasse, neues Modell, Startpaket, Dienst „rearm“, Spielerschuss, Landeregel und Handelsverweigerung berühren die NPC-Wirtschaft nicht.
         var def = TestWorlds.Def(fuel: false, research: false);
         def.StationTypes.First(t => t.Key == "shipyard").Stocks!.Remove("power_bank_s");
+        Phase26Tests.RevertPhase26(def);   // Phase 26 (Schaden und Bergung) ganz zurückdrehen: Schalter aus, neue Module, Reparaturdienst der Regierungsstationen
         def.Rules!.SpatialCombat = false;
         // Zusatzschritt „jeder Händler bewaffnet“ zurückdrehen: Handelsmodelle ohne Laser, Klassen ohne angehängten Waffenslot und mit alter Masse,
         // die beiden bewaffneten Varianten von Phase 24 wieder dabei, Bewaffnung zählt ab 0

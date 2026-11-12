@@ -20,7 +20,7 @@ public static class UiPlaceholders
 	/// <summary>Erklärtext je Platzhalter-Bereich des Andock-Menüs (Schlüssel = Bereichs-Id, siehe DockAreas).</summary>
 	public static string DockAreaText(string areaId) => areaId switch
 	{
-		"repair" => "Reparatur und Tanken gibt es nur an Stationen mit dem passenden Dienst: Treibstoff an Treibstoffraffinerien, Reparatur an Panzerwerken und Werften (verbraucht Hüllenplatten aus dem Stationslager). Diese Station bietet es nicht an oder ihr Lager ist gerade leer.",
+		"repair" => "Reparatur und Tanken gibt es nur an Stationen mit dem passenden Dienst: Treibstoff an Treibstoffraffinerien, Reparatur an Panzerwerken, Werften, Hauptquartieren, Sektor-HQs und Polizeiwachen (verbraucht Hüllenplatten und Elektronik aus dem Stationslager; Notreparatur auf Schuld, wenn das Schiff nicht mehr funktioniert). Diese Station bietet es nicht an oder ihr Lager ist gerade leer.",
 		"outfitter" => "Ausrüster gibt es an Werften und Handelsstationen: Module aus dem Stationslager ein- und ausbauen. Diese Station führt keine Module.",
 		"shipyard" => "Schiffe kaufen kannst du an Werften (alle Klassen) und an Handelsstationen (kleine Schiffe der Skiff-Klasse). Diese Station verkauft keine Schiffe.",
 		"taxi" => "Taxi gibt es an Verkehrsknoten (Werft, Handelsstation, Raffinerie, Lagerhaus, Hauptquartier, Sektor-HQ): Du reist allein zu einer Station, an der ein eigenes Schiff wartet oder ein Leihschiff zu haben ist. Diese Station hat keinen Taxistand.",

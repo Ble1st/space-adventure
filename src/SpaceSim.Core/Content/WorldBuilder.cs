@@ -332,6 +332,7 @@ public static class WorldBuilder
             if (!u.ShipModels.ContainsKey(o.Model)) throw new WorldFormatException($"Startpaket '{o.Key}': unbekanntes Schiffsmodell '{o.Model}'");
             if (o.Sector is { } os && !u.Sectors.ContainsKey(new SectorId(os))) throw new WorldFormatException($"Startpaket '{o.Key}': unbekannter Sektor {os}");
         }
+        StartOptionDef? chosen = null;
         string? playerModel = def.Player.Model;
         float playerCredits = def.Player.Credits;
         int playerSector = def.Player.Sector;
@@ -339,6 +340,7 @@ public static class WorldBuilder
         {
             var o = def.Player.StartOptions.FirstOrDefault(x => x.Key == startOption)
                     ?? throw new WorldFormatException($"Unbekanntes Startpaket '{startOption}'");
+            chosen = o;
             playerModel = o.Model;
             playerCredits = o.Credits;
             playerSector = o.Sector ?? def.Player.Sector;
@@ -352,6 +354,8 @@ public static class WorldBuilder
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
+        // Gerätetest (Phase 26): Testszenario vorbereiten (Fit, Station, Schaden, Brand, Wrack, Gesetzloser, Fracht)
+        if (chosen?.Scenario is { } scenario) StartScenario.Apply(u, player, scenario, chosen.Key);
         // Phase 13: die Startwelt darf nichts brauchen, was erst erforscht werden muss (FORSCHUNG.md „Totlauf“)
         ValidateResearchStart(u, def);
         // Phase 11: Lagekarte der Startwelt (Sicherheit aus Grundschutz und Streifen, Verkehr) vor der Sektorkontrolle (Patrouillenabdeckung)

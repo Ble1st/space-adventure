@@ -92,14 +92,8 @@ public sealed class PirateSystem : ISimSystem
     {
         if (!u.Actors.TryGetValue(s.Owner, out var owner)) return;
         float spent = 0f;
-        float missing = MathF.Max(0f, s.MaxHull - s.Hull);
-        if (missing > 0f && u.Rules.BaseRepairPerHull > 0f)
-        {
-            float fix = MathF.Min(missing, MathF.Max(0f, owner.Treasury.Credits) / u.Rules.BaseRepairPerHull);
-            s.Hull += fix;
-            spent += fix * u.Rules.BaseRepairPerHull;
-            owner.Treasury.Credits -= fix * u.Rules.BaseRepairPerHull;
-        }
+        // Phase 26: Hülle und (mit Schadensmodell) Module aus der Kasse, Brände gelöscht — gemeinsame Regel NpcRepair.AtBase (eigene TreasuryUpkeep-Buchung)
+        NpcRepair.AtBase(u, s, owner, purpose, s.HomeBase);
         // Phase 15: Treibstoff aus = kein Tanken aus der Kasse (vorher zahlte die Kasse auch bei fuelActive=false für den Tank)
         if (Refuel.Active(u) && Refuel.ActiveFuel(s) is { } fuel && s.FuelSpace > 0f && u.Goods.TryGetValue(fuel, out var good))
         {

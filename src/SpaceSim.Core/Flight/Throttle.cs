@@ -10,6 +10,12 @@ public static class Throttle
     /// <summary>Anteil der Höchstgeschwindigkeit, der rückwärts maximal gefahren werden darf (entschieden: 20 %).</summary>
     public const float ReverseShare = 0.20f;
 
+    /// <summary>Gerätetest: Totzone des Reglers — unter <see cref="SnapLow"/> rastet er auf 0 (STOPP), über <see cref="SnapHigh"/> auf 1 (MAX).</summary>
+    public const float SnapLow = 0.05f, SnapHigh = 0.95f;
+
+    /// <summary>Gerätetest: Reglerwert mit Totzone (per Touch ließ er sich kaum genau auf 0 stellen; 1–3 % ließen den Autopiloten still nichts tun).</summary>
+    public static float Snap(float slider) => slider < SnapLow ? 0f : slider > SnapHigh ? 1f : Math.Clamp(slider, 0f, 1f);
+
     /// <summary>Slider-Position (0..1) → Geschwindigkeitsfaktor vorwärts; Werte außerhalb werden gekappt.</summary>
     public static float SliderToFraction(float slider) => Math.Clamp(slider, 0f, 1f);
 
