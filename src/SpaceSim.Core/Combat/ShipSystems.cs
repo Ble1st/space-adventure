@@ -90,7 +90,7 @@ public static class ShipSystems
     }
 
     /// <summary>Gehört das Schiff in den Erholungsindex (es fehlt etwas, und es kann sich erholen)?</summary>
-    public static bool Recovers(Ship ship) => NeedsRecovery(ship) && CanRecover(ship.Stats, ship.Systems);
+    public static bool Recovers(Ship ship) => (NeedsRecovery(ship) && CanRecover(ship.Stats, ship.Systems)) || ship.Systems.Burning.Count > 0;   // Phase 26: Brand
 
     /// <summary>Meldet das Schiff zur Erholung an, wenn ihm etwas fehlt und es sich erholen kann (sonst nichts).</summary>
     public static void Wake(Universe u, Ship ship)
@@ -164,6 +164,15 @@ public static class ShipSystems
     /// </summary>
     public static float SpeedFactor(Universe u, Ship ship) =>
         ship.Systems.Mode == PowerMode.Engine && Surplus(ship.Stats) > 0f ? 1f + u.Rules.EngineModeSpeedBonus : 1f;
+
+    /// <summary>Gerätetest: kurze Rückmeldung zur Wirkung einer Stellung (Meldung beim Umschalten).</summary>
+    public static string ModeEffect(PowerMode m) => m switch
+    {
+        PowerMode.Weapons => "Leistung: Waffen — Überschuss lädt die Speicherbank, mit Bank Überladung (schnelleres Nachladen)",
+        PowerMode.Shield => "Leistung: Schild — der Schild lädt schneller nach",
+        PowerMode.Engine => "Leistung: Antrieb — +10 % Höchsttempo",
+        _ => "Leistung: ausgeglichen",
+    };
 
     /// <summary>Kurzname der Stellung (Anzeige).</summary>
     public static string ModeName(PowerMode m) => m switch

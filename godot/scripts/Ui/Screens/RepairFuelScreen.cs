@@ -34,7 +34,13 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 
 	protected override void BuildContent(Control inner)
 	{
-		float w = inner.Size.X > 0 ? inner.Size.X : 670f;
+		// Phase 26: Inhalt in einer Rollfläche (Tanken, Schadensliste, Reparatur mit Modulzeilen und Munition passen nicht mehr auf eine Seite)
+		float w0 = inner.Size.X > 0 ? inner.Size.X : 670f, h0 = inner.Size.Y > 0 ? inner.Size.Y : 520f;
+		var scroll = At(inner, new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 0, w0, h0);
+		var content = new Control { MouseFilter = MouseFilterEnum.Pass };
+		scroll.AddChild(content);
+		inner = content;
+		float w = w0 - 14f;
 		_rows = 0;
 		bool fuel = Ctx.U.Rules.FuelActive;   // Phase 14: ohne Treibstoff nur die Reparatur
 		At(inner, Text(_message.Length > 0 ? _message
@@ -44,10 +50,21 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 		float y = 48f;
 		if (fuel) y = Section(inner, "Tanken", RefuelService.ServiceKey, "Diese Station verkauft keinen Treibstoff für dein Schiff.", y, w) + 14f;
 		_fuelSection = fuel;
-		y = Section(inner, "Reparatur", RepairService.ServiceKey, "Diese Station hat keine Hüllenplatten für Reparaturen.", y, w) + 14f;
+		// Phase 26: Schadensliste (Hülle, Module, Brand) über der Reparatur
+		var dmg = SpaceSim.Core.Combat.DamageInfo.For(Ctx.U, Ctx.Ship);
+		At(inner, Text("Schäden: " + dmg.Summary, 15, dmg.Rows.Any(r => r.Condition < 0.999f) || dmg.Fires > 0 ? Orange : Dim), 0, y, w, 22);
+		y += 24f;
+		foreach (var row in dmg.Rows.Where(r => r.Condition < 0.999f || r.Burning))
+		{
+			At(inner, Text(row.Text, 14, row.Failed || row.Burning ? Red : Orange), 12, y, w - 12, 20);
+			y += 21f;
+		}
+		_damageRows = dmg.Rows.Count(r => r.Condition < 0.999f || r.Burning);
+		y = Section(inner, "Reparatur", RepairService.ServiceKey, "Diese Station hat keine Hüllenplatten für Reparaturen.", y + 6f, w) + 14f;
 		// Phase 25: Munition nachladen (Dienst „rearm“) — nur mit eingeschalteter Munition
-		if (Ctx.U.Rules.AmmoActive) Section(inner, $"Munition · Magazin {Ctx.Ship.AmmoLoaded:0}/{Ctx.Ship.Stats.AmmoCapacity:0}", RearmService.ServiceKey,
+		if (Ctx.U.Rules.AmmoActive) y = Section(inner, $"Munition · Magazin {Ctx.Ship.AmmoLoaded:0}/{Ctx.Ship.Stats.AmmoCapacity:0}", RearmService.ServiceKey,
 			"Diese Station führt keine Munition.", y, w);
+		content.CustomMinimumSize = new Vector2(w, y + 8f);
 	}
 
 	/// <summary>Eine Dienstgruppe: Überschrift plus je Angebot eine Zeile mit Menge, Preis und Ausführen-Taste.</summary>
@@ -69,8 +86,14 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 			bool can = o.Amount >= (serviceKey == RefuelService.ServiceKey ? 1f : 0.01f);
 			string unit = serviceKey == RepairService.ServiceKey ? "Hüllenpunkte" : "Einheiten";
 			if (serviceKey == RearmService.ServiceKey) can = o.Amount >= 0.01f;
-			At(inner, Text(o.Text, 17, White), 0, y + 10, 250, 26);
-			At(inner, Text(o.Note is { } note && !can ? note : $"{o.Amount:0.#} {unit} · {o.Amount * o.Price:0} Cr ({o.Price:0.#} je Einh.)", 14, Dim), 250, y + 12, w - 400, 24);
+			// Phase 26: Modulzeilen in Zustandsprozent, „alles“ mit Gesamtpreis
+			string detail = o.Key.StartsWith("repair:module:", StringComparison.Ordinal) ? $"Zustand +{o.Amount * 100f:0} % · {o.Amount * o.Price:0} Cr"
+				: o.Key == "repair:all" ? $"Gesamt ca. {o.Price:0} Cr (Platten und Elektronik aus dem Lager)"
+				: o.Key == "repair:emergency" ? $"{o.Price:0} Cr auf Schuld — nur Funktion (ausgefallene Module, Hülle {Ctx.U.Rules.EmergencyRepairHullShare * 100f:0} %)"
+				: $"{o.Amount:0.#} {unit} · {o.Amount * o.Price:0} Cr ({o.Price:0.#} je Einh.)";
+			// zweizeilig: Angebot oben, Menge/Preis darunter (lange Modulnamen überlappen sonst die Preiszeile)
+			At(inner, Text(o.Text, 16, White), 0, y + 4, w - 150, 24);
+			At(inner, Text(o.Note is { } note && !can ? note : detail, 13, Dim), 0, y + 30, w - 150, 22);
 			var b = At(inner, new KitButton("Ausführen", new Vector2(130, 56)) { FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 140, y);
 			string key = o.Key;
 			if (can) b.Pressed += () => Execute(serviceKey, key);
@@ -100,4 +123,7 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 	public bool TestFuelSection => _fuelSection;
 	bool _fuelSection;
 	public string TestMessage => _message;
+	/// <summary>Phase 26: gezeichnete Zeilen der Schadensliste (beschädigte oder brennende Module).</summary>
+	public int TestDamageRows => _damageRows;
+	int _damageRows;
 }

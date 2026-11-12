@@ -11,6 +11,8 @@ namespace SpaceAdventure.Ui.Kit;
 public partial class KitSlider : Control
 {
 	public float Value { get; private set; }
+	/// <summary>Gerätetest: optionale Rastung (Totzone) für Touch-Eingaben, z. B. <see cref="SpaceSim.Core.Flight.Throttle.Snap"/>.</summary>
+	public Func<float, float>? Snap;
 	string _caption = "TEMPO";
 	public string Caption { get => _caption; set { _caption = value; QueueRedraw(); } }
 	string _speedText = "";
@@ -42,6 +44,8 @@ public partial class KitSlider : Control
 		if (notify) ValueChanged?.Invoke(v);
 	}
 
+	float Snapped(float v) => Snap is null ? v : Snap(v);
+
 	float ValueAt(float x)
 	{
 		return Mathf.Clamp((x - Left) / (Right - Left), 0f, 1f);
@@ -52,8 +56,8 @@ public partial class KitSlider : Control
 	public override void _GuiInput(InputEvent @event)
 	{
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
-		if (!motion && pressed && _finger < 0) { _finger = idx; SetValue(ValueAt(pos.X)); AcceptEvent(); }
-		else if (idx == _finger && motion) { SetValue(ValueAt(pos.X)); AcceptEvent(); }
+		if (!motion && pressed && _finger < 0) { _finger = idx; SetValue(Snapped(ValueAt(pos.X))); AcceptEvent(); }
+		else if (idx == _finger && motion) { SetValue(Snapped(ValueAt(pos.X))); AcceptEvent(); }
 		else if (idx == _finger && !pressed && !motion) { _finger = -1; AcceptEvent(); }
 	}
 
@@ -76,6 +80,6 @@ public partial class KitSlider : Control
 		var th = new Rect2(tx - 32, cy - 19, 64, 38);
 		DrawRect(th, new Color(0.2f, 0.38f, 0.62f, 0.97f));
 		DrawRect(th, UiKit.Cyan, false, 2);
-		DrawString(font, new Vector2(tx - 32, cy + 6), $"{Mathf.RoundToInt(Value * 100)} %", HorizontalAlignment.Center, 64, 18, UiKit.White);
+		DrawString(font, new Vector2(tx - 32, cy + 6), (Value >= 0.999f ? "MAX" : $"{Mathf.RoundToInt(Value * 100)} %"), HorizontalAlignment.Center, 64, 18, UiKit.White);
 	}
 }

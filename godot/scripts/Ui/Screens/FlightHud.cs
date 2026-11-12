@@ -34,6 +34,8 @@ public sealed class FlightHudData
 	/// <summary>Phase 11: Fahndungszeile des Spielers (leer = sauber, dann ausgeblendet) und Lage des Sektors (Sicherheit/Bedrohung).</summary>
 	public string Wanted = "", Security = "";
 	public bool WantedSevere;
+	/// <summary>Phase 26: Brandwarnung (leer = kein Brand) — rot unter der Fahndungszeile.</summary>
+	public string Fire = "";
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
 	public string TargetInfo = "Station, Gate oder Asteroid antippen";
@@ -60,6 +62,8 @@ public sealed class FlightHudData
 	/// <summary>Phase 25: Kampf — Schild/Hülle des gewählten Schiffs („“ = kein Schiffsziel), feindlich, Dauerfeuer, Beschusswarnung mit Richtung, hat Kampfwaffen.</summary>
 	public string TargetCombat = "";
 	public bool TargetHostile, AutoFireOn, HasWeapons;
+	/// <summary>Gerätetest: ein Gegner (Gefecht oder Gesetzloser) im Sektor — „Nächster Gegner“ bleibt dann auch ohne Waffe erreichbar.</summary>
+	public bool EnemyNear;
 	public string HitWarning = "";
 }
 
@@ -75,6 +79,9 @@ public partial class FlightHud : Control, IScreen
 	public string Id => "flight";
 	/// <summary>Selbsttest: angezeigte Fahndungs- und Lagezeile (Phase 11).</summary>
 	public string TestWanted => _wanted.Visible ? _wanted.Text : "";
+	/// <summary>Phase 26: sichtbare Brandwarnung (leer = keine) und Kassenanzeige (zeigt „Schulden“ bei negativer Kasse).</summary>
+	public string TestFire => _fire.Visible ? _fire.Text : "";
+	public string TestCredits => _credits.Text;
 	public string TestSecurity => _security.Text;
 	public string Title => "Flug";
 	public Control Node => this;
@@ -116,7 +123,7 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>
 	public bool TestFuelVisible => _fuelRow.Visible;
 	Label _hullVal = null!;
-	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!;
+	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!, _fire = null!;
 	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
@@ -202,6 +209,8 @@ public partial class FlightHud : Control, IScreen
 		// Phase 11: Lage des Sektors unter dem Chip, Fahndung (nur wenn gesucht) darunter
 		_security = At(this, Text("", 13, UiKit.Dim, HorizontalAlignment.Center), 420, 56, 430, 18);
 		_wanted = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 74, 430, 20);
+		// Phase 26: Brandwarnung (rot, nur bei Brand)
+		_fire = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 300, 94, 670, 20);
 
 		// ── Kommandozentrale, Karte und Zeitraffer oben rechts ──
 		_mapBtn = At(this, new KitButton("Karte", new Vector2(110, 50)) { FontSize = 18 }, 1030, 12);
@@ -217,6 +226,8 @@ public partial class FlightHud : Control, IScreen
 		tv.AddThemeConstantOverride("separation", 2);
 		_tName = Text("", 18, UiKit.Green); _tInfo = Text("", 15, UiKit.Dim); _tArc = Text("", 15, UiKit.White);
 		_tCombat = Text("", 15, UiKit.Cyan);
+		// Gerätetest: Zeilen der Zielkarte enden vor dem Radarkreis (der Hinweistext lief hinein) — gekürzt mit „…“
+		foreach (var l in new[] { _tName, _tInfo, _tArc, _tCombat }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; l.CustomMinimumSize = new Vector2(246, 0); }
 		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc); tv.AddChild(_tCombat);
 		_radar = At(card, new Radar(), 266, 8, 64, 64);
 
@@ -239,7 +250,7 @@ public partial class FlightHud : Control, IScreen
 		_hamburger.Pressed += () => HamburgerPressed?.Invoke();
 
 		// ── Tempo-Slider unten rechts am Bildrand ──
-		_slider = At(this, new KitSlider(), 660, 646, 600, 68);
+		_slider = At(this, new KitSlider { Snap = SpaceSim.Core.Flight.Throttle.Snap }, 660, 646, 600, 68);   // Gerätetest: Totzone 5 %/95 %
 
 		// ── Waffenschächte rechts am Rand, eine Taste je Schacht (Phase 25: bis zu 6, ab dem fünften in einer zweiten Spalte links daneben) ──
 		for (int i = 0; i < MaxBays; i++)
@@ -259,7 +270,49 @@ public partial class FlightHud : Control, IScreen
 		_autoFire.Pressed += () => AutoFirePressed?.Invoke();
 		_nextEnemy = At(this, new KitButton("Nächster Gegner", new Vector2(160, 56)) { FontSize = 15 }, 764, 206);
 		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
-		_hitWarning = At(this, Text("", 22, UiKit.Red, HorizontalAlignment.Center), 420, 128, 430, 30);
+		_hitWarning = At(this, Text("", 22, UiKit.Red, HorizontalAlignment.Center), 420, 176, 430, 30);   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
+		// Gerätetest (breite Displays): Grundlage merken, dann an die Breite anpassen
+		foreach (var child in GetChildren())
+			if (child is Control c && c != _arcs) _layoutBase[c] = c.Position;
+		Relayout();
+	}
+
+	/// <summary>Grundpositionen der HUD-Elemente im 1280 × 720-Entwurf (für die Verankerung an den Rändern).</summary>
+	readonly Dictionary<Control, Vector2> _layoutBase = new();
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationResized && _layoutBase.Count > 0) Relayout();
+	}
+
+	/// <summary>
+	/// Gerätetest (breite Displays, 19,5 : 9): Das HUD ist für 1280 × 720 entworfen; bei breiterer Fläche (Stretch „expand“) bleiben Elemente der linken Seite
+	/// am linken Rand, Elemente der rechten Seite wandern an den rechten Rand, mittige Elemente bleiben mittig. Dazu die sicheren Ränder des Geräts
+	/// (Kamera-Aussparung, <see cref="DisplayServer.GetDisplaySafeArea"/>). In 1280 × 720 ohne Aussparung bleibt alles, wo es war.
+	/// </summary>
+	void Relayout()
+	{
+		float extra = MathF.Max(0f, Size.X - 1280f);
+		var (insetL, insetR) = SafeInsets();
+		foreach (var (c, b) in _layoutBase)
+		{
+			// Zuordnung nach der Mitte des Elements im 1280-Entwurf: links (< 400), rechts (> 820), sonst mittig
+			float mid = b.X + c.Size.X / 2f;
+			float x = mid > 820f ? b.X + extra - insetR
+				: mid >= 400f ? b.X + extra / 2f
+				: b.X + insetL;
+			c.Position = new Vector2(x, b.Y);
+		}
+	}
+
+	/// <summary>Sichere Ränder links/rechts in Spielflächen-Einheiten (0, wenn das Gerät keine meldet).</summary>
+	(float L, float R) SafeInsets()
+	{
+		var win = DisplayServer.WindowGetSize();
+		var safe = DisplayServer.GetDisplaySafeArea();
+		if (win.X <= 0 || safe.Size.X <= 0 || safe.Size.X >= win.X) return (0f, 0f);
+		float k = Size.X / win.X;
+		return (MathF.Max(0f, safe.Position.X) * k, MathF.Max(0f, win.X - safe.End.X) * k);
 	}
 
 	const int MaxBays = 6;
@@ -360,9 +413,14 @@ public partial class FlightHud : Control, IScreen
 		_shieldVal.Text = d.ShieldMax > 0f ? $"{(int)d.Shield}" : "–";
 		float loadPct = d.PowerOutput > 0f ? 100f * d.PowerDraw / d.PowerOutput : 100f;
 		_powerBar.Set(Math.Min(100f, loadPct), d.PowerDraw > d.PowerOutput ? UiKit.Red : PowerColor);
-		_powerVal.Text = $"{d.PowerDraw:0}/{d.PowerOutput:0}" + (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}" : "");
+		_powerVal.Text = $"{d.PowerDraw:0}/{d.PowerOutput:0}" + (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}" : "")
+			+ (d.PowerMode == PowerMode.Balanced ? "" : $" · {SpaceSim.Core.Combat.ShipSystems.ModeName(d.PowerMode)}");   // Gerätetest: Stellung sichtbar
 		foreach (var (mode, b) in _modeButtons) b.On = d.PowerMode == mode;
-		_credits.Text = $"{(int)d.Credits} Credits";
+		// Phase 26: negative Kasse = Schulden (z. B. laufende Leihmiete)
+		_credits.Text = d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits";
+		_credits.AddThemeColorOverride("font_color", d.Credits < 0f ? UiKit.Red : UiKit.Orange);
+		_fire.Text = d.Fire;
+		_fire.Visible = d.Fire.Length > 0;
 		_sector.Text = d.SectorName;
 		_factionChip.Text = d.FactionName;
 		_security.Text = d.Security;
@@ -410,11 +468,16 @@ public partial class FlightHud : Control, IScreen
 		_ready.Text = d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
 		// Phase 8/25: „Alle Feuer“ (und Dauerfeuer daneben) rutschen unter die rechte Schachtspalte; die Bereit-Zeile steht über den Schächten
 		float fireY = Math.Max(462f, 330f + Math.Min(d.Bays.Count, 4) * BayStep + 4f);   // vier Schächte: „Alle Feuer“ endet bei 630, 16 px über dem Schieberegler
-		_allFire.Position = new Vector2(1090, fireY);
-		_autoFire.Position = new Vector2(906, fireY);
+		// Grundposition (1280-Entwurf) setzen, die Verankerung an den rechten Rand übernimmt Relayout
+		if (_layoutBase.ContainsKey(_allFire) && (_layoutBase[_allFire].Y != fireY))
+		{
+			_layoutBase[_allFire] = new Vector2(1090, fireY);
+			_layoutBase[_autoFire] = new Vector2(906, fireY);
+			Relayout();
+		}
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
-		_nextEnemy.Visible = d.HasWeapons;
+		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
 		_tCombat.Text = d.TargetCombat;
 		_tCombat.Visible = d.TargetCombat.Length > 0;
 		if (d.TargetCombat.Length > 0) _tName.AddThemeColorOverride("font_color", d.TargetHostile ? UiKit.Red : UiKit.Orange);

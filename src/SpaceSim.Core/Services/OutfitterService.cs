@@ -116,9 +116,10 @@ public sealed class OutfitterService : IStationService
             {
                 var p = Preview(u, station, ship, i, null);
                 float price = StationTakes(u, station, curGood.Id) ? station.Market[curGood.Id].Price : 0f;
+                var dmg = DamagedIssue(u, ship, i);
                 offers.Add(new ServiceOffer($"{Remove}:{i}", $"Ausbauen: {curGood.Name} (Slot {i + 1} {slotName})", price,
-                    p is { Valid: true } ? 1f : 0f, curGood.Id, station.Market.TryGetValue(curGood.Id, out var ce) ? ce.Amount : 0f,
-                    ship.Cargo.GetValueOrDefault(curGood.Id)));
+                    p is { Valid: true } && dmg is null ? 1f : 0f, curGood.Id, station.Market.TryGetValue(curGood.Id, out var ce) ? ce.Amount : 0f,
+                    ship.Cargo.GetValueOrDefault(curGood.Id), dmg));
             }
             foreach (var (m, g) in moduleGoods)
             {
@@ -137,9 +138,10 @@ public sealed class OutfitterService : IStationService
                 float price = held >= 1f ? 0f : e!.Price;
                 var p = Preview(u, station, ship, i, m.Key);
                 float revenue = ship.Fit[i] is { } old && u.FindGood(old) is { } og && StationTakes(u, station, og.Id) ? station.Market[og.Id].Price : 0f;
-                bool ok = p is { Valid: true } && wallet.Credits + revenue >= price;
+                var dmgFit = DamagedIssue(u, ship, i);
+                bool ok = p is { Valid: true } && wallet.Credits + revenue >= price && dmgFit is null;
                 offers.Add(new ServiceOffer($"{Fit}:{i}:{m.Key}", $"Einbauen: {g.Name} (Slot {i + 1} {slotName})", price, ok ? 1f : 0f,
-                    g.Id, e?.Amount ?? 0f, held));
+                    g.Id, e?.Amount ?? 0f, held, dmgFit));
             }
         }
         return offers;
@@ -162,6 +164,7 @@ public sealed class OutfitterService : IStationService
         string? oldKey = ship.Fit[slot];
         if (moduleKey is null && oldKey is null) return Fail("Der Slot ist bereits leer.");
         if (moduleKey is not null && moduleKey == oldKey) return Fail("Dieses Modul ist dort bereits eingebaut.");
+        if (DamagedIssue(u, ship, slot) is { } damaged) return Fail(damaged);
         if (moduleKey is null && u.SlotTypes.TryGetValue(slotDef.Type, out var st) && st.Required)
             return Fail($"Pflichtslot '{st.Name}' darf nicht leer bleiben – nur Tausch möglich.");
 
@@ -226,6 +229,14 @@ public sealed class OutfitterService : IStationService
     }
 
     static ServiceResult Fail(string message) => new(false, 0f, 0f, message);
+
+    /// <summary>
+    /// Phase 26: Ein beschädigtes Modul wird nicht ausgebaut oder getauscht, bevor es repariert ist (sonst würde der Ausbau den Schaden kostenlos tilgen —
+    /// ausgebaute Module sind Waren ohne Zustand). Grund oder null.
+    /// </summary>
+    public static string? DamagedIssue(Universe u, Ship ship, int slot) =>
+        u.Rules.DamageActive && slot >= 0 && slot < ship.Fit.Count && ship.Fit[slot] is not null && ship.ConditionOf(slot) < 0.999f
+            ? $"Modul beschädigt ({ship.ConditionOf(slot) * 100f:0} %) – erst reparieren (Dienst Reparatur)." : null;
 
     /// <summary>
     /// Zerlegt einen Angebots-Schlüssel streng: „fit:&lt;Slot&gt;:&lt;Modulschlüssel&gt;“ (Slot nur Ziffern, Modul bekannt) oder

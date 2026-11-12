@@ -383,10 +383,12 @@ public sealed class ReturnExecutor : IOrderExecutor
     {
         if (Refuel.ActiveFuel(ship) is { } fuel && st.Market.TryGetValue(fuel, out var e) && e.Amount > 0f && e.Price > 0f && ship.FuelSpace > 0.5f)
             Refuel.BuyFuel(u, ship, st, fuel, ship.FuelSpace);
-        if (ship.Hull < ship.MaxHull - 0.5f && u.StationTypes.TryGetValue(st.TypeKey, out var type) && type.Services.Contains(RepairService.ServiceKey))
+        // Phase 26: Hülle und Module (repair:all), sobald etwas beschädigt ist
+        if (RepairService.NeedsRepair(ship) && u.StationTypes.TryGetValue(st.TypeKey, out var type) && type.Services.Contains(RepairService.ServiceKey))
         {
             var repair = new RepairService();
-            if (repair.IsAvailable(u, st)) repair.Execute(u, st, ship, new ServiceRequest($"{RepairService.ServiceKey}:{RepairService.Full}", default, 0f));
+            string offer = u.Rules.DamageActive ? RepairService.All : RepairService.Full;
+            if (repair.IsAvailable(u, st)) repair.Execute(u, st, ship, new ServiceRequest($"{RepairService.ServiceKey}:{offer}", default, 0f));
         }
     }
 }

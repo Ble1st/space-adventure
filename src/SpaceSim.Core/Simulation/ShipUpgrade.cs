@@ -76,7 +76,9 @@ public static class ShipUpgrade
             if (ShipQualityRoll.UpgradeTarget(u, key, ship.Slots[i]) is not { } to) continue;
             var fit = new List<string?>(ship.Fit) { [i] = to.Key };
             // Phase 13: Ziel muss für die Fraktion der Station erforscht sein (sichtbar als „nicht erforscht“)
-            string? issue = Research.LockText(u, st, UnlockKind.Module, to.Key) is { } locked ? $"{to.Name} {locked}"
+            // Phase 26 (Prüfung): ein beschädigtes oder brennendes Modul erst reparieren — sonst setzte das Upgrade den Zustand gratis auf 1
+            string? issue = DamagedIssue(ship, i) is { } dmg ? dmg
+                : Research.LockText(u, st, UnlockKind.Module, to.Key) is { } locked ? $"{to.Name} {locked}"
                 : FitRules.Check(u.SlotTypes, u.Modules, cls, ship.Slots, fit) is { } fi ? FitRules.Describe(fi) : null;
             list.Add(Make(u, st, ship, UpgradeKind.Module, i, key, to.Key, ship.Slots[i].Type, ship.Slots[i].Size,
                 BaseChance(u.Rules, from.Tier), from.UpgradeCost, issue));
@@ -119,8 +121,14 @@ public static class ShipUpgrade
     /// (<see cref="Universe.WalletOf"/>) an die Station, dann ein Wurf. Erfolg: Modul getauscht, Slot vergrößert oder Bonusslot (leer) angebaut,
     /// Mitleidszähler zurück; Misserfolg: alles bleibt, Zähler +1. Werte neu berechnet; Ereignis <see cref="UpgradeAttempted"/>.
     /// </summary>
+    /// <summary>Phase 26: Grund, warum ein Modul-Upgrade gesperrt ist (Zustand &lt; 1 oder Brand), sonst null.</summary>
+    public static string? DamagedIssue(Ship ship, int slot) =>
+        slot >= 0 && slot < ship.Fit.Count && ship.Fit[slot] is not null && (ship.ConditionOf(slot) < 0.999f || ship.Systems.IsBurning(slot))
+            ? "Modul beschädigt – erst reparieren" : null;
+
     public static bool Attempt(Universe u, Station st, Ship ship, UpgradeQuote q)
     {
+        if (q.Kind == UpgradeKind.Module && DamagedIssue(ship, q.Slot) is not null) return false;   // Phase 26: nichts verbucht
         ShipPurchase.Consume(st, q.Materials);
         var wallet = u.WalletOf(ship);
         wallet.Credits -= q.Price;

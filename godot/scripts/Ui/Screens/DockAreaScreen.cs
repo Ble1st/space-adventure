@@ -106,8 +106,11 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		// ── Mittelteil ──
 		float cw = ShowShip ? 690f : 1040f;
 		var center = At(this, new PanelContainer(), 224, 84, cw, 540);
-		center.AddThemeStyleboxOverride("panel", Box(PanelBg, Edge, 10, 2, 10));
-		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(cw - 20, 520), Size = new Vector2(cw - 20, 520) };
+		// Gerätetest: seitlicher Innenabstand 16 (Texte klebten am Rahmen)
+		var centerBox = Box(PanelBg, Edge, 10, 2, 10);
+		centerBox.ContentMarginLeft = 16; centerBox.ContentMarginRight = 16;
+		center.AddThemeStyleboxOverride("panel", centerBox);
+		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(cw - 32, 520), Size = new Vector2(cw - 32, 520) };
 		center.AddChild(inner);
 		BuildContent(inner);
 

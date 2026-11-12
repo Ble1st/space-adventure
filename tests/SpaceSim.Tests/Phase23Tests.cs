@@ -208,7 +208,7 @@ public class Phase23Tests
         ShipSystems.SetCondition(u, miner, engine, 0.2f);
         Assert.Equal(before.Thrust * 0.5f, miner.Stats.Thrust, 3);
         ShipSystems.SetCondition(u, miner, cargo, 0f);
-        Assert.Equal(before.Cargo, miner.Stats.Cargo);   // Lager bleiben (Inhalt verschwindet nicht)
+        Assert.Equal(before.Cargo - 60f, miner.Stats.Cargo);   // Phase 26: ein ausgefallenes Frachtmodul hält keine Fracht mehr (Tank, Magazin, Bank bleiben)
         // über der Schwelle zählt das Modul voll
         ShipSystems.SetCondition(u, miner, laser, u.Rules.ModuleFailCondition);
         Assert.True(miner.Has(Capability.Mining));

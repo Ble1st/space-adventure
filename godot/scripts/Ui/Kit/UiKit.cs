@@ -42,6 +42,10 @@ public static class UiKit
 	/// <summary>Kind direkt mit Position und Größe an einen Parent hängen (freie Platzierung, kein Container).</summary>
 	public static T At<T>(Control parent, T c, float x, float y, float w = 0, float h = 0) where T : Control
 	{
+		// Gerätetest (Phase 26): Textzeilen mit fester Breite laufen nie über ihren Platz hinaus — sie werden mit „…“ gekürzt statt in Nachbarspalten,
+		// Radarkreise oder Kartenränder zu ragen (systematisch für jedes Label, das mit Breite platziert wird). Vor dem Setzen der Größe, sonst wächst das
+		// Label auf seine Textbreite.
+		if (w > 0 && c is Label l && l.AutowrapMode == TextServer.AutowrapMode.Off) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
 		parent.AddChild(c);
 		c.Position = new Vector2(x, y);
 		if (w > 0 || h > 0) { c.CustomMinimumSize = new Vector2(w, h); c.Size = new Vector2(w, h); }

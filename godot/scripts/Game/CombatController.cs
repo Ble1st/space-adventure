@@ -108,6 +108,22 @@ public sealed class CombatController
     }
 
     /// <summary>Schiffs-Ids, deren Marker in der Nähe eines Bodenpunkts liegen (für das Antippen), nächstes zuerst.</summary>
+    /// <summary>
+    /// Gerätetest: Antippen im Bildschirmraum — das nächste Schiff, dessen projizierte Position höchstens <paramref name="radiusPx"/> vom Finger entfernt ist
+    /// (Touch-Ziel ≥ 56 Gerätepixel statt 6 Welteinheiten um den kleinen Pfeil).
+    /// </summary>
+    public static ShipId? PickScreen(IEnumerable<(ShipId Id, Vec2 Pos)> ships, System.Func<Vec2, Godot.Vector2?> toScreen, Godot.Vector2 tap, float radiusPx)
+    {
+        ShipId? best = null; float bd = radiusPx;
+        foreach (var (id, p) in ships)
+        {
+            if (toScreen(p) is not { } sp) continue;
+            float d = sp.DistanceTo(tap);
+            if (d < bd) { bd = d; best = id; }
+        }
+        return best;
+    }
+
     public static ShipId? Pick(IEnumerable<(ShipId Id, Vec2 Pos)> ships, Vec2 ground, float radius)
     {
         ShipId? best = null; float bd = radius;

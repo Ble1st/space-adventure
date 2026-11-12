@@ -63,6 +63,10 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<EncounterSave>? Fights { get; set; }
     /// <summary>Phase 24: nächste freie Gefechts-Id.</summary>
     public int NextEncounterId { get; set; } = 1;
+    /// <summary>Phase 26 (additiv, v17): Wracks und Frachtbehälter; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WreckSave>? Wrecks { get; set; }
+    /// <summary>Phase 26: nächste freie Wrack-Id.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextWreckId { get; set; }
     /// <summary>Phase 12 (v15): Verbände; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
     /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
@@ -558,6 +562,8 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RentedFrom { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long RentedSince { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float RentalDeposit { get; set; }
+    /// <summary>Phase 26 (additiv): bereits abgerechnete Miettage.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RentPaidDays { get; set; }
     /// <summary>Phase 23 (additiv): Laufzeitzustand der Bordsysteme; fehlt = voll, ausgeglichen, unbeschädigt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipSystemsSave? Systems { get; set; }
 }
@@ -571,4 +577,29 @@ public sealed class ShipSystemsSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Condition { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Mode { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ShieldPauseUntil { get; set; }
+    /// <summary>Phase 26 (additiv): brennende Slots; fehlt = kein Brand.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<int>? Burning { get; set; }
+}
+
+/// <summary>Phase 26: ein Wrack oder Frachtbehälter (Art, Sektor, Position, Name, Herkunft, Zeiten, Fracht je Ware, Module mit Restzustand).</summary>
+public sealed class WreckSave
+{
+    public int Id { get; set; }
+    public string Kind { get; set; } = "Wreck";
+    public int Sector { get; set; }
+    public float X { get; set; }
+    public float Y { get; set; }
+    public string Name { get; set; } = "";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int From { get; set; }
+    public long Created { get; set; }
+    public long Expires { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? Cargo { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WreckModuleSave>? Modules { get; set; }
+}
+
+/// <summary>Phase 26: Modul im Wrack.</summary>
+public sealed class WreckModuleSave
+{
+    public string Key { get; set; } = "";
+    public float Condition { get; set; }
 }

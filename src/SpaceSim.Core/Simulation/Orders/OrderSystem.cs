@@ -66,6 +66,7 @@ public sealed class OrderSystem : ISimSystem
     public static string? EmergencyReason(Universe u, Ship ship)
     {
         if (ship.Hull < u.Rules.EmergencyHullFraction * ship.MaxHull) return "Hülle kritisch";
+        if (u.Rules.DamageActive && NpcRepair.Crippled(u, ship)) return "Modulschaden";   // Phase 26: ausgefallenes Modul oder Brand
         if (u.Rules.FuelActive && ship.Stats.FuelCapacity > 0f && ship.TotalFuel < 0.5f && ship.Transit is null) return "Tank leer";   // Phase 14: nur mit Treibstoff
         return null;
     }
@@ -94,9 +95,34 @@ public sealed class OrderSystem : ISimSystem
 /// </summary>
 public sealed class HangarSystem : ISimSystem
 {
+    /// <summary>
+    /// Phase 26 (Prüfung Phase 25): Leihmiete läuft täglich — je angefangenem Miettag (<see cref="Hangar.RentalDays"/>), der noch nicht abgerechnet ist, zahlt die
+    /// Kasse des Besitzers <see cref="EconomyRules.RentalPerDay"/> an die Verleihstation, notfalls ins Minus (Schulden, sichtbar in HUD und „Meine Fraktion“).
+    /// Rückgabe und Verlust rechnen nur noch die offenen Tage ab. Ereignis <see cref="RentCharged"/>.
+    /// </summary>
+    public static void ChargeRent(Universe u)
+    {
+        foreach (var ship in u.ShipsById())
+        {
+            if (!ship.IsPlayer || !ship.IsRental) continue;
+            int due = Hangar.RentalDays(u, ship);
+            while (ship.RentPaidDays < due)
+            {
+                ship.RentPaidDays++;
+                var wallet = u.WalletOf(ship);
+                float rent = u.Rules.RentalPerDay;
+                float debt = MathF.Max(0f, rent - MathF.Max(0f, wallet.Credits));
+                wallet.Credits -= rent;
+                if (u.Stations.TryGetValue(ship.RentedFrom, out var st)) st.Credits += rent;
+                u.Events.Publish(new RentCharged(ship.Id, ship.RentedFrom, ship.RentPaidDays, rent, debt));
+            }
+        }
+    }
+
     public void Step(Universe u, int dt)
     {
         if (u.Rules.DayTicks <= 0) return;
+        ChargeRent(u);
         foreach (var ship in u.Ships.Values.Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Transit is null && s.DockedAt.Value != 0 && !s.IsRental)
                      .OrderBy(s => s.Id.Value).ToList())
         {

@@ -253,3 +253,26 @@ public sealed record EncounterEnded(int Encounter, SectorId Sector, EncounterCau
     int Destroyed, int Fled, int Surrendered, string Message) : SimEvent;
 /// <summary>Phase 24: Munition nachgeladen (Station = Lager, default = ohne Lager zum Basispreis × Aufschlag); bezahlt von <paramref name="Payer"/> (Schiff oder Kasse).</summary>
 public sealed record AmmoRearmed(ShipId Ship, StationId Station, float Units, float Cost, ActorId Payer, bool FromTreasury) : SimEvent;
+
+// ───────── Phase 26: Schaden und Bergung ─────────
+/// <summary>Phase 26: Ein Treffer hat ein Modul beschädigt (<paramref name="Failed"/>: es fiel dabei unter die Ausfallschwelle).</summary>
+public sealed record ModuleDamaged(ShipId Ship, int Slot, string Module, float Condition, bool Failed) : SimEvent;
+/// <summary>Phase 26: Ein Modul hat Feuer gefangen.</summary>
+public sealed record FireStarted(ShipId Ship, SectorId Sector, int Slot, string Module) : SimEvent;
+/// <summary>Phase 26: Ein Brand ist vorbei — <paramref name="How"/> „extinguished“ (gelöscht), „burnt_out“ (Modul ausgefallen), „docked“ (angedockt), „repaired“, „lost“ (Schiff weg).</summary>
+public sealed record FireEnded(ShipId Ship, int Slot, string Module, string How) : SimEvent;
+/// <summary>Phase 26: Wrack oder Frachtbehälter entstanden (Fracht in Einheiten, Zahl der bergbaren Module).</summary>
+public sealed record WreckCreated(int Wreck, SectorId Sector, WreckKind Kind, ShipId From, float CargoUnits, int Modules) : SimEvent;
+/// <summary>Phase 26: Aus einem Wrack wurde etwas geborgen — Fracht (<paramref name="Good"/>, <paramref name="Units"/>) oder ein Modul (<paramref name="Module"/>, Restzustand).</summary>
+public sealed record WreckSalvaged(int Wreck, ShipId Ship, GoodId Good, float Units, string? Module, float Condition, bool ByNpc) : SimEvent;
+/// <summary>Phase 26: Ein Wrack ist verfallen (Frist abgelaufen) mit dem, was noch darin war.</summary>
+public sealed record WreckExpired(int Wreck, WreckKind Kind, float CargoUnits, int Modules) : SimEvent;
+/// <summary>
+/// Phase 26: eine Reparatur (Hülle und/oder Module) — über den Dienst „repair“ (<paramref name="AtBase"/> false; Spieler und NPC) oder an der Heimatbasis aus der
+/// Kasse (Polizei, Piraten, Fraktionsbauschiffe). Material in Einheiten, Kosten in Credits.
+/// </summary>
+public sealed record ShipRepaired(ShipId Ship, StationId Station, float Hull, int Modules, float Cost, float Plates, float Electronics, bool AtBase) : SimEvent;
+/// <summary>Phase 26 (Korrektur): ein KI-Schiff fliegt zur Reparatur (Station) — schwer beschädigt.</summary>
+public sealed record RepairTripStarted(ShipId Ship, StationId Station, float HullShare) : SimEvent;
+/// <summary>Phase 26: tägliche Leihmiete abgerechnet (aus der Kasse; <paramref name="Debt"/> = was davon ins Minus ging).</summary>
+public sealed record RentCharged(ShipId Ship, StationId Station, int Day, float Amount, float Debt) : SimEvent;

@@ -93,11 +93,33 @@ public static class CombatSpace
     /// </summary>
     public static Vec2 Clear(Universe u, SectorId sector, Vec2 pos)
     {
+        // Phase 26 (Prüfung Phase 25): bis zu 16 Durchläufe; bleibt eine Überlappung (eingekeilt zwischen Felsen), wird spiralförmig der nächste freie Punkt
+        // gesucht (feste Richtungen, kein Zufall); zuletzt in die Gefechtsfläche des Sektors (<see cref="EconomyRules.CombatArenaRadius"/>) begrenzt
         var obstacles = u.GetObstacles(sector);
-        for (int i = 0; i < 4; i++)
-            if (!Simulation.Collision.Resolve(ref pos, Simulation.Collision.ShipRadius + 1f, obstacles, out _)) break;
+        float radius = Simulation.Collision.ShipRadius + 1f, arena = MathF.Max(50f, u.Rules.CombatArenaRadius);
+        pos = Bound(pos, arena);
+        for (int i = 0; i < 16; i++)
+            if (!Simulation.Collision.Resolve(ref pos, radius, obstacles, out _)) break;
+        pos = Bound(pos, arena);
+        if (Free(pos, radius, obstacles)) return pos;
+        for (int ring = 1; ring <= 40; ring++)
+            for (int k = 0; k < 16; k++)
+            {
+                float a = k * MathF.PI / 8f;
+                var c = Bound(pos + new Vec2(MathF.Cos(a), MathF.Sin(a)) * (ring * 4f), arena);
+                if (Free(c, radius, obstacles)) return c;
+            }
         return pos;
     }
+
+    /// <summary>Liegt der Punkt frei von allen Hindernissen?</summary>
+    public static bool Free(Vec2 pos, float radius, IReadOnlyList<Obstacle> obstacles)
+    {
+        foreach (var o in obstacles) if (Vec2.Distance(pos, o.Position) < o.Radius + radius - 1e-3f) return false;
+        return true;
+    }
+
+    static Vec2 Bound(Vec2 pos, float arena) => pos.Length > arena ? pos.Normalized() * arena : pos;
 
     /// <summary>Startposition eines neuen Teilnehmers im räumlichen Gefecht: in <paramref name="distance"/> Abstand vom Bezug, aus der Richtung seiner echten Position.</summary>
     public static Vec2 Around(Vec2 reference, Vec2 from, float distance)

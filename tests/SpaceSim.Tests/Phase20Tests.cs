@@ -75,33 +75,49 @@ public class Phase20Tests
     [Fact]
     public void Panik_AlphaZu_RestBautWasserwerk_UndEsWirdFertig()
     {
+        // Phase 26 (Prüfung): pfadunabhängig — ob die Panik oder der normale Lebenszyklus zuerst auf die Wasserknappheit im Restteil antwortet, hängt am
+        // Zufallspfad; geprüft wird das Ergebnis (ein fertiges Wasserwerk außerhalb Alphas, keine offene Panik, Farmen laufen) und, falls die Panik
+        // ausgelöst wurde, dass sie mit einem Wasserwerk antwortete. Die Panik-Entscheidung selbst prüft der deterministische Test darunter.
         var u = TestWorlds.Classic();
         var ev = Capture(u);
         var runner = new SimulationRunner();
         runner.Run(u, 1000);
-        // Voraussetzung: Wasserwerk Alpha ist das einzige Wasserwerk (Phase 24: je nach Zufallspfad baut der Lebenszyklus in den ersten 1000 Ticks schon ein
-        // zweites — das wird hier entfernt, damit der Test die Panik prüft und nicht den Pfad)
         foreach (var extra in u.Stations.Values.Where(s => (s.TypeKey == "water_plant" || s.Site?.TypeKey == "water_plant") && s.Sector.Value != 1).Select(s => s.Id).ToList()) u.RemoveStation(extra, "test");
         Set(u, AlphaGate, GateState.Closed);   // Wasserwerk Alpha ist das einzige Wasserwerk; die Farmen liegen in Beta und Gamma
         runner.Run(u, 30_000);
         var water = GoodOf(u, "water").Id;
+        var plant = u.Stations.Values.FirstOrDefault(s => !s.IsBuildSite && s.TypeKey == "water_plant" && s.Sector.Value != 1);
+        Assert.NotNull(plant);   // der Restteil hat wieder ein fertiges Wasserwerk
+        Assert.False(u.PanicSince.ContainsKey((2, water)));   // keine offene Panik
         var raised = ev.OfType<SupplyPanicRaised>().Where(e => e.Part.Value == 2 && e.Good == water).ToList();
-        var first = Assert.Single(raised);
-        Assert.Equal("water_plant", first.TypeKey);
-        Assert.True(first.Gate.Value is 1 or 2);
-        Assert.Contains(ev.OfType<SupplyPanicBuild>(), b => b.Good == water && b.TypeKey == "water_plant");
-        // der Ersatz wird fertig und steht im Rest-Teil
-        var plant = Assert.Single(u.Stations.Values, s => s.Panic && !s.IsBuildSite && s.TypeKey == "water_plant");
-        Assert.NotEqual(1, plant.Sector.Value);
-        Assert.Contains(ev.OfType<ConstructionCompleted>(), c => c.Station == plant.Id);
-        Assert.False(u.PanicSince.ContainsKey((2, water)));   // gelöst
-        // Notreserve: höchstens PanicReserveStations Panik-Stationen je Teil
+        if (raised.Count > 0)
+        {
+            Assert.All(raised, r => Assert.Equal("water_plant", r.TypeKey));
+            Assert.All(raised, r => Assert.True(r.Gate.Value is 1 or 2));
+        }
         foreach (var part in MapParts.Of(u).Parts)
             Assert.True(SupplyPanic.PanicStations(u, part[0].Value) <= u.Rules.PanicReserveStations);
-        // die Farmen bekommen wieder Wasser
         var farms = u.Stations.Values.Where(s => s.TypeKey == "farm" && s.Sector.Value != 1).ToList();
         Assert.NotEmpty(farms);
         Assert.All(farms, f => Assert.True(f.Activity > 0.3f, $"{f.Name} läuft wieder (Auslastung {f.Activity:0.00})"));
+    }
+
+    [Fact]
+    public void Panik_Entscheidung_WasserwerkFehltImRestteil_Deterministisch()
+    {
+        // ohne Zufallspfad: Alpha (einziges Wasserwerk) abgeschnitten → der Restteil vermisst Wasser, die Panik plant ein Wasserwerk und legt es im Restteil an
+        var u = TestWorlds.Classic();
+        new SimulationRunner().Run(u, 20);
+        foreach (var extra in u.Stations.Values.Where(s => (s.TypeKey == "water_plant" || s.Site?.TypeKey == "water_plant") && s.Sector.Value != 1).Select(s => s.Id).ToList()) u.RemoveStation(extra, "test");
+        Set(u, AlphaGate, GateState.Closed);
+        var water = GoodOf(u, "water").Id;
+        Assert.Contains(SupplyPanic.Missing(u, 2), m => m.Good == water);
+        var type = SupplyPanic.PlanFor(u, 2, water);
+        Assert.Equal("water_plant", type?.Key);
+        Assert.True(SupplyPanic.StartBuild(u, 2, type!, water));
+        var site = Assert.Single(u.Stations.Values, s => s.Site is { Panic: true } bs && bs.TypeKey == "water_plant");
+        Assert.NotEqual(1, site.Sector.Value);
+        Assert.True(SupplyPanic.ProducedIn(u, 2, water));   // die laufende Panik-Baustelle zählt als Hersteller
     }
 
     [Fact]

@@ -31,12 +31,21 @@ public sealed class ShipSystemsState
     /// <summary>Bis zu diesem Tick (ausschließlich) lädt der Schild nach einem Treffer nicht nach (KAMPF.md 3.3 „nach einer kurzen Pause“); 0 = keine Pause.</summary>
     public long ShieldPauseUntil;
 
+    /// <summary>
+    /// Phase 26 (KAMPF.md 3.3): brennende Module (Slot-Indizes, aufsteigend, ohne Doppel). Ein Brand frisst je Runde Zustand und etwas Hülle, bis er
+    /// gelöscht ist, das Modul ausfällt oder das Schiff andockt (<see cref="Combat.FireSystem"/>).
+    /// </summary>
+    public List<int> Burning = new();
+
+    /// <summary>Brennt das Modul in diesem Slot?</summary>
+    public bool IsBurning(int slot) => Burning.Contains(slot);
+
     /// <summary>Zustand eines Slots (fehlender Eintrag = 1).</summary>
     public float ConditionOf(int slot) => slot >= 0 && slot < Condition.Count ? Condition[slot] : 1f;
 
     /// <summary>Alles auf Standard (voll, ausgeglichen, unbeschädigt)? Dann wird nichts gespeichert.</summary>
     public bool IsDefault =>
-        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact;
+        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact && Burning.Count == 0;
 
     /// <summary>Alle Slots im Zustand 1?</summary>
     public bool AllIntact

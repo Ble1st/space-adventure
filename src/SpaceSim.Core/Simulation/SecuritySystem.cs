@@ -24,6 +24,8 @@ public sealed class SecuritySystem : ISimSystem
         if (u.Tick % ManageTicks < dt)
             foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList()) Manage(u, f, ManageTicks);
         foreach (var police in u.ShipsById().Where(ThreatMap.IsPolice).ToList()) StepPolice(u, police);
+        // Phase 26: mit Schadensmodell keine Gratis-Regeneration mehr — Schäden werden bezahlt repariert (NpcRepair)
+        if (!u.Rules.DamageActive)
         foreach (var s in u.Ships.Values)
             if (s.Transit is null && s.Id != u.PlayerShip && !ThreatMap.IsPolice(s) && !ThreatMap.IsRaider(s) && s.Hull < s.MaxHull && !u.Fights.IsEngaged(s.Id))
                 s.Hull = MathF.Min(s.MaxHull, s.Hull + u.Rules.NpcHullRegenPerTick * dt);
@@ -236,7 +238,8 @@ public sealed class SecuritySystem : ISimSystem
         var home = u.Stations.GetValueOrDefault(p.HomeBase);
         if (home is null && u.FactionOf(p) is { } f && HomeBaseFor(u, f, p.Sector) is { } h) { p.HomeBase = h.Id; home = h; }
         bool needsBase = p.Hull < u.Rules.RetreatHull * p.MaxHull || u.Rules.FuelActive && p.Stats.FuelCapacity > 0f && p.TotalFuel < 0.3f * p.Stats.FuelCapacity
-            || u.Rules.AmmoActive && p.Stats.AmmoCapacity > 0f && p.AmmoLoaded < u.Rules.AmmoReturnShare * p.Stats.AmmoCapacity;   // Phase 24: Magazin fast leer
+            || u.Rules.AmmoActive && p.Stats.AmmoCapacity > 0f && p.AmmoLoaded < u.Rules.AmmoReturnShare * p.Stats.AmmoCapacity   // Phase 24: Magazin fast leer
+            || u.Rules.DamageActive && NpcRepair.Crippled(u, p);   // Phase 26: Modul ausgefallen oder Brand
         if (home is not null && (needsBase || p.DutySector == default))
         {
             if (p.Sector == home.Sector && Vec2.Distance(p.Position, home.Position) <= u.Rules.StationSafeRadius)

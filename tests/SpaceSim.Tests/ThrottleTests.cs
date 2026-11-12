@@ -50,4 +50,18 @@ public class ThrottleTests
             prev = f;
         }
     }
+
+    [Theory]
+    [InlineData(0.02f, 0f)]
+    [InlineData(0.049f, 0f)]
+    [InlineData(0.05f, 0.05f)]
+    [InlineData(0.5f, 0.5f)]
+    [InlineData(0.95f, 0.95f)]
+    [InlineData(0.96f, 1f)]
+    [InlineData(1.3f, 1f)]
+    public void Snap_Totzone_RastetAufStoppUndMax(float raw, float expected)
+    {
+        // Gerätetest (Phase 26): per Touch blieb der Regler bei 1–3 % stehen, der Autopilot tat dann still nichts
+        Assert.Equal(expected, Throttle.Snap(raw), 4);
+    }
 }

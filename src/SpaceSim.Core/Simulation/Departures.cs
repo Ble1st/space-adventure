@@ -16,6 +16,7 @@ public static class Departures
     {
         if (!u.Ships.ContainsKey(ship.Id)) return;
         u.Events.Publish(new ShipDeparted(ship.Id, ship.Role, ship.Owner, ship.Transit?.ToSector ?? ship.Sector, reason, detail));
+        if (reason == DepartureReason.Destroyed) Wrecks.FromShip(u, ship);   // Phase 26: ein zerstörtes Schiff hinterlässt ein Wrack
         u.RemoveShip(ship.Id, DepartureNames.Key(reason));
     }
 

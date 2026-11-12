@@ -54,9 +54,18 @@ public static class WeaponBays
     /// <summary>Nachladezeit des Spaltlasers in Sekunden (Spielerschacht).</summary>
     public const float SplitReloadSeconds = 2f;
 
-    /// <summary>Schächte eines Schiffs: Laser und Traktor wie bisher, dazu der Spalter, wenn der Fit einen Spaltlaser hat.</summary>
-    public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.ShipStats stats) =>
-        stats.SplitPower > 0f ? PlayerDefault.Append(Splitter).ToList() : PlayerDefault;
+    /// <summary>Phase 26: Bergungsgreifer als eigener Schacht (Module aus Wracks bergen; ein Griff je Auslösung).</summary>
+    public static WeaponBay Salvager { get; } = new() { Key = "salvage", Name = "Bergen", Facing = Facing.Bow, ArcDegrees = 360f, Range = 30f };
+
+    /// <summary>Schächte eines Schiffs: Laser und Traktor wie bisher, dazu der Spalter (Spaltlaser im Fit) und — Phase 26 — „Bergen“ (Fähigkeit Bergung).</summary>
+    public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.ShipStats stats)
+    {
+        if (stats.SplitPower <= 0f && (stats.Capabilities & SpaceSim.Core.Model.Capability.Salvage) == 0) return PlayerDefault;
+        var list = PlayerDefault.ToList();
+        if (stats.SplitPower > 0f) list.Add(Splitter);
+        if ((stats.Capabilities & SpaceSim.Core.Model.Capability.Salvage) != 0) list.Add(Salvager);
+        return list;
+    }
 
     /// <summary>
     /// Phase 25: Schächte eines Schiffs mit Kampfwaffen: zuerst die Bergbauschächte wie bisher (der Mining-Laser nur, wenn das Schiff abbauen kann oder keine

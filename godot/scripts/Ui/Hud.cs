@@ -113,35 +113,65 @@ public partial class Hud : CanvasLayer
 		_toast.Modulate = new Color(1, 1, 1, 0);
 		_toast.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_toast.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
-		_toast.Position = new Vector2(-400, 100); _toast.Size = new Vector2(800, 40);   // Phase 11: unter Lage- und Fahndungszeile des Sektorchips
+		// Gerätetest: schmaler und zweizeilig (ein langer Hinweis überdeckte die Zielkarte), mit dunklem Hintergrund lesbar
+		_toast.Position = new Vector2(-300, 112); _toast.Size = new Vector2(600, 60);
+		_toast.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_toast.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.78f), null, 10, 0, 6));
 		root.AddChild(_toast);
+
+		// Gerätetest: wichtige Meldungen (Überfall, Schiffsverlust, Zeitraffer aus) — kontrastreich, bleiben bis angetippt oder mindestens 6 s
+		_alert.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
+		_alert.Position = new Vector2(-280, 170); _alert.Size = new Vector2(560, 96);
+		_alert.MouseFilter = Control.MouseFilterEnum.Stop;
+		_alert.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(0.22f, 0.04f, 0.04f, 0.96f), UiKit.Red, 12, 3, 12));
+		_alertText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_alertText.HorizontalAlignment = HorizontalAlignment.Center;
+		_alertText.VerticalAlignment = VerticalAlignment.Center;
+		_alertText.AddThemeFontSizeOverride("font_size", 22);
+		_alertText.AddThemeColorOverride("font_color", UiKit.White);
+		_alertText.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_alert.AddChild(_alertText);
+		_alert.Visible = false;
+		_alert.GuiInput += e => { if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) HideAlert(); };
+		root.AddChild(_alert);
 
 		// Panels: Wirtschaft oben rechts, Karte vollflächig; Dock-Bildschirme kommen ans Ende (liegen oben)
 		Economy.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
 		Economy.Position = new Vector2(-470, 10);
 		root.AddChild(Economy);
 		root.AddChild(Map);
-		root.AddChild(Command);
-		root.AddChild(DockMenu);
-		root.AddChild(DockTrade);
-		root.AddChild(DockInfo);
-		root.AddChild(DockHangar);
-		root.AddChild(DockTaxi);
-		root.AddChild(DockRepair);
-		root.AddChild(DockOutfitter);
-		root.AddChild(DockShipyard);
-		root.AddChild(DockStorage);
-		root.AddChild(DockAuthority);
-		root.AddChild(DockResearch);
-		root.AddChild(DockPlaceholder);
-		root.AddChild(CcUniverse);
-		root.AddChild(CcSector);
-		root.AddChild(CcFactions);
-		root.AddChild(CcMyFaction);
-		root.AddChild(CcFleet);
-		root.AddChild(CcAssets);
-		root.AddChild(CcComms);
-		root.AddChild(CcSystem);
+		// Gerätetest (breite Displays): Vollbild-Bildschirme sind für 1280 × 720 gebaut — sie liegen mittig in einer 1280 breiten Fläche, die Ränder deckt
+		// ein dunkler Hintergrund ab (statt schwarzer Balken über das ganze Spiel); Flug-HUD, Karte und Meldungen nutzen die volle Breite
+		_backdrop.Color = new Color(0.01f, 0.02f, 0.05f, 1f);
+		_backdrop.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		_backdrop.Visible = false;
+		root.AddChild(_backdrop);
+		_center.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_center.AnchorLeft = 0.5f; _center.AnchorRight = 0.5f; _center.AnchorTop = 0f; _center.AnchorBottom = 1f;
+		_center.OffsetLeft = -640f; _center.OffsetRight = 640f; _center.OffsetTop = 0f; _center.OffsetBottom = 0f;
+		root.AddChild(_center);
+		_center.AddChild(Command);
+		_center.AddChild(DockMenu);
+		_center.AddChild(DockTrade);
+		_center.AddChild(DockInfo);
+		_center.AddChild(DockHangar);
+		_center.AddChild(DockTaxi);
+		_center.AddChild(DockRepair);
+		_center.AddChild(DockOutfitter);
+		_center.AddChild(DockShipyard);
+		_center.AddChild(DockStorage);
+		_center.AddChild(DockAuthority);
+		_center.AddChild(DockResearch);
+		_center.AddChild(DockPlaceholder);
+		_center.AddChild(CcUniverse);
+		_center.AddChild(CcSector);
+		_center.AddChild(CcFactions);
+		_center.AddChild(CcMyFaction);
+		_center.AddChild(CcFleet);
+		_center.AddChild(CcAssets);
+		_center.AddChild(CcComms);
+		_center.AddChild(CcSystem);
 
 		_flash.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		root.AddChild(_flash);
@@ -149,6 +179,33 @@ public partial class Hud : CanvasLayer
 
 	/// <summary>Ein Modal (Karte, Hamburger-Menü, Dock-Menü/-Bereich) ist offen – Weltzeiger und Tasten bleiben gesperrt.</summary>
 	public bool AnyModalOpen => Map.Visible || Screens.Current != null;
+
+	readonly Control _center = new();
+	readonly ColorRect _backdrop = new();
+	readonly PanelContainer _alert = new();
+	readonly Label _alertText = new();
+	double _alertUntil;
+	/// <summary>Selbsttest: sichtbare wichtige Meldung (leer = keine).</summary>
+	public string TestAlert => _alert.Visible ? _alertText.Text : "";
+
+	/// <summary>
+	/// Gerätetest: wichtige Meldung — rot hinterlegt, groß, bleibt <paramref name="seconds"/> (mindestens 6 s) oder bis sie angetippt wird.
+	/// </summary>
+	public void Alert(string text, float seconds = 6f)
+	{
+		_alertText.Text = text;
+		_alert.Visible = true;
+		double now = Time.GetTicksMsec() / 1000.0;
+		_alertUntil = now + System.Math.Max(6f, seconds);
+	}
+
+	public void HideAlert() => _alert.Visible = false;
+
+	public override void _Process(double delta)
+	{
+		if (_alert.Visible && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
+		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
+	}
 
 	public void Toast(string text, float seconds = 2.5f)
 	{

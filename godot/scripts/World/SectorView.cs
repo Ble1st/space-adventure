@@ -25,6 +25,8 @@ public partial class SectorView : Node3D
 	sealed class RockNode { public MeshInstance3D Node = null!; public float Scale; public float Spin; public Vector3 Pos; public float Radius; }
 	readonly Dictionary<int, RockNode> _rocks = new();
 	readonly Dictionary<ShipId, Marker> _markers = new();
+	/// <summary>Phase 26: angezeigte Wracks und Frachtbehälter (Id → Knoten), abgeglichen mit <see cref="Universe.Wrecks"/>.</summary>
+	readonly Dictionary<int, Node3D> _wrecks = new();
 
 	public List<Obstacle> Obstacles { get; private set; } = new();
 	public List<(GateId Id, Vector3 Pos)> Gates { get; } = new();
@@ -45,7 +47,7 @@ public partial class SectorView : Node3D
 		_root?.QueueFree();
 		_root = new Node3D { Name = "Sector" };
 		AddChild(_root);
-		_gateRings.Clear(); _rocks.Clear(); _markers.Clear(); Gates.Clear(); Targets.Clear();
+		_gateRings.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); Gates.Clear(); Targets.Clear();
 
 		var sector = u.Sectors[_sector];
 		foreach (var sid in sector.Stations) BuildStation(u.Stations[sid]);
@@ -163,6 +165,9 @@ public partial class SectorView : Node3D
 				var pivot = new Node3D { Position = target };
 				var hull = Gfx.Mesh(new PrismMesh { Size = new Vector3(2f, 3f, 0.8f) }, Gfx.Mat(color, 1f), Vector3.Zero, pivot);
 				hull.RotationDegrees = new Vector3(-90, 0, 0);
+				// Gerätetest: flacher, leuchtender Ring unter jedem fremden Schiff — auch bei weiter Kamera gut sichtbar (vorher nur kleine Pfeile)
+				var ring = Gfx.Mesh(new TorusMesh { InnerRadius = 2.6f, OuterRadius = 3.1f, Rings = 24, RingSegments = 6 }, Gfx.Mat(color, 1.2f, 0f), new Vector3(0, -0.3f, 0), pivot);
+				ring.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 				_root.AddChild(pivot);
 				_markers[s.Id] = m = new Marker { Pivot = pivot };
 			}
@@ -242,6 +247,41 @@ public partial class SectorView : Node3D
 		root.AddChild(Gfx.Label($"Jumpgate → {target.Name}", new Vector3(0, 8, 0)));
 		Gates.Add((g.Id, pos));
 		Targets.Add(new PickTarget("gate", g.Id.Value, pos, $"Gate → {target.Name}"));
+	}
+
+	/// <summary>Phase 26: Zahl der angezeigten Wracks/Behälter (Selbsttest).</summary>
+	public int WreckCount => _wrecks.Count;
+
+	/// <summary>
+	/// Phase 26: gleicht Wracks (dunkle, schräg liegende Trümmer mit Beschriftung) und Frachtbehälter (kleine orange Kisten) mit den Core-Daten des Sektors ab.
+	/// Keine Kollision (kein Hindernis), nur Darstellung.
+	/// </summary>
+	public void SyncWrecks(Universe u)
+	{
+		var live = new HashSet<int>();
+		foreach (var w in u.Wrecks)
+		{
+			if (w.Sector != _sector) continue;
+			live.Add(w.Id);
+			if (_wrecks.ContainsKey(w.Id)) continue;
+			bool container = w.Kind == WreckKind.Container;
+			var node = new Node3D { Name = $"Wreck{w.Id}", Position = new Vector3(w.Position.X, 0, w.Position.Y) };
+			_root.AddChild(node);
+			var mat = Gfx.Mat(container ? new Color(1f, 0.6f, 0.15f) : new Color(0.35f, 0.33f, 0.3f), container ? 0.6f : 0.05f, 0.4f);
+			if (container) Gfx.Mesh(new BoxMesh { Size = new Vector3(1.4f, 1.4f, 1.4f) }, mat, Vector3.Zero, node);
+			else
+			{
+				Gfx.Mesh(new BoxMesh { Size = new Vector3(3.2f, 0.8f, 1.4f) }, mat, Vector3.Zero, node).Rotation = new Vector3(0.3f, w.Id * 0.7f, 0.2f);
+				Gfx.Mesh(new BoxMesh { Size = new Vector3(1.4f, 0.6f, 2.2f) }, mat, new Vector3(1.6f, 0.2f, 0.8f), node).Rotation = new Vector3(-0.4f, w.Id * 1.3f, 0f);
+			}
+			node.AddChild(Gfx.Label(container ? "Frachtbehälter" : "Wrack", new Vector3(0, 3, 0)));
+			_wrecks[w.Id] = node;
+		}
+		foreach (var id in _wrecks.Keys.Where(id => !live.Contains(id)).ToList())
+		{
+			_wrecks[id].QueueFree();
+			_wrecks.Remove(id);
+		}
 	}
 
 	void BuildFieldMarker(Universe u, ResourceField f)

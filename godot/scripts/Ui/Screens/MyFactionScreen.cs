@@ -54,7 +54,9 @@ public sealed partial class MyFactionScreen : CommandScreen
 		var b = CardBg(inner, 524, 12, 486, 250, Card);
 		At(b, Text("Kasse der Person", 18, Cyan), 20, 14, 446, 26);
 		// Phase 5b: das Geld hängt an der Person (Universe.PlayerWallet), nicht am Schiff (POLITIK.md „Spielerkasse“)
-		At(b, Text($"{(int)u.PlayerWallet.Credits} Cr", 26, Orange, HorizontalAlignment.Right), 20, 42, 446, 34);
+		// Phase 26: negative Kasse = Schulden (laufende Leihmiete)
+		At(b, Text(u.PlayerWallet.Credits < 0f ? $"Schulden: {(int)-u.PlayerWallet.Credits} Cr" : $"{(int)u.PlayerWallet.Credits} Cr", 26,
+			u.PlayerWallet.Credits < 0f ? Red : Orange, HorizontalAlignment.Right), 20, 42, 446, 34);
 		WrappedText(b, "Spielerkasse (echt): Geld der Person, nicht des Schiffs – Handel, Tanken und Reparatur buchen hierauf", 20, 80, 446, 12, new Color(Dim, 0.75f), 16);
 		Row(b, 20, 126, 446, "Unterhalt Schiffe/Tag", UiPlaceholders.MyFactionUpkeep, 14);
 		Row(b, 20, 150, 446, "Liegegebühr/Tag (fremde St.)", $"−{SpaceSim.Core.Simulation.Hangar.BerthFeesPerDay(u, u.PlayerActor):0} Cr/Tag", 14);   // Phase 12 echt
@@ -97,12 +99,15 @@ public sealed partial class MyFactionScreen : CommandScreen
 			("Verbände führen", capSquads > 0, $"bis {capSquads} Verbände"),
 			("Taxi, Hangar, Leihschiff", true, "an Stationen mit Dienst"),
 		}.Concat(UiPlaceholders.MyFactionAbilities);
-		foreach (var (name, unlocked, note) in abilities)
+		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand
+		var list = abilities.ToList();
+		float step = MathF.Min(30f, (perm.Size.Y - ay - 12f) / MathF.Max(1, list.Count));
+		foreach (var (name, unlocked, note) in list)
 		{
 			At(perm, Text(unlocked ? "✓" : "🔒", 15, unlocked ? Green : Dim), 20, ay, 24, 20);
-			At(perm, Text(name, 15, unlocked ? White : Dim), 48, ay, 250, 20);
-			At(perm, Text(note, 12, new Color(Dim, 0.8f), HorizontalAlignment.Right), 300, ay, 166, 20);
-			ay += 30;
+			At(perm, Text(name, 15, unlocked ? White : Dim), 48, ay, 230, 20);
+			At(perm, Text(note, 12, new Color(Dim, 0.8f), HorizontalAlignment.Right), 282, ay, 172, 20);
+			ay += step;
 		}
 	}
 }

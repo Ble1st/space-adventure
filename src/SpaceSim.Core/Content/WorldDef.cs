@@ -412,6 +412,30 @@ public sealed class StartOptionDef
     public string Model { get; set; } = "";
     public float Credits { get; set; } = 500;
     public int? Sector { get; set; }
+    /// <summary>Gerätetest (Phase 26): Testszenario — klar als Test markierter Start mit vorbereiteter Lage (siehe <see cref="ScenarioDef"/>); null = normales Paket.</summary>
+    public ScenarioDef? Scenario { get; set; }
+}
+
+/// <summary>
+/// Gerätetest (Phase 26): vorbereitete Lage eines Testszenarios — damit lassen sich Kampf, Schaden, Reparatur und Bergung in Minuten per Touch prüfen.
+/// Alles optional; angewandt von <see cref="StartScenario.Apply"/>.
+/// </summary>
+public sealed class ScenarioDef
+{
+    /// <summary>Eigener Fit des Startschiffs (Modulschlüssel je Slot), geprüft mit <c>FitRules</c>.</summary>
+    public List<string?>? Fit { get; set; }
+    /// <summary>Stationstyp, neben dem das Schiff startet (im Startsektor, sonst irgendwo).</summary>
+    public string? Station { get; set; }
+    /// <summary>Beschädigte Module (Modulschlüssel → Zustand 0..1).</summary>
+    public Dictionary<string, float>? Damage { get; set; }
+    /// <summary>Modul, das beim Start brennt.</summary>
+    public string? Fire { get; set; }
+    /// <summary>Ein Wrack in Bergungsreichweite (Fracht und ein bergbares Modul).</summary>
+    public bool Wreck { get; set; }
+    /// <summary>Ein Kaperschiff (Gesetzloser) in Sichtweite.</summary>
+    public bool Outlaw { get; set; }
+    /// <summary>Fracht beim Start (Warenschlüssel → Einheiten), z. B. Munition.</summary>
+    public Dictionary<string, float>? Cargo { get; set; }
 }
 
 public sealed class PlayerDef
