@@ -278,6 +278,13 @@ public sealed partial class UniverseScreen : CommandScreen
 				DrawArc(p, rNode, 0, Mathf.Tau, 32, halo, s.Id == sel ? 5f : 3f, true);
 				if (s.Id == _u.PlayerSector) DrawArc(p, rNode + 8f, 0, Mathf.Tau, 32, White, 3f, true);
 				if (s.Id == sel) DrawArc(p, rHalo - 4f, 0, Mathf.Tau, 32, Cyan, 2f, true);
+				// Phase 24: laufendes Gefecht im Sektor — rotes Kreuz am Knoten (in allen Ebenen)
+				if (SpaceSim.Core.Combat.CombatInfo.CountIn(_u, s.Id) > 0)
+				{
+					var cx = p + new Vector2(rNode * 0.75f, -rNode * 0.75f);
+					DrawLine(cx + new Vector2(-6, -6), cx + new Vector2(6, 6), Red, 3f);
+					DrawLine(cx + new Vector2(-6, 6), cx + new Vector2(6, -6), Red, 3f);
+				}
 				var font = ThemeDB.FallbackFont;
 				// Phase 21: ohne „Sektor “, damit lange Namen (Hephaistos) in die Spalte passen
 				DrawString(font, p + new Vector2(-70, -6), s.Name.Replace("Sektor ", ""), HorizontalAlignment.Center, 140, 16, White);
@@ -286,6 +293,7 @@ public sealed partial class UniverseScreen : CommandScreen
 					UniverseScreen.Layer.Prices => $"{SectorEconomy.PriceLevel(_u, s.Id):0.00}× · {s.Stations.Count} St.",
 					UniverseScreen.Layer.Security => s.Access.Level(AccessDirection.Entry) > 0
 						? $"Stufe {s.Access.Level(AccessDirection.Entry)} · {AccessNames.Level(s.Access.Level(AccessDirection.Entry))}"
+						: SpaceSim.Core.Combat.CombatInfo.CountIn(_u, s.Id) is var nf and > 0 ? $"Gefecht{(nf > 1 ? $" ×{nf}" : "")} · Bedr. {SecurityNames.Threat(s.Threat)}"   // Phase 24
 						: $"Sich. {SecurityNames.Security(s.Security)} · Bedr. {SecurityNames.Threat(s.Threat)}",   // Phase 21: kurz, 11 Sektoren nebeneinander
 					UniverseScreen.Layer.Ships => $"{ShipCountOf(_u, s.Id)} Schiffe · {s.Stations.Count} St.",
 					_ => $"{FactionName(_u, s.Owner)} · {AccessNames.Stage(s.Control)}{(s.Contested ? " · umkämpft" : "")}",

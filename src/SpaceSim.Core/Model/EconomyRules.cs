@@ -80,6 +80,11 @@ public sealed class EconomyRules
     public int JobMinTicks = 600;
     /// <summary>Hysterese: Eine andere Aufgabe muss um diesen Anteil besser sein als die aktuelle, damit ein Wechsel stattfindet.</summary>
     public float JobSwitchMargin = 0.25f;
+    /// <summary>
+    /// Phase 24 (Korrektur): ein Aufgabenwechsel braucht eine Mindestbewertung der neuen Aufgabe (Cr/Tick); im Torlauf wechselten zwei Tinker 34–42-mal
+    /// zwischen Bewertungen von 0 und 0,1 hin und her. 0 = aus.
+    /// </summary>
+    public float JobMinSwitchScore = 0.5f;
     /// <summary>Herdenschutz auf Aufgabenebene: Bewertung × 1 / (1 + Faktor × Auslastung der Aufgabe), Auslastung = belegte Kapazität ÷ Grenze.</summary>
     public float JobCrowdPenalty = 0.5f;
 
@@ -637,4 +642,69 @@ public sealed class EconomyRules
     /// Weltdatei lässt Rezepte und Lagerposten von Munition weg (<see cref="Simulation.FeatureSwitches"/>). In Phase 23 verbraucht noch niemand Munition.
     /// </summary>
     public bool AmmoActive = true;
+
+    // ───────── Phase 24: Trefferregel und Rundengefecht (KAMPF.md Abschnitte 3.3, 3.4, 4.1, 4.2, 4.2a) ─────────
+    /// <summary>Überfälle und Abfangen zwischen NPCs laufen als Rundengefecht (<see cref="Combat.CombatSystem"/>). false = Sofortauflösung über <see cref="Universe.Encounters"/> (Regel bis Phase 23, Testhilfe).</summary>
+    public bool CombatRounds = true;
+    /// <summary>Höchstdauer eines Gefechts in Ticks (240 = 60 s); danach brechen alle ab.</summary>
+    public int CombatMaxTicks = 240;
+    /// <summary>Anfangsabstand zwischen Angreifer und Opfer (Kaperer aus dem Hinterhalt, Streife stellt den Lauerer).</summary>
+    public float CombatStartDistance = 30f;
+    /// <summary>Helfer (Polizei beim Überfall) stoßen so viel weiter hinten zum Gefecht.</summary>
+    public float CombatHelperDistance = 30f;
+    /// <summary>Wer flieht, ist entkommen, wenn ihn kein Gegner mehr erreicht: Abstand größer als die Reichweite jedes aktiven Gegners, mindestens dieser Wert.</summary>
+    public float CombatMinEscapeDistance = 30f;
+    /// <summary>Trefferregel: Trefferchance fällt bis zur Reichweite um diesen Anteil (quadratisch im Abstandsverhältnis).</summary>
+    public float HitRangeFalloff = 0.5f;
+    /// <summary>Trefferregel: Zieltempo, gegen das „tracking“ gemessen wird (Einheiten je Sekunde).</summary>
+    public float HitTrackingSpeedRef = 10f;
+    /// <summary>Trefferregel: Grenzen der Trefferchance (auch ein schlechter Schuss trifft manchmal, kein Schuss sicher).</summary>
+    public float HitChanceMin = 0.05f;
+    public float HitChanceMax = 0.95f;
+    /// <summary>Trefferregel: Schaden streut ± diesen Anteil.</summary>
+    public float HitDamageSpread = 0.2f;
+    /// <summary>Schadensart gegen Schild (Faktor auf den Schaden, den der Schild abfängt): Energie stark, kinetisch schwach.</summary>
+    public float EnergyVsShield = 1.25f;
+    public float KineticVsShield = 0.6f;
+    /// <summary>Panzerung zieht je Treffer Panzerwert × diesen Anteil ab, gewichtet nach Art (Energie prallt stärker ab).</summary>
+    public float ArmorPerHitShare = 0.05f;
+    public float EnergyVsArmor = 1.5f;
+    public float KineticVsArmor = 0.5f;
+    /// <summary>Zielgröße (Signatur) je Klassengröße S, M, L, XL: große Schiffe sind auch schnell leichter zu treffen.</summary>
+    public List<float> CombatSignature = new() { 1f, 1.5f, 2.2f, 3f };
+    /// <summary>Feuerwinkel als fester Abschlag je Waffe: Faktor 1 − Abschlag × (1 − Winkel/360) (Turm 360° ohne Abschlag).</summary>
+    public float CombatArcPenalty = 0.2f;
+    /// <summary>Auf der Flucht feuern Waffen mit Bugwinkel (&lt; 180°) nur mit diesem Faktor (sie zeigen in die falsche Richtung).</summary>
+    public float CombatFleeFireFactor = 0.5f;
+    /// <summary>Gewünschter Abstand im Gefecht als Anteil der eigenen größten Reichweite.</summary>
+    public float CombatPreferredRange = 0.7f;
+    /// <summary>Kaperer flieht unter diesem Hüllenanteil …</summary>
+    public float RaiderFleeHull = 0.5f;
+    /// <summary>… oder wenn die eigene Seite schwächer ist als dieser Anteil der Gegenseite (Stärke nach <see cref="Simulation.CombatRules.Strength(Ship)"/>).</summary>
+    public float RaiderFleeRatio = 0.6f;
+    /// <summary>Polizei zieht sich unter diesem Hüllenanteil zurück (sonst hält sie stand).</summary>
+    public float PoliceRetreatHull = 0.3f;
+    /// <summary>Begleiter ziehen sich unter diesem Hüllenanteil zurück.</summary>
+    public float EscortRetreatHull = 0.3f;
+    /// <summary>Händler wehrt sich, wenn er bewaffnet ist und seine Seite mindestens so stark ist wie dieser Anteil der Gegenseite; sonst flieht er.</summary>
+    public float TraderFightRatio = 0.8f;
+    /// <summary>Mut eines Händlers: Hüllenanteil, unter dem er Fracht abwirft, gleichverteilt zwischen diesen Werten (beim Eintritt gewürfelt).</summary>
+    public float SurrenderHullMin = 0.05f;
+    public float SurrenderHullMax = 0.6f;
+    /// <summary>Anteil der Fracht, den ein Händler beim Aufgeben abwirft, gleichverteilt zwischen diesen Werten (beim Eintritt gewürfelt; ersetzt LootMin/LootMax im Rundengefecht).</summary>
+    public float SurrenderDropMin = 0.4f;
+    public float SurrenderDropMax = 0.7f;
+    /// <summary>Waffen mit Munition feuern nur ab dieser Trefferchance (Munition sparen auf große Entfernung); 0 = immer.</summary>
+    public float AmmoMinHitChance = 0.3f;
+    /// <summary>
+    /// Bewaffnete Händler (KAMPF.md 4.2a): die KI-Flotte wertet ein bewaffnetes Modell beim Kauf um (1 + dieser Faktor × Risiko × Bewaffnung) auf; Risiko =
+    /// mittleres Routenrisiko der Lagekarte ab dem Kaufsektor, Bewaffnung = Waffenstärke ÷ 6 (höchstens 1). 0 = Bewaffnung zählt nicht.
+    /// </summary>
+    public float ArmedTraderWeight = 40f;
+    /// <summary>Kaperer meiden bewaffnete Opfer: Gewicht der Beute ÷ (1 + dieser Faktor × Waffenstärke ÷ 6).</summary>
+    public float RaiderArmedAversion = 1f;
+    /// <summary>Munition ohne Lager (Piratenversteck, Heimatbasis ohne Munition): Preis je Einheit = Basispreis × dieser Faktor (Geldsenke wie die Reparatur dort).</summary>
+    public float AmmoBaseMarkup = 1f;
+    /// <summary>Polizei kehrt zum Nachladen heim, wenn das Magazin unter diesen Anteil fällt.</summary>
+    public float AmmoReturnShare = 0.3f;
 }

@@ -275,17 +275,21 @@ public class Phase23Tests
     {
         var u = Standard();
         var p = Police(u);
-        Assert.Null(p.Fit[p.Slots.FindIndex(s => s.Type == "utility")]);   // der Wächter hat einen freien Utility-Slot
-        p.Fit[p.Slots.FindIndex(s => s.Type == "utility")] = "weapon_magazine_s";
-        p.RecomputeStats(u);
-        Assert.Equal(60f, p.Stats.AmmoCapacity);
-        Assert.Equal(60f, ShipSystems.Ammo(u, p));   // neu = voll
-        p.Systems.AmmoMissing = 45f;
+        // Phase 24: der Wächter trägt ein kinetisches Geschütz (30 Schuss) und das Munitionsmagazin (60) im Utility-Slot
+        int util = p.Slots.FindIndex(s => s.Type == "utility"), gun = p.Fit.IndexOf("weapon_massdriver_s");
+        Assert.Equal("weapon_magazine_s", p.Fit[util]);
+        Assert.True(gun >= 0);
+        Assert.Equal(90f, p.Stats.AmmoCapacity);
+        Assert.Equal(90f, ShipSystems.Ammo(u, p));   // neu = voll
+        p.Systems.AmmoMissing = 75f;
         Assert.Equal(15f, ShipSystems.Ammo(u, p));
         u.Rules.AmmoActive = false;
-        Assert.Equal(60f, ShipSystems.Ammo(u, p));   // abgeschaltet: Magazine gelten als voll
-        // Fehlbetrag wird auf die Kapazität begrenzt (Ausbau)
-        p.Fit[p.Slots.FindIndex(s => s.Type == "utility")] = null;
+        Assert.Equal(90f, ShipSystems.Ammo(u, p));   // abgeschaltet: Magazine gelten als voll
+        // Fehlbetrag wird auf die Kapazität begrenzt (Ausbau des Magazins: 30 bleiben im Geschütz, ohne Geschütz 0)
+        p.Fit[util] = null;
+        p.RecomputeStats(u);
+        Assert.Equal(30f, p.Systems.AmmoMissing);
+        p.Fit[gun] = null;
         p.RecomputeStats(u);
         Assert.Equal(0f, p.Systems.AmmoMissing);
 

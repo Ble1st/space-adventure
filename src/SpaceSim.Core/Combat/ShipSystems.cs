@@ -78,10 +78,33 @@ public static class ShipSystems
     /// <summary>Fehlt dem Schiff Schild oder Ladung?</summary>
     public static bool NeedsRecovery(Ship ship) => NeedsRecovery(ship.Stats, ship.Systems);
 
-    /// <summary>Meldet das Schiff zur Erholung an, wenn ihm etwas fehlt (sonst nichts).</summary>
+    /// <summary>
+    /// Phase 24 (Prüfung Phase 23): Kann sich das, was fehlt, überhaupt erholen? Ohne Reaktorüberschuss lädt weder Schild noch Bank; ein Schild ohne
+    /// shieldRegen lädt nie. Solche Schiffe bleiben nicht im Erholungsindex (sonst stünden sie dort für immer); ein Modulwechsel weckt sie wieder
+    /// (<see cref="Ship.RecomputeStats"/>). Rein.
+    /// </summary>
+    public static bool CanRecover(ShipStats s, ShipSystemsState st)
+    {
+        if (Surplus(s) <= 0f) return false;
+        return (st.ShieldMissing > 0f && s.Shield > 0f && s.ShieldRegen > 0f) || (st.ChargeMissing > 0f && s.PowerStorage > 0f);
+    }
+
+    /// <summary>Gehört das Schiff in den Erholungsindex (es fehlt etwas, und es kann sich erholen)?</summary>
+    public static bool Recovers(Ship ship) => NeedsRecovery(ship) && CanRecover(ship.Stats, ship.Systems);
+
+    /// <summary>Meldet das Schiff zur Erholung an, wenn ihm etwas fehlt und es sich erholen kann (sonst nichts).</summary>
     public static void Wake(Universe u, Ship ship)
     {
-        if (NeedsRecovery(ship)) u.Recovering.Add(ship.Id);
+        if (Recovers(ship)) u.Recovering.Add(ship.Id);
+    }
+
+    /// <summary>Phase 24: Schaden am Schild (aus der Trefferregel, schon nach Schadensart umgerechnet): Fehlbetrag steigt, Pause beginnt, Erholung angemeldet.</summary>
+    public static void TakeShield(Universe u, Ship ship, float amount)
+    {
+        if (amount <= 0f || ship.Stats.Shield <= 0f) return;
+        ship.Systems.ShieldMissing = MathF.Min(ship.Stats.Shield, ship.Systems.ShieldMissing + amount);
+        ship.Systems.ShieldPauseUntil = u.Tick + u.Rules.ShieldDelayTicks;
+        Wake(u, ship);
     }
 
     /// <summary>
@@ -100,7 +123,7 @@ public static class ShipSystems
         return damage - taken;
     }
 
-    /// <summary>Entnimmt Ladung aus der Speicherbank (künftig: Spitzenlast je Schuss). Liefert, wie viel entnommen wurde.</summary>
+    /// <summary>Entnimmt Ladung aus der Speicherbank (Phase 24: Spitzenlast je Schuss). Liefert, wie viel entnommen wurde.</summary>
     public static float Drain(Universe u, Ship ship, float amount)
     {
         float take = MathF.Min(MathF.Max(0f, amount), ship.Charge);

@@ -322,7 +322,7 @@ public class OpenPointsTests
         foreach (var (id, v) in flow) if (!u.Actors.ContainsKey(id)) Assert.InRange(start.GetValueOrDefault(id) + v, -1, 1);
         Assert.True(checkedActors >= 4);
         // die geprüften Wege kamen im Lauf wirklich vor: Polizei, Piraten, Instandhaltung, Subvention, Regierungsunterhalt, Hehlerei; die Bremse griff
-        foreach (var p in new[] { "-police", "-pirates", "-maintenance", "-subsidy", "-government", "+fence" }) Assert.Contains(p, purposes);
+        foreach (var p in new[] { "-police", "-pirates", "-maintenance", "-subsidy", "-government", "+fence", "-ammo" }) Assert.Contains(p, purposes);
         Assert.True(sunk > 0);
     }
 

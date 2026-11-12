@@ -30,6 +30,7 @@ public sealed class PirateSystem : ISimSystem
 
     static void StepRaider(Universe u, Ship raider, int dt)
     {
+        if (u.Fights.IsEngaged(raider.Id)) return;   // Phase 24: im Gefecht entscheidet die Taktik
         if (raider.Transit is { } t)
         {
             if (u.Tick < t.ArrivalTick) return;
@@ -108,9 +109,10 @@ public sealed class PirateSystem : ISimSystem
             owner.Treasury.Credits -= units * good.BasePrice;
         }
         if (spent > 0f) u.Events.Publish(new TreasuryUpkeep(owner.Id, purpose, spent, 0f));
+        Combat.Rearm.AtHome(u, s, u.Stations.GetValueOrDefault(s.HomeBase));   // Phase 24: Munition aus der Kasse nachladen
     }
 
-    static void GoHome(Universe u, Ship raider)
+    public static void GoHome(Universe u, Ship raider)
     {
         var home = Home(u, raider);
         if (home is null) { raider.Order = null; raider.NextThinkTick = u.Tick + 200; return; }
@@ -154,7 +156,7 @@ public sealed class PirateSystem : ISimSystem
         var ids = u.Tracker.ParkedIn(sector).Concat(u.Tracker.TransitIn(sector)).Distinct().OrderBy(i => i.Value);
         foreach (var id in ids)
         {
-            if (!u.Ships.TryGetValue(id, out var s) || ThreatMap.IsPolice(s) || ThreatMap.IsRaider(s)) continue;
+            if (!u.Ships.TryGetValue(id, out var s) || ThreatMap.IsPolice(s) || ThreatMap.IsRaider(s) || u.Fights.IsEngaged(s.Id)) continue;
             bool player = s.IsPlayer;
             // Phase 12: nicht aktive Spielerschiffe (Flotte) nur mit FleetRaids, das aktive nur mit PlayerRaids im Spielersektor
             if (player && s.Id == u.PlayerShip && (!u.Rules.PlayerRaids || u.PlayerSector != sector)) continue;
@@ -163,7 +165,9 @@ public sealed class PirateSystem : ISimSystem
             if (where != sector || ThreatMap.NearStation(u, sector, pos)) continue;
             float value = ThreatMap.CargoValue(u, s);
             if (value < u.Rules.MinLootValue) continue;
-            list.Add((s, player ? value * u.Rules.PlayerRaidWeight : value));
+            // Phase 24: Kaperer meiden bewaffnete Opfer (Waffenstärke ÷ 6, gewichtet)
+            float aversion = 1f + u.Rules.RaiderArmedAversion * MathF.Min(2f, s.Stats.WeaponPower / 6f);
+            list.Add((s, (player ? value * u.Rules.PlayerRaidWeight : value) / aversion));
         }
         return list;
     }
@@ -175,7 +179,7 @@ public sealed class PirateSystem : ISimSystem
         if (!u.Sectors.TryGetValue(sector, out var sec)) return list;
         var ids = u.Tracker.ParkedIn(sector).Concat(u.Tracker.TransitIn(sector)).Distinct().OrderBy(i => i.Value);
         foreach (var id in ids)
-            if (u.Ships.TryGetValue(id, out var s) && ThreatMap.IsPolice(s) && u.FactionOf(s) == sec.Owner && ThreatMap.Where(u, s).Sector == sector) list.Add(s);
+            if (u.Ships.TryGetValue(id, out var s) && ThreatMap.IsPolice(s) && u.FactionOf(s) == sec.Owner && !u.Fights.IsEngaged(s.Id) && ThreatMap.Where(u, s).Sector == sector) list.Add(s);
         return list;
     }
 
@@ -198,7 +202,9 @@ public sealed class PirateSystem : ISimSystem
                 $"Piraten! {u.ActorName(raider.Owner)} nimmt Kurs auf dich — andocken oder den Sektor verlassen ({u.Rules.PlayerWarningTicks / SimClock.TicksPerSecond:0} s)."));
             return;
         }
-        ResolveRaid(u, raider, victim, sector);
+        // Phase 24: NPC-Opfer (auch Flottenschiffe des Spielers) im Rundengefecht; die Sofortauflösung bleibt als Schalter und für das aktive Spielerschiff
+        if (u.Rules.CombatRounds) Combat.Engage.StartRaid(u, raider, victim, sector);
+        else ResolveRaid(u, raider, victim, sector);
     }
 
     /// <summary>
@@ -213,7 +219,7 @@ public sealed class PirateSystem : ISimSystem
         bool own = victim.IsPlayer;                // Spielerschiffe gehen nie verloren (Hüllenboden)
         var defenders = new List<Ship> { victim };
         // Phase 12: Eskorten und Wachen (Regel Verteidigen/Angriff) stehen dem Opfer bei
-        var escorts = FleetGuards.Escorts(u, victim, sector.Id);
+        var escorts = FleetGuards.Escorts(u, victim, sector.Id).Where(s => !u.Fights.IsEngaged(s.Id)).ToList();
         defenders.AddRange(escorts);
         var police = PoliceIn(u, sector.Id);
         ShipId helper = default;
@@ -296,11 +302,13 @@ public sealed class PirateSystem : ISimSystem
     static bool TryIntercept(Universe u, Ship raider, int dt)
     {
         var police = PoliceIn(u, raider.Sector);
-        var hunters = FleetGuards.Hunters(u, raider.Sector);   // Phase 12: Streifen/Wachen mit Regel „Angriff“
+        var hunters = FleetGuards.Hunters(u, raider.Sector).Where(s => !u.Fights.IsEngaged(s.Id)).ToList();   // Phase 12: Streifen/Wachen mit Regel „Angriff“
         int n = police.Count + hunters.Count;
         if (n == 0) return false;
         if (u.Rng.NextDouble() >= u.Rules.InterceptRatePerTick * dt * n) return false;
-        Intercept(u, police.Count > 0 ? police[0] : hunters[0], raider);
+        var hunter = police.Count > 0 ? police[0] : hunters[0];
+        if (u.Rules.CombatRounds) Combat.Engage.StartIntercept(u, hunter, raider);   // Phase 24: Rundengefecht
+        else Intercept(u, hunter, raider);
         return true;
     }
 

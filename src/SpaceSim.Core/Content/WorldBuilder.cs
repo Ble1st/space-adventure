@@ -608,6 +608,7 @@ public static class WorldBuilder
                 Grants = grants, Stats = new Dictionary<string, float>(md.Stats),
                 PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw, Mass = md.Mass, Upkeep = md.Upkeep,
                 Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost, FuelTypes = fuel,
+                DamageType = ParseWeapon(md),
             };
             if (!u.Modules.TryAdd(md.Key, module)) throw new WorldFormatException($"Modul '{md.Key}' doppelt");
         }
@@ -771,6 +772,36 @@ public static class WorldBuilder
         "liquid" => GoodForm.Liquid,
         _ => throw new WorldFormatException($"Ware '{goodKey}': unbekannte Form '{form}'"),
     };
+
+    static readonly string[] WeaponStats = { "damage", "reload", "range", "accuracy", "tracking", "ammoPerShot" };
+
+    /// <summary>
+    /// Phase 24: Waffenwerte eines Moduls prüfen und die Schadensart lesen. Eine Waffe hat damage &gt; 0, reload &gt; 0, range &gt; 0, accuracy und tracking in
+    /// (0, 1], ammoPerShot ≥ 0 und eine Schadensart (energy/kinetic); einzelne Waffenwerte oder eine Schadensart ohne damage sind ein Fehler.
+    /// </summary>
+    static DamageType ParseWeapon(ModuleDef md)
+    {
+        string who = $"Modul '{md.Key}'";
+        float Get(string k) => md.Stats.TryGetValue(k, out var v) ? v : 0f;
+        bool weapon = md.Stats.ContainsKey("damage");
+        if (!weapon)
+        {
+            foreach (var k in WeaponStats)
+                if (md.Stats.ContainsKey(k)) throw new WorldFormatException($"{who}: Waffenwert '{k}' ohne damage");
+            if (md.DamageType is not null) throw new WorldFormatException($"{who}: damageType ohne damage");
+            return DamageType.Energy;
+        }
+        if (Get("damage") <= 0f) throw new WorldFormatException($"{who}: damage muss > 0 sein");
+        if (Get("reload") <= 0f) throw new WorldFormatException($"{who}: reload muss > 0 sein");
+        if (Get("range") <= 0f) throw new WorldFormatException($"{who}: range muss > 0 sein");
+        if (Get("accuracy") <= 0f || Get("accuracy") > 1f) throw new WorldFormatException($"{who}: accuracy muss in (0, 1] liegen");
+        if (Get("tracking") <= 0f || Get("tracking") > 1f) throw new WorldFormatException($"{who}: tracking muss in (0, 1] liegen");
+        if (Get("ammoPerShot") < 0f) throw new WorldFormatException($"{who}: ammoPerShot muss >= 0 sein");
+        if (md.DamageType is null) throw new WorldFormatException($"{who}: damageType fehlt (energy oder kinetic)");
+        if (!Enum.TryParse<DamageType>(md.DamageType, ignoreCase: true, out var dt) || !Enum.IsDefined(dt))
+            throw new WorldFormatException($"{who}: unbekannte damageType '{md.DamageType}' (energy oder kinetic)");
+        return dt;
+    }
 
     static SlotSize ParseSize(string size, string owner) => size.ToUpperInvariant() switch
     {

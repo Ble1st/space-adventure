@@ -59,6 +59,10 @@ public sealed class ShipStats
     public float ShieldRegen;
     /// <summary>Phase 23: Magazin für Munition (Summe stats ammoCapacity: Magazinmodul, künftig Geschütze), getrennt vom Laderaum wie der Tank.</summary>
     public float AmmoCapacity;
+    /// <summary>Phase 24: Panzerung (Summe stats armor; steckt auch in <see cref="Hull"/>) — zieht je Treffer einen festen Betrag ab (<see cref="Combat.Hit"/>).</summary>
+    public float Armor;
+    /// <summary>Phase 24: Waffenstärke je Schaden pro Sekunde (abgeleitete Kennzahl aus den Waffenwerten: Schaden × Treffsicherheit ÷ Nachladezeit × dieser Faktor).</summary>
+    public const float WeaponPowerPerDps = 2f;
 
     /// <summary>
     /// Berechnet die Werte eines Schiffs aus seiner Klasse und dem Fit (ein Eintrag je Slot, null = leer).
@@ -96,7 +100,7 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // Phase 4b: Verbrauchsrate des Antriebs
             if (m.Stats.TryGetValue("splitPower", out var split)) s.SplitPower += split;      // Phase 8: Spaltlaser
             if (m.Stats.TryGetValue("stealth", out var stealth)) s.Stealth += stealth;        // Phase 10: Tarnung (Entdeckung)
-            if (m.Stats.TryGetValue("weaponPower", out var wp)) s.WeaponPower += wp;          // Phase 11: Waffen (abstrakte Begegnungen)
+            s.WeaponPower += WeaponPowerOf(m);                                                // Phase 11/24: Waffen (Kennzahl für Stärke und KI)
             if (m.Stats.TryGetValue("shieldCapacity", out var sh)) s.Shield += sh;            // Phase 11: Schild zählt in der Stärke
             if (m.Stats.TryGetValue("shieldRegen", out var regen)) s.ShieldRegen += regen;    // Phase 23: Schild lädt nach
             if (m.Stats.TryGetValue("ammoCapacity", out var ammo)) s.AmmoCapacity += ammo;    // Phase 23: Magazin
@@ -116,7 +120,7 @@ public sealed class ShipStats
                     default: s.CargoAny += capacity; break;
                 }
             }
-            if (m.Stats.TryGetValue("armor", out var armor)) s.Hull += armor;
+            if (m.Stats.TryGetValue("armor", out var armor)) { s.Hull += armor; s.Armor += armor; }
             if (m.Stats.TryGetValue("thrust", out var thrust)) s.Thrust += thrust;
             if (m.Grants.Contains(Capability.Mining))
             {
@@ -138,7 +142,7 @@ public sealed class ShipStats
         if (core) s.PowerDraw += m.PowerDraw;   // Reaktor/Antrieb laufen mit halber Leistung weiter und ziehen ihre Last
         if (m.Stats.TryGetValue("powerOutput", out var output)) s.PowerOutput += 0.5f * output;
         if (m.Stats.TryGetValue("thrust", out var thrust)) s.Thrust += 0.5f * thrust;
-        if (m.Stats.TryGetValue("armor", out var armor)) s.Hull += armor;   // Panzerplatten bleiben Panzerplatten
+        if (m.Stats.TryGetValue("armor", out var armor)) { s.Hull += armor; s.Armor += armor; }   // Panzerplatten bleiben Panzerplatten
         if (m.Stats.TryGetValue("powerStorage", out var storage)) s.PowerStorage += storage;
         if (m.Stats.TryGetValue("fuelCapacity", out var fuelCap)) s.FuelCapacity += fuelCap;
         if (m.Stats.TryGetValue("ammoCapacity", out var ammo)) s.AmmoCapacity += ammo;
@@ -155,6 +159,17 @@ public sealed class ShipStats
                 default: s.CargoAny += capacity; break;
             }
         }
+    }
+
+    /// <summary>
+    /// Phase 24: Waffenstärke eines Moduls — mit Waffenwerten abgeleitet (Schaden × Treffsicherheit ÷ Nachladezeit × <see cref="WeaponPowerPerDps"/>), sonst die
+    /// freie Kennzahl <c>weaponPower</c> (alte Inhalte). Rein.
+    /// </summary>
+    public static float WeaponPowerOf(Module m)
+    {
+        if (m.IsWeapon && m.Stat("reload") > 0f)
+            return m.Stat("damage") * Math.Clamp(m.Stat("accuracy"), 0f, 1f) / m.Stat("reload") * WeaponPowerPerDps;
+        return m.Stats.TryGetValue("weaponPower", out var wp) ? wp : 0f;
     }
 
     static void Finish(ShipStats s, ShipClass cls)

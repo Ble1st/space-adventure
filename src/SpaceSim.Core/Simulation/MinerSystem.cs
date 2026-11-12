@@ -25,6 +25,7 @@ public sealed class MinerSystem : ISimSystem
         {
             // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff schürfen können; fehlt das Werkzeug, wird das Schiff freigegeben
             if (ship.Role != ShipRole.Miner) continue;
+            if (u.Fights.IsEngaged(ship.Id)) continue;   // Phase 24: im Gefecht gesperrt
             if (!ship.Has(Capability.Mining)) { JobRelease.Release(u, ship); continue; }
 
             if (ship.Transit is { } t)

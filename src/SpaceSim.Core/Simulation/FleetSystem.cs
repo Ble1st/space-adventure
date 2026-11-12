@@ -116,10 +116,40 @@ public sealed class FleetSystem : ISimSystem
             float value = job.FleetValue(stats, rules);
             foreach (var other in jobs)
                 if (other != job && (stats.Capabilities & other.Needs) == other.Needs) value += rules.FleetFlexWeight * other.FleetValue(stats, rules);
+            value *= 1f + ArmamentBonus(u, stats, sector);   // Phase 24: Bewaffnung lohnt nach dem Risiko der Gegend (Lagekarte)
             float score = value / price;
             if (best is null || score > best.Score) best = new ModelChoice(model, cls, yard, needs, price, units, score);
         }
         return best;
+    }
+
+    /// <summary>
+    /// Phase 24 (KAMPF.md 4.2a): Aufwertung eines bewaffneten Modells beim Kauf = <see cref="EconomyRules.ArmedTraderWeight"/> × Risiko × Bewaffnung. Risiko =
+    /// Routenrisiko der Lagekarte ab dem Kaufsektor (<see cref="AreaRisk"/>), Bewaffnung = Waffenstärke ÷ 6 (höchstens 1). In ruhigen Sektoren lohnt die Waffe
+    /// nicht, an der Grenze schon. Rein.
+    /// </summary>
+    public static float ArmamentBonus(Universe u, ShipStats stats, SectorId sector)
+    {
+        if (u.Rules.ArmedTraderWeight <= 0f || stats.WeaponPower <= 0f) return 0f;
+        return u.Rules.ArmedTraderWeight * AreaRisk(u, sector) * MathF.Min(1f, stats.WeaponPower / 6f);
+    }
+
+    /// <summary>
+    /// Phase 24: Risiko der Routen ab einem Sektor: Mittel des Routenrisikos (<see cref="ThreatMap.RouteRisk"/>, Summe der Sektorrisiken unterwegs) zu jedem
+    /// erreichbaren Sektor (feste Reihenfolge). Wer an der Grenze kauft, fährt durch unsichere Sektoren; im ruhigen Kern ist das Risiko klein.
+    /// </summary>
+    public static float AreaRisk(Universe u, SectorId sector)
+    {
+        if (!u.Rules.SecurityActive || !u.Sectors.ContainsKey(sector)) return 0f;
+        float sum = 0f;
+        int n = 0;
+        foreach (var s in u.Sectors.Values.OrderBy(x => x.Id.Value))
+        {
+            if (s.Id != sector && !u.IsReachable(sector, s.Id)) continue;
+            sum += ThreatMap.RouteRisk(u, sector, s.Id);
+            n++;
+        }
+        return n > 0 ? sum / n : 0f;
     }
 
     /// <summary>

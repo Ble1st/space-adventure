@@ -91,14 +91,15 @@ public class MinerTests
     public void Miners_ExtractOreAndEarnCredits()
     {
         var u = SpaceSim.Core.Demo.DemoUniverse.Create();
+        // Phase 24: ohne Sicherheit (keine Überfälle) — in Phase 23 fehlte hier ein Gründungs-Miner, nachweislich ein Überfallopfer (Schiff 38, Tick 1565,
+        // zerstört/raid); der Test prüft die Wirtschaft der Schürfer, nicht die Piraten. So müssen wieder ALLE Gründungs-Miner da sein und verdienen.
+        u.Rules.SecurityActive = false;
         float fieldsBefore = u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore);
         var founders = u.Ships.Values.Where(s => s.Role == ShipRole.Miner).Select(s => s.Id).ToList();   // später gekaufte Schiffe starten mit weniger
         new SimulationRunner().Run(u, 2_000);
 
         Assert.NotEmpty(founders);
-        // Phase 22/23: ein Gründungs-Miner kann legitim verloren gehen (Überfall, Grund a) — geprüft werden die überlebenden
-        founders = founders.Where(u.Ships.ContainsKey).ToList();
-        Assert.NotEmpty(founders);
+        Assert.All(founders, id => Assert.True(u.Ships.ContainsKey(id), $"Gründungs-Miner {id.Value} fehlt"));
         foreach (var id in founders)
             Assert.True(u.Ships[id].Credits > 1000f, "Ein Gründungs-Miner sollte Gewinn gemacht haben");
         Assert.NotEqual(fieldsBefore, u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore));   // Abbau und Respawn haben den Gürtel verändert

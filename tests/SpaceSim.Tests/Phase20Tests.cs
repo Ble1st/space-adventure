@@ -79,6 +79,9 @@ public class Phase20Tests
         var ev = Capture(u);
         var runner = new SimulationRunner();
         runner.Run(u, 1000);
+        // Voraussetzung: Wasserwerk Alpha ist das einzige Wasserwerk (Phase 24: je nach Zufallspfad baut der Lebenszyklus in den ersten 1000 Ticks schon ein
+        // zweites — das wird hier entfernt, damit der Test die Panik prüft und nicht den Pfad)
+        foreach (var extra in u.Stations.Values.Where(s => (s.TypeKey == "water_plant" || s.Site?.TypeKey == "water_plant") && s.Sector.Value != 1).Select(s => s.Id).ToList()) u.RemoveStation(extra, "test");
         Set(u, AlphaGate, GateState.Closed);   // Wasserwerk Alpha ist das einzige Wasserwerk; die Farmen liegen in Beta und Gamma
         runner.Run(u, 30_000);
         var water = GoodOf(u, "water").Id;

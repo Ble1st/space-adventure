@@ -1180,6 +1180,54 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Schildanzeige (Phase 23) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
+			case 53: // Phase 24: NPC-Gefecht im Spielersektor — Hinweis, Schüsse als Strahlen aus den Ereignissen, Sektorkarte zeigt das Gefecht, saubere Freigabe
+			{
+				if (_frame - _stageStart < 5) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var sec = uni.Sectors[uni.PlayerSector];
+					var raider = uni.ShipsById().FirstOrDefault(SpaceSim.Core.Simulation.ThreatMap.IsRaider);
+					Check(raider is not null, "Kaperschiff in der Welt");
+					if (raider is not null)
+					{
+						var model = uni.ShipModels["unit_trader_100"];
+						var at = uni.StationsById().First(x => !x.IsBuildSite);
+						var victim = SpaceSim.Core.Simulation.ShipPurchase.Create(uni, uni.NewShipId(), model.Key, uni.ShipClasses[model.ClassKey].Slots, model.Fit,
+							ShipRole.Trader, Controller.Ai, uni.FreeActor, at, 1000f);
+						uni.AddShip(victim);
+						var pl = uni.Ships[uni.PlayerShip];
+						void Put(Ship s, Vec2 p)
+						{
+							if (s.Transit is not null) uni.FinishTransit(s);
+							s.Order = null;
+							if (s.Sector != sec.Id) uni.MoveShip(s, sec.Id);
+							s.Position = p; s.DockedAt = default;
+						}
+						Put(victim, pl.Position + new Vec2(40f, 20f));
+						Put(raider, pl.Position + new Vec2(55f, 30f));
+						victim.Cargo[uni.FindGood("electronics")!.Id] = 40f;
+						int shots0 = _m.TestCombatShots;
+						var enc = SpaceSim.Core.Combat.Engage.StartRaid(uni, raider, victim, sec);
+						Check((_m.LastCombatMessage ?? "").StartsWith("Gefecht"), $"Hinweis beim Gefechtsbeginn („{_m.LastCombatMessage}“)");
+						Check(SpaceSim.Core.Simulation.SecurityInfo.ForSector(uni, sec.Id, pl).Fights >= 1 && SpaceSim.Core.Combat.CombatInfo.InSector(uni, sec.Id).Any(c => c.Id == enc.Id),
+							"Lagekarte zählt das Gefecht");
+						_m.TestOpenCommand();
+						_m.TestOpenCcArea("sector");
+						_m.TestCcSelectSectorView(sec.Id);
+						Check(_m.HudRef.CcSector.TestCombat.StartsWith("Gefecht: "), $"Sektorkarte zeigt das Gefecht („{_m.HudRef.CcSector.TestCombat}“)");
+						_m.TestCloseCommand();
+						_m.Session.RunTicks(40);
+						Check(_m.TestCombatShots > shots0, $"Schüsse als Strahlen gezeichnet ({_m.TestCombatShots - shots0})");
+						Check(enc.Shots > 0, "Gefecht feuert im Core");
+						for (int i = 0; i < 10 && uni.Fights.IsEngaged(victim.Id); i++) _m.Session.RunTicks(40);
+						Check(!uni.Fights.IsEngaged(victim.Id) && !uni.Fights.IsEngaged(raider.Id), "Gefecht endet, beide sind frei");
+						Check(uni.Fights.Count == 0 || uni.Fights.Encounters.All(x => x.Id != enc.Id), "Gefecht ist ausgetragen");
+					}
+				}
+				catch (System.Exception ex) { Fail("Gefecht (Phase 24) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

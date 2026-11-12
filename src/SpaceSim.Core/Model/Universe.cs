@@ -134,6 +134,11 @@ public sealed class Universe
     /// (<see cref="Combat.RecoveryIndex.Rebuild"/>). Nur diese Schiffe kosten <see cref="Combat.ShipSystemsSystem"/> Rechenzeit.
     /// </summary>
     public Combat.RecoveryIndex Recovering { get; } = new();
+    /// <summary>
+    /// Phase 24 (KAMPF.md 4.1): laufende Gefechte (gespeichert und gehasht) und der abgeleitete Index Schiff → Gefecht. Ausgeführt von
+    /// <see cref="Combat.CombatSystem"/>; Schiffe im Gefecht sind für Handel, Bergbau und Befehle gesperrt.
+    /// </summary>
+    public Combat.CombatBook Fights { get; } = new();
 
     /// <summary>Zählt Änderungen an Sektorinhalten (Stationen gebaut/entfernt), damit die Darstellung neu aufbauen kann.</summary>
     public int StructureVersion { get; private set; }
@@ -221,6 +226,7 @@ public sealed class Universe
         // neues Schiff im frei gewordenen Platz, und Systeme, die Ships.Values durchlaufen, sähen nach Speichern/Laden eine andere Reihenfolge
         Compact(Ships);
         Simulation.Squadrons.OnShipRemoved(this, s);   // Phase 12: Verband verlassen, Anführer folgt nach
+        Fights.OnShipRemoved(id);   // Phase 24: aus dem Gefecht ausscheiden
         Events.Publish(new ShipRemoved(id, reason));
     }
 

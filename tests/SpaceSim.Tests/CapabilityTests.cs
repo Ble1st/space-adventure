@@ -182,8 +182,18 @@ public class CapabilityTests
         foreach (var s in u.Ships.Values.Where(s => s.Id != trader.Id && s.Id != other.Id).ToList()) u.RemoveShip(s.Id, "test");
         foreach (var s in new[] { trader, other })
         {
-            if (s.Transit != null) u.FinishTransit(s);
+            // Phase 24: an der aktuellen Stelle anhalten (nicht ans Reiseziel springen — sonst liegt er je nach Zufallspfad schon am Andockpunkt seiner
+            // nächsten Einkaufsstation und muss gar nicht reisen), und mit Geld: wer gerade eingekauft hat, hat keins mehr
+            if (s.Transit is { } tr)
+            {
+                var (sec, pos) = AccessEnforcement.Where(tr, u.Tick);
+                u.FinishTransit(s);
+                if (s.Sector != sec) u.MoveShip(s, sec);
+                s.Position = pos;
+                s.DockedAt = default;
+            }
             s.Order = null; s.Phase = TradePhase.Idle; s.NextThinkTick = 0; s.Cargo.Clear();
+            s.Credits = MathF.Max(s.Credits, 5000f);
         }
         var system = new TraderSystem();
         for (int i = 0; i < 200 && trader.Transit is null; i++) { u.Tick++; system.Step(u, 1); }
@@ -266,7 +276,8 @@ public class CapabilityTests
         Assert.Equal(before, UniverseHash.Compute(loaded));
         Assert.Equal(u.Ships.Count, loaded.Ships.Count);
         // Phase 14: ein in den ersten 500 Ticks gekauftes Mehrzweckschiff (Tinker) hat die Fähigkeiten seines Fits, nicht die seiner Rolle
-        foreach (var s in loaded.Ships.Values.Where(x => !ShipJobs.IsMultirole(loaded, x)))
+        // Phase 24: ein bewaffnetes Frachtermodell (Kauf nach Routenrisiko) hat dazu Combat aus seinem Fit
+        foreach (var s in loaded.Ships.Values.Where(x => (!ShipJobs.IsMultirole(loaded, x) && x.Stats.WeaponPower <= 0f) || x.Role is ShipRole.Police or ShipRole.Pirate))
         {
             Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Capabilities);
             Assert.Equal(CapabilityDefaults.ControllerFor(s.Role), s.Controller);

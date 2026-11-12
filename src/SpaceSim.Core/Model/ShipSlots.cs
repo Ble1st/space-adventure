@@ -52,6 +52,18 @@ public sealed class Module
     public string? UpgradeTo;
     /// <summary>Phase 7: Material je Upgrade-Versuch (Warenschlüssel → Menge) aus dem Stationslager; verbraucht auch bei Misserfolg.</summary>
     public Dictionary<string, float> UpgradeCost = new();
+    /// <summary>
+    /// Phase 24: Schadensart der Waffe (JSON <c>damageType</c>: energy/kinetic). Die übrigen Waffenwerte stehen als freie Kennzahlen in <see cref="Stats"/>:
+    /// <c>damage</c>, <c>reload</c> (Sekunden), <c>range</c>, <c>accuracy</c> (0..1), <c>tracking</c> (0..1), <c>ammoPerShot</c> (0 = keine Munition).
+    /// Ein Modul ist eine Waffe, wenn <c>damage</c> &gt; 0 (<see cref="IsWeapon"/>).
+    /// </summary>
+    public DamageType DamageType;
+
+    /// <summary>Phase 24: Waffe mit Waffenwerten (stats damage &gt; 0)?</summary>
+    public bool IsWeapon => Stats.TryGetValue("damage", out var d) && d > 0f;
+
+    /// <summary>Phase 24: Waffenwert (0, wenn nicht gesetzt).</summary>
+    public float Stat(string key) => Stats.TryGetValue(key, out var v) ? v : 0f;
 }
 
 /// <summary>Ein Slot einer Schiffsklasse, in fester Reihenfolge; der Fit füllt sie per Index.</summary>

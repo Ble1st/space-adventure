@@ -19,7 +19,13 @@ public static class SaveGameJson
     /// eingefroren (alte Spielstände sind egal, Entscheidung des Nutzers) und sieht die Standardwelt im Stand v17: Sie trägt diese Waren, Module, Rezepte
     /// und Lagerposten nicht in alte Stände nach. Spätere Phasen hängen ihre Schlüssel hier an.
     /// </summary>
-    static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s" };
+    static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s", "weapon_massdriver_s", "mule_armed", "hauler_armed" };
+    /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
+    static readonly (string Model, string?[] Fit)[] AfterV17Fits =
+    {
+        ("warden", new string?[] { "reactor_mk2", "chem_engine_m", "weapon_laser_s", "weapon_laser_s", "shield_mk1", "armor_plating_s", null }),
+        ("corsair", new string?[] { "reactor_mk2", "chem_engine_s", "weapon_laser_s", "weapon_laser_s", "shield_mk1", null }),
+    };
     /// <summary>Lagerposten (Stationstyp, Ware), die nach v17 nur für ein spätes Rezept dazukamen (Phase 23: Stahl für die Munition im Waffenwerk).</summary>
     static readonly (string Type, string Good)[] AfterV17Stocks = { ("weapons_works", "steel") };
 
@@ -34,6 +40,15 @@ public static class SaveGameJson
         }
         RemoveWhere(root["goods"]?.AsArray(), n => Late((string?)n["key"]));
         RemoveWhere(root["modules"]?.AsArray(), n => Late((string?)n["key"]));
+        RemoveWhere(root["shipModels"]?.AsArray(), n => Late((string?)n["key"]));
+        foreach (var m in root["shipModels"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            foreach (var (model, fit) in AfterV17Fits)
+                if (m is not null && (string?)m["key"] == model)
+                {
+                    var arr = new System.Text.Json.Nodes.JsonArray();
+                    foreach (var k in fit) arr.Add(k is null ? null : System.Text.Json.Nodes.JsonValue.Create(k));
+                    m["fit"] = arr;
+                }
         foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
         {
             if (t is null) continue;

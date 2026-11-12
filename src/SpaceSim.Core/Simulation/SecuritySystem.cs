@@ -25,7 +25,7 @@ public sealed class SecuritySystem : ISimSystem
             foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList()) Manage(u, f, ManageTicks);
         foreach (var police in u.ShipsById().Where(ThreatMap.IsPolice).ToList()) StepPolice(u, police);
         foreach (var s in u.Ships.Values)
-            if (s.Transit is null && s.Id != u.PlayerShip && !ThreatMap.IsPolice(s) && !ThreatMap.IsRaider(s) && s.Hull < s.MaxHull)
+            if (s.Transit is null && s.Id != u.PlayerShip && !ThreatMap.IsPolice(s) && !ThreatMap.IsRaider(s) && s.Hull < s.MaxHull && !u.Fights.IsEngaged(s.Id))
                 s.Hull = MathF.Min(s.MaxHull, s.Hull + u.Rules.NpcHullRegenPerTick * dt);
         CheckWantedPlayer(u);
     }
@@ -217,6 +217,7 @@ public sealed class SecuritySystem : ISimSystem
 
     static void StepPolice(Universe u, Ship p)
     {
+        if (u.Fights.IsEngaged(p.Id)) return;   // Phase 24: im Gefecht entscheidet die Taktik
         if (p.Transit is { } t)
         {
             if (u.Tick < t.ArrivalTick) return;
@@ -234,7 +235,8 @@ public sealed class SecuritySystem : ISimSystem
         if (u.Tick < p.NextThinkTick) return;
         var home = u.Stations.GetValueOrDefault(p.HomeBase);
         if (home is null && u.FactionOf(p) is { } f && HomeBaseFor(u, f, p.Sector) is { } h) { p.HomeBase = h.Id; home = h; }
-        bool needsBase = p.Hull < u.Rules.RetreatHull * p.MaxHull || u.Rules.FuelActive && p.Stats.FuelCapacity > 0f && p.TotalFuel < 0.3f * p.Stats.FuelCapacity;
+        bool needsBase = p.Hull < u.Rules.RetreatHull * p.MaxHull || u.Rules.FuelActive && p.Stats.FuelCapacity > 0f && p.TotalFuel < 0.3f * p.Stats.FuelCapacity
+            || u.Rules.AmmoActive && p.Stats.AmmoCapacity > 0f && p.AmmoLoaded < u.Rules.AmmoReturnShare * p.Stats.AmmoCapacity;   // Phase 24: Magazin fast leer
         if (home is not null && (needsBase || p.DutySector == default))
         {
             if (p.Sector == home.Sector && Vec2.Distance(p.Position, home.Position) <= u.Rules.StationSafeRadius)

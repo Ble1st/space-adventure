@@ -161,6 +161,36 @@ u.Events.Raised += e =>
         case MineDelivered md: tradeValue += md.Revenue; break;
     }
 };
+// Phase 24: Rundengefecht — Gefechte, Dauer, Schüsse/Treffer, Ausgänge, Munition, bewaffnete Händler
+int fights = 0, fightRaids = 0, fightIntercepts = 0, fightShots = 0, fightHits = 0, fightsMax = 0;
+long fightTicks = 0;
+var fightOutcomes = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var exitsByRole = new SortedDictionary<string, int>(StringComparer.Ordinal);
+double ammoUnits = 0, ammoCost = 0, ammoTreasury = 0, ammoPolice = 0, shieldDmg = 0, hullDmg = 0, ammoUsed = 0;
+int armedBought = 0, raidsAtLastMark = 0;
+var pirateTimeline = new List<string>();
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case EncounterStarted es: fights++; if (es.Cause == EncounterCause.Raid) fightRaids++; else fightIntercepts++; break;
+        case EncounterEnded ee:
+            fightShots += ee.Shots; fightHits += ee.Hits; fightTicks += ee.Ticks;
+            fightOutcomes[ee.Outcome] = fightOutcomes.GetValueOrDefault(ee.Outcome) + 1;
+            break;
+        case CombatExited cx: { string k = $"{cx.Role}/{cx.Exit}"; exitsByRole[k] = exitsByRole.GetValueOrDefault(k) + 1; break; }
+        case ShotFired sf:
+            shieldDmg += sf.ShieldDamage; hullDmg += sf.HullDamage;
+            if (u.Rules.AmmoActive && u.Modules.TryGetValue(sf.Weapon, out var wm)) ammoUsed += wm.Stat("ammoPerShot");
+            break;
+        case AmmoRearmed ar:
+            ammoUnits += ar.Units; ammoCost += ar.Cost; if (ar.FromTreasury) ammoTreasury += ar.Cost;
+            if (u.Ships.TryGetValue(ar.Ship, out var arShip) && ThreatMap.IsPolice(arShip)) ammoPolice += ar.Cost;
+            break;
+        case FleetModelChosen fmc when u.ShipModels.TryGetValue(fmc.ModelKey, out var fm) && fm.Fit.Any(k => k is not null && u.Modules.TryGetValue(k, out var mm) && mm.IsWeapon):
+            armedBought++; break;
+    }
+};
 // Phase 13: Forschung — FP, Takte (gelaufen/gestockt nach Grund), Personalkosten, verbrauchte Güter (Basiswert), Budget aus den Kassen, Abschlüsse
 double researchPoints = 0, researchSalary = 0, researchGoods = 0, researchFunding = 0, researchPlayer = 0;
 int researchCycles = 0, researchStalled = 0;
@@ -330,11 +360,18 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             }
             runner.Run(u, step);
             done += step;
+            if (u.Tick % 20000 == 0)   // Phase 24 (Korrektur): Piratenbestand und -kasse über die Zeit
+            {
+                pirateTimeline.Add($"t{u.Tick / 1000}k {raids - raidsAtLastMark} Üf. " + string.Join(" ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value)
+                    .Select(a => $"{a.Name.Split(' ').Last()} {u.Ships.Values.Count(x => ThreatMap.IsRaider(x) && x.Owner == a.Id)}/{a.Treasury.Credits:0}")));
+                raidsAtLastMark = raids;
+            }
             if (u.Tick >= watchFrom && u.Tick % WatchEvery == 0)
             {
                 probeWatch.Start();
                 watch.Sample(u);
                 recoveringMax = Math.Max(recoveringMax, u.Recovering.Count);   // Phase 23
+                fightsMax = Math.Max(fightsMax, u.Fights.Count);   // Phase 24
                 if (u.Tick % 200 == 0)
                 {
                     foreach (var j in ShipJobs.Default) capMax[j.Key] = MathF.Max(capMax.GetValueOrDefault(j.Key), ShipJobs.UsedUnits(u, j));
@@ -416,6 +453,10 @@ Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.
     double sysMs = bySystem.Where(x => x.Name == "ShipSystemsSystem").Sum(x => x.Ms);
     Console.WriteLine($"Schiffssysteme: Erholungsindex max {recoveringMax}, jetzt {u.Recovering.Count} Schiffe; Schilde jetzt {u.Ships.Values.Count(x => x.Stats.Shield > 0f && x.ShieldNow < x.Stats.Shield)} von {u.Ships.Values.Count(x => x.Stats.Shield > 0f)} nicht voll"
         + (perSystem ? $"; Rechenzeit ShipSystemsSystem {100 * sysMs / total:0.00}%" : ""));
+    // Phase 24: eigene Zeile für das Rundengefecht
+    if (perSystem)
+        Console.WriteLine($"Rechenzeit Gefecht: CombatSystem {100 * bySystem.Where(x => x.Name == "CombatSystem").Sum(x => x.Ms) / total:0.00}%, "
+            + $"RearmSystem {100 * bySystem.Where(x => x.Name == "RearmSystem").Sum(x => x.Ms) / total:0.00}%");
 }
 var prop = u.FindGood("propellant");
 if (prop is not null && u.Rules.FuelActive)
@@ -542,6 +583,20 @@ if (u.Modules.Count > 0)
             + string.Join(", ", a.Wanted.OrderBy(kv => kv.Key.Value).Select(kv => $"{u.Factions[kv.Key].Name} {SecurityNames.WantedLevel(Wanted.Level(u.Rules, kv.Value.Heat))}")));
     Console.WriteLine("Lagekarte: " + string.Join(", ", u.Sectors.Values.OrderBy(x => x.Id.Value)
         .Select(x => $"{x.Name} Bedrohung {x.Threat:0.00} Sicherheit {x.Security:0.0} Verkehr {x.Traffic:0}")) + $"; Verbrechen gemeldet {crimes}");
+    // Phase 24: Rundengefecht
+    Console.WriteLine($"Gefechte: {fights} ({fightRaids} Überfälle, {fightIntercepts} Abfangen), laufend jetzt {u.Fights.Count} (max gleichzeitig {fightsMax}); "
+        + $"Dauer Ø {(fights > 0 ? (double)fightTicks / Math.Max(1, fightOutcomes.Values.Sum()) : 0):0} Ticks; Schüsse {fightShots}, Treffer {fightHits} "
+        + $"({(fightShots > 0 ? 100.0 * fightHits / fightShots : 0):0}%); Schaden Schild {shieldDmg:0}, Hülle {hullDmg:0}");
+    Console.WriteLine("  Ausgänge: " + (fightOutcomes.Count == 0 ? "keine" : string.Join(", ", fightOutcomes.Select(kv => $"{kv.Key} {kv.Value}")))
+        + " | je Rolle: " + (exitsByRole.Count == 0 ? "keine" : string.Join(", ", exitsByRole.Select(kv => $"{kv.Key} {kv.Value}"))));
+    Console.WriteLine("Piraten über die Zeit (je 20000 Ticks: Überfälle, je Gruppe Kaperschiffe/Kasse): " + (pirateTimeline.Count == 0 ? "–" : string.Join(" | ", pirateTimeline)));
+    Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "
+        + $"{(income > 0 ? 100.0 * ammoPolice / income : 0):0.00}% der Kasseneinnahmen); fehlt jetzt {u.Ships.Values.Sum(x => x.Systems.AmmoMissing):0}");
+    {
+        var armedNow = u.Ships.Values.Where(x => x.IsEconomyAi && x.Stats.WeaponPower > 0f).ToList();
+        Console.WriteLine($"Bewaffnete Händler/Schürfer: jetzt {armedNow.Count} ({string.Join(", ", armedNow.GroupBy(x => x.ModelKey).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key} {g.Count()}"))}); "
+            + $"bewaffnete Modelle gekauft {armedBought}");
+    }
     Console.WriteLine($"Rechenzeit Sicherheit (Lagekarte, Piraten, Polizei, Fahndung): {securityWatch.Elapsed.TotalMilliseconds:0} ms = "
         + $"{(sw.ElapsedMilliseconds > 0 ? 100.0 * securityWatch.Elapsed.TotalMilliseconds / sw.ElapsedMilliseconds : 0):0.0}% der Laufzeit");
 }

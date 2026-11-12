@@ -87,7 +87,10 @@ public class MultiroleTests
         Assert.True(JobAssignmentSystem.ShouldSwitch(600, 1f, 10f, r));
         Assert.False(JobAssignmentSystem.ShouldSwitch(5000, 1f, 1.2f, r));  // innerhalb der Hysterese
         Assert.True(JobAssignmentSystem.ShouldSwitch(5000, 1f, 1.26f, r));
-        Assert.True(JobAssignmentSystem.ShouldSwitch(5000, 0f, 0.1f, r));   // aktuelle Aufgabe bringt nichts
+        Assert.True(JobAssignmentSystem.ShouldSwitch(5000, 0f, 1f, r));     // aktuelle Aufgabe bringt nichts
+        Assert.False(JobAssignmentSystem.ShouldSwitch(5000, 0f, 0.1f, r));  // Phase 24: das Ziel bringt zu wenig (unter JobMinSwitchScore) — kein Flattern
+        r.JobMinSwitchScore = 0f;
+        Assert.True(JobAssignmentSystem.ShouldSwitch(5000, 0f, 0.1f, r));   // Regel aus: wie bis Phase 23
         Assert.False(JobAssignmentSystem.ShouldSwitch(5000, 0f, 0f, r));    // keine lohnende Alternative
     }
 

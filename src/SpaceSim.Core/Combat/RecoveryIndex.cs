@@ -23,11 +23,11 @@ public sealed class RecoveryIndex
         into.AddRange(_ids);
     }
 
-    /// <summary>Neu aufbauen: jedes Schiff, dem Schild oder Ladung fehlt.</summary>
+    /// <summary>Neu aufbauen: jedes Schiff, dem Schild oder Ladung fehlt und das sich erholen kann (Phase 24: <see cref="ShipSystems.CanRecover"/>).</summary>
     public void Rebuild(Universe u)
     {
         _ids.Clear();
         foreach (var s in u.Ships.Values)
-            if (ShipSystems.NeedsRecovery(s)) _ids.Add(s.Id.Value);
+            if (ShipSystems.Recovers(s)) _ids.Add(s.Id.Value);
     }
 }

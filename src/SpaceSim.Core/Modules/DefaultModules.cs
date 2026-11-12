@@ -97,14 +97,15 @@ public sealed class SecurityModule : ISimModule
 }
 
 /// <summary>
-/// Phase 23: Schiffssysteme (KAMPF.md Abschnitt 3). Läuft nach der Sicherheit (Überfälle und Abfangen haben Schild und Hülle getroffen): Schild und
-/// Speicherbank laden aus dem Reaktorüberschuss nach der Leistungsverteilung nach. Nur Schiffe, denen etwas fehlt, kosten Rechenzeit. Das Rundengefecht
-/// (Phase 24) kommt in dieses Modul.
+/// Phase 23/24: Kampf und Schiffssysteme (KAMPF.md Abschnitte 3 und 4). Läuft nach der Sicherheit (Überfälle und Abfangen haben Gefechte eröffnet):
+/// zuerst das Rundengefecht (<see cref="SpaceSim.Core.Combat.CombatSystem"/>, nur aktive Gefechte), dann laden Schild und Speicherbank aus dem
+/// Reaktorüberschuss nach (nur Schiffe, denen etwas fehlt), zuletzt laden angedockte NPCs mit Geschützen Munition nach.
 /// </summary>
 public sealed class CombatModule : ISimModule
 {
     public string Name => "Combat";
-    public void Register(SimulationBuilder b) => b.Add(new SpaceSim.Core.Combat.ShipSystemsSystem());
+    public void Register(SimulationBuilder b) =>
+        b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.ShipSystemsSystem()).Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10);
 }
 
 public sealed class LifecycleModule : ISimModule
