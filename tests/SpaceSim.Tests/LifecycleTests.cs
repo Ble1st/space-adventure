@@ -162,8 +162,8 @@ public class WorldBuilderTests
     public void DefaultWorld_Builds_WithConsistentReferences()
     {
         var u = WorldBuilder.BuildDefault();
-        Assert.Equal(4, u.Sectors.Count);
-        Assert.Equal(6, u.Gates.Count);
+        Assert.Equal(11, u.Sectors.Count);   // Phase 21: elf Sektoren, 14 Torverbindungen (vorher 4/3)
+        Assert.Equal(28, u.Gates.Count);
         foreach (var g in u.Gates.Values) Assert.Equal(g.Id, u.Gates[g.Target].Target);
         foreach (var st in u.Stations.Values) Assert.Contains(st.Id, u.Sectors[st.Sector].Stations);
         Assert.Equal(u.PlayerSector, u.Ships[u.PlayerShip].Sector);

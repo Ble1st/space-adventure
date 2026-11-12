@@ -179,29 +179,36 @@ public sealed partial class UniverseScreen : CommandScreen
 			_u = owner.Ctx.U;
 		}
 
-		Vector2 Place(Sector s, Vector2 center, float scale)
+		Vector2 Place(Sector s, Vector2 center, Vector2 scale)
 		{
 			var all = _u.Sectors.Values.Select(x => x.MapPosition).ToList();
-			var mid = new Vec2(all.Average(p => p.X), all.Average(p => p.Y));
-			return center + new Vector2((s.MapPosition.X - mid.X) * scale, (s.MapPosition.Y - mid.Y) * scale);
+			// Phase 21: Mitte des umschließenden Rechtecks (der Mittelwert verschob die 11-Sektoren-Karte zur dichten Seite)
+			var mid = new Vec2((all.Max(p => p.X) + all.Min(p => p.X)) / 2f, (all.Max(p => p.Y) + all.Min(p => p.Y)) / 2f);
+			return center + new Vector2((s.MapPosition.X - mid.X) * scale.X, (s.MapPosition.Y - mid.Y) * scale.Y);
 		}
 
-		float MapScale()
+		/// <summary>
+		/// Feldabstand je Achse. Phase 21: getrennt für x und y (Schema-Karte) — bei 4 × 4 Feldern wäre ein gemeinsamer Maßstab durch die Höhe begrenzt
+		/// und die Beschriftungen nebeneinanderliegender Sektoren überlappten; die Breite höchstens das Doppelte der Höhe.
+		/// </summary>
+		Vector2 MapScale()
 		{
 			var all = _u.Sectors.Values.Select(x => x.MapPosition).ToList();
 			float rx = all.Max(p => p.X) - all.Min(p => p.X);
 			float ry = all.Max(p => p.Y) - all.Min(p => p.Y);
 			float sx = rx > 0.001f ? (Size.X - 150f) / rx : 1f;
-			float sy = ry > 0.001f ? (Size.Y - 180f) / ry : 1f;
-			return Mathf.Min(sx, sy);
+			float sy = ry > 0.001f ? (Size.Y - 130f) / ry : 1f;
+			if (rx <= 0.001f) sx = sy;
+			if (ry <= 0.001f) sy = sx;
+			return new Vector2(Mathf.Min(sx, 2f * sy), Mathf.Min(sy, 2f * sx));
 		}
 
 		public override void _GuiInput(InputEvent @event)
 		{
 			if (!Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion) || motion || pressed) return;
-			var center = Size / 2f + new Vector2(0, -10f);
-			float scale = MapScale();
-			SectorId? best = null; float bestD = 46f;
+			var center = Size / 2f + new Vector2(0, 10f);
+			var scale = MapScale();
+			SectorId? best = null; float bestD = HaloRadius(Mathf.Min(scale.X, scale.Y)) + 2f;
 			foreach (var s in _u.Sectors.Values)
 			{
 				float d = Place(s, center, scale).DistanceTo(pos);
@@ -210,11 +217,16 @@ public sealed partial class UniverseScreen : CommandScreen
 			if (best is { } sid) { Tapped?.Invoke(sid); AcceptEvent(); }
 		}
 
+		/// <summary>Phase 21: Halo- und Knotengröße folgen dem Feldabstand, damit sich bei 11 Sektoren (4 Zeilen) die Halos nicht überlappen.</summary>
+		static float HaloRadius(float scale) => Mathf.Clamp(scale * 0.44f, 30f, 44f);
+		static float NodeRadius(float scale) => Mathf.Clamp(scale * 0.27f, 18f, 26f);
+
 		public override void _Draw()
 		{
 			if (_u == null) return;
-			var center = Size / 2f + new Vector2(0, -10f);
-			float scale = MapScale();
+			var center = Size / 2f + new Vector2(0, 10f);
+			var scale = MapScale();
+			float rHalo = HaloRadius(Mathf.Min(scale.X, scale.Y)), rNode = NodeRadius(Mathf.Min(scale.X, scale.Y));
 			var sel = _owner.Selected;
 			var layer = _owner.CurrentLayer;
 			var mark = _owner.MarkFaction;
@@ -261,19 +273,20 @@ public sealed partial class UniverseScreen : CommandScreen
 						halo = MapOverlay.FactionColor(s.Owner); haloA = 0.12f;
 						break;
 				}
-				DrawCircle(p, 44f, new Color(halo, haloA));
-				DrawCircle(p, 26f, PanelSolid);
-				DrawArc(p, 26f, 0, Mathf.Tau, 32, halo, s.Id == sel ? 5f : 3f, true);
-				if (s.Id == _u.PlayerSector) DrawArc(p, 34f, 0, Mathf.Tau, 32, White, 3f, true);
-				if (s.Id == sel) DrawArc(p, 40f, 0, Mathf.Tau, 32, Cyan, 2f, true);
+				DrawCircle(p, rHalo, new Color(halo, haloA));
+				DrawCircle(p, rNode, PanelSolid);
+				DrawArc(p, rNode, 0, Mathf.Tau, 32, halo, s.Id == sel ? 5f : 3f, true);
+				if (s.Id == _u.PlayerSector) DrawArc(p, rNode + 8f, 0, Mathf.Tau, 32, White, 3f, true);
+				if (s.Id == sel) DrawArc(p, rHalo - 4f, 0, Mathf.Tau, 32, Cyan, 2f, true);
 				var font = ThemeDB.FallbackFont;
-				DrawString(font, p + new Vector2(-60, -6), s.Name, HorizontalAlignment.Center, 120, 16, White);
+				// Phase 21: ohne „Sektor “, damit lange Namen (Hephaistos) in die Spalte passen
+				DrawString(font, p + new Vector2(-70, -6), s.Name.Replace("Sektor ", ""), HorizontalAlignment.Center, 140, 16, White);
 				string sub = layer switch
 				{
 					UniverseScreen.Layer.Prices => $"{SectorEconomy.PriceLevel(_u, s.Id):0.00}× · {s.Stations.Count} St.",
 					UniverseScreen.Layer.Security => s.Access.Level(AccessDirection.Entry) > 0
 						? $"Stufe {s.Access.Level(AccessDirection.Entry)} · {AccessNames.Level(s.Access.Level(AccessDirection.Entry))}"
-						: $"Sicherheit {SecurityNames.Security(s.Security)} · Bedrohung {SecurityNames.Threat(s.Threat)}",
+						: $"Sich. {SecurityNames.Security(s.Security)} · Bedr. {SecurityNames.Threat(s.Threat)}",   // Phase 21: kurz, 11 Sektoren nebeneinander
 					UniverseScreen.Layer.Ships => $"{ShipCountOf(_u, s.Id)} Schiffe · {s.Stations.Count} St.",
 					_ => $"{FactionName(_u, s.Owner)} · {AccessNames.Stage(s.Control)}{(s.Contested ? " · umkämpft" : "")}",
 				};
@@ -286,7 +299,7 @@ public sealed partial class UniverseScreen : CommandScreen
 					int dots = Math.Min(n, 8);
 					for (int i = 0; i < dots; i++)
 					{
-						var dv = Vec2.FromAngle(i * 2.4f) * 52f;
+						var dv = Vec2.FromAngle(i * 2.4f) * (rHalo + 6f);
 						DrawCircle(p + new Vector2(dv.X, dv.Y), 3.5f, Green);
 					}
 					if (n > 8) DrawString(font, p + new Vector2(40, 40), $"+{n - 8}", HorizontalAlignment.Left, -1, 12, Green);

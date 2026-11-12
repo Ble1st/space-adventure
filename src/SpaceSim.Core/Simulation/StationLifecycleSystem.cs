@@ -129,9 +129,10 @@ public sealed class StationLifecycleSystem : ISimSystem
         Sector? sector = null;
         Vec2? spot = null;
         bool sites = ConstructionRules.UsesSites(u, type);
+        // Phase 21: bei vielen Sektoren zuerst die, in denen die Erz-Zutaten des Typs gefördert werden (Hütte am Gürtel, nicht am anderen Ende der Karte)
         foreach (var candidate in u.Sectors.Values
                      .Where(s => (investorFaction is null || s.Owner == investorFaction) && StationProtection.CountEconomic(u, s) < rules.MaxStationsPerSector)
-                     .OrderBy(s => StationProtection.CountEconomic(u, s)).ThenBy(s => s.Id.Value))
+                     .OrderBy(s => rules.BuildNearOre ? MissingRawInputs(u, type, s) : 0).ThenBy(s => StationProtection.CountEconomic(u, s)).ThenBy(s => s.Id.Value))
         {
             // Phase 8: eine verlassene Baustelle im Sektor wird mit ihrem Material übernommen (kein neuer Bauplatz nötig)
             var abandoned = sites ? candidate.Stations.Select(id => u.Stations[id]).FirstOrDefault(s => s.Site is { Abandoned: true }) : null;
@@ -237,6 +238,27 @@ public sealed class StationLifecycleSystem : ISimSystem
         u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
 
     /// <summary>Darf die Wirtschaft diesen Typ bauen? Erforscht (irgendwo), keine Exportsenke, kein Typ eines abgeschalteten Systems.</summary>
+    /// <summary>
+    /// Phase 21: Wie viele Erz-Zutaten (Rezepteingänge, die Asteroiden liefern) des Typs werden im Sektor nicht gefördert? 0 = alles vor Ort
+    /// (oder der Typ braucht kein Erz).
+    /// </summary>
+    public static int MissingRawInputs(Universe u, StationType type, Sector sector)
+    {
+        int missing = 0;
+        foreach (var good in type.Recipes.SelectMany(r => r.Inputs.Keys).Distinct())
+        {
+            bool raw = false, here = false;
+            foreach (var c in u.AsteroidClasses.Values)
+                if (c.Yields.Any(y => y.Good == good))
+                {
+                    raw = true;
+                    if (sector.Fields.Any(f => f.ClassKey == c.Key)) here = true;
+                }
+            if (raw && !here) missing++;
+        }
+        return missing;
+    }
+
     internal static bool Buildable(Universe u, StationType t) =>
         t.Export is null && !FeatureSwitches.OmitFromWorld(u, t) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key);
 

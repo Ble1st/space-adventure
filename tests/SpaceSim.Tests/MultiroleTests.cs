@@ -107,7 +107,9 @@ public class MultiroleTests
     [Fact]
     public void Tinker_WechseltZumHandel_WennSchuerfenNichtsBringt_ErstNachMindestdauer()
     {
-        var u = DemoUniverse.Create();
+        // Phase 21: kontrollierte 4-Sektoren-Welt — in der 11-Sektoren-Welt fährt der Tinker als erste Ladung zwei Module zu einer Werft, deren Regal
+        // bei Ankunft voll ist; der Rest bleibt nach Phase 19 bis zu 3000 Ticks an Bord, länger als das Prüffenster dieses Tests
+        var u = TestWorlds.Classic();
         foreach (var sec in u.Sectors.Values) sec.Fields.Clear();   // keine Erzgürtel: Schürfen bringt nichts
         u.Rules.JobMinTicks = 300;
         u.Rules.JobIdleSwitchTicks = 300;   // Phase 20: eine Aufgabe ohne Ertrag wird erst nach Leerlauf verlassen — hier wie die Mindestdauer verkürzt
@@ -186,8 +188,8 @@ public class MultiroleTests
         var u = DemoUniverse.Create();
         foreach (var s in u.Ships.Values.Where(s => s.Controller == Controller.Ai).ToList()) u.RemoveShip(s.Id, "test");
         var lux = u.FindGood("luxury_goods")!.Id;
-        var seller = u.Stations.Values.Single(s => s.TypeKey == "luxury_workshop");
-        var buyer = u.Stations.Values.Single(s => s.TypeKey == "colony");
+        var seller = u.Stations.Values.First(s => s.TypeKey == "luxury_workshop");
+        var buyer = u.Stations.Values.First(s => s.TypeKey == "colony");
         seller.Market[lux].Amount = 1_000_000f; seller.Market[lux].Target = 100f;
         buyer.Market[lux].Amount = 0f; buyer.Market[lux].Target = 1_000_000f; buyer.Credits = 1e9f;
         var ship = AddAi(u, model, ShipRole.Trader, sector: buyer.Sector.Value, credits: 1_000_000f);
@@ -220,7 +222,10 @@ public class MultiroleTests
     [Fact]
     public void Kapazitaet_ZaehltEinheitenStattSchiffe()
     {
-        var u = QualityUpgradeTests.WithoutFounderQuality();   // Einheitsflotte ohne Gütewurf (Phase 7)
+        // Einheitsflotte ohne Gütewurf (Phase 7); Phase 21: die klassische 4-Sektoren-Welt — der Test rechnet mit ihrer Startflotte (9/6) und Grenze 14
+        var def = TestWorlds.ClassicDef();
+        def.Rules!.FounderQuality = false;
+        var u = WorldBuilder.Build(def, null);
         var trade = ShipJobs.ByKey("trade")!;
         var mine = ShipJobs.ByKey("mine")!;
         Assert.Equal(9f, ShipJobs.UsedUnits(u, trade));   // 9 Einheitsfrachter à 100
@@ -406,7 +411,7 @@ public class MultiroleTests
     [Fact]
     public void Migration_V8ToV9_ErgaenztModuleKlassenModelleUndAufgaben_FlotteHandelt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         u.Rules.FleetChoosesModels = false;   // keine Phase-6-Modelle im Altstand (das Feld fällt beim Demoten weg)
         new SimulationRunner().Run(u, 300);
         var v8 = ToV8Json(SaveGameJson.Write(u, Now));
@@ -425,7 +430,7 @@ public class MultiroleTests
         Assert.Equal(new[] { "trade" }, m.ShipModels["unit_trader_100"].Jobs);
         Assert.Equal(new[] { "mine" }, m.ShipModels["unit_miner_60"].Jobs);
         // Modulwerke stellen die neuen Module her, die Werft führt sie im Lager
-        var systems = m.Stations.Values.Single(s => s.TypeKey == "systems_works");
+        var systems = m.Stations.Values.First(s => s.TypeKey == "systems_works");
         var laser2 = m.FindGood("mining_laser_2")!.Id;
         Assert.Contains(systems.Production, r => r.Outputs.ContainsKey(laser2));
         Assert.True(systems.Market.ContainsKey(laser2));

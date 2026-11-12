@@ -344,7 +344,9 @@ public sealed class TraderSystem : ISimSystem
             if (amount > 0.0001f) Deliver(u, ship, st, stock, order, amount);
             float rest = ship.Cargo.GetValueOrDefault(order.Good);
             if (rest <= 0.0001f) ship.Cargo.Remove(order.Good);
-            else if (TradeActions.BestBuyerFor(u, ship, order.Good, rest, st.Id) is { } next)
+            // Phase 21: ein Flottenschiff mit Automatik-Grenzen fährt den Rest nur zu Käufern im Umkreis (vorher konnte der Rest aus dem Umkreis führen)
+            else if (TradeActions.BestBuyerFor(u, ship, order.Good, rest, st.Id,
+                         AutoLimitRules.Of(ship) is { } restLimits ? x => AutoLimitRules.InRange(u, restLimits, x.Sector) : null) is { } next)
             {
                 ship.Order = new TradeOrder(order.Buy, next.Id, order.Good);
                 ship.Phase = TradePhase.GoingToSell;

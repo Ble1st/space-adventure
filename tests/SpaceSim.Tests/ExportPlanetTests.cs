@@ -45,13 +45,13 @@ public class ExportPlanetTests
     public void Content_PlanetenInBetaUndGamma_ExportNurEndwaren()
     {
         var u = DemoUniverse.Create();
-        Assert.Equal(new[] { "Korvan", "Thalassa" }, u.Sectors.Values.Where(s => s.Planet is not null).OrderBy(s => s.Id.Value).Select(s => s.Planet!.Name));
+        // Phase 21: dazu Elysion (Aurelia) und Tethys (Kalypso)
+        Assert.Equal(new[] { "Korvan", "Thalassa", "Elysion", "Tethys" }, u.Sectors.Values.Where(s => s.Planet is not null).OrderBy(s => s.Id.Value).Select(s => s.Planet!.Name));
         Assert.Null(u.Sectors[new SectorId(1)].Planet);
         Assert.Null(u.Sectors[new SectorId(4)].Planet);
-        // beide Handelsstationen stehen an einem Planeten und kaufen genau die Endwaren
-        foreach (var id in new[] { TradeBeta, TradeGamma })
+        // alle Handelsstationen mit Exportsenke stehen an einem Planeten und kaufen genau die Endwaren
+        foreach (var st in u.Stations.Values.Where(s => ExportRules.ConfigOf(u, s) is not null))
         {
-            var st = St(u, id);
             Assert.NotNull(u.Sectors[st.Sector].Planet);
             var cfg = ExportRules.ConfigOf(u, st)!;
             Assert.Equal(new[] { "food", "consumer_goods", "luxury_goods" }, cfg.Goods.Select(g => u.Goods[g].Key));
@@ -298,7 +298,7 @@ public class ExportPlanetTests
         Assert.False(u.Stations.ContainsKey(new StationId(25)));   // Treibstoffraffinerien fehlen
         Assert.False(u.Stations.ContainsKey(new StationId(26)));
         Assert.DoesNotContain(u.Stations.Values, s => s.TypeKey == "fuel_refinery");
-        Assert.Equal(37 - 2, u.Rules.MaxStations);   // Bau-Spielraum bleibt gleich: −2 weggelassene Wirtschaftsstationen (Phase 18: 37 mit Farm Beta)
+        Assert.Equal(FileMaxStations() - 2, u.Rules.MaxStations);   // Bau-Spielraum bleibt gleich: −2 weggelassene Wirtschaftsstationen (Wert der Weltdatei, Phase 21: 66)
         var reg = StationServices.Default();
         Assert.All(u.Stations.Values, s => Assert.False(reg.TryGet("refuel", out var r) && r.IsAvailable(u, s)));
         // Reise ohne Verbrauch, Spieler ohne Verbrauch und ohne Notantrieb, Notruf zwecklos, Planung ohne Tankstopp
@@ -331,7 +331,7 @@ public class ExportPlanetTests
         new SimulationRunner().Run(u, 1);
         Assert.True(u.Rules.FuelActive);
         Assert.True(u.Stations.ContainsKey(new StationId(25)) && u.Stations.ContainsKey(new StationId(26)));
-        Assert.Equal(37, u.Rules.MaxStations);   // Phase 18: + Farm Beta
+        Assert.Equal(FileMaxStations(), u.Rules.MaxStations);   // Treibstoff an: der Wert der Weltdatei gilt unverändert
         Assert.True(StationServices.Default().TryGet("refuel", out var refuel) && refuel.IsAvailable(u, u.Stations[new StationId(25)]));
         var trader = IdleTrader(u);
         float tank = trader.TotalFuel;
@@ -377,4 +377,7 @@ public class ExportPlanetTests
         Assert.False(Research.IsUnlocked(u, new FactionId(1), UnlockKind.Module, "reactor_mk3"));
         Assert.DoesNotContain(u.Stations.Values, s => s.TypeKey == "fuel_refinery");   // Treibstoff bleibt aus
     }
+
+    /// <summary>Phase 21: <c>maxStations</c> der Weltdatei (statt der festen Zahl der 4-Sektoren-Welt).</summary>
+    static int FileMaxStations() => WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations;
 }

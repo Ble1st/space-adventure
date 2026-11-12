@@ -1,16 +1,19 @@
 {
  "seed": 20260101,
  "rules": {
-  "maxTraders": 14,
-  "maxMiners": 12,
+  "maxTraders": 26,
+  "maxMiners": 22,
   "repairPlatesPerHull": 0.05,
-  "maxStations": 37,
+  "maxStations": 66,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": false,
   "consumerMaxBidFactor": 2,
   "overstockFactor": 2.5,
   "exportOverstockFactor": 3,
+  "maxBuilders": 6,
+  "maxActiveSites": 3,
+  "policeMaxPerFaction": 6,
   "researchActive": false
  },
  "goods": [
@@ -1095,14 +1098,29 @@
    "name": "Terranische Union",
    "kind": "state",
    "personality": { "aggression": 0.45, "greed": 0.4, "cooperation": 0.6, "lawfulness": 0.8 },
-   "relations": { "2": 0.25 }
+   "relations": { "2": 0.25, "3": 0.2 }
   },
   {
    "id": 2,
    "name": "Freie Händler",
    "kind": "guild",
    "personality": { "aggression": 0.3, "greed": 0.7, "cooperation": 0.55, "lawfulness": 0.45 },
-   "relations": { "1": 0.25 }
+   "relations": { "1": 0.25, "3": 0.2 }
+  },
+  {
+   "id": 3,
+   "name": "Montanbund",
+   "kind": "guild",
+   "personality": {
+    "aggression": 0.35,
+    "greed": 0.55,
+    "cooperation": 0.6,
+    "lawfulness": 0.6
+   },
+   "relations": {
+    "1": 0.2,
+    "2": 0.2
+   }
   }
  ],
  "actors": [
@@ -1112,6 +1130,18 @@
    "kind": "outlaw",
    "personality": { "aggression": 0.9, "greed": 0.9, "cooperation": 0.1, "lawfulness": 0.0 },
    "treasury": 6000
+  },
+  {
+   "key": "blades",
+   "name": "Schwarze Klingen",
+   "kind": "outlaw",
+   "personality": {
+    "aggression": 0.85,
+    "greed": 0.8,
+    "cooperation": 0.15,
+    "lawfulness": 0.0
+   },
+   "treasury": 4000
   }
  ],
  "sectors": [
@@ -1704,6 +1734,589 @@
      "credits": 0
     }
    ]
+  },
+  {
+   "id": 5,
+   "name": "Sektor Borealis",
+   "owner": 1,
+   "map": [
+    0,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      80,
+      -70
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      -70,
+      -60
+     ],
+     "belt": 14,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 41,
+     "type": "water_plant",
+     "name": "Wasserwerk Borealis",
+     "pos": [
+      -60,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 42,
+     "type": "electrolysis",
+     "name": "Elektrolyse Borealis",
+     "pos": [
+      -120,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 43,
+     "type": "steelworks",
+     "name": "Stahlwerk Borealis",
+     "pos": [
+      80,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 44,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Borealis",
+     "pos": [
+      20,
+      60
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 45,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Borealis",
+     "pos": [
+      -110,
+      130
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Sektor Vesta",
+   "owner": 1,
+   "map": [
+    1,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      0,
+      -90
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 46,
+     "type": "copper_smelter",
+     "name": "Kupferhütte Vesta",
+     "pos": [
+      -80,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 47,
+     "type": "wafer_fab",
+     "name": "Waferfabrik Vesta",
+     "pos": [
+      -120,
+      -90
+     ],
+     "essential": true
+    },
+    {
+     "id": 48,
+     "type": "electronics_fab",
+     "name": "Elektronikfabrik Vesta",
+     "pos": [
+      -20,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 49,
+     "type": "plating_works",
+     "name": "Panzerwerk Vesta",
+     "pos": [
+      40,
+      90
+     ],
+     "essential": true
+    },
+    {
+     "id": 50,
+     "type": "shipyard",
+     "name": "Werft Vesta",
+     "pos": [
+      90,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 51,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Vesta",
+     "pos": [
+      120,
+      -90
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 52,
+     "type": "systems_works",
+     "name": "Systemwerk Vesta",
+     "pos": [
+      -100,
+      130
+     ],
+     "essential": true
+    },
+    {
+     "id": 53,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Vesta",
+     "pos": [
+      130,
+      140
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 54,
+     "type": "police_station",
+     "name": "Polizeiwache Vesta",
+     "pos": [
+      -150,
+      90
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "Sektor Hephaistos",
+   "owner": 3,
+   "map": [
+    2,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      60,
+      -70
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      -60,
+      -90
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 55,
+     "type": "titanium_works",
+     "name": "Titanhütte Hephaistos",
+     "pos": [
+      70,
+      50
+     ],
+     "essential": true
+    },
+    {
+     "id": 56,
+     "type": "platinum_refinery",
+     "name": "Platinraffinerie Hephaistos",
+     "pos": [
+      -30,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 57,
+     "type": "fuel_cell_fab",
+     "name": "Brennstoffzellen Hephaistos",
+     "pos": [
+      150,
+      -10
+     ],
+     "essential": true
+    },
+    {
+     "id": 58,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Hephaistos",
+     "pos": [
+      -120,
+      80
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 59,
+     "type": "shipyard",
+     "name": "Werft Hephaistos",
+     "pos": [
+      80,
+      140
+     ],
+     "essential": true
+    },
+    {
+     "id": 60,
+     "type": "drive_works",
+     "name": "Antriebswerk Hephaistos",
+     "pos": [
+      -90,
+      150
+     ],
+     "essential": true
+    },
+    {
+     "id": 61,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Hephaistos",
+     "pos": [
+      160,
+      -140
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Sektor Aurelia",
+   "owner": 3,
+   "map": [
+    3,
+    0
+   ],
+   "planet": {
+    "name": "Elysion",
+    "color": "#8fbf6a",
+    "radius": 450
+   },
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      60,
+      -60
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 62,
+     "type": "farm",
+     "name": "Farm Aurelia",
+     "pos": [
+      60,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 63,
+     "type": "water_plant",
+     "name": "Wasserwerk Aurelia",
+     "pos": [
+      -50,
+      -40
+     ],
+     "essential": true
+    },
+    {
+     "id": 64,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Aurelia",
+     "pos": [
+      0,
+      40
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 65,
+     "type": "trade_post",
+     "name": "Handelsposten Aurelia",
+     "pos": [
+      130,
+      80
+     ],
+     "essential": true,
+     "credits": 30000
+    },
+    {
+     "id": 75,
+     "type": "research_station",
+     "name": "Forschungszentrum des Montanbunds",
+     "pos": [
+      -130,
+      -110
+     ],
+     "essential": true,
+     "credits": 5000
+    },
+    {
+     "id": 66,
+     "type": "headquarters",
+     "name": "Hauptsitz des Montanbunds",
+     "pos": [
+      -60,
+      90
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "name": "Sektor Nebelmark",
+   "owner": 0,
+   "map": [
+    0,
+    1
+   ],
+   "asteroids": 35,
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      -60,
+      40
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "ice_rock",
+     "pos": [
+      60,
+      80
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": []
+  },
+  {
+   "id": 10,
+   "name": "Sektor Kalypso",
+   "owner": 2,
+   "map": [
+    2,
+    1
+   ],
+   "planet": {
+    "name": "Tethys",
+    "color": "#5fb3b0",
+    "radius": 440
+   },
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      90,
+      90
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 67,
+     "type": "colony",
+     "name": "Kolonie Tethys",
+     "pos": [
+      0,
+      0
+     ],
+     "essential": true
+    },
+    {
+     "id": 68,
+     "type": "trade_post",
+     "name": "Handelsstation Kalypso",
+     "pos": [
+      -90,
+      90
+     ],
+     "essential": true,
+     "credits": 30000
+    },
+    {
+     "id": 69,
+     "type": "farm",
+     "name": "Farm Kalypso",
+     "pos": [
+      60,
+      -60
+     ],
+     "essential": true
+    },
+    {
+     "id": 70,
+     "type": "life_support_fab",
+     "name": "Lebenserhaltung Kalypso",
+     "pos": [
+      -80,
+      -60
+     ],
+     "essential": true
+    },
+    {
+     "id": 71,
+     "type": "goods_factory",
+     "name": "Konsumgüterfabrik Kalypso",
+     "pos": [
+      120,
+      -30
+     ],
+     "essential": true
+    },
+    {
+     "id": 72,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Kalypso",
+     "pos": [
+      -20,
+      100
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 73,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Kalypso",
+     "pos": [
+      -150,
+      -120
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "name": "Sektor Abgrund",
+   "owner": 0,
+   "map": [
+    1,
+    2
+   ],
+   "asteroids": 35,
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      -50,
+      50
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 74,
+     "type": "pirate_hideout",
+     "name": "Schlupfwinkel der Schwarzen Klingen",
+     "pos": [
+      210,
+      190
+     ],
+     "essential": true,
+     "owner": "blades",
+     "credits": 0
+    }
+   ]
   }
  ],
  "gates": [
@@ -1760,6 +2373,211 @@
     "pos": [
      0,
      -100
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 7,
+    "sector": 1,
+    "pos": [
+     150,
+     -110
+    ]
+   },
+   "b": {
+    "id": 8,
+    "sector": 5,
+    "pos": [
+     0,
+     140
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 9,
+    "sector": 5,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 10,
+    "sector": 6,
+    "pos": [
+     -150,
+     0
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 11,
+    "sector": 6,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 12,
+    "sector": 2,
+    "pos": [
+     10,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 13,
+    "sector": 6,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 14,
+    "sector": 7,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 15,
+    "sector": 7,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 16,
+    "sector": 3,
+    "pos": [
+     -20,
+     -150
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 17,
+    "sector": 3,
+    "pos": [
+     160,
+     40
+    ]
+   },
+   "b": {
+    "id": 18,
+    "sector": 8,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 19,
+    "sector": 1,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 20,
+    "sector": 9,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 21,
+    "sector": 9,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 22,
+    "sector": 4,
+    "pos": [
+     -160,
+     -10
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 23,
+    "sector": 4,
+    "pos": [
+     160,
+     0
+    ]
+   },
+   "b": {
+    "id": 24,
+    "sector": 10,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 25,
+    "sector": 10,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "b": {
+    "id": 26,
+    "sector": 3,
+    "pos": [
+     60,
+     155
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 27,
+    "sector": 4,
+    "pos": [
+     0,
+     160
+    ]
+   },
+   "b": {
+    "id": 28,
+    "sector": 11,
+    "pos": [
+     0,
+     -150
     ]
    },
    "mainRoute": true
@@ -3153,6 +3971,121 @@
    "sector": 4,
    "credits": 0,
    "count": 3,
+   "model": "corsair"
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 1,
+   "sector": 5,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 1
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 1,
+   "sector": 6,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 2
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 3,
+   "sector": 7,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 2
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 3,
+   "sector": 8,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 1
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 2,
+   "sector": 10,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 5,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 6,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 1
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 3,
+   "sector": 7,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 3,
+   "sector": 8,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 1
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 2,
+   "sector": 9,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 1
+  },
+  {
+   "role": "builder",
+   "faction": 3,
+   "sector": 7,
+   "credits": 1500,
+   "cargo": 160,
+   "count": 1,
+   "model": "foreman"
+  },
+  {
+   "role": "police",
+   "faction": 3,
+   "sector": 8,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "pirate",
+   "owner": "blades",
+   "sector": 11,
+   "credits": 0,
+   "count": 2,
    "model": "corsair"
   }
  ],

@@ -45,9 +45,22 @@ public partial class MapOverlay : Control
 	Vector2 Place(Sector s, Vector2 center, float scale)
 	{
 		var all = _u!.Sectors.Values.Select(x => x.MapPosition).ToList();
-		var mid = new Vec2(all.Average(p => p.X), all.Average(p => p.Y));
+		var mid = new Vec2((all.Max(p => p.X) + all.Min(p => p.X)) / 2f, (all.Max(p => p.Y) + all.Min(p => p.Y)) / 2f);
 		return center + new Vector2((s.MapPosition.X - mid.X) * scale, (s.MapPosition.Y - mid.Y) * scale);
 	}
+
+	/// <summary>Phase 21: Abstand je Kartenfeld passend zur Fenstergröße (vorher fest 220 px — bei 11 Sektoren ragte die Karte aus dem Bild).</summary>
+	float MapScale()
+	{
+		var all = _u!.Sectors.Values.Select(x => x.MapPosition).ToList();
+		float rx = all.Max(p => p.X) - all.Min(p => p.X), ry = all.Max(p => p.Y) - all.Min(p => p.Y);
+		float sx = rx > 0.001f ? (Size.X - 200f) / rx : 220f;
+		float sy = ry > 0.001f ? (Size.Y - 230f) / ry : 220f;
+		return Mathf.Clamp(Mathf.Min(sx, sy), 90f, 220f);
+	}
+
+	/// <summary>Mittelpunkt der Karte (unter der Überschrift).</summary>
+	Vector2 MapCenter() => Size / 2f + new Vector2(0, 20f);
 
 	public override void _Notification(int what)
 	{
@@ -57,9 +70,10 @@ public partial class MapOverlay : Control
 	public override void _GuiInput(InputEvent @event)
 	{
 		if (_u == null || !Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion) || motion || pressed) return;
-		var center = Size / 2f;
+		var center = MapCenter();
+		float scale = MapScale();
 		foreach (var s in _u.Sectors.Values)
-			if (Place(s, center, 220f).DistanceTo(pos) < 44f) { SectorSelected?.Invoke(s.Id); Visible = false; Closed?.Invoke(); break; }
+			if (Place(s, center, scale).DistanceTo(pos) < 44f) { SectorSelected?.Invoke(s.Id); Visible = false; Closed?.Invoke(); break; }
 		AcceptEvent();
 	}
 
@@ -69,7 +83,8 @@ public partial class MapOverlay : Control
 		DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.03f, 0.08f, 0.94f));
 		var font = ThemeDB.FallbackFont;
 		DrawString(font, new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", HorizontalAlignment.Left, -1, 24, Colors.White);
-		var center = Size / 2f;
+		var center = MapCenter();
+		float scale = MapScale();
 
 		var player = _u.Ships.GetValueOrDefault(_u.PlayerShip);
 		foreach (var g in _u.Gates.Values)
@@ -79,23 +94,25 @@ public partial class MapOverlay : Control
 				bool denied = player is not null && (SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, g, player).Denied || SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, far, player).Denied);
 				var col = !g.Open ? new Color(0.3f, 0.6f, 1f, 0.2f) : denied ? new Color(1f, 0.35f, 0.3f, 0.9f)
 					: g.State == GateState.Restricted ? new Color(1f, 0.7f, 0.2f, 0.85f) : new Color(0.3f, 0.6f, 1f, 0.8f);
-				DrawLine(Place(_u.Sectors[g.Sector], center, 220f), Place(_u.Sectors[far.Sector], center, 220f), col, 3f);
+				DrawLine(Place(_u.Sectors[g.Sector], center, scale), Place(_u.Sectors[far.Sector], center, scale), col, 3f);
 			}
 
 		foreach (var s in _u.Sectors.Values)
 		{
-			var p = Place(s, center, 220f);
+			var p = Place(s, center, scale);
 			var col = FactionColor(s.Owner);
 			DrawCircle(p, 30f, new Color(col, 0.35f));
 			DrawArc(p, 30f, 0, Mathf.Tau, 40, col, 3f);
 			if (s.Id == _player) DrawArc(p, 38f, 0, Mathf.Tau, 40, Colors.White, 3f);
 			if (s.Id == _target) DrawArc(p, 46f, 0, Mathf.Tau, 40, Colors.Yellow, 3f);
-			DrawString(font, p + new Vector2(-60, 56), s.Name, HorizontalAlignment.Center, 120, 18, Colors.White);
-			DrawString(font, p + new Vector2(-60, 76), $"{s.Stations.Count} Stationen", HorizontalAlignment.Center, 120, 14, new Color(0.7f, 0.8f, 1f));
+			// Phase 21: Name ohne „Sektor “ und kleiner, damit 11 Sektoren nebeneinander lesbar bleiben
+			DrawString(font, p + new Vector2(-70, 50), s.Name.Replace("Sektor ", ""), HorizontalAlignment.Center, 140, 16, Colors.White);
+			DrawString(font, p + new Vector2(-70, 67), (s.Stations.Count == 1 ? "1 Station" : $"{s.Stations.Count} Stationen"), HorizontalAlignment.Center, 140, 12, new Color(0.7f, 0.8f, 1f));
 		}
 	}
 
-	public static Color FactionColor(FactionId f) => (f.Value % 4) switch
+	/// <summary>Farbe einer Fraktion; Phase 21: herrenlose Sektoren (Fraktion 0) grau.</summary>
+	public static Color FactionColor(FactionId f) => f.Value == 0 ? new Color(0.6f, 0.6f, 0.65f) : (f.Value % 4) switch
 	{
 		1 => new Color(0.35f, 0.7f, 1f), 2 => new Color(1f, 0.7f, 0.3f), 3 => new Color(0.5f, 1f, 0.5f), _ => new Color(0.9f, 0.5f, 0.9f),
 	};

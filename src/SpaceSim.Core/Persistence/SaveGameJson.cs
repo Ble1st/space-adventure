@@ -281,14 +281,15 @@ public static class SaveGameJson
     /// Stationen, Gates und Gürtelzentren. Markt: Rezeptwaren 50/100, dann die Lagerposten des Typs, dann der Stationsbestand der
     /// Default-Welt; Preise = Basispreis. Hindernis-Asteroiden am Bauplatz werden entfernt.
     /// </summary>
-    static void AddDefaultStations(SaveGame s, WorldDef def, string typeKey, Func<List<RecipeSave>> recipes, List<StationStockSave>? stocks, Dictionary<string, int> goodIdByKey)
+    static void AddDefaultStations(SaveGame s, WorldDef def, string typeKey, Func<List<RecipeSave>> recipes, List<StationStockSave>? stocks, Dictionary<string, int> goodIdByKey, string? ownerKey = null)
     {
         foreach (var sd in def.Sectors)
         {
             var sector = s.Sectors.FirstOrDefault(x => x.Id == sd.Id);
             if (sector is null) continue;
             if (s.Stations.Any(st => st.Sector == sd.Id && st.Type == typeKey)) continue;
-            foreach (var std in sd.Stations.Where(x => x.Type == typeKey))
+            // Phase 21: optional nur die Default-Stationen eines Akteurs (zwei Piratengruppen mit je eigenem Versteck)
+            foreach (var std in sd.Stations.Where(x => x.Type == typeKey && (ownerKey is null || x.Owner == ownerKey)))
             {
                 // Bauplatz der Default-Welt, sonst gespiegelte Ausweichplätze: frei von Stationen, Gates und Gürtelzentren
                 var p0 = new Vec2(std.Pos[0], std.Pos[1]);
@@ -817,6 +818,8 @@ public static class SaveGameJson
         if (canRebuild && !s.Actors.Any(a => a.Kind == nameof(ActorKind.Outlaw)) && hideoutType is not null && s.StationTypes.Any(t => t.Key == hideoutType.Key))
             foreach (var ad in def.Actors.Where(a => a.Kind.Equals("outlaw", StringComparison.OrdinalIgnoreCase)))
             {
+                // Phase 21: nur Gruppen, deren Versteck in einem Sektor des Stands liegt (die Klingen sitzen im Phase-21-Sektor Abgrund)
+                if (!def.Sectors.Any(sd => s.Sectors.Any(x => x.Id == sd.Id) && sd.Stations.Any(st => st.Type == hideoutType.Key && st.Owner == ad.Key))) continue;
                 int actorId = Math.Max(s.NextActorId, s.Actors.Count == 0 ? ActorId.FirstGenerated : s.Actors.Max(a => a.Id) + 1);
                 s.NextActorId = actorId + 1;
                 var p = ad.Personality;
@@ -826,7 +829,7 @@ public static class SaveGameJson
                     Aggression = p?.Aggression ?? 0.5f, Greed = p?.Greed ?? 0.5f, Cooperation = p?.Cooperation ?? 0.5f, Lawfulness = p?.Lawfulness ?? 0.5f,
                 });
                 int before = s.Stations.Count;
-                AddDefaultStations(s, def, hideoutType.Key, () => new List<RecipeSave>(), null, goodIdByKey);
+                AddDefaultStations(s, def, hideoutType.Key, () => new List<RecipeSave>(), null, goodIdByKey, ad.Key);
                 foreach (var st in s.Stations.Skip(before)) { st.Owner = actorId; st.BankruptcyProtected = true; st.Essential = false; }
                 var hideout = s.Stations.Skip(before).FirstOrDefault();
                 if (hideout is null) continue;

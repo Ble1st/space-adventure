@@ -41,7 +41,7 @@ public class StationReviewTests
     /// </summary>
     static (Universe U, Station Idle) Scenario()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 1);
         u.Tick = 40_000;
         u.LastStationBuildTick = -1_000_000;
@@ -69,7 +69,7 @@ public class StationReviewTests
     [Fact]
     public void Auslastung_SinktOhneAbnehmer_ZutatenmangelGetrenntGemessen()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var steel = u.Stations[new StationId(1)];
         Assert.Equal(1f, steel.Activity);
         Assert.Equal(0, steel.BuiltTick);
@@ -167,7 +167,7 @@ public class StationReviewTests
     [Fact]
     public void Langlauf_Umwidmung_TitanhuetteWirdWasserwerk_OhnePendeln()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var extra = AddBuilt(u, "titanium_works", TitanWorksDelta, new Vec2(0, 60));
         u.RemoveStation(WaterPlantAlpha, "test");
         u.Rules.MaxStations = StationProtection.CountEconomic(u);
@@ -195,7 +195,7 @@ public class StationReviewTests
     [Fact]
     public void Bauschiff_WirdNachgekauft_WennKeinesMehrDa()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 1);
         foreach (var b in u.Ships.Values.Where(s => s.Role == ShipRole.Builder).ToList()) u.RemoveShip(b.Id, "test");
         var steelworks = u.Stations[new StationId(1)];
@@ -215,7 +215,7 @@ public class StationReviewTests
         // das Bauschiff übernimmt die Baustelle
         Assert.True(new SimulationRunner().RunUntilTest(u, () => site.Site?.Builder == ship.Id, 400));
         // ohne Geld (Rücklage) kein Kauf
-        var u2 = DemoUniverse.Create();
+        var u2 = TestWorlds.Classic();
         new SimulationRunner().Run(u2, 1);
         foreach (var b in u2.Ships.Values.Where(s => s.Role == ShipRole.Builder).ToList()) u2.RemoveShip(b.Id, "test");
         u2.Actors[faction].Treasury.Credits = u2.Rules.SubsidyReserve;
@@ -248,7 +248,7 @@ public class StationReviewTests
     [Fact]
     public void Haendler_LadenNichtsUeberDieAnnahmeAb_20000Ticks()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var ev = Capture(u);
         new SimulationRunner().Run(u, 20_000);
         var dumped = ev.OfType<CargoDumped>().ToList();
@@ -262,7 +262,7 @@ public class StationReviewTests
     [Fact]
     public void Haendler_RestOhneKaeufer_BleibtAnBord_DannImAllAbgeworfen()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 1);
         var electrolysis = u.Stations[new StationId(7)];   // Wasserstoff-Hersteller
         var tm = u.ShipModels["unit_trader_100"];
@@ -319,7 +319,7 @@ public class StationReviewTests
     [Fact]
     public void Abwerfen_HandelsauftragUnterwegs_AuftragLaeuftWeiter()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 1);
         u.PlayerWallet.Credits = 20_000f;
         var nomad = Own(u, "nomad", u.Stations[new StationId(5)]);
@@ -343,7 +343,7 @@ public class StationReviewTests
     [Fact]
     public void Abwerfen_Bauauftrag_TreuhandMaterialGesperrt_RestFrei()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 1);
         var steelworks = u.Stations[new StationId(1)];
         var foreman = Own(u, "foreman", steelworks);
@@ -380,7 +380,7 @@ public class StationReviewTests
     [Fact]
     public void Abwerfen_SchuerferUndVerbandsfuehrer_KeinAbsturzKeineGeister()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 1);
         var alpha = u.Stations[new StationId(1)];
         var miner = Own(u, "prospector", alpha);

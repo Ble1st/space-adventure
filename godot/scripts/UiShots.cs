@@ -42,6 +42,8 @@ public partial class UiShots : Node
 		GD.Print($"[ui-shots] Zielordner: {_dir}");
 		// Phase 14: --ui-shots-phase14 nimmt nur die Bilder der Phase 14 auf (Standardwelt mit Planeten und Exportsenke)
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase14")) _stage = 548;
+		// Phase 21: --ui-shots-phase21 nur die Karten-Bilder der 11-Sektoren-Welt
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase21")) _stage = 561;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -425,6 +427,28 @@ public partial class UiShots : Node
 			}
 			case 559: _m.TestOpenDockArea("trade"); _m.HudRef.DockTrade.TestRebuild(); _m.HudRef.DockTrade.TestExpand(_m.Session.U.FindGood("steel")!.Id); _stage = 560; _wait = 20; break;
 			case 560: Capture("57-dock-handel-annahmegrund.png"); _stage = 561; _wait = 10; break;
+			// Phase 21: 11-Sektoren-Karte — Universum (Fraktion, Schiffe, Lage), Sternenkarte, Taxiliste
+			case 561:
+				_m.TestUndock(); _m.TestCloseCommand(); _m.TestOpenCommand(); _m.TestOpenCcArea("universe");
+				_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Faction;
+				_m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(7)); _stage = 562; _wait = 20; break;
+			case 562: Capture("58-cc-universum-elf-sektoren.png"); _stage = 563; _wait = 10; break;
+			case 563: _m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Ships; _m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(10)); _stage = 564; _wait = 20; break;
+			case 564: Capture("59-cc-universum-schiffe.png"); _stage = 565; _wait = 10; break;
+			case 565: _m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Security; _m.TestCcSelectSector(new SpaceSim.Core.Model.SectorId(11)); _stage = 566; _wait = 20; break;
+			case 566: Capture("60-cc-universum-lage-elf.png"); _stage = 567; _wait = 10; break;
+			case 567:
+			{
+				_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Faction;
+				_m.TestCloseCommand();
+				var u = _m.Session.U;
+				_m.HudRef.Map.Open(u, u.PlayerSector, new SpaceSim.Core.Model.SectorId(8));
+				_stage = 568; _wait = 20; break;
+			}
+			case 568: Capture("61-sternenkarte-elf-sektoren.png"); _stage = 569; _wait = 10; break;
+			case 569: _m.HudRef.Map.Visible = false; _m.TestDockAt(new SpaceSim.Core.Model.StationId(30)); _stage = 570; _wait = 60; break;
+			case 570: _m.TestOpenDockArea("taxi"); _stage = 571; _wait = 20; break;
+			case 571: Capture("62-dock-taxi-liste.png"); _stage = 572; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

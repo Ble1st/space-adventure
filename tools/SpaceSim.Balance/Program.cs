@@ -7,7 +7,7 @@ using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 
 // Headless-Balancing: lässt die Wirtschaft ohne Spieler laufen und gibt Kennzahlen als Tabelle/CSV aus.
-//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off] [--research on|off] [--fuel on|off] [--retire on|off] [--strict on] [--gates "id:closed|open@tick,..."]
+//   dotnet run --project tools/SpaceSim.Balance -- [--ticks 40000] [--every 2000] [--seed N] [--world datei.json] [--csv out.csv] [--security off] [--research on|off] [--fuel on|off] [--retire on|off] [--strict on] [--gates "id:closed|open@tick,..."] [--gatelist on]
 // Exit-Codes: 1 Preise instabil (Durchschnitt), 2 Karte zerfallen, 3 nur mit --strict on: HINWEIS-Zeilen (Deckel, Waren ohne Fahrten, leere Kassen)
 
 var opts = ParseArgs(args);
@@ -23,6 +23,25 @@ if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelO
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
 var u = WorldBuilder.Build(worldDef, seed);
+// Phase 21: Torliste (Id, von → nach, Zustand, Hauptroute) am Anfang, damit --gates nachvollziehbar ist; je Verbindung wird die kleinere Id genannt
+// (--gates schließt immer beide Enden). --gatelist on: zusätzlich je Verbindung, ob ihre Sperrung die Karte zerteilt (und welcher Teil abfällt), dann Ende.
+var gateLinks = u.Gates.Values.Where(g => g.Id.Value < g.Target.Value).OrderBy(g => g.Id.Value).ToList();
+string SectorShort(SectorId id) => u.Sectors.TryGetValue(id, out var sec) ? sec.Name.Replace("Sektor ", "") : id.Value.ToString(CultureInfo.InvariantCulture);
+Console.WriteLine("Tore: " + string.Join(", ", gateLinks.Select(g =>
+    $"{g.Id.Value}/{g.Target.Value} {SectorShort(g.Sector)}→{SectorShort(u.Gates[g.Target].Sector)} {g.State}{(g.MainRoute ? " Hauptroute" : "")}")));
+if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
+{
+    int baseParts = MapParts.Of(u).Parts.Count;
+    foreach (var g in gateLinks)
+    {
+        var parts = MapParts.IfClosed(u, g.Id);
+        string verdict = parts.Parts.Count > baseParts
+            ? "zerteilt: " + string.Join(" | ", parts.Parts.Select(p => string.Join("+", p.Select(SectorShort))))
+            : "Karte bleibt verbunden";
+        Console.WriteLine($"Tor {g.Id.Value}/{g.Target.Value} {SectorShort(g.Sector)} → {SectorShort(u.Gates[g.Target].Sector)}: {verdict}");
+    }
+    return 0;
+}
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt

@@ -477,8 +477,8 @@ public class FleetCommandTests
         Assert.Equal(from.Id, player.DockedAt);   // das Schiff bleibt in Beta
         Assert.Equal(wallet - q.Price, u.PlayerWallet.Credits, 2);
 
-        // gesperrte Route: Gate Beta–Delta geschlossen → nicht buchbar, mit Grund
-        GateAccess.SetState(u, u.Gates[new GateId(5)], GateState.Closed);
+        // gesperrte Route: alle Tore Deltas geschlossen → nicht buchbar, mit Grund (Phase 21: Delta hat Ringverbindungen, ein Tor allein sperrt nicht mehr)
+        foreach (var gid in u.Sectors[St(u, 18).Sector].Gates.ToList()) GateAccess.SetState(u, u.Gates[gid], GateState.Closed);
         var blocked = TaxiService.Quote(u, St(u, 18), waiting, from)!;
         Assert.False(blocked.Bookable);
         Assert.Contains("gesperrt", blocked.Issue!);

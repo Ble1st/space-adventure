@@ -136,7 +136,7 @@ public class ShipFitTests
     [Fact]
     public void Migration_V3ToV4_SchiffeBekommenEinheitsmodelle_VerhaltenGleich()
     {
-        var u = TestWorlds.Default(founderQuality: false);   // Phase 7: ohne Gütewurf; Phase 14: Treibstoff/Forschung an, sonst ergänzt die Kette Raffinerien und Forschungsstationen
+        var u = TestWorlds.Classic(null, fuel: true, research: true, founderQuality: false);   // Phase 7: ohne Gütewurf; Phase 14: Treibstoff/Forschung an, sonst ergänzt die Kette Raffinerien und Forschungsstationen
         var v3Json = ToV3Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":3", v3Json);
         Assert.DoesNotContain("ModelKey", v3Json);
@@ -162,7 +162,7 @@ public class ShipFitTests
         }
 
         // Verhalten gleich: 2000 Ticks ab dem migrierten Save == 2000 Ticks ab frisch erzeugter Welt gleicher Seed
-        var fresh = TestWorlds.Default(founderQuality: false);
+        var fresh = TestWorlds.Classic(null, fuel: true, research: true, founderQuality: false);
         var runner = new SimulationRunner();
         runner.Run(loaded, 2_000);
         runner.Run(fresh, 2_000);

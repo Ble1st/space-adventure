@@ -184,11 +184,12 @@ public sealed partial class FleetScreen : CommandScreen
 		{
 			case CommandKinds.GoTo:
 			case CommandKinds.Guard:
-				foreach (var st in u.Stations.Values.Where(s => !s.IsBuildSite).OrderBy(s => s.Sector == ship.Sector ? 0 : 1).ThenBy(s => s.Sector.Value).ThenBy(s => s.Id.Value))
+				// Phase 21: nach Sprüngen vom Schiff aus (bei 11 Sektoren stehen die nahen Ziele vorn), dann Sektor und Id
+				foreach (var st in u.Stations.Values.Where(s => !s.IsBuildSite).OrderBy(s => Hops(u, ship.Sector, s.Sector)).ThenBy(s => s.Sector.Value).ThenBy(s => s.Id.Value))
 					options.Add((Shorten(st.Name, 18), kind == CommandKinds.GoTo ? new GoToCommand(default, default, st.Id) : new GuardCommand(st.Id)));
 				break;
 			case CommandKinds.Patrol:
-				foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) options.Add((sec.Name, new PatrolCommand(new[] { sec.Id })));
+				foreach (var sec in u.Sectors.Values.OrderBy(s => Hops(u, ship.Sector, s.Id)).ThenBy(s => s.Id.Value)) options.Add((sec.Name.Replace("Sektor ", ""), new PatrolCommand(new[] { sec.Id })));
 				if (u.Sectors.Count > 1) options.Add(("Alle Sektoren", new PatrolCommand(u.Sectors.Keys.OrderBy(k => k.Value).ToList())));
 				break;
 			case CommandKinds.Escort:
@@ -217,6 +218,9 @@ public sealed partial class FleetScreen : CommandScreen
 		}
 		if (options.Count == 0) At(det, Text("Keine möglichen Ziele.", 14, Dim), 14, y, 400, 20);
 	}
+
+	/// <summary>Phase 21: Sprünge zwischen zwei Sektoren (physische Route; unerreichbar = ans Ende).</summary>
+	static int Hops(Universe u, SectorId from, SectorId to) => from == to ? 0 : u.FindRoute(from, to)?.Count ?? int.MaxValue;
 
 	void BuildLimits(Control det, Universe u, float y)
 	{

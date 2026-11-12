@@ -277,7 +277,7 @@ public class FuelModelTests
     [Fact]
     public void Migration_V4ToV5_PropellantNachgereicht_SchiffeVollerTank_VerhaltenGleich()
     {
-        var u = TestWorlds.Default();
+        var u = TestWorlds.Classic(null, fuel: true, research: true);
         var v4Json = ToV4Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":4", v4Json);
         Assert.DoesNotContain("\"Fuel\"", v4Json);
@@ -309,7 +309,7 @@ public class FuelModelTests
         }
 
         // Verhalten gleich: 2000 Ticks ab migriertem Save == 2000 Ticks ab frisch erzeugter Welt gleicher Seed
-        var fresh = TestWorlds.Default();
+        var fresh = TestWorlds.Classic(null, fuel: true, research: true);
         var runner = new SimulationRunner();
         runner.Run(loaded, 2_000);
         runner.Run(fresh, 2_000);

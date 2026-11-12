@@ -578,6 +578,26 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Tests bewusst angepasst:** `MultiroleTests.Tinker_WechseltZumHandel…` (Leerlaufregel wie die Mindestdauer verkürzt), `SecurityTests.Polizei_Abbau_NachDauerhafterUeberzahl` (Abbau erst nach ununterbrochener Überzahl, Bedrohungsfaktor 0). Kein Test entfernt.
 - **Nicht geprüft:** Handtest auf dem Gerät, Android; keine neuen `--ui-shots`.
 
+## Phase 21: Standardwelt mit 11 Sektoren
+
+**Anlass:** Der Nutzer will ein Universum aus 11 Sektoren statt der 4-Sektoren-Sternkarte um Beta — mit Ringen, verteilten Rohstoffen, mehreren Werften und Planeten, einer dritten Fraktion und herrenlosen Randsektoren.
+
+**Stand:** umgesetzt (nicht committet, Orchestrator).
+- **Karte:** Sektoren 1–4, Stationen 1–40, Tore 1–6 und alle Waren unverändert; angehängt: Borealis (5, Union, Bergbau Eis/Metall), Vesta (6, Union, Industrie + Werft), Hephaistos (7, Montanbund, Selten/Metall, Werft, Antriebswerk), Aurelia (8, Montanbund, Planet Elysion, Agrar, Sackgasse, Hauptsitz), Nebelmark (9, herrenlos, Selten/Eis, keine Station), Kalypso (10, Freie Händler, Planet Tethys, Kolonie Tethys), Abgrund (11, herrenlos, Metall, Sackgasse, Versteck der „Schwarzen Klingen“). Tore 7–28 (Paare 7/8 … 27/28), vier Ringe; nur die Tore zu Aurelia (17/18) und Abgrund (27/28) zerteilen die Karte. Hauptrouten bilden einen Spannbaum.
+- **Inhalt:** jedes Erz in mindestens zwei, meist drei bis fünf Sektoren; drei Werften (Delta, Vesta, Hephaistos), je zwei Antriebs- und Systemwerke, vier Farmen, drei Wasserwerke, zweite Kolonie, vier Planeten mit Exportsenke. Dritte Fraktion „Montanbund“ (Gilde, freundlich 0,2 zu beiden), Polizei und Bauschiff; zweite Piratengruppe. Sektoren mit `owner` 0 sind herrenlos (neu im WorldBuilder).
+- **Regeln:** `maxTraders` 26, `maxMiners` 22, `maxStations` 66, `maxBuilders` 6, `maxActiveSites` 3, `policeMaxPerFaction` 6; Treibstoff und Forschung aus.
+- **Code:** `MapParts.IfClosed/SplitsWhenClosed`; Lebenszyklus baut bevorzugt dort, wo die Erz-Zutaten gefördert werden (`BuildNearOre`); Restfracht eines Flottenschiffs mit Automatik nur zu Käufern im Umkreis (Fehler aus Phase 19); Migration v13→v14 legt nur Piratengruppen an, deren Versteck-Sektor existiert. Ansicht: Universumskarte mit getrennten Maßstäben je Achse, Sternenkarte passt sich der Fenstergröße an, Taxi als Bildlaufliste (nur Ziele mit eigenem Schiff oder Leihschiff), Flottenziele nach Sprüngen sortiert. Balance-Tool: Torliste am Anfang, `--gatelist on`.
+- **Tests:** die alte Welt als Test-Ressource `classic-world.json` (`TestWorlds.Classic()`); Phase-20-, Sicherheits-, Politik-, Stationsprüfungs- und Migrationstests laufen darauf (kontrollierte Sternkarte). Neue `Phase21Tests` (10). 576 Tests grün, Selbsttest OK (Stufe 49: 11 Sektoren, Routen, Sternenkarte, Taxi).
+- **Zahlen:** alle offenen Läufe „Preise im Zielbereich“ (Standard 20000/60000, Seeds 1–8 bei 20000, Seeds 1–3 bei 60000, 400000 Ticks, Treibstoff+Forschung an); Handel 26,0–26,5/26, Bergbau 21,0–22,5/22; Verlustquote 0,35–0,93 %; Kassenanteil 24–29 %; keine Sperre; 0,18–0,20 ms/Tick bei 60000 (Ziel ≤ 0,35), 0,16 bei 400000. Torläufe: Sackgasse zu → nur Warnung „Karte zerfallen“ (Exit 2), Ringtor und Werft-Tor zu → Exit 0, 144000 Ticks zu und wieder offen → sauber.
+
+**Abweichungen und offene Punkte (Phase 21):**
+- Regierungsunterhalt (sieben Sektor-HQs, zwei Hauptquartiere, Polizeiwache) nimmt 60–70 % der Abgaben in Kassen; die Kassen halten trotzdem 24–29 % des Geldes.
+- Bei 20000 Ticks laufen früh gebaute Stahlwerke erzarm (HINWEIS-Zeilen „Stahl am oberen Deckel“, „Kasse leer“); bei 60000 und 400000 Ticks ist der HINWEIS-Block leer bzw. hat höchstens eine Zeile.
+- Ist eine Sackgasse abgeschnitten, zählen die dort festsitzenden Schiffe gegen deren kleinen Anteil; weltweit liegt die Handelskapazität dann kurz über der Grenze (max. 29,4/26).
+- Der Montanbund behält zwei Polizeischiffe (geglätteter Bedarf unter der Kaufschwelle).
+- Die Universumskarte ist ein festes 4×4-Schema ohne Zoom; die Unterzeilen (11 px) sind auf dem Telefon knapp.
+- Entscheidung: „herrenlos“ = `owner` 0 in der Weltdatei; Besitz entsteht nur über Stationseinfluss. Die Entscheidung aus Phase 20 „keine Zweitwerft“ ist durch den Auftrag des Nutzers überholt.
+
 ## Zurückgestellt
 
 | Thema | Grund |

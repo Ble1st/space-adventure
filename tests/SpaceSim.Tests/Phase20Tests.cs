@@ -34,7 +34,7 @@ public class Phase20Tests
     [Fact]
     public void Kartenteile_ZerfallSchluesselUndUrsache()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var p = MapParts.Of(u);
         Assert.False(p.IsSplit);
         Assert.Single(p.Parts);
@@ -55,7 +55,7 @@ public class Phase20Tests
     [Fact]
     public void Flottenkapazitaet_JeKartenteil_AnteilUndZaehlung()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 200);
         var trade = ShipJobs.ByKey("trade")!;
         float global = ShipJobs.UsedUnits(u, trade);
@@ -75,7 +75,7 @@ public class Phase20Tests
     [Fact]
     public void Panik_AlphaZu_RestBautWasserwerk_UndEsWirdFertig()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var ev = Capture(u);
         var runner = new SimulationRunner();
         runner.Run(u, 1000);
@@ -104,7 +104,7 @@ public class Phase20Tests
     [Fact]
     public void Panik_NichtHerstellbar_MeldetOhneBau_UndEndetMitOffenemTor()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var ev = Capture(u);
         var runner = new SimulationRunner();
         runner.Run(u, 100);
@@ -128,7 +128,7 @@ public class Phase20Tests
     [Fact]
     public void Panik_KurzeSchliessung_LoestNichtsAus()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var ev = Capture(u);
         var runner = new SimulationRunner();
         runner.Run(u, 100);
@@ -143,7 +143,7 @@ public class Phase20Tests
     [Fact]
     public void Ueberzahl_NachWiederverbindung_PanikStationWirdStillgelegt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 1);
         u.Tick = 100_000;
         var extra = StationFactory.Create(u, u.NewStationId(), u.StationTypes["water_plant"], "Ersatz", new SectorId(2), new Vec2(0, 140), new ActorId(1));
@@ -180,7 +180,7 @@ public class Phase20Tests
     [Fact]
     public void Pleite_NurOhneFracht()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         u.Tick = 10_000;
         var ship = IdleTrader(u, 0f, 0);
         ship.Cargo[GoodOf(u, "hydrogen").Id] = 20f;
@@ -194,7 +194,7 @@ public class Phase20Tests
     [Fact]
     public void Ausmusterung_NurBeiUeberbesetzung_DanachKaufsperre()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         u.Tick = 20_000;
         var trade = ShipJobs.ByKey("trade")!;
         var ship = IdleTrader(u, 2000f, 0);
@@ -217,7 +217,7 @@ public class Phase20Tests
     [Fact]
     public void KeinNeukauf_SolangeEinArbeitsfaehigesSchiffUntaetigIst()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         u.Tick = 20_000;
         var trade = ShipJobs.ByKey("trade")!;
         u.Rules.MaxTraders = 1000;
@@ -232,7 +232,7 @@ public class Phase20Tests
     [Fact]
     public void Flotte_TeilOhneKaeufer_FraktionskasseKauftNach()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 20);
         Set(u, GammaGate, GateState.Closed);
         foreach (var s in u.Ships.Values.Where(s => s.IsEconomyAi && s.Role == ShipRole.Trader).ToList()) u.RemoveShip(s.Id, "test");
@@ -252,7 +252,7 @@ public class Phase20Tests
     [Fact]
     public void Aufgabenwechsel_OhneErtrag_ErstNachLeerlauf()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         u.Tick = 10_000;
         var ship = u.Ships.Values.First(s => s.IsEconomyAi);
         Assert.True(JobAssignmentSystem.IdleLongEnough(u, ship, 0.5f));
@@ -267,7 +267,7 @@ public class Phase20Tests
     [Fact]
     public void Aufgabenwechsel_TorZu_KeinFlattern_40000Ticks()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var runner = new SimulationRunner();
         var last = new Dictionary<ShipId, long>();
         long tooSoon = 0, switches = 0;
@@ -291,7 +291,7 @@ public class Phase20Tests
     [Fact]
     public void Polizei_Schwellen_MitLuecke()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var (buy, sell) = SecuritySystem.Thresholds(u, 2.0f);
         Assert.Equal(2, buy); Assert.Equal(2, sell);
         (buy, _) = SecuritySystem.Thresholds(u, 2.4f);
@@ -307,7 +307,7 @@ public class Phase20Tests
     [Fact]
     public void Polizei_KauftUndMustertNichtImKreis_60000Ticks()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         int bought = 0, gone = 0;
         u.Events.Raised += e => { if (e is PoliceCommissioned) bought++; else if (e is PoliceDecommissioned) gone++; };
         new SimulationRunner().Run(u, 60_000);
@@ -321,7 +321,7 @@ public class Phase20Tests
     [Fact]
     public void Bauschiffe_BleibenBestandDerFraktion_KasseZahlt()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var ev = Capture(u);
         new SimulationRunner().Run(u, 30_000);
         foreach (var f in u.Factions.Keys)
@@ -338,7 +338,7 @@ public class Phase20Tests
     [Fact]
     public void Bauschiffe_Mindestbestand_FraktionKauftNach()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         new SimulationRunner().Run(u, 20);
         var f = u.Factions.Keys.OrderBy(k => k.Value).First();
         foreach (var b in FactionBuilderSystem.Of(u, f)) u.RemoveShip(b.Id, "test");
@@ -356,7 +356,7 @@ public class Phase20Tests
     [Fact]
     public void SaveRoundtrip_MitPanikKaufsperreUndPolizeibedarf_BitIdentisch()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();
         var runner = new SimulationRunner();
         runner.Run(u, 500);
         Set(u, AlphaGate, GateState.Closed);
