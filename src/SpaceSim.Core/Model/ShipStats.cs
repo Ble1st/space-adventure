@@ -55,17 +55,36 @@ public sealed class ShipStats
     public float WeaponPower;
     /// <summary>Phase 11: Schildkapazität (Summe stats shieldCapacity); zählt in der Kampfstärke mit.</summary>
     public float Shield;
+    /// <summary>Phase 23: Schildregeneration je Sekunde (Summe stats shieldRegen), höchstens — gespeist aus dem Reaktorüberschuss (<see cref="Combat.ShipSystems"/>).</summary>
+    public float ShieldRegen;
+    /// <summary>Phase 23: Magazin für Munition (Summe stats ammoCapacity: Magazinmodul, künftig Geschütze), getrennt vom Laderaum wie der Tank.</summary>
+    public float AmmoCapacity;
 
     /// <summary>
     /// Berechnet die Werte eines Schiffs aus seiner Klasse und dem Fit (ein Eintrag je Slot, null = leer).
     /// Reine Funktion ohne Universum und ohne Nebeneffekte.
     /// </summary>
-    public static ShipStats Compute(ShipClass cls, IReadOnlyList<Module?> fit)
+    public static ShipStats Compute(ShipClass cls, IReadOnlyList<Module?> fit) => Compute(cls, fit, null, 0f);
+
+    /// <summary>
+    /// Phase 23: wie <see cref="Compute(ShipClass, IReadOnlyList{Module?})"/>, aber mit dem Zustand je Slot (<paramref name="condition"/>, fehlender
+    /// Eintrag = 1). Ein Modul unter <paramref name="failBelow"/> ist ausgefallen: Es behält Masse und seine Lager (Fracht, Tank, Magazin, Speicherbank —
+    /// der Inhalt verschwindet nicht) und Panzerung, verliert aber Dauerlast, Fähigkeiten und alle übrigen Werte. Reaktor und Antrieb fallen nie ganz aus, sie liefern
+    /// die halbe Leistung bzw. den halben Schub (KAMPF.md 3.3: kein Schiff bleibt unrettbar liegen). Reine Funktion.
+    /// </summary>
+    public static ShipStats Compute(ShipClass cls, IReadOnlyList<Module?> fit, IReadOnlyList<float>? condition, float failBelow)
     {
         var s = new ShipStats { Mass = cls.BaseMass, FuelCapacity = cls.BaseFuel };
-        foreach (var m in fit)
+        for (int slot = 0; slot < fit.Count; slot++)
         {
+            var m = fit[slot];
             if (m is null) continue;
+            bool failed = condition is not null && slot < condition.Count && condition[slot] < failBelow;
+            if (failed)
+            {
+                AddFailed(s, m);
+                continue;
+            }
             s.Mass += m.Mass;
             s.PowerDraw += m.PowerDraw;
             s.PeakDraw += m.PeakDraw;
@@ -79,6 +98,8 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("stealth", out var stealth)) s.Stealth += stealth;        // Phase 10: Tarnung (Entdeckung)
             if (m.Stats.TryGetValue("weaponPower", out var wp)) s.WeaponPower += wp;          // Phase 11: Waffen (abstrakte Begegnungen)
             if (m.Stats.TryGetValue("shieldCapacity", out var sh)) s.Shield += sh;            // Phase 11: Schild zählt in der Stärke
+            if (m.Stats.TryGetValue("shieldRegen", out var regen)) s.ShieldRegen += regen;    // Phase 23: Schild lädt nach
+            if (m.Stats.TryGetValue("ammoCapacity", out var ammo)) s.AmmoCapacity += ammo;    // Phase 23: Magazin
             foreach (var f in m.FuelTypes)
             {
                 int idx = s.FuelTypes.FindIndex(x => x.Good == f.Good);
@@ -104,8 +125,41 @@ public sealed class ShipStats
             }
         }
         s.LaserChunkChanceMult *= cls.ToolEfficiency;   // Phase 6: Rumpf mit geteilter Leistung (Mehrzweck) schwächt den Laser
+        Finish(s, cls);
+        return s;
+    }
+
+    /// <summary>Phase 23: ausgefallenes Modul — Masse, Lager und Panzerung bleiben, Reaktor/Antrieb mit halber Leistung, sonst nichts.</summary>
+    static void AddFailed(ShipStats s, Module m)
+    {
+        s.Mass += m.Mass;
+        s.Upkeep += m.Upkeep;
+        bool core = m.Stats.ContainsKey("powerOutput") || m.Stats.ContainsKey("thrust");
+        if (core) s.PowerDraw += m.PowerDraw;   // Reaktor/Antrieb laufen mit halber Leistung weiter und ziehen ihre Last
+        if (m.Stats.TryGetValue("powerOutput", out var output)) s.PowerOutput += 0.5f * output;
+        if (m.Stats.TryGetValue("thrust", out var thrust)) s.Thrust += 0.5f * thrust;
+        if (m.Stats.TryGetValue("armor", out var armor)) s.Hull += armor;   // Panzerplatten bleiben Panzerplatten
+        if (m.Stats.TryGetValue("powerStorage", out var storage)) s.PowerStorage += storage;
+        if (m.Stats.TryGetValue("fuelCapacity", out var fuelCap)) s.FuelCapacity += fuelCap;
+        if (m.Stats.TryGetValue("ammoCapacity", out var ammo)) s.AmmoCapacity += ammo;
+        if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // ein halber Antrieb verbraucht weiter
+        foreach (var f in m.FuelTypes)
+            if (s.FuelTypes.FindIndex(x => x.Good == f.Good) < 0) s.FuelTypes.Add(f);
+        if (m.Stats.TryGetValue("capacity", out var capacity))
+        {
+            s.Cargo += capacity;
+            switch (m.Holds)
+            {
+                case ModuleHolds.Solid: s.CargoSolid += capacity; break;
+                case ModuleHolds.Liquid: s.CargoLiquid += capacity; break;
+                default: s.CargoAny += capacity; break;
+            }
+        }
+    }
+
+    static void Finish(ShipStats s, ShipClass cls)
+    {
         s.Hull += cls.BaseHull;
         s.Speed = s.Mass > 0f ? MathF.Min(MaxSpeed, s.Thrust / s.Mass) : 0f;
-        return s;
     }
 }

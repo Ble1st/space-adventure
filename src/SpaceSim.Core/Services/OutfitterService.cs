@@ -207,7 +207,10 @@ public sealed class OutfitterService : IStationService
             else ship.Cargo[outGood.Id] = ship.Cargo.GetValueOrDefault(outGood.Id) + 1f;
         }
         ship.Fit[slot] = moduleKey;
+        if (slot < ship.Systems.Condition.Count) ship.Systems.Condition[slot] = 1f;   // Phase 23: ein neu eingebautes Modul ist heil
+        if (ship.Systems.AllIntact) ship.Systems.Condition.Clear();
         ship.RecomputeStats(u);
+        Combat.ShipSystems.Wake(u, ship);   // Phase 23: ein neues Schildmodul/eine neue Bank ist voll; wer weniger hat, lädt nach
         ship.CargoCapacity = ship.Stats.Cargo;
         ship.Hull = MathF.Min(ship.Hull, ship.MaxHull);
 

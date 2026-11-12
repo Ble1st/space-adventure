@@ -51,8 +51,11 @@ public class Phase21Tests
         // Neues ist angehängt
         Assert.True(u.Stations.Keys.Where(k => !classic.Stations.ContainsKey(k)).All(k => k.Value > 40));
         Assert.True(u.Gates.Keys.Where(k => !classic.Gates.ContainsKey(k)).All(k => k.Value > 6));
-        // Waren-Ids unverändert
-        Assert.Equal(classic.Goods.Values.Select(g => (g.Id, g.Key)), u.Goods.Values.Select(g => (g.Id, g.Key)));
+        // Waren-Ids der JSON-Waren unverändert; Phase 23 hängt die Munition an (Modul-Waren rücken dahinter, gleiche Reihenfolge nach Schlüssel)
+        var classicJson = classic.Goods.Values.Where(g => !classic.Modules.ContainsKey(g.Key)).Select(g => (g.Id, g.Key)).ToList();
+        Assert.Equal(classicJson, u.Goods.Values.Where(g => g.Id.Value <= classicJson.Count).Select(g => (g.Id, g.Key)));
+        Assert.Equal(classic.Goods.Values.Where(g => classic.Modules.ContainsKey(g.Key)).Select(g => g.Key),
+            u.Goods.Values.Where(g => u.Modules.ContainsKey(g.Key) && classic.Modules.ContainsKey(g.Key)).Select(g => g.Key));
     }
 
     [Fact]

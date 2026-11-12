@@ -37,7 +37,7 @@ public class ModuleGoodsTests
     {
         var def = DefaultDef();
         var u = WorldBuilder.Build(def);
-        Assert.Equal(25, def.Goods.Count);   // 23 bis Phase 4 + zwei Bausatzstufen
+        Assert.Equal(26, def.Goods.Count);   // 23 bis Phase 4 + zwei Bausatzstufen + Munition (Phase 23)
         var keys = u.Modules.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
         for (int i = 0; i < keys.Count; i++)
         {
@@ -104,6 +104,7 @@ public class ModuleGoodsTests
             Assert.NotEmpty(type.Recipes);
             foreach (var r in type.Recipes)
             {
+                if (r.Outputs.Keys.All(g => !u.Modules.ContainsKey(u.Goods[g].Key))) continue;   // Phase 23: Munitionsrezept im Waffenwerk ist kein Modulrezept
                 var (outGood, qty) = Assert.Single(r.Outputs);
                 Assert.Equal(1f, qty);
                 var module = u.Modules[u.Goods[outGood].Key];
@@ -183,7 +184,7 @@ public class ModuleGoodsTests
     public void ModuleFactory_Validierung()
     {
         Invalid(d => d.StationTypes.First(t => t.Key == "drive_works").ModuleFactory!.Slots.Add("warp"), "unbekannte Slotart 'warp'");
-        Invalid(d => d.StationTypes.First(t => t.Key == "drive_works").ModuleFactory!.Slots = new List<string> { "utility" }, "erzeugt kein Modul");
+        Invalid(d => d.StationTypes.First(t => t.Key == "drive_works").ModuleFactory!.MaxTier = 0, "erzeugt kein Modul");   // Phase 23: jede Slotart hat inzwischen ein Modul (Magazin = utility)
         Invalid(d => d.StationTypes.First(t => t.Key == "drive_works").ModuleFactory!.Ticks = 0, "drive_works");
     }
 
@@ -435,7 +436,7 @@ public class ModuleGoodsTests
         var moduleGoods = u.Goods.Values.Where(g => u.Modules.ContainsKey(g.Key)).OrderBy(g => g.Id.Value).ToList();
         Assert.Equal(u.Modules.Count, moduleGoods.Count);
         Assert.Equal(u.Modules.Keys.OrderBy(k => k, StringComparer.Ordinal), moduleGoods.Select(g => g.Key));
-        Assert.Equal(DemoUniverse.FirstModuleGoodId, moduleGoods[0].Id.Value);
+        Assert.Equal(TestWorlds.ClassicDef().Goods.Count + 1, moduleGoods[0].Id.Value);   // Phase 23: klassische Welt ohne Munition (erste Modulware 26)
         Assert.Equal(DemoUniverse.ShipKitLight, u.FindGood("ship_kit_light")!.Id);
         // drei Fabriken an ihren Plätzen, Rezepte = cost
         foreach (var key in Factories)

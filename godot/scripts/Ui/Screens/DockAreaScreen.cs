@@ -125,7 +125,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 	protected abstract void BuildContent(Control inner);
 
 	/// <summary>
-	/// Rechte Spalte: Schiffskarte mit Hülle (echt), Schild/Sprit (Platzhalter), Laderaum, Credits und Fracht.
+	/// Rechte Spalte: Schiffskarte mit Hülle, Schild (Phase 23), Sprit, Laderaum, Credits und Fracht (alles echt).
 	/// </summary>
 	protected void BuildShipPanel(float x, float y, float w, float h)
 	{
@@ -161,9 +161,13 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		fuelRow.Visible = u.Rules.FuelActive;   // Phase 14: Tankanzeige nur mit Treibstoff
 		sv.AddChild(fuelRow);
 
-		var pl = Text("Schild", 15, new Color(Dim, 0.7f)); pl.CustomMinimumSize = new Vector2(88, 0);
+		// Phase 23: Schild echt (aktuell/Kapazität; „–“ ohne Schildmodul)
+		var pl = Text("Schild", 15, Dim); pl.CustomMinimumSize = new Vector2(58, 0);
 		phRow.AddChild(pl);
-		phRow.AddChild(Text(UiPlaceholders.Tag, 12, new Color(Dim, 0.55f)));
+		var shieldBar = new KitBar(w - 150, 12, Cyan);
+		shieldBar.Set(ship.ShieldNow, Cyan, MathF.Max(1f, ship.Stats.Shield));
+		phRow.AddChild(shieldBar);
+		phRow.AddChild(Text(ship.Stats.Shield > 0f ? $"{(int)ship.ShieldNow}" : "–", 15, White));
 		sv.AddChild(phRow);
 
 		sv.AddChild(Text("Laderaum", 15, Dim));

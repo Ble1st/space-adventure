@@ -20,6 +20,7 @@ worldDef.Rules ??= new EconomyRules();
 // ihre Stationen (Forschungsstationen, Treibstoffraffinerien) in der Welt weg
 if (opts.TryGetValue("research", out var resOpt)) worldDef.Rules.ResearchActive = resOpt == "on";
 if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelOpt == "on";
+if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
 var u = WorldBuilder.Build(worldDef, seed);
@@ -57,6 +58,7 @@ var probeWatch = new System.Diagnostics.Stopwatch();   // Phase 17: Messaufwand 
 var routes = new RouteRecorder(u);
 // Phase 15: Deckel-, Kassen- und Fahrtenmessung je Station/Ware (alle 20 Ticks, nach dem Einschwingen = erste 10 % der Laufzeit)
 var watch = new MarketWatch(u);
+int recoveringMax = 0;   // Phase 23: größter Erholungsindex (Schiffe mit nicht vollem Schild/Bank) an den Messpunkten
 const int WatchEvery = 20;
 int watchFrom = ticks / 10;
 // Phase 15: Geldmenge im Verlauf (Anteil der Kassen) und Kassen der Exportsenken (Minimum nach dem Einschwingen)
@@ -332,6 +334,7 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             {
                 probeWatch.Start();
                 watch.Sample(u);
+                recoveringMax = Math.Max(recoveringMax, u.Recovering.Count);   // Phase 23
                 if (u.Tick % 200 == 0)
                 {
                     foreach (var j in ShipJobs.Default) capMax[j.Key] = MathF.Max(capMax.GetValueOrDefault(j.Key), ShipJobs.UsedUnits(u, j));
@@ -409,6 +412,10 @@ Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.
     double simMs = bySystem.Sum(x => x.Ms);
     if (perSystem) Console.WriteLine("Rechenzeit je System (Top 5): " + string.Join(", ", bySystem.Take(5).Select(x => $"{x.Name} {100 * x.Ms / total:0.0}%"))
         + $"; alle Systeme {100 * simMs / total:0.0}%, Messprobe des Tools {100 * probeWatch.Elapsed.TotalMilliseconds / total:0.0}%");
+    // Phase 23: Schiffssysteme — wie viele Schiffe sich erholen und was das kostet
+    double sysMs = bySystem.Where(x => x.Name == "ShipSystemsSystem").Sum(x => x.Ms);
+    Console.WriteLine($"Schiffssysteme: Erholungsindex max {recoveringMax}, jetzt {u.Recovering.Count} Schiffe; Schilde jetzt {u.Ships.Values.Count(x => x.Stats.Shield > 0f && x.ShieldNow < x.Stats.Shield)} von {u.Ships.Values.Count(x => x.Stats.Shield > 0f)} nicht voll"
+        + (perSystem ? $"; Rechenzeit ShipSystemsSystem {100 * sysMs / total:0.00}%" : ""));
 }
 var prop = u.FindGood("propellant");
 if (prop is not null && u.Rules.FuelActive)
@@ -453,6 +460,8 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Güteklassen Neubauten (Standard/Verbessert/Elite/Meisterwerk): gewürfelt {Grades(gradeRolled)}, erreicht {Grades(gradeGot)}; Flotte jetzt: {string.Join(", ", founders)}");
     Console.WriteLine($"Upgrades (NPC): {upgradeTries} Versuche, {upgradeOk} gelungen, {upgradeCost:0} Cr");
     Console.WriteLine($"Engpass-Module (Ø Preis/Basis letzte 25%): Reaktor {Ratio("reactor_mk1")}, Triebwerk {Ratio("chem_engine_s")}, Laser {Ratio("mining_laser_1")}");
+    // Phase 23: Stahl und Kupfer tragen die neue Munitionskette (Ø Preis/Basis letzte 25 %, dichte Probe)
+    Console.WriteLine($"Stahl/Kupfer/Munition (Ø Preis/Basis letzte 25%): Stahl {Ratio("steel")}, Kupfer {Ratio("copper")}, Munition {Ratio("ammo")}");
 }
 // Phase 8: Bau über Baustellen und Notbau-Anteil
 {

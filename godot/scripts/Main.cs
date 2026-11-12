@@ -109,6 +109,8 @@ public partial class Main : Node3D
 		_hud.Flight.SetCommandBadge(UiPlaceholders.CommsUnread);
 		_hud.Flight.BayDown += OnBayDown;
 		_hud.Flight.AllFire += FireReadyBays;
+		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
+		_hud.Flight.PowerModePressed += m => { _sfx.Play(SfxId.Click); SpaceSim.Core.Combat.ShipSystems.SetMode(_session.U, PlayerData, m); };
 		_hud.Command.Action += OnCommandAction;
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
 		_hud.DockMenu.AreaSelected += OnDockArea;
@@ -557,7 +559,9 @@ public partial class Main : Node3D
 		// Treibstoff (Phase 4c): leerer Tank deckelt das Tempo (Notantrieb), die geflogene Strecke wird abgebucht
 		float fuelCap = PlayerFuel.ThrottleCap(_session.U, PlayerData);
 		var before = _player.Position;
-		_player.Step(delta, turn, dir, throttle, speedScale * fuelCap, _view, brake: hold);
+		// Phase 23: Stellung „Antrieb“ hebt das Höchsttempo (Core-Regel ShipSystems.SpeedFactor)
+		float engine = SpaceSim.Core.Combat.ShipSystems.SpeedFactor(_session.U, PlayerData);
+		_player.Step(delta, turn, dir, throttle, speedScale * fuelCap * engine, _view, brake: hold);
 		if (!_player.Locked)
 		{
 			PlayerFuel.ConsumeFlown(_session.U, PlayerData, new Vector2(_player.Position.X - before.X, _player.Position.Z - before.Z).Length());
@@ -1161,6 +1165,10 @@ public partial class Main : Node3D
 			Fuel = PlayerData.TotalFuel,
 			FuelCapacity = PlayerData.Stats.FuelCapacity,
 			FuelActive = u.Rules.FuelActive,   // Phase 14
+			// Phase 23: Schild, Leistungsbilanz, Speicherbank und Verteilung echt
+			Shield = PlayerData.ShieldNow, ShieldMax = PlayerData.Stats.Shield,
+			PowerOutput = PlayerData.Stats.PowerOutput, PowerDraw = PlayerData.Stats.PowerDraw,
+			Charge = PlayerData.Charge, ChargeMax = PlayerData.Stats.PowerStorage, PowerMode = PlayerData.PowerMode,
 			Credits = _session.U.WalletOf(PlayerData).Credits,   // Phase 5b: Spielerkasse
 			SectorName = sector.Name,
 			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",

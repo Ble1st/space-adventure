@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using SpaceAdventure.Ui.Kit;
+using SpaceSim.Core.Model;
 using SpaceSim.Core.Weapons;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
@@ -26,6 +27,9 @@ public sealed class FlightHudData
 	public float Fuel, FuelCapacity;
 	/// <summary>Phase 14: Treibstoff eingeschaltet (Regel fuelActive)? Aus = Tankzeile ausgeblendet.</summary>
 	public bool FuelActive = true;
+	/// <summary>Phase 23: Schild (aktuell/Höchstwert; Höchstwert 0 = kein Schildmodul), Leistungsbilanz (Leistung, Dauerlast), Speicherbank und Leistungsverteilung — echt aus dem Core.</summary>
+	public float Shield, ShieldMax, PowerOutput, PowerDraw, Charge, ChargeMax;
+	public PowerMode PowerMode;
 	public string SectorName = "", FactionName = "";
 	/// <summary>Phase 11: Fahndungszeile des Spielers (leer = sauber, dann ausgeblendet) und Lage des Sektors (Sicherheit/Bedrohung).</summary>
 	public string Wanted = "", Security = "";
@@ -56,7 +60,8 @@ public sealed class FlightHudData
 }
 
 /// <summary>
-/// Flug-HUD (UI.md Abschnitt 2): Statusleiste oben (Hülle und Credits echt, Schild/Sprit/Leistung Platzhalter),
+/// Flug-HUD (UI.md Abschnitt 2): Statusleiste oben (Hülle, Schild, Sprit, Leistung und Credits echt; Phase 23), darunter die drei Tasten der
+/// Leistungsverteilung (Waffen, Schild, Antrieb; nochmals tippen = ausgeglichen),
 /// Sektorchip Mitte, Karte, Zeitraffer und „Kamera ↺“ (Standardansicht) oben rechts, Zielkarte mit Autopilot/Auto-Mining
 /// und Kontexttaste, unten links Hamburger-Menü und Wendetasten (RÜCK als eigene kleinere Haltetaste dazwischen),
 /// unten rechts der Tempo-Slider, rechts die Waffenschächte.
@@ -74,10 +79,22 @@ public partial class FlightHud : Control, IScreen
 	public event Action? HamburgerPressed, MapPressed, FastPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire, CommandPressed;
 	/// <summary>Finger auf einer Waffenschacht-Taste (Index in <see cref="FlightHudData.Bays"/>).</summary>
 	public event Action<int>? BayDown;
+	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
+	public event Action<PowerMode>? PowerModePressed;
 
 	// oben
-	KitBar _hullBar = null!, _fuelBar = null!;
-	Label _fuelVal = null!;
+	KitBar _hullBar = null!, _fuelBar = null!, _shieldBar = null!, _powerBar = null!;
+	Label _fuelVal = null!, _shieldVal = null!, _powerVal = null!;
+	// Phase 23: Leistungsverteilung
+	readonly Dictionary<PowerMode, KitButton> _modeButtons = new();
+	/// <summary>Selbsttest: angezeigte Schild- und Leistungswerte, aktive Stellung.</summary>
+	public string TestShieldText => _shieldVal.Text;
+	public string TestPowerText => _powerVal.Text;
+	public PowerMode TestMode => _d.PowerMode;
+	/// <summary>Selbsttest: Taste der Leistungsverteilung auslösen wie ein Fingertipp.</summary>
+	public void TestPressMode(PowerMode m) => PressMode(m);
+	/// <summary>Selbsttest: Größe und Lage einer Verteilungstaste (Mindest-Trefferfläche, keine Überdeckung).</summary>
+	public Rect2 TestModeRect(PowerMode m) => new(_modeButtons[m].Position, _modeButtons[m].Size);
 	Control _fuelRow = null!;
 	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>
 	public bool TestFuelVisible => _fuelRow.Visible;
@@ -100,6 +117,8 @@ public partial class FlightHud : Control, IScreen
 	readonly ArcOverlay _arcs = new();
 
 	FlightHudData _d = new();
+	/// <summary>Phase 23: Farbe des Leistungsbalkens.</summary>
+	static readonly Color PowerColor = new(1f, 0.86f, 0.4f);
 
 	public FlightHud()
 	{
@@ -134,22 +153,27 @@ public partial class FlightHud : Control, IScreen
 	{
 		AddChild(_arcs);
 
-		// ── Status oben links: Hülle echt, Schild/Sprit/Leistung Platzhalter (ein Hinweis, nicht pro Zeile) ──
+		// ── Status oben links: Hülle, Schild, Sprit und Leistung echt (Phase 23) ──
 		var status = Win(this, 14, 12, 300, 168, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
 		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 10, 280, 148);
 		sv.AddThemeConstantOverride("separation", 7);
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
-		BarRow(sv, "Schild", UiKit.Cyan, UiPlaceholders.ShieldPercent, placeholder: true);
+		_shieldBar = BarRow(sv, "Schild", UiKit.Cyan, out _shieldVal!);
 		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal!);
 		_fuelRow = (Control)sv.GetChild(sv.GetChildCount() - 1);
-		var powRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		powRow.AddThemeConstantOverride("separation", 8);
-		var pl = Text("Leistung", 16, UiKit.Dim); pl.CustomMinimumSize = new Vector2(66, 0);
-		powRow.AddChild(pl);
-		powRow.AddChild(Text(UiPlaceholders.PowerText, 16, new Color(UiKit.Dim, 0.7f)));
-		sv.AddChild(powRow);
-		sv.AddChild(Text("Schild · Leistung: " + UiPlaceholders.Tag, 12, new Color(UiKit.Dim, 0.6f)));
+		// Leistung: Balken = Dauerlast ÷ Reaktorleistung, Wert „Last/Leistung“ (+ Bank, wenn vorhanden)
+		_powerBar = BarRow(sv, "Leistung", PowerColor, out _powerVal!);
 		_credits = At(this, Text("", 20, UiKit.Orange), 20, 188, 300, 26);
+
+		// ── Phase 23: Leistungsverteilung unter den Credits (drei Tasten 96×56, zwischen Statusleiste und Wendetasten nichts überdeckt) ──
+		var modes = new[] { (PowerMode.Weapons, "Waffen"), (PowerMode.Shield, "Schild"), (PowerMode.Engine, "Antrieb") };
+		for (int i = 0; i < modes.Length; i++)
+		{
+			var (mode, label) = modes[i];
+			var b = At(this, new KitButton(label, new Vector2(96, 56)) { FontSize = 16, Toggle = true }, 14 + i * 102, 222);
+			b.Pressed += () => PressMode(mode);
+			_modeButtons[mode] = b;
+		}
 
 		// ── Sektorchip oben Mitte (echt: Sektorname und Besitzerfraktion) ──
 		var chip = Win(this, 420, 12, 430, 42, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 20);
@@ -224,6 +248,9 @@ public partial class FlightHud : Control, IScreen
 		return c;
 	}
 
+	/// <summary>Phase 23: erneutes Tippen auf die aktive Stellung schaltet auf ausgeglichen zurück.</summary>
+	void PressMode(PowerMode m) => PowerModePressed?.Invoke(_d.PowerMode == m ? PowerMode.Balanced : m);
+
 	KitBar BarRow(Control parent, string name, Color fill, out Label? valueLabel, float value = 0f, bool placeholder = false)
 	{
 		var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
@@ -296,6 +323,14 @@ public partial class FlightHud : Control, IScreen
 		_fuelBar.Set(fuelPct, fuelPct < 20f ? UiKit.Red : UiKit.Orange);   // Warnfarbe unter 20 %
 		_fuelVal.Text = d.FuelCapacity > 0f ? $"{(int)d.Fuel}" : "–";
 		_fuelRow.Visible = d.FuelActive;   // Phase 14: Treibstoff abgeschaltet → keine Tankanzeige
+		// Phase 23: Schild und Leistung echt
+		float shieldPct = d.ShieldMax > 0f ? 100f * d.Shield / d.ShieldMax : 0f;
+		_shieldBar.Set(shieldPct, shieldPct < 30f ? UiKit.Orange : UiKit.Cyan);
+		_shieldVal.Text = d.ShieldMax > 0f ? $"{(int)d.Shield}" : "–";
+		float loadPct = d.PowerOutput > 0f ? 100f * d.PowerDraw / d.PowerOutput : 100f;
+		_powerBar.Set(Math.Min(100f, loadPct), d.PowerDraw > d.PowerOutput ? UiKit.Red : PowerColor);
+		_powerVal.Text = $"{d.PowerDraw:0}/{d.PowerOutput:0}" + (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}" : "");
+		foreach (var (mode, b) in _modeButtons) b.On = d.PowerMode == mode;
 		_credits.Text = $"{(int)d.Credits} Credits";
 		_sector.Text = d.SectorName;
 		_factionChip.Text = d.FactionName;

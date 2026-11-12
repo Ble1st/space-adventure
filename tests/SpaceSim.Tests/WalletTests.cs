@@ -190,7 +190,7 @@ public class WalletTests
     [Fact]
     public void Migration_V6ToV7_SchiffsCreditsWandernInDieKasse_NpcUnveraendert()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Classic();   // Phase 23: die eingefrorene Migrationskette kennt die Munition der Standardwelt nicht
         // Phase 9: Kassen der Fraktionen und aufgestiegene Akteure gibt es vor v12 nicht — abgeschaltet, damit das Demotieren verlustfrei bleibt
         u.Rules.TaxToTreasuryShare = 0f; u.Rules.TreasuryInvests = false; u.Rules.PromoteInvestors = false;
         // Phase 10: Regierungsstationen gibt es vor v13 nicht (die Migration setzt sie neu mit leerer Kasse) — ihr Unterhalt bleibt hier aus

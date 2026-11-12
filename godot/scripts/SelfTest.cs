@@ -1124,6 +1124,62 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Abgänge (Phase 22) warfen eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
+			case 51: // Phase 23: Schiffssysteme — Schild- und Leistungsbalken echt, drei Tasten der Leistungsverteilung, Schild fängt Schaden zuerst und lädt nach
+			{
+				if (_frame - _stageStart < 10) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var ship = _m.Session.Player;
+					var hud = _m.HudRef.Flight;
+					Check(hud.TestPowerText.StartsWith($"{ship.Stats.PowerDraw:0}/{ship.Stats.PowerOutput:0}"), $"HUD-Leistung aus dem Core („{hud.TestPowerText}“)");
+					Check(hud.TestShieldText == (ship.Stats.Shield > 0f ? $"{(int)ship.ShieldNow}" : "–"), $"HUD-Schild aus dem Core („{hud.TestShieldText}“)");
+					// drei Tasten: Mindest-Trefferfläche 56 px, keine Überdeckung untereinander, mit der Statusleiste (bis y 214) und den Wendetasten (ab y 560)
+					var rects = new[] { PowerMode.Weapons, PowerMode.Shield, PowerMode.Engine }.Select(hud.TestModeRect).ToList();
+					Check(rects.All(r => r.Size.X >= 56f && r.Size.Y >= 56f), "Verteilungstasten mindestens 56 px");
+					Check(rects.All(r => r.Position.Y >= 214f && r.End.Y <= 560f), "Verteilungstasten zwischen Statusleiste und Wendetasten");
+					Check(!rects[0].Intersects(rects[1]) && !rects[1].Intersects(rects[2]) && !rects[0].Intersects(rects[2]), "Verteilungstasten überdecken sich nicht");
+					hud.TestPressMode(PowerMode.Shield);
+					Check(ship.PowerMode == PowerMode.Shield, "Taste „Schild“ stellt die Verteilung im Core um");
+					hud.Refresh(new Ui.Screens.FlightHudData { PowerMode = ship.PowerMode });
+					hud.TestPressMode(PowerMode.Shield);
+					Check(ship.PowerMode == PowerMode.Balanced, "Zweites Tippen auf „Schild“ = ausgeglichen");
+					hud.TestPressMode(PowerMode.Engine);
+					Check(ship.PowerMode == PowerMode.Engine && SpaceSim.Core.Combat.ShipSystems.SpeedFactor(uni, ship) > 1f, "Stellung „Antrieb“ hebt das Höchsttempo");
+					SpaceSim.Core.Combat.ShipSystems.SetMode(uni, ship, PowerMode.Balanced);
+					// Schildmodul in einen zusätzlichen Slot (nur für den Test), Treffer, der Schild fängt zuerst ab
+					ship.Slots.Add(new ClassSlot { Type = "shield", Size = SlotSize.S });
+					ship.Fit.Add("shield_mk1");
+					ship.RecomputeStats(uni);
+					_p23Hull = ship.Hull;
+					float rest = SpaceSim.Core.Combat.ShipSystems.Absorb(uni, ship, 30f);
+					Check(rest == 0f && System.MathF.Abs(ship.ShieldNow - (ship.Stats.Shield - 30f)) < 0.01f && ship.Hull == _p23Hull, $"Schild fängt den Treffer ab (Schild {ship.ShieldNow:0}/{ship.Stats.Shield:0})");
+					_p23Shield = ship.ShieldNow;
+				}
+				catch (System.Exception ex) { Fail("Schiffssysteme (Phase 23) warfen eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
+			case 52: // Phase 23: HUD zeigt den getroffenen Schild, nach der Pause lädt er aus dem Überschuss nach
+			{
+				if (_frame - _stageStart < 5) break;
+				try
+				{
+					var uni = _m.Session.U;
+					var ship = _m.Session.Player;
+					var hud = _m.HudRef.Flight;
+					Check(hud.TestShieldText == $"{(int)ship.ShieldNow}" && ship.ShieldNow < ship.Stats.Shield, $"HUD zeigt den getroffenen Schild („{hud.TestShieldText}“)");
+					Check(uni.Recovering.Contains(ship.Id), "Schiff steht im Erholungsindex");
+					_m.Session.RunTicks(200);
+					Check(ship.ShieldNow > _p23Shield, $"Schild lädt nach ({_p23Shield:0} → {ship.ShieldNow:0})");
+					// Testslot wieder entfernen
+					ship.Slots.RemoveAt(ship.Slots.Count - 1);
+					ship.Fit.RemoveAt(ship.Fit.Count - 1);
+					ship.RecomputeStats(uni);
+					Check(ship.Stats.Shield == 0f && ship.ShieldNow == 0f, "Ohne Schildmodul kein Schild");
+				}
+				catch (System.Exception ex) { Fail("Schildanzeige (Phase 23) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -1133,6 +1189,8 @@ public partial class SelfTest : Node
 	}
 
 	void Next() { _stage++; _stageStart = _frame; }
+	/// <summary>Phase 23: Hülle und Schild zwischen den Stufen 51 und 52.</summary>
+	float _p23Hull, _p23Shield;
 	void Log(string s) => GD.Print("[selftest] " + s);
 	/// <summary>Phase 18: Ware „Nahrung“ der Welt (für die Abwurf-Prüfungen).</summary>
 	static SpaceSim.Core.Model.GoodId DemoFood(SpaceSim.Core.Model.Universe u) => u.FindGood("food")!.Id;

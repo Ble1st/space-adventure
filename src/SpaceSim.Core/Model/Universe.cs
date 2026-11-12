@@ -129,6 +129,11 @@ public sealed class Universe
     /// <summary>Ereignisbus und Schiffsindex sind abgeleitet und gehören nicht zum Spielstand.</summary>
     public SimEvents Events { get; } = new();
     public ShipTracker Tracker { get; } = new();
+    /// <summary>
+    /// Phase 23: Schiffe, deren Bordsysteme sich erholen (Schild, Bank nicht voll) — abgeleitet, nicht gespeichert, beim Laden neu aufgebaut
+    /// (<see cref="Combat.RecoveryIndex.Rebuild"/>). Nur diese Schiffe kosten <see cref="Combat.ShipSystemsSystem"/> Rechenzeit.
+    /// </summary>
+    public Combat.RecoveryIndex Recovering { get; } = new();
 
     /// <summary>Zählt Änderungen an Sektorinhalten (Stationen gebaut/entfernt), damit die Darstellung neu aufbauen kann.</summary>
     public int StructureVersion { get; private set; }

@@ -1,6 +1,6 @@
 # Kampfsystem und Schiffssysteme (Plan)
 
-**Status:** Nur Planung, nichts umgesetzt. Stand nach Phase 22. Baut auf [FLOTTEN.md](FLOTTEN.md) (Begegnungen, Verhaltensregeln), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) (Slots, Leistung, Feuerwinkel) und [POLITIK.md](POLITIK.md) (Fahndung) auf.
+**Status:** Phase 23 (Schiffssysteme) umgesetzt, Phasen 24–28 Planung. Plan erstellt nach Phase 22. Baut auf [FLOTTEN.md](FLOTTEN.md) (Begegnungen, Verhaltensregeln), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) (Slots, Leistung, Feuerwinkel) und [POLITIK.md](POLITIK.md) (Fahndung) auf.
 
 **Auslegung:** „Schiffssystem“ heißt hier die Bordsysteme eines Schiffs zur Laufzeit: Schild, Leistung/Speicherbank, Waffen, Hülle und der Zustand einzelner Module. Die Slots und Module selbst gibt es schon; es fehlt ihr Verhalten im Betrieb.
 
@@ -159,6 +159,8 @@ Jede Stufe ist einzeln lauffähig, hat eigene Tests und einen Balance-Vergleich.
 | **28 später** | Raketen, Stationsgeschütze und Stationsangriff, Erobern, große Kriegsschiffe, Krieg zwischen Fraktionen. | — |
 
 Phase 23 und 24 sind die Grundlage; ab Phase 25 merkt der Spieler den Unterschied.
+
+**Stand Phase 23:** umgesetzt (siehe UMSETZUNGSPLAN.md, Phase 23): Laufzeitwerte als Fehlbeträge (`ShipSystemsState`), Leistungsregel `Combat/ShipSystems`, `CombatModule` mit `ShipSystemsSystem` (nur nicht volle Schiffe), Schild vor Hülle und aktueller Schild in der Stärke, Ware `ammo` mit Rezept im Waffenwerk, Lagerware an Werft/Polizeiwache/Handelsstation, Munitionsmagazin (`ammoCapacity`), Schalter `ammoActive` (Standardwelt an), HUD-Balken und drei Verteilungstasten. Abweichung: Die Stellung „Antrieb“ wirkt in Phase 23 nur auf den Spielerflug (+10 % Höchsttempo); ohne Speicherbank fließt der Waffenanteil außerhalb des Gefechts in den Schild.
 
 ## 7. Risiken
 

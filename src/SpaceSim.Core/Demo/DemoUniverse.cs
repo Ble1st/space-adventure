@@ -17,8 +17,9 @@ public static class DemoUniverse
     public static readonly GoodId ShipKitLight = new(22);
     public static readonly GoodId Propellant = new(23);   // Treibstoff (Phase 4), ans Ende der goods-Liste
     public static readonly GoodId ShipKitMedium = new(24), ShipKitHeavy = new(25);   // Bausatzstufen (Phase 5a), angehängt
-    /// <summary>Erste Modul-Ware: Modul-Waren folgen automatisch hinter den JSON-Waren, nach Modulschlüssel sortiert (Phase 5a).</summary>
-    public const int FirstModuleGoodId = 26;
+    public static readonly GoodId Ammo = new(26);   // Munition (Phase 23), angehängt
+    /// <summary>Erste Modul-Ware: Modul-Waren folgen automatisch hinter den JSON-Waren, nach Modulschlüssel sortiert (Phase 5a; seit Phase 23 hinter der Munition).</summary>
+    public const int FirstModuleGoodId = 27;
 
     /// <summary>Kurzform: der Bausatz der Einheitsmodelle (leicht).</summary>
     public static GoodId ShipKit => ShipKitLight;
