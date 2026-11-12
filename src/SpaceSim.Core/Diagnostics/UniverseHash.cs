@@ -101,6 +101,19 @@ public static class UniverseHash
         }
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
         { Mix((ulong)sh.Id.Value); Mix((ulong)sh.HomeBase.Value); Mix((ulong)sh.DutySector.Value); MixF(sh.Hull); }   // Hülle: Überfälle, Rückzug
+        // Phase 24: laufende Gefechte
+        Mix((ulong)u.Fights.NextId);
+        foreach (var e in u.Fights.Encounters)
+        {
+            Mix((ulong)e.Id); Mix((ulong)e.Sector.Value); Mix((ulong)e.StartTick); Mix((ulong)e.Cause); Mix((ulong)e.Raider.Value); Mix((ulong)e.RaiderOwner.Value);
+            Mix((ulong)e.Victim.Value); Mix((ulong)e.Police.Value); MixF(e.Loot); MixF(e.Fenced); Mix((ulong)e.Shots); Mix((ulong)e.Hits);
+            foreach (var p in e.Participants)
+            {
+                Mix((ulong)p.Ship.Value); Mix((ulong)p.Side); MixString(p.Tactic); MixF(p.X); Mix((ulong)p.Target.Value); Mix((ulong)p.Move); MixF(p.Speed);
+                foreach (var t in p.Timers) MixF(t);
+                MixF(p.Courage); MixF(p.DropShare); Mix((ulong)p.PrevMode); Mix((ulong)p.Exit);
+            }
+        }
         foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); }
         // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))

@@ -60,10 +60,10 @@ public sealed class JobAssignmentSystem : ISimSystem
 
     /// <summary>
     /// Wechselregel als reine Funktion: erst nach der Mindestdauer, nur zu einer Aufgabe mit Gewinn, und nur wenn sie um die Hysterese
-    /// besser ist als die aktuelle (aktuell 0 = jede lohnende Aufgabe ist besser).
+    /// besser ist als die aktuelle (aktuell 0 = jede lohnende Aufgabe ist besser); Phase 24: die neue Aufgabe bringt mindestens <see cref="EconomyRules.JobMinSwitchScore"/>.
     /// </summary>
     public static bool ShouldSwitch(long ticksInJob, float currentScore, float otherScore, EconomyRules rules) =>
-        ticksInJob >= rules.JobMinTicks && otherScore > 0f && otherScore > currentScore * (1f + rules.JobSwitchMargin);
+        ticksInJob >= rules.JobMinTicks && otherScore > 0f && otherScore >= rules.JobMinSwitchScore && otherScore > currentScore * (1f + rules.JobSwitchMargin);
 
     /// <summary>
     /// Phase 20: Darf das Schiff eine Aufgabe mit dieser Bewertung verlassen? Bringt sie etwas ein (&gt; 0), entscheidet nur die Hysterese; bringt sie nichts
@@ -96,6 +96,6 @@ public sealed class JobAssignmentSystem : ISimSystem
 
     /// <summary>Untätig: keine Reise, kein Auftrag, keine Fracht, beide Phasen Idle und die KI denkt in diesem Tick ohnehin nach.</summary>
     static bool IsIdle(Universe u, Ship ship) =>
-        ship.Transit is null && ship.Order is null && ship.Phase == TradePhase.Idle && ship.MinePhase == MinePhase.Idle
+        !u.Fights.IsEngaged(ship.Id) && ship.Transit is null && ship.Order is null && ship.Phase == TradePhase.Idle && ship.MinePhase == MinePhase.Idle
         && u.Tick >= ship.NextThinkTick && ship.Cargo.Values.Sum() < 0.001f;
 }

@@ -48,7 +48,7 @@ public sealed class FactionBuilderSystem : ISimSystem
             }
             else if (builders.Count > r.MinBuildersPerFaction && r.IdleRetireTicks > 0)
             {
-                var spare = builders.Where(s => s.Transit is null && s.Order is null && s.IdleSince >= 0 && u.Tick - s.IdleSince > r.IdleRetireTicks
+                var spare = builders.Where(s => s.Transit is null && s.Order is null && !u.Fights.IsEngaged(s.Id) && s.IdleSince >= 0 && u.Tick - s.IdleSince > r.IdleRetireTicks
                                                 && !u.Stations.Values.Any(st => st.Site is { } bs && bs.Builder == s.Id))
                     .OrderByDescending(s => s.Id.Value).FirstOrDefault();
                 if (spare is not null)

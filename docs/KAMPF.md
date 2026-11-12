@@ -1,6 +1,6 @@
 # Kampfsystem und Schiffssysteme (Plan)
 
-**Status:** Phase 23 (Schiffssysteme) umgesetzt, Phasen 24–28 Planung. Plan erstellt nach Phase 22. Baut auf [FLOTTEN.md](FLOTTEN.md) (Begegnungen, Verhaltensregeln), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) (Slots, Leistung, Feuerwinkel) und [POLITIK.md](POLITIK.md) (Fahndung) auf.
+**Status:** Phasen 23 (Schiffssysteme) und 24 (Trefferregel, Rundengefecht NPC gegen NPC) umgesetzt, Phasen 25–28 Planung. Plan erstellt nach Phase 22. Baut auf [FLOTTEN.md](FLOTTEN.md) (Begegnungen, Verhaltensregeln), [SCHIFFSSLOTS.md](SCHIFFSSLOTS.md) (Slots, Leistung, Feuerwinkel) und [POLITIK.md](POLITIK.md) (Fahndung) auf.
 
 **Auslegung:** „Schiffssystem“ heißt hier die Bordsysteme eines Schiffs zur Laufzeit: Schild, Leistung/Speicherbank, Waffen, Hülle und der Zustand einzelner Module. Die Slots und Module selbst gibt es schon; es fehlt ihr Verhalten im Betrieb.
 
@@ -161,6 +161,8 @@ Jede Stufe ist einzeln lauffähig, hat eigene Tests und einen Balance-Vergleich.
 Phase 23 und 24 sind die Grundlage; ab Phase 25 merkt der Spieler den Unterschied.
 
 **Stand Phase 23:** umgesetzt (siehe UMSETZUNGSPLAN.md, Phase 23): Laufzeitwerte als Fehlbeträge (`ShipSystemsState`), Leistungsregel `Combat/ShipSystems`, `CombatModule` mit `ShipSystemsSystem` (nur nicht volle Schiffe), Schild vor Hülle und aktueller Schild in der Stärke, Ware `ammo` mit Rezept im Waffenwerk, Lagerware an Werft/Polizeiwache/Handelsstation, Munitionsmagazin (`ammoCapacity`), Schalter `ammoActive` (Standardwelt an), HUD-Balken und drei Verteilungstasten. Abweichung: Die Stellung „Antrieb“ wirkt in Phase 23 nur auf den Spielerflug (+10 % Höchsttempo); ohne Speicherbank fließt der Waffenanteil außerhalb des Gefechts in den Schild.
+
+**Stand Phase 24:** umgesetzt (siehe UMSETZUNGSPLAN.md, Phase 24): Waffenwerte als Modulwerte mit `damageType`, Laserkanone und kinetisches Geschütz, `Combat/Hit` (eine reine Trefferregel, zwei Zufallszüge je Wurf), Gefechte als gespeicherte Objekte (`Universe.Fights`) mit Positionen auf einer Gefechtslinie, `CombatSystem` mit den Taktiken Kaperer, Polizei, Händler und Begleiter, Flucht über die Reichweite, Frachtabwurf statt Beuteanteil, Munitionsverbrauch und Nachladen der NPCs, bewaffnete Frachtermodelle mit Kaufwahl nach Routenrisiko. Abweichungen: Der Überfall auf das aktive Spielerschiff bleibt abstrakt (Phase 25); Nachladeuhren liegen im Gefecht; Abstandszahl je Teilnehmer statt je Paar. Nach der Prüfung nachkalibriert (Kaperer fliehen früher, größerer Abwurfanteil, Munition nur auf Schüsse mit Aussicht): Verlustquote im Langlauf wieder ≈ 0,5 %, zwei Kaperer je Gruppe.
 
 ## 7. Risiken
 

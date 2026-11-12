@@ -410,6 +410,7 @@ public sealed class ConstructionSystem : ISimSystem
         {
             // Phase 12: auch Spielerschiffe mit Befehl „Bauen“ (Ausführer ist dieses System)
             if (ship.Role != ShipRole.Builder || (ship.Controller != Controller.Ai && ship.Command is not BuildCommand)) continue;
+            if (u.Fights.IsEngaged(ship.Id)) continue;   // Phase 24: im Gefecht gesperrt
             if (!ship.Has(Capability.Construction))
             {
                 // Bauausleger ausgebaut: Auftrag fällt weg, Baustelle wird frei (wie JobRelease bei Händlern/Minern)

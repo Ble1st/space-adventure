@@ -88,6 +88,7 @@ public sealed class Ship : ICreditAccount
             Capabilities = Stats.Capabilities;   // Schiffe mit Modell: Fähigkeiten folgen immer dem Fit
             ClampFuel();
             ClampSystems();
+            Combat.ShipSystems.Wake(u, this);   // Phase 24: nach einem Modulwechsel kann sich ein bisher erholungsloses Schiff wieder erholen
             return true;
         }
         Stats = new ShipStats { Hull = NoModelHull };

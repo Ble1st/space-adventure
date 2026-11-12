@@ -2259,9 +2259,16 @@
    "tier": 1,
    "grants": ["Combat"],
    "stats": {
-    "weaponPower": 6
+    "damage": 7,
+    "reload": 2,
+    "range": 60,
+    "accuracy": 0.85,
+    "tracking": 0.8,
+    "ammoPerShot": 0
    },
+   "damageType": "energy",
    "powerDraw": 3,
+   "peakDraw": 1,
    "mass": 2,
    "cost": {
     "electronics": 2,

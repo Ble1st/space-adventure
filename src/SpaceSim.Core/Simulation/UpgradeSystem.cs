@@ -19,7 +19,7 @@ public sealed class UpgradeSystem : ISimSystem
         var rules = u.Rules;
         foreach (var ship in u.ShipsById())   // Schnappschuss nach Id (Phase 17: zwischengespeichert)
         {
-            if (!ship.IsEconomyAi || !ship.HasModel || ship.Transit is not null || ship.Order is not null) continue;
+            if (!ship.IsEconomyAi || !ship.HasModel || ship.Transit is not null || ship.Order is not null || u.Fights.IsEngaged(ship.Id)) continue;
             if (ship.Credits < rules.UpgradeMinCredits) continue;
             if (Refuel.CurrentStation(u, ship) is not { } st) continue;
             if (!u.StationTypes.TryGetValue(st.TypeKey, out var type) || !type.Services.Contains(ServiceKey)) continue;

@@ -442,7 +442,7 @@ public class RespawnTests
         }
         save.AsteroidClasses = new();
         save.NextAsteroidId = version == 1 ? 1 : save.NextAsteroidId;
-        foreach (var ship in save.Ships.Where(sh => sh.Order is { Kind: "mine" }))
+        foreach (var ship in save.Ships.Where(sh => sh.Order is { Kind: "mine" } && sh.Order.B >= 0))   // Feld -1 = nur noch ausliefern (Tankstopp, Phase 24 nach einem Gefecht)
         {
             // Alte Aufträge nannten die Ware statt des Feldes
             var field = save.Sectors.First(sec => sec.Id == ship.Order!.A).Fields[ship.Order!.B];
@@ -470,7 +470,7 @@ public class RespawnTests
     {
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 400);   // damit Miner Aufträge haben
-        int miningOrders = u.Ships.Values.Count(s => s.Order is MineOrder);
+        int miningOrders = u.Ships.Values.Count(s => s.Order is MineOrder { Field: >= 0 });   // Feld -1 = nur ausliefern (kennt das alte Format nicht)
         float oreBefore = u.Sectors.Values.Sum(sec => sec.Asteroids.Sum(a => a.Ore));
 
         var (loaded, _) = SpaceSim.Core.Persistence.SaveGameJson.Read(AsLegacyJson(u, version: 2));
@@ -478,7 +478,7 @@ public class RespawnTests
         Assert.All(loaded.Sectors.Values.SelectMany(s => s.Fields), f => Assert.StartsWith("legacy_", f.ClassKey));
         Assert.All(loaded.AsteroidClasses.Values, c => Assert.Single(c.Yields));
         Assert.Equal(oreBefore, loaded.Sectors.Values.Sum(sec => sec.Asteroids.Sum(a => a.Ore)), 1);
-        Assert.Equal(miningOrders, loaded.Ships.Values.Count(s => s.Order is MineOrder));
+        Assert.Equal(miningOrders, loaded.Ships.Values.Count(s => s.Order is MineOrder { Field: >= 0 }));
         new SimulationRunner().Run(loaded, 3_000);
         Assert.All(loaded.Ships.Values, s => Assert.True(float.IsFinite(s.Credits)));
     }

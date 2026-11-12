@@ -133,6 +133,10 @@ public sealed partial class SectorScreen : CommandScreen
 			// Phase 11: Lagekarte (echt)
 			var sec = SecurityInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
 			py = WrappedText(card, $"Lage: {sec.Summary} · {sec.Patrols} Streife{(sec.Patrols == 1 ? "" : "n")}", 16, py + 2, 268, 13, sec.Threat >= 1f ? Orange : new Color(Dim, 0.95f), 16);
+			// Phase 24: laufende Gefechte (echt aus CombatInfo)
+			var fights = SpaceSim.Core.Combat.CombatInfo.InSector(u, sel);
+			TestCombat = fights.Count == 0 ? "" : $"Gefecht: {fights[0].Title} · {fights[0].Detail}" + (fights.Count > 1 ? $" (+{fights.Count - 1})" : "");
+			if (TestCombat.Length > 0) py = WrappedText(card, TestCombat, 16, py + 2, 268, 13, Red, 16);
 			At(card, Text("Tippe eine Station oder ein Gate an.", 13, new Color(Dim, 0.75f)), 16, py + 8, 268, 18);
 		}
 
@@ -323,6 +327,7 @@ public sealed partial class SectorScreen : CommandScreen
 					p + new Vector2(0, -7).Rotated(ang), p + new Vector2(5.5f, 4).Rotated(ang), p + new Vector2(-5.5f, 4).Rotated(ang),
 				};
 				DrawColoredPolygon(pts, col);
+				if (_u.Fights.IsEngaged(sh.Id)) DrawArc(p, 10f, 0, Mathf.Tau, 16, Red, 2f, true);   // Phase 24: im Gefecht
 			}
 
 			// Spieler
@@ -334,7 +339,7 @@ public sealed partial class SectorScreen : CommandScreen
 				DrawString(font, p + new Vector2(12, 4), $"du · #{pl.Id.Value}", HorizontalAlignment.Left, -1, 12, Cyan);
 			}
 
-			DrawString(font, new Vector2(12, Size.Y - 10), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ Schiff (orange schürft, blau Polizei, rot Pirat)   ▲ cyan = du", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			DrawString(font, new Vector2(12, Size.Y - 10), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ Schiff (orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht)   ▲ cyan = du", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
 		}
 
 		void DrawShip(Vector2 c, float s, Color col)
@@ -351,4 +356,6 @@ public sealed partial class SectorScreen : CommandScreen
 
 	/// <summary>Selbsttest: Planet in der zuletzt gezeichneten Sektor-Detailkarte (Phase 14; leer ohne Planet).</summary>
 	public string TestPlanet { get; private set; } = "";
+	/// <summary>Phase 24: Gefechtszeile der Sektorkarte (leer = kein Gefecht).</summary>
+	public string TestCombat { get; private set; } = "";
 }

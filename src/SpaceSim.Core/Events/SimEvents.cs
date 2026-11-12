@@ -222,3 +222,24 @@ public sealed record StationDeparted(StationId Station, string TypeKey, string N
 public sealed record FactionRestored(FactionId Faction, ShipId Ship, ShipRole Role, float Paid, float Waived) : SimEvent;
 /// <summary>Phase 22: Kapitalausgleich innerhalb eines Akteurs (ein reiches Schiff gibt einem armen Geschwisterschiff Betriebsgeld; kein neues Geld).</summary>
 public sealed record FirmCapitalMoved(ActorId Owner, ShipId From, ShipId To, float Amount) : SimEvent;
+
+// ───────── Phase 24: Trefferregel und Rundengefecht ─────────
+/// <summary>Phase 24: Ein Gefecht hat begonnen (Überfall oder Abfangen zwischen NPCs): Angreifer und angegriffenes Hauptschiff.</summary>
+public sealed record EncounterStarted(int Encounter, SectorId Sector, EncounterCause Cause, ShipId Attacker, ShipId Defender, string Message) : SimEvent;
+/// <summary>
+/// Phase 24: Ein Schuss im Gefecht (Trefferregel <see cref="Combat.Hit.Roll"/>): Schütze, Ziel, Waffenmodul, Art, Treffer, Schaden an Schild und Hülle.
+/// Die Darstellung zeichnet ihn als Linie, wenn er im Spielersektor fällt (wie <see cref="MinerShot"/>).
+/// </summary>
+public sealed record ShotFired(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;
+/// <summary>Phase 24: Ein Teilnehmer hat das Gefecht verlassen (zerstört, geflohen, Fracht abgeworfen, Beute genommen, Zeit um).</summary>
+public sealed record CombatExited(int Encounter, ShipId Ship, ShipRole Role, CombatExit Exit) : SimEvent;
+/// <summary>Phase 24: Ein Händler hat sich ergeben und Fracht abgeworfen; der Kaperer nimmt sie (Basiswert) und bricht ab.</summary>
+public sealed record CargoSurrendered(int Encounter, ShipId Ship, ShipId Taker, float Value) : SimEvent;
+/// <summary>
+/// Phase 24: Ein Gefecht ist zu Ende. <paramref name="Outcome"/>: „surrendered“ (Fracht abgeworfen), „fled“ (eine Seite entkommen), „destroyed“ (eine Seite
+/// zerstört), „timeout“ (Höchstdauer), „ended“ (Teilnehmer weggefallen). Dauer in Ticks, Schüsse/Treffer, Beute und Zahl der Abgänge je Art.
+/// </summary>
+public sealed record EncounterEnded(int Encounter, SectorId Sector, EncounterCause Cause, string Outcome, long Ticks, int Shots, int Hits, float Loot,
+    int Destroyed, int Fled, int Surrendered, string Message) : SimEvent;
+/// <summary>Phase 24: Munition nachgeladen (Station = Lager, default = ohne Lager zum Basispreis × Aufschlag); bezahlt von <paramref name="Payer"/> (Schiff oder Kasse).</summary>
+public sealed record AmmoRearmed(ShipId Ship, StationId Station, float Units, float Cost, ActorId Payer, bool FromTreasury) : SimEvent;

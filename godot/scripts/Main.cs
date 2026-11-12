@@ -40,6 +40,7 @@ public partial class Main : Node3D
 	Fx _fx = null!;
 	Sfx _sfx = null!;
 	MiningView _mining = null!;
+	CombatView _combat = null!;   // Phase 24: Schüsse der NPC-Gefechte im Spielersektor
 
 	// Kamera: Winkel/Abstand als reine Core-Rechnung, Ist-Offset folgt weich (Standard = früherer CamOffset 0,38,24)
 	readonly OrbitCamera _orbit = new();
@@ -92,6 +93,7 @@ public partial class Main : Node3D
 
 		_view = new SectorView(); AddChild(_view);
 		_mining = new MiningView { GoodColor = id => GoodColor(id) }; AddChild(_mining);
+		_combat = new CombatView(); AddChild(_combat);
 		_player = new PlayerShip(); AddChild(_player);
 		_fx = new Fx(); AddChild(_fx);
 		_sfx = new Sfx(); AddChild(_sfx);
@@ -261,7 +263,7 @@ public partial class Main : Node3D
 		_hud.Flight.SetSlider(0f);
 		_hud.Screens.Hide();
 		SetAutoMining(false, announce: false);
-		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc();
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset();
 		_transition = false; _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
 		_hud.Flight.Visible = true;   // Dock-Bildschirme wurden über Screens.Hide() geschlossen
 		_view.Rebuild(u);
@@ -442,7 +444,7 @@ public partial class Main : Node3D
 		_hud.Screens.Hide();
 		_target = null; _targetStation = null; _autopilot = false; _hud.Flight.SetAutopilot(false);
 		SetAutoMining(false, announce: false);
-		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc();
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset();
 		_transition = false; _player.Scale = Vector3.One; _player.Velocity = Vector3.Zero; _player.GiveGrace(2f);
 		_lowestHull = p.Hull;
 		_view.Rebuild(u);
@@ -489,6 +491,10 @@ public partial class Main : Node3D
 	internal string? LastPanicMessage { get; private set; }
 	/// <summary>Phase 22: letzter Hinweis „Station aufgegeben …“ (für den Selbsttest).</summary>
 	internal string? LastDepartureMessage { get; private set; }
+	/// <summary>Phase 24: letzter Gefechtshinweis im Spielersektor (Selbsttest).</summary>
+	internal string? LastCombatMessage { get; private set; }
+	/// <summary>Phase 24: gezeichnete Gefechtsschüsse (Selbsttest).</summary>
+	internal int TestCombatShots => _combat.ShotsSeen;
 	long _panicToastTick = -1;
 
 	/// <summary>Für den Selbsttest: Dauer der letzten Taxifahrt in Ticks.</summary>
@@ -512,6 +518,14 @@ public partial class Main : Node3D
 			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Toast($"Notbau: {es.Name}"); break;
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
+			// Phase 24: NPC-Gefechte im Spielersektor — Schüsse als Strahlen, Beginn als Hinweis
+			case ShotFired sf when sf.Sector == _session.U.PlayerSector:
+				_combat.Shot(sf.Shooter, sf.Target, sf.Type, sf.Hit, Time.GetTicksMsec() / 1000.0, sf.Shooter.Value * 37 + _combat.ShotsSeen * 53);
+				if (sf.Hit && _view.ShipPosition(sf.Target) is { } hp) _fx.Burst(hp, sf.Type == DamageType.Energy ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.85f, 0.4f), 4, 5f, 0.3f);
+				break;
+			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
+				LastCombatMessage = SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default);
+				_hud.Toast(LastCombatMessage, 4f); break;
 			// Phase 22: Station im Spielersektor aufgegeben — Grund (pleite / länger nicht rentabel) im Text
 			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
 				LastDepartureMessage = departed; _hud.Toast(departed, 4.5f); break;
@@ -541,7 +555,7 @@ public partial class Main : Node3D
 		_hitFlash = Mathf.Max(0f, _hitFlash - delta);
 
 		_session.Advance(delta, _fast ? 10f : 1f);
-		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _chunks.Clear(); _mineTarget = null; }
+		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; }
 		_view.SyncAsteroids(_session.U, delta);
 
 		// Hülle regeneriert langsam, wenn eine Weile nichts getroffen hat
@@ -701,7 +715,7 @@ public partial class Main : Node3D
 		u.MoveShip(PlayerData, far.Sector);
 		u.PlayerSector = far.Sector;
 		_view.Rebuild(u);
-		_mining.ResetNpc(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
+		_mining.ResetNpc(); _combat.Reset(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
 		_player.GiveGrace(1.5f);
 
 		var gpos = new Vector3(far.Position.X, 0, far.Position.Y);
@@ -1483,6 +1497,7 @@ public partial class Main : Node3D
 		double time = Time.GetTicksMsec() / 1000.0;
 		_mining.UpdatePlayer(_player.Position, tractor, _chunks.Chunks, time);
 		_mining.UpdateNpc(_view.ShipPosition, time);
+		_combat.UpdateBeams(_view.ShipPosition, time);
 	}
 
 	// ───────── Zugriff für den Selbsttest ─────────
@@ -1596,7 +1611,7 @@ public partial class Main : Node3D
 		u.MoveShip(PlayerData, sector);
 		u.PlayerSector = sector;
 		_view.Rebuild(u);
-		_mining.ResetNpc(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
+		_mining.ResetNpc(); _combat.Reset(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
 	}
 	/// <summary>Phase 10: Sprung durch ein Gate des aktuellen Sektors auslösen (wie das Einfliegen ins Gate); false = abgewiesen.</summary>
 	internal bool TestJumpThrough(GateId gate)

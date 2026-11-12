@@ -33,7 +33,7 @@ public static class Departures
     /// </summary>
     public static bool ShipBankrupt(Universe u, Ship ship)
     {
-        if (!ship.IsEconomyAi || ship.Transit is not null || ship.Order is not null || ship.IdleSince < 0) return false;
+        if (!ship.IsEconomyAi || ship.Transit is not null || ship.Order is not null || ship.IdleSince < 0 || u.Fights.IsEngaged(ship.Id)) return false;
         if (FactionBuilderSystem.IsFactionBuilder(u, ship)) return false;
         if (u.Tick - ship.IdleSince <= u.Rules.ShipBankruptTicks || ship.Credits >= u.Rules.ShipBankruptCredits) return false;
         bool hasCargo = ship.Cargo.Values.Any(v => v > 0.001f);
@@ -45,7 +45,7 @@ public static class Departures
     /// Messung nach <see cref="Profitability.Unprofitable"/>. Rein.
     /// </summary>
     public static bool ShipUnprofitable(Universe u, Ship ship) =>
-        ship.IsEconomyAi && ship.Role is ShipRole.Trader or ShipRole.Miner && !FactionBuilderSystem.IsFactionBuilder(u, ship)
+        ship.IsEconomyAi && ship.Role is ShipRole.Trader or ShipRole.Miner && !FactionBuilderSystem.IsFactionBuilder(u, ship) && !u.Fights.IsEngaged(ship.Id)
         && ship.Transit is null && ship.Order is null && !ship.Cargo.Values.Any(v => v > 0.001f)
         && Profitability.Unprofitable(u, ship.Profit);
 

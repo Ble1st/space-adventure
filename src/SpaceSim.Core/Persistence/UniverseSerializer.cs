@@ -59,6 +59,7 @@ public static class UniverseSerializer
         // Treibstoff als Warenschlüssel (wie cost), damit GoodIds im Save nicht verschoben werden müssen
         Fuel = m.FuelTypes.Select(f => new FuelSave { Good = u.Goods[f.Good].Key, Efficiency = f.Efficiency }).ToList(),
         UpgradeTo = m.UpgradeTo, UpgradeCost = m.UpgradeTo is null ? null : new Dictionary<string, float>(m.UpgradeCost),
+        DamageType = m.IsWeapon ? m.DamageType.ToString().ToLowerInvariant() : null,
     };
 
     static Module FromSave(ModuleSave m, Dictionary<string, GoodId> goodId) => new()
@@ -72,6 +73,7 @@ public static class UniverseSerializer
             goodId.TryGetValue(f.Good, out var gid) ? gid : throw new SaveFormatException($"Modul '{m.Key}': unbekannte Ware '{f.Good}' in fuel"),
             f.Efficiency)).ToList(),
         UpgradeTo = m.UpgradeTo, UpgradeCost = m.UpgradeCost is null ? new Dictionary<string, float>() : new Dictionary<string, float>(m.UpgradeCost),
+        DamageType = m.DamageType is { } dt && Enum.TryParse<DamageType>(dt, ignoreCase: true, out var d) ? d : DamageType.Energy,
     };
 
     static ShipClassSave ToSave(ShipClass c) => new()
@@ -141,6 +143,20 @@ public static class UniverseSerializer
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
             {
                 Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick,
+            }).ToList();
+        // Phase 24: laufende Gefechte
+        s.NextEncounterId = u.Fights.NextId;
+        if (u.Fights.Count > 0)
+            s.Fights = u.Fights.Encounters.Select(e => new EncounterSave
+            {
+                Id = e.Id, Sector = e.Sector.Value, Start = e.StartTick, Cause = e.Cause.ToString(), Raider = e.Raider.Value, RaiderOwner = e.RaiderOwner.Value,
+                Victim = e.Victim.Value, Police = e.Police.Value, Loot = e.Loot, Fenced = e.Fenced, Shots = e.Shots, Hits = e.Hits,
+                Participants = e.Participants.Select(p => new CombatParticipantSave
+                {
+                    Ship = p.Ship.Value, Side = p.Side, Tactic = p.Tactic, X = p.X, Target = p.Target.Value, Move = p.Move.ToString(), Speed = p.Speed,
+                    Timers = p.Timers.Count == 0 ? null : new List<float>(p.Timers), Courage = p.Courage, DropShare = p.DropShare,
+                    PrevMode = p.PrevMode.ToString(), Exit = p.Exit.ToString(),
+                }).ToList(),
             }).ToList();
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
             s.Goods.Add(new GoodSave { Id = g.Id.Value, Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, Volume = g.VolumePerUnit, Form = g.Form.ToString().ToLowerInvariant(), Category = g.Category.Length > 0 ? g.Category : null });
@@ -305,6 +321,23 @@ public static class UniverseSerializer
                 {
                     Kind = Enum.Parse<EncounterKind>(e.Kind), Source = new ShipId(e.Source), Target = new ShipId(e.Target), Sector = new SectorId(e.Sector), DueTick = e.Due,
                 });
+        // Phase 24: laufende Gefechte (der Index Schiff → Gefecht ist abgeleitet)
+        u.Fights.NextId = Math.Max(1, s.NextEncounterId);
+        if (s.Fights is not null)
+            foreach (var e in s.Fights)
+                u.Fights.Encounters.Add(new Encounter
+                {
+                    Id = e.Id, Sector = new SectorId(e.Sector), StartTick = e.Start, Cause = Enum.Parse<EncounterCause>(e.Cause), Raider = new ShipId(e.Raider),
+                    RaiderOwner = new ActorId(e.RaiderOwner), Victim = new ShipId(e.Victim), Police = new ShipId(e.Police), Loot = e.Loot, Fenced = e.Fenced,
+                    Shots = e.Shots, Hits = e.Hits,
+                    Participants = e.Participants.Select(p => new CombatParticipant
+                    {
+                        Ship = new ShipId(p.Ship), Side = p.Side, Tactic = p.Tactic, X = p.X, Target = new ShipId(p.Target), Move = Enum.Parse<CombatMove>(p.Move),
+                        Speed = p.Speed, Timers = p.Timers is null ? new List<float>() : new List<float>(p.Timers), Courage = p.Courage, DropShare = p.DropShare,
+                        PrevMode = Enum.Parse<PowerMode>(p.PrevMode), Exit = Enum.Parse<CombatExit>(p.Exit),
+                    }).ToList(),
+                });
+        u.Fights.Rebuild();
         u.NextActorId = s.NextActorId;
         u.EnsureCoreActors();
         foreach (var g in s.Goods)

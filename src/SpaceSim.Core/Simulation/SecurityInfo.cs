@@ -5,7 +5,7 @@ namespace SpaceSim.Core.Simulation;
 /// <summary>Lage eines Sektors für die Anzeige (Universumskarte, Sektoransicht, Station-Info).</summary>
 public readonly record struct SectorSecurityView(
     float Threat, string ThreatText, float Security, string SecurityText, int Patrols, float RiskPercent,
-    int PlayerLevel, string PlayerWanted, string Summary);
+    int PlayerLevel, string PlayerWanted, string Summary, int Fights = 0);
 
 /// <summary>Fahndungseintrag des Spielers bei einer Fraktion (Anzeige Kommandozentrale, HUD, Gericht).</summary>
 public readonly record struct WantedView(FactionId Faction, string FactionName, int Level, string LevelText, float Heat, float Fine, string Crime, float BountyClaim);
@@ -23,8 +23,10 @@ public static class SecurityInfo
         float risk = 100f * ThreatMap.RiskOf(u, id);
         int level = player is null ? 0 : Wanted.LevelOf(u, player.Owner, s.Owner);
         string wanted = level > 0 ? SecurityNames.WantedLevel(level) : "sauber";
-        string summary = $"Sicherheit {SecurityNames.Security(s.Security)} · Bedrohung {SecurityNames.Threat(s.Threat)}";
-        return new SectorSecurityView(s.Threat, SecurityNames.Threat(s.Threat), s.Security, SecurityNames.Security(s.Security), patrols, risk, level, wanted, summary);
+        int fights = Combat.CombatInfo.CountIn(u, id);   // Phase 24: laufende Gefechte
+        string summary = $"Sicherheit {SecurityNames.Security(s.Security)} · Bedrohung {SecurityNames.Threat(s.Threat)}"
+            + (fights > 0 ? $" · {fights} Gefecht{(fights == 1 ? "" : "e")}" : "");
+        return new SectorSecurityView(s.Threat, SecurityNames.Threat(s.Threat), s.Security, SecurityNames.Security(s.Security), patrols, risk, level, wanted, summary, fights);
     }
 
     /// <summary>Fahndung und offenes Kopfgeld des Spielers je Fraktion (Fraktionen mit Eintrag oder Kopfgeld, nach Id).</summary>

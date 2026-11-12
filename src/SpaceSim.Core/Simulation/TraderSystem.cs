@@ -16,6 +16,7 @@ public sealed class TraderSystem : ISimSystem
         {
             // Aufgabenfilter bleibt die Rolle, zusätzlich muss das Schiff Frachtraum haben; fehlt er, wird das Schiff freigegeben
             if (ship.Role != ShipRole.Trader) continue;
+            if (u.Fights.IsEngaged(ship.Id)) continue;   // Phase 24: im Gefecht gesperrt (Auftrag und Reise ruhen nicht — sie wurden beim Eintritt beendet)
             if (!ship.Has(Capability.Cargo)) { JobRelease.Release(u, ship); continue; }
 
             if (ship.Transit is { } t)

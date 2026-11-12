@@ -59,6 +59,10 @@ public sealed class SaveGame
     public List<ShipSave> Ships { get; set; } = new();
     /// <summary>Phase 11 (v14): angekündigte Begegnungen mit dem Spieler (Überfall, Abfangen); fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<PendingEncounterSave>? Encounters { get; set; }
+    /// <summary>Phase 24 (additiv, v17): laufende Gefechte (Rundengefecht); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<EncounterSave>? Fights { get; set; }
+    /// <summary>Phase 24: nächste freie Gefechts-Id.</summary>
+    public int NextEncounterId { get; set; } = 1;
     /// <summary>Phase 12 (v15): Verbände; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
     /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
@@ -150,6 +154,24 @@ public sealed class WantedSave
 public sealed class PendingEncounterSave
 {
     public string Kind { get; set; } = ""; public int Source { get; set; } public int Target { get; set; } public int Sector { get; set; } public long Due { get; set; }
+}
+
+/// <summary>Phase 24: laufendes Gefecht (Rundengefecht).</summary>
+public sealed class EncounterSave
+{
+    public int Id { get; set; } public int Sector { get; set; } public long Start { get; set; } public string Cause { get; set; } = "";
+    public int Raider { get; set; } public int RaiderOwner { get; set; } public int Victim { get; set; } public int Police { get; set; }
+    public float Loot { get; set; } public float Fenced { get; set; } public int Shots { get; set; } public int Hits { get; set; }
+    public List<CombatParticipantSave> Participants { get; set; } = new();
+}
+
+/// <summary>Phase 24: Teilnehmer eines Gefechts.</summary>
+public sealed class CombatParticipantSave
+{
+    public int Ship { get; set; } public int Side { get; set; } public string Tactic { get; set; } = ""; public float X { get; set; }
+    public int Target { get; set; } public string Move { get; set; } = ""; public float Speed { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Timers { get; set; }
+    public float Courage { get; set; } public float DropShare { get; set; } public string PrevMode { get; set; } = ""; public string Exit { get; set; } = "";
 }
 
 public sealed class PlayerWalletSave
@@ -430,6 +452,8 @@ public sealed class ModuleSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? UpgradeTo { get; set; }
     /// <summary>Material je Upgrade-Versuch (Warenschlüssel → Menge, Phase 7, v10); fehlt = keins.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, float>? UpgradeCost { get; set; }
+    /// <summary>Phase 24 (additiv): Schadensart der Waffe (energy/kinetic); fehlt = energy.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DamageType { get; set; }
 }
 
 public sealed class ShipClassSave
