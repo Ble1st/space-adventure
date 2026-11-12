@@ -41,6 +41,8 @@ public partial class Main : Node3D
 	Sfx _sfx = null!;
 	MiningView _mining = null!;
 	CombatView _combat = null!;   // Phase 24: Schüsse der NPC-Gefechte im Spielersektor
+	/// <summary>Phase 25: Spielerkampf (Zielwahl, Schüsse über die Core-Regel, Dauerfeuer, Beschusswarnung).</summary>
+	readonly CombatController _fight = new();
 
 	// Kamera: Winkel/Abstand als reine Core-Rechnung, Ist-Offset folgt weich (Standard = früherer CamOffset 0,38,24)
 	readonly OrbitCamera _orbit = new();
@@ -111,6 +113,9 @@ public partial class Main : Node3D
 		_hud.Flight.SetCommandBadge(UiPlaceholders.CommsUnread);
 		_hud.Flight.BayDown += OnBayDown;
 		_hud.Flight.AllFire += FireReadyBays;
+		// Phase 25: Dauerfeuer und „Nächster Gegner“
+		_hud.Flight.AutoFirePressed += () => { _fight.AutoFire = !_fight.AutoFire; _sfx.Play(SfxId.Click); _hud.Toast(_fight.AutoFire ? "Dauerfeuer an" : "Dauerfeuer aus"); };
+		_hud.Flight.NextEnemyPressed += SelectNextEnemy;
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
 		_hud.Flight.PowerModePressed += m => { _sfx.Play(SfxId.Click); SpaceSim.Core.Combat.ShipSystems.SetMode(_session.U, PlayerData, m); };
 		_hud.Command.Action += OnCommandAction;
@@ -263,7 +268,7 @@ public partial class Main : Node3D
 		_hud.Flight.SetSlider(0f);
 		_hud.Screens.Hide();
 		SetAutoMining(false, announce: false);
-		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset();
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset();
 		_transition = false; _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
 		_hud.Flight.Visible = true;   // Dock-Bildschirme wurden über Screens.Hide() geschlossen
 		_view.Rebuild(u);
@@ -401,6 +406,8 @@ public partial class Main : Node3D
 	/// <summary>Zielposition für den Target-Lock (XZ): gewählter Asteroid, sonst Autopilot-Ziel im selben Sektor; sonst null.</summary>
 	Vector3? LockTargetPosition()
 	{
+		if (_fight.Target.Value != 0 && SpaceSim.Core.Combat.PlayerCombat.PositionOf(_session.U, _fight.Target) is { } sp && sp.Sector == _session.U.PlayerSector)
+			return new Vector3(sp.Pos.X, 0f, sp.Pos.Y);   // Phase 25: Kampfkamera — das gewählte Schiff liegt vor dem Schiff
 		if (_mineTarget is { Minable: true } rock) return new Vector3(rock.Position.X, 0f, rock.Position.Y);
 		if (_target is { } t && t.Sector == _session.U.PlayerSector) return new Vector3(t.Position.X, 0f, t.Position.Y);
 		return null;
@@ -444,7 +451,7 @@ public partial class Main : Node3D
 		_hud.Screens.Hide();
 		_target = null; _targetStation = null; _autopilot = false; _hud.Flight.SetAutopilot(false);
 		SetAutoMining(false, announce: false);
-		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset();
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.ClearTarget();
 		_transition = false; _player.Scale = Vector3.One; _player.Velocity = Vector3.Zero; _player.GiveGrace(2f);
 		_lowestHull = p.Hull;
 		_view.Rebuild(u);
@@ -493,6 +500,9 @@ public partial class Main : Node3D
 	internal string? LastDepartureMessage { get; private set; }
 	/// <summary>Phase 24: letzter Gefechtshinweis im Spielersektor (Selbsttest).</summary>
 	internal string? LastCombatMessage { get; private set; }
+	/// <summary>Phase 25: letzte Verlustmeldung des aktiven Schiffs (Selbsttest).</summary>
+	internal string? LastLossMessage { get; private set; }
+	int _dropSeq;
 	/// <summary>Phase 24: gezeichnete Gefechtsschüsse (Selbsttest).</summary>
 	internal int TestCombatShots => _combat.ShotsSeen;
 	long _panicToastTick = -1;
@@ -520,16 +530,30 @@ public partial class Main : Node3D
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			// Phase 24: NPC-Gefechte im Spielersektor — Schüsse als Strahlen, Beginn als Hinweis
 			case ShotFired sf when sf.Sector == _session.U.PlayerSector:
+				_fight.OnShot(_session.U, sf, Time.GetTicksMsec() / 1000.0);
+				if (sf.Target == _session.U.PlayerShip && sf.Hit) { _hud.Flash(new Color(1f, 0.25f, 0.15f), 0.25f); _sfx.Play(SfxId.Hit); _sinceHit = 0f; }
 				_combat.Shot(sf.Shooter, sf.Target, sf.Type, sf.Hit, Time.GetTicksMsec() / 1000.0, sf.Shooter.Value * 37 + _combat.ShotsSeen * 53);
 				if (sf.Hit && _view.ShipPosition(sf.Target) is { } hp) _fx.Burst(hp, sf.Type == DamageType.Energy ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.85f, 0.4f), 4, 5f, 0.3f);
 				break;
 			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
-				LastCombatMessage = SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default);
+				LastCombatMessage = es.Cause == EncounterCause.Assault ? es.Message
+					: SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default);
 				_hud.Toast(LastCombatMessage, 4f); break;
 			// Phase 22: Station im Spielersektor aufgegeben — Grund (pleite / länger nicht rentabel) im Text
 			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
 				LastDepartureMessage = departed; _hud.Toast(departed, 4.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
+			// Phase 25: Verlust des aktiven Schiffs — Explosion, Meldung; die Ansicht setzt im nächsten Frame in das neue Schiff um (EnterActiveShip)
+			case PlayerShipLost lost:
+				_fx.Burst(_player.Position, new Color(1f, 0.5f, 0.2f), 60, 28f, 1.2f);
+				_sfx.Play(SfxId.Explosion);
+				_hud.Toast(lost.Message, 6f);
+				LastLossMessage = lost.Message;
+				_reenter = true;
+				break;
+			case CargoDropped drop when drop.Sector == _session.U.PlayerSector: CombatController.SpawnDrops(_chunks, drop, _dropSeq++); break;
+			case EncounterEnded end when end.Sector == _session.U.PlayerSector && end.Cause == EncounterCause.Assault:
+				_hud.Toast(end.Message, 4f); LastCombatMessage = end.Message; break;
 			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
 			case EncounterWarning w when w.Target == _session.U.PlayerShip: _sfx.Play(SfxId.Click); _hud.Toast(w.Message, 6f); LastSecurityMessage = w.Message; break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
@@ -560,7 +584,7 @@ public partial class Main : Node3D
 
 		// Hülle regeneriert langsam, wenn eine Weile nichts getroffen hat
 		_sinceHit += delta;
-		if (_sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
+		if (_sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull && !_session.U.Fights.IsEngaged(PlayerData.Id)) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
 
 		bool frozen = _hud.AnyModalOpen || _docked != null;
 		_miningStep = _miner.Enabled && !frozen
@@ -587,6 +611,7 @@ public partial class Main : Node3D
 		if (!frozen) CheckGates();
 		UpdateMining(delta, frozen);
 		SyncPlayerData();
+		if (!frozen && !_reenter && _fight.AutoFire) FireCombatBays(quiet: true);   // Phase 25: Dauerfeuer
 
 		_view.Animate(delta);
 		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta);   // angedockt: niemand weicht dem unsichtbaren Schiff aus
@@ -1054,6 +1079,14 @@ public partial class Main : Node3D
 	void TryPickTarget(Vector2 screen)
 	{
 		if (GroundPoint(screen) is not { } ground) return;
+		// Phase 25: Schiffe antippbar (Ziel für die Waffen; Zielkarte zeigt Schild und Hülle)
+		if (CombatController.Pick(_view.ShipMarkers(), new Vec2(ground.X, ground.Z), 6f) is { } picked && _session.U.Ships.TryGetValue(picked, out var ps))
+		{
+			_fight.SetTarget(picked);
+			_sfx.Play(SfxId.Click);
+			_hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ps)}");
+			return;
+		}
 		var sector = _session.U.Sectors[_session.U.PlayerSector];
 		Asteroid? rock = null; float rockD = 3f;
 		foreach (var a in sector.Asteroids)
@@ -1102,22 +1135,21 @@ public partial class Main : Node3D
 		if (PlayerData.Hull <= 0f) Respawn();
 	}
 
-	/// <summary>Hülle zerstört: Explosion, Reparatur und Neustart an der Station des Sektors (mit Schonfrist).</summary>
+	/// <summary>
+	/// Hülle durch Aufprall zerstört (Phase 25: echter Verlust wie im Gefecht): Core-Regel <see cref="ShipLoss.LoseActive"/> — Schiff und Fracht weg, Geld
+	/// bleibt, die Person landet an der nächsten eigenen bzw. neutralen Station im eigenen oder einem Leihschiff; die Ansicht setzt um (PlayerShipLost).
+	/// </summary>
 	void Respawn()
 	{
-		var u = _session.U;
-		_fx.Burst(_player.Position, new Color(1f, 0.5f, 0.2f), 60, 28f, 1.2f);
-		_sfx.Play(SfxId.Explosion);
-		var sector = u.Sectors[u.PlayerSector];
-		var spot = sector.Stations.Count > 0 ? u.Stations[sector.Stations[0]].DockPoint(u.PlayerShip) : new Vec2(0, 0);
-		_player.Position = new Vector3(spot.X, 0, spot.Y);
-		_player.Velocity = Vector3.Zero;
-		_player.GiveGrace(3f);
-		PlayerData.Hull = PlayerData.MaxHull;
-		_chunks.Clear();
+		SyncPlayerData();
 		CancelAutopilot();
 		if (_miner.Enabled) SetAutoMining(false, "Auto-Mining unterbrochen (Schiff zerstört)");
-		_hud.Toast("Schiff zerstört – repariert an der Station", 3.5f);
+		_chunks.Clear();
+		if (ShipLoss.LoseActive(_session.U, PlayerData, "collision") is null)
+		{
+			PlayerData.Hull = PlayerData.MaxHull;   // ohne jede Station: nie handlungsunfähig
+			_hud.Toast("Schiff zerstört – notdürftig repariert", 3.5f);
+		}
 	}
 
 	/// <summary>
@@ -1199,9 +1231,23 @@ public partial class Main : Node3D
 			Bays = _bayViews,
 		};
 
-		// Zielkarte: Autopilot-Ziel, sonst Laserziel
+		// Zielkarte: Phase 25 gewähltes Schiff (Schild/Hülle), sonst Autopilot-Ziel, sonst Laserziel
 		Vec2? targetWorld = null;
-		if (_target is { } t)
+		d.AutoFireOn = _fight.AutoFire;
+		d.HasWeapons = _bays.Any(b => SpaceSim.Core.Combat.PlayerGunnery.SlotOf(b.Key) >= 0);
+		d.HitWarning = _fight.Warning(u, pos, headingDeg, Time.GetTicksMsec() / 1000.0);
+		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var ts) && SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } tsp)
+		{
+			bool hostile = SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, ts.Id);
+			d.TargetName = SpaceSim.Core.Combat.PlayerCombat.Describe(u, ts);
+			d.TargetHasInfo = true;
+			d.TargetHostile = hostile;
+			targetWorld = tsp.Pos;
+			d.TargetDistance = Vec2.Distance(pos, tsp.Pos);
+			d.TargetInfo = $"Entfernung {d.TargetDistance:0} m" + (hostile ? " · feindlich" : "");
+			d.TargetCombat = CombatController.TargetLine(u, ts);
+		}
+		else if (_target is { } t)
 		{
 			d.TargetName = t.Label;
 			d.TargetHasInfo = true;
@@ -1226,11 +1272,16 @@ public partial class Main : Node3D
 			float rel = FiringArc.Normalize180(FiringArc.Bearing(tw - pos) - headingDeg);
 			d.TargetRelBearing = rel;
 			d.TargetScreen = _cam.IsPositionBehind(new Vector3(tw.X, 0, tw.Y)) ? null : _cam.UnprojectPosition(new Vector3(tw.X, 0, tw.Y));
-			d.TargetInArc = _bayStates.Length > 0 && _bayStates[0] is BayState.Ready or BayState.Reloading;
-			var bay = WeaponBays.PlayerDefault[0];
-			d.TargetArc = _bayStates.Length > 0 && _bayStates[0] == BayState.OutsideArc && _bayAimPos is { } a
+			// Phase 25: mit Schiffsziel zählt der erste Waffenschacht, sonst wie bisher der Laser
+			int ai = 0;
+			if (d.TargetCombat.Length > 0)
+				for (int k = 0; k < _bays.Count; k++) if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(_bays[k].Key) >= 0) { ai = k; break; }
+			var bay = ai < _bays.Count ? _bays[ai] : WeaponBays.PlayerDefault[0];
+			var aimAt = d.TargetCombat.Length > 0 ? tw : _bayAimPos;
+			d.TargetInArc = _bayStates.Length > ai && _bayStates[ai] is BayState.Ready or BayState.Reloading;
+			d.TargetArc = _bayStates.Length > ai && _bayStates[ai] == BayState.OutsideArc && aimAt is { } a
 				? TurnHintText(bay, headingDeg, pos, a)
-				: _bayStates.Length > 0 && _bayStates[0] == BayState.Ready ? "Im Feuerwinkel: Laser" : "";
+				: _bayStates.Length > ai && _bayStates[ai] == BayState.Ready ? $"Im Feuerwinkel: {bay.Name}" : "";
 		}
 
 		// Kontexttaste: nahe Station „Andocken“, am Gate „Springen“
@@ -1268,7 +1319,8 @@ public partial class Main : Node3D
 	/// <summary>Zustände der Waffenschächte als reine Core-Funktion (FiringArc) auswerten.</summary>
 	void UpdateBays(Sector sector, Vec2 pos, float headingDeg)
 	{
-		_bays = WeaponBays.For(PlayerData.Stats);
+		_bays = WeaponBays.For(_session.U, PlayerData);   // Phase 25: ein Schacht je Kampfwaffe
+		_fight.Validate(_session.U);
 		var bays = _bays;
 		_bayViews = new BayView[bays.Count];
 		_bayStates = new BayState[bays.Count];
@@ -1278,6 +1330,29 @@ public partial class Main : Node3D
 			Vec2? target = null;
 			float radius = 0f;
 			bool reloaded = true;
+			int wslot = SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bay.Key);
+			if (wslot >= 0)
+			{
+				// Phase 25: Kampfwaffe — Zustand aus der Core-Regel (Ziel, Reichweite, Munition, Nachladen, Leistung, Winkel)
+				var wst = CombatController.StateOf(_session.U, PlayerData, bay, headingDeg, _fight.Target);
+				var tpos = SpaceSim.Core.Combat.PlayerCombat.PositionOf(_session.U, _fight.Target)?.Pos;
+				_bayStates[i] = wst;
+				string wdetail = wst switch
+				{
+					BayState.Ready => "FEUER",
+					BayState.OutsideArc when tpos is { } tp => TurnHintText(bay, headingDeg, pos, tp),
+					BayState.Reloading => "lädt nach",
+					BayState.NoPower => "keine Leistung",
+					BayState.NoAmmo => "keine Munition",
+					_ => _fight.Target.Value == 0 ? "kein Ziel" : "außer Reichweite",
+				};
+				string wplace = (bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°") + $" · {bay.Range:0} m";
+				// Phase 25 (Korrektur): lange Modulnamen auf das letzte Wort kürzen („Kinetisches Geschütz“ → „Geschütz“), damit sie in die Taste passen
+				string wname = bay.Name.Length > 13 && bay.Name.LastIndexOf(' ') > 0 ? bay.Name[(bay.Name.LastIndexOf(' ') + 1)..] : bay.Name;
+				_bayViews[i] = new BayView { Name = wname, Place = wplace, Detail = wdetail, State = wst,
+					Reload = SpaceSim.Core.Combat.PlayerGunnery.ReloadProgress(_session.U, PlayerData, wslot), Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
+				continue;
+			}
 			if (bay.Key == "laser")
 			{
 				var aim = _mineTarget ?? _chunks.Nearest(sector, pos, MiningRules.LaserRange);
@@ -1340,6 +1415,7 @@ public partial class Main : Node3D
 		if (index < 0 || index >= bays.Count) return;
 		if (_docked != null || _hud.AnyModalOpen) return;
 		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
+		if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[index].Key) is int ws and >= 0) { FireWeapon(ws, quiet: false); return; }
 		if (bays[index].Key == "tractor")
 		{
 			_tractorOn = !_tractorOn;
@@ -1386,8 +1462,45 @@ public partial class Main : Node3D
 		var bays = _bays;
 		bool any = false;
 		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
-			if (bays[i].Key is not ("tractor" or "split") && _bayStates[i] == BayState.Ready) { _fireRequested = true; any = true; }
+		{
+			if (bays[i].Key is "tractor" or "split" || _bayStates[i] != BayState.Ready) continue;
+			if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) { if (FireWeapon(ws, quiet: true)) any = true; }
+			else { _fireRequested = true; any = true; }
+		}
 		if (!any) Hint("Keine Waffe bereit und im Winkel");
+	}
+
+	/// <summary>Phase 25: ein Schuss einer Kampfwaffe auf das gewählte Ziel (Core-Regel <see cref="SpaceSim.Core.Combat.PlayerGunnery.TryFire"/>). true = gefeuert.</summary>
+	bool FireWeapon(int slot, bool quiet)
+	{
+		if (_docked != null || _hud.AnyModalOpen) return false;
+		SyncPlayerData();
+		var r = _fight.Fire(_session.U, PlayerData, slot, Mathf.RadToDeg(_player.Heading));
+		if (r.Result == SpaceSim.Core.Combat.GunResult.Fired)
+		{
+			_sfx.Play(SfxId.Zap);
+			return true;
+		}
+		if (!quiet && r.Result != SpaceSim.Core.Combat.GunResult.Reloading) Hint(r.Message);
+		return false;
+	}
+
+	/// <summary>Phase 25: Dauerfeuer bzw. „Alle Feuer“ für die Kampfwaffen: jede bereite Waffe im Winkel schießt.</summary>
+	void FireCombatBays(bool quiet)
+	{
+		if (_fight.Target.Value == 0) return;
+		var bays = _bays;
+		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
+			if (_bayStates[i] == BayState.Ready && SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) FireWeapon(ws, quiet);
+	}
+
+	/// <summary>Phase 25: Taste „Nächster Gegner“ (Gefechtsgegner, dann Kaperschiffe im Sektor, nach Abstand, zyklisch).</summary>
+	void SelectNextEnemy()
+	{
+		SyncPlayerData();
+		_sfx.Play(SfxId.Click);
+		if (!_fight.NextEnemy(_session.U, PlayerData)) { _hud.Toast("Kein Gegner in diesem Sektor"); return; }
+		if (_session.U.Ships.TryGetValue(_fight.Target, out var t)) _hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, t)}");
 	}
 
 	// ───────── Statische Szene ─────────
@@ -1603,6 +1716,14 @@ public partial class Main : Node3D
 	}
 	/// <summary>Ein Schuss aus der Waffenschacht-Taste (Test: Zustand wechselt danach auf Nachladen).</summary>
 	internal void TestFireWeapon() => _fireRequested = true;
+	// Phase 25: Spielerkampf
+	internal CombatController TestFight => _fight;
+	internal void TestNextEnemy() => SelectNextEnemy();
+	internal void TestSetShipTarget(ShipId id) => _fight.SetTarget(id);
+	/// <summary>Dreht das Spielerschiff zur Position (Bugwaffen tragen).</summary>
+	internal void TestFace(Vec2 at) { var d = new Vector2(at.X - _player.Position.X, at.Y - _player.Position.Z); _player.Heading = Mathf.Atan2(-d.X, -d.Y); }
+	/// <summary>„Alle Feuer“ wie ein Tipp auf die Taste.</summary>
+	internal void TestAllFire() => FireReadyBays();
 	/// <summary>Phase 8: Setzt das Schiff in einen anderen Sektor (wie ein Sprung, ohne Gate) – Test des Lagerhauses in Gamma.</summary>
 	internal void TestEnterSector(SectorId sector)
 	{

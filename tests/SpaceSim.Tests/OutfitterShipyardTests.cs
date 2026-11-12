@@ -70,9 +70,9 @@ public class OutfitterShipyardTests
         var trade = u.Stations.Values.First(s => s.TypeKey == "trade_station");
         Assert.True(trade.BankruptcyProtected);
         Assert.Empty(trade.Production);   // nur Lager, keine Rezepte
-        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental" }, u.StationTypes["trade_station"].Services);   // Phase 12
+        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental", "rearm" }, u.StationTypes["trade_station"].Services);   // Phase 12, Phase 25
         var services = StationServices.Default();
-        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental" }, services.ForStation(u, trade).Select(s => s.Key));
+        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental", "rearm" }, services.ForStation(u, trade).Select(s => s.Key));
         // Handelsstation montiert nur Skiffs, die Werft alle Klassen außer den nicht frei gehandelten (Phase 11: Kaperschiff)
         Assert.All(ShipDealerService.Models(u, trade), m => Assert.Equal("skiff", m.ClassKey));
         Assert.Equal(3, ShipDealerService.Models(u, trade).Count);
@@ -402,7 +402,7 @@ public class OutfitterShipyardTests
     public void Startpakete_ErzeugenWeltMitGewaehltemModellUndGeld_OhneWahlWieBisher()
     {
         var options = WorldBuilder.DefaultStartOptions();
-        Assert.Equal(new[] { "miner", "trader", "generalist" }, options.Select(o => o.Key));
+        Assert.Equal(new[] { "miner", "trader", "generalist", "fighter" }, options.Select(o => o.Key));   // Phase 25: Startpaket „Jäger“
         foreach (var (key, model) in new[] { ("miner", "prospector"), ("trader", "nomad"), ("generalist", "pip") })
         {
             var u = WorldBuilder.BuildDefault(startOption: key);

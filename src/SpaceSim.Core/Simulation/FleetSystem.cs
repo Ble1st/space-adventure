@@ -130,8 +130,9 @@ public sealed class FleetSystem : ISimSystem
     /// </summary>
     public static float ArmamentBonus(Universe u, ShipStats stats, SectorId sector)
     {
-        if (u.Rules.ArmedTraderWeight <= 0f || stats.WeaponPower <= 0f) return 0f;
-        return u.Rules.ArmedTraderWeight * AreaRisk(u, sector) * MathF.Min(1f, stats.WeaponPower / 6f);
+        float extra = stats.WeaponPower - MathF.Max(0f, u.Rules.ArmedTraderBaseline);   // Phase 25: nur Bewaffnung über der Grundausstattung zählt
+        if (u.Rules.ArmedTraderWeight <= 0f || extra <= 0f) return 0f;
+        return u.Rules.ArmedTraderWeight * AreaRisk(u, sector) * MathF.Min(1f, extra / 6f);
     }
 
     /// <summary>

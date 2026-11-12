@@ -56,6 +56,46 @@ public static class Wanted
         if (after != before) u.Events.Publish(new WantedChanged(actor, faction, before, after));
     }
 
+    /// <summary>
+    /// Phase 25 (Korrektur): Wer verfolgt einen Angriff des Spielers? Immer die Fraktion des Opfers (Besitzer des Schiffs) und der Besitzer des Sektors; sind
+    /// beide leer (fraktionsloses Opfer im herrenlosen Sektor), die Fraktionen der angrenzenden Sektoren (über Tore), und gibt es dort keine, die nächste
+    /// Fraktion nach Sprüngen. Feste Reihenfolge (Fraktions-Id), ohne Doppelte. Rein.
+    /// </summary>
+    public static List<FactionId> AssaultAuthorities(Universe u, SectorId sector, ActorId victimOwner)
+    {
+        var set = new SortedSet<int>();
+        if (u.Sectors.TryGetValue(sector, out var sec) && u.Factions.ContainsKey(sec.Owner)) set.Add(sec.Owner.Value);
+        if (u.Actors.TryGetValue(victimOwner, out var va) && va.Membership is { } m && u.Factions.ContainsKey(m)) set.Add(m.Value);
+        if (set.Count == 0 && sec is not null)
+        {
+            // Nachbarn über Tore, dann Breitensuche bis zur ersten Ebene mit einem Sektorbesitzer
+            var seen = new HashSet<int> { sector.Value };
+            var ring = new List<SectorId> { sector };
+            while (set.Count == 0 && ring.Count > 0)
+            {
+                var next = new List<SectorId>();
+                foreach (var sid in ring)
+                    foreach (var gid in u.Sectors[sid].Gates)
+                    {
+                        var far = u.Gates[u.Gates[gid].Target].Sector;
+                        if (seen.Add(far.Value)) next.Add(far);
+                    }
+                foreach (var n in next.OrderBy(x => x.Value))
+                    if (u.Factions.ContainsKey(u.Sectors[n].Owner)) set.Add(u.Sectors[n].Owner.Value);
+                ring = next;
+            }
+        }
+        return set.Select(v => new FactionId(v)).ToList();
+    }
+
+    /// <summary>Phase 25 (Korrektur): meldet einen Angriff bei allen zuständigen Fraktionen (<see cref="AssaultAuthorities"/>). Liefert die Fraktionen.</summary>
+    public static List<FactionId> ReportAssault(Universe u, ActorId actor, SectorId sector, ActorId victimOwner, string crime = "assault")
+    {
+        var list = AssaultAuthorities(u, sector, victimOwner);
+        foreach (var f in list) Report(u, actor, f, crime);
+        return list;
+    }
+
     /// <summary>Setzt die Heat eines Eintrags (Strafe teilweise eingezogen) bzw. löscht ihn (bezahlt); meldet den Stufenwechsel.</summary>
     public static void SetHeat(Universe u, Actor a, FactionId faction, float heat, float fine)
     {

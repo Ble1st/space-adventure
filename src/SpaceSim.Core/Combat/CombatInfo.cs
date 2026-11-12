@@ -35,5 +35,10 @@ public static class CombatInfo
 
     /// <summary>Kurztext für einen Toast, wenn ein Gefecht im Spielersektor beginnt.</summary>
     public static string StartToast(Universe u, EncounterCause cause, ActorId raiderOwner) =>
-        cause == EncounterCause.Raid ? $"Gefecht: {u.ActorName(raiderOwner)} überfällt ein Schiff in diesem Sektor" : "Gefecht: Die Polizei stellt ein Kaperschiff";
+        cause switch
+        {
+            EncounterCause.Raid => $"Gefecht: {u.ActorName(raiderOwner)} überfällt ein Schiff in diesem Sektor",
+            EncounterCause.Assault => "Gefecht: Du greifst an",   // Phase 25 (die genaue Meldung kommt mit EncounterStarted)
+            _ => "Gefecht: Die Polizei stellt ein Kaperschiff",
+        };
 }

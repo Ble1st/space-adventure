@@ -162,6 +162,8 @@ public sealed class EncounterSave
     public int Id { get; set; } public int Sector { get; set; } public long Start { get; set; } public string Cause { get; set; } = "";
     public int Raider { get; set; } public int RaiderOwner { get; set; } public int Victim { get; set; } public int Police { get; set; }
     public float Loot { get; set; } public float Fenced { get; set; } public int Shots { get; set; } public int Hits { get; set; }
+    /// <summary>Phase 25: räumliches Gefecht (Spielersektor).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Spatial { get; set; }
     public List<CombatParticipantSave> Participants { get; set; } = new();
 }
 
@@ -172,6 +174,10 @@ public sealed class CombatParticipantSave
     public int Target { get; set; } public string Move { get; set; } = ""; public float Speed { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Timers { get; set; }
     public float Courage { get; set; } public float DropShare { get; set; } public string PrevMode { get; set; } = ""; public string Exit { get; set; } = "";
+    /// <summary>Phase 25: echte Position/Blickrichtung (nur räumliche Gefechte), Liegeplatz vor dem Gefecht, Besitzer beim Eintritt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float[]? Pos { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int WasDockedAt { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Owner { get; set; }
 }
 
 public sealed class PlayerWalletSave

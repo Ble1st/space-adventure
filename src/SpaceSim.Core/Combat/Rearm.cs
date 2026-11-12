@@ -29,9 +29,9 @@ public static class Rearm
     /// <summary>
     /// Kauft fehlende Munition aus dem Lager der Station (Marktpreis, höchstens Bestand und was <paramref name="payer"/> zahlen kann). Liefert die Einheiten.
     /// </summary>
-    public static float AtStation(Universe u, Ship ship, Station st, ICreditAccount payer, ActorId payerActor, bool treasury)
+    public static float AtStation(Universe u, Ship ship, Station st, ICreditAccount payer, ActorId payerActor, bool treasury, float maxUnits = float.MaxValue)
     {
-        float missing = Missing(u, ship);
+        float missing = MathF.Min(Missing(u, ship), MathF.Max(0f, maxUnits));
         if (missing <= 0f || AmmoGood(u) is not { } good || !st.Market.TryGetValue(good.Id, out var entry) || entry.Amount <= 0f) return 0f;
         float price = entry.Price > 0f ? entry.Price : good.BasePrice;
         float units = MathF.Min(missing, entry.Amount);
@@ -61,6 +61,32 @@ public static class Rearm
         u.Events.Publish(new AmmoRearmed(ship.Id, default, units, cost, payerActor, treasury));
         if (treasury && cost > 0f) u.Events.Publish(new TreasuryUpkeep(payerActor, Purpose, cost, 0f));
         return units;
+    }
+
+    /// <summary>
+    /// Phase 25: Munition als Fracht ins Magazin umladen (auch im Flug): höchstens was fehlt und was an Bord ist. Liefert die umgeladenen Einheiten
+    /// (0 = nichts möglich; ändert dann nichts). Ereignis <see cref="AmmoTransferred"/>.
+    /// </summary>
+    public static float FromCargo(Universe u, Ship ship, float maxUnits = float.MaxValue)
+    {
+        if (AmmoGood(u) is not { } good) return 0f;
+        float units = MathF.Min(MathF.Min(Missing(u, ship), ship.Cargo.GetValueOrDefault(good.Id)), MathF.Max(0f, maxUnits));
+        if (units <= 0.001f) return 0f;
+        float left = ship.Cargo[good.Id] - units;
+        if (left <= 0.001f) ship.Cargo.Remove(good.Id); else ship.Cargo[good.Id] = left;
+        ship.Systems.AmmoMissing = MathF.Max(0f, ship.Systems.AmmoMissing - units);
+        u.Events.Publish(new AmmoTransferred(ship.Id, units));
+        return units;
+    }
+
+    /// <summary>Warum nichts aus der Fracht umgeladen werden kann (null = es geht).</summary>
+    public static string? FromCargoIssue(Universe u, Ship ship)
+    {
+        if (!u.Rules.AmmoActive || AmmoGood(u) is not { } good) return "Munition ist abgeschaltet.";
+        if (ship.Stats.AmmoCapacity <= 0f) return "Kein Magazin an Bord.";
+        if (Missing(u, ship) <= 0.001f) return "Magazin ist voll.";
+        if (ship.Cargo.GetValueOrDefault(good.Id) <= 0.001f) return "Keine Munition im Frachtraum.";
+        return null;
     }
 
     /// <summary>Polizei und Piraten an der Heimatbasis: erst aus deren Lager, der Rest ohne Lager — bezahlt aus der Kasse des Besitzers.</summary>

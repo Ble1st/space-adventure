@@ -102,19 +102,20 @@ public static class Hangar
         (int)Math.Max(1, (u.Tick - ship.RentedSince + u.Rules.DayTicks - 1) / Math.Max(1, u.Rules.DayTicks));
 
     /// <summary>Warum hier kein Leihschiff zu haben ist (null = es geht).</summary>
-    public static string? RentIssue(Universe u, Station st, Ship payer)
+    public static string? RentIssue(Universe u, Station st, Ship payer, ShipId ignore = default)
     {
         if (!payer.IsPlayer) return "Nur für den Spieler.";
         if (!u.ShipModels.ContainsKey(u.Rules.RentalModel)) return "Kein Leihmodell in dieser Welt.";
-        if (u.Ships.Values.Count(s => s.IsPlayer && s.IsRental) >= u.Rules.RentalMaxPerPlayer) return "Du hast schon ein Leihschiff.";
+        // Phase 25 (Korrektur): ein gerade verlorenes Leihschiff zählt nicht mehr (ignore)
+        if (u.Ships.Values.Count(s => s.IsPlayer && s.IsRental && s.Id != ignore) >= u.Rules.RentalMaxPerPlayer) return "Du hast schon ein Leihschiff.";
         if (u.WalletOf(payer).Credits < RentalUpfront(u.Rules)) return $"Nicht genügend Credits ({RentalUpfront(u.Rules):0} Cr nötig).";
         return null;
     }
 
     /// <summary>Mietet ein Leihschiff an der Station (Gebühr an die Station, Pfand hinterlegt) und macht es zum aktiven Schiff. null = <see cref="RentIssue"/>.</summary>
-    public static Ship? Rent(Universe u, Station st, Ship payer, out string message)
+    public static Ship? Rent(Universe u, Station st, Ship payer, out string message, ShipId ignore = default)
     {
-        if (RentIssue(u, st, payer) is { } issue) { message = issue; return null; }
+        if (RentIssue(u, st, payer, ignore) is { } issue) { message = issue; return null; }
         var model = u.ShipModels[u.Rules.RentalModel];
         var cls = u.ShipClasses[model.ClassKey];
         var wallet = u.WalletOf(payer);
@@ -146,6 +147,27 @@ public static class Hangar
         return null;
     }
 
+    /// <summary>Phase 25: Notfall-Leihschiff (nach dem Verlust des aktiven Schiffs ohne Gebühr und Pfand vergeben).</summary>
+    public static bool IsEmergencyRental(Ship ship) => ship.IsRental && ship.RentalDeposit <= 0f;
+
+    /// <summary>
+    /// Phase 25 (Korrektur): ein Leihschiff geht verloren — das Pfand verfällt ganz an die Verleihstation, die bis jetzt angefallene Miete über das Pfand hinaus
+    /// zahlt die Kasse (notfalls ins Minus). Ereignis <see cref="RentalLost"/>. Liefert (verfallenes Pfand, aus der Kasse gezahlte Miete).
+    /// </summary>
+    public static (float Deposit, float Rent) SettleLostRental(Universe u, Ship ship)
+    {
+        if (!ship.IsRental) return (0f, 0f);
+        var wallet = u.WalletOf(ship);
+        float rent = RentalDays(u, ship) * u.Rules.RentalPerDay;
+        float deposit = ship.RentalDeposit;
+        float fromWallet = MathF.Max(0f, rent - deposit);
+        wallet.Credits -= fromWallet;
+        if (u.Stations.TryGetValue(ship.RentedFrom, out var st)) st.Credits += deposit + fromWallet;
+        ship.RentalDeposit = 0f;
+        u.Events.Publish(new RentalLost(ship.Id, ship.RentedFrom, deposit, fromWallet));
+        return (deposit, fromWallet);
+    }
+
     static Ship? ParkedOwn(Universe u, Station st) => PlayerFleet.ParkedAt(u, st).FirstOrDefault(s => !s.IsRental);
 
     /// <summary>
@@ -163,7 +185,9 @@ public static class Hangar
         var wallet = u.WalletOf(ship);
         float rent = RentalDays(u, ship) * u.Rules.RentalPerDay;
         float fromDeposit = MathF.Min(rent, ship.RentalDeposit);
-        float fromWallet = MathF.Min(rent - fromDeposit, MathF.Max(0f, wallet.Credits));
+        // Phase 25 (Korrektur): ein Notfall-Leihschiff (ohne Pfand) zahlt die Miete ganz — notfalls ins Minus (Schulden bei der Verleihstation), kein
+        // Gratis-Kreislauf; reguläre Leihschiffe wie bisher, soweit die Kasse reicht
+        float fromWallet = IsEmergencyRental(ship) ? rent - fromDeposit : MathF.Min(rent - fromDeposit, MathF.Max(0f, wallet.Credits));
         float refund = ship.RentalDeposit - fromDeposit;
         wallet.Credits += refund - fromWallet;
         st.Credits += fromDeposit + fromWallet;

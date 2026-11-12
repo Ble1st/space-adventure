@@ -190,13 +190,21 @@ public sealed partial class AssetsScreen : CommandScreen
 		scroll.AddChild(list);
 		foreach (var (good, held) in cargo)
 		{
-			var row = new Control { CustomMinimumSize = new Vector2(266, 58), MouseFilter = MouseFilterEnum.Pass };
+			bool ammo = SpaceSim.Core.Combat.Rearm.AmmoGood(u) is { } ag && ag.Id == good && s.Stats.AmmoCapacity > 0f;   // Phase 25: Munition umladen
+			var row = new Control { CustomMinimumSize = new Vector2(266, ammo ? 118 : 58), MouseFilter = MouseFilterEnum.Pass };
 			string name = u.Goods.TryGetValue(good, out var g) ? g.Name : good.Value.ToString();
 			At(row, Text(name, 15, White), 0, 4, 140, 22);
 			At(row, Text($"{held:0.##} an Bord", 13, Dim), 0, 28, 140, 20);
 			var b = At(row, new KitButton("Abwerfen", new Vector2(120, 56)) { FontSize = 16 }, 144, 1);
 			var sid = s.Id; var gid = good;
 			_confirm.Wire(b, $"drop:{sid.Value}:{gid.Value}", "Abwerfen", () => Jettison(sid, gid));
+			if (ammo)
+			{
+				string? issue = SpaceSim.Core.Combat.Rearm.FromCargoIssue(u, s);
+				var bl = At(row, new KitButton("Ins Magazin", new Vector2(120, 56)) { FontSize = 15, State = issue is null ? KitButtonState.Ready : KitButtonState.Disabled }, 144, 60);
+				At(row, Text($"Magazin {s.AmmoLoaded:0}/{s.Stats.AmmoCapacity:0}", 13, Dim), 0, 78, 140, 20);
+				if (issue is null) bl.Pressed += () => LoadAmmo(sid);
+			}
 			list.AddChild(row);
 		}
 	}
@@ -209,6 +217,18 @@ public sealed partial class AssetsScreen : CommandScreen
 		float n = CargoJettison.Jettison(u, ship, good, 0f);
 		_message = n > 0f ? $"{n:0.##} {name} abgeworfen" : CargoJettison.Issue(u, ship, good) ?? "Nicht möglich";
 		Invalidate();
+	}
+
+	/// <summary>Phase 25: Munition aus der Fracht ins Magazin umladen (auch im Flug; Core-Regel <see cref="SpaceSim.Core.Combat.Rearm.FromCargo"/>).</summary>
+	public float LoadAmmo(ShipId id)
+	{
+		var u = Ctx.U;
+		if (!u.Ships.TryGetValue(id, out var ship)) return 0f;
+		string? issue = SpaceSim.Core.Combat.Rearm.FromCargoIssue(u, ship);
+		float n = issue is null ? SpaceSim.Core.Combat.Rearm.FromCargo(u, ship) : 0f;
+		_message = n > 0f ? $"{n:0} Munition ins Magazin umgeladen (Magazin {ship.AmmoLoaded:0}/{ship.Stats.AmmoCapacity:0})" : issue ?? "Nicht möglich";
+		Invalidate();
+		return n;
 	}
 
 	/// <summary>Phase 18 Test-Hook: ein Tipp auf „Abwerfen“ im Schiffsdetail (erster macht scharf, zweiter führt aus); liefert, ob ausgeführt wurde.</summary>

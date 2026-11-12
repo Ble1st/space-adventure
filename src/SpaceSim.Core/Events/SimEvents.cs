@@ -235,6 +235,16 @@ public sealed record ShotFired(int Encounter, SectorId Sector, ShipId Shooter, S
 public sealed record CombatExited(int Encounter, ShipId Ship, ShipRole Role, CombatExit Exit) : SimEvent;
 /// <summary>Phase 24: Ein Händler hat sich ergeben und Fracht abgeworfen; der Kaperer nimmt sie (Basiswert) und bricht ab.</summary>
 public sealed record CargoSurrendered(int Encounter, ShipId Ship, ShipId Taker, float Value) : SimEvent;
+/// <summary>Phase 25: Ein vom Spieler überfallenes Schiff wirft Fracht ab (an <paramref name="Position"/>); die Ansicht macht daraus Brocken für den Traktorstrahl.</summary>
+public sealed record CargoDropped(int Encounter, SectorId Sector, ShipId Ship, Vec2 Position, GoodId Good, float Units) : SimEvent;
+/// <summary>Phase 25: Das aktive Schiff ist verloren; die Person sitzt jetzt in <paramref name="NewShip"/> an <paramref name="Station"/> (eigenes Schiff, Leihschiff oder Notfall-Leihschiff).</summary>
+public sealed record PlayerShipLost(ShipId Lost, StationId Station, ShipId NewShip, string How, string Message) : SimEvent;
+/// <summary>Phase 25: Der Spieler hat geschossen (Echtzeit, gleiche Trefferregel wie NPCs; das Ereignis <see cref="ShotFired"/> folgt).</summary>
+public sealed record AmmoTransferred(ShipId Ship, float Units) : SimEvent;
+/// <summary>Phase 25 (Korrektur): Ein Leihschiff ging verloren — Pfand verfällt an die Verleihstation, offene Miete aus der Kasse (notfalls ins Minus).</summary>
+public sealed record RentalLost(ShipId Ship, StationId Station, float DepositForfeited, float RentPaid) : SimEvent;
+/// <summary>Phase 25: Spieler greift an.</summary>
+public sealed record PlayerAttacked(int Encounter, ShipId Target, bool Crime) : SimEvent;
 /// <summary>
 /// Phase 24: Ein Gefecht ist zu Ende. <paramref name="Outcome"/>: „surrendered“ (Fracht abgeworfen), „fled“ (eine Seite entkommen), „destroyed“ (eine Seite
 /// zerstört), „timeout“ (Höchstdauer), „ended“ (Teilnehmer weggefallen). Dauer in Ticks, Schüsse/Treffer, Beute und Zahl der Abgänge je Art.

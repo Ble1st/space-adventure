@@ -39,8 +39,8 @@ public class SlotModelTests
         var u = DemoUniverse.Create();
         Assert.Equal(9, u.SlotTypes.Count);
         Assert.Equal(24, u.Modules.Count);   // Phase 24: + kinetisches Geschütz; Phase 23: + Munitionsmagazin; Phase 13: + Reaktor Mk3, Mining-Laser Mk3; Phase 11: + Laserkanone; Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
-        Assert.Equal(13, u.ShipClasses.Count);   // Phase 11: + Patrouillenboot, Kaperschiff; Phase 8: + Bauschiff, Asteroidenbrecher; Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
-        Assert.Equal(24, u.ShipModels.Count);   // Phase 24: + Mule und Hauler bewaffnet; Phase 13: + Excavator; Phase 11: + Wächter, Korsar; Phase 8: + Foreman, Quarry, Rockbreaker II; Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
+        Assert.Equal(14, u.ShipClasses.Count);   // Phase 25: + Jäger; Phase 11: + Patrouillenboot, Kaperschiff; Phase 8: + Bauschiff, Asteroidenbrecher; Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
+        Assert.Equal(23, u.ShipModels.Count);   // Phase 25: + Falke, − Mule/Hauler bewaffnet (jeder Händler trägt jetzt eine Waffe); Phase 24: + Mule und Hauler bewaffnet; Phase 13: + Excavator; Phase 11: + Wächter, Korsar; Phase 8: + Foreman, Quarry, Rockbreaker II; Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
         Assert.True(u.SlotTypes["reactor"].Required);
         Assert.True(u.SlotTypes["engine"].Required);
         Assert.False(u.SlotTypes["cargo"].Required);
@@ -50,7 +50,7 @@ public class SlotModelTests
         Assert.Equal(100f, u.Modules["cargo_universal_100"].Stats["capacity"]);
         Assert.Contains(Capability.Mining, u.Modules["mining_laser_1"].Grants);
         Assert.Contains(Capability.Cargo, u.Modules["cargo_universal_100"].Grants);
-        Assert.Equal(4, u.ShipModels["unit_trader_100"].Fit.Count);
+        Assert.Equal(5, u.ShipModels["unit_trader_100"].Fit.Count);   // Phase 25: + Waffenslot (Laserkanone)
         Assert.Null(u.ShipModels["unit_trader_100"].Fit[2]);   // leerer Tool-Slot erlaubt
         Assert.Equal("unit_trader", u.ShipModels["unit_trader_100"].ClassKey);
     }
@@ -115,7 +115,7 @@ public class SlotModelTests
     [Fact]
     public void FitLaengeFalsch_oderPflichtslotLeer_WirftMitModellname()
     {
-        Invalid(d => d.ShipModels[0].Fit.Add("reactor_mk1"), "Schiffsmodell 'unit_trader_100': Fit hat 5 Einträge, Klasse 'unit_trader' hat 4 Slots");
+        Invalid(d => d.ShipModels[0].Fit.Add("reactor_mk1"), "Schiffsmodell 'unit_trader_100': Fit hat 6 Einträge, Klasse 'unit_trader' hat 5 Slots");
         Invalid(d => d.ShipModels[0].Fit[0] = null, "Schiffsmodell 'unit_trader_100': Pflichtslot 'reactor' ist leer");
         Invalid(d => d.ShipModels[0].Fit[1] = null, "Schiffsmodell 'unit_trader_100': Pflichtslot 'engine' ist leer");
     }
@@ -123,8 +123,8 @@ public class SlotModelTests
     [Fact]
     public void Leistungsbilanz_Unterdeckung_WirftMitModellname()
     {
-        Invalid(d => d.Modules[0].Stats["powerOutput"] = 2, "Schiffsmodell 'unit_trader_100': powerOutput 2 < powerDraw 3");
-        Invalid(d => d.Modules[1].PeakDraw = 100, "Schiffsmodell 'unit_trader_100': Spitzenlast 100 übersteigt die Speicherbank");
+        Invalid(d => d.Modules[0].Stats["powerOutput"] = 2, "Schiffsmodell 'unit_trader_100': powerOutput 2 < powerDraw 6");
+        Invalid(d => d.Modules[1].PeakDraw = 100, "Schiffsmodell 'unit_trader_100': Spitzenlast 101 übersteigt die Speicherbank"   /* Phase 25: + Laserkanone (Spitzenlast 1) */);
     }
 
     /// <summary>Kleine handgebaute Welt für die Leistungsbilanz-Randfälle und den Tempo-Clamp.</summary>
@@ -197,15 +197,16 @@ public class SlotModelTests
             Assert.Equal(cargo, st.Cargo);                                    // Laderaum == bisheriges ships[].cargo
             Assert.Equal(100f, st.Hull);                                      // Hülle == bisher 100 (Ship.MaxHull ohne Modell)
             Assert.Equal(Travel.ShipSpeed, st.Speed);                         // Tempo == bisher 8
-            Assert.Equal(CapabilityDefaults.ForRole(role), st.Capabilities);  // Fähigkeiten == Ableitung aus der Rolle
+            // Fähigkeiten == Ableitung aus der Rolle; Phase 25: Händler tragen zusätzlich die Laserkanone (Combat)
+            Assert.Equal(CapabilityDefaults.ForRole(role) | (role == ShipRole.Trader ? Capability.Combat : Capability.None), st.Capabilities);
             Assert.Equal(10f, st.PowerOutput);
             Assert.True(st.PowerOutput >= st.PowerDraw, $"{key}: Leistungsbilanz");
         }
-        // Miner haben den Laser, Trader nicht
+        // Miner haben den Mining-Laser, Trader nicht
         Assert.Equal(1f, StatsOf(u, "unit_miner_60").LaserChunkChanceMult);
         Assert.Equal(1f, StatsOf(u, "unit_miner_60").LaserChunkSizeMult);
         Assert.Equal(Capability.Cargo | Capability.Mining, StatsOf(u, "unit_miner_60").Capabilities);
-        Assert.Equal(Capability.Cargo, StatsOf(u, "unit_trader_100").Capabilities);
+        Assert.Equal(Capability.Cargo | Capability.Combat, StatsOf(u, "unit_trader_100").Capabilities);   // Phase 25: Laserkanone, kein Mining-Laser
     }
 
     [Fact]

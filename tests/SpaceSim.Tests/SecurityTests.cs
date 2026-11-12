@@ -401,6 +401,8 @@ public class SecurityTests
         Assert.Empty(raids);
         Assert.Equal(50f, player.Cargo[DemoUniverse.Food]);
         // zweiter Versuch, der Spieler bleibt draußen: Überfall mit Verlust, aber Hülle nie unter dem Mindestanteil, Schiff bleibt
+        // (Phase 25: das gilt nur noch für die abgeschaltete Sofortauflösung — mit Rundengefecht ist der Überfall ein echtes Gefecht, Phase25Tests)
+        u.Rules.CombatRounds = false;
         raider = Raider(u, Gamma, FarFromStations(u, Gamma) + new Vec2(8, 0));
         player.Position = FarFromStations(u, Gamma);
         u.Encounters = new FixedResolver(attackerWins: true, destroyed: true, loot: 0.5f, dmg: 5f);

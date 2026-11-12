@@ -17,6 +17,7 @@ public static class Engage
     public static Encounter Begin(Universe u, EncounterCause cause, SectorId sector)
     {
         var e = new Encounter { Id = u.Fights.NextId++, Sector = sector, StartTick = u.Tick, Cause = cause };
+        e.Spatial = CombatSpace.WantsSpace(u, e);   // Phase 25: im Spielersektor räumlich
         u.Fights.Encounters.Add(e);
         return e;
     }
@@ -24,17 +25,16 @@ public static class Engage
     /// <summary>
     /// Ein Schiff tritt bei: Seite, Taktik, Position auf der Gefechtslinie. Zieht genau zwei Zufallszahlen (Mut, Abwurfanteil), unabhängig von der Rolle.
     /// </summary>
-    public static CombatParticipant Join(Universe u, Encounter e, Ship ship, int side, string tactic, float x)
+    public static CombatParticipant Join(Universe u, Encounter e, Ship ship, int side, string tactic, float x, Vec2? pos = null)
     {
         var r = u.Rules;
         double courage = u.Rng.NextDouble(), drop = u.Rng.NextDouble();
         var p = new CombatParticipant
         {
-            Ship = ship.Id, Side = side, Tactic = tactic, X = x, PrevMode = ship.Systems.Mode,
+            Ship = ship.Id, Side = side, Tactic = tactic, X = x, PrevMode = ship.Systems.Mode, Owner = ship.Owner,
             Courage = r.SurrenderHullMin + (float)courage * MathF.Max(0f, r.SurrenderHullMax - r.SurrenderHullMin),
             DropShare = r.SurrenderDropMin + (float)drop * MathF.Max(0f, r.SurrenderDropMax - r.SurrenderDropMin),
         };
-        if (ship.IsPlayer) p.Courage = MathF.Max(p.Courage, r.PlayerMinHull + 0.05f);   // Spielerschiffe haben in Phase 24 einen Hüllenboden
         // Befehlsebene: der Ausführer ruht wie im Notfall (Start beim Austritt)
         if (ship.Command is { } cmd && !ship.Emergency && OrderExecutors.Default.TryGet(cmd.Kind, out var ex))
         {
@@ -42,7 +42,15 @@ public static class Engage
             ship.CommandStep = 0;
         }
         OrderMove.StopHere(u, ship);   // Reise endet hier, Auftrag frei (auch Lauern/Streife)
+        // Phase 25: nur ein Liegeplatz, an dem das Schiff vor dem Gefecht wirklich lag, wird beim Austritt wiederhergestellt (nie für das aktive Schiff,
+        // dessen Andocken die Ansicht führt)
+        if (ship.Id != u.PlayerShip) p.WasDockedAt = ship.DockedAt;
         ship.DockedAt = default;
+        // Phase 25: im räumlichen Gefecht echte Position (Vorgabe: wo das Schiff steht) und Blick zum Gegner
+        p.InSpace = e.Spatial;
+        p.Pos = p.PrevPos = pos ?? ship.Position;
+        if (e.Spatial && ship.Id != u.PlayerShip) ship.Position = p.Pos;
+        if (e.Spatial && CombatSense.NearestInSpace(e, p) is { } near && Vec2.Distance(near.Pos, p.Pos) > 1e-3f) p.Dir = (near.Pos - p.Pos).Normalized();
         e.Participants.Add(p);
         u.Fights.Mark(ship.Id, e.Id);
         return p;
@@ -56,9 +64,14 @@ public static class Engage
         u.Fights.Unmark(p.Ship);
         if (u.Ships.TryGetValue(p.Ship, out var ship))
         {
-            if (ship.Systems.Mode != p.PrevMode) ShipSystems.SetMode(u, ship, p.PrevMode);
-            // liegt das Schiff (noch) am Andockpunkt einer Station, gilt es wieder als angedockt (Join löscht DockedAt für die Dauer des Gefechts)
-            if (ship.Transit is null) ship.DockedAt = u.StationAt(ship.Sector, ship.Position);
+            // die Leistungsverteilung zurück (NPC-Taktik hatte sie verstellt); das aktive Spielerschiff behält, was die Person gewählt hat
+            if (ship.Systems.Mode != p.PrevMode && ship.Id != u.PlayerShip) ShipSystems.SetMode(u, ship, p.PrevMode);
+            // Phase 25 (Korrektur): räumlich bewegte NPCs stehen nach dem Gefecht nicht in einem Hindernis
+            if (p.InSpace && ship.Id != u.PlayerShip && ship.Transit is null) ship.Position = CombatSpace.Clear(u, ship.Sector, ship.Position);
+            // Phase 25 (Prüfung Phase 24): nur der Liegeplatz von vor dem Gefecht wird wiederhergestellt — und nur, wenn das Schiff noch an dessen
+            // Andockpunkt liegt; das aktive Spielerschiff führt die Ansicht (Join merkt sich für es keinen Liegeplatz), Liegegebühren folgen DockedAt
+            if (ship.Transit is null && p.WasDockedAt.Value != 0 && ship.Id != u.PlayerShip && u.StationAt(ship.Sector, ship.Position) == p.WasDockedAt)
+                ship.DockedAt = p.WasDockedAt;
             u.Events.Publish(new CombatExited(e.Id, p.Ship, ship.Role, exit));
         }
     }
@@ -69,7 +82,10 @@ public static class Engage
         p.Exit = CombatExit.Destroyed;
         u.Fights.Unmark(p.Ship);
         u.Events.Publish(new CombatExited(e.Id, p.Ship, ship.Role, CombatExit.Destroyed));
-        Departures.RemoveShip(u, ship, DepartureReason.Destroyed, e.Cause == EncounterCause.Raid ? "raid" : "intercept");
+        string detail = e.Cause switch { EncounterCause.Raid => "raid", EncounterCause.Intercept => "intercept", _ => "assault" };
+        // Phase 25: das aktive Spielerschiff geht wirklich verloren — vorher landet die Person an einer Station (ShipLoss), dann der Abgang
+        if (ship.Id == u.PlayerShip) { ShipLoss.LoseActive(u, ship, detail); return; }
+        Departures.RemoveShip(u, ship, DepartureReason.Destroyed, detail);
     }
 
     /// <summary>Nach dem Austritt weiterarbeiten (Befehl neu starten, KI sofort neu planen).</summary>
@@ -111,15 +127,18 @@ public static class Engage
         e.Raider = raider.Id;
         e.RaiderOwner = raider.Owner;
         e.Victim = victim.Id;
-        Join(u, e, raider, 0, CombatTactics.Raider, 0f);
-        Join(u, e, victim, 1, CombatTactics.Trader, r.CombatStartDistance);
+        // Phase 25: im räumlichen Gefecht steht das Opfer, wo es ist; der Kaperer kommt aus seiner Richtung im Anfangsabstand heran
+        var vPos = victim.Position;
+        Join(u, e, raider, 0, CombatTactics.Raider, 0f, e.Spatial ? CombatSpace.Around(vPos, raider.Position, r.CombatStartDistance) : null);
+        Join(u, e, victim, 1, victim.Id == u.PlayerShip ? CombatTactics.Player : CombatTactics.Trader, r.CombatStartDistance, e.Spatial ? vPos : null);
         foreach (var esc in FleetGuards.Escorts(u, victim, sector.Id))
-            if (!u.Fights.IsEngaged(esc.Id)) Join(u, e, esc, 1, CombatTactics.Escort, r.CombatStartDistance);
+            if (!u.Fights.IsEngaged(esc.Id)) Join(u, e, esc, 1, CombatTactics.Escort, r.CombatStartDistance, e.Spatial ? CombatSpace.Around(vPos, esc.Position, 8f) : null);
         var police = PirateSystem.PoliceIn(u, sector.Id);
         if (police.Count > 0 && u.Rng.NextDouble() < MathF.Min(r.PoliceResponseMax, r.PoliceResponseChance * police.Count))
         {
             e.Police = police[0].Id;
-            Join(u, e, police[0], 1, CombatTactics.Police, r.CombatStartDistance + r.CombatHelperDistance);
+            Join(u, e, police[0], 1, CombatTactics.Police, r.CombatStartDistance + r.CombatHelperDistance,
+                e.Spatial ? CombatSpace.Around(vPos, police[0].Position, r.CombatStartDistance + r.CombatHelperDistance) : null);
         }
         Wanted.Report(u, raider.Owner, sector.Owner, "piracy");
         u.Events.Publish(new EncounterStarted(e.Id, sector.Id, EncounterCause.Raid, raider.Id, victim.Id,
@@ -135,8 +154,9 @@ public static class Engage
         e.Raider = raider.Id;
         e.RaiderOwner = raider.Owner;
         e.Police = hunter.Id;
-        Join(u, e, hunter, 0, ThreatMap.IsPolice(hunter) ? CombatTactics.Police : CombatTactics.Escort, 0f);
-        Join(u, e, raider, 1, CombatTactics.Raider, r.CombatStartDistance);
+        Join(u, e, hunter, 0, ThreatMap.IsPolice(hunter) ? CombatTactics.Police : CombatTactics.Escort, 0f,
+            e.Spatial ? CombatSpace.Around(raider.Position, hunter.Position, r.CombatStartDistance) : null);
+        Join(u, e, raider, 1, CombatTactics.Raider, r.CombatStartDistance, e.Spatial ? raider.Position : null);
         string where = u.Sectors.TryGetValue(raider.Sector, out var sec) ? sec.Name : "?";
         u.Events.Publish(new EncounterStarted(e.Id, raider.Sector, EncounterCause.Intercept, hunter.Id, raider.Id, $"Gefecht in {where}: Streife stellt ein Kaperschiff"));
         return e;

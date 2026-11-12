@@ -442,6 +442,10 @@ public class RespawnTests
         }
         save.AsteroidClasses = new();
         save.NextAsteroidId = version == 1 ? 1 : save.NextAsteroidId;
+        // Phase 25: Formate vor v4 kannten keine Slot-Inhalte und keine Schiffs-Fits — sonst mischt die Kette den heutigen Fit der Handelsmodelle (mit
+        // Waffenslot) mit den Klassen im Stand v17 (MigrationBaseJson)
+        save.SlotTypes = new(); save.Modules = new(); save.ShipClasses = new(); save.ShipModels = new();
+        foreach (var sh in save.Ships) { sh.Slots = null; sh.Fit = null; sh.ModelKey = null; }
         foreach (var ship in save.Ships.Where(sh => sh.Order is { Kind: "mine" } && sh.Order.B >= 0))   // Feld -1 = nur noch ausliefern (Tankstopp, Phase 24 nach einem Gefecht)
         {
             // Alte Aufträge nannten die Ware statt des Feldes

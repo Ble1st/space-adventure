@@ -19,7 +19,7 @@ public interface ICombatTactic
 /// <summary>Phase 24: Registry der Taktiken (Reihenfolge der Registrierung, doppelter Schlüssel wirft).</summary>
 public sealed class CombatTactics
 {
-    public const string Raider = "raider", Police = "police", Trader = "trader", Escort = "escort";
+    public const string Raider = "raider", Police = "police", Trader = "trader", Escort = "escort", Player = "player";
     readonly Dictionary<string, ICombatTactic> _byKey = new(StringComparer.Ordinal);
     readonly List<ICombatTactic> _list = new();
 
@@ -40,6 +40,7 @@ public sealed class CombatTactics
         r.Register(new PoliceTactic());
         r.Register(new TraderTactic());
         r.Register(new EscortTactic());
+        r.Register(new PlayerTactic());
         return r;
     }
 
@@ -49,8 +50,8 @@ public sealed class CombatTactics
 /// <summary>Phase 24: gemeinsame Auswertungen für Taktiken und Gefechtssystem (rein).</summary>
 public static class CombatSense
 {
-    /// <summary>Abstand zweier Teilnehmer auf der Gefechtslinie.</summary>
-    public static float Distance(CombatParticipant a, CombatParticipant b) => MathF.Abs(a.X - b.X);
+    /// <summary>Abstand zweier Teilnehmer: auf der Gefechtslinie, im räumlichen Gefecht (Phase 25, Spielersektor) aus den echten Positionen.</summary>
+    public static float Distance(CombatParticipant a, CombatParticipant b) => a.InSpace && b.InSpace ? Vec2.Distance(a.Pos, b.Pos) : MathF.Abs(a.X - b.X);
 
     /// <summary>Aktive Gegner (andere Seite, Schiff existiert), feste Reihenfolge.</summary>
     public static IEnumerable<CombatParticipant> Enemies(Universe u, Encounter e, CombatParticipant self)
@@ -65,6 +66,20 @@ public static class CombatSense
         CombatParticipant? best = null;
         foreach (var p in Enemies(u, e, self))
             if (best is null || Distance(self, p) < Distance(self, best)) best = p;
+        return best;
+    }
+
+    /// <summary>Phase 25: nächster aktiver Gegner nach echter Position (räumliches Gefecht; ohne Blick auf das Schiff).</summary>
+    public static CombatParticipant? NearestInSpace(Encounter e, CombatParticipant self)
+    {
+        CombatParticipant? best = null;
+        float bd = float.MaxValue;
+        foreach (var p in e.Participants)
+        {
+            if (!p.Active || p.Side == self.Side) continue;
+            float d = Vec2.Distance(p.Pos, self.Pos);
+            if (d < bd) { bd = d; best = p; }
+        }
         return best;
     }
 
@@ -198,8 +213,8 @@ public sealed class TraderTactic : ICombatTactic
         var r = u.Rules;
         var nearest = CombatSense.Nearest(u, e, self);
         if (nearest is null) return new TacticDecision(default, CombatMove.Hold, 0f, PowerMode.Balanced, false, false);
-        bool raided = false;
-        foreach (var p in CombatSense.Enemies(u, e, self)) if (p.Tactic == CombatTactics.Raider) { raided = true; break; }
+        bool raided = false;   // Phase 25: auch der Spieler als Angreifer (Überfall durch den Spieler) bringt Händler zum Abwerfen
+        foreach (var p in CombatSense.Enemies(u, e, self)) if (p.Tactic is CombatTactics.Raider or CombatTactics.Player) { raided = true; break; }
         bool surrender = raided && ship.Hull < self.Courage * ship.MaxHull && ThreatMap.CargoValue(u, ship) > 0f;
         var rules = CombatSense.RulesOf(u, ship);
         if (rules == Engagement.Passive) return new TacticDecision(nearest.Ship, CombatMove.Flee, 0f, PowerMode.Engine, false, surrender);
@@ -210,5 +225,23 @@ public sealed class TraderTactic : ICombatTactic
         if (armed && own >= r.TraderFightRatio * enemy)
             return new TacticDecision(target.Ship, CombatMove.Hold, CombatSense.Preferred(u, ship), PowerMode.Weapons, true, surrender);
         return new TacticDecision(target.Ship, CombatMove.Flee, 0f, PowerMode.Engine, armed, surrender);
+    }
+}
+
+/// <summary>
+/// Phase 25: das aktive Spielerschiff. Die Person steuert selbst: Bewegung kommt aus der Ansicht (die Position des Schiffs), geschossen wird in Echtzeit
+/// über <see cref="PlayerGunnery.TryFire"/>, die Leistungsverteilung stellt sie über die Tasten. Die Taktik hält nur das gewählte Ziel und schießt nie von
+/// selbst. Ist das Schiff nicht (mehr) das aktive, verhält es sich wie ein Händler.
+/// </summary>
+public sealed class PlayerTactic : ICombatTactic
+{
+    static readonly TraderTactic Fallback = new();
+    public string Key => CombatTactics.Player;
+
+    public TacticDecision Decide(Universe u, Encounter e, CombatParticipant self, Ship ship)
+    {
+        if (ship.Id != u.PlayerShip) return Fallback.Decide(u, e, self, ship);
+        var target = CombatSense.KeepTarget(u, e, self, CombatSense.Nearest(u, e, self));
+        return new TacticDecision(target?.Ship ?? default, CombatMove.Hold, 0f, ship.Systems.Mode, false, false);
     }
 }

@@ -36,6 +36,7 @@ public sealed class TradeService : IStationService
     public IReadOnlyList<ServiceOffer> Offers(Universe u, Station station, Ship ship)
     {
         var offers = new List<ServiceOffer>(station.Market.Count * 2 + 1);
+        string? refusal = TradeActions.Refusal(u, ship, station);   // Phase 25: gesucht → Handel verweigert (Menge 0, Grund im Angebot)
         foreach (var (good, entry) in station.Market.OrderBy(kv => kv.Key.Value))   // feste Reihenfolge nach GoodId, keine Hash-Reihenfolge
         {
             if (entry.Price <= 0f) continue;
@@ -45,8 +46,9 @@ public sealed class TradeService : IStationService
             // bewegen würde (TradeActions.SaleUnits: alles, wenn die Station alles nimmt, auch einen Bruchteil; sonst ganze Einheiten) — Menge > 0 ⇔ Execute gelingt
             var intake = MarketInfo.Acceptance(u, station, good);
             float sellable = intake.SellableFrom(held);
-            offers.Add(new ServiceOffer($"{Buy}:{good.Value}", ExportRules.Buys(u, station, good) ? $"Nur Ankauf (Export): {name}" : $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held));
-            offers.Add(new ServiceOffer($"{Sell}:{good.Value}", $"Verkaufen: {name}", entry.Price, sellable, good, entry.Amount, held, held > 0f ? intake.NoteFor(held) : intake.Accepts ? null : intake.Reason));
+            offers.Add(new ServiceOffer($"{Buy}:{good.Value}", ExportRules.Buys(u, station, good) ? $"Nur Ankauf (Export): {name}" : $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held, refusal));
+            offers.Add(new ServiceOffer($"{Sell}:{good.Value}", $"Verkaufen: {name}", entry.Price, refusal is null ? sellable : 0f, good, entry.Amount, held,
+                refusal ?? (held > 0f ? intake.NoteFor(held) : intake.Accepts ? null : intake.Reason)));
         }
         // Phase 18: je Ware an Bord ein Abwurf-Angebot (Menge = an Bord, Preis 0); Hinweis = warum die Station sie nicht (ganz) nimmt, null wenn doch
         if (ship.IsPlayer)
@@ -63,8 +65,9 @@ public sealed class TradeService : IStationService
         // Phase 17: Menge = was „Alles verkaufen“ bewegen würde (gleiche Regel wie SellAll), nicht die ganze Fracht — Menge > 0 ⇔ Execute gelingt
         var (allUnits, allRevenue) = TradeActions.Sellable(u, ship, station);
         float cargo = ship.Cargo.Values.Sum();
+        if (refusal is not null) { allUnits = 0f; allRevenue = 0f; }
         offers.Add(new ServiceOffer(SellAll, "Alles verkaufen", allRevenue, allUnits, default, 0f, 0f,
-            cargo > 0f && allUnits <= 0f ? "Station nimmt nichts von der Fracht an" : null));
+            refusal ?? (cargo > 0f && allUnits <= 0f ? "Station nimmt nichts von der Fracht an" : null)));
         return offers;
     }
 
@@ -79,6 +82,8 @@ public sealed class TradeService : IStationService
         if (!IsAvailable(u, station))
             return new ServiceResult(false, 0f, 0f, $"Dienst '{Key}' ist an dieser Station nicht verfügbar.");
 
+        // Phase 25: gesucht → Handel verweigert (Abwerfen bleibt erlaubt)
+        if (action != Drop && TradeActions.Refusal(u, ship, station) is { } refused) return new ServiceResult(false, 0f, 0f, refused);
         switch (action)
         {
             case Buy:

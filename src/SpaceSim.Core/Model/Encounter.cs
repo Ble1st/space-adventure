@@ -3,8 +3,8 @@ namespace SpaceSim.Core.Model;
 /// <summary>Phase 24: Schadensart einer Waffe (KAMPF.md 3.4): Energie ist stark gegen Schild und schwach gegen Panzerung, kinetisch umgekehrt.</summary>
 public enum DamageType { Energy, Kinetic }
 
-/// <summary>Phase 24: Anlass eines Gefechts (KAMPF.md 4.1). Angriffe des Spielers kommen mit Phase 25.</summary>
-public enum EncounterCause { Raid, Intercept }
+/// <summary>Phase 24: Anlass eines Gefechts (KAMPF.md 4.1); Phase 25: <see cref="Assault"/> = der Spieler greift ein Schiff an (Schuss auf ein fremdes Schiff).</summary>
+public enum EncounterCause { Raid, Intercept, Assault }
 
 /// <summary>Phase 24: Bewegung eines Teilnehmers in einem Takt (Abstandszahl statt Physik, KAMPF.md 4.2).</summary>
 public enum CombatMove { Approach, Hold, Flee }
@@ -40,6 +40,20 @@ public sealed class CombatParticipant
     /// <summary>Leistungsverteilung vor dem Gefecht (wird beim Austritt wiederhergestellt).</summary>
     public PowerMode PrevMode;
     public CombatExit Exit;
+    /// <summary>
+    /// Phase 25: echte Position und Blickrichtung im Spielersektor (<see cref="Encounter.Spatial"/>); außerhalb bleibt die Abstandszahl <see cref="X"/>
+    /// maßgeblich. Gespeichert und gehasht nur in räumlichen Gefechten.
+    /// </summary>
+    public Vec2 Pos;
+    public Vec2 Dir = new(0f, -1f);
+    /// <summary>Phase 25: Position vor dem letzten Takt (nur Darstellung: Zwischenbilder zwischen den Ticks; nicht gespeichert, nach dem Laden = <see cref="Pos"/>).</summary>
+    public Vec2 PrevPos;
+    /// <summary>Phase 25: Station, an der das Schiff vor dem Gefecht angedockt lag (default = keine) — nur dieser Liegeplatz wird beim Austritt wiederhergestellt.</summary>
+    public StationId WasDockedAt;
+    /// <summary>Phase 25: Besitzer des Schiffs beim Eintritt (Kopfgeld/Fahndung auch nach der Zerstörung).</summary>
+    public ActorId Owner;
+    /// <summary>Phase 25: abgeleitet = <see cref="Encounter.Spatial"/> des Gefechts (Abstand aus <see cref="Pos"/> statt <see cref="X"/>); nicht gespeichert.</summary>
+    public bool InSpace;
 
     public bool Active => Exit == CombatExit.None;
     public float TimerOf(int slot) => slot >= 0 && slot < Timers.Count ? Timers[slot] : 0f;
@@ -67,6 +81,12 @@ public sealed class Encounter
     public float Fenced;
     public int Shots;
     public int Hits;
+    /// <summary>
+    /// Phase 25: Das Gefecht läuft räumlich (im Spielersektor): Abstand und Feuerwinkel kommen aus <see cref="CombatParticipant.Pos"/>/<see cref="CombatParticipant.Dir"/>,
+    /// die Simulation schreibt die Positionen fort (<see cref="Combat.CombatAutopilot"/>). Wechselt beim Betreten/Verlassen des Sektors durch den Spieler
+    /// (<see cref="Combat.CombatSpace"/>). Gespeichert und gehasht.
+    /// </summary>
+    public bool Spatial;
     /// <summary>Ausgewertet (Ereignisse veröffentlicht); wird im selben Schritt entfernt — nie gespeichert.</summary>
     public bool Done;
 

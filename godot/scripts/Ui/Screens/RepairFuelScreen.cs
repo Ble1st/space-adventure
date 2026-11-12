@@ -44,7 +44,10 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 		float y = 48f;
 		if (fuel) y = Section(inner, "Tanken", RefuelService.ServiceKey, "Diese Station verkauft keinen Treibstoff für dein Schiff.", y, w) + 14f;
 		_fuelSection = fuel;
-		Section(inner, "Reparatur", RepairService.ServiceKey, "Diese Station hat keine Hüllenplatten für Reparaturen.", y, w);
+		y = Section(inner, "Reparatur", RepairService.ServiceKey, "Diese Station hat keine Hüllenplatten für Reparaturen.", y, w) + 14f;
+		// Phase 25: Munition nachladen (Dienst „rearm“) — nur mit eingeschalteter Munition
+		if (Ctx.U.Rules.AmmoActive) Section(inner, $"Munition · Magazin {Ctx.Ship.AmmoLoaded:0}/{Ctx.Ship.Stats.AmmoCapacity:0}", RearmService.ServiceKey,
+			"Diese Station führt keine Munition.", y, w);
 	}
 
 	/// <summary>Eine Dienstgruppe: Überschrift plus je Angebot eine Zeile mit Menge, Preis und Ausführen-Taste.</summary>
@@ -64,13 +67,14 @@ public sealed partial class RepairFuelScreen : DockAreaScreen
 		foreach (var o in offers)
 		{
 			bool can = o.Amount >= (serviceKey == RefuelService.ServiceKey ? 1f : 0.01f);
-			string unit = serviceKey == RefuelService.ServiceKey ? "Einheiten" : "Hüllenpunkte";
+			string unit = serviceKey == RepairService.ServiceKey ? "Hüllenpunkte" : "Einheiten";
+			if (serviceKey == RearmService.ServiceKey) can = o.Amount >= 0.01f;
 			At(inner, Text(o.Text, 17, White), 0, y + 10, 250, 26);
-			At(inner, Text($"{o.Amount:0.#} {unit} · {o.Amount * o.Price:0} Cr ({o.Price:0.#} je Einh.)", 14, Dim), 250, y + 12, w - 400, 24);
-			var b = At(inner, new KitButton("Ausführen", new Vector2(130, 46)) { FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 140, y);
+			At(inner, Text(o.Note is { } note && !can ? note : $"{o.Amount:0.#} {unit} · {o.Amount * o.Price:0} Cr ({o.Price:0.#} je Einh.)", 14, Dim), 250, y + 12, w - 400, 24);
+			var b = At(inner, new KitButton("Ausführen", new Vector2(130, 56)) { FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 140, y);
 			string key = o.Key;
 			if (can) b.Pressed += () => Execute(serviceKey, key);
-			y += 52f;
+			y += 60f;
 			_rows++;
 		}
 		return y;

@@ -68,6 +68,7 @@ public static class SecurityNames
         "toll_evasion" => "Zollflucht",
         "piracy" => "Piraterie",
         "assault" => "Angriff",
+        "assault_station" => "Angriff im Stationsschutz",
         "" => "–",
         _ => key,
     };

@@ -57,6 +57,10 @@ public sealed class FlightHudData
 	public float ShipScreenNoseDeg;
 	public Vector2? TargetScreen;
 	public bool TargetInArc;
+	/// <summary>Phase 25: Kampf — Schild/Hülle des gewählten Schiffs („“ = kein Schiffsziel), feindlich, Dauerfeuer, Beschusswarnung mit Richtung, hat Kampfwaffen.</summary>
+	public string TargetCombat = "";
+	public bool TargetHostile, AutoFireOn, HasWeapons;
+	public string HitWarning = "";
 }
 
 /// <summary>
@@ -81,6 +85,19 @@ public partial class FlightHud : Control, IScreen
 	public event Action<int>? BayDown;
 	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
 	public event Action<PowerMode>? PowerModePressed;
+	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
+	public event Action? AutoFirePressed, NextEnemyPressed;
+	KitButton _autoFire = null!, _nextEnemy = null!;
+	Label _tCombat = null!, _hitWarning = null!;
+	/// <summary>Selbsttest: Zielkartenzeile Schild/Hülle, Beschusswarnung, Lage und Größe der Kampftasten.</summary>
+	public string TestTargetCombat => _tCombat.Text;
+	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
+	public Rect2 TestBayRect(int i) => new(_bayButtons[i].Position, _bayButtons[i].Size);
+	public Rect2 TestAutoFireRect => new(_autoFire.Position, _autoFire.Size);
+	public Rect2 TestNextEnemyRect => new(_nextEnemy.Position, _nextEnemy.Size);
+	public bool TestNextEnemyVisible => _nextEnemy.Visible;
+	public void TestPressNextEnemy() => NextEnemyPressed?.Invoke();
+	public void TestPressAutoFire() => AutoFirePressed?.Invoke();
 
 	// oben
 	KitBar _hullBar = null!, _fuelBar = null!, _shieldBar = null!, _powerBar = null!;
@@ -199,7 +216,8 @@ public partial class FlightHud : Control, IScreen
 		var tv = At(card, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 12, 8, 246, 116);
 		tv.AddThemeConstantOverride("separation", 2);
 		_tName = Text("", 18, UiKit.Green); _tInfo = Text("", 15, UiKit.Dim); _tArc = Text("", 15, UiKit.White);
-		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc);
+		_tCombat = Text("", 15, UiKit.Cyan);
+		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc); tv.AddChild(_tCombat);
 		_radar = At(card, new Radar(), 266, 8, 64, 64);
 
 		_autopilotBtn = At(this, new KitButton("Autopilot", new Vector2(160, 42)) { FontSize = 16, Toggle = true }, 930, 212);
@@ -223,19 +241,31 @@ public partial class FlightHud : Control, IScreen
 		// ── Tempo-Slider unten rechts am Bildrand ──
 		_slider = At(this, new KitSlider(), 660, 646, 600, 68);
 
-		// ── Waffenschächte rechts am Rand, eine Taste je Schacht ──
-		for (int i = 0; i < 4; i++)   // Reserve für spätere Schächte; sichtbare Anzahl kommt aus den Daten
+		// ── Waffenschächte rechts am Rand, eine Taste je Schacht (Phase 25: bis zu 6, ab dem fünften in einer zweiten Spalte links daneben) ──
+		for (int i = 0; i < MaxBays; i++)
 		{
 			int idx = i;
-			var b = At(this, new KitButton("", new Vector2(176, 68)), 1090, 330 + i * 76);
+			var (bx, by) = BayPos(i);
+			var b = At(this, new KitButton("", new Vector2(176, BayH)), bx, by);
 			b.Symbol = g => PaintArcSymbol(g, idx);
 			b.Down += () => BayDown?.Invoke(idx);
 			_bayButtons.Add(b);
 		}
-		_allFire = At(this, new KitButton("Alle Feuer", new Vector2(176, 64)) { FontSize = 19 }, 1090, 490);
+		_allFire = At(this, new KitButton("Alle Feuer", new Vector2(176, 56)) { FontSize = 19 }, 1090, 490);
 		_allFire.Pressed += () => AllFire?.Invoke();
-		_ready = At(this, Text("", 13, UiKit.Green, HorizontalAlignment.Center), 1090, 560, 176, 20);
+		_ready = At(this, Text("", 13, UiKit.Green, HorizontalAlignment.Center), 1090, 314, 176, 16);
+		// Phase 25: Dauerfeuer (Schalter) neben „Alle Feuer“, „Nächster Gegner“ links der Zielkarte, Beschusswarnung unter dem Sektorchip
+		_autoFire = At(this, new KitButton("Dauerfeuer", new Vector2(176, 56)) { FontSize = 17, Toggle = true }, 906, 490);
+		_autoFire.Pressed += () => AutoFirePressed?.Invoke();
+		_nextEnemy = At(this, new KitButton("Nächster Gegner", new Vector2(160, 56)) { FontSize = 15 }, 764, 206);
+		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
+		_hitWarning = At(this, Text("", 22, UiKit.Red, HorizontalAlignment.Center), 420, 128, 430, 30);
 	}
+
+	const int MaxBays = 6;
+	const float BayH = 56f, BayStep = 60f;
+	/// <summary>Phase 25: Lage einer Schachttaste — vier in der rechten Spalte, weitere links daneben.</summary>
+	static (float X, float Y) BayPos(int i) => i < 4 ? (1090f, 330f + i * BayStep) : (906f, 330f + (i - 4) * BayStep);
 
 	/// <summary>Fenster mit freier Platzierung der Kinder (ein PanelContainer würde alle Kinder strecken).</summary>
 	static Control Win(Control parent, float x, float y, float w, float h, Color bg, Color? border, int radius)
@@ -283,6 +313,7 @@ public partial class FlightHud : Control, IScreen
 			BayState.Ready => UiKit.Green,
 			BayState.OutsideArc => UiKit.Orange,
 			BayState.Reloading => UiKit.Dim,
+			BayState.NoPower or BayState.NoAmmo => UiKit.Red,
 			_ => new Color(UiKit.Dim, 0.6f),
 		};
 		float center = FiringArc.FacingOffset(bay.Facing);
@@ -370,17 +401,25 @@ public partial class FlightHud : Control, IScreen
 				BayState.Ready => (KitButtonState.Ready, bay.Detail, UiKit.Green),
 				BayState.OutsideArc => (KitButtonState.Warn, bay.Detail, UiKit.Orange),
 				BayState.Reloading => (KitButtonState.Busy, bay.Detail, UiKit.Dim),
+				BayState.NoPower or BayState.NoAmmo => (KitButtonState.Disabled, bay.Detail, UiKit.Red),
 				_ => (KitButtonState.Disabled, bay.Detail, new Color(UiKit.Dim, 0.7f)),
 			};
 			b.Progress = bay.Reload;
 			b.QueueRedraw();
 		}
 		_ready.Text = d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
-		// Phase 8: mit einem dritten Schacht (Spalter) rutschen „Alle Feuer“ und die Bereit-Zeile unter die Schächte
-		float fireY = Math.Max(490f, 330f + Math.Min(d.Bays.Count, _bayButtons.Count) * 76f + 4f);
+		// Phase 8/25: „Alle Feuer“ (und Dauerfeuer daneben) rutschen unter die rechte Schachtspalte; die Bereit-Zeile steht über den Schächten
+		float fireY = Math.Max(462f, 330f + Math.Min(d.Bays.Count, 4) * BayStep + 4f);   // vier Schächte: „Alle Feuer“ endet bei 630, 16 px über dem Schieberegler
 		_allFire.Position = new Vector2(1090, fireY);
-		_ready.Position = new Vector2(1090, fireY + 66f);
-		_ready.Size = new Vector2(176, 16);
+		_autoFire.Position = new Vector2(906, fireY);
+		_autoFire.Visible = d.HasWeapons;
+		_autoFire.On = d.AutoFireOn;
+		_nextEnemy.Visible = d.HasWeapons;
+		_tCombat.Text = d.TargetCombat;
+		_tCombat.Visible = d.TargetCombat.Length > 0;
+		if (d.TargetCombat.Length > 0) _tName.AddThemeColorOverride("font_color", d.TargetHostile ? UiKit.Red : UiKit.Orange);
+		_hitWarning.Text = d.HitWarning;
+		_hitWarning.Visible = d.HitWarning.Length > 0;
 		_arcs.Data = d;
 		_arcs.QueueRedraw();
 	}

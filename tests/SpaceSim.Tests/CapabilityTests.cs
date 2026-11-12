@@ -52,7 +52,8 @@ public class CapabilityTests
         // die Demo-Welt: jedes Schiff hat die abgeleiteten Werte
         foreach (var s in u.Ships.Values)
         {
-            Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Capabilities);
+            // Phase 25: Händler tragen eine Laserkanone (Fähigkeit Combat aus dem Fit) — die Rolle bestimmt den Rest
+            Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Capabilities & ~(s.Role == ShipRole.Trader ? Capability.Combat : Capability.None));
             Assert.Equal(CapabilityDefaults.ControllerFor(s.Role), s.Controller);
         }
         Assert.True(u.Ships[u.PlayerShip].IsPlayer);
@@ -329,7 +330,7 @@ public class CapabilityTests
         var loaded = UniverseSerializer.FromSave(save);
         foreach (var s in loaded.Ships.Values)
         {
-            Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Capabilities);
+            Assert.Equal(CapabilityDefaults.ForRole(s.Role), s.Capabilities & ~(s.Role == ShipRole.Trader ? Capability.Combat : Capability.None));   // Phase 25: Händlerwaffe
             Assert.Equal(CapabilityDefaults.ControllerFor(s.Role), s.Controller);
         }
     }

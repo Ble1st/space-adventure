@@ -356,9 +356,9 @@ public sealed class EconomyRules
     public float NpcHullRegenPerTick = 0.05f;
 
     /// <summary>Fahndung: Heat je Verbrechen (Schlüssel).</summary>
-    public Dictionary<string, float> CrimeHeat = new() { ["smuggling"] = 2.5f, ["toll_evasion"] = 1.5f, ["piracy"] = 1.2f, ["assault"] = 3f };
+    public Dictionary<string, float> CrimeHeat = new() { ["smuggling"] = 2.5f, ["toll_evasion"] = 1.5f, ["piracy"] = 1.2f, ["assault"] = 3f, ["assault_station"] = 4.5f };
     /// <summary>Fahndung: Strafe je Verbrechen (Credits, Gericht).</summary>
-    public Dictionary<string, float> CrimeFine = new() { ["smuggling"] = 400f, ["toll_evasion"] = 100f, ["piracy"] = 800f, ["assault"] = 1000f };
+    public Dictionary<string, float> CrimeFine = new() { ["smuggling"] = 400f, ["toll_evasion"] = 100f, ["piracy"] = 800f, ["assault"] = 1000f, ["assault_station"] = 1500f };
     /// <summary>Fahndung: Schwellen der Stufen 1–4 (auffällig, verwarnt, gesucht, Staatsfeind); Heat höchstens <see cref="WantedMaxHeat"/>.</summary>
     public List<float> WantedLevels = new() { 1f, 2f, 3f, 4f };
     public float WantedMaxHeat = 5f;
@@ -701,10 +701,43 @@ public sealed class EconomyRules
     /// mittleres Routenrisiko der Lagekarte ab dem Kaufsektor, Bewaffnung = Waffenstärke ÷ 6 (höchstens 1). 0 = Bewaffnung zählt nicht.
     /// </summary>
     public float ArmedTraderWeight = 40f;
+    /// <summary>
+    /// Phase 25 („jeder Händler bewaffnet“): Waffenstärke, die jedes Handelsmodell ohnehin trägt (Standardwelt 6 ≈ eine Laserkanone). Die Kaufwahl wertet nur
+    /// Bewaffnung darüber hinaus nach dem Routenrisiko auf (0 = Regel aus Phase 24: jede Waffe zählt).
+    /// </summary>
+    public float ArmedTraderBaseline = 0f;
     /// <summary>Kaperer meiden bewaffnete Opfer: Gewicht der Beute ÷ (1 + dieser Faktor × Waffenstärke ÷ 6).</summary>
     public float RaiderArmedAversion = 1f;
     /// <summary>Munition ohne Lager (Piratenversteck, Heimatbasis ohne Munition): Preis je Einheit = Basispreis × dieser Faktor (Geldsenke wie die Reparatur dort).</summary>
     public float AmmoBaseMarkup = 1f;
     /// <summary>Polizei kehrt zum Nachladen heim, wenn das Magazin unter diesen Anteil fällt.</summary>
     public float AmmoReturnShare = 0.3f;
+
+    // ───────── Phase 25: Spielerkampf (KAMPF.md 4.3, 5) ─────────
+    /// <summary>
+    /// Gefechte im Spielersektor laufen räumlich: echte Positionen und Feuerwinkel, die Simulation schreibt die Positionen über den
+    /// <see cref="Combat.CombatAutopilot"/> fort. false = überall die Abstandszahl (Regel bis Phase 24; Testhilfe für den Vergleich).
+    /// </summary>
+    public bool SpatialCombat = true;
+    /// <summary>Wendegeschwindigkeit der NPC-Schiffe im räumlichen Gefecht (Grad je Sekunde).</summary>
+    public float CombatTurnRate = 120f;
+    /// <summary>Im Abstandsband (gewünschter Abstand × [Untergrenze, Obergrenze]) kreisen Schiffe mit diesem Anteil ihres Tempos um das Ziel.</summary>
+    public float CombatOrbitSpeedShare = 0.5f;
+    public float CombatBandMin = 0.75f;
+    public float CombatBandMax = 1.1f;
+    /// <summary>
+    /// Leistungsverteilung „Waffen“ wirkt (Überladung): Steht die Stellung auf Waffen und hält die Speicherbank Spitzenlast × (1 + <see cref="OverchargeDrawFactor"/>),
+    /// zieht der Schuss diese Menge und die Nachladezeit sinkt auf × <see cref="OverchargeReloadFactor"/>. Ohne Speicherbank keine Überladung.
+    /// </summary>
+    public float OverchargeReloadFactor = 0.65f;
+    public float OverchargeDrawFactor = 2f;
+    /// <summary>Handel verweigert: Ab dieser Fahndungsstufe beim Stationsbesitzer handelt eine Station nicht mit dem Spieler (0 = nie).</summary>
+    public int TradeRefusalWantedLevel = 3;
+    /// <summary>
+    /// Verlust des aktiven Schiffs: Gibt es an der Landestation kein eigenes Schiff und kein bezahlbares Leihschiff, bekommt die Person ein Notfall-Leihschiff
+    /// dieses Modells (leer = <see cref="RentalModel"/>) ohne Gebühr und Pfand; die Miete je Tag läuft wie bei jedem Leihschiff.
+    /// </summary>
+    public string EmergencyRentalModel = "";
+    /// <summary>Räumliches Gefecht des Spielers: Ein Kaperer im Anflug (Vorwarnzeit) nähert sich dem Spieler bis auf diesen Abstand.</summary>
+    public float RaidApproachDistance = 60f;
 }

@@ -44,7 +44,7 @@ public class EconomyFixTests
         Assert.DoesNotContain(watch.CashHints(u), h => StationProtection.IsOfficial(u, u.Stations[h.Station]));
         // noch keine Fahrt: Eisenerz (Erz, Abnehmer Stahlwerk) gilt als gehandelte Ware ohne Fahrten, ein Modul ohne Abnehmer nicht
         Assert.Contains(G(u, "iron_ore"), watch.IdleGoods(u));
-        Assert.DoesNotContain(G(u, "power_bank_s"), watch.IdleGoods(u));
+        // (Phase 25: seit die Werft die Speicherbank für den Jäger lagert, hat jedes Modul einen Abnehmer — der Fall „Modul ohne Abnehmer“ entfällt)
         // eine Exportware am Höchstgebot der Senke zählt als oberer Deckel nur mit leerem Lager
         Assert.Equal(u.Rules.ExportMaxBidFactor, MarketWatch.UpperCap(u, St(u, ExportGamma), G(u, "food")), 3);
         Assert.Equal(4f, MarketWatch.UpperCap(u, smelter, G(u, "copper_ore")));
@@ -63,8 +63,10 @@ public class EconomyFixTests
         var u = DemoUniverse.Create();
         var works = St(u, DriveWorks);
         FillInputs(works);
-        var bank = G(u, "power_bank_s");     // kein Regal führt Powerbanks: kein Abnehmer
+        var bank = G(u, "power_bank_s");     // Phase 25: die Werften lagern Speicherbanken (Jäger) — gesättigt = kein offener Bedarf
         var reactor = G(u, "reactor_mk1");   // Werft und Handelsstation führen Reaktoren
+        foreach (var holder in u.Stations.Values.Where(s => s.Id != works.Id && s.Market.ContainsKey(bank) && !s.Produces(bank)))
+            holder.Market[bank].Amount = MathF.Max(holder.Market[bank].Amount, holder.Market[bank].Target);
         var bankEntry = works.Market[bank];
         bankEntry.Amount = bankEntry.Target + 0.5f;
         var reactorEntry = works.Market[reactor];
