@@ -286,7 +286,8 @@ public sealed class FactionPolicySystem : ISimSystem
             if (acc.IsOpen) continue;
             float cost = u.Rules.LockUpkeepPerLevel * acc.EntryLevel * dt;
             bool paid = false;
-            if (u.Actors.TryGetValue(sector.Owner, out var actor) && actor.Treasury.Credits >= cost)
+            // Phase 22: eine Sperre ist freiwillig — bezahlt nur aus dem Teil der Kasse über der Betriebsreserve (sonst Sperre auf dem Papier)
+            if (u.Actors.TryGetValue(sector.Owner, out var actor) && FactionViability.Spendable(u, actor) >= cost)
             {
                 actor.Treasury.Credits -= cost;
                 paid = true;

@@ -417,7 +417,8 @@ public class PoliticsTests
     [Fact]
     public void Politik_FeindlicheBeziehung_Sperre_MitDeckelMindestdauerHystereseAblauf()
     {
-        var u = World(rules: r => { r.RelationDriftRate = 0f; r.LockMinTicks = 400; r.LockMaxTicks = 2000; r.LockCooldownTicks = 600; });
+        // Phase 22: die Sperre ist eine freiwillige Ausgabe und hält die Betriebsreserve der Kasse — hier geprüft wird die Sperrmechanik (Reserve: Phase22Tests)
+        var u = World(rules: r => { r.RelationDriftRate = 0f; r.LockMinTicks = 400; r.LockMaxTicks = 2000; r.LockCooldownTicks = 600; r.FactionKeepsReserve = false; });
         var runner = new SimulationRunner();
         var changes = new List<SectorAccessChanged>();
         u.Events.Raised += e => { if (e is SectorAccessChanged c) changes.Add(c); };
@@ -533,7 +534,8 @@ public class PoliticsTests
     [Fact]
     public void Durchsetzung_Abriegelung_ReisenUmgeplantOderAngehalten_KeinGeisterauftrag()
     {
-        var u = World(mainRoutes: false, rules: r => r.LockMinTicks = 100_000);   // die Politik hebt die Hand-Sperre im Test nicht auf
+        // die Politik hebt die Hand-Sperre im Test nicht auf; Phase 22: Sperre ohne Betriebsreserve bezahlt (Reserve: Phase22Tests)
+        var u = World(mainRoutes: false, rules: r => { r.LockMinTicks = 100_000; r.FactionKeepsReserve = false; });
         var runner = new SimulationRunner();
         runner.Run(u, 400);
         int crossing = u.Ships.Values.Count(s => s.Transit is { } t && t.Legs.Any(l => l.Sector == Gamma) && t.Legs[0].Sector != Gamma);

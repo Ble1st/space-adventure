@@ -125,7 +125,8 @@ public sealed class MaintenanceSystem : ISimSystem
             }
             if (value <= 0f) continue;
             // Kasse erstattet der Station das verbrauchte Material; reicht sie nicht, trägt die Station den Rest selbst
-            float fromTreasury = u.Actors.TryGetValue(faction, out var actor) ? MathF.Min(value, MathF.Max(0f, actor.Treasury.Credits)) : 0f;
+            // Phase 22: freiwillige Ausgabe — nur aus dem Teil der Kasse über der Betriebsreserve (FactionViability.Spendable)
+            float fromTreasury = u.Actors.TryGetValue(faction, out var actor) ? MathF.Min(value, FactionViability.Spendable(u, actor)) : 0f;
             if (actor is not null) actor.Treasury.Credits -= fromTreasury;
             st.Credits += fromTreasury;
             var cur = paid.GetValueOrDefault(faction.Value);
@@ -156,7 +157,8 @@ public sealed class SubsidySystem : ISimSystem
             float spent = 0f;
             foreach (var st in stations)
             {
-                float budget = actor.Treasury.Credits - u.Rules.SubsidyReserve;
+                // Phase 22: freiwillige Ausgabe — Rücklage der Regel und Betriebsreserve der Fraktion bleiben
+                float budget = MathF.Min(actor.Treasury.Credits - u.Rules.SubsidyReserve, FactionViability.Spendable(u, actor));
                 if (budget <= 0f) break;
                 if (u.FactionOf(st) != f || !Eligible(u, st)) continue;
                 float floor = WorkingCapital.Of(u, st) * u.Rules.SubsidyFloorShare;
@@ -165,6 +167,7 @@ public sealed class SubsidySystem : ISimSystem
                 if (amount <= 0f) continue;
                 actor.Treasury.Credits -= amount;
                 st.Credits += amount;
+                Profitability.Transfer(st.Profit, amount);   // Phase 22: Subvention ist kein Geschäftsergebnis
                 spent += amount;
                 u.Events.Publish(new StationSubsidized(st.Id, actor.Id, amount));
             }

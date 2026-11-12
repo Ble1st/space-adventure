@@ -224,6 +224,14 @@ u.Events.Raised += e =>
 // Phase 20: Schiffsabgänge je Aufgabe und Grund, Versorgungspanik
 var roleOf = u.Ships.Values.ToDictionary(x => x.Id.Value, x => x.Role);
 var removedBy = new SortedDictionary<string, SortedDictionary<string, int>>(StringComparer.Ordinal);
+var departureDetails = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var cutOffDepartures = new SortedDictionary<string, int>(StringComparer.Ordinal);   // Phase 22: Abgänge in abgeschnittenen Kartenteilen   // Phase 22: Anlass je Aufgabe (raid, intercept, broke, unprofitable, …)
+var stationDepartures = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var departedShips = new HashSet<int>(); var departedStations = new HashSet<int>();
+int removedWithoutReason = 0, firmMoves = 0; float firmMoved = 0f;
+var restores = new List<string>();
+// Phase 22: Handlungsfähigkeit je Fraktion/Piratengruppe (alle 200 Ticks gemessen): Messpunkte, Messpunkte mit Verstoß, Verstöße nach Art
+var viaSamples = new SortedDictionary<int, (int N, int Bad, SortedDictionary<string, int> Kinds)>();
 int panicsRaised = 0, panicBuilds = 0, panicDone = 0;
 var panicList = new List<string>();
 u.Events.Raised += e =>
@@ -232,13 +240,36 @@ u.Events.Raised += e =>
     {
         case ShipSpawned ssp when u.Ships.TryGetValue(ssp.Ship, out var nsh): roleOf[ssp.Ship.Value] = nsh.Role; break;
         case JobChanged jch: roleOf[jch.Ship.Value] = jch.To; break;
-        case ShipRemoved srm:
+        // Phase 22: Abgänge tragen einen der drei Gründe (zerstört, pleite, nicht rentabel) oder sind Entscheidungen der Spielerperson (verkauft, zurückgegeben)
+        case ShipDeparted sdp:
         {
-            string role = roleOf.TryGetValue(srm.Ship.Value, out var rr) ? rr.ToString() : "?";
+            string role = sdp.Role.ToString();
             if (!removedBy.TryGetValue(role, out var reasons)) removedBy[role] = reasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
-            reasons[srm.Reason] = reasons.GetValueOrDefault(srm.Reason) + 1;
+            string rk = DepartureNames.German(sdp.Reason);
+            reasons[rk] = reasons.GetValueOrDefault(rk) + 1;
+            string dk = $"{role}/{sdp.Detail}";
+            departureDetails[dk] = departureDetails.GetValueOrDefault(dk) + 1;
+            departedShips.Add(sdp.Ship.Value);
+            // Phase 22: Abgänge in einem abgeschnittenen Kartenteil (nicht im Hauptteil) gesondert zählen
+            int mainPart = Profitability.MainPart(u);
+            if (mainPart != 0 && MapParts.Of(u).KeyOf(sdp.Sector) != mainPart)
+            {
+                string ck = $"{role} {DepartureNames.German(sdp.Reason)} ({sdp.Detail}) in {u.Sectors[sdp.Sector].Name.Replace("Sektor ", "")}";
+                cutOffDepartures[ck] = cutOffDepartures.GetValueOrDefault(ck) + 1;
+            }
             break;
         }
+        case ShipRemoved srm when !departedShips.Contains(srm.Ship.Value): removedWithoutReason++; break;
+        case StationDeparted stdp:
+        {
+            string sk = $"{u.StationTypes.GetValueOrDefault(stdp.TypeKey)?.Name ?? stdp.TypeKey} {DepartureNames.German(stdp.Reason)} ({stdp.Detail})";
+            stationDepartures[sk] = stationDepartures.GetValueOrDefault(sk) + 1;
+            departedStations.Add(stdp.Station.Value);
+            break;
+        }
+        case StationRemoved strm when !departedStations.Contains(strm.Station.Value): removedWithoutReason++; break;
+        case FactionRestored frs: restores.Add($"Tick {u.Tick}: {u.Factions.GetValueOrDefault(frs.Faction)?.Name ?? "?"} {frs.Role} (bezahlt {frs.Paid:0}, erlassen {frs.Waived:0} Cr)"); break;
+        case FirmCapitalMoved fcm: firmMoves++; firmMoved += fcm.Amount; break;
         case SupplyPanicRaised spr:
             panicsRaised++;
             if (panicList.Count < 12)
@@ -312,6 +343,14 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                             utilSum[ust.Id.Value] = (ust.Name, ust.TypeKey, ust.BankruptcyProtected, cur.Act + ust.Activity, cur.Starved + ust.Starved, cur.N + 1);
                         }
                     capSamples++;
+                    // Phase 22: Invarianten der Handlungsfähigkeit je Fraktion und Piratengruppe
+                    foreach (var va in u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsFaction(u)).OrderBy(a => a.Id.Value))
+                    {
+                        var issues = FactionViability.Check(u, va.Id);
+                        var cur = viaSamples.TryGetValue(va.Id.Value, out var vs) ? vs : (N: 0, Bad: 0, Kinds: new SortedDictionary<string, int>(StringComparer.Ordinal));
+                        foreach (var iss in issues) cur.Kinds[iss.Kind.ToString()] = cur.Kinds.GetValueOrDefault(iss.Kind.ToString()) + 1;
+                        viaSamples[va.Id.Value] = (cur.N + 1, cur.Bad + (issues.Count > 0 ? 1 : 0), cur.Kinds);
+                    }
                     if (StationProtection.CountEconomic(u) >= u.Rules.MaxStations)
                     {
                         capFullSamples++;
@@ -392,9 +431,14 @@ if (u.Modules.Count > 0)
         .Select(g => $"{g.Key} {g.Count()}");
     Console.WriteLine("Flotte (Modell/Aufgabe): " + string.Join(", ", byModel));
     Console.WriteLine("Kapazität: " + string.Join(", ", ShipJobs.Default.Select(j => $"{j.Key} {ShipJobs.UsedUnits(u, j):0.0}/{j.Limit(u.Rules):0} (max {capMax.GetValueOrDefault(j.Key):0.0})"))
-        + $"; Aufgabenwechsel: {jobSwitches}; Multirole-Schiffe: {ai.Count(x => ShipJobs.IsMultirole(u, x))}; lange untätig abgebaut: {retired} ({retiredCredits:0} Cr)");
-    // Phase 20: Abgänge je Aufgabe und Grund (raid = Piraten, bankrupt = pleite, retired = lange untätig, decommissioned = Polizei außer Dienst, …)
-    Console.WriteLine("Abgänge je Aufgabe (Grund): " + (removedBy.Count == 0 ? "keine" : string.Join("; ", removedBy.Select(kv => $"{kv.Key} " + string.Join(", ", kv.Value.Select(r => $"{r.Key} {r.Value}"))))));
+        + $"; Aufgabenwechsel: {jobSwitches}; Multirole-Schiffe: {ai.Count(x => ShipJobs.IsMultirole(u, x))}; unrentabel ausgemustert: {retired} ({retiredCredits:0} Cr)");
+    // Phase 22: Abgänge je Aufgabe nur aus den drei Gründen (zerstört, pleite, nicht rentabel) plus Entscheidungen der Spielerperson (verkauft, zurückgegeben)
+    Console.WriteLine("Abgänge je Aufgabe (Grund): " + (removedBy.Count == 0 ? "keine" : string.Join("; ", removedBy.Select(kv => $"{kv.Key} " + string.Join(", ", kv.Value.Select(r => $"{r.Key} {r.Value}")))))
+        + (removedWithoutReason > 0 ? $"; WARNUNG: {removedWithoutReason} Abgänge ohne Grund" : ""));
+    Console.WriteLine("  Anlässe: " + (departureDetails.Count == 0 ? "keine" : string.Join(", ", departureDetails.Select(kv => $"{kv.Key} {kv.Value}")))
+        + $" | Stationen: {(stationDepartures.Count == 0 ? "keine" : string.Join(", ", stationDepartures.Select(kv => $"{kv.Key} {kv.Value}")))}"
+        + $" | Kapitalausgleich in Firmen: {firmMoves}× {firmMoved:0} Cr");
+    Console.WriteLine("  Abgänge in abgeschnittenen Kartenteilen: " + (cutOffDepartures.Count == 0 ? "keine" : string.Join(", ", cutOffDepartures.Select(kv => $"{kv.Key} {kv.Value}"))));
     // Phase 20: bei zerfallener Karte die Flottenkapazität je erreichbarem Kartenteil
     var mparts = MapParts.Of(u);
     if (mparts.IsSplit)
@@ -447,6 +491,15 @@ if (u.Modules.Count > 0)
     foreach (var a in actors.Where(a => a.Kind != ActorKind.Independent || a.Ships + a.Stations > 1).Take(12))
         Console.WriteLine($"  {a.Name,-26} {ActorNames.Kind(a.Kind),-20} {ActorNames.Size(a.Class),-12} Kasse {a.Treasury,9:0}  {a.Ships,3} Schiffe {a.Stations,3} Stationen  Größe {a.Size:0.0}");
     Console.WriteLine("Zukauf: " + (investBy.Count == 0 ? "keiner" : string.Join(", ", investBy.Select(kv => $"{kv.Key} {kv.Value}"))));
+    // Phase 22: Handlungsfähigkeit je Fraktion/Piratengruppe über die Messzeit (Anteil der Messpunkte mit Verstoß, welche Art), Notkäufe
+    Console.WriteLine("Handlungsfähigkeit: " + (viaSamples.Count == 0 ? "keine Messung" : string.Join("; ", viaSamples.Select(kv =>
+    {
+        string name = u.ActorName(new ActorId(kv.Key));
+        var (n, bad, kinds) = kv.Value;
+        return bad == 0 ? $"{name} ja (0 % Verstoß)"
+            : $"{name} {(bad == n ? "nein" : "zeitweise nicht")} ({100.0 * bad / Math.Max(1, n):0.#} % Verstoß: {string.Join(", ", kinds.Select(k => $"{k.Key} {100.0 * k.Value / Math.Max(1, n):0.#} %"))})";
+    })) + $"; jetzt: {string.Join(", ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsFaction(u)).OrderBy(a => a.Id.Value).Select(a => $"{a.Name} {FactionViability.Text(u, a.Id)}"))}"));
+    Console.WriteLine($"Notkäufe zur Wiederherstellung: {restores.Count}" + (restores.Count == 0 ? "" : " — " + string.Join("; ", restores.Take(8))));
 }
 // Phase 10: Gate-Zugang, Sektorkontrolle, Beziehungen, Regierungsstationen
 {

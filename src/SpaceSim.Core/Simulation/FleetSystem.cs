@@ -22,46 +22,30 @@ public sealed class FleetSystem : ISimSystem
         foreach (var job in _jobs) Expand(u, job);
     }
 
+    /// <summary>
+    /// Phase 22: Abgänge der wirtschaftlichen KI-Schiffe nur aus zwei der drei Gründe (zerstört regelt der Überfall): (b) pleite
+    /// (<see cref="Departures.ShipBankrupt"/>: kein Geld, keine Fracht, kein Auftrag, seit der Frist keine Besserung) und (c) länger nicht rentabel
+    /// (<see cref="Departures.ShipUnprofitable"/>: Schonfrist vorbei, Mittelwert des Geldflusses über das lange Fenster unter null; die Uhr ruht hinter einer
+    /// physischen Sperre). Die Leerlauf-Ausmusterung (Phase 15/20: <see cref="EconomyRules.IdleRetireTicks"/> und volle Aufgabe) ist durch die Messung ersetzt.
+    /// Beim Ausmustern geht das Betriebsgeld an den Besitzer (eigener Akteur mit Kasse), bei freien Einzelschiffen verlässt es mit dem Kapitän die Welt; die
+    /// Flotte kauft im selben Kartenteil eine Weile kein Schiff dieser Aufgabe (<see cref="EconomyRules.ExpandAfterRetireTicks"/>).
+    /// </summary>
     static void Abandon(Universe u)
     {
-        foreach (var ship in u.Ships.Values.Where(s => s.IsEconomyAi).ToList())
+        foreach (var ship in u.ShipsById())
         {
-            if (ship.Transit is not null || ship.Order is not null || ship.IdleSince < 0) continue;
-            // Phase 20: Bauschiffe einer Fraktion unterhält deren Kasse (FactionBuilderSystem) — sie werden nicht als pleite aufgegeben
-            if (FactionBuilderSystem.IsFactionBuilder(u, ship)) continue;
-            long idle = u.Tick - ship.IdleSince;
-            // Phase 20: Pleite ist nur, wer weder Geld noch Fracht hat — mit unverkäuflicher Fracht an Bord versucht ein Händler sie weiter zu verkaufen und
-            // wirft sie erst nach StrandedCargoTicks ab (vorher wurde er nach 600 Ticks samt Ladung aufgegeben: gemessen fast alle Pleiten der Händler,
-            // meist mit Wasserstoff an Bord, dessen Abnehmer gerade pausierten)
-            bool hasCargo = ship.Cargo.Values.Any(v => v > 0.001f);
-            if (idle > u.Rules.ShipBankruptTicks && ship.Credits < 50f && !(u.Rules.BankruptNeedsEmptyHold && hasCargo)) { u.RemoveShip(ship.Id, "bankrupt"); continue; }
-            // Phase 15: Auch ein Schiff mit Geld, das sehr lange nichts findet (z. B. ein Mehrzweckschiff, dessen Aufgabe nichts einbringt und dessen andere
-            // Aufgabe voll ist), wird abgebaut statt ewig zu liegen; sein Platz in der Kapazität wird frei, die Flotte kauft bei Bedarf nach.
-            // Sein Betriebsgeld geht an den Besitzer (eigener Akteur mit Kasse), bei freien Einzelschiffen verlässt es mit dem Kapitän die Welt.
-            if (u.Rules.IdleRetireTicks > 0 && idle > u.Rules.IdleRetireTicks && ship.Role is ShipRole.Trader or ShipRole.Miner && !hasCargo && Overstaffed(u, ship))
-            {
-                float credits = MathF.Max(0f, ship.Credits);
-                bool toOwner = ship.Owner != u.FreeActor && u.Actors.TryGetValue(ship.Owner, out var owner) && owner.Id != u.PlayerActor;
-                if (toOwner) u.Actors[ship.Owner].Treasury.Credits += credits;
-                ship.Credits = 0f;
-                // Phase 20: Kaufsperre für diese Aufgabe in diesem Kartenteil (kein Neukauf für eine Aufgabe, für die gerade ein Schiff ohne Arbeit ging)
-                if (ShipJobs.ForRole(ship.Role) is { } job) u.IdleRetiredTick[(job.Key, FleetCapacity.PartOf(u, ship))] = u.Tick;
-                u.Events.Publish(new ShipRetired(ship.Id, ship.Owner, credits, toOwner));
-                u.RemoveShip(ship.Id, "retired");
-            }
+            if (!ship.IsEconomyAi || !u.Ships.ContainsKey(ship.Id)) continue;
+            if (Departures.ShipBankrupt(u, ship)) { Departures.RemoveShip(u, ship, DepartureReason.Bankrupt, "broke"); continue; }
+            if (!Departures.ShipUnprofitable(u, ship)) continue;
+            float credits = MathF.Max(0f, ship.Credits);
+            bool toOwner = ship.Owner != u.FreeActor && u.Actors.TryGetValue(ship.Owner, out var owner) && owner.Id != u.PlayerActor;
+            if (toOwner) u.Actors[ship.Owner].Treasury.Credits += credits;
+            ship.Credits = 0f;
+            // Phase 20: Kaufsperre für diese Aufgabe in diesem Kartenteil (kein Neukauf für eine Aufgabe, für die gerade ein Schiff ohne Ertrag ging)
+            if (ShipJobs.ForRole(ship.Role) is { } job) u.IdleRetiredTick[(job.Key, FleetCapacity.PartOf(u, ship))] = u.Tick;
+            u.Events.Publish(new ShipRetired(ship.Id, ship.Owner, credits, toOwner));
+            Departures.RemoveShip(u, ship, DepartureReason.Unprofitable, "unprofitable");
         }
-    }
-
-    /// <summary>
-    /// Phase 20: Ausgemustert wird nur, wer in einer wirklich überbesetzten Aufgabe liegt — die belegte Kapazität im Kartenteil des Schiffs erreicht die Grenze
-    /// des Teils. Sonst blieb ein Schiff liegen, weil ihm das Geld fehlte oder der Teil gerade wenig zu tun hatte, und wurde ausgemustert, obwohl kein Ersatz kam
-    /// (Lauf G: 15 Händler ausgemustert, Handel 3/14). Ohne die Regel <see cref="EconomyRules.ExpandAfterRetireTicks"/> (0) gilt die alte Bedingung.
-    /// </summary>
-    static bool Overstaffed(Universe u, Ship ship)
-    {
-        if (u.Rules.ExpandAfterRetireTicks <= 0 || ShipJobs.ForRole(ship.Role) is not { } job) return true;
-        var (used, limit) = FleetCapacity.For(u, job, ship);
-        return used >= limit;
     }
 
     /// <summary>
@@ -162,7 +146,8 @@ public sealed class FleetSystem : ISimSystem
                 .GroupBy(f => f.Value).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => new FactionId(g.Key)).FirstOrDefault();
             if (faction.Value == 0 || !u.Actors.TryGetValue(faction, out var actor) || actor.Kind == ActorKind.Outlaw) continue;
             var home = u.Sectors[part.FirstOrDefault(id => u.Sectors[id].Owner == faction)];
-            float budget = actor.Treasury.Credits - rules.SubsidyReserve;
+            // Phase 22: freiwillige Ausgabe — die Betriebsreserve der Fraktion bleibt (FactionViability)
+            float budget = MathF.Min(actor.Treasury.Credits - rules.SubsidyReserve, FactionViability.Spendable(u, actor));
             if (budget <= rules.NewShipStartCredits) continue;
             if (ChooseModel(u, job, home.Id, default, budget, null, MobilityProfile.For(actor.Id), used, limit) is not { } choice) continue;
             var q = ShipQualityRoll.Roll(u, choice.Class, choice.Class.Slots, choice.Model.Fit, choice.Yard, choice.Materials, Fits(u, job, choice.Class, used, limit));
@@ -240,6 +225,7 @@ public sealed class FleetSystem : ISimSystem
             ShipPurchase.Consume(choice.Yard, q.Materials ?? choice.Materials);
             choice.Yard.Credits += choice.Price;
             parent.Credits -= choice.Price + rules.NewShipStartCredits;
+            Profitability.Transfer(parent.Profit, -(choice.Price + rules.NewShipStartCredits));   // Phase 22: Investition, kein Geschäftsverlust
             var newId = u.NewShipId();
             var owner = Bought(u, parent, pick, candidates.Count, before - parent.Credits);
             var bought = ShipPurchase.Create(u, newId, choice.Model.Key, q.Slots, q.Fit, role, Controller.Ai, owner, choice.Yard, rules.NewShipStartCredits, q.Grade);
@@ -285,6 +271,7 @@ public sealed class FleetSystem : ISimSystem
         ShipPurchase.Consume(yard, quality?.Materials ?? needs);
         yard.Credits += price;
         parent.Credits -= price + rules.NewShipStartCredits;
+        Profitability.Transfer(parent.Profit, -(price + rules.NewShipStartCredits));   // Phase 22: Investition, kein Geschäftsverlust
         var id = u.NewShipId();
         var childOwner = Bought(u, parent, pick, candidates.Count, before - parent.Credits);
         // Neukauf übernimmt das Modell des Elternschiffs (Phase 3), seit Phase 7 mit eigener Güteklasse

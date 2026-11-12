@@ -118,6 +118,19 @@ public sealed class ActorModule : ISimModule
 }
 
 /// <summary>
+/// Phase 22: Abgänge und Handlungsfähigkeit. Misst die Rentabilität jedes wirtschaftlichen KI-Schiffs und jeder Station (<see cref="ProfitabilitySystem"/>,
+/// Grund c für Flotte und Stationsprüfung), gleicht das Betriebsgeld innerhalb eines Akteurs aus (<see cref="FirmCapitalSystem"/>) und hält den Mindestbestand
+/// jeder Fraktion, notfalls per Notkauf (<see cref="FactionViabilitySystem"/>).
+/// </summary>
+public sealed class ViabilityModule : ISimModule
+{
+    public string Name => "Viability";
+    public void Register(SimulationBuilder b) =>
+        b.Add(new ProfitabilitySystem(), ProfitabilitySystem.Interval).Add(new FirmCapitalSystem(), interval: 50)
+         .Add(new FactionViabilitySystem(), FactionViabilitySystem.Interval);
+}
+
+/// <summary>
 /// Phase 10: Politik (POLITIK.md Abschnitte 2, 3 und 8). Läuft nach Lebenszyklus und Akteuren (Stationen und Besitz haben sich geändert):
 /// Sektorkontrolle aus dem Einfluss (selten), dann Beziehungen und Sperrstufen der Fraktionen mit Durchsetzungskosten; geänderte Sperren planen
 /// laufende Reisen neu (<see cref="AccessEnforcement"/>). Der Gate-Zugang selbst wird beim Planen und Reisen geprüft (<see cref="GateAccess"/>).

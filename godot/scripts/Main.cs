@@ -485,6 +485,8 @@ public partial class Main : Node3D
 
 	/// <summary>Phase 20: letzter Hinweis einer Versorgungspanik (Selbsttest).</summary>
 	internal string? LastPanicMessage { get; private set; }
+	/// <summary>Phase 22: letzter Hinweis „Station aufgegeben …“ (für den Selbsttest).</summary>
+	internal string? LastDepartureMessage { get; private set; }
 	long _panicToastTick = -1;
 
 	/// <summary>Für den Selbsttest: Dauer der letzten Taxifahrt in Ticks.</summary>
@@ -508,7 +510,9 @@ public partial class Main : Node3D
 			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Toast($"Notbau: {es.Name}"); break;
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
-			case StationRemoved r when r.Reason == "bankrupt": _hud.Toast("Station aufgegeben (Pleite)"); break;
+			// Phase 22: Station im Spielersektor aufgegeben — Grund (pleite / länger nicht rentabel) im Text
+			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
+				LastDepartureMessage = departed; _hud.Toast(departed, 4.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
 			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
 			case EncounterWarning w when w.Target == _session.U.PlayerShip: _sfx.Play(SfxId.Click); _hud.Toast(w.Message, 6f); LastSecurityMessage = w.Message; break;

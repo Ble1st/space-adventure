@@ -106,6 +106,10 @@ public sealed partial class FactionsScreen : CommandScreen
 		Row(det, 18, ry, 560, "Besitz", $"{Count(stat.Ships, "Schiff", "Schiffe")} · {Count(stat.Stations, "Station", "Stationen")} · {Count(stat.Sectors, "Sektor", "Sektoren")}", 14); ry += 22;
 		var sectors = isFaction ? u.Sectors.Values.Where(x => x.Owner.Value == sel.Value).OrderBy(x => x.Id.Value).Select(x => x.Name).ToList() : new List<string>();
 		Row(det, 18, ry, 560, "Lage", sectors.Count > 0 ? string.Join(", ", sectors) : "kein Hoheitsgebiet", 14);
+		// Phase 22: Handlungsfähigkeit (Invarianten: Rücklage, Mindestpolizei, Bauschiff, Sitz; Piraten: Versteck) — reine Core-Anzeige
+		TestViability = FactionViability.Text(u, sel) ?? "";
+		if (TestViability.Length > 0)
+			At(det, Text(TestViability, 12, TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
 
 		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte)
 		At(det, Text("Persönlichkeit", 16, Cyan), 18, 176, 280, 22);
@@ -204,4 +208,6 @@ public sealed partial class FactionsScreen : CommandScreen
 
 	/// <summary>Selbsttest: zeigt die Detailansicht den Forschungsstand (Phase 14: nur mit eingeschalteter Forschung)?</summary>
 	public bool TestResearchShown { get; private set; }
+	/// <summary>Selbsttest: zuletzt gezeigte Handlungsfähigkeit (Phase 22; leer für Akteure ohne Invarianten).</summary>
+	public string TestViability { get; private set; } = "";
 }

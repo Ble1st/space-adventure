@@ -45,11 +45,12 @@ public static class TradeActions
     /// <c>AllCap</c> = min(Annahme + Resttoleranz, Kasse ÷ Preis) für „alles“, wenn die Station die Ware überhaupt annimmt (Annahme &gt; 0) und keine
     /// Baustelle ist (deren Stückliste ist genau). (0, 0) ohne Preis.
     /// </summary>
-    public static (float Cap, float AllCap) SaleCaps(Universe u, Station station, GoodId good, float credits)
+    public static (float Cap, float AllCap) SaleCaps(Universe u, Station station, GoodId good, float credits, float? acceptOverride = null)
     {
         if (!station.Market.TryGetValue(good, out var e) || e.Price <= 0f) return (0f, 0f);
         float pay = MathF.Max(0f, credits) / e.Price;
-        float accept = station.AcceptableUnits(good, u.Rules);
+        // Phase 22: eine zugesagte Lieferung darf eine größere Annahme haben (TraderSystem, EconomyRules.HonourPlannedDelivery)
+        float accept = acceptOverride ?? station.AcceptableUnits(good, u.Rules);
         float cap = MathF.Min(pay, accept);
         float allCap = accept > 0f && station.Site is null && u.Rules.SaleRestTolerance > 0f ? MathF.Min(pay, accept + u.Rules.SaleRestTolerance) : cap;
         return (MathF.Max(0f, cap), MathF.Max(0f, allCap));

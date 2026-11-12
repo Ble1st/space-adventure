@@ -44,7 +44,7 @@ public sealed class FactionBuilderSystem : ISimSystem
                 // Bezug für die Erreichbarkeit der Werft: Hauptquartier/Regierungsstation der Fraktion, sonst irgendeine ihrer Stationen
                 var home = SecuritySystem.HomeBaseFor(u, f, null)
                            ?? u.StationsById().FirstOrDefault(st => !st.IsBuildSite && st.Owner.Value == f.Value);
-                if (home is not null) ConstructionRules.CommissionBuilder(u, f, home.Sector, default);
+                if (home is not null) ConstructionRules.CommissionBuilder(u, f, home.Sector, default, priority: true);   // Phase 22: Ersatz hat Vorrang
             }
             else if (builders.Count > r.MinBuildersPerFaction && r.IdleRetireTicks > 0)
             {
@@ -57,7 +57,8 @@ public sealed class FactionBuilderSystem : ISimSystem
                     actor.Treasury.Credits += credits;
                     spare.Credits = 0f;
                     u.Events.Publish(new ShipRetired(spare.Id, spare.Owner, credits, true));
-                    u.RemoveShip(spare.Id, "retired");
+                    // Phase 22: Grund c für einen Dienst der Fraktion — lange ohne Nutzen und überzählig (der Mindestbestand bleibt)
+                    Departures.RemoveShip(u, spare, DepartureReason.Unprofitable, "spare_builder");
                 }
             }
         }

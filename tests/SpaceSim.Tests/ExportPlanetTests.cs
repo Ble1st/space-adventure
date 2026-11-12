@@ -231,7 +231,7 @@ public class ExportPlanetTests
         Assert.True(luxTrips > 0, $"Luxusgüter-Fahrten {luxTrips}");
         Assert.True(cgTrips > 0);
         Assert.True(exportedBatches > 0);
-        Assert.Equal(exportPaid * 1.18, exportRevenue, 0);
+        Assert.Equal(exportPaid * 1.18, exportRevenue, 1.0);   // Phase 22: Toleranz 1 Cr statt Rundung auf ganze Credits (float-Summe über ~1,3 Mio. Cr lag auf der Rundungsgrenze)
         Assert.Equal(0, fromNonProducer);   // Händler kaufen nur, wo die Ware hergestellt wird (nie an der Kolonie, nie aus Lagern)
         // die Kolonie bietet höchstens 2× (Endverbraucher-Deckel) und liegt nicht dauerhaft am alten 4×-Deckel
         Assert.All(colonyLux, r => Assert.True(r <= u.Rules.ConsumerMaxBidFactor + 0.001f));

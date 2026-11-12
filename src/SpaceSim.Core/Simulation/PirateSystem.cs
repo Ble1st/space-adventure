@@ -240,6 +240,10 @@ public sealed class PirateSystem : ISimSystem
                 stolen.Add($"{take:0} {u.Goods[g].Name}");
             }
             fenced = lootValue * r.FenceShare;
+            // Phase 22: der Hehler zahlt nur, bis die Kasse der Piraten PirateTreasuryCap erreicht (die Beute ist vernichtet, die Hehlerei schöpft Geld) — mit
+            // weniger Verlusten an Kaperschiffen horteten die Piraten sonst linear wachsende Kassen (Lauf M: 267 000 Cr)
+            if (r.PirateTreasuryCap > 0f && u.Actors.TryGetValue(raider.Owner, out var capped))
+                fenced = MathF.Min(fenced, MathF.Max(0f, r.PirateTreasuryCap - capped.Treasury.Credits));
             if (fenced > 0f && u.Actors.TryGetValue(raider.Owner, out var pirates))
             {
                 pirates.Treasury.Credits += fenced;
@@ -281,8 +285,9 @@ public sealed class PirateSystem : ISimSystem
         }
         var ev = new RaidResolved(sector.Id, raider.Id, victim.Id, outcome.AttackerWon, lootValue, fenced, victimDestroyed, raiderDestroyed, helper, player, msg);
         u.Events.Publish(ev);
-        if (victimDestroyed) u.RemoveShip(victim.Id, "raid");
-        if (raiderDestroyed) u.RemoveShip(raider.Id, "destroyed");
+        // Phase 22: Grund a (zerstört), Anlass Überfall
+        if (victimDestroyed) Departures.RemoveShip(u, victim, DepartureReason.Destroyed, "raid");
+        if (raiderDestroyed) Departures.RemoveShip(u, raider, DepartureReason.Destroyed, "raid");
         else GoHome(u, raider);   // mit Beute zur Hehlerei bzw. nach der Niederlage zur Reparatur
         return ev;
     }
@@ -318,7 +323,7 @@ public sealed class PirateSystem : ISimSystem
             hunter.BountyClaims[hs.Owner] = hunter.BountyClaims.GetValueOrDefault(hs.Owner) + bounty;
             u.Events.Publish(new BountyEarned(hunter.Id, hs.Owner, raider.Id, bounty));
         }
-        if (destroyed) u.RemoveShip(raider.Id, "destroyed");
+        if (destroyed) Departures.RemoveShip(u, raider, DepartureReason.Destroyed, "intercept");   // Phase 22: Grund a, Anlass Abfangen
         else if (outcome.AttackerWon) GoHome(u, raider);
         return ev;
     }

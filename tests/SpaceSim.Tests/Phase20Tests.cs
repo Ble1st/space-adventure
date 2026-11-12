@@ -148,6 +148,8 @@ public class Phase20Tests
         u.Tick = 100_000;
         var extra = StationFactory.Create(u, u.NewStationId(), u.StationTypes["water_plant"], "Ersatz", new SectorId(2), new Vec2(0, 140), new ActorId(1));
         extra.Panic = true; extra.Activity = 0.01f; extra.BuiltTick = 0;
+        // Phase 22: „nutzlos“ heißt länger nicht rentabel (Rentabilitätsmessung statt Auslastung)
+        extra.Profit.Since = 0; extra.Profit.Rate = -1f; extra.Profit.LossTicks = u.Rules.UnprofitableTicks;
         u.AddStation(extra);
         foreach (var st in u.Stations.Values)
             if (st.Market.TryGetValue(GoodOf(u, "water").Id, out var w)) w.Amount = w.Target * 2f;   // Wasser reichlich: der Ersatz ist überzählig
@@ -191,17 +193,21 @@ public class Phase20Tests
         Assert.False(u.Ships.ContainsKey(ship.Id), "ohne Geld und Fracht pleite");
     }
 
+    /// <summary>
+    /// Phase 22 (angepasst): Ausgemustert wird nach der Rentabilitätsmessung, nicht mehr nach Leerlauf und voller Aufgabe — ein lange untätiges Schiff, dessen
+    /// Messung nicht „länger nicht rentabel“ sagt, bleibt auch bei voller Aufgabe; die Kaufsperre danach gilt weiter.
+    /// </summary>
     [Fact]
     public void Ausmusterung_NurBeiUeberbesetzung_DanachKaufsperre()
     {
         var u = TestWorlds.Classic();
-        u.Tick = 20_000;
+        u.Tick = 50_000;
         var trade = ShipJobs.ByKey("trade")!;
         var ship = IdleTrader(u, 2000f, 0);
-        u.Rules.MaxTraders = 1000;   // Aufgabe nicht voll: liegen lassen
+        u.Rules.MaxTraders = (int)MathF.Floor(ShipJobs.UsedUnits(u, trade));   // Aufgabe voll, Schiff lange untätig — aber nicht als unrentabel gemessen
         new FleetSystem().Step(u, 20);
         Assert.True(u.Ships.ContainsKey(ship.Id));
-        u.Rules.MaxTraders = (int)MathF.Floor(ShipJobs.UsedUnits(u, trade));   // voll: ausmustern
+        ship.Profit.Since = 0; ship.Profit.Rate = -0.2f; ship.Profit.LossTicks = u.Rules.UnprofitableTicks;   // länger nicht rentabel: ausmustern
         var ev = Capture(u);
         new FleetSystem().Step(u, 20);
         Assert.False(u.Ships.ContainsKey(ship.Id));

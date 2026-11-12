@@ -1089,6 +1089,41 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("11-Sektoren-Karte (Phase 21) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
+			case 50: // Phase 22: Abgänge nur aus drei Gründen — Rentabilität in der Stationsinfo, Handlungsfähigkeit der Fraktion, Hinweis bei Pleite im Sektor
+			{
+				if (_frame - _stageStart < 10) break;
+				try
+				{
+					var uni = _m.Session.U;
+					_m.Session.RunTicks(120);   // mindestens zwei Messtakte der Rentabilität
+					_m.TestOpenCommand();
+					_m.TestOpenCcArea("factions");
+					_m.HudRef.CcFactions.TestSelect(new FactionId(1));
+					string via = SpaceSim.Core.Simulation.FactionViability.Text(uni, new ActorId(1)) ?? "";
+					Check(via.Length > 0 && _m.HudRef.CcFactions.TestViability == via, $"Fraktionsdetail zeigt die Handlungsfähigkeit („{_m.HudRef.CcFactions.TestViability}“)");
+					_m.TestCloseCommand();
+					var src = uni.Stations.Values.Where(x => x.Sector == uni.PlayerSector && x.Production.Count > 0 && !x.IsBuildSite).OrderBy(x => x.Id.Value).FirstOrDefault();
+					Check(src is not null, "Produktionsstation im Spielersektor");
+					if (src is not null)
+					{
+						_m.TestDockAt(src.Id);
+						_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
+						Check(_m.HudRef.DockInfo.TestProfit.Contains("Cr/Tick"), $"Stationsinfo zeigt die Rentabilität („{_m.HudRef.DockInfo.TestProfit}“)");
+						_m.TestUndock();
+						// zweite, ungeschützte Station desselben Typs geht pleite → Hinweis mit Grund
+						var copy = SpaceSim.Core.Content.StationFactory.Create(uni, uni.NewStationId(), uni.StationTypes[src.TypeKey], "Teststation " + src.TypeKey,
+							src.Sector, src.Position + new SpaceSim.Core.Model.Vec2(0, 80), src.Owner);
+						uni.AddStation(copy);
+						copy.Credits = uni.Rules.BankruptcyLimit - 100f;
+						copy.BelowLimitSince = uni.Tick - uni.Rules.BankruptcyTicks - 1;
+						_m.Session.RunTicks(40);
+						Check(!uni.Stations.ContainsKey(copy.Id), "Pleite-Station ist aufgegeben");
+						Check((_m.LastDepartureMessage ?? "").Contains("pleite"), $"Hinweis nennt den Grund („{_m.LastDepartureMessage}“)");
+					}
+				}
+				catch (System.Exception ex) { Fail("Abgänge (Phase 22) warfen eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

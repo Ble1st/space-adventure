@@ -244,6 +244,7 @@ public static class SupplyPanic
         var account = investor.Account(u);
         u.Events.Publish(new InvestorChosen("station", investor.Source, investor.Holder, investor.Class, cost, candidates.Count));
         account.Credits -= cost;
+        investor.Invested(cost);   // Phase 22
         if (ConstructionRules.UsesSites(u, type))
         {
             var site = ConstructionRules.StartSite(u, type, sector.Id, spot.Value, owner, cost,

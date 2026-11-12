@@ -34,7 +34,10 @@ public sealed class StationLifecycleSystem : ISimSystem
             if (st.Credits >= u.Rules.BankruptcyLimit) { st.BelowLimitSince = -1; continue; }
             if (st.BelowLimitSince < 0) st.BelowLimitSince = u.Tick;
             // Phase 8: die letzte erreichbare Herstellerin einer Ware (Critical, abgeleitet) wird nicht aufgegeben
-            if (u.Tick - st.BelowLimitSince >= u.Rules.BankruptcyTicks && !StationCriticality.IsCritical(u, st)) u.RemoveStation(st.Id, "bankrupt");
+            // Phase 22: Grund b — Kasse seit BankruptcyTicks ununterbrochen unter der Pleitegrenze (keine Besserung); nie die letzte Herstellerin eines Kartenteils
+            // und nie die letzte eigene Versorgung der Fraktion
+            if (u.Tick - st.BelowLimitSince >= u.Rules.BankruptcyTicks && !StationCriticality.IsCritical(u, st) && FactionViability.KeepsOwnSupply(u, st))
+                Departures.RemoveStation(u, st, DepartureReason.Bankrupt, "broke");
         }
     }
 
@@ -89,6 +92,21 @@ public sealed class StationLifecycleSystem : ISimSystem
         UpstreamProducer(u, good, ratios, u.Rules.BuildChecksRawOre ? u.Rules.BuildPriceRatio : float.PositiveInfinity,   // Phase 16: Filter abschaltbar
             u.Rules.BuildFollowsChain ? u.Rules.BuildPriceRatio : float.PositiveInfinity);                               // Phase 18: Bau folgt der Kette
 
+    /// <summary>
+    /// Phase 22: Verhungern die vorhandenen fertigen Stationen dieses Typs im Mittel an Zutaten (<see cref="Station.Starved"/> über
+    /// <see cref="EconomyRules.BuildSkipStarvedShare"/>)? Dann baut weder der Lebenszyklus noch die Umwidmung einen weiteren — gemessen in Lauf M: Kupferhütten
+    /// wurden für knappes Kupfer gebaut, verhungerten am Erz, wurden als unrentabel stillgelegt und neu gebaut (57 in 1 Mio. Ticks). Rein.
+    /// </summary>
+    public static bool TypeStarved(Universe u, StationType type)
+    {
+        float share = u.Rules.BuildSkipStarvedShare;
+        if (share <= 0f) return false;
+        double sum = 0; int n = 0;
+        foreach (var st in u.Stations.Values)
+            if (!st.IsBuildSite && st.TypeKey == type.Key) { sum += st.Starved; n++; }
+        return n > 0 && sum / n > share;
+    }
+
     /// <summary><paramref name="forced"/> (Phase 19): nach einer Stilllegung der Typ, für den der Platz frei wurde; sonst entscheidet die Messung.</summary>
     static void TryBuild(Universe u, LifecycleScan scan, StationType? forced)
     {
@@ -110,6 +128,7 @@ public sealed class StationLifecycleSystem : ISimSystem
             type = u.StationTypes.Values.Where(t => t.Recipes.Any(r => r.Inputs.ContainsKey(gl)) && Buildable(u, t)).OrderBy(t => t.BuildCost).FirstOrDefault();
         if (type is null) return;
         if (active.Any(s => s.Site!.TypeKey == type.Key)) return;   // derselbe Typ ist schon im Bau
+        if (TypeStarved(u, type)) return;   // Phase 22: mehr Hersteller helfen nicht, wenn die vorhandenen an Zutaten verhungern
 
         float cost = type.BuildCost * rules.StationBuildCostFactor;
         // Phase 9: Zukauf mit Erst- und Zweitzugriff — gewichtete Ziehung unter allen, die Baukosten plus Reserve aufbringen
@@ -149,6 +168,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         {
             // Phase 8: Baustelle statt sofortiger Station; der Investor zahlt die Bausumme als Treuhandgeld ein
             account.Credits -= cost;
+            investor.Invested(cost);   // Phase 22
             ConstructionRules.StartSite(u, type, sector.Id, spot.Value, owner, cost,
                 investor.Station?.Id, investor.Ship?.Id, investor.Source == InvestorSource.Treasury ? investor.Holder : null);
             u.LastStationBuildTick = u.Tick;
@@ -159,6 +179,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         var station = StationFactory.Create(u, id, type, $"{type.Name} {sector.Name.Split(' ').Last()} {id.Value}", sector.Id, spot.Value, owner);
         station.Credits = ConstructionRules.NewStationCredits;
         account.Credits -= cost;
+        investor.Invested(cost);   // Phase 22
         u.AddStation(station);
         u.LastStationBuildTick = u.Tick;
         u.NotifyStationBuilt(station);

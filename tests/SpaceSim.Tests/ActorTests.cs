@@ -151,6 +151,7 @@ public class ActorTests
     public void Zukauf_GewichteteZiehung_GrosseBevorzugt_KleineKommenZumZug()
     {
         var u = Fresh();
+        u.Rules.FactionKeepsReserve = false;   // Phase 22: die Betriebsreserve der Kasse ist eigener Gegenstand (Phase22Tests); hier zählt nur die Ziehung
         foreach (var st in u.Stations.Values) st.Credits = 0f;
         foreach (var s in u.Ships.Values) s.Credits = 0f;
         // Gleich viel Geld über der Schwelle: Staatskasse (Appetit 1) gegen freies Einzelschiff (Appetit 0,25)

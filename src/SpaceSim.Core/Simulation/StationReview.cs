@@ -4,21 +4,15 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Core.Simulation;
 
 /// <summary>
-/// Phase 19: Der Stationsbau überprüft seinen Bestand (Stilllegung/Umwidmung). Der Lebenszyklus vergibt seine freien Plätze (bis
-/// <see cref="EconomyRules.MaxStations"/>) früh im Spiel; danach gehen Stationen kaum pleite (geschützt, kritisch, subventioniert). Diese Regel gibt einen
-/// Platz frei, wenn beides zusammenkommt:
-/// <list type="bullet">
-/// <item>eine Station produziert seit langem kaum (<see cref="Station.Activity"/> unter <see cref="EconomyRules.RetireMaxActivity"/>), keines ihrer
-/// Produkte ist knapp (Hysterese <see cref="EconomyRules.RetireMaxOutputRatio"/>), sie ist nicht vor Pleite geschützt, nicht kritisch, keine Regierungs-,
-/// Export- oder Endverbraucherstation und hat ihre Schonfrist hinter sich (<see cref="Useless"/>);</item>
-/// <item>eine Ware ist seit mindestens <see cref="EconomyRules.RetireScarceTicks"/> ununterbrochen knapp, alle Plätze sind belegt und der Lebenszyklus
-/// würde für sie einen anderen Typ bauen.</item>
-/// </list>
-/// Dann wird die Station stillgelegt (<see cref="Universe.RemoveStation"/> storniert laufende Aufträge, der Besitzer erhält Kasse und Lager zum Restwert,
-/// <see cref="StationRetired"/>), und der Platz geht über den normalen Bauweg (Baustelle, Material, Bauschiff) an den neuen Bedarf. Höchstens eine
-/// Stilllegung je <see cref="EconomyRules.RetireCooldownTicks"/>.
-/// Entscheidung: Die Regel prüft alle nicht geschützten Stationen, nicht nur vom Lebenszyklus gebaute — die Startwelt markiert ihre Stationen als
-/// geschützt (<c>essential</c>), so trifft sie dort nur Gebautes; eine eigene Welt kann Startstationen bewusst ungeschützt lassen.
+/// Phase 19/22: Überprüfung des Stationsbestands (Stilllegung/Umwidmung). Phase 22: Eine Station verschwindet wegen Grund c erst, wenn sie <em>länger nicht
+/// rentabel</em> ist (<see cref="Profitability.Unprofitable"/>: Schonfrist seit Bau, Mittelwert des Netto-Geldflusses über das lange Fenster unter null, mit
+/// Hysterese; die Uhr ruht hinter einer physischen Sperre) — die Phase-19-Näherung „Auslastung unter 10 %“ ist ersetzt. Weiterhin geprüft wird nur, was die
+/// Wirtschaft entbehren kann (<see cref="Useless"/>): nicht vor Pleite geschützt, keine Regierungs-, Export- oder Endverbraucherstation, kein Versteck, keines
+/// ihrer Produkte knapp (Hysterese <see cref="EconomyRules.RetireMaxOutputRatio"/>), nie die letzte erreichbare Herstellerin (<see cref="StationCriticality"/>)
+/// und nie die letzte eigene Station eines Typs, den die Fraktion für ihre Versorgung braucht (<see cref="FactionViability.KeepsOwnSupply"/>).
+/// Die Stilllegung (<see cref="Retire"/>) gibt dem Besitzer Kasse und Restwert; ist eine Ware seit <see cref="EconomyRules.RetireScarceTicks"/> knapp und
+/// würde der Lebenszyklus für sie einen anderen Typ bauen, geht der Platz im selben Schritt an diesen Bedarf (Umwidmung). Höchstens eine Stilllegung je
+/// <see cref="EconomyRules.RetireCooldownTicks"/>. Phase 22: Die Stilllegung hängt nicht mehr an vollen Plätzen — eine dauerhaft unrentable Station verfällt.
 /// </summary>
 public static class StationReview
 {
@@ -64,14 +58,14 @@ public static class StationReview
         && ExportRules.ConfigOf(u, st) is null && !MarketSystem.IsFinalConsumer(st);
 
     /// <summary>
-    /// Dauerhaft nutzlos? Prüfbar (<see cref="Reviewable"/>), Schonfrist vorbei, Auslastung unter <see cref="EconomyRules.RetireMaxActivity"/> und keines
-    /// ihrer Produkte knapp (<paramref name="ratios"/> aus der Lebenszyklus-Messung, sonst neu gemessen). Kritisch zu sein schützt vor der Stilllegung,
-    /// nicht vor diesem Befund (die Subvention fragt ihn ab).
+    /// Dauerhaft nutzlos? Prüfbar (<see cref="Reviewable"/>), Schonfrist seit Bau vorbei, länger nicht rentabel (Phase 22, <see cref="Profitability.Unprofitable"/>;
+    /// vorher Auslastung unter <see cref="EconomyRules.RetireMaxActivity"/>) und keines ihrer Produkte knapp (<paramref name="ratios"/> aus der
+    /// Lebenszyklus-Messung, sonst neu gemessen). Kritisch zu sein schützt vor der Stilllegung, nicht vor diesem Befund (die Subvention fragt ihn ab).
     /// </summary>
     public static bool Useless(Universe u, Station st, IReadOnlyDictionary<GoodId, float>? ratios = null)
     {
         var rules = u.Rules;
-        if (!Reviewable(u, st) || st.Activity >= rules.RetireMaxActivity || u.Tick - st.BuiltTick < rules.RetireGraceTicks) return false;
+        if (!Reviewable(u, st) || !Profitability.Unprofitable(u, st.Profit) || u.Tick - st.BuiltTick < rules.RetireGraceTicks) return false;
         foreach (var r in st.Production)
             foreach (var g in r.Outputs.Keys)
             {
@@ -81,31 +75,38 @@ public static class StationReview
         return true;
     }
 
+    /// <summary>Darf eine Stilllegung diese (nutzlose) Station nehmen? Nicht kritisch, nicht die letzte eigene Versorgung der Fraktion, kein Spielerbesitz.</summary>
+    public static bool MayRetire(Universe u, Station st)
+    {
+        if (StationCriticality.IsCritical(u, st) || !FactionViability.KeepsOwnSupply(u, st)) return false;
+        return st.PlayerStorage.Count == 0 && !u.Ships.Values.Any(s => s.IsPlayer && s.DockedAt == st.Id);   // Spielerbesitz an der Station
+    }
+
     /// <summary>
-    /// Stilllegen, wenn die Regel greift (siehe Klassenbeschreibung). Rückgabe: der Typ, für den der Platz frei wurde (der Lebenszyklus legt im selben
-    /// Schritt dessen Baustelle an), sonst null.
+    /// Stilllegen, wenn die Regel greift (siehe Klassenbeschreibung): die nutzlose Station mit dem schlechtesten Geldfluss. Rückgabe: der Typ, für den der Platz
+    /// frei wurde (Umwidmung; der Lebenszyklus legt im selben Schritt dessen Baustelle an), sonst null — auch wenn ohne Umwidmung stillgelegt wurde.
     /// </summary>
     public static StationType? TryRetire(Universe u, StationLifecycleSystem.LifecycleScan scan)
     {
         var rules = u.Rules;
         if (!rules.StationRetireActive || u.Tick - u.LastStationRetireTick < rules.RetireCooldownTicks) return null;
-        if (StationProtection.CountEconomic(u) < rules.MaxStations) return null;               // freie Plätze: der normale Bau antwortet
-        if (u.Tick - u.LastStationBuildTick < rules.BuildCooldown) return null;
+        // Phase 22: Umwidmung — eine anhaltend knappe Ware, deren Herstellertyp gerade nicht gebaut wird und für die ein Platz frei werden muss
+        StationType? type = null;
+        GoodId good = default;
+        bool full = StationProtection.CountEconomic(u) >= rules.MaxStations;
         var active = ConstructionRules.ActiveSites(u).ToList();
-        if (active.Count >= rules.MaxActiveSites) return null;
-        if (PersistentScarcity(u, scan) is not { } good) return null;
-        var type = StationLifecycleSystem.ProducerFor(u, good, scan.Ratios);
-        if (type is null || active.Any(s => s.Site!.TypeKey == type.Key)) return null;
+        if (full && u.Tick - u.LastStationBuildTick >= rules.BuildCooldown && active.Count < rules.MaxActiveSites && PersistentScarcity(u, scan) is { } g
+            && StationLifecycleSystem.ProducerFor(u, g, scan.Ratios) is { } t && !active.Any(s => s.Site!.TypeKey == t.Key) && !StationLifecycleSystem.TypeStarved(u, t))
+        { type = t; good = g; }
 
         Station? pick = null;
         foreach (var st in u.StationsById())
         {
-            if (st.TypeKey == type.Key || !Useless(u, st, scan.Ratios) || StationCriticality.IsCritical(u, st)) continue;
-            if (st.PlayerStorage.Count > 0 || u.Ships.Values.Any(s => s.IsPlayer && s.DockedAt == st.Id)) continue;   // Spielerbesitz an der Station
-            if (pick is null || st.Activity < pick.Activity) pick = st;
+            if ((type is not null && st.TypeKey == type.Key) || !Useless(u, st, scan.Ratios) || !MayRetire(u, st)) continue;
+            if (pick is null || st.Profit.Rate < pick.Profit.Rate) pick = st;
         }
         if (pick is null) return null;
-        Retire(u, pick, good, type.Key);
+        Retire(u, pick, good, type?.Key ?? "");
         return type;
     }
 
@@ -123,12 +124,11 @@ public static class StationReview
         Station? pick = null;
         foreach (var st in u.StationsById())
         {
-            if (!Useless(u, st, scan.Ratios) || StationCriticality.IsCritical(u, st)) continue;
-            if (st.PlayerStorage.Count > 0 || u.Ships.Values.Any(s => s.IsPlayer && s.DockedAt == st.Id)) continue;
-            if (pick is null || (st.Panic && !pick.Panic) || (st.Panic == pick.Panic && st.Activity < pick.Activity)) pick = st;
+            if (!Useless(u, st, scan.Ratios) || !MayRetire(u, st)) continue;
+            if (pick is null || (st.Panic && !pick.Panic) || (st.Panic == pick.Panic && st.Profit.Rate < pick.Profit.Rate)) pick = st;
         }
         if (pick is null) return false;
-        Retire(u, pick, default, "");
+        Retire(u, pick, default, "", "surplus");
         return true;
     }
 
@@ -136,7 +136,7 @@ public static class StationReview
     /// Station stilllegen: der Besitzer erhält die Stationskasse (falls positiv) und das Lager zum Restwert (<see cref="EconomyRules.RetireSalvageShare"/> ×
     /// Basispreis; der Rest verfällt), Aufträge werden über <see cref="Universe.RemoveStation"/> storniert, <see cref="StationRetired"/>.
     /// </summary>
-    public static float Retire(Universe u, Station st, GoodId forGood, string forType)
+    public static float Retire(Universe u, Station st, GoodId forGood, string forType, string detail = "retired")
     {
         float stock = 0f;
         foreach (var (g, e) in st.Market.OrderBy(k => k.Key.Value)) stock += MathF.Max(0f, e.Amount) * u.Goods[g].BasePrice;
@@ -150,7 +150,7 @@ public static class StationReview
         st.Credits = 0f;
         float activity = st.Activity;
         u.LastStationRetireTick = u.Tick;
-        u.RemoveStation(st.Id, "retired");
+        Departures.RemoveStation(u, st, DepartureReason.Unprofitable, detail);   // Phase 22: Grund c
         u.Events.Publish(new StationRetired(st.Id, st.Sector, st.TypeKey, st.Name, st.Owner, paid ? payout : 0f, activity, forGood, forType));
         return paid ? payout : 0f;
     }

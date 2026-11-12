@@ -187,6 +187,7 @@ public class EconomyFixTests
     public void Instandhaltung_LegtEintraegeAn_VerbrauchtMaterial_KasseErstattet_OhneMaterialNurOffen()
     {
         var u = DemoUniverse.Create();
+        u.Rules.FactionKeepsReserve = false;   // Phase 22: Erstattung ohne Betriebsreserve geprüft (die Reserve testet Phase22Tests)
         var smelter = St(u, SmelterAlpha);
         var steel = G(u, "steel");
         var plates = G(u, "hull_plates");
@@ -235,6 +236,7 @@ public class EconomyFixTests
     public void Subvention_FuelltNotleidendeStationAuf_DeckelJeTag_Ruecklage_NichtFuerUngeschuetzte()
     {
         var u = DemoUniverse.Create();
+        u.Rules.FactionKeepsReserve = false;   // Phase 22: geprüft wird die Rücklage der Subventionsregel; die Betriebsreserve der Fraktion testet Phase22Tests
         var smelter = St(u, SmelterAlpha);   // geschützt (Startstation)
         var steel = St(u, SteelAlpha);
         steel.BankruptcyProtected = false;   // zweites Stahlwerk erreichbar: nicht kritisch → nicht förderfähig
@@ -291,10 +293,13 @@ public class EconomyFixTests
         var owner = ActorRules.Promote(u, promoted);
         float ownerBefore = u.Actors[owner].Treasury.Credits;
         var builder = u.Ships.Values.First(s => s.Role == ShipRole.Builder);
+        // Phase 22 (angepasst): Ausmustern nach der Rentabilitätsmessung (länger nicht rentabel) statt nach Leerlaufdauer
+        u.Tick = 60_000;
         foreach (var s in new[] { free, promoted, builder })
         {
             s.Credits = 5000f; s.Order = null; s.Cargo.Clear();
             s.IdleSince = u.Tick - u.Rules.IdleRetireTicks - 1;
+            s.Profit.Since = 0; s.Profit.Rate = -0.2f; s.Profit.LossTicks = u.Rules.UnprofitableTicks;
         }
         var retired = new List<ShipRetired>();
         u.Events.Raised += e => { if (e is ShipRetired r) retired.Add(r); };
@@ -305,9 +310,10 @@ public class EconomyFixTests
         Assert.Contains(retired, r => r.Ship == free.Id && !r.ToOwner && r.Credits == 5000f);
         Assert.Contains(retired, r => r.Ship == promoted.Id && r.ToOwner);
         Assert.Equal(ownerBefore + 5000f, u.Actors[owner].Treasury.Credits, 2);
-        // kurz untätig: bleibt
+        // nicht als unrentabel gemessen (auch lange untätig): bleibt
         var other = u.Ships.Values.First(s => s.Role == ShipRole.Trader && s.IsEconomyAi);
-        other.Credits = 5000f; other.Order = null; other.Cargo.Clear(); other.IdleSince = u.Tick - 100;
+        other.Credits = 5000f; other.Order = null; other.Cargo.Clear(); other.IdleSince = u.Tick - u.Rules.IdleRetireTicks - 1;
+        other.Profit.Since = 0; other.Profit.Rate = 0.5f; other.Profit.LossTicks = 0;
         new FleetSystem().Step(u, 20);
         Assert.True(u.Ships.ContainsKey(other.Id));
     }

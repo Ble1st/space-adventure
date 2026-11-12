@@ -206,3 +206,19 @@ public sealed record SupplyPanicRaised(SectorId Part, GoodId Good, GateId Gate, 
 /// <summary>Phase 20: Ersatz-Baustelle (oder Direktbau) einer Versorgungspanik angelegt.</summary>
 public sealed record SupplyPanicBuild(StationId Site, SectorId Sector, GoodId Good, string TypeKey) : SimEvent;
 
+
+// ───────── Phase 22: Abgänge aus drei Gründen, handlungsfähige Fraktionen ─────────
+/// <summary>
+/// Phase 22: Ein Schiff verlässt die Welt (vor <see cref="ShipRemoved"/> veröffentlicht, solange es noch existiert): Aufgabe, Besitzer, Sektor, Grund
+/// (<see cref="DepartureReason"/>) und Anlass (z. B. „raid“, „intercept“, „decommissioned“, „spare_builder“, „idle“).
+/// </summary>
+public sealed record ShipDeparted(ShipId Ship, ShipRole Role, ActorId Owner, SectorId Sector, DepartureReason Reason, string Detail) : SimEvent;
+/// <summary>Phase 22: Eine Station (oder Baustelle) verlässt die Welt; wie <see cref="ShipDeparted"/>. Anlass z. B. „retired“, „surplus“, „site_expired“.</summary>
+public sealed record StationDeparted(StationId Station, string TypeKey, string Name, ActorId Owner, SectorId Sector, DepartureReason Reason, string Detail) : SimEvent;
+/// <summary>
+/// Phase 22: Eine Fraktion hat ihren Mindestbestand per Notkauf wiederhergestellt (Polizei oder Bauschiff ohne Werftmaterial an der Heimatbasis): bezahlt aus der
+/// Kasse, erlassener Rest (neues Geld, klar ausgewiesene Quelle).
+/// </summary>
+public sealed record FactionRestored(FactionId Faction, ShipId Ship, ShipRole Role, float Paid, float Waived) : SimEvent;
+/// <summary>Phase 22: Kapitalausgleich innerhalb eines Akteurs (ein reiches Schiff gibt einem armen Geschwisterschiff Betriebsgeld; kein neues Geld).</summary>
+public sealed record FirmCapitalMoved(ActorId Owner, ShipId From, ShipId To, float Amount) : SimEvent;
