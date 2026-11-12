@@ -67,16 +67,24 @@ public static class ConstructionRules
     /// Werft, Preis an die Werft), solange ihr danach die Rücklage <see cref="EconomyRules.SubsidyReserve"/> bleibt; das Schiff gehört dem Fraktionsakteur und
     /// bekommt <see cref="EconomyRules.NewShipStartCredits"/> als Betriebsgeld. Regel <see cref="EconomyRules.CommissionBuilders"/>. null = nicht möglich.
     /// </summary>
-    public static Ship? CommissionBuilder(Universe u, Station site)
+    public static Ship? CommissionBuilder(Universe u, Station site) =>
+        u.FactionOf(site) is { } f ? CommissionBuilder(u, f, site.Sector, site.Id) : null;
+
+    /// <summary>
+    /// Phase 20: Bauschiff für eine Fraktion kaufen (gemeinsame Regel für die blockierte Baustelle und den Mindestbestand des <see cref="FactionBuilderSystem"/>):
+    /// eine von <paramref name="near"/> erreichbare Werft mit Bausatz und Modulen, Preis an die Werft, die Kasse behält <see cref="EconomyRules.SubsidyReserve"/>.
+    /// <paramref name="site"/> nur für das Ereignis (default = Mindestbestand). null = nicht möglich.
+    /// </summary>
+    public static Ship? CommissionBuilder(Universe u, FactionId f, SectorId near, StationId site)
     {
         var r = u.Rules;
-        if (!r.CommissionBuilders || u.FactionOf(site) is not { } f || !u.Actors.TryGetValue(f, out var actor)) return null;
+        if (!r.CommissionBuilders || !u.Actors.TryGetValue(f, out var actor)) return null;
         foreach (var model in u.ShipModels.Values.Where(m => m.Jobs.Contains("build")).OrderBy(m => m.Key, StringComparer.Ordinal).ToList())
         {
             if (!u.ShipClasses.TryGetValue(model.ClassKey, out var cls) || ShipPurchase.Materials(u, model) is not { } needs) continue;
             foreach (var yard in u.StationsById().Where(st => !st.IsBuildSite && ShipPurchase.SellsModel(u, st, model)).ToList())
             {
-                if (!u.IsReachable(yard.Sector, site.Sector) || ShipPurchase.Missing(yard, needs).Count > 0 || !Research.Available(u, yard, UnlockKind.Model, model.Key)) continue;
+                if (!u.IsReachable(yard.Sector, near) || ShipPurchase.Missing(yard, needs).Count > 0 || !Research.Available(u, yard, UnlockKind.Model, model.Key)) continue;
                 float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
                 float cost = price + r.NewShipStartCredits;
                 if (actor.Treasury.Credits < cost + r.SubsidyReserve) return null;
@@ -88,7 +96,7 @@ public static class ConstructionRules
                 u.AddShip(ship);
                 u.Events.Publish(new TreasuryUpkeep(actor.Id, "builder", cost, 0f));
                 u.Events.Publish(new FleetShipBuilt(ship.Id, yard.Id, true, price));
-                u.Events.Publish(new BuilderCommissioned(f, ship.Id, yard.Id, site.Id, cost));
+                u.Events.Publish(new BuilderCommissioned(f, ship.Id, yard.Id, site, cost));
                 return ship;
             }
         }
@@ -281,6 +289,7 @@ public static class ConstructionRules
         string shortName = u.Sectors[site.Sector].Name.Split(' ').Last();
         var st = StationFactory.Create(u, site.Id, type, $"{type.Name} {shortName} {site.Id.Value}", site.Sector, site.Position, site.Owner);
         st.Credits = NewStationCredits;
+        st.Panic = bs.Panic;   // Phase 20: Ersatz aus einer Versorgungspanik
         var builder = bs.Builder;
         if (builder.Value != 0 && u.Ships.TryGetValue(builder, out var b) && b.IsSiteBuilder)
             u.WalletOf(b).Credits += MathF.Min(MathF.Max(0f, site.Credits), bs.Budget * u.Rules.ConstructionFeeShare);

@@ -30,6 +30,9 @@ public sealed class JobAssignmentSystem : ISimSystem
             if (current is not null && u.Tick - ship.JobSince < u.Rules.JobMinTicks) continue;
 
             float currentScore = current is null ? 0f : Rated(u, ship, current);
+            // Phase 20: Eine Aufgabe, die gerade nichts einbringt, verlässt das Schiff erst nach JobIdleSwitchTicks Leerlauf — direkt nach einer Lieferung ist der
+            // Abnehmer oft kurz voll (Bewertung 0), und die Mehrzweckschiffe flatterten alle 600 Ticks zwischen Handel und Bergbau (F/G: 3284/5459 Wechsel)
+            if (current is not null && !IdleLongEnough(u, ship, currentScore)) continue;
             IShipJob? best = null;
             float bestScore = 0f;
             foreach (var job in jobs)
@@ -63,6 +66,13 @@ public sealed class JobAssignmentSystem : ISimSystem
         ticksInJob >= rules.JobMinTicks && otherScore > 0f && otherScore > currentScore * (1f + rules.JobSwitchMargin);
 
     /// <summary>
+    /// Phase 20: Darf das Schiff eine Aufgabe mit dieser Bewertung verlassen? Bringt sie etwas ein (&gt; 0), entscheidet nur die Hysterese; bringt sie nichts
+    /// ein, muss das Schiff seit mindestens <see cref="EconomyRules.JobIdleSwitchTicks"/> untätig sein (die Ausführung sucht in der Zeit weiter).
+    /// </summary>
+    public static bool IdleLongEnough(Universe u, Ship ship, float currentScore) =>
+        currentScore > 0f || u.Rules.JobIdleSwitchTicks <= 0 || (ship.IdleSince >= 0 && u.Tick - ship.IdleSince >= u.Rules.JobIdleSwitchTicks);
+
+    /// <summary>
     /// Bewertung einer Aufgabe für dieses Schiff mit Herdenschutz: Score × 1 / (1 + <see cref="EconomyRules.JobCrowdPenalty"/> × Auslastung),
     /// Auslastung = belegte Kapazität der Aufgabe ohne das Schiff selbst ÷ Grenze.
     /// </summary>
@@ -70,15 +80,19 @@ public sealed class JobAssignmentSystem : ISimSystem
     {
         float score = job.Score(u, ship);
         if (score <= 0f) return 0f;
-        float used = ShipJobs.UsedUnits(u, job);
+        // Phase 20: Auslastung im eigenen Kartenteil (ohne Teilung: die Welt)
+        var (used, limit) = FleetCapacity.For(u, job, ship);
         if (ship.Role == job.Role) used -= ShipJobs.UnitsOf(u, ship, job);
-        float load = MathF.Max(0f, used) / MathF.Max(1f, job.Limit(u.Rules));
+        float load = MathF.Max(0f, used) / MathF.Max(1f, limit);
         return score / (1f + u.Rules.JobCrowdPenalty * load);
     }
 
     /// <summary>Hat die Aufgabe noch Platz für dieses Schiff (belegte Kapazität + eigene Einheiten ≤ Grenze + <see cref="EconomyRules.FleetCapacityOvershoot"/>)?</summary>
-    public static bool HasRoom(Universe u, Ship ship, IShipJob job) =>
-        ShipJobs.UsedUnits(u, job) + ShipJobs.UnitsOf(u, ship, job) <= job.Limit(u.Rules) + u.Rules.FleetCapacityOvershoot;
+    public static bool HasRoom(Universe u, Ship ship, IShipJob job)
+    {
+        var (used, limit) = FleetCapacity.For(u, job, ship);   // Phase 20: im eigenen Kartenteil
+        return used + ShipJobs.UnitsOf(u, ship, job) <= limit + u.Rules.FleetCapacityOvershoot;
+    }
 
     /// <summary>Untätig: keine Reise, kein Auftrag, keine Fracht, beide Phasen Idle und die KI denkt in diesem Tick ohnehin nach.</summary>
     static bool IsIdle(Universe u, Ship ship) =>

@@ -77,7 +77,11 @@ public sealed class UpgradeModule : ISimModule
 public sealed class ConstructionModule : ISimModule
 {
     public string Name => "Construction";
-    public void Register(SimulationBuilder b) => b.Add(new ConstructionSystem());
+    public void Register(SimulationBuilder b)
+    {
+        b.Add(new ConstructionSystem());
+        b.Add(new FactionBuilderSystem(), FactionBuilderSystem.Interval);   // Phase 20: Bauschiffe der Fraktionen (Unterhalt, Mindestbestand)
+    }
 }
 
 /// <summary>
@@ -97,7 +101,8 @@ public sealed class LifecycleModule : ISimModule
     public string Name => "Lifecycle";
     // Seltene, kostengünstige Prüfungen: Skalierung über dt bzw. Zeitstempel
     public void Register(SimulationBuilder b) =>
-        b.Add(new UpkeepSystem(), interval: 10).Add(new StationLifecycleSystem(), interval: 20).Add(new FleetSystem(), interval: 20);
+        b.Add(new UpkeepSystem(), interval: 10).Add(new SupplyPanicSystem(), interval: 20)   // Phase 20: Versorgungspanik vor dem normalen Bau
+         .Add(new StationLifecycleSystem(), interval: 20).Add(new FleetSystem(), interval: 20);
 }
 
 /// <summary>

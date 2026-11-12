@@ -483,6 +483,10 @@ public partial class Main : Node3D
 		_hud.Toast($"Taxi angekommen ({ran / SimClock.TicksPerSecond:0} s Reise): {(_session.U.Stations.TryGetValue(PlayerData.DockedAt, out var st) ? st.Name : "")}", 3.5f);
 	}
 
+	/// <summary>Phase 20: letzter Hinweis einer Versorgungspanik (Selbsttest).</summary>
+	internal string? LastPanicMessage { get; private set; }
+	long _panicToastTick = -1;
+
 	/// <summary>Für den Selbsttest: Dauer der letzten Taxifahrt in Ticks.</summary>
 	internal long LastTaxiTicks { get; private set; }
 
@@ -497,6 +501,10 @@ public partial class Main : Node3D
 		{
 			case StationBuilt b: _hud.Toast($"Neue Station: {_session.U.Stations[b.Station].Name}"); break;
 			case ConstructionStarted cs when cs.Sector == _session.U.PlayerSector: _hud.Toast($"Neue Baustelle: {_session.U.Stations[cs.Site].Name}"); break;
+			// Phase 20: Versorgungspanik nach einem geschlossenen/zerstörten Tor (welt-weit sichtbar: die abgeschnittenen und die übrigen Sektoren reagieren)
+			case SupplyPanicRaised sp when _session.U.Tick != _panicToastTick:   // je Tick ein Hinweis (eine Sperre löst oft mehrere Waren zugleich aus)
+				_panicToastTick = _session.U.Tick;
+				LastPanicMessage = SpaceSim.Core.Simulation.SupplyPanic.Describe(_session.U, sp); _hud.Toast(LastPanicMessage, 5f); break;
 			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Toast($"Notbau: {es.Name}"); break;
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;

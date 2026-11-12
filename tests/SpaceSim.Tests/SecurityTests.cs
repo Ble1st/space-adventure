@@ -609,10 +609,14 @@ public class SecurityTests
         u.Actors[f].Treasury.Credits = 100_000f;
         u.Rules.PoliceMinPerFaction = 1;
         u.Rules.PolicePerSector = 0.5f;   // Soll 1 statt 2
+        u.Rules.PolicePerThreat = 0f;     // Phase 20: Bedarf ohne Bedrohung (die Überzahl muss ununterbrochen bestehen; Überfälle würden sie unterbrechen)
         u.Actors[f].LastForceTick = -1_000_000;
         var gone = new List<PoliceDecommissioned>();
         u.Events.Raised += e => { if (e is PoliceDecommissioned d && d.Faction == f) gone.Add(d); };
-        new SimulationRunner().Run(u, 200);
+        // Phase 20: abgebaut wird erst nach ununterbrochener Überzahl über PoliceDecommissionTicks (vorher: Abstand zur letzten Änderung)
+        new SimulationRunner().Run(u, u.Rules.PoliceDecommissionTicks - 200);
+        Assert.Empty(gone);
+        new SimulationRunner().Run(u, 400);
         Assert.Single(gone);   // einmal abgebaut, danach Abkühlzeit
         Assert.Single(SecuritySystem.PoliceOf(u, f));
     }

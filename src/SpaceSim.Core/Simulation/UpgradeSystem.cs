@@ -36,8 +36,9 @@ public sealed class UpgradeSystem : ISimSystem
         float before = job.FleetValue(ship.Stats, u.Rules);
         // Phase 15: ein Upgrade, das die belegte Kapazität der Aufgabe über Grenze + Überhang höbe (z. B. größeres Frachtmodul), unterbleibt
         float unitsBefore = ShipJobs.UnitsOf(u, ship, job);
-        float otherUnits = ShipJobs.UsedUnits(u, job) - (ship.Role == job.Role ? unitsBefore : 0f);
-        float room = job.Limit(u.Rules) + u.Rules.FleetCapacityOvershoot;
+        var (usedHere, limitHere) = FleetCapacity.For(u, job, ship);   // Phase 20: im eigenen Kartenteil
+        float otherUnits = usedHere - (ship.Role == job.Role ? unitsBefore : 0f);
+        float room = limitHere + u.Rules.FleetCapacityOvershoot;
         UpgradeQuote? best = null;
         float bestGain = 0f;
         foreach (var q in ShipUpgrade.Quotes(u, st, ship))

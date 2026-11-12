@@ -19,6 +19,10 @@ public sealed class SaveGame
     /// <summary>Phase 19 (additiv): letzte Stilllegung und Knappheit seit (GoodId → Tick).</summary>
     public long LastStationRetireTick { get; set; } = -1_000_000;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, long>? ScarceSince { get; set; }
+    /// <summary>Phase 20 (additiv): Versorgungspanik je Kartenteil und Ware ([Teil, GoodId, seit]); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PanicSince { get; set; }
+    /// <summary>Phase 20 (additiv): letzte Ausmusterung wegen Leerlauf je Aufgabe und Kartenteil ("aufgabe@teil" → Tick); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, long>? IdleRetiredTick { get; set; }
     public int NextShipId { get; set; }
     public int NextStationId { get; set; }
     public int NextAsteroidId { get; set; } = 1;
@@ -118,6 +122,9 @@ public sealed class ActorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? BountyClaims { get; set; }
     /// <summary>Phase 11 (v14): letzte Änderung der Streitkräfte (Abkühlzeit).</summary>
     public long LastForceTick { get; set; } = -1_000_000;
+    /// <summary>Phase 20 (additiv): geglätteter Polizeibedarf (&lt; 0 = ungemessen) und Überzahl seit.</summary>
+    public float PoliceNeed { get; set; } = -1f;
+    public long PoliceSurplusSince { get; set; } = -1;
 }
 
 /// <summary>Kasse der Spielerperson (Phase 5b, v7 bis v11; seit v12 nur noch gelesen).</summary>
@@ -333,6 +340,8 @@ public sealed class StationSave
     public long BuiltTick { get; set; }
     public float Activity { get; set; } = 1f;
     public float Starved { get; set; }
+    /// <summary>Phase 20 (additiv): als Ersatz in einer Versorgungspanik gebaut.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Panic { get; set; }
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>
@@ -346,6 +355,8 @@ public sealed class BuildSiteSave
     public float Budget { get; set; } public int Builder { get; set; }
     public long Started { get; set; } public long LastProgress { get; set; } public long BlockedSince { get; set; } = -1;
     public int Assembly { get; set; } public bool Emergency { get; set; } public bool Abandoned { get; set; }
+    /// <summary>Phase 20 (additiv): Baustelle einer Versorgungspanik.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Panic { get; set; }
 }
 
 /// <summary>

@@ -27,21 +27,60 @@ public sealed class FleetSystem : ISimSystem
         foreach (var ship in u.Ships.Values.Where(s => s.IsEconomyAi).ToList())
         {
             if (ship.Transit is not null || ship.Order is not null || ship.IdleSince < 0) continue;
+            // Phase 20: Bauschiffe einer Fraktion unterhält deren Kasse (FactionBuilderSystem) — sie werden nicht als pleite aufgegeben
+            if (FactionBuilderSystem.IsFactionBuilder(u, ship)) continue;
             long idle = u.Tick - ship.IdleSince;
-            if (idle > u.Rules.ShipBankruptTicks && ship.Credits < 50f) { u.RemoveShip(ship.Id, "bankrupt"); continue; }
+            // Phase 20: Pleite ist nur, wer weder Geld noch Fracht hat — mit unverkäuflicher Fracht an Bord versucht ein Händler sie weiter zu verkaufen und
+            // wirft sie erst nach StrandedCargoTicks ab (vorher wurde er nach 600 Ticks samt Ladung aufgegeben: gemessen fast alle Pleiten der Händler,
+            // meist mit Wasserstoff an Bord, dessen Abnehmer gerade pausierten)
+            bool hasCargo = ship.Cargo.Values.Any(v => v > 0.001f);
+            if (idle > u.Rules.ShipBankruptTicks && ship.Credits < 50f && !(u.Rules.BankruptNeedsEmptyHold && hasCargo)) { u.RemoveShip(ship.Id, "bankrupt"); continue; }
             // Phase 15: Auch ein Schiff mit Geld, das sehr lange nichts findet (z. B. ein Mehrzweckschiff, dessen Aufgabe nichts einbringt und dessen andere
             // Aufgabe voll ist), wird abgebaut statt ewig zu liegen; sein Platz in der Kapazität wird frei, die Flotte kauft bei Bedarf nach.
             // Sein Betriebsgeld geht an den Besitzer (eigener Akteur mit Kasse), bei freien Einzelschiffen verlässt es mit dem Kapitän die Welt.
-            if (u.Rules.IdleRetireTicks > 0 && idle > u.Rules.IdleRetireTicks && ship.Role is ShipRole.Trader or ShipRole.Miner && ship.Cargo.Values.Sum() < 0.001f)
+            if (u.Rules.IdleRetireTicks > 0 && idle > u.Rules.IdleRetireTicks && ship.Role is ShipRole.Trader or ShipRole.Miner && !hasCargo && Overstaffed(u, ship))
             {
                 float credits = MathF.Max(0f, ship.Credits);
                 bool toOwner = ship.Owner != u.FreeActor && u.Actors.TryGetValue(ship.Owner, out var owner) && owner.Id != u.PlayerActor;
                 if (toOwner) u.Actors[ship.Owner].Treasury.Credits += credits;
                 ship.Credits = 0f;
+                // Phase 20: Kaufsperre für diese Aufgabe in diesem Kartenteil (kein Neukauf für eine Aufgabe, für die gerade ein Schiff ohne Arbeit ging)
+                if (ShipJobs.ForRole(ship.Role) is { } job) u.IdleRetiredTick[(job.Key, FleetCapacity.PartOf(u, ship))] = u.Tick;
                 u.Events.Publish(new ShipRetired(ship.Id, ship.Owner, credits, toOwner));
                 u.RemoveShip(ship.Id, "retired");
             }
         }
+    }
+
+    /// <summary>
+    /// Phase 20: Ausgemustert wird nur, wer in einer wirklich überbesetzten Aufgabe liegt — die belegte Kapazität im Kartenteil des Schiffs erreicht die Grenze
+    /// des Teils. Sonst blieb ein Schiff liegen, weil ihm das Geld fehlte oder der Teil gerade wenig zu tun hatte, und wurde ausgemustert, obwohl kein Ersatz kam
+    /// (Lauf G: 15 Händler ausgemustert, Handel 3/14). Ohne die Regel <see cref="EconomyRules.ExpandAfterRetireTicks"/> (0) gilt die alte Bedingung.
+    /// </summary>
+    static bool Overstaffed(Universe u, Ship ship)
+    {
+        if (u.Rules.ExpandAfterRetireTicks <= 0 || ShipJobs.ForRole(ship.Role) is not { } job) return true;
+        var (used, limit) = FleetCapacity.For(u, job, ship);
+        return used >= limit;
+    }
+
+    /// <summary>
+    /// Phase 20: Darf die Flotte im Kartenteil ein weiteres Schiff dieser Aufgabe kaufen? Die Aufgabe hat dort Platz (<see cref="FleetCapacity"/>), es wurde
+    /// dort nicht kürzlich ein Schiff dieser Aufgabe wegen Leerlauf ausgemustert (<see cref="EconomyRules.ExpandAfterRetireTicks"/>), und kein arbeitsfähiges
+    /// Schiff der Aufgabe liegt dort seit <see cref="EconomyRules.ExpandIdleTicks"/> untätig (Betriebsgeld mindestens das Startkapital eines Neukaufs: Was es
+    /// nicht findet, fände ein neues Schiff auch nicht). Vorher wurde gekauft und wegen Leerlaufs ausgemustert im Kreis.
+    /// </summary>
+    public static bool CanGrow(Universe u, IShipJob job, int partKey)
+    {
+        var r = u.Rules;
+        if (FleetCapacity.Used(u, job, partKey) >= FleetCapacity.Limit(u, job, partKey)) return false;
+        if (r.ExpandAfterRetireTicks > 0 && u.IdleRetiredTick.TryGetValue((job.Key, partKey), out var at) && u.Tick - at < r.ExpandAfterRetireTicks) return false;
+        if (r.ExpandIdleTicks > 0)
+            foreach (var s in u.ShipsById())
+                if (s.Role == job.Role && s.Controller == Controller.Ai && s.Transit is null && s.Order is null && s.IdleSince >= 0
+                    && u.Tick - s.IdleSince >= r.ExpandIdleTicks && s.Credits >= r.NewShipStartCredits && FleetCapacity.PartOf(u, s) == partKey)
+                    return false;
+        return true;
     }
 
     /// <summary>
@@ -66,7 +105,11 @@ public sealed class FleetSystem : ISimSystem
     /// Modellschlüssel. Ein Generalist ist in keiner Aufgabe der beste, gewinnt aber, wenn seine Flexibilität den Abstand ausgleicht.
     /// Reine Funktion; null = kein Kandidat.
     /// </summary>
-    public static ModelChoice? ChooseModel(Universe u, IShipJob job, Ship buyer, float used, float limit)
+    public static ModelChoice? ChooseModel(Universe u, IShipJob job, Ship buyer, float used, float limit) =>
+        ChooseModel(u, job, buyer.Sector, buyer.Position, buyer.Credits, buyer, GateAccess.ProfileOf(u, buyer), used, limit);
+
+    /// <summary>Phase 20: Kaufwahl für einen Käufer an einem Ort mit Geld (auch ohne Käuferschiff, z. B. eine Fraktionskasse).</summary>
+    public static ModelChoice? ChooseModel(Universe u, IShipJob job, SectorId sector, Vec2 pos, float credits, Ship? traveler, MobilityProfile profile, float used, float limit)
     {
         var rules = u.Rules;
         bool dealers = u.StationTypes.Values.Any(t => t.ShipDealer is not null);
@@ -81,11 +124,11 @@ public sealed class FleetSystem : ISimSystem
             if (units <= 0f || used + units > limit + rules.FleetCapacityOvershoot) continue;
             if (ShipPurchase.Materials(u, cls, model.Fit) is not { } needs) continue;
             var yard = u.Stations.Values
-                .Where(s => (!dealers || ShipPurchase.SellsModel(u, s, model)) && Research.Available(u, s, UnlockKind.Model, model.Key) && u.IsReachable(buyer.Sector, s.Sector, GateAccess.ProfileOf(u, buyer)) && ShipPurchase.Missing(s, needs).Count == 0)
-                .OrderBy(s => Travel.Estimate(u, buyer.Sector, buyer.Position, s.Sector, s.Position, buyer)).ThenBy(s => s.Id.Value).FirstOrDefault();
+                .Where(s => (!dealers || ShipPurchase.SellsModel(u, s, model)) && Research.Available(u, s, UnlockKind.Model, model.Key) && u.IsReachable(sector, s.Sector, profile) && ShipPurchase.Missing(s, needs).Count == 0)
+                .OrderBy(s => Travel.Estimate(u, sector, pos, s.Sector, s.Position, traveler)).ThenBy(s => s.Id.Value).FirstOrDefault();
             if (yard is null) continue;
             float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
-            if (price <= 0f || price + rules.NewShipStartCredits > buyer.Credits) continue;
+            if (price <= 0f || price + rules.NewShipStartCredits > credits) continue;
             float value = job.FleetValue(stats, rules);
             foreach (var other in jobs)
                 if (other != job && (stats.Capabilities & other.Needs) == other.Needs) value += rules.FleetFlexWeight * other.FleetValue(stats, rules);
@@ -93,6 +136,50 @@ public sealed class FleetSystem : ISimSystem
             if (best is null || score > best.Score) best = new ModelChoice(model, cls, yard, needs, price, units, score);
         }
         return best;
+    }
+
+    /// <summary>
+    /// Phase 20: Die Fraktion springt ein, wenn die Flotte eines Kartenteils zusammengebrochen ist. Bis Phase 19 kaufte nur ein reiches Schiff derselben Aufgabe
+    /// nach; waren alle Händler eines Teils arm oder ausgestorben (z. B. nach einer Torsperre: Lauf F 3,7/14, Lauf G ein Teil mit Werft, aber ohne Schiffe), kam
+    /// nie wieder eines. Liegt die belegte Kapazität eines wachsenden Teils unter <see cref="EconomyRules.FleetTreasuryFloorShare"/> seiner Grenze und hat dort kein
+    /// Schiff der Aufgabe das Geld für einen Kauf, kauft die Kasse der Fraktion, der dort die meisten Sektoren gehören, ein Schiff über die gemeinsame Kaufwahl
+    /// (<see cref="ChooseModel(Universe, IShipJob, SectorId, Vec2, float, Ship?, MobilityProfile, float, float)"/>) als Eigenbetrieb: Es gehört dem Fraktionsakteur,
+    /// arbeitet aus eigener Betriebskasse (<see cref="EconomyRules.NewShipStartCredits"/>), die Kasse behält <see cref="EconomyRules.SubsidyReserve"/>.
+    /// </summary>
+    static void BuyFromTreasury(Universe u, IShipJob job, Func<int, bool> grows)
+    {
+        var rules = u.Rules;
+        if (rules.FleetTreasuryFloorShare <= 0f || !rules.FleetChoosesModels) return;
+        var parts = MapParts.Of(u);
+        foreach (var part in parts.Parts)
+        {
+            int key = FleetCapacity.Divided(u) ? part[0].Value : 0;
+            if (!grows(key)) continue;
+            float used = FleetCapacity.Used(u, job, key), limit = FleetCapacity.Limit(u, job, key);
+            if (used >= limit * rules.FleetTreasuryFloorShare) continue;
+            // Besitzerfraktion mit den meisten Sektoren im Teil (Gleichstand: kleinste Id)
+            var faction = part.Select(id => u.Sectors[id].Owner).Where(f => u.Factions.ContainsKey(f) && u.Actors.ContainsKey(f))
+                .GroupBy(f => f.Value).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => new FactionId(g.Key)).FirstOrDefault();
+            if (faction.Value == 0 || !u.Actors.TryGetValue(faction, out var actor) || actor.Kind == ActorKind.Outlaw) continue;
+            var home = u.Sectors[part.FirstOrDefault(id => u.Sectors[id].Owner == faction)];
+            float budget = actor.Treasury.Credits - rules.SubsidyReserve;
+            if (budget <= rules.NewShipStartCredits) continue;
+            if (ChooseModel(u, job, home.Id, default, budget, null, MobilityProfile.For(actor.Id), used, limit) is not { } choice) continue;
+            var q = ShipQualityRoll.Roll(u, choice.Class, choice.Class.Slots, choice.Model.Fit, choice.Yard, choice.Materials, Fits(u, job, choice.Class, used, limit));
+            ShipPurchase.Consume(choice.Yard, q.Materials ?? choice.Materials);
+            choice.Yard.Credits += choice.Price;
+            float cost = choice.Price + rules.NewShipStartCredits;
+            actor.Treasury.Credits -= cost;
+            u.Events.Publish(new TreasuryUpkeep(actor.Id, "fleet", cost, 0f));
+            u.Events.Publish(new InvestorChosen("ship", InvestorSource.Treasury, actor.Id, ActorRules.ClassOf(u, ActorRules.Index(u), actor.Id), cost, 1));
+            var bought = ShipPurchase.Create(u, u.NewShipId(), choice.Model.Key, q.Slots, q.Fit, job.Role, Controller.Ai, actor.Id, choice.Yard, rules.NewShipStartCredits, q.Grade);
+            bought.JobSince = u.Tick;
+            u.AddShip(bought);
+            u.Events.Publish(new FleetShipBuilt(bought.Id, choice.Yard.Id, true, choice.Price));
+            u.Events.Publish(new FleetModelChosen(bought.Id, choice.Model.Key, job.Role, choice.Price));
+            u.Events.Publish(new ShipQualityRolled(bought.Id, q.Rolled, q.Grade));
+            return;   // höchstens ein Kauf je Schritt
+        }
     }
 
     /// <summary>
@@ -126,17 +213,25 @@ public sealed class FleetSystem : ISimSystem
     static void Expand(Universe u, IShipJob job)
     {
         var rules = u.Rules;
-        float limit = job.Limit(rules);
-        float used = ShipJobs.UsedUnits(u, job);
-        if (used >= limit) return;
+        // Phase 20: Bauschiffe sind Bestand der Fraktionen (FactionBuilderSystem: Mindestbestand, Nachkauf für blockierte Baustellen) — kein Zukauf aus
+        // Bauschiff-Kassen mehr (sonst kaufte ein reiches Bauschiff ein weiteres, das die Fraktion als überzählig wieder ausmusterte)
+        if (job.Role == ShipRole.Builder && rules.MinBuildersPerFaction > 0) return;
+        // Phase 20: Wachstum je Kartenteil (ohne Teilung ein Teil); billige Vorprüfung, bevor die Kandidatenliste gebaut wird
+        var grow = new Dictionary<int, bool>();
+        bool Grows(int key) { if (!grow.TryGetValue(key, out var ok)) grow[key] = ok = CanGrow(u, job, key); return ok; }
+        if (!FleetCapacity.Divided(u) && !Grows(0)) return;
 
         var role = job.Role;
         // Phase 9: Zukauf — statt des reichsten Schiffs zieht eine gewichtete Ziehung den Käufer (Geld über der Schwelle × Appetit der
         // Größenklasse seines Besitzers × Gier, Investors)
-        var candidates = Investors.ForShip(u, role, rules.FleetExpandCredits);
+        var candidates = Investors.ForShip(u, role, rules.FleetExpandCredits).Where(c => c.Ship is { } cs && Grows(FleetCapacity.PartOf(u, cs))).ToList();
+        // Phase 20: Teile ohne zahlungskräftiges Schiff der Aufgabe — dort springt bei zusammengebrochener Flotte die Fraktionskasse ein
+        var withBuyers = candidates.Select(c => FleetCapacity.PartOf(u, c.Ship!)).ToHashSet();
+        BuyFromTreasury(u, job, k => !withBuyers.Contains(k) && Grows(k));
         var pick = Investors.Draw(u, candidates);
         if (pick?.Ship is not { } parent) return;
         float before = parent.Credits;
+        var (used, limit) = FleetCapacity.For(u, job, parent);
 
         if (rules.FleetChoosesModels && ChooseModel(u, job, parent, used, limit) is { } choice)
         {

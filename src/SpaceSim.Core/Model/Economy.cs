@@ -164,6 +164,11 @@ public sealed class Station
     public float Activity = 1f;
     /// <summary>Phase 19: wie <see cref="Activity"/>, Anteil der fälligen Takte, in denen nichts lief, weil Zutaten fehlten (der Rest pausierte ohne Abnehmer).</summary>
     public float Starved;
+    /// <summary>
+    /// Phase 20: als Ersatz in einer Versorgungspanik gebaut (<see cref="Simulation.SupplyPanic"/>): zählt gegen die Notreserve seines Kartenteils und wird
+    /// nach Wiederverbindung bevorzugt stillgelegt, wenn er überzählig ist. Gespeichert.
+    /// </summary>
+    public bool Panic;
     public string Name = "";
     public SectorId Sector;
     /// <summary>Besitzer (Phase 9: ein Akteur; die Startstationen gehören den Fraktionsakteuren, Id = Fraktions-Id).</summary>

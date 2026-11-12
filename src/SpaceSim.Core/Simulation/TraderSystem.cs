@@ -90,7 +90,10 @@ public sealed class TraderSystem : ISimSystem
         var limits = AutoLimitRules.Of(ship);
         // Phase 19: auch ohne Automatikgrenzen nur planen, was die eigene Kasse bezahlen kann — sonst fuhr ein mittelloses Schiff immer wieder zur
         // Kaufstation, konnte dort nichts kaufen und plante sofort neu (Leerlauf nie erreicht, nie als pleite aufgegeben)
-        float spendable = limits is null ? MathF.Max(0f, u.WalletOf(ship).Credits) : AutoLimitRules.Spendable(u, ship, limits);
+        // Phase 20: ein KI-Händler behält eine Betriebsreserve (TraderCashReserve) — vorher setzte er die ganze Kasse auf eine Ladung, und blieb sie liegen
+        // (Abnehmer pausiert), war er pleite
+        float reserve = limits is null && ship.Controller == Controller.Ai ? u.Rules.TraderCashReserve : 0f;
+        float spendable = limits is null ? MathF.Max(0f, u.WalletOf(ship).Credits - reserve) : AutoLimitRules.Spendable(u, ship, limits);
         var fuelGood = Refuel.Active(u) ? Refuel.ActiveFuel(ship) : null;   // Phase 14: Treibstoff aus = keine Treibstoffkosten
         // Phase 10: Die Verkaufsfahrt geht beladen — mit diesem Profil schätzen, damit ein Embargo die Route schon hier ausschließt
         var ladenProfile = GateAccess.ProfileOf(u, ship) with { Laden = true };
@@ -276,7 +279,9 @@ public sealed class TraderSystem : ISimSystem
             float free = ship.FreeVolumeFor(u, order.Good);   // Frachtform-Regel: Flüssigkeiten nur in liquid+any
             // Phase 12: Spielerschiffe buchen auf die Kasse des Besitzers (NPC: das Schiff selbst) und halten die Rücklage ihres Auftrags
             var wallet = u.WalletOf(ship);
-            float money = AutoLimitRules.Of(ship) is { } lim ? AutoLimitRules.Spendable(u, ship, lim) : wallet.Credits;
+            // Phase 20: KI-Händler ohne Automatikgrenzen behalten die Betriebsreserve (wie in der Bewertung)
+            float money = AutoLimitRules.Of(ship) is { } lim ? AutoLimitRules.Spendable(u, ship, lim)
+                : MathF.Max(0f, wallet.Credits - (ship.Controller == Controller.Ai ? u.Rules.TraderCashReserve : 0f));
             float amount = MathF.Min(MathF.Min(free / good.VolumePerUnit, stock.Amount),
                                      stock.Price > 0 ? money / stock.Price : 0f);
             // Phase 5a: nur so viel kaufen, wie der Abnehmer jetzt noch annimmt (sonst würde der Rest dort unbezahlt abgeladen)

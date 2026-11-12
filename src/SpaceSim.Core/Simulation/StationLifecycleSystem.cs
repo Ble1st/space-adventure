@@ -23,6 +23,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         var scan = Scan(u);
         StationReview.TrackScarcity(u, scan);
         if (StationReview.TryRetire(u, scan) is { } forType) { TryBuild(u, scan, forType); return; }
+        StationReview.TryRetireSurplus(u, scan);   // Phase 20: überzählige (Panik-)Stationen nach Wiederverbindung
         TryBuild(u, scan, null);
     }
 
@@ -211,9 +212,25 @@ public sealed class StationLifecycleSystem : ISimSystem
             if (t.Export is { } x && x.Goods.Contains(good)) return false;
             foreach (var r in t.Recipes) if (r.Inputs.ContainsKey(good)) return false;
         }
+        // Phase 20: nur, solange die Herstellerin ERREICHBAR ist — in jedem Kartenteil, in dem eine Station die Ware führt, muss eine fertige Herstellerin
+        // stehen (sonst antwortet auf ihr Fehlen die Versorgungspanik bzw. der normale Bau)
+        var parts = MapParts.Of(u);
+        if (!parts.IsSplit)
+        {
+            foreach (var st in u.Stations.Values)
+                if (!st.IsBuildSite && st.Produces(good)) return true;
+            return false;
+        }
+        var held = new HashSet<int>();
+        var made = new HashSet<int>();
         foreach (var st in u.Stations.Values)
-            if (!st.IsBuildSite && st.Produces(good)) return true;
-        return false;
+        {
+            if (st.IsBuildSite) continue;
+            int key = parts.KeyOf(st.Sector);
+            if (st.Produces(good)) made.Add(key);
+            else if (st.Market.ContainsKey(good)) held.Add(key);
+        }
+        return made.Count > 0 && held.All(made.Contains);
     }
 
     static StationType? CheapestProducer(Universe u, GoodId good) =>

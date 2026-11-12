@@ -1036,6 +1036,26 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Standardwelt (Phase 14) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
+			case 48: // Phase 20: Versorgungspanik — Tor Alpha↔Beta geschlossen, der Rest verliert sein Wasserwerk: Hinweis in der Ansicht, Ersatz-Baustelle
+			{
+				if (_frame - _stageStart < 10) break;
+				try
+				{
+					var uni = _m.Session.U;
+					uni.Rules.PlayerRaids = false;
+					var gate = uni.Gates.Values.First(g => g.Sector.Value == 1);
+					SpaceSim.Core.Simulation.GateAccess.SetState(uni, gate, GateState.Closed);
+					_m.Session.RunTicks(uni.Rules.PanicDelayTicks + 100);
+					var msg = _m.LastPanicMessage ?? "";
+					Check(msg.StartsWith("Versorgungspanik"), $"Hinweis zur Versorgungspanik erscheint ({msg})");
+					Check(uni.Stations.Values.Any(s => s.Site is { Panic: true }), "Panik legt eine Ersatz-Baustelle an");
+					SpaceSim.Core.Simulation.GateAccess.SetState(uni, gate, GateState.Open);
+					_m.Session.RunTicks(40);
+					Check(uni.PanicSince.Count == 0, "Tor wieder offen: keine Panik mehr");
+				}
+				catch (System.Exception ex) { Fail("Versorgungspanik (Phase 20) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

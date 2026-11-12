@@ -101,6 +101,8 @@ public static class UniverseSerializer
             SavedAtUtc = now.ToUniversalTime().ToString("o"),
             Tick = u.Tick, Seed = u.Seed, RngState = u.Rng.State, LastStationBuildTick = u.LastStationBuildTick,
             LastStationRetireTick = u.LastStationRetireTick, ScarceSince = u.ScarceSince.Count == 0 ? null : u.ScarceSince.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+            PanicSince = u.PanicSince.Count == 0 ? null : u.PanicSince.OrderBy(kv => kv.Key.Part).ThenBy(kv => kv.Key.Good.Value).Select(kv => new long[] { kv.Key.Part, kv.Key.Good.Value, kv.Value }).ToList(),
+            IdleRetiredTick = u.IdleRetiredTick.Count == 0 ? null : u.IdleRetiredTick.OrderBy(kv => kv.Key.Job, StringComparer.Ordinal).ThenBy(kv => kv.Key.Part).ToDictionary(kv => $"{kv.Key.Job}@{kv.Key.Part}", kv => kv.Value),
             NextShipId = u.IdCounters.ship, NextStationId = u.IdCounters.station, NextAsteroidId = u.NextAsteroidId,
             PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
             PlayerActor = u.PlayerActor.Value, FreeActor = u.FreeActor.Value, NextActorId = u.NextActorId,
@@ -116,7 +118,7 @@ public static class UniverseSerializer
                 Wanted = a.Wanted.Count == 0 ? null : a.Wanted.OrderBy(kv => kv.Key.Value)
                     .Select(kv => new WantedSave { Faction = kv.Key.Value, Heat = kv.Value.Heat, LastCrime = kv.Value.LastCrimeTick, Fine = kv.Value.Fine, Crime = kv.Value.LastCrime }).ToList(),
                 BountyClaims = a.BountyClaims.Count == 0 ? null : a.BountyClaims.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                LastForceTick = a.LastForceTick,
+                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince,
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
@@ -208,12 +210,12 @@ public static class UniverseSerializer
                     Type = bs.TypeKey, Required = bs.Required.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                     InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, InvestorActor = bs.InvestorActor, Budget = bs.Budget, Builder = bs.Builder.Value,
                     Started = bs.StartedTick, LastProgress = bs.LastProgressTick, BlockedSince = bs.BlockedSince, Assembly = bs.AssemblyTicks,
-                    Emergency = bs.Emergency, Abandoned = bs.Abandoned,
+                    Emergency = bs.Emergency, Abandoned = bs.Abandoned, Panic = bs.Panic,
                 } : null,
                 PlayerStorage = st.PlayerStorage.Count == 0 ? null : st.PlayerStorage.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Exports = st.Exports.Count == 0 ? null : st.Exports.Select(b => new ExportBatchSave { Good = b.Good.Value, Amount = b.Amount, Paid = b.Paid, Due = b.DueTick }).ToList(),
                 MaintenanceBacklog = st.MaintenanceBacklog.Count == 0 ? null : st.MaintenanceBacklog.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved,
+                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic,
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -255,6 +257,10 @@ public static class UniverseSerializer
             Tick = s.Tick, Seed = s.Seed, LastStationBuildTick = s.LastStationBuildTick, Rules = s.Rules,
             LastStationRetireTick = s.LastStationRetireTick,
             ScarceSince = s.ScarceSince is null ? new Dictionary<GoodId, long>() : s.ScarceSince.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value), NextAsteroidId = s.NextAsteroidId,
+            PanicSince = s.PanicSince is null ? new Dictionary<(int, GoodId), long>()
+                : s.PanicSince.Where(e => e.Length >= 3).ToDictionary(e => ((int)e[0], new GoodId((int)e[1])), e => e[2]),
+            IdleRetiredTick = s.IdleRetiredTick is null ? new Dictionary<(string, int), long>()
+                : s.IdleRetiredTick.ToDictionary(kv => (kv.Key[..kv.Key.LastIndexOf('@')], int.Parse(kv.Key[(kv.Key.LastIndexOf('@') + 1)..], System.Globalization.CultureInfo.InvariantCulture)), kv => kv.Value),
             Rng = new DeterministicRng(s.Seed) { State = s.RngState },
             PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
         };
@@ -273,7 +279,7 @@ public static class UniverseSerializer
                 Wanted = a.Wanted is null ? new Dictionary<FactionId, WantedRecord>()
                     : a.Wanted.ToDictionary(w => new FactionId(w.Faction), w => new WantedRecord { Heat = w.Heat, LastCrimeTick = w.LastCrime, Fine = w.Fine, LastCrime = w.Crime }),
                 BountyClaims = a.BountyClaims is null ? new Dictionary<FactionId, float>() : a.BountyClaims.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
-                LastForceTick = a.LastForceTick,
+                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince,
             };
         if (s.Encounters is not null)
             foreach (var e in s.Encounters)
@@ -382,12 +388,12 @@ public static class UniverseSerializer
                     TypeKey = bs.Type, Required = bs.Required.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                     InvestorStation = bs.InvestorStation, InvestorShip = bs.InvestorShip, InvestorActor = bs.InvestorActor, Budget = bs.Budget, Builder = new ShipId(bs.Builder),
                     StartedTick = bs.Started, LastProgressTick = bs.LastProgress, BlockedSince = bs.BlockedSince, AssemblyTicks = bs.Assembly,
-                    Emergency = bs.Emergency, Abandoned = bs.Abandoned,
+                    Emergency = bs.Emergency, Abandoned = bs.Abandoned, Panic = bs.Panic,
                 } : null,
                 PlayerStorage = st.PlayerStorage is null ? new Dictionary<GoodId, float>() : st.PlayerStorage.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Exports = st.Exports is null ? new List<ExportBatch>() : st.Exports.Select(b => new ExportBatch { Good = new GoodId(b.Good), Amount = b.Amount, Paid = b.Paid, DueTick = b.Due }).ToList(),
                 MaintenanceBacklog = st.MaintenanceBacklog is null ? new Dictionary<GoodId, float>() : st.MaintenanceBacklog.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
-                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved,
+                BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic,
             };
         foreach (var sh in s.Ships)
         {
