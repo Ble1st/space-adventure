@@ -4419,7 +4419,7 @@
    {
     "key": "war",
     "name": "Kriegstest (Test)",
-    "description": "NUR ZUM TESTEN: Falke mit Raketenwerfer und vollem Raketenmagazin, 100 m vor dem Sektor-HQ Beta (Geschütze, Punktabwehr) — „Station angreifen“ aus Raketenreichweite. Raketen nachladen („Reparatur“ → Munition): Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich. 20000 Cr für einen Schiffskauf.",
+    "description": "NUR ZUM TESTEN: Falke mit Raketenwerfer und vollem Raketenmagazin, 100 m vor dem Sektor-HQ Beta (Geschütze, Punktabwehr) — „Station angreifen“ aus Raketenreichweite (110 m); die Geschütze reichen 60 m, also Abstand halten, „Ziel folgen“ hält die Nase auf der Station. Raketen nachladen („Reparatur“ → Munition): Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich. 20000 Cr für einen Schiffskauf.",
     "model": "falcon",
     "credits": 20000,
     "sector": 2,

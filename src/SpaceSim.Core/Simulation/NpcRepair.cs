@@ -101,6 +101,17 @@ public static class NpcRepair
     /// <see cref="EconomyRules.BaseModuleRepairCost"/> je Zustandspunkt und Größenstufe; Brände gelöscht. Was die Kasse nicht deckt, bleibt. Ereignisse
     /// <see cref="TreasuryUpkeep"/> (<paramref name="purpose"/>) und <see cref="ShipRepaired"/> (an der Basis). Liefert die Kosten.
     /// </summary>
+    /// <summary>Prüfung Runde 2 (Phase 28): Kosten der vollen Basisreparatur (Hülle und Module wie <see cref="AtBase"/>), rein.</summary>
+    public static float BaseCost(Universe u, Ship s)
+    {
+        var r = u.Rules;
+        float cost = MathF.Max(0f, s.MaxHull - s.Hull) * MathF.Max(0f, r.BaseRepairPerHull);
+        if (r.DamageActive)
+            foreach (int slot in RepairService.DamagedSlots(s))
+                cost += (1f - s.ConditionOf(slot)) * r.BaseModuleRepairCost * RepairService.SizeFactor(s, slot);
+        return cost;
+    }
+
     public static float AtBase(Universe u, Ship s, Actor owner, string purpose, StationId at)
     {
         var r = u.Rules;

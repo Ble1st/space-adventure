@@ -269,6 +269,25 @@ public sealed class StationRepairSystem : ISimSystem
 /// <summary>Phase 28: Anzeigetexte für Krieg und Stationsverteidigung (rein).</summary>
 public static class WarInfo
 {
+    /// <summary>
+    /// Gerätetest Phase 28: Gegenwehr, wenn der Spieler diese Station angreift — Geschütze aller Stationen derselben Fraktion im Sektor (die schießen dann mit)
+    /// und ihre größte Reichweite, dazu die Reichweite der eigenen Raketen. Kurzzeile für die Taste „Station angreifen“; leer ohne Geschütze.
+    /// </summary>
+    public static string DefenseWarning(Universe u, Station target, Ship player)
+    {
+        if (u.FactionOf(target) is not { } f || !u.Sectors.TryGetValue(target.Sector, out var sector)) return "";
+        int guns = 0; float range = 0f;
+        foreach (var id in sector.Stations)
+            if (u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && StationCombat.DefenseOf(u, st) is { } def && !StationCombat.IsDown(u, st))
+                foreach (var g in def.Guns)
+                    if (u.Modules.TryGetValue(g, out var m)) { guns++; range = MathF.Max(range, m.Stat("range")); }
+        if (guns == 0) return "";
+        float own = 0f;
+        for (int i = 0; i < player.Fit.Count; i++)
+            if (player.Fit[i] is { } k && u.Modules.TryGetValue(k, out var pm) && Missiles.IsMissile(pm) && player.ConditionOf(i) >= u.Rules.ModuleFailCondition) own = MathF.Max(own, pm.Stat("range"));
+        return $"{guns} Geschütze · {range:0} m" + (own > range ? $" · Raketen {own:0} m" : "");
+    }
+
     /// <summary>Verteidigungszeile einer Station: Hülle, Schild, Geschütze, Zustand (ausgeschaltet, belagert).</summary>
     public static string StationLine(Universe u, Station st)
     {

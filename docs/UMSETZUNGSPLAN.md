@@ -794,6 +794,18 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - Piraten starben in langen Läufen aus: ein beschädigtes Kaperschiff einer leeren Kasse hing im Versteck in der Schleife Notfall → Heimkehr → Versorgung ohne Geld → Notfall. Neu: kostenlose Notversorgung im Versteck (langsam bis 60 % Hülle, Module knapp über die Ausfallgrenze, Brand aus; Regel `pirateBasePatchHull`), Handlungsfähigkeit der Piraten um „kann jagen“ ergänzt. 1 036 800 Ticks: Überfälle je 20 000 Ticks Standard 25–59, Seed 3 24–51, nie 0 (vorher ab t740k bzw. am Ende 0/11–19); Verlustquote 0,21 / 0,17 %.
 - Bergbau nach Wiedervereinigung über der Grenze (Lauf J): im geteilten Zustand kauft die Flotte nur noch, solange die ganze Welt unter der Grenze liegt (außer dem Notkauf der Fraktionskasse für einen zusammengebrochenen Teil). Lauf J: mine 25,9/22 (max 29,5) → 22,5/22 (max 22,5).
 
+**Nachbesserung nach der Prüfung von Runde 2.**
+- Fälliger Überfall während eines Spielergefechts: Beitritt nur, wenn der Spieler schon gegen Kaperer kämpft; bei Festnahme/eigenem Angriff wird der Überfall verschoben (kommt nach dem Gefecht).
+- Notversorgung im Versteck nur, wenn die Kasse die normale Basisreparatur nicht bezahlen kann; Piraten bleiben über 1 036 800 Ticks aktiv (33–55 Überfälle je 20 000 Ticks).
+- Leerfahrten der Händler: Planung prüft den Kaufschutz schon mit dem erwarteten Einkaufspreis bei Ankunft (Bestand nach den vorgemerkten Käufen anderer Händler); verweigerte Verlustkäufe −33 bis −80 %, Umsatz meist +2–4 % (Seed 4 −0,2 %), Exporte meist leicht höher. Die zusätzliche Abnehmerseite wurde gemessen und verworfen (Umsatz/Exporte sanken).
+- Meldungsfeld frei von Lagezeile und Bereichstitel, Dienste in der Station-Info in der Hinweis-Karte (nichts angeschnitten), „Nächster Gegner“ ohne Gegner gesperrt („kein Gegner“).
+
+**Dritter Gerätetest (APK 115ba8b).**
+- Zielhilfe „Ziel folgen“ (Core `Flight/AimAssist`, Drehrate des Schiffs; ◀ ▶ übersteuern; „Dauerfeuer“ schaltet sie ein); Überfall wählt das angreifende Schiff als Ziel. Der Kaperer kreist mit höchstens 0,16 rad/s, das Schiff dreht 3,2 rad/s — ein Bedienproblem, keine Regel. Test „bestehbar“ mit echter Zielhilfe, Selbsttest 84.
+- Station angreifen: Gegenwehr unter der Taste, Raketenvorrat auf der Bucht, Raketen größer mit Schweif; Belagerung endete beim Schuss vom Rand der Raketenreichweite sofort (Abstand zur Mitte statt zur Außenhaut) — behoben.
+- Randmarker für Stationen außerhalb des Bildes (antippbar); leere Wracks nicht mehr gezeichnet; Leihschiff-Rückgabe nennt die ganze Miete; Meldung über dem Dock-Menü links neben dem Fenster; Hinweise über offenen Menüs (Speichern-Rückmeldung); Handels-Editor beim neuen Andocken zurückgesetzt.
+- Speicher: zwei Runden aus 200 Neuaufbauten und 5 Sektorwechseln ohne Wachstum von Knoten/Objekten (Selbsttest 87); das Wachstum am Gerät ließ sich nicht nachstellen.
+
 ## Zurückgestellt
 
 | Thema | Grund |

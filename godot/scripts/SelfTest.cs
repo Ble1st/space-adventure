@@ -2097,7 +2097,7 @@ public partial class SelfTest : Node
 				if (f == 26)
 				{
 					var (card, content, scrolls) = _m.HudRef.DockInfo.TestInfoCard;
-					Check(card.Size.Y > 0f && (scrolls || card.Encloses(content)), $"Station-Info: Karte „Allgemein“ hält ihren Inhalt im Rahmen oder rollt ({card} / {content})");
+					Check(card.Size.Y > 0f && card.Encloses(content) && !_m.HudRef.DockInfo.TestCardsScroll, $"Station-Info: Karten passen in ihren Rahmen, nichts angeschnitten ({card} / {content})");
 					_m.TestCloseDockArea();
 					break;
 				}
@@ -2112,7 +2112,9 @@ public partial class SelfTest : Node
 					var a = hud.TestAlertRect;
 					Check(hud.TestAlert.Length > 0 && hud.TestAlertSticky, "stehende Meldung sichtbar");
 					Check(_m.TestScreenOpen("dock.menu"), "Dock-Menü offen unter der Meldung");
-					Check(a.Size.Y <= 80f && a.Size.X <= 620f, $"Meldung schmal, höchstens drei Zeilen ({a.Size})");
+					// Gerätetest Phase 28: über dem Dock-Menü links neben dem Fenster (oben verdeckte sie den Titel)
+					float winLeft = (_m.GetViewport().GetVisibleRect().Size.X - 580f) / 2f;
+					Check(a.End.X <= winLeft + 1f && a.Size.Y <= 160f, $"Meldung links neben dem Dock-Menü, verdeckt den Titel nicht ({a})");
 					// keine sichtbare Taste des Dock-Menüs unter der Meldung
 					var hidden = Buttons(hud.DockMenu).Where(b => b.IsVisibleInTree() && b.GetGlobalRect().Intersects(a)).Select(b => b.Text).ToList();
 					Check(hidden.Count == 0, $"Meldung verdeckt keine Taste des Dock-Menüs ({string.Join(",", hidden)})");
@@ -2231,6 +2233,15 @@ public partial class SelfTest : Node
 				int f = _frame - _stageStart;
 				if (f == 120) { _m.TestMenu("new:combat"); break; }   // erst nach dem Abdock-Übergang der vorigen Stufe
 				if (f < 125) break;
+				if (f == 122)
+				{
+					// Prüfung Runde 2: „Nächster Gegner“ aktiv genau dann, wenn ein Gegner im Sektor ist (sonst gesperrt „kein Gegner“)
+					_m.SyncHudForTest();
+					var me0 = uni.Ships[uni.PlayerShip];
+					bool any = SpaceSim.Core.Combat.PlayerCombat.Enemies(uni, me0).Count > 0;
+					Check(!_m.HudRef.Flight.TestNextEnemyVisible || _m.HudRef.Flight.TestNextEnemyEnabled == any, $"„Nächster Gegner“ aktiv nur mit Gegner im Sektor (Gegner {any})");
+					break;
+				}
 				if (f == 125)
 				{
 					var pend = uni.PendingEncounters.Where(e => e.Kind == EncounterKind.Raid && e.Target == uni.PlayerShip).OrderBy(e => e.DueTick).ToList();
@@ -2271,6 +2282,150 @@ public partial class SelfTest : Node
 					Fail($"Gefechtstest: erster Kaperer nach 60 s nicht abgeschossen (Kaperer {lr.Hull:0}, Abstand {Vec2.Distance(lr.Position, me.Position):0}, im Gefecht {uni.Fights.IsEngaged(me.Id)}/{uni.Fights.IsEngaged(lr.Id)}, Ziel {_m.TestFight.Target.Value}, Schüsse {uni.Fights.Of(me.Id)?.Shots}, Spieler {me.Hull:0}, {_m.TestFightMessage})");
 					_m.TestFight.AutoFire = false; Next();
 				}
+				break;
+			}
+			case 84: // Gerätetest Phase 28: Gefechtstest nur mit „Dauerfeuer“ und der echten Zielhilfe (Drehrate des Schiffs, kein TestFace) — Ziel automatisch gewählt
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				if (f == 1) { _m.TestMenu("new:combat"); break; }
+				if (f < 6) break;
+				if (f == 6)
+				{
+					_p28Raider = uni.PendingEncounters.Where(e => e.Kind == EncounterKind.Raid && e.Target == uni.PlayerShip).OrderBy(e => e.DueTick).First().Source;
+					_p25Falcon = uni.PlayerShip;
+					_m.TestAimAssist = true;
+					_p28SeenMissile = 0;
+					break;
+				}
+				if (uni.PlayerShip != _p25Falcon || !uni.Ships.ContainsKey(_p25Falcon)) { Fail("Gefechtstest mit Zielhilfe: Falke verloren"); Next(); break; }
+				var me = uni.Ships[uni.PlayerShip];
+				if (uni.Fights.IsEngaged(me.Id) && _p28SeenMissile == 0)
+				{
+					_p28SeenMissile = 1;
+					_m.SyncHudForTest();
+					Check(_m.TestFight.Target == _p28Raider, $"Überfall: das angreifende Schiff ist automatisch Ziel ({_m.TestFight.Target.Value})");
+					Check((_m.LastCombatMessage ?? "").Contains("Ziel gewählt"), $"Meldung nennt das Ziel und Dauerfeuer ({_m.LastCombatMessage})");
+					Check(_m.HudRef.Flight.TestAimAssistVisible && _m.HudRef.Flight.TestAimAssistOn, "Taste „Ziel folgen“ sichtbar und an");
+					_m.HudRef.Flight.TestPressAutoFire();   // nur Dauerfeuer — gewendet wird über die Zielhilfe
+				}
+				if (_p28SeenMissile == 1 && SpaceSim.Core.Combat.PlayerCombat.PositionOf(uni, _m.TestFight.Target) is { } tp && f % 30 == 0)
+				{
+					float off = Mathf.RadToDeg(SpaceSim.Core.Flight.AimAssist.Delta(_m.TestHeadingRad, SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, tp.Pos)));
+					if (System.MathF.Abs(off) > _p28MaxOff && f > 200) _p28MaxOff = System.MathF.Abs(off);
+				}
+				if (!uni.Ships.ContainsKey(_p28Raider))
+				{
+					_m.Session.RunTicks(2);
+					Check(uni.Actors[uni.PlayerActor].BountyClaims.Values.Sum() > 0f, "mit Zielhilfe: erster Kaperer abgeschossen, Kopfgeld");
+					Check(me.Hull > 0f, "mit Zielhilfe: Falke lebt");
+					Check(_p28MaxOff < 45f, $"Zielhilfe hält das Ziel im Bugwinkel (größte Abweichung {_p28MaxOff:0}°)");
+					if (_m.TestFight.AutoFire) _m.HudRef.Flight.TestPressAutoFire();
+					Next(); break;
+				}
+				if (f > 60 * 70) { Fail($"Gefechtstest mit Zielhilfe: Kaperer nach 70 s nicht abgeschossen (Kaperer {uni.Ships[_p28Raider].Hull:0}, Falke {me.Hull:0})"); Next(); }
+				break;
+			}
+			case 85: // Gerätetest Phase 28: Kriegstest — Gegenwehr unter „Station angreifen“, Zielhilfe dreht zur Station, Raketenvorrat auf der Bucht, Rakete sichtbar
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				if (f == 1) { _m.TestMenu("new:war"); break; }
+				if (f == 6)
+				{
+					var hq = uni.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+					_p28Station = hq.Id;
+					_m.TestSetStationTarget(hq.Id);
+					_m.TestStopAutomation();
+					// Nase weg von der Station (wie nach dem Abdocken)
+					var pl = uni.Ships[uni.PlayerShip];
+					_m.TestFace(pl.Position + (pl.Position - hq.Position));
+					_m.SyncHudForTest();
+					Check(_m.HudRef.Flight.TestStationAttackInfo.Contains("Geschütze") && _m.HudRef.Flight.TestStationAttackInfo.Contains("Raketen"), $"„Station angreifen“ nennt die Gegenwehr ({_m.HudRef.Flight.TestStationAttackInfo})");
+					Check(_m.TestBayPlaces.Any(n => n.StartsWith("Vorrat ") && n.Contains('/')), $"Raketenbucht zeigt den Vorrat ({string.Join(",", _m.TestBayPlaces)})");
+					_m.TestArmStation();
+					break;
+				}
+				if (f == 90)
+				{
+					var pl = uni.Ships[uni.PlayerShip];
+					float off = Mathf.RadToDeg(SpaceSim.Core.Flight.AimAssist.Delta(_m.TestHeadingRad, SpaceSim.Core.Flight.AimAssist.Bearing(pl.Position, uni.Stations[_p28Station].Position)));
+					Check(System.MathF.Abs(off) < 5f, $"Zielhilfe dreht die Nase zur Station ({off:0}°)");
+					bool fired = _m.TestFireSlot(pl.Fit.IndexOf("missile_launcher_s"));
+					Check(fired, $"Rakete gestartet ({_m.TestFightMessage})");
+					break;
+				}
+				if (f > 90 && f < 200 && _m.TestMissilesShown > 0) { _p28SeenMissile = 2; }
+				if (f == 200)
+				{
+					Check(_p28SeenMissile == 2, "Rakete im Flug sichtbar (CombatView)");
+					_p28SeenMissile = 0;
+					Next();
+				}
+				break;
+			}
+			case 86: // Gerätetest Phase 28: Stationen außerhalb des Bildes — Randmarker, antippen wählt die Station
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				if (f == 1)
+				{
+					if (uni.Fights.Of(uni.PlayerShip) is { } e && e.Of(uni.PlayerShip) is { Active: true } pp) SpaceSim.Core.Combat.Engage.Leave(uni, e, pp, CombatExit.Fled);
+					_m.TestFight.ClearTarget();
+					_m.TestClearTarget();
+					break;
+				}
+				if (f == 5)
+				{
+					var marks = _m.HudRef.EdgeMarkers.ToList();
+					Check(marks.Count > 0, $"Randmarker für Stationen außerhalb des Bildes ({marks.Count})");
+					if (marks.Count > 0) { _p28MarkId = marks[0].Id; Tap(marks[0].Pos, true); }
+					break;
+				}
+				if (f == 6) { if (_p28MarkId != 0) Tap(_m.HudRef.EdgeMarkers.FirstOrDefault(m => m.Id == _p28MarkId).Pos, false); break; }
+				if (f == 9)
+				{
+					Check(_p28MarkId == 0 || _m.TestTargetStation == _p28MarkId, $"Tipp auf den Randmarker wählt die Station ({_m.TestTargetStation} statt {_p28MarkId})");
+					Next();
+				}
+				break;
+			}
+			case 87: // Gerätetest Phase 28: Speicher — Knoten/Objekte über zwei Runden aus je 200 Neuaufbauten und 5 Sektorwechseln (wächst die zweite Runde, ist es ein Leck)
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				int round = f / 400, rf = f % 400;
+				if (f == 1) { _m.TestMenu("new"); _m.Session.RunTicks(2); break; }
+				if (round > 2) break;
+				if (rf == 30)
+				{
+					System.GC.Collect(); System.GC.WaitForPendingFinalizers();
+					long nodes = (long)Performance.GetMonitor(Performance.Monitor.ObjectNodeCount);
+					long objects = (long)Performance.GetMonitor(Performance.Monitor.ObjectCount);
+					long orphans = (long)Performance.GetMonitor(Performance.Monitor.ObjectOrphanNodeCount);
+					GD.Print($"[selftest] Speicher Runde {round}: Knoten {nodes}, Objekte {objects}, verwaist {orphans}, Ressourcen {Performance.GetMonitor(Performance.Monitor.ObjectResourceCount)}, statisch {Performance.GetMonitor(Performance.Monitor.MemoryStatic) / 1048576.0:0.0} MB, verwaltet {System.GC.GetTotalMemory(false) / 1048576.0:0.0} MB");
+					if (round == 1) { _p28Nodes = nodes; _p28Objects = objects; _p28Orphans = orphans; }
+					if (round == 2)
+					{
+						Check(nodes - _p28Nodes < 100, $"Knotenzahl wächst nicht je Runde ({_p28Nodes} → {nodes})");
+						Check(orphans - _p28Orphans < 20, $"keine verwaisten Knoten ({_p28Orphans} → {orphans})");
+						Check(objects - _p28Objects < 1000, $"Objektzahl wächst nicht je Runde ({_p28Objects} → {objects})");
+						Next(); break;
+					}
+					var ww = uni.Stations.Values.First(x => x.Name == "Wasserwerk Alpha");
+					_m.TestDockAt(ww.Id);
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Trade);
+					break;
+				}
+				if (rf > 30 && rf <= 230) { _m.HudRef.DockTrade.TestRebuild(); break; }   // 200 Neuaufbauten
+				if (rf == 231) { _m.TestCloseDockArea(); _m.TestUndock(); break; }
+				if (rf > 300 && rf <= 305)
+				{
+					var secs = uni.Sectors.Keys.OrderBy(k => k.Value).ToList();
+					_m.TestEnterSector(secs[(rf - 300) % secs.Count]);
+					break;
+				}
+				if (rf == 306) _m.TestEnterSector(new SectorId(1));
 				break;
 			}
 			default:
@@ -2341,7 +2496,9 @@ public partial class SelfTest : Node
 	}
 	Ui.Kit.KitButton? _p28Probe;
 	int _p28ProbeHits;
-	float _p28Max, _p28Cargo, _p28Buyable;
+	float _p28Max, _p28Cargo, _p28Buyable, _p28MaxOff;
+	int _p28MarkId;
+	long _p28Nodes, _p28Objects, _p28Orphans;
 	/// <summary>Phase 26: Schaden, Reparatur, Bergung (Stufen 63–66).</summary>
 	int _p26Laser, _p26Wreck;
 	float _p26Hull, _p26Cargo, _p26Keep;

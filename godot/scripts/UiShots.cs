@@ -722,7 +722,14 @@ public partial class UiShots : Node
 				_m.TestStopAutomation();
 				_stage = 593_9; _wait = 15; break;
 			}
-			case 593_9: Capture("89-kriegstest-station-gewaehlt.png"); _stage = 999_999; _wait = 5; break;
+			case 593_9:
+			{
+				// Prüfung Runde 2: warum „Nächster Gegner“ sichtbar ist (Gegner im Sektor nennen)
+				var uni = _m.Session.U;
+				GD.Print("[ui-shots] Gegner im Sektor: " + string.Join(", ", SpaceSim.Core.Combat.PlayerCombat.Enemies(uni, uni.Ships[uni.PlayerShip])
+					.Select(id => $"{uni.Ships[id].Role} #{id.Value} {(uni.Ships[id].Transit is not null ? "auf Durchreise" : "geparkt")}")));
+				Capture("89-kriegstest-station-gewaehlt.png"); _stage = 999_999; _wait = 5; break;
+			}
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

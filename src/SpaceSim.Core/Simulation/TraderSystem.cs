@@ -88,6 +88,7 @@ public sealed class TraderSystem : ISimSystem
 
         TradeOrder? best = null;
         float bestScore = 0f;
+        bool planGuard = u.Rules.TraderBuyGuard && u.Rules.TraderPlanGuard && ship.Controller == Controller.Ai;
         // Phase 12: Grenzen eines Automatikauftrags (Spielerflotte: Reichweite, höchster Einkaufspreis, Rücklage); KI ohne Befehl: keine
         var limits = AutoLimitRules.Of(ship);
         // Phase 19: auch ohne Automatikgrenzen nur planen, was die eigene Kasse bezahlen kann — sonst fuhr ein mittelloses Schiff immer wieder zur
@@ -150,6 +151,11 @@ public sealed class TraderSystem : ISimSystem
                     var s = entries[si];
                     float margin = s.Price - b.Price;
                     if (margin <= 0f) continue;
+                    // Prüfung Runde 2 (Leerfahrten): schon beim Planen die Kaufschutz-Bedingung mit dem erwarteten Einkaufspreis bei Ankunft prüfen — Bestand des
+                    // Herstellers nach den Käufen, die andere Händler dort schon vorhaben (Preisformel Ziel ÷ Bestand, als Verhältnis auf den heutigen Preis).
+                    // Gemessen: die Abnehmerseite (unterwegs befindliche Lieferungen) zusätzlich einzurechnen senkte Umsatz und Exporte — nur die Verkäuferseite.
+                    if (planGuard && b.Price * StockFactor(b, available) / StockFactor(b, b.Amount) >= s.Price * u.Rules.TraderBuyGuardShare)
+                        continue;
                     // Die Station zahlt nur, was ihre Kasse hergibt (der Rest der Ladung wird ohne Bezahlung abgeladen): mit dem
                     // tatsächlichen Erlös rechnen statt arme Abnehmer ganz zu überspringen. Sonst verhungert eine Station, deren
                     // Eingangsware knapp und damit teuer ist, endgültig — sie kann die volle Ladung nie zu 25 % anzahlen.
@@ -191,6 +197,9 @@ public sealed class TraderSystem : ISimSystem
         }
         return (best, bestScore);
     }
+
+    /// <summary>Prüfung Runde 2: Preisfaktor der Marktformel Ziel ÷ Bestand (gedeckelt 0,25…4) — für den Vergleich erwarteter mit heutigen Preisen.</summary>
+    static float StockFactor(StockEntry e, float amount) => Math.Clamp(e.Target / MathF.Max(amount, 1f), 0.25f, 4f);
 
     static bool PickOrder(Universe u, Ship ship)
     {

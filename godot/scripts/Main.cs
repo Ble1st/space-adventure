@@ -105,6 +105,7 @@ public partial class Main : Node3D
 		_hud = new Hud(); AddChild(_hud);
 
 		_hud.TargetScreenPosition = ScreenPositionOfTarget;
+		_hud.StationScreenPositions = StationScreenPositions;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
 		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
 		_hud.Flight.FastPressed += () => { _fast = _hud.Flight.FastOn; _sfx.Play(SfxId.Click); };
@@ -116,8 +117,15 @@ public partial class Main : Node3D
 		_hud.Flight.BayDown += OnBayDown;
 		_hud.Flight.AllFire += FireReadyBays;
 		// Phase 25: Dauerfeuer und „Nächster Gegner“
-		_hud.Flight.AutoFirePressed += () => { _fight.AutoFire = !_fight.AutoFire; _sfx.Play(SfxId.Click); _hud.Toast(_fight.AutoFire ? "Dauerfeuer an" : "Dauerfeuer aus"); };
+		_hud.Flight.AutoFirePressed += () =>
+		{
+			_fight.AutoFire = !_fight.AutoFire;
+			if (_fight.AutoFire) _aimAssist = true;   // Gerätetest Phase 28: Dauerfeuer schaltet die Zielhilfe mit ein
+			_sfx.Play(SfxId.Click);
+			_hud.Toast(_fight.AutoFire ? "Dauerfeuer an · Ziel folgen an" : "Dauerfeuer aus");
+		};
 		_hud.Flight.NextEnemyPressed += SelectNextEnemy;
+		_hud.Flight.AimAssistPressed += () => { _aimAssist = !_aimAssist; _sfx.Play(SfxId.Click); _hud.Toast(_aimAssist ? "Ziel folgen an: die Nase folgt dem Ziel (◀ ▶ übersteuern)" : "Ziel folgen aus"); };
 		_hud.Flight.StationAttackPressed += ArmStationAttack;   // Phase 28
 		_hud.Flight.SurrenderPressed += Surrender;
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
@@ -576,6 +584,9 @@ public partial class Main : Node3D
 	internal int TestCombatShots => _combat.ShotsSeen;
 	/// <summary>Phase 28: zuletzt gezeigte Raketen, letzte Kriegs-/Stationsmeldung, scharfes Stationsziel (Selbsttest).</summary>
 	internal int TestMissilesShown => _combat.MissilesShown;
+	internal IEnumerable<string> TestBayPlaces => _bayViews.Where(b => b != null).Select(b => b.Place);
+	internal int TestTargetStation => _targetStation?.Value ?? 0;
+	internal void TestClearTarget() { _target = null; _targetStation = null; }
 	internal string LastWarMessage { get; private set; } = "";
 	internal SpaceSim.Core.Model.StationId TestStationTarget => _fight.StationTarget;
 	internal void TestArmStation() => ArmStationAttack();
@@ -641,6 +652,12 @@ public partial class Main : Node3D
 			case PeaceConcluded pc: LastWarMessage = pc.Message; _hud.Alert(pc.Message, 6f); break;
 			case EncounterStarted siege when siege.Cause == EncounterCause.Siege && siege.Sector == _session.U.PlayerSector:
 				LastCombatMessage = siege.Message; _hud.Toast(siege.Message, 4f); break;
+			// Gerätetest Phase 28: Überfall auf dich — das angreifende Schiff wird Ziel, Hinweis auf Dauerfeuer/Zielhilfe
+			case EncounterStarted raid when raid.Cause == EncounterCause.Raid && raid.Defender == _session.U.PlayerShip:
+				_fight.SetTarget(raid.Attacker);
+				LastCombatMessage = $"Überfall! Ziel gewählt: {(_session.U.Ships.TryGetValue(raid.Attacker, out var ra) ? SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ra) : "Kaperschiff")} — „Dauerfeuer“ an? „Ziel folgen“ hält es im Bugwinkel.";
+				Danger("Überfall", LastCombatMessage, 8f);
+				break;
 			case EncounterStarted arrest when arrest.Cause == EncounterCause.Arrest:
 				LastCombatMessage = arrest.Message; Danger("Polizei greift an", arrest.Message, 8f); break;
 			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
@@ -733,6 +750,14 @@ public partial class Main : Node3D
 			: null;
 		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
 		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(delta);
+		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — ohne Wendetaste, ohne Autopilot/Auto-Mining dreht die Nase mit der Drehrate des Schiffs zum gewählten Feind
+		// (Core-Regel AimAssist.Turn); Schub bleibt beim Regler und zeigt dann in die neue Blickrichtung
+		if (!frozen && turn == 0f && _aimAssist && !_autopilot && !_miner.Enabled && AimTarget() is { } aimAt)
+		{
+			float h = AimAssist.Turn(_player.Heading, AimAssist.Bearing(new Vec2(_player.Position.X, _player.Position.Z), aimAt), AimAssist.PlayerTurnRate, delta);
+			_player.Heading = h;
+			if (throttle != 0f) dir = new Vector2(-Mathf.Sin(h), -Mathf.Cos(h));
+		}
 		_player.Locked = _docked != null || _transition;
 		bool hold = _miner.Enabled && _miningStep is { Nav: null, Waypoint: null };   // Automatik arbeitet an Ort und Stelle
 		// Treibstoff (Phase 4c): leerer Tank deckelt das Tempo (Notantrieb), die geflogene Strecke wird abgebucht
@@ -1072,6 +1097,8 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		var st = u.Stations[id];
+		// Gerätetest Phase 28: Handels-Editor und alte Meldung („Kauf erfolgreich“) gehören zur vorigen Station
+		if (_hud.DockCtx.Station?.Id != id) _hud.DockTrade.ResetSession();
 		_docked = id;
 		PlayerData.DockedAt = id;   // Phase 12: Liegeplatz des aktiven Schiffs (Hangar, Taxi, Liegegebühr)
 		_transition = true;
@@ -1249,8 +1276,32 @@ public partial class Main : Node3D
 		return from + dir * (-from.Y / dir.Y);
 	}
 
+	/// <summary>Gerätetest Phase 28: Stationen des Spielersektors als Bildschirmpositionen (für die Randmarker außerhalb des Bildes); im Dock/Vollbild leer.</summary>
+	IReadOnlyList<(Vector2 Screen, string Name, int Id)> StationScreenPositions()
+	{
+		var list = new List<(Vector2, string, int)>();
+		if (_session == null || _docked != null) return list;
+		var u = _session.U;
+		foreach (var id in u.Sectors[u.PlayerSector].Stations)
+		{
+			if (!u.Stations.TryGetValue(id, out var st) || (_targetStation is { } ts && ts == id)) continue;   // das gewählte Ziel hat seinen eigenen Pfeil
+			var w = new Vector3(st.Position.X, 0, st.Position.Y);
+			var p = _cam.UnprojectPosition(w);
+			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
+			list.Add((p, st.Name, id.Value));
+		}
+		return list;
+	}
+
 	void TryPickTarget(Vector2 screen)
 	{
+		// Gerätetest Phase 28: Randmarker einer Station außerhalb des Bildes antippen wählt sie
+		foreach (var (pos, sid) in _hud.EdgeMarkers)
+			if (pos.DistanceTo(screen) <= 36f && _session.U.Stations.ContainsKey(new StationId(sid)))
+			{
+				SelectTarget(Navigator.ForStation(_session.U, new StationId(sid), _session.U.PlayerShip), new StationId(sid));
+				return;
+			}
 		if (GroundPoint(screen) is not { } ground) return;
 		// Phase 26: Wracks und Frachtbehälter antippbar (Traktor zieht Fracht, „Bergen“ birgt Module)
 		if (_session.U.Rules.DamageActive && SalvageController.Pick(_session.U, new Vec2(ground.X, ground.Z), 4f) is { } wreck)
@@ -1432,6 +1483,9 @@ public partial class Main : Node3D
 		d.CanAttackStation = _docked is null && u.Rules.Warfare && d.HasWeapons && navStation is not null
 			&& SpaceSim.Core.Combat.PlayerGunnery.StationIssue(u, PlayerData, navStation) is null;
 		d.StationAttackArmed = _fight.StationTarget.Value != 0;
+		d.StationAttackInfo = navStation is not null ? SpaceSim.Core.Combat.WarInfo.DefenseWarning(u, navStation, PlayerData) : "";
+		d.AimAssistVisible = _docked is null && AimTarget() is not null;
+		d.AimAssistOn = _aimAssist;
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast))
 		{
 			d.TargetName = $"Angriff: {ast.Name}";
@@ -1566,6 +1620,9 @@ public partial class Main : Node3D
 				string wplace = (bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°") + $" · {bay.Range:0} m";
 				// Phase 25 (Korrektur): lange Modulnamen auf das letzte Wort kürzen („Kinetisches Geschütz“ → „Geschütz“), damit sie in die Taste passen
 				string wname = ShortBayName(bay.Name);
+				// Gerätetest Phase 28: Raketenvorrat auf der Bucht („Raketen 6/6“)
+				if (wslot < PlayerData.Fit.Count && PlayerData.Fit[wslot] is { } wkey && _session.U.Modules.TryGetValue(wkey, out var wmod) && SpaceSim.Core.Combat.Missiles.IsMissile(wmod))
+					wplace = $"Vorrat {SpaceSim.Core.Combat.Missiles.Loaded(_session.U, PlayerData):0}/{PlayerData.Stats.MissileCapacity:0} · {bay.Range:0} m";
 				_bayViews[i] = new BayView { Name = wname, Place = wplace, Detail = wdetail, State = wst,
 					Reload = SpaceSim.Core.Combat.PlayerGunnery.ReloadProgress(_session.U, PlayerData, wslot), Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;
@@ -1764,6 +1821,21 @@ public partial class Main : Node3D
 	internal void TestSurrender() => Surrender();
 	/// <summary>Phase 27: Selbsttest — HUD-Daten sofort neu setzen (sonst erst im nächsten Frame).</summary>
 	internal void SyncHudForTest() => UpdateHud();
+
+	/// <summary>Zielhilfe: Ort des Ziels — scharfe Station, sonst gewähltes feindliches Schiff im Sektor (Gefechts- oder Flugposition); null = keins.</summary>
+	Vec2? AimTarget()
+	{
+		var u = _session.U;
+		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var st) && st.Sector == u.PlayerSector) return st.Position;
+		if (_fight.Target.Value != 0 && u.Ships.ContainsKey(_fight.Target) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, _fight.Target)
+			&& SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } p && p.Sector == u.PlayerSector) return p.Pos;
+		return null;
+	}
+
+	/// <summary>Gerätetest Phase 28: Zielhilfe an (Standard; „Dauerfeuer“ schaltet sie mit ein).</summary>
+	bool _aimAssist = true;
+	internal bool TestAimAssist { get => _aimAssist; set => _aimAssist = value; }
+	internal float TestHeadingRad => _player.Heading;
 
 	void SelectNextEnemy()
 	{

@@ -72,6 +72,10 @@ public sealed class FlightHudData
 	/// <summary>Phase 28: Die gewählte Station kann angegriffen werden (Taste „Station angreifen“, zwei Tipps); scharf = die Waffen schießen auf sie.</summary>
 	public bool CanAttackStation, StationAttackArmed;
 	public string HitWarning = "";
+	/// <summary>Gerätetest Phase 28: Gegenwehr der Station (Geschütze, Reichweite, eigene Raketenreichweite) unter „Station angreifen“.</summary>
+	public string StationAttackInfo = "";
+	/// <summary>Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — sichtbar mit feindlichem Ziel (Schiff im Gefecht oder scharfe Station), an/aus.</summary>
+	public bool AimAssistVisible, AimAssistOn;
 }
 
 /// <summary>
@@ -102,13 +106,17 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
 	public event Action<PowerMode>? PowerModePressed;
 	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
-	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed, StationAttackPressed;
+	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed, StationAttackPressed, AimAssistPressed;
 	/// <summary>Phase 28: „Station angreifen“ (zwei Tipps über <see cref="KitConfirm"/>).</summary>
 	KitButton _stationAttack = null!;
 	readonly KitConfirm _attackConfirm = new();
 	public bool TestStationAttackVisible => _stationAttack.Visible;
 	public void TestPressStationAttack() => StationAttackPressed?.Invoke();
-	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!;
+	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!, _aimAssist = null!;
+	public bool TestAimAssistVisible => _aimAssist.Visible;
+	public string TestStationAttackInfo { get; private set; } = "";
+	public bool TestAimAssistOn => _aimAssist.On;
+	public Rect2 TestAimAssistRect => new(_aimAssist.Position, _aimAssist.Size);
 	/// <summary>Phase 27: Selbsttest — Taste „Ergeben“.</summary>
 	public bool TestSurrenderVisible => _surrender.Visible;
 	public bool TestSurrenderEnabled => _surrender.Visible && _surrender.State != KitButtonState.Disabled;
@@ -122,6 +130,7 @@ public partial class FlightHud : Control, IScreen
 	public Rect2 TestAutoFireRect => new(_autoFire.Position, _autoFire.Size);
 	public Rect2 TestNextEnemyRect => new(_nextEnemy.Position, _nextEnemy.Size);
 	public bool TestNextEnemyVisible => _nextEnemy.Visible;
+	public bool TestNextEnemyEnabled => _nextEnemy.Visible && _nextEnemy.State != KitButtonState.Disabled;
 	public void TestPressNextEnemy() => NextEnemyPressed?.Invoke();
 	public void TestPressAutoFire() => AutoFirePressed?.Invoke();
 
@@ -315,6 +324,10 @@ public partial class FlightHud : Control, IScreen
 		_stationAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(160, 56)) { FontSize = 15 }, "station_attack", "Station angreifen",
 			() => StationAttackPressed?.Invoke()), 764, 268);
 		_stationAttack.Visible = false;
+		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — unter „Station angreifen“ (Umschalter; die Nase folgt dem gewählten Feind mit der Drehrate des Schiffs)
+		_aimAssist = At(this, new KitButton("Ziel folgen", new Vector2(160, 56)) { FontSize = 15, Toggle = true }, 764, 330);
+		_aimAssist.Pressed += () => AimAssistPressed?.Invoke();
+		_aimAssist.Visible = false;
 		// Phase 27: „Ergeben“ — rechts über „Dauerfeuer“, nur wenn die Polizei oder Kaperer eine Aufgabe annehmen; Bestätigung mit zweitem Tippen (KitConfirm)
 		_surrender = At(this, new KitButton("Ergeben", new Vector2(176, 56)) { FontSize = 16, State = KitButtonState.Warn }, 906, 398);
 		_surrender.Pressed += () => SurrenderPressed?.Invoke();
@@ -532,7 +545,14 @@ public partial class FlightHud : Control, IScreen
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
 		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
+		// Prüfung Runde 2: bewaffnet, aber kein Gegner im Sektor — Taste bleibt an ihrem Platz, gesperrt mit Grund (vorher sah sie aktiv aus)
+		_nextEnemy.State = d.EnemyNear ? KitButtonState.Normal : KitButtonState.Disabled;
+		_nextEnemy.Sub = d.EnemyNear ? "" : "kein Gegner";
 		_stationAttack.Visible = d.CanAttackStation && !d.StationAttackArmed;
+		if (_stationAttack.Text != "Wirklich?") _stationAttack.Sub = d.StationAttackInfo;
+		TestStationAttackInfo = d.StationAttackInfo;   // scharf: „nochmal tippen“ bleibt
+		_aimAssist.Visible = d.AimAssistVisible;
+		_aimAssist.On = d.AimAssistOn;
 		_surrender.Visible = d.CanSurrender || d.SurrenderRelevant;
 		_surrender.State = d.CanSurrender ? KitButtonState.Warn : KitButtonState.Disabled;
 		_surrender.Sub = d.CanSurrender ? "" : d.SurrenderReason;

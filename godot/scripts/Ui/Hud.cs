@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceAdventure.Ui.Screens;
@@ -48,6 +49,13 @@ public partial class Hud : CanvasLayer
 
 	/// <summary>Liefert die Bildschirmposition des Autopilot-Ziels (oder null), damit der Marker gezeichnet werden kann.</summary>
 	public Func<Vector2?>? TargetScreenPosition { get; set; }
+	/// <summary>
+	/// Gerätetest Phase 28 (Station im Flugbild nicht auffindbar): Bildschirmpositionen der Stationen des Sektors (Projektion, auch außerhalb des Bildes) mit
+	/// Namen und Id — außerhalb des Bildes zeichnet die Anzeige am Rand des freien Mittelfelds einen kleinen Pfeil mit Namen, antippbar.
+	/// </summary>
+	public Func<IReadOnlyList<(Vector2 Screen, string Name, int Id)>>? StationScreenPositions { get; set; }
+	/// <summary>Zuletzt gezeichnete Randmarker (Bildschirmposition, Stations-Id) — für das Antippen.</summary>
+	public List<(Vector2 Pos, int Id)> EdgeMarkers { get; } = new();
 
 	readonly Label _toast = new();
 	readonly ColorRect _flash = new() { Color = Colors.White, MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
@@ -117,7 +125,6 @@ public partial class Hud : CanvasLayer
 		_toast.Position = new Vector2(-300, 112); _toast.Size = new Vector2(600, 60);
 		_toast.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_toast.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.78f), null, 10, 0, 6));
-		root.AddChild(_toast);
 
 		// Wichtige Meldungen (Überfall, Schiffsverlust, Zeitraffer aus). Zweiter Gerätetest Phase 28: eigene Ebene über allem (CanvasLayer 100) —
 		// sie bekommt Tipps zuerst und fängt sie selbst ab (vorher lag sie im Baum vor den Dock-Bildschirmen, der Tipp ging an die Kachel darunter);
@@ -152,6 +159,8 @@ public partial class Hud : CanvasLayer
 			if (!pressed && !motion) HideAlert();
 		};
 		alertRoot.AddChild(_alert);
+		// Gerätetest Phase 28: Hinweise (z. B. „Gespeichert“) über allen Bildschirmen — vorher lagen sie unter dem Hintergrund offener Menüs
+		alertRoot.AddChild(_toast);
 
 		// Phase 28 (Prüfpunkt f): Fortschritt des Offline-Nachholens beim Start (statt langem Splash) — dunkle Fläche mit Text und Balken, blockiert Eingaben
 		_loading.Color = new Color(0.01f, 0.02f, 0.05f, 0.97f);
@@ -216,7 +225,7 @@ public partial class Hud : CanvasLayer
 
 	readonly Control _center = new();
 	readonly ColorRect _backdrop = new();
-	const float AlertWidth = 600f, AlertHeight = 78f;
+	const float AlertWidth = 560f, AlertHeight = 78f;
 	/// <summary>Zweiter Gerätetest Phase 28: Höchstdauer jeder Meldung (auch der stehenden Verlustmeldung).</summary>
 	public const float AlertMaxSeconds = 20f;
 	readonly CanvasLayer _alertLayer = new();
@@ -248,13 +257,27 @@ public partial class Hud : CanvasLayer
 		_toast.Modulate = new Color(1, 1, 1, 0);
 	}
 
-	/// <summary>Oben mittig: im Flug unter Sektorchip und Lagezeile, über Vollbild-Bereichen in deren Kopfleiste (zwischen Titel und Kasse).</summary>
+	/// <summary>
+	/// Oben: im Flug mittig unter Sektorchip und Lagezeile (frei bis zur Zielkarte, höchstens drei Zeilen); über Vollbildern und dem Dock-Menü in der
+	/// Kopfleiste zwischen Bereichstitel und Kasse, zwei Zeilen hoch über dem Fensterrand (Prüfung Runde 2: sie verdeckte Lagezeile bzw. Bereichstitel).
+	/// </summary>
 	void PlaceAlert()
 	{
 		var vp = GetViewport().GetVisibleRect().Size;
 		bool screen = Screens.Current != null && Screens.Current != Flight;
-		_alert.Position = new Vector2((vp.X - AlertWidth) / 2f, screen ? 2f : 74f);
+		// Gerätetest Phase 28: über dem Dock-Menü (schmales Fenster in der Mitte, Titel oben) links neben dem Fenster, mehrzeilig — oben verdeckte es den Titel
+		bool dockMenu = Screens.Current == DockMenu;
+		float side = (vp.X - DockMenuWidth) / 2f - 20f;
+		var size = dockMenu ? new Vector2(MathF.Max(300f, side), 150f) : screen ? new Vector2(ScreenAlertWidth, ScreenAlertHeight) : new Vector2(AlertWidth, AlertHeight);
+		_alert.Size = size;
+		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2((vp.X - AlertWidth) / 2f, FlightAlertY);
+		_alertText.MaxLinesVisible = dockMenu ? 6 : screen ? 2 : 3;
+		_alertText.AddThemeFontSizeOverride("font_size", screen ? 14 : 15);
+		_alertText.Position = new Vector2(12, 4); _alertText.Size = new Vector2(size.X - 12 - 64, size.Y - 8);
+		_alertClose.Position = new Vector2(size.X - 60, dockMenu ? size.Y - 60 : (size.Y - 56) / 2f);
 	}
+	const float DockMenuWidth = 580f;
+	const float FlightAlertY = 84f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
 
 	/// <summary>Selbsttest: Mittelpunkt der Meldung und des „✕“ (für simulierte Tipps).</summary>
 	public Vector2 TestAlertCenter => _alert.GetGlobalRect().GetCenter();
@@ -286,7 +309,10 @@ public partial class Hud : CanvasLayer
 		if (_alert.Visible && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
 		if (_alert.Visible) PlaceAlert();
 		// der Hinweis rückt unter eine stehende Meldung (statt sie zu überdecken)
-		_toast.Position = new Vector2(_toast.Position.X, _alert.Visible ? 74f + AlertHeight + 6f : 112f);
+		// Prüfung Runde 2: unter einer Meldung im Flug schmaler und links der Kampftasten („Nächster Gegner“ beginnt bei x 764 im 1280er-Raster)
+		bool below = _alert.Visible && !(Screens.Current != null && Screens.Current != Flight);
+		_toast.Position = new Vector2(_toast.Position.X, below ? FlightAlertY + AlertHeight + 6f : 112f);
+		_toast.Size = new Vector2(below ? 416f : 600f, _toast.Size.Y);
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 	}
 
@@ -313,12 +339,56 @@ public partial class Hud : CanvasLayer
 	/// <summary>Zeichnet Ring am Ziel bzw. Pfeil am Bildschirmrand, wenn das Ziel außerhalb liegt.</summary>
 	sealed partial class TargetMarker : Control
 	{
+		/// <summary>Freies Mittelfeld (zwischen Status-/Kampfspalten), an dessen Rand die Stations-Randmarker liegen.</summary>
+		Rect2 Field() => new(Size.X * 0.27f, 180f, Size.X * 0.46f, Size.Y - 180f - 130f);   // unter Hinweis- und Meldungsfeld
+
+		readonly List<Rect2> _labelBoxes = new();
+
+		void DrawEdgeStations()
+		{
+			Hud.EdgeMarkers.Clear();
+			_labelBoxes.Clear();
+			if (Hud.StationScreenPositions?.Invoke() is not { } list || Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight) return;
+			var font = ThemeDB.FallbackFont;
+			var col = new Color(0.45f, 0.85f, 1f, 0.9f);
+			var view = new Rect2(Vector2.Zero, Size).Grow(-20f);
+			var field = Field();
+			var c = field.GetCenter();
+			foreach (var (screen, name, id) in list)
+			{
+				if (view.HasPoint(screen)) continue;   // im Bild: die Station selbst ist antippbar
+				var dir = (screen - c).Normalized();
+				if (dir == Vector2.Zero) continue;
+				float t = Mathf.Min(Mathf.Abs(field.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(field.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));
+				var tip = c + dir * t;
+				// dicht beieinander liegende Stationen: nur ein Marker (Namen liefen übereinander)
+				bool near = false;
+				foreach (var (mp, _) in Hud.EdgeMarkers) if (mp.DistanceTo(tip - dir * 18f) < 70f) { near = true; break; }
+				if (near) continue;
+				var side = new Vector2(-dir.Y, dir.X) * 9f;
+				DrawColoredPolygon(new[] { tip, tip - dir * 18f + side, tip - dir * 18f - side }, col);
+				string label = name.Length > 20 ? name[..19] + "…" : name;
+				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, 13).X;
+				var lp = tip - dir * 30f - new Vector2(w / 2f, -4f);
+				var box = new Rect2(lp - new Vector2(4f, 13f), new Vector2(w + 8f, 18f));
+				// Namen nur, wo sie nicht über einem schon gezeichneten Namen liegen (der Pfeil bleibt)
+				if (!_labelBoxes.Exists(b => b.Intersects(box)))
+				{
+					_labelBoxes.Add(box);
+					DrawRect(box, new Color(0.02f, 0.04f, 0.09f, 0.75f));
+					DrawString(font, lp, label, HorizontalAlignment.Left, -1, 13, col);
+				}
+				Hud.EdgeMarkers.Add((tip - dir * 18f, id));
+			}
+		}
+
 		public Hud Hud = null!;
 		public TargetMarker() { MouseFilter = MouseFilterEnum.Ignore; SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); }
 		public override void _Process(double delta) => QueueRedraw();
 
 		public override void _Draw()
 		{
+			DrawEdgeStations();
 			var p = Hud.TargetScreenPosition?.Invoke();
 			if (p is not { } pos) return;
 			var rect = new Rect2(Vector2.Zero, Size).Grow(-30f);
