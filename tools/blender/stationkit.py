@@ -19,24 +19,28 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 # es spaeter per Fraktionsfarbe einfaerben (multiplizieren) kann.
 PALETTE = {
     #  name        base color              metal rough  emission color        strength
-    "Hull":      ((0.58, 0.60, 0.63), 0.35, 0.42, None, 0),
-    "HullDark":  ((0.16, 0.17, 0.19), 0.40, 0.50, None, 0),
-    "Accent":    ((0.86, 0.86, 0.84), 0.05, 0.38, None, 0),
-    "Window":    ((1.00, 0.72, 0.35), 0.00, 0.40, (1.00, 0.55, 0.15), 1.3),
-    "Light":     ((0.25, 0.80, 1.00), 0.00, 0.40, (0.05, 0.60, 1.00), 2.0),
-    "LightRed":  ((1.00, 0.12, 0.08), 0.00, 0.40, (1.00, 0.03, 0.01), 2.4),
-    "Glass":     ((0.10, 0.26, 0.36), 0.00, 0.08, (0.04, 0.20, 0.30), 0.5),
-    "Panel":     ((0.04, 0.09, 0.26), 0.50, 0.25, (0.01, 0.04, 0.14), 0.4),
-    "Glow":      ((1.00, 0.35, 0.05), 0.00, 0.50, (1.00, 0.18, 0.00), 1.6),
-    "Plasma":    ((0.55, 0.30, 1.00), 0.00, 0.30, (0.45, 0.12, 1.00), 2.6),
-    "Rock":      ((0.20, 0.17, 0.15), 0.00, 0.92, None, 0),
-    "Gold":      ((1.00, 0.70, 0.28), 0.55, 0.30, None, 0),
-    "Copper":    ((0.88, 0.44, 0.22), 0.50, 0.35, None, 0),
-    "Hazard":    ((0.95, 0.68, 0.05), 0.05, 0.55, None, 0),
-    "Plant":     ((0.18, 0.70, 0.20), 0.00, 0.60, (0.06, 0.60, 0.08), 1.1),
-    "Ice":       ((0.70, 0.85, 0.95), 0.00, 0.18, (0.15, 0.32, 0.45), 0.4),
-    "Crystal":   ((0.75, 0.40, 1.00), 0.10, 0.12, (0.50, 0.12, 0.95), 1.2),
-    "Container": ((0.62, 0.32, 0.18), 0.15, 0.60, None, 0),
+    "Hull":      ((0.33, 0.35, 0.37), 0.55, 0.46, None, 0),      # Gunmetal
+    "HullDark":  ((0.075, 0.08, 0.09), 0.50, 0.55, None, 0),     # Graphit
+    "Armor":     ((0.23, 0.26, 0.22), 0.40, 0.60, None, 0),      # gedecktes Oliv
+    "Steel":     ((0.18, 0.23, 0.30), 0.50, 0.50, None, 0),      # Stahlblau
+    "Accent":    ((0.80, 0.80, 0.78), 0.05, 0.40, None, 0),      # wird spaeter fraktionsgefaerbt
+    "Window":    ((0.40, 0.55, 0.65), 0.00, 0.40, (0.50, 0.80, 1.00), 1.1),
+    "Light":     ((0.00, 0.25, 0.60), 0.00, 0.40, (0.00, 0.45, 1.00), 1.6),
+    "LightRed":  ((0.50, 0.01, 0.00), 0.00, 0.40, (1.00, 0.02, 0.00), 1.5),
+    "Glass":     ((0.04, 0.10, 0.15), 0.00, 0.08, (0.02, 0.10, 0.18), 0.4),
+    "Panel":     ((0.03, 0.06, 0.16), 0.50, 0.25, (0.00, 0.03, 0.10), 0.4),
+    "Glow":      ((0.50, 0.06, 0.00), 0.00, 0.50, (1.00, 0.12, 0.00), 1.4),
+    "Plasma":    ((0.02, 0.15, 0.55), 0.00, 0.30, (0.03, 0.30, 1.00), 1.8),
+    "Rock":      ((0.12, 0.105, 0.095), 0.00, 0.92, None, 0),
+    "Gold":      ((0.75, 0.55, 0.22), 0.70, 0.35, None, 0),
+    "Copper":    ((0.62, 0.30, 0.15), 0.60, 0.40, None, 0),
+    "Hazard":    ((0.85, 0.58, 0.03), 0.05, 0.55, None, 0),
+    "Plant":     ((0.05, 0.40, 0.08), 0.00, 0.60, (0.05, 0.85, 0.10), 1.0),
+    "Ice":       ((0.55, 0.72, 0.82), 0.00, 0.20, (0.10, 0.28, 0.40), 0.4),
+    "Crystal":   ((0.35, 0.10, 0.60), 0.10, 0.12, (0.50, 0.08, 1.00), 1.1),
+    "Container": ((0.45, 0.22, 0.12), 0.15, 0.65, None, 0),
+    "Rust":      ((0.33, 0.14, 0.06), 0.30, 0.80, None, 0),
+    "Ember":     ((0.25, 0.00, 0.00), 0.00, 0.60, (1.00, 0.03, 0.00), 0.9),
 }
 
 
@@ -70,6 +74,11 @@ def rot_matrix(rot):
 
 def trs(loc=(0, 0, 0), rot=None, scale=(1, 1, 1)):
     return Matrix.Translation(Vector(loc)) @ rot_matrix(rot) @ Matrix.Diagonal((*scale, 1.0))
+
+
+def qdir(d):
+    """Quaternion, die die lokale Z-Achse auf Richtung d dreht."""
+    return Vector((0, 0, 1)).rotation_difference(Vector(d).normalized())
 
 
 def polar(n, radius, start=0.0):
@@ -331,8 +340,151 @@ class Builder:
             self.sphere(s, material(mat), seg=6, rings=4, loc=p)
         return self
 
+
+    # -------------------------------------------------- Raumstations-Bausteine
+    def capsule(self, p, d, L, r, mat, seg=12):
+        """Druckmodul: Zylinder mit gerundeten Enden, Achse d, Mitte p."""
+        prof = [(0, -L / 2), (r * 0.72, -L / 2 + r * 0.28), (r, -L / 2 + r * 0.8),
+                (r, L / 2 - r * 0.8), (r * 0.72, L / 2 - r * 0.28), (0, L / 2)]
+        return self.lathe(prof, mat, seg, loc=p, rot=qdir(d))
+
+    def spindle(self, r, h, mat, seg=14, loc=(0, 0, 0), cap=0.45):
+        """Symmetrischer Kern: Zylinder mit Kegelkappen oben UND unten."""
+        hh = h / 2
+        prof = [(0, -hh - r * cap), (r * 0.55, -hh), (r, -hh + r * 0.3), (r, hh - r * 0.3),
+                (r * 0.55, hh), (0, hh + r * cap)]
+        return self.lathe(prof, mat, seg, loc=loc)
+
+    def dock(self, p, d, r=0.7, L=2.2, mat="HullDark"):
+        """Andockstutzen ab p in Richtung d mit Kragen und Leuchtring."""
+        p, d = Vector(p), Vector(d).normalized()
+        q = qdir(d)
+        self.cyl(r, L, material(mat), seg=10, loc=p + d * (L / 2), rot=q)
+        self.ring(r * 1.55, r * 0.5, 0.45, material("Hull"), seg=10, loc=p + d * L, rot=q)
+        self.ring(r * 1.12, r * 0.12, 0.47, material("Light"), seg=10, loc=p + d * L, rot=q)
+        return self
+
+    def radiator(self, p, d, length, width, tilt=0.0, mat="Hull", stripe="Glow", n=3):
+        """Radiator-/Kuehlfluegel: Ausleger ab p entlang d (in der Ebene), Paneel um d gekippt."""
+        p, d = Vector(p), Vector((d[0], d[1], 0)).normalized()
+        yaw = math.degrees(math.atan2(d.y, d.x))
+        self.beam(p, p + d * length * 0.25, 0.3, material("HullDark"))
+        c = p + d * length * 0.6
+        self.box(length * 0.78, width, 0.1, material(mat), loc=c, rot=(tilt, 0, yaw))
+        for k in range(n):
+            o = (k - (n - 1) / 2) * width / (n + 0.5)
+            q = Vector((-d.y, d.x, 0))
+            off = q * o * math.cos(math.radians(tilt)) + Vector((0, 0, o * math.sin(math.radians(tilt))))
+            self.box(length * 0.74, width * 0.07, 0.16, material(stripe), loc=c + off, rot=(tilt, 0, yaw))
+        self.box(length * 0.78, 0.18, 0.2, material("HullDark"), loc=c, rot=(tilt, 0, yaw))
+        return self
+
+    def rcs(self, p, s=1.0):
+        """Kleiner Manoevrierduesenblock."""
+        p = Vector(p)
+        self.box(0.6 * s, 0.6 * s, 0.6 * s, material("HullDark"), loc=p)
+        for d in ((1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)):
+            dv = Vector(d)
+            self.cyl(0.12 * s, 0.35 * s, material("Hull"), seg=6, loc=p + dv * 0.45 * s, rot=qdir(dv),
+                     r2=0.2 * s, caps=False)
+        return self
+
+    def claw(self, p, d, s=1.0, mat="Hazard"):
+        """Greifer mit drei Fingern ab p in Richtung d."""
+        p, d = Vector(p), Vector(d).normalized()
+        q = qdir(d)
+        self.cyl(0.5 * s, 0.8 * s, material("HullDark"), seg=8, loc=p, rot=q)
+        for k in range(3):
+            a = math.radians(120 * k)
+            o = q @ Vector((math.cos(a), math.sin(a), 0))
+            j = p + d * 1.2 * s + o * 0.9 * s
+            t = p + d * 2.6 * s + o * 0.45 * s
+            self.beam(p + d * 0.4 * s, j, 0.2 * s, material(mat))
+            self.beam(j, t, 0.16 * s, material(mat))
+        return self
+
+
+    # -------------------------------------------------- Wehrhafte Bausteine
+    def pd(self, loc, up=True, s=1.0, facing=0.0):
+        """Kleiner Punktverteidigungsturm: Sockel, kantiger Kopf, ein langes Rohr schraeg nach oben."""
+        x, y, z = loc
+        sg = 1 if up else -1
+        self.cyl(0.55 * s, 0.4 * s, material("HullDark"), seg=6, loc=(x, y, z + sg * 0.2 * s))
+        self.box(0.8 * s, 0.7 * s, 0.5 * s, material("Hull"), loc=(x, y, z + sg * 0.6 * s),
+                 rot=(0, 0, facing))
+        a = math.radians(facing)
+        d = Vector((math.cos(a), math.sin(a), sg * 0.6)).normalized()
+        b0 = Vector((x, y, z + sg * 0.65 * s))
+        self.strut(b0, b0 + d * 1.6 * s, 0.07 * s, material("HullDark"), seg=4)
+        self.box(0.15 * s, 0.15 * s, 0.1 * s, material("LightRed"),
+                 loc=(x - math.cos(a) * 0.35 * s, y - math.sin(a) * 0.35 * s, z + sg * 0.9 * s))
+        return self
+
+    def missile_pod(self, loc, facing=0.0, up=True, s=1.0, rows=2, cols=3):
+        """Raketenwerfer: Kasten mit Rohroeffnungen (rot) auf Schwenksockel."""
+        x, y, z = loc
+        sg = 1 if up else -1
+        self.cyl(0.6 * s, 0.4 * s, material("HullDark"), seg=6, loc=(x, y, z + sg * 0.2 * s))
+        c = Vector((x, y, z + sg * 0.85 * s))
+        self.box(1.8 * s, 1.4 * s, 0.9 * s, material("Steel"), loc=c, rot=(0, -sg * 20, facing), bevel=0.06 * s)
+        a = math.radians(facing)
+        fwd = Vector((math.cos(a), math.sin(a), 0))
+        side = Vector((-math.sin(a), math.cos(a), 0))
+        for i in range(cols):
+            for j in range(rows):
+                p = c + fwd * 0.92 * s + side * ((i - (cols - 1) / 2) * 0.42 * s) + \
+                    Vector((0, 0, (j - (rows - 1) / 2) * 0.38 * s + sg * 0.3 * s))
+                self.box(0.08 * s, 0.26 * s, 0.24 * s, material("LightRed"), loc=p, rot=(0, -sg * 20, facing))
+        return self
+
+    def insignia(self, p, d, s=1.0, up=(0, 0, 1)):
+        """Hoheitszeichen: kleines Wappenschild in Accent mit dunklem Rand, Blickrichtung d."""
+        p, d = Vector(p), Vector(d).normalized()
+        q = qdir(d)
+        shield = [(-1.0, 1.0), (1.0, 1.0), (1.0, -0.15), (0.0, -1.25), (-1.0, -0.15)]
+        rot90 = Euler((0, 0, 0)).to_quaternion()
+        # Schild in lokaler XY-Ebene, Normale = lokale Z = d; lokales Y soll nach oben zeigen
+        up = Vector(up)
+        y_axis = (q @ Vector((0, 1, 0)))
+        twist = y_axis.rotation_difference((up - d * up.dot(d)).normalized()) if (up - d * up.dot(d)).length > 1e-3 else rot90
+        rq = twist @ q
+        self.prism([(x * 1.15 * s, y * 1.15 * s) for x, y in shield], 0.12 * s, material("HullDark"), loc=p, rot=rq)
+        self.prism([(x * s, y * s) for x, y in shield], 0.2 * s, material("Accent"), loc=p + d * 0.05 * s, rot=rq)
+        return self
+
+    def armor_belt(self, R, z, h, n, mat="Armor", tilt=12.0, t=0.35, loc=(0, 0, 0), start=0.0):
+        """Panzerguertel aus n schraegen Plattensegmenten um die Z-Achse."""
+        w = 2 * math.pi * R / n * 0.92
+        for i in range(n):
+            a = start + 360.0 * i / n
+            r = math.radians(a)
+            c = Vector(loc) + Vector((R * math.cos(r), R * math.sin(r), z))
+            self.box(w, t, h, material(mat), loc=c, rot=(tilt, 0, a + 90))
+        return self
+
+    def hangar_slit(self, p, d, w=2.4, h=0.9):
+        """Hangarschlitz: dunkle Oeffnung mit Leuchtrahmen, Blickrichtung d (in der Ebene)."""
+        p, d = Vector(p), Vector((d[0], d[1], 0)).normalized()
+        yaw = math.degrees(math.atan2(d.y, d.x))
+        self.box(0.3, w, h, material("HullDark"), loc=p, rot=(0, 0, yaw))
+        for zz in (h / 2, -h / 2):
+            self.box(0.34, w, 0.07, material("Light"), loc=p + Vector((0, 0, zz)), rot=(0, 0, yaw))
+        return self
+
+    def mast(self, p, h, up=True, mat="HullDark", light="LightRed"):
+        """Sensormast mit Querstreben und Licht."""
+        p = Vector(p)
+        sg = 1 if up else -1
+        top = p + Vector((0, 0, sg * h))
+        self.strut(p, top, 0.08, material(mat), seg=4)
+        for k in (0.45, 0.75):
+            c = p + Vector((0, 0, sg * h * k))
+            self.box(0.9 * (1.2 - k), 0.06, 0.06, material(mat), loc=c)
+        self.sphere(0.16, material(light), seg=6, rings=4, loc=top)
+        return self
+
     # -------------------------------------------------- Abschluss
-    def finish(self, sharp_angle=33.0, target_radius=1.0, center_z=True):
+    def finish(self, sharp_angle=21.0, target_radius=1.0, center_z=True):
         bm = self.bm
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
         # Zentrieren: XY auf Bounding-Box-Mitte, Z auf Box-Mitte

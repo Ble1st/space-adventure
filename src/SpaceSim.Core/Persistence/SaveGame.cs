@@ -155,6 +155,7 @@ public sealed class MissileSave
     public int Shooter { get; set; } public int Owner { get; set; } public int Side { get; set; } public string Module { get; set; } = "";
     public int Target { get; set; } public int Station { get; set; } public float Left { get; set; } public float Total { get; set; } public float Speed { get; set; }
     public float FromX { get; set; } public float FromY { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int FromStation { get; set; }
 }
 
 /// <summary>Phase 28: Kampfzustand einer Station (Fehlbeträge, Schildpause, Geschützuhren, ausgeschaltet).</summary>
@@ -223,6 +224,8 @@ public sealed class CombatParticipantSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Owner { get; set; }
     /// <summary>Phase 27: Zuflucht eines Fliehenden [Abstand, Id (&gt; 0 Station, &lt; 0 Tor), x, y]; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float[]? Refuge { get; set; }
+    /// <summary>Runde 6: letzter eigener Schuss des Spielers (nur gesetzt).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? LastShotTick { get; set; }
 }
 
 public sealed class PlayerWalletSave

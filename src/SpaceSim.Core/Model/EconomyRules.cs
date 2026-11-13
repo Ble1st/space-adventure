@@ -675,6 +675,11 @@ public sealed class EconomyRules
     public float CombatHelperDistance = 30f;
     /// <summary>Wer flieht, ist entkommen, wenn ihn kein Gegner mehr erreicht: Abstand größer als die Reichweite jedes aktiven Gegners, mindestens dieser Wert.</summary>
     public float CombatMinEscapeDistance = 30f;
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 6): so lange nach seinem letzten eigenen Schuss hält die eigene Waffenreichweite den Spieler im Gefecht (40 = 10 s, länger als
+    /// die längste Nachladezeit 8 s) — vorher lief die Nachladeuhr im selben Takt auf 0, in dem die Flucht geprüft wurde, und der Spieler galt zwischen zwei Salven als geflohen.
+    /// </summary>
+    public int PlayerFireHoldTicks = 40;
     /// <summary>Trefferregel: Trefferchance fällt bis zur Reichweite um diesen Anteil (quadratisch im Abstandsverhältnis).</summary>
     public float HitRangeFalloff = 0.5f;
     /// <summary>Trefferregel: Zieltempo, gegen das „tracking“ gemessen wird (Einheiten je Sekunde).</summary>

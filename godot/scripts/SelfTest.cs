@@ -2460,6 +2460,65 @@ public partial class SelfTest : Node
 				if (rf == 306) _m.TestEnterSector(new SectorId(1));
 				break;
 			}
+			case 88: // Runde 6: Stationsangriff über den echten Ansichtspfad (Dauerfeuer, Ziel folgen, 50 % Schub, Echtzeit-Bilder) — Schaden je Sekunde wie im Core; dann Rückzug
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				if (f == 1) { _m.TestMenu("new:war"); break; }
+				if (f == 6)
+				{
+					var hq = uni.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+					_p28Station = hq.Id;
+					_m.TestSetStationTarget(hq.Id);
+					_m.TestStopAutomation();
+					_m.TestFace(hq.Position);
+					_m.TestArmStation();
+					_m.TestSetSlider(0.5f);
+					_p6Hp = SpaceSim.Core.Combat.StationCombat.Hull(uni, hq) + SpaceSim.Core.Combat.StationCombat.Shield(uni, hq);
+					_p6Tick = uni.Tick;
+					_p6Events = new List<SpaceSim.Core.Events.SimEvent>();
+					uni.Events.Raised += _p6Events.Add;
+					break;
+				}
+				if (f > 6 && f < 6 + 60 * 20)
+				{
+					// am Ziel nicht weiterfliegen (der Tester flog sogar vorbei — der Schaden hängt nicht davon ab, die Nachladeuhr schon)
+					var pl = uni.Ships[uni.PlayerShip];
+					if (Vec2.Distance(pl.Position, uni.Stations[_p28Station].Position) < 45f) _m.TestSetSlider(0f);
+					break;
+				}
+				if (f == 6 + 60 * 20)
+				{
+					var hq = uni.Stations[_p28Station];
+					float hp = SpaceSim.Core.Combat.StationCombat.Hull(uni, hq) + SpaceSim.Core.Combat.StationCombat.Shield(uni, hq);
+					float secs = (uni.Tick - _p6Tick) / (float)SpaceSim.Core.Simulation.SimClock.TicksPerSecond;
+					float dps = (_p6Hp - hp) / System.MathF.Max(1f, secs);
+					GD.Print($"[selftest] Stationsangriff über die Ansicht: {_p6Hp:0} → {hp:0} in {secs:0} s Simulationszeit ({dps:0.0} je s), Spielerschüsse {_m.TestFight.Shots}");
+					Check(secs > 15f && secs < 25f, $"Zeitraffer ×1: 20 s Echtzeit ≈ 20 s Simulation ({secs:0} s)");
+					Check(dps > 0f && dps < 30f, $"Schaden je Sekunde wie im Core-Test, nicht je Bild ({dps:0.0} je s; vorher ≈ 80)");
+					Check(!SpaceSim.Core.Combat.StationCombat.IsDown(uni, hq), "das HQ steht nach 20 s noch");
+					// Rückzug: Dauerfeuer aus, wegdrehen, voller Schub
+					_m.HudRef.Flight.TestPressAutoFire();
+					var pl = uni.Ships[uni.PlayerShip];
+					_m.TestAimAssist = false;
+					_m.TestFace(pl.Position + (pl.Position - hq.Position));
+					_m.TestSetSlider(1f);
+					break;
+				}
+				if (f > 6 + 60 * 20 && f < 6 + 60 * 60 && !_p6Events!.OfType<SpaceSim.Core.Events.SiegeWithdrawn>().Any()) break;
+				if (f >= 6 + 60 * 20)
+				{
+					var sw = _p6Events!.OfType<SpaceSim.Core.Events.SiegeWithdrawn>().FirstOrDefault();
+					Check(sw is not null && sw.Wingmen == 2, $"Rückzug beendet die Belagerung, der Verband folgt ({sw?.Message ?? "kein Rückzug in 40 s"})");
+					Check(SpaceSim.Core.Combat.Siege.Of(uni, _p28Station) is null, "Belagerung beendet");
+					_m.TestSetSlider(0f);
+					_m.SyncHudForTest();
+					Check(!_m.HudRef.Flight.TestTargetName.StartsWith("Angriff:"), $"Zielkarte zeigt keinen Angriff mehr ({_m.HudRef.Flight.TestTargetName})");
+					Check(_m.LastCombatMessage?.StartsWith("Rückzug") == true || _m.LastCombatMessage?.Contains("brechen die Belagerung") == true, $"Meldung zum Ende ({_m.LastCombatMessage})");
+					Next();
+				}
+				break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -2469,6 +2528,7 @@ public partial class SelfTest : Node
 	}
 
 	void Next() { _stage++; _stageStart = _frame; }
+	float _p6Hp; long _p6Tick; List<SpaceSim.Core.Events.SimEvent>? _p6Events;
 	/// <summary>Phase 28: Stufen 73–76.</summary>
 	List<SpaceSim.Core.Events.SimEvent>? _p28Events;
 	SpaceSim.Core.Model.StationId _p28Station;

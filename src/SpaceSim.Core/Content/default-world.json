@@ -1071,7 +1071,7 @@
    "stocks": { "hull_plates": [8, 8], "electronics": [4, 4] },
    "recipes": [],
    "capturable": false,
-   "defense": { "hull": 1800, "shield": 250, "shieldRegen": 3, "armor": 60, "pointDefense": 0.2, "guns": ["weapon_laser_s", "weapon_laser_s"] }
+   "defense": { "hull": 1300, "shield": 250, "shieldRegen": 3, "armor": 60, "pointDefense": 0.2, "guns": ["weapon_laser_s", "weapon_laser_s"] }
   },
   {
    "key": "office",
@@ -4420,7 +4420,7 @@
    {
     "key": "war",
     "name": "Kriegstest (Test)",
-    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann auf etwa 40 m heranfliegen (die Geschütze reichen 60 m ab Stationsmitte, der Verband bindet die Polizei): nach gut vier Minuten ist das HQ ausgeschaltet. Fliehen: aus der Reichweite aller Gegner fliegen, die Zeile „Flucht: …“ sagt, wer noch reicht. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich.",
+    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann auf etwa 40 m heranfliegen (die Geschütze reichen 60 m ab Stationsmitte, der Verband bindet die Polizei): nach gut drei Minuten ist das HQ ausgeschaltet. Rückzug: Dauerfeuer aus und aus der Reichweite aller Gegner fliegen (die Zeile „Flucht: …“ sagt, wer noch reicht; 10 s nach dem letzten eigenen Schuss) — der Angriff endet, dein Verband bricht ab und folgt dir. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich.",
     "model": "bastion",
     "credits": 20000,
     "sector": 2,

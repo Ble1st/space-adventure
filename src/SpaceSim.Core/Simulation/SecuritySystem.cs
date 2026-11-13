@@ -315,7 +315,12 @@ public sealed class SecuritySystem : ISimSystem
                 if (player.DockedAt.Value != 0 || u.Fights.IsEngaged(player.Id) || police.Count == 0 || Wanted.LevelOf(u, player.Owner, sec.Owner) < 3)
                 {
                     ArrestCooldown(u, player.Owner);
-                    u.Events.Publish(new EncounterEscaped(EncounterKind.Intercept, e.Source, e.Target, "Du hast dich der Kontrolle entzogen."));
+                    // Gerätetest Phase 28 (Runde 6): Grund nennen — mitten in einer Belagerung passte „der Kontrolle entzogen“ nicht
+                    string why = u.Fights.IsEngaged(player.Id) ? "Keine Festnahme-Kontrolle: du bist schon im Gefecht — die Polizei kämpft dort mit."
+                        : player.DockedAt.Value != 0 ? "Keine Festnahme-Kontrolle: du liegst angedockt."
+                        : police.Count == 0 ? "Keine Streife mehr im Sektor — du hast dich der Kontrolle entzogen."
+                        : "Fahndung gesunken — keine Festnahme.";
+                    u.Events.Publish(new EncounterEscaped(EncounterKind.Intercept, e.Source, e.Target, why));
                     continue;
                 }
                 Combat.Engage.StartArrest(u, police, player, sec);

@@ -173,7 +173,7 @@ public static class UniverseSerializer
                 Missiles = e.Missiles.Count == 0 ? null : e.Missiles.Select(m => new MissileSave
                 {
                     Shooter = m.Shooter.Value, Owner = m.Owner.Value, Side = m.Side, Module = m.Module, Target = m.Target.Value, Station = m.Station.Value,
-                    Left = m.Left, Total = m.Total, Speed = m.Speed, FromX = m.From.X, FromY = m.From.Y,
+                    Left = m.Left, Total = m.Total, Speed = m.Speed, FromX = m.From.X, FromY = m.From.Y, FromStation = m.FromStation.Value,
                 }).ToList(),
                 Participants = e.Participants.Select(p => new CombatParticipantSave
                 {
@@ -182,6 +182,7 @@ public static class UniverseSerializer
                     PrevMode = p.PrevMode.ToString(), Exit = p.Exit.ToString(),
                     Pos = e.Spatial ? new[] { p.Pos.X, p.Pos.Y, p.Dir.X, p.Dir.Y } : null, WasDockedAt = p.WasDockedAt.Value, Owner = p.Owner.Value,
                     Refuge = p.RefugeId != 0 ? new[] { p.Refuge, p.RefugeId, p.RefugePos.X, p.RefugePos.Y } : null,   // Phase 27
+                    LastShotTick = p.LastShotTick != 0 ? p.LastShotTick : null,   // Runde 6
                 }).ToList(),
             }).ToList();
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
@@ -391,6 +392,7 @@ public static class UniverseSerializer
                     {
                         Shooter = new ShipId(m.Shooter), Owner = new ActorId(m.Owner), Side = m.Side, Module = m.Module, Target = new ShipId(m.Target),
                         Station = new StationId(m.Station), Left = m.Left, Total = m.Total, Speed = m.Speed, From = new Vec2(m.FromX, m.FromY),
+                        FromStation = new StationId(m.FromStation),
                     }).ToList(),
                     Participants = e.Participants.Select(p => new CombatParticipant
                     {
@@ -401,6 +403,7 @@ public static class UniverseSerializer
                         WasDockedAt = new StationId(p.WasDockedAt), Owner = new ActorId(p.Owner),
                         Refuge = p.Refuge is { Length: >= 4 } rf ? rf[0] : 0f, RefugeId = p.Refuge is { Length: >= 4 } ri ? (int)ri[1] : 0,
                         RefugePos = p.Refuge is { Length: >= 4 } rp ? new Vec2(rp[2], rp[3]) : default,
+                        LastShotTick = p.LastShotTick ?? 0,
                     }).ToList(),
                 });
         foreach (var e in u.Fights.Encounters) Combat.CombatSpace.Derive(e);   // Phase 25: abgeleitete Raumkennung, Zwischenbild = Position

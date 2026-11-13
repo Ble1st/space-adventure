@@ -96,6 +96,7 @@ public static class PlayerGunnery
         me.Pos = ship.Position;
         me.Dir = CombatAutopilot.FromBearing(headingDeg);
         if (!Gunnery.DrawPower(u, ship, w, out float reload)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
+        me.LastShotTick = u.Tick;   // Runde 6: hält das Gefecht (eigene Reichweite), solange der Spieler schießt
         if (u.Rules.Warfare && Missiles.IsMissile(m))
         {
             // Phase 28: Rakete — fliegt, Treffer erst am Ziel (Punktabwehr, Ausweichen)
@@ -159,10 +160,13 @@ public static class PlayerGunnery
         if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
         if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
         var e = Siege.Of(u, st.Id) ?? Siege.Start(u, ship, st);
-        var me = e.Of(ship.Id) ?? Engage.Join(u, e, ship, 0, CombatTactics.Player, 0f, ship.Position);
+        // Gerätetest Phase 28 (Runde 6): wer die Belagerung verlassen hat (geflohen), tritt wieder bei — vorher galt der alte, abgelaufene Eintrag weiter: keine
+        // Nachladeuhr (Dauerfeuer schoss jedes Bild, ≈ 70 Schüsse je Sekunde) und kein Ziel für Geschütze und Verteidiger
+        var me = e.Of(ship.Id) is { } old ? (old.Active ? old : Engage.Rejoin(u, e, old, ship)) : Engage.Join(u, e, ship, 0, CombatTactics.Player, 0f, ship.Position);
         me.Pos = ship.Position;
         me.Dir = CombatAutopilot.FromBearing(headingDeg);
         if (!Gunnery.DrawPower(u, ship, w, out float reload)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
+        me.LastShotTick = u.Tick;
         if (Missiles.IsMissile(m))
         {
             Missiles.Launch(u, e, ship, null, me.Side, m, w, default, st.Id, dist, ship.Position);
@@ -237,7 +241,8 @@ public static class PlayerCombat
         {
             e = theirs;
             them = theirs.Of(target.Id)!;
-            me = Combat.Engage.Join(u, e, player, 1 - them.Side, CombatTactics.Player, them.X - r.CombatStartDistance, player.Position);
+            me = e.Of(player.Id) is { } old && old.Side == 1 - them.Side ? Combat.Engage.Rejoin(u, e, old, player)   // Runde 6: alter Eintrag wird wieder aktiv
+                : Combat.Engage.Join(u, e, player, 1 - them.Side, CombatTactics.Player, them.X - r.CombatStartDistance, player.Position);
         }
         else
         {

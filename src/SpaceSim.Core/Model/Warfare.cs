@@ -37,6 +37,8 @@ public sealed class StationCondition
 public sealed class MissileFlight
 {
     public ShipId Shooter;
+    /// <summary>Runde 6: abgefeuert von dieser Station (0 = von einem Schiff). Nur für die Meldung „Stationsrakete (…)“; gespeichert, nicht im Hash (reine Anzeige).</summary>
+    public StationId FromStation;
     public ActorId Owner;
     public int Side;
     public string Module = "";

@@ -137,6 +137,7 @@ public static class UniverseHash
                 if (e.Spatial || e.Cause == EncounterCause.Assault) Mix((ulong)p.Owner.Value);
                 if (p.WasDockedAt.Value != 0) Mix((ulong)p.WasDockedAt.Value);
                 if (p.RefugeId != 0) { Mix((ulong)(uint)p.RefugeId + 0x2700u); MixF(p.Refuge); MixF(p.RefugePos.X); MixF(p.RefugePos.Y); }   // Phase 27: Zuflucht
+                if (p.LastShotTick != 0) Mix((ulong)p.LastShotTick + 0x2806u);   // Runde 6: letzter Schuss des Spielers
             }
             if (e.Spatial) Mix(0x5A7u);
             if (e.Station.Value != 0) { Mix(0x2803u); Mix((ulong)e.Station.Value); MixF(e.StationX); }   // Phase 28: Belagerung

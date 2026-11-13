@@ -39,7 +39,10 @@ public sealed class CombatSystem : ISimSystem
         // Phase 25: das aktive Spielerschiff entkommt durch Andocken oder Sprung (Sektor gewechselt); Geometrie folgt dem Spielersektor (Linie ↔ Raum)
         foreach (var p in e.Participants)
             if (p.Active && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var me) && (me.Sector != e.Sector || me.DockedAt.Value != 0 || me.Transit is not null))
+            {
                 Engage.Leave(u, e, p, CombatExit.Fled);
+                Siege.Withdraw(u, e, p);   // Runde 6: eigener Verband bricht mit ab
+            }
         CombatSpace.Sync(u, e);
         if (Ended(u, e)) { Finish(u, e, Outcome(e)); return; }
         // Phase 27: Verstärkung (Eskorten, Wachen, Verband, Rudel), die inzwischen im Sektor ist
@@ -111,12 +114,19 @@ public sealed class CombatSystem : ISimSystem
             // Phase 25: das aktive Spielerschiff entkommt, sobald es außer Reichweite aller Gegner ist (es „flieht“ durch seine Steuerung)
             if (!p.Active || (p.Move != CombatMove.Flee && p.Ship != u.PlayerShip)) continue;
             bool clear = CombatSense.EscapeBlock(u, e, p) is null;
-            if (clear) Engage.Leave(u, e, p, CombatExit.Fled);
+            if (clear)
+            {
+                Engage.Leave(u, e, p, CombatExit.Fled);
+                if (p.Ship == u.PlayerShip) Siege.Withdraw(u, e, p);   // Runde 6: zieht sich der Spieler zurück, folgt ihm sein Verband
+            }
         }
 
         // 6) Ende
         if (Ended(u, e)) { Finish(u, e, Outcome(e)); return; }
-        if (u.Tick - e.StartTick >= r.CombatMaxTicks) Finish(u, e, "timeout");
+        // Runde 6: eine Belagerung, in der der Spieler noch kämpft, endet nicht nach der Höchstdauer (sie endet durch Rückzug, Fall oder Verlust) — vorher brach
+        // sie nach 60 s ab und begann mit dem nächsten Schuss neu (neue Meldung, neue Anzeige)
+        bool playerSiege = e.Cause == EncounterCause.Siege && e.Of(u.PlayerShip) is { Active: true };
+        if (u.Tick - e.StartTick >= r.CombatMaxTicks && !playerSiege) Finish(u, e, "timeout");
     }
 
     ICombatTactic TacticFor(Universe u, CombatParticipant p) => _tactics.Get(p.Ship == u.PlayerShip ? CombatTactics.Player : p.Tactic);

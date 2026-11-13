@@ -57,6 +57,21 @@ public static class Engage
         return p;
     }
 
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 6): das aktive Spielerschiff tritt einem Gefecht wieder bei, das es verlassen hat — derselbe Eintrag wird wieder aktiv (Position,
+    /// Index), statt einen zweiten anzulegen: sonst fand <see cref="Encounter.Of"/> den alten, abgelaufenen Eintrag (Nachladeuhr 0 → Dauerfeuer jedes Bild; kein Ziel für
+    /// Gegner und Geschütze). Kein Zufallszug.
+    /// </summary>
+    public static CombatParticipant Rejoin(Universe u, Encounter e, CombatParticipant p, Ship ship)
+    {
+        p.Exit = CombatExit.None;
+        p.InSpace = e.Spatial;
+        p.Pos = p.PrevPos = ship.Position;
+        ship.DockedAt = default;
+        u.Fights.Mark(ship.Id, e.Id);
+        return p;
+    }
+
     /// <summary>Teilnehmer verlässt das Gefecht (lebend): Index, Leistungsverteilung zurück, Ereignis; das Weiterarbeiten übernimmt <see cref="Resume"/>.</summary>
     public static void Leave(Universe u, Encounter e, CombatParticipant p, CombatExit exit)
     {
