@@ -100,7 +100,9 @@ public static class Missiles
         if (dealt > 0f) ModuleDamage.OnHullHit(u, target, dealt);
         if (res.Hit) e.Hits++;
         u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, default, res.Hit ? "hit" : "miss", res.ShieldDamage, dealt));
-        if (target.Hull <= 0f && tp.Active) Engage.Destroy(u, e, tp, target);
+        if (target.Hull <= 0f && tp.Active)
+            Engage.Destroy(u, e, tp, target, u.Ships.TryGetValue(f.Shooter, out var by) ? $"Rakete: {CombatSense.Who(u, by)}"
+                : f.Shooter.Value == 0 ? $"Stationsrakete ({u.ActorName(f.Owner)})" : $"Rakete: {u.ActorName(f.Owner)}");   // Runde 5: der letzte Schütze
     }
 
     /// <summary>Raketen aus dem Lager einer Station nachladen (Marktpreis, höchstens Bestand und was der Zahler hat). Liefert die Einheiten.</summary>

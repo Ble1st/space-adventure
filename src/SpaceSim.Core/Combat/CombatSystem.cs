@@ -110,19 +110,7 @@ public sealed class CombatSystem : ISimSystem
             if (p.Active && CombatRefuge.Reached(u, p) && u.Ships.TryGetValue(p.Ship, out var refugee) && CombatRefuge.Escape(u, e, p, refugee)) continue;
             // Phase 25: das aktive Spielerschiff entkommt, sobald es außer Reichweite aller Gegner ist (es „flieht“ durch seine Steuerung)
             if (!p.Active || (p.Move != CombatMove.Flee && p.Ship != u.PlayerShip)) continue;
-            bool clear = true;
-            // Phase 28: der Spieler „entkommt“ nicht, solange seine eigenen Waffen den Gegner noch erreichen (Raketen tragen weiter als die Kanonen der Gegner)
-            float own = r.Warfare && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var pShip) ? CombatSense.MaxRange(u, pShip) : 0f;
-            foreach (var q in CombatSense.Enemies(u, e, p))
-            {
-                float reach = MathF.Max(MathF.Max(r.CombatMinEscapeDistance, CombatSense.MaxRange(u, u.Ships[q.Ship])), own);
-                if (CombatSense.Distance(p, q) <= reach) { clear = false; break; }
-            }
-            // Phase 28: in einer Belagerung reicht auch die Station (ihre Geschütze bzw. die eigenen Waffen gegen sie)
-            if (clear && r.Warfare && p.Side == 0 && StationCombat.Defends(u, e) && u.Stations.TryGetValue(e.Station, out var besieged))
-                // Gerätetest Phase 28: Abstand zur Außenhaut wie beim Schuss auf die Station (TryFireAtStation) — vorher galt der Spieler am Rand der
-                // Raketenreichweite schon als geflohen, das Gefecht endete im nächsten Takt und die Rakete verschwand
-                if (StationCombat.Distance(u, e, p, besieged) - Station.BodyRadius <= MathF.Max(MathF.Max(r.CombatMinEscapeDistance, StationCombat.GunRange(u, besieged)), own)) clear = false;
+            bool clear = CombatSense.EscapeBlock(u, e, p) is null;
             if (clear) Engage.Leave(u, e, p, CombatExit.Fled);
         }
 

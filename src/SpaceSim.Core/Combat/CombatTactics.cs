@@ -94,6 +94,48 @@ public static class CombatSense
         return s;
     }
 
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 5): schießt der Teilnehmer noch — eine seiner Waffen lädt nach einem Schuss nach oder eine seiner Raketen fliegt?
+    /// </summary>
+    public static bool StillShooting(Encounter e, CombatParticipant p)
+    {
+        foreach (var t in p.Timers) if (t > 0f) return true;
+        foreach (var f in e.Missiles) if (f.Shooter == p.Ship) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Fluchtregel (rein, eine Regel für Simulation und Anzeige): null = der Teilnehmer ist außer Reichweite aller aktiven Gegner (größte Waffenreichweite, mindestens
+    /// <see cref="EconomyRules.CombatMinEscapeDistance"/>) und — in einer Belagerung — der Stationsgeschütze (Abstand zur Außenhaut wie beim Schuss auf die Station);
+    /// sonst der Grund. Phase 28: das aktive Spielerschiff bleibt auch im Gefecht, solange seine eigenen Waffen den Gegner erreichen — Runde 5: aber nur, solange es
+    /// noch schießt (<see cref="StillShooting"/>); vorher hielt ein Falke mit Raketen (110 m) jede verfolgende Streife im Gefecht, die Flucht auf 211 m gelang nie.
+    /// </summary>
+    public static string? EscapeBlock(Universe u, Encounter e, CombatParticipant p)
+    {
+        var r = u.Rules;
+        float own = r.Warfare && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var pShip) && StillShooting(e, p) ? MaxRange(u, pShip) : 0f;
+        foreach (var q in Enemies(u, e, p))
+        {
+            float theirs = MathF.Max(r.CombatMinEscapeDistance, MaxRange(u, u.Ships[q.Ship]));
+            float d = Distance(p, q);
+            if (d <= MathF.Max(theirs, own))
+                return d <= theirs ? $"{Who(u, u.Ships[q.Ship])} in Reichweite ({d:0} von {theirs:0} m)" : $"eigene Waffen feuern noch ({d:0} m)";
+        }
+        if (r.Warfare && p.Side == 0 && StationCombat.Defends(u, e) && u.Stations.TryGetValue(e.Station, out var besieged))
+        {
+            // Geschütze messen ab Stationsmitte (ihre Schussregel und die Anzeige „in Geschützreichweite“), eigene Waffen bis zur Außenhaut (TryFireAtStation)
+            float centre = StationCombat.Distance(u, e, p, besieged);
+            float guns = MathF.Max(r.CombatMinEscapeDistance, StationCombat.GunRange(u, besieged));
+            if (centre <= guns) return $"Stationsgeschütze in Reichweite ({centre:0} von {guns:0} m)";
+            if (centre - Station.BodyRadius <= own) return $"eigene Waffen feuern noch ({centre:0} m)";
+        }
+        return null;
+    }
+
+    /// <summary>Kurzname eines Schützen für Meldungen (Polizei, Piraten, Kriegsschiff, sonst der Besitzer).</summary>
+    public static string Who(Universe u, Ship s) =>
+        ThreatMap.IsPolice(s) ? "Polizei" : ThreatMap.IsRaider(s) ? "Piraten" : Wars.IsWarship(s) ? "Kriegsschiff" : u.ActorName(s.Owner);
+
     /// <summary>Größte Waffenreichweite eines Schiffs (0 = unbewaffnet).</summary>
     public static float MaxRange(Universe u, Ship ship)
     {

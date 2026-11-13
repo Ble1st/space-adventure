@@ -950,14 +950,17 @@ public partial class Main : Node3D
 	void SelectTarget(NavTarget target, StationId? station)
 	{
 		if (_targetStation != station) _fight.ArmStation(default);
+		_fight.SetTarget(default);   // Runde 5: das neue Ziel ersetzt ein gewähltes Schiff (vorher zeigte die Zielkarte noch den alten Gegner)
 		_target = target; _targetStation = station;
 		_sfx.Play(SfxId.Click);
 		_hud.Toast($"Ziel: {target.Label} — „Autopilot“ fliegt hin, „Andocken“ in der Nähe");
+		if (_session != null) UpdateHud();   // Runde 5: Zielkarte sofort, nicht erst im nächsten Bild
 	}
 
 	void SetTarget(NavTarget target, StationId? station)
 	{
 		if (_targetStation != station || station is null) _fight.ArmStation(default);   // Gerätetest Phase 28: neues Ziel beendet einen Stationsangriff in der Zielkarte
+		_fight.SetTarget(default);   // Runde 5: auch ein gewähltes Schiff
 		_target = target; _targetStation = station;
 		_follower.Reset();   // Prüfer-Empfehlung Phase 28: neuer Plan für das neue Ziel
 		_autopilot = true; _hud.Flight.SetAutopilot(true);
@@ -1312,8 +1315,12 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Runde 4: Station, deren Körper (projizierter Radius, mindestens 28 Gerätepixel) den Tipp enthält — die nächste gewinnt.</summary>
-	StationId? PickStationScreen(Vector2 screen)
+	StationId? PickStationScreen(Vector2 screen) => PickStationScreen(screen, out _);
+
+	/// <summary>Wie oben, mit dem Bildschirmabstand des Tipps zur Stationsmitte (Runde 5: Vergleich mit einem Schiff daneben).</summary>
+	StationId? PickStationScreen(Vector2 screen, out float centrePx)
 	{
+		centrePx = float.MaxValue;
 		var u = _session.U;
 		float minPx = Mathf.Max(20f, 28f * GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, DisplayServer.WindowGetSize().X));
 		StationId? best = null; float bestD = float.MaxValue;
@@ -1327,6 +1334,7 @@ public partial class Main : Node3D
 			float d = sc.DistanceTo(screen);
 			if (d <= r && d < bestD) { bestD = d; best = id; }
 		}
+		centrePx = bestD;
 		return best;
 	}
 
@@ -1348,17 +1356,20 @@ public partial class Main : Node3D
 			_hud.Toast(SpaceSim.Core.Combat.DamageInfo.WreckLine(_session.U, wreck));
 			return;
 		}
-		// Runde 4: Tipp auf einen Stationskörper (im Bildschirmraum, mindestens 56 Gerätepixel) gewinnt gegen Schiffe — vorher traf ein Tipp aufs HQ einen Frachter davor
-		if (PickStationScreen(screen) is { } bodyHit)
+		// Runde 4: Tipp auf einen Stationskörper (im Bildschirmraum, mindestens 28 Gerätepixel) gewinnt gegen Schiffe — vorher traf ein Tipp aufs HQ einen Frachter davor.
+		// Runde 5: außer der Tipp liegt näher an einem Schiffsmarker als an der Stationsmitte (ein Schiff neben der Station bleibt antippbar)
+		// Phase 25: Schiffe antippbar (Ziel für die Waffen; Zielkarte zeigt Schild und Hülle)
+		// Gerätetest: Trefferfläche im Bildschirmraum (≥ 56 Gerätepixel), nächstes Schiff gewinnt
+		float pickPx = Mathf.Max(40f, 56f * GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, DisplayServer.WindowGetSize().X));
+		Vector2? ToScreen(Vec2 p) => _cam.IsPositionBehind(new Vector3(p.X, 0, p.Y)) ? null : _cam.UnprojectPosition(new Vector3(p.X, 0, p.Y));
+		var shipHit = CombatController.PickScreen(_view.ShipMarkers(), ToScreen, screen, pickPx);
+		float shipPx = shipHit is { } sh && _view.ShipMarkers().FirstOrDefault(m => m.Id == sh) is var mk && ToScreen(mk.Pos) is { } msp ? msp.DistanceTo(screen) : float.MaxValue;
+		if (PickStationScreen(screen, out float stationPx) is { } bodyHit && !(shipHit is not null && shipPx < stationPx))
 		{
 			SelectTarget(Navigator.ForStation(_session.U, bodyHit, _session.U.PlayerShip), bodyHit);
 			return;
 		}
-		// Phase 25: Schiffe antippbar (Ziel für die Waffen; Zielkarte zeigt Schild und Hülle)
-		// Gerätetest: Trefferfläche im Bildschirmraum (≥ 56 Gerätepixel), nächstes Schiff gewinnt
-		float pickPx = Mathf.Max(40f, 56f * GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, DisplayServer.WindowGetSize().X));
-		if (CombatController.PickScreen(_view.ShipMarkers(), p => _cam.IsPositionBehind(new Vector3(p.X, 0, p.Y)) ? null : _cam.UnprojectPosition(new Vector3(p.X, 0, p.Y)), screen, pickPx) is { } picked
-			&& _session.U.Ships.TryGetValue(picked, out var ps))
+		if (shipHit is { } picked && _session.U.Ships.TryGetValue(picked, out var ps))
 		{
 			_fight.SetTarget(picked);
 			_sfx.Play(SfxId.Click);
@@ -1527,6 +1538,15 @@ public partial class Main : Node3D
 			&& SpaceSim.Core.Combat.PlayerGunnery.StationIssue(u, PlayerData, navStation) is null;
 		d.StationAttackArmed = _fight.StationTarget.Value != 0;
 		d.StationAttackInfo = navStation is not null ? SpaceSim.Core.Combat.WarInfo.DefenseWarning(u, navStation, PlayerData) : "";
+		// Runde 5: Kräfteverhältnis für die gewählte bzw. angegriffene Station mit Geschützen (Hinweis „Aussichtslos allein – Fregatte oder Flotte nötig“)
+		var oddsStation = _fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var oas) ? oas : navStation;
+		if (u.Rules.Warfare && _docked is null && d.HasWeapons && _fight.Target.Value == 0 && oddsStation is not null && oddsStation.Sector == u.PlayerSector
+			&& SpaceSim.Core.Combat.StationCombat.DefenseOf(u, oddsStation) is not null)
+		{
+			d.StationOdds = SpaceSim.Core.Combat.WarInfo.SiegeOddsText(u, oddsStation, PlayerData);
+			d.StationHopeless = SpaceSim.Core.Combat.WarInfo.SiegeHopeless(u, oddsStation, PlayerData);
+		}
+		d.EscapeStatus = SpaceSim.Core.Combat.PlayerCombat.EscapeStatus(u);
 		d.AimAssistVisible = _docked is null && AimTarget() is not null;
 		d.AimAssistOn = _aimAssist;
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast))
@@ -1852,10 +1872,12 @@ public partial class Main : Node3D
 		if (SpaceSim.Core.Combat.PlayerGunnery.StationIssue(_session.U, PlayerData, st) is { } issue) { _hud.Toast(issue, 3f); return; }
 		_fight.ClearTarget();
 		_fight.ArmStation(sid);
+		bool hopeless = SpaceSim.Core.Combat.WarInfo.SiegeHopeless(_session.U, st, PlayerData);
 		// Gerätetest Phase 28 (Runde 4): der Angriff schaltet Dauerfeuer und „Ziel folgen“ ein (vorher feuerte nichts, bis Dauerfeuer an war)
 		_fight.AutoFire = true;
 		EnableAimAssist();
-		_hud.Toast($"Angriff auf {st.Name}: Dauerfeuer an — die Waffen feuern, sobald die Station in Reichweite und im Feuerwinkel ist. Fahndung und Gegenwehr folgen.", 5f);
+		_hud.Toast($"Angriff auf {st.Name}: Dauerfeuer an — die Waffen feuern, sobald die Station in Reichweite und im Feuerwinkel ist. Fahndung und Gegenwehr folgen."
+			+ (hopeless ? $" {SpaceSim.Core.Combat.WarInfo.SiegeOddsText(_session.U, st, PlayerData)}!" : ""), 5f);
 	}
 
 	/// <summary>Phase 25: Taste „Nächster Gegner“ (Gefechtsgegner, dann Kaperschiffe im Sektor, nach Abstand, zyklisch).</summary>

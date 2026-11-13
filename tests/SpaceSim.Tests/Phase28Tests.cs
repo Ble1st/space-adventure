@@ -35,6 +35,7 @@ public class Phase28Tests
         def.Modules.RemoveAll(m => late.Contains(m.Key));
         def.ShipClasses.RemoveAll(c => c.Key == "frigate");
         def.ShipModels.RemoveAll(m => m.Key == "bastion");
+        def.Player.StartOptions.RemoveAll(o => o.Model == "bastion");   // Runde 5: Kriegstest im Bollwerk (Startpaket, nicht gewählt — ändert den Lauf nicht)
         foreach (var t in def.StationTypes)
         {
             t.Defense = null;
@@ -1231,5 +1232,140 @@ public class Phase28Tests
             }
         }
         Assert.True(fails.Count == 0, string.Join("; ", fails));
+    }
+
+    // ───────── Fünfter Gerätetest (Runde 5): Stationsangriff nur mit Fregatte oder Flotte ─────────
+
+    /// <summary>Spieler wie am Handy: auf <paramref name="standoff"/> m an die Station heran, Zielhilfe mit echter Drehrate, alle Waffen auf die Station.</summary>
+    static (bool Alive, bool Down, long Seconds, List<SimEvent> Events) AttackStation(Universe u, Station hq, float standoff, int maxSeconds, Action<SimEvent>? watch = null)
+    {
+        var me = u.Ships[u.PlayerShip];
+        var ev = Capture(u);
+        if (watch is not null) u.Events.Raised += watch;
+        var runner = new SimulationRunner();
+        float heading = SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, hq.Position);
+        long start = u.Tick;
+        for (int i = 0; i < maxSeconds * SimClock.TicksPerSecond && u.PlayerShip == me.Id && !StationCombat.IsDown(u, hq); i++)
+        {
+            runner.Step(u);
+            if (u.PlayerShip != me.Id) break;
+            float d = Vec2.Distance(me.Position, hq.Position);
+            if (d > standoff) me.Position += (hq.Position - me.Position).Normalized() * MathF.Min(d - standoff, me.Stats.Speed / SimClock.TicksPerSecond);
+            heading = SpaceSim.Core.Flight.AimAssist.Turn(heading, SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, hq.Position), SpaceSim.Core.Flight.AimAssist.PlayerTurnRate, 1f / SimClock.TicksPerSecond);
+            foreach (int slot in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFireAtStation(u, me, slot, hq.Id, heading * 180f / MathF.PI);
+        }
+        return (u.PlayerShip == me.Id && u.Ships.ContainsKey(me.Id), StationCombat.IsDown(u, hq), (u.Tick - start) / SimClock.TicksPerSecond, ev);
+    }
+
+    /// <summary>
+    /// Fünfter Gerätetest: der Kriegstest startet im Bollwerk mit einem eigenen Verband (zwei weitere Bollwerke, Regel „Angriff“). Wer wie am Handy angreift
+    /// (heranfliegen, Zielhilfe, Dauerfeuer auf die Station), schaltet das Sektor-HQ Beta samt Polizei aus und überlebt; der Verband tritt der Belagerung bei.
+    /// </summary>
+    [Fact]
+    public void Startpaket_Kriegstest_MitVerbandSchaffbar()
+    {
+        var u = Standard(start: "war");
+        var me = u.Ships[u.PlayerShip];
+        Assert.Equal("bastion", me.ModelKey);
+        var sq = Squadrons.Get(u, me);
+        Assert.NotNull(sq);
+        Assert.Equal(me.Id, sq!.Leader);
+        Assert.Equal(3, sq.Members.Count);
+        Assert.All(sq.Members.Where(id => id != me.Id).Select(id => u.Ships[id]), w =>
+        {
+            Assert.True(w.IsPlayer && w.Owner == me.Owner && w.Sector == me.Sector && w.DockedAt.Value == 0);
+            Assert.Equal(Engagement.Attack, w.Engagement);
+            Assert.IsType<FollowCommand>(w.Command);
+        });
+        var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+        Assert.StartsWith("Überlegen", WarInfo.SiegeOddsText(u, hq, me));
+        int policeShots = 0;
+        var (alive, down, seconds, ev) = AttackStation(u, hq, 40f, 400, e => { if (e is ShotFired f && u.Ships.TryGetValue(f.Shooter, out var s) && ThreatMap.IsPolice(s)) policeShots++; });
+        Assert.True(down, $"das HQ ist ausgeschaltet ({WarInfo.StationShort(u, hq)} nach {seconds} s)");
+        Assert.True(alive, "das Bollwerk lebt");
+        Assert.True(seconds <= 300, $"in höchstens fünf Minuten ({seconds} s)");
+        Assert.Contains(ev, e => e is CombatJoined j && j.Reason == "squadron" && sq.Members.Contains(j.Ship));
+        Assert.True(policeShots > 0, "die Polizei hat verteidigt");
+    }
+
+    /// <summary>
+    /// Fünfter Gerätetest: allein ist der Angriff aussichtslos — die Lagezeile sagt es vorher; der Verlust nennt den, der den letzten Treffer setzte
+    /// (vorher stand bei jeder Belagerung „Stationsgeschütze“, auch wenn die Polizei traf).
+    /// </summary>
+    [Fact]
+    public void Kriegstest_Allein_AussichtslosUndVerlustNenntDenLetztenSchuetzen()
+    {
+        var u = Standard(start: "war");
+        var me = u.Ships[u.PlayerShip];
+        foreach (var id in Squadrons.Get(u, me)!.Members.Where(id => id != me.Id).ToList()) Departures.RemoveShip(u, u.Ships[id], DepartureReason.Sold, "test");
+        var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+        Assert.Equal("Aussichtslos allein – Fregatte oder Flotte nötig", WarInfo.SiegeOddsText(u, hq, me));
+        Assert.True(WarInfo.SiegeHopeless(u, hq, me));
+        string? lastHit = null;
+        void Watch(SimEvent e)
+        {
+            switch (e)
+            {
+                case ShotFired s when s.Target == me.Id && s.Hit && u.Ships.TryGetValue(s.Shooter, out var by): lastHit = CombatSense.Who(u, by); break;
+                case StationShot s when s.Target == me.Id && s.Hit: lastHit = $"Stationsgeschütze ({u.Stations[s.Station].Name})"; break;
+                case MissileResolved m when m.Target == me.Id && m.Outcome == "hit": lastHit = u.Ships.TryGetValue(m.Shooter, out var mb) ? $"Rakete: {CombatSense.Who(u, mb)}" : null; break;
+            }
+        }
+        var (alive, down, _, ev) = AttackStation(u, hq, 40f, 400, Watch);
+        Assert.False(down);
+        Assert.False(alive, "allein geht das Bollwerk verloren");
+        var lost = ev.OfType<PlayerShipLost>().Single();
+        Assert.NotNull(lastHit);
+        Assert.Contains($"({lastHit})", lost.Message);
+    }
+
+    /// <summary>
+    /// Fünfter Gerätetest: Flucht aus einer Belagerung. Die eigenen Waffen halten das Gefecht nur fest, solange der Spieler noch schießt (Nachladen, Rakete
+    /// unterwegs); danach entkommt er, sobald kein Gegner und kein Stationsgeschütz mehr reicht — vorher hielt die eigene Raketenreichweite (110 m) jede
+    /// verfolgende Streife im Gefecht. Anzeige („Flucht: …“) und Regel sind dieselbe Funktion.
+    /// </summary>
+    [Fact]
+    public void Flucht_AusBelagerung_GelingtAusserReichweite()
+    {
+        var u = Standard(start: "war");
+        var me = u.Ships[u.PlayerShip];
+        foreach (var id in Squadrons.Get(u, me)!.Members.Where(id => id != me.Id).ToList()) Departures.RemoveShip(u, u.Ships[id], DepartureReason.Sold, "test");
+        var runner = new SimulationRunner();
+        runner.Step(u);
+        var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+        int launcher = me.Fit.IndexOf("missile_launcher_s");
+        Assert.Equal(GunResult.Fired, PlayerGunnery.TryFireAtStation(u, me, launcher, hq.Id, FiringArc.Bearing(hq.Position - me.Position)).Result);
+        var e = u.Fights.Of(me.Id)!;
+        var p = e.Of(me.Id)!;
+        // eine Streife der Station auf 100 m vom Spieler (jenseits ihrer 60 m, diesseits der eigenen Raketen)
+        var cop = SecuritySystem.PoliceOf(u, u.FactionOf(hq)!.Value).First();
+        if (cop.Command is not null) Commands.Cancel(u, cop);
+        if (Squadrons.Get(u, cop) is { } csq) Squadrons.Disband(u, csq);
+        me.Position = hq.Position + (me.Position - hq.Position).Normalized() * 211f;
+        Place(u, cop, hq.Sector, me.Position + new Vec2(100f, 0f));
+        var cp = Reinforcements.JoinSide(u, e, cop, 1, "police", null);
+        cp.Pos = cop.Position; p.Pos = me.Position;
+        Assert.True(CombatSense.StillShooting(e, p));
+        Assert.StartsWith("eigene Waffen feuern noch", CombatSense.EscapeBlock(u, e, p));
+        Assert.StartsWith("Flucht: eigene Waffen", PlayerCombat.EscapeStatus(u));
+        // Nachladen vorbei, keine Rakete unterwegs: nichts reicht mehr — frei
+        for (int i = 0; i < p.Timers.Count; i++) p.Timers[i] = 0f;
+        e.Missiles.Clear();
+        Assert.Null(CombatSense.EscapeBlock(u, e, p));
+        // Streife auf 50 m: sie reicht (60 m) — die Anzeige nennt sie
+        cp.Pos = me.Position + new Vec2(50f, 0f);
+        Assert.Equal("Flucht: Polizei in Reichweite (50 von 60 m)", PlayerCombat.EscapeStatus(u));
+        // Stationsgeschütze ab Mitte (wie ihre Schussregel)
+        cp.Pos = me.Position + new Vec2(150f, 0f);
+        p.Pos = hq.Position + new Vec2(55f, 0f);
+        Assert.StartsWith("Stationsgeschütze in Reichweite (55 von 60 m)", CombatSense.EscapeBlock(u, e, p));
+        p.Pos = hq.Position + new Vec2(70f, 0f);
+        Assert.Null(CombatSense.EscapeBlock(u, e, p));
+        // und die Simulation lässt den Spieler gehen (Streife weit weg, Spieler 211 m vor der Station)
+        Place(u, cop, hq.Sector, me.Position + new Vec2(300f, 0f)); cp.Pos = cop.Position;
+        var ev = Capture(u);
+        for (int i = 0; i < 4 && u.Fights.IsEngaged(me.Id); i++) runner.Step(u);
+        Assert.False(u.Fights.IsEngaged(me.Id), "geflohen");
+        Assert.Contains(ev, x => x is CombatExited c && c.Ship == me.Id && c.Exit == CombatExit.Fled);
     }
 }

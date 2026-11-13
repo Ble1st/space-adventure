@@ -476,6 +476,11 @@ public sealed class ScenarioDef
     public float ReinforceHull { get; set; } = 1f;
     /// <summary>Gerätetest Phase 28 (Runde 4): Fracht des ersten Kaperers (Beute an Bord) — sein Wrack hat dann Fracht für den Traktorstrahl.</summary>
     public Dictionary<string, float>? LeadCargo { get; set; }
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 5): eigene Begleitschiffe (Modellschlüssel) neben dem Spieler — ein Verband mit dem aktiven Schiff als Anführer und Regel
+    /// „Angriff“; sie treten jedem Gefecht des Spielers bei (auch einem Stationsangriff).
+    /// </summary>
+    public List<string>? Wingmen { get; set; }
 }
 
 public sealed class PlayerDef

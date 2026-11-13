@@ -4420,15 +4420,14 @@
    {
     "key": "war",
     "name": "Kriegstest (Test)",
-    "description": "NUR ZUM TESTEN: Falke mit Raketenwerfer und vollem Raketenmagazin, 100 m vor dem Sektor-HQ Beta (Geschütze, Punktabwehr) — „Station angreifen“ aus Raketenreichweite (110 m); die Geschütze reichen 60 m, also Abstand halten, „Ziel folgen“ hält die Nase auf der Station. Raketen nachladen („Reparatur“ → Munition): Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich. 20000 Cr für einen Schiffskauf.",
-    "model": "falcon",
+    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann auf etwa 40 m heranfliegen (die Geschütze reichen 60 m ab Stationsmitte, der Verband bindet die Polizei): nach gut vier Minuten ist das HQ ausgeschaltet. Fliehen: aus der Reichweite aller Gegner fliegen, die Zeile „Flucht: …“ sagt, wer noch reicht. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich.",
+    "model": "bastion",
     "credits": 20000,
     "sector": 2,
     "scenario": {
-     "fit": ["reactor_mk2", "chem_engine_s_mk2", "weapon_laser_s", "missile_launcher_s", "shield_mk1", "power_bank_s", "weapon_magazine_s"],
+     "wingmen": ["bastion", "bastion"],
      "station": "sector_hq",
-     "distance": 80,
-     "cargo": { "ammo": 20 }
+     "distance": 80
     }
    },
    {

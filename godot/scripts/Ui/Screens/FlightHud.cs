@@ -74,6 +74,11 @@ public sealed class FlightHudData
 	public string HitWarning = "";
 	/// <summary>Gerätetest Phase 28: Gegenwehr der Station (Geschütze, Reichweite, eigene Raketenreichweite) unter „Station angreifen“.</summary>
 	public string StationAttackInfo = "";
+	/// <summary>Gerätetest Phase 28 (Runde 5): Kräfteverhältnis eines Stationsangriffs („Aussichtslos allein – Fregatte oder Flotte nötig“), aussichtslos = rot.</summary>
+	public string StationOdds = "";
+	public bool StationHopeless;
+	/// <summary>Runde 5: Fluchtlage im Gefecht („Flucht: Polizei in Reichweite (52 von 60 m)“), dieselbe Regel wie die Simulation; leer ohne Gefecht.</summary>
+	public string EscapeStatus = "";
 	/// <summary>Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — sichtbar mit feindlichem Ziel (Schiff im Gefecht oder scharfe Station), an/aus.</summary>
 	public bool AimAssistVisible, AimAssistOn;
 }
@@ -124,7 +129,12 @@ public partial class FlightHud : Control, IScreen
 	public bool TestSurrenderEnabled => _surrender.Visible && _surrender.State != KitButtonState.Disabled;
 	public Rect2 TestSurrenderRect => new(_surrender.Position, _surrender.Size);
 	public void TestPressSurrender() => SurrenderPressed?.Invoke();
-	Label _tCombat = null!, _hitWarning = null!;
+	Label _tCombat = null!, _hitWarning = null!, _tOdds = null!, _escape = null!;
+	/// <summary>Selbsttest Runde 5: Kräftezeile der Zielkarte, Fluchtzeile.</summary>
+	public string TestStationOdds => _tOdds.Visible ? _tOdds.Text : "";
+	public string TestEscapeStatus => _escape.Visible ? _escape.Text : "";
+	public string TestStationAttackSub => _stationAttack.Sub;
+	public string TestTargetName => _tName.Text;
 	/// <summary>Selbsttest: Zielkartenzeile Schild/Hülle, Beschusswarnung, Lage und Größe der Kampftasten.</summary>
 	public string TestTargetCombat => _tCombat.Text;
 	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
@@ -278,9 +288,12 @@ public partial class FlightHud : Control, IScreen
 		tv.AddThemeConstantOverride("separation", 2);
 		_tName = Text("", 18, UiKit.Green); _tInfo = Text("", 15, UiKit.Dim); _tArc = Text("", 15, UiKit.White);
 		_tCombat = Text("", 15, UiKit.Cyan);
+		_tOdds = Text("", 14, UiKit.Orange);   // Runde 5: Kräfteverhältnis eines Stationsangriffs
 		// Gerätetest: Zeilen der Zielkarte enden vor dem Radarkreis (der Hinweistext lief hinein) — gekürzt mit „…“
 		foreach (var l in new[] { _tName, _tInfo, _tArc, _tCombat }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; l.CustomMinimumSize = new Vector2(246, 0); }
-		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc); tv.AddChild(_tCombat);
+		_tOdds.ClipText = true; _tOdds.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _tOdds.CustomMinimumSize = new Vector2(316, 0);   // unter dem Radar: ganze Kartenbreite
+		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc); tv.AddChild(_tCombat); tv.AddChild(_tOdds);
+		_tOdds.Visible = false;
 		_radar = At(card, new Radar(), 266, 8, 64, 64);
 
 		_autopilotBtn = At(this, new KitButton("Autopilot", new Vector2(160, 42)) { FontSize = 16, Toggle = true }, 930, 212);
@@ -335,8 +348,12 @@ public partial class FlightHud : Control, IScreen
 		_surrender.Pressed += () => SurrenderPressed?.Invoke();
 		_surrender.Visible = false;
 		_hitWarning = At(this, Text("", 19, UiKit.Red, HorizontalAlignment.Center), 400, 214, 340, 30);   // Gerätetest Phase 28: unter der zweizeiligen Meldungsfläche
+		// Runde 5: Fluchtlage unter der Beschusswarnung — wer noch reicht (dieselbe Regel wie die Simulation)
+		_escape = At(this, Text("", 15, UiKit.Orange, HorizontalAlignment.Center), 400, 248, 340, 22);
+		_escape.ClipText = true; _escape.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_escape.Visible = false;
 		// Prüfung Phase 28: dunkler Grund unter Lage-, Fahndungs- und Beschusszeile (3D-Beschriftungen und Ringe schienen durch) und Beschusszeile links von „Nächster Gegner“
-		foreach (var l in new[] { _security, _wanted, _hitWarning }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
+		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
 		// Gerätetest (breite Displays): Grundlage merken, dann an die Breite anpassen
 		foreach (var child in GetChildren())
 			if (child is Control c && c != _arcs) _layoutBase[c] = c.Position;
@@ -551,7 +568,8 @@ public partial class FlightHud : Control, IScreen
 		_nextEnemy.State = d.EnemyNear ? KitButtonState.Normal : KitButtonState.Disabled;
 		_nextEnemy.Sub = d.EnemyNear ? "" : "kein Gegner";
 		_stationAttack.Visible = d.CanAttackStation && !d.StationAttackArmed;
-		if (_stationAttack.Text != "Wirklich?") _stationAttack.Sub = d.StationAttackInfo;
+		// Runde 5: aussichtslos → Warnfarbe und die Warnung statt der Geschützzeile (Hinweis, kein Verbot)
+		if (_stationAttack.Text != "Wirklich?") _stationAttack.Sub = d.StationHopeless ? "Aussichtslos!" : d.StationAttackInfo;
 		TestStationAttackInfo = d.StationAttackInfo;   // scharf: „nochmal tippen“ bleibt
 		_aimAssist.Visible = d.AimAssistVisible;
 		_aimAssist.On = d.AimAssistOn;
@@ -563,6 +581,11 @@ public partial class FlightHud : Control, IScreen
 		if (d.TargetCombat.Length > 0) _tName.AddThemeColorOverride("font_color", d.TargetHostile ? UiKit.Red : UiKit.Orange);
 		_hitWarning.Text = d.HitWarning;
 		_hitWarning.Visible = d.HitWarning.Length > 0;
+		_tOdds.Text = d.StationOdds;
+		_tOdds.Visible = d.StationOdds.Length > 0;
+		_tOdds.AddThemeColorOverride("font_color", d.StationHopeless ? UiKit.Red : d.StationOdds.StartsWith("Knapp") ? UiKit.Orange : UiKit.Green);
+		_escape.Text = d.EscapeStatus;
+		_escape.Visible = d.EscapeStatus.Length > 0;
 		_arcs.Data = d;
 		_arcs.QueueRedraw();
 	}

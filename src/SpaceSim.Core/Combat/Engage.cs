@@ -78,7 +78,8 @@ public static class Engage
     }
 
     /// <summary>Teilnehmer wurde zerstört: Abgang über <see cref="Departures"/> (Grund a, Anlass nach dem Gefechtsanlass).</summary>
-    public static void Destroy(Universe u, Encounter e, CombatParticipant p, Ship ship)
+    /// <param name="by">Gerätetest Phase 28 (Runde 5): wer den letzten Treffer setzte („Polizei“, „Stationsgeschütze (Sektor-HQ Beta)“); null = nach dem Anlass des Gefechts.</param>
+    public static void Destroy(Universe u, Encounter e, CombatParticipant p, Ship ship, string? by = null)
     {
         p.Exit = CombatExit.Destroyed;
         u.Fights.Unmark(p.Ship);
@@ -87,7 +88,7 @@ public static class Engage
         // Phase 25: das aktive Spielerschiff geht wirklich verloren — vorher landet die Person an einer Station (ShipLoss), dann der Abgang
         if (ship.Id == u.PlayerShip)
         {
-            string cause = e.Cause switch
+            string cause = by ?? e.Cause switch
             {
                 EncounterCause.Raid => "Piraten",
                 EncounterCause.Intercept or EncounterCause.Arrest => "Polizei",

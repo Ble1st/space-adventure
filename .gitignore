@@ -5,3 +5,6 @@ obj/
 .vs/
 .idea/
 build/
+
+# Blender previews are rebuilt by tools/blender/build_stations.py (overview.jpg is kept)
+docs/stations/*.png

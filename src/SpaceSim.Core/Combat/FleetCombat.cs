@@ -29,17 +29,22 @@ public static class Reinforcements
     }
 
     /// <summary>Wer steht diesem Schiff im Gefechtssektor bei (feste Reihenfolge, ohne Doppelte): Eskorten/Wachen, dann Verbandsmitglieder.</summary>
-    public static List<(Ship Ship, string Reason)> Helpers(Universe u, Encounter e, Ship ship)
+    public static List<(Ship Ship, string Reason)> Helpers(Universe u, Encounter e, Ship ship) => Helpers(u, e.Sector, ship);
+
+    /// <summary>Wer würde diesem Schiff in <paramref name="sector"/> beistehen (dieselbe Regel; Runde 5 auch für die Lageanzeige vor einem Stationsangriff).</summary>
+    public static List<(Ship Ship, string Reason)> Helpers(Universe u, SectorId sector, Ship ship)
     {
         var list = new List<(Ship, string)>();
-        foreach (var s in FleetGuards.Escorts(u, ship, e.Sector))
+        foreach (var s in FleetGuards.Escorts(u, ship, sector))
             list.Add((s, s.Command is GuardCommand ? "guard" : "escort"));
         if (Squadrons.Get(u, ship) is { } sq)
             foreach (var id in sq.Members)
             {
                 if (id == ship.Id || !u.Ships.TryGetValue(id, out var m) || list.Any(x => x.Item1.Id == id)) continue;
                 if (!m.Has(Capability.Combat) || m.Emergency || Squadrons.RulesOf(u, m) is not (Engagement.Defend or Engagement.Attack)) continue;
-                if (ThreatMap.Where(u, m).Sector != e.Sector) continue;
+                // Runde 5: ein angeschlagenes Begleitschiff des Spielers, das sich zurückgezogen hat, tritt nicht sofort wieder bei (vorher Beitritt/Rückzug im Takt)
+                if (m.IsPlayer && m.Hull < u.Rules.EscortRetreatHull * m.MaxHull) continue;
+                if (ThreatMap.Where(u, m).Sector != sector) continue;
                 list.Add((m, ThreatMap.IsRaider(m) ? "pack" : "squadron"));
             }
         return list;
@@ -51,7 +56,10 @@ public static class Reinforcements
     /// </summary>
     public static CombatParticipant JoinSide(Universe u, Encounter e, Ship ship, int side, string reason, CombatParticipant? near)
     {
-        string tactic = ThreatMap.IsPolice(ship) ? CombatTactics.Police : ThreatMap.IsRaider(ship) ? CombatTactics.Raider : CombatTactics.Escort;
+        // Gerätetest Phase 28 (Runde 5): Helfer auf der Angreiferseite einer Belagerung (Verband des Spielers) greifen mit der Belagerungstaktik an — erst Schiffe
+        // in Reichweite, sonst die Station (die Begleittaktik kannte nur Schiffe und hielt ohne Gegnerschiff still)
+        string tactic = ThreatMap.IsPolice(ship) ? CombatTactics.Police : ThreatMap.IsRaider(ship) ? CombatTactics.Raider
+            : e.Cause == EncounterCause.Siege && side == 0 ? CombatTactics.Siege : CombatTactics.Escort;
         float x = near is null ? (side == 0 ? 0f : u.Rules.CombatStartDistance) : near.X + (near.Side == 0 ? -HelperGap : HelperGap);
         Vec2? pos = e.Spatial ? CombatSpace.Clear(u, e.Sector, CombatSpace.Around(near?.Pos ?? ship.Position, ship.Position, HelperGap)) : null;
         var p = Engage.Join(u, e, ship, side, tactic, x, pos);

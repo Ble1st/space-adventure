@@ -124,7 +124,7 @@ public static class StationCombat
                 if (hull > 0f) ModuleDamage.OnHullHit(u, tShip, hull);
                 if (hit.Hit) e.Hits++;
                 u.Events.Publish(new StationShot(e.Id, e.Sector, st.Id, tShip.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull));
-                if (tShip.Hull <= 0f && target.Active) Engage.Destroy(u, e, target, tShip);
+                if (tShip.Hull <= 0f && target.Active) Engage.Destroy(u, e, target, tShip, $"Stationsgeschütze ({st.Name})");
             }
         }
     }
@@ -152,11 +152,10 @@ public static class StationCombat
     {
         if (!hit.Hit || IsDown(u, st)) return 0f;
         var c = Cond(st);
-        if (hit.ShieldDamage > 0f)
-        {
-            c.ShieldMissing = MathF.Min(MaxShield(u, st), c.ShieldMissing + hit.ShieldDamage);
-            c.ShieldPauseUntil = u.Tick + u.Rules.ShieldDelayTicks;
-        }
+        if (hit.ShieldDamage > 0f) c.ShieldMissing = MathF.Min(MaxShield(u, st), c.ShieldMissing + hit.ShieldDamage);
+        // Gerätetest Phase 28 (Runde 5): jeder Treffer hält den Schild an (wie bei Schiffen) — vorher nur Treffer auf den Schild; bei leerem Schild lief die Pause
+        // ab und die Station lud ihn mitten im Beschuss wieder auf
+        if (MaxShield(u, st) > 0f) c.ShieldPauseUntil = u.Tick + u.Rules.ShieldDelayTicks;
         float before = Hull(u, st);
         c.HullMissing = MathF.Min(MaxHull(u, st), c.HullMissing + hit.HullDamage);
         float dealt = before - Hull(u, st);
@@ -226,8 +225,10 @@ public sealed class StationRepairSystem : ISimSystem
             if (!platesLooked) { plates = u.FindGood("hull_plates"); platesLooked = true; }   // Nacharbeit: einmal je Schritt, nur wenn eine Station beschädigt ist
             bool sieged = StationCombat.UnderSiege(u, st.Id);
             var def = StationCombat.DefenseOf(u, st);
-            if (c.ShieldMissing > 0f && u.Tick >= c.ShieldPauseUntil && def is not null)
-                c.ShieldMissing = MathF.Max(0f, c.ShieldMissing - def.ShieldRegen * seconds);
+            // Runde 5: nur die Zeit seit dem Ende der Pause lädt (Intervall 50 Ticks — vorher lud ein Schritt kurz nach der Pause den ganzen Schritt nach)
+            float regenSeconds = ShipSystems.Seconds((int)Math.Clamp(u.Tick - c.ShieldPauseUntil, 0L, (long)dt));
+            if (c.ShieldMissing > 0f && regenSeconds > 0f && def is not null)
+                c.ShieldMissing = MathF.Max(0f, c.ShieldMissing - def.ShieldRegen * regenSeconds);
             if (!sieged) for (int i = 0; i < c.Timers.Count; i++) c.Timers[i] = 0f;
             if (!sieged && c.HullMissing > 0f) Repair(u, st, c, dt, plates);
             if (c.Disabled && StationCombat.Hull(u, st) >= r.StationReenableShare * StationCombat.MaxHull(u, st)) c.Disabled = false;
@@ -317,6 +318,56 @@ public static class WarInfo
         if (d <= guns) return $"IN GESCHÜTZREICHWEITE ({guns:0} m)";
         if (missiles <= 0f) return $"außerhalb Geschütze ({guns:0} m)";
         return d <= missiles ? "außerhalb Geschütze · Raketen ja" : $"außerhalb Geschütze · Raketen ≤{missiles:0} m";
+    }
+
+    /// <summary>Gerätetest Phase 28 (Runde 5): unter diesem Verhältnis eigene Stärke : Verteidigung ist ein Stationsangriff aussichtslos, darunter „knapp“.</summary>
+    public const float SiegeHopelessRatio = 1.2f, SiegeTightRatio = 1.6f;
+
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 5; Entscheidung: Stationsangriff nur mit Fregatte oder Flotte): Kräfteverhältnis vor bzw. während eines Angriffs auf
+    /// <paramref name="target"/> — eigene Seite = aktives Schiff und wer ihm im Sektor beisteht (<see cref="Reinforcements.Helpers(Universe, SectorId, Ship)"/>:
+    /// Begleiter, Verband mit Regel „Verteidigen“/„Angriff“); Verteidigung = jede nicht ausgeschaltete Station der Fraktion im Sektor mit Verteidigungswerten
+    /// (Geschütze wie Waffenkraft, Schild ÷ 20, Hülle ÷ 50, Panzerung ÷ 5) und Polizei/Kriegsschiffe der Fraktion dort. Stärke der Schiffe wie
+    /// <see cref="CombatRules.Strength(Ship)"/>. Nur eine Lageschätzung (kein Verbot).
+    /// </summary>
+    public static (float Own, float Defence, int Ships) SiegeOdds(Universe u, Station target, Ship player)
+    {
+        float own = CombatRules.Strength(player);
+        int ships = 1;
+        foreach (var (h, _) in Reinforcements.Helpers(u, target.Sector, player))
+            if (h.Id != player.Id) { own += CombatRules.Strength(h); ships++; }
+        float def = 0f;
+        if (u.FactionOf(target) is { } f && u.Sectors.TryGetValue(target.Sector, out var sector))
+        {
+            foreach (var id in sector.Stations)
+                if (u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && StationCombat.DefenseOf(u, st) is { } d && !StationCombat.IsDown(u, st))
+                {
+                    foreach (var g in d.Guns) if (u.Modules.TryGetValue(g, out var m)) def += ShipStats.WeaponPowerOf(m);
+                    def += StationCombat.Shield(u, st) / 20f + StationCombat.Hull(u, st) / 50f + d.Armor / 5f;
+                }
+            foreach (var id in u.Tracker.ParkedIn(target.Sector).Concat(u.Tracker.TransitIn(target.Sector)).Distinct())
+                if (u.Ships.TryGetValue(id, out var s) && (ThreatMap.IsPolice(s) || Wars.IsWarship(s)) && u.FactionOf(s) == f && ThreatMap.Where(u, s).Sector == target.Sector)
+                    def += CombatRules.Strength(s);
+        }
+        return (own, def, ships);
+    }
+
+    /// <summary>Lagezeile für Zielkarte/Taste: „Aussichtslos allein – Fregatte oder Flotte nötig“, „Aussichtslos – Verband zu schwach (80 : 106)“, „Knapp – …“, „Überlegen – …“; leer ohne Verteidigung.</summary>
+    public static string SiegeOddsText(Universe u, Station target, Ship player)
+    {
+        var (own, def, ships) = SiegeOdds(u, target, player);
+        if (def <= 0f) return "";
+        float ratio = own / def;
+        if (ratio < SiegeHopelessRatio)
+            return ships == 1 ? "Aussichtslos allein – Fregatte oder Flotte nötig" : $"Aussichtslos – Verband zu schwach ({own:0} : {def:0})";
+        return ratio < SiegeTightRatio ? $"Knapp – Stärke {own:0} : {def:0}" : $"Überlegen – Stärke {own:0} : {def:0}";
+    }
+
+    /// <summary>Aussichtslos (unter <see cref="SiegeHopelessRatio"/>)?</summary>
+    public static bool SiegeHopeless(Universe u, Station target, Ship player)
+    {
+        var (own, def, _) = SiegeOdds(u, target, player);
+        return def > 0f && own / def < SiegeHopelessRatio;
     }
 
     /// <summary>Verteidigungszeile einer Station: Hülle, Schild, Geschütze, Zustand (ausgeschaltet, belagert).</summary>
