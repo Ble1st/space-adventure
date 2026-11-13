@@ -375,11 +375,20 @@ public sealed class PirateSystem : ISimSystem
             }
             // Phase 25: der Überfall auf das aktive Schiff ist ein echtes Rundengefecht (räumlich im Spielersektor); der Spieler schießt in Echtzeit zurück
             if (u.Rules.CombatRounds && !u.Fights.IsEngaged(player.Id)) Combat.Engage.StartRaid(u, raider, player, u.Sectors[e.Sector]);
-            // zweiter Gerätetest Phase 28: steckt der Spieler schon in einem Gefecht, tritt der Kaperer ihm auf der Gegenseite bei (Verstärkung), statt den
-            // Überfall abstrakt nebenher aufzulösen
-            else if (u.Rules.CombatRounds && !u.Fights.IsEngaged(raider.Id) && u.Fights.Of(player.Id) is { Done: false } fight
-                     && fight.Of(player.Id) is { Active: true } me)
-                Combat.Reinforcements.JoinSide(u, fight, raider, 1 - me.Side, "pack", fight.Participants.FirstOrDefault(p => p.Active && p.Side != me.Side));
+            // zweiter Gerätetest Phase 28: steckt der Spieler schon in einem Gefecht gegen Kaperer, tritt der Kaperer ihm auf der Gegenseite bei (Verstärkung).
+            // Prüfung Runde 2: kämpft der Spieler gegen Polizei (Festnahme) oder gegen ein Opfer, das er selbst angegriffen hat, tritt der Kaperer nicht bei
+            // (er landete sonst auf der Seite von Polizei/Opfer) — der Überfall wird verschoben und kommt nach dem Gefecht (neue Frist), nie abstrakt nebenher
+            else if (u.Rules.CombatRounds && u.Fights.Of(player.Id) is { Done: false } fight && fight.Of(player.Id) is { Active: true } me)
+            {
+                bool againstRaiders = fight.Participants.Any(p => p.Active && p.Side != me.Side && u.Ships.TryGetValue(p.Ship, out var ps) && ThreatMap.IsRaider(ps));
+                if (againstRaiders && !u.Fights.IsEngaged(raider.Id))
+                    Combat.Reinforcements.JoinSide(u, fight, raider, 1 - me.Side, "pack", fight.Participants.FirstOrDefault(p => p.Active && p.Side != me.Side));
+                else
+                {
+                    e.DueTick = u.Tick + u.Rules.PlayerWarningTicks;
+                    u.PendingEncounters.Add(e);
+                }
+            }
             else ResolveRaid(u, raider, player, u.Sectors[e.Sector]);
         }
     }
@@ -414,6 +423,8 @@ public sealed class PirateSystem : ISimSystem
     {
         var r = u.Rules;
         if (r.PirateBasePatchHull <= 0f || r.PirateBasePatchPerTick <= 0f || u.Fights.IsEngaged(s.Id) || s.Transit is not null || !AtHome(u, s)) return;
+        // Prüfung Runde 2: nur, wenn die Kasse die normale Basisreparatur nicht bezahlen kann — kein Gratisbonus bei voller Kasse
+        if (u.Actors.TryGetValue(s.Owner, out var owner) && owner.Treasury.Credits >= NpcRepair.BaseCost(u, s)) return;
         float floor = r.PirateBasePatchHull * s.MaxHull;
         if (s.Hull < floor) s.Hull = MathF.Min(floor, s.Hull + r.PirateBasePatchPerTick * s.MaxHull * ticks);
         if (!r.DamageActive) return;

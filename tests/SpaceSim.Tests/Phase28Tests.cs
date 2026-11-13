@@ -29,6 +29,7 @@ public class Phase28Tests
         def.Rules.BuildMissingProducer = false;    // Nacharbeit: fehlender letzter Hersteller zählt als knapp   // Prüfpunkt e: Standardwelt 0,75, bis Phase 27 der Code-Wert 0,6
         def.Rules.PirateBasePatchHull = 0f;        // Prüfung Phase 28: Notversorgung der Piraten im Versteck
         def.Rules.FleetWorldCapWhenDivided = false; // Prüfung Phase 28: Weltgrenze der Flotte im geteilten Zustand
+        def.Rules.TraderPlanGuard = false;          // Prüfung Runde 2: Kaufschutz schon in der Planung
         string[] late = { "missile", "missile_launcher_s", "point_defense_s" };
         def.Goods.RemoveAll(g => g.Key == "missile");
         def.Modules.RemoveAll(m => late.Contains(m.Key));
@@ -735,7 +736,9 @@ public class Phase28Tests
         Assert.Contains(ev.OfType<WarshipCommissioned>(), _ => true);
         Assert.Contains(ev.OfType<SiegeStarted>(), _ => true);
         Assert.Contains(ev.OfType<ShotAtStation>(), _ => true);
-        Assert.Contains(ev.OfType<PeaceConcluded>(), p => p.Reason == "weary");
+        // Gerätetest Phase 28: seit Belagerungen am Rand der Waffenreichweite nicht mehr sofort als Flucht enden, kosten sie länger — der Frieden kommt je nach
+        // Pfad aus Kriegsmüdigkeit oder leerer Kriegskasse (beides ein regulärer Kriegsausgang)
+        Assert.Contains(ev.OfType<PeaceConcluded>(), p => p.Reason is "weary" or "broke");
         Assert.Empty(u.Wars);
         // keine Fraktion handlungsunfähig: Mindestpolizei, Sitz, Kasse über null
         foreach (var f in new[] { Union, Guild })
@@ -866,6 +869,7 @@ public class Phase28Tests
         var runner = new SimulationRunner();
         long start = -1, leadDown = -1;
         var target = default(ShipId);
+        float heading = SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, u.Ships[lead].Position);   // die Ansicht richtet die Nase beim Start auf den Kaperer
         for (int i = 0; i < 4 * 120 && u.PlayerShip == me.Id; i++)
         {
             runner.Step(u);
@@ -874,8 +878,9 @@ public class Phase28Tests
             if (!u.Ships.ContainsKey(lead) && leadDown < 0) leadDown = u.Tick;
             if (target.Value == 0 || !u.Ships.ContainsKey(target)) target = PlayerCombat.NextEnemy(u, me, default);
             if (target.Value == 0 || PlayerCombat.PositionOf(u, target) is not { } tp) continue;
-            float heading = FiringArc.Bearing(tp.Pos - me.Position);
-            foreach (int slot in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFire(u, me, slot, target, heading);
+            // Gerätetest Phase 28: die echte Zielhilfe mit der echten Drehrate des Spielerschiffs (vorher ideales Wenden auf das Ziel)
+            heading = SpaceSim.Core.Flight.AimAssist.Turn(heading, SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, tp.Pos), SpaceSim.Core.Flight.AimAssist.PlayerTurnRate, 1f / SimClock.TicksPerSecond);
+            foreach (int slot in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFire(u, me, slot, target, heading * 180f / MathF.PI);
         }
         Assert.True(start >= 0, "der Überfall begann");
         Assert.True(leadDown > 0, "der erste Kaperer wurde abgeschossen");
@@ -927,6 +932,134 @@ public class Phase28Tests
         {
             Assert.False(hunted);
             Assert.Contains(FactionViability.Check(u, a.Id), i => i.Kind == ViabilityIssueKind.CannotHunt);
+        }
+    }
+
+    [Theory]
+    [InlineData(0f, 1f, 0.25f, 0.25f)]        // dreht höchstens Rate × Zeit
+    [InlineData(0f, 0.1f, 3.2f, 0.25f)]       // kein Überschwingen
+    [InlineData(3f, -3f, 3.2f, 0.25f)]        // über ±π den kurzen Weg
+    public void Zielhilfe_DrehtMitDerDrehrateZumZiel(float heading, float bearing, float rate, float dt)
+    {
+        float next = SpaceSim.Core.Flight.AimAssist.Turn(heading, bearing, rate, dt);
+        float before = MathF.Abs(SpaceSim.Core.Flight.AimAssist.Delta(heading, bearing));
+        float after = MathF.Abs(SpaceSim.Core.Flight.AimAssist.Delta(next, bearing));
+        Assert.True(MathF.Abs(SpaceSim.Core.Flight.AimAssist.Delta(heading, next)) <= rate * dt + 1e-4f);
+        Assert.True(after <= before + 1e-5f);
+        if (before <= rate * dt) Assert.True(after < 1e-4f);
+        // Peilung in derselben Konvention wie die Feuerwinkel (FiringArc.Bearing in Grad)
+        var a = new Vec2(10f, 5f); var b = new Vec2(-3f, 40f);
+        Assert.Equal(FiringArc.Bearing(b - a), SpaceSim.Core.Flight.AimAssist.Bearing(a, b) * 180f / MathF.PI, 3);
+    }
+
+    /// <summary>
+    /// Gerätetest Phase 28: kann ein Jäger mit der normalen Drehrate seinen kreisenden Gegner im Bugwinkel (±45°) halten? Größte Winkelgeschwindigkeit des
+    /// Gegners um den Falken im Gefechtstest (räumliches Gefecht) gegen die Drehrate des Spielerschiffs.
+    /// </summary>
+    [Fact]
+    public void Zielhilfe_JaegerDrehtSchnellerAlsDerKapererKreist()
+    {
+        var u = Standard(start: "combat");
+        var me = u.Ships[u.PlayerShip];
+        var lead = u.PendingEncounters.Where(p => p.Kind == EncounterKind.Raid).OrderBy(p => p.DueTick).First().Source;
+        var runner = new SimulationRunner();
+        float? last = null, maxRate = 0f;
+        for (int i = 0; i < 4 * 60 && u.Ships.ContainsKey(lead); i++)
+        {
+            runner.Step(u);
+            if (!u.Fights.IsEngaged(lead) || PlayerCombat.PositionOf(u, lead) is not { } p) { last = null; continue; }
+            float b = SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, p.Pos);
+            if (last is { } l) maxRate = MathF.Max(maxRate.Value, MathF.Abs(SpaceSim.Core.Flight.AimAssist.Delta(l, b)) * SimClock.TicksPerSecond);
+            last = b;
+        }
+        Assert.True(maxRate > 0f, "der Kaperer bewegte sich im Gefecht");
+        Assert.True(maxRate < SpaceSim.Core.Flight.AimAssist.PlayerTurnRate, $"Winkelgeschwindigkeit des Kaperers {maxRate:0.00} rad/s, Drehrate {SpaceSim.Core.Flight.AimAssist.PlayerTurnRate} rad/s");
+    }
+
+    /// <summary>
+    /// Gerätetest Phase 28: Kriegstest — eine Rakete vom Rand der Raketenreichweite auf die Station: die Belagerung bleibt bestehen, bis die Rakete ankommt
+    /// (vorher galt der Spieler beim Abstand zur Stationsmitte als geflohen, das Gefecht endete im nächsten Takt, die Rakete verschwand).
+    /// </summary>
+    [Fact]
+    public void Belagerung_RaketeAmRandDerReichweite_KommtAn()
+    {
+        var u = Standard(start: "war");
+        var r = new SimulationRunner();
+        for (int i = 0; i < 6; i++) r.Step(u);
+        var me = u.Ships[u.PlayerShip];
+        var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+        var ev = Capture(u);
+        var shot = PlayerGunnery.TryFireAtStation(u, me, me.Fit.IndexOf("missile_launcher_s"), hq.Id, FiringArc.Bearing(hq.Position - me.Position));
+        Assert.Equal(GunResult.Fired, shot.Result);
+        for (int i = 0; i < 40 && !ev.Any(e => e is MissileResolved); i++) r.Step(u);
+        Assert.Contains(ev, e => e is MissileResolved);
+        Assert.True(Vec2.Distance(me.Position, hq.Position) > StationCombat.GunRange(u, hq) + Station.BodyRadius, "Start außerhalb der Geschützreichweite");
+    }
+
+    /// <summary>
+    /// Prüfung Runde 2 (Leerfahrten): mit dem Kaufschutz schon in der Planung (erwarteter Einkaufspreis nach den Käufen, die andere Händler dort vorhaben)
+    /// enden deutlich weniger Fahrten mit einem verweigerten Verlustkauf.
+    /// </summary>
+    [Fact]
+    public void Haendler_PlanenMitErwartetemEinkaufspreis_WenigerLeerfahrten()
+    {
+        int Refused(bool plan)
+        {
+            var u = Standard();
+            u.Rules.TraderPlanGuard = plan;
+            var ev = Capture(u);
+            var runner = new SimulationRunner();
+            for (int i = 0; i < 8000; i++) runner.Step(u);
+            return ev.Count(e => e is TraderBuyRefused);
+        }
+        int with = Refused(true), without = Refused(false);
+        Assert.True(without > 0);
+        Assert.True(with < without / 2, $"verweigert mit Planung {with}, ohne {without}");
+    }
+
+    /// <summary>
+    /// Prüfung Runde 2: ein fälliger Überfall, während der Spieler schon kämpft — gegen Kaperer tritt der neue Kaperer auf der Kaperer-Seite bei; gegen Polizei
+    /// (Festnahme) tritt er nicht bei (er landete sonst auf der Polizeiseite), der Überfall wird verschoben und kommt nach dem Gefecht.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Ueberfall_WaehrendGefecht_TrittNurGegenKapererBei(bool againstRaiders)
+    {
+        var u = Standard();
+        new SimulationRunner().Step(u);
+        var me = u.Ships[u.PlayerShip];
+        var sector = u.Sectors[me.Sector];
+        Place(u, me, me.Sector, CombatSpace.Clear(u, me.Sector, me.Position + new Vec2(0f, -120f)));
+        var raiders = u.ShipsById().Where(ThreatMap.IsRaider).Take(2).ToList();
+        foreach (var r in raiders) { if (r.Command is not null) Commands.Cancel(u, r); if (Squadrons.Get(u, r) is { } sq) Squadrons.Disband(u, sq); Place(u, r, me.Sector, me.Position + new Vec2(0f, -30f)); r.NextThinkTick = u.Tick + 100_000; }
+        Encounter fight;
+        if (againstRaiders) fight = Engage.StartRaid(u, raiders[0], me, sector);
+        else
+        {
+            var cops = SecuritySystem.PoliceOf(u, sector.Owner).Take(1).ToList();
+            foreach (var c in cops) { if (c.Command is not null) Commands.Cancel(u, c); Place(u, c, me.Sector, me.Position + new Vec2(20f, 0f)); }
+            fight = Engage.StartArrest(u, cops, me, sector);
+        }
+        var late = raiders[1];
+        Place(u, late, me.Sector, me.Position + new Vec2(0f, 40f));
+        Commands.Give(u, late, new LurkCommand(me.Sector, late.Position, u.Tick + 20_000), out _, ignoreCapacity: true);   // lauert hier (ohne Befehl schickte die Gruppe ihn heim)
+        u.PendingEncounters.Add(new PendingEncounter { Kind = EncounterKind.Raid, Source = late.Id, Target = me.Id, Sector = me.Sector, DueTick = u.Tick + 5 });
+        var runner = new SimulationRunner();
+        var ev = Capture(u);
+        for (int i = 0; i < 12; i++) runner.Step(u);
+        var mySide = fight.Of(me.Id)!.Side;
+        Assert.DoesNotContain(ev, x => x is EncounterEscaped);
+        if (againstRaiders)
+        {
+            Assert.Equal(fight.Id, u.Fights.Of(late.Id)?.Id);
+            Assert.NotEqual(mySide, fight.Of(late.Id)!.Side);
+        }
+        else
+        {
+            Assert.Null(fight.Of(late.Id));
+            Assert.False(u.Fights.IsEngaged(late.Id), "nicht auf der Seite der Polizei");
+            Assert.Contains(u.PendingEncounters, p => p.Source == late.Id && p.DueTick > u.Tick);   // verschoben, nicht abstrakt aufgelöst
         }
     }
 

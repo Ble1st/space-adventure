@@ -909,6 +909,11 @@ public sealed class EconomyRules
     /// Preis seines Abnehmers erreicht (sicherer Verlust) — der Auftrag fällt weg, er plant neu. false = Verhalten bis Phase 28.
     /// </summary>
     public bool TraderBuyGuard = true;
+    /// <summary>
+    /// Prüfung Runde 2 (Leerfahrten durch verweigerte Verlustkäufe): die Planung prüft die Kaufschutz-Bedingung schon mit den erwarteten Preisen bei Ankunft
+    /// (Bestand des Herstellers nach den Käufen, die andere Händler dort schon vorhaben).
+    /// </summary>
+    public bool TraderPlanGuard = true;
     public float TraderBuyGuardShare = 1f;
     /// <summary>
     /// Phase 28 (Nacharbeit): Hat eine Ware, die ein Rezept verbraucht, keinen Hersteller mehr (fertige Station oder Baustelle) — etwa weil der Spieler den letzten

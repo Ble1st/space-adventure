@@ -83,12 +83,20 @@ public partial class CombatView : Node3D
 				if (n >= _missiles.Count)
 				{
 					var node = new Node3D();
-					Gfx.Mesh(new SphereMesh { Radius = 0.7f, Height = 1.4f, RadialSegments = 8, Rings = 4 }, _missile, Vector3.Zero, node);
+					// Gerätetest Phase 28: größer und mit Leuchtschweif (vorher am Handy nicht zu sehen)
+					Gfx.Mesh(new SphereMesh { Radius = 1.6f, Height = 3.2f, RadialSegments = 10, Rings = 5 }, _missile, Vector3.Zero, node);
+					var trail = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0.2f, BottomRadius = 1.2f, Height = 7f, RadialSegments = 8 }, MaterialOverride = _missile };
+					trail.RotationDegrees = new Vector3(90f, 0f, 0f);
+					trail.Position = new Vector3(0f, 0f, 3.5f);
+					node.AddChild(trail);
 					AddChild(node);
 					_missiles.Add(node);
 				}
 				var p = SpaceSim.Core.Combat.Missiles.PositionOf(u, e, f);
-				_missiles[n].Position = new Vector3(p.X, 0.6f, p.Y);
+				var np = new Vector3(p.X, 0.6f, p.Y);
+				var prev = _missiles[n].Position;
+				_missiles[n].Position = np;
+				if ((np - prev).LengthSquared() > 0.01f && (np - prev).LengthSquared() < 400f) _missiles[n].LookAt(np + (np - prev), Vector3.Up);   // Schweif zeigt nach hinten
 				_missiles[n].Visible = true;
 				n++;
 			}

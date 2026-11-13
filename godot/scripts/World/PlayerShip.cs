@@ -18,7 +18,7 @@ public partial class PlayerShip : Node3D
 	public const float MaxSpeed = 45f;
 	const float TurnRate = 7f;
 	/// <summary>Drehgeschwindigkeit der Wendetasten (Halten) in rad/s.</summary>
-	const float TurnSpeed = 3.2f;
+	const float TurnSpeed = SpaceSim.Core.Flight.AimAssist.PlayerTurnRate;   // Gerätetest Phase 28: dieselbe Drehrate wie die Zielhilfe
 	/// <summary>Erst ab dieser Aufprallgeschwindigkeit an Asteroiden/Stationen gibt es Schaden; darunter nur Abprallen.</summary>
 	public const float HardImpact = 14f;
 	/// <summary>Seitliche Restgeschwindigkeit wird abgebaut (Flugassistent): das Schiff folgt seiner Nase und driftet nicht in Hindernisse.</summary>

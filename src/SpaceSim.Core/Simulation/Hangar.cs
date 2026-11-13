@@ -209,7 +209,12 @@ public static class Hangar
         if (ship.Command is not null) Commands.Cancel(u, ship, "zurückgegeben");
         Departures.RemoveShip(u, ship, DepartureReason.Returned, "rental");   // Phase 22: Entscheidung der Spielerperson, kein Verfall
         u.Events.Publish(new RentalReturned(ship.Id, st.Id, fromDeposit + fromWallet, refund));
-        message = $"Leihschiff zurückgegeben: {RentalDays(u, ship)} Tag(e) Miete {fromDeposit + fromWallet:0} Cr, Pfand-Rest {refund:0} Cr erstattet.";
+        // Gerätetest Phase 28: die Miete der ganzen Leihzeit nennen — die täglich schon abgebuchten Tage standen vorher nicht in der Meldung („Miete 0 Cr“)
+        float paidBefore = ship.RentPaidDays * u.Rules.RentalPerDay;
+        float rentNow = fromDeposit + fromWallet;
+        message = $"Leihschiff zurückgegeben: {RentalDays(u, ship)} Tag(e) Miete {paidBefore + rentNow:0} Cr"
+            + (paidBefore > 0f ? $" ({paidBefore:0} Cr schon täglich abgebucht{(rentNow > 0f ? $", jetzt {rentNow:0} Cr" : "")})" : "")
+            + $", Pfand {refund:0} Cr erstattet.";
         return true;
     }
 }

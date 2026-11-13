@@ -100,17 +100,7 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 			string state = SpaceSim.Core.Combat.StationCombat.IsDown(u, st) ? " · AUS" : SpaceSim.Core.Combat.StationCombat.UnderSiege(u, st.Id) ? " · Angriff" : "";
 			Row(v1, "Geschütze", $"{def?.Guns.Count ?? 0}{state}");
 		}
-		v1.AddChild(Text("Angebotene Dienste", 18, Cyan));
-		var services = Ctx.Services.ForStation(u, st);
-		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));
-		// Gerätetest: Dienste-Chips umbrechen (liefen in die Marktspalte)
-		var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(cw - 44f, 0) };
-		chips.AddThemeConstantOverride("h_separation", 6);
-		chips.AddThemeConstantOverride("v_separation", 6);
-		TestChips = string.Join(",", services.Select(sv => DockAreas.ServiceName(sv.Key, u)));
-		foreach (var s in services)
-			chips.AddChild(Chip(DockAreas.ServiceName(s.Key, u)));   // Dienst, nicht Dockbereich — immer der deutsche Name
-		v1.AddChild(chips);
+
 
 		// ── Karte 2: Marktübersicht (Nachfrage/Überschuss echt aus Bestand gegen Ziel) ──
 		var c2 = CardPanel(inner, cw + 10, 0, mw, h);
@@ -149,13 +139,16 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		// ── Karte 3: Politik und Hinweise (Phase 10 echt aus AccessInfo: Ruf = Beziehung des Besitzers zu dir, Zoll und Sperrstufe des Sektors) ──
 		float pw = w - (cw + 10) - (mw + 10);
 		var c3 = CardPanel(inner, cw + mw + 20, 0, pw, h);
-		var v3 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		var s3 = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ExpandFill };
+		c3.AddChild(s3);
+		var v3 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		v3.AddThemeConstantOverride("separation", 8);
-		c3.AddChild(v3);
+		s3.AddChild(v3);
+		_politicsScroll = s3;
 		v3.AddChild(Text("Politik & Hinweise", 22, Cyan));
 		var pol = AccessInfo.ForStation(u, st, Ctx.Ship);
 		TestLock = pol.Lock; TestCustoms = pol.Customs;
-		float tw = pw - 32;
+		float tw = pw - 44;
 		Wrapped(v3, "Ruf bei dir: " + pol.Reputation, tw, 15, White);
 		Wrapped(v3, "Zoll: " + pol.Customs, tw, 15, pol.Customs == "kein Zoll" ? Green : pol.Customs.StartsWith("gesperrt") ? Red : Orange);
 		Wrapped(v3, "Sperrstufe: " + pol.Lock, tw, 15, pol.Lock == "Offen" ? Green : Orange);
@@ -175,12 +168,24 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		}
 		v3.AddChild(Text("Hinweise", 16, Dim));
 		foreach (var note in pol.Notes) Wrapped(v3, "· " + note, tw, 14, new Color(Dim, 0.95f));
+		// Prüfung Runde 2: die Dienste stehen in der Hinweis-Karte (viel Platz) — in „Allgemein“ war die unterste Chip-Reihe angeschnitten
+		v3.AddChild(Text("Angebotene Dienste", 18, Cyan));
+		var services = Ctx.Services.ForStation(u, st);
+		if (services.Count == 0) v3.AddChild(Text("keine", 15, Dim));
+		// Gerätetest: Dienste-Chips umbrechen (liefen in die Marktspalte)
+		var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(pw - 44f, 0) };
+		chips.AddThemeConstantOverride("h_separation", 6);
+		chips.AddThemeConstantOverride("v_separation", 6);
+		TestChips = string.Join(",", services.Select(sv => DockAreas.ServiceName(sv.Key, u)));
+		foreach (var s in services)
+			chips.AddChild(Chip(DockAreas.ServiceName(s.Key, u)));   // Dienst, nicht Dockbereich — immer der deutsche Name
+		v3.AddChild(chips);
 	}
 
 	/// <summary>Mehrzeiliger Text mit manuellem Umbruch (Label-Autowrap ist in Karten unzuverlässig).</summary>
 	static void Wrapped(Control parent, string text, float width, int size, Color color)
 	{
-		int lines = Math.Max(1, (int)Math.Ceiling(text.Length * size * 0.52f / Math.Max(60f, width)));
+		int lines = Math.Max(1, Wrap(text, size, width).Count);   // Prüfung Runde 2: gemessen wie WrappedText
 		var holder = new Control { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(0, lines * (size + 6)) };
 		parent.AddChild(holder);
 		WrappedText(holder, text, 0, 0, width, size, color);
@@ -194,7 +199,10 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	}
 
 	float _rowW = 300f;
-	KitScroll? _infoScroll;
+	KitScroll? _infoScroll, _politicsScroll;
+	/// <summary>Selbsttest Runde 2: rollt eine der Karten (dann wäre unten etwas angeschnitten)?</summary>
+	public bool TestCardsScroll => Scrolls(_infoScroll) || Scrolls(_politicsScroll);
+	static bool Scrolls(KitScroll? k) => k is not null && k.GetVScrollBar().MaxValue - k.GetVScrollBar().Page > 0.5;
 	/// <summary>Selbsttest: Rahmen der Karte „Allgemein“ und Rechteck ihres letzten Dienst-Chips (muss im Rahmen liegen oder die Karte rollt).</summary>
 	public (Rect2 Card, Rect2 Content, bool Scrolls) TestInfoCard => _infoScroll is { } k && k.GetChild(0) is Control c
 		? (k.GetGlobalRect(), c.GetGlobalRect(), k.GetVScrollBar().MaxValue - k.GetVScrollBar().Page > 0.5) : (default, default, false);

@@ -120,7 +120,9 @@ public sealed class CombatSystem : ISimSystem
             }
             // Phase 28: in einer Belagerung reicht auch die Station (ihre Geschütze bzw. die eigenen Waffen gegen sie)
             if (clear && r.Warfare && p.Side == 0 && StationCombat.Defends(u, e) && u.Stations.TryGetValue(e.Station, out var besieged))
-                if (StationCombat.Distance(u, e, p, besieged) <= MathF.Max(MathF.Max(r.CombatMinEscapeDistance, StationCombat.GunRange(u, besieged)), own)) clear = false;
+                // Gerätetest Phase 28: Abstand zur Außenhaut wie beim Schuss auf die Station (TryFireAtStation) — vorher galt der Spieler am Rand der
+                // Raketenreichweite schon als geflohen, das Gefecht endete im nächsten Takt und die Rakete verschwand
+                if (StationCombat.Distance(u, e, p, besieged) - Station.BodyRadius <= MathF.Max(MathF.Max(r.CombatMinEscapeDistance, StationCombat.GunRange(u, besieged)), own)) clear = false;
             if (clear) Engage.Leave(u, e, p, CombatExit.Fled);
         }
 

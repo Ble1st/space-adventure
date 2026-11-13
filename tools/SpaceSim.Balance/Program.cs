@@ -48,6 +48,8 @@ if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.Sec
 // Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
 if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
 if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
+// Prüfung Runde 2: --planguard off schaltet den Kaufschutz in der Händlerplanung ab (Vergleichslauf)
+if (opts.TryGetValue("planguard", out var pgOpt)) u.Rules.TraderPlanGuard = pgOpt == "on";
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
 // Phase 17: Rechenzeit je System (jedes System eines Moduls bekommt eine eigene Stoppuhr; die Sicherheits-Systeme laufen zusätzlich auf der Sammeluhr)

@@ -273,6 +273,10 @@ public partial class SectorView : Node3D
 		foreach (var w in u.Wrecks)
 		{
 			if (w.Sector != _sector) continue;
+			// Gerätetest Phase 28: ein Wrack, aus dem nichts mehr zu holen ist (nur Schrott unter der Bergungsgrenze), wird nicht mehr gezeichnet — die Bucht sagt dann
+			// „kein Wrack“, das Bild zeigte es weiter bis zum Ablauf der Frist
+			bool useful = w.Cargo.Values.Any(v => v > 0.001f) || w.Modules.Exists(m => m.Condition >= u.Rules.SalvageMinCondition);
+			if (!useful) continue;
 			live.Add(w.Id);
 			if (_wrecks.ContainsKey(w.Id)) continue;
 			bool container = w.Kind == WreckKind.Container;
