@@ -114,6 +114,8 @@ public partial class FlightHud : Control, IScreen
 	public void TestPressStationAttack() => StationAttackPressed?.Invoke();
 	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!, _aimAssist = null!;
 	public bool TestAimAssistVisible => _aimAssist.Visible;
+	public string TestTargetArc => _tArc.Text;
+	public void TestPressAimAssist() => AimAssistPressed?.Invoke();
 	public string TestStationAttackInfo { get; private set; } = "";
 	public bool TestAimAssistOn => _aimAssist.On;
 	public Rect2 TestAimAssistRect => new(_aimAssist.Position, _aimAssist.Size);
@@ -332,7 +334,7 @@ public partial class FlightHud : Control, IScreen
 		_surrender = At(this, new KitButton("Ergeben", new Vector2(176, 56)) { FontSize = 16, State = KitButtonState.Warn }, 906, 398);
 		_surrender.Pressed += () => SurrenderPressed?.Invoke();
 		_surrender.Visible = false;
-		_hitWarning = At(this, Text("", 22, UiKit.Red, HorizontalAlignment.Center), 400, 214, 340, 30);   // Gerätetest Phase 28: unter der zweizeiligen Meldungsfläche
+		_hitWarning = At(this, Text("", 19, UiKit.Red, HorizontalAlignment.Center), 400, 214, 340, 30);   // Gerätetest Phase 28: unter der zweizeiligen Meldungsfläche
 		// Prüfung Phase 28: dunkler Grund unter Lage-, Fahndungs- und Beschusszeile (3D-Beschriftungen und Ringe schienen durch) und Beschusszeile links von „Nächster Gegner“
 		foreach (var l in new[] { _security, _wanted, _hitWarning }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
 		// Gerätetest (breite Displays): Grundlage merken, dann an die Breite anpassen

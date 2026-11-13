@@ -310,9 +310,20 @@ public partial class Hud : CanvasLayer
 		if (_alert.Visible) PlaceAlert();
 		// der Hinweis rückt unter eine stehende Meldung (statt sie zu überdecken)
 		// Prüfung Runde 2: unter einer Meldung im Flug schmaler und links der Kampftasten („Nächster Gegner“ beginnt bei x 764 im 1280er-Raster)
-		bool below = _alert.Visible && !(Screens.Current != null && Screens.Current != Flight);
-		_toast.Position = new Vector2(_toast.Position.X, below ? FlightAlertY + AlertHeight + 6f : 112f);
-		_toast.Size = new Vector2(below ? 416f : 600f, _toast.Size.Y);
+		bool onScreen = Screens.Current != null && Screens.Current != Flight;
+		bool below = _alert.Visible && !onScreen;
+		// Runde 4: über Vollbildern unten mittig (zwischen „← Menü“/„← Flug“ und „Abdocken“), im Flug mit Abstand zur Lage-/Brandzeile
+		var vpSize = GetViewport().GetVisibleRect().Size;
+		if (Screens.Current == DockMenu)   // Dock-Menü: links neben dem Fenster, unter einer Meldung
+		{
+			_toast.Position = new Vector2(10f, _alert.Visible ? 250f : 90f);
+			_toast.Size = new Vector2(MathF.Max(300f, (vpSize.X - DockMenuWidth) / 2f - 20f), _toast.Size.Y);
+		}
+		else
+		{
+			_toast.Position = new Vector2(vpSize.X / 2f - 300f, onScreen ? vpSize.Y - 70f : below ? FlightAlertY + AlertHeight + 6f : 122f);
+			_toast.Size = new Vector2(below ? 416f : 600f, _toast.Size.Y);
+		}
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 	}
 
@@ -354,6 +365,7 @@ public partial class Hud : CanvasLayer
 			var view = new Rect2(Vector2.Zero, Size).Grow(-20f);
 			var field = Field();
 			var c = field.GetCenter();
+			var occupied = Hud.Flight.OccupiedRects();   // Runde 4: Namen und Pfeile nie über HUD-Tasten/-Beschriftungen
 			foreach (var (screen, name, id) in list)
 			{
 				if (view.HasPoint(screen)) continue;   // im Bild: die Station selbst ist antippbar
@@ -362,6 +374,7 @@ public partial class Hud : CanvasLayer
 				float t = Mathf.Min(Mathf.Abs(field.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(field.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));
 				var tip = c + dir * t;
 				// dicht beieinander liegende Stationen: nur ein Marker (Namen liefen übereinander)
+				if (occupied.Exists(r => r.HasPoint(tip))) continue;
 				bool near = false;
 				foreach (var (mp, _) in Hud.EdgeMarkers) if (mp.DistanceTo(tip - dir * 18f) < 70f) { near = true; break; }
 				if (near) continue;
@@ -372,7 +385,7 @@ public partial class Hud : CanvasLayer
 				var lp = tip - dir * 30f - new Vector2(w / 2f, -4f);
 				var box = new Rect2(lp - new Vector2(4f, 13f), new Vector2(w + 8f, 18f));
 				// Namen nur, wo sie nicht über einem schon gezeichneten Namen liegen (der Pfeil bleibt)
-				if (!_labelBoxes.Exists(b => b.Intersects(box)))
+				if (!_labelBoxes.Exists(b => b.Intersects(box)) && !occupied.Exists(r => r.Intersects(box)))
 				{
 					_labelBoxes.Add(box);
 					DrawRect(box, new Color(0.02f, 0.04f, 0.09f, 0.75f));

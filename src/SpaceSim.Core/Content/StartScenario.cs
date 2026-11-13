@@ -101,6 +101,9 @@ public static class StartScenario
                     r.RecomputeStats(u);
                     r.Engagement = Engagement.Attack;   // und er flieht nicht (sonst entkäme er dem Menschen unter halber Hülle sofort)
                 }
+                if (i == 0 && sc.LeadCargo is { } lc)   // Runde 4: Beute an Bord (Kaperschiffe haben keinen Laderaum — die Fracht ist Szenario-Ausstattung)
+                    foreach (var (g, a) in lc.OrderBy(k => k.Key, StringComparer.Ordinal))
+                        r.Cargo[(u.FindGood(g) ?? throw new WorldFormatException($"Startpaket '{key}': unbekannte Ware '{g}'")).Id] = a;
                 r.DockedAt = default;
                 r.Order = new PatrolOrder(player.Sector);
                 r.DutySector = player.Sector;

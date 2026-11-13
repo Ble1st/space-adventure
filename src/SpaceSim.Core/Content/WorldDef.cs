@@ -474,6 +474,8 @@ public sealed class ScenarioDef
     public int ReinforceAfterTicks { get; set; }
     /// <summary>Zweiter Gerätetest Phase 28: Hüllenanteil der später dazustoßenden Kaperer (1 = heil).</summary>
     public float ReinforceHull { get; set; } = 1f;
+    /// <summary>Gerätetest Phase 28 (Runde 4): Fracht des ersten Kaperers (Beute an Bord) — sein Wrack hat dann Fracht für den Traktorstrahl.</summary>
+    public Dictionary<string, float>? LeadCargo { get; set; }
 }
 
 public sealed class PlayerDef

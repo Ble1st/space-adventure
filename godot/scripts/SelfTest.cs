@@ -2341,9 +2341,11 @@ public partial class SelfTest : Node
 					var pl = uni.Ships[uni.PlayerShip];
 					_m.TestFace(pl.Position + (pl.Position - hq.Position));
 					_m.SyncHudForTest();
-					Check(_m.HudRef.Flight.TestStationAttackInfo.Contains("Geschütze") && _m.HudRef.Flight.TestStationAttackInfo.Contains("Raketen"), $"„Station angreifen“ nennt die Gegenwehr ({_m.HudRef.Flight.TestStationAttackInfo})");
+					Check(_m.HudRef.Flight.TestStationAttackInfo.Contains("Geschütze"), $"„Station angreifen“ nennt die Gegenwehr ({_m.HudRef.Flight.TestStationAttackInfo})");
+					Check(_m.HudRef.Flight.TestTargetArc == "außerhalb Geschütze · Raketen ja", $"Zielkarte: außerhalb der Geschütze, Raketen reichen ({_m.HudRef.Flight.TestTargetArc})");
 					Check(_m.TestBayPlaces.Any(n => n.StartsWith("Vorrat ") && n.Contains('/')), $"Raketenbucht zeigt den Vorrat ({string.Join(",", _m.TestBayPlaces)})");
 					_m.TestArmStation();
+					Check(_m.TestFight.AutoFire && _m.TestAimAssist, "Angriff schaltet Dauerfeuer und „Ziel folgen“ ein");
 					break;
 				}
 				if (f == 90)
@@ -2351,8 +2353,13 @@ public partial class SelfTest : Node
 					var pl = uni.Ships[uni.PlayerShip];
 					float off = Mathf.RadToDeg(SpaceSim.Core.Flight.AimAssist.Delta(_m.TestHeadingRad, SpaceSim.Core.Flight.AimAssist.Bearing(pl.Position, uni.Stations[_p28Station].Position)));
 					Check(System.MathF.Abs(off) < 5f, $"Zielhilfe dreht die Nase zur Station ({off:0}°)");
-					bool fired = _m.TestFireSlot(pl.Fit.IndexOf("missile_launcher_s"));
+					bool fired = _m.TestFireSlot(pl.Fit.IndexOf("missile_launcher_s")) || _m.TestFight.Shots > 0;   // Dauerfeuer kann schon geschossen haben
 					Check(fired, $"Rakete gestartet ({_m.TestFightMessage})");
+					// Runde 4: „Ziel folgen“ bewusst aus — Dauerfeuer aus/an schaltet es für dieses Ziel nicht wieder ein
+					_m.HudRef.Flight.TestPressAimAssist();
+					_m.HudRef.Flight.TestPressAutoFire(); _m.HudRef.Flight.TestPressAutoFire();
+					Check(!_m.TestAimAssist && _m.TestFight.AutoFire, "bewusstes Aus von „Ziel folgen“ bleibt, bis das Ziel wechselt");
+					_m.HudRef.Flight.TestPressAimAssist();
 					break;
 				}
 				if (f > 90 && f < 200 && _m.TestMissilesShown > 0) { _p28SeenMissile = 2; }
@@ -2386,6 +2393,12 @@ public partial class SelfTest : Node
 				if (f == 9)
 				{
 					Check(_p28MarkId == 0 || _m.TestTargetStation == _p28MarkId, $"Tipp auf den Randmarker wählt die Station ({_m.TestTargetStation} statt {_p28MarkId})");
+					// Runde 4: Kommandozentrale → Sektor → „Ziel wählen“ setzt das Ziel ohne Autopilot
+					var hq = uni.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+					_m.TestOpenCommand(); _m.TestOpenCcArea("sector");
+					_m.HudRef.CcSector.TestSelectStation(hq.Id);
+					_m.HudRef.CcSector.TestTargetHere();
+					Check(_m.TestTargetStation == hq.Id.Value && !_m.TestAutopilotOn && !_m.TestScreenOpen("cc.sector"), "„Ziel wählen“ in der Sektoransicht wählt die Station ohne Autopilot");
 					Next();
 				}
 				break;
@@ -2395,7 +2408,7 @@ public partial class SelfTest : Node
 				var uni = _m.Session.U;
 				int f = _frame - _stageStart;
 				int round = f / 400, rf = f % 400;
-				if (f == 1) { _m.TestMenu("new"); _m.Session.RunTicks(2); break; }
+				if (f == 1) { _m.TestSetFast(true); _m.TestMenu("new"); _m.Session.RunTicks(2); Check(!_m.TestFast, "„Neues Spiel“ setzt den Zeitraffer auf ×1 zurück"); break; }
 				if (round > 2) break;
 				if (rf == 30)
 				{

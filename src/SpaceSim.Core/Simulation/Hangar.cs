@@ -209,12 +209,15 @@ public static class Hangar
         if (ship.Command is not null) Commands.Cancel(u, ship, "zurückgegeben");
         Departures.RemoveShip(u, ship, DepartureReason.Returned, "rental");   // Phase 22: Entscheidung der Spielerperson, kein Verfall
         u.Events.Publish(new RentalReturned(ship.Id, st.Id, fromDeposit + fromWallet, refund));
-        // Gerätetest Phase 28: die Miete der ganzen Leihzeit nennen — die täglich schon abgebuchten Tage standen vorher nicht in der Meldung („Miete 0 Cr“)
+        // Gerätetest Phase 28 (Runde 4): verständlich — die ganze Miete der Leihzeit (auch die täglich schon abgebuchten Tage), was davon jetzt anfiel, was
+        // offen blieb (Kasse leer), und das zurückgezahlte Pfand
         float paidBefore = ship.RentPaidDays * u.Rules.RentalPerDay;
-        float rentNow = fromDeposit + fromWallet;
-        message = $"Leihschiff zurückgegeben: {RentalDays(u, ship)} Tag(e) Miete {paidBefore + rentNow:0} Cr"
-            + (paidBefore > 0f ? $" ({paidBefore:0} Cr schon täglich abgebucht{(rentNow > 0f ? $", jetzt {rentNow:0} Cr" : "")})" : "")
-            + $", Pfand {refund:0} Cr erstattet.";
+        float charged = fromDeposit + fromWallet, unpaid = MathF.Max(0f, rent - charged);
+        string detail = paidBefore > 0f && rent <= 0f ? " (bereits abgebucht)"
+            : paidBefore > 0f ? $" ({paidBefore:0} Cr bereits abgebucht, {charged:0} Cr jetzt)" : "";
+        message = $"Leihschiff zurückgegeben ({RentalDays(u, ship)} Tag(e)): Miete {paidBefore + rent:0} Cr{detail}"
+            + (unpaid > 0f ? $", davon {unpaid:0} Cr nicht bezahlt (Kasse leer)" : "")
+            + $", Pfand {refund:0} Cr zurück.";
         return true;
     }
 }

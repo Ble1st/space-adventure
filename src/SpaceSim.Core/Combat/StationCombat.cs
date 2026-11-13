@@ -270,22 +270,53 @@ public sealed class StationRepairSystem : ISimSystem
 public static class WarInfo
 {
     /// <summary>
-    /// Gerätetest Phase 28: Gegenwehr, wenn der Spieler diese Station angreift — Geschütze aller Stationen derselben Fraktion im Sektor (die schießen dann mit)
-    /// und ihre größte Reichweite, dazu die Reichweite der eigenen Raketen. Kurzzeile für die Taste „Station angreifen“; leer ohne Geschütze.
+    /// Gerätetest Phase 28: Gegenwehr, wenn der Spieler diese Station angreift — Geschütze aller Stationen derselben Fraktion im Sektor und ihre größte
+    /// Reichweite. Kurzzeile für die Taste „Station angreifen“ („2 Geschütze · 60 m“); leer ohne Geschütze. Alle Abstände der Anzeige gelten ab Stationsmitte
+    /// (wie die Entfernung auf der Zielkarte und die Regel der Stationsgeschütze).
     /// </summary>
     public static string DefenseWarning(Universe u, Station target, Ship player)
     {
-        if (u.FactionOf(target) is not { } f || !u.Sectors.TryGetValue(target.Sector, out var sector)) return "";
+        var (guns, range) = Guns(u, target);
+        return guns == 0 ? "" : $"{guns} Geschütze · {range:0} m";
+    }
+
+    /// <summary>Geschütze (Anzahl, größte Reichweite) aller nicht ausgeschalteten Stationen der Fraktion von <paramref name="target"/> im Sektor.</summary>
+    public static (int Guns, float Range) Guns(Universe u, Station target)
+    {
+        if (u.FactionOf(target) is not { } f || !u.Sectors.TryGetValue(target.Sector, out var sector)) return (0, 0f);
         int guns = 0; float range = 0f;
         foreach (var id in sector.Stations)
             if (u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && StationCombat.DefenseOf(u, st) is { } def && !StationCombat.IsDown(u, st))
                 foreach (var g in def.Guns)
                     if (u.Modules.TryGetValue(g, out var m)) { guns++; range = MathF.Max(range, m.Stat("range")); }
-        if (guns == 0) return "";
+        return (guns, range);
+    }
+
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 4): Reichweite der eigenen Raketen gegen eine Station ab ihrer Mitte (die Waffe misst bis zur Außenhaut,
+    /// <see cref="Station.BodyRadius"/> weiter); 0 = keine Raketen.
+    /// </summary>
+    public static float MissileReachFromCentre(Universe u, Ship player)
+    {
         float own = 0f;
         for (int i = 0; i < player.Fit.Count; i++)
             if (player.Fit[i] is { } k && u.Modules.TryGetValue(k, out var pm) && Missiles.IsMissile(pm) && player.ConditionOf(i) >= u.Rules.ModuleFailCondition) own = MathF.Max(own, pm.Stat("range"));
-        return $"{guns} Geschütze · {range:0} m" + (own > range ? $" · Raketen {own:0} m" : "");
+        return own > 0f ? own + Station.BodyRadius : 0f;
+    }
+
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 4): Lagezeile beim Stationsangriff — „in Geschützreichweite“ oder „außerhalb der Geschütze“ (Abstand zur Mitte gegen die
+    /// Reichweite der Geschütze dieser Station, dieselbe Messung wie ihre Schussregel), dazu die eigene Raketenreichweite ab Mitte. Leer ohne Geschütze.
+    /// </summary>
+    public static string RangeStatus(Universe u, Station target, Ship player)
+    {
+        float guns = StationCombat.GunRange(u, target);
+        if (guns <= 0f) return "";
+        float d = Vec2.Distance(player.Position, target.Position);
+        float missiles = MissileReachFromCentre(u, player);
+        if (d <= guns) return $"IN GESCHÜTZREICHWEITE ({guns:0} m)";
+        if (missiles <= 0f) return $"außerhalb Geschütze ({guns:0} m)";
+        return d <= missiles ? "außerhalb Geschütze · Raketen ja" : $"außerhalb Geschütze · Raketen ≤{missiles:0} m";
     }
 
     /// <summary>Verteidigungszeile einer Station: Hülle, Schild, Geschütze, Zustand (ausgeschaltet, belagert).</summary>

@@ -27,6 +27,10 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 	/// <summary>„Autopilot hierhin“: Ziel für Main (NavTarget + optionale Station zum Andocken).</summary>
 	public event Action<NavTarget, StationId?>? AutopilotRequested;
+	/// <summary>Runde 4: „Ziel wählen“ — Ziel setzen ohne Autopilot.</summary>
+	public event Action<NavTarget, StationId?>? TargetRequested;
+	/// <summary>Test-Hook: „Ziel wählen“ auslösen.</summary>
+	public void TestTargetHere() { if (CanAutopilot(Ctx.U, Selected, out var n, out var d)) TargetRequested?.Invoke(n, d); }
 
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
 
@@ -154,10 +158,20 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		}
 
 		// Knöpfe unten: „Autopilot hierhin“ (echt, nur aktueller Sektor bzw. über Route) und „Info“
-		var bAuto = At(card, new KitButton("Autopilot hierhin", new Vector2(268, 52)) { FontSize = 17 }, 16, 300);
+		// Runde 4: „Ziel wählen“ (ohne loszufliegen) neben „Autopilot“
+		var bTarget = At(card, new KitButton("Ziel wählen", new Vector2(130, 52)) { FontSize = 16 }, 16, 300);
+		var bAuto = At(card, new KitButton("Autopilot hin", new Vector2(130, 52)) { FontSize = 16 }, 154, 300);
 		if (CanAutopilot(u, sel, out var nav, out var dock))
+		{
 			bAuto.Pressed += () => { if (CanAutopilot(u, sel, out var n2, out var d2)) AutopilotRequested?.Invoke(n2, d2); };
-		else { bAuto.State = KitButtonState.Disabled; bAuto.Detail = sel == u.PlayerSector ? "erst Station/Gate antippen" : "kein Weg (Gates gesperrt)"; }
+			bTarget.Pressed += () => { if (CanAutopilot(u, sel, out var n2, out var d2)) TargetRequested?.Invoke(n2, d2); };
+		}
+		else
+		{
+			string why = sel == u.PlayerSector ? "Station/Gate antippen" : "kein Weg";
+			bAuto.State = KitButtonState.Disabled; bAuto.Sub = why;
+			bTarget.State = KitButtonState.Disabled; bTarget.Sub = why;
+		}
 		var bInfo = At(card, new KitButton("Info", new Vector2(130, 48)) { FontSize = 17 }, 16, 360);
 		if (_selStation != null) bInfo.Pressed += () => { _showInfo = !_showInfo; Invalidate(); };
 		else { bInfo.State = KitButtonState.Disabled; bInfo.Detail = "Station antippen"; }

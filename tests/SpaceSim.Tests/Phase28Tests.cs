@@ -887,6 +887,8 @@ public class Phase28Tests
         Assert.True(u.PlayerShip == me.Id && u.Ships.ContainsKey(me.Id), "der Falke lebt");
         Assert.True(u.Tick - start > 45 * SimClock.TicksPerSecond, "länger als 45 s überlebt");
         Assert.True(u.Actors[u.PlayerActor].BountyClaims.Values.Sum() > 0f, "Kopfgeld für den Kaperer");
+        // Runde 4: der Anführer hatte Beute an Bord — sein Wrack hat Fracht für den Traktorstrahl
+        Assert.Contains(u.Wrecks, w => w.From == lead && w.Cargo.Values.Sum() > 0f);
     }
 
     /// <summary>
@@ -1191,6 +1193,14 @@ public class Phase28Tests
         Assert.Null(PlayerGunnery.StationIssue(u, me, st));
         Assert.Equal(BayState.Ready, PlayerGunnery.StateAtStation(u, me, slot, heading, st.Id));
         Assert.True(Vec2.Distance(me.Position, st.Position) > 60f + Station.BodyRadius, "außerhalb der Stationslaser");
+        // Runde 4: dieselbe Messung wie die Anzeige — Abstand zur Mitte, Geschütze ab Mitte, eigene Raketen ab Mitte (Waffenreichweite + Außenhaut)
+        float d = Vec2.Distance(me.Position, st.Position);
+        Assert.True(d > StationCombat.GunRange(u, st), $"außerhalb der Geschütze ({d:0} m)");
+        Assert.True(d <= WarInfo.MissileReachFromCentre(u, me), $"innerhalb der Raketenreichweite ({d:0} m)");
+        Assert.Equal("außerhalb Geschütze · Raketen ja", WarInfo.RangeStatus(u, st, me));
+        Assert.Equal($"2 Geschütze · {StationCombat.GunRange(u, st):0} m", WarInfo.DefenseWarning(u, st, me));
+        me.Position = st.Position + (me.Position - st.Position).Normalized() * (StationCombat.GunRange(u, st) - 1f);
+        Assert.StartsWith("IN GESCHÜTZREICHWEITE", WarInfo.RangeStatus(u, st, me));
     }
 
     [Fact]

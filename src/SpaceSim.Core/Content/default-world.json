@@ -4411,6 +4411,7 @@
      "raidAfterTicks": 60,
      "reinforceAfterTicks": 240,
      "reinforceHull": 0.6,
+     "leadCargo": { "luxury_goods": 6 },
      "trader": true,
      "policeSquadron": true,
      "cargo": { "ammo": 10, "food": 10 }
@@ -4426,7 +4427,7 @@
     "scenario": {
      "fit": ["reactor_mk2", "chem_engine_s_mk2", "weapon_laser_s", "missile_launcher_s", "shield_mk1", "power_bank_s", "weapon_magazine_s"],
      "station": "sector_hq",
-     "distance": 100,
+     "distance": 80,
      "cargo": { "ammo": 20 }
     }
    },

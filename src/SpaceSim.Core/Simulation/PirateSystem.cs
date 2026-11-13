@@ -302,7 +302,7 @@ public sealed class PirateSystem : ISimSystem
             {
                 hunter.BountyClaims[faction] = hunter.BountyClaims.GetValueOrDefault(faction) + bounty;
                 u.Events.Publish(new BountyEarned(hunter.Id, faction, raider.Id, bounty));
-                msg += $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen.";
+                msg += Services.CourtService.Hint(u, sector.Id, faction, bounty);   // Runde 4: nächste Behörde nennen
             }
         }
         var ev = new RaidResolved(sector.Id, raider.Id, victim.Id, outcome.AttackerWon, lootValue, fenced, victimDestroyed, raiderDestroyed, helper, player, msg);

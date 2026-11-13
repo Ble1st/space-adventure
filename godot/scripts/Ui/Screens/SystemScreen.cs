@@ -27,13 +27,13 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		var bNew = At(inner, new KitButton("Neues Spiel", new Vector2(300, 56)) { FontSize = 19, State = _choosing ? KitButtonState.On : KitButtonState.Normal }, 20, 188);
 		bNew.Pressed += () => { _choosing = !_choosing; Invalidate(); };
 		if (_choosing) BuildStartChooser(inner);
-		WrappedText(inner, "Autosave alle 30 s; Speichern/Laden legen den Spielstand wie bisher in Main ab.", 20, 256, 310, 14, Dim, 20);
+		float my = WrappedText(inner, "Autosave alle 30 s; Speichern/Laden legen den Spielstand wie bisher in Main ab.", 20, 256, 310, 14, Dim, 20);
 		// Gerätetest Phase 27: sichtbare Rückmeldung im Bereich selbst (der Toast liegt unter der Kommandozentrale)
-		if (_message.Length > 0) At(inner, Text(_message, 16, _messageOk ? Green : Red), 20, 290, 310, 24);
+		if (_message.Length > 0) At(inner, Text(_message, 16, _messageOk ? Green : Red), 20, my + 8f, 310, 24);   // Runde 4: Abstand zum Text darüber
 
-		At(inner, Text("Einstellungen", 22, Cyan), 20, 320, 400, 30);
-		At(inner, new KitButton("Einstellungen", new Vector2(300, 56)) { FontSize = 19, State = KitButtonState.Disabled, Sub = UiPlaceholders.Soon }, 20, 360);
-		At(inner, Text("Ton, Tasten, Sprache: " + UiPlaceholders.Tag + " (" + UiPlaceholders.Soon + ").", 14, new Color(Dim, 0.8f)), 20, 428, 320, 44);
+		At(inner, Text("Einstellungen", 22, Cyan), 20, 350, 400, 30);
+		At(inner, new KitButton("Einstellungen", new Vector2(300, 56)) { FontSize = 19, State = KitButtonState.Disabled, Sub = UiPlaceholders.Soon }, 20, 390);
+		At(inner, Text("Ton, Tasten, Sprache: " + UiPlaceholders.Tag + " (" + UiPlaceholders.Soon + ").", 14, new Color(Dim, 0.8f)), 20, 458, 320, 44);
 	}
 
 	bool _choosing;

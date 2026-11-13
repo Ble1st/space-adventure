@@ -389,7 +389,7 @@ public sealed class CombatSystem : ISimSystem
             float bounty = raiderDestroyed && sector is not null ? ClaimBounty(u, e, sector.Owner, side: 1) : 0f;
             if (player)
                 msg = victimDestroyed ? "Dein Schiff wurde von den Piraten zerstört."
-                    : raiderDestroyed ? "Überfall abgewehrt — das Kaperschiff ist zerstört." + (bounty > 0f ? $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen." : "")
+                    : raiderDestroyed ? "Überfall abgewehrt — das Kaperschiff ist zerstört." + (bounty > 0f && sector is not null ? Services.CourtService.Hint(u, sector.Id, sector.Owner, bounty) : "")
                     : victimP?.Exit == CombatExit.Fled ? "Du bist den Piraten entkommen."
                     : "Die Piraten drehen ab.";
             else
@@ -410,7 +410,7 @@ public sealed class CombatSystem : ISimSystem
                 else if (sector is not null) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
             }
             msg = e.Loot > 0f ? $"Das Schiff wirft Fracht im Wert von {e.Loot:0} Cr ab — mit dem Traktorstrahl einsammeln."
-                : destroyed > 0 ? "Ziel zerstört." + (bounty > 0f ? $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen." : killed > 0 ? " Die Fahndung steigt." : "")
+                : destroyed > 0 ? "Ziel zerstört." + (bounty > 0f && sector is not null ? Services.CourtService.Hint(u, sector.Id, sector.Owner, bounty) : killed > 0 ? " Die Fahndung steigt." : "")
                 : fled > 0 ? "Das Ziel ist entkommen." : "Das Gefecht ist vorbei.";
         }
         else if (e.Cause == EncounterCause.Siege)
