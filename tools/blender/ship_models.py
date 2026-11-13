@@ -423,6 +423,22 @@ def fin(b, pts, t, loc, mat="Accent", side=0.0):
     b.prism(pts, t, M(mat), loc=loc, rot=(90, side, 90))
 
 
+def fin_pair(b, pts, t, x, y, z, cant=0.0, mat="Accent"):
+    """Spiegelgleiches Finnenpaar: pts = [(y_vor, z_hoch), ...]; Wurzel bei (+-x, y, z), beide Finnen um
+    denselben Winkel cant nach aussen geneigt (0 = senkrecht)."""
+    for s in (1, -1):
+        a = math.radians(cant * s)
+        rot = Euler((0, a, 0)).to_matrix().to_4x4()
+        base = Matrix.Translation(Vector((s * x, y, z)))
+        mi = b._mi(M(mat))
+        vs_b = [b.bm.verts.new(base @ rot @ Vector((-t / 2, py, pz))) for py, pz in pts]
+        vs_t = [b.bm.verts.new(base @ rot @ Vector((t / 2, py, pz))) for py, pz in pts]
+        n = len(pts)
+        faces = [b._face([vs_b[j], vs_b[(j + 1) % n], vs_t[(j + 1) % n], vs_t[j]], mi) for j in range(n)]
+        faces += [b._face(list(reversed(vs_b)), mi), b._face(vs_t, mi)]
+        bmesh.ops.recalc_face_normals(b.bm, faces=[f for f in faces if f])
+
+
 def turret(b, p, s=0.5, twin=True, up=True, facing=90):
     b.turret(p, facing=facing, s=s, twin=twin, up=up, hull="HullDark", barrel="Hull", light="LightRed")
 
@@ -620,7 +636,7 @@ def jaw(b, name, hinge, secs, x):
 
 
 # =============================================================== S: Einheitsschiffe
-@ship("unit_trader_100", "S", "Standardfrachter gross (Sechskant-Frachter): runde Cockpitkapsel vorn, dicke Sechskant-Frachtsektion mit 5 Segmenten (Tore beidseits, Dachklappen), schmaler Antriebsteil mit zwei beringten Duesen, Laserturm, Sensor, Duesen", cargo=100)
+@ship("unit_trader_100", "S", "Standardfrachter gross (Kastenfrachter mit stark abgefaster Frachtsektion): runde Cockpitkapsel vorn, dicke, stark abgefaste Frachtsektion mit senkrechten Torwaenden mit 5 Segmenten (Tore beidseits, Dachklappen), schmaler Antriebsteil mit zwei beringten Duesen, Laserturm, Sensor, Duesen", cargo=100)
 def unit_trader_100(b):
     n = segs("unit_trader_100")
     C = [(5.0, 0.0, 0.0), (4.6, 0.55, 0.45), (3.8, 0.9, 0.7), (2.8, 0.95, 0.75), (2.4, 0.7, 0.6)]
@@ -628,8 +644,8 @@ def unit_trader_100(b):
     visor(b, C, 3.9, width=1.0, length=0.8)
     y0 = 2.5
     H = [(y0 + 0.4, 1.4, 1.0), (y0, 2.0, 1.4), (y0 - n * SEG, 2.0, 1.4), (y0 - n * SEG - 0.4, 1.4, 1.0)]
-    b.loft(H, M("Hull"), shape="hex")
-    cargo_bay(b, H, y0, n, top=True, c=0.45, rib=False, shape="hex")
+    b.loft(H, M("Hull"), c=0.45)
+    cargo_bay(b, H, y0, n, top=True, c=0.45, rib=False)
     E = [(y0 - n * SEG - 0.2, 1.1, 0.8), (-4.6, 1.2, 0.85), (-5.0, 1.0, 0.7)]
     b.loft(E, M("Steel"))
     dress(b, E, seed=1.0, accent=False, sides=False, bottom=False, n=3)
@@ -655,8 +671,7 @@ def unit_trader_60(b):
     b.loft([(3.9, 0.66, 0.66), (3.5, 0.78, 0.78)], M("Window"), shape="round", n=10)
     cargo_bay(b, S, y0, n, c=0.0, shape="round")
     plate(b, S, -1.6, -3.6, mat="Steel", shape="round")
-    for s in (1, -1):
-        fin(b, [(0.2, 0), (-1.2, 0), (-1.6, 1.0), (-0.8, 1.0)], 0.1, (s * 0.55, -3.8, 0.55), side=-30 * s)
+    fin_pair(b, [(0.2, 0), (-1.2, 0), (-1.6, 1.0), (-0.8, 1.0)], 0.1, 0.55, -3.8, 0.55, cant=35)
     engine(b, (0, -5.3, 0.0), 0.62)
     hp_turret(b, 4, (0, 2.9, 0.85), s=0.3)
     sensor(b, (0, -2.4, 0.8), r=0.2)
@@ -1206,7 +1221,7 @@ def bastion(b):
     visor(b, T, 7.6, width=2.6)
     b.box(0.7, 14.0, 0.08, M("Accent"), loc=(0, -0.4, 3.42))
     b.mast((1.0, -3.6, 3.4), 2.2, light="Light")
-    b.mast((-1.0, -3.6, 3.4), 1.6, light="LightRed")
+    b.mast((-1.0, -3.6, 3.4), 2.2, light="LightRed")
     sensor(b, (0, -1.6, 3.4), r=0.45)
     hp_shafts(b, 3, (-1.0, 8.4, 1.42), rows=2, cols=3)
     hp_shafts(b, 4, (1.0, 8.4, 1.42), rows=2, cols=3)
@@ -1332,7 +1347,7 @@ def battlecruiser(b):
     navl(b, 6.1, 16.0, 0.0, s=0.26)
 
 
-@ship("strip_miner", "L", "Grossschuerfer: massiger Kastenrumpf mit quer liegender, gezahnter Schneidwalze vor einem breiten Schuerfmaul, langer Erzraum mit 15 Segmenten (Tore beidseits), Foerdertunnel auf dem Ruecken, Kommandokanzel seitlich, Triebwerksbank mit vier Duesen", name="Großschürfer", cargo=300, role="Bergbau/Bau")
+@ship("strip_miner", "L", "Grossschuerfer: massiger Kastenrumpf mit quer liegender, gezahnter Schneidwalze vor einem breiten Schuerfmaul, langer Erzraum mit 15 Segmenten (Tore beidseits), Foerdertunnel auf dem Ruecken, Kommandokanzel mittig vor dem Foerdertunnel, Triebwerksbank mit vier Duesen", name="Großschürfer", cargo=300, role="Bergbau/Bau")
 def strip_miner(b):
     n = round(300 / CARGO_PER_SEGMENT)
     y0 = 6.6
@@ -1349,8 +1364,8 @@ def strip_miner(b):
     T = [(y0, 0.0, 0.0, 2.0), (y0 - 0.6, 0.8, 0.6, 2.3), (-8.0, 0.8, 0.6, 2.3), (-8.6, 0.0, 0.0, 2.0)]
     b.loft(T, M("Steel"), shape="round", n=8)
     C = [(8.8, 0.0, 0.0, 2.2), (8.2, 0.8, 0.7, 2.4), (6.4, 0.9, 0.8, 2.4), (5.8, 0.6, 0.5, 2.3)]
-    b.loft(C, M("Hull"), shape="round", n=8, x=2.4)
-    b.loft([(8.0, 0.7, 0.14, 2.75), (7.2, 0.82, 0.14, 2.85)], M("Window"), shape="round", n=8, x=2.4)
+    b.loft(C, M("Hull"), shape="round", n=8)
+    b.loft([(8.0, 0.7, 0.14, 2.75), (7.2, 0.82, 0.14, 2.85)], M("Window"), shape="round", n=8)
     b.box(0.08, 6.0, 1.2, M("Accent"), loc=(3.44, -6.0, 0.0))
     b.box(0.08, 6.0, 1.2, M("Accent"), loc=(-3.44, -6.0, 0.0))
     for x, z in ((-1.3, 0.7), (1.3, 0.7), (-1.3, -0.7), (1.3, -0.7)):

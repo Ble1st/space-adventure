@@ -791,48 +791,51 @@ def systems_works(b):
 
 
 # =============================================================== Handel und Lager
-@model("trade_station", "Grosser Haendler-Hub: gepanzerte Doppelkegel-Nabe mit Fensterbaendern, sechs Andockarme mit Leuchtkragen, Ring aus verkleideten Frachtpods, geschlossener Hangar mit Leuchttor und ausgestelltem Kleinschiff auf dem Dach, Punktverteidigung")
+@model("trade_station", "Moderner Handels-Hub (Terminal): flacher, dreistoeckiger Scheibenbau mit umlaufender verglaster Promenade, fuenf radiale Andockfinger mit Andockklammern und Positionslichtern, geschlossener Hangar mit Leuchttor (Schiffshaendler), Kranz aus Frachtmodulen unter der Scheibe, Kontroll- und Sendeturm, breite Accent-Baender")
 def trade_station(b):
-    b.lathe([(0, -5.2), (1.2, -4.8), (3.0, -2.6), (4.4, -0.7), (4.4, 0.7), (3.0, 2.6), (1.4, 4.2),
-             (0.6, 5.0), (0, 5.2)], M("Hull"), seg=12)
-    b.armor_belt(4.6, 0, 1.2, 12, tilt=0)
-    b.window_band(3.6, 1.8, 0.28, n=6, seg=12, gap=0.35)
-    b.window_band(3.6, -1.8, 0.28, n=6, seg=12, gap=0.35)
-    for i, (x, y, a) in enumerate(polar(6, 4.0, 30)):
-        if i == 0:
-            continue
+    prof = [(0, -2.2), (4.6, -2.2), (6.2, -1.6), (6.6, -0.9), (6.6, -0.3), (6.0, 0.0), (6.0, 0.6), (6.4, 0.9),
+            (6.4, 1.5), (5.2, 1.9), (3.4, 2.1), (3.2, 2.6), (0, 2.7)]
+    b.lathe(prof, M("Hull"), seg=16)
+    b.lathe([(6.03, 0.06), (6.03, 0.54)], M("Glass"), seg=16)
+    b.window_band(6.06, 0.3, 0.16, n=8, seg=16, gap=0.3)
+    b.lathe([(6.63, -0.85), (6.63, -0.35)], M("Accent"), seg=16)
+    b.lathe([(6.43, 1.05), (6.43, 1.35)], M("Accent"), seg=16)
+    b.window_band(5.3, 1.75, 0.14, n=12, seg=16, gap=0.4)
+    b.lathe([(3.0, -2.2), (2.2, -3.4), (1.0, -3.9), (0, -4.0)], M("Steel"), seg=12)
+    # Andockfinger mit Klammern (fuenf), der sechste Platz ist der Hangar
+    for k in range(5):
+        a = 90 + 60 * k
         d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
-        b.cyl(0.5, 3.4, M("HullDark"), seg=6, loc=d * 6.0, rot=(0, 90, a))
-        b.ring(1.05, 0.4, 0.7, M("Armor"), seg=8, loc=d * 7.9, rot=(0, 90, a))
-        b.ring(0.75, 0.12, 0.72, M("Light"), seg=8, loc=d * 7.9, rot=(0, 90, a))
-    b.ring(6.0, 0.3, 0.3, M("HullDark"), seg=16, loc=(0, 0, 1.5))
-    b.ring(6.0, 0.3, 0.3, M("HullDark"), seg=16, loc=(0, 0, -1.5))
-    for j, (x, y, a) in enumerate(polar(10, 5.9, 18)):
-        if 345 < (a % 360) or (a % 360) < 75:
-            continue
-        t = V(-math.sin(math.radians(a)), math.cos(math.radians(a)), 0)
-        for z in (1.5, -1.5):
-            b.capsule(V(x, y, z), t, 1.9, 0.55, M("Steel" if j % 2 else "Hull"), seg=8)
-            b.ring(0.6, 0.1, 0.2, M("Accent" if j % 2 == 0 else "HullDark"), seg=8, loc=(x, y, z), rot=qdir(t))
-    # offenes Schiffsdock mit ausgestelltem Kleinschiff (Richtung 30 Grad)
-    d = V(math.cos(math.radians(30)), math.sin(math.radians(30)), 0)
+        n = V(-d.y, d.x, 0)
+        b.box(3.4, 1.3, 0.9, M("Hull"), loc=d * 7.9 + V(0, 0, -0.6), rot=(0, 0, a), bevel=0.15)
+        b.box(3.5, 0.3, 0.3, M("Accent"), loc=d * 7.9 + V(0, 0, -0.1), rot=(0, 0, a))
+        for u in (1, -1):
+            b.box(1.2, 0.3, 0.7, M("HullDark"), loc=d * 10.0 + n * u * 0.75 + V(0, 0, -0.6), rot=(0, 0, a))
+            b.sphere(0.16, M("LightRed" if u > 0 else "Light"), seg=6, rings=4,
+                     loc=d * 10.55 + n * u * 0.75 + V(0, 0, -0.15))
+        b.ring(0.62, 0.2, 0.5, M("Light"), seg=8, loc=d * 9.7 + V(0, 0, -0.6), rot=qdir(d))
+    # Hangar des Schiffshaendlers
+    a = -30
+    d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
     n = V(-d.y, d.x, 0)
-    c = d * 8.2
-    b.beam(d * 4.4, c - d * 3.0, 0.8, M("HullDark"))
-    yaw = 30
-    b.box(6.4, 4.0, 2.4, M("Hull"), loc=c, rot=(0, 0, yaw), bevel=0.3)
-    b.hangar_slit(c + d * 3.22, d, w=3.0, h=1.4)
-    b.box(6.5, 0.3, 0.5, M("Accent"), loc=c + n * 2.02, rot=(0, 0, yaw))
-    b.box(6.5, 0.3, 0.5, M("Accent"), loc=c - n * 2.02, rot=(0, 0, yaw))
-    b.prism([(-2.0, -0.9), (1.4, -0.5), (2.4, 0), (1.4, 0.5), (-2.0, 0.9)], 0.8, M("Steel"),
-            loc=c + V(0, 0, 1.6), rot=(0, 0, yaw), top_scale=0.6)
-    b.box(1.0, 3.2, 0.12, M("Steel"), loc=c - d * 0.6 + V(0, 0, 1.25), rot=(0, 0, yaw))
-    for k in (-1, 1):
-        b.nav_lights([c + d * 3.0 + n * k * 1.8 + V(0, 0, 1.6)], mat="Light", s=0.18)
-    pass
-    pass
-    b.mast((1.0, 0, 4.0), 3.0)
-    b.insignia(V(-4.7, 0, 0), (-1, 0, 0), s=0.9)
+    c = d * 8.6 + V(0, 0, -0.5)
+    b.box(5.2, 4.4, 2.6, M("Hull"), loc=c, rot=(0, 0, a), bevel=0.3)
+    b.hangar_slit(c + d * 2.62, d, w=3.4, h=1.6)
+    b.box(5.3, 0.3, 0.6, M("Accent"), loc=c + n * 2.22, rot=(0, 0, a))
+    b.box(5.3, 0.3, 0.6, M("Accent"), loc=c - n * 2.22, rot=(0, 0, a))
+    b.prism([(-2.0, -0.9), (1.4, -0.5), (2.4, 0), (1.4, 0.5), (-2.0, 0.9)], 0.7, M("Steel"),
+            loc=c + V(0, 0, 1.65), rot=(0, 0, a), top_scale=0.6)
+    # Frachtmodul-Kranz unter der Scheibe
+    for k, (x, y, aa) in enumerate(polar(8, 4.4, 22.5)):
+        b.capsule(V(x, y, -3.0), (0, 0, 1), 2.4, 0.7, M("Steel" if k % 2 else "Hull"), seg=6)
+        b.ring(0.68, 0.12, 0.3, M("Accent" if k % 2 == 0 else "HullDark"), seg=8, loc=(x, y, -3.0))
+    # Kontroll- und Sendeturm
+    b.cyl(1.0, 2.6, M("Hull"), seg=10, loc=(0, 0, 3.9))
+    b.lathe([(1.0, 0), (2.0, 0.4), (2.1, 1.0), (1.4, 1.5), (0, 1.6)], M("Hull"), seg=12, loc=(0, 0, 5.2))
+    b.lathe([(2.08, 0.5), (2.08, 0.9)], M("Window"), seg=12, loc=(0, 0, 5.2))
+    b.dish((1.2, 0.6, 7.0), 0.9, M("Hull"), rot=(-35, 20, 0))
+    b.mast((-0.8, -0.4, 6.7), 2.6)
+    b.insignia(V(0, -6.65, -0.6), (0, -1, 0), s=0.9)
 
 
 @model("trade_post", "Kleiner Orbital-Umschlagpunkt: kompakter achteckiger Frachtknoten mit zwei Faehrenkrallen, darunter ein langer Orbitalaufzug mit Kletterkapseln und absteigender Frachtfaehre, Hangarschlitz")

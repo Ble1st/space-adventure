@@ -35,6 +35,76 @@ def weapon_slots():
 
 
 WEAPON_SLOTS = {}
+# Bewusst asymmetrische Schiffe (Nutzlast/Werkzeug/Bewaffnung einseitig) - nur hier wird die
+# Spiegelpruefung der Anbauteile ausgelassen; die Triebwerke werden trotzdem geprueft.
+ASYM_OK = {
+    "tinker": "Frachtgondel steuerbord, Laserarm backbord",
+    "pip": "Kanister backbord, Frachtblase steuerbord",
+    "nomad": "Frachtgondeln 70/30 (gleich lang, unterschiedlich dick)",
+    "rockbreaker": "Erzraeume 5/3 Segmente",
+    "foreman": "Manipulatorarm einseitig",
+    "corsair": "Bugwaffen je Slot verschieden (Laser/Massetreiber), Flickplatten",
+    "warden": "Bugwaffen je Slot verschieden (Laser/Massetreiber)",
+}
+
+
+def part_asymmetry(ob, tol=0.025, maxv=200, minext=0.15):
+    """Paarige Anbauteile (Inseln des Rumpf-Meshes abseits der Mittelebene, bis maxv Vertices: Fluegel,
+    Finnen, Stummel, Pylone, Duesen, kleine Gondeln; mindestens minext gross) brauchen ein spiegelgleiches
+    Gegenstueck. Kleinteile (Greebles, Leisten) sind ausgenommen, sie sind absichtlich unregelmaessig."""
+    me = ob.data
+    parent = list(range(len(me.vertices)))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for e in me.edges:
+        a, b = find(e.vertices[0]), find(e.vertices[1])
+        if a != b:
+            parent[a] = b
+    # der glTF-Export trennt Vertices an scharfen Kanten: ortsgleiche Vertices wieder verbinden
+    seen = {}
+    for v in me.vertices:
+        key = (round(v.co.x, 4), round(v.co.y, 4), round(v.co.z, 4))
+        if key in seen:
+            a, b = find(v.index), find(seen[key])
+            if a != b:
+                parent[a] = b
+        else:
+            seen[key] = v.index
+    isl = {}
+    pos = {}
+    for v in me.vertices:
+        key = (round(v.co.x, 4), round(v.co.y, 4), round(v.co.z, 4))
+        r = find(v.index)
+        if key in pos.setdefault(r, set()):
+            continue
+        pos[r].add(key)
+        isl.setdefault(r, []).append(ob.matrix_world @ v.co)
+    data = []
+    for vs in isl.values():
+        c = sum(vs, Vector()) / len(vs)
+        lo = Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs)))
+        hi = Vector((max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))
+        data.append((c, len(vs), lo, hi, vs))
+    out = []
+    for c, n, lo, hi, vs in data:
+        ext = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
+        if n > maxv or n < 8 or ext < minext or abs(c.x) < tol:
+            continue
+        ok = False
+        for c2, n2, lo2, hi2, vs2 in data:
+            if n2 != n or (c2 - Vector((-c.x, c.y, c.z))).length > tol * 4:
+                continue
+            # jeder gespiegelte Vertex muss einen Partner haben
+            if all(min((Vector((-v.x, v.y, v.z)) - w).length for w in vs2) < tol for v in vs):
+                ok = True
+                break
+        if not ok:
+            out.append((c, n))
+    return out
 
 
 def engine_asymmetry(ob, tol=0.02):
@@ -167,6 +237,12 @@ def main():
         # Mittelachse braucht ein Spiegelbild (gleicher Radius, gleiche Heck- und Hoehenposition).
         for prob in engine_asymmetry(hulls[0]) if hulls else []:
             problems.append(prob)
+        if hulls and key not in ASYM_OK:
+            bad_parts = part_asymmetry(hulls[0])
+            if bad_parts:
+                c, n = bad_parts[0]
+                problems.append(f"{len(bad_parts)} Anbauteil(e) ohne Spiegelpartner, z. B. bei "
+                                f"x={c.x:+.2f} y={c.y:+.2f} z={c.z:+.2f} ({n} Vertices)")
         if len(names) > 10:
             problems.append(f"{len(names)} Materialien")
         if tris > LIMIT[m["size"]]:
