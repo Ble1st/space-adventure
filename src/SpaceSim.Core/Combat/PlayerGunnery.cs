@@ -152,6 +152,7 @@ public static class PlayerGunnery
         if (!u.Rules.Warfare || !u.Rules.GateCombat) return "Tore lassen sich nicht angreifen.";
         if (GateCombat.TypeOf(u, g) is null) return "Dieses Tor hat keine Kampfwerte.";
         if (GateCombat.IsDown(u, g)) return "Das Tor ist außer Betrieb.";
+        if (GateCombat.InGrace(u, g)) return $"Notbetrieb – nicht angreifbar für {GateCombat.Clock(GateCombat.GraceLeft(u, g))}";   // Runde 14b
         if (u.Fights.Of(ship.Id) is { } e && e.Gate != g.Id) return "Du steckst in einem anderen Gefecht.";
         if (Siege.OfGate(u, g.Id) is { } s && s.Of(ship.Id) is { } me && me.Side != 0) return "Du verteidigst dieses Tor.";
         return null;

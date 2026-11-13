@@ -141,7 +141,7 @@ public static class Wars
         foreach (var g in u.Gates.Values.OrderBy(x => x.Id.Value))
         {
             if (!u.Gates.TryGetValue(g.Target, out var far) || g.Id.Value > far.Id.Value) continue;   // je Paar einmal (kanonisch)
-            if (GateCombat.TypeOf(u, g) is null || GateCombat.IsDown(u, g) || !MapParts.Passable(g) || !MapParts.Passable(far)) continue;
+            if (GateCombat.TypeOf(u, g) is null || GateCombat.IsDown(u, g) || GateCombat.InGrace(u, g) || !MapParts.Passable(g) || !MapParts.Passable(far)) continue;
             War? war = WarOverGate(u, f, g);
             if (war is null) continue;
             if (war.Blockades >= r.GateBlockadesPerWar && !BlockadeRunning(u, f, g)) continue;

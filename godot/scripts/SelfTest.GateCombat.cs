@@ -79,6 +79,13 @@ public partial class SelfTest
 				var gate = u.Gates[_gcGate];
 				Check(!GateCombat.IsDown(u, gate) && MapParts.Passable(gate), "Tor läuft wieder");
 				Check(_gcEv!.OfType<GateRestored>().Any(), "Wiederanlauf gemeldet");
+				// Runde 14b: Schonfrist — „Tor angreifen“ gesperrt mit Grund, Zielkarte nennt den Notbetrieb
+				Check(GateCombat.InGrace(u, gate), "Schonfrist nach dem Wiederanlauf");
+				_m.TestArmGate(gate.Id);
+				Check(!_m.TestAtGate, "in der Schonfrist kein Angriff");
+				_m.SyncHudForTest();
+				Check(_m.HudRef.Flight.TestGateAttackVisible && _m.HudRef.Flight.TestGateAttackDisabled && _m.HudRef.Flight.TestGateAttackSub.Contains("Notbetrieb"),
+					$"„Tor angreifen“ gesperrt mit Grund ({_m.HudRef.Flight.TestGateAttackSub})");
 				if (_gcEv is not null) u.Events.Raised -= _gcEv.Add;
 				return true;
 			}

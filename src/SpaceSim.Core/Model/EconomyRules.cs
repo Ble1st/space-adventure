@@ -937,6 +937,8 @@ public sealed class EconomyRules
     public long GateSplitOutageTicks = 1000;
     /// <summary>Notregel: jedes andere Tor läuft nach so vielen Ticks ohne Kasse wieder an (2 Spieltage).</summary>
     public long GateMaxOutageTicks = 4800;
+    /// <summary>Runde 14b: Schonfrist nach dem Wiederanlauf (unverwundbar, nicht angreifbar, Schild voll) — kartenteilende Tore länger.</summary>
+    public long GateRestoreGraceTicks = 2400, GateSplitRestoreGraceTicks = 6000;
     /// <summary>Belagerung: Abstand der Station zu den Angreifern beim Beginn (Gefechtslinie).</summary>
     public float SiegeStartDistance = 90f;
     /// <summary>Krieg: Fraktionen erklären von selbst Krieg (Bedingungen unten); aus = nur per Hand (<see cref="Simulation.Wars.Declare"/>, Tests).</summary>

@@ -122,6 +122,13 @@ public sealed class GateCondition
     public long DownSince;
     /// <summary>Wer das Tor zuletzt getroffen hat (Akteur) — Reparatur nur durch Besitzer, die nicht selbst angreifen.</summary>
     public ActorId LastAttacker;
+    /// <summary>
+    /// Runde 14b (Prüfung: Sackgassentor dauerhaft unten haltbar): nach dem Wiederanlauf bis zu diesem Tick unverwundbar und nicht angreifbar (Schonfrist,
+    /// <see cref="EconomyRules.GateRestoreGraceTicks"/>/<see cref="EconomyRules.GateSplitRestoreGraceTicks"/>); 0 = keine.
+    /// </summary>
+    public long GraceUntil;
+    /// <summary>Runde 14b: Zustand vor dem Ausfall (ein von Hand geschlossenes Tor bleibt nach dem Wiederanlauf geschlossen); null = offen.</summary>
+    public GateState? PrevState;
 
-    public bool IsDefault => HullMissing <= 0f && ShieldMissing <= 0f && !Disabled && Timers.TrueForAll(t => t <= 0f);
+    public bool IsDefault => HullMissing <= 0f && ShieldMissing <= 0f && !Disabled && GraceUntil == 0 && PrevState is null && Timers.TrueForAll(t => t <= 0f);
 }

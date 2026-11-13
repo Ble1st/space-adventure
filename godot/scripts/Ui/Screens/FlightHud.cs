@@ -74,6 +74,8 @@ public sealed class FlightHudData
 	/// <summary>Phase 31: Das gewählte Tor kann angegriffen werden (Taste „Tor angreifen“, zwei Tipps, Warnung zu den Folgen).</summary>
 	public bool CanAttackGate;
 	public string GateAttackInfo = "";
+	/// <summary>Runde 14b: Tor gewählt, aber gerade nicht angreifbar (Schonfrist nach dem Wiederanlauf) — Taste gesperrt mit diesem Grund.</summary>
+	public string GateAttackBlocked = "";
 	public string HitWarning = "";
 	/// <summary>Gerätetest Phase 28: Gegenwehr der Station (Geschütze, Reichweite, eigene Raketenreichweite) unter „Station angreifen“.</summary>
 	public string StationAttackInfo = "";
@@ -118,6 +120,7 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Phase 28: „Station angreifen“ (zwei Tipps über <see cref="KitConfirm"/>).</summary>
 	KitButton _stationAttack = null!, _gateAttack = null!;
 	public bool TestGateAttackVisible => _gateAttack.Visible;
+	public bool TestGateAttackDisabled => _gateAttack.State == KitButtonState.Disabled;
 	public string TestGateAttackSub => _gateAttack.Sub;
 	public void TestPressGateAttack() => GateAttackPressed?.Invoke();
 	readonly KitConfirm _attackConfirm = new();
@@ -601,8 +604,9 @@ public partial class FlightHud : Control, IScreen
 		_nextEnemy.State = d.EnemyNear ? KitButtonState.Normal : KitButtonState.Disabled;
 		_nextEnemy.Sub = d.EnemyNear ? "" : "kein Gegner";
 		_stationAttack.Visible = d.CanAttackStation && !d.StationAttackArmed;
-		_gateAttack.Visible = d.CanAttackGate && !d.StationAttackArmed && !d.CanAttackStation;
-		if (_gateAttack.Text != "Wirklich?") _gateAttack.Sub = d.GateAttackInfo;
+		_gateAttack.Visible = (d.CanAttackGate || d.GateAttackBlocked.Length > 0) && !d.StationAttackArmed && !d.CanAttackStation;
+		_gateAttack.State = d.GateAttackBlocked.Length > 0 ? KitButtonState.Disabled : KitButtonState.Warn;
+		if (_gateAttack.Text != "Wirklich?") _gateAttack.Sub = d.GateAttackBlocked.Length > 0 ? d.GateAttackBlocked : d.GateAttackInfo;
 		// Runde 5: aussichtslos → Warnfarbe und die Warnung statt der Geschützzeile (Hinweis, kein Verbot)
 		if (_stationAttack.Text != "Wirklich?") _stationAttack.Sub = d.StationHopeless ? "Aussichtslos!" : d.StationAttackInfo;
 		TestStationAttackInfo = d.StationAttackInfo;   // scharf: „nochmal tippen“ bleibt

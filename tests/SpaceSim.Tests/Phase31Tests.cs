@@ -381,4 +381,81 @@ public class Phase31Tests
         Wanted.Report(u, u.PlayerActor, u.FactionOf(hq)!.Value, "assault");
         Assert.True(StationCombat.Hostile(u, hq, e, p, me));
     }
+
+    // ───────── Runde 14b: Schonfrist nach dem Wiederanlauf ─────────
+
+    [Fact]
+    public void Dauerbeschuss_SackgassentorBleibtNieDauerhaftUnten_SchonfristNachJedemWiederanlauf()
+    {
+        var u = Standard();
+        foreach (var a in u.Actors.Values.Where(a => a.IsFaction(u))) a.Treasury.Credits = 0f;   // keine Reparatur: nur die Notregel
+        var gate = G(u, 17);   // Gamma–Aurelia, kartenteilend
+        var sys = new GateRepairSystem();
+        var ev = Capture(u);
+        long openSince = u.Tick; var openSpans = new List<long>(); long downTicks = 0, total = 0;
+        bool wasDown = false;
+        for (int t = 0; t < 30000; t++)
+        {
+            u.Tick++;
+            // Dauerfeuer: jeder Tick ein großer Treffer, solange das Tor angreifbar ist
+            if (!GateCombat.IsDown(u, gate)) GateCombat.Apply(u, gate, Hull(1000f, 500f), u.PlayerActor);
+            if (u.Tick % GateRepairSystem.Interval == 0) sys.Step(u, GateRepairSystem.Interval);
+            bool down = GateCombat.IsDown(u, gate);
+            if (down) downTicks++;
+            total++;
+            if (down && !wasDown && t > 0) openSpans.Add(u.Tick - openSince);
+            if (!down && wasDown) openSince = u.Tick;
+            wasDown = down;
+        }
+        var restored = ev.OfType<GateRestored>().Count();
+        Assert.True(restored >= 3, $"Wiederanläufe {restored}");
+        // jede offene Phase nach einem Wiederanlauf dauert mindestens die Schonfrist (die erste Phase vor dem ersten Ausfall zählt nicht)
+        Assert.All(openSpans.Skip(1), span => Assert.True(span >= u.Rules.GateSplitRestoreGraceTicks, $"offen nur {span} Ticks"));
+        Assert.True(downTicks < total * 0.3, $"zu lange unten: {downTicks} von {total}");
+    }
+
+    [Fact]
+    public void Schonfrist_NichtAngreifbar_SchildVoll_BelagerungEndet_Gespeichert()
+    {
+        var u = Standard();
+        var gate = G(u, 3);
+        var me = u.Ships[u.PlayerShip];
+        Place(u, me, gate.Sector, gate.Position + new Vec2(30f, 0f));
+        u.PlayerSector = gate.Sector;
+        var e = Siege.Start(u, me, new GateTarget(u, gate));
+        Down(u, gate);
+        GateCombat.Restore(u, gate, "emergency");
+        Assert.True(GateCombat.InGrace(u, gate));
+        Assert.Equal(GateCombat.MaxShield(u, gate), GateCombat.Shield(u, gate));
+        Assert.DoesNotContain(e.Participants, p => p.Active);   // die Belagerung endet sauber
+        Assert.Contains("Notbetrieb", PlayerGunnery.GateIssue(u, me, gate));
+        float hull = GateCombat.Hull(u, gate);
+        GateCombat.Apply(u, gate, Hull(500f), u.PlayerActor);
+        Assert.Equal(hull, GateCombat.Hull(u, gate));
+        Assert.Null(Wars.PickGateTarget(u, Union, u.ShipsById().First(s => ThreatMap.IsPolice(s))));
+        var (copy, _) = SaveGameJson.Read(SaveGameJson.Write(u, DateTimeOffset.UnixEpoch));
+        Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(copy));
+        Assert.True(GateCombat.InGrace(copy, copy.Gates[gate.Id]));
+        // nach der Frist wieder angreifbar
+        u.Tick += u.Rules.GateRestoreGraceTicks + 1;
+        Assert.Null(PlayerGunnery.GateIssue(u, me, gate));
+    }
+
+    [Fact]
+    public void Wiederanlauf_VonHandGeschlossenesTorBleibtGeschlossen()
+    {
+        var u = Standard();
+        var gate = G(u, 9);
+        GateAccess.SetState(u, gate, GateState.Closed);
+        Down(u, gate);
+        GateCombat.Restore(u, gate, "emergency");
+        Assert.False(GateCombat.IsDown(u, gate));
+        Assert.Equal(GateState.Closed, G(u, 9).State);
+        Assert.Equal(GateState.Closed, G(u, 10).State);
+        // ein offenes Tor öffnet wieder
+        var ring = G(u, 3);
+        Down(u, ring);
+        GateCombat.Restore(u, ring, "repaired");
+        Assert.True(MapParts.Passable(G(u, 3)));
+    }
 }

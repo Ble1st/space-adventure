@@ -31,6 +31,12 @@ public static class GateCombat
     public static float Hull(Universe u, Gate g) => MathF.Max(0f, MaxHull(u, g) - (ConditionOf(u, g)?.HullMissing ?? 0f));
     public static float Shield(Universe u, Gate g) => MathF.Max(0f, MaxShield(u, g) - (ConditionOf(u, g)?.ShieldMissing ?? 0f));
 
+    /// <summary>Runde 14b: in der Schonfrist nach dem Wiederanlauf (unverwundbar, nicht angreifbar)?</summary>
+    public static bool InGrace(Universe u, Gate g) => ConditionOf(u, g) is { } c && c.GraceUntil > u.Tick;
+
+    /// <summary>Ticks bis zum Ende der Schonfrist (0 = keine).</summary>
+    public static long GraceLeft(Universe u, Gate g) => ConditionOf(u, g) is { } c ? Math.Max(0L, c.GraceUntil - u.Tick) : 0L;
+
     /// <summary>Außer Betrieb (durch Kampf — eine Schließung von Hand ist es nicht).</summary>
     public static bool IsDown(Universe u, Gate g) => ConditionOf(u, g) is { Disabled: true };
 
@@ -107,7 +113,7 @@ public static class GateCombat
     /// <summary>Treffer anwenden: Schild (mit Pause), Hülle; bei 0 außer Betrieb. Liefert den Hüllenschaden.</summary>
     public static float Apply(Universe u, Gate g, in HitResult hit, ActorId attacker)
     {
-        if (!hit.Hit || IsDown(u, g) || TypeOf(u, g) is null) return 0f;
+        if (!hit.Hit || IsDown(u, g) || TypeOf(u, g) is null || InGrace(u, g)) return 0f;   // Runde 14b: Schonfrist
         var c = Cond(u, g);
         c.LastAttacker = attacker;
         if (hit.ShieldDamage > 0f) c.ShieldMissing = MathF.Min(MaxShield(u, g), c.ShieldMissing + hit.ShieldDamage);
@@ -127,6 +133,7 @@ public static class GateCombat
         if (c.Disabled) return;
         c.Disabled = true;
         c.DownSince = u.Tick;
+        c.PrevState = canon.State is GateState.Open or GateState.Restricted ? null : canon.State;   // Runde 14b: von Hand geschlossen bleibt geschlossen
         c.HullMissing = MaxHull(u, g);
         Wars.OnLoss(u, OwnerOf(u, g), attacker, MaxHull(u, g) * 2f);
         bool split = !u.Gates.TryGetValue(g.Target, out var far) ? false : MapParts.SplitsWhenClosed(u, g.Id);
@@ -141,11 +148,28 @@ public static class GateCombat
     {
         var canon = Canonical(u, g);
         if (canon.Condition is not { Disabled: true } c) return;
+        // Runde 14b (Prüfung: ein Sackgassentor ließ sich mit Dauerfeuer sofort wieder abschießen): Schonfrist ab dem Wiederanlauf — kartenteilend länger
+        bool split = Splits(u, g);
         c.Disabled = false;
         float floor = MaxHull(u, g) * Math.Clamp(u.Rules.GateReenableShare, 0f, 1f);
         if (Hull(u, g) < floor) c.HullMissing = MaxHull(u, g) - floor;
-        GateAccess.SetState(u, canon, GateState.Open, restoring: true);
-        GateAccess.SyncRestricted(u);
+        c.ShieldMissing = 0f;
+        c.ShieldPauseUntil = 0;
+        c.GraceUntil = u.Tick + Math.Max(0L, split ? u.Rules.GateSplitRestoreGraceTicks : u.Rules.GateRestoreGraceTicks);
+        // laufende Belagerungen des Paars enden sauber (alle Teilnehmer verlassen das Gefecht; der Gefechtsschritt schließt es ab)
+        foreach (var e in u.Fights.Encounters.Where(x => !x.Done && (x.Gate == g.Id || x.Gate == g.Target)).ToList())
+            foreach (var p in e.Participants.Where(x => x.Active).ToList())
+            {
+                Engage.Leave(u, e, p, CombatExit.Fled);
+                if (u.Ships.TryGetValue(p.Ship, out var ps) && !ps.IsPlayer) Engage.Resume(u, ps);
+            }
+        var prev = c.PrevState;
+        c.PrevState = null;
+        if (prev is null)
+        {
+            GateAccess.SetState(u, canon, GateState.Open, restoring: true);
+            GateAccess.SyncRestricted(u);
+        }
         u.TouchAccess();
         string msg = reason == "emergency" ? $"{NameOf(u, g)} läuft wieder (Notbetrieb der Torbehörde)." : $"{NameOf(u, g)} ist repariert und wieder in Betrieb.";
         u.Events.Publish(new GateRestored(canon.Id, reason, msg));
@@ -281,6 +305,7 @@ public sealed class GateRepairSystem : ISimSystem
                 else if (u.Tick - c.DownSince >= GateCombat.OutageLimit(u, g)) GateCombat.Restore(u, g, "emergency");
                 else if (t is null || !r.GateCombat) GateCombat.Restore(u, g, "emergency");   // Torkampf abgeschaltet: nichts bleibt aus
             }
+            if (c.GraceUntil != 0 && c.GraceUntil <= u.Tick) c.GraceUntil = 0;   // Runde 14b: Schonfrist abgelaufen
             if (c.IsDefault) g.Condition = null;
         }
     }
@@ -325,6 +350,7 @@ public static class GateInfo
     {
         if (GateCombat.IsDown(u, g)) return $"AUSSER BETRIEB · läuft in {GateCombat.Clock(GateCombat.RestartIn(u, g))} · Hülle {GateCombat.Hull(u, g):0}";
         string s = $"Hülle {GateCombat.Hull(u, g):0}" + (GateCombat.MaxShield(u, g) > 0f ? $" · Schild {GateCombat.Shield(u, g):0}" : "");
+        if (GateCombat.InGrace(u, g)) return s + $" · Notbetrieb, unangreifbar {GateCombat.Clock(GateCombat.GraceLeft(u, g))}";   // Runde 14b
         return State(u, g) == "beschädigt" ? s + " · beschädigt" : s;
     }
 

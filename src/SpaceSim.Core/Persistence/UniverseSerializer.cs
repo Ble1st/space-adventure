@@ -267,6 +267,7 @@ public static class UniverseSerializer
                 {
                     HullMissing = gc.HullMissing, ShieldMissing = gc.ShieldMissing, ShieldPauseUntil = gc.ShieldPauseUntil,
                     Timers = gc.Timers.Count == 0 ? null : new List<float>(gc.Timers), Disabled = gc.Disabled, DownSince = gc.DownSince, LastAttacker = gc.LastAttacker.Value,
+                    GraceUntil = gc.GraceUntil, PrevState = gc.PrevState?.ToString(),
                 } : null,
             });
         // Phase 31: Torklassen (Inhalt, wie die Stationstypen)
@@ -533,6 +534,7 @@ public static class UniverseSerializer
                 {
                     HullMissing = gc.HullMissing, ShieldMissing = gc.ShieldMissing, ShieldPauseUntil = gc.ShieldPauseUntil,
                     Timers = gc.Timers is null ? new List<float>() : new List<float>(gc.Timers), Disabled = gc.Disabled, DownSince = gc.DownSince, LastAttacker = new ActorId(gc.LastAttacker),
+                    GraceUntil = gc.GraceUntil, PrevState = gc.PrevState is { } ps ? Enum.Parse<GateState>(ps) : null,
                 } : null,
             };
         foreach (var st in s.Stations)

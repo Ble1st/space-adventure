@@ -1805,6 +1805,8 @@ public partial class Main : Node3D
 		d.CanAttackGate = _docked is null && u.Rules.Warfare && u.Rules.GateCombat && d.HasWeapons && navGate is not null && !_fight.AtGate
 			&& SpaceSim.Core.Combat.PlayerGunnery.GateIssue(u, PlayerData, navGate) is null;
 		d.GateAttackInfo = navGate is not null ? $"Verbrechen · Hülle {SpaceSim.Core.Combat.GateCombat.Hull(u, navGate):0}" : "";
+		d.GateAttackBlocked = _docked is null && u.Rules.GateCombat && d.HasWeapons && navGate is not null && SpaceSim.Core.Combat.GateCombat.InGrace(u, navGate)
+			? SpaceSim.Core.Combat.PlayerGunnery.GateIssue(u, PlayerData, navGate) ?? "" : "";   // Runde 14b: Schonfrist
 		d.EscapeStatus = SpaceSim.Core.Combat.PlayerCombat.EscapeStatus(u);
 		d.AimAssistVisible = _docked is null && AimTarget() is not null;
 		d.AimAssistOn = _aimAssist;

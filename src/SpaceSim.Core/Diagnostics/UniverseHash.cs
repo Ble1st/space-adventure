@@ -101,6 +101,8 @@ public static class UniverseHash
             {
                 Mix(0x3101u); MixF(gc.HullMissing); MixF(gc.ShieldMissing); Mix((ulong)gc.ShieldPauseUntil); foreach (var t in gc.Timers) MixF(t);
                 Mix(gc.Disabled ? 1UL : 0UL); Mix((ulong)gc.DownSince); Mix((ulong)gc.LastAttacker.Value);
+                if (gc.GraceUntil != 0) Mix((ulong)gc.GraceUntil + 0x3106u);   // Runde 14b
+                if (gc.PrevState is { } ps) Mix((ulong)ps + 0x3107u);
             }
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))

@@ -85,7 +85,7 @@ public sealed class GateTarget : ISiegeTarget
     public float Hull => GateCombat.Hull(_u, Gate);
     public float Shield => GateCombat.Shield(_u, Gate);
     public float PointDefense => GateCombat.TypeOf(_u, Gate)?.Defense.PointDefense ?? 0f;
-    public bool IsDown => GateCombat.IsDown(_u, Gate);
+    public bool IsDown => GateCombat.IsDown(_u, Gate) || GateCombat.InGrace(_u, Gate);   // Runde 14b: in der Schonfrist kein Ziel
     public float GunRange => GateCombat.GunRange(_u, Gate);
     public TargetProfile Profile => GateCombat.Profile(_u, Gate);
     public string Crime => "assault_gate";

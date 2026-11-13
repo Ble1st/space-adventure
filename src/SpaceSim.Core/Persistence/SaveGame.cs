@@ -434,6 +434,9 @@ public sealed class GateConditionSave
     public float HullMissing { get; set; } public float ShieldMissing { get; set; } public long ShieldPauseUntil { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Timers { get; set; }
     public bool Disabled { get; set; } public long DownSince { get; set; } public int LastAttacker { get; set; }
+    /// <summary>Runde 14b: Schonfrist und Zustand vor dem Ausfall (fehlen = keine/offen).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long GraceUntil { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PrevState { get; set; }
 }
 
 public sealed class StockSave { public float Amount { get; set; } public float Target { get; set; } public float Price { get; set; } }
