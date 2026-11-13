@@ -121,19 +121,36 @@ public partial class Hud : CanvasLayer
 
 		// Gerätetest: wichtige Meldungen (Überfall, Schiffsverlust, Zeitraffer aus) — kontrastreich, bleiben bis angetippt oder mindestens 6 s
 		_alert.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
-		_alert.Position = new Vector2(-280, 170); _alert.Size = new Vector2(560, 96);
+		// Prüfung Phase 27: kleiner und unter dem Schiff statt über der Zielkarte/„Nächster Gegner“ (verdeckte sie teilweise) — frei bis zu den Wendetasten
+		_alert.Position = new Vector2(-250, 420); _alert.Size = new Vector2(500, 80);
 		_alert.MouseFilter = Control.MouseFilterEnum.Stop;
 		_alert.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(0.22f, 0.04f, 0.04f, 0.96f), UiKit.Red, 12, 3, 12));
 		_alertText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_alertText.HorizontalAlignment = HorizontalAlignment.Center;
 		_alertText.VerticalAlignment = VerticalAlignment.Center;
-		_alertText.AddThemeFontSizeOverride("font_size", 22);
+		_alertText.AddThemeFontSizeOverride("font_size", 18);
 		_alertText.AddThemeColorOverride("font_color", UiKit.White);
 		_alertText.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_alert.AddChild(_alertText);
 		_alert.Visible = false;
 		_alert.GuiInput += e => { if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) HideAlert(); };
 		root.AddChild(_alert);
+
+		// Phase 28 (Prüfpunkt f): Fortschritt des Offline-Nachholens beim Start (statt langem Splash) — dunkle Fläche mit Text und Balken, blockiert Eingaben
+		_loading.Color = new Color(0.01f, 0.02f, 0.05f, 0.97f);
+		_loading.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		_loading.MouseFilter = Control.MouseFilterEnum.Stop;
+		_loadingText.HorizontalAlignment = HorizontalAlignment.Center;
+		_loadingText.AddThemeFontSizeOverride("font_size", 24);
+		_loadingText.AddThemeColorOverride("font_color", UiKit.Cyan);
+		_loadingText.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		_loadingText.Position = new Vector2(-300, -50); _loadingText.Size = new Vector2(600, 40);
+		_loading.AddChild(_loadingText);
+		_loadingBar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		_loadingBar.Position = new Vector2(-250, 10); _loadingBar.Size = new Vector2(500, 14);
+		_loading.AddChild(_loadingBar);
+		_loading.Visible = false;
+		root.AddChild(_loading);
 
 		// Panels: Wirtschaft oben rechts, Karte vollflächig; Dock-Bildschirme kommen ans Ende (liegen oben)
 		Economy.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
@@ -187,6 +204,8 @@ public partial class Hud : CanvasLayer
 	double _alertUntil;
 	/// <summary>Selbsttest: sichtbare wichtige Meldung (leer = keine).</summary>
 	public string TestAlert => _alert.Visible ? _alertText.Text : "";
+	/// <summary>Selbsttest Phase 28: Bildschirmrechteck der großen Meldung (Überdeckung mit Zielkarte/Kampftasten prüfen).</summary>
+	public Rect2 TestAlertRect => _alert.GetGlobalRect();
 
 	/// <summary>
 	/// Gerätetest: wichtige Meldung — rot hinterlegt, groß, bleibt <paramref name="seconds"/> (mindestens 6 s) oder bis sie angetippt wird.
@@ -200,6 +219,21 @@ public partial class Hud : CanvasLayer
 	}
 
 	public void HideAlert() => _alert.Visible = false;
+
+	readonly ColorRect _loading = new();
+	readonly Label _loadingText = new();
+	readonly SpaceAdventure.Ui.Kit.KitBar _loadingBar = new(500, 14, UiKit.Cyan);
+
+	/// <summary>Phase 28: Fortschrittsanzeige (Offline-Nachholen beim Start); <paramref name="progress"/> 0..1.</summary>
+	public void ShowLoading(string text, float progress)
+	{
+		_loading.Visible = true;
+		_loadingText.Text = text;
+		_loadingBar.Set(progress, UiKit.Cyan, 1f);
+	}
+
+	public void HideLoading() => _loading.Visible = false;
+	public bool LoadingVisible => _loading.Visible;
 
 	public override void _Process(double delta)
 	{

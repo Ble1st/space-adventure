@@ -283,6 +283,8 @@ public sealed class SecuritySystem : ISimSystem
         if (!u.Ships.TryGetValue(u.PlayerShip, out var player) || !u.Sectors.TryGetValue(player.Sector, out var sector)) return;
         if (Wanted.LevelOf(u, player.Owner, sector.Owner) < 3 || u.PendingEncounters.Any(e => e.Target == player.Id)) return;
         if (u.Rules.FleetCombat && (u.Fights.IsEngaged(player.Id) || player.DockedAt.Value != 0)) return;   // Phase 27: nicht im Gefecht/angedockt ankündigen
+        // Phase 28 (Prüfung Phase 27): Abkühlzeit nach Flucht, Ergeben oder Polizeigefecht — sonst Schleife „Warnung → Gefecht → Flucht → Warnung“
+        if (u.Rules.ArrestCooldownTicks > 0 && u.Actors.TryGetValue(player.Owner, out var wantedActor) && u.Tick < wantedActor.ArrestCooldownUntil) return;
         var police = PirateSystem.PoliceIn(u, sector.Id);
         if (police.Count == 0) return;
         var pending = new PendingEncounter { Kind = EncounterKind.Intercept, Source = police[0].Id, Target = player.Id, Sector = sector.Id, DueTick = u.Tick + u.Rules.PlayerWarningTicks };
@@ -302,6 +304,7 @@ public sealed class SecuritySystem : ISimSystem
             u.PendingEncounters.Remove(e);
             if (!u.Ships.TryGetValue(e.Target, out var player) || player.Id != u.PlayerShip || player.Sector != e.Sector || !u.Sectors.TryGetValue(e.Sector, out var sec))
             {
+                if (u.Ships.TryGetValue(e.Target, out var esc)) ArrestCooldown(u, esc.Owner);
                 u.Events.Publish(new EncounterEscaped(EncounterKind.Intercept, e.Source, e.Target, "Du hast dich der Kontrolle entzogen."));
                 continue;
             }
@@ -311,6 +314,7 @@ public sealed class SecuritySystem : ISimSystem
                 var police = PirateSystem.PoliceIn(u, sec.Id);
                 if (player.DockedAt.Value != 0 || u.Fights.IsEngaged(player.Id) || police.Count == 0 || Wanted.LevelOf(u, player.Owner, sec.Owner) < 3)
                 {
+                    ArrestCooldown(u, player.Owner);
                     u.Events.Publish(new EncounterEscaped(EncounterKind.Intercept, e.Source, e.Target, "Du hast dich der Kontrolle entzogen."));
                     continue;
                 }
@@ -321,6 +325,12 @@ public sealed class SecuritySystem : ISimSystem
         }
     }
 
+    /// <summary>Phase 28 (Prüfung Phase 27): Festnahme-Sperre für den Akteur setzen (Regel <see cref="EconomyRules.ArrestCooldownTicks"/>; 0 = aus).</summary>
+    public static void ArrestCooldown(Universe u, ActorId actor)
+    {
+        if (u.Rules.ArrestCooldownTicks > 0 && u.Actors.TryGetValue(actor, out var a)) a.ArrestCooldownUntil = u.Tick + u.Rules.ArrestCooldownTicks;
+    }
+
     /// <summary>
     /// Die Polizei stellt den Spieler (Fahndung bei der Sektorfraktion): Schmuggelware wird beschlagnahmt, die Strafe aus der Kasse eingezogen (soweit
     /// vorhanden, in die Fraktionskasse); bezahlt = Eintrag gelöscht, sonst bleibt der Rest als Strafe mit Stufe „verwarnt“. Nichts darüber hinaus.
@@ -328,7 +338,14 @@ public sealed class SecuritySystem : ISimSystem
     public static PlayerIntercepted InterceptPlayer(Universe u, Ship player, Sector sector) => InterceptPlayer(u, player, sector, sector.Owner);
 
     /// <summary>Phase 27: wie oben, für die Fahndung einer bestimmten Fraktion (Polizei, der sich der Spieler ergibt).</summary>
-    public static PlayerIntercepted InterceptPlayer(Universe u, Ship player, Sector sector, FactionId f)
+    public static PlayerIntercepted InterceptPlayer(Universe u, Ship player, Sector sector, FactionId f) => InterceptPlayer(u, player, sector, f, asDebt: false);
+
+    /// <summary>
+    /// Phase 28 (Prüfung Phase 27): mit <paramref name="asDebt"/> (Ergeben gegenüber der Polizei, <see cref="EconomyRules.SurrenderFineAsDebt"/>) wird die volle Strafe
+    /// eingezogen — was die Kasse nicht deckt, wird Schuld (Kasse negativ); die Fahndung ist danach gelöscht. Vorher senkte ein Ergeben mit leerer Kasse die Fahndung
+    /// ohne Zahlung auf „verwarnt“.
+    /// </summary>
+    public static PlayerIntercepted InterceptPlayer(Universe u, Ship player, Sector sector, FactionId f, bool asDebt)
     {
         float seized = 0f;
         foreach (var g in player.Cargo.Keys.OrderBy(k => k.Value).ToList())
@@ -339,7 +356,7 @@ public sealed class SecuritySystem : ISimSystem
         {
             float fine = Wanted.FineOf(u, w);
             var wallet = u.WalletOf(player);
-            collected = MathF.Min(fine, MathF.Max(0f, wallet.Credits));
+            collected = asDebt ? fine : MathF.Min(fine, MathF.Max(0f, wallet.Credits));
             wallet.Credits -= collected;
             if (collected > 0f && u.Actors.TryGetValue(f, out var authority))
             {

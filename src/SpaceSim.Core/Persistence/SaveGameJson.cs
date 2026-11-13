@@ -19,7 +19,8 @@ public static class SaveGameJson
     /// eingefroren (alte Spielstände sind egal, Entscheidung des Nutzers) und sieht die Standardwelt im Stand v17: Sie trägt diese Waren, Module, Rezepte
     /// und Lagerposten nicht in alte Stände nach. Spätere Phasen hängen ihre Schlüssel hier an.
     /// </summary>
-    static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s", "weapon_massdriver_s", "mule_armed", "hauler_armed", "fighter", "falcon", "wet_suppressor_s", "wreck_grapple_s" };   // Phase 26: Löschanlage, Bergungsgreifer
+    static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s", "weapon_massdriver_s", "mule_armed", "hauler_armed", "fighter", "falcon", "wet_suppressor_s", "wreck_grapple_s",   // Phase 26: Löschanlage, Bergungsgreifer
+        "missile", "missile_launcher_s", "point_defense_s", "frigate", "bastion" };   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {
@@ -90,6 +91,7 @@ public static class SaveGameJson
                 if (AfterV17RepairTypes.Contains((string?)t["key"])) RemoveWhere(svc, n => (string?)n == "repair");   // Phase 26
             }
             if (t["stocks"] is System.Text.Json.Nodes.JsonObject st2 && st2.Count == 0) t.AsObject().Remove("stocks");
+            t.AsObject().Remove("defense");   // Phase 28: Stationsverteidigung kam nach v17
         }
         return root.ToJsonString();
     });

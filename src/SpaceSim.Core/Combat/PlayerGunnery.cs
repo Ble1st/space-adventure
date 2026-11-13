@@ -63,8 +63,10 @@ public static class PlayerGunnery
         if (Gunnery.WeaponAt(u, ship, slot) is not { } m) return BayState.NoTarget;
         var w = WeaponProfile.Of(m);
         if (PlayerCombat.PositionOf(u, target) is not { } tp || tp.Sector != ship.Sector || target == ship.Id) return BayState.NoTarget;
+        // Gerätetest Phase 27: ein Ziel, das der Spieler nicht angreifen darf (angedockt, eigenes Schiff, Verbündeter im Gefecht), ist kein Ziel — vorher „FEUER“ und dann verweigert
+        if (u.Ships.TryGetValue(target, out var tShip) && PlayerCombat.TargetIssue(u, ship, tShip) is not null) return BayState.NoTarget;
         if (Vec2.Distance(ship.Position, tp.Pos) > w.Range) return BayState.NoTarget;
-        if (!Gunnery.HasAmmo(u, ship, w)) return BayState.NoAmmo;
+        if (!HasRound(u, ship, m, w)) return BayState.NoAmmo;
         if (ReloadLeft(u, ship, slot) > 0f) return BayState.Reloading;
         if (!Gunnery.HasPower(u, ship, w)) return BayState.NoPower;
         if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, tp.Pos)) return BayState.OutsideArc;
@@ -87,14 +89,88 @@ public static class PlayerGunnery
         if (dist > w.Range) return Fail(GunResult.OutOfRange, $"Ziel außer Reichweite ({dist:0} > {w.Range:0} m).");
         if (ReloadLeft(u, ship, slot) > 0f) return Fail(GunResult.Reloading, "lädt nach");
         if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, tp.Pos)) return Fail(GunResult.OutsideArc, "Ziel außerhalb des Feuerwinkels — drehen.");
-        if (!Gunnery.HasAmmo(u, ship, w)) return Fail(GunResult.NoAmmo, "Keine Munition — an Werft, Polizeiwache oder Handelsstation nachladen.");
+        if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
         if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
         var (e, me, them) = PlayerCombat.Engage(u, ship, victim);
         if (e is null || me is null || them is null) return Fail(GunResult.NotAllowed, "Dieses Schiff kannst du nicht angreifen.");
         me.Pos = ship.Position;
         me.Dir = CombatAutopilot.FromBearing(headingDeg);
         if (!Gunnery.DrawPower(u, ship, w, out float reload)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
+        if (u.Rules.Warfare && Missiles.IsMissile(m))
+        {
+            // Phase 28: Rakete — fliegt, Treffer erst am Ziel (Punktabwehr, Ausweichen)
+            Missiles.Launch(u, e, ship, null, me.Side, m, w, victim.Id, default, dist, ship.Position);
+            while (me.Timers.Count <= slot) me.Timers.Add(0f);
+            me.Timers[slot] = reload;
+            return new GunShot(GunResult.Fired, default, e.Id, "Rakete unterwegs");
+        }
         var hit = Gunnery.Shoot(u, e, me, ship, slot, m, w, them, victim, dist, 1f, reload);
+        return new GunShot(GunResult.Fired, hit, e.Id, hit.Hit ? $"Treffer ({hit.ShieldDamage + hit.HullDamage:0})" : "Fehlschuss");
+    }
+
+    /// <summary>Phase 28: Schuss möglich aus Sicht der Munition (Raketenwerfer: Raketen im Magazin, sonst Munition).</summary>
+    public static bool HasRound(Universe u, Ship ship, Module m, in WeaponProfile w) =>
+        u.Rules.Warfare && Missiles.IsMissile(m) ? Missiles.HasMissile(u, ship) : Gunnery.HasAmmo(u, ship, w);
+
+    static string NoRoundText(Universe u, Module m) => u.Rules.Warfare && Missiles.IsMissile(m)
+        ? "Keine Raketen — an Werft oder Polizeiwache nachladen."
+        : "Keine Munition — an Werft, Polizeiwache oder Handelsstation nachladen.";
+
+    /// <summary>Phase 28: Zustand der Schachttaste mit einer Station als Ziel (rein).</summary>
+    public static BayState StateAtStation(Universe u, Ship ship, int slot, float headingDeg, StationId station)
+    {
+        if (!u.Rules.Warfare || Gunnery.WeaponAt(u, ship, slot) is not { } m || !u.Stations.TryGetValue(station, out var st) || st.Sector != ship.Sector) return BayState.NoTarget;
+        var w = WeaponProfile.Of(m);
+        if (Vec2.Distance(ship.Position, st.Position) > w.Range + Station.BodyRadius) return BayState.NoTarget;
+        if (!HasRound(u, ship, m, w)) return BayState.NoAmmo;
+        if (ReloadLeft(u, ship, slot) > 0f) return BayState.Reloading;
+        if (!Gunnery.HasPower(u, ship, w)) return BayState.NoPower;
+        if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, st.Position)) return BayState.OutsideArc;
+        return BayState.Ready;
+    }
+
+    /// <summary>Phase 28: Warum der Spieler diese Station nicht angreifen kann (null = er kann).</summary>
+    public static string? StationIssue(Universe u, Ship ship, Station st)
+    {
+        if (!u.Rules.Warfare) return "Stationsangriffe gibt es erst mit der Kriegsführung.";
+        if (st.IsBuildSite) return "Baustellen greifst du nicht an.";
+        if (st.Owner == ship.Owner) return "Eigene Stationen greifst du nicht an.";
+        if (StationCombat.IsDown(u, st)) return "Die Station ist ausgeschaltet.";
+        if (u.Fights.Of(ship.Id) is { } e && e.Station != st.Id) return "Du steckst in einem anderen Gefecht.";
+        if (Siege.Of(u, st.Id) is { } s && s.Of(ship.Id) is { } me && me.Side != 0) return "Du verteidigst diese Station.";
+        return null;
+    }
+
+    /// <summary>
+    /// Phase 28: Feuert genau einen Schuss auf eine Station (Belagerung durch den Spieler): Reichweite bis zur Außenhaut, Nachladen, Winkel, Munition/Raketen,
+    /// Leistung. Der erste Schuss eröffnet die Belagerung (Fahndung „assault_station“ bei der Stationsfraktion); die Station und ihre Polizei wehren sich.
+    /// </summary>
+    public static GunShot TryFireAtStation(Universe u, Ship ship, int slot, StationId station, float headingDeg)
+    {
+        if (ship.Id != u.PlayerShip || ship.DockedAt.Value != 0 || ship.Sector != u.PlayerSector) return Fail(GunResult.NotAllowed, "Angedockt — erst abdocken.");
+        if (Gunnery.WeaponAt(u, ship, slot) is not { } m) return Fail(GunResult.NoWeapon, "Keine Waffe in diesem Slot.");
+        if (!u.Stations.TryGetValue(station, out var st) || st.Sector != ship.Sector) return Fail(GunResult.NoTarget, "Keine Station als Ziel.");
+        if (StationIssue(u, ship, st) is { } issue) return Fail(GunResult.NotAllowed, issue);
+        var w = WeaponProfile.Of(m);
+        float dist = MathF.Max(0f, Vec2.Distance(ship.Position, st.Position) - Station.BodyRadius);
+        if (dist > w.Range) return Fail(GunResult.OutOfRange, $"Station außer Reichweite ({dist:0} > {w.Range:0} m).");
+        if (ReloadLeft(u, ship, slot) > 0f) return Fail(GunResult.Reloading, "lädt nach");
+        if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, st.Position)) return Fail(GunResult.OutsideArc, "Station außerhalb des Feuerwinkels — drehen.");
+        if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
+        if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
+        var e = Siege.Of(u, st.Id) ?? Siege.Start(u, ship, st);
+        var me = e.Of(ship.Id) ?? Engage.Join(u, e, ship, 0, CombatTactics.Player, 0f, ship.Position);
+        me.Pos = ship.Position;
+        me.Dir = CombatAutopilot.FromBearing(headingDeg);
+        if (!Gunnery.DrawPower(u, ship, w, out float reload)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
+        if (Missiles.IsMissile(m))
+        {
+            Missiles.Launch(u, e, ship, null, me.Side, m, w, default, st.Id, dist, ship.Position);
+            while (me.Timers.Count <= slot) me.Timers.Add(0f);
+            me.Timers[slot] = reload;
+            return new GunShot(GunResult.Fired, default, e.Id, "Rakete unterwegs");
+        }
+        var hit = StationCombat.Shoot(u, e, me, ship, slot, m, w, st, dist, 1f, reload);
         return new GunShot(GunResult.Fired, hit, e.Id, hit.Hit ? $"Treffer ({hit.ShieldDamage + hit.HullDamage:0})" : "Fehlschuss");
     }
 
@@ -239,10 +315,11 @@ public static class PlayerCombat
         if (e is not null && me is not null)
             foreach (var p in e.Participants)
                 if (p.Active && p.Side != me.Side && PositionOf(u, p.Ship) is { } pp) fight.Add((p.Ship, Vec2.Distance(pp.Pos, player.Position)));
+        // Gerätetest Phase 27: angedockte Schiffe (und andere nicht angreifbare) nicht als Gegner anbieten
         var raiders = new List<(ShipId, float)>();
         foreach (var id in u.Tracker.ParkedIn(player.Sector).Concat(u.Tracker.TransitIn(player.Sector)).Distinct().OrderBy(i => i.Value))
         {
-            if (!u.Ships.TryGetValue(id, out var s) || !ThreatMap.IsRaider(s) || fight.Any(f => f.Item1 == id)) continue;
+            if (!u.Ships.TryGetValue(id, out var s) || !ThreatMap.IsRaider(s) || fight.Any(f => f.Item1 == id) || TargetIssue(u, player, s) is not null) continue;
             if (PositionOf(u, id) is { } pp && pp.Sector == player.Sector) raiders.Add((id, Vec2.Distance(pp.Pos, player.Position)));
         }
         return fight.OrderBy(f => f.Item2).ThenBy(f => f.Item1.Value).Select(f => f.Item1)

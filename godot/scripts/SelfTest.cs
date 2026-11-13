@@ -1778,6 +1778,231 @@ public partial class SelfTest : Node
 				Check(_m.HudRef.CcSector.SelectedSector is null, "neues Spiel: Sektoransicht zeigt wieder den eigenen Sektor");
 				Next(); break;
 			}
+			case 73: // Phase 28: neues Spiel mit dem Jäger; Station-Info zeigt die Verteidigung einer Station mit Geschützen
+			{
+				if (_frame - _stageStart == 1) { _m.TestMenu("new:fighter"); break; }
+				if (_frame - _stageStart < 40) break;
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 40)
+				{
+					Check(uni.Rules.Warfare, "Kriegsführung in der Standardwelt eingeschaltet");
+					Check(uni.Wars.Count == 0, "Standardwelt: kein Krieg");
+					_p28Events = new List<SpaceSim.Core.Events.SimEvent>();
+					uni.Events.Raised += e => { if (e is SpaceSim.Core.Events.EncounterEnded or SpaceSim.Core.Events.CombatExited) Log("Ereignis " + e); if (e is SpaceSim.Core.Events.MissileLaunched or SpaceSim.Core.Events.MissileResolved or SpaceSim.Core.Events.StationShot or SpaceSim.Core.Events.ShotAtStation) _p28Events?.Add(e); };
+					var st = uni.Stations.Values.Where(x => x.Sector == uni.PlayerSector && SpaceSim.Core.Combat.StationCombat.DefenseOf(uni, x) is { Guns.Count: > 0 }).OrderBy(x => x.Id.Value).First();
+					_p28Station = st.Id;
+					_m.TestDockAt(st.Id);
+					break;
+				}
+				if (_frame - _stageStart == 50) { _m.TestOpenDockArea(Ui.Screens.DockAreas.Info); break; }
+				if (_frame - _stageStart < 54) break;
+				var info = (Ui.Screens.StationInfoScreen)_m.HudRef.Screens.Get("dock.info");
+				Check(info.TestDefense.Contains("Hülle") && info.TestDefense.Contains("Geschütz"), $"Station-Info zeigt die Verteidigung ({info.TestDefense})");
+				_m.TestUndock();
+				Next(); break;
+			}
+			case 74: // Phase 28: Rakete des Spielers — Werfer statt Geschütz, Ziel Kaperschiff, Rakete fliegt sichtbar und wird aufgelöst
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				if (_frame - _stageStart == 30)
+				{
+					int slot = pl.Fit.IndexOf("weapon_massdriver_s");
+					pl.Fit[slot] = "missile_launcher_s";
+					pl.RecomputeStats(uni);
+					var raider = uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(r => r.Id.Value).First(r => !uni.Fights.IsEngaged(r.Id));
+					if (raider.Command is not null) SpaceSim.Core.Simulation.Commands.Cancel(uni, raider);
+					if (raider.Transit is not null) uni.FinishTransit(raider);
+					if (raider.Sector != uni.PlayerSector) uni.MoveShip(raider, uni.PlayerSector);
+					var away = uni.Stations[_p28Station].Position + new Vec2(0f, 160f);
+					_m.TestTeleportTo(away);
+					raider.Position = away + new Vec2(0f, -45f); raider.DockedAt = default;
+					_p28Raider = raider.Id;
+					_m.TestFace(raider.Position);
+					_m.TestSetShipTarget(raider.Id);
+					break;
+				}
+				if (_frame - _stageStart < 34) break;
+				if (_frame - _stageStart == 34)
+				{
+					_m.TestFace(uni.Ships[_p28Raider].Position);
+					Log($"vor dem Schuss: angedockt {pl.DockedAt.Value}, Reise {pl.Transit is not null}, Sektor {pl.Sector.Value}/{uni.PlayerSector.Value}, Abstand {Vec2.Distance(pl.Position, uni.Ships[_p28Raider].Position):0}, Ansicht angedockt {_m.Docked}");
+					bool fired = _m.TestFireSlot(pl.Fit.IndexOf("missile_launcher_s"));
+					Check(fired, $"Raketenwerfer feuert ({_m.TestFightMessage})");
+					break;
+				}
+				if (_frame - _stageStart < 40) break;
+				if (_frame - _stageStart == 40)
+				{
+					Check(_p28Events!.Any(e => e is SpaceSim.Core.Events.MissileLaunched ml && ml.Shooter == uni.PlayerShip), "Spieler hat eine Rakete abgefeuert");
+					Check(pl.Systems.MissilesMissing >= 1f, $"Raketenmagazin verbraucht ({pl.Systems.MissilesMissing})");
+					_p28SeenMissile = _m.TestMissilesShown;
+					var fe = uni.Fights.Of(pl.Id);
+					Log($"Gefecht {(fe is null ? "-" : $"{fe.Cause} räumlich {fe.Spatial} Raketen {fe.Missiles.Count}")}, gezeigt {_m.TestMissilesShown}");
+					break;
+				}
+				if (_frame - _stageStart < 320) { _p28SeenMissile = System.Math.Max(_p28SeenMissile, _m.TestMissilesShown); break; }
+				Check(_p28SeenMissile > 0, "Rakete im Flug gezeichnet");
+				Check(_p28Events!.Any(e => e is SpaceSim.Core.Events.MissileResolved mr && mr.Shooter == uni.PlayerShip), "Rakete am Ziel aufgelöst");
+				Next(); break;
+			}
+			case 75: // Phase 28: Station angreifen — Taste nur für eine gewählte Station, zwei Tipps, Belagerung, die Station schießt zurück, Fahndung
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				var st = uni.Stations[_p28Station];
+				if (_frame - _stageStart == 1)
+				{
+					if (uni.Fights.Of(pl.Id) is { } old && old.Of(pl.Id) is { Active: true } op) SpaceSim.Core.Combat.Engage.Leave(uni, old, op, SpaceSim.Core.Model.CombatExit.Fled);
+					foreach (var r in uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).ToList())
+						if (r.Sector == uni.PlayerSector && !uni.Fights.IsEngaged(r.Id)) { if (r.Transit is not null) uni.FinishTransit(r); uni.MoveShip(r, new SectorId(11)); }
+					pl.Hull = pl.MaxHull;
+					_m.TestTeleportTo(st.Position + new Vec2(0f, 40f));
+					_m.TestFace(st.Position);
+					_m.TestSetShipTarget(default);
+					_m.TestSetStationTarget(st.Id);
+					break;
+				}
+				if (_frame - _stageStart == 6)
+				{
+					_m.SyncHudForTest();
+					Check(_m.HudRef.Flight.TestStationAttackVisible, "Taste „Station angreifen“ sichtbar bei gewählter Station");
+					var r1 = _m.HudRef.Flight.TestNextEnemyRect;
+					Check(r1.Size.Y >= 56f, "Kampftasten mindestens 56 px");
+					_m.TestArmStation();
+					Check(_m.TestStationTarget == st.Id, "Station als Angriffsziel scharf");
+					_m.TestFace(st.Position);
+					_m.SyncHudForTest();
+					_m.TestAllFire();
+					break;
+				}
+				if (_frame - _stageStart < 120) break;
+				Check(_p28Events!.Any(e => e is SpaceSim.Core.Events.ShotAtStation sa && sa.Station == st.Id), "Schüsse auf die Station");
+				Check(uni.Fights.Of(pl.Id) is { Cause: SpaceSim.Core.Model.EncounterCause.Siege } || _p28Events!.Any(e => e is SpaceSim.Core.Events.StationShot ss && ss.Target == pl.Id), "Belagerung läuft");
+				Check(_p28Events!.Any(e => e is SpaceSim.Core.Events.StationShot ss && ss.Target == pl.Id), "die Station schießt zurück");
+				var f = uni.FactionOf(st)!.Value;
+				Check(SpaceSim.Core.Simulation.Wanted.LevelOf(uni, pl.Owner, f) >= 3, "Angriff auf die Station ist ein schweres Verbrechen");
+				_m.SyncHudForTest();
+				Check(!_m.HudRef.Flight.TestStationAttackVisible, "Taste verschwindet, solange der Angriff scharf ist");
+				// Flucht: Sektor verlassen beendet die Belagerung
+				var other = uni.Sectors.Keys.First(k => k != uni.PlayerSector);
+				_m.TestEnterSector(other);
+				Next(); break;
+			}
+			case 76: // Prüfung Phase 27: große Meldung verdeckt weder „Nächster Gegner“ noch die Zielkarte; Krieg in der Anzeige
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1)
+				{
+					_m.HudRef.Alert("Prüfmeldung: Polizei von Gilde greift an — „Ergeben“ zahlt die Strafe, sonst kämpfen oder fliehen.", 6f);
+					break;
+				}
+				if (_frame - _stageStart < 4) break;
+				if (_frame - _stageStart == 4)
+				{
+					var a = _m.HudRef.TestAlertRect;
+					Check(!a.Intersects(_m.HudRef.Flight.TestNextEnemyRect), $"Meldung verdeckt „Nächster Gegner“ nicht ({a})");
+					Check(a.Position.Y > 330f && a.End.Y < 584f, $"Meldung unter Zielkarte/Kontexttaste und über den Wendetasten ({a})");
+					_m.HudRef.HideAlert();
+					var war = SpaceSim.Core.Simulation.Wars.Declare(uni, new FactionId(1), new FactionId(2));
+					_p28WarAlert = _m.HudRef.TestAlert;
+					Check(_m.LastWarMessage.Contains("Krieg"), $"Meldung zur Kriegserklärung ({_m.LastWarMessage})");
+					_m.TestOpenCommand(); _m.TestOpenCcArea("factions"); _m.TestCcSelectFaction(new FactionId(1));
+					break;
+				}
+				if (_frame - _stageStart < 8) break;
+				Check(_m.HudRef.CcFactions.TestWar.StartsWith("Krieg mit"), $"Fraktionsdetail zeigt den Krieg ({_m.HudRef.CcFactions.TestWar})");
+				_m.TestCloseCommand();
+				SpaceSim.Core.Simulation.Wars.MakePeace(uni, uni.Wars[0], "manual");
+				Check(uni.Wars.Count == 0, "Frieden geschlossen");
+				Next(); break;
+			}
+			case 77: // Gerätetest Phase 27 (Punkt 4): Zeitraffer ×10 + Autopilot über mehrere Sprünge — Sektorchip folgt dem Sektor, die Ansicht hängt nicht
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1)
+				{
+					if (_m.Docked) _m.TestUndock();
+					break;
+				}
+				if (_frame - _stageStart == 60)
+				{
+					var target = new SectorId(11);   // Abgrund (Sackgasse hinter Delta)
+					_p28Hops = uni.FindRoute(uni.PlayerSector, target)?.Count ?? -1;
+					_m.TestOpenCommand(); _m.TestOpenCcArea("universe"); _m.TestCcSelectSector(target);
+					_m.TestCcPlanRoute();
+					Check(_m.HudRef.Screens.Current == null && _m.HudRef.Flight.Visible, "„Route planen“ führt zurück in die Flugansicht (Rückmeldung sichtbar)");
+					_m.TestSetFast(true);
+					_p28LastSector = uni.PlayerSector; _p28SectorFrame = _frame; _p28Jumps = 0;
+					break;
+				}
+				if (_frame - _stageStart < 60) break;
+				_m.SyncHudForTest();
+				if (uni.PlayerSector != _p28LastSector) { _p28LastSector = uni.PlayerSector; _p28SectorFrame = _frame; _p28Jumps++; }
+				string want = uni.Sectors[uni.PlayerSector].Name;
+				if (_m.HudRef.Flight.TestSectorChip != want && _frame - _p28SectorFrame > 90)
+				{ Fail($"Sektorchip hängt („{_m.HudRef.Flight.TestSectorChip}“, Sektor {want}, seit {_frame - _p28SectorFrame} Bildern)"); break; }
+				if (uni.PlayerSector.Value == 11 || _frame - _stageStart > 60 + 60 * 90)
+				{
+					_m.TestSetFast(false);
+					Log($"Zeitraffer-Autopilot: {_p28Jumps} Sprünge (Route {_p28Hops}), jetzt {want}, Bilder {_frame - _stageStart - 60}");
+					Check(_p28Jumps >= 1, "Autopilot ist im Zeitraffer mindestens einmal gesprungen");
+					Next();
+				}
+				break;
+			}
+			case 78: // Gerätetest Phase 27 (Punkt 1): Werftliste — Rollposition bleibt über Neuaufbauten mit geänderten Daten; Finger auf der Liste hält den Neuaufbau an
+			{
+				var uni = _m.Session.U;
+				if (_frame - _stageStart == 1)
+				{
+					var yardS = uni.Stations.Values.Where(x => x.TypeKey == "shipyard").OrderBy(x => x.Id.Value).First();
+					_m.TestDockAt(yardS.Id);
+					break;
+				}
+				if (_frame - _stageStart == 30) { _m.TestOpenDockArea("shipyard"); break; }
+				if (_frame - _stageStart < 36) break;
+				var screen = _m.HudRef.Screens.Get("dock.shipyard");
+				var scroll = FindScroll(screen.Node, "ShipyardScreen.cs");
+				if (scroll is null) { Fail("Werftliste hat keinen Rollbereich"); break; }
+				if (_frame - _stageStart == 36) { scroll.ScrollVertical = 300; break; }
+				if (_frame - _stageStart == 40)
+				{
+					_p28Scroll = scroll.ScrollVertical;
+					Check(_p28Scroll > 100, $"Werftliste gerollt ({_p28Scroll})");
+					// Daten ändern sich (Kasse, Lager), mehrere Ticks → Neuaufbauten
+					uni.PlayerWallet.Credits += 1234f;
+					_m.Session.RunTicks(3);
+					screen.Refresh();
+					break;
+				}
+				if (_frame - _stageStart == 44) { _m.Session.RunTicks(2); screen.Refresh(); break; }
+				if (_frame - _stageStart == 50)
+				{
+					int now = SpaceAdventure.Ui.Kit.KitScroll.PositionOf(screen.Node, "ShipyardScreen.cs");
+					Check(System.Math.Abs(now - _p28Scroll) <= 2, $"Rollposition bleibt über Neuaufbauten ({_p28Scroll} → {now})");
+					// Finger aufgelegt (noch kein Zug): kein Neuaufbau, der Bereich bleibt derselbe
+					var r = scroll.GetGlobalRect();
+					var a = r.Position + new Vector2(r.Size.X * 0.5f, r.Size.Y * 0.5f);
+					Push(new InputEventScreenTouch { Index = 0, Position = a, Pressed = true });
+					_p28ScrollNode = FindScroll(screen.Node, "ShipyardScreen.cs");
+					_m.Session.RunTicks(2); screen.Refresh();
+					Check(ReferenceEquals(_p28ScrollNode, FindScroll(screen.Node, "ShipyardScreen.cs")), "kein Neuaufbau, solange ein Finger auf der Liste liegt");
+					for (int i = 1; i <= 3; i++) Push(new InputEventScreenDrag { Index = 0, Position = a - new Vector2(0, 30 * i) });
+					Push(new InputEventScreenTouch { Index = 0, Position = a - new Vector2(0, 90), Pressed = false });
+					break;
+				}
+				if (_frame - _stageStart < 56) break;
+				Check(SpaceAdventure.Ui.Kit.KitScroll.PositionOf(screen.Node, "ShipyardScreen.cs") > _p28Scroll + 40, "erster Wisch nach dem Aufsetzen rollt");
+				_m.TestUndock();
+				// Hamburger „Neues Spiel“: führt zur Startpaket-Auswahl, startet nicht sofort
+				var before = _m.Session.U;
+				_m.TestCommand("new");
+				Check(ReferenceEquals(before, _m.Session.U) && _m.HudRef.CcSystem.TestChoosing, "„Neues Spiel“ im Menü öffnet die Startpaket-Auswahl");
+				_m.HudRef.CcSystem.TestChoosing = false;
+				_m.TestCloseCommand();
+				Next(); break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -1787,6 +2012,24 @@ public partial class SelfTest : Node
 	}
 
 	void Next() { _stage++; _stageStart = _frame; }
+	/// <summary>Phase 28: Stufen 73–76.</summary>
+	List<SpaceSim.Core.Events.SimEvent>? _p28Events;
+	SpaceSim.Core.Model.StationId _p28Station;
+	ShipId _p28Raider;
+	int _p28SeenMissile;
+	string _p28WarAlert = "";
+	SectorId _p28LastSector;
+	int _p28SectorFrame, _p28Jumps, _p28Hops, _p28Scroll;
+	SpaceAdventure.Ui.Kit.KitScroll? _p28ScrollNode;
+	static SpaceAdventure.Ui.Kit.KitScroll? FindScroll(Node root, string key)
+	{
+		foreach (var c in root.GetChildren())
+		{
+			if (c is SpaceAdventure.Ui.Kit.KitScroll k && !k.IsQueuedForDeletion() && k.ScrollKey.StartsWith(key, System.StringComparison.Ordinal)) return k;
+			if (FindScroll(c, key) is { } f) return f;
+		}
+		return null;
+	}
 	/// <summary>Phase 23: Hülle und Schild zwischen den Stufen 51 und 52.</summary>
 	float _p23Hull, _p23Shield;
 	/// <summary>Phase 25: Kampfstufen 54–61.</summary>

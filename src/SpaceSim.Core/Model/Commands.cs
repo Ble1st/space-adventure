@@ -29,6 +29,8 @@ public static class CommandKinds
     public const string Lurk = "lurk";
     /// <summary>Phase 27: Verfolgen (Polizei verfolgt ein geflohenes Kaperschiff in ihrer Zuständigkeit; kein Spielerbefehl).</summary>
     public const string Pursue = "pursue";
+    /// <summary>Phase 28: Angriff auf eine Station (Kriegsschiffe einer Fraktion im Krieg; kein Spielerbefehl).</summary>
+    public const string Assault = "assault";
 }
 
 /// <summary>Fliegen: zu einer Station (andocken) oder zu einem Punkt in einem Sektor (<paramref name="Station"/> default).</summary>
@@ -119,6 +121,15 @@ public sealed record LurkCommand(SectorId Sector, Vec2 Spot, long Until) : ShipC
 public sealed record PursueCommand(ShipId Target, float Lead, long Until) : ShipCommand
 {
     public override string Kind => CommandKinds.Pursue;
+}
+
+/// <summary>
+/// Phase 28: Angriff — ein Kriegsschiff fliegt zur feindlichen Station <paramref name="Station"/> im Sektor <paramref name="Sector"/> und belagert sie
+/// (Gefecht mit Anlass <see cref="EncounterCause.Siege"/>). Vergibt die Fraktion im Krieg, nicht der Spieler.
+/// </summary>
+public sealed record AssaultCommand(SectorId Sector, StationId Station) : ShipCommand
+{
+    public override string Kind => CommandKinds.Assault;
 }
 
 /// <summary>Verhaltensregeln (FLOTTEN.md „Rules of Engagement“).</summary>

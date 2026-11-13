@@ -48,7 +48,7 @@ public static class Hit
     public static HitResult Damage(float damage, DamageType type, in TargetProfile t, float chance, EconomyRules r)
     {
         float rest = MathF.Max(0f, damage), shieldDmg = 0f, armorAbs = 0f;
-        float shieldMult = type == DamageType.Energy ? r.EnergyVsShield : r.KineticVsShield;
+        float shieldMult = type switch { DamageType.Energy => r.EnergyVsShield, DamageType.Explosive => r.ExplosiveVsShield, _ => r.KineticVsShield };
         if (t.ShieldNow > 0f && rest > 0f && shieldMult > 0f)
         {
             float eff = rest * shieldMult;
@@ -57,7 +57,7 @@ public static class Hit
         }
         if (t.Armor > 0f && rest > 0f)
         {
-            float armorMult = type == DamageType.Energy ? r.EnergyVsArmor : r.KineticVsArmor;
+            float armorMult = type switch { DamageType.Energy => r.EnergyVsArmor, DamageType.Explosive => r.ExplosiveVsArmor, _ => r.KineticVsArmor };
             armorAbs = MathF.Min(rest, t.Armor * r.ArmorPerHitShare * armorMult);
             rest -= armorAbs;
         }

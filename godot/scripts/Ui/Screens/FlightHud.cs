@@ -66,6 +66,8 @@ public sealed class FlightHudData
 	public bool EnemyNear;
 	/// <summary>Phase 27: Der Spieler kann sich ergeben (Polizei: Strafe zahlen; Kaperer: Fracht abwerfen) — Taste „Ergeben“ sichtbar.</summary>
 	public bool CanSurrender;
+	/// <summary>Phase 28: Die gewählte Station kann angegriffen werden (Taste „Station angreifen“, zwei Tipps); scharf = die Waffen schießen auf sie.</summary>
+	public bool CanAttackStation, StationAttackArmed;
 	public string HitWarning = "";
 }
 
@@ -85,6 +87,8 @@ public partial class FlightHud : Control, IScreen
 	public string TestFire => _fire.Visible ? _fire.Text : "";
 	public string TestCredits => _credits.Text;
 	public string TestSecurity => _security.Text;
+	/// <summary>Selbsttest (Gerätetest Phase 27): angezeigter Sektorname im Chip.</summary>
+	public string TestSectorChip => _sector.Text;
 	public string Title => "Flug";
 	public Control Node => this;
 	public bool IsOpen => Visible;
@@ -95,7 +99,12 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
 	public event Action<PowerMode>? PowerModePressed;
 	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
-	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed;
+	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed, StationAttackPressed;
+	/// <summary>Phase 28: „Station angreifen“ (zwei Tipps über <see cref="KitConfirm"/>).</summary>
+	KitButton _stationAttack = null!;
+	readonly KitConfirm _attackConfirm = new();
+	public bool TestStationAttackVisible => _stationAttack.Visible;
+	public void TestPressStationAttack() => StationAttackPressed?.Invoke();
 	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!;
 	/// <summary>Phase 27: Selbsttest — Taste „Ergeben“.</summary>
 	public bool TestSurrenderVisible => _surrender.Visible;
@@ -298,6 +307,10 @@ public partial class FlightHud : Control, IScreen
 		_autoFire.Pressed += () => AutoFirePressed?.Invoke();
 		_nextEnemy = At(this, new KitButton("Nächster Gegner", new Vector2(160, 56)) { FontSize = 15 }, 764, 206);
 		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
+		// Phase 28: Angriff auf die gewählte Station — unter „Nächster Gegner“, nur wenn erlaubt; zwei Tipps (folgenschwer: Fahndung, Gegenwehr)
+		_stationAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(160, 56)) { FontSize = 15 }, "station_attack", "Station angreifen",
+			() => StationAttackPressed?.Invoke()), 764, 268);
+		_stationAttack.Visible = false;
 		// Phase 27: „Ergeben“ — rechts über „Dauerfeuer“, nur wenn die Polizei oder Kaperer eine Aufgabe annehmen; Bestätigung mit zweitem Tippen (KitConfirm)
 		_surrender = At(this, new KitButton("Ergeben", new Vector2(176, 56)) { FontSize = 16, State = KitButtonState.Warn }, 906, 398);
 		_surrender.Pressed += () => SurrenderPressed?.Invoke();
@@ -513,6 +526,7 @@ public partial class FlightHud : Control, IScreen
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
 		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
+		_stationAttack.Visible = d.CanAttackStation && !d.StationAttackArmed;
 		_surrender.Visible = d.CanSurrender;
 		_tCombat.Text = d.TargetCombat;
 		_tCombat.Visible = d.TargetCombat.Length > 0;

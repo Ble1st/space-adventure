@@ -137,6 +137,8 @@ public static class GateAccess
 {
     /// <summary>Mobilitätsprofil eines Schiffs: Besitzer, beladen, Tarnstärke.</summary>
     public static MobilityProfile ProfileOf(Universe u, Ship ship) =>
+        // Phase 28: Kriegsschiffe brechen durch Sperren (nur der physische Torzustand zählt)
+        u.Rules.Warfare && Wars.IsWarship(ship) ? MobilityProfile.Physical :
         MobilityProfile.For(ship.Owner, ship.Cargo.Values.Any(v => v > 0.001f), ship.HasModel ? ship.Stats.Stealth : 0f);
 
     /// <summary>Wirksame Stufe einer Seite: Sektorsperre (falls durchgesetzt), auf der Hauptroute gedeckelt.</summary>

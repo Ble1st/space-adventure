@@ -29,11 +29,18 @@ public sealed class CombatController
     public int Shots { get; private set; }
 
     public void SetTarget(ShipId id) => Target = id;
-    public void ClearTarget() => Target = default;
+    public void ClearTarget() { Target = default; StationTarget = default; }
+
+    /// <summary>Phase 28: Station als Angriffsziel (nach dem bestätigten „Station angreifen“); gilt, solange kein Schiffsziel gewählt ist.</summary>
+    public StationId StationTarget { get; private set; }
+    public void ArmStation(StationId id) => StationTarget = id;
+    /// <summary>Schießen die Waffen gerade auf die Station (kein Schiffsziel, Station scharf)?</summary>
+    public bool AtStation => Target.Value == 0 && StationTarget.Value != 0;
 
     /// <summary>Ziel noch gültig (existiert, im Sektor)? Sonst wird es verworfen.</summary>
     public void Validate(Universe u)
     {
+        if (StationTarget.Value != 0 && (!u.Stations.TryGetValue(StationTarget, out var st) || st.Sector != u.PlayerSector || StationCombat.IsDown(u, st))) StationTarget = default;
         if (Target.Value == 0) return;
         if (!u.Ships.ContainsKey(Target) || PlayerCombat.PositionOf(u, Target) is not { } p || p.Sector != u.PlayerSector || Target == u.PlayerShip) Target = default;
     }
@@ -50,7 +57,7 @@ public sealed class CombatController
     /// <summary>Ein Schuss der Waffe in <paramref name="slot"/> auf das gewählte Ziel.</summary>
     public GunShot Fire(Universe u, Ship player, int slot, float headingDeg)
     {
-        var r = PlayerGunnery.TryFire(u, player, slot, Target, headingDeg);
+        var r = AtStation ? PlayerGunnery.TryFireAtStation(u, player, slot, StationTarget, headingDeg) : PlayerGunnery.TryFire(u, player, slot, Target, headingDeg);
         LastResult = r.Result;
         LastMessage = r.Message;
         if (r.Result == GunResult.Fired) Shots++;
@@ -62,14 +69,19 @@ public sealed class CombatController
     {
         if (e.Target != u.PlayerShip) return;
         LastAttacker = e.Shooter;
+        _lastStation = default;
         LastHitAt = now;
     }
 
     /// <summary>Warnzeile „Beschuss!“ mit Richtung relativ zur Schiffsnase (leer = keine Warnung); 3 s nach dem letzten Schuss.</summary>
     public string Warning(Universe u, Vec2 pos, float headingDeg, double now)
     {
-        if (now - LastHitAt > 3.0 || PlayerCombat.PositionOf(u, LastAttacker) is not { } a) return "";
-        float rel = FiringArc.Normalize180(FiringArc.Bearing(a.Pos - pos) - headingDeg);
+        if (now - LastHitAt > 3.0) return "";
+        Vec2 from;
+        if (PlayerCombat.PositionOf(u, LastAttacker) is { } a) from = a.Pos;
+        else if (LastAttacker.Value == 0 && u.Stations.TryGetValue(_lastStation, out var lst)) from = lst.Position;   // Phase 28: Stationsgeschütz
+        else return "";
+        float rel = FiringArc.Normalize180(FiringArc.Bearing(from - pos) - headingDeg);
         string dir = rel > 135f || rel < -135f ? "▼ von hinten" : rel > 45f ? "◀ von links" : rel < -45f ? "▶ von rechts" : "▲ von vorn";
         return $"BESCHUSS! {dir}";
     }
@@ -98,7 +110,15 @@ public sealed class CombatController
     public static BayState StateOf(Universe u, Ship player, WeaponBay bay, float headingDeg, ShipId target) =>
         PlayerGunnery.State(u, player, PlayerGunnery.SlotOf(bay.Key), headingDeg, target);
 
-    public void Reset() { AutoFire = false; Target = default; LastAttacker = default; LastHitAt = -99; }
+    public void Reset() { AutoFire = false; Target = default; StationTarget = default; LastAttacker = default; LastHitAt = -99; }
+
+    /// <summary>Phase 28: Beschuss durch ein Stationsgeschütz (Warnrichtung aus der Stationsposition).</summary>
+    public void OnStationShot(Universe u, StationShot e, double now)
+    {
+        if (e.Target != u.PlayerShip) return;
+        _lastStation = e.Station; LastAttacker = default; LastHitAt = now;
+    }
+    StationId _lastStation;
 
     /// <summary>Kurztext Schild/Hülle des Ziels für die Zielkarte.</summary>
     public static string TargetLine(Universe u, Ship target)

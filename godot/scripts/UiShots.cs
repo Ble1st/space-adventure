@@ -30,6 +30,8 @@ public partial class UiShots : Node
 	SpaceSim.Core.Model.StationId _site;   // Phase 8: Baustelle für die Bildschirmfotos
 	SpaceSim.Core.Model.ShipId _nomad;     // Phase 12: Flottenschiff für die Bildschirmfotos
 
+	bool _phase28;
+
 	public UiShots(Main m, string dir)
 	{
 		_m = m;
@@ -50,6 +52,10 @@ public partial class UiShots : Node
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase26")) _stage = 572;
 		// Phase 27: --ui-shots-phase27 wie Phase 26 und weiter zu den Bildern 69–77 (Station-Info, Ausrüster, Hangar, Polizeigefecht, Verband, Startpakete, Comms, Planet, Sternenkarte)
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-phase27")) _stage = 572;
+		// Phase 28: --ui-shots-phase28 wie Phase 27 (Bilder 63–77, u. a. Ausrüster 70, Polizeigefecht 72, Sektoransicht 73) und weiter zu 78–81
+		// (Stationsangriff mit Raketen, Station schießt zurück, Station-Info mit Verteidigung, Krieg in den Fraktionen)
+		_phase28 = OS.GetCmdlineUserArgs().Contains("--ui-shots-phase28");
+		if (_phase28) _stage = 572;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -608,7 +614,59 @@ public partial class UiShots : Node
 			case 589_8: Capture("76-flug-beta-planet.png"); _stage = 589_9; _wait = 10; break;
 			case 589_9: _m.HudRef.Map.Open(_m.Session.U, _m.Session.U.PlayerSector, null); _stage = 590_1; _wait = 20; break;
 			case 590_1: Capture("77-sternenkarte.png"); _stage = 590_2; _wait = 10; break;
-			case 590_2: _m.HudRef.Map.Visible = false; _stage = 590_3; _wait = 5; break;
+			case 590_2: _m.HudRef.Map.Visible = false; _stage = _phase28 ? 590_3 : 999_999; _wait = 5; break;
+			// ── Phase 28: Stationsangriff (Raketenwerfer statt Geschütz), Gegenwehr, Verteidigung in der Station-Info, Krieg ──
+			case 590_3:
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				int slot = pl.Fit.IndexOf("weapon_massdriver_s");
+				if (slot >= 0) { pl.Fit[slot] = "missile_launcher_s"; pl.RecomputeStats(uni); }
+				var st = uni.Stations.Values.Where(x => x.Sector == uni.PlayerSector && SpaceSim.Core.Combat.StationCombat.DefenseOf(uni, x) is { Guns.Count: > 0 }).OrderBy(x => x.Id.Value).First();
+				_p28Station = st.Id;
+				pl.Hull = pl.MaxHull;
+				_m.TestTeleportTo(st.Position + new SpaceSim.Core.Model.Vec2(0f, 45f));
+				_m.TestFace(st.Position);
+				_m.TestSetShipTarget(default);
+				_m.TestSetStationTarget(st.Id);
+				_stage = 590_4; _wait = 10; break;
+			}
+			case 590_4: Capture("78a-flug-station-gewaehlt.png"); _stage = 590_5; _wait = 10; break;
+			case 590_5:
+			{
+				var uni = _m.Session.U;
+				_m.TestArmStation();
+				_m.TestFace(uni.Stations[_p28Station].Position);
+				_m.SyncHudForTest();
+				_m.TestFireSlot(uni.Ships[uni.PlayerShip].Fit.IndexOf("missile_launcher_s"));
+				_m.TestAllFire();
+				_stage = 590_6; _wait = 3; break;
+			}
+			case 590_6: _m.Session.RunTicks(3); _stage = 590_7; _wait = 3; break;
+			case 590_7: Capture("78-flug-station-angriff-rakete.png"); _stage = 590_8; _wait = 10; break;
+			case 590_8: _m.Session.RunTicks(16); _m.Session.Player.Hull = _m.Session.Player.MaxHull; _stage = 590_9; _wait = 4; break;
+			case 590_9: Capture("79-flug-station-schiesst-zurueck.png"); _stage = 591_1; _wait = 10; break;
+			case 591_1:
+			{
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				if (uni.Fights.Of(pl.Id) is { } e && e.Of(pl.Id) is { Active: true } p) SpaceSim.Core.Combat.Engage.Leave(uni, e, p, SpaceSim.Core.Model.CombatExit.Fled);
+				_m.TestDockAt(_p28Station);
+				_stage = 591_2; _wait = 60; break;
+			}
+			case 591_2: _m.TestOpenDockArea("info"); _stage = 591_3; _wait = 20; break;
+			case 591_3: Capture("80-dock-station-info-verteidigung.png"); _stage = 591_4; _wait = 10; break;
+			case 591_4:
+			{
+				_m.TestUndock();
+				var uni = _m.Session.U;
+				SpaceSim.Core.Simulation.Wars.Declare(uni, new SpaceSim.Core.Model.FactionId(1), new SpaceSim.Core.Model.FactionId(2));
+				_m.TestOpenCommand(); _m.TestOpenCcArea("factions"); _m.TestCcSelectFaction(new SpaceSim.Core.Model.FactionId(1));
+				_stage = 591_5; _wait = 30; break;
+			}
+			case 591_5: Capture("81-fraktionen-krieg.png"); _stage = 591_6; _wait = 10; break;
+			case 591_6: _m.TestCloseCommand(); _stage = 591_7; _wait = 20; break;
+			case 591_7: Capture("82-flug-kriegsmeldung.png"); _stage = 999_999; _wait = 10; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);
@@ -616,6 +674,8 @@ public partial class UiShots : Node
 				break;
 		}
 	}
+
+	SpaceSim.Core.Model.StationId _p28Station;
 
 	/// <summary>Speichert das aktuelle Frame als PNG, sobald der Frame fertig gezeichnet ist.</summary>
 	void Capture(string file)

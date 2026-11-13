@@ -20,6 +20,8 @@ public sealed class ShipSystemsState
     public float ChargeMissing;
     /// <summary>Fehlende Munition im Magazin (0 = voll); höchstens <see cref="ShipStats.AmmoCapacity"/>. Mit abgeschaltetem Schalter <c>ammoActive</c> gilt das Magazin als voll.</summary>
     public float AmmoMissing;
+    /// <summary>Phase 28: fehlende Raketen im Raketenmagazin (0 = voll); höchstens <see cref="ShipStats.MissileCapacity"/>.</summary>
+    public float MissilesMissing;
     /// <summary>
     /// Zustand je Slot 0..1 (Index = Slot). Fehlende Einträge (auch eine leere Liste) gelten als 1. Unter <see cref="EconomyRules.ModuleFailCondition"/>
     /// fällt das Modul aus (<see cref="ShipStats.Compute(ShipClass, IReadOnlyList{Module?}, IReadOnlyList{float}?, float)"/>). In Phase 23 senkt noch nichts
@@ -45,7 +47,7 @@ public sealed class ShipSystemsState
 
     /// <summary>Alles auf Standard (voll, ausgeglichen, unbeschädigt)? Dann wird nichts gespeichert.</summary>
     public bool IsDefault =>
-        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact && Burning.Count == 0;
+        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && MissilesMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact && Burning.Count == 0;
 
     /// <summary>Alle Slots im Zustand 1?</summary>
     public bool AllIntact

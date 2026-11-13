@@ -298,3 +298,27 @@ public sealed record EscortAssigned(ShipId Police, ShipId Ward, SectorId Sector)
 /// (Fracht abgeworfen, die Kaperer drehen ab).
 /// </summary>
 public sealed record PlayerSurrendered(bool ToPolice, SectorId Sector, float Value, string Message) : SimEvent;
+
+// ───────── Phase 28: Raketen, Stationen, Krieg ─────────
+/// <summary>Phase 28: Rakete abgefeuert (Schiff oder Station <paramref name="FromStation"/>), Ziel Schiff oder Station; <paramref name="FlightTicks"/> = erwartete Flugzeit.</summary>
+public sealed record MissileLaunched(int Encounter, SectorId Sector, ShipId Shooter, StationId FromStation, ShipId Target, StationId TargetStation, string Weapon, float FlightTicks) : SimEvent;
+/// <summary>Phase 28: Rakete am Ziel — <paramref name="Outcome"/> „hit“, „miss“, „intercepted“ (Punktabwehr) oder „lost“ (Ziel weg/entkommen).</summary>
+public sealed record MissileResolved(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, StationId TargetStation, string Outcome, float ShieldDamage, float HullDamage) : SimEvent;
+/// <summary>Phase 28: Ein Stationsgeschütz hat auf ein Schiff geschossen.</summary>
+public sealed record StationShot(int Encounter, SectorId Sector, StationId Station, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;
+/// <summary>Phase 28: Ein Schiff hat auf eine Station geschossen.</summary>
+public sealed record ShotAtStation(int Encounter, SectorId Sector, ShipId Shooter, StationId Station, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;
+/// <summary>Phase 28: Eine Station ist gefallen — <paramref name="How"/> „destroyed“ (über <see cref="SpaceSim.Core.Simulation.Departures"/>), „captured“ (Besitzer wechselt) oder „disabled“ (Regierung/unzerstörbar: ausgeschaltet).</summary>
+public sealed record StationFell(StationId Station, string Name, SectorId Sector, ActorId OldOwner, ActorId Attacker, string How) : SimEvent;
+/// <summary>Phase 28: Station repariert (Hüllenpunkte, Hüllenplatten aus dem Lager, Kosten aus der Kasse bzw. Stationskasse).</summary>
+public sealed record StationRepaired(StationId Station, float Hull, float Plates, float Cost) : SimEvent;
+/// <summary>Phase 28: Belagerung begonnen (Angreifer-Fraktion, Station).</summary>
+public sealed record SiegeStarted(int Encounter, StationId Station, SectorId Sector, ActorId Attacker, string Message) : SimEvent;
+/// <summary>Phase 28: Krieg erklärt (A erklärt B).</summary>
+public sealed record WarDeclared(FactionId A, FactionId B, float Relation, string Message) : SimEvent;
+/// <summary>Phase 28: Frieden (Grund „weary“, „broke“, „manual“).</summary>
+public sealed record PeaceConcluded(FactionId A, FactionId B, string Reason, long Ticks, string Message) : SimEvent;
+/// <summary>Phase 28: Kriegsschiff gekauft (Fraktion, Schiff, Werft, Preis).</summary>
+public sealed record WarshipCommissioned(FactionId Faction, ShipId Ship, StationId Yard, float Price) : SimEvent;
+/// <summary>Phase 28: Kriegsschiff nach dem Frieden oder wegen der Rücklage abgebaut.</summary>
+public sealed record WarshipDecommissioned(FactionId Faction, ShipId Ship, string Reason) : SimEvent;

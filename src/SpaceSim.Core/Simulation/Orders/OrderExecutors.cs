@@ -66,6 +66,7 @@ public sealed class OrderExecutors
         r.Register(new ReturnExecutor());
         r.Register(new LurkExecutor());      // Phase 27: Piratengruppen
         r.Register(new PursueExecutor());    // Phase 27: Polizei
+        r.Register(new AssaultExecutor());   // Phase 28: Kriegsschiffe
         return r;
     }
 

@@ -83,7 +83,7 @@ public class FuelModelTests
         Assert.Equal(1f, p.VolumePerUnit);
         // ans Ende angehängt: GoodIds der übrigen Waren stabil; dahinter folgen nur die Waren aus Phase 5a (Bausatzstufen, Modul-Waren)
         Assert.Equal(23, p.Id.Value);
-        Assert.All(u.Goods.Values.Where(g => g.Id.Value > p.Id.Value), g => Assert.True(g.Key.StartsWith("ship_kit_") || g.Key == "ammo" || u.Modules.ContainsKey(g.Key), g.Key));   // Phase 23: Munition angehängt
+        Assert.All(u.Goods.Values.Where(g => g.Id.Value > p.Id.Value), g => Assert.True(g.Key.StartsWith("ship_kit_") || g.Key is "ammo" or "missile" || u.Modules.ContainsKey(g.Key), g.Key));   // Phase 23: Munition angehängt; Phase 28: Rakete
         Assert.InRange(p.BasePrice, u.Goods[DemoUniverse.Water].BasePrice, u.Goods[DemoUniverse.Hydrogen].BasePrice * 1.2f);
         // Phase 4b: Treibstoffraffinerie (3 Wasserstoff + 1 Energie → 4 Treibstoff); zwei Startwelt-Raffinerien führen propellant im Markt
         var type = Assert.Single(u.StationTypes.Values, t => t.Key == "fuel_refinery");

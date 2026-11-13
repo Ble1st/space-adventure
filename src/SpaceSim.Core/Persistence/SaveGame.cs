@@ -67,6 +67,9 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WreckSave>? Wrecks { get; set; }
     /// <summary>Phase 26: nächste freie Wrack-Id.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextWreckId { get; set; }
+    /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }
     /// <summary>Phase 12 (v15): Verbände; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
     /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
@@ -135,6 +138,38 @@ public sealed class ActorSave
     public long PoliceSurplusSince { get; set; } = -1;
     /// <summary>Phase 22 (additiv): letzter Notkauf zur Wiederherstellung des Mindestbestands.</summary>
     public long LastRestoreTick { get; set; } = -1_000_000;
+    /// <summary>Phase 28 (additiv): Festnahme-Sperre bis zu diesem Tick; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ArrestCooldownUntil { get; set; }
+}
+
+/// <summary>Phase 28: Krieg zwischen zwei Fraktionen.</summary>
+public sealed class WarSave
+{
+    public int A { get; set; } public int B { get; set; } public long Since { get; set; } public float Weariness { get; set; }
+    public float LossA { get; set; } public float LossB { get; set; } public int Sieges { get; set; }
+}
+
+/// <summary>Phase 28: Rakete im Flug.</summary>
+public sealed class MissileSave
+{
+    public int Shooter { get; set; } public int Owner { get; set; } public int Side { get; set; } public string Module { get; set; } = "";
+    public int Target { get; set; } public int Station { get; set; } public float Left { get; set; } public float Total { get; set; } public float Speed { get; set; }
+    public float FromX { get; set; } public float FromY { get; set; }
+}
+
+/// <summary>Phase 28: Kampfzustand einer Station (Fehlbeträge, Schildpause, Geschützuhren, ausgeschaltet).</summary>
+public sealed class StationConditionSave
+{
+    public float HullMissing { get; set; } public float ShieldMissing { get; set; } public long ShieldPauseUntil { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Timers { get; set; }
+    public bool Disabled { get; set; }
+}
+
+/// <summary>Phase 28: Verteidigung eines Stationstyps.</summary>
+public sealed class StationDefenseSave
+{
+    public float Hull { get; set; } public float Shield { get; set; } public float ShieldRegen { get; set; } public float Armor { get; set; } public float PointDefense { get; set; }
+    public List<string> Guns { get; set; } = new();
 }
 
 /// <summary>Phase 22 (additiv, v17 bleibt): Rentabilitätsmessung (gleitender Mittelwert, Bezug, Verlust-Ticks, Messbeginn).</summary>
@@ -168,6 +203,10 @@ public sealed class EncounterSave
     public float Loot { get; set; } public float Fenced { get; set; } public int Shots { get; set; } public int Hits { get; set; }
     /// <summary>Phase 25: räumliches Gefecht (Spielersektor).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Spatial { get; set; }
+    /// <summary>Phase 28: belagerte Station und ihre Linienposition; Raketen im Flug.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Station { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float StationX { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<MissileSave>? Missiles { get; set; }
     public List<CombatParticipantSave> Participants { get; set; } = new();
 }
 
@@ -246,6 +285,8 @@ public sealed class StationTypeSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ResearchConfigSave? Research { get; set; }
     /// <summary>Phase 14 (v17): Exportsenke; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ExportConfigSave? Export { get; set; }
+    /// <summary>Phase 28: Stationsverteidigung; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public StationDefenseSave? Defense { get; set; }
 }
 
 /// <summary>Exportsenke eines Stationstyps (Phase 14, v17): Waren (GoodIds), Kategorien, Verzögerung/Aufschlag (null = Regel), Wunschbestand.</summary>
@@ -379,6 +420,8 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? PlayerStorage { get; set; }
     /// <summary>Phase 14 (v17): wartende Chargen der Exportsenke in Ankaufsreihenfolge; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<ExportBatchSave>? Exports { get; set; }
+    /// <summary>Phase 28 (additiv): Kampfzustand; fehlt = unbeschädigt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public StationConditionSave? Condition { get; set; }
     /// <summary>Phase 15 (additiv, v17 bleibt): offene Instandhaltung (Ware → fehlende Einheiten); fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? MaintenanceBacklog { get; set; }
     /// <summary>Phase 19 (additiv, v17 bleibt): Fertigstellungs-Tick und Auslastung (gleitende Mittel: lief / fehlende Zutaten).</summary>
@@ -576,6 +619,8 @@ public sealed class ShipSystemsSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float ShieldMissing { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float ChargeMissing { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float AmmoMissing { get; set; }
+    /// <summary>Phase 28 (additiv): fehlende Raketen.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MissilesMissing { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Condition { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Mode { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ShieldPauseUntil { get; set; }

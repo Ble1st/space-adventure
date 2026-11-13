@@ -840,4 +840,57 @@ public sealed class EconomyRules
     public bool CombatFocusFire = true;
     /// <summary>Spieler ergibt sich Kaperern: Anteil jeder Ware, den er abwirft (die Kaperer nehmen ihn und drehen ab).</summary>
     public float PlayerSurrenderDropShare = 0.5f;
+    // ───────── Phase 28: Raketen, Stationsverteidigung, Kriegsschiffe, Krieg (KAMPF.md Stufe 28) ─────────
+    /// <summary>
+    /// Hauptschalter der Phase 28: Raketen (Flug, Punktabwehr), Stationsgeschütze und Stationsschaden, Belagerung, Reparatur der Stationen, Kriegsschiffe der
+    /// Fraktionen und Krieg. false = Verhalten bis Phase 27 (Testhilfe für den Hash-Vergleich; die Inhalte bleiben, wirken aber nicht).
+    /// </summary>
+    public bool Warfare = true;
+    /// <summary>Explosivschaden (Raketen): Faktor gegen Schild und gegen Panzerung (KAMPF.md 3.4, dritte Schadensart).</summary>
+    public float ExplosiveVsShield = 0.8f;
+    public float ExplosiveVsArmor = 1.2f;
+    /// <summary>Punktabwehr: höchste Abschusschance je anfliegender Rakete (Summe der Module bzw. Station gedeckelt).</summary>
+    public float PointDefenseMax = 0.8f;
+    /// <summary>Grundhülle einer Station ohne Abschnitt <c>defense</c>.</summary>
+    public float StationBaseHull = 800f;
+    /// <summary>Stationsgeschütze schießen in Gefechten im Sektor auf feindliche Teilnehmer in Reichweite.</summary>
+    public bool StationGunsActive = true;
+    /// <summary>Stationsreparatur: Hüllenplatten je Hüllenpunkt (aus dem eigenen Lager, sonst zum Basispreis × Aufschlag aus der Kasse des Besitzers).</summary>
+    public float StationRepairPlatesPerHull = 0.02f;
+    public float StationRepairPerDay = 600f;
+    public float StationRepairMarkup = 1.5f;
+    /// <summary>Eine ausgeschaltete Station (Hülle 0, nicht zerstörbar) schießt wieder ab diesem Hüllenanteil.</summary>
+    public float StationReenableShare = 0.25f;
+    /// <summary>Belagerung: Abstand der Station zu den Angreifern beim Beginn (Gefechtslinie).</summary>
+    public float SiegeStartDistance = 90f;
+    /// <summary>Krieg: Fraktionen erklären von selbst Krieg (Bedingungen unten); aus = nur per Hand (<see cref="Simulation.Wars.Declare"/>, Tests).</summary>
+    public bool WarDeclarations = true;
+    /// <summary>Kriegsgrund: Beziehung höchstens so (verschoben um (Aggression − 0,5) × <see cref="LockAggressionShift"/>); die Standardwelt liegt bei +0,1…+0,3.</summary>
+    public float WarDeclareRelation = -0.6f;
+    /// <summary>Während des Kriegs bleibt die Beziehung höchstens hier; beim Frieden wird sie auf <see cref="PeaceRelation"/> gesetzt.</summary>
+    public float WarRelation = -0.8f;
+    public float PeaceRelation = -0.2f;
+    /// <summary>Kriegskasse: verfügbares Geld (über der Rücklage, <see cref="Simulation.FactionViability.Spendable"/>), das eine Fraktion zum Erklären braucht.</summary>
+    public float WarChest = 15000f;
+    /// <summary>Stärkeverhältnis (eigene ÷ gegnerische Streitkräfte + Geld), ab dem eine Fraktion Krieg erklärt — sie erklärt selten, wenn sie klar unterlegen ist.</summary>
+    public float WarMinStrengthRatio = 0.6f;
+    /// <summary>Geldwert, der in der Kriegsstärke einer Kampfstärkeeinheit entspricht.</summary>
+    public float WarStrengthMoneyScale = 20000f;
+    /// <summary>Kriegsmüdigkeit: Mindestdauer, Dauer bis Müdigkeit 1 allein aus der Zeit, Verlustwert (Credits) bis Müdigkeit 1.</summary>
+    public int WarMinTicks = 6000;
+    public int WarWearyTicks = 40000;
+    public float WarLossScale = 40000f;
+    /// <summary>Nach dem Frieden keine neue Erklärung zwischen denselben Fraktionen für so viele Ticks.</summary>
+    public int PeaceCooldownTicks = 30000;
+    /// <summary>Kriegsschiffe: Modell, je Krieg gewünschte Zahl, Obergrenze je Fraktion, Unterhalt je Tick aus der Kasse, Rückzug, Abbau nach Frieden.</summary>
+    public string WarshipModel = "bastion";
+    public int WarshipsPerWar = 2;
+    public int MaxWarshipsPerFaction = 3;
+    public float WarshipUpkeepPerTick = 1.5f;
+    public float WarshipRetreatHull = 0.35f;
+    public int WarshipPeaceTicks = 6000;
+    /// <summary>Prüfung Phase 27: nach einem Polizeigefecht (Flucht, Ergeben, Ende) kündigt die Polizei so lange keine neue Festnahme an; 0 = aus.</summary>
+    public int ArrestCooldownTicks = 2400;
+    /// <summary>Prüfung Phase 27: Ergibt sich der Spieler der Polizei, wird die volle Strafe eingezogen — was die Kasse nicht deckt, wird Schuld (Kasse negativ).</summary>
+    public bool SurrenderFineAsDebt = true;
 }

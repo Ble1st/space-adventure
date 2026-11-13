@@ -118,6 +118,7 @@ public partial class Main : Node3D
 		// Phase 25: Dauerfeuer und „Nächster Gegner“
 		_hud.Flight.AutoFirePressed += () => { _fight.AutoFire = !_fight.AutoFire; _sfx.Play(SfxId.Click); _hud.Toast(_fight.AutoFire ? "Dauerfeuer an" : "Dauerfeuer aus"); };
 		_hud.Flight.NextEnemyPressed += SelectNextEnemy;
+		_hud.Flight.StationAttackPressed += ArmStationAttack;   // Phase 28
 		_hud.Flight.SurrenderPressed += Surrender;
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
 		_hud.Flight.PowerModePressed += m =>
@@ -197,9 +198,10 @@ public partial class Main : Node3D
 			var uu = _session.U;
 			int hops = uu.FindRoute(uu.PlayerSector, sec)?.Count ?? -1;
 			SetTarget(Navigator.ForSector(uu, sec, uu.PlayerShip), null);
-			_hud.Toast($"Autopilot: Route nach {uu.Sectors[sec].Name} ({hops} {(hops == 1 ? "Sprung" : "Sprünge")})");
+			CloseCommand();   // Gerätetest Phase 27: Rückmeldung sichtbar — zurück in die Flugansicht, wo der Autopilot fliegt
+			_hud.Toast($"Autopilot: Route nach {uu.Sectors[sec].Name} ({hops} {(hops == 1 ? "Sprung" : "Sprünge")})", 4f);
 		};
-		_hud.CcSector.AutopilotRequested += (nav, st) => SetTarget(nav, st);
+		_hud.CcSector.AutopilotRequested += (nav, st) => { SetTarget(nav, st); CloseCommand(); };   // Gerätetest Phase 27: Rückmeldung in der Flugansicht
 		_hud.CcFactions.CommsRequested += () => OpenCcArea(CommandAreas.Comms);
 		_hud.CcFactions.TerritoryRequested += f =>
 		{
@@ -252,10 +254,10 @@ public partial class Main : Node3D
 		{
 			_session = new GameSession();
 			_session.Use(u);
-			var result = OfflineCatchUp.Run(u, _session.Runner, DateTimeOffset.UtcNow - savedAt);
-			AttachSession();
-			if (result.TicksRun > 0)
-				_hud.Toast($"Willkommen zurück – {result.TicksRun / SimClock.TicksPerSecond / 60} Min Spielzeit nachgeholt{(result.Capped ? " (gedeckelt)" : "")}", 4f);
+			// Phase 28 (Prüfpunkt f): das Nachholen läuft über mehrere Bilder mit Fortschrittsanzeige (vorher synchron in _Ready → langer Splash am Gerät)
+			_catchUp = OfflineCatchUp.Begin(u, DateTimeOffset.UtcNow - savedAt);
+			if (_catchUp.Total <= 0) { _catchUp.Finish(); _catchUp = null; AttachSession(); }
+			else _hud.ShowLoading("Spielzeit wird nachgeholt …", 0f);
 		}
 		else
 		{
@@ -366,7 +368,9 @@ public partial class Main : Node3D
 		{
 			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); break;
 			case "economy": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); break;
-			case "save": case "load": case "new": OnMenu(action); break;
+			case "save": case "load": OnMenu(action); break;
+			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
+			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
 			// Kamera-Einstellungen: Menü bleibt offen, damit man die Wirkung sieht
 			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.Zoom(MenuZoomStep); RefreshCameraMenu(); break;
 			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.Zoom(1f / MenuZoomStep); RefreshCameraMenu(); break;
@@ -551,6 +555,13 @@ public partial class Main : Node3D
 	int _dropSeq;
 	/// <summary>Phase 24: gezeichnete Gefechtsschüsse (Selbsttest).</summary>
 	internal int TestCombatShots => _combat.ShotsSeen;
+	/// <summary>Phase 28: zuletzt gezeigte Raketen, letzte Kriegs-/Stationsmeldung, scharfes Stationsziel (Selbsttest).</summary>
+	internal int TestMissilesShown => _combat.MissilesShown;
+	internal string LastWarMessage { get; private set; } = "";
+	internal SpaceSim.Core.Model.StationId TestStationTarget => _fight.StationTarget;
+	internal void TestArmStation() => ArmStationAttack();
+	internal bool TestFireSlot(int slot) => FireWeapon(slot, quiet: true);
+	internal string TestFightMessage => _fight.LastMessage;
 	long _panicToastTick = -1;
 
 	/// <summary>Für den Selbsttest: Dauer der letzten Taxifahrt in Ticks.</summary>
@@ -558,6 +569,8 @@ public partial class Main : Node3D
 
 	public override void _Notification(int what)
 	{
+		// Phase 28: Pause mitten im Nachholen — der Rest verfällt, die Regel wird zurückgesetzt, dann gespeichert
+		if (_catchUp is { } pending && (what == NotificationWMCloseRequest || what == NotificationApplicationPaused)) FinishCatchUp(pending);
 		if (_session != null && (what == NotificationWMCloseRequest || what == NotificationApplicationPaused)) SaveNow(manual: false);
 	}
 
@@ -582,6 +595,33 @@ public partial class Main : Node3D
 				_combat.Shot(sf.Shooter, sf.Target, sf.Type, sf.Hit, Time.GetTicksMsec() / 1000.0, sf.Shooter.Value * 37 + _combat.ShotsSeen * 53);
 				if (sf.Hit && _view.ShipPosition(sf.Target) is { } hp) _fx.Burst(hp, sf.Type == DamageType.Energy ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.85f, 0.4f), 4, 5f, 0.3f);
 				break;
+			// Phase 28: Stationsgeschütze, Schüsse auf Stationen, Raketen, Fall einer Station, Krieg und Frieden
+			case StationShot sts when sts.Sector == _session.U.PlayerSector && _session.U.Stations.TryGetValue(sts.Station, out var sst):
+				_fight.OnStationShot(_session.U, sts, Time.GetTicksMsec() / 1000.0);
+				if (sts.Target == _session.U.PlayerShip) { Danger("Station feuert auf dich"); if (sts.Hit) { _hud.Flash(new Color(1f, 0.25f, 0.15f), 0.25f); _sfx.Play(SfxId.Hit); } }
+				_combat.Shot(default, sts.Target, new Vector3(sst.Position.X, 0, sst.Position.Y), null, sts.Type, sts.Hit, Time.GetTicksMsec() / 1000.0, sts.Station.Value * 41 + _combat.ShotsSeen * 53);
+				break;
+			case ShotAtStation sas when sas.Sector == _session.U.PlayerSector && _session.U.Stations.TryGetValue(sas.Station, out var sast):
+				_combat.Shot(sas.Shooter, default, null, new Vector3(sast.Position.X, 0, sast.Position.Y), sas.Type, sas.Hit, Time.GetTicksMsec() / 1000.0, sas.Shooter.Value * 37 + _combat.ShotsSeen * 53);
+				if (sas.Hit) _fx.Burst(new Vector3(sast.Position.X, 0, sast.Position.Y), new Color(1f, 0.6f, 0.3f), 5, 6f, 0.3f);
+				break;
+			case MissileLaunched ml when ml.Sector == _session.U.PlayerSector:
+				_sfx.Play(SfxId.Zap);
+				if (ml.Target == _session.U.PlayerShip) Danger("Rakete im Anflug");
+				break;
+			case MissileResolved mr when mr.Sector == _session.U.PlayerSector && mr.Outcome == "hit":
+				if (mr.TargetStation.Value != 0 && _session.U.Stations.TryGetValue(mr.TargetStation, out var mst)) _fx.Burst(new Vector3(mst.Position.X, 0, mst.Position.Y), new Color(1f, 0.5f, 0.6f), 10, 8f, 0.4f);
+				else if (_view.ShipPosition(mr.Target) is { } mp) _fx.Burst(mp, new Color(1f, 0.5f, 0.6f), 10, 8f, 0.4f);
+				if (mr.Target == _session.U.PlayerShip) { _hud.Flash(new Color(1f, 0.3f, 0.4f), 0.3f); _sfx.Play(SfxId.Hit); }
+				break;
+			case StationFell fell:
+				LastWarMessage = fell.How switch { "destroyed" => $"{fell.Name} wurde zerstört.", "captured" => $"{fell.Name} wurde erobert.", _ => $"{fell.Name} ist ausgeschaltet." };
+				if (fell.Sector == _session.U.PlayerSector) _hud.Alert(LastWarMessage, 6f); else _hud.Toast(LastWarMessage, 4f);
+				break;
+			case WarDeclared wd: LastWarMessage = wd.Message; _hud.Alert(wd.Message, 8f); break;
+			case PeaceConcluded pc: LastWarMessage = pc.Message; _hud.Alert(pc.Message, 6f); break;
+			case EncounterStarted siege when siege.Cause == EncounterCause.Siege && siege.Sector == _session.U.PlayerSector:
+				LastCombatMessage = siege.Message; _hud.Toast(siege.Message, 4f); break;
 			case EncounterStarted arrest when arrest.Cause == EncounterCause.Arrest:
 				LastCombatMessage = arrest.Message; Danger("Polizei greift an", arrest.Message, 8f); break;
 			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
@@ -626,8 +666,33 @@ public partial class Main : Node3D
 
 	// ───────── Frame ─────────
 
+	/// <summary>Phase 28: laufendes Offline-Nachholen (null = keins). Bis es fertig ist, läuft nur das Nachholen; danach wird die Sitzung angehängt.</summary>
+	CatchUpJob? _catchUp;
+
+	/// <summary>Ein Bild Nachholen: Ticks bis etwa <paramref name="budgetMs"/> Millisekunden, Fortschritt anzeigen; fertig → Sitzung anhängen.</summary>
+	void StepCatchUp(CatchUpJob job, double budgetMs = 30)
+	{
+		var sw = System.Diagnostics.Stopwatch.StartNew();
+		while (!job.Done && sw.Elapsed.TotalMilliseconds < budgetMs) job.Step(_session.Runner, 25);
+		_hud.ShowLoading($"Spielzeit wird nachgeholt … {job.Progress * 100f:0} %", job.Progress);
+		if (!job.Done) return;
+		FinishCatchUp(job);
+	}
+
+	void FinishCatchUp(CatchUpJob job)
+	{
+		job.Finish();
+		_catchUp = null;
+		_hud.HideLoading();
+		AttachSession();
+		var result = job.Result;
+		if (result.TicksRun > 0)
+			_hud.Toast($"Willkommen zurück – {result.TicksRun / SimClock.TicksPerSecond / 60} Min Spielzeit nachgeholt{(result.Capped ? " (gedeckelt)" : "")}", 4f);
+	}
+
 	public override void _Process(double deltaD)
 	{
+		if (_catchUp is { } catchUp) { StepCatchUp(catchUp); return; }
 		float delta = (float)deltaD;
 		if (_reenter) EnterActiveShip();   // Phase 12: aktives Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff)
 		_jumpCooldown = Mathf.Max(0f, _jumpCooldown - delta);
@@ -1036,6 +1101,7 @@ public partial class Main : Node3D
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
+		if (_catchUp is not null) return;   // Phase 28: während des Nachholens keine Eingaben
 		if (_hud == null || _hud.AnyModalOpen) return;   // Menüs/Dock: Eingaben gehören der Oberfläche, Kamera bleibt stehen
 		if (@event is InputEventKey { Pressed: true, Echo: false } key)
 		{
@@ -1322,7 +1388,22 @@ public partial class Main : Node3D
 		d.EnemyNear = SpaceSim.Core.Combat.PlayerCombat.NextEnemy(_session.U, PlayerData, default).Value != 0;
 		d.CanSurrender = _docked is null && SpaceSim.Core.Combat.PlayerSurrender.Issue(_session.U) is null;   // Phase 27
 		d.HitWarning = _fight.Warning(u, pos, headingDeg, Time.GetTicksMsec() / 1000.0);
-		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var ts) && SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } tsp)
+		// Phase 28: gewählte Station angreifbar? (Kriegsführung an, Waffen an Bord, nicht angedockt, Core-Regel PlayerGunnery.StationIssue)
+		var navStation = _targetStation is { } nsid && u.Stations.TryGetValue(nsid, out var nst) && nst.Sector == u.PlayerSector ? nst : null;
+		d.CanAttackStation = _docked is null && u.Rules.Warfare && d.HasWeapons && navStation is not null
+			&& SpaceSim.Core.Combat.PlayerGunnery.StationIssue(u, PlayerData, navStation) is null;
+		d.StationAttackArmed = _fight.StationTarget.Value != 0;
+		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast))
+		{
+			d.TargetName = $"Angriff: {ast.Name}";
+			d.TargetHasInfo = true;
+			d.TargetHostile = true;
+			targetWorld = ast.Position;
+			d.TargetDistance = Vec2.Distance(pos, ast.Position);
+			d.TargetInfo = $"Entfernung {d.TargetDistance:0} m · Station";
+			d.TargetCombat = SpaceSim.Core.Combat.WarInfo.StationLine(u, ast);
+		}
+		else if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var ts) && SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } tsp)
 		{
 			bool hostile = SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, ts.Id);
 			d.TargetName = SpaceSim.Core.Combat.PlayerCombat.Describe(u, ts);
@@ -1420,8 +1501,11 @@ public partial class Main : Node3D
 			if (wslot >= 0)
 			{
 				// Phase 25: Kampfwaffe — Zustand aus der Core-Regel (Ziel, Reichweite, Munition, Nachladen, Leistung, Winkel)
-				var wst = CombatController.StateOf(_session.U, PlayerData, bay, headingDeg, _fight.Target);
-				var tpos = SpaceSim.Core.Combat.PlayerCombat.PositionOf(_session.U, _fight.Target)?.Pos;
+				// Phase 28: mit scharfer Station ohne Schiffsziel zählt die Station
+				var wst = _fight.AtStation ? SpaceSim.Core.Combat.PlayerGunnery.StateAtStation(_session.U, PlayerData, wslot, headingDeg, _fight.StationTarget)
+					: CombatController.StateOf(_session.U, PlayerData, bay, headingDeg, _fight.Target);
+				var tpos = _fight.AtStation && _session.U.Stations.TryGetValue(_fight.StationTarget, out var atSt) ? atSt.Position
+					: SpaceSim.Core.Combat.PlayerCombat.PositionOf(_session.U, _fight.Target)?.Pos;
 				_bayStates[i] = wst;
 				string wdetail = wst switch
 				{
@@ -1430,7 +1514,10 @@ public partial class Main : Node3D
 					BayState.Reloading => "lädt nach",
 					BayState.NoPower => "keine Leistung",
 					BayState.NoAmmo => "keine Munition",
-					_ => _fight.Target.Value == 0 ? "kein Ziel" : "außer Reichweite",
+					_ => _fight.Target.Value == 0 && !_fight.AtStation ? "kein Ziel"
+						: !_fight.AtStation && _session.U.Ships.TryGetValue(_fight.Target, out var tgs) && SpaceSim.Core.Combat.PlayerCombat.TargetIssue(_session.U, PlayerData, tgs) is not null
+							? (tgs.DockedAt.Value != 0 ? "Ziel angedockt" : "kein Gegner")   // Gerätetest Phase 27
+							: "außer Reichweite",
 				};
 				string wplace = (bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°") + $" · {bay.Range:0} m";
 				// Phase 25 (Korrektur): lange Modulnamen auf das letzte Wort kürzen („Kinetisches Geschütz“ → „Geschütz“), damit sie in die Taste passen
@@ -1603,10 +1690,20 @@ public partial class Main : Node3D
 	/// <summary>Phase 25: Dauerfeuer bzw. „Alle Feuer“ für die Kampfwaffen: jede bereite Waffe im Winkel schießt.</summary>
 	void FireCombatBays(bool quiet)
 	{
-		if (_fight.Target.Value == 0) return;
+		if (_fight.Target.Value == 0 && !_fight.AtStation) return;
 		var bays = _bays;
 		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
 			if (_bayStates[i] == BayState.Ready && SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) FireWeapon(ws, quiet);
+	}
+
+	/// <summary>Phase 28: „Station angreifen“ bestätigt — die Waffen schießen auf die gewählte Station (bis ein Schiff gewählt wird oder das Ziel wechselt).</summary>
+	void ArmStationAttack()
+	{
+		if (_targetStation is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
+		if (SpaceSim.Core.Combat.PlayerGunnery.StationIssue(_session.U, PlayerData, st) is { } issue) { _hud.Toast(issue, 3f); return; }
+		_fight.ClearTarget();
+		_fight.ArmStation(sid);
+		_hud.Toast($"Angriff auf {st.Name}: Waffen feuern auf die Station — Fahndung und Gegenwehr folgen.", 4f);
 	}
 
 	/// <summary>Phase 25: Taste „Nächster Gegner“ (Gefechtsgegner, dann Kaperschiffe im Sektor, nach Abstand, zyklisch).</summary>
@@ -1758,6 +1855,7 @@ public partial class Main : Node3D
 		_mining.UpdatePlayer(_player.Position, tractor, _chunks.Chunks, time);
 		_mining.UpdateNpc(_view.ShipPosition, time);
 		_combat.UpdateBeams(_view.ShipPosition, time);
+		_combat.UpdateMissiles(u);   // Phase 28: Raketen im Flug
 	}
 
 	// ───────── Zugriff für den Selbsttest ─────────

@@ -7,7 +7,8 @@ namespace SpaceSim.Core.Combat;
 /// Phase 24: Entscheidung einer Taktik für einen Takt (KAMPF.md 4.2 „Zielwahl und Taktik“): Ziel, Bewegung mit gewünschtem Abstand, Leistungsverteilung,
 /// ob gefeuert wird und ob der Teilnehmer aufgibt (Fracht abwirft).
 /// </summary>
-public readonly record struct TacticDecision(ShipId Target, CombatMove Move, float Distance, PowerMode Mode, bool Fire, bool Surrender);
+/// Phase 28: <paramref name="Station"/> = Station als Ziel (Belagerung), wenn kein Schiffsziel gesetzt ist.
+public readonly record struct TacticDecision(ShipId Target, CombatMove Move, float Distance, PowerMode Mode, bool Fire, bool Surrender, StationId Station = default);
 
 /// <summary>Phase 24: austauschbare Gefechtstaktik (Kaperer, Polizei, Händler, Begleiter). Rein bis auf das Lesen des Universums.</summary>
 public interface ICombatTactic
@@ -19,7 +20,7 @@ public interface ICombatTactic
 /// <summary>Phase 24: Registry der Taktiken (Reihenfolge der Registrierung, doppelter Schlüssel wirft).</summary>
 public sealed class CombatTactics
 {
-    public const string Raider = "raider", Police = "police", Trader = "trader", Escort = "escort", Player = "player";
+    public const string Raider = "raider", Police = "police", Trader = "trader", Escort = "escort", Player = "player", Siege = "siege";
     readonly Dictionary<string, ICombatTactic> _byKey = new(StringComparer.Ordinal);
     readonly List<ICombatTactic> _list = new();
 
@@ -41,6 +42,7 @@ public sealed class CombatTactics
         r.Register(new TraderTactic());
         r.Register(new EscortTactic());
         r.Register(new PlayerTactic());
+        r.Register(new SiegeTactic());   // Phase 28: Kriegsschiffe belagern Stationen
         return r;
     }
 
@@ -278,5 +280,32 @@ public sealed class PlayerTactic : ICombatTactic
         if (ship.Id != u.PlayerShip) return Fallback.Decide(u, e, self, ship);
         var target = CombatSense.KeepTarget(u, e, self, CombatSense.Nearest(u, e, self));
         return new TacticDecision(target?.Ship ?? default, CombatMove.Hold, 0f, ship.Systems.Mode, false, false);
+    }
+}
+
+/// <summary>
+/// Phase 28: Belagerer (Kriegsschiffe). Zieht sich unter <see cref="EconomyRules.WarshipRetreatHull"/> zurück. Feindliche Schiffe in eigener Reichweite haben
+/// Vorrang (Fokusfeuer auf das schwächste); sonst nimmt er die belagerte Station unter Feuer und hält dafür den bevorzugten Abstand. Ohne Station und Gegner hält er.
+/// </summary>
+public sealed class SiegeTactic : ICombatTactic
+{
+    public string Key => CombatTactics.Siege;
+
+    public TacticDecision Decide(Universe u, Encounter e, CombatParticipant self, Ship ship)
+    {
+        var nearest = CombatSense.Nearest(u, e, self);
+        float preferred = CombatSense.Preferred(u, ship);
+        bool station = e.Station.Value != 0 && StationCombat.Defends(u, e) && self.Side == 0;
+        if (ship.Hull < u.Rules.WarshipRetreatHull * ship.MaxHull)
+            return new TacticDecision(nearest?.Ship ?? default, CombatMove.Flee, 0f, PowerMode.Engine, true, false, nearest is null && station ? e.Station : default);
+        float reach = CombatSense.MaxRange(u, ship);
+        if (nearest is not null && CombatSense.Distance(self, nearest) <= reach)
+        {
+            var target = CombatSense.Focus(u, e, self, ship, null) ?? CombatSense.KeepTarget(u, e, self, nearest)!;
+            return new TacticDecision(target.Ship, CombatMove.Approach, preferred, PowerMode.Weapons, true, false);
+        }
+        if (station) return new TacticDecision(default, CombatMove.Approach, preferred, PowerMode.Weapons, true, false, e.Station);
+        if (nearest is not null) return new TacticDecision(nearest.Ship, CombatMove.Approach, preferred, PowerMode.Engine, true, false);
+        return new TacticDecision(default, CombatMove.Hold, 0f, PowerMode.Balanced, false, false);
     }
 }

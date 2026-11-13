@@ -241,6 +241,19 @@ public sealed class StationTypeDef
     public ResearchConfigDef? Research { get; set; }
     /// <summary>Phase 14: Exportsenke (Handelsstation an einem Planeten); fehlt = keine. Stationen dieses Typs nur in Sektoren mit Planet.</summary>
     public ExportConfigDef? Export { get; set; }
+    /// <summary>Phase 28: Stationsverteidigung (Hülle, Schild, Panzerung, Geschütze, Punktabwehr); fehlt = Grundhülle ohne Geschütze.</summary>
+    public StationDefenseDef? Defense { get; set; }
+}
+
+/// <summary>Phase 28: Verteidigung eines Stationstyps (JSON <c>defense</c>): Geschütze sind Schlüssel von Waffenmodulen.</summary>
+public sealed class StationDefenseDef
+{
+    public float Hull { get; set; }
+    public float Shield { get; set; }
+    public float ShieldRegen { get; set; }
+    public float Armor { get; set; }
+    public float PointDefense { get; set; }
+    public List<string> Guns { get; set; } = new();
 }
 
 /// <summary>
@@ -436,6 +449,18 @@ public sealed class ScenarioDef
     public bool Outlaw { get; set; }
     /// <summary>Fracht beim Start (Warenschlüssel → Einheiten), z. B. Munition.</summary>
     public Dictionary<string, float>? Cargo { get; set; }
+    /// <summary>Gerätetest Phase 27: Startabstand vom Andockpunkt der Station (Standard 20; für Überfälle weiter weg, außerhalb des Stationsschutzes).</summary>
+    public float? Distance { get; set; }
+    /// <summary>Gerätetest Phase 27: so viele Kaperschiffe einer Gruppe als Rudel in Waffenreichweite (zu zweit stärker als ein Jäger: sie greifen an statt zu fliehen).</summary>
+    public int Raiders { get; set; }
+    /// <summary>Nach so vielen Ticks überfällt das Rudel den Spieler (angekündigt; 0 = kein Überfall).</summary>
+    public int RaidAfterTicks { get; set; }
+    /// <summary>Ein KI-Händler mit Fracht frei im Raum in Waffenreichweite (nicht angedockt).</summary>
+    public bool Trader { get; set; }
+    /// <summary>Zwei Streifen der Sektorfraktion als Verband im Sektor.</summary>
+    public bool PoliceSquadron { get; set; }
+    /// <summary>Fahndungsstufe des Spielers bei der Sektorfraktion (0 = sauber; 3 = gesucht → Festnahme-Warnung, sobald eine Streife im Sektor ist).</summary>
+    public int Wanted { get; set; }
 }
 
 public sealed class PlayerDef

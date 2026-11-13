@@ -101,6 +101,8 @@ public sealed class StationType
     public ResearchConfig? Research;
     /// <summary>Phase 14: Exportsenke (JSON <c>export</c>); null = keine. Stationen dieses Typs stehen nur in Sektoren mit Planet.</summary>
     public ExportConfig? Export;
+    /// <summary>Phase 28: Stationsverteidigung (JSON <c>defense</c>: Hülle, Schild, Panzerung, Geschütze, Punktabwehr); null = nur die Grundhülle, keine Geschütze.</summary>
+    public StationDefenseConfig? Defense;
 }
 
 /// <summary>
@@ -171,6 +173,8 @@ public sealed class Station
     public bool Panic;
     /// <summary>Phase 22: Rentabilitätsmessung (Grund c für die Stilllegung; <see cref="Simulation.Profitability"/>). Gespeichert und gehasht.</summary>
     public ProfitMeter Profit = new();
+    /// <summary>Phase 28: Kampfschaden (fehlende Hülle/Schild, Geschützuhren, ausgeschaltet); null = unbeschädigt. Gespeichert und gehasht nur, wenn gesetzt.</summary>
+    public StationCondition? Condition;
     public string Name = "";
     public SectorId Sector;
     /// <summary>Besitzer (Phase 9: ein Akteur; die Startstationen gehören den Fraktionsakteuren, Id = Fraktions-Id).</summary>

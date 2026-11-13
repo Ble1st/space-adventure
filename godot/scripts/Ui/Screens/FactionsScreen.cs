@@ -110,8 +110,14 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		Row(det, 18, ry, 560, "Lage", sectors.Count > 0 ? string.Join(", ", sectors) : "kein Hoheitsgebiet", 14);
 		// Phase 22: Handlungsfähigkeit (Invarianten: Rücklage, Mindestpolizei, Bauschiff, Sitz; Piraten: Versteck) — reine Core-Anzeige
 		TestViability = FactionViability.Text(u, sel) ?? "";
-		if (TestViability.Length > 0)
-			At(det, Text(TestViability, 12, TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
+		// Phase 28: Kriegslage neben der Handlungsfähigkeit
+		TestWar = isFaction ? SpaceSim.Core.Combat.WarInfo.FactionLine(u, new FactionId(sel.Value)) : "";
+		if (TestViability.Length > 0 || TestWar.Length > 0)
+		{
+			bool war = TestWar.StartsWith("Krieg", System.StringComparison.Ordinal);
+			string line = string.Join(" · ", new[] { TestViability, TestWar }.Where(x => x.Length > 0));
+			At(det, Text(line, 12, war ? Red : TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
+		}
 
 		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte)
 		At(det, Text("Persönlichkeit", 16, Cyan), 18, 176, 280, 22);
@@ -211,5 +217,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// <summary>Selbsttest: zeigt die Detailansicht den Forschungsstand (Phase 14: nur mit eingeschalteter Forschung)?</summary>
 	public bool TestResearchShown { get; private set; }
 	/// <summary>Selbsttest: zuletzt gezeigte Handlungsfähigkeit (Phase 22; leer für Akteure ohne Invarianten).</summary>
+	/// <summary>Selbsttest Phase 28: Kriegslage der gewählten Fraktion („Frieden“ / „Krieg mit …“).</summary>
+	public string TestWar { get; private set; } = "";
 	public string TestViability { get; private set; } = "";
 }

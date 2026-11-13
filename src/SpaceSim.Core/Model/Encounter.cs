@@ -1,11 +1,13 @@
 namespace SpaceSim.Core.Model;
 
 /// <summary>Phase 24: Schadensart einer Waffe (KAMPF.md 3.4): Energie ist stark gegen Schild und schwach gegen Panzerung, kinetisch umgekehrt.</summary>
-public enum DamageType { Energy, Kinetic }
+public enum DamageType { Energy, Kinetic, Explosive }
+
 
 /// <summary>Phase 24: Anlass eines Gefechts (KAMPF.md 4.1); Phase 25: <see cref="Assault"/> = der Spieler greift ein Schiff an (Schuss auf ein fremdes Schiff);
-/// Phase 27: <see cref="Arrest"/> = die Polizei stellt einen gesuchten Spieler (Fahndungsstufe ≥ 3) als echtes Gefecht.</summary>
-public enum EncounterCause { Raid, Intercept, Assault, Arrest }
+/// Phase 27: <see cref="Arrest"/> = die Polizei stellt einen gesuchten Spieler (Fahndungsstufe ≥ 3) als echtes Gefecht; Phase 28: <see cref="Siege"/> = Angriff
+/// auf eine Station (<see cref="Encounter.Station"/>; Kriegsschiffe im Krieg, der Spieler).</summary>
+public enum EncounterCause { Raid, Intercept, Assault, Arrest, Siege }
 
 /// <summary>Phase 24: Bewegung eines Teilnehmers in einem Takt (Abstandszahl statt Physik, KAMPF.md 4.2).</summary>
 public enum CombatMove { Approach, Hold, Flee }
@@ -61,6 +63,8 @@ public sealed class CombatParticipant
     public float Refuge;
     public int RefugeId;
     public Vec2 RefugePos;
+    /// <summary>Phase 28: Station als Ziel des Takts (Belagerung; aus der Taktik, jeden Takt neu — nicht gespeichert).</summary>
+    public StationId TargetStation;
     /// <summary>Phase 25: abgeleitet = <see cref="Encounter.Spatial"/> des Gefechts (Abstand aus <see cref="Pos"/> statt <see cref="X"/>); nicht gespeichert.</summary>
     public bool InSpace;
 
@@ -96,6 +100,14 @@ public sealed class Encounter
     /// (<see cref="Combat.CombatSpace"/>). Gespeichert und gehasht.
     /// </summary>
     public bool Spatial;
+    /// <summary>
+    /// Phase 28: Belagerung — die angegriffene Station (default = keine) und ihre Position auf der Gefechtslinie (im räumlichen Gefecht gilt ihre echte Position).
+    /// Gespeichert und gehasht nur, wenn gesetzt.
+    /// </summary>
+    public StationId Station;
+    public float StationX;
+    /// <summary>Phase 28: Raketen im Flug (Abschussreihenfolge); gespeichert und gehasht nur, wenn welche fliegen.</summary>
+    public List<MissileFlight> Missiles = new();
     /// <summary>Ausgewertet (Ereignisse veröffentlicht); wird im selben Schritt entfernt — nie gespeichert.</summary>
     public bool Done;
 

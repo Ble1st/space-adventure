@@ -61,7 +61,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		_rows = 0;
 		_damaged = 0;
 		_scroll = null;
-		At(inner, Text(_message.Length > 0 ? _message : "Slot wählen, dann ein Modul aus dem Lager (oder der Fracht) einbauen. Ausgebaute Module kauft die Station an, sonst landen sie in der Fracht.",
+		At(inner, Text(_message.Length > 0 ? _message : "Slot wählen, Modul aus Lager oder Fracht einbauen. Ausgebautes kauft die Station an (sonst in die Fracht).",
 			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 36);
 
 		var svc = Service;
@@ -110,11 +110,14 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		var bar = At(inner, new KitBar(170, 10, Green), 150, py + 5, 170, 10);
 		bar.Set(s.PowerDraw, s.PowerDraw > s.PowerOutput ? Red : Green, Math.Max(1f, s.PowerOutput));
 		// Phase 23: Bank und Schild als Laufzeitwerte (aktuell/Kapazität), Magazin
-		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Bank {ship.Charge:0}/{s.PowerStorage:0} · Schild {ship.ShieldNow:0}/{s.Shield:0}{(s.AmmoCapacity > 0f ? $" · Magazin {SpaceSim.Core.Combat.ShipSystems.Ammo(Ctx.U, ship):0}/{s.AmmoCapacity:0}" : "")}", 14, Dim), 0, py + 24, 340, 20);
-		At(inner, Text($"Fracht {s.Cargo:0} · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")}", 13, new Color(Dim, 0.9f)), 0, py + 46, 330, 20);
+		// Prüfung Phase 27: Zeilen passen in die Spalte (Magazin/Raketen in die dritte Zeile, vorher „Magazin 3…“ abgeschnitten)
+		At(inner, Text($"Spitze {s.PeakDraw:0.#} · Bank {ship.Charge:0}/{s.PowerStorage:0} · Schild {ship.ShieldNow:0}/{s.Shield:0}", 14, Dim), 0, py + 24, 340, 20);
+		string mags = (s.AmmoCapacity > 0f ? $" · Mag. {SpaceSim.Core.Combat.ShipSystems.Ammo(Ctx.U, ship):0}/{s.AmmoCapacity:0}" : "")
+			+ (s.MissileCapacity > 0f ? $" · Rak. {SpaceSim.Core.Combat.Missiles.Loaded(Ctx.U, ship):0}/{s.MissileCapacity:0}" : "");
+		At(inner, Text($"Fracht {s.Cargo:0} · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")}{mags}", 13, new Color(Dim, 0.9f)), 0, py + 46, 340, 20);
 		// Phase 26: Zusammenfassung der Schäden (beschädigte Module erst reparieren, dann aus-/umbauen)
 		if (_damaged > 0 || ship.Systems.Burning.Count > 0)
-			At(inner, Text("Schäden: " + SpaceSim.Core.Combat.DamageInfo.For(u, ship).Summary + " — erst reparieren", 13, Orange), 0, py + 66, 340, 20);
+			At(inner, Text(SpaceSim.Core.Combat.DamageInfo.For(u, ship).Summary, 12, Orange), 0, py + 66, 340, 20);
 
 		// ── rechts: Angebote für den gewählten Slot ──
 		float rx = 345f, rw = w - rx;
@@ -214,6 +217,8 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		// Phase 13: gesperrtes Modul (für die Fraktion der Station nicht erforscht) — sichtbar, aber nicht einbaubar
 		string? locked = moduleKey is null || o.Held >= 1f ? null : SpaceSim.Core.Simulation.Research.LockText(u, Ctx.Station, UnlockKind.Module, moduleKey);
 		if (locked is not null) { effect = $"Nicht erforscht ({u.Research.LockOf(UnlockKind.Module, moduleKey!)?.Name}) — " + effect; can = false; }
+		// Gerätetest Phase 27: der Grund des Angebots (beschädigtes Modul: „erst reparieren“) geht vor „Nicht genügend Credits“
+		else if (!can && o.Note is { Length: > 0 } note) effect = note;
 		else if (p is { Valid: true } && !can) effect = "Nicht genügend Credits · " + effect;
 		At(row, Text(effect, 13, p is { Valid: true } && can ? Green : Orange), 30, 52, w - 200, 22);
 		var b = At(row, new KitButton(remove ? "Ausbauen" : ship.Fit[_slot] is null ? "Einbauen" : "Tauschen", new Vector2(150, 56))

@@ -37,14 +37,14 @@ public static class UniverseSerializer
     // Phase 23: Bordsysteme (nichts gespeichert, solange alles auf Standard steht)
     static ShipSystemsSave? ToSave(ShipSystemsState st) => st.IsDefault ? null : new()
     {
-        ShieldMissing = st.ShieldMissing, ChargeMissing = st.ChargeMissing, AmmoMissing = st.AmmoMissing,
+        ShieldMissing = st.ShieldMissing, ChargeMissing = st.ChargeMissing, AmmoMissing = st.AmmoMissing, MissilesMissing = st.MissilesMissing,
         Condition = st.Condition.Count == 0 || st.AllIntact ? null : new List<float>(st.Condition),
         Mode = st.Mode == PowerMode.Balanced ? null : st.Mode.ToString(), ShieldPauseUntil = st.ShieldPauseUntil,
         Burning = st.Burning.Count == 0 ? null : new List<int>(st.Burning),
     };
     static ShipSystemsState FromSave(ShipSystemsSave? s) => s is null ? new ShipSystemsState() : new ShipSystemsState
     {
-        ShieldMissing = s.ShieldMissing, ChargeMissing = s.ChargeMissing, AmmoMissing = s.AmmoMissing,
+        ShieldMissing = s.ShieldMissing, ChargeMissing = s.ChargeMissing, AmmoMissing = s.AmmoMissing, MissilesMissing = s.MissilesMissing,
         Condition = s.Condition is null ? new List<float>() : new List<float>(s.Condition),
         Mode = s.Mode is { } m && Enum.TryParse<PowerMode>(m, out var pm) ? pm : PowerMode.Balanced, ShieldPauseUntil = s.ShieldPauseUntil,
         Burning = s.Burning is null ? new List<int>() : new List<int>(s.Burning),
@@ -140,6 +140,7 @@ public static class UniverseSerializer
                     .Select(kv => new WantedSave { Faction = kv.Key.Value, Heat = kv.Value.Heat, LastCrime = kv.Value.LastCrimeTick, Fine = kv.Value.Fine, Crime = kv.Value.LastCrime }).ToList(),
                 BountyClaims = a.BountyClaims.Count == 0 ? null : a.BountyClaims.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick,
+                ArrestCooldownUntil = a.ArrestCooldownUntil,
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
@@ -156,6 +157,11 @@ public static class UniverseSerializer
                 Cargo = w.Cargo.Count == 0 ? null : w.Cargo.OrderBy(k => k.Key.Value).ToDictionary(k => k.Key.Value, k => k.Value),
                 Modules = w.Modules.Count == 0 ? null : w.Modules.Select(m => new WreckModuleSave { Key = m.Key, Condition = m.Condition }).ToList(),
             }).ToList();
+        // Phase 28: Kriege und Friedensschlüsse
+        if (u.Wars.Count > 0)
+            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges }).ToList();
+        if (u.PeaceSince.Count > 0)
+            s.PeaceSince = u.PeaceSince.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
         // Phase 24: laufende Gefechte
         s.NextEncounterId = u.Fights.NextId;
         if (u.Fights.Count > 0)
@@ -163,6 +169,12 @@ public static class UniverseSerializer
             {
                 Id = e.Id, Sector = e.Sector.Value, Start = e.StartTick, Cause = e.Cause.ToString(), Raider = e.Raider.Value, RaiderOwner = e.RaiderOwner.Value,
                 Victim = e.Victim.Value, Police = e.Police.Value, Loot = e.Loot, Fenced = e.Fenced, Shots = e.Shots, Hits = e.Hits, Spatial = e.Spatial,
+                Station = e.Station.Value, StationX = e.StationX,   // Phase 28: Belagerung
+                Missiles = e.Missiles.Count == 0 ? null : e.Missiles.Select(m => new MissileSave
+                {
+                    Shooter = m.Shooter.Value, Owner = m.Owner.Value, Side = m.Side, Module = m.Module, Target = m.Target.Value, Station = m.Station.Value,
+                    Left = m.Left, Total = m.Total, Speed = m.Speed, FromX = m.From.X, FromY = m.From.Y,
+                }).ToList(),
                 Participants = e.Participants.Select(p => new CombatParticipantSave
                 {
                     Ship = p.Ship.Value, Side = p.Side, Tactic = p.Tactic, X = p.X, Target = p.Target.Value, Move = p.Move.ToString(), Speed = p.Speed,
@@ -206,6 +218,10 @@ public static class UniverseSerializer
                 {
                     Goods = ex.Goods.Select(g => g.Value).ToList(), Categories = new List<string>(ex.Categories), DelayTicks = ex.DelayTicks, Markup = ex.Markup, Target = ex.Target, TargetValue = ex.TargetValue,
                     Bids = ex.Bids.Count == 0 ? null : ex.Bids.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+                } : null,
+                Defense = t.Defense is { } df ? new StationDefenseSave
+                {
+                    Hull = df.Hull, Shield = df.Shield, ShieldRegen = df.ShieldRegen, Armor = df.Armor, PointDefense = df.PointDefense, Guns = new List<string>(df.Guns),
                 } : null,
             });
         WriteSlotContent(u, s);
@@ -261,6 +277,11 @@ public static class UniverseSerializer
                 } : null,
                 PlayerStorage = st.PlayerStorage.Count == 0 ? null : st.PlayerStorage.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Exports = st.Exports.Count == 0 ? null : st.Exports.Select(b => new ExportBatchSave { Good = b.Good.Value, Amount = b.Amount, Paid = b.Paid, Due = b.DueTick }).ToList(),
+                Condition = st.Condition is { } sc ? new StationConditionSave
+                {
+                    HullMissing = sc.HullMissing, ShieldMissing = sc.ShieldMissing, ShieldPauseUntil = sc.ShieldPauseUntil, Disabled = sc.Disabled,
+                    Timers = sc.Timers.Count == 0 ? null : new List<float>(sc.Timers),
+                } : null,
                 MaintenanceBacklog = st.MaintenanceBacklog.Count == 0 ? null : st.MaintenanceBacklog.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = ToSave(st.Profit),
             });
@@ -328,6 +349,7 @@ public static class UniverseSerializer
                     : a.Wanted.ToDictionary(w => new FactionId(w.Faction), w => new WantedRecord { Heat = w.Heat, LastCrimeTick = w.LastCrime, Fine = w.Fine, LastCrime = w.Crime }),
                 BountyClaims = a.BountyClaims is null ? new Dictionary<FactionId, float>() : a.BountyClaims.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
                 LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick,
+                ArrestCooldownUntil = a.ArrestCooldownUntil,
             };
         if (s.Encounters is not null)
             foreach (var e in s.Encounters)
@@ -335,6 +357,12 @@ public static class UniverseSerializer
                 {
                     Kind = Enum.Parse<EncounterKind>(e.Kind), Source = new ShipId(e.Source), Target = new ShipId(e.Target), Sector = new SectorId(e.Sector), DueTick = e.Due,
                 });
+        // Phase 28: Kriege und Friedensschlüsse
+        if (s.Wars is not null)
+            foreach (var w in s.Wars)
+                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges });
+        if (s.PeaceSince is not null)
+            foreach (var p in s.PeaceSince) if (p.Length >= 3) u.PeaceSince[((int)p[0], (int)p[1])] = p[2];
         // Phase 26: Wracks und Frachtbehälter
         u.NextWreckId = Math.Max(1, s.NextWreckId);
         if (s.Wrecks is not null)
@@ -358,6 +386,12 @@ public static class UniverseSerializer
                     Id = e.Id, Sector = new SectorId(e.Sector), StartTick = e.Start, Cause = Enum.Parse<EncounterCause>(e.Cause), Raider = new ShipId(e.Raider),
                     RaiderOwner = new ActorId(e.RaiderOwner), Victim = new ShipId(e.Victim), Police = new ShipId(e.Police), Loot = e.Loot, Fenced = e.Fenced,
                     Shots = e.Shots, Hits = e.Hits, Spatial = e.Spatial,
+                    Station = new StationId(e.Station), StationX = e.StationX,
+                    Missiles = e.Missiles is null ? new List<MissileFlight>() : e.Missiles.Select(m => new MissileFlight
+                    {
+                        Shooter = new ShipId(m.Shooter), Owner = new ActorId(m.Owner), Side = m.Side, Module = m.Module, Target = new ShipId(m.Target),
+                        Station = new StationId(m.Station), Left = m.Left, Total = m.Total, Speed = m.Speed, From = new Vec2(m.FromX, m.FromY),
+                    }).ToList(),
                     Participants = e.Participants.Select(p => new CombatParticipant
                     {
                         Ship = new ShipId(p.Ship), Side = p.Side, Tactic = p.Tactic, X = p.X, Target = new ShipId(p.Target), Move = Enum.Parse<CombatMove>(p.Move),
@@ -413,6 +447,11 @@ public static class UniverseSerializer
                 {
                     Goods = ex.Goods.Select(g => new GoodId(g)).ToList(), Categories = new List<string>(ex.Categories), DelayTicks = ex.DelayTicks, Markup = ex.Markup, Target = ex.Target, TargetValue = ex.TargetValue,
                     Bids = ex.Bids is null ? new Dictionary<GoodId, float>() : ex.Bids.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+                } : null,
+                // Phase 28: fehlt = keine Verteidigung
+                Defense = t.Defense is { } df ? new StationDefenseConfig
+                {
+                    Hull = df.Hull, Shield = df.Shield, ShieldRegen = df.ShieldRegen, Armor = df.Armor, PointDefense = df.PointDefense, Guns = new List<string>(df.Guns),
                 } : null,
             };
         ReadSlotContent(s, u);
@@ -476,6 +515,11 @@ public static class UniverseSerializer
                 } : null,
                 PlayerStorage = st.PlayerStorage is null ? new Dictionary<GoodId, float>() : st.PlayerStorage.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Exports = st.Exports is null ? new List<ExportBatch>() : st.Exports.Select(b => new ExportBatch { Good = new GoodId(b.Good), Amount = b.Amount, Paid = b.Paid, DueTick = b.Due }).ToList(),
+                Condition = st.Condition is { } sc ? new StationCondition
+                {
+                    HullMissing = sc.HullMissing, ShieldMissing = sc.ShieldMissing, ShieldPauseUntil = sc.ShieldPauseUntil, Disabled = sc.Disabled,
+                    Timers = sc.Timers is null ? new List<float>() : new List<float>(sc.Timers),
+                } : null,
                 MaintenanceBacklog = st.MaintenanceBacklog is null ? new Dictionary<GoodId, float>() : st.MaintenanceBacklog.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = FromSave(st.Profit),
             };
@@ -572,6 +616,7 @@ public static class UniverseSerializer
         // Phase 27: Lauern (Revier, Posten, Frist) und Verfolgen (Ziel, Vorsprung, Frist)
         LurkCommand l => new OrderSave { Kind = CommandKinds.Lurk, A = l.Sector.Value, C = (int)l.Until, Values = new List<float> { l.Spot.X, l.Spot.Y } },
         PursueCommand q => new OrderSave { Kind = CommandKinds.Pursue, A = q.Target.Value, C = (int)q.Until, Values = new List<float> { q.Lead } },
+        AssaultCommand a => new OrderSave { Kind = CommandKinds.Assault, A = a.Sector.Value, B = a.Station.Value },   // Phase 28
         _ => throw new InvalidOperationException($"Unbekannter Befehl {c.GetType().Name}"),
     };
 
@@ -595,6 +640,7 @@ public static class UniverseSerializer
         CommandKinds.Return => new ReturnCommand(),
         CommandKinds.Lurk => new LurkCommand(new SectorId(o.A), new Vec2(o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f), o.C),
         CommandKinds.Pursue => new PursueCommand(new ShipId(o.A), o.Values?.ElementAtOrDefault(0) ?? 0f, o.C),
+        CommandKinds.Assault => new AssaultCommand(new SectorId(o.A), new StationId(o.B)),
         _ => throw new FormatException($"Unbekannter Befehl '{o.Kind}'"),
     };
 
