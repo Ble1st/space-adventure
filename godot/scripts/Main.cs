@@ -2189,9 +2189,9 @@ public partial class Main : Node3D
 	internal bool TestFast => _fast;
 	internal bool TestAutopilotOn => _autopilot;
 	internal IReadOnlyList<WeaponBay> TestBays => _bays;
-	/// <summary>Phase 8: Setzt das Schiff in einen anderen Sektor (wie ein Sprung, ohne Gate) – Test des Lagerhauses in Gamma.</summary>
 	/// <summary>Runde 8: Selbsttest — die Sektoransicht (Stationsmodelle).</summary>
 	internal SectorView TestView => _view;
+	/// <summary>Phase 8: Setzt das Schiff in einen anderen Sektor (wie ein Sprung, ohne Gate) – Test des Lagerhauses in Gamma.</summary>
 	internal void TestEnterSector(SectorId sector)
 	{
 		var u = _session.U;

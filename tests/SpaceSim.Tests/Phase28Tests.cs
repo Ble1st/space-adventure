@@ -31,6 +31,7 @@ public class Phase28Tests
         def.Rules.FleetWorldCapWhenDivided = false; // Prüfung Phase 28: Weltgrenze der Flotte im geteilten Zustand
         def.Rules.TraderPlanGuard = false;          // Prüfung Runde 2: Kaufschutz schon in der Planung
         def.Rules.CombatRejoinReuse = false;        // Runde 7: Wiedereintritt mit altem Gefechtseintrag
+        RevertRunde9(def);
         string[] late = { "missile", "missile_launcher_s", "point_defense_s" };
         def.Goods.RemoveAll(g => g.Key == "missile");
         def.Modules.RemoveAll(m => late.Contains(m.Key));
@@ -43,6 +44,22 @@ public class Phase28Tests
             if (t.Stocks is not null) foreach (var k in late) t.Stocks.Remove(k);
             t.Recipes.RemoveAll(r => r.Out.ContainsKey("missile"));
         }
+    }
+
+    /// <summary>Runde 9 zurückdrehen: Tanker und Kurier wieder nur für Spieler (ohne Laser, alte Grundmasse), Kanisterraum 30, Werft-Regal [1, 3].</summary>
+    internal static void RevertRunde9(WorldDef def)
+    {
+        foreach (var (model, cls, mass) in new[] { ("cistern", "tanker", 16f), ("swift", "courier", 4f) })
+        {
+            var m = def.ShipModels.First(x => x.Key == model);
+            m.Jobs = null;
+            m.Fit.RemoveAt(m.Fit.Count - 1);
+            var c = def.ShipClasses.First(x => x.Key == cls);
+            c.Slots.RemoveAt(c.Slots.Count - 1);
+            c.BaseMass = mass;
+        }
+        def.Modules.First(x => x.Key == "canister_bay_s").Stats["capacity"] = 30f;
+        def.StationTypes.First(x => x.Key == "shipyard").Stocks!["canister_bay_s"] = new[] { 1f, 3f };
     }
 
     static List<SimEvent> Capture(Universe u)
@@ -1007,18 +1024,21 @@ public class Phase28Tests
     [Fact]
     public void Haendler_PlanenMitErwartetemEinkaufspreis_WenigerLeerfahrten()
     {
-        int Refused(bool plan)
+        // Runde 9: über vier Seeds summiert — seit Tanker Flüssigware fahren, gibt es auch ohne Planung weniger verweigerte Käufe (Standard-Seed 150 → 77),
+        // das Verhältnis eines einzelnen Pfads schwankt (gemessen mit/ohne: 46/77, 54/122, 47/87, 68/114; vor Runde 9: 52/150, 55/118, 33/98, 64/158)
+        int Refused(bool plan, ulong? seed)
         {
-            var u = Standard();
+            var u = Standard(seed);
             u.Rules.TraderPlanGuard = plan;
             var ev = Capture(u);
             var runner = new SimulationRunner();
             for (int i = 0; i < 8000; i++) runner.Step(u);
             return ev.Count(e => e is TraderBuyRefused);
         }
-        int with = Refused(true), without = Refused(false);
+        var seeds = new ulong?[] { null, 1, 2, 3 };
+        int with = seeds.Sum(s => Refused(true, s)), without = seeds.Sum(s => Refused(false, s));
         Assert.True(without > 0);
-        Assert.True(with < without / 2, $"verweigert mit Planung {with}, ohne {without}");
+        Assert.True(with < without * 0.65f, $"verweigert mit Planung {with}, ohne {without}");
     }
 
     /// <summary>

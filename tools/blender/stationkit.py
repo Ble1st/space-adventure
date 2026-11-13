@@ -40,6 +40,7 @@ PALETTE = {
     "Crystal":   ((0.35, 0.10, 0.60), 0.10, 0.12, (0.50, 0.08, 1.00), 1.1),
     "Container": ((0.45, 0.22, 0.12), 0.15, 0.65, None, 0),
     "Rust":      ((0.33, 0.14, 0.06), 0.30, 0.80, None, 0),
+    "Engine":    ((0.05, 0.20, 0.55), 0.00, 0.40, (0.15, 0.55, 1.00), 2.4),   # Triebwerksschub (Spiel faerbt/pulsiert)
     "Ember":     ((0.25, 0.00, 0.00), 0.00, 0.60, (1.00, 0.03, 0.00), 0.9),
 }
 
@@ -215,15 +216,25 @@ class Builder:
 
     # -------------------------------------------------- Prismen und Kaesten
     def prism(self, pts2d, h, mat, loc=(0, 0, 0), rot=None, scale=(1, 1, 1), top_scale=1.0):
-        """Prisma aus einem 2D-Polygon (gegen Uhrzeigersinn), Hoehe h, zentriert in Z."""
+        """Prisma aus einem 2D-Polygon, Hoehe h, zentriert in Z. Umlaufsinn wird automatisch
+        korrigiert; eine Spiegelung per negativem scale dreht die Normalen mit."""
+        area = sum(pts2d[i][0] * pts2d[(i + 1) % len(pts2d)][1] - pts2d[(i + 1) % len(pts2d)][0] * pts2d[i][1]
+                   for i in range(len(pts2d)))
+        if area < 0:
+            pts2d = list(reversed(pts2d))
         mi = self._mi(mat)
         bot = self._verts([(x, y, -h / 2) for x, y in pts2d])
         top = self._verts([(x * top_scale, y * top_scale, h / 2) for x, y in pts2d])
         n = len(pts2d)
+        faces = []
         for j in range(n):
-            self._face([bot[j], bot[(j + 1) % n], top[(j + 1) % n], top[j]], mi)
-        self._face(list(reversed(bot)), mi)
-        self._face(top, mi)
+            faces.append(self._face([bot[j], bot[(j + 1) % n], top[(j + 1) % n], top[j]], mi))
+        faces.append(self._face(list(reversed(bot)), mi))
+        faces.append(self._face(top, mi))
+        if scale[0] * scale[1] * scale[2] < 0:
+            for f in faces:
+                if f is not None:
+                    f.normal_flip()
         self._apply(bot + top, trs(loc, rot, scale))
         return self
 
@@ -483,8 +494,88 @@ class Builder:
         self.sphere(0.16, material(light), seg=6, rings=4, loc=top)
         return self
 
+
+    # -------------------------------------------------- Schiffs-Bausteine (Bug = +Y)
+    def hull(self, pts, up, down, mat, su=0.8, sd=0.85, loc=(0, 0, 0), mat_down=None):
+        """Rumpf aus einem Draufsicht-Umriss (gegen Uhrzeigersinn): Oberteil (Hoehe up) zur Mitte
+        abgeschraegt (su), Unterteil (Hoehe down) ebenso (sd)."""
+        x0, y0, z0 = loc
+        self.prism(pts, up, material(mat), loc=(x0, y0, z0 + up / 2), top_scale=su)
+        self.prism([(x * sd, y * sd) for x, y in pts], down, material(mat_down or mat),
+                   loc=(x0, y0, z0 - down / 2), top_scale=1 / sd)
+        return self
+
+    def loft(self, secs, mat, shape="oct", c=0.35, n=12, x=0.0, cap=True):
+        """Geschlossener Rumpf entlang Y aus Querschnitten secs = [(y, halbe Breite, halbe Hoehe[, z]), ...]
+        (Bug zuerst). shape: "oct" (abgefaste Kiste, Fase c), "round" (n-Eck-Ellipse), "diamond".
+        Ein Querschnitt mit Breite und Hoehe 0 wird zur Spitze. Normalen zeigen nach aussen."""
+        if shape == "oct":
+            k = 1 - c
+            prof = [(1, -k), (1, k), (k, 1), (-k, 1), (-1, k), (-1, -k), (-k, -1), (k, -1)]
+        elif shape == "diamond":
+            prof = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+        else:
+            prof = [(math.cos(2 * math.pi * i / n), math.sin(2 * math.pi * i / n)) for i in range(n)]
+        mi = self._mi(mat)
+        rings = []
+        for sec in secs:
+            y, w, h = sec[0], sec[1], sec[2]
+            zo = sec[3] if len(sec) > 3 else 0.0
+            if w < 1e-5 and h < 1e-5:
+                v = self.bm.verts.new((x, y, zo))
+                rings.append([v] * len(prof))
+            else:
+                rings.append([self.bm.verts.new((x + px * w, y, zo + pz * h)) for px, pz in prof])
+        faces = []
+        m = len(prof)
+        for i in range(len(rings) - 1):
+            for j in range(m):
+                quad = [rings[i][j], rings[i][(j + 1) % m], rings[i + 1][(j + 1) % m], rings[i + 1][j]]
+                u = []
+                for v in quad:
+                    if v not in u:
+                        u.append(v)
+                if len(u) >= 3:
+                    f = self._face(u, mi)
+                    if f:
+                        faces.append(f)
+        if cap:
+            for r in (rings[0], rings[-1]):
+                if len(set(r)) > 2:
+                    f = self._face(list(r), mi)
+                    if f:
+                        faces.append(f)
+        bmesh.ops.recalc_face_normals(self.bm, faces=faces)
+        return self
+
+    def nozzle(self, p, r, L=None, seg=10, housing=True):
+        """Triebwerk am Heck: Gehaeuse, Duesenglocke nach -Y, Schubflaeche in Material "Engine"."""
+        p = Vector(p)
+        L = L or r * 1.3
+        if housing:
+            self.cyl(r * 0.8, r * 1.2, material("Hull"), seg=seg, loc=p + Vector((0, r * 0.6, 0)), rot=(90, 0, 0))
+        self.lathe([(r * 0.62, 0), (r * 0.85, L * 0.5), (r, L), (r * 0.9, L), (r * 0.55, L * 0.25)],
+                   material("HullDark"), seg, loc=p, rot=(90, 0, 0), closed=True)
+        self.lathe([(r * 0.86, L * 0.8), (0, L * 0.8)], material("Engine"), seg, loc=p, rot=(90, 0, 0))
+        return self
+
+    def canopy(self, p, w, l, h, mat="Glass"):
+        """Cockpitkanzel (flache, facettierte Halbkugel)."""
+        self.sphere(1.0, material(mat), seg=8, rings=4, loc=p, half=True, scale=(w, l, h))
+        return self
+
+    def gun(self, p, length, r=0.12, mat="HullDark"):
+        """Festes Bugrohr ab p nach vorn (+Y) mit Mantel."""
+        p = Vector(p)
+        self.box(r * 3.2, length * 0.35, r * 3.0, material("Steel"), loc=p + Vector((0, length * 0.1, 0)))
+        self.strut(p, p + Vector((0, length, 0)), r, material(mat), seg=5)
+        self.cyl(r * 1.6, length * 0.12, material(mat), seg=5, loc=p + Vector((0, length * 0.94, 0)), rot=(-90, 0, 0))
+        return self
+
     # -------------------------------------------------- Abschluss
-    def finish(self, sharp_angle=21.0, target_radius=1.0, center_z=True):
+    def finish(self, sharp_angle=21.0, target_radius=1.0, center_z=True, normalize="plane"):
+        """normalize="plane": groesste Ausdehnung in XY = target_radius (Stationen);
+        normalize="length": Laenge entlang Y = 2 * target_radius (Schiffe, Bug +Y)."""
         bm = self.bm
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
         # Zentrieren: XY auf Bounding-Box-Mitte, Z auf Box-Mitte
@@ -495,7 +586,10 @@ class Builder:
                     (min(zs) + max(zs)) / 2 if center_z else 0.0))
         for v in bm.verts:
             v.co -= c
-        rad = max(math.hypot(v.co.x, v.co.y) for v in bm.verts)
+        if normalize == "length":
+            rad = (max(ys) - min(ys)) / 2
+        else:
+            rad = max(math.hypot(v.co.x, v.co.y) for v in bm.verts)
         k = target_radius / rad
         for v in bm.verts:
             v.co *= k

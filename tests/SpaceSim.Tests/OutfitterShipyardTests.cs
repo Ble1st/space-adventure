@@ -386,6 +386,10 @@ public class OutfitterShipyardTests
         yard.Market[u.FindGood("reactor_mk1")!.Id].Amount = 0f;   // kein Reaktor: volle Regel nicht erfüllbar
         // Phase 21: die anderen Werften (11-Sektoren-Welt) haben keinen Bausatz — gekauft wird an dieser Werft
         foreach (var other in u.Stations.Values.Where(s => s.TypeKey == "shipyard" && s.Id != yard.Id)) other.Stock(kit).Amount = 0f;
+        // Runde 9: der Tanker (mittlerer Bausatz) wäre sonst mit allen Modulen kaufbar — hier gibt es nur leichte Bausätze
+        foreach (var st in u.Stations.Values)
+            foreach (var (g, e) in st.Market)
+                if (u.Goods[g].Key is "ship_kit_medium" or "ship_kit_heavy") e.Amount = 0f;
         u.Ships.Values.First(s => s.Role == ShipRole.Trader).Credits = 20_000f;
         var built = new List<FleetShipBuilt>();
         u.Events.Raised += e => { if (e is FleetShipBuilt b) built.Add(b); };

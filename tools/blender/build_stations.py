@@ -168,6 +168,7 @@ def setup_scene(res=(1024, 768)):
 
 
 def frame(cam, ob, az=-40.0, el=26.0, fill=0.86):
+    # az/el: Richtung Objekt -> Kamera (az=-40: von hinten links, 145: von schraeg vorn bei Bug +Y)
     """3/4-Ansicht: Kamera so weit weg, dass alle Eckpunkte ins Bild passen (fill = Bildanteil)."""
     d = Vector((math.cos(math.radians(el)) * math.sin(math.radians(az)),
                 -math.cos(math.radians(el)) * math.cos(math.radians(az)),
@@ -292,4 +293,5 @@ def main():
         print("Uebersicht geschrieben")
 
 
-main()
+if __name__ == "__main__":
+    main()
