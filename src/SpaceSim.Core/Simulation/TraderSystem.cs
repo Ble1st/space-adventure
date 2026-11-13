@@ -298,6 +298,14 @@ public sealed class TraderSystem : ISimSystem
             // Phase 14: nur so viel kaufen, wie der Abnehmer jetzt bezahlen kann (wie in der Bewertung)
             if (sellSt.Market.TryGetValue(order.Good, out var se) && se.Price > 0f)
                 amount = MathF.Min(amount, MathF.Floor(MathF.Max(0f, sellSt.Credits) / se.Price));
+            // Phase 28 (Nacharbeit, Händlerpleiten): kein Einkauf mit sicherem Verlust — ist der Einkaufspreis bei der Ankunft über den Verkaufspreis des
+            // Abnehmers gestiegen (Lager des Herstellers inzwischen leer, Knappheitspreis), verwirft der KI-Händler den Auftrag und plant neu. Vorher kaufte er
+            // trotzdem (Energie für 13 Cr/Einheit, Verkauf zu 4 Cr) und rutschte in die Spirale dünner Ladungen bis zur Pleite.
+            if (u.Rules.TraderBuyGuard && ship.Controller == Controller.Ai && se is { Price: > 0f } && stock.Price >= se.Price * u.Rules.TraderBuyGuardShare && amount > 0f)
+            {
+                u.Events.Publish(new TraderBuyRefused(ship.Id, st.Id, sellSt.Id, order.Good, stock.Price, se.Price));
+                amount = 0f;
+            }
             if (amount > 0)
             {
                 float cost = amount * stock.Price;
@@ -305,6 +313,7 @@ public sealed class TraderSystem : ISimSystem
                 st.Credits += cost;
                 wallet.Credits -= cost;
                 ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
+                u.Events.Publish(new TraderBought(ship.Id, st.Id, order.Good, amount, cost));   // Phase 28 (Nacharbeit): Diagnose der Händlerpleiten
                 ship.Phase = TradePhase.GoingToSell;
                 // Phase 4b: Treibstoff für die Fahrt zum Verkäufer sichern (Tankstopp verwirft den Auftrag, Ankunft hängt ihn neu)
                 var plan = Refuel.PrepareTrip(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));

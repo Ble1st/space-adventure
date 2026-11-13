@@ -51,9 +51,85 @@ public static class Navigator
         return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, gate.Position), gate.Id);
     }
 
+    /// <summary>Ein Umweg-Punkt näher als dies gilt als erreicht (der nächste wird angeflogen).</summary>
+    public const float WaypointReached = 1.5f;
+
     static Vec2 FirstWaypoint(Universe u, SectorId sector, Vec2 from, Vec2 to)
     {
-        var pts = PathPlanner.Plan(from, to, u.GetObstacles(sector));
-        return pts.Count > 1 ? pts[1] : to;
+        var pts = PathPlanner.Plan(from, to, u.GetObstacles(sector), PathPlanner.Margin + Collision.ShipRadius);
+        // Gerätetest Phase 28 (Autopilot kreiste vor dem HQ Alpha): liegt der nächste Umweg-Punkt schon auf der eigenen Position (das Schiff steht genau auf
+        // einer Tangente), lieferte der Planer ihn immer wieder — der Autopilot stand still. Dann den folgenden Punkt nehmen.
+        for (int i = 1; i < pts.Count; i++)
+            if (Vec2.Distance(pts[i], from) > WaypointReached) return pts[i];
+        return to;
+    }
+}
+
+/// <summary>
+/// Gerätetest Phase 28: Autopilot mit Gedächtnis. <see cref="Navigator.Next"/> plant jedes Bild neu — in dichten Gürteln sprang der erste Umweg-Punkt hin und
+/// her bzw. lag auf der eigenen Position, und das Schiff kreiste (HQ Alpha). Der Folger plant einmal und fliegt die Punkte der Reihe nach ab; neu geplant wird
+/// bei neuem Ziel/Sektor, nach dem letzten Punkt oder wenn das Schiff ein paar Schritte keinen Fortschritt zum aktuellen Punkt macht (dann zuerst ein
+/// Seitenschritt weg vom nächsten Hindernis). Rein bis auf den eigenen Zustand; nicht gespeichert (Ansichtszustand).
+/// </summary>
+public sealed class PathFollower
+{
+    /// <summary>Ein Punkt näher als dies gilt als erreicht.</summary>
+    public const float Reach = 4f;
+    /// <summary>So viele Aufrufe ohne Annäherung an den aktuellen Punkt gelten als festgefahren.</summary>
+    public const int StallCalls = 25;
+
+    List<Vec2>? _pts;
+    int _idx;
+    Vec2 _goal;
+    SectorId _sector;
+    float _best = float.MaxValue;
+    int _stall, _escapes;
+
+    public void Reset() { _pts = null; _escapes = 0; }
+
+    public NavStep Next(Universe u, SectorId sector, Vec2 pos, NavTarget target, Ship? ship = null)
+    {
+        GateId? gate = null;
+        Vec2 goal;
+        if (sector == target.Sector)
+        {
+            if (Vec2.Distance(pos, target.Position) <= Navigator.ArriveRadius) { Reset(); return new NavStep(NavStatus.Arrived, pos, null); }
+            goal = target.Position;
+        }
+        else
+        {
+            var route = u.FindRoute(sector, target.Sector, Travel.ProfileOf(u, ship));
+            if (route is null || route.Count == 0) { Reset(); return new NavStep(NavStatus.Unreachable, pos, null); }
+            gate = route[0];
+            goal = u.Gates[route[0]].Position;
+        }
+        var obs = u.GetObstacles(sector);
+        if (_pts is null || sector != _sector || Vec2.Distance(goal, _goal) > 0.5f) Plan(pos, goal, obs, sector);
+        while (_idx < _pts!.Count - 1 && Vec2.Distance(pos, _pts[_idx]) <= Reach) { _idx++; _best = float.MaxValue; _stall = 0; }
+        float d = Vec2.Distance(pos, _pts[_idx]);
+        if (d < _best - 0.2f) { _best = d; _stall = 0; }
+        else if (++_stall > StallCalls)
+        {
+            // festgefahren: Seitenschritt weg vom nächsten Hindernis, dann von dort neu planen
+            Obstacle? near = null; float nd = float.MaxValue;
+            foreach (var o in obs) { float od = Vec2.Distance(o.Position, pos) - o.Radius; if (od < nd) { nd = od; near = o; } }
+            _escapes++;
+            Plan(pos, goal, obs, sector);
+            if (near is { } n)
+            {
+                var away = (pos - n.Position).Normalized();
+                var side = new Vec2(-away.Y, away.X) * ((_escapes % 2 == 0) ? 1f : -1f);
+                _pts!.Insert(1, pos + (away + side).Normalized() * (n.Radius + 10f));
+                _idx = 1;
+            }
+        }
+        return new NavStep(NavStatus.EnRoute, _pts[_idx], gate);
+    }
+
+    void Plan(Vec2 pos, Vec2 goal, IReadOnlyList<Obstacle> obs, SectorId sector)
+    {
+        _pts = PathPlanner.Plan(pos, goal, obs, PathPlanner.Margin + Collision.ShipRadius);
+        _idx = _pts.Count > 1 ? 1 : 0;
+        _goal = goal; _sector = sector; _best = float.MaxValue; _stall = 0;
     }
 }

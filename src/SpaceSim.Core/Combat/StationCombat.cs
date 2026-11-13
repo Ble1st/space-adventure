@@ -218,27 +218,29 @@ public sealed class StationRepairSystem : ISimSystem
         var r = u.Rules;
         if (!r.Warfare) return;
         float seconds = ShipSystems.Seconds(dt);
+        Good? plates = null;
+        bool platesLooked = false;
         foreach (var st in u.StationsById())
         {
             if (st.Condition is not { } c) continue;
+            if (!platesLooked) { plates = u.FindGood("hull_plates"); platesLooked = true; }   // Nacharbeit: einmal je Schritt, nur wenn eine Station beschädigt ist
             bool sieged = StationCombat.UnderSiege(u, st.Id);
             var def = StationCombat.DefenseOf(u, st);
             if (c.ShieldMissing > 0f && u.Tick >= c.ShieldPauseUntil && def is not null)
                 c.ShieldMissing = MathF.Max(0f, c.ShieldMissing - def.ShieldRegen * seconds);
             if (!sieged) for (int i = 0; i < c.Timers.Count; i++) c.Timers[i] = 0f;
-            if (!sieged && c.HullMissing > 0f) Repair(u, st, c, dt);
+            if (!sieged && c.HullMissing > 0f) Repair(u, st, c, dt, plates);
             if (c.Disabled && StationCombat.Hull(u, st) >= r.StationReenableShare * StationCombat.MaxHull(u, st)) c.Disabled = false;
             if (c.IsDefault) st.Condition = null;
         }
     }
 
-    static void Repair(Universe u, Station st, StationCondition c, int dt)
+    static void Repair(Universe u, Station st, StationCondition c, int dt, Good? good)
     {
         var r = u.Rules;
         float points = MathF.Min(c.HullMissing, r.StationRepairPerDay * dt / MathF.Max(1f, r.DayTicks));
         if (points <= 0f) return;
         float plates = points * r.StationRepairPlatesPerHull;
-        var good = u.Goods.Values.FirstOrDefault(g => g.Key == "hull_plates");
         float fromStock = 0f, cost = 0f;
         if (good is not null && st.Market.TryGetValue(good.Id, out var e) && e.Amount > 0f)
         {
@@ -277,13 +279,18 @@ public static class WarInfo
         return $"Hülle {StationCombat.Hull(u, st):0}/{StationCombat.MaxHull(u, st):0}{shield}{guns}{state}";
     }
 
+    /// <summary>Kurzzeile für die Zielkarte: Hülle und Schild ohne Höchstwerte, Zustand.</summary>
+    public static string StationShort(Universe u, Station st) =>
+        $"Hülle {StationCombat.Hull(u, st):0}" + (StationCombat.MaxShield(u, st) > 0f ? $" · Schild {StationCombat.Shield(u, st):0}" : "")
+        + (StationCombat.IsDown(u, st) ? " · AUS" : "");
+
     /// <summary>Kriegslage einer Fraktion („Krieg mit …“ oder „Frieden“).</summary>
     public static string FactionLine(Universe u, FactionId f)
     {
         var wars = u.Wars.Where(w => w.Involves(f)).ToList();
         if (wars.Count == 0) return "Frieden";
         return "Krieg mit " + string.Join(", ", wars.Select(w =>
-            $"{(u.Factions.TryGetValue(w.Other(f), out var o) ? o.Name : "?")} (Müdigkeit {Math.Clamp(w.Weariness, 0f, 1f) * 100f:0} %)"));
+            $"{(u.Factions.TryGetValue(w.Other(f), out var o) ? o.Name : "?")} ({Math.Clamp(w.Weariness, 0f, 1f) * 100f:0} % müde)"));
     }
 
     /// <summary>Kurzzeile aller laufenden Kriege (leer = keiner).</summary>

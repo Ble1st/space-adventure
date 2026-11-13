@@ -268,6 +268,7 @@ public class ExportPlanetTests
     public void Haendler_KauftNurWasDerAbnehmerBezahlenKann()
     {
         var u = World();
+        u.Rules.TraderBuyGuard = false;   // Phase 28 (Nacharbeit): hier geht es um die Zahlungsdeckelung, nicht um die Verlustsperre (künstliche Preise)
         var col = St(u, Colony);
         var lux = G(u, "luxury_goods");
         var workshop = u.Stations.Values.First(s => s.Produces(lux));

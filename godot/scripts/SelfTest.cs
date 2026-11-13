@@ -2003,6 +2003,82 @@ public partial class SelfTest : Node
 				_m.TestCloseCommand();
 				Next(); break;
 			}
+			case 79: // Gerätetest Phase 28: Autopilot zum Hauptquartier der Union (Alpha) von mehreren Startpunkten kommt an und dockt (vorher kreiste er zwischen Asteroiden)
+			{
+				var uni = _m.Session.U;
+				var hq = uni.Stations.Values.First(x => x.Name == "Hauptquartier der Union");
+				int k = _p28Try;
+				if (_frame - _stageStart == 1)
+				{
+					if (_m.Docked) _m.TestUndock();
+					break;
+				}
+				if (_frame - _stageStart == 40 + k * 3000)
+				{
+					if (uni.PlayerSector != hq.Sector) _m.TestEnterSector(hq.Sector);
+					var start = hq.Position + Vec2.FromAngle(k * 1.9f + 0.4f) * 230f;
+					_m.TestTeleportTo(SpaceSim.Core.Combat.CombatSpace.Clear(uni, hq.Sector, start));
+					_m.TestSetStationTarget(hq.Id);
+					break;
+				}
+				if (_frame - _stageStart < 40 + k * 3000) break;
+				if (_m.Docked)
+				{
+					Log($"Autopilot Start {k}: angedockt nach {(_frame - _stageStart - 40 - k * 3000) / 60f:0.0} s");
+					_m.TestUndock();
+					_p28Try++;
+					if (_p28Try >= 4) { Check(true, "Autopilot zum HQ Alpha kommt von vier Startpunkten an"); Next(); }
+					else _stageStart = _frame - 40 - _p28Try * 3000 + 60;   // nächster Start nach dem Abdocken
+					break;
+				}
+				if (_frame - _stageStart > 40 + k * 3000 + 60 * 45)
+				{
+					var pl = uni.Ships[uni.PlayerShip];
+					Fail($"Autopilot zum HQ Alpha kam von Start {k} nicht an (Abstand {Vec2.Distance(pl.Position, hq.Position):0})");
+				}
+				break;
+			}
+			case 80: // Gerätetest Phase 28: „Ergeben“ im laufenden Überfall-Gefecht sichtbar und wirksam (mit Fracht); ohne Fracht sichtbar, deaktiviert
+			{
+				if (_frame - _stageStart == 1) { _m.TestMenu("new:test"); break; }
+				if (_frame - _stageStart < 40) break;
+				var uni = _m.Session.U;
+				var pl = uni.Ships[uni.PlayerShip];
+				if (_frame - _stageStart == 40)
+				{
+					if (_m.Docked) _m.TestUndock();
+					break;
+				}
+				if (_frame - _stageStart == 90)
+				{
+					var raider = uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(r => r.Id.Value).First(r => !uni.Fights.IsEngaged(r.Id));
+					if (raider.Command is not null) SpaceSim.Core.Simulation.Commands.Cancel(uni, raider);
+					if (raider.Transit is not null) uni.FinishTransit(raider);
+					if (raider.Sector != uni.PlayerSector) uni.MoveShip(raider, uni.PlayerSector);
+					var away = pl.Position + new Vec2(0f, -150f);
+					_m.TestTeleportTo(SpaceSim.Core.Combat.CombatSpace.Clear(uni, uni.PlayerSector, away));
+					raider.Position = pl.Position + new Vec2(0f, -30f); raider.DockedAt = default;
+					pl.Cargo[uni.FindGood("food")!.Id] = 10f;
+					SpaceSim.Core.Combat.Engage.StartRaid(uni, raider, pl, uni.Sectors[uni.PlayerSector]);
+					_m.SyncHudForTest();
+					Check(_m.HudRef.Flight.TestSurrenderVisible && _m.HudRef.Flight.TestSurrenderEnabled, "„Ergeben“ im Überfall-Gefecht sichtbar und aktiv");
+					_m.HudRef.Flight.TestPressSurrender();
+					Check(!uni.Fights.IsEngaged(pl.Id), "Ergeben gegenüber Kaperern beendet das Gefecht");
+					// ohne Fracht: Taste sichtbar, deaktiviert mit Grund
+					pl.Cargo.Clear();
+					var raider2 = uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(r => r.Id.Value).First(r => !uni.Fights.IsEngaged(r.Id) && r.Id != raider.Id);
+					if (raider2.Command is not null) SpaceSim.Core.Simulation.Commands.Cancel(uni, raider2);
+					if (raider2.Transit is not null) uni.FinishTransit(raider2);
+					if (raider2.Sector != uni.PlayerSector) uni.MoveShip(raider2, uni.PlayerSector);
+					raider2.Position = pl.Position + new Vec2(0f, -30f); raider2.DockedAt = default;
+					SpaceSim.Core.Combat.Engage.StartRaid(uni, raider2, pl, uni.Sectors[uni.PlayerSector]);
+					_m.SyncHudForTest();
+					Check(_m.HudRef.Flight.TestSurrenderVisible && !_m.HudRef.Flight.TestSurrenderEnabled, "ohne Fracht: „Ergeben“ sichtbar, deaktiviert");
+					if (uni.Fights.Of(pl.Id) is { } e2 && e2.Of(pl.Id) is { Active: true } pp) SpaceSim.Core.Combat.Engage.Leave(uni, e2, pp, SpaceSim.Core.Model.CombatExit.Fled);
+					Next();
+				}
+				break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -2019,7 +2095,7 @@ public partial class SelfTest : Node
 	int _p28SeenMissile;
 	string _p28WarAlert = "";
 	SectorId _p28LastSector;
-	int _p28SectorFrame, _p28Jumps, _p28Hops, _p28Scroll;
+	int _p28SectorFrame, _p28Jumps, _p28Hops, _p28Scroll, _p28Try;
 	SpaceAdventure.Ui.Kit.KitScroll? _p28ScrollNode;
 	static SpaceAdventure.Ui.Kit.KitScroll? FindScroll(Node root, string key)
 	{

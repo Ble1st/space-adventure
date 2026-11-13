@@ -15,13 +15,24 @@ public static class PathPlanner
     /// <summary>Obergrenze für Umweg-Entscheidungen pro Pfad, begrenzt den Rechenaufwand in dichten Feldern.</summary>
     public const int MaxExpansions = 256;
 
-    public static List<Vec2> Plan(Vec2 from, Vec2 to, IReadOnlyList<Obstacle> obstacles)
+    public static List<Vec2> Plan(Vec2 from, Vec2 to, IReadOnlyList<Obstacle> obstacles) => Plan(from, to, obstacles, Margin);
+
+    /// <summary>
+    /// Gerätetest Phase 28: Planung mit eigenem Sicherheitsabstand — der Spieler-Autopilot rechnet den Schiffsradius mit ein (mit dem Abstand der NPC-Reisen,
+    /// 3 Einheiten, streifte die Gerade einen Felsen, an dem die Kollision das Schiff festhielt: es kreiste vor dem HQ Alpha).
+    /// </summary>
+    public static List<Vec2> Plan(Vec2 from, Vec2 to, IReadOnlyList<Obstacle> obstacles, float margin)
     {
         var pts = new List<Vec2> { from };
         int budget = MaxExpansions;
-        Append(from, to, obstacles, 0, pts, ref budget);
+        _margin = margin;
+        try { Append(from, to, obstacles, 0, pts, ref budget); }
+        finally { _margin = Margin; }
         return pts;
     }
+
+    [ThreadStatic] static float _margin;
+    static float M => _margin > 0f ? _margin : Margin;
 
     static void Append(Vec2 a, Vec2 b, IReadOnlyList<Obstacle> obs, int depth, List<Vec2> pts, ref int budget)
     {
@@ -32,7 +43,7 @@ public static class PathPlanner
         var o = blocker.Value;
         var dir = (b - a).Normalized();
         var perp = new Vec2(-dir.Y, dir.X);
-        float off = (o.Radius + Margin) * 1.4f;
+        float off = (o.Radius + M) * 1.4f;
         var w1 = PushOut(o.Position + perp * off, obs);
         var w2 = PushOut(o.Position - perp * off, obs);
         var w = Cost(a, w1, b, obs) <= Cost(a, w2, b, obs) ? w1 : w2;
@@ -49,8 +60,8 @@ public static class PathPlanner
             bool moved = false;
             foreach (var o in obs)
             {
-                float r = (o.Radius + Margin) * 1.4f;
-                if (Vec2.Distance(w, o.Position) >= (o.Radius + Margin)) continue;
+                float r = (o.Radius + M) * 1.4f;
+                if (Vec2.Distance(w, o.Position) >= (o.Radius + M)) continue;
                 w = o.Position + (w - o.Position).Normalized() * r;
                 moved = true;
             }
@@ -72,7 +83,7 @@ public static class PathPlanner
         float len2 = ab.Dot(ab);
         foreach (var o in obs)
         {
-            float r = o.Radius + Margin;
+            float r = o.Radius + M;
             // Ziel im Hindernis (z.B. Andockpunkt am Rand): ignorieren. Start im Hindernis: nur ignorieren, wenn man sich davon
             // wegbewegt – sonst wäre es genau das Hindernis, in das man hineinfliegt.
             if (Vec2.Distance(b, o.Position) < r) continue;

@@ -23,7 +23,10 @@ public class Phase28Tests
         def.Rules!.Warfare = false;
         def.Rules.ArrestCooldownTicks = 0;
         def.Rules.SurrenderFineAsDebt = false;
-        def.Rules.FenceShare = new EconomyRules().FenceShare;   // Prüfpunkt e: Standardwelt 0,75, bis Phase 27 der Code-Wert 0,6
+        def.Rules.FenceShare = new EconomyRules().FenceShare;
+        def.Rules.RaiderUpkeepPerTick = new EconomyRules().RaiderUpkeepPerTick;   // Nacharbeit: Standardwelt 0,03
+        def.Rules.TraderBuyGuard = false;          // Nacharbeit: kein Einkauf mit sicherem Verlust
+        def.Rules.BuildMissingProducer = false;    // Nacharbeit: fehlender letzter Hersteller zählt als knapp   // Prüfpunkt e: Standardwelt 0,75, bis Phase 27 der Code-Wert 0,6
         string[] late = { "missile", "missile_launcher_s", "point_defense_s" };
         def.Goods.RemoveAll(g => g.Key == "missile");
         def.Modules.RemoveAll(m => late.Contains(m.Key));
@@ -817,19 +820,26 @@ public class Phase28Tests
         var me = u.Ships[u.PlayerShip];
         Assert.Equal("falcon", me.ModelKey);
         Assert.False(ThreatMap.NearStation(u, me.Sector, me.Position));
-        var raiders = u.ShipsById().Where(r => ThreatMap.IsRaider(r) && r.Sector == me.Sector && Vec2.Distance(r.Position, me.Position) < 60f).ToList();
-        Assert.Equal(2, raiders.Count);   // Rudel in Waffenreichweite (ein drittes liegt im Versteck)
-        Assert.True(raiders.Sum(CombatRules.Strength) >= u.Rules.RaiderFleeRatio * CombatRules.Strength(me), "Rudel stark genug, um anzugreifen statt zu fliehen");
+        // Gerätetest Phase 28: Anführer vor dem Bug außerhalb der eigenen Waffenreichweite, angeschlagen; das zweite Rudelmitglied weit dahinter
+        var pack = u.PendingEncounters.First(p => p.Kind == EncounterKind.Raid);
+        var lead = u.Ships[pack.Source];
+        float reach = CombatSense.MaxRange(u, me);
+        Assert.InRange(Vec2.Distance(lead.Position, me.Position), reach, reach + 80f);
+        Assert.True(lead.Position.Y < me.Position.Y, "vor dem Bug (Blickrichtung −y)");
+        Assert.True(lead.Hull < lead.MaxHull * 0.7f, "angeschlagen");
+        Assert.Equal(u.Tick + 60, pack.DueTick);   // volle 15 s Warnung
+        var second = u.ShipsById().First(r => ThreatMap.IsRaider(r) && r.Id != lead.Id && Squadrons.Get(u, r)?.Id == Squadrons.Get(u, lead)?.Id);
+        Assert.True(Vec2.Distance(second.Position, me.Position) > 250f);
         Assert.Contains(u.PendingEncounters, p => p.Kind == EncounterKind.Raid && p.Target == me.Id);
         Assert.Contains(u.ShipsById(), s => s.Role == ShipRole.Trader && s.Sector == me.Sector && s.DockedAt.Value == 0 && Vec2.Distance(s.Position, me.Position) < 60f);
         var cops = SecuritySystem.PoliceOf(u, u.Sectors[me.Sector].Owner).Where(c => c.Sector == me.Sector).ToList();
         Assert.True(cops.Count >= 2 && cops[0].Squadron.Value != 0 && cops[0].Squadron == cops[1].Squadron, "Streife als Verband");
         var runner = new SimulationRunner();
         var ev = Capture(u);
-        var log = new List<string>();
-        var lead = u.Ships[u.PendingEncounters.First(p => p.Kind == EncounterKind.Raid).Source];
-        for (int i = 0; i < 200 && !u.Fights.IsEngaged(me.Id); i++) { runner.Step(u); if (i < 30) log.Add($"{u.Tick}:{lead.Sector.Value}/{lead.Transit is not null}/{u.Fights.IsEngaged(lead.Id)}/{lead.Command?.Kind}"); }
-        Assert.True(u.Fights.Of(me.Id)?.Cause == EncounterCause.Raid, string.Join(",", log) + " || " + string.Join(" | ", ev.Where(e => e is EncounterEscaped or EncounterStarted or EncounterEnded or EncounterWarning).Select(e => e.ToString())));
+        for (int i = 0; i < 300 && !u.Fights.IsEngaged(me.Id); i++) runner.Step(u);
+        Assert.True(u.Fights.Of(me.Id)?.Cause == EncounterCause.Raid, string.Join(" | ", ev.Where(e => e is EncounterEscaped or EncounterStarted or EncounterEnded).Select(e => e.ToString())));
+        Assert.True(PlayerSurrender.Relevant(u), "Ergeben ist im Überfall-Gefecht ein Thema (Taste sichtbar)");
+        Assert.Equal("Keine Fracht zum Abwerfen.", PlayerSurrender.Issue(u));   // der Falke hat keinen Frachtraum: Taste deaktiviert mit Grund
     }
 
     [Fact]
@@ -842,5 +852,129 @@ public class Phase28Tests
         int t = 0;
         for (; t < 400 && !u.PendingEncounters.Any(p => p.Kind == EncounterKind.Intercept && p.Target == me.Id); t++) runner.Step(u);
         Assert.True(t < 400, "Festnahme-Warnung kam nicht");
+    }
+
+    // ───────── Nacharbeit nach der Prüfung ─────────
+
+    [Fact]
+    public void Haendler_KauftNichtMitSicheremVerlust()
+    {
+        foreach (bool guard in new[] { true, false })
+        {
+            var u = Standard();
+            u.Rules.TraderBuyGuard = guard;
+            new SimulationRunner().Step(u);
+            var trader = u.ShipsById().First(s => s.Role == ShipRole.Trader && s.Controller == Controller.Ai);
+            var energy = u.FindGood("energy")!.Id;
+            var seller = u.StationsById().First(st => !st.IsBuildSite && st.Produces(energy) && st.Market.ContainsKey(energy));
+            var buyer = u.StationsById().First(st => !st.IsBuildSite && st.Consumes(energy) && st.Market.ContainsKey(energy));
+            Place(u, trader, seller.Sector, seller.DockPoint(trader.Id) + new Vec2(20f, 0f));
+            trader.Cargo.Clear(); trader.Credits = 5000f;
+            trader.Order = new TradeOrder(seller.Id, buyer.Id, energy);
+            trader.Phase = TradePhase.GoingToBuy;
+            buyer.Credits = 50_000f;
+            buyer.Market[energy].Amount = 0f;
+            seller.Market[energy].Amount = 100f;
+            seller.Market[energy].Price = buyer.Market[energy].Price * 1.5f;   // Knappheitspreis beim Hersteller: über dem Verkaufspreis
+            Assert.True(Travel.Start(u, trader, seller.Sector, seller.DockPoint(trader.Id)));
+            var ev = Capture(u);
+            var sys = new TraderSystem();
+            for (int i = 0; i < 400 && trader.Transit is not null; i++) { u.Tick++; sys.Step(u, 1); }
+            u.Tick++; sys.Step(u, 1);
+            if (guard)
+            {
+                Assert.DoesNotContain(ev, e => e is TraderBought tb && tb.Ship == trader.Id);
+                Assert.Equal(5000f, trader.Credits);
+            }
+            else Assert.Contains(ev, e => e is TraderBought tb && tb.Ship == trader.Id);   // Regel aus: kauft trotzdem (Verhalten bis Phase 28)
+        }
+    }
+
+    [Fact]
+    public void Schulden_KeinKaufOderDienstMitNegativerKasse()
+    {
+        var u = Standard(start: "fighter");
+        var me = u.Ships[u.PlayerShip];
+        new SimulationRunner().Step(u);
+        u.WalletOf(me).Credits = -500f;
+        var yard = u.StationsById().First(st => st.TypeKey == "shipyard");
+        var good = yard.Market.Keys.First(g => yard.Market[g].Amount >= 1f && yard.Market[g].Price > 0f);
+        Assert.Equal(0f, SpaceSim.Core.Trading.TradeActions.MaxBuyable(u, me, yard, good));
+        Assert.Equal(0f, SpaceSim.Core.Trading.TradeActions.Buy(u, me, yard, good, 5f).Units);
+        // jedes Angebot, das sich ausführen lässt, darf die Schuld nicht vergrößern (Verkäufe/Tausch mit Erlös tilgen sie; Notreparatur ist ausdrücklich auf Schuld)
+        var services = SpaceSim.Core.Services.StationServices.Default();
+        foreach (var svc in services.ForStation(u, yard))
+            foreach (var o in svc.Offers(u, yard, me).ToList())
+            {
+                if (o.Amount <= 0f || o.Key.Contains("emergency", StringComparison.Ordinal) || svc.Key is "hangar" or "taxi" or "rental") continue;
+                float before = u.WalletOf(me).Credits;
+                var res = svc.Execute(u, yard, me, new SpaceSim.Core.Services.ServiceRequest(o.Key, o.Good, 1f));
+                Assert.True(!res.Success || u.WalletOf(me).Credits >= before - 0.01f, $"{svc.Key}: {o.Key} vergrößert die Schuld ({before:0} → {u.WalletOf(me).Credits:0})");
+                if (u.WalletOf(me).Credits > -500f) u.WalletOf(me).Credits = -500f;
+            }
+        Assert.False(SpaceSim.Core.Services.ShipDealerService.Quote(u, yard, me, "pip")!.Affordable);
+    }
+
+    [Fact]
+    public void LetzterHerstellerZerstoert_WirtschaftBautNach()
+    {
+        var u = Standard();
+        new SimulationRunner().Run(u, 2000);
+        var cells = u.FindGood("fuel_cells")!.Id;
+        var producers = u.StationsById().Where(st => !st.IsBuildSite && st.Produces(cells)).ToList();
+        Assert.NotEmpty(producers);
+        foreach (var st in producers) StationCombat.Fall(u, st, u.PlayerActor);   // der Spieler zerstört alle Hersteller (wirtschaftliche Stationen: zerstörbar)
+        Assert.DoesNotContain(u.StationsById(), st => !st.IsBuildSite && st.Produces(cells));
+        var runner = new SimulationRunner();
+        for (int i = 0; i < 40000 && !u.StationsById().Any(st => !st.IsBuildSite && st.Produces(cells)); i++) runner.Step(u);
+        var scan = StationLifecycleSystem.Scan(u);
+        Assert.True(u.StationsById().Any(st => !st.IsBuildSite && st.Produces(cells)),
+            $"Verhältnis {scan.Ratios.GetValueOrDefault(cells)}, knappste {(scan.Scarce is { } sc ? u.Goods[sc].Key : "-")}, Hersteller-Typ {StationLifecycleSystem.ProducerFor(u, cells, scan.Ratios)?.Key}, "
+            + $"Baustellen {string.Join(",", u.StationsById().Where(x => x.IsBuildSite).Select(x => x.Site!.TypeKey))}, wirtschaftlich {StationProtection.CountEconomic(u)}/{u.Rules.MaxStations}");   // Knappheit → Neubau über den normalen Lebenszyklus
+    }
+
+    [Fact]
+    public void Startpaket_Kriegstest_RaketenUndStationInReichweite()
+    {
+        var u = Standard(start: "war");
+        var me = u.Ships[u.PlayerShip];
+        Assert.True(me.Stats.MissileCapacity > 0f && Missiles.HasMissile(u, me));
+        Assert.True(u.WalletOf(me).Credits >= 20000f);
+        var st = u.StationsById().First(x => x.Sector == me.Sector && x.TypeKey == "sector_hq");
+        int slot = me.Fit.IndexOf("missile_launcher_s");
+        float heading = FiringArc.Bearing((st.Position - me.Position).Normalized());
+        Assert.Null(PlayerGunnery.StationIssue(u, me, st));
+        Assert.Equal(BayState.Ready, PlayerGunnery.StateAtStation(u, me, slot, heading, st.Id));
+        Assert.True(Vec2.Distance(me.Position, st.Position) > 60f + Station.BodyRadius, "außerhalb der Stationslaser");
+    }
+
+    [Fact]
+    public void Autopilot_KommtVonSechsStartpunktenAnJederStationAn()
+    {
+        // Gerätetest Phase 28: der Autopilot kreiste vor dem HQ Alpha (Gerade streifte einen Felsen, an dem die Kollision das Schiff festhielt). Kinematisch:
+        // Schritt zum nächsten Wegpunkt, Kollision mit den Hindernissen — jede Station der Standardwelt von sechs Startpunkten in 230 Einheiten Abstand
+        var u = Standard(start: "fighter");
+        var fails = new List<string>();
+        foreach (var st in u.StationsById().Where(s => !s.IsBuildSite))
+        {
+            var obs = u.GetObstacles(st.Sector);
+            var nav = Navigator.ForStation(u, st.Id, u.PlayerShip);
+            for (int k = 0; k < 6; k++)
+            {
+                var pos = CombatSpace.Clear(u, st.Sector, st.Position + Vec2.FromAngle(k * 1.05f + 0.4f) * 230f);
+                bool arrived = false;
+                var follower = new PathFollower();
+                for (int i = 0; i < 700 && !arrived; i++)
+                {
+                    var step = follower.Next(u, st.Sector, pos, nav);
+                    if (step.Status == NavStatus.Arrived) { arrived = true; break; }
+                    var d = step.Waypoint - pos; float len = d.Length;
+                    pos += d * (MathF.Min(2.5f, len) / MathF.Max(0.001f, len));
+                    Collision.Resolve(ref pos, Collision.ShipRadius, obs, out _);
+                }
+                if (!arrived) fails.Add($"{st.Name} Start {k} (Rest {Vec2.Distance(pos, nav.Position):0})");
+            }
+        }
+        Assert.True(fails.Count == 0, string.Join("; ", fails));
     }
 }

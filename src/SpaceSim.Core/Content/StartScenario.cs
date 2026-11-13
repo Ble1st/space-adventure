@@ -84,7 +84,9 @@ public static class StartScenario
                 var r = pack[i];
                 if (r.Transit is not null) u.FinishTransit(r);
                 if (r.Sector != player.Sector) u.MoveShip(r, player.Sector);
-                r.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(-12f + 24f * i, -55f));
+                // Gerätetest Phase 28: der Anführer vor dem Bug (Blickrichtung −y) außerhalb der eigenen Waffenreichweite, die übrigen weit dahinter (Verstärkung später)
+                r.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(0f, i == 0 ? -120f : -320f - 30f * i));
+                r.Hull = r.MaxHull * Math.Clamp(sc.RaiderHull, 0.05f, 1f);
                 r.DockedAt = default;
                 r.Order = new PatrolOrder(player.Sector);
                 r.DutySector = player.Sector;

@@ -322,3 +322,7 @@ public sealed record PeaceConcluded(FactionId A, FactionId B, string Reason, lon
 public sealed record WarshipCommissioned(FactionId Faction, ShipId Ship, StationId Yard, float Price) : SimEvent;
 /// <summary>Phase 28: Kriegsschiff nach dem Frieden oder wegen der Rücklage abgebaut.</summary>
 public sealed record WarshipDecommissioned(FactionId Faction, ShipId Ship, string Reason) : SimEvent;
+/// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort geladen (Diagnose; nur Bus, nicht gespeichert).</summary>
+public sealed record TraderBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
+/// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort nicht gekauft, weil der Preis dort den Preis seines Abnehmers erreicht hat (sicherer Verlust).</summary>
+public sealed record TraderBuyRefused(ShipId Ship, StationId Seller, StationId Buyer, GoodId Good, float BuyPrice, float SellPrice) : SimEvent;

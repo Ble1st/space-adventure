@@ -105,7 +105,11 @@ public partial class KitScroll : ScrollContainer
 	public override void _Process(double delta)
 	{
 		if (_pending < 0) return;
-		if (CanScroll() || ++_pendingFrames > 4) { ScrollVertical = _pending; if (ScrollVertical == _pending || _pendingFrames > 4) _pending = -1; }
+		// Gerätetest Phase 28 (Startpaket-Liste sprang an den Anfang): warten, bis das Layout den Bereich wirklich rollbar macht (am Gerät dauert das länger als
+		// 4 Bilder) — erst dann setzen; nach 60 Bildern aufgeben
+		++_pendingFrames;
+		if (CanScroll()) { ScrollVertical = _pending; if (ScrollVertical == _pending || _pendingFrames > 60) _pending = -1; }
+		else if (_pendingFrames > 60) _pending = -1;
 	}
 
 	public override void _ExitTree()

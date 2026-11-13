@@ -115,7 +115,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		if (TestViability.Length > 0 || TestWar.Length > 0)
 		{
 			bool war = TestWar.StartsWith("Krieg", System.StringComparison.Ordinal);
-			string line = string.Join(" · ", new[] { TestViability, TestWar }.Where(x => x.Length > 0));
+			// Prüfung Phase 28: im Krieg zuerst die Kriegszeile, die Handlungsfähigkeit nur kurz (vorher lief die Zeile über den Rand)
+			string viable = TestViability.StartsWith("handlungsfähig", System.StringComparison.Ordinal) ? "handlungsfähig" : TestViability;
+			string line = war ? $"{TestWar} · {viable}" : string.Join(" · ", new[] { TestViability, TestWar }.Where(x => x.Length > 0));
 			At(det, Text(line, 12, war ? Red : TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
 		}
 

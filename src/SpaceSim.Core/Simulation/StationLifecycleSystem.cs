@@ -56,6 +56,20 @@ public sealed class StationLifecycleSystem : ISimSystem
         float worst = rules.BuildPriceRatio, lowest = rules.GlutPriceRatio;
         var ratios = new Dictionary<GoodId, float>();
         var scarceGoods = new List<GoodId>();
+        // Phase 28 (Nacharbeit): Waren, die gerade irgendeine fertige Station oder eine laufende Baustelle herstellt — fehlt der letzte Hersteller (zerstört),
+        // gilt eine verbrauchte Ware als knapp, auch wenn die Lager noch voll sind (sonst baute niemand nach, solange Regale den Bestand halten)
+        HashSet<GoodId>? produced = null, consumed = null;
+        if (rules.BuildMissingProducer)
+        {
+            produced = new HashSet<GoodId>(); consumed = new HashSet<GoodId>();
+            foreach (var st in u.Stations.Values)
+            {
+                if (st.Site is { Abandoned: false } site && u.StationTypes.TryGetValue(site.TypeKey, out var stType))
+                    foreach (var r in stType.Recipes) foreach (var g in r.Outputs.Keys) produced.Add(g);
+                if (st.IsBuildSite) continue;
+                foreach (var r in st.Production) { foreach (var g in r.Outputs.Keys) produced.Add(g); foreach (var g in r.Inputs.Keys) consumed.Add(g); }
+            }
+        }
         foreach (var good in u.Goods.Values)
         {
             // Knappheit aus den Beständen (Wunschbestand / Bestand über alle Stationen), nicht aus Preisen: Preise sind durch die
@@ -73,6 +87,9 @@ public sealed class StationLifecycleSystem : ISimSystem
             }
             if (!any) continue;
             float ratio = (float)target / MathF.Max(1f, (float)amount);
+            // nur Waren, die ein Stationstyp herstellen kann (Erze fördern Schürfer — für sie gilt die Lagermessung wie bisher)
+            if (produced is not null && consumed!.Contains(good.Id) && !produced.Contains(good.Id)
+                && u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)))) ratio = MathF.Max(ratio, rules.MissingProducerRatio);
             ratios[good.Id] = ratio;
             // Phase 5a: nur Waren, auf die ein Stationstyp antworten kann (Erzeuger bei Knappheit, Rezept-Verbraucher bei Überangebot).
             // Sonst blockiert eine Ware ohne Verbraucher-Typ (Module, Bausatzstufen auf Halde) jeden Verbraucherbau für andere Waren.

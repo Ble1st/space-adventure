@@ -212,12 +212,44 @@ u.Events.Raised += e =>
         case EncounterStarted es2 when es2.Cause == EncounterCause.Arrest: arrests++; break;
     }
 };
+// Phase 28 (Nacharbeit): --probe pleite — Verlauf jedes pleitegegangenen KI-Händlers (Bau, letzte Verkäufe mit Kasse danach, Abwürfe, Überfälle)
+bool probeBroke = opts.TryGetValue("probe", out var probeOpt) && probeOpt == "pleite";
+var probeLog = new Dictionary<int, List<string>>();
+var probeOut = new List<string>();
+void PLog(ShipId id, string text)
+{
+    if (!probeLog.TryGetValue(id.Value, out var l)) probeLog[id.Value] = l = new List<string>();
+    l.Add(text);
+    if (l.Count > 24) l.RemoveAt(0);
+}
+if (probeBroke)
+    u.Events.Raised += e =>
+    {
+        switch (e)
+        {
+            case FleetShipBuilt fb when u.Ships.TryGetValue(fb.Ship, out var bs):
+                PLog(fb.Ship, $"t{u.Tick} gebaut {bs.ModelKey} {(fb.WithModules ? "mit Modulen" : "Bausatz")} {fb.Price:0} Cr, Kasse {bs.Credits:0}"); break;
+            case TradeCompleted tc when u.Ships.TryGetValue(tc.Ship, out var ts) && ts.Controller == Controller.Ai:
+                PLog(tc.Ship, $"t{u.Tick} {u.Goods[tc.Good].Key} {tc.Amount:0.#} {u.Stations.GetValueOrDefault(tc.From)?.TypeKey}→{u.Stations.GetValueOrDefault(tc.To)?.TypeKey} Erlös {tc.Revenue:0} Kasse {ts.Credits:0}"); break;
+            case CargoDiscarded cd: PLog(cd.Ship, $"t{u.Tick} ABWURF {u.Goods[cd.Good].Key} {cd.Units:0.#}"); break;
+            case RaidResolved rr: PLog(rr.Victim, $"t{u.Tick} ÜBERFALL Beute {rr.LootValue:0}"); break;
+            case ShipRepaired rp when !rp.AtBase: PLog(rp.Ship, $"t{u.Tick} REPARATUR {rp.Cost:0} Cr"); break;
+            case FirmCapitalMoved fm: PLog(fm.From, $"t{u.Tick} KAPITAL ab {fm.Amount:0}"); PLog(fm.To, $"t{u.Tick} KAPITAL zu {fm.Amount:0}"); break;
+            case AmmoRearmed ar when !ar.FromTreasury: PLog(ar.Ship, $"t{u.Tick} MUNITION {ar.Cost:0}"); break;
+            case TraderBought tb: PLog(tb.Ship, $"t{u.Tick} kauft {u.Goods[tb.Good].Key} {tb.Units:0.#} für {tb.Cost:0}"); break;
+            case CargoDumped cdu: PLog(cdu.Ship, $"t{u.Tick} ABGELADEN {u.Goods[cdu.Good].Key} {cdu.Units:0.#}"); break;
+            case ShipDeparted sd when sd.Role == ShipRole.Trader && sd.Reason is DepartureReason.Bankrupt or DepartureReason.Unprofitable:
+                probeOut.Add($"--- Schiff {sd.Ship.Value} {sd.Reason} t{u.Tick} in {SectorShort(sd.Sector)}: " + string.Join(" | ", probeLog.GetValueOrDefault(sd.Ship.Value) ?? new List<string>()));
+                break;
+        }
+    };
 // Phase 28: Raketen, Stationsgeschütze, Belagerungen, Krieg, Kriegsschiffe; dazu die Piratenkassen nach Zweck (Prüfpunkt e)
 var missileOutcomes = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var stationFalls = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var peaceReasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var pirateIn = new SortedDictionary<string, double>(StringComparer.Ordinal);
 var pirateOut = new SortedDictionary<string, double>(StringComparer.Ordinal);
+int buysRefused = 0;   // Nacharbeit Phase 28: Einkäufe mit sicherem Verlust verweigert
 int missilesLaunched = 0, stationShots = 0, stationHits = 0, shotsAtStations = 0, sieges = 0, warsDeclared = 0, warshipsBought = 0, warshipsGone = 0, stationRepairs = 0;
 double stationHullDmg = 0, stationRepairHull = 0, stationRepairPlates = 0, stationRepairCost = 0, navyCost = 0, stationGunDmg = 0;
 u.Events.Raised += e =>
@@ -235,6 +267,7 @@ u.Events.Raised += e =>
         case PeaceConcluded pc: peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1; break;
         case WarshipCommissioned: warshipsBought++; break;
         case WarshipDecommissioned: warshipsGone++; break;
+        case TraderBuyRefused: buysRefused++; break;
         case TreasuryUpkeep tu when tu.Purpose == "navy": navyCost += tu.Amount; break;
     }
     if (e is TreasuryIncome ti && u.Actors.TryGetValue(ti.Actor, out var pa) && pa.Kind == ActorKind.Outlaw) pirateIn[ti.Purpose] = pirateIn.GetValueOrDefault(ti.Purpose) + ti.Amount;
@@ -723,6 +756,8 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Reparaturen: Dienst {repairsNpc} NPC + {repairsPlayer} Spieler für {repairCost:0} Cr (Hüllenplatten {repairPlates:0.#}, Elektronik {repairElec:0.#}); an der Basis aus Kassen {repairsBase} für {repairBaseCost:0} Cr; Module instand gesetzt {repairModules}; "
         + $"Hülle fehlt jetzt (KI) {u.Ships.Values.Where(x => !x.IsPlayer).Sum(x => MathF.Max(0f, x.MaxHull - x.Hull)):0}");
     Console.WriteLine($"Hüllenzustand KI (Händler/Schürfer, Probe ab 10 %): mittlere Hüllenquote {(hullFracN > 0 ? hullFracSum / hullFracN : 1):0.000}, schwer beschädigt {(hullFracN > 0 ? 100.0 * hullSerious / hullFracN : 0):0.0} %, Reparaturflüge {repairTrips}");
+    foreach (var line in probeOut) Console.WriteLine("SONDE " + line);
+    Console.WriteLine($"Händler-Einkäufe mit sicherem Verlust verweigert: {buysRefused}");
     Console.WriteLine($"Händlerpleiten und Reparatur: {brokeTraders} pleite, davon {brokeWithRepair} hatten repariert (zusammen {brokeRepairSum:0} Cr), {brokeDamaged} mit Hüllenschaden, {brokeFailed} mit ausgefallenem Modul");
     Console.WriteLine($"Wracks: {wrecksMade} entstanden + {containersMade} Frachtbehälter (Fracht {wreckCargoMade:0.#}, Module {wreckModulesMade}); geborgen Fracht {salvagedCargoNpc:0.#} (Kaperer) + {salvagedCargoPlayer:0.#} (Spieler), Module {salvagedModules}; "
         + $"verfallen {wrecksExpired} (Fracht {wreckCargoExpired:0.#}, Module {wreckModulesExpired}); jetzt {u.Wrecks.Count}");

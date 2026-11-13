@@ -66,6 +66,9 @@ public sealed class FlightHudData
 	public bool EnemyNear;
 	/// <summary>Phase 27: Der Spieler kann sich ergeben (Polizei: Strafe zahlen; Kaperer: Fracht abwerfen) — Taste „Ergeben“ sichtbar.</summary>
 	public bool CanSurrender;
+	/// <summary>Gerätetest Phase 28: Ergeben ist ein Thema (Gefecht/Warnung) — Taste sichtbar; ohne <see cref="CanSurrender"/> deaktiviert mit diesem Grund.</summary>
+	public bool SurrenderRelevant;
+	public string SurrenderReason = "";
 	/// <summary>Phase 28: Die gewählte Station kann angegriffen werden (Taste „Station angreifen“, zwei Tipps); scharf = die Waffen schießen auf sie.</summary>
 	public bool CanAttackStation, StationAttackArmed;
 	public string HitWarning = "";
@@ -108,6 +111,7 @@ public partial class FlightHud : Control, IScreen
 	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!;
 	/// <summary>Phase 27: Selbsttest — Taste „Ergeben“.</summary>
 	public bool TestSurrenderVisible => _surrender.Visible;
+	public bool TestSurrenderEnabled => _surrender.Visible && _surrender.State != KitButtonState.Disabled;
 	public Rect2 TestSurrenderRect => new(_surrender.Position, _surrender.Size);
 	public void TestPressSurrender() => SurrenderPressed?.Invoke();
 	Label _tCombat = null!, _hitWarning = null!;
@@ -315,7 +319,9 @@ public partial class FlightHud : Control, IScreen
 		_surrender = At(this, new KitButton("Ergeben", new Vector2(176, 56)) { FontSize = 16, State = KitButtonState.Warn }, 906, 398);
 		_surrender.Pressed += () => SurrenderPressed?.Invoke();
 		_surrender.Visible = false;
-		_hitWarning = At(this, Text("", 22, UiKit.Red, HorizontalAlignment.Center), 420, 176, 430, 30);   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
+		_hitWarning = At(this, Text("", 22, UiKit.Red, HorizontalAlignment.Center), 400, 214, 340, 30);   // Gerätetest Phase 28: unter der zweizeiligen Meldungsfläche
+		// Prüfung Phase 28: dunkler Grund unter Lage-, Fahndungs- und Beschusszeile (3D-Beschriftungen und Ringe schienen durch) und Beschusszeile links von „Nächster Gegner“
+		foreach (var l in new[] { _security, _wanted, _hitWarning }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
 		// Gerätetest (breite Displays): Grundlage merken, dann an die Breite anpassen
 		foreach (var child in GetChildren())
 			if (child is Control c && c != _arcs) _layoutBase[c] = c.Position;
@@ -527,7 +533,9 @@ public partial class FlightHud : Control, IScreen
 		_autoFire.On = d.AutoFireOn;
 		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
 		_stationAttack.Visible = d.CanAttackStation && !d.StationAttackArmed;
-		_surrender.Visible = d.CanSurrender;
+		_surrender.Visible = d.CanSurrender || d.SurrenderRelevant;
+		_surrender.State = d.CanSurrender ? KitButtonState.Warn : KitButtonState.Disabled;
+		_surrender.Sub = d.CanSurrender ? "" : d.SurrenderReason;
 		_tCombat.Text = d.TargetCombat;
 		_tCombat.Visible = d.TargetCombat.Length > 0;
 		if (d.TargetCombat.Length > 0) _tName.AddThemeColorOverride("font_color", d.TargetHostile ? UiKit.Red : UiKit.Orange);
