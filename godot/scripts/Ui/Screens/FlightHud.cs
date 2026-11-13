@@ -135,6 +135,29 @@ public partial class FlightHud : Control, IScreen
 	public string TestEscapeStatus => _escape.Visible ? _escape.Text : "";
 	public string TestStationAttackSub => _stationAttack.Sub;
 	public string TestTargetName => _tName.Text;
+
+	/// <summary>
+	/// Runde 7: der Hinweis (Toast) ist mehrzeilig gewachsen — Beschuss- und Fluchtzeile rücken unter ihn (vorher überdeckte „BESCHUSS (Station)“ den Hinweis
+	/// „Verstärkung (Verband) …“). <paramref name="bottom"/> = Unterkante des sichtbaren Hinweises im Flug, 0 = keiner.
+	/// </summary>
+	public Rect2 TestHitWarningRect => new(_hitWarning.Position, _hitWarning.Size);
+	public void AvoidToast(float bottom)
+	{
+		float y = MathF.Max(HitWarningY, bottom + 4f);
+		if (MathF.Abs(_hitWarning.Position.Y - y) > 0.5f) { _hitWarning.Position = new Vector2(_hitWarning.Position.X, y); _escape.Position = new Vector2(_escape.Position.X, y + 34f); }
+	}
+	const float HitWarningY = 214f;
+
+	/// <summary>Selbsttest Runde 7: Lage aller Kampftasten und -zeilen, als wären sie sichtbar (Name → Rechteck); Sichtbarkeit bleibt unverändert.</summary>
+	public List<(string Name, Rect2 Rect)> TestCombatLayout(int bays)
+	{
+		var list = new List<(string, Rect2)>();
+		for (int i = 0; i < bays && i < _bayButtons.Count; i++) list.Add(($"Schacht {i + 1}", new Rect2(_bayButtons[i].Position, _bayButtons[i].Size)));
+		foreach (var (n, c) in new (string, Control)[] { ("Alle Feuer", _allFire), ("Dauerfeuer", _autoFire), ("Nächster Gegner", _nextEnemy), ("Station angreifen", _stationAttack),
+			("Ziel folgen", _aimAssist), ("Ergeben", _surrender), ("Beschusswarnung", _hitWarning), ("Fluchtzeile", _escape), ("Zielkarte", _tName.GetParent().GetParent<Control>()) })
+			list.Add((n, new Rect2(c.Position, c.Size)));
+		return list;
+	}
 	/// <summary>Selbsttest: Zielkartenzeile Schild/Hülle, Beschusswarnung, Lage und Größe der Kampftasten.</summary>
 	public string TestTargetCombat => _tCombat.Text;
 	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
@@ -401,7 +424,9 @@ public partial class FlightHud : Control, IScreen
 	const int MaxBays = 6;
 	const float BayH = 56f, BayStep = 60f;
 	/// <summary>Phase 25: Lage einer Schachttaste — vier in der rechten Spalte, weitere links daneben.</summary>
-	static (float X, float Y) BayPos(int i) => i < 4 ? (1090f, 330f + i * BayStep) : (906f, 330f + (i - 4) * BayStep);
+	/// Runde 7 (Handy-Test, Bollwerk mit fünf und mehr Schächten): die zweite Spalte beginnt unter „Ergeben“ (y 398–454) — vorher lag der fünfte Schacht unter
+	/// „Ziel folgen“, der sechste unter „Ergeben“.
+	static (float X, float Y) BayPos(int i) => i < 4 ? (1090f, 330f + i * BayStep) : (906f, 456f + (i - 4) * BayStep);
 
 	/// <summary>Fenster mit freier Platzierung der Kinder (ein PanelContainer würde alle Kinder strecken).</summary>
 	static Control Win(Control parent, float x, float y, float w, float h, Color bg, Color? border, int radius)

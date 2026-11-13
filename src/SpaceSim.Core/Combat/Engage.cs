@@ -23,18 +23,31 @@ public static class Engage
     }
 
     /// <summary>
-    /// Ein Schiff tritt bei: Seite, Taktik, Position auf der Gefechtslinie. Zieht genau zwei Zufallszahlen (Mut, Abwurfanteil), unabhängig von der Rolle.
+    /// Ein Schiff tritt bei: Seite, Taktik, Position auf der Gefechtslinie. Zieht genau zwei Zufallszahlen (Mut, Abwurfanteil), unabhängig von der Rolle — Runde 7: außer beim Wiedereintritt (alter Eintrag, kein Zug; <see cref="EconomyRules.CombatRejoinReuse"/>).
     /// </summary>
     public static CombatParticipant Join(Universe u, Encounter e, Ship ship, int side, string tactic, float x, Vec2? pos = null)
     {
         var r = u.Rules;
-        double courage = u.Rng.NextDouble(), drop = u.Rng.NextDouble();
-        var p = new CombatParticipant
+        CombatParticipant p;
+        bool reuse = r.CombatRejoinReuse && e.Of(ship.Id) is { Active: false };
+        if (reuse)
         {
-            Ship = ship.Id, Side = side, Tactic = tactic, X = x, PrevMode = ship.Systems.Mode, Owner = ship.Owner,
-            Courage = r.SurrenderHullMin + (float)courage * MathF.Max(0f, r.SurrenderHullMax - r.SurrenderHullMin),
-            DropShare = r.SurrenderDropMin + (float)drop * MathF.Max(0f, r.SurrenderDropMax - r.SurrenderDropMin),
-        };
+            // Runde 7: Wiedereintritt — derselbe Eintrag (Mut, Abwurfanteil, Nachladeuhren bleiben; kein Zufallszug), neu: Seite, Taktik, Ort, Ziel, Zuflucht
+            p = e.Of(ship.Id)!;
+            p.Exit = CombatExit.None; p.Side = side; p.Tactic = tactic; p.X = x; p.PrevMode = ship.Systems.Mode; p.Owner = ship.Owner;
+            p.Target = default; p.TargetStation = default; p.Move = CombatMove.Approach; p.Speed = 0f;
+            p.RefugeId = 0; p.Refuge = 0f; p.RefugePos = default; p.WasDockedAt = default; p.Dir = new Vec2(0f, -1f);
+        }
+        else
+        {
+            double courage = u.Rng.NextDouble(), drop = u.Rng.NextDouble();
+            p = new CombatParticipant
+            {
+                Ship = ship.Id, Side = side, Tactic = tactic, X = x, PrevMode = ship.Systems.Mode, Owner = ship.Owner,
+                Courage = r.SurrenderHullMin + (float)courage * MathF.Max(0f, r.SurrenderHullMax - r.SurrenderHullMin),
+                DropShare = r.SurrenderDropMin + (float)drop * MathF.Max(0f, r.SurrenderDropMax - r.SurrenderDropMin),
+            };
+        }
         // Befehlsebene: der Ausführer ruht wie im Notfall (Start beim Austritt)
         if (ship.Command is { } cmd && !ship.Emergency && OrderExecutors.Default.TryGet(cmd.Kind, out var ex))
         {
@@ -51,7 +64,7 @@ public static class Engage
         p.Pos = p.PrevPos = pos ?? ship.Position;
         if (e.Spatial && ship.Id != u.PlayerShip) ship.Position = p.Pos;
         if (e.Spatial && CombatSense.NearestInSpace(e, p) is { } near && Vec2.Distance(near.Pos, p.Pos) > 1e-3f) p.Dir = (near.Pos - p.Pos).Normalized();
-        e.Participants.Add(p);
+        if (!reuse) e.Participants.Add(p);
         u.Fights.Mark(ship.Id, e.Id);
         CombatRefuge.Assign(u, e, p, ship);   // Phase 27: nächste Zuflucht (Station/Tor) für die Flucht merken
         return p;

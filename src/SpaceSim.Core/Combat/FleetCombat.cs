@@ -44,11 +44,18 @@ public static class Reinforcements
                 if (!m.Has(Capability.Combat) || m.Emergency || Squadrons.RulesOf(u, m) is not (Engagement.Defend or Engagement.Attack)) continue;
                 // Runde 5: ein angeschlagenes Begleitschiff des Spielers, das sich zurückgezogen hat, tritt nicht sofort wieder bei (vorher Beitritt/Rückzug im Takt)
                 if (m.IsPlayer && m.Hull < u.Rules.EscortRetreatHull * m.MaxHull) continue;
+                // Runde 7: auch Rudel und Streifen — wer sich unter seiner Rückzugsschwelle zurückgezogen hat, tritt nicht im Zehn-Takt-Rhythmus wieder bei
+                // (gemessen bis Runde 6: 56 von 86 Rudel-Beitritten in 20000 Ticks waren Wiedereintritte desselben Kaperers in dasselbe Gefecht)
+                if (u.Rules.CombatRejoinReuse && m.Hull < RetreatHull(u, m) * m.MaxHull) continue;
                 if (ThreatMap.Where(u, m).Sector != sector) continue;
                 list.Add((m, ThreatMap.IsRaider(m) ? "pack" : "squadron"));
             }
         return list;
     }
+
+    /// <summary>Runde 7: Rückzugsschwelle (Anteil der Hülle) der Taktik, mit der das Schiff beiträte.</summary>
+    public static float RetreatHull(Universe u, Ship s) =>
+        ThreatMap.IsRaider(s) ? u.Rules.RaiderFleeHull : ThreatMap.IsPolice(s) ? u.Rules.PoliceRetreatHull : Wars.IsWarship(s) ? u.Rules.WarshipRetreatHull : u.Rules.EscortRetreatHull;
 
     /// <summary>
     /// Tritt einem laufenden Gefecht auf Seite <paramref name="side"/> bei — neben <paramref name="near"/> (Gefechtslinie: etwas hinter ihm, Raum: aus der Richtung

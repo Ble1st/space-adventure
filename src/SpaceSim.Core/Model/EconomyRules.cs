@@ -680,6 +680,11 @@ public sealed class EconomyRules
     /// die längste Nachladezeit 8 s) — vorher lief die Nachladeuhr im selben Takt auf 0, in dem die Flucht geprüft wurde, und der Spieler galt zwischen zwei Salven als geflohen.
     /// </summary>
     public int PlayerFireHoldTicks = 40;
+    /// <summary>
+    /// Runde 7: ein Schiff hat in einem Gefecht nie zwei Einträge — wer wieder beitritt, nimmt seinen alten Eintrag (Mut, Abwurfanteil und Nachladeuhren
+    /// bleiben, kein Zufallszug). false = Verhalten bis Runde 6 (neuer Eintrag mit zwei Zufallszügen; <see cref="Model.Encounter.Of"/> fand weiter den alten).
+    /// </summary>
+    public bool CombatRejoinReuse = true;
     /// <summary>Trefferregel: Trefferchance fällt bis zur Reichweite um diesen Anteil (quadratisch im Abstandsverhältnis).</summary>
     public float HitRangeFalloff = 0.5f;
     /// <summary>Trefferregel: Zieltempo, gegen das „tracking“ gemessen wird (Einheiten je Sekunde).</summary>
