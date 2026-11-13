@@ -62,7 +62,9 @@ public static class Reinforcements
             : e.Cause == EncounterCause.Siege && side == 0 ? CombatTactics.Siege : CombatTactics.Escort;
         float x = near is null ? (side == 0 ? 0f : u.Rules.CombatStartDistance) : near.X + (near.Side == 0 ? -HelperGap : HelperGap);
         Vec2? pos = e.Spatial ? CombatSpace.Clear(u, e.Sector, CombatSpace.Around(near?.Pos ?? ship.Position, ship.Position, HelperGap)) : null;
-        var p = Engage.Join(u, e, ship, side, tactic, x, pos);
+        // Runde 6: eigene Schiffe des Spielers treten mit ihrem alten Eintrag wieder bei (kein zweiter Eintrag, den Encounter.Of nicht fände); NPCs wie bisher
+        var p = ship.IsPlayer && e.Of(ship.Id) is { Active: false } old && old.Side == side ? Engage.Rejoin(u, e, old, ship) : Engage.Join(u, e, ship, side, tactic, x, pos);
+        if (pos is { } rp && p.InSpace) { p.Pos = p.PrevPos = rp; ship.Position = rp; }
         if (ThreatMap.IsPolice(ship) && e.Police.Value == 0 && e.Raider.Value != 0 && e.Of(e.Raider)?.Side != side) e.Police = ship.Id;
         u.Events.Publish(new CombatJoined(e.Id, ship.Id, side, reason));
         return p;

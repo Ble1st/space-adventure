@@ -5,7 +5,7 @@ ausschließlich mit eigenen Python-Skripten im lokal installierten Blender (kein
 
 | Datei | Inhalt |
 |---|---|
-| `stationkit.py` | Materialpalette (u. a. `Accent` für die Fraktionsfarbe), `Builder` mit Primitiven (Rotationskörper, Prismen, Kästen, Streben, Gitterträger, Geschütztürme, Schüsseln, Fels), Abschluss: zentrieren, auf Radius 1 in der Spielebene normieren, scharfe Kanten ab 33° |
+| `stationkit.py` | Materialpalette (u. a. `Accent` für die Fraktionsfarbe), `Builder` mit Primitiven (Rotationskörper, Prismen, Kästen, Streben, Gitterträger, Geschütztürme, Schüsseln, Fels, Druckmodule, Kernspindel, Andockstutzen, Radiator-/Solarflügel, Manövrierdüsen, Greifer), Abschluss: zentrieren, auf Radius 1 in der Spielebene normieren, scharfe Kanten ab 33° |
 | `station_models.py` | eine Bau-Funktion je Typ-Key (`MODELS`), Kurzbeschreibung der Modellidee im Dekorator |
 | `build_stations.py` | baut alle Typen, exportiert GLB, rendert Vorschaubilder (Eevee) und den Kontaktbogen |
 | `verify_stations.py` | Re-Import aller GLBs: Dreiecke, Materialien, Radius, Höhe, Größe |
@@ -21,7 +21,8 @@ blender --background --factory-startup --python tools/blender/verify_stations.py
 ```
 
 Ausgaben: `godot/assets/stations/<typeKey>.glb`, `docs/stations/<typeKey>.png` (1024×768),
-`docs/stations/_overview.png`. Ein neuer Stationstyp ohne Eintrag in `MODELS` bricht den Lauf ab.
+`docs/stations/_overview.png` und `docs/stations/overview.jpg` (JPEG q88, die eingecheckte Übersicht;
+die PNGs sind per .gitignore ausgenommen). Ein neuer Stationstyp ohne Eintrag in `MODELS` bricht den Lauf ab.
 
 ## Konventionen
 
@@ -32,3 +33,9 @@ Ausgaben: `godot/assets/stations/<typeKey>.glb`, `docs/stations/<typeKey>.png` (
   `Ice`, `Crystal`, `Container`); Leuchtmaterialien über Emission.
 - `Accent` ist fast weiß, damit eine Fraktionsfarbe per Multiplikation darüber gelegt werden kann.
 - Vorschau-Rendering: Eevee, Farbraum „Khronos PBR Neutral“, drei Sonnenlichter, Sternenhimmel.
+
+## Gestaltungsregel
+
+Raumstationen, keine Bodenbauten: kein Fundament und kein klares „Unten“, Aufbau um eine Nabe,
+Achse oder einen Gitterträger in alle Richtungen (auch unter die Ebene), Module an Knoten und
+Auslegern. Die Silhouette muss aus schräger Draufsicht (15–85°) lesbar sein.

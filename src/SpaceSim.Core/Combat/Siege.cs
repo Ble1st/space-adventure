@@ -41,6 +41,27 @@ public static class Siege
     }
 
     /// <summary>
+    /// Gerätetest Phase 28 (Runde 6): Rückzug des Spielers aus einer Belagerung (als geflohen gewertet) — seine eigenen Schiffe im Gefecht (Verband, Begleiter)
+    /// brechen ab und arbeiten ihren Befehl weiter (Verbandsmitglieder: dem Anführer folgen); bleibt kein Angreifer, endet das Gefecht im selben Takt.
+    /// Ereignis <see cref="SiegeWithdrawn"/>. Ohne <see cref="EconomyRules.FleetCombat"/> nichts.
+    /// </summary>
+    public static void Withdraw(Universe u, Encounter e, CombatParticipant player)
+    {
+        if (!u.Rules.FleetCombat || e.Cause != EncounterCause.Siege || player.Side != 0 || player.Ship != u.PlayerShip) return;
+        int n = 0;
+        foreach (var q in e.Participants.ToList())
+        {
+            if (!q.Active || q.Side != player.Side || q.Ship == player.Ship || !u.Ships.TryGetValue(q.Ship, out var s) || s.Owner != player.Owner) continue;
+            Engage.Leave(u, e, q, CombatExit.Fled);
+            Engage.Resume(u, s);
+            n++;
+        }
+        string name = u.Stations.TryGetValue(e.Station, out var st) ? st.Name : "der Station";
+        string msg = n > 0 ? $"Rückzug: Angriff auf {name} abgebrochen — dein Verband ({n}) folgt dir." : $"Rückzug: Angriff auf {name} abgebrochen.";
+        u.Events.Publish(new SiegeWithdrawn(e.Id, e.Station, player.Ship, n, msg));
+    }
+
+    /// <summary>
     /// Verstärkung: Polizei und Kriegsschiffe der Stationsfraktion im Sektor (nicht im Gefecht) verteidigen; Kriegsschiffe mit Angriffsbefehl auf diese Station
     /// greifen mit an. Feste Reihenfolge (Ids).
     /// </summary>
@@ -55,9 +76,19 @@ public static class Siege
             bool attacker = Wars.IsWarship(s) && s.Command is AssaultCommand ac && ac.Station == e.Station;
             if (mine && StationCombat.Defends(u, e))
             {
+                // Runde 6: ein Verteidiger, der sich mit schwerem Schaden zurückgezogen hat, kommt nicht im Zehn-Takt-Rhythmus wieder (vorher Beitritt, Flucht,
+                // Beitritt … mit zwei Zufallszügen und einem neuen Eintrag je Runde); wer wiederkommt, nimmt seinen alten Eintrag
+                float retreat = Wars.IsWarship(s) ? u.Rules.WarshipRetreatHull : u.Rules.PoliceRetreatHull;
+                if (s.Hull < retreat * s.MaxHull) continue;
                 float x = e.StationX - 10f - n * Reinforcements.HelperGap;
-                Engage.Join(u, e, s, 1, Wars.IsWarship(s) ? CombatTactics.Siege : CombatTactics.Police, x,
-                    e.Spatial ? CombatSpace.Clear(u, e.Sector, CombatSpace.Around(st.Position, s.Position, Station.BodyRadius + 15f)) : null);
+                var at = e.Spatial ? CombatSpace.Clear(u, e.Sector, CombatSpace.Around(st.Position, s.Position, Station.BodyRadius + 15f)) : (Vec2?)null;
+                if (e.Of(s.Id) is { Active: false } old && old.Side == 1)
+                {
+                    Engage.Rejoin(u, e, old, s);
+                    old.X = x;
+                    if (at is { } ap) { old.Pos = old.PrevPos = ap; s.Position = ap; }
+                }
+                else Engage.Join(u, e, s, 1, Wars.IsWarship(s) ? CombatTactics.Siege : CombatTactics.Police, x, at);
                 n++;
             }
             else if (attacker)

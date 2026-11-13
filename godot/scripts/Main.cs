@@ -705,6 +705,14 @@ public partial class Main : Node3D
 			case PlayerIntercepted pi: _hud.Toast(pi.Message, 6f); LastSecurityMessage = pi.Message; break;
 			// Phase 27: Flottenkampf — Ergeben, Polizeigefecht, Verstärkung, Zuflucht, Verfolgung, Geleit im Spielersektor
 			case PlayerSurrendered ps: _hud.Alert(ps.Message, 6f); LastSecurityMessage = ps.Message; break;
+			// Runde 6: Rückzug aus der eigenen Belagerung bzw. ihr Ende — Angriff in der Zielkarte beenden, Dauerfeuer aus, Meldung
+			case SiegeWithdrawn sw when sw.Player == _session.U.PlayerShip:
+				_fight.ArmStation(default); _fight.AutoFire = false;
+				_hud.Alert(sw.Message, 6f); LastCombatMessage = sw.Message; break;
+			case EncounterEnded se when se.Cause == EncounterCause.Siege && se.Sector == _session.U.PlayerSector:
+				if (_fight.AtStation && _session.U.Stations.TryGetValue(_fight.StationTarget, out var downSt) && SpaceSim.Core.Combat.StationCombat.IsDown(_session.U, downSt))
+				{ _fight.ArmStation(default); _fight.AutoFire = false; }
+				_hud.Toast(se.Message, 4f); LastCombatMessage = se.Message; break;
 			case EncounterEnded ae when ae.Cause == EncounterCause.Arrest: _hud.Alert(ae.Message, 6f); LastCombatMessage = ae.Message; break;
 			case CombatJoined or RefugeReached or PursuitStarted or EscortAssigned or ForceSquadron when SpaceSim.Core.Combat.FleetInfo.Toast(_session.U, e) is { } ft:
 				_hud.Toast(ft, 3.5f); LastFleetMessage = ft; break;
@@ -1356,10 +1364,8 @@ public partial class Main : Node3D
 			_hud.Toast(SpaceSim.Core.Combat.DamageInfo.WreckLine(_session.U, wreck));
 			return;
 		}
-		// Runde 4: Tipp auf einen Stationskörper (im Bildschirmraum, mindestens 28 Gerätepixel) gewinnt gegen Schiffe — vorher traf ein Tipp aufs HQ einen Frachter davor.
-		// Runde 5: außer der Tipp liegt näher an einem Schiffsmarker als an der Stationsmitte (ein Schiff neben der Station bleibt antippbar)
-		// Phase 25: Schiffe antippbar (Ziel für die Waffen; Zielkarte zeigt Schild und Hülle)
-		// Gerätetest: Trefferfläche im Bildschirmraum (≥ 56 Gerätepixel), nächstes Schiff gewinnt
+		// Stationen und Schiffe im Bildschirmraum: Stationskörper ≥ 28 Gerätepixel, Schiffsmarker ≥ 56 (nächstes gewinnt). Der Stationskörper gewinnt, außer der Tipp
+		// liegt näher an einem Schiffsmarker als an der Stationsmitte (Runde 4/5). Ein gewähltes Schiff ist Waffenziel (Zielkarte mit Schild und Hülle).
 		float pickPx = Mathf.Max(40f, 56f * GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, DisplayServer.WindowGetSize().X));
 		Vector2? ToScreen(Vec2 p) => _cam.IsPositionBehind(new Vector3(p.X, 0, p.Y)) ? null : _cam.UnprojectPosition(new Vector3(p.X, 0, p.Y));
 		var shipHit = CombatController.PickScreen(_view.ShipMarkers(), ToScreen, screen, pickPx);

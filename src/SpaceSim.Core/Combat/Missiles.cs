@@ -49,7 +49,7 @@ public static class Missiles
         float speed = MathF.Max(1f, m.Stat("missileSpeed"));
         var f = new MissileFlight
         {
-            Shooter = shooter?.Id ?? default, Owner = shooter?.Owner ?? fromStation?.Owner ?? default, Side = side, Module = m.Key,
+            Shooter = shooter?.Id ?? default, FromStation = fromStation?.Id ?? default, Owner = shooter?.Owner ?? fromStation?.Owner ?? default, Side = side, Module = m.Key,
             Target = target, Station = targetStation, Left = MathF.Max(0f, distance), Total = MathF.Max(0f, distance), Speed = speed, From = from,
         };
         e.Missiles.Add(f);
@@ -101,8 +101,9 @@ public static class Missiles
         if (res.Hit) e.Hits++;
         u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, default, res.Hit ? "hit" : "miss", res.ShieldDamage, dealt));
         if (target.Hull <= 0f && tp.Active)
-            Engage.Destroy(u, e, tp, target, u.Ships.TryGetValue(f.Shooter, out var by) ? $"Rakete: {CombatSense.Who(u, by)}"
-                : f.Shooter.Value == 0 ? $"Stationsrakete ({u.ActorName(f.Owner)})" : $"Rakete: {u.ActorName(f.Owner)}");   // Runde 5: der letzte Schütze
+            Engage.Destroy(u, e, tp, target, f.FromStation.Value != 0   // Runde 6: Station ausdrücklich gemerkt (vorher an Schützen-Id 0 erkannt)
+                ? $"Stationsrakete ({(u.Stations.TryGetValue(f.FromStation, out var fs) ? fs.Name : u.ActorName(f.Owner))})"
+                : u.Ships.TryGetValue(f.Shooter, out var by) ? $"Rakete: {CombatSense.Who(u, by)}" : $"Rakete: {u.ActorName(f.Owner)}");   // Runde 5: der letzte Schütze
     }
 
     /// <summary>Raketen aus dem Lager einer Station nachladen (Marktpreis, höchstens Bestand und was der Zahler hat). Liefert die Einheiten.</summary>

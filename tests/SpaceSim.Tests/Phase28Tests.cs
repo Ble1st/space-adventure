@@ -1283,7 +1283,7 @@ public class Phase28Tests
         var (alive, down, seconds, ev) = AttackStation(u, hq, 40f, 400, e => { if (e is ShotFired f && u.Ships.TryGetValue(f.Shooter, out var s) && ThreatMap.IsPolice(s)) policeShots++; });
         Assert.True(down, $"das HQ ist ausgeschaltet ({WarInfo.StationShort(u, hq)} nach {seconds} s)");
         Assert.True(alive, "das Bollwerk lebt");
-        Assert.True(seconds <= 300, $"in höchstens fünf Minuten ({seconds} s)");
+        Assert.True(seconds >= 120 && seconds <= 240, $"spürbar, aber in zwei bis vier Minuten ({seconds} s)");   // Runde 6: Richtwert 2–4 min
         Assert.Contains(ev, e => e is CombatJoined j && j.Reason == "squadron" && sq.Members.Contains(j.Ship));
         Assert.True(policeShots > 0, "die Polizei hat verteidigt");
     }
@@ -1351,6 +1351,8 @@ public class Phase28Tests
         // Nachladen vorbei, keine Rakete unterwegs: nichts reicht mehr — frei
         for (int i = 0; i < p.Timers.Count; i++) p.Timers[i] = 0f;
         e.Missiles.Clear();
+        Assert.StartsWith("eigene Waffen feuern noch", CombatSense.EscapeBlock(u, e, p));   // Runde 6: der letzte Schuss hält noch (zwischen zwei Salven)
+        p.LastShotTick = u.Tick - u.Rules.PlayerFireHoldTicks - 1;
         Assert.Null(CombatSense.EscapeBlock(u, e, p));
         // Streife auf 50 m: sie reicht (60 m) — die Anzeige nennt sie
         cp.Pos = me.Position + new Vec2(50f, 0f);
@@ -1367,5 +1369,66 @@ public class Phase28Tests
         for (int i = 0; i < 4 && u.Fights.IsEngaged(me.Id); i++) runner.Step(u);
         Assert.False(u.Fights.IsEngaged(me.Id), "geflohen");
         Assert.Contains(ev, x => x is CombatExited c && c.Ship == me.Id && c.Exit == CombatExit.Fled);
+    }
+
+    /// <summary>
+    /// Sechster Gerätetest (Runde 6, Ursache „Station fällt in 25 s“): Nach einem Rückzug aus der Belagerung stand der Spieler noch als abgelaufener Teilnehmer im
+    /// Gefecht; sein nächster Schuss trat nicht neu bei — die Nachladeuhr las den alten Eintrag (0), Dauerfeuer schoss jedes Bild (gemessen: 700 Schüsse in 10 s,
+    /// Station 2003 → 260), und Geschütze/Verteidiger sahen ihn nicht. Jetzt: Rückzug beendet die Belagerung, der eigene Verband bricht ab und folgt; der nächste
+    /// Schuss beginnt eine neue Belagerung mit gültiger Nachladeuhr.
+    /// </summary>
+    [Fact]
+    public void Belagerung_RueckzugBeendetSie_WiedereinstiegMitNachladeuhr()
+    {
+        var u = Standard(start: "war");
+        var me = u.Ships[u.PlayerShip];
+        var wing = Squadrons.Get(u, me)!.Members.Where(id => id != me.Id).ToList();
+        var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+        var runner = new SimulationRunner();
+        runner.Step(u);
+        var ev = Capture(u);
+        float Bearing() => FiringArc.Bearing(hq.Position - me.Position);
+        foreach (int s in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFireAtStation(u, me, s, hq.Id, Bearing());
+        for (int i = 0; i < 20; i++) runner.Step(u);
+        Assert.All(wing, id => Assert.True(u.Fights.IsEngaged(id), "der Verband greift mit an"));
+        // Rückzug: weit weg, nicht mehr schießen
+        me.Position = hq.Position + (me.Position - hq.Position).Normalized() * 260f;
+        for (int i = 0; i < 80 && u.Fights.IsEngaged(me.Id); i++) runner.Step(u);
+        Assert.False(u.Fights.IsEngaged(me.Id), "zurückgezogen");
+        var sw = Assert.Single(ev.OfType<SiegeWithdrawn>());
+        Assert.Equal(2, sw.Wingmen);
+        Assert.StartsWith("Rückzug: Angriff auf Sektor-HQ Beta abgebrochen", sw.Message);
+        Assert.Null(Siege.Of(u, hq.Id));
+        Assert.Contains(ev, x => x is EncounterEnded { Cause: EncounterCause.Siege });
+        Assert.All(wing, id => { Assert.False(u.Fights.IsEngaged(id)); Assert.IsType<FollowCommand>(u.Ships[id].Command); });
+        // wieder heran und jedes Bild feuern (60 Bilder/s ≈ 15 Aufrufe je Takt): Schüsse nur im Takt der Nachladezeiten
+        me.Position = hq.Position + (me.Position - hq.Position).Normalized() * 50f;
+        int shots = 0;
+        for (int i = 0; i < 10 * SimClock.TicksPerSecond; i++)
+        {
+            for (int k = 0; k < 15; k++)
+                foreach (int s in PlayerGunnery.WeaponSlots(u, me))
+                    if (PlayerGunnery.TryFireAtStation(u, me, s, hq.Id, Bearing()).Result == GunResult.Fired) shots++;
+            runner.Step(u);
+        }
+        Assert.True(shots <= 20, $"höchstens im Nachladetakt: {shots} Schüsse in 10 s");
+        Assert.True(Siege.Of(u, hq.Id)?.Of(me.Id) is { Active: true }, "aktiver Teilnehmer der neuen Belagerung");
+        // der Fall vom Handy: der Spieler hat die noch laufende Belagerung verlassen (der Verband kämpft weiter) und schießt wieder — derselbe Eintrag wird wieder aktiv
+        var e = Siege.Of(u, hq.Id)!;
+        for (int i = 0; i < 20; i++) runner.Step(u);   // der Verband ist wieder dabei
+        Assert.Contains(e.Participants, q => q.Active && wing.Contains(q.Ship));
+        Engage.Leave(u, e, e.Of(me.Id)!, CombatExit.Fled);
+        Assert.False(u.Fights.IsEngaged(me.Id));
+        shots = 0;
+        for (int i = 0; i < 10 * SimClock.TicksPerSecond; i++)
+        {
+            for (int k = 0; k < 15; k++)
+                foreach (int s in PlayerGunnery.WeaponSlots(u, me))
+                    if (PlayerGunnery.TryFireAtStation(u, me, s, hq.Id, Bearing()).Result == GunResult.Fired) shots++;
+            runner.Step(u);
+        }
+        Assert.True(shots <= 20, $"nach dem Wiederbeitritt höchstens im Nachladetakt: {shots} Schüsse in 10 s (vorher ≈ 700)");
+        Assert.Equal(1, e.Participants.Count(q => q.Ship == me.Id));
+        Assert.True(e.Of(me.Id) is { Active: true } && u.Fights.Of(me.Id) == e, "wieder aktiver Teilnehmer derselben Belagerung");
     }
 }

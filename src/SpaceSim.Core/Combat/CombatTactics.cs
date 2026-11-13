@@ -97,8 +97,12 @@ public static class CombatSense
     /// <summary>
     /// Gerätetest Phase 28 (Runde 5): schießt der Teilnehmer noch — eine seiner Waffen lädt nach einem Schuss nach oder eine seiner Raketen fliegt?
     /// </summary>
-    public static bool StillShooting(Encounter e, CombatParticipant p)
+    public static bool StillShooting(Encounter e, CombatParticipant p) => StillShooting(null, e, p);
+
+    /// <summary>Wie oben; Runde 6: mit Universum zählt auch ein eigener Schuss in den letzten <see cref="EconomyRules.PlayerFireHoldTicks"/> Ticks.</summary>
+    public static bool StillShooting(Universe? u, Encounter e, CombatParticipant p)
     {
+        if (u is not null && p.LastShotTick != 0 && u.Tick - p.LastShotTick <= u.Rules.PlayerFireHoldTicks) return true;
         foreach (var t in p.Timers) if (t > 0f) return true;
         foreach (var f in e.Missiles) if (f.Shooter == p.Ship) return true;
         return false;
@@ -113,7 +117,7 @@ public static class CombatSense
     public static string? EscapeBlock(Universe u, Encounter e, CombatParticipant p)
     {
         var r = u.Rules;
-        float own = r.Warfare && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var pShip) && StillShooting(e, p) ? MaxRange(u, pShip) : 0f;
+        float own = r.Warfare && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var pShip) && StillShooting(u, e, p) ? MaxRange(u, pShip) : 0f;
         foreach (var q in Enemies(u, e, p))
         {
             float theirs = MathF.Max(r.CombatMinEscapeDistance, MaxRange(u, u.Ships[q.Ship]));

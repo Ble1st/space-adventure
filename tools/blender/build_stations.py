@@ -7,6 +7,7 @@ Ausgaben:
     godot/assets/stations/<typeKey>.glb
     docs/stations/<typeKey>.png      (1024x768, Eevee)
     docs/stations/_overview.png      (Kontaktbogen mit deutschen Namen)
+    docs/stations/overview.jpg       (dieselbe Uebersicht als JPEG q88, eingecheckt)
 """
 
 import json
@@ -281,7 +282,13 @@ def main():
     for key, name, tris, nm, size, dt in report:
         print(f"{key:20s} {name:28s} tris={tris:5d} mats={nm} glb={size/1024:6.1f} KiB  {dt:5.1f}s")
     if opt["overview"] and (opt["only"] is None or opt.get("overview_only")):
-        overview(types, os.path.join(IMG_DIR, "_overview.png"))
+        png = os.path.join(IMG_DIR, "_overview.png")
+        overview(types, png)
+        im = bpy.data.images.load(png)
+        sc = bpy.context.scene
+        sc.render.image_settings.file_format = "JPEG"
+        sc.render.image_settings.quality = 88
+        im.save_render(os.path.join(IMG_DIR, "overview.jpg"), scene=sc)
         print("Uebersicht geschrieben")
 
 

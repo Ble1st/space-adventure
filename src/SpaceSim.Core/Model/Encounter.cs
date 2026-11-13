@@ -62,6 +62,11 @@ public sealed class CombatParticipant
     /// </summary>
     public float Refuge;
     public int RefugeId;
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 6): Tick des letzten eigenen Schusses des aktiven Spielerschiffs (0 = keiner). Solange er höchstens
+    /// <see cref="EconomyRules.PlayerFireHoldTicks"/> zurückliegt, hält die eigene Reichweite das Gefecht fest (<c>CombatSense.StillShooting</c>).
+    /// </summary>
+    public long LastShotTick;
     public Vec2 RefugePos;
     /// <summary>Phase 28: Station als Ziel des Takts (Belagerung; aus der Taktik, jeden Takt neu — nicht gespeichert).</summary>
     public StationId TargetStation;
@@ -113,6 +118,7 @@ public sealed class Encounter
 
     public CombatParticipant? Of(ShipId ship)
     {
+        // Runde 6: der Spieler tritt über Engage.Rejoin mit seinem alten Eintrag wieder bei (kein zweiter Eintrag); NPC-Wiederbeitritte bleiben wie bisher
         foreach (var p in Participants) if (p.Ship == ship) return p;
         return null;
     }
