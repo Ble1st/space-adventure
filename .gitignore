@@ -11,3 +11,4 @@ docs/stations/*.png
 docs/ships/*.png
 docs/gates/*.png
 .claude/worktrees/
+docs/music/*.wav
