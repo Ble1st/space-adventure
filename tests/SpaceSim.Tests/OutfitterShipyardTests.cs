@@ -402,7 +402,7 @@ public class OutfitterShipyardTests
     public void Startpakete_ErzeugenWeltMitGewaehltemModellUndGeld_OhneWahlWieBisher()
     {
         var options = WorldBuilder.DefaultStartOptions();
-        Assert.Equal(new[] { "miner", "trader", "generalist", "fighter", "test" }, options.Select(o => o.Key));   // Phase 25: Startpaket „Jäger“; Gerätetest Phase 26: Testszenario
+        Assert.Equal(new[] { "miner", "trader", "generalist", "fighter", "test", "combat", "arrest" }, options.Select(o => o.Key));   // Phase 25: Startpaket „Jäger“; Gerätetest Phase 26: Testszenario; Gerätetest Phase 27: Gefechts- und Festnahmetest
         foreach (var (key, model) in new[] { ("miner", "prospector"), ("trader", "nomad"), ("generalist", "pip") })
         {
             var u = WorldBuilder.BuildDefault(startOption: key);

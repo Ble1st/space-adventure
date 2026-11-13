@@ -14,6 +14,8 @@ public sealed class RearmService : IStationService
 {
     public const string ServiceKey = "rearm";
     public const string Fill = "fill";
+    /// <summary>Phase 28: Raketenmagazin füllen („rearm:missiles“; nur Schiffe mit Raketenwerfer, nur mit Kriegsführung).</summary>
+    public const string MissilesKey = "missiles";
     public static readonly int[] Tiers = { 10, 30 };
 
     public string Key => ServiceKey;
@@ -42,12 +44,25 @@ public sealed class RearmService : IStationService
         list.Add(new ServiceOffer($"{ServiceKey}:{Fill}", $"Magazin füllen ({g.Name})", price, Deliverable(u, station, ship, float.MaxValue), g.Id, e.Amount, held) { Note = note });
         foreach (int t in Tiers)
             list.Add(new ServiceOffer($"{ServiceKey}:{t}", $"{t} {g.Name} laden", price, Deliverable(u, station, ship, t), g.Id, e.Amount, held) { Note = note });
+        if (MissileOffer(u, station, ship) is { } mo) list.Add(mo);   // Phase 28
         return list;
+    }
+
+    /// <summary>Phase 28: Angebot „Raketen laden“ (null = Schiff ohne Raketenwerfer, Kriegsführung aus oder Station ohne Raketen).</summary>
+    static ServiceOffer? MissileOffer(Universe u, Station st, Ship ship)
+    {
+        if (!u.Rules.Warfare || ship.Stats.MissileCapacity <= 0f || Missiles.MissileGood(u) is not { } mg || !st.Market.TryGetValue(mg.Id, out var me)) return null;
+        float mprice = Price(u, me, mg);
+        float units = MathF.Floor(MathF.Min(Missiles.Missing(u, ship), me.Amount));
+        if (mprice > 0f) units = MathF.Min(units, MathF.Floor(MathF.Max(0f, u.WalletOf(ship).Credits) / mprice));
+        string? note = Missiles.Missing(u, ship) < 1f ? "Raketenmagazin ist voll." : me.Amount < 1f ? "Keine Raketen im Lager." : null;
+        return new ServiceOffer($"{ServiceKey}:{MissilesKey}", $"Raketen laden ({mg.Name})", mprice, MathF.Max(0f, units), mg.Id, me.Amount, Missiles.Loaded(u, ship)) { Note = note };
     }
 
     public ServiceResult Execute(Universe u, Station station, Ship ship, ServiceRequest request)
     {
         float want;
+        if (request.Offer == $"{ServiceKey}:{MissilesKey}") return ExecuteMissiles(u, station, ship, request);   // Phase 28
         if (request.Offer == $"{ServiceKey}:{Fill}") want = float.MaxValue;
         else if (request.Offer.StartsWith($"{ServiceKey}:", StringComparison.Ordinal) && int.TryParse(request.Offer[(ServiceKey.Length + 1)..], out int v)
                  && Array.IndexOf(Tiers, v) >= 0 && request.Offer[(ServiceKey.Length + 1)..] == v.ToString()) want = v;
@@ -65,6 +80,20 @@ public sealed class RearmService : IStationService
         float paid = before - wallet.Credits;
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, request.Offer, Rearm.AmmoGood(u)!.Id, got, -paid));
         return new ServiceResult(true, got, -paid, $"{got:0} Munition geladen für {paid:0} Cr (Magazin {ship.AmmoLoaded:0}/{ship.Stats.AmmoCapacity:0}).");
+    }
+
+    ServiceResult ExecuteMissiles(Universe u, Station station, Ship ship, ServiceRequest request)
+    {
+        if (!IsAvailable(u, station) || MissileOffer(u, station, ship) is not { } offer) return Fail("Hier gibt es keine Raketen für dieses Schiff.");
+        if (!ship.IsPlayer) return Fail("Nur für den Spieler.");
+        if (offer.Amount < 1f) return Fail(offer.Note ?? "Nicht genügend Credits.");
+        var wallet = u.WalletOf(ship);
+        float before = wallet.Credits;
+        float got = Missiles.AtStation(u, ship, station, wallet, ship.Owner, false, offer.Amount);
+        if (got <= 0f) return Fail("Nachladen fehlgeschlagen.");
+        float paid = before - wallet.Credits;
+        u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, request.Offer, offer.Good, got, -paid));
+        return new ServiceResult(true, got, -paid, $"{got:0} Raketen geladen für {paid:0} Cr (Magazin {Missiles.Loaded(u, ship):0}/{ship.Stats.MissileCapacity:0}).");
     }
 
     static ServiceResult Fail(string m) => new(false, 0f, 0f, m);

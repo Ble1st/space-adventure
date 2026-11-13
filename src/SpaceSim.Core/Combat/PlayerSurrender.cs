@@ -52,7 +52,7 @@ public static class PlayerSurrender
             if (Enemy(u, e, p, police: true) is { } cop)
             {
                 var f = u.FactionOf(u.Ships[cop.Ship]) ?? sector.Owner;
-                var res = SecuritySystem.InterceptPlayer(u, me, sector, f);
+                var res = SecuritySystem.InterceptPlayer(u, me, sector, f, u.Rules.SurrenderFineAsDebt);
                 Engage.Leave(u, e, p, CombatExit.Surrendered);
                 CombatSystem.Finish(u, e, "surrendered");
                 ev = new PlayerSurrendered(true, sector.Id, res.FineCollected, "Ergeben: " + res.Message);
@@ -74,7 +74,8 @@ public static class PlayerSurrender
             var sector = u.Sectors[pending.Sector];
             if (pending.Kind == EncounterKind.Intercept)
             {
-                var res = SecuritySystem.InterceptPlayer(u, me, sector);
+                var res = SecuritySystem.InterceptPlayer(u, me, sector, sector.Owner, u.Rules.SurrenderFineAsDebt);
+                SecuritySystem.ArrestCooldown(u, me.Owner);
                 ev = new PlayerSurrendered(true, sector.Id, res.FineCollected, "Gestellt: " + res.Message);
             }
             else

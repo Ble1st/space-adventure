@@ -37,7 +37,7 @@ public class ModuleGoodsTests
     {
         var def = DefaultDef();
         var u = WorldBuilder.Build(def);
-        Assert.Equal(26, def.Goods.Count);   // 23 bis Phase 4 + zwei Bausatzstufen + Munition (Phase 23)
+        Assert.Equal(27, def.Goods.Count);   // 23 bis Phase 4 + zwei Bausatzstufen + Munition (Phase 23) + Rakete (Phase 28)
         var keys = u.Modules.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
         for (int i = 0; i < keys.Count; i++)
         {

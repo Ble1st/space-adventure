@@ -61,6 +61,10 @@ public sealed class ShipStats
     public float ShieldRegen;
     /// <summary>Phase 23: Magazin für Munition (Summe stats ammoCapacity: Magazinmodul, künftig Geschütze), getrennt vom Laderaum wie der Tank.</summary>
     public float AmmoCapacity;
+    /// <summary>Phase 28: Raketenmagazin (Summe stats missileCapacity der Raketenwerfer), getrennt vom Munitionsmagazin.</summary>
+    public float MissileCapacity;
+    /// <summary>Phase 28: Punktabwehr — Chance je anfliegender Rakete, sie abzuschießen (Summe stats pointDefense, gedeckelt in den Regeln).</summary>
+    public float PointDefense;
     /// <summary>Phase 24: Panzerung (Summe stats armor; steckt auch in <see cref="Hull"/>) — zieht je Treffer einen festen Betrag ab (<see cref="Combat.Hit"/>).</summary>
     public float Armor;
     /// <summary>Phase 24: Waffenstärke je Schaden pro Sekunde (abgeleitete Kennzahl aus den Waffenwerten: Schaden × Treffsicherheit ÷ Nachladezeit × dieser Faktor).</summary>
@@ -107,6 +111,8 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("shieldRegen", out var regen)) s.ShieldRegen += regen;    // Phase 23: Schild lädt nach
             if (m.Stats.TryGetValue("ammoCapacity", out var ammo)) s.AmmoCapacity += ammo;    // Phase 23: Magazin
             if (m.Stats.TryGetValue("extinguish", out var ext)) s.Extinguish += ext;          // Phase 26: Löschanlage
+            if (m.Stats.TryGetValue("missileCapacity", out var mc)) s.MissileCapacity += mc;  // Phase 28: Raketenmagazin
+            if (m.Stats.TryGetValue("pointDefense", out var pd)) s.PointDefense += pd;        // Phase 28: Punktabwehr
             foreach (var f in m.FuelTypes)
             {
                 int idx = s.FuelTypes.FindIndex(x => x.Good == f.Good);
@@ -149,6 +155,7 @@ public sealed class ShipStats
         if (m.Stats.TryGetValue("powerStorage", out var storage)) s.PowerStorage += storage;
         if (m.Stats.TryGetValue("fuelCapacity", out var fuelCap)) s.FuelCapacity += fuelCap;
         if (m.Stats.TryGetValue("ammoCapacity", out var ammo)) s.AmmoCapacity += ammo;
+        if (m.Stats.TryGetValue("missileCapacity", out var mc)) s.MissileCapacity += mc;   // Phase 28: Magazin bleibt Lager
         if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // ein halber Antrieb verbraucht weiter
         foreach (var f in m.FuelTypes)
             if (s.FuelTypes.FindIndex(x => x.Good == f.Good) < 0) s.FuelTypes.Add(f);

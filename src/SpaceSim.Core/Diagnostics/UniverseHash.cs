@@ -31,6 +31,11 @@ public static class UniverseHash
             foreach (var (g, n) in st.MaintenanceBacklog.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }   // Phase 15
             Mix((ulong)st.BuiltTick); MixF(st.Activity); MixF(st.Starved); Mix(st.Panic ? 1UL : 0UL);   // Phase 19: Auslastung
             MixF(st.Profit.Rate); MixF(st.Profit.Worth); Mix((ulong)st.Profit.LossTicks); Mix((ulong)st.Profit.Since);   // Phase 22: Rentabilität
+            if (st.Condition is { } sc)   // Phase 28: Kampfschaden (unbeschädigte Stationen mischen nichts)
+            {
+                Mix(0x2800u); MixF(sc.HullMissing); MixF(sc.ShieldMissing); Mix((ulong)sc.ShieldPauseUntil); Mix(sc.Disabled ? 1UL : 0UL);
+                foreach (var t in sc.Timers) MixF(t);
+            }
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
         {
@@ -59,6 +64,7 @@ public static class UniverseHash
             MixF(sys.ShieldMissing); MixF(sys.ChargeMissing); MixF(sys.AmmoMissing); Mix((ulong)sys.Mode); Mix((ulong)sys.ShieldPauseUntil);
             foreach (var c in sys.Condition) MixF(c);
             foreach (var b in sys.Burning) Mix((ulong)(b + 1000));   // Phase 26: Brand (Slots); unbeschädigte Schiffe mischen nichts
+            if (sys.MissilesMissing != 0f) { Mix(0x2801u); MixF(sys.MissilesMissing); }   // Phase 28: Raketenmagazin
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
             foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); MixF(a.BaseRadius); }
@@ -98,6 +104,7 @@ public static class UniverseHash
             Mix((ulong)a.LastForceTick); MixF(a.PoliceNeed); Mix((ulong)a.PoliceSurplusSince);   // Phase 20
             Mix((ulong)a.LastRestoreTick);   // Phase 22
             Mix((ulong)a.CreatedTick);       // Phase 27 (Prüfung Phase 26): Gründungszeit (Aufbauzeit der Rücklage hängt daran)
+            if (a.ArrestCooldownUntil != 0) Mix((ulong)a.ArrestCooldownUntil + 0x2802u);   // Phase 28: Festnahme-Sperre
             foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }
             foreach (var (f, c) in a.BountyClaims.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(c); }
         }
@@ -132,7 +139,17 @@ public static class UniverseHash
                 if (p.RefugeId != 0) { Mix((ulong)(uint)p.RefugeId + 0x2700u); MixF(p.Refuge); MixF(p.RefugePos.X); MixF(p.RefugePos.Y); }   // Phase 27: Zuflucht
             }
             if (e.Spatial) Mix(0x5A7u);
+            if (e.Station.Value != 0) { Mix(0x2803u); Mix((ulong)e.Station.Value); MixF(e.StationX); }   // Phase 28: Belagerung
+            foreach (var m in e.Missiles)
+            {
+                Mix(0x2804u); Mix((ulong)m.Shooter.Value); Mix((ulong)m.Owner.Value); Mix((ulong)m.Side); MixString(m.Module); Mix((ulong)m.Target.Value); Mix((ulong)m.Station.Value);
+                MixF(m.Left); MixF(m.Total); MixF(m.Speed);
+                if (e.Spatial) { MixF(m.From.X); MixF(m.From.Y); }
+            }
         }
+        // Phase 28: Kriege und Friedensschlüsse (ohne Krieg mischt nichts)
+        foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); }
+        foreach (var (k, t) in u.PeaceSince.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2806u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); }
         // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
@@ -155,6 +172,7 @@ public static class UniverseHash
                     case BuildCommand bc: Mix((ulong)bc.Site.Value); break;
                     case LurkCommand lc: Mix((ulong)lc.Sector.Value); MixF(lc.Spot.X); MixF(lc.Spot.Y); Mix((ulong)lc.Until); break;   // Phase 27
                     case PursueCommand pc: Mix((ulong)pc.Target.Value); MixF(pc.Lead); Mix((ulong)pc.Until); break;
+                    case AssaultCommand ac: Mix((ulong)ac.Sector.Value); Mix((ulong)ac.Station.Value); break;   // Phase 28
                 }
             }
         }

@@ -30,13 +30,13 @@ public static class Jurisdiction
 public static class UnitSupport
 {
     /// <summary>Lebt das Schiff aus der Kasse seines Besitzers (Polizei, Kaperschiff)?</summary>
-    public static bool IsServiceUnit(Ship ship) => ThreatMap.IsPolice(ship) || ThreatMap.IsRaider(ship);
+    public static bool IsServiceUnit(Ship ship) => ThreatMap.IsPolice(ship) || ThreatMap.IsRaider(ship) || Wars.IsWarship(ship);   // Phase 28: Kriegsschiffe
 
     /// <summary>Versorgt eine Dienst-Einheit an ihrer Heimatbasis; false = keine Dienst-Einheit oder nicht an ihrer Basis (dann gilt die Regel der Spielerflotte).</summary>
     public static bool Serve(Universe u, Ship ship, Station st)
     {
         if (!u.Rules.FleetCombat || !IsServiceUnit(ship) || st.Id != ship.HomeBase) return false;
-        PirateSystem.ServiceAtBase(u, ship, ThreatMap.IsPolice(ship) ? "police" : "pirates");
+        PirateSystem.ServiceAtBase(u, ship, ThreatMap.IsPolice(ship) ? "police" : Wars.IsWarship(ship) ? "navy" : "pirates");
         if (ThreatMap.IsRaider(ship))
         {
             ship.DutySector = default;

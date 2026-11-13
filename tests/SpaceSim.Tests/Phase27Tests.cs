@@ -43,6 +43,7 @@ public class Phase27Tests
         // Balance-Tool, Standard-Seed, 20000 Ticks auf dem Stand Phase 26 (nur mit der Hash-Erweiterung um Actor.CreatedTick): 8BAFCA8A395897AE
         var def = TestWorlds.Def(fuel: false, research: false);
         RevertPhase27(def);
+        Phase28Tests.RevertPhase28(def);   // Phase 28 ebenfalls zurückdrehen (Raketen, Stationsverteidigung, Krieg)
         var u = WorldBuilder.Build(def);
         new SimulationRunner().Run(u, 20000);
         Assert.Equal(0x8BAFCA8A395897AEUL, UniverseHash.Compute(u));
@@ -482,8 +483,9 @@ public class Phase27Tests
         var raider = Raiders(u).First(r => !u.Fights.IsEngaged(r.Id));
         var trader = NewShip(u, "unit_miner_100", ShipRole.Miner, u.FreeActor);
         var st = u.Stations.Values.First(s => s.Sector == Alpha && !s.IsBuildSite && !StationProtection.IsHideout(u, s));
-        Place(u, trader, Alpha, st.Position + new Vec2(50f, 0f));
-        Place(u, raider, Alpha, st.Position + new Vec2(90f, 0f));
+        // Phase 28: Händler in Zufluchtsweite der Station (≤ 40) — vorher hing die Vorbedingung „eine Zuflucht“ am zufälligen Eingreifen der Polizei
+        Place(u, trader, Alpha, st.Position + new Vec2(36f, 0f));
+        Place(u, raider, Alpha, st.Position + new Vec2(80f, 0f));
         trader.Cargo[u.FindGood("iron_ore")!.Id] = 20f;
         if (raider.Command is not null) Commands.Cancel(u, raider);
         Engage.StartRaid(u, raider, trader, u.Sectors[Alpha]);

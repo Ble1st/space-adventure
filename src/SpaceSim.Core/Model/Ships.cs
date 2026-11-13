@@ -5,7 +5,8 @@ namespace SpaceSim.Core.Model;
 /// Phase 11: <see cref="Police"/> = Polizeischiff einer Fraktion (<see cref="Simulation.SecuritySystem"/>), <see cref="Pirate"/> = Kaperschiff eines
 /// gesetzlosen Akteurs (<see cref="Simulation.PirateSystem"/>).
 /// </summary>
-public enum ShipRole { Trader, Miner, Fighter, Player, Builder, Police, Pirate }
+/// <summary>Aufgabe (Etikett). Phase 28: <see cref="Warship"/> = Kriegsschiff einer Fraktion (nur im Krieg gekauft).</summary>
+public enum ShipRole { Trader, Miner, Fighter, Player, Builder, Police, Pirate, Warship }
 public enum TradePhase { Idle, GoingToBuy, GoingToSell }
 public enum MinePhase { Idle, GoingToField, Mining, GoingToStation }
 

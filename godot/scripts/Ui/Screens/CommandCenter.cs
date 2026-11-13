@@ -117,6 +117,9 @@ public abstract partial class CommandScreen : Control, IScreen
 	/// Gerätetest Phase 27: Neuaufbau ohne die Rollposition zu verlieren (die Bereiche bauen sich je Tick neu auf — vorher sprang jede Liste viermal je Sekunde
 	/// nach oben) und nie mitten in einem Wisch (der Rollbereich würde unter dem Finger ersetzt).
 	/// </summary>
+	/// <summary>Kopfzeile unter dem Titel (Bereich und aktueller Sektor); Bereiche mit eigener Auswahl überschreiben sie (Gerätetest Phase 27).</summary>
+	protected virtual string HeaderInfo(SpaceSim.Core.Model.Universe u, string playerSector) => $"{Title} · aktuell: {playerSector}";
+
 	void SafeRebuild()
 	{
 		if (KitScroll.Dragging && GetChildCount() > 0) { _dirty = true; return; }
@@ -146,7 +149,7 @@ public abstract partial class CommandScreen : Control, IScreen
 		// ── Top-Leiste: Titel links, Credits und Schiff rechts ──
 		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, 20, 10, 1240, 64);
 		At(top, Text("Kommandozentrale", 28, Cyan), 0, 6);
-		At(top, Text($"{Title} · aktuell: {sector}", 16, Dim), 0, 42);
+		At(top, Text(HeaderInfo(u, sector), 16, Dim), 0, 42);
 		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", 26, Orange, HorizontalAlignment.Right), 940, 0, 300, 32);
 		At(top, Text($"Schiff #{ship.Id.Value} · {sector}", 15, Dim, HorizontalAlignment.Right), 940, 38, 300, 22);
 

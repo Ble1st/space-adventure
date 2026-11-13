@@ -172,6 +172,7 @@ public static class WorldBuilder
             else if (type.Government == GovernmentKind.Research) throw new WorldFormatException($"Stationstyp '{t.Key}': eine Forschungsstation braucht den Abschnitt research");
             // Phase 14: Exportsenke — Waren aus Kategorien und Einzelnennung, als Lager ohne Rezept (Ankauf über den normalen Handel)
             if (t.Export is { } ex) type.Export = LoadExport(u, t.Key, type, ex);
+            if (t.Defense is { } dd) type.Defense = LoadDefense(u, t.Key, dd);   // Phase 28: Stationsverteidigung
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -777,7 +778,24 @@ public static class WorldBuilder
         _ => throw new WorldFormatException($"Ware '{goodKey}': unbekannte Form '{form}'"),
     };
 
-    static readonly string[] WeaponStats = { "damage", "reload", "range", "accuracy", "tracking", "ammoPerShot" };
+    /// <summary>Phase 28: Stationsverteidigung prüfen (Hülle &gt; 0, Schild/Regeneration/Panzerung ≥ 0, Punktabwehr in [0, 1], Geschütze = bekannte Waffenmodule).</summary>
+    static StationDefenseConfig LoadDefense(Universe u, string typeKey, StationDefenseDef d)
+    {
+        string who = $"Stationstyp '{typeKey}': defense";
+        if (!(d.Hull > 0f) || !float.IsFinite(d.Hull)) throw new WorldFormatException($"{who}.hull muss > 0 sein");
+        if (d.Shield < 0f || d.ShieldRegen < 0f || d.Armor < 0f) throw new WorldFormatException($"{who}: shield, shieldRegen und armor müssen >= 0 sein");
+        if (d.PointDefense < 0f || d.PointDefense > 1f) throw new WorldFormatException($"{who}.pointDefense muss in [0, 1] liegen");
+        var cfg = new StationDefenseConfig { Hull = d.Hull, Shield = d.Shield, ShieldRegen = d.ShieldRegen, Armor = d.Armor, PointDefense = d.PointDefense };
+        foreach (var g in d.Guns)
+        {
+            if (!u.Modules.TryGetValue(g, out var m)) throw new WorldFormatException($"{who}: unbekanntes Geschütz '{g}'");
+            if (!m.IsWeapon) throw new WorldFormatException($"{who}: '{g}' ist keine Waffe");
+            cfg.Guns.Add(g);
+        }
+        return cfg;
+    }
+
+    static readonly string[] WeaponStats = { "damage", "reload", "range", "accuracy", "tracking", "ammoPerShot", "missileSpeed" };
 
     /// <summary>
     /// Phase 24: Waffenwerte eines Moduls prüfen und die Schadensart lesen. Eine Waffe hat damage &gt; 0, reload &gt; 0, range &gt; 0, accuracy und tracking in
@@ -801,9 +819,10 @@ public static class WorldBuilder
         if (Get("accuracy") <= 0f || Get("accuracy") > 1f) throw new WorldFormatException($"{who}: accuracy muss in (0, 1] liegen");
         if (Get("tracking") <= 0f || Get("tracking") > 1f) throw new WorldFormatException($"{who}: tracking muss in (0, 1] liegen");
         if (Get("ammoPerShot") < 0f) throw new WorldFormatException($"{who}: ammoPerShot muss >= 0 sein");
-        if (md.DamageType is null) throw new WorldFormatException($"{who}: damageType fehlt (energy oder kinetic)");
+        if (Get("missileSpeed") < 0f) throw new WorldFormatException($"{who}: missileSpeed muss >= 0 sein");   // Phase 28: Rakete (Flugtempo)
+        if (md.DamageType is null) throw new WorldFormatException($"{who}: damageType fehlt (energy, kinetic oder explosive)");
         if (!Enum.TryParse<DamageType>(md.DamageType, ignoreCase: true, out var dt) || !Enum.IsDefined(dt))
-            throw new WorldFormatException($"{who}: unbekannte damageType '{md.DamageType}' (energy oder kinetic)");
+            throw new WorldFormatException($"{who}: unbekannte damageType '{md.DamageType}' (energy, kinetic oder explosive)");
         return dt;
     }
 

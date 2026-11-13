@@ -32,6 +32,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestMaintenance { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Rentabilität (Phase 22; leer, solange nicht gemessen).</summary>
 	public string TestProfit { get; private set; } = "";
+	/// <summary>Selbsttest Phase 28: Verteidigungszeile (leer bei Baustellen oder abgeschalteter Kriegsführung).</summary>
+	public string TestDefense { get; private set; } = "";
 	/// <summary>Selbsttest Phase 27: Dienst-Chips (deutsche Namen, Komma-getrennt).</summary>
 	public string TestChips { get; private set; } = "";
 
@@ -75,6 +77,17 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		// Phase 22: Rentabilität (gleitender Netto-Geldfluss, reine Core-Anzeige; Grund c für das Aufgeben einer Station)
 		TestProfit = st.IsBuildSite ? "" : Profitability.Text(u, st.Profit) ?? "";
 		if (TestProfit.Length > 0) Row(v1, "Rentabilität", TestProfit);
+		// Phase 28: Verteidigung (Hülle, Schild, Geschütze, ausgeschaltet/angegriffen) — reine Core-Anzeige
+		TestDefense = st.IsBuildSite || !u.Rules.Warfare ? "" : SpaceSim.Core.Combat.WarInfo.StationLine(u, st);
+		if (TestDefense.Length > 0)
+		{
+			// zwei Zeilen (die Spalte ist schmal): Hülle/Schild, dann Geschütze und Zustand
+			var def = SpaceSim.Core.Combat.StationCombat.DefenseOf(u, st);
+			string shield = SpaceSim.Core.Combat.StationCombat.MaxShield(u, st) > 0f ? $" · Schild {SpaceSim.Core.Combat.StationCombat.Shield(u, st):0}" : "";
+			Row(v1, "Verteidigung", $"Hülle {SpaceSim.Core.Combat.StationCombat.Hull(u, st):0}/{SpaceSim.Core.Combat.StationCombat.MaxHull(u, st):0}{shield}");
+			string state = SpaceSim.Core.Combat.StationCombat.IsDown(u, st) ? " · AUS" : SpaceSim.Core.Combat.StationCombat.UnderSiege(u, st.Id) ? " · Angriff" : "";
+			Row(v1, "Geschütze", $"{def?.Guns.Count ?? 0}{state}");
+		}
 		v1.AddChild(Text("Angebotene Dienste", 18, Cyan));
 		var services = Ctx.Services.ForStation(u, st);
 		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));

@@ -41,9 +41,10 @@ public sealed class CombatSystem : ISimSystem
             if (p.Active && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var me) && (me.Sector != e.Sector || me.DockedAt.Value != 0 || me.Transit is not null))
                 Engage.Leave(u, e, p, CombatExit.Fled);
         CombatSpace.Sync(u, e);
-        if (Ended(e)) { Finish(u, e, Outcome(e)); return; }
+        if (Ended(u, e)) { Finish(u, e, Outcome(e)); return; }
         // Phase 27: Verstärkung (Eskorten, Wachen, Verband, Rudel), die inzwischen im Sektor ist
         if (r.FleetCombat && r.ReinforceTicks > 0 && (u.Tick - e.StartTick) % r.ReinforceTicks == 0) Reinforcements.Step(u, e);
+        if (r.Warfare && e.Cause == EncounterCause.Siege && r.ReinforceTicks > 0 && (u.Tick - e.StartTick) % r.ReinforceTicks == 0) Siege.Reinforce(u, e);   // Phase 28
 
         // 1) Entscheidungen (alle auf demselben Stand; das aktive Spielerschiff entscheidet selbst — Phase 25)
         _decisions.Clear();
@@ -55,6 +56,7 @@ public sealed class CombatSystem : ISimSystem
             if (!p.Active) continue;
             var d = _decisions[i];
             p.Target = d.Target;
+            p.TargetStation = d.Target.Value == 0 ? d.Station : default;   // Phase 28: Station als Ziel
             p.Move = d.Move;
             var ship = u.Ships[p.Ship];
             if (ship.Systems.Mode != d.Mode) ShipSystems.SetMode(u, ship, d.Mode);
@@ -95,6 +97,12 @@ public sealed class CombatSystem : ISimSystem
             if (!p.Active || !u.Ships.TryGetValue(p.Ship, out var ship)) continue;
             Fire(u, e, p, ship, _decisions[i].Fire, seconds);
         }
+        // Phase 28: Stationsgeschütze im Sektor, dann fliegende Raketen
+        if (r.Warfare)
+        {
+            StationCombat.Fire(u, e, seconds);
+            Missiles.Step(u, e, seconds);
+        }
 
         // 5) Flucht gelingt, wenn kein Gegner mehr reicht — Phase 27: oder die Zuflucht (Station, Tor) erreicht ist
         foreach (var p in e.Participants)
@@ -103,16 +111,21 @@ public sealed class CombatSystem : ISimSystem
             // Phase 25: das aktive Spielerschiff entkommt, sobald es außer Reichweite aller Gegner ist (es „flieht“ durch seine Steuerung)
             if (!p.Active || (p.Move != CombatMove.Flee && p.Ship != u.PlayerShip)) continue;
             bool clear = true;
+            // Phase 28: der Spieler „entkommt“ nicht, solange seine eigenen Waffen den Gegner noch erreichen (Raketen tragen weiter als die Kanonen der Gegner)
+            float own = r.Warfare && p.Ship == u.PlayerShip && u.Ships.TryGetValue(p.Ship, out var pShip) ? CombatSense.MaxRange(u, pShip) : 0f;
             foreach (var q in CombatSense.Enemies(u, e, p))
             {
-                float reach = MathF.Max(r.CombatMinEscapeDistance, CombatSense.MaxRange(u, u.Ships[q.Ship]));
+                float reach = MathF.Max(MathF.Max(r.CombatMinEscapeDistance, CombatSense.MaxRange(u, u.Ships[q.Ship])), own);
                 if (CombatSense.Distance(p, q) <= reach) { clear = false; break; }
             }
+            // Phase 28: in einer Belagerung reicht auch die Station (ihre Geschütze bzw. die eigenen Waffen gegen sie)
+            if (clear && r.Warfare && p.Side == 0 && StationCombat.Defends(u, e) && u.Stations.TryGetValue(e.Station, out var besieged))
+                if (StationCombat.Distance(u, e, p, besieged) <= MathF.Max(MathF.Max(r.CombatMinEscapeDistance, StationCombat.GunRange(u, besieged)), own)) clear = false;
             if (clear) Engage.Leave(u, e, p, CombatExit.Fled);
         }
 
         // 6) Ende
-        if (Ended(e)) { Finish(u, e, Outcome(e)); return; }
+        if (Ended(u, e)) { Finish(u, e, Outcome(e)); return; }
         if (u.Tick - e.StartTick >= r.CombatMaxTicks) Finish(u, e, "timeout");
     }
 
@@ -138,9 +151,12 @@ public sealed class CombatSystem : ISimSystem
                 continue;
             }
             var target = d.Target.Value != 0 ? e.Of(d.Target) : null;
-            var reference = target is { Active: true } ? target : CombatSense.Nearest(u, e, p);
-            if (reference is null) { _steps.Add(new CombatPilotStep(p.Pos, p.Dir, 0f)); continue; }
-            var input = new CombatPilotInput(p.Pos, p.Dir, speed, reference.Pos, d.Move, d.Distance, CombatSense.MaxRange(u, ship), (i % 2 == 0) ? 1f : -1f);
+            var reference = target is { Active: true } ? target : d.Station.Value != 0 && d.Target.Value == 0 ? null : CombatSense.Nearest(u, e, p);
+            Vec2 refPos;
+            if (reference is not null) refPos = reference.Pos;
+            else if (d.Station.Value != 0 && u.Stations.TryGetValue(d.Station, out var stRef)) refPos = stRef.Position;   // Phase 28: Belagerung
+            else { _steps.Add(new CombatPilotStep(p.Pos, p.Dir, 0f)); continue; }
+            var input = new CombatPilotInput(p.Pos, p.Dir, speed, refPos, d.Move, d.Distance, CombatSense.MaxRange(u, ship), (i % 2 == 0) ? 1f : -1f);
             _steps.Add(CombatAutopilot.Step(input, seconds, u.Rules));
         }
         for (int i = 0; i < e.Participants.Count; i++)
@@ -163,10 +179,11 @@ public sealed class CombatSystem : ISimSystem
         }
     }
 
-    static bool Ended(Encounter e)
+    static bool Ended(Universe u, Encounter e)
     {
         bool a = false, d = false;
         foreach (var p in e.Participants) if (p.Active) { if (p.Side == 0) a = true; else d = true; }
+        if (!d && e.Cause == EncounterCause.Siege && StationCombat.Defends(u, e)) d = true;   // Phase 28: die belagerte Station verteidigt sich selbst
         return !a || !d;
     }
 
@@ -184,10 +201,13 @@ public sealed class CombatSystem : ISimSystem
         float speed = Travel.SpeedOf(ship) * ShipSystems.SpeedFactor(u, ship);
         float step = speed * seconds;
         var target = d.Target.Value != 0 ? e.Of(d.Target) : null;
-        var reference = target is { Active: true } ? target : CombatSense.Nearest(u, e, p);
-        if (reference is null || step <= 0f) return 0f;
-        float toward = reference.X > p.X ? 1f : reference.X < p.X ? -1f : (p.Side == 0 ? 1f : -1f);
-        float dist = CombatSense.Distance(p, reference);
+        var reference = target is { Active: true } ? target : d.Station.Value != 0 && d.Target.Value == 0 ? null : CombatSense.Nearest(u, e, p);
+        float refX, dist;
+        if (reference is not null) { refX = reference.X; dist = CombatSense.Distance(p, reference); }
+        else if (d.Station.Value != 0 && u.Stations.TryGetValue(d.Station, out var stRef)) { refX = e.StationX; dist = StationCombat.Distance(u, e, p, stRef); }   // Phase 28
+        else return 0f;
+        if (step <= 0f) return 0f;
+        float toward = refX > p.X ? 1f : refX < p.X ? -1f : (p.Side == 0 ? 1f : -1f);
         switch (d.Move)
         {
             case CombatMove.Flee:
@@ -213,11 +233,18 @@ public sealed class CombatSystem : ISimSystem
             while (p.Timers.Count <= slot) p.Timers.Add(0f);
             if (p.Timers[slot] > 0f) p.Timers[slot] = MathF.Max(0f, p.Timers[slot] - seconds);
             if (!fire || p.Timers[slot] > 0f || ship.ConditionOf(slot) < r.ModuleFailCondition) continue;
+            bool missile = r.Warfare && Missiles.IsMissile(m);   // Phase 28: Raketenwerfer
+            if (p.Target.Value == 0 && p.TargetStation.Value != 0 && r.Warfare)
+            {
+                FireAtStation(u, e, p, ship, slot, m, missile);
+                if (!p.Active || !u.Ships.ContainsKey(ship.Id)) return;
+                continue;
+            }
             if (p.Target.Value == 0 || e.Of(p.Target) is not { Active: true } tp || !u.Ships.TryGetValue(tp.Ship, out var target)) continue;
             var w = WeaponProfile.Of(m);
             float dist = CombatSense.Distance(p, tp);
             if (dist > w.Range) continue;
-            if (!Gunnery.HasAmmo(u, ship, w)) continue;   // leeres Magazin: die Waffe schweigt
+            if (missile ? !Missiles.HasMissile(u, ship) : !Gunnery.HasAmmo(u, ship, w)) continue;   // leeres Magazin: die Waffe schweigt
             float factor;
             if (e.Spatial)
             {
@@ -232,11 +259,44 @@ public sealed class CombatSystem : ISimSystem
             }
             var tProfile = new TargetProfile(target.ShieldNow, target.Stats.Armor, tp.Speed, Gunnery.Signature(u, target));
             // Munition sparen: Waffen mit Munition schießen erst ab einer Mindest-Trefferchance (Regel, rein — kein Zufallszug)
-            if (w.AmmoPerShot > 0f && r.AmmoActive && Hit.Chance(w, tProfile, dist, factor, r) < r.AmmoMinHitChance) continue;
+            if ((w.AmmoPerShot > 0f || missile) && r.AmmoActive && Hit.Chance(w, tProfile, dist, factor, r) < r.AmmoMinHitChance) continue;
             if (!Gunnery.DrawPower(u, ship, w, out float reload)) continue;   // keine Leistung: die Waffe schweigt
+            if (missile)
+            {
+                Missiles.Launch(u, e, ship, null, p.Side, m, w, tp.Ship, default, dist, p.Pos);
+                while (p.Timers.Count <= slot) p.Timers.Add(0f);
+                p.Timers[slot] = reload;
+                continue;
+            }
             Gunnery.Shoot(u, e, p, ship, slot, m, w, tp, target, dist, factor, reload);
             if (!p.Active || !u.Ships.ContainsKey(ship.Id)) return;
         }
+    }
+
+    /// <summary>Phase 28: eine Waffe auf die Zielstation (Belagerung): Reichweite, Feuerwinkel (im Raum), Munition/Rakete, Leistung, dann Schuss oder Rakete.</summary>
+    static void FireAtStation(Universe u, Encounter e, CombatParticipant p, Ship ship, int slot, Module m, bool missile)
+    {
+        var r = u.Rules;
+        if (!u.Stations.TryGetValue(p.TargetStation, out var st) || StationCombat.IsDown(u, st)) return;
+        var w = WeaponProfile.Of(m);
+        float dist = StationCombat.Distance(u, e, p, st);
+        if (dist > w.Range) return;
+        if (missile ? !Missiles.HasMissile(u, ship) : !Gunnery.HasAmmo(u, ship, w)) return;
+        float factor = 1f;
+        if (e.Spatial)
+        {
+            if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), FiringArc.Bearing(p.Dir), p.Pos, st.Position)) return;
+        }
+        else factor = Hit.ArcFactor(r, slot < ship.Slots.Count ? ship.Slots[slot] : new ClassSlot());
+        if (!Gunnery.DrawPower(u, ship, w, out float reload)) return;
+        if (missile)
+        {
+            Missiles.Launch(u, e, ship, null, p.Side, m, w, default, st.Id, dist, p.Pos);
+            while (p.Timers.Count <= slot) p.Timers.Add(0f);
+            p.Timers[slot] = reload;
+            return;
+        }
+        StationCombat.Shoot(u, e, p, ship, slot, m, w, st, dist, factor, reload);
     }
 
     /// <summary>
@@ -298,6 +358,9 @@ public sealed class CombatSystem : ISimSystem
         if (e.Done) return;
         e.Done = true;
         var r = u.Rules;
+        // Phase 28: Raketen im Flug verfallen mit dem Gefecht
+        foreach (var f in e.Missiles) u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, f.Station, "lost", 0f, 0f));
+        e.Missiles.Clear();
         foreach (var p in e.Participants) if (p.Active) Engage.Leave(u, e, p, outcome == "timeout" ? CombatExit.Timeout : CombatExit.Ended);
         var raiderP = e.Raider.Value != 0 ? e.Of(e.Raider) : null;
         var victimP = e.Victim.Value != 0 ? e.Of(e.Victim) : null;
@@ -348,12 +411,23 @@ public sealed class CombatSystem : ISimSystem
                 : destroyed > 0 ? "Ziel zerstört." + (bounty > 0f ? $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen." : killed > 0 ? " Die Fahndung steigt." : "")
                 : fled > 0 ? "Das Ziel ist entkommen." : "Das Gefecht ist vorbei.";
         }
+        else if (e.Cause == EncounterCause.Siege)
+        {
+            // Phase 28: Belagerung — Ausgang an der Station; jede vom Spieler zerstörte Schiff einer Fraktion ist ein Angriff (Fahndung)
+            var st = u.Stations.GetValueOrDefault(e.Station);
+            foreach (var p in e.Participants)
+                if (p.Exit == CombatExit.Destroyed && p.Side == 1 && sector is not null && e.Participants.Any(q => q.Side == 0 && u.Ships.TryGetValue(q.Ship, out var qs) && qs.IsPlayer))
+                    Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner);
+            msg = st is null ? "Die Station ist zerstört." : StationCombat.IsDown(u, st) ? $"{st.Name} ist ausgeschaltet."
+                : StationCombat.Defends(u, e) ? $"Die Angreifer brechen die Belagerung von {st.Name} ab." : $"{st.Name} hat den Besitzer gewechselt.";
+        }
         else if (e.Cause == EncounterCause.Arrest)
         {
             // Phase 27: Polizeigefecht gegen einen gesuchten Spieler — jede zerstörte Streife ist ein weiterer Angriff (Fahndung)
             int killed = 0;
             foreach (var p in e.Participants)
                 if (p.Exit == CombatExit.Destroyed && p.Side == 0 && sector is not null) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
+            if (victimP is not null && victimP.Exit != CombatExit.Destroyed) SecuritySystem.ArrestCooldown(u, victimP.Owner);   // Phase 28: keine sofortige neue Festnahme
             msg = victimP?.Exit == CombatExit.Destroyed ? "Die Polizei hat dein Schiff zerstört."
                 : victimP?.Exit == CombatExit.Surrendered ? "Du hast dich der Polizei ergeben."
                 : victimP?.Exit == CombatExit.Fled ? "Du bist der Polizei entkommen — die Fahndung bleibt."

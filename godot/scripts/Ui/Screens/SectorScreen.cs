@@ -30,6 +30,10 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
 
+	/// <summary>Gerätetest Phase 27: die Kopfzeile nennt den gewählten Sektor (vorher „aktuell: …“ auch bei fremder Auswahl).</summary>
+	protected override string HeaderInfo(SpaceSim.Core.Model.Universe u, string playerSector) =>
+		Selected != u.PlayerSector && u.Sectors.TryGetValue(Selected, out var s) ? $"{Title} · gewählt: {s.Name} · du: {playerSector}" : base.HeaderInfo(u, playerSector);
+
 	StationId? _selStation;
 	GateId? _selGate;
 	bool _showInfo;

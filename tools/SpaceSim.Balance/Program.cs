@@ -45,6 +45,9 @@ if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
 }
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
+// Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
+if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
+if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
 // Phase 17: Rechenzeit je System (jedes System eines Moduls bekommt eine eigene Stoppuhr; die Sicherheits-Systeme laufen zusätzlich auf der Sammeluhr)
@@ -208,6 +211,34 @@ u.Events.Raised += e =>
         case ForceSquadron fs when fs.Formed: if (fs.Kind == "pack") packsFormed++; else squadsFormed++; break;
         case EncounterStarted es2 when es2.Cause == EncounterCause.Arrest: arrests++; break;
     }
+};
+// Phase 28: Raketen, Stationsgeschütze, Belagerungen, Krieg, Kriegsschiffe; dazu die Piratenkassen nach Zweck (Prüfpunkt e)
+var missileOutcomes = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var stationFalls = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var peaceReasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var pirateIn = new SortedDictionary<string, double>(StringComparer.Ordinal);
+var pirateOut = new SortedDictionary<string, double>(StringComparer.Ordinal);
+int missilesLaunched = 0, stationShots = 0, stationHits = 0, shotsAtStations = 0, sieges = 0, warsDeclared = 0, warshipsBought = 0, warshipsGone = 0, stationRepairs = 0;
+double stationHullDmg = 0, stationRepairHull = 0, stationRepairPlates = 0, stationRepairCost = 0, navyCost = 0, stationGunDmg = 0;
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case MissileLaunched: missilesLaunched++; break;
+        case MissileResolved mr: missileOutcomes[mr.Outcome] = missileOutcomes.GetValueOrDefault(mr.Outcome) + 1; if (mr.TargetStation.Value != 0) stationHullDmg += mr.HullDamage; break;
+        case StationShot ss: stationShots++; if (ss.Hit) { stationHits++; stationGunDmg += ss.ShieldDamage + ss.HullDamage; } break;
+        case ShotAtStation sa: shotsAtStations++; stationHullDmg += sa.HullDamage; break;
+        case SiegeStarted: sieges++; break;
+        case StationFell sf: stationFalls[sf.How] = stationFalls.GetValueOrDefault(sf.How) + 1; break;
+        case StationRepaired sr: stationRepairs++; stationRepairHull += sr.Hull; stationRepairPlates += sr.Plates; stationRepairCost += sr.Cost; break;
+        case WarDeclared: warsDeclared++; break;
+        case PeaceConcluded pc: peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1; break;
+        case WarshipCommissioned: warshipsBought++; break;
+        case WarshipDecommissioned: warshipsGone++; break;
+        case TreasuryUpkeep tu when tu.Purpose == "navy": navyCost += tu.Amount; break;
+    }
+    if (e is TreasuryIncome ti && u.Actors.TryGetValue(ti.Actor, out var pa) && pa.Kind == ActorKind.Outlaw) pirateIn[ti.Purpose] = pirateIn.GetValueOrDefault(ti.Purpose) + ti.Amount;
+    if (e is TreasuryUpkeep tu2 && u.Actors.TryGetValue(tu2.Actor, out var pb) && pb.Kind == ActorKind.Outlaw) pirateOut[tu2.Purpose] = pirateOut.GetValueOrDefault(tu2.Purpose) + tu2.Amount;
 };
 // Phase 26: Schaden und Bergung — Modulschäden, Brände, Reparaturen, Wracks, Bergung
 int modDamaged = 0, modFailed = 0, firesStarted = 0, wrecksMade = 0, containersMade = 0, wrecksExpired = 0, repairsNpc = 0, repairsBase = 0, repairsPlayer = 0, repairModules = 0;
@@ -665,6 +696,19 @@ if (u.Modules.Count > 0)
         + $"Zuflucht {(refugeBy.Count == 0 ? "keine" : string.Join(", ", refugeBy.Select(kv => $"{kv.Key} {kv.Value}")))}; "
         + $"Verfolgungen {pursuits} ({(pursuitEnds.Count == 0 ? "–" : string.Join(", ", pursuitEnds.Select(kv => $"{kv.Key} {kv.Value}")))}); Geleit {escortsAssigned}; Polizeigefechte gegen den Spieler {arrests}");
     Console.WriteLine("Piraten über die Zeit (je 20000 Ticks: Überfälle, je Gruppe Kaperschiffe/Kasse): " + (pirateTimeline.Count == 0 ? "–" : string.Join(" | ", pirateTimeline)));
+    // Phase 28 (Prüfpunkt e): Piratenkassen nach Zweck — Einnahmen gegen Kosten
+    Console.WriteLine($"Piratenkassen: Einnahmen {pirateIn.Values.Sum():0} Cr ({(pirateIn.Count == 0 ? "–" : string.Join(", ", pirateIn.Select(kv => $"{kv.Key} {kv.Value:0}")))}), "
+        + $"Kosten {pirateOut.Values.Sum():0} Cr ({(pirateOut.Count == 0 ? "–" : string.Join(", ", pirateOut.Select(kv => $"{kv.Key} {kv.Value:0}")))})");
+    // Phase 28: Raketen, Stationen, Krieg
+    Console.WriteLine($"Kriegsführung (Phase 28: {(u.Rules.Warfare ? "an" : "aus")}): Raketen {missilesLaunched} ({(missileOutcomes.Count == 0 ? "–" : string.Join(", ", missileOutcomes.Select(kv => $"{kv.Key} {kv.Value}")))}); "
+        + $"Stationsgeschütze {stationShots} Schüsse ({stationHits} Treffer, Schaden {stationGunDmg:0}); Schüsse auf Stationen {shotsAtStations}, Hüllenschaden an Stationen {stationHullDmg:0}; "
+        + $"Belagerungen {sieges}; Stationen gefallen {(stationFalls.Count == 0 ? "keine" : string.Join(", ", stationFalls.Select(kv => $"{kv.Key} {kv.Value}")))}; "
+        + $"beschädigt jetzt {u.Stations.Values.Count(x => x.Condition is not null)}; Reparaturen {stationRepairs} ({stationRepairHull:0} Hülle, {stationRepairPlates:0.#} Hüllenplatten, {stationRepairCost:0} Cr)");
+    Console.WriteLine($"Krieg: erklärt {warsDeclared}, Frieden {(peaceReasons.Count == 0 ? "–" : string.Join(", ", peaceReasons.Select(kv => $"{kv.Key} {kv.Value}")))}, laufend {u.Wars.Count}"
+        + (u.Wars.Count == 0 ? "" : " (" + string.Join(", ", u.Wars.Select(w => $"{u.Factions[w.A].Name}–{u.Factions[w.B].Name} Müdigkeit {w.Weariness:0.00}")) + ")")
+        + $"; Kriegsschiffe gekauft {warshipsBought}, abgebaut {warshipsGone}, jetzt {u.Ships.Values.Count(Wars.IsWarship)}, Unterhalt {navyCost:0} Cr; "
+        + "Beziehungen " + string.Join(", ", u.Factions.Keys.OrderBy(k => k.Value).SelectMany(a => u.Factions.Keys.OrderBy(k => k.Value).Where(b => b.Value > a.Value)
+            .Select(b => $"{u.Factions[a].Name}–{u.Factions[b].Name} {Relations.Effective(u, a, b):0.00}/{Relations.Effective(u, b, a):0.00}"))));
     Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "
         + $"{(income > 0 ? 100.0 * ammoPolice / income : 0):0.00}% der Kasseneinnahmen); fehlt jetzt {u.Ships.Values.Sum(x => x.Systems.AmmoMissing):0}");
     {

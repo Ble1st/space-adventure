@@ -100,7 +100,8 @@ public sealed class SecurityModule : ISimModule
 {
     public string Name => "Security";
     public void Register(SimulationBuilder b) =>
-        b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new WantedSystem(), interval: 50);
+        b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new WantedSystem(), interval: 50)
+         .Add(new NavySystem(), NavySystem.Interval);   // Phase 28: Kriegsschiffe der Fraktionen
 }
 
 /// <summary>
@@ -115,7 +116,8 @@ public sealed class CombatModule : ISimModule
         b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.ShipSystemsSystem())
          .Add(new SpaceSim.Core.Combat.FireSystem())                       // Phase 26: Brände über den Erholungsindex
          .Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10)
-         .Add(new WreckSystem(), interval: 50);                            // Phase 26: Wracks verfallen
+         .Add(new WreckSystem(), interval: 50)                             // Phase 26: Wracks verfallen
+         .Add(new SpaceSim.Core.Combat.StationRepairSystem(), interval: 50);   // Phase 28: Stationen reparieren (Materialsenke)
 }
 
 public sealed class LifecycleModule : ISimModule
@@ -160,5 +162,7 @@ public sealed class ViabilityModule : ISimModule
 public sealed class PoliticsModule : ISimModule
 {
     public string Name => "Politics";
-    public void Register(SimulationBuilder b) => b.Add(new SectorControlSystem(), interval: 50).Add(new FactionPolicySystem(), interval: 20);
+    public void Register(SimulationBuilder b) =>
+        b.Add(new SectorControlSystem(), interval: 50).Add(new FactionPolicySystem(), interval: 20)
+         .Add(new WarSystem(), WarSystem.Interval);   // Phase 28: Krieg und Frieden
 }

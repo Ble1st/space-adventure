@@ -29,7 +29,8 @@ public static class StartScenario
                      ?? throw new WorldFormatException($"Startpaket '{key}': keine Station vom Typ '{typeKey}'");
             if (player.Sector != st.Sector) u.MoveShip(player, st.Sector);
             u.PlayerSector = st.Sector;
-            player.Position = st.DockPoint(player.Id) + (st.DockPoint(player.Id) - st.Position).Normalized() * 20f;
+            player.Position = st.DockPoint(player.Id) + (st.DockPoint(player.Id) - st.Position).Normalized() * (sc.Distance ?? 20f);
+            player.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position);
         }
         int SlotOf(string module) => player.Fit.IndexOf(module) is var i and >= 0 ? i
             : throw new WorldFormatException($"Startpaket '{key}': Modul '{module}' ist nicht eingebaut");
@@ -54,7 +55,8 @@ public static class StartScenario
                 w.ExpiresTick = u.Tick + u.Rules.WreckTicks * 4;
             }
         }
-        if (sc.Outlaw && u.ShipsById().FirstOrDefault(ThreatMap.IsRaider) is { } raider)
+        ApplyCombat(u, player, sc, key);
+        if (sc.Outlaw && sc.Raiders <= 0 && u.ShipsById().FirstOrDefault(ThreatMap.IsRaider) is { } raider)
         {
             if (raider.Sector != player.Sector) u.MoveShip(raider, player.Sector);
             raider.Position = player.Position + new Vec2(0f, -70f);
@@ -62,6 +64,73 @@ public static class StartScenario
             raider.Order = new PatrolOrder(player.Sector);
             raider.DutySector = player.Sector;
             raider.NextThinkTick = u.Tick + u.Rules.PirateLurkTicks;
+        }
+        }
+
+    /// <summary>
+    /// Gerätetest Phase 27 („Gefechtstest“): Rudel in Waffenreichweite mit angekündigtem Überfall (zu zweit stärker als der Jäger — es greift an, statt zu fliehen; ein beschädigter Antrieb würde es zur Reparatur heimschicken), ein Händler frei im Raum,
+    /// eine Streife als Verband, Fahndung des Spielers. Feste Abstände, kein Zufall.
+    /// </summary>
+    static void ApplyCombat(Universe u, Ship player, ScenarioDef sc, string key)
+    {
+        var sector = u.Sectors[player.Sector];
+        if (sc.Raiders > 0)
+        {
+            var group = u.ShipsById().Where(ThreatMap.IsRaider).GroupBy(r => r.Owner).OrderByDescending(g => g.Count()).ThenBy(g => g.Key.Value).FirstOrDefault()
+                        ?? throw new WorldFormatException($"Startpaket '{key}': keine Kaperschiffe in der Welt");
+            var pack = group.Take(sc.Raiders).ToList();
+            for (int i = 0; i < pack.Count; i++)
+            {
+                var r = pack[i];
+                if (r.Transit is not null) u.FinishTransit(r);
+                if (r.Sector != player.Sector) u.MoveShip(r, player.Sector);
+                r.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(-12f + 24f * i, -55f));
+                r.DockedAt = default;
+                r.Order = new PatrolOrder(player.Sector);
+                r.DutySector = player.Sector;
+                r.NextThinkTick = u.Tick + 100_000;
+            }
+            if (pack.Count >= 2 && Squadrons.Create(u, pack[0], "Rudel", out _) is { } sq)
+                for (int i = 1; i < pack.Count; i++) Squadrons.Join(u, sq, pack[i], out _);
+            // das Rudel lauert hier (Befehl wie die Piratengruppe ihn gibt), statt heimzufliegen
+            if (u.Rules.FleetCombat)
+            {
+                Commands.Give(u, pack[0], new LurkCommand(player.Sector, pack[0].Position, u.Tick + 20_000), out _, ignoreCapacity: true);
+                for (int i = 1; i < pack.Count; i++) Commands.Give(u, pack[i], new FollowCommand(pack[0].Id), out _, ignoreCapacity: true);
+            }
+            if (sc.RaidAfterTicks > 0)
+                u.PendingEncounters.Add(new PendingEncounter { Kind = EncounterKind.Raid, Source = pack[0].Id, Target = player.Id, Sector = player.Sector, DueTick = u.Tick + sc.RaidAfterTicks });
+        }
+        if (sc.Trader && u.ShipsById().FirstOrDefault(s => s.Role == ShipRole.Trader && s.Controller == Controller.Ai && s.HasModel) is { } trader)
+        {
+            if (trader.Transit is not null) u.FinishTransit(trader);
+            trader.Order = null; trader.Phase = TradePhase.Idle;
+            if (trader.Sector != player.Sector) u.MoveShip(trader, player.Sector);
+            trader.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(40f, 10f));
+            trader.DockedAt = default;
+            trader.NextThinkTick = u.Tick + 2_000;
+            if (u.FindGood("food") is { } food) trader.Cargo[food.Id] = MathF.Min(30f, trader.FreeUnits(u, food.Id));
+        }
+        if (sc.PoliceSquadron && u.Factions.ContainsKey(sector.Owner))
+        {
+            var cops = SecuritySystem.PoliceOf(u, sector.Owner).Take(2).ToList();
+            for (int i = 0; i < cops.Count; i++)
+            {
+                var c = cops[i];
+                if (c.Transit is not null) u.FinishTransit(c);
+                c.Command = null; c.Order = null;
+                if (c.Sector != player.Sector) u.MoveShip(c, player.Sector);
+                c.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(-50f, 20f + 15f * i));
+                c.DockedAt = default;
+                c.DutySector = player.Sector;
+            }
+            if (u.Rules.FleetCombat) PoliceCommands.Organize(u, sector.Owner, SecuritySystem.PoliceOf(u, sector.Owner));
+        }
+        if (sc.Wanted > 0 && u.Factions.ContainsKey(sector.Owner) && u.Actors.TryGetValue(player.Owner, out var me))
+        {
+            Wanted.Report(u, player.Owner, sector.Owner, "assault");
+            float heat = sc.Wanted < u.Rules.WantedLevels.Count + 1 && sc.Wanted >= 1 ? u.Rules.WantedLevels[Math.Min(sc.Wanted, u.Rules.WantedLevels.Count) - 1] + 0.1f : 3.1f;
+            Wanted.SetHeat(u, me, sector.Owner, heat, 500f);
         }
     }
 }

@@ -79,7 +79,10 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 		At(row, new ShipSketch { MouseFilter = MouseFilterEnum.Ignore }, 8, 22, 64, 64);
 		At(row, Text(o.Text, 18, White), 84, 4, w - 420, 26);
 		var s = q.Stats;
-		string caps = (s.Capabilities.HasFlag(Capability.Mining) ? "Laser" : "kein Laser") + (s.CargoSolid > 0f || s.CargoLiquid > 0f
+		// Gerätetest Phase 27: „kein Laser“ meinte den Bergbaulaser — bei Kampfschiffen missverständlich; Waffen werden genannt
+		int weapons = q.Model.Fit.Count(k => k is not null && Ctx.U.Modules.TryGetValue(k, out var wm) && wm.IsWeapon);
+		string caps = (s.Capabilities.HasFlag(Capability.Mining) ? "Bergbaulaser" : weapons > 0 ? "" : "kein Bergbaulaser")
+			+ (weapons > 0 ? $"{(s.Capabilities.HasFlag(Capability.Mining) ? " · " : "")}{weapons} {(weapons == 1 ? "Waffe" : "Waffen")}" : "") + (s.CargoSolid > 0f || s.CargoLiquid > 0f
 			? $" · fest {s.CargoSolid + s.CargoAny:0}/flüssig {s.CargoLiquid + s.CargoAny:0}" : "")
 			+ (q.Model.Jobs.Count >= 2 ? " · Mehrzweck" : "");   // Phase 6: Multirole-Modell (KI wählt Handel oder Schürfen)
 		At(row, Text($"Fracht {s.Cargo:0} m³ · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")} · {caps}", 14, Dim), 84, 32, w - 420, 22);

@@ -109,6 +109,7 @@ public sealed class PirateSystem : ISimSystem
         }
         if (spent > 0f) u.Events.Publish(new TreasuryUpkeep(owner.Id, purpose, spent, 0f));
         Combat.Rearm.AtHome(u, s, u.Stations.GetValueOrDefault(s.HomeBase));   // Phase 24: Munition aus der Kasse nachladen
+        Combat.Missiles.AtHome(u, s, u.Stations.GetValueOrDefault(s.HomeBase)); // Phase 28: Raketen (nur mit Kriegsführung)
     }
 
     public static void GoHome(Universe u, Ship raider)
