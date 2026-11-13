@@ -56,9 +56,12 @@ public static class Siege
             Engage.Resume(u, s);
             n++;
         }
-        string name = u.Stations.TryGetValue(e.Station, out var st) ? st.Name : "der Station";
-        string msg = n > 0 ? $"Rückzug: Angriff auf {name} abgebrochen — dein Verband ({n}) folgt dir." : $"Rückzug: Angriff auf {name} abgebrochen.";
-        u.Events.Publish(new SiegeWithdrawn(e.Id, e.Station, player.Ship, n, msg));
+        string name = u.Stations.TryGetValue(e.Station, out var st) ? st.Name : "Die Station";
+        // Runde 7 (Handy-Test): ist die Station ausgeschaltet, gefallen oder weg, war es kein Rückzug, sondern der Sieg (vorher „Rückzug …“ im Moment von „AUS“)
+        bool won = !StationCombat.Defends(u, e);
+        string follow = n > 0 ? $" — dein Verband ({n}) folgt dir." : ".";
+        string msg = won ? (st is null ? $"Station zerstört{follow}" : $"{name} außer Gefecht{follow}") : $"Rückzug: Angriff auf {name} abgebrochen{follow}";
+        u.Events.Publish(new SiegeWithdrawn(e.Id, e.Station, player.Ship, n, msg, won));
     }
 
     /// <summary>

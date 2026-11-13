@@ -304,9 +304,12 @@ public sealed record PlayerSurrendered(bool ToPolice, SectorId Sector, float Val
 public sealed record MissileLaunched(int Encounter, SectorId Sector, ShipId Shooter, StationId FromStation, ShipId Target, StationId TargetStation, string Weapon, float FlightTicks) : SimEvent;
 /// <summary>Phase 28: Rakete am Ziel — <paramref name="Outcome"/> „hit“, „miss“, „intercepted“ (Punktabwehr) oder „lost“ (Ziel weg/entkommen).</summary>
 public sealed record MissileResolved(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, StationId TargetStation, string Outcome, float ShieldDamage, float HullDamage) : SimEvent;
+/// <summary>
+/// Gerätetest Phase 28 (Runde 6): der Spieler hat seine Belagerung verlassen; seine eigenen Schiffe brechen ab und folgen ihm. Runde 7: <paramref name="Won"/> =
+/// die Station ist ausgeschaltet bzw. gefallen (Siegmeldung statt „Rückzug“).
+/// </summary>
+public sealed record SiegeWithdrawn(int Encounter, StationId Station, ShipId Player, int Wingmen, string Message, bool Won = false) : SimEvent;
 /// <summary>Phase 28: Ein Stationsgeschütz hat auf ein Schiff geschossen.</summary>
-/// <summary>Gerätetest Phase 28 (Runde 6): der Spieler hat sich aus seiner Belagerung zurückgezogen; seine eigenen Schiffe brechen ab und folgen ihm.</summary>
-public sealed record SiegeWithdrawn(int Encounter, StationId Station, ShipId Player, int Wingmen, string Message) : SimEvent;
 public sealed record StationShot(int Encounter, SectorId Sector, StationId Station, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;
 /// <summary>Phase 28: Ein Schiff hat auf eine Station geschossen.</summary>
 public sealed record ShotAtStation(int Encounter, SectorId Sector, ShipId Shooter, StationId Station, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;

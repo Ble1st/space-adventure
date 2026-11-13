@@ -708,7 +708,10 @@ public partial class Main : Node3D
 			// Runde 6: Rückzug aus der eigenen Belagerung bzw. ihr Ende — Angriff in der Zielkarte beenden, Dauerfeuer aus, Meldung
 			case SiegeWithdrawn sw when sw.Player == _session.U.PlayerShip:
 				_fight.ArmStation(default); _fight.AutoFire = false;
-				_hud.Alert(sw.Message, 6f); LastCombatMessage = sw.Message; break;
+				// Runde 7: Sieg als Meldung (ersetzt „… ist ausgeschaltet“ um den Verband); Rückzug als Hinweis — eine danach folgende Fahndungswarnung (Meldung)
+				// überdeckt ihn dann nicht, der Hinweis rückt unter sie
+				if (sw.Won) _hud.Alert(sw.Message, 6f); else _hud.Toast(sw.Message, 6f);
+				LastCombatMessage = sw.Message; break;
 			case EncounterEnded se when se.Cause == EncounterCause.Siege && se.Sector == _session.U.PlayerSector:
 				if (_fight.AtStation && _session.U.Stations.TryGetValue(_fight.StationTarget, out var downSt) && SpaceSim.Core.Combat.StationCombat.IsDown(_session.U, downSt))
 				{ _fight.ArmStation(default); _fight.AutoFire = false; }
@@ -1619,7 +1622,7 @@ public partial class Main : Node3D
 		}
 		// Gerätetest Phase 28 (Runde 4): Station mit Geschützen gewählt — klare Lage „in Geschützreichweite“/„außerhalb“ (Abstand zur Mitte, wie die Schussregel)
 		if (u.Rules.Warfare && (_fight.AtStation ? _fight.StationTarget : _targetStation) is { } rsid && rsid.Value != 0 && u.Stations.TryGetValue(rsid, out var rst)
-			&& rst.Sector == u.PlayerSector && _fight.Target.Value == 0 && SpaceSim.Core.Combat.WarInfo.RangeStatus(u, rst, PlayerData) is { Length: > 0 } rs
+			&& rst.Sector == u.PlayerSector && _fight.Target.Value == 0 && SpaceSim.Core.Combat.WarInfo.RangeStatus(u, rst, PlayerData, pos) is { Length: > 0 } rs
 			&& d.TargetArc.Length == 0)
 			d.TargetArc = rs;
 

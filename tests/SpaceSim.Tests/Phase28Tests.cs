@@ -30,6 +30,7 @@ public class Phase28Tests
         def.Rules.PirateBasePatchHull = 0f;        // Prüfung Phase 28: Notversorgung der Piraten im Versteck
         def.Rules.FleetWorldCapWhenDivided = false; // Prüfung Phase 28: Weltgrenze der Flotte im geteilten Zustand
         def.Rules.TraderPlanGuard = false;          // Prüfung Runde 2: Kaufschutz schon in der Planung
+        def.Rules.CombatRejoinReuse = false;        // Runde 7: Wiedereintritt mit altem Gefechtseintrag
         string[] late = { "missile", "missile_launcher_s", "point_defense_s" };
         def.Goods.RemoveAll(g => g.Key == "missile");
         def.Modules.RemoveAll(m => late.Contains(m.Key));
@@ -1430,5 +1431,109 @@ public class Phase28Tests
         Assert.True(shots <= 20, $"nach dem Wiederbeitritt höchstens im Nachladetakt: {shots} Schüsse in 10 s (vorher ≈ 700)");
         Assert.Equal(1, e.Participants.Count(q => q.Ship == me.Id));
         Assert.True(e.Of(me.Id) is { Active: true } && u.Fights.Of(me.Id) == e, "wieder aktiver Teilnehmer derselben Belagerung");
+    }
+
+    // ───────── Runde 7: ein Schiff hat in einem Gefecht nie zwei Einträge ─────────
+
+    /// <summary>
+    /// Runde 7: Wiedereintritt nimmt den alten Eintrag (Mut, Abwurfanteil, Nachladeuhren bleiben, kein Zufallszug); ohne die Regel (Verhalten bis Runde 6)
+    /// entstand ein zweiter Eintrag, <see cref="Encounter.Of"/> fand weiter den alten, abgelaufenen — der Wiedereingetretene war für Schiffsfeuer und Raketen kein
+    /// Ziel mehr (beide suchen das Ziel über <c>Of</c> und verlangen einen aktiven Eintrag) und schoss mit frischen Uhren sofort wieder.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Gefecht_Wiedereintritt_KeinZweiterEintrag(bool reuse)
+    {
+        var u = Standard();
+        u.Rules.CombatRejoinReuse = reuse;
+        new SimulationRunner().Step(u);
+        var raider = u.ShipsById().First(ThreatMap.IsRaider);
+        var victim = u.ShipsById().First(s => s.Role == ShipRole.Trader && s.Sector != u.PlayerSector && !u.Fights.IsEngaged(s.Id));
+        if (raider.Command is not null) Commands.Cancel(u, raider);
+        if (Squadrons.Get(u, raider) is { } sq) Squadrons.Disband(u, sq);
+        Place(u, raider, victim.Sector, victim.Position + new Vec2(0f, -30f));
+        var e = Engage.StartRaid(u, raider, victim, u.Sectors[victim.Sector]);
+        var first = e.Of(raider.Id)!;
+        while (first.Timers.Count < 3) first.Timers.Add(0f);
+        first.Timers[2] = 1.5f;
+        float courage = first.Courage;
+        Engage.Leave(u, e, first, CombatExit.Fled);
+        ulong rng = u.Rng.State;
+        var again = Engage.Join(u, e, raider, 0, CombatTactics.Raider, 5f);
+        Assert.True(u.Fights.Of(raider.Id) == e);
+        if (reuse)
+        {
+            Assert.Same(first, again);
+            Assert.Equal(1, e.Participants.Count(p => p.Ship == raider.Id));
+            Assert.True(e.Of(raider.Id) is { Active: true });
+            Assert.Equal(courage, again.Courage);
+            Assert.Equal(1.5f, again.TimerOf(2));
+            Assert.Equal(rng, u.Rng.State);   // kein Zufallszug
+        }
+        else
+        {
+            Assert.Equal(2, e.Participants.Count(p => p.Ship == raider.Id));
+            Assert.False(e.Of(raider.Id)!.Active);   // der alte Fehler: Of findet den abgelaufenen Eintrag
+            Assert.NotEqual(rng, u.Rng.State);
+        }
+    }
+
+    /// <summary>Runde 7 (Prüfung Runde 6): Spieler mitten in einer Belagerung mit gesetztem LastShotTick — Speichern, Laden, Weiterlauf bit-identisch.</summary>
+    [Fact]
+    public void Belagerung_LastShotTick_SpeichernLadenBitIdentisch()
+    {
+        var u = Standard(start: "war");
+        var me = u.Ships[u.PlayerShip];
+        var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+        var runner = new SimulationRunner();
+        runner.Step(u);
+        foreach (int s in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFireAtStation(u, me, s, hq.Id, FiringArc.Bearing(hq.Position - me.Position));
+        for (int i = 0; i < 6; i++) runner.Step(u);
+        var p = Siege.Of(u, hq.Id)!.Of(me.Id)!;
+        Assert.True(p.Active && p.LastShotTick > 0);
+        var json = SaveGameJson.Write(u, DateTimeOffset.UnixEpoch);
+        Assert.Contains("LastShotTick", json);
+        var (copy, _) = SaveGameJson.Read(json);
+        Assert.Equal(p.LastShotTick, Siege.Of(copy, hq.Id)!.Of(me.Id)!.LastShotTick);
+        Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(copy));
+        var r2 = new SimulationRunner();
+        for (int i = 0; i < 300; i++) { runner.Step(u); r2.Step(copy); }
+        Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(copy));
+    }
+
+    /// <summary>
+    /// Runde 7 (Handy-Test Runde 6): fällt die Station, ist das Verlassen der Belagerung ein Sieg, kein Rückzug (vorher „Rückzug: Angriff … abgebrochen“ im
+    /// Moment von „AUS“); eine ausgeschaltete Station lädt ihren Schild nicht, ihre Hülle wird wie bisher repariert (600 je Tag) bis zur Wiedereinschaltung.
+    /// </summary>
+    [Fact]
+    public void Belagerung_StationAus_SiegmeldungUndKeinSchildAusgeschaltet()
+    {
+        var u = Standard(start: "war");
+        var me = u.Ships[u.PlayerShip];
+        var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+        var runner = new SimulationRunner();
+        runner.Step(u);
+        foreach (int s in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFireAtStation(u, me, s, hq.Id, FiringArc.Bearing(hq.Position - me.Position));
+        var ev = Capture(u);
+        // Station fällt: Hülle auf 0 über die Trefferregel des Spiels (StationCombat.Apply)
+        StationCombat.Apply(u, Siege.Of(u, hq.Id), hq, new HitResult(true, 1f, 0f, 0f, StationCombat.MaxHull(u, hq) + 1f), me.Owner);
+        Assert.True(StationCombat.IsDown(u, hq));
+        for (int i = 0; i < 60 && u.Fights.IsEngaged(me.Id); i++) runner.Step(u);
+        var sw = ev.OfType<SiegeWithdrawn>().FirstOrDefault();
+        if (sw is not null)
+        {
+            Assert.True(sw.Won);
+            Assert.StartsWith("Sektor-HQ Beta außer Gefecht", sw.Message);
+        }
+        Assert.DoesNotContain(ev.OfType<SiegeWithdrawn>(), x => x.Message.StartsWith("Rückzug"));
+        Assert.Equal("Geschütze schweigen (ausgeschaltet)", WarInfo.RangeStatus(u, hq, me));
+        hq.Condition!.ShieldMissing = StationCombat.MaxShield(u, hq);
+        hq.Condition.ShieldPauseUntil = 0;
+        float hull = StationCombat.Hull(u, hq);
+        for (int i = 0; i < 400; i++) runner.Step(u);
+        Assert.Equal(0f, StationCombat.Shield(u, hq));
+        Assert.True(StationCombat.Hull(u, hq) > hull, "die Hülle wird repariert");
+        Assert.True(StationCombat.Hull(u, hq) - hull <= u.Rules.StationRepairPerDay * 400f / u.Rules.DayTicks + 13f, "nicht schneller als 600 je Tag");
     }
 }

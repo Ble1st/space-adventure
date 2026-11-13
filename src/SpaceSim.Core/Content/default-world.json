@@ -20,7 +20,7 @@
   "raiderRebuildTicks": 6000,
   "maxRaidersPerActor": 2,
   "pirateTreasuryCap": 10000,
-  "fenceShare": 0.75,
+  "fenceShare": 0.85,
   "raiderUpkeepPerTick": 0.03,
   "researchActive": false,
   "ammoActive": true

@@ -2349,6 +2349,18 @@ public partial class SelfTest : Node
 					Check(_m.HudRef.Flight.TestStationOdds.StartsWith("Überlegen"), $"Zielkarte: Kräfteverhältnis mit Verband ({_m.HudRef.Flight.TestStationOdds})");
 					_m.TestArmStation();
 					Check(_m.TestFight.AutoFire && _m.TestAimAssist, "Angriff schaltet Dauerfeuer und „Ziel folgen“ ein");
+					// Runde 7: Layout mit dem Bollwerk — keine Kampftaste/-zeile überlappt eine andere, auch mit sechs Schächten
+					var lay = _m.HudRef.Flight.TestCombatLayout(6);
+					var clash = new List<string>();
+					for (int a = 0; a < lay.Count; a++) for (int b = a + 1; b < lay.Count; b++) if (lay[a].Rect.Intersects(lay[b].Rect)) clash.Add($"{lay[a].Name}/{lay[b].Name}");
+					Check(clash.Count == 0, $"Kampf-HUD ohne Überlappung ({_m.TestBayPlaces.Count()} Schächte; {string.Join(", ", clash)})");
+					_m.HudRef.Toast("Verstärkung (Verband): ein langer Hinweis, der über drei Zeilen umbricht, damit die Beschusswarnung darunter rücken muss — wie am Handy beobachtet.", 5f);
+					break;
+				}
+				if (f == 9)
+				{
+					var t = _m.HudRef.TestToastRect; var hw = _m.HudRef.Flight.TestHitWarningRect;
+					Check(hw.Position.Y >= t.End.Y, $"Beschusswarnung unter dem Hinweis (Hinweis bis {t.End.Y:0}, Warnung ab {hw.Position.Y:0})");
 					break;
 				}
 				if (f == 90)

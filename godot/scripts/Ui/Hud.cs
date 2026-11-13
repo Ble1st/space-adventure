@@ -325,7 +325,13 @@ public partial class Hud : CanvasLayer
 			_toast.Size = new Vector2(below ? 416f : 600f, _toast.Size.Y);
 		}
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
+		// Runde 7: Beschuss- und Fluchtzeile unter einen mehrzeiligen Hinweis im Flug
+		bool toastShown = _toast.Modulate.A > 0.02f && !onScreen && Screens.Current != DockMenu;
+		Flight.AvoidToast(toastShown ? _toast.Position.Y + MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y) : 0f);
 	}
+
+	/// <summary>Selbsttest Runde 7: Lage des Hinweises (mit gewachsener Höhe).</summary>
+	public Rect2 TestToastRect => new(_toast.Position, new Vector2(_toast.Size.X, MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y)));
 
 	public void Toast(string text, float seconds = 2.5f)
 	{

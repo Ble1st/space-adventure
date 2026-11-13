@@ -50,6 +50,8 @@ if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt 
 if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
 // Prüfung Runde 2: --planguard off schaltet den Kaufschutz in der Händlerplanung ab (Vergleichslauf)
 if (opts.TryGetValue("planguard", out var pgOpt)) u.Rules.TraderPlanGuard = pgOpt == "on";
+// Runde 7: --rejoin off = Wiedereintritt mit neuem Gefechtseintrag (Verhalten bis Runde 6, Vergleichslauf)
+if (opts.TryGetValue("rejoin", out var rjOpt)) u.Rules.CombatRejoinReuse = rjOpt == "on";
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
 // Phase 17: Rechenzeit je System (jedes System eines Moduls bekommt eine eigene Stoppuhr; die Sicherheits-Systeme laufen zusätzlich auf der Sammeluhr)

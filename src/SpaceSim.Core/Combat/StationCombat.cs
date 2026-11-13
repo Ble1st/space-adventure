@@ -227,7 +227,8 @@ public sealed class StationRepairSystem : ISimSystem
             var def = StationCombat.DefenseOf(u, st);
             // Runde 5: nur die Zeit seit dem Ende der Pause lädt (Intervall 50 Ticks — vorher lud ein Schritt kurz nach der Pause den ganzen Schritt nach)
             float regenSeconds = ShipSystems.Seconds((int)Math.Clamp(u.Tick - c.ShieldPauseUntil, 0L, (long)dt));
-            if (c.ShieldMissing > 0f && regenSeconds > 0f && def is not null)
+            // Runde 7: eine ausgeschaltete Station lädt ihren Schild nicht (die Hülle wird wie bisher außerhalb einer Belagerung repariert)
+            if (c.ShieldMissing > 0f && regenSeconds > 0f && def is not null && !c.Disabled)
                 c.ShieldMissing = MathF.Max(0f, c.ShieldMissing - def.ShieldRegen * regenSeconds);
             if (!sieged) for (int i = 0; i < c.Timers.Count; i++) c.Timers[i] = 0f;
             if (!sieged && c.HullMissing > 0f) Repair(u, st, c, dt, plates);
@@ -309,11 +310,14 @@ public static class WarInfo
     /// Gerätetest Phase 28 (Runde 4): Lagezeile beim Stationsangriff — „in Geschützreichweite“ oder „außerhalb der Geschütze“ (Abstand zur Mitte gegen die
     /// Reichweite der Geschütze dieser Station, dieselbe Messung wie ihre Schussregel), dazu die eigene Raketenreichweite ab Mitte. Leer ohne Geschütze.
     /// </summary>
-    public static string RangeStatus(Universe u, Station target, Ship player)
+    public static string RangeStatus(Universe u, Station target, Ship player) => RangeStatus(u, target, player, player.Position);
+
+    /// <summary>Runde 7: dieselbe Lagezeile von einer gegebenen Position aus (die Ansicht übergibt die Position, aus der sie auch „Entfernung“ zeigt).</summary>
+    public static string RangeStatus(Universe u, Station target, Ship player, Vec2 at)
     {
         float guns = StationCombat.GunRange(u, target);
-        if (guns <= 0f) return "";
-        float d = Vec2.Distance(player.Position, target.Position);
+        if (guns <= 0f) return StationCombat.IsDown(u, target) ? "Geschütze schweigen (ausgeschaltet)" : "";
+        float d = Vec2.Distance(at, target.Position);
         float missiles = MissileReachFromCentre(u, player);
         if (d <= guns) return $"IN GESCHÜTZREICHWEITE ({guns:0} m)";
         if (missiles <= 0f) return $"außerhalb Geschütze ({guns:0} m)";
