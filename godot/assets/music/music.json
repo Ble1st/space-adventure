@@ -1,0 +1,226 @@
+{
+  "sample_rate": 32000,
+  "bpm": 80,
+  "bars": 8,
+  "beats_per_bar": 4,
+  "key": "A-Moll (Am-F-C-G, je 1 Takt)",
+  "loop_seconds": 24.0,
+  "loop_samples": 768000,
+  "seconds_per_bar": 3.0,
+  "content_offset_s": 0.03,
+  "notes": [
+    "Alle layer_* und mood_* sind exakt gleich lang und nahtlos schleifend; gleichzeitig starten und loopen.",
+    "Der Inhalt ist um content_offset_s verschoben (erster Taktschlag bei 0.03 s); fuer Sync irrelevant, da alle Dateien gleich verschoben sind.",
+    "Schichtsummen clippen nicht: alle 6 Schichten gleichzeitig (0 dB) und alle Zustaende der Tabelle bleiben <= -1 dBFS (Skalierung der Schichten -2.12 dB).",
+    "Stimmungen (mood_*) sind eigenstaendig und werden NICHT mit Schichten summiert; zwischen Stimmungen bzw. Zustaenden 1 Takt (3 s) ueberblenden.",
+    "Stings (nicht schleifend) mit ca. -1 dB Headroom lauter als Musik abspielen, Musik waehrenddessen um ca. 4 dB duecken."
+  ],
+  "crossfade_seconds": 3.0,
+  "sting_duck_music_db": -4.0,
+  "files": [
+    {
+      "file": "layer_pad.wav",
+      "role": "layer",
+      "loop": true,
+      "channels": 2,
+      "volume_db": 0.0,
+      "size_bytes": 3072044
+    },
+    {
+      "file": "layer_pulse.wav",
+      "role": "layer",
+      "loop": true,
+      "channels": 1,
+      "volume_db": 0.0,
+      "size_bytes": 1536044
+    },
+    {
+      "file": "layer_melody.wav",
+      "role": "layer",
+      "loop": true,
+      "channels": 1,
+      "volume_db": 0.0,
+      "size_bytes": 1536044
+    },
+    {
+      "file": "layer_tension.wav",
+      "role": "layer",
+      "loop": true,
+      "channels": 1,
+      "volume_db": 0.0,
+      "size_bytes": 1536044
+    },
+    {
+      "file": "layer_combat.wav",
+      "role": "layer",
+      "loop": true,
+      "channels": 1,
+      "volume_db": 0.0,
+      "size_bytes": 1536044
+    },
+    {
+      "file": "layer_epic.wav",
+      "role": "layer",
+      "loop": true,
+      "channels": 2,
+      "volume_db": 0.0,
+      "size_bytes": 3072044
+    },
+    {
+      "file": "mood_safe.wav",
+      "role": "mood",
+      "loop": true,
+      "channels": 2,
+      "volume_db": 0.0,
+      "size_bytes": 3072044
+    },
+    {
+      "file": "mood_frontier.wav",
+      "role": "mood",
+      "loop": true,
+      "channels": 1,
+      "volume_db": 0.0,
+      "size_bytes": 1536044
+    },
+    {
+      "file": "mood_mining.wav",
+      "role": "mood",
+      "loop": true,
+      "channels": 1,
+      "volume_db": 0.0,
+      "size_bytes": 1536044
+    },
+    {
+      "file": "mood_docked.wav",
+      "role": "mood",
+      "loop": true,
+      "channels": 1,
+      "volume_db": 0.0,
+      "size_bytes": 1536044
+    },
+    {
+      "file": "mood_menu.wav",
+      "role": "mood",
+      "loop": true,
+      "channels": 2,
+      "volume_db": 0.0,
+      "size_bytes": 3072044
+    },
+    {
+      "file": "sting_victory.wav",
+      "role": "sting",
+      "loop": false,
+      "channels": 1,
+      "volume_db": 0.0,
+      "duration_s": 5.2,
+      "size_bytes": 332844
+    },
+    {
+      "file": "sting_loss.wav",
+      "role": "sting",
+      "loop": false,
+      "channels": 1,
+      "volume_db": 0.0,
+      "duration_s": 5.2,
+      "size_bytes": 332844
+    },
+    {
+      "file": "sting_jump.wav",
+      "role": "sting",
+      "loop": false,
+      "channels": 1,
+      "volume_db": 0.0,
+      "duration_s": 4.2,
+      "size_bytes": 268844
+    },
+    {
+      "file": "sting_war.wav",
+      "role": "sting",
+      "loop": false,
+      "channels": 1,
+      "volume_db": 0.0,
+      "duration_s": 5.8,
+      "size_bytes": 371244
+    },
+    {
+      "file": "sting_peace.wav",
+      "role": "sting",
+      "loop": false,
+      "channels": 1,
+      "volume_db": 0.0,
+      "duration_s": 5.4,
+      "size_bytes": 345644
+    },
+    {
+      "file": "sting_warning.wav",
+      "role": "sting",
+      "loop": false,
+      "channels": 1,
+      "volume_db": 0.0,
+      "duration_s": 4.0,
+      "size_bytes": 256044
+    }
+  ],
+  "states": {
+    "flug_sicher": {
+      "mood": "mood_safe",
+      "layers": {},
+      "optional_layers": {
+        "layer_melody": -9
+      }
+    },
+    "grenzgebiet": {
+      "mood": "mood_frontier",
+      "layers": {},
+      "optional_layers": {
+        "layer_tension": -9
+      }
+    },
+    "bergbau": {
+      "mood": "mood_mining",
+      "layers": {}
+    },
+    "angedockt": {
+      "mood": "mood_docked",
+      "layers": {}
+    },
+    "menue": {
+      "mood": "mood_menu",
+      "layers": {}
+    },
+    "warnung": {
+      "mood": null,
+      "layers": {
+        "layer_pad": 0,
+        "layer_pulse": -3,
+        "layer_tension": -3
+      }
+    },
+    "gefecht": {
+      "mood": null,
+      "layers": {
+        "layer_pad": -3,
+        "layer_pulse": -3,
+        "layer_combat": 0,
+        "layer_tension": -6
+      }
+    },
+    "belagerung": {
+      "mood": null,
+      "layers": {
+        "layer_pad": -3,
+        "layer_pulse": -6,
+        "layer_combat": -3,
+        "layer_epic": 0,
+        "layer_tension": -6,
+        "layer_melody": -9
+      }
+    }
+  },
+  "state_peak_dbfs": {
+    "warnung": -6.83,
+    "gefecht": -4.58,
+    "belagerung": -3.35,
+    "alle_sechs": -1.01
+  }
+}
