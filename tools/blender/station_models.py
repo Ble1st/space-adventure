@@ -10,7 +10,7 @@ from mathutils import Vector
 
 import bmesh
 from stationkit import Builder, material as M, polar, qdir
-from ship_models import hp_turret, hp_shafts, greebles, _rand
+from ship_models import hp_turret, hp_shafts, greebles, _rand, interp, side_hatch, top_hatch, merge_material
 
 MODELS = {}
 
@@ -26,6 +26,11 @@ def model(key, idea):
 RESTYLE = {"Hull": "ShipHull", "Steel": "ShipPanel", "Armor": "ShipArmor"}
 DARK_KEEP = {"pirate_hideout"}          # bleibt dunkel und zusammengeflickt (Kontrast gewollt)
 HARDPOINTS = {}                          # key -> Liste wie in stations.json
+# Mehr als zehn Materialien werden der Reihe nach zusammengelegt.
+STATION_MERGE = (("Glass", "Light"), ("ShipArmor", "ShipPanel"), ("Window", "Light"), ("Copper", "ShipPanel"),
+                 ("Hazard", "Accent"), ("Ice", "ShipPanel"), ("Rust", "ShipPanel"), ("Container", "ShipPanel"))
+PIRATE_MERGE = (("Window", "LightRed"), ("Container", "Rust"), ("Armor", "Steel"), ("Glow", "Ember"),
+                ("Hazard", "Rust"))
 
 
 def restyle(b):
@@ -77,12 +82,38 @@ def dress_station(b, seed=1.0, tops=5, sides=6):
             rot = (0, 0, 0) if sy >= sx else (0, 0, 90)
             b.box(max(0.3, w * 0.3), l * 0.75, 0.05, M("HullDark"), loc=c + Vector((0, 0, 0.01)), rot=rot)
             greebles(b, c.x, c.y, c.z + 0.04, w * 0.28 if sy >= sx else l * 0.7, l * 0.7 if sy >= sx else w * 0.28,
-                     n=4, seed=seed + k)
+                     n=6, seed=seed + k)
         else:
             _, c, n, w, h = job
             yaw = math.degrees(math.atan2(n.y, n.x))
             b.box(0.06, w * 0.62, h * 0.42, M("Accent"), loc=c + n * 0.03, rot=(0, 0, yaw))
             b.box(0.07, w * 0.62, 0.06, M("HullDark"), loc=c + n * 0.04 + Vector((0, 0, h * 0.27)), rot=(0, 0, yaw))
+            b.box(0.07, w * 0.5, 0.1, M("Window"), loc=c + n * 0.04 - Vector((0, 0, h * 0.3)), rot=(0, 0, yaw))
+
+
+def extremes(b, dirs):
+    """Aeusserste Rumpfpunkte (Vertex mit groesster Projektion) je Richtung."""
+    vs = list(b.bm.verts)
+    return [max(vs, key=lambda v: v.co.dot(Vector(d))).co.copy() for d in dirs]
+
+
+def station_details(b, key):
+    """Gemeinsame Ausstattung jeder Station: Navigationsbaken an den vier aeussersten Punkten,
+    Manoevrierduesen an den Diagonalen, Antennen-/Sensorgruppe oben, Bake unten."""
+    cards = [(1, 0, 0), (0, 1, 0), (-1, 0, 0), (0, -1, 0)]
+    for k, (p, d) in enumerate(zip(extremes(b, cards), cards)):
+        d = Vector(d)
+        b.strut(p - d * 0.2, p + d * 0.9, 0.08, M("HullDark"), seg=4)
+        b.sphere(0.24, M("LightRed" if k % 2 else "Light"), seg=6, rings=4, loc=p + d * 1.0)
+    diag = [(1, 1, 0), (-1, 1, 0), (-1, -1, 0), (1, -1, 0)]
+    for p, d in zip(extremes(b, diag), diag):
+        b.rcs(p + Vector(d).normalized() * 0.25, s=0.8)
+    top, bot = extremes(b, [(0, 0, 1), (0, 0, -1)])
+    for i, (dx, h) in enumerate(((0.0, 2.2), (0.5, 1.4), (-0.45, 1.1))):
+        b.strut(top + Vector((dx, dx * 0.6, -0.2)), top + Vector((dx, dx * 0.6, h)), 0.06, M("HullDark"), seg=4)
+        b.sphere(0.13, M("LightRed" if i == 0 else "Light"), seg=5, rings=3, loc=top + Vector((dx, dx * 0.6, h)))
+    b.strut(bot + Vector((0, 0, 0.2)), bot + Vector((0, 0, -1.2)), 0.08, M("HullDark"), seg=4)
+    b.sphere(0.2, M("Light"), seg=6, rings=4, loc=bot + Vector((0, 0, -1.25)))
 
 
 def build(key):
@@ -91,8 +122,13 @@ def build(key):
     b.hardpoints = []
     fn(b)
     if key not in DARK_KEEP:
+        station_details(b, key)
         restyle(b)
-        dress_station(b, seed=sum(map(ord, key)) * 0.01)
+        dress_station(b, seed=sum(map(ord, key)) * 0.01, tops=8, sides=10)
+    for src, dst in (PIRATE_MERGE if key in DARK_KEEP else STATION_MERGE):
+        if len(b.mats) <= 10:
+            break
+        merge_material(b, src, dst)
     parts = getattr(b, "parts", [])
     if not parts:
         HARDPOINTS[key] = []
@@ -137,6 +173,17 @@ def V(x, y, z):
     return Vector((x, y, z))
 
 
+def intake(b, p, d, r=1.1):
+    """Geschlossener Erz-Einlass: Trichter mit Warnkragen und dunklem Schlund, Oeffnung in Richtung d."""
+    p, d = Vector(p), Vector(d).normalized()
+    q = qdir(d)
+    b.lathe([(r * 0.55, 0), (r * 0.8, r * 0.9), (r * 1.25, r * 1.8), (r * 1.1, r * 1.8), (r * 0.7, r * 0.9),
+             (r * 0.4, r * 0.1)], M("Steel"), 10, loc=p, rot=q, closed=True)
+    b.lathe([(r * 1.1, r * 1.5), (0, r * 1.5)], M("HullDark"), 10, loc=p, rot=q)
+    b.lathe([(r * 1.27, r * 1.55), (r * 1.27, r * 1.85)], M("Hazard"), 10, loc=p, rot=q)
+    b.cyl(r * 0.6, r * 1.2, M("Hull"), seg=10, loc=p - d * r * 0.4, rot=q)
+
+
 # =============================================================== Grundstoffe
 @model("solar_plant", "Nabe mit vier Gittertraegern und 24 grossen, schraeg gestellten Solarpaneelen")
 def solar_plant(b):
@@ -162,7 +209,7 @@ def solar_plant(b):
         b.nav_lights([d * 9.7 + V(0, 0, 0.35)], mat="LightRed", s=0.18)
 
 
-@model("steelworks", "Kompakter Hochofen-Kern: gepanzerte, achteckige Schmelztrommel mit zwei glutroten Schlitzbaendern und Panzerguertel, Giesskegel oben und unten, vier kurze, breite Radiatorfluegel, zwei Erzgreifer mit Brocken, haengende Barrenkapseln, Punktverteidigung")
+@model("steelworks", "Kompakter Hochofen-Kern: gepanzerte, achteckige Schmelztrommel mit zwei glutroten Schlitzbaendern und Panzerguertel, Giesskegel oben und unten, vier kurze, breite Radiatorfluegel, zwei geschlossene Erz-Einlasstrichter, haengende Barrenkapseln, Punktverteidigung")
 def steelworks(b):
     b.lathe([(0, -4.6), (2.2, -4.2), (3.6, -3.0), (4.2, -1.6), (4.2, 1.6), (3.6, 3.0), (2.2, 4.2), (0, 4.6)],
             M("Hull"), seg=8, start=22.5)
@@ -180,8 +227,7 @@ def steelworks(b):
     for s in (1, -1):
         d = V(s, 0, 0)
         b.box(1.6, 1.6, 1.6, M("HullDark"), loc=d * 4.9, bevel=0.15)
-        b.claw(d * 5.6, d, s=1.0)
-        b.rock(1.3, M("Rock"), seed=3.3 + s, seg=8, rings=6, loc=d * 7.9 + V(0, 0, 0.3 * s), amp=0.35)
+        intake(b, d * 5.4, d, r=1.1)
     for x, y, a in polar(3, 2.4, 0):
         b.capsule(V(x, y, -6.3), (math.cos(math.radians(a + 90)), math.sin(math.radians(a + 90)), 0),
                   2.0, 0.5, M("Copper"), seg=8)
@@ -212,6 +258,9 @@ def water_plant(b):
         d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
         b.radiator(d * 1.0 + V(0, 0, -4.0), d, 5.0, 1.6, tilt=0, stripe="Light", n=2)
     b.dock(V(0, 0, -7.4), (0, 0, -1), r=0.6, L=1.2)
+    for x, y, a in polar(3, 5.0, 90):
+        b.lathe([(2.36, 0.6), (2.2, 1.2)], M("Accent"), 16, loc=(x, y, 0))
+        b.lathe([(2.2, -1.2), (2.36, -0.6)], M("Accent"), 16, loc=(x, y, 0))
 
 
 @model("electrolysis", "Zwei dicke, geriffelte Elektrolysezellen mit blau leuchtenden Spalten dicht an einer gepanzerten Nabe, Kupfer-Stromschienen, Wasserstoff- und Sauerstoffkugeln mit Panzerkragen, Andockschleusen oben und unten")
@@ -239,7 +288,7 @@ def electrolysis(b):
     b.nav_lights([(6.4, 2.9, 0), (6.4, -2.9, 0), (-6.4, 2.9, 0), (-6.4, -2.9, 0)], mat="LightRed", s=0.22)
 
 
-@model("copper_smelter", "Rotierender Schmelzring: kupferbeschlagener Torus mit gluehender Schmelzrinne um eine Nabe, Kupferspeichen, haengende Barrenkapseln, Erzgreifer, Kuehlrippen oben und unten")
+@model("copper_smelter", "Rotierender Schmelzring: kupferbeschlagener Torus mit gluehender Schmelzrinne um eine Nabe, Kupferspeichen, haengende Barrenkapseln, Erz-Einlasstrichter, Kuehlrippen oben und unten")
 def copper_smelter(b):
     b.spindle(1.6, 6.0, M("Hull"), seg=12)
     b.ring(1.85, 0.3, 0.5, M("Accent"), seg=12, loc=(0, 0, 1.4))
@@ -262,8 +311,7 @@ def copper_smelter(b):
             b.box(0.15, 3.4, 2.6, M("Copper"), loc=(0, 0, z * 4.6), rot=(0, 0, 45 * k))
     d = V(math.cos(math.radians(-22.5)), math.sin(math.radians(-22.5)), 0)
     b.beam(d * (R + 1.0), d * (R + 2.4), 0.5, M("HullDark"))
-    b.claw(d * (R + 2.4), d, s=1.1)
-    b.rock(1.4, M("Rock"), seed=5.1, seg=8, rings=6, loc=d * (R + 5.2), amp=0.35)
+    intake(b, d * (R + 2.3), d, r=1.2)
     b.dock(V(0, 0, 4.0), (0, 0, 1), r=0.5, L=1.4)
     b.nav_lights([(x, y, 1.4) for x, y, a in polar(4, R, 45)], mat="LightRed", s=0.22)
 
@@ -273,7 +321,9 @@ def wafer_fab(b):
     b.cyl(1.4, 7.0, M("Steel"), seg=8)
     for z, r in ((1.1, 6.6), (-0.9, 5.0)):
         b.lathe([(1.3, z - 0.3), (r - 0.5, z - 0.3), (r, z), (r - 0.5, z + 0.25), (1.3, z + 0.25)],
-                M("Accent"), seg=16, closed=True)
+                M("Hull"), seg=16, closed=True)
+        for k in range(3):
+            b.ring(r + 0.06, 0.6, 0.6, M("Accent"), seg=6, loc=(0, 0, z), arc=40, start=120 * k + z * 20)
         b.torus(r - 0.05, 0.16, M("Plasma"), seg=16, minor=4, loc=(0, 0, z))
         for x, y, a in polar(8, r * 0.62, 11.25):
             b.box(0.9, 0.9, 0.22, M("HullDark"), loc=(x, y, z + 0.32), rot=(0, 0, a))
@@ -290,7 +340,7 @@ def wafer_fab(b):
     b.nav_lights([(x, y, 1.6) for x, y, a in polar(4, 6.4, 0)], mat="LightRed", s=0.18)
 
 
-@model("titanium_works", "Liegende, dicke Brechertrommel mit gelben Warnstreifen und Panzerrippen als Rumpf, sechseckige Verarbeitungsbloecke oben und unten, kurzer Erzkaefig am Bug, gepanzerte Andockschleuse am Heck, kurze Radiatoren")
+@model("titanium_works", "Liegende, dicke Brechertrommel mit gelben Warnstreifen und Panzerrippen als Rumpf, sechseckige Verarbeitungsbloecke oben und unten, geschlossener Erztrichter am Bug, gepanzerte Andockschleuse am Heck, kurze Radiatoren")
 def titanium_works(b):
     b.lathe([(0, -8.0), (1.8, -7.6), (3.2, -6.0), (3.4, -5.2), (3.4, 5.2), (3.2, 6.0), (1.8, 7.6), (0, 8.0)],
             M("Hull"), seg=12, rot=(0, 90, 0))
@@ -307,15 +357,7 @@ def titanium_works(b):
     for y in (1, -1):
         b.radiator(V(-2.0, y * 3.2, 0), (0, y, 0), 4.6, 2.6, tilt=-15 * y, mat="Steel", stripe="Light")
         b.radiator(V(2.4, y * 3.2, 0), (0, y, 0), 4.0, 2.2, tilt=-15 * y, mat="Steel", stripe="Light")
-    c = V(-10.2, 0, 0)
-    e = 1.6
-    for sx in (-e, e):
-        for sy in (-e, e):
-            b.beam(c + V(sx, sy, -e), c + V(sx, sy, e), 0.2, M("Hazard"))
-            b.beam(c + V(sx, -e, sy), c + V(sx, e, sy), 0.2, M("Hazard"))
-            b.beam(c + V(-e, sx, sy), c + V(e, sx, sy), 0.2, M("Hazard"))
-    for i, (o, r) in enumerate(((V(0.3, 0.4, 0.2), 1.0), (V(-0.6, -0.5, -0.4), 0.75))):
-        b.rock(r, M("Rock"), seed=2 + i, seg=7, rings=5, loc=c + o, amp=0.35)
+    intake(b, V(-8.3, 0, 0), (-1, 0, 0), r=1.5)
     b.dock(V(8.0, 0, 0), (1, 0, 0), r=0.9, L=1.6, mat="Armor")
     pass
     b.nav_lights([(-1.0, 0, 5.6), (-1.0, 0, -5.6), (-11.8, 0, 1.6)], mat="LightRed", s=0.22)
@@ -365,6 +407,10 @@ def powerplant(b):
         b.nav_lights([d * 9.95 + V(0, 0, 2.3)], mat="LightRed", s=0.18)
     pass
     pass
+    for k in range(8):
+        b.ring(4.6 + 1.0, 2.0, 0.1, M("Accent"), seg=6, loc=(0, 0, 1.58), arc=22, start=45 * k + 11.5)
+
+
 @model("farm", "Ringdeck mit sechs gruen leuchtenden Gewaechshauskuppeln, Speichen zur Nabe, Wassertanks darunter")
 def farm(b):
     b.cyl(2.0, 2.4, M("Hull"), seg=12)
@@ -506,7 +552,7 @@ def life_support_fab(b):
     b.nav_lights([(0, 0, 8.0), (0, 0, -6.7)], s=0.22)
 
 
-@model("goods_factory", "Kompakter Fertigungsring: acht gepanzerte Werkmodule mit Fensterbaendern auf einem Ring um eine Nabe, Containercluster direkt an vier Andockstutzen aussen, Schlepper")
+@model("goods_factory", "Kompakter Fertigungsring: acht gepanzerte Werkmodule mit Fensterbaendern auf einem Ring um eine Nabe, vier verkleidete Frachtpods mit Toren an kurzen Auslegern")
 def goods_factory(b):
     b.spindle(2.0, 6.0, M("Steel"), seg=8)
     b.armor_belt(2.15, 0, 1.0, 8, tilt=0)
@@ -519,21 +565,19 @@ def goods_factory(b):
     for x, y, a in polar(4, 1.9, 22.5):
         d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
         b.beam(d * 1.9, d * (R - 1.2), 0.55, M("HullDark"))
-    cols = ["Container", "Accent", "Hazard", "Steel", "Armor"]
     for i, (x, y, a) in enumerate(polar(4, R, 22.5)):
         d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
         n = V(-d.y, d.x, 0)
         b.beam(d * (R + 1.0), d * (R + 1.8), 0.7, M("HullDark"))
         c = d * (R + 3.1)
-        k = i
-        for u in (-1, 1):
-            for z in (-1, 0, 1):
-                if (u + z + i) % 4 == 3:
-                    continue
-                b.box(2.4, 1.2, 1.15, M(cols[k % 5]), rot=(0, 0, a + 90),
-                      loc=c + n * u * 1.25 + V(0, 0, z * 1.2))
-                k += 1
-        b.nav_lights([d * (R + 4.5) + V(0, 0, 1.8)], s=0.2)
+        b.capsule(c, n, 5.0, 1.25, M("Steel"), seg=10)
+        for u in (-1.2, 0.0, 1.2):
+            b.ring(1.32, 0.2, 0.3, M("HullDark"), seg=10, loc=c + n * u, rot=qdir(n))
+        for u in (-0.6, 0.6):
+            b.box(0.12, 1.0, 1.4, M("Hull"), loc=c + n * u + d * 1.28, rot=(0, 0, a))
+            b.box(0.16, 1.0, 0.1, M("HullDark"), loc=c + n * u + d * 1.3, rot=(0, 0, a))
+        b.box(0.1, 3.4, 0.5, M("Accent"), loc=c + d * 1.27 + V(0, 0, 0.85), rot=(0, 0, a))
+        b.nav_lights([c + n * 2.6, c - n * 2.6], s=0.2)
     for z in (1, -1):
         b.dock(V(0, 0, z * 3.8), (0, 0, z), r=0.7, L=1.4, mat="Armor")
     pass
@@ -557,52 +601,49 @@ def luxury_workshop(b):
 
 
 # =============================================================== Werften und Fabriken
-@model("shipyard", "Offenes Trockendock aus Gitterrahmen mit halbfertigem Schiffsrumpf, zwei Kraene, Leitstand, zwei Geschuetztuerme")
+@model("shipyard", "Werft mit geschlossener Dockbucht: zwei gepanzerte Seitenwaende mit Leuchtleisten und Materialtoren, Dach und Kiel, darin ein halbfertiger Schiffsrumpf, Heckblock mit Leitstand und Schuessel, Andockarme, zwei Geschuetztuerme")
 def shipyard(b):
-    L, W, H = 8.0, 3.4, 2.8
-    corners = [(x, y, z) for x in (-L, L) for y in (-W, W) for z in (-H, H)]
-    for x in (-L, L):
-        for y in (-W, W):
-            b.beam(V(x, y, -H), V(x, y, H), 0.35, M("Hazard" if x > 0 else "HullDark"))
-        for z in (-H, H):
-            b.beam(V(x, -W, z), V(x, W, z), 0.35, M("HullDark"))
-    for y in (-W, W):
-        for z in (-H, H):
-            b.truss(V(-L, y, z), V(L, y, z), 0.3, 0.1, M("Hull"), n=8)
-    for i in range(1, 4):
-        x = -L + i * 2 * L / 4
-        for y in (-W, W):
-            b.beam(V(x, y, -H), V(x, y, H), 0.22, M("HullDark"))
-        b.beam(V(x, -W, H), V(x, W, H), 0.22, M("HullDark"))
-        b.beam(V(x, -W, -H), V(x, W, -H), 0.22, M("HullDark"))
-    # halbfertiger Rumpf entlang X
-    prof = [(0, -6.0), (1.2, -5.2), (1.8, -3.0), (2.0, 0.0), (1.8, 2.5), (1.4, 4.4), (0.6, 5.6), (0, 5.8)]
-    b.lathe(prof[:5] + [(0, 1.0)], M("Hull"), seg=10, rot=(0, 90, 0), scale=(1, 0.8, 1))
-    b.lathe([(1.82, -0.1), (1.82, 0.4)], M("Accent"), seg=10, rot=(0, 90, 0), loc=(-3.0, 0, 0),
-            scale=(1, 0.8, 1))
-    for xr in (1.8, 2.9, 4.0, 5.0):
-        r = 1.95 if xr < 3 else (1.5 if xr < 4.5 else 0.9)
-        b.ring(r, 0.18, 0.18, M("HullDark"), seg=10, loc=(xr, 0, 0), rot=(0, 90, 0), arc=360)
-    b.beam(V(1.0, 0, 1.4), V(5.4, 0, 0.6), 0.16, M("HullDark"))
-    b.beam(V(1.0, 0, -1.4), V(5.4, 0, -0.6), 0.16, M("HullDark"))
-    b.cyl(1.1, 1.6, M("HullDark"), seg=10, loc=(-6.6, 0, 0), rot=(0, 90, 0), r2=1.5)
-    # Kraene
-    for x, s in ((-2.0, 1), (3.5, -1)):
-        b.box(0.8, 0.8, 0.8, M("Hazard"), loc=(x, s * W, H + 0.5))
-        b.beam(V(x, s * W, H + 0.8), V(x, -s * 1.0, H + 1.4), 0.25, M("Hazard"))
-        b.beam(V(x, -s * 1.0, H + 1.4), V(x, -s * 1.0, 2.2), 0.06, M("Hull"))
-    # Leitstand
-    b.box(2.6, 2.6, 3.2, M("Hull"), loc=(-L - 1.8, 0, 0.4), bevel=0.25)
-    b.box(2.7, 2.7, 0.35, M("Window"), loc=(-L - 1.8, 0, 1.4))
-    b.box(2.9, 0.2, 0.35, M("Accent"), loc=(-L - 1.8, -1.35, 0.6))
-    b.dish((-L - 1.8, 0, 2.0), 1.2, M("Hull"), rot=(-30, 0, 0))
-    hp_turret(b, 0, (L - 1.0, -W + 0.4, H + 0.3), s=0.85)
-    hp_turret(b, 1, (L - 1.0, W - 0.4, -H - 0.3), s=0.85, up=False)
-    b.nav_lights([V(x, y, z) for x, y, z in corners], mat="Light", s=0.22)
-    for x, s in ((-4.0, 1), (4.0, -1)):
-        pass
-    b.insignia(V(-L - 1.8, -1.42, 0.0), (0, -1, 0), s=0.6)
-    b.mast((-L - 1.8, 0.8, 2.0), 2.4)
+    L, W, H = 8.5, 3.8, 2.8
+    for s in (1, -1):
+        Wl = [(L + 0.6, 0.5, H * 0.9), (L, 0.9, H), (-L, 0.9, H), (-L - 0.4, 0.7, H * 0.9)]
+        b.loft(Wl, M("Hull"), x=s * W)
+        for y in (5.0, 1.6, -1.8, -5.2):
+            side_hatch(b, s * (W + 0.9), y, 0.0, 2.4, 2.4, mat="Steel")
+        b.box(0.08, 2 * L - 1.0, 0.18, M("Light"), loc=(s * (W - 0.92), 0, 1.2))
+        b.box(0.08, 2 * L - 1.0, 0.18, M("Light"), loc=(s * (W - 0.92), 0, -1.2))
+        b.box(0.1, 2 * L - 2.0, 0.9, M("Accent"), loc=(s * (W + 0.93), 0, 2.2))
+    for z in (1, -1):
+        Rf = [(L, 0.0, 0.0, z * (H + 0.1)), (L - 0.6, W + 0.9, 0.35, z * (H + 0.1)), (-L, W + 0.9, 0.35, z * (H + 0.1))]
+        b.loft(Rf, M("Steel"))
+        for y in (6.0, 2.0, -2.0, -6.0):
+            b.box(2 * W + 1.6, 0.35, 0.3, M("HullDark"), loc=(0, y, z * (H + 0.45)))
+    S = [(-L, 4.4, 3.2), (-L - 2.6, 4.2, 3.0), (-L - 3.4, 3.0, 2.2)]
+    b.loft(S, M("Armor"))
+    b.box(4.0, 0.12, 0.4, M("Window"), loc=(0, -L - 1.0, H + 0.1))
+    # halbfertiger Rumpf in der Bucht (laengs Y)
+    prof = [(0, -6.0), (1.2, -5.2), (1.8, -3.0), (2.0, 0.0), (1.8, 2.5), (0, 1.0)]
+    b.lathe(prof, M("Hull"), seg=10, rot=(-90, 0, 0), scale=(0.8, 1, 1))
+    for yr in (2.9, 4.0, 5.0):
+        r = 1.5 if yr < 4.5 else 0.9
+        b.ring(r, 0.18, 0.18, M("HullDark"), seg=10, loc=(0, yr, 0), rot=(90, 0, 0))
+    b.lathe([(1.82, -0.1), (1.82, 0.4)], M("Accent"), seg=10, rot=(-90, 0, 0), loc=(0, -3.0, 0), scale=(0.8, 1, 1))
+    for s in (1, -1):
+        b.beam(V(s * 1.5, -1.0, 0), V(s * (W - 0.9), -1.0, 0), 0.3, M("HullDark"))
+        b.beam(V(s * 1.0, 3.0, 1.0), V(s * (W - 0.9), 3.0, 1.6), 0.2, M("Hazard"))
+    # Leitstand auf dem Heckblock
+    b.box(2.6, 2.4, 2.2, M("Hull"), loc=(0, -L - 1.6, H + 1.4), bevel=0.2)
+    b.box(2.7, 0.1, 0.4, M("Window"), loc=(0, -L - 0.38, H + 1.8))
+    b.dish((1.2, -L - 2.4, H + 2.6), 1.0, M("Hull"), rot=(-30, 0, 0))
+    b.mast((-0.8, -L - 2.4, H + 2.5), 2.2)
+    b.insignia(V(0, -L - 3.45, 0.0), (0, -1, 0), s=0.9)
+    for s in (1, -1):
+        d = V(s, 0, 0)
+        b.cyl(0.45, 2.2, M("HullDark"), seg=8, loc=d * (W + 2.0) + V(0, -L - 1.6, 0), rot=(0, 90, 0))
+        b.ring(1.0, 0.3, 0.6, M("Hull"), seg=8, loc=d * (W + 3.1) + V(0, -L - 1.6, 0), rot=(0, 90, 0))
+        b.ring(0.75, 0.1, 0.62, M("Light"), seg=8, loc=d * (W + 3.1) + V(0, -L - 1.6, 0), rot=(0, 90, 0))
+    hp_turret(b, 0, (W, L - 2.0, H + 0.45), s=0.95)
+    hp_turret(b, 1, (-W, -L + 3.0, -H - 0.45), s=0.95, up=False)
+    b.nav_lights([V(s * W, y, z) for s in (1, -1) for y in (L + 0.6, -L) for z in (H, -H)], mat="Light", s=0.22)
 
 
 @model("colony", "Grosses Wohnrad mit leuchtendem Fensterband und Glasblasen, vier Speichen, Nabe mit Kuppel und Antennenspitze")
@@ -624,6 +665,9 @@ def colony(b):
     b.cyl(0.15, 5.0, M("HullDark"), seg=6, loc=(0, 0, 5.4))
     b.cyl(0.5, 1.2, M("HullDark"), seg=10, loc=(0, 0, -5.0))
     b.nav_lights([(0, 0, 8.0), (0, 0, -5.7)], s=0.25)
+    for k in range(4):
+        b.ring(8.6 + 1.0, 2.0, 0.12, M("Accent"), seg=8, loc=(0, 0, 1.3), arc=36, start=90 * k + 27)
+        b.ring(8.6 + 1.0, 2.0, 0.12, M("Accent"), seg=8, loc=(0, 0, -1.3), arc=36, start=90 * k + 27)
 
 
 @model("fuel_refinery", "Geriffelte Destillationsachse quer durch die Station mit Abfackelflamme oben, sechs Kugeltanks ringsum an Auslegern, Liegetanks ueber und unter dem Ring, Radiatoren")
@@ -747,7 +791,7 @@ def systems_works(b):
 
 
 # =============================================================== Handel und Lager
-@model("trade_station", "Grosser Haendler-Hub: gepanzerte Doppelkegel-Nabe mit Fensterbaendern, sechs Andockarme mit Leuchtkragen, Containerring, offenes Schiffsdock mit ausgestelltem Kleinschiff, Punktverteidigung")
+@model("trade_station", "Grosser Haendler-Hub: gepanzerte Doppelkegel-Nabe mit Fensterbaendern, sechs Andockarme mit Leuchtkragen, Ring aus verkleideten Frachtpods, geschlossener Hangar mit Leuchttor und ausgestelltem Kleinschiff auf dem Dach, Punktverteidigung")
 def trade_station(b):
     b.lathe([(0, -5.2), (1.2, -4.8), (3.0, -2.6), (4.4, -0.7), (4.4, 0.7), (3.0, 2.6), (1.4, 4.2),
              (0.6, 5.0), (0, 5.2)], M("Hull"), seg=12)
@@ -761,29 +805,28 @@ def trade_station(b):
         b.cyl(0.5, 3.4, M("HullDark"), seg=6, loc=d * 6.0, rot=(0, 90, a))
         b.ring(1.05, 0.4, 0.7, M("Armor"), seg=8, loc=d * 7.9, rot=(0, 90, a))
         b.ring(0.75, 0.12, 0.72, M("Light"), seg=8, loc=d * 7.9, rot=(0, 90, a))
-    cols = ("Container", "Accent", "Hazard", "Steel")
     b.ring(6.0, 0.3, 0.3, M("HullDark"), seg=16, loc=(0, 0, 1.5))
     b.ring(6.0, 0.3, 0.3, M("HullDark"), seg=16, loc=(0, 0, -1.5))
     for j, (x, y, a) in enumerate(polar(10, 5.9, 18)):
         if 345 < (a % 360) or (a % 360) < 75:
             continue
+        t = V(-math.sin(math.radians(a)), math.cos(math.radians(a)), 0)
         for z in (1.5, -1.5):
-            b.box(1.6, 1.0, 1.0, M(cols[(j + (z > 0)) % 4]), loc=(x, y, z), rot=(0, 0, a + 90))
+            b.capsule(V(x, y, z), t, 1.9, 0.55, M("Steel" if j % 2 else "Hull"), seg=8)
+            b.ring(0.6, 0.1, 0.2, M("Accent" if j % 2 == 0 else "HullDark"), seg=8, loc=(x, y, z), rot=qdir(t))
     # offenes Schiffsdock mit ausgestelltem Kleinschiff (Richtung 30 Grad)
     d = V(math.cos(math.radians(30)), math.sin(math.radians(30)), 0)
     n = V(-d.y, d.x, 0)
     c = d * 8.2
-    for u in (-1, 1):
-        for z in (-1.4, 1.4):
-            b.beam(c - d * 3.0 + n * u * 1.8 + V(0, 0, z), c + d * 3.0 + n * u * 1.8 + V(0, 0, z), 0.25,
-                   M("Hazard" if z > 0 else "HullDark"))
-        b.beam(c + d * 3.0 + n * u * 1.8 + V(0, 0, -1.4), c + d * 3.0 + n * u * 1.8 + V(0, 0, 1.4), 0.25, M("HullDark"))
     b.beam(d * 4.4, c - d * 3.0, 0.8, M("HullDark"))
     yaw = 30
-    b.prism([(-2.0, -0.9), (1.4, -0.5), (2.4, 0), (1.4, 0.5), (-2.0, 0.9)], 0.8, M("Accent"),
-            loc=c, rot=(0, 0, yaw), top_scale=0.6)
-    b.box(1.0, 3.2, 0.12, M("Steel"), loc=c - d * 0.6, rot=(0, 0, yaw))
-    b.box(0.3, 0.6, 0.3, M("Light"), loc=c - d * 2.0, rot=(0, 0, yaw))
+    b.box(6.4, 4.0, 2.4, M("Hull"), loc=c, rot=(0, 0, yaw), bevel=0.3)
+    b.hangar_slit(c + d * 3.22, d, w=3.0, h=1.4)
+    b.box(6.5, 0.3, 0.5, M("Accent"), loc=c + n * 2.02, rot=(0, 0, yaw))
+    b.box(6.5, 0.3, 0.5, M("Accent"), loc=c - n * 2.02, rot=(0, 0, yaw))
+    b.prism([(-2.0, -0.9), (1.4, -0.5), (2.4, 0), (1.4, 0.5), (-2.0, 0.9)], 0.8, M("Steel"),
+            loc=c + V(0, 0, 1.6), rot=(0, 0, yaw), top_scale=0.6)
+    b.box(1.0, 3.2, 0.12, M("Steel"), loc=c - d * 0.6 + V(0, 0, 1.25), rot=(0, 0, yaw))
     for k in (-1, 1):
         b.nav_lights([c + d * 3.0 + n * k * 1.8 + V(0, 0, 1.6)], mat="Light", s=0.18)
     pass
@@ -863,37 +906,33 @@ def build_site(b):
     b.nav_lights([(x, y, z) for x, y, a in polar(4, R, 22.5) for z in (3.9, -3.9)], mat="Glow", s=0.24)
 
 
-@model("warehouse", "Container-Karussell: sechs Regaltuerme mit gestapelten Containern (ueber und unter der Ebene) im Sechseck um eine Mittelspindel, Ringtraeger oben und unten, Andockkragen an beiden Enden, Verladearm")
+@model("warehouse", "Lager-Karussell: sechs geschlossene Sechskant-Lagertuerme mit Rolltoren (ueber und unter der Ebene) im Sechseck um eine Mittelspindel, Ringtraeger oben und unten, Andockkragen an beiden Enden, Accent-Bandringe")
 def warehouse(b):
     b.lathe([(0, -7.5), (0.7, -7.0), (0.9, -5.5), (0.9, 5.5), (0.7, 7.0), (0, 7.5)], M("Hull"), seg=10)
     for z in (6.2, -6.2):
         b.ring(1.6, 0.5, 0.6, M("HullDark"), seg=10, loc=(0, 0, z))
         b.ring(1.2, 0.12, 0.62, M("Light"), seg=10, loc=(0, 0, z))
     R = 6.4
-    for z in (-4.6, 0.0, 4.6):
-        b.ring(R + 1.3, 0.35, 0.35, M("Accent" if z == 0 else "HullDark"), seg=6, loc=(0, 0, z), start=30)
+    for z in (-4.6, 4.6):
+        b.ring(R + 0.4, 0.6, 0.5, M("HullDark"), seg=6, loc=(0, 0, z), start=0)
     for x, y, a in polar(3, 0, 30):
         d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
         for z in (-4.6, 4.6):
-            b.beam(V(0, 0, z * 0.9), d * (R + 1.0) + V(0, 0, z), 0.3, M("HullDark"))
-    cols = ["Container", "Hull", "Accent", "Hazard", "HullDark"]
-    k = 0
+            b.beam(V(0, 0, z * 0.9), d * (R - 0.2) + V(0, 0, z), 0.35, M("HullDark"))
+    hexa = [(math.cos(math.radians(60 * i + 30)) * 1.7, math.sin(math.radians(60 * i + 30)) * 1.7) for i in range(6)]
     for i, (x, y, a) in enumerate(polar(6, R, 0)):
         d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
-        n = V(-d.y, d.x, 0)
-        for s in (-1, 1):
-            b.beam(d * R + n * s * 1.3 + V(0, 0, -4.6), d * R + n * s * 1.3 + V(0, 0, 4.6), 0.22, M("HullDark"))
+        b.prism(hexa, 9.6, M("Steel" if i % 2 else "Hull"), loc=d * R, rot=(0, 0, a))
+        for zc in (-4.9, 4.9):
+            b.prism([(px * 0.8, py * 0.8) for px, py in hexa], 0.4, M("HullDark"), loc=d * R + V(0, 0, zc), rot=(0, 0, a))
         for lv in range(4):
-            if (i * 3 + lv) % 7 == 3:
-                continue
             z = -3.45 + lv * 2.3
-            b.box(2.2, 2.4, 2.0, M(cols[(i * 2 + lv) % 5]), loc=d * R + V(0, 0, z), rot=(0, 0, a), bevel=0.06)
-            k += 1
-    d = V(math.cos(math.radians(30)), math.sin(math.radians(30)), 0)
-    b.beam(d * (R + 1.3) + V(0, 0, 4.6), d * (R + 4.0) + V(0, 0, 6.0), 0.35, M("Hazard"))
-    b.beam(d * (R + 4.0) + V(0, 0, 6.0), d * (R + 4.0) + V(0, 0, 3.8), 0.07, M("Hull"))
-    b.box(2.0, 1.0, 1.0, M("Container"), loc=d * (R + 4.0) + V(0, 0, 3.3), rot=(0, 0, 30))
-    b.nav_lights([(0, 0, 7.6), (0, 0, -7.6)] + [V(x, y, 4.9) for x, y, a in polar(6, R + 1.2, 30)], s=0.2)
+            c = d * (R + 1.48) + V(0, 0, z)
+            b.box(0.08, 1.4, 1.7, M("Hull"), loc=c, rot=(0, 0, a))
+            b.box(0.1, 1.3, 0.07, M("HullDark"), loc=c + d * 0.03, rot=(0, 0, a))
+            b.box(0.1, 1.5, 0.12, M("HullDark"), loc=c + d * 0.02 + V(0, 0, 0.88), rot=(0, 0, a))
+        b.lathe([(1.72, -0.3), (1.72, 0.3)], M("Accent"), 6, loc=d * R, start=a + 30)
+    b.nav_lights([(0, 0, 7.6), (0, 0, -7.6)] + [V(x, y, 5.15) for x, y, a in polar(6, R, 0)], s=0.2)
 
 
 # =============================================================== Regierung, Sicherheit, Sonstiges
@@ -1037,7 +1076,7 @@ def police_station(b):
     b.insignia(V(0, -2.85, 1.8), (0, -1, 0.2), s=0.55)
 
 
-@model("pirate_hideout", "Zusammengeflickte Piratenfestung in einem ausgehoehlten, zerklueften Asteroiden: rot gluehendes Hangarmaul, eingeschweisste erbeutete Rumpfteile, Flickpanzer in ungleichen Farben, Rammsporne, grobe Geschuetze oben und unten, Trossen zu kleineren Brocken, Warn- und Feuerlichter, schiefe Antennen")
+@model("pirate_hideout", "Bedrohliche, zusammengeflickte Piratenfestung in einem ausgehoehlten, zerklueften Asteroiden: rot gluehendes Hangarmaul, eingeschweisste erbeutete Rumpfteile, Flickpanzer in ungleichen Farben, Rammsporne, grobe Geschuetze oben und unten, Trossen zu kleineren Brocken, Warn- und Feuerlichter, schiefe Antennen")
 def pirate_hideout(b):
     b.rock(5.6, M("Rock"), seed=2.3, seg=11, rings=8, scale=(1.15, 1.0, 0.95), amp=0.42)
     b.rock(2.4, M("Rock"), seed=7.7, seg=8, rings=6, loc=(2.8, 3.6, 3.2), amp=0.45)
@@ -1106,6 +1145,22 @@ def pirate_hideout(b):
         b.strut(V(*p), V(*p) + dv * h, 0.08, M("HullDark"), seg=4)
         b.sphere(0.2, M("LightRed"), seg=5, rings=3, loc=V(*p) + dv * h)
     b.dish((-3.0, 2.2, 4.4), 1.2, M("Rust"), rot=(-35, -20, 0))
+    # mehr Stacheln, Rammsporne und Flickwerk
+    rnd = _rand(9.0)
+    for k in range(14):
+        u, v = next(rnd), next(rnd)
+        th, ph = 2 * math.pi * u, math.acos(2 * v - 1)
+        dv = V(math.sin(ph) * math.cos(th), math.sin(ph) * math.sin(th), math.cos(ph) * 0.9)
+        if dv.dot(V(-0.6, -0.8, 0.1)) > 0.55:
+            continue
+        b.lathe([(0.45, 0), (0.2, 1.6), (0, 2.8)], M("HullDark" if k % 3 else "Rust"), 4,
+                loc=dv * 5.0, rot=qdir(dv))
+    for k, (p, r) in enumerate((((4.8, 2.4, 2.4), (20, -40, 60)), ((-4.6, 2.0, -1.6), (-30, 50, 10)),
+                                ((1.6, 4.6, -2.6), (60, 10, -20)), ((-1.0, -2.8, 4.6), (10, 20, 40)))):
+        b.box(2.4, 1.6, 0.3, M(("Rust", "Steel", "Armor", "Hull")[k]), loc=p, rot=r)
+        b.box(0.5, 0.5, 0.35, M("HullDark"), loc=V(*p) + V(0.6, 0.3, 0.1), rot=r)
+    d = V(-0.6, -0.8, 0.08).normalized()
+    b.lathe([(3.0, 0), (0, 0)], M("Glow"), 7, loc=d * 5.75, rot=qdir(d))
 
 
 @model("research_station", "Forschungsstation: grosses Radioteleskop auf Gabel, kugelfoermiges Labor mit Fensterband, Sensorring, Solarfluegel")

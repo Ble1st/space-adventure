@@ -37,6 +37,45 @@ def weapon_slots():
 WEAPON_SLOTS = {}
 
 
+def engine_asymmetry(ob, tol=0.02):
+    me = ob.data
+    names = [m.name for m in me.materials]
+    if "Engine" not in names:
+        return []
+    ei = names.index("Engine")
+    polys = [p for p in me.polygons if p.material_index == ei]
+    # Inseln ueber gemeinsame Vertices
+    parent = {}
+
+    def find(a):
+        while parent.setdefault(a, a) != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for p in polys:
+        vs = list(p.vertices)
+        for v in vs[1:]:
+            parent[find(v)] = find(vs[0])
+    groups = {}
+    for p in polys:
+        groups.setdefault(find(p.vertices[0]), set()).update(p.vertices)
+    eng = []
+    for vs in groups.values():
+        co = [ob.matrix_world @ me.vertices[i].co for i in vs]
+        c = sum(co, Vector()) / len(co)
+        r = max(((v - c).length for v in co))
+        eng.append((c, r))
+    out = []
+    for c, r in eng:
+        if abs(c.x) < tol:
+            continue
+        mates = [(c2, r2) for c2, r2 in eng if abs(c2.x + c.x) < tol and abs(c2.y - c.y) < tol
+                 and abs(c2.z - c.z) < tol and abs(r2 - r) < tol]
+        if not mates:
+            out.append(f"Triebwerk bei x={c.x:+.2f} y={c.y:+.2f} ohne Spiegelpartner")
+    return out
+
+
 def main():
     WEAPON_SLOTS.update(weapon_slots())
     meta = json.load(open(os.path.join(GLB_DIR, "ships.json"), encoding="utf-8"))["models"]
@@ -124,6 +163,10 @@ def main():
                 problems.append(f"Turm-Node {h['node']} fehlt")
         if sorted(h["node"] for h in hps if h.get("node")) != sorted(o.name for o in turrets):
             problems.append("Turm-Nodes ohne Stellung")
+        # Triebwerke: Schubflaechen (Material Engine) zu Inseln gruppieren; jede Duese ausserhalb der
+        # Mittelachse braucht ein Spiegelbild (gleicher Radius, gleiche Heck- und Hoehenposition).
+        for prob in engine_asymmetry(hulls[0]) if hulls else []:
+            problems.append(prob)
         if len(names) > 10:
             problems.append(f"{len(names)} Materialien")
         if tris > LIMIT[m["size"]]:

@@ -727,19 +727,23 @@ def pip(b):
     navl(b, 2.15, 0.2, 0.3)
     hp_turret(b, 6, (0, -0.6, 1.2), s=0.3)
 
-@ship("nomad", "S", "Fracht-Skiff (Katamaran): schmaler Mittelrumpf mit zwei angeformten Frachtgondeln ungleicher Laenge (steuerbord 4 Segmente = 70, backbord 2 Segmente = 30), Fensterband, Gondelduesen", cargo=100)
+@ship("nomad", "S", "Fracht-Skiff (Katamaran): schmaler Mittelrumpf mit zwei angeformten Frachtgondeln gleicher Laenge mit gleichen Triebwerken (steuerbord dick mit 4 Segmenten = 70, backbord schlanker mit 2 Segmenten = 30), Fensterband, Gondelduesen", cargo=100)
 def nomad(b):
     S = [(5.0, 0.0, 0.0), (3.8, 0.55, 0.35), (2.0, 0.8, 0.55), (-4.2, 0.8, 0.55), (-4.8, 0.6, 0.4)]
     b.loft(S, M("Hull"))
     dress(b, S, seed=6.0)
-    for s, n in ((1, 4), (-1, 2)):
+    # beide Gondeln gleich lang (Antrieb symmetrisch); die Kapazitaet (70 bzw. 30) zeigt sich nur an
+    # Dicke und Torzahl innerhalb gleicher Laenge
+    L4 = 4 * SEG
+    for s, n, w in ((1, 4, 0.75), (-1, 2, 0.55)):
         y0 = 1.8
-        P = [(y0 + 0.6, 0.0, 0.0, -0.05), (y0, 0.75, 0.6, -0.05), (y0 - n * SEG, 0.75, 0.6, -0.05),
-             (y0 - n * SEG - 0.6, 0.5, 0.4, -0.05)]
+        P = [(y0 + 0.6, 0.0, 0.0, -0.05), (y0, w, w * 0.8, -0.05), (y0 - L4, w, w * 0.8, -0.05),
+             (y0 - L4 - 0.6, 0.45, 0.36, -0.05)]
         b.loft(P, M("Steel"), x=s * 1.45)
-        cargo_bay(b, P, y0, n, x=s * 1.45, sides=(s,))
+        ys = y0 - (L4 - n * SEG) / 2
+        cargo_bay(b, P, ys, n, x=s * 1.45, sides=(s,))
         b.beam(V(s * 0.75, y0 - 0.6, 0.0), V(s * 0.8, y0 - 0.6, 0.0), 0.4, M("HullDark"))
-        engine(b, (s * 1.45, y0 - n * SEG - 0.95, -0.05), 0.5, housing=False)
+        engine(b, (s * 1.45, y0 - L4 - 0.95, -0.05), 0.42, housing=False)
     visor(b, S, 3.0, width=0.7, length=1.0)
     stripe(b, S, 1.8, -3.8, width=0.28)
     fin(b, [(0.2, 0), (-1.0, 0), (-1.3, 0.7), (-0.6, 0.7)], 0.1, (0, -3.4, 0.5))
@@ -906,7 +910,7 @@ def hauler(b):
     navl(b, 3.2, 5.0, 0.3)
 
 
-@ship("tinker", "M", "Mehrzweck (asymmetrisch, neu aufgebaut): breiter Sechskant-Mittelrumpf, steuerbord eine Frachtgondel mit 3 Segmenten an zwei Pylonen, backbord ein Lasergehaeuse an Pylonen mit Gelenkkopf und Linse vorn, Laserturm, Haupttriebwerk und Gondelduese", cargo=60)
+@ship("tinker", "M", "Mehrzweck (asymmetrisch, neu aufgebaut): breiter Sechskant-Mittelrumpf, steuerbord eine Frachtgondel mit 3 Segmenten an zwei Pylonen, backbord ein Lasergehaeuse an Pylonen mit Gelenkkopf und Linse vorn, Laserturm, ein mittiges Haupttriebwerk (Antrieb symmetrisch)", cargo=60)
 def tinker(b):
     S = [(7.5, 0.0, 0.0), (6.4, 0.9, 0.6), (4.4, 1.9, 1.0), (-5.6, 1.9, 1.0), (-6.8, 1.4, 0.75)]
     b.loft(S, M("Hull"), shape="hex")
@@ -918,7 +922,6 @@ def tinker(b):
     cargo_bay(b, P, y0, n, x=3.2, sides=(1,), c=0.0, shape="round")
     for y in (y0 - 0.3, y0 - n * SEG + 0.3):
         b.beam(V(1.8, y, 0.0), V(2.4, y, 0.0), 0.5, M("HullDark"))
-    engine(b, (3.2, y0 - n * SEG - 1.2, 0.0), 0.45, housing=False)
     A = [(5.6, 0.0, 0.0, -0.2), (5.0, 0.55, 0.5, -0.2), (-2.2, 0.6, 0.55, -0.2), (-2.8, 0.4, 0.35, -0.2)]
     b.loft(A, M("Armor"), shape="round", n=8, x=-2.9)
     for y in (3.2, -1.2):

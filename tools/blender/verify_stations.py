@@ -5,7 +5,7 @@ Aufruf (aus dem Repo-Wurzelverzeichnis):
 
 Nach dem Import ist wieder Blender-Z oben; die Spielebene ist XY. Geprueft wird:
 ein Mesh je Datei, Material "Accent" vorhanden, max. Radius in der Ebene ~1,
-Dreiecke <= 3600, Stellungen je Geschuetz laut Weltdatei (stations.json), keine Normalen-Nullvektoren.
+Dreiecke <= 5000, Stellungen je Geschuetz laut Weltdatei (stations.json), keine Normalen-Nullvektoren.
 """
 
 import math
@@ -75,9 +75,11 @@ def main():
             dmin = min((pb - v).length for v in allv)
             if dmin > 0.04:
                 problems.append(f"Geschuetz {h['gun']}: pos {dmin:.3f} neben der Geometrie")
+        if len(mats) > 10:
+            problems.append(f"{len(mats)} Materialien")
         if "Accent" not in mats:
             problems.append("kein Accent")
-        if tris > 3600:
+        if tris > 5000:
             problems.append("zu viele Dreiecke")
         if abs(rad - 1.0) > 0.01:
             problems.append(f"Radius {rad:.3f}")

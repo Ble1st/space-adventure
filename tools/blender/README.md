@@ -108,3 +108,16 @@ Ausgaben: `godot/assets/ships/<key>.glb`, `godot/assets/ships/ships.json`, `docs
 - **Stationsstil:** `station_models.restyle` setzt die hellen Schiffsmaterialien ein (ausser
   Piratenversteck), `dress_station` legt automatisch Technikgraeben, Greebles und grosse Accent-Felder
   auf die groessten Flaechen. Die Vorschaubilder zeigen `Accent` in einer Beispiel-Fraktionsfarbe.
+
+## Symmetrie und Stationsausstattung (Durchlauf 7)
+
+- `verify_ships.py` prueft die Triebwerke: Schubflaechen (`Engine`) werden zu Duesen gruppiert; jede Duese
+  ausserhalb der Mittelachse braucht ein Spiegelbild mit gleichem Radius, gleicher Heck- und Hoehenposition.
+  Asymmetrie ist nur bei Nutzlast/Werkzeug erlaubt (Nomade: Gondeln gleich lang, Kapazitaet ueber Dicke und
+  Torzahl; Kesselflicker: nur ein mittiges Triebwerk).
+- Stationen: `station_details` setzt an jeder Station Navigationsbaken an den aeussersten Punkten,
+  Manoevrierduesen an den Diagonalen, eine Antennengruppe oben und eine Bake unten; `dress_station` legt
+  Technikgraeben mit Greebles, Accent-Felder mit Leiste und Fensterband auf die groessten Flaechen; runde
+  Stationen (Kolonie, Wasserwerk, Kraftwerk, Waferfabrik) bekommen gezielte Accent-Ringsegmente.
+  Offene Gestelle, Erzbrocken und lose Container sind durch geschlossene Bauteile ersetzt (Ausnahmen:
+  Baustelle, Piratenversteck). Grenzen: <= 5000 Dreiecke, <= 10 Materialien je Station.
