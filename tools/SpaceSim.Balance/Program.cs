@@ -492,6 +492,10 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 pirateTimeline.Add($"t{u.Tick / 1000}k {raids - raidsAtLastMark} Üf. " + string.Join(" ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value)
                     .Select(a => $"{a.Name.Split(' ').Last()} {u.Ships.Values.Count(x => ThreatMap.IsRaider(x) && x.Owner == a.Id)}/{a.Treasury.Credits:0}")));
                 raidsAtLastMark = raids;
+                // Prüfung Phase 28: --probe piraten — Zustand jedes Kaperschiffs (Hülle, Notfall, Befehl, daheim, Munition, Denkzeit)
+                if (opts.TryGetValue("probe", out var pp) && pp == "piraten")
+                    foreach (var x in u.ShipsById().Where(ThreatMap.IsRaider))
+                        Console.WriteLine($"   SONDE t{u.Tick} Kaperer {x.Id.Value} {u.ActorName(x.Owner)}: Hülle {x.Hull:0}/{x.MaxHull:0} Notfall {x.Emergency} Befehl {x.Command?.GetType().Name ?? "-"} Auftrag {x.Order?.GetType().Name ?? "-"} daheim {PirateSystem.AtHome(u, x)} im Gefecht {u.Fights.IsEngaged(x.Id)} Transit {x.Transit is not null} Denken {x.NextThinkTick - u.Tick} Munition {x.AmmoLoaded:0} Module aus {string.Join(",", Enumerable.Range(0, x.Fit.Count).Where(i => x.Fit[i] != null && x.ConditionOf(i) < u.Rules.ModuleFailCondition))} Brand {x.Systems.Burning.Count} Verband {x.Squadron.Value} Sektor {x.Sector.Value}");
             }
             if (u.Tick >= watchFrom && u.Tick % WatchEvery == 0)
             {

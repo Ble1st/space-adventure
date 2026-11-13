@@ -60,12 +60,14 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		box.AddThemeConstantOverride("separation", 8);
 		scroll.AddChild(box);
 		float cw = w - 14f;
-		var def = SpaceSim.Core.Content.WorldBuilder.Parse(SpaceSim.Core.Content.WorldBuilder.DefaultWorldJson());
+		// Zweiter Gerätetest Phase 28: die Standardwelt nur einmal lesen (vorher bei jedem Neuaufbau, viermal je Sekunde — lange Bilder am Gerät)
+		var def = _defaultWorld ??= SpaceSim.Core.Content.WorldBuilder.Parse(SpaceSim.Core.Content.WorldBuilder.DefaultWorldJson());
 		string ModelName(string key) => def.ShipModels.Find(m => m.Key == key)?.Name ?? key;
 		foreach (var o in def.Player.StartOptions)
 		{
 			// Gerätetest Phase 28: Kartenhöhe nach der Länge der Beschreibung (lange Testpaket-Texte liefen über den Kartenrand); ≈ 6,8 px je Zeichen bei 13 px
-			int lines = Math.Max(2, (int)Math.Ceiling(o.Description.Length * 6.8f / Math.Max(100f, cw - 210f)) + 1);
+			// zweiter Gerätetest Phase 28: Zeilen gemessen statt geschätzt (der Festnahmetest wurde in der dritten Zeile gekürzt)
+			int lines = Math.Max(2, Wrap(o.Description, 13, cw - 210f).Count);
 			float ch = Math.Max(100f, 40f + lines * 18f);
 			var holder = new Control { CustomMinimumSize = new Vector2(cw, ch), MouseFilter = MouseFilterEnum.Pass };
 			box.AddChild(holder);
@@ -86,6 +88,7 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 	}
 
 	KitScroll? _chooserScroll;
+	static SpaceSim.Core.Content.WorldDef? _defaultWorld;
 	/// <summary>Für den Selbsttest: Rollbereich der Startpakete (null = zu).</summary>
 	public KitScroll? TestChooserScroll => _choosing ? _chooserScroll : null;
 

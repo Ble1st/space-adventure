@@ -77,7 +77,7 @@ public static class ShipLoss
     /// Das aktive Schiff ist verloren: Person landen, in ein eigenes oder ein Leihschiff setzen (aktiv), dann das alte Schiff über <see cref="Departures"/>
     /// entfernen. Veröffentlicht <see cref="PlayerShipLost"/>. Liefert das neue aktive Schiff (null nur, wenn es keine Station gibt — dann bleibt alles, wie es war).
     /// </summary>
-    public static Ship? LoseActive(Universe u, Ship lost, string detail)
+    public static Ship? LoseActive(Universe u, Ship lost, string detail, string? cause = null)
     {
         var (sector, pos) = ThreatMap.Where(u, lost);
         var landing = Landing(u, sector, pos);
@@ -105,19 +105,33 @@ public static class ShipLoss
         }
         if (next is null) return null;
         string model = u.ShipModels.TryGetValue(next.ModelKey, out var m) ? m.Name : "Schiff";
-        string msg = how switch
+        // Zweiter Gerätetest Phase 28: die Meldung nennt immer Ursache, Landestation, neues Schiff und die abgezogenen Beträge (kurz, höchstens drei Zeilen)
+        string why = cause ?? CauseText(detail);
+        var r = u.Rules;
+        string msg = $"Schiff zerstört ({why}), Fracht verloren. Gelandet: {st.Name} — " + how switch
         {
-            OwnShip => $"Dein Schiff ist verloren — samt Fracht. Du bist an {st.Name} gelandet und fliegst jetzt {model} #{next.Id.Value}.",
-            Rented => $"Dein Schiff ist verloren — samt Fracht. An {st.Name} hast du ein Leihschiff ({model}) gemietet: Gebühr {u.Rules.RentalFee:0} Cr und Pfand {u.Rules.RentalDeposit:0} Cr (zurück bei Rückgabe), Miete {u.Rules.RentalPerDay:0} Cr je Tag.",
-            _ => $"Dein Schiff ist verloren — samt Fracht. {st.Name} stellt dir ein Notfall-Leihschiff ({model}); die Miete läuft je Tag.",
+            OwnShip => $"eigenes Schiff {model} #{next.Id.Value}.",
+            Rented => $"Leihschiff {model}: Gebühr {r.RentalFee:0} + Pfand {r.RentalDeposit:0} Cr bezahlt, Miete {r.RentalPerDay:0} Cr/Tag.",
+            _ => $"Notfall-Leihschiff {model} (ohne Gebühr/Pfand), Miete {r.RentalPerDay:0} Cr/Tag.",
         };
-        if (!landing.Reachable) msg += " Kein erreichbarer Hafen — du wurdest über gesperrte Tore hinweg dorthin gebracht.";
-        if (forfeit > 0f || rentPaid > 0f) msg += $" Leihschiff verloren: Pfand {forfeit:0} Cr verfällt, Miete {rentPaid:0} Cr.";
+        if (forfeit > 0f || rentPaid > 0f) msg += $" Altes Leihschiff: Pfand {forfeit:0} Cr verfällt, offene Miete {rentPaid:0} Cr.";
+        if (!landing.Reachable) msg += " Kein erreichbarer Hafen — über gesperrte Tore gebracht.";
         if (FineHint(u, st) is { } fine) msg += " " + fine;
         Departures.RemoveShip(u, lost, DepartureReason.Destroyed, detail);
         u.Events.Publish(new PlayerShipLost(lost.Id, st.Id, next.Id, how, msg));
         return next;
     }
+
+    /// <summary>Zweiter Gerätetest Phase 28: Ursache der Zerstörung als kurzer Text aus dem Abgangsanlass.</summary>
+    public static string CauseText(string detail) => detail switch
+    {
+        "raid" => "Piraten",
+        "intercept" => "Polizei",
+        "arrest" => "Polizei",
+        "collision" => "Aufprall",
+        "siege" => "Stationsgeschütze",
+        _ => "Gefecht",
+    };
 
     /// <summary>Notfall-Leihschiff: ohne Gebühr und Pfand, auch ohne Leihdienst und ohne Geld; die Miete je Tag läuft (Rückgabe wie jedes Leihschiff).</summary>
     static Ship? EmergencyRental(Universe u, Station st, Ship lost)

@@ -74,7 +74,8 @@ public static class WeaponBays
     public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.Universe u, SpaceSim.Core.Model.Ship ship)
     {
         var weapons = SpaceSim.Core.Combat.PlayerGunnery.Bays(u, ship);
-        if (weapons.Count == 0) return For(ship.Stats);
+        // Zweiter Gerätetest Phase 28: ein Schiff ohne Bergbaulaser (Nomad) zeigt keinen „Laser“-Schacht mehr (Modell mit Fit ohne Mining)
+        if (weapons.Count == 0 && (ship.Has(SpaceSim.Core.Model.Capability.Mining) || !ship.HasModel)) return For(ship.Stats);
         var list = new List<WeaponBay>();
         foreach (var b in For(ship.Stats))
             if (b.Key != "laser" || ship.Has(SpaceSim.Core.Model.Capability.Mining)) list.Add(b);

@@ -666,7 +666,63 @@ public partial class UiShots : Node
 			}
 			case 591_5: Capture("81-fraktionen-krieg.png"); _stage = 591_6; _wait = 10; break;
 			case 591_6: _m.TestCloseCommand(); _stage = 591_7; _wait = 20; break;
-			case 591_7: Capture("82-flug-kriegsmeldung.png"); _stage = 999_999; _wait = 10; break;
+			case 591_7: Capture("82-flug-kriegsmeldung.png"); _stage = 592_1; _wait = 10; break;
+			// ── Zweiter Gerätetest Phase 28: Meldung über dem Dock-Menü, Handel mit offenem Editor, Universum-Detail, Gefechtstest, Nomad ──
+			case 592_1:
+			{
+				var uni = _m.Session.U;
+				_m.HudRef.HideAlert();
+				var farm = uni.Stations.Values.First(x => x.Name == "Farm Gamma");
+				_m.TestDockAt(farm.Id);
+				_stage = 592_2; _wait = 60; break;
+			}
+			case 592_2:
+				_m.HudRef.Alert("Schiff zerstört (Piraten), Fracht verloren. Gelandet: Farm Gamma — Leihschiff Pip: Gebühr 60 + Pfand 400 Cr bezahlt, Miete 120 Cr/Tag.", 20f, sticky: true);
+				_stage = 592_3; _wait = 10; break;
+			case 592_3: Capture("83-dock-menue-verlustmeldung.png"); _stage = 592_4; _wait = 5; break;
+			case 592_4:
+			{
+				_m.TestOpenDockArea("trade");
+				_stage = 592_5; _wait = 10; break;
+			}
+			case 592_5:
+			{
+				_m.HudRef.DockTrade.TestOpenRow(_m.HudRef.DockTrade.TestLastGood);
+				_stage = 592_6; _wait = 20; break;
+			}
+			case 592_6: Capture("84-dock-handel-editor-unten.png"); _stage = 592_7; _wait = 5; break;
+			case 592_7:
+			{
+				_m.HudRef.HideAlert();
+				_m.TestUndock();
+				_stage = 592_8; _wait = 80; break;
+			}
+			case 592_8: _m.TestOpenCommand(); _m.TestOpenCcArea("universe"); _m.TestCcSelectSector(_m.Session.U.PlayerSector); _stage = 592_9; _wait = 20; break;
+			case 592_9: Capture("85-universum-hier.png"); _stage = 593_1; _wait = 5; break;
+			case 593_1: _m.TestCloseCommand(); _m.TestMenu("new:combat"); _stage = 593_2; _wait = 30; break;
+			case 593_2: Capture("86-gefechtstest-warnung.png"); _stage = 593_3; _wait = 5; break;
+			case 593_3:
+			{
+				var uni = _m.Session.U;
+				_m.Session.RunTicks(64);
+				_m.TestNextEnemy();
+				if (SpaceSim.Core.Combat.PlayerCombat.PositionOf(uni, _m.TestFight.Target) is { } tp) _m.TestFace(tp.Pos);
+				_stage = 593_4; _wait = 20; break;
+			}
+			case 593_4: Capture("87-gefechtstest-gefecht.png"); _stage = 593_5; _wait = 5; break;
+			case 593_5: _m.TestMenu("new:trader"); _stage = 593_6; _wait = 30; break;
+			case 593_6: Capture("88-nomad-ohne-laser.png"); _stage = 593_7; _wait = 5; break;
+			case 593_7: _m.TestMenu("new:war"); _stage = 593_8; _wait = 30; break;
+			case 593_8:
+			{
+				var uni = _m.Session.U;
+				var hq = uni.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+				_m.TestFace(hq.Position);
+				_m.TestSetStationTarget(hq.Id);
+				_m.TestStopAutomation();
+				_stage = 593_9; _wait = 15; break;
+			}
+			case 593_9: Capture("89-kriegstest-station-gewaehlt.png"); _stage = 999_999; _wait = 5; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

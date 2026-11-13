@@ -1902,7 +1902,9 @@ public partial class SelfTest : Node
 				{
 					var a = _m.HudRef.TestAlertRect;
 					Check(!a.Intersects(_m.HudRef.Flight.TestNextEnemyRect), $"Meldung verdeckt „Nächster Gegner“ nicht ({a})");
-					Check(a.Position.Y > 330f && a.End.Y < 584f, $"Meldung unter Zielkarte/Kontexttaste und über den Wendetasten ({a})");
+					// zweiter Gerätetest Phase 28: die Meldung sitzt oben mittig unter Sektorchip/Lagezeile und verdeckt keine Taste des Flug-HUD
+					var under = Buttons(_m.HudRef.Flight).Where(b => b.IsVisibleInTree() && b.GetGlobalRect().Intersects(a)).Select(b => b.Text).ToList();
+					Check(under.Count == 0 && a.Position.Y < 160f, $"Meldung oben mittig, verdeckt keine Flug-Taste ({a}; {string.Join(",", under)}; Bildschirm {_m.HudRef.Screens.Current?.Id ?? "Flug"})");
 					_m.HudRef.HideAlert();
 					var war = SpaceSim.Core.Simulation.Wars.Declare(uni, new FactionId(1), new FactionId(2));
 					_p28WarAlert = _m.HudRef.TestAlert;
@@ -2079,6 +2081,198 @@ public partial class SelfTest : Node
 				}
 				break;
 			}
+			case 81: // Zweiter Gerätetest Phase 28: wichtige Meldung über dem Dock-Menü fängt den Tipp selbst ab; Station-Info-Karte im Rahmen; Nomad ohne Laserschacht
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				if (f == 1) { _m.TestMenu("new:trader"); break; }
+				if (f == 20)
+				{
+					Check(!_m.TestBayKeys.Contains("laser"), $"Nomad (ohne Bergbaulaser) zeigt keinen Laserschacht ({string.Join(",", _m.TestBayKeys)})");
+					var hq = uni.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
+					_m.TestDockAt(hq.Id);
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
+					break;
+				}
+				if (f == 26)
+				{
+					var (card, content, scrolls) = _m.HudRef.DockInfo.TestInfoCard;
+					Check(card.Size.Y > 0f && (scrolls || card.Encloses(content)), $"Station-Info: Karte „Allgemein“ hält ihren Inhalt im Rahmen oder rollt ({card} / {content})");
+					_m.TestCloseDockArea();
+					break;
+				}
+				if (f == 30)
+				{
+					_m.HudRef.Alert("Prüfmeldung: Schiff zerstört (Test) — bleibt, bis „✕“ oder ein Tipp sie schließt.", 10f, sticky: true);
+					break;
+				}
+				if (f == 32)
+				{
+					var hud = _m.HudRef;
+					var a = hud.TestAlertRect;
+					Check(hud.TestAlert.Length > 0 && hud.TestAlertSticky, "stehende Meldung sichtbar");
+					Check(_m.TestScreenOpen("dock.menu"), "Dock-Menü offen unter der Meldung");
+					Check(a.Size.Y <= 80f && a.Size.X <= 620f, $"Meldung schmal, höchstens drei Zeilen ({a.Size})");
+					// keine sichtbare Taste des Dock-Menüs unter der Meldung
+					var hidden = Buttons(hud.DockMenu).Where(b => b.IsVisibleInTree() && b.GetGlobalRect().Intersects(a)).Select(b => b.Text).ToList();
+					Check(hidden.Count == 0, $"Meldung verdeckt keine Taste des Dock-Menüs ({string.Join(",", hidden)})");
+					// eine Taste genau unter der Meldung (gleiche Ebene wie die Dock-Bildschirme) darf beim Tipp nicht auslösen
+					_p28Probe = new Ui.Kit.KitButton("Sonde", a.Size) { Position = a.Position - hud.DockMenu.GetGlobalRect().Position };
+					_p28ProbeHits = 0;
+					_p28Probe.Pressed += () => _p28ProbeHits++;
+					hud.DockMenu.AddChild(_p28Probe);
+					break;
+				}
+				if (f == 34) { Tap(_m.HudRef.TestAlertCenter, true); break; }
+				if (f == 35) { Tap(_m.HudRef.TestAlertCenter, false); break; }
+				if (f == 37)
+				{
+					Check(_m.HudRef.TestAlert.Length == 0, "Tipp auf die Meldung schließt sie");
+					Check(_p28ProbeHits == 0, "der Tipp löst darunter nichts aus");
+					Check(_m.TestScreenOpen("dock.menu"), "Dock-Menü bleibt offen");
+					_p28Probe?.QueueFree(); _p28Probe = null;
+					_m.HudRef.Alert("Prüfmeldung 2", 8f, sticky: true);
+					break;
+				}
+				if (f == 38) { Tap(_m.HudRef.TestAlertCloseCenter, true); break; }
+				if (f == 39) { Tap(_m.HudRef.TestAlertCloseCenter, false); break; }
+				if (f == 41)
+				{
+					Check(_m.HudRef.TestAlert.Length == 0, "„✕“ schließt die Meldung");
+					_m.HudRef.Alert("Prüfmeldung 3", 8f, sticky: true);
+					_m.HudRef.Alert("gewöhnliche Meldung", 6f);
+					Check(_m.HudRef.TestAlert.StartsWith("Prüfmeldung 3"), "eine gewöhnliche Meldung verdrängt die stehende nicht");
+					_m.TestMenu("new");
+					break;
+				}
+				if (f == 43) { Check(_m.HudRef.TestAlert.Length == 0, "nach „Neues Spiel“ keine Meldung"); Next(); }
+				break;
+			}
+			case 82: // Zweiter Gerätetest Phase 28: Handel „Max“ und „+“ über simulierte Tipps, während Ticks laufen und die Liste neu aufbauen will
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				var trade = _m.HudRef.DockTrade;
+				var energy = uni.FindGood("energy")!.Id;
+				if (f == 1)
+				{
+					var ww = uni.Stations.Values.First(x => x.Name == "Wasserwerk Alpha");
+					_m.Session.RunTicks(2);   // neue Welt: Preise gibt es erst nach dem ersten Takt
+					_m.TestDockAt(ww.Id);
+					uni.WalletOf(uni.Ships[uni.PlayerShip]).Credits = 100000f;   // Menge begrenzt der Frachtraum (das Angebot bleibt über die Ticks gleich)
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Trade);
+					break;
+				}
+				if (f == 3) { trade.TestExpand(energy); break; }
+				// Max: drücken — Ticks laufen, die Liste will neu aufbauen — loslassen
+				if (f == 6) { _p28Max = trade.TestBuyAmount(energy); PressButton(trade, "Max", true); break; }
+				if (f == 7) { _m.Session.RunTicks(2); trade.Refresh(); break; }
+				if (f == 8) { PressButton(trade, "Max", false); break; }
+				if (f == 9) { _m.Session.RunTicks(2); trade.Refresh(); break; }
+				if (f == 11)
+				{
+					float max = _p28Max;   // Angebot beim Drücken (zwischen Drücken und Loslassen baut die Liste nicht neu auf)
+					Check(max > 1f, $"Energie kaufbar (Angebot {max})");
+					Check(trade.TestQty == max && trade.TestEditorQtyText == $"{max:0.#}", $"„Max“ setzt die Menge auf das Angebot ({trade.TestQty} / „{trade.TestEditorQtyText}“ statt {max})");
+					break;
+				}
+				// zweimal „−“, einmal „+“ — jeder Tipp mit Ticks und Neuaufbau-Versuch zwischen Drücken und Loslassen
+				if (f >= 12 && f < 24)
+				{
+					int k = (f - 12) / 4, ph = (f - 12) % 4;
+					string label = k < 2 ? "−" : "+";
+					if (ph == 0) PressButton(trade, label, true);
+					else if (ph == 1) { _m.Session.RunTicks(2); trade.Refresh(); }
+					else if (ph == 2) PressButton(trade, label, false);
+					else { _m.Session.RunTicks(1); trade.Refresh(); }
+					break;
+				}
+				if (f == 25)
+				{
+					Check(trade.TestQty == _p28Max - 1f && trade.TestEditorQtyText == $"{_p28Max - 1f:0.#}", $"„−“, „−“, „+“ wirken je Tipp ({trade.TestQty} / „{trade.TestEditorQtyText}“, erwartet {_p28Max - 1f})");
+					_p28Cargo = uni.Ships[uni.PlayerShip].Cargo.GetValueOrDefault(energy);
+					_p28Buyable = SpaceSim.Core.Trading.TradeActions.MaxBuyable(uni, uni.Ships[uni.PlayerShip], uni.Stations[_m.HudRef.DockCtx.Station.Id], energy);
+					PressButton(trade, "Kaufen", true);
+					break;
+				}
+				if (f == 26) { trade.Refresh(); break; }
+				if (f == 27) { PressButton(trade, "Kaufen", false); break; }
+				if (f == 29)
+				{
+					float got = uni.Ships[uni.PlayerShip].Cargo.GetValueOrDefault(energy) - _p28Cargo;
+					float want = System.MathF.Min(_p28Max - 1f, _p28Buyable);   // die Station kann inzwischen weniger haben (Ticks liefen)
+					Check(System.MathF.Abs(got - want) < 0.01f, $"„Kaufen“ kauft die gewählte Menge ({got} statt {want})");
+					// Liste: letzte Zeile aufklappen → ganz sichtbar gerollt; über Neuaufbauten bleibt die Position
+					trade.TestOpenRow(trade.TestLastGood);
+					break;
+				}
+				if (f == 32)
+				{
+					var sc = trade.TestScroll;
+					var r = trade.TestExpandedRect;
+					Check(sc != null && r.Size.Y > 0f && sc.GetGlobalRect().Grow(1f).Encloses(r), $"aufgeklappte letzte Zeile ganz sichtbar ({r} in {sc?.GetGlobalRect()})");
+					_p28Scroll = sc?.ScrollVertical ?? -1;
+					break;
+				}
+				if (f > 32 && f < 40) { _m.Session.RunTicks(1); trade.Refresh(); break; }
+				if (f == 41)
+				{
+					int now = trade.TestScroll?.ScrollVertical ?? -2;
+					Check(now == _p28Scroll && _p28Scroll > 0, $"Rollposition hält über Neuaufbauten mit offenem Editor ({_p28Scroll} → {now})");
+					_m.TestCloseDockArea();
+					_m.TestUndock();
+					Next();
+				}
+				break;
+			}
+			case 83: // Zweiter Gerätetest Phase 28: Gefechtstest bestehbar — nur „Nächster Gegner“ + „Dauerfeuer“ (Nase aufs Ziel wie mit den Wendetasten)
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				if (f == 120) { _m.TestMenu("new:combat"); break; }   // erst nach dem Abdock-Übergang der vorigen Stufe
+				if (f < 125) break;
+				if (f == 125)
+				{
+					var pend = uni.PendingEncounters.Where(e => e.Kind == EncounterKind.Raid && e.Target == uni.PlayerShip).OrderBy(e => e.DueTick).ToList();
+					Check(pend.Count == 2, $"zwei angekündigte Überfälle ({pend.Count})");
+					if (pend.Count == 0) { Next(); break; }
+					_p28Raider = pend[0].Source;
+					_p25Falcon = uni.PlayerShip;
+					_p28SeenMissile = 0;
+					var lead = uni.Ships[_p28Raider];
+					var pl = uni.Ships[uni.PlayerShip];
+					float rel = SpaceSim.Core.Weapons.FiringArc.Normalize180(SpaceSim.Core.Weapons.FiringArc.Bearing(lead.Position - pl.Position) - _m.TestHeadingDeg);
+					Check(System.MathF.Abs(rel) < 3f, $"Nase zeigt auf den ersten Kaperer ({rel:0.0}°)");
+					Check(_m.HudRef.TestAlert.Contains("Piraten"), $"Überfallwarnung sichtbar („{_m.HudRef.TestAlert}“)");
+					_m.TestFight.AutoFire = true;
+					break;
+				}
+				bool alive = uni.PlayerShip == _p25Falcon && uni.Ships.ContainsKey(_p25Falcon);
+				if (!alive) { Fail("Gefechtstest: Falke verloren"); Next(); break; }
+				var me = uni.Ships[uni.PlayerShip];
+				if (uni.Fights.IsEngaged(me.Id))
+				{
+					if (_m.TestFight.Target.Value == 0 || !uni.Ships.ContainsKey(_m.TestFight.Target)) _m.TestNextEnemy();
+					if (SpaceSim.Core.Combat.PlayerCombat.PositionOf(uni, _m.TestFight.Target) is { } tp) _m.TestFace(tp.Pos);
+					if (_p28SeenMissile == 0) { _p28SeenMissile = 1; _m.SyncHudForTest(); Check(_m.HudRef.Flight.TestSurrenderVisible && _m.HudRef.Flight.TestSurrenderEnabled, "im Gefecht „Ergeben“ sichtbar und aktiv (Fracht an Bord)"); }
+				}
+				if (!uni.Ships.ContainsKey(_p28Raider))
+				{
+					_m.Session.RunTicks(2);   // das Gefecht wertet im nächsten Takt aus (Kopfgeld)
+					Check(uni.Actors[uni.PlayerActor].BountyClaims.Values.Sum() > 0f, $"Kopfgeld für den ersten Kaperer ({_m.LastSecurityMessage})");
+					Check(me.Hull > 0f, "Falke lebt");
+					_m.TestFight.AutoFire = false;
+					_p28SeenMissile = 0;
+					Next(); break;
+				}
+				if (f > 60 * 60)
+				{
+					var lr = uni.Ships[_p28Raider];
+					Fail($"Gefechtstest: erster Kaperer nach 60 s nicht abgeschossen (Kaperer {lr.Hull:0}, Abstand {Vec2.Distance(lr.Position, me.Position):0}, im Gefecht {uni.Fights.IsEngaged(me.Id)}/{uni.Fights.IsEngaged(lr.Id)}, Ziel {_m.TestFight.Target.Value}, Schüsse {uni.Fights.Of(me.Id)?.Shots}, Spieler {me.Hull:0}, {_m.TestFightMessage})");
+					_m.TestFight.AutoFire = false; Next();
+				}
+				break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -2123,6 +2317,31 @@ public partial class SelfTest : Node
 	float _p27Hull;
 	int _p27Hits;
 	void Push(InputEvent e) => GetViewport().PushInput(e, true);
+	/// <summary>Zweiter Gerätetest Phase 28: simulierter Tipp (Finger auf Touch-Geräten, sonst linke Maustaste) an einer Bildschirmposition.</summary>
+	void Tap(Vector2 at, bool down)
+	{
+		if (Ui.Pointer.TouchMode) Push(new InputEventScreenTouch { Index = 0, Position = at, Pressed = down });
+		else Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Position = at, GlobalPosition = at, Pressed = down, ButtonMask = down ? MouseButtonMask.Left : 0 });
+	}
+	/// <summary>Drückt bzw. lässt die erste sichtbare Kit-Taste mit dieser Beschriftung unter <paramref name="root"/> los (über einen simulierten Tipp).</summary>
+	void PressButton(Node root, string label, bool down)
+	{
+		if (down) _p28Press = Buttons(root).FirstOrDefault(b => b.Text == label && b.IsVisibleInTree())?.GetGlobalRect().GetCenter();
+		if (_p28Press is { } at) Tap(at, down);
+		else Fail($"Taste „{label}“ nicht gefunden (Bildschirm {_m.HudRef.Screens.Current?.Id ?? "-"}; Tasten {string.Join(",", Buttons(root).Where(b => b.IsVisibleInTree()).Select(b => b.Text))}; alle {string.Join(",", Buttons(root).Select(b => b.Text))}; wischt {Ui.Kit.KitScroll.Dragging}, gedrückt {Ui.Kit.KitButton.AnyHeld}, Zeilen {_m.HudRef.DockTrade.TestRowCount}, Station {_m.HudRef.DockCtx.Station?.Name}, gleiche Welt {ReferenceEquals(_m.HudRef.DockCtx.U, _m.Session.U)}, Meldung {_m.HudRef.DockTrade.TestMessage})");
+	}
+	Vector2? _p28Press;
+	static IEnumerable<Ui.Kit.KitButton> Buttons(Node root)
+	{
+		foreach (var c in root.GetChildren())
+		{
+			if (c is Ui.Kit.KitButton b && !b.IsQueuedForDeletion()) yield return b;
+			foreach (var x in Buttons(c)) yield return x;
+		}
+	}
+	Ui.Kit.KitButton? _p28Probe;
+	int _p28ProbeHits;
+	float _p28Max, _p28Cargo, _p28Buyable;
 	/// <summary>Phase 26: Schaden, Reparatur, Bergung (Stufen 63–66).</summary>
 	int _p26Laser, _p26Wreck;
 	float _p26Hull, _p26Cargo, _p26Keep;

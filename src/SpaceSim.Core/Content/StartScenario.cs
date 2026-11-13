@@ -12,6 +12,13 @@ public static class StartScenario
 {
     public static void Apply(Universe u, Ship player, ScenarioDef sc, string key)
     {
+        if (sc.BonusSlots is { } bonus)
+            foreach (var type in bonus)
+            {
+                if (!u.SlotTypes.ContainsKey(type)) throw new WorldFormatException($"Startpaket '{key}': unbekannte Slotart '{type}'");
+                player.Slots.Add(new ClassSlot { Type = type, Size = SlotSize.S });
+                player.Fit.Add(null);
+            }
         if (sc.Fit is { } fit)
         {
             var model = u.ShipModels[player.ModelKey];
@@ -79,6 +86,7 @@ public static class StartScenario
             var group = u.ShipsById().Where(ThreatMap.IsRaider).GroupBy(r => r.Owner).OrderByDescending(g => g.Count()).ThenBy(g => g.Key.Value).FirstOrDefault()
                         ?? throw new WorldFormatException($"Startpaket '{key}': keine Kaperschiffe in der Welt");
             var pack = group.Take(sc.Raiders).ToList();
+            bool later = sc.ReinforceAfterTicks > 0;
             for (int i = 0; i < pack.Count; i++)
             {
                 var r = pack[i];
@@ -86,22 +94,40 @@ public static class StartScenario
                 if (r.Sector != player.Sector) u.MoveShip(r, player.Sector);
                 // Gerätetest Phase 28: der Anführer vor dem Bug (Blickrichtung −y) außerhalb der eigenen Waffenreichweite, die übrigen weit dahinter (Verstärkung später)
                 r.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(0f, i == 0 ? -120f : -320f - 30f * i));
-                r.Hull = r.MaxHull * Math.Clamp(sc.RaiderHull, 0.05f, 1f);
+                r.Hull = r.MaxHull * Math.Clamp(i == 0 || !later ? sc.RaiderHull : sc.ReinforceHull, 0.05f, 1f);
+                if (i == 0 && sc.LeadWithoutShield && r.Fit.FindIndex(m => m != null && u.Modules.TryGetValue(m, out var mod) && mod.Slot == "shield") is var sh and >= 0)
+                {
+                    r.Fit[sh] = null;   // zweiter Gerätetest Phase 28: der Anführer ohne Schild
+                    r.RecomputeStats(u);
+                    r.Engagement = Engagement.Attack;   // und er flieht nicht (sonst entkäme er dem Menschen unter halber Hülle sofort)
+                }
                 r.DockedAt = default;
                 r.Order = new PatrolOrder(player.Sector);
                 r.DutySector = player.Sector;
                 r.NextThinkTick = u.Tick + 100_000;
             }
-            if (pack.Count >= 2 && Squadrons.Create(u, pack[0], "Rudel", out _) is { } sq)
+            if (!later && pack.Count >= 2 && Squadrons.Create(u, pack[0], "Rudel", out _) is { } sq)
                 for (int i = 1; i < pack.Count; i++) Squadrons.Join(u, sq, pack[i], out _);
             // das Rudel lauert hier (Befehl wie die Piratengruppe ihn gibt), statt heimzufliegen
             if (u.Rules.FleetCombat)
             {
                 Commands.Give(u, pack[0], new LurkCommand(player.Sector, pack[0].Position, u.Tick + 20_000), out _, ignoreCapacity: true);
-                for (int i = 1; i < pack.Count; i++) Commands.Give(u, pack[i], new FollowCommand(pack[0].Id), out _, ignoreCapacity: true);
+                if (!later) for (int i = 1; i < pack.Count; i++) Commands.Give(u, pack[i], new FollowCommand(pack[0].Id), out _, ignoreCapacity: true);
             }
             if (sc.RaidAfterTicks > 0)
+            {
                 u.PendingEncounters.Add(new PendingEncounter { Kind = EncounterKind.Raid, Source = pack[0].Id, Target = player.Id, Sector = player.Sector, DueTick = u.Tick + sc.RaidAfterTicks });
+                // zweiter Gerätetest Phase 28: Verstärkung als eigener angekündigter Überfall, der dem laufenden Gefecht beitritt (PirateSystem.ResolvePending)
+                if (later)
+                    for (int i = 1; i < pack.Count; i++)
+                    {
+                        pack[i].Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(0f, 380f + 30f * i));   // hinter dem Spieler, weit weg
+                        // lauert dort (ohne Befehl schickte die Piratengruppe ihn heim — er kam repariert zurück)
+                        if (u.Rules.FleetCombat) Commands.Give(u, pack[i], new LurkCommand(player.Sector, pack[i].Position, u.Tick + 20_000), out _, ignoreCapacity: true);
+                        u.PendingEncounters.Add(new PendingEncounter { Kind = EncounterKind.Raid, Source = pack[i].Id, Target = player.Id, Sector = player.Sector,
+                            DueTick = u.Tick + sc.RaidAfterTicks + sc.ReinforceAfterTicks + 20 * (i - 1) });
+                    }
+            }
         }
         if (sc.Trader && u.ShipsById().FirstOrDefault(s => s.Role == ShipRole.Trader && s.Controller == Controller.Ai && s.HasModel) is { } trader)
         {

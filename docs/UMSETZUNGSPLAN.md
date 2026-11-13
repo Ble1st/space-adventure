@@ -784,6 +784,16 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - **Offen:** HINWEIS „Laserkanone“ nur in 20000-Tick-Läufen (frühe Phase, schon in Phase 27; das einzige Waffenwerk wartet 71–86 % auf Zutaten – ein zweites Waffenwerk brachte im Versuch keinen klaren Gewinn); Piratenkassen auf Seeds 1/3 am Ende bei 0; der Falke ohne Laderaum kann sich Kaperern nicht ergeben; Gerätepunkte nicht auf dem Gerät geprüft.
 - **Tests bewusst angepasst:** `RevertPhase28` setzt zusätzlich Hehleranteil, Kaperer-Unterhalt, `traderBuyGuard`, `buildMissingProducer` zurück; `MultiroleTests.Tinker_…` akzeptiert einen verweigerten Verlustkauf; `ExportPlanetTests.Haendler_KauftNurWasDerAbnehmerBezahlenKann` schaltet den Kaufschutz ab (prüft die Bezahlregel); Startpaketlisten. Neue Tests in `Phase28Tests`. Kein Test entfernt.
 
+**Zweiter Gerätetest der Nacharbeit (nur Bedienung, Simulation unverändert — Hash Standard 20000 weiter DE000885191EF812).**
+- Wichtige Meldungen auf eigener Ebene über allem: fangen den Tipp selbst ab, „✕“-Knopf, höchstens 20 s, oben mittig, schmal, drei Zeilen; „Neues Spiel“/Laden löscht sie; eine gewöhnliche Meldung verdrängt die stehende Verlustmeldung nicht mehr. Verlustmeldung nennt Ursache, Landestation, neues Schiff und Beträge.
+- Handel: Menge des Editors ging bei jedem Neuaufbau verloren („Max“ = 1, „+“ jedes zweite Mal) — behoben; kein Neuaufbau bei gedrückter Taste; Rollposition wird direkt nach dem Layout gesetzt; aufgeklappte Zeile rollt ganz ins Bild.
+- Gefechtstest: Nase auf den ersten Kaperer, volle 15 s Warnung, Anführer 40 % Hülle ohne Schild und ohne Flucht (Einsatzregel „Angriff“), zweiter Kaperer (60 % Hülle) frühestens 60 s später, kleiner Frachtraum mit Fracht („Ergeben“ testbar); mit „Nächster Gegner“ + „Dauerfeuer“ bestehbar (Core-Test und Selbsttest).
+- Kleinigkeiten: Grund „Keine Fracht“, Sektor-/Universumskarte gekürzt, Startpaket-Texte gemessen umbrochen, Zielkarte einer Station zeigt Hülle/Schild sofort, Nomad ohne Laserschacht, Station-Info-Karte rollt, Autopilot plant bei neuem Ziel neu und meldet „Angedockt per Autopilot“, Kriegstest nennt die Werft/Polizeiwache Vesta zum Raketen-Nachladen.
+
+**Abschluss-Langzeittest Phase 28 (Nachbesserung).**
+- Piraten starben in langen Läufen aus: ein beschädigtes Kaperschiff einer leeren Kasse hing im Versteck in der Schleife Notfall → Heimkehr → Versorgung ohne Geld → Notfall. Neu: kostenlose Notversorgung im Versteck (langsam bis 60 % Hülle, Module knapp über die Ausfallgrenze, Brand aus; Regel `pirateBasePatchHull`), Handlungsfähigkeit der Piraten um „kann jagen“ ergänzt. 1 036 800 Ticks: Überfälle je 20 000 Ticks Standard 25–59, Seed 3 24–51, nie 0 (vorher ab t740k bzw. am Ende 0/11–19); Verlustquote 0,21 / 0,17 %.
+- Bergbau nach Wiedervereinigung über der Grenze (Lauf J): im geteilten Zustand kauft die Flotte nur noch, solange die ganze Welt unter der Grenze liegt (außer dem Notkauf der Fraktionskasse für einen zusammengebrochenen Teil). Lauf J: mine 25,9/22 (max 29,5) → 22,5/22 (max 22,5).
+
 ## Zurückgestellt
 
 | Thema | Grund |

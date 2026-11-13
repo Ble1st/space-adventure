@@ -85,7 +85,18 @@ public static class Engage
         u.Events.Publish(new CombatExited(e.Id, p.Ship, ship.Role, CombatExit.Destroyed));
         string detail = e.Cause switch { EncounterCause.Raid => "raid", EncounterCause.Intercept => "intercept", _ => "assault" };
         // Phase 25: das aktive Spielerschiff geht wirklich verloren — vorher landet die Person an einer Station (ShipLoss), dann der Abgang
-        if (ship.Id == u.PlayerShip) { ShipLoss.LoseActive(u, ship, detail); return; }
+        if (ship.Id == u.PlayerShip)
+        {
+            string cause = e.Cause switch
+            {
+                EncounterCause.Raid => "Piraten",
+                EncounterCause.Intercept or EncounterCause.Arrest => "Polizei",
+                EncounterCause.Siege => "Stationsgeschütze",
+                _ => "Gefecht",
+            };
+            ShipLoss.LoseActive(u, ship, detail, cause);
+            return;
+        }
         Departures.RemoveShip(u, ship, DepartureReason.Destroyed, detail);
     }
 

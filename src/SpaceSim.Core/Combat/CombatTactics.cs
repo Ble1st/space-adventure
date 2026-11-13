@@ -181,7 +181,8 @@ public sealed class RaiderTactic : ICombatTactic
         var nearest = CombatSense.Nearest(u, e, self);
         if (nearest is null) return new TacticDecision(default, CombatMove.Hold, 0f, PowerMode.Balanced, false, false);
         float own = CombatSense.SideStrength(u, e, self.Side), enemy = CombatSense.SideStrength(u, e, 1 - self.Side);
-        bool flee = ship.Hull < r.RaiderFleeHull * ship.MaxHull || own < r.RaiderFleeRatio * enemy;
+        // zweiter Gerätetest Phase 28: ein Kaperer mit Einsatzregel „Angriff“ (nur im Gefechtstest gesetzt; NPC-Kaperer haben sie nie) kämpft bis zum Ende
+        bool flee = ship.Engagement != Engagement.Attack && (ship.Hull < r.RaiderFleeHull * ship.MaxHull || own < r.RaiderFleeRatio * enemy);
         if (flee) return new TacticDecision(nearest.Ship, CombatMove.Flee, 0f, PowerMode.Engine, true, false);
         var victim = e.Victim.Value != 0 && e.Of(e.Victim) is { Active: true } v && v.Side != self.Side ? v : null;
         var target = victim ?? CombatSense.Focus(u, e, self, ship, null) ?? CombatSense.KeepTarget(u, e, self, nearest)!;

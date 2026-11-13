@@ -23,7 +23,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.trade";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
-	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 1f; _message = ""; _msgOk = true; _scrollV = 0; }
+	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 1f; _message = ""; _msgOk = true; }
 	protected override bool ShowShip => true;
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
@@ -50,7 +50,6 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	float _qty = 1f;         // Menge des Editors
 	string _message = "";
 	bool _msgOk = true;
-	int _scrollV;
 	ScrollContainer? _scroll;
 	readonly KitConfirm _confirm = new();   // Phase 18: „Abwerfen“ erst beim zweiten Tipp
 
@@ -58,9 +57,10 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 
 	protected override void Rebuild()
 	{
-		if (_scroll != null) _scrollV = _scroll.ScrollVertical;
+		// Zweiter Gerätetest Phase 28: die Rollposition hält allein KitScroll (Capture/Restore über den stabilen Schlüssel, gesetzt nach dem Layout) — das
+		// zusätzliche sofortige Setzen hier traf die noch nicht ausgelegte Liste (Wert 0) und ließ sie zwischen oben und gerollt springen
+		_scroll = null;
 		base.Rebuild();
-		if (_scroll != null) _scroll.ScrollVertical = _scrollV;
 	}
 
 	protected override void BuildContent(Control inner)
@@ -106,7 +106,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			{
 				bool open = _expanded is { } g && g == row.Good;
 				var r = new TradeRow(this, row, open, w - 10);
-				r.Tapped += () => { _expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row); Invalidate(); };
+				r.Tapped += () => { _expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row); Invalidate(); if (!open) EnsureExpandedVisible(); };
 				r.EditorBuy += q => Buy(row, q);
 				r.EditorSell += q => Sell(row, q);
 				r.EditorDrop += q => Drop(row, q);
@@ -146,6 +146,61 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			}
 		}
 	}
+
+	/// <summary>
+	/// Zweiter Gerätetest Phase 28: die aufgeklappte Zeile ganz in den sichtbaren Bereich rollen (der Editor war unten abgeschnitten). Zeilenhöhen sind fest
+	/// (56 px, aufgeklappt + Editor, Abstand 6), daher ohne Layout berechenbar.
+	/// </summary>
+	void EnsureExpandedVisible()
+	{
+		if (_scroll is not KitScroll ks || _expanded is not { } g) return;
+		float y = 0f, top = -1f, bottom = 0f;
+		foreach (var row in _rows)
+		{
+			float h = row.Good == g ? 56f + Editor.HeightFor(row) : 56f;
+			if (row.Good == g) { top = y; bottom = y + h; break; }
+			y += h + 6f;
+		}
+		if (top < 0f) return;
+		float view = ks.Size.Y > 0f ? ks.Size.Y : 300f;
+		float cur = ks.ScrollVertical;
+		if (bottom > cur + view) ks.ScrollTo((int)Mathf.Min(top, bottom - view));
+		else if (top < cur) ks.ScrollTo((int)top);
+	}
+
+	/// <summary>Selbsttest: Rollbereich der Liste (Rechteck und Position).</summary>
+	public KitScroll? TestScroll => _scroll as KitScroll;
+	/// <summary>Selbsttest: Menge des Editors, wie der Bildschirm sie hält.</summary>
+	public float TestQty => _qty;
+	/// <summary>Selbsttest: angezeigte Menge im (einzigen) Editor („“ = kein Editor).</summary>
+	public string TestEditorQtyText
+	{
+		get
+		{
+			static Editor? Find(Node n) { foreach (var c in n.GetChildren()) { if (c is Editor e && !e.IsQueuedForDeletion()) return e; if (Find(c) is { } f) return f; } return null; }
+			return Find(this)?.QtyText ?? "";
+		}
+	}
+	/// <summary>Selbsttest: Bildschirmrechteck der aufgeklappten Zeile samt Editor (leer = keine).</summary>
+	public Rect2 TestExpandedRect
+	{
+		get
+		{
+			static TradeRow? Find(Node n) { foreach (var c in n.GetChildren()) { if (c is TradeRow r && r.Open && !r.IsQueuedForDeletion()) return r; if (Find(c) is { } f) return f; } return null; }
+			return Find(this)?.GetGlobalRect() ?? default;
+		}
+	}
+	/// <summary>Selbsttest: klappt eine Zeile auf wie ein Tipp (inklusive Sichtbarmachen).</summary>
+	public void TestOpenRow(GoodId good)
+	{
+		if (_rows.FirstOrDefault(r => r.Good == good) is not { } row) return;
+		_tiles = false; _tileSel = null; _expanded = good; _qty = DefaultQty(row);
+		Invalidate();
+		EnsureExpandedVisible();
+	}
+	public GoodId TestLastGood => _rows.Count > 0 ? _rows[^1].Good : default;
+	/// <summary>Selbsttest: Angebotsmenge „kaufen“ der Ware (was „Max“ setzen soll).</summary>
+	public float TestBuyAmount(GoodId good) => _rows.FirstOrDefault(r => r.Good == good)?.Buy.Amount ?? -1f;
 
 	void LoadRows()
 	{
@@ -265,6 +320,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		readonly TradeScreen _owner;
 		readonly Row _row;
 		readonly bool _open;
+		public bool Open => _open;
 		Editor? _editor;
 
 		public TradeRow(TradeScreen owner, Row row, bool open, float w)
@@ -276,7 +332,12 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			Size = CustomMinimumSize;
 		}
 
-		public void SetQty(float q) => _editor?.SetQty(q);
+		float _qtyInit = 1f;
+		/// <summary>
+		/// Menge des Editors. Zweiter Gerätetest Phase 28: der Editor entsteht erst in <see cref="_Ready"/> — die Menge wird gemerkt und dort gesetzt
+		/// (vorher ging sie bei jedem Neuaufbau verloren: „Max“ zeigte und kaufte 1, „+“ wirkte nur jedes zweite Mal).
+		/// </summary>
+		public void SetQty(float q) { _qtyInit = q; _editor?.SetQty(q); }
 
 		public override void _Ready()
 		{
@@ -289,6 +350,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 				_editor.QtyChanged += q => EditorQty?.Invoke(q);
 				AddChild(_editor);
 				_editor.Position = new Vector2(0, 56);
+				_editor.SetQty(_qtyInit, notify: false);
 			}
 		}
 
@@ -428,11 +490,13 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			RefreshButtons();
 		}
 
-		public void SetQty(float q)
+		public string QtyText => _qtyLabel.Text;
+
+		public void SetQty(float q, bool notify = true)
 		{
 			_qty = Mathf.Clamp(q, 1f, 9999f);
 			_qtyLabel.Text = $"{_qty:0.#}";
-			QtyChanged?.Invoke(_qty);
+			if (notify) QtyChanged?.Invoke(_qty);
 			RefreshButtons();
 			QueueRedraw();
 		}

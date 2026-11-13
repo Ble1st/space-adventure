@@ -375,6 +375,11 @@ public sealed class PirateSystem : ISimSystem
             }
             // Phase 25: der Überfall auf das aktive Schiff ist ein echtes Rundengefecht (räumlich im Spielersektor); der Spieler schießt in Echtzeit zurück
             if (u.Rules.CombatRounds && !u.Fights.IsEngaged(player.Id)) Combat.Engage.StartRaid(u, raider, player, u.Sectors[e.Sector]);
+            // zweiter Gerätetest Phase 28: steckt der Spieler schon in einem Gefecht, tritt der Kaperer ihm auf der Gegenseite bei (Verstärkung), statt den
+            // Überfall abstrakt nebenher aufzulösen
+            else if (u.Rules.CombatRounds && !u.Fights.IsEngaged(raider.Id) && u.Fights.Of(player.Id) is { Done: false } fight
+                     && fight.Of(player.Id) is { Active: true } me)
+                Combat.Reinforcements.JoinSide(u, fight, raider, 1 - me.Side, "pack", fight.Participants.FirstOrDefault(p => p.Active && p.Side != me.Side));
             else ResolveRaid(u, raider, player, u.Sectors[e.Sector]);
         }
     }
@@ -400,6 +405,33 @@ public sealed class PirateSystem : ISimSystem
 
     // ───────── Kasse: Unterhalt und Neubau ─────────
 
+    /// <summary>
+    /// Prüfung Phase 28: ein Kaperschiff im eigenen Versteck (nicht im Gefecht) wird kostenlos langsam geflickt — Hülle bis
+    /// <see cref="EconomyRules.PirateBasePatchHull"/>, ausgefallene Module bis knapp über die Ausfallgrenze, Brände aus. Bezahlte Reparatur bleibt
+    /// <see cref="NpcRepair.AtBase"/> (voll, aus der Kasse); das hier ist nur der Boden, damit eine leere Kasse die Gruppe nicht stilllegt.
+    /// </summary>
+    public static void PatchAtBase(Universe u, Ship s, int ticks)
+    {
+        var r = u.Rules;
+        if (r.PirateBasePatchHull <= 0f || r.PirateBasePatchPerTick <= 0f || u.Fights.IsEngaged(s.Id) || s.Transit is not null || !AtHome(u, s)) return;
+        float floor = r.PirateBasePatchHull * s.MaxHull;
+        if (s.Hull < floor) s.Hull = MathF.Min(floor, s.Hull + r.PirateBasePatchPerTick * s.MaxHull * ticks);
+        if (!r.DamageActive) return;
+        float moduleFloor = r.ModuleFailCondition + r.EmergencyRepairMargin;
+        for (int i = 0; i < s.Fit.Count; i++)
+            if (s.Fit[i] != null && s.ConditionOf(i) < moduleFloor)
+                Combat.ModuleDamage.SetCondition(u, s, i, MathF.Min(moduleFloor, s.ConditionOf(i) + r.PirateBasePatchPerTick * ticks));
+        if (s.Systems.Burning.Count > 0) Combat.ModuleDamage.ExtinguishAll(u, s, "docked");
+    }
+
+    /// <summary>
+    /// Prüfung Phase 28: kann das Kaperschiff jagen — einsatzfähig (kein Notfallgrund) oder im eigenen Versteck, wo es geflickt wird (bei leerer Kasse nur mit
+    /// <see cref="EconomyRules.PirateBasePatchHull"/>)?
+    /// </summary>
+    public static bool CanHunt(Universe u, Ship s, Actor owner) =>
+        OrderSystem.EmergencyReason(u, s) is null
+        || (AtHome(u, s) && (u.Rules.PirateBasePatchHull > u.Rules.EmergencyHullFraction || owner.Treasury.Credits > 0f));
+
     static void Book(Universe u, int ticks)
     {
         var r = u.Rules;
@@ -414,6 +446,8 @@ public sealed class PirateSystem : ISimSystem
                 u.Events.Publish(new TreasuryUpkeep(a.Id, "pirates", paid, upkeep - paid));
             }
             var hideout = u.StationsById().Where(st => st.Owner == a.Id && IsHideout(u, st)).FirstOrDefault();
+            // Prüfung Phase 28: Notversorgung im Versteck ohne Geld (die Gruppe wird nie dauerhaft handlungsunfähig)
+            foreach (var s in raiders) PatchAtBase(u, s, ticks);
             // Phase 13 (Korrektur): eine ausgelöschte Flotte fängt neu an — kleine Einnahme aus dem Versteck und halber Preis für das erste Kaperschiff
             if (hideout is not null && raiders.Count == 0 && r.PirateIdleIncomePerTick > 0f)
             {
