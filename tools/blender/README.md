@@ -71,3 +71,17 @@ Ausgaben: `godot/assets/ships/<key>.glb`, `godot/assets/ships/ships.json`, `docs
 - **Materialien:** `Engine` = Schubflächen der Düsen (emissiv, für Einfärben/Pulsieren im Spiel),
   `Accent` = Fraktionsfarbe (Streifen, Finnen). Positionslichter backbord rot (`LightRed`), steuerbord blau (`Light`).
 - **Dreiecksgrenzen:** S ≤ 1200, M ≤ 1800, L ≤ 2500.
+
+## Abbauwerkzeuge (Rotor- und Backen-Nodes)
+
+- Schiffe mit mechanischem Abbau (`ships.json`: `"mining": "contact"`) bestehen aus dem Rumpf-Node `Hull`
+  und Kind-Nodes `Rotor_*` (drehende Werkzeuge: Bohrer, Schneidrad, Walze, Fraeskopf) bzw. `Jaw_*`
+  (bewegliche Spaltbacken). Laser-Schiffe (`"mining": "laser"`) und alle anderen sind ein einziger `Hull`-Node.
+- **Drehachse = lokale Z-Achse des Nodes in Godot** (in Blender beim Bauen: lokale Y-Achse; der glTF-Export
+  macht daraus Z). Der Node-Ursprung liegt auf der Drehachse bzw. im Gelenk. `spin` in `ships.json` sagt,
+  wie die Achse im Schiff liegt (laengs = Bugrichtung, quer = Steuerbord-Achse, Gelenk senkrecht).
+- Das Werkzeug ist bei Kontaktabbau der vorderste Punkt (−Z in Godot). `contactRadius` = Radius der
+  Werkzeugfront quer zur Flugrichtung relativ zur Halblaenge 1 (bei der Walze: halbe Walzenbreite).
+- `verify_ships.py` prueft Node-Namen gegen `ships.json`, vordersten Punkt und Lage des Ursprungs.
+- Verbreiterung: `ship_models.WIDEN` streckt je Schiff die Rumpf-Lofts in X; Anbauteile behalten ihre
+  Form und wandern mit.

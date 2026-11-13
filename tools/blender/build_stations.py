@@ -175,7 +175,8 @@ def frame(cam, ob, az=-40.0, el=26.0, fill=0.86):
                 math.sin(math.radians(el))))
     q = (-d).to_track_quat("-Z", "Y")
     right, up = q @ Vector((1, 0, 0)), q @ Vector((0, 1, 0))
-    vs = [ob.matrix_world @ v.co for v in ob.data.vertices]
+    bpy.context.view_layer.update()
+    vs = [o.matrix_world @ v.co for o in [ob] + list(ob.children) for v in o.data.vertices]
     xs = [v.dot(right) for v in vs]
     ys = [v.dot(up) for v in vs]
     center = right * (min(xs) + max(xs)) / 2 + up * (min(ys) + max(ys)) / 2
@@ -198,6 +199,8 @@ def export_glb(ob, path):
     for o in bpy.context.scene.objects:
         o.select_set(False)
     ob.select_set(True)
+    for c in ob.children:
+        c.select_set(True)
     bpy.context.view_layer.objects.active = ob
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True,
                               export_yup=True, export_apply=True, export_cameras=False,

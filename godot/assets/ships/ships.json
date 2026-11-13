@@ -1,9 +1,11 @@
 {
   "axes": "Bug = -Z (Godot-Vorwaerts), oben = +Y, Steuerbord = +X; Laenge 2 (Halblaenge 1), Ursprung = Mitte der Bounding-Box",
+  "nodes": "Rumpf = Node 'Hull'; drehende Werkzeuge = Kind-Nodes 'Rotor_*', Spaltbacken = 'Jaw_*'. Bei allen ist die lokale Z-Achse die Drehachse und der Node-Ursprung liegt auf ihr (spin beschreibt die Richtung im Schiff). contactRadius = Radius der Werkzeugfront quer zur Flugrichtung, relativ zur Halblaenge 1.",
   "sizeScale": {
     "S": 1.0,
     "M": 1.5,
-    "L": 2.4
+    "L": 2.4,
+    "XL": 3.6
   },
   "models": {
     "unit_trader_100": {
@@ -19,37 +21,79 @@
     "unit_miner_100": {
       "name": "Einheitsschürfer 100",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Drill_R",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        },
+        {
+          "node": "Rotor_Drill_L",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.109
     },
     "unit_miner_60": {
       "name": "Einheitsschürfer 60",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Drill",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.146
     },
     "pip": {
-      "name": "Pip",
+      "name": "Kiebitz",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "mining": "laser"
     },
     "nomad": {
-      "name": "Nomad",
+      "name": "Nomade",
       "size": "S",
       "scale": 1.0
     },
     "prospector": {
-      "name": "Prospector",
+      "name": "Goldsucher",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_CoreDrill",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.068
     },
     "swift": {
-      "name": "Swift",
+      "name": "Mauersegler",
       "size": "S",
       "scale": 1.0
     },
     "pickaxe": {
-      "name": "Pickaxe",
+      "name": "Spitzhacke",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Spike",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.119
     },
     "corsair": {
       "name": "Korsar",
@@ -62,22 +106,23 @@
       "scale": 1.0
     },
     "mule": {
-      "name": "Mule",
+      "name": "Maultier",
       "size": "M",
       "scale": 1.5
     },
     "hauler": {
-      "name": "Hauler",
+      "name": "Lastkahn",
       "size": "M",
       "scale": 1.5
     },
     "tinker": {
-      "name": "Tinker",
+      "name": "Kesselflicker",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "mining": "laser"
     },
     "cistern": {
-      "name": "Cistern",
+      "name": "Zisterne",
       "size": "M",
       "scale": 1.5
     },
@@ -87,29 +132,89 @@
       "scale": 2.4
     },
     "rockbreaker": {
-      "name": "Rockbreaker",
+      "name": "Felsbrecher",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Drill",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.222
     },
     "excavator": {
-      "name": "Excavator",
+      "name": "Bagger",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Wheel",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.35
     },
     "foreman": {
-      "name": "Foreman",
+      "name": "Polier",
       "size": "M",
       "scale": 1.5
     },
     "quarry": {
-      "name": "Quarry",
+      "name": "Steinbruch",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Mill",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.078,
+      "jaws": [
+        {
+          "node": "Jaw_R",
+          "axis": "z",
+          "spin": "Gelenk senkrecht"
+        },
+        {
+          "node": "Jaw_L",
+          "axis": "z",
+          "spin": "Gelenk senkrecht"
+        }
+      ]
     },
     "rockbreaker_ii": {
-      "name": "Rockbreaker II",
+      "name": "Felsbrecher II",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Mill",
+          "axis": "z",
+          "spin": "laengs (Bugrichtung)"
+        }
+      ],
+      "contactRadius": 0.096,
+      "jaws": [
+        {
+          "node": "Jaw_R",
+          "axis": "z",
+          "spin": "Gelenk senkrecht"
+        },
+        {
+          "node": "Jaw_L",
+          "axis": "z",
+          "spin": "Gelenk senkrecht"
+        }
+      ]
     },
     "warden": {
       "name": "Wächter",
@@ -117,12 +222,12 @@
       "scale": 1.5
     },
     "corvette": {
-      "name": "Korvette",
+      "name": "Hornisse",
       "size": "M",
       "scale": 1.5
     },
     "missile_boat": {
-      "name": "Raketenboot",
+      "name": "Lanze",
       "size": "M",
       "scale": 1.5
     },
@@ -130,6 +235,40 @@
       "name": "Bollwerk",
       "size": "L",
       "scale": 2.4
+    },
+    "bomber": {
+      "name": "Donner",
+      "size": "S",
+      "scale": 1.0
+    },
+    "gunboat": {
+      "name": "Keiler",
+      "size": "M",
+      "scale": 1.5
+    },
+    "destroyer": {
+      "name": "Sturmvogel",
+      "size": "L",
+      "scale": 2.4
+    },
+    "battlecruiser": {
+      "name": "Leviathan",
+      "size": "XL",
+      "scale": 3.6
+    },
+    "strip_miner": {
+      "name": "Maulwurf",
+      "size": "L",
+      "scale": 2.4,
+      "mining": "contact",
+      "rotors": [
+        {
+          "node": "Rotor_Drum",
+          "axis": "z",
+          "spin": "quer (Steuerbord-Achse)"
+        }
+      ],
+      "contactRadius": 0.333
     }
   }
 }

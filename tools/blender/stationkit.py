@@ -40,7 +40,11 @@ PALETTE = {
     "Crystal":   ((0.35, 0.10, 0.60), 0.10, 0.12, (0.50, 0.08, 1.00), 1.1),
     "Container": ((0.45, 0.22, 0.12), 0.15, 0.65, None, 0),
     "Rust":      ((0.33, 0.14, 0.06), 0.30, 0.80, None, 0),
-    "Engine":    ((0.05, 0.20, 0.55), 0.00, 0.40, (0.15, 0.55, 1.00), 2.4),   # Triebwerksschub (Spiel faerbt/pulsiert)
+    "Engine":    ((0.05, 0.20, 0.55), 0.00, 0.40, (0.15, 0.55, 1.00), 3.2),   # Triebwerksschub (Spiel faerbt/pulsiert)
+    # Schiffsrumpf ("used universe"): heller Grundton, zwei Plattentoene
+    "ShipHull":  ((0.64, 0.63, 0.59), 0.15, 0.58, None, 0),      # Knochenweiss
+    "ShipPanel": ((0.46, 0.46, 0.44), 0.20, 0.58, None, 0),      # Sandgrau
+    "ShipArmor": ((0.50, 0.54, 0.58), 0.30, 0.50, None, 0),      # helles Stahlgrau
     "Ember":     ((0.25, 0.00, 0.00), 0.00, 0.60, (1.00, 0.03, 0.00), 0.9),
 }
 
@@ -507,13 +511,18 @@ class Builder:
 
     def loft(self, secs, mat, shape="oct", c=0.35, n=12, x=0.0, cap=True):
         """Geschlossener Rumpf entlang Y aus Querschnitten secs = [(y, halbe Breite, halbe Hoehe[, z]), ...]
-        (Bug zuerst). shape: "oct" (abgefaste Kiste, Fase c), "round" (n-Eck-Ellipse), "diamond".
+        (Bug zuerst). shape: "oct" (abgefaste Kiste, Fase c), "round" (n-Eck-Ellipse), "diamond",
+        "hex" (Sechskant), "wedge" (oben schmaler Keil).
         Ein Querschnitt mit Breite und Hoehe 0 wird zur Spitze. Normalen zeigen nach aussen."""
         if shape == "oct":
             k = 1 - c
             prof = [(1, -k), (1, k), (k, 1), (-k, 1), (-1, k), (-1, -k), (-k, -1), (k, -1)]
         elif shape == "diamond":
             prof = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+        elif shape == "hex":
+            prof = [(1, 0), (0.55, 1), (-0.55, 1), (-1, 0), (-0.55, -1), (0.55, -1)]
+        elif shape == "wedge":
+            prof = [(1, -0.6), (0.5, 1), (-0.5, 1), (-1, -0.6), (-0.6, -1), (0.6, -1)]
         else:
             prof = [(math.cos(2 * math.pi * i / n), math.sin(2 * math.pi * i / n)) for i in range(n)]
         mi = self._mi(mat)
@@ -546,6 +555,10 @@ class Builder:
                     if f:
                         faces.append(f)
         bmesh.ops.recalc_face_normals(self.bm, faces=faces)
+        if not hasattr(self, "loft_verts"):
+            self.loft_verts = set()
+        for r in rings:
+            self.loft_verts.update(r)
         return self
 
     def nozzle(self, p, r, L=None, seg=10, housing=True):
@@ -578,6 +591,8 @@ class Builder:
         normalize="length": Laenge entlang Y = 2 * target_radius (Schiffe, Bug +Y)."""
         bm = self.bm
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        if normalize == "none":
+            return self._to_object(sharp_angle)
         # Zentrieren: XY auf Bounding-Box-Mitte, Z auf Box-Mitte
         xs = [v.co.x for v in bm.verts]
         ys = [v.co.y for v in bm.verts]
@@ -593,6 +608,10 @@ class Builder:
         k = target_radius / rad
         for v in bm.verts:
             v.co *= k
+        return self._to_object(sharp_angle)
+
+    def _to_object(self, sharp_angle):
+        bm = self.bm
         bm.normal_update()
         me = bpy.data.meshes.new(self.name)
         bm.to_mesh(me)

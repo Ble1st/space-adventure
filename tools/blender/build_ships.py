@@ -46,7 +46,7 @@ def ship_list():
     names = {m["key"]: m.get("name", m["key"]) for m in d["shipModels"]}
     out = []
     for key, (fn, size, idea, name) in ship_models.SHIPS.items():
-        out.append((key, name or names.get(key, key), size, idea))
+        out.append((key, names.get(key, name or key), size, idea))
     missing = [k for k in names if k != "unit_player" and k not in ship_models.SHIPS]
     if missing:
         raise SystemExit("Kein Schiffsmodell fuer: " + ", ".join(missing))
@@ -72,11 +72,40 @@ def args():
     return opt
 
 
+def link(scene, ob):
+    scene.collection.objects.link(ob)
+    for c in ob.children:
+        scene.collection.objects.link(c)
+
+
 def write_meta(ships):
+    """ships.json: Groesse, Massstab, Abbauart, drehbare Werkzeuge (Rotor-Nodes) und Spaltbacken."""
+    models = {}
+    for k, n, s, _ in ships:
+        if k not in ship_models.ROTOR_INFO:
+            ob = ship_models.build(k)
+            for o in [ob] + list(ob.children):
+                me = o.data
+                bpy.data.objects.remove(o, do_unlink=True)
+                bpy.data.meshes.remove(me)
+        entry = {"name": n, "size": s, "scale": ship_models.SIZE_SCALE[s]}
+        if k in ship_models.MINING:
+            entry["mining"] = ship_models.MINING[k]
+        info = ship_models.ROTOR_INFO.get(k) or {}
+        if info.get("rotors"):
+            entry["rotors"] = info["rotors"]
+            entry["contactRadius"] = info["contactRadius"]
+        if info.get("jaws"):
+            entry["jaws"] = info["jaws"]
+        models[k] = entry
     meta = {
         "axes": "Bug = -Z (Godot-Vorwaerts), oben = +Y, Steuerbord = +X; Laenge 2 (Halblaenge 1), Ursprung = Mitte der Bounding-Box",
+        "nodes": "Rumpf = Node 'Hull'; drehende Werkzeuge = Kind-Nodes 'Rotor_*', Spaltbacken = 'Jaw_*'. "
+                 "Bei allen ist die lokale Z-Achse die Drehachse und der Node-Ursprung liegt auf ihr "
+                 "(spin beschreibt die Richtung im Schiff). contactRadius = Radius der Werkzeugfront "
+                 "quer zur Flugrichtung, relativ zur Halblaenge 1.",
         "sizeScale": ship_models.SIZE_SCALE,
-        "models": {k: {"name": n, "size": s, "scale": ship_models.SIZE_SCALE[s]} for k, n, s, _ in ships},
+        "models": models,
     }
     with open(os.path.join(GLB_DIR, "ships.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
@@ -90,6 +119,18 @@ def setup(res=(1024, 768)):
         if ob.type == "LIGHT":
             ob.rotation_euler.z += math.pi
     return scene, cam
+
+
+PREVIEW_ACCENT = (0.80, 0.18, 0.08, 1.0)   # Beispiel-Fraktionsfarbe nur fuer die Bilder
+
+
+def tint_accent(on):
+    m = bpy.data.materials.get("Accent")
+    if m is None:
+        return
+    bsdf = m.node_tree.nodes.get("Principled BSDF")
+    col = PREVIEW_ACCENT if on else (*stationkit.PALETTE["Accent"][0], 1.0)
+    bsdf.inputs["Base Color"].default_value = col
 
 
 def render_two_views(scene, cam, ob, path):
@@ -118,47 +159,71 @@ def render_two_views(scene, cam, ob, path):
     scene.render.resolution_x, scene.render.resolution_y = 1024, 768
 
 
+GROUPS = ("Handel", "Bergbau/Bau", "Kampf")
+SIZE_ORDER = {"S": 0, "M": 1, "L": 2, "XL": 3}
+
+
 def overview(ships, path):
+    """Uebersicht nach Rolle gruppiert (je eine Zeile), innerhalb nach Groesse und Kapazitaet sortiert,
+    alle Schiffe im Massstab ihrer Groessenklasse."""
     bs.reset()
-    scene, cam = setup(res=(2400, 2160))
-    cols = 5
-    cw, ch = 5.4, 4.1
+    scene, cam = setup(res=(3200, 2000))
+    tint_accent(True)
     d = Vector((math.cos(math.radians(OV_EL)) * math.sin(math.radians(AZ)),
                 -math.cos(math.radians(OV_EL)) * math.cos(math.radians(AZ)),
                 math.sin(math.radians(OV_EL))))
     q = (-d).to_track_quat("-Z", "Y")
     right, up = q @ Vector((1, 0, 0)), q @ Vector((0, 1, 0))
-    rows = math.ceil(len(ships) / cols)
     lab = bpy.data.materials.new("Label")
     bsdf = lab.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Base Color"].default_value = (0.9, 0.92, 1.0, 1)
     bsdf.inputs["Emission Color"].default_value = (0.85, 0.9, 1.0, 1)
     bsdf.inputs["Emission Strength"].default_value = 1.6
-    for i, (key, name, size, _) in enumerate(ships):
-        r, c = divmod(i, cols)
-        pos = right * ((c - (cols - 1) / 2) * cw) - up * ((r - (rows - 1) / 2) * ch)
-        ob = ship_models.build(key)
-        scene.collection.objects.link(ob)
-        k = ship_models.SIZE_SCALE[size]
-        ob.scale = (k, k, k)
-        ob.location = pos + up * 0.55
-        for label, sz, off in ((name, 0.36, -1.35), (f"{key} · {size}", 0.22, -1.72)):
-            cu = bpy.data.curves.new("t_" + key, "FONT")
-            cu.body = label
-            cu.align_x = "CENTER"
-            cu.size = sz
-            to = bpy.data.objects.new("t_" + key, cu)
-            to.data.materials.append(lab)
-            to.rotation_euler = q.to_euler()
-            to.location = pos + up * off + d * 3.0
-            scene.collection.objects.link(to)
+
+    def text(body, size, pos, align="CENTER"):
+        cu = bpy.data.curves.new("t", "FONT")
+        cu.body = body
+        cu.align_x = align
+        cu.size = size
+        to = bpy.data.objects.new("t", cu)
+        to.data.materials.append(lab)
+        to.rotation_euler = q.to_euler()
+        to.location = pos + d * 6.0
+        scene.collection.objects.link(to)
+
+    row_h = 9.0
+    widest = 0.0
+    rows = []
+    for g in GROUPS:
+        items = [s for s in ships if ship_models.ROLE.get(s[0]) == g]
+        items.sort(key=lambda s: (SIZE_ORDER[s[2]], ship_models.CARGO.get(s[0], (0, 0))[0], s[0]))
+        rows.append((g, items))
+        w = sum(ship_models.SIZE_SCALE[s[2]] * 2.0 + 1.6 for s in items)
+        widest = max(widest, w)
+    for r, (g, items) in enumerate(rows):
+        base = -up * (r * row_h)
+        text(g, 0.9, base - right * (widest / 2) + up * 3.0, align="LEFT")
+        x = -widest / 2
+        for key, name, size, _ in items:
+            k = ship_models.SIZE_SCALE[size]
+            cw = k * 2.0 + 1.6
+            pos = base + right * (x + cw / 2)
+            ob = ship_models.build(key)
+            link(scene, ob)
+            ob.scale = (k, k, k)
+            ob.location = pos + up * 0.4
+            text(name, 0.42, pos - up * 2.6)
+            text(f"{key} · {size}", 0.26, pos - up * 3.15)
+            x += cw
     cam.data.type = "ORTHO"
-    cam.data.ortho_scale = cols * cw + 0.4
-    cam.location = d * 80
+    cam.data.ortho_scale = widest + 1.0
+    cam.location = -up * (row_h * (len(rows) - 1) / 2) + d * 120
     cam.rotation_euler = q.to_euler()
-    cam.data.clip_end = 300
+    cam.data.clip_end = 400
+    scene.render.resolution_y = int(3200 * (row_h * len(rows) + 1.5) / (widest + 1.0))
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
+    tint_accent(False)
     im = bpy.data.images.load(path)
     scene.render.image_settings.file_format = "JPEG"
     scene.render.image_settings.quality = 88
@@ -170,7 +235,6 @@ def main():
     os.makedirs(GLB_DIR, exist_ok=True)
     os.makedirs(IMG_DIR, exist_ok=True)
     ships = ship_list()
-    write_meta(ships)
     todo = [s for s in ships if opt["only"] is None or s[0] in opt["only"]]
     report = []
     for key, name, size, _ in todo:
@@ -178,13 +242,16 @@ def main():
         scene, cam = setup()
         t0 = time.time()
         ob = ship_models.build(key)
-        scene.collection.objects.link(ob)
-        tris = stationkit.tri_count(ob)
+        link(scene, ob)
+        tris = sum(stationkit.tri_count(o) for o in [ob] + list(ob.children))
         glb = os.path.join(GLB_DIR, key + ".glb")
         bs.export_glb(ob, glb)
         if opt["render"]:
+            tint_accent(True)
             render_two_views(scene, cam, ob, os.path.join(IMG_DIR, key + ".png"))
+            tint_accent(False)
         report.append((key, name, size, tris, os.path.getsize(glb), time.time() - t0))
+    write_meta(ships)
     print("\n=== SCHIFFE ===")
     for key, name, size, tris, sz, dt in report:
         print(f"{key:16s} {name:22s} {size} tris={tris:5d} glb={sz/1024:6.1f} KiB  {dt:5.1f}s")
