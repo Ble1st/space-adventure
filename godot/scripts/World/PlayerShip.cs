@@ -15,12 +15,12 @@ public partial class PlayerShip : Node3D
 {
 	const float Thrust = 40f, BrakeAccel = 60f;
 	/// <summary>Höchstgeschwindigkeit in Einheiten/s (Volle Pulle am Tempo-Slider).</summary>
-	public const float MaxSpeed = 45f;
+	public const float MaxSpeed = Collision.PlayerMaxSpeed;
 	const float TurnRate = 7f;
 	/// <summary>Drehgeschwindigkeit der Wendetasten (Halten) in rad/s.</summary>
 	const float TurnSpeed = SpaceSim.Core.Flight.AimAssist.PlayerTurnRate;   // Gerätetest Phase 28: dieselbe Drehrate wie die Zielhilfe
 	/// <summary>Erst ab dieser Aufprallgeschwindigkeit an Asteroiden/Stationen gibt es Schaden; darunter nur Abprallen.</summary>
-	public const float HardImpact = 14f;
+	public const float HardImpact = Collision.HardImpact;
 	/// <summary>Seitliche Restgeschwindigkeit wird abgebaut (Flugassistent): das Schiff folgt seiner Nase und driftet nicht in Hindernisse.</summary>
 	const float LateralDamping = 3.2f;
 
@@ -39,12 +39,39 @@ public partial class PlayerShip : Node3D
 	MeshInstance3D _flame = null!;
 	CpuParticles3D _trail = null!;
 
+	/// <summary>Runde 11: Schiffsmodell des aktiven Schiffs (ShipModels); null = alter Grundkörper.</summary>
+	public ShipVisual? Visual { get; private set; }
+	string _modelKey = "\u0000";
+	readonly System.Collections.Generic.List<Node3D> _simple = new();
+
+	/// <summary>Runde 11: Modell wechseln (Schiffswechsel, Umbau); ohne Modell bleibt der Grundkörper.</summary>
+	public void SetModel(string modelKey, Color accent)
+	{
+		if (modelKey == _modelKey) { Visual?.SetAccent(accent); return; }
+		_modelKey = modelKey;
+		Visual?.Root.QueueFree();
+		Visual = ShipModels.Create(modelKey, accent);
+		if (Visual is not null) AddChild(Visual.Root);
+		foreach (var n in _simple) n.Visible = Visual is null;
+		float half = Visual is not null ? ShipModels.ScaleOf(modelKey) : 2.5f;
+		if (_trail is not null) _trail.Position = new Vector3(0, 0, half + 0.6f);
+	}
+
+	/// <summary>Runde 11: Schub (Tempoanteil) und Werkzeugdrehung je Bild.</summary>
+	public void Animate(float spin, float delta)
+	{
+		if (Visual is null) return;
+		Visual.SetEngine(Thrusting ? 1f : Mathf.Clamp(Velocity.Length() / MaxSpeed, 0.1f, 0.6f));
+		Visual.Spin(spin, delta);
+	}
+
 	public override void _Ready()
 	{
 		var hull = Gfx.Mesh(new PrismMesh { Size = new Vector3(3f, 5f, 1.2f) }, Gfx.Mat(new Color(0.7f, 0.75f, 0.85f), 0f, 0.8f), Vector3.Zero, this);
 		hull.RotationDegrees = new Vector3(-90, 0, 0);
-		Gfx.Mesh(new BoxMesh { Size = new Vector3(5.5f, 0.2f, 1.4f) }, Gfx.Mat(new Color(0.45f, 0.5f, 0.65f), 0f, 0.8f), new Vector3(0, 0, 1f), this);
-		Gfx.Mesh(new SphereMesh { Radius = 0.5f, Height = 1f }, Gfx.Mat(new Color(0.3f, 0.8f, 1f), 1.5f), new Vector3(0, 0.5f, -0.6f), this);
+		_simple.Add(hull);
+		_simple.Add(Gfx.Mesh(new BoxMesh { Size = new Vector3(5.5f, 0.2f, 1.4f) }, Gfx.Mat(new Color(0.45f, 0.5f, 0.65f), 0f, 0.8f), new Vector3(0, 0, 1f), this));
+		_simple.Add(Gfx.Mesh(new SphereMesh { Radius = 0.5f, Height = 1f }, Gfx.Mat(new Color(0.3f, 0.8f, 1f), 1.5f), new Vector3(0, 0.5f, -0.6f), this));
 		_flame = Gfx.Mesh(new CylinderMesh { TopRadius = 0f, BottomRadius = 0.6f, Height = 2.5f }, Gfx.Mat(new Color(1f, 0.55f, 0.15f), 4f), new Vector3(0, 0, 3.6f), this);
 		_flame.RotationDegrees = new Vector3(90, 0, 0);
 
@@ -125,7 +152,7 @@ public partial class PlayerShip : Node3D
 		_flame.Scale = new Vector3(1, 1, 0.8f + GD.Randf() * 0.5f);
 	}
 
-	void Show(bool thrust) { _flame.Visible = thrust; _trail.Emitting = thrust; }
+	void Show(bool thrust) { _flame.Visible = thrust && Visual is null; _trail.Emitting = thrust; }
 
 	/// <summary>
 	/// Feste Hindernisse (Asteroiden, Stationen): Abprallen, bei hartem Aufprall Schaden (außer in der Schonfrist).
@@ -138,14 +165,11 @@ public partial class PlayerShip : Node3D
 		if (Collision.Resolve(ref pos, Collision.ShipRadius, view.Obstacles, out var n))
 		{
 			Position = new Vector3(pos.X, 0, pos.Y);
-			var normal = new Vector3(n.X, 0, n.Y);
-			float vn = Velocity.Dot(normal);
-			if (vn < 0f)
-			{
-				Velocity -= normal * (1.4f * vn);   // Rückprall mit 40 % Restenergie
-				float impact = -vn;
-				if (impact > HardImpact && _hitCooldown <= 0f && Grace <= 0f) { _hitCooldown = 0.6f; Hit?.Invoke(impact, Position); }
-			}
+			// Runde 11: Abprallregel aus dem Core (Collision.Bounce/IsHard, getestet): 40 % Restenergie, Schaden erst ab HardImpact
+			var v2 = new Vec2(Velocity.X, Velocity.Z);
+			float impact = Collision.Bounce(ref v2, n);
+			Velocity = new Vector3(v2.X, Velocity.Y, v2.Y);
+			if (Collision.IsHard(impact) && _hitCooldown <= 0f && Grace <= 0f) { _hitCooldown = 0.6f; Hit?.Invoke(impact, Position); }
 		}
 
 		pos = new Vec2(Position.X, Position.Z);

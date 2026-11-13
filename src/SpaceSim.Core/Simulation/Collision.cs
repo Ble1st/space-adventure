@@ -6,6 +6,27 @@ namespace SpaceSim.Core.Simulation;
 public static class Collision
 {
     public const float ShipRadius = 2.5f;
+    /// <summary>Aufprallgeschwindigkeit (Normalanteil), ab der ein Stoß gegen Asteroid oder Station die Hülle beschädigt (Spielerschiff; vorher nur in der Ansicht).</summary>
+    public const float HardImpact = 14f;
+    /// <summary>Höchsttempo des Spielerschiffs in der Ansicht (PlayerShip.MaxSpeed), für die Regel „Andrücken ist kein Rammen“.</summary>
+    public const float PlayerMaxSpeed = 45f;
+    /// <summary>Restenergie beim Abprallen von festen Hindernissen.</summary>
+    public const float Restitution = 0.4f;
+
+    /// <summary>
+    /// Runde 11: Abprall an der Normale eines festen Hindernisses (die Regel der Ansicht, jetzt im Core und testbar): liefert die Aufprallgeschwindigkeit
+    /// (Normalanteil gegen das Hindernis, 0 wenn das Schiff sich entfernt) und dreht diesen Anteil mit <see cref="Restitution"/> um.
+    /// </summary>
+    public static float Bounce(ref Vec2 velocity, Vec2 normal)
+    {
+        float vn = velocity.X * normal.X + velocity.Y * normal.Y;
+        if (vn >= 0f) return 0f;
+        velocity -= normal * ((1f + Restitution) * vn);
+        return -vn;
+    }
+
+    /// <summary>Beschädigt dieser Aufprall die Hülle?</summary>
+    public static bool IsHard(float impact) => impact > HardImpact;
 
     /// <summary>Schiebt <paramref name="pos"/> aus allen überlappenden Hindernissen heraus. Normal zeigt vom zuletzt berührten Hindernis weg.</summary>
     public static bool Resolve(ref Vec2 pos, float radius, IReadOnlyList<Obstacle> obstacles, out Vec2 normal)

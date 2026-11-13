@@ -116,14 +116,14 @@ public static class StationCombat
                 while (cond.Timers.Count <= g) cond.Timers.Add(0f);
                 cond.Timers[g] = w.Reload;
                 var tShip = u.Ships[target.Ship];
-                if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, default, st, target.Side == 0 ? 1 : 0, m, w, target.Ship, default, best, e.Spatial ? st.Position : default); continue; }
+                if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, default, st, target.Side == 0 ? 1 : 0, m, w, target.Ship, default, best, e.Spatial ? st.Position : default, g); continue; }
                 var tProfile = new TargetProfile(tShip.ShieldNow, tShip.Stats.Armor, target.Speed, Gunnery.Signature(u, tShip));
                 var hit = Hit.Roll(u.Rng, w, tProfile, best, 1f, r);
                 e.Shots++;
                 float hull = Hit.Apply(u, tShip, hit);
                 if (hull > 0f) ModuleDamage.OnHullHit(u, tShip, hull);
                 if (hit.Hit) e.Hits++;
-                u.Events.Publish(new StationShot(e.Id, e.Sector, st.Id, tShip.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull));
+                u.Events.Publish(new StationShot(e.Id, e.Sector, st.Id, tShip.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull, g));
                 if (tShip.Hull <= 0f && target.Active) Engage.Destroy(u, e, target, tShip, $"Stationsgeschütze ({st.Name})");
             }
         }
@@ -143,7 +143,7 @@ public static class StationCombat
         e.Shots++;
         float hull = Apply(u, e, st, hit, shooter.Owner);
         if (hit.Hit) e.Hits++;
-        u.Events.Publish(new ShotAtStation(e.Id, e.Sector, shooter.Id, st.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull));
+        u.Events.Publish(new ShotAtStation(e.Id, e.Sector, shooter.Id, st.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull, slot));
         return hit;
     }
 

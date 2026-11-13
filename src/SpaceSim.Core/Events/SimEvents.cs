@@ -232,7 +232,8 @@ public sealed record EncounterStarted(int Encounter, SectorId Sector, EncounterC
 /// Phase 24: Ein Schuss im Gefecht (Trefferregel <see cref="Combat.Hit.Roll"/>): Schütze, Ziel, Waffenmodul, Art, Treffer, Schaden an Schild und Hülle.
 /// Die Darstellung zeichnet ihn als Linie, wenn er im Spielersektor fällt (wie <see cref="MinerShot"/>).
 /// </summary>
-public sealed record ShotFired(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;
+/// <remarks>Runde 11: <c>Slot</c> = Waffenslot des Schützen (Darstellung: Mündung der sichtbaren Stellung; −1 = unbekannt, Schiffsmitte).</remarks>
+public sealed record ShotFired(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Slot = -1) : SimEvent;
 /// <summary>Phase 24: Ein Teilnehmer hat das Gefecht verlassen (zerstört, geflohen, Fracht abgeworfen, Beute genommen, Zeit um).</summary>
 public sealed record CombatExited(int Encounter, ShipId Ship, ShipRole Role, CombatExit Exit) : SimEvent;
 /// <summary>Phase 24: Ein Händler hat sich ergeben und Fracht abgeworfen; der Kaperer nimmt sie (Basiswert) und bricht ab.</summary>
@@ -303,7 +304,8 @@ public sealed record PlayerSurrendered(bool ToPolice, SectorId Sector, float Val
 
 // ───────── Phase 28: Raketen, Stationen, Krieg ─────────
 /// <summary>Phase 28: Rakete abgefeuert (Schiff oder Station <paramref name="FromStation"/>), Ziel Schiff oder Station; <paramref name="FlightTicks"/> = erwartete Flugzeit.</summary>
-public sealed record MissileLaunched(int Encounter, SectorId Sector, ShipId Shooter, StationId FromStation, ShipId Target, StationId TargetStation, string Weapon, float FlightTicks) : SimEvent;
+/// <remarks>Runde 11: <c>Slot</c> = Werferslot des Schiffs bzw. Geschützindex der Station (Darstellung: Start am Schacht; −1 = unbekannt).</remarks>
+public sealed record MissileLaunched(int Encounter, SectorId Sector, ShipId Shooter, StationId FromStation, ShipId Target, StationId TargetStation, string Weapon, float FlightTicks, int Slot = -1) : SimEvent;
 /// <summary>Phase 28: Rakete am Ziel — <paramref name="Outcome"/> „hit“, „miss“, „intercepted“ (Punktabwehr) oder „lost“ (Ziel weg/entkommen).</summary>
 public sealed record MissileResolved(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, StationId TargetStation, string Outcome, float ShieldDamage, float HullDamage) : SimEvent;
 /// <summary>
@@ -312,9 +314,10 @@ public sealed record MissileResolved(int Encounter, SectorId Sector, ShipId Shoo
 /// </summary>
 public sealed record SiegeWithdrawn(int Encounter, StationId Station, ShipId Player, int Wingmen, string Message, bool Won = false) : SimEvent;
 /// <summary>Phase 28: Ein Stationsgeschütz hat auf ein Schiff geschossen.</summary>
-public sealed record StationShot(int Encounter, SectorId Sector, StationId Station, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;
+/// <remarks>Runde 11: <c>Gun</c> = Index in defense.guns (Darstellung: Mündung des Stationsturms; −1 = Stationsmitte).</remarks>
+public sealed record StationShot(int Encounter, SectorId Sector, StationId Station, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Gun = -1) : SimEvent;
 /// <summary>Phase 28: Ein Schiff hat auf eine Station geschossen.</summary>
-public sealed record ShotAtStation(int Encounter, SectorId Sector, ShipId Shooter, StationId Station, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage) : SimEvent;
+public sealed record ShotAtStation(int Encounter, SectorId Sector, ShipId Shooter, StationId Station, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Slot = -1) : SimEvent;
 /// <summary>Phase 28: Eine Station ist gefallen — <paramref name="How"/> „destroyed“ (über <see cref="SpaceSim.Core.Simulation.Departures"/>), „captured“ (Besitzer wechselt) oder „disabled“ (Regierung/unzerstörbar: ausgeschaltet).</summary>
 public sealed record StationFell(StationId Station, string Name, SectorId Sector, ActorId OldOwner, ActorId Attacker, string How) : SimEvent;
 /// <summary>Phase 28: Station repariert (Hüllenpunkte, Hüllenplatten aus dem Lager, Kosten aus der Kasse bzw. Stationskasse).</summary>

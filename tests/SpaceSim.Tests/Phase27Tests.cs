@@ -47,7 +47,7 @@ public class Phase27Tests
         var u = WorldBuilder.Build(def);
         new SimulationRunner().Run(u, 20000);
         // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher 8BAFCA8A395897AE)
-        Assert.Equal(0x885FAB4DD2BB8F0FUL, UniverseHash.Compute(u));
+        Assert.Equal(0x02F599DEDC0101B4UL, UniverseHash.Compute(u));   // Runde 11: nur die Namensliste (Kürzel befördeter Akteure) geändert — mit der alten Liste geprüft: 0x885FAB4DD2BB8F0F
     }
 
     // ───────── Hilfen ─────────

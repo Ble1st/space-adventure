@@ -195,7 +195,8 @@ public class OutfitterShipyardTests
         var laser = u.FindGood(toolKey)!.Id;
         Assert.True(player.Has(Capability.Mining));
 
-        // Station nimmt an (Lagerposten mit Platz): Ankauf zum Marktpreis
+        // Station nimmt an (Lagerposten mit Platz): Ankauf zum Marktpreis — Runde 11: Regale starten voll, also erst Platz schaffen
+        yard.Market[laser].Amount = MathF.Max(0f, yard.Market[laser].Target - 2f);
         float price = yard.Market[laser].Price, wallet = u.PlayerWallet.Credits, stock = yard.Market[laser].Amount;
         var r = Exec(Outfitter, u, yard, player, $"remove:{tool}");
         Assert.True(r.Success, r.Message);
@@ -407,13 +408,17 @@ public class OutfitterShipyardTests
     public void Startpakete_ErzeugenWeltMitGewaehltemModellUndGeld_OhneWahlWieBisher()
     {
         var options = WorldBuilder.DefaultStartOptions();
-        Assert.Equal(new[] { "miner", "trader", "generalist", "fighter", "test", "combat", "war", "arrest" }, options.Select(o => o.Key));   // Phase 25: Startpaket „Jäger“; Gerätetest Phase 26: Testszenario; Gerätetest Phase 27: Gefechts- und Festnahmetest
-        foreach (var (key, model) in new[] { ("miner", "prospector"), ("trader", "nomad"), ("generalist", "pip") })
+        // Runde 11 (Wunsch: „Standardschiff ein Jäger, Händler oder Miner“): genau drei reguläre Pakete, dahinter die Testszenarien; der Generalist entfällt
+        Assert.Equal(new[] { "fighter", "trader", "miner", "test", "combat", "war", "arrest" }, options.Select(o => o.Key));
+        Assert.Equal(new[] { "fighter", "trader", "miner" }, options.Where(o => o.Scenario is null).Select(o => o.Key));
+        foreach (var (key, model, sector) in new[] { ("fighter", "falcon", 4), ("trader", "nomad", 2), ("miner", "prospector", 1) })
         {
             var u = WorldBuilder.BuildDefault(startOption: key);
             var p = u.Ships[u.PlayerShip];
             var o = options.Single(x => x.Key == key);
             Assert.Equal(model, p.ModelKey);
+            Assert.Equal(sector, p.Sector.Value);   // Startort passt zum Paket (Jäger nahe den Piraten, Händler im Knoten, Schürfer bei den Gürteln)
+            Assert.False(string.IsNullOrWhiteSpace(o.Description));
             Assert.Equal(o.Credits, u.PlayerWallet.Credits);
             Assert.True(p.IsPlayer);
             Assert.Equal(p.MaxHull, p.Hull);
@@ -421,7 +426,8 @@ public class OutfitterShipyardTests
             Assert.Equal(p.Stats.FuelCapacity, p.TotalFuel);
             new SimulationRunner().Run(u, 200);   // läuft
         }
-        Assert.True(WorldBuilder.BuildDefault(startOption: "generalist").Ships[new ShipId(100)].Has(Capability.Mining));
+        Assert.True(WorldBuilder.BuildDefault(startOption: "miner").Ships[new ShipId(100)].Stats.UsesContact);   // Goldsucher mit Bohrkopf
+        Assert.True(WorldBuilder.BuildDefault(startOption: "fighter").Ships[new ShipId(100)].Has(Capability.Combat));
         // ohne Wahl: Einheitsmodell und Startgeld des Spielereintrags (bisheriges Verhalten)
         var d = WorldBuilder.BuildDefault();
         Assert.Equal("unit_miner_100", d.Ships[d.PlayerShip].ModelKey);

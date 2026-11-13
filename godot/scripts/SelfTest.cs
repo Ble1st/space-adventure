@@ -1637,6 +1637,11 @@ public partial class SelfTest : Node
 				if (_frame - _stageStart == 4) Log($"Rollbereich {rect}, rollbar {(scroll.GetVScrollBar().MaxValue - scroll.GetVScrollBar().Page):0}, mit Canvas {scroll.GetGlobalTransformWithCanvas().Origin}");
 				if (_frame - _stageStart == 4)
 				{
+					// Runde 11: genau drei reguläre Startpakete (Jäger, Händler, Schürfer), kein „Standard“ in der Liste
+					var regular = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().Where(o => o.Scenario is null).Select(o => o.Key).ToList();
+					Check(string.Join(",", regular) == "fighter,trader,miner", $"Startpakete regulär: {string.Join(",", regular)}");
+					Check(!_m.HudRef.CcSystem.TestChooserTexts().Any(t => t.StartsWith("Standard")), "keine Karte „Standard“ in der Startauswahl");
+					Check(_m.HudRef.CcSystem.TestChooserTexts().Any(t => t.StartsWith("Testszenarien")), "Testszenarien abgesetzt");
 					_p27Universe = _m.Session.U;
 					scroll.ScrollVertical = 0;
 					var a = rect.Position + new Vector2(rect.Size.X * 0.4f, rect.Size.Y * 0.7f);
@@ -2592,6 +2597,7 @@ public partial class SelfTest : Node
 				break;
 			}
 			case 90: if (GateModelStage(_frame - _stageStart)) Next(); break;   // Jumpgate-Modelle (SelfTest.Gates.cs)
+			case 91: if (ShipModelStage(_frame - _stageStart)) Next(); break;   // Runde 11: Schiffsmodelle, Mündungen, Türme (SelfTest.Ships.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

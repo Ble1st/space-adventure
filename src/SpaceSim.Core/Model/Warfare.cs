@@ -49,6 +49,8 @@ public sealed class MissileFlight
     public float Speed;
     /// <summary>Startpunkt im räumlichen Gefecht (nur Darstellung und Hash im Raum).</summary>
     public Vec2 From;
+    /// <summary>Runde 11, nur Darstellung (nicht gespeichert, nicht gehasht): Werferslot bzw. Geschützindex, aus dem die Rakete startete (−1 = unbekannt).</summary>
+    public int Slot = -1;
 }
 
 /// <summary>

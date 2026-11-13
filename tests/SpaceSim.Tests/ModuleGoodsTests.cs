@@ -204,7 +204,7 @@ public class ModuleGoodsTests
         var u = DemoUniverse.Create();
         var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
         var reactor = GoodOf(u, "reactor_mk1").Id;
-        Assert.Equal(2f, yard.Market[reactor].Amount);
+        Assert.Equal(5f, yard.Market[reactor].Amount);   // Runde 11: Werftregale starten voll (vorher 2 von 5)
         Assert.Equal(5f, yard.Market[reactor].Target);
         Assert.True(yard.IsStockOnly(reactor));                         // kein Rezept der Werft nutzt den Reaktor
         Assert.False(yard.IsStockOnly(DemoUniverse.ShipKitLight));      // Rezeptware
@@ -212,7 +212,7 @@ public class ModuleGoodsTests
         // stocks setzt bei Rezeptwaren Anfangs-/Wunschbestand (Titan der Werft, Zutaten der Modulfabrik)
         Assert.Equal(10f, yard.Market[DemoUniverse.Titanium].Target);
         var drive = u.Stations.Values.First(s => s.TypeKey == "drive_works");
-        Assert.Equal(10f, drive.Market[DemoUniverse.Steel].Target);
+        Assert.Equal(20f, drive.Market[DemoUniverse.Steel].Target);   // Runde 11: Zutatenziel der Modulwerke 20 (vorher 10)
         Assert.False(drive.IsStockOnly(DemoUniverse.Steel));
 
         // Lebenszyklus-Neubau nutzt dieselbe Fabrik: neue Werft hat die Lagerposten

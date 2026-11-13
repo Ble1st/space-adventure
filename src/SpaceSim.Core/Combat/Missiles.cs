@@ -42,7 +42,7 @@ public static class Missiles
     /// Flugstrecke = <paramref name="distance"/>, Tempo aus <c>missileSpeed</c>.
     /// </summary>
     public static MissileFlight Launch(Universe u, Encounter e, Ship? shooter, Station? fromStation, int side, Module m, in WeaponProfile w,
-        ShipId target, StationId targetStation, float distance, Vec2 from)
+        ShipId target, StationId targetStation, float distance, Vec2 from, int slot = -1)
     {
         if (shooter is not null && u.Rules.AmmoActive)
             shooter.Systems.MissilesMissing = MathF.Min(shooter.Stats.MissileCapacity, shooter.Systems.MissilesMissing + 1f);
@@ -50,12 +50,12 @@ public static class Missiles
         var f = new MissileFlight
         {
             Shooter = shooter?.Id ?? default, FromStation = fromStation?.Id ?? default, Owner = shooter?.Owner ?? fromStation?.Owner ?? default, Side = side, Module = m.Key,
-            Target = target, Station = targetStation, Left = MathF.Max(0f, distance), Total = MathF.Max(0f, distance), Speed = speed, From = from,
+            Target = target, Station = targetStation, Left = MathF.Max(0f, distance), Total = MathF.Max(0f, distance), Speed = speed, From = from, Slot = slot,
         };
         e.Missiles.Add(f);
         e.Shots++;
         u.Events.Publish(new MissileLaunched(e.Id, e.Sector, f.Shooter, fromStation?.Id ?? default, target, targetStation, m.Key,
-            f.Total / speed * SimClock.TicksPerSecond));
+            f.Total / speed * SimClock.TicksPerSecond, slot));
         return f;
     }
 

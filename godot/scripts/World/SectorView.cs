@@ -15,7 +15,8 @@ public readonly record struct PickTarget(string Kind, int Id, Vector3 Position, 
 /// </summary>
 public partial class SectorView : Node3D
 {
-	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; }
+	/// <summary>NPC-Schiff in der Szene. Runde 11: <see cref="Visual"/> = Schiffsmodell (ShipModels), <see cref="Simple"/> = Grundkörper (ohne Modell oder weit weg).</summary>
+	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; public ShipVisual? Visual; public Node3D? Simple; public string ModelKey = ""; public Color Color; public bool Far; }
 
 	Universe? _u;
 	SectorId _sector;
@@ -28,7 +29,7 @@ public partial class SectorView : Node3D
 	/// <summary>Phase 26: angezeigte Wracks und Frachtbehälter (Id → Knoten), abgeglichen mit <see cref="Universe.Wrecks"/>.</summary>
 	readonly Dictionary<int, Node3D> _wrecks = new();
 	/// <summary>Runde 8: Stationsmodell je Station (null = Grundkörper) und der zuletzt angewandte Look (Farbe, Zustand) für <see cref="SyncStations"/>.</summary>
-	sealed class StationNode { public Node3D Root = null!; public Node3D? Model; public Color Accent; public StationModels.Look Look; public float Top; }
+	sealed class StationNode { public Node3D Root = null!; public Node3D? Model; public Color Accent; public StationModels.Look Look; public float Top; public HardpointSet? Guns; }
 	readonly Dictionary<StationId, StationNode> _stations = new();
 
 	public List<Obstacle> Obstacles { get; private set; } = new();
@@ -166,6 +167,7 @@ public partial class SectorView : Node3D
 		{
 			seen.Add(s.Id);
 			var target = new Vector3(s.Position.X, 0, s.Position.Y);
+			u.Ships.TryGetValue(s.Id, out var ship);
 			if (!_markers.TryGetValue(s.Id, out var m))
 			{
 				// Phase 11: Polizei blau, Kaperschiffe rot
@@ -177,14 +179,14 @@ public partial class SectorView : Node3D
 					_ => new Color(1f, 0.7f, 0.2f),
 				};
 				var pivot = new Node3D { Position = target };
-				var hull = Gfx.Mesh(new PrismMesh { Size = new Vector3(2f, 3f, 0.8f) }, Gfx.Mat(color, 1f), Vector3.Zero, pivot);
-				hull.RotationDegrees = new Vector3(-90, 0, 0);
 				// Gerätetest: flacher, leuchtender Ring unter jedem fremden Schiff — auch bei weiter Kamera gut sichtbar (vorher nur kleine Pfeile)
 				var ring = Gfx.Mesh(new TorusMesh { InnerRadius = 2.6f, OuterRadius = 3.1f, Rings = 24, RingSegments = 6 }, Gfx.Mat(color, 1.2f, 0f), new Vector3(0, -0.3f, 0), pivot);
 				ring.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 				_root.AddChild(pivot);
-				_markers[s.Id] = m = new Marker { Pivot = pivot };
+				_markers[s.Id] = m = new Marker { Pivot = pivot, Color = color };
 			}
+			SyncShipBody(u, m, ship, playerPos);
+
 			var desired = Avoidance.Desired(s.Id, s.Position, neighbours);
 			m.Offset = m.Offset.Lerp(new Vector3(desired.X, 0, desired.Y), 1f - Mathf.Exp(-5f * delta));
 			m.Recoil = m.Recoil.Lerp(Vector3.Zero, 1f - Mathf.Exp(-6f * delta));
@@ -198,6 +200,16 @@ public partial class SectorView : Node3D
 				m.Yaw = Mathf.LerpAngle(m.Yaw, Mathf.Atan2(-s.Direction.X, -s.Direction.Y), 1f - Mathf.Exp(-10f * delta));
 				m.Pivot.Rotation = new Vector3(0, m.Yaw, 0);
 			}
+			if (m.Visual is { } vis && !m.Far)
+			{
+				// Runde 11: Schub nach Bewegung, Werkzeuge drehen bei Kontaktabbau (ContactMining.Spin), Türme zum Gefechtsziel
+				vis.SetEngine(s.Moving ? 1f : 0.15f);
+				if (ship is not null)
+				{
+					vis.Spin(SpaceSim.Core.Mining.ContactMining.Spin(ship.Stats, s.Mining ? SpaceSim.Core.Mining.ContactState.Mining : SpaceSim.Core.Mining.ContactState.NoContact), delta);
+					if (vis.Hardpoints.TurretCount > 0 && CombatTarget(u, s.Id) is { } aim) vis.Hardpoints.AimAll(aim, delta);
+				}
+			}
 		}
 		foreach (var id in _markers.Keys.Where(id => !seen.Contains(id)).ToList())
 		{
@@ -205,6 +217,97 @@ public partial class SectorView : Node3D
 			_markers.Remove(id);
 		}
 	}
+
+	/// <summary>
+	/// Runde 11: Schiffskörper eines Markers — Modell aus <see cref="ShipModels"/> (Akzent in der Besitzerfarbe), weit weg oder ohne Modell der alte Grundkörper
+	/// (Distanz-LOD für das Handy, mit Hysterese). Wechselt das Modell (Umbau), wird neu instanziert.
+	/// </summary>
+	void SyncShipBody(Universe u, Marker m, Ship? ship, Vector3? camera)
+	{
+		string key = ship?.ModelKey ?? "";
+		if (key != m.ModelKey || (m.Visual is null && m.Simple is null))
+		{
+			m.ModelKey = key;
+			m.Visual?.Root.QueueFree(); m.Visual = null;
+			if (ship is not null && ShipModels.Create(key, ShipModels.AccentOf(u, ship.Owner)) is { } v) { m.Visual = v; m.Pivot.AddChild(v.Root); }
+			if (m.Simple is null)
+			{
+				var hull = Gfx.Mesh(new PrismMesh { Size = new Vector3(2f, 3f, 0.8f) }, Gfx.Mat(m.Color, 1f), Vector3.Zero, m.Pivot);
+				hull.RotationDegrees = new Vector3(-90, 0, 0);
+				m.Simple = hull;
+			}
+		}
+		if (m.Visual is not null && ship is not null) m.Visual.SetAccent(ShipModels.AccentOf(u, ship.Owner));
+		float dist = camera is { } c ? (m.Pivot.Position - c).Length() : 0f;
+		m.Far = m.Far ? dist > ShipModels.LodDistance * 0.9f : dist > ShipModels.LodDistance;
+		bool model = m.Visual is not null && !m.Far;
+		if (m.Visual is not null) m.Visual.Root.Visible = model;
+		if (m.Simple is not null) m.Simple.Visible = !model;
+	}
+
+	/// <summary>Runde 11: Weltposition des Gefechtsziels eines Schiffs (Schiff oder Station), nur lesend aus dem Core.</summary>
+	Vector3? CombatTarget(Universe u, ShipId id)
+	{
+		if (u.Fights.Of(id) is not { } e || e.Of(id) is not { Active: true } p) return null;
+		if (p.Target.Value != 0) return p.Target == u.PlayerShip ? PlayerPosition : ShipPosition(p.Target);
+		if (p.TargetStation.Value != 0 && u.Stations.TryGetValue(p.TargetStation, out var st)) return new Vector3(st.Position.X, 0, st.Position.Y);
+		return null;
+	}
+
+	/// <summary>Position des Spielerschiffs (setzt Main je Bild), für Turmziele.</summary>
+	public Vector3? PlayerPosition { get; set; }
+
+	/// <summary>Runde 11: Mündung des Slots <paramref name="slot"/> eines NPC-Schiffs (Welt); ohne Modell/Stellung die Schiffsposition.</summary>
+	public Vector3? Muzzle(ShipId id, int slot)
+	{
+		if (!_markers.TryGetValue(id, out var m)) return null;
+		if (slot >= 0 && m.Visual is { } v && !m.Far && v.Hardpoints.Muzzle(slot) is { } p) return p;
+		return m.Pivot.Position;
+	}
+
+	/// <summary>Runde 11: Schussrichtung der Stellung (Raketenschächte zeigen nach oben); null ohne Stellung.</summary>
+	public Vector3? MuzzleDirection(ShipId id, int slot) =>
+		_markers.TryGetValue(id, out var m) && slot >= 0 && m.Visual is { } v && !m.Far ? v.Hardpoints.Direction(slot) : null;
+
+	/// <summary>Runde 11: Mündung des Geschützes <paramref name="gun"/> einer Station (Welt); ohne Stellung die Stationsmitte.</summary>
+	public Vector3? StationMuzzle(StationId id, int gun)
+	{
+		if (!_stations.TryGetValue(id, out var n)) return null;
+		if (gun >= 0 && n.Guns?.Muzzle(gun) is { } p) return p;
+		return n.Root.Position;
+	}
+
+	/// <summary>Runde 11: Schussrichtung einer Stationsstellung; null ohne Stellung.</summary>
+	public Vector3? StationMuzzleDirection(StationId id, int gun) => _stations.TryGetValue(id, out var n) && gun >= 0 ? n.Guns?.Direction(gun) : null;
+
+	/// <summary>Runde 11: Stationstürme zum Gefechtsziel drehen (je Bild; nur Stationen mit Türmen).</summary>
+	public void AimStationGuns(Universe u, float delta)
+	{
+		foreach (var (id, n) in _stations)
+		{
+			if (n.Guns is not { TurretCount: > 0 } guns) continue;
+			Vector3? aim = null;
+			foreach (var e in u.Fights.Encounters)
+			{
+				if (e.Sector != _sector) continue;
+				foreach (var p in e.Participants)
+				{
+					if (!p.Active || !u.Ships.TryGetValue(p.Ship, out var ship) || !u.Stations.TryGetValue(id, out var st) || !SpaceSim.Core.Combat.StationCombat.Hostile(u, st, e, p, ship)) continue;
+					aim = p.Ship == u.PlayerShip ? PlayerPosition : ShipPosition(p.Ship);
+					if (aim is not null) break;
+				}
+				if (aim is not null) break;
+			}
+			if (aim is { } a) guns.AimAll(a, delta);
+		}
+	}
+
+	/// <summary>Selbsttest: Schiffsmodell eines Markers (null = Grundkörper).</summary>
+	public ShipVisual? TestVisual(ShipId id) => _markers.TryGetValue(id, out var m) ? m.Visual : null;
+	/// <summary>Selbsttest: Geschützstellungen einer Station.</summary>
+	public HardpointSet? TestStationGuns(StationId id) => _stations.TryGetValue(id, out var n) ? n.Guns : null;
+	/// <summary>Selbsttest: Zahl der Marker mit Modell bzw. mit Grundkörper (LOD).</summary>
+	public (int Models, int Simple) TestBodies() => (_markers.Values.Count(m => m.Visual is not null && !m.Far), _markers.Values.Count(m => m.Visual is null || m.Far));
 
 	// ───────── Aufbau aus Core-Daten ─────────
 
@@ -252,7 +355,7 @@ public partial class SectorView : Node3D
 		if (StationModels.Create(key, Station.BodyRadius, accent, look, out float top, out _) is { } model)
 		{
 			root.AddChild(model);
-			_stations[st.Id] = new StationNode { Root = root, Model = model, Accent = accent, Look = look, Top = top };
+			_stations[st.Id] = new StationNode { Root = root, Model = model, Accent = accent, Look = look, Top = top, Guns = HardpointSet.Bind(model, ShipModels.StationGuns(key)) };
 			string label = st.IsBuildSite && !st.Site!.Abandoned
 				? $"Baustelle: {(u.StationTypes.TryGetValue(st.Site.TypeKey, out var tt) ? tt.Name : st.Site.TypeKey)}" : st.Name;
 			root.AddChild(Gfx.Label(ActorNames.Tagged(u, st.Owner, label), new Vector3(0, top + 2.5f, 0)));   // Phase 29: „[UNI] Werft Vesta“
@@ -310,7 +413,9 @@ public partial class SectorView : Node3D
 			Gfx.Mesh(new SphereMesh { Radius = 8, Height = 16 }, core, Vector3.Zero, root);
 		}
 		var target = u.Sectors[u.Gates[g.Target].Sector];
-		root.AddChild(Gfx.Label($"Jumpgate → {target.Name}", new Vector3(0, labelY, 0)));
+		// Runde 11: Schild wie die Stationen (feste Bildschirmgröße, HUD-Ausblendung über Labels()), mit Kürzel des Besitzers des Zielsektors
+		string targetName = target.Owner.Value != 0 ? ActorNames.Tagged(u, target.Owner, target.Name) : target.Name;
+		root.AddChild(Gfx.Label($"Jumpgate → {targetName}", new Vector3(0, labelY, 0)));
 		Gates.Add((g.Id, pos));
 		Targets.Add(new PickTarget("gate", g.Id.Value, pos, $"Gate → {target.Name}"));
 	}

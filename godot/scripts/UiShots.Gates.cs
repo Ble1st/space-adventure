@@ -48,7 +48,7 @@ public partial class UiShots
 		{
 			GateAccess.SetState(u, u.Gates[_gsGate], GateState.Open);
 			_m.TestMenu("cam_reset");
-			_stage = 999_999; _wait = 5;
+			_stage = ShipShotsStart; _wait = 5;   // Runde 11: weiter mit den Schiffsbildern
 			return;
 		}
 		var (state, file) = GateShotList[i];

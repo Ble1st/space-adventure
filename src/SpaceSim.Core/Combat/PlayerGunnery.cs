@@ -100,7 +100,7 @@ public static class PlayerGunnery
         if (u.Rules.Warfare && Missiles.IsMissile(m))
         {
             // Phase 28: Rakete — fliegt, Treffer erst am Ziel (Punktabwehr, Ausweichen)
-            Missiles.Launch(u, e, ship, null, me.Side, m, w, victim.Id, default, dist, ship.Position);
+            Missiles.Launch(u, e, ship, null, me.Side, m, w, victim.Id, default, dist, ship.Position, slot);
             while (me.Timers.Count <= slot) me.Timers.Add(0f);
             me.Timers[slot] = reload;
             return new GunShot(GunResult.Fired, default, e.Id, "Rakete unterwegs");
@@ -169,7 +169,7 @@ public static class PlayerGunnery
         me.LastShotTick = u.Tick;
         if (Missiles.IsMissile(m))
         {
-            Missiles.Launch(u, e, ship, null, me.Side, m, w, default, st.Id, dist, ship.Position);
+            Missiles.Launch(u, e, ship, null, me.Side, m, w, default, st.Id, dist, ship.Position, slot);
             while (me.Timers.Count <= slot) me.Timers.Add(0f);
             me.Timers[slot] = reload;
             return new GunShot(GunResult.Fired, default, e.Id, "Rakete unterwegs");

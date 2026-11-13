@@ -318,11 +318,16 @@ public class ResearchTests
         u.MoveShip(buyer, yard.Sector);
         var job = ShipJobs.ByKey("mine")!;
         // Excavator ist der beste Kauf je Credit, wenn alles andere fehlt: nur noch Excavator-Material im Lager
-        foreach (var m in u.ShipModels.Values.Where(m => m.Key != "excavator")) foreach (var k in m.Fit) if (k is not null && k is not "reactor_mk3" and not "mining_laser_3" and not "chem_engine_m" and not "cargo_universal_100" and not "cargo_universal_60") yard.Stock(G(u, k)).Amount = 0f;
-        foreach (var k in new[] { "ship_kit_light" }) yard.Stock(G(u, k)).Amount = 0f;
+        // Runde 11: an allen Werften (die Regale starten jetzt voll — sonst kauft die KI an einer anderen Werft ein leichtes Modell)
+        foreach (var y in u.Stations.Values.Where(st => st.TypeKey == "shipyard" || st.TypeKey == "trade_station"))
+        {
+            foreach (var m in u.ShipModels.Values.Where(m => m.Key != "excavator")) foreach (var k in m.Fit) if (k is not null && k is not "reactor_mk3" and not "mining_laser_3" and not "cutting_wheel_m" and not "chem_engine_m" and not "cargo_universal_100" and not "cargo_universal_60" && y.Market.ContainsKey(G(u, k))) y.Stock(G(u, k)).Amount = 0f;
+            if (y.Market.ContainsKey(G(u, "ship_kit_light"))) y.Stock(G(u, "ship_kit_light")).Amount = 0f;
+        }
         Assert.NotEqual("excavator", FleetSystem.ChooseModel(u, job, buyer, 0f, 8f)?.Model.Key);
         foreach (var k in new[] { Fusion, Lasers, Deep }) Complete(u, Guild, k);
-        Assert.Equal("excavator", FleetSystem.ChooseModel(u, job, buyer, 0f, 8f)?.Model.Key);
+        var chosen = FleetSystem.ChooseModel(u, job, buyer, 0f, 8f)?.Model.Key;
+        Assert.True(chosen == "excavator", $"gewählt: {chosen ?? "nichts"}");
     }
 
     [Fact]

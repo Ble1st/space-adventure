@@ -210,3 +210,44 @@ public class Phase29SpareLootTests
         Assert.True(without > 0, "ohne die Regel sollte die Raketensalve den Skiff mindestens einmal vernichten");
     }
 }
+
+/// <summary>Runde 11: Andrücken am Fels (Kontaktabbau) beschädigt die Hülle nicht, Rammen schon — Abprallregel des Spielerschiffs aus dem Core.</summary>
+public class Phase29ContactPushTests
+{
+    /// <summary>Fliegt mit festem Tempo geradeaus gegen einen Felsen (Kinematik wie die Ansicht: Bewegung, Kreiskollision, Abprall); größter Aufprall.</summary>
+    static float MaxImpact(float speed, float seconds = 6f)
+    {
+        var rock = new Asteroid { Position = new Vec2(0f, 0f), BaseRadius = 6f };
+        var obstacles = new List<Obstacle> { rock.ToObstacle() };
+        var pos = new Vec2(30f, 0f);
+        var dir = new Vec2(-1f, 0f);
+        var vel = dir * speed;
+        float worst = 0f;
+        const float dt = 1f / 60f;
+        for (float t = 0; t < seconds; t += dt)
+        {
+            // der Automodus/Schub hält das Solltempo in Flugrichtung (wie PlayerShip: Beschleunigung auf das Solltempo)
+            var want = dir * speed;
+            vel += (want - vel) * MathF.Min(1f, 4f * dt);
+            pos += vel * dt;
+            if (Collision.Resolve(ref pos, Collision.ShipRadius, obstacles, out var n)) worst = MathF.Max(worst, Collision.Bounce(ref vel, n));
+        }
+        return worst;
+    }
+
+    [Fact]
+    public void AndrueckenMitKontaktschub_KeinSchaden_RammenMitVollgas_Schaden()
+    {
+        float push = MiningAutopilot.ContactPush * Collision.PlayerMaxSpeed;
+        float soft = MaxImpact(push);
+        Assert.True(soft > 0f, "das Schiff berührt den Fels");
+        Assert.False(Collision.IsHard(soft), $"Andrücken {soft:0.0} m/s darf nicht schaden (Schwelle {Collision.HardImpact})");
+        float hard = MaxImpact(Collision.PlayerMaxSpeed);
+        Assert.True(Collision.IsHard(hard), $"Rammen mit Vollgas {hard:0.0} m/s schadet");
+        // Abprall: Normalanteil wird mit 40 % Restenergie umgedreht, ein Schiff, das sich entfernt, prallt nicht
+        var v = new Vec2(-10f, 0f);
+        Assert.Equal(10f, Collision.Bounce(ref v, new Vec2(1f, 0f)), 3);
+        Assert.Equal(4f, v.X, 3);
+        Assert.Equal(0f, Collision.Bounce(ref v, new Vec2(1f, 0f)));
+    }
+}

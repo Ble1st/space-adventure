@@ -114,7 +114,10 @@ public static class SaveGameJson
                 foreach (var sl in ps) if (sl is not null && (string?)sl["size"] == "M" && (string?)sl["type"] != "engine") sl["size"] = "S";
         }
         foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+        {
             if (t is not null && (string?)t["key"] == "weapons_works" && t["moduleFactory"] is System.Text.Json.Nodes.JsonObject mf) mf["maxTier"] = 1;
+            if (t?["moduleFactory"] is System.Text.Json.Nodes.JsonObject mf2) mf2.Remove("inputTarget");   // Runde 11: Zutatenziel 20 (v17: Vorgabe 10)
+        }
         foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
         {
             if (t is null) continue;
@@ -126,6 +129,12 @@ public static class SaveGameJson
                 foreach (var (type, good) in AfterV17Stocks) if ((string?)t["key"] == type) stocks.Remove(good);
                 // Runde 9: Werft-Regal der Kanisterräume (für den Tanker) im Stand v17
                 if ((string?)t["key"] == "shipyard" && stocks.ContainsKey("canister_bay_s")) stocks["canister_bay_s"] = new System.Text.Json.Nodes.JsonArray(1, 3);
+                // Runde 11: Platin der Modulwerke als eigener Eintrag (bleibt bei 10, während die übrigen Zutaten auf 20 steigen) — im Stand v17 kein Eintrag
+                if ((string?)t["key"] is "drive_works" or "weapons_works" or "systems_works") stocks.Remove("platinum");
+                // Runde 11: Werftregale starten voll — im Stand v17 begannen Reaktor/Triebwerk/Laser Mk1 mit 2 von 5 und die Laserkanone mit 2 von 4
+                if ((string?)t["key"] == "shipyard")
+                    foreach (var (good, amount, target) in new[] { ("reactor_mk1", 2, 5), ("chem_engine_s", 2, 5), ("mining_laser_1", 2, 5), ("weapon_laser_s", 2, 4) })
+                        if (stocks.ContainsKey(good)) stocks[good] = new System.Text.Json.Nodes.JsonArray(amount, target);
             }
             // Phase 25: Dienst „rearm“ kam nach v17
             if (t["services"] is System.Text.Json.Nodes.JsonArray svc)

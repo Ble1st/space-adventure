@@ -6,7 +6,9 @@ namespace SpaceSim.Core.Content;
 /// <summary>
 /// Phase 29 (Wunsch des Nutzers): große Namensliste für Fraktionen und Akteure, nach Art getrennt (Staat, Gilde/Handelsbund, Firma, Gesetzlose) — feste
 /// Namen plus kombinatorisch „Form Ort“ bzw. „Adjektiv Nomen“ (zusammen über 3000). Eingebettete Ressource <c>Content/faction-names.json</c> (der Core liest
-/// keine Dateien). Gewürfelt wird mit einem eigenen, aus dem Seed abgeleiteten Zufall (nie <see cref="Universe.Rng"/>, damit die Wirtschaft unverändert bleibt);
+/// keine Dateien). Runde 11: keine markennahen Firmennamen, keine Orte der Welt (Korvan, Borea ~ Borealis) im Ortsvorrat; die festen Namen der
+/// Startfraktionen (Freie Händler, Montanbund, Rote Korsaren, Schwarze Klingen) bleiben bewusst im Vorrat — doppelt kann ein Name nie vergeben werden
+/// (<see cref="Pick"/> prüft gegen die vergebenen). Gewürfelt wird mit einem eigenen, aus dem Seed abgeleiteten Zufall (nie <see cref="Universe.Rng"/>, damit die Wirtschaft unverändert bleibt);
 /// ein Name kommt nie doppelt vor.
 /// </summary>
 public static class FactionNames
@@ -24,6 +26,21 @@ public static class FactionNames
 
     /// <summary>Alle Namen einer Art (feste zuerst, dann die Kombinationen), ohne Doppelte — feste Reihenfolge.</summary>
     public static IReadOnlyList<string> All(ActorKind kind)
+    {
+        var cat = kind is ActorKind.State or ActorKind.Guild or ActorKind.Outlaw ? kind : ActorKind.Independent;
+        lock (Cache)
+        {
+            if (Cache.TryGetValue(cat, out var hit)) return hit;
+            var built = Build(cat);
+            Cache[cat] = built;
+            return built;
+        }
+    }
+
+    /// <summary>Runde 11: die Listen werden je Art einmal gebaut (vorher bei jedem Würfeln).</summary>
+    static readonly Dictionary<ActorKind, IReadOnlyList<string>> Cache = new();
+
+    static IReadOnlyList<string> Build(ActorKind kind)
     {
         var d = Data.Value;
         var c = CategoryOf(d, kind);

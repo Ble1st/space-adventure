@@ -43,6 +43,16 @@ public class Phase29NamesTests
             total += all.Count;
         }
         Assert.True(total >= 3000, $"{total} Namen");
+        // Runde 11: keine markennahen Namen, keine Sektor-/Planetennamen der Welt im Vorrat; die Liste wird je Art einmal gebaut
+        var world = TestWorlds.Default(fuel: false, research: false);
+        var places = world.Sectors.Values.Select(x => x.Name).Concat(world.Sectors.Values.Where(x => x.Planet is not null).Select(x => x.Planet!.Name)).ToList();
+        foreach (var kind in new[] { ActorKind.State, ActorKind.Guild, ActorKind.Independent, ActorKind.Outlaw })
+        {
+            var all = FactionNames.All(kind);
+            Assert.Same(all, FactionNames.All(kind));
+            foreach (var bad in new[] { "Polaris", "Helion", "Kestrel" }) Assert.DoesNotContain(all, n => n.Contains(bad));
+            foreach (var place in places) Assert.DoesNotContain(all, n => n.Split(' ', '-').Contains(place));
+        }
     }
 
     [Fact]

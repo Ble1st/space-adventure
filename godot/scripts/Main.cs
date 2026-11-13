@@ -98,6 +98,11 @@ public partial class Main : Node3D
 		_view = new SectorView(); AddChild(_view);
 		_mining = new MiningView { GoodColor = id => GoodColor(id) }; AddChild(_mining);
 		_combat = new CombatView(); AddChild(_combat);
+		// Runde 11: Schüsse und Raketen starten an der sichtbaren Stellung des feuernden Slots (Schiff) bzw. Geschützes (Station)
+		_combat.MuzzleOf = (id, slot) => id == _session.U.PlayerShip ? PlayerMuzzle(slot) : _view.Muzzle(id, slot);
+		_combat.MuzzleDirOf = (id, slot) => id == _session.U.PlayerShip ? _player.Visual?.Hardpoints.Direction(slot) : _view.MuzzleDirection(id, slot);
+		_combat.StationMuzzleOf = _view.StationMuzzle;
+		_combat.StationMuzzleDirOf = _view.StationMuzzleDirection;
 		_player = new PlayerShip(); AddChild(_player);
 		_fx = new Fx(); AddChild(_fx);
 		_sfx = new Sfx(); AddChild(_sfx);
@@ -596,6 +601,23 @@ public partial class Main : Node3D
 	int _dropSeq;
 	/// <summary>Phase 24: gezeichnete Gefechtsschüsse (Selbsttest).</summary>
 	internal int TestCombatShots => _combat.ShotsSeen;
+	/// <summary>Runde 11: Darstellung der Schüsse/Raketen (Selbsttest: Mündung des letzten Strahls bzw. der letzten Rakete).</summary>
+	internal CombatView TestCombatView => _combat;
+	/// <summary>Runde 11: Spielerschiff mit dem Bug an den nächsten abbaubaren Asteroiden setzen (Kontaktabbau), Automatik aus.</summary>
+	internal void TestTouchNearestRock()
+	{
+		var u = _session.U;
+		var sector = u.Sectors[u.PlayerSector];
+		var rock = sector.Asteroids.Where(a => a.Minable).OrderBy(a => Vec2.Distance(a.Position, new Vec2(_player.Position.X, _player.Position.Z))).FirstOrDefault();
+		if (rock is null) return;
+		CancelAutopilot();
+		if (_miner.Enabled) SetAutoMining(false);
+		var pos = rock.Position + new Vec2(1f, 0f) * (rock.Radius + 1.5f);
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Velocity = Vector3.Zero;
+		_player.GiveGrace(5f);
+		TestFace(rock.Position);
+	}
 	/// <summary>Phase 28: zuletzt gezeigte Raketen, letzte Kriegs-/Stationsmeldung, scharfes Stationsziel (Selbsttest).</summary>
 	internal int TestMissilesShown => _combat.MissilesShown;
 	internal IEnumerable<string> TestBayPlaces => _bayViews.Where(b => b != null).Select(b => b.Place);
@@ -637,17 +659,17 @@ public partial class Main : Node3D
 				_fight.OnShot(_session.U, sf, Time.GetTicksMsec() / 1000.0);
 				if (sf.Target == _session.U.PlayerShip && sf.Hit) { _hud.Flash(new Color(1f, 0.25f, 0.15f), 0.25f); _sfx.Play(SfxId.Hit); _sinceHit = 0f; }
 				if (sf.Target == _session.U.PlayerShip) Danger("du wirst beschossen");
-				_combat.Shot(sf.Shooter, sf.Target, sf.Type, sf.Hit, Time.GetTicksMsec() / 1000.0, sf.Shooter.Value * 37 + _combat.ShotsSeen * 53);
+				_combat.Shot(sf.Shooter, sf.Slot, default, -1, sf.Target, null, null, sf.Type, sf.Hit, Time.GetTicksMsec() / 1000.0, sf.Shooter.Value * 37 + _combat.ShotsSeen * 53);
 				if (sf.Hit && _view.ShipPosition(sf.Target) is { } hp) _fx.Burst(hp, sf.Type == DamageType.Energy ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.85f, 0.4f), 4, 5f, 0.3f);
 				break;
 			// Phase 28: Stationsgeschütze, Schüsse auf Stationen, Raketen, Fall einer Station, Krieg und Frieden
 			case StationShot sts when sts.Sector == _session.U.PlayerSector && _session.U.Stations.TryGetValue(sts.Station, out var sst):
 				_fight.OnStationShot(_session.U, sts, Time.GetTicksMsec() / 1000.0);
 				if (sts.Target == _session.U.PlayerShip) { Danger("Station feuert auf dich"); if (sts.Hit) { _hud.Flash(new Color(1f, 0.25f, 0.15f), 0.25f); _sfx.Play(SfxId.Hit); } }
-				_combat.Shot(default, sts.Target, new Vector3(sst.Position.X, 0, sst.Position.Y), null, sts.Type, sts.Hit, Time.GetTicksMsec() / 1000.0, sts.Station.Value * 41 + _combat.ShotsSeen * 53);
+				_combat.Shot(default, -1, sts.Station, sts.Gun, sts.Target, new Vector3(sst.Position.X, 0, sst.Position.Y), null, sts.Type, sts.Hit, Time.GetTicksMsec() / 1000.0, sts.Station.Value * 41 + _combat.ShotsSeen * 53);
 				break;
 			case ShotAtStation sas when sas.Sector == _session.U.PlayerSector && _session.U.Stations.TryGetValue(sas.Station, out var sast):
-				_combat.Shot(sas.Shooter, default, null, new Vector3(sast.Position.X, 0, sast.Position.Y), sas.Type, sas.Hit, Time.GetTicksMsec() / 1000.0, sas.Shooter.Value * 37 + _combat.ShotsSeen * 53);
+				_combat.Shot(sas.Shooter, sas.Slot, default, -1, default, null, new Vector3(sast.Position.X, 0, sast.Position.Y), sas.Type, sas.Hit, Time.GetTicksMsec() / 1000.0, sas.Shooter.Value * 37 + _combat.ShotsSeen * 53);
 				if (sas.Hit) _fx.Burst(new Vector3(sast.Position.X, 0, sast.Position.Y), new Color(1f, 0.6f, 0.3f), 5, 6f, 0.3f);
 				break;
 			case MissileLaunched ml when ml.Sector == _session.U.PlayerSector:
@@ -809,6 +831,7 @@ public partial class Main : Node3D
 		_view.Animate(delta);
 		HideCoveredLabels(delta);
 		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta);   // angedockt: niemand weicht dem unsichtbaren Schiff aus
+		UpdateShipModels(delta);
 		// Kamera: Ist-Offset folgt weich dem Orbit-Soll-Offset, Kamera sitzt auf Schiff + Offset und blickt auf das Schiff
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt)
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
@@ -2098,9 +2121,33 @@ public partial class Main : Node3D
 		double time = Time.GetTicksMsec() / 1000.0;
 		_mining.UpdatePlayer(_player.Position, tractor, _chunks.Chunks, time);
 		_mining.UpdateNpc(_view.ShipPosition, time);
-		_combat.UpdateBeams(_view.ShipPosition, time);
+		_combat.UpdateBeams(ShipWorld, time);   // Runde 11: auch Schüsse des Spielers (vorher ohne Strahl: der Spieler ist kein Marker)
 		_combat.UpdateMissiles(u);   // Phase 28: Raketen im Flug
 	}
+
+	/// <summary>
+	/// Runde 11: Schiffsmodell des aktiven Schiffs (Wechsel/Umbau), Schub und Werkzeugdrehung, Türme des Spielers zum Ziel, Stationstürme zu ihren Gegnern.
+	/// </summary>
+	void UpdateShipModels(float delta)
+	{
+		var u = _session.U;
+		_view.PlayerPosition = _docked != null ? null : _player.Position;
+		if (u.Ships.TryGetValue(u.PlayerShip, out var me))
+		{
+			_player.SetModel(me.ModelKey, ShipModels.AccentOf(u, me.Owner));
+			_player.Animate(SpaceSim.Core.Mining.ContactMining.Spin(me.Stats, _chunks.LastContact), delta);
+			if (_player.Visual is { Hardpoints.TurretCount: > 0 } pv && ShipWorld(_fight.Target) is { } aim) pv.Hardpoints.AimAll(aim, delta);
+			else if (_player.Visual is { Hardpoints.TurretCount: > 0 } sv && _fight.AtStation && _targetStation is { } ts && u.Stations.TryGetValue(ts, out var tst))
+				sv.Hardpoints.AimAll(new Vector3(tst.Position.X, 0, tst.Position.Y), delta);
+		}
+		_view.AimStationGuns(u, delta);
+	}
+
+	/// <summary>Runde 11: Weltposition eines Schiffs im Sektor (Spieler oder NPC-Marker).</summary>
+	Vector3? ShipWorld(ShipId id) => id.Value == 0 ? null : id == _session.U.PlayerShip ? _player.Position : _view.ShipPosition(id);
+
+	/// <summary>Runde 11: Mündung eines Slots des Spielerschiffs (ohne Modell/Stellung die Schiffsmitte).</summary>
+	Vector3? PlayerMuzzle(int slot) => slot >= 0 && _player.Visual?.Hardpoints.Muzzle(slot) is { } p ? p : _player.Position;
 
 	// ───────── Zugriff für den Selbsttest ─────────
 

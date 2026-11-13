@@ -264,7 +264,7 @@ public sealed class CombatSystem : ISimSystem
             if (!Gunnery.DrawPower(u, ship, w, out float reload)) continue;   // keine Leistung: die Waffe schweigt
             if (missile)
             {
-                Missiles.Launch(u, e, ship, null, p.Side, m, w, tp.Ship, default, dist, p.Pos);
+                Missiles.Launch(u, e, ship, null, p.Side, m, w, tp.Ship, default, dist, p.Pos, slot);
                 while (p.Timers.Count <= slot) p.Timers.Add(0f);
                 p.Timers[slot] = reload;
                 continue;
@@ -307,7 +307,7 @@ public sealed class CombatSystem : ISimSystem
         if (!Gunnery.DrawPower(u, ship, w, out float reload)) return;
         if (missile)
         {
-            Missiles.Launch(u, e, ship, null, p.Side, m, w, default, st.Id, dist, p.Pos);
+            Missiles.Launch(u, e, ship, null, p.Side, m, w, default, st.Id, dist, p.Pos, slot);
             while (p.Timers.Count <= slot) p.Timers.Add(0f);
             p.Timers[slot] = reload;
             return;

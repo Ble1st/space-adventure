@@ -641,7 +641,7 @@
     }
    ],
    "stocks": {
-    "drill_head_s": [2, 5],
+    "drill_head_s": [5, 5],
     "cutting_wheel_s": [1, 2],
     "cutting_wheel_m": [0, 1],
     "cutting_drum_l": [0, 1],
@@ -671,15 +671,15 @@
      5
     ],
     "reactor_mk1": [
-     2,
+     5,
      5
     ],
     "chem_engine_s": [
-     2,
+     5,
      5
     ],
     "mining_laser_1": [
-     2,
+     5,
      5
     ],
     "cargo_universal_100": [
@@ -743,7 +743,7 @@
      2
     ],
     "weapon_laser_s": [
-     2,
+     4,
      4
     ],
     "shield_mk1": [
@@ -845,10 +845,12 @@
     ],
     "maxTier": 3,
     "ticks": 20,
-    "target": 5
+    "target": 5,
+    "inputTarget": 20
    },
    "recipes": [],
    "stocks": {
+    "platinum": [10, 10],
     "chem_engine_m": [
      1,
      3
@@ -881,7 +883,8 @@
     ],
     "maxTier": 2,
     "ticks": 20,
-    "target": 5
+    "target": 5,
+    "inputTarget": 20
    },
    "recipes": [
     {
@@ -896,6 +899,7 @@
     }
    ],
    "stocks": {
+    "platinum": [10, 10],
     "ammo": [10, 10],
     "steel": [5, 5],
     "missile": [8, 8]
@@ -914,10 +918,12 @@
     ],
     "maxTier": 3,
     "ticks": 20,
-    "target": 5
+    "target": 5,
+    "inputTarget": 20
    },
    "recipes": [],
    "stocks": {
+    "platinum": [10, 10],
     "mining_laser_2": [
      1,
      3
@@ -4868,32 +4874,28 @@
   "credits": 500,
   "startOptions": [
    {
-    "key": "miner",
-    "name": "Schürfer",
-    "description": "Prospector mit Mining-Laser und 60 m³ Universalfrachtraum. Wenig Geld, sofort produktiv: Erz abbauen und selbst verkaufen.",
-    "model": "prospector",
-    "credits": 300
+    "key": "fighter",
+    "name": "Jäger",
+    "description": "Falke: Laserkanone und kinetisches Geschütz, Schild und Speicherbank, kein Frachtraum. Start an der Werft Delta, nahe am Abgrund mit dem Piratenversteck — du lebst vom Kopfgeld auf Piraten (abholen bei der Behörde).",
+    "model": "falcon",
+    "credits": 600,
+    "sector": 4
    },
    {
     "key": "trader",
     "name": "Händler",
-    "description": "Nomad ohne Laser, dafür 100 m³ Fracht (70 universal + 30 fest). Mehr Startgeld, lebt von Preisunterschieden.",
+    "description": "Nomade: 100 m³ Fracht (70 universal + 30 fest) und eine Laserkanone zur Abwehr. Start in Beta, dem Handelsknoten; mehr Startgeld, lebt von Preisunterschieden.",
     "model": "nomad",
-    "credits": 1500
+    "credits": 1500,
+    "sector": 2
    },
    {
-    "key": "generalist",
-    "name": "Generalist",
-    "description": "Pip mit Werkzeug-Slot (Laser), getrennten Räumen für Feststoffe und Flüssiges (je 30 m³). Von allem etwas.",
-    "model": "pip",
-    "credits": 800
-   },
-   {
-    "key": "fighter",
-    "name": "Jäger",
-    "description": "Falke: Laserkanone und kinetisches Geschütz, Schild und Speicherbank, kein Frachtraum. Wenig Geld — lebt vom Kopfgeld auf Piraten.",
-    "model": "falcon",
-    "credits": 400
+    "key": "miner",
+    "name": "Schürfer",
+    "description": "Goldsucher: Bohrkopf am Bug (mit dem Bug an den Asteroiden fliegen, das Erz geht direkt in den Laderaum) und 60 m³ Frachtraum. Start in Alpha bei den Erzgürteln; wenig Geld, sofort produktiv.",
+    "model": "prospector",
+    "credits": 400,
+    "sector": 1
    },
    {
     "key": "test",

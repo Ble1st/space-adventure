@@ -60,6 +60,10 @@ public class Phase29Tests
         foreach (var m in def.Modules) if (m.Upgrade is { } up && NewModules.Contains(up.To)) m.Upgrade = null;
         foreach (var t in def.StationTypes)
         {
+            if (t.ModuleFactory is { } mf0) { mf0.InputTarget = 10; t.Stocks?.Remove("platinum"); }   // Runde 11: Zutatenziel der Modulwerke 20, Platin eigens bei 10
+            if (t.Key == "shipyard" && t.Stocks is not null)   // Runde 11: Werftregale starten voll
+                foreach (var (good, amount, target) in new[] { ("reactor_mk1", 2f, 5f), ("chem_engine_s", 2f, 5f), ("mining_laser_1", 2f, 5f), ("weapon_laser_s", 2f, 4f) })
+                    if (t.Stocks.ContainsKey(good)) t.Stocks[good] = new[] { amount, target };
             if (t.ModuleFactory is { } mf && t.Key == "weapons_works") mf.MaxTier = 1;
             if (t.Stocks is not null) foreach (var k in NewModules) t.Stocks.Remove(k);
         }

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System;
 using Godot;
 using SpaceAdventure.Ui.Kit;
@@ -47,8 +49,8 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 	public string TestMessage => _message;
 
 	/// <summary>
-	/// Auswahl des Startpakets (Phase 5c, Content <c>player.startOptions</c>): je Paket Schiff, Startgeld und Idee, dazu „Standard“
-	/// (Einheitsschiff wie bisher). „Starten“ meldet „new:&lt;Paket&gt;“ bzw. „new“ an Main.
+	/// Auswahl des Startpakets (Phase 5c, Content <c>player.startOptions</c>): je Paket Schiff, Startgeld und Idee. Runde 11: nur die regulären Pakete
+	/// (Jäger, Händler, Schürfer) und abgesetzt die Testszenarien; „Standard“ entfällt (der Code-Standard ohne Paket bleibt für Tests). „Starten“ meldet „new:&lt;Paket&gt;“.
 	/// </summary>
 	void BuildStartChooser(Control inner)
 	{
@@ -63,8 +65,17 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		// Zweiter Gerätetest Phase 28: die Standardwelt nur einmal lesen (vorher bei jedem Neuaufbau, viermal je Sekunde — lange Bilder am Gerät)
 		var def = _defaultWorld ??= SpaceSim.Core.Content.WorldBuilder.Parse(SpaceSim.Core.Content.WorldBuilder.DefaultWorldJson());
 		string ModelName(string key) => def.ShipModels.Find(m => m.Key == key)?.Name ?? key;
-		foreach (var o in def.Player.StartOptions)
+		// Runde 11 (Wunsch: „Standardschiff ein Jäger, Händler oder Miner“): genau die regulären Pakete oben, Testszenarien abgesetzt darunter, kein „Standard“ mehr
+		bool testHeader = false;
+		foreach (var o in def.Player.StartOptions.OrderBy(x => x.Scenario is null ? 0 : 1))
 		{
+			if (o.Scenario is not null && !testHeader)
+			{
+				testHeader = true;
+				var gap = new Control { CustomMinimumSize = new Vector2(cw, 44), MouseFilter = MouseFilterEnum.Pass };
+				box.AddChild(gap);
+				At(gap, Text("Testszenarien (nur zum Prüfen)", 16, Dim), 4, 14, cw - 8, 26);
+			}
 			// Gerätetest Phase 28: Kartenhöhe nach der Länge der Beschreibung (lange Testpaket-Texte liefen über den Kartenrand); ≈ 6,8 px je Zeichen bei 13 px
 			// zweiter Gerätetest Phase 28: Zeilen gemessen statt geschätzt (der Festnahmetest wurde in der dritten Zeile gekürzt)
 			int lines = Math.Max(2, Wrap(o.Description, 13, cw - 210f).Count);
@@ -78,12 +89,6 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 			string key = o.Key;
 			b.Pressed += () => { _choosing = false; RaiseSystemAction("new:" + key); };
 		}
-		var sh = new Control { CustomMinimumSize = new Vector2(cw, 64), MouseFilter = MouseFilterEnum.Pass };
-		box.AddChild(sh);
-		var std = CardBg(sh, 0, 0, cw, 64, Card, new Color(Edge, 0.4f), 10, 1);
-		At(std, Text($"Standard · {ModelName(def.Player.Model ?? SpaceSim.Core.Content.WorldBuilder.UnitModelFor(SpaceSim.Core.Model.ShipRole.Player, 100f))} · {def.Player.Credits:0} Cr (wie bisher)", 16, White), 14, 18, cw - 200, 26);
-		var bs = At(std, new KitButton("Starten", new Vector2(160, 52)) { FontSize = 17 }, cw - 172, 6);
-		bs.Pressed += () => { _choosing = false; RaiseSystemAction("new"); };
 		_chooserScroll = scroll;
 	}
 
@@ -91,6 +96,15 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 	static SpaceSim.Core.Content.WorldDef? _defaultWorld;
 	/// <summary>Für den Selbsttest: Rollbereich der Startpakete (null = zu).</summary>
 	public KitScroll? TestChooserScroll => _choosing ? _chooserScroll : null;
+
+	/// <summary>Für den Selbsttest: alle Texte der Startauswahl (Karten-Titel, Zwischenüberschrift).</summary>
+	public List<string> TestChooserTexts()
+	{
+		var list = new List<string>();
+		void Walk(Node n) { foreach (var c in n.GetChildren()) { if (c is Label l) list.Add(l.Text); Walk(c); } }
+		if (_chooserScroll is not null) Walk(_chooserScroll);
+		return list;
+	}
 
 	/// <summary>Für den Selbsttest: Startpaket-Auswahl offen?</summary>
 	public bool TestChoosing { get => _choosing; set { _choosing = value; Invalidate(); } }

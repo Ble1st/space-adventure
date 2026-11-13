@@ -701,7 +701,7 @@ public class Phase25Tests
         // Phase 27 (Prüfung Phase 26): der Hash mischt zusätzlich Actor.CreatedTick — der Phase-24-Stand 75532A3F54AD3D9A heißt seitdem 68F0D589492ADEDC
         // (ermittelt auf dem unveränderten Phase-26-Code nur mit der Hash-Erweiterung; kein Verhalten geändert)
         // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher 68F0D589492ADEDC)
-        Assert.Equal(0xFA6521C02E1E130EUL, UniverseHash.Compute(u));
+        Assert.Equal(0xF1AD6CCD3D90D917UL, UniverseHash.Compute(u));   // Runde 11: nur die Namensliste geändert (alte Liste: 0xFA6521C02E1E130E)
     }
 
     // ───────── Zusatz Phase 25: jeder Händler bewaffnet ─────────
