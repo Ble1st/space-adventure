@@ -116,7 +116,10 @@ public class LifecycleTests
     public void WithoutAShipKit_NoNewShipIsBuilt()
     {
         var u = DemoUniverse.Create();
-        foreach (var st in u.Stations.Values) if (st.Market.TryGetValue(DemoUniverse.ShipKit, out var e)) e.Amount = 0f;
+        // Runde 9: alle Bausatzstufen (der Tanker braucht den mittleren Bausatz)
+        foreach (var st in u.Stations.Values)
+            foreach (var (g, e) in st.Market)
+                if (u.Goods[g].Key.StartsWith("ship_kit")) e.Amount = 0f;
         int before = u.Ships.Count;
         u.Ships.Values.First(s => s.Role == ShipRole.Trader).Credits = 50_000f;
         new FleetSystem().Step(u, 20);

@@ -33,11 +33,16 @@ public static class SaveGameJson
         ("hauler", new string?[] { "reactor_mk1", "chem_engine_s", null, null, "cargo_universal_100", "cargo_universal_60", null }),
         ("tinker", new string?[] { "reactor_mk1", "chem_engine_s", "mining_laser_1", null, "cargo_universal_60", null, null }),
         ("behemoth", new string?[] { "reactor_mk1", "chem_engine_m", "cargo_universal_100", "cargo_universal_100", "cargo_universal_100", "cargo_universal_100", "cargo_universal_100", null }),
+        // Runde 9: Tanker und Kurier handeln (Laser im angehängten Waffenslot)
+        ("cistern", new string?[] { "reactor_mk1", "chem_engine_m", "canister_bay_s", "canister_bay_s", "canister_bay_s", "canister_bay_s", "canister_bay_s", "canister_bay_s", null }),
+        ("swift", new string?[] { "reactor_mk1", "chem_engine_s", "cargo_solid_s", null }),
     };
+    /// <summary>Runde 9: Modelle, die erst nach v17 eine KI-Aufgabe bekamen (im Stand v17 ohne <c>jobs</c>).</summary>
+    static readonly string[] AfterV17Jobs = { "cistern", "swift" };
     /// <summary>Phase 25: Klassen, denen nach v17 am Ende ein Waffenslot angehängt wurde (für die Migrationskette wieder entfernt).</summary>
-    static readonly string[] AfterV17WeaponSlot = { "unit_trader", "heavy_freighter" };
+    static readonly string[] AfterV17WeaponSlot = { "unit_trader", "heavy_freighter", "tanker", "courier" };
     /// <summary>Phase 25: Grundmasse der Handelsklassen im Stand v17 (die Laserkanone wiegt 2; die Klassen wurden um 2 leichter, damit das Tempo gleich bleibt).</summary>
-    static readonly (string Class, float Mass)[] AfterV17ClassMass = { ("unit_trader", 10f), ("light_freighter", 16f), ("heavy_freighter", 30f) };
+    static readonly (string Class, float Mass)[] AfterV17ClassMass = { ("unit_trader", 10f), ("light_freighter", 16f), ("heavy_freighter", 30f), ("tanker", 16f), ("courier", 4f) };
     /// <summary>Lagerposten (Stationstyp, Ware), die nach v17 nur für ein spätes Rezept dazukamen (Phase 23: Stahl für die Munition im Waffenwerk).</summary>
     static readonly (string Type, string Good)[] AfterV17Stocks = { ("weapons_works", "steel"), ("shipyard", "power_bank_s"),
         // Phase 26: Reparaturlager der Regierungsstationen
@@ -57,6 +62,9 @@ public static class SaveGameJson
         }
         RemoveWhere(root["goods"]?.AsArray(), n => Late((string?)n["key"]));
         RemoveWhere(root["modules"]?.AsArray(), n => Late((string?)n["key"]));
+        // Runde 9: Kanisterraum im Stand v17 (30 statt 60)
+        foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            if (m is not null && (string?)m["key"] == "canister_bay_s" && m["stats"] is System.Text.Json.Nodes.JsonObject ms) ms["capacity"] = 30;
         RemoveWhere(root["shipModels"]?.AsArray(), n => Late((string?)n["key"]));
         RemoveWhere(root["shipClasses"]?.AsArray(), n => Late((string?)n["key"]));   // Phase 25: Jäger
         foreach (var c in root["shipClasses"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
@@ -74,6 +82,8 @@ public static class SaveGameJson
                     foreach (var k in fit) arr.Add(k is null ? null : System.Text.Json.Nodes.JsonValue.Create(k));
                     m["fit"] = arr;
                 }
+        foreach (var m in root["shipModels"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            if (m is not null && AfterV17Jobs.Contains((string?)m["key"])) m.AsObject().Remove("jobs");
         foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
         {
             if (t is null) continue;
@@ -83,6 +93,8 @@ public static class SaveGameJson
             {
                 foreach (var key in stocks.Select(kv => kv.Key).Where(Late).ToList()) stocks.Remove(key);
                 foreach (var (type, good) in AfterV17Stocks) if ((string?)t["key"] == type) stocks.Remove(good);
+                // Runde 9: Werft-Regal der Kanisterräume (für den Tanker) im Stand v17
+                if ((string?)t["key"] == "shipyard" && stocks.ContainsKey("canister_bay_s")) stocks["canister_bay_s"] = new System.Text.Json.Nodes.JsonArray(1, 3);
             }
             // Phase 25: Dienst „rearm“ kam nach v17
             if (t["services"] is System.Text.Json.Nodes.JsonArray svc)

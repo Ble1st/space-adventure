@@ -83,6 +83,16 @@ int buildsWithModules = 0, buildsKitOnly = 0;
 // Phase 6: Aufgabenwechsel der Multirole-Schiffe und Modellwahl der KI-Flotte
 int jobSwitches = 0;
 var chosenModels = new SortedDictionary<string, int>(StringComparer.Ordinal);
+// Runde 9: Abgänge der Handelsschiffe je Modell und Grund (Tanker, Kurier: Rentabilität)
+var traderDepartures = new SortedDictionary<string, int>(StringComparer.Ordinal);
+u.Events.Raised += e =>
+{
+    if (e is ShipDeparted sd && sd.Role == ShipRole.Trader && u.Ships.TryGetValue(sd.Ship, out var dship))
+    {
+        string k = $"{(dship.ModelKey.Length > 0 ? dship.ModelKey : "?")} {DepartureNames.Key(sd.Reason)}";
+        traderDepartures[k] = traderDepartures.GetValueOrDefault(k) + 1;
+    }
+};
 // Phase 7: Güteklassen der Neubauten (gewürfelt/erreicht) und Upgrade-Versuche der NPCs
 var gradeRolled = new int[4]; var gradeGot = new int[4];
 int upgradeTries = 0, upgradeOk = 0; float upgradeCost = 0f;
@@ -635,6 +645,7 @@ if (u.Modules.Count > 0)
             Console.WriteLine($"  Kartenteil {string.Join("+", mp.Select(id => u.Sectors[id].Name))}: " + string.Join(", ", ShipJobs.Default.Select(j =>
                 $"{j.Key} {FleetCapacity.Used(u, j, mp[0].Value):0.0}/{FleetCapacity.Limit(u, j, mp[0].Value):0.0}")));
     Console.WriteLine("Modellwahl der KI: " + (chosenModels.Count == 0 ? "keine" : string.Join(", ", chosenModels.Select(kv => $"{kv.Key} {kv.Value}"))));
+    Console.WriteLine("Abgänge Handelsschiffe je Modell: " + (traderDepartures.Count == 0 ? "keine" : string.Join(", ", traderDepartures.Select(kv => $"{kv.Key} {kv.Value}"))));
     // Phase 16: aus der dichten Probe (alle 20 Ticks im letzten Viertel), nicht aus den --every-Messpunkten
     string Ratio(string key) => u.FindGood(key) is { } gg && watch.AverageRatio(gg.Id, ticks * 3 / 4) is { } rr ? rr.ToString("0.00", CultureInfo.InvariantCulture) : "-";
     string Grades(int[] g) => $"{g[0]}/{g[1]}/{g[2]}/{g[3]}";

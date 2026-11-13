@@ -172,8 +172,8 @@ public class CargoFormTests
         Assert.Equal(0f, solid.CargoLiquid);
         Assert.Equal(0f, solid.CargoAny);
         var tanker = StatsOf("tanker_test");
-        Assert.Equal(60f, tanker.Cargo);
-        Assert.Equal(60f, tanker.CargoLiquid);
+        Assert.Equal(120f, tanker.Cargo);   // Runde 9: Kanisterraum 60 statt 30
+        Assert.Equal(120f, tanker.CargoLiquid);
         Assert.Equal(0f, tanker.CargoSolid);
         var mixed = StatsOf("mixed_test");
         Assert.Equal(100f, mixed.Cargo);
@@ -233,9 +233,9 @@ public class CargoFormTests
         var iron = u.FindGood("iron_ore")!.Id;
         var water = u.FindGood("water")!.Id;
         Assert.True(ship.HasSeparatedHolds);
-        Assert.Equal(60f, ship.CapacityVolumeFor(u, water));
+        Assert.Equal(120f, ship.CapacityVolumeFor(u, water));   // Runde 9: Kanisterraum 60
         Assert.Equal(0f, ship.CapacityVolumeFor(u, iron));
-        Assert.Equal(60f, ship.FreeVolumeFor(u, water));
+        Assert.Equal(120f, ship.FreeVolumeFor(u, water));
         Assert.Equal(0f, ship.FreeVolumeFor(u, iron));
 
         var st = u.Stations.Values.First();
@@ -313,7 +313,7 @@ public class CargoFormTests
         def.Ships.Add(new ShipGroupDef { Role = "trader", Faction = 1, Sector = 1, Credits = 1500, Cargo = 60, Count = 1, Model = "tanker_test" });
         var u = WorldBuilder.Build(def);
         var tanker = u.Ships.Values.First(s => s.ModelKey == "tanker_test");
-        Assert.Equal(60f, tanker.Stats.CargoLiquid);
+        Assert.Equal(120f, tanker.Stats.CargoLiquid);   // Runde 9: Kanisterraum 60
         Assert.Equal(0f, tanker.Stats.CargoSolid);
 
         var runner = new SimulationRunner();

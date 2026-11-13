@@ -1,0 +1,135 @@
+{
+  "axes": "Bug = -Z (Godot-Vorwaerts), oben = +Y, Steuerbord = +X; Laenge 2 (Halblaenge 1), Ursprung = Mitte der Bounding-Box",
+  "sizeScale": {
+    "S": 1.0,
+    "M": 1.5,
+    "L": 2.4
+  },
+  "models": {
+    "unit_trader_100": {
+      "name": "Einheitsfrachter 100",
+      "size": "S",
+      "scale": 1.0
+    },
+    "unit_trader_60": {
+      "name": "Einheitsfrachter 60",
+      "size": "S",
+      "scale": 1.0
+    },
+    "unit_miner_100": {
+      "name": "Einheitsschürfer 100",
+      "size": "S",
+      "scale": 1.0
+    },
+    "unit_miner_60": {
+      "name": "Einheitsschürfer 60",
+      "size": "S",
+      "scale": 1.0
+    },
+    "pip": {
+      "name": "Pip",
+      "size": "S",
+      "scale": 1.0
+    },
+    "nomad": {
+      "name": "Nomad",
+      "size": "S",
+      "scale": 1.0
+    },
+    "prospector": {
+      "name": "Prospector",
+      "size": "S",
+      "scale": 1.0
+    },
+    "swift": {
+      "name": "Swift",
+      "size": "S",
+      "scale": 1.0
+    },
+    "pickaxe": {
+      "name": "Pickaxe",
+      "size": "S",
+      "scale": 1.0
+    },
+    "corsair": {
+      "name": "Korsar",
+      "size": "S",
+      "scale": 1.0
+    },
+    "falcon": {
+      "name": "Falke",
+      "size": "S",
+      "scale": 1.0
+    },
+    "mule": {
+      "name": "Mule",
+      "size": "M",
+      "scale": 1.5
+    },
+    "hauler": {
+      "name": "Hauler",
+      "size": "M",
+      "scale": 1.5
+    },
+    "tinker": {
+      "name": "Tinker",
+      "size": "M",
+      "scale": 1.5
+    },
+    "cistern": {
+      "name": "Cistern",
+      "size": "M",
+      "scale": 1.5
+    },
+    "behemoth": {
+      "name": "Behemoth",
+      "size": "L",
+      "scale": 2.4
+    },
+    "rockbreaker": {
+      "name": "Rockbreaker",
+      "size": "M",
+      "scale": 1.5
+    },
+    "excavator": {
+      "name": "Excavator",
+      "size": "M",
+      "scale": 1.5
+    },
+    "foreman": {
+      "name": "Foreman",
+      "size": "M",
+      "scale": 1.5
+    },
+    "quarry": {
+      "name": "Quarry",
+      "size": "M",
+      "scale": 1.5
+    },
+    "rockbreaker_ii": {
+      "name": "Rockbreaker II",
+      "size": "M",
+      "scale": 1.5
+    },
+    "warden": {
+      "name": "Wächter",
+      "size": "M",
+      "scale": 1.5
+    },
+    "corvette": {
+      "name": "Korvette",
+      "size": "M",
+      "scale": 1.5
+    },
+    "missile_boat": {
+      "name": "Raketenboot",
+      "size": "M",
+      "scale": 1.5
+    },
+    "bastion": {
+      "name": "Bollwerk",
+      "size": "L",
+      "scale": 2.4
+    }
+  }
+}

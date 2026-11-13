@@ -117,7 +117,7 @@ public sealed class FleetSystem : ISimSystem
             if (yard is null) continue;
             float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
             if (price <= 0f || price + rules.NewShipStartCredits > credits) continue;
-            float value = job.FleetValue(stats, rules);
+            float value = job.FleetValue(stats, rules) * job.DemandFactor(u, stats);   // Runde 9: Formräume nach dem Anteil ihrer Form am Bedarf
             foreach (var other in jobs)
                 if (other != job && (stats.Capabilities & other.Needs) == other.Needs) value += rules.FleetFlexWeight * other.FleetValue(stats, rules);
             value *= 1f + ArmamentBonus(u, stats, sector);   // Phase 24: Bewaffnung lohnt nach dem Risiko der Gegend (Lagekarte)

@@ -24,6 +24,11 @@ public interface IShipJob
     float FleetValue(ShipStats stats, EconomyRules rules);
     /// <summary>Erwarteter Gewinn je Tick, wenn das Schiff jetzt diese Aufgabe übernähme (vorhandenes Scoring des ausführenden Systems); 0 = nichts zu tun.</summary>
     float Score(Universe u, Ship ship);
+    /// <summary>
+    /// Runde 9: Anteil der Leistung, den die Wirtschaft gerade abnimmt (0..1; Kaufwahl: Wert × Anteil). Standard 1. Handel: ein Laderaum nur für eine Form
+    /// (Tanker, Feststoff-Kurier) zählt mit dem Anteil seiner Form am offenen Bedarf.
+    /// </summary>
+    float DemandFactor(Universe u, ShipStats stats) => 1f;
 }
 
 /// <summary>Handel: Fracht zwischen Stationen (<see cref="TraderSystem"/>). Kapazität = Frachtraum ÷ <see cref="EconomyRules.TradeCapacityUnit"/>.</summary>
@@ -39,6 +44,44 @@ public sealed class TradeJob : IShipJob
     public float FleetValue(ShipStats stats, EconomyRules rules) =>
         stats.Cargo / MathF.Max(1f, rules.TradeCapacityUnit) * MathF.Min(1.5f, stats.Speed / Travel.ShipSpeed);
     public float Score(Universe u, Ship ship) => TraderSystem.BestTrade(u, ship).Score;
+
+    /// <summary>
+    /// Runde 9 (Tanker, Kurier): wie viel des Laderaums die Wirtschaft gerade füllen kann. Ein Universalraum fährt jede Ware (Faktor 1, Modelle nur mit
+    /// Universalräumen bleiben unverändert); ein Feststoff- bzw. Flüssigraum zählt nur bis zum noch nicht bedienten Bedarf seiner Form
+    /// (<see cref="Unserved"/>): ein Tanker lohnt, wo Flüssigwaren gerade Kapazität brauchen, und sonst nicht.
+    /// </summary>
+    public float DemandFactor(Universe u, ShipStats stats)
+    {
+        if (stats.Cargo <= 0f || stats.CargoSolid + stats.CargoLiquid <= 0f) return 1f;
+        var (solid, liquid) = Unserved(u);
+        float s = MathF.Min(stats.CargoSolid, solid), l = MathF.Min(stats.CargoLiquid, liquid);
+        float any = MathF.Min(stats.CargoAny, MathF.Max(0f, solid - s) + MathF.Max(0f, liquid - l));
+        return Math.Clamp((s + l + any) / stats.Cargo, 0f, 1f);
+    }
+
+    /// <summary>
+    /// Runde 9: noch nicht bedienter Bedarf je Form (Volumen): offener Bedarf (<see cref="ProductionDemand.OpenDemand(Universe, float[])"/>: was Abnehmer, Regale
+    /// und Senken bis zu ihrem Ziel aufnehmen) abzüglich dessen, was Händler schon dorthin fahren (Ladung auf dem Weg zum Verkauf, Kapazität auf dem Weg zum
+    /// Kauf). Rein, feste Reihenfolge.
+    /// </summary>
+    public static (float Solid, float Liquid) Unserved(Universe u)
+    {
+        var demand = ProductionDemand.OpenDemand(u, (float[]?)null);
+        foreach (var o in u.ShipsById())
+        {
+            if (o.Order is not TradeOrder to || (uint)to.Good.Value >= (uint)demand.Length || !u.Goods.TryGetValue(to.Good, out var tg)) continue;
+            float amount = o.Phase == TradePhase.GoingToSell ? o.Cargo.GetValueOrDefault(to.Good) : o.CapacityVolumeFor(u, to.Good) / tg.VolumePerUnit;
+            demand[to.Good.Value] = MathF.Max(0f, demand[to.Good.Value] - amount);
+        }
+        float solid = 0f, liquid = 0f;
+        for (int i = 0; i < demand.Length; i++)
+        {
+            if (demand[i] <= 0f || !u.Goods.TryGetValue(new GoodId(i), out var g)) continue;
+            float vol = demand[i] * g.VolumePerUnit;
+            if (g.Form == GoodForm.Liquid) liquid += vol; else solid += vol;
+        }
+        return (solid, liquid);
+    }
 }
 
 /// <summary>Schürfen: Asteroiden abbauen und Erz verkaufen (<see cref="MinerSystem"/>). Kapazität = Laserstufe (Chance × Brockengröße; Mk1 = 1).</summary>

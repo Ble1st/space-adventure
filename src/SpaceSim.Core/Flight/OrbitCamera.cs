@@ -36,8 +36,8 @@ public sealed class OrbitCamera
     public const float MaxPitchDeg = 85f;
     /// <summary>Minimaler Abstand zum Schiff.</summary>
     public const float MinDistance = 18f;
-    /// <summary>Maximaler Abstand zum Schiff.</summary>
-    public const float MaxDistance = 100f;
+    /// <summary>Maximaler Abstand zum Schiff. Runde 9: 100 → 140, damit eine Station (Radius 15) samt Schiff bei größtem Abstand ganz ins Bild passt.</summary>
+    public const float MaxDistance = 140f;
     /// <summary>Bisheriger fester Kamera-Offset: Y-Komponente (Höhe).</summary>
     public const float LegacyOffsetY = 38f;
     /// <summary>Bisheriger fester Kamera-Offset: Z-Komponente (hinter dem Schiff).</summary>
