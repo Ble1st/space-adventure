@@ -62,6 +62,8 @@ public sealed class FlightHudData
 	/// <summary>Phase 25: Kampf — Schild/Hülle des gewählten Schiffs („“ = kein Schiffsziel), feindlich, Dauerfeuer, Beschusswarnung mit Richtung, hat Kampfwaffen.</summary>
 	public string TargetCombat = "";
 	public bool TargetHostile, AutoFireOn, HasWeapons;
+	/// <summary>Runde 15: Überfall läuft (oder angekündigt) und Dauerfeuer ist aus — die Taste pulsiert.</summary>
+	public bool AutoFireHint;
 	/// <summary>Gerätetest: ein Gegner (Gefecht oder Gesetzloser) im Sektor — „Nächster Gegner“ bleibt dann auch ohne Waffe erreichbar.</summary>
 	public bool EnemyNear;
 	/// <summary>Phase 27: Der Spieler kann sich ergeben (Polizei: Strafe zahlen; Kaperer: Fracht abwerfen) — Taste „Ergeben“ sichtbar.</summary>
@@ -127,6 +129,9 @@ public partial class FlightHud : Control, IScreen
 	public bool TestStationAttackVisible => _stationAttack.Visible;
 	public void TestPressStationAttack() => StationAttackPressed?.Invoke();
 	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!, _aimAssist = null!;
+	bool _autoFireHint;
+	/// <summary>Runde 15: pulsiert „Dauerfeuer“ gerade (Selbsttest)?</summary>
+	public bool TestAutoFireHint => _autoFireHint;
 	public bool TestAimAssistVisible => _aimAssist.Visible;
 	public string TestTargetArc => _tArc.Text;
 	public void TestPressAimAssist() => AimAssistPressed?.Invoke();
@@ -166,6 +171,8 @@ public partial class FlightHud : Control, IScreen
 	}
 	/// <summary>Selbsttest: Zielkartenzeile Schild/Hülle, Beschusswarnung, Lage und Größe der Kampftasten.</summary>
 	public string TestTargetCombat => _tCombat.Text;
+	/// <summary>Runde 15: Pflichtzeilen der Zielkarte vollständig sichtbar (kein Abschneiden)?</summary>
+	public bool TestTargetLinesComplete => (!_tCombat.Visible || _tCombat.GetLineCount() <= 2) && _tArc.GetLineCount() <= 2;
 	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
 	public Rect2 TestBayRect(int i) => new(_bayButtons[i].Position, _bayButtons[i].Size);
 	public Rect2 TestAutoFireRect => new(_autoFire.Position, _autoFire.Size);
@@ -320,6 +327,12 @@ public partial class FlightHud : Control, IScreen
 		_tOdds = Text("", 14, UiKit.Orange);   // Runde 5: Kräfteverhältnis eines Stationsangriffs
 		// Gerätetest: Zeilen der Zielkarte enden vor dem Radarkreis (der Hinweistext lief hinein) — gekürzt mit „…“
 		foreach (var l in new[] { _tName, _tInfo, _tArc, _tCombat }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; l.CustomMinimumSize = new Vector2(246, 0); }
+		// Runde 15 (Handy-Test: „Hülle 450 · Schild…“, „…Raketen ja · eigene…“ abgeschnitten): Lage- und Kampfzeile zweizeilig, etwas kleiner
+		foreach (var l in new[] { _tArc, _tCombat })
+		{
+			l.AutowrapMode = TextServer.AutowrapMode.WordSmart; l.MaxLinesVisible = 2; l.ClipText = false;
+			l.AddThemeFontSizeOverride("font_size", 14); l.AddThemeConstantOverride("line_spacing", -2);
+		}
 		_tOdds.ClipText = true; _tOdds.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _tOdds.CustomMinimumSize = new Vector2(316, 0);   // unter dem Radar: ganze Kartenbreite
 		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc); tv.AddChild(_tCombat); tv.AddChild(_tOdds);
 		_tOdds.Visible = false;
@@ -599,6 +612,11 @@ public partial class FlightHud : Control, IScreen
 		}
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
+		// Runde 15 (Handy-Test): solange ein Überfall läuft und Dauerfeuer aus ist, pulsiert die Taste (Warnrahmen, Helligkeit)
+		_autoFireHint = d.AutoFireHint && !d.AutoFireOn;
+		_autoFire.State = _autoFireHint ? KitButtonState.Warn : KitButtonState.Normal;
+		float pulse = _autoFireHint ? 0.75f + 0.25f * Mathf.Sin((float)Time.GetTicksMsec() / 1000f * 6f) : 1f;
+		_autoFire.Modulate = new Color(1f, 1f, 1f, 1f) * new Color(pulse, pulse, pulse, 1f);
 		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
 		// Prüfung Runde 2: bewaffnet, aber kein Gegner im Sektor — Taste bleibt an ihrem Platz, gesperrt mit Grund (vorher sah sie aktiv aus)
 		_nextEnemy.State = d.EnemyNear ? KitButtonState.Normal : KitButtonState.Disabled;

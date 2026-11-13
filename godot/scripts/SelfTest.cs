@@ -2619,7 +2619,8 @@ public partial class SelfTest : Node
 			case 91: if (ShipModelStage(_frame - _stageStart)) Next(); break;   // Runde 11: Schiffsmodelle, Mündungen, Türme (SelfTest.Ships.cs)
 			case 92: if (AudioStage(_frame - _stageStart)) Next(); break;   // Runde 12: Musikzustände, Signale, Ton-Busse und Einstellungen (SelfTest.Audio.cs)
 			case 93: if (SmallStationStage(_frame - _stageStart)) Next(); break;
-			case 94: if (GateCombatStage(_frame - _stageStart)) Next(); break;   // Phase 31: Tor angreifen, außer Betrieb, Wiederanlauf (SelfTest.GateCombat.cs)   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
+			case 94: if (GateCombatStage(_frame - _stageStart)) Next(); break;
+			case 95: if (PhoneStage(_frame - _stageStart)) Next(); break;   // Runde 15: Handyformat — Gefechtskamera, Zielkarte, Tor antippen, Annäherung (SelfTest.Phone.cs)   // Phase 31: Tor angreifen, außer Betrieb, Wiederanlauf (SelfTest.GateCombat.cs)   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

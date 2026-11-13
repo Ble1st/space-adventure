@@ -18,6 +18,8 @@ namespace SpaceAdventure.Ui.Screens;
 /// </summary>
 public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 {
+	/// <summary>Runde 15: Torzeile der Karte (Selbsttest).</summary>
+	public string TestGateLine { get; private set; } = "";
 	public override string Id => "cc.sector";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { SelectedSector = null; _selStation = null; _selGate = null; _showInfo = false; }
@@ -124,7 +126,14 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			At(card, Text($"Zustand: {gp.State}", 15, gc), 16, 42, 268, 20);
 			WrappedText(card, gp.Verdict, 16, 66, 268, 13, gc, 16);
 			At(card, Text($"Sprung von {s.Name} nach {target.Name}", 14, White), 16, 104, 268, 20);
-			At(card, Text("„Autopilot hierhin“ fliegt zum Gate.", 13, new Color(Dim, 0.75f)), 16, 128, 268, 18);
+			// Runde 15: Torkampf — Hülle/Schild/Zustand (Core: GateInfo)
+			if (SpaceSim.Core.Combat.GateCombat.TypeOf(u, g) is not null)
+			{
+				TestGateLine = SpaceSim.Core.Combat.GateInfo.Short(u, g);
+				WrappedText(card, TestGateLine, 16, 128, 268, 13, SpaceSim.Core.Combat.GateCombat.IsDown(u, g) ? Red : White, 16);
+				At(card, Text("„Autopilot hierhin“ fliegt zum Gate.", 13, new Color(Dim, 0.75f)), 16, 166, 268, 18);
+			}
+			else At(card, Text("„Autopilot hierhin“ fliegt zum Gate.", 13, new Color(Dim, 0.75f)), 16, 128, 268, 18);
 		}
 		else
 		{

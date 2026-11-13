@@ -337,6 +337,7 @@ public partial class Main : Node3D
 		if (warn is null || !u.Ships.TryGetValue(warn.Source, out var raider) || raider.Sector != u.PlayerSector) return;
 		var d = new Vector2(raider.Position.X - _player.Position.X, raider.Position.Y - _player.Position.Z);
 		if (d.LengthSquared() > 0.01f) _player.Heading = Mathf.Atan2(-d.X, -d.Y);
+		_fight.SetTarget(raider.Id);   // Runde 15: Ziel schon in der Warnphase (Gefechtskamera, Randpfeil)
 		float secs = Mathf.Max(1f, (warn.DueTick - u.Tick) / (float)SimClock.TicksPerSecond);
 		_hud.Alert($"Piraten! {u.ActorName(raider.Owner)} nimmt Kurs auf dich — Angriff in {secs:0} s. Andocken oder kämpfen („Nächster Gegner“, „Dauerfeuer“).", secs);
 		LastSecurityMessage = _hud.TestAlert;
@@ -481,14 +482,46 @@ public partial class Main : Node3D
 	/// <summary>
 	/// Runde 13: Ziel der Gefechtskamera — gewähltes feindliches Schiff im Sektor (bis 160 m), sonst der Kaperer eines angekündigten Überfalls auf den Spieler.
 	/// </summary>
-	Vector3? FramingTarget()
+	Vector3? FramingTarget() => FramingTargetR()?.Pos;
+
+	bool _framingBoth;
+	/// <summary>Runde 15: Rahmt die Gefechtskamera Schiff und Ziel (sonst nur das Schiff, Ziel per Randpfeil)?</summary>
+	internal bool TestFramingBoth => _framingBoth;
+
+	/// <summary>Runde 15: liegt das eigene Schiff im freien Feld (Normalkoordinaten mit kleiner Toleranz)?</summary>
+	bool ShipInFreeField()
+	{
+		if (_cam.IsPositionBehind(_player.Position)) return false;
+		var size = GetViewport().GetVisibleRect().Size;
+		var sp = _cam.UnprojectPosition(_player.Position);
+		var f = FramingField();
+		float nx = sp.X / size.X * 2f - 1f, ny = 1f - sp.Y / size.Y * 2f;
+		return nx >= f.X0 - 0.05f && nx <= f.X1 + 0.05f && ny >= f.Y0 - 0.05f && ny <= f.Y1 + 0.05f;
+	}
+
+	/// <summary>
+	/// Runde 15: Ziel der Gefechtskamera mit Körperradius — angegriffene Station/Tor (mit Radius), gewähltes feindliches Schiff, sonst der Kaperer eines
+	/// angekündigten Überfalls (schon in der Warnphase, bis 400 m — weiter weg rahmt die Kamera nur das Schiff und ein Randpfeil zeigt das Ziel).
+	/// </summary>
+	(Vector3 Pos, float Radius)? FramingTargetR()
 	{
 		if (_docked != null || _session is null) return null;
 		var u = _session.U;
-		Vector3? Near(ShipId id) => ShipWorld(id) is { } p && (p - _player.Position).Length() <= 240f ? p : null;   // Runde 14: schon beim Anflug (vorher 160)
-		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var t) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, t.Id) && Near(t.Id) is { } tp) return tp;
-		foreach (var pe in u.PendingEncounters) if (pe.Target == u.PlayerShip && Near(pe.Source) is { } sp) return sp;
+		Vector3? Near(ShipId id) => ShipWorld(id) is { } p && (p - _player.Position).Length() <= 400f ? p : null;
+		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast) && ast.Sector == u.PlayerSector) return (new Vector3(ast.Position.X, 0f, ast.Position.Y), ast.Radius);
+		if (_fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var agt) && agt.Sector == u.PlayerSector) return (new Vector3(agt.Position.X, 0f, agt.Position.Y), SpaceSim.Core.Combat.GateCombat.BodyRadius);
+		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var t) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, t.Id) && Near(t.Id) is { } tp) return (tp, 0f);
+		foreach (var pe in u.PendingEncounters) if (pe.Target == u.PlayerShip && Near(pe.Source) is { } sp) return (sp, 0f);
 		return null;
+	}
+
+	/// <summary>
+	/// Runde 15 (Handy-Test: Fregatte füllte das Bild): Kameraabstand nach Schiffsgröße — S 1, M 1,25, L 1,6, XL 2,1 (Standardansicht, Gefechtsrahmung).
+	/// </summary>
+	float ShipSizeZoom()
+	{
+		if (_session is null || !_session.U.Ships.TryGetValue(_session.U.PlayerShip, out var me)) return 1f;
+		return SpaceSim.Core.Simulation.Docking.SizeOf(_session.U, me) switch { SlotSize.M => 1.25f, SlotSize.L => 1.6f, SlotSize.XL => 2.1f, _ => 1f };
 	}
 
 	/// <summary>Setzt die Kamera hart auf Schiff + aktuellen Orbit-Offset und richtet sie auf das Schiff aus (Neustart, Sprung, Teleport).</summary>
@@ -878,6 +911,7 @@ public partial class Main : Node3D
 				_hud.Toast(end.Message, 4f); LastCombatMessage = end.Message; break;
 			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
 			case EncounterWarning w when w.Target == _session.U.PlayerShip && Sting("sting_warning"):
+				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0) _fight.SetTarget(w.Source);   // Runde 15: schon in der Warnphase Ziel (Kamera, Randpfeil)
 				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, 8f); LastSecurityMessage = w.Message; break;
 			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
@@ -1009,23 +1043,37 @@ public partial class Main : Node3D
 		// Runde 13 (Handy-Test): Gefechtskamera — mit Gefechtsziel bzw. angekündigtem Überfall rahmt sie Schiff und Ziel (Core: CombatFraming), weich, bis 140
 		var want = _orbit.Offset();
 		var focus = Vector3.Zero;
-		if (FramingTarget() is { } ft && !_manualZoomInFight)
+		float sz = ShipSizeZoom();
+		if (!_manualZoomInFight && sz > 1f) want = new CamVec3(want.X * sz, want.Y * sz, want.Z * sz);   // Runde 15: Standardabstand nach Schiffsgröße
+		if (FramingTargetR() is { } ftr && !_manualZoomInFight)
 		{
 			_framingActive = true;
-			var fr = SpaceSim.Core.Flight.CombatFraming.Compute(_player.Position.X, _player.Position.Z, ft.X, ft.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov,
-				GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, GetViewport().GetVisibleRect().Size.Y), _orbit.Distance, OrbitCamera.MaxDistance, FramingField());
-			_lastFrame = fr;
-			float k = fr.Distance / Mathf.Max(1f, _orbit.Distance);
+			var ft = ftr.Pos;
+			var vs = GetViewport().GetVisibleRect().Size;
+			// Runde 15: Mindestgröße — Obergrenze 90 × Schiffsgröße; darüber nur das Schiff (Randpfeil zeigt das Ziel); im Kampf so nah, dass beide gut erkennbar sind
+			var fr = SpaceSim.Core.Flight.CombatFraming.ComputeCombat(_player.Position.X, _player.Position.Z, ft.X, ft.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov,
+				vs.X / Mathf.Max(1f, vs.Y), OrbitCamera.MinDistance * sz, (ftr.Radius > 0f ? OrbitCamera.MaxDistance : 90f) * sz, OrbitCamera.DefaultDistance * sz, FramingField(), ftr.Radius);   // Station/Tor: bis zum Höchstabstand
+			_lastFrame = new SpaceSim.Core.Flight.CombatFraming.Frame(fr.FocusX, fr.FocusZ, fr.Distance);
+			_framingBoth = fr.Both;
+			float k = fr.Distance / Mathf.Max(1f, _orbit.Distance * sz);
 			want = new CamVec3(want.X * k, want.Y * k, want.Z * k);
 			focus = new Vector3(fr.FocusX - _player.Position.X, 0f, fr.FocusZ - _player.Position.Z);
 		}
 		else if (FramingTarget() is null) { _framingActive = false; _manualZoomInFight = false; }
 		if (!_framingActive && NearLargeStationZoom() is var kz and > 1f) want = new CamVec3(want.X * kz, want.Y * kz, want.Z * kz);   // Runde 14: große Stationen
-		_camOffset = OrbitCamera.Follow(_camOffset, want, delta, _framingActive ? 2.5f : 6f);
-		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-2.5f * delta));
+		_camOffset = OrbitCamera.Follow(_camOffset, want, delta, _framingActive ? 3f : 4f);
+		// Runde 15: Blickpunkt zügig zurück (vorher hing das Schiff nach dem Kampf sekundenlang am oberen Rand)
+		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-(_framingActive ? 3f : 5f) * delta));
 		var co = _camOffset;
 		_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
 		_cam.LookAt(_player.Position + _camFocus);
+		// Runde 15: das eigene Schiff verlässt nie das freie Feld — liegt es (im Übergang) außerhalb, rückt der Blickpunkt sofort zum Schiff
+		for (int guard = 0; guard < 6 && !ShipInFreeField(); guard++)
+		{
+			_camFocus *= 0.6f;
+			_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
+			_cam.LookAt(_player.Position + _camFocus);
+		}
 
 		UpdateHud();
 		_hud.Economy.Refresh(_session);
@@ -1074,8 +1122,29 @@ public partial class Main : Node3D
 			return (Vector2.Zero, 0f, ClearanceScale(), 0f);
 		}
 		if (_autopilot && _target is { } target) return WithTurn(Autopilot(target));
+		// Runde 15: Annäherungsautomatik beim Stations-/Torangriff (mit „Ziel folgen“): auf Reichweite der eigenen kürzesten Waffe heran und halten
+		if (_aimAssist && AttackApproachThrottle() is { } at && at != 0f)
+			return (new Vector2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), at, ClearanceScale(), 0f);
 		return (Vector2.Zero, 0f, 1f, 0f);
 	}
+
+	/// <summary>Runde 15: Schub der Annäherungsautomatik (Core: AttackApproach) — null ohne Stations-/Torangriff oder ohne Waffe.</summary>
+	float? AttackApproachThrottle()
+	{
+		var u = _session.U;
+		(Vec2 Pos, float Radius)? t = _fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var st) && st.Sector == u.PlayerSector ? (st.Position, st.Radius)
+			: _fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var g) && g.Sector == u.PlayerSector ? (g.Position, SpaceSim.Core.Combat.GateCombat.BodyRadius) : null;
+		if (t is not { } tt) return null;
+		float shortest = float.MaxValue;
+		var me = PlayerData;
+		for (int i = 0; i < me.Fit.Count; i++)
+			if (me.Fit[i] is { } k && u.Modules.TryGetValue(k, out var m) && m.IsWeapon && !SpaceSim.Core.Combat.Missiles.IsMissile(m) && me.ConditionOf(i) >= u.Rules.ModuleFailCondition)
+				shortest = Mathf.Min(shortest, m.Stat("range"));
+		if (shortest == float.MaxValue) return null;
+		float d = Vec2.Distance(new Vec2(_player.Position.X, _player.Position.Z), tt.Pos);
+		return AttackApproach.Throttle(d, tt.Radius, shortest);
+	}
+	internal float? TestAttackApproach => AttackApproachThrottle();
 
 	static (Vector2, float, float, float) WithTurn((Vector2 dir, float throttle, float speedScale) s) => (s.dir, s.throttle, s.speedScale, 0f);
 
@@ -1170,6 +1239,18 @@ public partial class Main : Node3D
 	}
 
 	// ───────── Ziele, Autopilot, Andocken ─────────
+
+	/// <summary>Runde 15 (Handy-Test): Antippen wählt das Tor nur aus (wie Stationen) — „Autopilot“ fliegt hin und springt, „Springen“ in der Nähe, „Tor angreifen“.</summary>
+	void SelectGate(GateId id)
+	{
+		var u = _session.U;
+		var gate = u.Gates[id];
+		SelectTarget(Navigator.ForSector(u, u.Gates[gate.Target].Sector, u.PlayerShip), null);
+		_targetGate = gate.Id;
+	}
+	internal void TestSelectGate(GateId id) => SelectGate(id);
+	internal bool TestAutopilot => _autopilot;
+	internal void TestSelectStation(StationId id) => SelectTarget(Navigator.ForStation(_session.U, id, _session.U.PlayerShip), id);
 
 	/// <summary>Gerätetest Phase 28: Ziel wählen ohne Autopilot (Tipp auf eine Station).</summary>
 	void SelectTarget(NavTarget target, StationId? station)
@@ -1632,9 +1713,7 @@ public partial class Main : Node3D
 		}
 		else
 		{
-			var gate = u.Gates[new GateId(best.Id)];
-			SetTarget(Navigator.ForSector(u, u.Gates[gate.Target].Sector, u.PlayerShip), null);
-			_targetGate = gate.Id;   // Phase 31: das Tor ist zugleich Angriffsziel (Zielkarte, „Tor angreifen“)
+			SelectGate(new GateId(best.Id));
 		}
 	}
 
@@ -1780,6 +1859,8 @@ public partial class Main : Node3D
 		// Zielkarte: Phase 25 gewähltes Schiff (Schild/Hülle), sonst Autopilot-Ziel, sonst Laserziel
 		Vec2? targetWorld = null;
 		d.AutoFireOn = _fight.AutoFire;
+		d.AutoFireHint = SpaceSim.Core.Combat.PlayerGunnery.WeaponSlots(u, PlayerData).Count > 0 && _docked is null && (u.PendingEncounters.Any(p => p.Target == u.PlayerShip && p.Kind == EncounterKind.Raid)
+			|| u.Fights.Of(u.PlayerShip) is { Cause: EncounterCause.Raid });   // Runde 15
 		d.HasWeapons = _bays.Any(b => SpaceSim.Core.Combat.PlayerGunnery.SlotOf(b.Key) >= 0);
 		d.EnemyNear = SpaceSim.Core.Combat.PlayerCombat.NextEnemy(_session.U, PlayerData, default).Value != 0;
 		d.CanSurrender = _docked is null && SpaceSim.Core.Combat.PlayerSurrender.Issue(_session.U) is null;   // Phase 27
@@ -2168,7 +2249,7 @@ public partial class Main : Node3D
 		// Gerätetest Phase 28 (Runde 4): der Angriff schaltet Dauerfeuer und „Ziel folgen“ ein (vorher feuerte nichts, bis Dauerfeuer an war)
 		_fight.AutoFire = true;
 		EnableAimAssist();
-		_hud.Toast($"Angriff auf {st.Name}: Dauerfeuer an — die Waffen feuern, sobald die Station in Reichweite und im Feuerwinkel ist. Fahndung und Gegenwehr folgen."
+		_hud.Toast($"Angriff auf {st.Name}: Dauerfeuer an — „Ziel folgen“ fliegt auf Reichweite deiner Geschütze heran und hält (Regler übersteuert). Fahndung und Gegenwehr folgen."
 			+ (hopeless ? $" {SpaceSim.Core.Combat.WarInfo.SiegeOddsText(_session.U, st, PlayerData)}!" : ""), 5f);
 	}
 

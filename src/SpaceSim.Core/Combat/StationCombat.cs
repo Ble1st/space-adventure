@@ -440,7 +440,7 @@ public static class WarInfo
         if (Simulation.Outposts.IsOutpost(u, st) && u.StationTypes.TryGetValue(st.TypeKey, out var t))
         {
             int guns = t.Defense?.Guns.Count ?? 0;
-            return $"{t.Name} · {s}" + (guns > 0 ? $" · {guns} Geschütz{(guns == 1 ? "" : "e")}" : "") + " · nicht andockbar";
+            return s + (guns > 0 ? $" · {guns} Geschütz{(guns == 1 ? "" : "e")}" : " · Sensor") + " · nicht andockbar";   // Runde 15: die Art steht im Namen
         }
         return s;
     }

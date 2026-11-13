@@ -231,3 +231,18 @@ Spieler darf jedes Tor angreifen, Werte wie Abschnitt 2).
 - [x] Stationsgeschütze: gesuchtes Mitglied der eigenen Fraktion ist Ziel (wie Kleinstationen)
 - [x] Ansicht: Tor wählbar, Zielkarte, „Tor angreifen“ (zwei Tipps, Warnung), Treffer am Modell, beschädigt/außer Betrieb, Karten, Meldungen, Autopilot-Grund
 - [x] Tests, Selbsttest-Stufe, Balance (Schalter an: Standardwelt unverändert; Lauf mit periodischen Torausfällen), CLAUDE.md
+
+## Runde 15: Werte nachkalibriert (Handy-Test: Nebentor mit 3 Fregatten ≈ 15 min)
+
+Ursache: Die Panzerung wird je Treffer abgezogen (`ArmorPerHitShare` 0,05 × Artfaktor; Energie 1,5) — Panzer 70 fraß vom Laser S (7) 5,25, Panzer 100 alles;
+die Raketen (12 je Fregatte) sind nach ~30 s leer, danach tragen nur Laser und Massetreiber. Die Rechenbeispiele in Abschnitt 2 hatten den Panzerabzug je
+Treffer unterschätzt. Neue Werte (nur Tore, die Panzerregel bleibt):
+
+| Klasse | Hülle | Schild | Aufl./s | Panzer | PV |
+|---|---|---|---|---|---|
+| `side` | 2000 | 300 | 3 | **30** (vorher 70) | 0,2 |
+| `main` | **3500** (vorher 4000) | 500 | 5 | **25** (vorher 100) | 0,35 |
+
+Gemessen (Core-Test `Kriegstestverband_NebentorIn2Bis4Min_HaupttorIn5Bis8Min_EinzeljaegerChancenlos`: echter Kriegstest-Verband aus drei Bollwerken,
+begrenzte Munition und Raketen, Zielhilfe, ohne Gegenwehr): Nebentor Borealis–Vesta **2,3 min**, Haupttor Alpha–Beta **6,7 min** (Vesta–Beta 6,3 min);
+Falke allein am Nebentor in 6 min nicht (≈ 2 Hülle/s → ≈ 17 min, mit Verteidigern aussichtslos).

@@ -2539,12 +2539,12 @@
   {
    "key": "side",
    "name": "Nebentor",
-   "defense": { "hull": 2000, "shield": 300, "shieldRegen": 3, "armor": 70, "pointDefense": 0.2, "guns": [] }
+   "defense": { "hull": 2000, "shield": 300, "shieldRegen": 3, "armor": 30, "pointDefense": 0.2, "guns": [] }
   },
   {
    "key": "main",
    "name": "Hauptroutentor",
-   "defense": { "hull": 4000, "shield": 500, "shieldRegen": 5, "armor": 100, "pointDefense": 0.35, "guns": [] }
+   "defense": { "hull": 3500, "shield": 500, "shieldRegen": 5, "armor": 25, "pointDefense": 0.35, "guns": [] }
   }
  ],
  "gates": [

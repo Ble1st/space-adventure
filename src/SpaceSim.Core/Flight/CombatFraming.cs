@@ -85,6 +85,77 @@ public static class CombatFraming
         return new Frame(bestFx, bestFz, MathF.Min(d, maxDistance));
     }
 
+    /// <summary>Runde 15: Ergebnis der Gefechtsrahmung — <see cref="Both"/> = Schiff und Ziel passen; sonst nur das Schiff (das Ziel zeigt ein Randmarker).</summary>
+    public readonly record struct CombatFrame(float FocusX, float FocusZ, float Distance, bool Both);
+
+    /// <summary>Anteil des freien Felds, den der Abstand Schiff–Ziel höchstens füllen soll (Handy-Test Runde 15: „näher heran“; mit Rand und Körpern wirkt das wie gut die Hälfte).</summary>
+    public const float FillShare = 0.75f;
+
+    /// <summary>
+    /// Runde 15 (Handy-Test: beide winzig, Schiff am Rand): Gefechtsrahmung mit Mindestgröße. Gesucht wird der kleinste Abstand ab <paramref name="minDistance"/>, bei dem
+    /// Schiff und Ziel (Ziel mit Rand <paramref name="targetRadius"/> — Station/Tor mit Körper) im freien Feld liegen und ihr Abstand höchstens
+    /// <see cref="FillShare"/> der Feldhöhe bzw. -breite füllt (beide gut erkennbar); der Blickpunkt legt ihre Mitte in die Mitte des freien Felds. Reicht
+    /// <paramref name="capDistance"/> (Obergrenze für die Gefechtskamera, damit das eigene Schiff groß bleibt) nicht, rahmt die Kamera nur das Schiff mittig im freien
+    /// Feld mit <paramref name="soloDistance"/> (<see cref="CombatFrame.Both"/> false — das Ziel zeigt die Ansicht als Randmarker).
+    /// </summary>
+    public static CombatFrame ComputeCombat(float sx, float sz, float tx, float tz, float yawDeg, float pitchDeg, float fovDeg, float aspect,
+        float minDistance, float capDistance, float soloDistance, FreeRect free, float targetRadius = 0f, float margin = 6f)
+    {
+        float tv = MathF.Tan(fovDeg * MathF.PI / 360f), th = tv * aspect;
+        (float X, float Y) Ndc(float px, float pz, float fx, float fz, float d)
+        {
+            var (h, v) = ScreenTan(px, pz, fx, fz, d, yawDeg, pitchDeg);
+            return float.IsNaN(h) ? (float.NaN, float.NaN) : (h / th, v / tv);
+        }
+        (float, float) Center(Func<float, float, float, (float X, float Y)> mid, float fx, float fz, float d)
+        {
+            for (int it = 0; it < 6; it++)
+            {
+                var m = mid(fx, fz, d);
+                if (float.IsNaN(m.X)) break;
+                float ex = m.X - free.CenterX, ey = m.Y - free.CenterY;
+                if (MathF.Abs(ex) < 1e-3f && MathF.Abs(ey) < 1e-3f) break;
+                var mx = mid(fx + 1f, fz, d); var mz = mid(fx, fz + 1f, d);
+                float a11 = mx.X - m.X, a12 = mz.X - m.X, a21 = mx.Y - m.Y, a22 = mz.Y - m.Y;
+                float det = a11 * a22 - a12 * a21;
+                if (MathF.Abs(det) < 1e-9f) break;
+                fx += (-ex * a22 + ey * a12) / det;
+                fz += (-a11 * ey + a21 * ex) / det;
+            }
+            return (fx, fz);
+        }
+        // Mitte der Hülle beider Punkte samt Rand (das Ziel mit Körper) — so liegt auch ein großes Ziel ganz im Feld
+        (float X, float Y) Mid2(float fx, float fz, float d)
+        {
+            var a = Ndc(sx, sz, fx, fz, d); var b = Ndc(tx, tz, fx, fz, d);
+            float py1 = margin / MathF.Max(1f, d) / tv, px1 = margin / MathF.Max(1f, d) / th;
+            float py2 = (margin + targetRadius * 0.8f) / MathF.Max(1f, d) / tv, px2 = (margin + targetRadius) / MathF.Max(1f, d) / th;
+            float x0 = MathF.Min(a.X - px1, b.X - px2), x1 = MathF.Max(a.X + px1, b.X + px2), y0 = MathF.Min(a.Y - py1, b.Y - py2), y1 = MathF.Max(a.Y + py1, b.Y + py2);
+            return ((x0 + x1) / 2f, (y0 + y1) / 2f);
+        }
+        float fw = free.X1 - free.X0, fh = free.Y1 - free.Y0;
+        CombatFrame? firstFit = null;
+        for (float d = minDistance; d <= capDistance + 0.01f; d += 2f)
+        {
+            var (fx, fz) = Center(Mid2, (sx + tx) / 2f, (sz + tz) / 2f, d);
+            var p1 = Ndc(sx, sz, fx, fz, d); var p2 = Ndc(tx, tz, fx, fz, d);
+            if (float.IsNaN(p1.X) || float.IsNaN(p2.X)) continue;
+            float padY1 = margin / MathF.Max(1f, d) / tv, padX1 = margin / MathF.Max(1f, d) / th;
+            float padY2 = (margin + targetRadius * 0.8f) / MathF.Max(1f, d) / tv, padX2 = (margin + targetRadius) / MathF.Max(1f, d) / th;   // Körper: in der Tiefe verkürzt
+            bool In((float X, float Y) p, float px, float py) => p.X - px >= free.X0 && p.X + px <= free.X1 && p.Y - py >= free.Y0 && p.Y + py <= free.Y1;
+            float span = MathF.Max((MathF.Abs(p1.X - p2.X) + padX2) / fw, (MathF.Abs(p1.Y - p2.Y) + padY2) / fh);
+            bool inside = In(p1, padX1, padY1) && In(p2, padX2, padY2);
+            if (inside && span <= FillShare) return new CombatFrame(fx, fz, d, true);
+            // passt es nur weiter heraus als der Füllanteil verlangt (großes Ziel, kleines Feld), gilt der erste Abstand, bei dem beide hineinpassen
+            if (inside && firstFit is null) firstFit = new CombatFrame(fx, fz, d, true);
+        }
+        if (firstFit is { } ff) return ff;
+        // passt nicht: nur das Schiff groß, mittig im freien Feld
+        float sd = Math.Clamp(soloDistance, minDistance, capDistance);
+        var (ox, oz) = Center((fx, fz, d) => Ndc(sx, sz, fx, fz, d), sx, sz, sd);
+        return new CombatFrame(ox, oz, sd, false);
+    }
+
     /// <summary>Liegt der Punkt (Ebene, Höhe 0) mit Rand im freien Bildfeld einer Kamera, die aus Abstand <paramref name="d"/> auf den Blickpunkt schaut?</summary>
     public static bool Fits(float px, float pz, float fx, float fz, float d, float yawDeg, float pitchDeg, float fovDeg, float aspect, float margin = 0f)
     {

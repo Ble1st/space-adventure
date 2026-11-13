@@ -26,7 +26,7 @@ public partial class SectorView
 	}
 
 	/// <summary>Selbsttest: Text des Zustandsschilds eines Tors.</summary>
-	public string GateStatusText(GateId id) => _gateStatus.TryGetValue(id, out var l) && l.Visible ? l.Text : "";
+	public string GateStatusText(GateId id) => _gateStatus.TryGetValue(id, out var l) ? l.Text : "";   // Text (die Sichtbarkeit regelt auch die HUD-Ausblendung)
 	readonly Dictionary<GateId, GateNode> _gateNodes = new();
 	long _gateSyncTick = -1; int _gateSyncAccess = -1;
 

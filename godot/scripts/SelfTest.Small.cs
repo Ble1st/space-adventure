@@ -29,6 +29,7 @@ public partial class SelfTest
 		{
 			case 1:
 			{
+				GetWindow().Size = new Vector2I(1280, 720);   // Runde 15: echtes Seitenverhältnis (der headless-Standard 1280×1280 hat unter dem HUD eine leere Fläche)
 				_m.TestMenu("new");
 				var (ships, stations) = ShipModels.HardpointCounts();
 				GD.Print($"[selftest] Hardpoints geladen: {ships} Schiffsmodelle, {stations} Stationsmodelle");
@@ -162,6 +163,7 @@ public partial class SelfTest
 						var pts = new[] { ("Ziel", _m.TestView.ShipPosition(rw2.Id) ?? new Vector3(rw2.Position.X, 0f, rw2.Position.Y)), ("Spielerschiff", _m.Player.Position) };
 						foreach (var (what, w) in pts)
 						{
+							if (what == "Ziel" && !_m.TestFramingBoth) continue;   // Runde 15: zu weit — nur das Schiff, Ziel per Randpfeil
 							var sp = cam.UnprojectPosition(w);
 							float nx = sp.X / size.X * 2f - 1f, ny = 1f - sp.Y / size.Y * 2f;
 							bool inside = nx >= free.X0 - 0.03f && nx <= free.X1 + 0.03f && ny >= free.Y0 - 0.03f && ny <= free.Y1 + 0.03f;
@@ -211,6 +213,7 @@ public partial class SelfTest
 		var tpos = u.Fights.Of(raider.Id) is { Spatial: true } fe && fe.Of(raider.Id) is { } rp ? rp.Pos : raider.Position;
 		foreach (var (what, w) in new[] { ("Ziel", new Vector3(tpos.X, 0f, tpos.Y)), ("Spielerschiff", _m.Player.Position) })
 		{
+			if (what == "Ziel" && !_m.TestFramingBoth) continue;   // Runde 15: zu weit — nur das Schiff gerahmt, das Ziel zeigt der Randpfeil
 			var sp = cam.UnprojectPosition(w);
 			float nx = sp.X / size.X * 2f - 1f, ny = 1f - sp.Y / size.Y * 2f;
 			bool inside = nx >= free.X0 - 0.03f && nx <= free.X1 + 0.03f && ny >= free.Y0 - 0.03f && ny <= free.Y1 + 0.03f;

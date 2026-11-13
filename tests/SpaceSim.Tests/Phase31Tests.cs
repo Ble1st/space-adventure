@@ -52,11 +52,11 @@ public class Phase31Tests
     {
         var u = Standard();
         var side = u.GateTypes["side"].Defense; var main = u.GateTypes["main"].Defense;
-        Assert.Equal((2000f, 300f, 70f, 0.2f), (side.Hull, side.Shield, side.Armor, side.PointDefense));
-        Assert.Equal((4000f, 500f, 100f, 0.35f), (main.Hull, main.Shield, main.Armor, main.PointDefense));
+        Assert.Equal((2000f, 300f, 30f, 0.2f), (side.Hull, side.Shield, side.Armor, side.PointDefense));   // Runde 15: Panzerung 70 → 30
+        Assert.Equal((3500f, 500f, 25f, 0.35f), (main.Hull, main.Shield, main.Armor, main.PointDefense));   // Runde 15: 4000/100 → 3500/25
         Assert.Empty(side.Guns); Assert.Empty(main.Guns);
         foreach (var g in u.Gates.Values) Assert.Equal(g.MainRoute ? "main" : "side", g.TypeKey);
-        Assert.Equal(4000f, GateCombat.MaxHull(u, G(u, 17)));
+        Assert.Equal(3500f, GateCombat.MaxHull(u, G(u, 17)));
         // Schalter aus: keine Kampfwerte
         u.Rules.GateCombat = false;
         Assert.Null(GateCombat.TypeOf(u, G(u, 17)));
@@ -83,7 +83,7 @@ public class Phase31Tests
         var u = Standard();
         var a = G(u, 3); var b = G(u, 4);
         GateCombat.Apply(u, b, Hull(500f, 100f), new ActorId(9999));
-        Assert.Equal(3500f, GateCombat.Hull(u, a));
+        Assert.Equal(3000f, GateCombat.Hull(u, a));
         Assert.Equal(400f, GateCombat.Shield(u, a));
         Assert.NotNull(a.Condition);   // Zustand am Tor mit der kleineren Id
         Assert.Null(b.Condition);
@@ -457,5 +457,49 @@ public class Phase31Tests
         Down(u, ring);
         GateCombat.Restore(u, ring, "repaired");
         Assert.True(MapParts.Passable(G(u, 3)));
+    }
+
+    // ───────── Runde 15: Torwerte gegen den echten Kriegstest-Verband ─────────
+
+    /// <summary>
+    /// Verband (oder Einzelschiff) greift ein Tor an — ohne Gegenwehr wie in docs/TORE.md (Polizei/Kaperer aus dem Sektor, keine Stationsgeschütze), mit begrenzter
+    /// Munition und Raketen; der Spieler feuert mit Zielhilfe alle Waffen, der Verband tritt über den Verband bei. Liefert (ausgefallen, Sekunden).
+    /// </summary>
+    static (bool Down, long Seconds) GateAttack(string package, int gateId, int maxSeconds)
+    {
+        var u = TestWorlds.Default(fuel: false, research: false, startOption: package);
+        u.Rules.GateCombat = true; u.Rules.StationGunsActive = false;
+        var me = u.Ships[u.PlayerShip];
+        var gate = u.Gates[new GateId(gateId)];
+        var group = Squadrons.Get(u, me) is { } sq ? sq.Members.Select(id => u.Ships[id]).ToList() : new List<Ship> { me };
+        var away = u.Sectors.Keys.OrderBy(k => k.Value).First(k => k != gate.Sector);
+        foreach (var s in u.ShipsById().ToList())
+            if ((ThreatMap.IsPolice(s) || ThreatMap.IsRaider(s)) && ThreatMap.Where(u, s).Sector == gate.Sector) { Place(u, s, away, new Vec2(300f, 300f)); s.Command = null; s.DutySector = away; }
+        int k = 0;
+        foreach (var s in group) Place(u, s, gate.Sector, gate.Position + new Vec2(-20f + 20f * k++, 40f));
+        u.PlayerSector = gate.Sector;
+        var runner = new SimulationRunner();
+        float heading = SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, gate.Position);
+        long start = u.Tick;
+        for (int i = 0; i < maxSeconds * SimClock.TicksPerSecond && !GateCombat.IsDown(u, gate) && u.PlayerShip == me.Id; i++)
+        {
+            runner.Step(u);
+            heading = SpaceSim.Core.Flight.AimAssist.Turn(heading, SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, gate.Position), SpaceSim.Core.Flight.AimAssist.PlayerTurnRate, 1f / SimClock.TicksPerSecond);
+            foreach (int slot in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFireAtGate(u, me, slot, gate.Id, heading * 180f / MathF.PI);
+        }
+        return (GateCombat.IsDown(u, gate), (u.Tick - start) / SimClock.TicksPerSecond);
+    }
+
+    [Fact]
+    public void Kriegstestverband_NebentorIn2Bis4Min_HaupttorIn5Bis8Min_EinzeljaegerChancenlos()
+    {
+        var side = GateAttack("war", 9, 600);   // Borealis–Vesta, Nebentor
+        Assert.True(side.Down, $"Nebentor nicht ausgefallen ({side.Seconds} s)");
+        Assert.InRange(side.Seconds, 100, 240);
+        var main = GateAttack("war", 1, 900);   // Alpha–Beta, Hauptroutentor
+        Assert.True(main.Down, $"Haupttor nicht ausgefallen ({main.Seconds} s)");
+        Assert.InRange(main.Seconds, 300, 480);
+        var solo = GateAttack("fighter", 9, 360);   // Falke allein: in sechs Minuten nicht
+        Assert.False(solo.Down, $"Falke schaffte das Nebentor in {solo.Seconds} s");
     }
 }

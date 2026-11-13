@@ -1321,6 +1321,7 @@ public class Phase28Tests
         var (alive, down, seconds, ev) = AttackStation(u, hq, 56f, 400, e => { if (e is ShotFired f && u.Ships.TryGetValue(f.Shooter, out var s) && ThreatMap.IsPolice(s)) policeShots++; });
         Assert.True(down, $"das HQ ist ausgeschaltet ({WarInfo.StationShort(u, hq)} nach {seconds} s)");
         Assert.True(alive, "das Bollwerk lebt");
+        Assert.True(me.Hull >= 0.3f * me.MaxHull, $"Sieg mit mindestens 30 % Hülle ({me.Hull:0}/{me.MaxHull:0})");   // Runde 15 (Handy-Test: nur 38/600)
         Assert.True(seconds >= 120 && seconds <= 240, $"spürbar, aber in zwei bis vier Minuten ({seconds} s)");   // Runde 6: Richtwert 2–4 min
         Assert.Contains(ev, e => e is CombatJoined j && j.Reason == "squadron" && sq.Members.Contains(j.Ship));
         Assert.True(policeShots > 0, "die Polizei hat verteidigt");

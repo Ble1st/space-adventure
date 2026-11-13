@@ -277,4 +277,42 @@ public class OrbitCameraTests
         Assert.Equal(free.CenterX, (h1 + h2) / 2f / th, 2);
         Assert.Equal(free.CenterY, (v1 + v2) / 2f / tv, 2);
     }
+
+    /// <summary>Runde 15: Gefechtsrahmung mit Mindestgröße — im Kampf nah (Abstand füllt höchstens ~55 % des Felds), weit weg nur das Schiff, Station mit Radius.</summary>
+    [Fact]
+    public void Gefechtskamera_Kampf_Nah_Anflug_NurSchiff_StationMitRadius()
+    {
+        var cam = new OrbitCamera();
+        float aspect = 2340f / 1080f;
+        var free = new CombatFraming.FreeRect(-0.55f, 0.35f, -0.5f, 0.6f);
+        var near = CombatFraming.ComputeCombat(0f, 0f, 0f, -30f, cam.YawDeg, cam.PitchDeg, 50f, aspect, OrbitCamera.MinDistance, 90f, OrbitCamera.DefaultDistance, free);
+        Assert.True(near.Both);
+        // so nah, dass der Abstand Schiff–Ziel gut die Hälfte des freien Felds füllt (höchstens FillShare)
+        float tv0 = MathF.Tan(25f * MathF.PI / 180f);
+        var (_, va) = CombatFraming.ScreenTan(0f, 0f, near.FocusX, near.FocusZ, near.Distance, cam.YawDeg, cam.PitchDeg);
+        var (_, vb) = CombatFraming.ScreenTan(0f, -30f, near.FocusX, near.FocusZ, near.Distance, cam.YawDeg, cam.PitchDeg);
+        float fill = MathF.Abs(va - vb) / tv0 / (free.Y1 - free.Y0);
+        Assert.InRange(fill, 0.5f, CombatFraming.FillShare);
+        var far = CombatFraming.ComputeCombat(0f, 0f, 0f, -200f, cam.YawDeg, cam.PitchDeg, 50f, aspect, OrbitCamera.MinDistance, 90f, OrbitCamera.DefaultDistance, free);
+        Assert.False(far.Both);
+        Assert.Equal(OrbitCamera.DefaultDistance, far.Distance, 1);
+        float tv = MathF.Tan(25f * MathF.PI / 180f), th = tv * aspect;
+        var (h, v) = CombatFraming.ScreenTan(0f, 0f, far.FocusX, far.FocusZ, far.Distance, cam.YawDeg, cam.PitchDeg);
+        Assert.InRange(h / th, free.X0, free.X1);
+        Assert.InRange(v / tv, free.Y0, free.Y1);
+        var phone = new CombatFraming.FreeRect(-0.59f, 0.54f, -0.41f, 0.77f);   // gemessenes freies Feld im Handyformat (Selbsttest)
+        var st = CombatFraming.ComputeCombat(0f, 0f, 0f, -45f, cam.YawDeg, cam.PitchDeg, 50f, aspect, OrbitCamera.MinDistance, OrbitCamera.MaxDistance, OrbitCamera.DefaultDistance, phone, 22f);
+        Assert.True(st.Both, $"Station mit Radius gerahmt ({st.Distance})");
+    }
+
+    [Theory]
+    [InlineData(120f, 1f)]   // weit weg: vorwärts
+    [InlineData(22f + 31.5f, 0f)]   // im Halteband (0,7 × 45 m ab Außenhaut): halten
+    [InlineData(22f + 5f, -1f)]   // zu nah: rückwärts
+    public void Annaeherung_AufReichweiteHeranUndHalten(float centre, float sign)
+    {
+        float t = AttackApproach.Throttle(centre, 22f, 45f);
+        Assert.Equal(sign, MathF.Sign(t));
+        Assert.InRange(t, -Throttle.ReverseShare, 0.6f);
+    }
 }
