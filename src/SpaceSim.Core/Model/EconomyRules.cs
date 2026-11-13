@@ -835,6 +835,12 @@ public sealed class EconomyRules
     /// zwingen (300000 Ticks: 59 zerstörte Schürfer statt 6). Nicht für das aktive Spielerschiff (es bleibt in echter Gefahr). false = alte Regel.
     /// </summary>
     public bool RaidersSpareLoot = true;
+    /// <summary>
+    /// Runde 12: Piratenverstecke haben Geschütze (Weltdatei <c>defense</c>). Eine Verfolgung endet („safe“), sobald Ziel oder Streife näher als Geschützreichweite +
+    /// <see cref="HideoutGunMargin"/> am Versteck des Ziels sind — die Polizei verfolgt nicht in den Tod. false = alte Regel (Ende erst im Schutzradius).
+    /// </summary>
+    public bool PursuitStopsAtHideoutGuns = true;
+    public float HideoutGunMargin = 15f;
 
     // ───────── Phase 27: Flottenkampf (KAMPF.md Stufe 27) ─────────
     /// <summary>

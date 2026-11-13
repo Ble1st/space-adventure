@@ -155,9 +155,9 @@ public partial class SectorView : Node3D
 	/// NPC-Schiffe aus der Core-Materialisierung: erscheinen am Gate, fliegen ihre Teilstrecke und verschwinden am Ausgangsgate.
 	/// Ausweichen (Schiff↔Schiff, Schiff↔Spieler) ist reine Darstellung und verändert die Simulation nicht.
 	/// </summary>
-	public void UpdateShips(Universe u, double tick, Vector3? playerPos, float delta)
+	public void UpdateShips(Universe u, double tick, Vector3? playerPos, float delta, Vec2? playerHeading = null)
 	{
-		var snaps = Materializer.Snapshot(u, _sector, tick);
+		var snaps = Materializer.Snapshot(u, _sector, tick, playerHeading);   // Runde 12: Begleiter des Spielers in Formation
 		var neighbours = snaps.Select(x => (x.Id, x.Position)).ToList();
 		if (playerPos is { } pp) neighbours.Add((Avoidance.Player, new Vec2(pp.X, pp.Z)));
 		var seen = new HashSet<ShipId>();
@@ -208,6 +208,7 @@ public partial class SectorView : Node3D
 				{
 					vis.Spin(SpaceSim.Core.Mining.ContactMining.Spin(ship.Stats, s.Mining ? SpaceSim.Core.Mining.ContactState.Mining : SpaceSim.Core.Mining.ContactState.NoContact), delta);
 					if (vis.Hardpoints.TurretCount > 0 && CombatTarget(u, s.Id) is { } aim) vis.Hardpoints.AimAll(aim, delta);
+					vis.AnimateJaws(delta);
 				}
 			}
 		}
@@ -301,6 +302,9 @@ public partial class SectorView : Node3D
 			if (aim is { } a) guns.AimAll(a, delta);
 		}
 	}
+
+	/// <summary>Runde 12: Spaltbacken eines NPC-Schiffs bewegen (Ereignis AsteroidSplit).</summary>
+	public void SnapJaws(ShipId id) { if (_markers.TryGetValue(id, out var m)) m.Visual?.SnapJaws(); }
 
 	/// <summary>Selbsttest: Schiffsmodell eines Markers (null = Grundkörper).</summary>
 	public ShipVisual? TestVisual(ShipId id) => _markers.TryGetValue(id, out var m) ? m.Visual : null;

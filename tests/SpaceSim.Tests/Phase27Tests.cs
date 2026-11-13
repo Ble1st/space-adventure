@@ -48,6 +48,8 @@ public class Phase27Tests
         new SimulationRunner().Run(u, 20000);
         // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher 8BAFCA8A395897AE)
         Assert.Equal(0x02F599DEDC0101B4UL, UniverseHash.Compute(u));   // Runde 11: nur die Namensliste (Kürzel befördeter Akteure) geändert — mit der alten Liste geprüft: 0x885FAB4DD2BB8F0F
+        // Runde 12: ohne die Kürzel (Namensliste) gilt weiter der Wert vor Phase 29 — die geänderte Konstante kommt nur von den Kürzeln
+        Assert.Equal(0x8BAFCA8A395897AEUL, UniverseHash.Compute(u, includeTags: false));
     }
 
     // ───────── Hilfen ─────────
@@ -280,6 +282,9 @@ public class Phase27Tests
         var far = u2.Gates[gate.Target];
         var r2 = Raiders(u2)[0];
         var police = Police(u2);
+        // Runde 12: der Wächter hat einen dritten Laser (Turm) — der Kaperer soll hier fliehen, nicht vorher fallen: Turmlaser für den Test ausbauen
+        for (int i = 7; i < police.Fit.Count; i++) police.Fit[i] = null;
+        police.RecomputeStats(u2);
         var gdir = gate.Position.Normalized();
         Place(u2, r2, Alpha, gate.Position - gdir * 30f);
         Place(u2, police, Alpha, gate.Position - gdir * 70f);

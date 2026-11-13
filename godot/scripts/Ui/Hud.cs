@@ -268,16 +268,20 @@ public partial class Hud : CanvasLayer
 		// Gerätetest Phase 28: über dem Dock-Menü (schmales Fenster in der Mitte, Titel oben) links neben dem Fenster, mehrzeilig — oben verdeckte es den Titel
 		bool dockMenu = Screens.Current == DockMenu;
 		float side = (vp.X - DockMenuWidth) / 2f - 20f;
-		var size = dockMenu ? new Vector2(MathF.Max(300f, side), 150f) : screen ? new Vector2(ScreenAlertWidth, ScreenAlertHeight) : new Vector2(AlertWidth, AlertHeight);
+		// Runde 12: im Flug unten, links der Kampftasten (zweite Schachtspalte ab x 906) — 536 breit ab der Bildmitte − 280
+		var size = dockMenu ? new Vector2(MathF.Max(300f, side), 150f) : screen ? new Vector2(ScreenAlertWidth, ScreenAlertHeight) : new Vector2(FlightAlertWidth, AlertHeight);
 		_alert.Size = size;
-		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2((vp.X - AlertWidth) / 2f, FlightAlertY);
+		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2(vp.X / 2f - 280f, FlightAlertY);
 		_alertText.MaxLinesVisible = dockMenu ? 6 : screen ? 2 : 3;
 		_alertText.AddThemeFontSizeOverride("font_size", screen ? 14 : 15);
 		_alertText.Position = new Vector2(12, 4); _alertText.Size = new Vector2(size.X - 12 - 64, size.Y - 8);
 		_alertClose.Position = new Vector2(size.X - 60, dockMenu ? size.Y - 60 : (size.Y - 56) / 2f);
 	}
 	const float DockMenuWidth = 580f;
-	const float FlightAlertY = 84f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
+	// Runde 12 (Handy-Test: Meldung und Beschusszeile verdeckten den Gegner vor dem Bug): im Flug unten mittig über dem Tempo-Regler — hinter dem eigenen
+	// Schiff, dort steht im Gefecht kein Gegner (die Kamera blickt über das Heck nach vorn); oben bleibt die Bildmitte frei
+	const float FlightAlertWidth = 536f;
+	const float FlightAlertY = 448f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
 
 	/// <summary>Selbsttest: Mittelpunkt der Meldung und des „✕“ (für simulierte Tipps).</summary>
 	public Vector2 TestAlertCenter => _alert.GetGlobalRect().GetCenter();
@@ -321,7 +325,7 @@ public partial class Hud : CanvasLayer
 		}
 		else
 		{
-			_toast.Position = new Vector2(vpSize.X / 2f - 300f, onScreen ? vpSize.Y - 70f : below ? FlightAlertY + AlertHeight + 6f : 122f);
+			_toast.Position = new Vector2(vpSize.X / 2f - 300f, onScreen ? vpSize.Y - 70f : 122f);
 			_toast.Size = new Vector2(below ? 416f : 600f, _toast.Size.Y);
 		}
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;

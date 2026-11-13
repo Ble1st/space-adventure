@@ -39,6 +39,8 @@ public partial class KitButton : Control
 	public event Action? Down;
 	/// <summary>Beim Loslassen innerhalb der Taste.</summary>
 	public event Action? Pressed;
+	/// <summary>Selbsttest (Runde 12): Tipp auslösen wie ein echter Tipp (Umschalter schalten um).</summary>
+	public void TestPress() { if (State == KitButtonState.Disabled) return; if (Toggle) _on = !_on; Pressed?.Invoke(); }
 
 	KitButtonState _state;
 	bool _on, _down;

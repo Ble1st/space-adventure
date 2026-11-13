@@ -282,15 +282,23 @@ public static class WarInfo
         return guns == 0 ? "" : $"{guns} Geschütze · {range:0} m";
     }
 
-    /// <summary>Geschütze (Anzahl, größte Reichweite) aller nicht ausgeschalteten Stationen der Fraktion von <paramref name="target"/> im Sektor.</summary>
+    /// <summary>
+    /// Geschütze (Anzahl, größte Reichweite) der nicht ausgeschalteten Stationen der Fraktion von <paramref name="target"/> im Sektor, die das Ziel decken.
+    /// Runde 12 (Handy-Test: „Farm Beta“ zeigte die Geschütze des Sektor-HQ) — nur Stationen, deren Geschützreichweite bis an das Ziel reicht (Abstand der
+    /// Mitten ≤ Reichweite + Außenhaut); eine unbewaffnete Station fern jeder Stellung zeigt keine.
+    /// </summary>
     public static (int Guns, float Range) Guns(Universe u, Station target)
     {
         if (u.FactionOf(target) is not { } f || !u.Sectors.TryGetValue(target.Sector, out var sector)) return (0, 0f);
         int guns = 0; float range = 0f;
         foreach (var id in sector.Stations)
-            if (u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && StationCombat.DefenseOf(u, st) is { } def && !StationCombat.IsDown(u, st))
-                foreach (var g in def.Guns)
-                    if (u.Modules.TryGetValue(g, out var m)) { guns++; range = MathF.Max(range, m.Stat("range")); }
+        {
+            if (!u.Stations.TryGetValue(id, out var st) || u.FactionOf(st) != f || StationCombat.DefenseOf(u, st) is not { } def || StationCombat.IsDown(u, st)) continue;
+            float reach = StationCombat.GunRange(u, st);
+            if (st.Id != target.Id && Vec2.Distance(st.Position, target.Position) > reach + Station.BodyRadius) continue;
+            foreach (var g in def.Guns)
+                if (u.Modules.TryGetValue(g, out var m)) { guns++; range = MathF.Max(range, m.Stat("range")); }
+        }
         return (guns, range);
     }
 

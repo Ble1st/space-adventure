@@ -11,7 +11,7 @@ namespace SpaceAdventure.Ui.Screens;
 /// Kommandozentrale „System“ (UI.md Abschnitt 4): Speichern, Laden und Neues Spiel bleiben über die
 /// linke Leiste erreichbar (Aktionen werden an Main durchgereicht, <see cref="CommandScreen.SystemAction"/>); „Neues Spiel“
 /// öffnet die Auswahl des Startpakets (Phase 5c);
-/// Einstellungen sind Platzhalter. Autosave läuft alle 30 s in Main.
+/// Runde 12: Ton (Musik und Effekte, Lautstärke und Stumm). Autosave läuft alle 30 s in Main.
 /// </summary>
 public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 {
@@ -33,9 +33,26 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		// Gerätetest Phase 27: sichtbare Rückmeldung im Bereich selbst (der Toast liegt unter der Kommandozentrale)
 		if (_message.Length > 0) At(inner, Text(_message, 16, _messageOk ? Green : Red), 20, my + 8f, 310, 24);   // Runde 4: Abstand zum Text darüber
 
-		At(inner, Text("Einstellungen", 22, Cyan), 20, 350, 400, 30);
-		At(inner, new KitButton("Einstellungen", new Vector2(300, 56)) { FontSize = 19, State = KitButtonState.Disabled, Sub = UiPlaceholders.Soon }, 20, 390);
-		At(inner, Text("Ton, Tasten, Sprache: " + UiPlaceholders.Tag + " (" + UiPlaceholders.Soon + ").", 14, new Color(Dim, 0.8f)), 20, 458, 320, 44);
+		// Runde 12: Ton — Musik und Effekte getrennt (eigene Busse), Lautstärke in 10-%-Schritten, Tipp auf die Mitte schaltet stumm; gespeichert in user://settings.cfg
+		At(inner, Text("Ton", 22, Cyan), 20, 350, 400, 30);
+		AudioRow(inner, 390, SpaceAdventure.Audio.AudioSettings.MusicText, SpaceAdventure.Audio.AudioSettings.MusicMuted,
+			() => SpaceAdventure.Audio.AudioSettings.ChangeMusic(-SpaceAdventure.Audio.AudioSettings.Step), () => SpaceAdventure.Audio.AudioSettings.ChangeMusic(SpaceAdventure.Audio.AudioSettings.Step),
+			SpaceAdventure.Audio.AudioSettings.ToggleMusicMute, "music");
+		AudioRow(inner, 452, SpaceAdventure.Audio.AudioSettings.EffectsText, SpaceAdventure.Audio.AudioSettings.EffectsMuted,
+			() => SpaceAdventure.Audio.AudioSettings.ChangeEffects(-SpaceAdventure.Audio.AudioSettings.Step), () => SpaceAdventure.Audio.AudioSettings.ChangeEffects(SpaceAdventure.Audio.AudioSettings.Step),
+			SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute, "effects");
+	}
+
+	/// <summary>Runde 12: eine Tonzeile „− | Musik 70 % | +“ (Mitte = stumm an/aus).</summary>
+	void AudioRow(Control inner, float y, string text, bool muted, Action down, Action up, Action toggle, string key)
+	{
+		var minus = At(inner, new KitButton("−", new Vector2(56, 56)) { FontSize = 22 }, 20, y);
+		minus.Pressed += () => { down(); Invalidate(); };
+		var mid = At(inner, new KitButton(text, new Vector2(176, 56)) { FontSize = 16, State = muted ? KitButtonState.Normal : KitButtonState.On, Sub = muted ? "tippen: an" : "tippen: stumm" }, 82, y);
+		mid.Pressed += () => { toggle(); Invalidate(); };
+		var plus = At(inner, new KitButton("+", new Vector2(56, 56)) { FontSize = 22 }, 264, y);
+		plus.Pressed += () => { up(); Invalidate(); };
+		if (key == "music") { _testMusicMinus = minus; _testMusicMute = mid; } else _testEffectsMute = mid;
 	}
 
 	bool _choosing;
@@ -93,6 +110,9 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 	}
 
 	KitScroll? _chooserScroll;
+	KitButton? _testMusicMinus, _testMusicMute, _testEffectsMute;
+	/// <summary>Selbsttest: Tontasten (Musik leiser, Musik stumm, Effekte stumm).</summary>
+	public (KitButton? MusicMinus, KitButton? MusicMute, KitButton? EffectsMute) TestAudioButtons => (_testMusicMinus, _testMusicMute, _testEffectsMute);
 	static SpaceSim.Core.Content.WorldDef? _defaultWorld;
 	/// <summary>Für den Selbsttest: Rollbereich der Startpakete (null = zu).</summary>
 	public KitScroll? TestChooserScroll => _choosing ? _chooserScroll : null;

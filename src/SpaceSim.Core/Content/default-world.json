@@ -1068,7 +1068,7 @@
    "stocks": { "hull_plates": [8, 8], "electronics": [4, 4] },
    "recipes": [],
    "capturable": false,
-   "defense": { "hull": 3000, "shield": 400, "shieldRegen": 4, "armor": 80, "pointDefense": 0.3, "guns": ["weapon_laser_s", "weapon_laser_s", "missile_launcher_s"] }
+   "defense": { "hull": 3000, "shield": 400, "shieldRegen": 4, "armor": 80, "pointDefense": 0.3, "guns": ["weapon_laser_s", "weapon_laser_s", "missile_launcher_s", "weapon_laser_s", "weapon_laser_m", "missile_launcher_s"] }
   },
   {
    "key": "company_seat",
@@ -1095,7 +1095,7 @@
    "stocks": { "hull_plates": [8, 8], "electronics": [4, 4] },
    "recipes": [],
    "capturable": false,
-   "defense": { "hull": 1300, "shield": 250, "shieldRegen": 3, "armor": 60, "pointDefense": 0.2, "guns": ["weapon_laser_s", "weapon_laser_s"] }
+   "defense": { "hull": 1300, "shield": 250, "shieldRegen": 3, "armor": 60, "pointDefense": 0.2, "guns": ["weapon_laser_s", "weapon_laser_s", "weapon_laser_s", "weapon_massdriver_s"] }
   },
   {
    "key": "office",
@@ -1138,7 +1138,8 @@
    "income": 0,
    "services": [],
    "recipes": [],
-   "capturable": false
+   "capturable": false,
+   "defense": { "hull": 1200, "shield": 120, "shieldRegen": 1.5, "armor": 50, "pointDefense": 0, "guns": ["weapon_massdriver_s", "weapon_massdriver_s", "weapon_laser_s"] }
   },
   {
    "key": "research_station",
@@ -3769,7 +3770,8 @@
     { "type": "weapon", "size": "S", "facing": "bow", "arc": 60 },
     { "type": "shield", "size": "M" },
     { "type": "armor", "size": "M" },
-    { "type": "utility", "size": "S" }
+    { "type": "utility", "size": "S" },
+    { "type": "weapon", "size": "S" }
    ],
    "kit": "ship_kit_medium"
   },
@@ -4082,6 +4084,22 @@
     {
      "type": "storage",
      "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "reactor",
+     "size": "L"
     }
    ],
    "kit": "ship_kit_heavy",
@@ -4436,13 +4454,14 @@
    "class": "patrol_craft",
    "name": "Wächter",
    "fit": [
-    "reactor_mk2",
+    "reactor_m",
     "chem_engine_m",
     "weapon_laser_s",
     "weapon_massdriver_s",
     "shield_mk1",
     "armor_plating_s",
-    "weapon_magazine_s"
+    "weapon_magazine_s",
+    "weapon_laser_s"
    ]
   },
   {
@@ -4614,8 +4633,12 @@
     "armor_plating_m",
     "point_defense_s_mk2",
     "weapon_magazine_s",
-    null,
-    "power_bank_s_mk2"
+    "point_defense_s_mk2",
+    "power_bank_s_mk2",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_s",
+    "reactor_m"
    ]
   },
   {
@@ -4941,7 +4964,7 @@
    {
     "key": "war",
     "name": "Kriegstest (Test)",
-    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann auf etwa 40 m heranfliegen (die Geschütze reichen 60 m ab Stationsmitte, der Verband bindet die Polizei): nach gut drei Minuten ist das HQ ausgeschaltet. Rückzug: Dauerfeuer aus und aus der Reichweite aller Gegner fliegen (die Zeile „Flucht: …“ sagt, wer noch reicht; 10 s nach dem letzten eigenen Schuss) — der Angriff endet, dein Verband bricht ab und folgt dir. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich.",
+    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann auf etwa 40 m heranfliegen (die Geschütze reichen 60 m ab Stationsmitte, der Verband bindet die Polizei): nach gut zwei Minuten ist das HQ (vier Geschütze) ausgeschaltet. Rückzug: Dauerfeuer aus und aus der Reichweite aller Gegner fliegen (die Zeile „Flucht: …“ sagt, wer noch reicht; 10 s nach dem letzten eigenen Schuss) — der Angriff endet, dein Verband bricht ab und folgt dir. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich.",
     "model": "bastion",
     "credits": 20000,
     "sector": 2,

@@ -47,11 +47,11 @@ public partial class PlayerShip : Node3D
 	/// <summary>Runde 11: Modell wechseln (Schiffswechsel, Umbau); ohne Modell bleibt der Grundkörper.</summary>
 	public void SetModel(string modelKey, Color accent)
 	{
-		if (modelKey == _modelKey) { Visual?.SetAccent(accent); return; }
+		if (modelKey == _modelKey) { Visual?.SetAccent(accent, ShipModels.PlayerAccentEnergy); return; }
 		_modelKey = modelKey;
 		Visual?.Root.QueueFree();
 		Visual = ShipModels.Create(modelKey, accent);
-		if (Visual is not null) AddChild(Visual.Root);
+		if (Visual is not null) { AddChild(Visual.Root); Visual.SetAccent(accent, ShipModels.PlayerAccentEnergy); }
 		foreach (var n in _simple) n.Visible = Visual is null;
 		float half = Visual is not null ? ShipModels.ScaleOf(modelKey) : 2.5f;
 		if (_trail is not null) _trail.Position = new Vector3(0, 0, half + 0.6f);
@@ -63,6 +63,7 @@ public partial class PlayerShip : Node3D
 		if (Visual is null) return;
 		Visual.SetEngine(Thrusting ? 1f : Mathf.Clamp(Velocity.Length() / MaxSpeed, 0.1f, 0.6f));
 		Visual.Spin(spin, delta);
+		Visual.AnimateJaws(delta);
 	}
 
 	public override void _Ready()

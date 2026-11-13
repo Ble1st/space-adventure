@@ -141,12 +141,9 @@ public partial class FlightHud : Control, IScreen
 	/// „Verstärkung (Verband) …“). <paramref name="bottom"/> = Unterkante des sichtbaren Hinweises im Flug, 0 = keiner.
 	/// </summary>
 	public Rect2 TestHitWarningRect => new(_hitWarning.Position, _hitWarning.Size);
-	public void AvoidToast(float bottom)
-	{
-		float y = MathF.Max(HitWarningY, bottom + 4f);
-		if (MathF.Abs(_hitWarning.Position.Y - y) > 0.5f) { _hitWarning.Position = new Vector2(_hitWarning.Position.X, y); _escape.Position = new Vector2(_escape.Position.X, y + 34f); }
-	}
-	const float HitWarningY = 214f;
+	public void AvoidToast(float bottom) { }   // Runde 12: die Zeilen stehen unten, der Hinweis oben — kein Ausweichen mehr nötig
+	public Rect2 TestEscapeRect => new(_escape.Position, _escape.Size);
+	const float HitWarningY = 534f;
 
 	/// <summary>Selbsttest Runde 7: Lage aller Kampftasten und -zeilen, als wären sie sichtbar (Name → Rechteck); Sichtbarkeit bleibt unverändert.</summary>
 	public List<(string Name, Rect2 Rect)> TestCombatLayout(int bays)
@@ -370,9 +367,10 @@ public partial class FlightHud : Control, IScreen
 		_surrender = At(this, new KitButton("Ergeben", new Vector2(176, 56)) { FontSize = 16, State = KitButtonState.Warn }, 906, 398);
 		_surrender.Pressed += () => SurrenderPressed?.Invoke();
 		_surrender.Visible = false;
-		_hitWarning = At(this, Text("", 19, UiKit.Red, HorizontalAlignment.Center), 400, 214, 340, 30);   // Gerätetest Phase 28: unter der zweizeiligen Meldungsfläche
+		// Runde 12 (Handy-Test): Beschuss- und Fluchtzeile unten rechts der Rückwärtstaste, unter der Meldungsfläche — die Bildmitte vor dem Bug bleibt frei
+		_hitWarning = At(this, Text("", 17, UiKit.Red, HorizontalAlignment.Center), 570, HitWarningY, 330, 28);   // rechts von „RÜCK“ (bis 550), links der Schachtspalte (ab 906)
 		// Runde 5: Fluchtlage unter der Beschusswarnung — wer noch reicht (dieselbe Regel wie die Simulation)
-		_escape = At(this, Text("", 15, UiKit.Orange, HorizontalAlignment.Center), 400, 248, 340, 22);
+		_escape = At(this, Text("", 14, UiKit.Orange, HorizontalAlignment.Center), 570, HitWarningY + 32f, 330, 22);
 		_escape.ClipText = true; _escape.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		_escape.Visible = false;
 		// Prüfung Phase 28: dunkler Grund unter Lage-, Fahndungs- und Beschusszeile (3D-Beschriftungen und Ringe schienen durch) und Beschusszeile links von „Nächster Gegner“

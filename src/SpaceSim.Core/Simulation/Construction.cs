@@ -169,14 +169,14 @@ public static class ConstructionRules
             site = reuse;
             // übriges Material, das das neue Projekt nicht braucht, nimmt die Baustelle nicht weiter an (Wunschbestand = Bestand)
             foreach (var e in site.Market.Values) e.Target = e.Amount;
-            site.Name = $"Baustelle {type.Name} {shortName} {site.Id.Value}";
+            site.Name = $"Baustelle {StationFactory.BuiltName(u, type, sector)}";
             site.Owner = owner;
             u.TouchStructure();
         }
         else
         {
             var id = u.NewStationId();
-            site = StationFactory.Create(u, id, siteType, $"Baustelle {type.Name} {shortName} {id.Value}", sector, spot, owner);
+            site = StationFactory.Create(u, id, siteType, $"Baustelle {StationFactory.BuiltName(u, type, sector)}", sector, spot, owner);
             site.Credits = 0f;
         }
         foreach (var (g, units) in bill)
@@ -290,7 +290,7 @@ public static class ConstructionRules
         var bs = site.Site!;
         var type = u.StationTypes[bs.TypeKey];
         string shortName = u.Sectors[site.Sector].Name.Split(' ').Last();
-        var st = StationFactory.Create(u, site.Id, type, $"{type.Name} {shortName} {site.Id.Value}", site.Sector, site.Position, site.Owner);
+        var st = StationFactory.Create(u, site.Id, type, StationFactory.BuiltName(u, type, site.Sector, site.Id), site.Sector, site.Position, site.Owner);
         st.Credits = NewStationCredits;
         st.Panic = bs.Panic;   // Phase 20: Ersatz aus einer Versorgungspanik
         var builder = bs.Builder;

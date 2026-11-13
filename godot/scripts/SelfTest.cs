@@ -513,6 +513,10 @@ public partial class SelfTest : Node
 				Check(_m.TestCamAngles.Dist < d0 - 1f, "Menü: Zoom + geht näher heran");
 				_m.TestCameraAction("zoom_out");
 				Check(System.Math.Abs(_m.TestCamAngles.Dist - d0) < 0.5f, "Menü: Zoom − geht zurück");
+				// Runde 12: gleichmäßige Stufen, über das Menü bis zur Höchstdistanz
+				for (int i = 0; i < SpaceSim.Core.Flight.OrbitCamera.ZoomSteps + 1; i++) _m.TestCameraAction("zoom_out");
+				Check(System.Math.Abs(_m.TestCamAngles.Dist - SpaceSim.Core.Flight.OrbitCamera.MaxDistance) < 0.5f, $"Menü: Zoom − erreicht {SpaceSim.Core.Flight.OrbitCamera.MaxDistance} ({_m.TestCamAngles.Dist:0})");
+				_m.TestResetCam();
 				_m.TestCameraAction("cam_lock");
 				Check(_m.TestCamMode == CameraMode.TargetLock, "Menü: Target-Lock aktiv");
 				Next(); break;
@@ -1316,6 +1320,13 @@ public partial class SelfTest : Node
 					var pl = uni.Ships[uni.PlayerShip];
 					var raider = uni.Ships[_p25Raider];
 					Check(_m.HudRef.Flight.TestTargetCombat.Contains("Hülle"), $"Zielkarte zeigt Schild und Hülle („{_m.HudRef.Flight.TestTargetCombat}“)");
+					// Runde 12 (Handy-Test): der Gegner vor dem Bug liegt nicht unter Meldung, Beschuss- oder Fluchtzeile
+					if (_m.TestView.ShipPosition(raider.Id) is { } rp)
+					{
+						var sp = _m.TestScreenOf(rp);
+						var rects = new[] { _m.HudRef.TestAlertRect, _m.HudRef.Flight.TestHitWarningRect, _m.HudRef.Flight.TestEscapeRect };
+						Check(!rects.Any(r => r.Grow(8f).HasPoint(sp)), $"Gegner im Bild frei von Warnflächen ({sp})");
+					}
 					_m.TestFace(raider.Position);
 					var keys = _m.TestBayKeys.ToList();
 					int wi = keys.FindIndex(k => k == SpaceSim.Core.Combat.PlayerGunnery.BayPrefix + pl.Fit.IndexOf("weapon_laser_s"));
@@ -1920,7 +1931,9 @@ public partial class SelfTest : Node
 					Check(!a.Intersects(_m.HudRef.Flight.TestNextEnemyRect), $"Meldung verdeckt „Nächster Gegner“ nicht ({a})");
 					// zweiter Gerätetest Phase 28: die Meldung sitzt oben mittig unter Sektorchip/Lagezeile und verdeckt keine Taste des Flug-HUD
 					var under = Buttons(_m.HudRef.Flight).Where(b => b.IsVisibleInTree() && b.GetGlobalRect().Intersects(a)).Select(b => b.Text).ToList();
-					Check(under.Count == 0 && a.Position.Y < 160f, $"Meldung oben mittig, verdeckt keine Flug-Taste ({a}; {string.Join(",", under)}; Bildschirm {_m.HudRef.Screens.Current?.Id ?? "Flug"})");
+					// Runde 12 (Handy-Test): unten mittig über dem Tempo-Regler — die Bildmitte vor dem Bug (dort steht der Gegner) bleibt frei
+					bool dockMenuOpen = _m.HudRef.Screens.Current?.Id == "dock.menu";   // über dem Dock-Menü steht sie links neben dem Fenster (eigene Prüfung unten)
+					Check(under.Count == 0 && (dockMenuOpen || (a.Position.Y > 400f && !a.Intersects(_m.HudRef.Flight.TestHitWarningRect))), $"Meldung unten mittig, verdeckt keine Flug-Taste ({a}; {string.Join(",", under)}; Bildschirm {_m.HudRef.Screens.Current?.Id ?? "Flug"})");
 					_m.HudRef.HideAlert();
 					var war = SpaceSim.Core.Simulation.Wars.Declare(uni, new FactionId(1), new FactionId(2));
 					_p28WarAlert = _m.HudRef.TestAlert;
@@ -2598,6 +2611,7 @@ public partial class SelfTest : Node
 			}
 			case 90: if (GateModelStage(_frame - _stageStart)) Next(); break;   // Jumpgate-Modelle (SelfTest.Gates.cs)
 			case 91: if (ShipModelStage(_frame - _stageStart)) Next(); break;   // Runde 11: Schiffsmodelle, Mündungen, Türme (SelfTest.Ships.cs)
+			case 92: if (AudioStage(_frame - _stageStart)) Next(); break;   // Runde 12: Musikzustände, Signale, Ton-Busse und Einstellungen (SelfTest.Audio.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

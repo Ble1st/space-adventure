@@ -141,7 +141,14 @@ public sealed class PursueExecutor : IOrderExecutor
         var (ts, tpos) = ThreatMap.Where(u, t);
         if (!Jurisdiction.Covers(u, ship, ts)) return End(u, ship, c.Target, "border");
         if (t.Transit is null && PirateSystem.AtHome(u, t)) return End(u, ship, c.Target, "safe");
-        var (ms, _) = ThreatMap.Where(u, ship);
+        var (ms, mpos) = ThreatMap.Where(u, ship);
+        // Runde 12: das Versteck hat Geschütze — die Streife verfolgt nicht in ihre Reichweite (Ziel oder Streife nahe am Versteck: abbrechen)
+        if (u.Rules.PursuitStopsAtHideoutGuns && PirateSystem.Home(u, t) is { } home && StationCombat.GunRange(u, home) is > 0f and var reach)
+        {
+            float guard = reach + u.Rules.HideoutGunMargin;
+            if ((ts == home.Sector && Vec2.Distance(tpos, home.Position) <= guard) || (ms == home.Sector && Vec2.Distance(mpos, home.Position) <= guard))
+                return End(u, ship, c.Target, "safe");
+        }
         if (ms == ts && !u.Fights.IsEngaged(t.Id))
         {
             float seconds = ShipSystems.Seconds(dt);

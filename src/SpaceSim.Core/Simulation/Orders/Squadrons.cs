@@ -176,12 +176,27 @@ public static class Squadrons
     /// <summary>
     /// Versatz eines Mitglieds in der Formation relativ zum Anführer (nur Darstellung; Index 0 = Anführer, Richtung = Flugrichtung des Anführers).
     /// </summary>
-    public static Vec2 Offset(Formation f, int index, Vec2 dir)
+    public static Vec2 Offset(Formation f, int index, Vec2 dir) => Offset(f, index, dir, 7f);
+
+    /// <summary>
+    /// Runde 12 (Handy-Test: zwei Fregatten im Kriegstest standen übereinander): Abstand der Formationsplätze nach der größten Klasse im Verband
+    /// (S 7 · M 10 · L 16 · XL 24 Einheiten) — nur Darstellung.
+    /// </summary>
+    public static float FormationGap(Universe u, Squadron sq)
+    {
+        float gap = 7f;
+        foreach (var id in sq.Members)
+            if (u.Ships.TryGetValue(id, out var s) && u.ShipModels.TryGetValue(s.ModelKey, out var m) && u.ShipClasses.TryGetValue(m.ClassKey, out var c))
+                gap = MathF.Max(gap, c.Size switch { SlotSize.S => 7f, SlotSize.M => 10f, SlotSize.L => 16f, _ => 24f });
+        return gap;
+    }
+
+    /// <summary>Formationsplatz <paramref name="index"/> hinter/neben dem Anführer mit Abstand <paramref name="gap"/>.</summary>
+    public static Vec2 Offset(Formation f, int index, Vec2 dir, float gap)
     {
         if (index <= 0) return default;
         var back = dir.Normalized() * -1f;
         var side = new Vec2(-back.Y, back.X);
-        const float gap = 7f;
         int k = (index + 1) / 2, sign = index % 2 == 1 ? 1 : -1;
         return f switch
         {

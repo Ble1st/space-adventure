@@ -82,6 +82,8 @@ public class Phase28Tests
         new SimulationRunner().Run(u, 20000);
         // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher CB2A9FDBF34B15AB)
         Assert.Equal(0x81DFD311790D8AD1UL, UniverseHash.Compute(u));   // Runde 11: nur die Namensliste geändert (alte Liste: 0x92842D6D5BA8AE3F)
+        // Runde 12: ohne die Kürzel (Namensliste) gilt weiter der Wert vor Phase 29 — die geänderte Konstante kommt nur von den Kürzeln
+        Assert.Equal(0xCB2A9FDBF34B15ABUL, UniverseHash.Compute(u, includeTags: false));
     }
 
     // ───────── Hilfen ─────────
@@ -1054,6 +1056,9 @@ public class Phase28Tests
     public void Ueberfall_WaehrendGefecht_TrittNurGegenKapererBei(bool againstRaiders)
     {
         var u = Standard();
+        u.Rules.InterceptRatePerTick = 0f;   // Runde 12: keine zufällige Streife fängt den späten Kaperer in einem eigenen Gefecht ab (pfadabhängig)
+        u.Rules.StationGunsActive = false;   // Runde 12: das Hauptquartier (sechs Geschütze, Raketen 110 m) beendete das erste Gefecht vor dem späten Überfall
+        if (againstRaiders) foreach (var cop in SecuritySystem.PoliceOf(u, u.Sectors[u.PlayerSector].Owner)) { if (cop.Transit is not null) u.FinishTransit(cop); if (cop.Command is not null) Commands.Cancel(u, cop); if (Squadrons.Get(u, cop) is { } csq) Squadrons.Disband(u, csq); Place(u, cop, new SectorId(2), new Vec2(0f, 0f)); cop.NextThinkTick = u.Tick + 100_000; }   // Runde 12: die stärkere Streife (dritter Laser) half sofort, der erste Kaperer floh vor dem späten Überfall
         new SimulationRunner().Step(u);
         var me = u.Ships[u.PlayerShip];
         var sector = u.Sectors[me.Sector];
@@ -1223,7 +1228,7 @@ public class Phase28Tests
         Assert.True(d > StationCombat.GunRange(u, st), $"außerhalb der Geschütze ({d:0} m)");
         Assert.True(d <= WarInfo.MissileReachFromCentre(u, me), $"innerhalb der Raketenreichweite ({d:0} m)");
         Assert.Equal("außerhalb Geschütze · Raketen ja", WarInfo.RangeStatus(u, st, me));
-        Assert.Equal($"2 Geschütze · {StationCombat.GunRange(u, st):0} m", WarInfo.DefenseWarning(u, st, me));
+        Assert.Equal($"4 Geschütze · {StationCombat.GunRange(u, st):0} m", WarInfo.DefenseWarning(u, st, me));   // Runde 12: Sektor-HQ mit vier Geschützen
         me.Position = st.Position + (me.Position - st.Position).Normalized() * (StationCombat.GunRange(u, st) - 1f);
         Assert.StartsWith("IN GESCHÜTZREICHWEITE", WarInfo.RangeStatus(u, st, me));
     }

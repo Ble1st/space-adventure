@@ -208,4 +208,20 @@ public class OrbitCameraTests
         cur = OrbitCamera.Follow(cur, new CamVec3(100, 0, 0), 0f);
         Assert.Equal(before, cur);   // delta 0: keine Bewegung
     }
+
+    [Fact]
+    public void MenueZoom_GleichmaessigeStufen_BisZurHoechstdistanz()
+    {
+        var cam = new OrbitCamera();
+        float d0 = cam.Distance;
+        cam.ZoomStep(+1);
+        float step = cam.Distance - d0;
+        Assert.Equal((OrbitCamera.MaxDistance - OrbitCamera.MinDistance) / OrbitCamera.ZoomSteps, step, 3);
+        cam.ZoomStep(-1);
+        Assert.Equal(d0, cam.Distance, 3);   // hin und zurück gleich groß
+        for (int i = 0; i < OrbitCamera.ZoomSteps + 2; i++) cam.ZoomStep(+1);
+        Assert.Equal(OrbitCamera.MaxDistance, cam.Distance);   // über das Menü bis 140 erreichbar
+        for (int i = 0; i < OrbitCamera.ZoomSteps + 2; i++) cam.ZoomStep(-1);
+        Assert.Equal(OrbitCamera.MinDistance, cam.Distance);
+    }
 }

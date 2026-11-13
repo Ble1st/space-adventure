@@ -93,7 +93,9 @@ public static class StartScenario
             var w = Simulation.ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Player, Controller.Player, player.Owner, at, 0f);
             w.DockedAt = default;
             w.Sector = player.Sector;
-            w.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(i % 2 == 0 ? -14f : 14f, 10f + 8f * (i / 2)));
+            // Runde 12 (Handy-Test): Startplätze in Formation mit dem Abstand der Schiffsgröße (Fregatten 16) — vorher ±14/10 und die Begleiter überlagerten sich
+            float gap = cls.Size switch { SlotSize.S => 7f, SlotSize.M => 10f, SlotSize.L => 16f, _ => 24f };
+            w.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + Squadrons.Offset(Formation.Wedge, i + 1, new Vec2(0f, -1f), gap));
             u.AddShip(w);
             if (!Squadrons.Join(u, sq, w, out var jm)) throw new WorldFormatException($"Startpaket '{key}': {jm}");
         }

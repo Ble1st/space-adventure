@@ -111,7 +111,10 @@ public static class SaveGameJson
             if ((string?)c["key"] == "miner_heavy" && c["slots"] is System.Text.Json.Nodes.JsonArray mh)
                 foreach (var sl in mh) if (sl is not null && (string?)sl["type"] == "tool") sl["size"] = "S";   // Phase 29: Werkzeugslot M (Schneidrad)
             if ((string?)c["key"] == "patrol_craft" && c["slots"] is System.Text.Json.Nodes.JsonArray ps)
+            {
                 foreach (var sl in ps) if (sl is not null && (string?)sl["size"] == "M" && (string?)sl["type"] != "engine") sl["size"] = "S";
+                while (ps.Count > 7) ps.RemoveAt(ps.Count - 1);   // Runde 12: Turmslot des Wächters kam nach v17
+            }
         }
         foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
         {

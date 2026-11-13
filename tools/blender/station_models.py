@@ -134,6 +134,9 @@ def build(key):
             break
         merge_material(b, src, dst)
     parts = getattr(b, "parts", [])
+    if key in DARK_KEEP:               # Tuerme im Piratenstil: kein eigenes Schiffs-Paneelmaterial
+        for rb in parts:
+            rb.mats = [M("Steel") if m.name == "ShipPanel" else m for m in rb.mats]
     if not parts:
         HARDPOINTS[key] = []
         return b.finish()
@@ -1001,6 +1004,11 @@ def headquarters(b):
     for i, (x, y, a) in enumerate(polar(2, 5.0, 90)):
         hp_turret(b, i, (x, y, 1.15), s=1.0)
     hp_shafts(b, 2, (5.2, 0.0, 1.1), rows=2, cols=2, cell=0.55)
+    b.cyl(1.5, 0.3, M("Armor"), seg=8, loc=(-5.2, 0, -1.05))
+    hp_turret(b, 3, (-5.2, 0.0, -1.2), s=1.0, up=False)
+    b.cyl(1.9, 0.3, M("Armor"), seg=8, loc=(-5.2, 0, 1.05))
+    hp_turret(b, 4, (-5.2, 0.0, 1.2), s=1.35, twin=True, length=2.2)
+    hp_shafts(b, 5, (5.2, 0.0, -1.1), rows=2, cols=2, cell=0.55, down=True)
     b.mast((1.0, 0.6, 9.0), 2.2)
 
 
@@ -1047,6 +1055,8 @@ def sector_hq(b):
         b.hangar_slit(d * (R + 0.5), d, w=1.6, h=0.6)
     for i, (x, y, a) in enumerate(polar(2, R - 0.8, 0)):
         hp_turret(b, i, (x, y, 0.8), s=1.0)
+    hp_turret(b, 2, (0, R - 0.8, -0.8), s=1.0, up=False)
+    hp_turret(b, 3, (0, -(R - 0.8), -0.8), s=1.0, up=False, length=2.2)
     b.cyl(0.35, 1.2, M("HullDark"), seg=6, loc=(0, 0, 3.0))
     b.dish((0, 0, 3.6), 1.8, M("Hull"), rot=(-30, 0, 30))
     b.dock(V(0, 0, -2.5), (0, 0, -1), r=0.6, L=1.8, mat="Armor")
@@ -1150,11 +1160,23 @@ def pirate_hideout(b):
         dv = V(*dv).normalized()
         b.lathe([(0.55, 0), (0.25, 2.4), (0, 3.6)], M("HullDark" if dv.z > 0 else "Rust"), seg=4,
                 loc=dv * 5.2, rot=qdir(dv))
-    # grobe Geschuetze
-    pass
-    pass
-    pass
-    pass
+    # grobe Geschuetze in Kasematten im Fels: Massetreiber an der Flanke und unter dem Bauch, Laser oben
+    c = V(7.2, 1.2, 0.4)
+    b.box(3.4, 2.8, 2.6, M("HullDark"), loc=c, rot=(0, 0, 8))
+    b.box(3.6, 0.4, 2.9, M("Rust"), loc=c + V(0, 1.3, 0), rot=(0, 0, 8))
+    b.box(0.3, 3.0, 0.5, M("Hazard"), loc=c + V(1.7, 0, 1.15))
+    b.box(0.4, 1.0, 0.8, M("Steel"), loc=c + V(1.65, -0.9, -0.8), rot=(15, 0, 0))
+    hp_turret(b, 0, c + V(1.7, 0, 0), s=1.0, side=1, length=2.4)
+    c = V(1.8, 0.6, -6.6)
+    b.cyl(1.6, 2.8, M("Rust"), seg=6, loc=c + V(0, 0, 1.3))
+    b.box(3.4, 0.3, 0.9, M("Armor"), loc=c + V(0, 1.3, 0.5), rot=(0, -10, 0))
+    b.box(0.5, 0.5, 0.5, M("Glow"), loc=c + V(-1.5, -0.5, 0.6))
+    hp_turret(b, 1, c - V(0, 0, 0.1), s=1.0, up=False, length=2.4)
+    c = V(0.6, 2.4, 6.2)
+    b.cyl(1.5, 2.6, M("Rust"), seg=6, loc=c - V(0, 0, 1.2))
+    b.box(3.4, 0.3, 0.9, M("Armor"), loc=c + V(0, -1.3, -0.4), rot=(0, 10, 0))
+    b.box(0.6, 0.6, 0.6, M("Glow"), loc=c + V(1.4, 0.4, -0.6))
+    hp_turret(b, 2, c + V(0, 0, 0.1), s=0.95, length=1.8)
     # Trossen zu Brocken
     for i, (c, r) in enumerate(((V(-8.6, 2.6, 1.0), 1.4), (V(7.6, 4.4, -1.6), 1.1), (V(3.4, -7.8, 2.6), 0.9))):
         b.rock(r, M("Rock"), seed=11 + i, seg=7, rings=5, loc=c, amp=0.45)

@@ -29,19 +29,19 @@ public partial class Sfx : Node
 		_sounds[SfxId.Crack] = Make(0.25f, t => (Noise(rng) * 0.6f + Sine(160, t) * 0.4f) * Decay(t, 0.25f, 5f));
 		_sounds[SfxId.Click] = Make(0.05f, t => Sine(1000, t) * 0.4f * Decay(t, 0.05f, 4f));
 
-		_oneShot = new AudioStreamPlayer { VolumeDb = -6f };
+		_oneShot = new AudioStreamPlayer { Bus = SpaceAdventure.Audio.AudioSettings.EffectsBus, VolumeDb = -6f };
 		AddChild(_oneShot);
 
 		// Triebwerk: gedämpftes Rauschen als Schleife, Lautstärke folgt dem Schub
 		float lp = 0f;
 		var loop = Make(1f, _ => { lp += (Noise(rng) - lp) * 0.08f; return lp * 1.6f; }, loop: true);
-		_thrust = new AudioStreamPlayer { Stream = loop, VolumeDb = -80f };
+		_thrust = new AudioStreamPlayer { Bus = SpaceAdventure.Audio.AudioSettings.EffectsBus, Stream = loop, VolumeDb = -80f };
 		AddChild(_thrust);
 		_thrust.Play();
 
 		// Laser: gesägter Brummton mit leichtem Vibrato, nur hörbar während des Feuerns
 		var buzz = Make(0.5f, t => ((t * 140f % 1f) * 2f - 1f) * 0.35f * (0.8f + 0.2f * Sine(14, t)), loop: true);
-		_laser = new AudioStreamPlayer { Stream = buzz, VolumeDb = -80f };
+		_laser = new AudioStreamPlayer { Bus = SpaceAdventure.Audio.AudioSettings.EffectsBus, Stream = buzz, VolumeDb = -80f };
 		AddChild(_laser);
 		_laser.Play();
 	}

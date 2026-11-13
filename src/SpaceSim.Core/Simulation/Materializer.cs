@@ -11,7 +11,13 @@ public readonly record struct ShipSnapshot(ShipId Id, ShipRole Role, Vec2 Positi
 /// </summary>
 public static class Materializer
 {
-    public static List<ShipSnapshot> Snapshot(Universe u, SectorId sector, double tick)
+    public static List<ShipSnapshot> Snapshot(Universe u, SectorId sector, double tick) => Snapshot(u, sector, tick, null);
+
+    /// <summary>
+    /// Runde 12: <paramref name="playerHeading"/> = Blickrichtung des aktiven Spielerschiffs (nur die Ansicht kennt sie) — Begleiter eines Verbands, den der Spieler
+    /// führt, stehen damit in Formation um ihn (vorher liefen sie zur selben Stelle und überlagerten sich).
+    /// </summary>
+    public static List<ShipSnapshot> Snapshot(Universe u, SectorId sector, double tick, Vec2? playerHeading)
     {
         var result = new List<ShipSnapshot>();
 
@@ -43,7 +49,7 @@ public static class Materializer
                 break;
             }
         }
-        if (u.Squadrons.Count > 0) ApplyFormations(u, result);
+        if (u.Squadrons.Count > 0) ApplyFormations(u, result, playerHeading);
         return result;
     }
 
@@ -51,20 +57,24 @@ public static class Materializer
     /// Phase 12: Formation der Verbände (nur Darstellung): Mitglieder nahe ihrem Anführer werden um ihn versetzt (Richtung = Flugrichtung des
     /// Anführers). Die Simulation bleibt unberührt.
     /// </summary>
-    static void ApplyFormations(Universe u, List<ShipSnapshot> snaps)
+    static void ApplyFormations(Universe u, List<ShipSnapshot> snaps, Vec2? playerHeading)
     {
         var index = new Dictionary<ShipId, int>();
         for (int i = 0; i < snaps.Count; i++) index[snaps[i].Id] = i;
         foreach (var sq in u.Squadrons.Values.OrderBy(s => s.Id.Value))
         {
-            if (!index.TryGetValue(sq.Leader, out int li)) continue;
-            var lead = snaps[li];
+            ShipSnapshot lead;
+            if (index.TryGetValue(sq.Leader, out int li)) lead = snaps[li];
+            else if (sq.Leader == u.PlayerShip && playerHeading is { } ph && u.Ships.TryGetValue(sq.Leader, out var me) && me.Transit is null)
+                lead = new ShipSnapshot(me.Id, me.Role, me.Position, ph, false);   // Runde 12: der Spieler führt
+            else continue;
+            float gap = Squadrons.FormationGap(u, sq);
             for (int m = 1; m < sq.Members.Count; m++)
             {
                 if (!index.TryGetValue(sq.Members[m], out int mi)) continue;
                 var s = snaps[mi];
-                if (Vec2.Distance(s.Position, lead.Position) > 30f) continue;
-                snaps[mi] = s with { Position = lead.Position + Squadrons.Offset(sq.Formation, m, lead.Direction), Direction = lead.Direction, Moving = lead.Moving };
+                if (Vec2.Distance(s.Position, lead.Position) > 30f + gap * m) continue;
+                snaps[mi] = s with { Position = lead.Position + Squadrons.Offset(sq.Formation, m, lead.Direction, gap), Direction = lead.Direction, Moving = lead.Moving };
             }
         }
     }

@@ -144,6 +144,13 @@ public sealed class ShipVisual
 	int _engineLevel = -1;
 	Color _accent;
 	bool _accentSet;
+	float _accentEnergy = 0.35f;
+	readonly List<Basis> _jawRest = new();
+	float _jawTime = -1f;
+	/// <summary>Dauer einer Backenbewegung (Spalten) in Sekunden und größter Öffnungswinkel.</summary>
+	public const float JawSeconds = 0.5f, JawAngle = 0.55f;
+	/// <summary>Selbsttest: aktueller Öffnungswinkel der Spaltbacken (0 = Ruhe).</summary>
+	public float JawOpen { get; private set; }
 	/// <summary>Aktueller Drehwinkel der Werkzeuge (Selbsttest: wächst bei Kontaktabbau).</summary>
 	public float RotorAngle { get; private set; }
 
@@ -156,12 +163,35 @@ public sealed class ShipVisual
 		foreach (var (mi, i, src) in Engines) mi.SetSurfaceOverrideMaterial(i, ShipModels.EngineVariant(src, level));
 	}
 
-	/// <summary>Akzent in der Besitzerfarbe.</summary>
-	public void SetAccent(Color c)
+	/// <summary>Akzent in der Besitzerfarbe (<paramref name="energy"/> = Eigenleuchten; das Spielerschiff leuchtet kräftiger).</summary>
+	public void SetAccent(Color c, float energy = 0.35f)
 	{
-		if (_accentSet && c == _accent) return;
-		_accent = c; _accentSet = true;
-		foreach (var (mi, i, src) in Accents) mi.SetSurfaceOverrideMaterial(i, ShipModels.AccentVariant(src, c));
+		if (_accentSet && c == _accent && energy == _accentEnergy) return;
+		_accent = c; _accentSet = true; _accentEnergy = energy;
+		foreach (var (mi, i, src) in Accents) mi.SetSurfaceOverrideMaterial(i, ShipModels.AccentVariant(src, c, energy));
+	}
+
+	/// <summary>Runde 12: Spaltbacken (<c>Jaw_*</c>) einmal auf- und zuklappen (beim Spalten).</summary>
+	public void SnapJaws()
+	{
+		if (Jaws.Count == 0) return;
+		if (_jawRest.Count != Jaws.Count) { _jawRest.Clear(); foreach (var j in Jaws) _jawRest.Add(j.Transform.Basis); }
+		_jawTime = 0f;
+	}
+
+	/// <summary>Backenbewegung weiterführen (je Bild); Paare klappen gegenläufig um ihre lokale Z-Achse.</summary>
+	public void AnimateJaws(float delta)
+	{
+		if (_jawTime < 0f || Jaws.Count == 0 || _jawRest.Count != Jaws.Count) return;
+		_jawTime += delta;
+		float t = Mathf.Clamp(_jawTime / JawSeconds, 0f, 1f);
+		JawOpen = Mathf.Sin(t * Mathf.Pi) * JawAngle;
+		for (int i = 0; i < Jaws.Count; i++)
+		{
+			float sign = Jaws[i].Name.ToString().EndsWith("_L") ? -1f : 1f;
+			Jaws[i].Basis = _jawRest[i] * new Basis(Vector3.Back, sign * JawOpen);
+		}
+		if (t >= 1f) { _jawTime = -1f; JawOpen = 0f; }
 	}
 
 	/// <summary>Werkzeuge drehen (<paramref name="spin"/> 0..1 wie <c>ContactMining.Spin</c>; Drehachse lokal Z).</summary>
@@ -312,9 +342,9 @@ public static class ShipModels
 		return v;
 	}
 
-	internal static Material AccentVariant(Material src, Color accent)
+	internal static Material AccentVariant(Material src, Color accent, float energy = 0.35f)
 	{
-		var key = (src.GetInstanceId(), "a:" + accent.ToHtml(false));
+		var key = (src.GetInstanceId(), "a:" + accent.ToHtml(false) + ":" + energy.ToString("0.00"));
 		if (_overrides.TryGetValue(key, out var m)) return m;
 		m = (Material)src.Duplicate();
 		if (m is BaseMaterial3D b)
@@ -323,11 +353,15 @@ public static class ShipModels
 			b.AlbedoColor = new Color(sat.R, sat.G, sat.B, b.AlbedoColor.A);
 			b.EmissionEnabled = true;
 			b.Emission = sat;
-			b.EmissionEnergyMultiplier = 0.35f;
+			b.EmissionEnergyMultiplier = energy;
 		}
 		_overrides[key] = m;
 		return m;
 	}
+
+	/// <summary>Runde 12 (Prüfung: „Spieler-Akzent kaum sichtbar“): kräftiges Cyan und starkes Eigenleuchten für das eigene Schiff.</summary>
+	public static readonly Color PlayerAccent = new(0f, 0.85f, 1f);
+	public const float PlayerAccentEnergy = 1.4f;
 
 	internal static Material EngineVariant(Material src, int level)
 	{
@@ -348,7 +382,7 @@ public static class ShipModels
 	/// <summary>Akzentfarbe eines Besitzers: Fraktionsfarbe, Gesetzlose rot, sonst grau (wie die Stationen).</summary>
 	public static Color AccentOf(SpaceSim.Core.Model.Universe u, SpaceSim.Core.Model.ActorId owner)
 	{
-		if (owner == u.PlayerActor) return new Color(0.3f, 0.85f, 1f);
+		if (owner == u.PlayerActor) return PlayerAccent;
 		if (u.Actors.TryGetValue(owner, out var a))
 		{
 			if (a.Membership is { } f) return Ui.MapOverlay.FactionColor(f);

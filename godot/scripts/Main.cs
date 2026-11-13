@@ -39,6 +39,9 @@ public partial class Main : Node3D
 	Hud _hud = null!;
 	Fx _fx = null!;
 	Sfx _sfx = null!;
+	/// <summary>Runde 12: Musikregler (Zustand aus dem Core, Schichten/Stimmungen/Signale aus music.json).</summary>
+	SpaceAdventure.Audio.MusicDirector _music = null!;
+	internal SpaceAdventure.Audio.MusicDirector TestMusic => _music;
 	MiningView _mining = null!;
 	CombatView _combat = null!;   // Phase 24: Schüsse der NPC-Gefechte im Spielersektor
 	/// <summary>Phase 25: Spielerkampf (Zielwahl, Schüsse über die Core-Regel, Dauerfeuer, Beschusswarnung).</summary>
@@ -105,7 +108,9 @@ public partial class Main : Node3D
 		_combat.StationMuzzleDirOf = _view.StationMuzzleDirection;
 		_player = new PlayerShip(); AddChild(_player);
 		_fx = new Fx(); AddChild(_fx);
+		SpaceAdventure.Audio.AudioSettings.Init();   // Runde 12: Busse „Musik“/„Effekte“ und gespeicherte Lautstärken (user://settings.cfg)
 		_sfx = new Sfx(); AddChild(_sfx);
+		_music = new SpaceAdventure.Audio.MusicDirector(); AddChild(_music);
 		_cam = new Camera3D { Fov = 50f, Far = 4000f }; AddChild(_cam);
 		_hud = new Hud(); AddChild(_hud);
 
@@ -347,23 +352,41 @@ public partial class Main : Node3D
 	/// Gerätetest Phase 27: 3D-Beschriftungen, die hinter einem HUD-Element liegen (Drehknöpfe, Regler, Statusleiste), werden fast durchsichtig — sie liefen
 	/// sonst unter den Tasten durch und waren unlesbar. Fünfmal je Sekunde geprüft.
 	/// </summary>
+	/// <summary>Selbsttest (Runde 12): sichtbare 3D-Schilder überlappen sich auf dem Bildschirm nicht.</summary>
+	internal bool TestLabelsOverlap()
+	{
+		var boxes = new List<Rect2>();
+		foreach (var l in _view.Labels().Where(x => x.IsInsideTree() && x.Visible && !_cam.IsPositionBehind(x.GlobalPosition)))
+		{
+			var sp = _cam.UnprojectPosition(l.GlobalPosition);
+			float half = Mathf.Max(20f, l.Text.Length * 4.5f);
+			var box = new Rect2(sp - new Vector2(half, 11f), new Vector2(half * 2f, 22f));
+			if (boxes.Any(b => b.Intersects(box))) return true;
+			boxes.Add(box);
+		}
+		return false;
+	}
+
 	void HideCoveredLabels(float delta)
 	{
 		_labelCheck -= delta;
 		if (_labelCheck > 0f) return;
 		_labelCheck = 0.2f;
 		var rects = _hud.Flight.OccupiedRects();
-		foreach (var l in _view.Labels())
+		var shown = new List<Rect2>();
+		// Runde 12 (Handy-Test: „[LTR] Elektronikfab…“ über „Wasserwerk Borealis“): nähere Schilder zuerst; ein Schild, das ein näheres überdeckt, wird ausgeblendet
+		foreach (var l in _view.Labels().Where(x => x.IsInsideTree()).OrderBy(x => x.GlobalPosition.DistanceSquaredTo(_cam.GlobalPosition)))
 		{
-			if (!l.IsInsideTree()) continue;
 			var p = l.GlobalPosition;
 			// Runde 4: ganze Beschriftung prüfen (vorher nur ihr Mittelpunkt — „Wrack“ lag halb unter dem rechten HUD)
 			var sp = _cam.UnprojectPosition(p);
 			float half = Mathf.Max(20f, l.Text.Length * 4.5f);
 			var box = new Rect2(sp - new Vector2(half, 11f), new Vector2(half * 2f, 22f));
-			bool covered = !_cam.IsPositionBehind(p) && rects.Any(r => r.Intersects(box));
+			bool behind = _cam.IsPositionBehind(p);
+			bool covered = !behind && (rects.Any(r => r.Intersects(box)) || shown.Any(r => r.Intersects(box)));
 			// Phase 29 (Handy-Test der Stationsmodelle): unter HUD-Flächen ganz ausblenden (vorher nur abgedunkelt — hohe Modelle schoben Schilder unter Sektor-Chip und Zielkarte)
 			l.Visible = !covered;
+			if (!covered && !behind) shown.Add(box);
 		}
 	}
 
@@ -388,6 +411,8 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Click);
 		switch (action)
 		{
+			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); break;   // Runde 12
+			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); break;
 			case "save": SaveNow(manual: true); break;
 			case "load":
 				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
@@ -418,8 +443,8 @@ public partial class Main : Node3D
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
 			// Kamera-Einstellungen: Menü bleibt offen, damit man die Wirkung sieht
-			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.Zoom(MenuZoomStep); RefreshCameraMenu(); break;
-			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.Zoom(1f / MenuZoomStep); RefreshCameraMenu(); break;
+			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.ZoomStep(-1); RefreshCameraMenu(); break;   // Runde 12: gleichmäßige Stufen
+			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.ZoomStep(+1); RefreshCameraMenu(); break;
 			case "cam_free": _sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.Free; RefreshCameraMenu(); break;
 			case "cam_lock":
 				_sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.TargetLock; RefreshCameraMenu();
@@ -506,6 +531,7 @@ public partial class Main : Node3D
 	{
 		_hud.Command.SetCameraState(_orbit.Mode == CameraMode.TargetLock, _orbit.InvertDrag, _orbit.Distance, LockTargetPosition() != null);
 		_hud.Command.SetFuelActive(_session.U.Rules.FuelActive);   // Phase 14: Notruf nur mit Treibstoff
+		_hud.Command.SetAudioState();   // Runde 12: Ton-Schalter
 	}
 
 	const float MenuZoomStep = 0.85f;
@@ -601,6 +627,8 @@ public partial class Main : Node3D
 	int _dropSeq;
 	/// <summary>Phase 24: gezeichnete Gefechtsschüsse (Selbsttest).</summary>
 	internal int TestCombatShots => _combat.ShotsSeen;
+	/// <summary>Runde 12: Bildschirmposition eines Weltpunkts (Selbsttest: Gegner nicht unter Warnflächen).</summary>
+	internal Vector2 TestScreenOf(Vector3 world) => _cam.UnprojectPosition(world);
 	/// <summary>Runde 11: Darstellung der Schüsse/Raketen (Selbsttest: Mündung des letzten Strahls bzw. der letzten Rakete).</summary>
 	internal CombatView TestCombatView => _combat;
 	/// <summary>Runde 11: Spielerschiff mit dem Bug an den nächsten abbaubaren Asteroiden setzen (Kontaktabbau), Automatik aus.</summary>
@@ -638,13 +666,17 @@ public partial class Main : Node3D
 		// Phase 28: Pause mitten im Nachholen — der Rest verfällt, die Regel wird zurückgesetzt, dann gespeichert
 		if (_catchUp is { } pending && (what == NotificationWMCloseRequest || what == NotificationApplicationPaused)) FinishCatchUp(pending);
 		if (_session != null && (what == NotificationWMCloseRequest || what == NotificationApplicationPaused)) SaveNow(manual: false);
+		// Runde 12: Musik hält bei App-Pause an und läuft beim Fortsetzen weiter
+		if (_music is not null && what == NotificationApplicationPaused) _music.SetPaused(true);
+		if (_music is not null && what == NotificationApplicationResumed) _music.SetPaused(false);
 	}
 
 	void OnSimEvent(SimEvent e)
 	{
 		switch (e)
 		{
-			case StationBuilt b: _hud.Toast($"Neue Station: {_session.U.Stations[b.Station].Name}"); break;
+			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
+			case StationBuilt b when _session.U.Stations.TryGetValue(b.Station, out var nb) && nb.Sector == _session.U.PlayerSector: _hud.Toast($"Neue Station: {nb.Name}"); break;
 			case ConstructionStarted cs when cs.Sector == _session.U.PlayerSector: _hud.Toast($"Neue Baustelle: {_session.U.Stations[cs.Site].Name}"); break;
 			// Phase 20: Versorgungspanik nach einem geschlossenen/zerstörten Tor (welt-weit sichtbar: die abgeschnittenen und die übrigen Sektoren reagieren)
 			case SupplyPanicRaised sp when _session.U.Tick != _panicToastTick:   // je Tick ein Hinweis (eine Sperre löst oft mehrere Waren zugleich aus)
@@ -654,6 +686,9 @@ public partial class Main : Node3D
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case ContactMined cm when cm.Sector == _session.U.PlayerSector: OnContactMined(cm); break;
+			case AsteroidSplit split when split.Sector == _session.U.PlayerSector:   // Runde 12: Spaltbacken klappen
+				if (split.Ship == _session.U.PlayerShip) _player.Visual?.SnapJaws(); else _view.SnapJaws(split.Ship);
+				break;
 			// Phase 24: NPC-Gefechte im Spielersektor — Schüsse als Strahlen, Beginn als Hinweis
 			case ShotFired sf when sf.Sector == _session.U.PlayerSector:
 				_fight.OnShot(_session.U, sf, Time.GetTicksMsec() / 1000.0);
@@ -685,8 +720,9 @@ public partial class Main : Node3D
 				LastWarMessage = fell.How switch { "destroyed" => $"{fell.Name} wurde zerstört.", "captured" => $"{fell.Name} wurde erobert.", _ => $"{fell.Name} ist ausgeschaltet." };
 				if (fell.Sector == _session.U.PlayerSector) _hud.Alert(LastWarMessage, 6f); else _hud.Toast(LastWarMessage, 4f);
 				break;
-			case WarDeclared wd: LastWarMessage = wd.Message; _hud.Alert(wd.Message, 8f); break;
-			case PeaceConcluded pc: LastWarMessage = pc.Message; _hud.Alert(pc.Message, 6f); break;
+			case WarDeclared wd: LastWarMessage = wd.Message; _hud.Alert(wd.Message, 8f); _music.Sting("sting_war", Now); break;
+			case PeaceConcluded pc: LastWarMessage = pc.Message; _hud.Alert(pc.Message, 6f); _music.Sting("sting_peace", Now); break;
+			case BountyEarned be when be.Hunter == _session.U.PlayerActor: _music.Sting("sting_victory", Now); break;   // Runde 12: Signale
 			case EncounterStarted siege when siege.Cause == EncounterCause.Siege && siege.Sector == _session.U.PlayerSector:
 				LastCombatMessage = siege.Message; _hud.Toast(siege.Message, 4f); break;
 			// Gerätetest Phase 28: Überfall auf dich — das angreifende Schiff wird Ziel, Hinweis auf Dauerfeuer/Zielhilfe
@@ -706,7 +742,7 @@ public partial class Main : Node3D
 				LastDepartureMessage = departed; _hud.Toast(departed, 4.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
 			// Phase 25: Verlust des aktiven Schiffs — Explosion, Meldung; die Ansicht setzt im nächsten Frame in das neue Schiff um (EnterActiveShip)
-			case PlayerShipLost lost:
+			case PlayerShipLost lost when Sting("sting_loss"):
 				_fx.Burst(_player.Position, new Color(1f, 0.5f, 0.2f), 60, 28f, 1.2f);
 				_sfx.Play(SfxId.Explosion);
 				Danger("Schiff verloren", lost.Message, 10f, sticky: true);   // Gerätetest Phase 28: bleibt über dem Dock-Menü, bis angetippt
@@ -717,7 +753,7 @@ public partial class Main : Node3D
 			case EncounterEnded end when end.Sector == _session.U.PlayerSector && end.Cause == EncounterCause.Assault:
 				_hud.Toast(end.Message, 4f); LastCombatMessage = end.Message; break;
 			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
-			case EncounterWarning w when w.Target == _session.U.PlayerShip:
+			case EncounterWarning w when w.Target == _session.U.PlayerShip && Sting("sting_warning"):
 				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, 8f); LastSecurityMessage = w.Message; break;
 			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
@@ -830,8 +866,9 @@ public partial class Main : Node3D
 
 		_view.Animate(delta);
 		HideCoveredLabels(delta);
-		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta);   // angedockt: niemand weicht dem unsichtbaren Schiff aus
+		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)));   // angedockt: niemand weicht dem unsichtbaren Schiff aus
 		UpdateShipModels(delta);
+		UpdateMusic(delta);
 		// Kamera: Ist-Offset folgt weich dem Orbit-Soll-Offset, Kamera sitzt auf Schiff + Offset und blickt auf das Schiff
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt)
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
@@ -961,6 +998,7 @@ public partial class Main : Node3D
 		var far = u.Gates[u.Gates[gateId].Target];
 		u.MoveShip(PlayerData, far.Sector);
 		u.PlayerSector = far.Sector;
+		_music.Sting("sting_jump", Now);   // Runde 12
 		_view.Rebuild(u);
 		_mining.ResetNpc(); _combat.Reset(); _mining.ClearPlayer(); _chunks.Clear(); _mineTarget = null;
 		_player.GiveGrace(2.5f);
@@ -2034,6 +2072,7 @@ public partial class Main : Node3D
 		if (on)
 		{
 			CancelAutopilot(); _target = null; _targetStation = null;
+			_fight.ClearTarget();   // Runde 12 (Handy-Test): die Zielkarte zeigte weiter das zuvor gewählte Schiff
 			_hud.Flight.SetSlider(0f);   // Gerätetest: Auto-Mining übernimmt den Regler
 			_miner.Start();
 			_hud.Flight.SetAutoMine(true);
@@ -2141,6 +2180,21 @@ public partial class Main : Node3D
 				sv.Hardpoints.AimAll(new Vector3(tst.Position.X, 0, tst.Position.Y), delta);
 		}
 		_view.AimStationGuns(u, delta);
+	}
+
+	/// <summary>Runde 12: Uhr des Musikreglers (Sekunden, Echtzeit).</summary>
+	static double Now => Time.GetTicksMsec() / 1000.0;
+
+	/// <summary>Runde 12: Signal abspielen; immer true (damit es in einer Fall-Bedingung des Ereignis-Schalters stehen kann).</summary>
+	bool Sting(string key) { _music.Sting(key, Now); return true; }
+
+	/// <summary>Runde 12: Musikzustand aus dem Core (Menü/Vollbild, angedockt, Abbau) und weich blenden.</summary>
+	void UpdateMusic(float delta)
+	{
+		var u = _session.U;
+		bool menu = _hud.Screens.Current != null && _hud.Screens.Current != _hud.Flight && _docked == null;
+		bool mining = _miner.Enabled || _chunks.LastContact == ContactState.Mining || _tractorOn;
+		_music.Step(SpaceSim.Core.Audio.MusicState.Raw(u, new SpaceSim.Core.Audio.MusicContext(menu, _docked != null, mining)), Now, delta);
 	}
 
 	/// <summary>Runde 11: Weltposition eines Schiffs im Sektor (Spieler oder NPC-Marker).</summary>

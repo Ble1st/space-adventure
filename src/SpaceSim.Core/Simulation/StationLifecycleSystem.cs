@@ -193,7 +193,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         }
 
         var id = u.NewStationId();
-        var station = StationFactory.Create(u, id, type, $"{type.Name} {sector.Name.Split(' ').Last()} {id.Value}", sector.Id, spot.Value, owner);
+        var station = StationFactory.Create(u, id, type, StationFactory.BuiltName(u, type, sector.Id), sector.Id, spot.Value, owner);
         station.Credits = ConstructionRules.NewStationCredits;
         account.Credits -= cost;
         investor.Invested(cost);   // Phase 22

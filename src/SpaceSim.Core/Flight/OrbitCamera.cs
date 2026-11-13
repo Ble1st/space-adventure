@@ -108,6 +108,11 @@ public sealed class OrbitCamera
     /// <summary>Zoom um einen Faktor (&lt; 1 = näher heran, z. B. Pinch-Verhältnis oder Mausrad-Stufe).</summary>
     public void Zoom(float factor) => Distance = Clamp(Distance * factor, MinDistance, MaxDistance);
 
+    /// <summary>Runde 12 (Handy-Test: „−“ zoomte kaum heraus, „+“ sehr stark hinein): gleichmäßige Menü-Stufen über den ganzen Bereich.</summary>
+    public const int ZoomSteps = 8;
+    /// <summary>Eine Menü-Zoomstufe: <paramref name="direction"/> &gt; 0 heraus (weiter weg), &lt; 0 hinein; Schritt (Max − Min) ÷ <see cref="ZoomSteps"/>.</summary>
+    public void ZoomStep(int direction) => Distance = Clamp(Distance + Math.Sign(direction) * (MaxDistance - MinDistance) / ZoomSteps, MinDistance, MaxDistance);
+
     /// <summary>
     /// Offset-Vektor Schiff → Kamera. Bei Yaw 0 und Standard-Pitch liegt die Kamera exakt auf dem bisherigen
     /// festen Offset (0, 38, 24); die Länge des Vektors ist immer <see cref="Distance"/>.

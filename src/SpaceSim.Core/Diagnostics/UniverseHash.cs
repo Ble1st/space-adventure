@@ -5,7 +5,13 @@ namespace SpaceSim.Core.Diagnostics;
 /// <summary>Stabiler Hash über den simulationsrelevanten Zustand. Für Determinismus- und Speichern/Laden-Tests.</summary>
 public static class UniverseHash
 {
-    public static ulong Compute(Universe u)
+    public static ulong Compute(Universe u) => Compute(u, includeTags: true);
+
+    /// <summary>
+    /// Runde 12: Hash wahlweise ohne die Akteurskürzel (<see cref="Actor.Tag"/>) — die Kürzel hängen von der Namensliste ab; der Vergleichswert ohne sie zeigt, dass
+    /// eine geänderte Referenzkonstante nur von Namen/Kürzeln kommt und das Verhalten gleich blieb.
+    /// </summary>
+    public static ulong Compute(Universe u, bool includeTags)
     {
         ulong h = 14695981039346656037UL;
         void Mix(ulong v) { h ^= v; h *= 1099511628211UL; }
@@ -102,7 +108,7 @@ public static class UniverseHash
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {
             Mix((ulong)a.LastForceTick); MixF(a.PoliceNeed); Mix((ulong)a.PoliceSurplusSince);   // Phase 20
-            MixString(a.Tag);   // Phase 29: Kürzel
+            if (includeTags) MixString(a.Tag);   // Phase 29: Kürzel (Runde 12: abschaltbar für den Vergleichswert)
             Mix((ulong)a.LastRestoreTick);   // Phase 22
             Mix((ulong)a.CreatedTick);       // Phase 27 (Prüfung Phase 26): Gründungszeit (Aufbauzeit der Rücklage hängt daran)
             if (a.ArrestCooldownUntil != 0) Mix((ulong)a.ArrestCooldownUntil + 0x2802u);   // Phase 28: Festnahme-Sperre

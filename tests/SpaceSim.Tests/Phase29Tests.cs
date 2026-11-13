@@ -26,6 +26,7 @@ public class Phase29Tests
         def.Rules.WarshipChoosesModels = false;
         def.Rules.PirateChoosesModels = false;
         def.Rules.RaidersSpareLoot = false;
+        RevertRunde12(def);
         def.Player.Model = "unit_player";
         int at = def.ShipModels.FindIndex(m => m.Key == "unit_miner_60") + 1;
         def.ShipModels.Insert(at, new ShipModelDef { Key = "unit_player", Class = "unit_miner", Name = "Einheitsspieler",
@@ -71,6 +72,30 @@ public class Phase29Tests
             ["behemoth"] = "Behemoth", ["prospector"] = "Prospector", ["pip"] = "Pip", ["pickaxe"] = "Pickaxe", ["rockbreaker"] = "Rockbreaker",
             ["rockbreaker_ii"] = "Rockbreaker II", ["quarry"] = "Quarry", ["excavator"] = "Excavator", ["foreman"] = "Foreman", ["tinker"] = "Tinker" };
         foreach (var m in def.ShipModels) if (names.TryGetValue(m.Key, out var n)) m.Name = n;
+    }
+
+    /// <summary>Runde 12 zurückdrehen: mehr Geschützstellungen (Wächter-Turm, Leviathan, Sektor-HQ, Hauptquartier, Versteck), Verfolgung vor Versteckgeschützen.</summary>
+    internal static void RevertRunde12(WorldDef def)
+    {
+        def.Rules!.PursuitStopsAtHideoutGuns = false;
+        var pc = def.ShipClasses.First(c => c.Key == "patrol_craft");
+        if (pc.Slots.Count > 7) pc.Slots.RemoveRange(7, pc.Slots.Count - 7);
+        var warden = def.ShipModels.First(m => m.Key == "warden");
+        if (warden.Fit.Count > 7) warden.Fit.RemoveRange(7, warden.Fit.Count - 7);
+        warden.Fit[0] = "reactor_mk2";
+        if (def.ShipClasses.FirstOrDefault(c => c.Key == "battlecruiser") is { } bc && bc.Slots.Count > 18) bc.Slots.RemoveRange(18, bc.Slots.Count - 18);
+        if (def.ShipModels.FirstOrDefault(m => m.Key == "battlecruiser") is { } lev)
+        {
+            if (lev.Fit.Count > 18) lev.Fit.RemoveRange(18, lev.Fit.Count - 18);
+            lev.Fit[16] = null;
+        }
+        foreach (var t in def.StationTypes)
+        {
+            if (t.Defense is null) continue;
+            if (t.Key == "pirate_hideout") t.Defense = null;
+            else if (t.Key == "sector_hq" && t.Defense.Guns.Count > 2) t.Defense.Guns.RemoveRange(2, t.Defense.Guns.Count - 2);
+            else if (t.Key == "headquarters" && t.Defense.Guns.Count > 3) t.Defense.Guns.RemoveRange(3, t.Defense.Guns.Count - 3);
+        }
     }
 
     static Universe Standard(ulong? seed = null, string? start = null) => TestWorlds.Default(seed, fuel: false, research: false, startOption: start);

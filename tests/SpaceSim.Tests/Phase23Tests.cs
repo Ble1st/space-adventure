@@ -172,6 +172,9 @@ public class Phase23Tests
         var u = Standard();
         var a = Police(u);
         var b = SecuritySystem.PoliceOf(u, new FactionId(1)).OrderBy(s => s.Id.Value).Skip(1).First();
+        // Runde 12: der Wächter hat jetzt einen M-Reaktor — mit dem großen Überschuss laden beide Schilde am Regenerationsdeckel gleich schnell; geprüft wird die
+        // Aufteilung des Überschusses, also beide mit dem früheren Reaktor Mk2
+        foreach (var s in new[] { a, b }) { s.Fit[0] = "reactor_mk2"; s.RecomputeStats(u); }
         ShipSystems.SetMode(u, a, PowerMode.Shield);
         // ohne Speicherbank fließt der Waffenanteil außerhalb des Gefechts in den Schild (voll/fehlt = abgeben); der Antriebsanteil bleibt beim Antrieb
         ShipSystems.SetMode(u, b, PowerMode.Engine);

@@ -14,6 +14,8 @@ public partial class SelfTest
 	ShipId _smGunner, _smBomber;
 	int _smShotSlot = -1;
 	float _smRotor;
+	bool _smGuns = true;
+	float _smPolice;
 	System.Collections.Generic.List<SimEvent>? _smEvents;
 
 	/// <summary>
@@ -59,6 +61,7 @@ public partial class SelfTest
 				var pv = _m.Player.Visual;
 				Check(_m.TestContactState == SpaceSim.Core.Mining.ContactState.Mining, $"Kontakt am Fels ({_m.TestContactState})");
 				Check(pv is not null && pv.RotorAngle > _smRotor + 1f, $"Werkzeug dreht beim Abbau ({_smRotor:0.0} → {pv?.RotorAngle:0.0} rad)");
+				Check(!_m.TestLabelsOverlap(), "sichtbare Namensschilder überlappen sich nicht (Runde 12: das fernere wird ausgeblendet)");
 				// Gefecht im Spielersektor: Korsar (Bugrohr) und Donner (Raketenschächte) überfallen zwei beladene Händler
 				var owner = u.ShipsById().First(ThreatMap.IsRaider).Owner;
 				var yard = u.StationsById().First(s => !s.IsBuildSite);
@@ -79,6 +82,11 @@ public partial class SelfTest
 				var v2 = Make("unit_trader_100", ShipRole.Trader, u.FreeActor, basePos + new Vec2(60f, 40f));
 				foreach (var v in new[] { v1, v2 }) { v.Cargo[u.FindGood("electronics")!.Id] = 20f; for (int i = 0; i < v.Fit.Count; i++) if (v.Fit[i] is { } k && u.Modules[k].IsWeapon) v.Fit[i] = null; v.RecomputeStats(u); }
 				_smGunner = gunner.Id; _smBomber = bomber.Id; _smShotSlot = -1;
+				// Runde 12: Stationsgeschütze (Hauptquartier mit sechs Geschützen) und eingreifende Streifen beendeten das Gefecht im vollen Lauf, bevor beide schossen —
+				// für diese Prüfung aus, die Kaperer fliehen nicht (Regel „Angriff“)
+				_smGuns = u.Rules.StationGunsActive; _smPolice = u.Rules.PoliceResponseMax;
+				u.Rules.StationGunsActive = false; u.Rules.PoliceResponseMax = 0f;
+				gunner.Engagement = Engagement.Attack; bomber.Engagement = Engagement.Attack;
 				_smEvents = new();
 				u.Events.Raised += _smEvents.Add;
 				Engage.StartRaid(u, gunner, v1, u.Sectors[u.PlayerSector]);
@@ -130,6 +138,7 @@ public partial class SelfTest
 						Check(a1 is { } p1 && a2 is { } p2 && p1.DistanceTo(p2) > 0.05f, "Stationsturm dreht zum Ziel (Mündung wandert)");
 					}
 					if (_smEvents is not null) u.Events.Raised -= _smEvents.Add;
+					u.Rules.StationGunsActive = _smGuns; u.Rules.PoliceResponseMax = _smPolice;
 					// Aufräumen: Gefechte beenden
 					foreach (var id in new[] { _smGunner, _smBomber })
 						if (u.Fights.Of(id) is { } fe && fe.Of(id) is { } fp) Engage.Leave(u, fe, fp, CombatExit.Fled);

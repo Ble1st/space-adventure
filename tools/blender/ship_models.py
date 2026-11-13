@@ -298,19 +298,22 @@ def hp_gun(b, slot, p, length, r=0.11):
     _hp(b, slot, "gun", p + V(0, length, 0), (0, 1, 0), p.x)
 
 
-def hp_shafts(b, slot, c, rows=2, cols=2, cell=0.34, d=(0, 0, 1)):
+def hp_shafts(b, slot, c, rows=2, cols=2, cell=0.34, d=(0, 0, 1), down=False):
     """Raketenschaechte in der Huelle: Schachtfeld mit Rahmen und dunklen Oeffnungen, Austritt nach d
     (Standard: nach oben). Position = Mitte der Oeffnungen."""
     c = Vector(c)
+    sg = -1 if down else 1
+    if down:
+        d = (0, 0, -1)
     w, h = cols * cell + 0.16, rows * cell + 0.16
     b.box(w + 0.1, h + 0.1, 0.06, M("Accent"), loc=c)
-    b.box(w, h, 0.09, M("Steel"), loc=c + V(0, 0, 0.02))
+    b.box(w, h, 0.09, M("Steel"), loc=c + V(0, 0, 0.02 * sg))
     for i in range(cols):
         for jj in range(rows):
-            o = V((i - (cols - 1) / 2) * cell, (jj - (rows - 1) / 2) * cell, 0.05)
+            o = V((i - (cols - 1) / 2) * cell, (jj - (rows - 1) / 2) * cell, 0.05 * sg)
             b.box(cell * 0.72, cell * 0.72, 0.06, M("HullDark"), loc=c + o)
             b.box(cell * 0.3, cell * 0.3, 0.07, M("LightRed"), loc=c + o)
-    _hp(b, slot, "missile", c + V(0, 0, 0.085), d, c.x)
+    _hp(b, slot, "missile", c + V(0, 0, 0.085 * sg), d, c.x)
 
 
 def V(x, y, z):
@@ -1152,6 +1155,8 @@ def warden(b):
     b.box(0.5, 0.25, 0.12, M("LightRed"), loc=(-0.3, 2.6, 1.25))
     hp_gun(b, 2, (-1.0, 2.2, 0.85), 2.6, r=0.12)
     hp_gun(b, 3, (1.0, 2.2, 0.85), 2.4, r=0.15)
+    b.cyl(0.7, 0.2, M("HullDark"), seg=8, loc=(0, -1.2, -0.78))
+    hp_turret(b, 7, (0, -1.2, -0.86), s=0.45, up=False, length=1.5)
     for x in (-1.2, 1.2):
         engine(b, (x, -5.9, 0.1), 0.7)
     navl(b, 4.45, -4.6, 0.3)
@@ -1312,7 +1317,7 @@ def battlecruiser(b):
     S = [(18.0, 3.0, 1.6), (16.5, 6.2, 2.0), (14.6, 4.6, 2.0), (12.6, 2.8, 1.9), (6.0, 3.8, 2.4), (-8.0, 5.4, 2.8),
          (-15.0, 5.6, 2.8), (-18.0, 5.0, 2.4)]
     b.loft(S, M("Hull"), c=0.4)
-    dress(b, S, seed=61.0, c=0.4, trench=False, n=12)
+    dress(b, S, seed=61.0, c=0.4, trench=False, n=8)
     T1 = [(11.0, 0.0, 0.0, 2.4), (9.0, 2.2, 0.8, 2.8), (-12.0, 3.6, 1.0, 3.0), (-15.0, 3.0, 0.8, 2.8)]
     b.loft(T1, M("Steel"))
     T2 = [(5.0, 0.0, 0.0, 3.6), (3.6, 1.6, 0.6, 4.0), (-11.0, 2.4, 0.8, 4.2), (-13.0, 2.0, 0.6, 4.0)]
@@ -1338,13 +1343,19 @@ def battlecruiser(b):
             hp_turret(b, slot, (s * 2.4, y, 3.7), s=0.85, twin=True, length=2.0)
         hp_shafts(b, 4 if s < 0 else 5, (s * 3.4, 15.4, 2.05), rows=2, cols=3, cell=0.4)
     hp_turret(b, 14, (0, 1.0, 4.4), s=0.7, kind="pd")
-    greebles(b, 0, 9.5, 2.45, 4.0, 3.0, n=6, seed=63.0)
-    greebles(b, 0, -6.0, -2.8, 6.0, 16.0, n=4, seed=64.0, up=False)
+    for slot, sx in ((18, -1), (19, 1)):          # Flankentuerme auf den Triebwerksgondeln
+        b.box(0.08, 2.4, 0.3, M("Accent"), loc=(sx * 7.75, -11.5, 1.0))
+        hp_turret(b, slot, (sx * 6.6, -11.5, 1.35), s=0.85, twin=True, length=2.0)
+    b.box(3.6, 0.3, 0.08, M("Accent"), loc=(0, 3.0, -2.45))
+    hp_turret(b, 20, (0, 1.5, -2.6), s=0.6, up=False, length=1.8)
+    hp_turret(b, 16, (0, 9.5, -2.1), s=0.7, up=False, kind="pd")
+    greebles(b, 0, 9.5, 2.45, 4.0, 3.0, n=3, seed=63.0)
+    greebles(b, 0, -6.0, -2.8, 6.0, 16.0, n=3, seed=64.0, up=False)
     E = [(-15.0, 4.6, 2.2), (-16.0, 5.0, 2.4), (-18.6, 5.0, 2.4)]
     b.loft(E, M("Armor"), c=0.4)
     for x, z in ((-3.0, 1.0), (0, 1.0), (3.0, 1.0), (-3.0, -1.0), (0, -1.0), (3.0, -1.0)):
         engine(b, (x, -19.0, z), 0.95)
-    thrusters(b, [(5.4, 14.0, 0.0), (-5.4, 14.0, 0.0), (5.4, -12.0, 0.0), (-5.4, -12.0, 0.0)], s=0.8)
+    thrusters(b, [(5.4, 14.0, 0.0), (-5.4, 14.0, 0.0)], s=0.8)
     navl(b, 6.1, 16.0, 0.0, s=0.26)
 
 
