@@ -246,7 +246,8 @@ def _hp(b, slot, kind, pos, d, ax, node=None, empty=False):
                          "node": node, "empty": empty})
 
 
-def hp_turret(b, slot, base, s=0.5, twin=False, up=True, side=0, length=1.6, kind="turret", empty=False):
+def hp_turret(b, slot, base, s=0.5, twin=False, up=True, side=0, length=1.6, kind="turret", empty=False,
+              node=None):
     """Drehturm als eigener Node Turret_<slot>: Ursprung auf der Drehachse (Sockelmitte), Drehachse nach
     Export = lokales +Y, Rohr in Ruhe nach lokal -Z (Bugrichtung). up=False: Bauchturm, side=+-1: Flanke."""
     if side:
@@ -255,7 +256,7 @@ def hp_turret(b, slot, base, s=0.5, twin=False, up=True, side=0, length=1.6, kin
         q = Quaternion()
     else:
         q = Euler((0, math.pi, 0)).to_quaternion()
-    name = "Turret_%d" % slot
+    name = node or ("Turret_%d" % slot)
     rb = Builder(name)
     rb.kind, rb.q, rb.center, rb.axis, rb.spin = kind, q, Vector(base), q @ Vector((0, 0, 1)), ""
     if kind == "pd":

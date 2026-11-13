@@ -29,7 +29,8 @@ HARDPOINTS = {}                          # key -> Liste wie in stations.json
 # Mehr als zehn Materialien werden der Reihe nach zusammengelegt.
 STATION_MERGE = (("Glass", "Light"), ("ShipArmor", "ShipPanel"), ("Window", "Light"), ("Copper", "ShipPanel"),
                  ("Hazard", "Accent"), ("Ice", "ShipPanel"), ("Rust", "ShipPanel"), ("Container", "ShipPanel"))
-DRESS = {"trade_station": (2, 5)}   # Stationen mit eigener, dichter Dachgestaltung brauchen weniger Automatik
+DRESS = {"trade_station": (2, 5), "satellite_sensor": (1, 2), "platform_light": (2, 3),
+         "platform_medium": (4, 5), "platform_heavy": (5, 6)}   # Stationen mit eigener, dichter Dachgestaltung brauchen weniger Automatik
 PIRATE_MERGE = (("Window", "LightRed"), ("Container", "Rust"), ("Armor", "Steel"), ("Glow", "Ember"),
                 ("Hazard", "Rust"))
 
@@ -123,7 +124,8 @@ def build(key):
     b.hardpoints = []
     fn(b)
     if key not in DARK_KEEP:
-        station_details(b, key)
+        if key not in RADIUS:          # Kleinstationen bringen ihre Details selbst mit
+            station_details(b, key)
         restyle(b)
         tops, sides = DRESS.get(key, (8, 10))
         dress_station(b, seed=sum(map(ord, key)) * 0.01, tops=tops, sides=sides)
@@ -157,7 +159,7 @@ def build(key):
         po.location = cen
         po.parent = ob
     hps = []
-    for hp in sorted(b.hardpoints, key=lambda h: h["slot"]):
+    for hp in sorted(b.hardpoints, key=lambda h: (h["slot"] < 0, h["slot"])):
         pn = (hp["pos"] - c0) * k
         d = hp["dir"].normalized()
         e = {"gun": hp["slot"], "kind": hp["kind"],
@@ -1219,3 +1221,121 @@ def research_station(b):
         b.box(2.7, 4.5, 0.06, M("Hull"), loc=(0, s * 6.4, -1.68), rot=(0, 25, 0))
     b.lathe([(0, -5.0), (1.0, -4.2), (1.6, -2.4)], M("HullDark"), seg=12)
     b.nav_lights([(0, 0, -5.1)], s=0.25)
+
+
+
+# =============================================================== Kleinstationen (Waffenstellungen, Satellit)
+# Nicht andockbar, frei im Raum. Geschuetze in der Reihenfolge der Weltdatei (defense.guns), Punkt-
+# verteidigungstuerme zusaetzlich mit gun -1 (Node Turret_pd<n>).
+SMALL_TYPES = [("platform_light", "Leichte Waffenstellung"), ("platform_medium", "Mittlere Waffenstellung"),
+               ("platform_heavy", "Schwere Waffenstellung"), ("satellite_sensor", "Überwachungssatellit")]
+RADIUS = {"platform_light": 3.5, "platform_medium": 6.0, "platform_heavy": 8.0, "satellite_sensor": 2.6}
+DEFAULT_RADIUS = 15.0
+# Soll-Bewaffnung, solange die Weltdatei die Kleinstationen noch nicht kennt (dann gilt defense.guns)
+SMALL_GUNS = {"platform_light": ["weapon_laser_s", "weapon_laser_s"],
+              "platform_medium": ["weapon_laser_m", "weapon_laser_s", "weapon_massdriver_s"],
+              "platform_heavy": ["weapon_laser_m", "weapon_laser_m", "weapon_massdriver_s",
+                                 "missile_launcher_s", "missile_launcher_s"],
+              "satellite_sensor": []}
+SMALL_PD = {"platform_light": 0, "platform_medium": 1, "platform_heavy": 2, "satellite_sensor": 0}
+
+
+@model("satellite_sensor", "Ueberwachungssatellit (Relais-Schuessel): gepanzerter Sechskant-Bus mit grosser gekippter Relaisschuessel, Sensorkopf und Antennenbuendel, zwei Solarfluegel, Accent-Felder, Baken; unbewaffnet")
+def satellite_sensor(b):
+    hexa = [(math.cos(math.radians(60 * i + 30)) * 1.0, math.sin(math.radians(60 * i + 30)) * 1.0) for i in range(6)]
+    b.prism(hexa, 1.8, M("Hull"))
+    b.prism([(x * 1.05, y * 1.05) for x, y in hexa], 0.3, M("Accent"), loc=(0, 0, 0.55))
+    b.prism([(x * 1.06, y * 1.06) for x, y in hexa], 0.12, M("HullDark"), loc=(0, 0, -0.5))
+    b.box(0.06, 0.8, 0.5, M("Window"), loc=(0.87, 0, -0.1), rot=(0, 0, 30))
+    b.cyl(0.25, 0.7, M("HullDark"), seg=6, loc=(0, 0, 1.25))
+    b.dish((0, 0.3, 1.6), 1.7, M("Hull"), rot=(-35, 0, 0), depth=0.3, seg=14)
+    b.box(1.0, 0.12, 0.08, M("Accent"), loc=(0, -0.5, 1.75), rot=(-35, 0, 0))
+    b.sphere(0.45, M("Steel"), seg=8, rings=4, loc=(0, 0, -0.9), half=True, rot=(180, 0, 0))
+    b.cyl(0.18, 0.5, M("HullDark"), seg=6, loc=(0, 0, -1.4))
+    b.sphere(0.2, M("Light"), seg=6, rings=4, loc=(0, 0, -1.7))
+    for s in (1, -1):
+        b.radiator(V(s * 0.95, 0, 0), (s, 0, 0), 3.6, 1.3, tilt=0, mat="Panel", stripe="Hull", n=2)
+        b.sphere(0.12, M("LightRed" if s > 0 else "Light"), seg=6, rings=3, loc=(s * 4.5, 0, 0.1))
+    for dx in (-0.4, 0.4):
+        b.strut(V(dx, -0.6, 0.9), V(dx * 1.6, -0.9, 2.3), 0.04, M("HullDark"), seg=4)
+        b.sphere(0.08, M("LightRed"), seg=5, rings=3, loc=(dx * 1.6, -0.9, 2.3))
+    b.rcs((0.0, 0.95, 0.2), s=0.5)
+    b.rcs((0.0, -0.95, 0.2), s=0.5)
+
+
+@model("platform_light", "Leichte Waffenstellung (Mastturm): robuster Panzerkern mit Accent-Band, kraeftiger Gittermast durch die Ebene mit Laserturm oben und unten auf verstaerkten Plattformen, zwei Kuehlfluegel, Baken")
+def platform_light(b):
+    b.lathe([(0, -1.6), (1.1, -1.4), (1.6, -0.6), (1.6, 0.6), (1.1, 1.4), (0, 1.6)], M("Hull"), seg=8, start=22.5)
+    b.armor_belt(1.7, 0.0, 0.7, 8, mat="Armor", tilt=0, start=45)
+    b.lathe([(1.62, 0.65), (1.4, 1.05)], M("Accent"), 8, start=22.5)
+    b.lathe([(1.4, -1.05), (1.62, -0.65)], M("Accent"), 8, start=22.5)
+    b.window_band(1.63, 0.0, 0.14, n=4, seg=8, gap=0.4)
+    for z in (1, -1):
+        b.truss(V(0, 0, z * 1.4), V(0, 0, z * 3.6), 0.5, 0.14, M("Steel"), n=4)
+        b.cyl(0.95, 0.35, M("Steel"), seg=8, loc=(0, 0, z * 3.75))
+        b.ring(1.0, 0.18, 0.4, M("HullDark"), seg=8, loc=(0, 0, z * 3.75))
+    hp_turret(b, 0, (0, 0, 3.93), s=0.85, length=1.7)
+    hp_turret(b, 1, (0, 0, -3.93), s=0.85, up=False, length=1.7)
+    for s in (1, -1):
+        b.radiator(V(s * 1.55, 0, 0), (s, 0, 0), 4.6, 1.6, tilt=0, mat="Steel", stripe="Glow", n=2)
+        b.sphere(0.14, M("LightRed" if s > 0 else "Light"), seg=6, rings=3, loc=(s * 6.1, 0, 0.12))
+    b.insignia(V(0, -1.72, 0.2), (0, -1, 0), s=0.45)
+    b.rcs((0, 1.65, 0), s=0.6)
+
+
+@model("platform_medium", "Mittlere Waffenstellung (Bastionstrommel): geschlossene Achtkant-Panzertrommel mit Technikgraben und Accent-Feldern, drei Randbastionen mit Laserturm M (gross), Laserturm S und Massetreiberturm, Punktverteidigungskuppel in der Mitte, Wartungsluken, Baken")
+def platform_medium(b):
+    octa = [(math.cos(math.radians(22.5 + 45 * i)) * 3.4, math.sin(math.radians(22.5 + 45 * i)) * 3.4) for i in range(8)]
+    b.prism(octa, 1.6, M("Hull"), loc=(0, 0, 0.3), top_scale=0.88)
+    b.prism(octa, 1.0, M("Steel"), loc=(0, 0, -1.0), top_scale=1.0, scale=(0.9, 0.9, 1))
+    b.prism([(x * 0.8, y * 0.8) for x, y in octa], 0.6, M("HullDark"), loc=(0, 0, -1.7), top_scale=0.8)
+    b.armor_belt(3.45, 0.2, 0.8, 8, mat="Armor", tilt=0, start=45)
+    b.lathe([(2.0, 1.1), (2.0, 1.5), (1.4, 1.75), (0, 1.75)], M("Steel"), seg=10)
+    b.ring(2.05, 0.18, 0.22, M("Accent"), seg=10, loc=(0, 0, 1.25))
+    hp_turret(b, -1, (0, 0, 1.75), s=0.6, kind="pd", node="Turret_pd0", length=1.3)
+    for i, (gun, s, twin, L) in enumerate(((0, 1.3, True, 2.3), (1, 0.9, False, 1.7), (2, 1.0, False, 2.2))):
+        a = 90 + 120 * i
+        d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
+        c = d * 3.9
+        b.box(2.2, 2.0, 1.8, M("Hull"), loc=c + V(0, 0, 0.3), rot=(0, 0, a), bevel=0.2)
+        b.box(0.08, 1.6, 0.5, M("Accent"), loc=c + d * 1.12 + V(0, 0, 0.4), rot=(0, 0, a))
+        b.box(0.08, 1.2, 0.12, M("Light"), loc=c + d * 1.12 + V(0, 0, -0.1), rot=(0, 0, a))
+        hp_turret(b, gun, c + V(0, 0, 1.2), s=s, twin=twin, length=L)
+    for i in range(3):
+        a = 30 + 120 * i
+        d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
+        n = V(-d.y, d.x, 0)
+        b.box(1.4, 0.25, 0.05, M("HullDark"), loc=d * 2.6 + V(0, 0, 1.11), rot=(0, 0, a))
+        greebles(b, (d * 2.6).x, (d * 2.6).y, 1.12, 0.9, 0.9, n=4, seed=3.0 + i)
+        b.hangar_slit(d * 3.35 + V(0, 0, -0.9), d, w=1.4, h=0.4)
+
+
+@model("platform_heavy", "Schwere Waffenstellung (Zitadelle): zweistufige Panzerscheibe mit Ringgraben, zwei schwere Zwillings-Laserturm M am Unterdeck, Massetreiberturm auf dem Oberdeck, zwei bündige Raketen-Schachtfelder, zwei Punktverteidigungstuerme, Panzerschuerzen, Hangarschlitze, grosse Accent-Felder")
+def platform_heavy(b):
+    octa = [(math.cos(math.radians(22.5 + 45 * i)) * 5.4, math.sin(math.radians(22.5 + 45 * i)) * 5.4) for i in range(8)]
+    b.prism(octa, 1.8, M("Hull"), loc=(0, 0, 0.2), top_scale=0.9)
+    b.prism(octa, 1.4, M("Steel"), loc=(0, 0, -1.4), top_scale=1 / 0.85, scale=(0.85, 0.85, 1))
+    b.prism([(x * 0.55, y * 0.55) for x, y in octa], 0.8, M("HullDark"), loc=(0, 0, -2.4), top_scale=0.8)
+    b.armor_belt(5.5, 0.1, 1.0, 8, mat="Armor", tilt=0, start=45)
+    up = [(x * 0.55, y * 0.55) for x, y in octa]
+    b.prism(up, 1.4, M("Armor"), loc=(0, 0, 1.8), top_scale=0.85)
+    b.ring(3.0, 0.3, 0.2, M("HullDark"), seg=8, loc=(0, 0, 1.12), start=22.5)
+    b.lathe([(2.6, 2.4), (2.55, 2.55)], M("Accent"), 8, start=22.5)
+    for k in range(4):
+        a = 45 + 90 * k
+        d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
+        b.box(0.08, 3.0, 0.8, M("Accent"), loc=d * 5.6 + V(0, 0, 0.3), rot=(0, 0, a))
+        b.hangar_slit(d * 4.75 + V(0, 0, -1.3), d, w=1.8, h=0.5)
+    hp_turret(b, 0, (-3.4, 1.8, 1.12), s=1.4, twin=True, length=2.4)
+    hp_turret(b, 1, (3.4, -1.8, 1.12), s=1.4, twin=True, length=2.4)
+    hp_turret(b, 2, (0, 0.6, 2.5), s=1.1, length=2.4)
+    hp_shafts(b, 3, (-1.1, -1.3, 2.5), rows=2, cols=2, cell=0.42)
+    hp_shafts(b, 4, (1.1, -1.3, 2.5), rows=2, cols=2, cell=0.42)
+    hp_turret(b, -1, (3.5, 2.6, 1.12), s=0.65, kind="pd", node="Turret_pd0", length=1.3)
+    hp_turret(b, -1, (-3.5, -2.6, 1.12), s=0.65, kind="pd", node="Turret_pd1", length=1.3)
+    for i in range(4):
+        a = 90 * i
+        d = V(math.cos(math.radians(a)), math.sin(math.radians(a)), 0)
+        greebles(b, (d * 4.3).x, (d * 4.3).y, 1.12, 1.2, 1.2, n=5, seed=11.0 + i)
+    b.mast((0.8, 1.4, 2.5), 1.8)
+    b.insignia(V(0, -2.7, 1.8), (0, -1, 0.3), s=0.6)

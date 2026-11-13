@@ -54,6 +54,10 @@ def args():
         elif a[i] == "--overview-only":
             opt["only"] = []
             opt["overview_only"] = True
+        elif a[i] == "--sizes":
+            opt["sizes"] = True
+            opt["only"] = []
+            opt["overview"] = False
         elif a[i] == "--no-overview":
             opt["overview"] = False
         i += 1
@@ -63,7 +67,9 @@ def args():
 def station_types():
     with open(WORLD, encoding="utf-8") as f:
         d = json.load(f)
-    return [(t["key"], t.get("name", t["key"])) for t in d["stationTypes"]]
+    types = [(t["key"], t.get("name", t["key"])) for t in d["stationTypes"]]
+    known = {k for k, _ in types}
+    return types + [t for t in station_models.SMALL_TYPES if t[0] not in known]
 
 
 # ---------------------------------------------------------------- Szene
@@ -224,6 +230,8 @@ def write_meta(types):
     with open(WORLD, encoding="utf-8") as f:
         d = json.load(f)
     guns = {t["key"]: (t.get("defense") or {}).get("guns", []) for t in d["stationTypes"]}
+    for k, g in station_models.SMALL_GUNS.items():
+        guns.setdefault(k, g)
     models = {}
     for key, name in types:
         if key not in station_models.HARDPOINTS:
@@ -235,10 +243,13 @@ def write_meta(types):
         hps = []
         for hp in station_models.HARDPOINTS[key]:
             h = dict(hp)
-            if hp["gun"] < len(guns.get(key, [])):
+            if 0 <= hp["gun"] < len(guns.get(key, [])):
                 h["module"] = guns[key][hp["gun"]]
+            elif hp["gun"] < 0:
+                h["module"] = "point_defense_s"
             hps.append(h)
-        models[key] = {"name": name, "hardpoints": hps}
+        models[key] = {"name": name, "radius": station_models.RADIUS.get(key, station_models.DEFAULT_RADIUS),
+                       "hardpoints": hps}
     meta = {
         "axes": "Modellraum Godot: oben +Y, Ursprung = Mitte der Bounding-Box, groesster Radius in der Ebene = 1",
         "hardpoints": "Je Geschuetz aus stationTypes[].defense.guns genau eine sichtbare Stellung, in "
@@ -246,7 +257,9 @@ def write_meta(types):
                       "der Huelle). pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung. node = "
                       "eigener Turm-Node 'Turret_<gun>': Ursprung auf der Drehachse, Drehachse = lokales +Y "
                       "(bei Bauchtuermen nach unten), Rohr in Ruhe nach lokal -Z. Stationen ohne defense.guns "
-                      "haben keine Stellungen.",
+                      "haben keine Stellungen. Punktverteidigung (kind pd) steht nach den Geschuetzen mit gun -1 und "
+                      "Node 'Turret_pd<n>'.",
+        "radius": "Spielradius des Typs in Welteinheiten (Modell * radius = Groesse im Spiel).",
         "models": models,
     }
     with open(os.path.join(GLB_DIR, "stations.json"), "w", encoding="utf-8") as f:
@@ -256,8 +269,11 @@ def write_meta(types):
 
 # ---------------------------------------------------------------- Uebersicht
 def overview(types, path):
+    """Kontaktbogen: Produktionsstationen im Raster, darunter die Kleinstationen als eigene Gruppe."""
     reset()
-    scene, cam = setup_scene(res=(2400, 1800))
+    small = [t for t in types if t[0] in station_models.RADIUS]
+    types = [t for t in types if t[0] not in station_models.RADIUS]
+    scene, cam = setup_scene(res=(2400, 2300 if small else 1800))
     cols = 7
     cw, ch = 3.3, 3.25
     az, el = -40.0, 26.0
@@ -274,17 +290,37 @@ def overview(types, path):
     b.inputs["Base Color"].default_value = (0.9, 0.92, 1.0, 1)
     b.inputs["Emission Color"].default_value = (0.85, 0.9, 1.0, 1)
     b.inputs["Emission Strength"].default_value = 1.6
-    for i, (key, name) in enumerate(types):
-        r, c = divmod(i, cols)
-        pos = right * ((c - (cols - 1) / 2) * cw) - up * ((r - (rows - 1) / 2) * ch)
+    gap = 1.2 if small else 0.0
+    rows_all = rows + (1 if small else 0)
+    cells = [(key, name, *divmod(i, cols), 0.0) for i, (key, name) in enumerate(types)]
+    off = (cols - len(small)) / 2
+    cells += [(key, name, rows, j + off, gap) for j, (key, name) in enumerate(small)]
+    yc = ((rows_all - 1) * ch + gap) / 2
+
+    def label(text, size, at):
+        cu = bpy.data.curves.new("t_" + text, "FONT")
+        cu.body = text
+        cu.align_x = "CENTER"
+        cu.size = size
+        to = bpy.data.objects.new("t_" + text, cu)
+        to.data.materials.append(txt_mat)
+        to.rotation_euler = q.to_euler()
+        to.location = at + d * 1.5
+        bpy.context.scene.collection.objects.link(to)
+
+    if small:
+        label("Kleinstationen (Waffenstellungen, Satellit)", 0.34,
+              -up * (rows * ch + gap - yc) + up * 1.5)
+    for key, name, r, c, g in cells:
+        pos = right * ((c - (cols - 1) / 2) * cw) - up * (r * ch + g - yc)
         ob = station_models.build(key)
         bpy.context.scene.collection.objects.link(ob)
         for c in ob.children:
             bpy.context.scene.collection.objects.link(c)
         ob.location = pos + up * 0.25
-        for label, size, off in ((name, 0.30, -1.32), (key, 0.17, -1.62)):
+        for txt, size, off in ((name, 0.30, -1.32), (key, 0.17, -1.62)):
             cu = bpy.data.curves.new("t_" + key, "FONT")
-            cu.body = label
+            cu.body = txt
             cu.align_x = "CENTER"
             cu.size = size
             to = bpy.data.objects.new("t_" + key, cu)
@@ -298,6 +334,59 @@ def overview(types, path):
     cam.location = d * 60
     cam.rotation_euler = q.to_euler()
     cam.data.clip_end = 200
+    scene.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+
+
+# ---------------------------------------------------------------- Groessenvergleich
+def sizes(path):
+    """Kleinstationen in Spielgroesse (radius) neben einer Standardstation (Radius 15) und einem
+    S-Jaeger (Falke, 4,8 Einheiten lang)."""
+    reset()
+    scene, cam = setup_scene(res=(2400, 1000))
+    row = [("sector_hq", "Standardstation (Sektor-HQ), Radius 15", 15.0)]
+    row += [(k, n + ", Radius %g" % station_models.RADIUS[k], station_models.RADIUS[k])
+            for k, n in station_models.SMALL_TYPES]
+    txt_mat = bpy.data.materials.new("Label")
+    txt_mat.use_nodes = True
+    bs = txt_mat.node_tree.nodes["Principled BSDF"]
+    bs.inputs["Emission Color"].default_value = (0.85, 0.9, 1.0, 1)
+    bs.inputs["Emission Strength"].default_value = 1.6
+    x = 0.0
+    items = []
+    for key, name, r in row:
+        ob = station_models.build(key)
+        scene.collection.objects.link(ob)
+        for c in ob.children:
+            scene.collection.objects.link(c)
+        x += r
+        ob.scale = (r, r, r)
+        ob.location = (x, 0, 0)
+        items.append((name, x, r))
+        x += r + 4.0
+    bpy.ops.import_scene.gltf(filepath=os.path.join(REPO, "godot", "assets", "ships", "falcon.glb"))
+    ship = [o for o in bpy.context.selected_objects if o.parent is None][0]
+    x += 2.4
+    ship.scale = (2.4, 2.4, 2.4)
+    ship.location = (x, 0, 0)
+    items.append(("S-Jäger (Falke), Länge 4,8", x, 2.4))
+    x += 2.4
+    for i, (name, cx, r) in enumerate(items):
+        cu = bpy.data.curves.new("t%d" % i, "FONT")
+        cu.body = name
+        cu.align_x = "CENTER"
+        cu.size = 1.3
+        to = bpy.data.objects.new("t%d" % i, cu)
+        to.data.materials.append(txt_mat)
+        to.location = (cx, -17.5 - (i % 2) * 2.2, 0)
+        scene.collection.objects.link(to)
+    tint_accent(True)
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = x + 14
+    tilt = math.radians(32)
+    cam.location = (x / 2, -6 - 120 * math.sin(tilt), 120 * math.cos(tilt))
+    cam.rotation_euler = (tilt, 0, 0)
+    cam.data.clip_end = 400
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
 
@@ -349,6 +438,16 @@ def main():
         sc.render.image_settings.quality = 88
         im.save_render(os.path.join(IMG_DIR, "overview.jpg"), scene=sc)
         print("Uebersicht geschrieben")
+    if opt.get("sizes"):
+        png = os.path.join(IMG_DIR, "_groessen.png")
+        sizes(png)
+        im = bpy.data.images.load(png)
+        sc = bpy.context.scene
+        sc.render.image_settings.file_format = "JPEG"
+        sc.render.image_settings.quality = 88
+        im.save_render(os.path.join(IMG_DIR, "groessen.jpg"), scene=sc)
+        os.remove(png)
+        print("Groessenvergleich geschrieben")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,915 @@
+{
+ "light_a": {
+  "radius": 3.51,
+  "height": 6.6,
+  "tris": 1040,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_s",
+    "node": "Turret_0",
+    "pos": [
+     0.0,
+     0.8681,
+     -0.4412
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_laser_s",
+    "node": "Turret_1",
+    "pos": [
+     0.0,
+     -0.8681,
+     0.4412
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   }
+  ]
+ },
+ "light_b": {
+  "radius": 3.12,
+  "height": 2.98,
+  "tris": 800,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_s",
+    "node": "Turret_0",
+    "pos": [
+     0.0,
+     0.3844,
+     -0.4965
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_1",
+    "pos": [
+     0.0,
+     -0.4004,
+     0.5285
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   }
+  ]
+ },
+ "light_c": {
+  "radius": 2.76,
+  "height": 5.28,
+  "tris": 780,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "Rock",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_s",
+    "node": "Turret_0",
+    "pos": [
+     0.0,
+     0.8514,
+     -0.6522
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_1",
+    "pos": [
+     0.0,
+     -0.8696,
+     0.5072
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   }
+  ]
+ },
+ "medium_a": {
+  "radius": 6.22,
+  "height": 4.14,
+  "tris": 1592,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_m",
+    "node": "Turret_0",
+    "pos": [
+     0.0,
+     0.1801,
+     -1.0004
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_laser_s",
+    "node": "Turret_1",
+    "pos": [
+     -0.7731,
+     0.1608,
+     0.4463
+    ],
+    "dir": [
+     -0.866,
+     0.0,
+     0.5
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 2,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_2",
+    "pos": [
+     0.787,
+     0.1689,
+     0.4544
+    ],
+    "dir": [
+     0.866,
+     0.0,
+     0.5
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_0",
+    "pos": [
+     0.1086,
+     0.3297,
+     -0.0627
+    ],
+    "dir": [
+     0.866,
+     0.0,
+     -0.5
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_1",
+    "pos": [
+     -0.1086,
+     -0.3297,
+     0.0627
+    ],
+    "dir": [
+     -0.866,
+     0.0,
+     0.5
+    ]
+   }
+  ]
+ },
+ "medium_b": {
+  "radius": 5.87,
+  "height": 3.88,
+  "tris": 1450,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_m",
+    "node": "Turret_0",
+    "pos": [
+     0.0,
+     0.1909,
+     -1.0004
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_laser_s",
+    "node": "Turret_1",
+    "pos": [
+     -0.7674,
+     0.1704,
+     0.4431
+    ],
+    "dir": [
+     -0.866,
+     0.0,
+     0.5
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 2,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_2",
+    "pos": [
+     0.7822,
+     0.1789,
+     0.4516
+    ],
+    "dir": [
+     0.866,
+     0.0,
+     0.5
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_0",
+    "pos": [
+     0.1329,
+     0.2982,
+     0.0
+    ],
+    "dir": [
+     1.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_1",
+    "pos": [
+     -0.1329,
+     -0.2982,
+     0.0
+    ],
+    "dir": [
+     -1.0,
+     0.0,
+     0.0
+    ]
+   }
+  ]
+ },
+ "medium_c": {
+  "radius": 5.29,
+  "height": 6.17,
+  "tris": 1144,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "Rock",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_m",
+    "node": "Turret_0",
+    "pos": [
+     0.0,
+     0.5554,
+     -0.4477
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_laser_s",
+    "node": "Turret_1",
+    "pos": [
+     -0.923,
+     0.1795,
+     0.336
+    ],
+    "dir": [
+     -0.9397,
+     0.0,
+     0.342
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 2,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_2",
+    "pos": [
+     0.9408,
+     0.1889,
+     0.3424
+    ],
+    "dir": [
+     0.9397,
+     0.0,
+     0.342
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_0",
+    "pos": [
+     0.0,
+     -0.5478,
+     0.1473
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_1",
+    "pos": [
+     0.0,
+     0.2645,
+     -0.714
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   }
+  ]
+ },
+ "heavy_a": {
+  "radius": 9.17,
+  "height": 4.29,
+  "tris": 1648,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_m",
+    "node": "Turret_0",
+    "pos": [
+     1.0032,
+     0.1745,
+     0.0
+    ],
+    "dir": [
+     1.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_laser_m",
+    "node": "Turret_1",
+    "pos": [
+     -1.0032,
+     0.1745,
+     -0.0
+    ],
+    "dir": [
+     -1.0,
+     0.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 2,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_2",
+    "pos": [
+     0.0,
+     -0.1941,
+     0.2159
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   },
+   {
+    "kind": "missile",
+    "gun": 3,
+    "module": "missile_launcher_s",
+    "node": null,
+    "pos": [
+     -0.0927,
+     0.133,
+     -0.0
+    ],
+    "dir": [
+     0.0,
+     1.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "missile",
+    "gun": 4,
+    "module": "missile_launcher_s",
+    "node": null,
+    "pos": [
+     0.0927,
+     0.133,
+     -0.0
+    ],
+    "dir": [
+     0.0,
+     1.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_0",
+    "pos": [
+     0.3817,
+     -0.1548,
+     0.0851
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_1",
+    "pos": [
+     -0.3817,
+     -0.1548,
+     0.0851
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   }
+  ]
+ },
+ "heavy_b": {
+  "radius": 7.87,
+  "height": 6.62,
+  "tris": 1790,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel",
+   "Window"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_m",
+    "node": "Turret_0",
+    "pos": [
+     1.0033,
+     0.2121,
+     0.0
+    ],
+    "dir": [
+     1.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 1,
+    "module": "weapon_laser_m",
+    "node": "Turret_1",
+    "pos": [
+     -1.0033,
+     0.2121,
+     -0.0
+    ],
+    "dir": [
+     -1.0,
+     0.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 2,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_2",
+    "pos": [
+     0.0,
+     -0.2931,
+     0.2619
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   },
+   {
+    "kind": "missile",
+    "gun": 3,
+    "module": "missile_launcher_s",
+    "node": null,
+    "pos": [
+     0.0,
+     0.2184,
+     -0.2223
+    ],
+    "dir": [
+     0.0,
+     1.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "missile",
+    "gun": 4,
+    "module": "missile_launcher_s",
+    "node": null,
+    "pos": [
+     0.0,
+     0.2184,
+     0.2223
+    ],
+    "dir": [
+     0.0,
+     1.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_0",
+    "pos": [
+     0.4562,
+     0.2057,
+     -0.4562
+    ],
+    "dir": [
+     0.7071,
+     0.0,
+     -0.7071
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_1",
+    "pos": [
+     -0.4562,
+     -0.2057,
+     -0.4562
+    ],
+    "dir": [
+     -0.7071,
+     0.0,
+     -0.7071
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_2",
+    "pos": [
+     -0.4562,
+     0.2057,
+     0.4562
+    ],
+    "dir": [
+     -0.7071,
+     0.0,
+     0.7071
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_3",
+    "pos": [
+     0.4562,
+     -0.2057,
+     0.4562
+    ],
+    "dir": [
+     0.7071,
+     0.0,
+     0.7071
+    ]
+   }
+  ]
+ },
+ "heavy_c": {
+  "radius": 9.25,
+  "height": 8.42,
+  "tris": 1670,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "Rock",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": [
+   {
+    "kind": "turret",
+    "gun": 0,
+    "module": "weapon_laser_m",
+    "node": "Turret_0",
+    "pos": [
+     0.0,
+     0.4435,
+     -0.4218
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   },
+   {
+    "kind": "missile",
+    "gun": 1,
+    "module": "missile_launcher_s",
+    "node": null,
+    "pos": [
+     -0.0162,
+     0.1525,
+     0.4056
+    ],
+    "dir": [
+     0.0,
+     1.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "missile",
+    "gun": 2,
+    "module": "missile_launcher_s",
+    "node": null,
+    "pos": [
+     0.146,
+     0.1525,
+     0.4056
+    ],
+    "dir": [
+     0.0,
+     1.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 3,
+    "module": "weapon_laser_m",
+    "node": "Turret_3",
+    "pos": [
+     -1.0016,
+     0.1755,
+     -0.0216
+    ],
+    "dir": [
+     -1.0,
+     0.0,
+     -0.0
+    ]
+   },
+   {
+    "kind": "turret",
+    "gun": 4,
+    "module": "weapon_massdriver_s",
+    "node": "Turret_4",
+    "pos": [
+     0.0,
+     -0.3688,
+     0.2574
+    ],
+    "dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_0",
+    "pos": [
+     0.2369,
+     0.2271,
+     -0.3867
+    ],
+    "dir": [
+     0.5,
+     0.0,
+     -0.866
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_1",
+    "pos": [
+     0.3543,
+     0.292,
+     0.1936
+    ],
+    "dir": [
+     0.866,
+     0.0,
+     0.5
+    ]
+   },
+   {
+    "kind": "pd",
+    "gun": null,
+    "module": "point_defense_s",
+    "node": "PD_2",
+    "pos": [
+     0.2801,
+     -0.2704,
+     -0.2894
+    ],
+    "dir": [
+     0.5,
+     0.0,
+     -0.866
+    ]
+   }
+  ]
+ },
+ "satellite_a": {
+  "radius": 2.6,
+  "height": 3.18,
+  "tris": 504,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "Panel",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": []
+ },
+ "satellite_b": {
+  "radius": 2.33,
+  "height": 2.54,
+  "tris": 860,
+  "materials": [
+   "Accent",
+   "Light",
+   "LightRed",
+   "ShipArmor",
+   "ShipHull",
+   "ShipPanel"
+  ],
+  "hardpoints": []
+ },
+ "satellite_c": {
+  "radius": 2.6,
+  "height": 1.41,
+  "tris": 456,
+  "materials": [
+   "Accent",
+   "HullDark",
+   "Light",
+   "LightRed",
+   "Panel",
+   "ShipHull",
+   "ShipPanel",
+   "Window"
+  ],
+  "hardpoints": []
+ }
+}

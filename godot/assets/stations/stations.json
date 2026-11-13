@@ -1,73 +1,91 @@
 {
   "axes": "Modellraum Godot: oben +Y, Ursprung = Mitte der Bounding-Box, groesster Radius in der Ebene = 1",
-  "hardpoints": "Je Geschuetz aus stationTypes[].defense.guns genau eine sichtbare Stellung, in Geschuetz-Reihenfolge (gun = Index). kind = turret (Drehturm) | missile (Schachtfeld in der Huelle). pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung. node = eigener Turm-Node 'Turret_<gun>': Ursprung auf der Drehachse, Drehachse = lokales +Y (bei Bauchtuermen nach unten), Rohr in Ruhe nach lokal -Z. Stationen ohne defense.guns haben keine Stellungen.",
+  "hardpoints": "Je Geschuetz aus stationTypes[].defense.guns genau eine sichtbare Stellung, in Geschuetz-Reihenfolge (gun = Index). kind = turret (Drehturm) | missile (Schachtfeld in der Huelle). pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung. node = eigener Turm-Node 'Turret_<gun>': Ursprung auf der Drehachse, Drehachse = lokales +Y (bei Bauchtuermen nach unten), Rohr in Ruhe nach lokal -Z. Stationen ohne defense.guns haben keine Stellungen. Punktverteidigung (kind pd) steht nach den Geschuetzen mit gun -1 und Node 'Turret_pd<n>'.",
+  "radius": "Spielradius des Typs in Welteinheiten (Modell * radius = Groesse im Spiel).",
   "models": {
     "solar_plant": {
       "name": "Solarkraftwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "steelworks": {
       "name": "Stahlwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "water_plant": {
       "name": "Wasserwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "electrolysis": {
       "name": "Elektrolyse",
+      "radius": 15.0,
       "hardpoints": []
     },
     "copper_smelter": {
       "name": "Kupferhütte",
+      "radius": 15.0,
       "hardpoints": []
     },
     "wafer_fab": {
       "name": "Waferfabrik",
+      "radius": 15.0,
       "hardpoints": []
     },
     "titanium_works": {
       "name": "Titanhütte",
+      "radius": 15.0,
       "hardpoints": []
     },
     "platinum_refinery": {
       "name": "Platinraffinerie",
+      "radius": 15.0,
       "hardpoints": []
     },
     "powerplant": {
       "name": "Kraftwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "farm": {
       "name": "Farm",
+      "radius": 15.0,
       "hardpoints": []
     },
     "electronics_fab": {
       "name": "Elektronikfabrik",
+      "radius": 15.0,
       "hardpoints": []
     },
     "plating_works": {
       "name": "Panzerwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "fuel_cell_fab": {
       "name": "Brennstoffzellenfabrik",
+      "radius": 15.0,
       "hardpoints": []
     },
     "life_support_fab": {
       "name": "Lebenserhaltungswerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "goods_factory": {
       "name": "Konsumgüterfabrik",
+      "radius": 15.0,
       "hardpoints": []
     },
     "luxury_workshop": {
       "name": "Luxuswerkstatt",
+      "radius": 15.0,
       "hardpoints": []
     },
     "shipyard": {
       "name": "Werft",
+      "radius": 15.0,
       "hardpoints": [
         {
           "gun": 0,
@@ -105,42 +123,52 @@
     },
     "colony": {
       "name": "Kolonie",
+      "radius": 15.0,
       "hardpoints": []
     },
     "fuel_refinery": {
       "name": "Treibstoffraffinerie",
+      "radius": 15.0,
       "hardpoints": []
     },
     "drive_works": {
       "name": "Antriebs- und Reaktorwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "weapons_works": {
       "name": "Waffen- und Schildwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "systems_works": {
       "name": "Systemwerk",
+      "radius": 15.0,
       "hardpoints": []
     },
     "trade_station": {
       "name": "Handelsstation",
+      "radius": 15.0,
       "hardpoints": []
     },
     "trade_post": {
       "name": "Planetenhandel",
+      "radius": 15.0,
       "hardpoints": []
     },
     "build_site": {
       "name": "Baustelle",
+      "radius": 15.0,
       "hardpoints": []
     },
     "warehouse": {
       "name": "Lagerhaus",
+      "radius": 15.0,
       "hardpoints": []
     },
     "headquarters": {
       "name": "Hauptquartier",
+      "radius": 15.0,
       "hardpoints": [
         {
           "gun": 0,
@@ -193,10 +221,12 @@
     },
     "company_seat": {
       "name": "Firmensitz",
+      "radius": 15.0,
       "hardpoints": []
     },
     "sector_hq": {
       "name": "Sektor-HQ",
+      "radius": 15.0,
       "hardpoints": [
         {
           "gun": 0,
@@ -234,10 +264,12 @@
     },
     "office": {
       "name": "Büro",
+      "radius": 15.0,
       "hardpoints": []
     },
     "police_station": {
       "name": "Polizeiwache",
+      "radius": 15.0,
       "hardpoints": [
         {
           "gun": 0,
@@ -291,10 +323,241 @@
     },
     "pirate_hideout": {
       "name": "Piratenversteck",
+      "radius": 15.0,
       "hardpoints": []
     },
     "research_station": {
       "name": "Forschungsstation",
+      "radius": 15.0,
+      "hardpoints": []
+    },
+    "platform_light": {
+      "name": "Leichte Waffenstellung",
+      "radius": 3.5,
+      "hardpoints": [
+        {
+          "gun": 0,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.7069,
+            -0.2938
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_0",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 1,
+          "kind": "turret",
+          "pos": [
+            -0.0,
+            -0.7069,
+            -0.2938
+          ],
+          "dir": [
+            -0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_1",
+          "module": "weapon_laser_s"
+        }
+      ]
+    },
+    "platform_medium": {
+      "name": "Mittlere Waffenstellung",
+      "radius": 6.0,
+      "hardpoints": [
+        {
+          "gun": 0,
+          "kind": "turret",
+          "pos": [
+            -0.0,
+            0.2723,
+            -0.8528
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_0",
+          "module": "weapon_laser_m"
+        },
+        {
+          "gun": 1,
+          "kind": "turret",
+          "pos": [
+            -0.519,
+            0.2385,
+            0.2981
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_1",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 2,
+          "kind": "turret",
+          "pos": [
+            0.519,
+            0.247,
+            0.1882
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_2",
+          "module": "weapon_massdriver_s"
+        },
+        {
+          "gun": -1,
+          "kind": "pd",
+          "pos": [
+            -0.0,
+            0.2977,
+            0.1575
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_pd0",
+          "module": "point_defense_s"
+        }
+      ]
+    },
+    "platform_heavy": {
+      "name": "Schwere Waffenstellung",
+      "radius": 8.0,
+      "hardpoints": [
+        {
+          "gun": 0,
+          "kind": "turret",
+          "pos": [
+            -0.4922,
+            0.1534,
+            -0.8298
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_0",
+          "module": "weapon_laser_m"
+        },
+        {
+          "gun": 1,
+          "kind": "turret",
+          "pos": [
+            0.4922,
+            0.1534,
+            -0.3087
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_1",
+          "module": "weapon_laser_m"
+        },
+        {
+          "gun": 2,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.3293,
+            -0.5323
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_2",
+          "module": "weapon_massdriver_s"
+        },
+        {
+          "gun": 3,
+          "kind": "missile",
+          "pos": [
+            -0.1592,
+            0.254,
+            0.1965
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s"
+        },
+        {
+          "gun": 4,
+          "kind": "missile",
+          "pos": [
+            0.1592,
+            0.254,
+            0.1965
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s"
+        },
+        {
+          "gun": -1,
+          "kind": "pd",
+          "pos": [
+            0.5066,
+            0.0937,
+            -0.5092
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_pd0",
+          "module": "point_defense_s"
+        },
+        {
+          "gun": -1,
+          "kind": "pd",
+          "pos": [
+            -0.5066,
+            0.0937,
+            0.2435
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_pd1",
+          "module": "point_defense_s"
+        }
+      ]
+    },
+    "satellite_sensor": {
+      "name": "Überwachungssatellit",
+      "radius": 2.6,
       "hardpoints": []
     }
   }

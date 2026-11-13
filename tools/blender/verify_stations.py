@@ -30,6 +30,11 @@ def main():
     world = os.path.join(REPO, "src", "SpaceSim.Core", "Content", "default-world.json")
     GUNS.update({t["key"]: (t.get("defense") or {}).get("guns", [])
                  for t in json.load(open(world, encoding="utf-8"))["stationTypes"]})
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import station_models
+    for k, g in station_models.SMALL_GUNS.items():
+        GUNS.setdefault(k, g)
+    LIMIT = {"satellite_sensor": 1200, "platform_light": 1500, "platform_medium": 2500, "platform_heavy": 3500}
     files = sorted(f for f in os.listdir(GLB_DIR) if f.endswith(".glb"))
     bad = 0
     total = 0
@@ -49,8 +54,14 @@ def main():
         if len(meshes) - len(turrets) != 1:
             problems.append(f"{len(meshes)} Meshes")
         hps = META.get(key, {}).get("hardpoints", [])
-        if len(hps) != len(GUNS.get(key, [])):
-            problems.append(f"{len(hps)} Stellungen fuer {len(GUNS.get(key, []))} Geschuetze")
+        gh = [h for h in hps if h["gun"] >= 0]
+        if [h["gun"] for h in gh] != list(range(len(GUNS.get(key, [])))):
+            problems.append(f"{len(gh)} Stellungen fuer {len(GUNS.get(key, []))} Geschuetze")
+        npd = sum(1 for h in hps if h["kind"] == "pd")
+        if key in station_models.SMALL_PD and npd != station_models.SMALL_PD[key]:
+            problems.append(f"{npd} PD statt {station_models.SMALL_PD[key]}")
+        if "radius" not in META.get(key, {}):
+            problems.append("radius fehlt")
         if sorted(h["node"] for h in hps if h.get("node")) != sorted(o.name for o in turrets):
             problems.append("Turm-Nodes passen nicht zu stations.json")
         tris = 0
@@ -79,7 +90,7 @@ def main():
             problems.append(f"{len(mats)} Materialien")
         if "Accent" not in mats:
             problems.append("kein Accent")
-        if tris > 5000:
+        if tris > LIMIT.get(key, 5000):
             problems.append("zu viele Dreiecke")
         if abs(rad - 1.0) > 0.01:
             problems.append(f"Radius {rad:.3f}")
