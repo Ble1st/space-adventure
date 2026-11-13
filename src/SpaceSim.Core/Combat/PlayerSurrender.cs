@@ -33,6 +33,17 @@ public static class PlayerSurrender
         return ThreatMap.CargoValue(u, me) > 0f ? null : "Keine Fracht zum Abwerfen.";
     }
 
+    /// <summary>
+    /// Gerätetest Phase 28: Ist Ergeben hier ein Thema (Gefecht mit Gegnern oder angekündigte Begegnung)? Dann zeigt die Ansicht die Taste — wenn
+    /// <see cref="Issue"/> einen Grund nennt (z. B. „Keine Fracht zum Abwerfen.“), deaktiviert mit diesem Grund.
+    /// </summary>
+    public static bool Relevant(Universe u)
+    {
+        if (!u.Rules.FleetCombat || !u.Ships.TryGetValue(u.PlayerShip, out var me)) return false;
+        if (u.Fights.Of(me.Id) is { } e && e.Of(me.Id) is { Active: true } p && CombatSense.Enemies(u, e, p).Any()) return true;
+        return u.PendingEncounters.Any(x => x.Target == me.Id);
+    }
+
     static CombatParticipant? Enemy(Universe u, Encounter e, CombatParticipant me, bool police)
     {
         foreach (var q in CombatSense.Enemies(u, e, me))

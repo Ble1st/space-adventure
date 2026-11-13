@@ -76,15 +76,22 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		if (TestMaintenance.Length > 0) Row(v1, "Instandhaltung", TestMaintenance);
 		// Phase 22: Rentabilität (gleitender Netto-Geldfluss, reine Core-Anzeige; Grund c für das Aufgeben einer Station)
 		TestProfit = st.IsBuildSite ? "" : Profitability.Text(u, st.Profit) ?? "";
-		if (TestProfit.Length > 0) Row(v1, "Rentabilität", TestProfit);
+		if (TestProfit.Length > 0)
+		{
+			// Prüfung Phase 28: die schmale Spalte schnitt „seit … Ticks im Minus“ ab — Rate und Zusatz in zwei Zeilen
+			int cut = TestProfit.IndexOf(" · ", System.StringComparison.Ordinal);
+			Row(v1, "Rentabilität", cut > 0 ? TestProfit[..cut] : TestProfit);
+			if (cut > 0) Row(v1, "", TestProfit[(cut + 3)..]);
+		}
 		// Phase 28: Verteidigung (Hülle, Schild, Geschütze, ausgeschaltet/angegriffen) — reine Core-Anzeige
 		TestDefense = st.IsBuildSite || !u.Rules.Warfare ? "" : SpaceSim.Core.Combat.WarInfo.StationLine(u, st);
 		if (TestDefense.Length > 0)
 		{
-			// zwei Zeilen (die Spalte ist schmal): Hülle/Schild, dann Geschütze und Zustand
+			// mehrere kurze Zeilen (die Spalte ist schmal): Hülle, Schild, Geschütze und Zustand
 			var def = SpaceSim.Core.Combat.StationCombat.DefenseOf(u, st);
-			string shield = SpaceSim.Core.Combat.StationCombat.MaxShield(u, st) > 0f ? $" · Schild {SpaceSim.Core.Combat.StationCombat.Shield(u, st):0}" : "";
-			Row(v1, "Verteidigung", $"Hülle {SpaceSim.Core.Combat.StationCombat.Hull(u, st):0}/{SpaceSim.Core.Combat.StationCombat.MaxHull(u, st):0}{shield}");
+			Row(v1, "Verteidigung", $"Hülle {SpaceSim.Core.Combat.StationCombat.Hull(u, st):0}/{SpaceSim.Core.Combat.StationCombat.MaxHull(u, st):0}");
+			if (SpaceSim.Core.Combat.StationCombat.MaxShield(u, st) > 0f)
+				Row(v1, "", $"Schild {SpaceSim.Core.Combat.StationCombat.Shield(u, st):0}/{SpaceSim.Core.Combat.StationCombat.MaxShield(u, st):0}");
 			string state = SpaceSim.Core.Combat.StationCombat.IsDown(u, st) ? " · AUS" : SpaceSim.Core.Combat.StationCombat.UnderSiege(u, st.Id) ? " · Angriff" : "";
 			Row(v1, "Geschütze", $"{def?.Guns.Count ?? 0}{state}");
 		}

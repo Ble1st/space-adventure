@@ -636,7 +636,7 @@ public partial class Main : Node3D
 			case PlayerShipLost lost:
 				_fx.Burst(_player.Position, new Color(1f, 0.5f, 0.2f), 60, 28f, 1.2f);
 				_sfx.Play(SfxId.Explosion);
-				Danger("Schiff verloren", lost.Message, 10f);   // Gerätetest: wichtige Meldung, bleibt bis angetippt
+				Danger("Schiff verloren", lost.Message, 10f, sticky: true);   // Gerätetest Phase 28: bleibt über dem Dock-Menü, bis angetippt
 				LastLossMessage = lost.Message;
 				_reenter = true;
 				break;
@@ -798,11 +798,14 @@ public partial class Main : Node3D
 
 	static (Vector2, float, float, float) WithTurn((Vector2 dir, float throttle, float speedScale) s) => (s.dir, s.throttle, s.speedScale, 0f);
 
+	readonly PathFollower _follower = new();
+
 	(Vector2, float, float) Autopilot(NavTarget target)
 	{
 		var u = _session.U;
 		// Phase 10: Route nach dem Mobilitätsprofil des Spielerschiffs (gesperrte Gates werden umflogen, sonst Meldung mit Grund)
-		var step = Navigator.Next(u, u.PlayerSector, new Vec2(_player.Position.X, _player.Position.Z), target, PlayerData);
+		// Gerätetest Phase 28: Autopilot mit Gedächtnis (plant einmal, fliegt die Punkte ab, löst sich aus Sackgassen) — vorher kreiste er vor dem HQ Alpha
+		var step = _follower.Next(u, u.PlayerSector, new Vec2(_player.Position.X, _player.Position.Z), target, PlayerData);
 		switch (step.Status)
 		{
 			case NavStatus.Unreachable:
@@ -885,8 +888,18 @@ public partial class Main : Node3D
 
 	// ───────── Ziele, Autopilot, Andocken ─────────
 
+	/// <summary>Gerätetest Phase 28: Ziel wählen ohne Autopilot (Tipp auf eine Station).</summary>
+	void SelectTarget(NavTarget target, StationId? station)
+	{
+		if (_targetStation != station) _fight.ArmStation(default);
+		_target = target; _targetStation = station;
+		_sfx.Play(SfxId.Click);
+		_hud.Toast($"Ziel: {target.Label} — „Autopilot“ fliegt hin, „Andocken“ in der Nähe");
+	}
+
 	void SetTarget(NavTarget target, StationId? station)
 	{
+		if (_targetStation != station || station is null) _fight.ArmStation(default);   // Gerätetest Phase 28: neues Ziel beendet einen Stationsangriff in der Zielkarte
 		_target = target; _targetStation = station;
 		_autopilot = true; _hud.Flight.SetAutopilot(true);
 		_hud.Flight.SetSlider(0f);   // Gerätetest: der Autopilot übernimmt — ein Rest am Regler (1–3 %) hätte ihn sofort wieder abgeschaltet
@@ -1255,7 +1268,9 @@ public partial class Main : Node3D
 		if (best.Kind == "station")
 		{
 			var sid = new StationId(best.Id);
-			SetTarget(Navigator.ForStation(u, sid, u.PlayerShip), sid);
+			// Gerätetest Phase 28: Tippen wählt die Station nur als Ziel (vorher Autopilot → nahe Station sofort angedockt; „Station angreifen“ kaum erreichbar);
+			// hinfliegen über „Autopilot“, andocken über die Kontexttaste
+			SelectTarget(Navigator.ForStation(u, sid, u.PlayerShip), sid);
 		}
 		else
 		{
@@ -1387,6 +1402,8 @@ public partial class Main : Node3D
 		d.HasWeapons = _bays.Any(b => SpaceSim.Core.Combat.PlayerGunnery.SlotOf(b.Key) >= 0);
 		d.EnemyNear = SpaceSim.Core.Combat.PlayerCombat.NextEnemy(_session.U, PlayerData, default).Value != 0;
 		d.CanSurrender = _docked is null && SpaceSim.Core.Combat.PlayerSurrender.Issue(_session.U) is null;   // Phase 27
+		d.SurrenderRelevant = _docked is null && SpaceSim.Core.Combat.PlayerSurrender.Relevant(_session.U);   // Gerätetest Phase 28: Taste auch ohne Fracht, deaktiviert mit Grund
+		d.SurrenderReason = SpaceSim.Core.Combat.PlayerSurrender.Issue(_session.U) ?? "";
 		d.HitWarning = _fight.Warning(u, pos, headingDeg, Time.GetTicksMsec() / 1000.0);
 		// Phase 28: gewählte Station angreifbar? (Kriegsführung an, Waffen an Bord, nicht angedockt, Core-Regel PlayerGunnery.StationIssue)
 		var navStation = _targetStation is { } nsid && u.Stations.TryGetValue(nsid, out var nst) && nst.Sector == u.PlayerSector ? nst : null;
@@ -1401,7 +1418,8 @@ public partial class Main : Node3D
 			targetWorld = ast.Position;
 			d.TargetDistance = Vec2.Distance(pos, ast.Position);
 			d.TargetInfo = $"Entfernung {d.TargetDistance:0} m · Station";
-			d.TargetCombat = SpaceSim.Core.Combat.WarInfo.StationLine(u, ast);
+			// Prüfung Phase 28: kurz genug für die Zielkarte (vorher „… · Schild 250/250…“ abgeschnitten)
+			d.TargetCombat = SpaceSim.Core.Combat.WarInfo.StationShort(u, ast);
 		}
 		else if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var ts) && SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } tsp)
 		{
@@ -1784,11 +1802,11 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Gerätetest: Gefahr für das eigene Schiff (Überfallwarnung, Beschuss, Brand, Verlust) — der Zeitraffer schaltet auf ×1, mit Meldung.</summary>
-	void Danger(string reason, string? message = null, float seconds = 6f)
+	void Danger(string reason, string? message = null, float seconds = 6f, bool sticky = false)
 	{
-		if (!_fast) { if (message != null) _hud.Alert(message, seconds); return; }
+		if (!_fast) { if (message != null) _hud.Alert(message, seconds, sticky); return; }
 		_fast = false;
-		_hud.Alert($"Zeitraffer aus: {reason}" + (message != null ? $" — {message}" : ""), seconds);
+		_hud.Alert($"Zeitraffer aus: {reason}" + (message != null ? $" — {message}" : ""), seconds, sticky);
 		LastDangerMessage = reason;
 	}
 

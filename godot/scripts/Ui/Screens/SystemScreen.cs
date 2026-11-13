@@ -64,9 +64,12 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		string ModelName(string key) => def.ShipModels.Find(m => m.Key == key)?.Name ?? key;
 		foreach (var o in def.Player.StartOptions)
 		{
-			var holder = new Control { CustomMinimumSize = new Vector2(cw, 100), MouseFilter = MouseFilterEnum.Pass };
+			// Gerätetest Phase 28: Kartenhöhe nach der Länge der Beschreibung (lange Testpaket-Texte liefen über den Kartenrand); ≈ 6,8 px je Zeichen bei 13 px
+			int lines = Math.Max(2, (int)Math.Ceiling(o.Description.Length * 6.8f / Math.Max(100f, cw - 210f)) + 1);
+			float ch = Math.Max(100f, 40f + lines * 18f);
+			var holder = new Control { CustomMinimumSize = new Vector2(cw, ch), MouseFilter = MouseFilterEnum.Pass };
 			box.AddChild(holder);
-			var card = CardBg(holder, 0, 0, cw, 100, Card, new Color(Edge, 0.6f), 10, 1);
+			var card = CardBg(holder, 0, 0, cw, ch, Card, new Color(Edge, 0.6f), 10, 1);
 			At(card, Text($"{o.Name} · {ModelName(o.Model)} · {o.Credits:0} Cr", 18, White), 14, 6, cw - 200, 26);
 			WrappedText(card, o.Description, 14, 34, cw - 210, 13, Dim, 18);
 			var b = At(card, new KitButton("Starten", new Vector2(160, 56)) { FontSize = 17, State = KitButtonState.Ready }, cw - 172, 22);

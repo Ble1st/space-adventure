@@ -138,8 +138,10 @@ public partial class KitButton : Control
 		}
 		if (_state == KitButtonState.Busy)
 		{
-			var r = new Rect2(8, Size.Y - 8, (Size.X - 16) * Mathf.Clamp(Progress, 0f, 1f), 4);
-			DrawRect(new Rect2(8, Size.Y - 8, Size.X - 16, 4), new Color(0, 0, 0, 0.5f));
+			// Prüfung Phase 28: bei linksbündiger Taste mit Zustandszeile (Waffenschacht) oben, sonst berührte „lädt nach“ den Balken
+			float by = left && Detail.Length > 0 ? 4f : Size.Y - 8f;
+			var r = new Rect2(8, by, (Size.X - 16) * Mathf.Clamp(Progress, 0f, 1f), 4);
+			DrawRect(new Rect2(8, by, Size.X - 16, 4), new Color(0, 0, 0, 0.5f));
 			DrawRect(r, UiKit.Cyan);
 		}
 	}

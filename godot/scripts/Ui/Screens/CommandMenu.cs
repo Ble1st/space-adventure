@@ -93,13 +93,21 @@ public partial class CommandMenu : Control, IScreen
 
 		// ── System ──
 		list.AddChild(Text("SYSTEM", 15, Cyan));
+		// Gerätetest Phase 28: zwei Tasten je Zeile — „Neues Spiel“ ist ohne Rollen erreichbar
+		HBoxContainer? row = null;
 		foreach (var (label, sub, key) in Entries)
 		{
-			var b = new KitButton(label, new Vector2(540, 52)) { AlignLeft = true, FontSize = 19, Sub = sub };
+			if (row is null || row.GetChildCount() >= 2)
+			{
+				row = new HBoxContainer { CustomMinimumSize = new Vector2(540, 52) };
+				row.AddThemeConstantOverride("separation", 10);
+				list.AddChild(row);
+			}
+			var b = new KitButton(label, new Vector2(265, 52)) { AlignLeft = true, FontSize = 19, Sub = sub };
 			string k = key;
 			b.Pressed += () => Action?.Invoke(k);
 			if (k == "emergency") _emergency = b;
-			list.AddChild(b);
+			row.AddChild(b);
 		}
 		scroll.AddChild(list);
 		_win.Content.AddChild(scroll);

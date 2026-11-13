@@ -21,6 +21,7 @@
   "maxRaidersPerActor": 2,
   "pirateTreasuryCap": 10000,
   "fenceShare": 0.75,
+  "raiderUpkeepPerTick": 0.03,
   "researchActive": false,
   "ammoActive": true
  },
@@ -4395,7 +4396,7 @@
    {
     "key": "combat",
     "name": "Gefechtstest (Test)",
-    "description": "NUR ZUM TESTEN: Falke mit Fracht frei im Raum vor der Werft Delta; zwei Kaperschiffe als Rudel in Waffenreichweite überfallen dich nach wenigen Sekunden; ein Händler frei im Raum und eine Streife als Verband in der Nähe. Gefecht, Beschusswarnung, Kopfgeld, Verstärkung und Flottenlinien.",
+    "description": "NUR ZUM TESTEN: Falke frei im Raum vor der Werft Delta, die Nase zum Gegner. Ein angeschlagenes Kaperschiff kündigt in 15 s einen Überfall an und fliegt heran, ein zweites stößt später als Verstärkung dazu; ein Händler und eine Streife (Verband) in der Nähe.",
     "model": "falcon",
     "credits": 3000,
     "sector": 4,
@@ -4403,10 +4404,25 @@
      "station": "shipyard",
      "distance": 130,
      "raiders": 2,
-     "raidAfterTicks": 24,
+     "raiderHull": 0.6,
+     "raidAfterTicks": 60,
      "trader": true,
      "policeSquadron": true,
-     "cargo": { "food": 20, "ammo": 20 }
+     "cargo": { "ammo": 20 }
+    }
+   },
+   {
+    "key": "war",
+    "name": "Kriegstest (Test)",
+    "description": "NUR ZUM TESTEN: Falke mit Raketenwerfer, vollem Raketenmagazin und Raketen im Laderaum, 100 m vor dem Sektor-HQ Beta (Geschütze, Punktabwehr) — „Station angreifen“ aus Raketenreichweite. 20000 Cr für einen Schiffskauf.",
+    "model": "falcon",
+    "credits": 20000,
+    "sector": 2,
+    "scenario": {
+     "fit": ["reactor_mk2", "chem_engine_s_mk2", "weapon_laser_s", "missile_launcher_s", "shield_mk1", "power_bank_s", "weapon_magazine_s"],
+     "station": "sector_hq",
+     "distance": 100,
+     "cargo": { "ammo": 20 }
     }
    },
    {

@@ -135,6 +135,7 @@ public partial class Hud : CanvasLayer
 		_alert.Visible = false;
 		_alert.GuiInput += e => { if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) HideAlert(); };
 		root.AddChild(_alert);
+		_alert.ZIndex = 50;   // Gerätetest Phase 28: über Dock-Bildschirmen (die später in den Baum kommen)
 
 		// Phase 28 (Prüfpunkt f): Fortschritt des Offline-Nachholens beim Start (statt langem Splash) — dunkle Fläche mit Text und Balken, blockiert Eingaben
 		_loading.Color = new Color(0.01f, 0.02f, 0.05f, 0.97f);
@@ -210,13 +211,20 @@ public partial class Hud : CanvasLayer
 	/// <summary>
 	/// Gerätetest: wichtige Meldung — rot hinterlegt, groß, bleibt <paramref name="seconds"/> (mindestens 6 s) oder bis sie angetippt wird.
 	/// </summary>
-	public void Alert(string text, float seconds = 6f)
+	public void Alert(string text, float seconds = 6f, bool sticky = false)
 	{
-		_alertText.Text = text;
+		_alertSticky = sticky;   // Gerätetest Phase 28: Schiffsverlust bleibt stehen, bis angetippt
+		_alertText.Text = text;   // ein neues Ereignis ersetzt das alte (es gibt nur ein Meldungsfeld)
 		_alert.Visible = true;
 		double now = Time.GetTicksMsec() / 1000.0;
+		_alertShown = now;
 		_alertUntil = now + System.Math.Max(6f, seconds);
+		// Prüfung Phase 28: nie zwei Meldungsfelder zugleich — ein laufender Hinweis weicht der wichtigen Meldung
+		_toastTween?.Kill();
+		_toast.Modulate = new Color(1, 1, 1, 0);
 	}
+	double _alertShown;
+	bool _alertSticky;
 
 	public void HideAlert() => _alert.Visible = false;
 
@@ -237,12 +245,14 @@ public partial class Hud : CanvasLayer
 
 	public override void _Process(double delta)
 	{
-		if (_alert.Visible && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
+		if (_alert.Visible && !_alertSticky && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 	}
 
 	public void Toast(string text, float seconds = 2.5f)
 	{
+		// Prüfung Phase 28: ein neuer Hinweis ersetzt eine ältere Meldung, die schon mindestens 3 s stand (keine zwei Felder übereinander)
+		if (_alert.Visible && !_alertSticky && Time.GetTicksMsec() / 1000.0 - _alertShown >= 3.0) _alert.Visible = false;
 		_toast.Text = text;
 		_toastTween?.Kill();
 		_toast.Modulate = Colors.White;

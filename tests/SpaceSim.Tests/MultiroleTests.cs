@@ -122,6 +122,8 @@ public class MultiroleTests
         u.Events.Raised += e => { if (e is JobChanged c && c.Ship == tinker.Id) changes.Add((u.Tick, c)); };
         int trades = 0;
         u.Events.Raised += e => { if (e is TradeCompleted t && t.Ship == tinker.Id) trades++; };
+        var refused = new List<string>();
+        u.Events.Raised += e => { if (e is TraderBuyRefused r && r.Ship == tinker.Id) refused.Add($"t{u.Tick} {u.Goods[r.Good].Key} {r.BuyPrice:0.0}/{r.SellPrice:0.0}"); };
         var runner = new SimulationRunner(new ISimModule[] { new ProductionModule(), new JobModule(), new ResourceModule(), new TradeModule() });
         runner.Run(u, 299);
         Assert.Empty(changes);                       // Mindestdauer
@@ -132,7 +134,9 @@ public class MultiroleTests
         Assert.Equal(ShipRole.Trader, first.To);
         Assert.Equal(0f, first.FromScore);
         Assert.Equal(ShipRole.Trader, tinker.Role);
-        Assert.True(trades > 0, "Tinker handelt nach dem Wechsel");
+        // Phase 28 (Nacharbeit): ein Händler kauft nicht mehr mit sicherem Verlust — in dieser kleinen Welt ohne Lebenszyklus war die erste Runde eine solche
+        // (Energie 7,6 Cr beim Hersteller, Abnehmer 4,9 Cr); er handelt also oder verweigert diesen Einkauf bewusst
+        Assert.True(trades > 0 || refused.Count > 0, $"Tinker handelt nach dem Wechsel (verweigert: {string.Join(";", refused)})");
     }
 
     [Fact]

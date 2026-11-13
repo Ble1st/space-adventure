@@ -453,6 +453,8 @@ public sealed class ScenarioDef
     public float? Distance { get; set; }
     /// <summary>Gerätetest Phase 27: so viele Kaperschiffe einer Gruppe als Rudel in Waffenreichweite (zu zweit stärker als ein Jäger: sie greifen an statt zu fliehen).</summary>
     public int Raiders { get; set; }
+    /// <summary>Gerätetest Phase 28: Hüllenanteil der Kaperschiffe (angeschlagen, 1 = heil) — der Gefechtstest soll für einen Menschen am Handy bestehbar sein.</summary>
+    public float RaiderHull { get; set; } = 1f;
     /// <summary>Nach so vielen Ticks überfällt das Rudel den Spieler (angekündigt; 0 = kein Überfall).</summary>
     public int RaidAfterTicks { get; set; }
     /// <summary>Ein KI-Händler mit Fracht frei im Raum in Waffenreichweite (nicht angedockt).</summary>

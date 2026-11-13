@@ -893,4 +893,16 @@ public sealed class EconomyRules
     public int ArrestCooldownTicks = 2400;
     /// <summary>Prüfung Phase 27: Ergibt sich der Spieler der Polizei, wird die volle Strafe eingezogen — was die Kasse nicht deckt, wird Schuld (Kasse negativ).</summary>
     public bool SurrenderFineAsDebt = true;
+    /// <summary>
+    /// Phase 28 (Nacharbeit): Ein KI-Händler kauft am Einkaufsort nicht, wenn der Preis dort inzwischen mindestens <see cref="TraderBuyGuardShare"/> × den aktuellen
+    /// Preis seines Abnehmers erreicht (sicherer Verlust) — der Auftrag fällt weg, er plant neu. false = Verhalten bis Phase 28.
+    /// </summary>
+    public bool TraderBuyGuard = true;
+    public float TraderBuyGuardShare = 1f;
+    /// <summary>
+    /// Phase 28 (Nacharbeit): Hat eine Ware, die ein Rezept verbraucht, keinen Hersteller mehr (fertige Station oder Baustelle) — etwa weil der Spieler den letzten
+    /// zerstört hat —, zählt sie für den Lebenszyklus als knapp mit mindestens diesem Verhältnis (er baut nach, sobald Platz und Investor da sind).
+    /// </summary>
+    public bool BuildMissingProducer = true;
+    public float MissingProducerRatio = 5f;
 }

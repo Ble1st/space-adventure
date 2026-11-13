@@ -108,7 +108,7 @@ public static class ShipLoss
         string msg = how switch
         {
             OwnShip => $"Dein Schiff ist verloren — samt Fracht. Du bist an {st.Name} gelandet und fliegst jetzt {model} #{next.Id.Value}.",
-            Rented => $"Dein Schiff ist verloren — samt Fracht. An {st.Name} hast du ein Leihschiff ({model}) gemietet.",
+            Rented => $"Dein Schiff ist verloren — samt Fracht. An {st.Name} hast du ein Leihschiff ({model}) gemietet: Gebühr {u.Rules.RentalFee:0} Cr und Pfand {u.Rules.RentalDeposit:0} Cr (zurück bei Rückgabe), Miete {u.Rules.RentalPerDay:0} Cr je Tag.",
             _ => $"Dein Schiff ist verloren — samt Fracht. {st.Name} stellt dir ein Notfall-Leihschiff ({model}); die Miete läuft je Tag.",
         };
         if (!landing.Reachable) msg += " Kein erreichbarer Hafen — du wurdest über gesperrte Tore hinweg dorthin gebracht.";
