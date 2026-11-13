@@ -26,7 +26,7 @@ public class Phase21Tests
     [Fact]
     public void Welt_ElfSektoren_BestehendeIdsUnveraendert()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default(null, fuel: false, research: false);   // Phase 29: feste Fraktionsnamen (die Standardwelt würfelt sie)
         var classic = TestWorlds.Classic();
         Assert.Equal(11, u.Sectors.Count);
         Assert.Equal(Enumerable.Range(1, 11), u.Sectors.Keys.Select(k => k.Value).OrderBy(x => x));
@@ -41,7 +41,10 @@ public class Phase21Tests
         foreach (var st in classic.Stations.Values)
         {
             var n = u.Stations[st.Id];
-            Assert.Equal((st.Name, st.TypeKey, st.Sector, st.Position), (n.Name, n.TypeKey, n.Sector, n.Position));
+            // Phase 29: Stationen mit dem Fraktionsnamen heißen nach der Vorlage „Typ – {owner}“
+            bool templated = n.Name.Contains(" – ");
+            Assert.Equal((templated ? n.Name : st.Name, st.TypeKey, st.Sector, st.Position), (n.Name, n.TypeKey, n.Sector, n.Position));
+            if (templated) Assert.Contains(u.ActorName(n.Owner), n.Name);
         }
         foreach (var g in classic.Gates.Values)
         {
@@ -61,7 +64,7 @@ public class Phase21Tests
     [Fact]
     public void Welt_DritteFraktion_HerrenloseSektoren_ZweitePiratengruppe()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.Default(null, fuel: false, research: false);   // Phase 29: feste Fraktionsnamen
         Assert.Equal(3, u.Factions.Count);
         var mb = u.Factions[new FactionId(3)];
         Assert.Equal("Montanbund", mb.Name);

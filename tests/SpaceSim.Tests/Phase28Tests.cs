@@ -20,6 +20,7 @@ public class Phase28Tests
     /// <summary>Dreht Phase 28 in einer Weltdefinition zurück (Schalter aus, neue Inhalte entfernt, neue Regeln auf den Stand von Phase 27).</summary>
     internal static void RevertPhase28(WorldDef def)
     {
+        Phase29Tests.RevertPhase29(def);   // Phase 29: Schiffsraster
         def.Rules!.Warfare = false;
         def.Rules.ArrestCooldownTicks = 0;
         def.Rules.SurrenderFineAsDebt = false;
@@ -79,7 +80,8 @@ public class Phase28Tests
         RevertPhase28(def);
         var u = WorldBuilder.Build(def);
         new SimulationRunner().Run(u, 20000);
-        Assert.Equal(0xCB2A9FDBF34B15ABUL, UniverseHash.Compute(u));
+        // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher CB2A9FDBF34B15AB)
+        Assert.Equal(0x92842D6D5BA8AE3FUL, UniverseHash.Compute(u));
     }
 
     // ───────── Hilfen ─────────
@@ -399,7 +401,8 @@ public class Phase28Tests
         var dep = Assert.Single(ev.OfType<StationDeparted>());
         Assert.Equal(DepartureReason.Destroyed, dep.Reason);
         Assert.Contains(ev.OfType<StationFell>(), f => f.How == "destroyed" && f.Station == st.Id);
-        Assert.Contains(ev.OfType<ShotAtStation>(), s => s.Station == st.Id && s.Hit);
+        // Phase 29: Geschütz oder Rakete — je nach Zufallspfad fällt die Station unter einem Kanonen- oder einem Raketentreffer
+        Assert.True(ev.OfType<ShotAtStation>().Any(s => s.Station == st.Id && s.Hit) || ev.OfType<MissileResolved>().Any(m => m.TargetStation == st.Id && m.Outcome == "hit"));
         Fight(u, 5);
         Assert.False(u.Fights.IsEngaged(ship.Id));
         Assert.True(Wars.Between(u, Union, Guild)!.LossB > 0f);

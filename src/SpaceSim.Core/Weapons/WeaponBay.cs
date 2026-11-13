@@ -57,9 +57,35 @@ public static class WeaponBays
     /// <summary>Phase 26: Bergungsgreifer als eigener Schacht (Module aus Wracks bergen; ein Griff je Auslösung).</summary>
     public static WeaponBay Salvager { get; } = new() { Key = "salvage", Name = "Bergen", Facing = Facing.Bow, ArcDegrees = 360f, Range = 30f };
 
-    /// <summary>Schächte eines Schiffs: Laser und Traktor wie bisher, dazu der Spalter (Spaltlaser im Fit) und — Phase 26 — „Bergen“ (Fähigkeit Bergung).</summary>
+    /// <summary>
+    /// Phase 29: Kontaktwerkzeug (Bohrkopf, Schneidrad, Schneidwalze) als Anzeige-Schacht — feuert nicht, zeigt nur den Zustand (kein Kontakt, Abbau läuft,
+    /// Laderaum voll); Abbau läuft von selbst, solange die Werkzeugfront den Fels berührt (<see cref="ContactMining"/>).
+    /// </summary>
+    public static WeaponBay Contact { get; } = new() { Key = "contact", Name = "Bohrer", Facing = Facing.Bow, ArcDegrees = ContactMining.FrontArcDeg, Range = ContactMining.ContactRange + ContactMining.BowOffset };
+
+    /// <summary>Anzeigetext des Kontaktschachts.</summary>
+    public static string ContactText(ContactState state) => state switch
+    {
+        ContactState.Mining => "Abbau läuft",
+        ContactState.HoldFull => "Laderaum voll",
+        ContactState.NoTool => "kein Werkzeug",
+        _ => "kein Kontakt · Bug an Fels",
+    };
+
+    /// <summary>Schächte eines Schiffs: Laser und Traktor wie bisher, dazu der Spalter (Spaltlaser im Fit) und — Phase 26 — „Bergen“ (Fähigkeit Bergung).
+    /// Phase 29: ein Schiff mit Kontaktwerkzeug zeigt „Bohrer“ statt „Laser“, wenn es keinen Laser hat (mit beidem beide).</summary>
     public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.ShipStats stats)
     {
+        if (stats.ContactMining > 0f)
+        {
+            var c = new List<WeaponBay>();
+            if (stats.HasLaser) c.Add(PlayerDefault[0]);
+            c.Add(Contact);
+            c.Add(PlayerDefault[1]);
+            if (stats.SplitPower > 0f) c.Add(Splitter);
+            if ((stats.Capabilities & SpaceSim.Core.Model.Capability.Salvage) != 0) c.Add(Salvager);
+            return c;
+        }
         if (stats.SplitPower <= 0f && (stats.Capabilities & SpaceSim.Core.Model.Capability.Salvage) == 0) return PlayerDefault;
         var list = PlayerDefault.ToList();
         if (stats.SplitPower > 0f) list.Add(Splitter);

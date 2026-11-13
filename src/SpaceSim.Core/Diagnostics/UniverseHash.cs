@@ -102,6 +102,7 @@ public static class UniverseHash
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {
             Mix((ulong)a.LastForceTick); MixF(a.PoliceNeed); Mix((ulong)a.PoliceSurplusSince);   // Phase 20
+            MixString(a.Tag);   // Phase 29: Kürzel
             Mix((ulong)a.LastRestoreTick);   // Phase 22
             Mix((ulong)a.CreatedTick);       // Phase 27 (Prüfung Phase 26): Gründungszeit (Aufbauzeit der Rücklage hängt daran)
             if (a.ArrestCooldownUntil != 0) Mix((ulong)a.ArrestCooldownUntil + 0x2802u);   // Phase 28: Festnahme-Sperre

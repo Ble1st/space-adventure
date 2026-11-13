@@ -68,7 +68,7 @@ public class ShipFitTests
         // Konkrete Zuordnung: Trader 100, Miner 60, Spieler unit_player
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Trader), s => Assert.Equal("unit_trader_100", s.ModelKey));
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Miner), s => Assert.Equal("unit_miner_60", s.ModelKey));
-        Assert.Equal("unit_player", u.Ships[u.PlayerShip].ModelKey);
+        Assert.Equal("unit_miner_100", u.Ships[u.PlayerShip].ModelKey);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class ShipFitTests
         // Modelle je Rolle/Laderaum wie in der Migration vorgesehen
         Assert.All(loaded.Ships.Values.Where(s => s.Role == ShipRole.Trader), s => Assert.Equal("unit_trader_100", s.ModelKey));
         Assert.All(loaded.Ships.Values.Where(s => s.Role == ShipRole.Miner), s => Assert.Equal("unit_miner_60", s.ModelKey));
-        Assert.Equal("unit_player", loaded.Ships[loaded.PlayerShip].ModelKey);
+        Assert.Equal("unit_miner_100", loaded.Ships[loaded.PlayerShip].ModelKey);
         // Slot-Content kam mit der Migration aus der Default-Welt-Registry
         Assert.True(loaded.ShipModels.ContainsKey("unit_trader_100"));
         Assert.All(loaded.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal("foreman", s.ModelKey));   // Phase 8: Bauschiff-Rolle → Foreman
@@ -181,7 +181,7 @@ public class ShipFitTests
 
         // Mining-Laser aus dem Tool-Slot ausbauen und Stats neu berechnen
         int tool = miner.Slots.FindIndex(s => s.Type == "tool");
-        Assert.True(tool >= 0 && miner.Fit[tool] == "mining_laser_1");
+        Assert.True(tool >= 0 && miner.Fit[tool] is { } tk && u.Modules[tk].Grants.Contains(Capability.Mining));   // Phase 29: Bohrkopf oder Laser
         miner.Fit[tool] = null;
         Assert.True(miner.RecomputeStats(u));
 

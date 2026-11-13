@@ -127,7 +127,12 @@ public static class FactionViability
     {
         if (!u.Rules.SecurityActive) return false;
         var raiders = u.ShipsById().Where(s => ThreatMap.IsRaider(s) && s.Owner == a.Id).ToList();
-        if (raiders.Count == 0) return u.Rules.PirateIdleIncomePerTick <= 0f && a.Treasury.Credits < u.Rules.RaiderCost * Math.Clamp(u.Rules.RaiderRestartCostFactor, 0f, 1f);
+        if (raiders.Count == 0)
+        {
+            // Phase 29: mit Modellwahl kostet der Neuanfang das günstigste Kampfmodell (Bau im Versteck)
+            float first = u.Rules.PirateChoosesModels ? CombatModels.CheapestPirateCost(u) : u.Rules.RaiderCost;
+            return u.Rules.PirateIdleIncomePerTick <= 0f && a.Treasury.Credits < first * Math.Clamp(u.Rules.RaiderRestartCostFactor, 0f, 1f);
+        }
         return !raiders.Any(s => PirateSystem.CanHunt(u, s, a));
     }
 

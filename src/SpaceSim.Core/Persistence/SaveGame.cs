@@ -120,6 +120,8 @@ public sealed class SquadronSave
 public sealed class ActorSave
 {
     public int Id { get; set; } public string Name { get; set; } = ""; public string Kind { get; set; } = "";
+    /// <summary>Phase 29: Kürzel (fehlt in älteren Ständen — wird beim Laden abgeleitet).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Tag { get; set; }
     public int? Membership { get; set; }
     public float Credits { get; set; }
     public bool ShipsUseTreasury { get; set; }
@@ -526,6 +528,8 @@ public sealed class ShipClassSave
     public List<ShipSlotSave> Slots { get; set; } = new();
     /// <summary>Bausatz-Warenschlüssel der Klasse (Phase 5a); null = Regel ShipKitGoodKey.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Kit { get; set; }
+    /// <summary>Phase 29: Bausätze je Schiff (fehlt = 1).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int KitCount { get; set; }
     /// <summary>Wirkungsgrad der Werkzeug-Slots (Phase 6); fehlt in älteren Spielständen = 1.</summary>
     public float ToolEfficiency { get; set; } = 1f;
     /// <summary>Höchstzahl der Slot-Upgrades je Schiff (Phase 7, v10); fehlt in älteren Spielständen = 1.</summary>

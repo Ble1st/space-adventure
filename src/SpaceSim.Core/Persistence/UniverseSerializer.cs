@@ -81,13 +81,13 @@ public static class UniverseSerializer
     static ShipClassSave ToSave(ShipClass c) => new()
     {
         Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades, Restricted = c.Restricted, BerthFee = c.BerthFee,
+        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, KitCount = c.KitCount == 1 ? 0 : c.KitCount, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades, Restricted = c.Restricted, BerthFee = c.BerthFee,
     };
 
     static ShipClass FromSave(ShipClassSave c) => new()
     {
         Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit, ToolEfficiency = c.ToolEfficiency > 0f ? c.ToolEfficiency : 1f, MaxSlotUpgrades = Math.Max(0, c.MaxSlotUpgrades),
+        Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit, KitCount = c.KitCount > 0 ? c.KitCount : 1, ToolEfficiency = c.ToolEfficiency > 0f ? c.ToolEfficiency : 1f, MaxSlotUpgrades = Math.Max(0, c.MaxSlotUpgrades),
         Restricted = c.Restricted, BerthFee = MathF.Max(0f, c.BerthFee),
     };
 
@@ -131,7 +131,7 @@ public static class UniverseSerializer
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
             s.Actors.Add(new ActorSave
             {
-                Id = a.Id.Value, Name = a.Name, Kind = a.Kind.ToString(), Membership = a.Membership?.Value, Credits = a.Treasury.Credits,
+                Id = a.Id.Value, Name = a.Name, Tag = a.Tag.Length > 0 ? a.Tag : null, Kind = a.Kind.ToString(), Membership = a.Membership?.Value, Credits = a.Treasury.Credits,
                 ShipsUseTreasury = a.ShipsUseTreasury, Aggression = a.Personality.Aggression, Greed = a.Personality.Greed,
                 Cooperation = a.Personality.Cooperation, Lawfulness = a.Personality.Lawfulness,
                 Relations = a.Relations.Count == 0 ? null : a.Relations.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
@@ -341,7 +341,7 @@ public static class UniverseSerializer
         foreach (var a in s.Actors)
             u.Actors[new ActorId(a.Id)] = new Actor
             {
-                Id = new ActorId(a.Id), Name = a.Name, Kind = Enum.Parse<ActorKind>(a.Kind), Membership = a.Membership is { } m ? new FactionId(m) : null,
+                Id = new ActorId(a.Id), Name = a.Name, Tag = a.Tag ?? "", Kind = Enum.Parse<ActorKind>(a.Kind), Membership = a.Membership is { } m ? new FactionId(m) : null,
                 Treasury = new Treasury { Credits = a.Credits }, ShipsUseTreasury = a.ShipsUseTreasury,
                 Personality = new Personality(a.Aggression, a.Greed, a.Cooperation, a.Lawfulness),
                 Relations = a.Relations is null ? new Dictionary<ActorId, float>() : a.Relations.ToDictionary(kv => new ActorId(kv.Key), kv => kv.Value),
@@ -410,6 +410,7 @@ public static class UniverseSerializer
         u.Fights.Rebuild();
         u.NextActorId = s.NextActorId;
         u.EnsureCoreActors();
+        u.AssignMissingTags();   // Phase 29: ältere Stände ohne Kürzel
         foreach (var g in s.Goods)
             u.Goods[new GoodId(g.Id)] = new Good { Id = new GoodId(g.Id), Key = g.Key, Name = g.Name, Color = g.Color, BasePrice = g.BasePrice, VolumePerUnit = g.Volume, Form = ParseForm(g.Form), Category = g.Category ?? "" };
         foreach (var c in s.AsteroidClasses)

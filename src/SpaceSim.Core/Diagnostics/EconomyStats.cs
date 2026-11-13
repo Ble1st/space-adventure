@@ -23,7 +23,7 @@ public sealed record EconomySnapshot(
 }
 
 /// <summary>Phase 9: ein Akteur in der Momentaufnahme — Kasse, Besitz, Größenzahl und -klasse.</summary>
-public sealed record ActorStat(ActorId Id, string Name, ActorKind Kind, float Treasury, int Ships, int Stations, int Sectors, float Size, ActorSizeClass Class);
+public sealed record ActorStat(ActorId Id, string Name, ActorKind Kind, float Treasury, int Ships, int Stations, int Sectors, float Size, ActorSizeClass Class, string Tag = "");
 
 /// <summary>Momentaufnahme der Wirtschaft für Balancing-Werkzeug und Debug-Ansicht.</summary>
 public static class EconomyStats
@@ -59,7 +59,7 @@ public static class EconomyStats
             float size = ActorRules.Size(u.Rules, h);
             // Die Sammelgruppe ist kein Unternehmen: jedes freie Schiff ist für sich ein Einzelakteur
             var cls = a.Id == u.FreeActor ? ActorSizeClass.Single : ActorRules.ClassOf(u.Rules, size);
-            list.Add(new ActorStat(a.Id, a.Name, a.Kind, a.Treasury.Credits, h.Ships, h.Stations, h.Sectors, size, cls));
+            list.Add(new ActorStat(a.Id, a.Name, a.Kind, a.Treasury.Credits, h.Ships, h.Stations, h.Sectors, size, cls, a.Tag));
         }
         return list;
     }

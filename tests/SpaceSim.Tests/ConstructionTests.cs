@@ -162,7 +162,7 @@ public class ConstructionTests
         var quarry = new Ship { Id = u.NewShipId(), ModelKey = "quarry", Sector = u.PlayerSector, Fit = new List<string?>(u.ShipModels["quarry"].Fit) };
         quarry.RecomputeStats(u);
         Assert.True(quarry.Stats.SplitPower > 0f);
-        Assert.False(quarry.Has(Capability.Mining));
+        Assert.True(quarry.Has(Capability.Mining));   // Phase 29: der Steinbruch trägt neben dem Spaltlaser einen Bohrkopf
     }
 
     [Fact]

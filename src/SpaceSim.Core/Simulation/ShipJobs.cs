@@ -94,13 +94,16 @@ public sealed class MineJob : IShipJob
     public ShipRole Role => ShipRole.Miner;
     public Capability Needs => Capability.Mining;
     public float Limit(EconomyRules rules) => rules.MaxMiners;
-    public float Units(ShipStats stats, float cargoCapacity, EconomyRules rules) => stats.LaserChunkChanceMult * stats.LaserChunkSizeMult;
+    /// <summary>Phase 29: Abbaustufe (Laser oder Kontaktwerkzeug). Ein ausgefallenes Werkzeug zählt wie bisher mit den Grundwerten weiter
+    /// (das Schiff belegt seinen Platz bis zur Reparatur).</summary>
+    public float Units(ShipStats stats, float cargoCapacity, EconomyRules rules) =>
+        stats.HasLaser || stats.ContactMining > 0f ? stats.MiningTier : stats.LaserChunkChanceMult * stats.LaserChunkSizeMult;
     /// <summary>Laserstufe × Laderaumanteil (bis <see cref="ReferenceHold"/>) × (0,5 + 0,5 × Tempo-Faktor): Schürfen ist vor allem Laserzeit, die Reise zählt halb.</summary>
     public float FleetValue(ShipStats stats, EconomyRules rules)
     {
         if ((stats.Capabilities & Capability.Mining) == 0) return 0f;
         float hold = stats.CargoSolid + stats.CargoAny;
-        return stats.LaserChunkChanceMult * stats.LaserChunkSizeMult * MathF.Min(1f, hold / ReferenceHold)
+        return stats.MiningTier * MathF.Min(1f, hold / ReferenceHold)
                * (0.5f + 0.5f * MathF.Min(1.5f, stats.Speed / Travel.ShipSpeed));
     }
     /// <summary>Bewertung des besten Abbauauftrags (Wert je Einheit je Tick) × Feststoff-Laderaum = Credits je Tick.</summary>

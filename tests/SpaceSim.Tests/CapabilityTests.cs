@@ -132,7 +132,7 @@ public class CapabilityTests
         for (int i = 0; i < 400; i++) system.Step(u, 1);
 
         Assert.True(Belt.OreIn(sector, field) < oreBefore, "Asteroidenerz muss abgebaut werden");
-        Assert.Contains(events, e => e is MinerShot m && m.Ship == miner.Id);
+        Assert.Contains(events, e => (e is MinerShot m && m.Ship == miner.Id) || (e is ContactMined c && c.Ship == miner.Id));   // Phase 29: Kontaktabbau
         Assert.True(miner.Cargo.Values.Sum() > 5f, "Erz aus den Schüssen landet in der Fracht");
     }
 

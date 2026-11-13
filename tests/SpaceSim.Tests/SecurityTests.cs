@@ -351,6 +351,7 @@ public class SecurityTests
         Assert.Equal(u.Rules.RepelledThreat, u.Sectors[Gamma].Threat, 3);
         // Abfangen: Streife gewinnt, Kaperschiff zerstört
         var u2 = Fresh();
+        u2.Rules.PirateChoosesModels = false;   // Phase 29: geprüft wird der Phase-11-Nachbau zum festen Preis
         var p2 = SecuritySystem.PoliceOf(u2, Guild)[0];
         var r2 = Raider(u2, Gamma, FarFromStations(u2, Gamma));
         u2.Encounters = new FixedResolver(attackerWins: true, destroyed: true);
@@ -600,9 +601,16 @@ public class SecurityTests
         Assert.NotEmpty(upkeep);
         Assert.All(upkeep, t => Assert.Equal(u.Rules.PoliceUpkeepPerTick * 3 * SecuritySystem.ManageTicks, t.Amount + t.Unpaid, 1));
         // die Streifen fliegen in ihre Sektoren (nur eigenes Gebiet)
-        new SimulationRunner().Run(u, 2000);
-        Assert.All(SecuritySystem.PoliceOf(u, Union), p => Assert.Equal(Union, u.Sectors[p.DutySector].Owner));
-        Assert.Contains(SecuritySystem.PoliceOf(u, Union), p => p.Sector == Beta || p.Transit is not null);
+        // Phase 29 (Runde 10): über den Zeitraum geprüft statt nur am letzten Tick — am Ende kann der Pfad die Streife gerade zur Wartung daheim haben
+        bool toBeta = false;
+        var run = new SimulationRunner();
+        for (int t = 0; t < 2000; t += 50)
+        {
+            run.Run(u, 50);
+            Assert.All(SecuritySystem.PoliceOf(u, Union), p => Assert.Equal(Union, u.Sectors[p.DutySector].Owner));
+            toBeta |= SecuritySystem.PoliceOf(u, Union).Any(p => p.Sector == Beta || (p.Transit is not null && p.DutySector == Beta));
+        }
+        Assert.True(toBeta, "eine Streife fliegt nach Beta");
     }
 
     [Fact]
@@ -772,6 +780,7 @@ public class SecurityTests
     public void Piraten_Neuanfang_NachAusloeschung_HalberPreis_EinnahmeNurOhneFlotte()   // Phase 13 (Korrektur an Phase 11)
     {
         var u = Fresh();
+        u.Rules.PirateChoosesModels = false;   // Phase 29: geprüft wird der feste Neuanfangspreis (Modellwahl: Phase29Tests)
         var outlaw = u.Actors.Values.Single(a => a.Kind == ActorKind.Outlaw);
         foreach (var s in u.Ships.Values.Where(ThreatMap.IsRaider).ToList()) u.RemoveShip(s.Id, "test");
         outlaw.Treasury.Credits = 0f;

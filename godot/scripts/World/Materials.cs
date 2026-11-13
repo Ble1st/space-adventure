@@ -19,8 +19,13 @@ public static class Gfx
 		return mi;
 	}
 
+	/// <summary>
+	/// 3D-Beschriftung. Phase 29 (Handy-Test der Stationsmodelle): feste Bildschirmgröße (≈ 15 px bei 720 px Bildhöhe, wie die Beschriftungen der Randpfeile) statt
+	/// Weltgröße — beim Herauszoomen schrumpften die Schilder auf ≈ 8 px; dunkle Kontur für die Lesbarkeit über hellen Modellen.
+	/// </summary>
 	public static Label3D Label(string text, Vector3 pos) => new()
 	{
-		Text = text, Position = pos, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, PixelSize = 0.04f,
+		Text = text, Position = pos, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FixedSize = true, PixelSize = 0.0006f, FontSize = 32, OutlineSize = 10,
+		NoDepthTest = false,
 	};
 }

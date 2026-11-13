@@ -477,6 +477,7 @@ public class Phase25Tests
     {
         var u = Standard();
         u.Rules.PlayerRaids = false;
+        u.Rules.RaidersSpareLoot = false;   // Phase 29: sonst schont der Kaperer das beladene Schiff (der Test braucht den Verlust)
         var lead = NewShip(u, "unit_trader_100", ShipRole.Player, u.PlayerActor, 0f, Controller.Player);
         var wing = NewShip(u, "unit_trader_100", ShipRole.Player, u.PlayerActor, 0f, Controller.Player);
         Place(u, lead, Nebelmark, new Vec2(10f, 0f));
@@ -599,7 +600,7 @@ public class Phase25Tests
     // ───────── Werft ─────────
 
     [Fact]
-    public void Werft_VerkauftJaegerUndWaechter_KaperschiffBleibtGesperrt()
+    public void Werft_VerkauftJaegerWaechterUndKorsar()
     {
         var u = Standard();
         new SimulationRunner().Step(u);
@@ -609,7 +610,7 @@ public class Phase25Tests
         var keys = dealer.Offers(u, yard, player).Select(o => o.Key).ToList();
         Assert.Contains("buy:falcon", keys);
         Assert.Contains("buy:warden", keys);
-        Assert.DoesNotContain("buy:corsair", keys);
+        Assert.Contains("buy:corsair", keys);   // Phase 29: der Korsar ist nicht mehr gesperrt
         var cls = u.ShipClasses["fighter"];
         Assert.Equal(SlotSize.S, cls.Size);
         Assert.Null(FitRules.Check(u.SlotTypes, u.Modules, cls, cls.Slots, u.ShipModels["falcon"].Fit));
@@ -699,7 +700,8 @@ public class Phase25Tests
         new SimulationRunner().Run(u, 20000);
         // Phase 27 (Prüfung Phase 26): der Hash mischt zusätzlich Actor.CreatedTick — der Phase-24-Stand 75532A3F54AD3D9A heißt seitdem 68F0D589492ADEDC
         // (ermittelt auf dem unveränderten Phase-26-Code nur mit der Hash-Erweiterung; kein Verhalten geändert)
-        Assert.Equal(0x68F0D589492ADEDCUL, UniverseHash.Compute(u));
+        // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher 68F0D589492ADEDC)
+        Assert.Equal(0xFA6521C02E1E130EUL, UniverseHash.Compute(u));
     }
 
     // ───────── Zusatz Phase 25: jeder Händler bewaffnet ─────────

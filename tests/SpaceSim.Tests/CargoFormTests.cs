@@ -112,6 +112,7 @@ public class CargoFormTests
         var sector = u.Sectors[new SectorId(1)];
         var field = sector.Fields[0];   // metal_rock: ChunkChance 0,5
         var miner = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
+        MiningTests.ToLaser(u, miner);   // Phase 29: Einheitsschürfer tragen einen Bohrkopf
         miner.CargoCapacity = 1_000_000f;
         miner.Cargo.Clear();
         miner.Position = field.WorkPoint(miner.Id);
@@ -297,7 +298,7 @@ public class CargoFormTests
         var u = DemoUniverse.Create();
         Assert.All(u.Goods.Values, g => Assert.True(g.Form is GoodForm.Solid or GoodForm.Liquid));
         Assert.Equal(3, u.Goods.Values.Count(g => g.Form == GoodForm.Liquid));   // water, hydrogen, propellant
-        foreach (var key in new[] { "unit_trader_100", "unit_trader_60", "unit_miner_100", "unit_miner_60", "unit_player" })
+        foreach (var key in new[] { "unit_trader_100", "unit_trader_60", "unit_miner_100", "unit_miner_60" })
         {
             var ship = WorldBuilder.NewShip(u, u.NewShipId(), ShipRole.Trader, 1, new SectorId(1), 0f, 100f, key);
             Assert.False(ship.HasSeparatedHolds, $"{key}: Einheitsmodell = Universalraum");

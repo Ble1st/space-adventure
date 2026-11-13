@@ -95,7 +95,7 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		{
 			string job = f.Role switch { ShipRole.Trader => "Händler", ShipRole.Miner => "Schürfer", ShipRole.Builder => "Bauschiff", ShipRole.Police => "Polizei", ShipRole.Pirate => "Pirat", _ => f.Role.ToString() };
 			At(inner, Text($"#{f.Id.Value} {ModelName(u, f)} · {job}", 15, White), rx, fy, rw, 20);
-			At(inner, Text(u.ActorName(f.Owner), 12, Dim), rx, fy + 20, rw, 16);
+			At(inner, Text(SpaceSim.Core.Model.ActorNames.Tagged(u, f.Owner), 12, Dim), rx, fy + 20, rw, 16);
 			fy += 40f;
 			_foreignRows++;
 		}

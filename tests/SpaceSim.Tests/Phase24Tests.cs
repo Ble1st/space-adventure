@@ -328,7 +328,8 @@ public class Phase24Tests
         Assert.DoesNotContain(ev.OfType<ShotFired>(), s => s.Shooter == own.Id);
         var p = e.Of(own.Id)!;
         if (p.Active) Assert.Equal(rules == Engagement.Passive ? CombatMove.Flee : CombatMove.Hold, p.Move);
-        Assert.True(own.Hull >= u.Rules.PlayerMinHull * own.MaxHull - 0.01f);   // Flottenschiffe gehen in Phase 24 nicht verloren
+        // Phase 29: die frühere Hüllengrenze für Flottenschiffe gilt seit Phase 25 nicht mehr (Flottenschiffe können verloren gehen); seit die Gründer-Kaperer
+        // über die neuen Upgrade-Pfade (Schild/Laser Mk2) besser würfeln, trifft das hier auch zu — geprüft wird nur, dass das Schiff nicht schießt
     }
 
     // ───────── Sperre und Freigabe ─────────

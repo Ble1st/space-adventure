@@ -241,6 +241,7 @@ public partial class Main : Node3D
 		_player.Hit += OnPlayerHit;
 		_view.AsteroidGone += (pos, r) => { _fx.Burst(pos, new Color(1f, 0.7f, 0.3f), 22, 10f); _sfx.Play(SfxId.Crack); };
 		_chunks.Shot += OnShot;
+		_chunks.Contacted += OnContact;   // Phase 29: Kontaktabbau
 
 		var args = OS.GetCmdlineUserArgs();
 		bool selftest = args.Contains("--selftest");
@@ -353,11 +354,11 @@ public partial class Main : Node3D
 			var p = l.GlobalPosition;
 			// Runde 4: ganze Beschriftung prüfen (vorher nur ihr Mittelpunkt — „Wrack“ lag halb unter dem rechten HUD)
 			var sp = _cam.UnprojectPosition(p);
-			float half = Mathf.Max(20f, l.Text.Length * 5f);
-			var box = new Rect2(sp - new Vector2(half, 12f), new Vector2(half * 2f, 24f));
+			float half = Mathf.Max(20f, l.Text.Length * 4.5f);
+			var box = new Rect2(sp - new Vector2(half, 11f), new Vector2(half * 2f, 22f));
 			bool covered = !_cam.IsPositionBehind(p) && rects.Any(r => r.Intersects(box));
-			l.Modulate = new Color(1f, 1f, 1f, covered ? 0.12f : 1f);
-			l.OutlineModulate = new Color(0f, 0f, 0f, covered ? 0.12f : 1f);
+			// Phase 29 (Handy-Test der Stationsmodelle): unter HUD-Flächen ganz ausblenden (vorher nur abgedunkelt — hohe Modelle schoben Schilder unter Sektor-Chip und Zielkarte)
+			l.Visible = !covered;
 		}
 	}
 
@@ -630,6 +631,7 @@ public partial class Main : Node3D
 			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Toast($"Notbau: {es.Name}"); break;
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
+			case ContactMined cm when cm.Sector == _session.U.PlayerSector: OnContactMined(cm); break;
 			// Phase 24: NPC-Gefechte im Spielersektor — Schüsse als Strahlen, Beginn als Hinweis
 			case ShotFired sf when sf.Sector == _session.U.PlayerSector:
 				_fight.OnShot(_session.U, sf, Time.GetTicksMsec() / 1000.0);
@@ -1321,7 +1323,7 @@ public partial class Main : Node3D
 			var w = new Vector3(st.Position.X, 0, st.Position.Y);
 			var p = _cam.UnprojectPosition(w);
 			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
-			list.Add((p, st.Name, st.Id.Value));
+			list.Add((p, ActorNames.Tagged(u, st.Owner, st.Name), st.Id.Value));   // Phase 29: Kürzel
 		}
 		return list;
 	}
@@ -1457,6 +1459,18 @@ public partial class Main : Node3D
 	/// Ein Spielerschuss ist gefallen: Ton, Laserblitz, bei Treffer Funken – und Rückstoß: Das Schiff wird
 	/// vom Asteroiden weggestoßen (echte Geschwindigkeitsänderung, deshalb bremst die Automatik im Haltemodus aktiv).
 	/// </summary>
+	/// <summary>Phase 29: Kontaktabbau hat eine Portion gelöst — Funken am Bug (bis die Schiffsmodelle drehende Werkzeuge bekommen).</summary>
+	void OnContact(Asteroid rock, GoodId good, float units)
+	{
+		var h = _player.Heading;
+		var bow = _player.Position + new Vector3(-Mathf.Sin(h), 0f, -Mathf.Cos(h)) * SpaceSim.Core.Mining.ContactMining.BowOffset;
+		_fx.Burst(bow, new Color(1f, 0.75f, 0.35f), 6, 9f, 0.35f);
+		_contactSparks++;
+	}
+	int _contactSparks;
+	internal int TestContactSparks => _contactSparks;
+	internal ContactState TestContactState => _chunks.LastContact;
+
 	void OnShot(Asteroid rock, LaserShot.Result result)
 	{
 		float units = result.Units;
@@ -1484,6 +1498,16 @@ public partial class Main : Node3D
 		_mining.NpcShot(shot.Ship, surface, shot.Units, shot.Good, Time.GetTicksMsec() / 1000.0);
 		_view.Kick(shot.Ship, away * (MiningRules.RecoilImpulse * 0.4f));   // Rückstoß, verhältnismäßig zum Spielerschiff
 		if (shot.Units > 0f) _fx.Burst(surface, GoodColor(shot.Good), 4 + (int)shot.Units, 6f, 0.4f);
+	}
+
+	/// <summary>Phase 29: ein NPC-Schürfer hat laut Simulation mit seinem Kontaktwerkzeug eine Portion gelöst — Funken an der Kontaktstelle, kein Rückstoß.</summary>
+	void OnContactMined(ContactMined cm)
+	{
+		var shipPos = _view.ShipPosition(cm.Ship);
+		if (shipPos is not { } sp) return;
+		var rockPos = new Vector3(cm.AsteroidPosition.X, 0, cm.AsteroidPosition.Y);
+		var surface = rockPos + (sp - rockPos).Normalized() * cm.AsteroidRadius;
+		_fx.Burst(surface, GoodColor(cm.Good), 3 + (int)cm.Units, 5f, 0.35f);
 	}
 
 	// ───────── Flug-HUD: Daten aus der Simulation an die Oberfläche ─────────
@@ -1561,7 +1585,7 @@ public partial class Main : Node3D
 		d.AimAssistOn = _aimAssist;
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast))
 		{
-			d.TargetName = $"Angriff: {ast.Name}";
+			d.TargetName = $"Angriff: {ActorNames.Tagged(u, ast.Owner, ast.Name)}";
 			d.TargetHasInfo = true;
 			d.TargetHostile = true;
 			targetWorld = ast.Position;
@@ -1583,7 +1607,7 @@ public partial class Main : Node3D
 		}
 		else if (_target is { } t)
 		{
-			d.TargetName = t.Label;
+			d.TargetName = _targetStation is { } tsn && u.Stations.TryGetValue(tsn, out var tst0) ? ActorNames.Tagged(u, tst0.Owner, tst0.Name) : t.Label;   // Phase 29: Kürzel
 			d.TargetHasInfo = true;
 			if (t.Sector == u.PlayerSector)
 			{
@@ -1649,7 +1673,7 @@ public partial class Main : Node3D
 		var bays = _bays;
 		for (int i = 0; i < _bayViews.Length; i++)
 		{
-			if (bays[i].Key is "tractor" or "split") continue;   // Traktor ist Umschalter, der Spalter feuert nur einzeln
+			if (bays[i].Key is "tractor" or "split" or "contact") continue;   // Traktor ist Umschalter, der Spalter feuert nur einzeln
 			fire++;
 			if (_bayStates[i] == BayState.Ready) ready++;
 		}
@@ -1703,6 +1727,15 @@ public partial class Main : Node3D
 					wplace = $"Vorrat {SpaceSim.Core.Combat.Missiles.Loaded(_session.U, PlayerData):0}/{PlayerData.Stats.MissileCapacity:0} · {bay.Range:0} m";
 				_bayViews[i] = new BayView { Name = wname, Place = wplace, Detail = wdetail, State = wst,
 					Reload = SpaceSim.Core.Combat.PlayerGunnery.ReloadProgress(_session.U, PlayerData, wslot), Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
+				continue;
+			}
+			if (bay.Key == WeaponBays.Contact.Key)
+			{
+				// Phase 29: Kontaktwerkzeug — reine Anzeige, Zustand aus der Core-Regel (OreChunks.Contact im selben Bild)
+				var cs = _chunks.LastContact;
+				var cst = cs == ContactState.Mining ? BayState.Ready : cs == ContactState.HoldFull ? BayState.NoAmmo : BayState.NoTarget;
+				_bayStates[i] = cst;
+				_bayViews[i] = new BayView { Name = bay.Name, Place = "Bug · Kontakt", Detail = WeaponBays.ContactText(cs), State = cst, Reload = 1f, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;
 			}
 			if (bay.Key == "laser")
@@ -1786,6 +1819,7 @@ public partial class Main : Node3D
 		if (_docked != null || _hud.AnyModalOpen) return;
 		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
 		if (bays[index].Key == WeaponBays.Salvager.Key) { GrabSalvage(); return; }
+		if (bays[index].Key == WeaponBays.Contact.Key) { _hud.Toast("Bohrer: mit dem Bug an den Asteroiden fliegen – der Abbau läuft bei Kontakt von selbst."); return; }
 		if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[index].Key) is int ws and >= 0) { FireWeapon(ws, quiet: false); return; }
 		if (bays[index].Key == "tractor")
 		{
@@ -1844,7 +1878,7 @@ public partial class Main : Node3D
 		bool any = false;
 		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
 		{
-			if (bays[i].Key is "tractor" or "split" or "salvage" || _bayStates[i] != BayState.Ready) continue;
+			if (bays[i].Key is "tractor" or "split" or "salvage" or "contact" || _bayStates[i] != BayState.Ready) continue;
 			if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) { if (FireWeapon(ws, quiet: true)) any = true; }
 			else { _fireRequested = true; any = true; }
 		}
@@ -2046,6 +2080,9 @@ public partial class Main : Node3D
 		}
 
 		tractor &= !frozen;
+		// Phase 29: Kontaktabbau läuft von selbst, solange die Werkzeugfront den Fels berührt (gemeinsame Core-Regel mit den NPC-Schürfern)
+		if (!frozen && !_transition && ship.Stats.ContactMining > 0f)
+			_chunks.Contact(u, ship, sector, pos, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), (float)delta);
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
 		// Gerätetest: klarer Grund, warum ein Brocken nicht geladen wird (Laderaum für seine Form voll)
 		if (_chunks.HoldFull is { } full && u.Goods.TryGetValue(full, out var fg))
@@ -2122,6 +2159,18 @@ public partial class Main : Node3D
 	internal float TestRightTurnNoseX => Vector3.Forward.Rotated(Vector3.Up, PlayerShip.HeadingChange(1f, 0.1f)).X;
 	/// <summary>Geschwindigkeit entlang der Schiffsnase (negativ = rückwärts).</summary>
 	internal float TestForwardSpeed => _player.Velocity.Dot(Vector3.Forward.Rotated(Vector3.Up, _player.Heading));
+	/// <summary>Phase 29: Werkzeugslot des aktiven Schiffs auf ein Modul setzen (Selbsttest: Laserstufen mit dem Mk1-Laser, danach zurück zum Bohrkopf).</summary>
+	internal void TestSetTool(string module)
+	{
+		var ship = PlayerData;
+		int tool = ship.Slots.FindIndex(sl => sl.Type == "tool");
+		if (tool < 0) return;
+		ship.Fit[tool] = module;
+		float cap = ship.CargoCapacity;
+		ship.RecomputeStats(_session.U);
+		ship.CargoCapacity = cap;
+	}
+
 	/// <summary>Teleportiert das Schiff neben den nächsten abbaubaren Asteroiden und setzt das Laserziel.</summary>
 	internal void TestAimAtNearestRock()
 	{

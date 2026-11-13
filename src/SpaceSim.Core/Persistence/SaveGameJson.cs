@@ -20,7 +20,12 @@ public static class SaveGameJson
     /// und Lagerposten nicht in alte Stände nach. Spätere Phasen hängen ihre Schlüssel hier an.
     /// </summary>
     static readonly string[] AfterV17Keys = { "ammo", "weapon_magazine_s", "weapon_massdriver_s", "mule_armed", "hauler_armed", "fighter", "falcon", "wet_suppressor_s", "wreck_grapple_s",   // Phase 26: Löschanlage, Bergungsgreifer
-        "missile", "missile_launcher_s", "point_defense_s", "frigate", "bastion" };   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
+        "missile", "missile_launcher_s", "point_defense_s", "frigate", "bastion",
+        // Phase 29: Schiffsraster — Kampfmodule Mk2/M, Reaktor M, Korvette, Raketenboot
+        "shield_mk2", "shield_m", "armor_plating_s_mk2", "armor_plating_m", "weapon_laser_s_mk2", "weapon_laser_m", "weapon_massdriver_s_mk2",
+        "missile_launcher_s_mk2", "power_bank_s_mk2", "point_defense_s_mk2", "reactor_m", "corvette", "missile_boat",
+        "bomber", "gunboat", "destroyer", "battlecruiser", "strip_miner",
+        "drill_head_s", "cutting_wheel_s", "cutting_wheel_m", "cutting_drum_l" };   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {
@@ -36,13 +41,25 @@ public static class SaveGameJson
         // Runde 9: Tanker und Kurier handeln (Laser im angehängten Waffenslot)
         ("cistern", new string?[] { "reactor_mk1", "chem_engine_m", "canister_bay_s", "canister_bay_s", "canister_bay_s", "canister_bay_s", "canister_bay_s", "canister_bay_s", null }),
         ("swift", new string?[] { "reactor_mk1", "chem_engine_s", "cargo_solid_s", null }),
+        // Phase 29: Skiffs als Standardmodelle (Waffenslot angehängt)
+        ("pip", new string?[] { "reactor_mk1", "chem_engine_s", "mining_laser_1", "cargo_solid_s", "canister_bay_s", null }),
+        ("nomad", new string?[] { "reactor_mk1", "chem_engine_s", null, "cargo_universal_70", "cargo_solid_s", null }),
+        ("prospector", new string?[] { "reactor_mk1", "chem_engine_s", "mining_laser_1", "cargo_universal_60", null, null }),
+        // Phase 29: Kontaktabbau statt Laser
+        ("unit_miner_100", new string?[] { "reactor_mk1", "chem_engine_s", "mining_laser_1", "cargo_universal_100" }),
+        ("unit_miner_60", new string?[] { "reactor_mk1", "chem_engine_s", "mining_laser_1", "cargo_universal_60" }),
+        ("pickaxe", new string?[] { "reactor_mk1", "chem_engine_s", "mining_laser_1", "cargo_universal_60", null }),
+        ("rockbreaker", new string?[] { "reactor_mk1", "chem_engine_m", "mining_laser_2", null, "cargo_universal_100", "cargo_universal_60", null }),
+        ("quarry", new string?[] { "reactor_mk1", "chem_engine_m", "split_laser_s", null, null, "cargo_universal_60", null, null }),
+        ("rockbreaker_ii", new string?[] { "reactor_mk2", "chem_engine_m", "split_laser_s", "mining_laser_2", null, "cargo_universal_100", "cargo_universal_60", null }),
+        ("excavator", new string?[] { "reactor_mk3", "chem_engine_m", "mining_laser_3", null, "cargo_universal_100", "cargo_universal_60", null }),
     };
     /// <summary>Runde 9: Modelle, die erst nach v17 eine KI-Aufgabe bekamen (im Stand v17 ohne <c>jobs</c>).</summary>
-    static readonly string[] AfterV17Jobs = { "cistern", "swift" };
+    static readonly string[] AfterV17Jobs = { "cistern", "swift", "pip", "nomad", "prospector" };   // Phase 29: Skiffs
     /// <summary>Phase 25: Klassen, denen nach v17 am Ende ein Waffenslot angehängt wurde (für die Migrationskette wieder entfernt).</summary>
-    static readonly string[] AfterV17WeaponSlot = { "unit_trader", "heavy_freighter", "tanker", "courier" };
+    static readonly string[] AfterV17WeaponSlot = { "unit_trader", "heavy_freighter", "tanker", "courier", "skiff" };
     /// <summary>Phase 25: Grundmasse der Handelsklassen im Stand v17 (die Laserkanone wiegt 2; die Klassen wurden um 2 leichter, damit das Tempo gleich bleibt).</summary>
-    static readonly (string Class, float Mass)[] AfterV17ClassMass = { ("unit_trader", 10f), ("light_freighter", 16f), ("heavy_freighter", 30f), ("tanker", 16f), ("courier", 4f) };
+    static readonly (string Class, float Mass)[] AfterV17ClassMass = { ("unit_trader", 10f), ("light_freighter", 16f), ("heavy_freighter", 30f), ("tanker", 16f), ("courier", 4f), ("skiff", 6f) };
     /// <summary>Lagerposten (Stationstyp, Ware), die nach v17 nur für ein spätes Rezept dazukamen (Phase 23: Stahl für die Munition im Waffenwerk).</summary>
     static readonly (string Type, string Good)[] AfterV17Stocks = { ("weapons_works", "steel"), ("shipyard", "power_bank_s"),
         // Phase 26: Reparaturlager der Regierungsstationen
@@ -84,6 +101,20 @@ public static class SaveGameJson
                 }
         foreach (var m in root["shipModels"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             if (m is not null && AfterV17Jobs.Contains((string?)m["key"])) m.AsObject().Remove("jobs");
+        // Phase 29: Upgrade-Pfade zu späten Modulen, Korsar gesperrt, Slotgrößen des Patrouillenboots, Stufe des Waffenwerks im Stand v17
+        foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            if (m is not null && m["upgrade"] is { } up && Late((string?)up["to"])) m.AsObject().Remove("upgrade");
+        foreach (var c in root["shipClasses"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+        {
+            if (c is null) continue;
+            if ((string?)c["key"] == "raider") c["restricted"] = true;
+            if ((string?)c["key"] == "miner_heavy" && c["slots"] is System.Text.Json.Nodes.JsonArray mh)
+                foreach (var sl in mh) if (sl is not null && (string?)sl["type"] == "tool") sl["size"] = "S";   // Phase 29: Werkzeugslot M (Schneidrad)
+            if ((string?)c["key"] == "patrol_craft" && c["slots"] is System.Text.Json.Nodes.JsonArray ps)
+                foreach (var sl in ps) if (sl is not null && (string?)sl["size"] == "M" && (string?)sl["type"] != "engine") sl["size"] = "S";
+        }
+        foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            if (t is not null && (string?)t["key"] == "weapons_works" && t["moduleFactory"] is System.Text.Json.Nodes.JsonObject mf) mf["maxTier"] = 1;
         foreach (var t in root["stationTypes"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
         {
             if (t is null) continue;
@@ -245,7 +276,7 @@ public static class SaveGameJson
     /// <summary>
     /// v3 → v4: Schiffe bekommen <c>ModelKey</c> (Einheitsmodell nach Rolle und Laderaum, dieselbe Zuordnung wie
     /// <c>WorldBuilder.UnitModelFor</c>: trader/100 → unit_trader_100, trader/60 → unit_trader_60,
-    /// miner/100 → unit_miner_100, miner/60 → unit_miner_60, player → unit_player, sonst "" ohne Slots).
+    /// miner/100 → unit_miner_100, miner/60 → unit_miner_60, player → unit_miner_100 (Phase 29; früher unit_player mit denselben Werten), sonst "" ohne Slots).
     /// Slots/Fit setzt die Migration nicht; sie werden beim Laden aus dem Modell gefüllt. Da v3-Saves die
     /// Slot-Content-Sektionen nicht kennen, reicht die Migration die Default-Welt-Registry nach (v4-Saves
     /// speichern die Sektionen selbst wie die übrigen Content-Sektionen).

@@ -91,6 +91,8 @@ public sealed class ShipClass
     public List<ClassSlot> Slots = new();
     /// <summary>Warenschlüssel des Bausatzes, aus dem die Werft Schiffe dieser Klasse baut (Phase 5a: ship_kit_light/medium/heavy); null = Regel <see cref="EconomyRules.ShipKitGoodKey"/>.</summary>
     public string? Kit;
+    /// <summary>Phase 29: so viele Bausätze verbraucht ein Schiff dieser Klasse (Schlachtkreuzer: drei schwere); Standard 1.</summary>
+    public int KitCount = 1;
     /// <summary>
     /// Phase 6: Wirkungsgrad der Werkzeug-Slots dieses Rumpfs (Multiplikator auf die Trefferchance des Mining-Lasers); Standard 1.
     /// Mehrzweckrümpfe (leichter Frachter, Tinker) haben weniger, damit ein Generalist nie so gut schürft wie ein Spezialist

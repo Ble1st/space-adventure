@@ -137,6 +137,7 @@ public sealed class SecuritySystem : ISimSystem
     public static Ship? Commission(Universe u, FactionId f, bool priority = false)
     {
         var r = u.Rules;
+        if (r.PoliceChoosesModels) return CommissionChosen(u, f, priority);
         if (!u.Actors.TryGetValue(f, out var actor) || !u.ShipModels.TryGetValue(r.PoliceModel, out var model)
             || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls) || ShipPurchase.Materials(u, model) is not { } needs) return null;
         var home = HomeBaseFor(u, f, null);
@@ -160,6 +161,32 @@ public sealed class SecuritySystem : ISimSystem
             return ship;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Phase 29: Polizeikauf mit Modellwahl (<see cref="CombatModels.AtYard"/>): bestes Kampfmodell, das eine erreichbare Werft liefert und die Kasse über der
+    /// Rücklage bezahlt; schwerer gewichtet, je höher die größte Bedrohung im Territorium.
+    /// </summary>
+    static Ship? CommissionChosen(Universe u, FactionId f, bool priority)
+    {
+        var r = u.Rules;
+        if (!u.Actors.TryGetValue(f, out var actor) || HomeBaseFor(u, f, null) is not { } home) return null;
+        float keep = priority ? 0f : MathF.Max(r.PoliceReserve, FactionViability.Reserve(u, f) + FactionViability.ReplacementCost(u, f));
+        float threat = Territory(u, f).Select(s => s.Threat).DefaultIfEmpty(0f).Max();
+        if (CombatModels.AtYard(u, home.Sector, actor.Treasury.Credits - keep, CombatModels.Heavy(u, threat)) is not { } pick) return null;
+        // Güteklasse würfeln wie die Wirtschaftsflotte (bessere Module aus dem Werftlager)
+        var q = ShipQualityRoll.Roll(u, pick.Class, pick.Class.Slots, pick.Model.Fit, pick.Yard, pick.Needs);
+        ShipPurchase.Consume(pick.Yard, q.Materials ?? pick.Needs);
+        pick.Yard.Credits += pick.Price;
+        actor.Treasury.Credits -= pick.Price;
+        var ship = ShipPurchase.Create(u, u.NewShipId(), pick.Model.Key, q.Slots, q.Fit, ShipRole.Police, Controller.Ai, actor.Id, pick.Yard, 0f, q.Grade);
+        ship.HomeBase = home.Id;
+        ship.JobSince = u.Tick;
+        u.AddShip(ship);
+        actor.LastForceTick = u.Tick;
+        u.Events.Publish(new TreasuryUpkeep(actor.Id, "police", pick.Price, 0f));
+        u.Events.Publish(new PoliceCommissioned(f, ship.Id, pick.Yard.Id, pick.Price));
+        return ship;
     }
 
     /// <summary>Heimatbasis für Polizei einer Fraktion: Polizeiwache, sonst Hauptquartier, sonst Sektor-HQ/Büro — im Sektor <paramref name="near"/> zuerst.</summary>

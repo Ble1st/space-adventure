@@ -83,7 +83,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		{
 			string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
 			At(card, Text(st.Name, 21, Cyan), 16, 10, 268, 28);
-			At(card, Text($"{type} · {u.ActorName(st.Owner)}", 14, Dim), 16, 40, 268, 20);   // zweiter Gerätetest Phase 28: ohne Sektor (steht in der Kopfzeile), sonst gekürzt
+			At(card, Text($"{type} · {SpaceSim.Core.Model.ActorNames.Tagged(u, st.Owner)}", 14, Dim), 16, 40, 268, 20);   // zweiter Gerätetest Phase 28: ohne Sektor (steht in der Kopfzeile), sonst gekürzt
 			At(card, Text($"Kasse {st.Credits:0} Cr · {st.Market.Count} Waren am Markt", 14, White), 16, 66, 268, 20);
 			if (ConstructionInfo.Of(u, st) is { } site)
 			{

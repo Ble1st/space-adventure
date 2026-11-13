@@ -1,5 +1,6 @@
 {
  "seed": 20260101,
+ "randomNames": true,
  "rules": {
   "armedTraderBaseline": 6,
   "raidRatePerTick": 0.0065,
@@ -19,6 +20,7 @@
   "raiderDestroyChance": 0.15,
   "raiderRebuildTicks": 6000,
   "maxRaidersPerActor": 2,
+  "maxRaiderUnitsPerActor": 2,
   "pirateTreasuryCap": 10000,
   "fenceShare": 0.85,
   "raiderUpkeepPerTick": 0.03,
@@ -639,6 +641,21 @@
     }
    ],
    "stocks": {
+    "drill_head_s": [2, 5],
+    "cutting_wheel_s": [1, 2],
+    "cutting_wheel_m": [0, 1],
+    "cutting_drum_l": [0, 1],
+    "shield_mk2": [0, 1],
+    "shield_m": [0, 1],
+    "armor_plating_s_mk2": [0, 1],
+    "armor_plating_m": [0, 1],
+    "weapon_laser_s_mk2": [0, 1],
+    "weapon_laser_m": [0, 1],
+    "weapon_massdriver_s_mk2": [0, 1],
+    "missile_launcher_s_mk2": [0, 1],
+    "power_bank_s_mk2": [0, 1],
+    "point_defense_s_mk2": [0, 1],
+    "reactor_m": [0, 1],
     "ship_kit_light": [10, 10],
     "hull_plates": [20, 20],
     "electronics": [10, 10],
@@ -862,7 +879,7 @@
      "shield",
      "armor"
     ],
-    "maxTier": 1,
+    "maxTier": 2,
     "ticks": 20,
     "target": 5
    },
@@ -939,6 +956,7 @@
     "assembly": 0.1
    },
    "stocks": {
+    "drill_head_s": [1, 3],
     "ammo": [3, 8],
     "ship_kit_light": [
      1,
@@ -1346,7 +1364,7 @@
     {
      "id": 37,
      "type": "research_station",
-     "name": "Forschungsinstitut der Union",
+     "name": "Forschungsinstitut – {owner}",
      "pos": [
       -40,
       -140
@@ -1357,7 +1375,7 @@
     {
      "id": 32,
      "type": "headquarters",
-     "name": "Hauptquartier der Union",
+     "name": "Hauptquartier – {owner}",
      "pos": [
       130,
       -25
@@ -1794,7 +1812,7 @@
     {
      "id": 36,
      "type": "pirate_hideout",
-     "name": "Versteck der Roten Korsaren",
+     "name": "Versteck – {owner}",
      "owner": "pirates",
      "pos": [
       215,
@@ -2195,7 +2213,7 @@
     {
      "id": 75,
      "type": "research_station",
-     "name": "Forschungszentrum des Montanbunds",
+     "name": "Forschungszentrum – {owner}",
      "pos": [
       -130,
       -110
@@ -2206,7 +2224,7 @@
     {
      "id": 66,
      "type": "headquarters",
-     "name": "Hauptsitz des Montanbunds",
+     "name": "Hauptsitz – {owner}",
      "pos": [
       -60,
       90
@@ -2376,7 +2394,7 @@
     {
      "id": 74,
      "type": "pirate_hideout",
-     "name": "Schlupfwinkel der Schwarzen Klingen",
+     "name": "Schlupfwinkel – {owner}",
      "pos": [
       210,
       190
@@ -2893,7 +2911,8 @@
     "steel": 2,
     "copper": 2,
     "fuel_cells": 1
-   }
+   },
+   "upgrade": { "to": "power_bank_s_mk2", "cost": {"copper": 1, "fuel_cells": 1} }
   },
   {
    "key": "fuel_tank_s",
@@ -2943,7 +2962,8 @@
     "platinum": 1,
     "wafers": 2,
     "electronics": 1
-   }
+   },
+   "upgrade": { "to": "shield_mk2", "cost": {"wafers": 1, "electronics": 1} }
   },
   {
    "key": "armor_plating_s",
@@ -2958,7 +2978,8 @@
    "cost": {
     "hull_plates": 2,
     "titanium": 1
-   }
+   },
+   "upgrade": { "to": "armor_plating_s_mk2", "cost": {"hull_plates": 1, "titanium": 1} }
   },
   {
    "key": "chem_engine_m",
@@ -3161,7 +3182,8 @@
     "electronics": 2,
     "copper": 2,
     "titanium": 1
-   }
+   },
+   "upgrade": { "to": "weapon_laser_s_mk2", "cost": {"electronics": 1, "titanium": 1} }
   },
   {
    "key": "weapon_magazine_s",
@@ -3203,7 +3225,8 @@
     "steel": 3,
     "electronics": 1,
     "titanium": 1
-   }
+   },
+   "upgrade": { "to": "weapon_massdriver_s_mk2", "cost": {"electronics": 1, "titanium": 1} }
   },
   {
    "key": "wet_suppressor_s",
@@ -3266,7 +3289,8 @@
     "steel": 2,
     "electronics": 2,
     "fuel_cells": 1
-   }
+   },
+   "upgrade": { "to": "missile_launcher_s_mk2", "cost": {"electronics": 1, "fuel_cells": 1} }
   },
   {
    "key": "point_defense_s",
@@ -3284,8 +3308,24 @@
     "electronics": 2,
     "copper": 1,
     "titanium": 1
-   }
-  }
+   },
+   "upgrade": { "to": "point_defense_s_mk2", "cost": {"electronics": 1, "titanium": 1} }
+  },
+  {"key": "shield_mk2", "name": "Schildgenerator Mk2", "slot": "shield", "size": "S", "tier": 2, "stats": {"shieldCapacity": 70, "shieldRegen": 0.8}, "powerDraw": 3, "mass": 2, "cost": {"wafers": 4, "electronics": 2, "titanium": 1}},
+  {"key": "shield_m", "name": "Schildgenerator M", "slot": "shield", "size": "M", "tier": 2, "stats": {"shieldCapacity": 120, "shieldRegen": 1.2}, "powerDraw": 4, "mass": 4, "cost": {"wafers": 4, "electronics": 3, "titanium": 2}},
+  {"key": "armor_plating_s_mk2", "name": "Panzerplattierung S Mk2", "slot": "armor", "size": "S", "tier": 2, "stats": {"armor": 60}, "mass": 5, "cost": {"hull_plates": 3, "titanium": 2}},
+  {"key": "armor_plating_m", "name": "Panzerplattierung M", "slot": "armor", "size": "M", "tier": 2, "stats": {"armor": 90}, "mass": 8, "cost": {"hull_plates": 4, "titanium": 2}},
+  {"key": "weapon_laser_s_mk2", "name": "Laserkanone Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 9, "reload": 2, "range": 65, "accuracy": 0.87, "tracking": 0.8, "ammoPerShot": 0}, "damageType": "energy", "powerDraw": 4, "peakDraw": 1.5, "mass": 2, "cost": {"electronics": 3, "copper": 2, "titanium": 2}},
+  {"key": "weapon_laser_m", "name": "Laserkanone M", "slot": "weapon", "size": "M", "tier": 2, "grants": ["Combat"], "stats": {"damage": 14, "reload": 2.5, "range": 70, "accuracy": 0.85, "tracking": 0.65, "ammoPerShot": 0}, "damageType": "energy", "powerDraw": 6, "peakDraw": 2, "mass": 4, "cost": {"electronics": 4, "copper": 3, "titanium": 3}},
+  {"key": "weapon_massdriver_s_mk2", "name": "Kinetisches Geschütz Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 13, "reload": 3, "range": 50, "accuracy": 0.78, "tracking": 0.45, "ammoPerShot": 1, "ammoCapacity": 40}, "damageType": "kinetic", "powerDraw": 1.5, "peakDraw": 0.5, "mass": 3, "cost": {"steel": 3, "electronics": 2, "titanium": 2}},
+  {"key": "missile_launcher_s_mk2", "name": "Raketenwerfer Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 38, "reload": 8, "range": 120, "accuracy": 0.87, "tracking": 0.78, "ammoPerShot": 0, "missileSpeed": 38, "missileCapacity": 8}, "damageType": "explosive", "powerDraw": 2, "peakDraw": 1, "mass": 3, "cost": {"steel": 3, "electronics": 3, "fuel_cells": 1}},
+  {"key": "power_bank_s_mk2", "name": "Energiespeicher S Mk2", "slot": "storage", "size": "S", "tier": 2, "stats": {"powerStorage": 35}, "mass": 2, "cost": {"steel": 2, "copper": 3, "fuel_cells": 2}},
+  {"key": "point_defense_s_mk2", "name": "Punktabwehr Mk2", "slot": "utility", "size": "S", "tier": 2, "grants": [], "stats": {"pointDefense": 0.5}, "powerDraw": 3, "mass": 2, "cost": {"electronics": 3, "copper": 1, "titanium": 2}},
+  {"key": "reactor_m", "name": "Fusionsreaktor M", "slot": "reactor", "size": "M", "tier": 2, "stats": {"powerOutput": 24}, "mass": 7, "cost": {"steel": 6, "electronics": 4, "titanium": 3}},
+  {"key": "drill_head_s", "name": "Bohrkopf S", "slot": "tool", "size": "S", "tier": 1, "grants": ["Mining"], "stats": {"contactMining": 3.4}, "powerDraw": 2, "mass": 1, "cost": {"steel": 2, "titanium": 1, "electronics": 1}, "upgrade": {"to": "cutting_wheel_s", "cost": {"titanium": 1, "electronics": 1}}},
+  {"key": "cutting_wheel_s", "name": "Schneidrad S", "slot": "tool", "size": "S", "tier": 2, "grants": ["Mining"], "stats": {"contactMining": 5.525}, "powerDraw": 3, "mass": 1, "cost": {"steel": 3, "titanium": 2, "electronics": 2}},
+  {"key": "cutting_wheel_m", "name": "Schneidrad M", "slot": "tool", "size": "M", "tier": 3, "grants": ["Mining"], "stats": {"contactMining": 8.16}, "powerDraw": 4, "mass": 2, "cost": {"steel": 4, "titanium": 3, "electronics": 2}},
+  {"key": "cutting_drum_l", "name": "Schneidwalze L", "slot": "tool", "size": "L", "tier": 3, "grants": ["Mining"], "stats": {"contactMining": 10.2}, "powerDraw": 5, "mass": 4, "cost": {"steel": 6, "titanium": 4, "electronics": 3}}
  ],
  "shipClasses": [
   {
@@ -3351,7 +3391,7 @@
    "name": "Skiff",
    "size": "S",
    "baseHull": 60,
-   "baseMass": 6,
+   "baseMass": 4,
    "baseFuel": 150,
    "slots": [
     {
@@ -3376,6 +3416,10 @@
     },
     {
      "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
      "size": "S"
     }
    ],
@@ -3549,7 +3593,7 @@
     },
     {
      "type": "tool",
-     "size": "S"
+     "size": "M"
     },
     {
      "type": "armor",
@@ -3713,12 +3757,12 @@
    "baseMass": 14,
    "baseFuel": 250,
    "slots": [
-    { "type": "reactor", "size": "S" },
+    { "type": "reactor", "size": "M" },
     { "type": "engine", "size": "M" },
     { "type": "weapon", "size": "S", "facing": "bow", "arc": 60 },
     { "type": "weapon", "size": "S", "facing": "bow", "arc": 60 },
-    { "type": "shield", "size": "S" },
-    { "type": "armor", "size": "S" },
+    { "type": "shield", "size": "M" },
+    { "type": "armor", "size": "M" },
     { "type": "utility", "size": "S" }
    ],
    "kit": "ship_kit_medium"
@@ -3730,7 +3774,6 @@
    "baseHull": 80,
    "baseMass": 7,
    "baseFuel": 200,
-   "restricted": true,
    "slots": [
     { "type": "reactor", "size": "S" },
     { "type": "engine", "size": "S" },
@@ -3766,10 +3809,320 @@
    "baseHull": 520,
    "baseMass": 30,
    "baseFuel": 400,
+   "slots": [{"type": "reactor", "size": "M"}, {"type": "reactor", "size": "M"}, {"type": "engine", "size": "M"},
+    {"type": "weapon", "size": "M", "facing": "bow", "arc": 120}, {"type": "weapon", "size": "M", "facing": "bow", "arc": 120},
+    {"type": "weapon", "size": "S"}, {"type": "weapon", "size": "S"}, {"type": "shield", "size": "M"}, {"type": "shield", "size": "M"},
+    {"type": "armor", "size": "M"}, {"type": "armor", "size": "M"}, {"type": "utility", "size": "S"}, {"type": "utility", "size": "S"}, {"type": "storage", "size": "S"}],
+   "kit": "ship_kit_heavy"
+  },
+  {
+   "key": "corvette",
+   "name": "Korvette",
+   "size": "M",
+   "baseHull": 200,
+   "baseMass": 18,
+   "baseFuel": 280,
    "slots": [{"type": "reactor", "size": "S"}, {"type": "reactor", "size": "S"}, {"type": "engine", "size": "M"},
-    {"type": "weapon", "size": "S", "facing": "bow", "arc": 120}, {"type": "weapon", "size": "S", "facing": "bow", "arc": 120},
-    {"type": "weapon", "size": "S"}, {"type": "weapon", "size": "S"}, {"type": "shield", "size": "S"}, {"type": "shield", "size": "S"},
-    {"type": "armor", "size": "S"}, {"type": "armor", "size": "S"}, {"type": "utility", "size": "S"}, {"type": "utility", "size": "S"}, {"type": "storage", "size": "S"}],
+    {"type": "weapon", "size": "S", "facing": "bow", "arc": 90}, {"type": "weapon", "size": "S", "facing": "bow", "arc": 90},
+    {"type": "weapon", "size": "S"}, {"type": "weapon", "size": "S"}, {"type": "shield", "size": "M"}, {"type": "armor", "size": "S"},
+    {"type": "utility", "size": "S"}, {"type": "utility", "size": "S"}],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "missile_boat",
+   "name": "Raketenboot",
+   "size": "M",
+   "baseHull": 120,
+   "baseMass": 12,
+   "baseFuel": 260,
+   "slots": [{"type": "reactor", "size": "S"}, {"type": "reactor", "size": "S"}, {"type": "engine", "size": "M"},
+    {"type": "weapon", "size": "S", "facing": "bow", "arc": 90}, {"type": "weapon", "size": "S", "facing": "bow", "arc": 90},
+    {"type": "weapon", "size": "S"}, {"type": "shield", "size": "S"}, {"type": "utility", "size": "S"}, {"type": "storage", "size": "S"}],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "bomber",
+   "name": "Bomber",
+   "size": "S",
+   "baseHull": 110,
+   "baseMass": 9,
+   "baseFuel": 200,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "shield",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "storage",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "gunboat",
+   "name": "Kanonenboot",
+   "size": "M",
+   "baseHull": 260,
+   "baseMass": 22,
+   "baseFuel": 280,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "M",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "shield",
+     "size": "S"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "destroyer",
+   "name": "Zerstörer",
+   "size": "L",
+   "baseHull": 700,
+   "baseMass": 38,
+   "baseFuel": 450,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_heavy"
+  },
+  {
+   "key": "battlecruiser",
+   "name": "Schlachtkreuzer",
+   "size": "XL",
+   "baseHull": 1200,
+   "baseMass": 56,
+   "baseFuel": 600,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "L"
+    },
+    {
+     "type": "reactor",
+     "size": "L"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "L",
+     "facing": "bow",
+     "arc": 120
+    },
+    {
+     "type": "weapon",
+     "size": "L",
+     "facing": "bow",
+     "arc": 120
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "shield",
+     "size": "L"
+    },
+    {
+     "type": "shield",
+     "size": "L"
+    },
+    {
+     "type": "armor",
+     "size": "L"
+    },
+    {
+     "type": "armor",
+     "size": "L"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "storage",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_heavy",
+   "kitCount": 3,
+   "maxSlotUpgrades": 2
+  },
+  {
+   "key": "strip_miner",
+   "name": "Großschürfer",
+   "size": "L",
+   "baseHull": 300,
+   "baseMass": 26,
+   "baseFuel": 400,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "L"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
    "kit": "ship_kit_heavy"
   }
  ],
@@ -3811,7 +4164,7 @@
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
-    "mining_laser_1",
+    "drill_head_s",
     "cargo_universal_100"
    ],
    "jobs": [
@@ -3825,7 +4178,7 @@
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
-    "mining_laser_1",
+    "drill_head_s",
     "cargo_universal_60"
    ],
    "jobs": [
@@ -3833,59 +4186,61 @@
    ]
   },
   {
-   "key": "unit_player",
-   "class": "unit_miner",
-   "name": "Einheitsspieler",
-   "fit": [
-    "reactor_mk1",
-    "chem_engine_s",
-    "mining_laser_1",
-    "cargo_universal_100"
-   ]
-  },
-  {
    "key": "pip",
    "class": "skiff",
-   "name": "Pip",
+   "name": "Kiebitz",
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
     "mining_laser_1",
     "cargo_solid_s",
     "canister_bay_s",
-    null
+    null,
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade",
+    "mine"
    ]
   },
   {
    "key": "nomad",
    "class": "skiff",
-   "name": "Nomad",
+   "name": "Nomade",
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
     null,
     "cargo_universal_70",
     "cargo_solid_s",
-    null
+    null,
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade"
    ]
   },
   {
    "key": "prospector",
    "class": "skiff",
-   "name": "Prospector",
+   "name": "Goldsucher",
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
-    "mining_laser_1",
+    "drill_head_s",
     "cargo_universal_60",
     null,
+    null,
     null
+   ],
+   "jobs": [
+    "mine"
    ]
   },
   {
    "key": "swift",
    "class": "courier",
-   "name": "Swift",
+   "name": "Mauersegler",
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
@@ -3900,7 +4255,7 @@
   {
    "key": "mule",
    "class": "light_freighter",
-   "name": "Mule",
+   "name": "Maultier",
    "fit": [
     "reactor_mk1",
     "chem_engine_m",
@@ -3917,7 +4272,7 @@
   {
    "key": "hauler",
    "class": "light_freighter",
-   "name": "Hauler",
+   "name": "Lastkahn",
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
@@ -3934,7 +4289,7 @@
   {
    "key": "tinker",
    "class": "light_freighter",
-   "name": "Tinker",
+   "name": "Kesselflicker",
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
@@ -3971,11 +4326,11 @@
   {
    "key": "pickaxe",
    "class": "miner_light",
-   "name": "Pickaxe",
+   "name": "Spitzhacke",
    "fit": [
     "reactor_mk1",
     "chem_engine_s",
-    "mining_laser_1",
+    "drill_head_s",
     "cargo_universal_60",
     null
    ],
@@ -3986,11 +4341,11 @@
   {
    "key": "rockbreaker",
    "class": "miner_heavy",
-   "name": "Rockbreaker",
+   "name": "Felsbrecher",
    "fit": [
     "reactor_mk1",
     "chem_engine_m",
-    "mining_laser_2",
+    "cutting_wheel_s",
     null,
     "cargo_universal_100",
     "cargo_universal_60",
@@ -4003,7 +4358,7 @@
   {
    "key": "cistern",
    "class": "tanker",
-   "name": "Cistern",
+   "name": "Zisterne",
    "fit": [
     "reactor_mk1",
     "chem_engine_m",
@@ -4023,7 +4378,7 @@
   {
    "key": "foreman",
    "class": "construction_ship",
-   "name": "Foreman",
+   "name": "Polier",
    "fit": [
     "reactor_mk1",
     "chem_engine_m",
@@ -4040,12 +4395,12 @@
   {
    "key": "quarry",
    "class": "breaker",
-   "name": "Quarry",
+   "name": "Steinbruch",
    "fit": [
-    "reactor_mk1",
+    "reactor_mk2",
     "chem_engine_m",
     "split_laser_s",
-    null,
+    "drill_head_s",
     null,
     "cargo_universal_60",
     null,
@@ -4055,12 +4410,12 @@
   {
    "key": "rockbreaker_ii",
    "class": "breaker",
-   "name": "Rockbreaker II",
+   "name": "Felsbrecher II",
    "fit": [
     "reactor_mk2",
     "chem_engine_m",
     "split_laser_s",
-    "mining_laser_2",
+    "cutting_wheel_s",
     null,
     "cargo_universal_100",
     "cargo_universal_60",
@@ -4100,11 +4455,11 @@
   {
    "key": "excavator",
    "class": "miner_heavy",
-   "name": "Excavator",
+   "name": "Bagger",
    "fit": [
     "reactor_mk3",
     "chem_engine_m",
-    "mining_laser_3",
+    "cutting_wheel_m",
     null,
     "cargo_universal_100",
     "cargo_universal_60",
@@ -4118,14 +4473,162 @@
    "key": "falcon",
    "class": "fighter",
    "name": "Falke",
-   "fit": ["reactor_mk2", "chem_engine_s_mk2", "weapon_laser_s", "weapon_massdriver_s", "shield_mk1", "power_bank_s", "weapon_magazine_s"]
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_s_mk2",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "power_bank_s",
+    "weapon_magazine_s"
+   ]
   },
   {
    "key": "bastion",
    "class": "frigate",
    "name": "Bollwerk",
-   "fit": ["reactor_mk2", "reactor_mk2", "chem_engine_m", "missile_launcher_s", "missile_launcher_s", "weapon_laser_s", "weapon_massdriver_s",
-    "shield_mk1", "shield_mk1", "armor_plating_s", "armor_plating_s", "weapon_magazine_s", "point_defense_s", "power_bank_s"]
+   "fit": [
+    "reactor_mk2",
+    "reactor_mk2",
+    "chem_engine_m",
+    "missile_launcher_s",
+    "missile_launcher_s",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "shield_mk1",
+    "armor_plating_s",
+    "armor_plating_s",
+    "weapon_magazine_s",
+    "point_defense_s",
+    "power_bank_s"
+   ]
+  },
+  {
+   "key": "corvette",
+   "class": "corvette",
+   "name": "Hornisse",
+   "fit": [
+    "reactor_mk2",
+    "reactor_mk2",
+    "chem_engine_m",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "weapon_laser_s",
+    "weapon_laser_s",
+    "shield_m",
+    "armor_plating_s",
+    "point_defense_s",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "missile_boat",
+   "class": "missile_boat",
+   "name": "Lanze",
+   "fit": [
+    "reactor_mk2",
+    "reactor_mk2",
+    "chem_engine_m",
+    "missile_launcher_s",
+    "missile_launcher_s",
+    "weapon_laser_s",
+    "shield_mk1",
+    "point_defense_s",
+    "power_bank_s"
+   ]
+  },
+  {
+   "key": "bomber",
+   "class": "bomber",
+   "name": "Donner",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_s",
+    "missile_launcher_s",
+    "missile_launcher_s",
+    "shield_mk1",
+    null,
+    "power_bank_s"
+   ]
+  },
+  {
+   "key": "gunboat",
+   "class": "gunboat",
+   "name": "Keiler",
+   "fit": [
+    "reactor_m",
+    "chem_engine_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "armor_plating_m",
+    "armor_plating_m",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "destroyer",
+   "class": "destroyer",
+   "name": "Sturmvogel",
+   "fit": [
+    "reactor_m",
+    "reactor_m",
+    "chem_engine_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_massdriver_s",
+    "shield_m",
+    "shield_m",
+    "armor_plating_m",
+    "point_defense_s",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "battlecruiser",
+   "class": "battlecruiser",
+   "name": "Leviathan",
+   "fit": [
+    "reactor_m",
+    "reactor_m",
+    "chem_engine_m",
+    "chem_engine_m",
+    "missile_launcher_s_mk2",
+    "missile_launcher_s_mk2",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "shield_m",
+    "shield_m",
+    "armor_plating_m",
+    "armor_plating_m",
+    "point_defense_s_mk2",
+    "weapon_magazine_s",
+    null,
+    "power_bank_s_mk2"
+   ]
+  },
+  {
+   "key": "strip_miner",
+   "class": "strip_miner",
+   "name": "Maulwurf",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_m",
+    "cutting_drum_l",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
   }
  ],
  "ships": [

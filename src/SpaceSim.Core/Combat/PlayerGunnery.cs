@@ -307,7 +307,7 @@ public static class PlayerCombat
 
     /// <summary>Kurzbeschreibung eines Schiffs (Modell und Besitzer).</summary>
     public static string Describe(Universe u, Ship s) =>
-        $"{(u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : "Schiff")} #{s.Id.Value} ({u.ActorName(s.Owner)})";
+        $"{(u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : "Schiff")} #{s.Id.Value} ({ActorNames.Tagged(u, s.Owner)})";   // Phase 29: mit Kürzel
 
     /// <summary>
     /// „Nächster Gegner“: Gegner im eigenen Gefecht, danach Kaperschiffe im Sektor, beide nach Abstand; liefert das Schiff nach <paramref name="current"/>

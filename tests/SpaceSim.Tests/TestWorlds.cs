@@ -24,6 +24,7 @@ public static class TestWorlds
         def.Rules ??= new EconomyRules();
         def.Rules.FuelActive = fuel;
         def.Rules.ResearchActive = research;
+        def.RandomNames = false;   // Phase 29: Tests behalten die festen Fraktionsnamen der Weltdatei (gewürfelte Namen: Phase29NamesTests)
         return def;
     }
 

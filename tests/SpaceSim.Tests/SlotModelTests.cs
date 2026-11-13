@@ -38,9 +38,9 @@ public class SlotModelTests
     {
         var u = DemoUniverse.Create();
         Assert.Equal(9, u.SlotTypes.Count);
-        Assert.Equal(28, u.Modules.Count);   // Phase 28: + Raketenwerfer, Punktabwehr; Phase 26: + Löschanlage, Bergungsgreifer; Phase 24: + kinetisches Geschütz; Phase 23: + Munitionsmagazin; Phase 13: + Reaktor Mk3, Mining-Laser Mk3; Phase 11: + Laserkanone; Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
-        Assert.Equal(15, u.ShipClasses.Count);   // Phase 28: + Fregatte; Phase 25: + Jäger; Phase 11: + Patrouillenboot, Kaperschiff; Phase 8: + Bauschiff, Asteroidenbrecher; Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
-        Assert.Equal(24, u.ShipModels.Count);   // Phase 28: + Bollwerk; Phase 25: + Falke, − Mule/Hauler bewaffnet (jeder Händler trägt jetzt eine Waffe); Phase 24: + Mule und Hauler bewaffnet; Phase 13: + Excavator; Phase 11: + Wächter, Korsar; Phase 8: + Foreman, Quarry, Rockbreaker II; Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
+        Assert.Equal(43, u.Modules.Count);   // Phase 29: + elf Module (Kampfmodule Mk2/M, Reaktor M) + vier Kontaktwerkzeuge (Bohrkopf, Schneidrad S/M, Schneidwalze L); Phase 28: + Raketenwerfer, Punktabwehr; Phase 26: + Löschanlage, Bergungsgreifer; Phase 24: + kinetisches Geschütz; Phase 23: + Munitionsmagazin; Phase 13: + Reaktor Mk3, Mining-Laser Mk3; Phase 11: + Laserkanone; Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
+        Assert.Equal(22, u.ShipClasses.Count);   // Phase 29: + Korvette, Raketenboot, Bomber, Kanonenboot, Zerstörer, Schlachtkreuzer, Großschürfer; Phase 28: + Fregatte; Phase 25: + Jäger; Phase 11: + Patrouillenboot, Kaperschiff; Phase 8: + Bauschiff, Asteroidenbrecher; Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
+        Assert.Equal(30, u.ShipModels.Count);   // Phase 29: + Hornisse, Lanze, Donner, Keiler, Sturmvogel, Leviathan, Maulwurf, − Einheitsspieler; Phase 28: + Bollwerk; Phase 25: + Falke, − Mule/Hauler bewaffnet (jeder Händler trägt jetzt eine Waffe); Phase 24: + Mule und Hauler bewaffnet; Phase 13: + Excavator; Phase 11: + Wächter, Korsar; Phase 8: + Foreman, Quarry, Rockbreaker II; Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
         Assert.True(u.SlotTypes["reactor"].Required);
         Assert.True(u.SlotTypes["engine"].Required);
         Assert.False(u.SlotTypes["cargo"].Required);
@@ -109,7 +109,7 @@ public class SlotModelTests
     public void ModulPasstNichtZumSlot_WirftMitModellUndModulname()
     {
         Invalid(d => d.Modules[3].Size = "XL", "Schiffsmodell 'unit_trader_100': Modul 'cargo_universal_100' (XL) ist größer als der Slot (S)");
-        Invalid(d => d.Modules[2].Slot = "cargo", "Schiffsmodell 'unit_miner_100': Modul 'mining_laser_1' (Slotart 'cargo') passt nicht in Slot 'tool'");
+        Invalid(d => d.Modules.First(m => m.Key == "drill_head_s").Slot = "cargo", "Schiffsmodell 'unit_miner_100': Modul 'drill_head_s' (Slotart 'cargo') passt nicht in Slot 'tool'");   // Phase 29: Bohrkopf
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class SlotModelTests
             ("unit_trader_60", ShipRole.Trader, 60f),
             ("unit_miner_100", ShipRole.Miner, 100f),
             ("unit_miner_60", ShipRole.Miner, 60f),
-            ("unit_player", ShipRole.Player, 100f),
+            ("unit_miner_100", ShipRole.Player, 100f),
         };
         foreach (var (key, role, cargo) in faelle)
         {

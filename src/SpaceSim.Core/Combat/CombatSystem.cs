@@ -260,6 +260,7 @@ public sealed class CombatSystem : ISimSystem
             var tProfile = new TargetProfile(target.ShieldNow, target.Stats.Armor, tp.Speed, Gunnery.Signature(u, target));
             // Munition sparen: Waffen mit Munition schießen erst ab einer Mindest-Trefferchance (Regel, rein — kein Zufallszug)
             if ((w.AmmoPerShot > 0f || missile) && r.AmmoActive && Hit.Chance(w, tProfile, dist, factor, r) < r.AmmoMinHitChance) continue;
+            if (SparesLoot(u, e, p, target, w)) continue;   // Phase 29: Kaperer vernichten ihre Beute nicht
             if (!Gunnery.DrawPower(u, ship, w, out float reload)) continue;   // keine Leistung: die Waffe schweigt
             if (missile)
             {
@@ -274,6 +275,21 @@ public sealed class CombatSystem : ISimSystem
     }
 
     /// <summary>Phase 28: eine Waffe auf die Zielstation (Belagerung): Reichweite, Feuerwinkel (im Raum), Munition/Rakete, Leistung, dann Schuss oder Rakete.</summary>
+    /// <summary>
+    /// Phase 29 (<see cref="EconomyRules.RaidersSpareLoot"/>): ein Kaperer im Überfall hält eine Waffe zurück, wenn ihr Höchstschaden plus der Schaden der schon auf
+    /// das Ziel fliegenden Raketen Schild und Hülle eines Ziels mit Fracht aufbrauchen könnte — er will die Aufgabe, nicht das Wrack.
+    /// </summary>
+    static bool SparesLoot(Universe u, Encounter e, CombatParticipant p, Ship target, in WeaponProfile w)
+    {
+        var r = u.Rules;
+        if (!r.RaidersSpareLoot || e.Cause != EncounterCause.Raid || p.Tactic != CombatTactics.Raider || target.UsedVolume(u) < 1f
+            || target.Id == u.PlayerShip) return false;   // das aktive Spielerschiff bleibt in echter Gefahr (Phase 25)
+        float incoming = 0f;
+        foreach (var f in e.Missiles)
+            if (f.Target == target.Id && u.Modules.TryGetValue(f.Module, out var fm)) incoming += fm.Stats.GetValueOrDefault("damage") * (1f + r.HitDamageSpread);
+        return incoming + w.Damage * (1f + r.HitDamageSpread) >= target.ShieldNow + target.Hull;
+    }
+
     static void FireAtStation(Universe u, Encounter e, CombatParticipant p, Ship ship, int slot, Module m, bool missile)
     {
         var r = u.Rules;

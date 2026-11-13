@@ -87,13 +87,15 @@ public static class ActorRules
         if (ship.Owner != u.FreeActor || !u.Rules.PromoteInvestors || ship.IsPlayer) return ship.Owner;
         var id = u.NewActorId();
         FactionId? membership = u.Sectors.TryGetValue(ship.Sector, out var sec) && u.Factions.ContainsKey(sec.Owner) ? sec.Owner : null;
-        string label = ship.Role switch { ShipRole.Miner => "Schürfbetrieb", ShipRole.Builder => "Baubetrieb", _ => "Handelskontor" };
+        // Phase 29: Firmenname aus der Namensliste (eigener Namenszufall aus Seed und Akteur-Id — Universe.Rng bleibt unberührt) und Kürzel
+        var taken = new HashSet<string>(u.Actors.Values.Select(a => a.Name), StringComparer.Ordinal);
         var actor = new Actor
         {
-            Id = id, Name = $"{label} {ship.Id.Value}", Kind = ActorKind.Independent, Membership = membership,
+            Id = id, Name = Content.FactionNames.Pick(ActorKind.Independent, Content.FactionNames.ActorRng(u.Seed, id), taken), Kind = ActorKind.Independent, Membership = membership,
             Personality = Roll(u, u.Rules.IndependentPersonality, u.Rules.PersonalitySpread), CreatedTick = u.Tick,
         };
         u.Actors[id] = actor;
+        u.AssignTag(actor);
         ship.Owner = id;
         u.Events.Publish(new ActorPromoted(id, ship.Id));
         return id;

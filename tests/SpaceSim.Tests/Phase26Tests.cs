@@ -588,7 +588,7 @@ public class Phase26Tests
         var me = NewShip(u, "prospector", ShipRole.Player, u.PlayerActor, 0f, Controller.Player);
         PlayerFleet.Activate(u, me, default);
         DockAt(u, me, yard);
-        int laser = me.Fit.FindIndex(k => k is not null && k.StartsWith("mining_laser"));
+        int laser = me.Slots.FindIndex(s => s.Type == "tool");   // Phase 29: Bohrkopf im Werkzeugslot
         int cargo = me.Fit.FindIndex(k => k is not null && k.StartsWith("cargo"));
         ModuleDamage.SetCondition(u, me, laser, 0.05f);
         ModuleDamage.SetCondition(u, me, cargo, 0.05f);

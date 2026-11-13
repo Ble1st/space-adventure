@@ -199,3 +199,78 @@ Das Kampfsystem selbst (Waffen, Schilde, Patrouille, Piraten) steht auf der Road
 ## 13. Noch offen
 
 Keine inhaltlichen Fragen mehr offen. Die Zahlen (Notbau-Aufschlag und -Frist, Fragmentlimit, Laserstufenbonus) sind Startwerte und werden mit `tools/SpaceSim.Balance` getunt, sobald die jeweilige Funktion existiert.
+
+## Phase 29: Schiffsraster – Umsetzungsplan und Fortschritt
+
+Entscheidungen des Nutzers: kein „Einheitsspieler“, Startschiff ist der Einheitsschürfer 100; Skiffs sind Standardmodelle; jede Fraktion und die Piraten
+können alle Modelle kaufen und nutzen (auch die Fregatte); Module sind änderbar und in Stufen aufrüstbar (z. B. stärkere Schilde).
+
+**Entscheidung Einheitsmodelle:** `unit_trader_100/60` und `unit_miner_100/60` bleiben als reguläre Standardmodelle im Raster (sie tragen die
+Gründerflotte und fast alle Wirtschaftstests; ein Ersatz durch umbenannte Modelle mit denselben Werten brächte nur Umbenennungen). `unit_player`
+entfällt (gleiche Werte wie `unit_miner_100`; alte Spielstände laden ihn als `unit_miner_100`). Die Skiffs grenzen sich davon ab: leichter, schneller,
+kleiner Rumpf, Nutzlast kleiner bzw. formgebunden.
+
+**Namen:** Schlüssel englisch (unverändert), Anzeigenamen einheitlich deutsche Eigennamen; nur die Standardmodelle heißen beschreibend
+„Einheitsfrachter/-schürfer“ (Wortlaut des Nutzers).
+
+| Rolle | S | M | L |
+|---|---|---|---|
+| Handel | `unit_trader_100` Einheitsfrachter 100, `unit_trader_60` Einheitsfrachter 60, `nomad` Nomade (Skiff, 70+30), `swift` Mauersegler (Kurier) | `mule` Maultier (schnell), `hauler` Lastkahn (viel Raum), `cistern` Zisterne (Tanker) | `behemoth` Behemoth |
+| Bergbau | `unit_miner_100` Einheitsschürfer 100, `unit_miner_60` Einheitsschürfer 60, `prospector` Goldsucher (Skiff, schnell), `pickaxe` Spitzhacke (alle Bohrkopf) | `rockbreaker` Felsbrecher (Schneidrad S), `rockbreaker_ii` Felsbrecher II (Spaltlaser + Schneidrad S), `quarry` Steinbruch (Spaltlaser + Bohrkopf, Spieler), `excavator` Bagger (Schneidrad M) | – |
+| Mehrzweck | `pip` Kiebitz (Skiff: Handel + Bergbau) | `tinker` Kesselflicker (Handel + Bergbau) | – |
+| Kampf | `falcon` Falke (Jäger, Energiespeicher), `corsair` Korsar (Abfangjäger, nicht mehr gesperrt), `bomber` Donner (Bomber: zwei Raketenwerfer, langsam, gegen Stationen/Großschiffe) | `warden` Wächter (Patrouillenboot, zäh), `corvette` Hornisse (Geleitschutz: 2 Bug- + 2 Turmwaffen, Punktabwehr, M-Schild), `missile_boat` Lanze (Raketenboot, Distanz, keine Panzerung), `gunboat` Keiler (Kanonenboot: zwei M-Laser, doppelte M-Panzerung, langsam, schwaches Nachführen) | `bastion` Bollwerk (Fregatte: Raketen, Belagerung), `destroyer` Sturmvogel (Zerstörer: vier Türme, M-Schilde, Schiffsjäger) |
+| Kampf XL | – | – | `battlecruiser` Leviathan (Schlachtkreuzer, Klasse XL, drei schwere Bausätze, L-Slots) |
+| Bergbau L | – | – | `strip_miner` Maulwurf (Großschürfer: Schneidwalze L, 300 Erzraum, langsam) |
+| Sonder | – | `foreman` Polier (Bau) | – |
+
+**Stein-Schere-Papier im Kampf:** Raketen (Bomber, Lanze, Bollwerk) treffen große, langsame Ziele gut, werden von Punktabwehr (Hornisse, Zerstörer,
+Schlachtkreuzer) abgefangen und verfehlen schnelle Jäger (Ausweichen über das Tempo). M-Laser (Keiler, Sturmvogel, Leviathan) schaden viel, führen aber schlecht
+nach (Tracking 0,65) — Jäger (Falke, Korsar) entkommen ihnen. Jäger sind schnell, aber dünn gepanzert und verlieren gegen Panzerung und Schilde großer Schiffe.
+Die Kampfmodellwahl nutzt die Klassenleiter: ohne Lage das beste Verhältnis Stärke je Preis (Korsar/Bomber), mit wachsender Lage Stärke² je Preis (Hornisse,
+Zerstörer, Schlachtkreuzer, sofern bezahlbar und lieferbar). `ShipClass.KitCount` (Weltdatei `kitCount`): Bausätze je Schiff (Schlachtkreuzer 3 schwere).
+
+**Skiffs als Standardmodelle:** Klasse `skiff` bekommt einen Waffenslot (S) und wird um 2 leichter (Laser 2); `nomad` Handel + Laser, `pip` Handel + Bergbau + Laser,
+`prospector` Bergbau (ohne Laser im Waffenslot – Bergbauschiffe sind nicht pflichtbewaffnet; dadurch etwas schneller).
+
+**Module in Stufen (Kampf):** neue Modulgüter mit Rezept im Waffen- und Schildwerk bzw. Antriebswerk/Systemwerk (Fabrik-Mechanik, `maxTier` 2), Upgrade-Pfad Mk1 → Mk2
+(Upgrade-Dienst), kleine Werftregale:
+`shield_mk2` (S, 70 / 0,8), `shield_m` (M, 120 / 1,2), `armor_plating_s_mk2` (S, 60), `armor_plating_m` (M, 90), `weapon_laser_s_mk2` (9 Schaden),
+`weapon_laser_m` (M, 14 Schaden, 70 m), `weapon_massdriver_s_mk2` (13), `missile_launcher_s_mk2` (38, Magazin 8), `power_bank_s_mk2` (35), `point_defense_s_mk2` (0,5),
+`reactor_m` (M, 24). M-Slots an M/L-Kampfklassen (Schild, Bugwaffe, Panzerung, Reaktor); kleinere Module passen weiter (FitRules unverändert).
+
+Werftregale der neuen Module klein ([0, 1]: Wunschbestand 1) — größere Regale zogen Elektronik/Titan aus der Kette der Mk1-Reaktoren (Werft Delta 70 % der Zeit leer).
+Neue Module ohne Platin (Platin bleibt der Luxusgüterkette).
+
+**Wer kauft was:**
+- Wirtschaftsflotte: alle Handels-/Bergbaumodelle über `ChooseModel` wie bisher (mit Jobs).
+- Polizei und Marine: gemeinsame Kampfmodellwahl (`CombatModels.Choose`) unter allen Modellen ohne Fracht-/Bergbau-/Baufähigkeit mit Kampffähigkeit,
+  Wert = Kampfstärke^(1+w) ÷ Preis, w = Gewicht der Lage (Bedrohung der Polizei, im Krieg 1) — schwerere Schiffe, wo es brennt; Kauf an Werften über die gemeinsame Kaufregel.
+- Piraten: dieselbe Wahl nach Kasse; Bau im Versteck zum Materialwert (Basispreise) × `PirateBuildFactor` aus der Kasse (keine Fraktionswerft); Gruppengröße in
+  Kapazitätseinheiten (S 1, M 1,5, L 2; höchstens `MaxRaiderUnitsPerActor` 2: zwei Korsaren oder ein M-Schiff oder eine Fregatte).
+- Spieler: alle Modelle an Werften.
+
+**Fortschritt**
+- [x] Plan (dieser Abschnitt)
+- [x] Inhalt: unit_player weg, Skiffs, Korsar frei, neue Module/Klassen/Modelle, M-Slots, Namen
+- [x] Code: Startschiff (`WorldBuilder.UnitModelFor` Spieler → unit_miner_100), Migrationsbasis (Stand v17)
+- [x] Kampfmodellwahl Polizei/Marine/Piraten (`CombatModels`), Piratenbau (Materialwert × 0,65 × Einheiten, Tempo zählt), Kapazitätseinheiten, Güteklassenwurf
+- [x] Zusatz: 30 Modelle (Bomber, Kanonenboot, Zerstörer, Schlachtkreuzer XL, Großschürfer), `kitCount`
+- [x] Tests (Raster, Kaufbarkeit, Modellwahl, Modulstufen, Startpakete, Revert-Helfer `Phase29Tests.RevertPhase29`)
+- [x] Balance-Läufe (Ergebnis im Bericht), Selbsttest, CLAUDE.md
+- [x] Zusatz F/G: Fraktionskürzel, Namensliste, Schilder mit fester Bildschirmgröße, kräftigerer Akzent
+- [x] Zusatz H: Kontaktabbau mit physischen Abbaugeräten (Regel, Module, Fits, NPC, Spieler, Automodus, Anzeige, Tests)
+
+**Kontaktabbau (Zusatz H, Wunsch „bei fast allen Miningschiffen physische Abbaugeräte“).** Ein Kontaktwerkzeug (Werkzeugslot, Wert `contactMining` = Erz je
+Sekunde an einer Klasse mit Brockenchance 0,5) baut ab, solange der Bug den Asteroiden berührt (`Mining/ContactMining`: Bug höchstens 35° neben der Mitte und
+höchstens 2,5 von der Oberfläche). Erz geht direkt in den Laderaum (keine Brocken, kein Traktor, kein Rückstoß, kein Verlust), in Portionen zu einer Einheit, Erzsorte
+je Portion nach den Klassengewichten (ein Zufallszug). Spieler (`OreChunks.Contact`) und NPC-Schürfer (`MinerSystem`, Ereignis `ContactMined`) benutzen dieselbe Regel.
+Stufen so gewählt, dass der Erzfluss dem Laser derselben Stufe entspricht: `drill_head_s` Bohrkopf (3,4 ≈ Laser Mk1, Upgrade → Schneidrad), `cutting_wheel_s`
+Schneidrad S (5,525 ≈ Laser Mk2), `cutting_wheel_m` Schneidrad M (8,16 ≈ Laser Mk3; Werkzeugslot des schweren Schürfers jetzt M), `cutting_drum_l` Schneidwalze L
+(10,2; Großschürfer). Laser behalten nur die Mehrzweckschiffe (Kiebitz, Kesselflicker) — sie bauen aus der Distanz und brauchen keinen Fels-Kontakt.
+Ansicht: Schacht „Bohrer“ zeigt „kein Kontakt · Bug an Fels“ / „Abbau läuft“ / „Laderaum voll“, Funken an der Kontaktstelle (Spieler und NPC im Spielersektor);
+der Automodus fliegt mit `ContactPush` (12 % Schub) an die Oberfläche — weit unter der Rammschwelle (`PlayerShip.HardImpact` 14), kein Hüllenschaden.
+Drehende Werkzeuge an den Schiffsmodellen folgen, sobald die Blender-Modelle sie haben (`ContactMining.Spin` liefert die Drehzahl).
+
+**Kaperer schonen die Beute (Regel `RaidersSpareLoot`).** Seit die Piraten Bomber kaufen, vernichtete eine Raketensalve leichte Schürfer (Skiff, Hülle 60) statt sie zur
+Aufgabe zu zwingen (300000 Ticks: 59 statt 6 zerstörte Schürfer). Im Überfall feuert ein Kaperer keine Waffe mehr, deren Höchstschaden mit den schon fliegenden Raketen
+Schild und Hülle eines beladenen Opfers aufbrauchen könnte (nicht beim aktiven Spielerschiff) — danach 7.

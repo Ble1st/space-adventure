@@ -65,10 +65,25 @@ public sealed class Universe
     public void EnsureCoreActors()
     {
         if (!Actors.ContainsKey(FreeActor))
-            Actors[FreeActor] = new Actor { Id = FreeActor, Name = "Freie Kapitäne", Kind = ActorKind.Free };
+            Actors[FreeActor] = new Actor { Id = FreeActor, Name = "Freie Kapitäne", Kind = ActorKind.Free, Tag = "FRE" };
         if (!Actors.ContainsKey(PlayerActor))
-            Actors[PlayerActor] = new Actor { Id = PlayerActor, Name = "Du", Kind = ActorKind.Player, ShipsUseTreasury = true };
+            Actors[PlayerActor] = new Actor { Id = PlayerActor, Name = "Du", Kind = ActorKind.Player, ShipsUseTreasury = true, Tag = "SPL" };
         if (NextActorId <= Math.Max(FreeActor.Value, PlayerActor.Value)) NextActorId = Math.Max(FreeActor.Value, PlayerActor.Value) + 1;
+    }
+
+    /// <summary>Phase 29: gibt dem Akteur ein Kürzel, das kein anderer Akteur trägt (<see cref="ActorTags.Derive"/>).</summary>
+    public void AssignTag(Actor a)
+    {
+        var used = new HashSet<string>(Actors.Values.Where(x => x.Id != a.Id && x.Tag.Length > 0).Select(x => x.Tag), StringComparer.Ordinal);
+        a.Tag = ActorTags.Derive(a.Name, used.Contains);
+    }
+
+    /// <summary>Phase 29: Akteure ohne Kürzel (neue Welt, ältere Spielstände) bekommen eins, in Id-Reihenfolge.</summary>
+    public void AssignMissingTags()
+    {
+        if (Actors.TryGetValue(FreeActor, out var free) && free.Tag.Length == 0) free.Tag = "FRE";
+        if (Actors.TryGetValue(PlayerActor, out var me) && me.Tag.Length == 0) me.Tag = "SPL";
+        foreach (var a in Actors.Values.OrderBy(x => x.Id.Value)) if (a.Tag.Length == 0) AssignTag(a);
     }
 
     /// <summary>Neue Akteur-Id (fortlaufend ab <see cref="ActorId.FirstGenerated"/>).</summary>

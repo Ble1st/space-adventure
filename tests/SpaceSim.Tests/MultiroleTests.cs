@@ -58,11 +58,11 @@ public class MultiroleTests
         // Einheitsmodelle sind Spezialisten, Spielermodelle haben keine KI-Aufgaben
         Assert.Equal(new[] { "trade" }, u.ShipModels["unit_trader_100"].Jobs);
         Assert.Equal(new[] { "mine" }, u.ShipModels["unit_miner_60"].Jobs);
-        Assert.Empty(u.ShipModels["unit_player"].Jobs);
-        Assert.Empty(u.ShipModels["prospector"].Jobs);
+        Assert.Empty(u.ShipModels["quarry"].Jobs);   // Phase 29: unit_player entfällt; der Steinbruch bleibt Spielermodell
+        Assert.Equal(new[] { "mine" }, u.ShipModels["prospector"].Jobs);   // Phase 29: Skiffs sind Standardmodelle
         // Behemoth zählt wie fünf Einheitsfrachter, Rockbreaker hat den Mk2-Laser
         Assert.Equal(500f, ShipStats.Compute(u.ShipClasses["heavy_freighter"], u.ShipModels["behemoth"].Fit.Select(k => k is null ? null : u.Modules[k]).ToList()).Cargo);
-        Assert.Contains("mining_laser_2", u.ShipModels["rockbreaker"].Fit);
+        Assert.Contains("cutting_wheel_s", u.ShipModels["rockbreaker"].Fit);   // Phase 29: Schneidrad S statt Laser Mk2 (gleicher Erzfluss)
         // neue Module werden in einem Modulwerk hergestellt (Laser Mk2 im Systemwerk, maxTier 2)
         Assert.Contains(u.StationTypes["systems_works"].Recipes, r => r.Outputs.ContainsKey(u.FindGood("mining_laser_2")!.Id));
         Assert.Contains(u.StationTypes["drive_works"].Recipes, r => r.Outputs.ContainsKey(u.FindGood("chem_engine_m")!.Id));
@@ -174,7 +174,7 @@ public class MultiroleTests
         foreach (var s in u.Ships.Values.Where(s => s.Controller == Controller.Ai).ToList()) u.RemoveShip(s.Id, "test");
         var ship = AddAi(u, model, ShipRole.Miner, sector: 2, credits: 3000f);
         float ore = 0f;
-        u.Events.Raised += e => { if (e is MinerShot m && m.Ship == ship.Id) ore += m.Units; };
+        u.Events.Raised += e => { if (e is MinerShot m && m.Ship == ship.Id) ore += m.Units; else if (e is ContactMined c && c.Ship == ship.Id) ore += c.Units; };   // Phase 29: Kontaktabbau
         var runner = new SimulationRunner(new ISimModule[] { new ProductionModule(), new ResourceModule(), new TradeModule() });
         int busy = 0;
         for (int t = 0; t < ticks; t++)
@@ -280,6 +280,8 @@ public class MultiroleTests
         // Schürflücke. Die Regel selbst (Flexibilität zählt) prüft der Test am Tinker ohne die Waffe
         var tinker = u.ShipModels["tinker"];
         for (int i = 0; i < tinker.Fit.Count; i++) if (tinker.Fit[i] is { } k && u.Modules[k].IsWeapon) tinker.Fit[i] = null;
+        // Phase 29: der Goldsucher (Skiff mit Bohrkopf, sehr günstig) gewinnt jede Schürflücke — die Flexibilitätsregel prüfen wir ohne ihn
+        u.ShipModels["prospector"].Jobs.Remove("mine");
         var choice = FleetSystem.ChooseModel(u, mine, buyer, 6f, 8f);
         Assert.NotNull(choice);
         Assert.Equal("tinker", choice!.Model.Key);
@@ -315,8 +317,8 @@ public class MultiroleTests
         u.Rules.MaxTraders = 0;   // nur die Schürflücke (6/8) zählt
         var mine = ShipJobs.ByKey("mine")!;
         var choice = FleetSystem.ChooseModel(u, mine, buyer, ShipJobs.UsedUnits(u, mine), mine.Limit(u.Rules))!;
-        var stock = choice.Materials.ToDictionary(n => n.Good, n => yard.Market[n.Good].Amount);
-        float yardCredits = yard.Credits, buyerCredits = buyer.Credits;
+        var stock = choice.Materials.ToDictionary(n => n.Good, n => choice.Yard.Market[n.Good].Amount);
+        float yardCredits = choice.Yard.Credits, buyerCredits = buyer.Credits;
         var events = new List<SimEvent>();
         u.Events.Raised += events.Add;
         u.Tick = 777;
@@ -327,9 +329,9 @@ public class MultiroleTests
         Assert.Equal(choice.Model.Key, ship.ModelKey);
         Assert.Equal(ShipRole.Miner, ship.Role);
         Assert.Equal(777, ship.JobSince);
-        Assert.Equal(yard.Sector, ship.Sector);
-        foreach (var n in choice.Materials) Assert.Equal(stock[n.Good] - n.Units, yard.Market[n.Good].Amount);
-        Assert.Equal(yardCredits + choice.Price, yard.Credits, 1);
+        Assert.Equal(choice.Yard.Sector, ship.Sector);
+        foreach (var n in choice.Materials) Assert.Equal(stock[n.Good] - n.Units, choice.Yard.Market[n.Good].Amount);
+        Assert.Equal(yardCredits + choice.Price, choice.Yard.Credits, 1);
         Assert.Equal(buyerCredits - choice.Price - u.Rules.NewShipStartCredits, buyer.Credits, 1);
         Assert.True(events.OfType<FleetShipBuilt>().Single().WithModules);
     }

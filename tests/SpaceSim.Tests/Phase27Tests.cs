@@ -46,7 +46,8 @@ public class Phase27Tests
         Phase28Tests.RevertPhase28(def);   // Phase 28 ebenfalls zurückdrehen (Raketen, Stationsverteidigung, Krieg)
         var u = WorldBuilder.Build(def);
         new SimulationRunner().Run(u, 20000);
-        Assert.Equal(0x8BAFCA8A395897AEUL, UniverseHash.Compute(u));
+        // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher 8BAFCA8A395897AE)
+        Assert.Equal(0x885FAB4DD2BB8F0FUL, UniverseHash.Compute(u));
     }
 
     // ───────── Hilfen ─────────

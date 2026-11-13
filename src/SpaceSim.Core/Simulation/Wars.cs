@@ -263,6 +263,23 @@ public sealed class NavySystem : ISimSystem
     public static Ship? Commission(Universe u, FactionId f)
     {
         var r = u.Rules;
+        if (r.WarshipChoosesModels)
+        {
+            // Phase 29: Wahl unter allen Kampfmodellen, im Krieg voll auf Kampfstärke gewichtet
+            if (!u.Actors.TryGetValue(f, out var a) || SecuritySystem.HomeBaseFor(u, f, null) is not { } h
+                || CombatModels.AtYard(u, h.Sector, FactionViability.Spendable(u, a), 1f) is not { } pick) return null;
+            var q = ShipQualityRoll.Roll(u, pick.Class, pick.Class.Slots, pick.Model.Fit, pick.Yard, pick.Needs);
+            ShipPurchase.Consume(pick.Yard, q.Materials ?? pick.Needs);
+            pick.Yard.Credits += pick.Price;
+            a.Treasury.Credits -= pick.Price;
+            var w = ShipPurchase.Create(u, u.NewShipId(), pick.Model.Key, q.Slots, q.Fit, ShipRole.Warship, Controller.Ai, a.Id, pick.Yard, 0f, q.Grade);
+            w.HomeBase = h.Id;
+            w.JobSince = u.Tick;
+            u.AddShip(w);
+            u.Events.Publish(new TreasuryUpkeep(a.Id, "navy", pick.Price, 0f));
+            u.Events.Publish(new WarshipCommissioned(f, w.Id, pick.Yard.Id, pick.Price));
+            return w;
+        }
         if (!u.Actors.TryGetValue(f, out var actor) || !u.ShipModels.TryGetValue(r.WarshipModel, out var model)
             || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls) || ShipPurchase.Materials(u, model) is not { } needs) return null;
         var home = SecuritySystem.HomeBaseFor(u, f, null);

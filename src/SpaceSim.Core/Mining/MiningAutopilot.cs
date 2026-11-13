@@ -64,6 +64,21 @@ public sealed class MiningAutopilot
 
                 if (fullNow && !chunksNear) { Current = Phase.Sell; Status = "Laderaum voll"; goto case Phase.Sell; }
 
+                // Phase 29: Kontaktabbau — anfliegen, mit dem Bug auf die Asteroidenmitte ausrichten und sanft andrücken (der Kontakt hält das Schiff an der
+                // Oberfläche; unter dem Rammschwellwert kein Schaden); abgetragen wird über OreChunks.Contact
+                if (ship.Stats.UsesContact)
+                {
+                    if (edge > ContactApproachEdge)
+                    {
+                        var standC = a.Position + (pos - a.Position).Normalized() * (a.Radius + ContactApproachEdge * 0.5f);
+                        var ptsC = PathPlanner.Plan(pos, standC, u.GetObstacles(sector.Id));
+                        Status = "Anflug";
+                        return none with { Waypoint = ptsC.Count > 1 ? ptsC[1] : standC, Throttle = 1f };
+                    }
+                    Status = "Abbau (Kontakt)";
+                    return none with { Waypoint = a.Position, Throttle = ContactPush, Aim = a };
+                }
+
                 if (edge > MiningRules.LaserRange * 0.85f && !fullNow)
                 {
                     // Anflug auf einen Punkt kurz vor dem Asteroiden (Hindernisse umfliegen)
@@ -105,6 +120,11 @@ public sealed class MiningAutopilot
     /// der Rest belegt weniger als eine Einheit Laderaum und wird beim nächsten Verkauf meist mitgenommen (Resttoleranz, <see cref="EconomyRules.SaleRestTolerance"/>).
     /// </summary>
     public const float RestUnits = 1f;
+
+    /// <summary>Phase 29: ab diesem Abstand zur Oberfläche fliegt der Kontaktmodus noch an (darunter: ausrichten und andrücken).</summary>
+    public const float ContactApproachEdge = 10f;
+    /// <summary>Phase 29: Schub beim Andrücken (Anteil der Höchstgeschwindigkeit; weit unter dem Rammschwellwert).</summary>
+    public const float ContactPush = 0.12f;
 
     /// <summary>Phase 18: Ist mehr als ein Rest an Bord?</summary>
     public static bool HasLoad(Ship ship) => ship.Cargo.Values.Sum() >= RestUnits;

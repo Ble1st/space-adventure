@@ -215,7 +215,7 @@ public class QualityUpgradeTests
         // ohne bessere Module und Bonusmodul im Lager fällt der Wurf bis auf Standard zurück
         var (u2, yard2, player2) = AtYard();
         u2.Rules.QualityChances = new List<float> { 0f, 0f, 0f, 1f };
-        foreach (var k in new[] { "reactor_mk2", "chem_engine_s_mk2" }) yard2.Stock(u2.FindGood(k)!.Id).Amount = 0f;
+        foreach (var k in new[] { "reactor_mk2", "chem_engine_s_mk2", "weapon_laser_s_mk2" }) yard2.Stock(u2.FindGood(k)!.Id).Amount = 0f;   // Phase 29: auch der Laser hat einen Mk2-Pfad
         yard2.Stock(u2.FindGood("cargo_universal_100")!.Id).Amount = 1f;               // nur das Grundmodul
         foreach (var k in u2.Rules.SlotUpgradeCost.Keys) yard2.Stock(u2.FindGood(k)!.Id).Amount = 0f;
         var rolled = new List<ShipQualityRolled>();
@@ -236,7 +236,7 @@ public class QualityUpgradeTests
         if (buyer.Transit is not null) u.FinishTransit(buyer);
         buyer.Credits = 50_000f;
         foreach (var s in u.Ships.Values.Where(s => s.Role == ShipRole.Trader && s != buyer)) s.Credits = 0f;
-        float r2 = Stock(u, yard, "reactor_mk2"), e2 = Stock(u, yard, "chem_engine_s_mk2");
+        float r2 = Stock(u, yard, "reactor_mk2"), e2 = Stock(u, yard, "chem_engine_s_mk2"), l2 = Stock(u, yard, "weapon_laser_s_mk2");   // Phase 29: Laser Mk2
         var rolled = new List<ShipQualityRolled>();
         u.Events.Raised += e => { if (e is ShipQualityRolled q) rolled.Add(q); };
         new FleetSystem().Step(u, 20);
@@ -246,7 +246,7 @@ public class QualityUpgradeTests
         Assert.Equal(ShipQuality.Improved, ship.Quality);
         int better = ship.Fit.Count(k => k is not null && u.Modules[k].Tier == 2 && !u.ShipModels[ship.ModelKey].Fit.Contains(k));
         Assert.Equal(1, better);
-        Assert.Equal(r2 + e2 - 1f, Stock(u, yard, "reactor_mk2") + Stock(u, yard, "chem_engine_s_mk2"));
+        Assert.Equal(r2 + e2 + l2 - 1f, Stock(u, yard, "reactor_mk2") + Stock(u, yard, "chem_engine_s_mk2") + Stock(u, yard, "weapon_laser_s_mk2"));
     }
 
     // ───────── Dienst „upgrade“ ─────────

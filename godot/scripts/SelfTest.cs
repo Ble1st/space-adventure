@@ -276,6 +276,9 @@ public partial class SelfTest : Node
 					Check(yardOffers.Contains("buy:tinker") && yardOffers.Contains("buy:behemoth") && yardOffers.Contains("buy:rockbreaker"),
 						$"Werft bietet Tinker, Behemoth und Rockbreaker an ({yardOffers.Count} Modelle)");
 					Check(_m.HudRef.DockShipyard.TestRowCount == yardOffers.Count, "Werft zeigt jedes Angebot als Zeile");
+					// Phase 29: das ganze Raster (30 Modelle, auch Korsar, Fregatte und Schlachtkreuzer) steht in der Werft
+					Check(yardOffers.Count == u.ShipModels.Count && yardOffers.Contains("buy:corsair") && yardOffers.Contains("buy:battlecruiser") && yardOffers.Contains("buy:strip_miner"),
+						$"Werft bietet alle {u.ShipModels.Count} Modelle an ({yardOffers.Count})");
 					var buy = _m.HudRef.DockShipyard.Execute("buy:prospector");
 					var now = _m.Session.Player;
 					Check(buy.Success && now.Id != old.Id && now.ModelKey == "prospector", "Schiff über die Werft-Oberfläche gekauft, neues Schiff ist aktiv");
@@ -353,6 +356,7 @@ public partial class SelfTest : Node
 				else if (_frame - _stageStart > 900) Fail($"Schiff fährt nicht rückwärts (v={_m.TestForwardSpeed:0.0})");
 				break;
 			case 10: // Waffenschacht-Taste: Schiff neben einen Asteroiden setzen (Ziel in Laserreichweite)
+				_m.TestSetTool("mining_laser_1");   // Phase 29: das Startschiff trägt einen Bohrkopf — die Lasertaste prüfen wir mit dem Mk1-Laser
 				_m.TestAimAtNearestRock();
 				Next(); break;
 			case 11:
@@ -372,7 +376,7 @@ public partial class SelfTest : Node
 				}
 				break;
 			case 13: // Nachladezeit abwarten, dann ist die Waffe wieder bereit
-				if (_m.TestLaserReady) { Check(_m.TestBayState(0) == "Ready", "Waffentaste wieder bereit nach dem Nachladen"); Next(); }
+				if (_m.TestLaserReady) { Check(_m.TestBayState(0) == "Ready", "Waffentaste wieder bereit nach dem Nachladen"); _m.TestSetTool("drill_head_s"); Next(); }
 				else if (_frame - _stageStart > 120) Fail("Laser lädt nicht nach");
 				break;
 			case 14: // Auto-Mining: aus Delta zum Feld fliegen, abbauen
@@ -385,7 +389,11 @@ public partial class SelfTest : Node
 				else if (_frame - _stageStart > 30_000) Fail("Keine Fracht abgebaut, Status: " + _m.TestMinerStatus);
 				break;
 			case 16: // verkaufen
-				if (_m.TestSales >= 1) { Log($"Verkauf nach {_frame - _stageStart} Frames, Credits {_m.Session.U.PlayerWallet.Credits:0}"); Check(_m.Session.U.PlayerWallet.Credits > 500f, "Credits gestiegen"); Check(_m.TestHits == 0, $"Auto-Mining ohne harte Kollision (Treffer: {_m.TestHits}, niedrigste Hülle {_m.TestLowestHull:0}) – {_m.TestLastHit}"); Next(); }
+				if (_m.TestSales >= 1) { Log($"Verkauf nach {_frame - _stageStart} Frames, Credits {_m.Session.U.PlayerWallet.Credits:0}"); Check(_m.Session.U.PlayerWallet.Credits > 500f, "Credits gestiegen"); Check(_m.TestHits == 0, $"Auto-Mining ohne harte Kollision (Treffer: {_m.TestHits}, niedrigste Hülle {_m.TestLowestHull:0}) – {_m.TestLastHit}");
+					// Phase 29: der Einheitsschürfer baut mit dem Bohrkopf im Kontakt ab (Funken), Schacht „Bohrer“ statt „Laser“
+					Check(_m.TestContactSparks > 0, $"Kontaktabbau hat Erz gelöst (Portionen {_m.TestContactSparks})");
+					Check(_m.TestBayKeys.Contains("contact") && !_m.TestBayKeys.Contains("laser"), $"Schächte des Bohrschiffs ({string.Join(",", _m.TestBayKeys)})");
+					Next(); }
 				else if (_frame - _stageStart > 40_000) Fail("Kein Verkauf, Status: " + _m.TestMinerStatus);
 				break;
 			case 17: // Kommandozentrale (UI.md Abschnitt 4): alle Bereiche öffnen + aktualisieren ohne Ausnahme
@@ -706,10 +714,10 @@ public partial class SelfTest : Node
 						var guild = new FactionId(2);
 						var pl = _m.Session.Player;
 						Check(_m.HudRef.Flight.TestSecurity.StartsWith("Sicherheit"), $"Flug-HUD zeigt die Lage echt („{_m.HudRef.Flight.TestSecurity}“)");
-						Check(_m.HudRef.Flight.TestWanted.Contains("auffällig") && _m.HudRef.Flight.TestWanted.Contains("Freie Händler"), $"Flug-HUD zeigt die Fahndung („{_m.HudRef.Flight.TestWanted}“)");
+						Check(_m.HudRef.Flight.TestWanted.Contains("auffällig") && _m.HudRef.Flight.TestWanted.Contains(uni.Factions[guild].Name), $"Flug-HUD zeigt die Fahndung („{_m.HudRef.Flight.TestWanted}“)");
 						_m.TestOpenCommand();
 						_m.TestOpenCcArea("myfaction");
-						Check(_m.HudRef.CcMyFaction.TestWanted.Contains("Freie Händler") && _m.HudRef.CcMyFaction.TestWanted.Contains("auffällig"), $"Meine Fraktion zeigt die Fahndung je Fraktion („{_m.HudRef.CcMyFaction.TestWanted}“)");
+						Check(_m.HudRef.CcMyFaction.TestWanted.Contains(uni.Factions[guild].Name) && _m.HudRef.CcMyFaction.TestWanted.Contains("auffällig"), $"Meine Fraktion zeigt die Fahndung je Fraktion („{_m.HudRef.CcMyFaction.TestWanted}“)");
 						_m.TestOpenCcArea("universe");
 						_m.TestCcSelectSector(new SectorId(4));
 						_m.HudRef.CcUniverse.CurrentLayer = Ui.Screens.UniverseScreen.Layer.Security;
@@ -1271,8 +1279,11 @@ public partial class SelfTest : Node
 					var uni = _m.Session.U;
 					var pl = uni.Ships[uni.PlayerShip];
 					Check(pl.Id == _p25Falcon && !_m.Docked, "Spieler fliegt den Falken im freien Raum");
-					var raider = uni.ShipsById().First(SpaceSim.Core.Simulation.ThreatMap.IsRaider);
+					// Runde 10: ein Kaperer, der gerade nicht kämpft, mit voller Hülle (der Pfad kann den ersten in ein anderes Gefecht verwickelt haben)
+					var raider = uni.ShipsById().Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(r => uni.Fights.IsEngaged(r.Id) ? 1 : 0).First();
+					if (uni.Fights.Of(raider.Id) is { } busy && busy.Of(raider.Id) is { } bp) SpaceSim.Core.Combat.Engage.Leave(uni, busy, bp, SpaceSim.Core.Model.CombatExit.Fled);
 					if (raider.Transit is not null) uni.FinishTransit(raider);
+					raider.Hull = raider.MaxHull;
 					raider.Order = new PatrolOrder(uni.PlayerSector); raider.NextThinkTick = uni.Tick + 100000;
 					if (raider.Sector != uni.PlayerSector) uni.MoveShip(raider, uni.PlayerSector);
 					raider.Position = pl.Position + new Vec2(0f, -25f); raider.DockedAt = default;
@@ -2008,7 +2019,7 @@ public partial class SelfTest : Node
 			case 79: // Gerätetest Phase 28: Autopilot zum Hauptquartier der Union (Alpha) von mehreren Startpunkten kommt an und dockt (vorher kreiste er zwischen Asteroiden)
 			{
 				var uni = _m.Session.U;
-				var hq = uni.Stations.Values.First(x => x.Name == "Hauptquartier der Union");
+				var hq = uni.Stations.Values.First(x => x.TypeKey == "headquarters" && x.Sector.Value == 1);   // Phase 29: Name mit gewürfeltem Fraktionsnamen
 				int k = _p28Try;
 				if (_frame - _stageStart == 1)
 				{
@@ -2428,7 +2439,7 @@ public partial class SelfTest : Node
 					if (uni.ShipsById().FirstOrDefault(s => s.Sector == uni.PlayerSector && s.Id != uni.PlayerShip) is { } other) _m.TestFight.SetTarget(other.Id);
 					_m.HudRef.CcSector.TestSelectStation(hq.Id);
 					_m.HudRef.CcSector.TestTargetHere();
-					Check(_m.TestFight.Target.Value == 0 && _m.HudRef.Flight.TestTargetName == hq.Name, $"Zielkarte zeigt sofort die neue Station ({_m.HudRef.Flight.TestTargetName})");
+					Check(_m.TestFight.Target.Value == 0 && _m.HudRef.Flight.TestTargetName.EndsWith(hq.Name), $"Zielkarte zeigt sofort die neue Station ({_m.HudRef.Flight.TestTargetName})");
 					Check(_m.TestTargetStation == hq.Id.Value && !_m.TestAutopilotOn && !_m.TestScreenOpen("cc.sector"), "„Ziel wählen“ in der Sektoransicht wählt die Station ohne Autopilot");
 					Next();
 				}
@@ -2552,7 +2563,8 @@ public partial class SelfTest : Node
 						Check(System.MathF.Abs(r - Station.BodyRadius) <= 0.1f * Station.BodyRadius, $"{st.Name}: Modellradius {r:0.0} ≈ Kollisionskreis {Station.BodyRadius:0}");
 						var acc = SpaceAdventure.World.StationModels.AccentOf(model);
 						var want = SpaceAdventure.World.SectorView.AccentOf(uni, st);
-						Check(acc is { } a && System.MathF.Abs(a.Shown.R - a.Source.R * want.R) < 0.02f && System.MathF.Abs(a.Shown.B - a.Source.B * want.B) < 0.02f,
+						// Phase 29: gesättigte Besitzerfarbe (Farbton gleich; grau bleibt grau)
+						Check(acc is { } a && (want.S <= 0.2f ? System.MathF.Abs(a.Shown.R - want.R) < 0.02f : System.MathF.Abs(Mathf.Wrap(a.Shown.H - want.H + 0.5f, 0f, 1f) - 0.5f) < 0.03f && a.Shown.S >= 0.74f),
 							$"{st.Name}: Akzent in der Besitzerfarbe ({acc?.Shown} statt {want})");
 						Check(top > 0.5f, $"{st.Name}: Beschriftung über dem Modell ({top:0.0})");
 					}

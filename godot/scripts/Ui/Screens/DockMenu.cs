@@ -58,7 +58,7 @@ public sealed partial class DockMenu : Control, IScreen
 
 		var u = Ctx.U; var st = Ctx.Station; var ship = Ctx.Ship;
 		string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
-		string faction = u.ActorName(st.Owner);   // Phase 9: Besitzer ist ein Akteur (Fraktionen tragen ihren Namen)
+		string faction = SpaceSim.Core.Model.ActorNames.Tagged(u, st.Owner);   // Phase 29: mit Kürzel   // Phase 9: Besitzer ist ein Akteur (Fraktionen tragen ihren Namen)
 		string sector = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
 
 		// Karte mit freier Platzierung (ein PanelContainer würde alle Kinder strecken); Innenrand 20 px
@@ -148,7 +148,7 @@ public sealed partial class DockMenu : Control, IScreen
 				string label = $"#{_ship.Id.Value} {model}";
 				if (label.Length > 16) label = label[..15] + "…";
 				DrawString(font, new Vector2(0, 58), label, HorizontalAlignment.Center, 126, 13, White);
-				string who = _sel ? "aktiv" : own ? (_ship.IsRental ? "Leihschiff" : "im Hangar") : _u.ActorName(_ship.Owner);
+				string who = _sel ? "aktiv" : own ? (_ship.IsRental ? "Leihschiff" : "im Hangar") : SpaceSim.Core.Model.ActorNames.Tagged(_u, _ship.Owner);
 				DrawString(font, new Vector2(0, 75), who, HorizontalAlignment.Center, 126, 12, own || _sel ? Cyan : Dim);
 				DrawRect(new Rect2(14, 82, 98, 4), new Color(0, 0, 0, 0.5f));
 				DrawRect(new Rect2(14, 82, 98 * Mathf.Clamp(_ship.Hull / _ship.MaxHull, 0f, 1f), 4), _ship.Hull > _ship.MaxHull * 0.6f ? Green : Orange);

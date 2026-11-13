@@ -254,7 +254,7 @@ public partial class SectorView : Node3D
 			_stations[st.Id] = new StationNode { Root = root, Model = model, Accent = accent, Look = look, Top = top };
 			string label = st.IsBuildSite && !st.Site!.Abandoned
 				? $"Baustelle: {(u.StationTypes.TryGetValue(st.Site.TypeKey, out var tt) ? tt.Name : st.Site.TypeKey)}" : st.Name;
-			root.AddChild(Gfx.Label(label, new Vector3(0, top + 2.5f, 0)));
+			root.AddChild(Gfx.Label(ActorNames.Tagged(u, st.Owner, label), new Vector3(0, top + 2.5f, 0)));   // Phase 29: „[UNI] Werft Vesta“
 			Targets.Add(new PickTarget("station", st.Id.Value, pos, st.Name));
 			return;
 		}
@@ -268,7 +268,7 @@ public partial class SectorView : Node3D
 			Gfx.Mesh(new SphereMesh { Radius = 0.6f, Height = 1.2f }, Gfx.Mat(new Color(1f, 0.8f, 0.3f), 3f),
 				new Vector3(Mathf.Cos(a) * 12.5f, 0.8f, Mathf.Sin(a) * 12.5f), root);
 		}
-		root.AddChild(Gfx.Label(st.Name, new Vector3(0, 6, 0)));
+		root.AddChild(Gfx.Label(_u is { } uu ? ActorNames.Tagged(uu, st.Owner, st.Name) : st.Name, new Vector3(0, 6, 0)));
 		Targets.Add(new PickTarget("station", st.Id.Value, pos, st.Name));
 	}
 

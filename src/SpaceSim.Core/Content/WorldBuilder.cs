@@ -221,6 +221,21 @@ public static class WorldBuilder
                 Treasury = new Treasury { Credits = ad.Treasury },
             };
         }
+        // Phase 29: gewürfelte Namen (eigener Namenszufall aus dem Seed — Universe.Rng bleibt unberührt, die Wirtschaft unverändert)
+        {
+            var nameRng = FactionNames.WorldRng(u.Seed);
+            var taken = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
+            {
+                if (a.Kind is not (ActorKind.State or ActorKind.Guild or ActorKind.Outlaw or ActorKind.Independent)) continue;
+                if (def.RandomNames || a.Name.Length == 0)
+                {
+                    a.Name = FactionNames.Pick(a.Kind, nameRng, taken);
+                    if (a.Membership is { } mf && mf.Value == a.Id.Value && u.Factions.TryGetValue(mf, out var fac)) fac.Name = a.Name;
+                }
+                taken.Add(a.Name);
+            }
+        }
         ActorId ActorByKey(string key, string owner) =>
             actorByKey.TryGetValue(key, out var a) ? a : throw new WorldFormatException($"{owner}: unbekannter Besitzer '{key}'");
 
@@ -284,7 +299,8 @@ public static class WorldBuilder
                     continue;
                 }
                 ActorId stOwner = st.Owner is { Length: > 0 } ok ? ActorByKey(ok, $"Station {st.Id}") : u.Sectors[new SectorId(sd.Id)].Owner;
-                var station = StationFactory.Create(u, new StationId(st.Id), type, st.Name, new SectorId(sd.Id), V(st.Pos), stOwner);
+                string stName = st.Name.Contains("{owner}") ? st.Name.Replace("{owner}", u.ActorName(stOwner)) : st.Name;   // Phase 29: Name des Besitzers
+                var station = StationFactory.Create(u, new StationId(st.Id), type, stName, new SectorId(sd.Id), V(st.Pos), stOwner);
                 // Phase 10: Regierungsstationen und Wachen sind immer vor Pleite geschützt (Phase 11: Verstecke auch)
                 station.BankruptcyProtected = st.Essential || st.BankruptcyProtected || type.Government != GovernmentKind.None || type.Hideout;
                 station.Immortal = st.Immortal;
@@ -366,6 +382,7 @@ public static class WorldBuilder
         Simulation.GateAccess.SyncRestricted(u);
         // Phase 12: Liegeplatz der Startschiffe (am Andockpunkt einer Station = angedockt; das aktive Schiff dockt nur die Ansicht an); das Laden älterer Stände bestimmt ihn genauso
         foreach (var ship in u.Ships.Values.Where(x => x.Transit is null && x.Id != u.PlayerShip).OrderBy(x => x.Id.Value)) ship.DockedAt = u.StationAt(ship.Sector, ship.Position);
+        u.AssignMissingTags();   // Phase 29: Kürzel aller Akteure
         return u;
     }
 
@@ -629,7 +646,7 @@ public static class WorldBuilder
             if (cd.ToolEfficiency <= 0f || cd.ToolEfficiency > 1f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': toolEfficiency {cd.ToolEfficiency} muss in (0, 1] liegen");
             if (cd.MaxSlotUpgrades < 0) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': maxSlotUpgrades muss >= 0 sein");
             if (cd.BerthFee < 0f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': berthFee muss >= 0 sein");
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades, Restricted = cd.Restricted, BerthFee = cd.BerthFee };
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, KitCount = Math.Max(1, cd.KitCount), ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades, Restricted = cd.Restricted, BerthFee = cd.BerthFee };
             if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
         }
 
@@ -684,7 +701,7 @@ public static class WorldBuilder
         (ShipRole.Trader, 60f) => "unit_trader_60",
         (ShipRole.Miner, 100f) => "unit_miner_100",
         (ShipRole.Miner, 60f) => "unit_miner_60",
-        (ShipRole.Player, _) => "unit_player",
+        (ShipRole.Player, _) => "unit_miner_100",   // Phase 29: kein eigener „Einheitsspieler“ mehr — Startschiff ist der Einheitsschürfer 100
         (ShipRole.Builder, _) => "foreman",   // Phase 8: Bauschiff
         _ => "",
     };

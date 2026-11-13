@@ -114,13 +114,14 @@ public class FleetCommandTests
         var u = World();
         var nomad = Own(u, "nomad", St(u, 1));
         Assert.NotNull(Commands.Check(u, u.Ships[u.PlayerShip], new HoldCommand()));                // aktives Schiff steuert der Spieler
-        Assert.Contains("Waffen", Commands.Check(u, nomad, new PatrolCommand(new[] { Alpha }))!);   // keine Waffen
+        var prospector = Own(u, "prospector", St(u, 1));   // Phase 29: der Nomade trägt jetzt einen Laser — unbewaffnet ist der Goldsucher
+        Assert.Contains("Waffen", Commands.Check(u, prospector, new PatrolCommand(new[] { Alpha }))!);   // keine Waffen
         Assert.Contains("Mining", Commands.Check(u, nomad, new MineCommand(AutoLimits.None))!);
         Assert.NotNull(Commands.Check(u, nomad, new GoToCommand(default, default, new StationId(999))));
         Assert.Null(Commands.Check(u, nomad, new TradeCommand(AutoLimits.None)));
         var ev = Capture(u);
-        Assert.False(Commands.Give(u, nomad, new PatrolCommand(new[] { Alpha }), out _));
-        Assert.Null(nomad.Command);
+        Assert.False(Commands.Give(u, prospector, new PatrolCommand(new[] { Alpha }), out _));
+        Assert.Null(prospector.Command);
         Assert.Empty(ev);
     }
 

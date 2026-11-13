@@ -89,8 +89,7 @@ public sealed class MinerSystem : ISimSystem
                 if (!u.AsteroidClasses.TryGetValue(field.ClassKey, out var cls) || !Belt.HasOre(sector, field, 1f)) continue;
 
                 // Phase 6: Laserstufe des Schiffs (Trefferchance und Brockengröße); Stufe 1 = bisherige Rate
-                float chance = MathF.Min(1f, cls.ChunkChance * ship.Stats.LaserChunkChanceMult);
-                float orePerTick = chance * MiningRules.MeanChunkUnits * ship.Stats.LaserChunkSizeMult / MiningRules.ShotInterval * SimClock.TickInterval;
+                float orePerTick = ContactMining.OrePerSecond(ship.Stats, cls) * SimClock.TickInterval;   // Phase 29: Laser oder Kontaktwerkzeug (das bessere)
                 float mineTicks = ship.CapacityVolumeFor(GoodForm.Solid) / MathF.Max(0.01f, orePerTick);   // Erz ist fest
                 if (!basisOf.TryGetValue(cls, out float basis)) basisOf[cls] = basis = cls.MeanBasePrice(u);
                 // Gedränge am Feld mindert den Wert: Jeder weitere Miner teilt sich dieselben Asteroiden und drückt den Preis (Herdenschutz)
@@ -239,6 +238,24 @@ public sealed class MinerSystem : ISimSystem
             return;
         }
 
+        // Phase 29: Kontaktabbau (Bohrkopf, Schneidrad, Schneidwalze) — dieselbe Regel wie beim Spieler; der Arbeitspunkt am Feld steht am Fels (abstrakt),
+        // ShotTimer dient als Fortschritt bis zur nächsten Portion
+        if (ship.Stats.UsesContact)
+        {
+            var crock = PickRock(sector, field, ship);
+            if (crock is null || !u.AsteroidClasses.TryGetValue(crock.ClassKey, out var ccls)) return;
+            // Spaltzange (Felsbrecher II, Steinbruch) zerlegt große Brocken zuerst, wie beim Laser
+            if (ship.Stats.SplitPower > 0f && crock.Radius >= u.Rules.NpcSplitMinRadius && AsteroidSplitter.Split(u, sector, crock, ship.Id) is not null)
+            {
+                ship.MineAsteroid = 0;
+                return;
+            }
+            float progress = ship.ShotTimer;
+            foreach (var (good, units) in ContactMining.Step(u, u.Rng, ship, sector, crock, ccls, ref progress, SimClock.TickInterval))
+                u.Events.Publish(new ContactMined(sector.Id, ship.Id, crock.Id, crock.Position, crock.Radius, units, good));
+            ship.ShotTimer = progress;
+            return;
+        }
         // Jeder Tick lädt die Waffe nach; ist sie bereit, fällt genau ein Schuss (nie mehrere auf einmal)
         ship.ShotTimer = MathF.Min(ship.ShotTimer + SimClock.TickInterval, MiningRules.ShotInterval + SimClock.TickInterval);
         if (ship.ShotTimer < MiningRules.ShotInterval) return;

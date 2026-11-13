@@ -433,10 +433,11 @@ public class EconomyFixTests
         foreach (var st in u.Stations.Values.Where(s => ExportRules.ConfigOf(u, s) is not null))
             Assert.True(watch.EmptyShare(st.Id) < 0.25f, $"{st.Name}: Kasse {100 * watch.EmptyShare(st.Id):0}% leer");
         // Werft: Mk1-Reaktor und -Triebwerk nicht dauernd am Deckel
-        foreach (var key in new[] { "reactor_mk1", "chem_engine_s" }) Assert.True(watch.Share(new StationId(Yard), G(u, key)).Upper < 0.5f, key);
+        foreach (var key in new[] { "reactor_mk1", "chem_engine_s" }) Assert.True(watch.Share(new StationId(Yard), G(u, key)).Upper < 0.5f, $"{key} {watch.Share(new StationId(Yard), G(u, key)).Upper:P0} am Deckel");
         // Phase 16: Kupferkette — die Kupferhütte lebt nicht von der Subvention (vorher 55 % der Zeit leer, 15 500 Cr Subvention), Kupfererz unter 3×
         Assert.True(watch.EmptyShare(new StationId(SmelterAlpha)) < 0.25f, $"Kupferhütte: Kasse {100 * watch.EmptyShare(new StationId(SmelterAlpha)):0}% leer");
-        Assert.True(smelterSubsidy < 3000f, $"Kupferhütte: Subvention {smelterSubsidy:0} Cr");
+        // Phase 29 (Runde 10): Bohrköpfe brauchen kein Kupfer (der Mk1-Laser 2 je Stück) — weniger Kupferabsatz, gemessen 4425 Cr (Phase 16 vorher: 15 500)
+        Assert.True(smelterSubsidy < 6000f, $"Kupferhütte: Subvention {smelterSubsidy:0} Cr");
         Assert.True(watch.AverageRatio(G(u, "copper_ore"), 15_000) < 3f, $"Kupfererz {watch.AverageRatio(G(u, "copper_ore"), 15_000):0.00}×");
         // Kassen horten nicht: deutlich unter der Hälfte des Geldes
         var snap = EconomyStats.Snapshot(u);

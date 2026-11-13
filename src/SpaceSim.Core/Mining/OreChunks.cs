@@ -65,6 +65,29 @@ public sealed class OreChunks
         return best;
     }
 
+    float _contactProgress;
+
+    /// <summary>Phase 29: letzter Zustand des Kontaktabbaus (Werkzeugtaste, Drehzahl).</summary>
+    public ContactState LastContact { get; private set; } = ContactState.NoTool;
+
+    /// <summary>Phase 29: Erz aus dem letzten Kontaktschritt (Ansicht: Funken).</summary>
+    public event Action<Asteroid, GoodId, float>? Contacted;
+
+    /// <summary>
+    /// Phase 29: ein Schritt Kontaktabbau des Spielers (gemeinsame Regel <see cref="ContactMining"/>): der nächste abbaubare Asteroid vor dem Bug wird abgetragen,
+    /// solange die Werkzeugfront ihn berührt; Erz geht direkt in den Laderaum. Liefert den Zustand für die Werkzeugtaste.
+    /// </summary>
+    public ContactState Contact(Universe u, Ship ship, Sector sector, Vec2 shipPos, Vec2 dir, float seconds)
+    {
+        if (ship.Stats.ContactMining <= 0f) return LastContact = ContactState.NoTool;
+        if (ContactMining.HoldFull(u, ship)) return LastContact = ContactState.HoldFull;
+        var rock = Nearest(sector, shipPos, ContactMining.ContactRange + ContactMining.BowOffset + 2f);
+        if (rock is null || !HasClass(u, rock) || !ContactMining.InContact(shipPos, dir, rock)) return LastContact = ContactState.NoContact;
+        var cls = u.AsteroidClasses[rock.ClassKey];
+        foreach (var (good, units) in ContactMining.Step(u, _rng, ship, sector, rock, cls, ref _contactProgress, seconds)) Contacted?.Invoke(rock, good, units);
+        return LastContact = ContactState.Mining;
+    }
+
     /// <summary>
     /// Feuert genau einen Schuss, falls nachgeladen. Dauerfeuer entsteht nur, wenn der Aufrufer jedes Mal neu auslöst
     /// (die Automatik tut das im Takt der Nachladezeit, der Spieler tippt).
@@ -72,6 +95,7 @@ public sealed class OreChunks
     public MineResult TryFire(Universe u, Ship ship, Sector sector, Asteroid a, Vec2 shipPos)
     {
         if (!ship.Has(Capability.Mining)) return MineResult.NoLaser;   // Phase 5c: ohne Mining-Laser im Fit kein Abbau
+        if (ship.HasModel && !ship.Stats.HasLaser) return MineResult.NoLaser;   // Phase 29: ein Kontaktwerkzeug gibt Mining, schießt aber nicht
         if (_cooldown > 0f) return MineResult.Cooldown;
         if (!IsMinable(sector, a) || !HasClass(u, a)) return MineResult.NotMinable;
         if (Vec2.Distance(shipPos, a.Position) - a.Radius > MiningRules.LaserRange) return MineResult.OutOfRange;

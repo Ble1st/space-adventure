@@ -828,6 +828,13 @@ public sealed class EconomyRules
     public float EmergencyRepairMargin = 0.05f;
     /// <summary>Kaperer nehmen die Fracht des Wracks ihres Opfers mit (Hehlerei wie Beute).</summary>
     public bool RaidersLootWrecks = true;
+    /// <summary>
+    /// Phase 29 (Runde 10): Kaperer schonen die Beute — im Überfall feuert ein Kaperer keine Waffe auf ein Opfer mit Fracht, deren Höchstschaden (Schaden ×
+    /// (1 + Streuung)) zusammen mit den schon fliegenden Raketen auf dieses Ziel Schild und Hülle des Opfers aufbrauchen könnte (reine Regel, kein Zufallszug).
+    /// Gemessen: seit die Piraten Bomber (zwei Raketenwerfer) kaufen, vernichtete eine Raketensalve leichte Schürfer (Skiff, Hülle 60) statt sie zur Aufgabe zu
+    /// zwingen (300000 Ticks: 59 zerstörte Schürfer statt 6). Nicht für das aktive Spielerschiff (es bleibt in echter Gefahr). false = alte Regel.
+    /// </summary>
+    public bool RaidersSpareLoot = true;
 
     // ───────── Phase 27: Flottenkampf (KAMPF.md Stufe 27) ─────────
     /// <summary>
@@ -905,6 +912,20 @@ public sealed class EconomyRules
     public int PeaceCooldownTicks = 30000;
     /// <summary>Kriegsschiffe: Modell, je Krieg gewünschte Zahl, Obergrenze je Fraktion, Unterhalt je Tick aus der Kasse, Rückzug, Abbau nach Frieden.</summary>
     public string WarshipModel = "bastion";
+
+    // ───────── Phase 29: Schiffsraster — Kampfmodellwahl ─────────
+    /// <summary>Polizei wählt ihr Modell unter allen Kampfmodellen (<see cref="Simulation.CombatModels"/>); false = immer <see cref="PoliceModel"/>.</summary>
+    public bool PoliceChoosesModels = true;
+    /// <summary>Marine wählt unter allen Kampfmodellen (im Krieg schwer gewichtet); false = immer <see cref="WarshipModel"/>.</summary>
+    public bool WarshipChoosesModels = true;
+    /// <summary>Piraten wählen unter allen Kampfmodellen nach Kasse und bauen im Versteck zum Materialwert × <see cref="PirateBuildFactor"/>; false = <see cref="PirateModel"/> zu <see cref="RaiderCost"/>.</summary>
+    public bool PirateChoosesModels = true;
+    /// <summary>Bau im Versteck: Anteil des Materialwerts (Basispreise) je Kapazitätseinheit, den die Piratenkasse zahlt (Korsar ≈ 2000 wie das frühere <see cref="RaiderCost"/>).</summary>
+    public float PirateBuildFactor = 0.65f;
+    /// <summary>Piratengruppe: höchstens so viele Kapazitätseinheiten (S 1, M 1,5, L 2); Code-Standard 3 wie das frühere <see cref="MaxRaidersPerActor"/>, Standardwelt 2 — zwei Korsaren oder ein M-Schiff oder eine Fregatte.</summary>
+    public float MaxRaiderUnitsPerActor = 3f;
+    /// <summary>Bedrohung (Lagekarte), ab der Polizei und Piraten voll auf Kampfstärke statt auf Stärke je Preis wählen; Marine im Krieg immer voll.</summary>
+    public float CombatHeavyThreat = 3f;
     public int WarshipsPerWar = 2;
     public int MaxWarshipsPerFaction = 3;
     public float WarshipUpkeepPerTick = 1.5f;

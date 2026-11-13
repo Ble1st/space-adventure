@@ -466,10 +466,31 @@ public sealed class PirateSystem : ISimSystem
                 a.Treasury.Credits += income;
                 u.Events.Publish(new TreasuryIncome(a.Id, "hideout", income));
             }
-            float cost = raiders.Count == 0 ? r.RaiderCost * Math.Clamp(r.RaiderRestartCostFactor, 0f, 1f) : r.RaiderCost;
-            if (hideout is null || raiders.Count >= r.MaxRaidersPerActor || a.Treasury.Credits < cost || u.Tick - a.LastForceTick < r.RaiderRebuildTicks) continue;
-            if (!u.ShipModels.TryGetValue(r.PirateModel, out var model) || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls)) continue;
-            var ship = ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Pirate, Controller.Ai, a.Id, hideout, 0f);
+            float restart = raiders.Count == 0 ? Math.Clamp(r.RaiderRestartCostFactor, 0f, 1f) : 1f;
+            ShipModel? model; ShipClass? cls; float cost;
+            if (r.PirateChoosesModels)
+            {
+                // Phase 29: Wahl unter allen Kampfmodellen nach Kasse, Bau im Versteck; Gruppengröße in Kapazitätseinheiten (Fregatte = ganze Gruppe)
+                if (hideout is null || u.Tick - a.LastForceTick < r.RaiderRebuildTicks) continue;
+                float used = raiders.Sum(x => u.ShipModels.TryGetValue(x.ModelKey, out var xm) && u.ShipClasses.TryGetValue(xm.ClassKey, out var xc) ? CombatModels.Units(xc) : 1f);
+                float threat = u.Sectors.TryGetValue(hideout.Sector, out var hs) ? hs.Security : 0f;   // stärkerer Schutz in der Nähe → schwerere Schiffe
+                if (CombatModels.ForPirates(u, a.Treasury.Credits, r.MaxRaiderUnitsPerActor - used, CombatModels.Heavy(u, threat), restart) is not { } pick) continue;
+                (model, cls, cost) = (pick.Model, pick.Class, pick.Cost);
+            }
+            else
+            {
+                cost = r.RaiderCost * restart;
+                if (hideout is null || raiders.Count >= r.MaxRaidersPerActor || a.Treasury.Credits < cost || u.Tick - a.LastForceTick < r.RaiderRebuildTicks) continue;
+                if (!u.ShipModels.TryGetValue(r.PirateModel, out model) || !u.ShipClasses.TryGetValue(model.ClassKey, out cls)) continue;
+            }
+            Ship ship;
+            if (r.PirateChoosesModels)
+            {
+                // Phase 29: Güteklasse auch beim Bau im Versteck (ohne Werftlager: nur freie bessere Module, wie bei den Gründerschiffen)
+                var q = ShipQualityRoll.Roll(u, cls!, cls!.Slots, model!.Fit, null, null);
+                ship = ShipPurchase.Create(u, u.NewShipId(), model.Key, q.Slots, q.Fit, ShipRole.Pirate, Controller.Ai, a.Id, hideout!, 0f, q.Grade);
+            }
+            else ship = ShipPurchase.Create(u, u.NewShipId(), model!.Key, cls!.Slots, model.Fit, ShipRole.Pirate, Controller.Ai, a.Id, hideout!, 0f);
             ship.HomeBase = hideout.Id;
             ship.NextThinkTick = u.Tick + r.PirateRestTicks;
             a.Treasury.Credits -= cost;

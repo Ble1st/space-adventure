@@ -78,7 +78,7 @@ public class OutfitterShipyardTests
         Assert.Equal(3, ShipDealerService.Models(u, trade).Count);
         var yard = u.Stations.Values.First(s => s.TypeKey == "shipyard");
         Assert.Equal(u.ShipModels.Values.Count(m => !u.ShipClasses[m.ClassKey].Restricted), ShipDealerService.Models(u, yard).Count);
-        Assert.DoesNotContain(ShipDealerService.Models(u, yard), m => m.Key == "corsair");
+        Assert.Contains(ShipDealerService.Models(u, yard), m => m.Key == "corsair");   // Phase 29: der Korsar ist frei käuflich
         Assert.Contains("outfitter", services.ForStation(u, yard).Select(s => s.Key));
         // Raffinerie: kein Schiffshändler (ihre Klassen „Bergbauer leicht“/„kleiner Tanker“ gibt es noch nicht)
         Assert.Null(u.StationTypes["fuel_refinery"].ShipDealer);
@@ -191,7 +191,8 @@ public class OutfitterShipyardTests
     {
         var (u, yard, player) = AtYard();
         int tool = Slot(player, "tool");
-        var laser = u.FindGood("mining_laser_1")!.Id;
+        string toolKey = player.Fit[tool]!;   // Phase 29: Bohrkopf (Einheitsschürfer) — vorher der Mk1-Laser
+        var laser = u.FindGood(toolKey)!.Id;
         Assert.True(player.Has(Capability.Mining));
 
         // Station nimmt an (Lagerposten mit Platz): Ankauf zum Marktpreis
@@ -205,7 +206,7 @@ public class OutfitterShipyardTests
         Assert.Equal(0f, player.Cargo.GetValueOrDefault(laser));
 
         // Wieder einbauen (aus dem Lager), dann ausbauen bei voller Station → in die Fracht
-        Assert.True(Exec(Outfitter, u, yard, player, $"fit:{tool}:mining_laser_1").Success);
+        Assert.True(Exec(Outfitter, u, yard, player, $"fit:{tool}:{toolKey}").Success);
         yard.Market[laser].Amount = yard.Market[laser].Target * u.Rules.OverstockFactor;   // Lager voll
         wallet = u.PlayerWallet.Credits;
         r = Exec(Outfitter, u, yard, player, $"remove:{tool}");
@@ -214,10 +215,10 @@ public class OutfitterShipyardTests
         Assert.Equal(wallet, u.PlayerWallet.Credits);
 
         // Einbau aus der Fracht: kostenlos, Fracht geht ab
-        var offer = Outfitter.Offers(u, yard, player).Single(o => o.Key == $"fit:{tool}:mining_laser_1");
+        var offer = Outfitter.Offers(u, yard, player).Single(o => o.Key == $"fit:{tool}:{toolKey}");
         Assert.Equal(0f, offer.Price);
         Assert.Equal(1f, offer.Held);
-        r = Exec(Outfitter, u, yard, player, $"fit:{tool}:mining_laser_1");
+        r = Exec(Outfitter, u, yard, player, $"fit:{tool}:{toolKey}");
         Assert.True(r.Success, r.Message);
         Assert.Equal(wallet, u.PlayerWallet.Credits);
         Assert.Equal(0f, player.Cargo.GetValueOrDefault(laser));
@@ -423,7 +424,7 @@ public class OutfitterShipyardTests
         Assert.True(WorldBuilder.BuildDefault(startOption: "generalist").Ships[new ShipId(100)].Has(Capability.Mining));
         // ohne Wahl: Einheitsmodell und Startgeld des Spielereintrags (bisheriges Verhalten)
         var d = WorldBuilder.BuildDefault();
-        Assert.Equal("unit_player", d.Ships[d.PlayerShip].ModelKey);
+        Assert.Equal("unit_miner_100", d.Ships[d.PlayerShip].ModelKey);
         Assert.Equal(500f, d.PlayerWallet.Credits);
         Assert.Equal(UniverseHash.Compute(DemoUniverse.Create()), UniverseHash.Compute(d));
         Assert.Throws<WorldFormatException>(() => WorldBuilder.BuildDefault(startOption: "lorem"));

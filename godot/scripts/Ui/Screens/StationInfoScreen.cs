@@ -58,7 +58,7 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		_infoScroll = s1;
 		v1.AddChild(Text("Allgemein", 22, Cyan));
 		string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
-		string faction = u.ActorName(st.Owner);   // Phase 9: Besitzer ist ein Akteur (Fraktionen tragen ihren Namen)
+		string faction = SpaceSim.Core.Model.ActorNames.Tagged(u, st.Owner);   // Phase 29: mit Kürzel   // Phase 9: Besitzer ist ein Akteur (Fraktionen tragen ihren Namen)
 		string sector = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
 		Row(v1, "Name", st.Name);
 		Row(v1, "Typ", type);

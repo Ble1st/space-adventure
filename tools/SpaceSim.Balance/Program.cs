@@ -52,6 +52,8 @@ if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
 if (opts.TryGetValue("planguard", out var pgOpt)) u.Rules.TraderPlanGuard = pgOpt == "on";
 // Runde 7: --rejoin off = Wiedereintritt mit neuem Gefechtseintrag (Verhalten bis Runde 6, Vergleichslauf)
 if (opts.TryGetValue("rejoin", out var rjOpt)) u.Rules.CombatRejoinReuse = rjOpt == "on";
+// Phase 29 Runde 10: --spareloot off = Kaperer feuern auch, wenn der Schuss die Beute vernichten kann (Vergleichslauf)
+if (opts.TryGetValue("spareloot", out var slOpt)) u.Rules.RaidersSpareLoot = slOpt == "on";
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
 // Phase 17: Rechenzeit je System (jedes System eines Moduls bekommt eine eigene Stoppuhr; die Sicherheits-Systeme laufen zusätzlich auf der Sammeluhr)
@@ -85,6 +87,23 @@ int jobSwitches = 0;
 var chosenModels = new SortedDictionary<string, int>(StringComparer.Ordinal);
 // Runde 9: Abgänge der Handelsschiffe je Modell und Grund (Tanker, Kurier: Rentabilität)
 var traderDepartures = new SortedDictionary<string, int>(StringComparer.Ordinal);
+// Phase 29: welche Modelle Polizei, Marine und Piraten kaufen bzw. bauen
+var forceModels = new SortedDictionary<string, int>(StringComparer.Ordinal);
+u.Events.Raised += e =>
+{
+    (string who, ShipId id) = e switch
+    {
+        PoliceCommissioned pc => ("Polizei", pc.Ship),
+        WarshipCommissioned wc => ("Marine", wc.Ship),
+        RaiderBuilt rb => ("Piraten", rb.Ship),
+        _ => ("", default),
+    };
+    if (who.Length > 0 && u.Ships.TryGetValue(id, out var fs))
+    {
+        string k = $"{who} {fs.ModelKey}";
+        forceModels[k] = forceModels.GetValueOrDefault(k) + 1;
+    }
+};
 u.Events.Raised += e =>
 {
     if (e is ShipDeparted sd && sd.Role == ShipRole.Trader && u.Ships.TryGetValue(sd.Ship, out var dship))
@@ -645,6 +664,9 @@ if (u.Modules.Count > 0)
             Console.WriteLine($"  Kartenteil {string.Join("+", mp.Select(id => u.Sectors[id].Name))}: " + string.Join(", ", ShipJobs.Default.Select(j =>
                 $"{j.Key} {FleetCapacity.Used(u, j, mp[0].Value):0.0}/{FleetCapacity.Limit(u, j, mp[0].Value):0.0}")));
     Console.WriteLine("Modellwahl der KI: " + (chosenModels.Count == 0 ? "keine" : string.Join(", ", chosenModels.Select(kv => $"{kv.Key} {kv.Value}"))));
+    Console.WriteLine("Kampfschiffe gekauft/gebaut je Modell: " + (forceModels.Count == 0 ? "keine" : string.Join(", ", forceModels.Select(kv => $"{kv.Key} {kv.Value}"))));
+    Console.WriteLine("Kampfschiffe jetzt: " + string.Join(", ", u.Ships.Values.Where(x => x.Role is ShipRole.Police or ShipRole.Pirate or ShipRole.Warship)
+        .GroupBy(x => $"{x.Role}/{x.ModelKey}").OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key} {g.Count()}")));
     Console.WriteLine("Abgänge Handelsschiffe je Modell: " + (traderDepartures.Count == 0 ? "keine" : string.Join(", ", traderDepartures.Select(kv => $"{kv.Key} {kv.Value}"))));
     // Phase 16: aus der dichten Probe (alle 20 Ticks im letzten Viertel), nicht aus den --every-Messpunkten
     string Ratio(string key) => u.FindGood(key) is { } gg && watch.AverageRatio(gg.Id, ticks * 3 / 4) is { } rr ? rr.ToString("0.00", CultureInfo.InvariantCulture) : "-";

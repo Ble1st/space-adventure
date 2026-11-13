@@ -95,7 +95,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		bool isFaction = actor.IsFaction(u);
 		bool isFree = actor.Kind == ActorKind.Free;
 		At(det, new ColorRect { Color = ColorOf(u, sel), CustomMinimumSize = new Vector2(22, 22), Size = new Vector2(22, 22), MouseFilter = MouseFilterEnum.Ignore }, 18, 18);
-		At(det, Text(actor.Name, 26, White), 50, 12, 520, 34);
+		At(det, Text(SpaceSim.Core.Model.ActorNames.Tagged(u, actor.Id), 26, White), 50, 12, 520, 34);
 		string member = isFaction ? "Fraktion (Akteur mit Politik)"
 			: actor.Membership is { } m ? $"Mitglied von {FactionName(u, m)}" : "unabhängig";
 		string head = isFree ? "Sammelgruppe der freien Einzelschiffe (jedes ein Einzelakteur)" : $"{KindAndClass(actor.Kind, stat.Class)} (Größe {stat.Size:0.0}) · {member}";
@@ -142,7 +142,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		{
 			float v = Relations.Effective(u, sel, o);
 			bool stored = Relations.IsStored(u, sel, o);
-			At(det, Text(u.ActorName(o), 13, White), 356, oy, 140, 18);
+			At(det, Text(SpaceSim.Core.Model.ActorNames.Tagged(u, o), 13, White), 356, oy, 140, 18);
 			At(det, Text($"{Signed(v)}", 13, RelColor(v), HorizontalAlignment.Right), 496, oy, 86, 18);
 			At(det, Text(stored ? Relations.Label(v) : $"{Relations.Label(v)} · Vorgabe", 11, new Color(Dim, 0.85f)), 356, oy + 16, 226, 14);
 			oy += 34;
@@ -205,7 +205,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		{
 			var font = ThemeDB.FallbackFont;
 			DrawCircle(new Vector2(20, 22), 10f, _col);
-			DrawString(font, new Vector2(40, 28), _a.Name, HorizontalAlignment.Left, 250, 18, White);
+			DrawString(font, new Vector2(40, 28), _a.Tag.Length > 0 ? $"[{_a.Tag}] {_a.Name}" : _a.Name, HorizontalAlignment.Left, 250, 18, White);   // Phase 29: Kürzel
 			string line = _a.Kind == ActorKind.Free
 				? $"Sammelgruppe · {Count(_a.Ships, "Schiff", "Schiffe")}"
 				: $"{KindAndClass(_a.Kind, _a.Class)} · {Count(_a.Ships, "Schiff", "Schiffe")} · {Count(_a.Stations, "Station", "Stationen")}";

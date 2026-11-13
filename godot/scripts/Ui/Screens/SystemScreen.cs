@@ -81,7 +81,7 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		var sh = new Control { CustomMinimumSize = new Vector2(cw, 64), MouseFilter = MouseFilterEnum.Pass };
 		box.AddChild(sh);
 		var std = CardBg(sh, 0, 0, cw, 64, Card, new Color(Edge, 0.4f), 10, 1);
-		At(std, Text($"Standard · {ModelName(def.Player.Model ?? "unit_player")} · {def.Player.Credits:0} Cr (wie bisher)", 16, White), 14, 18, cw - 200, 26);
+		At(std, Text($"Standard · {ModelName(def.Player.Model ?? SpaceSim.Core.Content.WorldBuilder.UnitModelFor(SpaceSim.Core.Model.ShipRole.Player, 100f))} · {def.Player.Credits:0} Cr (wie bisher)", 16, White), 14, 18, cw - 200, 26);
 		var bs = At(std, new KitButton("Starten", new Vector2(160, 52)) { FontSize = 17 }, cw - 172, 6);
 		bs.Pressed += () => { _choosing = false; RaiseSystemAction("new"); };
 		_chooserScroll = scroll;

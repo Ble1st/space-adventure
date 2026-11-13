@@ -41,6 +41,18 @@ public sealed class ShipStats
     public float LaserChunkChanceMult = 1f;
     /// <summary>Laserstufe des Werkzeugmoduls mit Mining (stats chunkSizeMult), sonst 1.</summary>
     public float LaserChunkSizeMult = 1f;
+    /// <summary>Phase 29 (Kontaktabbau): Erz je Sekunde des mechanischen Abbauwerkzeugs (Bohrkopf, Schneidrad, Schneidwalze; Modulstat <c>contactMining</c>) bei einer
+    /// Asteroidenklasse mit Brockenchance 0,5 — 0 = kein Kontaktwerkzeug.</summary>
+    public float ContactMining;
+    /// <summary>Phase 29: ein Bergbaulaser ist eingebaut (Werkzeug mit Mining ohne <c>contactMining</c>).</summary>
+    public bool HasLaser;
+    /// <summary>
+    /// Phase 29: Abbaustufe relativ zum Mining-Laser Mk1 (= 1) — Laser: Brockenchance × Brockengröße, Kontaktwerkzeug: Rate ÷ <see cref="Mining.MiningRules.ExpectedOrePerSecond"/>;
+    /// das bessere zählt (Kapazitätseinheiten, Kaufwert, erwarteter Ertrag).
+    /// </summary>
+    public float MiningTier => MathF.Max(HasLaser ? LaserChunkChanceMult * LaserChunkSizeMult : 0f, ContactMining / Mining.MiningRules.ExpectedOrePerSecond);
+    /// <summary>Phase 29: das Schiff baut im Kontaktmodus ab (Kontaktwerkzeug mindestens so gut wie ein eingebauter Laser).</summary>
+    public bool UsesContact => ContactMining > 0f && (!HasLaser || ContactMining / Mining.MiningRules.ExpectedOrePerSecond >= LaserChunkChanceMult * LaserChunkSizeMult);
     /// <summary>Tankkapazität: baseFuel der Klasse + Summe stats fuelCapacity der Module (z. B. Tanks).</summary>
     public float FuelCapacity;
     /// <summary>Zulässige Treibstoffe der Antriebsmodule (Ware → efficiency); bei mehreren Antrieben Vereinigung, höchste efficiency je Ware.</summary>
@@ -133,11 +145,17 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("thrust", out var thrust)) s.Thrust += thrust;
             if (m.Grants.Contains(Capability.Mining))
             {
-                s.LaserChunkChanceMult = m.Stats.TryGetValue("chunkChanceMult", out var ccm) ? ccm : 1f;
-                s.LaserChunkSizeMult = m.Stats.TryGetValue("chunkSizeMult", out var csm) ? csm : 1f;
+                if (m.Stats.TryGetValue("contactMining", out var contact)) s.ContactMining += contact;   // Phase 29: mechanisches Werkzeug
+                else
+                {
+                    s.HasLaser = true;
+                    s.LaserChunkChanceMult = m.Stats.TryGetValue("chunkChanceMult", out var ccm) ? ccm : 1f;
+                    s.LaserChunkSizeMult = m.Stats.TryGetValue("chunkSizeMult", out var csm) ? csm : 1f;
+                }
             }
         }
         s.LaserChunkChanceMult *= cls.ToolEfficiency;   // Phase 6: Rumpf mit geteilter Leistung (Mehrzweck) schwächt den Laser
+        s.ContactMining *= cls.ToolEfficiency;
         Finish(s, cls);
         return s;
     }

@@ -130,7 +130,15 @@ public static class StationModels
 		var m = (Material)src.Duplicate();
 		if (m is BaseMaterial3D b)
 		{
-			if (accent is { } a) b.AlbedoColor = new Color(b.AlbedoColor.R * a.R, b.AlbedoColor.G * a.G, b.AlbedoColor.B * a.B, b.AlbedoColor.A);
+			if (accent is { } a)
+			{
+				// Phase 29 (Handy-Test): kräftiger — gesättigte Fraktionsfarbe statt Multiplikation über das fast weiße Accent, dazu leichte Eigenleuchtkraft
+				var sat = a.S > 0.2f ? Color.FromHsv(a.H, Mathf.Max(a.S, 0.75f), Mathf.Max(a.V, 0.9f)) : a;   // grau (herrenlos/frei) bleibt grau
+				b.AlbedoColor = new Color(sat.R, sat.G, sat.B, b.AlbedoColor.A);
+				b.EmissionEnabled = true;
+				b.Emission = sat;
+				b.EmissionEnergyMultiplier = 0.35f;
+			}
 			if (look != Look.Normal)
 			{
 				// verlassen: entsättigt und dunkel; ausgeschaltet: dunkel, Lichter aus

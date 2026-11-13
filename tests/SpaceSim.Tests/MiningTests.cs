@@ -10,10 +10,21 @@ namespace SpaceSim.Tests;
 
 public class MiningTests
 {
+    /// <summary>Phase 29: die Einheitsschürfer tragen jetzt einen Bohrkopf — die Lasertests rüsten das Schiff auf den Mk1-Laser zurück.</summary>
+    internal static void ToLaser(Universe u, Ship ship)
+    {
+        for (int i = 0; i < ship.Fit.Count; i++)
+            if (ship.Fit[i] is { } k && u.Modules.TryGetValue(k, out var m) && m.Stats.GetValueOrDefault("contactMining") > 0f) ship.Fit[i] = "mining_laser_1";
+        float cap = ship.CargoCapacity;
+        ship.RecomputeStats(u);
+        ship.CargoCapacity = cap;
+    }
+
     static (Universe u, Ship ship, Sector sector, Asteroid rock) Setup()
     {
         var u = DemoUniverse.Create();
         var ship = u.Ships[u.PlayerShip];
+        ToLaser(u, ship);
         var sector = u.Sectors[u.PlayerSector];
         return (u, ship, sector, sector.Asteroids.First(a => a.Minable));
     }
@@ -192,6 +203,7 @@ public class IndividualFireTests
     {
         var u = DemoUniverse.Create();
         var sector = u.Sectors[u.PlayerSector];
+        MiningTests.ToLaser(u, u.Ships[u.PlayerShip]);
         return (u, u.Ships[u.PlayerShip], sector, sector.Asteroids.First(a => a.Minable));
     }
 
@@ -232,6 +244,7 @@ public class IndividualFireTests
         var sector = u.Sectors[new SectorId(1)];
         var field = sector.Fields[0];   // Metallasteroid-Gürtel
         var miner = u.Ships.Values.First(s => s.Role == ShipRole.Miner);
+        MiningTests.ToLaser(u, miner);
         miner.CargoCapacity = 1_000_000f;
         miner.Cargo.Clear();
         miner.Position = field.WorkPoint(miner.Id);
@@ -612,6 +625,8 @@ public class MiningAutopilotTests
         public OreChunks Chunks = new();
         public MiningAutopilot Auto = new();
         public Vec2 Pos = new(0, 0);
+        public Vec2 Dir = new(0, -1);
+        public const float ShipRadius = 1.5f;
         public int Sales;
         public float Revenue;
         public Ship Ship => U.Ships[U.PlayerShip];
@@ -643,7 +658,17 @@ public class MiningAutopilotTests
                     }
                 }
                 else if (step.Waypoint is { } wp)
+                {
+                    if (Vec2.Distance(wp, Pos) > 1e-3f) Dir = (wp - Pos).Normalized();
                     Pos += (wp - Pos).Normalized() * MathF.Min(speed * dt * step.Throttle, Vec2.Distance(wp, Pos));
+                }
+                // Phase 29: wie die Ansicht — der Rumpf stößt an den Fels (Kollision), der Kontaktabbau läuft jedes Bild
+                if (step.Aim is { } touch && Ship.Stats.ContactMining > 0f)
+                {
+                    float min = touch.Radius + ShipRadius;
+                    if (Vec2.Distance(Pos, touch.Position) < min) Pos = touch.Position + (Pos - touch.Position).Normalized() * min;
+                }
+                if (Ship.Stats.ContactMining > 0f) Chunks.Contact(U, Ship, U.Sectors[U.PlayerSector], Pos, Dir, dt);
 
                 if (step.Fire && step.Aim is { } rock) Chunks.TryFire(U, Ship, U.Sectors[U.PlayerSector], rock, Pos);
                 Chunks.Update(U, Ship, Pos, step.Tractor, dt);

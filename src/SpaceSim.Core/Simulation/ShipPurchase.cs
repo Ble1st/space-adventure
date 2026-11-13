@@ -25,7 +25,7 @@ public static class ShipPurchase
         var sum = new Dictionary<GoodId, float>();
         var kit = u.FindGood(KitKeyOf(u, cls));
         if (kit is null) return null;
-        sum[kit.Id] = 1f;
+        sum[kit.Id] = Math.Max(1, cls?.KitCount ?? 1);   // Phase 29: große Klassen brauchen mehrere Bausätze
         foreach (var key in fit)
         {
             if (key is null) continue;

@@ -135,7 +135,7 @@ public class FuelModelTests
     public void ShipStats_Einheitsmodelle_Tank200_PropellantEfficiency1()
     {
         var u = TestWorlds.Default();
-        foreach (var key in new[] { "unit_trader_100", "unit_trader_60", "unit_miner_100", "unit_miner_60", "unit_player" })
+        foreach (var key in new[] { "unit_trader_100", "unit_trader_60", "unit_miner_100", "unit_miner_60" })
         {
             var st = StatsOf(u, key);
             Assert.Equal(200f, st.FuelCapacity);

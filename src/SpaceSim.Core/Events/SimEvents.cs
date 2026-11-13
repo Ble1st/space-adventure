@@ -18,6 +18,8 @@ public sealed record PlayerBought(ShipId Ship, StationId Station, GoodId Good, f
 /// </summary>
 public sealed record ServicePerformed(ShipId Ship, StationId Station, string Service, string Offer, GoodId Good, float Units, float Credits) : SimEvent;
 /// <summary>Ein NPC-Miner hat einen Laserschuss abgegeben (Units = 0: Fehlschuss). Die Darstellung zeigt ihn, wenn er im Spielersektor fällt.</summary>
+/// <summary>Phase 29: ein NPC-Schürfer hat im Kontaktabbau eine Portion Erz gelöst (Ansicht: Funken am Kontaktpunkt, drehendes Werkzeug).</summary>
+public sealed record ContactMined(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units, GoodId Good) : SimEvent;
 public sealed record MinerShot(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units, GoodId Good = default) : SimEvent;
 public sealed record AsteroidDepleted(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record AsteroidRespawned(SectorId Sector, int Asteroid) : SimEvent;

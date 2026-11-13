@@ -197,11 +197,11 @@ public class Phase23Tests
         var miner = u.Ships.Values.Where(s => s.ModelKey == "unit_miner_60").OrderBy(s => s.Id.Value).First();
         var before = miner.Stats;
         Assert.True(miner.Has(Capability.Mining));
-        int laser = miner.Fit.IndexOf("mining_laser_1"), reactor = miner.Fit.IndexOf("reactor_mk1"), engine = miner.Fit.IndexOf("chem_engine_s"), cargo = miner.Fit.IndexOf("cargo_universal_60");
+        int laser = miner.Fit.IndexOf("drill_head_s"), reactor = miner.Fit.IndexOf("reactor_mk1"), engine = miner.Fit.IndexOf("chem_engine_s"), cargo = miner.Fit.IndexOf("cargo_universal_60");
         Assert.True(miner.Systems.Condition.Count == 0 && miner.ConditionOf(laser) == 1f);   // Phase 23: alle heil
         ShipSystems.SetCondition(u, miner, laser, 0.1f);
         Assert.False(miner.Has(Capability.Mining));
-        Assert.Equal(before.PowerDraw - u.Modules["mining_laser_1"].PowerDraw, miner.Stats.PowerDraw, 3);
+        Assert.Equal(before.PowerDraw - u.Modules["drill_head_s"].PowerDraw, miner.Stats.PowerDraw, 3);
         Assert.Equal(before.Mass, miner.Stats.Mass, 3);   // Masse bleibt
         ShipSystems.SetCondition(u, miner, reactor, 0f);
         Assert.Equal(before.PowerOutput * 0.5f, miner.Stats.PowerOutput, 3);

@@ -5,6 +5,11 @@ namespace SpaceSim.Core.Content;
 public sealed class WorldDef
 {
     public ulong Seed { get; set; } = 1;
+    /// <summary>
+    /// Phase 29: Fraktionen und Akteure bekommen beim Weltaufbau gewürfelte Namen ihrer Art aus der Namensliste (<see cref="FactionNames"/>); Stationsnamen mit
+    /// <c>{owner}</c> nehmen den Namen des Besitzers auf. false = Namen aus der Weltdatei (ein leerer Name wird trotzdem gewürfelt).
+    /// </summary>
+    public bool RandomNames { get; set; }
     public Model.EconomyRules? Rules { get; set; }
     public List<GoodDef> Goods { get; set; } = new();
     public List<AsteroidClassDef> AsteroidClasses { get; set; } = new();
@@ -162,6 +167,8 @@ public sealed class ShipClassDef
     public List<ClassSlotDef> Slots { get; set; } = new();
     /// <summary>Bausatz-Warenschlüssel der Klasse (Phase 5a, z. B. ship_kit_light); fehlt = Regel <c>shipKitGoodKey</c>.</summary>
     public string? Kit { get; set; }
+    /// <summary>Phase 29: Bausätze je Schiff (Standard 1).</summary>
+    public int KitCount { get; set; } = 1;
     /// <summary>Phase 6: Wirkungsgrad der Werkzeug-Slots (Laser-Trefferchance × Wert); fehlt = 1. Muss in (0, 1] liegen.</summary>
     public float ToolEfficiency { get; set; } = 1f;
     /// <summary>Phase 7: Höchstzahl der Slot-Upgrades (Bonusslots + vergrößerte Slots) je Schiff; fehlt = 1, muss ≥ 0 sein.</summary>
