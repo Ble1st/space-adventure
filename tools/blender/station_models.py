@@ -10,7 +10,7 @@ from mathutils import Vector
 
 import bmesh
 from stationkit import Builder, material as M, polar, qdir
-from ship_models import hp_turret, hp_shafts, greebles, _rand, interp, side_hatch, top_hatch, merge_material
+from ship_models import hp_turret, hp_shafts, greebles, _rand, interp, side_hatch, top_hatch, merge_material, vents, sensor
 
 MODELS = {}
 
@@ -29,6 +29,7 @@ HARDPOINTS = {}                          # key -> Liste wie in stations.json
 # Mehr als zehn Materialien werden der Reihe nach zusammengelegt.
 STATION_MERGE = (("Glass", "Light"), ("ShipArmor", "ShipPanel"), ("Window", "Light"), ("Copper", "ShipPanel"),
                  ("Hazard", "Accent"), ("Ice", "ShipPanel"), ("Rust", "ShipPanel"), ("Container", "ShipPanel"))
+DRESS = {"trade_station": (2, 5)}   # Stationen mit eigener, dichter Dachgestaltung brauchen weniger Automatik
 PIRATE_MERGE = (("Window", "LightRed"), ("Container", "Rust"), ("Armor", "Steel"), ("Glow", "Ember"),
                 ("Hazard", "Rust"))
 
@@ -124,7 +125,8 @@ def build(key):
     if key not in DARK_KEEP:
         station_details(b, key)
         restyle(b)
-        dress_station(b, seed=sum(map(ord, key)) * 0.01, tops=8, sides=10)
+        tops, sides = DRESS.get(key, (8, 10))
+        dress_station(b, seed=sum(map(ord, key)) * 0.01, tops=tops, sides=sides)
     for src, dst in (PIRATE_MERGE if key in DARK_KEEP else STATION_MERGE):
         if len(b.mats) <= 10:
             break
@@ -794,7 +796,7 @@ def systems_works(b):
 @model("trade_station", "Moderner Handels-Hub (Terminal): flacher, dreistoeckiger Scheibenbau mit umlaufender verglaster Promenade, fuenf radiale Andockfinger mit Andockklammern und Positionslichtern, geschlossener Hangar mit Leuchttor (Schiffshaendler), Kranz aus Frachtmodulen unter der Scheibe, Kontroll- und Sendeturm, breite Accent-Baender")
 def trade_station(b):
     prof = [(0, -2.2), (4.6, -2.2), (6.2, -1.6), (6.6, -0.9), (6.6, -0.3), (6.0, 0.0), (6.0, 0.6), (6.4, 0.9),
-            (6.4, 1.5), (5.2, 1.9), (3.4, 2.1), (3.2, 2.6), (0, 2.7)]
+            (6.4, 1.5), (5.2, 1.9), (3.4, 2.1), (0, 2.1)]
     b.lathe(prof, M("Hull"), seg=16)
     b.lathe([(6.03, 0.06), (6.03, 0.54)], M("Glass"), seg=16)
     b.window_band(6.06, 0.3, 0.16, n=8, seg=16, gap=0.3)
@@ -826,15 +828,41 @@ def trade_station(b):
     b.prism([(-2.0, -0.9), (1.4, -0.5), (2.4, 0), (1.4, 0.5), (-2.0, 0.9)], 0.7, M("Steel"),
             loc=c + V(0, 0, 1.65), rot=(0, 0, a), top_scale=0.6)
     # Frachtmodul-Kranz unter der Scheibe
-    for k, (x, y, aa) in enumerate(polar(8, 4.4, 22.5)):
+    for k, (x, y, aa) in enumerate(polar(6, 4.4, 30)):
         b.capsule(V(x, y, -3.0), (0, 0, 1), 2.4, 0.7, M("Steel" if k % 2 else "Hull"), seg=6)
         b.ring(0.68, 0.12, 0.3, M("Accent" if k % 2 == 0 else "HullDark"), seg=8, loc=(x, y, -3.0))
-    # Kontroll- und Sendeturm
-    b.cyl(1.0, 2.6, M("Hull"), seg=10, loc=(0, 0, 3.9))
-    b.lathe([(1.0, 0), (2.0, 0.4), (2.1, 1.0), (1.4, 1.5), (0, 1.6)], M("Hull"), seg=12, loc=(0, 0, 5.2))
-    b.lathe([(2.08, 0.5), (2.08, 0.9)], M("Window"), seg=12, loc=(0, 0, 5.2))
-    b.dish((1.2, 0.6, 7.0), 0.9, M("Hull"), rot=(-35, 20, 0))
-    b.mast((-0.8, -0.4, 6.7), 2.6)
+    # Oberdeck mit Atrium-Glasband
+    b.lathe([(3.4, 2.05), (3.4, 2.7), (3.0, 3.1), (0, 3.1)], M("Steel"), seg=16)
+    b.lathe([(3.42, 2.2), (3.42, 2.55)], M("Glass"), seg=16)
+    # Kontroll- und Sendeturm (Wahrzeichen): gestufter Schaft, grosse verglaste Kanzel
+    b.lathe([(1.9, 3.0), (1.9, 3.8), (1.5, 4.2), (1.3, 4.2), (1.3, 6.4), (1.1, 6.8)], M("Hull"), seg=12)
+    b.window_band(1.32, 5.3, 0.25, n=6, seg=12, gap=0.4)
+    b.lathe([(1.1, 0), (2.9, 0.6), (3.1, 1.4), (2.5, 2.1), (1.2, 2.4), (0, 2.5)], M("Hull"), seg=12, loc=(0, 0, 6.8))
+    b.lathe([(3.04, 0.75), (3.0, 1.3)], M("Window"), seg=12, loc=(0, 0, 6.8))
+    b.lathe([(3.12, 1.38), (2.8, 1.75)], M("Accent"), seg=12, loc=(0, 0, 6.8))
+    b.dish((1.3, 0.6, 9.3), 1.5, M("Hull"), rot=(-35, 20, 0))
+    b.mast((-0.9, -0.5, 9.1), 3.4)
+    # Dachflaeche: Landefelder, Technikfelder, Luken, Aufbauten, Accent-Markierungen
+    for k, aa in enumerate((150, 270, 30)):
+        d = V(math.cos(math.radians(aa)), math.sin(math.radians(aa)), 0)
+        pc = d * 4.35 + V(0, 0, 2.02)
+        b.cyl(0.85, 0.08, M("HullDark"), seg=8, loc=pc)
+        b.ring(0.82, 0.12, 0.1, M("Accent"), seg=8, loc=pc + V(0, 0, 0.02))
+        b.box(0.5, 0.1, 0.03, M("Accent"), loc=pc + V(0, 0, 0.06), rot=(0, 0, aa))
+        b.box(0.1, 0.5, 0.03, M("Accent"), loc=pc + V(0, 0, 0.06), rot=(0, 0, aa))
+        n = V(-d.y, d.x, 0)
+        b.nav_lights([pc + n * 0.95 + V(0, 0, 0.1), pc - n * 0.95 + V(0, 0, 0.1)], s=0.1)
+    for aa in (90, 210, 330):
+        d = V(math.cos(math.radians(aa)), math.sin(math.radians(aa)), 0)
+        n = V(-d.y, d.x, 0)
+        c = d * 4.3 + V(0, 0, 2.0)
+        b.box(1.2, 1.4, 0.5, M("Steel"), loc=c + V(0, 0, 0.22), rot=(0, 0, aa))
+        vents(b, c + V(0, 0, 0.47), n=3, length=1.0, step=0.3)
+        top_hatch(b, (d * 4.9 + n * 0.9).x, (d * 4.9 + n * 0.9).y, 1.93, 0.5, 0.5, rib=False)
+    for k in range(6):
+        aa = 60 * k + 60
+        d = V(math.cos(math.radians(aa)), math.sin(math.radians(aa)), 0)
+        b.box(1.4, 0.3, 0.04, M("Accent"), loc=d * 5.6 + V(0, 0, 1.78), rot=(0, 0, aa))
     b.insignia(V(0, -6.65, -0.6), (0, -1, 0), s=0.9)
 
 
