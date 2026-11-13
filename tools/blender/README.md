@@ -85,3 +85,26 @@ Ausgaben: `godot/assets/ships/<key>.glb`, `godot/assets/ships/ships.json`, `docs
 - `verify_ships.py` prueft Node-Namen gegen `ships.json`, vordersten Punkt und Lage des Ursprungs.
 - Verbreiterung: `ship_models.WIDEN` streckt je Schiff die Rumpf-Lofts in X; Anbauteile behalten ihre
   Form und wandern mit.
+
+## Geschuetzstellungen (Hardpoints)
+
+- **Schiffe:** je Waffen-Slot der Klasse und je Utility-Slot mit `point_defense_*` genau eine sichtbare
+  Stellung, erfasst in `godot/assets/ships/ships.json` unter `hardpoints` (Slot-Reihenfolge):
+  `slot` (Index in `shipClasses[].slots`), `kind` = `gun` (Slot mit `facing: bow`: starres Bugrohr) |
+  `turret` (Slot ohne Ausrichtung: Drehturm) | `missile` (Raketenwerfer: Schachtfeld in der Huelle; nur
+  `missile_boat` behaelt Werferkaesten) | `pd` (Punktverteidigung), `pos` (Muendung/Schachtoeffnung),
+  `dir` (Grund-Schussrichtung), `module` (laut `fit`), `empty` (Slot ohne Modul: Lafette ohne Rohr),
+  `node` bei Tuermen.
+- **Stationen:** je Geschuetz aus `stationTypes[].defense.guns` eine Stellung in
+  `godot/assets/stations/stations.json` (`gun` = Index, sonst gleiche Felder). Stationen ohne Geschuetze
+  haben keine Tuerme.
+- **Koordinaten:** Godot-Modellraum (Bug −Z, oben +Y; Schiffe Halblaenge 1, Stationen Radius 1), aus der
+  erzeugten Geometrie berechnet.
+- **Turm-Nodes `Turret_<slot>` / `Turret_<gun>`:** Kind von `Hull` bzw. vom Stationsmesh, Ursprung auf der
+  Drehachse (Sockelmitte), **Drehachse = lokales +Y** (bei Bauchtuermen zeigt +Y nach unten, bei Flanken
+  nach aussen), Rohr in Ruhe nach lokal −Z.
+- `verify_ships.py`/`verify_stations.py` pruefen Anzahl gegen die Weltdatei, `pos` an der Geometrie
+  (naechster Vertex) und die Turm-Nodes.
+- **Stationsstil:** `station_models.restyle` setzt die hellen Schiffsmaterialien ein (ausser
+  Piratenversteck), `dress_station` legt automatisch Technikgraeben, Greebles und grosse Accent-Felder
+  auf die groessten Flaechen. Die Vorschaubilder zeigen `Accent` in einer Beispiel-Fraktionsfarbe.

@@ -78,8 +78,18 @@ def link(scene, ob):
         scene.collection.objects.link(c)
 
 
+def _fits():
+    with open(WORLD, encoding="utf-8") as f:
+        d = json.load(f)
+    return {m["key"]: m.get("fit", []) for m in d["shipModels"]}
+
+
+FITS = {}
+
+
 def write_meta(ships):
     """ships.json: Groesse, Massstab, Abbauart, drehbare Werkzeuge (Rotor-Nodes) und Spaltbacken."""
+    FITS.update(_fits())
     models = {}
     for k, n, s, _ in ships:
         if k not in ship_models.ROTOR_INFO:
@@ -97,6 +107,14 @@ def write_meta(ships):
             entry["contactRadius"] = info["contactRadius"]
         if info.get("jaws"):
             entry["jaws"] = info["jaws"]
+        hps = []
+        for hp in info.get("hardpoints", []):
+            h = dict(hp)
+            fit = FITS.get(k)
+            if fit and hp["slot"] < len(fit):
+                h["module"] = fit[hp["slot"]]
+            hps.append(h)
+        entry["hardpoints"] = hps
         models[k] = entry
     meta = {
         "axes": "Bug = -Z (Godot-Vorwaerts), oben = +Y, Steuerbord = +X; Laenge 2 (Halblaenge 1), Ursprung = Mitte der Bounding-Box",
@@ -104,6 +122,13 @@ def write_meta(ships):
                  "Bei allen ist die lokale Z-Achse die Drehachse und der Node-Ursprung liegt auf ihr "
                  "(spin beschreibt die Richtung im Schiff). contactRadius = Radius der Werkzeugfront "
                  "quer zur Flugrichtung, relativ zur Halblaenge 1.",
+        "hardpoints": "Je Waffen-/PD-Slot der Klasse genau eine sichtbare Stellung, in Slot-Reihenfolge. "
+                      "slot = Index in shipClasses[].slots, kind = gun (starre Bugwaffe) | turret (Drehturm) | "
+                      "missile (Schachtfeld in der Huelle; bei missile_boat Werferkasten) | pd (Punktverteidigung), "
+                      "pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung, beides im Godot-Modellraum "
+                      "(Bug -Z, oben +Y, Halblaenge 1). node = eigener Turm-Node 'Turret_<slot>': Ursprung auf der "
+                      "Drehachse, Drehachse = lokales +Y, Rohr in Ruhe nach lokal -Z. empty = Slot ohne Modul "
+                      "(Lafette ohne Rohr). module = Modul laut fit.",
         "sizeScale": ship_models.SIZE_SCALE,
         "models": models,
     }

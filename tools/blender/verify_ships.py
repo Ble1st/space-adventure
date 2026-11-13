@@ -13,6 +13,7 @@ import os
 import sys
 
 import bpy
+from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -20,7 +21,24 @@ GLB_DIR = os.path.join(REPO, "godot", "assets", "ships")
 LIMIT = {"S": 1600, "M": 2400, "L": 3200, "XL": 4500}
 
 
+def weapon_slots():
+    world = os.path.join(REPO, "src", "SpaceSim.Core", "Content", "default-world.json")
+    d = json.load(open(world, encoding="utf-8"))
+    cls = {c["key"]: c for c in d["shipClasses"]}
+    out = {}
+    for m in d["shipModels"]:
+        slots = cls[m["class"]].get("slots", [])
+        fit = m.get("fit", [])
+        out[m["key"]] = [i for i, sl in enumerate(slots)
+                         if sl.get("type") == "weapon" or (i < len(fit) and fit[i] and "point_defense" in fit[i])]
+    return out
+
+
+WEAPON_SLOTS = {}
+
+
 def main():
+    WEAPON_SLOTS.update(weapon_slots())
     meta = json.load(open(os.path.join(GLB_DIR, "ships.json"), encoding="utf-8"))["models"]
     bad = total = 0
     print(f"{'Schiff':16s} {'Gr':2s} {'Dreiecke':>8s} {'Mat':>3s} {'Halbl.':>6s} {'Breite':>6s} {'Hoehe':>6s} {'KiB':>6s}  Status")
@@ -41,7 +59,8 @@ def main():
         meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
         hulls = [o for o in meshes if o.name.startswith("Hull")]
         parts = [o for o in meshes if o.name.startswith(("Rotor_", "Jaw_"))]
-        if len(hulls) != 1 or len(hulls) + len(parts) != len(meshes):
+        turrets = [o for o in meshes if o.name.startswith("Turret_")]
+        if len(hulls) != 1 or len(hulls) + len(parts) + len(turrets) != len(meshes):
             problems.append(f"Nodes: {[o.name for o in meshes]}")
         want = [r["node"] for r in m.get("rotors", []) + m.get("jaws", [])]
         if sorted(want) != sorted(o.name for o in parts):
@@ -89,6 +108,22 @@ def main():
             if o.name.startswith("Rotor_") and (abs(sum(c.x for c in loc) / len(loc)) > 0.12 * ext or
                                                 abs(sum(c.z for c in loc) / len(loc)) > 0.12 * ext):
                 problems.append(f"{o.name}: Ursprung nicht auf der Drehachse")
+        # Geschuetzstellungen: Anzahl = Waffen-/PD-Slots laut Weltdatei, pos an der Geometrie, Turm-Nodes da
+        need = WEAPON_SLOTS.get(key)
+        hps = m.get("hardpoints", [])
+        if need is not None and sorted(h["slot"] for h in hps) != need:
+            problems.append(f"Stellungen {sorted(h['slot'] for h in hps)} != Slots {need}")
+        allv = [o.matrix_world @ v.co for o in meshes for v in o.data.vertices]
+        for h in hps:
+            gx, gy, gz = h["pos"]
+            pb = Vector((gx, -gz, gy))            # Godot -> Blender nach dem Re-Import
+            dmin = min((pb - v).length for v in allv)
+            if dmin > 0.06:
+                problems.append(f"Slot {h['slot']}: pos {dmin:.3f} neben der Geometrie")
+            if h.get("node") and h["node"] not in [o.name for o in turrets]:
+                problems.append(f"Turm-Node {h['node']} fehlt")
+        if sorted(h["node"] for h in hps if h.get("node")) != sorted(o.name for o in turrets):
+            problems.append("Turm-Nodes ohne Stellung")
         if len(names) > 10:
             problems.append(f"{len(names)} Materialien")
         if tris > LIMIT[m["size"]]:

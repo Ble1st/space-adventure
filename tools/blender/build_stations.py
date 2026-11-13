@@ -195,6 +195,17 @@ def frame(cam, ob, az=-40.0, el=26.0, fill=0.86):
     cam.data.clip_end = dist * 4
 
 
+PREVIEW_ACCENT = (0.80, 0.18, 0.08, 1.0)   # Beispiel-Fraktionsfarbe nur fuer die Bilder
+
+
+def tint_accent(on):
+    m = bpy.data.materials.get("Accent")
+    if m is None:
+        return
+    col = PREVIEW_ACCENT if on else (*stationkit.PALETTE["Accent"][0], 1.0)
+    m.node_tree.nodes.get("Principled BSDF").inputs["Base Color"].default_value = col
+
+
 def export_glb(ob, path):
     for o in bpy.context.scene.objects:
         o.select_set(False)
@@ -205,6 +216,42 @@ def export_glb(ob, path):
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True,
                               export_yup=True, export_apply=True, export_cameras=False,
                               export_lights=False, export_materials="EXPORT")
+
+
+# ---------------------------------------------------------------- stations.json
+def write_meta(types):
+    """stations.json: Geschuetzstellungen je Stationstyp in Geschuetz-Reihenfolge von defense.guns."""
+    with open(WORLD, encoding="utf-8") as f:
+        d = json.load(f)
+    guns = {t["key"]: (t.get("defense") or {}).get("guns", []) for t in d["stationTypes"]}
+    models = {}
+    for key, name in types:
+        if key not in station_models.HARDPOINTS:
+            ob = station_models.build(key)
+            for o in [ob] + list(ob.children):
+                me = o.data
+                bpy.data.objects.remove(o, do_unlink=True)
+                bpy.data.meshes.remove(me)
+        hps = []
+        for hp in station_models.HARDPOINTS[key]:
+            h = dict(hp)
+            if hp["gun"] < len(guns.get(key, [])):
+                h["module"] = guns[key][hp["gun"]]
+            hps.append(h)
+        models[key] = {"name": name, "hardpoints": hps}
+    meta = {
+        "axes": "Modellraum Godot: oben +Y, Ursprung = Mitte der Bounding-Box, groesster Radius in der Ebene = 1",
+        "hardpoints": "Je Geschuetz aus stationTypes[].defense.guns genau eine sichtbare Stellung, in "
+                      "Geschuetz-Reihenfolge (gun = Index). kind = turret (Drehturm) | missile (Schachtfeld in "
+                      "der Huelle). pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung. node = "
+                      "eigener Turm-Node 'Turret_<gun>': Ursprung auf der Drehachse, Drehachse = lokales +Y "
+                      "(bei Bauchtuermen nach unten), Rohr in Ruhe nach lokal -Z. Stationen ohne defense.guns "
+                      "haben keine Stellungen.",
+        "models": models,
+    }
+    with open(os.path.join(GLB_DIR, "stations.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+        f.write("\n")
 
 
 # ---------------------------------------------------------------- Uebersicht
@@ -232,6 +279,8 @@ def overview(types, path):
         pos = right * ((c - (cols - 1) / 2) * cw) - up * ((r - (rows - 1) / 2) * ch)
         ob = station_models.build(key)
         bpy.context.scene.collection.objects.link(ob)
+        for c in ob.children:
+            bpy.context.scene.collection.objects.link(c)
         ob.location = pos + up * 0.25
         for label, size, off in ((name, 0.30, -1.32), (key, 0.17, -1.62)):
             cu = bpy.data.curves.new("t_" + key, "FONT")
@@ -243,6 +292,7 @@ def overview(types, path):
             to.rotation_euler = q.to_euler()
             to.location = pos + up * off + d * 1.5
             bpy.context.scene.collection.objects.link(to)
+    tint_accent(True)
     cam.data.type = "ORTHO"
     cam.data.ortho_scale = cols * cw + 0.4
     cam.location = d * 60
@@ -273,15 +323,20 @@ def main():
         t0 = time.time()
         ob = station_models.build(key)
         scene.collection.objects.link(ob)
-        tris = stationkit.tri_count(ob)
+        for c in ob.children:
+            scene.collection.objects.link(c)
+        tris = sum(stationkit.tri_count(o) for o in [ob] + list(ob.children))
         glb = os.path.join(GLB_DIR, key + ".glb")
         export_glb(ob, glb)
         if opt["render"]:
+            tint_accent(True)
             frame(cam, ob)
             scene.render.filepath = os.path.join(IMG_DIR, key + ".png")
             bpy.ops.render.render(write_still=True)
+            tint_accent(False)
         report.append((key, name, tris, len(ob.data.materials), os.path.getsize(glb),
                        time.time() - t0))
+    write_meta(types)
     print("\n=== STATIONEN ===")
     for key, name, tris, nm, size, dt in report:
         print(f"{key:20s} {name:28s} tris={tris:5d} mats={nm} glb={size/1024:6.1f} KiB  {dt:5.1f}s")

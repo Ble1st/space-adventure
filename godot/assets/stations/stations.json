@@ -1,0 +1,301 @@
+{
+  "axes": "Modellraum Godot: oben +Y, Ursprung = Mitte der Bounding-Box, groesster Radius in der Ebene = 1",
+  "hardpoints": "Je Geschuetz aus stationTypes[].defense.guns genau eine sichtbare Stellung, in Geschuetz-Reihenfolge (gun = Index). kind = turret (Drehturm) | missile (Schachtfeld in der Huelle). pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung. node = eigener Turm-Node 'Turret_<gun>': Ursprung auf der Drehachse, Drehachse = lokales +Y (bei Bauchtuermen nach unten), Rohr in Ruhe nach lokal -Z. Stationen ohne defense.guns haben keine Stellungen.",
+  "models": {
+    "solar_plant": {
+      "name": "Solarkraftwerk",
+      "hardpoints": []
+    },
+    "steelworks": {
+      "name": "Stahlwerk",
+      "hardpoints": []
+    },
+    "water_plant": {
+      "name": "Wasserwerk",
+      "hardpoints": []
+    },
+    "electrolysis": {
+      "name": "Elektrolyse",
+      "hardpoints": []
+    },
+    "copper_smelter": {
+      "name": "Kupferhütte",
+      "hardpoints": []
+    },
+    "wafer_fab": {
+      "name": "Waferfabrik",
+      "hardpoints": []
+    },
+    "titanium_works": {
+      "name": "Titanhütte",
+      "hardpoints": []
+    },
+    "platinum_refinery": {
+      "name": "Platinraffinerie",
+      "hardpoints": []
+    },
+    "powerplant": {
+      "name": "Kraftwerk",
+      "hardpoints": []
+    },
+    "farm": {
+      "name": "Farm",
+      "hardpoints": []
+    },
+    "electronics_fab": {
+      "name": "Elektronikfabrik",
+      "hardpoints": []
+    },
+    "plating_works": {
+      "name": "Panzerwerk",
+      "hardpoints": []
+    },
+    "fuel_cell_fab": {
+      "name": "Brennstoffzellenfabrik",
+      "hardpoints": []
+    },
+    "life_support_fab": {
+      "name": "Lebenserhaltungswerk",
+      "hardpoints": []
+    },
+    "goods_factory": {
+      "name": "Konsumgüterfabrik",
+      "hardpoints": []
+    },
+    "luxury_workshop": {
+      "name": "Luxuswerkstatt",
+      "hardpoints": []
+    },
+    "shipyard": {
+      "name": "Werft",
+      "hardpoints": [
+        {
+          "gun": 0,
+          "kind": "turret",
+          "pos": [
+            0.8109,
+            0.304,
+            0.1646
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_0",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 1,
+          "kind": "turret",
+          "pos": [
+            0.8109,
+            -0.3755,
+            -0.4068
+          ],
+          "dir": [
+            -0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_1",
+          "module": "weapon_laser_s"
+        }
+      ]
+    },
+    "colony": {
+      "name": "Kolonie",
+      "hardpoints": []
+    },
+    "fuel_refinery": {
+      "name": "Treibstoffraffinerie",
+      "hardpoints": []
+    },
+    "drive_works": {
+      "name": "Antriebs- und Reaktorwerk",
+      "hardpoints": []
+    },
+    "weapons_works": {
+      "name": "Waffen- und Schildwerk",
+      "hardpoints": []
+    },
+    "systems_works": {
+      "name": "Systemwerk",
+      "hardpoints": []
+    },
+    "trade_station": {
+      "name": "Handelsstation",
+      "hardpoints": []
+    },
+    "trade_post": {
+      "name": "Planetenhandel",
+      "hardpoints": []
+    },
+    "build_site": {
+      "name": "Baustelle",
+      "hardpoints": []
+    },
+    "warehouse": {
+      "name": "Lagerhaus",
+      "hardpoints": []
+    },
+    "headquarters": {
+      "name": "Hauptquartier",
+      "hardpoints": [
+        {
+          "gun": 0,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            -0.0084,
+            -0.5924
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_0",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 1,
+          "kind": "turret",
+          "pos": [
+            -0.0,
+            -0.0084,
+            0.2479
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_1",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 2,
+          "kind": "missile",
+          "pos": [
+            0.437,
+            -0.0517,
+            -0.0
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s"
+        }
+      ]
+    },
+    "company_seat": {
+      "name": "Firmensitz",
+      "hardpoints": []
+    },
+    "sector_hq": {
+      "name": "Sektor-HQ",
+      "hardpoints": [
+        {
+          "gun": 0,
+          "kind": "turret",
+          "pos": [
+            0.7722,
+            0.1264,
+            -0.196
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_0",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 1,
+          "kind": "turret",
+          "pos": [
+            -0.7722,
+            0.1264,
+            -0.196
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_1",
+          "module": "weapon_laser_s"
+        }
+      ]
+    },
+    "office": {
+      "name": "Büro",
+      "hardpoints": []
+    },
+    "police_station": {
+      "name": "Polizeiwache",
+      "hardpoints": [
+        {
+          "gun": 0,
+          "kind": "turret",
+          "pos": [
+            0.6062,
+            0.1778,
+            -0.5934
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_0",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 1,
+          "kind": "turret",
+          "pos": [
+            -0.6062,
+            0.1778,
+            -0.5934
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_1",
+          "module": "weapon_laser_s"
+        },
+        {
+          "gun": 2,
+          "kind": "turret",
+          "pos": [
+            -0.0,
+            0.1778,
+            0.4091
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_2",
+          "module": "weapon_massdriver_s"
+        }
+      ]
+    },
+    "pirate_hideout": {
+      "name": "Piratenversteck",
+      "hardpoints": []
+    },
+    "research_station": {
+      "name": "Forschungsstation",
+      "hardpoints": []
+    }
+  }
+}

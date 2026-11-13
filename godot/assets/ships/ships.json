@@ -1,6 +1,7 @@
 {
   "axes": "Bug = -Z (Godot-Vorwaerts), oben = +Y, Steuerbord = +X; Laenge 2 (Halblaenge 1), Ursprung = Mitte der Bounding-Box",
   "nodes": "Rumpf = Node 'Hull'; drehende Werkzeuge = Kind-Nodes 'Rotor_*', Spaltbacken = 'Jaw_*'. Bei allen ist die lokale Z-Achse die Drehachse und der Node-Ursprung liegt auf ihr (spin beschreibt die Richtung im Schiff). contactRadius = Radius der Werkzeugfront quer zur Flugrichtung, relativ zur Halblaenge 1.",
+  "hardpoints": "Je Waffen-/PD-Slot der Klasse genau eine sichtbare Stellung, in Slot-Reihenfolge. slot = Index in shipClasses[].slots, kind = gun (starre Bugwaffe) | turret (Drehturm) | missile (Schachtfeld in der Huelle; bei missile_boat Werferkasten) | pd (Punktverteidigung), pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung, beides im Godot-Modellraum (Bug -Z, oben +Y, Halblaenge 1). node = eigener Turm-Node 'Turret_<slot>': Ursprung auf der Drehachse, Drehachse = lokales +Y, Rohr in Ruhe nach lokal -Z. empty = Slot ohne Modul (Lafette ohne Rohr). module = Modul laut fit.",
   "sizeScale": {
     "S": 1.0,
     "M": 1.5,
@@ -11,12 +12,48 @@
     "unit_trader_100": {
       "name": "Einheitsfrachter 100",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "hardpoints": [
+        {
+          "slot": 4,
+          "kind": "turret",
+          "pos": [
+            -0.0021,
+            0.2703,
+            -0.5794
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_4",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "unit_trader_60": {
       "name": "Einheitsfrachter 60",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "hardpoints": [
+        {
+          "slot": 4,
+          "kind": "turret",
+          "pos": [
+            -0.0021,
+            0.1013,
+            -0.7326
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_4",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "unit_miner_100": {
       "name": "Einheitsschürfer 100",
@@ -35,7 +72,8 @@
           "spin": "laengs (Bugrichtung)"
         }
       ],
-      "contactRadius": 0.109
+      "contactRadius": 0.109,
+      "hardpoints": []
     },
     "unit_miner_60": {
       "name": "Einheitsschürfer 60",
@@ -49,18 +87,55 @@
           "spin": "laengs (Bugrichtung)"
         }
       ],
-      "contactRadius": 0.146
+      "contactRadius": 0.146,
+      "hardpoints": []
     },
     "pip": {
       "name": "Kiebitz",
       "size": "S",
       "scale": 1.0,
-      "mining": "laser"
+      "mining": "laser",
+      "hardpoints": [
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            -0.0025,
+            0.2477,
+            -0.0817
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "nomad": {
       "name": "Nomade",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "hardpoints": [
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            -0.0022,
+            0.0938,
+            0.0998
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "prospector": {
       "name": "Goldsucher",
@@ -74,12 +149,49 @@
           "spin": "laengs (Bugrichtung)"
         }
       ],
-      "contactRadius": 0.068
+      "contactRadius": 0.068,
+      "hardpoints": [
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            -0.0018,
+            0.0914,
+            -0.1613
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "empty": true,
+          "module": null
+        }
+      ]
     },
     "swift": {
       "name": "Mauersegler",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "hardpoints": [
+        {
+          "slot": 4,
+          "kind": "turret",
+          "pos": [
+            -0.0021,
+            0.0845,
+            -0.2865
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_4",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "pickaxe": {
       "name": "Spitzhacke",
@@ -93,43 +205,198 @@
           "spin": "laengs (Bugrichtung)"
         }
       ],
-      "contactRadius": 0.119
+      "contactRadius": 0.119,
+      "hardpoints": []
     },
     "corsair": {
       "name": "Korsar",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "hardpoints": [
+        {
+          "slot": 2,
+          "kind": "gun",
+          "pos": [
+            -0.2224,
+            -0.1303,
+            -0.6937
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 3,
+          "kind": "gun",
+          "pos": [
+            0.218,
+            -0.1303,
+            -0.8085
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_massdriver_s"
+        }
+      ]
     },
     "falcon": {
       "name": "Falke",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "hardpoints": [
+        {
+          "slot": 2,
+          "kind": "gun",
+          "pos": [
+            -0.4208,
+            -0.0111,
+            -0.6169
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 3,
+          "kind": "gun",
+          "pos": [
+            0.4164,
+            -0.0111,
+            -0.6169
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_massdriver_s"
+        }
+      ]
     },
     "mule": {
       "name": "Maultier",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 3,
+          "kind": "turret",
+          "pos": [
+            -0.0014,
+            0.1133,
+            -0.6597
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_3",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "hauler": {
       "name": "Lastkahn",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 3,
+          "kind": "turret",
+          "pos": [
+            0.2824,
+            0.1259,
+            -0.8421
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_3",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "tinker": {
       "name": "Kesselflicker",
       "size": "M",
       "scale": 1.5,
-      "mining": "laser"
+      "mining": "laser",
+      "hardpoints": [
+        {
+          "slot": 3,
+          "kind": "turret",
+          "pos": [
+            -0.0015,
+            0.1459,
+            -0.2864
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_3",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "cistern": {
       "name": "Zisterne",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 9,
+          "kind": "turret",
+          "pos": [
+            -0.0014,
+            0.1726,
+            -0.7825
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_9",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "behemoth": {
       "name": "Behemoth",
       "size": "L",
-      "scale": 2.4
+      "scale": 2.4,
+      "hardpoints": [
+        {
+          "slot": 8,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.1074,
+            -0.928
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_8",
+          "module": "weapon_laser_s"
+        }
+      ]
     },
     "rockbreaker": {
       "name": "Felsbrecher",
@@ -143,7 +410,8 @@
           "spin": "laengs (Bugrichtung)"
         }
       ],
-      "contactRadius": 0.222
+      "contactRadius": 0.222,
+      "hardpoints": []
     },
     "excavator": {
       "name": "Bagger",
@@ -157,12 +425,14 @@
           "spin": "laengs (Bugrichtung)"
         }
       ],
-      "contactRadius": 0.35
+      "contactRadius": 0.35,
+      "hardpoints": []
     },
     "foreman": {
       "name": "Polier",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": []
     },
     "quarry": {
       "name": "Steinbruch",
@@ -188,7 +458,8 @@
           "axis": "z",
           "spin": "Gelenk senkrecht"
         }
-      ]
+      ],
+      "hardpoints": []
     },
     "rockbreaker_ii": {
       "name": "Felsbrecher II",
@@ -214,47 +485,578 @@
           "axis": "z",
           "spin": "Gelenk senkrecht"
         }
-      ]
+      ],
+      "hardpoints": []
     },
     "warden": {
       "name": "Wächter",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 2,
+          "kind": "gun",
+          "pos": [
+            -0.1665,
+            0.1034,
+            -0.6814
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 3,
+          "kind": "gun",
+          "pos": [
+            0.1665,
+            0.1034,
+            -0.6524
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_massdriver_s"
+        }
+      ]
     },
     "corvette": {
       "name": "Hornisse",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 3,
+          "kind": "gun",
+          "pos": [
+            -0.3367,
+            -0.0188,
+            -0.999
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 4,
+          "kind": "gun",
+          "pos": [
+            0.3367,
+            -0.0188,
+            -0.999
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_massdriver_s"
+        },
+        {
+          "slot": 5,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.134,
+            -0.2704
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_5",
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.134,
+            0.2665
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 9,
+          "kind": "pd",
+          "pos": [
+            0.3367,
+            0.1314,
+            0.1654
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_9",
+          "module": "point_defense_s"
+        }
+      ]
     },
     "missile_boat": {
       "name": "Lanze",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 3,
+          "kind": "missile",
+          "pos": [
+            -0.2574,
+            -0.0427,
+            -0.3388
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "missile_launcher_s"
+        },
+        {
+          "slot": 4,
+          "kind": "missile",
+          "pos": [
+            0.2543,
+            -0.0427,
+            -0.3388
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "missile_launcher_s"
+        },
+        {
+          "slot": 5,
+          "kind": "turret",
+          "pos": [
+            -0.0015,
+            0.0521,
+            0.1959
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_5",
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 7,
+          "kind": "pd",
+          "pos": [
+            -0.0015,
+            0.065,
+            -0.2161
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_7",
+          "module": "point_defense_s"
+        }
+      ]
     },
     "bastion": {
       "name": "Bollwerk",
       "size": "L",
-      "scale": 2.4
+      "scale": 2.4,
+      "hardpoints": [
+        {
+          "slot": 3,
+          "kind": "missile",
+          "pos": [
+            -0.0954,
+            -0.0162,
+            -0.6575
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s"
+        },
+        {
+          "slot": 4,
+          "kind": "missile",
+          "pos": [
+            0.093,
+            -0.0162,
+            -0.6575
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s"
+        },
+        {
+          "slot": 5,
+          "kind": "turret",
+          "pos": [
+            -0.0012,
+            0.1249,
+            -0.5867
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_5",
+          "module": "weapon_laser_s"
+        },
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            -0.0012,
+            0.1344,
+            -0.298
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "module": "weapon_massdriver_s"
+        },
+        {
+          "slot": 12,
+          "kind": "pd",
+          "pos": [
+            0.3755,
+            0.0452,
+            -0.3954
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_12",
+          "module": "point_defense_s"
+        }
+      ]
     },
     "bomber": {
       "name": "Donner",
       "size": "S",
-      "scale": 1.0
+      "scale": 1.0,
+      "hardpoints": [
+        {
+          "slot": 2,
+          "kind": "missile",
+          "pos": [
+            -0.2148,
+            0.0101,
+            0.0356
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s"
+        },
+        {
+          "slot": 3,
+          "kind": "missile",
+          "pos": [
+            0.2105,
+            0.0101,
+            0.0356
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s"
+        }
+      ]
     },
     "gunboat": {
       "name": "Keiler",
       "size": "M",
-      "scale": 1.5
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 2,
+          "kind": "gun",
+          "pos": [
+            -0.434,
+            -0.041,
+            -1.0
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 3,
+          "kind": "gun",
+          "pos": [
+            0.434,
+            -0.041,
+            -1.0
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 4,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.1793,
+            -0.0258
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_4",
+          "module": "weapon_massdriver_s"
+        }
+      ]
     },
     "destroyer": {
       "name": "Sturmvogel",
       "size": "L",
-      "scale": 2.4
+      "scale": 2.4,
+      "hardpoints": [
+        {
+          "slot": 3,
+          "kind": "turret",
+          "pos": [
+            -0.0012,
+            0.0661,
+            -0.5823
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_3",
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 4,
+          "kind": "turret",
+          "pos": [
+            -0.0012,
+            0.0661,
+            -0.3193
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_4",
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 5,
+          "kind": "turret",
+          "pos": [
+            -0.0012,
+            0.0661,
+            -0.0563
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_5",
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            -0.0012,
+            -0.2592,
+            -0.3845
+          ],
+          "dir": [
+            -0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "module": "weapon_massdriver_s"
+        },
+        {
+          "slot": 10,
+          "kind": "pd",
+          "pos": [
+            -0.0012,
+            -0.2532,
+            0.0966
+          ],
+          "dir": [
+            -0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_10",
+          "module": "point_defense_s"
+        }
+      ]
     },
     "battlecruiser": {
       "name": "Leviathan",
       "size": "XL",
-      "scale": 3.6
+      "scale": 3.6,
+      "hardpoints": [
+        {
+          "slot": 4,
+          "kind": "missile",
+          "pos": [
+            -0.225,
+            -0.055,
+            -0.864
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s_mk2"
+        },
+        {
+          "slot": 5,
+          "kind": "missile",
+          "pos": [
+            0.225,
+            -0.055,
+            -0.864
+          ],
+          "dir": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "module": "missile_launcher_s_mk2"
+        },
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            -0.1588,
+            0.0513,
+            -0.5335
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 7,
+          "kind": "turret",
+          "pos": [
+            0.1588,
+            0.0513,
+            -0.5335
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_7",
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 8,
+          "kind": "turret",
+          "pos": [
+            -0.1588,
+            0.0513,
+            0.1465
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_8",
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 9,
+          "kind": "turret",
+          "pos": [
+            0.1588,
+            0.0513,
+            0.1465
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_9",
+          "module": "weapon_laser_m"
+        },
+        {
+          "slot": 14,
+          "kind": "pd",
+          "pos": [
+            0.0,
+            0.0836,
+            -0.1767
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_14",
+          "module": "point_defense_s_mk2"
+        }
+      ]
     },
     "strip_miner": {
       "name": "Maulwurf",
@@ -268,7 +1070,8 @@
           "spin": "quer (Steuerbord-Achse)"
         }
       ],
-      "contactRadius": 0.333
+      "contactRadius": 0.333,
+      "hardpoints": []
     }
   }
 }

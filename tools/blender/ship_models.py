@@ -19,6 +19,9 @@ Builder.finish(normalize="length") zentriert die Bounding-Box und normiert die L
 import math
 from mathutils import Vector
 
+import bmesh
+from mathutils import Euler, Matrix, Quaternion
+
 from stationkit import Builder, material as _material, polar, qdir
 
 # Schiffe nutzen den hellen Rumpfsatz statt der dunklen Stationsfarben.
@@ -72,11 +75,38 @@ def merge_material(b, src, dst):
 
 # Verbreiterung je Schiff (Durchlauf 5): Rumpf-Lofts werden in X gestreckt, alle anderen Bauteile
 # behalten ihre Form und wandern mit ihrem Schwerpunkt nach aussen.
+WIDEN_DEFAULT = 1.15
 WIDEN = {
-    "unit_trader_100": 1.15, "unit_trader_60": 1.35, "unit_miner_60": 1.3, "nomad": 1.2, "mule": 1.2,
-    "hauler": 1.25, "cistern": 1.35, "behemoth": 1.5, "rockbreaker": 1.2, "excavator": 1.1, "foreman": 1.45,
-    "quarry": 1.45, "corvette": 1.2, "gunboat": 1.15, "bastion": 1.1, "battlecruiser": 1.1,
-    "destroyer": 1.15, "strip_miner": 1.3, "swift": 1.1,
+    "unit_trader_100": 1.322,
+    "unit_trader_60": 1.552,
+    "unit_miner_100": 1.150,
+    "unit_miner_60": 1.495,
+    "pip": 1.150,
+    "nomad": 1.380,
+    "prospector": 1.150,
+    "swift": 1.155,
+    "pickaxe": 1.150,
+    "corsair": 1.150,
+    "falcon": 1.150,
+    "mule": 1.380,
+    "hauler": 1.438,
+    "tinker": 1.150,
+    "cistern": 1.552,
+    "behemoth": 1.725,
+    "rockbreaker": 1.380,
+    "excavator": 1.265,
+    "foreman": 1.667,
+    "quarry": 1.667,
+    "rockbreaker_ii": 1.150,
+    "warden": 1.150,
+    "corvette": 1.380,
+    "missile_boat": 1.050,
+    "bastion": 1.265,
+    "bomber": 1.150,
+    "gunboat": 1.322,
+    "destroyer": 1.208,
+    "battlecruiser": 1.265,
+    "strip_miner": 1.495,
 }
 
 # Abbauart und bewegliche Werkzeuge (Durchlauf 5)
@@ -137,26 +167,25 @@ def widen(b, f, parts=()):
 def build(key):
     fn = SHIPS[key][0]
     b = Builder(key)
+    b.hardpoints = []
     fn(b)
     parts = getattr(b, "parts", [])
-    widen(b, WIDEN.get(key, 1.0), parts)
+    f = WIDEN.get(key, WIDEN_DEFAULT)
+    widen(b, f, parts)
+    for hp in b.hardpoints:
+        hp["pos"] = hp["pos"] + Vector((hp["ax"] * (f - 1), 0, 0))
     for src, dst in MERGE:
         if len(b.mats) <= MAX_MATERIALS:
             break
         merge_material(b, src, dst)
-    # Werkzeug-Nodes nutzen nur Materialien, die der Rumpf auch hat (gemeinsame Grenze von 10)
+    # Teil-Nodes nutzen nur Materialien, die der Rumpf auch hat (gemeinsame Grenze von 10)
     hull_names = {m.name for m in b.mats}
     for rb in parts:
         for src, dst in MERGE:
             if src not in hull_names and src in {m.name for m in rb.mats}:
                 merge_material(rb, src, dst)
     b.name = "Hull"
-    if not parts:
-        ob = b.finish(normalize="length")
-        ob.name = "Hull"
-        ROTOR_INFO[key] = {}
-        return ob
-    # gemeinsame Normierung: Laenge (inkl. Werkzeuge) = 2, Bounding-Box-Mitte = Ursprung
+    # gemeinsame Normierung: Laenge (inkl. Teile) = 2, Bounding-Box-Mitte = Ursprung
     co = [v.co.copy() for v in b.bm.verts] + [v.co.copy() for rb in parts for v in rb.bm.verts]
     lo = Vector((min(c.x for c in co), min(c.y for c in co), min(c.z for c in co)))
     hi = Vector((max(c.x for c in co), max(c.y for c in co), max(c.z for c in co)))
@@ -166,11 +195,15 @@ def build(key):
         v.co = (v.co - c0) * k
     ob = b.finish(normalize="none")
     ob.name = "Hull"
-    info = {"rotors": [], "jaws": [], "contactRadius": 0.0}
+    info = {"rotors": [], "jaws": [], "contactRadius": 0.0, "hardpoints": []}
     for rb in parts:
-        # Blender-lokales +Y wird beim glTF-Export (Y-up) zum lokalen -Z des Nodes: in Godot dreht
-        # das Werkzeug also um die lokale Z-Achse des Nodes.
-        q = Vector((0, 1, 0)).rotation_difference(rb.axis)
+        if rb.kind in ("turret", "pd"):
+            # Turm: Blender-lokales +Z (Drehachse) wird nach dem glTF-Export zum lokalen +Y des Nodes,
+            # das Rohr (Blender +Y) zeigt in Ruhe nach lokal -Z.
+            q = rb.q
+        else:
+            # Werkzeug: Blender-lokales +Y wird zum lokalen -Z des Nodes (Drehung um lokale Z-Achse).
+            q = Vector((0, 1, 0)).rotation_difference(rb.axis)
         qi = q.inverted()
         cen = (rb.center - c0) * k
         rmax = 0.0
@@ -184,14 +217,99 @@ def build(key):
         po.rotation_quaternion = q
         po.location = cen
         po.parent = ob
+        if rb.kind in ("turret", "pd"):
+            continue
         entry = {"node": rb.name, "axis": "z", "spin": rb.spin}  # lokale Godot-Z-Achse
         if rb.kind == "jaw":
             info["jaws"].append(entry)
         else:
             info["rotors"].append(entry)
             info["contactRadius"] = round(max(info["contactRadius"], rmax), 3)
+    for hp in sorted(b.hardpoints, key=lambda h: h["slot"]):
+        pn = (hp["pos"] - c0) * k
+        d = hp["dir"].normalized()
+        e = {"slot": hp["slot"], "kind": hp["kind"],
+             "pos": [round(pn.x, 4), round(pn.z, 4), round(-pn.y, 4)],      # Godot: Bug -Z, oben +Y
+             "dir": [round(d.x, 4), round(d.z, 4), round(-d.y, 4)]}
+        if hp.get("node"):
+            e["node"] = hp["node"]
+        if hp.get("empty"):
+            e["empty"] = True
+        info["hardpoints"].append(e)
     ROTOR_INFO[key] = info
     return ob
+
+
+# ---------------------------------------------------------------- Geschuetzstellungen (Hardpoints)
+def _hp(b, slot, kind, pos, d, ax, node=None, empty=False):
+    b.hardpoints.append({"slot": slot, "kind": kind, "pos": Vector(pos), "dir": Vector(d), "ax": ax,
+                         "node": node, "empty": empty})
+
+
+def hp_turret(b, slot, base, s=0.5, twin=False, up=True, side=0, length=1.6, kind="turret", empty=False):
+    """Drehturm als eigener Node Turret_<slot>: Ursprung auf der Drehachse (Sockelmitte), Drehachse nach
+    Export = lokales +Y, Rohr in Ruhe nach lokal -Z (Bugrichtung). up=False: Bauchturm, side=+-1: Flanke."""
+    if side:
+        q = Euler((0, math.radians(90 * side), 0)).to_quaternion()
+    elif up:
+        q = Quaternion()
+    else:
+        q = Euler((0, math.pi, 0)).to_quaternion()
+    name = "Turret_%d" % slot
+    rb = Builder(name)
+    rb.kind, rb.q, rb.center, rb.axis, rb.spin = kind, q, Vector(base), q @ Vector((0, 0, 1)), ""
+    if kind == "pd":
+        rb.cyl(0.45 * s, 0.3 * s, M("HullDark"), seg=6, loc=(0, 0, 0.15 * s))
+        rb.sphere(0.42 * s, M("Steel"), seg=6, rings=4, loc=(0, 0, 0.3 * s), half=True)
+        p0 = V(0, 0.2 * s, 0.55 * s)
+        tip = p0 + V(0, length * s, 0)
+        rb.strut(p0, tip, 0.06 * s, M("HullDark"), seg=4)
+        rb.box(0.14 * s, 0.14 * s, 0.1 * s, M("LightRed"), loc=(0, -0.25 * s, 0.6 * s))
+    else:
+        rb.cyl(0.78 * s, 0.3 * s, M("HullDark"), seg=8, loc=(0, 0, 0.15 * s))
+        hx = [(-0.62, -0.7), (0.62, -0.7), (0.78, 0.15), (0.4, 0.62), (-0.4, 0.62), (-0.78, 0.15)]
+        rb.prism([(x * s, y * s) for x, y in hx], 0.5 * s, M("Steel"), loc=(0, 0, 0.55 * s), top_scale=0.82)
+        rb.box(0.9 * s, 0.14 * s, 0.05 * s, M("Accent"), loc=(0, -0.38 * s, 0.81 * s))
+        zb = 0.55 * s
+        if empty:
+            tip = V(0, 0.0, 0.81 * s)
+            rb.box(0.5 * s, 0.5 * s, 0.06 * s, M("HullDark"), loc=(0, 0, 0.8 * s))
+        else:
+            for o in ((-0.22, 0.22) if twin else (0.0,)):
+                a = V(o * s, 0.45 * s, zb)
+                bb = a + V(0, length * s, 0)
+                rb.strut(a, bb, 0.09 * s, M("HullDark"), seg=5)
+                rb.cyl(0.13 * s, 0.2 * s, M("HullDark"), seg=5, loc=bb - V(0, 0.1 * s, 0), rot=(-90, 0, 0))
+            tip = V(0, 0.45 * s + length * s, zb)
+    M4 = Matrix.Translation(Vector(base)) @ q.to_matrix().to_4x4()
+    bmesh.ops.transform(rb.bm, matrix=M4, verts=rb.bm.verts)
+    if not hasattr(b, "parts"):
+        b.parts = []
+    b.parts.append(rb)
+    _hp(b, slot, kind, M4 @ tip, q @ Vector((0, 1, 0)), Vector(base).x, node=name, empty=empty)
+    return rb
+
+
+def hp_gun(b, slot, p, length, r=0.11):
+    """Starre Bugwaffe (Rohr nach vorn), Muendung = Rohrende."""
+    p = Vector(p)
+    gun(b, p, length, r)
+    _hp(b, slot, "gun", p + V(0, length, 0), (0, 1, 0), p.x)
+
+
+def hp_shafts(b, slot, c, rows=2, cols=2, cell=0.34, d=(0, 0, 1)):
+    """Raketenschaechte in der Huelle: Schachtfeld mit Rahmen und dunklen Oeffnungen, Austritt nach d
+    (Standard: nach oben). Position = Mitte der Oeffnungen."""
+    c = Vector(c)
+    w, h = cols * cell + 0.16, rows * cell + 0.16
+    b.box(w + 0.1, h + 0.1, 0.06, M("Accent"), loc=c)
+    b.box(w, h, 0.09, M("Steel"), loc=c + V(0, 0, 0.02))
+    for i in range(cols):
+        for jj in range(rows):
+            o = V((i - (cols - 1) / 2) * cell, (jj - (rows - 1) / 2) * cell, 0.05)
+            b.box(cell * 0.72, cell * 0.72, 0.06, M("HullDark"), loc=c + o)
+            b.box(cell * 0.3, cell * 0.3, 0.07, M("LightRed"), loc=c + o)
+    _hp(b, slot, "missile", c + V(0, 0, 0.085), d, c.x)
 
 
 def V(x, y, z):
@@ -519,7 +637,7 @@ def unit_trader_100(b):
     vents(b, (0, -3.4, 0.85), n=4, length=1.2)
     for x in (-0.6, 0.6):
         engine(b, (x, -5.3, 0.0), 0.5)
-    turret(b, (0, 2.0, 1.25), s=0.3, twin=False)
+    hp_turret(b, 4, (0, 2.0, 1.4), s=0.34)
     sensor(b, (0, 3.3, 0.72), r=0.22)
     thrusters(b, [(1.6, y0 - 0.2, 1.0), (-1.6, y0 - 0.2, 1.0)], s=0.4)
     b.box(0.35, n * SEG, 0.05, M("Accent"), loc=(0, y0 - n * SEG / 2, 1.42))
@@ -540,7 +658,7 @@ def unit_trader_60(b):
     for s in (1, -1):
         fin(b, [(0.2, 0), (-1.2, 0), (-1.6, 1.0), (-0.8, 1.0)], 0.1, (s * 0.55, -3.8, 0.55), side=-30 * s)
     engine(b, (0, -5.3, 0.0), 0.62)
-    turret(b, (0, 2.9, 0.85), s=0.26, twin=False)
+    hp_turret(b, 4, (0, 2.9, 0.85), s=0.3)
     sensor(b, (0, -2.4, 0.8), r=0.2)
     navl(b, 1.15, y0 - 1.2, 0.0)
 
@@ -607,7 +725,7 @@ def pip(b):
     engine(b, (0, -4.2, 0.0), 0.55)
     thrusters(b, [(1.5, -2.6, 0.3), (-1.5, -2.6, 0.3)], s=0.35)
     navl(b, 2.15, 0.2, 0.3)
-
+    hp_turret(b, 6, (0, -0.6, 1.2), s=0.3)
 
 @ship("nomad", "S", "Fracht-Skiff (Katamaran): schmaler Mittelrumpf mit zwei angeformten Frachtgondeln ungleicher Laenge (steuerbord 4 Segmente = 70, backbord 2 Segmente = 30), Fensterband, Gondelduesen", cargo=100)
 def nomad(b):
@@ -626,9 +744,8 @@ def nomad(b):
     stripe(b, S, 1.8, -3.8, width=0.28)
     fin(b, [(0.2, 0), (-1.0, 0), (-1.3, 0.7), (-0.6, 0.7)], 0.1, (0, -3.4, 0.5))
     engine(b, (0, -5.0, 0.0), 0.4)
-    sensor(b, (0, 0.6, 0.55), r=0.2)
     navl(b, 2.3, -0.6, 0.0)
-
+    hp_turret(b, 6, (0, -1.4, 0.55), s=0.3)
 
 @ship("prospector", "S", "Schneller Schuerf-Skiff (Lanzenpfeil): Pfeilrumpf, der in eine Bohrlanze mit drehendem Kernbohrer ausläuft, flacher Frachtruecken mit 3 Segmenten und Klappen, gepfeilte Flossen, Einlaesse, ein beringtes Triebwerk", cargo=60)
 def prospector(b):
@@ -650,7 +767,7 @@ def prospector(b):
         vents(b, (s * 1.22, 0.4, 0.0), n=3, length=0.4, side=s)
     engine(b, (0, -4.9, 0.0), 0.55)
     navl(b, 3.05, -4.2, -0.1)
-
+    hp_turret(b, 6, (0, 2.0, 0.5), s=0.3, empty=True)
 
 @ship("swift", "S", "Kurier (Pfeil mit Gondeln): Rautenpfeil zwischen zwei uebergrossen, beringten Triebwerksgondeln mit Einlaessen, kleine Bauchfracht mit 2 Segmenten, Bugrohr", cargo=30)
 def swift(b):
@@ -669,7 +786,7 @@ def swift(b):
     b.loft(P, M("Armor"))
     cargo_bay(b, P, y0, 2, sides=(), bottom=True)
     visor(b, S, 2.4, width=0.5, length=1.4)
-    gun(b, (0, 3.6, -0.15), 1.6, r=0.07)
+    hp_turret(b, 4, (0, 0.6, 0.5), s=0.26)
     fin(b, [(0.0, 0), (-1.4, 0), (-1.8, 0.9), (-1.0, 0.9)], 0.08, (0, -2.6, 0.5))
     engine(b, (0, -4.9, 0.0), 0.35, housing=False)
     navl(b, 2.45, -2.0, 0.0)
@@ -706,7 +823,7 @@ def corsair(b):
         b.prism([(0, 1.0), (3.4, 2.8), (3.0, 1.6), (1.6, -1.4), (0, -1.6)], 0.16, M("Hull"),
                 loc=(s * 0.6, -0.4, 0.0), scale=(s, 1, 1))
         b.prism([(1.4, 1.6), (3.3, 2.7), (3.1, 2.1)], 0.2, M("Accent"), loc=(s * 0.6, -0.4, 0.0), scale=(s, 1, 1))
-        gun(b, (s * 1.0, 1.4, -0.05), 2.6 if s > 0 else 2.0, r=0.1 if s > 0 else 0.13)
+        hp_gun(b, 2 if s < 0 else 3, (s * 1.0, 1.4, -0.05), 2.0 if s < 0 else 2.6, r=0.1 if s < 0 else 0.13)
         b.lathe([(0.2, 0), (0, 1.0)], M("HullDark"), seg=4, loc=(s * 3.7, 2.2, 0), rot=qdir((s * 0.3, 1, 0)))
     fin(b, [(0.4, 0), (-2.4, 0), (-3.0, 1.6)], 0.12, (0, -0.2, 0.45), mat="Hull")
     visor(b, S, 2.2, width=0.55, length=1.0)
@@ -733,8 +850,7 @@ def falcon(b):
     for s in (1, -1):
         b.prism([(0, 0.6), (1.4, 0.0), (1.4, -0.6), (0, -0.8)], 0.12, M("Steel"), loc=(s * 0.6, 1.0, -0.05),
                 scale=(s, 1, 1))
-        gun(b, (s * 1.9, 0.6, -0.05), 2.4, r=0.09)
-        gun(b, (s * 2.8, -2.2, 0.0), 1.2, r=0.08)
+        hp_gun(b, 2 if s < 0 else 3, (s * 1.9, 0.6, -0.05), 2.4, r=0.09 if s < 0 else 0.11)
         b.box(0.5, 1.0, 0.05, M("Accent"), loc=(s * 2.8, -2.4, 0.16))
     for x in (-0.38, 0.38):
         engine(b, (x, -4.7, 0.0), 0.36, housing=False)
@@ -761,7 +877,7 @@ def mule(b):
         engine(b, (s * 2.6, y0 - n * SEG - 1.1, -0.2), 0.4, housing=False)
     plate(b, S, -3.2, -6.2, mat="Armor", shape="round")
     engine(b, (0, -7.5, 0.0), 0.95)
-    turret(b, (0, 4.0, 1.1), s=0.33, twin=False)
+    hp_turret(b, 3, (0, 4.0, 1.15), s=0.36)
     for x in (-0.4, 0.4):
         b.mast((x, -1.0, 1.15), 0.9, light="Light" if x > 0 else "LightRed")
     thrusters(b, [(1.2, 5.0, 0.0), (-1.2, 5.0, 0.0)], s=0.45)
@@ -782,7 +898,7 @@ def hauler(b):
     for s in (1, -1):
         vents(b, (s * 1.4, -5.6, 1.0), n=5, length=1.4)
         b.box(0.12, 1.6, 0.3, M("Hazard"), loc=(s * 2.65, -6.2, 0.0))
-    turret(b, (1.6, 5.4, 0.8), s=0.38, twin=False)
+    hp_turret(b, 3, (1.6, 5.4, 0.85), s=0.4)
     sensor(b, (-1.4, 5.0, 0.9), r=0.28)
     for x in (-1.3, 1.3):
         engine(b, (x, -7.8, 0.0), 0.7)
@@ -815,7 +931,7 @@ def tinker(b):
         band(b, S, y, shape="hex")
     visor(b, S, 5.4, width=1.4)
     vents(b, (0, -4.0, 1.0), n=4, length=1.2)
-    turret(b, (0, 1.0, 1.0), s=0.42, twin=False)
+    hp_turret(b, 3, (0, 1.0, 1.0), s=0.42)
     engine(b, (0, -7.2, 0.0), 0.85)
     thrusters(b, [(1.9, -5.0, 0.0), (-1.9, -5.0, 0.0)], s=0.45)
     navl(b, 4.25, 0.0, 0.0)
@@ -836,7 +952,7 @@ def cistern(b):
         band(b, S, y0 - SEG * i, shape="round", g=1.32, t=0.28, mat="Armor")
     b.loft([(6.2, 1.1, 0.85), (5.7, 1.3, 1.0)], M("Window"), shape="round", n=10)
     b.strut(V(0, 4.0, 1.25), V(0, -3.0, 1.25), 0.14, M("Copper"), seg=5)
-    turret(b, (0, 5.0, 1.15), s=0.33, twin=False)
+    hp_turret(b, 9, (0, 5.0, 1.2), s=0.36)
     for x in (-0.4, 0.4):
         b.box(0.12, 1.2, 0.25, M("Hazard"), loc=(x * 3.2, -5.6, 1.0))
     engine(b, (0, -7.4, 0.0), 1.0)
@@ -862,7 +978,7 @@ def behemoth(b):
     band(b, S, y0 - total - 0.1, mat="HullDark", g=1.12, t=0.35, c=0.25)
     visor(b, S, 11.6, width=2.6, length=0.8)
     b.box(0.6, total, 0.06, M("Accent"), loc=(0, y0 - total / 2, 1.86))
-    turret(b, (0, 11.0, 1.7), s=0.45, twin=False)
+    hp_turret(b, 8, (0, 11.0, 1.75), s=0.5)
     b.mast((1.0, -10.8, 1.6), 1.4, light="Light")
     b.mast((-1.0, -10.8, 1.6), 1.4, light="LightRed")
     vents(b, (0, -11.0, 1.6), n=5, length=2.2)
@@ -1015,9 +1131,8 @@ def warden(b):
     visor(b, T, 3.6, width=1.0)
     b.box(0.5, 0.25, 0.12, M("Light"), loc=(0.3, 2.6, 1.25))
     b.box(0.5, 0.25, 0.12, M("LightRed"), loc=(-0.3, 2.6, 1.25))
-    turret(b, (0, 2.0, 1.15), s=0.55, twin=True)
-    turret(b, (0, -2.6, 1.15), s=0.6, twin=False)
-    turret(b, (0, -0.6, -0.7), s=0.45, twin=False, up=False)
+    hp_gun(b, 2, (-1.0, 2.2, 0.85), 2.6, r=0.12)
+    hp_gun(b, 3, (1.0, 2.2, 0.85), 2.4, r=0.15)
     for x in (-1.2, 1.2):
         engine(b, (x, -5.9, 0.1), 0.7)
     navl(b, 4.45, -4.6, 0.3)
@@ -1031,8 +1146,7 @@ def corvette(b):
         dress(b, H, seed=20.0 + s, x=s * 2.0, shape="hex", n=3, bottom=False)
         for y in (2.0, -2.6):
             band(b, H, y, x=s * 2.0, mat="Armor", g=1.12, t=0.6, shape="hex")
-        gun(b, (s * 2.0, 6.9, 0.0), 1.6, r=0.14)
-        turret(b, (s * 2.0, -1.8, 0.95), s=0.38, twin=False, facing=90 + s * 60)
+        hp_gun(b, 3 if s < 0 else 4, (s * 2.0, 6.9, 0.0), 1.6, r=0.12 if s < 0 else 0.15)
         for x in (s * 1.6, s * 2.4):
             engine(b, (x, -7.3, 0.0), 0.45, housing=False)
     E = [(-4.4, 2.6, 0.9), (-5.2, 3.2, 1.05), (-6.6, 3.2, 1.05)]
@@ -1042,8 +1156,9 @@ def corvette(b):
     C = [(4.6, 0.0, 0.0, 0.2), (3.4, 1.2, 0.6, 0.25), (-4.4, 1.6, 0.75, 0.25), (-5.4, 1.2, 0.6, 0.2)]
     b.loft(C, M("Hull"))
     visor(b, C, 3.0, width=1.4)
-    turret(b, (0, 1.4, 0.95), s=0.55)
-    turret(b, (0, -3.0, 0.95), s=0.55)
+    hp_turret(b, 5, (0, 1.4, 0.95), s=0.55)
+    hp_turret(b, 6, (0, -3.0, 0.95), s=0.55)
+    hp_turret(b, 9, (2.0, -1.8, 1.0), s=0.42, kind="pd")
     navl(b, 3.05, -5.0, 0.0)
 
 
@@ -1068,7 +1183,10 @@ def missile_boat(b):
     for x in (-0.55, 0.55):
         engine(b, (x, -7.1, 0.0), 0.45, housing=False)
     navl(b, 2.85, -2.0, 0.0)
-
+    for s in (1, -1):
+        _hp(b, 3 if s < 0 else 4, "missile", (s * 1.85, 2.48, 0.0), (0, 1, 0), s * 1.85)
+    hp_turret(b, 5, (0, -2.4, 0.5), s=0.4)
+    hp_turret(b, 7, (0, 0.9, 0.62), s=0.36, kind="pd")
 
 @ship("bastion", "L", "Fregatte Bollwerk (schwerer Stufenkeil): massiger zweistufiger Panzerkeil mit Kragen und Seitenschuerzen, eingelassene Bruecke, zwei Raketenbatterien, Zwillings- und Massetreiberturm, Punktverteidigung, Schildwölbungen, Hangarschlitze, drei beringte Duesen", cargo=0)
 def bastion(b):
@@ -1087,20 +1205,15 @@ def bastion(b):
     b.mast((1.0, -3.6, 3.4), 2.2, light="Light")
     b.mast((-1.0, -3.6, 3.4), 1.6, light="LightRed")
     sensor(b, (0, -1.6, 3.4), r=0.45)
-    turret(b, (0, 5.4, 3.4), s=1.0)
-    turret(b, (0, 1.0, 3.4), s=1.05, twin=False)
+    hp_shafts(b, 3, (-1.0, 8.4, 1.42), rows=2, cols=3)
+    hp_shafts(b, 4, (1.0, 8.4, 1.42), rows=2, cols=3)
+    hp_turret(b, 5, (0, 5.4, 2.85), s=1.0, twin=True)
+    hp_turret(b, 6, (0, 1.0, 2.95), s=1.05, length=2.0)
+    hp_turret(b, 12, (4.0, 3.8, 2.0), s=0.6, kind="pd")
     for s in (1, -1):
-        c = V(s * 2.2, -6.8, 3.8)
-        b.box(1.8, 2.8, 0.9, M("HullDark"), loc=c)
-        for i in range(2):
-            for j in range(3):
-                b.box(0.45, 0.1, 0.2, M("LightRed"), loc=c + V((i - 0.5) * 0.7, 1.42, (j - 1) * 0.25))
-        turret(b, (s * 4.0, 3.8, 2.05), s=0.5, twin=False, facing=90 + s * 60)
-        turret(b, (s * 4.0, -4.0, -1.9), s=0.5, twin=False, facing=90 + s * 60, up=False)
         b.sphere(1.0, M("Light"), seg=8, rings=4, loc=(s * 5.5, -1.8, 1.0), scale=(0.6, 1.3, 0.6))
         b.hangar_slit(V(s * 5.55, 3.4, 0.6), (s, 0, 0), w=2.4, h=0.7)
         vents(b, (s * 3.2, -9.0, 2.1), n=4, length=1.6)
-    turret(b, (0, 2.4, -2.1), s=0.7, twin=True, up=False)
     for x, z in ((-2.0, 0.5), (2.0, 0.5), (0, -0.8)):
         engine(b, (x, -12.3, z), 1.2)
     thrusters(b, [(4.6, 8.0, 0.0), (-4.6, 8.0, 0.0)], s=0.6)
@@ -1108,7 +1221,7 @@ def bastion(b):
 
 
 # =============================================================== neue Klassen (Durchlauf 4)
-@ship("bomber", "S", "Bomber: schwerer Doppelrumpf-Jaeger, zwei dicke Triebwerksrohre mit mittlerer Panzerkanzel, unter den Verbindungsfluegeln zwei Pylone mit je zwei Torpedos, Heckgeschuetz, kraeftige Accent-Felder", name="Bomber", cargo=0)
+@ship("bomber", "S", "Bomber: schwerer Doppelrumpf-Jaeger, zwei dicke Triebwerksrohre mit mittlerer Panzerkanzel, zwei Torpedo-Schachtfelder bündig in den Verbindungsfluegeln, kraeftige Accent-Felder", name="Bomber", cargo=0)
 def bomber(b):
     for s in (1, -1):
         G = [(3.4, 0.0, 0.0), (2.6, 0.55, 0.55), (1.4, 0.75, 0.75), (-4.2, 0.8, 0.8), (-4.8, 0.65, 0.65)]
@@ -1122,13 +1235,7 @@ def bomber(b):
     b.prism([(-2.0, 0.6), (2.0, 0.6), (2.0, -1.8), (-2.0, -1.8)], 0.22, M("Armor"), loc=(0, 0.2, -0.1))
     b.box(3.6, 0.5, 0.06, M("Accent"), loc=(0, 0.5, 0.03))
     for s in (1, -1):
-        b.box(0.18, 1.6, 0.5, M("HullDark"), loc=(s * 1.0, -0.2, -0.45))
-        for k in (-1, 1):
-            p = V(s * 1.0 + k * 0.22, -0.2, -0.85)
-            b.capsule(p, (0, 1, 0), 2.8, 0.17, M("ShipPanel"), seg=6)
-            b.lathe([(0.17, 0), (0, 0.45)], M("LightRed"), seg=6, loc=p + V(0, 1.4, 0), rot=(-90, 0, 0))
-    turret(b, (0, -2.4, 0.55), s=0.3, twin=False, facing=-90)
-    gun(b, (0, 3.6, -0.3), 1.6, r=0.1)
+        hp_shafts(b, 2 if s < 0 else 3, (s * 1.0, -0.6, 0.06), rows=2, cols=2, cell=0.3)
     navl(b, 2.75, -1.0, 0.0)
 
 
@@ -1144,10 +1251,10 @@ def gunboat(b):
         b.cyl(0.42, 1.0, M("HullDark"), seg=8, loc=p, rot=(-90, 0, 0))
         b.strut(p, p + V(0, 3.6, 0), 0.2, M("HullDark"), seg=6)
         b.cyl(0.3, 0.6, M("HullDark"), seg=6, loc=p + V(0, 3.5, 0), rot=(-90, 0, 0))
+        _hp(b, 2 if s < 0 else 3, "gun", p + V(0, 3.8, 0), (0, 1, 0), p.x)
         b.box(0.06, 3.2, 0.7, M("Accent"), loc=(s * 3.58, 3.4, -0.1))
     visor(b, S, 3.6, width=2.0, mat="Window")
-    turret(b, (0, 0.4, 1.3), s=0.75, twin=True)
-    turret(b, (0, -1.6, -1.3), s=0.55, twin=False, up=False)
+    hp_turret(b, 4, (0, 0.4, 1.3), s=0.75, length=1.8)
     for x, z in ((-1.2, 0.45), (1.2, 0.45), (-1.2, -0.45), (1.2, -0.45)):
         engine(b, (x, -5.7, z), 0.5, housing=False)
     thrusters(b, [(3.0, -3.6, 0.6), (-3.0, -3.6, 0.6)], s=0.5)
@@ -1164,10 +1271,10 @@ def destroyer(b):
     greebles(b, 0, -1.0, 2.1, 1.4, 12.0, n=10, seed=52.0)
     for sx in (1, -1):
         stripe(b, K, 8.0, -7.0, x=sx * 0.95, width=0.3)
-    for y in (5.2, 1.6, -2.0):
-        turret(b, (0, y, 2.05), s=0.85, twin=True)
-    for y in (3.0, -3.0):
-        turret(b, (0, y, -1.5), s=0.7, twin=True, up=False)
+    for slot, y in ((3, 5.2), (4, 1.6), (5, -2.0)):
+        hp_turret(b, slot, (0, y, 2.05), s=0.85, twin=True, length=2.0)
+    hp_turret(b, 6, (0, 3.0, -1.55), s=0.7, up=False, length=1.8)
+    hp_turret(b, 10, (0, -3.0, -1.55), s=0.55, up=False, kind="pd")
     T = [(-4.0, 0.0, 0.0, 2.2), (-4.6, 1.0, 0.7, 2.6), (-7.4, 1.2, 0.8, 2.6), (-8.0, 0.9, 0.6, 2.4)]
     b.loft(T, M("Armor"))
     visor(b, T, -4.8, width=1.6, mat="Window")
@@ -1208,11 +1315,10 @@ def battlecruiser(b):
         engine(b, (s * 6.6, -18.6, 0.0), 1.0, housing=False)
         for y in (-2.0, -9.0):
             b.hangar_slit(V(s * 5.5, y, -0.6), (s, 0, 0), w=3.6, h=1.1)
-        for y in (7.0, -6.0):
-            turret(b, (s * 2.4, y, 3.7), s=0.75, twin=True, facing=90 + s * 25)
-        turret(b, (s * 3.0, 0.0, -2.6), s=0.6, twin=True, up=False)
-        b.pd((s * 4.6, 16.0, 2.0), facing=90 + s * 60, s=0.6)
-    turret(b, (0, 1.0, 4.75), s=0.9, twin=True)
+        for slot, y in (((6, 7.0), (8, -6.0)) if s < 0 else ((7, 7.0), (9, -6.0))):
+            hp_turret(b, slot, (s * 2.4, y, 3.7), s=0.85, twin=True, length=2.0)
+        hp_shafts(b, 4 if s < 0 else 5, (s * 3.4, 15.4, 2.05), rows=2, cols=3, cell=0.4)
+    hp_turret(b, 14, (0, 1.0, 4.4), s=0.7, kind="pd")
     greebles(b, 0, 9.5, 2.45, 4.0, 3.0, n=6, seed=63.0)
     greebles(b, 0, -6.0, -2.8, 6.0, 16.0, n=4, seed=64.0, up=False)
     E = [(-15.0, 4.6, 2.2), (-16.0, 5.0, 2.4), (-18.6, 5.0, 2.4)]

@@ -5,21 +5,31 @@ Aufruf (aus dem Repo-Wurzelverzeichnis):
 
 Nach dem Import ist wieder Blender-Z oben; die Spielebene ist XY. Geprueft wird:
 ein Mesh je Datei, Material "Accent" vorhanden, max. Radius in der Ebene ~1,
-Dreiecke <= 3000, keine Normalen-Nullvektoren.
+Dreiecke <= 3600, Stellungen je Geschuetz laut Weltdatei (stations.json), keine Normalen-Nullvektoren.
 """
 
 import math
 import os
 import sys
 
+import json
+
 import bpy
+from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 GLB_DIR = os.path.join(REPO, "godot", "assets", "stations")
 
 
+META, GUNS = {}, {}
+
+
 def main():
+    META.update(json.load(open(os.path.join(GLB_DIR, "stations.json"), encoding="utf-8"))["models"])
+    world = os.path.join(REPO, "src", "SpaceSim.Core", "Content", "default-world.json")
+    GUNS.update({t["key"]: (t.get("defense") or {}).get("guns", [])
+                 for t in json.load(open(world, encoding="utf-8"))["stationTypes"]})
     files = sorted(f for f in os.listdir(GLB_DIR) if f.endswith(".glb"))
     bad = 0
     total = 0
@@ -34,8 +44,15 @@ def main():
         bpy.ops.import_scene.gltf(filepath=os.path.join(GLB_DIR, f))
         meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
         problems = []
-        if len(meshes) != 1:
+        key = f[:-4]
+        turrets = [o for o in meshes if o.name.startswith("Turret_")]
+        if len(meshes) - len(turrets) != 1:
             problems.append(f"{len(meshes)} Meshes")
+        hps = META.get(key, {}).get("hardpoints", [])
+        if len(hps) != len(GUNS.get(key, [])):
+            problems.append(f"{len(hps)} Stellungen fuer {len(GUNS.get(key, []))} Geschuetze")
+        if sorted(h["node"] for h in hps if h.get("node")) != sorted(o.name for o in turrets):
+            problems.append("Turm-Nodes passen nicht zu stations.json")
         tris = 0
         rad = 0.0
         zmin, zmax = 1e9, -1e9
@@ -51,9 +68,16 @@ def main():
                 zmin, zmax = min(zmin, w.z), max(zmax, w.z)
             if any(p.normal.length < 0.5 for p in me.polygons):
                 problems.append("Nullnormale")
+        allv = [o.matrix_world @ v.co for o in meshes for v in o.data.vertices]
+        for h in hps:
+            gx, gy, gz = h["pos"]
+            pb = Vector((gx, -gz, gy))
+            dmin = min((pb - v).length for v in allv)
+            if dmin > 0.04:
+                problems.append(f"Geschuetz {h['gun']}: pos {dmin:.3f} neben der Geometrie")
         if "Accent" not in mats:
             problems.append("kein Accent")
-        if tris > 3000:
+        if tris > 3600:
             problems.append("zu viele Dreiecke")
         if abs(rad - 1.0) > 0.01:
             problems.append(f"Radius {rad:.3f}")
