@@ -71,6 +71,9 @@ public sealed class FlightHudData
 	public string SurrenderReason = "";
 	/// <summary>Phase 28: Die gewählte Station kann angegriffen werden (Taste „Station angreifen“, zwei Tipps); scharf = die Waffen schießen auf sie.</summary>
 	public bool CanAttackStation, StationAttackArmed;
+	/// <summary>Phase 31: Das gewählte Tor kann angegriffen werden (Taste „Tor angreifen“, zwei Tipps, Warnung zu den Folgen).</summary>
+	public bool CanAttackGate;
+	public string GateAttackInfo = "";
 	public string HitWarning = "";
 	/// <summary>Gerätetest Phase 28: Gegenwehr der Station (Geschütze, Reichweite, eigene Raketenreichweite) unter „Station angreifen“.</summary>
 	public string StationAttackInfo = "";
@@ -111,9 +114,12 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
 	public event Action<PowerMode>? PowerModePressed;
 	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
-	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed, StationAttackPressed, AimAssistPressed;
+	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed, StationAttackPressed, AimAssistPressed, GateAttackPressed;
 	/// <summary>Phase 28: „Station angreifen“ (zwei Tipps über <see cref="KitConfirm"/>).</summary>
-	KitButton _stationAttack = null!;
+	KitButton _stationAttack = null!, _gateAttack = null!;
+	public bool TestGateAttackVisible => _gateAttack.Visible;
+	public string TestGateAttackSub => _gateAttack.Sub;
+	public void TestPressGateAttack() => GateAttackPressed?.Invoke();
 	readonly KitConfirm _attackConfirm = new();
 	public bool TestStationAttackVisible => _stationAttack.Visible;
 	public void TestPressStationAttack() => StationAttackPressed?.Invoke();
@@ -359,6 +365,10 @@ public partial class FlightHud : Control, IScreen
 		_stationAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(160, 56)) { FontSize = 15 }, "station_attack", "Station angreifen",
 			() => StationAttackPressed?.Invoke()), 764, 268);
 		_stationAttack.Visible = false;
+		// Phase 31: Angriff auf das gewählte Tor — gleicher Platz, zwei Tipps (schweres Verbrechen bei beiden Endfraktionen, das Tor fällt aus)
+		_gateAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(160, 56)) { FontSize = 15 }, "gate_attack", "Tor angreifen",
+			() => GateAttackPressed?.Invoke()), 764, 268);
+		_gateAttack.Visible = false;
 		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — unter „Station angreifen“ (Umschalter; die Nase folgt dem gewählten Feind mit der Drehrate des Schiffs)
 		_aimAssist = At(this, new KitButton("Ziel folgen", new Vector2(160, 56)) { FontSize = 15, Toggle = true }, 764, 330);
 		_aimAssist.Pressed += () => AimAssistPressed?.Invoke();
@@ -591,6 +601,8 @@ public partial class FlightHud : Control, IScreen
 		_nextEnemy.State = d.EnemyNear ? KitButtonState.Normal : KitButtonState.Disabled;
 		_nextEnemy.Sub = d.EnemyNear ? "" : "kein Gegner";
 		_stationAttack.Visible = d.CanAttackStation && !d.StationAttackArmed;
+		_gateAttack.Visible = d.CanAttackGate && !d.StationAttackArmed && !d.CanAttackStation;
+		if (_gateAttack.Text != "Wirklich?") _gateAttack.Sub = d.GateAttackInfo;
 		// Runde 5: aussichtslos → Warnfarbe und die Warnung statt der Geschützzeile (Hinweis, kein Verbot)
 		if (_stationAttack.Text != "Wirklich?") _stationAttack.Sub = d.StationHopeless ? "Aussichtslos!" : d.StationAttackInfo;
 		TestStationAttackInfo = d.StationAttackInfo;   // scharf: „nochmal tippen“ bleibt

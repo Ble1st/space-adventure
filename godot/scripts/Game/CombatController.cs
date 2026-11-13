@@ -29,7 +29,7 @@ public sealed class CombatController
     public int Shots { get; private set; }
 
     public void SetTarget(ShipId id) => Target = id;
-    public void ClearTarget() { Target = default; StationTarget = default; }
+    public void ClearTarget() { Target = default; StationTarget = default; GateTarget = default; }
 
     /// <summary>Phase 28: Station als Angriffsziel (nach dem bestätigten „Station angreifen“); gilt, solange kein Schiffsziel gewählt ist.</summary>
     public StationId StationTarget { get; private set; }
@@ -37,10 +37,16 @@ public sealed class CombatController
     /// <summary>Schießen die Waffen gerade auf die Station (kein Schiffsziel, Station scharf)?</summary>
     public bool AtStation => Target.Value == 0 && StationTarget.Value != 0;
 
+    /// <summary>Phase 31: Tor als Angriffsziel (nach dem bestätigten „Tor angreifen“); gilt, solange kein Schiffsziel gewählt ist.</summary>
+    public GateId GateTarget { get; private set; }
+    public void ArmGate(GateId id) => GateTarget = id;
+    public bool AtGate => Target.Value == 0 && StationTarget.Value == 0 && GateTarget.Value != 0;
+
     /// <summary>Ziel noch gültig (existiert, im Sektor)? Sonst wird es verworfen.</summary>
     public void Validate(Universe u)
     {
         if (StationTarget.Value != 0 && (!u.Stations.TryGetValue(StationTarget, out var st) || st.Sector != u.PlayerSector || StationCombat.IsDown(u, st))) StationTarget = default;
+        if (GateTarget.Value != 0 && (!u.Gates.TryGetValue(GateTarget, out var g) || g.Sector != u.PlayerSector || GateCombat.IsDown(u, g))) GateTarget = default;
         if (Target.Value == 0) return;
         if (!u.Ships.ContainsKey(Target) || PlayerCombat.PositionOf(u, Target) is not { } p || p.Sector != u.PlayerSector || Target == u.PlayerShip) Target = default;
     }
@@ -57,7 +63,9 @@ public sealed class CombatController
     /// <summary>Ein Schuss der Waffe in <paramref name="slot"/> auf das gewählte Ziel.</summary>
     public GunShot Fire(Universe u, Ship player, int slot, float headingDeg)
     {
-        var r = AtStation ? PlayerGunnery.TryFireAtStation(u, player, slot, StationTarget, headingDeg) : PlayerGunnery.TryFire(u, player, slot, Target, headingDeg);
+        var r = AtStation ? PlayerGunnery.TryFireAtStation(u, player, slot, StationTarget, headingDeg)
+            : AtGate ? PlayerGunnery.TryFireAtGate(u, player, slot, GateTarget, headingDeg)
+            : PlayerGunnery.TryFire(u, player, slot, Target, headingDeg);
         LastResult = r.Result;
         LastMessage = r.Message;
         if (r.Result == GunResult.Fired) Shots++;
@@ -116,7 +124,7 @@ public sealed class CombatController
     public static BayState StateOf(Universe u, Ship player, WeaponBay bay, float headingDeg, ShipId target) =>
         PlayerGunnery.State(u, player, PlayerGunnery.SlotOf(bay.Key), headingDeg, target);
 
-    public void Reset() { AutoFire = false; Target = default; StationTarget = default; LastAttacker = default; LastHitAt = -99; }
+    public void Reset() { AutoFire = false; Target = default; StationTarget = default; GateTarget = default; LastAttacker = default; LastHitAt = -99; }
 
     /// <summary>Phase 28: Beschuss durch ein Stationsgeschütz (Warnrichtung aus der Stationsposition).</summary>
     public void OnStationShot(Universe u, StationShot e, double now)

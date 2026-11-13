@@ -15,6 +15,8 @@ public sealed class Universe
     public Dictionary<FactionId, Faction> Factions = new();
     public Dictionary<GoodId, Good> Goods = new();
     public Dictionary<string, StationType> StationTypes = new();
+    /// <summary>Phase 31: Torklassen (JSON <c>gateTypes</c>; leer = Tore ohne Kampfwerte).</summary>
+    public Dictionary<string, GateType> GateTypes = new();
     public Dictionary<string, AsteroidClass> AsteroidClasses = new();
     /// <summary>Slotarten (Content, leer wenn die Weltdatei keinen Abschnitt hat).</summary>
     public Dictionary<string, SlotType> SlotTypes = new();

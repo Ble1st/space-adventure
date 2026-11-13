@@ -252,7 +252,7 @@ public static class GateAccess
     public static string? BlockReason(Universe u, Ship ship, SectorId from, SectorId to)
     {
         var route = u.FindRoute(from, to);
-        if (route is null) return to == from ? null : "kein Gate-Weg (Gates geschlossen)";
+        if (route is null) return to == from ? null : Combat.GateCombat.OutageReason(u, from, to) ?? "kein Gate-Weg (Gates geschlossen)";   // Phase 31
         var profile = ProfileOf(u, ship);
         foreach (var gid in route)
         {
@@ -266,8 +266,10 @@ public static class GateAccess
     /// Setzt den physischen Zustand eines Gate-Paars (beide Enden; Wartung, Ereignis, Zerstörung oder Wiedereröffnung). Danach werden Reisen über
     /// nun gesperrte Gates neu geplant (<see cref="AccessEnforcement.Revalidate"/>).
     /// </summary>
-    public static void SetState(Universe u, Gate gate, GateState state)
+    public static void SetState(Universe u, Gate gate, GateState state, bool restoring = false)
     {
+        // Phase 31: ein außer Betrieb gesetztes Tor öffnet nur die Torreparatur (GateCombat.Restore), nicht ein Öffnen von Hand
+        if (!restoring && state is GateState.Open or GateState.Restricted && Combat.GateCombat.IsDown(u, gate)) return;
         foreach (var g in new[] { gate, u.Gates.GetValueOrDefault(gate.Target) })
         {
             if (g is null || g.State == state) continue;

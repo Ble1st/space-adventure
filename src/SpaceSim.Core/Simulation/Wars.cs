@@ -125,6 +125,59 @@ public static class Wars
     /// Kriegsziel einer Fraktion für ein Schiff: angreifbare Station eines Gegners (fertig, kein Versteck), bevorzugt in umkämpften Sektoren und nahe — nach
     /// Sprüngen von der Position des Schiffs (physisch erreichbar), dann Id. null = keins. Rein.
     /// </summary>
+    /// <summary>
+    /// Phase 31 (docs/TORE.md 5): Torblockade für ein Kriegsschiff der Fraktion <paramref name="f"/> — ein Tor-Paar mit Kampfwerten, an dem ein Ende einem
+    /// Kriegsgegner gehört, dessen Krieg noch Blockaden frei hat (<see cref="EconomyRules.GateBlockadesPerWar"/>; eine laufende Blockade wird fortgesetzt), das die
+    /// Karte nicht teilen würde (<see cref="MapParts.SplitsWhenClosed"/>, berücksichtigt bereits ausgefallene Tore) und nur, solange weltweit weniger als
+    /// <see cref="EconomyRules.GateMaxDown"/> Tore außer Betrieb sind. Wert = Verkehr des gegnerischen Endsektors; angegriffen wird die Hälfte, die das Schiff
+    /// mit den wenigsten Sprüngen erreicht. Piraten greifen nie Tore an (nur Kriegsschiffe bekommen diese Wahl). null = keine Blockade.
+    /// </summary>
+    public static Gate? PickGateTarget(Universe u, FactionId f, Ship ship)
+    {
+        var r = u.Rules;
+        if (!r.GateCombat || !r.Warfare || u.Wars.Count == 0) return null;
+        if (GateCombat.DownCount(u) >= r.GateMaxDown) return null;
+        Gate? best = null; float bestValue = -1f; int bestHops = int.MaxValue;
+        foreach (var g in u.Gates.Values.OrderBy(x => x.Id.Value))
+        {
+            if (!u.Gates.TryGetValue(g.Target, out var far) || g.Id.Value > far.Id.Value) continue;   // je Paar einmal (kanonisch)
+            if (GateCombat.TypeOf(u, g) is null || GateCombat.IsDown(u, g) || !MapParts.Passable(g) || !MapParts.Passable(far)) continue;
+            War? war = WarOverGate(u, f, g);
+            if (war is null) continue;
+            if (war.Blockades >= r.GateBlockadesPerWar && !BlockadeRunning(u, f, g)) continue;
+            if (MapParts.SplitsWhenClosed(u, g.Id)) continue;   // nie kartenteilend
+            float value = 0f;
+            foreach (var half in new[] { g, far })
+                if (u.Sectors.TryGetValue(half.Sector, out var sec) && Wars.AtWar(u, f, sec.Owner)) value += MathF.Max(0f, sec.Traffic);
+            // erreichbare Hälfte mit den wenigsten Sprüngen
+            Gate? side = null; int hops = int.MaxValue;
+            foreach (var half in new[] { g, far })
+            {
+                var route = u.FindRoute(ship.Sector, half.Sector);
+                if (route is null) continue;
+                if (route.Count < hops) { hops = route.Count; side = half; }
+            }
+            if (side is null) continue;
+            if (value > bestValue || (value == bestValue && hops < bestHops)) { best = side; bestValue = value; bestHops = hops; }
+        }
+        return best;
+    }
+
+    /// <summary>Krieg der Fraktion mit einem Besitzer eines Torendes (null = keiner).</summary>
+    public static War? WarOverGate(Universe u, FactionId f, Gate g)
+    {
+        foreach (var d in GateCombat.DefendersOf(u, g)) if (d != f && Between(u, f, d) is { } w) return w;
+        return null;
+    }
+
+    /// <summary>Läuft schon eine Blockade dieses Paars durch Kriegsschiffe der Fraktion?</summary>
+    public static bool BlockadeRunning(Universe u, FactionId f, Gate g)
+    {
+        foreach (var s in u.Ships.Values)
+            if (IsWarship(s) && u.FactionOf(s) == f && s.Command is AssaultCommand ac && ac.Gate.Value != 0 && (ac.Gate == g.Id || ac.Gate == g.Target)) return true;
+        return false;
+    }
+
     public static Station? PickTarget(Universe u, FactionId f, Ship ship)
     {
         Station? best = null;
@@ -254,8 +307,14 @@ public sealed class NavySystem : ISimSystem
             else if (s.Command is not null) Commands.Cancel(u, s, "Frieden");
             return;
         }
-        if (s.Command is AssaultCommand ac && u.Stations.TryGetValue(ac.Station, out var cur) && u.FactionOf(cur) is { } owner && Wars.AtWar(u, f, owner)
-            && !StationCombat.IsDown(u, cur)) return;
+        if (s.Command is AssaultCommand ac && AssaultExecutor.TargetOf(u, ac) is { } cur && AssaultExecutor.StillTarget(u, s, cur)) return;
+        // Phase 31: zuerst die Torblockade des Kriegs (höchstens eine je Krieg, nie kartenteilend, höchstens GateMaxDown weltweit), sonst eine Station
+        if (Wars.PickGateTarget(u, f, s) is { } gate)
+        {
+            if (!Wars.BlockadeRunning(u, f, gate) && Wars.WarOverGate(u, f, gate) is { } war) war.Blockades++;
+            Commands.Give(u, s, new AssaultCommand(gate.Sector, default, gate.Id), out _, ignoreCapacity: true);
+            return;
+        }
         if (Wars.PickTarget(u, f, s) is { } target) Commands.Give(u, s, new AssaultCommand(target.Sector, target.Id), out _, ignoreCapacity: true);
     }
 

@@ -29,6 +29,62 @@ public static class CombatFraming
         return new Frame(fx, fz, MathF.Min(d, maxDistance));
     }
 
+    /// <summary>
+    /// Runde 14 (Handy-Test 2340×1080): freies Bildfeld zwischen den HUD-Flächen in Normalkoordinaten (x −1 links … 1 rechts, y −1 unten … 1 oben).
+    /// </summary>
+    public readonly record struct FreeRect(float X0, float X1, float Y0, float Y1)
+    {
+        public float CenterX => (X0 + X1) / 2f;
+        public float CenterY => (Y0 + Y1) / 2f;
+        public static FreeRect Symmetric => new(-UsableHorizontal, UsableHorizontal, -UsableVertical, UsableVertical);
+    }
+
+    /// <summary>
+    /// Runde 14: Blickpunkt und Abstand für ein beliebiges (auch unsymmetrisches) freies Feld — der Blickpunkt wird so verschoben, dass die Mitte zwischen Schiff und
+    /// Ziel in der Mitte des freien Felds liegt (nicht die Bildmitte), und der Abstand ist der kleinste ab <paramref name="baseDistance"/>, bei dem beide mit Rand
+    /// hineinpassen (höchstens <paramref name="maxDistance"/>). Reine Rechnung, deterministisch (feste Zahl Newton-Schritte).
+    /// </summary>
+    public static Frame Compute(float sx, float sz, float tx, float tz, float yawDeg, float pitchDeg, float fovDeg, float aspect,
+        float baseDistance, float maxDistance, FreeRect free, float margin = 6f)
+    {
+        float tv = MathF.Tan(fovDeg * MathF.PI / 360f), th = tv * aspect;
+        (float X, float Y) Ndc(float px, float pz, float fx, float fz, float d)
+        {
+            var (h, v) = ScreenTan(px, pz, fx, fz, d, yawDeg, pitchDeg);
+            return float.IsNaN(h) ? (float.NaN, float.NaN) : (h / th, v / tv);
+        }
+        (float X, float Y) Mid(float fx, float fz, float d)
+        {
+            var a = Ndc(sx, sz, fx, fz, d); var b = Ndc(tx, tz, fx, fz, d);
+            return ((a.X + b.X) / 2f, (a.Y + b.Y) / 2f);
+        }
+        float bestFx = (sx + tx) / 2f, bestFz = (sz + tz) / 2f, d = baseDistance;
+        for (; ; d += 2f)
+        {
+            float fx = (sx + tx) / 2f, fz = (sz + tz) / 2f;
+            for (int it = 0; it < 6; it++)
+            {
+                var m = Mid(fx, fz, d);
+                if (float.IsNaN(m.X)) break;
+                float ex = m.X - free.CenterX, ey = m.Y - free.CenterY;
+                if (MathF.Abs(ex) < 1e-3f && MathF.Abs(ey) < 1e-3f) break;
+                var mx = Mid(fx + 1f, fz, d); var mz = Mid(fx, fz + 1f, d);
+                float a11 = mx.X - m.X, a12 = mz.X - m.X, a21 = mx.Y - m.Y, a22 = mz.Y - m.Y;
+                float det = a11 * a22 - a12 * a21;
+                if (MathF.Abs(det) < 1e-9f) break;
+                fx += (-ex * a22 + ey * a12) / det;
+                fz += (-a11 * ey + a21 * ex) / det;
+            }
+            bestFx = fx; bestFz = fz;
+            if (d >= maxDistance) break;
+            float padY = margin / MathF.Max(1f, d) / tv, padX = margin / MathF.Max(1f, d) / th;
+            var p1 = Ndc(sx, sz, fx, fz, d); var p2 = Ndc(tx, tz, fx, fz, d);
+            bool Inside((float X, float Y) p) => !float.IsNaN(p.X) && p.X - padX >= free.X0 && p.X + padX <= free.X1 && p.Y - padY >= free.Y0 && p.Y + padY <= free.Y1;
+            if (Inside(p1) && Inside(p2)) break;
+        }
+        return new Frame(bestFx, bestFz, MathF.Min(d, maxDistance));
+    }
+
     /// <summary>Liegt der Punkt (Ebene, Höhe 0) mit Rand im freien Bildfeld einer Kamera, die aus Abstand <paramref name="d"/> auf den Blickpunkt schaut?</summary>
     public static bool Fits(float px, float pz, float fx, float fz, float d, float yawDeg, float pitchDeg, float fovDeg, float aspect, float margin = 0f)
     {

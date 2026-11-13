@@ -42,7 +42,7 @@ public static class Missiles
     /// Flugstrecke = <paramref name="distance"/>, Tempo aus <c>missileSpeed</c>.
     /// </summary>
     public static MissileFlight Launch(Universe u, Encounter e, Ship? shooter, Station? fromStation, int side, Module m, in WeaponProfile w,
-        ShipId target, StationId targetStation, float distance, Vec2 from, int slot = -1)
+        ShipId target, SiegeRef targetSiege, float distance, Vec2 from, int slot = -1)
     {
         if (shooter is not null && u.Rules.AmmoActive)
             shooter.Systems.MissilesMissing = MathF.Min(shooter.Stats.MissileCapacity, shooter.Systems.MissilesMissing + 1f);
@@ -50,11 +50,11 @@ public static class Missiles
         var f = new MissileFlight
         {
             Shooter = shooter?.Id ?? default, FromStation = fromStation?.Id ?? default, Owner = shooter?.Owner ?? fromStation?.Owner ?? default, Side = side, Module = m.Key,
-            Target = target, Station = targetStation, Left = MathF.Max(0f, distance), Total = MathF.Max(0f, distance), Speed = speed, From = from, Slot = slot,
+            Target = target, Station = targetSiege.Station, Gate = targetSiege.Gate, Left = MathF.Max(0f, distance), Total = MathF.Max(0f, distance), Speed = speed, From = from, Slot = slot,
         };
         e.Missiles.Add(f);
         e.Shots++;
-        u.Events.Publish(new MissileLaunched(e.Id, e.Sector, f.Shooter, fromStation?.Id ?? default, target, targetStation, m.Key,
+        u.Events.Publish(new MissileLaunched(e.Id, e.Sector, f.Shooter, fromStation?.Id ?? default, target, targetSiege.Station, m.Key,
             f.Total / speed * SimClock.TicksPerSecond, slot));
         return f;
     }
@@ -77,14 +77,14 @@ public static class Missiles
         var r = u.Rules;
         if (!u.Modules.TryGetValue(f.Module, out var m)) return;
         var w = WeaponProfile.Of(m);
-        if (f.Station.Value != 0)
+        if (!f.Siege.IsNone)   // Phase 28: Station; Phase 31: auch Tor — gemeinsam über ISiegeTarget
         {
-            if (!u.Stations.TryGetValue(f.Station, out var st) || StationCombat.IsDown(u, st))
+            if (SiegeTargets.Resolve(u, f.Siege) is not { } st || st.IsDown)
             { u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, default, f.Station, "lost", 0f, 0f)); return; }
-            float pd = Math.Clamp(StationCombat.DefenseOf(u, st)?.PointDefense ?? 0f, 0f, r.PointDefenseMax);
-            if (u.Rng.NextDouble() < pd) { u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, default, st.Id, "intercepted", 0f, 0f)); return; }
-            var hit = Hit.Roll(u.Rng, w, StationCombat.Profile(u, st), 0f, 1f, r);
-            float hull = StationCombat.Apply(u, e, st, hit, f.Owner);
+            float pd = Math.Clamp(st.PointDefense, 0f, r.PointDefenseMax);
+            if (u.Rng.NextDouble() < pd) { u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, default, f.Station, "intercepted", 0f, 0f)); return; }
+            var hit = Hit.Roll(u.Rng, w, st.Profile, 0f, 1f, r);
+            float hull = st.Apply(e, hit, f.Owner);
             if (hit.Hit) e.Hits++;
             u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, default, f.Station, hit.Hit ? "hit" : "miss", hit.ShieldDamage, hull));
             return;
@@ -150,7 +150,7 @@ public static class Missiles
     /// <summary>Position einer Rakete im räumlichen Gefecht (Darstellung): vom Start zum aktuellen Ziel nach dem Fortschritt.</summary>
     public static Vec2 PositionOf(Universe u, Encounter e, MissileFlight f)
     {
-        Vec2 to = f.Station.Value != 0 && u.Stations.TryGetValue(f.Station, out var st) ? st.Position
+        Vec2 to = SiegeTargets.Resolve(u, f.Siege) is { } st ? st.Position
             : e.Of(f.Target) is { } tp ? tp.Pos : f.From;
         float k = f.Total > 0f ? Math.Clamp(1f - f.Left / f.Total, 0f, 1f) : 1f;
         return f.From + (to - f.From) * k;

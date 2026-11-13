@@ -8,7 +8,7 @@ namespace SpaceSim.Core.Combat;
 /// ob gefeuert wird und ob der Teilnehmer aufgibt (Fracht abwirft).
 /// </summary>
 /// Phase 28: <paramref name="Station"/> = Station als Ziel (Belagerung), wenn kein Schiffsziel gesetzt ist.
-public readonly record struct TacticDecision(ShipId Target, CombatMove Move, float Distance, PowerMode Mode, bool Fire, bool Surrender, StationId Station = default);
+public readonly record struct TacticDecision(ShipId Target, CombatMove Move, float Distance, PowerMode Mode, bool Fire, bool Surrender, SiegeRef Siege = default);
 
 /// <summary>Phase 24: austauschbare Gefechtstaktik (Kaperer, Polizei, Händler, Begleiter). Rein bis auf das Lesen des Universums.</summary>
 public interface ICombatTactic
@@ -125,12 +125,12 @@ public static class CombatSense
             if (d <= MathF.Max(theirs, own))
                 return d <= theirs ? $"{Who(u, u.Ships[q.Ship])} in Reichweite ({d:0} von {theirs:0} m)" : $"eigene Waffen feuern noch ({d:0} m)";
         }
-        if (r.Warfare && p.Side == 0 && StationCombat.Defends(u, e) && u.Stations.TryGetValue(e.Station, out var besieged))
+        if (r.Warfare && p.Side == 0 && SiegeTargets.Defends(u, e) && SiegeTargets.Of(u, e) is { } besieged)
         {
-            // Geschütze messen ab Stationsmitte (ihre Schussregel und die Anzeige „in Geschützreichweite“), eigene Waffen bis zur Außenhaut (TryFireAtStation)
-            float centre = StationCombat.Distance(u, e, p, besieged);
-            float guns = MathF.Max(r.CombatMinEscapeDistance, StationCombat.GunRange(u, besieged));
-            if (centre <= guns) return $"Stationsgeschütze in Reichweite ({centre:0} von {guns:0} m)";
+            // Geschütze messen ab Mitte (ihre Schussregel und die Anzeige „in Geschützreichweite“), eigene Waffen bis zur Außenhaut (TryFireAtStation)
+            float centre = SiegeTargets.Distance(u, e, p, besieged);
+            float guns = MathF.Max(r.CombatMinEscapeDistance, besieged.GunRange);
+            if (centre <= guns) return besieged.Ref.Kind == SiegeKind.Gate ? $"Torgeschütze in Reichweite ({centre:0} von {guns:0} m)" : $"Stationsgeschütze in Reichweite ({centre:0} von {guns:0} m)";
             if (centre - besieged.Radius <= own) return $"eigene Waffen feuern noch ({centre:0} m)";
         }
         return null;
@@ -342,16 +342,16 @@ public sealed class SiegeTactic : ICombatTactic
     {
         var nearest = CombatSense.Nearest(u, e, self);
         float preferred = CombatSense.Preferred(u, ship);
-        bool station = e.Station.Value != 0 && StationCombat.Defends(u, e) && self.Side == 0;
+        bool station = !e.Target.IsNone && SiegeTargets.Defends(u, e) && self.Side == 0;   // Phase 31: Station oder Tor
         if (ship.Hull < u.Rules.WarshipRetreatHull * ship.MaxHull)
-            return new TacticDecision(nearest?.Ship ?? default, CombatMove.Flee, 0f, PowerMode.Engine, true, false, nearest is null && station ? e.Station : default);
+            return new TacticDecision(nearest?.Ship ?? default, CombatMove.Flee, 0f, PowerMode.Engine, true, false, nearest is null && station ? e.Target : default);
         float reach = CombatSense.MaxRange(u, ship);
         if (nearest is not null && CombatSense.Distance(self, nearest) <= reach)
         {
             var target = CombatSense.Focus(u, e, self, ship, null) ?? CombatSense.KeepTarget(u, e, self, nearest)!;
             return new TacticDecision(target.Ship, CombatMove.Approach, preferred, PowerMode.Weapons, true, false);
         }
-        if (station) return new TacticDecision(default, CombatMove.Approach, preferred, PowerMode.Weapons, true, false, e.Station);
+        if (station) return new TacticDecision(default, CombatMove.Approach, preferred, PowerMode.Weapons, true, false, e.Target);
         if (nearest is not null) return new TacticDecision(nearest.Ship, CombatMove.Approach, preferred, PowerMode.Engine, true, false);
         return new TacticDecision(default, CombatMove.Hold, 0f, PowerMode.Balanced, false, false);
     }

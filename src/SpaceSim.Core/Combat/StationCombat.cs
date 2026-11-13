@@ -69,6 +69,10 @@ public static class StationCombat
     {
         if (u.FactionOf(st) is not { } f) return false;
         if (e.Station == st.Id && p.Side == 0) return true;
+        // Phase 31: Angreifer eines Tors, das die Fraktion der Station verteidigt
+        if (e.Gate.Value != 0 && p.Side == 0 && u.FactionOf(ship) != f && u.Gates.TryGetValue(e.Gate, out var bg) && GateCombat.DefendersOf(u, bg).Contains(f)) return true;
+        // Phase 31 (wie die Kleinstationen in Runde 13b): ein gesuchter Spieler ist auch für Stationen der eigenen Fraktion ein Ziel
+        if (ship.IsPlayer && ship.Owner != st.Owner && Wanted.LevelOf(u, ship.Owner, f) >= u.Rules.TradeRefusalWantedLevel) return true;
         if (ship.Owner == st.Owner || u.FactionOf(ship) == f) return false;
         if (Wars.AtWar(u, st.Owner, ship.Owner)) return true;
         if (Relations.Effective(u, st.Owner, ship.Owner) <= u.Rules.HostileRelation) return true;
@@ -124,7 +128,7 @@ public static class StationCombat
                 while (cond.Timers.Count <= g) cond.Timers.Add(0f);
                 cond.Timers[g] = w.Reload;
                 var tShip = u.Ships[target.Ship];
-                if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, default, st, target.Side == 0 ? 1 : 0, m, w, target.Ship, default, MathF.Max(0f, best - ReachOffset(st)), e.Spatial ? st.Position : default, g); continue; }
+                if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, default, st, target.Side == 0 ? 1 : 0, m, w, target.Ship, default(SiegeRef), MathF.Max(0f, best - ReachOffset(st)), e.Spatial ? st.Position : default, g); continue; }
                 var tProfile = new TargetProfile(tShip.ShieldNow, tShip.Stats.Armor, target.Speed, Gunnery.Signature(u, tShip));
                 var hit = Hit.Roll(u.Rng, w, tProfile, MathF.Max(0f, best - ReachOffset(st)), 1f, r);   // Phase 30: ab der Außenhaut
                 e.Shots++;
@@ -337,12 +341,28 @@ public static class WarInfo
     public static string RangeStatus(Universe u, Station target, Ship player, Vec2 at)
     {
         float guns = StationCombat.GunRange(u, target);
-        if (guns <= 0f) return StationCombat.IsDown(u, target) ? "Geschütze schweigen (ausgeschaltet)" : "";
+        string own = OwnGunsText(u, target, player, at);
+        string tail = own.Length > 0 ? " · " + own : "";
+        if (guns <= 0f) return StationCombat.IsDown(u, target) ? "Geschütze schweigen (ausgeschaltet)" : own;
         float d = Vec2.Distance(at, target.Position);
-        float missiles = MissileReachFromCentre(u, player);
-        if (d <= guns) return $"IN GESCHÜTZREICHWEITE ({guns:0} m)";
-        if (missiles <= 0f) return $"außerhalb Geschütze ({guns:0} m)";
-        return d <= missiles ? "außerhalb Geschütze · Raketen ja" : $"außerhalb Geschütze · Raketen ≤{missiles:0} m";
+        float missiles = MissileReachFromCentre(u, player, target);
+        if (d <= guns) return $"IN GESCHÜTZREICHWEITE ({guns:0} m){tail}";
+        if (missiles <= 0f) return $"außerhalb Geschütze ({guns:0} m){tail}";
+        return (d <= missiles ? "außerhalb Geschütze · Raketen ja" : $"außerhalb Geschütze · Raketen ≤{missiles:0} m") + tail;
+    }
+
+    /// <summary>
+    /// Runde 14 (Handy-Test Kriegstest): Reichen die eigenen Geschütze (ohne Raketen) bis zur Außenhaut? „eigene Geschütze reichen“ bzw. „eigene Geschütze ab
+    /// x m Außenhaut“; leer ohne Geschütze.
+    /// </summary>
+    public static string OwnGunsText(Universe u, Station target, Ship player, Vec2 at)
+    {
+        float own = 0f;
+        for (int i = 0; i < player.Fit.Count; i++)
+            if (player.Fit[i] is { } k && u.Modules.TryGetValue(k, out var m) && m.IsWeapon && !Missiles.IsMissile(m) && player.ConditionOf(i) >= u.Rules.ModuleFailCondition) own = MathF.Max(own, m.Stat("range"));
+        if (own <= 0f) return "";
+        float hull = MathF.Max(0f, Vec2.Distance(at, target.Position) - target.Radius);
+        return hull <= own ? "eigene Geschütze reichen" : $"eigene ab {own:0} m Außenhaut";
     }
 
     /// <summary>Gerätetest Phase 28 (Runde 5): unter diesem Verhältnis eigene Stärke : Verteidigung ist ein Stationsangriff aussichtslos, darunter „knapp“.</summary>
@@ -365,17 +385,23 @@ public static class WarInfo
         if (u.FactionOf(target) is { } f && u.Sectors.TryGetValue(target.Sector, out var sector))
         {
             foreach (var id in sector.Stations)
-                if (u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && StationCombat.DefenseOf(u, st) is { } d && !StationCombat.IsDown(u, st))
+                if (u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && StationCombat.DefenseOf(u, st) is { } d && !StationCombat.IsDown(u, st)
+                    // Runde 14 (Handy-Test: Satellit „aussichtslos“): nur das Ziel selbst und Stationen, deren Geschütze bis zum Ziel reichen
+                    && (st.Id == target.Id || (d.Guns.Count > 0 && Vec2.Distance(st.Position, target.Position) <= StationCombat.GunRange(u, st) + target.Radius)))
                 {
                     foreach (var g in d.Guns) if (u.Modules.TryGetValue(g, out var m)) def += ShipStats.WeaponPowerOf(m);
                     def += StationCombat.Shield(u, st) / 20f + StationCombat.Hull(u, st) / 50f + d.Armor / 5f;
                 }
             foreach (var id in u.Tracker.ParkedIn(target.Sector).Concat(u.Tracker.TransitIn(target.Sector)).Distinct())
-                if (u.Ships.TryGetValue(id, out var s) && (ThreatMap.IsPolice(s) || Wars.IsWarship(s)) && u.FactionOf(s) == f && ThreatMap.Where(u, s).Sector == target.Sector)
+                if (u.Ships.TryGetValue(id, out var s) && (ThreatMap.IsPolice(s) || Wars.IsWarship(s)) && u.FactionOf(s) == f && ThreatMap.Where(u, s) is var (ws, wp) && ws == target.Sector
+                    && Vec2.Distance(wp, target.Position) <= SiegeOddsDefenderRange)   // Runde 14: nur Verteidiger in der Nähe des Ziels
                     def += CombatRules.Strength(s);
         }
         return (own, def, ships);
     }
+
+    /// <summary>Runde 14: Polizei/Kriegsschiffe zählen als Verteidiger, wenn sie höchstens so weit vom Ziel entfernt sind.</summary>
+    public const float SiegeOddsDefenderRange = 150f;
 
     /// <summary>Lagezeile für Zielkarte/Taste: „Aussichtslos allein – Fregatte oder Flotte nötig“, „Aussichtslos – Verband zu schwach (80 : 106)“, „Knapp – …“, „Überlegen – …“; leer ohne Verteidigung.</summary>
     public static string SiegeOddsText(Universe u, Station target, Ship player)
@@ -406,9 +432,18 @@ public static class WarInfo
     }
 
     /// <summary>Kurzzeile für die Zielkarte: Hülle und Schild ohne Höchstwerte, Zustand.</summary>
-    public static string StationShort(Universe u, Station st) =>
-        $"Hülle {StationCombat.Hull(u, st):0}" + (StationCombat.MaxShield(u, st) > 0f ? $" · Schild {StationCombat.Shield(u, st):0}" : "")
-        + (StationCombat.IsDown(u, st) ? " · AUS" : "");
+    public static string StationShort(Universe u, Station st)
+    {
+        string s = $"Hülle {StationCombat.Hull(u, st):0}" + (StationCombat.MaxShield(u, st) > 0f ? $" · Schild {StationCombat.Shield(u, st):0}" : "")
+            + (StationCombat.IsDown(u, st) ? " · AUS" : "");
+        // Runde 14 (Handy-Test): Kleinstationen mit eigener Kurzdarstellung — Art, Geschütze, nicht andockbar
+        if (Simulation.Outposts.IsOutpost(u, st) && u.StationTypes.TryGetValue(st.TypeKey, out var t))
+        {
+            int guns = t.Defense?.Guns.Count ?? 0;
+            return $"{t.Name} · {s}" + (guns > 0 ? $" · {guns} Geschütz{(guns == 1 ? "" : "e")}" : "") + " · nicht andockbar";
+        }
+        return s;
+    }
 
     /// <summary>Kriegslage einer Fraktion („Krieg mit …“ oder „Frieden“).</summary>
     public static string FactionLine(Universe u, FactionId f)

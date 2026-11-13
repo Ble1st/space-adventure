@@ -14,28 +14,40 @@ namespace SpaceSim.Core.Combat;
 public static class Siege
 {
     /// <summary>Laufende Belagerung einer Station (null = keine).</summary>
-    public static Encounter? Of(Universe u, StationId station)
-    {
-        foreach (var e in u.Fights.Encounters) if (e.Station == station && !e.Done) return e;
-        return null;
-    }
+    public static Encounter? Of(Universe u, StationId station) => SiegeTargets.SiegeOf(u, SiegeRef.Of(station));
+
+    /// <summary>Phase 31: laufende Belagerung dieser Tor-Hälfte (null = keine).</summary>
+    public static Encounter? OfGate(Universe u, GateId gate) => SiegeTargets.SiegeOf(u, SiegeRef.Of(gate));
 
     /// <summary>Belagerung beginnen: Angreifer tritt bei, Verteidiger kommen dazu, Ereignisse; im Krieg zählt sie für die Kriegsbilanz.</summary>
-    public static Encounter Start(Universe u, Ship attacker, Station st)
+    public static Encounter Start(Universe u, Ship attacker, Station st) => Start(u, attacker, new StationTarget(u, st));
+
+    /// <summary>
+    /// Phase 31: Belagerung eines beliebigen Ziels (Station oder Tor-Hälfte). Greift der Spieler an, ist das ein schweres Verbrechen bei den Verteidigern
+    /// („assault_station“ bzw. „assault_gate“ bei beiden Endfraktionen eines Tors).
+    /// </summary>
+    public static Encounter Start(Universe u, Ship attacker, ISiegeTarget t)
     {
         var r = u.Rules;
-        var e = Engage.Begin(u, EncounterCause.Siege, st.Sector);
-        e.Station = st.Id;
+        var e = Engage.Begin(u, EncounterCause.Siege, t.Sector);
+        if (t.Ref.Kind == SiegeKind.Gate) e.Gate = t.Ref.Gate; else e.Station = t.Ref.Station;
         e.StationX = r.SiegeStartDistance;
         e.Victim = default;
         Engage.Join(u, e, attacker, 0, attacker.Id == u.PlayerShip ? CombatTactics.Player : CombatTactics.Siege, 0f, e.Spatial ? attacker.Position : null);
-        if (u.FactionOf(attacker) is { } fa && u.FactionOf(st) is { } fd && Wars.Between(u, fa, fd) is { } war) war.Sieges++;
-        string where = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
-        string msg = attacker.IsPlayer ? $"Du greifst {st.Name} an — die Station wehrt sich."
-            : $"Gefecht in {where}: {u.ActorName(attacker.Owner)} greift {st.Name} an";
-        if (attacker.IsPlayer && sec is not null) Wanted.ReportAssault(u, u.PlayerActor, sec.Id, st.Owner, "assault_station");
-        u.Events.Publish(new EncounterStarted(e.Id, st.Sector, EncounterCause.Siege, attacker.Id, default, msg));
-        u.Events.Publish(new SiegeStarted(e.Id, st.Id, st.Sector, attacker.Owner, msg));
+        if (u.FactionOf(attacker) is { } fa)
+            foreach (var fd in t.Defenders) if (Wars.Between(u, fa, fd) is { } war) { war.Sieges++; break; }
+        string where = u.Sectors.TryGetValue(t.Sector, out var sec) ? sec.Name : "?";
+        bool gate = t.Ref.Kind == SiegeKind.Gate;
+        string msg = attacker.IsPlayer ? (gate ? $"Du greifst {t.Name} an — schweres Verbrechen bei beiden Endfraktionen." : $"Du greifst {t.Name} an — die Station wehrt sich.")
+            : $"Gefecht in {where}: {u.ActorName(attacker.Owner)} greift {t.Name} an";
+        if (attacker.IsPlayer && sec is not null)
+        {
+            if (gate && t.Defenders.Count > 0) foreach (var f in t.Defenders) Wanted.Report(u, u.PlayerActor, f, t.Crime);
+            else Wanted.ReportAssault(u, u.PlayerActor, sec.Id, t.Owner, t.Crime);
+        }
+        u.Events.Publish(new EncounterStarted(e.Id, t.Sector, EncounterCause.Siege, attacker.Id, default, msg));
+        if (gate) u.Events.Publish(new GateAttacked(e.Id, t.Ref.Gate, t.Sector, attacker.Owner, msg));
+        else u.Events.Publish(new SiegeStarted(e.Id, t.Ref.Station, t.Sector, attacker.Owner, msg));
         Reinforce(u, e);
         return e;
     }
@@ -77,11 +89,12 @@ public static class Siege
             Engage.Resume(u, s);
             n++;
         }
-        string name = u.Stations.TryGetValue(e.Station, out var st) ? st.Name : "Die Station";
+        var target = SiegeTargets.Of(u, e);
+        string name = target?.Name ?? "Die Station";
         // Runde 7 (Handy-Test): ist die Station ausgeschaltet, gefallen oder weg, war es kein Rückzug, sondern der Sieg (vorher „Rückzug …“ im Moment von „AUS“)
-        bool won = !StationCombat.Defends(u, e);
+        bool won = !SiegeTargets.Defends(u, e);
         string follow = n > 0 ? $" — dein Verband ({n}) folgt dir." : ".";
-        string msg = won ? (st is null ? $"Station zerstört{follow}" : $"{name} außer Gefecht{follow}") : $"Rückzug: Angriff auf {name} abgebrochen{follow}";
+        string msg = won ? (target is null ? $"Station zerstört{follow}" : $"{name} außer Gefecht{follow}") : $"Rückzug: Angriff auf {name} abgebrochen{follow}";
         u.Events.Publish(new SiegeWithdrawn(e.Id, e.Station, player.Ship, n, msg, won));
     }
 
@@ -91,14 +104,20 @@ public static class Siege
     /// </summary>
     public static void Reinforce(Universe u, Encounter e)
     {
-        if (!u.Stations.TryGetValue(e.Station, out var st) || u.FactionOf(st) is not { } defender) return;
+        if (SiegeTargets.Of(u, e) is not { } st || st.Defenders.Count == 0) return;
+        // Phase 31: Fraktionen der Angreifer verteidigen nicht (ein Tor kann einer Angreiferfraktion gehören — ihr Ende verteidigt sie nicht gegen sich selbst)
+        var attackers = new HashSet<int>();
+        foreach (var q in e.Participants)   // nur KI-Angreifer (der Spieler ist Mitglied, aber nicht Teil seiner Fraktion im Krieg)
+            if (q.Side == 0 && u.Ships.TryGetValue(q.Ship, out var qs) && !qs.IsPlayer && u.FactionOf(q.Owner) is { } af) attackers.Add(af.Value);
+        var defenders = st.Defenders.Where(f => !attackers.Contains(f.Value)).ToList();
+        if (defenders.Count == 0 && st.Ref.Kind == SiegeKind.Station) return;
         int n = 0;
         foreach (var id in u.Tracker.ParkedIn(e.Sector).Concat(u.Tracker.TransitIn(e.Sector)).Distinct().OrderBy(i => i.Value).ToList())
         {
             if (!u.Ships.TryGetValue(id, out var s) || u.Fights.IsEngaged(s.Id) || s.Controller != Controller.Ai || ThreatMap.Where(u, s).Sector != e.Sector) continue;
-            bool mine = (ThreatMap.IsPolice(s) || Wars.IsWarship(s)) && u.FactionOf(s) == defender;
-            bool attacker = Wars.IsWarship(s) && s.Command is AssaultCommand ac && ac.Station == e.Station;
-            if (mine && StationCombat.Defends(u, e))
+            bool attacker = Wars.IsWarship(s) && s.Command is AssaultCommand ac && (ac.Gate.Value != 0 ? SiegeRef.Of(ac.Gate) : SiegeRef.Of(ac.Station)) == e.Target;
+            bool mine = !attacker && (ThreatMap.IsPolice(s) || Wars.IsWarship(s)) && u.FactionOf(s) is { } sf && defenders.Contains(sf);
+            if (mine && SiegeTargets.Defends(u, e))
             {
                 // Runde 6: ein Verteidiger, der sich mit schwerem Schaden zurückgezogen hat, kommt nicht im Zehn-Takt-Rhythmus wieder (vorher Beitritt, Flucht,
                 // Beitritt … mit zwei Zufallszügen und einem neuen Eintrag je Runde); wer wiederkommt, nimmt seinen alten Eintrag

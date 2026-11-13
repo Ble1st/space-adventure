@@ -118,9 +118,13 @@ public static class PlayerGunnery
         : "Keine Munition — an Werft, Polizeiwache oder Handelsstation nachladen.";
 
     /// <summary>Phase 28: Zustand der Schachttaste mit einer Station als Ziel (rein).</summary>
-    public static BayState StateAtStation(Universe u, Ship ship, int slot, float headingDeg, StationId station)
+    public static BayState StateAtStation(Universe u, Ship ship, int slot, float headingDeg, StationId station) =>
+        StateAtTarget(u, ship, slot, headingDeg, SiegeRef.Of(station));
+
+    /// <summary>Phase 31: Zustand der Schachttaste mit einem Belagerungsziel (Station oder Tor; rein).</summary>
+    public static BayState StateAtTarget(Universe u, Ship ship, int slot, float headingDeg, SiegeRef target)
     {
-        if (!u.Rules.Warfare || Gunnery.WeaponAt(u, ship, slot) is not { } m || !u.Stations.TryGetValue(station, out var st) || st.Sector != ship.Sector) return BayState.NoTarget;
+        if (!u.Rules.Warfare || Gunnery.WeaponAt(u, ship, slot) is not { } m || SiegeTargets.Resolve(u, target) is not { } st || st.Sector != ship.Sector) return BayState.NoTarget;
         var w = WeaponProfile.Of(m);
         if (Vec2.Distance(ship.Position, st.Position) > w.Range + st.Radius) return BayState.NoTarget;
         if (!HasRound(u, ship, m, w)) return BayState.NoAmmo;
@@ -142,6 +146,17 @@ public static class PlayerGunnery
         return null;
     }
 
+    /// <summary>Phase 31: Warum der Spieler dieses Tor nicht angreifen kann (null = er kann; jedes Tor, auch Sackgassentore).</summary>
+    public static string? GateIssue(Universe u, Ship ship, Gate g)
+    {
+        if (!u.Rules.Warfare || !u.Rules.GateCombat) return "Tore lassen sich nicht angreifen.";
+        if (GateCombat.TypeOf(u, g) is null) return "Dieses Tor hat keine Kampfwerte.";
+        if (GateCombat.IsDown(u, g)) return "Das Tor ist außer Betrieb.";
+        if (u.Fights.Of(ship.Id) is { } e && e.Gate != g.Id) return "Du steckst in einem anderen Gefecht.";
+        if (Siege.OfGate(u, g.Id) is { } s && s.Of(ship.Id) is { } me && me.Side != 0) return "Du verteidigst dieses Tor.";
+        return null;
+    }
+
     /// <summary>
     /// Phase 28: Feuert genau einen Schuss auf eine Station (Belagerung durch den Spieler): Reichweite bis zur Außenhaut, Nachladen, Winkel, Munition/Raketen,
     /// Leistung. Der erste Schuss eröffnet die Belagerung (Fahndung „assault_station“ bei der Stationsfraktion); die Station und ihre Polizei wehren sich.
@@ -149,17 +164,36 @@ public static class PlayerGunnery
     public static GunShot TryFireAtStation(Universe u, Ship ship, int slot, StationId station, float headingDeg)
     {
         if (ship.Id != u.PlayerShip || ship.DockedAt.Value != 0 || ship.Sector != u.PlayerSector) return Fail(GunResult.NotAllowed, "Angedockt — erst abdocken.");
-        if (Gunnery.WeaponAt(u, ship, slot) is not { } m) return Fail(GunResult.NoWeapon, "Keine Waffe in diesem Slot.");
+        if (Gunnery.WeaponAt(u, ship, slot) is null) return Fail(GunResult.NoWeapon, "Keine Waffe in diesem Slot.");
         if (!u.Stations.TryGetValue(station, out var st) || st.Sector != ship.Sector) return Fail(GunResult.NoTarget, "Keine Station als Ziel.");
         if (StationIssue(u, ship, st) is { } issue) return Fail(GunResult.NotAllowed, issue);
+        return FireAt(u, ship, slot, new StationTarget(u, st), headingDeg, "Station");
+    }
+
+    /// <summary>
+    /// Phase 31: Feuert genau einen Schuss auf ein Tor (dieselben Regeln wie bei Stationen). Der erste Schuss eröffnet die Belagerung — schweres Verbrechen
+    /// („assault_gate“) bei beiden Endfraktionen; Polizei/Marine/Stellungen der Verteidiger im Sektor wehren sich.
+    /// </summary>
+    public static GunShot TryFireAtGate(Universe u, Ship ship, int slot, GateId gate, float headingDeg)
+    {
+        if (ship.Id != u.PlayerShip || ship.DockedAt.Value != 0 || ship.Sector != u.PlayerSector) return Fail(GunResult.NotAllowed, "Angedockt — erst abdocken.");
+        if (Gunnery.WeaponAt(u, ship, slot) is null) return Fail(GunResult.NoWeapon, "Keine Waffe in diesem Slot.");
+        if (!u.Gates.TryGetValue(gate, out var g) || g.Sector != ship.Sector) return Fail(GunResult.NoTarget, "Kein Tor als Ziel.");
+        if (GateIssue(u, ship, g) is { } issue) return Fail(GunResult.NotAllowed, issue);
+        return FireAt(u, ship, slot, new GateTarget(u, g), headingDeg, "Tor");
+    }
+
+    static GunShot FireAt(Universe u, Ship ship, int slot, ISiegeTarget st, float headingDeg, string what)
+    {
+        var m = Gunnery.WeaponAt(u, ship, slot)!;
         var w = WeaponProfile.Of(m);
         float dist = MathF.Max(0f, Vec2.Distance(ship.Position, st.Position) - st.Radius);
-        if (dist > w.Range) return Fail(GunResult.OutOfRange, $"Station außer Reichweite ({dist:0} > {w.Range:0} m).");
+        if (dist > w.Range) return Fail(GunResult.OutOfRange, $"{what} außer Reichweite ({dist:0} > {w.Range:0} m).");
         if (ReloadLeft(u, ship, slot) > 0f) return Fail(GunResult.Reloading, "lädt nach");
-        if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, st.Position)) return Fail(GunResult.OutsideArc, "Station außerhalb des Feuerwinkels — drehen.");
+        if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, st.Position)) return Fail(GunResult.OutsideArc, $"{what} außerhalb des Feuerwinkels — drehen.");
         if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
         if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
-        var e = Siege.Of(u, st.Id) ?? Siege.Start(u, ship, st);
+        var e = SiegeTargets.SiegeOf(u, st.Ref) ?? Siege.Start(u, ship, st);
         // Gerätetest Phase 28 (Runde 6): wer die Belagerung verlassen hat (geflohen), tritt wieder bei — vorher galt der alte, abgelaufene Eintrag weiter: keine
         // Nachladeuhr (Dauerfeuer schoss jedes Bild, ≈ 70 Schüsse je Sekunde) und kein Ziel für Geschütze und Verteidiger
         var me = e.Of(ship.Id) is { } old ? (old.Active ? old : Engage.Rejoin(u, e, old, ship)) : Engage.Join(u, e, ship, 0, CombatTactics.Player, 0f, ship.Position);
@@ -169,12 +203,12 @@ public static class PlayerGunnery
         me.LastShotTick = u.Tick;
         if (Missiles.IsMissile(m))
         {
-            Missiles.Launch(u, e, ship, null, me.Side, m, w, default, st.Id, dist, ship.Position, slot);
+            Missiles.Launch(u, e, ship, null, me.Side, m, w, default, st.Ref, dist, ship.Position, slot);
             while (me.Timers.Count <= slot) me.Timers.Add(0f);
             me.Timers[slot] = reload;
             return new GunShot(GunResult.Fired, default, e.Id, "Rakete unterwegs");
         }
-        var hit = StationCombat.Shoot(u, e, me, ship, slot, m, w, st, dist, 1f, reload);
+        var hit = SiegeShot.Shoot(u, e, me, ship, slot, m, w, st, dist, 1f, reload);
         return new GunShot(GunResult.Fired, hit, e.Id, hit.Hit ? $"Treffer ({hit.ShieldDamage + hit.HullDamage:0})" : "Fehlschuss");
     }
 

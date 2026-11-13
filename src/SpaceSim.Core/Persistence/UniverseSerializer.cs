@@ -159,7 +159,7 @@ public static class UniverseSerializer
             }).ToList();
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
-            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges }).ToList();
+            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades }).ToList();
         if (u.PeaceSince.Count > 0)
             s.PeaceSince = u.PeaceSince.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
         // Phase 24: laufende Gefechte
@@ -169,11 +169,11 @@ public static class UniverseSerializer
             {
                 Id = e.Id, Sector = e.Sector.Value, Start = e.StartTick, Cause = e.Cause.ToString(), Raider = e.Raider.Value, RaiderOwner = e.RaiderOwner.Value,
                 Victim = e.Victim.Value, Police = e.Police.Value, Loot = e.Loot, Fenced = e.Fenced, Shots = e.Shots, Hits = e.Hits, Spatial = e.Spatial,
-                Station = e.Station.Value, StationX = e.StationX,   // Phase 28: Belagerung
+                Station = e.Station.Value, StationX = e.StationX, Gate = e.Gate.Value,   // Phase 28: Belagerung; Phase 31: Tor
                 Missiles = e.Missiles.Count == 0 ? null : e.Missiles.Select(m => new MissileSave
                 {
                     Shooter = m.Shooter.Value, Owner = m.Owner.Value, Side = m.Side, Module = m.Module, Target = m.Target.Value, Station = m.Station.Value,
-                    Left = m.Left, Total = m.Total, Speed = m.Speed, FromX = m.From.X, FromY = m.From.Y, FromStation = m.FromStation.Value,
+                    Left = m.Left, Total = m.Total, Speed = m.Speed, FromX = m.From.X, FromY = m.From.Y, FromStation = m.FromStation.Value, Gate = m.Gate.Value,
                 }).ToList(),
                 Participants = e.Participants.Select(p => new CombatParticipantSave
                 {
@@ -262,7 +262,21 @@ public static class UniverseSerializer
             {
                 Id = g.Id.Value, Sector = g.Sector.Value, Pos = g.Position, Target = g.Target.Value, Open = g.Open,
                 State = g.State == GateState.Open ? null : g.State.ToString(), MainRoute = g.MainRoute,
+                Type = g.TypeKey.Length == 0 ? null : g.TypeKey,
+                Condition = g.Condition is { } gc ? new GateConditionSave
+                {
+                    HullMissing = gc.HullMissing, ShieldMissing = gc.ShieldMissing, ShieldPauseUntil = gc.ShieldPauseUntil,
+                    Timers = gc.Timers.Count == 0 ? null : new List<float>(gc.Timers), Disabled = gc.Disabled, DownSince = gc.DownSince, LastAttacker = gc.LastAttacker.Value,
+                } : null,
             });
+        // Phase 31: Torklassen (Inhalt, wie die Stationstypen)
+        if (u.GateTypes.Count > 0)
+            s.GateTypes = u.GateTypes.Values.OrderBy(t => t.Key, StringComparer.Ordinal).Select(t => new GateTypeSave
+            {
+                Key = t.Key, Name = t.Name, RepairPerDay = t.RepairPerDay, MaxOutageTicks = t.MaxOutageTicks,
+                Defense = new StationDefenseSave { Hull = t.Defense.Hull, Shield = t.Defense.Shield, ShieldRegen = t.Defense.ShieldRegen, Armor = t.Defense.Armor,
+                    PointDefense = t.Defense.PointDefense, Guns = new List<string>(t.Defense.Guns) },
+            }).ToList();
         foreach (var st in u.Stations.Values)
             s.Stations.Add(new StationSave
             {
@@ -364,7 +378,7 @@ public static class UniverseSerializer
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)
             foreach (var w in s.Wars)
-                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges });
+                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades });
         if (s.PeaceSince is not null)
             foreach (var p in s.PeaceSince) if (p.Length >= 3) u.PeaceSince[((int)p[0], (int)p[1])] = p[2];
         // Phase 26: Wracks und Frachtbehälter
@@ -390,12 +404,12 @@ public static class UniverseSerializer
                     Id = e.Id, Sector = new SectorId(e.Sector), StartTick = e.Start, Cause = Enum.Parse<EncounterCause>(e.Cause), Raider = new ShipId(e.Raider),
                     RaiderOwner = new ActorId(e.RaiderOwner), Victim = new ShipId(e.Victim), Police = new ShipId(e.Police), Loot = e.Loot, Fenced = e.Fenced,
                     Shots = e.Shots, Hits = e.Hits, Spatial = e.Spatial,
-                    Station = new StationId(e.Station), StationX = e.StationX,
+                    Station = new StationId(e.Station), StationX = e.StationX, Gate = new GateId(e.Gate),
                     Missiles = e.Missiles is null ? new List<MissileFlight>() : e.Missiles.Select(m => new MissileFlight
                     {
                         Shooter = new ShipId(m.Shooter), Owner = new ActorId(m.Owner), Side = m.Side, Module = m.Module, Target = new ShipId(m.Target),
                         Station = new StationId(m.Station), Left = m.Left, Total = m.Total, Speed = m.Speed, From = new Vec2(m.FromX, m.FromY),
-                        FromStation = new StationId(m.FromStation),
+                        FromStation = new StationId(m.FromStation), Gate = new GateId(m.Gate),
                     }).ToList(),
                     Participants = e.Participants.Select(p => new CombatParticipant
                     {
@@ -422,6 +436,15 @@ public static class UniverseSerializer
                 Key = c.Key, Name = c.Name, Color = c.Color, ChunkChance = c.ChunkChance, OreFactor = c.OreFactor,
                 Yields = c.Yields.Select(y => new Yield(new GoodId(y.Good), y.Weight)).ToList(),
             };
+        // Phase 31: Torklassen
+        if (s.GateTypes is not null)
+            foreach (var t in s.GateTypes)
+                u.GateTypes[t.Key] = new GateType
+                {
+                    Key = t.Key, Name = t.Name, RepairPerDay = t.RepairPerDay, MaxOutageTicks = t.MaxOutageTicks,
+                    Defense = new StationDefenseConfig { Hull = t.Defense.Hull, Shield = t.Defense.Shield, ShieldRegen = t.Defense.ShieldRegen, Armor = t.Defense.Armor,
+                        PointDefense = t.Defense.PointDefense, Guns = new List<string>(t.Defense.Guns) },
+                };
         foreach (var t in s.StationTypes)
             u.StationTypes[t.Key] = new StationType
             {
@@ -505,6 +528,12 @@ public static class UniverseSerializer
                 // Phase 10: Zustand; ältere Stände kennen nur Open
                 State = g.State is { } gs ? Enum.Parse<GateState>(gs) : g.Open ? GateState.Open : GateState.Closed,
                 MainRoute = g.MainRoute,
+                TypeKey = g.Type ?? "",
+                Condition = g.Condition is { } gc ? new GateCondition
+                {
+                    HullMissing = gc.HullMissing, ShieldMissing = gc.ShieldMissing, ShieldPauseUntil = gc.ShieldPauseUntil,
+                    Timers = gc.Timers is null ? new List<float>() : new List<float>(gc.Timers), Disabled = gc.Disabled, DownSince = gc.DownSince, LastAttacker = new ActorId(gc.LastAttacker),
+                } : null,
             };
         foreach (var st in s.Stations)
             u.Stations[new StationId(st.Id)] = new Station
@@ -627,7 +656,7 @@ public static class UniverseSerializer
         // Phase 27: Lauern (Revier, Posten, Frist) und Verfolgen (Ziel, Vorsprung, Frist)
         LurkCommand l => new OrderSave { Kind = CommandKinds.Lurk, A = l.Sector.Value, C = (int)l.Until, Values = new List<float> { l.Spot.X, l.Spot.Y } },
         PursueCommand q => new OrderSave { Kind = CommandKinds.Pursue, A = q.Target.Value, C = (int)q.Until, Values = new List<float> { q.Lead } },
-        AssaultCommand a => new OrderSave { Kind = CommandKinds.Assault, A = a.Sector.Value, B = a.Station.Value },   // Phase 28
+        AssaultCommand a => new OrderSave { Kind = CommandKinds.Assault, A = a.Sector.Value, B = a.Station.Value, C = a.Gate.Value },   // Phase 28; Phase 31: Tor
         _ => throw new InvalidOperationException($"Unbekannter Befehl {c.GetType().Name}"),
     };
 
@@ -651,7 +680,7 @@ public static class UniverseSerializer
         CommandKinds.Return => new ReturnCommand(),
         CommandKinds.Lurk => new LurkCommand(new SectorId(o.A), new Vec2(o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f), o.C),
         CommandKinds.Pursue => new PursueCommand(new ShipId(o.A), o.Values?.ElementAtOrDefault(0) ?? 0f, o.C),
-        CommandKinds.Assault => new AssaultCommand(new SectorId(o.A), new StationId(o.B)),
+        CommandKinds.Assault => new AssaultCommand(new SectorId(o.A), new StationId(o.B), new GateId(o.C)),
         _ => throw new FormatException($"Unbekannter Befehl '{o.Kind}'"),
     };
 

@@ -280,6 +280,19 @@ public static class WorldBuilder
                 });
         }
 
+        // Phase 31: Torklassen
+        foreach (var gt in def.GateTypes)
+        {
+            if (string.IsNullOrWhiteSpace(gt.Key)) throw new WorldFormatException("Torklasse ohne key");
+            if (u.GateTypes.ContainsKey(gt.Key)) throw new WorldFormatException($"Torklasse '{gt.Key}' doppelt");
+            if (gt.Defense is null) throw new WorldFormatException($"Torklasse '{gt.Key}': defense fehlt");
+            if (gt.RepairPerDay < 0f || gt.MaxOutageTicks < 0) throw new WorldFormatException($"Torklasse '{gt.Key}': repairPerDay und maxOutageTicks müssen >= 0 sein");
+            u.GateTypes[gt.Key] = new GateType
+            {
+                Key = gt.Key, Name = string.IsNullOrEmpty(gt.Name) ? gt.Key : gt.Name, Defense = LoadDefense(u, gt.Key, gt.Defense, "Torklasse"),
+                RepairPerDay = gt.RepairPerDay, MaxOutageTicks = gt.MaxOutageTicks,
+            };
+        }
         foreach (var link in def.Gates)
         {
             var a = AddGate(u, link.A, new GateId(link.B.Id));
@@ -294,6 +307,10 @@ public static class WorldBuilder
             };
             a.MainRoute = b.MainRoute = link.MainRoute;
             a.State = b.State = state;
+            // Phase 31: Torklasse (beide Hälften), ohne Angabe main/side nach Hauptroute
+            string? typeKey = link.Type ?? (u.GateTypes.Count == 0 ? null : link.MainRoute ? "main" : "side");
+            if (link.Type is not null && !u.GateTypes.ContainsKey(link.Type)) throw new WorldFormatException($"Gate {link.A.Id}–{link.B.Id}: unbekannte Torklasse '{link.Type}'");
+            a.TypeKey = b.TypeKey = typeKey is not null && u.GateTypes.ContainsKey(typeKey) ? typeKey : "";
             u.Gates[a.Id] = a; u.Gates[b.Id] = b;
             u.Sectors[a.Sector].Gates.Add(a.Id);
             u.Sectors[b.Sector].Gates.Add(b.Id);
@@ -815,9 +832,9 @@ public static class WorldBuilder
     };
 
     /// <summary>Phase 28: Stationsverteidigung prüfen (Hülle &gt; 0, Schild/Regeneration/Panzerung ≥ 0, Punktabwehr in [0, 1], Geschütze = bekannte Waffenmodule).</summary>
-    static StationDefenseConfig LoadDefense(Universe u, string typeKey, StationDefenseDef d)
+    static StationDefenseConfig LoadDefense(Universe u, string typeKey, StationDefenseDef d, string kind = "Stationstyp")
     {
-        string who = $"Stationstyp '{typeKey}': defense";
+        string who = $"{kind} '{typeKey}': defense";
         if (!(d.Hull > 0f) || !float.IsFinite(d.Hull)) throw new WorldFormatException($"{who}.hull muss > 0 sein");
         if (d.Shield < 0f || d.ShieldRegen < 0f || d.Armor < 0f) throw new WorldFormatException($"{who}: shield, shieldRegen und armor müssen >= 0 sein");
         if (d.PointDefense < 0f || d.PointDefense > 1f) throw new WorldFormatException($"{who}.pointDefense muss in [0, 1] liegen");

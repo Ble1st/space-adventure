@@ -68,8 +68,8 @@ public sealed class CombatParticipant
     /// </summary>
     public long LastShotTick;
     public Vec2 RefugePos;
-    /// <summary>Phase 28: Station als Ziel des Takts (Belagerung; aus der Taktik, jeden Takt neu — nicht gespeichert).</summary>
-    public StationId TargetStation;
+    /// <summary>Phase 28: Belagerungsziel des Takts (Station; Phase 31 auch Tor — aus der Taktik, jeden Takt neu, nicht gespeichert).</summary>
+    public SiegeRef TargetSiege;
     /// <summary>Phase 25: abgeleitet = <see cref="Encounter.Spatial"/> des Gefechts (Abstand aus <see cref="Pos"/> statt <see cref="X"/>); nicht gespeichert.</summary>
     public bool InSpace;
 
@@ -111,6 +111,11 @@ public sealed class Encounter
     /// </summary>
     public StationId Station;
     public float StationX;
+    /// <summary>Phase 31: belagertes Tor (Tor-Paar, kanonische Hälfte mit kleinerer Id; 0 = keins). Die Linienposition teilt es mit <see cref="StationX"/>.
+    /// Gespeichert und gehasht nur, wenn gesetzt. Ein Gefecht hat höchstens ein Belagerungsziel.</summary>
+    public GateId Gate;
+    /// <summary>Phase 31: das Belagerungsziel (Station oder Tor; keins = default).</summary>
+    public SiegeRef Target => Station.Value != 0 ? SiegeRef.Of(Station) : Gate.Value != 0 ? SiegeRef.Of(Gate) : default;
     /// <summary>Phase 28: Raketen im Flug (Abschussreihenfolge); gespeichert und gehasht nur, wenn welche fliegen.</summary>
     public List<MissileFlight> Missiles = new();
     /// <summary>Ausgewertet (Ereignisse veröffentlicht); wird im selben Schritt entfernt — nie gespeichert.</summary>

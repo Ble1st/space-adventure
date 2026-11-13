@@ -44,6 +44,8 @@ public sealed class SaveGame
     public List<GoodSave> Goods { get; set; } = new();
     public List<AsteroidClassSave> AsteroidClasses { get; set; } = new();
     public List<StationTypeSave> StationTypes { get; set; } = new();
+    /// <summary>Phase 31 (additiv, v17): Torklassen; fehlt = keine (Tore ohne Kampfwerte).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<GateTypeSave>? GateTypes { get; set; }
     /// <summary>Slotarten (Content; v3-Saves kennen die Sektionen nicht, die Migration reicht die Default-Welt nach).</summary>
     public List<SlotTypeSave> SlotTypes { get; set; } = new();
     /// <summary>Module (Content, wie die Rezepte der Stationstypen im Save abgelegt).</summary>
@@ -150,6 +152,8 @@ public sealed class WarSave
 {
     public int A { get; set; } public int B { get; set; } public long Since { get; set; } public float Weariness { get; set; }
     public float LossA { get; set; } public float LossB { get; set; } public int Sieges { get; set; }
+    /// <summary>Phase 31: Torblockaden.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Blockades { get; set; }
 }
 
 /// <summary>Phase 28: Rakete im Flug.</summary>
@@ -159,6 +163,8 @@ public sealed class MissileSave
     public int Target { get; set; } public int Station { get; set; } public float Left { get; set; } public float Total { get; set; } public float Speed { get; set; }
     public float FromX { get; set; } public float FromY { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int FromStation { get; set; }
+    /// <summary>Phase 31: Ziel Tor (0 = keins).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Gate { get; set; }
 }
 
 /// <summary>Phase 28: Kampfzustand einer Station (Fehlbeträge, Schildpause, Geschützuhren, ausgeschaltet).</summary>
@@ -212,6 +218,8 @@ public sealed class EncounterSave
     /// <summary>Phase 28: belagerte Station und ihre Linienposition; Raketen im Flug.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Station { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float StationX { get; set; }
+    /// <summary>Phase 31: belagertes Tor (0 = keins).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Gate { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<MissileSave>? Missiles { get; set; }
     public List<CombatParticipantSave> Participants { get; set; } = new();
 }
@@ -408,6 +416,24 @@ public sealed class GateSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? State { get; set; }
     /// <summary>Hauptroute (Phase 10, v13; Gate-Ausnahme von Sektorsperren).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool MainRoute { get; set; }
+    /// <summary>Phase 31: Torklasse und Kampfzustand des Paars (am Tor mit der kleineren Id); fehlen = keine/unbeschädigt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Type { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public GateConditionSave? Condition { get; set; }
+}
+
+/// <summary>Phase 31: Torklasse.</summary>
+public sealed class GateTypeSave
+{
+    public string Key { get; set; } = ""; public string Name { get; set; } = ""; public StationDefenseSave Defense { get; set; } = new();
+    public float RepairPerDay { get; set; } public long MaxOutageTicks { get; set; }
+}
+
+/// <summary>Phase 31: Kampfzustand eines Tor-Paars.</summary>
+public sealed class GateConditionSave
+{
+    public float HullMissing { get; set; } public float ShieldMissing { get; set; } public long ShieldPauseUntil { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Timers { get; set; }
+    public bool Disabled { get; set; } public long DownSince { get; set; } public int LastAttacker { get; set; }
 }
 
 public sealed class StockSave { public float Amount { get; set; } public float Target { get; set; } public float Price { get; set; } }

@@ -69,6 +69,11 @@ public sealed class Gate
     /// <see cref="EconomyRules.MainRouteMaxLevel"/>. Aus der Weltdatei (<c>mainRoute</c> am Gate-Paar), gespeichert.
     /// </summary>
     public bool MainRoute;
+    /// <summary>Phase 31: Torklasse (<see cref="Universe.GateTypes"/>; leer = ohne Kampfwerte). Aus der Weltdatei (<c>gates[].type</c>, sonst main/side nach
+    /// <see cref="MainRoute"/>), gespeichert, nicht gehasht (Inhalt).</summary>
+    public string TypeKey = "";
+    /// <summary>Phase 31: Kampfzustand des Paars — nur am Tor mit der kleineren Id gesetzt (null = unbeschädigt). Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public GateCondition? Condition;
     /// <summary>Physisch passierbar (offen oder eingeschränkt)? Früher ein eigener Schalter; ein Setzen schließt bzw. öffnet das Gate.</summary>
     public bool Open
     {

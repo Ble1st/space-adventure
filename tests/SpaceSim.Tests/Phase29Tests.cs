@@ -76,8 +76,17 @@ public class Phase29Tests
     }
 
     /// <summary>Phase 30 zurückdrehen: alle Stationen mittelgroß (Radius 15, Kostenfaktor 1), keine Kleinstationen, alte Positionen, keine Abwehr/Bau der Stellungen.</summary>
+    /// <summary>Phase 31 zurückdrehen: Torkampf aus, keine Torklassen (Tore ohne Kampfwerte).</summary>
+    internal static void RevertPhase31(WorldDef def)
+    {
+        def.Rules!.GateCombat = false;
+        def.GateTypes.Clear();
+        foreach (var g in def.Gates) g.Type = null;
+    }
+
     internal static void RevertPhase30(WorldDef def)
     {
+        RevertPhase31(def);
         def.Rules!.OutpostsEngage = false;
         def.Rules.OutpostsBuild = false;
         var small = def.StationTypes.Where(t => t.Government == "outpost").Select(t => t.Key).ToHashSet();

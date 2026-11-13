@@ -247,4 +247,34 @@ public class OrbitCameraTests
         var near = CombatFraming.Compute(0f, 0f, 0f, -10f, yaw, pitch, 50f, 16f / 9f, OrbitCamera.DefaultDistance, OrbitCamera.MaxDistance);
         Assert.True(near.Distance <= f.Distance);
     }
+
+    /// <summary>
+    /// Runde 14 (Handy-Test 2340×1080): unsymmetrisches freies Feld (oben Sektor-Chip/Lage, rechts Zielkarte und Tasten, unten Regler/Meldung) — die Mitte
+    /// zwischen Schiff und Ziel liegt in der Mitte des freien Felds, beide passen mit Rand hinein; bei 30, 60 und 100 m.
+    /// </summary>
+    [Theory]
+    [InlineData(30f)]
+    [InlineData(60f)]
+    [InlineData(100f)]
+    public void Gefechtskamera_FreiesFeldUnsymmetrisch_BeideDarin(float range)
+    {
+        var cam = new OrbitCamera();
+        float pitch = cam.PitchDeg, yaw = cam.YawDeg, aspect = 2340f / 1080f;
+        var free = new CombatFraming.FreeRect(-0.55f, 0.35f, -0.5f, 0.6f);
+        var f = CombatFraming.Compute(0f, 0f, 0f, -range, yaw, pitch, 50f, aspect, OrbitCamera.DefaultDistance, OrbitCamera.MaxDistance, free);
+        if (range > 60f && f.Distance >= OrbitCamera.MaxDistance) { Assert.True(f.FocusZ < 0f); return; }   // 100 m: Höchstabstand reicht nicht ganz — Blickpunkt mittig, Kamera ganz heraus
+        Assert.True(f.Distance < OrbitCamera.MaxDistance, $"passt ohne Höchstabstand ({f.Distance})");
+        float tv = MathF.Tan(25f * MathF.PI / 180f), th = tv * aspect;
+        foreach (var (px, pz) in new[] { (0f, 0f), (0f, -range) })
+        {
+            var (h, v) = CombatFraming.ScreenTan(px, pz, f.FocusX, f.FocusZ, f.Distance, yaw, pitch);
+            float x = h / th, y = v / tv;
+            Assert.InRange(x, free.X0, free.X1);
+            Assert.InRange(y, free.Y0, free.Y1);
+        }
+        var (h1, v1) = CombatFraming.ScreenTan(0f, 0f, f.FocusX, f.FocusZ, f.Distance, yaw, pitch);
+        var (h2, v2) = CombatFraming.ScreenTan(0f, -range, f.FocusX, f.FocusZ, f.Distance, yaw, pitch);
+        Assert.Equal(free.CenterX, (h1 + h2) / 2f / th, 2);
+        Assert.Equal(free.CenterY, (v1 + v2) / 2f / tv, 2);
+    }
 }

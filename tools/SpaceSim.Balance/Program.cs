@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using SpaceSim.Core.Combat;
 using SpaceSim.Core.Content;
 using SpaceSim.Core.Diagnostics;
 using SpaceSim.Core.Events;
@@ -48,6 +49,34 @@ if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.Sec
 // Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
 if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
 if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
+// Phase 31: --gatecombat on|off schaltet den Torkampf (Vergleichslauf); --gatedown N legt alle N Ticks ein nicht kartenteilendes Tor still (Testtreiber,
+// wie ein Kampfausfall: Reparatur/Notregel bringen es zurück), --gatedownsplit on erlaubt dabei auch kartenteilende Tore
+if (opts.TryGetValue("gatecombat", out var gcOpt)) u.Rules.GateCombat = gcOpt == "on";
+long gateDownEvery = opts.TryGetValue("gatedown", out var gdOpt) ? long.Parse(gdOpt, CultureInfo.InvariantCulture) : 0;
+bool gateDownSplit = opts.TryGetValue("gatedownsplit", out var gdsOpt) && gdsOpt == "on";
+if (gateDownEvery > 0) u.Rules.GateCombat = true;
+int gateDownCursor = 0;
+// Phase 31: Torkampf-Kennzahlen
+int gatesDisabled = 0, gatesDisabledSplit = 0, gatesAttacked = 0, gateShots = 0, gateDownMax = 0, tradersBrokeWhileDown = 0;
+var gateRestored = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var gateDownSince = new Dictionary<int, long>();
+var gateOutages = new List<long>();
+double gateRepairCost = 0;
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case GateDisabled gd: gatesDisabled++; if (gd.Splits) gatesDisabledSplit++; gateDownSince[gd.Gate.Value] = u.Tick; break;
+        case GateRestored gr:
+            gateRestored[gr.Reason] = gateRestored.GetValueOrDefault(gr.Reason) + 1;
+            if (gateDownSince.Remove(gr.Gate.Value, out var since)) gateOutages.Add(u.Tick - since);
+            break;
+        case GateAttacked: gatesAttacked++; break;
+        case ShotAtGate: gateShots++; break;
+        case GateRepaired grp: gateRepairCost += grp.Cost; break;
+        case ShipDeparted { Reason: DepartureReason.Bankrupt } sd when gateDownSince.Count > 0 && sd.Role == ShipRole.Trader: tradersBrokeWhileDown++; break;
+    }
+};
 // Prüfung Runde 2: --planguard off schaltet den Kaufschutz in der Händlerplanung ab (Vergleichslauf)
 if (opts.TryGetValue("planguard", out var pgOpt)) u.Rules.TraderPlanGuard = pgOpt == "on";
 // Runde 7: --rejoin off = Wiedereintritt mit neuem Gefechtseintrag (Verhalten bis Runde 6, Vergleichslauf)
@@ -520,6 +549,18 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
         {
             // Phase 16: bis zum nächsten Vielfachen von WatchEvery laufen — die Messpunkte liegen so unabhängig von --every immer auf denselben Ticks
             int step = Math.Min(WatchEvery - (int)(u.Tick % WatchEvery), chunk - done);
+            if (gateDownEvery > 0 && u.Tick > 0 && u.Tick % gateDownEvery == 0 && GateCombat.DownCount(u) == 0)
+            {
+                // Testtreiber: das nächste Tor-Paar (Id-Reihenfolge, reihum), das Kampfwerte hat und — ohne --gatedownsplit — die Karte nicht teilt
+                var pairs = u.Gates.Values.Where(g => g.Id.Value < g.Target.Value && GateCombat.TypeOf(u, g) is not null && (gateDownSplit || !MapParts.SplitsWhenClosed(u, g.Id)))
+                    .OrderBy(g => g.Id.Value).ToList();
+                if (pairs.Count > 0)
+                {
+                    var pick = pairs[gateDownCursor++ % pairs.Count];
+                    GateCombat.Disable(u, pick, default);
+                    Console.WriteLine($"   Testtreiber: {GateCombat.NameOf(u, pick)} außer Betrieb bei Tick {u.Tick}");
+                }
+            }
             for (; gateNext < gateEvents.Count && gateEvents[gateNext].Tick <= u.Tick; gateNext++)
             {
                 var ge = gateEvents[gateNext];
@@ -544,6 +585,7 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 watch.Sample(u);
                 recoveringMax = Math.Max(recoveringMax, u.Recovering.Count);   // Phase 23
                 fightsMax = Math.Max(fightsMax, u.Fights.Count);   // Phase 24
+                gateDownMax = Math.Max(gateDownMax, GateCombat.DownCount(u));   // Phase 31
                 if (u.Tick % 200 == 0)   // Phase 26 (Korrektur): mittlere Hüllenquote und Anteil schwer beschädigter Händler/Schürfer
                     foreach (var es in u.Ships.Values)
                         if (es.IsEconomyAi) { hullFracSum += es.Hull / MathF.Max(1f, es.MaxHull); hullFracN++; if (NpcRepair.Serious(u, es)) hullSerious++; }
@@ -797,6 +839,11 @@ if (u.Modules.Count > 0)
             + $"({(income > 0 ? 100.0 * outpostCost / income : 0):0.00}% der Kasseneinnahmen), abgebaut (ruhig) {outpostsCalm}; Abwehrgefechte {outpostFights}, Schüsse {outpostShots}; "
             + $"Unterhalt {smallUp:0.00} Cr/Tick = {(offUp > 0 ? 100.0 * smallUp / offUp : 0):0.0}% des Unterhalts der Amtsstationen");
     }
+    // Phase 31: Torkampf
+    Console.WriteLine($"Torkampf (Phase 31: {(u.Rules.GateCombat ? "an" : "aus")}): Angriffe {gatesAttacked}, Schüsse auf Tore {gateShots}; außer Betrieb {gatesDisabled} (kartenteilend {gatesDisabledSplit}), "
+        + $"gleichzeitig max {gateDownMax}, jetzt {GateCombat.DownCount(u)}; wieder in Betrieb {(gateRestored.Count == 0 ? "–" : string.Join(", ", gateRestored.Select(kv => $"{(kv.Key == "emergency" ? "Notregel" : "repariert")} {kv.Value}")))}; "
+        + $"Ausfalldauer Ø {(gateOutages.Count == 0 ? 0 : gateOutages.Average()):0} / max {(gateOutages.Count == 0 ? 0 : gateOutages.Max())} Ticks; Reparatur {gateRepairCost:0} Cr; Händlerpleiten während eines Ausfalls {tradersBrokeWhileDown}; "
+        + $"Blockaden {u.Wars.Sum(w => w.Blockades)}");
     Console.WriteLine($"Krieg: erklärt {warsDeclared}, Frieden {(peaceReasons.Count == 0 ? "–" : string.Join(", ", peaceReasons.Select(kv => $"{kv.Key} {kv.Value}")))}, laufend {u.Wars.Count}"
         + (u.Wars.Count == 0 ? "" : " (" + string.Join(", ", u.Wars.Select(w => $"{u.Factions[w.A].Name}–{u.Factions[w.B].Name} Müdigkeit {w.Weariness:0.00}")) + ")")
         + $"; Kriegsschiffe gekauft {warshipsBought}, abgebaut {warshipsGone}, jetzt {u.Ships.Values.Count(Wars.IsWarship)}, Unterhalt {navyCost:0} Cr; "

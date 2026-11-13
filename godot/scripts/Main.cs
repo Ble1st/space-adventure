@@ -71,6 +71,8 @@ public partial class Main : Node3D
 
 	NavTarget? _target;
 	StationId? _targetStation;
+	/// <summary>Phase 31: gewähltes Tor (Tipp auf ein Tor) — Ziel für „Tor angreifen“ und die Zielkarte.</summary>
+	GateId? _targetGate;
 	StationId? _docked;
 	bool _autopilot, _fast;
 	float _jumpCooldown, _autosave, _dockRefresh, _ccRefresh;
@@ -143,6 +145,7 @@ public partial class Main : Node3D
 			_hud.Toast(_aimAssist ? "Ziel folgen an: die Nase folgt dem Ziel (◀ ▶ übersteuern)" : "Ziel folgen aus");
 		};
 		_hud.Flight.StationAttackPressed += ArmStationAttack;   // Phase 28
+		_hud.Flight.GateAttackPressed += ArmGateAttack;   // Phase 31
 		_hud.Flight.SurrenderPressed += Surrender;
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
 		_hud.Flight.PowerModePressed += m =>
@@ -391,6 +394,24 @@ public partial class Main : Node3D
 	}
 
 	float _musicClock;
+	float _sparkClock;
+	double _lastWingToast = -99;
+	/// <summary>Phase 31: beschädigte Tore (≤ 50 % Hülle) im Sektor sprühen alle 0,6 s Funken an zufälliger Stelle des Rings (nur Darstellung).</summary>
+	void GateSparks(float delta)
+	{
+		_sparkClock += delta;
+		if (_sparkClock < 0.6f) return;
+		_sparkClock = 0f;
+		var u = _session.U;
+		if (!u.Rules.GateCombat) return;
+		foreach (var gid in u.Sectors[u.PlayerSector].Gates)
+			if (u.Gates.TryGetValue(gid, out var g) && SpaceSim.Core.Combat.GateInfo.State(u, g) == "beschädigt")
+			{
+				float a = GD.Randf() * Mathf.Tau;
+				var at = new Vector3(g.Position.X + Mathf.Cos(a) * 9f, 4f + GD.Randf() * 6f, g.Position.Y + Mathf.Sin(a) * 9f);
+				_fx.Burst(at, new Color(1f, 0.75f, 0.3f), 6, 6f, 0.35f);
+			}
+	}
 	readonly Dictionary<string, (double Sum, int N)> _profile = new();
 	/// <summary>Runde 13 (FPS): Rechenzeit je Ansichtsteil (Mittel in ms je Bild, Selbsttest-Ausgabe).</summary>
 	void Profile(string part, long ticks)
@@ -406,6 +427,56 @@ public partial class Main : Node3D
 	void ManualZoom() { if (_framingActive) _manualZoomInFight = true; }
 	/// <summary>Selbsttest: ist die Gefechtsrahmung aktiv?</summary>
 	internal bool TestFraming => _framingActive && !_manualZoomInFight;
+	SpaceSim.Core.Flight.CombatFraming.Frame _lastFrame;
+	internal string TestFrameDebug => $"Soll-Abstand {_lastFrame.Distance:0} Blick ({_lastFrame.FocusX:0},{_lastFrame.FocusZ:0}) Kamera {_cam.Position} Fokus {_player.Position + _camFocus} Orbit {_orbit.Distance:0} Pitch {_orbit.PitchDeg:0} Yaw {_orbit.YawDeg:0}";
+	internal string TestFramingDebug => $"aktiv {_framingActive} manuell {_manualZoomInFight} Ziel {_fight.Target.Value} feindlich {(_fight.Target.Value != 0 && SpaceSim.Core.Combat.PlayerCombat.IsHostile(_session.U, PlayerData, _fight.Target))} Welt {ShipWorld(_fight.Target)} Spieler {_player.Position} angedockt {_docked != null}";
+
+	/// <summary>
+	/// Runde 14 (Handy-Test 2340×1080): freies Bildfeld der Gefechtskamera aus den tatsächlichen HUD-Flächen der aktuellen Auflösung — oben Sektor-Chip/Lagezeile,
+	/// rechts Zielkarte und Kampftasten, links Statusleiste/Drehtasten, unten Regler, Rücktaste und die Meldung. Normalkoordinaten (x −1 … 1, y −1 unten … 1 oben).
+	/// </summary>
+	internal SpaceSim.Core.Flight.CombatFraming.FreeRect FramingField()
+	{
+		var size = GetViewport().GetVisibleRect().Size;
+		float w = size.X, h = size.Y;
+		float top = 0f, bottom = h, left = 0f, right = w;
+		var rects = _hud.Flight.OccupiedRects();
+		if (_hud.AlertRect is { } ar) rects.Add(ar);
+		// jede HUD-Fläche, die das Feld noch überdeckt, schneidet die Seite ab, die am wenigsten Fläche kostet (oben/unten/links/rechts) — robust für jede
+		// Verankerung (Tastenspalten rechts, Chips oben, Regler unten), unabhängig von Seitenverhältnis und Auflösung
+		foreach (var r in rects.OrderByDescending(x => x.Size.X * x.Size.Y))
+		{
+			if (r.End.X <= left || r.Position.X >= right || r.End.Y <= top || r.Position.Y >= bottom) continue;
+			float wNow = right - left, hNow = bottom - top;
+			float cutTop = (r.End.Y - top) * wNow, cutBottom = (bottom - r.Position.Y) * wNow, cutLeft = (r.End.X - left) * hNow, cutRight = (right - r.Position.X) * hNow;
+			float min = Mathf.Min(Mathf.Min(cutTop, cutBottom), Mathf.Min(cutLeft, cutRight));
+			if (min == cutTop) top = r.End.Y; else if (min == cutBottom) bottom = r.Position.Y; else if (min == cutLeft) left = r.End.X; else right = r.Position.X;
+		}
+		// Mindestgröße (sonst wäre das Feld bei vielen Tasten zu schmal): mittig mindestens 40 % × 35 % des Bilds
+		if (right - left < w * 0.4f) { float cx = (left + right) / 2f; left = cx - w * 0.2f; right = cx + w * 0.2f; }
+		if (bottom - top < h * 0.35f) { float cy = (top + bottom) / 2f; top = cy - h * 0.175f; bottom = cy + h * 0.175f; }
+		return new(left / w * 2f - 1f, right / w * 2f - 1f, 1f - bottom / h * 2f, 1f - top / h * 2f);
+	}
+
+	/// <summary>
+	/// Runde 14 (Handy-Test: XL-Station lag unter den HUD-Tasten): nahe einer großen Station (L/XL) zoomt die Standardansicht etwas heraus — Faktor
+	/// 1 + (Radius − 15) ÷ 40 innerhalb von Radius + 50 m, nach außen weich auslaufend; sonst 1.
+	/// </summary>
+	float NearLargeStationZoom()
+	{
+		if (_session is null || _docked != null) return 1f;
+		var u = _session.U;
+		float best = 1f;
+		foreach (var id in u.Sectors[u.PlayerSector].Stations)
+		{
+			if (!u.Stations.TryGetValue(id, out var st) || st.Radius <= Station.BodyRadius + 0.5f) continue;
+			float d = new Vector2(_player.Position.X - st.Position.X, _player.Position.Z - st.Position.Y).Length() - st.Radius;
+			if (d > 50f) continue;
+			float k = 1f + (st.Radius - Station.BodyRadius) / 40f;
+			best = Mathf.Max(best, Mathf.Lerp(k, 1f, Mathf.Clamp((d - 20f) / 30f, 0f, 1f)));
+		}
+		return best;
+	}
 
 	/// <summary>
 	/// Runde 13: Ziel der Gefechtskamera — gewähltes feindliches Schiff im Sektor (bis 160 m), sonst der Kaperer eines angekündigten Überfalls auf den Spieler.
@@ -414,7 +485,7 @@ public partial class Main : Node3D
 	{
 		if (_docked != null || _session is null) return null;
 		var u = _session.U;
-		Vector3? Near(ShipId id) => ShipWorld(id) is { } p && (p - _player.Position).Length() <= 160f ? p : null;
+		Vector3? Near(ShipId id) => ShipWorld(id) is { } p && (p - _player.Position).Length() <= 240f ? p : null;   // Runde 14: schon beim Anflug (vorher 160)
 		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var t) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, t.Id) && Near(t.Id) is { } tp) return tp;
 		foreach (var pe in u.PendingEncounters) if (pe.Target == u.PlayerShip && Near(pe.Source) is { } sp) return sp;
 		return null;
@@ -740,6 +811,26 @@ public partial class Main : Node3D
 				_combat.Shot(sas.Shooter, sas.Slot, default, -1, default, null, new Vector3(sast.Position.X, 0, sast.Position.Y), sas.Type, sas.Hit, Time.GetTicksMsec() / 1000.0, sas.Shooter.Value * 37 + _combat.ShotsSeen * 53);
 				if (sas.Hit) _fx.Burst(new Vector3(sast.Position.X, 0, sast.Position.Y), new Color(1f, 0.6f, 0.3f), 5, 6f, 0.3f);
 				break;
+			// Phase 31: Schüsse auf Tore, Torangriff, Ausfall und Wiederanlauf
+			case ShotAtGate sag when sag.Sector == _session.U.PlayerSector && _session.U.Gates.TryGetValue(sag.Gate, out var sagt):
+				_combat.Shot(sag.Shooter, sag.Slot, default, -1, default, null, new Vector3(sagt.Position.X, 0, sagt.Position.Y), sag.Type, sag.Hit, Time.GetTicksMsec() / 1000.0, sag.Shooter.Value * 37 + _combat.ShotsSeen * 53);
+				if (sag.Hit) _fx.Burst(new Vector3(sagt.Position.X, 0, sagt.Position.Y), new Color(0.6f, 0.8f, 1f), 5, 6f, 0.3f);
+				break;
+			// Runde 14 (Handy-Test Kriegstest): der eigene Verband tritt erkennbar bei
+			case CombatJoined cj when cj.Reason == "squadron" && _session.U.Ships.TryGetValue(cj.Ship, out var cjs) && cjs.IsPlayer && cjs.Id != _session.U.PlayerShip:
+				if (Time.GetTicksMsec() / 1000.0 - _lastWingToast > 20.0) { _lastWingToast = Time.GetTicksMsec() / 1000.0; _hud.Toast("Dein Verband greift mit an.", 3f); }
+				break;
+			case GateAttacked ga:
+				LastWarMessage = ga.Message;
+				if (ga.Sector == _session.U.PlayerSector) _hud.Toast(ga.Message, 4f);
+				break;
+			case GateDisabled gd:
+				LastWarMessage = gd.Message;
+				if (_session.U.Gates.TryGetValue(gd.Gate, out var gdg) && (gdg.Sector == _session.U.PlayerSector || _session.U.Gates[gdg.Target].Sector == _session.U.PlayerSector)) _hud.Alert(gd.Message, 8f);
+				else _hud.Toast(gd.Message, 4f);
+				break;
+			case GateRestored gr:
+				LastWarMessage = gr.Message; _hud.Toast(gr.Message, 4f); break;
 			case MissileLaunched ml when ml.Sector == _session.U.PlayerSector:
 				_sfx.Play(SfxId.Zap);
 				if (ml.Target == _session.U.PlayerShip) Danger("Rakete im Anflug");
@@ -808,6 +899,8 @@ public partial class Main : Node3D
 			case EncounterEnded se when se.Cause == EncounterCause.Siege && se.Sector == _session.U.PlayerSector:
 				if (_fight.AtStation && _session.U.Stations.TryGetValue(_fight.StationTarget, out var downSt) && SpaceSim.Core.Combat.StationCombat.IsDown(_session.U, downSt))
 				{ _fight.ArmStation(default); _fight.AutoFire = false; }
+				if (_fight.AtGate && _session.U.Gates.TryGetValue(_fight.GateTarget, out var downG) && SpaceSim.Core.Combat.GateCombat.IsDown(_session.U, downG))
+				{ _fight.ArmGate(default); _fight.AutoFire = false; }
 				_hud.Toast(se.Message, 4f); LastCombatMessage = se.Message; break;
 			case EncounterEnded ae when ae.Cause == EncounterCause.Arrest: _hud.Alert(ae.Message, 6f); LastCombatMessage = ae.Message; break;
 			case CombatJoined or RefugeReached or PursuitStarted or EscortAssigned or ForceSquadron when SpaceSim.Core.Combat.FleetInfo.Toast(_session.U, e) is { } ft:
@@ -823,7 +916,7 @@ public partial class Main : Node3D
 	CatchUpJob? _catchUp;
 
 	/// <summary>Ein Bild Nachholen: Ticks bis etwa <paramref name="budgetMs"/> Millisekunden, Fortschritt anzeigen; fertig → Sitzung anhängen.</summary>
-	void StepCatchUp(CatchUpJob job, double budgetMs = 30)
+	void StepCatchUp(CatchUpJob job, double budgetMs = 80)   // Runde 14 (Handy-Test: 38 s Nachholen): Ladebild, darf langsamer zeichnen — mehr Ticks je Bild
 	{
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 		while (!job.Done && sw.Elapsed.TotalMilliseconds < budgetMs) job.Step(_session.Runner, 25);
@@ -856,6 +949,7 @@ public partial class Main : Node3D
 		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; }
 		_view.SyncAsteroids(_session.U, delta);
 		_view.SyncWrecks(_session.U);   // Phase 26: Wracks und Frachtbehälter
+		GateSparks(delta);   // Phase 31: beschädigte Tore sprühen Funken
 		_view.SyncStations(_session.U);   // Runde 8: Besitzerfarbe und Zustand der Stationsmodelle
 
 		// Phase 26: keine Gratis-Regeneration der Hülle mehr (Reparatur nur über den Dienst „repair“); ohne Schadensmodell wie bisher
@@ -919,12 +1013,14 @@ public partial class Main : Node3D
 		{
 			_framingActive = true;
 			var fr = SpaceSim.Core.Flight.CombatFraming.Compute(_player.Position.X, _player.Position.Z, ft.X, ft.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov,
-				GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, GetViewport().GetVisibleRect().Size.Y), _orbit.Distance, OrbitCamera.MaxDistance);
+				GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, GetViewport().GetVisibleRect().Size.Y), _orbit.Distance, OrbitCamera.MaxDistance, FramingField());
+			_lastFrame = fr;
 			float k = fr.Distance / Mathf.Max(1f, _orbit.Distance);
 			want = new CamVec3(want.X * k, want.Y * k, want.Z * k);
 			focus = new Vector3(fr.FocusX - _player.Position.X, 0f, fr.FocusZ - _player.Position.Z);
 		}
 		else if (FramingTarget() is null) { _framingActive = false; _manualZoomInFight = false; }
+		if (!_framingActive && NearLargeStationZoom() is var kz and > 1f) want = new CamVec3(want.X * kz, want.Y * kz, want.Z * kz);   // Runde 14: große Stationen
 		_camOffset = OrbitCamera.Follow(_camOffset, want, delta, _framingActive ? 2.5f : 6f);
 		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-2.5f * delta));
 		var co = _camOffset;
@@ -1079,6 +1175,7 @@ public partial class Main : Node3D
 	void SelectTarget(NavTarget target, StationId? station)
 	{
 		if (_targetStation != station) _fight.ArmStation(default);
+		_fight.ArmGate(default); _targetGate = null;   // Phase 31
 		_fight.SetTarget(default);   // Runde 5: das neue Ziel ersetzt ein gewähltes Schiff (vorher zeigte die Zielkarte noch den alten Gegner)
 		_target = target; _targetStation = station;
 		_sfx.Play(SfxId.Click);
@@ -1089,6 +1186,7 @@ public partial class Main : Node3D
 	void SetTarget(NavTarget target, StationId? station)
 	{
 		if (_targetStation != station || station is null) _fight.ArmStation(default);   // Gerätetest Phase 28: neues Ziel beendet einen Stationsangriff in der Zielkarte
+		_fight.ArmGate(default); _targetGate = null;   // Phase 31
 		_fight.SetTarget(default);   // Runde 5: auch ein gewähltes Schiff
 		_target = target; _targetStation = station;
 		_follower.Reset();   // Prüfer-Empfehlung Phase 28: neuer Plan für das neue Ziel
@@ -1536,6 +1634,7 @@ public partial class Main : Node3D
 		{
 			var gate = u.Gates[new GateId(best.Id)];
 			SetTarget(Navigator.ForSector(u, u.Gates[gate.Target].Sector, u.PlayerShip), null);
+			_targetGate = gate.Id;   // Phase 31: das Tor ist zugleich Angriffsziel (Zielkarte, „Tor angreifen“)
 		}
 	}
 
@@ -1701,6 +1800,11 @@ public partial class Main : Node3D
 			d.StationOdds = SpaceSim.Core.Combat.WarInfo.SiegeOddsText(u, oddsStation, PlayerData);
 			d.StationHopeless = SpaceSim.Core.Combat.WarInfo.SiegeHopeless(u, oddsStation, PlayerData);
 		}
+		// Phase 31: gewähltes Tor angreifbar?
+		var navGate = _targetGate is { } ngid && u.Gates.TryGetValue(ngid, out var ng) && ng.Sector == u.PlayerSector ? ng : null;
+		d.CanAttackGate = _docked is null && u.Rules.Warfare && u.Rules.GateCombat && d.HasWeapons && navGate is not null && !_fight.AtGate
+			&& SpaceSim.Core.Combat.PlayerGunnery.GateIssue(u, PlayerData, navGate) is null;
+		d.GateAttackInfo = navGate is not null ? $"Verbrechen · Hülle {SpaceSim.Core.Combat.GateCombat.Hull(u, navGate):0}" : "";
 		d.EscapeStatus = SpaceSim.Core.Combat.PlayerCombat.EscapeStatus(u);
 		d.AimAssistVisible = _docked is null && AimTarget() is not null;
 		d.AimAssistOn = _aimAssist;
@@ -1711,9 +1815,19 @@ public partial class Main : Node3D
 			d.TargetHostile = true;
 			targetWorld = ast.Position;
 			d.TargetDistance = Vec2.Distance(pos, ast.Position);
-			d.TargetInfo = $"Entfernung {d.TargetDistance:0} m · Station";
+			d.TargetInfo = $"Außenhaut {Mathf.Max(0f, d.TargetDistance - ast.Radius):0} m · Mitte {d.TargetDistance:0} m";   // Runde 14: Abstand zur Außenhaut zuerst
 			// Prüfung Phase 28: kurz genug für die Zielkarte (vorher „… · Schild 250/250…“ abgeschnitten)
 			d.TargetCombat = SpaceSim.Core.Combat.WarInfo.StationShort(u, ast);
+		}
+		else if (_fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var agt))
+		{
+			d.TargetName = $"Angriff: {SpaceSim.Core.Combat.GateCombat.NameOf(u, agt)}";
+			d.TargetHasInfo = true;
+			d.TargetHostile = true;
+			targetWorld = agt.Position;
+			d.TargetDistance = Vec2.Distance(pos, agt.Position);
+			d.TargetInfo = $"Entfernung {d.TargetDistance:0} m · Tor";
+			d.TargetCombat = SpaceSim.Core.Combat.GateInfo.Short(u, agt);
 		}
 		else if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var ts) && SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } tsp)
 		{
@@ -1735,8 +1849,17 @@ public partial class Main : Node3D
 				targetWorld = t.Position;
 				d.TargetDistance = Vec2.Distance(pos, t.Position);
 				d.TargetInfo = $"Entfernung {d.TargetDistance:0} m";
+				// Runde 14 (Handy-Test: „Entfernung 2 m“ am großen HQ): bei Stationen der Abstand zur Außenhaut, die Mitte dahinter
+				if (_targetStation is { } tsr && u.Stations.TryGetValue(tsr, out var tsrs) && tsrs.Sector == u.PlayerSector)
+					d.TargetInfo = $"Außenhaut {Mathf.Max(0f, Vec2.Distance(pos, tsrs.Position) - tsrs.Radius):0} m · Mitte {Vec2.Distance(pos, tsrs.Position):0} m";
 			}
 			else d.TargetInfo = "anderer Sektor – über Gate fliegen";
+			// Phase 31: ein gewähltes Tor zeigt seinen Zustand (Hülle/Schild, beschädigt, außer Betrieb mit Wiederanlauf)
+			if (_targetGate is { } tg && u.Gates.TryGetValue(tg, out var tgg) && tgg.Sector == u.PlayerSector && SpaceSim.Core.Combat.GateCombat.TypeOf(u, tgg) is not null)
+			{
+				d.TargetName = SpaceSim.Core.Combat.GateCombat.NameOf(u, tgg);
+				d.TargetCombat = SpaceSim.Core.Combat.GateInfo.Short(u, tgg);
+			}
 			// zweiter Gerätetest Phase 28: eine gewählte Station mit Verteidigung zeigt Hülle/Schild immer (vorher erst nach Angriffsbeginn)
 			if (u.Rules.Warfare && _targetStation is { } tsid && u.Stations.TryGetValue(tsid, out var tst) && tst.Sector == u.PlayerSector && !tst.IsBuildSite
 				&& SpaceSim.Core.Combat.StationCombat.DefenseOf(u, tst) is not null)
@@ -1824,8 +1947,10 @@ public partial class Main : Node3D
 				// Phase 25: Kampfwaffe — Zustand aus der Core-Regel (Ziel, Reichweite, Munition, Nachladen, Leistung, Winkel)
 				// Phase 28: mit scharfer Station ohne Schiffsziel zählt die Station
 				var wst = _fight.AtStation ? SpaceSim.Core.Combat.PlayerGunnery.StateAtStation(_session.U, PlayerData, wslot, headingDeg, _fight.StationTarget)
+					: _fight.AtGate ? SpaceSim.Core.Combat.PlayerGunnery.StateAtTarget(_session.U, PlayerData, wslot, headingDeg, SiegeRef.Of(_fight.GateTarget))   // Phase 31
 					: CombatController.StateOf(_session.U, PlayerData, bay, headingDeg, _fight.Target);
 				var tpos = _fight.AtStation && _session.U.Stations.TryGetValue(_fight.StationTarget, out var atSt) ? atSt.Position
+					: _fight.AtGate && _session.U.Gates.TryGetValue(_fight.GateTarget, out var atG) ? atG.Position
 					: SpaceSim.Core.Combat.PlayerCombat.PositionOf(_session.U, _fight.Target)?.Pos;
 				_bayStates[i] = wst;
 				string wdetail = wst switch
@@ -1835,7 +1960,7 @@ public partial class Main : Node3D
 					BayState.Reloading => "lädt nach",
 					BayState.NoPower => "keine Leistung",
 					BayState.NoAmmo => "keine Munition",
-					_ => _fight.Target.Value == 0 && !_fight.AtStation ? "kein Ziel"
+					_ => _fight.Target.Value == 0 && !_fight.AtStation && !_fight.AtGate ? "kein Ziel"
 						: !_fight.AtStation && _session.U.Ships.TryGetValue(_fight.Target, out var tgs) && SpaceSim.Core.Combat.PlayerCombat.TargetIssue(_session.U, PlayerData, tgs) is not null
 							? (tgs.DockedAt.Value != 0 ? "Ziel angedockt" : "kein Gegner")   // Gerätetest Phase 27
 							: "außer Reichweite",
@@ -2024,7 +2149,7 @@ public partial class Main : Node3D
 	/// <summary>Phase 25: Dauerfeuer bzw. „Alle Feuer“ für die Kampfwaffen: jede bereite Waffe im Winkel schießt.</summary>
 	void FireCombatBays(bool quiet)
 	{
-		if (_fight.Target.Value == 0 && !_fight.AtStation) return;
+		if (_fight.Target.Value == 0 && !_fight.AtStation && !_fight.AtGate) return;
 		var bays = _bays;
 		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
 			if (_bayStates[i] == BayState.Ready && SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) FireWeapon(ws, quiet);
@@ -2043,6 +2168,30 @@ public partial class Main : Node3D
 		EnableAimAssist();
 		_hud.Toast($"Angriff auf {st.Name}: Dauerfeuer an — die Waffen feuern, sobald die Station in Reichweite und im Feuerwinkel ist. Fahndung und Gegenwehr folgen."
 			+ (hopeless ? $" {SpaceSim.Core.Combat.WarInfo.SiegeOddsText(_session.U, st, PlayerData)}!" : ""), 5f);
+	}
+
+	/// <summary>
+	/// Phase 31: „Tor angreifen“ bestätigt — die Waffen schießen auf das gewählte Tor (schweres Verbrechen bei beiden Endfraktionen; fällt es aus, ist es
+	/// geschlossen, bis es repariert ist oder die Notregel es wieder anlaufen lässt).
+	/// </summary>
+	void ArmGateAttack()
+	{
+		var u = _session.U;
+		if (_targetGate is not { } gid || !u.Gates.TryGetValue(gid, out var g)) return;
+		if (SpaceSim.Core.Combat.PlayerGunnery.GateIssue(u, PlayerData, g) is { } issue) { _hud.Toast(issue, 3f); return; }
+		_fight.ClearTarget();
+		_fight.ArmGate(gid);
+		_fight.AutoFire = true;
+		EnableAimAssist();
+		_hud.Toast($"Angriff auf {SpaceSim.Core.Combat.GateCombat.NameOf(u, g)}: Dauerfeuer an — schweres Verbrechen bei {GateDefendersText(u, g)}. Fällt das Tor aus, ist die Route gesperrt.", 5f);
+	}
+	internal void TestArmGate(GateId id) { _targetGate = id; ArmGateAttack(); }
+	internal bool TestAtGate => _fight.AtGate;
+
+	static string GateDefendersText(Universe u, Gate g)
+	{
+		var list = SpaceSim.Core.Combat.GateCombat.DefendersOf(u, g).Select(f => u.Factions.TryGetValue(f, out var fac) ? fac.Name : "?").ToList();
+		return list.Count == 0 ? "niemandem (herrenlos)" : string.Join(" und ", list);
 	}
 
 	/// <summary>Phase 25: Taste „Nächster Gegner“ (Gefechtsgegner, dann Kaperschiffe im Sektor, nach Abstand, zyklisch).</summary>
@@ -2065,6 +2214,7 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var st) && st.Sector == u.PlayerSector) return st.Position;
+		if (_fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var ag) && ag.Sector == u.PlayerSector) return ag.Position;   // Phase 31
 		if (_fight.Target.Value != 0 && u.Ships.ContainsKey(_fight.Target) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, _fight.Target)
 			&& SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, _fight.Target) is { } p && p.Sector == u.PlayerSector) return p.Pos;
 		return null;
@@ -2074,7 +2224,7 @@ public partial class Main : Node3D
 	bool _aimAssist = true;
 	/// <summary>Runde 4: Ziel, für das der Spieler „Ziel folgen“ bewusst ausgeschaltet hat (null = keins) — Dauerfeuer/Angriff schalten es dann nicht wieder ein.</summary>
 	string? _aimOffFor;
-	string AimKey() => _fight.AtStation ? $"st{_fight.StationTarget.Value}" : $"sh{_fight.Target.Value}";
+	string AimKey() => _fight.AtStation ? $"st{_fight.StationTarget.Value}" : _fight.AtGate ? $"gt{_fight.GateTarget.Value}" : $"sh{_fight.Target.Value}";
 	void EnableAimAssist() { if (_aimOffFor != AimKey()) { _aimAssist = true; _aimOffFor = null; } }
 	internal bool TestAimAssist { get => _aimAssist; set => _aimAssist = value; }
 	internal float TestHeadingRad => _player.Heading;
@@ -2238,6 +2388,8 @@ public partial class Main : Node3D
 			if (_player.Visual is { Hardpoints.TurretCount: > 0 } pv && ShipWorld(_fight.Target) is { } aim) pv.Hardpoints.AimAll(aim, delta);
 			else if (_player.Visual is { Hardpoints.TurretCount: > 0 } sv && _fight.AtStation && _targetStation is { } ts && u.Stations.TryGetValue(ts, out var tst))
 				sv.Hardpoints.AimAll(new Vector3(tst.Position.X, 0, tst.Position.Y), delta);
+			else if (_player.Visual is { Hardpoints.TurretCount: > 0 } gv && _fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var tgt))
+				gv.Hardpoints.AimAll(new Vector3(tgt.Position.X, 0, tgt.Position.Y), delta);   // Phase 31
 		}
 		_view.AimStationGuns(u, delta);
 	}

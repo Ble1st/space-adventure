@@ -1,4 +1,4 @@
-# Angreifbare Jumpgates (Konzept, nicht umgesetzt)
+# Angreifbare Jumpgates (Konzept; umgesetzt in Phase 31, Variante mittel — siehe Checkliste am Ende)
 
 Stand: Phase 28 + Runde 12. Nur Konzept: Code, Weltdatei und Tests sind unverändert. Die Zahlen stammen aus
 `src/SpaceSim.Core/Content/default-world.json`, `Model/EconomyRules.cs` und den Langläufen in
@@ -215,3 +215,19 @@ an. Die Naht (Schritt 2) macht Variante groß später zu einer Ergänzung statt 
    Endfraktionen, mit Wiederanlauf nach 1000 Ticks (unterhalb der Panikfrist).
 6. **Sind die Werte richtig dimensioniert** (Haupttor: Leviathan 4,6 min, Falke 49 min; Nebentor: Leviathan 1,7 min, Falke
    16 min)? – Empfehlung: so übernehmen; Haupttore sollen für Einzelschiffe praktisch unknackbar sein.
+
+# Phase 31: Umsetzung (Variante mittel) – Checkliste
+
+Entscheidung des Nutzers: „Torkonzept ohne Neubau von Toren genehmigt“ → Variante **mittel**, alle sechs Entscheidungsfragen nach Empfehlung
+(nur ausschalten, gemeinsamer Vorrat, Geschütze als leeres Datenfeld, KI-Blockade nur im Krieg/nie kartenteilend/höchstens eines/eine je Krieg,
+Spieler darf jedes Tor angreifen, Werte wie Abschnitt 2).
+
+- [x] Daten: `gateTypes` (side/main), `gates[].type`, `GateCondition` am Tor mit kleinerer Id, Speichern additiv, Hash nur wenn gesetzt, Schalter `GateCombat`
+- [x] Naht `ISiegeTarget` (Adapter `StationTarget`, `GateTarget`); Siege, Gefechtsschritt, Taktik, Raketen, Spielerschüsse darüber — Referenz-Hashes unverändert
+- [x] Tor als Ziel: Schaden/Schild/Panzerung, Ausfall → `Closed` (Routen, Kartenteile, Umplanung), Ereignisse `GateAttacked/GateDisabled/GateRestored/GateRepaired`
+- [x] Reparatur aus `Spendable` der Endsektor-Besitzer (nicht der Angreifer), Wiederanlauf ab 25 %, Notregel 1000/4800 Ticks, herrenlose Enden
+- [x] Spieler: Torangriff = `assault_gate` bei beiden Endfraktionen, Verteidiger wie bei Stationen; Routenplanung erklärt die Sperre
+- [x] KI-Blockade im Krieg (`Wars.PickGateTarget`): nie kartenteilend, `GateMaxDown` 1, eine je Krieg; Piraten nie
+- [x] Stationsgeschütze: gesuchtes Mitglied der eigenen Fraktion ist Ziel (wie Kleinstationen)
+- [x] Ansicht: Tor wählbar, Zielkarte, „Tor angreifen“ (zwei Tipps, Warnung), Treffer am Modell, beschädigt/außer Betrieb, Karten, Meldungen, Autopilot-Grund
+- [x] Tests, Selbsttest-Stufe, Balance (Schalter an: Standardwelt unverändert; Lauf mit periodischen Torausfällen), CLAUDE.md

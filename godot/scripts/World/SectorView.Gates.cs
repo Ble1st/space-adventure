@@ -9,6 +9,24 @@ namespace SpaceAdventure.World;
 public partial class SectorView
 {
 	sealed class GateNode { public Node3D Root = null!; public Node3D Model = null!; public GateModels.Look Look; public Color Accent; public float Yaw; }
+	/// <summary>Phase 31: Zustandsschild je Tor (beschädigt, außer Betrieb mit Reparaturfortschritt) — auch ohne Tormodell.</summary>
+	readonly Dictionary<GateId, Label3D> _gateStatus = new();
+
+	/// <summary>Phase 31: Zustandsschilder der Tore abgleichen (Core: <c>GateInfo.Label</c>); leer = ausgeblendet.</summary>
+	void SyncGateStatus(Universe u)
+	{
+		foreach (var (id, l) in _gateStatus)
+		{
+			if (!u.Gates.TryGetValue(id, out var g)) continue;
+			string text = SpaceSim.Core.Combat.GateInfo.Label(u, g);
+			if (l.Text != text) l.Text = text;
+			l.Visible = text.Length > 0;
+			l.Modulate = SpaceSim.Core.Combat.GateCombat.IsDown(u, g) ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.75f, 0.35f);
+		}
+	}
+
+	/// <summary>Selbsttest: Text des Zustandsschilds eines Tors.</summary>
+	public string GateStatusText(GateId id) => _gateStatus.TryGetValue(id, out var l) && l.Visible ? l.Text : "";
 	readonly Dictionary<GateId, GateNode> _gateNodes = new();
 	long _gateSyncTick = -1; int _gateSyncAccess = -1;
 
@@ -40,9 +58,10 @@ public partial class SectorView
 	/// </summary>
 	public void SyncGates(Universe u, bool force = false)
 	{
-		if (_gateNodes.Count == 0) return;
 		if (!force && u.Tick == _gateSyncTick && u.AccessVersion == _gateSyncAccess) return;
 		_gateSyncTick = u.Tick; _gateSyncAccess = u.AccessVersion;
+		SyncGateStatus(u);   // Phase 31
+		if (_gateNodes.Count == 0) return;
 		foreach (var (id, n) in _gateNodes)
 		{
 			if (!u.Gates.TryGetValue(id, out var g)) continue;

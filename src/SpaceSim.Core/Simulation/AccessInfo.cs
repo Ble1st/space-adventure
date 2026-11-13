@@ -64,7 +64,10 @@ public static class AccessInfo
             AccessPolicy.Toll => $"Zoll {p.Toll:0} Cr",
             _ => $"für dich gesperrt: {p.Reason}",
         };
-        return new GatePolitics(AccessNames.Gate(gate.State), verdict, p.Policy == AccessPolicy.Deny, p.Toll);
+        // Phase 31: Kampfausfall statt „geschlossen“ — mit Frist bis zum Wiederanlauf; beschädigt mit Hüllenanteil
+        string state = Combat.GateCombat.IsDown(u, gate) ? $"außer Betrieb – läuft in {Combat.GateCombat.Clock(Combat.GateCombat.RestartIn(u, gate))} wieder an"
+            : Combat.GateCombat.TypeOf(u, gate) is not null && Combat.GateInfo.State(u, gate) == "beschädigt" ? $"{AccessNames.Gate(gate.State)}, beschädigt" : AccessNames.Gate(gate.State);
+        return new GatePolitics(state, verdict, p.Policy == AccessPolicy.Deny, p.Toll);
     }
 
     /// <summary>Politik einer Station: Ruf (Beziehung des Besitzers zum Schiffseigner), Zoll und Sperrstufe ihres Sektors, Hinweise.</summary>

@@ -225,7 +225,7 @@ public partial class Hud : CanvasLayer
 
 	readonly Control _center = new();
 	readonly ColorRect _backdrop = new();
-	const float AlertWidth = 560f, AlertHeight = 78f;
+	const float AlertWidth = 560f, AlertHeight = 62f;
 	/// <summary>Zweiter Gerätetest Phase 28: Höchstdauer jeder Meldung (auch der stehenden Verlustmeldung).</summary>
 	public const float AlertMaxSeconds = 20f;
 	readonly CanvasLayer _alertLayer = new();
@@ -281,7 +281,10 @@ public partial class Hud : CanvasLayer
 	// Runde 12 (Handy-Test: Meldung und Beschusszeile verdeckten den Gegner vor dem Bug): im Flug unten mittig über dem Tempo-Regler — hinter dem eigenen
 	// Schiff, dort steht im Gefecht kein Gegner (die Kamera blickt über das Heck nach vorn); oben bleibt die Bildmitte frei
 	const float FlightAlertWidth = 536f;
-	const float FlightAlertY = 448f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
+	const float FlightAlertY = 508f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
+
+	/// <summary>Runde 14: Fläche der Meldung im Flug (für das freie Feld der Gefechtskamera); null = keine sichtbar oder nicht im Flug.</summary>
+	public Rect2? AlertRect => _alert.Visible && (Screens.Current == null || Screens.Current == Flight) ? _alert.GetGlobalRect() : null;
 
 	/// <summary>Selbsttest: Mittelpunkt der Meldung und des „✕“ (für simulierte Tipps).</summary>
 	public Vector2 TestAlertCenter => _alert.GetGlobalRect().GetCenter();

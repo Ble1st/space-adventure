@@ -94,7 +94,15 @@ public static class UniverseHash
         Mix((ulong)u.PlayerActor.Value); Mix((ulong)u.FreeActor.Value); Mix((ulong)u.NextActorId);
         Mix((ulong)u.PlayerShip.Value);   // Phase 5c: aktives Schiff kann wechseln (Kauf, Hangar)
         // Phase 10: Gate-Zustände, Sektorbesitz, Sperren (Stufen, Zeiten, Durchsetzung), Einfluss, Kontrollstufe, umkämpft, unsterbliche Stationen
-        foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value)) { Mix((ulong)g.Id.Value); Mix((ulong)g.State); Mix(g.MainRoute ? 1UL : 0UL); }
+        foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
+        {
+            Mix((ulong)g.Id.Value); Mix((ulong)g.State); Mix(g.MainRoute ? 1UL : 0UL);
+            if (g.Condition is { } gc)   // Phase 31: Torkampf — nur wenn gesetzt (Referenz-Hashes bleiben)
+            {
+                Mix(0x3101u); MixF(gc.HullMissing); MixF(gc.ShieldMissing); Mix((ulong)gc.ShieldPauseUntil); foreach (var t in gc.Timers) MixF(t);
+                Mix(gc.Disabled ? 1UL : 0UL); Mix((ulong)gc.DownSince); Mix((ulong)gc.LastAttacker.Value);
+            }
+        }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
         {
             var a = sec.Access;
@@ -150,15 +158,17 @@ public static class UniverseHash
             }
             if (e.Spatial) Mix(0x5A7u);
             if (e.Station.Value != 0) { Mix(0x2803u); Mix((ulong)e.Station.Value); MixF(e.StationX); }   // Phase 28: Belagerung
+            if (e.Gate.Value != 0) { Mix(0x3102u); Mix((ulong)e.Gate.Value); MixF(e.StationX); }   // Phase 31: Torbelagerung
             foreach (var m in e.Missiles)
             {
                 Mix(0x2804u); Mix((ulong)m.Shooter.Value); Mix((ulong)m.Owner.Value); Mix((ulong)m.Side); MixString(m.Module); Mix((ulong)m.Target.Value); Mix((ulong)m.Station.Value);
+                if (m.Gate.Value != 0) Mix((ulong)m.Gate.Value + 0x3103u);
                 MixF(m.Left); MixF(m.Total); MixF(m.Speed);
                 if (e.Spatial) { MixF(m.From.X); MixF(m.From.Y); }
             }
         }
         // Phase 28: Kriege und Friedensschlüsse (ohne Krieg mischt nichts)
-        foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); }
+        foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); if (w.Blockades != 0) Mix((ulong)w.Blockades + 0x3104u); }
         foreach (var (k, t) in u.PeaceSince.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2806u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); if (e.Station.Value != 0) Mix((ulong)e.Station.Value); }
         // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände
@@ -182,7 +192,7 @@ public static class UniverseHash
                     case BuildCommand bc: Mix((ulong)bc.Site.Value); break;
                     case LurkCommand lc: Mix((ulong)lc.Sector.Value); MixF(lc.Spot.X); MixF(lc.Spot.Y); Mix((ulong)lc.Until); break;   // Phase 27
                     case PursueCommand pc: Mix((ulong)pc.Target.Value); MixF(pc.Lead); Mix((ulong)pc.Until); break;
-                    case AssaultCommand ac: Mix((ulong)ac.Sector.Value); Mix((ulong)ac.Station.Value); break;   // Phase 28
+                    case AssaultCommand ac: Mix((ulong)ac.Sector.Value); Mix((ulong)ac.Station.Value); if (ac.Gate.Value != 0) Mix((ulong)ac.Gate.Value + 0x3105u); break;   // Phase 28
                 }
             }
         }

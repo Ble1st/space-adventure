@@ -44,6 +44,10 @@ public sealed class MissileFlight
     public string Module = "";
     public ShipId Target;
     public StationId Station;
+    /// <summary>Phase 31: Ziel ist ein Tor (das Paar mit diesem Tor; 0 = keins). Gespeichert und gehasht nur, wenn gesetzt.</summary>
+    public GateId Gate;
+    /// <summary>Phase 31: Belagerungsziel der Rakete (Station oder Tor; keins = Schiff).</summary>
+    public SiegeRef Siege => Station.Value != 0 ? SiegeRef.Of(Station) : Gate.Value != 0 ? SiegeRef.Of(Gate) : default;
     public float Left;
     public float Total;
     public float Speed;
@@ -59,6 +63,8 @@ public sealed class MissileFlight
 /// </summary>
 public sealed class War
 {
+    /// <summary>Phase 31: Torblockaden dieses Kriegs (höchstens <see cref="EconomyRules.GateBlockadesPerWar"/>); gespeichert, gehasht nur wenn &gt; 0.</summary>
+    public int Blockades;
     public FactionId A;
     public FactionId B;
     public long Since;
@@ -69,4 +75,53 @@ public sealed class War
 
     public bool Involves(FactionId f) => A == f || B == f;
     public FactionId Other(FactionId f) => A == f ? B : A;
+}
+
+/// <summary>Phase 31: Art eines Belagerungsziels.</summary>
+public enum SiegeKind { None, Station, Gate }
+
+/// <summary>
+/// Phase 31: Verweis auf ein belagerbares Ziel (Station oder Tor). default = keins. Die Laufzeitlogik löst ihn über <c>Combat.SiegeTargets</c> zum Adapter
+/// <c>ISiegeTarget</c> auf; gespeichert wird weiter die alte Form (Stations-Id bzw. Tor-Id), damit Spielstände und Hashes stabil bleiben.
+/// </summary>
+public readonly record struct SiegeRef(SiegeKind Kind, int Id)
+{
+    public bool IsNone => Kind == SiegeKind.None || Id == 0;
+    public static SiegeRef Of(StationId id) => id.Value == 0 ? default : new(SiegeKind.Station, id.Value);
+    public static SiegeRef Of(GateId id) => id.Value == 0 ? default : new(SiegeKind.Gate, id.Value);
+    public StationId Station => Kind == SiegeKind.Station ? new StationId(Id) : default;
+    public GateId Gate => Kind == SiegeKind.Gate ? new GateId(Id) : default;
+}
+
+/// <summary>
+/// Phase 31 (docs/TORE.md): Torklasse (JSON <c>gateTypes</c>): Verteidigungswerte wie bei Stationen (<see cref="StationDefenseConfig"/>; Geschütze als Datenfeld,
+/// in der Standardwelt leer), Reparaturtempo und die Frist bis zum Wiederanlauf ohne Kasse.
+/// </summary>
+public sealed class GateType
+{
+    public string Key = "";
+    public string Name = "";
+    public StationDefenseConfig Defense = new();
+    /// <summary>Hüllenpunkte je Spieltag, die der Besitzer repariert (0 = Regel <see cref="EconomyRules.GateRepairPerDay"/>).</summary>
+    public float RepairPerDay;
+    /// <summary>Frist bis zum Wiederanlauf ohne Kasse (0 = Regeln <see cref="EconomyRules.GateSplitOutageTicks"/>/<see cref="EconomyRules.GateMaxOutageTicks"/>).</summary>
+    public long MaxOutageTicks;
+}
+
+/// <summary>
+/// Phase 31: Kampfzustand eines Tor-Paars (am Tor mit der kleineren Id; beide Hälften teilen ihn) als Fehlbeträge wie <see cref="StationCondition"/>; dazu
+/// <see cref="Disabled"/> (außer Betrieb — das Paar ist <see cref="GateState.Closed"/>) und <see cref="DownSince"/> (Tick des Ausfalls). Null = unbeschädigt.
+/// </summary>
+public sealed class GateCondition
+{
+    public float HullMissing;
+    public float ShieldMissing;
+    public long ShieldPauseUntil;
+    public List<float> Timers = new();
+    public bool Disabled;
+    public long DownSince;
+    /// <summary>Wer das Tor zuletzt getroffen hat (Akteur) — Reparatur nur durch Besitzer, die nicht selbst angreifen.</summary>
+    public ActorId LastAttacker;
+
+    public bool IsDefault => HullMissing <= 0f && ShieldMissing <= 0f && !Disabled && Timers.TrueForAll(t => t <= 0f);
 }

@@ -60,7 +60,7 @@ public partial class SectorView : Node3D
 		_root?.QueueFree();
 		_root = new Node3D { Name = "Sector" };
 		AddChild(_root);
-		_gateRings.Clear(); _gateNodes.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
+		_gateRings.Clear(); _gateNodes.Clear(); _gateStatus.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
 
 		var sector = u.Sectors[_sector];
 		foreach (var sid in sector.Stations) BuildStation(u.Stations[sid]);
@@ -251,7 +251,7 @@ public partial class SectorView : Node3D
 	{
 		if (u.Fights.Of(id) is not { } e || e.Of(id) is not { Active: true } p) return null;
 		if (p.Target.Value != 0) return p.Target == u.PlayerShip ? PlayerPosition : ShipPosition(p.Target);
-		if (p.TargetStation.Value != 0 && u.Stations.TryGetValue(p.TargetStation, out var st)) return new Vector3(st.Position.X, 0, st.Position.Y);
+		if (SpaceSim.Core.Combat.SiegeTargets.Resolve(u, p.TargetSiege) is { } st) return new Vector3(st.Position.X, 0, st.Position.Y);   // Phase 31: Station oder Tor
 		return null;
 	}
 
@@ -421,6 +421,11 @@ public partial class SectorView : Node3D
 		// Runde 11: Schild wie die Stationen (feste Bildschirmgröße, HUD-Ausblendung über Labels()), mit Kürzel des Besitzers des Zielsektors
 		string targetName = target.Owner.Value != 0 ? ActorNames.Tagged(u, target.Owner, target.Name) : target.Name;
 		root.AddChild(Gfx.Label($"Jumpgate → {targetName}", new Vector3(0, labelY, 0)));
+		// Phase 31: Zustandsschild unter dem Namen (beschädigt / außer Betrieb mit Reparaturfortschritt), sonst ausgeblendet
+		var status = Gfx.Label("", new Vector3(0, labelY - 3f, 0));
+		status.Visible = false;
+		root.AddChild(status);
+		_gateStatus[g.Id] = status;
 		Gates.Add((g.Id, pos));
 		Targets.Add(new PickTarget("gate", g.Id.Value, pos, $"Gate → {target.Name}"));
 	}

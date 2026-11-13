@@ -2377,7 +2377,7 @@ public partial class SelfTest : Node
 					_m.TestFace(pl.Position + (pl.Position - hq.Position));
 					_m.SyncHudForTest();
 					Check(_m.HudRef.Flight.TestStationAttackInfo.Contains("Geschütze"), $"„Station angreifen“ nennt die Gegenwehr ({_m.HudRef.Flight.TestStationAttackInfo})");
-					Check(_m.HudRef.Flight.TestTargetArc == "außerhalb Geschütze · Raketen ja", $"Zielkarte: außerhalb der Geschütze, Raketen reichen ({_m.HudRef.Flight.TestTargetArc})");
+					Check(_m.HudRef.Flight.TestTargetArc.StartsWith("außerhalb Geschütze · Raketen ja"), $"Zielkarte: außerhalb der Geschütze, Raketen reichen ({_m.HudRef.Flight.TestTargetArc})");
 					Check(_m.TestBayPlaces.Any(n => n.StartsWith("Vorrat ") && n.Contains('/')), $"Raketenbucht zeigt den Vorrat ({string.Join(",", _m.TestBayPlaces)})");
 					// Runde 5: Bollwerk mit eigenem Verband — die Zielkarte zeigt das Kräfteverhältnis
 					Check(pl.ModelKey == "bastion" && SpaceSim.Core.Simulation.Squadrons.Get(uni, pl) is { Members.Count: 3 }, "Kriegstest: Bollwerk mit Verband aus zwei weiteren Bollwerken");
@@ -2618,7 +2618,8 @@ public partial class SelfTest : Node
 			case 90: if (GateModelStage(_frame - _stageStart)) Next(); break;   // Jumpgate-Modelle (SelfTest.Gates.cs)
 			case 91: if (ShipModelStage(_frame - _stageStart)) Next(); break;   // Runde 11: Schiffsmodelle, Mündungen, Türme (SelfTest.Ships.cs)
 			case 92: if (AudioStage(_frame - _stageStart)) Next(); break;   // Runde 12: Musikzustände, Signale, Ton-Busse und Einstellungen (SelfTest.Audio.cs)
-			case 93: if (SmallStationStage(_frame - _stageStart)) Next(); break;   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
+			case 93: if (SmallStationStage(_frame - _stageStart)) Next(); break;
+			case 94: if (GateCombatStage(_frame - _stageStart)) Next(); break;   // Phase 31: Tor angreifen, außer Betrieb, Wiederanlauf (SelfTest.GateCombat.cs)   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

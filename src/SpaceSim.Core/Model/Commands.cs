@@ -127,7 +127,7 @@ public sealed record PursueCommand(ShipId Target, float Lead, long Until) : Ship
 /// Phase 28: Angriff — ein Kriegsschiff fliegt zur feindlichen Station <paramref name="Station"/> im Sektor <paramref name="Sector"/> und belagert sie
 /// (Gefecht mit Anlass <see cref="EncounterCause.Siege"/>). Vergibt die Fraktion im Krieg, nicht der Spieler.
 /// </summary>
-public sealed record AssaultCommand(SectorId Sector, StationId Station) : ShipCommand
+public sealed record AssaultCommand(SectorId Sector, StationId Station, GateId Gate = default) : ShipCommand
 {
     public override string Kind => CommandKinds.Assault;
 }

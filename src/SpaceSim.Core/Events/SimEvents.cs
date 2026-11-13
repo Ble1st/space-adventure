@@ -340,3 +340,17 @@ public sealed record WarshipDecommissioned(FactionId Faction, ShipId Ship, strin
 public sealed record TraderBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
 /// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort nicht gekauft, weil der Preis dort den Preis seines Abnehmers erreicht hat (sicherer Verlust).</summary>
 public sealed record TraderBuyRefused(ShipId Ship, StationId Seller, StationId Buyer, GoodId Good, float BuyPrice, float SellPrice) : SimEvent;
+
+// ───────── Phase 31: Torkampf ─────────
+/// <summary>Phase 31: Ein Tor wird angegriffen (Belagerungsbeginn; Vorwarnung für Toasts/Alarm).</summary>
+public sealed record GateAttacked(int Encounter, GateId Gate, SectorId Sector, ActorId Attacker, string Message) : SimEvent;
+/// <summary>Phase 31: Ein Tor-Paar ist außer Betrieb (geschlossen); <paramref name="Splits"/> = es teilt die Karte, <paramref name="OutageTicks"/> = Frist bis zum Wiederanlauf.</summary>
+public sealed record GateDisabled(GateId Gate, SectorId Sector, ActorId Attacker, bool Splits, long OutageTicks, string Message) : SimEvent;
+/// <summary>Phase 31: Ein Tor-Paar läuft wieder — <paramref name="Reason"/> „repaired“ (Reparatur) oder „emergency“ (Notregel ohne Kasse).</summary>
+public sealed record GateRestored(GateId Gate, string Reason, string Message) : SimEvent;
+/// <summary>Phase 31: Reparatur an einem Tor (Hüllenpunkte, Kosten, zahlende Fraktion).</summary>
+public sealed record GateRepaired(GateId Gate, float Hull, float Cost, FactionId Payer) : SimEvent;
+/// <summary>Phase 31: Torgeschütz feuert (Datenfeld der Torklasse).</summary>
+public sealed record GateShot(int Encounter, SectorId Sector, GateId Gate, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Gun = -1) : SimEvent;
+/// <summary>Phase 31: Ein Schiff schießt auf ein Tor.</summary>
+public sealed record ShotAtGate(int Encounter, SectorId Sector, ShipId Shooter, GateId Gate, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Slot = -1) : SimEvent;

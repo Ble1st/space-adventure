@@ -369,9 +369,9 @@ public sealed class EconomyRules
     public float NpcHullRegenPerTick = 0.05f;
 
     /// <summary>Fahndung: Heat je Verbrechen (Schlüssel).</summary>
-    public Dictionary<string, float> CrimeHeat = new() { ["smuggling"] = 2.5f, ["toll_evasion"] = 1.5f, ["piracy"] = 1.2f, ["assault"] = 3f, ["assault_station"] = 4.5f };
+    public Dictionary<string, float> CrimeHeat = new() { ["smuggling"] = 2.5f, ["toll_evasion"] = 1.5f, ["piracy"] = 1.2f, ["assault"] = 3f, ["assault_station"] = 4.5f, ["assault_gate"] = 4.5f };
     /// <summary>Fahndung: Strafe je Verbrechen (Credits, Gericht).</summary>
-    public Dictionary<string, float> CrimeFine = new() { ["smuggling"] = 400f, ["toll_evasion"] = 100f, ["piracy"] = 800f, ["assault"] = 1000f, ["assault_station"] = 1500f };
+    public Dictionary<string, float> CrimeFine = new() { ["smuggling"] = 400f, ["toll_evasion"] = 100f, ["piracy"] = 800f, ["assault"] = 1000f, ["assault_station"] = 1500f, ["assault_gate"] = 2000f };
     /// <summary>Fahndung: Schwellen der Stufen 1–4 (auffällig, verwarnt, gesucht, Staatsfeind); Heat höchstens <see cref="WantedMaxHeat"/>.</summary>
     public List<float> WantedLevels = new() { 1f, 2f, 3f, 4f };
     public float WantedMaxHeat = 5f;
@@ -921,6 +921,22 @@ public sealed class EconomyRules
     public float StationRepairMarkup = 1.5f;
     /// <summary>Eine ausgeschaltete Station (Hülle 0, nicht zerstörbar) schießt wieder ab diesem Hüllenanteil.</summary>
     public float StationReenableShare = 0.25f;
+
+    // ───────── Phase 31: Torkampf (docs/TORE.md, Variante „mittel“) ─────────
+    /// <summary>Tore lassen sich beschädigen und außer Betrieb setzen (nicht zerstören). false = Tore ohne Kampfwerte (Verhalten bis Phase 30).</summary>
+    public bool GateCombat = false;
+    /// <summary>Höchstens so viele Tor-Paare außer Betrieb, die eine KI-Fraktion verursacht (der Spieler ist nicht begrenzt).</summary>
+    public int GateMaxDown = 1;
+    /// <summary>Torblockaden je Krieg.</summary>
+    public int GateBlockadesPerWar = 1;
+    /// <summary>Wieder in Betrieb ab diesem Hüllenanteil (Reparatur).</summary>
+    public float GateReenableShare = 0.25f;
+    /// <summary>Reparatur je Spieltag (Hüllenpunkte), wenn die Torklasse nichts sagt.</summary>
+    public float GateRepairPerDay = 2000f;
+    /// <summary>Notregel: ein kartenteilendes Tor läuft nach so vielen Ticks ohne Kasse wieder an (= <see cref="PanicDelayTicks"/>, keine Versorgungspanik).</summary>
+    public long GateSplitOutageTicks = 1000;
+    /// <summary>Notregel: jedes andere Tor läuft nach so vielen Ticks ohne Kasse wieder an (2 Spieltage).</summary>
+    public long GateMaxOutageTicks = 4800;
     /// <summary>Belagerung: Abstand der Station zu den Angreifern beim Beginn (Gefechtslinie).</summary>
     public float SiegeStartDistance = 90f;
     /// <summary>Krieg: Fraktionen erklären von selbst Krieg (Bedingungen unten); aus = nur per Hand (<see cref="Simulation.Wars.Declare"/>, Tests).</summary>

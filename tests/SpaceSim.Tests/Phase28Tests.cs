@@ -568,7 +568,9 @@ public class Phase28Tests
         Assert.Equal(u.Rules.WarshipsPerWar, Wars.WarshipsOf(u, Guild).Count);
         Assert.Contains(ev.OfType<WarshipCommissioned>(), c => c.Faction == Union);
         Assert.All(Wars.WarshipsOf(u, Union), s => Assert.IsType<AssaultCommand>(s.Command));
-        Assert.All(Wars.WarshipsOf(u, Union), s => Assert.Equal(Guild, u.FactionOf(u.Stations[((AssaultCommand)s.Command!).Station])));
+        // Phase 31: mit Torkampf zuerst die Torblockade (ein Tor mit einem Ende bei der Gilde), sonst eine Gildenstation
+        Assert.All(Wars.WarshipsOf(u, Union), s => Assert.True(((AssaultCommand)s.Command!) is var ac && (ac.Gate.Value != 0
+            ? GateCombat.DefendersOf(u, u.Gates[ac.Gate]).Contains(Guild) : u.FactionOf(u.Stations[ac.Station]) == Guild)));
         Assert.Contains(ev.OfType<TreasuryUpkeep>(), t => t.Purpose == "navy");
         // Kaufen nur aus dem verfügbaren Geld über der Rücklage
         var f3 = new FactionId(3);
@@ -1234,7 +1236,7 @@ public class Phase28Tests
         float d = Vec2.Distance(me.Position, st.Position);
         Assert.True(d > StationCombat.GunRange(u, st), $"außerhalb der Geschütze ({d:0} m)");
         Assert.True(d <= WarInfo.MissileReachFromCentre(u, me), $"innerhalb der Raketenreichweite ({d:0} m)");
-        Assert.Equal("außerhalb Geschütze · Raketen ja", WarInfo.RangeStatus(u, st, me));
+        Assert.StartsWith("außerhalb Geschütze · Raketen ja · eigene ab", WarInfo.RangeStatus(u, st, me));   // Runde 14: dazu, ob die eigenen Geschütze reichen
         Assert.Equal($"4 Geschütze · {StationCombat.GunRange(u, st):0} m", WarInfo.DefenseWarning(u, st, me));   // Runde 12: Sektor-HQ mit vier Geschützen
         me.Position = st.Position + (me.Position - st.Position).Normalized() * (StationCombat.GunRange(u, st) - 1f);
         Assert.StartsWith("IN GESCHÜTZREICHWEITE", WarInfo.RangeStatus(u, st, me));
@@ -1316,7 +1318,7 @@ public class Phase28Tests
         var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
         Assert.StartsWith("Überlegen", WarInfo.SiegeOddsText(u, hq, me));
         int policeShots = 0;
-        var (alive, down, seconds, ev) = AttackStation(u, hq, 40f, 400, e => { if (e is ShotFired f && u.Ships.TryGetValue(f.Shooter, out var s) && ThreatMap.IsPolice(s)) policeShots++; });
+        var (alive, down, seconds, ev) = AttackStation(u, hq, 56f, 400, e => { if (e is ShotFired f && u.Ships.TryGetValue(f.Shooter, out var s) && ThreatMap.IsPolice(s)) policeShots++; });
         Assert.True(down, $"das HQ ist ausgeschaltet ({WarInfo.StationShort(u, hq)} nach {seconds} s)");
         Assert.True(alive, "das Bollwerk lebt");
         Assert.True(seconds >= 120 && seconds <= 240, $"spürbar, aber in zwei bis vier Minuten ({seconds} s)");   // Runde 6: Richtwert 2–4 min

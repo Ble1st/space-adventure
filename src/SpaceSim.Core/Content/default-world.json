@@ -2,6 +2,7 @@
  "seed": 20260101,
  "randomNames": true,
  "rules": {
+  "gateCombat": true,
   "armedTraderBaseline": 6,
   "raidRatePerTick": 0.0065,
   "maxTraders": 26,
@@ -2532,6 +2533,18 @@
      "credits": 0
     }
    ]
+  }
+ ],
+ "gateTypes": [
+  {
+   "key": "side",
+   "name": "Nebentor",
+   "defense": { "hull": 2000, "shield": 300, "shieldRegen": 3, "armor": 70, "pointDefense": 0.2, "guns": [] }
+  },
+  {
+   "key": "main",
+   "name": "Hauptroutentor",
+   "defense": { "hull": 4000, "shield": 500, "shieldRegen": 5, "armor": 100, "pointDefense": 0.35, "guns": [] }
   }
  ],
  "gates": [
@@ -5086,7 +5099,7 @@
    {
     "key": "war",
     "name": "Kriegstest (Test)",
-    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann auf etwa 40 m heranfliegen (die Geschütze reichen 60 m ab Stationsmitte, der Verband bindet die Polizei): nach gut zwei Minuten ist das HQ (vier Geschütze) ausgeschaltet. Rückzug: Dauerfeuer aus und aus der Reichweite aller Gegner fliegen (die Zeile „Flucht: …“ sagt, wer noch reicht; 10 s nach dem letzten eigenen Schuss) — der Angriff endet, dein Verband bricht ab und folgt dir. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich.",
+    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann bis auf etwa 35 m an die Außenhaut heranfliegen (≈ 55 m bis zur Mitte des großen HQ) — erst dort reichen Laser und Massetreiber, vorher nur die Raketen (12 Stück); die Zielkarte zeigt den Abstand zur Außenhaut und ob deine Geschütze reichen. Die HQ-Geschütze reichen 67 m ab Mitte, der Verband greift mit an und bindet die Polizei: nach zwei bis vier Minuten ist das HQ (vier Geschütze) ausgeschaltet. Rückzug: Dauerfeuer aus und aus der Reichweite aller Gegner fliegen (die Zeile „Flucht: …“ sagt, wer noch reicht; 10 s nach dem letzten eigenen Schuss) — der Angriff endet, dein Verband bricht ab und folgt dir. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich.",
     "model": "bastion",
     "credits": 20000,
     "sector": 2,

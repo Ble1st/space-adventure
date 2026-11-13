@@ -35,7 +35,7 @@ public static class Engage
             // Runde 7: Wiedereintritt — derselbe Eintrag (Mut, Abwurfanteil, Nachladeuhren bleiben; kein Zufallszug), neu: Seite, Taktik, Ort, Ziel, Zuflucht
             p = e.Of(ship.Id)!;
             p.Exit = CombatExit.None; p.Side = side; p.Tactic = tactic; p.X = x; p.PrevMode = ship.Systems.Mode; p.Owner = ship.Owner;
-            p.Target = default; p.TargetStation = default; p.Move = CombatMove.Approach; p.Speed = 0f;
+            p.Target = default; p.TargetSiege = default; p.Move = CombatMove.Approach; p.Speed = 0f;
             p.RefugeId = 0; p.Refuge = 0f; p.RefugePos = default; p.WasDockedAt = default; p.Dir = new Vec2(0f, -1f);
         }
         else

@@ -19,6 +19,8 @@ public sealed class WorldDef
     public List<ActorDef> Actors { get; set; } = new();
     public List<SectorDef> Sectors { get; set; } = new();
     public List<GateLinkDef> Gates { get; set; } = new();
+    /// <summary>Phase 31: Torklassen (Kampfwerte der Tore); fehlt = Tore ohne Kampfwerte.</summary>
+    public List<GateTypeDef> GateTypes { get; set; } = new();
     /// <summary>Slotarten; fehlt der Abschnitt, bleibt die Registry leer und die Welt gültig.</summary>
     public List<SlotTypeDef> SlotTypes { get; set; } = new();
     /// <summary>Module; fehlt der Abschnitt, bleibt die Registry leer.</summary>
@@ -407,6 +409,18 @@ public sealed class GateLinkDef
     public bool MainRoute { get; set; }
     /// <summary>Phase 10: Anfangszustand des Gate-Paars (open, closed, destroyed); fehlt = offen.</summary>
     public string? State { get; set; }
+    /// <summary>Phase 31: Torklasse (<c>gateTypes[].key</c>); fehlt = „main“ bei Hauptroute, sonst „side“ (wenn vorhanden).</summary>
+    public string? Type { get; set; }
+}
+
+/// <summary>Phase 31: Torklasse — Verteidigung wie <c>stationTypes[].defense</c>, Reparatur je Tag, Frist bis zum Wiederanlauf ohne Kasse.</summary>
+public sealed class GateTypeDef
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public StationDefenseDef? Defense { get; set; }
+    public float RepairPerDay { get; set; }
+    public long MaxOutageTicks { get; set; }
 }
 
 public sealed class ShipGroupDef
