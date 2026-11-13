@@ -41,6 +41,23 @@ public partial class KitScroll : ScrollContainer
 		ScrollKey = $"{System.IO.Path.GetFileName(file)}:{line}";
 		HorizontalScrollMode = ScrollMode.Disabled;
 		MouseFilter = MouseFilterEnum.Pass;
+		// Zweiter Gerätetest Phase 28: die gemerkte Position gleich nach dem Layout setzen (im selben Bild) — vorher stand die Liste nach jedem Neuaufbau
+		// ein oder mehrere Bilder oben, die Handelsliste sprang sichtbar zwischen oben und gerollt
+		SortChildren += ApplyPending;
+	}
+
+	void ApplyPending()
+	{
+		if (_pending < 0 || !CanScroll()) return;
+		ScrollVertical = _pending;
+		if (ScrollVertical == _pending) _pending = -1;
+	}
+
+	/// <summary>Zweiter Gerätetest Phase 28: rollt auf <paramref name="v"/>, sobald das Layout steht (z. B. aufgeklappte Zeile sichtbar machen).</summary>
+	public void ScrollTo(int v)
+	{
+		if (v <= 0) { _pending = -1; ScrollVertical = 0; return; }
+		SetPending(v);
 	}
 
 	/// <summary>Rollpositionen aller Rollbereiche unter <paramref name="root"/> nach stabilem Schlüssel (mehrfache Schlüssel durchnummeriert) — vor einem Neuaufbau.</summary>

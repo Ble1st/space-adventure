@@ -4396,25 +4396,30 @@
    {
     "key": "combat",
     "name": "Gefechtstest (Test)",
-    "description": "NUR ZUM TESTEN: Falke frei im Raum vor der Werft Delta, die Nase zum Gegner. Ein angeschlagenes Kaperschiff kündigt in 15 s einen Überfall an und fliegt heran, ein zweites stößt später als Verstärkung dazu; ein Händler und eine Streife (Verband) in der Nähe.",
+    "description": "NUR ZUM TESTEN: Falke mit kleinem Frachtraum (Nahrung, Munition) frei im Raum vor der Werft Delta, die Nase genau auf ein angeschlagenes Kaperschiff (40 % Hülle, ohne Schild). Es kündigt den Überfall an und greift nach 15 s an; ein zweites (60 % Hülle) stößt frühestens 60 s später dazu. „Nächster Gegner“ und „Dauerfeuer“ genügen.",
     "model": "falcon",
     "credits": 3000,
     "sector": 4,
     "scenario": {
      "station": "shipyard",
      "distance": 130,
+     "bonusSlots": ["cargo"],
+     "fit": ["reactor_mk2", "chem_engine_s_mk2", "weapon_laser_s", "weapon_massdriver_s", "shield_mk1", "power_bank_s", "weapon_magazine_s", "cargo_solid_s"],
      "raiders": 2,
-     "raiderHull": 0.6,
+     "raiderHull": 0.4,
+     "leadWithoutShield": true,
      "raidAfterTicks": 60,
+     "reinforceAfterTicks": 240,
+     "reinforceHull": 0.6,
      "trader": true,
      "policeSquadron": true,
-     "cargo": { "ammo": 20 }
+     "cargo": { "ammo": 10, "food": 10 }
     }
    },
    {
     "key": "war",
     "name": "Kriegstest (Test)",
-    "description": "NUR ZUM TESTEN: Falke mit Raketenwerfer, vollem Raketenmagazin und Raketen im Laderaum, 100 m vor dem Sektor-HQ Beta (Geschütze, Punktabwehr) — „Station angreifen“ aus Raketenreichweite. 20000 Cr für einen Schiffskauf.",
+    "description": "NUR ZUM TESTEN: Falke mit Raketenwerfer und vollem Raketenmagazin, 100 m vor dem Sektor-HQ Beta (Geschütze, Punktabwehr) — „Station angreifen“ aus Raketenreichweite. Raketen nachladen („Reparatur“ → Munition): Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich. 20000 Cr für einen Schiffskauf.",
     "model": "falcon",
     "credits": 20000,
     "sector": 2,

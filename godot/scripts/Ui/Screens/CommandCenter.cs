@@ -122,7 +122,7 @@ public abstract partial class CommandScreen : Control, IScreen
 
 	void SafeRebuild()
 	{
-		if (KitScroll.Dragging && GetChildCount() > 0) { _dirty = true; return; }
+		if ((KitScroll.Dragging || KitButton.AnyHeld > 0) && GetChildCount() > 0) { _dirty = true; return; }   // zweiter Gerätetest Phase 28: auch nicht bei gedrückter Taste
 		var keep = KitScroll.Capture(this);
 		Rebuild();
 		KitScroll.Restore(this, keep);

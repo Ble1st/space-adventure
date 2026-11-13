@@ -24,18 +24,18 @@ public static class PlayerSurrender
         if (u.Fights.Of(me.Id) is { } e && e.Of(me.Id) is { Active: true } p)
         {
             if (Enemy(u, e, p, police: true) is not null) return null;
-            if (Enemy(u, e, p, police: false) is not null) return ThreatMap.CargoValue(u, me) > 0f ? null : "Keine Fracht zum Abwerfen.";
+            if (Enemy(u, e, p, police: false) is not null) return ThreatMap.CargoValue(u, me) > 0f ? null : "Keine Fracht";
             return "Dieser Gegner nimmt keine Aufgabe an.";
         }
         var pending = u.PendingEncounters.FirstOrDefault(x => x.Target == me.Id);
         if (pending is null) return "Niemand verlangt deine Aufgabe.";
         if (pending.Kind == EncounterKind.Intercept) return null;
-        return ThreatMap.CargoValue(u, me) > 0f ? null : "Keine Fracht zum Abwerfen.";
+        return ThreatMap.CargoValue(u, me) > 0f ? null : "Keine Fracht";
     }
 
     /// <summary>
     /// Gerätetest Phase 28: Ist Ergeben hier ein Thema (Gefecht mit Gegnern oder angekündigte Begegnung)? Dann zeigt die Ansicht die Taste — wenn
-    /// <see cref="Issue"/> einen Grund nennt (z. B. „Keine Fracht zum Abwerfen.“), deaktiviert mit diesem Grund.
+    /// <see cref="Issue"/> einen Grund nennt (z. B. „Keine Fracht“), deaktiviert mit diesem Grund.
     /// </summary>
     public static bool Relevant(Universe u)
     {

@@ -54,10 +54,14 @@ public sealed class FleetSystem : ISimSystem
     /// Schiff der Aufgabe liegt dort seit <see cref="EconomyRules.ExpandIdleTicks"/> untätig (Betriebsgeld mindestens das Startkapital eines Neukaufs: Was es
     /// nicht findet, fände ein neues Schiff auch nicht). Vorher wurde gekauft und wegen Leerlaufs ausgemustert im Kreis.
     /// </summary>
-    public static bool CanGrow(Universe u, IShipJob job, int partKey)
+    public static bool CanGrow(Universe u, IShipJob job, int partKey, bool worldCap = true)
     {
         var r = u.Rules;
         if (FleetCapacity.Used(u, job, partKey) >= FleetCapacity.Limit(u, job, partKey)) return false;
+        // Prüfung Phase 28 (Lauf J): auch im geteilten Zustand nie über die Grenze der ganzen Welt — Schiffe, die in einem kleinen Teil festsitzen, liegen
+        // über dessen Anteil, der große Teil kaufte trotzdem bis zu seinem Anteil nach; nach der Wiedervereinigung blieb die Summe dauerhaft über der Grenze.
+        // Ausnahme nur für den Notkauf der Fraktion in einem Teil, dessen Flotte zusammengebrochen ist (BuyFromTreasury)
+        if (worldCap && FleetCapacity.Divided(u) && r.FleetWorldCapWhenDivided && ShipJobs.UsedUnits(u, job) >= job.Limit(r)) return false;
         if (r.ExpandAfterRetireTicks > 0 && u.IdleRetiredTick.TryGetValue((job.Key, partKey), out var at) && u.Tick - at < r.ExpandAfterRetireTicks) return false;
         if (r.ExpandIdleTicks > 0)
             foreach (var s in u.ShipsById())
@@ -243,7 +247,7 @@ public sealed class FleetSystem : ISimSystem
         var candidates = Investors.ForShip(u, role, rules.FleetExpandCredits).Where(c => c.Ship is { } cs && Grows(FleetCapacity.PartOf(u, cs))).ToList();
         // Phase 20: Teile ohne zahlungskräftiges Schiff der Aufgabe — dort springt bei zusammengebrochener Flotte die Fraktionskasse ein
         var withBuyers = candidates.Select(c => FleetCapacity.PartOf(u, c.Ship!)).ToHashSet();
-        BuyFromTreasury(u, job, k => !withBuyers.Contains(k) && Grows(k));
+        BuyFromTreasury(u, job, k => !withBuyers.Contains(k) && CanGrow(u, job, k, worldCap: false));
         var pick = Investors.Draw(u, candidates);
         if (pick?.Ship is not { } parent) return;
         float before = parent.Credits;

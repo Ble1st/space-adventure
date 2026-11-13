@@ -323,6 +323,15 @@ public sealed class EconomyRules
     /// </summary>
     public float RaiderRestartCostFactor = 0.5f;
     public float PirateIdleIncomePerTick = 0.1f;
+    /// <summary>
+    /// Prüfung Phase 28 (Langlauf A/B/F/J/K: Piraten starben aus): Notversorgung im Versteck ohne Geld — ein Kaperschiff im eigenen Versteck wird kostenlos
+    /// langsam bis auf diesen Hüllenanteil geflickt (und ausgefallene Module knapp über die Ausfallgrenze), auch wenn die Kasse leer ist. Vorher blieb ein
+    /// beschädigtes Kaperschiff einer leeren Kasse für immer im Notfall (Heimkehr → Versorgung ohne Geld → Notfall …) und die Gruppe jagte nie wieder.
+    /// 0 = aus.
+    /// </summary>
+    public float PirateBasePatchHull = 0.6f;
+    /// <summary>Prüfung Phase 28: Flickgeschwindigkeit im Versteck (Hüllenanteil bzw. Modulzustand je Tick).</summary>
+    public float PirateBasePatchPerTick = 0.0004f;
     /// <summary>Piraten: Unterhalt je Kaperschiff und Tick aus der Kasse des Akteurs (Senke).</summary>
     public float RaiderUpkeepPerTick = 0.05f;
     /// <summary>Piraten: Chance je Tick, dass ein lauerndes Kaperschiff zuschlägt (geteilt durch 1 + Abschreckung × Sicherheit).</summary>
@@ -535,6 +544,8 @@ public sealed class EconomyRules
     public int PanicReserveStations = 2;
     /// <summary>Phase 20: Flottengrenzen je erreichbarem Kartenteil (<see cref="Simulation.FleetCapacity"/>); false = Grenze der Welt wie bis Phase 19.</summary>
     public bool FleetCapacityByPart = true;
+    /// <summary>Prüfung Phase 28 (Lauf J): im geteilten Zustand kauft die Flotte (außer dem Notkauf der Fraktionskasse) nur, solange die ganze Welt unter der Grenze liegt.</summary>
+    public bool FleetWorldCapWhenDivided = true;
     /// <summary>
     /// Phase 20: Kein Neukauf für eine Aufgabe, solange im selben Kartenteil ein arbeitsfähiges Schiff dieser Aufgabe mindestens so lange (Ticks) untätig ist
     /// (es gibt keine Arbeit für ein weiteres). 0 = aus.

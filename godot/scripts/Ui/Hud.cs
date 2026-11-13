@@ -119,23 +119,39 @@ public partial class Hud : CanvasLayer
 		_toast.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.78f), null, 10, 0, 6));
 		root.AddChild(_toast);
 
-		// Gerätetest: wichtige Meldungen (Überfall, Schiffsverlust, Zeitraffer aus) — kontrastreich, bleiben bis angetippt oder mindestens 6 s
-		_alert.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterTop);
-		// Prüfung Phase 27: kleiner und unter dem Schiff statt über der Zielkarte/„Nächster Gegner“ (verdeckte sie teilweise) — frei bis zu den Wendetasten
-		_alert.Position = new Vector2(-250, 420); _alert.Size = new Vector2(500, 80);
+		// Wichtige Meldungen (Überfall, Schiffsverlust, Zeitraffer aus). Zweiter Gerätetest Phase 28: eigene Ebene über allem (CanvasLayer 100) —
+		// sie bekommt Tipps zuerst und fängt sie selbst ab (vorher lag sie im Baum vor den Dock-Bildschirmen, der Tipp ging an die Kachel darunter);
+		// schmal oben mittig unter der Kopfleiste, höchstens drei Zeilen, eigener „✕“-Knopf, Höchstdauer 20 s
+		_alertLayer.Layer = 100;
+		AddChild(_alertLayer);
+		var alertRoot = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+		alertRoot.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		_alertLayer.AddChild(alertRoot);
 		_alert.MouseFilter = Control.MouseFilterEnum.Stop;
-		_alert.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(0.22f, 0.04f, 0.04f, 0.96f), UiKit.Red, 12, 3, 12));
+		_alert.Size = new Vector2(AlertWidth, AlertHeight);
+		_alert.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(0.22f, 0.04f, 0.04f, 0.97f), UiKit.Red, 12, 3, 0));
 		_alertText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_alertText.HorizontalAlignment = HorizontalAlignment.Center;
 		_alertText.VerticalAlignment = VerticalAlignment.Center;
-		_alertText.AddThemeFontSizeOverride("font_size", 18);
+		_alertText.AddThemeFontSizeOverride("font_size", 15);
 		_alertText.AddThemeColorOverride("font_color", UiKit.White);
 		_alertText.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_alertText.MaxLinesVisible = 3;
+		_alertText.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_alertText.ClipText = true;
+		_alertText.Position = new Vector2(12, 6); _alertText.Size = new Vector2(AlertWidth - 12 - 64, AlertHeight - 12);
 		_alert.AddChild(_alertText);
+		_alertClose.Position = new Vector2(AlertWidth - 62, (AlertHeight - 56) / 2f);
+		_alertClose.Pressed += HideAlert;
+		_alert.AddChild(_alertClose);
 		_alert.Visible = false;
-		_alert.GuiInput += e => { if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) HideAlert(); };
-		root.AddChild(_alert);
-		_alert.ZIndex = 50;   // Gerätetest Phase 28: über Dock-Bildschirmen (die später in den Baum kommen)
+		// Tipp irgendwo auf die Meldung schließt sie; das Ereignis endet hier (Stop + AcceptEvent), nichts darunter löst aus
+		_alert.GuiInput += e =>
+		{
+			if (!Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion)) return;
+			_alert.AcceptEvent();
+			if (!pressed && !motion) HideAlert();
+		};
+		alertRoot.AddChild(_alert);
 
 		// Phase 28 (Prüfpunkt f): Fortschritt des Offline-Nachholens beim Start (statt langem Splash) — dunkle Fläche mit Text und Balken, blockiert Eingaben
 		_loading.Color = new Color(0.01f, 0.02f, 0.05f, 0.97f);
@@ -200,7 +216,12 @@ public partial class Hud : CanvasLayer
 
 	readonly Control _center = new();
 	readonly ColorRect _backdrop = new();
-	readonly PanelContainer _alert = new();
+	const float AlertWidth = 600f, AlertHeight = 78f;
+	/// <summary>Zweiter Gerätetest Phase 28: Höchstdauer jeder Meldung (auch der stehenden Verlustmeldung).</summary>
+	public const float AlertMaxSeconds = 20f;
+	readonly CanvasLayer _alertLayer = new();
+	readonly KitButton _alertClose = new("✕", new Vector2(56, 56));
+	readonly Panel _alert = new();
 	readonly Label _alertText = new();
 	double _alertUntil;
 	/// <summary>Selbsttest: sichtbare wichtige Meldung (leer = keine).</summary>
@@ -213,16 +234,33 @@ public partial class Hud : CanvasLayer
 	/// </summary>
 	public void Alert(string text, float seconds = 6f, bool sticky = false)
 	{
-		_alertSticky = sticky;   // Gerätetest Phase 28: Schiffsverlust bleibt stehen, bis angetippt
+		double now = Time.GetTicksMsec() / 1000.0;
+		// Zweiter Gerätetest Phase 28: eine stehende Meldung (Schiffsverlust) wird von einer gewöhnlichen nicht verdrängt — die kommt als Hinweis darunter
+		if (_alert.Visible && _alertSticky && !sticky) { Toast(text, 4f); return; }
+		_alertSticky = sticky;
 		_alertText.Text = text;   // ein neues Ereignis ersetzt das alte (es gibt nur ein Meldungsfeld)
 		_alert.Visible = true;
-		double now = Time.GetTicksMsec() / 1000.0;
 		_alertShown = now;
-		_alertUntil = now + System.Math.Max(6f, seconds);
+		_alertUntil = now + (sticky ? AlertMaxSeconds : System.Math.Clamp(seconds, 6f, AlertMaxSeconds));
+		PlaceAlert();
 		// Prüfung Phase 28: nie zwei Meldungsfelder zugleich — ein laufender Hinweis weicht der wichtigen Meldung
 		_toastTween?.Kill();
 		_toast.Modulate = new Color(1, 1, 1, 0);
 	}
+
+	/// <summary>Oben mittig: im Flug unter Sektorchip und Lagezeile, über Vollbild-Bereichen in deren Kopfleiste (zwischen Titel und Kasse).</summary>
+	void PlaceAlert()
+	{
+		var vp = GetViewport().GetVisibleRect().Size;
+		bool screen = Screens.Current != null && Screens.Current != Flight;
+		_alert.Position = new Vector2((vp.X - AlertWidth) / 2f, screen ? 2f : 74f);
+	}
+
+	/// <summary>Selbsttest: Mittelpunkt der Meldung und des „✕“ (für simulierte Tipps).</summary>
+	public Vector2 TestAlertCenter => _alert.GetGlobalRect().GetCenter();
+	public Vector2 TestAlertCloseCenter => _alertClose.GetGlobalRect().GetCenter();
+	public bool TestAlertSticky => _alert.Visible && _alertSticky;
+
 	double _alertShown;
 	bool _alertSticky;
 
@@ -245,7 +283,10 @@ public partial class Hud : CanvasLayer
 
 	public override void _Process(double delta)
 	{
-		if (_alert.Visible && !_alertSticky && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
+		if (_alert.Visible && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
+		if (_alert.Visible) PlaceAlert();
+		// der Hinweis rückt unter eine stehende Meldung (statt sie zu überdecken)
+		_toast.Position = new Vector2(_toast.Position.X, _alert.Visible ? 74f + AlertHeight + 6f : 112f);
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 	}
 

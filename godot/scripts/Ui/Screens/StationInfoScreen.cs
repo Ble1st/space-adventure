@@ -44,13 +44,18 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		float h = inner.Size.Y > 0 ? inner.Size.Y : 520f;
 		// Gerätetest Phase 27: Spalten mit festen Breiten; jede Zeile kürzt mit „…“ statt in die Nachbarspalte zu laufen
 		float cw = (w - 20) * 0.32f, mw = (w - 20) * 0.37f;
-		_rowW = cw - 32f;
+		_rowW = cw - 44f;   // Platz für den Rollbalken der Karte
 
 		// ── Karte 1: Allgemein (alles echt) ──
 		var c1 = CardPanel(inner, 0, 0, cw, h);
-		var v1 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		v1.AddThemeConstantOverride("separation", 8);
-		c1.AddChild(v1);
+		// Zweiter Gerätetest Phase 28: die Karte rollt, wenn ihr Inhalt (Verteidigung, zwei Chip-Zeilen) höher ist als der Rahmen — vorher wuchs der
+		// PanelContainer über den Rahmen hinaus („Hangar“/„Taxi“ ragten heraus)
+		var s1 = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ExpandFill };
+		c1.AddChild(s1);
+		var v1 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		v1.AddThemeConstantOverride("separation", 6);
+		s1.AddChild(v1);
+		_infoScroll = s1;
 		v1.AddChild(Text("Allgemein", 22, Cyan));
 		string type = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Name : st.TypeKey;
 		string faction = u.ActorName(st.Owner);   // Phase 9: Besitzer ist ein Akteur (Fraktionen tragen ihren Namen)
@@ -99,7 +104,7 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		var services = Ctx.Services.ForStation(u, st);
 		if (services.Count == 0) v1.AddChild(Text("keine", 15, Dim));
 		// Gerätetest: Dienste-Chips umbrechen (liefen in die Marktspalte)
-		var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(cw - 32f, 0) };
+		var chips = new HFlowContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(cw - 44f, 0) };
 		chips.AddThemeConstantOverride("h_separation", 6);
 		chips.AddThemeConstantOverride("v_separation", 6);
 		TestChips = string.Join(",", services.Select(sv => DockAreas.ServiceName(sv.Key, u)));
@@ -189,6 +194,10 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	}
 
 	float _rowW = 300f;
+	KitScroll? _infoScroll;
+	/// <summary>Selbsttest: Rahmen der Karte „Allgemein“ und Rechteck ihres letzten Dienst-Chips (muss im Rahmen liegen oder die Karte rollt).</summary>
+	public (Rect2 Card, Rect2 Content, bool Scrolls) TestInfoCard => _infoScroll is { } k && k.GetChild(0) is Control c
+		? (k.GetGlobalRect(), c.GetGlobalRect(), k.GetVScrollBar().MaxValue - k.GetVScrollBar().Page > 0.5) : (default, default, false);
 
 	/// <summary>Gerätetest Phase 27: Label kürzt mit „…“ und bestimmt nicht die Breite seines Containers.</summary>
 	static Label Clip(Label l)

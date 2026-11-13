@@ -463,6 +463,17 @@ public sealed class ScenarioDef
     public bool PoliceSquadron { get; set; }
     /// <summary>Fahndungsstufe des Spielers bei der Sektorfraktion (0 = sauber; 3 = gesucht → Festnahme-Warnung, sobald eine Streife im Sektor ist).</summary>
     public int Wanted { get; set; }
+    /// <summary>Zweiter Gerätetest Phase 28: zusätzliche Slots (Slotart, Größe S) hinter den Klassenslots — z. B. ein Frachtslot für den Falken im Gefechtstest.</summary>
+    public List<string>? BonusSlots { get; set; }
+    /// <summary>Zweiter Gerätetest Phase 28: der erste Kaperer (Anführer) ohne Schildmodul (angeschlagen, für Menschen bestehbar).</summary>
+    public bool LeadWithoutShield { get; set; }
+    /// <summary>
+    /// Zweiter Gerätetest Phase 28: &gt; 0 = die übrigen Kaperer bilden kein Rudel, sondern stoßen erst so viele Ticks nach dem Überfallbeginn als Verstärkung
+    /// dazu (eigene angekündigte Überfälle, die einem laufenden Gefecht beitreten); 0 = Rudel wie bisher.
+    /// </summary>
+    public int ReinforceAfterTicks { get; set; }
+    /// <summary>Zweiter Gerätetest Phase 28: Hüllenanteil der später dazustoßenden Kaperer (1 = heil).</summary>
+    public float ReinforceHull { get; set; } = 1f;
 }
 
 public sealed class PlayerDef

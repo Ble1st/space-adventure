@@ -67,28 +67,32 @@ public static class UiKit
 	}
 
 	/// <summary>
-	/// Fließtext mit manuellem Zeilenumbruch (ca. Zeichenbreite = size × 0.52): ein Label mit Autowrap ist
-	/// in frei platzierten Controls unzuverlässig, deshalb hier selbst umbrechen. Liefert die y-Position unter dem Text.
+	/// Fließtext mit manuellem Zeilenumbruch: ein Label mit Autowrap ist in frei platzierten Controls unzuverlässig, deshalb hier selbst umbrechen.
+	/// Zweiter Gerätetest Phase 28: die Breite wird mit der Schrift gemessen (vorher geschätzt — Zeilen liefen über und wurden mit „…“ gekürzt).
+	/// Liefert die y-Position unter dem Text.
 	/// </summary>
 	public static float WrappedText(Control parent, string text, float x, float y, float w, int size, Color color, int lineH = 0)
 	{
 		if (lineH <= 0) lineH = size + 6;
-		float maxChars = MathF.Max(10f, w / (size * 0.52f));
-		var words = text.Split(' ');
-		var line = new System.Text.StringBuilder();
 		float cy = y;
-		foreach (var word in words)
-		{
-			if (line.Length > 0 && line.Length + word.Length + 1 > maxChars)
-			{
-				At(parent, Text(line.ToString(), size, color), x, cy, w, lineH);
-				cy += lineH;
-				line.Clear();
-			}
-			if (line.Length > 0) line.Append(' ');
-			line.Append(word);
-		}
-		if (line.Length > 0) { At(parent, Text(line.ToString(), size, color), x, cy, w, lineH); cy += lineH; }
+		foreach (var line in Wrap(text, size, w)) { At(parent, Text(line, size, color), x, cy, w, lineH); cy += lineH; }
 		return cy;
+	}
+
+	/// <summary>Zweiter Gerätetest Phase 28: Zeilen eines Fließtexts bei Schriftgröße <paramref name="size"/> und Breite <paramref name="w"/> (gemessen).</summary>
+	public static System.Collections.Generic.List<string> Wrap(string text, int size, float w)
+	{
+		var font = ThemeDB.FallbackFont;
+		float Width(string t) => font.GetStringSize(t, HorizontalAlignment.Left, -1, size).X;
+		var lines = new System.Collections.Generic.List<string>();
+		var line = new System.Text.StringBuilder();
+		foreach (var word in text.Split(' '))
+		{
+			string next = line.Length > 0 ? line + " " + word : word;
+			if (line.Length > 0 && Width(next) > w - 4f) { lines.Add(line.ToString()); line.Clear(); line.Append(word); }
+			else { line.Clear(); line.Append(next); }
+		}
+		if (line.Length > 0) lines.Add(line.ToString());
+		return lines;
 	}
 }

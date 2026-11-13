@@ -4,7 +4,7 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Core.Simulation;
 
 /// <summary>Phase 22: Art eines Verstoßes gegen die Handlungsfähigkeit einer Fraktion.</summary>
-public enum ViabilityIssueKind { TreasuryBelowReserve, PoliceBelowMinimum, BuildersBelowMinimum, NoSeat, NoHideout }
+public enum ViabilityIssueKind { TreasuryBelowReserve, PoliceBelowMinimum, BuildersBelowMinimum, NoSeat, NoHideout, CannotHunt }
 
 /// <summary>Phase 22: ein Verstoß gegen die Handlungsfähigkeit (Art, Anzeigetext).</summary>
 public sealed record ViabilityIssue(ViabilityIssueKind Kind, string Text);
@@ -100,6 +100,9 @@ public static class FactionViability
         {
             if (!u.Stations.Values.Any(st => st.Owner == actor && StationProtection.IsHideout(u, st)))
                 list.Add(new ViabilityIssue(ViabilityIssueKind.NoHideout, "kein Versteck"));
+            // Prüfung Phase 28: „kann jagen“ — ein Kaperschiff ist einsatzfähig oder wird im Versteck versorgt, oder die Gruppe kann (wieder) eines bauen
+            else if (CannotHunt(u, a))
+                list.Add(new ViabilityIssue(ViabilityIssueKind.CannotHunt, "kein Kaperschiff kann jagen"));
             return list;
         }
         if (!a.IsFaction(u)) return list;
@@ -114,6 +117,18 @@ public static class FactionViability
         if (!u.Stations.Values.Any(st => !st.IsBuildSite && st.Owner == actor && StationProtection.KindOf(u, st) is GovernmentKind.Headquarters or GovernmentKind.CompanySeat))
             list.Add(new ViabilityIssue(ViabilityIssueKind.NoSeat, "kein Hauptquartier/Sitz"));
         return list;
+    }
+
+    /// <summary>
+    /// Prüfung Phase 28: Piratengruppe kann nicht jagen — kein Kaperschiff ist einsatzfähig oder in Versorgung im Versteck
+    /// (<see cref="PirateSystem.CanHunt"/>), und ohne Kaperschiff fehlt das Versteck-Grundeinkommen für den Neuanfang. Rein.
+    /// </summary>
+    public static bool CannotHunt(Universe u, Actor a)
+    {
+        if (!u.Rules.SecurityActive) return false;
+        var raiders = u.ShipsById().Where(s => ThreatMap.IsRaider(s) && s.Owner == a.Id).ToList();
+        if (raiders.Count == 0) return u.Rules.PirateIdleIncomePerTick <= 0f && a.Treasury.Credits < u.Rules.RaiderCost * Math.Clamp(u.Rules.RaiderRestartCostFactor, 0f, 1f);
+        return !raiders.Any(s => PirateSystem.CanHunt(u, s, a));
     }
 
     /// <summary>Gerätetest (Phase 26): Rücklage noch im Aufbau (Fraktion jünger als <see cref="EconomyRules.FactionReserveBuildTicks"/>) — kein Verstoß.</summary>

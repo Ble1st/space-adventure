@@ -56,8 +56,29 @@ public partial class KitButton : Control
 	public void CancelPress()
 	{
 		if (_finger < 0 && !_down) return;
-		_finger = -1; _down = false; QueueRedraw();
+		Release();
+		_down = false; QueueRedraw();
 	}
+
+	/// <summary>
+	/// Zweiter Gerätetest Phase 28: Anzahl gedrückter Tasten. Solange eine Taste gedrückt ist, bauen die Bildschirme nicht neu auf
+	/// (sonst landete das Loslassen auf einem neuen Knoten, der das Drücken nie gesehen hat, und die Taste löste nicht aus).
+	/// </summary>
+	public static int AnyHeld
+	{
+		get
+		{
+			// Sicherung: ein Drücken ohne Loslassen (Finger außerhalb des Fensters gelöst) zählt nach 8 s nicht mehr
+			ulong now = Time.GetTicksMsec();
+			_heldSet.RemoveWhere(b => !GodotObject.IsInstanceValid(b) || !b.IsInsideTree() || b._finger < 0 || now - b._pressedAt > 8000);
+			return _heldSet.Count;
+		}
+	}
+	static readonly System.Collections.Generic.HashSet<KitButton> _heldSet = new();
+	ulong _pressedAt;
+	void Press(int idx) { _finger = idx; _pressedAt = Time.GetTicksMsec(); _heldSet.Add(this); }
+	void Release() { _finger = -1; _heldSet.Remove(this); }
+	public override void _ExitTree() => Release();
 
 	public void SetState(KitButtonState state, string? detail = null, Color? detailColor = null)
 	{
@@ -72,11 +93,11 @@ public partial class KitButton : Control
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
 		if (State == KitButtonState.Disabled) { if (!motion && pressed) AcceptEvent(); return; }
 		bool inside = new Rect2(Vector2.Zero, Size).HasPoint(pos);
-		if (!motion && pressed && inside && _finger < 0) { _finger = idx; _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
+		if (!motion && pressed && inside && _finger < 0) { Press(idx); _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
 		else if (idx == _finger && !pressed && !motion)
 		{
 			bool fire = _down && inside;
-			_finger = -1; _down = false; QueueRedraw(); AcceptEvent();
+			Release(); _down = false; QueueRedraw(); AcceptEvent();
 			if (fire) { if (Toggle) _on = !_on; Pressed?.Invoke(); }
 		}
 		else if (idx == _finger && motion) { _down = inside; QueueRedraw(); AcceptEvent(); }

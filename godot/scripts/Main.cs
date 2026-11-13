@@ -277,6 +277,7 @@ public partial class Main : Node3D
 		_hud.Flight.SetAutopilot(false);
 		_hud.Flight.SetSlider(0f);
 		_hud.Screens.Hide();
+		_hud.HideAlert();   // zweiter Gerätetest Phase 28: keine Meldung der alten Sitzung (Verlustmeldung blieb nach „Neues Spiel“ stehen)
 		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();   // Gerätetest Phase 27: kein Zustand der alten Sitzung
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset();
@@ -289,7 +290,25 @@ public partial class Main : Node3D
 		_camOffset = _orbit.Offset();   // gewählte Ansicht bleibt erhalten (nicht im Spielstand gespeichert)
 		SnapCam();
 		_reenter = false;
+		_player.Heading = 0f;   // zweiter Gerätetest Phase 28: neue Sitzung = Nase nach Norden (vorher blieb die Richtung der alten Sitzung stehen)
 		if (u.Stations.ContainsKey(p.DockedAt)) EnterActiveShip();   // Phase 12: gespeichert angedockt (oder in ein angedocktes Schiff gewechselt) → Andock-Menü
+		else AnnouncePending();
+	}
+
+	/// <summary>
+	/// Zweiter Gerätetest Phase 28: ein schon angekündigter Überfall beim Sitzungsbeginn (Gefechtstest) — die Nase zeigt auf den Kaperer und die Warnung
+	/// steht die volle Frist (vorher entstand die Ankündigung vor dem Anschluss der Ansicht und wurde nie gezeigt; die Nase zeigte in die alte Richtung).
+	/// </summary>
+	void AnnouncePending()
+	{
+		var u = _session.U;
+		var warn = u.PendingEncounters.Where(e => e.Target == u.PlayerShip && e.Kind == EncounterKind.Raid).OrderBy(e => e.DueTick).FirstOrDefault();
+		if (warn is null || !u.Ships.TryGetValue(warn.Source, out var raider) || raider.Sector != u.PlayerSector) return;
+		var d = new Vector2(raider.Position.X - _player.Position.X, raider.Position.Y - _player.Position.Z);
+		if (d.LengthSquared() > 0.01f) _player.Heading = Mathf.Atan2(-d.X, -d.Y);
+		float secs = Mathf.Max(1f, (warn.DueTick - u.Tick) / (float)SimClock.TicksPerSecond);
+		_hud.Alert($"Piraten! {u.ActorName(raider.Owner)} nimmt Kurs auf dich — Angriff in {secs:0} s. Andocken oder kämpfen („Nächster Gegner“, „Dauerfeuer“).", secs);
+		LastSecurityMessage = _hud.TestAlert;
 	}
 
 	/// <summary>Gerätetest Phase 27: Hindernisse des Sektors plus die Tore (beim Abdocken nicht geradewegs in ein Tor fliegen).</summary>
@@ -812,9 +831,10 @@ public partial class Main : Node3D
 				_hud.Toast("Kein Weg zum Ziel: " + (GateAccess.BlockReason(u, PlayerData, u.PlayerSector, target.Sector) ?? "Gates gesperrt"));
 				CancelAutopilot(); return (Vector2.Zero, 0f, 1f);
 			case NavStatus.Arrived:
-				_hud.Toast($"Ziel erreicht: {target.Label}");
 				CancelAutopilot();
-				if (_targetStation is { } sid && u.Stations.ContainsKey(sid)) Dock(sid);
+				// Prüfer-Empfehlung Phase 28: Ankunft an einer Station dockt selbsttätig an — die Meldung sagt es
+				if (_targetStation is { } sid && u.Stations.ContainsKey(sid)) { Dock(sid); _hud.Toast($"Angedockt per Autopilot: {u.Stations[sid].Name}"); }
+				else _hud.Toast($"Ziel erreicht: {target.Label}");
 				_target = null; _targetStation = null;
 				return (Vector2.Zero, 0f, 1f);
 		}
@@ -901,6 +921,7 @@ public partial class Main : Node3D
 	{
 		if (_targetStation != station || station is null) _fight.ArmStation(default);   // Gerätetest Phase 28: neues Ziel beendet einen Stationsangriff in der Zielkarte
 		_target = target; _targetStation = station;
+		_follower.Reset();   // Prüfer-Empfehlung Phase 28: neuer Plan für das neue Ziel
 		_autopilot = true; _hud.Flight.SetAutopilot(true);
 		_hud.Flight.SetSlider(0f);   // Gerätetest: der Autopilot übernimmt — ein Rest am Regler (1–3 %) hätte ihn sofort wieder abgeschaltet
 		_sfx.Play(SfxId.Click);
@@ -912,6 +933,7 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Click);
 		if (_target == null) { _hud.Flight.SetAutopilot(false); _hud.Toast("Kein Ziel – Station oder Gate antippen, oder Karte öffnen"); return; }
 		_autopilot = _hud.Flight.AutopilotOn;
+		if (_autopilot) _follower.Reset();   // Prüfer-Empfehlung Phase 28: Wiedereinschalten plant von der jetzigen Position
 		if (_autopilot) { _hud.Flight.SetSlider(0f); _hud.Toast($"Autopilot an: {_target.Value.Label}"); }   // Gerätetest: übernimmt den Regler
 		else _hud.Toast("Autopilot aus");
 	}
@@ -1443,6 +1465,10 @@ public partial class Main : Node3D
 				d.TargetInfo = $"Entfernung {d.TargetDistance:0} m";
 			}
 			else d.TargetInfo = "anderer Sektor – über Gate fliegen";
+			// zweiter Gerätetest Phase 28: eine gewählte Station mit Verteidigung zeigt Hülle/Schild immer (vorher erst nach Angriffsbeginn)
+			if (u.Rules.Warfare && _targetStation is { } tsid && u.Stations.TryGetValue(tsid, out var tst) && tst.Sector == u.PlayerSector && !tst.IsBuildSite
+				&& SpaceSim.Core.Combat.StationCombat.DefenseOf(u, tst) is not null)
+				d.TargetCombat = SpaceSim.Core.Combat.WarInfo.StationShort(u, tst);
 		}
 		else if (_mineTarget is { } rock && _bayAimPos is { } aim)
 		{
@@ -1981,6 +2007,10 @@ public partial class Main : Node3D
 	internal void TestFireWeapon() => _fireRequested = true;
 	// Phase 25: Spielerkampf
 	internal CombatController TestFight => _fight;
+	/// <summary>Zweiter Gerätetest Phase 28: Blickrichtung des Spielerschiffs als Peilung in Grad (wie FiringArc.Bearing).</summary>
+	internal float TestHeadingDeg => Mathf.RadToDeg(_player.Heading);
+	/// <summary>Zweiter Gerätetest Phase 28: Dock-Bereich schließen, zurück ins Dock-Menü.</summary>
+	internal void TestCloseDockArea() => ShowDockMenu();
 	internal void TestNextEnemy() => SelectNextEnemy();
 	internal void TestSetShipTarget(ShipId id) => _fight.SetTarget(id);
 	/// <summary>Dreht das Spielerschiff zur Position (Bugwaffen tragen).</summary>

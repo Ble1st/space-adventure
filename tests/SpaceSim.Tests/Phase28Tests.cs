@@ -27,6 +27,8 @@ public class Phase28Tests
         def.Rules.RaiderUpkeepPerTick = new EconomyRules().RaiderUpkeepPerTick;   // Nacharbeit: Standardwelt 0,03
         def.Rules.TraderBuyGuard = false;          // Nacharbeit: kein Einkauf mit sicherem Verlust
         def.Rules.BuildMissingProducer = false;    // Nacharbeit: fehlender letzter Hersteller zählt als knapp   // Prüfpunkt e: Standardwelt 0,75, bis Phase 27 der Code-Wert 0,6
+        def.Rules.PirateBasePatchHull = 0f;        // Prüfung Phase 28: Notversorgung der Piraten im Versteck
+        def.Rules.FleetWorldCapWhenDivided = false; // Prüfung Phase 28: Weltgrenze der Flotte im geteilten Zustand
         string[] late = { "missile", "missile_launcher_s", "point_defense_s" };
         def.Goods.RemoveAll(g => g.Key == "missile");
         def.Modules.RemoveAll(m => late.Contains(m.Key));
@@ -820,26 +822,136 @@ public class Phase28Tests
         var me = u.Ships[u.PlayerShip];
         Assert.Equal("falcon", me.ModelKey);
         Assert.False(ThreatMap.NearStation(u, me.Sector, me.Position));
-        // Gerätetest Phase 28: Anführer vor dem Bug außerhalb der eigenen Waffenreichweite, angeschlagen; das zweite Rudelmitglied weit dahinter
-        var pack = u.PendingEncounters.First(p => p.Kind == EncounterKind.Raid);
-        var lead = u.Ships[pack.Source];
+        // zweiter Gerätetest Phase 28: Anführer vor dem Bug außerhalb der eigenen Waffenreichweite, 40 % Hülle ohne Schild; der zweite Kaperer kommt
+        // frühestens 60 s nach dem Überfallbeginn (eigene Ankündigung, kein Rudel)
+        var raids = u.PendingEncounters.Where(p => p.Kind == EncounterKind.Raid && p.Target == me.Id).OrderBy(p => p.DueTick).ToList();
+        Assert.Equal(2, raids.Count);
+        var lead = u.Ships[raids[0].Source];
         float reach = CombatSense.MaxRange(u, me);
         Assert.InRange(Vec2.Distance(lead.Position, me.Position), reach, reach + 80f);
-        Assert.True(lead.Position.Y < me.Position.Y, "vor dem Bug (Blickrichtung −y)");
-        Assert.True(lead.Hull < lead.MaxHull * 0.7f, "angeschlagen");
-        Assert.Equal(u.Tick + 60, pack.DueTick);   // volle 15 s Warnung
-        var second = u.ShipsById().First(r => ThreatMap.IsRaider(r) && r.Id != lead.Id && Squadrons.Get(u, r)?.Id == Squadrons.Get(u, lead)?.Id);
-        Assert.True(Vec2.Distance(second.Position, me.Position) > 250f);
-        Assert.Contains(u.PendingEncounters, p => p.Kind == EncounterKind.Raid && p.Target == me.Id);
+        Assert.InRange(Vec2.Distance(lead.Position, me.Position), CombatSense.MaxRange(u, lead), 200f);   // außerhalb seiner Waffenreichweite
+        // vor dem Bug (Blickrichtung −y; die Ansicht richtet die Nase beim Sitzungsbeginn genau auf den angekündigten Kaperer aus)
+        Assert.InRange(MathF.Abs(FiringArc.Bearing(lead.Position - me.Position)), 0f, 20f);
+        Assert.Equal(lead.MaxHull * 0.4f, lead.Hull, 2);
+        Assert.Equal(0f, lead.Stats.Shield);
+        Assert.Equal(u.Tick + 60, raids[0].DueTick);   // volle 15 s Warnung
+        Assert.True(raids[1].DueTick - raids[0].DueTick >= 240, "Verstärkung frühestens 60 s nach dem Überfallbeginn");
+        Assert.True(Vec2.Distance(u.Ships[raids[1].Source].Position, me.Position) > 150f);
+        Assert.Null(Squadrons.Get(u, lead));
         Assert.Contains(u.ShipsById(), s => s.Role == ShipRole.Trader && s.Sector == me.Sector && s.DockedAt.Value == 0 && Vec2.Distance(s.Position, me.Position) < 60f);
         var cops = SecuritySystem.PoliceOf(u, u.Sectors[me.Sector].Owner).Where(c => c.Sector == me.Sector).ToList();
         Assert.True(cops.Count >= 2 && cops[0].Squadron.Value != 0 && cops[0].Squadron == cops[1].Squadron, "Streife als Verband");
+        // kleiner Frachtraum mit Fracht: „Ergeben“ ist im Gefecht möglich
+        Assert.True(me.Stats.Cargo > 0f && me.Cargo.Values.Sum() > 0f);
         var runner = new SimulationRunner();
         var ev = Capture(u);
         for (int i = 0; i < 300 && !u.Fights.IsEngaged(me.Id); i++) runner.Step(u);
         Assert.True(u.Fights.Of(me.Id)?.Cause == EncounterCause.Raid, string.Join(" | ", ev.Where(e => e is EncounterEscaped or EncounterStarted or EncounterEnded).Select(e => e.ToString())));
+        Assert.True(u.Tick >= raids[0].DueTick);
         Assert.True(PlayerSurrender.Relevant(u), "Ergeben ist im Überfall-Gefecht ein Thema (Taste sichtbar)");
-        Assert.Equal("Keine Fracht zum Abwerfen.", PlayerSurrender.Issue(u));   // der Falke hat keinen Frachtraum: Taste deaktiviert mit Grund
+        Assert.Null(PlayerSurrender.Issue(u));   // mit Fracht: Taste aktiv
+    }
+
+    /// <summary>
+    /// Zweiter Gerätetest Phase 28: der Gefechtstest ist für einen Menschen bestehbar — nur „Nächster Gegner“ und „Dauerfeuer“ (jede bereite Waffe feuert,
+    /// sobald das Ziel im Feuerwinkel liegt; die Nase zeigt wie beim Menschen mit den Wendetasten auf das Ziel). Der erste Kaperer fällt, es gibt Kopfgeld,
+    /// der Falke lebt mehr als 45 s nach dem Überfallbeginn.
+    /// </summary>
+    [Fact]
+    public void Startpaket_Gefechtstest_BestehbarMitDauerfeuer()
+    {
+        var u = Standard(start: "combat");
+        var me = u.Ships[u.PlayerShip];
+        var lead = u.PendingEncounters.Where(p => p.Kind == EncounterKind.Raid).OrderBy(p => p.DueTick).First().Source;
+        var runner = new SimulationRunner();
+        long start = -1, leadDown = -1;
+        var target = default(ShipId);
+        for (int i = 0; i < 4 * 120 && u.PlayerShip == me.Id; i++)
+        {
+            runner.Step(u);
+            if (!u.Fights.IsEngaged(me.Id)) continue;
+            if (start < 0) start = u.Tick;
+            if (!u.Ships.ContainsKey(lead) && leadDown < 0) leadDown = u.Tick;
+            if (target.Value == 0 || !u.Ships.ContainsKey(target)) target = PlayerCombat.NextEnemy(u, me, default);
+            if (target.Value == 0 || PlayerCombat.PositionOf(u, target) is not { } tp) continue;
+            float heading = FiringArc.Bearing(tp.Pos - me.Position);
+            foreach (int slot in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFire(u, me, slot, target, heading);
+        }
+        Assert.True(start >= 0, "der Überfall begann");
+        Assert.True(leadDown > 0, "der erste Kaperer wurde abgeschossen");
+        Assert.True(u.PlayerShip == me.Id && u.Ships.ContainsKey(me.Id), "der Falke lebt");
+        Assert.True(u.Tick - start > 45 * SimClock.TicksPerSecond, "länger als 45 s überlebt");
+        Assert.True(u.Actors[u.PlayerActor].BountyClaims.Values.Sum() > 0f, "Kopfgeld für den Kaperer");
+    }
+
+    /// <summary>
+    /// Prüfung Phase 28 (Langläufe: Piraten starben aus): eine Piratengruppe mit leerer Kasse und beschädigten Kaperschiffen im Versteck jagt nach begrenzter
+    /// Zeit wieder (Notversorgung im Versteck); ohne die Regel bleibt sie stehen und die Handlungsfähigkeit meldet „kann nicht jagen“.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Piraten_LeereKasse_BeschaedigtImVersteck_JagenWieder(bool patch)
+    {
+        var u = Standard();
+        if (!patch) u.Rules.PirateBasePatchHull = 0f;
+        var a = u.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw).OrderBy(x => x.Id.Value).First();
+        var hideout = u.StationsById().First(st => st.Owner == a.Id && StationProtection.IsHideout(u, st));
+        a.Treasury.Credits = 0f;
+        var raiders = u.ShipsById().Where(r => ThreatMap.IsRaider(r) && r.Owner == a.Id).ToList();
+        foreach (var r in raiders)
+        {
+            if (r.Command is not null) Commands.Cancel(u, r);
+            if (r.Squadron.Value != 0 && Squadrons.Get(u, r) is { } sq) Squadrons.Disband(u, sq);
+            Place(u, r, hideout.Sector, hideout.DockPoint(r.Id));
+            r.HomeBase = hideout.Id;
+            r.Hull = r.MaxHull * 0.2f;
+            int shield = r.Fit.FindIndex(m => m == "shield_mk1");
+            if (shield >= 0) ModuleDamage.SetCondition(u, r, shield, 0.05f);
+        }
+        var runner = new SimulationRunner();
+        var ev = Capture(u);
+        bool hunted = false;
+        for (int i = 0; i < 6000 && !hunted; i++)
+        {
+            runner.Step(u);
+            a.Treasury.Credits = 0f;   // die Kasse bleibt leer (keine Hehlerei, keine bezahlte Reparatur)
+            hunted = raiders.Any(r => u.Ships.ContainsKey(r.Id) && !PirateSystem.AtHome(u, r) && r.Command is LurkCommand);
+        }
+        if (patch)
+        {
+            Assert.True(hunted, "die Gruppe jagt wieder");
+            Assert.DoesNotContain(FactionViability.Check(u, a.Id), i => i.Kind == ViabilityIssueKind.CannotHunt);
+        }
+        else
+        {
+            Assert.False(hunted);
+            Assert.Contains(FactionViability.Check(u, a.Id), i => i.Kind == ViabilityIssueKind.CannotHunt);
+        }
+    }
+
+    /// <summary>
+    /// Prüfung Phase 28 (Lauf J: Bergbau nach Wiederöffnung dauerhaft über der Grenze): im geteilten Zustand kauft ein Teil mit freiem Anteil nicht, wenn die
+    /// ganze Welt die Grenze schon erreicht hat (Schiffe sitzen über dem Anteil eines kleinen Teils fest); der Notkauf der Fraktionskasse bleibt erlaubt.
+    /// </summary>
+    [Fact]
+    public void Flotte_GeteilteKarte_NieUeberDieWeltgrenze()
+    {
+        var u = Standard();
+        new SimulationRunner().Step(u);
+        GateAccess.SetState(u, u.Gates[new GateId(17)], GateState.Closed);   // Aurelia (Sackgasse) fällt ab
+        Assert.True(FleetCapacity.Divided(u));
+        var job = ShipJobs.Default.First(j => j.Key == "mine");
+        var aurelia = u.Gates[u.Gates[new GateId(17)].Target].Sector;
+        var miners = u.ShipsById().Where(s => s.Role == ShipRole.Miner && s.Controller == Controller.Ai).Take(6).ToList();
+        foreach (var m in miners) Place(u, m, aurelia, u.Sectors[aurelia].Fields.Count > 0 ? u.Sectors[aurelia].Fields[0].Position : default);
+        u.Rules.MaxMiners = (int)MathF.Floor(ShipJobs.UsedUnits(u, job));
+        int main = FleetCapacity.PartOf(u, u.ShipsById().First(s => s.Role == ShipRole.Miner && s.Sector != aurelia && s.Controller == Controller.Ai));
+        Assert.True(FleetCapacity.Used(u, job, main) < FleetCapacity.Limit(u, job, main), "der Hauptteil hätte nach seinem Anteil Platz");
+        Assert.False(FleetSystem.CanGrow(u, job, main));
+        Assert.True(FleetSystem.CanGrow(u, job, main, worldCap: false));
+        u.Rules.FleetWorldCapWhenDivided = false;
+        Assert.True(FleetSystem.CanGrow(u, job, main));
     }
 
     [Fact]
