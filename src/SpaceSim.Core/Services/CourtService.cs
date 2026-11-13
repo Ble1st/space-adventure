@@ -20,6 +20,26 @@ public sealed class CourtService : IStationService
     /// <summary>Verfügbar an fertigen Stationen, deren Besitzer zu einer Fraktion gehört.</summary>
     public bool IsAvailable(Universe u, Station station) => !station.IsBuildSite && u.FactionOf(station) is { } f && u.Factions.ContainsKey(f);
 
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 4): nächste Station mit Kopfgeldbüro der Fraktion <paramref name="faction"/> (der Anspruch gilt dort), gezählt in Sprüngen
+    /// ab <paramref name="from"/>, dann nach Id; null = keine. Für die Meldung „Kopfgeld abholen: Behörde in …“.
+    /// </summary>
+    public static Station? NearestOffice(Universe u, SectorId from, FactionId faction)
+    {
+        Station? best = null; int bestHops = int.MaxValue;
+        foreach (var st in u.StationsById())
+        {
+            if (st.IsBuildSite || u.FactionOf(st) != faction || !u.StationTypes.TryGetValue(st.TypeKey, out var t) || !t.Services.Contains(BountyService.ServiceKey)) continue;
+            int hops = st.Sector == from ? 0 : u.FindRoute(from, st.Sector)?.Count ?? int.MaxValue;
+            if (hops < bestHops) { bestHops = hops; best = st; }
+        }
+        return best;
+    }
+
+    /// <summary>Meldungstext zum Kopfgeld mit der nächsten Behörde („Kopfgeld 150 Cr abholen: Behörde in Sektor-HQ Delta.“).</summary>
+    public static string Hint(Universe u, SectorId from, FactionId faction, float bounty) =>
+        NearestOffice(u, from, faction) is { } st ? $" Kopfgeld {bounty:0} Cr abholen: Behörde in {st.Name}." : $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen.";
+
     /// <summary>Nimmt das Gericht dieser Station Strafen der Fraktion an?</summary>
     public static bool Accepts(Universe u, Station station, FactionId faction) =>
         u.FactionOf(station) is { } own && (own == faction || Relations.Effective(u, faction, own) >= u.Rules.ExtraditionRelation);

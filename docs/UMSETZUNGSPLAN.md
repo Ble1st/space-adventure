@@ -806,6 +806,12 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - Randmarker für Stationen außerhalb des Bildes (antippbar); leere Wracks nicht mehr gezeichnet; Leihschiff-Rückgabe nennt die ganze Miete; Meldung über dem Dock-Menü links neben dem Fenster; Hinweise über offenen Menüs (Speichern-Rückmeldung); Handels-Editor beim neuen Andocken zurückgesetzt.
 - Speicher: zwei Runden aus 200 Neuaufbauten und 5 Sektorwechseln ohne Wachstum von Knoten/Objekten (Selbsttest 87); das Wachstum am Gerät ließ sich nicht nachstellen.
 
+**Vierter Gerätetest (APK 0708228).** Nur Bedienung, Simulation der Standardwelt unverändert.
+- Treffer aus 81–94 m beim Stationsangriff kamen von Polizeischiffen, nicht von den Stationsgeschützen; Anzeige einheitlich ab Stationsmitte (Gegenwehr „2 Geschütze · 60 m“, Lagezeile „IN GESCHÜTZREICHWEITE“/„außerhalb Geschütze · Raketen ja“), Beschusswarnung nennt den Schützen; Kriegstest startet ≈ 102 m von der Mitte.
+- „Station angreifen“ schaltet Dauerfeuer und Zielhilfe ein; bewusstes Aus der Zielhilfe bleibt bis zum Zielwechsel.
+- Randpfeile: Stationen mit Verteidigung zuerst, nie über HUD-Elementen; Tipp auf den Stationskörper gewinnt gegen Schiffe; Sektoransicht „Ziel wählen“.
+- Kleinigkeiten: verdeckte Beschriftungen, Hinweis-Lage, Dock-Fußzeile zweizeilig, Speichern-Meldung, Zeitraffer bei neuem Spiel ×1, Leihschiff- und Kopfgeldtexte, Fracht des ersten Kaperers im Gefechtstest (Wrack mit Beute).
+
 ## Zurückgestellt
 
 | Thema | Grund |

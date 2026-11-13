@@ -96,11 +96,6 @@ public static class NpcRepair
         return false;
     }
 
-    /// <summary>
-    /// Reparatur aus der Kasse des Besitzers (Polizei, Piraten, Fraktionsbauschiffe): Hülle zu <see cref="EconomyRules.BaseRepairPerHull"/> je Punkt, Module zu
-    /// <see cref="EconomyRules.BaseModuleRepairCost"/> je Zustandspunkt und Größenstufe; Brände gelöscht. Was die Kasse nicht deckt, bleibt. Ereignisse
-    /// <see cref="TreasuryUpkeep"/> (<paramref name="purpose"/>) und <see cref="ShipRepaired"/> (an der Basis). Liefert die Kosten.
-    /// </summary>
     /// <summary>Prüfung Runde 2 (Phase 28): Kosten der vollen Basisreparatur (Hülle und Module wie <see cref="AtBase"/>), rein.</summary>
     public static float BaseCost(Universe u, Ship s)
     {
@@ -112,6 +107,11 @@ public static class NpcRepair
         return cost;
     }
 
+    /// <summary>
+    /// Reparatur aus der Kasse des Besitzers (Polizei, Piraten, Fraktionsbauschiffe): Hülle zu <see cref="EconomyRules.BaseRepairPerHull"/> je Punkt, Module zu
+    /// <see cref="EconomyRules.BaseModuleRepairCost"/> je Zustandspunkt und Größenstufe; Brände gelöscht. Was die Kasse nicht deckt, bleibt. Ereignisse
+    /// <see cref="TreasuryUpkeep"/> (<paramref name="purpose"/>) und <see cref="ShipRepaired"/> (an der Basis). Liefert die Kosten.
+    /// </summary>
     public static float AtBase(Universe u, Ship s, Actor owner, string purpose, StationId at)
     {
         var r = u.Rules;

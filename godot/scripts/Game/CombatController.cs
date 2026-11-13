@@ -78,12 +78,18 @@ public sealed class CombatController
     {
         if (now - LastHitAt > 3.0) return "";
         Vec2 from;
-        if (PlayerCombat.PositionOf(u, LastAttacker) is { } a) from = a.Pos;
-        else if (LastAttacker.Value == 0 && u.Stations.TryGetValue(_lastStation, out var lst)) from = lst.Position;   // Phase 28: Stationsgeschütz
+        string who;
+        if (PlayerCombat.PositionOf(u, LastAttacker) is { } a)
+        {
+            from = a.Pos;
+            // Gerätetest Phase 28 (Runde 4): wer schießt — beim Stationsangriff traf meist die Polizei, nicht die Station (deren Geschütze reichen 60 m)
+            who = u.Ships.TryGetValue(LastAttacker, out var att) ? ThreatMap.IsPolice(att) ? "Polizei" : ThreatMap.IsRaider(att) ? "Kaperer" : Wars.IsWarship(att) ? "Kriegsschiff" : "Schiff" : "Schiff";
+        }
+        else if (LastAttacker.Value == 0 && u.Stations.TryGetValue(_lastStation, out var lst)) { from = lst.Position; who = "Station"; }   // Phase 28: Stationsgeschütz
         else return "";
         float rel = FiringArc.Normalize180(FiringArc.Bearing(from - pos) - headingDeg);
         string dir = rel > 135f || rel < -135f ? "▼ von hinten" : rel > 45f ? "◀ von links" : rel < -45f ? "▶ von rechts" : "▲ von vorn";
-        return $"BESCHUSS! {dir}";
+        return $"BESCHUSS ({who})! {dir}";
     }
 
     /// <summary>Abgeworfene Fracht (vom Spieler überfallen) → Brocken nahe dem Opfer, einsammelbar mit dem Traktorstrahl.</summary>
