@@ -27,6 +27,9 @@ public partial class SectorView : Node3D
 	readonly Dictionary<ShipId, Marker> _markers = new();
 	/// <summary>Phase 26: angezeigte Wracks und Frachtbehälter (Id → Knoten), abgeglichen mit <see cref="Universe.Wrecks"/>.</summary>
 	readonly Dictionary<int, Node3D> _wrecks = new();
+	/// <summary>Runde 8: Stationsmodell je Station (null = Grundkörper) und der zuletzt angewandte Look (Farbe, Zustand) für <see cref="SyncStations"/>.</summary>
+	sealed class StationNode { public Node3D Root = null!; public Node3D? Model; public Color Accent; public StationModels.Look Look; public float Top; }
+	readonly Dictionary<StationId, StationNode> _stations = new();
 
 	public List<Obstacle> Obstacles { get; private set; } = new();
 	public List<(GateId Id, Vector3 Pos)> Gates { get; } = new();
@@ -56,7 +59,7 @@ public partial class SectorView : Node3D
 		_root?.QueueFree();
 		_root = new Node3D { Name = "Sector" };
 		AddChild(_root);
-		_gateRings.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); Gates.Clear(); Targets.Clear();
+		_gateRings.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
 
 		var sector = u.Sectors[_sector];
 		foreach (var sid in sector.Stations) BuildStation(u.Stations[sid]);
@@ -205,11 +208,57 @@ public partial class SectorView : Node3D
 
 	// ───────── Aufbau aus Core-Daten ─────────
 
+	/// <summary>Runde 8: Farbe des Akzents einer Station — Fraktionsfarbe des Besitzers, Gesetzlose rot, sonst (herrenlos, frei) grau.</summary>
+	public static Color AccentOf(Universe u, Station st)
+	{
+		if (u.FactionOf(st) is { } f) return Ui.MapOverlay.FactionColor(f);
+		if (u.Actors.TryGetValue(st.Owner, out var a) && a.Kind == ActorKind.Outlaw) return new Color(1f, 0.28f, 0.22f);
+		return new Color(0.62f, 0.64f, 0.68f);
+	}
+
+	static StationModels.Look LookOf(Universe u, Station st) =>
+		st.IsBuildSite && st.Site!.Abandoned ? StationModels.Look.Abandoned
+		: SpaceSim.Core.Combat.StationCombat.IsDown(u, st) ? StationModels.Look.Disabled : StationModels.Look.Normal;
+
+	/// <summary>Runde 8: Selbsttest — Stationen mit Modell (Id → Modellknoten, null = Grundkörper) und Oberkante.</summary>
+	public IEnumerable<(StationId Id, Node3D? Model, float Top)> StationModelNodes() => _stations.Select(kv => (kv.Key, kv.Value.Model, kv.Value.Top));
+
+	/// <summary>
+	/// Runde 8: Besitzerwechsel, Ausschalten und Wiedereinschalten ändern keine Struktur (kein Neuaufbau) — die Einfärbung folgt hier je Bild (billig: nur
+	/// ein Vergleich je Station, neu eingefärbt wird nur bei einer Änderung).
+	/// </summary>
+	public void SyncStations(Universe u)
+	{
+		foreach (var (id, n) in _stations)
+		{
+			if (n.Model is null || !u.Stations.TryGetValue(id, out var st)) continue;
+			var accent = AccentOf(u, st); var look = LookOf(u, st);
+			if (accent == n.Accent && look == n.Look) continue;
+			n.Accent = accent; n.Look = look;
+			StationModels.Apply(n.Model, accent, look);
+		}
+	}
+
 	void BuildStation(Station st)
 	{
 		var pos = new Vector3(st.Position.X, 0, st.Position.Y);
-		var root = new Node3D { Position = pos };
+		var root = new Node3D { Position = pos, Name = $"Station{st.Id.Value}" };
 		_root.AddChild(root);
+		// Runde 8: Modell des Typs (Baustellen: build_site), Radius in der Ebene = Kollisionskreis (Station.BodyRadius = Obstacle.Radius)
+		var u = _u!;
+		string key = st.IsBuildSite ? "build_site" : st.TypeKey;
+		var accent = AccentOf(u, st); var look = LookOf(u, st);
+		if (StationModels.Create(key, Station.BodyRadius, accent, look, out float top, out _) is { } model)
+		{
+			root.AddChild(model);
+			_stations[st.Id] = new StationNode { Root = root, Model = model, Accent = accent, Look = look, Top = top };
+			string label = st.IsBuildSite && !st.Site!.Abandoned
+				? $"Baustelle: {(u.StationTypes.TryGetValue(st.Site.TypeKey, out var tt) ? tt.Name : st.Site.TypeKey)}" : st.Name;
+			root.AddChild(Gfx.Label(label, new Vector3(0, top + 2.5f, 0)));
+			Targets.Add(new PickTarget("station", st.Id.Value, pos, st.Name));
+			return;
+		}
+		_stations[st.Id] = new StationNode { Root = root, Top = 6f };
 		if (st.IsBuildSite) { BuildSiteBody(st, root, pos); return; }
 		Gfx.Mesh(new CylinderMesh { TopRadius = 4, BottomRadius = 4, Height = 14 }, Gfx.Mat(new Color(0.55f, 0.6f, 0.65f), 0f, 0.9f), Vector3.Zero, root);
 		Gfx.Mesh(new TorusMesh { InnerRadius = 11, OuterRadius = 14 }, Gfx.Mat(new Color(0.4f, 0.45f, 0.55f), 0f, 0.9f), Vector3.Zero, root);

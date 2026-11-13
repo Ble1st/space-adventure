@@ -763,6 +763,7 @@ public partial class Main : Node3D
 		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; }
 		_view.SyncAsteroids(_session.U, delta);
 		_view.SyncWrecks(_session.U);   // Phase 26: Wracks und Frachtbehälter
+		_view.SyncStations(_session.U);   // Runde 8: Besitzerfarbe und Zustand der Stationsmodelle
 
 		// Phase 26: keine Gratis-Regeneration der Hülle mehr (Reparatur nur über den Dienst „repair“); ohne Schadensmodell wie bisher
 		_sinceHit += delta;
@@ -1940,11 +1941,15 @@ public partial class Main : Node3D
 			BackgroundMode = Godot.Environment.BGMode.Color,
 			BackgroundColor = new Color(0.01f, 0.01f, 0.04f),
 			AmbientLightSource = Godot.Environment.AmbientSource.Color,
-			AmbientLightColor = new Color(0.25f, 0.28f, 0.4f),
+			// Runde 8: Stationsmodelle in Gunmetal/Graphit — Umgebung etwas heller, damit die Flächen im Schatten lesbar bleiben
+			AmbientLightColor = new Color(0.32f, 0.35f, 0.47f),
+			AmbientLightEnergy = 1.15f,
 			GlowEnabled = true,
 		};
 		AddChild(new WorldEnvironment { Environment = env });
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-50, 30, 0), LightEnergy = 1.3f });
+		// Runde 8: schwaches, kühles Fülllicht von der Gegenseite (ohne Schatten, mobil billig) — die abgewandten Seiten der Modelle versinken sonst
+		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-25, 210, 0), LightEnergy = 0.45f, LightColor = new Color(0.7f, 0.8f, 1f), ShadowEnabled = false });
 	}
 
 	void BuildStars()
@@ -2185,6 +2190,8 @@ public partial class Main : Node3D
 	internal bool TestAutopilotOn => _autopilot;
 	internal IReadOnlyList<WeaponBay> TestBays => _bays;
 	/// <summary>Phase 8: Setzt das Schiff in einen anderen Sektor (wie ein Sprung, ohne Gate) – Test des Lagerhauses in Gamma.</summary>
+	/// <summary>Runde 8: Selbsttest — die Sektoransicht (Stationsmodelle).</summary>
+	internal SectorView TestView => _view;
 	internal void TestEnterSector(SectorId sector)
 	{
 		var u = _session.U;

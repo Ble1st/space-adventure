@@ -30,7 +30,7 @@ public partial class UiShots : Node
 	SpaceSim.Core.Model.StationId _site;   // Phase 8: Baustelle für die Bildschirmfotos
 	SpaceSim.Core.Model.ShipId _nomad;     // Phase 12: Flottenschiff für die Bildschirmfotos
 
-	bool _phase28;
+	bool _phase28, _stationsOnly;
 
 	public UiShots(Main m, string dir)
 	{
@@ -56,6 +56,9 @@ public partial class UiShots : Node
 		// (Stationsangriff mit Raketen, Station schießt zurück, Station-Info mit Verteidigung, Krieg in den Fraktionen)
 		_phase28 = OS.GetCmdlineUserArgs().Contains("--ui-shots-phase28");
 		if (_phase28) _stage = 572;
+		// Runde 8: --ui-shots-stations nur die Bilder der Stationsmodelle (90–92)
+		_stationsOnly = OS.GetCmdlineUserArgs().Contains("--ui-shots-stations");
+		if (_stationsOnly) _stage = 594_1;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -728,8 +731,46 @@ public partial class UiShots : Node
 				var uni = _m.Session.U;
 				GD.Print("[ui-shots] Gegner im Sektor: " + string.Join(", ", SpaceSim.Core.Combat.PlayerCombat.Enemies(uni, uni.Ships[uni.PlayerShip])
 					.Select(id => $"{uni.Ships[id].Role} #{id.Value} {(uni.Ships[id].Transit is not null ? "auf Durchreise" : "geparkt")}")));
-				Capture("89-kriegstest-station-gewaehlt.png"); _stage = 999_999; _wait = 5; break;
+				Capture("89-kriegstest-station-gewaehlt.png"); _stage = 594_1; _wait = 5; break;
 			}
+			// Runde 8: Stationsmodelle — Flug nahe Werft und Sektor-HQ (Delta), Piratenversteck (Abgrund), Sektor mit vielen Stationen von weiter oben (Vesta)
+			case 594_1:
+			{
+				_m.TestMenu("new");
+				var uni = _m.Session.U;
+				var yard = uni.Stations.Values.First(x => x.TypeKey == "shipyard" && uni.Sectors[x.Sector].Name.Contains("Delta"));
+				_m.TestEnterSector(yard.Sector);
+				var hq = uni.Stations.Values.First(x => x.Sector == yard.Sector && x.TypeKey == "sector_hq");
+				// zwischen Werft und HQ, etwas zur Seite, etwas weiter oben (zwei Zoomstufen)
+				var mid = new SpaceSim.Core.Model.Vec2((yard.Position.X + hq.Position.X) / 2f, (yard.Position.Y + hq.Position.Y) / 2f);
+				_m.TestTeleportTo(SpaceSim.Core.Combat.CombatSpace.Clear(uni, yard.Sector, mid + new SpaceSim.Core.Model.Vec2(0f, 70f)));
+				_m.TestFace(mid);
+				_m.TestMenu("zoom_out"); _m.TestMenu("zoom_out");
+				_stage = 594_2; _wait = 30; break;
+			}
+			case 594_2: Capture("90-stationen-werft-hq.png"); _m.TestMenu("cam_reset"); _stage = 594_3; _wait = 5; break;
+			case 594_3:
+			{
+				var uni = _m.Session.U;
+				var hide = uni.Stations.Values.First(x => x.TypeKey == "pirate_hideout");
+				_m.TestEnterSector(hide.Sector);
+				_m.TestTeleportTo(SpaceSim.Core.Combat.CombatSpace.Clear(uni, hide.Sector, hide.Position + new SpaceSim.Core.Model.Vec2(42f, 12f)));
+				_m.TestFace(hide.Position);
+				_m.TestMenu("zoom_out");
+				_stage = 594_4; _wait = 30; break;
+			}
+			case 594_4: Capture("91-stationen-piratenversteck.png"); _m.TestMenu("cam_reset"); _stage = 594_5; _wait = 5; break;
+			case 594_5:
+			{
+				var uni = _m.Session.U;
+				var busiest = uni.Sectors.Values.OrderByDescending(x => x.Stations.Count).First();
+				_m.TestEnterSector(busiest.Id);
+				var c = busiest.Stations.Select(id => uni.Stations[id].Position).Aggregate(new SpaceSim.Core.Model.Vec2(0f, 0f), (a, b) => a + b) * (1f / busiest.Stations.Count);
+				_m.TestTeleportTo(c + new SpaceSim.Core.Model.Vec2(0f, 60f));
+				_m.TestMenu("zoom_out"); _m.TestMenu("zoom_out"); _m.TestMenu("zoom_out");
+				_stage = 594_6; _wait = 30; break;
+			}
+			case 594_6: Capture("92-stationen-sektor-vesta-uebersicht.png"); _m.TestMenu("cam_reset"); _stage = 999_999; _wait = 5; break;
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

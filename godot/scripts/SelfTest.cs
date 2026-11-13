@@ -2531,6 +2531,54 @@ public partial class SelfTest : Node
 				}
 				break;
 			}
+			case 89: // Runde 8: Stationsmodelle — in den Sektoren mit vielen Stationstypen hat jede Station ihr Modell, Radius = Kollisionskreis, Fraktionsfarbe
+			{
+				var uni = _m.Session.U;
+				int f = _frame - _stageStart;
+				if (f == 1) { _m.TestMenu("new"); _p8Sectors = uni.Sectors.Values.OrderByDescending(s => s.Stations.Count).Take(3).Select(s => s.Id).ToList(); _p8Types.Clear(); _p8Over = SpaceAdventure.World.StationModels.OverrideCount; break; }
+				int k = (f - 2) / 4;
+				if (k < _p8Sectors.Count && (f - 2) % 4 == 0) { _m.TestEnterSector(_p8Sectors[k]); break; }
+				if (k < _p8Sectors.Count && (f - 2) % 4 == 3)
+				{
+					uni = _m.Session.U;
+					int before = SpaceAdventure.World.StationModels.OverrideCount;
+					foreach (var (id, model, top) in _m.TestView.StationModelNodes())
+					{
+						var st = uni.Stations[id];
+						string key = st.IsBuildSite ? "build_site" : st.TypeKey;
+						if (model is null) { Check(!SpaceAdventure.World.StationModels.Has(key), $"Modell für {key} ({st.Name}) geladen, kein Grundkörper"); continue; }
+						_p8Types.Add(key);
+						float r = SpaceAdventure.World.StationModels.PlaneRadius(model);
+						Check(System.MathF.Abs(r - Station.BodyRadius) <= 0.1f * Station.BodyRadius, $"{st.Name}: Modellradius {r:0.0} ≈ Kollisionskreis {Station.BodyRadius:0}");
+						var acc = SpaceAdventure.World.StationModels.AccentOf(model);
+						var want = SpaceAdventure.World.SectorView.AccentOf(uni, st);
+						Check(acc is { } a && System.MathF.Abs(a.Shown.R - a.Source.R * want.R) < 0.02f && System.MathF.Abs(a.Shown.B - a.Source.B * want.B) < 0.02f,
+							$"{st.Name}: Akzent in der Besitzerfarbe ({acc?.Shown} statt {want})");
+						Check(top > 0.5f, $"{st.Name}: Beschriftung über dem Modell ({top:0.0})");
+					}
+					break;
+				}
+				if (k >= _p8Sectors.Count)
+				{
+					GD.Print($"[selftest] Stationsmodelle: {_p8Types.Count} Typen in {_p8Sectors.Count} Sektoren, {SpaceAdventure.World.StationModels.OverrideCount} geteilte Überschreibungsmaterialien");
+					Check(_p8Types.Count >= 12, $"viele Stationstypen mit Modell ({_p8Types.Count})");
+					// je Modelltyp ein Akzentmaterial je Besitzerfarbe (höchstens drei Farben je Typ), nicht je Station
+					int stations = _p8Sectors.Sum(sid => uni.Sectors[sid].Stations.Count);
+					int grown = SpaceAdventure.World.StationModels.OverrideCount - _p8Over;
+					Check(grown <= _p8Types.Count * 3 && grown < stations * 2,
+						$"Überschreibungen geteilt, nicht je Station ({grown} neu für {_p8Types.Count} Typen, {stations} Stationen)");
+					// Zustand: ausgeschaltet → Einfärbung folgt ohne Neuaufbau
+					var hq = uni.Stations.Values.First(x => x.Sector == uni.PlayerSector && SpaceSim.Core.Combat.StationCombat.DefenseOf(uni, x) is not null);
+					hq.Condition = new StationCondition { Disabled = true };
+					_m.TestView.SyncStations(uni);
+					var node = _m.TestView.StationModelNodes().First(n => n.Id == hq.Id).Model!;
+					Check(SpaceAdventure.World.StationModels.AccentOf(node) is { } d && d.Shown.V < SpaceAdventure.World.SectorView.AccentOf(uni, hq).V * d.Source.V, "ausgeschaltete Station abgedunkelt");
+					hq.Condition = null;
+					_m.TestView.SyncStations(uni);
+					Next();
+				}
+				break;
+			}
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -2540,6 +2588,7 @@ public partial class SelfTest : Node
 	}
 
 	void Next() { _stage++; _stageStart = _frame; }
+	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;
 	float _p6Hp; long _p6Tick; List<SpaceSim.Core.Events.SimEvent>? _p6Events;
 	/// <summary>Phase 28: Stufen 73–76.</summary>
 	List<SpaceSim.Core.Events.SimEvent>? _p28Events;
