@@ -290,6 +290,16 @@ public static class PlayerCombat
 
     static string FactionName(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var fa) ? fa.Name : "niemandem";
 
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 5): Fluchtlage des aktiven Schiffs im Gefecht — dieselbe Regel wie die Simulation (<see cref="CombatSense.EscapeBlock"/>):
+    /// „Flucht: Polizei in Reichweite (52 von 60 m)“; leer außerhalb eines Gefechts.
+    /// </summary>
+    public static string EscapeStatus(Universe u)
+    {
+        if (u.Fights.Of(u.PlayerShip) is not { } e || e.Of(u.PlayerShip) is not { Active: true } p) return "";
+        return CombatSense.EscapeBlock(u, e, p) is { } why ? $"Flucht: {why}" : "Flucht: außer Reichweite — gleich entkommen";
+    }
+
     /// <summary>Kurzbeschreibung eines Schiffs (Modell und Besitzer).</summary>
     public static string Describe(Universe u, Ship s) =>
         $"{(u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : "Schiff")} #{s.Id.Value} ({u.ActorName(s.Owner)})";

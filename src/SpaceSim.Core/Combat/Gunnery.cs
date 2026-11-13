@@ -90,7 +90,7 @@ public static class Gunnery
         if (hull > 0f) ModuleDamage.OnHullHit(u, target, hull);   // Phase 26: unter 50 % Hülle Modulschaden und Brand (genau drei Züge, siehe ModuleDamage)
         if (hit.Hit) e.Hits++;
         u.Events.Publish(new ShotFired(e.Id, e.Sector, shooter.Id, target.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull));
-        if (target.Hull <= 0f && targetP.Active) Engage.Destroy(u, e, targetP, target);
+        if (target.Hull <= 0f && targetP.Active) Engage.Destroy(u, e, targetP, target, CombatSense.Who(u, shooter));   // Runde 5: der letzte Schütze
         return hit;
     }
 }

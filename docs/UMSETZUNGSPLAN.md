@@ -812,6 +812,11 @@ Die Versionsnummern sind Platzhalter; eine Phase erhöht die Version nur, wenn d
 - Randpfeile: Stationen mit Verteidigung zuerst, nie über HUD-Elementen; Tipp auf den Stationskörper gewinnt gegen Schiffe; Sektoransicht „Ziel wählen“.
 - Kleinigkeiten: verdeckte Beschriftungen, Hinweis-Lage, Dock-Fußzeile zweizeilig, Speichern-Meldung, Zeitraffer bei neuem Spiel ×1, Leihschiff- und Kopfgeldtexte, Fracht des ersten Kaperers im Gefechtstest (Wrack mit Beute).
 
+**Fünfter Gerätetest (Entscheidung: Stationsangriff nur mit Fregatte oder Flotte).** Hash der Standardwelt unverändert.
+- Kriegstest im Bollwerk mit eigenem Verband aus zwei Bollwerken (Regel „Angriff“); Verbandsmitglieder greifen in Belagerungen mit an. Core-Test: HQ Beta samt Polizei nach ≈ 250 s ausgeschaltet, allein verloren.
+- Stationsschild: jeder Treffer hält ihn an, Nachladen nur ab Pausenende (vorher lud er mitten im Beschuss).
+- Kräfteverhältnis auf Zielkarte und Taste („Aussichtslos allein – Fregatte oder Flotte nötig“), Verlustmeldung nennt den letzten Schützen, Fluchtregel und Anzeige „Flucht: …“ sind eine Funktion (eigene Reichweite zählt nur, solange man schießt), Zielkarte sofort nach „Ziel wählen“, Schiff neben einer Station antippbar.
+
 ## Zurückgestellt
 
 | Thema | Grund |

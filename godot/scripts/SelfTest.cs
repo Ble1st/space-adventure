@@ -2344,6 +2344,9 @@ public partial class SelfTest : Node
 					Check(_m.HudRef.Flight.TestStationAttackInfo.Contains("Geschütze"), $"„Station angreifen“ nennt die Gegenwehr ({_m.HudRef.Flight.TestStationAttackInfo})");
 					Check(_m.HudRef.Flight.TestTargetArc == "außerhalb Geschütze · Raketen ja", $"Zielkarte: außerhalb der Geschütze, Raketen reichen ({_m.HudRef.Flight.TestTargetArc})");
 					Check(_m.TestBayPlaces.Any(n => n.StartsWith("Vorrat ") && n.Contains('/')), $"Raketenbucht zeigt den Vorrat ({string.Join(",", _m.TestBayPlaces)})");
+					// Runde 5: Bollwerk mit eigenem Verband — die Zielkarte zeigt das Kräfteverhältnis
+					Check(pl.ModelKey == "bastion" && SpaceSim.Core.Simulation.Squadrons.Get(uni, pl) is { Members.Count: 3 }, "Kriegstest: Bollwerk mit Verband aus zwei weiteren Bollwerken");
+					Check(_m.HudRef.Flight.TestStationOdds.StartsWith("Überlegen"), $"Zielkarte: Kräfteverhältnis mit Verband ({_m.HudRef.Flight.TestStationOdds})");
 					_m.TestArmStation();
 					Check(_m.TestFight.AutoFire && _m.TestAimAssist, "Angriff schaltet Dauerfeuer und „Ziel folgen“ ein");
 					break;
@@ -2367,6 +2370,19 @@ public partial class SelfTest : Node
 				{
 					Check(_p28SeenMissile == 2, "Rakete im Flug sichtbar (CombatView)");
 					_p28SeenMissile = 0;
+					// Runde 5: im Gefecht nennt die Fluchtzeile, wer noch reicht (dieselbe Regel wie die Simulation)
+					_m.SyncHudForTest();
+					Check(!uni.Fights.IsEngaged(uni.PlayerShip) || _m.HudRef.Flight.TestEscapeStatus.StartsWith("Flucht:"), $"Fluchtzeile im Gefecht ({_m.HudRef.Flight.TestEscapeStatus})");
+					// Runde 5: ohne Verband ist der Angriff aussichtslos — Zielkarte und Taste warnen
+					var me5 = uni.Ships[uni.PlayerShip];
+					if (SpaceSim.Core.Simulation.Squadrons.Get(uni, me5) is { } sq5)
+						foreach (var id in sq5.Members.Where(id => id != me5.Id).ToList())
+						{
+							if (uni.Fights.Of(id) is { } fe && fe.Of(id) is { Active: true } fp) SpaceSim.Core.Combat.Engage.Leave(uni, fe, fp, CombatExit.Fled);
+							SpaceSim.Core.Simulation.Departures.RemoveShip(uni, uni.Ships[id], SpaceSim.Core.Model.DepartureReason.Sold, "selftest");
+						}
+					_m.SyncHudForTest();
+					Check(_m.HudRef.Flight.TestStationOdds == "Aussichtslos allein – Fregatte oder Flotte nötig", $"allein: Zielkarte warnt ({_m.HudRef.Flight.TestStationOdds})");
 					Next();
 				}
 				break;
@@ -2396,8 +2412,11 @@ public partial class SelfTest : Node
 					// Runde 4: Kommandozentrale → Sektor → „Ziel wählen“ setzt das Ziel ohne Autopilot
 					var hq = uni.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
 					_m.TestOpenCommand(); _m.TestOpenCcArea("sector");
+					// Runde 5: ein vorher gewähltes Schiff verschwindet sofort von der Zielkarte
+					if (uni.ShipsById().FirstOrDefault(s => s.Sector == uni.PlayerSector && s.Id != uni.PlayerShip) is { } other) _m.TestFight.SetTarget(other.Id);
 					_m.HudRef.CcSector.TestSelectStation(hq.Id);
 					_m.HudRef.CcSector.TestTargetHere();
+					Check(_m.TestFight.Target.Value == 0 && _m.HudRef.Flight.TestTargetName == hq.Name, $"Zielkarte zeigt sofort die neue Station ({_m.HudRef.Flight.TestTargetName})");
 					Check(_m.TestTargetStation == hq.Id.Value && !_m.TestAutopilotOn && !_m.TestScreenOpen("cc.sector"), "„Ziel wählen“ in der Sektoransicht wählt die Station ohne Autopilot");
 					Next();
 				}

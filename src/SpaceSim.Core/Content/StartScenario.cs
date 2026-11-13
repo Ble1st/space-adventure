@@ -62,6 +62,7 @@ public static class StartScenario
                 w.ExpiresTick = u.Tick + u.Rules.WreckTicks * 4;
             }
         }
+        ApplyWingmen(u, player, sc, key);
         ApplyCombat(u, player, sc, key);
         if (sc.Outlaw && sc.Raiders <= 0 && u.ShipsById().FirstOrDefault(ThreatMap.IsRaider) is { } raider)
         {
@@ -73,6 +74,30 @@ public static class StartScenario
             raider.NextThinkTick = u.Tick + u.Rules.PirateLurkTicks;
         }
         }
+
+    /// <summary>
+    /// Gerätetest Phase 28 (Runde 5, „Kriegstest“): eigene Begleitschiffe neben dem Spieler (gehören der Person, voll ausgerüstet), ein Verband mit dem aktiven
+    /// Schiff als Anführer und Regel „Angriff“ — die Mitglieder folgen ihm und treten seinen Gefechten bei (<c>Reinforcements</c>). Feste Abstände, kein Zufall.
+    /// </summary>
+    static void ApplyWingmen(Universe u, Ship player, ScenarioDef sc, string key)
+    {
+        if (sc.Wingmen is not { Count: > 0 } models) return;
+        var at = u.StationsById().Where(s => s.Sector == player.Sector && !s.IsBuildSite).OrderBy(s => Vec2.Distance(s.Position, player.Position)).ThenBy(s => s.Id.Value).FirstOrDefault()
+                 ?? u.StationsById().First(s => !s.IsBuildSite);
+        player.Engagement = Engagement.Attack;
+        var sq = Squadrons.Create(u, player, "Geschwader", out var msg) ?? throw new WorldFormatException($"Startpaket '{key}': {msg}");
+        for (int i = 0; i < models.Count; i++)
+        {
+            if (!u.ShipModels.TryGetValue(models[i], out var model)) throw new WorldFormatException($"Startpaket '{key}': unbekanntes Begleitmodell '{models[i]}'");
+            var cls = u.ShipClasses[model.ClassKey];
+            var w = Simulation.ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Player, Controller.Player, player.Owner, at, 0f);
+            w.DockedAt = default;
+            w.Sector = player.Sector;
+            w.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(i % 2 == 0 ? -14f : 14f, 10f + 8f * (i / 2)));
+            u.AddShip(w);
+            if (!Squadrons.Join(u, sq, w, out var jm)) throw new WorldFormatException($"Startpaket '{key}': {jm}");
+        }
+    }
 
     /// <summary>
     /// Gerätetest Phase 27 („Gefechtstest“): Rudel in Waffenreichweite mit angekündigtem Überfall (zu zweit stärker als der Jäger — es greift an, statt zu fliehen; ein beschädigter Antrieb würde es zur Reparatur heimschicken), ein Händler frei im Raum,
