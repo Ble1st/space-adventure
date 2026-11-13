@@ -59,6 +59,8 @@ public partial class UiShots : Node
 		// Runde 8: --ui-shots-stations nur die Bilder der Stationsmodelle (90–92)
 		_stationsOnly = OS.GetCmdlineUserArgs().Contains("--ui-shots-stations");
 		if (_stationsOnly) _stage = 594_1;
+		// Jumpgate-Modelle: --ui-shots-gates nur die Torbilder (93–96, UiShots.Gates.cs)
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-gates")) _stage = GateShotsStart;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -770,7 +772,8 @@ public partial class UiShots : Node
 				_m.TestMenu("zoom_out"); _m.TestMenu("zoom_out"); _m.TestMenu("zoom_out");
 				_stage = 594_6; _wait = 30; break;
 			}
-			case 594_6: Capture("92-stationen-sektor-vesta-uebersicht.png"); _m.TestMenu("cam_reset"); _stage = 999_999; _wait = 5; break;
+			case 594_6: Capture("92-stationen-sektor-vesta-uebersicht.png"); _m.TestMenu("cam_reset"); _stage = GateShotsStart; _wait = 5; break;
+			case >= GateShotsStart and < 596_000: GateShots(); break;   // Jumpgate-Modelle 93–96
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

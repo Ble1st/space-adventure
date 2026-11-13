@@ -5,6 +5,8 @@ Ausgabe: godot/assets/gates/gate.glb, gate_destroyed.glb, gate.json; docs/gates/
 Eigenstaendig (keine Repo-Importe). Blender: Durchflug entlang Y, Oeffnung in XZ, Z oben.
 glTF-Export (Y-up): Blender +Y -> Godot -Z, Blender Z -> Godot +Y, Blender X -> Godot +X.
 Modell ist auf Oeffnungsradius 1.0 normiert, Ursprung = Mitte der Oeffnung.
+Schalter (Umgebungsvariablen): GATE_RENDER_SHIP=1 stellt das kleine Groessenvergleichs-Schiff in die Bilder (Standard: ohne Schiff;
+das Schiff war nie Teil der glb-Exporte); GATE_RENDER_ONLY=1 rendert nur die Bilder und laesst glb/json unveraendert.
 """
 import json, math, os, subprocess
 import bpy
@@ -16,6 +18,8 @@ ASSETS = os.path.join(REPO, "godot", "assets", "gates")
 TMP = "/home/gerd/space-adventure-blender-tmp"
 for d in (DOCS, ASSETS, TMP):
     os.makedirs(d, exist_ok=True)
+RENDER_SHIP = os.environ.get("GATE_RENDER_SHIP") == "1"
+RENDER_ONLY = os.environ.get("GATE_RENDER_ONLY") == "1"
 R_OPEN = 2.9  # Oeffnungsradius in Arbeitseinheiten (Export skaliert auf 1.0)
 
 STATES = {
@@ -515,7 +519,7 @@ def ship(pos):
     return ob
 
 
-def render(state, res, path, az=36, el=40, with_ship=True, fill=0.9):
+def render(state, res, path, az=36, el=40, with_ship=None, fill=0.9):
     global MATS
     reset()
     MATS = mats(state)
@@ -523,7 +527,7 @@ def render(state, res, path, az=36, el=40, with_ship=True, fill=0.9):
     b = (gate_destroyed if state == "destroyed" else gate_intact)()
     g = b.build("Gate", MATS, NAMES)
     obs = [g]
-    if with_ship:
+    if RENDER_SHIP if with_ship is None else with_ship:
         obs.append(ship((0, -9.0, 0)))
     bpy.context.view_layer.update()
     frame(cam, obs, az, el, fill=fill)
@@ -549,40 +553,41 @@ def export(state, path):
 
 
 # ------------------------------------------------------------------ Ausfuehrung
-tris, ext = export("open", os.path.join(ASSETS, "gate.glb"))
-tris_d, ext_d = export("destroyed", os.path.join(ASSETS, "gate_destroyed.glb"))
-meta = {
-    "_doc": "Jumpgate 'Beschleunigertunnel mit Zollstation' (Vorschlag C, kompakt). Siehe tools/blender/gate_model.py.",
-    "files": {"intact": "gate.glb", "destroyed": "gate_destroyed.glb"},
-    "units": "Oeffnungsradius der Durchflugoeffnung = 1.0 (Spiel skaliert)",
-    "origin": "Mitte der Oeffnung (Mitte des Tunnels); Zollstation liegt bei +X, dort auch alle Aufbauten",
-    "axes_godot": {
-        "pass_through": "entlang der Z-Achse (+Z oder -Z, Modell ist symmetrisch; Felder an beiden Enden bei z=+1.34 und z=-1.34)",
-        "up": "+Y", "side_station": "+X",
-        "opening_plane": "XY-Ebene (Oeffnung blickt entlang Z), Tunnel liegt waagerecht in der Spielebene XZ",
-        "rotate": "zum Ausrichten des Tors um die Y-Achse drehen",
-    },
-    "opening_radius": 1.0,
-    "extent_godot_units": {"x_side": ext["width_x"], "y_up": ext["height_y"], "z_length": ext["length_pass"], "min_xyz": ext["min"], "max_xyz": ext["max"]},
-    "extent_destroyed": {"x_side": ext_d["width_x"], "y_up": ext_d["height_y"], "z_length": ext_d["length_pass"]},
-    "triangles": {"gate": tris, "gate_destroyed": tris_d},
-    "materials": ["Hull", "Trim", "Dark", "Accent", "Signal", "Glow", "Field"],
-    "material_roles": {
-        "Accent": "Fraktionsfarbe (Station + Bandsegmente an den Endringen); nur Basisfarbe setzen",
-        "Field": "Durchflugfeld (zwei Flaechen an den Endringen, halbtransparent, Emission); im glb konstante Farbe, ohne Radialverlauf",
-        "Glow": "Kanten/Spulen/Schienenbaken (Emission)",
-        "Signal": "Statuslichter (Emission)",
-        "Hull/Trim/Dark": "Struktur, nicht schalten",
-    },
-    "states": {
-        "open": {"Field": "emission (0.35,0.9,1.0), Staerke 3.2, Alpha ~0.6", "Glow": "(0.25,0.85,1.0) x7", "Signal": "(0.25,1.0,0.45) x6"},
-        "restricted": {"Field": "emission (1.0,0.7,0.2), Staerke 3.0, Alpha ~0.6", "Glow": "(1.0,0.55,0.1) x6", "Signal": "(1.0,0.5,0.05) x6"},
-        "closed": {"Field": "Mesh ausblenden oder Alpha ~0.08, Emission (0.3,0.03,0.02) x0.1", "Glow": "(0.5,0.04,0.03) x1", "Signal": "(1.0,0.08,0.04) x3"},
-        "destroyed": "gate_destroyed.glb verwenden (eigene Geometrie, verbrannte Materialfarben, kein Feld)",
-    },
-    "note": "Radialverlauf/Wellen des Felds nur in den Blender-Bildern (Shader-Knoten); im Spiel ggf. eigener Godot-Shader auf Material 'Field'.",
-}
-json.dump(meta, open(os.path.join(ASSETS, "gate.json"), "w"), indent=2, ensure_ascii=False)
+if not RENDER_ONLY:
+    tris, ext = export("open", os.path.join(ASSETS, "gate.glb"))
+    tris_d, ext_d = export("destroyed", os.path.join(ASSETS, "gate_destroyed.glb"))
+    meta = {
+        "_doc": "Jumpgate 'Beschleunigertunnel mit Zollstation' (Vorschlag C, kompakt). Siehe tools/blender/gate_model.py.",
+        "files": {"intact": "gate.glb", "destroyed": "gate_destroyed.glb"},
+        "units": "Oeffnungsradius der Durchflugoeffnung = 1.0 (Spiel skaliert)",
+        "origin": "Mitte der Oeffnung (Mitte des Tunnels); Zollstation liegt bei +X, dort auch alle Aufbauten",
+        "axes_godot": {
+            "pass_through": "entlang der Z-Achse (+Z oder -Z, Modell ist symmetrisch; Felder an beiden Enden bei z=+1.34 und z=-1.34)",
+            "up": "+Y", "side_station": "+X",
+            "opening_plane": "XY-Ebene (Oeffnung blickt entlang Z), Tunnel liegt waagerecht in der Spielebene XZ",
+            "rotate": "zum Ausrichten des Tors um die Y-Achse drehen",
+        },
+        "opening_radius": 1.0,
+        "extent_godot_units": {"x_side": ext["width_x"], "y_up": ext["height_y"], "z_length": ext["length_pass"], "min_xyz": ext["min"], "max_xyz": ext["max"]},
+        "extent_destroyed": {"x_side": ext_d["width_x"], "y_up": ext_d["height_y"], "z_length": ext_d["length_pass"]},
+        "triangles": {"gate": tris, "gate_destroyed": tris_d},
+        "materials": ["Hull", "Trim", "Dark", "Accent", "Signal", "Glow", "Field"],
+        "material_roles": {
+            "Accent": "Fraktionsfarbe (Station + Bandsegmente an den Endringen); nur Basisfarbe setzen",
+            "Field": "Durchflugfeld (zwei Flaechen an den Endringen, halbtransparent, Emission); im glb konstante Farbe, ohne Radialverlauf",
+            "Glow": "Kanten/Spulen/Schienenbaken (Emission)",
+            "Signal": "Statuslichter (Emission)",
+            "Hull/Trim/Dark": "Struktur, nicht schalten",
+        },
+        "states": {
+            "open": {"Field": "emission (0.35,0.9,1.0), Staerke 3.2, Alpha ~0.6", "Glow": "(0.25,0.85,1.0) x7", "Signal": "(0.25,1.0,0.45) x6"},
+            "restricted": {"Field": "emission (1.0,0.7,0.2), Staerke 3.0, Alpha ~0.6", "Glow": "(1.0,0.55,0.1) x6", "Signal": "(1.0,0.5,0.05) x6"},
+            "closed": {"Field": "Mesh ausblenden oder Alpha ~0.08, Emission (0.3,0.03,0.02) x0.1", "Glow": "(0.5,0.04,0.03) x1", "Signal": "(1.0,0.08,0.04) x3"},
+            "destroyed": "gate_destroyed.glb verwenden (eigene Geometrie, verbrannte Materialfarben, kein Feld)",
+        },
+        "note": "Radialverlauf/Wellen des Felds nur in den Blender-Bildern (Shader-Knoten); im Spiel ggf. eigener Godot-Shader auf Material 'Field'.",
+    }
+    json.dump(meta, open(os.path.join(ASSETS, "gate.json"), "w"), indent=2, ensure_ascii=False)
 
 render("open", (1280, 800), os.path.join(DOCS, "gate_final.png"))
 for s in STATES:

@@ -59,7 +59,7 @@ public partial class SectorView : Node3D
 		_root?.QueueFree();
 		_root = new Node3D { Name = "Sector" };
 		AddChild(_root);
-		_gateRings.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
+		_gateRings.Clear(); _gateNodes.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
 
 		var sector = u.Sectors[_sector];
 		foreach (var sid in sector.Stations) BuildStation(u.Stations[sid]);
@@ -237,6 +237,7 @@ public partial class SectorView : Node3D
 			n.Accent = accent; n.Look = look;
 			StationModels.Apply(n.Model, accent, look);
 		}
+		SyncGates(u);   // Jumpgate-Modelle: Zustand und Sektorfarbe
 	}
 
 	void BuildStation(Station st)
@@ -297,14 +298,19 @@ public partial class SectorView : Node3D
 		var pos = new Vector3(g.Position.X, 0, g.Position.Y);
 		var root = new Node3D { Position = pos };
 		_root.AddChild(root);
-		var ring = Gfx.Mesh(new TorusMesh { InnerRadius = 12, OuterRadius = 14 }, Gfx.Mat(new Color(0.2f, 0.7f, 1f), 3f), Vector3.Zero, root);
-		ring.RotationDegrees = new Vector3(90, 0, 0);
-		_gateRings.Add(ring);
-		var core = Gfx.Mat(new Color(0.3f, 0.6f, 1f, 0.25f), 1f);
-		core.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-		Gfx.Mesh(new SphereMesh { Radius = 8, Height = 16 }, core, Vector3.Zero, root);
+		float labelY = 8f;
+		if (BuildGateModel(u, g, root) is { } top) labelY = top + 2.5f;   // Tormodell (GateModels), sonst der alte Ring
+		else
+		{
+			var ring = Gfx.Mesh(new TorusMesh { InnerRadius = 12, OuterRadius = 14 }, Gfx.Mat(new Color(0.2f, 0.7f, 1f), 3f), Vector3.Zero, root);
+			ring.RotationDegrees = new Vector3(90, 0, 0);
+			_gateRings.Add(ring);
+			var core = Gfx.Mat(new Color(0.3f, 0.6f, 1f, 0.25f), 1f);
+			core.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+			Gfx.Mesh(new SphereMesh { Radius = 8, Height = 16 }, core, Vector3.Zero, root);
+		}
 		var target = u.Sectors[u.Gates[g.Target].Sector];
-		root.AddChild(Gfx.Label($"Jumpgate → {target.Name}", new Vector3(0, 8, 0)));
+		root.AddChild(Gfx.Label($"Jumpgate → {target.Name}", new Vector3(0, labelY, 0)));
 		Gates.Add((g.Id, pos));
 		Targets.Add(new PickTarget("gate", g.Id.Value, pos, $"Gate → {target.Name}"));
 	}
