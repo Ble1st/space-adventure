@@ -131,7 +131,7 @@ public static class CombatSense
             float centre = StationCombat.Distance(u, e, p, besieged);
             float guns = MathF.Max(r.CombatMinEscapeDistance, StationCombat.GunRange(u, besieged));
             if (centre <= guns) return $"Stationsgeschütze in Reichweite ({centre:0} von {guns:0} m)";
-            if (centre - Station.BodyRadius <= own) return $"eigene Waffen feuern noch ({centre:0} m)";
+            if (centre - besieged.Radius <= own) return $"eigene Waffen feuern noch ({centre:0} m)";
         }
         return null;
     }

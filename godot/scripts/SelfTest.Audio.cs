@@ -37,7 +37,8 @@ public partial class SelfTest
 				return false;
 			case 60:
 				Check(mu.Mood == MusicMood.Mining && Target("mood_mining", 0f) && mu.TargetGainOf("mood_safe") == 0f, $"Bergbau beim Bohren ({mu.Mood})");
-				Check(mu.GainOf("mood_mining") > 0.2f && mu.GainOf("mood_mining") < 1f, $"weiche Überblendung ({mu.GainOf("mood_mining"):0.00})");
+				Check(mu.GainOf("mood_mining") > 0.1f && mu.GainOf("mood_mining") < 1f,   // Runde 13: Musik-Schritt mit 10 Hz — die Blende läuft in gröberen Stufen
+					 $"weiche Überblendung ({mu.GainOf("mood_mining"):0.00})");
 				{
 					var st = u.Sectors[u.PlayerSector].Stations.Select(id => u.Stations[id]).First(s => !s.IsBuildSite);
 					_m.TestDockAt(st.Id);

@@ -197,7 +197,7 @@ public sealed class SecuritySystem : ISimSystem
             GovernmentKind.Police => 0, GovernmentKind.Headquarters => 1, GovernmentKind.SectorHq => 2, _ => 3,
         };
         // Phase 13: Forschungsstationen sind keine Heimatbasis der Polizei
-        return u.Stations.Values.Where(st => !st.IsBuildSite && st.Owner == (ActorId)f && StationProtection.IsOfficial(u, st) && StationProtection.KindOf(u, st) != GovernmentKind.Research)
+        return u.Stations.Values.Where(st => !st.IsBuildSite && st.Owner == (ActorId)f && StationProtection.IsOfficial(u, st) && StationProtection.KindOf(u, st) is not (GovernmentKind.Research or GovernmentKind.Outpost))
             .OrderBy(st => near is { } n && st.Sector == n ? 0 : 1).ThenBy(Rank).ThenBy(st => st.Id.Value).FirstOrDefault();
     }
 
@@ -272,7 +272,7 @@ public sealed class SecuritySystem : ISimSystem
             || u.Rules.DamageActive && NpcRepair.Crippled(u, p);   // Phase 26: Modul ausgefallen oder Brand
         if (home is not null && (needsBase || p.DutySector == default))
         {
-            if (p.Sector == home.Sector && Vec2.Distance(p.Position, home.Position) <= u.Rules.StationSafeRadius)
+            if (p.Sector == home.Sector && Vec2.Distance(p.Position, home.Position) <= home.Radius + (u.Rules.StationSafeRadius - Station.BodyRadius))
             {
                 if (needsBase) PirateSystem.ServiceAtBase(u, p, "police");
                 p.NextThinkTick = u.Tick + u.Rules.PatrolDwellTicks;
@@ -326,7 +326,7 @@ public sealed class SecuritySystem : ISimSystem
     static void ResolvePending(Universe u)
     {
         if (u.PendingEncounters.Count == 0) return;
-        foreach (var e in u.PendingEncounters.Where(e => e.Kind == EncounterKind.Intercept && u.Tick >= e.DueTick).ToList())
+        foreach (var e in u.PendingEncounters.Where(e => e.Kind == EncounterKind.Intercept && e.Station.Value == 0 && u.Tick >= e.DueTick).ToList())
         {
             u.PendingEncounters.Remove(e);
             if (!u.Ships.TryGetValue(e.Target, out var player) || player.Id != u.PlayerShip || player.Sector != e.Sector || !u.Sectors.TryGetValue(e.Sector, out var sec))

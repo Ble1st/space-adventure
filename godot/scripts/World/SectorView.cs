@@ -207,7 +207,7 @@ public partial class SectorView : Node3D
 				if (ship is not null)
 				{
 					vis.Spin(SpaceSim.Core.Mining.ContactMining.Spin(ship.Stats, s.Mining ? SpaceSim.Core.Mining.ContactState.Mining : SpaceSim.Core.Mining.ContactState.NoContact), delta);
-					if (vis.Hardpoints.TurretCount > 0 && CombatTarget(u, s.Id) is { } aim) vis.Hardpoints.AimAll(aim, delta);
+					if (vis.Hardpoints.TurretCount > 0 && u.Fights.IsEngaged(s.Id) && CombatTarget(u, s.Id) is { } aim) vis.Hardpoints.AimAll(aim, delta);   // Runde 13: nur im Gefecht
 					vis.AnimateJaws(delta);
 				}
 			}
@@ -284,6 +284,7 @@ public partial class SectorView : Node3D
 	/// <summary>Runde 11: Stationstürme zum Gefechtsziel drehen (je Bild; nur Stationen mit Türmen).</summary>
 	public void AimStationGuns(Universe u, float delta)
 	{
+		if (!u.Fights.Encounters.Any(e => e.Sector == _sector)) return;   // Runde 13 (FPS): ohne Gefecht im Sektor nichts zu tun
 		foreach (var (id, n) in _stations)
 		{
 			if (n.Guns is not { TurretCount: > 0 } guns) continue;
@@ -356,7 +357,7 @@ public partial class SectorView : Node3D
 		var u = _u!;
 		string key = st.IsBuildSite ? "build_site" : st.TypeKey;
 		var accent = AccentOf(u, st); var look = LookOf(u, st);
-		if (StationModels.Create(key, Station.BodyRadius, accent, look, out float top, out _) is { } model)
+		if (StationModels.Create(key, st.Radius, accent, look, out float top, out _) is { } model)   // Phase 30: Maßstab = Radius der Größenklasse
 		{
 			root.AddChild(model);
 			_stations[st.Id] = new StationNode { Root = root, Model = model, Accent = accent, Look = look, Top = top, Guns = HardpointSet.Bind(model, ShipModels.StationGuns(key)) };

@@ -685,7 +685,8 @@ public class ConstructionTests
 
         var (loaded, _) = SaveGameJson.Read(v10);
         Assert.Equal(u.Rules.MaxStations, loaded.Rules.MaxStations);
-        Assert.Equal(u.StationTypes.Keys.OrderBy(k => k), loaded.StationTypes.Keys.OrderBy(k => k));
+        // Phase 30: Kleinstationen (Regierungsform outpost) kamen nach v17 — die eingefrorene Migrationskette kennt sie nicht
+        Assert.Equal(u.StationTypes.Values.Where(t => t.Government != GovernmentKind.Outpost).Select(t => t.Key).OrderBy(k => k), loaded.StationTypes.Keys.Where(k => loaded.StationTypes[k].Government != GovernmentKind.Outpost).OrderBy(k => k));
         Assert.Equal(u.ShipModels.Keys.OrderBy(k => k), loaded.ShipModels.Keys.OrderBy(k => k));
         // gleiche Waren (neue Modul-Waren hängt die Migration hinten an, bestehende GoodIds bleiben)
         Assert.Equal(u.Goods.Values.Select(g => g.Key).OrderBy(k => k, StringComparer.Ordinal), loaded.Goods.Values.Select(g => g.Key).OrderBy(k => k, StringComparer.Ordinal));

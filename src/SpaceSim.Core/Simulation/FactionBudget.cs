@@ -52,7 +52,7 @@ public static class Maintenance
 
     /// <summary>Wird die Station instand gehalten? Fertig, kein Versteck, Typ mit Baukosten, Besitzer gehört zu einer Fraktion, Regel an.</summary>
     public static bool Applies(Universe u, Station st) =>
-        !st.IsBuildSite && u.Rules.MaintenanceShare > 0f && u.StationTypes.TryGetValue(st.TypeKey, out var t) && !t.Hideout && t.BuildCost > 0f
+        !st.IsBuildSite && u.Rules.MaintenanceShare > 0f && u.StationTypes.TryGetValue(st.TypeKey, out var t) && !t.Hideout && t.BuildCost > 0f && t.Dockable   // Phase 30: Kleinstationen ohne Markt
         && u.FactionOf(st) is not null;
 
     /// <summary>Ist der Eintrag ein reiner Instandhaltungs-Eintrag (Lager ohne Rezept, nicht vom Typ als Lager/Export geführt, Ware ist Instandhaltungsmaterial)?</summary>
@@ -181,7 +181,7 @@ public sealed class SubsidySystem : ISimSystem
     /// die dauerhaft kaum produziert und deren Produkte nicht knapp sind (<see cref="StationReview.Useless"/>), bekommt nichts mehr.
     /// </summary>
     public static bool Eligible(Universe u, Station st) =>
-        !StationProtection.IsHideout(u, st)
+        !StationProtection.IsHideout(u, st) && st.Dockable   // Phase 30: Kleinstationen haben keine Kasse zu stützen
         && (StationProtection.IsOfficial(u, st) || st.BankruptcyProtected || MarketSystem.IsFinalConsumer(st) || ExportRules.ConfigOf(u, st) is not null
             || (StationCriticality.IsCritical(u, st) && !StationReview.Useless(u, st)));   // Phase 19: dauerhaft nutzlose Stationen nicht ewig stützen
 }

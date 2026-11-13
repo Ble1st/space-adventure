@@ -17,9 +17,10 @@ public static class UndockPath
     public static Vec2 Heading(IReadOnlyList<Obstacle> obstacles, Vec2 station, Vec2 spot, float shipRadius = 2.5f, float length = ClearLength)
     {
         var radial = (spot - station).Length > 1e-3f ? (spot - station).Normalized() : new Vec2(0f, -1f);
-        for (int k = 0; k <= 18; k++)
+        // Phase 30: feinere Schritte (10°) — größere Stationen lassen schmalere Lücken zwischen den Nachbarn
+        for (int k = 0; k <= 36; k++)
         {
-            float deg = (k + 1) / 2 * 20f * (k % 2 == 1 ? 1f : -1f);
+            float deg = (k + 1) / 2 * 10f * (k % 2 == 1 ? 1f : -1f);
             var dir = Rotate(radial, deg);
             if (Clear(obstacles, spot, dir, length, shipRadius + 2f)) return dir;
         }

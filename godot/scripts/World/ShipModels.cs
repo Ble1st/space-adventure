@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Godot;
 
@@ -263,6 +264,13 @@ public static class ShipModels
 		if (v.TryGetProperty(field, out var a) && a.ValueKind == JsonValueKind.Array)
 			foreach (var e in a.EnumerateArray()) if (e.TryGetProperty("node", out var n) && n.GetString() is { } s) list.Add(s);
 		return list;
+	}
+
+	/// <summary>Runde 13 (Handy-Test „Strahlen aus der Schiffsmitte?“): wie viele Schiffs- und Stationsmodelle Stellungen aus den Modelldaten haben (Selbsttest-Ausgabe).</summary>
+	public static (int Ships, int Stations) HardpointCounts()
+	{
+		StationGuns("");
+		return (Info().Values.Count(i => i.Hardpoints.Count > 0), _stationGuns!.Values.Count(l => l.Count > 0));
 	}
 
 	/// <summary>Geschützstellungen eines Stationstyps aus <c>stations.json</c> (leer ohne Eintrag).</summary>

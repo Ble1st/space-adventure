@@ -734,7 +734,7 @@ public class Phase28Tests
         Assert.Empty(u.Wars);
         Assert.Empty(ev.OfType<WarDeclared>());
         Assert.DoesNotContain(u.ShipsById(), Wars.IsWarship);
-        Assert.Empty(ev.OfType<StationFell>());
+        Assert.Empty(ev.OfType<StationFell>());   // Runde 13b: wieder streng (Piraten bauen keine Stellungen mehr)
         foreach (var f in u.Factions.Keys)
         {
             Assert.True(SecuritySystem.PoliceOf(u, f).Count >= u.Rules.PoliceMinPerFaction, $"Polizei {f.Value}");
@@ -881,35 +881,42 @@ public class Phase28Tests
 
     /// <summary>
     /// Zweiter Gerätetest Phase 28: der Gefechtstest ist für einen Menschen bestehbar — nur „Nächster Gegner“ und „Dauerfeuer“ (jede bereite Waffe feuert,
-    /// sobald das Ziel im Feuerwinkel liegt; die Nase zeigt wie beim Menschen mit den Wendetasten auf das Ziel). Der erste Kaperer fällt, es gibt Kopfgeld,
-    /// der Falke lebt mehr als 45 s nach dem Überfallbeginn.
+    /// sobald das Ziel im Feuerwinkel liegt; die Nase folgt mit der echten Drehrate der Zielhilfe). Runde 13 (Handy-Test: Falke zerstört): wie in der UI
+    /// gebaut (<see cref="WorldBuilder.BuildDefault"/> mit gewürfelten Namen) über mehrere Seeds — „Neues Spiel“ würfelt den Seed, und auf manchen Seeds
+    /// überstand die Verstärkung (Schild 40) den angeschlagenen Falken —, mit 4 s Reaktionszeit zu Beginn JEDES Überfalls, bis nach der Verstärkung.
     /// </summary>
-    [Fact]
-    public void Startpaket_Gefechtstest_BestehbarMitDauerfeuer()
+    [Theory]
+    [InlineData(1ul)] [InlineData(3ul)] [InlineData(12ul)] [InlineData(14ul)] [InlineData(16ul)] [InlineData(18ul)]
+    public void Startpaket_Gefechtstest_BestehbarMitDauerfeuer(ulong seed)
     {
-        var u = Standard(start: "combat");
+        var u = WorldBuilder.BuildDefault(seed, "combat");
         var me = u.Ships[u.PlayerShip];
         var lead = u.PendingEncounters.Where(p => p.Kind == EncounterKind.Raid).OrderBy(p => p.DueTick).First().Source;
         var runner = new SimulationRunner();
-        long start = -1, leadDown = -1;
+        long start = -1, leadDown = -1, react = long.MaxValue;
+        bool wasEngaged = false;
         var target = default(ShipId);
         float heading = SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, u.Ships[lead].Position);   // die Ansicht richtet die Nase beim Start auf den Kaperer
-        for (int i = 0; i < 4 * 120 && u.PlayerShip == me.Id; i++)
+        for (int i = 0; i < 4 * 150 && u.PlayerShip == me.Id; i++)
         {
             runner.Step(u);
-            if (!u.Fights.IsEngaged(me.Id)) continue;
+            bool engaged = u.Fights.IsEngaged(me.Id);
+            if (engaged && !wasEngaged) { react = u.Tick + 4 * SimClock.TicksPerSecond; target = default; }   // der Mensch braucht ~4 s, bis er reagiert
+            wasEngaged = engaged;
+            if (!engaged) continue;
             if (start < 0) start = u.Tick;
             if (!u.Ships.ContainsKey(lead) && leadDown < 0) leadDown = u.Tick;
+            if (u.Tick < react) continue;
             if (target.Value == 0 || !u.Ships.ContainsKey(target)) target = PlayerCombat.NextEnemy(u, me, default);
             if (target.Value == 0 || PlayerCombat.PositionOf(u, target) is not { } tp) continue;
-            // Gerätetest Phase 28: die echte Zielhilfe mit der echten Drehrate des Spielerschiffs (vorher ideales Wenden auf das Ziel)
             heading = SpaceSim.Core.Flight.AimAssist.Turn(heading, SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, tp.Pos), SpaceSim.Core.Flight.AimAssist.PlayerTurnRate, 1f / SimClock.TicksPerSecond);
             foreach (int slot in PlayerGunnery.WeaponSlots(u, me)) PlayerGunnery.TryFire(u, me, slot, target, heading * 180f / MathF.PI);
         }
+        if (!u.Ships.ContainsKey(lead) && leadDown < 0) leadDown = u.Tick;
         Assert.True(start >= 0, "der Überfall begann");
         Assert.True(leadDown > 0, "der erste Kaperer wurde abgeschossen");
-        Assert.True(u.PlayerShip == me.Id && u.Ships.ContainsKey(me.Id), "der Falke lebt");
-        Assert.True(u.Tick - start > 45 * SimClock.TicksPerSecond, "länger als 45 s überlebt");
+        Assert.True(u.PlayerShip == me.Id && u.Ships.ContainsKey(me.Id), "der Falke lebt (auch nach der Verstärkung)");
+        Assert.True(u.Tick - start > 120 * SimClock.TicksPerSecond, "länger als 120 s überlebt");
         Assert.True(u.Actors[u.PlayerActor].BountyClaims.Values.Sum() > 0f, "Kopfgeld für den Kaperer");
         // Runde 4: der Anführer hatte Beute an Bord — sein Wrack hat Fracht für den Traktorstrahl
         Assert.Contains(u.Wrecks, w => w.From == lead && w.Cargo.Values.Sum() > 0f);
@@ -1389,8 +1396,9 @@ public class Phase28Tests
         // Stationsgeschütze ab Mitte (wie ihre Schussregel)
         cp.Pos = me.Position + new Vec2(150f, 0f);
         p.Pos = hq.Position + new Vec2(55f, 0f);
-        Assert.StartsWith("Stationsgeschütze in Reichweite (55 von 60 m)", CombatSense.EscapeBlock(u, e, p));
-        p.Pos = hq.Position + new Vec2(70f, 0f);
+        // Phase 30: das Sektor-HQ ist groß (L) — seine Geschütze reichen ab der Außenhaut, ab Mitte 60 + 7
+        Assert.StartsWith($"Stationsgeschütze in Reichweite (55 von {StationCombat.GunRange(u, hq):0} m)", CombatSense.EscapeBlock(u, e, p));
+        p.Pos = hq.Position + new Vec2(StationCombat.GunRange(u, hq) + 5f, 0f);
         Assert.Null(CombatSense.EscapeBlock(u, e, p));
         // und die Simulation lässt den Spieler gehen (Streife weit weg, Spieler 211 m vor der Station)
         Place(u, cop, hq.Sector, me.Position + new Vec2(300f, 0f)); cp.Pos = cop.Position;

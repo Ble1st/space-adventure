@@ -283,12 +283,13 @@ public sealed class Universe
     public StationId StationAt(SectorId sector, Vec2 pos)
     {
         if (!Sectors.TryGetValue(sector, out var sec)) return default;
+        // Phase 30: Abstand zur Außenhaut (Liegeplatz Radius + 15, bei einer mittleren Station wie bisher 30); Kleinstationen (XS) sind nicht andockbar
         StationId best = default;
-        float bestD = DockRadius;
+        float bestD = DockRadius - Station.BodyRadius;
         foreach (var id in sec.Stations.OrderBy(x => x.Value))
         {
-            if (!Stations.TryGetValue(id, out var st)) continue;
-            float d = Vec2.Distance(pos, st.Position);
+            if (!Stations.TryGetValue(id, out var st) || !st.Dockable) continue;
+            float d = Vec2.Distance(pos, st.Position) - st.Radius;
             if (d <= bestD && (best.Value == 0 || d < bestD)) { bestD = d; best = id; }
         }
         return best;
@@ -376,7 +377,7 @@ public sealed class Universe
         var s = Sectors[sector];
         var list = new List<Obstacle>(s.Asteroids.Count + s.Stations.Count);
         foreach (var a in s.Asteroids) list.Add(a.ToObstacle());
-        foreach (var id in s.Stations) list.Add(new Obstacle(Stations[id].Position, Station.BodyRadius));
+        foreach (var id in s.Stations) list.Add(new Obstacle(Stations[id].Position, Stations[id].Radius));   // Phase 30: Radius der Größenklasse
         return list;
     }
 

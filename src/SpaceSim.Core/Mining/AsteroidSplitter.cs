@@ -85,7 +85,7 @@ public static class AsteroidSplitter
     /// </summary>
     static bool FitsFragment(Universe u, Sector s, Vec2 p, float r) =>
         s.Gates.All(g => Vec2.Distance(p, u.Gates[g].Position) > BeltPlacement.GateClear + r) &&
-        s.Stations.All(st => Vec2.Distance(p, u.Stations[st].Position) > BeltPlacement.StationClear + r) &&
+        s.Stations.All(st => Vec2.Distance(p, u.Stations[st].Position) > BeltPlacement.StationClear - Station.BodyRadius + u.Stations[st].Radius + r) &&
         s.Fields.All(fl => Vec2.Distance(p, fl.Position) > ResourceField.ClearRadius + r) &&
         s.Asteroids.All(a => Vec2.Distance(p, a.Position) > a.Radius + r + 0.5f);
 

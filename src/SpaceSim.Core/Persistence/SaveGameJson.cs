@@ -147,6 +147,25 @@ public static class SaveGameJson
             }
             if (t["stocks"] is System.Text.Json.Nodes.JsonObject st2 && st2.Count == 0) t.AsObject().Remove("stocks");
             t.AsObject().Remove("defense");   // Phase 28: Stationsverteidigung kam nach v17
+            t.AsObject().Remove("size"); t.AsObject().Remove("radius");   // Phase 30: Größenklassen kamen nach v17
+        }
+        // Phase 30: Kleinstationen (Regierungsform outpost) und ihre Startexemplare gab es in v17 nicht; zwei Startstationen wurden für die Größen verschoben
+        if (root["stationTypes"] is System.Text.Json.Nodes.JsonArray sts)
+        {
+            var small = sts.Where(t => t is not null && (string?)t["government"] == "outpost").Select(t => (string?)t!["key"]).ToHashSet();
+            RemoveWhere(sts, t => small.Contains((string?)t["key"]));
+            foreach (var sec in root["sectors"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+                if (sec?["stations"] is System.Text.Json.Nodes.JsonArray list)
+                {
+                    RemoveWhere(list, st => small.Contains((string?)st["type"]));
+                    foreach (var st in list)
+                    {
+                        if (st is null) continue;
+                        if ((int?)st["id"] == 32) st["pos"] = new System.Text.Json.Nodes.JsonArray(130, -25);
+                        if ((int?)st["id"] == 13) st["pos"] = new System.Text.Json.Nodes.JsonArray(-60, -5);
+                        if ((int?)st["id"] == 18) st["pos"] = new System.Text.Json.Nodes.JsonArray(5, 65);
+                    }
+                }
         }
         return root.ToJsonString();
     });

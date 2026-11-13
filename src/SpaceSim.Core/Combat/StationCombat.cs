@@ -18,7 +18,9 @@ public static class StationCombat
     public static StationDefenseConfig? DefenseOf(Universe u, Station st) =>
         !st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Defense : null;
 
-    public static float MaxHull(Universe u, Station st) => DefenseOf(u, st)?.Hull ?? u.Rules.StationBaseHull;
+    /// <summary>Phase 30: ohne <c>defense</c> die Grundhülle der Größenklasse (S 600, M 800 = <see cref="EconomyRules.StationBaseHull"/>, L 1400, XL 2500).</summary>
+    public static float MaxHull(Universe u, Station st) => DefenseOf(u, st)?.Hull
+        ?? (u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.Size != StationSize.M ? StationSizes.BaseHull(t.Size) : u.Rules.StationBaseHull);
     public static float MaxShield(Universe u, Station st) => DefenseOf(u, st)?.Shield ?? 0f;
     public static float Hull(Universe u, Station st) => MathF.Max(0f, MaxHull(u, st) - (st.Condition?.HullMissing ?? 0f));
     public static float Shield(Universe u, Station st) => MathF.Max(0f, MaxShield(u, st) - (st.Condition?.ShieldMissing ?? 0f));
@@ -28,13 +30,19 @@ public static class StationCombat
 
     static StationCondition Cond(Station st) => st.Condition ??= new StationCondition();
 
-    /// <summary>Größte Reichweite der Stationsgeschütze (0 = keine Geschütze oder ausgeschaltet).</summary>
+    /// <summary>
+    /// Phase 30 (bewusste Entscheidung): Stationsgeschütze stehen auf der Außenhaut — ihre Reichweite ab der Mitte wächst mit dem Radius über den einer mittleren
+    /// Station hinaus (M wie bisher: Waffenreichweite ab Mitte; L +7, XL +15; S −5, Kleinstationen ≈ −12).
+    /// </summary>
+    public static float ReachOffset(Station st) => st.Radius - Station.BodyRadius;
+
+    /// <summary>Größte Reichweite der Stationsgeschütze ab Mitte (0 = keine Geschütze oder ausgeschaltet).</summary>
     public static float GunRange(Universe u, Station st)
     {
         if (IsDown(u, st) || DefenseOf(u, st) is not { } def) return 0f;
         float r = 0f;
         foreach (var g in def.Guns) if (u.Modules.TryGetValue(g, out var m)) r = MathF.Max(r, m.Stat("range"));
-        return r;
+        return r > 0f ? r + ReachOffset(st) : 0f;
     }
 
     /// <summary>Signatur einer Station (groß, steht still).</summary>
@@ -109,16 +117,16 @@ public static class StationCombat
                 {
                     if (!p.Active || !u.Ships.TryGetValue(p.Ship, out var ship) || !Hostile(u, st, e, p, ship)) continue;
                     float d = Distance(u, e, p, st);
-                    if (d <= w.Range && d < best) { best = d; target = p; }
+                    if (d <= w.Range + ReachOffset(st) && d < best) { best = d; target = p; }
                 }
                 if (target is null) continue;
                 var cond = Cond(st);
                 while (cond.Timers.Count <= g) cond.Timers.Add(0f);
                 cond.Timers[g] = w.Reload;
                 var tShip = u.Ships[target.Ship];
-                if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, default, st, target.Side == 0 ? 1 : 0, m, w, target.Ship, default, best, e.Spatial ? st.Position : default, g); continue; }
+                if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, default, st, target.Side == 0 ? 1 : 0, m, w, target.Ship, default, MathF.Max(0f, best - ReachOffset(st)), e.Spatial ? st.Position : default, g); continue; }
                 var tProfile = new TargetProfile(tShip.ShieldNow, tShip.Stats.Armor, target.Speed, Gunnery.Signature(u, tShip));
-                var hit = Hit.Roll(u.Rng, w, tProfile, best, 1f, r);
+                var hit = Hit.Roll(u.Rng, w, tProfile, MathF.Max(0f, best - ReachOffset(st)), 1f, r);   // Phase 30: ab der Außenhaut
                 e.Shots++;
                 float hull = Hit.Apply(u, tShip, hit);
                 if (hull > 0f) ModuleDamage.OnHullHit(u, tShip, hull);
@@ -295,9 +303,9 @@ public static class WarInfo
         {
             if (!u.Stations.TryGetValue(id, out var st) || u.FactionOf(st) != f || StationCombat.DefenseOf(u, st) is not { } def || StationCombat.IsDown(u, st)) continue;
             float reach = StationCombat.GunRange(u, st);
-            if (st.Id != target.Id && Vec2.Distance(st.Position, target.Position) > reach + Station.BodyRadius) continue;
+            if (st.Id != target.Id && Vec2.Distance(st.Position, target.Position) > reach + target.Radius) continue;
             foreach (var g in def.Guns)
-                if (u.Modules.TryGetValue(g, out var m)) { guns++; range = MathF.Max(range, m.Stat("range")); }
+                if (u.Modules.TryGetValue(g, out var m)) { guns++; range = MathF.Max(range, m.Stat("range") + StationCombat.ReachOffset(st)); }   // Phase 30: ab Außenhaut
         }
         return (guns, range);
     }
@@ -306,12 +314,17 @@ public static class WarInfo
     /// Gerätetest Phase 28 (Runde 4): Reichweite der eigenen Raketen gegen eine Station ab ihrer Mitte (die Waffe misst bis zur Außenhaut,
     /// <see cref="Station.BodyRadius"/> weiter); 0 = keine Raketen.
     /// </summary>
-    public static float MissileReachFromCentre(Universe u, Ship player)
+    public static float MissileReachFromCentre(Universe u, Ship player) => MissileReachFromCentre(u, player, Station.BodyRadius);
+
+    /// <summary>Phase 30: wie oben, mit dem Radius der Zielstation.</summary>
+    public static float MissileReachFromCentre(Universe u, Ship player, Station target) => MissileReachFromCentre(u, player, target.Radius);
+
+    static float MissileReachFromCentre(Universe u, Ship player, float radius)
     {
         float own = 0f;
         for (int i = 0; i < player.Fit.Count; i++)
             if (player.Fit[i] is { } k && u.Modules.TryGetValue(k, out var pm) && Missiles.IsMissile(pm) && player.ConditionOf(i) >= u.Rules.ModuleFailCondition) own = MathF.Max(own, pm.Stat("range"));
-        return own > 0f ? own + Station.BodyRadius : 0f;
+        return own > 0f ? own + radius : 0f;
     }
 
     /// <summary>

@@ -122,7 +122,7 @@ public static class PlayerGunnery
     {
         if (!u.Rules.Warfare || Gunnery.WeaponAt(u, ship, slot) is not { } m || !u.Stations.TryGetValue(station, out var st) || st.Sector != ship.Sector) return BayState.NoTarget;
         var w = WeaponProfile.Of(m);
-        if (Vec2.Distance(ship.Position, st.Position) > w.Range + Station.BodyRadius) return BayState.NoTarget;
+        if (Vec2.Distance(ship.Position, st.Position) > w.Range + st.Radius) return BayState.NoTarget;
         if (!HasRound(u, ship, m, w)) return BayState.NoAmmo;
         if (ReloadLeft(u, ship, slot) > 0f) return BayState.Reloading;
         if (!Gunnery.HasPower(u, ship, w)) return BayState.NoPower;
@@ -153,7 +153,7 @@ public static class PlayerGunnery
         if (!u.Stations.TryGetValue(station, out var st) || st.Sector != ship.Sector) return Fail(GunResult.NoTarget, "Keine Station als Ziel.");
         if (StationIssue(u, ship, st) is { } issue) return Fail(GunResult.NotAllowed, issue);
         var w = WeaponProfile.Of(m);
-        float dist = MathF.Max(0f, Vec2.Distance(ship.Position, st.Position) - Station.BodyRadius);
+        float dist = MathF.Max(0f, Vec2.Distance(ship.Position, st.Position) - st.Radius);
         if (dist > w.Range) return Fail(GunResult.OutOfRange, $"Station außer Reichweite ({dist:0} > {w.Range:0} m).");
         if (ReloadLeft(u, ship, slot) > 0f) return Fail(GunResult.Reloading, "lädt nach");
         if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, st.Position)) return Fail(GunResult.OutsideArc, "Station außerhalb des Feuerwinkels — drehen.");
@@ -278,9 +278,9 @@ public static class PlayerCombat
     public static FactionId? GuardOf(Universe u, SectorId sector, Vec2 pos)
     {
         if (!u.Sectors.TryGetValue(sector, out var sec)) return null;
-        Station? best = null; float bd = u.Rules.StationSafeRadius;
+        Station? best = null; float bd = float.MaxValue;
         foreach (var id in sec.Stations.OrderBy(i => i.Value))
-            if (u.Stations.TryGetValue(id, out var st) && Vec2.Distance(st.Position, pos) <= bd) { bd = Vec2.Distance(st.Position, pos); best = st; }
+            if (u.Stations.TryGetValue(id, out var st) && Vec2.Distance(st.Position, pos) <= st.SafeRadius(u.Rules) && Vec2.Distance(st.Position, pos) - st.Radius < bd) { bd = Vec2.Distance(st.Position, pos) - st.Radius; best = st; }
         return best is null ? null : u.FactionOf(best);
     }
 

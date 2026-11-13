@@ -22,6 +22,7 @@ public static class UniverseHash
         foreach (var st in u.Stations.Values.OrderBy(s => s.Id.Value))
         {
             Mix((ulong)st.Id.Value); MixF(st.Credits); Mix((ulong)st.Owner.Value);   // Phase 9: Besitzer (Akteur)
+            if (st.CalmSince >= 0) Mix((ulong)st.CalmSince);   // Phase 30
             foreach (var (g, e) in st.Market.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(e.Amount); MixF(e.Price); }
             // Phase 8: Schutz, Baustelle (Typ, Stückliste, Bauschiff, Zeiten, Zustand) und Spielerlager gehören zum Spielstand
             Mix(st.BankruptcyProtected ? 1UL : 0UL); MixString(st.TypeKey);
@@ -110,6 +111,7 @@ public static class UniverseHash
             Mix((ulong)a.LastForceTick); MixF(a.PoliceNeed); Mix((ulong)a.PoliceSurplusSince);   // Phase 20
             if (includeTags) MixString(a.Tag);   // Phase 29: Kürzel (Runde 12: abschaltbar für den Vergleichswert)
             Mix((ulong)a.LastRestoreTick);   // Phase 22
+            if (a.LastOutpostTick != 0) Mix((ulong)a.LastOutpostTick);   // Phase 30
             Mix((ulong)a.CreatedTick);       // Phase 27 (Prüfung Phase 26): Gründungszeit (Aufbauzeit der Rücklage hängt daran)
             if (a.ArrestCooldownUntil != 0) Mix((ulong)a.ArrestCooldownUntil + 0x2802u);   // Phase 28: Festnahme-Sperre
             foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }
@@ -158,7 +160,7 @@ public static class UniverseHash
         // Phase 28: Kriege und Friedensschlüsse (ohne Krieg mischt nichts)
         foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); }
         foreach (var (k, t) in u.PeaceSince.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2806u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
-        foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); }
+        foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); if (e.Station.Value != 0) Mix((ulong)e.Station.Value); }
         // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
         {

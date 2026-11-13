@@ -103,6 +103,7 @@ public static class CombatRefuge
         foreach (var sid in sec.Stations.OrderBy(i => i.Value))
         {
             if (!u.Stations.TryGetValue(sid, out var st) || st.IsBuildSite) continue;
+            if (!Simulation.Docking.Allows(u, st, ship)) continue;   // Runde 13b: Zuflucht nur, wo das Schiff andocken darf (keine Kleinstation, keine zu kleine Station)
             bool ok = raider ? st.Owner == ship.Owner && StationProtection.IsHideout(u, st)
                 : !StationProtection.IsHideout(u, st) && Relations.Effective(u, ship.Owner, st.Owner) > u.Rules.HostileRelation;
             if (!ok) continue;

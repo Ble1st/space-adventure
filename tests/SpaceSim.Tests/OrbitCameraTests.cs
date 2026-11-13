@@ -224,4 +224,27 @@ public class OrbitCameraTests
         for (int i = 0; i < OrbitCamera.ZoomSteps + 2; i++) cam.ZoomStep(-1);
         Assert.Equal(OrbitCamera.MinDistance, cam.Distance);
     }
+
+    [Theory]
+    [InlineData(30f)]
+    [InlineData(60f)]
+    [InlineData(110f)]
+    public void Gefechtskamera_RahmtSchiffUndZiel(float range)
+    {
+        // Standardansicht: Ziel genau vor dem Bug (Kamera dahinter), Abstand 45 — bei 30 m lag das Ziel schon unter dem Sektor-Chip
+        var cam = new OrbitCamera();
+        float pitch = cam.PitchDeg, yaw = cam.YawDeg;
+        Assert.False(CombatFraming.Fits(0f, -range, 0f, 0f, OrbitCamera.DefaultDistance, yaw, pitch, 50f, 16f / 9f), "ohne Rahmung außerhalb des freien Felds");
+        var f = CombatFraming.Compute(0f, 0f, 0f, -range, yaw, pitch, 50f, 16f / 9f, OrbitCamera.DefaultDistance, OrbitCamera.MaxDistance);
+        Assert.True(f.Distance >= OrbitCamera.DefaultDistance && f.Distance <= OrbitCamera.MaxDistance);
+        if (f.Distance < OrbitCamera.MaxDistance)
+        {
+            Assert.True(CombatFraming.Fits(0f, 0f, f.FocusX, f.FocusZ, f.Distance, yaw, pitch, 50f, 16f / 9f), "Schiff im Bild");
+            Assert.True(CombatFraming.Fits(0f, -range, f.FocusX, f.FocusZ, f.Distance, yaw, pitch, 50f, 16f / 9f), "Ziel im Bild");
+        }
+        Assert.True(f.FocusZ < 0f, "Blickpunkt rückt zum Ziel");
+        // nahes Ziel braucht weniger Abstand als fernes
+        var near = CombatFraming.Compute(0f, 0f, 0f, -10f, yaw, pitch, 50f, 16f / 9f, OrbitCamera.DefaultDistance, OrbitCamera.MaxDistance);
+        Assert.True(near.Distance <= f.Distance);
+    }
 }

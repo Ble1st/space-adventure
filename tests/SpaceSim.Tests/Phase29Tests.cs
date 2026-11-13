@@ -27,6 +27,7 @@ public class Phase29Tests
         def.Rules.PirateChoosesModels = false;
         def.Rules.RaidersSpareLoot = false;
         RevertRunde12(def);
+        RevertPhase30(def);
         def.Player.Model = "unit_player";
         int at = def.ShipModels.FindIndex(m => m.Key == "unit_miner_60") + 1;
         def.ShipModels.Insert(at, new ShipModelDef { Key = "unit_player", Class = "unit_miner", Name = "Einheitsspieler",
@@ -72,6 +73,27 @@ public class Phase29Tests
             ["behemoth"] = "Behemoth", ["prospector"] = "Prospector", ["pip"] = "Pip", ["pickaxe"] = "Pickaxe", ["rockbreaker"] = "Rockbreaker",
             ["rockbreaker_ii"] = "Rockbreaker II", ["quarry"] = "Quarry", ["excavator"] = "Excavator", ["foreman"] = "Foreman", ["tinker"] = "Tinker" };
         foreach (var m in def.ShipModels) if (names.TryGetValue(m.Key, out var n)) m.Name = n;
+    }
+
+    /// <summary>Phase 30 zurückdrehen: alle Stationen mittelgroß (Radius 15, Kostenfaktor 1), keine Kleinstationen, alte Positionen, keine Abwehr/Bau der Stellungen.</summary>
+    internal static void RevertPhase30(WorldDef def)
+    {
+        def.Rules!.OutpostsEngage = false;
+        def.Rules.OutpostsBuild = false;
+        var small = def.StationTypes.Where(t => t.Government == "outpost").Select(t => t.Key).ToHashSet();
+        def.StationTypes.RemoveAll(t => small.Contains(t.Key));
+        foreach (var t in def.StationTypes) { t.Size = null; t.Radius = null; }
+        if (def.StationTypes.FirstOrDefault(t => t.Key == "colony") is { } colony) colony.Income = 20f;   // Runde 13: Kolonie-Einkommen 20 → 30
+        foreach (var sec in def.Sectors)
+        {
+            sec.Stations.RemoveAll(st => small.Contains(st.Type));
+            foreach (var st in sec.Stations)
+            {
+                if (st.Id == 32) st.Pos = new[] { 130f, -25f };   // Hauptquartier Alpha
+                if (st.Id == 13) st.Pos = new[] { -60f, -5f };    // Elektrolyse Gamma
+                if (st.Id == 18) st.Pos = new[] { 5f, 65f };      // Werft Delta
+            }
+        }
     }
 
     /// <summary>Runde 12 zurückdrehen: mehr Geschützstellungen (Wächter-Turm, Leviathan, Sektor-HQ, Hauptquartier, Versteck), Verfolgung vor Versteckgeschützen.</summary>

@@ -28,6 +28,8 @@ public sealed class PendingEncounter
     public ShipId Target;
     public SectorId Sector;
     public long DueTick;
+    /// <summary>Runde 13b: Warnung einer Waffenstellung (Kleinstation) an einen Gesuchten — <see cref="Source"/> bleibt leer; default = keine.</summary>
+    public StationId Station;
 }
 
 /// <summary>Deutsche Anzeigenamen für Lagekarte und Fahndung.</summary>

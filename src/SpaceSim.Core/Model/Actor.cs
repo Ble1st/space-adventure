@@ -102,6 +102,8 @@ public sealed class Actor
     /// <see cref="EconomyRules.ViabilityRestoreCooldown"/>). Gespeichert.
     /// </summary>
     public long LastRestoreTick = -1_000_000;
+    /// <summary>Phase 30: Tick der letzten aufgestellten Kleinstation (0 = nie; Abklingzeit). Gespeichert, gehasht wenn gesetzt.</summary>
+    public long LastOutpostTick;
     /// <summary>Phase 28 (Prüfung Phase 27): bis zu diesem Tick kündigt die Polizei keine neue Festnahme an (nach Flucht, Ergeben oder Ende eines Polizeigefechts); 0 = keine Sperre.</summary>
     public long ArrestCooldownUntil;
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>

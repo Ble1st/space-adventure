@@ -327,10 +327,24 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 					DrawRect(new Rect2(p + new Vector2(-14, 14), new Vector2(28, 4)), new Color(Dim, 0.4f));
 					DrawRect(new Rect2(p + new Vector2(-14, 14), new Vector2(28 * site.Progress, 4)), sc);
 				}
+				else if (!st.Dockable)
+				{
+					// Phase 30: Kleinstation — kleines Dreieck (Waffenstellung) bzw. kleiner Kreis (Satellit), Größe nach Radius
+					bool armed = _u.StationTypes.TryGetValue(st.TypeKey, out var ot) && (ot.Defense?.Guns.Count ?? 0) > 0;
+					if (armed)
+					{
+						var tri = new[] { p + new Vector2(0, -7), p + new Vector2(6, 5), p + new Vector2(-6, 5), p + new Vector2(0, -7) };
+						DrawColoredPolygon(tri[..3], new Color(0.06f, 0.1f, 0.2f, 0.95f));
+						DrawPolyline(tri, col, sel ? 3f : 2f, true);
+					}
+					else DrawArc(p, 4f, 0, Mathf.Tau, 12, col, sel ? 3f : 2f, true);
+				}
 				else
 				{
-					DrawRect(new Rect2(p - new Vector2(9, 9), new Vector2(18, 18)), new Color(0.06f, 0.1f, 0.2f, 0.95f));
-					DrawRect(new Rect2(p - new Vector2(9, 9), new Vector2(18, 18)), col, false, sel ? 4f : 2f);
+					// Phase 30: Quadratgröße nach Größenklasse (S kleiner, L/XL größer)
+					float h = Mathf.Clamp(st.Radius * 0.6f, 6f, 16f);
+					DrawRect(new Rect2(p - new Vector2(h, h), new Vector2(h * 2f, h * 2f)), new Color(0.06f, 0.1f, 0.2f, 0.95f));
+					DrawRect(new Rect2(p - new Vector2(h, h), new Vector2(h * 2f, h * 2f)), col, false, sel ? 4f : 2f);
 				}
 				if (sel) DrawArc(p, 20f, 0, Mathf.Tau, 24, Cyan, 2f, true);
 				layout.ReserveCircle(p, 12f);

@@ -120,7 +120,7 @@ public static class Refuel
         float bestTime = float.PositiveInfinity;
         foreach (var st in FuelStations(u, good))
         {
-            if (st.Id == exclude) continue;
+            if (st.Id == exclude || !Docking.Allows(u, st, ship)) continue;   // Phase 30
             float time = Travel.Estimate(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship);
             if (float.IsPositiveInfinity(time) || time >= bestTime) continue;
             float need = Consumption(ship, Travel.EstimateDistance(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship), good);

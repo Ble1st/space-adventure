@@ -139,13 +139,13 @@ public static class UniverseSerializer
                 Wanted = a.Wanted.Count == 0 ? null : a.Wanted.OrderBy(kv => kv.Key.Value)
                     .Select(kv => new WantedSave { Faction = kv.Key.Value, Heat = kv.Value.Heat, LastCrime = kv.Value.LastCrimeTick, Fine = kv.Value.Fine, Crime = kv.Value.LastCrime }).ToList(),
                 BountyClaims = a.BountyClaims.Count == 0 ? null : a.BountyClaims.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick,
+                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick, LastOutpostTick = a.LastOutpostTick,
                 ArrestCooldownUntil = a.ArrestCooldownUntil,
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
             {
-                Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick,
+                Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick, Station = e.Station.Value,
             }).ToList();
         // Phase 26: Wracks und Frachtbehälter
         if (u.NextWreckId != 1) s.NextWreckId = u.NextWreckId;
@@ -210,6 +210,7 @@ public static class UniverseSerializer
                 Destructible = t.Destructible ? null : false,
                 Security = t.Security == 0f ? null : t.Security,
                 Hideout = t.Hideout ? true : null,
+                Size = t.Size == StationSize.M ? null : t.Size.ToString(), Radius = t.Radius == 15f ? null : t.Radius,
                 Research = t.Research is { } rc ? new ResearchConfigSave
                 {
                     Ticks = rc.Ticks, Points = rc.Points, Credits = rc.Credits, FundTarget = rc.FundTarget, FundPerTick = rc.FundPerTick,
@@ -285,6 +286,7 @@ public static class UniverseSerializer
                 } : null,
                 MaintenanceBacklog = st.MaintenanceBacklog.Count == 0 ? null : st.MaintenanceBacklog.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = ToSave(st.Profit),
+                CalmSince = st.CalmSince < 0 ? null : st.CalmSince,
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -349,7 +351,7 @@ public static class UniverseSerializer
                 Wanted = a.Wanted is null ? new Dictionary<FactionId, WantedRecord>()
                     : a.Wanted.ToDictionary(w => new FactionId(w.Faction), w => new WantedRecord { Heat = w.Heat, LastCrimeTick = w.LastCrime, Fine = w.Fine, LastCrime = w.Crime }),
                 BountyClaims = a.BountyClaims is null ? new Dictionary<FactionId, float>() : a.BountyClaims.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
-                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick,
+                LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick, LastOutpostTick = a.LastOutpostTick,
                 ArrestCooldownUntil = a.ArrestCooldownUntil,
             };
         if (s.Encounters is not null)
@@ -357,6 +359,7 @@ public static class UniverseSerializer
                 u.PendingEncounters.Add(new PendingEncounter
                 {
                     Kind = Enum.Parse<EncounterKind>(e.Kind), Source = new ShipId(e.Source), Target = new ShipId(e.Target), Sector = new SectorId(e.Sector), DueTick = e.Due,
+                    Station = new StationId(e.Station),
                 });
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)
@@ -440,6 +443,7 @@ public static class UniverseSerializer
                 // Phase 11: fehlt in älteren Ständen = kein Grundschutz, kein Versteck
                 Security = t.Security ?? 0f,
                 Hideout = t.Hideout ?? false,
+                Size = t.Size is { } sz ? Enum.Parse<StationSize>(sz) : StationSize.M, Radius = t.Radius ?? 15f,
                 // Phase 13: fehlt in älteren Ständen = keine Forschungsstation
                 Research = t.Research is { } rc ? new ResearchConfig
                 {
@@ -526,7 +530,10 @@ public static class UniverseSerializer
                 } : null,
                 MaintenanceBacklog = st.MaintenanceBacklog is null ? new Dictionary<GoodId, float>() : st.MaintenanceBacklog.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = FromSave(st.Profit),
+                CalmSince = st.CalmSince ?? -1,
             };
+        // Phase 30: Radius und Andockbarkeit aus dem Typ (Baustelle: Zieltyp) — abgeleitet, nicht gespeichert
+        foreach (var st in u.Stations.Values) Content.StationFactory.ApplySize(u, st);
         foreach (var sh in s.Ships)
         {
             var role = Enum.Parse<ShipRole>(sh.Role);

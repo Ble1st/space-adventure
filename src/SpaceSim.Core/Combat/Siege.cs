@@ -41,6 +41,27 @@ public static class Siege
     }
 
     /// <summary>
+    /// Phase 30: Abwehrgefecht — eine Waffenstellung eröffnet von sich aus das Feuer auf einen Gegner in Reichweite. Dieselbe Mechanik wie eine Belagerung (die
+    /// Stellung verteidigt sich, Polizei/Marine ihrer Fraktion im Sektor helfen), aber ohne Kriegszählung und ohne Verbrechen: das Ziel hat nicht angegriffen.
+    /// Das Ziel steht auf der Angreiferseite (Spieler mit seiner Steuerung, NPC mit der Belagerungstaktik — er wehrt sich oder flieht nach seinen Regeln).
+    /// </summary>
+    public static Encounter StartDefense(Universe u, Station st, Ship target)
+    {
+        var r = u.Rules;
+        var e = Engage.Begin(u, EncounterCause.Siege, st.Sector);
+        e.Station = st.Id;
+        e.StationX = MathF.Max(0f, Vec2.Distance(target.Position, st.Position));
+        e.Victim = default;
+        Engage.Join(u, e, target, 0, target.Id == u.PlayerShip ? CombatTactics.Player : CombatTactics.Siege, 0f, e.Spatial ? target.Position : null);
+        string where = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
+        string msg = target.Id == u.PlayerShip ? $"{st.Name} eröffnet das Feuer auf dich!" : $"Gefecht in {where}: {st.Name} eröffnet das Feuer";
+        u.Events.Publish(new EncounterStarted(e.Id, st.Sector, EncounterCause.Siege, target.Id, default, msg));
+        u.Events.Publish(new OutpostEngaged(e.Id, st.Id, target.Id, msg));
+        Reinforce(u, e);
+        return e;
+    }
+
+    /// <summary>
     /// Gerätetest Phase 28 (Runde 6): Rückzug des Spielers aus einer Belagerung (als geflohen gewertet) — seine eigenen Schiffe im Gefecht (Verband, Begleiter)
     /// brechen ab und arbeiten ihren Befehl weiter (Verbandsmitglieder: dem Anführer folgen); bleibt kein Angreifer, endet das Gefecht im selben Takt.
     /// Ereignis <see cref="SiegeWithdrawn"/>. Ohne <see cref="EconomyRules.FleetCombat"/> nichts.
@@ -84,7 +105,7 @@ public static class Siege
                 float retreat = Wars.IsWarship(s) ? u.Rules.WarshipRetreatHull : u.Rules.PoliceRetreatHull;
                 if (s.Hull < retreat * s.MaxHull) continue;
                 float x = e.StationX - 10f - n * Reinforcements.HelperGap;
-                var at = e.Spatial ? CombatSpace.Clear(u, e.Sector, CombatSpace.Around(st.Position, s.Position, Station.BodyRadius + 15f)) : (Vec2?)null;
+                var at = e.Spatial ? CombatSpace.Clear(u, e.Sector, CombatSpace.Around(st.Position, s.Position, st.Radius + 15f)) : (Vec2?)null;
                 if (e.Of(s.Id) is { Active: false } old && old.Side == 1)
                 {
                     Engage.Rejoin(u, e, old, s);

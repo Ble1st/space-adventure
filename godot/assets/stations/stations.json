@@ -1,91 +1,108 @@
 {
   "axes": "Modellraum Godot: oben +Y, Ursprung = Mitte der Bounding-Box, groesster Radius in der Ebene = 1",
   "hardpoints": "Je Geschuetz aus stationTypes[].defense.guns genau eine sichtbare Stellung, in Geschuetz-Reihenfolge (gun = Index). kind = turret (Drehturm) | missile (Schachtfeld in der Huelle). pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung. node = eigener Turm-Node 'Turret_<gun>': Ursprung auf der Drehachse, Drehachse = lokales +Y (bei Bauchtuermen nach unten), Rohr in Ruhe nach lokal -Z. Stationen ohne defense.guns haben keine Stellungen. Punktverteidigung (kind pd) steht nach den Geschuetzen mit gun -1 und Node 'Turret_pd<n>'.",
-  "radius": "Spielradius des Typs in Welteinheiten (Modell * radius = Groesse im Spiel).",
+  "radius": "Spielradius des Typs in Welteinheiten (Modell * radius = Groesse im Spiel); aus stationTypes[].size: S 10, M 15, L 22, XL 30, XS je Typ (Kleinstationen).",
   "models": {
     "solar_plant": {
       "name": "Solarkraftwerk",
-      "radius": 15.0,
+      "size": "S",
+      "radius": 10.0,
       "hardpoints": []
     },
     "steelworks": {
       "name": "Stahlwerk",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "water_plant": {
       "name": "Wasserwerk",
-      "radius": 15.0,
+      "size": "S",
+      "radius": 10.0,
       "hardpoints": []
     },
     "electrolysis": {
       "name": "Elektrolyse",
-      "radius": 15.0,
+      "size": "S",
+      "radius": 10.0,
       "hardpoints": []
     },
     "copper_smelter": {
       "name": "Kupferhütte",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "wafer_fab": {
       "name": "Waferfabrik",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "titanium_works": {
       "name": "Titanhütte",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "platinum_refinery": {
       "name": "Platinraffinerie",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "powerplant": {
       "name": "Kraftwerk",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "farm": {
       "name": "Farm",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "electronics_fab": {
       "name": "Elektronikfabrik",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "plating_works": {
       "name": "Panzerwerk",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "fuel_cell_fab": {
       "name": "Brennstoffzellenfabrik",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "life_support_fab": {
       "name": "Lebenserhaltungswerk",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "goods_factory": {
       "name": "Konsumgüterfabrik",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "luxury_workshop": {
       "name": "Luxuswerkstatt",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "shipyard": {
       "name": "Werft",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": [
         {
           "gun": 0,
@@ -123,52 +140,62 @@
     },
     "colony": {
       "name": "Kolonie",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": []
     },
     "fuel_refinery": {
       "name": "Treibstoffraffinerie",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "drive_works": {
       "name": "Antriebs- und Reaktorwerk",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": []
     },
     "weapons_works": {
       "name": "Waffen- und Schildwerk",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": []
     },
     "systems_works": {
       "name": "Systemwerk",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": []
     },
     "trade_station": {
       "name": "Handelsstation",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": []
     },
     "trade_post": {
       "name": "Planetenhandel",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": []
     },
     "build_site": {
       "name": "Baustelle",
-      "radius": 15.0,
+      "size": "S",
+      "radius": 10.0,
       "hardpoints": []
     },
     "warehouse": {
       "name": "Lagerhaus",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": []
     },
     "headquarters": {
       "name": "Hauptquartier",
-      "radius": 15.0,
+      "size": "XL",
+      "radius": 30.0,
       "hardpoints": [
         {
           "gun": 0,
@@ -268,12 +295,14 @@
     },
     "company_seat": {
       "name": "Firmensitz",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": []
     },
     "sector_hq": {
       "name": "Sektor-HQ",
-      "radius": 15.0,
+      "size": "L",
+      "radius": 22.0,
       "hardpoints": [
         {
           "gun": 0,
@@ -343,11 +372,13 @@
     },
     "office": {
       "name": "Büro",
-      "radius": 15.0,
+      "size": "S",
+      "radius": 10.0,
       "hardpoints": []
     },
     "police_station": {
       "name": "Polizeiwache",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": [
         {
@@ -402,6 +433,7 @@
     },
     "pirate_hideout": {
       "name": "Piratenversteck",
+      "size": "M",
       "radius": 15.0,
       "hardpoints": [
         {
@@ -456,11 +488,19 @@
     },
     "research_station": {
       "name": "Forschungsstation",
+      "size": "M",
       "radius": 15.0,
+      "hardpoints": []
+    },
+    "satellite_sensor": {
+      "name": "Überwachungssatellit",
+      "size": "XS",
+      "radius": 2.6,
       "hardpoints": []
     },
     "platform_light": {
       "name": "Leichte Waffenstellung",
+      "size": "XS",
       "radius": 3.5,
       "hardpoints": [
         {
@@ -499,6 +539,7 @@
     },
     "platform_medium": {
       "name": "Mittlere Waffenstellung",
+      "size": "XS",
       "radius": 6.0,
       "hardpoints": [
         {
@@ -569,6 +610,7 @@
     },
     "platform_heavy": {
       "name": "Schwere Waffenstellung",
+      "size": "XS",
       "radius": 8.0,
       "hardpoints": [
         {
@@ -682,11 +724,6 @@
           "module": "point_defense_s"
         }
       ]
-    },
-    "satellite_sensor": {
-      "name": "Überwachungssatellit",
-      "radius": 2.6,
-      "hardpoints": []
     }
   }
 }

@@ -276,6 +276,7 @@ public class ActorTests
         // die Zahler zurück — seit der Kupferkette hat die Werft die Module öfter auf Lager, und Welt a kauft schon in den ersten 3000 Ticks Polizei.
         // Für den Zahlervergleich ruht die Sicherheit in beiden Welten.
         foreach (var w in new[] { a, b }) w.Rules.SecurityActive = false;
+        foreach (var w in new[] { a, b }) w.Rules.OutpostsBuild = false;   // Phase 30: Kleinstationen werden aus der Kasse gekauft
         // Phase 26: die Reparaturregale der Regierungsstationen (Hüllenplatten, Elektronik) kaufen aus der Stationskasse — die hängt ohne Fraktionskasse
         // am Unterhalt und wirkte über den Handel auf die Zahler zurück; für den Zahlervergleich ohne Regale (wie bis Phase 25)
         foreach (var w in new[] { a, b })

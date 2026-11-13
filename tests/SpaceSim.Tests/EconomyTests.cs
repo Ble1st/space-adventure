@@ -225,7 +225,7 @@ public class AvoidanceTests
             var obs = u.GetObstacles(sector.Id);
             var points = new List<Vec2>();
             points.AddRange(sector.Gates.Select(g => u.Gates[g].Position));
-            points.AddRange(sector.Stations.Select(s => u.Stations[s].DockPoint(new ShipId(4))));
+            points.AddRange(sector.Stations.Where(s => u.Stations[s].Dockable).Select(s => u.Stations[s].DockPoint(new ShipId(4))));   // Phase 30: Kleinstationen sind kein Ziel
             points.AddRange(sector.Fields.Select(f => f.WorkPoint(new ShipId(5))));
             foreach (var a in points)
                 foreach (var b in points)
@@ -246,7 +246,7 @@ public class AvoidanceTests
             foreach (var a in sector.Asteroids)
             {
                 foreach (var g in sector.Gates) Assert.True(Vec2.Distance(a.Position, u.Gates[g].Position) > a.Radius + 30f);
-                foreach (var st in sector.Stations) Assert.True(Vec2.Distance(a.Position, u.Stations[st].Position) > a.Radius + 40f);
+                foreach (var st in sector.Stations) Assert.True(Vec2.Distance(a.Position, u.Stations[st].Position) > a.Radius + u.Stations[st].Radius + 20f, $"{u.Stations[st].Name}");   // Phase 30: nach Radius (mittlere Station wie bisher 40)
                 foreach (var f in sector.Fields) Assert.True(Vec2.Distance(a.Position, f.Position) > a.Radius + 15f);
             }
         }

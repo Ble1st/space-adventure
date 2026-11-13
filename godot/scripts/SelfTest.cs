@@ -1692,6 +1692,10 @@ public partial class SelfTest : Node
 					if (_m.Docked) _m.TestUndock();
 					uni.Rules.PlayerRaids = true;
 					uni.PendingEncounters.Clear();
+					// Phase 30: Waffenstellungen im Sektor binden die Streife sonst an Abwehrgefechte gegen lauernde Kaperer (PoliceIn zählt Beteiligte nicht) — hier aus
+					_p30Engage = uni.Rules.OutpostsEngage; uni.Rules.OutpostsEngage = false;
+					foreach (var fe in uni.Fights.Encounters.Where(x => x.Sector == uni.PlayerSector).ToList())
+						foreach (var part in fe.Participants.Where(x => x.Active).ToList()) SpaceSim.Core.Combat.Engage.Leave(uni, fe, part, SpaceSim.Core.Model.CombatExit.Fled);
 					foreach (var r in uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).ToList())
 						if (r.Sector == uni.PlayerSector && !uni.Fights.IsEngaged(r.Id)) { if (r.Transit is not null) uni.FinishTransit(r); uni.MoveShip(r, new SectorId(11)); }
 					break;
@@ -1707,6 +1711,7 @@ public partial class SelfTest : Node
 					if (cop.Transit is not null) uni.FinishTransit(cop);
 					if (cop.Sector != uni.PlayerSector) uni.MoveShip(cop, uni.PlayerSector);
 					cop.Position = pl.Position + new Vec2(45f, 0f); cop.DockedAt = default;
+					cop.DutySector = uni.PlayerSector; cop.Hull = cop.MaxHull;   // Phase 30: bleibt auf Streife hier (sonst teilt die Fraktion sie anderswo ein)
 					_p27Police = cop.Id;
 					_m.TestSetFast(true);
 					break;
@@ -1718,7 +1723,7 @@ public partial class SelfTest : Node
 					Check(SpaceSim.Core.Combat.PlayerSurrender.Issue(uni) is null, "in der Vorwarnung ist Ergeben möglich");
 				}
 				var fight = uni.Fights.Of(pl.Id);
-				if (fight is null) { if (_frame - _stageStart > 2400) Fail("Polizeigefecht begann nicht"); break; }
+				if (fight is null) { if (_frame - _stageStart > 2400) Fail($"Polizeigefecht begann nicht (Sektor {uni.PlayerSector.Value}, angedockt {pl.DockedAt.Value}, Warnung {_p27Warned}, Meldung {_m.LastCombatMessage}, Lage {_m.LastSecurityMessage}, Streife {(uni.Ships.TryGetValue(_p27Police, out var pc) ? $"Sektor {pc.Sector.Value} Befehl {pc.Command?.GetType().Name} Gefecht {uni.Fights.Of(pc.Id)?.Cause} Transit {pc.Transit is not null} Hülle {pc.Hull:0}" : "weg")})"); break; }
 				Check(fight.Cause == SpaceSim.Core.Model.EncounterCause.Arrest, $"Gefecht ist ein Polizeigefecht ({fight.Cause})");
 				Check(_m.LastCombatMessage?.Contains("Polizei") == true, $"Meldung zum Polizeigefecht ({_m.LastCombatMessage})");
 				_m.TestSetFast(false);
@@ -1731,6 +1736,7 @@ public partial class SelfTest : Node
 				Check(!uni.Player.Wanted.ContainsKey(_p27Faction), "Strafe bezahlt — Fahndung gelöscht");
 				Check(uni.PlayerWallet.Credits < 40_000f, "Strafe aus der Kasse");
 				Check(_m.HudRef.TestAlert.Contains("Ergeben"), $"Meldung „Ergeben“ ({_m.HudRef.TestAlert})");
+				uni.Rules.OutpostsEngage = _p30Engage;
 				Next(); break;
 			}
 			case 70: // Sektoransicht: Streifen-Verband als Linie, Flottenzeile in der Karte
@@ -2578,7 +2584,7 @@ public partial class SelfTest : Node
 						if (model is null) { Check(!SpaceAdventure.World.StationModels.Has(key), $"Modell für {key} ({st.Name}) geladen, kein Grundkörper"); continue; }
 						_p8Types.Add(key);
 						float r = SpaceAdventure.World.StationModels.PlaneRadius(model);
-						Check(System.MathF.Abs(r - Station.BodyRadius) <= 0.1f * Station.BodyRadius, $"{st.Name}: Modellradius {r:0.0} ≈ Kollisionskreis {Station.BodyRadius:0}");
+						Check(System.MathF.Abs(r - st.Radius) <= 0.1f * st.Radius, $"{st.Name}: Modellradius {r:0.0} ≈ Kollisionskreis {st.Radius:0}");
 						var acc = SpaceAdventure.World.StationModels.AccentOf(model);
 						var want = SpaceAdventure.World.SectorView.AccentOf(uni, st);
 						// Phase 29: gesättigte Besitzerfarbe (Farbton gleich; grau bleibt grau)
@@ -2612,6 +2618,7 @@ public partial class SelfTest : Node
 			case 90: if (GateModelStage(_frame - _stageStart)) Next(); break;   // Jumpgate-Modelle (SelfTest.Gates.cs)
 			case 91: if (ShipModelStage(_frame - _stageStart)) Next(); break;   // Runde 11: Schiffsmodelle, Mündungen, Türme (SelfTest.Ships.cs)
 			case 92: if (AudioStage(_frame - _stageStart)) Next(); break;   // Runde 12: Musikzustände, Signale, Ton-Busse und Einstellungen (SelfTest.Audio.cs)
+			case 93: if (SmallStationStage(_frame - _stageStart)) Next(); break;   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -2672,6 +2679,7 @@ public partial class SelfTest : Node
 		else Fail($"Taste „{label}“ nicht gefunden (Bildschirm {_m.HudRef.Screens.Current?.Id ?? "-"}; Tasten {string.Join(",", Buttons(root).Where(b => b.IsVisibleInTree()).Select(b => b.Text))}; alle {string.Join(",", Buttons(root).Select(b => b.Text))}; wischt {Ui.Kit.KitScroll.Dragging}, gedrückt {Ui.Kit.KitButton.AnyHeld}, Zeilen {_m.HudRef.DockTrade.TestRowCount}, Station {_m.HudRef.DockCtx.Station?.Name}, gleiche Welt {ReferenceEquals(_m.HudRef.DockCtx.U, _m.Session.U)}, Meldung {_m.HudRef.DockTrade.TestMessage})");
 	}
 	Vector2? _p28Press;
+	bool _p30Engage = true;
 	static IEnumerable<Ui.Kit.KitButton> Buttons(Node root)
 	{
 		foreach (var c in root.GetChildren())

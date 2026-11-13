@@ -1,7 +1,7 @@
 """Baut alle Stationsmodelle, exportiert sie als GLB und rendert Vorschaubilder.
 
 Aufruf (aus dem Repo-Wurzelverzeichnis):
-    blender --background --factory-startup --python tools/blender/build_stations.py -- [--only k1,k2] [--no-render] [--no-overview] [--overview-only] [--view NAME] [--imgdir DIR]
+    blender --background --factory-startup --python tools/blender/build_stations.py -- [--only k1,k2] [--no-render] [--no-overview] [--overview-only] [--view NAME] [--imgdir DIR] [--json-only] [--sizes] [--glbdir DIR]
 
 Ausgaben:
     godot/assets/stations/<typeKey>.glb
@@ -54,6 +54,12 @@ def args():
         elif a[i] == "--overview-only":
             opt["only"] = []
             opt["overview_only"] = True
+        elif a[i] == "--glbdir":             # GLBs (und stations.json) in ein anderes Verzeichnis
+            opt["glbdir"] = a[i + 1]
+            i += 1
+        elif a[i] == "--json-only":          # nur stations.json schreiben, keine GLBs/Bilder
+            opt["only"] = []
+            opt["overview"] = False
         elif a[i] == "--sizes":
             opt["sizes"] = True
             opt["only"] = []
@@ -230,6 +236,7 @@ def write_meta(types):
     with open(WORLD, encoding="utf-8") as f:
         d = json.load(f)
     guns = {t["key"]: (t.get("defense") or {}).get("guns", []) for t in d["stationTypes"]}
+    sizes = {t["key"]: t.get("size") for t in d["stationTypes"]}
     for k, g in station_models.SMALL_GUNS.items():
         guns.setdefault(k, g)
     models = {}
@@ -248,7 +255,8 @@ def write_meta(types):
             elif hp["gun"] < 0:
                 h["module"] = "point_defense_s"
             hps.append(h)
-        models[key] = {"name": name, "radius": station_models.RADIUS.get(key, station_models.DEFAULT_RADIUS),
+        models[key] = {"name": name, "size": sizes.get(key) or ("XS" if key in station_models.RADIUS else "M"),
+                       "radius": station_models.radius_of(key, sizes.get(key)),
                        "hardpoints": hps}
     meta = {
         "axes": "Modellraum Godot: oben +Y, Ursprung = Mitte der Bounding-Box, groesster Radius in der Ebene = 1",
@@ -259,7 +267,8 @@ def write_meta(types):
                       "(bei Bauchtuermen nach unten), Rohr in Ruhe nach lokal -Z. Stationen ohne defense.guns "
                       "haben keine Stellungen. Punktverteidigung (kind pd) steht nach den Geschuetzen mit gun -1 und "
                       "Node 'Turret_pd<n>'.",
-        "radius": "Spielradius des Typs in Welteinheiten (Modell * radius = Groesse im Spiel).",
+        "radius": "Spielradius des Typs in Welteinheiten (Modell * radius = Groesse im Spiel); aus "
+                  "stationTypes[].size: S 10, M 15, L 22, XL 30, XS je Typ (Kleinstationen).",
         "models": models,
     }
     with open(os.path.join(GLB_DIR, "stations.json"), "w", encoding="utf-8") as f:
@@ -340,12 +349,15 @@ def overview(types, path):
 
 # ---------------------------------------------------------------- Groessenvergleich
 def sizes(path):
-    """Kleinstationen in Spielgroesse (radius) neben einer Standardstation (Radius 15) und einem
-    S-Jaeger (Falke, 4,8 Einheiten lang)."""
+    """Je ein Beispiel der Groessenklassen XL/L/M/S und die Kleinstationen (XS) in Spielgroesse (radius)
+    neben einem S-Jaeger (Falke, 4,8 Einheiten lang)."""
     reset()
-    scene, cam = setup_scene(res=(2400, 1000))
-    row = [("sector_hq", "Standardstation (Sektor-HQ), Radius 15", 15.0)]
-    row += [(k, n + ", Radius %g" % station_models.RADIUS[k], station_models.RADIUS[k])
+    scene, cam = setup_scene(res=(3600, 1200))
+    names = dict(station_types())
+    row = [(k, "%s: %s, Radius %g" % (cls, names.get(k, k), station_models.SIZE_RADIUS[cls]),
+            station_models.SIZE_RADIUS[cls])
+           for cls, k in (("XL", "headquarters"), ("L", "shipyard"), ("M", "steelworks"), ("S", "solar_plant"))]
+    row += [(k, "XS: %s, Radius %g" % (n, station_models.RADIUS[k]), station_models.RADIUS[k])
             for k, n in station_models.SMALL_TYPES]
     txt_mat = bpy.data.materials.new("Label")
     txt_mat.use_nodes = True
@@ -363,7 +375,7 @@ def sizes(path):
         ob.scale = (r, r, r)
         ob.location = (x, 0, 0)
         items.append((name, x, r))
-        x += r + 4.0
+        x += r + 6.0
     bpy.ops.import_scene.gltf(filepath=os.path.join(REPO, "godot", "assets", "ships", "falcon.glb"))
     ship = [o for o in bpy.context.selected_objects if o.parent is None][0]
     x += 2.4
@@ -375,26 +387,28 @@ def sizes(path):
         cu = bpy.data.curves.new("t%d" % i, "FONT")
         cu.body = name
         cu.align_x = "CENTER"
-        cu.size = 1.3
+        cu.size = 2.4
         to = bpy.data.objects.new("t%d" % i, cu)
         to.data.materials.append(txt_mat)
-        to.location = (cx, -17.5 - (i % 2) * 2.2, 0)
+        to.location = (cx, -37.0 - (i % 3) * 3.6, 0)
         scene.collection.objects.link(to)
     tint_accent(True)
     cam.data.type = "ORTHO"
-    cam.data.ortho_scale = x + 14
+    cam.data.ortho_scale = x + 24
     tilt = math.radians(32)
-    cam.location = (x / 2, -6 - 120 * math.sin(tilt), 120 * math.cos(tilt))
+    cam.location = (x / 2, -12 - 300 * math.sin(tilt), 300 * math.cos(tilt))
     cam.rotation_euler = (tilt, 0, 0)
-    cam.data.clip_end = 400
+    cam.data.clip_end = 800
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
 
 
 # ---------------------------------------------------------------- Hauptablauf
 def main():
-    global VIEW, IMG_DIR
+    global VIEW, IMG_DIR, GLB_DIR
     opt = args()
+    if opt.get("glbdir"):
+        GLB_DIR = opt["glbdir"]
     VIEW = opt["view"]
     if opt["imgdir"]:
         IMG_DIR = opt["imgdir"]

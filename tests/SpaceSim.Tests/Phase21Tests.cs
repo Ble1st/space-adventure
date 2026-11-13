@@ -43,7 +43,10 @@ public class Phase21Tests
             var n = u.Stations[st.Id];
             // Phase 29: Stationen mit dem Fraktionsnamen heißen nach der Vorlage „Typ – {owner}“
             bool templated = n.Name.Contains(" – ");
-            Assert.Equal((templated ? n.Name : st.Name, st.TypeKey, st.Sector, st.Position), (n.Name, n.TypeKey, n.Sector, n.Position));
+            // Phase 30: zwei Startstationen für die Größenklassen verschoben (Hauptquartier Alpha XL weg vom Tor, Elektrolyse Gamma weg vom Tor)
+            var moved = new Dictionary<int, Vec2> { [32] = new Vec2(136f, -4f), [13] = new Vec2(-75f, 25f), [18] = new Vec2(0f, 66f) };
+            var expected = moved.TryGetValue(st.Id.Value, out var mp) ? mp : st.Position;
+            Assert.Equal((templated ? n.Name : st.Name, st.TypeKey, st.Sector, expected), (n.Name, n.TypeKey, n.Sector, n.Position));
             if (templated) Assert.Contains(u.ActorName(n.Owner), n.Name);
         }
         foreach (var g in classic.Gates.Values)
@@ -176,9 +179,11 @@ public class Phase21Tests
         foreach (var st in u.Stations.Values.Where(s => s.Id.Value > 40 && !u.StationTypes[s.TypeKey].Hideout))
         {
             var sector = u.Sectors[st.Sector];
-            Assert.All(sector.Fields, f => Assert.True(Vec2.Distance(f.Position, st.Position) > 101f, $"{st.Name} zu nah am Gürtel"));
-            Assert.All(sector.Gates, g => Assert.True(Vec2.Distance(u.Gates[g].Position, st.Position) > 50f, $"{st.Name} zu nah am Tor"));
-            Assert.All(sector.Stations.Where(x => x != st.Id), x => Assert.True(Vec2.Distance(u.Stations[x].Position, st.Position) > 50f, $"{st.Name} zu nah an {u.Stations[x].Name}"));
+            // Phase 30: Abstände nach Radius (mittlere Station wie bisher 101/50/50); Waffenstellungen stehen bewusst nah am Tor (≥ 25 + Radius)
+            bool outpost = !st.Dockable;
+            Assert.All(sector.Fields, f => Assert.True(Vec2.Distance(f.Position, st.Position) > st.Radius + 86f, $"{st.Name} zu nah am Gürtel"));
+            Assert.All(sector.Gates, g => Assert.True(Vec2.Distance(u.Gates[g].Position, st.Position) > st.Radius + (outpost ? 25f : 35f), $"{st.Name} zu nah am Tor"));
+            Assert.All(sector.Stations.Where(x => x != st.Id), x => Assert.True(Vec2.Distance(u.Stations[x].Position, st.Position) > st.Radius + u.Stations[x].Radius + (outpost ? 15f : 20f), $"{st.Name} zu nah an {u.Stations[x].Name}"));
         }
         foreach (var g in u.Gates.Values.Where(g => g.Id.Value > 6))
             Assert.All(u.Sectors[g.Sector].Fields, f => Assert.True(Vec2.Distance(f.Position, g.Position) > 86f, $"Tor {g.Id.Value} zu nah am Gürtel"));

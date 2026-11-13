@@ -90,9 +90,15 @@ public static class WorldBuilder
         var knownServices = Services.StationServices.Default();
         foreach (var t in def.StationTypes)
         {
+            StationSize size;
+            try { size = StationSizes.Parse(t.Size); } catch (WorldFormatException e) { throw new WorldFormatException($"Stationstyp '{t.Key}': {e.Message}"); }
+            if (size == StationSize.XS && t.Radius is null) throw new WorldFormatException($"Stationstyp '{t.Key}': Größe XS braucht einen eigenen radius");
+            if (t.Radius is { } rr && (!(rr > 0f) || !float.IsFinite(rr))) throw new WorldFormatException($"Stationstyp '{t.Key}': radius muss > 0 sein");
+            float costFactor = StationSizes.CostFactor(size);   // Phase 30: moderater Faktor der Größenklasse
             var type = new StationType
             {
-                Key = t.Key, Name = t.Name, BuildCost = t.BuildCost, UpkeepPerTick = t.Upkeep, IncomePerTick = t.Income,
+                Size = size, Radius = t.Radius ?? StationSizes.Radius(size),
+                Key = t.Key, Name = t.Name, BuildCost = t.BuildCost * costFactor, UpkeepPerTick = t.Upkeep * costFactor, IncomePerTick = t.Income,
                 Services = t.Services is null ? new List<string> { Services.TradeService.ServiceKey, Services.HangarService.ServiceKey } : new List<string>(t.Services),
             };
             var seenServices = new HashSet<string>();
@@ -173,6 +179,17 @@ public static class WorldBuilder
             // Phase 14: Exportsenke — Waren aus Kategorien und Einzelnennung, als Lager ohne Rezept (Ankauf über den normalen Handel)
             if (t.Export is { } ex) type.Export = LoadExport(u, t.Key, type, ex);
             if (t.Defense is { } dd) type.Defense = LoadDefense(u, t.Key, dd);   // Phase 28: Stationsverteidigung
+            // Phase 30: Geschützgrenze der Größenklasse (XS inklusive Punktverteidigung); Kleinstationen (XS) brauchen Verteidigungswerte und haben keine Dienste
+            if (type.Defense is { } df30)
+            {
+                int stellungen = df30.Guns.Count + (size == StationSize.XS && df30.PointDefense > 0f ? 1 : 0);
+                if (stellungen > StationSizes.MaxGuns(size)) throw new WorldFormatException($"Stationstyp '{t.Key}': {stellungen} Geschützstellungen, Größe {size} erlaubt höchstens {StationSizes.MaxGuns(size)}");
+            }
+            if (size == StationSize.XS)
+            {
+                if (type.Defense is null) throw new WorldFormatException($"Stationstyp '{t.Key}': Größe XS braucht defense (eigene Hülle)");
+                if (type.Services.Count > 0 || type.Recipes.Count > 0 || type.Stocks.Count > 0) throw new WorldFormatException($"Stationstyp '{t.Key}': Größe XS ist nicht andockbar — keine Dienste, Rezepte oder Lager");
+            }
             if (!u.StationTypes.TryAdd(type.Key, type)) throw new WorldFormatException($"Stationstyp '{t.Key}' doppelt");
         }
 
@@ -716,7 +733,8 @@ public static class WorldBuilder
         "office" => GovernmentKind.Office,
         "police" => GovernmentKind.Police,
         "research" => GovernmentKind.Research,
-        _ => throw new WorldFormatException($"Stationstyp '{typeKey}': unbekannte Regierungsform '{key}' (headquarters, company_seat, sector_hq, office, police, research)"),
+        "outpost" => GovernmentKind.Outpost,
+        _ => throw new WorldFormatException($"Stationstyp '{typeKey}': unbekannte Regierungsform '{key}' (headquarters, company_seat, sector_hq, office, police, research, outpost)"),
     };
 
     /// <summary>Schlüssel einer Regierungsform für Weltdatei und Spielstand.</summary>
@@ -728,6 +746,7 @@ public static class WorldBuilder
         GovernmentKind.Office => "office",
         GovernmentKind.Police => "police",
         GovernmentKind.Research => "research",
+        GovernmentKind.Outpost => "outpost",
         _ => null,
     };
 

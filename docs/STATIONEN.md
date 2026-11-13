@@ -217,3 +217,35 @@ Hier geht es um Machtstrukturen (siehe [POLITIK.md](POLITIK.md)). Alle sind **Di
 - `Critical` wird beim Prüfen berechnet (gibt es eine andere erreichbare Station, die dieselbe Ware herstellt?) und ist kein Save-Feld.
 - Die JSON-Eigenschaft `essential` bleibt zunächst als Alias für `BankruptcyProtected` erhalten, damit alte Welten und Saves unverändert laden.
 - Eigene Eigenschaften machen jede Regel prüfbar und verhindern, dass ein Flag unbeabsichtigt mehr schützt als gedacht.
+
+
+# Phase 30: Stationsgrößen und Kleinstationen – Plan und Fortschritt
+
+Vom Nutzer angenommen: Größenklassen für Stationen „ähnlich Schiffe“, dazu vier Kleinstationen (Satellit, leichte, mittlere, schwere Waffenstellung,
+Konzept in `docs/platforms/KONZEPT.md`). Maßgeblich ist die Weltdatei (`stationTypes[].size`, bei XS zusätzlich `radius`); `godot/assets/stations/stations.json`
+gleicht der Blender-Agent danach an.
+
+## Größenklassen (Regel im Core, `StationSizes`)
+
+| Klasse | Radius | Grundhülle (ohne `defense`) | Geschütze höchstens (inkl. PD) | Andocken | Kosten/Unterhalt |
+|---|---|---|---|---|---|
+| XS | je Typ (`radius`) | je Typ (`defense.hull` Pflicht) | 7 | nicht andockbar | × 1 |
+| S | 10 | 600 | 2 | Schiffe bis M | × 0,9 |
+| M | 15 | 800 | 3 | Schiffe bis L | × 1 |
+| L | 22 | 1400 | 4 | alle | × 1,1 |
+| XL | 30 | 2500 | 6 | alle | × 1,2 |
+
+Was am Radius hängt: Kollisionskreis/Hindernis, Andockplatz (Radius + 7), Liegeplatz-Erkennung (Radius + 15), Schutzzone gegen Überfälle (Radius + 20,
+nur andockbare Stationen), Geschütz-/Raketenreichweite ab der Außenhaut, Belagerungsabstand, Platzwahl (Tore Radius + 35, Stationen Summe der Radien + 20,
+Felder Radius + 30, Asteroiden Radius + Asteroid + 6), Modellmaßstab und Picking in der Ansicht.
+
+## Fortschritt
+
+- [x] Plan (diese Datei)
+- [x] Größenklasse je Typ in der Weltdatei, Validierung (Radius, Geschützgrenze), Speichern
+- [x] `Station.Radius` statt fester 15 in allen Regeln, Andock-Regel (Schiffsgröße) in Spieler-Dock und KI-Zielwahl
+- [x] Startwelt: Positionen geprüft/verschoben (Ausweichen, Autopilot, Zollstation) — HQ Alpha, Elektrolyse Gamma, Werft Delta verschoben
+- [x] Kleinstationen: vier Typen, Verhalten (Abfangen in Reichweite), Satellit ohne Schutzzone, Bau/Abbau durch Fraktionen, Piraten am Versteck, Startwelt-Exemplare
+- [x] Ansicht: Modelle (Radius aus dem Typ), Türme, nicht andockbar („Zu klein“/„Kleinstation“), Kartensymbole — Zielkarte/Kurzinfo nutzen die allgemeine Stationszeile
+- [x] Kolonie Gamma: Kassenlage (nicht nur im Frühspiel: dauerhaft ≈ 1000 Cr) — Einkommen 20 → 30, Luxus-Grenze wieder 0,45
+- [x] Tests (`Phase30Tests`), Selbsttest-Stufe 93, Balance vorher/nachher, CLAUDE.md

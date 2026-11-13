@@ -840,6 +840,32 @@ public sealed class EconomyRules
     /// <see cref="HideoutGunMargin"/> am Versteck des Ziels sind — die Polizei verfolgt nicht in den Tod. false = alte Regel (Ende erst im Schutzradius).
     /// </summary>
     public bool PursuitStopsAtHideoutGuns = true;
+
+    // ───────── Phase 30: Kleinstationen ─────────
+    /// <summary>Waffenstellungen eröffnen von sich aus das Feuer auf Gegner in Reichweite (Abwehrgefecht).</summary>
+    public bool OutpostsEngage = true;
+    /// <summary>Fraktionen und Piraten stellen Kleinstationen auf (<see cref="Simulation.OutpostBuilderSystem"/>).</summary>
+    public bool OutpostsBuild = true;
+    public int OutpostBuildCooldown = 3000;
+    public float OutpostLightThreat = 1.2f, OutpostMediumThreat = 2.2f, OutpostCalmThreat = 0.2f;
+    public int OutpostLightPerSector = 2, OutpostLightPerFaction = 4, OutpostMediumPerFaction = 2, OutpostHeavyPerFaction = 2, OutpostSatellitesPerFaction = 6;
+    public int OutpostPiratePerHideout = 1;
+    /// <summary>
+    /// Runde 13b (Prüfung: Piratenschwund): Piraten stellen keine Stellungen am Versteck auf (false). Gemessen kosteten Stellungen, die die Polizei abräumte und die
+    /// Piraten neu kauften, 48 % ihrer Einnahmen; mit true gilt die alte Regel.
+    /// </summary>
+    public bool OutpostPirates = false;
+    /// <summary>
+    /// Runde 13b: Kaperer (Gegner ohne Krieg) beschießt eine Stellung von sich aus nur, wenn sie ihr so nahe kommen (Nahbereich ab Rumpf); in Überfällen und Gefechten
+    /// in ihrer Reichweite schießt sie ohnehin als Stationsgeschütz mit. Kriegsgegner beschießt sie in voller Reichweite, Gesuchte erst nach einer Warnung.
+    /// </summary>
+    public float OutpostCloseRange = 20f;
+    /// <summary>Runde 13b: Kaperer wählen keinen Lauerposten in Geschützreichweite einer Stellung (+ Rand).</summary>
+    public bool RaidersAvoidOutposts = true;
+    /// <summary>Piraten stellen eine Stellung nur auf, wenn danach noch so viel in der Kasse bleibt.</summary>
+    public float OutpostPirateReserve = 4000f;
+    /// <summary>Abbau einer selbst gebauten Waffenstellung nach so langer Ruhe (Bedrohung unter <see cref="OutpostCalmThreat"/>, kein Krieg).</summary>
+    public long OutpostCalmTicks = 40000;
     public float HideoutGunMargin = 15f;
 
     // ───────── Phase 27: Flottenkampf (KAMPF.md Stufe 27) ─────────

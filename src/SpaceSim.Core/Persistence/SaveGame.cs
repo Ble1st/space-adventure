@@ -140,6 +140,7 @@ public sealed class ActorSave
     public long PoliceSurplusSince { get; set; } = -1;
     /// <summary>Phase 22 (additiv): letzter Notkauf zur Wiederherstellung des Mindestbestands.</summary>
     public long LastRestoreTick { get; set; } = -1_000_000;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastOutpostTick { get; set; }
     /// <summary>Phase 28 (additiv): Festnahme-Sperre bis zu diesem Tick; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ArrestCooldownUntil { get; set; }
 }
@@ -196,6 +197,8 @@ public sealed class WantedSave
 public sealed class PendingEncounterSave
 {
     public string Kind { get; set; } = ""; public int Source { get; set; } public int Target { get; set; } public int Sector { get; set; } public long Due { get; set; }
+    /// <summary>Runde 13b (additiv): warnende Waffenstellung; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Station { get; set; }
 }
 
 /// <summary>Phase 24: laufendes Gefecht (Rundengefecht).</summary>
@@ -292,6 +295,9 @@ public sealed class StationTypeSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ExportConfigSave? Export { get; set; }
     /// <summary>Phase 28: Stationsverteidigung; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public StationDefenseSave? Defense { get; set; }
+    /// <summary>Phase 30: Größenklasse und Radius (fehlen in älteren Ständen: M, 15).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Size { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Radius { get; set; }
 }
 
 /// <summary>Exportsenke eines Stationstyps (Phase 14, v17): Waren (GoodIds), Kategorien, Verzögerung/Aufschlag (null = Regel), Wunschbestand.</summary>
@@ -437,6 +443,8 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Panic { get; set; }
     /// <summary>Phase 22 (additiv): Rentabilitätsmessung; fehlt = noch nicht gemessen.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProfitMeterSave? Profit { get; set; }
+    /// <summary>Phase 30: ruhig seit (Kleinstation), null = nicht ruhig.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? CalmSince { get; set; }
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>

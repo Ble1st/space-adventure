@@ -46,8 +46,37 @@ public sealed class StockEntry
     public bool NoIntake;
 }
 
+/// <summary>Phase 30: Größenklasse eines Stationstyps (wie bei Schiffen); XS = Kleinstation mit eigenem Radius (Satellit, Waffenstellung).</summary>
+public enum StationSize { XS, S, M, L, XL }
+
+/// <summary>
+/// Phase 30: Regeln der Stationsgrößen (Körperradius, Grundhülle, Geschützgrenze, größte andockbare Schiffsklasse, Kosten-/Unterhaltsfaktor) — eine Tabelle,
+/// keine Sonderfälle. XS hat keinen festen Radius (je Typ <c>radius</c>) und ist nicht andockbar.
+/// </summary>
+public static class StationSizes
+{
+    public static float Radius(StationSize s) => s switch { StationSize.S => 10f, StationSize.M => 15f, StationSize.L => 22f, StationSize.XL => 30f, _ => 3f };
+    public static float BaseHull(StationSize s) => s switch { StationSize.S => 600f, StationSize.M => 800f, StationSize.L => 1400f, StationSize.XL => 2500f, _ => 200f };
+    /// <summary>Höchste Zahl Geschützstellungen (XS: inklusive Punktverteidigung).</summary>
+    public static int MaxGuns(StationSize s) => s switch { StationSize.XS => 7, StationSize.S => 2, StationSize.M => 3, StationSize.L => 4, _ => 6 };
+    /// <summary>Größte Schiffsklasse, die andocken kann (null = keine).</summary>
+    public static SlotSize? MaxShip(StationSize s) => s switch { StationSize.XS => null, StationSize.S => SlotSize.M, StationSize.M => SlotSize.L, _ => SlotSize.XL };
+    /// <summary>Moderater Faktor auf Baukosten und Unterhalt.</summary>
+    public static float CostFactor(StationSize s) => s switch { StationSize.S => 0.9f, StationSize.L => 1.1f, StationSize.XL => 1.2f, _ => 1f };
+    public static StationSize Parse(string? text) => text switch
+    {
+        null or "" or "M" => StationSize.M, "XS" => StationSize.XS, "S" => StationSize.S, "L" => StationSize.L, "XL" => StationSize.XL,
+        _ => throw new Content.WorldFormatException($"unbekannte Stationsgröße '{text}' (XS, S, M, L, XL)"),
+    };
+}
+
 public sealed class StationType
 {
+    /// <summary>Phase 30: Größenklasse (JSON <c>size</c>, Vorgabe M) und Körperradius (aus der Klasse, bei XS bzw. mit JSON <c>radius</c> je Typ).</summary>
+    public StationSize Size = StationSize.M;
+    public float Radius = 15f;
+    /// <summary>Phase 30: andockbar (alle außer XS).</summary>
+    public bool Dockable => Size != StationSize.XS;
     public string Key = "";
     public string Name = "";
     public List<Recipe> Recipes = new();
@@ -182,11 +211,28 @@ public sealed class Station
     public Vec2 Position;
     public float Credits;
 
-    /// <summary>Kollisionsradius des Stationskörpers (inkl. Ring).</summary>
+    /// <summary>Kollisionsradius einer mittleren Station (Phase 30: Vorgabe; der echte Radius steht in <see cref="Radius"/>).</summary>
     public const float BodyRadius = 15f;
+    /// <summary>
+    /// Phase 30: Körper-/Kollisionsradius aus der Größenklasse des Typs (Baustellen: Radius des Zieltyps). Abgeleitet, nicht gespeichert
+    /// (<see cref="Content.StationFactory"/> und das Laden setzen ihn).
+    /// </summary>
+    public float Radius = BodyRadius;
+    /// <summary>Phase 30: andockbar (Typ nicht XS); abgeleitet wie <see cref="Radius"/>.</summary>
+    public bool Dockable = true;
+    /// <summary>Phase 30: größte Schiffsklasse, die hier andocken darf (null = jede; abgeleitet aus dem Typ, nicht gespeichert — schnelle Andockprüfung der Planer).</summary>
+    public SlotSize? MaxShip;
+    /// <summary>Phase 30: Kleinstation — seit wann ihr Sektor ruhig ist (−1 = nicht ruhig); Abbau nach langer Ruhe. Gespeichert, gehasht wenn gesetzt.</summary>
+    public long CalmSince = -1;
 
-    /// <summary>Parkposition eines Schiffs an der Station, knapp außerhalb des Körpers.</summary>
-    public Vec2 DockPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * 22f;
+    /// <summary>Parkposition eines Schiffs an der Station, knapp außerhalb des Körpers (Radius + 7; mittlere Station wie bisher 22).</summary>
+    public Vec2 DockPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * (Radius + 7f);
+
+    /// <summary>Phase 30: Liegeplatz-Erkennung (Radius + 15; mittlere Station wie bisher 30).</summary>
+    public float BerthRadius => Radius + 15f;
+
+    /// <summary>Phase 30: Schutzzone gegen Überfälle (Radius + Abstand der Regel; mittlere Station wie bisher 35). Nicht andockbare Stationen haben keine.</summary>
+    public float SafeRadius(EconomyRules r) => Dockable ? Radius + (r.StationSafeRadius - BodyRadius) : 0f;
     public List<Recipe> Production = new();
     public Dictionary<GoodId, StockEntry> Market = new();
 

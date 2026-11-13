@@ -390,10 +390,41 @@ public partial class Main : Node3D
 		}
 	}
 
+	float _musicClock;
+	readonly Dictionary<string, (double Sum, int N)> _profile = new();
+	/// <summary>Runde 13 (FPS): Rechenzeit je Ansichtsteil (Mittel in ms je Bild, Selbsttest-Ausgabe).</summary>
+	void Profile(string part, long ticks)
+	{
+		_profile.TryGetValue(part, out var p);
+		_profile[part] = (p.Sum + ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency, p.N + 1);
+	}
+	internal string TestProfile() => string.Join(", ", _profile.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key} {kv.Value.Sum / Mathf.Max(1, kv.Value.N):0.000} ms"));
+	internal void TestResetProfile() => _profile.Clear();
+	bool _framingActive, _manualZoomInFight;
+	Vector3 _camFocus;
+	/// <summary>Runde 13: manuelles Zoomen während der Gefechtsrahmung übersteuert sie bis zum Ende des Gefechts.</summary>
+	void ManualZoom() { if (_framingActive) _manualZoomInFight = true; }
+	/// <summary>Selbsttest: ist die Gefechtsrahmung aktiv?</summary>
+	internal bool TestFraming => _framingActive && !_manualZoomInFight;
+
+	/// <summary>
+	/// Runde 13: Ziel der Gefechtskamera — gewähltes feindliches Schiff im Sektor (bis 160 m), sonst der Kaperer eines angekündigten Überfalls auf den Spieler.
+	/// </summary>
+	Vector3? FramingTarget()
+	{
+		if (_docked != null || _session is null) return null;
+		var u = _session.U;
+		Vector3? Near(ShipId id) => ShipWorld(id) is { } p && (p - _player.Position).Length() <= 160f ? p : null;
+		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var t) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, t.Id) && Near(t.Id) is { } tp) return tp;
+		foreach (var pe in u.PendingEncounters) if (pe.Target == u.PlayerShip && Near(pe.Source) is { } sp) return sp;
+		return null;
+	}
+
 	/// <summary>Setzt die Kamera hart auf Schiff + aktuellen Orbit-Offset und richtet sie auf das Schiff aus (Neustart, Sprung, Teleport).</summary>
 	void SnapCam()
 	{
 		var o = _camOffset;
+		_camFocus = Vector3.Zero;
 		_cam.Position = _player.Position + new Vector3(o.X, o.Y, o.Z);
 		_cam.LookAt(_player.Position);
 	}
@@ -440,11 +471,13 @@ public partial class Main : Node3D
 			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); break;
 			case "economy": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); break;
 			case "save": case "load": OnMenu(action); break;
+			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
+			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
 			// Kamera-Einstellungen: Menü bleibt offen, damit man die Wirkung sieht
-			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.ZoomStep(-1); RefreshCameraMenu(); break;   // Runde 12: gleichmäßige Stufen
-			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.ZoomStep(+1); RefreshCameraMenu(); break;
+			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.ZoomStep(-1); ManualZoom(); RefreshCameraMenu(); break;   // Runde 12: gleichmäßige Stufen
+			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.ZoomStep(+1); ManualZoom(); RefreshCameraMenu(); break;
 			case "cam_free": _sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.Free; RefreshCameraMenu(); break;
 			case "cam_lock":
 				_sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.TargetLock; RefreshCameraMenu();
@@ -865,17 +898,38 @@ public partial class Main : Node3D
 		if (!frozen && !_reenter && _fight.AutoFire) FireCombatBays(quiet: true);   // Phase 25: Dauerfeuer
 
 		_view.Animate(delta);
+		long tl = System.Diagnostics.Stopwatch.GetTimestamp();
 		HideCoveredLabels(delta);
+		long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
 		_view.UpdateShips(_session.U, _session.FractionalTick, _docked != null ? null : _player.Position, delta, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)));   // angedockt: niemand weicht dem unsichtbaren Schiff aus
+		long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
 		UpdateShipModels(delta);
-		UpdateMusic(delta);
+		long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
+		_musicClock += delta;
+		if (_musicClock >= 0.1f) { UpdateMusic(_musicClock); _musicClock = 0f; }   // Runde 13 (FPS): Musikzustand mit 10 Hz
+		long t3 = System.Diagnostics.Stopwatch.GetTimestamp();
+		Profile("labels", t0 - tl); Profile("ships", t1 - t0); Profile("models", t2 - t1); Profile("music", t3 - t2);
 		// Kamera: Ist-Offset folgt weich dem Orbit-Soll-Offset, Kamera sitzt auf Schiff + Offset und blickt auf das Schiff
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt)
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
-		_camOffset = OrbitCamera.Follow(_camOffset, _orbit.Offset(), delta);
+		// Runde 13 (Handy-Test): Gefechtskamera — mit Gefechtsziel bzw. angekündigtem Überfall rahmt sie Schiff und Ziel (Core: CombatFraming), weich, bis 140
+		var want = _orbit.Offset();
+		var focus = Vector3.Zero;
+		if (FramingTarget() is { } ft && !_manualZoomInFight)
+		{
+			_framingActive = true;
+			var fr = SpaceSim.Core.Flight.CombatFraming.Compute(_player.Position.X, _player.Position.Z, ft.X, ft.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov,
+				GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, GetViewport().GetVisibleRect().Size.Y), _orbit.Distance, OrbitCamera.MaxDistance);
+			float k = fr.Distance / Mathf.Max(1f, _orbit.Distance);
+			want = new CamVec3(want.X * k, want.Y * k, want.Z * k);
+			focus = new Vector3(fr.FocusX - _player.Position.X, 0f, fr.FocusZ - _player.Position.Z);
+		}
+		else if (FramingTarget() is null) { _framingActive = false; _manualZoomInFight = false; }
+		_camOffset = OrbitCamera.Follow(_camOffset, want, delta, _framingActive ? 2.5f : 6f);
+		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-2.5f * delta));
 		var co = _camOffset;
-		_cam.Position = _player.Position + new Vector3(co.X, co.Y, co.Z);
-		_cam.LookAt(_player.Position);
+		_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
+		_cam.LookAt(_player.Position + _camFocus);
 
 		UpdateHud();
 		_hud.Economy.Refresh(_session);
@@ -1097,15 +1151,19 @@ public partial class Main : Node3D
 		_hud.Toast("Nichts in Reichweite – näher an Station oder Gate fliegen");
 	}
 
+	/// <summary>Nächste andockbare Station in Reichweite; Phase 30: Abstand zur Außenhaut (40, bei einer mittleren Station wie bisher 55 ab Mitte), Kleinstationen nie.
+	/// <paramref name="distance"/> = Abstand zur Mitte.</summary>
 	StationId? NearestStation(out float distance)
 	{
 		StationId? best = null; distance = 55f;
+		float bestEdge = 40f;
 		var u = _session.U;
 		foreach (var sid in u.Sectors[u.PlayerSector].Stations)
 		{
 			var st = u.Stations[sid];
+			if (!st.Dockable) continue;
 			float d = new Vector2(_player.Position.X - st.Position.X, _player.Position.Z - st.Position.Y).Length();
-			if (d < distance) { distance = d; best = sid; }
+			if (d - st.Radius < bestEdge) { bestEdge = d - st.Radius; distance = d; best = sid; }
 		}
 		return best;
 	}
@@ -1188,6 +1246,8 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		var st = u.Stations[id];
+		// Phase 30: Größenregel — Kleinstationen gar nicht, kleine Stationen nur bis M-Schiffe (dieselbe Regel wie die KI-Zielwahl)
+		if (SpaceSim.Core.Simulation.Docking.Issue(u, st, PlayerData) is { } why) { _hud.Toast(why, 3f); CancelAutopilot(); return; }
 		// Gerätetest Phase 28: Handels-Editor und alte Meldung („Kauf erfolgreich“) gehören zur vorigen Station
 		if (_hud.DockCtx.Station?.Id != id) _hud.DockTrade.ResetSession();
 		_docked = id;
@@ -1274,7 +1334,7 @@ public partial class Main : Node3D
 			}
 			if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
 			{
-				_orbit.Zoom(wheel.ButtonIndex == MouseButton.WheelUp ? WheelZoomIn : WheelZoomOut);
+				_orbit.Zoom(wheel.ButtonIndex == MouseButton.WheelUp ? WheelZoomIn : WheelZoomOut); ManualZoom();
 				return;
 			}
 			if (@event is InputEventMouseMotion mm && _camMouseDrag)
@@ -1313,7 +1373,7 @@ public partial class Main : Node3D
 			{
 				_orbit.OrbitDrag(delta.X / _touch.Count, delta.Y / _touch.Count);   // Schwerpunkt der aktiven Finger
 				float pinch = PinchDistance();
-				if (_pinchLast > 0f) _orbit.Zoom(_pinchLast / Mathf.Max(pinch, 1f));   // Finger auseinander = hineinzoomen
+				if (_pinchLast > 0f) { _orbit.Zoom(_pinchLast / Mathf.Max(pinch, 1f)); ManualZoom(); }   // Finger auseinander = hineinzoomen
 				_pinchLast = pinch;
 			}
 			else HandlePointer(d.Index, d.Position, pressed: true, motion: true);
@@ -1405,7 +1465,7 @@ public partial class Main : Node3D
 			var c = new Vector3(st.Position.X, 0, st.Position.Y);
 			if (_cam.IsPositionBehind(c)) continue;
 			var sc = _cam.UnprojectPosition(c);
-			float r = Mathf.Max(minPx, sc.DistanceTo(_cam.UnprojectPosition(c + new Vector3(Station.BodyRadius * 0.8f, 0, 0))));
+			float r = Mathf.Max(minPx, sc.DistanceTo(_cam.UnprojectPosition(c + new Vector3(st.Radius * 0.8f, 0, 0))));
 			float d = sc.DistanceTo(screen);
 			if (d <= r && d < bestD) { bestD = d; best = id; }
 		}
@@ -1713,8 +1773,8 @@ public partial class Main : Node3D
 			d.TargetArc = rs;
 
 		// Kontexttaste: nahe Station „Andocken“, am Gate „Springen“
-		if (NearestStation(out float sd) is { } sid && sd < 55f)
-			d.ContextLabel = $"Andocken: {u.Stations[sid].Name}";
+		if (NearestStation(out _) is { } sid)
+			d.ContextLabel = SpaceSim.Core.Simulation.Docking.Allows(u, u.Stations[sid], PlayerData) ? $"Andocken: {u.Stations[sid].Name}" : $"Zu klein: {u.Stations[sid].Name}";   // Phase 30
 		else if (NearestGate(60f) is { } gid)
 		{
 			var far = u.Gates[u.Gates[gid].Target];
@@ -2376,7 +2436,7 @@ public partial class Main : Node3D
 	internal void TestTeleportNear(StationId id)
 	{
 		var st = _session.U.Stations[id];
-		var pos = st.Position + new Vec2(Station.BodyRadius + 20f, 0);
+		var pos = st.Position + new Vec2(st.Radius + 20f, 0);
 		_player.Position = new Vector3(pos.X, 0, pos.Y);
 		_player.Velocity = Vector3.Zero;
 		_player.GiveGrace(5f);

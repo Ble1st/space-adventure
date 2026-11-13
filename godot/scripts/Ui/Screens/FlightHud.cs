@@ -368,9 +368,9 @@ public partial class FlightHud : Control, IScreen
 		_surrender.Pressed += () => SurrenderPressed?.Invoke();
 		_surrender.Visible = false;
 		// Runde 12 (Handy-Test): Beschuss- und Fluchtzeile unten rechts der Rückwärtstaste, unter der Meldungsfläche — die Bildmitte vor dem Bug bleibt frei
-		_hitWarning = At(this, Text("", 17, UiKit.Red, HorizontalAlignment.Center), 570, HitWarningY, 330, 28);   // rechts von „RÜCK“ (bis 550), links der Schachtspalte (ab 906)
+		_hitWarning = At(this, Text("", 17, UiKit.Red, HorizontalAlignment.Center), 590, HitWarningY, 310, 28);   // Runde 13: mehr Abstand zum „RÜCK“-Label   // rechts von „RÜCK“ (bis 550), links der Schachtspalte (ab 906)
 		// Runde 5: Fluchtlage unter der Beschusswarnung — wer noch reicht (dieselbe Regel wie die Simulation)
-		_escape = At(this, Text("", 14, UiKit.Orange, HorizontalAlignment.Center), 570, HitWarningY + 32f, 330, 22);
+		_escape = At(this, Text("", 14, UiKit.Orange, HorizontalAlignment.Center), 590, HitWarningY + 32f, 310, 22);
 		_escape.ClipText = true; _escape.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		_escape.Visible = false;
 		// Prüfung Phase 28: dunkler Grund unter Lage-, Fahndungs- und Beschusszeile (3D-Beschriftungen und Ringe schienen durch) und Beschusszeile links von „Nächster Gegner“

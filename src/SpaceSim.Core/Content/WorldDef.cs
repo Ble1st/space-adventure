@@ -250,6 +250,9 @@ public sealed class StationTypeDef
     public ExportConfigDef? Export { get; set; }
     /// <summary>Phase 28: Stationsverteidigung (Hülle, Schild, Panzerung, Geschütze, Punktabwehr); fehlt = Grundhülle ohne Geschütze.</summary>
     public StationDefenseDef? Defense { get; set; }
+    /// <summary>Phase 30: Größenklasse XS/S/M/L/XL (Vorgabe M) und — Pflicht bei XS, sonst optional — eigener Körperradius.</summary>
+    public string? Size { get; set; }
+    public float? Radius { get; set; }
 }
 
 /// <summary>Phase 28: Verteidigung eines Stationstyps (JSON <c>defense</c>): Geschütze sind Schlüssel von Waffenmodulen.</summary>
@@ -481,6 +484,11 @@ public sealed class ScenarioDef
     public int ReinforceAfterTicks { get; set; }
     /// <summary>Zweiter Gerätetest Phase 28: Hüllenanteil der später dazustoßenden Kaperer (1 = heil).</summary>
     public float ReinforceHull { get; set; } = 1f;
+    /// <summary>
+    /// Runde 13 (Handy-Test: Gefechtstest nicht bestehbar): die Verstärkung ebenfalls ohne Schildmodul — mit Schild (40) und 60 % Hülle überstand sie auf
+    /// manchen Seeds den schon angeschlagenen Falken, dessen Hülle zwischen den Überfällen nicht nachwächst.
+    /// </summary>
+    public bool ReinforceWithoutShield { get; set; }
     /// <summary>Gerätetest Phase 28 (Runde 4): Fracht des ersten Kaperers (Beute an Bord) — sein Wrack hat dann Fracht für den Traktorstrahl.</summary>
     public Dictionary<string, float>? LeadCargo { get; set; }
     /// <summary>

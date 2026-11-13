@@ -283,6 +283,10 @@ var peaceReasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var pirateIn = new SortedDictionary<string, double>(StringComparer.Ordinal);
 var pirateOut = new SortedDictionary<string, double>(StringComparer.Ordinal);
 int buysRefused = 0;   // Nacharbeit Phase 28: Einkäufe mit sicherem Verlust verweigert
+// Phase 30: Kleinstationen — gebaut (je Typ), abgebaut (ruhig), Abwehrgefechte, Schüsse der Stellungen, Kaufpreis
+var outpostsBuilt = new SortedDictionary<string, int>(StringComparer.Ordinal);
+int outpostsCalm = 0, outpostFights = 0, outpostShots = 0;
+double outpostCost = 0;
 int missilesLaunched = 0, stationShots = 0, stationHits = 0, shotsAtStations = 0, sieges = 0, warsDeclared = 0, warshipsBought = 0, warshipsGone = 0, stationRepairs = 0;
 double stationHullDmg = 0, stationRepairHull = 0, stationRepairPlates = 0, stationRepairCost = 0, navyCost = 0, stationGunDmg = 0;
 u.Events.Raised += e =>
@@ -302,7 +306,11 @@ u.Events.Raised += e =>
         case WarshipDecommissioned: warshipsGone++; break;
         case TraderBuyRefused: buysRefused++; break;
         case TreasuryUpkeep tu when tu.Purpose == "navy": navyCost += tu.Amount; break;
+        case OutpostBuilt ob: outpostsBuilt[ob.TypeKey] = outpostsBuilt.GetValueOrDefault(ob.TypeKey) + 1; outpostCost += ob.Cost; break;
+        case OutpostEngaged: outpostFights++; break;
+        case StationDeparted { Detail: "calm" }: outpostsCalm++; break;
     }
+    if (e is StationShot os && u.Stations.TryGetValue(os.Station, out var ost) && Outposts.IsOutpost(u, ost)) outpostShots++;
     if (e is TreasuryIncome ti && u.Actors.TryGetValue(ti.Actor, out var pa) && pa.Kind == ActorKind.Outlaw) pirateIn[ti.Purpose] = pirateIn.GetValueOrDefault(ti.Purpose) + ti.Amount;
     if (e is TreasuryUpkeep tu2 && u.Actors.TryGetValue(tu2.Actor, out var pb) && pb.Kind == ActorKind.Outlaw) pirateOut[tu2.Purpose] = pirateOut.GetValueOrDefault(tu2.Purpose) + tu2.Amount;
 };
@@ -778,6 +786,17 @@ if (u.Modules.Count > 0)
         + $"Stationsgeschütze {stationShots} Schüsse ({stationHits} Treffer, Schaden {stationGunDmg:0}); Schüsse auf Stationen {shotsAtStations}, Hüllenschaden an Stationen {stationHullDmg:0}; "
         + $"Belagerungen {sieges}; Stationen gefallen {(stationFalls.Count == 0 ? "keine" : string.Join(", ", stationFalls.Select(kv => $"{kv.Key} {kv.Value}")))}; "
         + $"beschädigt jetzt {u.Stations.Values.Count(x => x.Condition is not null)}; Reparaturen {stationRepairs} ({stationRepairHull:0} Hülle, {stationRepairPlates:0.#} Hüllenplatten, {stationRepairCost:0} Cr)");
+    {
+        // Phase 30: Kleinstationen
+        var small = u.Stations.Values.Where(x => !x.IsBuildSite && Outposts.IsOutpost(u, x)).ToList();
+        float smallUp = small.Sum(x => u.StationTypes[x.TypeKey].UpkeepPerTick);
+        float offUp = u.Stations.Values.Where(x => !x.IsBuildSite && StationProtection.IsOfficial(u, x)).Sum(x => u.StationTypes[x.TypeKey].UpkeepPerTick);
+        Console.WriteLine($"Kleinstationen: jetzt {small.Count} ({(small.Count == 0 ? "–" : string.Join(", ", small.GroupBy(x => x.TypeKey).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key} {g.Count()}")))}; "
+            + $"Besitzer {(small.Count == 0 ? "–" : string.Join(", ", small.GroupBy(x => u.ActorName(x.Owner)).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key} {g.Count()}")))}); "
+            + $"gebaut {(outpostsBuilt.Count == 0 ? "keine" : string.Join(", ", outpostsBuilt.Select(kv => $"{kv.Key} {kv.Value}")))} für {outpostCost:0} Cr "
+            + $"({(income > 0 ? 100.0 * outpostCost / income : 0):0.00}% der Kasseneinnahmen), abgebaut (ruhig) {outpostsCalm}; Abwehrgefechte {outpostFights}, Schüsse {outpostShots}; "
+            + $"Unterhalt {smallUp:0.00} Cr/Tick = {(offUp > 0 ? 100.0 * smallUp / offUp : 0):0.0}% des Unterhalts der Amtsstationen");
+    }
     Console.WriteLine($"Krieg: erklärt {warsDeclared}, Frieden {(peaceReasons.Count == 0 ? "–" : string.Join(", ", peaceReasons.Select(kv => $"{kv.Key} {kv.Value}")))}, laufend {u.Wars.Count}"
         + (u.Wars.Count == 0 ? "" : " (" + string.Join(", ", u.Wars.Select(w => $"{u.Factions[w.A].Name}–{u.Factions[w.B].Name} Müdigkeit {w.Weariness:0.00}")) + ")")
         + $"; Kriegsschiffe gekauft {warshipsBought}, abgebaut {warshipsGone}, jetzt {u.Ships.Values.Count(Wars.IsWarship)}, Unterhalt {navyCost:0} Cr; "

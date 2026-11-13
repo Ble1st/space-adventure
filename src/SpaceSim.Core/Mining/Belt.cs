@@ -75,7 +75,7 @@ public static class BeltPlacement
 
     public static bool Fits(Universe u, Sector s, Vec2 p, float r) =>
         s.Gates.All(g => Vec2.Distance(p, u.Gates[g].Position) > GateClear + r) &&
-        s.Stations.All(st => Vec2.Distance(p, u.Stations[st].Position) > StationClear + r) &&
+        s.Stations.All(st => Vec2.Distance(p, u.Stations[st].Position) > StationClear - Station.BodyRadius + u.Stations[st].Radius + r) &&   // Phase 30: nach Radius
         s.Fields.All(fl => Vec2.Distance(p, fl.Position) > ResourceField.ClearRadius + r) &&
         s.Asteroids.All(a => Vec2.Distance(p, a.Position) > a.BaseRadius + r + 2f);
 }

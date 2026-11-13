@@ -8,6 +8,10 @@ public abstract record SimEvent;
 public sealed record TradeCompleted(ShipId Ship, StationId From, StationId To, GoodId Good, float Amount, float Revenue) : SimEvent;
 public sealed record MineDelivered(ShipId Ship, StationId To, GoodId Good, float Amount, float Revenue) : SimEvent;
 public sealed record StationBuilt(StationId Station, SectorId Sector, string TypeKey) : SimEvent;
+/// <summary>Phase 30: Kleinstation aufgestellt (Fertigmodul aus der Kasse).</summary>
+/// <summary>Phase 30: eine Waffenstellung eröffnet ein Abwehrgefecht.</summary>
+public sealed record OutpostEngaged(int Encounter, StationId Station, ShipId Target, string Message) : SimEvent;
+public sealed record OutpostBuilt(StationId Station, SectorId Sector, ActorId Owner, string TypeKey, float Cost) : SimEvent;
 public sealed record StationRemoved(StationId Station, SectorId Sector, string Reason) : SimEvent;
 public sealed record OreCollected(ShipId Ship, GoodId Good, float Units) : SimEvent;
 public sealed record PlayerSold(ShipId Ship, StationId Station, GoodId Good, float Units, float Revenue) : SimEvent;

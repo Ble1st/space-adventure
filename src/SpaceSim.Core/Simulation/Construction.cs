@@ -192,6 +192,7 @@ public static class ConstructionRules
             InvestorStation = investorStation?.Value ?? 0, InvestorShip = investorShip?.Value ?? 0, InvestorActor = investorActor?.Value ?? 0,
             StartedTick = u.Tick, LastProgressTick = u.Tick,
         };
+        StationFactory.ApplySize(u, site);   // Phase 30: die Baustelle belegt den Platz des Zieltyps
         if (reuse is null) u.AddStation(site);
         u.Events.Publish(new ConstructionStarted(site.Id, sector, type.Key, budget, bill.Values.Sum()));
         return site;
@@ -522,7 +523,7 @@ public sealed class ConstructionSystem : ISimSystem
             if (rest < 0.001f || ship.FreeUnits(u, g) < 1f) continue;   // auch Reste unter einer Einheit holen (sonst hinge die Baustelle)
             foreach (var s in ConstructionRules.Suppliers(u, ship.Sector, g).OrderBy(s => s.Id.Value))
             {
-                if (site.Credits < s.Market[g].Price) continue;
+                if (site.Credits < s.Market[g].Price || !Docking.Allows(u, s, ship)) continue;   // Runde 13b: Lieferant muss das Bauschiff andocken lassen
                 float time = Travel.Estimate(u, ship.Sector, ship.Position, s.Sector, s.DockPoint(ship.Id), ship);
                 if (time < bestTime) { bestTime = time; best = (s, g); }
             }

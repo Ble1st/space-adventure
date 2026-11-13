@@ -43,6 +43,9 @@ public partial class PlayerShip : Node3D
 	public ShipVisual? Visual { get; private set; }
 	string _modelKey = "\u0000";
 	readonly System.Collections.Generic.List<Node3D> _simple = new();
+	MeshInstance3D? _ring;
+	/// <summary>Selbsttest: Radius des Markierungsrings (0 = keiner).</summary>
+	public float TestRingRadius => _ring?.Scale.X ?? 0f;
 
 	/// <summary>Runde 11: Modell wechseln (Schiffswechsel, Umbau); ohne Modell bleibt der Grundkörper.</summary>
 	public void SetModel(string modelKey, Color accent)
@@ -55,6 +58,14 @@ public partial class PlayerShip : Node3D
 		foreach (var n in _simple) n.Visible = Visual is null;
 		float half = Visual is not null ? ShipModels.ScaleOf(modelKey) : 2.5f;
 		if (_trail is not null) _trail.Position = new Vector3(0, 0, half + 0.6f);
+		// Runde 13 (Handy-Test): das eigene Schiff war von NPCs kaum zu unterscheiden — dauerhafter leuchtender Cyan-Ring darunter (wie die Farbringe der NPCs, kräftiger)
+		if (_ring is null)
+		{
+			_ring = Gfx.Mesh(new TorusMesh { InnerRadius = 1f, OuterRadius = 1.18f, Rings = 32, RingSegments = 6 }, Gfx.Mat(ShipModels.PlayerAccent, 2.2f, 0f), new Vector3(0, -0.4f, 0), this);
+			_ring.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+		}
+		float rr = Mathf.Max(3.2f, half * 1.35f);
+		_ring.Scale = new Vector3(rr, 1f, rr);
 	}
 
 	/// <summary>Runde 11: Schub (Tempoanteil) und Werkzeugdrehung je Bild.</summary>

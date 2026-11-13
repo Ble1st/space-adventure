@@ -85,7 +85,9 @@ public static class PlayerSurrender
             var sector = u.Sectors[pending.Sector];
             if (pending.Kind == EncounterKind.Intercept)
             {
-                var res = SecuritySystem.InterceptPlayer(u, me, sector, sector.Owner, u.Rules.SurrenderFineAsDebt);
+                // Runde 13b: Warnung einer Waffenstellung — Ergeben bei deren Fraktion
+                var f = pending.Station.Value != 0 && u.Stations.TryGetValue(pending.Station, out var post) && u.FactionOf(post) is { } pf ? pf : sector.Owner;
+                var res = SecuritySystem.InterceptPlayer(u, me, sector, f, u.Rules.SurrenderFineAsDebt);
                 SecuritySystem.ArrestCooldown(u, me.Owner);
                 ev = new PlayerSurrendered(true, sector.Id, res.FineCollected, "Gestellt: " + res.Message);
             }

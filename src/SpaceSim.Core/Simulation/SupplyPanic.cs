@@ -235,7 +235,7 @@ public static class SupplyPanic
         foreach (var candidate in u.Sectors.Values.Where(s => In(p, key, s.Id) && StationProtection.CountEconomic(u, s) < rules.MaxStationsPerSector + rules.PanicReserveStations)
                      .OrderBy(s => StationProtection.CountEconomic(u, s)).ThenBy(s => s.Id.Value))
         {
-            spot = StationLifecycleSystem.FindFreeSpot(u, candidate);
+            spot = StationLifecycleSystem.FindFreeSpot(u, candidate, type.Radius);
             if (spot != null) { sector = candidate; break; }
         }
         if (sector is null || spot is null) return false;

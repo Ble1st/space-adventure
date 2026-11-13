@@ -122,12 +122,13 @@ public static class StartScenario
                 // Gerätetest Phase 28: der Anführer vor dem Bug (Blickrichtung −y) außerhalb der eigenen Waffenreichweite, die übrigen weit dahinter (Verstärkung später)
                 r.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position + new Vec2(0f, i == 0 ? -120f : -320f - 30f * i));
                 r.Hull = r.MaxHull * Math.Clamp(i == 0 || !later ? sc.RaiderHull : sc.ReinforceHull, 0.05f, 1f);
-                if (i == 0 && sc.LeadWithoutShield && r.Fit.FindIndex(m => m != null && u.Modules.TryGetValue(m, out var mod) && mod.Slot == "shield") is var sh and >= 0)
+                bool noShield = i == 0 ? sc.LeadWithoutShield : later && sc.ReinforceWithoutShield;
+                if (noShield && r.Fit.FindIndex(m => m != null && u.Modules.TryGetValue(m, out var mod) && mod.Slot == "shield") is var sh and >= 0)
                 {
-                    r.Fit[sh] = null;   // zweiter Gerätetest Phase 28: der Anführer ohne Schild
+                    r.Fit[sh] = null;   // zweiter Gerätetest Phase 28: der Anführer ohne Schild (Runde 13: wahlweise auch die Verstärkung)
                     r.RecomputeStats(u);
-                    r.Engagement = Engagement.Attack;   // und er flieht nicht (sonst entkäme er dem Menschen unter halber Hülle sofort)
                 }
+                if (i == 0 && sc.LeadWithoutShield) r.Engagement = Engagement.Attack;   // der Anführer flieht nicht (sonst entkäme er dem Menschen unter halber Hülle sofort)
                 if (i == 0 && sc.LeadCargo is { } lc)   // Runde 4: Beute an Bord (Kaperschiffe haben keinen Laderaum — die Fracht ist Szenario-Ausstattung)
                     foreach (var (g, a) in lc.OrderBy(k => k.Key, StringComparer.Ordinal))
                         r.Cargo[(u.FindGood(g) ?? throw new WorldFormatException($"Startpaket '{key}': unbekannte Ware '{g}'")).Id] = a;

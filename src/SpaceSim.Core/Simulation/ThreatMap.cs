@@ -28,7 +28,7 @@ public static class ThreatMap
     {
         if (!u.Sectors.TryGetValue(sector, out var sec)) return false;
         foreach (var id in sec.Stations)
-            if (u.Stations.TryGetValue(id, out var st) && Vec2.Distance(st.Position, pos) <= u.Rules.StationSafeRadius) return true;
+            if (u.Stations.TryGetValue(id, out var st) && Vec2.Distance(st.Position, pos) <= st.SafeRadius(u.Rules)) return true;   // Phase 30: nur andockbare, nach Radius
         return false;
     }
 

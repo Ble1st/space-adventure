@@ -18,6 +18,16 @@ public static class StationFactory
         for (int n = 2; ; n++) { var name = $"{baseName} {Roman(n)}"; if (!taken.Contains(name)) return name; }
     }
 
+    /// <summary>Phase 30: Radius/Andockbarkeit einer Station aus ihrem Typ — eine Baustelle belegt schon den Platz des Zieltyps (bleibt andockbar zum Beliefern).</summary>
+    public static void ApplySize(Universe u, Station st)
+    {
+        string key = st.Site is { } site ? site.TypeKey : st.TypeKey;
+        if (!u.StationTypes.TryGetValue(key, out var t)) return;
+        st.Radius = t.Radius;
+        st.Dockable = st.Site is not null || t.Dockable;
+        st.MaxShip = st.Site is not null ? null : StationSizes.MaxShip(t.Size);
+    }
+
     /// <summary>Römische Zahl (1–3999).</summary>
     public static string Roman(int n)
     {
@@ -31,7 +41,8 @@ public static class StationFactory
 
     public static Station Create(Universe u, StationId id, StationType type, string name, SectorId sector, Vec2 pos, ActorId owner)
     {
-        var st = new Station { Id = id, TypeKey = type.Key, Name = name, Sector = sector, Position = pos, Owner = owner, Credits = 10_000, BuiltTick = u.Tick };
+        var st = new Station { Id = id, TypeKey = type.Key, Name = name, Sector = sector, Position = pos, Owner = owner, Credits = 10_000, BuiltTick = u.Tick,
+            Radius = type.Radius, Dockable = type.Dockable, MaxShip = StationSizes.MaxShip(type.Size) };
         foreach (var r in type.Recipes)
         {
             st.Production.Add(new Recipe

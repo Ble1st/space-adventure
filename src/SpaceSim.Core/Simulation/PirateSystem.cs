@@ -68,7 +68,7 @@ public sealed class PirateSystem : ISimSystem
 
     /// <summary>Liegt das Schiff im Schutzradius seiner Heimatbasis?</summary>
     public static bool AtHome(Universe u, Ship s) =>
-        Home(u, s) is { } h && s.Sector == h.Sector && Vec2.Distance(s.Position, h.Position) <= u.Rules.StationSafeRadius;
+        Home(u, s) is { } h && s.Sector == h.Sector && Vec2.Distance(s.Position, h.Position) <= h.Radius + (u.Rules.StationSafeRadius - Station.BodyRadius);
 
     static void OnArrive(Universe u, Ship raider)
     {
@@ -141,9 +141,27 @@ public sealed class PirateSystem : ISimSystem
         var target = sectors[^1];
         foreach (var s in sectors) { pick -= HuntWeight(u, s); if (pick < 0) { target = s; break; } }
         // Lauerposten nahe einem Gate (dort kommt der Verkehr vorbei), etwas abseits
-        var gate = u.Gates[target.Gates[u.Rng.NextInt(target.Gates.Count)]];
-        var spot = gate.Position + Vec2.FromAngle((float)(u.Rng.NextDouble() * Math.PI * 2)) * 30f;
+        int gi = u.Rng.NextInt(target.Gates.Count);
+        var dir = Vec2.FromAngle((float)(u.Rng.NextDouble() * Math.PI * 2));
+        var spot = u.Gates[target.Gates[gi]].Position + dir * 30f;
+        // Runde 13b (Prüfung: Piratenschwund): nicht in die Geschützreichweite einer feindlichen Stellung — anderes Tor bzw. andere Seite (feste Reihenfolge, kein Zufall)
+        if (u.Rules.RaidersAvoidOutposts && Covered(u, target, raider, spot))
+            for (int k = 0; k < target.Gates.Count * 8; k++)
+            {
+                var g = u.Gates[target.Gates[(gi + k / 8) % target.Gates.Count]];
+                var p = g.Position + Vec2.FromAngle(MathF.Atan2(dir.Y, dir.X) + (k % 8) * MathF.PI / 4f) * 30f;
+                if (!Covered(u, target, raider, p)) { spot = p; break; }
+            }
         return (target, spot);
+    }
+
+    /// <summary>Liegt der Punkt in der Geschützreichweite (+ 15) einer Stellung, die auf den Kaperer feuern würde?</summary>
+    static bool Covered(Universe u, Sector s, Ship raider, Vec2 p)
+    {
+        foreach (var id in s.Stations)
+            if (u.Stations.TryGetValue(id, out var st) && !st.IsBuildSite && Outposts.IsOutpost(u, st) && !Combat.StationCombat.IsDown(u, st) && Outposts.Hostile(u, st, raider)
+                && Combat.StationCombat.GunRange(u, st) is > 0f and var reach && Vec2.Distance(p, st.Position) <= reach + 15f) return true;
+        return false;
     }
 
     static void ChooseHunt(Universe u, Ship raider)

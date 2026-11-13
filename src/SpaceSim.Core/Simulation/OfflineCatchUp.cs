@@ -43,7 +43,7 @@ public static class OfflineCatchUp
         // (offene Ankündigungen entfallen; NPC-Überfälle laufen weiter)
         var job = new CatchUpJob(u, run, wanted, u.Rules.PlayerRaids);
         u.Rules.PlayerRaids = false;
-        u.PendingEncounters.RemoveAll(e => e.Kind == EncounterKind.Raid);
+        u.PendingEncounters.RemoveAll(e => e.Kind == EncounterKind.Raid || e.Station.Value != 0);   // Runde 13b: auch Warnungen der Waffenstellungen
         if (run > 0) Combat.PlayerCombat.Withdraw(u);   // Phase 25: ein laufendes Gefecht des Spielers endet (er kann offline nicht reagieren)
         // Phase 26 (Prüfung): offline keine Reaktion möglich — ein Brand am aktiven Schiff wird vor dem Aufholen gelöscht (sonst fräße er unbemerkt)
         if (run > 0 && u.Ships.TryGetValue(u.PlayerShip, out var active)) Combat.ModuleDamage.ExtinguishAll(u, active, "offline");

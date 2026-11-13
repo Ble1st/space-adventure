@@ -191,12 +191,14 @@ public static class TradeActions
     {
         Station? best = null;
         float bestScore = 0f;
+        var shipSize = Simulation.Docking.SizeOf(u, ship);
         // Phase 15: ohne Sortierung je Aufruf (keine Allokation); Gleichstand entscheidet die kleinere Id — dasselbe Ergebnis wie die frühere Id-Reihenfolge
         foreach (var st in u.Stations.Values)
         {
             // Baustellen bekommen nur geplante Lieferungen (Reservierung im Händler), keine Restmengen
             if (st.Id == exclude || st.IsBuildSite || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) continue;
             if (allowed is not null && !allowed(st)) continue;
+            if (!Simulation.Docking.Allows(st, shipSize)) continue;   // Phase 30
             float n = MathF.Min(MathF.Min(units, st.AcceptableUnits(good, u.Rules)), MathF.Max(0f, st.Credits) / e.Price);
             if (n < 1f) continue;
             float time = Travel.Estimate(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship);
@@ -216,9 +218,10 @@ public static class TradeActions
     {
         Station? best = null;
         float bestScore = 0f;
+        var shipSize = Simulation.Docking.SizeOf(u, ship);
         foreach (var st in u.Stations.Values)
         {
-            if (st.Id == exclude) continue;
+            if (st.Id == exclude || !Simulation.Docking.Allows(st, shipSize)) continue;   // Phase 30: Station groß genug
             float quote = Quote(u, ship, st);
             if (quote <= 0f) continue;
             float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id), ship);

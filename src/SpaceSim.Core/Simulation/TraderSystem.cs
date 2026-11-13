@@ -60,6 +60,7 @@ public sealed class TraderSystem : ISimSystem
 
     public static (TradeOrder? Order, float Score) BestTrade(Universe u, Ship ship)
     {
+        var shipSize = Docking.SizeOf(u, ship);   // Phase 30: Andockprüfung je Paar ohne Wörterbuchsuchen
         var reserved = t_reserved ??= new Dictionary<(StationId, GoodId), float>();
         reserved.Clear();
         // Phase 17: Reisezeiten, Treibstoffkosten und Routenrisiko hängen nur an Kauf-/Verkaufsstation, nicht an der Ware — je Aufruf einmal je Station
@@ -124,6 +125,7 @@ public sealed class TraderSystem : ISimSystem
                 // → Farm): Der Verbraucher kaufte teuer und verkaufte billig zurück, die Kolonie blutete so aus (dauerhaft am Preisdeckel, Kasse leer).
                 // Beides zusammen = die Station stellt die Ware her (ein Lager ohne Rezept stellt nichts her).
                 if (!buy.Produces(good.Id)) continue;
+                if (!Docking.Allows(buy, shipSize)) continue;   // Phase 30: Station zu klein für dieses Schiff
                 var b = entries[bi];
                 float available = b.Amount - reserved.GetValueOrDefault((buy.Id, good.Id));
                 if (available < 1f) continue;
@@ -147,6 +149,7 @@ public sealed class TraderSystem : ISimSystem
                 {
                     var sell = traders[si];
                     if (sell.Id == buy.Id) continue;
+                    if (!Docking.Allows(sell, shipSize)) continue;   // Phase 30
                     if (limits is not null && !AutoLimitRules.InRange(u, limits, sell.Sector)) continue;
                     var s = entries[si];
                     float margin = s.Price - b.Price;

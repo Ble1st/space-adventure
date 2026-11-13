@@ -172,7 +172,7 @@ public sealed class StationLifecycleSystem : ISimSystem
         {
             // Phase 8: eine verlassene Baustelle im Sektor wird mit ihrem Material übernommen (kein neuer Bauplatz nötig)
             var abandoned = sites ? candidate.Stations.Select(id => u.Stations[id]).FirstOrDefault(s => s.Site is { Abandoned: true }) : null;
-            spot = abandoned?.Position ?? FindFreeSpot(u, candidate);
+            spot = abandoned?.Position ?? FindFreeSpot(u, candidate, type.Radius);
             if (spot != null) { sector = candidate; break; }
         }
         if (sector is null || spot is null) return;
@@ -300,17 +300,20 @@ public sealed class StationLifecycleSystem : ISimSystem
     internal static bool Buildable(Universe u, StationType t) =>
         t.Export is null && !FeatureSwitches.OmitFromWorld(u, t) && Research.UnlockedAnywhere(u, UnlockKind.StationType, t.Key);
 
-    /// <summary>Zufälliger Platz mit Abstand zu Gates, Stationen, Feldern und Asteroiden (deterministisch über u.Rng).</summary>
-    public static Vec2? FindFreeSpot(Universe u, Sector sector)
+    /// <summary>
+    /// Zufälliger Platz mit Abstand zu Gates, Stationen, Feldern und Asteroiden (deterministisch über u.Rng). Phase 30: Abstände nach Radius — Tore Radius + 35,
+    /// Stationen Summe der Radien + 20, Feldmitten Radius + 30, Asteroiden Radius + Asteroid + 6 (eine mittlere Station wie bisher: 50/50/45).
+    /// </summary>
+    public static Vec2? FindFreeSpot(Universe u, Sector sector, float radius = Station.BodyRadius)
     {
         for (int attempt = 0; attempt < 400; attempt++)
         {
             var p = new Vec2(u.Rng.Range(-150, 150), u.Rng.Range(-150, 150));
             bool ok =
-                sector.Gates.All(g => Vec2.Distance(p, u.Gates[g].Position) > 50f) &&
-                sector.Stations.All(s => Vec2.Distance(p, u.Stations[s].Position) > 50f) &&
-                sector.Fields.All(f => Vec2.Distance(p, f.Position) > 45f) &&
-                sector.Asteroids.All(a => Vec2.Distance(p, a.Position) > a.Radius + Station.BodyRadius + 6f);
+                sector.Gates.All(g => Vec2.Distance(p, u.Gates[g].Position) > radius + 35f) &&
+                sector.Stations.All(s => Vec2.Distance(p, u.Stations[s].Position) > radius + u.Stations[s].Radius + 20f) &&
+                sector.Fields.All(f => Vec2.Distance(p, f.Position) > radius + 30f) &&
+                sector.Asteroids.All(a => Vec2.Distance(p, a.Position) > a.Radius + radius + 6f);
             if (ok) return p;
         }
         return null;

@@ -68,7 +68,7 @@ public static class NpcRepair
 
     /// <summary>Nächste erreichbare Station, die jetzt reparieren kann (Reisezeit, dann Id).</summary>
     public static Station? Nearest(Universe u, Ship ship) =>
-        u.StationsById().Where(st => Repairs(u, st))
+        u.StationsById().Where(st => Repairs(u, st) && Docking.Allows(u, st, ship))
             .Select(st => (st, t: Travel.Estimate(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship)))
             .Where(x => !float.IsPositiveInfinity(x.t)).OrderBy(x => x.t).ThenBy(x => x.st.Id.Value).Select(x => x.st).FirstOrDefault();
 

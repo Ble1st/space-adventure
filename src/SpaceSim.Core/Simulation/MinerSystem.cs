@@ -70,6 +70,7 @@ public sealed class MinerSystem : ISimSystem
 
     public static (MineOrder? Order, Vec2 FieldPos, float Score) BestMine(Universe u, Ship ship)
     {
+        var shipSize = Docking.SizeOf(u, ship);   // Phase 30
         var mixOf = t_mix ??= new Dictionary<(AsteroidClass, StationId), float>();
         var basisOf = t_basis ??= new Dictionary<AsteroidClass, float>();
         mixOf.Clear(); basisOf.Clear();
@@ -100,6 +101,7 @@ public sealed class MinerSystem : ISimSystem
                 foreach (var st in u.Stations.Values)
                 {
                     if (limits is not null && !AutoLimitRules.InRange(u, limits, st.Sector)) continue;
+                    if (!Docking.Allows(st, shipSize)) continue;   // Phase 30: Station groß genug
                     // Phase 17: Mischungswert je Klasse und Station nur einmal je Aufruf (reine Funktion; Felder gleicher Klasse teilen ihn)
                     var key = (cls, st.Id);
                     if (!mixOf.TryGetValue(key, out float value)) mixOf[key] = value = MixValue(u, cls, st);

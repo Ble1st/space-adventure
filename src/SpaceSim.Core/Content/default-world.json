@@ -298,6 +298,7 @@
   {
    "key": "solar_plant",
    "name": "Solarkraftwerk",
+   "size": "S",
    "buildCost": 4000,
    "upkeep": 0.05,
    "income": 0.5,
@@ -314,6 +315,7 @@
   {
    "key": "steelworks",
    "name": "Stahlwerk",
+   "size": "M",
    "buildCost": 5000,
    "upkeep": 0.08,
    "income": 1,
@@ -333,6 +335,7 @@
   {
    "key": "water_plant",
    "name": "Wasserwerk",
+   "size": "S",
    "buildCost": 3500,
    "upkeep": 0.05,
    "income": 0.5,
@@ -352,6 +355,7 @@
   {
    "key": "electrolysis",
    "name": "Elektrolyse",
+   "size": "S",
    "buildCost": 4500,
    "upkeep": 0.06,
    "income": 0.5,
@@ -371,6 +375,7 @@
   {
    "key": "copper_smelter",
    "name": "Kupferhütte",
+   "size": "M",
    "buildCost": 5000,
    "upkeep": 0.08,
    "income": 1,
@@ -390,6 +395,7 @@
   {
    "key": "wafer_fab",
    "name": "Waferfabrik",
+   "size": "M",
    "buildCost": 6000,
    "upkeep": 0.1,
    "income": 1,
@@ -409,6 +415,7 @@
   {
    "key": "titanium_works",
    "name": "Titanhütte",
+   "size": "M",
    "buildCost": 7000,
    "upkeep": 0.1,
    "income": 1,
@@ -428,6 +435,7 @@
   {
    "key": "platinum_refinery",
    "name": "Platinraffinerie",
+   "size": "M",
    "buildCost": 9000,
    "upkeep": 0.12,
    "income": 1.5,
@@ -447,6 +455,7 @@
   {
    "key": "powerplant",
    "name": "Kraftwerk",
+   "size": "M",
    "buildCost": 3500,
    "upkeep": 0.05,
    "income": 0.5,
@@ -465,6 +474,7 @@
   {
    "key": "farm",
    "name": "Farm",
+   "size": "M",
    "buildCost": 3500,
    "upkeep": 0.05,
    "income": 0.8,
@@ -484,6 +494,7 @@
   {
    "key": "electronics_fab",
    "name": "Elektronikfabrik",
+   "size": "M",
    "buildCost": 8000,
    "upkeep": 0.12,
    "income": 2,
@@ -503,6 +514,7 @@
   {
    "key": "plating_works",
    "name": "Panzerwerk",
+   "size": "M",
    "buildCost": 8000,
    "upkeep": 0.12,
    "income": 1.5,
@@ -523,6 +535,7 @@
   {
    "key": "fuel_cell_fab",
    "name": "Brennstoffzellenfabrik",
+   "size": "M",
    "buildCost": 9000,
    "upkeep": 0.12,
    "income": 1.5,
@@ -542,6 +555,7 @@
   {
    "key": "life_support_fab",
    "name": "Lebenserhaltungswerk",
+   "size": "M",
    "buildCost": 7000,
    "upkeep": 0.1,
    "income": 1,
@@ -561,6 +575,7 @@
   {
    "key": "goods_factory",
    "name": "Konsumgüterfabrik",
+   "size": "M",
    "buildCost": 7000,
    "upkeep": 0.1,
    "income": 1.5,
@@ -580,6 +595,7 @@
   {
    "key": "luxury_workshop",
    "name": "Luxuswerkstatt",
+   "size": "M",
    "buildCost": 10000,
    "upkeep": 0.14,
    "income": 2,
@@ -599,6 +615,7 @@
   {
    "key": "shipyard",
    "name": "Werft",
+   "size": "L",
    "buildCost": 12000,
    "upkeep": 0.15,
    "income": 2,
@@ -778,9 +795,10 @@
   {
    "key": "colony",
    "name": "Kolonie",
+   "size": "L",
    "buildCost": 9000,
    "upkeep": 0.12,
-   "income": 20,
+   "income": 30,
    "stocks": {
     "luxury_goods": [2, 4]
    },
@@ -806,6 +824,7 @@
   {
    "key": "fuel_refinery",
    "name": "Treibstoffraffinerie",
+   "size": "M",
    "buildCost": 9000,
    "upkeep": 0.12,
    "income": 1.5,
@@ -833,6 +852,7 @@
   {
    "key": "drive_works",
    "name": "Antriebs- und Reaktorwerk",
+   "size": "L",
    "buildCost": 15000,
    "upkeep": 0.15,
    "income": 1,
@@ -872,6 +892,7 @@
   {
    "key": "weapons_works",
    "name": "Waffen- und Schildwerk",
+   "size": "L",
    "buildCost": 15000,
    "upkeep": 0.15,
    "income": 1,
@@ -908,6 +929,7 @@
   {
    "key": "systems_works",
    "name": "Systemwerk",
+   "size": "L",
    "buildCost": 15000,
    "upkeep": 0.15,
    "income": 1,
@@ -945,6 +967,7 @@
   {
    "key": "trade_station",
    "name": "Handelsstation",
+   "size": "L",
    "buildCost": 8000,
    "upkeep": 0.08,
    "income": 0.8,
@@ -1010,6 +1033,7 @@
   {
    "key": "trade_post",
    "name": "Planetenhandel",
+   "size": "M",
    "buildCost": 8000,
    "upkeep": 0.08,
    "income": 0.8,
@@ -1024,6 +1048,7 @@
   {
    "key": "build_site",
    "name": "Baustelle",
+   "size": "S",
    "buildCost": 0,
    "upkeep": 0,
    "income": 0,
@@ -1035,6 +1060,7 @@
   {
    "key": "warehouse",
    "name": "Lagerhaus",
+   "size": "L",
    "buildCost": 6000,
    "upkeep": 0.06,
    "income": 0.6,
@@ -1058,6 +1084,7 @@
   {
    "key": "headquarters",
    "name": "Hauptquartier",
+   "size": "XL",
    "government": "headquarters",
    "influence": 6,
    "security": 1.5,
@@ -1073,6 +1100,7 @@
   {
    "key": "company_seat",
    "name": "Firmensitz",
+   "size": "L",
    "government": "company_seat",
    "influence": 3,
    "buildCost": 20000,
@@ -1085,6 +1113,7 @@
   {
    "key": "sector_hq",
    "name": "Sektor-HQ",
+   "size": "L",
    "government": "sector_hq",
    "influence": 4,
    "security": 0.5,
@@ -1100,6 +1129,7 @@
   {
    "key": "office",
    "name": "Büro",
+   "size": "S",
    "government": "office",
    "influence": 1.5,
    "buildCost": 5000,
@@ -1112,6 +1142,7 @@
   {
    "key": "police_station",
    "name": "Polizeiwache",
+   "size": "M",
    "government": "police",
    "influence": 2,
    "security": 2,
@@ -1131,6 +1162,7 @@
   {
    "key": "pirate_hideout",
    "name": "Piratenversteck",
+   "size": "M",
    "hideout": true,
    "influence": 0,
    "buildCost": 10000,
@@ -1144,6 +1176,7 @@
   {
    "key": "research_station",
    "name": "Forschungsstation",
+   "size": "M",
    "government": "research",
    "influence": 0,
    "buildCost": 25000,
@@ -1184,6 +1217,70 @@
     "fundTarget": 5000,
     "fundPerTick": 8
    }
+  },
+  {
+   "key": "satellite_sensor",
+   "name": "Überwachungssatellit",
+   "size": "XS",
+   "radius": 2.6,
+   "government": "outpost",
+   "influence": 0,
+   "security": 0.3,
+   "buildCost": 1200,
+   "upkeep": 0.1,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": { "hull": 150, "shield": 0, "shieldRegen": 0, "armor": 10, "pointDefense": 0, "guns": [] }
+  },
+  {
+   "key": "platform_light",
+   "name": "Leichte Waffenstellung",
+   "size": "XS",
+   "radius": 3.5,
+   "government": "outpost",
+   "influence": 0,
+   "security": 0.4,
+   "buildCost": 3000,
+   "upkeep": 0.3,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": { "hull": 450, "shield": 80, "shieldRegen": 1, "armor": 30, "pointDefense": 0, "guns": ["weapon_laser_s", "weapon_laser_s"] }
+  },
+  {
+   "key": "platform_medium",
+   "name": "Mittlere Waffenstellung",
+   "size": "XS",
+   "radius": 6,
+   "government": "outpost",
+   "influence": 0.5,
+   "security": 0.8,
+   "buildCost": 6500,
+   "upkeep": 0.7,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": { "hull": 1000, "shield": 180, "shieldRegen": 2, "armor": 50, "pointDefense": 0.3, "guns": ["weapon_laser_m", "weapon_laser_s", "weapon_massdriver_s"] }
+  },
+  {
+   "key": "platform_heavy",
+   "name": "Schwere Waffenstellung",
+   "size": "XS",
+   "radius": 8,
+   "government": "outpost",
+   "influence": 1,
+   "security": 1.2,
+   "buildCost": 14000,
+   "upkeep": 1.5,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": { "hull": 2400, "shield": 400, "shieldRegen": 4, "armor": 90, "pointDefense": 0.45, "guns": ["weapon_laser_m", "weapon_laser_m", "weapon_massdriver_s", "missile_launcher_s", "missile_launcher_s"] }
   }
  ],
  "factions": [
@@ -1383,12 +1480,23 @@
      "id": 32,
      "type": "headquarters",
      "name": "Hauptquartier – {owner}",
-     "pos": [
-      130,
-      -25
-     ],
+     "pos": [136, -4],
      "essential": true,
      "credits": 0
+    },
+    {
+     "id": 76,
+     "type": "satellite_sensor",
+     "name": "Überwachungssatellit Alpha",
+     "pos": [150, 62],
+     "essential": true
+    },
+    {
+     "id": 79,
+     "type": "platform_light",
+     "name": "Leichte Waffenstellung Alpha",
+     "pos": [-28, 170],
+     "essential": true
     }
    ]
   },
@@ -1507,10 +1615,7 @@
      "id": 30,
      "type": "trade_station",
      "name": "Handelsstation Beta",
-     "pos": [
-      -120,
-      60
-     ],
+     "pos": [-120, 60],
      "essential": true,
      "credits": 30000
     },
@@ -1602,20 +1707,14 @@
      "id": 13,
      "type": "electrolysis",
      "name": "Elektrolyse Gamma",
-     "pos": [
-      -60,
-      -5
-     ],
+     "pos": [-75, 25],
      "essential": true
     },
     {
      "id": 22,
      "type": "solar_plant",
      "name": "Solarkraftwerk Gamma",
-     "pos": [
-      30,
-      -85
-     ],
+     "pos": [30, -85],
      "essential": true,
      "stock": {
       "energy": [
@@ -1677,6 +1776,13 @@
      ],
      "essential": true,
      "credits": 0
+    },
+    {
+     "id": 77,
+     "type": "satellite_sensor",
+     "name": "Überwachungssatellit Gamma",
+     "pos": [105, 52],
+     "essential": true
     }
    ]
   },
@@ -1723,10 +1829,7 @@
      "id": 15,
      "type": "platinum_refinery",
      "name": "Platinraffinerie Delta",
-     "pos": [
-      -40,
-      35
-     ],
+     "pos": [-40, 35],
      "essential": true
     },
     {
@@ -1753,10 +1856,7 @@
      "id": 18,
      "type": "shipyard",
      "name": "Werft Delta",
-     "pos": [
-      5,
-      65
-     ],
+     "pos": [0, 66],
      "essential": true
     },
     {
@@ -1826,6 +1926,13 @@
       -195
      ],
      "credits": 0
+    },
+    {
+     "id": 80,
+     "type": "platform_light",
+     "name": "Leichte Waffenstellung Delta",
+     "pos": [-32, 138],
+     "essential": true
     }
    ]
   },
@@ -2142,6 +2249,13 @@
      ],
      "essential": true,
      "credits": 0
+    },
+    {
+     "id": 81,
+     "type": "platform_light",
+     "name": "Leichte Waffenstellung Hephaistos",
+     "pos": [-140, -40],
+     "essential": true
     }
    ]
   },
@@ -2238,6 +2352,13 @@
      ],
      "essential": true,
      "credits": 0
+    },
+    {
+     "id": 78,
+     "type": "satellite_sensor",
+     "name": "Überwachungssatellit Aurelia",
+     "pos": [-105, 130],
+     "essential": true
     }
    ]
   },
@@ -4940,7 +5061,7 @@
    {
     "key": "combat",
     "name": "Gefechtstest (Test)",
-    "description": "NUR ZUM TESTEN: Falke mit kleinem Frachtraum (Nahrung, Munition) frei im Raum vor der Werft Delta, die Nase genau auf ein angeschlagenes Kaperschiff (40 % Hülle, ohne Schild). Es kündigt den Überfall an und greift nach 15 s an; ein zweites (60 % Hülle) stößt frühestens 60 s später dazu. „Nächster Gegner“ und „Dauerfeuer“ genügen.",
+    "description": "NUR ZUM TESTEN: Falke mit kleinem Frachtraum (Nahrung, Munition) frei im Raum vor der Werft Delta, die Nase genau auf ein angeschlagenes Kaperschiff (40 % Hülle, ohne Schild). Es kündigt den Überfall an und greift nach 15 s an; ein zweites (50 % Hülle, ebenfalls ohne Schild) stößt frühestens 60 s später dazu. „Nächster Gegner“ und „Dauerfeuer“ genügen.",
     "model": "falcon",
     "credits": 3000,
     "sector": 4,
@@ -4954,7 +5075,8 @@
      "leadWithoutShield": true,
      "raidAfterTicks": 60,
      "reinforceAfterTicks": 240,
-     "reinforceHull": 0.6,
+     "reinforceHull": 0.5,
+     "reinforceWithoutShield": true,
      "leadCargo": { "luxury_goods": 6 },
      "trader": true,
      "policeSquadron": true,

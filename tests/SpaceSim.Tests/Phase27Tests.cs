@@ -526,18 +526,20 @@ public class Phase27Tests
         // Gerätetest: Hülle 60 → 36 direkt nach dem Abdocken am Wasserwerk Alpha bei Vollschub (radialer Abflug auf ein Hindernis)
         var u = Standard();
         int turned = 0;
-        foreach (var st in u.Stations.Values.Where(s => !s.IsBuildSite))
+        var failures = new List<string>();
+        foreach (var st in u.Stations.Values.Where(s => !s.IsBuildSite && s.Dockable))   // Phase 30: Kleinstationen sind nicht andockbar
         {
             var obstacles = u.GetObstacles(st.Sector);
             foreach (var id in new[] { u.PlayerShip, new ShipId(1), new ShipId(77), new ShipId(123) })
             {
                 var spot = st.DockPoint(id);
                 var dir = SpaceSim.Core.Flight.UndockPath.Heading(obstacles, st.Position, spot);
-                Assert.True(SpaceSim.Core.Flight.UndockPath.Clear(obstacles, spot, dir, SpaceSim.Core.Flight.UndockPath.ClearLength, Collision.ShipRadius + 2f),
-                    $"{st.Name}: keine freie Abflugrichtung für Schiff {id.Value}");
+                if (!SpaceSim.Core.Flight.UndockPath.Clear(obstacles, spot, dir, SpaceSim.Core.Flight.UndockPath.ClearLength, Collision.ShipRadius + 2f))
+                    failures.Add($"{st.Name}: keine freie Abflugrichtung für Schiff {id.Value}");
                 if (!SpaceSim.Core.Flight.UndockPath.Clear(obstacles, spot, (spot - st.Position).Normalized(), SpaceSim.Core.Flight.UndockPath.ClearLength, Collision.ShipRadius + 2f)) turned++;
             }
         }
+        Assert.True(failures.Count == 0, string.Join("\n", failures));
         Assert.True(turned > 0, "kein radialer Abflug war versperrt — der Fall des Gerätetests wäre nicht abgedeckt");
     }
 

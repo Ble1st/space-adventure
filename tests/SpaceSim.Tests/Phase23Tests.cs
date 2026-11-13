@@ -370,7 +370,7 @@ public class Phase23Tests
                 Assert.InRange(s.ShieldNow, 0f, s.Stats.Shield);
                 Assert.InRange(s.Systems.ShieldMissing, 0f, s.Stats.Shield);
                 Assert.InRange(s.Systems.ChargeMissing, 0f, s.Stats.PowerStorage);
-                if (ShipSystems.NeedsRecovery(s)) Assert.True(u.Recovering.Contains(s.Id), $"Schiff {s.Id.Value} fehlt im Erholungsindex");
+                if (ShipSystems.Recovers(s)) Assert.True(u.Recovering.Contains(s.Id), $"Schiff {s.Id.Value} fehlt im Erholungsindex");   // Runde 13b: nur wer sich erholen KANN (Phase-24-Regel; ohne Reaktorüberschuss bleibt ein Schiff draußen)
             }
         }
         // Begegnungen haben Schilde getroffen, die Schiffe haben sich erholt (der Index ist nie groß)

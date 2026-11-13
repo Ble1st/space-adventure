@@ -26,7 +26,8 @@ public enum ControlStage { None, Presence, Influence, Dominance, Control }
 /// (Polizei-Logik folgt in Phase 11). Phase 13: Forschungsstation (Unterhalt und Budget aus der Fraktionskasse, nicht eroberbar wie Behörden ist sie
 /// aber nicht: sie zählt wie die Wache nur als „offiziell“).
 /// </summary>
-public enum GovernmentKind { None, Headquarters, CompanySeat, SectorHq, Office, Police, Research }
+/// <remarks>Phase 30: <c>Outpost</c> = Kleinstation (Satellit, Waffenstellung): offiziell (Unterhalt aus der Kasse, zählt nicht gegen die Grenzen), keine Behörde, keine Heimatbasis.</remarks>
+public enum GovernmentKind { None, Headquarters, CompanySeat, SectorHq, Office, Police, Research, Outpost }
 
 /// <summary>
 /// Sperre eines Sektors (Phase 10, POLITIK.md Abschnitt 2; Entscheidung: Sperren je Sektor, Gates mit Ausnahmen über
@@ -109,6 +110,7 @@ public static class AccessNames
         GovernmentKind.Office => "Büro",
         GovernmentKind.Police => "Polizeiwache",
         GovernmentKind.Research => "Forschungsstation",
+        GovernmentKind.Outpost => "Kleinstation",
         _ => "",
     };
 }
