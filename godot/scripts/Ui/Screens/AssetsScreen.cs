@@ -277,14 +277,34 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 
 	/// <summary>
 	/// Zustand unter dem Befehl einer Schiffszeile. Runde 22 (Handy-Test k8: „Folgt #100“ über „geparkt“): ein Schiff mit Folge-/Geleitbefehl ohne
-	/// Liegeplatz ist „im Verband“ (auch während der Folgereise); „angedockt“ nur mit Liegeplatz, sonst „geparkt“ wie bisher.
+	/// Liegeplatz ist „im Verband“ (auch während der Folgereise); „angedockt“ nur mit Liegeplatz.
+	/// Runde 25 (Gerätetest: ein Schürfer mit Schürfbefehl stand als „geparkt“): der Zustand folgt dem Befehl und der Tätigkeit — „unterwegs nach …“,
+	/// „schürft“, „handelt“ (angedockt mit Arbeitsbefehl „… · angedockt“), „hält Position“, „im Einsatz“; „geparkt“ nur ohne Befehl und ohne Reise.
 	/// </summary>
-	internal static string StateText(Ship s, bool active, bool activeDocked) =>
-		active ? (s.Transit != null ? "im Transit" : activeDocked ? "angedockt" : "im Flug")
-		: s.DockedAt.Value != 0 ? "angedockt"
-		: s.Command is SpaceSim.Core.Model.FollowCommand or SpaceSim.Core.Model.EscortCommand ? "im Verband"   // auch während der Folgereise
-		: s.Transit != null ? "im Transit"
-		: "geparkt";
+	internal static string StateText(Ship s, bool active, bool activeDocked, Universe? u = null)
+	{
+		if (active) return s.Transit != null ? "im Transit" : activeDocked ? "angedockt" : "im Flug";
+		string work = s.Command switch
+		{
+			SpaceSim.Core.Model.MineCommand => "schürft",
+			SpaceSim.Core.Model.TradeCommand => "handelt",
+			_ => "",
+		};
+		if (s.Transit is { } t)
+		{
+			string to = u is not null && u.Sectors.TryGetValue(t.ToSector, out var ts) ? $"unterwegs nach {ts.Name}" : "im Transit";
+			return work.Length > 0 ? $"{work} · {to}" : s.Command is SpaceSim.Core.Model.FollowCommand or SpaceSim.Core.Model.EscortCommand ? $"im Verband · {to}" : to;
+		}
+		if (s.DockedAt.Value != 0) return work.Length > 0 ? $"{work} · angedockt" : "angedockt";
+		if (work.Length > 0) return work;
+		return s.Command switch
+		{
+			null => "geparkt",
+			SpaceSim.Core.Model.FollowCommand or SpaceSim.Core.Model.EscortCommand => "im Verband",
+			SpaceSim.Core.Model.HoldCommand => "hält Position",
+			_ => "im Einsatz",
+		};
+	}
 
 	static string OrtText(Universe u, Ship s, StationId? docked) =>
 		s.Transit is { } t ? $"unterwegs nach {(u.Sectors.TryGetValue(t.ToSector, out var ts) ? ts.Name : "?")}"
@@ -330,7 +350,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			DrawString(font, new Vector2(96, 26), KitButton.Fit(font, $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", 20, 310), HorizontalAlignment.Left, -1, 20, White);
 			DrawString(font, new Vector2(96, 48), KitButton.Fit(font, RowDetail(font, _u, _s, ort), 13, 310), HorizontalAlignment.Left, -1, 13, Dim);
 			DrawString(font, new Vector2(420, 26), KitButton.Fit(font, _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s), 14, 230), HorizontalAlignment.Left, -1, 14, White);
-			string state = StateText(_s, _active, _docked is not null);
+			string state = KitButton.Fit(font, StateText(_s, _active, _docked is not null, _u), 12, 230);
 			DrawString(font, new Vector2(420, 48), state, HorizontalAlignment.Left, -1, 12, Dim);
 
 			DrawString(font, new Vector2(660, 22), "Hülle", HorizontalAlignment.Left, -1, 12, Dim);

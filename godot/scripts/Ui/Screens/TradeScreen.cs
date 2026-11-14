@@ -199,6 +199,16 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			return Find(this)?.TestLines ?? ("", "", "");
 		}
 	}
+
+	/// <summary>Runde 25: musste eine Hinweiszeile des offenen Editors trotz kürzester Fassung gekürzt werden?</summary>
+	public bool TestEditorOverflow
+	{
+		get
+		{
+			static Editor? Find(Node n) { foreach (var c in n.GetChildren()) { if (c is Editor e && !e.IsQueuedForDeletion()) return e; if (Find(c) is { } f) return f; } return null; }
+			return Find(this)?.TestOverflow ?? false;
+		}
+	}
 	/// <summary>Selbsttest: Menge des Editors, wie der Bildschirm sie hält.</summary>
 	public float TestQty => _qty;
 	/// <summary>Selbsttest: angezeigte Menge im (einzigen) Editor („“ = kein Editor).</summary>
@@ -515,7 +525,10 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			{
 				var drop = At(this, new KitButton("Abwerfen", new Vector2(200, 56)) { FontSize = 19 }, 34, 136);
 				owner._confirm.Wire(drop, DropKey(row), "Abwerfen", () => Drop?.Invoke(_qty));
-				At(this, Text($"Ware verschwindet ohne Erlös · gewählte Menge, „Max“ = alles ({row.Held:0.##} an Bord)", 13, new Color(Dim, 0.85f)), 246, 152, Mathf.Max(100f, w - 260), 22);
+				// Runde 25 (Gerätetest a18/a20: „… „Max“ = all…“): zweizeilig statt abgeschnitten
+				At(this, Text("Ware verschwindet ohne Erlös", 13, new Color(Dim, 0.85f)), 246, 140, Mathf.Max(100f, w - 260), 18);
+				At(this, Text($"gewählte Menge · „Max“ = alles ({row.Held:0.##} an Bord)", 13, new Color(Dim, 0.85f)), 246, 158, Mathf.Max(100f, w - 260), 18);
+				TestDropHint = $"Ware verschwindet ohne Erlös · gewählte Menge · „Max“ = alles ({row.Held:0.##} an Bord)";
 			}
 			RefreshButtons();
 		}
@@ -547,8 +560,10 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		}
 
 		/// <summary>Runde 23: die drei Hinweiszeilen des Editors (Kauf/Verkauf, Abnehmer, Erwartung) mit Farbe — reine Anzeige, Werte live aus dem Core.</summary>
-		public static (string Line1, string Line2, string Line3, bool Loss) Lines(DockContext ctx, Row row, float qty)
+		public static (string Line1, string Line2, string Line3, bool Loss) Lines(DockContext ctx, Row row, float qty, Func<string, int, bool>? fits = null)
 		{
+			// Runde 25 (Gerätetest a18/a20: Zeilen endeten mit „…“): jede Zeile hat kürzere Fassungen; gewählt wird die längste, die passt
+			string Pick(int size, params string[] variants) { if (fits is null) return variants[0]; foreach (var v in variants) if (fits(v, size)) return v; return variants[^1]; }
 			var u = ctx.U; var st = ctx.Station; var ship = ctx.Ship;
 			float price = st.Market.TryGetValue(row.Good, out var e) ? e.Price : row.Price;
 			// Kaufseite: was abgebucht wird — oder der Grund, warum „Kaufen“ aus ist (immer aus dem Angebot)
@@ -565,20 +580,33 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			if (best is not { } b) l2 = "Derzeit kein Abnehmer";
 			else
 			{
-				string sec = u.Sectors.TryGetValue(b.Station.Sector, out var bs) ? bs.Name : "?";
-				l2 = $"Abnehmer: {b.Station.Name} ({sec}, {b.Jumps} {(b.Jumps == 1 ? "Sprung" : "Sprünge")}) zahlt {b.Price:0.0} · nimmt jetzt {b.Units:0.#}";
+				string sec = u.Sectors.TryGetValue(b.Station.Sector, out var bs) ? bs.Name.Replace("Sektor ", "") : "?";
+				// Runde 25 (Gerätetest: „zahlt 12,4“, bei Ankunft 4,4): heutiger Preis und der erwartete Preis bei Ankunft (Bestand + was andere schon hinbringen)
+				bool same = MathF.Abs(b.Price - b.PriceNow) < 0.05f;
+				string pr = same ? $"zahlt {b.Price:0.0}" : $"zahlt jetzt {b.PriceNow:0.0}, bei Ankunft ≈ {b.Price:0.0}";
+				string prShort = same ? $"zahlt {b.Price:0.0}" : $"jetzt {b.PriceNow:0.0} → Ankunft {b.Price:0.0}";
+				string prTiny = same ? $"{b.Price:0.0}" : $"{b.PriceNow:0.0} → {b.Price:0.0}";
+				string name = b.Station.Name, nameShort = name.Length > 18 ? name[..17] + "…" : name;
+				l2 = Pick(14, $"Abnehmer: {name} ({sec}, {b.Jumps} Spr.) {pr} · nimmt {b.Units:0.#}",
+					$"{name} ({sec}, {b.Jumps} Spr.): {prShort} · nimmt {b.Units:0.#}",
+					$"{name} ({b.Jumps} Spr.): {prShort} · nimmt {b.Units:0.#}",
+					$"{nameShort}: {prTiny} · nimmt {b.Units:0.#}");
 				if (buying)
 				{
 					float units = MathF.Min(qty, MathF.Floor(row.Buy.Amount));
 					float result = b.Revenue - units * price;
 					loss = result < 0f || b.Units < units - 0.001f;
-					l3 = b.Units < units - 0.001f ? $"Abnehmer nimmt nur {b.Units:0.#} von {units:0} · Ergebnis {result:+0;−0;0} Cr"
-						: result >= 0f ? $"Erwartet: +{result:0} Cr" : $"Verlust −{-result:0} Cr";
-					l3 += " · Preise ändern sich unterwegs";
+					l3 = b.Units < units - 0.001f ? Pick(13, $"Abnehmer nimmt nur {b.Units:0.#} von {units:0} · Ergebnis {result:+0;−0;0} Cr", $"nimmt nur {b.Units:0.#}/{units:0} · {result:+0;−0;0} Cr")
+						: result >= 0f ? $"Erwartet bei Ankunft: +{result:0} Cr" : $"Verlust bei Ankunft −{-result:0} Cr";
 				}
-				else if (row.Held > 0f) l3 = $"dort {b.Price - price:+0.0;−0.0;0.0} je Einheit gegenüber hier · Preise ändern sich unterwegs";
+				else if (row.Held > 0f) l3 = $"dort bei Ankunft {b.Price - price:+0.0;−0.0;0.0} je Einheit gegenüber hier";
 			}
-			if (row.Sell.Note is { } note && row.Held > 0f) l3 = $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : "");
+			if (row.Sell.Note is { } note && row.Held > 0f)
+			{
+				string diff = l3.Replace(" gegenüber hier", "").Replace("dort bei Ankunft ", "dort ").Replace(" je Einheit", "/E.");
+				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + diff : ""),
+					$"hier: {note}" + (l3.Length > 0 ? " · " + diff : ""), $"hier: {note}");
+			}
 			return (buy + sell, l2, l3, loss);
 		}
 
@@ -600,8 +628,10 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			var font = ThemeDB.FallbackFont;
 			var ctx = _owner.Ctx;
 			if (ctx == null) return;
-			var (l1, l2, l3, loss) = Lines(ctx, _row, _qty);
 			float w = Size.X - 48f;
+			var (l1, l2, l3, loss) = Lines(ctx, _row, _qty, (t, fs) => font.GetStringSize(t, HorizontalAlignment.Left, -1, fs).X <= w);
+			TestOverflow = font.GetStringSize(l1, HorizontalAlignment.Left, -1, 14).X > w || font.GetStringSize(l2, HorizontalAlignment.Left, -1, 14).X > w
+				|| font.GetStringSize(l3, HorizontalAlignment.Left, -1, 13).X > w;
 			DrawString(font, new Vector2(34, 78), KitButton.Fit(font, l1, 14, w), HorizontalAlignment.Left, -1, 14, Dim);
 			DrawString(font, new Vector2(34, 98), KitButton.Fit(font, l2, 14, w), HorizontalAlignment.Left, -1, 14, l2.StartsWith("Derzeit") ? new Color(Dim, 0.7f) : White);
 			DrawString(font, new Vector2(34, 118), KitButton.Fit(font, l3, 13, w), HorizontalAlignment.Left, -1, 13, loss ? Red : l3.StartsWith("Erwartet") ? Green : SellNoteColor(_row));
@@ -610,5 +640,8 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 
 		/// <summary>Runde 23: zuletzt gezeichnete Hinweiszeilen (Selbsttest: Überlauf, Inhalte).</summary>
 		public (string, string, string) TestLines { get; private set; }
+		public string TestDropHint { get; private set; } = "";
+		/// <summary>Runde 25: musste eine Hinweiszeile trotz kürzester Fassung gekürzt werden?</summary>
+		public bool TestOverflow { get; private set; }
 	}
 }

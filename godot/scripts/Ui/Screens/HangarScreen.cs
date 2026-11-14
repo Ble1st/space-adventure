@@ -37,6 +37,9 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 
 	IStationService? Svc(string key) => Ctx.Services.ForStation(Ctx.U, Ctx.Station).FirstOrDefault(s => s.Key == key);
 
+	/// <summary>Runde 25, für den Selbsttest: zuletzt angezeigter Grund eines abgeblendeten „Verkaufen“.</summary>
+	public string TestSellReason { get; private set; } = "";
+
 	protected override void BuildContent(Control inner)
 	{
 		var u = Ctx.U; var ship = Ctx.Ship; var st = Ctx.Station;
@@ -76,6 +79,12 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 				var b = At(row, new KitButton(text, new Vector2(action == HangarService.SellShip ? 150 : 124, 56)) { FontSize = 15, State = can ? (action == HangarService.Switch ? KitButtonState.Ready : KitButtonState.Normal) : KitButtonState.Disabled }, bx, 48);
 				string key = $"{action}:{other.Id.Value}";
 				if (can) b.Pressed += () => Execute(HangarService.ServiceKey, key);
+				// Runde 25: abgeblendetes „Verkaufen“ nennt den Grund (z. B. die Kasse der Werft reicht nicht)
+				else if (action == HangarService.SellShip && o.Note is { Length: > 0 } why)
+				{
+					b.Sub = why.Contains("Kasse") ? why[(why.IndexOf("Kasse"))..].TrimEnd(')', '.') : why.TrimEnd('.');
+					TestSellReason = why;
+				}
 				bx += action == HangarService.SellShip ? 158 : 132;
 			}
 			var id = other.Id;

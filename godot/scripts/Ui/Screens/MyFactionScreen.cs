@@ -21,6 +21,10 @@ public sealed partial class MyFactionScreen : CommandScreen
 	/// <summary>Selbsttest: zuletzt gezeigte Fahndungszeile (Phase 11).</summary>
 	public string TestWanted { get; private set; } = "";
 
+	/// <summary>Runde 25, für den Selbsttest: wurde die Zeile „Laufende Kosten“ gekürzt, und ihr Text.</summary>
+	public bool TestCostsOverflow { get; private set; }
+	public string TestCostsText { get; private set; } = "";
+
 	protected override void BuildContent(Control inner)
 	{
 		var u = Ctx.U;
@@ -60,7 +64,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 		WrappedText(b, "Spielerkasse (echt): Geld der Person, nicht des Schiffs – Handel, Tanken und Reparatur buchen hierauf", 20, 80, 446, 12, new Color(Dim, 0.75f), 16);
 		// Runde 16: echt — Flottenunterhalt der Schiffe mit Befehl (auch Verband) + Liegegebühr
 		{ string costs = SpaceSim.Core.Simulation.Hangar.RunningCostsText(u, u.PlayerActor);
-		  Row(b, 20, 126, 446, "Laufende Kosten", costs.Length > 0 ? costs : "keine", 14); }
+		  Row(b, 20, 126, 446, "Laufende Kosten", costs.Length > 0 ? costs : "keine", 14); TestCostsOverflow = LastRowOverflow; TestCostsText = costs; }
 		Row(b, 20, 150, 446, "Liegegebühr/Tag (fremde St.)", $"−{SpaceSim.Core.Simulation.Hangar.BerthFeesPerDay(u, u.PlayerActor):0} Cr/Tag", 14);   // Phase 12 echt
 		Row(b, 20, 174, 446, "Einnahmen/Tag (Schätzung)", UiPlaceholders.MyFactionIncome, 14);
 		At(b, new KitButton("Beitreten", new Vector2(150, 46)) { FontSize = 16, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 20, 204);

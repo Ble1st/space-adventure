@@ -409,10 +409,10 @@ public sealed class TraderSystem : ISimSystem
         return MathF.Max(0f, e.Target * u.Rules.OverstockFactor - e.Amount);
     }
 
-    /// <summary>Phase 19: Ladung dieser Ware, die andere Händler gerade zu dieser Station fahren (unterwegs zum Verkauf).</summary>
     /// <summary>Runde 24: gilt die Verlustkauf-Sperre für dieses Schiff? KI-Händler immer, Spielerschiffe mit Automatikauftrag, solange er Verlust nicht erlaubt.</summary>
     static bool LossGuarded(Ship ship, AutoLimits? limits) => ship.Controller == Controller.Ai || limits is { AllowLoss: false };
 
+    /// <summary>Phase 19: Ladung dieser Ware, die andere Händler gerade zu dieser Station fahren (unterwegs zum Verkauf).</summary>
     static float LadenTowards(Universe u, Ship ship, StationId station, GoodId good)
     {
         float sum = 0f;

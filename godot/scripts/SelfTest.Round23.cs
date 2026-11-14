@@ -66,8 +66,10 @@ public partial class SelfTest
 			{
 				var (l1, l2, l3) = trade.TestEditorLines;
 				Check(l1.StartsWith("Kauf ") && l1.Contains(" Cr") && !l1.Contains('…'), $"Kaufzeile mit Summe ({l1})");
-				Check(l2.StartsWith("Abnehmer: ") && l2.Contains("nimmt jetzt") || l2 == "Derzeit kein Abnehmer", $"Abnehmerzeile ehrlich ({l2})");
-				Check(l2 == "Derzeit kein Abnehmer" || l3.StartsWith("Erwartet: +") || l3.StartsWith("Verlust −") || l3.StartsWith("Abnehmer nimmt nur"), $"Erwartungszeile ({l3})");
+				Check(l2.Contains("nimmt ") && (l2.Contains("zahlt") || l2.Contains("→")) || l2 == "Derzeit kein Abnehmer", $"Abnehmerzeile ehrlich ({l2})");
+				Check(l2 == "Derzeit kein Abnehmer" || l3.StartsWith("Erwartet bei Ankunft: +") || l3.StartsWith("Verlust bei Ankunft −") || l3.Contains("nimmt nur"), $"Erwartungszeile ({l3})");
+				// Runde 25 (Gerätetest a18/a20): keine Zeile endet mit „…“ — kürzere Fassungen statt Abschneiden
+				Check(!trade.TestEditorOverflow && !l2.EndsWith("…") && !l3.EndsWith("…"), $"Hinweiszeilen passen ({l2} | {l3})");
 				// kein Geld
 				u.WalletOf(u.Ships[u.PlayerShip]).Credits = 0f;
 				trade.Refresh();

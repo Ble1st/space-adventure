@@ -2061,9 +2061,8 @@ public partial class SelfTest : Node
 				int k = _p28Try;
 				if (_frame - _stageStart == 1)
 				{
-					// Runde 24: eigene frische Welt (Jäger-Paket) — vorher hing die Prüfung vom Zustand der Vorstufen ab (Kriegs-/Gefechtstests, Fahndung, Polizei);
-					// seit die Werften am Start liefern, kaufen die Fraktionen dort früher nach und der Spielverlauf vor dieser Stufe ist ein anderer
-					_m.TestMenu("new:fighter");
+					// Runde 25: wieder im Zustand nach den Vorstufen (Runde 24 nahm eine frische Welt — der Hänger war ein echter Planungsfehler im dichten Felsfeld, behoben)
+					if (_m.Docked) _m.TestUndock();
 					break;
 				}
 				if (_frame - _stageStart == 3 && _m.Docked) { _m.TestUndock(); break; }

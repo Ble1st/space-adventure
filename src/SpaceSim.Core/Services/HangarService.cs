@@ -29,8 +29,10 @@ public sealed class HangarService : IStationService
             list.Add(new ServiceOffer($"{Switch}:{own.Id.Value}", $"In {name} wechseln", 0f, 1f, default, 0f, 0f));
             bool homeOk = ReturnExecutor.Home(u, own) is { } h && h.Id != station.Id && Commands.Check(u, own, new ReturnCommand()) is null;
             list.Add(new ServiceOffer($"{Home}:{own.Id.Value}", $"{name} nach Hause schicken", 0f, homeOk ? 1f : 0f, default, 0f, 0f));
+            // Runde 25 (Gerätetest: Werftkasse 59–449 Cr): der Grund steht im Angebot, die Hangaransicht zeigt ihn an der abgeblendeten Taste
+            var sellIssue = Hangar.SellIssue(u, station, own);
             list.Add(new ServiceOffer($"{SellShip}:{own.Id.Value}", $"{name} verkaufen", Hangar.SellPrice(u, own),
-                Hangar.SellIssue(u, station, own) is null ? 1f : 0f, default, 0f, 0f));
+                sellIssue is null ? 1f : 0f, default, 0f, 0f, sellIssue));
         }
         return list;
     }

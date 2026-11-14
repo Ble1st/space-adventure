@@ -135,7 +135,7 @@ public class FlottenTests
                 sb.AppendLine($"ohne Geld ({any.Model.Name}): „{r.Message}“");
             }
         }
-        sb.AppendLine($"gekauft {bought.Count}, nicht lieferbar {notDeliverable} von {Yards(u).Count * Wanted.Length}");
+        sb.AppendLine($"nacheinander gekauft {bought.Count}, nicht (mehr) lieferbar {notDeliverable} von {Yards(u).Count * Wanted.Length} (eigene Käufe leeren die Regale; die frische Tabelle unten zählt je Kombination einzeln)");
         sb.AppendLine("Fehlendes Material (Anzahl Modell×Werft): " + string.Join(", ", missingCount.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
         // Runde 24: jede Kombination einzeln auf frischer Welt (Tick 200, Auskunft ohne Kauf — die Liste oben kauft nacheinander und leert Regale)
         var fresh = WorldBuilder.BuildDefault(null, "trader");
@@ -164,7 +164,7 @@ public class FlottenTests
                     if (q.Missing.Count == 0 && q.Locked is null) ok20++;
                     foreach (var m in q.Missing) miss20[later.Goods[m.Good].Name] = miss20.GetValueOrDefault(later.Goods[m.Good].Name) + 1;
                 }
-        sb.AppendLine($"nach 20000 Ticks lieferbar: {ok20} von {Yards(later).Count * Wanted.Length}; fehlend: " + string.Join(", ", miss20.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
+        sb.AppendLine($"nach 20000 Ticks lieferbar (die {Wanted.Length} Testmodelle, Auskunft ohne Kauf): {ok20} von {Yards(later).Count * Wanted.Length}; fehlend: " + string.Join(", ", miss20.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
         _o.WriteLine(sb.ToString());
         Assert.True(bought.Count >= 3, "mindestens drei Schiffe lieferbar");
     }

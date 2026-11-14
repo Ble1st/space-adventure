@@ -21,7 +21,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.fleet";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
-	public void ResetSession() { _sel = null; _pending = null; _message = ""; _msgOk = true; _radius = -2; }
+	public void ResetSession() { _sel = null; _pending = null; _message = ""; _msgOk = true; _radius = -2; _allowLoss = false; }   // Runde 25: auch die Verlustsperre
 
 	/// <summary>Auto-Mining umschalten (echte Entsprechung: <see cref="MiningAutopilot"/> des Spielers in Main).</summary>
 	public event Action<bool>? AutoMiningToggled;
@@ -60,7 +60,9 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		// ── Links: Liste und Kapazität ──
 		var (capShips, capSquads) = Commands.Capacity(u, u.PlayerActor);
 		At(inner, Text("Deine Schiffe", 18, Cyan), 12, 6, 200, 24);
-		At(inner, Text($"Befehle {Commands.Commanded(u, u.PlayerActor)}/{capShips} · Verbände {Squadrons.Of(u, u.PlayerActor).Count}/{capSquads}", 13, Dim), 12, 32, 360, 18);
+		// Runde 25: über der Kapazität (z. B. nach Auflösen eines Verbands) rot mit Hinweis — laufende Befehle bleiben, neue sind gesperrt
+		bool over = Commands.OverCapacity(u, u.PlayerActor) > 0;
+		At(inner, Text($"Befehle {Commands.Commanded(u, u.PlayerActor)}/{capShips}{(over ? " · zu viele, neue gesperrt" : "")} · Verbände {Squadrons.Of(u, u.PlayerActor).Count}/{capSquads}", 13, over ? Red : Dim), 12, 32, 368, 18);
 		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 56, 368, 456);
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
@@ -73,16 +75,17 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			bool escortHere = canEscort && !sel;
 			var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 			row.AddThemeConstantOverride("separation", 4);
-			var b = new KitButton($"#{s.Id.Value} {ModelName(u, s)}", new Vector2(escortHere ? 256 : 352, 64)) { AlignLeft = true, FontSize = 16, State = sel ? KitButtonState.On : KitButtonState.Normal };
+			var b = new KitButton($"#{s.Id.Value} {ModelName(u, s)}", new Vector2(escortHere ? 228 : 352, 64)) { AlignLeft = true, FontSize = 16, State = sel ? KitButtonState.On : KitButtonState.Normal };
 			string sq = Squadrons.Get(u, s) is { } q ? $"[{q.Name}{(q.Leader == s.Id ? ", Anführer" : "")}] " : "";
-			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : "aktiv · von dir gesteuert") : Shorten(sq + Commands.Describe(u, s), escortHere ? 30 : 46);
+			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : "aktiv · von dir gesteuert") : Shorten(sq + Commands.Describe(u, s), escortHere ? 26 : 46);
 			b.Detail = Where(u, s);
 			var id = s.Id;
 			b.Pressed += () => { Select(id); Invalidate(); };
 			row.AddChild(b);
 			if (escortHere)
 			{
-				var guard = new KitButton("Begleiten", new Vector2(92, 64)) { FontSize = 13, Sub = $"durch #{ship.Id.Value}" };
+				// Runde 25 (Gerätetest: „Begleiten durch #x“ war missverständlich): wer wen begleitet, steht ausgeschrieben
+				var guard = new KitButton($"Von #{ship.Id.Value}", new Vector2(120, 64)) { FontSize = 13, Sub = "begleiten lassen" };
 				var protector = ship;
 				guard.Pressed += () => Give(u, protector, new EscortCommand(id));
 				row.AddChild(guard);
@@ -94,7 +97,9 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		var det = CardBg(inner, 392, 6, 618, 506, Card);
 		bool isActive = ship.Id == u.PlayerShip;
 		At(det, Text($"#{ship.Id.Value} {ModelName(u, ship)}{(ship.IsRental ? " (Leihschiff)" : "")}", 20, White), 14, 6, 400, 26);
-		At(det, Text(isActive ? "AKTIV – du steuerst selbst" : Commands.Describe(u, ship), 14, ship.Emergency ? Red : isActive ? Cyan : Orange), 14, 32, 590, 20);
+		// Runde 25 (Gerätetest d06: „Handel automatisch (…)“ lief unter „Übernehmen“): neben der Taste nur bis zu ihr, mit der Schrift gekürzt
+		float descW = isActive ? 590f : 434f;
+		At(det, Text(KitButton.Fit(ThemeDB.FallbackFont, isActive ? "AKTIV – du steuerst selbst" : Commands.Describe(u, ship), 14, descW), 14, ship.Emergency ? Red : isActive ? Cyan : Orange), 14, 32, descW, 20);
 		At(det, Text($"{Where(u, ship)} · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} {(u.Rules.FuelActive ? $"· Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0} " : "")}· Regel {CommandNames.Rule(Squadrons.RulesOf(u, ship))}", 13, Dim), 14, 54, 590, 18);
 		if (!isActive)
 		{
@@ -153,10 +158,21 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		else Message(det);
 	}
 
+	// Runde 25 (Gerätetest: die Kapazitätsmeldung lief über das Zeilenende): bis zu zwei Zeilen, mit der Schrift gemessen umbrochen
 	void Message(Control det, bool dim = false)
 	{
-		if (_message.Length > 0) At(det, Text(_message, 13, dim ? new Color(Dim, 0.85f) : _msgOk ? Green : Red), 14, 482, 596, 20);
+		if (_message.Length == 0) return;
+		var lines = Wrap(_message, 13, 596);
+		_messageLines = lines.Count;
+		if (lines.Count > 2) lines = new List<string> { lines[0], Shorten(string.Join(" ", lines.Skip(1)), 90) };
+		for (int k = 0; k < lines.Count; k++) At(det, Text(lines[k], 13, dim ? new Color(Dim, 0.85f) : _msgOk ? Green : Red), 14, 462 + k * 19, 596, 19);
 	}
+
+	/// <summary>Für den Selbsttest: Zeilen der letzten Meldung nach dem Umbruch (gemessen, vor dem Kürzen).</summary>
+	public int TestMessageLines => _messageLines;
+	int _messageLines;
+
+	static string Join(string a, string b) => b.Length == 0 ? a : a + " " + b;
 
 	/// <summary>Befehl ohne Ziel (oder mit den gewählten Grenzen); null = braucht ein Ziel.</summary>
 	ShipCommand? Simple(Universe u, Ship ship, string kind) => kind switch
@@ -286,10 +302,10 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		}
 		else
 		{
-			Btn("Verlassen", () => { Squadrons.Leave(u, ship); Say("Verband verlassen.", true); });
+			Btn("Verlassen", () => { Squadrons.Leave(u, ship); Say(Join("Verband verlassen.", Commands.OverCapacityText(u, u.PlayerActor)), true); });
 			bool lead = sq.Leader == ship.Id;
 			Btn($"Formation", () => { sq.Formation = (Formation)(((int)sq.Formation + 1) % 4); Say($"Formation {CommandNames.Formation(sq.Formation)} (nur Darstellung) · {sq.Members.Count}/{u.Rules.SquadronMaxMembers} Schiffe.", true); }, lead);
-			Btn("Auflösen", () => { Squadrons.Disband(u, sq); Say("Verband aufgelöst.", true); }, lead);
+			Btn("Auflösen", () => { Squadrons.Disband(u, sq); Say(Join("Verband aufgelöst.", Commands.OverCapacityText(u, u.PlayerActor)), true); }, lead);
 		}
 		if (cancel)
 		{

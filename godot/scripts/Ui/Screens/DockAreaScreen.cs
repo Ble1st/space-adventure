@@ -45,7 +45,9 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		Visible = false;
 	}
 
-	public void Open() { Visible = true; Rebuild(); }
+	public void Open() { Visible = true; OnOpen(); Rebuild(); }
+	/// <summary>Runde 25: beim Öffnen des Bereichs (Andocken, Wechsel aus dem Dock-Menü) — z. B. eine alte Meldung verwerfen.</summary>
+	protected virtual void OnOpen() { }
 	/// <summary>Runde 17: Inhalt beim Sitzungswechsel abbauen (Schließungen halten das alte Universum); Open baut neu.</summary>
 	public void DropContent() { foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } _dirty = true; }
 	public void Close() => Visible = false;

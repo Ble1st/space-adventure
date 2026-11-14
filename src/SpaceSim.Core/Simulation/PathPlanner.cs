@@ -1,3 +1,4 @@
+using System.Linq;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Simulation;
@@ -29,6 +30,76 @@ public static class PathPlanner
         try { Append(from, to, obstacles, 0, pts, ref budget); }
         finally { _margin = Margin; }
         return pts;
+    }
+
+    /// <summary>
+    /// Runde 25 (Selbsttest Stufe 79: der Autopilot kreiste in einem dichten Felsfeld vor dem HQ Alpha): Glätten eines geplanten Polygonzugs — von jedem
+    /// Punkt springt der Weg zum entferntesten späteren Punkt, der ohne Hindernis (mit <paramref name="margin"/>) erreichbar ist. Die Umweg-Rekursion liefert in
+    /// dichten Feldern Zickzack-Punkte dicht nebeneinander (Tiefe/Budget erschöpft), denen das Schiff nicht folgen kann. Nur für den Spieler-Autopiloten
+    /// (<see cref="PathFollower"/>); NPC-Reisen planen unverändert.
+    /// </summary>
+    public static List<Vec2> Smooth(List<Vec2> pts, IReadOnlyList<Obstacle> obstacles, float margin)
+    {
+        if (pts.Count <= 2) return pts;
+        _margin = margin;
+        try
+        {
+            var res = new List<Vec2> { pts[0] };
+            int i = 0;
+            while (i < pts.Count - 1)
+            {
+                int j = pts.Count - 1;
+                while (j > i + 1 && FirstBlocker(pts[i], pts[j], obstacles) is not null) j--;
+                res.Add(pts[j]);
+                i = j;
+            }
+            return res;
+        }
+        finally { _margin = Margin; }
+    }
+
+    /// <summary>Runde 25: ist das Stück a→b frei (gleiche Regel wie die Planung: Ziel im Hindernis zählt nicht, Start im Hindernis beim Wegfliegen nicht)?</summary>
+    public static bool Clear(Vec2 a, Vec2 b, IReadOnlyList<Obstacle> obstacles, float margin)
+    {
+        _margin = margin;
+        try { return FirstBlocker(a, b, obstacles) is null; }
+        finally { _margin = Margin; }
+    }
+
+    /// <summary>
+    /// Runde 25: Ausweichweg, wenn die Umweg-Rekursion in einem dichten Feld kein freies Stück findet (Tiefe/Budget erschöpft: ihr Polygonzug läuft dann durch
+    /// Felsen). Feste Kandidaten auf Ringen um Start und Ziel (16 Richtungen, vier Abstände, kein Zufall): zuerst der kürzeste Weg über einen Kandidaten, dessen
+    /// beide Stücke frei sind, sonst über zwei Kandidaten. null = auch so nichts frei.
+    /// </summary>
+    public static List<Vec2>? Detour(Vec2 from, Vec2 to, IReadOnlyList<Obstacle> obstacles, float margin)
+    {
+        var cand = new List<Vec2>();
+        foreach (var c in new[] { from, to, (from + to) * 0.5f })
+            foreach (float r in new[] { 15f, 30f, 55f, 90f })
+                for (int k = 0; k < 16; k++)
+                {
+                    float a = k * MathF.PI / 8f;
+                    cand.Add(c + new Vec2(MathF.Cos(a), MathF.Sin(a)) * r);
+                }
+        cand.RemoveAll(w => obstacles.Any(o => Vec2.Distance(w, o.Position) < o.Radius + margin));
+        List<Vec2>? best = null; float bestLen = float.MaxValue;
+        var fromOk = new List<Vec2>();
+        foreach (var w in cand)
+        {
+            if (!Clear(from, w, obstacles, margin)) continue;
+            fromOk.Add(w);
+            float len = Vec2.Distance(from, w) + Vec2.Distance(w, to);
+            if (len < bestLen && Clear(w, to, obstacles, margin)) { bestLen = len; best = new List<Vec2> { from, w, to }; }
+        }
+        if (best is not null) return best;
+        var toOk = cand.Where(w => Clear(w, to, obstacles, margin)).ToList();
+        foreach (var w1 in fromOk)
+            foreach (var w2 in toOk)
+            {
+                float len = Vec2.Distance(from, w1) + Vec2.Distance(w1, w2) + Vec2.Distance(w2, to);
+                if (len < bestLen && Clear(w1, w2, obstacles, margin)) { bestLen = len; best = new List<Vec2> { from, w1, w2, to }; }
+            }
+        return best;
     }
 
     [ThreadStatic] static float _margin;

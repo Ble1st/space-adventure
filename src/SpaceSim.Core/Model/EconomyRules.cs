@@ -457,6 +457,8 @@ public sealed class EconomyRules
     /// Die Exportsenken verloren so ihre Startkasse an die Fraktionskassen und konnten nur noch wenig ankaufen.
     /// </summary>
     public float StationWorkingCapitalShare = 1f;
+    /// <summary>Runde 25 (Messregel): Hersteller verkaufen ihr reines Produkt höchstens zu diesem Anteil am besten Abnehmergebot; 0 = aus (Standard).</summary>
+    public float ProducerPriceCapShare = 0f;
     /// <summary>Instandhaltung je Tag (<see cref="DayTicks"/>) als Anteil der Baukosten des Stationstyps, zum Basispreis in Material umgerechnet; 0 = aus.</summary>
     public float MaintenanceShare = 0.03f;
     /// <summary>Instandhaltungsmaterial: Ware → Gewicht (Anteil am Wert). Fehlt eine Ware in der Welt, fällt ihr Anteil weg.</summary>

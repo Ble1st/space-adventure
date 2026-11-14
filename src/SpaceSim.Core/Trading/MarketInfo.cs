@@ -176,7 +176,26 @@ public static class MarketInfo
         var route = st.Sector == fromSector ? new List<GateId>() : u.FindRoute(fromSector, st.Sector);
         if (route is null) return null;
         float ticks = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(default));
-        return new BuyerQuote(st, e.Price, units, units * e.Price, incoming, route.Count, ticks);
+        // Runde 25 (Gerätetest: „zahlt 12,4 · Erwartet +628“, bei Ankunft 4,4 → −221 Cr): abgerechnet wird zum Preis bei Ankunft — ein Preis für die ganze
+        // Menge (Verkauf und Händler buchen Menge × Stückpreis des Augenblicks); der Bestand ist dann um das gestiegen, was andere schon hinbringen
+        float arrival = ArrivalPrice(u, st, good, incoming);
+        return new BuyerQuote(st, arrival, units, units * arrival, incoming, route.Count, ticks, e.Price);
+    }
+
+    /// <summary>
+    /// Runde 25: erwarteter Stückpreis einer Station für eine Ware, wenn die Ladungen anderer Händler (<paramref name="incoming"/>) schon angekommen sind —
+    /// dieselbe Bestandsformel wie der Markt (<see cref="MarketSystem.StockPrice"/>); die Deckel der Station (Zahlungsbereitschaft, Endverbraucher-, Export-,
+    /// Instandhaltungs-, Baustellenpreis) bleiben, wie sie jetzt wirken: liegt der heutige Preis unter der Formel, ist er gedeckelt und der Deckel gilt weiter.
+    /// Verbrauch bis zur Ankunft bleibt unberücksichtigt (vorsichtig).
+    /// </summary>
+    public static float ArrivalPrice(Universe u, Station st, GoodId good, float incoming)
+    {
+        if (!st.Market.TryGetValue(good, out var e) || e.Price <= 0f) return 0f;
+        if (st.IsBuildSite || incoming <= 0f) return e.Price;
+        var g = u.Goods[good];
+        float now = MarketSystem.StockPrice(g, e, e.Amount);
+        float later = MarketSystem.StockPrice(g, e, e.Amount + incoming);
+        return e.Price < now - 0.001f ? MathF.Min(e.Price, later) : later;
     }
 
     /// <summary>
@@ -202,4 +221,5 @@ public static class MarketInfo
 }
 
 /// <summary>Runde 23: ehrliche Abnehmer-Auskunft — Station, Preis, angenommene Menge, erwarteter Erlös, schon unterwegs von anderen, Sprünge, Reisezeit (Ticks).</summary>
-public readonly record struct BuyerQuote(Station Station, float Price, float Units, float Revenue, float Incoming, int Jumps, float TravelTicks);
+/// <param name="Price">Runde 25: erwarteter Stückpreis bei Ankunft (<see cref="MarketInfo.ArrivalPrice"/>); <paramref name="PriceNow"/> = heutiger Preis.</param>
+public readonly record struct BuyerQuote(Station Station, float Price, float Units, float Revenue, float Incoming, int Jumps, float TravelTicks, float PriceNow = 0f);

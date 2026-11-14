@@ -49,6 +49,21 @@ public static class Commands
     public static int Commanded(Universe u, ActorId actor) =>
         u.Ships.Values.Count(s => s.Owner == actor && s.Command is not null && s.Squadron.Value == 0);
 
+    /// <summary>
+    /// Runde 25 (Gerätetest „Befehle 5/4“ nach Auflösen eines Verbands): Einzelbefehle über der Kapazität. Regel: laufende Befehle bleiben (Auflösen oder
+    /// Verlassen eines Verbands nimmt keinem Schiff seinen Arbeitsbefehl, eine kleinere Befehlsstufe auch nicht), ändern darf man sie; neue Einzelbefehle sind
+    /// gesperrt, bis die Zahl unter die Kapazität fällt (<see cref="CapacityIssue"/>). 0 = nicht darüber.
+    /// </summary>
+    public static int OverCapacity(Universe u, ActorId actor) => Math.Max(0, Commanded(u, actor) - Capacity(u, actor).Ships);
+
+    /// <summary>Runde 25: Hinweis, wenn mehr Einzelbefehle laufen als die Kapazität erlaubt (siehe <see cref="OverCapacity"/>); "" = nicht darüber.</summary>
+    public static string OverCapacityText(Universe u, ActorId actor)
+    {
+        int over = OverCapacity(u, actor);
+        if (over == 0) return "";
+        return $"Befehle {Commanded(u, actor)}/{Capacity(u, actor).Ships}: laufende Befehle bleiben, neue Einzelbefehle gesperrt, bis {Count(over + 1, "Befehl endet", "Befehle enden")}.";
+    }
+
     /// <summary>Würde ein neuer Einzelbefehl die Befehlskapazität des Besitzers überschreiten? null = nein, sonst der Grund. Gilt für Spielerschiffe.</summary>
     public static string? CapacityIssue(Universe u, Ship ship)
     {

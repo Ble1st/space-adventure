@@ -48,7 +48,7 @@ public partial class SelfTest
 		foreach (var b in Buttons(root))
 			if (b.Text == rowLabel && b.IsVisibleInTree() && b.GetParent() is HBoxContainer row)
 				foreach (var c in row.GetChildren())
-					if (c is Ui.Kit.KitButton g && g.Text == "Begleiten") return g;
+					if (c is Ui.Kit.KitButton g && g.Sub == "begleiten lassen") return g;
 		return null;
 	}
 
@@ -179,6 +179,12 @@ public partial class SelfTest
 			case 56:
 				Check(_m.TestScreenOpen("cc.assets"), "Besitz offen");
 				Check(FleetOverflow(cc).Length == 0, $"Besitz: keine Taste läuft über ({FleetOverflow(cc)})");
+				// Runde 25 (Gerätetest: Schürfer mit Schürfbefehl stand als „geparkt“)
+				if (_flMiner.Value != 0 && u.Ships.TryGetValue(_flMiner, out var minerR25))
+				{
+					string stR25 = Ui.Screens.AssetsScreen.StateText(minerR25, false, false, u);
+					Check(stR25 != "geparkt" && (stR25.StartsWith("schürft") || minerR25.Command is not MineCommand), $"Besitz: Zustand folgt dem Schürfbefehl ({stR25})");
+				}
 				// Fernwechsel aus der Flotte und zurück
 				PressButton(cc, "Flotte", true);
 				return false;
@@ -200,6 +206,20 @@ public partial class SelfTest
 				_flDepth.Add("Handel/Schürfen mit vorgewähltem Schiff, Verband bilden, Übernehmen: je 3 Tipps ab „Kommando“");
 				Check(_flTaps <= 3, $"Flotte in {_flTaps} Tipps erreicht");
 				GD.Print("[selftest] Tipptiefen: " + string.Join(" · ", _flDepth));
+				// Runde 25 (Gerätetest): Kapazitätsmeldungen höchstens zwei Zeilen, „Laufende Kosten“ bleibt in der Karte
+				var mePl = u.Ships[u.PlayerShip];
+				string capMsg = $"Nicht möglich: Befehlskapazität erreicht ({Commands.Count(8, "Schiff", "Schiffe")} mit Einzelbefehl) – Schiffe in einen Verband aufnehmen oder mehr Besitz (Stationen, Geld) hebt die Befehlsstufe.";
+				Check(Ui.Kit.UiKit.Wrap(capMsg, 13, 596).Count <= 2, $"Kapazitätsmeldung in zwei Zeilen ({Ui.Kit.UiKit.Wrap(capMsg, 13, 596).Count})");
+				Check(Ui.Kit.UiKit.Wrap("Verband aufgelöst. Befehle 12/8: laufende Befehle bleiben, neue Einzelbefehle gesperrt, bis 5 Befehle enden.", 13, 596).Count <= 2, "Überkapazitätsmeldung in zwei Zeilen");
+				_m.TestOpenCommand();
+				_m.TestOpenCcArea("myfaction");
+				return false;
+			}
+			case 79:
+			{
+				var mf = _m.HudRef.CcMyFaction;
+				Check(mf.TestCostsText.Contains("/min") && !mf.TestCostsOverflow, $"Meine Fraktion: „Laufende Kosten“ passt in die Karte ({mf.TestCostsText})");
+				_m.TestCloseCommand();
 				return true;
 			}
 		}

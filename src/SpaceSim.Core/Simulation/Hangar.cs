@@ -123,7 +123,7 @@ public static class Hangar
         if (ship.Cargo.Values.Sum() > 0.001f) return "Erst die Fracht verkaufen oder einlagern.";
         float price = SellPrice(u, ship);
         if (price <= 0f) return "Dieses Schiff hat keinen Marktwert.";
-        if (st.Credits < price) return "Die Station kann den Preis nicht zahlen.";
+        if (st.Credits < price) return $"Die Station kann den Preis nicht zahlen (Kasse {MathF.Max(0f, st.Credits):0} von {price:0} Cr).";   // Runde 25: Betrag nennen
         return null;
     }
 

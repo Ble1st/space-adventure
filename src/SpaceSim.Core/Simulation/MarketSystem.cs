@@ -44,10 +44,13 @@ public sealed class MarketSystem : ISimSystem
             var roles = st.Roles();
             foreach (var (goodId, e) in st.Market)
             {
-                float factor = Math.Clamp(e.Target / Math.Max(e.Amount, 1f), 0.25f, 4f);
-                e.Price = u.GoodOf(goodId).BasePrice * factor;
+                e.Price = StockPrice(u.GoodOf(goodId), e, e.Amount);
                 e.Overstock = 0f;
                 e.NoIntake = Station.RoleIn(roles, goodId) == Station.RoleOutput;   // Phase 15: Hersteller kaufen ihr eigenes Produkt nicht zu
+                // Runde 25 (Messregel, Standard aus): ein Hersteller verkauft sein reines Produkt höchstens zu ProducerPriceCapShare × dem besten Gebot eines
+                // Abnehmers (Vortag) — die Spanne bleibt für den Händler
+                if (u.Rules.ProducerPriceCapShare > 0f && e.NoIntake && (uint)goodId.Value < (uint)_bid.Length && _bid[goodId.Value] > 0f)
+                    e.Price = MathF.Max(u.GoodOf(goodId).BasePrice * 0.25f, MathF.Min(e.Price, _bid[goodId.Value] * u.Rules.ProducerPriceCapShare));
             }
             // Phase 15: Regal-Einträge (Lager ohne Rezept: Werft- und Handelsstationsregale, Lagerhaus) nehmen nur bis zum Wunschbestand × ShelfOverstockFactor
             // an (vorher × OverstockFactor 3): Die reiche Handelsstation Beta horte sonst bis 9 Reaktoren, die der Werft fehlten, und unbenutzte Module
@@ -122,6 +125,12 @@ public sealed class MarketSystem : ISimSystem
                         if (st.Market.TryGetValue(g, out var ce)) ce.Price = MathF.Min(ce.Price, u.GoodOf(g).BasePrice * u.Rules.ConsumerMaxBidFactor);
         }
     }
+
+    /// <summary>
+    /// Die Bestandsformel des Markts (vor den Deckeln der Station): Basispreis × clamp(Wunschbestand ÷ max(Bestand, 1), 0,25, 4). Runde 25: öffentlich, damit
+    /// die Abnehmer-Auskunft (<see cref="Trading.MarketInfo.ArrivalPrice"/>) dieselbe Rechnung mit dem Bestand bei Ankunft benutzt.
+    /// </summary>
+    public static float StockPrice(Good good, StockEntry e, float amount) => good.BasePrice * Math.Clamp(e.Target / Math.Max(amount, 1f), 0.25f, 4f);
 
     // Phase 15: Instandhaltungswaren (aus den Regeln aufgelöst), zwischengespeichert je Regelsatz
     readonly List<GoodId> _maintGoods = new();

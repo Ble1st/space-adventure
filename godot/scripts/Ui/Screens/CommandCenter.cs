@@ -195,14 +195,25 @@ public abstract partial class CommandScreen : Control, IScreen
 	/// <summary>Zeilenhilfe in frei platzierten Karten: Name links, Wert rechts, an fester Position.</summary>
 	protected static void Row(Control parent, float x, float y, float w, string name, string value, int size = 15)
 	{
-		var r = At(parent, new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, x, y, w, size + 6);
-		r.AddThemeConstantOverride("separation", 8);
-		var l = Text(name, size, Dim); l.CustomMinimumSize = new Vector2(150, 0);
-		r.AddChild(l);
-		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
-		r.AddChild(spacer);
-		r.AddChild(Text(value, size, White));
+		// Runde 25 (Gerätetest g01: „Laufende Kosten“ lief rechts aus der Karte): der Wert bekommt höchstens die Breite neben dem Namen, wird dafür bis
+		// Schriftgröße 11 verkleinert und erst dann mit „…“ gekürzt — die Zeile bleibt in der Karte
+		var font = ThemeDB.FallbackFont;
+		float W(string t, int fs) => font.GetStringSize(t, HorizontalAlignment.Left, -1, fs).X;
+		float nameW = MathF.Max(150f, W(name, size) + 4f);
+		float room = w - nameW - 8f;
+		int vs = size;
+		while (vs > 11 && W(value, vs) > room) vs--;
+		var l = Text(name, size, Dim);
+		At(parent, l, x, y, nameW, size + 6);
+		var v = Text(value, vs, White, HorizontalAlignment.Right);
+		v.ClipText = true;
+		v.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		At(parent, v, x + w - room, y + (size - vs) * 0.5f, room, size + 6);
+		LastRowOverflow = W(value, vs) > room + 0.5f;
 	}
+
+	/// <summary>Runde 25, für den Selbsttest: musste der Wert der zuletzt gebauten Zeile gekürzt werden?</summary>
+	internal static bool LastRowOverflow;
 
 	/// <summary>Name einer Fraktion (oder „?“).</summary>
 	protected static string FactionName(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var x) ? SpaceSim.Core.Model.ActorNames.Tagged(u, f, x.Name) : f.Value == 0 ? "herrenlos" : "?";   // Phase 29: mit Kürzel

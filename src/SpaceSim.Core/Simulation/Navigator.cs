@@ -42,21 +42,44 @@ public static class Navigator
         if (sector == target.Sector)
         {
             if (Vec2.Distance(pos, target.Position) <= ArriveRadius) return new NavStep(NavStatus.Arrived, pos, null);
-            return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, target.Position), null);
+            return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, target.Position, null), null);
         }
 
         var route = u.FindRoute(sector, target.Sector, Travel.ProfileOf(u, ship));
         if (route is null || route.Count == 0) return new NavStep(NavStatus.Unreachable, pos, null);
         var gate = u.Gates[route[0]];
-        return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, gate.Position), gate.Id);
+        return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, gate.Position, gate.Id), gate.Id);
+    }
+
+    /// <summary>Sprungradius eines Tors: ein Spielerschiff, das näher kommt, springt (wie <c>Main.GateRadius</c>).</summary>
+    public const float GateJumpRadius = 10f;
+
+    /// <summary>
+    /// Runde 25 (Gerätetest Kriegstest: „Route nach Vesta“ aus Beta flog über Delta): der Weg zum Vesta-Tor führte 3 m am Delta-Tor vorbei, das Schiff
+    /// sprang ungewollt — der Autopilot kam erst über Delta → Beta zurück. Für den Spieler-Autopiloten sind darum alle anderen Tore des Sektors Hindernisse
+    /// mit ihrem Sprungradius; ausgenommen das Zieltor und ein Tor, in dessen Radius das Schiff gerade steht (Ankunft nach einem Sprung).
+    /// NPC-Reisen bleiben unverändert (sie springen nur am geplanten Tor).
+    /// </summary>
+    public static IReadOnlyList<Obstacle> PlayerObstacles(Universe u, SectorId sector, Vec2 pos, GateId? goalGate)
+    {
+        var obs = u.GetObstacles(sector);
+        if (!u.Sectors.TryGetValue(sector, out var sec) || sec.Gates.Count == 0) return obs;
+        List<Obstacle>? list = null;
+        foreach (var gid in sec.Gates)
+        {
+            if (gid == goalGate || !u.Gates.TryGetValue(gid, out var g)) continue;
+            if (Vec2.Distance(pos, g.Position) <= GateJumpRadius + PathPlanner.Margin + Collision.ShipRadius + 2f) continue;
+            (list ??= new List<Obstacle>(obs)).Add(new Obstacle(g.Position, GateJumpRadius));
+        }
+        return list ?? obs;
     }
 
     /// <summary>Ein Umweg-Punkt näher als dies gilt als erreicht (der nächste wird angeflogen).</summary>
     public const float WaypointReached = 1.5f;
 
-    static Vec2 FirstWaypoint(Universe u, SectorId sector, Vec2 from, Vec2 to)
+    static Vec2 FirstWaypoint(Universe u, SectorId sector, Vec2 from, Vec2 to, GateId? goalGate)
     {
-        var pts = PathPlanner.Plan(from, to, u.GetObstacles(sector), PathPlanner.Margin + Collision.ShipRadius);
+        var pts = PathPlanner.Plan(from, to, PlayerObstacles(u, sector, from, goalGate), PathPlanner.Margin + Collision.ShipRadius);
         // Gerätetest Phase 28 (Autopilot kreiste vor dem HQ Alpha): liegt der nächste Umweg-Punkt schon auf der eigenen Position (das Schiff steht genau auf
         // einer Tangente), lieferte der Planer ihn immer wieder — der Autopilot stand still. Dann den folgenden Punkt nehmen.
         for (int i = 1; i < pts.Count; i++)
@@ -103,7 +126,7 @@ public sealed class PathFollower
             gate = route[0];
             goal = u.Gates[route[0]].Position;
         }
-        var obs = u.GetObstacles(sector);
+        var obs = Navigator.PlayerObstacles(u, sector, pos, gate);
         if (_pts is null || sector != _sector || Vec2.Distance(goal, _goal) > 0.5f) Plan(pos, goal, obs, sector);
         while (_idx < _pts!.Count - 1 && Vec2.Distance(pos, _pts[_idx]) <= Reach) { _idx++; _best = float.MaxValue; _stall = 0; }
         float d = Vec2.Distance(pos, _pts[_idx]);
@@ -128,7 +151,13 @@ public sealed class PathFollower
 
     void Plan(Vec2 pos, Vec2 goal, IReadOnlyList<Obstacle> obs, SectorId sector)
     {
-        _pts = PathPlanner.Plan(pos, goal, obs, PathPlanner.Margin + Collision.ShipRadius);
+        // Runde 25 (Selbsttest Stufe 79: Kreisen im dichten Felsfeld vor dem HQ Alpha): Zickzack glätten; läuft der Plan trotzdem durch Felsen (Umweg-Rekursion
+        // erschöpft), ein Ausweichweg über feste Ringpunkte
+        float m = PathPlanner.Margin + Collision.ShipRadius;
+        _pts = PathPlanner.Smooth(PathPlanner.Plan(pos, goal, obs, m), obs, m);
+        bool blocked = false;
+        for (int i = 1; i < _pts.Count && !blocked; i++) blocked = !PathPlanner.Clear(_pts[i - 1], _pts[i], obs, m);
+        if (blocked && PathPlanner.Detour(pos, goal, obs, m) is { } detour) _pts = detour;
         _idx = _pts.Count > 1 ? 1 : 0;
         _goal = goal; _sector = sector; _best = float.MaxValue; _stall = 0;
     }

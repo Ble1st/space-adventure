@@ -24,6 +24,16 @@ if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelO
 if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
+// Runde 25: Varianten für die Handelsmargen ohne Neubau — Exportgebot der Senken für Konsum-/Luxusgüter, Betriebskapitalanteil der Stationen
+if (opts.TryGetValue("exportbid", out var ebOpt))
+{
+    float eb = float.Parse(ebOpt, CultureInfo.InvariantCulture);
+    foreach (var t in worldDef.StationTypes)
+        if (t.Export?.Bids is { } bids)
+            foreach (var k in bids.Keys.ToList()) if (k is "consumer_goods" or "luxury_goods") bids[k] = eb;
+}
+if (opts.TryGetValue("sellcap", out var scOpt)) worldDef.Rules.ProducerPriceCapShare = float.Parse(scOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("wcshare", out var wcOpt)) worldDef.Rules.StationWorkingCapitalShare = float.Parse(wcOpt, CultureInfo.InvariantCulture);
 var u = WorldBuilder.Build(worldDef, seed);
 // Phase 21: Torliste (Id, von → nach, Zustand, Hauptroute) am Anfang, damit --gates nachvollziehbar ist; je Verbindung wird die kleinere Id genannt
 // (--gates schließt immer beide Enden). --gatelist on: zusätzlich je Verbindung, ob ihre Sperrung die Karte zerteilt (und welcher Teil abfällt), dann Ende.
@@ -294,6 +304,8 @@ u.Events.Raised += e =>
 // Phase 28 (Nacharbeit): --probe pleite — Verlauf jedes pleitegegangenen KI-Händlers (Bau, letzte Verkäufe mit Kasse danach, Abwürfe, Überfälle)
 bool probeBroke = opts.TryGetValue("probe", out var probeOpt) && probeOpt == "pleite";
 var tradeProbe = opts.TryGetValue("probe", out var tpOpt) && tpOpt == "spielerhandel" ? new PlayerTradeProbe() : null;
+var cashProbe = opts.TryGetValue("probe", out var cpOpt) && cpOpt == "kassen" ? new CashProbe() : null;   // Runde 25
+var hintProbe = opts.TryGetValue("probe", out var hpOpt) && hpOpt == "hinweis" ? new HintProbe() : null;   // Runde 25
 var probeLog = new Dictionary<int, List<string>>();
 var probeOut = new List<string>();
 void PLog(ShipId id, string text)
@@ -330,6 +342,7 @@ var peaceReasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var pirateIn = new SortedDictionary<string, double>(StringComparer.Ordinal);
 var pirateOut = new SortedDictionary<string, double>(StringComparer.Ordinal);
 int buysRefused = 0;   // Nacharbeit Phase 28: Einkäufe mit sicherem Verlust verweigert
+var refusedBy = new SortedDictionary<string, int>(StringComparer.Ordinal);   // Runde 25: nach Grund und KI/Spieler
 // Phase 30: Kleinstationen — gebaut (je Typ), abgebaut (ruhig), Abwehrgefechte, Schüsse der Stellungen, Kaufpreis
 var outpostsBuilt = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int outpostsCalm = 0, outpostFights = 0, outpostShots = 0;
@@ -351,7 +364,10 @@ u.Events.Raised += e =>
         case PeaceConcluded pc: peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1; break;
         case WarshipCommissioned: warshipsBought++; break;
         case WarshipDecommissioned: warshipsGone++; break;
-        case TraderBuyRefused: buysRefused++; break;
+        case TraderBuyRefused br:
+            buysRefused++;
+            { string who = u.Ships.TryGetValue(br.Ship, out var bs) && bs.IsPlayer ? "Spieler" : "KI"; refusedBy[$"{who} {br.Reason}"] = refusedBy.GetValueOrDefault($"{who} {br.Reason}") + 1; }
+            break;
         case TreasuryUpkeep tu when tu.Purpose == "navy": navyCost += tu.Amount; break;
         case OutpostBuilt ob: outpostsBuilt[ob.TypeKey] = outpostsBuilt.GetValueOrDefault(ob.TypeKey) + 1; outpostCost += ob.Cost; break;
         case OutpostEngaged: outpostFights++; break;
@@ -588,6 +604,8 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             runner.Run(u, step);
             done += step;
             if (tradeProbe is not null && u.Tick % PlayerTradeProbe.Every == 0) tradeProbe.Sample(u);   // Runde 23: --probe spielerhandel
+            if (cashProbe is not null && u.Tick % CashProbe.Every == 0) cashProbe.Sample(u);
+            if (hintProbe is not null && u.Tick % 20 == 0) hintProbe.Sample(u, u.Tick % HintProbe.Every == 0);
             if (u.Tick % 20000 == 0)   // Phase 24 (Korrektur): Piratenbestand und -kasse über die Zeit
             {
                 pirateTimeline.Add($"t{u.Tick / 1000}k {raids - raidsAtLastMark} Üf. " + string.Join(" ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value)
@@ -886,7 +904,7 @@ if (u.Modules.Count > 0)
         + $"Hülle fehlt jetzt (KI) {u.Ships.Values.Where(x => !x.IsPlayer).Sum(x => MathF.Max(0f, x.MaxHull - x.Hull)):0}");
     Console.WriteLine($"Hüllenzustand KI (Händler/Schürfer, Probe ab 10 %): mittlere Hüllenquote {(hullFracN > 0 ? hullFracSum / hullFracN : 1):0.000}, schwer beschädigt {(hullFracN > 0 ? 100.0 * hullSerious / hullFracN : 0):0.0} %, Reparaturflüge {repairTrips}");
     foreach (var line in probeOut) Console.WriteLine("SONDE " + line);
-    Console.WriteLine($"Händler-Einkäufe mit sicherem Verlust verweigert: {buysRefused}");
+    Console.WriteLine($"Händler-Einkäufe verweigert: {buysRefused}" + (refusedBy.Count > 0 ? " (" + string.Join(", ", refusedBy.Select(kv => $"{kv.Key} {kv.Value}")) + ")" : ""));
     Console.WriteLine($"Händlerpleiten und Reparatur: {brokeTraders} pleite, davon {brokeWithRepair} hatten repariert (zusammen {brokeRepairSum:0} Cr), {brokeDamaged} mit Hüllenschaden, {brokeFailed} mit ausgefallenem Modul");
     Console.WriteLine($"Wracks: {wrecksMade} entstanden + {containersMade} Frachtbehälter (Fracht {wreckCargoMade:0.#}, Module {wreckModulesMade}); geborgen Fracht {salvagedCargoNpc:0.#} (Kaperer) + {salvagedCargoPlayer:0.#} (Spieler), Module {salvagedModules}; "
         + $"verfallen {wrecksExpired} (Fracht {wreckCargoExpired:0.#}, Module {wreckModulesExpired}); jetzt {u.Wrecks.Count}");
@@ -1005,6 +1023,8 @@ foreach (var g in u.Goods.Values)
 }
 if (!bad) Console.WriteLine("Urteil: Preise im Zielbereich.");
 if (tradeProbe is not null) Console.WriteLine(tradeProbe.Report(seed, ticks));
+if (cashProbe is not null) Console.WriteLine(cashProbe.Report());
+if (hintProbe is not null) Console.WriteLine(hintProbe.Report());
 // Phase 10: zerfallende Karte (physisch oder für die freien Händler) ist ein eigener Befund mit eigenem Exit-Code
 bool splitBad = worstSplit is not null;
 if (worstSplit is not null)

@@ -21,6 +21,8 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { _message = ""; _msgOk = true; _scrollV = 0; }
 	public ShipyardScreen() => AreaId = DockAreas.Shipyard;
+	/// <summary>Runde 25 (Gerätetest f01: die Kaufmeldung stand beim nächsten Besuch noch da): beim Öffnen gilt nur die Erklärzeile.</summary>
+	protected override void OnOpen() { _message = ""; _msgOk = true; }
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton und übernimmt das neue Schiff.</summary>
 	public event Action<bool>? Executed;
