@@ -601,7 +601,8 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 GateAccess.SetState(u, u.Gates[new GateId(ge.Gate)], ge.State);
                 Console.WriteLine($"   Tor {ge.Gate} → {ge.State} bei Tick {u.Tick}");
             }
-            runner.Run(u, step);
+            if (hintProbe is null) runner.Run(u, step);
+            else for (int i = 0; i < step; i++) { runner.Run(u, 1); hintProbe.Observe(u); }   // Runde 28: Preisgedächtnis je Tick wie in der Sitzung
             done += step;
             if (tradeProbe is not null && u.Tick % PlayerTradeProbe.Every == 0) tradeProbe.Sample(u);   // Runde 23: --probe spielerhandel
             if (cashProbe is not null && u.Tick % CashProbe.Every == 0) cashProbe.Sample(u);

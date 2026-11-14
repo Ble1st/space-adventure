@@ -23,7 +23,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.trade";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
-	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 1f; _message = ""; _msgOk = true; _hint.Clear(); }
+	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 10f; _message = ""; _msgOk = true; _hint.Clear(); }
 	protected override bool ShowShip => true;
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
@@ -47,12 +47,14 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	bool _tiles;
 	GoodId? _expanded;       // aufgeklappte Zeile im Listenmodus
 	GoodId? _tileSel;        // gewählte Kachel im Kachelmodus
-	float _qty = 1f;         // Menge des Editors
+	float _qty = 10f;        // Menge des Editors (Runde 28: bleibt, wie eingestellt — auch beim Öffnen einer anderen Zeile)
 	string _message = "";
 	bool _msgOk = true;
 	ScrollContainer? _scroll;
 	readonly KitConfirm _confirm = new();   // Phase 18: „Abwerfen“ erst beim zweiten Tipp
-	internal readonly HintState _hint = new();   // Runde 26: gehaltener Abnehmer je Ware und Flugzeiten (Sitzung der Handelsansicht)
+	internal readonly HintState _hint = new();
+	/// <summary>Runde 28: letzter Druck auf eine Zeile/Kachel (Ware, Kachel?, Bildschirmposition) — überlebt Neuaufbauten.</summary>
+	(GoodId Good, bool Tile, Vector2 At)? _press;   // Runde 26: gehaltener Abnehmer je Ware und Flugzeiten (Sitzung der Handelsansicht)
 
 	public TradeScreen() => AreaId = DockAreas.Trade;
 
@@ -111,7 +113,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 				{
 					// Runde 23 (Handy-Test: Liste sprang beim Öffnen): die angetippte Zeile bleibt an ihrem Platz — klappt darüber eine andere zu, rollt die Liste nach
 					float before = RowTop(row.Good);
-					_expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row); _hint.Release();   // Runde 27: Zeile zu/auf = Abnehmer neu wählen
+					_expanded = open ? null : row.Good; if (!open) _qty = KeepQty(); _hint.Release();   // Runde 27: Zeile zu/auf = Abnehmer neu wählen
 					if (_scroll is KitScroll sk) { float delta = RowTop(row.Good) - before; if (MathF.Abs(delta) > 0.5f) sk.ScrollTo((int)MathF.Max(0f, sk.ScrollVertical + delta)); }
 					Invalidate(); if (!open) EnsureExpandedVisible();
 				};
@@ -135,8 +137,8 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			foreach (var row in _rows)
 			{
 				bool sel = _tileSel is { } g && g == row.Good;
-				var t = new TradeTile(row, sel);
-				t.Tapped += () => { _tileSel = sel ? null : row.Good; if (!sel) _qty = DefaultQty(row); Invalidate(); };
+				var t = new TradeTile(this, row, sel);
+				t.Tapped += () => { _tileSel = sel ? null : row.Good; if (!sel) _qty = KeepQty(); Invalidate(); };
 				grid.AddChild(t);
 			}
 			if (_tileSel is { } sg && _rows.FirstOrDefault(r => r.Good == sg) is { } selRow)
@@ -254,10 +256,20 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	public void TestOpenRow(GoodId good)
 	{
 		if (_rows.FirstOrDefault(r => r.Good == good) is not { } row) return;
-		_tiles = false; _tileSel = null; _expanded = good; _qty = DefaultQty(row);
+		_tiles = false; _tileSel = null; _expanded = good; _qty = KeepQty();
 		Invalidate();
 		EnsureExpandedVisible();
 	}
+	/// <summary>Runde 28, Selbsttest: aufgeklappte Ware (null = keine) und Bildschirmrechteck der Kopfzeile einer Ware.</summary>
+	public GoodId? TestExpanded => _expanded;
+	public Rect2 TestRowHead(GoodId good)
+	{
+		static TradeRow? Find(Node n, GoodId g) { foreach (var c in n.GetChildren()) { if (c is TradeRow r && r.Good == g && !r.IsQueuedForDeletion()) return r; if (Find(c, g) is { } f) return f; } return null; }
+		return Find(this, good) is { } row ? new Rect2(row.GlobalPosition, new Vector2(row.Size.X, 56f)) : default;
+	}
+	public System.Collections.Generic.List<GoodId> TestGoods => _rows.Select(r => r.Good).ToList();
+	/// <summary>Runde 28, Selbsttest: Neuaufbau wie bei einer Hangar-/Dock-Änderung.</summary>
+	public void TestInvalidate() => Invalidate();
 	/// <summary>Runde 27, Selbsttest: „Kaufen“ wie ein Tipp im Editor (mit der Preisprüfung).</summary>
 	public void TestBuyRow(GoodId good, float qty) { if (_rows.FirstOrDefault(r => r.Good == good) is { } row) Buy(row, qty); }
 	public string TestMessageText => _message;
@@ -298,7 +310,9 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		_rows.AddRange(byGood.Values.OrderBy(r => r.Good.Value));
 	}
 
-	static float DefaultQty(Row r) => Mathf.Clamp(Mathf.Max(1f, Mathf.Min(10f, r.Buy.Amount > 0f ? r.Buy.Amount : r.Held)), 1f, 999f);
+	// Runde 28 (Gerätetest: die Menge sprang beim Öffnen auf die bezahlbare 6 bzw. 3 statt der gewählten 10): die gewählte Menge bleibt; was davon wirklich
+	// kaufbar ist, sagt die Kaufzeile („— nur 6 bezahlbar“) und die Taste („6 kaufen“)
+	float KeepQty() => _qty >= 1f ? _qty : 10f;
 
 	/// <summary>Führt ein Angebot über den Dienst aus und zeigt die Ergebnismeldung an.</summary>
 	public ServiceResult Execute(string offer, float units)
@@ -359,7 +373,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	{
 		if (_rows.Count == 0) return;
 		_expanded = _rows[0].Good;
-		_qty = DefaultQty(_rows[0]);
+		_qty = KeepQty();
 		Invalidate();
 	}
 	/// <summary>Phase 16: baut die Zeilen neu auf (nach einem Stationswechsel im Test, wenn der Bereich schon offen ist).</summary>
@@ -368,7 +382,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	public void TestExpand(GoodId good)
 	{
 		if (_rows.FirstOrDefault(r => r.Good == good) is not { } row) return;
-		_tiles = false; _tileSel = null; _expanded = good; _qty = DefaultQty(row);
+		_tiles = false; _tileSel = null; _expanded = good; _qty = KeepQty();
 		Invalidate();
 	}
 	/// <summary>Schaltet zwischen Liste und Kacheln um (Screenshot).</summary>
@@ -376,7 +390,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	public void TestSelectFirstTile()
 	{
 		if (_rows.Count == 0) return;
-		_tiles = true; _tileSel = _rows[0].Good; _qty = DefaultQty(_rows[0]);
+		_tiles = true; _tileSel = _rows[0].Good; _qty = KeepQty();
 		Invalidate();
 	}
 	public string TestMessage => _message;
@@ -413,6 +427,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		readonly Row _row;
 		readonly bool _open;
 		public bool Open => _open;
+		public GoodId Good => _row.Good;
 		Editor? _editor;
 
 		public TradeRow(TradeScreen owner, Row row, bool open, float w)
@@ -453,14 +468,24 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			if (_owner.Ctx?.U is { } uu && uu.Tick != _drawnTick) { _drawnTick = uu.Tick; QueueRedraw(); }
 		}
 
+		// Runde 28 (Gerätetest: offene Zeile klappte von selbst zu, ein zweiter Tipp traf eine andere Zeile): ein Tipp zählt nur, wenn Drücken und Loslassen
+		// auf DERSELBEN WARE lagen und der Finger kaum wanderte. Der Druck wird im Bildschirm gemerkt (nicht im Knoten), damit ein Neuaufbau zwischen Drücken
+		// und Loslassen (Ticks, Hangar) den Tipp weder verschluckt noch einer fremden Zeile zuschreibt
 		public override void _GuiInput(InputEvent @event)
 		{
 			if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
-			if (!motion && !pressed && new Rect2(Vector2.Zero, new Vector2(Size.X, 56)).HasPoint(pos))
+			var head = new Rect2(Vector2.Zero, new Vector2(Size.X, 56));
+			var at = GetGlobalTransform() * pos;
+			if (motion) { if (_owner._press is { } p0 && p0.At.DistanceTo(at) > 14f) _owner._press = null; return; }
+			if (pressed) { _owner._press = head.HasPoint(pos) ? (_row.Good, false, at) : null; return; }
+			if (_owner._press is { } p && !p.Tile && p.Good == _row.Good && p.At.DistanceTo(at) <= 14f && head.HasPoint(pos) && !KitScroll.Dragging)
 			{
+				_owner._press = null;
 				Tapped?.Invoke();
 				AcceptEvent();
+				return;
 			}
+			_owner._press = null;
 		}
 
 		public override void _Draw()
@@ -509,9 +534,10 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		readonly Row _row;
 		readonly bool _sel;
 
-		public TradeTile(Row row, bool sel)
+		readonly TradeScreen _owner;
+		public TradeTile(TradeScreen owner, Row row, bool sel)
 		{
-			_row = row; _sel = sel;
+			_owner = owner; _row = row; _sel = sel;
 			MouseFilter = MouseFilterEnum.Stop;
 			CustomMinimumSize = new Vector2(214, 140);
 			Size = CustomMinimumSize;
@@ -520,7 +546,13 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		public override void _GuiInput(InputEvent @event)
 		{
 			if (!Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion)) return;
-			if (!motion && !pressed && new Rect2(Vector2.Zero, Size).HasPoint(pos)) { Tapped?.Invoke(); AcceptEvent(); }
+			// Runde 28: wie die Zeile — nur ein Tipp, der auf dieser Kachel begann
+			var at = GetGlobalTransform() * pos;
+			if (motion) { if (_owner._press is { } p0 && p0.At.DistanceTo(at) > 14f) _owner._press = null; return; }
+			if (pressed) { _owner._press = new Rect2(Vector2.Zero, Size).HasPoint(pos) ? (_row.Good, true, at) : null; return; }
+			if (_owner._press is { } p && p.Tile && p.Good == _row.Good && p.At.DistanceTo(at) <= 14f && new Rect2(Vector2.Zero, Size).HasPoint(pos) && !KitScroll.Dragging)
+			{ _owner._press = null; Tapped?.Invoke(); AcceptEvent(); return; }
+			_owner._press = null;
 		}
 
 		public override void _Draw()
@@ -580,7 +612,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			minus.Pressed += () => SetQty(_qty - 1f);
 			plus.Pressed += () => SetQty(_qty + 1f);
 			max.Pressed += () => SetQty(Mathf.Max(_row.Buy.Amount, _row.Held));
-			_buyBtn.Pressed += () => Buy?.Invoke(_qty);
+			_buyBtn.Pressed += () => Buy?.Invoke(MathF.Min(_qty, MathF.Max(1f, MathF.Floor(_row.Buy.Amount))));   // Runde 28: nie stillschweigend weniger — die Taste sagt „6 kaufen“
 			_sellBtn.Pressed += () => Sell?.Invoke(_qty);
 			// Phase 18: Abwerfen neben dem Grund, wenn die Station die Ware an Bord nicht (ganz) nimmt — erst beim zweiten Tipp (KitConfirm)
 			if (ShowDrop(row))
@@ -609,6 +641,9 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		void RefreshButtons()
 		{
 			_buyBtn.State = _row.Buy.Amount >= 1f && _qty >= 1f ? KitButtonState.Ready : KitButtonState.Disabled;
+			// Runde 28: ist die gewählte Menge nicht ganz kaufbar, nennt die Taste die Menge, die sie wirklich kauft
+			float can = MathF.Floor(_row.Buy.Amount);
+			_buyBtn.Text = can >= 1f && can < _qty ? $"{can:0} kaufen" : "Kaufen";
 			// Phase 16: deaktiviert, wenn die Station nichts annimmt (Grund steht in der Zeile)
 			_sellBtn.State = CanSell(_row) && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
 		}
@@ -636,8 +671,11 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			var u = ctx.U; var st = ctx.Station; var ship = ctx.Ship;
 			float price = st.Market.TryGetValue(row.Good, out var e) ? e.Price : row.Price;
 			// Kaufseite: was abgebucht wird — oder der Grund, warum „Kaufen“ aus ist (immer aus dem Angebot)
+			// Runde 28: die gewählte Menge bleibt; kann nur ein Teil gekauft werden, sagt die Zeile wie viel und warum
+			float canBuy = MathF.Floor(row.Buy.Amount);
 			string buy = row.HasBuy && row.Buy.Amount >= 1f
-				? $"Kauf {MathF.Min(qty, MathF.Floor(row.Buy.Amount)):0} × {price:0.0} = {MathF.Min(qty, MathF.Floor(row.Buy.Amount)) * price:0} Cr"
+				? (canBuy < qty ? Pick(14, $"Kauf {qty:0} × {price:0.0} = {qty * price:0} Cr — nur {canBuy:0} {LimitText(u, st, ship, row, price)}", $"Kauf {qty:0} × {price:0.0} — nur {canBuy:0} {LimitText(u, st, ship, row, price)}")
+					: $"Kauf {qty:0} × {price:0.0} = {qty * price:0} Cr")
 				: $"Kaufen: {BuyReason(u, st, ship, row)}";
 			// Verkaufsseite: was ein Verkauf wirklich brächte (Angebotsmenge × Preis), 0 wenn die Station nichts nimmt
 			string sell = row.Held > 0f ? (row.Sell.Amount > 0f ? $" · Verkauf hier {MathF.Min(qty, row.Sell.Amount) * price:0} Cr" : " · Verkauf hier —") : "";
@@ -646,6 +684,8 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			float q = buying ? MathF.Max(1f, qty) : MathF.Max(row.Held, qty);
 			// Runde 27: Rangfolge nach dem schlechten Fall (Menge × niedrigster zuletzt gesehener Preis), bei Gleichstand der heutige Preis. Bei offenem Editor
 			// bleibt der einmal genannte Abnehmer, bis die Zeile geschlossen oder die Menge geändert wird (vorher wechselte er bei springenden Preisen alle ~5 s)
+			// Runde 28: ohne Kauf und ohne Ware an Bord (z. B. Exportsenke „Nur Ankauf“) gibt es keine Abnehmerzeile
+			if (!buying && row.Held <= 0f) return (buy + sell, "", "", null, default);
 			var list = MarketInfo.HonestBuyers(u, row.Good, q, ship.Sector, ship.Position, st.Id, ship.Id, ctx.Prices);
 			BuyerQuote? best = list.Count > 0 ? list[0] : null;
 			if (hint?.HeldFor(st.Id, row.Good, q) is { } held)
@@ -664,7 +704,11 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 				float secs = hint?.Seconds(u, ship, b.Station) ?? float.NaN;
 				string time = float.IsNaN(secs) ? "" : ", Flug " + SpaceSim.Core.Flight.PlayerTrip.Text(secs).Replace(" min", "");
 				// Runde 27: kein „bei Ankunft“ mehr — heute und der Bereich der letzten Minuten
-				string range = b.HasHistory ? $"zuletzt {b.Price:0.0}–{b.PriceHigh:0.0}" : "zuletzt –";
+				// Runde 28 (Gerätetest cg3/cg4: „zuletzt 121,6–155,3“ → direkt nach dem Kauf „zuletzt 74,0–157,0“): der untere Wert war der schlechte Fall, also auch
+				// der Preis nach den Lieferungen, die andere Händler gerade bringen (ein Händler hatte eben 100 Einheiten für die Kolonie geladen) — jetzt getrennt
+				string range = !b.HasHistory ? "zuletzt –" : MathF.Abs(b.PriceHigh - b.HistoryLow) < 0.05f ? $"zuletzt stabil {b.HistoryLow:0.0}" : $"zuletzt {b.HistoryLow:0.0}–{b.PriceHigh:0.0}";
+				if (b.Incoming >= 0.5f && b.PriceArrival < MathF.Min(b.PriceNow, b.HasHistory ? b.HistoryLow : b.PriceNow) - 0.05f)
+					range += $" · andere bringen {b.Incoming:0} → etwa {b.PriceArrival:0.0}";
 				string name = b.Station.Name, nameShort = name.Length > 18 ? name[..17] + "…" : name;
 				l2 = Pick(14, $"Abnehmer: {name} ({sec}, {b.Jumps} Spr.{time}) zahlt jetzt {b.PriceNow:0.0} · {range} · nimmt {b.Units:0.#}",
 					$"{name} ({sec}{time}): jetzt {b.PriceNow:0.0} · {range} · nimmt {b.Units:0.#}",
@@ -681,6 +725,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 					l3 = b.Units < units - 0.001f ? Pick(13, $"Verlust: Abnehmer nimmt nur {b.Units:0.#} von {units:0}", $"nimmt nur {b.Units:0.#}/{units:0}")
 						: v == TripVerdict.Good ? Pick(13, $"{head}Lohnt sich auch im schlechten Fall: mind. +{worst:0} Cr", $"Lohnt sich im schlechten Fall: mind. +{worst:0} Cr")
 						: v == TripVerdict.Loss ? Pick(13, $"{head}Verlust: etwa −{-today:0} Cr", $"Verlust: etwa −{-today:0} Cr")
+						: MathF.Abs(today - worst) < 0.5f ? Pick(13, $"{head}Riskant: etwa {today:+0;−0;0} Cr" + (b.HasHistory ? "" : " (noch kein Verlauf)"), $"Riskant: etwa {today:+0;−0;0} Cr")
 						: Pick(13, $"{head}Riskant: zwischen {worst:+0;−0;0} und {today:+0;−0;0} Cr" + (b.HasHistory ? "" : " (noch kein Verlauf)"),
 							$"Riskant: {worst:+0;−0;0} bis {today:+0;−0;0} Cr");
 				}
@@ -688,6 +733,15 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			if (row.Sell.Note is { } note && row.Held > 0f)
 				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}");
 			return (buy + sell, l2, l3, verdict, best?.Station.Id ?? default);
+		}
+
+		/// <summary>Runde 28: was die kaufbare Menge begrenzt — Geld, Lager der Station oder Laderaum.</summary>
+		static string LimitText(Universe u, Station st, Ship ship, Row row, float price)
+		{
+			float cash = price > 0f ? MathF.Floor(u.WalletOf(ship).Credits / price) : float.MaxValue;
+			float stock = st.Market.TryGetValue(row.Good, out var e) ? MathF.Floor(e.Amount) : 0f;
+			float room = MathF.Floor(ship.FreeUnits(u, row.Good));
+			return cash <= stock && cash <= room ? "bezahlbar" : stock <= room ? "auf Lager" : "passen in den Laderaum";
 		}
 
 		/// <summary>Runde 23: Grund für ein abgeblendetes „Kaufen“ aus dem Angebot (Exportsenke, Fahndung, Lager leer, Geld, Laderaum).</summary>

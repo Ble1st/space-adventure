@@ -2252,7 +2252,7 @@ public partial class SelfTest : Node
 					Check(trade.TestQty == _p28Max - 1f && trade.TestEditorQtyText == $"{_p28Max - 1f:0.#}", $"„−“, „−“, „+“ wirken je Tipp ({trade.TestQty} / „{trade.TestEditorQtyText}“, erwartet {_p28Max - 1f})");
 					_p28Cargo = uni.Ships[uni.PlayerShip].Cargo.GetValueOrDefault(energy);
 					_p28Buyable = SpaceSim.Core.Trading.TradeActions.MaxBuyable(uni, uni.Ships[uni.PlayerShip], uni.Stations[_m.HudRef.DockCtx.Station.Id], energy);
-					PressButton(trade, "Kaufen", true);
+					PressButton(trade, BuyLabel(trade), true);
 					break;
 				}
 				if (f == 26) { trade.Refresh(); break; }
@@ -2669,7 +2669,8 @@ public partial class SelfTest : Node
 			case 102: if (ChainStage(_frame - _stageStart)) Next(); break;   // Handelskette über den Handelsbildschirm (SelfTest.Chain.cs)
 			case 103: if (Round23Stage(_frame - _stageStart)) Next(); break;   // Runde 23: Handels-Editor (Gründe, ehrlicher Abnehmer), Dock-Menü, Taxi, Angriffstaste (SelfTest.Round23.cs)
 			case 104: if (FleetStage(_frame - _stageStart)) Next(); break;   // Flottentest über echte Tipps (SelfTest.Fleet.cs)
-			case 105: if (Round27Stage(_frame - _stageStart)) Next(); break;   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
+			case 105: if (Round27Stage(_frame - _stageStart)) Next(); break;
+			case 106: if (Round28Stage(_frame - _stageStart)) Next(); break;   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -2731,6 +2732,8 @@ public partial class SelfTest : Node
 		else Fail($"Taste „{label}“ nicht gefunden (Bildschirm {_m.HudRef.Screens.Current?.Id ?? "-"}; Tasten {string.Join(",", Buttons(root).Where(b => b.IsVisibleInTree()).Select(b => b.Text))}; alle {string.Join(",", Buttons(root).Select(b => b.Text))}; wischt {Ui.Kit.KitScroll.Dragging}, gedrückt {Ui.Kit.KitButton.AnyHeld}, Zeilen {_m.HudRef.DockTrade.TestRowCount}, Station {_m.HudRef.DockCtx.Station?.Name}, gleiche Welt {ReferenceEquals(_m.HudRef.DockCtx.U, _m.Session.U)}, Meldung {_m.HudRef.DockTrade.TestMessage})");
 	}
 	Vector2? _p28Press;
+	/// <summary>Runde 28: Beschriftung der Kauftaste im Handels-Editor — „Kaufen“ oder „n kaufen“, wenn die gewählte Menge nicht ganz kaufbar ist.</summary>
+	static string BuyLabel(Node root) => Buttons(root).FirstOrDefault(b => (b.Text == "Kaufen" || b.Text.EndsWith(" kaufen")) && b.IsVisibleInTree())?.Text ?? "Kaufen";
 	bool _p30Engage = true;
 	static IEnumerable<Ui.Kit.KitButton> Buttons(Node root)
 	{

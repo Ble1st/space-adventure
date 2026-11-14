@@ -54,7 +54,7 @@ public partial class SelfTest
 				return false;
 			}
 			case 411: trade.TestExpand(_chSteel); return false;
-			case 413: _chHeld = me.Cargo.GetValueOrDefault(_chSteel); PressButton(trade, "Kaufen", true); return false;
+			case 413: _chHeld = me.Cargo.GetValueOrDefault(_chSteel); PressButton(trade, BuyLabel(trade), true); return false;
 			case 414: PressButton(trade, "Kaufen", false); return false;
 			case 416:
 				Check(me.Cargo.GetValueOrDefault(_chSteel) > _chHeld, $"Stahl beim Stahlwerk gekauft ({trade.TestMessage})");
@@ -81,7 +81,7 @@ public partial class SelfTest
 				return false;
 			}
 			case 429: trade.TestExpand(_chFood); return false;
-			case 431: _chHeld = me.Cargo.GetValueOrDefault(_chFood); PressButton(trade, "Kaufen", true); return false;
+			case 431: _chHeld = me.Cargo.GetValueOrDefault(_chFood); PressButton(trade, BuyLabel(trade), true); return false;
 			case 432: PressButton(trade, "Kaufen", false); return false;
 			case 434:
 			{

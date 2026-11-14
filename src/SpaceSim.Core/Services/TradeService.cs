@@ -92,8 +92,9 @@ public sealed class TradeService : IStationService
                 float want = request.Units > 0f ? request.Units : MathF.Max(1f, TradeActions.MaxBuyable(u, ship, station, good));
                 var r = TradeActions.Buy(u, ship, station, good, want);
                 if (r.Units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Buy, good, r.Units, -r.Cost));
-                // Runde 26 (Gerätetest: 53 statt angezeigter 56 Cr gebucht — der Preis fällt im Takt der Ticks): die Meldung nennt den gebuchten Betrag
-                return new ServiceResult(r.Units > 0f, r.Units, -r.Cost, r.Units > 0f ? $"Gekauft {r.Units:0.#} × {r.Cost / r.Units:0.0} = {r.Cost:0} Cr" : OutcomeText(r.Outcome));
+                // Runde 26 (Gerätetest: 53 statt angezeigter 56 Cr gebucht — der Preis fällt im Takt der Ticks): die Meldung nennt den gebuchten Betrag;
+                // Runde 28: mit Nachkommastelle (101,5 statt gerundet 101 bei 102 Cr weniger in der Kasse)
+                return new ServiceResult(r.Units > 0f, r.Units, -r.Cost, r.Units > 0f ? $"Gekauft {r.Units:0.#} × {r.Cost / r.Units:0.0#} = {r.Cost:0.#} Cr" : OutcomeText(r.Outcome));
             }
             case Sell:
             {
@@ -101,7 +102,7 @@ public sealed class TradeService : IStationService
                 var r = TradeActions.Sell(u, ship, station, good, want);
                 float units = r.Sold.GetValueOrDefault(good);
                 if (units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Sell, good, units, r.Revenue));
-                return new ServiceResult(units > 0f, units, r.Revenue, units > 0f ? $"Verkauft {units:0.#} × {r.Revenue / units:0.0} = {r.Revenue:0} Cr" : SellFailure(u, station, ship, good));
+                return new ServiceResult(units > 0f, units, r.Revenue, units > 0f ? $"Verkauft {units:0.#} × {r.Revenue / units:0.0#} = {r.Revenue:0.#} Cr" : SellFailure(u, station, ship, good));
             }
             case SellAll:
             {

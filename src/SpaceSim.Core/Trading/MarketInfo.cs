@@ -186,7 +186,7 @@ public static class MarketInfo
         float lo = MathF.Min(arrival, range?.Lo ?? arrival);
         float hi = MathF.Max(e.Price, range?.Hi ?? e.Price);
         return new BuyerQuote(st, lo, units, units * lo, incoming, route.Count, ticks, e.Price, arrival,
-            st.Credits / MathF.Max(0.01f, e.Price * units), accept / MathF.Max(0.01f, units), hi, range is { Enough: true });
+            st.Credits / MathF.Max(0.01f, e.Price * units), accept / MathF.Max(0.01f, units), hi, range is { Enough: true }, range?.Lo ?? 0f);
     }
 
     /// <summary>Runde 26: so viel mal die Ladung muss die Annahme des Abnehmers decken, sonst kein „grün“.</summary>
@@ -252,9 +252,10 @@ public static class MarketInfo
 /// <param name="Price">Runde 25: erwarteter Stückpreis bei Ankunft (<see cref="MarketInfo.ArrivalPrice"/>); <paramref name="PriceNow"/> = heutiger Preis.</param>
 /// <param name="PriceArrival">Runde 26: Preis bei Ankunft nach der Bestandsformel. <paramref name="Price"/> ist seit Runde 27 der schlechte Fall: der niedrigste
 /// zuletzt gesehene Preis (höchstens der Ankunftspreis), <paramref name="PriceHigh"/> der höchste; <paramref name="HasHistory"/> = Verlauf reicht.
-/// <paramref name="CashCover"/>/<paramref name="AcceptCover"/>: wie oft Kasse bzw. Annahme die Ladung decken.</param>
+/// <paramref name="CashCover"/>/<paramref name="AcceptCover"/>: wie oft Kasse bzw. Annahme die Ladung decken. <paramref name="HistoryLow"/> (Runde 28): niedrigster
+/// Preis des Fensters allein (0 = kein Verlauf) — liegt <paramref name="Price"/> darunter, bringen andere Händler gerade Ware (<paramref name="Incoming"/>).</param>
 public readonly record struct BuyerQuote(Station Station, float Price, float Units, float Revenue, float Incoming, int Jumps, float TravelTicks, float PriceNow = 0f,
-    float PriceArrival = 0f, float CashCover = 0f, float AcceptCover = 0f, float PriceHigh = 0f, bool HasHistory = false);
+    float PriceArrival = 0f, float CashCover = 0f, float AcceptCover = 0f, float PriceHigh = 0f, bool HasHistory = false, float HistoryLow = 0f);
 
 /// <summary>Runde 26: Ampel der Abnehmer-Auskunft (siehe <see cref="MarketInfo.Verdict"/>).</summary>
 public enum TripVerdict { Good, Unsure, Loss }

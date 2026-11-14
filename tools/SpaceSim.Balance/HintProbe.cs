@@ -59,9 +59,10 @@ sealed class HintProbe
             }
     }
 
+    public void Observe(Universe u) => _mem.Observe(u);
+
     public void Sample(Universe u)
     {
-        _mem.Observe(u);
         if (u.Tick % 240 == 0) Jumps(u);
         for (int i = _open.Count - 1; i >= 0; i--)
         {

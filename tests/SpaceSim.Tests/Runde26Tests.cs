@@ -18,9 +18,10 @@ public class Runde26Tests
         return u;
     }
 
-    /// <summary>Runde 27: Preisgedächtnis — Bereich der letzten 1200 Ticks (ein Messpunkt alle 20 Ticks), Verlauf reicht ab 600 Ticks; neues Universum leer.</summary>
+    /// <summary>Runde 27/28: Preisgedächtnis — Bereich der letzten 1200 Ticks, jeder Tick zählt (auch ein kurzes Tal zwischen zwei 20-Tick-Stützstellen), Verlauf
+    /// erst mit einem vollen Fenster; neues Universum leer.</summary>
     [Fact]
-    public void Preisgedaechtnis_BereichDerLetztenMinuten()
+    public void Preisgedaechtnis_BereichDerLetztenMinuten_JederTick()
     {
         var u = World();
         var mem = new PriceMemory();
@@ -30,13 +31,12 @@ public class Runde26Tests
         float p0 = e.Price;
         var r0 = mem.Range(st.Id, gid, u.Tick)!.Value;
         Assert.Equal(p0, r0.Lo); Assert.Equal(p0, r0.Hi); Assert.False(r0.Enough);
-        e.Price = p0 * 3f;
-        u.Tick += 10; mem.Observe(u);
-        Assert.Equal(p0, mem.Range(st.Id, gid, u.Tick)!.Value.Hi);   // noch kein neuer Messpunkt
-        u.Tick += 10; mem.Observe(u);
+        // ein Tal von einem Tick mitten in einem 20-Tick-Abschnitt
+        u.Tick++; e.Price = p0 * 0.5f; mem.Observe(u);
+        u.Tick++; e.Price = p0 * 3f; mem.Observe(u);
         var r1 = mem.Range(st.Id, gid, u.Tick)!.Value;
-        Assert.Equal(p0, r1.Lo); Assert.Equal(3f * p0, r1.Hi, 3);
-        for (int i = 0; i < 70; i++) { u.Tick += 20; mem.Observe(u); }   // 1400 Ticks später: der alte Preis fiel aus dem Fenster
+        Assert.Equal(0.5f * p0, r1.Lo, 3); Assert.Equal(3f * p0, r1.Hi, 3);
+        for (int i = 0; i < 1300; i++) { u.Tick++; mem.Observe(u); }   // das Tal fiel aus dem Fenster
         var r2 = mem.Range(st.Id, gid, u.Tick)!.Value;
         Assert.Equal(3f * p0, r2.Lo, 3); Assert.True(r2.Enough);
         mem.Observe(World());
@@ -111,7 +111,7 @@ public class Runde26Tests
         var r = new TradeService().Execute(u, st, p, new ServiceRequest($"buy:{gid.Value}", default, 2f));
         Assert.True(r.Success, r.Message);
         Assert.StartsWith("Gekauft 2 × ", r.Message);
-        Assert.EndsWith($"= {-r.Credits:0} Cr", r.Message);
+        Assert.EndsWith($"= {-r.Credits:0.#} Cr", r.Message);
     }
 
     /// <summary>Navigator: die Hindernisliste mit Toren wird je Tick zwischengespeichert (dieselbe Liste), ändert sich mit dem Tick.</summary>
