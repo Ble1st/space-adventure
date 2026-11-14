@@ -155,6 +155,7 @@ public class Runde30Tests
         var r = TradeActions.Buy(u, p, st, g, 2f);
         float paid = r.Cost / r.Units;
         Assert.NotNull(PlayerLedger.Post(u, st, g));
+        p.Cargo.Clear();     // Runde 31: der Spieler hält die Ware nicht mehr (anderswo verkauft) — sonst bleibt der Posten für die gehaltene Menge
         e.Amount = before;   // NPC füllt auf
         new SimulationRunner().Run(u, 1);
         Assert.Null(PlayerLedger.Post(u, st, g));

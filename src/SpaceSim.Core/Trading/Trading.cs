@@ -4,12 +4,14 @@ using SpaceSim.Core.Simulation;
 
 namespace SpaceSim.Core.Trading;
 
-public sealed record SaleResult(float Revenue, IReadOnlyDictionary<GoodId, float> Sold, float Unsold);
+/// <param name="Capped">Runde 31: davon zum Rückkaufpreis <paramref name="CapPrice"/> gerechnete Einheiten (PlayerLedger).</param>
+public sealed record SaleResult(float Revenue, IReadOnlyDictionary<GoodId, float> Sold, float Unsold, float Capped = 0f, float CapPrice = 0f);
 
 public enum BuyOutcome { Ok, NotSold, OutOfStock, NoCredits, NoSpace }
 
 /// <summary>Ergebnis eines Einkaufs: tatsächlich gekaufte Einheiten und Kosten; Outcome nennt den begrenzenden Grund, wenn weniger als gewünscht gekauft wurde.</summary>
-public sealed record BuyResult(float Units, float Cost, BuyOutcome Outcome);
+/// <param name="Floored">Runde 31: davon zum Rückkaufpreis <paramref name="FloorPrice"/> gerechnete Einheiten (PlayerLedger).</param>
+public sealed record BuyResult(float Units, float Cost, BuyOutcome Outcome, float Floored = 0f, float FloorPrice = 0f);
 
 /// <summary>Verkauf der Fracht eines Schiffs an eine Station (Spieler und Automatik). Gleiche Regeln wie für NPC-Händler.
 /// Geld bucht auf die Kasse des Schiffs (<see cref="Universe.WalletOf(Ship)"/>): Spieler → Spielerkasse, NPC → Schiff.</summary>
@@ -66,7 +68,7 @@ public static class TradeActions
     /// </summary>
     public static SaleResult SellAll(Universe u, Ship ship, Station station)
     {
-        float revenue = 0f;
+        float revenue = 0f, capped = 0f;
         var sold = new Dictionary<GoodId, float>();
         if (Refusal(u, ship, station) is not null) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());   // Phase 25: gesucht → kein Handel
         var wallet = u.WalletOf(ship);
@@ -80,12 +82,9 @@ public static class TradeActions
             var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
             float units = SaleUnits(have, have, cap, allCap);
             if (units <= 0f) continue;
-            float pay = PlayerLedger.SaleValue(u, ship, station, good, units, entry.Price).Revenue;   // Runde 30: Rückkaufdeckel
-            float stockBefore = entry.Amount;
-            entry.Amount += units;
-            station.Credits -= pay;
-            wallet.Credits += pay;
-            PlayerLedger.OnSold(u, ship, station, good, units, entry.Price, stockBefore);
+            var bk = PlayerLedger.BookSale(u, ship, station, good, units, wallet);   // Runde 30/31: Rückkaufdeckel über die eine Buchung
+            float pay = bk.Money;
+            capped += bk.Ledgered;
             if (have - units <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - units;
             revenue += pay;
             sold[good] = units;
@@ -94,7 +93,7 @@ public static class TradeActions
             if (station.IsBuildSite) ConstructionRules.OnDelivered(u, station, ship, good, units, ship.IsPlayer ? "player" : "trader");
             ExportRules.OnDelivered(u, station, good, units, pay);   // Phase 14: Exportsenke
         }
-        return new SaleResult(revenue, sold, ship.Cargo.Values.Sum());
+        return new SaleResult(revenue, sold, ship.Cargo.Values.Sum(), capped);
     }
 
     /// <summary>Kauft bis zu <paramref name="units"/> Einheiten einer Ware zum Stationspreis. Phase 14: Exportwaren einer Exportsenke sind reiner Ankauf (nicht käuflich). Begrenzt durch Lagerbestand, Credits und Laderaum; die Station behält nichts zurück, was sie nicht liefern kann.</summary>
@@ -109,16 +108,12 @@ public static class TradeActions
         float n = MathF.Min(MathF.Min(MathF.Floor(units), stock), MathF.Min(afford, space));
         if (n <= 0f)
             return new BuyResult(0f, 0f, stock <= 0f ? BuyOutcome.OutOfStock : afford <= 0f ? BuyOutcome.NoCredits : BuyOutcome.NoSpace);
-        float cost = PlayerLedger.BuyCost(u, ship, station, good, n, e.Price).Cost;
-        float before = e.Amount;
-        e.Amount -= n;
-        station.Credits += cost;
-        wallet.Credits -= cost;
+        var bk = PlayerLedger.BookBuy(u, ship, station, good, n, wallet);   // Runde 30/31: Rückkaufdeckel über die eine Buchung
+        float cost = bk.Money;
         ship.Cargo[good] = ship.Cargo.GetValueOrDefault(good) + n;
-        PlayerLedger.OnBought(u, ship, station, good, n, e.Price, before);
         if (ship.IsPlayer) u.Events.Publish(new PlayerBought(ship.Id, station.Id, good, n, cost));
         var outcome = n < MathF.Floor(units) ? (n == stock ? BuyOutcome.OutOfStock : n == afford ? BuyOutcome.NoCredits : BuyOutcome.NoSpace) : BuyOutcome.Ok;
-        return new BuyResult(n, cost, outcome);
+        return new BuyResult(n, cost, outcome, bk.Ledgered, bk.LedgerPrice);
     }
 
     /// <summary>Höchstmenge, die <see cref="Buy"/> für diese Ware jetzt liefern würde.</summary>
@@ -153,18 +148,14 @@ public static class TradeActions
         var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
         float n = SaleUnits(have, units, cap, allCap);
         if (n <= 0f) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
-        float pay = PlayerLedger.SaleValue(u, ship, station, good, n, e.Price).Revenue;   // Runde 30: Rückkaufdeckel
-        float stockBefore = e.Amount;
-        e.Amount += n;
-        station.Credits -= pay;
-        u.WalletOf(ship).Credits += pay;
-        PlayerLedger.OnSold(u, ship, station, good, n, e.Price, stockBefore);
+        var bs = PlayerLedger.BookSale(u, ship, station, good, n, u.WalletOf(ship));   // Runde 30/31: Rückkaufdeckel über die eine Buchung
+        float pay = bs.Money;
         if (have - n <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - n;
         sold[good] = n;
         if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, n, pay));
         if (station.IsBuildSite) ConstructionRules.OnDelivered(u, station, ship, good, n, ship.IsPlayer ? "player" : "trader");
         ExportRules.OnDelivered(u, station, good, n, pay);   // Phase 14: Exportsenke
-        return new SaleResult(pay, sold, ship.Cargo.Values.Sum());
+        return new SaleResult(pay, sold, ship.Cargo.Values.Sum(), bs.Ledgered, bs.LedgerPrice);
     }
 
     /// <summary>

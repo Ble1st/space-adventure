@@ -27,7 +27,7 @@ public static class AudioSettings
 		EnsureBus(EffectsBus);
 		// Selbsttest/UI-Bilder: eigene, frische Datei — die echten Einstellungen bleiben unberührt
 		foreach (var a in OS.GetCmdlineUserArgs())
-			if (a == "--selftest" || a == "--ui-shots") { Path = "user://settings-test.cfg"; DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(Path)); break; }
+			if (a == "--selftest" || a == "--ui-shots" || a == "--ui-check") { Path = "user://settings-test.cfg"; DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(Path)); break; }
 		var cfg = new ConfigFile();
 		if (cfg.Load(Path) == Error.Ok)
 		{
@@ -76,6 +76,7 @@ public static class AudioSettings
 	{
 		Apply();
 		var cfg = new ConfigFile();
+		cfg.Load(Path);   // Runde 31: andere Abschnitte (UI-Größe) bleiben erhalten
 		cfg.SetValue("audio", "music_volume", MusicVolume);
 		cfg.SetValue("audio", "effects_volume", EffectsVolume);
 		cfg.SetValue("audio", "music_muted", MusicMuted);

@@ -35,16 +35,18 @@ public partial class CommandMenu : Control, IScreen
 		("Musik", "an/aus (Lautstärke: System)", "music_mute"),   // Runde 12
 		("Effekte", "an/aus (Lautstärke: System)", "effects_mute"),
 		("Kamera-Diagnose", "Zeile für den Gerätetest", "cam_debug"),   // Runde 16
+		("UI-Größe", "klein / normal / groß", "ui_size"),   // Runde 31
 	};
 
 	readonly KitWindow _win;
 	KitButton _free = null!, _lock = null!, _invert = null!;
-	KitButton? _emergency, _music, _effects;
+	KitButton? _emergency, _music, _effects, _uiSize;
 
 	/// <summary>Runde 12: Anzeige der Ton-Schalter (stumm = normal, an = grün).</summary>
 	public void SetAudioState()
 	{
 		if (_music is not null) { _music.Text = SpaceAdventure.Audio.AudioSettings.MusicText; _music.State = SpaceAdventure.Audio.AudioSettings.MusicMuted ? KitButtonState.Normal : KitButtonState.On; }
+		if (_uiSize is not null) _uiSize.Text = UiScale.Text;   // Runde 31
 		if (_effects is not null) { _effects.Text = SpaceAdventure.Audio.AudioSettings.EffectsText; _effects.State = SpaceAdventure.Audio.AudioSettings.EffectsMuted ? KitButtonState.Normal : KitButtonState.On; }
 	}
 
@@ -119,6 +121,7 @@ public partial class CommandMenu : Control, IScreen
 			if (k == "emergency") _emergency = b;
 			if (k == "music_mute") _music = b;
 			if (k == "effects_mute") _effects = b;
+			if (k == "ui_size") _uiSize = b;
 			row.AddChild(b);
 		}
 		scroll.AddChild(list);

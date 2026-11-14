@@ -39,6 +39,7 @@ public static class PlayerLedger
     {
         if (u.Ledger.Count == 0) return;
         List<(int, int, int)>? gone = null;
+        Dictionary<int, float>? aboard = null;   // je Ware: was die Schiffe des Spieler-Akteurs an Bord haben (einmal je Aufruf)
         foreach (var (k, p) in u.Ledger)
         {
             float amount = u.Stations.TryGetValue(new StationId(k.Item2), out var st) && st.Market.TryGetValue(new GoodId(k.Item3), out var e) ? e.Amount : float.NaN;
@@ -49,12 +50,28 @@ public static class PlayerLedger
                 // (Elektronikfabrik Beta: Kupfer 20,6 bei Bestand 170, einen Tick später 50,0 bei 250). Darum zusätzlich: der Markt zahlt nicht mehr als den
                 // Kaufpreis bzw. verlangt nicht weniger als den Verkaufspreis — erst dann ist der Deckel ohnehin wirkungslos
                 float price = u.Stations[new StationId(k.Item2)].Market[new GoodId(k.Item3)].Price;
-                if (p.BoughtQty > 0f && amount >= p.BoughtStockBefore - 0.0001f && price <= p.BoughtPrice + 0.0001f) p.BoughtQty = 0f;
+                if (p.BoughtQty > 0f && amount >= p.BoughtStockBefore - 0.0001f && price <= p.BoughtPrice + 0.0001f)
+                {
+                    // Runde 31 (Prüfung: 74 Konsumgüter gekauft, Posten verfiel während des Wartens, 26 nachgekauft → 74 ungedeckelt zu 280, +6 627 Cr):
+                    // hält der Spieler die Ware noch (an Bord seiner Schiffe oder im Lager dieser Station), bleibt der Posten für diese Menge
+                    aboard ??= Aboard(u);
+                    float held = aboard.GetValueOrDefault(k.Item3) + (st!.PlayerStorage.TryGetValue(new GoodId(k.Item3), out var stored) ? stored : 0f);
+                    p.BoughtQty = held > 0.0001f ? MathF.Min(p.BoughtQty, held) : 0f;
+                }
                 if (p.SoldQty > 0f && amount <= p.SoldStockBefore + 0.0001f && price >= p.SoldPrice - 0.0001f) p.SoldQty = 0f;
             }
             if (p.Empty) (gone ??= new()).Add(k);
         }
         if (gone is not null) foreach (var k in gone) u.Ledger.Remove(k);
+    }
+
+    static Dictionary<int, float> Aboard(Universe u)
+    {
+        var d = new Dictionary<int, float>();
+        foreach (var sh in u.Ships.Values)
+            if (sh.Owner == u.PlayerActor)
+                foreach (var (g, a) in sh.Cargo) if (a > 0f) d[g.Value] = d.GetValueOrDefault(g.Value) + a;
+        return d;
     }
 
     /// <summary>
@@ -132,6 +149,50 @@ public static class PlayerLedger
         if (p is not null && p.Empty) u.Ledger.Remove(Key(u, st, good));
     }
 
+    /// <summary>
+    /// Runde 31: EINE Buchung eines Kaufs aus dem Markt einer Station (Bestand, Stationskasse, Zahler, Rückkauf-Posten) — alle Wege, auf denen Ware gegen
+    /// Geld aus einem Stationsmarkt kommt (Handel, Flottenhandel, Ausrüster, Munition, Raketen), buchen hierüber, damit keiner den Deckel vergisst.
+    /// Wohin die Ware geht (Laderaum, Fit, Magazin), bleibt beim Aufrufer. Für NPC-Schiffe genau dieselbe Rechnung wie vorher (Menge × Preis).
+    /// </summary>
+    public static Booking BookBuy(Universe u, Ship ship, Station st, GoodId good, float units, ICreditAccount payer, float? price = null)
+    {
+        var e = st.Market[good];
+        float p = price ?? e.Price;
+        var (cost, floored, floorPrice) = BuyCost(u, ship, st, good, units, p);
+        float before = e.Amount;
+        e.Amount -= units;
+        st.Credits += cost;
+        payer.Credits -= cost;
+        OnBought(u, ship, st, good, units, p, before);
+        return new Booking(units, cost, floored, floorPrice);
+    }
+
+    /// <summary>
+    /// Runde 31: EINE Buchung eines Verkaufs an den Markt einer Station; <paramref name="paidUnits"/> = bezahlte Menge, wenn die Station nicht alles zahlen kann
+    /// (Flottenhändler liefern dann trotzdem alles ab). Wie <see cref="BookBuy"/> für alle Wege (Handel, Flottenhandel, Ausrüster-Ausbau).
+    /// </summary>
+    public static Booking BookSale(Universe u, Ship ship, Station st, GoodId good, float units, ICreditAccount payee, float? paidUnits = null, float? price = null)
+    {
+        var e = st.Market[good];
+        float p = price ?? e.Price;
+        float paid = paidUnits ?? units;
+        var (revenue, capped, capPrice) = SaleValue(u, ship, st, good, paid, p);
+        float before = e.Amount;
+        e.Amount += units;
+        st.Credits -= revenue;
+        payee.Credits += revenue;
+        OnSold(u, ship, st, good, paid, p, before);
+        return new Booking(paid, revenue, capped, capPrice);
+    }
+
+    /// <summary>Runde 31: wirksamer Stückpreis eines Kaufs von <paramref name="units"/> Einheiten (für <c>ServiceOffer.Price</c>).</summary>
+    public static float BuyUnitPrice(Universe u, Ship ship, Station st, GoodId good, float units, float price) =>
+        units > 0f ? BuyCost(u, ship, st, good, units, price).Cost / units : MathF.Max(price, Post(u, st, good) is { SoldQty: > 0f } p && Applies(u, ship) ? p.SoldPrice : price);
+
+    /// <summary>Runde 31: wirksamer Stückpreis eines Verkaufs von <paramref name="units"/> Einheiten (für <c>ServiceOffer.Price</c>).</summary>
+    public static float SaleUnitPrice(Universe u, Ship ship, Station st, GoodId good, float units, float price) =>
+        units > 0f ? SaleValue(u, ship, st, good, units, price).Revenue / units : MathF.Min(price, Post(u, st, good) is { BoughtQty: > 0f } p && Applies(u, ship) ? p.BoughtPrice : price);
+
     /// <summary>Hinweis für Angebot und Editor: wirksamer Deckel beim Verkauf hier (null = keiner).</summary>
     public static string? SaleNote(Universe u, Ship ship, Station st, GoodId good) =>
         Applies(u, ship) && Post(u, st, good) is { BoughtQty: > 0f } p && st.Market.TryGetValue(good, out var e) && p.BoughtPrice < e.Price
@@ -142,3 +203,6 @@ public static class PlayerLedger
         Applies(u, ship) && Post(u, st, good) is { SoldQty: > 0f } p && st.Market.TryGetValue(good, out var e) && p.SoldPrice > e.Price
             ? $"Rückkauf deiner Lieferung: mindestens {p.SoldPrice:0.0} für {p.SoldQty:0.#} E." : null;
 }
+
+/// <summary>Runde 31: Ergebnis einer Buchung mit dem Markt einer Station — Menge, Geld, davon zum Rückkaufpreis gerechnete Einheiten und dieser Preis.</summary>
+public readonly record struct Booking(float Units, float Money, float Ledgered, float LedgerPrice);

@@ -2671,7 +2671,8 @@ public partial class SelfTest : Node
 			case 104: if (FleetStage(_frame - _stageStart)) Next(); break;   // Flottentest über echte Tipps (SelfTest.Fleet.cs)
 			case 105: if (Round27Stage(_frame - _stageStart)) Next(); break;
 			case 106: if (Round28Stage(_frame - _stageStart)) Next(); break;
-			case 107: if (Round30Stage(_frame - _stageStart)) Next(); break;   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
+			case 107: if (Round30Stage(_frame - _stageStart)) Next(); break;
+			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

@@ -41,7 +41,28 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		AudioRow(inner, 452, SpaceAdventure.Audio.AudioSettings.EffectsText, SpaceAdventure.Audio.AudioSettings.EffectsMuted,
 			() => SpaceAdventure.Audio.AudioSettings.ChangeEffects(-SpaceAdventure.Audio.AudioSettings.Step), () => SpaceAdventure.Audio.AudioSettings.ChangeEffects(SpaceAdventure.Audio.AudioSettings.Step),
 			SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute, "effects");
+
+		// Runde 31 (UI-ANPASSUNG.md E1): UI-Größe klein/normal/groß — rechts neben „Ton“, solange keine Startpaket-Auswahl offen ist
+		if (!_choosing)
+		{
+			At(inner, Text("Bedienung", 22, Cyan), 360, 350, 400, 30);
+			float bx = 360;
+			foreach (var size in new[] { SpaceSim.Core.Ui.UiSize.Small, SpaceSim.Core.Ui.UiSize.Normal, SpaceSim.Core.Ui.UiSize.Large })
+			{
+				var b = At(inner, new KitButton(UiScale.Name(size), new Vector2(120, 56)) { FontSize = 17, State = UiScale.Size == size ? KitButtonState.On : KitButtonState.Normal }, bx, 390);
+				var sz = size;
+				b.Pressed += () => { UiScale.Set(sz); Invalidate(); };
+				if (size == SpaceSim.Core.Ui.UiSize.Large) _testUiLarge = b;
+				bx += 128;
+			}
+			WrappedText(inner, $"UI-Größe {UiScale.Name(UiScale.Size)}: {UiScale.Factor:0.00}× " + (UiScale.Factor < UiScale.Wanted - 0.001f
+				? $"(Ziel {UiScale.Wanted:0.00}× für 7 mm Tasten — folgt, sobald die Bildschirme mitwachsen)" : "(Tasten mindestens 7 mm)"), 360, 452, 380, 13, Dim, 18);
+		}
 	}
+
+	/// <summary>Runde 31, Selbsttest: Taste „groß“ der UI-Größe.</summary>
+	public KitButton? TestUiLarge => _testUiLarge;
+	KitButton? _testUiLarge;
 
 	/// <summary>Runde 12: eine Tonzeile „− | Musik 70 % | +“ (Mitte = stumm an/aus).</summary>
 	void AudioRow(Control inner, float y, string text, bool muted, Action down, Action up, Action toggle, string key)

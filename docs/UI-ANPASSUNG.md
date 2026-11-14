@@ -103,3 +103,9 @@ Noch offen:
 Summe E0–E5: **≈ 9–12 Runden** (ohne eigene Tablet-Anordnungen etwas weniger als zuerst geschätzt; Hochformat entfällt).
 
 Nicht Teil des Umbaus: neue Inhalte/Funktionen der Bildschirme, Grafik-Neugestaltung (Farben, Schriften, Symbole), 3D-Szene/Kamera-Logik (außer der Umrechnung für `content_scale_factor`), Barrierefreiheit über die Tippflächengröße hinaus (Kontrast, Screenreader), Lokalisierung, Gamepad/Tastatur-Navigation.
+
+## 7. Stand nach Runde 31 (E0 und E1)
+
+- **E0 erledigt:** `godot-mono --path godot -- --ui-check <ordner>` (braucht ein Fenster; Auflösungen über der Bildschirmgröße werden mit gleichem Seitenverhältnis nachgebildet). Ergebnis Faktor 1 (IST): in keinem Zustand und keiner Auflösung Überlappungen oder Elemente außerhalb; Tippflächen am Handy fast alle unter 7 mm (56 px = 4,8 mm bei 720p, 5,4 mm am A15, 9,5/8,6 mm an den Tablets; kleinste 3,5–4,0 mm: Kartenebenen, Autopilot/Auto-Mining, Bereichsleiste, „Liste/Kacheln“); gekürzte Texte in Station-Info, Fraktions-/Universumskarten und langen Meldungen; Vollbilder füllen 95 % (16:9), 78–79 % (19,5:9), 85 % (16:10), 71 % (4:3). Bei Faktor 1,15/1,3 ragen in jedem Zustand Elemente aus der Fläche — erst nach E2–E5 sinnvoll.
+- **E1 erledigt:** `SpaceSim.Core/Ui/UiLayout` + `godot/scripts/Ui/Kit/UiScale`; Schalter klein/normal/groß (System-Bereich „Bedienung“, Hamburger-Menü „UI-Größe“), gespeichert in `user://settings.cfg`. Heute ergibt jede Stufe Faktor 1 (Obergrenze für starre Bildschirme); Zielwerte nach E2–E5: normal 1,15, groß 1,3 (A15: 6,2 / 7,0 mm), Tablets 1. Die Obergrenze 1,3 hält die logische Fläche bei ≥ 985 × 554 (über dem Minimum 960 × 540).
+- **Als Nächstes E2:** Flug-HUD an Rändern/Safe Area verankern statt im 1280×720-Raster (Anker aus `UiLayout.Usable`), dann die Obergrenze für das HUD freigeben und mit `--ui-check` bei 1,15/1,3 prüfen (Ziel: A0 im Flug-HUD).

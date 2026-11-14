@@ -73,8 +73,13 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		float w = inner.Size.X > 0 ? inner.Size.X : 670f;
 
 		// ── Kopfzeile: Hinweis (Ergebnismeldung) links, Liste/Kacheln rechts ──
-		var msg = At(inner, Text(_message.Length > 0 ? _message : "Markt der Station – Zeile antippen für Menge und Kauf/Verkauf", 15,
-			_message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w - 200, 40);
+		// Runde 31 (Gerätetest handy31: „… davon 3 zum Rückkaufpreis 39…“): die Meldung bricht auf zwei Zeilen um; reicht das nicht, kleinere Schrift
+		// (mit der Schrift gemessen)
+		string msgText = _message.Length > 0 ? _message : "Markt der Station – Zeile antippen für Menge und Kauf/Verkauf";
+		var msgLabel = Text(msgText, MessageFont(msgText, w - 200), _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f));
+		msgLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		msgLabel.MaxLinesVisible = 2;
+		var msg = At(inner, msgLabel, 0, 0, w - 200, 40);
 		var listBtn = At(inner, new KitButton("Liste", new Vector2(84, 40)) { FontSize = 16 }, w - 186, 0);
 		var tileBtn = At(inner, new KitButton("Kacheln", new Vector2(92, 40)) { FontSize = 16 }, w - 96, 0);
 		listBtn.State = _tiles ? KitButtonState.Normal : KitButtonState.On;
@@ -326,8 +331,42 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		return r;
 	}
 
-	void Buy(Row row, float qty) { if (PriceStill(row, buying: true)) Execute($"{TradeService.Buy}:{row.Good.Value}", qty); }
-	void Sell(Row row, float qty) { if (PriceStill(row, buying: false)) Execute($"{TradeService.Sell}:{row.Good.Value}", qty); }
+	void Buy(Row row, float qty)
+	{
+		float shown = _shown.GetValueOrDefault(row.Good.Value);
+		if (PriceStill(row, buying: true)) Favourable(Execute($"{TradeService.Buy}:{row.Good.Value}", qty), shown, buying: true);
+	}
+	void Sell(Row row, float qty)
+	{
+		float shown = _shown.GetValueOrDefault(row.Good.Value);
+		if (PriceStill(row, buying: false)) Favourable(Execute($"{TradeService.Sell}:{row.Good.Value}", qty), shown, buying: false);
+	}
+
+	/// <summary>
+	/// Runde 31 (Gerätetest handy31: angezeigt „Kauf 10 × 24,7“, gebucht 10 × 12,16): Anzeige und Buchung rechnen mit demselben Marktpreis — dazwischen
+	/// lag eine Lieferung an die Station (der Preis halbiert sich, wenn sich der Bestand verdoppelt). Zum Vorteil des Spielers wird gebucht (Runde 27);
+	/// die Meldung sagt jetzt, dass sich der Preis seit der Anzeige geändert hat.
+	/// </summary>
+	void Favourable(ServiceResult r, float shown, bool buying)
+	{
+		if (!r.Success || r.Units <= 0f || shown <= 0f) return;
+		float unit = MathF.Abs(r.Credits) / r.Units;
+		bool better = buying ? unit < shown * 0.98f : unit > shown * 1.02f;
+		if (!better || _message.Contains("Rückkaufpreis")) return;
+		_message += $" (Preis seit der Anzeige {shown:0.0} → {unit:0.0})";
+		TestFavourable++;
+	}
+	/// <summary>Runde 31, Selbsttest: Buchungen, deren Preis seit der Anzeige günstiger wurde.</summary>
+	public int TestFavourable { get; private set; }
+
+	/// <summary>Runde 31: Schriftgröße der Kopfmeldung — 15, 14 oder 13, die größte, bei der sie auf zwei Zeilen passt.</summary>
+	static int MessageFont(string text, float width)
+	{
+		var font = ThemeDB.FallbackFont;
+		foreach (int size in new[] { 15, 14, 13 })
+			if (font.GetMultilineStringSize(text, HorizontalAlignment.Left, width, size, 3, TextServer.LineBreakFlag.WordBound).Y <= 2 * font.GetHeight(size) + 1f) return size;
+		return 13;
+	}
 
 	/// <summary>
 	/// Runde 27 (Gerätetest: Zeile 6,0, gebucht 7,5): Zeile und Editor zeigen den Marktpreis desselben Ticks (<see cref="LivePrice"/>, im Tick-Takt neu

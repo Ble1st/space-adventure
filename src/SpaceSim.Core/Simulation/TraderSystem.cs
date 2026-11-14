@@ -332,12 +332,7 @@ public sealed class TraderSystem : ISimSystem
                 amount = PlayerLedger.Affordable(u, ship, st, order.Good, MathF.Floor(amount), stock.Price, wallet.Credits);
             if (amount > 0)
             {
-                float cost = PlayerLedger.Applies(u, ship) ? PlayerLedger.BuyCost(u, ship, st, order.Good, amount, stock.Price).Cost : amount * stock.Price;
-                float before = stock.Amount;
-                stock.Amount -= amount;
-                st.Credits += cost;
-                wallet.Credits -= cost;
-                PlayerLedger.OnBought(u, ship, st, order.Good, amount, stock.Price, before);
+                float cost = PlayerLedger.BookBuy(u, ship, st, order.Good, amount, wallet).Money;   // Runde 31: die eine Buchung (NPC: Menge × Preis wie vorher)
                 ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
                 u.Events.Publish(new TraderBought(ship.Id, st.Id, order.Good, amount, cost));   // Phase 28 (Nacharbeit): Diagnose der Händlerpleiten
                 ship.Phase = TradePhase.GoingToSell;
@@ -455,12 +450,7 @@ public sealed class TraderSystem : ISimSystem
         float over = amount - MathF.Max(0f, acceptance ?? st.AcceptableUnits(stock, u.Rules));
         if (over > 0.0001f) u.Events.Publish(new CargoDumped(ship.Id, st.Id, order.Good, over));
         float paid = stock.Price > 0 ? MathF.Min(amount, MathF.Max(0f, st.Credits) / stock.Price) : 0f;
-        float revenue = PlayerLedger.Applies(u, ship) ? PlayerLedger.SaleValue(u, ship, st, order.Good, paid, stock.Price).Revenue : paid * stock.Price;   // Runde 30
-        float stockBefore = stock.Amount;
-        stock.Amount += amount;
-        st.Credits -= revenue;
-        u.WalletOf(ship).Credits += revenue;
-        PlayerLedger.OnSold(u, ship, st, order.Good, paid, stock.Price, stockBefore);
+        float revenue = PlayerLedger.BookSale(u, ship, st, order.Good, amount, u.WalletOf(ship), paid).Money;   // Runde 31: die eine Buchung (NPC wie vorher)
         ship.Cargo[order.Good] = MathF.Max(0f, ship.Cargo.GetValueOrDefault(order.Good) - amount);
         u.Events.Publish(new TradeCompleted(ship.Id, order.Buy, order.Sell, order.Good, paid, revenue));
         if (st.IsBuildSite) ConstructionRules.OnDelivered(u, st, ship, order.Good, amount, "trader");

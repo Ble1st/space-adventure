@@ -113,6 +113,7 @@ public partial class Main : Node3D
 		_fx = new Fx(); AddChild(_fx);
 		_anchors = new AnchorView { Name = "Anchors", Fx = _fx }; AddChild(_anchors);
 		SpaceAdventure.Audio.AudioSettings.Init();   // Runde 12: Busse „Musik“/„Effekte“ und gespeicherte Lautstärken (user://settings.cfg)
+		Ui.Kit.UiScale.Init(GetTree().Root);   // Runde 31: UI-Größe (content_scale_factor) aus DPI und Stufe; heute auf 1 begrenzt (starre 1280 × 720-Bildschirme)
 		_sfx = new Sfx(); AddChild(_sfx);
 		_music = new SpaceAdventure.Audio.MusicDirector(); AddChild(_music);
 		_cam = new Camera3D { Fov = 50f, Far = 4000f }; AddChild(_cam);
@@ -276,6 +277,15 @@ public partial class Main : Node3D
 		StartSession();
 		if (selftest) AddChild(new SelfTest(this));
 		// Runde 16: Handyformat-Fotos aus dem echten Spielablauf (PhoneShots)
+		// Runde 31 (UI-ANPASSUNG.md Etappe 0): Prüfwerkzeug aller Bildschirme in sechs Fenstergrößen und drei UI-Faktoren
+		int checkIdx = Array.IndexOf(args, "--ui-check");
+		if (checkIdx >= 0 && checkIdx + 1 < args.Length)
+		{
+			SaveService.UseFile("ui-check.json");
+			string dir = args[checkIdx + 1];
+			if (!System.IO.Path.IsPathRooted(dir)) dir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), dir);
+			AddChild(new UiCheck(this, dir));
+		}
 		int phoneIdx = Array.IndexOf(args, "--phone-shots");
 		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { SaveService.UseFile("phone-shots.json"); AddChild(new PhoneShots(this, args[phoneIdx + 1]) { Mining = Array.IndexOf(args, "--phone-mining") >= 0 }); }
 		if (shotDir != null)
@@ -644,6 +654,7 @@ public partial class Main : Node3D
 		{
 			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); break;   // Runde 12
 			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); break;
+			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Text + (Ui.Kit.UiScale.Factor < Ui.Kit.UiScale.Wanted - 0.001f ? $" — Ziel {Ui.Kit.UiScale.Wanted:0.00}× folgt mit dem Umbau der Bildschirme" : "")); break;   // Runde 31
 			case "save": SaveNow(manual: true); break;
 			case "load":
 				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }

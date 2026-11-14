@@ -115,13 +115,9 @@ public static class Missiles
         float units = MathF.Floor(MathF.Min(missing, entry.Amount));
         if (price > 0f) units = MathF.Min(units, MathF.Floor(MathF.Max(0f, payer.Credits) / price));
         if (units < 1f) return 0f;
-        float cost = Trading.PlayerLedger.BuyCost(u, ship, st, good.Id, units, price).Cost;   // Runde 30: Rückkaufdeckel (Kauf aus dem Regal)
-        if (cost > payer.Credits + 0.001f) { units = MathF.Floor(Trading.PlayerLedger.Affordable(u, ship, st, good.Id, MathF.Floor(units), price, payer.Credits)); if (units < 1f) return 0f; cost = Trading.PlayerLedger.BuyCost(u, ship, st, good.Id, units, price).Cost; }
-        float before = entry.Amount;
-        entry.Amount -= units;
-        st.Credits += cost;
-        payer.Credits -= cost;
-        Trading.PlayerLedger.OnBought(u, ship, st, good.Id, units, price, before);
+        if (Trading.PlayerLedger.BuyCost(u, ship, st, good.Id, units, price).Cost > payer.Credits + 0.001f)   // Runde 30: Rückkaufdeckel (Mindestpreis eigener Lieferung)
+        { units = MathF.Floor(Trading.PlayerLedger.Affordable(u, ship, st, good.Id, MathF.Floor(units), price, payer.Credits)); if (units < 1f) return 0f; }
+        float cost = Trading.PlayerLedger.BookBuy(u, ship, st, good.Id, units, payer, price).Money;   // Runde 31: die eine Buchung
         ship.Systems.MissilesMissing = MathF.Max(0f, ship.Systems.MissilesMissing - units);
         if (treasury && cost > 0f) u.Events.Publish(new TreasuryUpkeep(payerActor, "missiles", cost, 0f));
         return units;

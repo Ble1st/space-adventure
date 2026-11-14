@@ -55,7 +55,13 @@ public sealed class ShipDealerService : IStationService
         var needs = ShipPurchase.Materials(u, model);
         if (needs is null) return null;
         var stats = ShipStats.Compute(cls, model.Fit.Select(k => k is not null && u.Modules.TryGetValue(k, out var m) ? m : null).ToList());
-        float price = ShipPurchase.Price(u, station, needs, ShipPurchase.AssemblyOf(u, station));
+        float assembly = ShipPurchase.AssemblyOf(u, station);
+        float price = ShipPurchase.Price(u, station, needs, assembly);
+        // Runde 31 (Prüfung: erst ein Modul teuer an die Werft verkaufen, dann ein Schiff kaufen, das es verbraucht, +455 Cr je Zyklus): Material, das der
+        // Spieler hier verkauft hat, zählt beim Schiffskauf mindestens zum erhaltenen Preis (Spiegelposten, PlayerLedger.BuyCost)
+        foreach (var n in needs)
+            if (station.Market.TryGetValue(n.Good, out var e) && e.Price > 0f)
+                price += (PlayerLedger.BuyCost(u, buyer, station, n.Good, n.Units, e.Price).Cost - n.Units * e.Price) * (1f + MathF.Max(0f, assembly));
         // Phase 13: gesperrte Modelle bleiben sichtbar („nicht erforscht“), sind aber nicht kaufbar
         return new ShipQuote(model, cls, stats, price, needs, ShipPurchase.Missing(station, needs), u.WalletOf(buyer).Credits >= price,
             Research.LockText(u, station, UnlockKind.Model, model.Key));

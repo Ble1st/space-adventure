@@ -203,21 +203,11 @@ public sealed class OutfitterService : IStationService
         if (inGood is not null)
         {
             if (fromCargo) { ship.Cargo[inGood.Id] -= 1f; if (ship.Cargo[inGood.Id] <= 0.0001f) ship.Cargo.Remove(inGood.Id); }
-            else
-            {
-                float before = station.Market[inGood.Id].Amount;
-                station.Market[inGood.Id].Amount -= 1f; station.Credits += price; wallet.Credits -= price;
-                PlayerLedger.OnBought(u, ship, station, inGood.Id, 1f, station.Market[inGood.Id].Price, before);   // Runde 30: Einbau aus dem Stationslager = Kauf
-            }
+            else PlayerLedger.BookBuy(u, ship, station, inGood.Id, 1f, wallet);   // Runde 30/31: Einbau aus dem Stationslager = Kauf (die eine Buchung)
         }
         if (outGood is not null)
         {
-            if (sellOld)
-            {
-                float before = station.Market[outGood.Id].Amount;
-                station.Market[outGood.Id].Amount += 1f; station.Credits -= revenue; wallet.Credits += revenue;
-                PlayerLedger.OnSold(u, ship, station, outGood.Id, 1f, station.Market[outGood.Id].Price, before);   // Runde 30: Ausbau mit Verkauf an die Station = Verkauf
-            }
+            if (sellOld) PlayerLedger.BookSale(u, ship, station, outGood.Id, 1f, wallet);   // Runde 30/31: Ausbau mit Verkauf an die Station = Verkauf
             else ship.Cargo[outGood.Id] = ship.Cargo.GetValueOrDefault(outGood.Id) + 1f;
         }
         ship.Fit[slot] = moduleKey;
