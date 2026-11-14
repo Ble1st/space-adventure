@@ -34,6 +34,43 @@ public partial class SelfTest
 		return sp.X >= 0 && sp.X <= size.X && sp.Y >= 0 && sp.Y <= size.Y;
 	}
 
+	Vector2? _phPress;
+
+	/// <summary>Runde 16: Taste wie am Gerät antippen (Berührung bzw. Maus über die Eingabe der Ansicht, nicht über die Ereignisse der Taste).</summary>
+	bool PhoneTap(string label, bool down)
+	{
+		if (down) _phPress = FindKit(_m.HudRef.Flight, label)?.GetGlobalRect().GetCenter();
+		if (_phPress is not { } at) return false;
+		var vp = GetViewport();
+		if (Ui.Pointer.TouchMode) vp.PushInput(new InputEventScreenTouch { Index = 0, Position = at, Pressed = down }, true);
+		else vp.PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Position = at, GlobalPosition = at, Pressed = down, ButtonMask = down ? MouseButtonMask.Left : 0 }, true);
+		return true;
+	}
+
+	static Ui.Kit.KitButton? FindKit(Node root, string label)
+	{
+		foreach (var c in root.GetChildren())
+		{
+			if (c is Ui.Kit.KitButton b && b.Text == label && b.IsVisibleInTree()) return b;
+			if (FindKit(c, label) is { } x) return x;
+		}
+		return null;
+	}
+
+	/// <summary>Runde 16: Ziel sichtbar — im freien Feld auf dem Bild oder als Randpfeil am freien Feld.</summary>
+	bool TargetVisible(Vector3 w)
+	{
+		var size = GetViewport().GetVisibleRect().Size;
+		var free = _m.FramingField();
+		if (!_m.TestCam.IsPositionBehind(w))
+		{
+			var sp = _m.TestCam.UnprojectPosition(w);
+			float nx = sp.X / size.X * 2f - 1f, ny = 1f - sp.Y / size.Y * 2f;
+			if (nx >= free.X0 - 0.06f && nx <= free.X1 + 0.06f && ny >= free.Y0 - 0.06f && ny <= free.Y1 + 0.06f) return true;
+		}
+		return _m.HudRef.TargetArrowShown;
+	}
+
 	/// <summary>Rückgabe true = Stufe fertig.</summary>
 	bool PhoneStage(int f)
 	{
@@ -55,14 +92,23 @@ public partial class SelfTest
 				Check(_m.TestFraming, $"Warnphase: Gefechtskamera aktiv ({_m.TestFramingDebug})");
 				ShipInField("Warnphase");
 				if (_m.TestFramingBoth && _m.TestView.ShipPosition(_phLead) is { } lp) Check(OnScreen(lp), "Warnphase: Kaperer im Bild");
+				if (_m.TestView.ShipPosition(_phLead) is { } wp) Check(TargetVisible(wp), "Warnphase: Kaperer im freien Feld oder Randpfeil");
 				_m.SyncHudForTest();
 				Check(_m.HudRef.Flight.TestAutoFireHint, "Warnphase: „Dauerfeuer“ pulsiert");
 				pe.DueTick = u.Tick;   // Überfall jetzt
 				return false;
 			}
+			// Runde 16: „Nächster Gegner“ und „Dauerfeuer“ wie am Gerät antippen — das Ziel bleibt der Angreifer (nicht der ferne Verstärkungskaperer)
+			case 200: Check(PhoneTap("Nächster Gegner", true), "Taste „Nächster Gegner“ sichtbar"); return false;
+			case 204: PhoneTap("", false); return false;
+			case 210: Check(PhoneTap("Dauerfeuer", true), "Taste „Dauerfeuer“ sichtbar"); return false;
+			case 214: PhoneTap("", false); return false;
 			case 260:
 			{
 				Check(u.Fights.Of(u.PlayerShip) is not null, "Kampf läuft");
+				Check(_m.TestFight.Target == _phLead, $"nach Tipp „Nächster Gegner“: Ziel bleibt der Angreifer ({_m.TestFight.Target.Value} statt {_phLead.Value})");
+				Check(_m.TestFight.AutoFire, "nach Tipp „Dauerfeuer“: Dauerfeuer an");
+				if (_m.TestView.ShipPosition(_phLead) is { } tp2) Check(TargetVisible(tp2), "Kampf: Ziel im freien Feld oder Randpfeil");
 				Check(_m.TestFraming && _m.TestFramingBoth, $"Kampf: Schiff und Ziel gerahmt ({_m.TestFramingDebug})");
 				ShipInField("Kampf");
 				if (_m.TestView.ShipPosition(_phLead) is { } lp)
@@ -90,6 +136,8 @@ public partial class SelfTest
 			case 420:
 				Check(!_m.TestFraming, "nach dem Kampf: Gefechtskamera aus");
 				_m.TestMenu("new:war");
+				_m.SyncHudForTest();
+				Check(!_m.HudRef.Flight.TestGateAttackVisible, "nach „Neues Spiel“ keine Taste „Tor angreifen“");
 				return false;
 			case 430:
 			{
@@ -99,6 +147,22 @@ public partial class SelfTest
 				Check(!_m.TestAutopilot, "Tor antippen startet keinen Autopiloten");
 				_m.SyncHudForTest();
 				Check(_m.HudRef.Flight.TestTargetName.Contains("Tor") || _m.HudRef.Flight.TestTargetName.Contains("Gate"), $"Zielkarte zeigt das Tor ({_m.HudRef.Flight.TestTargetName})");
+				string tapped = _m.HudRef.Flight.TestTargetName, tappedCombat = _m.HudRef.Flight.TestTargetCombat;
+				bool tappedAttack = _m.HudRef.Flight.TestGateAttackVisible;
+				// Runde 16: dasselbe Tor über Kommandozentrale → Sektoransicht → „Ziel wählen“ ergibt dieselbe Zielkarte
+				_m.TestSelectStation(u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta").Id);
+				_m.TestOpenCommand(); _m.TestOpenCcArea("cc.sector");
+				_m.HudRef.CcSector.TestSelectSector(u.PlayerSector);
+				_m.HudRef.CcSector.TestSelectGate(gate.Id);
+				_m.HudRef.CcSector.TestTargetHere();
+				_m.SyncHudForTest();
+				Check(!_m.TestScreenOpen("cc.sector") && _m.HudRef.Flight.TestTargetName == tapped && _m.HudRef.Flight.TestTargetCombat == tappedCombat
+					&& _m.HudRef.Flight.TestGateAttackVisible == tappedAttack, $"Sektoransicht „Ziel wählen“ = Tor antippen ({_m.HudRef.Flight.TestTargetName} | {_m.HudRef.Flight.TestTargetCombat})");
+				// außer Betrieb: Zielkarte vollständig (vorher „AUSSER BETRIEB · Wiederanlauf …“ abgeschnitten)
+				SpaceSim.Core.Combat.GateCombat.Apply(u, gate, new SpaceSim.Core.Combat.HitResult(true, 1f, 0f, 0f, SpaceSim.Core.Combat.GateCombat.MaxHull(u, gate) + 10f), new ActorId(9999));
+				_m.SyncHudForTest();
+				Check(SpaceSim.Core.Combat.GateCombat.IsDown(u, gate) && _m.HudRef.Flight.TestTargetLinesComplete, $"Zielkarte Tor außer Betrieb vollständig ({_m.HudRef.Flight.TestTargetCombat}; {_m.HudRef.Flight.TestTargetLineOverflow})");
+				SpaceSim.Core.Combat.GateCombat.Restore(u, gate, "repaired");
 				// Stationsangriff: HQ wählen und angreifen — Station mit im Bild, Annäherungsautomatik, vollständige Zielkarte
 				var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
 				_m.TestSelectStation(hq.Id);

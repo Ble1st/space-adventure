@@ -352,6 +352,27 @@ public static class WarInfo
     }
 
     /// <summary>
+    /// Runde 16 (Handy-Test: Zielkarte schnitt die lange Lagezeile ab): Kurzform für die Zielkarte (höchstens ~32 Zeichen) — „Geschütze 67 m: IN REICHWEITE“,
+    /// „Geschütze 67 m: draußen · Rak. ✓“ bzw. „… · Rak. ≤132“; leer ohne Geschütze.
+    /// </summary>
+    public static string RangeShort(Universe u, Station target, Ship player, Vec2 at)
+    {
+        float guns = StationCombat.GunRange(u, target);
+        if (guns <= 0f) return StationCombat.IsDown(u, target) ? "Geschütze schweigen" : "";
+        float d = Vec2.Distance(at, target.Position);
+        if (d <= guns) return $"Geschütze {guns:0} m: IN REICHWEITE";
+        float missiles = MissileReachFromCentre(u, player, target);
+        return $"Geschütze {guns:0} m: draußen" + (missiles <= 0f ? "" : d <= missiles ? " · Rak. ✓" : $" · Rak. ≤{missiles:0}");
+    }
+
+    /// <summary>Runde 16: Kurzform „eig. reichen“ / „eig. ab 45 m“ (eigene Geschütze ohne Raketen bis zur Außenhaut); leer ohne Geschütze.</summary>
+    public static string OwnGunsShort(Universe u, Station target, Ship player, Vec2 at)
+    {
+        string t = OwnGunsText(u, target, player, at);
+        return t.Length == 0 ? "" : t == "eigene Geschütze reichen" ? "eig. reichen" : t.Replace("eigene ab ", "eig. ab ").Replace(" Außenhaut", "");
+    }
+
+    /// <summary>
     /// Runde 14 (Handy-Test Kriegstest): Reichen die eigenen Geschütze (ohne Raketen) bis zur Außenhaut? „eigene Geschütze reichen“ bzw. „eigene Geschütze ab
     /// x m Außenhaut“; leer ohne Geschütze.
     /// </summary>

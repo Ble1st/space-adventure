@@ -246,3 +246,17 @@ Treffer unterschätzt. Neue Werte (nur Tore, die Panzerregel bleibt):
 Gemessen (Core-Test `Kriegstestverband_NebentorIn2Bis4Min_HaupttorIn5Bis8Min_EinzeljaegerChancenlos`: echter Kriegstest-Verband aus drei Bollwerken,
 begrenzte Munition und Raketen, Zielhilfe, ohne Gegenwehr): Nebentor Borealis–Vesta **2,3 min**, Haupttor Alpha–Beta **6,7 min** (Vesta–Beta 6,3 min);
 Falke allein am Nebentor in 6 min nicht (≈ 2 Hülle/s → ≈ 17 min, mit Verteidigern aussichtslos).
+
+## Runde 16: Gerätetest Haupttor ≈ 9 min — Abstand, nicht die Werte
+
+Nachgemessen mit dem echten Kriegstest-Verband (drei Bollwerke, echte Fits, begrenzte Munition/Raketen, Zielhilfe, Verband tritt bei), Haupttor Alpha–Beta:
+
+| Abstand aller drei zur Tormitte | Ausfall nach | Raketen leer | Munition leer |
+|---|---|---|---|
+| 40 m | 6,3 min | 40 s | 4,5 min |
+| 55 m (Massetreiber 45 m schweigt) | 7,4 min | 40 s | — |
+| 70 m / 100 m (nur Raketen reichen) | nie (nach den Raketen lädt der Schild wieder) | 40 s | — |
+
+Nebentor Borealis–Vesta: 40 m 2,3 min, 55 m 3,0 min. Die ≈ 9 min am Gerät = Anflug + Zeit außerhalb 45 m. Werte bleiben; ehrlich gemacht:
+die Zielkarte zeigt im Gefecht „Raketen leer · Munition leer – nur noch Laser“ (`PlayerGunnery.DepletedText`, dazu ein einmaliger Hinweis mit dem
+Nachladeort), die Beschreibung des Startpakets „Kriegstest“ nennt Zeiten, Abstand und Munitionsdauer.

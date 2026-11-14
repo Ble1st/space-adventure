@@ -58,7 +58,9 @@ public sealed partial class MyFactionScreen : CommandScreen
 		At(b, Text(u.PlayerWallet.Credits < 0f ? $"Schulden: {(int)-u.PlayerWallet.Credits} Cr" : $"{(int)u.PlayerWallet.Credits} Cr", 26,
 			u.PlayerWallet.Credits < 0f ? Red : Orange, HorizontalAlignment.Right), 20, 42, 446, 34);
 		WrappedText(b, "Spielerkasse (echt): Geld der Person, nicht des Schiffs – Handel, Tanken und Reparatur buchen hierauf", 20, 80, 446, 12, new Color(Dim, 0.75f), 16);
-		Row(b, 20, 126, 446, "Unterhalt Schiffe/Tag", UiPlaceholders.MyFactionUpkeep, 14);
+		// Runde 16: echt — Flottenunterhalt der Schiffe mit Befehl (auch Verband) + Liegegebühr
+		{ string costs = SpaceSim.Core.Simulation.Hangar.RunningCostsText(u, u.PlayerActor);
+		  Row(b, 20, 126, 446, "Laufende Kosten", costs.Length > 0 ? costs : "keine", 14); }
 		Row(b, 20, 150, 446, "Liegegebühr/Tag (fremde St.)", $"−{SpaceSim.Core.Simulation.Hangar.BerthFeesPerDay(u, u.PlayerActor):0} Cr/Tag", 14);   // Phase 12 echt
 		Row(b, 20, 174, 446, "Einnahmen/Tag (Schätzung)", UiPlaceholders.MyFactionIncome, 14);
 		At(b, new KitButton("Beitreten", new Vector2(150, 46)) { FontSize = 16, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 20, 204);

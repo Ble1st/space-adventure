@@ -56,6 +56,11 @@ public partial class Hud : CanvasLayer
 	public Func<IReadOnlyList<(Vector2 Screen, string Name, int Id)>>? StationScreenPositions { get; set; }
 	/// <summary>Zuletzt gezeichnete Randmarker (Bildschirmposition, Stations-Id) — für das Antippen.</summary>
 	public List<(Vector2 Pos, int Id)> EdgeMarkers { get; } = new();
+	/// <summary>Runde 16: freies Feld (Bildpunkte) für Randpfeile; Zielpfeil (Bildposition, Name, feindlich) — gesetzt von Main.</summary>
+	public Func<Rect2>? FreeField { get; set; }
+	public Func<(Vector2 Screen, string Label, bool Hostile)?>? TargetEdge { get; set; }
+	public bool TargetArrowShown { get; set; }
+	public Vector2 TargetArrowAt { get; set; }
 
 	readonly Label _toast = new();
 	readonly ColorRect _flash = new() { Color = Colors.White, MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
@@ -134,6 +139,15 @@ public partial class Hud : CanvasLayer
 		var alertRoot = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
 		alertRoot.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		_alertLayer.AddChild(alertRoot);
+		// Runde 16: Diagnosezeile (Kamera) — oben links unter dem Statusfeld, klein, nur auf Wunsch
+		_debugLine.AddThemeFontSizeOverride("font_size", 12);
+		_debugLine.AddThemeColorOverride("font_color", new Color(1f, 1f, 0.4f));
+		_debugLine.AddThemeColorOverride("font_outline_color", Colors.Black);
+		_debugLine.AddThemeConstantOverride("outline_size", 4);
+		_debugLine.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_debugLine.Position = new Vector2(8, 300); _debugLine.Size = new Vector2(900, 18);
+		_debugLine.Visible = false;
+		alertRoot.AddChild(_debugLine);
 		_alert.MouseFilter = Control.MouseFilterEnum.Stop;
 		_alert.Size = new Vector2(AlertWidth, AlertHeight);
 		_alert.AddThemeStyleboxOverride("panel", UiKit.Box(new Color(0.22f, 0.04f, 0.04f, 0.97f), UiKit.Red, 12, 3, 0));
@@ -340,6 +354,11 @@ public partial class Hud : CanvasLayer
 	/// <summary>Selbsttest Runde 7: Lage des Hinweises (mit gewachsener Höhe).</summary>
 	public Rect2 TestToastRect => new(_toast.Position, new Vector2(_toast.Size.X, MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y)));
 
+	readonly Label _debugLine = new();
+	/// <summary>Runde 16: Diagnosezeile setzen (null = aus).</summary>
+	public void SetDebugLine(string? text) { _debugLine.Visible = text is not null; if (text is not null) _debugLine.Text = text; }
+	public string TestDebugLine => _debugLine.Visible ? _debugLine.Text : "";
+
 	public void Toast(string text, float seconds = 2.5f)
 	{
 		// Prüfung Phase 28: ein neuer Hinweis ersetzt eine ältere Meldung, die schon mindestens 3 s stand (keine zwei Felder übereinander)
@@ -364,9 +383,35 @@ public partial class Hud : CanvasLayer
 	sealed partial class TargetMarker : Control
 	{
 		/// <summary>Freies Mittelfeld (zwischen Status-/Kampfspalten), an dessen Rand die Stations-Randmarker liegen.</summary>
-		Rect2 Field() => new(Size.X * 0.27f, 180f, Size.X * 0.46f, Size.Y - 180f - 130f);   // unter Hinweis- und Meldungsfeld
+		// Runde 16: das freie Feld der Gefechtskamera (größtes Rechteck ohne HUD-Fläche) — Randpfeile liegen strikt darin
+		Rect2 Field() => (Hud.FreeField?.Invoke() is { } f && f.Size.X > 40f && f.Size.Y > 40f ? f : new Rect2(Size.X * 0.27f, 180f, Size.X * 0.46f, Size.Y - 180f - 130f)).Grow(-24f);
 
 		readonly List<Rect2> _labelBoxes = new();
+
+		/// <summary>Runde 16: roter Zielpfeil am Rand des freien Felds, wenn das gewählte (feindliche) Ziel außerhalb liegt — immer, nicht nur in der Warnphase.</summary>
+		void DrawTargetArrow()
+		{
+			Hud.TargetArrowShown = false;
+			if (Hud.TargetEdge?.Invoke() is not { } t || Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight) return;
+			var field = Field();
+			if (field.HasPoint(t.Screen)) return;
+			var c = field.GetCenter();
+			var dir = (t.Screen - c).Normalized();
+			if (dir == Vector2.Zero) return;
+			float k = Mathf.Min(Mathf.Abs(field.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(field.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));
+			var tip = c + dir * k;
+			var side = new Vector2(-dir.Y, dir.X) * 14f;
+			var col = t.Hostile ? new Color(1f, 0.3f, 0.25f, 0.95f) : new Color(0.5f, 1f, 0.6f, 0.95f);
+			DrawColoredPolygon(new[] { tip, tip - dir * 28f + side, tip - dir * 28f - side }, col);
+			var font = ThemeDB.FallbackFont;
+			string label = t.Label.Length > 22 ? t.Label[..21] + "…" : t.Label;
+			float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, 14).X;
+			var lp = tip - dir * 44f - new Vector2(w / 2f, -5f);
+			DrawRect(new Rect2(lp - new Vector2(4f, 14f), new Vector2(w + 8f, 19f)), new Color(0.1f, 0.02f, 0.02f, 0.8f));
+			DrawString(font, lp, label, HorizontalAlignment.Left, -1, 14, col);
+			Hud.TargetArrowShown = true;
+			Hud.TargetArrowAt = tip;
+		}
 
 		void DrawEdgeStations()
 		{
@@ -375,13 +420,14 @@ public partial class Hud : CanvasLayer
 			if (Hud.StationScreenPositions?.Invoke() is not { } list || Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight) return;
 			var font = ThemeDB.FallbackFont;
 			var col = new Color(0.45f, 0.85f, 1f, 0.9f);
-			var view = new Rect2(Vector2.Zero, Size).Grow(-20f);
 			var field = Field();
 			var c = field.GetCenter();
 			var occupied = Hud.Flight.OccupiedRects();   // Runde 4: Namen und Pfeile nie über HUD-Tasten/-Beschriftungen
 			foreach (var (screen, name, id) in list)
 			{
-				if (view.HasPoint(screen)) continue;   // im Bild: die Station selbst ist antippbar
+				// Runde 16 (Handy-Test: Pfeile lagen unter „Karte“, Stationen unter HUD-Tasten waren nicht wählbar): nur Stationen im freien Feld sind selbst
+				// antippbar — alles andere (außerhalb des Bildes oder unter einer HUD-Fläche) bekommt einen Pfeil am Rand des freien Feldes
+				if (field.Grow(24f).HasPoint(screen) && !occupied.Exists(r => r.HasPoint(screen))) continue;
 				var dir = (screen - c).Normalized();
 				if (dir == Vector2.Zero) continue;
 				float t = Mathf.Min(Mathf.Abs(field.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(field.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));
@@ -415,6 +461,7 @@ public partial class Hud : CanvasLayer
 		public override void _Draw()
 		{
 			DrawEdgeStations();
+			DrawTargetArrow();   // Runde 16
 			var p = Hud.TargetScreenPosition?.Invoke();
 			if (p is not { } pos) return;
 			var rect = new Rect2(Vector2.Zero, Size).Grow(-30f);

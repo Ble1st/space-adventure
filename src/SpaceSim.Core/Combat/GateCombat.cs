@@ -348,9 +348,9 @@ public static class GateInfo
     /// <summary>Kurzzeile für die Zielkarte: Hülle, Schild, Zustand (außer Betrieb mit Wiederanlauf).</summary>
     public static string Short(Universe u, Gate g)
     {
-        if (GateCombat.IsDown(u, g)) return $"AUSSER BETRIEB · läuft in {GateCombat.Clock(GateCombat.RestartIn(u, g))} · Hülle {GateCombat.Hull(u, g):0}";
+        if (GateCombat.IsDown(u, g)) return $"AUSSER BETRIEB · {GateCombat.Clock(GateCombat.RestartIn(u, g))}";   // Runde 16: kurz (Zielkarte)
         string s = $"Hülle {GateCombat.Hull(u, g):0}" + (GateCombat.MaxShield(u, g) > 0f ? $" · Schild {GateCombat.Shield(u, g):0}" : "");
-        if (GateCombat.InGrace(u, g)) return s + $" · Notbetrieb, unangreifbar {GateCombat.Clock(GateCombat.GraceLeft(u, g))}";   // Runde 14b
+        if (GateCombat.InGrace(u, g)) return $"Notbetrieb · unangreifbar {GateCombat.Clock(GateCombat.GraceLeft(u, g))}";   // Runde 14b/16: kurz
         return State(u, g) == "beschädigt" ? s + " · beschädigt" : s;
     }
 

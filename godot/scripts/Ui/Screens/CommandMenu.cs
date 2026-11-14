@@ -34,6 +34,7 @@ public partial class CommandMenu : Control, IScreen
 		("Neues Spiel", "", "new"),
 		("Musik", "an/aus (Lautstärke: System)", "music_mute"),   // Runde 12
 		("Effekte", "an/aus (Lautstärke: System)", "effects_mute"),
+		("Kamera-Diagnose", "Zeile für den Gerätetest", "cam_debug"),   // Runde 16
 	};
 
 	readonly KitWindow _win;

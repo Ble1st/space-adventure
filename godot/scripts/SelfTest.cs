@@ -2377,7 +2377,7 @@ public partial class SelfTest : Node
 					_m.TestFace(pl.Position + (pl.Position - hq.Position));
 					_m.SyncHudForTest();
 					Check(_m.HudRef.Flight.TestStationAttackInfo.Contains("Geschütze"), $"„Station angreifen“ nennt die Gegenwehr ({_m.HudRef.Flight.TestStationAttackInfo})");
-					Check(_m.HudRef.Flight.TestTargetArc.StartsWith("außerhalb Geschütze · Raketen ja"), $"Zielkarte: außerhalb der Geschütze, Raketen reichen ({_m.HudRef.Flight.TestTargetArc})");
+					Check(_m.HudRef.Flight.TestTargetArc.Contains("draußen · Rak. ✓"), $"Zielkarte: außerhalb der Geschütze, Raketen reichen ({_m.HudRef.Flight.TestTargetArc})");
 					Check(_m.TestBayPlaces.Any(n => n.StartsWith("Vorrat ") && n.Contains('/')), $"Raketenbucht zeigt den Vorrat ({string.Join(",", _m.TestBayPlaces)})");
 					// Runde 5: Bollwerk mit eigenem Verband — die Zielkarte zeigt das Kräfteverhältnis
 					Check(pl.ModelKey == "bastion" && SpaceSim.Core.Simulation.Squadrons.Get(uni, pl) is { Members.Count: 3 }, "Kriegstest: Bollwerk mit Verband aus zwei weiteren Bollwerken");
@@ -2505,6 +2505,21 @@ public partial class SelfTest : Node
 					break;
 				}
 				if (rf == 306) _m.TestEnterSector(new SectorId(1));
+				// Runde 16 (Handy-Test: Speicher 679 → 849 MB in 25 min Gefecht/Torangriff): je Runde ein Gefechtstest mit Überfall, Schüssen, Raketen, Wracks
+				// und ein Tor fällt aus und läuft wieder an — die Knoten/Objekte der Ansicht müssen danach wieder abgebaut sein
+				if (rf == 310) { _m.TestMenu("new:combat"); _m.TestFight.AutoFire = true; break; }
+				if (rf > 310 && rf < 380)
+				{
+					var cu = _m.Session.U;
+					if (rf == 311) foreach (var pe in cu.PendingEncounters.Where(p => p.Target == cu.PlayerShip)) pe.DueTick = cu.Tick;
+					if (rf == 330 && cu.Sectors[cu.PlayerSector].Gates.FirstOrDefault() is { } gid && cu.Gates.TryGetValue(gid, out var gg) && SpaceSim.Core.Combat.GateCombat.TypeOf(cu, gg) is not null)
+						SpaceSim.Core.Combat.GateCombat.Apply(cu, gg, new SpaceSim.Core.Combat.HitResult(true, 1f, 0f, 0f, SpaceSim.Core.Combat.GateCombat.MaxHull(cu, gg) + 10f), new ActorId(9999));
+					if (rf == 360 && cu.Sectors[cu.PlayerSector].Gates.FirstOrDefault() is { } gid2 && cu.Gates.TryGetValue(gid2, out var g2))
+						SpaceSim.Core.Combat.GateCombat.Restore(cu, g2, "repaired");
+					_m.Session.RunTicks(8);
+					break;
+				}
+				if (rf == 385) { _m.TestFight.AutoFire = false; _m.TestMenu("new"); }
 				break;
 			}
 			case 88: // Runde 6: Stationsangriff über den echten Ansichtspfad (Dauerfeuer, Ziel folgen, 50 % Schub, Echtzeit-Bilder) — Schaden je Sekunde wie im Core; dann Rückzug

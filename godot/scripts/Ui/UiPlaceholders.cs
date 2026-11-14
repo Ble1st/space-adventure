@@ -79,8 +79,6 @@ public static class UiPlaceholders
 	// ── Meine Fraktion ──
 	// Phase 9: Größe, Fortschritt, Mitgliedschaft, Beziehungen und Persönlichkeit sind echt (Akteure im Core); hier bleibt der Rest.
 
-	/// <summary>Unterhalt pro Tag (Platzhalter).</summary>
-	public const string MyFactionUpkeep = "−42 Cr/Tag – " + Tag;
 	/// <summary>Einnahmen pro Tag (Platzhalter).</summary>
 	public const string MyFactionIncome = "+210 Cr/Tag – " + Tag;
 	/// <summary>Fähigkeiten mit Schloss nach Größenstufe (Platzhalter).</summary>

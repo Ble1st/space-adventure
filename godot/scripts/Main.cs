@@ -118,6 +118,8 @@ public partial class Main : Node3D
 
 		_hud.TargetScreenPosition = ScreenPositionOfTarget;
 		_hud.StationScreenPositions = StationScreenPositions;
+		_hud.FreeField = () => _session != null ? FreeFieldPixels() : new Rect2();   // Runde 16
+		_hud.TargetEdge = TargetEdge;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
 		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
 		_hud.Flight.FastPressed += () => { _fast = _hud.Flight.FastOn; _sfx.Play(SfxId.Click); };
@@ -229,6 +231,7 @@ public partial class Main : Node3D
 			_hud.Toast($"Autopilot: Route nach {uu.Sectors[sec].Name} ({hops} {(hops == 1 ? "Sprung" : "Sprünge")})", 4f);
 		};
 		_hud.CcSector.AutopilotRequested += (nav, st) => { SetTarget(nav, st); CloseCommand(); };
+		_hud.CcSector.GateTargetRequested += g => { SelectGate(g); CloseCommand(); };   // Runde 16: Tor über die Sektoransicht wie angetippt
 		_hud.CcSector.TargetRequested += (nav, st) => { SelectTarget(nav, st); CloseCommand(); };   // Runde 4: nur als Ziel wählen   // Gerätetest Phase 27: Rückmeldung in der Flugansicht
 		_hud.CcFactions.CommsRequested += () => OpenCcArea(CommandAreas.Comms);
 		_hud.CcFactions.TerritoryRequested += f =>
@@ -258,6 +261,7 @@ public partial class Main : Node3D
 
 		var args = OS.GetCmdlineUserArgs();
 		bool selftest = args.Contains("--selftest");
+		_camDebug = args.Contains("--camdebug");   // Runde 16: Diagnosezeile der Gefechtskamera
 		int shotIdx = Array.IndexOf(args, "--ui-shots");
 		string? shotDir = shotIdx >= 0 && shotIdx + 1 < args.Length ? args[shotIdx + 1] : null;
 		if (selftest || shotDir != null)
@@ -268,6 +272,9 @@ public partial class Main : Node3D
 		}
 		StartSession();
 		if (selftest) AddChild(new SelfTest(this));
+		// Runde 16: Handyformat-Fotos aus dem echten Spielablauf (PhoneShots)
+		int phoneIdx = Array.IndexOf(args, "--phone-shots");
+		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { SaveService.UseFile("phone-shots.json"); AddChild(new PhoneShots(this, args[phoneIdx + 1])); }
 		if (shotDir != null)
 		{
 			if (!System.IO.Path.IsPathRooted(shotDir)) shotDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), shotDir);
@@ -302,13 +309,13 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		u.Events.Raised += OnSimEvent;
-		_target = null; _targetStation = null; _docked = null; _autopilot = false;
+		_target = null; _targetStation = null; _targetGate = null; _docked = null; _autopilot = false;   // Runde 16: auch das Tor (Taste „Tor angreifen“ blieb nach „Neues Spiel“)
 		_hud.Flight.SetAutopilot(false);
 		_hud.Flight.SetSlider(0f);
 		_hud.Screens.Hide();
 		_hud.HideAlert();   // zweiter Gerätetest Phase 28: keine Meldung der alten Sitzung (Verlustmeldung blieb nach „Neues Spiel“ stehen)
 		_fast = false;      // Runde 4: neue Sitzung beginnt mit Zeit ×1 (der Zeitraffer blieb über „Neues Spiel“ erhalten)
-		_aimAssist = true; _aimOffFor = null; _fight.AutoFire = false;
+		_aimAssist = true; _aimOffFor = null; _fight.AutoFire = false; _lastDepleted = "";
 		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();   // Gerätetest Phase 27: kein Zustand der alten Sitzung
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset();
@@ -362,13 +369,23 @@ public partial class Main : Node3D
 		var boxes = new List<Rect2>();
 		foreach (var l in _view.Labels().Where(x => x.IsInsideTree() && x.Visible && !_cam.IsPositionBehind(x.GlobalPosition)))
 		{
-			var sp = _cam.UnprojectPosition(l.GlobalPosition);
-			float half = Mathf.Max(20f, l.Text.Length * 4.5f);
-			var box = new Rect2(sp - new Vector2(half, 11f), new Vector2(half * 2f, 22f));
+			var box = LabelBox(l, _cam.UnprojectPosition(l.GlobalPosition));
 			if (boxes.Any(b => b.Intersects(box))) return true;
 			boxes.Add(box);
 		}
 		return false;
+	}
+
+	/// <summary>
+	/// Runde 16 (Handy-Test: Zustandsschild eines Tors lag halb unter der Statusleiste): Bildschirmfläche eines 3D-Schilds — mehrzeilige Schilder
+	/// (Tor: Name + „AUSSER BETRIEB · …“) zählen mit allen Zeilen und der längsten Zeile, nicht als eine 22 px hohe Zeile.
+	/// </summary>
+	static Rect2 LabelBox(Label3D l, Vector2 sp)
+	{
+		var lines = l.Text.Split('\n');
+		float half = Mathf.Max(20f, lines.Max(x => x.Length) * 4.5f);
+		float h = 22f * lines.Length;
+		return new Rect2(sp - new Vector2(half, h / 2f), new Vector2(half * 2f, h));
 	}
 
 	void HideCoveredLabels(float delta)
@@ -384,8 +401,7 @@ public partial class Main : Node3D
 			var p = l.GlobalPosition;
 			// Runde 4: ganze Beschriftung prüfen (vorher nur ihr Mittelpunkt — „Wrack“ lag halb unter dem rechten HUD)
 			var sp = _cam.UnprojectPosition(p);
-			float half = Mathf.Max(20f, l.Text.Length * 4.5f);
-			var box = new Rect2(sp - new Vector2(half, 11f), new Vector2(half * 2f, 22f));
+			var box = LabelBox(l, sp);
 			bool behind = _cam.IsPositionBehind(p);
 			bool covered = !behind && (rects.Any(r => r.Intersects(box)) || shown.Any(r => r.Intersects(box)));
 			// Phase 29 (Handy-Test der Stationsmodelle): unter HUD-Flächen ganz ausblenden (vorher nur abgedunkelt — hohe Modelle schoben Schilder unter Sektor-Chip und Zielkarte)
@@ -438,25 +454,29 @@ public partial class Main : Node3D
 	/// </summary>
 	internal SpaceSim.Core.Flight.CombatFraming.FreeRect FramingField()
 	{
+		var b = FreeFieldPixels();
 		var size = GetViewport().GetVisibleRect().Size;
 		float w = size.X, h = size.Y;
-		float top = 0f, bottom = h, left = 0f, right = w;
+		return new(b.Position.X / w * 2f - 1f, b.End.X / w * 2f - 1f, 1f - b.End.Y / h * 2f, 1f - b.Position.Y / h * 2f);
+	}
+
+	Rect2 _freeField; ulong _freeFieldAt; Vector2 _freeFieldSize;
+	/// <summary>
+	/// Runde 16: freies Feld in Bildpunkten — größtes Rechteck um die Bildmitte ohne HUD-Fläche (Core: <see cref="SpaceSim.Core.Flight.FreeField.Largest"/>; vorher schnitt
+	/// eine „billigste Seite“-Regel bei der Tastenspalte rechts oben die obere Kante ab und ließ nur ein Band von 35 % Höhe). Höchstens alle 0,2 s neu.
+	/// Auch die Randpfeile liegen an seinem Rand.
+	/// </summary>
+	internal Rect2 FreeFieldPixels()
+	{
+		var size = GetViewport().GetVisibleRect().Size;
+		ulong now = Time.GetTicksMsec();
+		if (_freeFieldSize == size && now - _freeFieldAt < 200 && _freeField.Size.X > 0f) return _freeField;
 		var rects = _hud.Flight.OccupiedRects();
 		if (_hud.AlertRect is { } ar) rects.Add(ar);
-		// jede HUD-Fläche, die das Feld noch überdeckt, schneidet die Seite ab, die am wenigsten Fläche kostet (oben/unten/links/rechts) — robust für jede
-		// Verankerung (Tastenspalten rechts, Chips oben, Regler unten), unabhängig von Seitenverhältnis und Auflösung
-		foreach (var r in rects.OrderByDescending(x => x.Size.X * x.Size.Y))
-		{
-			if (r.End.X <= left || r.Position.X >= right || r.End.Y <= top || r.Position.Y >= bottom) continue;
-			float wNow = right - left, hNow = bottom - top;
-			float cutTop = (r.End.Y - top) * wNow, cutBottom = (bottom - r.Position.Y) * wNow, cutLeft = (r.End.X - left) * hNow, cutRight = (right - r.Position.X) * hNow;
-			float min = Mathf.Min(Mathf.Min(cutTop, cutBottom), Mathf.Min(cutLeft, cutRight));
-			if (min == cutTop) top = r.End.Y; else if (min == cutBottom) bottom = r.Position.Y; else if (min == cutLeft) left = r.End.X; else right = r.Position.X;
-		}
-		// Mindestgröße (sonst wäre das Feld bei vielen Tasten zu schmal): mittig mindestens 40 % × 35 % des Bilds
-		if (right - left < w * 0.4f) { float cx = (left + right) / 2f; left = cx - w * 0.2f; right = cx + w * 0.2f; }
-		if (bottom - top < h * 0.35f) { float cy = (top + bottom) / 2f; top = cy - h * 0.175f; bottom = cy + h * 0.175f; }
-		return new(left / w * 2f - 1f, right / w * 2f - 1f, 1f - bottom / h * 2f, 1f - top / h * 2f);
+		var boxes = rects.Select(r => new SpaceSim.Core.Flight.FreeField.Box(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
+		var b = SpaceSim.Core.Flight.FreeField.Largest(size.X, size.Y, boxes, size.X / 2f, size.Y / 2f);
+		_freeField = new Rect2(b.X, b.Y, b.W, b.H); _freeFieldAt = now; _freeFieldSize = size;
+		return _freeField;
 	}
 
 	/// <summary>
@@ -485,6 +505,19 @@ public partial class Main : Node3D
 	Vector3? FramingTarget() => FramingTargetR()?.Pos;
 
 	bool _framingBoth;
+	string _camReason = "";
+	SpaceSim.Core.Flight.CombatFraming.FreeRect _camField;
+	/// <summary>
+	/// Runde 16 (dritter Handy-Test der Gefechtskamera): Diagnosezeile — „Kamera: Gefecht aktiv ja/nein · Grund · freies Feld · Abstand · Bild“; sichtbar mit dem
+	/// Schalter im Hamburger-Menü („Kamera-Diagnose“) oder dem Startargument <c>--camdebug</c>.
+	/// </summary>
+	internal string CameraDebugLine()
+	{
+		var vs = GetViewport().GetVisibleRect().Size;
+		var f = _camField;
+		return $"Kamera: Gefecht {(_framingActive && !_manualZoomInFight ? "aktiv" : "aus")} · {(_camReason.Length > 0 ? _camReason : "–")} · Feld x {f.X0:0.00}..{f.X1:0.00} y {f.Y0:0.00}..{f.Y1:0.00} · Abstand {_camOffset.Length:0} (Soll {_lastFrame.Distance:0}) · Ziel {_fight.Target.Value} · Bild {vs.X:0}×{vs.Y:0} · Fenster {GetWindow().Size.X}×{GetWindow().Size.Y}";
+	}
+	bool _camDebug;
 	/// <summary>Runde 15: Rahmt die Gefechtskamera Schiff und Ziel (sonst nur das Schiff, Ziel per Randpfeil)?</summary>
 	internal bool TestFramingBoth => _framingBoth;
 
@@ -507,7 +540,9 @@ public partial class Main : Node3D
 	{
 		if (_docked != null || _session is null) return null;
 		var u = _session.U;
-		Vector3? Near(ShipId id) => ShipWorld(id) is { } p && (p - _player.Position).Length() <= 400f ? p : null;
+		// Runde 16: Position aus der Ansicht, sonst aus dem Core (ein fernes Schiff hat ggf. noch keinen Marker)
+		Vector3? Where(ShipId id) => ShipWorld(id) ?? (SpaceSim.Core.Combat.PlayerCombat.PositionOf(u, id) is { } cp && cp.Sector == u.PlayerSector ? new Vector3(cp.Pos.X, 0f, cp.Pos.Y) : null);
+		Vector3? Near(ShipId id) => Where(id) is { } p && (p - _player.Position).Length() <= 400f ? p : null;
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast) && ast.Sector == u.PlayerSector) return (new Vector3(ast.Position.X, 0f, ast.Position.Y), ast.Radius);
 		if (_fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var agt) && agt.Sector == u.PlayerSector) return (new Vector3(agt.Position.X, 0f, agt.Position.Y), SpaceSim.Core.Combat.GateCombat.BodyRadius);
 		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var t) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, t.Id) && Near(t.Id) is { } tp) return (tp, 0f);
@@ -577,6 +612,7 @@ public partial class Main : Node3D
 			case "save": case "load": OnMenu(action); break;
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
+			case "cam_debug": _camDebug = !_camDebug; _hud.SetDebugLine(_camDebug ? CameraDebugLine() : null); _hud.Toast(_camDebug ? "Kamera-Diagnose an" : "Kamera-Diagnose aus"); break;   // Runde 16
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
 			// Kamera-Einstellungen: Menü bleibt offen, damit man die Wirkung sieht
@@ -910,8 +946,11 @@ public partial class Main : Node3D
 			case EncounterEnded end when end.Sector == _session.U.PlayerSector && end.Cause == EncounterCause.Assault:
 				_hud.Toast(end.Message, 4f); LastCombatMessage = end.Message; break;
 			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
-			case EncounterWarning w when w.Target == _session.U.PlayerShip && Sting("sting_warning"):
-				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0) _fight.SetTarget(w.Source);   // Runde 15: schon in der Warnphase Ziel (Kamera, Randpfeil)
+			case EncounterWarning w when w.Target == _session.U.PlayerShip:
+				// Runde 15/16: schon in der Warnphase Ziel (Kamera, Randpfeil) — auch wenn das Warnsignal gerade gesperrt ist (vorher hing alles am Signal);
+				// ein laufendes Gefechtsziel bleibt
+				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0 && _fight.Target.Value == 0) _fight.SetTarget(w.Source);
+				Sting("sting_warning");
 				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, 8f); LastSecurityMessage = w.Message; break;
 			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
@@ -1033,6 +1072,7 @@ public partial class Main : Node3D
 		long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
 		UpdateShipModels(delta);
 		long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
+		if (_camDebug) _hud.SetDebugLine(CameraDebugLine());   // Runde 16
 		_musicClock += delta;
 		if (_musicClock >= 0.1f) { UpdateMusic(_musicClock); _musicClock = 0f; }   // Runde 13 (FPS): Musikzustand mit 10 Hz
 		long t3 = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -1045,7 +1085,9 @@ public partial class Main : Node3D
 		var focus = Vector3.Zero;
 		float sz = ShipSizeZoom();
 		if (!_manualZoomInFight && sz > 1f) want = new CamVec3(want.X * sz, want.Y * sz, want.Z * sz);   // Runde 15: Standardabstand nach Schiffsgröße
-		if (FramingTargetR() is { } ftr && !_manualZoomInFight)
+		var framingTarget = FramingTargetR();
+		_camReason = _docked != null ? "angedockt" : framingTarget is null ? (_fight.Target.Value == 0 ? "kein Ziel" : "Ziel nicht feindlich/zu weit (>400 m)") : _manualZoomInFight ? "manuell übersteuert (Zoom)" : "";
+		if (framingTarget is { } ftr && !_manualZoomInFight)
 		{
 			_framingActive = true;
 			var ft = ftr.Pos;
@@ -1055,6 +1097,8 @@ public partial class Main : Node3D
 				vs.X / Mathf.Max(1f, vs.Y), OrbitCamera.MinDistance * sz, (ftr.Radius > 0f ? OrbitCamera.MaxDistance : 90f) * sz, OrbitCamera.DefaultDistance * sz, FramingField(), ftr.Radius);   // Station/Tor: bis zum Höchstabstand
 			_lastFrame = new SpaceSim.Core.Flight.CombatFraming.Frame(fr.FocusX, fr.FocusZ, fr.Distance);
 			_framingBoth = fr.Both;
+			_camField = FramingField();
+			_camReason = fr.Both ? "Schiff+Ziel" : "nur Schiff (Ziel passt nicht)";
 			float k = fr.Distance / Mathf.Max(1f, _orbit.Distance * sz);
 			want = new CamVec3(want.X * k, want.Y * k, want.Z * k);
 			focus = new Vector3(fr.FocusX - _player.Position.X, 0f, fr.FocusZ - _player.Position.Z);
@@ -1126,6 +1170,13 @@ public partial class Main : Node3D
 		if (_aimAssist && AttackApproachThrottle() is { } at && at != 0f)
 			return (new Vector2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), at, ClearanceScale(), 0f);
 		return (Vector2.Zero, 0f, 1f, 0f);
+	}
+
+	/// <summary>Runde 16: Zielkartenzeile einer Station — „Außenhaut 87 m · eig. ab 45 m“ (kurz, passt in die Karte).</summary>
+	string StationInfoLine(Universe u, Station st, Vec2 pos)
+	{
+		string own = SpaceSim.Core.Combat.WarInfo.OwnGunsShort(u, st, PlayerData, pos);
+		return $"Außenhaut {Mathf.Max(0f, Vec2.Distance(pos, st.Position) - st.Radius):0} m" + (own.Length > 0 && u.Rules.Warfare ? $" · {own}" : $" · Mitte {Vec2.Distance(pos, st.Position):0} m");
 	}
 
 	/// <summary>Runde 15: Schub der Annäherungsautomatik (Core: AttackApproach) — null ohne Stations-/Torangriff oder ohne Waffe.</summary>
@@ -1245,22 +1296,29 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		var gate = u.Gates[id];
-		SelectTarget(Navigator.ForSector(u, u.Gates[gate.Target].Sector, u.PlayerShip), null);
+		SelectTarget(Navigator.ForSector(u, u.Gates[gate.Target].Sector, u.PlayerShip), null, quiet: true);
 		_targetGate = gate.Id;
+		// Runde 16: eigener Hinweis für Tore (vorher „Autopilot fliegt hin, Andocken in der Nähe“)
+		_hud.Toast($"Ziel: {SpaceSim.Core.Combat.GateCombat.NameOf(u, gate)} — „Autopilot“ fliegt hin und springt, „Springen“ in der Nähe"
+			+ (u.Rules.GateCombat && SpaceSim.Core.Combat.GateCombat.TypeOf(u, gate) is not null ? ", „Tor angreifen“ = schweres Verbrechen" : ""), 3.5f);
+		UpdateHud();
 	}
 	internal void TestSelectGate(GateId id) => SelectGate(id);
 	internal bool TestAutopilot => _autopilot;
 	internal void TestSelectStation(StationId id) => SelectTarget(Navigator.ForStation(_session.U, id, _session.U.PlayerShip), id);
 
+	/// <summary>Runde 16: zuletzt gemeldeter Munitionsmangel (Hinweis nur beim Wechsel).</summary>
+	string _lastDepleted = "";
+
 	/// <summary>Gerätetest Phase 28: Ziel wählen ohne Autopilot (Tipp auf eine Station).</summary>
-	void SelectTarget(NavTarget target, StationId? station)
+	void SelectTarget(NavTarget target, StationId? station, bool quiet = false)
 	{
 		if (_targetStation != station) _fight.ArmStation(default);
 		_fight.ArmGate(default); _targetGate = null;   // Phase 31
 		_fight.SetTarget(default);   // Runde 5: das neue Ziel ersetzt ein gewähltes Schiff (vorher zeigte die Zielkarte noch den alten Gegner)
 		_target = target; _targetStation = station;
 		_sfx.Play(SfxId.Click);
-		_hud.Toast($"Ziel: {target.Label} — „Autopilot“ fliegt hin, „Andocken“ in der Nähe");
+		if (!quiet) _hud.Toast($"Ziel: {target.Label} — „Autopilot“ fliegt hin, „Andocken“ in der Nähe");
 		if (_session != null) UpdateHud();   // Runde 5: Zielkarte sofort, nicht erst im nächsten Bild
 	}
 
@@ -1606,6 +1664,23 @@ public partial class Main : Node3D
 		return from + dir * (-from.Y / dir.Y);
 	}
 
+	/// <summary>Runde 16: gewähltes Ziel (Schiff, angegriffene Station/Tor, angekündigter Kaperer) als Bildposition für den Zielpfeil am Rand des freien Felds.</summary>
+	(Vector2 Screen, string Label, bool Hostile)? TargetEdge()
+	{
+		if (_session == null || _docked != null || FramingTargetR() is not { } t) return null;
+		var u = _session.U;
+		var w = t.Pos;
+		var p = _cam.UnprojectPosition(w);
+		if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);
+		string label = _fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var st) ? st.Name
+			: _fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var g) ? SpaceSim.Core.Combat.GateCombat.NameOf(u, g)
+			: _fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var s) ? $"{SpaceSim.Core.Combat.PlayerCombat.Describe(u, s)} · {Vec2.Distance(new Vec2(_player.Position.X, _player.Position.Z), new Vec2(w.X, w.Z)):0} m"
+			: u.PendingEncounters.FirstOrDefault(x => x.Target == u.PlayerShip && x.Kind == EncounterKind.Raid) is { } pe && u.Ships.TryGetValue(pe.Source, out var ps)
+				? $"{SpaceSim.Core.Combat.PlayerCombat.Describe(u, ps)} · {Vec2.Distance(new Vec2(_player.Position.X, _player.Position.Z), new Vec2(w.X, w.Z)):0} m"
+			: "Ziel";
+		return (p, label, true);
+	}
+
 	/// <summary>Gerätetest Phase 28: Stationen des Spielersektors als Bildschirmpositionen (für die Randmarker außerhalb des Bildes); im Dock/Vollbild leer.</summary>
 	IReadOnlyList<(Vector2 Screen, string Name, int Id)> StationScreenPositions()
 	{
@@ -1840,6 +1915,7 @@ public partial class Main : Node3D
 			PowerOutput = PlayerData.Stats.PowerOutput, PowerDraw = PlayerData.Stats.PowerDraw,
 			Charge = PlayerData.Charge, ChargeMax = PlayerData.Stats.PowerStorage, PowerMode = PlayerData.PowerMode,
 			Credits = _session.U.WalletOf(PlayerData).Credits,   // Phase 5b: Spielerkasse
+			CostsPerMinute = SpaceSim.Core.Simulation.Hangar.RunningCostsPerMinute(u, u.PlayerActor),   // Runde 16
 			SectorName = sector.Name,
 			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",
 			// Phase 11: Lage und Fahndung (echt aus der Lagekarte und dem Fahndungsregister)
@@ -1898,7 +1974,7 @@ public partial class Main : Node3D
 			d.TargetHostile = true;
 			targetWorld = ast.Position;
 			d.TargetDistance = Vec2.Distance(pos, ast.Position);
-			d.TargetInfo = $"Außenhaut {Mathf.Max(0f, d.TargetDistance - ast.Radius):0} m · Mitte {d.TargetDistance:0} m";   // Runde 14: Abstand zur Außenhaut zuerst
+			d.TargetInfo = StationInfoLine(u, ast, pos);   // Runde 14/16: Außenhaut und ob die eigenen Geschütze reichen (kurz)
 			// Prüfung Phase 28: kurz genug für die Zielkarte (vorher „… · Schild 250/250…“ abgeschnitten)
 			d.TargetCombat = SpaceSim.Core.Combat.WarInfo.StationShort(u, ast);
 		}
@@ -1934,7 +2010,7 @@ public partial class Main : Node3D
 				d.TargetInfo = $"Entfernung {d.TargetDistance:0} m";
 				// Runde 14 (Handy-Test: „Entfernung 2 m“ am großen HQ): bei Stationen der Abstand zur Außenhaut, die Mitte dahinter
 				if (_targetStation is { } tsr && u.Stations.TryGetValue(tsr, out var tsrs) && tsrs.Sector == u.PlayerSector)
-					d.TargetInfo = $"Außenhaut {Mathf.Max(0f, Vec2.Distance(pos, tsrs.Position) - tsrs.Radius):0} m · Mitte {Vec2.Distance(pos, tsrs.Position):0} m";
+					d.TargetInfo = StationInfoLine(u, tsrs, pos);
 			}
 			else d.TargetInfo = "anderer Sektor – über Gate fliegen";
 			// Phase 31: ein gewähltes Tor zeigt seinen Zustand (Hülle/Schild, beschädigt, außer Betrieb mit Wiederanlauf)
@@ -1974,9 +2050,19 @@ public partial class Main : Node3D
 		}
 		// Gerätetest Phase 28 (Runde 4): Station mit Geschützen gewählt — klare Lage „in Geschützreichweite“/„außerhalb“ (Abstand zur Mitte, wie die Schussregel)
 		if (u.Rules.Warfare && (_fight.AtStation ? _fight.StationTarget : _targetStation) is { } rsid && rsid.Value != 0 && u.Stations.TryGetValue(rsid, out var rst)
-			&& rst.Sector == u.PlayerSector && _fight.Target.Value == 0 && SpaceSim.Core.Combat.WarInfo.RangeStatus(u, rst, PlayerData, pos) is { Length: > 0 } rs
+			&& rst.Sector == u.PlayerSector && _fight.Target.Value == 0 && SpaceSim.Core.Combat.WarInfo.RangeShort(u, rst, PlayerData, pos) is { Length: > 0 } rs
 			&& d.TargetArc.Length == 0)
 			d.TargetArc = rs;
+
+		// Runde 16: Munition/Raketen leer im Gefecht — sichtbar auf der Zielkarte und einmal als Hinweis (vorher schwieg der Massetreiber ohne Erklärung)
+		{
+			bool fighting = u.Fights.Of(PlayerData.Id) is not null;
+			string dep = fighting ? SpaceSim.Core.Combat.PlayerGunnery.DepletedText(u, PlayerData) : "";
+			if (dep.Length > 0 && d.TargetArc.Length == 0) d.TargetArc = dep;
+			if (dep.Length > 0 && dep != _lastDepleted)
+				_hud.Toast(dep + ". Nachladen: Werft oder Polizeiwache (Reparatur → Munition).", 4f);
+			_lastDepleted = dep;
+		}
 
 		// Kontexttaste: nahe Station „Andocken“, am Gate „Springen“
 		if (NearestStation(out _) is { } sid)

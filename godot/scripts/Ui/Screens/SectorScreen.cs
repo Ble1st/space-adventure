@@ -31,8 +31,16 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	public event Action<NavTarget, StationId?>? AutopilotRequested;
 	/// <summary>Runde 4: „Ziel wählen“ — Ziel setzen ohne Autopilot.</summary>
 	public event Action<NavTarget, StationId?>? TargetRequested;
+	/// <summary>Runde 16: „Ziel wählen“ bei einem gewählten Tor — dieselbe Torzielkarte wie beim Antippen (Hülle/Schild, „Tor angreifen“).</summary>
+	public event Action<GateId>? GateTargetRequested;
 	/// <summary>Test-Hook: „Ziel wählen“ auslösen.</summary>
-	public void TestTargetHere() { if (CanAutopilot(Ctx.U, Selected, out var n, out var d)) TargetRequested?.Invoke(n, d); }
+	public void TestTargetHere()
+	{
+		if (_selGate is { } sg && Selected == Ctx.U.PlayerSector) { GateTargetRequested?.Invoke(sg); return; }   // Runde 16: wie die Taste
+		if (CanAutopilot(Ctx.U, Selected, out var n, out var d)) TargetRequested?.Invoke(n, d);
+	}
+	/// <summary>Runde 16: Tor in der Sektoransicht wählen (wie Antippen auf der Karte).</summary>
+	public void TestSelectGate(GateId g) { _selGate = g; _selStation = null; Invalidate(); }
 
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
 
@@ -173,7 +181,11 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		if (CanAutopilot(u, sel, out var nav, out var dock))
 		{
 			bAuto.Pressed += () => { if (CanAutopilot(u, sel, out var n2, out var d2)) AutopilotRequested?.Invoke(n2, d2); };
-			bTarget.Pressed += () => { if (CanAutopilot(u, sel, out var n2, out var d2)) TargetRequested?.Invoke(n2, d2); };
+			bTarget.Pressed += () =>
+			{
+				if (_selGate is { } sg && sel == u.PlayerSector) { GateTargetRequested?.Invoke(sg); return; }   // Runde 16
+				if (CanAutopilot(u, sel, out var n2, out var d2)) TargetRequested?.Invoke(n2, d2);
+			};
 		}
 		else
 		{

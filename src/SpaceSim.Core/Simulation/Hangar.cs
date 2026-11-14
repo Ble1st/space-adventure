@@ -36,6 +36,31 @@ public static class Hangar
     public static float BerthFeesPerDay(Universe u, ActorId owner) =>
         u.Ships.Values.Where(s => s.Owner == owner).Sum(s => BerthFeeNow(u, s));
 
+    /// <summary>
+    /// Runde 16 (Gerätetest: Credits sanken im Kriegstest langsam 19999 → 19940): Schiffe des Besitzers, die laufend Unterhalt zahlen — wie
+    /// <see cref="HangarSystem"/>: nicht aktive Spielerschiffe mit Befehl (auch Verbandsmitglieder mit „Folgen“), keine Leihschiffe.
+    /// </summary>
+    public static int UpkeepShips(Universe u, ActorId owner) =>
+        u.Ships.Values.Count(s => s.Owner == owner && s.IsPlayer && s.Id != u.PlayerShip && s.Command is not null && !s.IsRental);
+
+    /// <summary>Runde 16: laufende Kosten der Person je Minute Spielzeit — Flottenunterhalt (<see cref="EconomyRules.ShipUpkeepPerTick"/> je Schiff mit Befehl) plus Liegegebühren.</summary>
+    public static float RunningCostsPerMinute(Universe u, ActorId owner)
+    {
+        float perTick = UpkeepShips(u, owner) * u.Rules.ShipUpkeepPerTick
+            + (u.Rules.DayTicks > 0 ? BerthFeesPerDay(u, owner) / u.Rules.DayTicks : 0f);
+        return perTick * SimClock.TicksPerSecond * 60f;
+    }
+
+    /// <summary>Runde 16: Anzeigezeile der laufenden Kosten („Verband 2 Schiffe · −4,8 Cr/min“), leer ohne Kosten.</summary>
+    public static string RunningCostsText(Universe u, ActorId owner)
+    {
+        float perMin = RunningCostsPerMinute(u, owner);
+        if (perMin <= 0.001f) return "";
+        int ships = UpkeepShips(u, owner);
+        string who = ships > 0 ? $"Unterhalt {ships} Schiff{(ships == 1 ? "" : "e")}" : "Liegegebühr";
+        return $"{who} · −{perMin.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))} Cr/min";
+    }
+
     /// <summary>Materialwert eines Schiffs: Bausatz der Klasse + eingebaute Module zum Basispreis (0 ohne Modell oder ohne auflösbare Waren).</summary>
     public static float MaterialValue(Universe u, Ship ship)
     {

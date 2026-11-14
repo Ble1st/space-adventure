@@ -31,6 +31,30 @@ public static class PlayerGunnery
         return list;
     }
 
+    /// <summary>
+    /// Runde 16 (Gerätetest: Haupttor dauerte ≈ 9 min, Munition und Raketen waren nach ≈ 90 s leer, ohne Hinweis): welche Waffen mangels Raketen/Munition
+    /// schweigen und was noch feuert — „Raketen leer · Munition leer – nur noch Laser“. Leer = alle Waffen haben, was sie brauchen (oder keine Waffe braucht Vorrat).
+    /// </summary>
+    public static string DepletedText(Universe u, Ship ship)
+    {
+        bool rocketsOut = false, ammoOut = false;
+        var still = new List<string>();
+        foreach (int slot in WeaponSlots(u, ship))
+        {
+            var m = Gunnery.WeaponAt(u, ship, slot)!;
+            if (Missiles.IsMissile(m)) { if (Missiles.Loaded(u, ship) < 1f) rocketsOut = true; else still.Add("Raketen"); continue; }
+            var w = WeaponProfile.Of(m);
+            if (!Gunnery.HasAmmo(u, ship, w)) { ammoOut = true; continue; }
+            still.Add(w.AmmoPerShot > 0f ? "Massetreiber" : "Laser");
+        }
+        if (!rocketsOut && !ammoOut) return "";
+        var parts = new List<string>();
+        if (rocketsOut) parts.Add("Raketen leer");
+        if (ammoOut) parts.Add("Munition leer");
+        var rest = still.Distinct().ToList();
+        return string.Join(" · ", parts) + (rest.Count == 0 ? " – keine Waffe feuert" : $" – nur noch {string.Join("/", rest)}");
+    }
+
     /// <summary>Waffenschächte des Schiffs (einer je Waffe, Feuerwinkel aus dem Slot).</summary>
     public static List<WeaponBay> Bays(Universe u, Ship ship)
     {
@@ -352,8 +376,22 @@ public static class PlayerCombat
     {
         var list = Enemies(u, player);
         if (list.Count == 0) return default;
-        int i = list.IndexOf(current);
-        return list[(i + 1) % list.Count];
+        // Runde 16 (Handy-Test: „Nächster Gegner“ sprang vom Angreifer in 30 m zum fernen Kaperer in 380 m und die Kamera verlor das Ziel): im Gefecht wird nur
+        // unter den Gefechtsgegnern gewechselt — ist der gewählte der einzige, bleibt er; ohne Gefecht reihum unter den Kaperern im Sektor
+        var fight = FightEnemies(u, player);
+        var pool = fight.Count > 0 ? fight : list;
+        int i = pool.IndexOf(current);
+        return i < 0 ? pool[0] : pool[(i + 1) % pool.Count];
+    }
+
+    /// <summary>Gegner im eigenen Gefecht nach Abstand (leer ohne Gefecht).</summary>
+    static List<ShipId> FightEnemies(Universe u, Ship player)
+    {
+        var fight = new List<(ShipId, float)>();
+        if (u.Fights.Of(player.Id) is { } e && e.Of(player.Id) is { } me)
+            foreach (var p in e.Participants)
+                if (p.Active && p.Side != me.Side && PositionOf(u, p.Ship) is { } pp) fight.Add((p.Ship, Vec2.Distance(pp.Pos, player.Position)));
+        return fight.OrderBy(f => f.Item2).ThenBy(f => f.Item1.Value).Select(f => f.Item1).ToList();
     }
 
     /// <summary>Feindliche Schiffe für die Zielwahl (feste Reihenfolge: Gefechtsgegner nach Abstand, dann Kaperer im Sektor nach Abstand).</summary>

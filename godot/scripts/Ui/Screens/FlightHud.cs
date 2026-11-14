@@ -23,6 +23,8 @@ public sealed class BayView
 public sealed class FlightHudData
 {
 	public float Hull, Credits;
+	/// <summary>Runde 16: laufende Kosten je Minute (Flottenunterhalt + Liegegebühr; 0 = keine) — erklärt, warum die Kasse ohne Kauf sinkt.</summary>
+	public float CostsPerMinute;
 	/// <summary>Tankinhalt und Tankgröße des Spielerschiffs (echt, Phase 4c); Kapazität 0 = kein Treibstoffsystem.</summary>
 	public float Fuel, FuelCapacity;
 	/// <summary>Phase 14: Treibstoff eingeschaltet (Regel fuelActive)? Aus = Tankzeile ausgeblendet.</summary>
@@ -172,7 +174,24 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Selbsttest: Zielkartenzeile Schild/Hülle, Beschusswarnung, Lage und Größe der Kampftasten.</summary>
 	public string TestTargetCombat => _tCombat.Text;
 	/// <summary>Runde 15: Pflichtzeilen der Zielkarte vollständig sichtbar (kein Abschneiden)?</summary>
-	public bool TestTargetLinesComplete => (!_tCombat.Visible || _tCombat.GetLineCount() <= 2) && _tArc.GetLineCount() <= 2;
+	public bool TestTargetLinesComplete => TestTargetLineOverflow.Length == 0;
+	/// <summary>Runde 16: erste Zielkartenzeile, die nicht in ihre Breite passt („…“), sonst leer; auch ob die Kräftezeile unter den Kartenrand ragt.</summary>
+	public string TestTargetLineOverflow
+	{
+		get
+		{
+			foreach (var l in new[] { _tInfo, _tArc, _tCombat, _tOdds })
+			{
+				if (!l.Visible || l.Text.Length == 0) continue;
+				var font = l.GetThemeFont("font"); int size = l.GetThemeFontSize("font_size");
+				float w = font.GetStringSize(l.Text, HorizontalAlignment.Left, -1, size).X;
+				float room = l == _tOdds ? 316f : 246f;
+				if (w > room + 0.5f) return $"„{l.Text}“ {w:0} > {room:0} px";
+			}
+			if (_tOdds.Visible && _tOdds.GetGlobalRect().End.Y > _card.GetGlobalRect().End.Y + 1f) return $"Kräftezeile unter dem Kartenrand ({_tOdds.GetGlobalRect().End.Y:0} > {_card.GetGlobalRect().End.Y:0})";
+			return "";
+		}
+	}
 	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
 	public Rect2 TestBayRect(int i) => new(_bayButtons[i].Position, _bayButtons[i].Size);
 	public Rect2 TestAutoFireRect => new(_autoFire.Position, _autoFire.Size);
@@ -219,6 +238,7 @@ public partial class FlightHud : Control, IScreen
 	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
+	Control _card = null!;
 	Radar _radar = null!;
 	KitButton _autopilotBtn = null!, _autoMineBtn = null!, _contextBtn = null!;
 	// unten links
@@ -320,6 +340,7 @@ public partial class FlightHud : Control, IScreen
 
 		// ── Zielkarte rechts unter der oberen Leiste ──
 		var card = Win(this, 930, 72, 340, 132, new Color(0.03f, 0.05f, 0.1f, 0.72f), UiKit.Green, 12);
+		_card = card;
 		var tv = At(card, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 12, 8, 246, 116);
 		tv.AddThemeConstantOverride("separation", 2);
 		_tName = Text("", 18, UiKit.Green); _tInfo = Text("", 15, UiKit.Dim); _tArc = Text("", 15, UiKit.White);
@@ -327,12 +348,11 @@ public partial class FlightHud : Control, IScreen
 		_tOdds = Text("", 14, UiKit.Orange);   // Runde 5: Kräfteverhältnis eines Stationsangriffs
 		// Gerätetest: Zeilen der Zielkarte enden vor dem Radarkreis (der Hinweistext lief hinein) — gekürzt mit „…“
 		foreach (var l in new[] { _tName, _tInfo, _tArc, _tCombat }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; l.CustomMinimumSize = new Vector2(246, 0); }
-		// Runde 15 (Handy-Test: „Hülle 450 · Schild…“, „…Raketen ja · eigene…“ abgeschnitten): Lage- und Kampfzeile zweizeilig, etwas kleiner
-		foreach (var l in new[] { _tArc, _tCombat })
-		{
-			l.AutowrapMode = TextServer.AutowrapMode.WordSmart; l.MaxLinesVisible = 2; l.ClipText = false;
-			l.AddThemeFontSizeOverride("font_size", 14); l.AddThemeConstantOverride("line_spacing", -2);
-		}
+		// Runde 16 (Handy-Test: Zeilen abgeschnitten, Kräftezeile über dem Kartenrand): kurze Texte (Core-Kurzformen) und etwas kleinere Schrift — fünf Zeilen passen
+		// in die 132 px hohe Karte (Umbruch half am Gerät nicht: die Zeilen bekamen keine zweite Höhe)
+		_tName.AddThemeFontSizeOverride("font_size", 17);
+		foreach (var l in new[] { _tInfo, _tArc, _tCombat }) l.AddThemeFontSizeOverride("font_size", 14);
+		_tOdds.AddThemeFontSizeOverride("font_size", 13);
 		_tOdds.ClipText = true; _tOdds.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _tOdds.CustomMinimumSize = new Vector2(316, 0);   // unter dem Radar: ganze Kartenbreite
 		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc); tv.AddChild(_tCombat); tv.AddChild(_tOdds);
 		_tOdds.Visible = false;
@@ -552,7 +572,8 @@ public partial class FlightHud : Control, IScreen
 			+ (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}/{(int)d.ChargeMax}" : "");
 		foreach (var (mode, b) in _modeButtons) b.On = d.PowerMode == mode;
 		// Phase 26: negative Kasse = Schulden (z. B. laufende Leihmiete)
-		_credits.Text = d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits";
+		_credits.Text = (d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits")
+			+ (d.CostsPerMinute > 0.001f ? $" · −{d.CostsPerMinute.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))}/min" : "");   // Runde 16: Verbandsunterhalt sichtbar
 		_credits.AddThemeColorOverride("font_color", d.Credits < 0f ? UiKit.Red : UiKit.Orange);
 		_fire.Text = d.Fire;
 		_fire.Visible = d.Fire.Length > 0;
@@ -615,7 +636,7 @@ public partial class FlightHud : Control, IScreen
 		// Runde 15 (Handy-Test): solange ein Überfall läuft und Dauerfeuer aus ist, pulsiert die Taste (Warnrahmen, Helligkeit)
 		_autoFireHint = d.AutoFireHint && !d.AutoFireOn;
 		_autoFire.State = _autoFireHint ? KitButtonState.Warn : KitButtonState.Normal;
-		float pulse = _autoFireHint ? 0.75f + 0.25f * Mathf.Sin((float)Time.GetTicksMsec() / 1000f * 6f) : 1f;
+		float pulse = _autoFireHint ? 0.85f + 0.45f * Mathf.Sin((float)Time.GetTicksMsec() / 1000f * 5f) : 1f;   // Runde 16: deutlicher (0,4 … 1,3)
 		_autoFire.Modulate = new Color(1f, 1f, 1f, 1f) * new Color(pulse, pulse, pulse, 1f);
 		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
 		// Prüfung Runde 2: bewaffnet, aber kein Gegner im Sektor — Taste bleibt an ihrem Platz, gesperrt mit Grund (vorher sah sie aktiv aus)
