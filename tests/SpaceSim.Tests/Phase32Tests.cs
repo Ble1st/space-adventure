@@ -201,6 +201,7 @@ public class Phase32Tests
         float Ore(bool anchors, out ulong hash, out int held)
         {
             var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+            Phase29Tests.RevertRunde24(def);   // Runde 24: beide Läufe mit den Werftregalen von Runde 16 (gemessen wird nur die Wirkung der Anker)
             if (!anchors) RevertPhase32(def);
             var u = WorldBuilder.Build(def, null);
             float mined = 0; int h = 0;

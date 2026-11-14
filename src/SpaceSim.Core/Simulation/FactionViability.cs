@@ -216,7 +216,7 @@ public sealed class FactionViabilitySystem : ISimSystem
         {
             if (!u.Actors.TryGetValue(f, out var actor) || actor.Kind == ActorKind.Outlaw) continue;
             if (u.Tick - actor.LastRestoreTick < r.ViabilityRestoreCooldown) continue;
-            if (r.SecurityActive && r.PoliceMinPerFaction > 0 && SecuritySystem.PoliceOf(u, f).Count < r.PoliceMinPerFaction
+            if (r.SecurityActive && r.PoliceMinPerFaction > 0 && u.Tick >= actor.LastForceTick && SecuritySystem.PoliceOf(u, f).Count < r.PoliceMinPerFaction
                 && SecuritySystem.Commission(u, f, priority: true) is null
                 && FactionViability.EmergencyCommission(u, f, r.PoliceModel, ShipRole.Police) is not null) continue;
             if (r.MinBuildersPerFaction > 0 && r.CommissionBuilders && FactionBuilderSystem.Of(u, f).Count < r.MinBuildersPerFaction)

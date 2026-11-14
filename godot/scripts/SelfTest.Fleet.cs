@@ -42,6 +42,16 @@ public partial class SelfTest
 		}
 	}
 
+	/// <summary>Runde 24: „Begleiten“-Taste in der Listenzeile, deren Schiffstaste mit <paramref name="rowLabel"/> beschriftet ist.</summary>
+	static Ui.Kit.KitButton? BeginRow(Node root, string rowLabel)
+	{
+		foreach (var b in Buttons(root))
+			if (b.Text == rowLabel && b.IsVisibleInTree() && b.GetParent() is HBoxContainer row)
+				foreach (var c in row.GetChildren())
+					if (c is Ui.Kit.KitButton g && g.Text == "Begleiten") return g;
+		return null;
+	}
+
 	void TapNode(Ui.Kit.KitButton b, bool down) { _p28Press = b.GetGlobalRect().GetCenter(); Tap(_p28Press.Value, down); }
 
 	string FleetOverflow(Node root) => string.Join(" | ", Buttons(root).Where(b => b.IsVisibleInTree()).Select(b => b.Overflow()).Where(o => o.Length > 0));
@@ -123,6 +133,8 @@ public partial class SelfTest
 			{
 				var t = u.Ships[_flFirst];
 				Check(t.Command is TradeCommand, $"Handelsbefehl per Tipp ({_m.HudRef.CcFleet.TestMessage})");
+				Check(_m.HudRef.CcFleet.TestLossGuardButton is { } lg && lg.Text == "gesperrt" && t.Command is TradeCommand tcg && !tcg.Limits.AllowLoss,
+					$"Runde 24: Schalter Verlustkauf bei den Grenzen, Standard gesperrt ({_m.HudRef.CcFleet.TestLossGuardButton?.Text})");
 				Check(FleetOverflow(cc).Length == 0, $"Flotte: keine Taste läuft über ({FleetOverflow(cc)})");
 				// Verband bilden mit dem Händler als Führer
 				PressButton(cc, "Bilden", true);
@@ -143,25 +155,22 @@ public partial class SelfTest
 				return false;
 			}
 			case 45: if (_flEscort.Value != 0) PressButton(cc, $"#{_flEscort.Value} {u.ShipModels[u.Ships[_flEscort].ModelKey].Name}", false); return false;
-			case 47: if (_flEscort.Value != 0) PressButton(cc, "Eskorte", true); return false;
-			case 48: if (_flEscort.Value != 0) PressButton(cc, "Eskorte", false); return false;
-			case 50:
+			case 47:
 				if (_flEscort.Value != 0)
 				{
-					// das Ziel in der Zielwahl (gleicher Text wie die Zeile links — die letzte passende Taste ist die im Zielraster)
-					string lbl = $"#{_flEscTarget.Value} {u.ShipModels[u.Ships[_flEscTarget].ModelKey].Name}";
-					var tgt = Buttons(cc).LastOrDefault(b => b.Text == lbl && b.IsVisibleInTree() && b.State != Ui.Kit.KitButtonState.Disabled);
-					if (tgt is null) Fail($"Eskorte: Ziel „{lbl}“ nicht in der Zielwahl ({_m.HudRef.CcFleet.TestMessage})"); else TapNode(tgt, true);
+					// Runde 24: „Begleiten“ in der Zeile des zu schützenden Schiffs (das gewählte Kampfschiff begleitet) — ein Tipp
+					var tgt = BeginRow(cc, $"#{_flEscTarget.Value} {u.ShipModels[u.Ships[_flEscTarget].ModelKey].Name}");
+					if (tgt is null) Fail($"„Begleiten“ in der Zeile #{_flEscTarget.Value} fehlt"); else TapNode(tgt, true);
 				}
 				return false;
-			case 51: if (_flEscort.Value != 0 && _p28Press is { } at51) Tap(at51, false); return false;
+			case 48: if (_flEscort.Value != 0 && _p28Press is { } at48) Tap(at48, false); return false;
 			case 53:
 				if (_flEscort.Value != 0)
 				{
 					var e = u.Ships[_flEscort];
 					// Mitglied eines Verbands: eine Eskorte geht an das Schiff oder (als Führer) an den Verband
 					Check(e.Command is EscortCommand ec && ec.Target == _flEscTarget, $"Eskorte per Tipp ({_m.HudRef.CcFleet.TestMessage}; Befehl {e.Command?.GetType().Name})");
-					_flDepth.Add("Eskorte: Kommando → Flotte → Schiff → Eskorte → Ziel (5 Tipps; 4 mit Vorwahl)");
+					_flDepth.Add("Eskorte: Kommando → Flotte → (Kampfschiff wählen) → „Begleiten“ in der Zeile des Ziels (3 Tipps mit Vorwahl, 4 mit Schiffswahl)");
 				}
 				// Besitz
 				PressButton(cc, "Besitz", true);

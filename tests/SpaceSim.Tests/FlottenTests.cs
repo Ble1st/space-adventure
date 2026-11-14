@@ -137,6 +137,21 @@ public class FlottenTests
         }
         sb.AppendLine($"gekauft {bought.Count}, nicht lieferbar {notDeliverable} von {Yards(u).Count * Wanted.Length}");
         sb.AppendLine("Fehlendes Material (Anzahl Modell×Werft): " + string.Join(", ", missingCount.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
+        // Runde 24: jede Kombination einzeln auf frischer Welt (Tick 200, Auskunft ohne Kauf — die Liste oben kauft nacheinander und leert Regale)
+        var fresh = WorldBuilder.BuildDefault(null, "trader");
+        new SimulationRunner().Run(fresh, 200);
+        fresh.PlayerWallet.Credits = 10_000_000f;
+        sb.AppendLine("Frische Welt, Tick 200, jede Kombination einzeln (ok = lieferbar):");
+        sb.AppendLine($"{"Modell",-14}" + string.Join("", Yards(fresh).Select(y => $"{y.Name,-34}")));
+        int freshOk = 0;
+        foreach (var m in fresh.ShipModels.Values.OrderBy(m => m.Key, StringComparer.Ordinal))
+        {
+            var cells = Yards(fresh).Select(y => ShipDealerService.Quote(fresh, y, fresh.Ships[fresh.PlayerShip], m.Key) is { } q
+                ? (q.Missing.Count == 0 && q.Locked is null ? "ok" : "fehlt " + string.Join(",", q.Missing.Select(x => $"{x.Units:0}×{fresh.Goods[x.Good].Name}"))) : "—").ToList();
+            freshOk += cells.Count(c => c == "ok");
+            sb.AppendLine($"{m.Name,-14}" + string.Join("", cells.Select(c => $"{(c.Length > 33 ? c[..32] + "…" : c),-34}")));
+        }
+        sb.AppendLine($"frisch lieferbar: {freshOk} von {Yards(fresh).Count * fresh.ShipModels.Count}");
         // Lieferbarkeit später im Spiel (nur Auskunft, ohne Kauf): wie oft kann eine Werft ein Modell nach 20000 Ticks liefern?
         var later = WorldBuilder.BuildDefault(null, "trader");
         new SimulationRunner().Run(later, 20000);
@@ -161,35 +176,32 @@ public class FlottenTests
     {
         var u = World();
         var beta = u.StationsById().First(s => s.Name == "Handelsstation Beta");
-        var sb = new StringBuilder("Befehlskapazität (Größenklasse aus Schiffen, Stationen, Sektoren und Geld)\n");
+        var sb = new StringBuilder("Befehlskapazität nach Befehlsstufe (Runde 24: eigene Schiffe zählen ¼, Stationen/Sektoren/Geld wie in der Größenklasse)\n");
         u.PlayerWallet.Credits = 1000f;
-        string Line(string what) { var c = Commands.Capacity(u, u.PlayerActor); return $"{what}: {c.Ships} Einzelbefehle, {c.Squadrons} Verbände, Klasse {ActorRules.ClassOf(u, ActorRules.Index(u), u.PlayerActor)}"; }
+        string Line(string what) { var c = Commands.Capacity(u, u.PlayerActor); return $"{what}: {c.Ships} Einzelbefehle, {c.Squadrons} Verbände, Befehlsstufe {Commands.CapacityClass(u, u.PlayerActor)}, Größenklasse {ActorRules.ClassOf(u, ActorRules.Index(u), u.PlayerActor)}"; }
         sb.AppendLine(Line("1 Schiff, 1000 Cr"));
-        var fleet = Enumerable.Range(0, 4).Select(_ => Own(u, "nomad", beta)).ToList();
-        sb.AppendLine(Line("5 Schiffe, 1000 Cr"));
-        var cap5 = Commands.Capacity(u, u.PlayerActor);
-        // Verbände: die Grenze greift (5 Schiffe → 1 Verband)
-        var first = Squadrons.Create(u, fleet[0], "Erster", out var m1);
-        Assert.NotNull(first);
-        Assert.True(Squadrons.Join(u, first!, fleet[1], out _));
-        var second = Squadrons.Create(u, fleet[2], "Zweiter", out var m2);
-        if (cap5.Squadrons <= 1) { Assert.Null(second); Assert.Contains("Verbände", m2); }
-        sb.AppendLine($"zweiter Verband bei Grenze {cap5.Squadrons}: „{m2}“");
-        // Einzelbefehle: Grenze = Klasse; mit jedem Schiff wächst die Klasse mit
+        var fleet = Enumerable.Range(0, 5).Select(_ => Own(u, "nomad", beta)).ToList();
+        sb.AppendLine(Line("6 Schiffe, 1000 Cr"));
         int given = 0; string? refusal = null;
-        foreach (var s in fleet.Skip(2).Append(Own(u, "nomad", beta)))
-            if (Commands.Give(u, s, new HoldCommand(), out var msg)) given++; else { refusal = msg; break; }
-        sb.AppendLine($"Einzelbefehle an alle Schiffe ohne Verband: {given} gegeben{(refusal is null ? ", keine Verweigerung" : $", dann „{refusal}“")}");
-        foreach (int n in new[] { 6, 15, 30 })
+        foreach (var s in fleet) if (Commands.Give(u, s, new HoldCommand(), out var msg)) given++; else { refusal = msg; break; }
+        Assert.Equal(Commands.Capacity(u, u.PlayerActor).Ships, given);
+        Assert.NotNull(refusal);
+        sb.AppendLine($"Einzelbefehle: {given}, dann „{refusal}“");
+        var sq = Squadrons.Create(u, fleet[^1], "Erster", out _);
+        Assert.NotNull(sq);
+        var second = Squadrons.Create(u, Own(u, "nomad", beta), "Zweiter", out var m2);
+        Assert.Null(second);
+        sb.AppendLine($"zweiter Verband: „{m2}“");
+        foreach (int n in new[] { 8, 16, 30 })
         {
             while (PlayerFleet.Owned(u).Count < n) Own(u, "nomad", beta);
             sb.AppendLine(Line($"{n} Schiffe, 1000 Cr"));
-            var c = Commands.Capacity(u, u.PlayerActor);
-            Assert.True(c.Ships >= n, "Einzelbefehls-Grenze nie unter der Schiffszahl (Klasse wächst mit)");
         }
-        u.PlayerWallet.Credits = 2_000_000f;
-        sb.AppendLine(Line("30 Schiffe, 2 000 000 Cr"));
-        // nur mit einem Schiff (Klasse Einzel, 4 Befehle) wäre die Grenze erreichbar — mehr Schiffe heben sie sofort
+        foreach (float money in new[] { 100_000f, 300_000f, 2_000_000f })
+        {
+            u.PlayerWallet.Credits = money;
+            sb.AppendLine(Line($"30 Schiffe, {money:0} Cr"));
+        }
         _o.WriteLine(sb.ToString());
     }
 
@@ -395,7 +407,8 @@ public class FlottenTests
         public int Traders; public float WalletStart, WalletEnd, Residual;
         public readonly List<string> Rows = new();
         public readonly List<string> Violations = new();
-        public float Revenue, Cost, Berth, Upkeep, Repairs, RaidLoss; public int Refused, Discarded, Raids, Trips;
+        public float Revenue, Cost, Berth, Upkeep, Repairs, RaidLoss; public int Refused, RefusedLoss, RefusedPrice, Discarded, Raids, Trips;
+        public float TraderProfit, MinerProfit; public int TraderShips, MinerShips;
         public float NpcTradeRevenue; public int NpcBankrupt, NpcUnprofitable; public float NpcTradeUnits;
     }
 
@@ -421,14 +434,15 @@ public class FlottenTests
             var l = LimitSet[i % LimitSet.Length];
             var at = l.Center.Value == 0 ? beta : u.StationsById().First(s => s.Sector == l.Center && s.Dockable && s.Market.Count > 0);
             var s = Own(u, i % 2 == 0 ? "mule" : "hauler", at);
-            Assert.True(Commands.Give(u, s, new TradeCommand(l), out var m, ignoreCapacity: false), m);
+            // Messaufbau: mehr Einzelbefehle, als die Befehlsstufe zulässt (Runde 24) — die Grenze prüft Flotten_Kommandokapazitaet
+            Assert.True(Commands.Give(u, s, new TradeCommand(l), out var m, ignoreCapacity: true), m);
             fleet.Add((s, l));
         }
         if (traders > 0)
             for (int i = 0; i < 2; i++)
             {
                 var s = Own(u, "prospector", alpha);
-                Commands.Give(u, s, new MineCommand(new AutoLimits(alpha.Sector, 1, 0f, 0f)), out _);
+                Commands.Give(u, s, new MineCommand(new AutoLimits(alpha.Sector, 1, 0f, 0f)), out _, ignoreCapacity: true);
                 mine.Add(s);
             }
         var mineIds = mine.Select(s => s.Id).ToHashSet();
@@ -461,7 +475,8 @@ public class FlottenTests
                         }
                         break;
                     }
-                case TraderBuyRefused rf when own.Contains(rf.Ship): { var c = perShip[rf.Ship]; perShip[rf.Ship] = (c.Rev, c.Cost, c.Trips, c.Refused + 1); run.Refused++; break; }
+                case TraderBuyRefused rf when own.Contains(rf.Ship):
+                    { var c = perShip[rf.Ship]; perShip[rf.Ship] = (c.Rev, c.Cost, c.Trips, c.Refused + 1); run.Refused++; if (rf.Reason == "price_limit") run.RefusedPrice++; else run.RefusedLoss++; break; }
                 case BerthFeePaid bf when bf.Actor == u.PlayerActor: outSum += bf.Amount; run.Berth += bf.Amount; break;
                 case FleetUpkeepPaid fu when fu.Actor == u.PlayerActor: outSum += fu.Amount; run.Upkeep += fu.Amount; break;
                 case ShipRepaired sr when own.Contains(sr.Ship) && !sr.AtBase: outSum += sr.Cost; run.Repairs += sr.Cost; break;
@@ -486,7 +501,15 @@ public class FlottenTests
                 if (!u.Ships.TryGetValue(id, out var s)) continue;
                 if (s.Credits != 0f) run.Violations.Add($"#{id.Value} hat eigenes Geld ({s.Credits:0.##})");
                 if (s.UsedVolume(u) > s.CargoCapacity + 0.01f) run.Violations.Add($"#{id.Value} Laderaum über Kapazität");
-                if (s.Order is GoToOrder && s.Transit is null && !u.Fights.IsEngaged(s.Id) && s.Command is null) run.Violations.Add($"#{id.Value} Geisterauftrag GoTo ohne Reise");
+                // Prüferhinweis: Geisteraufträge aller Auftragsarten — Ziel gibt es nicht mehr, oder ein Fahrauftrag ohne Reise und nicht am Ziel
+                if (!u.Fights.IsEngaged(s.Id))
+                    switch (s.Order)
+                    {
+                        case GoToOrder when s.Transit is null && s.Command is null: run.Violations.Add($"#{id.Value} Geisterauftrag GoTo ohne Reise"); break;
+                        case TradeOrder to when (to.Buy.Value != 0 && !u.Stations.ContainsKey(to.Buy)) || !u.Stations.ContainsKey(to.Sell): run.Violations.Add($"#{id.Value} Handelsauftrag zu einer verschwundenen Station"); break;
+                        case TradeOrder when s.Phase == TradePhase.Idle: run.Violations.Add($"#{id.Value} Handelsauftrag im Leerlauf"); break;
+                        case MineOrder mo when mo.DeliverTo.Value != 0 && !u.Stations.ContainsKey(mo.DeliverTo): run.Violations.Add($"#{id.Value} Schürfauftrag zu einer verschwundenen Station"); break;
+                    }
             }
         }
         run.WalletEnd = u.PlayerWallet.Credits;
@@ -496,6 +519,7 @@ public class FlottenTests
             string model = u.Ships.TryGetValue(id, out var s) ? u.ShipModels[s.ModelKey].Name : "verloren";
             string lim = limits.TryGetValue(id, out var l) ? (l == AutoLimits.None ? "ohne Grenzen" : $"{u.Sectors[l.Center].Name} r{l.RadiusJumps} {(l.MaxBuyFactor > 0f ? $"×{l.MaxBuyFactor:0.0}" : "×–")} R{l.Reserve:0}") : "Schürfen Alpha r1";
             run.Rows.Add($"#{id.Value,-5}{model,-12}{lim,-28}{c.Trips,6}{c.Rev,10:0}{c.Cost,10:0}{(c.Rev - c.Cost) / ticks,9:0.00}{c.Refused,6}");
+            if (mineIds.Contains(id)) { run.MinerProfit += c.Rev - c.Cost; run.MinerShips++; } else { run.TraderProfit += c.Rev - c.Cost; run.TraderShips++; }
         }
         return run;
     }
@@ -506,13 +530,14 @@ public class FlottenTests
         const int ticks = 40000;
         var sb = new StringBuilder($"Automatische Handelsflotten ({ticks} Ticks, Standard-Seed, Kasse 20000; je n Händler + 2 Schürfer)\n");
         var baseline = RunFleet(0, ticks);
+        float? lastProfit = null;
         sb.AppendLine($"ohne Spielerflotte: NPC-Handelsumsatz {baseline.NpcTradeRevenue:0} ({baseline.NpcTradeUnits:0} Einh.), NPC-Händler pleite {baseline.NpcBankrupt}, unrentabel {baseline.NpcUnprofitable}");
         foreach (int n in new[] { 2, 4, 8 })
         {
             var r = RunFleet(n, ticks);
             float profit = r.WalletEnd - r.WalletStart;
-            sb.AppendLine($"── {n} Händler: Kasse {r.WalletStart:0} → {r.WalletEnd:0} (Gewinn {profit:0}, {profit / ticks:0.00} Cr/Tick gesamt, {(profit / ticks) / (n + 2):0.00} je Schiff)");
-            sb.AppendLine($"   Umsatz {r.Revenue:0}, Einkauf {r.Cost:0}, Verkäufe {r.Trips}, Verlustkäufe verweigert {r.Refused}, Abwürfe {r.Discarded}, Liegegebühren {r.Berth:0}, Unterhalt {r.Upkeep:0}, Reparaturen {r.Repairs:0}, Überfälle {r.Raids} (Beute {r.RaidLoss:0})");
+            sb.AppendLine($"── {n} Händler: Kasse {r.WalletStart:0} → {r.WalletEnd:0} (Gewinn {profit:0}, {profit / ticks:0.00} Cr/Tick gesamt; Handel je Händler {r.TraderProfit / ticks / Math.Max(1, r.TraderShips):0.00}, Schürfen je Schürfer {r.MinerProfit / ticks / Math.Max(1, r.MinerShips):0.00} Cr/Tick vor Unterhalt)");
+            sb.AppendLine($"   Umsatz {r.Revenue:0}, Einkauf {r.Cost:0}, Verkäufe {r.Trips}, verweigert {r.Refused} (Verlust {r.RefusedLoss}, Preisgrenze {r.RefusedPrice}), Abwürfe {r.Discarded}, Liegegebühren {r.Berth:0}, Unterhalt {r.Upkeep:0}, Reparaturen {r.Repairs:0}, Überfälle {r.Raids} (Beute {r.RaidLoss:0})");
             sb.AppendLine($"   Kasse aus Ereignissen erklärbar: Rest {r.Residual:0.##} Cr");
             sb.AppendLine($"   NPC: Handelsumsatz {r.NpcTradeRevenue:0} ({100f * r.NpcTradeRevenue / MathF.Max(1f, baseline.NpcTradeRevenue) - 100f:+0;-0}% gegen ohne), pleite {r.NpcBankrupt}, unrentabel {r.NpcUnprofitable}");
             sb.AppendLine($"   {"Schiff",-6}{"Modell",-12}{"Grenzen",-28}{"Fahrt.",6}{"Umsatz",10}{"Einkauf",10}{"Cr/Tick",9}{"verw.",6}");
@@ -521,6 +546,11 @@ public class FlottenTests
             Assert.Empty(r.Violations);
             Assert.True(MathF.Abs(r.Residual) <= 1f + 0.001f * (r.Revenue + r.Cost), $"Kasse nicht aus Ereignissen erklärbar (Rest {r.Residual:0.##})");
             Assert.True(r.Trips > 0);
+            // Prüferhinweis: weiche Skalierung — mehr Händler bringen gesamt keinen Verlust, die NPC-Händler gehen nicht pleite
+            Assert.True(profit > 0f, $"{n} Händler: Gewinn gesamt {profit:0}");
+            Assert.Equal(0, r.NpcBankrupt);
+            if (lastProfit is { } lp) Assert.True(profit >= 0.8f * lp, $"Gewinn gesamt sinkt mit mehr Händlern deutlich ({lp:0} → {profit:0})");
+            lastProfit = profit;
         }
         _o.WriteLine(sb.ToString());
     }

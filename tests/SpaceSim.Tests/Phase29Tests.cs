@@ -20,8 +20,20 @@ public class Phase29Tests
     static readonly string[] LateShips = { "corvette", "missile_boat", "bomber", "gunboat", "destroyer", "battlecruiser", "strip_miner" };
 
     /// <summary>Phase 29 zurückdrehen (für die Referenz-Hash-Tests über <see cref="Phase28Tests.RevertPhase28"/>).</summary>
+    /// <summary>Runde 24 zurückdrehen: Startbestände der Werftregale wie vorher; Befehlsstufe ohne Abschlag für eigene Schiffe.</summary>
+    internal static void RevertRunde24(WorldDef def)
+    {
+        def.Rules!.CommandShipWeight = def.Rules.ActorShipWeight;
+        var yard = def.StationTypes.First(t => t.Key == "shipyard");
+        foreach (var (good, amount, target) in new[] { ("cargo_universal_60", 2f, 5f), ("cargo_universal_100", 2f, 5f), ("chem_engine_m", 1f, 2f), ("reactor_mk2", 1f, 2f),
+            ("missile_launcher_s", 1f, 2f), ("shield_m", 0f, 1f), ("armor_plating_m", 0f, 1f), ("reactor_m", 0f, 1f), ("weapon_laser_m", 0f, 1f), ("reactor_mk3", 0f, 1f),
+            ("cutting_wheel_m", 0f, 1f), ("cutting_drum_l", 0f, 1f) })
+            if (yard.Stocks!.ContainsKey(good)) yard.Stocks[good] = new[] { amount, target };
+    }
+
     internal static void RevertPhase29(WorldDef def)
     {
+        RevertRunde24(def);
         def.Rules!.PoliceChoosesModels = false;
         def.Rules.WarshipChoosesModels = false;
         def.Rules.PirateChoosesModels = false;

@@ -274,7 +274,8 @@ public sealed class NavySystem : ISimSystem
                     u.Events.Publish(new WarshipDecommissioned(f, gone.Id, belowReserve ? "reserve" : "peace"));
                 }
             }
-            else if (ships.Count < desired && Commission(u, f) is { } bought) ships.Add(bought);
+            // Runde 24: eine Startszenario-Sperre (LastForceTick in der Zukunft, ScenarioDef.PoliceHoldTicks) gilt auch für Kriegsschiffe; im normalen Spiel nie in der Zukunft
+            else if (ships.Count < desired && u.Tick >= actor.LastForceTick && Commission(u, f) is { } bought) ships.Add(bought);
             foreach (var s in ships) Command(u, f, s);
         }
     }

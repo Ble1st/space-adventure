@@ -97,8 +97,10 @@ public sealed partial class MyFactionScreen : CommandScreen
 		// Phase 12 echt: Befehlskapazität und Verbände nach Größe, Taxi/Hangar/Leihschiff für alle; der Rest bleibt Platzhalter
 		var abilities = new[]
 		{
-			("Befehle an eigene Schiffe", true, $"bis {capShips} Schiffe"),
-			("Verbände führen", capSquads > 0, $"bis {capSquads} Verbände"),
+			// Runde 24: Befehlsstufe (eigene Schiffe zählen wenig; Stationen, Sektoren, Geld heben sie)
+			("Befehlsstufe", true, SpaceSim.Core.Model.ActorNames.Size(SpaceSim.Core.Simulation.Commands.CapacityClass(u, u.PlayerActor))),
+			("Befehle an eigene Schiffe", true, $"bis {SpaceSim.Core.Simulation.Commands.Count(capShips, "Schiff", "Schiffe")}"),
+			("Verbände führen", capSquads > 0, $"bis {SpaceSim.Core.Simulation.Commands.Count(capSquads, "Verband", "Verbände")}"),
 			("Taxi, Hangar, Leihschiff", true, "an Stationen mit Dienst"),
 		}.Concat(UiPlaceholders.MyFactionAbilities);
 		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand

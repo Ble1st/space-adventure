@@ -34,6 +34,9 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 	bool _msgOk = true;
 	int _radius = -2;      // −2 = noch nicht aus den Regeln gesetzt
 	float _maxBuy, _reserve;
+	bool _allowLoss;   // Runde 24: Verlustkauf-Sperre aus
+	/// <summary>Runde 24: Schalter der Verlustsperre (Selbsttest).</summary>
+	public KitButton? TestLossGuardButton { get; private set; }
 	int _enabledCommands;
 
 	/// <summary>Wählt ein Schiff vor (Hangar „Befehle“, Besitz „Befehle“).</summary>
@@ -62,16 +65,29 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
+		// Runde 24 (Flottentest: Eskorte brauchte fünf Tipps): ist ein bewaffnetes Schiff gewählt, trägt jede andere Zeile „Begleiten“ — ein Tipp gibt die Eskorte
+		bool canEscort = ship.Id != u.PlayerShip && ship.Has(Capability.Combat);
 		foreach (var s in ships)
 		{
 			bool sel = s.Id == ship.Id, active = s.Id == u.PlayerShip;
-			var b = new KitButton($"#{s.Id.Value} {ModelName(u, s)}", new Vector2(352, 64)) { AlignLeft = true, FontSize = 16, State = sel ? KitButtonState.On : KitButtonState.Normal };
+			bool escortHere = canEscort && !sel;
+			var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+			row.AddThemeConstantOverride("separation", 4);
+			var b = new KitButton($"#{s.Id.Value} {ModelName(u, s)}", new Vector2(escortHere ? 256 : 352, 64)) { AlignLeft = true, FontSize = 16, State = sel ? KitButtonState.On : KitButtonState.Normal };
 			string sq = Squadrons.Get(u, s) is { } q ? $"[{q.Name}{(q.Leader == s.Id ? ", Anführer" : "")}] " : "";
-			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : "aktiv · von dir gesteuert") : Shorten(sq + Commands.Describe(u, s), 46);
+			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : "aktiv · von dir gesteuert") : Shorten(sq + Commands.Describe(u, s), escortHere ? 30 : 46);
 			b.Detail = Where(u, s);
 			var id = s.Id;
 			b.Pressed += () => { Select(id); Invalidate(); };
-			list.AddChild(b);
+			row.AddChild(b);
+			if (escortHere)
+			{
+				var guard = new KitButton("Begleiten", new Vector2(92, 64)) { FontSize = 13, Sub = $"durch #{ship.Id.Value}" };
+				var protector = ship;
+				guard.Pressed += () => Give(u, protector, new EscortCommand(id));
+				row.AddChild(guard);
+			}
+			list.AddChild(row);
 		}
 
 		// ── Rechts: Detail ──
@@ -157,7 +173,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		_ => null,
 	};
 
-	AutoLimits Limits(Universe u, Ship ship) => new(ship.Sector, _radius, _maxBuy, _reserve);
+	AutoLimits Limits(Universe u, Ship ship) => new(ship.Sector, _radius, _maxBuy, _reserve, _allowLoss);
 
 	void Choose(Universe u, Ship ship, string kind)
 	{
@@ -196,8 +212,9 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 				break;
 			case CommandKinds.Escort:
 			case CommandKinds.Follow:
+				// Runde 24: Zieltexte unterscheidbar (Rolle bzw. Ort), nicht gleich wie die Schiffszeile links
 				foreach (var other in PlayerFleet.Owned(u).Where(s => s.Id != ship.Id))
-					options.Add(($"#{other.Id.Value} {ModelName(u, other)}", kind == CommandKinds.Escort ? new EscortCommand(other.Id) : new FollowCommand(other.Id)));
+					options.Add(($"{ModelName(u, other)} #{other.Id.Value} · {(other.Id == u.PlayerShip ? "aktiv" : Shorten(Where(u, other), 12))}", kind == CommandKinds.Escort ? new EscortCommand(other.Id) : new FollowCommand(other.Id)));
 				break;
 			case CommandKinds.Build:
 				options.Add(("Nächste freie", new BuildCommand(default)));
@@ -233,14 +250,19 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			At(det, Text(label, 13, Dim), x, y + 20, 190, 16);
 			var m = At(det, new KitButton("−", new Vector2(56, 56)) { FontSize = 20 }, x, y + 38);
 			m.Pressed += () => { dec(); Invalidate(); };
-			At(det, Text(value, 15, White, HorizontalAlignment.Center), x + 56, y + 54, 72, 22);
-			var p = At(det, new KitButton("+", new Vector2(56, 56)) { FontSize = 20 }, x + 128, y + 38);
+			At(det, Text(value, 14, White, HorizontalAlignment.Center), x + 56, y + 54, 54, 22);   // Runde 24: schmaler, Platz für die Verlustsperre
+			var p = At(det, new KitButton("+", new Vector2(56, 56)) { FontSize = 20 }, x + 110, y + 38);
 			p.Pressed += () => { inc(); Invalidate(); };
-			x += 198;
+			x += 168;
 		}
 		Stepper("Reichweite", _radius < 0 ? "alle" : $"{_radius} Spr.", () => _radius = Math.Max(-1, _radius - 1), () => _radius = Math.Min(6, _radius + 1));
 		Stepper("max. Einkauf", _maxBuy <= 0f ? "frei" : $"{_maxBuy:0.0}×", () => _maxBuy = MathF.Max(0f, MathF.Round(_maxBuy - 0.1f, 1)), () => _maxBuy = MathF.Min(4f, MathF.Round(_maxBuy + 0.1f, 1)));
 		Stepper("Rücklage", $"{_reserve:0} Cr", () => _reserve = MathF.Max(0f, _reserve - 100f), () => _reserve += 100f);
+		// Runde 24: Verlustkauf-Sperre (Standard an) — die Automatik kauft nicht, wenn der Einkauf über dem Preis des Abnehmers liegt
+		At(det, Text("Verlustkauf", 13, Dim), 14 + 3 * 168, y + 20, 92, 16);
+		var guard = At(det, new KitButton(_allowLoss ? "erlaubt" : "gesperrt", new Vector2(92, 56)) { FontSize = 14, State = _allowLoss ? KitButtonState.Warn : KitButtonState.On }, 14 + 3 * 168, y + 38);
+		guard.Pressed += () => { _allowLoss = !_allowLoss; Invalidate(); };
+		TestLossGuardButton = guard;
 	}
 
 	void BuildSquadronRow(Control det, Universe u, Ship ship, float y, bool cancel)

@@ -390,6 +390,11 @@ public sealed class EconomyRules
     public List<int> CommandShips = new() { 4, 8, 16, 32, 64 };
     /// <summary>Befehlskapazität: höchstens so viele Verbände je Größenklasse (POLITIK.md Abschnitt 7: Kleinfirma einer, Firma bis drei).</summary>
     public List<int> CommandSquadrons = new() { 1, 1, 3, 6, 12 };
+    /// <summary>
+    /// Runde 24 (Flottentest: die Grenze griff nie — jedes Schiff hob die Größenklasse schneller als die Grenze): Gewicht der eigenen Schiffe in der
+    /// <b>Befehlsstufe</b> (<see cref="Simulation.Commands.CapacityClass"/>); Stationen, Sektoren und Geld zählen wie in der Größenklasse. 0 = Schiffe zählen nicht.
+    /// </summary>
+    public float CommandShipWeight = 0.25f;
     /// <summary>Höchstzahl der Mitglieder eines Verbands (Anführer eingeschlossen; Referenz <c>MaxFleetPilots</c>).</summary>
     public int SquadronMaxMembers = 8;
     /// <summary>Notfall-Ebene: unter diesem Anteil der Maximalhülle ruht der Befehl, das Schiff fliegt zur Reparatur.</summary>

@@ -345,7 +345,8 @@ public sealed record WarshipDecommissioned(FactionId Faction, ShipId Ship, strin
 /// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort geladen (Diagnose; nur Bus, nicht gespeichert).</summary>
 public sealed record TraderBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
 /// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort nicht gekauft, weil der Preis dort den Preis seines Abnehmers erreicht hat (sicherer Verlust).</summary>
-public sealed record TraderBuyRefused(ShipId Ship, StationId Seller, StationId Buyer, GoodId Good, float BuyPrice, float SellPrice) : SimEvent;
+/// <param name="Reason">Runde 24: „loss“ (Verlustkauf-Sperre) oder „price_limit“ (Automatikgrenze höchster Einkaufspreis).</param>
+public sealed record TraderBuyRefused(ShipId Ship, StationId Seller, StationId Buyer, GoodId Good, float BuyPrice, float SellPrice, string Reason = "loss") : SimEvent;
 
 // ───────── Phase 31: Torkampf ─────────
 /// <summary>Phase 31: Ein Tor wird angegriffen (Belagerungsbeginn; Vorwarnung für Toasts/Alarm).</summary>

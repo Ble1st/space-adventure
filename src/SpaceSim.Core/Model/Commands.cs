@@ -75,7 +75,8 @@ public sealed record FollowCommand(ShipId Target) : ShipCommand
 /// Grenzen eines Automatikauftrags (FLOTTEN.md Abschnitt 5: „Der Spieler gibt nur Richtung und Grenzen vor“): Mittelpunkt und Reichweite in Sprüngen
 /// (−1 = unbegrenzt), höchster Einkaufspreis relativ zum Basispreis (0 = keine Grenze) und Rücklage, die in der Kasse bleiben muss.
 /// </summary>
-public sealed record AutoLimits(SectorId Center, int RadiusJumps, float MaxBuyFactor, float Reserve)
+/// <param name="AllowLoss">Runde 24: true = die Automatik darf auch mit sicherem Verlust einkaufen (Verlustkauf-Sperre aus); Standard false = Sperre an wie bei KI-Händlern.</param>
+public sealed record AutoLimits(SectorId Center, int RadiusJumps, float MaxBuyFactor, float Reserve, bool AllowLoss = false)
 {
     public static readonly AutoLimits None = new(default, -1, 0f, 0f);
 }

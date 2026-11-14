@@ -136,7 +136,9 @@ public static class SaveGameJson
                 if ((string?)t["key"] is "drive_works" or "weapons_works" or "systems_works") stocks.Remove("platinum");
                 // Runde 11: Werftregale starten voll — im Stand v17 begannen Reaktor/Triebwerk/Laser Mk1 mit 2 von 5 und die Laserkanone mit 2 von 4
                 if ((string?)t["key"] == "shipyard")
-                    foreach (var (good, amount, target) in new[] { ("reactor_mk1", 2, 5), ("chem_engine_s", 2, 5), ("mining_laser_1", 2, 5), ("weapon_laser_s", 2, 4) })
+                    foreach (var (good, amount, target) in new[] { ("reactor_mk1", 2, 5), ("chem_engine_s", 2, 5), ("mining_laser_1", 2, 5), ("weapon_laser_s", 2, 4),
+                        // Runde 24: Werften am Start lieferfähig — im Stand v17 kleinere Startbestände
+                        ("cargo_universal_60", 2, 5), ("cargo_universal_100", 2, 5), ("chem_engine_m", 1, 2), ("reactor_mk2", 1, 2), ("reactor_mk3", 0, 1) })
                         if (stocks.ContainsKey(good)) stocks[good] = new System.Text.Json.Nodes.JsonArray(amount, target);
             }
             // Phase 25: Dienst „rearm“ kam nach v17

@@ -2061,9 +2061,12 @@ public partial class SelfTest : Node
 				int k = _p28Try;
 				if (_frame - _stageStart == 1)
 				{
-					if (_m.Docked) _m.TestUndock();
+					// Runde 24: eigene frische Welt (Jäger-Paket) — vorher hing die Prüfung vom Zustand der Vorstufen ab (Kriegs-/Gefechtstests, Fahndung, Polizei);
+					// seit die Werften am Start liefern, kaufen die Fraktionen dort früher nach und der Spielverlauf vor dieser Stufe ist ein anderer
+					_m.TestMenu("new:fighter");
 					break;
 				}
+				if (_frame - _stageStart == 3 && _m.Docked) { _m.TestUndock(); break; }
 				if (_frame - _stageStart == 40 + k * 3000)
 				{
 					if (uni.PlayerSector != hq.Sector) _m.TestEnterSector(hq.Sector);
@@ -2085,7 +2088,9 @@ public partial class SelfTest : Node
 				if (_frame - _stageStart > 40 + k * 3000 + 60 * 45)
 				{
 					var pl = uni.Ships[uni.PlayerShip];
-					Fail($"Autopilot zum HQ Alpha kam von Start {k} nicht an (Abstand {Vec2.Distance(pl.Position, hq.Position):0})");
+					string near = string.Join(", ", uni.Sectors[hq.Sector].Stations.Select(id => uni.Stations[id]).OrderBy(st => Vec2.Distance(st.Position, pl.Position)).Take(3)
+						.Select(st => $"{st.Name} r{st.Radius:0} @{Vec2.Distance(st.Position, pl.Position):0}"));
+					Fail($"Autopilot zum HQ Alpha kam von Start {k} nicht an (Abstand {Vec2.Distance(pl.Position, hq.Position):0}; Schiff {pl.ModelKey} Hülle {pl.Hull:0} Gefecht {uni.Fights.IsEngaged(pl.Id)} Autopilot {_m.TestAutopilot}; nahe: {near})");
 				}
 				break;
 			}

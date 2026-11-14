@@ -512,6 +512,11 @@ public sealed class ScenarioDef
     public float RockOre { get; set; }
     /// <summary>Runde 19: ruhige Lage — keine Überfälle auf das aktive Spielerschiff in diesem Spielstand (setzt die gespeicherte Regel PlayerRaids aus; Überfälle auf Flottenschiffe bleiben).</summary>
     public bool Calm { get; set; }
+    /// <summary>
+    /// Runde 24: die Fraktionen kaufen in den ersten so vielen Ticks weder Kriegsschiffe noch zusätzliche Polizei (danach noch die Wechselsperre) — der Kriegstest
+    /// prüft den Verband gegen die Verteidigung, die da ist; seit die Werften am Start liefern, hätte die Union sonst gleich zwei Kriegsschiffe nachgekauft.
+    /// </summary>
+    public int? PoliceHoldTicks { get; set; }
     /// <summary>Gerätetest Phase 28 (Runde 4): Fracht des ersten Kaperers (Beute an Bord) — sein Wrack hat dann Fracht für den Traktorstrahl.</summary>
     public Dictionary<string, float>? LeadCargo { get; set; }
     /// <summary>

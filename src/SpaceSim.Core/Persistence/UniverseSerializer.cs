@@ -665,10 +665,10 @@ public static class UniverseSerializer
     };
 
     static OrderSave LimitsSave(string kind, AutoLimits l) =>
-        new() { Kind = kind, A = l.Center.Value, B = l.RadiusJumps, Values = new List<float> { l.MaxBuyFactor, l.Reserve } };
+        new() { Kind = kind, A = l.Center.Value, B = l.RadiusJumps, Values = l.AllowLoss ? new List<float> { l.MaxBuyFactor, l.Reserve, 1f } : new List<float> { l.MaxBuyFactor, l.Reserve } };   // Runde 24: dritter Wert nur bei erlaubtem Verlustkauf (additiv)
 
     static AutoLimits LimitsFrom(OrderSave o) =>
-        new(new SectorId(o.A), o.B, o.Values is { Count: > 0 } v ? v[0] : 0f, o.Values is { Count: > 1 } w ? w[1] : 0f);
+        new(new SectorId(o.A), o.B, o.Values is { Count: > 0 } v ? v[0] : 0f, o.Values is { Count: > 1 } w ? w[1] : 0f, o.Values is { Count: > 2 } x && x[2] > 0.5f);
 
     static ShipCommand CommandFromSave(OrderSave o) => o.Kind switch
     {

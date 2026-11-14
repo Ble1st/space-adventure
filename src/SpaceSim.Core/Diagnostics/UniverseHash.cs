@@ -191,8 +191,8 @@ public static class UniverseHash
                     case GuardCommand gd: Mix((ulong)gd.Station.Value); break;
                     case EscortCommand ec: Mix((ulong)ec.Target.Value); break;
                     case FollowCommand fc: Mix((ulong)fc.Target.Value); break;
-                    case TradeCommand tc: Mix((ulong)tc.Limits.Center.Value); Mix((ulong)(uint)tc.Limits.RadiusJumps); MixF(tc.Limits.MaxBuyFactor); MixF(tc.Limits.Reserve); break;
-                    case MineCommand mc: Mix((ulong)mc.Limits.Center.Value); Mix((ulong)(uint)mc.Limits.RadiusJumps); MixF(mc.Limits.MaxBuyFactor); MixF(mc.Limits.Reserve); break;
+                    case TradeCommand tc: Mix((ulong)tc.Limits.Center.Value); Mix((ulong)(uint)tc.Limits.RadiusJumps); MixF(tc.Limits.MaxBuyFactor); MixF(tc.Limits.Reserve); if (tc.Limits.AllowLoss) Mix(0xA110u); break;
+                    case MineCommand mc: Mix((ulong)mc.Limits.Center.Value); Mix((ulong)(uint)mc.Limits.RadiusJumps); MixF(mc.Limits.MaxBuyFactor); MixF(mc.Limits.Reserve); if (mc.Limits.AllowLoss) Mix(0xA110u); break;
                     case BuildCommand bc: Mix((ulong)bc.Site.Value); break;
                     case LurkCommand lc: Mix((ulong)lc.Sector.Value); MixF(lc.Spot.X); MixF(lc.Spot.Y); Mix((ulong)lc.Until); break;   // Phase 27
                     case PursueCommand pc: Mix((ulong)pc.Target.Value); MixF(pc.Lead); Mix((ulong)pc.Until); break;

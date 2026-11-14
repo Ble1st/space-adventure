@@ -108,7 +108,8 @@ public sealed class SecuritySystem : ISimSystem
         if (police.Count > sellAbove) { if (actor.PoliceSurplusSince < 0) actor.PoliceSurplusSince = u.Tick; }
         else actor.PoliceSurplusSince = -1;
         // Phase 22: unter dem Mindestbestand hat der Ersatz Vorrang (ohne Abkühlzeit, darf in die Rücklage greifen)
-        bool belowMin = police.Count < r.PoliceMinPerFaction;
+        // Runde 24: eine Startszenario-Sperre (LastForceTick in der Zukunft) gilt auch für den Ersatz unter dem Mindestbestand; im normalen Spiel nie in der Zukunft
+        bool belowMin = police.Count < r.PoliceMinPerFaction && u.Tick >= actor.LastForceTick;
         if (police.Count < buyBelow && (belowMin || u.Tick - actor.LastForceTick >= r.PoliceChangeCooldown))
         {
             if (Commission(u, f, belowMin) is { } ship) police.Add(ship);

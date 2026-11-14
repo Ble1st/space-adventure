@@ -26,7 +26,7 @@ public static class Squadrons
     {
         if (leader.Squadron.Value != 0) { message = "Das Schiff gehört schon zu einem Verband."; return null; }
         var (_, cap) = Commands.Capacity(u, leader.Owner);
-        if (Of(u, leader.Owner).Count >= cap) { message = $"Befehlskapazität erreicht ({cap} Verbände)."; return null; }
+        if (Of(u, leader.Owner).Count >= cap) { message = $"Befehlskapazität erreicht ({Commands.Count(cap, "Verband", "Verbände")}) – einem bestehenden Verband beitreten oder mehr Besitz (Stationen, Geld) hebt die Befehlsstufe."; return null; }
         var sq = new Squadron
         {
             Id = u.NewSquadronId(), Owner = leader.Owner, Leader = leader.Id, Members = { leader.Id },

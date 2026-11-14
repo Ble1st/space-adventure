@@ -22,12 +22,28 @@ public static class Commands
     /// <summary>Befehlskapazität eines Akteurs nach Größenklasse: (Schiffe mit Einzelbefehl, Verbände).</summary>
     public static (int Ships, int Squadrons) Capacity(Universe u, ActorId actor)
     {
-        var cls = ActorRules.ClassOf(u, ActorRules.Index(u), actor);
+        // Runde 24: der Spieler nach seiner Befehlsstufe (eigene Schiffe zählen wenig); Fraktionen und Piraten (Streifen, Rudel) nach der Größenklasse wie bisher
+        var cls = actor == u.PlayerActor ? CapacityClass(u, actor) : ActorRules.ClassOf(u, ActorRules.Index(u), actor);
         int i = (int)cls;
         int ships = u.Rules.CommandShips.Count == 0 ? int.MaxValue : u.Rules.CommandShips[Math.Min(i, u.Rules.CommandShips.Count - 1)];
         int squads = u.Rules.CommandSquadrons.Count == 0 ? int.MaxValue : u.Rules.CommandSquadrons[Math.Min(i, u.Rules.CommandSquadrons.Count - 1)];
         return (ships, squads);
     }
+
+    /// <summary>
+    /// Runde 24: <b>Befehlsstufe</b> — die Größenklasse für die Befehlskapazität, in der die eigenen Schiffe nur mit <see cref="EconomyRules.CommandShipWeight"/>
+    /// zählen (Stationen, Sektoren und Geld wie in der Größenklasse). Vorher hob jedes gekaufte Schiff die Klasse schneller, als es Befehle brauchte.
+    /// </summary>
+    public static ActorSizeClass CapacityClass(Universe u, ActorId actor)
+    {
+        var h = ActorRules.Index(u).GetValueOrDefault(actor);
+        var r = u.Rules;
+        float size = h.Ships * r.CommandShipWeight + h.Stations * r.ActorStationWeight + h.Sectors * r.ActorSectorWeight + MathF.Max(0f, h.Money) / MathF.Max(1f, r.ActorMoneyScale);
+        return ActorRules.ClassOf(r, size);
+    }
+
+    /// <summary>Runde 24: „1 Verband“/„3 Verbände“, „1 Schiff“/„4 Schiffe“.</summary>
+    public static string Count(int n, string one, string many) => $"{n} {(n == 1 ? one : many)}";
 
     /// <summary>Schiffe eines Akteurs mit Einzelbefehl (außerhalb von Verbänden; Verbände zählen gegen ihre eigene Grenze).</summary>
     public static int Commanded(Universe u, ActorId actor) =>
@@ -38,7 +54,7 @@ public static class Commands
     {
         if (!ship.IsPlayer || ship.Command is not null || ship.Squadron.Value != 0) return null;
         var (cap, _) = Capacity(u, ship.Owner);
-        return Commanded(u, ship.Owner) >= cap ? $"Befehlskapazität erreicht ({cap} Schiffe mit Befehl)." : null;
+        return Commanded(u, ship.Owner) >= cap ? $"Befehlskapazität erreicht ({Count(cap, "Schiff", "Schiffe")} mit Einzelbefehl) – Schiffe in einen Verband aufnehmen oder mehr Besitz (Stationen, Geld) hebt die Befehlsstufe." : null;
     }
 
     /// <summary>
@@ -128,6 +144,7 @@ public static class AutoLimitRules
         if (l.RadiusJumps >= 0 && l.Center.Value != 0) parts.Add($"{l.RadiusJumps} {(l.RadiusJumps == 1 ? "Sprung" : "Sprünge")} um {OrderMove.SectorName(u, l.Center)}");
         if (trade && l.MaxBuyFactor > 0f) parts.Add($"Einkauf ≤ {l.MaxBuyFactor:0.##}× Basis");
         if (trade && l.Reserve > 0f) parts.Add($"Rücklage {l.Reserve:0} Cr");
+        if (trade && l.AllowLoss) parts.Add("Verlustkäufe erlaubt");   // Runde 24
         return parts.Count == 0 ? "" : " (" + string.Join(", ", parts) + ")";
     }
 }

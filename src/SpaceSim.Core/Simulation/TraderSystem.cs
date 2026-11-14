@@ -89,9 +89,10 @@ public sealed class TraderSystem : ISimSystem
 
         TradeOrder? best = null;
         float bestScore = 0f;
-        bool planGuard = u.Rules.TraderBuyGuard && u.Rules.TraderPlanGuard && ship.Controller == Controller.Ai;
         // Phase 12: Grenzen eines Automatikauftrags (Spielerflotte: Reichweite, höchster Einkaufspreis, Rücklage); KI ohne Befehl: keine
         var limits = AutoLimitRules.Of(ship);
+        // Runde 24: die Verlustkauf-Sperre gilt auch für die Spieler-Automatik (je Auftrag abschaltbar: AutoLimits.AllowLoss)
+        bool planGuard = u.Rules.TraderBuyGuard && u.Rules.TraderPlanGuard && LossGuarded(ship, limits);
         // Phase 19: auch ohne Automatikgrenzen nur planen, was die eigene Kasse bezahlen kann — sonst fuhr ein mittelloses Schiff immer wieder zur
         // Kaufstation, konnte dort nichts kaufen und plante sofort neu (Leerlauf nie erreicht, nie als pleite aufgegeben)
         // Phase 20: ein KI-Händler behält eine Betriebsreserve (TraderCashReserve) — vorher setzte er die ganze Kasse auf eine Ladung, und blieb sie liegen
@@ -313,14 +314,18 @@ public sealed class TraderSystem : ISimSystem
             // Phase 28 (Nacharbeit, Händlerpleiten): kein Einkauf mit sicherem Verlust — ist der Einkaufspreis bei der Ankunft über den Verkaufspreis des
             // Abnehmers gestiegen (Lager des Herstellers inzwischen leer, Knappheitspreis), verwirft der KI-Händler den Auftrag und plant neu. Vorher kaufte er
             // trotzdem (Energie für 13 Cr/Einheit, Verkauf zu 4 Cr) und rutschte in die Spirale dünner Ladungen bis zur Pleite.
-            if (u.Rules.TraderBuyGuard && ship.Controller == Controller.Ai && se is { Price: > 0f } && stock.Price >= se.Price * u.Rules.TraderBuyGuardShare && amount > 0f)
+            if (u.Rules.TraderBuyGuard && LossGuarded(ship, AutoLimitRules.Of(ship)) && se is { Price: > 0f } && stock.Price >= se.Price * u.Rules.TraderBuyGuardShare && amount > 0f)
             {
                 u.Events.Publish(new TraderBuyRefused(ship.Id, st.Id, sellSt.Id, order.Good, stock.Price, se.Price));
                 amount = 0f;
             }
             // Flottentest (Fehler): die Automatikgrenze „höchster Einkaufspreis“ galt nur bei der Planung — stieg der Preis bis zur Ankunft, kaufte ein
             // Spieler-Flottenschiff darüber (gemessen: Nahrung zu 1,5×, Konsumgüter zu 1,9× bei Grenze 1,3×). Jetzt auch beim Kauf; nur Schiffe mit Grenzen
-            if (amount > 0f && AutoLimitRules.Of(ship) is { } buyLim && !AutoLimitRules.PriceOk(buyLim, good, stock.Price)) amount = 0f;
+            if (amount > 0f && AutoLimitRules.Of(ship) is { } buyLim && !AutoLimitRules.PriceOk(buyLim, good, stock.Price))
+            {
+                u.Events.Publish(new TraderBuyRefused(ship.Id, st.Id, sellSt.Id, order.Good, stock.Price, se?.Price ?? 0f, "price_limit"));   // Runde 24: Verweigerung sichtbar
+                amount = 0f;
+            }
             if (amount > 0)
             {
                 float cost = amount * stock.Price;
@@ -405,6 +410,9 @@ public sealed class TraderSystem : ISimSystem
     }
 
     /// <summary>Phase 19: Ladung dieser Ware, die andere Händler gerade zu dieser Station fahren (unterwegs zum Verkauf).</summary>
+    /// <summary>Runde 24: gilt die Verlustkauf-Sperre für dieses Schiff? KI-Händler immer, Spielerschiffe mit Automatikauftrag, solange er Verlust nicht erlaubt.</summary>
+    static bool LossGuarded(Ship ship, AutoLimits? limits) => ship.Controller == Controller.Ai || limits is { AllowLoss: false };
+
     static float LadenTowards(Universe u, Ship ship, StationId station, GoodId good)
     {
         float sum = 0f;
