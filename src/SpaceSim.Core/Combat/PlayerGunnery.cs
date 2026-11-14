@@ -45,14 +45,15 @@ public static class PlayerGunnery
             if (Missiles.IsMissile(m)) { if (Missiles.Loaded(u, ship) < 1f) rocketsOut = true; else still.Add("Raketen"); continue; }
             var w = WeaponProfile.Of(m);
             if (!Gunnery.HasAmmo(u, ship, w)) { ammoOut = true; continue; }
-            still.Add(w.AmmoPerShot > 0f ? "Massetreiber" : "Laser");
+            still.Add(w.AmmoPerShot > 0f ? "Massetr." : "Laser");
         }
         if (!rocketsOut && !ammoOut) return "";
+        // Runde 17 (Handy-Test: „Raketen leer – nur noch Laser/Mas…“ abgeschnitten): Kurzform für die Zielkarte
         var parts = new List<string>();
-        if (rocketsOut) parts.Add("Raketen leer");
-        if (ammoOut) parts.Add("Munition leer");
+        if (rocketsOut) parts.Add("Rak. leer");
+        if (ammoOut) parts.Add("Mun. leer");
         var rest = still.Distinct().ToList();
-        return string.Join(" · ", parts) + (rest.Count == 0 ? " – keine Waffe feuert" : $" – nur noch {string.Join("/", rest)}");
+        return string.Join(" · ", parts) + (rest.Count == 0 ? " · keine Waffe" : $" · nur {string.Join("/", rest)}");
     }
 
     /// <summary>Waffenschächte des Schiffs (einer je Waffe, Feuerwinkel aus dem Slot).</summary>
@@ -379,10 +380,17 @@ public static class PlayerCombat
         // Runde 16 (Handy-Test: „Nächster Gegner“ sprang vom Angreifer in 30 m zum fernen Kaperer in 380 m und die Kamera verlor das Ziel): im Gefecht wird nur
         // unter den Gefechtsgegnern gewechselt — ist der gewählte der einzige, bleibt er; ohne Gefecht reihum unter den Kaperern im Sektor
         var fight = FightEnemies(u, player);
-        var pool = fight.Count > 0 ? fight : list;
+        // Runde 17 (Handy-Test: in der Warnphase sprang die Taste zum fernen Lauerer): angekündigte Angreifer (Warnung läuft) haben Vorrang vor allen anderen
+        var announced = fight.Count > 0 ? fight : Announced(u, player).Where(list.Contains).ToList();
+        var pool = fight.Count > 0 ? fight : announced.Count > 0 ? announced : list;
         int i = pool.IndexOf(current);
         return i < 0 ? pool[0] : pool[(i + 1) % pool.Count];
     }
+
+    /// <summary>Runde 17: Kaperer, deren Überfall auf den Spieler angekündigt ist (Warnzeit läuft), nach Fälligkeit.</summary>
+    public static List<ShipId> Announced(Universe u, Ship player) =>
+        u.PendingEncounters.Where(p => p.Target == player.Id && p.Kind == EncounterKind.Raid && p.Source.Value != 0 && p.DueTick - u.Tick <= u.Rules.PlayerWarningTicks)
+            .OrderBy(p => p.DueTick).ThenBy(p => p.Source.Value).Select(p => p.Source).ToList();
 
     /// <summary>Gegner im eigenen Gefecht nach Abstand (leer ohne Gefecht).</summary>
     static List<ShipId> FightEnemies(Universe u, Ship player)

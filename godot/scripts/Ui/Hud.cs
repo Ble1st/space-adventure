@@ -298,6 +298,10 @@ public partial class Hud : CanvasLayer
 	const float FlightAlertY = 508f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
 
 	/// <summary>Runde 14: Fläche der Meldung im Flug (für das freie Feld der Gefechtskamera); null = keine sichtbar oder nicht im Flug.</summary>
+	/// <summary>Runde 17: Fläche der sichtbaren Kurzmeldung (Randpfeil-Beschriftungen weichen ihr aus); null = keine.</summary>
+	public Rect2? ToastRect => _toast.Modulate.A > 0.05f && _toast.Text.Length > 0 ? _toast.GetGlobalRect() : null;
+	/// <summary>Runde 17: im Gefecht/in der Warnphase nur wenige Stations-Randpfeile (Main setzt das je Bild).</summary>
+	public bool EdgeThin { get; set; }
 	public Rect2? AlertRect => _alert.Visible && (Screens.Current == null || Screens.Current == Flight) ? _alert.GetGlobalRect() : null;
 
 	/// <summary>Selbsttest: Mittelpunkt der Meldung und des „✕“ (für simulierte Tipps).</summary>
@@ -340,10 +344,23 @@ public partial class Hud : CanvasLayer
 			_toast.Position = new Vector2(10f, _alert.Visible ? 250f : 90f);
 			_toast.Size = new Vector2(MathF.Max(300f, (vpSize.X - DockMenuWidth) / 2f - 20f), _toast.Size.Y);
 		}
+		else if (!onScreen && EdgeThin)
+		{
+			// Runde 17 (Handy-Test: Warnphase — Zielpfeil, Stationsnamen und Start-Hinweis als Textknäuel oben): im Gefecht/in der Warnphase links unter den
+			// Leistungstasten, das freie Feld oben bleibt für Ziel und Zielpfeil
+			_toast.Position = new Vector2(Flight.LeftColumnX(), Flight.LeftColumnTop());
+			_toast.Size = new Vector2(300f, _toast.Size.Y);
+		}
 		else
 		{
 			_toast.Position = new Vector2(vpSize.X / 2f - 300f, onScreen ? vpSize.Y - 70f : 122f);
-			_toast.Size = new Vector2(below ? 416f : 600f, _toast.Size.Y);
+			float tw = below ? 416f : 600f;
+			// Runde 17 (Handy-Test: Hintergrund des Hinweises überdeckte den Rand von „Nächster Gegner“): im Flug vor der ersten HUD-Fläche rechts enden
+			if (!onScreen)
+				foreach (var r in Flight.OccupiedRects())
+					if (r.Position.X > vpSize.X / 2f && r.Position.Y < _toast.Position.Y + 100f && r.End.Y > _toast.Position.Y)
+						tw = MathF.Min(tw, MathF.Max(300f, r.Position.X - 6f - _toast.Position.X));
+			_toast.Size = new Vector2(tw, _toast.Size.Y);
 		}
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 		// Runde 7: Beschuss- und Fluchtzeile unter einen mehrzeiligen Hinweis im Flug
@@ -387,6 +404,15 @@ public partial class Hud : CanvasLayer
 		Rect2 Field() => (Hud.FreeField?.Invoke() is { } f && f.Size.X > 40f && f.Size.Y > 40f ? f : new Rect2(Size.X * 0.27f, 180f, Size.X * 0.46f, Size.Y - 180f - 130f)).Grow(-24f);
 
 		readonly List<Rect2> _labelBoxes = new();
+		/// <summary>Runde 17: HUD-Flächen samt Kurzmeldung und Meldung — Beschriftungen, Pfeile und Ringe weichen ihnen aus.</summary>
+		List<Rect2> Occupied()
+		{
+			var occ = Hud.Flight.OccupiedRects();
+			if (Hud.ToastRect is { } tr) occ.Add(tr.Grow(6f));
+			if (Hud.AlertRect is { } ar) occ.Add(ar.Grow(6f));
+			return occ;
+		}
+		Rect2? _arrowBox;
 
 		/// <summary>Runde 16: roter Zielpfeil am Rand des freien Felds, wenn das gewählte (feindliche) Ziel außerhalb liegt — immer, nicht nur in der Warnphase.</summary>
 		void DrawTargetArrow()
@@ -407,8 +433,16 @@ public partial class Hud : CanvasLayer
 			string label = t.Label.Length > 22 ? t.Label[..21] + "…" : t.Label;
 			float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, 14).X;
 			var lp = tip - dir * 44f - new Vector2(w / 2f, -5f);
-			DrawRect(new Rect2(lp - new Vector2(4f, 14f), new Vector2(w + 8f, 19f)), new Color(0.1f, 0.02f, 0.02f, 0.8f));
-			DrawString(font, lp, label, HorizontalAlignment.Left, -1, 14, col);
+			var box = new Rect2(lp - new Vector2(4f, 14f), new Vector2(w + 8f, 19f));
+			// Runde 17: Beschriftung nicht über HUD/Kurzmeldung (Warnphase: Textknäuel oben) — sonst weiter innen, notfalls nur der Pfeil
+			var occ = Occupied();
+			for (int step = 0; step < 4 && occ.Exists(r => r.Intersects(box)); step++) { lp -= dir * 22f; box.Position -= dir * 22f; }
+			_arrowBox = new Rect2(tip - new Vector2(30f, 30f), new Vector2(60f, 60f)).Merge(box);
+			if (!occ.Exists(r => r.Intersects(box)))
+			{
+				DrawRect(box, new Color(0.1f, 0.02f, 0.02f, 0.8f));
+				DrawString(font, lp, label, HorizontalAlignment.Left, -1, 14, col);
+			}
 			Hud.TargetArrowShown = true;
 			Hud.TargetArrowAt = tip;
 		}
@@ -422,7 +456,11 @@ public partial class Hud : CanvasLayer
 			var col = new Color(0.45f, 0.85f, 1f, 0.9f);
 			var field = Field();
 			var c = field.GetCenter();
-			var occupied = Hud.Flight.OccupiedRects();   // Runde 4: Namen und Pfeile nie über HUD-Tasten/-Beschriftungen
+			var occupied = Occupied();   // Runde 4: Namen und Pfeile nie über HUD-Tasten/-Beschriftungen (Runde 17: auch Kurzmeldung/Meldung)
+			// Runde 17: dem Gefechtsziel und seinem Pfeil ausweichen; im Gefecht nur die drei wichtigsten Stationen (verteidigte zuerst)
+			if (_arrowBox is { } ab) occupied.Add(ab.Grow(12f));
+			if (Hud.TargetScreenPosition?.Invoke() is { } tsp) occupied.Add(new Rect2(tsp - new Vector2(60f, 40f), new Vector2(120f, 80f)));
+			int maxMarkers = Hud.EdgeThin ? 3 : 10;
 			foreach (var (screen, name, id) in list)
 			{
 				// Runde 16 (Handy-Test: Pfeile lagen unter „Karte“, Stationen unter HUD-Tasten waren nicht wählbar): nur Stationen im freien Feld sind selbst
@@ -437,6 +475,7 @@ public partial class Hud : CanvasLayer
 				bool near = false;
 				foreach (var (mp, _) in Hud.EdgeMarkers) if (mp.DistanceTo(tip - dir * 18f) < 70f) { near = true; break; }
 				if (near) continue;
+				if (Hud.EdgeMarkers.Count >= maxMarkers) break;
 				var side = new Vector2(-dir.Y, dir.X) * 9f;
 				DrawColoredPolygon(new[] { tip, tip - dir * 18f + side, tip - dir * 18f - side }, col);
 				string label = name.Length > 20 ? name[..19] + "…" : name;
@@ -460,13 +499,15 @@ public partial class Hud : CanvasLayer
 
 		public override void _Draw()
 		{
+			_arrowBox = null;
+			DrawTargetArrow();   // Runde 16 (Runde 17: zuerst — die Stationspfeile weichen ihm aus)
 			DrawEdgeStations();
-			DrawTargetArrow();   // Runde 16
 			var p = Hud.TargetScreenPosition?.Invoke();
 			if (p is not { } pos) return;
 			var rect = new Rect2(Vector2.Zero, Size).Grow(-30f);
 			var col = new Color(1f, 0.9f, 0.3f);
-			if (rect.HasPoint(pos)) { DrawArc(pos, 22f, 0, Mathf.Tau, 32, col, 3f); return; }
+			// Runde 17: Zielring nie über HUD-Tasten (rechts über Laser/Geschütz gesehen)
+			if (rect.HasPoint(pos)) { if (!Occupied().Exists(r => r.Intersects(new Rect2(pos - new Vector2(24f, 24f), new Vector2(48f, 48f))))) DrawArc(pos, 22f, 0, Mathf.Tau, 32, col, 3f); return; }
 			var c = Size / 2f;
 			var dir = (pos - c).Normalized();
 			float t = Mathf.Min(Mathf.Abs(rect.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(rect.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));

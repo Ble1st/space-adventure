@@ -223,6 +223,7 @@ public sealed class MinerSystem : ISimSystem
 
         if (field is null || cargoFull || !Belt.HasOre(sector, field, 0.01f))
         {
+            MiningAnchor.Release(u, ship, sector.Id, cargoFull ? "hold_full" : "depleted");   // Phase 32
             if (ship.Cargo.Values.Sum() > 0f)
             {
                 ship.MinePhase = MinePhase.GoingToStation;
@@ -244,13 +245,22 @@ public sealed class MinerSystem : ISimSystem
         // ShotTimer dient als Fortschritt bis zur nächsten Portion
         if (ship.Stats.UsesContact)
         {
+            // Phase 32: der verankerte Fels ist weg (erschöpft) — Anker lösen, am nächsten neu ansetzen
+            if (ship.AnchorRock != 0 && ship.AnchorRock != ship.MineAsteroid) MiningAnchor.Release(u, ship, sector.Id, "depleted");
             var crock = PickRock(sector, field, ship);
             if (crock is null || !u.AsteroidClasses.TryGetValue(crock.ClassKey, out var ccls)) return;
+            if (ship.AnchorRock != 0 && ship.AnchorRock != crock.Id) MiningAnchor.Release(u, ship, sector.Id, "depleted");
             // Spaltzange (Felsbrecher II, Steinbruch) zerlegt große Brocken zuerst, wie beim Laser
             if (ship.Stats.SplitPower > 0f && crock.Radius >= u.Rules.NpcSplitMinRadius && AsteroidSplitter.Split(u, sector, crock, ship.Id) is not null)
             {
                 ship.MineAsteroid = 0;
                 return;
+            }
+            // Phase 32: erst verankern (abstrakt am Arbeitspunkt), dann abbauen — dieselbe Regel wie beim Spieler
+            if (MiningAnchor.Active(u))
+            {
+                MiningAnchor.Attach(u, ship, sector.Id, crock);
+                if (!MiningAnchor.Advance(u, ship, sector.Id, 1f)) return;
             }
             float progress = ship.ShotTimer;
             foreach (var (good, units) in ContactMining.Step(u, u.Rng, ship, sector, crock, ccls, ref progress, SimClock.TickInterval))

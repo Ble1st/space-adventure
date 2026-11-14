@@ -228,6 +228,9 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Selbsttest: Taste der Leistungsverteilung auslösen wie ein Fingertipp.</summary>
 	public void TestPressMode(PowerMode m) => PressMode(m);
 	/// <summary>Selbsttest: Größe und Lage einer Verteilungstaste (Mindest-Trefferfläche, keine Überdeckung).</summary>
+	/// <summary>Runde 17: linke Spalte unter den Leistungstasten (Platz für Hinweise im Gefecht) — Bildschirmkoordinaten.</summary>
+	public float LeftColumnX() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.GetGlobalRect().Position.X : 14f;
+	public float LeftColumnTop() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.GetGlobalRect().End.Y + 40f : 300f;
 	public Rect2 TestModeRect(PowerMode m) => new(_modeButtons[m].Position, _modeButtons[m].Size);
 	Control _fuelRow = null!;
 	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>

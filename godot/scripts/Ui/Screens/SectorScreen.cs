@@ -25,7 +25,15 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	public void ResetSession() { SelectedSector = null; _selStation = null; _selGate = null; _showInfo = false; }
 
 	/// <summary>Angezeigter Sektor (null = Spielersektor); setzt der Aufrufer vor dem Öffnen.</summary>
-	public SectorId? SelectedSector { get; set; }
+	/// <summary>Runde 17 (Handy-Test: veraltete Torkarte, „Autopilot hin“ flog zum zuvor gewählten Tor): ein anderer Sektor löscht die Station-/Torwahl.</summary>
+	public SectorId? SelectedSector
+	{
+		get => _selectedSector;
+		set { if (value != _selectedSector) { _selStation = null; _selGate = null; _showInfo = false; } _selectedSector = value; }
+	}
+	SectorId? _selectedSector;
+	/// <summary>Runde 17: beim Öffnen ohne bewusste Wahl den Spielersektor zeigen (Station/Tor-Auswahl verworfen).</summary>
+	public void ShowPlayerSector(SectorId player) { SelectedSector = player; _selStation = null; _selGate = null; _showInfo = false; }
 
 	/// <summary>„Autopilot hierhin“: Ziel für Main (NavTarget + optionale Station zum Andocken).</summary>
 	public event Action<NavTarget, StationId?>? AutopilotRequested;
@@ -133,7 +141,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			Color gc = gp.Denied || !g.Open ? Red : gp.Toll > 0f ? Orange : Green;
 			At(card, Text($"Zustand: {gp.State}", 15, gc), 16, 42, 268, 20);
 			WrappedText(card, gp.Verdict, 16, 66, 268, 13, gc, 16);
-			At(card, Text($"Sprung von {s.Name} nach {target.Name}", 14, White), 16, 104, 268, 20);
+			At(card, Text($"Sprung nach {target.Name.Replace("Sektor ", "")}", 14, White), 16, 104, 268, 20);   // Runde 17: kurz (vorher „Sprung von Sektor Beta nach Sektor D…“)
 			// Runde 15: Torkampf — Hülle/Schild/Zustand (Core: GateInfo)
 			if (SpaceSim.Core.Combat.GateCombat.TypeOf(u, g) is not null)
 			{

@@ -26,6 +26,9 @@ public partial class PlayerShip : Node3D
 
 	public Vector3 Velocity { get; set; }
 	public bool Locked { get; set; }
+	/// <summary>Phase 32: verankert (Harpunen am Fels) oder Trossen kappen — das Schiff liegt an diesem Punkt, Blick nach <see cref="PinHeading"/>; null = frei.</summary>
+	public Vector3? Pin { get; set; }
+	public float? PinHeading { get; set; }
 	public float Heading { get; set; }
 	public bool Thrusting { get; private set; }
 
@@ -115,6 +118,16 @@ public partial class PlayerShip : Node3D
 		_hitCooldown = Mathf.Max(0f, _hitCooldown - delta);
 		Grace = Mathf.Max(0f, Grace - delta);
 		if (Locked) { Velocity = Velocity.Lerp(Vector3.Zero, 1f - Mathf.Exp(-6f * delta)); Thrusting = false; Show(false); return; }
+		if (Pin is { } pin)
+		{
+			// Phase 32: die Trossen halten das Schiff am Fels (kein Abdriften, kein Schub nötig)
+			Velocity = Vector3.Zero;
+			Position = Position.Lerp(pin, 1f - Mathf.Exp(-12f * delta));
+			if (PinHeading is { } ph) Heading = Mathf.LerpAngle(Heading, ph, 1f - Mathf.Exp(-6f * delta));
+			Rotation = new Vector3(0, Heading, Mathf.Lerp(Rotation.Z, 0f, 1f - Mathf.Exp(-8f * delta)));
+			Thrusting = false; Show(false);
+			return;
+		}
 
 		bool thrust = dir.LengthSquared() > 1e-4f && Mathf.Abs(throttle) > 0.001f;
 		float turnVis = 0f;

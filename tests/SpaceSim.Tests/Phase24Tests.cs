@@ -370,7 +370,8 @@ public class Phase24Tests
             Assert.False(s.Order is GoToOrder && s.Transit is null, $"Geister-GoTo bei {s.Id.Value}");
             if (u.Fights.IsEngaged(s.Id)) { Assert.Null(s.Transit); Assert.True(s.Order is null); }
         }
-        Assert.True(!u.Ships.ContainsKey(trader.Id) || trader.Order is not null || trader.Transit is not null || trader.Cargo.Values.Sum() < 1f);
+        // Phase 32: ein Rest ohne Abnehmer bleibt nach Phase 19 an Bord (StrandedSince gesetzt, das Schiff versucht es weiter) — kein Geisterzustand
+        Assert.True(!u.Ships.ContainsKey(trader.Id) || trader.Order is not null || trader.Transit is not null || trader.Cargo.Values.Sum() < 1f || trader.StrandedSince >= 0);
     }
 
     [Fact]

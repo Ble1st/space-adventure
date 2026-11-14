@@ -90,6 +90,8 @@ public static class CombatFraming
 
     /// <summary>Anteil des freien Felds, den der Abstand Schiff–Ziel höchstens füllen soll (Handy-Test Runde 15: „näher heran“; mit Rand und Körpern wirkt das wie gut die Hälfte).</summary>
     public const float FillShare = 0.75f;
+    /// <summary>Runde 17: Schiff und Ziel liegen mindestens diesen Anteil der Feldbreite/-höhe vom Rand des freien Felds entfernt.</summary>
+    public const float EdgeShare = 0.12f;
 
     /// <summary>
     /// Runde 15 (Handy-Test: beide winzig, Schiff am Rand): Gefechtsrahmung mit Mindestgröße. Gesucht wird der kleinste Abstand ab <paramref name="minDistance"/>, bei dem
@@ -99,7 +101,7 @@ public static class CombatFraming
     /// Feld mit <paramref name="soloDistance"/> (<see cref="CombatFrame.Both"/> false — das Ziel zeigt die Ansicht als Randmarker).
     /// </summary>
     public static CombatFrame ComputeCombat(float sx, float sz, float tx, float tz, float yawDeg, float pitchDeg, float fovDeg, float aspect,
-        float minDistance, float capDistance, float soloDistance, FreeRect free, float targetRadius = 0f, float margin = 6f)
+        float minDistance, float capDistance, float soloDistance, FreeRect free, float targetRadius = 0f, float margin = 6f, float fillShare = FillShare, float edgeShare = EdgeShare)
     {
         float tv = MathF.Tan(fovDeg * MathF.PI / 360f), th = tv * aspect;
         (float X, float Y) Ndc(float px, float pz, float fx, float fz, float d)
@@ -142,10 +144,12 @@ public static class CombatFraming
             if (float.IsNaN(p1.X) || float.IsNaN(p2.X)) continue;
             float padY1 = margin / MathF.Max(1f, d) / tv, padX1 = margin / MathF.Max(1f, d) / th;
             float padY2 = (margin + targetRadius * 0.8f) / MathF.Max(1f, d) / tv, padX2 = (margin + targetRadius) / MathF.Max(1f, d) / th;   // Körper: in der Tiefe verkürzt
-            bool In((float X, float Y) p, float px, float py) => p.X - px >= free.X0 && p.X + px <= free.X1 && p.Y - py >= free.Y0 && p.Y + py <= free.Y1;
+            // Runde 17 (Prüfung: Gegner bei Kampfbeginn am oberen Feldrand dicht an den Stationsnamen): Mittelpunkte mindestens EdgeShare des Felds vom Rand
+            float ix = edgeShare * fw, iy = edgeShare * fh;
+            bool In((float X, float Y) p, float px, float py) => p.X - MathF.Max(px, ix) >= free.X0 && p.X + MathF.Max(px, ix) <= free.X1 && p.Y - MathF.Max(py, iy) >= free.Y0 && p.Y + MathF.Max(py, iy) <= free.Y1;
             float span = MathF.Max((MathF.Abs(p1.X - p2.X) + padX2) / fw, (MathF.Abs(p1.Y - p2.Y) + padY2) / fh);
             bool inside = In(p1, padX1, padY1) && In(p2, padX2, padY2);
-            if (inside && span <= FillShare) return new CombatFrame(fx, fz, d, true);
+            if (inside && span <= fillShare) return new CombatFrame(fx, fz, d, true);
             // passt es nur weiter heraus als der Füllanteil verlangt (großes Ziel, kleines Feld), gilt der erste Abstand, bei dem beide hineinpassen
             if (inside && firstFit is null) firstFit = new CombatFrame(fx, fz, d, true);
         }

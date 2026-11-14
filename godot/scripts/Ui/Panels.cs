@@ -27,6 +27,8 @@ public partial class MapOverlay : Control
 	public event Action? Closed;
 
 	Universe? _u;
+	/// <summary>Runde 17: Verweis auf das alte Universum lösen (Sitzungswechsel).</summary>
+	public void Forget() => _u = null;
 	SectorId _player;
 	SectorId? _target;
 	readonly TouchButton _close = new("Schließen", new Vector2(150, 56));

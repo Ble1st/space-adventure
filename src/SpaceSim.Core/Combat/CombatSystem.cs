@@ -81,7 +81,7 @@ public sealed class CombatSystem : ISimSystem
             for (int i = 0; i < e.Participants.Count; i++)
             {
                 var p = e.Participants[i];
-                _moves.Add(p.Active ? MoveOf(u, e, p, _decisions[i], seconds) : 0f);
+                _moves.Add(p.Active && u.Tick >= p.CastOffUntil ? MoveOf(u, e, p, _decisions[i], seconds) : 0f);   // Phase 32: Trossen kappen
             }
             for (int i = 0; i < e.Participants.Count; i++)
             {
@@ -143,6 +143,7 @@ public sealed class CombatSystem : ISimSystem
         {
             var p = e.Participants[i];
             if (!p.Active || !u.Ships.TryGetValue(p.Ship, out var ship) || ship.Id == u.PlayerShip) { _steps.Add(default); continue; }
+            if (u.Tick < p.CastOffUntil) { _steps.Add(new CombatPilotStep(p.Pos, p.Dir, 0f)); continue; }   // Phase 32: Trossen kappen
             var d = _decisions[i];
             float speed = Travel.SpeedOf(ship) * ShipSystems.SpeedFactor(u, ship);
             // Phase 27: ein Fliehender mit Zuflucht fliegt zu ihr (Station, Tor) statt nur geradeaus weg

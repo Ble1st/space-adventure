@@ -1002,4 +1002,19 @@ public sealed class EconomyRules
     /// </summary>
     public bool BuildMissingProducer = true;
     public float MissingProducerRatio = 5f;
+
+    // ── Phase 32 (Runde 17): Anker mit Trossen/Harpunen beim Kontaktabbau (Mining/MiningAnchor) ──
+    /// <summary>Kontaktschürfer verankern sich mit Harpunen am Fels, bevor sie abbauen (Spieler und NPC); false = Abbau bei Kontakt wie bis Phase 31. Standardwelt an.</summary>
+    public bool MiningAnchors;
+    /// <summary>Verankerungszeit in Ticks (Harpunen fliegen, Trossen straffen) — erst danach läuft der Abbau.</summary>
+    public int AnchorTicks = 7;
+    /// <summary>Eigener Schub über diesem Anteil (Regler, Rückwärts) oder Wenden reißt die Verankerung (Spieler).</summary>
+    public float AnchorBreakThrottle = 0.3f;
+    /// <summary>Ein verankertes Schiff, das in ein Gefecht gerät, muss erst die Trossen kappen: so viele Ticks bewegt es sich nicht.</summary>
+    public int AnchorCastOffTicks = 6;
+    /// <summary>
+    /// Ausgleich der Verankerungszeit: Faktor auf die Rate der Kontaktwerkzeuge, solange Anker aktiv sind — der Erzfluss der Wirtschaft bleibt auf dem Stand vor
+    /// den Ankern (gemessen, Phase 32). Die Kapazitätseinheiten (<see cref="ShipStats.MiningTier"/>) bleiben unverändert.
+    /// </summary>
+    public float AnchorRateFactor = 1f;
 }

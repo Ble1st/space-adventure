@@ -140,6 +140,8 @@ public sealed class ShipVisual
 	public HardpointSet Hardpoints = new();
 	public readonly List<Node3D> Rotors = new();
 	public readonly List<Node3D> Jaws = new();
+	/// <summary>Phase 32: Harpunenspitzen (<c>Harpoon_&lt;n&gt;</c>, Ursprung an der Mündung, lokal −Z = Abschussrichtung) — leer = Trossen vom Bug.</summary>
+	public readonly List<Node3D> Harpoons = new();
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Engines = new();
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Accents = new();
 	int _engineLevel = -1;
@@ -329,6 +331,7 @@ public static class ShipModels
 					string name = c3.Name;
 					if (name.StartsWith("Rotor_")) v.Rotors.Add(c3);
 					else if (name.StartsWith("Jaw_")) v.Jaws.Add(c3);
+					else if (name.StartsWith("Harpoon_")) v.Harpoons.Add(c3);
 				}
 				if (c is MeshInstance3D mi && mi.Mesh is { } mesh)
 				{

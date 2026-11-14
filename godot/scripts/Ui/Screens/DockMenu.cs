@@ -12,7 +12,7 @@ namespace SpaceAdventure.Ui.Screens;
 /// darunter die Bereiche mit Untertitel (Daten aus <see cref="DockAreas.Build"/>, rollbares Raster für bis zu neun Kacheln), unten die große Taste
 /// „Abdocken“ und die Liegegebühr der hier geparkten eigenen Schiffe. Als IScreen in der Registry; der Aufrufer setzt <see cref="Ctx"/>.
 /// </summary>
-public sealed partial class DockMenu : Control, IScreen
+public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 {
 	public string Id => "dock.menu";
 	public string Title => Ctx != null ? Ctx.Station.Name : "Dock";
@@ -50,6 +50,9 @@ public sealed partial class DockMenu : Control, IScreen
 	{
 		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.62f));
 	}
+
+	/// <summary>Runde 17 (Speicher wächst mit „Neues Spiel“): die Schiffskarten halten das alte Universum — beim Sitzungswechsel alles abbauen.</summary>
+	public void ResetSession() { foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } }
 
 	void Rebuild()
 	{

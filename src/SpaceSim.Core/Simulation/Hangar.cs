@@ -29,8 +29,14 @@ public static class Hangar
 
     /// <summary>Gebühr je Tag, die das Schiff dort, wo es liegt, tatsächlich zahlt (eigene Station, aktiv, unterwegs, Leihschiff: 0).</summary>
     public static float BerthFeeNow(Universe u, Ship ship) =>
-        ship.IsPlayer && ship.Id != u.PlayerShip && ship.Transit is null && !ship.IsRental && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner
+        ship.IsPlayer && ship.Id != u.PlayerShip && ship.Transit is null && !ship.IsRental && !InFormation(ship) && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner
             ? BerthFeePerDay(u, ship) : 0f;
+
+    /// <summary>
+    /// Runde 17 (Handy-Test: Credits sanken zeitweise mit −16,8 statt −4,8 Cr/min): ein Begleiter, der in Formation folgt (Befehl „Folgen“), liegt nicht am Liegeplatz,
+    /// auch wenn seine Reise zufällig am Andockpunkt einer Station endet — er zahlt Flottenunterhalt, aber keine Liegegebühr.
+    /// </summary>
+    public static bool InFormation(Ship ship) => ship.Command is FollowCommand;
 
     /// <summary>Liegegebühr aller Schiffe eines Akteurs je Tag (Anzeige „Meine Fraktion“).</summary>
     public static float BerthFeesPerDay(Universe u, ActorId owner) =>
@@ -56,9 +62,15 @@ public static class Hangar
     {
         float perMin = RunningCostsPerMinute(u, owner);
         if (perMin <= 0.001f) return "";
+        var de = System.Globalization.CultureInfo.GetCultureInfo("de-DE");
         int ships = UpkeepShips(u, owner);
-        string who = ships > 0 ? $"Unterhalt {ships} Schiff{(ships == 1 ? "" : "e")}" : "Liegegebühr";
-        return $"{who} · −{perMin.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))} Cr/min";
+        float upkeep = ships * u.Rules.ShipUpkeepPerTick * SimClock.TicksPerSecond * 60f;
+        float berth = perMin - upkeep;
+        // Runde 17: aufgeschlüsselt, damit ein Sprung der Summe nachvollziehbar ist (Liegegebühr an fremden Stationen)
+        var parts = new List<string>();
+        if (ships > 0) parts.Add($"Unterhalt {ships} Schiff{(ships == 1 ? "" : "e")} −{upkeep.ToString("0.0", de)}");
+        if (berth > 0.001f) parts.Add($"Liegegebühr −{berth.ToString("0.0", de)}");
+        return string.Join(" · ", parts) + " Cr/min";
     }
 
     /// <summary>Materialwert eines Schiffs: Bausatz der Klasse + eingebaute Module zum Basispreis (0 ohne Modell oder ohne auflösbare Waren).</summary>

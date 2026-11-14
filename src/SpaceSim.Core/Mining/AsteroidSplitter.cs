@@ -75,6 +75,7 @@ public static class AsteroidSplitter
             made.Add(frag);
         }
         foreach (var m in made) m.Id = u.NewAsteroidId();
+        MiningAnchor.OnSplit(u, s.Id, rock.Id);   // Phase 32: am gespaltenen Fels reißen die Trossen
         u.Events.Publish(new AsteroidSplit(s.Id, rock.Id, made.Select(m => m.Id).ToList(), dust, by));
         return made;
     }

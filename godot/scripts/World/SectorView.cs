@@ -16,7 +16,7 @@ public readonly record struct PickTarget(string Kind, int Id, Vector3 Position, 
 public partial class SectorView : Node3D
 {
 	/// <summary>NPC-Schiff in der Szene. Runde 11: <see cref="Visual"/> = Schiffsmodell (ShipModels), <see cref="Simple"/> = Grundkörper (ohne Modell oder weit weg).</summary>
-	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; public ShipVisual? Visual; public Node3D? Simple; public string ModelKey = ""; public Color Color; public bool Far; }
+	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; public ShipVisual? Visual; public Node3D? Simple; public MeshInstance3D? Ring; public string ModelKey = ""; public Color Color; public bool Far; }
 
 	Universe? _u;
 	SectorId _sector;
@@ -183,7 +183,7 @@ public partial class SectorView : Node3D
 				var ring = Gfx.Mesh(new TorusMesh { InnerRadius = 2.6f, OuterRadius = 3.1f, Rings = 24, RingSegments = 6 }, Gfx.Mat(color, 1.2f, 0f), new Vector3(0, -0.3f, 0), pivot);
 				ring.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 				_root.AddChild(pivot);
-				_markers[s.Id] = m = new Marker { Pivot = pivot, Color = color };
+				_markers[s.Id] = m = new Marker { Pivot = pivot, Color = color, Ring = ring };
 			}
 			SyncShipBody(u, m, ship, playerPos);
 
@@ -308,7 +308,26 @@ public partial class SectorView : Node3D
 	public void SnapJaws(ShipId id) { if (_markers.TryGetValue(id, out var m)) m.Visual?.SnapJaws(); }
 
 	/// <summary>Selbsttest: Schiffsmodell eines Markers (null = Grundkörper).</summary>
+	/// <summary>Runde 17 (Prüfung: Ringe rechts über den Laser-/Geschütztasten): Ringe von Schiffen unter HUD-Flächen ausblenden.</summary>
+	public void HideRingsUnder(System.Func<Vector3, bool> covered)
+	{
+		foreach (var m in _markers.Values) if (m.Ring is { } r) r.Visible = !covered(m.Pivot.GlobalPosition);
+	}
+	/// <summary>Selbsttest: sichtbare Ringe.</summary>
+	public int TestVisibleRings => _markers.Values.Count(m => m.Ring is { Visible: true });
 	public ShipVisual? TestVisual(ShipId id) => _markers.TryGetValue(id, out var m) ? m.Visual : null;
+	/// <summary>Phase 32: Körper eines NPC-Markers (Modell, sonst der Drehpunkt) für die Ankertrossen; null = nicht im Bild.</summary>
+	public (ShipVisual? Visual, Node3D Body)? BodyOf(ShipId id) =>
+		_markers.TryGetValue(id, out var m) ? (m.Visual is { } v && v.Root.Visible ? v : null, m.Pivot) : null;
+	/// <summary>Phase 32: verankerte NPC-Schürfer drehen ihren Marker zum Fels (Darstellung; die Simulation kennt nur den Arbeitspunkt).</summary>
+	public void FaceTo(ShipId id, Vector3 world, float delta)
+	{
+		if (!_markers.TryGetValue(id, out var m)) return;
+		var d = world - m.Pivot.Position;
+		if (d.LengthSquared() < 1e-4f) return;
+		m.Yaw = Mathf.LerpAngle(m.Yaw, Mathf.Atan2(-d.X, -d.Z), 1f - Mathf.Exp(-6f * delta));
+		m.Pivot.Rotation = new Vector3(0, m.Yaw, 0);
+	}
 	/// <summary>Selbsttest: Geschützstellungen einer Station.</summary>
 	public HardpointSet? TestStationGuns(StationId id) => _stations.TryGetValue(id, out var n) ? n.Guns : null;
 	/// <summary>Selbsttest: Zahl der Marker mit Modell bzw. mit Grundkörper (LOD).</summary>
@@ -420,9 +439,13 @@ public partial class SectorView : Node3D
 		var target = u.Sectors[u.Gates[g.Target].Sector];
 		// Runde 11: Schild wie die Stationen (feste Bildschirmgröße, HUD-Ausblendung über Labels()), mit Kürzel des Besitzers des Zielsektors
 		string targetName = target.Owner.Value != 0 ? ActorNames.Tagged(u, target.Owner, target.Name) : target.Name;
-		root.AddChild(Gfx.Label($"Jumpgate → {targetName}", new Vector3(0, labelY, 0)));
+		// Runde 17 (Handy-Test: „Jumpgate → …“ vom Tormodell angeschnitten): Torschilder immer vor dem Modell (ohne Tiefentest, höhere Zeichenreihenfolge)
+		var name = Gfx.Label($"Jumpgate → {targetName}", new Vector3(0, labelY, 0));
+		name.NoDepthTest = true; name.RenderPriority = 10;
+		root.AddChild(name);
 		// Phase 31: Zustandsschild unter dem Namen (beschädigt / außer Betrieb mit Reparaturfortschritt), sonst ausgeblendet
 		var status = Gfx.Label("", new Vector3(0, labelY - 3f, 0));
+		status.NoDepthTest = true; status.RenderPriority = 10;
 		status.Visible = false;
 		root.AddChild(status);
 		_gateStatus[g.Id] = status;

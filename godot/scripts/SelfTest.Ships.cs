@@ -59,7 +59,7 @@ public partial class SelfTest
 			case 30:
 			{
 				var pv = _m.Player.Visual;
-				Check(_m.TestContactState == SpaceSim.Core.Mining.ContactState.Mining, $"Kontakt am Fels ({_m.TestContactState})");
+				Check(_m.TestContactState is SpaceSim.Core.Mining.ContactState.Mining or SpaceSim.Core.Mining.ContactState.Anchoring, $"Kontakt am Fels ({_m.TestContactState})");   // Phase 32: zuerst verankern
 				Check(pv is not null && pv.RotorAngle > _smRotor + 1f, $"Werkzeug dreht beim Abbau ({_smRotor:0.0} → {pv?.RotorAngle:0.0} rad)");
 				Check(!_m.TestLabelsOverlap(), "sichtbare Namensschilder überlappen sich nicht (Runde 12: das fernere wird ausgeblendet)");
 				// Gefecht im Spielersektor: Korsar (Bugrohr) und Donner (Raketenschächte) überfallen zwei beladene Händler

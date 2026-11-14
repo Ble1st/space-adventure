@@ -57,6 +57,7 @@ public static class UniverseHash
         {
             Mix((ulong)s.Id.Value); Mix((ulong)s.Owner.Value); Mix((ulong)s.Sector.Value); MixF(s.Position.X); MixF(s.Position.Y); MixF(s.Credits);
             Mix(s.Transit is null ? 0UL : (ulong)s.Transit.ArrivalTick); Mix((ulong)s.Phase); Mix((ulong)s.MinePhase); MixF(s.ShotTimer); Mix((ulong)s.MineAsteroid); Mix((ulong)s.Capabilities); Mix((ulong)s.Controller);
+            if (s.AnchorRock != 0) { Mix(0xA2C4UL); Mix((ulong)s.AnchorRock); MixF(s.AnchorProgress); }   // Phase 32: Verankerung (nur wenn gesetzt)
             MixString(s.ModelKey);                                   // Phase 3: Modell und Fit gehören zum Spielstand
             foreach (var f in s.Fit) { if (f is null) Mix(0UL); else MixString(f); }
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
@@ -157,6 +158,7 @@ public static class UniverseHash
                 if (p.WasDockedAt.Value != 0) Mix((ulong)p.WasDockedAt.Value);
                 if (p.RefugeId != 0) { Mix((ulong)(uint)p.RefugeId + 0x2700u); MixF(p.Refuge); MixF(p.RefugePos.X); MixF(p.RefugePos.Y); }   // Phase 27: Zuflucht
                 if (p.LastShotTick != 0) Mix((ulong)p.LastShotTick + 0x2806u);   // Runde 6: letzter Schuss des Spielers
+                if (p.CastOffUntil != 0) Mix((ulong)p.CastOffUntil + 0x3201u);   // Phase 32: Trossen kappen
             }
             if (e.Spatial) Mix(0x5A7u);
             if (e.Station.Value != 0) { Mix(0x2803u); Mix((ulong)e.Station.Value); MixF(e.StationX); }   // Phase 28: Belagerung

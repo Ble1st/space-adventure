@@ -77,14 +77,29 @@ public sealed class OreChunks
     /// Phase 29: ein Schritt Kontaktabbau des Spielers (gemeinsame Regel <see cref="ContactMining"/>): der nächste abbaubare Asteroid vor dem Bug wird abgetragen,
     /// solange die Werkzeugfront ihn berührt; Erz geht direkt in den Laderaum. Liefert den Zustand für die Werkzeugtaste.
     /// </summary>
-    public ContactState Contact(Universe u, Ship ship, Sector sector, Vec2 shipPos, Vec2 dir, float seconds)
+    /// <param name="anchorAllowed">Phase 32: false = die Steuerung würde die Verankerung sofort reißen (Schub über der Schwelle, Wenden) — dann wird nicht geschossen.</param>
+    public ContactState Contact(Universe u, Ship ship, Sector sector, Vec2 shipPos, Vec2 dir, float seconds, bool anchorAllowed = true)
     {
-        if (ship.Stats.ContactMining <= 0f) return LastContact = ContactState.NoTool;
-        if (ContactMining.HoldFull(u, ship)) return LastContact = ContactState.HoldFull;
-        var rock = Nearest(sector, shipPos, ContactMining.ContactRange + ContactMining.BowOffset + 2f);
-        if (rock is null || !HasClass(u, rock) || !ContactMining.InContact(shipPos, dir, rock)) return LastContact = ContactState.NoContact;
+        if (ship.Stats.ContactMining <= 0f) { MiningAnchor.Release(u, ship, sector.Id, "released"); return LastContact = ContactState.NoTool; }
+        if (ContactMining.HoldFull(u, ship)) { MiningAnchor.Release(u, ship, sector.Id, "hold_full"); return LastContact = ContactState.HoldFull; }
+        // Phase 32: am verankerten Fels bleiben (er schrumpft beim Abbau, die Trossen halten den Bug im Kontakt)
+        var anchored = ship.AnchorRock != 0 ? sector.Asteroids.FirstOrDefault(a => a.Id == ship.AnchorRock) : null;
+        if (ship.AnchorRock != 0 && anchored is not { Minable: true }) MiningAnchor.Release(u, ship, sector.Id, "depleted");
+        var rock = anchored is { Minable: true } ? anchored : Nearest(sector, shipPos, ContactMining.ContactRange + ContactMining.BowOffset + 2f);
+        if (rock is null || !HasClass(u, rock) || !ContactMining.InContact(shipPos, dir, rock))
+        {
+            MiningAnchor.Release(u, ship, sector.Id, "lost_contact");
+            return LastContact = ContactState.NoContact;
+        }
+        if (MiningAnchor.Active(u))
+        {
+            if (ship.AnchorRock != rock.Id && !anchorAllowed) return LastContact = ContactState.NoContact;
+            MiningAnchor.Attach(u, ship, sector.Id, rock);
+            if (!MiningAnchor.Advance(u, ship, sector.Id, seconds * Simulation.SimClock.TicksPerSecond)) return LastContact = ContactState.Anchoring;
+        }
         var cls = u.AsteroidClasses[rock.ClassKey];
         foreach (var (good, units) in ContactMining.Step(u, _rng, ship, sector, rock, cls, ref _contactProgress, seconds)) Contacted?.Invoke(rock, good, units);
+        if (!rock.Minable || !sector.Asteroids.Contains(rock)) MiningAnchor.Release(u, ship, sector.Id, "depleted");
         return LastContact = ContactState.Mining;
     }
 

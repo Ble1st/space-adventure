@@ -64,9 +64,18 @@ public static class WeaponBays
     public static WeaponBay Contact { get; } = new() { Key = "contact", Name = "Bohrer", Facing = Facing.Bow, ArcDegrees = ContactMining.FrontArcDeg, Range = ContactMining.ContactRange + ContactMining.BowOffset };
 
     /// <summary>Anzeigetext des Kontaktschachts.</summary>
+    /// <summary>Phase 32: Text mit Ankerzustand — „verankert · Abbau läuft“ / „Anker fliegt“; kurz nach einem Abriss dessen Grund.</summary>
+    public static string ContactText(ContactState state, bool anchors, string? broke = null) =>
+        broke is { Length: > 0 } && state is ContactState.NoContact ? broke
+        : anchors && state == ContactState.Mining ? "verankert · Abbau"
+        : anchors && state == ContactState.Anchoring ? "Anker fliegt …"
+        : anchors && state == ContactState.NoContact ? "Bug an Fels, Schub <30 %"
+        : ContactText(state);
+
     public static string ContactText(ContactState state) => state switch
     {
         ContactState.Mining => "Abbau läuft",
+        ContactState.Anchoring => "Anker fliegt",
         ContactState.HoldFull => "Laderaum voll",
         ContactState.NoTool => "kein Werkzeug",
         _ => "kein Kontakt · Bug an Fels",

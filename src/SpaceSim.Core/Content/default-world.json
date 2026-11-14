@@ -3,6 +3,7 @@
  "randomNames": true,
  "rules": {
   "gateCombat": true,
+  "miningAnchors": true,
   "armedTraderBaseline": 6,
   "raidRatePerTick": 0.0065,
   "maxTraders": 26,

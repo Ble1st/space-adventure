@@ -55,6 +55,7 @@ public static class Engage
             ship.CommandStep = 0;
         }
         OrderMove.StopHere(u, ship);   // Reise endet hier, Auftrag frei (auch Lauern/Streife)
+        p.CastOffUntil = Mining.MiningAnchor.OnCombat(u, ship);   // Phase 32: ein verankerter Schürfer kappt erst die Trossen
         // Phase 25: nur ein Liegeplatz, an dem das Schiff vor dem Gefecht wirklich lag, wird beim Austritt wiederhergestellt (nie für das aktive Schiff,
         // dessen Andocken die Ansicht führt)
         if (ship.Id != u.PlayerShip) p.WasDockedAt = ship.DockedAt;

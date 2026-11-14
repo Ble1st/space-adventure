@@ -3,7 +3,7 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Core.Mining;
 
 /// <summary>Zustand des Kontaktabbaus (Anzeige der Werkzeugtaste).</summary>
-public enum ContactState { NoTool, NoContact, Mining, HoldFull }
+public enum ContactState { NoTool, NoContact, Mining, HoldFull, Anchoring }
 
 /// <summary>
 /// Phase 29 (Wunsch des Nutzers „Abbau durch frontalen Kontakt mit Asteroiden, mit Drehen der Bauteile“): die eine Regel des mechanischen Abbaus — Spieler
@@ -60,7 +60,9 @@ public static class ContactMining
     public static List<(GoodId Good, float Units)> Step(Universe u, DeterministicRng rng, Ship ship, Sector sector, Asteroid rock, AsteroidClass cls, ref float progress, float seconds)
     {
         var got = new List<(GoodId, float)>();
-        progress += ContactRate(ship.Stats, cls) * MathF.Max(0f, seconds);
+        // Phase 32: mit Ankern gleicht AnchorRateFactor die Verankerungszeit aus (Erzfluss wie vorher)
+        float factor = u.Rules.MiningAnchors ? u.Rules.AnchorRateFactor : 1f;
+        progress += ContactRate(ship.Stats, cls) * factor * MathF.Max(0f, seconds);
         int n = 0;
         while (progress >= 1f && rock.Ore > 0f && n < MaxPortionsPerStep)
         {

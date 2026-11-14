@@ -38,6 +38,7 @@ public partial class Main : Node3D
 	Camera3D _cam = null!;
 	Hud _hud = null!;
 	Fx _fx = null!;
+	AnchorView _anchors = null!;   // Phase 32: Ankertrossen der Kontaktschürfer
 	Sfx _sfx = null!;
 	/// <summary>Runde 12: Musikregler (Zustand aus dem Core, Schichten/Stimmungen/Signale aus music.json).</summary>
 	SpaceAdventure.Audio.MusicDirector _music = null!;
@@ -110,6 +111,7 @@ public partial class Main : Node3D
 		_combat.StationMuzzleDirOf = _view.StationMuzzleDirection;
 		_player = new PlayerShip(); AddChild(_player);
 		_fx = new Fx(); AddChild(_fx);
+		_anchors = new AnchorView { Name = "Anchors", Fx = _fx }; AddChild(_anchors);
 		SpaceAdventure.Audio.AudioSettings.Init();   // Runde 12: Busse „Musik“/„Effekte“ und gespeicherte Lautstärken (user://settings.cfg)
 		_sfx = new Sfx(); AddChild(_sfx);
 		_music = new SpaceAdventure.Audio.MusicDirector(); AddChild(_music);
@@ -221,7 +223,7 @@ public partial class Main : Node3D
 		_hud.CcAssets.BackToFlight += CloseCommand;
 		_hud.CcComms.BackToFlight += CloseCommand;
 		_hud.CcSystem.BackToFlight += CloseCommand;
-		_hud.CcUniverse.OpenSectorMap += sec => { _hud.CcSector.SelectedSector = sec; OpenCcArea(CommandAreas.Sector); };
+		_hud.CcUniverse.OpenSectorMap += sec => { _hud.CcSector.SelectedSector = sec; _sectorChosen = true; OpenCcArea(CommandAreas.Sector); };
 		_hud.CcUniverse.PlanRoute += sec =>
 		{
 			var uu = _session.U;
@@ -274,7 +276,7 @@ public partial class Main : Node3D
 		if (selftest) AddChild(new SelfTest(this));
 		// Runde 16: Handyformat-Fotos aus dem echten Spielablauf (PhoneShots)
 		int phoneIdx = Array.IndexOf(args, "--phone-shots");
-		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { SaveService.UseFile("phone-shots.json"); AddChild(new PhoneShots(this, args[phoneIdx + 1])); }
+		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { SaveService.UseFile("phone-shots.json"); AddChild(new PhoneShots(this, args[phoneIdx + 1]) { Mining = Array.IndexOf(args, "--phone-mining") >= 0 }); }
 		if (shotDir != null)
 		{
 			if (!System.IO.Path.IsPathRooted(shotDir)) shotDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), shotDir);
@@ -305,9 +307,24 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Hängt Ansicht und Ereignisse an das aktuelle Universum und setzt das Spielerschiff.</summary>
+	/// <summary>Runde 17 (Speicher am Gerät wächst mit „Neues Spiel“): schwache Verweise auf alle angehängten Universen — der Selbsttest zählt die lebenden.</summary>
+	internal static readonly List<WeakReference> AttachedUniverses = new();
+	internal static readonly List<string> AttachedLabels = new();
+	static int _attachCount;
 	void AttachSession()
 	{
 		var u = _session.U;
+		AttachedUniverses.Add(new WeakReference(u));
+		AttachedLabels.Add($"#{++_attachCount} {u.Ships[u.PlayerShip].ModelKey}");
+		// Runde 17 (Speicher wächst mit „Neues Spiel“): keine Ansicht hält das alte Universum fest
+		_hud.CcCtx.U = u; _hud.CcCtx.Player = u.Ships[u.PlayerShip];
+		_hud.DockCtx.U = u; _hud.DockCtx.Ship = u.Ships[u.PlayerShip]; _hud.DockCtx.Station = null!;
+		_hud.Map.Forget();
+		foreach (var sc in _hud.Screens.All)
+		{
+			if (sc is Ui.Screens.CommandScreen cs) cs.DropContent();
+			else if (sc is Ui.Screens.DockAreaScreen ds) ds.DropContent();
+		}
 		u.Events.Raised += OnSimEvent;
 		_target = null; _targetStation = null; _targetGate = null; _docked = null; _autopilot = false;   // Runde 16: auch das Tor (Taste „Tor angreifen“ blieb nach „Neues Spiel“)
 		_hud.Flight.SetAutopilot(false);
@@ -318,7 +335,7 @@ public partial class Main : Node3D
 		_aimAssist = true; _aimOffFor = null; _fight.AutoFire = false; _lastDepleted = "";
 		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();   // Gerätetest Phase 27: kein Zustand der alten Sitzung
 		SetAutoMining(false, announce: false);
-		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset();
+		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset(); _anchors.Clear();
 		_transition = false; _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
 		_hud.Flight.Visible = true;   // Dock-Bildschirme wurden über Screens.Hide() geschlossen
 		_view.Rebuild(u);
@@ -394,6 +411,8 @@ public partial class Main : Node3D
 		if (_labelCheck > 0f) return;
 		_labelCheck = 0.2f;
 		var rects = _hud.Flight.OccupiedRects();
+		// Runde 17: Schiffsringe nicht unter/über HUD-Tasten
+		_view.HideRingsUnder(w => !_cam.IsPositionBehind(w) && rects.Any(r => r.Intersects(new Rect2(_cam.UnprojectPosition(w) - new Vector2(30f, 30f), new Vector2(60f, 60f)))));
 		var shown = new List<Rect2>();
 		// Runde 12 (Handy-Test: „[LTR] Elektronikfab…“ über „Wasserwerk Borealis“): nähere Schilder zuerst; ein Schild, das ein näheres überdeckt, wird ausgeblendet
 		foreach (var l in _view.Labels().Where(x => x.IsInsideTree()).OrderBy(x => x.GlobalPosition.DistanceSquaredTo(_cam.GlobalPosition)))
@@ -536,8 +555,11 @@ public partial class Main : Node3D
 	/// Runde 15: Ziel der Gefechtskamera mit Körperradius — angegriffene Station/Tor (mit Radius), gewähltes feindliches Schiff, sonst der Kaperer eines
 	/// angekündigten Überfalls (schon in der Warnphase, bis 400 m — weiter weg rahmt die Kamera nur das Schiff und ein Randpfeil zeigt das Ziel).
 	/// </summary>
+	/// <summary>Runde 17: die Rahmung gilt einem angekündigten Angreifer (Warnphase, noch kein Gefecht).</summary>
+	bool _framingWarning;
 	(Vector3 Pos, float Radius)? FramingTargetR()
 	{
+		_framingWarning = false;
 		if (_docked != null || _session is null) return null;
 		var u = _session.U;
 		// Runde 16: Position aus der Ansicht, sonst aus dem Core (ein fernes Schiff hat ggf. noch keinen Marker)
@@ -545,8 +567,13 @@ public partial class Main : Node3D
 		Vector3? Near(ShipId id) => Where(id) is { } p && (p - _player.Position).Length() <= 400f ? p : null;
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast) && ast.Sector == u.PlayerSector) return (new Vector3(ast.Position.X, 0f, ast.Position.Y), ast.Radius);
 		if (_fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var agt) && agt.Sector == u.PlayerSector) return (new Vector3(agt.Position.X, 0f, agt.Position.Y), SpaceSim.Core.Combat.GateCombat.BodyRadius);
-		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var t) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, t.Id) && Near(t.Id) is { } tp) return (tp, 0f);
-		foreach (var pe in u.PendingEncounters) if (pe.Target == u.PlayerShip && Near(pe.Source) is { } sp) return (sp, 0f);
+		if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var t) && SpaceSim.Core.Combat.PlayerCombat.IsHostile(u, PlayerData, t.Id) && Near(t.Id) is { } tp)
+		{
+			_framingWarning = !u.Fights.IsEngaged(PlayerData.Id) && SpaceSim.Core.Combat.PlayerCombat.Announced(u, PlayerData).Contains(t.Id);   // Runde 17
+			return (tp, 0f);
+		}
+		// Runde 17: nur ein angekündigter Überfall (Warnzeit läuft) — ein späterer (Verstärkung in 60 s) rahmt nicht schon nach dem Kampf
+		foreach (var src in SpaceSim.Core.Combat.PlayerCombat.Announced(u, PlayerData)) if (Near(src) is { } sp) { _framingWarning = !u.Fights.IsEngaged(PlayerData.Id); return (sp, 0f); }
 		return null;
 	}
 
@@ -647,6 +674,7 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Öffnet einen Bereich der Kommandozentrale im Vollbild (wie ein Tipp in der linken Leiste).</summary>
+	bool _sectorChosen;
 	void OpenCcArea(string areaId)
 	{
 		var u = _session.U;
@@ -656,7 +684,9 @@ public partial class Main : Node3D
 		_hud.CcCtx.AutoMiningOn = () => _miner.Enabled;
 		_hud.CcCtx.Docked = _docked;
 		_hud.CcCtx.Services = _session.Services;
-		if (areaId == CommandAreas.Sector && _hud.CcSector.SelectedSector == null) _hud.CcSector.SelectedSector = u.PlayerSector;
+		// Runde 17: die Sektoransicht zeigt beim Öffnen den Spielersektor, außer die Universumskarte hat bewusst einen anderen gewählt
+		if (areaId == CommandAreas.Sector && (!_sectorChosen || _hud.CcSector.SelectedSector == null)) _hud.CcSector.ShowPlayerSector(u.PlayerSector);
+		_sectorChosen = false;
 		IScreen screen = areaId switch
 		{
 			CommandAreas.Universe => _hud.CcUniverse,
@@ -859,6 +889,7 @@ public partial class Main : Node3D
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case ContactMined cm when cm.Sector == _session.U.PlayerSector: OnContactMined(cm); break;
+			case AnchorReleased ar when ar.Sector == _session.U.PlayerSector: OnAnchorReleased(ar); break;   // Phase 32
 			case AsteroidSplit split when split.Sector == _session.U.PlayerSector:   // Runde 12: Spaltbacken klappen
 				if (split.Ship == _session.U.PlayerShip) _player.Visual?.SnapJaws(); else _view.SnapJaws(split.Ship);
 				break;
@@ -899,7 +930,11 @@ public partial class Main : Node3D
 				else _hud.Toast(gd.Message, 4f);
 				break;
 			case GateRestored gr:
-				LastWarMessage = gr.Message; _hud.Toast(gr.Message, 4f); break;
+				LastWarMessage = gr.Message;
+				// Runde 17 (Handy-Test: Wiederanlauf-Meldung nicht gesehen): im eigenen Sektor als Meldung wie der Ausfall, sonst Hinweis
+				if (_session.U.Gates.TryGetValue(gr.Gate, out var grg) && (grg.Sector == _session.U.PlayerSector || _session.U.Gates[grg.Target].Sector == _session.U.PlayerSector)) _hud.Alert(gr.Message, 6f);
+				else _hud.Toast(gr.Message, 4f);
+				break;
 			case MissileLaunched ml when ml.Sector == _session.U.PlayerSector:
 				_sfx.Play(SfxId.Zap);
 				if (ml.Target == _session.U.PlayerShip) Danger("Rakete im Anflug");
@@ -1019,7 +1054,7 @@ public partial class Main : Node3D
 		_hitFlash = Mathf.Max(0f, _hitFlash - delta);
 
 		_session.Advance(delta, _fast ? 10f : 1f);
-		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; }
+		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; _anchors.Clear(); }
 		_view.SyncAsteroids(_session.U, delta);
 		_view.SyncWrecks(_session.U);   // Phase 26: Wracks und Frachtbehälter
 		GateSparks(delta);   // Phase 31: beschädigte Tore sprühen Funken
@@ -1048,6 +1083,7 @@ public partial class Main : Node3D
 		// Treibstoff (Phase 4c): leerer Tank deckelt das Tempo (Notantrieb), die geflogene Strecke wird abgebucht
 		float fuelCap = PlayerFuel.ThrottleCap(_session.U, PlayerData);
 		var before = _player.Position;
+		AnchorPin(throttle, turn, frozen);   // Phase 32: Verankerung hält das Schiff am Fels, Schub/Wenden reißt sie
 		// Phase 23: Stellung „Antrieb“ hebt das Höchsttempo (Core-Regel ShipSystems.SpeedFactor)
 		float engine = SpaceSim.Core.Combat.ShipSystems.SpeedFactor(_session.U, PlayerData);
 		_player.Step(delta, turn, dir, throttle, speedScale * fuelCap * engine, _view, brake: hold);
@@ -1062,6 +1098,8 @@ public partial class Main : Node3D
 		if (!frozen) CheckGates();
 		UpdateMining(delta, frozen);
 		SyncPlayerData();
+		// Runde 17: im Gefecht und in der Warnphase nur wenige Stations-Randpfeile
+		_hud.EdgeThin = _session.U.Fights.IsEngaged(PlayerData.Id) || _session.U.PendingEncounters.Any(p => p.Target == _session.U.PlayerShip);
 		if (!frozen && !_reenter && _fight.AutoFire) FireCombatBays(quiet: true);   // Phase 25: Dauerfeuer
 
 		_view.Animate(delta);
@@ -1092,9 +1130,10 @@ public partial class Main : Node3D
 			_framingActive = true;
 			var ft = ftr.Pos;
 			var vs = GetViewport().GetVisibleRect().Size;
-			// Runde 15: Mindestgröße — Obergrenze 90 × Schiffsgröße; darüber nur das Schiff (Randpfeil zeigt das Ziel); im Kampf so nah, dass beide gut erkennbar sind
+			// Runde 15: Mindestgröße — Obergrenze 90 (Runde 17: 130, der anfliegende Kaperer ab ~120 m im Bild) × Schiffsgröße; darüber nur das Schiff (Randpfeil zeigt das Ziel); im Kampf so nah, dass beide gut erkennbar sind
 			var fr = SpaceSim.Core.Flight.CombatFraming.ComputeCombat(_player.Position.X, _player.Position.Z, ft.X, ft.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov,
-				vs.X / Mathf.Max(1f, vs.Y), OrbitCamera.MinDistance * sz, (ftr.Radius > 0f ? OrbitCamera.MaxDistance : 90f) * sz, OrbitCamera.DefaultDistance * sz, FramingField(), ftr.Radius);   // Station/Tor: bis zum Höchstabstand
+				vs.X / Mathf.Max(1f, vs.Y), OrbitCamera.MinDistance * sz, (ftr.Radius > 0f ? OrbitCamera.MaxDistance : _framingWarning ? 200f : 130f) * sz, OrbitCamera.DefaultDistance * sz, FramingField(), ftr.Radius,
+				fillShare: _framingWarning ? 1f : SpaceSim.Core.Flight.CombatFraming.FillShare, edgeShare: _framingWarning ? 0.08f : SpaceSim.Core.Flight.CombatFraming.EdgeShare);   // Station/Tor: bis zum Höchstabstand; Runde 17: in der Warnphase weiter heraus (Anflug ab ~100–130 m im Bild), nur „im Feld“ verlangt
 			_lastFrame = new SpaceSim.Core.Flight.CombatFraming.Frame(fr.FocusX, fr.FocusZ, fr.Distance);
 			_framingBoth = fr.Both;
 			_camField = FramingField();
@@ -1794,11 +1833,54 @@ public partial class Main : Node3D
 
 	// ───────── Rückmeldung ─────────
 
+	/// <summary>
+	/// Phase 32: Anker des Spielers in der Ansicht — eigener Schub über der Schwelle oder Wenden reißt die Verankerung (Core-Regel
+	/// <c>MiningAnchor.BreaksFromSteering</c>); angedockt/im Übergang holt das Schiff die Anker ein; solange Harpunen hängen, liegt das Schiff an der
+	/// (schrumpfenden) Felsoberfläche (<c>MiningAnchor.HoldPosition</c>); kappt es nach Gefechtsbeginn die Trossen, steht es so lange still.
+	/// </summary>
+	bool _anchorAllowed = true;
+	string _anchorBroke = "", _anchorBrokeShort = "";
+	double _anchorBrokeUntil;
+
+	/// <summary>Phase 32: Anker gelöst/gerissen — Trossen schnappen zurück (Funken bei einem Riss); beim Spieler kurz der Grund an der Werkzeugtaste.</summary>
+	void OnAnchorReleased(AnchorReleased ar)
+	{
+		_anchors.OnReleased(ar);
+		if (ar.Ship != _session.U.PlayerShip) return;
+		_anchorBroke = SpaceSim.Core.Mining.MiningAnchor.ReasonText(ar.Reason);
+		_anchorBrokeShort = SpaceSim.Core.Mining.MiningAnchor.ShortReason(ar.Reason);
+		_anchorBrokeUntil = Now + 2.5;
+		if (ar.Reason is "thrust" or "impact" or "hit" or "split" or "combat") _hud.Toast(_anchorBroke, 2.5f);
+	}
+	void AnchorPin(float throttle, float turn, bool frozen)
+	{
+		var u = _session.U;
+		var me = PlayerData;
+		_player.Pin = null; _player.PinHeading = null;
+		_anchorAllowed = frozen || !SpaceSim.Core.Mining.MiningAnchor.BreaksFromSteering(u.Rules, throttle, turn);
+		if (me.AnchorRock != 0)
+		{
+			if (_docked != null || _transition) SpaceSim.Core.Mining.MiningAnchor.Release(u, me, u.PlayerSector, "left");
+			else if (!frozen && SpaceSim.Core.Mining.MiningAnchor.BreaksFromSteering(u.Rules, throttle, turn)) SpaceSim.Core.Mining.MiningAnchor.Release(u, me, u.PlayerSector, "thrust");
+		}
+		if (me.AnchorRock != 0 && u.Sectors[u.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == me.AnchorRock) is { } rock)
+		{
+			var pos = new Vec2(_player.Position.X, _player.Position.Z);
+			var hold = SpaceSim.Core.Mining.MiningAnchor.HoldPosition(pos, rock, Collision.ShipRadius);
+			_player.Pin = new Vector3(hold.X, 0f, hold.Y);
+			_player.PinHeading = AimAssist.Bearing(hold, rock.Position);
+			return;
+		}
+		// Trossen kappen nach Gefechtsbeginn: still stehen
+		if (u.Fights.Of(me.Id) is { } e && e.Of(me.Id) is { Active: true } p && u.Tick < p.CastOffUntil) _player.Pin = _player.Position;
+	}
+
 	/// <summary>Harter Aufprall auf Asteroid/Station (Schwelle <see cref="PlayerShip.HardImpact"/>); leichte Stöße prallen nur ab.</summary>
 	void OnPlayerHit(float impact, Vector3 point)
 	{
 		_hitCount++;
 		var uu = _session.U;
+		SpaceSim.Core.Mining.MiningAnchor.Release(uu, PlayerData, uu.PlayerSector, "impact");   // Phase 32: harter Stoß reißt die Trossen
 		var near = _view.Obstacles.OrderBy(o => new Vector2(point.X - o.Position.X, point.Z - o.Position.Y).Length() - o.Radius).First();
 		_lastHit = $"Aufprall {impact:0.0} u/s bei ({point.X:0},{point.Z:0}) in {uu.Sectors[uu.PlayerSector].Name}, Tempo {_player.Velocity.Length():0}, " +
 		           $"Auto-Mining={_miner.Enabled} ({_miner.Status}), Hindernis r={near.Radius:0.0} bei ({near.Position.X:0},{near.Position.Y:0}), Grace={_player.Grace:0.0}, Step={(_miningStep is { } ms ? $"nav={ms.Nav?.Label} wp={ms.Waypoint?.X:0},{ms.Waypoint?.Y:0} thr={ms.Throttle:0.0} fire={ms.Fire}" : "keiner")}, Autopilot={_autopilot}, Ziel={_target?.Label}, Transition={_transition}, Docked={_docked}, Clear={ClearanceScale():0.00}";
@@ -1961,9 +2043,10 @@ public partial class Main : Node3D
 		var navGate = _targetGate is { } ngid && u.Gates.TryGetValue(ngid, out var ng) && ng.Sector == u.PlayerSector ? ng : null;
 		d.CanAttackGate = _docked is null && u.Rules.Warfare && u.Rules.GateCombat && d.HasWeapons && navGate is not null && !_fight.AtGate
 			&& SpaceSim.Core.Combat.PlayerGunnery.GateIssue(u, PlayerData, navGate) is null;
-		d.GateAttackInfo = navGate is not null ? $"Verbrechen · Hülle {SpaceSim.Core.Combat.GateCombat.Hull(u, navGate):0}" : "";
+		// Runde 17 (Handy-Test: „Verbrechen · Hülle 35…“, „Notbetrieb – nicht an…“ abgeschnitten): kurze Unterzeilen; die Hülle steht auf der Zielkarte
+		d.GateAttackInfo = navGate is not null ? "Verbrechen" : "";
 		d.GateAttackBlocked = _docked is null && u.Rules.GateCombat && d.HasWeapons && navGate is not null && SpaceSim.Core.Combat.GateCombat.InGrace(u, navGate)
-			? SpaceSim.Core.Combat.PlayerGunnery.GateIssue(u, PlayerData, navGate) ?? "" : "";   // Runde 14b: Schonfrist
+			? $"Notbetrieb {SpaceSim.Core.Combat.GateCombat.GraceLeft(u, navGate) / SimClock.TicksPerSecond / 60}:{SpaceSim.Core.Combat.GateCombat.GraceLeft(u, navGate) / SimClock.TicksPerSecond % 60:00}" : "";   // Runde 14b: Schonfrist
 		d.EscapeStatus = SpaceSim.Core.Combat.PlayerCombat.EscapeStatus(u);
 		d.AimAssistVisible = _docked is null && AimTarget() is not null;
 		d.AimAssistOn = _aimAssist;
@@ -2148,9 +2231,13 @@ public partial class Main : Node3D
 			{
 				// Phase 29: Kontaktwerkzeug — reine Anzeige, Zustand aus der Core-Regel (OreChunks.Contact im selben Bild)
 				var cs = _chunks.LastContact;
-				var cst = cs == ContactState.Mining ? BayState.Ready : cs == ContactState.HoldFull ? BayState.NoAmmo : BayState.NoTarget;
+				var cst = cs == ContactState.Mining ? BayState.Ready : cs == ContactState.HoldFull ? BayState.NoAmmo : cs == ContactState.Anchoring ? BayState.Reloading : BayState.NoTarget;
 				_bayStates[i] = cst;
-				_bayViews[i] = new BayView { Name = bay.Name, Place = "Bug · Kontakt", Detail = WeaponBays.ContactText(cs), State = cst, Reload = 1f, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
+				// Phase 32: Ankerzustand („verankert“, „Anker fliegt“ mit Fortschritt, kurz nach einem Abriss der Grund)
+				bool anchors = SpaceSim.Core.Mining.MiningAnchor.Active(_session.U);
+				string? broke = Now < _anchorBrokeUntil ? _anchorBrokeShort : null;
+				float prog = cs == ContactState.Anchoring ? Mathf.Clamp(PlayerData.AnchorProgress / Mathf.Max(1, _session.U.Rules.AnchorTicks), 0f, 1f) : 1f;
+				_bayViews[i] = new BayView { Name = anchors && PlayerData.AnchorRock != 0 ? "Lösen" : bay.Name, Place = "Bug · Kontakt", Detail = WeaponBays.ContactText(cs, anchors, broke), State = cst, Reload = prog, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;
 			}
 			if (bay.Key == "laser")
@@ -2234,7 +2321,15 @@ public partial class Main : Node3D
 		if (_docked != null || _hud.AnyModalOpen) return;
 		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
 		if (bays[index].Key == WeaponBays.Salvager.Key) { GrabSalvage(); return; }
-		if (bays[index].Key == WeaponBays.Contact.Key) { _hud.Toast("Bohrer: mit dem Bug an den Asteroiden fliegen – der Abbau läuft bei Kontakt von selbst."); return; }
+		if (bays[index].Key == WeaponBays.Contact.Key)
+		{
+			// Phase 32: verankert → die Taste löst die Anker
+			if (PlayerData.AnchorRock != 0) { SpaceSim.Core.Mining.MiningAnchor.Release(_session.U, PlayerData, _session.U.PlayerSector, "released"); if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (Anker gelöst)"); return; }
+			_hud.Toast(SpaceSim.Core.Mining.MiningAnchor.Active(_session.U)
+				? "Bohrer: mit dem Bug langsam (Schub unter 30 %) an den Asteroiden – die Harpunen verankern das Schiff, dann läuft der Abbau."
+				: "Bohrer: mit dem Bug an den Asteroiden fliegen – der Abbau läuft bei Kontakt von selbst.");
+			return;
+		}
 		if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[index].Key) is int ws and >= 0) { FireWeapon(ws, quiet: false); return; }
 		if (bays[index].Key == "tractor")
 		{
@@ -2523,7 +2618,7 @@ public partial class Main : Node3D
 		tractor &= !frozen;
 		// Phase 29: Kontaktabbau läuft von selbst, solange die Werkzeugfront den Fels berührt (gemeinsame Core-Regel mit den NPC-Schürfern)
 		if (!frozen && !_transition && ship.Stats.ContactMining > 0f)
-			_chunks.Contact(u, ship, sector, pos, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), (float)delta);
+			_chunks.Contact(u, ship, sector, pos, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), (float)delta, _anchorAllowed);
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
 		// Gerätetest: klarer Grund, warum ein Brocken nicht geladen wird (Laderaum für seine Form voll)
 		if (_chunks.HoldFull is { } full && u.Goods.TryGetValue(full, out var fg))
@@ -2561,6 +2656,12 @@ public partial class Main : Node3D
 				gv.Hardpoints.AimAll(new Vector3(tgt.Position.X, 0, tgt.Position.Y), delta);   // Phase 31
 		}
 		_view.AimStationGuns(u, delta);
+		// Phase 32: verankerte NPC-Schürfer zeigen mit dem Bug zum Fels; Trossen aller verankerten Schiffe im Sektor
+		var sec = u.Sectors[u.PlayerSector];
+		foreach (var id in u.Tracker.ParkedIn(u.PlayerSector))
+			if (id != u.PlayerShip && u.Ships.TryGetValue(id, out var ns) && ns.AnchorRock != 0 && sec.Asteroids.FirstOrDefault(a => a.Id == ns.AnchorRock) is { } nr)
+				_view.FaceTo(id, new Vector3(nr.Position.X, 0f, nr.Position.Y), delta);
+		_anchors.Update(u, id => id == u.PlayerShip ? (_docked == null && !_transition ? (_player.Visual, (Node3D)_player) : null) : _view.BodyOf(id), delta);
 	}
 
 	/// <summary>Runde 12: Uhr des Musikreglers (Sekunden, Echtzeit).</summary>
@@ -2574,7 +2675,7 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		bool menu = _hud.Screens.Current != null && _hud.Screens.Current != _hud.Flight && _docked == null;
-		bool mining = _miner.Enabled || _chunks.LastContact == ContactState.Mining || _tractorOn;
+		bool mining = _miner.Enabled || _chunks.LastContact is ContactState.Mining or ContactState.Anchoring || _tractorOn;   // Phase 32: auch beim Verankern
 		_music.Step(SpaceSim.Core.Audio.MusicState.Raw(u, new SpaceSim.Core.Audio.MusicContext(menu, _docked != null, mining)), Now, delta);
 	}
 
@@ -2623,6 +2724,24 @@ public partial class Main : Node3D
 	internal float TestCargoUnits => PlayerData.Cargo.Values.Sum();
 	internal int TestSales => _sales;
 	internal int TestHits => _hitCount;
+	/// <summary>Phase 32: Selbsttest — Ankertrossen, letzter Abrissgrund, Werkzeugtaste.</summary>
+	internal AnchorView TestAnchors => _anchors;
+	/// <summary>Runde 17: lebende Universen unter den ab Index <paramref name="from"/> angehängten (Sitzungen einer Selbsttest-Stufe).</summary>
+	internal int TestLiveUniverses(int from)
+	{
+		for (int i = 0; i < 3; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
+		return AttachedUniverses.Skip(from).Count(w => w.IsAlive);
+	}
+	internal int TestAttachedCount => AttachedUniverses.Count;
+	internal int TestLiveUniverses()
+	{
+		for (int i = 0; i < 3; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
+		var alive = AttachedUniverses.Select((w, i) => w.IsAlive ? (ReferenceEquals(w.Target, _session.U) ? $"{AttachedLabels[i]}=aktuell" : AttachedLabels[i]) : "").Where(x => x.Length > 0);
+		GD.Print($"[selftest] Universen lebendig je Index (von {AttachedUniverses.Count}): {string.Join(",", alive)}");
+		return AttachedUniverses.Count(w => w.IsAlive);
+	}
+	internal string TestAnchorBroke => _anchorBroke;
+	internal bool TestPinned => _player.Pin is not null;
 	internal string TestLastHit => _lastHit;
 	internal float TestLowestHull => _lowestHull;
 	internal bool TestMinerEnabled => _miner.Enabled;

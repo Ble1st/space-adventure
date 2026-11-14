@@ -83,6 +83,23 @@ if (opts.TryGetValue("planguard", out var pgOpt)) u.Rules.TraderPlanGuard = pgOp
 if (opts.TryGetValue("rejoin", out var rjOpt)) u.Rules.CombatRejoinReuse = rjOpt == "on";
 // Phase 29 Runde 10: --spareloot off = Kaperer feuern auch, wenn der Schuss die Beute vernichten kann (Vergleichslauf)
 if (opts.TryGetValue("spareloot", out var slOpt)) u.Rules.RaidersSpareLoot = slOpt == "on";
+// Phase 32: --anchors on|off schaltet die Verankerung beim Kontaktabbau (Vergleichslauf); Erzfluss und Ankerkennzahlen
+if (opts.TryGetValue("anchors", out var anOpt)) u.Rules.MiningAnchors = anOpt == "on";
+double oreContact = 0, oreLaser = 0, oreDelivered = 0;
+int anchorsFired = 0, anchorsHeld = 0;
+var anchorReleases = new SortedDictionary<string, int>(StringComparer.Ordinal);
+u.Events.Raised += e =>
+{
+    switch (e)
+    {
+        case ContactMined cm: oreContact += cm.Units; break;
+        case MinerShot ms: oreLaser += ms.Units; break;
+        case MineDelivered md: oreDelivered += md.Amount; break;
+        case AnchorFired: anchorsFired++; break;
+        case AnchorHeld: anchorsHeld++; break;
+        case AnchorReleased ar: anchorReleases[ar.Reason] = anchorReleases.GetValueOrDefault(ar.Reason) + 1; break;
+    }
+};
 // Phase 11: Rechenzeit der Sicherheits-Systeme (Lagekarte, Piraten, Polizei, Fahndung) messen — das Modul wird in eine Zeitmessung gehüllt
 var securityWatch = new System.Diagnostics.Stopwatch();
 // Phase 17: Rechenzeit je System (jedes System eines Moduls bekommt eine eigene Stoppuhr; die Sicherheits-Systeme laufen zusätzlich auf der Sammeluhr)
@@ -839,6 +856,9 @@ if (u.Modules.Count > 0)
             + $"({(income > 0 ? 100.0 * outpostCost / income : 0):0.00}% der Kasseneinnahmen), abgebaut (ruhig) {outpostsCalm}; Abwehrgefechte {outpostFights}, Schüsse {outpostShots}; "
             + $"Unterhalt {smallUp:0.00} Cr/Tick = {(offUp > 0 ? 100.0 * smallUp / offUp : 0):0.0}% des Unterhalts der Amtsstationen");
     }
+    // Phase 32: Erzfluss und Anker
+    Console.WriteLine($"Erzabbau (Phase 32, Anker {(u.Rules.MiningAnchors ? "an" : "aus")}): Kontakt {oreContact:0}, Laser {oreLaser:0}, abgeliefert {oreDelivered:0} Einheiten; "
+        + $"Anker geschossen {anchorsFired}, gehalten {anchorsHeld}, gelöst {(anchorReleases.Count == 0 ? "–" : string.Join(", ", anchorReleases.Select(kv => $"{kv.Key} {kv.Value}")))}");
     // Phase 31: Torkampf
     Console.WriteLine($"Torkampf (Phase 31: {(u.Rules.GateCombat ? "an" : "aus")}): Angriffe {gatesAttacked}, Schüsse auf Tore {gateShots}; außer Betrieb {gatesDisabled} (kartenteilend {gatesDisabledSplit}), "
         + $"gleichzeitig max {gateDownMax}, jetzt {GateCombat.DownCount(u)}; wieder in Betrieb {(gateRestored.Count == 0 ? "–" : string.Join(", ", gateRestored.Select(kv => $"{(kv.Key == "emergency" ? "Notregel" : "repariert")} {kv.Value}")))}; "

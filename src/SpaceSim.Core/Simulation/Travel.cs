@@ -128,6 +128,7 @@ public static class Travel
     /// </summary>
     public static bool Start(Universe u, Ship ship, SectorId toSector, Vec2 toPos, float? speed = null)
     {
+        Mining.MiningAnchor.Release(u, ship, ship.Sector, "left");   // Phase 32: wer abfliegt, holt die Anker ein
         var profile = ProfileOf(u, ship);
         var route = u.FindRoute(ship.Sector, toSector, profile);
         var legs = route is null ? null : Plan(u, u.Tick, ship.Sector, ship.Position, toSector, toPos, ship, speed);

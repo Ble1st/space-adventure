@@ -67,6 +67,8 @@ public sealed class CombatParticipant
     /// <see cref="EconomyRules.PlayerFireHoldTicks"/> zurückliegt, hält die eigene Reichweite das Gefecht fest (<c>CombatSense.StillShooting</c>).
     /// </summary>
     public long LastShotTick;
+    /// <summary>Phase 32: war das Schiff beim Eintritt verankert, kappt es bis zu diesem Tick die Trossen und bewegt sich nicht (0 = frei).</summary>
+    public long CastOffUntil;
     public Vec2 RefugePos;
     /// <summary>Phase 28: Belagerungsziel des Takts (Station; Phase 31 auch Tor — aus der Taktik, jeden Takt neu, nicht gespeichert).</summary>
     public SiegeRef TargetSiege;

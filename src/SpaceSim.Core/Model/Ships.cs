@@ -233,6 +233,10 @@ public sealed class Ship : ICreditAccount
     public float ShotTimer;
     /// <summary>Asteroid-Id, auf den der NPC-Miner gerade feuert (0 = keiner).</summary>
     public int MineAsteroid;
+    /// <summary>Phase 32: Asteroid-Id, an dem die Harpunen des Schiffs hängen (0 = nicht verankert); siehe <c>Mining.MiningAnchor</c>.</summary>
+    public int AnchorRock;
+    /// <summary>Phase 32: Verankerungsfortschritt in Ticks (hält ab <see cref="EconomyRules.AnchorTicks"/>).</summary>
+    public float AnchorProgress;
 
     /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     public long NextThinkTick;

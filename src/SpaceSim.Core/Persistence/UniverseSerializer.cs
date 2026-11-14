@@ -183,6 +183,7 @@ public static class UniverseSerializer
                     Pos = e.Spatial ? new[] { p.Pos.X, p.Pos.Y, p.Dir.X, p.Dir.Y } : null, WasDockedAt = p.WasDockedAt.Value, Owner = p.Owner.Value,
                     Refuge = p.RefugeId != 0 ? new[] { p.Refuge, p.RefugeId, p.RefugePos.X, p.RefugePos.Y } : null,   // Phase 27
                     LastShotTick = p.LastShotTick != 0 ? p.LastShotTick : null,   // Runde 6
+                    CastOffUntil = p.CastOffUntil != 0 ? p.CastOffUntil : null,   // Phase 32
                 }).ToList(),
             }).ToList();
         foreach (var g in u.Goods.Values.OrderBy(g => g.Id.Value))
@@ -315,7 +316,7 @@ public static class UniverseSerializer
                 Order = sh.Order is null ? null : ToSave(sh.Order),
                 Phase = sh.Phase.ToString(), MinePhase = sh.MinePhase.ToString(),
                 Transit = sh.Transit is null ? null : ToSave(sh.Transit),
-                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
+                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid, AnchorRock = sh.AnchorRock, AnchorProgress = sh.AnchorProgress,
                 Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 JobSince = sh.JobSince, StrandedSince = sh.StrandedSince < 0 ? null : sh.StrandedSince, Profit = ToSave(sh.Profit),
@@ -422,6 +423,7 @@ public static class UniverseSerializer
                         Refuge = p.Refuge is { Length: >= 4 } rf ? rf[0] : 0f, RefugeId = p.Refuge is { Length: >= 4 } ri ? (int)ri[1] : 0,
                         RefugePos = p.Refuge is { Length: >= 4 } rp ? new Vec2(rp[2], rp[3]) : default,
                         LastShotTick = p.LastShotTick ?? 0,
+                        CastOffUntil = p.CastOffUntil ?? 0,
                     }).ToList(),
                 });
         foreach (var e in u.Fights.Encounters) Combat.CombatSpace.Derive(e);   // Phase 25: abgeleitete Raumkennung, Zwischenbild = Position
@@ -581,7 +583,7 @@ public static class UniverseSerializer
                 Order = sh.Order is null ? null : FromSave(sh.Order),
                 Phase = Enum.Parse<TradePhase>(sh.Phase), MinePhase = Enum.Parse<MinePhase>(sh.MinePhase),
                 Transit = sh.Transit is null ? null : FromSave(sh.Transit),
-                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid,
+                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid, AnchorRock = sh.AnchorRock, AnchorProgress = sh.AnchorProgress,
                 Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 Fuel = sh.Fuel.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 JobSince = sh.JobSince, StrandedSince = sh.StrandedSince ?? -1, Profit = FromSave(sh.Profit),

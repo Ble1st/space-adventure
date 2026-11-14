@@ -22,6 +22,48 @@ public partial class PhoneShots : Node
 	readonly List<string> _log = new();
 
 	public PhoneShots(Main m, string dir) { _m = m; _dir = dir; }
+	/// <summary>Runde 17: Bergbau-Variante (<c>--phone-mining</c>): Schürfer am Fels — Anker fliegen, verankert mit Abraum, Abriss durch Schub, Auto-Mining.</summary>
+	public bool Mining { get; init; }
+	int _rock;
+
+	void PlaceAtRock()
+	{
+		var u = _m.Session.U;
+		var rock = u.Sectors[u.PlayerSector].Asteroids.First(a => a.Id == _rock);
+		var p = _m.Player.Position;
+		var from = new Vec2(p.X, p.Z);
+		var dir = (from - rock.Position).Length > 1e-3f ? (from - rock.Position).Normalized() : new Vec2(1, 0);
+		_m.TestTeleportTo(rock.Position + dir * (rock.Radius + SpaceSim.Core.Simulation.Collision.ShipRadius + 0.2f));
+		_m.TestFace(rock.Position);
+		_m.TestSetSlider(0f);
+	}
+
+	void MiningFrame()
+	{
+		var u = _m.Session.U;
+		switch (_frame)
+		{
+			case 30: _m.TestMenu("new:miner"); break;
+			case 32: _m.TestUndock(); break;
+			case 150:
+			{
+				var me = u.Ships[u.PlayerShip];
+				var rock = u.Sectors[u.PlayerSector].Asteroids.Where(a => a.Minable && a.Radius > 4f && u.AsteroidClasses.ContainsKey(a.ClassKey))
+					.OrderBy(a => Vec2.Distance(a.Position, me.Position)).First();
+				rock.Ore = rock.MaxOre = Mathf.Max(rock.MaxOre, 400f);
+				_rock = rock.Id;
+				PlaceAtRock();
+				break;
+			}
+			case 175: Capture("m01-anker-fliegt.png"); break;
+			case 330: Capture("m02-verankert-abbau.png"); break;
+			case 331: _m.TestSetSlider(0.7f); break;
+			case 340: Capture("m03-abriss-schub.png"); break;
+			case 360: _m.TestSetSlider(0f); PlaceAtRock(); _m.TestStartMining(); break;
+			case 900: Capture("m04-automatik.png"); break;
+			case 960: Finish(); break;
+		}
+	}
 
 	public override void _Ready()
 	{
@@ -66,6 +108,7 @@ public partial class PhoneShots : Node
 	public override void _Process(double delta)
 	{
 		_frame++;
+		if (Mining) { MiningFrame(); return; }
 		var u = _m.Session.U;
 		switch (_frame)
 		{

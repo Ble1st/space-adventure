@@ -258,5 +258,5 @@ Nachgemessen mit dem echten Kriegstest-Verband (drei Bollwerke, echte Fits, begr
 | 70 m / 100 m (nur Raketen reichen) | nie (nach den Raketen lädt der Schild wieder) | 40 s | — |
 
 Nebentor Borealis–Vesta: 40 m 2,3 min, 55 m 3,0 min. Die ≈ 9 min am Gerät = Anflug + Zeit außerhalb 45 m. Werte bleiben; ehrlich gemacht:
-die Zielkarte zeigt im Gefecht „Raketen leer · Munition leer – nur noch Laser“ (`PlayerGunnery.DepletedText`, dazu ein einmaliger Hinweis mit dem
+die Zielkarte zeigt im Gefecht „Rak. leer · Mun. leer · nur Laser“ (Runde 17 gekürzt) (`PlayerGunnery.DepletedText`, dazu ein einmaliger Hinweis mit dem
 Nachladeort), die Beschreibung des Startpakets „Kriegstest“ nennt Zeiten, Abstand und Munitionsdauer.

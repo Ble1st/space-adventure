@@ -105,6 +105,8 @@ public abstract partial class CommandScreen : Control, IScreen
 
 	public void Open() { Visible = true; Rebuild(); }
 	public void Close() => Visible = false;
+	/// <summary>Runde 17 (Speicher wächst mit „Neues Spiel“): Inhalt abbauen — Knöpfe und Zeilen halten das alte Universum in ihren Schließungen; Open baut neu.</summary>
+	public void DropContent() { foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } _dirty = true; }
 
 	/// <summary>Aktualisiert die Anzeige, wenn sich der Simulations-Tick geändert hat.</summary>
 	public void Refresh()

@@ -39,6 +39,10 @@ public sealed class MiningAutopilot
 
         // Zielasteroid prüfen
         if (Current == Phase.Mine && !chunks.IsMinable(sector, _target)) { _target = null; Current = Phase.Seek; }
+        // Phase 32: die Harpunen hängen an einem anderen (abbaubaren) Fels als dem Anflugziel — dann ist der das Ziel (sonst lösen und neu schießen im Wechsel)
+        if (Current == Phase.Mine && ship.AnchorRock != 0 && _target?.Id != ship.AnchorRock && sector.Asteroids.FirstOrDefault(x => x.Id == ship.AnchorRock) is { Minable: true } held) _target = held;
+        // Phase 32: am falschen Fels verankert (Ziel gewechselt) oder nicht mehr im Abbau → Anker lösen, bevor weitergeflogen wird
+        if (ship.AnchorRock != 0 && (Current != Phase.Mine || _target is null || _target.Id != ship.AnchorRock)) MiningAnchor.Release(u, ship, sector.Id, "released");
 
         switch (Current)
         {
@@ -62,7 +66,7 @@ public sealed class MiningAutopilot
                 float edge = Vec2.Distance(pos, a.Position) - a.Radius;
                 bool fullNow = NearlyFull(u, ship);
 
-                if (fullNow && !chunksNear) { Current = Phase.Sell; Status = "Laderaum voll"; goto case Phase.Sell; }
+                if (fullNow && !chunksNear) { Current = Phase.Sell; Status = "Laderaum voll"; MiningAnchor.Release(u, ship, sector.Id, "hold_full"); goto case Phase.Sell; }
 
                 // Phase 29: Kontaktabbau — anfliegen, mit dem Bug auf die Asteroidenmitte ausrichten und sanft andrücken (der Kontakt hält das Schiff an der
                 // Oberfläche; unter dem Rammschwellwert kein Schaden); abgetragen wird über OreChunks.Contact
@@ -75,7 +79,10 @@ public sealed class MiningAutopilot
                         Status = "Anflug";
                         return none with { Waypoint = ptsC.Count > 1 ? ptsC[1] : standC, Throttle = 1f };
                     }
-                    Status = "Abbau (Kontakt)";
+                    // Phase 32: ansetzen → verankern → abbauen (die Trossen halten das Schiff; der sanfte Schub bleibt unter der Abrissschwelle)
+                    Status = MiningAnchor.Active(u)
+                        ? MiningAnchor.State(u, ship) switch { AnchorState.Held => "Abbau (verankert)", AnchorState.Flying => "Anker fliegt", _ => "Ansetzen" }
+                        : "Abbau (Kontakt)";
                     return none with { Waypoint = a.Position, Throttle = ContactPush, Aim = a };
                 }
 

@@ -46,6 +46,8 @@ public abstract partial class DockAreaScreen : Control, IScreen
 	}
 
 	public void Open() { Visible = true; Rebuild(); }
+	/// <summary>Runde 17: Inhalt beim Sitzungswechsel abbauen (Schließungen halten das alte Universum); Open baut neu.</summary>
+	public void DropContent() { foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } _dirty = true; }
 	public void Close() => Visible = false;
 
 	/// <summary>Aktualisiert die Anzeige, wenn sich der Simulations-Tick geändert hat (Marktpreise bewegen sich).</summary>

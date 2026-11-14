@@ -101,6 +101,7 @@ public static class Hit
         if (hit.ShieldDamage > 0f) ShipSystems.TakeShield(u, target, hit.ShieldDamage);
         float before = target.Hull;
         target.Hull = MathF.Max(MathF.Min(target.Hull, MathF.Max(minHull, target.Hull - hit.HullDamage)), 0f);
+        if (hit.HullDamage > 0f) Mining.MiningAnchor.OnHullHit(u, target);   // Phase 32: ein Hüllentreffer reißt die Trossen
         return before - target.Hull;
     }
 }

@@ -68,6 +68,7 @@ public class Phase29ContactTests
     public void Spieler_BohrtDirektInDenLaderaum_ErzBleibtErhalten_OhneLaserschuss()
     {
         var (u, ship, sector, rock, pos, dir) = PlayerAtRock();
+        u.Rules.MiningAnchors = false;   // Phase 29-Regel ohne Verankerung (Anker: Phase32Tests)
         var chunks = new OreChunks(seed: 3);
         float units = 0f;
         chunks.Contacted += (_, _, n) => units += n;

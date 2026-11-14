@@ -239,6 +239,8 @@ public sealed class CombatParticipantSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float[]? Refuge { get; set; }
     /// <summary>Runde 6: letzter eigener Schuss des Spielers (nur gesetzt).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? LastShotTick { get; set; }
+    /// <summary>Phase 32: Trossen kappen bis zu diesem Tick (fehlt = frei).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? CastOffUntil { get; set; }
 }
 
 public sealed class PlayerWalletSave
@@ -618,6 +620,9 @@ public sealed class ShipSave
     public TransitSave? Transit { get; set; }
     public long NextThinkTick { get; set; } public long IdleSince { get; set; }
     public float ShotTimer { get; set; } public int MineAsteroid { get; set; }
+    /// <summary>Phase 32: Verankerung beim Kontaktabbau (Asteroid, Fortschritt in Ticks); fehlt = nicht verankert.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int AnchorRock { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float AnchorProgress { get; set; }
     public Dictionary<int, float> Cargo { get; set; } = new();
     /// <summary>Treibstoff an Bord je Ware (GoodId → Menge); fehlt in v4-Saves (die Migration trägt einen vollen Tank nach).</summary>
     public Dictionary<int, float> Fuel { get; set; } = new();

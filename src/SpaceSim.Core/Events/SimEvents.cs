@@ -24,6 +24,12 @@ public sealed record ServicePerformed(ShipId Ship, StationId Station, string Ser
 /// <summary>Ein NPC-Miner hat einen Laserschuss abgegeben (Units = 0: Fehlschuss). Die Darstellung zeigt ihn, wenn er im Spielersektor fällt.</summary>
 /// <summary>Phase 29: ein NPC-Schürfer hat im Kontaktabbau eine Portion Erz gelöst (Ansicht: Funken am Kontaktpunkt, drehendes Werkzeug).</summary>
 public sealed record ContactMined(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units, GoodId Good) : SimEvent;
+/// <summary>Phase 32: Ein Kontaktschürfer schießt seine Harpunen auf einen Fels (Ansicht: Harpunen fliegen, Trossen).</summary>
+public sealed record AnchorFired(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius) : SimEvent;
+/// <summary>Phase 32: Die Anker halten — ab jetzt läuft der Abbau.</summary>
+public sealed record AnchorHeld(SectorId Sector, ShipId Ship, int Asteroid) : SimEvent;
+/// <summary>Phase 32: Verankerung gelöst oder gerissen; Grund: released, thrust, impact, hit, combat, depleted, split, lost_contact, hold_full, left.</summary>
+public sealed record AnchorReleased(SectorId Sector, ShipId Ship, int Asteroid, string Reason) : SimEvent;
 public sealed record MinerShot(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units, GoodId Good = default) : SimEvent;
 public sealed record AsteroidDepleted(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record AsteroidRespawned(SectorId Sector, int Asteroid) : SimEvent;

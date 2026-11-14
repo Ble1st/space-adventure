@@ -125,7 +125,7 @@ public sealed class HangarSystem : ISimSystem
     {
         if (u.Rules.DayTicks <= 0) return;
         ChargeRent(u);
-        foreach (var ship in u.Ships.Values.Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Transit is null && s.DockedAt.Value != 0 && !s.IsRental)
+        foreach (var ship in u.Ships.Values.Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Transit is null && s.DockedAt.Value != 0 && !s.IsRental && !Hangar.InFormation(s))
                      .OrderBy(s => s.Id.Value).ToList())
         {
             if (!u.Stations.TryGetValue(ship.DockedAt, out var st) || st.Owner == ship.Owner) continue;

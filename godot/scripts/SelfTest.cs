@@ -1676,6 +1676,7 @@ public partial class SelfTest : Node
 				if (_frame - _stageStart < 10) break;
 				Check(scroll.ScrollVertical > 60, $"Mauszug über eine Taste rollt die Liste ({scroll.ScrollVertical} px)");
 				Check(ReferenceEquals(_p27Universe, _m.Session.U), "Zug über „Starten“ startet kein neues Spiel");
+				_p27Universe = null;   // Runde 17: Stufe 97 zählt die lebenden Universen
 				// Speichern gibt sichtbare Rückmeldung im System-Bereich
 				_m.TestMenu("save");
 				Check(_m.HudRef.CcSystem.TestMessage.StartsWith("Gespeichert"), $"Speichern meldet sich im System-Bereich ({_m.HudRef.CcSystem.TestMessage})");
@@ -2635,7 +2636,9 @@ public partial class SelfTest : Node
 			case 92: if (AudioStage(_frame - _stageStart)) Next(); break;   // Runde 12: Musikzustände, Signale, Ton-Busse und Einstellungen (SelfTest.Audio.cs)
 			case 93: if (SmallStationStage(_frame - _stageStart)) Next(); break;
 			case 94: if (GateCombatStage(_frame - _stageStart)) Next(); break;
-			case 95: if (PhoneStage(_frame - _stageStart)) Next(); break;   // Runde 15: Handyformat — Gefechtskamera, Zielkarte, Tor antippen, Annäherung (SelfTest.Phone.cs)   // Phase 31: Tor angreifen, außer Betrieb, Wiederanlauf (SelfTest.GateCombat.cs)   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
+			case 95: if (PhoneStage(_frame - _stageStart)) Next(); break;
+			case 96: if (AnchorStage(_frame - _stageStart)) Next(); break;   // Phase 32: Anker mit Trossen beim Kontaktabbau (SelfTest.Anchors.cs)
+			case 97: if (SessionLeakStage(_frame - _stageStart)) Next(); break;   // Runde 17: Sitzungswechsel gibt das alte Universum frei (SelfTest.Anchors.cs)   // Runde 15: Handyformat — Gefechtskamera, Zielkarte, Tor antippen, Annäherung (SelfTest.Phone.cs)   // Phase 31: Tor angreifen, außer Betrieb, Wiederanlauf (SelfTest.GateCombat.cs)   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
