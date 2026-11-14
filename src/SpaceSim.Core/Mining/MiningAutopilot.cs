@@ -39,6 +39,11 @@ public sealed class MiningAutopilot
 
         // Zielasteroid prüfen
         if (Current == Phase.Mine && !chunks.IsMinable(sector, _target)) { _target = null; Current = Phase.Seek; }
+        // Runde 20 (Gerätetest: Auto-Mining an während der Verankerung zeigte kurz „Anker fliegt“): ein bestehender Anker an einem abbaubaren Fels wird übernommen,
+        // statt ihn in der Suchphase zu lösen und neu zu schießen
+        if (Current == Phase.Seek && ship.AnchorRock != 0 && !NearlyFull(u, ship)
+            && sector.Asteroids.FirstOrDefault(x => x.Id == ship.AnchorRock) is { Minable: true } kept && chunks.IsMinable(sector, kept))
+        { _target = kept; Current = Phase.Mine; Status = "Abbau"; }
         // Phase 32: die Harpunen hängen an einem anderen (abbaubaren) Fels als dem Anflugziel — dann ist der das Ziel (sonst lösen und neu schießen im Wechsel)
         if (Current == Phase.Mine && ship.AnchorRock != 0 && _target?.Id != ship.AnchorRock && sector.Asteroids.FirstOrDefault(x => x.Id == ship.AnchorRock) is { Minable: true } held) _target = held;
         // Phase 32: am falschen Fels verankert (Ziel gewechselt) oder nicht mehr im Abbau → Anker lösen, bevor weitergeflogen wird

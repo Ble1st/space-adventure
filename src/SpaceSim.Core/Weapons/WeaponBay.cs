@@ -77,6 +77,7 @@ public static class WeaponBays
         ContactState.Mining => "Abbau läuft",
         ContactState.Anchoring => "Anker fliegt",
         ContactState.HoldFull => "Laderaum voll",
+        ContactState.Released => "gelöst",
         ContactState.NoTool => "kein Werkzeug",
         _ => "Bug an Fels",   // Runde 18: passt in die Taste (vorher „kein Kontakt · Bug an Fels“)
     };

@@ -41,7 +41,7 @@ public sealed class FlightHudData
 	public string Fire = "";
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
-	public string TargetInfo = "Station, Gate oder Asteroid antippen";
+	public string TargetInfo = "Station, Tor, Fels antippen";   // Runde 20: passt in die Zielkarte (vorher „… Asteroid antipp…“)
 	public string TargetArc = "";
 	public bool TargetHasInfo;
 	public float TargetRelBearing;      // Peilung des Ziels relativ zur Schiffsnase, Grad (für Radar)
@@ -152,6 +152,8 @@ public partial class FlightHud : Control, IScreen
 	public string TestEscapeStatus => _escape.Visible ? _escape.Text : "";
 	public string TestStationAttackSub => _stationAttack.Sub;
 	public string TestTargetName => _tName.Text;
+	/// <summary>Runde 20: Text der Kontexttaste („“ = verborgen).</summary>
+	public string TestContextLabel => _contextBtn.Visible ? _contextBtn.Text : "";
 
 	/// <summary>
 	/// Runde 7: der Hinweis (Toast) ist mehrzeilig gewachsen — Beschuss- und Fluchtzeile rücken unter ihn (vorher überdeckte „BESCHUSS (Station)“ den Hinweis

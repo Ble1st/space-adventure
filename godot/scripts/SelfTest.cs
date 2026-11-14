@@ -2650,6 +2650,7 @@ public partial class SelfTest : Node
 			case 96: if (AnchorStage(_frame - _stageStart)) Next(); break;   // Phase 32: Anker mit Trossen beim Kontaktabbau (SelfTest.Anchors.cs)
 			case 97: if (SessionLeakStage(_frame - _stageStart)) Next(); break;
 			case 98: if (Round19Stage(_frame - _stageStart)) Next(); break;   // Runde 19: Ankertest, Standardkamera nach „Neues Spiel“, Tor antippen neben Schiffen, Warnkasten über „RÜCK“ (SelfTest.Round19.cs)   // Runde 17: Sitzungswechsel gibt das alte Universum frei (SelfTest.Anchors.cs)   // Runde 15: Handyformat — Gefechtskamera, Zielkarte, Tor antippen, Annäherung (SelfTest.Phone.cs)   // Phase 31: Tor angreifen, außer Betrieb, Wiederanlauf (SelfTest.GateCombat.cs)   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
+			case 99: if (Round20Stage(_frame - _stageStart)) Next(); break;   // Runde 20: Zielwechsel Tor/Schiff/Station, Kontexttaste, Anker übernehmen, nach „Lösen“ kein Neuanker (SelfTest.Round20.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
@@ -2733,5 +2734,5 @@ public partial class SelfTest : Node
 	static SpaceSim.Core.Model.GoodId DemoFood(SpaceSim.Core.Model.Universe u) => u.FindGood("food")!.Id;
 
 	void Check(bool ok, string what) { if (!ok) { _fail += what + "; "; GD.PrintErr("[selftest] FEHLER: " + what); } else Log("ok: " + what); }
-	void Fail(string what) { _fail += what + "; "; GD.PrintErr("[selftest] FEHLER: " + what); _stage = 99; }
+	void Fail(string what) { _fail += what + "; "; GD.PrintErr("[selftest] FEHLER: " + what); _stage = 999; }   // Runde 20: hinter der letzten Stufe (99 ist jetzt eine Stufe)
 }

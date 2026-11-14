@@ -3,7 +3,7 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Core.Mining;
 
 /// <summary>Zustand des Kontaktabbaus (Anzeige der Werkzeugtaste).</summary>
-public enum ContactState { NoTool, NoContact, Mining, HoldFull, Anchoring }
+public enum ContactState { NoTool, NoContact, Mining, HoldFull, Anchoring, Released }   // Runde 20: Released = von Hand gelöst, Bug noch am Fels (kein Neuanker)
 
 /// <summary>
 /// Phase 29 (Wunsch des Nutzers „Abbau durch frontalen Kontakt mit Asteroiden, mit Drehen der Bauteile“): die eine Regel des mechanischen Abbaus — Spieler

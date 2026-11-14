@@ -5113,7 +5113,7 @@
    {
     "key": "anchor",
     "name": "Ankertest (Test)",
-    "description": "NUR ZUM TESTEN: Goldsucher mit dem Bohrkopf am Bug an einem großen, erzreichen Fels in Alpha, Laderaum 500 (drei Zusatz-Frachtslots), keine Überfälle. Ohne Automatik verankert er sofort und baut minutenlang ab. Prüfen: „Auto-Mining“ an und wieder aus (der Anker bleibt), ◀ oder ▶ = „Riss: Wenden“, Regler über 30 % = „Riss: Schub“, Werkzeugtaste „Lösen“ = „Anker gelöst“; danach mit dem Bug wieder an den Fels (Regler unter 30 %) verankert er neu.",
+    "description": "NUR ZUM TESTEN: Goldsucher mit dem Bohrkopf am Bug an einem großen, erzreichen Fels in Alpha, Laderaum 500 (drei Zusatz-Frachtslots), keine Überfälle. Ohne Automatik verankert er sofort und baut minutenlang ab. Prüfen: „Auto-Mining“ an und wieder aus (der Anker bleibt), ◀ oder ▶ = „Riss: Wenden“, Regler über 30 % = „Riss: Schub“, Werkzeugtaste „Lösen“ = „Anker gelöst“; danach heißt die Taste „Ankern“ und setzt die Harpunen neu (oder einmal vom Fels weg und mit dem Bug wieder heran, Regler unter 30 %).",
     "model": "prospector",
     "credits": 1000,
     "sector": 1,

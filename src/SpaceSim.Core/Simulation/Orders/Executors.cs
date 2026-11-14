@@ -324,6 +324,9 @@ public class FollowExecutor : IOrderExecutor
         if (target.Transit is { } t) { sector = t.ToSector; pos = t.ToPosition; station = u.StationAt(t.ToSector, t.ToPosition); }
         else if (target.DockedAt.Value != 0 && u.Stations.TryGetValue(target.DockedAt, out var st)) { sector = st.Sector; pos = st.DockPoint(ship.Id); station = st.Id; }
         else { sector = target.Sector; pos = target.Position; }
+        // Runde 20 (Handy-Test: eigene Begleiter neben dem Spieler galten als „angedockt“): folgt ein Spielerschiff einem Schiff, das nicht angedockt ist und
+        // keine Station ansteuert, liegt es nicht am Liegeplatz — auch wenn seine Folgereise zufällig am Andockpunkt endete (nur Spielerschiffe: NPC unverändert)
+        if (station.Value == 0 && ship.IsPlayer && ship.DockedAt.Value != 0 && ship.Transit is null) ship.DockedAt = default;
         if (station.Value != 0 ? ship.DockedAt == station : OrderMove.Near(ship, sector, pos, KeepRange)) return CommandStatus.Running;
         if (station.Value != 0 && u.Stations.TryGetValue(station, out var dst)) pos = dst.DockPoint(ship.Id);
         if (!OrderMove.Go(u, ship, sector, pos, station)) ship.NextThinkTick = u.Tick + OrderMove.RetryTicks;

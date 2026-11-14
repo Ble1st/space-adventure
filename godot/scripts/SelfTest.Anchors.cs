@@ -154,7 +154,7 @@ public partial class SelfTest
 				foreach (var r in new[] { "released", "thrust", "turn", "impact", "hit", "combat", "depleted", "split", "lost_contact", "hold_full" })
 					if (!_m.HudRef.Flight.TestBayLineFits("Bug · Kontakt", MiningAnchor.ShortReason(r))) bad.Add(MiningAnchor.ShortReason(r));
 				foreach (var place in new[] { "12/12 Rak. · 110 m", "6/6 Rak. · 125 m", "Turm · 360° · 60 m", "Bug · ±45° · 45 m" })
-					foreach (var d in new[] { "außer Reichweite", "FEUER", "lädt nach", "kein Ziel", "Ziel angedockt" })
+					foreach (var d in new[] { "außer Reichweite", "FEUER", "lädt nach", "kein Ziel", "Ziel angedockt", "eigenes Schiff", "kämpft mit dir", "anderes Gefecht" })
 						if (!_m.HudRef.Flight.TestBayLineFits(place, d, "Raketen")) bad.Add(place + " / " + d);
 				Check(bad.Count == 0, $"alle Schachttexte passen ({string.Join(", ", bad)})");
 				return true;

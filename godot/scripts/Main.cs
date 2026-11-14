@@ -870,6 +870,7 @@ public partial class Main : Node3D
 	internal int TestMissilesShown => _combat.MissilesShown;
 	internal IEnumerable<string> TestBayPlaces => _bayViews.Where(b => b != null).Select(b => b.Place);
 	internal IEnumerable<string> TestBayDetails => _bayViews.Where(b => b != null).Select(b => b.Detail);
+	internal IEnumerable<string> TestBayNames => _bayViews.Where(b => b != null).Select(b => b.Name);   // Runde 20
 	internal int TestTargetStation => _targetStation?.Value ?? 0;
 	internal void TestClearTarget() { _target = null; _targetStation = null; }
 	internal string LastWarMessage { get; private set; } = "";
@@ -1442,10 +1443,13 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Kontexttaste: nahe einer Station „Andocken“, am Gate „Springen“ (vorhandene Logik).</summary>
+	(ContextKind Kind, int Id) Context() => ContextChoice.Pick(NearestStation(out _), NearestGate(60f), _targetStation, _targetGate);
+
 	void ContextAction()
 	{
-		if (NearestStation(out _) is { } sid) { _sfx.Play(SfxId.Click); Dock(sid); return; }
-		if (NearestGate(60f) is { } gid) { _sfx.Play(SfxId.Click); Jump(gid); return; }
+		var ctx = Context();
+		if (ctx.Kind == ContextKind.Dock) { _sfx.Play(SfxId.Click); Dock(new StationId(ctx.Id)); return; }
+		if (ctx.Kind == ContextKind.Jump) { _sfx.Play(SfxId.Click); Jump(new GateId(ctx.Id)); return; }
 		_hud.Toast("Nichts in Reichweite – näher an Station oder Gate fliegen");
 	}
 
@@ -1809,6 +1813,25 @@ public partial class Main : Node3D
 		return best;
 	}
 
+	/// <summary>
+	/// Schiff als Ziel wählen (Tipp oder Selbsttest); false = kein gültiges Ziel. Runde 20 (Handy-Test s_a: „Tor angreifen“ blieb nach dem Wechsel Tor → Schiff):
+	/// ein Schiff als Ziel beendet Tor-/Stationswahl und -angriff; ein laufender Autopilot behält sein Navigationsziel.
+	/// </summary>
+	bool SelectShip(ShipId picked)
+	{
+		if (!_session.U.Ships.TryGetValue(picked, out var ps)) return false;
+		_fight.SetTarget(picked);
+		_fight.Validate(_session.U);
+		if (_fight.Target != picked) return false;
+		_targetGate = null; _fight.ArmGate(default); _fight.ArmStation(default);
+		if (!_autopilot) { _target = null; _targetStation = null; }
+		_sfx.Play(SfxId.Click);
+		_hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ps)}");
+		UpdateHud();   // Zielkarte sofort
+		return true;
+	}
+	internal bool TestSelectShip(ShipId id) => SelectShip(id);
+
 	void TryPickTarget(Vector2 screen)
 	{
 		// Gerätetest Phase 28: Randmarker einer Station außerhalb des Bildes antippen wählt sie
@@ -1850,18 +1873,7 @@ public partial class Main : Node3D
 			SelectGate(gateHit);
 			return;
 		}
-		if (shipHit is { } picked && _session.U.Ships.TryGetValue(picked, out var ps))
-		{
-			_fight.SetTarget(picked);
-			_fight.Validate(uu);
-			if (_fight.Target == picked)
-			{
-				_sfx.Play(SfxId.Click);
-				_hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ps)}");
-				UpdateHud();   // Zielkarte sofort
-				return;
-			}
-		}
+		if (shipHit is { } picked && SelectShip(picked)) return;
 		var sector = _session.U.Sectors[_session.U.PlayerSector];
 		Asteroid? rock = null; float rockD = 3f;
 		foreach (var a in sector.Asteroids)
@@ -2213,13 +2225,12 @@ public partial class Main : Node3D
 		}
 
 		// Kontexttaste: nahe Station „Andocken“, am Gate „Springen“
-		if (NearestStation(out _) is { } sid)
-			d.ContextLabel = SpaceSim.Core.Simulation.Docking.Allows(u, u.Stations[sid], PlayerData) ? $"Andocken: {u.Stations[sid].Name}" : $"Zu klein: {u.Stations[sid].Name}";   // Phase 30
-		else if (NearestGate(60f) is { } gid)
-		{
-			var far = u.Gates[u.Gates[gid].Target];
-			d.ContextLabel = $"Springen: {u.Sectors[far.Sector].Name}";
-		}
+		// Runde 20: das gewählte Ziel hat Vorrang (Core: ContextChoice) — mit gewähltem Tor kein „Andocken“ an einer nahen Station
+		var ctx = Context();
+		if (ctx.Kind == ContextKind.Dock && u.Stations.TryGetValue(new StationId(ctx.Id), out var cst))
+			d.ContextLabel = SpaceSim.Core.Simulation.Docking.Allows(u, cst, PlayerData) ? $"Andocken: {cst.Name}" : $"Zu klein: {cst.Name}";   // Phase 30
+		else if (ctx.Kind == ContextKind.Jump && u.Gates.TryGetValue(new GateId(ctx.Id), out var cg))
+			d.ContextLabel = $"Springen: {u.Sectors[u.Gates[cg.Target].Sector].Name}";
 
 		// Feuerwinkel-Kegel um das Schiff: Bildschirmwinkel der Nase direkt projiziert (stimmt mit gedrehter Kamera)
 		d.ShipScreen = _cam.IsPositionBehind(_player.Position) ? null : _cam.UnprojectPosition(_player.Position);
@@ -2278,8 +2289,8 @@ public partial class Main : Node3D
 					BayState.NoPower => "keine Leistung",
 					BayState.NoAmmo => "keine Munition",
 					_ => _fight.Target.Value == 0 && !_fight.AtStation && !_fight.AtGate ? "kein Ziel"
-						: !_fight.AtStation && _session.U.Ships.TryGetValue(_fight.Target, out var tgs) && SpaceSim.Core.Combat.PlayerCombat.TargetIssue(_session.U, PlayerData, tgs) is not null
-							? (tgs.DockedAt.Value != 0 ? "Ziel angedockt" : "kein Gegner")   // Gerätetest Phase 27
+						: !_fight.AtStation && _session.U.Ships.TryGetValue(_fight.Target, out var tgs) && SpaceSim.Core.Combat.PlayerCombat.TargetIssueShort(_session.U, PlayerData, tgs) is { } why
+							? why   // Runde 20: Grund aus der Core-Regel (vorher „Ziel angedockt“ geraten)
 							: "außer Reichweite",
 				};
 				string wplace = (bay.IsTurret ? "Turm · 360°" : $"{FacingName(bay.Facing)} · ±{(int)bay.ArcDegrees}°") + $" · {bay.Range:0} m";
@@ -2296,13 +2307,13 @@ public partial class Main : Node3D
 			{
 				// Phase 29: Kontaktwerkzeug — reine Anzeige, Zustand aus der Core-Regel (OreChunks.Contact im selben Bild)
 				var cs = _chunks.LastContact;
-				var cst = cs == ContactState.Mining ? BayState.Ready : cs == ContactState.HoldFull ? BayState.NoAmmo : cs == ContactState.Anchoring ? BayState.Reloading : BayState.NoTarget;
+				var cst = cs is ContactState.Mining or ContactState.Released ? BayState.Ready : cs == ContactState.HoldFull ? BayState.NoAmmo : cs == ContactState.Anchoring ? BayState.Reloading : BayState.NoTarget;
 				_bayStates[i] = cst;
 				// Phase 32: Ankerzustand („verankert“, „Anker fliegt“ mit Fortschritt, kurz nach einem Abriss der Grund)
 				bool anchors = SpaceSim.Core.Mining.MiningAnchor.Active(_session.U);
 				string? broke = _anchorBrokeLeft > 0f ? _anchorBrokeShort : null;
 				float prog = cs == ContactState.Anchoring ? Mathf.Clamp(PlayerData.AnchorProgress / Mathf.Max(1, _session.U.Rules.AnchorTicks), 0f, 1f) : 1f;
-				_bayViews[i] = new BayView { Name = anchors && PlayerData.AnchorRock != 0 ? "Lösen" : bay.Name, Place = "Bug · Kontakt", Detail = WeaponBays.ContactText(cs, anchors, broke), State = cst, Reload = prog, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
+				_bayViews[i] = new BayView { Name = anchors && PlayerData.AnchorRock != 0 ? "Lösen" : cs == ContactState.Released ? "Ankern" : bay.Name, Place = "Bug · Kontakt", Detail = WeaponBays.ContactText(cs, anchors, broke), State = cst, Reload = prog, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;
 			}
 			if (bay.Key == "laser")
@@ -2389,7 +2400,16 @@ public partial class Main : Node3D
 		if (bays[index].Key == WeaponBays.Contact.Key)
 		{
 			// Phase 32: verankert → die Taste löst die Anker
-			if (PlayerData.AnchorRock != 0) { SpaceSim.Core.Mining.MiningAnchor.Release(_session.U, PlayerData, _session.U.PlayerSector, "released"); if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (Anker gelöst)"); return; }
+			if (PlayerData.AnchorRock != 0)
+			{
+				int held = PlayerData.AnchorRock;
+				SpaceSim.Core.Mining.MiningAnchor.Release(_session.U, PlayerData, _session.U.PlayerSector, "released");
+				_chunks.HoldOff(held);   // Runde 20: kein selbsttätiger Neuanker, solange der Bug am selben Fels bleibt
+				if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (Anker gelöst)");
+				return;
+			}
+			// Runde 20: nach „Lösen“ mit Bug am Fels — die Taste heißt „Ankern“ und setzt die Harpunen wieder
+			if (_chunks.LastContact == ContactState.Released) { _chunks.Rearm(); _hud.Toast("Ankern: Harpunen werden geschossen"); return; }
 			_hud.Toast(SpaceSim.Core.Mining.MiningAnchor.Active(_session.U)
 				? "Bohrer: mit dem Bug langsam (Schub unter 30 %) an den Asteroiden – die Harpunen verankern das Schiff, dann läuft der Abbau."
 				: "Bohrer: mit dem Bug an den Asteroiden fliegen – der Abbau läuft bei Kontakt von selbst.");
@@ -2613,6 +2633,7 @@ public partial class Main : Node3D
 			CancelAutopilot(); _target = null; _targetStation = null;
 			_fight.ClearTarget();   // Runde 12 (Handy-Test): die Zielkarte zeigte weiter das zuvor gewählte Schiff
 			_hud.Flight.SetSlider(0f);   // Gerätetest: Auto-Mining übernimmt den Regler
+			_chunks.Rearm();   // Runde 20: Auto-Mining darf nach einem Lösen von Hand wieder verankern
 			_miner.Start();
 			_hud.Flight.SetAutoMine(true);
 			if (announce) _hud.Toast("Auto-Mining an – Slider oder Wenden bewegen zum Abbrechen");

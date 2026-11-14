@@ -39,7 +39,7 @@ public sealed class OreChunks
     public float ReloadProgress => 1f - Math.Clamp(_cooldown / MiningRules.ShotInterval, 0f, 1f);
 
     /// <summary>Beim Sektorwechsel/Laden: schwebende Brocken verschwinden.</summary>
-    public void Clear() { Chunks.Clear(); _cooldown = 0f; }
+    public void Clear() { Chunks.Clear(); _cooldown = 0f; _holdOff = 0; }
 
     /// <summary>Volumen der noch schwebenden Brocken (reservierter Laderaum, damit der Laser nicht über die Kapazität hinaus feuert).</summary>
     float InFlightVolume(Universe u) => Chunks.Sum(c => c.Units * u.Goods[c.Good].VolumePerUnit);
@@ -70,6 +70,18 @@ public sealed class OreChunks
     /// <summary>Phase 29: letzter Zustand des Kontaktabbaus (Werkzeugtaste, Drehzahl).</summary>
     public ContactState LastContact { get; private set; } = ContactState.NoTool;
 
+    int _holdOff;
+    /// <summary>
+    /// Runde 20 (Gerätetest: nach „Lösen“ mit Bug am Fels verankerte das Schiff nach 0,4 s von selbst neu): nach dem Lösen von Hand schießt der Spieler die
+    /// Harpunen an diesem Fels erst wieder, wenn der Kontakt abriss, die Taste „Ankern“ gedrückt (<see cref="Rearm"/>) oder Auto-Mining eingeschaltet wurde.
+    /// Nur Spielerpfad (NPC-Schürfer laufen über MinerSystem).
+    /// </summary>
+    public void HoldOff(int rockId) => _holdOff = rockId;
+    /// <summary>Runde 20: Sperre nach dem Lösen aufheben (Taste „Ankern“, Auto-Mining).</summary>
+    public void Rearm() => _holdOff = 0;
+    /// <summary>Runde 20: Fels, an dem nach dem Lösen nicht neu verankert wird (0 = keiner).</summary>
+    public int HeldOff => _holdOff;
+
     /// <summary>Phase 29: Erz aus dem letzten Kontaktschritt (Ansicht: Funken).</summary>
     public event Action<Asteroid, GoodId, float>? Contacted;
 
@@ -89,10 +101,13 @@ public sealed class OreChunks
         if (rock is null || !HasClass(u, rock) || !ContactMining.InContact(shipPos, dir, rock))
         {
             MiningAnchor.Release(u, ship, sector.Id, "lost_contact");
+            _holdOff = 0;
             return LastContact = ContactState.NoContact;
         }
+        if (_holdOff != 0 && _holdOff != rock.Id) _holdOff = 0;
         if (MiningAnchor.Active(u))
         {
+            if (ship.AnchorRock == 0 && _holdOff == rock.Id) return LastContact = ContactState.Released;
             if (ship.AnchorRock != rock.Id && !anchorAllowed) return LastContact = ContactState.NoContact;
             MiningAnchor.Attach(u, ship, sector.Id, rock);
             if (!MiningAnchor.Advance(u, ship, sector.Id, seconds * Simulation.SimClock.TicksPerSecond)) return LastContact = ContactState.Anchoring;

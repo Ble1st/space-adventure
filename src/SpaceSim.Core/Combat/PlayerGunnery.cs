@@ -271,6 +271,19 @@ public static class PlayerCombat
         return null;
     }
 
+    /// <summary>
+    /// Runde 20 (Handy-Test: eigene Begleiter zeigten an den Waffentasten „Ziel angedockt“): Kurzform des Grundes aus <see cref="TargetIssue"/> für die
+    /// Waffentaste — „eigenes Schiff“, „Ziel angedockt“, „kämpft mit dir“, „anderes Gefecht“; null = angreifbar.
+    /// </summary>
+    public static string? TargetIssueShort(Universe u, Ship player, Ship target) => TargetIssue(u, player, target) switch
+    {
+        null => null,
+        var t when t.StartsWith("Eigene") => "eigenes Schiff",
+        var t when t.Contains("angedockt") => "Ziel angedockt",
+        var t when t.Contains("deiner Seite") => "kämpft mit dir",
+        _ => "anderes Gefecht",
+    };
+
     /// <summary>Gefechtstaktik eines NPC-Schiffs, das der Spieler angreift.</summary>
     public static string TacticOf(Ship s) => ThreatMap.IsPolice(s) ? CombatTactics.Police : ThreatMap.IsRaider(s) ? CombatTactics.Raider : CombatTactics.Trader;
 
