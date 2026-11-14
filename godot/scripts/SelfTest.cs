@@ -2653,6 +2653,7 @@ public partial class SelfTest : Node
 			case 99: if (Round20Stage(_frame - _stageStart)) Next(); break;   // Runde 20: Zielwechsel Tor/Schiff/Station, Kontexttaste, Anker übernehmen, nach „Lösen“ kein Neuanker (SelfTest.Round20.cs)
 			case 100: if (Round21Stage(_frame - _stageStart)) Next(); break;   // Runde 21: Countdown, Hinweisfläche, Begleiter-Entfernung, Besitz-Zeile, Draufsicht-Legende, „Nächster Gegner“ räumt Torangriff ab (SelfTest.Round21.cs)
 			case 101: if (Round22Stage(_frame - _stageStart)) Next(); break;   // Runde 22: Dauerfeuer bleibt über zwei Überfälle an (SelfTest.Round22.cs)
+			case 102: if (ChainStage(_frame - _stageStart)) Next(); break;   // Handelskette über den Handelsbildschirm (SelfTest.Chain.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
