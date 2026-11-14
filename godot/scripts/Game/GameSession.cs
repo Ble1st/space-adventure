@@ -26,6 +26,9 @@ public sealed class GameSession
     public event Action? UniverseReplaced;
 
     float _acc;
+    float _rateSeconds; int _rateSteps;
+    /// <summary>Runde 27: gemessene Tickrate (Ticks je Echtzeitsekunde, über 2 s gemittelt) — bei ×1 soll sie <see cref="SimClock.TicksPerSecond"/> sein.</summary>
+    public float TickRate { get; private set; }
 
     /// <summary>
     /// Neues Spiel aus der Standardwelt. Phase 14: <paramref name="configure"/> ändert die Weltbeschreibung vor dem Aufbau — der Selbsttest und die
@@ -44,7 +47,7 @@ public sealed class GameSession
     {
         U = u;
         Routes = new RouteRecorder(u);
-        _acc = 0f;
+        _acc = 0f; _rateSeconds = 0f; _rateSteps = 0; TickRate = 0f;
         UniverseReplaced?.Invoke();
     }
 
@@ -52,9 +55,12 @@ public sealed class GameSession
     public int Advance(float delta, float speed)
     {
         _acc += delta * speed;
+        _rateSeconds += delta;
         int steps = 0;
         while (_acc >= SimClock.TickInterval && steps < 80) { Runner.Step(U); Prices.Observe(U); _acc -= SimClock.TickInterval; steps++; }
         if (steps == 80) _acc = 0f;   // Rückstand verwerfen statt in eine Spirale zu laufen
+        _rateSteps += steps;
+        if (_rateSeconds >= 2f) { TickRate = _rateSteps / _rateSeconds; _rateSeconds = 0f; _rateSteps = 0; }
         return steps;
     }
 

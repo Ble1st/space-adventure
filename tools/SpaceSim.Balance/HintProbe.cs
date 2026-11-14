@@ -18,7 +18,7 @@ sealed class HintProbe
     {
         public long Start, Due; public StationId Seller, Buyer; public GoodId Good;
         public float Qty, Buy, Now, Arr, Cons, Fast, Slow, Base, Incoming, Secs, EstTicks;
-        public float NpcDelivered, Inflow, Amount, Target; public string Kind = ""; public TripVerdict Verdict;
+        public float NpcDelivered, Amount, Target; public string Kind = ""; public TripVerdict Verdict;
         public float Actual, ActualUnits, DepCash, DepAccept, ArrCash, ArrAccept;
     }
     readonly List<Trip> _open = new(), _done = new();
@@ -36,9 +36,33 @@ sealed class HintProbe
         };
     }
 
+    // Runde 27: Preissprünge je Minute (240 Ticks = 1 min bei ×1): Anteil der Markteinträge, deren Preis sich in einer Minute mehr als verdoppelt bzw. halbiert
+    readonly Dictionary<(int, int), float> _snap = new();
+    readonly int[] _jumpN = new int[2], _jumpBig = new int[2];
+    readonly Dictionary<string, float> _jumpMax = new();
+    void Jumps(Universe u)
+    {
+        int ph = u.Tick < EarlyTicks ? 0 : 1;
+        foreach (var st in u.Stations.Values)
+            foreach (var (gid, e) in st.Market)
+            {
+                if (e.Price <= 0f || st.IsBuildSite) continue;
+                var k = (st.Id.Value, gid.Value);
+                if (_snap.TryGetValue(k, out var old) && old > 0f)
+                {
+                    float r = MathF.Max(e.Price / old, old / e.Price);
+                    _jumpN[ph]++; if (r > 2f) _jumpBig[ph]++;
+                    string key = u.Goods[gid].Key;
+                    if (key is "water" or "wafers" or "copper" or "energy" && r > _jumpMax.GetValueOrDefault(key)) _jumpMax[key] = r;
+                }
+                _snap[k] = e.Price;
+            }
+    }
+
     public void Sample(Universe u)
     {
         _mem.Observe(u);
+        if (u.Tick % 240 == 0) Jumps(u);
         for (int i = _open.Count - 1; i >= 0; i--)
         {
             var t = _open[i];
@@ -72,12 +96,11 @@ sealed class HintProbe
         var b = list[0];
         float secs = PlayerTrip.SecondsTo(u, seller.Sector, dock, b.Station);
         if (float.IsInfinity(secs)) return;
-        var m = _mem.Of(b.Station.Id, g.Id);
         _open.Add(new Trip
         {
             Start = u.Tick, Due = u.Tick + (long)MathF.Ceiling(secs * SimClock.TicksPerSecond), Seller = seller.Id, Buyer = b.Station.Id, Good = g.Id, Qty = b.Units,
             Buy = seller.Market[g.Id].Price, Now = b.PriceNow, Arr = b.PriceArrival,
-            Cons = b.Price, Fast = m?.Fast ?? b.PriceNow, Slow = m?.Slow ?? b.PriceNow, Base = g.BasePrice, Incoming = b.Incoming, Secs = secs, EstTicks = b.TravelTicks, Kind = kind, Verdict = MarketInfo.Verdict(b, seller.Market[g.Id].Price, b.Units), Inflow = _mem.InflowOf(b.Station.Id, g.Id), Amount = b.Station.Market[g.Id].Amount, Target = b.Station.Market[g.Id].Target,
+            Cons = b.Price, Fast = b.PriceHigh, Slow = b.HasHistory ? 1f : 0f, Base = g.BasePrice, Incoming = b.Incoming, Secs = secs, EstTicks = b.TravelTicks, Kind = kind, Verdict = MarketInfo.Verdict(b, seller.Market[g.Id].Price, b.Units), Amount = b.Station.Market[g.Id].Amount, Target = b.Station.Market[g.Id].Target,
             DepCash = b.Station.Credits, DepAccept = b.Station.AcceptableUnits(g.Id, u.Rules) - b.Incoming,
         });
     }
@@ -94,7 +117,7 @@ sealed class HintProbe
             var ts = _done.Where(sel).ToList();
             sb.AppendLine($" {phase}: {ts.Count} Fahrten, Flugzeit Median {Q(ts.Select(t => (double)t.Secs).ToList(), 0.5).ToString("0", ci)} s (NPC-Schätzung {Q(ts.Select(t => (double)t.EstTicks / SimClock.TicksPerSecond).ToList(), 0.5).ToString("0", ci)} s), "
                 + $"NPC-Lieferungen an den Abnehmer unterwegs Median {Q(ts.Select(t => (double)t.NpcDelivered).ToList(), 0.5).ToString("0", ci)} E. (Anteil mit Lieferung {(ts.Count == 0 ? 0 : 100.0 * ts.Count(t => t.NpcDelivered > 0) / ts.Count).ToString("0", ci)} %)");
-            foreach (var (name, f) in new (string, Func<Trip, float>)[] { ("heutiger Preis", t => t.Now), ("Ankunft (Runde 25)", t => t.Arr), ("vorsichtig (Runde 26)", t => t.Cons) })
+            foreach (var (name, f) in new (string, Func<Trip, float>)[] { ("heutiger Preis", t => t.Now), ("Ankunft (Runde 25)", t => t.Arr), ("schlechter Fall (R. 27)", t => t.Cons) })
             {
                 var err = ts.Select(t => (double)((f(t) - t.Actual) / MathF.Max(0.01f, f(t)))).ToList();
                 var green = ts.Where(t => (f(t) - t.Buy) * t.Qty > 0.5f).ToList();
@@ -105,16 +128,21 @@ sealed class HintProbe
             {
                 var green = ts.Where(t => t.Verdict == TripVerdict.Good).ToList();
                 int greenLoss = green.Count(t => (t.Actual * t.ActualUnits - t.Buy * t.Qty) < 0f);
-                sb.AppendLine($"   Ampel (Runde 26): grün {green.Count}, davon Verlust {(green.Count == 0 ? 0 : 100.0 * greenLoss / green.Count).ToString("0", ci)} %; gelb {ts.Count(t => t.Verdict == TripVerdict.Unsure)}, rot {ts.Count(t => t.Verdict == TripVerdict.Loss)}; "
+                var good = ts.Where(t => t.Actual * t.ActualUnits - t.Buy * t.Qty > 0f).ToList();
+                string Sh(TripVerdict v) => (good.Count == 0 ? 0 : 100.0 * good.Count(t => t.Verdict == v) / good.Count).ToString("0", ci);
+                sb.AppendLine($"   tatsächlich lohnende Fahrten {good.Count}: grün {Sh(TripVerdict.Good)} %, gelb {Sh(TripVerdict.Unsure)} %, rot {Sh(TripVerdict.Loss)} %; Anteil grün an allen Fahrten {(ts.Count == 0 ? 0 : 100.0 * green.Count / ts.Count).ToString("0.0", ci)} %");
+                sb.AppendLine($"   Ampel (Runde 27): grün {green.Count}, davon Verlust {(green.Count == 0 ? 0 : 100.0 * greenLoss / green.Count).ToString("0", ci)} %; gelb {ts.Count(t => t.Verdict == TripVerdict.Unsure)}, rot {ts.Count(t => t.Verdict == TripVerdict.Loss)}; "
                     + $"Gewinn der grünen Fahrten {green.Sum(t => t.Actual * t.ActualUnits - t.Buy * t.Qty).ToString("0", ci)} Cr");
             }
         }
+        sb.AppendLine($" Preissprünge je Minute (240 Ticks): Einträge mit mehr als ×2 bzw. ÷2 früh {(_jumpN[0] == 0 ? 0 : 100.0 * _jumpBig[0] / _jumpN[0]).ToString("0.0", ci)} %, spät {(_jumpN[1] == 0 ? 0 : 100.0 * _jumpBig[1] / _jumpN[1]).ToString("0.0", ci)} %; größter Sprung "
+            + string.Join(", ", _jumpMax.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key} ×{kv.Value.ToString("0.0", ci)}")));
         if (csv is not null)
         {
-            var c = new StringBuilder("start;secs;good;kind;seller;buyer;qty;buy;now;arr;cons;fast;slow;base;incoming;npcdelivered;actual;actualunits;depcash;depaccept;arrcash;arraccept;verdict;inflow;amount;target\n");
+            var c = new StringBuilder("start;secs;good;kind;seller;buyer;qty;buy;now;arr;lo;hi;history;base;incoming;npcdelivered;actual;actualunits;depcash;depaccept;arrcash;arraccept;verdict;amount;target\n");
             foreach (var t in _done)
                 c.AppendLine(string.Join(";", t.Start, t.Secs.ToString("0.0", CultureInfo.InvariantCulture), u.Goods[t.Good].Key, t.Kind, t.Seller.Value, t.Buyer.Value,
-                    t.Qty.ToString(CultureInfo.InvariantCulture), F(t.Buy), F(t.Now), F(t.Arr), F(t.Cons), F(t.Fast), F(t.Slow), F(t.Base), F(t.Incoming), F(t.NpcDelivered), F(t.Actual), F(t.ActualUnits), F(t.DepCash), F(t.DepAccept), F(t.ArrCash), F(t.ArrAccept), t.Verdict, F(t.Inflow), F(t.Amount), F(t.Target)));
+                    t.Qty.ToString(CultureInfo.InvariantCulture), F(t.Buy), F(t.Now), F(t.Arr), F(t.Cons), F(t.Fast), F(t.Slow), F(t.Base), F(t.Incoming), F(t.NpcDelivered), F(t.Actual), F(t.ActualUnits), F(t.DepCash), F(t.DepAccept), F(t.ArrCash), F(t.ArrAccept), t.Verdict, F(t.Amount), F(t.Target)));
             File.WriteAllText(csv, c.ToString());
         }
         return sb.ToString();

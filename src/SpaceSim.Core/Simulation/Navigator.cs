@@ -69,14 +69,19 @@ public static class Navigator
             if (u.Gates.TryGetValue(gid, out var g) && Vec2.Distance(pos, g.Position) <= GateJumpRadius + PathPlanner.Margin + Collision.ShipRadius + 2f) { skip = gid; break; }
         // Runde 26 (Prüferhinweis): nicht jedes Bild neu kopieren — Zwischenspeicher je Universum, Tick, Sektor, Hindernisliste und ausgenommenen Toren
         var key = (sector, u.Tick, goalGate ?? default, skip);
-        if (_cacheU is not null && _cacheU.TryGetTarget(out var cu) && ReferenceEquals(cu, u) && _cacheKey == key && _cacheCount == sec.Asteroids.Count + sec.Stations.Count) return _cacheList!;
+        // Runde 27 (Prüferhinweis): auch die Radien gehören zum Schlüssel — Felsen schrumpfen beim Abbau in der Ansicht innerhalb eines Ticks
+        float radii = 0f;
+        foreach (var a in sec.Asteroids) radii += a.Radius;
+        foreach (var id in sec.Stations) if (u.Stations.TryGetValue(id, out var sst)) radii += sst.Radius;
+        if (_cacheU is not null && _cacheU.TryGetTarget(out var cu) && ReferenceEquals(cu, u) && _cacheKey == key && _cacheCount == sec.Asteroids.Count + sec.Stations.Count
+            && _cacheRadii == radii) return _cacheList!;
         var list = u.GetObstacles(sector);
         foreach (var gid in sec.Gates)
         {
             if (gid == goalGate || gid == skip || !u.Gates.TryGetValue(gid, out var g)) continue;
             list.Add(new Obstacle(g.Position, GateJumpRadius));
         }
-        (_cacheU ??= new WeakReference<Universe>(u)).SetTarget(u); _cacheKey = key; _cacheCount = sec.Asteroids.Count + sec.Stations.Count; _cacheList = list;
+        (_cacheU ??= new WeakReference<Universe>(u)).SetTarget(u); _cacheKey = key; _cacheCount = sec.Asteroids.Count + sec.Stations.Count; _cacheRadii = radii; _cacheList = list;
         return list;
     }
 
@@ -84,6 +89,7 @@ public static class Navigator
     [ThreadStatic] static WeakReference<Universe>? _cacheU;
     [ThreadStatic] static (SectorId, long, GateId, GateId) _cacheKey;
     [ThreadStatic] static int _cacheCount;
+    [ThreadStatic] static float _cacheRadii;
     [ThreadStatic] static List<Obstacle>? _cacheList;
 
     /// <summary>Ein Umweg-Punkt näher als dies gilt als erreicht (der nächste wird angeflogen).</summary>

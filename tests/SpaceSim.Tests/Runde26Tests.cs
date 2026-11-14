@@ -8,7 +8,7 @@ using Xunit;
 
 namespace SpaceSim.Tests;
 
-/// <summary>Runde 26: vorsichtige Abnehmer-Auskunft (Preisgedächtnis, Ampel), Flugzeit des Spielers, Kaufmeldung mit Betrag.</summary>
+/// <summary>Runde 26/27: Abnehmer-Auskunft (Preisgedächtnis mit Bereich, Ampel nach dem schlechten Fall), Flugzeit des Spielers, Kaufmeldung mit Betrag, Hindernis-Cache.</summary>
 public class Runde26Tests
 {
     static Universe World()
@@ -18,61 +18,53 @@ public class Runde26Tests
         return u;
     }
 
-    /// <summary>Eine Preisspitze über dem Basispreis wird nur zur Hälfte geglaubt, eine über dem schnellen Mittel der Station gar nicht; darunter bleibt der Preis.</summary>
+    /// <summary>Runde 27: Preisgedächtnis — Bereich der letzten 1200 Ticks (ein Messpunkt alle 20 Ticks), Verlauf reicht ab 600 Ticks; neues Universum leer.</summary>
     [Fact]
-    public void VorsichtigerPreis_SpitzenWerdenNichtGeglaubt()
-    {
-        var u = World();
-        var g = u.Goods.Values.First(x => x.Key == "energy");
-        var st = u.StationsById().First(s => s.Market.ContainsKey(g.Id) && !s.Produces(g.Id) && !s.IsBuildSite);
-        float b = g.BasePrice;
-        Assert.Equal(0.5f * (2f * b + b), MarketInfo.CarefulPrice(u, st, g.Id, 2f * b), 3);
-        Assert.Equal(0.8f * b, MarketInfo.CarefulPrice(u, st, g.Id, 0.8f * b), 3);
-        var mem = new PriceMemory();
-        mem.Observe(u);
-        float now = st.Market[g.Id].Price;
-        Assert.True(MarketInfo.CarefulPrice(u, st, g.Id, 3f * b, 0f, 0f, mem) <= now + 0.001f);   // das Mittel ist der heutige Preis
-    }
-
-    /// <summary>Preisgedächtnis: misst nur alle 20 Ticks, folgt dem Preis, beginnt für ein neues Universum leer.</summary>
-    [Fact]
-    public void Preisgedaechtnis_GleitendesMittel_NeuesUniversumLeer()
+    public void Preisgedaechtnis_BereichDerLetztenMinuten()
     {
         var u = World();
         var mem = new PriceMemory();
         mem.Observe(u);
         var st = u.StationsById().First(s => s.Market.Count > 0);
         var (gid, e) = st.Market.First(kv => kv.Value.Price > 0f);
-        Assert.Equal(e.Price, mem.Of(st.Id, gid)!.Value.Fast, 3);
-        float old = e.Price;
-        e.Price = old * 3f;
+        float p0 = e.Price;
+        var r0 = mem.Range(st.Id, gid, u.Tick)!.Value;
+        Assert.Equal(p0, r0.Lo); Assert.Equal(p0, r0.Hi); Assert.False(r0.Enough);
+        e.Price = p0 * 3f;
         u.Tick += 10; mem.Observe(u);
-        Assert.Equal(old, mem.Of(st.Id, gid)!.Value.Fast, 3);   // noch kein neuer Messpunkt
+        Assert.Equal(p0, mem.Range(st.Id, gid, u.Tick)!.Value.Hi);   // noch kein neuer Messpunkt
         u.Tick += 10; mem.Observe(u);
-        var m = mem.Of(st.Id, gid)!.Value;
-        Assert.True(m.Fast > old && m.Fast < old * 3f && m.Slow < m.Fast);
+        var r1 = mem.Range(st.Id, gid, u.Tick)!.Value;
+        Assert.Equal(p0, r1.Lo); Assert.Equal(3f * p0, r1.Hi, 3);
+        for (int i = 0; i < 70; i++) { u.Tick += 20; mem.Observe(u); }   // 1400 Ticks später: der alte Preis fiel aus dem Fenster
+        var r2 = mem.Range(st.Id, gid, u.Tick)!.Value;
+        Assert.Equal(3f * p0, r2.Lo, 3); Assert.True(r2.Enough);
         mem.Observe(World());
-        Assert.Null(mem.Of(new StationId(999999), gid));
+        Assert.Null(mem.Range(new StationId(999999), gid, 0));
     }
 
-    /// <summary>Ampel: grün nur mit Spanne, Kassen- und Annahmepuffer; Verlust rot; sonst gelb.</summary>
+    /// <summary>Runde 27: Ampel — grün nur, wenn selbst der schlechte Fall 10 % über dem Einkauf liegt, mit Verlauf, Kasse 4× und Annahme 2×; rot schon bei
+    /// Verlust zum heutigen Preis oder Teilannahme; sonst gelb.</summary>
     [Fact]
-    public void Ampel_GruenNurMitSpanneUndPuffer()
+    public void Ampel_GruenNurImSchlechtenFall()
     {
         var u = World();
         var st = u.StationsById().First();
-        BuyerQuote Q(float price, float cash, float accept, float units = 10f) => new(st, price, units, units * price, 0f, 1, 10f, price, price, cash, accept);
-        Assert.Equal(TripVerdict.Good, MarketInfo.Verdict(Q(12f, 3f, 3f), 10f, 10f));
-        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(11f, 3f, 3f), 10f, 10f));   // Spanne unter 15 %
-        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(12f, 1.5f, 3f), 10f, 10f));  // Kasse knapp
-        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(12f, 3f, 1.2f), 10f, 10f));  // Lager fast voll
-        Assert.Equal(TripVerdict.Loss, MarketInfo.Verdict(Q(9f, 3f, 3f), 10f, 10f));
-        Assert.Equal(TripVerdict.Loss, MarketInfo.Verdict(Q(12f, 3f, 3f, 5f), 10f, 10f));   // nimmt nur 5
+        BuyerQuote Q(float lo, float now, float cash, float accept, bool hist = true, float units = 10f) =>
+            new(st, lo, units, units * lo, 0f, 1, 10f, now, now, cash, accept, now, hist);
+        Assert.Equal(TripVerdict.Good, MarketInfo.Verdict(Q(11.5f, 14f, 5f, 3f), 10f, 10f));
+        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(11.5f, 14f, 5f, 3f, hist: false), 10f, 10f));   // kein Verlauf → nie grün
+        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(10.5f, 14f, 5f, 3f), 10f, 10f));   // schlechter Fall unter +10 %
+        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(8f, 14f, 5f, 3f), 10f, 10f));     // schlechter Fall Verlust, heute Gewinn
+        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(11.5f, 14f, 3f, 3f), 10f, 10f));  // Kasse nur 3×
+        Assert.Equal(TripVerdict.Unsure, MarketInfo.Verdict(Q(11.5f, 14f, 5f, 1.5f), 10f, 10f)); // Lager fast voll
+        Assert.Equal(TripVerdict.Loss, MarketInfo.Verdict(Q(8f, 9f, 5f, 3f), 10f, 10f));        // schon heute Verlust
+        Assert.Equal(TripVerdict.Loss, MarketInfo.Verdict(Q(11.5f, 14f, 5f, 3f, units: 5f), 10f, 10f));   // nimmt nur 5
     }
 
-    /// <summary>Der Hinweis rechnet mit der vorsichtigen Schätzung und nennt beide Werte; die Rangfolge folgt ihr.</summary>
+    /// <summary>Runde 27: Rangfolge nach dem schlechten Fall (Menge × niedrigster Preis), Preis ≤ Ankunftspreis ≤ heutiger Preis ≤ Höchstpreis.</summary>
     [Fact]
-    public void Abnehmer_RangfolgeNachVorsichtigerSchaetzung()
+    public void Abnehmer_RangfolgeNachSchlechtemFall()
     {
         var u = World();
         var mem = new PriceMemory(); mem.Observe(u);
@@ -83,7 +75,7 @@ public class Runde26Tests
             for (int i = 1; i < list.Count; i++) Assert.True(list[i - 1].Revenue >= list[i].Revenue);
             foreach (var q in list)
             {
-                Assert.True(q.Price <= q.PriceArrival + 0.001f && q.PriceArrival <= q.PriceNow + 0.001f);
+                Assert.True(q.Price <= q.PriceArrival + 0.001f && q.PriceArrival <= q.PriceNow + 0.001f && q.PriceNow <= q.PriceHigh + 0.001f);
                 Assert.Equal(q.Units * q.Price, q.Revenue, 2);
             }
         }
@@ -132,6 +124,16 @@ public class Runde26Tests
         var b = Navigator.PlayerObstacles(u, p.Sector, p.Position, null);
         Assert.Same(a, b);
         Assert.Equal(u.GetObstacles(p.Sector).Count + u.Sectors[p.Sector].Gates.Count(g => Vec2.Distance(u.Gates[g].Position, p.Position) > 20f), a.Count);
+        // Runde 27: ein Fels schrumpft innerhalb des Ticks (Abbau in der Ansicht) → neue Liste
+        var rock = u.Sectors[p.Sector].Asteroids.FirstOrDefault(r => r.MaxOre > 0f && r.Ore > 1f);
+        if (rock is not null)
+        {
+            rock.Ore *= 0.5f;
+            var c = Navigator.PlayerObstacles(u, p.Sector, p.Position, null);
+            Assert.NotSame(a, c);
+            Assert.Contains(c, o => MathF.Abs(o.Radius - rock.Radius) < 0.001f && o.Position == rock.Position);
+            a = c;
+        }
         u.Tick++;
         Assert.NotSame(a, Navigator.PlayerObstacles(u, p.Sector, p.Position, null));
     }

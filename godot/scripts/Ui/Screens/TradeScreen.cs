@@ -111,7 +111,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 				{
 					// Runde 23 (Handy-Test: Liste sprang beim Öffnen): die angetippte Zeile bleibt an ihrem Platz — klappt darüber eine andere zu, rollt die Liste nach
 					float before = RowTop(row.Good);
-					_expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row);
+					_expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row); _hint.Release();   // Runde 27: Zeile zu/auf = Abnehmer neu wählen
 					if (_scroll is KitScroll sk) { float delta = RowTop(row.Good) - before; if (MathF.Abs(delta) > 0.5f) sk.ScrollTo((int)MathF.Max(0f, sk.ScrollVertical + delta)); }
 					Invalidate(); if (!open) EnsureExpandedVisible();
 				};
@@ -201,6 +201,16 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		}
 	}
 
+	/// <summary>Runde 27: genannter Abnehmer des offenen Editors (default = keiner).</summary>
+	public StationId TestEditorBuyer
+	{
+		get
+		{
+			static Editor? Find(Node n) { foreach (var c in n.GetChildren()) { if (c is Editor e && !e.IsQueuedForDeletion()) return e; if (Find(c) is { } f) return f; } return null; }
+			return Find(this)?.TestBuyer ?? default;
+		}
+	}
+
 	/// <summary>Runde 26: Ampel des offenen Editors (null = ohne Abnehmer oder ohne Editor).</summary>
 	public SpaceSim.Core.Trading.TripVerdict? TestEditorVerdict
 	{
@@ -248,6 +258,9 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		Invalidate();
 		EnsureExpandedVisible();
 	}
+	/// <summary>Runde 27, Selbsttest: „Kaufen“ wie ein Tipp im Editor (mit der Preisprüfung).</summary>
+	public void TestBuyRow(GoodId good, float qty) { if (_rows.FirstOrDefault(r => r.Good == good) is { } row) Buy(row, qty); }
+	public string TestMessageText => _message;
 	public GoodId TestLastGood => _rows.Count > 0 ? _rows[^1].Good : default;
 	/// <summary>Selbsttest: Angebotsmenge „kaufen“ der Ware (was „Max“ setzen soll).</summary>
 	public float TestBuyAmount(GoodId good) => _rows.FirstOrDefault(r => r.Good == good)?.Buy.Amount ?? -1f;
@@ -299,8 +312,37 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		return r;
 	}
 
-	void Buy(Row row, float qty) => Execute($"{TradeService.Buy}:{row.Good.Value}", qty);
-	void Sell(Row row, float qty) => Execute($"{TradeService.Sell}:{row.Good.Value}", qty);
+	void Buy(Row row, float qty) { if (PriceStill(row, buying: true)) Execute($"{TradeService.Buy}:{row.Good.Value}", qty); }
+	void Sell(Row row, float qty) { if (PriceStill(row, buying: false)) Execute($"{TradeService.Sell}:{row.Good.Value}", qty); }
+
+	/// <summary>
+	/// Runde 27 (Gerätetest: Zeile 6,0, gebucht 7,5): Zeile und Editor zeigen den Marktpreis desselben Ticks (<see cref="LivePrice"/>, im Tick-Takt neu
+	/// gezeichnet). Hat er sich zwischen der letzten Anzeige und dem Tipp um mehr als 2 % zum Nachteil geändert, wird nicht gebucht: die Meldung nennt den
+	/// neuen Preis, der nächste Tipp kauft bzw. verkauft zu ihm.
+	/// </summary>
+	bool PriceStill(Row row, bool buying)
+	{
+		if (Ctx?.Station.Market.TryGetValue(row.Good, out var e) != true || !_shown.TryGetValue(row.Good.Value, out var shown) || shown <= 0f) return true;
+		float now = e!.Price;
+		bool worse = buying ? now > shown * 1.02f : now < shown * 0.98f;
+		_shown[row.Good.Value] = now;
+		if (!worse) return true;
+		_message = $"Preis hat sich geändert: jetzt {now:0.0} statt {shown:0.0} — nochmal tippen, um zu {(buying ? "kaufen" : "verkaufen")}.";
+		_msgOk = false;
+		TestPriceChanged++;
+		Invalidate();
+		return false;
+	}
+
+	/// <summary>Runde 27: zuletzt angezeigter Preis je Ware (Zeile/Editor) — gegen ihn prüft <see cref="PriceStill"/>.</summary>
+	readonly System.Collections.Generic.Dictionary<int, float> _shown = new();
+	internal void Shown(GoodId good, float price) => _shown[good.Value] = price;
+	/// <summary>Runde 27: Marktpreis jetzt (derselbe Tick in Zeile, Editor und Buchung); ohne Eintrag der Zeilenwert.</summary>
+	float LivePrice(Row r) => Ctx?.Station.Market.TryGetValue(r.Good, out var e) == true ? e!.Price : r.Price;
+	/// <summary>Runde 27, Selbsttest: wie oft ein Tipp wegen eines geänderten Preises nicht gebucht wurde.</summary>
+	public int TestPriceChanged { get; private set; }
+	/// <summary>Runde 27, Selbsttest: zuletzt angezeigter Preis einer Ware (0 = nie).</summary>
+	public float TestShownPrice(GoodId g) => _shown.GetValueOrDefault(g.Value);
 	/// <summary>Phase 18: Abwerfen über den Dienst — die gewählte Menge, ab dem Bestand an Bord alles (Menge 0).</summary>
 	void Drop(Row row, float qty) => Execute($"{TradeService.Drop}:{row.Good.Value}", qty >= row.Held ? 0f : qty);
 
@@ -404,6 +446,13 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			}
 		}
 
+		long _drawnTick = -1;
+		public override void _Process(double delta)
+		{
+			// Runde 27: Preis im Tick-Takt neu zeichnen (vorher nur beim Neuaufbau — Zeile und Editor zeigten verschiedene Preise)
+			if (_owner.Ctx?.U is { } uu && uu.Tick != _drawnTick) { _drawnTick = uu.Tick; QueueRedraw(); }
+		}
+
 		public override void _GuiInput(InputEvent @event)
 		{
 			if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
@@ -423,7 +472,9 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// Kopfzeile
 			DrawRect(new Rect2(6, 12, 18, 18), u.Color);
 			DrawString(font, new Vector2(34, 38), KitButton.Fit(font, u.Name, 20, 180f), HorizontalAlignment.Left, -1, 20, White);   // Gerätetest Phase 27: nie über den Preis
-			DrawString(font, new Vector2(220, 38), u.Traded ? $"{u.Price:0.0}" : "—", HorizontalAlignment.Left, -1, 20, u.Traded ? PriceColor(u) : Dim);
+			float live = _owner.LivePrice(u);
+			if (u.Traded) _owner.Shown(u.Good, live);
+			DrawString(font, new Vector2(220, 38), u.Traded ? $"{live:0.0}" : "—", HorizontalAlignment.Left, -1, 20, u.Traded ? PriceColor(u) : Dim);
 			float fill = u.Target > 0f ? Mathf.Clamp(u.Stock / u.Target, 0f, 1.4f) / 1.4f : 0f;
 			DrawRect(new Rect2(320, 18, 110, 10), new Color(0, 0, 0, 0.5f));
 			DrawRect(new Rect2(320, 18, 110 * fill, 10), u.Color);
@@ -562,12 +613,12 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			_sellBtn.State = CanSell(_row) && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
 		}
 
-		double _redrawAt;
+		long _drawnTick = -1;
 		public override void _Process(double delta)
 		{
 			// Runde 23 (Handy-Test: Summe 1426 angezeigt, 1377 gebucht): Preise und Abnehmer laufend aus dem Markt, nicht aus dem Zeilen-Schnappschuss
-			_redrawAt -= delta;
-			if (_redrawAt <= 0) { _redrawAt = 0.25; QueueRedraw(); }
+			// Runde 27: im Tick-Takt (derselbe Preis wie Zeile und Buchung)
+			if (_owner.Ctx?.U is { } uu && uu.Tick != _drawnTick) { _drawnTick = uu.Tick; QueueRedraw(); }
 		}
 
 		/// <summary>Runde 23: die drei Hinweiszeilen des Editors (Kauf/Verkauf, Abnehmer, Erwartung) mit Farbe — reine Anzeige, Werte live aus dem Core.</summary>
@@ -593,39 +644,45 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// Abnehmer: ehrlich für die gewählte Menge (Kaufseite) bzw. die Ladung (Verkaufsseite)
 			bool buying = row.HasBuy && row.Buy.Amount >= 1f;
 			float q = buying ? MathF.Max(1f, qty) : MathF.Max(row.Held, qty);
-			// Runde 26: Rangfolge nach der vorsichtigen Schätzung (MarketInfo.CarefulPrice mit dem Preisgedächtnis der Sitzung); der genannte Abnehmer bleibt,
-			// solange er nicht deutlich (> 10 %) schlechter als der beste wird — vorher wechselte er bei offenem Editor im Sekundentakt
+			// Runde 27: Rangfolge nach dem schlechten Fall (Menge × niedrigster zuletzt gesehener Preis), bei Gleichstand der heutige Preis. Bei offenem Editor
+			// bleibt der einmal genannte Abnehmer, bis die Zeile geschlossen oder die Menge geändert wird (vorher wechselte er bei springenden Preisen alle ~5 s)
 			var list = MarketInfo.HonestBuyers(u, row.Good, q, ship.Sector, ship.Position, st.Id, ship.Id, ctx.Prices);
 			BuyerQuote? best = list.Count > 0 ? list[0] : null;
-			if (best is { } top && hint is not null && hint.HeldFor(st.Id, row.Good) is { } held)
-				foreach (var c in list)
-					if (c.Station.Id == held && c.Revenue >= HintState.Keep * top.Revenue) { best = c; break; }
+			if (hint?.HeldFor(st.Id, row.Good, q) is { } held)
+			{
+				BuyerQuote? keep = null;
+				foreach (var c in list) if (c.Station.Id == held) { keep = c; break; }
+				if (keep is not null) best = keep;
+				else if (u.Stations.TryGetValue(held, out var hs) && MarketInfo.QuoteBuyer(u, hs, row.Good, q, ship.Sector, ship.Position, ship.Id, ctx.Prices) is { } hq) best = hq;
+			}
 			string l2, l3 = ""; TripVerdict? verdict = null;
 			if (best is not { } b) l2 = "Derzeit kein Abnehmer";
 			else
 			{
-				hint?.Hold(st.Id, row.Good, b.Station.Id);
+				hint?.Hold(st.Id, row.Good, q, b.Station.Id);
 				string sec = u.Sectors.TryGetValue(b.Station.Sector, out var bs) ? bs.Name.Replace("Sektor ", "") : "?";
 				float secs = hint?.Seconds(u, ship, b.Station) ?? float.NaN;
-				string time = float.IsNaN(secs) ? "" : ", " + SpaceSim.Core.Flight.PlayerTrip.Text(secs);
-				// Runde 26 (Gerätetest: nur „zahlt 11,4“ zu sehen, bei Ankunft 3,4): immer beide Werte — heute und die vorsichtige Schätzung bei Ankunft
+				string time = float.IsNaN(secs) ? "" : ", Flug " + SpaceSim.Core.Flight.PlayerTrip.Text(secs).Replace(" min", "");
+				// Runde 27: kein „bei Ankunft“ mehr — heute und der Bereich der letzten Minuten
+				string range = b.HasHistory ? $"zuletzt {b.Price:0.0}–{b.PriceHigh:0.0}" : "zuletzt –";
 				string name = b.Station.Name, nameShort = name.Length > 18 ? name[..17] + "…" : name;
-				l2 = Pick(14, $"Abnehmer: {name} ({sec}, {b.Jumps} Spr.{time}) zahlt jetzt {b.PriceNow:0.0} · bei Ankunft etwa {b.Price:0.0} · nimmt {b.Units:0.#}",
-					$"{name} ({sec}{time}): jetzt {b.PriceNow:0.0} · Ankunft etwa {b.Price:0.0} · nimmt {b.Units:0.#}",
-					$"{name}{time}: jetzt {b.PriceNow:0.0} · Ankunft ≈ {b.Price:0.0} · nimmt {b.Units:0.#}",
-					$"{nameShort}: {b.PriceNow:0.0} → ≈ {b.Price:0.0} · nimmt {b.Units:0.#}");
+				l2 = Pick(14, $"Abnehmer: {name} ({sec}, {b.Jumps} Spr.{time}) zahlt jetzt {b.PriceNow:0.0} · {range} · nimmt {b.Units:0.#}",
+					$"{name} ({sec}{time}): jetzt {b.PriceNow:0.0} · {range} · nimmt {b.Units:0.#}",
+					$"{name}{time}: jetzt {b.PriceNow:0.0} · {range} · nimmt {b.Units:0.#}",
+					$"{nameShort}: jetzt {b.PriceNow:0.0} · {range.Replace("zuletzt ", "")} · nimmt {b.Units:0.#}");
 				float units = buying ? MathF.Min(qty, MathF.Floor(row.Buy.Amount)) : MathF.Min(qty, row.Held);
-				var v = MarketInfo.Verdict(b, price, units);
-				float result = MathF.Min(b.Units, units) * b.Price - units * price;
 				if (buying || row.Held > 0f)
 				{
+					var v = MarketInfo.Verdict(b, price, units);
 					verdict = v;
-					string why = b.CashCover < MarketInfo.GreenCover ? "Kasse des Abnehmers knapp" : b.AcceptCover < MarketInfo.GreenCover ? "Lager des Abnehmers fast voll" : "knappe Spanne";
+					float worst = MathF.Min(b.Units, units) * b.Price - units * price;
+					float today = MathF.Min(b.Units, units) * b.PriceNow - units * price;
 					string head = buying ? "" : "statt hier: ";
-					l3 = b.Units < units - 0.001f ? Pick(13, $"Abnehmer nimmt nur {b.Units:0.#} von {units:0} · Ergebnis etwa {result:+0;−0;0} Cr", $"nimmt nur {b.Units:0.#}/{units:0} · {result:+0;−0;0} Cr")
-						: v == TripVerdict.Good ? $"{head}Erwartet bei Ankunft: etwa +{result:0} Cr"
-						: v == TripVerdict.Unsure ? Pick(13, $"{head}Unsicher: etwa {result:+0;−0;0} Cr ({why})", $"Unsicher: {result:+0;−0;0} Cr ({why})", $"Unsicher: {result:+0;−0;0} Cr")
-						: Pick(13, $"{head}Verlust bei Ankunft etwa −{-result:0} Cr", $"Verlust etwa −{-result:0} Cr");
+					l3 = b.Units < units - 0.001f ? Pick(13, $"Verlust: Abnehmer nimmt nur {b.Units:0.#} von {units:0}", $"nimmt nur {b.Units:0.#}/{units:0}")
+						: v == TripVerdict.Good ? Pick(13, $"{head}Lohnt sich auch im schlechten Fall: mind. +{worst:0} Cr", $"Lohnt sich im schlechten Fall: mind. +{worst:0} Cr")
+						: v == TripVerdict.Loss ? Pick(13, $"{head}Verlust: etwa −{-today:0} Cr", $"Verlust: etwa −{-today:0} Cr")
+						: Pick(13, $"{head}Riskant: zwischen {worst:+0;−0;0} und {today:+0;−0;0} Cr" + (b.HasHistory ? "" : " (noch kein Verlauf)"),
+							$"Riskant: {worst:+0;−0;0} bis {today:+0;−0;0} Cr");
 				}
 			}
 			if (row.Sell.Note is { } note && row.Held > 0f)
@@ -652,7 +709,8 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			var ctx = _owner.Ctx;
 			if (ctx == null) return;
 			float w = Size.X - 48f;
-			var (l1, l2, l3, verdict, _) = LinesEx(ctx, _row, _qty, (t, fs) => font.GetStringSize(t, HorizontalAlignment.Left, -1, fs).X <= w, _owner._hint);
+			var (l1, l2, l3, verdict, buyerId) = LinesEx(ctx, _row, _qty, (t, fs) => font.GetStringSize(t, HorizontalAlignment.Left, -1, fs).X <= w, _owner._hint);
+			_owner.Shown(_row.Good, _owner.LivePrice(_row));
 			TestOverflow = font.GetStringSize(l1, HorizontalAlignment.Left, -1, 14).X > w || font.GetStringSize(l2, HorizontalAlignment.Left, -1, 14).X > w
 				|| font.GetStringSize(l3, HorizontalAlignment.Left, -1, 13).X > w;
 			DrawString(font, new Vector2(34, 78), KitButton.Fit(font, l1, 14, w), HorizontalAlignment.Left, -1, 14, Dim);
@@ -663,6 +721,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			DrawString(font, new Vector2(34, 118), KitButton.Fit(font, l3, 13, w), HorizontalAlignment.Left, -1, 13, c3);
 			TestLines = (l1, l2, l3);
 			TestVerdict = verdict;
+			TestBuyer = buyerId;
 		}
 
 		/// <summary>Runde 23: zuletzt gezeichnete Hinweiszeilen (Selbsttest: Überlauf, Inhalte).</summary>
@@ -672,5 +731,6 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		public bool TestOverflow { get; private set; }
 		/// <summary>Runde 26: Ampel der zuletzt gezeichneten Zeilen.</summary>
 		public TripVerdict? TestVerdict { get; private set; }
+		public StationId TestBuyer { get; private set; }
 	}
 }

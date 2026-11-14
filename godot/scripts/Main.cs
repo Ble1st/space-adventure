@@ -555,7 +555,7 @@ public partial class Main : Node3D
 	{
 		var vs = GetViewport().GetVisibleRect().Size;
 		var f = _camField;
-		return $"Kamera: Gefecht {(_framingActive && !_manualZoomInFight ? "aktiv" : "aus")} · {(_camReason.Length > 0 ? _camReason : "–")} · Feld x {f.X0:0.00}..{f.X1:0.00} y {f.Y0:0.00}..{f.Y1:0.00} · Abstand {_camOffset.Length:0} (Soll {_lastFrame.Distance:0}) · Ziel {_fight.Target.Value} · Bild {vs.X:0}×{vs.Y:0} · Fenster {GetWindow().Size.X}×{GetWindow().Size.Y}";
+		return $"Takt {_session.TickRate:0.0} Ticks/s{(_fast ? " (×10)" : "")} · Kamera: Gefecht {(_framingActive && !_manualZoomInFight ? "aktiv" : "aus")} · {(_camReason.Length > 0 ? _camReason : "–")} · Feld x {f.X0:0.00}..{f.X1:0.00} y {f.Y0:0.00}..{f.Y1:0.00} · Abstand {_camOffset.Length:0} (Soll {_lastFrame.Distance:0}) · Ziel {_fight.Target.Value} · Bild {vs.X:0}×{vs.Y:0} · Fenster {GetWindow().Size.X}×{GetWindow().Size.Y}";
 	}
 	bool _camDebug;
 	/// <summary>Runde 15: Rahmt die Gefechtskamera Schiff und Ziel (sonst nur das Schiff, Ziel per Randpfeil)?</summary>
