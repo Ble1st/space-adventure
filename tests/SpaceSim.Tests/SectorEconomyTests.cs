@@ -83,6 +83,7 @@ public class SectorEconomyTests
         ship.Cargo[DemoUniverse.IronOre] = 5f;
         float cargo = 5f * u.Goods[DemoUniverse.IronOre].BasePrice;
         Assert.Equal(cargo, SectorEconomy.TotalValue(u, ship), 3);
-        Assert.Equal(100f + cargo, SectorEconomy.PlayerNetWorth(u), 3);
+        // Runde 22: das Vermögen enthält auch den Verkaufswert des Schiffs (wie der Hangar-Verkauf)
+        Assert.Equal(100f + cargo + SpaceSim.Core.Simulation.Hangar.SellPrice(u, ship), SectorEconomy.PlayerNetWorth(u), 1);
     }
 }

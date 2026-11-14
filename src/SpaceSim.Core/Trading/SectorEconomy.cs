@@ -50,7 +50,16 @@ public static class SectorEconomy
     public static float TotalValue(Universe u, Ship ship) =>
         (ReferenceEquals(u.WalletOf(ship), ship) ? ship.Credits : 0f) + CargoValueBasePrice(u, ship);
 
-    /// <summary>Vermögen der Spielerperson: Spielerkasse + Wert aller Spielerschiffe (<see cref="TotalValue"/>).</summary>
+    /// <summary>
+    /// Runde 22 (Handy-Test k8: das aktive Bollwerk zeigte „Wert ≈ 0 Cr“): Verkaufswert eines Spielerschiffs, wie ihn der Verkauf im Hangar rechnet
+    /// (<see cref="SpaceSim.Core.Simulation.Hangar.SellPrice"/>: Material × Verkaufsanteil × Schadensabschlag); Leihschiffe 0 (nicht verkäuflich).
+    /// </summary>
+    public static float ShipSaleValue(Universe u, Ship ship) => ship.IsRental ? 0f : SpaceSim.Core.Simulation.Hangar.SellPrice(u, ship);
+
+    /// <summary>Runde 22: Wert eines Spielerschiffs für Besitz und Vermögen = Verkaufswert + Fracht zu Basispreisen.</summary>
+    public static float PlayerShipValue(Universe u, Ship ship) => ShipSaleValue(u, ship) + TotalValue(u, ship);
+
+    /// <summary>Vermögen der Spielerperson: Spielerkasse + Wert aller Spielerschiffe (<see cref="PlayerShipValue"/>: Verkaufswert + Fracht).</summary>
     public static float PlayerNetWorth(Universe u) =>
-        u.PlayerWallet.Credits + u.ShipsById().Where(s => s.IsPlayer).Sum(s => TotalValue(u, s));
+        u.PlayerWallet.Credits + u.ShipsById().Where(s => s.IsPlayer).Sum(s => PlayerShipValue(u, s));
 }

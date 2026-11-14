@@ -41,7 +41,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 		var ship = Ctx.Player;
 		int myShips = u.Ships.Values.Count(s => s.IsPlayer);
 		int myStations = u.Stations.Values.Count(s => s.Owner == u.PlayerActor);   // Phase 9: Besitz über den Spielerakteur (Stationen hat er noch keine)
-		float total = SectorEconomy.PlayerNetWorth(u);   // Spielerkasse + Fracht aller Spielerschiffe
+		float total = SectorEconomy.PlayerNetWorth(u);   // Runde 22: Spielerkasse + Verkaufswert und Fracht aller Spielerschiffe
 
 		// ── Kopf: Kasse, Zahlen, Gesamtwert (echt) ──
 		float x = 20;
@@ -51,7 +51,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			At(inner, Text(label, 13, Dim), x, 38, 190, 18);
 			x += 200;
 		}
-		At(inner, Text("Kasse + Fracht (Basis)", 11, new Color(Dim, 0.75f)), 620, 58, 190, 16);
+		At(inner, Text("Kasse + Schiffe + Fracht", 11, new Color(Dim, 0.75f)), 620, 58, 190, 16);
 
 		// ── Tabs ──
 		float tx = 12;
@@ -268,12 +268,23 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 	/// </summary>
 	internal static string RowDetail(Font font, Universe u, Ship s, string ort)
 	{
-		string value = $"≈ {SectorEconomy.TotalValue(u, s):0} Cr";
+		string value = $"≈ {SectorEconomy.PlayerShipValue(u, s):0} Cr";   // Runde 22: Verkaufswert + Fracht (vorher nur Fracht: Fregatte „≈ 0 Cr“)
 		string place = s.Transit is null && !ort.StartsWith("angedockt") && u.Sectors.TryGetValue(s.Sector, out var sec) ? sec.Name : ort;
 		foreach (var t in new[] { $"{ort} · Fracht {s.UsedVolume(u):0.#}/{s.CargoCapacity:0} · Wert {value}", $"{ort} · Wert {value}", $"{place} · Fracht {s.UsedVolume(u):0}/{s.CargoCapacity:0} · Wert {value}", $"{place} · Wert {value}" })
 			if (font.GetStringSize(t, HorizontalAlignment.Left, -1, 13).X <= 310f) return t;
 		return $"{place} · Wert {value}";
 	}
+
+	/// <summary>
+	/// Zustand unter dem Befehl einer Schiffszeile. Runde 22 (Handy-Test k8: „Folgt #100“ über „geparkt“): ein Schiff mit Folge-/Geleitbefehl ohne
+	/// Liegeplatz ist „im Verband“ (auch während der Folgereise); „angedockt“ nur mit Liegeplatz, sonst „geparkt“ wie bisher.
+	/// </summary>
+	internal static string StateText(Ship s, bool active, bool activeDocked) =>
+		active ? (s.Transit != null ? "im Transit" : activeDocked ? "angedockt" : "im Flug")
+		: s.DockedAt.Value != 0 ? "angedockt"
+		: s.Command is SpaceSim.Core.Model.FollowCommand or SpaceSim.Core.Model.EscortCommand ? "im Verband"   // auch während der Folgereise
+		: s.Transit != null ? "im Transit"
+		: "geparkt";
 
 	static string OrtText(Universe u, Ship s, StationId? docked) =>
 		s.Transit is { } t ? $"unterwegs nach {(u.Sectors.TryGetValue(t.ToSector, out var ts) ? ts.Name : "?")}"
@@ -319,7 +330,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			DrawString(font, new Vector2(96, 26), KitButton.Fit(font, $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", 20, 310), HorizontalAlignment.Left, -1, 20, White);
 			DrawString(font, new Vector2(96, 48), KitButton.Fit(font, RowDetail(font, _u, _s, ort), 13, 310), HorizontalAlignment.Left, -1, 13, Dim);
 			DrawString(font, new Vector2(420, 26), KitButton.Fit(font, _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s), 14, 230), HorizontalAlignment.Left, -1, 14, White);
-			string state = _s.Transit != null ? "im Transit" : _active ? (_docked is not null ? "angedockt" : "im Flug") : _s.DockedAt.Value != 0 ? "angedockt" : "geparkt";
+			string state = StateText(_s, _active, _docked is not null);
 			DrawString(font, new Vector2(420, 48), state, HorizontalAlignment.Left, -1, 12, Dim);
 
 			DrawString(font, new Vector2(660, 22), "Hülle", HorizontalAlignment.Left, -1, 12, Dim);

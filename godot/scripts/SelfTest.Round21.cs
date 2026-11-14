@@ -88,6 +88,11 @@ public partial class SelfTest
 				var me = u.Ships[u.PlayerShip];
 				string row = Ui.Screens.AssetsScreen.RowDetail(ThemeDB.FallbackFont, u, me, $"{u.Sectors[me.Sector].Name} · ({me.Position.X:0}/{me.Position.Y:0})");
 				Check(ThemeDB.FallbackFont.GetStringSize(row, HorizontalAlignment.Left, -1, 13).X <= 310f && row.Contains("Wert"), $"Besitz-Zeile passt ({row})");
+				// Runde 22 (Handy-Test k8): Fregatte nicht „≈ 0 Cr“, Begleiter mit Folgebefehl „im Verband“ statt „geparkt“
+				Check(!row.Contains("≈ 0 Cr") && SpaceSim.Core.Trading.SectorEconomy.PlayerShipValue(u, me) > 1000f, $"Besitz-Zeile zeigt den Schiffswert ({row})");
+				var wingR22 = u.ShipsById().First(s => s.IsPlayer && s.Id != me.Id);
+				string st22 = Ui.Screens.AssetsScreen.StateText(wingR22, false, false);
+				Check(wingR22.DockedAt.Value != 0 ? st22 == "angedockt" : st22 == "im Verband", $"Begleiter-Zustand ({st22}, Befehl {wingR22.Command?.GetType().Name})");
 				_m.TestOpenCommand();
 				_m.TestOpenCcArea("sector");
 				return false;

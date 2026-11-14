@@ -2652,6 +2652,7 @@ public partial class SelfTest : Node
 			case 98: if (Round19Stage(_frame - _stageStart)) Next(); break;   // Runde 19: Ankertest, Standardkamera nach „Neues Spiel“, Tor antippen neben Schiffen, Warnkasten über „RÜCK“ (SelfTest.Round19.cs)   // Runde 17: Sitzungswechsel gibt das alte Universum frei (SelfTest.Anchors.cs)   // Runde 15: Handyformat — Gefechtskamera, Zielkarte, Tor antippen, Annäherung (SelfTest.Phone.cs)   // Phase 31: Tor angreifen, außer Betrieb, Wiederanlauf (SelfTest.GateCombat.cs)   // Phase 30: Kleinstationen, Größenklassen, Gefechtskamera, Musik-Tipp (SelfTest.Small.cs)
 			case 99: if (Round20Stage(_frame - _stageStart)) Next(); break;   // Runde 20: Zielwechsel Tor/Schiff/Station, Kontexttaste, Anker übernehmen, nach „Lösen“ kein Neuanker (SelfTest.Round20.cs)
 			case 100: if (Round21Stage(_frame - _stageStart)) Next(); break;   // Runde 21: Countdown, Hinweisfläche, Begleiter-Entfernung, Besitz-Zeile, Draufsicht-Legende, „Nächster Gegner“ räumt Torangriff ab (SelfTest.Round21.cs)
+			case 101: if (Round22Stage(_frame - _stageStart)) Next(); break;   // Runde 22: Dauerfeuer bleibt über zwei Überfälle an (SelfTest.Round22.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

@@ -364,6 +364,7 @@ public partial class Main : Node3D
 		if (warn is null || !u.Ships.TryGetValue(warn.Source, out var raider) || raider.Sector != u.PlayerSector) return;
 		var d = new Vector2(raider.Position.X - _player.Position.X, raider.Position.Y - _player.Position.Z);
 		if (d.LengthSquared() > 0.01f) _player.Heading = Mathf.Atan2(-d.X, -d.Y);
+		_pendingTargeted = (raider.Id, warn.DueTick);
 		TakeShipTarget(raider.Id);   // Runde 15: Ziel schon in der Warnphase (Gefechtskamera, Randpfeil); Runde 21: gemeinsamer Weg
 		float secs = Mathf.Max(1f, (warn.DueTick - u.Tick) / (float)SimClock.TicksPerSecond);
 		_hud.Alert($"Piraten! {u.ActorName(raider.Owner)} nimmt Kurs auf dich — Angriff in {secs:0} s. Andocken oder kämpfen („Nächster Gegner“, „Dauerfeuer“).", secs + 1f);
@@ -373,6 +374,7 @@ public partial class Main : Node3D
 
 	// Runde 21 (Handy-Test c01_w1..w3: „Angriff in 15 s“ blieb stehen): die Vorwarnung zählt herunter (Restzeit aus PendingEncounter.DueTick)
 	string? _warnText, _warnShown; long _warnDue;
+	(ShipId, long) _pendingTargeted;   // Runde 22
 	float WarnSeconds(long due) => SpaceSim.Core.Combat.WarningCountdown.SecondsLeft(due, _session.U.Tick) + 1f;
 	void StartCountdown(long due) { _warnText = _hud.TestAlert.Length > 0 ? _hud.TestAlert : null; _warnShown = _warnText; _warnDue = due; }
 	void TickCountdown()
@@ -991,7 +993,7 @@ public partial class Main : Node3D
 			// Gerätetest Phase 28: Überfall auf dich — das angreifende Schiff wird Ziel, Hinweis auf Dauerfeuer/Zielhilfe
 			case EncounterStarted raid when raid.Cause == EncounterCause.Raid && raid.Defender == _session.U.PlayerShip:
 				TakeShipTarget(raid.Attacker);   // Runde 21: räumt Tor-/Stationswahl samt Angriff ab
-				LastCombatMessage = $"Überfall! Ziel gewählt: {(_session.U.Ships.TryGetValue(raid.Attacker, out var ra) ? SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ra) : "Kaperschiff")} — „Dauerfeuer“ an? „Ziel folgen“ hält es im Bugwinkel.";
+				LastCombatMessage = $"Überfall! Ziel gewählt: {(_session.U.Ships.TryGetValue(raid.Attacker, out var ra) ? SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ra) : "Kaperschiff")} — " + (_fight.AutoFire ? "Dauerfeuer läuft." : "„Dauerfeuer“ an?") + " „Ziel folgen“ hält es im Bugwinkel.";   // Runde 22: je nach Zustand
 				Danger("Überfall", LastCombatMessage, 8f);
 				break;
 			case EncounterStarted arrest when arrest.Cause == EncounterCause.Arrest:
@@ -1019,7 +1021,7 @@ public partial class Main : Node3D
 			case EncounterWarning w when w.Target == _session.U.PlayerShip:
 				// Runde 15/16: schon in der Warnphase Ziel (Kamera, Randpfeil) — auch wenn das Warnsignal gerade gesperrt ist (vorher hing alles am Signal);
 				// ein laufendes Gefechtsziel bleibt
-				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0 && _fight.Target.Value == 0) TakeShipTarget(w.Source);
+				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0) { if (_fight.Target.Value == 0) TakeShipTarget(w.Source); _pendingTargeted = (w.Source, w.DueTick); }
 				Sting("sting_warning");
 				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, WarnSeconds(w.DueTick)); LastSecurityMessage = w.Message;
 				StartCountdown(w.DueTick); break;
@@ -2087,6 +2089,15 @@ public partial class Main : Node3D
 	void UpdateHud()
 	{
 		TickCountdown();
+		// Runde 22 (Handy-Test h3: „Kein Ziel“ neben dem angekündigten Kaperer): ein verschobener Überfall (kam während eines Gefechts fällig) wird ohne neue
+		// Warnung neu terminiert — auch dann ist der ankündigende Kaperer Ziel, solange kein anderes gewählt ist
+		if (_fight.Target.Value == 0 && !_fight.AtStation && !_fight.AtGate && _docked is null
+			&& _session.U.PendingEncounters.Where(p => p.Target == _session.U.PlayerShip && p.Kind == EncounterKind.Raid && p.Source.Value != 0).OrderBy(p => p.DueTick).FirstOrDefault() is { } pr
+			&& _pendingTargeted != (pr.Source, pr.DueTick))   // einmal je Ankündigung — danach darf der Spieler frei wählen (z. B. eine Station zum Andocken)
+		{
+			_pendingTargeted = (pr.Source, pr.DueTick);
+			TakeShipTarget(pr.Source);
+		}
 		var u = _session.U;
 		var sector = u.Sectors[u.PlayerSector];
 		var pos = new Vec2(_player.Position.X, _player.Position.Z);
