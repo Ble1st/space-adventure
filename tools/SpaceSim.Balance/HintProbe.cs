@@ -18,7 +18,7 @@ sealed class HintProbe
     {
         public long Start, Due; public StationId Seller, Buyer; public GoodId Good;
         public float Qty, Buy, Now, Arr, Cons, Fast, Slow, Base, Incoming, Secs, EstTicks;
-        public float NpcDelivered, Amount, Target; public string Kind = ""; public TripVerdict Verdict;
+        public float NpcDelivered, Amount, Target, Jump, HistLo; public string Kind = ""; public TripVerdict Verdict;
         public float Actual, ActualUnits, DepCash, DepAccept, ArrCash, ArrAccept;
     }
     readonly List<Trip> _open = new(), _done = new();
@@ -101,7 +101,7 @@ sealed class HintProbe
         {
             Start = u.Tick, Due = u.Tick + (long)MathF.Ceiling(secs * SimClock.TicksPerSecond), Seller = seller.Id, Buyer = b.Station.Id, Good = g.Id, Qty = b.Units,
             Buy = seller.Market[g.Id].Price, Now = b.PriceNow, Arr = b.PriceArrival,
-            Cons = b.Price, Fast = b.PriceHigh, Slow = b.HasHistory ? 1f : 0f, Base = g.BasePrice, Incoming = b.Incoming, Secs = secs, EstTicks = b.TravelTicks, Kind = kind, Verdict = MarketInfo.Verdict(b, seller.Market[g.Id].Price, b.Units), Amount = b.Station.Market[g.Id].Amount, Target = b.Station.Market[g.Id].Target,
+            Cons = b.Price, Fast = b.PriceHigh, Slow = b.HasHistory ? 1f : 0f, Base = g.BasePrice, Incoming = b.Incoming, Secs = secs, EstTicks = b.TravelTicks, Kind = kind, Verdict = MarketInfo.Verdict(b, seller.Market[g.Id].Price, b.Units), Amount = b.Station.Market[g.Id].Amount, Jump = _mem.MaxDelivery(b.Station.Id, g.Id), HistLo = b.HistoryLow, Target = b.Station.Market[g.Id].Target,
             DepCash = b.Station.Credits, DepAccept = b.Station.AcceptableUnits(g.Id, u.Rules) - b.Incoming,
         });
     }
@@ -140,10 +140,10 @@ sealed class HintProbe
             + string.Join(", ", _jumpMax.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key} ×{kv.Value.ToString("0.0", ci)}")));
         if (csv is not null)
         {
-            var c = new StringBuilder("start;secs;good;kind;seller;buyer;qty;buy;now;arr;lo;hi;history;base;incoming;npcdelivered;actual;actualunits;depcash;depaccept;arrcash;arraccept;verdict;amount;target\n");
+            var c = new StringBuilder("start;secs;good;kind;seller;buyer;qty;buy;now;arr;lo;hi;history;base;incoming;npcdelivered;actual;actualunits;depcash;depaccept;arrcash;arraccept;verdict;amount;target;jump;histlo\n");
             foreach (var t in _done)
                 c.AppendLine(string.Join(";", t.Start, t.Secs.ToString("0.0", CultureInfo.InvariantCulture), u.Goods[t.Good].Key, t.Kind, t.Seller.Value, t.Buyer.Value,
-                    t.Qty.ToString(CultureInfo.InvariantCulture), F(t.Buy), F(t.Now), F(t.Arr), F(t.Cons), F(t.Fast), F(t.Slow), F(t.Base), F(t.Incoming), F(t.NpcDelivered), F(t.Actual), F(t.ActualUnits), F(t.DepCash), F(t.DepAccept), F(t.ArrCash), F(t.ArrAccept), t.Verdict, F(t.Amount), F(t.Target)));
+                    t.Qty.ToString(CultureInfo.InvariantCulture), F(t.Buy), F(t.Now), F(t.Arr), F(t.Cons), F(t.Fast), F(t.Slow), F(t.Base), F(t.Incoming), F(t.NpcDelivered), F(t.Actual), F(t.ActualUnits), F(t.DepCash), F(t.DepAccept), F(t.ArrCash), F(t.ArrAccept), t.Verdict, F(t.Amount), F(t.Target), F(t.Jump), F(t.HistLo)));
             File.WriteAllText(csv, c.ToString());
         }
         return sb.ToString();

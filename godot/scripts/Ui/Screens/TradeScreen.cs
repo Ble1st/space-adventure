@@ -566,14 +566,15 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			DrawString(font, new Vector2(12, 74), $"{r.Price:0.0}", HorizontalAlignment.Left, -1, 30, White);
 			DrawString(font, new Vector2(112, 70), UiPlaceholders.TrendSoon, HorizontalAlignment.Left, 96, 11, new Color(Dim, 0.7f));
 			float fill = r.Target > 0f ? Mathf.Clamp(r.Stock / r.Target, 0f, 1.4f) / 1.4f : 0f;
-			DrawRect(new Rect2(12, 90, 190, 8), new Color(0, 0, 0, 0.5f));
-			DrawRect(new Rect2(12, 90, 190 * fill, 8), r.Color);
-			DrawString(font, new Vector2(12, 124), $"Bestand {r.Stock:0}", HorizontalAlignment.Left, -1, 14, Dim);
-			if (NoteOf(r) is { } note) DrawString(font, new Vector2(12, 112), note, HorizontalAlignment.Left, 190, 11, SellNoteColor(r));   // Phase 16
+			// Runde 29 (Gerätetest b05: „Stellt die Ware selbst her“ lag über „Bestand 152“): Balken, Hinweis und Bestand je in eigener Zeile
+			DrawRect(new Rect2(12, 84, 190, 8), new Color(0, 0, 0, 0.5f));
+			DrawRect(new Rect2(12, 84, 190 * fill, 8), r.Color);
+			if (NoteOf(r) is { } note) DrawString(font, new Vector2(12, 106), KitButton.Fit(font, note, 11, 190), HorizontalAlignment.Left, 190, 11, SellNoteColor(r));   // Phase 16
+			DrawString(font, new Vector2(12, 128), $"Bestand {r.Stock:0}", HorizontalAlignment.Left, 110, 14, Dim);
 			if (r.Held > 0f)
 			{
-				DrawRect(new Rect2(128, 106, 74, 24), new Color(Cyan, 0.25f));
-				DrawString(font, new Vector2(128, 124), $"Bord {r.Held:0}", HorizontalAlignment.Center, 74, 14, Cyan);
+				DrawRect(new Rect2(128, 112, 74, 22), new Color(Cyan, 0.25f));
+				DrawString(font, new Vector2(128, 128), $"Bord {r.Held:0}", HorizontalAlignment.Center, 74, 14, Cyan);
 			}
 		}
 	}
@@ -612,7 +613,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			minus.Pressed += () => SetQty(_qty - 1f);
 			plus.Pressed += () => SetQty(_qty + 1f);
 			max.Pressed += () => SetQty(Mathf.Max(_row.Buy.Amount, _row.Held));
-			_buyBtn.Pressed += () => Buy?.Invoke(MathF.Min(_qty, MathF.Max(1f, MathF.Floor(_row.Buy.Amount))));   // Runde 28: nie stillschweigend weniger — die Taste sagt „6 kaufen“
+			_buyBtn.Pressed += () => { var c = _owner.Ctx; float can = c is null ? MathF.Floor(_row.Buy.Amount) : MathF.Floor(TradeActions.MaxBuyable(c.U, c.Ship, c.Station, _row.Good)); Buy?.Invoke(MathF.Min(_qty, MathF.Max(1f, can))); };   // Runde 28: nie stillschweigend weniger — die Taste sagt „6 kaufen“
 			_sellBtn.Pressed += () => Sell?.Invoke(_qty);
 			// Phase 18: Abwerfen neben dem Grund, wenn die Station die Ware an Bord nicht (ganz) nimmt — erst beim zweiten Tipp (KitConfirm)
 			if (ShowDrop(row))
@@ -640,9 +641,12 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 
 		void RefreshButtons()
 		{
-			_buyBtn.State = _row.Buy.Amount >= 1f && _qty >= 1f ? KitButtonState.Ready : KitButtonState.Disabled;
+			// Runde 29 (Gerätetest: „Kaufen“ bei „Lager leer“/„Nur Ankauf (Export)“ sah aktiv aus): die Taste folgt dem Live-Stand wie die Begründungszeile
+			// (TradeActions.MaxBuyable, im Tick-Takt), nicht dem Zeilen-Schnappschuss vom letzten Neuaufbau
+			var ctx = _owner.Ctx;
+			float can = ctx is null ? MathF.Floor(_row.Buy.Amount) : MathF.Floor(TradeActions.MaxBuyable(ctx.U, ctx.Ship, ctx.Station, _row.Good));
+			_buyBtn.State = can >= 1f && _qty >= 1f ? KitButtonState.Ready : KitButtonState.Disabled;
 			// Runde 28: ist die gewählte Menge nicht ganz kaufbar, nennt die Taste die Menge, die sie wirklich kauft
-			float can = MathF.Floor(_row.Buy.Amount);
 			_buyBtn.Text = can >= 1f && can < _qty ? $"{can:0} kaufen" : "Kaufen";
 			// Phase 16: deaktiviert, wenn die Station nichts annimmt (Grund steht in der Zeile)
 			_sellBtn.State = CanSell(_row) && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
@@ -653,7 +657,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		{
 			// Runde 23 (Handy-Test: Summe 1426 angezeigt, 1377 gebucht): Preise und Abnehmer laufend aus dem Markt, nicht aus dem Zeilen-Schnappschuss
 			// Runde 27: im Tick-Takt (derselbe Preis wie Zeile und Buchung)
-			if (_owner.Ctx?.U is { } uu && uu.Tick != _drawnTick) { _drawnTick = uu.Tick; QueueRedraw(); }
+			if (_owner.Ctx?.U is { } uu && uu.Tick != _drawnTick) { _drawnTick = uu.Tick; RefreshButtons(); QueueRedraw(); }
 		}
 
 		/// <summary>Runde 23: die drei Hinweiszeilen des Editors (Kauf/Verkauf, Abnehmer, Erwartung) mit Farbe — reine Anzeige, Werte live aus dem Core.</summary>
@@ -672,15 +676,15 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			float price = st.Market.TryGetValue(row.Good, out var e) ? e.Price : row.Price;
 			// Kaufseite: was abgebucht wird — oder der Grund, warum „Kaufen“ aus ist (immer aus dem Angebot)
 			// Runde 28: die gewählte Menge bleibt; kann nur ein Teil gekauft werden, sagt die Zeile wie viel und warum
-			float canBuy = MathF.Floor(row.Buy.Amount);
-			string buy = row.HasBuy && row.Buy.Amount >= 1f
+			float canBuy = row.HasBuy ? MathF.Floor(TradeActions.MaxBuyable(u, ship, st, row.Good)) : 0f;   // Runde 29: live wie die Taste
+			string buy = row.HasBuy && canBuy >= 1f
 				? (canBuy < qty ? Pick(14, $"Kauf {qty:0} × {price:0.0} = {qty * price:0} Cr — nur {canBuy:0} {LimitText(u, st, ship, row, price)}", $"Kauf {qty:0} × {price:0.0} — nur {canBuy:0} {LimitText(u, st, ship, row, price)}")
 					: $"Kauf {qty:0} × {price:0.0} = {qty * price:0} Cr")
 				: $"Kaufen: {BuyReason(u, st, ship, row)}";
 			// Verkaufsseite: was ein Verkauf wirklich brächte (Angebotsmenge × Preis), 0 wenn die Station nichts nimmt
 			string sell = row.Held > 0f ? (row.Sell.Amount > 0f ? $" · Verkauf hier {MathF.Min(qty, row.Sell.Amount) * price:0} Cr" : " · Verkauf hier —") : "";
 			// Abnehmer: ehrlich für die gewählte Menge (Kaufseite) bzw. die Ladung (Verkaufsseite)
-			bool buying = row.HasBuy && row.Buy.Amount >= 1f;
+			bool buying = row.HasBuy && canBuy >= 1f;
 			float q = buying ? MathF.Max(1f, qty) : MathF.Max(row.Held, qty);
 			// Runde 27: Rangfolge nach dem schlechten Fall (Menge × niedrigster zuletzt gesehener Preis), bei Gleichstand der heutige Preis. Bei offenem Editor
 			// bleibt der einmal genannte Abnehmer, bis die Zeile geschlossen oder die Menge geändert wird (vorher wechselte er bei springenden Preisen alle ~5 s)
@@ -714,7 +718,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 					$"{name} ({sec}{time}): jetzt {b.PriceNow:0.0} · {range} · nimmt {b.Units:0.#}",
 					$"{name}{time}: jetzt {b.PriceNow:0.0} · {range} · nimmt {b.Units:0.#}",
 					$"{nameShort}: jetzt {b.PriceNow:0.0} · {range.Replace("zuletzt ", "")} · nimmt {b.Units:0.#}");
-				float units = buying ? MathF.Min(qty, MathF.Floor(row.Buy.Amount)) : MathF.Min(qty, row.Held);
+				float units = buying ? MathF.Min(qty, canBuy) : MathF.Min(qty, row.Held);
 				if (buying || row.Held > 0f)
 				{
 					var v = MarketInfo.Verdict(b, price, units);
@@ -725,14 +729,26 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 					l3 = b.Units < units - 0.001f ? Pick(13, $"Verlust: Abnehmer nimmt nur {b.Units:0.#} von {units:0}", $"nimmt nur {b.Units:0.#}/{units:0}")
 						: v == TripVerdict.Good ? Pick(13, $"{head}Lohnt sich auch im schlechten Fall: mind. +{worst:0} Cr", $"Lohnt sich im schlechten Fall: mind. +{worst:0} Cr")
 						: v == TripVerdict.Loss ? Pick(13, $"{head}Verlust: etwa −{-today:0} Cr", $"Verlust: etwa −{-today:0} Cr")
-						: MathF.Abs(today - worst) < 0.5f ? Pick(13, $"{head}Riskant: etwa {today:+0;−0;0} Cr" + (b.HasHistory ? "" : " (noch kein Verlauf)"), $"Riskant: etwa {today:+0;−0;0} Cr")
-						: Pick(13, $"{head}Riskant: zwischen {worst:+0;−0;0} und {today:+0;−0;0} Cr" + (b.HasHistory ? "" : " (noch kein Verlauf)"),
-							$"Riskant: {worst:+0;−0;0} bis {today:+0;−0;0} Cr");
+						: Riskant(b, today, MathF.Min(b.Units, units) * b.PriceAfterLoad - units * price, head, Pick);
 				}
 			}
 			if (row.Sell.Note is { } note && row.Held > 0f)
 				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}");
 			return (buy + sell, l2, l3, verdict, best?.Station.Id ?? default);
+		}
+
+		/// <summary>
+		/// Runde 29: gelbe Zeile ohne Zusage — untere Zahl = Ergebnis nach EINER weiteren NPC-Ladung beim Abnehmer (das Band aus dem Verlauf allein wurde in
+		/// 32–37 % der gelben Fahrten unterschritten, so in 15–17 %); ist die Spanne ganz positiv, steht der Grund für Gelb dabei.
+		/// </summary>
+		static string Riskant(BuyerQuote b, float today, float low, string head, Func<int, string[], string> pick)
+		{
+			low = MathF.Min(low, today);
+			string why = !b.HasHistory ? "noch kein voller Verlauf" : b.CashCover < MarketInfo.GreenCashCover ? "Kasse des Abnehmers knapp"
+				: b.AcceptCover < MarketInfo.GreenCover ? "Lager des Abnehmers fast voll" : b.Incoming >= 0.5f ? "andere liefern" : "Spanne unter 10 %";
+			if (MathF.Abs(today - low) < 0.5f) return pick(13, new[] { $"{head}Riskant: etwa {today:+0;−0;0} Cr ({why})", $"Riskant: etwa {today:+0;−0;0} Cr" });
+			string tail = low >= 0f ? $" — {why}" : " (nach einer weiteren Lieferung)";
+			return pick(13, new[] { $"{head}Riskant: zwischen {low:+0;−0;0} und {today:+0;−0;0} Cr{tail}", $"Riskant: {low:+0;−0;0} bis {today:+0;−0;0} Cr{tail}", $"Riskant: {low:+0;−0;0} bis {today:+0;−0;0} Cr" });
 		}
 
 		/// <summary>Runde 28: was die kaufbare Menge begrenzt — Geld, Lager der Station oder Laderaum.</summary>

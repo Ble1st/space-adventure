@@ -185,8 +185,11 @@ public static class MarketInfo
         var range = mem?.Range(st.Id, good, u.Tick);
         float lo = MathF.Min(arrival, range?.Lo ?? arrival);
         float hi = MathF.Max(e.Price, range?.Hi ?? e.Price);
+        // Runde 29 (Gerätetest: Gelb „zwischen +25 und +43“, tatsächlich −66): untere Zahl der gelben Spanne = Preis nach EINER weiteren NPC-Ladung
+        // (100 m³) — gemessen senkt das „Ergebnis unter der genannten Untergrenze“ von 37 % / 32 % auf 15 % / 17 % der gelben Fahrten
+        float afterLoad = MathF.Min(lo, ArrivalPrice(u, st, good, incoming + 100f / MathF.Max(0.1f, u.Goods[good].VolumePerUnit)));
         return new BuyerQuote(st, lo, units, units * lo, incoming, route.Count, ticks, e.Price, arrival,
-            st.Credits / MathF.Max(0.01f, e.Price * units), accept / MathF.Max(0.01f, units), hi, range is { Enough: true }, range?.Lo ?? 0f);
+            st.Credits / MathF.Max(0.01f, e.Price * units), accept / MathF.Max(0.01f, units), hi, range is { Enough: true }, range?.Lo ?? 0f, afterLoad);
     }
 
     /// <summary>Runde 26: so viel mal die Ladung muss die Annahme des Abnehmers decken, sonst kein „grün“.</summary>
@@ -253,9 +256,10 @@ public static class MarketInfo
 /// <param name="PriceArrival">Runde 26: Preis bei Ankunft nach der Bestandsformel. <paramref name="Price"/> ist seit Runde 27 der schlechte Fall: der niedrigste
 /// zuletzt gesehene Preis (höchstens der Ankunftspreis), <paramref name="PriceHigh"/> der höchste; <paramref name="HasHistory"/> = Verlauf reicht.
 /// <paramref name="CashCover"/>/<paramref name="AcceptCover"/>: wie oft Kasse bzw. Annahme die Ladung decken. <paramref name="HistoryLow"/> (Runde 28): niedrigster
-/// Preis des Fensters allein (0 = kein Verlauf) — liegt <paramref name="Price"/> darunter, bringen andere Händler gerade Ware (<paramref name="Incoming"/>).</param>
+/// Preis des Fensters allein (0 = kein Verlauf) — liegt <paramref name="Price"/> darunter, bringen andere Händler gerade Ware (<paramref name="Incoming"/>).
+/// <paramref name="PriceAfterLoad"/> (Runde 29): Preis nach einer weiteren NPC-Ladung (100 m³), höchstens <paramref name="Price"/> — untere Zahl der gelben Spanne.</param>
 public readonly record struct BuyerQuote(Station Station, float Price, float Units, float Revenue, float Incoming, int Jumps, float TravelTicks, float PriceNow = 0f,
-    float PriceArrival = 0f, float CashCover = 0f, float AcceptCover = 0f, float PriceHigh = 0f, bool HasHistory = false, float HistoryLow = 0f);
+    float PriceArrival = 0f, float CashCover = 0f, float AcceptCover = 0f, float PriceHigh = 0f, bool HasHistory = false, float HistoryLow = 0f, float PriceAfterLoad = 0f);
 
 /// <summary>Runde 26: Ampel der Abnehmer-Auskunft (siehe <see cref="MarketInfo.Verdict"/>).</summary>
 public enum TripVerdict { Good, Unsure, Loss }

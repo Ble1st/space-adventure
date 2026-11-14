@@ -19,9 +19,9 @@ public sealed class PriceMemory
 
     sealed class Track
     {
-        public readonly float[] Lo = new float[Slots], Hi = new float[Slots];
+        public readonly float[] Lo = new float[Slots], Hi = new float[Slots], Jump = new float[Slots];
         public int N, Next; public long Since;
-        public float CurLo = float.MaxValue, CurHi;
+        public float CurLo = float.MaxValue, CurHi, CurJump, LastAmount = -1f;
     }
     readonly Dictionary<(int Station, int Good), Track> _m = new();
     long _last = -1;
@@ -42,12 +42,24 @@ public sealed class PriceMemory
                 if (!_m.TryGetValue(k, out var t)) _m[k] = t = new Track { Since = u.Tick };
                 t.CurLo = MathF.Min(t.CurLo, e.Price);
                 t.CurHi = MathF.Max(t.CurHi, e.Price);
+                // Runde 29: größte Zunahme des Bestands von einem Tick zum nächsten = eine Lieferung (NPC-Händler, Schürfer; bei Herstellern auch ein Rezept)
+                if (t.LastAmount >= 0f) t.CurJump = MathF.Max(t.CurJump, e.Amount - t.LastAmount);
+                t.LastAmount = e.Amount;
                 if (!close) continue;
-                t.Lo[t.Next] = t.CurLo; t.Hi[t.Next] = t.CurHi;
+                t.Lo[t.Next] = t.CurLo; t.Hi[t.Next] = t.CurHi; t.Jump[t.Next] = t.CurJump;
                 t.Next = (t.Next + 1) % Slots;
                 if (t.N < Slots) t.N++;
-                t.CurLo = float.MaxValue; t.CurHi = 0f;
+                t.CurLo = float.MaxValue; t.CurHi = 0f; t.CurJump = 0f;
             }
+    }
+
+    /// <summary>Runde 29: größte Lieferung (Zunahme des Bestands in einem Tick) im Fenster; 0 = keine gesehen.</summary>
+    public float MaxDelivery(StationId st, GoodId good)
+    {
+        if (!_m.TryGetValue((st.Value, good.Value), out var t)) return 0f;
+        float j = t.CurJump;
+        for (int i = 0; i < t.N; i++) j = MathF.Max(j, t.Jump[i]);
+        return j;
     }
 
     /// <summary>Niedrigster und höchster Preis im Fenster (jeder beobachtete Tick) und ob der Verlauf ein volles Fenster umfasst; null = unbekannt.</summary>

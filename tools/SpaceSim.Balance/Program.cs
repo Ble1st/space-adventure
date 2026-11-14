@@ -34,6 +34,8 @@ if (opts.TryGetValue("exportbid", out var ebOpt))
 }
 if (opts.TryGetValue("sellcap", out var scOpt)) worldDef.Rules.ProducerPriceCapShare = float.Parse(scOpt, CultureInfo.InvariantCulture);
 if (opts.TryGetValue("wcshare", out var wcOpt)) worldDef.Rules.StationWorkingCapitalShare = float.Parse(wcOpt, CultureInfo.InvariantCulture);
+// Runde 29: --probe rueckkauf misst die Kauf-/Rückverkaufsschleife an einer Station (eigene Welten, eigener Bericht) und endet
+if (opts.TryGetValue("probe", out var rkOpt) && rkOpt == "rueckkauf") { Console.WriteLine(ExploitProbe.Run(worldDef, seed ?? 1)); return 0; }
 var u = WorldBuilder.Build(worldDef, seed, opts.TryGetValue("start", out var startOpt) ? startOpt : null);   // Runde 26: --start trader wie „Neues Spiel“
 // Phase 21: Torliste (Id, von → nach, Zustand, Hauptroute) am Anfang, damit --gates nachvollziehbar ist; je Verbindung wird die kleinere Id genannt
 // (--gates schließt immer beide Enden). --gatelist on: zusätzlich je Verbindung, ob ihre Sperrung die Karte zerteilt (und welcher Teil abfällt), dann Ende.

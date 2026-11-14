@@ -65,6 +65,8 @@ public partial class SelfTest
 				Tap(_r28At, true);
 			}
 			if (ph == 10) Tap(_r28At, false);
+			// Runde 29: passt die geöffnete Zeile samt Editor schon ganz in die Liste, rollt nichts (erster Tipp: Liste oben, zweite Zeile)
+			if (ph == 30 && k == 0) Check(trade.TestScroll?.ScrollVertical == 0, $"Öffnen einer ganz sichtbaren Zeile rollt nicht (Rollposition {trade.TestScroll?.ScrollVertical})");
 			if (ph == 30) Check(trade.TestExpanded is { } ex && ex == g, $"Tipp {k + 1} öffnet die getroffene Zeile ({u.Goods[g].Name}; offen: {(trade.TestExpanded is { } o ? u.Goods[o].Name : "keine")})");
 			return false;
 		}
