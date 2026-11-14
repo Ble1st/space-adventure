@@ -88,7 +88,10 @@ public partial class SelfTest : Node
 						"Station-Info und Hangar sind immer aktiv");
 					var offered = _m.Session.Services.ForStation(u, st).Select(x => x.Key).ToList();
 					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Missions).All(a => !a.Available), "Platzhalterbereich Aufträge ist nicht aktiv");
-					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Taxi && a.Available) == offered.Contains("taxi"), "Phase 12: Taxi echt, wenn die Station den Dienst „taxi“ liefert");
+					// Runde 23: ohne buchbares Ziel bleibt die Taxi-Kachel abgeblendet mit Grund
+					var taxiTile = areas.FirstOrDefault(a => a.Id == Ui.Screens.DockAreas.Taxi);
+					Check(offered.Contains("taxi") ? taxiTile is not null && (taxiTile.Available || taxiTile.Sub == "Kein Ziel buchbar") : taxiTile is null || !taxiTile.Available,
+						$"Phase 12: Taxi echt, wenn die Station den Dienst „taxi“ liefert ({taxiTile?.Sub})");
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Outfitter && a.Available) == offered.Contains("outfitter")
 						&& areas.Any(a => a.Id == Ui.Screens.DockAreas.Shipyard && a.Available) == offered.Contains("shipdealer"),
 						"Ausrüster und Werft sind genau dann aktiv, wenn ForStation outfitter bzw. shipdealer liefert (Phase 5c)");
@@ -2654,6 +2657,7 @@ public partial class SelfTest : Node
 			case 100: if (Round21Stage(_frame - _stageStart)) Next(); break;   // Runde 21: Countdown, Hinweisfläche, Begleiter-Entfernung, Besitz-Zeile, Draufsicht-Legende, „Nächster Gegner“ räumt Torangriff ab (SelfTest.Round21.cs)
 			case 101: if (Round22Stage(_frame - _stageStart)) Next(); break;   // Runde 22: Dauerfeuer bleibt über zwei Überfälle an (SelfTest.Round22.cs)
 			case 102: if (ChainStage(_frame - _stageStart)) Next(); break;   // Handelskette über den Handelsbildschirm (SelfTest.Chain.cs)
+			case 103: if (Round23Stage(_frame - _stageStart)) Next(); break;   // Runde 23: Handels-Editor (Gründe, ehrlicher Abnehmer), Dock-Menü, Taxi, Angriffstaste (SelfTest.Round23.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }

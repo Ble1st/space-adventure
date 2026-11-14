@@ -130,6 +130,10 @@ public partial class FlightHud : Control, IScreen
 	public void TestPressGateAttack() => GateAttackPressed?.Invoke();
 	readonly KitConfirm _attackConfirm = new();
 	public bool TestStationAttackVisible => _stationAttack.Visible;
+	/// <summary>Runde 23: Rechtecke von „Station angreifen“, Kontexttaste und Autopilot (Abstand gegen Fehltipps).</summary>
+	public Rect2 TestStationAttackRect => _stationAttack.GetGlobalRect();
+	public Rect2 TestContextRect => _contextBtn.GetGlobalRect();
+	public Rect2 TestAutopilotRect => _autopilotBtn.GetGlobalRect();
 	public void TestPressStationAttack() => StationAttackPressed?.Invoke();
 	KitButton _autoFire = null!, _nextEnemy = null!, _surrender = null!, _aimAssist = null!;
 	bool _autoFireHint;
@@ -422,15 +426,16 @@ public partial class FlightHud : Control, IScreen
 		_nextEnemy = At(this, new KitButton("Nächster Gegner", new Vector2(160, 56)) { FontSize = 15 }, 764, 206);
 		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
 		// Phase 28: Angriff auf die gewählte Station — unter „Nächster Gegner“, nur wenn erlaubt; zwei Tipps (folgenschwer: Fahndung, Gegenwehr)
-		_stationAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(160, 56)) { FontSize = 15 }, "station_attack", "Station angreifen",
-			() => StationAttackPressed?.Invoke()), 764, 268);
+		// Runde 23 (Handy-Test 15: lag 6 px neben „Andocken“/„Autopilot“): eine Zeile tiefer und schmaler — frei von der Kontexttaste
+		_stationAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(136, 56)) { FontSize = 15 }, "station_attack", "Station angreifen",
+			() => StationAttackPressed?.Invoke()), 764, 330);
 		_stationAttack.Visible = false;
 		// Phase 31: Angriff auf das gewählte Tor — gleicher Platz, zwei Tipps (schweres Verbrechen bei beiden Endfraktionen, das Tor fällt aus)
-		_gateAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(160, 56)) { FontSize = 15 }, "gate_attack", "Tor angreifen",
-			() => GateAttackPressed?.Invoke()), 764, 268);
+		_gateAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(136, 56)) { FontSize = 15 }, "gate_attack", "Tor angreifen",
+			() => GateAttackPressed?.Invoke()), 764, 330);
 		_gateAttack.Visible = false;
 		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — unter „Station angreifen“ (Umschalter; die Nase folgt dem gewählten Feind mit der Drehrate des Schiffs)
-		_aimAssist = At(this, new KitButton("Ziel folgen", new Vector2(160, 56)) { FontSize = 15, Toggle = true }, 764, 330);
+		_aimAssist = At(this, new KitButton("Ziel folgen", new Vector2(136, 56)) { FontSize = 15, Toggle = true }, 764, 392);
 		_aimAssist.Pressed += () => AimAssistPressed?.Invoke();
 		_aimAssist.Visible = false;
 		// Phase 27: „Ergeben“ — rechts über „Dauerfeuer“, nur wenn die Polizei oder Kaperer eine Aufgabe annehmen; Bestätigung mit zweitem Tippen (KitConfirm)

@@ -293,6 +293,7 @@ u.Events.Raised += e =>
 };
 // Phase 28 (Nacharbeit): --probe pleite — Verlauf jedes pleitegegangenen KI-Händlers (Bau, letzte Verkäufe mit Kasse danach, Abwürfe, Überfälle)
 bool probeBroke = opts.TryGetValue("probe", out var probeOpt) && probeOpt == "pleite";
+var tradeProbe = opts.TryGetValue("probe", out var tpOpt) && tpOpt == "spielerhandel" ? new PlayerTradeProbe() : null;
 var probeLog = new Dictionary<int, List<string>>();
 var probeOut = new List<string>();
 void PLog(ShipId id, string text)
@@ -586,6 +587,7 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             }
             runner.Run(u, step);
             done += step;
+            if (tradeProbe is not null && u.Tick % PlayerTradeProbe.Every == 0) tradeProbe.Sample(u);   // Runde 23: --probe spielerhandel
             if (u.Tick % 20000 == 0)   // Phase 24 (Korrektur): Piratenbestand und -kasse über die Zeit
             {
                 pirateTimeline.Add($"t{u.Tick / 1000}k {raids - raidsAtLastMark} Üf. " + string.Join(" ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value)
@@ -1002,6 +1004,7 @@ foreach (var g in u.Goods.Values)
     }
 }
 if (!bad) Console.WriteLine("Urteil: Preise im Zielbereich.");
+if (tradeProbe is not null) Console.WriteLine(tradeProbe.Report(seed, ticks));
 // Phase 10: zerfallende Karte (physisch oder für die freien Händler) ist ein eigener Befund mit eigenem Exit-Code
 bool splitBad = worstSplit is not null;
 if (worstSplit is not null)

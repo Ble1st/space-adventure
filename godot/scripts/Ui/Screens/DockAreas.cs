@@ -121,7 +121,9 @@ public static class DockAreas
 		// Phase 12: Taxi echt (Dienst „taxi“); Lager und Behörde verdrängen keine Kacheln mehr — das Raster rollt bei Bedarf
 		bool taxi = offered.Contains(TaxiService.ServiceKey);
 		int targets = taxi && ship is not null ? TaxiService.Quotes(u, st, ship).Count(q => q.Bookable) : 0;
-		list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = taxi ? $"{targets} Ziel{(targets == 1 ? "" : "e")} buchbar" : "Nicht hier", Available = taxi });
+		// Runde 23 (Handy-Test: „0 Ziele buchbar“ sah aktiv aus): ohne buchbares Ziel abgeblendet mit Grund
+		string taxiSub = !taxi ? "Nicht hier" : targets > 0 ? $"{targets} Ziel{(targets == 1 ? "" : "e")} buchbar" : "Kein Ziel buchbar";
+		list.Add(new DockAreaDef { Id = Taxi, Label = LabelFor(Taxi), Sub = taxiSub, Available = taxi && targets > 0 });
 		if (offered.Contains(StorageService.ServiceKey))
 			list.Add(new DockAreaDef { Id = Storage, Label = LabelFor(Storage), Sub = $"{StorageService.Used(st):0}/{u.Rules.StorageCapacity:0} eingelagert", Available = true });
 		// Phase 13: Forschung (Projekte ansehen, beauftragen, mitfinanzieren) an Forschungsstationen

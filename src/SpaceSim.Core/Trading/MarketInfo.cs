@@ -141,4 +141,65 @@ public static class MarketInfo
         }
         return best;
     }
+
+    /// <summary>
+    /// Runde 23 (Handy-Test: „bester Abnehmer“ Gamma mit 66,4 genannt, 49,8 gezahlt, nur 3 von 22 verkauft): was andere Händler schon zu dieser Station bringen —
+    /// dieselbe Rechnung wie die Planung der Händler (<see cref="TraderSystem"/>, Regel ReserveIncoming): unterwegs zum Verkauf ihre Ladung, unterwegs zum
+    /// Einkauf ihr Laderaum für die Ware. Nur lesend.
+    /// </summary>
+    public static float IncomingTo(Universe u, StationId station, GoodId good, ShipId? except = null)
+    {
+        float sum = 0f;
+        foreach (var o in u.Ships.Values)
+            if (o.Id != except && o.Order is TradeOrder io && io.Sell == station && io.Good == good)
+                sum += o.Phase == TradePhase.GoingToSell ? o.Cargo.GetValueOrDefault(good) : o.CapacityVolumeFor(u, good) / u.Goods[good].VolumePerUnit;
+        return sum;
+    }
+
+    /// <summary>
+    /// Runde 23: ehrliche Auskunft über einen Abnehmer für <paramref name="qty"/> Einheiten — was eine Lieferung JETZT dort einbrächte: angenommene Menge nach
+    /// derselben Verkaufsregel (<see cref="TradeActions.SaleCaps"/>/<see cref="TradeActions.SaleUnits(float, float, float, float)"/>: Annahme, Kasse ÷ Preis)
+    /// abzüglich dessen, was andere Händler schon bringen (<see cref="IncomingTo"/>), Erlös = Menge × Preis, dazu Sprünge und Reisezeit vom Standort.
+    /// null = die Station nimmt jetzt nichts an oder kann nichts zahlen.
+    /// </summary>
+    public static BuyerQuote? QuoteBuyer(Universe u, Station st, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, ShipId? self = null)
+    {
+        if (qty <= 0f || st.IsBuildSite && st.Site!.Abandoned) return null;
+        if (!st.Market.TryGetValue(good, out var e) || e.Price <= 0f) return null;
+        var intake = Acceptance(u, st, good);
+        if (!intake.Accepts) return null;
+        float incoming = u.Rules.ReserveIncoming || st.IsBuildSite ? IncomingTo(u, st.Id, good, self) : 0f;
+        float accept = MathF.Max(0f, st.AcceptableUnits(good, u.Rules) - incoming);
+        var (cap, allCap) = TradeActions.SaleCaps(u, st, good, st.Credits, accept);
+        float units = TradeActions.SaleUnits(qty, qty, cap, allCap);
+        if (units <= 0f) return null;
+        var route = st.Sector == fromSector ? new List<GateId>() : u.FindRoute(fromSector, st.Sector);
+        if (route is null) return null;
+        float ticks = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(default));
+        return new BuyerQuote(st, e.Price, units, units * e.Price, incoming, route.Count, ticks);
+    }
+
+    /// <summary>
+    /// Runde 23: alle Abnehmer, die jetzt etwas von <paramref name="qty"/> Einheiten annehmen und bezahlen, nach erwartetem Erlös für diese Menge (dann
+    /// höherer Preis, weniger Sprünge, Stations-Id) — die Rangfolge der Handelsansicht. Ohne <paramref name="exclude"/>.
+    /// </summary>
+    public static List<BuyerQuote> HonestBuyers(Universe u, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, StationId? exclude = null, ShipId? self = null)
+    {
+        var list = new List<BuyerQuote>();
+        foreach (var st in u.StationsTrading(good))
+            if (st.Id != exclude && QuoteBuyer(u, st, good, qty, fromSector, fromPos, self) is { } q) list.Add(q);
+        list.Sort((a, b) => b.Revenue != a.Revenue ? b.Revenue.CompareTo(a.Revenue) : b.Price != a.Price ? b.Price.CompareTo(a.Price)
+            : a.Jumps != b.Jumps ? a.Jumps.CompareTo(b.Jumps) : a.Station.Id.Value.CompareTo(b.Station.Id.Value));
+        return list;
+    }
+
+    /// <summary>Runde 23: der beste ehrliche Abnehmer für <paramref name="qty"/> Einheiten (siehe <see cref="HonestBuyers"/>), null = derzeit keiner.</summary>
+    public static BuyerQuote? BestHonestBuyer(Universe u, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, StationId? exclude = null, ShipId? self = null)
+    {
+        var l = HonestBuyers(u, good, qty, fromSector, fromPos, exclude, self);
+        return l.Count > 0 ? l[0] : null;
+    }
 }
+
+/// <summary>Runde 23: ehrliche Abnehmer-Auskunft — Station, Preis, angenommene Menge, erwarteter Erlös, schon unterwegs von anderen, Sprünge, Reisezeit (Ticks).</summary>
+public readonly record struct BuyerQuote(Station Station, float Price, float Units, float Revenue, float Incoming, int Jumps, float TravelTicks);

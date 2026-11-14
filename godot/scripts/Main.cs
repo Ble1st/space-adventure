@@ -162,6 +162,7 @@ public partial class Main : Node3D
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
 		_hud.DockMenu.AreaSelected += OnDockArea;
 		_hud.DockMenu.UndockPressed += Undock;
+		_hud.DockMenu.MenuPressed += ToggleCommand;   // Runde 23
 		_hud.DockTrade.AreaSelected += OnDockArea;
 		_hud.DockTrade.BackToMenu += ShowDockMenu;
 		_hud.DockTrade.UndockPressed += Undock;
@@ -687,7 +688,7 @@ public partial class Main : Node3D
 			case "cam_invert": _sfx.Play(SfxId.Click); _orbit.InvertDrag = !_orbit.InvertDrag; RefreshCameraMenu(); break;
 			case "cam_reset": ResetCamera(); RefreshCameraMenu(); break;
 			case "emergency": CallEmergency(); break;
-			case "close": _sfx.Play(SfxId.Click); _hud.Screens.Hide(); if (_docked == null) _hud.Flight.Visible = true; break;
+			case "close": _sfx.Play(SfxId.Click); _hud.Screens.Hide(); if (_docked == null) _hud.Flight.Visible = true; else ShowDockMenu(); break;   // Runde 23: angedockt zurück ins Dock-Menü
 			default:
 				if (CommandAreas.All.Any(a => a.Id == action)) OpenCcArea(action);
 				break;
@@ -745,11 +746,12 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Click);
 		_hud.Screens.Hide();
 		if (_docked == null) _hud.Flight.Visible = true;
+		else ShowDockMenu();   // Runde 23: Kommandozentrale/Menü angedockt geöffnet → zurück ins Dock-Menü
 	}
 
 	void ToggleCommand()
 	{
-		if (_hud.Screens.Current == _hud.Command) _hud.Screens.Hide();
+		if (_hud.Screens.Current == _hud.Command) { _hud.Screens.Hide(); if (_docked != null) ShowDockMenu(); }
 		else { _hud.Map.Visible = false; RefreshCameraMenu(); _hud.Screens.Show(_hud.Command); }
 	}
 

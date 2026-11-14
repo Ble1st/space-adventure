@@ -26,6 +26,8 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 	public event Action<string>? AreaSelected;
 	/// <summary>Große Taste „Abdocken“ unten.</summary>
 	public event Action? UndockPressed;
+	/// <summary>Runde 23: „≡ Menü“ (Kamera, Ton, Speichern/Laden/Neues Spiel) auch angedockt.</summary>
+	public event Action? MenuPressed;
 
 	long _builtTick = -1;
 
@@ -65,11 +67,21 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 		string sector = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
 
 		// Karte mit freier Platzierung (ein PanelContainer würde alle Kinder strecken); Innenrand 20 px
-		var card = CardBg(this, 350, 36, 580, 648, PanelSolid, Edge, 16, 2);
+		var card = CardBg(this, 350, 30, 580, 662, PanelSolid, Edge, 16, 2);   // Runde 23: Fußzeilen berührten den Rahmen
 
 		// Titel: Station, Sektor, Fraktion, Typ
-		At(card, Text(st.Name, 26, Cyan), 20, 14, 540, 32);
-		At(card, Text($"{sector} · {faction} · {type} · Kasse {st.Credits:0} Cr", 15, Dim), 20, 50, 540, 22);
+		At(card, Text(st.Name, 26, Cyan), 20, 14, 460, 32);
+		// Runde 23 (Handy-Test: „Neues Spiel“ war angedockt nicht erreichbar — das Hamburger-Menü gehört zur Flugansicht): Menü auch im Dock-Menü
+		var menu = At(card, new KitButton("≡ Menü", new Vector2(84, 40)) { FontSize = 15 }, 476, 10);
+		menu.Pressed += () => MenuPressed?.Invoke();
+		// Runde 23 (Handy-Test: „… · Kass…“ abgeschnitten): die Kasse bleibt immer lesbar — erst fällt der Typ weg, dann wird die Fraktion gekürzt
+		string cash = $" · Kasse {st.Credits:0} Cr";
+		var subFont = ThemeDB.FallbackFont;
+		string sub = $"{sector} · {faction} · {type}";
+		if (subFont.GetStringSize(sub + cash, HorizontalAlignment.Left, -1, 15).X > 540f) sub = $"{sector} · {faction}";
+		sub = SpaceAdventure.Ui.Kit.KitButton.Fit(subFont, sub, 15, 540f - subFont.GetStringSize(cash, HorizontalAlignment.Left, -1, 15).X - 4f);
+		TestSubtitle = sub + cash;
+		At(card, Text(sub + cash, 15, Dim), 20, 50, 540, 22);
 
 		// Angedockte Schiffe oben als Karten (Phase 12: echt — das aktive Schiff, eigene im Hangar, fremde mit Besitzer)
 		var docked = SpaceSim.Core.Simulation.Hangar.DockedShips(u, st).Where(s => s.Id != ship.Id).ToList();
@@ -107,9 +119,12 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 		string berth = st.Owner == u.PlayerActor ? "eigene Station: Liegeplätze gratis"
 			: fee > 0f ? $"Liegegebühr hier {fee:0} Cr/Tag für {own.Count} Schiff{(own.Count == 1 ? "" : "e")}" : "Liegegebühr nur für geparkte Schiffe";
 		// Runde 4: zwei Zeilen (eine Zeile wurde am Rand gekürzt: „Liegegebühr nur für …“)
-		At(card, Text($"Hülle {(int)ship.Hull}/{(int)ship.MaxHull}{(SpaceSim.Core.Services.RepairService.NeedsRepair(ship) ? " – Reparatur im Dienst „Reparatur“" : "")} · {(int)u.WalletOf(ship).Credits} Credits", 13, Dim, HorizontalAlignment.Center), 20, 622, 540, 18);
-		At(card, Text(berth, 13, Dim, HorizontalAlignment.Center), 20, 638, 540, 18);
+		At(card, Text($"Hülle {(int)ship.Hull}/{(int)ship.MaxHull}{(SpaceSim.Core.Services.RepairService.NeedsRepair(ship) ? " – Reparatur im Dienst „Reparatur“" : "")} · {(int)u.WalletOf(ship).Credits} Credits", 13, Dim, HorizontalAlignment.Center), 20, 624, 540, 18);
+		At(card, Text(berth, 13, Dim, HorizontalAlignment.Center), 20, 640, 540, 18);
 	}
+
+	/// <summary>Runde 23: Unterzeile des Titels (Selbsttest: Kasse sichtbar).</summary>
+	public string TestSubtitle { get; private set; } = "";
 
 	/// <summary>Für den Selbsttest: Zahl der Bereichskacheln.</summary>
 	public int TestTiles { get; private set; }

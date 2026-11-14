@@ -106,7 +106,14 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			{
 				bool open = _expanded is { } g && g == row.Good;
 				var r = new TradeRow(this, row, open, w - 10);
-				r.Tapped += () => { _expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row); Invalidate(); if (!open) EnsureExpandedVisible(); };
+				r.Tapped += () =>
+				{
+					// Runde 23 (Handy-Test: Liste sprang beim Öffnen): die angetippte Zeile bleibt an ihrem Platz — klappt darüber eine andere zu, rollt die Liste nach
+					float before = RowTop(row.Good);
+					_expanded = open ? null : row.Good; if (!open) _qty = DefaultQty(row);
+					if (_scroll is KitScroll sk) { float delta = RowTop(row.Good) - before; if (MathF.Abs(delta) > 0.5f) sk.ScrollTo((int)MathF.Max(0f, sk.ScrollVertical + delta)); }
+					Invalidate(); if (!open) EnsureExpandedVisible();
+				};
 				r.EditorBuy += q => Buy(row, q);
 				r.EditorSell += q => Sell(row, q);
 				r.EditorDrop += q => Drop(row, q);
@@ -151,6 +158,18 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	/// Zweiter Gerätetest Phase 28: die aufgeklappte Zeile ganz in den sichtbaren Bereich rollen (der Editor war unten abgeschnitten). Zeilenhöhen sind fest
 	/// (56 px, aufgeklappt + Editor, Abstand 6), daher ohne Layout berechenbar.
 	/// </summary>
+	/// <summary>Runde 23: Oberkante einer Zeile in der Liste (feste Zeilenhöhen wie <see cref="EnsureExpandedVisible"/>).</summary>
+	float RowTop(GoodId good)
+	{
+		float y = 0f;
+		foreach (var row in _rows)
+		{
+			if (row.Good == good) return y;
+			y += (row.Good == _expanded ? 56f + Editor.HeightFor(row) : 56f) + 6f;
+		}
+		return y;
+	}
+
 	void EnsureExpandedVisible()
 	{
 		if (_scroll is not KitScroll ks || _expanded is not { } g) return;
@@ -164,12 +183,22 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		if (top < 0f) return;
 		float view = ks.Size.Y > 0f ? ks.Size.Y : 300f;
 		float cur = ks.ScrollVertical;
+		bottom += 10f;   // Runde 23: „Abwerfen“ samt Rand ganz sichtbar
 		if (bottom > cur + view) ks.ScrollTo((int)Mathf.Min(top, bottom - view));
 		else if (top < cur) ks.ScrollTo((int)top);
 	}
 
 	/// <summary>Selbsttest: Rollbereich der Liste (Rechteck und Position).</summary>
 	public KitScroll? TestScroll => _scroll as KitScroll;
+	/// <summary>Runde 23: Hinweiszeilen des offenen Editors (Kauf/Verkauf, Abnehmer, Erwartung) — leer ohne Editor.</summary>
+	public (string, string, string) TestEditorLines
+	{
+		get
+		{
+			static Editor? Find(Node n) { foreach (var c in n.GetChildren()) { if (c is Editor e && !e.IsQueuedForDeletion()) return e; if (Find(c) is { } f) return f; } return null; }
+			return Find(this)?.TestLines ?? ("", "", "");
+		}
+	}
 	/// <summary>Selbsttest: Menge des Editors, wie der Bildschirm sie hält.</summary>
 	public float TestQty => _qty;
 	/// <summary>Selbsttest: angezeigte Menge im (einzigen) Editor („“ = kein Editor).</summary>
@@ -451,7 +480,8 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		public event Action<float>? Buy, Sell, Drop, QtyChanged;
 
 		/// <summary>Phase 18: Höhe des Editors — mit „Abwerfen“-Zeile (56 px Touch-Ziel) höher.</summary>
-		public static float HeightFor(Row r) => ShowDrop(r) ? 182f : 116f;
+		// Runde 23: eine Zeile mehr (Kauf/Verkauf, Abnehmer, Erwartung)
+		public static float HeightFor(Row r) => ShowDrop(r) ? 200f : 134f;
 
 		readonly TradeScreen _owner;
 		readonly Row _row;
@@ -483,9 +513,9 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// Phase 18: Abwerfen neben dem Grund, wenn die Station die Ware an Bord nicht (ganz) nimmt — erst beim zweiten Tipp (KitConfirm)
 			if (ShowDrop(row))
 			{
-				var drop = At(this, new KitButton("Abwerfen", new Vector2(200, 56)) { FontSize = 19 }, 34, 120);
+				var drop = At(this, new KitButton("Abwerfen", new Vector2(200, 56)) { FontSize = 19 }, 34, 136);
 				owner._confirm.Wire(drop, DropKey(row), "Abwerfen", () => Drop?.Invoke(_qty));
-				At(this, Text($"Ware verschwindet ohne Erlös · gewählte Menge, „Max“ = alles ({row.Held:0.##} an Bord)", 13, new Color(Dim, 0.85f)), 246, 136, Mathf.Max(100f, w - 260), 22);
+				At(this, Text($"Ware verschwindet ohne Erlös · gewählte Menge, „Max“ = alles ({row.Held:0.##} an Bord)", 13, new Color(Dim, 0.85f)), 246, 152, Mathf.Max(100f, w - 260), 22);
 			}
 			RefreshButtons();
 		}
@@ -508,19 +538,77 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			_sellBtn.State = CanSell(_row) && _qty >= 1f ? KitButtonState.Warn : KitButtonState.Disabled;
 		}
 
+		double _redrawAt;
+		public override void _Process(double delta)
+		{
+			// Runde 23 (Handy-Test: Summe 1426 angezeigt, 1377 gebucht): Preise und Abnehmer laufend aus dem Markt, nicht aus dem Zeilen-Schnappschuss
+			_redrawAt -= delta;
+			if (_redrawAt <= 0) { _redrawAt = 0.25; QueueRedraw(); }
+		}
+
+		/// <summary>Runde 23: die drei Hinweiszeilen des Editors (Kauf/Verkauf, Abnehmer, Erwartung) mit Farbe — reine Anzeige, Werte live aus dem Core.</summary>
+		public static (string Line1, string Line2, string Line3, bool Loss) Lines(DockContext ctx, Row row, float qty)
+		{
+			var u = ctx.U; var st = ctx.Station; var ship = ctx.Ship;
+			float price = st.Market.TryGetValue(row.Good, out var e) ? e.Price : row.Price;
+			// Kaufseite: was abgebucht wird — oder der Grund, warum „Kaufen“ aus ist (immer aus dem Angebot)
+			string buy = row.HasBuy && row.Buy.Amount >= 1f
+				? $"Kauf {MathF.Min(qty, MathF.Floor(row.Buy.Amount)):0} × {price:0.0} = {MathF.Min(qty, MathF.Floor(row.Buy.Amount)) * price:0} Cr"
+				: $"Kaufen: {BuyReason(u, st, ship, row)}";
+			// Verkaufsseite: was ein Verkauf wirklich brächte (Angebotsmenge × Preis), 0 wenn die Station nichts nimmt
+			string sell = row.Held > 0f ? (row.Sell.Amount > 0f ? $" · Verkauf hier {MathF.Min(qty, row.Sell.Amount) * price:0} Cr" : " · Verkauf hier —") : "";
+			// Abnehmer: ehrlich für die gewählte Menge (Kaufseite) bzw. die Ladung (Verkaufsseite)
+			bool buying = row.HasBuy && row.Buy.Amount >= 1f;
+			float q = buying ? MathF.Max(1f, qty) : MathF.Max(row.Held, qty);
+			var best = MarketInfo.BestHonestBuyer(u, row.Good, q, ship.Sector, ship.Position, st.Id, ship.Id);
+			string l2, l3 = ""; bool loss = false;
+			if (best is not { } b) l2 = "Derzeit kein Abnehmer";
+			else
+			{
+				string sec = u.Sectors.TryGetValue(b.Station.Sector, out var bs) ? bs.Name : "?";
+				l2 = $"Abnehmer: {b.Station.Name} ({sec}, {b.Jumps} {(b.Jumps == 1 ? "Sprung" : "Sprünge")}) zahlt {b.Price:0.0} · nimmt jetzt {b.Units:0.#}";
+				if (buying)
+				{
+					float units = MathF.Min(qty, MathF.Floor(row.Buy.Amount));
+					float result = b.Revenue - units * price;
+					loss = result < 0f || b.Units < units - 0.001f;
+					l3 = b.Units < units - 0.001f ? $"Abnehmer nimmt nur {b.Units:0.#} von {units:0} · Ergebnis {result:+0;−0;0} Cr"
+						: result >= 0f ? $"Erwartet: +{result:0} Cr" : $"Verlust −{-result:0} Cr";
+					l3 += " · Preise ändern sich unterwegs";
+				}
+				else if (row.Held > 0f) l3 = $"dort {b.Price - price:+0.0;−0.0;0.0} je Einheit gegenüber hier · Preise ändern sich unterwegs";
+			}
+			if (row.Sell.Note is { } note && row.Held > 0f) l3 = $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : "");
+			return (buy + sell, l2, l3, loss);
+		}
+
+		/// <summary>Runde 23: Grund für ein abgeblendetes „Kaufen“ aus dem Angebot (Exportsenke, Fahndung, Lager leer, Geld, Laderaum).</summary>
+		public static string BuyReason(Universe u, Station st, Ship ship, Row row)
+		{
+			if (!row.Traded || !row.HasBuy) return "Handelt diese Ware nicht";
+			if (row.Buy.Note is { Length: > 0 } n) return n;   // Fahndung (Handelsverweigerung)
+			if (SpaceSim.Core.Simulation.ExportRules.Buys(u, st, row.Good)) return "Nur Ankauf (Export)";
+			if (st.IsBuildSite) return "Baustelle verkauft nicht";
+			if (!st.Market.TryGetValue(row.Good, out var e) || e.Amount < 1f) return "Lager leer";
+			if (u.WalletOf(ship).Credits < e.Price) return "Nicht genug Credits";
+			if (ship.FreeUnits(u, row.Good) < 1f) return "Kein Platz im Laderaum (für diese Form)";
+			return "nicht kaufbar";
+		}
+
 		public override void _Draw()
 		{
 			var font = ThemeDB.FallbackFont;
-			float sum = _qty * _row.Price;
 			var ctx = _owner.Ctx;
-			var best = ctx != null ? MarketInfo.BestBuyerForGood(ctx.U, _row.Good, ctx.Station.Id) : null;
-			string bestText = best != null
-				? $"beste bekannte Verkaufsstelle: {best.Name} zahlt {best.Market[_row.Good].Price:0.0} ({best.Market[_row.Good].Price - _row.Price:+0.0;-0.0;0.0})"
-				: "keine andere bekannte Verkaufsstelle";
-			DrawString(font, new Vector2(34, 84), $"Summe {sum:0} Cr · {bestText}", HorizontalAlignment.Left, -1, 14, Dim);
-			// Phase 16: Annahme-Hinweis des Verkaufsangebots statt des Trend-Platzhalters, wenn vorhanden
-			if (_row.Sell.Note is { } note) DrawString(font, new Vector2(34, 106), $"Verkauf: {note}", HorizontalAlignment.Left, -1, 13, SellNoteColor(_row));
-			else DrawString(font, new Vector2(34, 106), UiPlaceholders.TrendSoon, HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.65f));
+			if (ctx == null) return;
+			var (l1, l2, l3, loss) = Lines(ctx, _row, _qty);
+			float w = Size.X - 48f;
+			DrawString(font, new Vector2(34, 78), KitButton.Fit(font, l1, 14, w), HorizontalAlignment.Left, -1, 14, Dim);
+			DrawString(font, new Vector2(34, 98), KitButton.Fit(font, l2, 14, w), HorizontalAlignment.Left, -1, 14, l2.StartsWith("Derzeit") ? new Color(Dim, 0.7f) : White);
+			DrawString(font, new Vector2(34, 118), KitButton.Fit(font, l3, 13, w), HorizontalAlignment.Left, -1, 13, loss ? Red : l3.StartsWith("Erwartet") ? Green : SellNoteColor(_row));
+			TestLines = (l1, l2, l3);
 		}
+
+		/// <summary>Runde 23: zuletzt gezeichnete Hinweiszeilen (Selbsttest: Überlauf, Inhalte).</summary>
+		public (string, string, string) TestLines { get; private set; }
 	}
 }
