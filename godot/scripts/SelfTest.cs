@@ -2072,12 +2072,17 @@ public partial class SelfTest : Node
 					var start = hq.Position + Vec2.FromAngle(k * 1.9f + 0.4f) * 230f;
 					_m.TestTeleportTo(SpaceSim.Core.Combat.CombatSpace.Clear(uni, hq.Sector, start));
 					_m.TestSetStationTarget(hq.Id);
+					// Runde 26: Flugzeit-Schätzung der Abnehmer-Auskunft (PlayerTrip) gegen die echte Flugzeit der Ansicht
+					var plT = uni.Ships[uni.PlayerShip];
+					_p26TripEst = SpaceSim.Core.Flight.PlayerTrip.SecondsTo(uni, plT.Sector, plT.Position, hq, plT) - SpaceSim.Core.Flight.PlayerTrip.DockSeconds;
 					break;
 				}
 				if (_frame - _stageStart < 40 + k * 3000) break;
 				if (_m.Docked)
 				{
-					Log($"Autopilot Start {k}: angedockt nach {(_frame - _stageStart - 40 - k * 3000) / 60f:0.0} s");
+					float realS = (_frame - _stageStart - 40 - k * 3000) / 60f;
+					Log($"Autopilot Start {k}: angedockt nach {realS:0.0} s (Schätzung PlayerTrip {_p26TripEst:0.0} s)");
+					Check(_p26TripEst > 0.4f * realS && _p26TripEst < 2f * realS, $"Runde 26: Flugzeit-Schätzung passt zur echten Flugzeit ({_p26TripEst:0.0} s gegen {realS:0.0} s)");
 					_m.TestUndock();
 					_p28Try++;
 					if (_p28Try >= 4) { Check(true, "Autopilot zum HQ Alpha kommt von vier Startpunkten an"); Next(); }
@@ -2482,6 +2487,7 @@ public partial class SelfTest : Node
 					_m.HudRef.CcSector.TestSelectStation(hq.Id);
 					_m.HudRef.CcSector.TestTargetHere();
 					Check(_m.TestFight.Target.Value == 0 && _m.HudRef.Flight.TestTargetName.EndsWith(hq.Name), $"Zielkarte zeigt sofort die neue Station ({_m.HudRef.Flight.TestTargetName})");
+					{ var (nr, rl) = _m.HudRef.Flight.TestTargetNameEdge; Check(nr <= rl, $"Runde 26: Name der Zielkarte endet vor dem Radar ({nr:0} ≤ {rl:0})"); }
 					Check(_m.TestTargetStation == hq.Id.Value && !_m.TestAutopilotOn && !_m.TestScreenOpen("cc.sector"), "„Ziel wählen“ in der Sektoransicht wählt die Station ohne Autopilot");
 					Next();
 				}
@@ -2682,6 +2688,7 @@ public partial class SelfTest : Node
 	string _p28WarAlert = "";
 	SectorId _p28LastSector;
 	int _p28SectorFrame, _p28Jumps, _p28Hops, _p28Scroll, _p28Try;
+	float _p26TripEst;   // Runde 26: geschätzte Flugzeit in Stufe 79
 	SpaceAdventure.Ui.Kit.KitScroll? _p28ScrollNode;
 	static SpaceAdventure.Ui.Kit.KitScroll? FindScroll(Node root, string key)
 	{

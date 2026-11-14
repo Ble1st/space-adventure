@@ -23,7 +23,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.trade";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
-	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 1f; _message = ""; _msgOk = true; }
+	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 1f; _message = ""; _msgOk = true; _hint.Clear(); }
 	protected override bool ShowShip => true;
 
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
@@ -52,6 +52,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	bool _msgOk = true;
 	ScrollContainer? _scroll;
 	readonly KitConfirm _confirm = new();   // Phase 18: „Abwerfen“ erst beim zweiten Tipp
+	internal readonly HintState _hint = new();   // Runde 26: gehaltener Abnehmer je Ware und Flugzeiten (Sitzung der Handelsansicht)
 
 	public TradeScreen() => AreaId = DockAreas.Trade;
 
@@ -197,6 +198,16 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		{
 			static Editor? Find(Node n) { foreach (var c in n.GetChildren()) { if (c is Editor e && !e.IsQueuedForDeletion()) return e; if (Find(c) is { } f) return f; } return null; }
 			return Find(this)?.TestLines ?? ("", "", "");
+		}
+	}
+
+	/// <summary>Runde 26: Ampel des offenen Editors (null = ohne Abnehmer oder ohne Editor).</summary>
+	public SpaceSim.Core.Trading.TripVerdict? TestEditorVerdict
+	{
+		get
+		{
+			static Editor? Find(Node n) { foreach (var c in n.GetChildren()) { if (c is Editor e && !e.IsQueuedForDeletion()) return e; if (Find(c) is { } f) return f; } return null; }
+			return Find(this)?.TestVerdict;
 		}
 	}
 
@@ -560,7 +571,14 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		}
 
 		/// <summary>Runde 23: die drei Hinweiszeilen des Editors (Kauf/Verkauf, Abnehmer, Erwartung) mit Farbe — reine Anzeige, Werte live aus dem Core.</summary>
-		public static (string Line1, string Line2, string Line3, bool Loss) Lines(DockContext ctx, Row row, float qty, Func<string, int, bool>? fits = null)
+		public static (string Line1, string Line2, string Line3, bool Loss) Lines(DockContext ctx, Row row, float qty, Func<string, int, bool>? fits = null, HintState? hint = null)
+		{
+			var r = LinesEx(ctx, row, qty, fits, hint);
+			return (r.L1, r.L2, r.L3, r.Verdict == TripVerdict.Loss);
+		}
+
+		/// <summary>Runde 26: Hinweiszeilen mit Ampel (grün/gelb/rot) und dem genannten Abnehmer.</summary>
+		public static (string L1, string L2, string L3, TripVerdict? Verdict, StationId Buyer) LinesEx(DockContext ctx, Row row, float qty, Func<string, int, bool>? fits, HintState? hint)
 		{
 			// Runde 25 (Gerätetest a18/a20: Zeilen endeten mit „…“): jede Zeile hat kürzere Fassungen; gewählt wird die längste, die passt
 			string Pick(int size, params string[] variants) { if (fits is null) return variants[0]; foreach (var v in variants) if (fits(v, size)) return v; return variants[^1]; }
@@ -575,39 +593,44 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// Abnehmer: ehrlich für die gewählte Menge (Kaufseite) bzw. die Ladung (Verkaufsseite)
 			bool buying = row.HasBuy && row.Buy.Amount >= 1f;
 			float q = buying ? MathF.Max(1f, qty) : MathF.Max(row.Held, qty);
-			var best = MarketInfo.BestHonestBuyer(u, row.Good, q, ship.Sector, ship.Position, st.Id, ship.Id);
-			string l2, l3 = ""; bool loss = false;
+			// Runde 26: Rangfolge nach der vorsichtigen Schätzung (MarketInfo.CarefulPrice mit dem Preisgedächtnis der Sitzung); der genannte Abnehmer bleibt,
+			// solange er nicht deutlich (> 10 %) schlechter als der beste wird — vorher wechselte er bei offenem Editor im Sekundentakt
+			var list = MarketInfo.HonestBuyers(u, row.Good, q, ship.Sector, ship.Position, st.Id, ship.Id, ctx.Prices);
+			BuyerQuote? best = list.Count > 0 ? list[0] : null;
+			if (best is { } top && hint is not null && hint.HeldFor(st.Id, row.Good) is { } held)
+				foreach (var c in list)
+					if (c.Station.Id == held && c.Revenue >= HintState.Keep * top.Revenue) { best = c; break; }
+			string l2, l3 = ""; TripVerdict? verdict = null;
 			if (best is not { } b) l2 = "Derzeit kein Abnehmer";
 			else
 			{
+				hint?.Hold(st.Id, row.Good, b.Station.Id);
 				string sec = u.Sectors.TryGetValue(b.Station.Sector, out var bs) ? bs.Name.Replace("Sektor ", "") : "?";
-				// Runde 25 (Gerätetest: „zahlt 12,4“, bei Ankunft 4,4): heutiger Preis und der erwartete Preis bei Ankunft (Bestand + was andere schon hinbringen)
-				bool same = MathF.Abs(b.Price - b.PriceNow) < 0.05f;
-				string pr = same ? $"zahlt {b.Price:0.0}" : $"zahlt jetzt {b.PriceNow:0.0}, bei Ankunft ≈ {b.Price:0.0}";
-				string prShort = same ? $"zahlt {b.Price:0.0}" : $"jetzt {b.PriceNow:0.0} → Ankunft {b.Price:0.0}";
-				string prTiny = same ? $"{b.Price:0.0}" : $"{b.PriceNow:0.0} → {b.Price:0.0}";
+				float secs = hint?.Seconds(u, ship, b.Station) ?? float.NaN;
+				string time = float.IsNaN(secs) ? "" : ", " + SpaceSim.Core.Flight.PlayerTrip.Text(secs);
+				// Runde 26 (Gerätetest: nur „zahlt 11,4“ zu sehen, bei Ankunft 3,4): immer beide Werte — heute und die vorsichtige Schätzung bei Ankunft
 				string name = b.Station.Name, nameShort = name.Length > 18 ? name[..17] + "…" : name;
-				l2 = Pick(14, $"Abnehmer: {name} ({sec}, {b.Jumps} Spr.) {pr} · nimmt {b.Units:0.#}",
-					$"{name} ({sec}, {b.Jumps} Spr.): {prShort} · nimmt {b.Units:0.#}",
-					$"{name} ({b.Jumps} Spr.): {prShort} · nimmt {b.Units:0.#}",
-					$"{nameShort}: {prTiny} · nimmt {b.Units:0.#}");
-				if (buying)
+				l2 = Pick(14, $"Abnehmer: {name} ({sec}, {b.Jumps} Spr.{time}) zahlt jetzt {b.PriceNow:0.0} · bei Ankunft etwa {b.Price:0.0} · nimmt {b.Units:0.#}",
+					$"{name} ({sec}{time}): jetzt {b.PriceNow:0.0} · Ankunft etwa {b.Price:0.0} · nimmt {b.Units:0.#}",
+					$"{name}{time}: jetzt {b.PriceNow:0.0} · Ankunft ≈ {b.Price:0.0} · nimmt {b.Units:0.#}",
+					$"{nameShort}: {b.PriceNow:0.0} → ≈ {b.Price:0.0} · nimmt {b.Units:0.#}");
+				float units = buying ? MathF.Min(qty, MathF.Floor(row.Buy.Amount)) : MathF.Min(qty, row.Held);
+				var v = MarketInfo.Verdict(b, price, units);
+				float result = MathF.Min(b.Units, units) * b.Price - units * price;
+				if (buying || row.Held > 0f)
 				{
-					float units = MathF.Min(qty, MathF.Floor(row.Buy.Amount));
-					float result = b.Revenue - units * price;
-					loss = result < 0f || b.Units < units - 0.001f;
-					l3 = b.Units < units - 0.001f ? Pick(13, $"Abnehmer nimmt nur {b.Units:0.#} von {units:0} · Ergebnis {result:+0;−0;0} Cr", $"nimmt nur {b.Units:0.#}/{units:0} · {result:+0;−0;0} Cr")
-						: result >= 0f ? $"Erwartet bei Ankunft: +{result:0} Cr" : $"Verlust bei Ankunft −{-result:0} Cr";
+					verdict = v;
+					string why = b.CashCover < MarketInfo.GreenCover ? "Kasse des Abnehmers knapp" : b.AcceptCover < MarketInfo.GreenCover ? "Lager des Abnehmers fast voll" : "knappe Spanne";
+					string head = buying ? "" : "statt hier: ";
+					l3 = b.Units < units - 0.001f ? Pick(13, $"Abnehmer nimmt nur {b.Units:0.#} von {units:0} · Ergebnis etwa {result:+0;−0;0} Cr", $"nimmt nur {b.Units:0.#}/{units:0} · {result:+0;−0;0} Cr")
+						: v == TripVerdict.Good ? $"{head}Erwartet bei Ankunft: etwa +{result:0} Cr"
+						: v == TripVerdict.Unsure ? Pick(13, $"{head}Unsicher: etwa {result:+0;−0;0} Cr ({why})", $"Unsicher: {result:+0;−0;0} Cr ({why})", $"Unsicher: {result:+0;−0;0} Cr")
+						: Pick(13, $"{head}Verlust bei Ankunft etwa −{-result:0} Cr", $"Verlust etwa −{-result:0} Cr");
 				}
-				else if (row.Held > 0f) l3 = $"dort bei Ankunft {b.Price - price:+0.0;−0.0;0.0} je Einheit gegenüber hier";
 			}
 			if (row.Sell.Note is { } note && row.Held > 0f)
-			{
-				string diff = l3.Replace(" gegenüber hier", "").Replace("dort bei Ankunft ", "dort ").Replace(" je Einheit", "/E.");
-				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + diff : ""),
-					$"hier: {note}" + (l3.Length > 0 ? " · " + diff : ""), $"hier: {note}");
-			}
-			return (buy + sell, l2, l3, loss);
+				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}");
+			return (buy + sell, l2, l3, verdict, best?.Station.Id ?? default);
 		}
 
 		/// <summary>Runde 23: Grund für ein abgeblendetes „Kaufen“ aus dem Angebot (Exportsenke, Fahndung, Lager leer, Geld, Laderaum).</summary>
@@ -629,13 +652,17 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			var ctx = _owner.Ctx;
 			if (ctx == null) return;
 			float w = Size.X - 48f;
-			var (l1, l2, l3, loss) = Lines(ctx, _row, _qty, (t, fs) => font.GetStringSize(t, HorizontalAlignment.Left, -1, fs).X <= w);
+			var (l1, l2, l3, verdict, _) = LinesEx(ctx, _row, _qty, (t, fs) => font.GetStringSize(t, HorizontalAlignment.Left, -1, fs).X <= w, _owner._hint);
 			TestOverflow = font.GetStringSize(l1, HorizontalAlignment.Left, -1, 14).X > w || font.GetStringSize(l2, HorizontalAlignment.Left, -1, 14).X > w
 				|| font.GetStringSize(l3, HorizontalAlignment.Left, -1, 13).X > w;
 			DrawString(font, new Vector2(34, 78), KitButton.Fit(font, l1, 14, w), HorizontalAlignment.Left, -1, 14, Dim);
 			DrawString(font, new Vector2(34, 98), KitButton.Fit(font, l2, 14, w), HorizontalAlignment.Left, -1, 14, l2.StartsWith("Derzeit") ? new Color(Dim, 0.7f) : White);
-			DrawString(font, new Vector2(34, 118), KitButton.Fit(font, l3, 13, w), HorizontalAlignment.Left, -1, 13, loss ? Red : l3.StartsWith("Erwartet") ? Green : SellNoteColor(_row));
+			// Runde 26: Ampel — grün nur, wenn auch die vorsichtige Schätzung Gewinn zeigt und der Abnehmer die Ladung sicher nimmt; gelb „unsicher“
+			var c3 = verdict switch { TripVerdict.Good => Green, TripVerdict.Unsure => Orange, TripVerdict.Loss => Red, _ => SellNoteColor(_row) };
+			if (_row.Sell.Note is not null && _row.Held > 0f && verdict is null) c3 = SellNoteColor(_row);
+			DrawString(font, new Vector2(34, 118), KitButton.Fit(font, l3, 13, w), HorizontalAlignment.Left, -1, 13, c3);
 			TestLines = (l1, l2, l3);
+			TestVerdict = verdict;
 		}
 
 		/// <summary>Runde 23: zuletzt gezeichnete Hinweiszeilen (Selbsttest: Überlauf, Inhalte).</summary>
@@ -643,5 +670,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		public string TestDropHint { get; private set; } = "";
 		/// <summary>Runde 25: musste eine Hinweiszeile trotz kürzester Fassung gekürzt werden?</summary>
 		public bool TestOverflow { get; private set; }
+		/// <summary>Runde 26: Ampel der zuletzt gezeichneten Zeilen.</summary>
+		public TripVerdict? TestVerdict { get; private set; }
 	}
 }

@@ -158,6 +158,8 @@ public partial class FlightHud : Control, IScreen
 	public string TestEscapeStatus => _escape.Visible ? _escape.Text : "";
 	public string TestStationAttackSub => _stationAttack.Sub;
 	public string TestTargetName => _tName.Text;
+	/// <summary>Runde 26: rechter Rand der Namenszeile und linker Rand des Radars (Kartenkoordinaten).</summary>
+	public (float NameRight, float RadarLeft) TestTargetNameEdge => (_tName.GetParent<Control>().Position.X + _tName.Position.X + _tName.Size.X, _radar.Position.X);
 	/// <summary>Runde 20: Text der Kontexttaste („“ = verborgen).</summary>
 	public string TestContextLabel => _contextBtn.Visible ? _contextBtn.Text : "";
 
@@ -375,7 +377,9 @@ public partial class FlightHud : Control, IScreen
 		_tCombat = Text("", 15, UiKit.Cyan);
 		_tOdds = Text("", 14, UiKit.Orange);   // Runde 5: Kräfteverhältnis eines Stationsangriffs
 		// Gerätetest: Zeilen der Zielkarte enden vor dem Radarkreis (der Hinweistext lief hinein) — gekürzt mit „…“
-		foreach (var l in new[] { _tName, _tInfo, _tArc, _tCombat }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; l.CustomMinimumSize = new Vector2(246, 0); }
+		// Runde 26 (Gerätetest b14_1: langer Stationsname lief unter den Radarring): die Zeilen füllen nicht die Kartenbreite (die Kräftezeile ist breiter),
+		// sondern bleiben 246 px breit
+		foreach (var l in new[] { _tName, _tInfo, _tArc, _tCombat }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; l.CustomMinimumSize = new Vector2(246, 0); l.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin; }
 		// Runde 16 (Handy-Test: Zeilen abgeschnitten, Kräftezeile über dem Kartenrand): kurze Texte (Core-Kurzformen) und etwas kleinere Schrift — fünf Zeilen passen
 		// in die 132 px hohe Karte (Umbruch half am Gerät nicht: die Zeilen bekamen keine zweite Höhe)
 		_tName.AddThemeFontSizeOverride("font_size", 17);

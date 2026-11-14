@@ -62,17 +62,29 @@ public static class Navigator
     /// </summary>
     public static IReadOnlyList<Obstacle> PlayerObstacles(Universe u, SectorId sector, Vec2 pos, GateId? goalGate)
     {
-        var obs = u.GetObstacles(sector);
-        if (!u.Sectors.TryGetValue(sector, out var sec) || sec.Gates.Count == 0) return obs;
-        List<Obstacle>? list = null;
+        if (!u.Sectors.TryGetValue(sector, out var sec)) return Array.Empty<Obstacle>();
+        // ausgenommen: Zieltor und ein Tor, in dessen Radius das Schiff steht
+        GateId skip = default;
+        foreach (var gid in sec.Gates)
+            if (u.Gates.TryGetValue(gid, out var g) && Vec2.Distance(pos, g.Position) <= GateJumpRadius + PathPlanner.Margin + Collision.ShipRadius + 2f) { skip = gid; break; }
+        // Runde 26 (Prüferhinweis): nicht jedes Bild neu kopieren — Zwischenspeicher je Universum, Tick, Sektor, Hindernisliste und ausgenommenen Toren
+        var key = (sector, u.Tick, goalGate ?? default, skip);
+        if (_cacheU is not null && _cacheU.TryGetTarget(out var cu) && ReferenceEquals(cu, u) && _cacheKey == key && _cacheCount == sec.Asteroids.Count + sec.Stations.Count) return _cacheList!;
+        var list = u.GetObstacles(sector);
         foreach (var gid in sec.Gates)
         {
-            if (gid == goalGate || !u.Gates.TryGetValue(gid, out var g)) continue;
-            if (Vec2.Distance(pos, g.Position) <= GateJumpRadius + PathPlanner.Margin + Collision.ShipRadius + 2f) continue;
-            (list ??= new List<Obstacle>(obs)).Add(new Obstacle(g.Position, GateJumpRadius));
+            if (gid == goalGate || gid == skip || !u.Gates.TryGetValue(gid, out var g)) continue;
+            list.Add(new Obstacle(g.Position, GateJumpRadius));
         }
-        return list ?? obs;
+        (_cacheU ??= new WeakReference<Universe>(u)).SetTarget(u); _cacheKey = key; _cacheCount = sec.Asteroids.Count + sec.Stations.Count; _cacheList = list;
+        return list;
     }
+
+    // je Thread (Tests laufen parallel); die Liste wird nur gelesen
+    [ThreadStatic] static WeakReference<Universe>? _cacheU;
+    [ThreadStatic] static (SectorId, long, GateId, GateId) _cacheKey;
+    [ThreadStatic] static int _cacheCount;
+    [ThreadStatic] static List<Obstacle>? _cacheList;
 
     /// <summary>Ein Umweg-Punkt näher als dies gilt als erreicht (der nächste wird angeflogen).</summary>
     public const float WaypointReached = 1.5f;

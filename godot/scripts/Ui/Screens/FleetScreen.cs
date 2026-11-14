@@ -62,7 +62,8 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		At(inner, Text("Deine Schiffe", 18, Cyan), 12, 6, 200, 24);
 		// Runde 25: über der Kapazität (z. B. nach Auflösen eines Verbands) rot mit Hinweis — laufende Befehle bleiben, neue sind gesperrt
 		bool over = Commands.OverCapacity(u, u.PlayerActor) > 0;
-		At(inner, Text($"Befehle {Commands.Commanded(u, u.PlayerActor)}/{capShips}{(over ? " · zu viele, neue gesperrt" : "")} · Verbände {Squadrons.Of(u, u.PlayerActor).Count}/{capSquads}", 13, over ? Red : Dim), 12, 32, 368, 18);
+		// Runde 26 (Gerätetest c03: „Befehle 0/4“ trotz zweier „Halten“ an Begleiter): gezählt werden Einzelbefehle; Schiffe im Verband zählen über den Verband
+		At(inner, Text(KitButton.Fit(ThemeDB.FallbackFont, $"Einzelbefehle {Commands.Commanded(u, u.PlayerActor)}/{capShips}{(over ? " (zu viele)" : "")} · Verbände {Squadrons.Of(u, u.PlayerActor).Count}/{capSquads}{(Squadrons.Of(u, u.PlayerActor).Count > 0 ? " · Verband zählt als 1" : "")}", 13, 368), 13, over ? Red : Dim), 12, 32, 368, 18);
 		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 56, 368, 456);
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
@@ -287,9 +288,10 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		At(det, Text("Verband", 14, Cyan), 14, y + 8, 86, 18);
 		At(det, Text(sq is null ? "keiner" : Shorten(sq.Name, 11), 11, Dim), 14, y + 28, 86, 16);
 		float x = 104;
-		void Btn(string label, Action act, bool enabled = true)
+		void Btn(string label, Action act, bool enabled = true, string? why = null)
 		{
-			var b = At(det, new KitButton(label, new Vector2(124, 56)) { FontSize = 13, State = enabled ? KitButtonState.Normal : KitButtonState.Disabled }, x, y);
+			// Runde 26 (Gerätetest: „Auflösen“ abgeblendet ohne Grund): eine abgeblendete Taste nennt den Grund in der Unterzeile
+			var b = At(det, new KitButton(label, new Vector2(124, 56)) { FontSize = 13, State = enabled ? KitButtonState.Normal : KitButtonState.Disabled, Sub = enabled ? "" : why ?? "" }, x, y);
 			if (enabled) b.Pressed += () => act();
 			x += 128;
 		}
@@ -297,15 +299,15 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		{
 			Btn("Bilden", () => { var q = Squadrons.Create(u, ship, "", out var m); Say(m, q is not null); });
 			var join = Squadrons.Of(u, u.PlayerActor).FirstOrDefault(q => q.Members.Count < u.Rules.SquadronMaxMembers);
-			Btn(join is null ? "Beitreten" : $"→ {Shorten(join.Name, 10)}", () => { bool ok = Squadrons.Join(u, join!, ship, out var m); Say(m, ok); }, join is not null && ship.Id != u.PlayerShip);
+			Btn(join is null ? "Beitreten" : $"→ {Shorten(join.Name, 10)}", () => { bool ok = Squadrons.Join(u, join!, ship, out var m); Say(m, ok); }, join is not null && ship.Id != u.PlayerShip, join is null ? "kein Verband frei" : "aktives Schiff");
 			x += 128;
 		}
 		else
 		{
 			Btn("Verlassen", () => { Squadrons.Leave(u, ship); Say(Join("Verband verlassen.", Commands.OverCapacityText(u, u.PlayerActor)), true); });
 			bool lead = sq.Leader == ship.Id;
-			Btn($"Formation", () => { sq.Formation = (Formation)(((int)sq.Formation + 1) % 4); Say($"Formation {CommandNames.Formation(sq.Formation)} (nur Darstellung) · {sq.Members.Count}/{u.Rules.SquadronMaxMembers} Schiffe.", true); }, lead);
-			Btn("Auflösen", () => { Squadrons.Disband(u, sq); Say(Join("Verband aufgelöst.", Commands.OverCapacityText(u, u.PlayerActor)), true); }, lead);
+			Btn($"Formation", () => { sq.Formation = (Formation)(((int)sq.Formation + 1) % 4); Say($"Formation {CommandNames.Formation(sq.Formation)} (nur Darstellung) · {sq.Members.Count}/{u.Rules.SquadronMaxMembers} Schiffe.", true); }, lead, "nur Anführer");
+			Btn("Auflösen", () => { Squadrons.Disband(u, sq); Say(Join("Verband aufgelöst.", Commands.OverCapacityText(u, u.PlayerActor)), true); }, lead, "nur Anführer");
 		}
 		if (cancel)
 		{

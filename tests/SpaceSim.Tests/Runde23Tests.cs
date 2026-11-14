@@ -32,7 +32,9 @@ public class Runde23Tests
         var q = MarketInfo.QuoteBuyer(u, st, wafer, 22f, me.Sector, me.Position);
         Assert.NotNull(q);
         Assert.Equal(3f, q!.Value.Units);
-        Assert.Equal(3f * e.Price, q.Value.Revenue, 2);
+        Assert.Equal(3f * q.Value.Price, q.Value.Revenue, 2);   // Runde 26: Erlös zur vorsichtigen Schätzung
+        Assert.Equal(e.Price, q.Value.PriceNow);
+        Assert.True(q.Value.Price <= e.Price + 0.001f);
         // mit der Verkaufsregel übereinstimmend
         var (cap, allCap) = TradeActions.SaleCaps(u, st, wafer, st.Credits);
         Assert.Equal(TradeActions.SaleUnits(22f, 22f, cap, allCap), q.Value.Units);

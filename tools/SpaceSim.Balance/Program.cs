@@ -34,7 +34,7 @@ if (opts.TryGetValue("exportbid", out var ebOpt))
 }
 if (opts.TryGetValue("sellcap", out var scOpt)) worldDef.Rules.ProducerPriceCapShare = float.Parse(scOpt, CultureInfo.InvariantCulture);
 if (opts.TryGetValue("wcshare", out var wcOpt)) worldDef.Rules.StationWorkingCapitalShare = float.Parse(wcOpt, CultureInfo.InvariantCulture);
-var u = WorldBuilder.Build(worldDef, seed);
+var u = WorldBuilder.Build(worldDef, seed, opts.TryGetValue("start", out var startOpt) ? startOpt : null);   // Runde 26: --start trader wie „Neues Spiel“
 // Phase 21: Torliste (Id, von → nach, Zustand, Hauptroute) am Anfang, damit --gates nachvollziehbar ist; je Verbindung wird die kleinere Id genannt
 // (--gates schließt immer beide Enden). --gatelist on: zusätzlich je Verbindung, ob ihre Sperrung die Karte zerteilt (und welcher Teil abfällt), dann Ende.
 var gateLinks = u.Gates.Values.Where(g => g.Id.Value < g.Target.Value).OrderBy(g => g.Id.Value).ToList();
@@ -305,7 +305,7 @@ u.Events.Raised += e =>
 bool probeBroke = opts.TryGetValue("probe", out var probeOpt) && probeOpt == "pleite";
 var tradeProbe = opts.TryGetValue("probe", out var tpOpt) && tpOpt == "spielerhandel" ? new PlayerTradeProbe() : null;
 var cashProbe = opts.TryGetValue("probe", out var cpOpt) && cpOpt == "kassen" ? new CashProbe() : null;   // Runde 25
-var hintProbe = opts.TryGetValue("probe", out var hpOpt) && hpOpt == "hinweis" ? new HintProbe() : null;   // Runde 25
+var hintProbe = opts.TryGetValue("probe", out var hpOpt) && hpOpt == "hinweis" ? new HintProbe(u) : null;   // Runde 25
 var probeLog = new Dictionary<int, List<string>>();
 var probeOut = new List<string>();
 void PLog(ShipId id, string text)
@@ -605,7 +605,7 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             done += step;
             if (tradeProbe is not null && u.Tick % PlayerTradeProbe.Every == 0) tradeProbe.Sample(u);   // Runde 23: --probe spielerhandel
             if (cashProbe is not null && u.Tick % CashProbe.Every == 0) cashProbe.Sample(u);
-            if (hintProbe is not null && u.Tick % 20 == 0) hintProbe.Sample(u, u.Tick % HintProbe.Every == 0);
+            if (hintProbe is not null && u.Tick % 20 == 0) hintProbe.Sample(u);
             if (u.Tick % 20000 == 0)   // Phase 24 (Korrektur): Piratenbestand und -kasse über die Zeit
             {
                 pirateTimeline.Add($"t{u.Tick / 1000}k {raids - raidsAtLastMark} Üf. " + string.Join(" ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value)
@@ -1024,7 +1024,7 @@ foreach (var g in u.Goods.Values)
 if (!bad) Console.WriteLine("Urteil: Preise im Zielbereich.");
 if (tradeProbe is not null) Console.WriteLine(tradeProbe.Report(seed, ticks));
 if (cashProbe is not null) Console.WriteLine(cashProbe.Report());
-if (hintProbe is not null) Console.WriteLine(hintProbe.Report());
+if (hintProbe is not null) Console.WriteLine(hintProbe.Report(u, opts.GetValueOrDefault("hintcsv")));
 // Phase 10: zerfallende Karte (physisch oder für die freien Händler) ist ein eigener Befund mit eigenem Exit-Code
 bool splitBad = worstSplit is not null;
 if (worstSplit is not null)

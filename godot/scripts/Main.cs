@@ -253,7 +253,7 @@ public partial class Main : Node3D
 		_hud.CcUniverse.TaxiRequested += to =>
 		{
 			if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
-			_hud.DockCtx.U = _session.U; _hud.DockCtx.Station = st; _hud.DockCtx.Ship = PlayerData; _hud.DockCtx.Services = _session.Services;
+			_hud.DockCtx.U = _session.U; _hud.DockCtx.Station = st; _hud.DockCtx.Ship = PlayerData; _hud.DockCtx.Services = _session.Services; _hud.DockCtx.Prices = _session.Prices;
 			_hud.DockTaxi.Book($"{SpaceSim.Core.Services.TaxiService.Ride}:{to.Value}");
 		};
 		_hud.CcSystem.SystemAction += a => OnMenu(a);
@@ -1500,6 +1500,7 @@ public partial class Main : Node3D
 		_hud.DockCtx.Station = st;
 		_hud.DockCtx.Ship = PlayerData;
 		_hud.DockCtx.Services = _session.Services;
+		_hud.DockCtx.Prices = _session.Prices;
 		_hud.Flight.Visible = false;
 		_hud.Screens.Show(_hud.DockMenu);
 	}

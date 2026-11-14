@@ -162,7 +162,7 @@ public static class MarketInfo
     /// abzüglich dessen, was andere Händler schon bringen (<see cref="IncomingTo"/>), Erlös = Menge × Preis, dazu Sprünge und Reisezeit vom Standort.
     /// null = die Station nimmt jetzt nichts an oder kann nichts zahlen.
     /// </summary>
-    public static BuyerQuote? QuoteBuyer(Universe u, Station st, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, ShipId? self = null)
+    public static BuyerQuote? QuoteBuyer(Universe u, Station st, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, ShipId? self = null, PriceMemory? mem = null)
     {
         if (qty <= 0f || st.IsBuildSite && st.Site!.Abandoned) return null;
         if (!st.Market.TryGetValue(good, out var e) || e.Price <= 0f) return null;
@@ -179,7 +179,54 @@ public static class MarketInfo
         // Runde 25 (Gerätetest: „zahlt 12,4 · Erwartet +628“, bei Ankunft 4,4 → −221 Cr): abgerechnet wird zum Preis bei Ankunft — ein Preis für die ganze
         // Menge (Verkauf und Händler buchen Menge × Stückpreis des Augenblicks); der Bestand ist dann um das gestiegen, was andere schon hinbringen
         float arrival = ArrivalPrice(u, st, good, incoming);
-        return new BuyerQuote(st, arrival, units, units * arrival, incoming, route.Count, ticks, e.Price);
+        // Runde 26 (Gerätetest: 3 von 3 Fahrten 40–70 % unter dem genannten Preis): vorsichtige Schätzung — gemessen (--probe hinweis) kommen die Verluste
+        // von Preisspitzen, die NPC-Händler und Schürfer in den nächsten Ticks anfahren (noch nicht unterwegs, also nicht in incoming), und von Abnehmern,
+        // deren Kasse bei Ankunft leer ist. Darum: eine Spitze über dem schnellen Mittel der Station wird nicht geglaubt, über dem Basispreis nur zur Hälfte.
+        float careful = CarefulPrice(u, st, good, arrival, incoming, ticks * PlayerTimeFactor, mem);
+        return new BuyerQuote(st, careful, units, units * careful, incoming, route.Count, ticks, e.Price, arrival,
+            st.Credits / MathF.Max(0.01f, e.Price * units), accept / MathF.Max(0.01f, units));
+    }
+
+    /// <summary>
+    /// Runde 26: vorsichtiger Stückpreis bei Ankunft = min(Preis bei Ankunft nach Bestandsformel, schnelles gleitendes Mittel der Station
+    /// (<see cref="PriceMemory"/>, falls bekannt), Mitte zwischen Ankunftspreis und Basispreis), dazu der Zufluss: fließt der Station laufend Ware zu
+    /// (Händler, Schürfer — gemessen im Preisgedächtnis), wird er über die Flugzeit fortgeschrieben (Verbrauch nicht abgezogen: vorsichtig). Reine Auskunft.
+    /// </summary>
+    public static float CarefulPrice(Universe u, Station st, GoodId good, float arrival, float incoming = 0f, float travelTicks = 0f, PriceMemory? mem = null)
+    {
+        float p = arrival;
+        if (mem?.Of(st.Id, good) is { } m) p = MathF.Min(p, m.Fast);
+        var g = u.Goods[good];
+        if (arrival > g.BasePrice) p = MathF.Min(p, 0.5f * (arrival + g.BasePrice));
+        if (mem is not null && travelTicks > 0f && !st.IsBuildSite && st.Market.TryGetValue(good, out var e) && mem.InflowOf(st.Id, good) is var flow and > 0f)
+        {
+            float before = MarketSystem.StockPrice(g, e, e.Amount + incoming);
+            float after = MarketSystem.StockPrice(g, e, e.Amount + incoming + flow * travelTicks);
+            if (before > 0f) p *= MathF.Min(1f, after / before);
+        }
+        return p;
+    }
+
+    /// <summary>Runde 26: Flugzeit des Spielers per Autopilot ÷ NPC-Schätzung (<see cref="Travel.Estimate"/>), gemessen mit <c>--probe hinweis</c> (Median 23 ÷ 12 s).</summary>
+    public const float PlayerTimeFactor = 1.9f;
+
+    /// <summary>Runde 26: Mindestabstand des vorsichtigen Erlöses über dem Einkauf für „grün“ (Anteil des Einkaufs).</summary>
+    public const float GreenMargin = 0.15f;
+    /// <summary>Runde 26: so viel mal die Ladung muss die Kasse bzw. die Annahme des Abnehmers decken, sonst „unsicher“.</summary>
+    public const float GreenCover = 2f;
+
+    /// <summary>
+    /// Runde 26: ehrliche Ampel für eine Fahrt (Einkauf <paramref name="buyPrice"/> je Einheit, <paramref name="units"/> Einheiten): grün nur, wenn auch die
+    /// vorsichtige Schätzung <see cref="GreenMargin"/> über dem Einkauf liegt und Kasse und Annahme des Abnehmers die Ladung <see cref="GreenCover"/>-mal decken;
+    /// rot, wenn schon die vorsichtige Schätzung Verlust zeigt oder der Abnehmer nicht alles nimmt; sonst gelb („unsicher“).
+    /// Gemessen (--probe hinweis, Start „Händler“, Seeds 11–15, 8000 Ticks): „grün, aber Verlust“ 30 % → 14 % (früh) bzw. 25 % → 12 % (spät).
+    /// </summary>
+    public static TripVerdict Verdict(BuyerQuote q, float buyPrice, float units)
+    {
+        float result = q.Revenue - buyPrice * units;
+        if (q.Units < units - 0.001f || result < 0f) return TripVerdict.Loss;
+        if (q.Price - buyPrice > GreenMargin * buyPrice && result > 0.5f && q.CashCover >= GreenCover && q.AcceptCover >= GreenCover) return TripVerdict.Good;
+        return TripVerdict.Unsure;
     }
 
     /// <summary>
@@ -202,24 +249,30 @@ public static class MarketInfo
     /// Runde 23: alle Abnehmer, die jetzt etwas von <paramref name="qty"/> Einheiten annehmen und bezahlen, nach erwartetem Erlös für diese Menge (dann
     /// höherer Preis, weniger Sprünge, Stations-Id) — die Rangfolge der Handelsansicht. Ohne <paramref name="exclude"/>.
     /// </summary>
-    public static List<BuyerQuote> HonestBuyers(Universe u, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, StationId? exclude = null, ShipId? self = null)
+    public static List<BuyerQuote> HonestBuyers(Universe u, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, StationId? exclude = null, ShipId? self = null, PriceMemory? mem = null)
     {
         var list = new List<BuyerQuote>();
         foreach (var st in u.StationsTrading(good))
-            if (st.Id != exclude && QuoteBuyer(u, st, good, qty, fromSector, fromPos, self) is { } q) list.Add(q);
+            if (st.Id != exclude && QuoteBuyer(u, st, good, qty, fromSector, fromPos, self, mem) is { } q) list.Add(q);
         list.Sort((a, b) => b.Revenue != a.Revenue ? b.Revenue.CompareTo(a.Revenue) : b.Price != a.Price ? b.Price.CompareTo(a.Price)
             : a.Jumps != b.Jumps ? a.Jumps.CompareTo(b.Jumps) : a.Station.Id.Value.CompareTo(b.Station.Id.Value));
         return list;
     }
 
     /// <summary>Runde 23: der beste ehrliche Abnehmer für <paramref name="qty"/> Einheiten (siehe <see cref="HonestBuyers"/>), null = derzeit keiner.</summary>
-    public static BuyerQuote? BestHonestBuyer(Universe u, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, StationId? exclude = null, ShipId? self = null)
+    public static BuyerQuote? BestHonestBuyer(Universe u, GoodId good, float qty, SectorId fromSector, Vec2 fromPos, StationId? exclude = null, ShipId? self = null, PriceMemory? mem = null)
     {
-        var l = HonestBuyers(u, good, qty, fromSector, fromPos, exclude, self);
+        var l = HonestBuyers(u, good, qty, fromSector, fromPos, exclude, self, mem);
         return l.Count > 0 ? l[0] : null;
     }
 }
 
 /// <summary>Runde 23: ehrliche Abnehmer-Auskunft — Station, Preis, angenommene Menge, erwarteter Erlös, schon unterwegs von anderen, Sprünge, Reisezeit (Ticks).</summary>
 /// <param name="Price">Runde 25: erwarteter Stückpreis bei Ankunft (<see cref="MarketInfo.ArrivalPrice"/>); <paramref name="PriceNow"/> = heutiger Preis.</param>
-public readonly record struct BuyerQuote(Station Station, float Price, float Units, float Revenue, float Incoming, int Jumps, float TravelTicks, float PriceNow = 0f);
+/// <param name="PriceArrival">Runde 26: Preis bei Ankunft nach der Bestandsformel; <paramref name="Price"/> ist seit Runde 26 die vorsichtige Schätzung
+/// (<see cref="MarketInfo.CarefulPrice"/>). <paramref name="CashCover"/>/<paramref name="AcceptCover"/>: wie oft Kasse bzw. Annahme die Ladung decken.</param>
+public readonly record struct BuyerQuote(Station Station, float Price, float Units, float Revenue, float Incoming, int Jumps, float TravelTicks, float PriceNow = 0f,
+    float PriceArrival = 0f, float CashCover = 0f, float AcceptCover = 0f);
+
+/// <summary>Runde 26: Ampel der Abnehmer-Auskunft (siehe <see cref="MarketInfo.Verdict"/>).</summary>
+public enum TripVerdict { Good, Unsure, Loss }

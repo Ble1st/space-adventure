@@ -16,6 +16,8 @@ public sealed class DockContext
 	public Station Station = null!;
 	public Ship Ship = null!;
 	public StationServices Services = null!;
+	/// <summary>Runde 26: Preisgedächtnis der Sitzung für die vorsichtige Abnehmer-Auskunft (null = ohne).</summary>
+	public SpaceSim.Core.Trading.PriceMemory? Prices;
 }
 
 /// <summary>Ein Bereich des Andock-Menüs (UI.md Abschnitt 3): Anzeige, Untertitel und ob der Dienst im Core echt verfügbar ist.</summary>

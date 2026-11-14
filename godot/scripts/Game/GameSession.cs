@@ -19,6 +19,8 @@ public sealed class GameSession
     public Ship Player => U.Ships[U.PlayerShip];
     /// <summary>Registry der Stationsdienste (Instanz beim Aufrufer, kein globaler Zustand); die Dock-Bereiche lesen daraus.</summary>
     public StationServices Services { get; } = StationServices.Default();
+    /// <summary>Runde 26: Preisgedächtnis für die Abnehmer-Auskunft (nicht gespeichert, nicht gehasht; beginnt mit jedem Universum neu).</summary>
+    public SpaceSim.Core.Trading.PriceMemory Prices { get; } = new();
 
     /// <summary>Wird nach jedem Austausch des Universums ausgelöst (neues Spiel, Laden).</summary>
     public event Action? UniverseReplaced;
@@ -51,7 +53,7 @@ public sealed class GameSession
     {
         _acc += delta * speed;
         int steps = 0;
-        while (_acc >= SimClock.TickInterval && steps < 80) { Runner.Step(U); _acc -= SimClock.TickInterval; steps++; }
+        while (_acc >= SimClock.TickInterval && steps < 80) { Runner.Step(U); Prices.Observe(U); _acc -= SimClock.TickInterval; steps++; }
         if (steps == 80) _acc = 0f;   // Rückstand verwerfen statt in eine Spirale zu laufen
         return steps;
     }
@@ -63,7 +65,7 @@ public sealed class GameSession
     public long RunTicks(long ticks)
     {
         long n = Math.Clamp(ticks, 0, OfflineCatchUp.DefaultMaxTicks);
-        for (long i = 0; i < n; i++) Runner.Step(U);
+        for (long i = 0; i < n; i++) { Runner.Step(U); Prices.Observe(U); }
         return n;
     }
 

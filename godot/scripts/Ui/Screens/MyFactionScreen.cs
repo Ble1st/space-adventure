@@ -23,6 +23,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 
 	/// <summary>Runde 25, für den Selbsttest: wurde die Zeile „Laufende Kosten“ gekürzt, und ihr Text.</summary>
 	public bool TestCostsOverflow { get; private set; }
+	/// <summary>Runde 26: eine Fähigkeitsnotiz, die nicht in ihre Spalte passte ("" = keine).</summary>
+	public string TestAbilityOverflow { get; private set; } = "";
 	public string TestCostsText { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
@@ -109,12 +111,14 @@ public sealed partial class MyFactionScreen : CommandScreen
 		}.Concat(UiPlaceholders.MyFactionAbilities);
 		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand
 		var list = abilities.ToList();
+		TestAbilityOverflow = "";
 		float step = MathF.Min(30f, (perm.Size.Y - ay - 12f) / MathF.Max(1, list.Count));
 		foreach (var (name, unlocked, note) in list)
 		{
 			At(perm, Text(unlocked ? "✓" : "🔒", 15, unlocked ? Green : Dim), 20, ay, 24, 20);
 			At(perm, Text(name, 15, unlocked ? White : Dim), 48, ay, 230, 20);
-			At(perm, Text(note, 12, new Color(Dim, 0.8f), HorizontalAlignment.Right), 282, ay, 172, 20);
+			At(perm, Text(KitButton.Fit(ThemeDB.FallbackFont, note, 12, 168), 12, new Color(Dim, 0.8f), HorizontalAlignment.Right), 282, ay, 172, 20);
+			if (ThemeDB.FallbackFont.GetStringSize(note, HorizontalAlignment.Left, -1, 12).X > 168) TestAbilityOverflow = note;
 			ay += step;
 		}
 	}

@@ -1,61 +1,123 @@
 using System.Globalization;
 using System.Text;
+using SpaceSim.Core.Events;
+using SpaceSim.Core.Flight;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 using SpaceSim.Core.Trading;
 
 /// <summary>
-/// Runde 25: <c>--probe hinweis</c> — Güte der Abnehmer-Auskunft (nur messen). Alle 200 Ticks je Kettenware: Einkauf beim billigsten Hersteller (eine Ladung von
-/// 100 Laderaum), bester Abnehmer nach <see cref="MarketInfo.HonestBuyers"/>; gemerkt werden die Schätzung „heutiger Preis“ (Runde 23) und „Preis bei Ankunft“
-/// (Runde 25). Nach <see cref="BuyerQuote.TravelTicks"/> wird gemessen, was ein Verkauf der Menge dort dann wirklich brächte (gleiche Verkaufsregel, ohne zu
-/// verkaufen). Fehler = (Schätzung − tatsächlich) ÷ Schätzung; positiv = zu optimistisch.
+/// Runde 25/26: <c>--probe hinweis</c> — Güte der Abnehmer-Auskunft im Messaufbau des Geräts: der Spieler kauft 10 Einheiten beim billigsten Verkäufer
+/// (und bei einem zufälligen), der Editor nennt den BESTEN Abnehmer (<see cref="MarketInfo.HonestBuyers"/>, wie die Handelsansicht), die Fahrt dauert die echte
+/// Flugzeit des Spielers per Autopilot (<see cref="PlayerTrip"/>), ab Tick 0 (Frühphase getrennt). Bei Ankunft wird gemessen, was der Verkauf der Menge
+/// dann brächte (ohne zu verkaufen) und wie viel NPC-Händler unterwegs an diese Station lieferten. Nur lesen — der Lauf bleibt bitgleich.
 /// </summary>
 sealed class HintProbe
 {
-    sealed record Pending(long Due, StationId Station, GoodId Good, float Qty, float EstOld, float EstNew, float PNow, float PArr);
-    readonly List<Pending> _open = new();
-    readonly List<double> _old = new(), _new = new(), _pOld = new(), _pNew = new(), _units = new();
-    public const int Every = 200;
-
-    public void Sample(Universe u, bool add)
+    sealed class Trip
     {
+        public long Start, Due; public StationId Seller, Buyer; public GoodId Good;
+        public float Qty, Buy, Now, Arr, Cons, Fast, Slow, Base, Incoming, Secs, EstTicks;
+        public float NpcDelivered, Inflow, Amount, Target; public string Kind = ""; public TripVerdict Verdict;
+        public float Actual, ActualUnits, DepCash, DepAccept, ArrCash, ArrAccept;
+    }
+    readonly List<Trip> _open = new(), _done = new();
+    readonly PriceMemory _mem = new();
+    readonly Random _rng = new(26);
+    public const int EveryEarly = 40, EveryLate = 200, EarlyTicks = 2000;
+    public const float Qty = 10f;
+
+    public HintProbe(Universe u)
+    {
+        u.Events.Raised += e =>
+        {
+            if (e is TradeCompleted tc) foreach (var t in _open) if (t.Buyer == tc.To && t.Good == tc.Good) t.NpcDelivered += tc.Amount;
+            if (e is MineDelivered md) foreach (var t in _open) if (t.Buyer == md.To && t.Good == md.Good) t.NpcDelivered += md.Amount;
+        };
+    }
+
+    public void Sample(Universe u)
+    {
+        _mem.Observe(u);
         for (int i = _open.Count - 1; i >= 0; i--)
         {
-            var p = _open[i];
-            if (p.Due > u.Tick) continue;
+            var t = _open[i];
+            if (t.Due > u.Tick) continue;
             _open.RemoveAt(i);
-            if (!u.Stations.TryGetValue(p.Station, out var st) || !st.Market.TryGetValue(p.Good, out var e) || e.Price <= 0f) continue;
-            var (cap, allCap) = TradeActions.SaleCaps(u, st, p.Good, st.Credits);
-            float units = TradeActions.SaleUnits(p.Qty, p.Qty, cap, allCap);
-            float actual = units * e.Price;
-            if (p.EstOld > 1f) _old.Add((p.EstOld - actual) / p.EstOld);
-            if (p.EstNew > 1f) _new.Add((p.EstNew - actual) / p.EstNew);
-            if (p.EstNew > 1f) { _pOld.Add((p.PNow - e.Price) / p.PNow); _pNew.Add((p.PArr - e.Price) / p.PArr); _units.Add((p.Qty - units) / p.Qty); }
+            if (!u.Stations.TryGetValue(t.Buyer, out var st) || !st.Market.TryGetValue(t.Good, out var e)) continue;
+            var (cap, allCap) = TradeActions.SaleCaps(u, st, t.Good, st.Credits);
+            t.ActualUnits = e.Price > 0f ? TradeActions.SaleUnits(t.Qty, t.Qty, cap, allCap) : 0f;
+            t.Actual = e.Price; t.ArrCash = st.Credits; t.ArrAccept = st.AcceptableUnits(t.Good, u.Rules);
+            _done.Add(t);
         }
-        if (!add || u.Tick < 2000) return;
-        foreach (var g in u.Goods.Values.Where(g => g.Category is "refined" or "component" or "end").OrderBy(g => g.Id.Value))
+        int every = u.Tick < EarlyTicks ? EveryEarly : EveryLate;
+        if (u.Tick % every != 0) return;
+        foreach (var g in u.Goods.Values.Where(g => g.Category is "ore" or "refined" or "component" or "end").OrderBy(g => g.Id.Value))
         {
-            Station? buy = null; float bp = float.MaxValue;
-            foreach (var st in u.StationsTrading(g.Id))
-                if (!st.IsBuildSite && st.Produces(g.Id) && st.Market.TryGetValue(g.Id, out var e) && e.Amount >= 1f && e.Price > 0f && e.Price < bp) { buy = st; bp = e.Price; }
-            if (buy is null) continue;
-            float q = MathF.Min(MathF.Floor(100f / MathF.Max(0.1f, g.VolumePerUnit)), MathF.Floor(buy.Market[g.Id].Amount));
-            var list = MarketInfo.HonestBuyers(u, g.Id, q, buy.Sector, buy.DockPoint(default), buy.Id);
-            if (list.Count == 0) continue;
-            var b = list[0];
-            _open.Add(new Pending(u.Tick + (long)MathF.Ceiling(b.TravelTicks), b.Station.Id, g.Id, b.Units, b.Units * b.PriceNow, b.Revenue, b.PriceNow, b.Price));
+            var sellers = u.StationsById().Where(st => !st.IsBuildSite && !ExportRules.Buys(u, st, g.Id) && st.Market.TryGetValue(g.Id, out var e)
+                && e.Amount >= Qty && e.Price > 0f && st.Dockable).ToList();
+            if (sellers.Count == 0) continue;
+            var cheapest = sellers.OrderBy(s => s.Market[g.Id].Price).ThenBy(s => s.Id.Value).First();
+            Add(u, g, cheapest, "billigst");
+            var rnd = sellers[_rng.Next(sellers.Count)];
+            if (rnd != cheapest) Add(u, g, rnd, "zufällig");
         }
+    }
+
+    void Add(Universe u, Good g, Station seller, string kind)
+    {
+        var dock = seller.DockPoint(u.PlayerShip);
+        var list = MarketInfo.HonestBuyers(u, g.Id, Qty, seller.Sector, dock, seller.Id, u.PlayerShip, _mem);
+        if (list.Count == 0) return;
+        var b = list[0];
+        float secs = PlayerTrip.SecondsTo(u, seller.Sector, dock, b.Station);
+        if (float.IsInfinity(secs)) return;
+        var m = _mem.Of(b.Station.Id, g.Id);
+        _open.Add(new Trip
+        {
+            Start = u.Tick, Due = u.Tick + (long)MathF.Ceiling(secs * SimClock.TicksPerSecond), Seller = seller.Id, Buyer = b.Station.Id, Good = g.Id, Qty = b.Units,
+            Buy = seller.Market[g.Id].Price, Now = b.PriceNow, Arr = b.PriceArrival,
+            Cons = b.Price, Fast = m?.Fast ?? b.PriceNow, Slow = m?.Slow ?? b.PriceNow, Base = g.BasePrice, Incoming = b.Incoming, Secs = secs, EstTicks = b.TravelTicks, Kind = kind, Verdict = MarketInfo.Verdict(b, seller.Market[g.Id].Price, b.Units), Inflow = _mem.InflowOf(b.Station.Id, g.Id), Amount = b.Station.Market[g.Id].Amount, Target = b.Station.Market[g.Id].Target,
+            DepCash = b.Station.Credits, DepAccept = b.Station.AcceptableUnits(g.Id, u.Rules) - b.Incoming,
+        });
     }
 
     static double Q(List<double> l, double p) { if (l.Count == 0) return double.NaN; var s = l.OrderBy(x => x).ToList(); return s[(int)Math.Clamp(Math.Round(p * (s.Count - 1)), 0, s.Count - 1)]; }
 
-    public string Report()
+    public string Report(Universe u, string? csv)
     {
         var ci = CultureInfo.GetCultureInfo("de-DE");
-        var sb = new StringBuilder("HINWEISGÜTE (Erlös-Schätzung bei Abfahrt gegen Verkauf bei Ankunft; Fehler = (Schätzung − tatsächlich) ÷ Schätzung, + = zu optimistisch)\n");
-        foreach (var (name, l) in new[] { ("heutiger Preis (Runde 23)", _old), ("Preis bei Ankunft (Runde 25)", _new),
-                     ("nur Stückpreis, heutiger", _pOld), ("nur Stückpreis, bei Ankunft", _pNew), ("nur Menge (angenommen)", _units) })
-            sb.AppendLine($"  {name,-30} n {l.Count,5}  Median {(100 * Q(l, 0.5)).ToString("0.0", ci)} %  90-%-Quantil {(100 * Q(l, 0.9)).ToString("0.0", ci)} %  Anteil zu optimistisch (>5 %) {(l.Count == 0 ? 0 : 100.0 * l.Count(x => x > 0.05) / l.Count).ToString("0", ci)} %");
+        var sb = new StringBuilder("HINWEISGÜTE (Spieler kauft 10 E., bester Abnehmer wie im Editor, echte Flugzeit; Fehler = (Schätzung − tatsächlich) ÷ Schätzung, + = zu optimistisch;\n"
+            + "  „grün, aber Verlust“ = Schätzung zeigt Gewinn, die Fahrt bringt Verlust — Anteil an den grün gezeigten)\n");
+        foreach (var (phase, sel) in new[] { ("früh (< 2000 Ticks)", (Func<Trip, bool>)(t => t.Start < EarlyTicks)), ("spät", t => t.Start >= EarlyTicks) })
+        {
+            var ts = _done.Where(sel).ToList();
+            sb.AppendLine($" {phase}: {ts.Count} Fahrten, Flugzeit Median {Q(ts.Select(t => (double)t.Secs).ToList(), 0.5).ToString("0", ci)} s (NPC-Schätzung {Q(ts.Select(t => (double)t.EstTicks / SimClock.TicksPerSecond).ToList(), 0.5).ToString("0", ci)} s), "
+                + $"NPC-Lieferungen an den Abnehmer unterwegs Median {Q(ts.Select(t => (double)t.NpcDelivered).ToList(), 0.5).ToString("0", ci)} E. (Anteil mit Lieferung {(ts.Count == 0 ? 0 : 100.0 * ts.Count(t => t.NpcDelivered > 0) / ts.Count).ToString("0", ci)} %)");
+            foreach (var (name, f) in new (string, Func<Trip, float>)[] { ("heutiger Preis", t => t.Now), ("Ankunft (Runde 25)", t => t.Arr), ("vorsichtig (Runde 26)", t => t.Cons) })
+            {
+                var err = ts.Select(t => (double)((f(t) - t.Actual) / MathF.Max(0.01f, f(t)))).ToList();
+                var green = ts.Where(t => (f(t) - t.Buy) * t.Qty > 0.5f).ToList();
+                int greenLoss = green.Count(t => (t.Actual * t.ActualUnits - t.Buy * t.Qty) < 0f);
+                sb.AppendLine($"   {name,-22} Median {(100 * Q(err, 0.5)).ToString("0.0", ci),6} %  90-%-Q. {(100 * Q(err, 0.9)).ToString("0.0", ci),6} %  zu optimistisch (>5 %) {(ts.Count == 0 ? 0 : 100.0 * err.Count(x => x > 0.05) / ts.Count).ToString("0", ci),3} %  "
+                    + $"grün {green.Count,4}, davon Verlust {(green.Count == 0 ? 0 : 100.0 * greenLoss / green.Count).ToString("0", ci),3} %");
+            }
+            {
+                var green = ts.Where(t => t.Verdict == TripVerdict.Good).ToList();
+                int greenLoss = green.Count(t => (t.Actual * t.ActualUnits - t.Buy * t.Qty) < 0f);
+                sb.AppendLine($"   Ampel (Runde 26): grün {green.Count}, davon Verlust {(green.Count == 0 ? 0 : 100.0 * greenLoss / green.Count).ToString("0", ci)} %; gelb {ts.Count(t => t.Verdict == TripVerdict.Unsure)}, rot {ts.Count(t => t.Verdict == TripVerdict.Loss)}; "
+                    + $"Gewinn der grünen Fahrten {green.Sum(t => t.Actual * t.ActualUnits - t.Buy * t.Qty).ToString("0", ci)} Cr");
+            }
+        }
+        if (csv is not null)
+        {
+            var c = new StringBuilder("start;secs;good;kind;seller;buyer;qty;buy;now;arr;cons;fast;slow;base;incoming;npcdelivered;actual;actualunits;depcash;depaccept;arrcash;arraccept;verdict;inflow;amount;target\n");
+            foreach (var t in _done)
+                c.AppendLine(string.Join(";", t.Start, t.Secs.ToString("0.0", CultureInfo.InvariantCulture), u.Goods[t.Good].Key, t.Kind, t.Seller.Value, t.Buyer.Value,
+                    t.Qty.ToString(CultureInfo.InvariantCulture), F(t.Buy), F(t.Now), F(t.Arr), F(t.Cons), F(t.Fast), F(t.Slow), F(t.Base), F(t.Incoming), F(t.NpcDelivered), F(t.Actual), F(t.ActualUnits), F(t.DepCash), F(t.DepAccept), F(t.ArrCash), F(t.ArrAccept), t.Verdict, F(t.Inflow), F(t.Amount), F(t.Target)));
+            File.WriteAllText(csv, c.ToString());
+        }
         return sb.ToString();
+        static string F(float x) => x.ToString("0.###", CultureInfo.InvariantCulture);
     }
 }

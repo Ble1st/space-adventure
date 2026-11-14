@@ -219,6 +219,7 @@ public partial class SelfTest
 			{
 				var mf = _m.HudRef.CcMyFaction;
 				Check(mf.TestCostsText.Contains("/min") && !mf.TestCostsOverflow, $"Meine Fraktion: „Laufende Kosten“ passt in die Karte ({mf.TestCostsText})");
+				Check(mf.TestAbilityOverflow.Length == 0, $"Meine Fraktion: Fähigkeitsnotizen passen ({mf.TestAbilityOverflow})");
 				_m.TestCloseCommand();
 				return true;
 			}

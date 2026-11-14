@@ -66,8 +66,10 @@ public partial class SelfTest
 			{
 				var (l1, l2, l3) = trade.TestEditorLines;
 				Check(l1.StartsWith("Kauf ") && l1.Contains(" Cr") && !l1.Contains('…'), $"Kaufzeile mit Summe ({l1})");
-				Check(l2.Contains("nimmt ") && (l2.Contains("zahlt") || l2.Contains("→")) || l2 == "Derzeit kein Abnehmer", $"Abnehmerzeile ehrlich ({l2})");
-				Check(l2 == "Derzeit kein Abnehmer" || l3.StartsWith("Erwartet bei Ankunft: +") || l3.StartsWith("Verlust bei Ankunft −") || l3.Contains("nimmt nur"), $"Erwartungszeile ({l3})");
+				// Runde 26: immer beide Werte (jetzt und vorsichtig bei Ankunft), die Flugzeit und eine Ampel (grün/gelb „Unsicher“/rot)
+				Check(l2 == "Derzeit kein Abnehmer" || l2.Contains("nimmt ") && (l2.Contains("jetzt") || l2.Contains("→")) && (l2.Contains("Ankunft") || l2.Contains("≈")), $"Abnehmerzeile ehrlich ({l2})");
+				Check(l2 == "Derzeit kein Abnehmer" || l3.StartsWith("Erwartet bei Ankunft: etwa +") || l3.StartsWith("Verlust") || l3.StartsWith("Unsicher") || l3.Contains("nimmt nur"), $"Erwartungszeile mit Ampel ({l3})");
+				Check(l2 == "Derzeit kein Abnehmer" || trade.TestEditorVerdict is not null, "Ampel gesetzt");
 				// Runde 25 (Gerätetest a18/a20): keine Zeile endet mit „…“ — kürzere Fassungen statt Abschneiden
 				Check(!trade.TestEditorOverflow && !l2.EndsWith("…") && !l3.EndsWith("…"), $"Hinweiszeilen passen ({l2} | {l3})");
 				// kein Geld
