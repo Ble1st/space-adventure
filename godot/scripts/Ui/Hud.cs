@@ -286,6 +286,10 @@ public partial class Hud : CanvasLayer
 		var size = dockMenu ? new Vector2(MathF.Max(300f, side), 150f) : screen ? new Vector2(ScreenAlertWidth, ScreenAlertHeight) : new Vector2(FlightAlertWidth, AlertHeight);
 		_alert.Size = size;
 		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2(vp.X / 2f - 280f, FlightAlertY);
+		// Runde 19 (Handy-Test B_4): im Flug endet die Meldung über der Beschriftung „RÜCK · max 20 %“ (nach dem Rand-Layout der echten Auflösung)
+		float realH = MathF.Max(size.Y, _alert.GetCombinedMinimumSize().Y);   // die Meldung kann mit ihrem Text wachsen
+		if (!dockMenu && !screen && Flight.ReverseLabelRect is { Size.Y: > 0f } rl && new Rect2(_alert.Position, new Vector2(size.X, realH)).Intersects(rl.Grow(6f)))
+			_alert.Position = new Vector2(_alert.Position.X, rl.Position.Y - 6f - realH);
 		_alertText.MaxLinesVisible = dockMenu ? 6 : screen ? 2 : 3;
 		_alertText.AddThemeFontSizeOverride("font_size", screen ? 14 : 15);
 		_alertText.Position = new Vector2(12, 4); _alertText.Size = new Vector2(size.X - 12 - 64, size.Y - 8);

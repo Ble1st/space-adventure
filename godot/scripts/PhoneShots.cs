@@ -57,8 +57,9 @@ public partial class PhoneShots : Node
 			}
 			case 175: Capture("m01-anker-fliegt.png"); break;
 			case 330: Capture("m02-verankert-abbau.png"); break;
-			case 331: _m.TestSetSlider(0.7f); break;
-			case 340: Capture("m03-abriss-schub.png"); break;
+			case 334: Capture("m02b-verankert-spaeter.png"); break;   // Runde 19: zweite Phase der Bohrerdrehung (4 Bilder später)
+			case 340: _m.TestSetSlider(0.7f); break;
+			case 350: Capture("m03-abriss-schub.png"); break;
 			case 360: _m.TestSetSlider(0f); PlaceAtRock(); _m.TestStartMining(); break;
 			case 900: Capture("m04-automatik.png"); break;
 			case 960: Finish(); break;

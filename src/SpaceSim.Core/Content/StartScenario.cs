@@ -62,6 +62,7 @@ public static class StartScenario
                 w.ExpiresTick = u.Tick + u.Rules.WreckTicks * 4;
             }
         }
+        ApplyRock(u, player, sc, key);
         ApplyWingmen(u, player, sc, key);
         ApplyCombat(u, player, sc, key);
         if (sc.Outlaw && sc.Raiders <= 0 && u.ShipsById().FirstOrDefault(ThreatMap.IsRaider) is { } raider)
@@ -74,6 +75,37 @@ public static class StartScenario
             raider.NextThinkTick = u.Tick + u.Rules.PirateLurkTicks;
         }
         }
+
+    /// <summary>
+    /// Runde 19 („Ankertest“): mit dem Bug an den größten Fels der Klasse <see cref="ScenarioDef.AtRock"/> im Startsektor — die erste Richtung (16 feste, kein Zufall),
+    /// in der das Schiff frei von anderen Felsen und Stationen liegt; Erzvorrat <see cref="ScenarioDef.RockOre"/>; „ruhig“ = keine Überfälle auf den Spieler.
+    /// </summary>
+    static void ApplyRock(Universe u, Ship player, ScenarioDef sc, string key)
+    {
+        if (sc.Calm)
+        {
+            u.Rules.PlayerRaids = false;
+            u.PendingEncounters.RemoveAll(p => p.Target == player.Id);
+        }
+        if (sc.AtRock is not { } cls) return;
+        if (!u.AsteroidClasses.ContainsKey(cls)) throw new WorldFormatException($"Startpaket '{key}': unbekannte Asteroidenklasse '{cls}'");
+        var sector = u.Sectors[player.Sector];
+        var rock = sector.Asteroids.Where(a => a.Minable && a.ClassKey == cls).OrderByDescending(a => a.Radius).ThenBy(a => a.Id).FirstOrDefault()
+                   ?? throw new WorldFormatException($"Startpaket '{key}': kein Fels der Klasse '{cls}' im Startsektor");
+        if (sc.RockOre > 0f) { rock.MaxOre = MathF.Max(rock.MaxOre, sc.RockOre); rock.Ore = rock.MaxOre; }
+        float stand = rock.Radius + Collision.ShipRadius + 0.2f;
+        Vec2? spot = null;
+        for (int i = 0; i < 16 && spot is null; i++)
+        {
+            float a = MathF.PI * 2f * i / 16f;
+            var p = rock.Position + new Vec2(MathF.Cos(a), MathF.Sin(a)) * stand;
+            bool free = sector.Asteroids.All(o => o == rock || Vec2.Distance(o.Position, p) > o.Radius + Collision.ShipRadius + 1f)
+                        && sector.Stations.All(id => !u.Stations.TryGetValue(id, out var st) || Vec2.Distance(st.Position, p) > st.Radius + Collision.ShipRadius + 2f);
+            if (free) spot = p;
+        }
+        player.Position = spot ?? rock.Position + new Vec2(0f, stand);
+        player.DockedAt = default;
+    }
 
     /// <summary>
     /// Gerätetest Phase 28 (Runde 5, „Kriegstest“): eigene Begleitschiffe neben dem Spieler (gehören der Person, voll ausgerüstet), ein Verband mit dem aktiven

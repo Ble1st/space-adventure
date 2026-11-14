@@ -503,6 +503,15 @@ public sealed class ScenarioDef
     /// manchen Seeds den schon angeschlagenen Falken, dessen Hülle zwischen den Überfällen nicht nachwächst.
     /// </summary>
     public bool ReinforceWithoutShield { get; set; }
+    /// <summary>
+    /// Runde 19 („Ankertest“): Asteroidenklasse — das Schiff startet mit dem Bug am größten abbaubaren Fels dieser Klasse im Startsektor (freie Seite, Bug in Kontakt),
+    /// sodass ein Kontaktschürfer ohne Automatik sofort verankert.
+    /// </summary>
+    public string? AtRock { get; set; }
+    /// <summary>Runde 19: Erzvorrat dieses Felsens (Vorrat und Höchstwert; 0 = unverändert) — reicht für minutenlangen Abbau.</summary>
+    public float RockOre { get; set; }
+    /// <summary>Runde 19: ruhige Lage — keine Überfälle auf das aktive Spielerschiff in diesem Spielstand (setzt die gespeicherte Regel PlayerRaids aus; Überfälle auf Flottenschiffe bleiben).</summary>
+    public bool Calm { get; set; }
     /// <summary>Gerätetest Phase 28 (Runde 4): Fracht des ersten Kaperers (Beute an Bord) — sein Wrack hat dann Fracht für den Traktorstrahl.</summary>
     public Dictionary<string, float>? LeadCargo { get; set; }
     /// <summary>

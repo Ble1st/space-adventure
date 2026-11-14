@@ -346,6 +346,9 @@ public partial class Main : Node3D
 		SnapCam();
 		_reenter = false;
 		_player.Heading = 0f;   // zweiter Gerätetest Phase 28: neue Sitzung = Nase nach Norden (vorher blieb die Richtung der alten Sitzung stehen)
+		// Runde 19 („Ankertest“): startet ein Kontaktschürfer am Fels, zeigt der Bug zum Fels (er verankert ohne Eingabe)
+		if (p.Stats.UsesContact && _chunks.Nearest(u.Sectors[u.PlayerSector], p.Position, SpaceSim.Core.Mining.ContactMining.ContactRange + SpaceSim.Core.Mining.ContactMining.BowOffset + 1f) is { } startRock)
+			_player.Heading = AimAssist.Bearing(p.Position, startRock.Position);
 		if (u.Stations.ContainsKey(p.DockedAt)) EnterActiveShip();   // Phase 12: gespeichert angedockt (oder in ein angedocktes Schiff gewechselt) → Andock-Menü
 		else AnnouncePending();
 	}
@@ -628,12 +631,13 @@ public partial class Main : Node3D
 				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
 				else _hud.Toast("Laden fehlgeschlagen: " + error, 4f);
 				break;
-			case "new": _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); AttachSession(); _hud.Toast("Neues Spiel"); break;
+			case "new": _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); _orbit.Reset(); AttachSession(); _hud.Toast("Neues Spiel"); break;   // Runde 19: neue Sitzung = Standardkamera
 			case var a when a.StartsWith("new:", StringComparison.Ordinal):   // Phase 5c: Startpaket (player.startOptions)
 			{
 				string key = a[4..];
 				var name = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().FirstOrDefault(o => o.Key == key)?.Name ?? key;
 				_session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault(startOption: key));
+				_orbit.Reset();   // Runde 19 (Handy-Test: der Gefechtstest begann mit der zuvor verstellten Kamera flach und weit weg); Andocken/Sprung behalten sie
 				AttachSession();
 				_hud.Toast($"Neues Spiel – Startpaket {name}");
 				break;
@@ -1763,7 +1767,28 @@ public partial class Main : Node3D
 	/// <summary>Runde 4: Station, deren Körper (projizierter Radius, mindestens 28 Gerätepixel) den Tipp enthält — die nächste gewinnt.</summary>
 	StationId? PickStationScreen(Vector2 screen) => PickStationScreen(screen, out _);
 
-	/// <summary>Wie oben, mit dem Bildschirmabstand des Tipps zur Stationsmitte (Runde 5: Vergleich mit einem Schiff daneben).</summary>
+	/// <summary>Runde 19: Tor, dessen projizierte Öffnung (Tormodell-Radius, mindestens 28 Gerätepixel) den Tipp enthält — das nächste gewinnt.</summary>
+	GateId? PickGateScreen(Vector2 screen, out float centrePx)
+	{
+		centrePx = float.MaxValue;
+		var u = _session.U;
+		float minPx = Mathf.Max(20f, 28f * GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, DisplayServer.WindowGetSize().X));
+		GateId? best = null; float bestD = float.MaxValue;
+		foreach (var id in u.Sectors[u.PlayerSector].Gates)
+		{
+			if (!u.Gates.TryGetValue(id, out var g)) continue;
+			var c = new Vector3(g.Position.X, 0, g.Position.Y);
+			if (_cam.IsPositionBehind(c)) continue;
+			var sc = _cam.UnprojectPosition(c);
+			float r = sc.DistanceTo(_cam.UnprojectPosition(c + new Vector3(GateModels.Scale, 0, 0)));
+			float d = sc.DistanceTo(screen);
+			if (SpaceSim.Core.Flight.TapPick.InBody(d, r, minPx) && d < bestD) { bestD = d; best = id; }
+		}
+		centrePx = bestD;
+		return best;
+	}
+	internal GateId? TestPickGateAt(Vector2 screen) { TryPickTarget(screen); return _targetGate; }
+
 	StationId? PickStationScreen(Vector2 screen, out float centrePx)
 	{
 		centrePx = float.MaxValue;
@@ -1806,19 +1831,36 @@ public partial class Main : Node3D
 		// liegt näher an einem Schiffsmarker als an der Stationsmitte (Runde 4/5). Ein gewähltes Schiff ist Waffenziel (Zielkarte mit Schild und Hülle).
 		float pickPx = Mathf.Max(40f, 56f * GetViewport().GetVisibleRect().Size.X / Mathf.Max(1f, DisplayServer.WindowGetSize().X));
 		Vector2? ToScreen(Vec2 p) => _cam.IsPositionBehind(new Vector3(p.X, 0, p.Y)) ? null : _cam.UnprojectPosition(new Vector3(p.X, 0, p.Y));
-		var shipHit = CombatController.PickScreen(_view.ShipMarkers(), ToScreen, screen, pickPx);
-		float shipPx = shipHit is { } sh && _view.ShipMarkers().FirstOrDefault(m => m.Id == sh) is var mk && ToScreen(mk.Pos) is { } msp ? msp.DistanceTo(screen) : float.MaxValue;
-		if (PickStationScreen(screen, out float stationPx) is { } bodyHit && !(shipHit is not null && shipPx < stationPx))
+		// Runde 19 (Handy-Test K_2: Toast „Ziel: Korsar …“, Zielkarte „Kein Ziel“): nur Schiffe, die als Ziel gültig bleiben (im Sektor nach der Core-Position, wie
+		// CombatController.Validate) — ein Marker auf dem Durchflug am Tor ist kein Ziel
+		var uu = _session.U;
+		var markers = _view.ShipMarkers().Where(m => m.Id != uu.PlayerShip && uu.Ships.ContainsKey(m.Id)
+			&& SpaceSim.Core.Combat.PlayerCombat.PositionOf(uu, m.Id) is { } cp && cp.Sector == uu.PlayerSector).ToList();
+		var shipHit = CombatController.PickScreen(markers, ToScreen, screen, pickPx);
+		float shipPx = shipHit is { } sh && markers.FirstOrDefault(m => m.Id == sh) is var mk && ToScreen(mk.Pos) is { } msp ? msp.DistanceTo(screen) : float.MaxValue;
+		if (PickStationScreen(screen, out float stationPx) is { } bodyHit && !(shipHit is not null && SpaceSim.Core.Flight.TapPick.ShipBeatsStation(shipPx, stationPx)))
 		{
 			SelectTarget(Navigator.ForStation(_session.U, bodyHit, _session.U.PlayerShip), bodyHit);
+			return;
+		}
+		// Runde 19 (K_5–K_7: Tippen aufs Tor wählte immer Händler davor/dahinter): ein Tipp in der projizierten Toröffnung wählt das Tor, außer er liegt deutlich
+		// näher an einem Schiffsmarker (Core: TapPick.ShipBeatsGate)
+		if (PickGateScreen(screen, out float gatePx) is { } gateHit && !(shipHit is not null && SpaceSim.Core.Flight.TapPick.ShipBeatsGate(shipPx, gatePx)))
+		{
+			SelectGate(gateHit);
 			return;
 		}
 		if (shipHit is { } picked && _session.U.Ships.TryGetValue(picked, out var ps))
 		{
 			_fight.SetTarget(picked);
-			_sfx.Play(SfxId.Click);
-			_hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ps)}");
-			return;
+			_fight.Validate(uu);
+			if (_fight.Target == picked)
+			{
+				_sfx.Play(SfxId.Click);
+				_hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ps)}");
+				UpdateHud();   // Zielkarte sofort
+				return;
+			}
 		}
 		var sector = _session.U.Sectors[_session.U.PlayerSector];
 		Asteroid? rock = null; float rockD = 3f;
@@ -1939,9 +1981,11 @@ public partial class Main : Node3D
 	/// <summary>Phase 29: Kontaktabbau hat eine Portion gelöst — Funken am Bug (bis die Schiffsmodelle drehende Werkzeuge bekommen).</summary>
 	void OnContact(Asteroid rock, GoodId good, float units)
 	{
-		var h = _player.Heading;
-		var bow = _player.Position + new Vector3(-Mathf.Sin(h), 0f, -Mathf.Cos(h)) * SpaceSim.Core.Mining.ContactMining.BowOffset;
-		_fx.Burst(bow, new Color(1f, 0.75f, 0.35f), 6, 9f, 0.35f);
+		// Runde 19 (Handy-Test d_crops: Funken verdeckten die Werkzeugspitze): kleine Funken an der Felsoberfläche, abwechselnd seitlich neben dem Werkzeug
+		var c = new Vector3(rock.Position.X, 0f, rock.Position.Y);
+		var n = _player.Position - c; n.Y = 0f; n = n.LengthSquared() < 1e-4f ? Vector3.Back : n.Normalized();
+		var side = new Vector3(-n.Z, 0f, n.X) * ((_contactSparks % 2 == 0) ? 1.8f : -1.8f);
+		_fx.Burst(c + n * rock.Radius + side, new Color(1f, 0.75f, 0.35f), 4, 6f, 0.3f);
 		_contactSparks++;
 	}
 	int _contactSparks;

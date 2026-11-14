@@ -94,6 +94,8 @@ public partial class SelfTest
 				if (_m.TestFramingBoth && _m.TestView.ShipPosition(_phLead) is { } lp) Check(OnScreen(lp), "Warnphase: Kaperer im Bild");
 				if (_m.TestView.ShipPosition(_phLead) is { } wp) Check(TargetVisible(wp), "Warnphase: Kaperer im freien Feld oder Randpfeil");
 				// Runde 18: das eigene Schiff behält eine Mindestgröße (Kamera höchstens bis zur Kappung) und liegt nicht unter dem Warnkasten
+				if (_m.HudRef.AlertRect is { } alr0)
+					Check(!alr0.Intersects(_m.HudRef.Flight.ReverseLabelRect), $"Warnkasten überdeckt „RÜCK · max 20 %“ nicht (Handyformat: {alr0} / {_m.HudRef.Flight.ReverseLabelRect})");   // Runde 19
 				Check(_m.TestCamDistance <= _m.TestWarningCap + 2f, $"Warnphase: Schiff groß genug (Abstand {_m.TestCamDistance:0} ≤ {_m.TestWarningCap:0})");
 				if (_m.HudRef.AlertRect is { } alr && !_m.TestCam.IsPositionBehind(_m.Player.Position))
 					Check(!alr.HasPoint(_m.TestCam.UnprojectPosition(_m.Player.Position)), "Warnphase: Schiff nicht unter dem Warnkasten");

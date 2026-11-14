@@ -194,6 +194,9 @@ public partial class FlightHud : Control, IScreen
 		}
 	}
 	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
+	Control? _reverseLabel;
+	/// <summary>Runde 19 (Handy-Test B_4: der Warnkasten verdeckte „RÜCK · max 20 %“): Bildschirmfläche der Beschriftung über der Rücktaste.</summary>
+	public Rect2 ReverseLabelRect => _reverseLabel is { } l ? l.GetGlobalRect() : new Rect2();
 	public Rect2 TestBayRect(int i) => new(_bayButtons[i].Position, _bayButtons[i].Size);
 	/// <summary>Runde 18: erste sichtbare Schachtzeile, die gekürzt würde (leer = alles passt).</summary>
 	public string TestBayOverflow => _bayButtons.Where(b => b.Visible).Select(b => b.Overflow()).FirstOrDefault(o => o.Length > 0) ?? "";
@@ -387,7 +390,7 @@ public partial class FlightHud : Control, IScreen
 		_turnL = At(this, new KitButton("◀", new Vector2(120, 100)) { FontSize = 44 }, 96, 584);
 		_turnR = At(this, new KitButton("▶", new Vector2(120, 100)) { FontSize = 44 }, 230, 584);
 		// RÜCK: 50 % der Kanten (80x56, Mindest-Trefferfläche), mittig zwischen Wendetasten (bis x=350) und Slider (ab x=660)
-		At(this, Text("RÜCK · max 20 %", 13, UiKit.Dim, HorizontalAlignment.Center), 410, 566, 200, 20);
+		_reverseLabel = At(this, Text("RÜCK · max 20 %", 13, UiKit.Dim, HorizontalAlignment.Center), 410, 566, 200, 20);
 		_reverse = At(this, new KitButton("RÜCK", new Vector2(80, 56)) { FontSize = 20 }, 470, 590);
 		_hamburger = At(this, new KitButton("", new Vector2(60, 60)), 16, 644);
 		_hamburger.Symbol = g => { foreach (var yy in new[] { 20f, 30f, 40f }) g.DrawRect(new Rect2(16, yy, 28, 4), UiKit.White); };

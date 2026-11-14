@@ -131,8 +131,9 @@ public partial class AnchorView : Node3D
 		var toShip = (shipPos - center); toShip.Y = 0f;
 		var n = toShip.LengthSquared() < 1e-4f ? Vector3.Back : toShip.Normalized();
 		var side = new Vector3(-n.Z, 0f, n.X);
-		e.Plume.GlobalPosition = center + n * rock.Radius + Vector3.Up * 0.4f;
-		e.Plume.Direction = (side * 0.8f + Vector3.Up * 0.6f - n * 0.2f).Normalized();
+		// Runde 19: die Abraumfahne tritt seitlich neben dem Werkzeug aus und zieht flach weg — das Werkzeug (und seine Drehmarke) bleibt sichtbar
+		e.Plume.GlobalPosition = center + n * rock.Radius + side * 2.2f + Vector3.Up * 0.2f;
+		e.Plume.Direction = (side * 1f + Vector3.Up * 0.25f - n * 0.15f).Normalized();
 		if (e.Plume.Emitting != mining) e.Plume.Emitting = mining;
 		e.PuffClock -= delta;
 		if (mining && e.PuffClock <= 0f)

@@ -367,14 +367,21 @@ public static class ShipModels
 		if (mesh != rotor) box = new Aabb(box.Position + mesh.Position, box.Size);
 		float r = Mathf.Max(box.Size.X, box.Size.Y) * 0.5f;
 		if (r <= 1e-4f) return;
-		_rotorMarkMat ??= Gfx.Mat(new Color(1f, 0.55f, 0.15f), 2.5f, 0f);
+		_rotorMarkMat ??= Gfx.Mat(new Color(0.55f, 1f, 1f), 3f, 0f);   // Runde 19: kühles Weißblau hebt sich vom gelben Werkzeug ab
 		var c = box.GetCenter();
-		var mark = new MeshInstance3D
+		// Runde 19 (Handy-Test d_crops: Marke unter Funken/Trümmern an der Spitze nicht zu sehen): zwei breite Leisten außen am hinteren Teil des Werkzeugs,
+		// gegenüberliegend und über den Rand hinaus — sie laufen sichtbar um, auch wenn die Spitze im Abraum steckt
+		float len = MathF.Max(box.Size.Z * 0.55f, r * 0.8f);
+		float zBack = box.End.Z - len * 0.5f;
+		for (int k = 0; k < 2; k++)
 		{
-			Name = "RotorMark", Mesh = new BoxMesh { Size = new Vector3(r * 0.35f, r * 1.05f, box.Size.Z * 1.02f) }, MaterialOverride = _rotorMarkMat,
-			Position = new Vector3(c.X, c.Y + r * 0.5f, c.Z), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-		};
-		rotor.AddChild(mark);
+			float sgn = k == 0 ? 1f : -1f;
+			rotor.AddChild(new MeshInstance3D
+			{
+				Name = $"RotorMark{k}", Mesh = new BoxMesh { Size = new Vector3(r * 0.45f, r * 0.35f, len) }, MaterialOverride = _rotorMarkMat,
+				Position = new Vector3(c.X, c.Y + sgn * r * 1.08f, zBack), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			});
+		}
 	}
 
 	internal static Material AccentVariant(Material src, Color accent, float energy = 0.35f)
