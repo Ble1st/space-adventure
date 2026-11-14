@@ -55,8 +55,7 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 				if (size == SpaceSim.Core.Ui.UiSize.Large) _testUiLarge = b;
 				bx += 128;
 			}
-			WrappedText(inner, $"UI-Größe {UiScale.Name(UiScale.Size)}: {UiScale.Factor:0.00}× " + (UiScale.Factor < UiScale.Wanted - 0.001f
-				? $"(Ziel {UiScale.Wanted:0.00}× für 7 mm Tasten — folgt, sobald die Bildschirme mitwachsen)" : "(Tasten mindestens 7 mm)"), 360, 452, 380, 13, Dim, 18);
+			WrappedText(inner, UiScale.Describe(), 360, 452, 380, 13, Dim, 18);   // Runde 32: echte Tastengröße, ehrlicher Hinweis
 		}
 	}
 

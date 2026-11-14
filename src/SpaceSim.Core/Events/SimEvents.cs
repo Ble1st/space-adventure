@@ -15,6 +15,11 @@ public sealed record OutpostBuilt(StationId Station, SectorId Sector, ActorId Ow
 public sealed record StationRemoved(StationId Station, SectorId Sector, string Reason) : SimEvent;
 public sealed record OreCollected(ShipId Ship, GoodId Good, float Units) : SimEvent;
 public sealed record PlayerSold(ShipId Ship, StationId Station, GoodId Good, float Units, float Revenue) : SimEvent;
+/// <summary>
+/// Runde 32 (Diagnose): ein Handel des Spieler-Akteurs lief über den Rückkaufdeckel — <paramref name="Lost"/> = Unterschied zum Marktpreis (entgangener Erlös
+/// beim Verkauf, Mehrpreis beim Kauf). Nur Bus, nie gespeichert; NPCs lösen es nie aus.
+/// </summary>
+public sealed record LedgerApplied(ShipId Ship, StationId Station, GoodId Good, float Units, float Lost, bool Sale) : SimEvent;
 public sealed record PlayerBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
 /// <summary>
 /// Ein Stationsdienst wurde ausgeführt. Wird nur bei Erfolg veröffentlicht (mindestens eine Einheit bewegt, bei "alles verkaufen" Erlös &gt; 0);

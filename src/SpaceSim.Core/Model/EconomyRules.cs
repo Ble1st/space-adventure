@@ -461,6 +461,26 @@ public sealed class EconomyRules
     public float ProducerPriceCapShare = 0f;
     /// <summary>Runde 30: Rückkaufdeckel für Spielerhandel an derselben Station (<see cref="Trading.PlayerLedger"/>); false = Messung ohne Deckel (Sonde).</summary>
     public bool BuybackCap = true;
+    /// <summary>
+    /// Runde 32: Reichweite des Rückkaufdeckels. true (Standard, Variante V1) = solange ein Kauf-Posten offen ist, gilt für JEDEN Verkauf dieser Ware an dieser
+    /// Station höchstens der niedrigste offene Kaufpreis (Menge und Herkunft egal; Spiegel beim Kauf); false = Runde 31 (nur die Postenmenge gedeckelt —
+    /// die Prüfung fand damit Schleifen mit mitgebrachter Ware, nur noch zum Messen).
+    /// </summary>
+    public bool BuybackWholeTrade = true;
+    /// <summary>Runde 31/32: ein Kauf-Posten verfällt nicht, solange der Spieler Ware dieser Sorte hält (an Bord seiner Schiffe oder im Lager der Station); false = Messung.</summary>
+    public bool BuybackHeldKeepsPost = true;
+    /// <summary>
+    /// Runde 32, nur Messung (Variante V2 der Prüfung): Dock-Handel des Spieler-Akteurs stückweise entlang der Bestandskurve — jede Einheit zum Preis nach dem
+    /// Bestand, den die vorigen Einheiten dieses Handels hinterlassen (Tickpreis × Kurvenverhältnis); zustandslos, ohne Posten. Standard aus.
+    /// </summary>
+    public bool BuybackPiecewise = false;
+    /// <summary>
+    /// Runde 32b, nur Messung (Vorschlag): ein Posten, von dem der Spieler nichts mehr hält, verfällt auch ohne Preisrückkehr, sobald der Bestand zurück ist und
+    /// seit der letzten Buchung so viele Ticks vergangen sind (0 = aus, Standard). Gegen „ewige“ Posten, deren Preis aus anderen Gründen oben bleibt.
+    /// </summary>
+    public int BuybackStaleTicks = 0;
+    /// <summary>Runde 32b, nur Messung: der Messvorschlag <see cref="BuybackStaleTicks"/> ohne die Bestandsbedingung (nur Zeit und nichts gehalten).</summary>
+    public bool BuybackStaleIgnoresStock = false;
     /// <summary>Instandhaltung je Tag (<see cref="DayTicks"/>) als Anteil der Baukosten des Stationstyps, zum Basispreis in Material umgerechnet; 0 = aus.</summary>
     public float MaintenanceShare = 0.03f;
     /// <summary>Instandhaltungsmaterial: Ware → Gewicht (Anteil am Wert). Fehlt eine Ware in der Welt, fällt ihr Anteil weg.</summary>

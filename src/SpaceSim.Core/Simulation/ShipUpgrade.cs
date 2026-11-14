@@ -109,6 +109,8 @@ public static class ShipUpgrade
         }
         var missing = ShipPurchase.Missing(st, materials);
         float price = ShipPurchase.Price(u, st, materials, u.Rules.UpgradeLabor);
+        // Runde 32: Material, das der Spieler hier verkauft hat, mindestens zum erhaltenen Preis (Spiegelposten; 0 für NPCs)
+        foreach (var m in materials) price += Trading.PlayerLedger.MaterialSurcharge(u, ship, st, m.Good, m.Units) * (1f + MathF.Max(0f, u.Rules.UpgradeLabor));
         return new UpgradeQuote(kind, slot, from, to, type, size, WithPity(u.Rules, baseChance, pity), pity, materials, missing, price,
             u.WalletOf(ship).Credits >= price, issue);
     }
@@ -129,7 +131,10 @@ public static class ShipUpgrade
     public static bool Attempt(Universe u, Station st, Ship ship, UpgradeQuote q)
     {
         if (q.Kind == UpgradeKind.Module && DamagedIssue(ship, q.Slot) is not null) return false;   // Phase 26: nichts verbucht
+        var before = q.Materials.Select(m => (Stock: st.Market.TryGetValue(m.Good, out var e) ? e.Amount : 0f, Price: Trading.PlayerLedger.MaterialPrice(u, ship, st, m.Good))).ToList();
         ShipPurchase.Consume(st, q.Materials);
+        // Runde 32: verbrauchtes Material zählt als Kauf hier (Rückkaufdeckel; nur Spieler-Akteur)
+        foreach (var (m, b) in q.Materials.Zip(before)) Trading.PlayerLedger.OnConsumed(u, ship, st, m.Good, m.Units, b.Price, b.Stock);
         var wallet = u.WalletOf(ship);
         wallet.Credits -= q.Price;
         Profitability.Transfer(ship.Profit, -q.Price);   // Phase 22: Investition (nur gemessene KI-Schiffe)

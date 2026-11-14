@@ -176,7 +176,7 @@ public static class UniverseHash
         foreach (var (k, t) in u.PeaceSince.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2806u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         // Runde 30: Rückkauf-Posten (ohne Spielerhandel leer — mischt nichts)
         foreach (var (k, l) in u.Ledger.OrderBy(kv => kv.Key.Actor).ThenBy(kv => kv.Key.Station).ThenBy(kv => kv.Key.Good))
-        { Mix(0x3001u); Mix((ulong)k.Actor); Mix((ulong)k.Station); Mix((ulong)k.Good); MixF(l.BoughtQty); MixF(l.BoughtPrice); MixF(l.BoughtStockBefore); MixF(l.SoldQty); MixF(l.SoldPrice); MixF(l.SoldStockBefore); }
+        { Mix(0x3001u); Mix((ulong)k.Actor); Mix((ulong)k.Station); Mix((ulong)k.Good); MixF(l.BoughtQty); MixF(l.BoughtPrice); MixF(l.BoughtStockBefore); MixF(l.SoldQty); MixF(l.SoldPrice); MixF(l.SoldStockBefore); Mix(l.BoughtOpen ? 1u : 0u); Mix(l.SoldOpen ? 1u : 0u); Mix((ulong)l.LastTick); }
         foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); if (e.Station.Value != 0) Mix((ulong)e.Station.Value); }
         // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))

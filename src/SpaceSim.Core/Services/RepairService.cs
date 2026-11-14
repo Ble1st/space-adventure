@@ -1,5 +1,6 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Trading;
 
 namespace SpaceSim.Core.Services;
 
@@ -76,16 +77,18 @@ public sealed class RepairService : IStationService
         ship.MaxHull - ship.Hull > 0.5f || ship.Systems.Burning.Count > 0 || DamagedSlots(ship).Count > 0;
 
     static float Price(Station st, GoodId? g) => g is { } id && st.Market.TryGetValue(id, out var e) ? e.Price : 0f;
+    /// <summary>Runde 32: Materialpreis für dieses Schiff — für den Spieler mit offenem Verkaufs-Posten mindestens dessen Preis (Spiegelboden), sonst Markt.</summary>
+    static float Price(Universe u, Station st, GoodId? g, Ship? ship) => g is { } id ? PlayerLedger.MaterialPrice(u, ship, st, id) : 0f;
     static float Stock(Station st, GoodId? g) => g is { } id && st.Market.TryGetValue(id, out var e) ? MathF.Max(0f, e.Amount) : 0f;
 
     /// <summary>Preis je Hüllenpunkt: Plattenmarktpreis × Plattenbedarf je Punkt × <see cref="LaborFactor"/>.</summary>
-    public static float PricePerHull(Universe u, Station st) => Price(st, PlatesGood(u)) * u.Rules.RepairPlatesPerHull * LaborFactor;
+    public static float PricePerHull(Universe u, Station st, Ship? ship = null) => Price(u, st, PlatesGood(u), ship) * u.Rules.RepairPlatesPerHull * LaborFactor;
 
     /// <summary>Phase 26: Preis je Zustandspunkt (0..1) eines Moduls in diesem Slot (Platten + Elektronik × Größenstufe × Aufschlag); 0 = Station kann keine Module.</summary>
     public static float PricePerModulePoint(Universe u, Station st, Ship ship, int slot)
     {
         var r = u.Rules;
-        float pp = Price(st, PlatesGood(u)), pe = Price(st, ElectronicsGood(u));
+        float pp = Price(u, st, PlatesGood(u), ship), pe = Price(u, st, ElectronicsGood(u), ship);
         if (pp <= 0f || (r.ModuleRepairElectronics > 0f && pe <= 0f)) return 0f;
         return (r.ModuleRepairPlates * pp + r.ModuleRepairElectronics * pe) * SizeFactor(ship, slot) * LaborFactor;
     }
@@ -101,6 +104,8 @@ public sealed class RepairService : IStationService
         var plates = PlatesGood(u);
         var elec = ElectronicsGood(u);
         if (plates is null || !Available(u, st)) return default;
+        // Runde 32: Bestand und Stückpreis vor dem Verbrauch (Rückkaufposten des Spielers)
+        float plStock = Stock(st, plates), elStock = Stock(st, elec), plPrice = Price(u, st, plates, ship), elPrice = Price(u, st, elec, ship);
         float budget = MathF.Max(0f, maxCost), cost = 0f, platesUsed = 0f, elecUsed = 0f, hullDone = 0f;
         int modulesDone = 0;
         bool partial = false;
@@ -110,7 +115,7 @@ public sealed class RepairService : IStationService
             float missing = MathF.Max(0f, ship.MaxHull - ship.Hull) * Math.Clamp(hullShare, 0f, 1f);
             if (missing > 0.0001f)
             {
-                float pph = PricePerHull(u, st);
+                float pph = PricePerHull(u, st, ship);
                 float amount = missing;
                 if (r.RepairPlatesPerHull > 0f) amount = MathF.Min(amount, Stock(st, plates) / r.RepairPlatesPerHull);
                 if (pph > 0f) amount = MathF.Min(amount, budget / pph);
@@ -155,6 +160,9 @@ public sealed class RepairService : IStationService
         if (cost <= 0f && hullDone <= 0f && modulesDone == 0) return new RepairOutcome(0f, 0, 0f, 0f, 0f, true);
         st.Credits += cost;
         wallet.Credits -= cost;   // Spieler: Spielerkasse, NPC: Schiff
+        // Runde 32: verbrauchtes Material zählt als Kauf hier (nur Spieler-Akteur) — sonst hebt die Reparatur den Plattenpreis und mitgebrachte Platten gingen teurer weg
+        PlayerLedger.OnConsumed(u, ship, st, plates.Value, platesUsed, plPrice, plStock);
+        if (elec is { } eg2) PlayerLedger.OnConsumed(u, ship, st, eg2, elecUsed, elPrice, elStock);
         u.Events.Publish(new ShipRepaired(ship.Id, st.Id, hullDone, modulesDone, cost, platesUsed, elecUsed, false));
         return new RepairOutcome(hullDone, modulesDone, platesUsed, elecUsed, cost, partial);
     }
@@ -185,16 +193,16 @@ public sealed class RepairService : IStationService
         for (int i = 0; i < ship.Fit.Count; i++)
             if (Combat.ModuleDamage.Failed(u, ship, i) || ship.Systems.IsBurning(i))
                 modules.Add((i, MathF.Max(0f, target - ship.ConditionOf(i))));
-        float pp = UnitPrice(u, st, PlatesGood(u)), pe = UnitPrice(u, st, ElectronicsGood(u));
+        float pp = UnitPrice(u, st, PlatesGood(u), ship), pe = UnitPrice(u, st, ElectronicsGood(u), ship);
         float cost = hullPoints * r.RepairPlatesPerHull * pp * LaborFactor;
         foreach (var (slot, pts) in modules) cost += pts * (r.ModuleRepairPlates * pp + r.ModuleRepairElectronics * pe) * SizeFactor(ship, slot) * LaborFactor;
         return cost;
     }
 
-    static float UnitPrice(Universe u, Station st, GoodId? g)
+    static float UnitPrice(Universe u, Station st, GoodId? g, Ship? ship = null)
     {
         if (g is not { } id) return 0f;
-        return st.Market.TryGetValue(id, out var e) && e.Price > 0f ? e.Price : u.Goods[id].BasePrice;
+        return st.Market.TryGetValue(id, out var e) && e.Price > 0f ? PlayerLedger.MaterialPrice(u, ship, st, id) : u.Goods[id].BasePrice;
     }
 
     /// <summary>Notreparatur ausführen (siehe <see cref="EmergencyCost"/>). Ereignis <see cref="ShipRepaired"/>.</summary>
@@ -204,7 +212,11 @@ public sealed class RepairService : IStationService
         float cost = EmergencyCost(u, st, ship, out float hull, out var modules);
         float platesNeed = hull * r.RepairPlatesPerHull, elecNeed = 0f;
         foreach (var (slot, pts) in modules) { platesNeed += pts * r.ModuleRepairPlates * SizeFactor(ship, slot); elecNeed += pts * r.ModuleRepairElectronics * SizeFactor(ship, slot); }
-        float pUsed = Take(st, PlatesGood(u), platesNeed), eUsed = Take(st, ElectronicsGood(u), elecNeed);
+        GoodId? pg = PlatesGood(u), eg = ElectronicsGood(u);
+        float pStock = Stock(st, pg), eStock = Stock(st, eg), pPrice = UnitPrice(u, st, pg, ship), ePrice = UnitPrice(u, st, eg, ship);
+        float pUsed = Take(st, pg, platesNeed), eUsed = Take(st, eg, elecNeed);
+        if (pg is { } pgv) PlayerLedger.OnConsumed(u, ship, st, pgv, pUsed, pPrice, pStock);   // Runde 32
+        if (eg is { } egv) PlayerLedger.OnConsumed(u, ship, st, egv, eUsed, ePrice, eStock);
         ship.Hull = MathF.Min(ship.MaxHull, ship.Hull + hull);
         Combat.ModuleDamage.ExtinguishAll(u, ship, "repaired");
         foreach (var (slot, pts) in modules) Combat.ModuleDamage.SetCondition(u, ship, slot, ship.ConditionOf(slot) + pts);
@@ -230,7 +242,7 @@ public sealed class RepairService : IStationService
         if (good is null || !station.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return offers;
         float credits = MathF.Max(0f, u.WalletOf(ship).Credits);
         float missing = ship.MaxHull - ship.Hull;
-        float pricePerHull = PricePerHull(u, station);
+        float pricePerHull = PricePerHull(u, station, ship);
         if (missing > 0.5f)
             foreach (var (key, label, share) in new[] { (Full, "Hülle voll reparieren", 1f), (Half, "Hülle halb reparieren", 0.5f) })
             {

@@ -9,5 +9,13 @@ public sealed class LedgerPost
 {
     public float BoughtQty, BoughtPrice, BoughtStockBefore;
     public float SoldQty, SoldPrice, SoldStockBefore;
-    public bool Empty => BoughtQty <= 0.0001f && SoldQty <= 0.0001f;
+    /// <summary>
+    /// Runde 32b: Kauf- bzw. Verkaufsteil wirkt (Deckel/Boden gelten), unabhängig von der Restmenge — eine Gegenbuchung baut nur die Menge ab, beendet den Teil aber
+    /// nicht (Prüfung: Teilverkauf leerte den Posten, der Rest ging im selben Tick zum selbst getriebenen Preis). Beendet wird er nur von
+    /// <see cref="Trading.PlayerLedger.Prune"/> im Tick, wenn Bestand und Preis zurück sind (frühestens nach <see cref="LastTick"/>).
+    /// </summary>
+    public bool BoughtOpen, SoldOpen;
+    /// <summary>Runde 32b: Tick der letzten Buchung des Spielers an diesem Posten — der Verfall prüft erst, wenn der Markt danach neu bepreist hat.</summary>
+    public long LastTick;
+    public bool Empty => !BoughtOpen && !SoldOpen && BoughtQty <= 0.0001f && SoldQty <= 0.0001f;
 }

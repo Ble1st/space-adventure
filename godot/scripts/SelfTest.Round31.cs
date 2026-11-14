@@ -41,7 +41,21 @@ public partial class SelfTest
 				UiScale.Set(UiSize.Normal);
 				return false;
 			}
-			case 2: return false;
+			case 2:
+			{
+				// Runde 32: der Text nennt die echte Tastengröße der Stufe (nicht „mindestens 7 mm“) und dass die Stufen erst später wirken
+				UiScale.TestPpi = 396f;
+				UiScale.Set(UiSize.Small);
+				float mm = UiLayout.Millimetres(UiLayout.BaseTapPx, root.Size.X, root.Size.Y, 1f, 396f);
+				string d1 = UiScale.Describe();
+				UiScale.Set(UiSize.Large);
+				string d2 = UiScale.Describe();
+				Check(d1.Contains($"≈ {mm:0.0} mm") && !d1.Contains("mindestens 7 mm") && d2.Contains("erst mit den nächsten Ausbaustufen"),
+					$"UI-Größe: Text nennt echte Tastengröße und den späteren Ausbau („{d1}“ / „{d2}“)");
+				UiScale.TestPpi = null;
+				UiScale.Set(UiSize.Normal);
+				return false;
+			}
 			case 3: case 33:
 			{
 				_r31Factor = f == 3 ? 1.15f : 1.3f;

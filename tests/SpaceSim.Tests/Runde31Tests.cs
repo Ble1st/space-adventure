@@ -70,6 +70,7 @@ public class Runde31Tests
         TradeActions.Buy(u, p, st, g, 5f);
         p.Cargo.Clear();   // anderswo verkauft
         e.Amount = before; e.Price = 0f + st.Market[g].Price * 0.5f;
+        u.Tick++;   // Runde 32b: der Verfall prüft erst im Tick nach der letzten Buchung
         PlayerLedger.Prune(u);
         Assert.Null(PlayerLedger.Post(u, st, g));
     }

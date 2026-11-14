@@ -654,7 +654,7 @@ public partial class Main : Node3D
 		{
 			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); break;   // Runde 12
 			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); break;
-			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Text + (Ui.Kit.UiScale.Factor < Ui.Kit.UiScale.Wanted - 0.001f ? $" — Ziel {Ui.Kit.UiScale.Wanted:0.00}× folgt mit dem Umbau der Bildschirme" : "")); break;   // Runde 31
+			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Describe()); break;   // Runde 31/32: echte Tastengröße
 			case "save": SaveNow(manual: true); break;
 			case "load":
 				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }

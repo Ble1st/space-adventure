@@ -153,6 +153,7 @@ public static class UniverseSerializer
             {
                 Actor = kv.Key.Actor, Station = kv.Key.Station, Good = kv.Key.Good, BoughtQty = kv.Value.BoughtQty, BoughtPrice = kv.Value.BoughtPrice,
                 BoughtStockBefore = kv.Value.BoughtStockBefore, SoldQty = kv.Value.SoldQty, SoldPrice = kv.Value.SoldPrice, SoldStockBefore = kv.Value.SoldStockBefore,
+                BoughtOpen = kv.Value.BoughtOpen, SoldOpen = kv.Value.SoldOpen, LastTick = kv.Value.LastTick,   // Runde 32b
             }).ToList();
         // Phase 26: Wracks und Frachtbehälter
         if (u.NextWreckId != 1) s.NextWreckId = u.NextWreckId;
@@ -389,6 +390,7 @@ public static class UniverseSerializer
                 u.Ledger[(l.Actor, l.Station, l.Good)] = new LedgerPost
                 {
                     BoughtQty = l.BoughtQty, BoughtPrice = l.BoughtPrice, BoughtStockBefore = l.BoughtStockBefore, SoldQty = l.SoldQty, SoldPrice = l.SoldPrice, SoldStockBefore = l.SoldStockBefore,
+                    BoughtOpen = l.BoughtOpen ?? l.BoughtQty > 0f, SoldOpen = l.SoldOpen ?? l.SoldQty > 0f, LastTick = l.LastTick,   // Runde 32b
                 };
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)

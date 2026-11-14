@@ -214,6 +214,11 @@ public sealed class LedgerSave
     public float SoldQty { get; set; }
     public float SoldPrice { get; set; }
     public float SoldStockBefore { get; set; }
+    /// <summary>Runde 32b: Teile wirken auch mit Restmenge 0 (fehlt = aus der Menge abgeleitet).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? BoughtOpen { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? SoldOpen { get; set; }
+    /// <summary>Runde 32b: Tick der letzten Buchung (fehlt = 0).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastTick { get; set; }
 }
 
 public sealed class PendingEncounterSave

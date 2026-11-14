@@ -719,7 +719,8 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// Runde 30: Rückkaufdeckel — Kauf- und Verkaufssumme mit den wirksamen Preisen (PlayerLedger), der Grund steht dabei
 			float buyCost = PlayerLedger.BuyCost(u, ship, st, row.Good, qty, price).Cost;
 			float buyUnit = qty > 0f ? buyCost / qty : price;
-			string floorNote = PlayerLedger.BuyNote(u, ship, st, row.Good) is { } bn ? " · " + bn : "";
+			// Runde 32b: in der Kaufzeile die kurze Fassung („Boden p“) — der ausführliche Grund steht in Zeile 3
+			string floorNote = PlayerLedger.BuyNoteShort(u, ship, st, row.Good) is { } bn ? " · " + bn : "";
 			string buy = row.HasBuy && canBuy >= 1f
 				? (canBuy < qty ? Pick(14, $"Kauf {qty:0} × {buyUnit:0.0} = {buyCost:0} Cr — nur {canBuy:0} {LimitText(u, st, ship, row, price)}{floorNote}", $"Kauf {qty:0} × {buyUnit:0.0} — nur {canBuy:0} {LimitText(u, st, ship, row, price)}")
 					: Pick(14, $"Kauf {qty:0} × {buyUnit:0.0} = {buyCost:0} Cr{floorNote}", $"Kauf {qty:0} × {buyUnit:0.0} = {buyCost:0} Cr"))
@@ -727,7 +728,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// Verkaufsseite: was ein Verkauf wirklich brächte (Angebotsmenge × wirksamer Preis), 0 wenn die Station nichts nimmt
 			float sellUnits = MathF.Min(qty, row.Sell.Amount);
 			float sellHere = sellUnits > 0f ? PlayerLedger.SaleValue(u, ship, st, row.Good, sellUnits, price).Revenue : 0f;
-			string capNote = row.Held > 0f && PlayerLedger.SaleNote(u, ship, st, row.Good) is { } sn ? $" ({sn})" : "";
+			string capNote = row.Held > 0f && PlayerLedger.SaleNoteShort(u, ship, st, row.Good) is { } sn ? $" ({sn})" : "";
 			string sell = row.Held > 0f ? (row.Sell.Amount > 0f ? $" · Verkauf hier {sellHere:0} Cr{capNote}" : " · Verkauf hier —") : "";
 			// Abnehmer: ehrlich für die gewählte Menge (Kaufseite) bzw. die Ladung (Verkaufsseite)
 			bool buying = row.HasBuy && canBuy >= 1f;
@@ -782,7 +783,8 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 				}
 			}
 			if (row.Sell.Note is { } note && row.Held > 0f)
-				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}");
+				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}",
+					PlayerLedger.SaleNoteShort(u, ship, st, row.Good) is { } shortCap ? $"hier: {shortCap}, bis Preis und Lager zurück" : $"hier: {note}");
 			return (buy + sell, l2, l3, verdict, best?.Station.Id ?? default);
 		}
 

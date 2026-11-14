@@ -42,7 +42,7 @@ public partial class SelfTest
 				var note = new SpaceSim.Core.Services.TradeService().Offers(u, u.Stations[_r30St], me).First(o => o.Key == $"sell:{_r30Good.Value}").Note ?? "";
 				var e = u.Stations[_r30St].Market[_r30Good];
 				var post = PlayerLedger.Post(u, u.Stations[_r30St], _r30Good);
-				Check(post is null || e.Price <= post.BoughtPrice || note.StartsWith("Rückkauf: höchstens dein Kaufpreis"), $"Verkaufsangebot nennt den Deckel ({note})");
+				Check(post is null || e.Price <= post.BoughtPrice || note.StartsWith("Wegen deines Kaufs hier: höchstens"), $"Verkaufsangebot nennt den Deckel ({note})");
 				var s = trade.TestExecute($"sell:{_r30Good.Value}", 0f);
 				float gain = u.WalletOf(me).Credits - _r30Cash + me.Cargo.GetValueOrDefault(_r30Good) * (r.Credits == 0 ? 0 : -r.Credits / r.Units);
 				Check(s.Success && gain <= 0.5f, $"Regal: Kauf → Tick → Rückverkauf ohne Gewinn ({gain:0.00} Cr; {s.Message})");

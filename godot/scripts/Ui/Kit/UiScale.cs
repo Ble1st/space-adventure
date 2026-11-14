@@ -40,7 +40,18 @@ public static class UiScale
 	public static void Cycle() => Set((UiSize)(((int)Size + 1) % 3));
 
 	public static string Name(UiSize s) => s switch { UiSize.Small => "klein", UiSize.Normal => "normal", _ => "groß" };
-	public static string Text => $"UI-Größe {Name(Size)} ({Factor:0.00}×)";
+	public static string Text => $"UI-Größe {Name(Size)} ({Factor:0.00}×{MmText})";
+	/// <summary>Runde 32: Größe einer Raster-Taste (56 px) bei der aktuellen Stufe in mm (NaN ohne bekannte DPI).</summary>
+	public static float TapMm { get; private set; } = float.NaN;
+	static string MmText => float.IsNaN(TapMm) ? "" : $", Tasten ≈ {TapMm:0.0} mm";
+	/// <summary>
+	/// Runde 32 (Prüfung: „Tasten mindestens 7 mm“ stimmte bei „klein“ am Handy nicht — dort 5,4 mm): die echte Tastengröße der aktuellen Stufe und ehrlich,
+	/// dass die Stufen erst mit den nächsten Ausbaustufen (mitwachsende Bildschirme) wirken.
+	/// </summary>
+	public static string Describe() =>
+		$"UI-Größe {Name(Size)}: {Factor:0.00}×{MmText}." + (Wanted > Factor + 0.001f
+			? $" Die Stufe wirkt erst mit den nächsten Ausbaustufen (Bildschirme wachsen mit) — dann {Wanted:0.00}×."
+			: Size != UiSize.Small && Factor <= 1.001f ? " Die Stufen wirken erst mit den nächsten Ausbaustufen (Bildschirme wachsen mit)." : "");
 
 	/// <summary>Faktor neu rechnen und setzen (Fenstergröße, DPI, Stufe).</summary>
 	public static void Apply()
@@ -54,6 +65,7 @@ public static class UiScale
 		Wanted = UiLayout.Factor(Size, w, h, ppi, 9f);
 		float f = TestForce ?? UiLayout.Factor(Size, w, h, ppi, cap);
 		Factor = f;
+		TapMm = ppi > 0f ? UiLayout.Millimetres(UiLayout.BaseTapPx, w, h, f, ppi) : float.NaN;
 		if (Math.Abs(_root.ContentScaleFactor - f) > 0.0001f) _root.ContentScaleFactor = f;
 		Changed?.Invoke();
 	}

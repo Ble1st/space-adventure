@@ -122,7 +122,10 @@ public class Runde30Tests
         Assert.True(BuyThenSell(u, u.Ships[u.PlayerShip], b, st, g) <= 0.5f);
     }
 
-    /// <summary>Gemischte Menge: gekaufte Einheiten zum Kaufpreis, mitgebrachte zum Markt; die Meldung nennt den Rückkaufteil.</summary>
+    /// <summary>
+    /// Gemischte Menge: Runde 30/31 deckelte nur die gekauften Einheiten (mitgebrachte zum Markt — die Prüfung von Runde 31 fand darin Schleife A); seit
+    /// Runde 32 (V1) gilt der Kaufpreis für jede Einheit, solange der Kauf-Posten offen ist. Die Meldung nennt den Rückkaufteil.
+    /// </summary>
     [Fact]
     public void GemischteMenge_GedeckeltUndMarkt_MeldungNenntDenTeil()
     {
@@ -139,8 +142,9 @@ public class Runde30Tests
         float market = e.Price;
         var res = new TradeService().Execute(u, st, p, new ServiceRequest($"sell:{g.Value}", default, 3f));
         Assert.True(res.Success, res.Message);
-        Assert.Equal(2f * paid + market, res.Credits, 1);
-        Assert.Contains("davon 2 zum Rückkaufpreis", res.Message);
+        Assert.True(market > paid);
+        Assert.Equal(3f * paid, res.Credits, 1);
+        Assert.Contains("davon 3 zum Rückkaufpreis", res.Message);
     }
 
     /// <summary>Verfall: ist der Bestand wieder auf dem Stand vor dem Kauf, verfällt der Posten — der Preis ist dann nicht höher als gezahlt (kein Gewinn).</summary>
@@ -157,7 +161,7 @@ public class Runde30Tests
         Assert.NotNull(PlayerLedger.Post(u, st, g));
         p.Cargo.Clear();     // Runde 31: der Spieler hält die Ware nicht mehr (anderswo verkauft) — sonst bleibt der Posten für die gehaltene Menge
         e.Amount = before;   // NPC füllt auf
-        new SimulationRunner().Run(u, 1);
+        new SimulationRunner().Run(u, 2);   // Runde 32b: der Verfall prüft erst im Tick nach dem Buchungs-Tick
         Assert.Null(PlayerLedger.Post(u, st, g));
         Assert.True(e.Price <= paid + 0.001f, $"Preis nach Rückkehr {e.Price} > gezahlt {paid}");
         // sinkt der Bestand später wieder, lebt der Posten nicht auf
