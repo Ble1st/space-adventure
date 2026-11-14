@@ -129,6 +129,8 @@ public sealed class Universe
     /// <see cref="Simulation.PirateSystem"/> bzw. <see cref="Simulation.SecuritySystem"/>.
     /// </summary>
     public List<PendingEncounter> PendingEncounters = new();
+    /// <summary>Runde 30: Rückkaufdeckel — Merkposten je (Spieler-Akteur, Station, Ware), siehe <see cref="Trading.PlayerLedger"/>. Leer für NPC-Welten.</summary>
+    public readonly Dictionary<(int Actor, int Station, int Good), LedgerPost> Ledger = new();
 
     /// <summary>Phase 12: Verbände (FLOTTEN.md Abschnitt 3); gespeichert und gehasht.</summary>
     public Dictionary<SquadronId, Squadron> Squadrons = new();

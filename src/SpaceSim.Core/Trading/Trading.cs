@@ -80,10 +80,12 @@ public static class TradeActions
             var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
             float units = SaleUnits(have, have, cap, allCap);
             if (units <= 0f) continue;
-            float pay = units * entry.Price;
+            float pay = PlayerLedger.SaleValue(u, ship, station, good, units, entry.Price).Revenue;   // Runde 30: Rückkaufdeckel
+            float stockBefore = entry.Amount;
             entry.Amount += units;
             station.Credits -= pay;
             wallet.Credits += pay;
+            PlayerLedger.OnSold(u, ship, station, good, units, entry.Price, stockBefore);
             if (have - units <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - units;
             revenue += pay;
             sold[good] = units;
@@ -101,15 +103,19 @@ public static class TradeActions
         if (units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f || IsLiveSite(station) || ExportRules.Buys(u, station, good)
             || Refusal(u, ship, station) is not null) return new BuyResult(0f, 0f, BuyOutcome.NotSold);
         var wallet = u.WalletOf(ship);
-        float stock = MathF.Floor(e.Amount), afford = MathF.Floor(wallet.Credits / e.Price), space = MathF.Floor(ship.FreeUnits(u, good));
+        float stock = MathF.Floor(e.Amount), space = MathF.Floor(ship.FreeUnits(u, good));
+        // Runde 30: Rückkauf eigener Lieferungen höchstens billiger als erhalten (PlayerLedger) — die Menge folgt den wirklichen Kosten
+        float afford = PlayerLedger.Affordable(u, ship, station, good, MathF.Max(1f, MathF.Min(MathF.Floor(units), stock)), e.Price, wallet.Credits);
         float n = MathF.Min(MathF.Min(MathF.Floor(units), stock), MathF.Min(afford, space));
         if (n <= 0f)
             return new BuyResult(0f, 0f, stock <= 0f ? BuyOutcome.OutOfStock : afford <= 0f ? BuyOutcome.NoCredits : BuyOutcome.NoSpace);
-        float cost = n * e.Price;
+        float cost = PlayerLedger.BuyCost(u, ship, station, good, n, e.Price).Cost;
+        float before = e.Amount;
         e.Amount -= n;
         station.Credits += cost;
         wallet.Credits -= cost;
         ship.Cargo[good] = ship.Cargo.GetValueOrDefault(good) + n;
+        PlayerLedger.OnBought(u, ship, station, good, n, e.Price, before);
         if (ship.IsPlayer) u.Events.Publish(new PlayerBought(ship.Id, station.Id, good, n, cost));
         var outcome = n < MathF.Floor(units) ? (n == stock ? BuyOutcome.OutOfStock : n == afford ? BuyOutcome.NoCredits : BuyOutcome.NoSpace) : BuyOutcome.Ok;
         return new BuyResult(n, cost, outcome);
@@ -118,7 +124,7 @@ public static class TradeActions
     /// <summary>Höchstmenge, die <see cref="Buy"/> für diese Ware jetzt liefern würde.</summary>
     public static float MaxBuyable(Universe u, Ship ship, Station station, GoodId good) =>
         !IsLiveSite(station) && !ExportRules.Buys(u, station, good) && Refusal(u, ship, station) is null && station.Market.TryGetValue(good, out var e) && e.Price > 0f
-            ? MathF.Max(0f, MathF.Min(MathF.Min(MathF.Floor(e.Amount), MathF.Floor(u.WalletOf(ship).Credits / e.Price)), MathF.Floor(ship.FreeUnits(u, good))))
+            ? MathF.Max(0f, PlayerLedger.Affordable(u, ship, station, good, MathF.Min(MathF.Floor(e.Amount), MathF.Floor(ship.FreeUnits(u, good))), e.Price, u.WalletOf(ship).Credits))
             : 0f;
 
     /// <summary>
@@ -147,10 +153,12 @@ public static class TradeActions
         var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
         float n = SaleUnits(have, units, cap, allCap);
         if (n <= 0f) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
-        float pay = n * e.Price;
+        float pay = PlayerLedger.SaleValue(u, ship, station, good, n, e.Price).Revenue;   // Runde 30: Rückkaufdeckel
+        float stockBefore = e.Amount;
         e.Amount += n;
         station.Credits -= pay;
         u.WalletOf(ship).Credits += pay;
+        PlayerLedger.OnSold(u, ship, station, good, n, e.Price, stockBefore);
         if (have - n <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - n;
         sold[good] = n;
         if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, n, pay));
@@ -177,7 +185,8 @@ public static class TradeActions
                 var (cap, allCap) = SaleCaps(u, station, good, credits);
                 float n = SaleUnits(have, have, cap, allCap);
                 if (n <= 0f) continue;
-                total += n * e.Price; units += n; credits -= n * e.Price;
+                float r = PlayerLedger.SaleValue(u, ship, station, good, n, e.Price).Revenue;   // Runde 30
+                total += r; units += n; credits -= r;
             }
         return (units, total);
     }

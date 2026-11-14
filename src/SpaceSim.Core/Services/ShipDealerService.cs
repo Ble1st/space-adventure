@@ -1,5 +1,7 @@
+using System.Linq;
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Trading;
 using SpaceSim.Core.Simulation;
 
 namespace SpaceSim.Core.Services;
@@ -98,7 +100,12 @@ public sealed class ShipDealerService : IStationService
 
         // Phase 7: Güteklasse würfeln — bessere Module, Bonusmodul und Slot-Material kommen zusätzlich aus dem Werftlager (der Preis bleibt)
         var quality = ShipQualityRoll.Roll(u, q.Class, q.Class.Slots, q.Model.Fit, station, q.Materials);
-        ShipPurchase.Consume(station, quality.Materials ?? q.Materials);
+        var mats = quality.Materials ?? q.Materials;
+        var before = mats.Select(m => (m.Good, Stock: station.Market[m.Good].Amount, Price: station.Market[m.Good].Price)).ToList();
+        ShipPurchase.Consume(station, mats);
+        // Runde 30: die verbrauchten Module/Bausätze zählen als Kauf hier (Rückkaufdeckel) — sonst würde ein Modul nach dem Schiffskauf beim Ausrüster teurer
+        // an dieselbe Werft zurückverkauft (ihr Regal ist durch den Kauf leerer, der Preis höher)
+        foreach (var (m, b) in mats.Zip(before)) PlayerLedger.OnBought(u, ship, station, m.Good, m.Units, b.Price, b.Stock);
         station.Credits += q.Price;
         wallet.Credits -= q.Price;
         var id = u.NewShipId();

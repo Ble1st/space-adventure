@@ -37,10 +37,13 @@ public static class Rearm
         float units = MathF.Min(missing, entry.Amount);
         if (price > 0f) units = MathF.Min(units, MathF.Max(0f, payer.Credits) / price);
         if (units <= 0.001f) return 0f;
-        float cost = units * price;
+        float cost = Trading.PlayerLedger.BuyCost(u, ship, st, good.Id, units, price).Cost;   // Runde 30: Rückkaufdeckel (Kauf aus dem Regal)
+        if (cost > payer.Credits + 0.001f) { units = MathF.Floor(Trading.PlayerLedger.Affordable(u, ship, st, good.Id, MathF.Floor(units), price, payer.Credits)); if (units < 1f) return 0f; cost = Trading.PlayerLedger.BuyCost(u, ship, st, good.Id, units, price).Cost; }
+        float before = entry.Amount;
         entry.Amount -= units;
         st.Credits += cost;
         payer.Credits -= cost;
+        Trading.PlayerLedger.OnBought(u, ship, st, good.Id, units, price, before);
         ship.Systems.AmmoMissing = MathF.Max(0f, ship.Systems.AmmoMissing - units);
         u.Events.Publish(new AmmoRearmed(ship.Id, st.Id, units, cost, payerActor, treasury));
         if (treasury && cost > 0f) u.Events.Publish(new TreasuryUpkeep(payerActor, Purpose, cost, 0f));

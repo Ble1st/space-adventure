@@ -1,5 +1,6 @@
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Trading;
 using SpaceSim.Core.Simulation;
 
 namespace SpaceSim.Core.Services;
@@ -115,7 +116,7 @@ public sealed class OutfitterService : IStationService
             if (ship.Fit[i] is { } cur && u.FindGood(cur) is { } curGood && !(stype?.Required ?? false))
             {
                 var p = Preview(u, station, ship, i, null);
-                float price = StationTakes(u, station, curGood.Id) ? station.Market[curGood.Id].Price : 0f;
+                float price = StationTakes(u, station, curGood.Id) ? PlayerLedger.SaleValue(u, ship, station, curGood.Id, 1f, station.Market[curGood.Id].Price).Revenue : 0f;   // Runde 30
                 var dmg = DamagedIssue(u, ship, i);
                 offers.Add(new ServiceOffer($"{Remove}:{i}", $"Ausbauen: {curGood.Name} (Slot {i + 1} {slotName})", price,
                     p is { Valid: true } && dmg is null ? 1f : 0f, curGood.Id, station.Market.TryGetValue(curGood.Id, out var ce) ? ce.Amount : 0f,
@@ -135,9 +136,9 @@ public sealed class OutfitterService : IStationService
                     continue;
                 }
                 if (held < 1f && !inStock) continue;
-                float price = held >= 1f ? 0f : e!.Price;
+                float price = held >= 1f ? 0f : PlayerLedger.BuyCost(u, ship, station, g.Id, 1f, e!.Price).Cost;   // Runde 30: Rückkaufdeckel
                 var p = Preview(u, station, ship, i, m.Key);
-                float revenue = ship.Fit[i] is { } old && u.FindGood(old) is { } og && StationTakes(u, station, og.Id) ? station.Market[og.Id].Price : 0f;
+                float revenue = ship.Fit[i] is { } old && u.FindGood(old) is { } og && StationTakes(u, station, og.Id) ? PlayerLedger.SaleValue(u, ship, station, og.Id, 1f, station.Market[og.Id].Price).Revenue : 0f;
                 var dmgFit = DamagedIssue(u, ship, i);
                 bool ok = p is { Valid: true } && wallet.Credits + revenue >= price && dmgFit is null;
                 offers.Add(new ServiceOffer($"{Fit}:{i}:{m.Key}", $"Einbauen: {g.Name} (Slot {i + 1} {slotName})", price, ok ? 1f : 0f,
@@ -184,7 +185,7 @@ public sealed class OutfitterService : IStationService
             {
                 if (!station.Market.TryGetValue(inGood.Id, out var e) || e.Price <= 0f || e.Amount < 1f)
                     return Fail($"{inGood.Name} ist hier nicht auf Lager.");
-                price = e.Price;
+                price = PlayerLedger.BuyCost(u, ship, station, inGood.Id, 1f, e.Price).Cost;   // Runde 30
             }
         }
 
@@ -194,7 +195,7 @@ public sealed class OutfitterService : IStationService
 
         Good? outGood = oldKey is null ? null : u.FindGood(oldKey);
         bool sellOld = outGood is not null && StationTakes(u, station, outGood.Id);
-        float revenue = sellOld ? station.Market[outGood!.Id].Price : 0f;
+        float revenue = sellOld ? PlayerLedger.SaleValue(u, ship, station, outGood!.Id, 1f, station.Market[outGood.Id].Price).Revenue : 0f;   // Runde 30
         var wallet = u.WalletOf(ship);
         if (wallet.Credits + revenue < price) return Fail("Nicht genügend Credits.");
 
@@ -202,11 +203,21 @@ public sealed class OutfitterService : IStationService
         if (inGood is not null)
         {
             if (fromCargo) { ship.Cargo[inGood.Id] -= 1f; if (ship.Cargo[inGood.Id] <= 0.0001f) ship.Cargo.Remove(inGood.Id); }
-            else { station.Market[inGood.Id].Amount -= 1f; station.Credits += price; wallet.Credits -= price; }
+            else
+            {
+                float before = station.Market[inGood.Id].Amount;
+                station.Market[inGood.Id].Amount -= 1f; station.Credits += price; wallet.Credits -= price;
+                PlayerLedger.OnBought(u, ship, station, inGood.Id, 1f, station.Market[inGood.Id].Price, before);   // Runde 30: Einbau aus dem Stationslager = Kauf
+            }
         }
         if (outGood is not null)
         {
-            if (sellOld) { station.Market[outGood.Id].Amount += 1f; station.Credits -= revenue; wallet.Credits += revenue; }
+            if (sellOld)
+            {
+                float before = station.Market[outGood.Id].Amount;
+                station.Market[outGood.Id].Amount += 1f; station.Credits -= revenue; wallet.Credits += revenue;
+                PlayerLedger.OnSold(u, ship, station, outGood.Id, 1f, station.Market[outGood.Id].Price, before);   // Runde 30: Ausbau mit Verkauf an die Station = Verkauf
+            }
             else ship.Cargo[outGood.Id] = ship.Cargo.GetValueOrDefault(outGood.Id) + 1f;
         }
         ship.Fit[slot] = moduleKey;

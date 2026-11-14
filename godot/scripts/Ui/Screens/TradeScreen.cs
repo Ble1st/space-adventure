@@ -677,12 +677,19 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// Kaufseite: was abgebucht wird — oder der Grund, warum „Kaufen“ aus ist (immer aus dem Angebot)
 			// Runde 28: die gewählte Menge bleibt; kann nur ein Teil gekauft werden, sagt die Zeile wie viel und warum
 			float canBuy = row.HasBuy ? MathF.Floor(TradeActions.MaxBuyable(u, ship, st, row.Good)) : 0f;   // Runde 29: live wie die Taste
+			// Runde 30: Rückkaufdeckel — Kauf- und Verkaufssumme mit den wirksamen Preisen (PlayerLedger), der Grund steht dabei
+			float buyCost = PlayerLedger.BuyCost(u, ship, st, row.Good, qty, price).Cost;
+			float buyUnit = qty > 0f ? buyCost / qty : price;
+			string floorNote = PlayerLedger.BuyNote(u, ship, st, row.Good) is { } bn ? " · " + bn : "";
 			string buy = row.HasBuy && canBuy >= 1f
-				? (canBuy < qty ? Pick(14, $"Kauf {qty:0} × {price:0.0} = {qty * price:0} Cr — nur {canBuy:0} {LimitText(u, st, ship, row, price)}", $"Kauf {qty:0} × {price:0.0} — nur {canBuy:0} {LimitText(u, st, ship, row, price)}")
-					: $"Kauf {qty:0} × {price:0.0} = {qty * price:0} Cr")
+				? (canBuy < qty ? Pick(14, $"Kauf {qty:0} × {buyUnit:0.0} = {buyCost:0} Cr — nur {canBuy:0} {LimitText(u, st, ship, row, price)}{floorNote}", $"Kauf {qty:0} × {buyUnit:0.0} — nur {canBuy:0} {LimitText(u, st, ship, row, price)}")
+					: Pick(14, $"Kauf {qty:0} × {buyUnit:0.0} = {buyCost:0} Cr{floorNote}", $"Kauf {qty:0} × {buyUnit:0.0} = {buyCost:0} Cr"))
 				: $"Kaufen: {BuyReason(u, st, ship, row)}";
-			// Verkaufsseite: was ein Verkauf wirklich brächte (Angebotsmenge × Preis), 0 wenn die Station nichts nimmt
-			string sell = row.Held > 0f ? (row.Sell.Amount > 0f ? $" · Verkauf hier {MathF.Min(qty, row.Sell.Amount) * price:0} Cr" : " · Verkauf hier —") : "";
+			// Verkaufsseite: was ein Verkauf wirklich brächte (Angebotsmenge × wirksamer Preis), 0 wenn die Station nichts nimmt
+			float sellUnits = MathF.Min(qty, row.Sell.Amount);
+			float sellHere = sellUnits > 0f ? PlayerLedger.SaleValue(u, ship, st, row.Good, sellUnits, price).Revenue : 0f;
+			string capNote = row.Held > 0f && PlayerLedger.SaleNote(u, ship, st, row.Good) is { } sn ? $" ({sn})" : "";
+			string sell = row.Held > 0f ? (row.Sell.Amount > 0f ? $" · Verkauf hier {sellHere:0} Cr{capNote}" : " · Verkauf hier —") : "";
 			// Abnehmer: ehrlich für die gewählte Menge (Kaufseite) bzw. die Ladung (Verkaufsseite)
 			bool buying = row.HasBuy && canBuy >= 1f;
 			float q = buying ? MathF.Max(1f, qty) : MathF.Max(row.Held, qty);
@@ -721,6 +728,9 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 				float units = buying ? MathF.Min(qty, canBuy) : MathF.Min(qty, row.Held);
 				if (buying || row.Held > 0f)
 				{
+					// Runde 30: verglichen wird mit dem wirksamen Preis hier (Kauf mit Mindestpreis, „statt hier“ mit Rückkaufdeckel)
+					float hereUnit = buying ? PlayerLedger.BuyCost(u, ship, st, row.Good, units, price).Cost / MathF.Max(1f, units) : (units > 0f ? PlayerLedger.SaleValue(u, ship, st, row.Good, units, price).Revenue / units : price);
+					price = hereUnit;
 					var v = MarketInfo.Verdict(b, price, units);
 					verdict = v;
 					float worst = MathF.Min(b.Units, units) * b.Price - units * price;

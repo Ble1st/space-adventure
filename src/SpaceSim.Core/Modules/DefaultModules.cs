@@ -65,7 +65,11 @@ public sealed class ResourceModule : ISimModule
 public sealed class TradeModule : ISimModule
 {
     public string Name => "Trade";
-    public void Register(SimulationBuilder b) => b.Add(new TraderSystem());
+    public void Register(SimulationBuilder b)
+    {
+        b.Add(new TraderSystem());
+        b.Add(new LedgerSystem());   // Runde 30: Verfall der Rückkauf-Posten (nichts zu tun ohne Spielerhandel — NPC-Welten unverändert)
+    }
 }
 
 /// <summary>

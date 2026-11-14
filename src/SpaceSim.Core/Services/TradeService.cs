@@ -46,9 +46,11 @@ public sealed class TradeService : IStationService
             // bewegen würde (TradeActions.SaleUnits: alles, wenn die Station alles nimmt, auch einen Bruchteil; sonst ganze Einheiten) — Menge > 0 ⇔ Execute gelingt
             var intake = MarketInfo.Acceptance(u, station, good);
             float sellable = intake.SellableFrom(held);
-            offers.Add(new ServiceOffer($"{Buy}:{good.Value}", ExportRules.Buys(u, station, good) ? $"Nur Ankauf (Export): {name}" : $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held, refusal));
+            // Runde 30: Rückkaufdeckel — der Hinweis nennt den wirksamen Mindest- bzw. Höchstpreis (PlayerLedger), Menge und Ausführung rechnen damit
+            offers.Add(new ServiceOffer($"{Buy}:{good.Value}", ExportRules.Buys(u, station, good) ? $"Nur Ankauf (Export): {name}" : $"Kaufen: {name}", entry.Price, TradeActions.MaxBuyable(u, ship, station, good), good, entry.Amount, held,
+                refusal ?? PlayerLedger.BuyNote(u, ship, station, good)));
             offers.Add(new ServiceOffer($"{Sell}:{good.Value}", $"Verkaufen: {name}", entry.Price, refusal is null ? sellable : 0f, good, entry.Amount, held,
-                refusal ?? (held > 0f ? intake.NoteFor(held) : intake.Accepts ? null : intake.Reason)));
+                refusal ?? (held > 0f ? intake.NoteFor(held) : intake.Accepts ? null : intake.Reason) ?? (held > 0f ? PlayerLedger.SaleNote(u, ship, station, good) : null)));
         }
         // Phase 18: je Ware an Bord ein Abwurf-Angebot (Menge = an Bord, Preis 0); Hinweis = warum die Station sie nicht (ganz) nimmt, null wenn doch
         if (ship.IsPlayer)
@@ -90,19 +92,24 @@ public sealed class TradeService : IStationService
             {
                 // Menge ≤ 0 = Maximum; ist das Maximum 0, fragt der Dienst eine Einheit an, damit TradeActions den Grund nennt
                 float want = request.Units > 0f ? request.Units : MathF.Max(1f, TradeActions.MaxBuyable(u, ship, station, good));
+                var floor = PlayerLedger.Applies(u, ship) && PlayerLedger.Post(u, station, good) is { SoldQty: > 0f } fp && station.Market.TryGetValue(good, out var fe) && fp.SoldPrice > fe.Price ? (fp.SoldQty, fp.SoldPrice) : (0f, 0f);
                 var r = TradeActions.Buy(u, ship, station, good, want);
                 if (r.Units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Buy, good, r.Units, -r.Cost));
                 // Runde 26 (Gerätetest: 53 statt angezeigter 56 Cr gebucht — der Preis fällt im Takt der Ticks): die Meldung nennt den gebuchten Betrag;
                 // Runde 28: mit Nachkommastelle (101,5 statt gerundet 101 bei 102 Cr weniger in der Kasse)
-                return new ServiceResult(r.Units > 0f, r.Units, -r.Cost, r.Units > 0f ? $"Gekauft {r.Units:0.#} × {r.Cost / r.Units:0.0#} = {r.Cost:0.#} Cr" : OutcomeText(r.Outcome));
+                // Runde 30: gemischte Abrechnung nennt den Rückkaufteil
+                string part = floor.Item1 > 0f && r.Units > 0f ? $" — davon {MathF.Min(r.Units, floor.Item1):0.#} zum Rückkaufpreis {floor.Item2:0.0} (deine Lieferung hier)" : "";
+                return new ServiceResult(r.Units > 0f, r.Units, -r.Cost, r.Units > 0f ? $"Gekauft {r.Units:0.#} × {r.Cost / r.Units:0.0#} = {r.Cost:0.#} Cr{part}" : OutcomeText(r.Outcome));
             }
             case Sell:
             {
                 float want = request.Units > 0f ? request.Units : ship.Cargo.GetValueOrDefault(good);
+                var cap = PlayerLedger.Applies(u, ship) && PlayerLedger.Post(u, station, good) is { BoughtQty: > 0f } cp && station.Market.TryGetValue(good, out var ce) && cp.BoughtPrice < ce.Price ? (cp.BoughtQty, cp.BoughtPrice) : (0f, 0f);
                 var r = TradeActions.Sell(u, ship, station, good, want);
                 float units = r.Sold.GetValueOrDefault(good);
                 if (units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Sell, good, units, r.Revenue));
-                return new ServiceResult(units > 0f, units, r.Revenue, units > 0f ? $"Verkauft {units:0.#} × {r.Revenue / units:0.0#} = {r.Revenue:0.#} Cr" : SellFailure(u, station, ship, good));
+                string part = cap.Item1 > 0f && units > 0f ? $" — davon {MathF.Min(units, cap.Item1):0.#} zum Rückkaufpreis {cap.Item2:0.0} (dein Kauf hier)" : "";
+                return new ServiceResult(units > 0f, units, r.Revenue, units > 0f ? $"Verkauft {units:0.#} × {r.Revenue / units:0.0#} = {r.Revenue:0.#} Cr{part}" : SellFailure(u, station, ship, good));
             }
             case SellAll:
             {

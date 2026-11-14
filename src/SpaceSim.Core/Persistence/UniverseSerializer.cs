@@ -147,6 +147,13 @@ public static class UniverseSerializer
             {
                 Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick, Station = e.Station.Value,
             }).ToList();
+        // Runde 30: Rückkauf-Posten (sortiert, nur wenn vorhanden)
+        if (u.Ledger.Count > 0)
+            s.Ledger = u.Ledger.OrderBy(kv => kv.Key.Actor).ThenBy(kv => kv.Key.Station).ThenBy(kv => kv.Key.Good).Select(kv => new LedgerSave
+            {
+                Actor = kv.Key.Actor, Station = kv.Key.Station, Good = kv.Key.Good, BoughtQty = kv.Value.BoughtQty, BoughtPrice = kv.Value.BoughtPrice,
+                BoughtStockBefore = kv.Value.BoughtStockBefore, SoldQty = kv.Value.SoldQty, SoldPrice = kv.Value.SoldPrice, SoldStockBefore = kv.Value.SoldStockBefore,
+            }).ToList();
         // Phase 26: Wracks und Frachtbehälter
         if (u.NextWreckId != 1) s.NextWreckId = u.NextWreckId;
         if (u.Wrecks.Count > 0)
@@ -377,6 +384,12 @@ public static class UniverseSerializer
                     Kind = Enum.Parse<EncounterKind>(e.Kind), Source = new ShipId(e.Source), Target = new ShipId(e.Target), Sector = new SectorId(e.Sector), DueTick = e.Due,
                     Station = new StationId(e.Station),
                 });
+        if (s.Ledger is not null)   // Runde 30
+            foreach (var l in s.Ledger)
+                u.Ledger[(l.Actor, l.Station, l.Good)] = new LedgerPost
+                {
+                    BoughtQty = l.BoughtQty, BoughtPrice = l.BoughtPrice, BoughtStockBefore = l.BoughtStockBefore, SoldQty = l.SoldQty, SoldPrice = l.SoldPrice, SoldStockBefore = l.SoldStockBefore,
+                };
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)
             foreach (var w in s.Wars)

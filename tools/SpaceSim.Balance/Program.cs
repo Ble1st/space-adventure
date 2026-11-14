@@ -34,6 +34,7 @@ if (opts.TryGetValue("exportbid", out var ebOpt))
 }
 if (opts.TryGetValue("sellcap", out var scOpt)) worldDef.Rules.ProducerPriceCapShare = float.Parse(scOpt, CultureInfo.InvariantCulture);
 if (opts.TryGetValue("wcshare", out var wcOpt)) worldDef.Rules.StationWorkingCapitalShare = float.Parse(wcOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("buyback", out var bbOpt)) worldDef.Rules.BuybackCap = bbOpt == "on";   // Runde 30: Rückkaufdeckel an/aus (Vergleich)
 // Runde 29: --probe rueckkauf misst die Kauf-/Rückverkaufsschleife an einer Station (eigene Welten, eigener Bericht) und endet
 if (opts.TryGetValue("probe", out var rkOpt) && rkOpt == "rueckkauf") { Console.WriteLine(ExploitProbe.Run(worldDef, seed ?? 1)); return 0; }
 var u = WorldBuilder.Build(worldDef, seed, opts.TryGetValue("start", out var startOpt) ? startOpt : null);   // Runde 26: --start trader wie „Neues Spiel“

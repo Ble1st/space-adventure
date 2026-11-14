@@ -459,6 +459,8 @@ public sealed class EconomyRules
     public float StationWorkingCapitalShare = 1f;
     /// <summary>Runde 25 (Messregel): Hersteller verkaufen ihr reines Produkt höchstens zu diesem Anteil am besten Abnehmergebot; 0 = aus (Standard).</summary>
     public float ProducerPriceCapShare = 0f;
+    /// <summary>Runde 30: Rückkaufdeckel für Spielerhandel an derselben Station (<see cref="Trading.PlayerLedger"/>); false = Messung ohne Deckel (Sonde).</summary>
+    public bool BuybackCap = true;
     /// <summary>Instandhaltung je Tag (<see cref="DayTicks"/>) als Anteil der Baukosten des Stationstyps, zum Basispreis in Material umgerechnet; 0 = aus.</summary>
     public float MaintenanceShare = 0.03f;
     /// <summary>Instandhaltungsmaterial: Ware → Gewicht (Anteil am Wert). Fehlt eine Ware in der Welt, fällt ihr Anteil weg.</summary>

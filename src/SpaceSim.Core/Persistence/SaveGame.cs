@@ -61,6 +61,8 @@ public sealed class SaveGame
     public List<ShipSave> Ships { get; set; } = new();
     /// <summary>Phase 11 (v14): angekündigte Begegnungen mit dem Spieler (Überfall, Abfangen); fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<PendingEncounterSave>? Encounters { get; set; }
+    /// <summary>Runde 30: Rückkauf-Posten des Spielers (nur, wenn welche offen sind).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<LedgerSave>? Ledger { get; set; }
     /// <summary>Phase 24 (additiv, v17): laufende Gefechte (Rundengefecht); fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<EncounterSave>? Fights { get; set; }
     /// <summary>Phase 24: nächste freie Gefechts-Id.</summary>
@@ -200,6 +202,20 @@ public sealed class WantedSave
 }
 
 /// <summary>Angekündigte Begegnung (Phase 11, v14).</summary>
+/// <summary>Runde 30: ein Rückkauf-Posten (Spieler-Akteur, Station, Ware; Kauf- und Verkaufsteil).</summary>
+public sealed class LedgerSave
+{
+    public int Actor { get; set; }
+    public int Station { get; set; }
+    public int Good { get; set; }
+    public float BoughtQty { get; set; }
+    public float BoughtPrice { get; set; }
+    public float BoughtStockBefore { get; set; }
+    public float SoldQty { get; set; }
+    public float SoldPrice { get; set; }
+    public float SoldStockBefore { get; set; }
+}
+
 public sealed class PendingEncounterSave
 {
     public string Kind { get; set; } = ""; public int Source { get; set; } public int Target { get; set; } public int Sector { get; set; } public long Due { get; set; }

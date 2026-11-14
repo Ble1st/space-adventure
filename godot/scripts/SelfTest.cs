@@ -2670,7 +2670,8 @@ public partial class SelfTest : Node
 			case 103: if (Round23Stage(_frame - _stageStart)) Next(); break;   // Runde 23: Handels-Editor (Gründe, ehrlicher Abnehmer), Dock-Menü, Taxi, Angriffstaste (SelfTest.Round23.cs)
 			case 104: if (FleetStage(_frame - _stageStart)) Next(); break;   // Flottentest über echte Tipps (SelfTest.Fleet.cs)
 			case 105: if (Round27Stage(_frame - _stageStart)) Next(); break;
-			case 106: if (Round28Stage(_frame - _stageStart)) Next(); break;   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
+			case 106: if (Round28Stage(_frame - _stageStart)) Next(); break;
+			case 107: if (Round30Stage(_frame - _stageStart)) Next(); break;   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
