@@ -67,7 +67,11 @@ public static class MiningAnchor
     }
 
     /// <summary>Reißt Steuerung die Verankerung? Regler/Rückwärts über <see cref="EconomyRules.AnchorBreakThrottle"/> oder jede Wendeeingabe.</summary>
-    public static bool BreaksFromSteering(EconomyRules r, float throttle, float turn) => MathF.Abs(throttle) > r.AnchorBreakThrottle || turn != 0f;
+    public static bool BreaksFromSteering(EconomyRules r, float throttle, float turn) => SteeringBreak(r, throttle, turn) is not null;
+
+    /// <summary>Runde 18: Grund eines Abrisses durch Steuerung — „turn“ (Wendetaste) vor „thrust“ (Regler/Rückwärts über der Schwelle); null = hält.</summary>
+    public static string? SteeringBreak(EconomyRules r, float throttle, float turn) =>
+        turn != 0f ? "turn" : MathF.Abs(throttle) > r.AnchorBreakThrottle ? "thrust" : null;
 
     /// <summary>Hüllentreffer: die Trossen reißen.</summary>
     public static void OnHullHit(Universe u, Ship ship) { if (ship.AnchorRock != 0) Release(u, ship, ship.Sector, "hit"); }
@@ -111,6 +115,7 @@ public static class MiningAnchor
     {
         "released" => "Anker gelöst",
         "thrust" => "Riss: Schub",
+        "turn" => "Riss: Wenden",
         "impact" => "Riss: Stoß",
         "hit" => "Riss: Treffer",
         "combat" => "gekappt: Gefecht",
@@ -126,6 +131,7 @@ public static class MiningAnchor
     {
         "released" => "Anker gelöst",
         "thrust" => "Anker gerissen: Schub",
+        "turn" => "Anker gerissen: Wenden",
         "impact" => "Anker gerissen: Stoß",
         "hit" => "Anker gerissen: Treffer",
         "combat" => "Anker gekappt: Gefecht",

@@ -134,6 +134,20 @@ public partial class KitButton : Control
 		return "…";
 	}
 
+	/// <summary>
+	/// Runde 18 (Handy-Test: „verankert · Abb…“, „Vorrat 12/12 · 11…“): erste Zeile (Text/Unterzeile/Detail), die in dieser Taste mit „…“ gekürzt würde — gemessen
+	/// mit der Schrift wie im Zeichnen; leer = alles passt. Nur für linksbündige Tasten mit Symbol/Ausrichtung (Waffenschächte), sonst die Mittelspalte.
+	/// </summary>
+	public string Overflow()
+	{
+		var font = ThemeDB.FallbackFont;
+		bool left = Symbol != null || AlignLeft;
+		float room = left ? Size.X - (Symbol != null ? 58f : 14f) - 8f : Size.X - 12f;
+		foreach (var (t, sz) in new[] { (Text, FontSize), (Sub, left ? 12 : 13), (Detail, left ? 13 : 12) })
+			if (t.Length > 0 && Fit(font, t, sz, room) != t) return t;
+		return "";
+	}
+
 	public override void _Draw()
 	{
 		DrawStyleBox(Style(), new Rect2(Vector2.Zero, Size));

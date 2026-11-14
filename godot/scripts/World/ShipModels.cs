@@ -223,7 +223,7 @@ public static class ShipModels
 	/// <summary>Stufen der Schubleuchte (geteilte Überschreibungen).</summary>
 	public const int EngineLevels = 5;
 	/// <summary>Werkzeugdrehung bei vollem Kontaktabbau in rad/s.</summary>
-	public const float RotorSpeed = 14f;
+	public const float RotorSpeed = 8f;   // Runde 18: ≈ 1,3 U/s (vorher 14 — bei 30 Bildern/s zu schnell für das Auge)
 	/// <summary>Ab diesem Abstand zur Kamera zeigt ein NPC nur den einfachen Grundkörper (Handy-Leistung).</summary>
 	public const float LodDistance = 220f;
 
@@ -347,10 +347,34 @@ public static class ShipModels
 			}
 		}
 		Walk(node);
+		foreach (var r in v.Rotors) AddRotorMarker(r);   // Runde 18
 		v.Hardpoints = HardpointSet.Bind(node, info.Hardpoints);
 		v.SetAccent(accent);
 		v.SetEngine(0.2f);
 		return v;
+	}
+
+	static StandardMaterial3D? _rotorMarkMat;
+	/// <summary>
+	/// Runde 18 (Handy-Test: Bohrerdrehung kaum erkennbar — die Werkzeugköpfe sind drehsymmetrisch): ein leuchtender Strich außerhalb der Drehachse auf jedem
+	/// Werkzeug macht die Drehung sichtbar (Größe aus dem Mesh des Werkzeugs, ein geteiltes Material).
+	/// </summary>
+	static void AddRotorMarker(Node3D rotor)
+	{
+		var mesh = rotor as MeshInstance3D ?? rotor.GetChildren().OfType<MeshInstance3D>().FirstOrDefault();
+		if (mesh?.Mesh is null) return;
+		var box = mesh.Mesh.GetAabb();
+		if (mesh != rotor) box = new Aabb(box.Position + mesh.Position, box.Size);
+		float r = Mathf.Max(box.Size.X, box.Size.Y) * 0.5f;
+		if (r <= 1e-4f) return;
+		_rotorMarkMat ??= Gfx.Mat(new Color(1f, 0.55f, 0.15f), 2.5f, 0f);
+		var c = box.GetCenter();
+		var mark = new MeshInstance3D
+		{
+			Name = "RotorMark", Mesh = new BoxMesh { Size = new Vector3(r * 0.35f, r * 1.05f, box.Size.Z * 1.02f) }, MaterialOverride = _rotorMarkMat,
+			Position = new Vector3(c.X, c.Y + r * 0.5f, c.Z), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+		};
+		rotor.AddChild(mark);
 	}
 
 	internal static Material AccentVariant(Material src, Color accent, float energy = 0.35f)

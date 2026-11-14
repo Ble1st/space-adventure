@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using Godot;
@@ -194,6 +195,19 @@ public partial class FlightHud : Control, IScreen
 	}
 	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
 	public Rect2 TestBayRect(int i) => new(_bayButtons[i].Position, _bayButtons[i].Size);
+	/// <summary>Runde 18: erste sichtbare Schachtzeile, die gekürzt würde (leer = alles passt).</summary>
+	public string TestBayOverflow => _bayButtons.Where(b => b.Visible).Select(b => b.Overflow()).FirstOrDefault(o => o.Length > 0) ?? "";
+	/// <summary>Runde 18: passt <paramref name="text"/> als Unterzeile/Detail in eine Schachttaste? (Probe über alle Bay-Zustände im Selbsttest)</summary>
+	public bool TestBayLineFits(string sub, string detail, string name = "Bohrer")
+	{
+		if (_bayButtons.Count == 0) return true;
+		var b = _bayButtons[0];
+		var (t, s, dd) = (b.Text, b.Sub, b.Detail);
+		b.Text = name; b.Sub = sub; b.Detail = detail;
+		bool ok = b.Overflow().Length == 0;
+		b.Text = t; b.Sub = s; b.Detail = dd;
+		return ok;
+	}
 	public Rect2 TestAutoFireRect => new(_autoFire.Position, _autoFire.Size);
 	public Rect2 TestNextEnemyRect => new(_nextEnemy.Position, _nextEnemy.Size);
 	public bool TestNextEnemyVisible => _nextEnemy.Visible;

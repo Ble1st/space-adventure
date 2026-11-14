@@ -51,7 +51,7 @@ public static class ContactMining
     }
 
     /// <summary>Drehzahl des Werkzeugs 0..1 für die Ansicht: im Kontakt voll, sonst Leerlauf (0,25), ohne Werkzeug 0.</summary>
-    public static float Spin(ShipStats s, ContactState state) => s.ContactMining <= 0f ? 0f : state == ContactState.Mining ? 1f : 0.25f;
+    public static float Spin(ShipStats s, ContactState state) => s.ContactMining <= 0f ? 0f : state == ContactState.Mining ? 1f : state == ContactState.Anchoring ? 0.6f : 0.25f;   // Runde 18: anlaufen beim Verankern
 
     /// <summary>
     /// Ein Abbauschritt: Fortschritt <paramref name="progress"/> wächst um Rate × Zeit; je volle Einheit eine Portion (Erzsorte nach Klassengewichten über

@@ -555,6 +555,19 @@ public partial class Main : Node3D
 	/// Runde 15: Ziel der Gefechtskamera mit Körperradius — angegriffene Station/Tor (mit Radius), gewähltes feindliches Schiff, sonst der Kaperer eines
 	/// angekündigten Überfalls (schon in der Warnphase, bis 400 m — weiter weg rahmt die Kamera nur das Schiff und ein Randpfeil zeigt das Ziel).
 	/// </summary>
+	/// <summary>
+	/// Runde 18 (Handy-Test: eigenes Schiff bei 191 m nur ≈ 40 px, der Kaperer unter dem Warnkasten): Warnphasen-Zoom höchstens 200 × Größe und nie so weit, dass
+	/// das eigene Schiff kleiner als <see cref="SpaceSim.Core.Flight.CombatFraming.MinShipScreenShare"/> der Bildhöhe wird — passt der Kaperer dann nicht ins Feld,
+	/// zeigt ihn der Zielpfeil.
+	/// </summary>
+	float WarningCap(float sz)
+	{
+		float len = 2f * ShipModels.ScaleOf(PlayerData.ModelKey);
+		return Mathf.Min(200f * sz, SpaceSim.Core.Flight.CombatFraming.MaxDistanceForSize(len, _cam.Fov, SpaceSim.Core.Flight.CombatFraming.MinShipScreenShare));
+	}
+	internal float TestWarningCap => WarningCap(ShipSizeZoom());
+	internal float TestCamDistance => _camOffset.Length;
+
 	/// <summary>Runde 17: die Rahmung gilt einem angekündigten Angreifer (Warnphase, noch kein Gefecht).</summary>
 	bool _framingWarning;
 	(Vector3 Pos, float Radius)? FramingTargetR()
@@ -852,6 +865,7 @@ public partial class Main : Node3D
 	/// <summary>Phase 28: zuletzt gezeigte Raketen, letzte Kriegs-/Stationsmeldung, scharfes Stationsziel (Selbsttest).</summary>
 	internal int TestMissilesShown => _combat.MissilesShown;
 	internal IEnumerable<string> TestBayPlaces => _bayViews.Where(b => b != null).Select(b => b.Place);
+	internal IEnumerable<string> TestBayDetails => _bayViews.Where(b => b != null).Select(b => b.Detail);
 	internal int TestTargetStation => _targetStation?.Value ?? 0;
 	internal void TestClearTarget() { _target = null; _targetStation = null; }
 	internal string LastWarMessage { get; private set; } = "";
@@ -890,6 +904,7 @@ public partial class Main : Node3D
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case ContactMined cm when cm.Sector == _session.U.PlayerSector: OnContactMined(cm); break;
 			case AnchorReleased ar when ar.Sector == _session.U.PlayerSector: OnAnchorReleased(ar); break;   // Phase 32
+			case AnchorFired af when af.Ship == _session.U.PlayerShip: _anchorBrokeLeft = 0f; break;   // Runde 18: neues Ansetzen löscht den Rissgrund
 			case AsteroidSplit split when split.Sector == _session.U.PlayerSector:   // Runde 12: Spaltbacken klappen
 				if (split.Ship == _session.U.PlayerShip) _player.Visual?.SnapJaws(); else _view.SnapJaws(split.Ship);
 				break;
@@ -1052,6 +1067,7 @@ public partial class Main : Node3D
 		_jumpCooldown = Mathf.Max(0f, _jumpCooldown - delta);
 		_splitReload = Mathf.Max(0f, _splitReload - delta);
 		_hitFlash = Mathf.Max(0f, _hitFlash - delta);
+		_anchorBrokeLeft = Mathf.Max(0f, _anchorBrokeLeft - delta);   // Runde 18
 
 		_session.Advance(delta, _fast ? 10f : 1f);
 		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; _anchors.Clear(); }
@@ -1132,8 +1148,8 @@ public partial class Main : Node3D
 			var vs = GetViewport().GetVisibleRect().Size;
 			// Runde 15: Mindestgröße — Obergrenze 90 (Runde 17: 130, der anfliegende Kaperer ab ~120 m im Bild) × Schiffsgröße; darüber nur das Schiff (Randpfeil zeigt das Ziel); im Kampf so nah, dass beide gut erkennbar sind
 			var fr = SpaceSim.Core.Flight.CombatFraming.ComputeCombat(_player.Position.X, _player.Position.Z, ft.X, ft.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov,
-				vs.X / Mathf.Max(1f, vs.Y), OrbitCamera.MinDistance * sz, (ftr.Radius > 0f ? OrbitCamera.MaxDistance : _framingWarning ? 200f : 130f) * sz, OrbitCamera.DefaultDistance * sz, FramingField(), ftr.Radius,
-				fillShare: _framingWarning ? 1f : SpaceSim.Core.Flight.CombatFraming.FillShare, edgeShare: _framingWarning ? 0.08f : SpaceSim.Core.Flight.CombatFraming.EdgeShare);   // Station/Tor: bis zum Höchstabstand; Runde 17: in der Warnphase weiter heraus (Anflug ab ~100–130 m im Bild), nur „im Feld“ verlangt
+				vs.X / Mathf.Max(1f, vs.Y), OrbitCamera.MinDistance * sz, ftr.Radius > 0f ? OrbitCamera.MaxDistance * sz : _framingWarning ? WarningCap(sz) : 130f * sz, OrbitCamera.DefaultDistance * sz, FramingField(), ftr.Radius,
+				fillShare: _framingWarning ? 1f : SpaceSim.Core.Flight.CombatFraming.FillShare);   // Station/Tor: bis zum Höchstabstand; Runde 17: in der Warnphase weiter heraus (Anflug ab ~100–130 m im Bild), nur „im Feld“ verlangt
 			_lastFrame = new SpaceSim.Core.Flight.CombatFraming.Frame(fr.FocusX, fr.FocusZ, fr.Distance);
 			_framingBoth = fr.Both;
 			_camField = FramingField();
@@ -1144,6 +1160,8 @@ public partial class Main : Node3D
 		}
 		else if (FramingTarget() is null) { _framingActive = false; _manualZoomInFight = false; }
 		if (!_framingActive && NearLargeStationZoom() is var kz and > 1f) want = new CamVec3(want.X * kz, want.Y * kz, want.Z * kz);   // Runde 14: große Stationen
+		// Runde 18 (Handy-Test: Bohrerdrehung kaum zu sehen): verankert rückt die Kamera näher an Bug, Trossen und Werkzeug (manueller Zoom bleibt die Grundlage)
+		if (!_framingActive && _docked == null && PlayerData.AnchorRock != 0) want = new CamVec3(want.X * AnchorZoom, want.Y * AnchorZoom, want.Z * AnchorZoom);
 		_camOffset = OrbitCamera.Follow(_camOffset, want, delta, _framingActive ? 3f : 4f);
 		// Runde 15: Blickpunkt zügig zurück (vorher hing das Schiff nach dem Kampf sekundenlang am oberen Rand)
 		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-(_framingActive ? 3f : 5f) * delta));
@@ -1838,9 +1856,12 @@ public partial class Main : Node3D
 	/// <c>MiningAnchor.BreaksFromSteering</c>); angedockt/im Übergang holt das Schiff die Anker ein; solange Harpunen hängen, liegt das Schiff an der
 	/// (schrumpfenden) Felsoberfläche (<c>MiningAnchor.HoldPosition</c>); kappt es nach Gefechtsbeginn die Trossen, steht es so lange still.
 	/// </summary>
+	/// <summary>Runde 18: Kamerafaktor während der Verankerung.</summary>
+	internal const float AnchorZoom = 0.7f;
 	bool _anchorAllowed = true;
 	string _anchorBroke = "", _anchorBrokeShort = "";
-	double _anchorBrokeUntil;
+	/// <summary>Runde 18: Restzeit (Spielbilder, nicht Uhrzeit) der Rissanzeige an der Werkzeugtaste.</summary>
+	float _anchorBrokeLeft;
 
 	/// <summary>Phase 32: Anker gelöst/gerissen — Trossen schnappen zurück (Funken bei einem Riss); beim Spieler kurz der Grund an der Werkzeugtaste.</summary>
 	void OnAnchorReleased(AnchorReleased ar)
@@ -1849,8 +1870,8 @@ public partial class Main : Node3D
 		if (ar.Ship != _session.U.PlayerShip) return;
 		_anchorBroke = SpaceSim.Core.Mining.MiningAnchor.ReasonText(ar.Reason);
 		_anchorBrokeShort = SpaceSim.Core.Mining.MiningAnchor.ShortReason(ar.Reason);
-		_anchorBrokeUntil = Now + 2.5;
-		if (ar.Reason is "thrust" or "impact" or "hit" or "split" or "combat") _hud.Toast(_anchorBroke, 2.5f);
+		_anchorBrokeLeft = 2.5f;
+		if (ar.Reason is "thrust" or "turn" or "impact" or "hit" or "split" or "combat") _hud.Toast(_anchorBroke, 2.5f);
 	}
 	void AnchorPin(float throttle, float turn, bool frozen)
 	{
@@ -1861,7 +1882,7 @@ public partial class Main : Node3D
 		if (me.AnchorRock != 0)
 		{
 			if (_docked != null || _transition) SpaceSim.Core.Mining.MiningAnchor.Release(u, me, u.PlayerSector, "left");
-			else if (!frozen && SpaceSim.Core.Mining.MiningAnchor.BreaksFromSteering(u.Rules, throttle, turn)) SpaceSim.Core.Mining.MiningAnchor.Release(u, me, u.PlayerSector, "thrust");
+			else if (!frozen && SpaceSim.Core.Mining.MiningAnchor.SteeringBreak(u.Rules, throttle, turn) is { } why) SpaceSim.Core.Mining.MiningAnchor.Release(u, me, u.PlayerSector, why);   // Runde 18: „Wenden“ eigener Grund
 		}
 		if (me.AnchorRock != 0 && u.Sectors[u.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == me.AnchorRock) is { } rock)
 		{
@@ -2222,7 +2243,7 @@ public partial class Main : Node3D
 				string wname = ShortBayName(bay.Name);
 				// Gerätetest Phase 28: Raketenvorrat auf der Bucht („Raketen 6/6“)
 				if (wslot < PlayerData.Fit.Count && PlayerData.Fit[wslot] is { } wkey && _session.U.Modules.TryGetValue(wkey, out var wmod) && SpaceSim.Core.Combat.Missiles.IsMissile(wmod))
-					wplace = $"Vorrat {SpaceSim.Core.Combat.Missiles.Loaded(_session.U, PlayerData):0}/{PlayerData.Stats.MissileCapacity:0} · {bay.Range:0} m";
+					wplace = $"{SpaceSim.Core.Combat.Missiles.Loaded(_session.U, PlayerData):0}/{PlayerData.Stats.MissileCapacity:0} Rak. · {bay.Range:0} m";   // Runde 18: kurz (vorher „Vorrat 12/12 · 11…“)
 				_bayViews[i] = new BayView { Name = wname, Place = wplace, Detail = wdetail, State = wst,
 					Reload = SpaceSim.Core.Combat.PlayerGunnery.ReloadProgress(_session.U, PlayerData, wslot), Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;
@@ -2235,7 +2256,7 @@ public partial class Main : Node3D
 				_bayStates[i] = cst;
 				// Phase 32: Ankerzustand („verankert“, „Anker fliegt“ mit Fortschritt, kurz nach einem Abriss der Grund)
 				bool anchors = SpaceSim.Core.Mining.MiningAnchor.Active(_session.U);
-				string? broke = Now < _anchorBrokeUntil ? _anchorBrokeShort : null;
+				string? broke = _anchorBrokeLeft > 0f ? _anchorBrokeShort : null;
 				float prog = cs == ContactState.Anchoring ? Mathf.Clamp(PlayerData.AnchorProgress / Mathf.Max(1, _session.U.Rules.AnchorTicks), 0f, 1f) : 1f;
 				_bayViews[i] = new BayView { Name = anchors && PlayerData.AnchorRock != 0 ? "Lösen" : bay.Name, Place = "Bug · Kontakt", Detail = WeaponBays.ContactText(cs, anchors, broke), State = cst, Reload = prog, Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;

@@ -439,6 +439,16 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Kommandozentrale warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			case 18: // Kamera (a): Standardansicht == früherer fester Offset (0, 38, 24), ohne dass eine Eingabe fiel
+				if (_frame - _stageStart == 1)
+				{
+					// Runde 18: verankert rückt die Kamera näher heran (Main.AnchorZoom) — für die Standardansicht weg vom Fels, Anker gelöst
+					var cu = _m.Session.U; var cme = cu.Ships[cu.PlayerShip];
+					if (cme.AnchorRock != 0 && cu.Sectors[cu.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == cme.AnchorRock) is { } crk)
+					{
+						SpaceSim.Core.Mining.MiningAnchor.Release(cu, cme, cu.PlayerSector, "released");
+						_m.TestTeleportTo(crk.Position + (cme.Position - crk.Position).Normalized() * (crk.Radius + 40f));
+					}
+				}
 				if (_frame - _stageStart > 30)
 				{
 					var (yaw, pitch, dist) = _m.TestCamAngles;
@@ -2379,7 +2389,7 @@ public partial class SelfTest : Node
 					_m.SyncHudForTest();
 					Check(_m.HudRef.Flight.TestStationAttackInfo.Contains("Geschütze"), $"„Station angreifen“ nennt die Gegenwehr ({_m.HudRef.Flight.TestStationAttackInfo})");
 					Check(_m.HudRef.Flight.TestTargetArc.Contains("draußen · Rak. ✓"), $"Zielkarte: außerhalb der Geschütze, Raketen reichen ({_m.HudRef.Flight.TestTargetArc})");
-					Check(_m.TestBayPlaces.Any(n => n.StartsWith("Vorrat ") && n.Contains('/')), $"Raketenbucht zeigt den Vorrat ({string.Join(",", _m.TestBayPlaces)})");
+					Check(_m.TestBayPlaces.Any(n => n.Contains(" Rak. · ") && n.Contains('/')), $"Raketenbucht zeigt den Vorrat ({string.Join(",", _m.TestBayPlaces)})");
 					// Runde 5: Bollwerk mit eigenem Verband — die Zielkarte zeigt das Kräfteverhältnis
 					Check(pl.ModelKey == "bastion" && SpaceSim.Core.Simulation.Squadrons.Get(uni, pl) is { Members.Count: 3 }, "Kriegstest: Bollwerk mit Verband aus zwei weiteren Bollwerken");
 					Check(_m.HudRef.Flight.TestStationOdds.StartsWith("Überlegen"), $"Zielkarte: Kräfteverhältnis mit Verband ({_m.HudRef.Flight.TestStationOdds})");

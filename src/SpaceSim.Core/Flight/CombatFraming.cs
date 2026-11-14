@@ -90,6 +90,19 @@ public static class CombatFraming
 
     /// <summary>Anteil des freien Felds, den der Abstand Schiff–Ziel höchstens füllen soll (Handy-Test Runde 15: „näher heran“; mit Rand und Körpern wirkt das wie gut die Hälfte).</summary>
     public const float FillShare = 0.75f;
+    /// <summary>
+    /// Runde 18 (Handy-Test: in der Warnphase war das eigene Schiff bei 191 m Abstand nur ≈ 40 px groß): größter Kameraabstand, bei dem ein Objekt der Länge
+    /// <paramref name="length"/> noch mindestens <paramref name="minShare"/> der Bildhöhe einnimmt (senkrechtes Sichtfeld <paramref name="fovDeg"/>).
+    /// </summary>
+    public static float MaxDistanceForSize(float length, float fovDeg, float minShare)
+    {
+        float t = MathF.Tan(fovDeg * MathF.PI / 360f);
+        return minShare <= 0f || t <= 0f ? float.MaxValue : length / (2f * t * minShare);
+    }
+
+    /// <summary>Runde 18: Mindestgröße des eigenen Schiffs am Bildschirm (Anteil der Bildhöhe) in der Warnphase.</summary>
+    public const float MinShipScreenShare = 0.06f;
+
     /// <summary>Runde 17: Schiff und Ziel liegen mindestens diesen Anteil der Feldbreite/-höhe vom Rand des freien Felds entfernt.</summary>
     public const float EdgeShare = 0.12f;
 

@@ -29,14 +29,17 @@ public static class Hangar
 
     /// <summary>Gebühr je Tag, die das Schiff dort, wo es liegt, tatsächlich zahlt (eigene Station, aktiv, unterwegs, Leihschiff: 0).</summary>
     public static float BerthFeeNow(Universe u, Ship ship) =>
-        ship.IsPlayer && ship.Id != u.PlayerShip && ship.Transit is null && !ship.IsRental && !InFormation(ship) && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner
+        ship.IsPlayer && ship.Id != u.PlayerShip && ship.Transit is null && !ship.IsRental && !InFormation(u, ship) && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner
             ? BerthFeePerDay(u, ship) : 0f;
 
     /// <summary>
     /// Runde 17 (Handy-Test: Credits sanken zeitweise mit −16,8 statt −4,8 Cr/min): ein Begleiter, der in Formation folgt (Befehl „Folgen“), liegt nicht am Liegeplatz,
     /// auch wenn seine Reise zufällig am Andockpunkt einer Station endet — er zahlt Flottenunterhalt, aber keine Liegegebühr.
+    /// Runde 18 (Prüfung: Schlupfloch): nur solange der Führer selbst nicht angedockt liegt — ein an einer fremden Station geparkter Verband zahlt (der Führer
+    /// liegt dort, die Folgenden auch). Fehlt der Führer, zählt das Schiff als geparkt.
     /// </summary>
-    public static bool InFormation(Ship ship) => ship.Command is FollowCommand;
+    public static bool InFormation(Universe u, Ship ship) =>
+        ship.Command is FollowCommand f && u.Ships.TryGetValue(f.Target, out var leader) && leader.DockedAt.Value == 0;
 
     /// <summary>Liegegebühr aller Schiffe eines Akteurs je Tag (Anzeige „Meine Fraktion“).</summary>
     public static float BerthFeesPerDay(Universe u, ActorId owner) =>

@@ -93,6 +93,12 @@ public partial class SelfTest
 				ShipInField("Warnphase");
 				if (_m.TestFramingBoth && _m.TestView.ShipPosition(_phLead) is { } lp) Check(OnScreen(lp), "Warnphase: Kaperer im Bild");
 				if (_m.TestView.ShipPosition(_phLead) is { } wp) Check(TargetVisible(wp), "Warnphase: Kaperer im freien Feld oder Randpfeil");
+				// Runde 18: das eigene Schiff behält eine Mindestgröße (Kamera höchstens bis zur Kappung) und liegt nicht unter dem Warnkasten
+				Check(_m.TestCamDistance <= _m.TestWarningCap + 2f, $"Warnphase: Schiff groß genug (Abstand {_m.TestCamDistance:0} ≤ {_m.TestWarningCap:0})");
+				if (_m.HudRef.AlertRect is { } alr && !_m.TestCam.IsPositionBehind(_m.Player.Position))
+					Check(!alr.HasPoint(_m.TestCam.UnprojectPosition(_m.Player.Position)), "Warnphase: Schiff nicht unter dem Warnkasten");
+				if (_m.HudRef.AlertRect is { } alr2 && _m.TestView.ShipPosition(_phLead) is { } lp2 && !_m.TestCam.IsPositionBehind(lp2))
+					Check(!alr2.HasPoint(_m.TestCam.UnprojectPosition(lp2)), "Warnphase: Kaperer nicht unter dem Warnkasten");
 				_m.SyncHudForTest();
 				Check(_m.HudRef.Flight.TestAutoFireHint, "Warnphase: „Dauerfeuer“ pulsiert");
 				pe.DueTick = u.Tick;   // Überfall jetzt

@@ -97,20 +97,71 @@ public partial class SelfTest
 				_m.TestStartMining();
 				return false;
 		}
-		if (f > 452 && f < 2500)
+		if (_anOffAt < 0 && f > 452 && f < 2500)
 		{
 			if (_m.TestMinerStatus == "Abbau (verankert)" && me.UsedVolume(u) > 3f)
 			{
 				Check(_m.TestHits == _anHits, $"keine harten Stöße beim Verankern ({_m.TestHits - _anHits})");
-				_m.TestStopAutomation();
 				GD.Print($"[selftest] Anker: Auto-Mining verankert nach {(f - 452) / 60f:0.0} s, {me.UsedVolume(u):0.0} Einheiten");
-				return true;
+				// Runde 18: Abschalten der Automatik lässt den Anker gesetzt, der Abbau läuft weiter
+				_anOffAt = f; _anRock = me.AnchorRock; _anOre = me.UsedVolume(u);
+				Check(PhoneTap("Auto-Mining", true), "Taste „Auto-Mining“ gefunden");   // wie am Gerät: die Taste antippen
 			}
 			return false;
 		}
-		if (f >= 2500) { Check(false, $"Auto-Mining verankert nicht ({_m.TestMinerStatus}, {me.UsedVolume(u):0.0})"); return true; }
+		if (_anOffAt < 0) { if (f >= 2500) { Check(false, $"Auto-Mining verankert nicht ({_m.TestMinerStatus}, {me.UsedVolume(u):0.0})"); return true; } return false; }
+		int gf = f - _anOffAt;
+		switch (gf)
+		{
+			case 4: PhoneTap("", false); return false;
+			case 10: Check(!_m.TestMinerEnabled, "Auto-Mining aus (Taste)"); return false;
+			case 150:
+				Check(me.AnchorRock == _anRock && MiningAnchor.State(u, me) == AnchorState.Held, $"Automatik aus: Anker bleibt gesetzt ({me.AnchorRock})");
+				Check(me.UsedVolume(u) > _anOre + 0.5f, $"Automatik aus: Abbau läuft weiter ({_anOre:0.0} → {me.UsedVolume(u):0.0})");
+				_m.SyncHudForTest();
+				Check(_m.HudRef.Flight.TestBayOverflow.Length == 0, $"Schachttexte passen (verankert: {_m.HudRef.Flight.TestBayOverflow})");
+				// Runde 18: echte Wendetaste reißt die Trossen mit eigenem Grund
+				Check(PhoneTap("◀", true), "Wendetaste gefunden");
+				return false;
+			case 156:
+				PhoneTap("", false);
+				Check(me.AnchorRock == 0 || MiningAnchor.State(u, me) != AnchorState.Held, "Wenden reißt die Trossen");
+				Check(_m.TestAnchorBroke.Contains("Wenden"), $"Grund „Wenden“ ({_m.TestAnchorBroke})");
+				{
+					// weg vom Fels (kein neuer Kontakt), der Grund bleibt kurz an der Taste stehen
+					var rk = u.Sectors[u.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == _anRock);
+					var away = rk is null ? me.Position + new Vec2(0f, 40f) : rk.Position + (me.Position - rk.Position).Normalized() * (rk.Radius + 40f);
+					_m.TestTeleportTo(away);
+				}
+				return false;
+			case 175:
+				_m.SyncHudForTest();
+				Check(_m.TestBayDetails.Any(d => d.Contains("Wenden")), $"Taste zeigt kurz den Rissgrund ({string.Join(" | ", _m.TestBayDetails)})");
+				Check(_m.HudRef.Flight.TestBayOverflow.Length == 0, $"Schachttexte passen (Riss: {_m.HudRef.Flight.TestBayOverflow})");
+				return false;
+			case 400:
+				_m.SyncHudForTest();
+				Check(!_m.TestBayDetails.Any(d => d.Contains("Riss") || d.Contains("Wenden")), $"Rissgrund verschwindet nach wenigen Sekunden ({string.Join(" | ", _m.TestBayDetails)})");
+				// alle Schachttexte (alle Zustände, Rissgründe, Raketenvorrat) passen in die 176-px-Taste
+				var bad = new System.Collections.Generic.List<string>();
+				foreach (var st in System.Enum.GetValues<ContactState>())
+					foreach (bool an in new[] { false, true })
+						foreach (var name in new[] { "Bohrer", "Lösen" })
+						{
+							string d = SpaceSim.Core.Weapons.WeaponBays.ContactText(st, an);
+							if (!_m.HudRef.Flight.TestBayLineFits("Bug · Kontakt", d, name)) bad.Add(d);
+						}
+				foreach (var r in new[] { "released", "thrust", "turn", "impact", "hit", "combat", "depleted", "split", "lost_contact", "hold_full" })
+					if (!_m.HudRef.Flight.TestBayLineFits("Bug · Kontakt", MiningAnchor.ShortReason(r))) bad.Add(MiningAnchor.ShortReason(r));
+				foreach (var place in new[] { "12/12 Rak. · 110 m", "6/6 Rak. · 125 m", "Turm · 360° · 60 m", "Bug · ±45° · 45 m" })
+					foreach (var d in new[] { "außer Reichweite", "FEUER", "lädt nach", "kein Ziel", "Ziel angedockt" })
+						if (!_m.HudRef.Flight.TestBayLineFits(place, d, "Raketen")) bad.Add(place + " / " + d);
+				Check(bad.Count == 0, $"alle Schachttexte passen ({string.Join(", ", bad)})");
+				return true;
+		}
 		return false;
 	}
+	int _anOffAt = -1;
 
 	static readonly string[] LeakPackages = { "new:fighter", "new:combat", "new:trader", "new:miner", "new:war", "new" };
 	long _leakMem; int _leakFrom;

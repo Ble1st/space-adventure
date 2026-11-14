@@ -67,9 +67,9 @@ public static class WeaponBays
     /// <summary>Phase 32: Text mit Ankerzustand — „verankert · Abbau läuft“ / „Anker fliegt“; kurz nach einem Abriss dessen Grund.</summary>
     public static string ContactText(ContactState state, bool anchors, string? broke = null) =>
         broke is { Length: > 0 } && state is ContactState.NoContact ? broke
-        : anchors && state == ContactState.Mining ? "verankert · Abbau"
-        : anchors && state == ContactState.Anchoring ? "Anker fliegt …"
-        : anchors && state == ContactState.NoContact ? "Bug an Fels, Schub <30 %"
+        : anchors && state == ContactState.Mining ? "verankert"          // Runde 18: passt in die 176-px-Taste (vorher „verankert · Abb…“)
+        : anchors && state == ContactState.Anchoring ? "Anker fliegt"
+        : anchors && state == ContactState.NoContact ? "Bug an Fels"
         : ContactText(state);
 
     public static string ContactText(ContactState state) => state switch
@@ -78,7 +78,7 @@ public static class WeaponBays
         ContactState.Anchoring => "Anker fliegt",
         ContactState.HoldFull => "Laderaum voll",
         ContactState.NoTool => "kein Werkzeug",
-        _ => "kein Kontakt · Bug an Fels",
+        _ => "Bug an Fels",   // Runde 18: passt in die Taste (vorher „kein Kontakt · Bug an Fels“)
     };
 
     /// <summary>Schächte eines Schiffs: Laser und Traktor wie bisher, dazu der Spalter (Spaltlaser im Fit) und — Phase 26 — „Bergen“ (Fähigkeit Bergung).

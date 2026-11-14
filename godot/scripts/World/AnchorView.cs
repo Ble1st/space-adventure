@@ -64,7 +64,7 @@ public partial class AnchorView : Node3D
 	{
 		if (!_live.Remove(ar.Ship, out var e)) return;
 		e.Snap = 0f;
-		e.Violent = ar.Reason is "thrust" or "impact" or "hit" or "split" or "combat" or "lost_contact";
+		e.Violent = ar.Reason is "thrust" or "turn" or "impact" or "hit" or "split" or "combat" or "lost_contact";
 		e.Plume.Emitting = false; e.Puff.Emitting = false;
 		if (e.Violent && Fx is { } fx) foreach (var p in e.Impacts) fx.Burst(p, new Color(1f, 0.75f, 0.3f), 8, 9f, 0.4f);
 		_snapping.Add(e);
