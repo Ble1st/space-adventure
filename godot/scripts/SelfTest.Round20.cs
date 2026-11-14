@@ -74,14 +74,16 @@ public partial class SelfTest
 				_r20Near = near.Id;
 				_m.TestSelectGate(_r20Gate); _m.SyncHudForTest();
 				Check(hud.TestContextLabel.Contains("Spring"), $"am Tor mit gewähltem Tor: Springen ({hud.TestContextLabel})");
-				// an die Station neben dem Tor, Tor weiter gewählt: Tor außer Reichweite → Andocken
+				// Runde 21 (Prüferhinweis: Fall war zu lax): dieselbe Stelle, die Station neben dem Tor gewählt → „Andocken: <Station>“
+				_m.TestSelectStation(near.Id); _m.SyncHudForTest();
+				Check(hud.TestContextLabel.Contains("Andock") && hud.TestContextLabel.Contains(near.Name.Split(' ')[0]),
+					$"am Tor mit gewählter Station daneben: Andocken ({hud.TestContextLabel}, {near.Name})");
 				_m.TestTeleportTo(near.DockPoint(me.Id) + new Vec2(0f, 2f));
 				return false;
 			}
 			case 11:
 				_m.SyncHudForTest();
-				Check(hud.TestContextLabel.Length == 0 || hud.TestContextLabel.Contains("Andock") || hud.TestContextLabel.Contains("Spring"),
-					$"an der Station: Kontexttaste stimmig ({hud.TestContextLabel})");
+				Check(hud.TestContextLabel.Contains("Andock"), $"an der gewählten Station: Andocken ({hud.TestContextLabel})");
 				_m.TestSelectStation(_r20Near); _m.SyncHudForTest();
 				Check(!hud.TestGateAttackVisible, $"Station gewählt: kein „Tor angreifen“ ({hud.TestContextLabel})");
 				_m.TestMenu("new:anchor");

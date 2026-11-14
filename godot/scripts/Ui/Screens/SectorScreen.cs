@@ -252,7 +252,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 		Vector2 Place(Vec2 world)
 		{
-			return Size / 2f + new Vector2(world.X * ContentScale(), world.Y * ContentScale());
+			return MapCenter + new Vector2(world.X * ContentScale(), world.Y * ContentScale());
 		}
 
 		/// <summary>Zoom auf den Inhalt (Stationen, Gürtel, Gates, Spieler), nicht auf den leeren Sektorrand.</summary>
@@ -264,8 +264,16 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			foreach (var f in s.Fields) maxD = Mathf.Max(maxD, f.Position.Length + SpaceSim.Core.Mining.MiningRules.BeltRadius);
 			foreach (var gid in s.Gates) maxD = Mathf.Max(maxD, _u.Gates[gid].Position.Length);
 			// Gerätetest: der Spieler bestimmt den Maßstab nicht mehr (weit draußen ballte er alles in der Mitte) — er wird am Rand gezeigt
-			return (Mathf.Min(Size.X, Size.Y) / 2f - 36f) / maxD;
+			return (MapSize / 2f - 36f) / maxD;
 		}
+		// Runde 21 (Handy-Test b04: die Legende überlappte den Kreisrand): die Karte liegt über einem eigenen Legendenstreifen
+		internal const float LegendHeight = 60f;
+		Vector2 MapCenter => new(Size.X / 2f, (Size.Y - LegendHeight) / 2f);
+		float MapSize => Mathf.Min(Size.X, Size.Y - LegendHeight);
+		/// <summary>Runde 21: Radius, mit dem der Sektorrand gezeichnet wird (nie in den Legendenstreifen).</summary>
+		internal float RimRadius => MathF.Min(_u?.Sectors[_owner.Selected].Radius * ContentScale() ?? 0f, MapSize / 2f - 4f);
+		/// <summary>Runde 21: unterer Rand des Kreises und oberer Rand der Legende (Selbsttest).</summary>
+		internal (float CircleBottom, float LegendTop) TestLegendGap => (MapCenter.Y + RimRadius + 1f, Size.Y - 44f - 13f);
 
 		public override void _GuiInput(InputEvent @event)
 		{
@@ -292,23 +300,24 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			if (_u == null) return;
 			var s = _u.Sectors[_owner.Selected];
 			float scale = ContentScale();
-			var c = Size / 2f;
+			var c = MapCenter;
 			var font = ThemeDB.FallbackFont;
 			// Gerätetest: Beschriftungen werden gesammelt und zum Schluss kollisionsfrei gesetzt (LabelLayout), Symbole halten ihren Platz frei
-			var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(Vector2.Zero, Size - new Vector2(0, 46)), font);
+			var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(Vector2.Zero, Size - new Vector2(0, LegendHeight)), font);
 			var labels = new System.Collections.Generic.List<(int Prio, Vector2 At, string Text, int Size, Color Col, float Gap)>();
 
 			// Sektorscheibe (nur wenn im Bild), Ringe
 			float edge = s.Radius * scale;
-			if (edge < 700f)
+			float rimR = RimRadius;
+			if (edge < 700f && edge <= rimR + 0.5f)
 			{
 				DrawCircle(c, edge, new Color(0.03f, 0.05f, 0.1f, 0.9f));
 				DrawArc(c, edge, 0, Mathf.Tau, 64, new Color(Edge, 0.6f), 2f, true);
 			}
 			else
 			{
-				DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.03f, 0.05f, 0.1f, 0.9f));
-				DrawArc(c, Mathf.Min(Size.X, Size.Y) / 2f - 8f, 0, Mathf.Tau, 64, new Color(Edge, 0.6f), 2f, true);
+				DrawRect(new Rect2(Vector2.Zero, new Vector2(Size.X, Size.Y - LegendHeight)), new Color(0.03f, 0.05f, 0.1f, 0.9f));
+				DrawArc(c, rimR, 0, Mathf.Tau, 64, new Color(Edge, 0.6f), 2f, true);
 			}
 			DrawArc(c, edge * 0.66f, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.05f), 1f);
 			DrawArc(c, edge * 0.33f, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.05f), 1f);
@@ -428,7 +437,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				var pl = _u.Ships[_u.PlayerShip];
 				var p = Place(pl.Position);
 				// Gerätetest: weit draußen am Kartenrand mit Richtungshinweis statt den Maßstab zu sprengen
-				float rim = Mathf.Min(Size.X, Size.Y) / 2f - 22f;
+				float rim = MapSize / 2f - 22f;
 				bool outside = (p - c).Length() > rim;
 				if (outside) p = c + (p - c).Normalized() * rim;
 				DrawShip(p, 9f, Cyan);
@@ -464,6 +473,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 	/// <summary>Phase 24: Gefechtszeile der Sektorkarte (leer = kein Gefecht).</summary>
 	public string TestCombat { get; private set; } = "";
+	/// <summary>Runde 21: unterer Kreisrand und Oberkante der Legende der Draufsicht (Selbsttest: kein Überlappen).</summary>
+	public (float CircleBottom, float LegendTop) TestLegendGap => _map is null || !GodotObject.IsInstanceValid(_map) ? (0f, 1f) : _map.TestLegendGap;
 	/// <summary>Phase 26: gezeichnete Wracks/Behälter (aufsummiert über die Zeichendurchläufe; Selbsttest prüft &gt; 0).</summary>
 	public static int TestWrecks;
 }

@@ -410,16 +410,27 @@ public static class WarInfo
                     // Runde 14 (Handy-Test: Satellit „aussichtslos“): nur das Ziel selbst und Stationen, deren Geschütze bis zum Ziel reichen
                     && (st.Id == target.Id || (d.Guns.Count > 0 && Vec2.Distance(st.Position, target.Position) <= StationCombat.GunRange(u, st) + target.Radius)))
                 {
-                    foreach (var g in d.Guns) if (u.Modules.TryGetValue(g, out var m)) def += ShipStats.WeaponPowerOf(m);
-                    def += StationCombat.Shield(u, st) / 20f + StationCombat.Hull(u, st) / 50f + d.Armor / 5f;
+                    float part = 0f;
+                    foreach (var g in d.Guns) if (u.Modules.TryGetValue(g, out var m)) part += ShipStats.WeaponPowerOf(m);
+                    part += StationCombat.Shield(u, st) / 20f + StationCombat.Hull(u, st) / 50f + d.Armor / 5f;
+                    def += part * SiegeStationWeight;
                 }
             foreach (var id in u.Tracker.ParkedIn(target.Sector).Concat(u.Tracker.TransitIn(target.Sector)).Distinct())
                 if (u.Ships.TryGetValue(id, out var s) && (ThreatMap.IsPolice(s) || Wars.IsWarship(s)) && u.FactionOf(s) == f && ThreatMap.Where(u, s) is var (ws, wp) && ws == target.Sector
-                    && Vec2.Distance(wp, target.Position) <= SiegeOddsDefenderRange)   // Runde 14: nur Verteidiger in der Nähe des Ziels
+                    && Vec2.Distance(wp, target.Position) <= SiegeOddsDefenderRange   // Runde 14: nur Verteidiger in der Nähe des Ziels
+                    // Runde 21: wer gerade ein anderes Gefecht führt (z. B. gegen einen Korsaren), verteidigt diese Station nicht
+                    && (u.Fights.Of(s.Id) is not { } busy || busy.Station == target.Id))
                     def += CombatRules.Strength(s);
         }
         return (own, def, ships);
     }
+
+    /// <summary>
+    /// Runde 21 (Handy-Test b07: Kriegstest-Verband „Aussichtslos (121 : 119)“, obwohl er im Core in 2–4 min gewinnt): Gewicht des Stationsanteils der
+    /// Verteidigung — eine Station weicht nicht aus und hält den Verband nicht auf (jeder Schuss trifft, sie bindet nur ihre Geschütze). Gemessen: Kriegstest
+    /// mit zwei Streifen in der Nähe → „Knapp“, das Bollwerk allein bleibt „Aussichtslos“ (Verhältnis ≈ 0,6).
+    /// </summary>
+    public const float SiegeStationWeight = 0.6f;
 
     /// <summary>Runde 14: Polizei/Kriegsschiffe zählen als Verteidiger, wenn sie höchstens so weit vom Ziel entfernt sind.</summary>
     public const float SiegeOddsDefenderRange = 150f;

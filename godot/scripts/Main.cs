@@ -364,10 +364,25 @@ public partial class Main : Node3D
 		if (warn is null || !u.Ships.TryGetValue(warn.Source, out var raider) || raider.Sector != u.PlayerSector) return;
 		var d = new Vector2(raider.Position.X - _player.Position.X, raider.Position.Y - _player.Position.Z);
 		if (d.LengthSquared() > 0.01f) _player.Heading = Mathf.Atan2(-d.X, -d.Y);
-		_fight.SetTarget(raider.Id);   // Runde 15: Ziel schon in der Warnphase (Gefechtskamera, Randpfeil)
+		TakeShipTarget(raider.Id);   // Runde 15: Ziel schon in der Warnphase (Gefechtskamera, Randpfeil); Runde 21: gemeinsamer Weg
 		float secs = Mathf.Max(1f, (warn.DueTick - u.Tick) / (float)SimClock.TicksPerSecond);
-		_hud.Alert($"Piraten! {u.ActorName(raider.Owner)} nimmt Kurs auf dich — Angriff in {secs:0} s. Andocken oder kämpfen („Nächster Gegner“, „Dauerfeuer“).", secs);
+		_hud.Alert($"Piraten! {u.ActorName(raider.Owner)} nimmt Kurs auf dich — Angriff in {secs:0} s. Andocken oder kämpfen („Nächster Gegner“, „Dauerfeuer“).", secs + 1f);
 		LastSecurityMessage = _hud.TestAlert;
+		StartCountdown(warn.DueTick);
+	}
+
+	// Runde 21 (Handy-Test c01_w1..w3: „Angriff in 15 s“ blieb stehen): die Vorwarnung zählt herunter (Restzeit aus PendingEncounter.DueTick)
+	string? _warnText, _warnShown; long _warnDue;
+	float WarnSeconds(long due) => SpaceSim.Core.Combat.WarningCountdown.SecondsLeft(due, _session.U.Tick) + 1f;
+	void StartCountdown(long due) { _warnText = _hud.TestAlert.Length > 0 ? _hud.TestAlert : null; _warnShown = _warnText; _warnDue = due; }
+	void TickCountdown()
+	{
+		if (_warnText is null || _warnShown is null) return;
+		var u = _session.U;
+		if (SpaceSim.Core.Combat.WarningCountdown.Pending(u, u.PlayerShip, _warnDue) is null) { _warnText = null; return; }
+		string text = SpaceSim.Core.Combat.WarningCountdown.Apply(_warnText, SpaceSim.Core.Combat.WarningCountdown.SecondsLeft(_warnDue, u.Tick));
+		if (text == _warnShown) return;
+		if (_hud.ReplaceAlertText(_warnShown, text)) _warnShown = text; else _warnText = null;   // Meldung ersetzt oder geschlossen → nicht weiter zählen
 	}
 
 	/// <summary>Gerätetest Phase 27: Hindernisse des Sektors plus die Tore (beim Abdocken nicht geradewegs in ein Tor fliegen).</summary>
@@ -975,7 +990,7 @@ public partial class Main : Node3D
 				LastCombatMessage = siege.Message; _hud.Toast(siege.Message, 4f); break;
 			// Gerätetest Phase 28: Überfall auf dich — das angreifende Schiff wird Ziel, Hinweis auf Dauerfeuer/Zielhilfe
 			case EncounterStarted raid when raid.Cause == EncounterCause.Raid && raid.Defender == _session.U.PlayerShip:
-				_fight.SetTarget(raid.Attacker);
+				TakeShipTarget(raid.Attacker);   // Runde 21: räumt Tor-/Stationswahl samt Angriff ab
 				LastCombatMessage = $"Überfall! Ziel gewählt: {(_session.U.Ships.TryGetValue(raid.Attacker, out var ra) ? SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ra) : "Kaperschiff")} — „Dauerfeuer“ an? „Ziel folgen“ hält es im Bugwinkel.";
 				Danger("Überfall", LastCombatMessage, 8f);
 				break;
@@ -1004,9 +1019,10 @@ public partial class Main : Node3D
 			case EncounterWarning w when w.Target == _session.U.PlayerShip:
 				// Runde 15/16: schon in der Warnphase Ziel (Kamera, Randpfeil) — auch wenn das Warnsignal gerade gesperrt ist (vorher hing alles am Signal);
 				// ein laufendes Gefechtsziel bleibt
-				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0 && _fight.Target.Value == 0) _fight.SetTarget(w.Source);
+				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0 && _fight.Target.Value == 0) TakeShipTarget(w.Source);
 				Sting("sting_warning");
-				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, 8f); LastSecurityMessage = w.Message; break;
+				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, WarnSeconds(w.DueTick)); LastSecurityMessage = w.Message;
+				StartCountdown(w.DueTick); break;
 			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
 			case RaidResolved rr when rr.Player: _hud.Alert(rr.Message, 8f); LastSecurityMessage = rr.Message; break;
@@ -1819,18 +1835,31 @@ public partial class Main : Node3D
 	/// </summary>
 	bool SelectShip(ShipId picked)
 	{
-		if (!_session.U.Ships.TryGetValue(picked, out var ps)) return false;
-		_fight.SetTarget(picked);
-		_fight.Validate(_session.U);
-		if (_fight.Target != picked) return false;
-		_targetGate = null; _fight.ArmGate(default); _fight.ArmStation(default);
-		if (!_autopilot) { _target = null; _targetStation = null; }
+		if (!_session.U.Ships.TryGetValue(picked, out var ps) || !TakeShipTarget(picked)) return false;
 		_sfx.Play(SfxId.Click);
 		_hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ps)}");
 		UpdateHud();   // Zielkarte sofort
 		return true;
 	}
 	internal bool TestSelectShip(ShipId id) => SelectShip(id);
+	internal void TestNextEnemy() => SelectNextEnemy();
+	/// <summary>
+	/// Runde 21 (Prüferhinweis): der eine Weg, ein Schiff zum Ziel zu machen (Tipp, „Nächster Gegner“, Überfallwarnung/-beginn): gilt das Ziel, endet die
+	/// Tor-/Stationswahl samt Angriffsarmierung; ein laufender Autopilot behält sein Navigationsziel.
+	/// </summary>
+	bool TakeShipTarget(ShipId id)
+	{
+		_fight.SetTarget(id);
+		_fight.Validate(_session.U);
+		if (_fight.Target != id) return false;
+		ClearPlaceTarget();
+		return true;
+	}
+	void ClearPlaceTarget()
+	{
+		_targetGate = null; _fight.ArmGate(default); _fight.ArmStation(default);
+		if (!_autopilot) { _target = null; _targetStation = null; }
+	}
 
 	void TryPickTarget(Vector2 screen)
 	{
@@ -2057,6 +2086,7 @@ public partial class Main : Node3D
 
 	void UpdateHud()
 	{
+		TickCountdown();
 		var u = _session.U;
 		var sector = u.Sectors[u.PlayerSector];
 		var pos = new Vec2(_player.Position.X, _player.Position.Z);
@@ -2154,8 +2184,11 @@ public partial class Main : Node3D
 			d.TargetName = SpaceSim.Core.Combat.PlayerCombat.Describe(u, ts);
 			d.TargetHasInfo = true;
 			d.TargetHostile = hostile;
-			targetWorld = tsp.Pos;
-			d.TargetDistance = Vec2.Distance(pos, tsp.Pos);
+			// Runde 21 (Handy-Test b03: Begleiter „Entfernung 0 m“): die dargestellte Position (Formationsplatz aus dem Materializer), sonst die Core-Position —
+			// ein Folger steht im Core beim Führer
+			var shown = _view.ShipPosition(ts.Id) is { } vp3 ? new Vec2(vp3.X, vp3.Z) : tsp.Pos;
+			targetWorld = shown;
+			d.TargetDistance = Vec2.Distance(pos, shown);
 			d.TargetInfo = $"Entfernung {d.TargetDistance:0} m" + (hostile ? " · feindlich" : "");
 			d.TargetCombat = CombatController.TargetLine(u, ts);
 		}
@@ -2583,6 +2616,7 @@ public partial class Main : Node3D
 		SyncPlayerData();
 		_sfx.Play(SfxId.Click);
 		if (!_fight.NextEnemy(_session.U, PlayerData)) { _hud.Toast("Kein Gegner in diesem Sektor"); return; }
+		ClearPlaceTarget();   // Runde 21: „Nächster Gegner“ beendet Tor-/Stationswahl und -angriff wie ein Tipp aufs Schiff
 		if (_session.U.Ships.TryGetValue(_fight.Target, out var t)) _hud.Toast($"Ziel: {SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, t)}");
 	}
 
@@ -2910,7 +2944,6 @@ public partial class Main : Node3D
 	internal float TestHeadingDeg => Mathf.RadToDeg(_player.Heading);
 	/// <summary>Zweiter Gerätetest Phase 28: Dock-Bereich schließen, zurück ins Dock-Menü.</summary>
 	internal void TestCloseDockArea() => ShowDockMenu();
-	internal void TestNextEnemy() => SelectNextEnemy();
 	internal void TestSetShipTarget(ShipId id) => _fight.SetTarget(id);
 	/// <summary>Dreht das Spielerschiff zur Position (Bugwaffen tragen).</summary>
 	internal void TestFace(Vec2 at) { var d = new Vector2(at.X - _player.Position.X, at.Y - _player.Position.Z); _player.Heading = Mathf.Atan2(-d.X, -d.Y); }

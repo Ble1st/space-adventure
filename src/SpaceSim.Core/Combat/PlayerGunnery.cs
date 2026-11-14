@@ -260,29 +260,45 @@ public static class PlayerCombat
     /// <summary>Ist das Schiff im Besitz eines Gesetzlosen (Pirat)? Angriffe darauf sind kein Verbrechen.</summary>
     public static bool IsOutlaw(Universe u, ActorId owner) => u.Actors.TryGetValue(owner, out var a) && a.Kind == ActorKind.Outlaw;
 
-    /// <summary>Warum der Spieler dieses Schiff nicht angreifen kann (null = er kann).</summary>
-    public static string? TargetIssue(Universe u, Ship player, Ship target)
+    /// <summary>
+    /// Runde 21 (Prüferhinweis: die Kurzform hing am Wortlaut der Langform): warum der Spieler ein Schiff nicht angreifen kann — ein Grund, aus dem Lang- und
+    /// Kurztext kommen (<see cref="TargetIssueText"/>, <see cref="TargetIssueShortText"/>); <see cref="TargetBlock.None"/> = angreifbar.
+    /// </summary>
+    public static TargetBlock TargetBlockOf(Universe u, Ship player, Ship target)
     {
-        if (target.IsPlayer) return "Eigene Schiffe greifst du nicht an.";
-        if (target.DockedAt.Value != 0 && !u.Fights.IsEngaged(target.Id)) return "Das Schiff liegt angedockt.";
+        if (target.IsPlayer) return TargetBlock.Own;
+        if (target.DockedAt.Value != 0 && !u.Fights.IsEngaged(target.Id)) return TargetBlock.Docked;
         if (u.Fights.Of(player.Id) is { } mine && mine.Of(target.Id) is { Active: true } t && mine.Of(player.Id) is { } me && t.Side == me.Side)
-            return "Das Schiff kämpft auf deiner Seite.";
-        if (u.Fights.Of(target.Id) is { } theirs && u.Fights.Of(player.Id) is { } own && theirs.Id != own.Id) return "Das Schiff steckt in einem anderen Gefecht.";
-        return null;
+            return TargetBlock.Ally;
+        if (u.Fights.Of(target.Id) is { } theirs && u.Fights.Of(player.Id) is { } own && theirs.Id != own.Id) return TargetBlock.OtherFight;
+        return TargetBlock.None;
     }
 
-    /// <summary>
-    /// Runde 20 (Handy-Test: eigene Begleiter zeigten an den Waffentasten „Ziel angedockt“): Kurzform des Grundes aus <see cref="TargetIssue"/> für die
-    /// Waffentaste — „eigenes Schiff“, „Ziel angedockt“, „kämpft mit dir“, „anderes Gefecht“; null = angreifbar.
-    /// </summary>
-    public static string? TargetIssueShort(Universe u, Ship player, Ship target) => TargetIssue(u, player, target) switch
+    /// <summary>Langtext eines Grundes (Meldung beim Schuss); null für <see cref="TargetBlock.None"/>.</summary>
+    public static string? TargetIssueText(TargetBlock b) => b switch
     {
-        null => null,
-        var t when t.StartsWith("Eigene") => "eigenes Schiff",
-        var t when t.Contains("angedockt") => "Ziel angedockt",
-        var t when t.Contains("deiner Seite") => "kämpft mit dir",
-        _ => "anderes Gefecht",
+        TargetBlock.Own => "Eigene Schiffe greifst du nicht an.",
+        TargetBlock.Docked => "Das Schiff liegt angedockt.",
+        TargetBlock.Ally => "Das Schiff kämpft auf deiner Seite.",
+        TargetBlock.OtherFight => "Das Schiff steckt in einem anderen Gefecht.",
+        _ => null,
     };
+
+    /// <summary>Kurztext eines Grundes für die Waffentaste; null für <see cref="TargetBlock.None"/>.</summary>
+    public static string? TargetIssueShortText(TargetBlock b) => b switch
+    {
+        TargetBlock.Own => "eigenes Schiff",
+        TargetBlock.Docked => "Ziel angedockt",
+        TargetBlock.Ally => "kämpft mit dir",
+        TargetBlock.OtherFight => "anderes Gefecht",
+        _ => null,
+    };
+
+    /// <summary>Warum der Spieler dieses Schiff nicht angreifen kann (null = er kann).</summary>
+    public static string? TargetIssue(Universe u, Ship player, Ship target) => TargetIssueText(TargetBlockOf(u, player, target));
+
+    /// <summary>Runde 20: Kurzform des Grundes für die Waffentaste — „eigenes Schiff“, „Ziel angedockt“, „kämpft mit dir“, „anderes Gefecht“; null = angreifbar.</summary>
+    public static string? TargetIssueShort(Universe u, Ship player, Ship target) => TargetIssueShortText(TargetBlockOf(u, player, target));
 
     /// <summary>Gefechtstaktik eines NPC-Schiffs, das der Spieler angreift.</summary>
     public static string TacticOf(Ship s) => ThreatMap.IsPolice(s) ? CombatTactics.Police : ThreatMap.IsRaider(s) ? CombatTactics.Raider : CombatTactics.Trader;
@@ -449,3 +465,6 @@ public static class PlayerCombat
         if (u.Fights.Of(u.PlayerShip) is { } e && e.Of(u.PlayerShip) is { Active: true } p) Combat.Engage.Leave(u, e, p, CombatExit.Fled);
     }
 }
+
+/// <summary>Runde 21: Grund, aus dem der Spieler ein Schiff nicht angreifen kann.</summary>
+public enum TargetBlock { None, Own, Docked, Ally, OtherFight }

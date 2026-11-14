@@ -255,6 +255,14 @@ public partial class Hud : CanvasLayer
 	/// <summary>
 	/// Gerätetest: wichtige Meldung — rot hinterlegt, groß, bleibt <paramref name="seconds"/> (mindestens 6 s) oder bis sie angetippt wird.
 	/// </summary>
+	/// <summary>Runde 21: Text der sichtbaren Meldung ersetzen (Countdown der Vorwarnung), nur wenn sie noch <paramref name="expect"/> zeigt; Dauer bleibt.</summary>
+	public bool ReplaceAlertText(string expect, string text)
+	{
+		if (!_alert.Visible || _alertText.Text != expect) return false;
+		_alertText.Text = text;
+		return true;
+	}
+
 	public void Alert(string text, float seconds = 6f, bool sticky = false)
 	{
 		double now = Time.GetTicksMsec() / 1000.0;
@@ -346,14 +354,14 @@ public partial class Hud : CanvasLayer
 		if (Screens.Current == DockMenu)   // Dock-Menü: links neben dem Fenster, unter einer Meldung
 		{
 			_toast.Position = new Vector2(10f, _alert.Visible ? 250f : 90f);
-			_toast.Size = new Vector2(MathF.Max(300f, (vpSize.X - DockMenuWidth) / 2f - 20f), _toast.Size.Y);
+			_toast.Size = new Vector2(MathF.Max(300f, (vpSize.X - DockMenuWidth) / 2f - 20f), 0f);   // Runde 21: Höhe folgt dem Text
 		}
 		else if (!onScreen && EdgeThin)
 		{
 			// Runde 17 (Handy-Test: Warnphase — Zielpfeil, Stationsnamen und Start-Hinweis als Textknäuel oben): im Gefecht/in der Warnphase links unter den
 			// Leistungstasten, das freie Feld oben bleibt für Ziel und Zielpfeil
 			_toast.Position = new Vector2(Flight.LeftColumnX(), Flight.LeftColumnTop());
-			_toast.Size = new Vector2(300f, _toast.Size.Y);
+			_toast.Size = new Vector2(300f, 0f);   // Runde 21: Höhe folgt dem Text
 		}
 		else
 		{
@@ -364,7 +372,7 @@ public partial class Hud : CanvasLayer
 				foreach (var r in Flight.OccupiedRects())
 					if (r.Position.X > vpSize.X / 2f && r.Position.Y < _toast.Position.Y + 100f && r.End.Y > _toast.Position.Y)
 						tw = MathF.Min(tw, MathF.Max(300f, r.Position.X - 6f - _toast.Position.X));
-			_toast.Size = new Vector2(tw, _toast.Size.Y);
+			_toast.Size = new Vector2(tw, 0f);   // Runde 21: Höhe folgt dem Text
 		}
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 		// Runde 7: Beschuss- und Fluchtzeile unter einen mehrzeiligen Hinweis im Flug
@@ -385,6 +393,8 @@ public partial class Hud : CanvasLayer
 		// Prüfung Phase 28: ein neuer Hinweis ersetzt eine ältere Meldung, die schon mindestens 3 s stand (keine zwei Felder übereinander)
 		if (_alert.Visible && !_alertSticky && Time.GetTicksMsec() / 1000.0 - _alertShown >= 3.0) _alert.Visible = false;
 		_toast.Text = text;
+		// Runde 21 (Handy-Test b08: nach einem mehrzeiligen Hinweis blieb die dunkle Fläche dreizeilig hoch): Höhe auf den neuen Text zurücksetzen
+		_toast.Size = new Vector2(_toast.Size.X, 0f);
 		_toastTween?.Kill();
 		_toast.Modulate = Colors.White;
 		_toastTween = CreateTween();

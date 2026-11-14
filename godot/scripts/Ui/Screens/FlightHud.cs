@@ -137,6 +137,8 @@ public partial class FlightHud : Control, IScreen
 	public bool TestAutoFireHint => _autoFireHint;
 	public bool TestAimAssistVisible => _aimAssist.Visible;
 	public string TestTargetArc => _tArc.Text;
+	/// <summary>Runde 21: Zeile „Entfernung …“ der Zielkarte.</summary>
+	public string TestTargetInfo => _tInfo.Text;
 	public void TestPressAimAssist() => AimAssistPressed?.Invoke();
 	public string TestStationAttackInfo { get; private set; } = "";
 	public bool TestAimAssistOn => _aimAssist.On;

@@ -262,6 +262,19 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 	public string TestMessage => _message;
 
 	/// <summary>Standort: angedockt an einer Station (aktives Schiff: laut Ansicht), unterwegs oder im Raum.</summary>
+	/// <summary>
+	/// Runde 21 (Handy-Test a09: „… · Fracht 428/500 m³ · Wert…“ abgeschnitten): die erste Fassung der Zeile unter dem Namen, die in 310 px passt —
+	/// der Wert steht immer drin, Fracht und Koordinaten fallen zuerst weg (die Fracht zeigt der Balken rechts).
+	/// </summary>
+	internal static string RowDetail(Font font, Universe u, Ship s, string ort)
+	{
+		string value = $"≈ {SectorEconomy.TotalValue(u, s):0} Cr";
+		string place = s.Transit is null && !ort.StartsWith("angedockt") && u.Sectors.TryGetValue(s.Sector, out var sec) ? sec.Name : ort;
+		foreach (var t in new[] { $"{ort} · Fracht {s.UsedVolume(u):0.#}/{s.CargoCapacity:0} · Wert {value}", $"{ort} · Wert {value}", $"{place} · Fracht {s.UsedVolume(u):0}/{s.CargoCapacity:0} · Wert {value}", $"{place} · Wert {value}" })
+			if (font.GetStringSize(t, HorizontalAlignment.Left, -1, 13).X <= 310f) return t;
+		return $"{place} · Wert {value}";
+	}
+
 	static string OrtText(Universe u, Ship s, StationId? docked) =>
 		s.Transit is { } t ? $"unterwegs nach {(u.Sectors.TryGetValue(t.ToSector, out var ts) ? ts.Name : "?")}"
 		: docked is { Value: > 0 } d && u.Stations.TryGetValue(d, out var st) ? $"angedockt an {st.Name}"
@@ -304,7 +317,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			string model = _u.ShipModels.TryGetValue(_s.ModelKey, out var md) ? md.Name : "";
 			// Gerätetest: jede Spalte auf ihre Breite gekürzt (Wert lief in „geparkt“), Zustand des aktiven Schiffs richtig („im Flug“/„angedockt“ statt „geparkt“)
 			DrawString(font, new Vector2(96, 26), KitButton.Fit(font, $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", 20, 310), HorizontalAlignment.Left, -1, 20, White);
-			DrawString(font, new Vector2(96, 48), KitButton.Fit(font, $"{ort} · Fracht {_s.UsedVolume(_u):0.#}/{_s.CargoCapacity:0} m³ · Wert ≈ {SectorEconomy.TotalValue(_u, _s):0} Cr", 13, 310), HorizontalAlignment.Left, -1, 13, Dim);
+			DrawString(font, new Vector2(96, 48), KitButton.Fit(font, RowDetail(font, _u, _s, ort), 13, 310), HorizontalAlignment.Left, -1, 13, Dim);
 			DrawString(font, new Vector2(420, 26), KitButton.Fit(font, _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s), 14, 230), HorizontalAlignment.Left, -1, 14, White);
 			string state = _s.Transit != null ? "im Transit" : _active ? (_docked is not null ? "angedockt" : "im Flug") : _s.DockedAt.Value != 0 ? "angedockt" : "geparkt";
 			DrawString(font, new Vector2(420, 48), state, HorizontalAlignment.Left, -1, 12, Dim);
