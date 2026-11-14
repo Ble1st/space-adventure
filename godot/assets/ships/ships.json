@@ -2,6 +2,7 @@
   "axes": "Bug = -Z (Godot-Vorwaerts), oben = +Y, Steuerbord = +X; Laenge 2 (Halblaenge 1), Ursprung = Mitte der Bounding-Box",
   "nodes": "Rumpf = Node 'Hull'; drehende Werkzeuge = Kind-Nodes 'Rotor_*', Spaltbacken = 'Jaw_*'. Bei allen ist die lokale Z-Achse die Drehachse und der Node-Ursprung liegt auf ihr (spin beschreibt die Richtung im Schiff). contactRadius = Radius der Werkzeugfront quer zur Flugrichtung, relativ zur Halblaenge 1.",
   "hardpoints": "Je Waffen-/PD-Slot der Klasse genau eine sichtbare Stellung, in Slot-Reihenfolge. slot = Index in shipClasses[].slots, kind = gun (starre Bugwaffe) | turret (Drehturm) | missile (Schachtfeld in der Huelle; bei missile_boat Werferkasten) | pd (Punktverteidigung), pos = Muendung bzw. Schachtoeffnung, dir = Grund-Schussrichtung, beides im Godot-Modellraum (Bug -Z, oben +Y, Halblaenge 1). node = eigener Turm-Node 'Turret_<slot>': Ursprung auf der Drehachse, Drehachse = lokales +Y, Rohr in Ruhe nach lokal -Z. empty = Slot ohne Modul (Lafette ohne Rohr). module = Modul laut fit.",
+  "anchors": "Harpunenwerfer der Kontaktschuerfer (Ankertrossen): node = Kind-Node 'Harpoon_<n>' von 'Hull' (die Harpunenspitze, Ursprung an der Rohrmuendung, lokale -Z = Abschussrichtung), pos = Muendung, dir = Abschussrichtung (Einheitsvektor), beides im Godot-Modellraum (Bug -Z, oben +Y, Halblaenge 1). Rohr und Winde gehoeren zum Rumpf; Paare sind spiegelgleich (x -> -x), ein dritter Werfer liegt mittig.",
   "sizeScale": {
     "S": 1.0,
     "M": 1.5,
@@ -73,6 +74,34 @@
         }
       ],
       "contactRadius": 0.109,
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.3825,
+            0.0028,
+            -0.4854
+          ],
+          "dir": [
+            0.3704,
+            0.0741,
+            -0.9259
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.3825,
+            0.0028,
+            -0.4854
+          ],
+          "dir": [
+            -0.3704,
+            0.0741,
+            -0.9259
+          ]
+        }
+      ],
       "hardpoints": []
     },
     "unit_miner_60": {
@@ -88,6 +117,34 @@
         }
       ],
       "contactRadius": 0.146,
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.3003,
+            -0.0115,
+            -0.4878
+          ],
+          "dir": [
+            0.4098,
+            0.0546,
+            -0.9106
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.3039,
+            -0.0115,
+            -0.4878
+          ],
+          "dir": [
+            -0.4098,
+            0.0546,
+            -0.9106
+          ]
+        }
+      ],
       "hardpoints": []
     },
     "pip": {
@@ -150,6 +207,34 @@
         }
       ],
       "contactRadius": 0.068,
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.1713,
+            0.0234,
+            -0.3203
+          ],
+          "dir": [
+            0.33,
+            0.0471,
+            -0.9428
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.1748,
+            0.0234,
+            -0.3203
+          ],
+          "dir": [
+            -0.33,
+            0.0471,
+            -0.9428
+          ]
+        }
+      ],
       "hardpoints": [
         {
           "slot": 6,
@@ -206,6 +291,34 @@
         }
       ],
       "contactRadius": 0.119,
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.2548,
+            0.1183,
+            -0.495
+          ],
+          "dir": [
+            0.2855,
+            0.1142,
+            -0.9516
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.2548,
+            0.1183,
+            -0.495
+          ],
+          "dir": [
+            -0.2855,
+            0.1142,
+            -0.9516
+          ]
+        }
+      ],
       "hardpoints": []
     },
     "corsair": {
@@ -411,6 +524,47 @@
         }
       ],
       "contactRadius": 0.222,
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.4244,
+            -0.0435,
+            -0.5619
+          ],
+          "dir": [
+            0.371,
+            -0.0464,
+            -0.9275
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.4244,
+            -0.0435,
+            -0.5619
+          ],
+          "dir": [
+            -0.371,
+            -0.0464,
+            -0.9275
+          ]
+        },
+        {
+          "node": "Harpoon_2",
+          "pos": [
+            0.0,
+            0.2077,
+            -0.5384
+          ],
+          "dir": [
+            0.0,
+            0.3714,
+            -0.9285
+          ]
+        }
+      ],
       "hardpoints": []
     },
     "excavator": {
@@ -426,6 +580,34 @@
         }
       ],
       "contactRadius": 0.35,
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.6156,
+            0.0439,
+            -0.7278
+          ],
+          "dir": [
+            0.4099,
+            0.0455,
+            -0.911
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.6156,
+            0.0439,
+            -0.7278
+          ],
+          "dir": [
+            -0.4099,
+            0.0455,
+            -0.911
+          ]
+        }
+      ],
       "hardpoints": []
     },
     "foreman": {
@@ -459,6 +641,47 @@
           "spin": "Gelenk senkrecht"
         }
       ],
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.5194,
+            0.0637,
+            -0.4682
+          ],
+          "dir": [
+            0.371,
+            0.0464,
+            -0.9275
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.5194,
+            0.0637,
+            -0.4682
+          ],
+          "dir": [
+            -0.371,
+            0.0464,
+            -0.9275
+          ]
+        },
+        {
+          "node": "Harpoon_2",
+          "pos": [
+            0.0,
+            -0.2107,
+            -0.4989
+          ],
+          "dir": [
+            0.0,
+            -0.2873,
+            -0.9578
+          ]
+        }
+      ],
       "hardpoints": []
     },
     "rockbreaker_ii": {
@@ -484,6 +707,47 @@
           "node": "Jaw_L",
           "axis": "z",
           "spin": "Gelenk senkrecht"
+        }
+      ],
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.4573,
+            0.1133,
+            -0.652
+          ],
+          "dir": [
+            0.3704,
+            0.0741,
+            -0.9259
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.4573,
+            0.1133,
+            -0.652
+          ],
+          "dir": [
+            -0.3704,
+            0.0741,
+            -0.9259
+          ]
+        },
+        {
+          "node": "Harpoon_2",
+          "pos": [
+            0.0,
+            -0.1989,
+            -0.6583
+          ],
+          "dir": [
+            0.0,
+            -0.2873,
+            -0.9578
+          ]
         }
       ],
       "hardpoints": []
@@ -1151,6 +1415,47 @@
         }
       ],
       "contactRadius": 0.333,
+      "anchors": [
+        {
+          "node": "Harpoon_0",
+          "pos": [
+            0.3182,
+            0.1921,
+            -0.777
+          ],
+          "dir": [
+            0.2762,
+            0.2762,
+            -0.9206
+          ]
+        },
+        {
+          "node": "Harpoon_1",
+          "pos": [
+            -0.3182,
+            0.1921,
+            -0.777
+          ],
+          "dir": [
+            -0.2762,
+            0.2762,
+            -0.9206
+          ]
+        },
+        {
+          "node": "Harpoon_2",
+          "pos": [
+            0.0,
+            -0.2026,
+            -0.7977
+          ],
+          "dir": [
+            0.0,
+            -0.2873,
+            -0.9578
+          ]
+        }
+      ],
       "hardpoints": []
     }
   }

@@ -164,6 +164,73 @@ def widen(b, f, parts=()):
             v.co.x += dx
 
 
+# ---------------------------------------------------------------- Harpunenwerfer (Ankertrossen beim Kontaktabbau)
+def harpoons(b, base, d, s=1.0, pair=True, up=(0, 0, 1)):
+    """Harpunenwerfer am Bug: base = Lafettenfuss am Rumpf, d = Abschussrichtung (nach vorn-aussen).
+    pair=True legt zusaetzlich das exakte Spiegelbild (x -> -x) an. Gebaut wird erst in build() nach dem
+    Verbreitern (der Werfer wandert starr mit seinem Fuss), damit die Paare spiegelgleich bleiben."""
+    if not hasattr(b, "harpoon_specs"):
+        b.harpoon_specs = []
+    b.harpoon_specs.append((Vector(base), Vector(d).normalized(), s, Vector(up), pair))
+
+
+def _copy_into(dst, src, mirror=False, shift=None):
+    """Kopiert die Geometrie eines Builders in einen anderen, optional an der Mittelebene gespiegelt."""
+    shift = shift or Vector()
+    vmap = {}
+    for v in src.bm.verts:
+        co = v.co.copy()
+        if mirror:
+            co.x = -co.x
+        vmap[v] = dst.bm.verts.new(co + shift)
+    for f in src.bm.faces:
+        vs = [vmap[v] for v in f.verts]
+        if mirror:
+            vs.reverse()
+        dst._face(vs, dst._mi(src.mats[f.material_index]))
+
+
+def _harpoon_geo(base, d, s, up):
+    """Werfer (Rumpfteil) und Harpune (eigener Node) als zwei Builder, in Schiffskoordinaten."""
+    L, r = 1.0 * s, 0.2 * s
+    q = qdir(d)
+    muzzle = base + d * L
+    w = d.cross(up).normalized()
+    u = w.cross(d).normalized()
+    lb = Builder("launcher")
+    lb.lathe([(r, 0), (r, L)], M("HullDark"), 6, loc=base, rot=q, cap_bottom=True)
+    lb.lathe([(r * 1.18, L * 0.7), (r * 1.18, L * 0.95)], M("Hazard"), 6, loc=base, rot=q)
+    lb.lathe([(0.3 * s, -0.32 * s), (0.3 * s, 0.32 * s)], M("Steel"), 5, loc=base - d * 0.18 * s - u * 0.06 * s,
+             rot=qdir(w), cap_bottom=True, cap_top=True)
+    yaw = math.degrees(math.atan2(d.y, d.x)) - 90
+    lb.box(0.36 * s, 0.95 * s, 0.18 * s, M("HullDark"), loc=base + d * (0.4 * L) - u * (r + 0.07 * s), rot=(0, 0, yaw))
+    hb = Builder("harpoon")
+    hb.strut(muzzle - d * (0.6 * L), muzzle, 0.06 * s, M("Steel"), seg=4)
+    hb.lathe([(0.13 * s, 0), (0, 0.42 * s)], M("Steel"), 4, loc=muzzle, rot=q, cap_bottom=True)
+    hb.lathe([(0.05 * s, 0.02 * s), (0.24 * s, -0.2 * s)], M("Hazard"), 4, loc=muzzle, rot=q)
+    return lb, hb, muzzle
+
+
+def build_harpoons(b, f):
+    """Legt die angemeldeten Werfer an (nach widen): Rumpfgeometrie in b, je Harpune ein Teil-Node."""
+    n = 0
+    for base, d, s, up, pair in getattr(b, "harpoon_specs", []):
+        base = base + Vector((base.x * (f - 1), 0, 0))
+        lb, hb, muzzle = _harpoon_geo(base, d, s, up)
+        sides = [False, True] if pair else [False]
+        for mirror in sides:
+            _copy_into(b, lb, mirror)
+            mz = muzzle.copy()
+            dd = d.copy()
+            if mirror:
+                mz.x, dd.x = -mz.x, -dd.x
+            rb = rotor(b, "Harpoon_%d" % n, mz, dd, kind="harpoon", spin="")
+            _copy_into(rb, hb, mirror)
+            n += 1
+        lb.bm.free()
+        hb.bm.free()
+
+
 def build(key):
     fn = SHIPS[key][0]
     b = Builder(key)
@@ -174,6 +241,8 @@ def build(key):
     widen(b, f, parts)
     for hp in b.hardpoints:
         hp["pos"] = hp["pos"] + Vector((hp["ax"] * (f - 1), 0, 0))
+    build_harpoons(b, f)
+    parts = getattr(b, "parts", [])
     for src, dst in MERGE:
         if len(b.mats) <= MAX_MATERIALS:
             break
@@ -195,7 +264,7 @@ def build(key):
         v.co = (v.co - c0) * k
     ob = b.finish(normalize="none")
     ob.name = "Hull"
-    info = {"rotors": [], "jaws": [], "contactRadius": 0.0, "hardpoints": []}
+    info = {"rotors": [], "jaws": [], "contactRadius": 0.0, "hardpoints": [], "anchors": []}
     for rb in parts:
         if rb.kind in ("turret", "pd"):
             # Turm: Blender-lokales +Z (Drehachse) wird nach dem glTF-Export zum lokalen +Y des Nodes,
@@ -218,6 +287,12 @@ def build(key):
         po.location = cen
         po.parent = ob
         if rb.kind in ("turret", "pd"):
+            continue
+        if rb.kind == "harpoon":
+            dv = rb.axis
+            info["anchors"].append({"node": rb.name,
+                                    "pos": [round(cen.x, 4), round(cen.z, 4), round(-cen.y, 4)],
+                                    "dir": [round(dv.x, 4), round(dv.z, 4), round(-dv.y, 4)]})
             continue
         entry = {"node": rb.name, "axis": "z", "spin": rb.spin}  # lokale Godot-Z-Achse
         if rb.kind == "jaw":
@@ -691,19 +766,16 @@ def unit_miner_100(b):
     for s in (1, -1):
         Pr = [(4.9, 0.55, 0.45, -0.05), (3.4, 0.7, 0.55), (2.6, 0.55, 0.45)]
         b.loft(Pr, M("Armor"), x=s * 1.1)
-        drill(b, "Rotor_Drill_" + ("R" if s > 0 else "L"), (s * 1.1, 5.1, -0.05), 2.6, 0.62, seg=6, steps=4)
+        drill(b, "Rotor_Drill_" + ("R" if s > 0 else "L"), (s * 1.1, 5.1, -0.05), 2.6, 0.62, seg=6, steps=3)
+    harpoons(b, (1.85, 3.2, 0.25), (0.4, 1, 0.08), s=1.15)
     y0 = 2.2
     K = [(y0 + 0.5, 0.0, 0.0, 0.5), (y0, 1.3, 0.55, 0.7), (y0 - n * SEG, 1.3, 0.55, 0.7),
          (y0 - n * SEG - 0.6, 0.8, 0.35, 0.6)]
     b.loft(K, M("Armor"))
     cargo_bay(b, K, y0, n, top=True, rib=False, frames=False)
-    band(b, K, y0, g=1.06)
-    band(b, K, y0 - n * SEG, g=1.06)
     visor(b, S, 3.3, width=1.4, length=0.7)
     for x in (-0.8, 0.8):
         engine(b, (x, -5.0, 0.0), 0.5)
-    sensor(b, (0, -3.6, 0.65), r=0.25)
-    navl(b, 2.45, -1.0, 0.0)
 
 
 @ship("unit_miner_60", "S", "Standardschuerfer klein (Rautenrumpf): Rautenrumpf mit kleinem drehendem Bohrkopf am Bug, kleiner Erzraum unten mit 3 Segmenten, ein beringtes Triebwerk, Rueckenfinne", cargo=60)
@@ -714,6 +786,7 @@ def unit_miner_60(b):
     dress(b, S, seed=4.0, shape="diamond")
     band(b, S, 3.7, mat="Armor", g=1.15, t=0.5, shape="diamond")
     drill(b, "Rotor_Drill", (0, 4.2, 0.0), 2.6, 0.8, flutes=2)
+    harpoons(b, (1.0, 2.5, 0.2), (0.45, 1, 0.06), s=1.1)
     y0 = 0.8
     K = [(y0 + 0.5, 0.0, 0.0, 0.55), (y0, 0.85, 0.45, 0.75), (y0 - n * SEG, 0.85, 0.45, 0.75),
          (y0 - n * SEG - 0.5, 0.5, 0.3, 0.65)]
@@ -778,6 +851,7 @@ def prospector(b):
     b.loft(S, M("Hull"))
     dress(b, S, seed=7.0)
     drill(b, "Rotor_CoreDrill", (0, 5.3, -0.25), 2.2, 0.38, flutes=2, turns=2.0)
+    harpoons(b, (0.7, 2.1, 0.25), (0.35, 1, 0.05), s=1.0)
     band(b, S, 3.1, g=1.2, mat="Steel")
     y0 = 0.4
     H = [(y0 + 0.4, 0.0, 0.0, 0.55), (y0, 0.7, 0.35, 0.6), (y0 - n * SEG, 0.75, 0.38, 0.6), (y0 - n * SEG - 0.5, 0.4, 0.2, 0.55)]
@@ -824,6 +898,7 @@ def pickaxe(b):
     T = [(3.6, 0.0, 0.0), (3.2, 2.6, 0.45), (2.4, 2.9, 0.5), (2.0, 1.0, 0.4)]
     b.loft(T, M("Armor"), shape="diamond")
     drill(b, "Rotor_Spike", (0, 3.6, 0.0), 2.8, 0.62, flutes=3, turns=1.0)
+    harpoons(b, (1.1, 2.3, 0.42), (0.3, 1, 0.12), s=1.05)
     for s in (1, -1):
         b.lathe([(0.3, 0), (0, 1.2)], M("HullDark"), seg=5, loc=(s * 2.9, 2.6, 0), rot=qdir((s, 0.5, 0)))
         b.box(0.6, 0.6, 0.1, M("Hazard"), loc=(s * 1.9, 2.8, 0.42))
@@ -1020,6 +1095,8 @@ def rockbreaker(b):
     b.loft(T, M("Hull"))
     band(b, S, 4.2, mat="HullDark", g=1.12, t=0.6, shape="wedge")
     drill(b, "Rotor_Drill", (0, 4.7, 0.0), 3.6, 1.6, flutes=3, seg=10, turns=1.2)
+    harpoons(b, (2.2, 3.2, -0.15), (0.4, 1, -0.05), s=1.5)
+    harpoons(b, (0, 3.0, 1.35), (0, 1, 0.4), s=1.5, pair=False)
     for s, n in ((1, 5), (-1, 3)):
         y0 = 2.2
         K = [(y0 + 0.6, 0.4, 0.5, -0.1), (y0, 0.85, 0.95, -0.1), (y0 - n * SEG, 0.85, 0.95, -0.1),
@@ -1030,7 +1107,7 @@ def rockbreaker(b):
     vents(b, (0, -3.2, 1.72), n=5, length=1.6)
     b.box(0.8, 0.6, 0.06, M("Hazard"), loc=(1.6, 3.2, 1.3))
     engine(b, (0, -7.2, 0.1), 1.1)
-    thrusters(b, [(2.3, 2.4, 0.0), (-2.3, 2.4, 0.0), (2.0, -6.0, 0.0), (-2.0, -6.0, 0.0)], s=0.45)
+    thrusters(b, [(2.0, -6.0, 0.0), (-2.0, -6.0, 0.0)], s=0.45)
     navl(b, 2.35, -3.0, 0.6)
 
 
@@ -1043,15 +1120,14 @@ def excavator(b):
     b.loft(Hd, M("Hull"))
     b.cyl(0.9, 0.8, M("HullDark"), seg=8, loc=(0, 6.9, 0.0), rot=(-90, 0, 0))
     wheel(b, "Rotor_Wheel", (0, 7.6, 0.0), 2.6, teeth=10)
+    harpoons(b, (3.6, 5.0, 0.3), (0.45, 1, 0.05), s=1.5)
     for s in (1, -1):
-        b.box(0.8, 0.8, 0.06, M("Hazard"), loc=(s * 2.6, 5.4, 1.82))
         y0 = 2.0
         K = [(y0 + 0.8, 0.0, 0.0, -0.2), (y0, 1.05, 1.05, -0.2), (y0 - 4 * SEG, 1.05, 1.05, -0.2),
              (y0 - 4 * SEG - 1.4, 0.6, 0.6, -0.2)]
         b.loft(K, M("Steel"), shape="round", n=8, x=s * 2.6)
         cargo_bay(b, K, y0, 4, x=s * 2.6, sides=(s,), top=True, c=0.0, shape="round")
     visor(b, Hd, 5.2, width=3.0)
-    b.torus(1.2, 0.2, M("Light"), seg=10, minor=4, loc=(0, -4.6, 1.3), rot=(90, 0, 0))
     stripe(b, S, 2.6, -5.6, width=0.5)
     for x in (-0.9, 0.9):
         engine(b, (x, -7.1, 0.0), 0.8)
@@ -1098,6 +1174,8 @@ def quarry(b):
         jb.box(0.12, 1.4, 0.6, M("Hazard"), loc=(s * 1.85, 3.6, 0.0))
     b.cyl(0.55, 1.2, M("HullDark"), seg=6, loc=(0, 3.8, 0.0), rot=(-90, 0, 0))
     mill(b, "Rotor_Mill", (0, 5.0, 0.0), 0.6, 1.4)
+    harpoons(b, (2.15, 2.0, 0.45), (0.4, 1, 0.05), s=1.4)
+    harpoons(b, (0, 2.2, -1.25), (0, 1, -0.3), s=1.4, pair=False, up=(0, 0, -1))
     y0 = 1.0
     n = segs("quarry")
     y0 = -0.6
@@ -1126,14 +1204,11 @@ def rockbreaker_ii(b):
         cargo_bay(b, K, y0, 4, x=s * 3.4, sides=(s,), top=True, c=0.0, shape="round")
     b.cyl(0.6, 1.2, M("HullDark"), seg=6, loc=(0, 4.0, 0.0), rot=(-90, 0, 0))
     mill(b, "Rotor_Mill", (0, 5.2, 0.0), 0.7, 1.6, teeth=8)
-    sensor(b, (0, 0.8, 1.3), r=0.5)
-    band(b, S, 2.4, g=1.07, t=0.5, shape="wedge")
+    harpoons(b, (2.5, 3.0, 0.5), (0.4, 1, 0.08), s=1.5)
+    harpoons(b, (0, 3.0, -1.3), (0, 1, -0.3), s=1.5, pair=False, up=(0, 0, -1))
     visor(b, S, 3.2, width=2.0)
-    b.torus(1.0, 0.18, M("Glow"), seg=8, minor=4, loc=(0, -4.6, 1.3), rot=(90, 0, 0))
-    vents(b, (0, -3.0, 1.3), n=4, length=1.6)
     for x in (-1.1, 1.1):
         engine(b, (x, -6.9, 0.0), 0.85)
-    navl(b, 4.55, -1.0, 0.0)
 
 
 # =============================================================== M/L: Kampfschiffe
@@ -1371,6 +1446,8 @@ def strip_miner(b):
     for k in range(0, n + 1, 5):
         band(b, S, y0 - SEG * k, mat="HullDark", g=1.08, t=0.35, c=0.3)
     drum(b, "Rotor_Drum", (0, 11.7, -0.2), 4.2, 1.6, rows=6)
+    harpoons(b, (2.5, 8.8, 2.05), (0.3, 1, 0.3), s=2.2)
+    harpoons(b, (0, 9.0, -2.1), (0, 1, -0.3), s=2.2, pair=False, up=(0, 0, -1))
     for s in (1, -1):
         b.box(0.8, 3.0, 3.4, M("Hazard"), loc=(s * 4.6, 10.8, -0.2))
     T = [(y0, 0.0, 0.0, 2.0), (y0 - 0.6, 0.8, 0.6, 2.3), (-8.0, 0.8, 0.6, 2.3), (-8.6, 0.0, 0.0, 2.0)]

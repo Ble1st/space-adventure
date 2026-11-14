@@ -65,6 +65,12 @@ def args():
             opt["render"] = False
         elif a[i] == "--no-overview":
             opt["overview"] = False
+        elif a[i] == "--glbdir":
+            opt["glbdir"] = a[i + 1]
+            i += 1
+        elif a[i] == "--imgdir":
+            opt["imgdir"] = a[i + 1]
+            i += 1
         elif a[i] == "--overview-only":
             opt["overview_only"] = True
             opt["only"] = []
@@ -107,6 +113,8 @@ def write_meta(ships):
             entry["contactRadius"] = info["contactRadius"]
         if info.get("jaws"):
             entry["jaws"] = info["jaws"]
+        if info.get("anchors"):
+            entry["anchors"] = info["anchors"]
         hps = []
         for hp in info.get("hardpoints", []):
             h = dict(hp)
@@ -129,6 +137,11 @@ def write_meta(ships):
                       "(Bug -Z, oben +Y, Halblaenge 1). node = eigener Turm-Node 'Turret_<slot>': Ursprung auf der "
                       "Drehachse, Drehachse = lokales +Y, Rohr in Ruhe nach lokal -Z. empty = Slot ohne Modul "
                       "(Lafette ohne Rohr). module = Modul laut fit.",
+        "anchors": "Harpunenwerfer der Kontaktschuerfer (Ankertrossen): node = Kind-Node 'Harpoon_<n>' von "
+                   "'Hull' (die Harpunenspitze, Ursprung an der Rohrmuendung, lokale -Z = Abschussrichtung), "
+                   "pos = Muendung, dir = Abschussrichtung (Einheitsvektor), beides im Godot-Modellraum "
+                   "(Bug -Z, oben +Y, Halblaenge 1). Rohr und Winde gehoeren zum Rumpf; Paare sind "
+                   "spiegelgleich (x -> -x), ein dritter Werfer liegt mittig.",
         "sizeScale": ship_models.SIZE_SCALE,
         "models": models,
     }
@@ -256,7 +269,12 @@ def overview(ships, path):
 
 
 def main():
+    global GLB_DIR, IMG_DIR
     opt = args()
+    if opt.get("glbdir"):
+        GLB_DIR = opt["glbdir"]
+    if opt.get("imgdir"):
+        IMG_DIR = opt["imgdir"]
     os.makedirs(GLB_DIR, exist_ok=True)
     os.makedirs(IMG_DIR, exist_ok=True)
     ships = ship_list()

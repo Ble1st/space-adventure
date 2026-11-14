@@ -9,6 +9,7 @@ Aufruf (aus dem Repo-Wurzelverzeichnis):
 """
 
 import json
+import math
 import os
 import sys
 
@@ -146,6 +147,63 @@ def engine_asymmetry(ob, tol=0.02):
     return out
 
 
+def anchor_problems(m, hull, harps):
+    """Harpunenwerfer der Kontaktschuerfer: 2 (S) bzw. 2-3 (M) bzw. 3 (L) Anker, Node je Anker mit Ursprung
+    an der Muendung, Muendung an der Werfergeometrie, Richtung nach vorn, Paare spiegelgleich (x -> -x),
+    hoechstens ein Werfer auf der Mittelachse (dass die Harpunen nicht vor dem Werkzeug liegen, prueft die
+    Regel "Werkzeug ist der vorderste Punkt")."""
+    out = []
+    anchors = m.get("anchors", [])
+    if m.get("mining") != "contact":
+        if anchors or harps:
+            out.append("Anker ohne Kontaktabbau")
+        return out
+    want = {"S": (2, 2), "M": (2, 3), "L": (3, 3)}.get(m["size"], (2, 3))
+    if not want[0] <= len(anchors) <= want[1]:
+        out.append(f"{len(anchors)} Anker (soll {want[0]}-{want[1]})")
+    if sorted(a["node"] for a in anchors) != sorted(o.name for o in harps):
+        out.append("Harpunen-Nodes passen nicht zu anchors")
+    hv = [hull.matrix_world @ v.co for v in hull.data.vertices] if hull else []
+    byname = {o.name: o for o in harps}
+    for a in anchors:
+        gx, gy, gz = a["pos"]
+        pb = Vector((gx, -gz, gy))
+        o = byname.get(a["node"])
+        if o is not None and (o.matrix_world.translation - pb).length > 0.005:
+            out.append(f"{a['node']}: Ursprung nicht an der Muendung")
+        if hv and min((pb - v).length for v in hv) > 0.06:
+            out.append(f"{a['node']}: Muendung neben dem Werfer")
+        dx, dy, dz = a["dir"]
+        if abs(math.sqrt(dx * dx + dy * dy + dz * dz) - 1) > 0.01 or dz > -0.6:
+            out.append(f"{a['node']}: Richtung nicht nach vorn")
+        if o is not None:
+            fwd = o.matrix_world.to_quaternion() @ Vector((0, 1, 0))     # lokale -Z (Godot) = Blender +Y
+            if (fwd - Vector((dx, -dz, dy))).length > 0.02:
+                out.append(f"{a['node']}: lokale -Z ist nicht die Abschussrichtung")
+    center = [a for a in anchors if abs(a["pos"][0]) < 0.02]
+    if len(center) > 1:
+        out.append("mehr als ein Werfer auf der Mittelachse")
+    for a in anchors:
+        if abs(a["pos"][0]) < 0.02:
+            continue
+        mate = [b for b in anchors if abs(b["pos"][0] + a["pos"][0]) < 0.01 and abs(b["pos"][1] - a["pos"][1]) < 0.01
+                and abs(b["pos"][2] - a["pos"][2]) < 0.01 and abs(b["dir"][0] + a["dir"][0]) < 0.01
+                and abs(b["dir"][1] - a["dir"][1]) < 0.01 and abs(b["dir"][2] - a["dir"][2]) < 0.01]
+        if not mate:
+            out.append(f"{a['node']} ohne Spiegelpartner")
+    if harps and hull:
+        # Spiegelpruefung der Harpunenspitzen selbst (Geometrie)
+        for o in harps:
+            vs = [o.matrix_world @ v.co for v in o.data.vertices]
+            if abs(sum(v.x for v in vs) / len(vs)) < 0.02:
+                continue
+            ok = any(all(min((Vector((-v.x, v.y, v.z)) - (o2.matrix_world @ w.co)).length
+                             for w in o2.data.vertices) < 0.01 for v in vs) for o2 in harps if o2 is not o)
+            if not ok:
+                out.append(f"{o.name}: Spitze ohne Spiegelbild")
+    return out
+
+
 def main():
     WEAPON_SLOTS.update(weapon_slots())
     meta = json.load(open(os.path.join(GLB_DIR, "ships.json"), encoding="utf-8"))["models"]
@@ -169,7 +227,8 @@ def main():
         hulls = [o for o in meshes if o.name.startswith("Hull")]
         parts = [o for o in meshes if o.name.startswith(("Rotor_", "Jaw_"))]
         turrets = [o for o in meshes if o.name.startswith("Turret_")]
-        if len(hulls) != 1 or len(hulls) + len(parts) + len(turrets) != len(meshes):
+        harps = [o for o in meshes if o.name.startswith("Harpoon_")]
+        if len(hulls) != 1 or len(hulls) + len(parts) + len(turrets) + len(harps) != len(meshes):
             problems.append(f"Nodes: {[o.name for o in meshes]}")
         want = [r["node"] for r in m.get("rotors", []) + m.get("jaws", [])]
         if sorted(want) != sorted(o.name for o in parts):
@@ -243,6 +302,7 @@ def main():
                 c, n = bad_parts[0]
                 problems.append(f"{len(bad_parts)} Anbauteil(e) ohne Spiegelpartner, z. B. bei "
                                 f"x={c.x:+.2f} y={c.y:+.2f} z={c.z:+.2f} ({n} Vertices)")
+        problems += anchor_problems(m, hulls[0] if hulls else None, harps)
         if len(names) > 10:
             problems.append(f"{len(names)} Materialien")
         if tris > LIMIT[m["size"]]:
