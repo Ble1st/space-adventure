@@ -125,7 +125,7 @@ public static class AutoLimitRules
     public static string Describe(Universe u, AutoLimits l, bool trade)
     {
         var parts = new List<string>();
-        if (l.RadiusJumps >= 0 && l.Center.Value != 0) parts.Add($"{l.RadiusJumps} Sprung{(l.RadiusJumps == 1 ? "" : "e")} um {OrderMove.SectorName(u, l.Center)}");
+        if (l.RadiusJumps >= 0 && l.Center.Value != 0) parts.Add($"{l.RadiusJumps} {(l.RadiusJumps == 1 ? "Sprung" : "Sprünge")} um {OrderMove.SectorName(u, l.Center)}");
         if (trade && l.MaxBuyFactor > 0f) parts.Add($"Einkauf ≤ {l.MaxBuyFactor:0.##}× Basis");
         if (trade && l.Reserve > 0f) parts.Add($"Rücklage {l.Reserve:0} Cr");
         return parts.Count == 0 ? "" : " (" + string.Join(", ", parts) + ")";

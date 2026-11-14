@@ -318,6 +318,9 @@ public sealed class TraderSystem : ISimSystem
                 u.Events.Publish(new TraderBuyRefused(ship.Id, st.Id, sellSt.Id, order.Good, stock.Price, se.Price));
                 amount = 0f;
             }
+            // Flottentest (Fehler): die Automatikgrenze „höchster Einkaufspreis“ galt nur bei der Planung — stieg der Preis bis zur Ankunft, kaufte ein
+            // Spieler-Flottenschiff darüber (gemessen: Nahrung zu 1,5×, Konsumgüter zu 1,9× bei Grenze 1,3×). Jetzt auch beim Kauf; nur Schiffe mit Grenzen
+            if (amount > 0f && AutoLimitRules.Of(ship) is { } buyLim && !AutoLimitRules.PriceOk(buyLim, good, stock.Price)) amount = 0f;
             if (amount > 0)
             {
                 float cost = amount * stock.Price;

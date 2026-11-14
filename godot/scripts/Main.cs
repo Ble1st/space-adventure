@@ -1847,6 +1847,7 @@ public partial class Main : Node3D
 	}
 	internal bool TestSelectShip(ShipId id) => SelectShip(id);
 	internal void TestNextEnemy() => SelectNextEnemy();
+	internal void TestSwitchRemote(ShipId id) => SwitchRemote(id);
 	/// <summary>
 	/// Runde 21 (Prüferhinweis): der eine Weg, ein Schiff zum Ziel zu machen (Tipp, „Nächster Gegner“, Überfallwarnung/-beginn): gilt das Ziel, endet die
 	/// Tor-/Stationswahl samt Angriffsarmierung; ein laufender Autopilot behält sein Navigationsziel.
@@ -2841,7 +2842,6 @@ public partial class Main : Node3D
 	internal void TestSetStationTarget(StationId id) { var u = _session.U; SetTarget(Navigator.ForStation(u, id, u.PlayerShip), id); }
 	internal void TestUndock() => Undock();
 	internal void TestSwitchShip(ShipId id) => SwitchShip(id);
-	internal void TestSwitchRemote(ShipId id) => SwitchRemote(id);
 	/// <summary>Phase 12: Flotte öffnen mit diesem Schiff gewählt.</summary>
 	internal void TestFleetSelect(ShipId id) { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); }
 	/// <summary>Phase 12: Befehl über die Flotten-Oberfläche geben (wie ein Tipp auf Befehl und Ziel).</summary>
