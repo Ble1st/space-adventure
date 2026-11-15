@@ -40,6 +40,7 @@ public partial class UiShots : Node
 
 	public override void _Ready()
 	{
+		SpaceAdventure.Ui.Kit.UiScale.PinnedFactor = 1f; SpaceAdventure.Ui.Kit.UiScale.Apply();   // Runde 33: Bilder im 1280er-Raster bei Faktor 1, unabhängig von der DPI des Rechners
 		DirAccess.MakeDirRecursiveAbsolute(_dir);
 		GD.Print($"[ui-shots] Zielordner: {_dir}");
 		// Phase 14: --ui-shots-phase14 nimmt nur die Bilder der Phase 14 auf (Standardwelt mit Planeten und Exportsenke)

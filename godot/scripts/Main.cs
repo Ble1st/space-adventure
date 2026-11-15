@@ -113,7 +113,7 @@ public partial class Main : Node3D
 		_fx = new Fx(); AddChild(_fx);
 		_anchors = new AnchorView { Name = "Anchors", Fx = _fx }; AddChild(_anchors);
 		SpaceAdventure.Audio.AudioSettings.Init();   // Runde 12: Busse „Musik“/„Effekte“ und gespeicherte Lautstärken (user://settings.cfg)
-		Ui.Kit.UiScale.Init(GetTree().Root);   // Runde 31: UI-Größe (content_scale_factor) aus DPI und Stufe; heute auf 1 begrenzt (starre 1280 × 720-Bildschirme)
+		Ui.Kit.UiScale.Init(GetTree().Root);   // Runde 31: UI-Größe aus DPI und Stufe; Runde 33: wirkt je Schicht (Flug-HUD), Wurzel bleibt 1
 		_sfx = new Sfx(); AddChild(_sfx);
 		_music = new SpaceAdventure.Audio.MusicDirector(); AddChild(_music);
 		_cam = new Camera3D { Fov = 50f, Far = 4000f }; AddChild(_cam);
@@ -284,7 +284,7 @@ public partial class Main : Node3D
 			SaveService.UseFile("ui-check.json");
 			string dir = args[checkIdx + 1];
 			if (!System.IO.Path.IsPathRooted(dir)) dir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), dir);
-			AddChild(new UiCheck(this, dir));
+			AddChild(new UiCheck(this, dir) { FlightOnly = Array.IndexOf(args, "--ui-check-flight") >= 0 });   // Runde 33: nur Flug-Zustände (schneller)
 		}
 		int phoneIdx = Array.IndexOf(args, "--phone-shots");
 		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { SaveService.UseFile("phone-shots.json"); AddChild(new PhoneShots(this, args[phoneIdx + 1]) { Mining = Array.IndexOf(args, "--phone-mining") >= 0 }); }
@@ -654,7 +654,7 @@ public partial class Main : Node3D
 		{
 			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); break;   // Runde 12
 			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); break;
-			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Describe()); break;   // Runde 31/32: echte Tastengröße
+			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Describe(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
 			case "save": SaveNow(manual: true); break;
 			case "load":
 				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
@@ -685,6 +685,9 @@ public partial class Main : Node3D
 			case "save": case "load": OnMenu(action); break;
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
+			// Runde 33 (Handytest A15: „UI-Größe“ im Menü ohne Wirkung): dieselbe Ursache — die Aktion kam hier an und fiel in den default-Zweig (kein
+			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
+			case "ui_size": _sfx.Play(SfxId.Click); Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Describe(), 4f); break;
 			case "cam_debug": _camDebug = !_camDebug; _hud.SetDebugLine(_camDebug ? CameraDebugLine() : null); _hud.Toast(_camDebug ? "Kamera-Diagnose an" : "Kamera-Diagnose aus"); break;   // Runde 16
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
@@ -2133,6 +2136,7 @@ public partial class Main : Node3D
 			CostsPerMinute = SpaceSim.Core.Simulation.Hangar.RunningCostsPerMinute(u, u.PlayerActor),   // Runde 16
 			SectorName = sector.Name,
 			FactionName = u.Factions.TryGetValue(sector.Owner, out var f) ? f.Name : "",
+			FactionTag = u.Factions.TryGetValue(sector.Owner, out var ft) ? SpaceSim.Core.Model.ActorNames.Tag(u, ft.Id) : "",   // Runde 33: schmaler Sektorchip im Kompakt-HUD
 			// Phase 11: Lage und Fahndung (echt aus der Lagekarte und dem Fahndungsregister)
 			Security = SecurityInfo.ForSector(u, sector.Id, PlayerData).Summary,
 			Wanted = SecurityInfo.HudLine(u) ?? "",

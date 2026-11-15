@@ -68,6 +68,7 @@ public partial class PhoneShots : Node
 
 	public override void _Ready()
 	{
+		SpaceAdventure.Ui.Kit.UiScale.PinnedFactor = 1f; SpaceAdventure.Ui.Kit.UiScale.Apply();   // Runde 33: Bilder im 1280er-Raster bei Faktor 1, unabhängig von der DPI des Rechners
 		DirAccess.MakeDirRecursiveAbsolute(_dir);
 		// Fenstergröße über --resolution (z. B. 1560x720 = Seitenverhältnis des Geräts 2340×1080, logisch 1560×720)
 	}

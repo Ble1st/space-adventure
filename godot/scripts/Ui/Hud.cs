@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceAdventure.Ui.Screens;
@@ -136,8 +137,8 @@ public partial class Hud : CanvasLayer
 		// schmal oben mittig unter der Kopfleiste, höchstens drei Zeilen, eigener „✕“-Knopf, Höchstdauer 20 s
 		_alertLayer.Layer = 100;
 		AddChild(_alertLayer);
-		var alertRoot = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
-		alertRoot.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		var alertRoot = _alertRoot;
+		alertRoot.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_alertLayer.AddChild(alertRoot);
 		// Runde 16: Diagnosezeile (Kamera) — oben links unter dem Statusfeld, klein, nur auf Wunsch
 		_debugLine.AddThemeFontSizeOverride("font_size", 12);
@@ -232,12 +233,42 @@ public partial class Hud : CanvasLayer
 
 		_flash.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		root.AddChild(_flash);
+		ApplyLayerScale();   // Runde 33
 	}
 
 	/// <summary>Ein Modal (Karte, Hamburger-Menü, Dock-Menü/-Bereich) ist offen – Weltzeiger und Tasten bleiben gesperrt.</summary>
 	public bool AnyModalOpen => Map.Visible || Screens.Current != null;
 
 	readonly Control _center = new();
+	/// <summary>Runde 33: Ebene von Meldung, Hinweis und Diagnosezeile — im Flug mit dem Faktor der Flug-Schicht skaliert, über Vollbildern mit 1.</summary>
+	readonly Control _alertRoot = new();
+	/// <summary>Runde 33: aktueller Maßstab der Meldungsebene; <see cref="AlertSpace"/> = ihre logische Fläche.</summary>
+	float _alertScale = 1f;
+	Vector2 AlertSpace => GetViewport().GetVisibleRect().Size / _alertScale;
+
+	/// <summary>
+	/// Runde 33 (UI-ANPASSUNG.md E2): Faktor je Schicht. Flug-HUD (und im Flug Meldung/Hinweis) mit <see cref="UiScale.Factor"/>; Vollbild-Bildschirme,
+	/// Menü, Karte und Zielmarker bleiben bei 1 (E3–E5). Jedes Bild geprüft — billig, nur bei Änderung wird umgebaut.
+	/// </summary>
+	void ApplyLayerScale()
+	{
+		var vp = GetViewport().GetVisibleRect().Size;
+		float f = UiScale.Factor;
+		Flight.ApplyScale(vp, f);
+		bool flight = Screens.Current == null || Screens.Current == Flight;
+		float s = flight ? f : UiScale.ScreensFactor;
+		var size = vp / s;
+		if (Mathf.Abs(_alertScale - s) > 1e-4f || (_alertRoot.Size - size).LengthSquared() > 0.01f)
+		{
+			_alertScale = s;
+			_alertRoot.AnchorLeft = 0f; _alertRoot.AnchorTop = 0f; _alertRoot.AnchorRight = 0f; _alertRoot.AnchorBottom = 0f;
+			_alertRoot.Position = Vector2.Zero;
+			_alertRoot.Scale = new Vector2(s, s);
+			_alertRoot.Size = size;
+		}
+	}
+	/// <summary>Runde 33: Maßstab der Meldungsebene (Selbsttest).</summary>
+	public float TestAlertScale => _alertScale;
 	readonly ColorRect _backdrop = new();
 	const float AlertWidth = 560f, AlertHeight = 62f;
 	/// <summary>Zweiter Gerätetest Phase 28: Höchstdauer jeder Meldung (auch der stehenden Verlustmeldung).</summary>
@@ -285,7 +316,7 @@ public partial class Hud : CanvasLayer
 	/// </summary>
 	void PlaceAlert()
 	{
-		var vp = GetViewport().GetVisibleRect().Size;
+		var vp = AlertSpace;
 		bool screen = Screens.Current != null && Screens.Current != Flight;
 		// Gerätetest Phase 28: über dem Dock-Menü (schmales Fenster in der Mitte, Titel oben) links neben dem Fenster, mehrzeilig — oben verdeckte es den Titel
 		bool dockMenu = Screens.Current == DockMenu;
@@ -293,17 +324,43 @@ public partial class Hud : CanvasLayer
 		// Runde 12: im Flug unten, links der Kampftasten (zweite Schachtspalte ab x 906) — 536 breit ab der Bildmitte − 280
 		var size = dockMenu ? new Vector2(MathF.Max(300f, side), 150f) : screen ? new Vector2(ScreenAlertWidth, ScreenAlertHeight) : new Vector2(FlightAlertWidth, AlertHeight);
 		_alert.Size = size;
-		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2(vp.X / 2f - 280f, FlightAlertY);
+		// Runde 33: im Flug unten verankert (720er-Entwurf: y 508 = Unterkante − 212)
+		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2(vp.X / 2f - 280f, vp.Y - (720f - FlightAlertY));
 		// Runde 19 (Handy-Test B_4): im Flug endet die Meldung über der Beschriftung „RÜCK · max 20 %“ (nach dem Rand-Layout der echten Auflösung)
 		float realH = MathF.Max(size.Y, _alert.GetCombinedMinimumSize().Y);   // die Meldung kann mit ihrem Text wachsen
-		if (!dockMenu && !screen && Flight.ReverseLabelRect is { Size.Y: > 0f } rl && new Rect2(_alert.Position, new Vector2(size.X, realH)).Intersects(rl.Grow(6f)))
+		if (!dockMenu && !screen && Flight.ReverseLabelLocal is { Size.Y: > 0f } rl && new Rect2(_alert.Position, new Vector2(size.X, realH)).Intersects(rl.Grow(6f)))
 			_alert.Position = new Vector2(_alert.Position.X, rl.Position.Y - 6f - realH);
+		// Runde 33 (E2): im Kompakt-HUD (UI-Faktor > 1) kann diese Lage auf Tasten fallen — dann die nächste freie Lage (FlightHudLayout.FindSpot, Core)
+		if (!dockMenu && !screen && Flight.Layout is { Compact: true })
+		{
+			var occ = Flight.OccupiedLocal();
+			var want = new Rect2(_alert.Position, new Vector2(size.X, realH));
+			if (occ.Exists(r => r.Intersects(want)))
+			{
+				var key = (vp, realH, occ.Count, occ.Aggregate(0f, (a, r) => a + r.Position.X * 3f + r.Position.Y * 7f + r.Size.X));
+				if (key != _spotKey)
+				{
+					_spotKey = key;
+					var list = occ.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
+					var area = new SpaceSim.Core.Ui.UiRect(0, 0, vp.X, vp.Y);
+					_spot = SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, list, size.X, realH, 360f, vp.X / 2f, want.Position.Y);
+					// kein Platz neben allem (Gefecht bei Faktor 1,3 auf 16:9): dann nur Tasten frei lassen — die Meldung darf kurz über Status/Sektorzeilen liegen
+					_spot ??= SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, Flight.OccupiedLocal(interactiveOnly: true)
+						.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList(), size.X, realH, 300f, vp.X / 2f, want.Position.Y);
+				}
+				if (_spot is { } sp) { size = new Vector2(sp.W, size.Y); _alert.Size = size; _alert.Position = new Vector2(sp.X, sp.Y); }
+			}
+		}
 		_alertText.MaxLinesVisible = dockMenu ? 6 : screen ? 2 : 3;
 		_alertText.AddThemeFontSizeOverride("font_size", screen ? 14 : 15);
 		_alertText.Position = new Vector2(12, 4); _alertText.Size = new Vector2(size.X - 12 - 64, size.Y - 8);
 		_alertClose.Position = new Vector2(size.X - 60, dockMenu ? size.Y - 60 : (size.Y - 56) / 2f);
 	}
 	const float DockMenuWidth = 580f;
+	(Vector2, float, int, float) _spotKey;
+	(Vector2, string, int, float) _toastKey;
+	SpaceSim.Core.Ui.UiRect? _toastSpot;
+	SpaceSim.Core.Ui.UiRect? _spot;
 	// Runde 12 (Handy-Test: Meldung und Beschusszeile verdeckten den Gegner vor dem Bug): im Flug unten mittig über dem Tempo-Regler — hinter dem eigenen
 	// Schiff, dort steht im Gefecht kein Gegner (die Kamera blickt über das Heck nach vorn); oben bleibt die Bildmitte frei
 	const float FlightAlertWidth = 536f;
@@ -343,6 +400,7 @@ public partial class Hud : CanvasLayer
 
 	public override void _Process(double delta)
 	{
+		ApplyLayerScale();
 		if (_alert.Visible && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
 		if (_alert.Visible) PlaceAlert();
 		// der Hinweis rückt unter eine stehende Meldung (statt sie zu überdecken)
@@ -350,7 +408,7 @@ public partial class Hud : CanvasLayer
 		bool onScreen = Screens.Current != null && Screens.Current != Flight;
 		bool below = _alert.Visible && !onScreen;
 		// Runde 4: über Vollbildern unten mittig (zwischen „← Menü“/„← Flug“ und „Abdocken“), im Flug mit Abstand zur Lage-/Brandzeile
-		var vpSize = GetViewport().GetVisibleRect().Size;
+		var vpSize = AlertSpace;   // Runde 33: in Einheiten der Meldungsebene (im Flug skaliert)
 		if (Screens.Current == DockMenu)   // Dock-Menü: links neben dem Fenster, unter einer Meldung
 		{
 			_toast.Position = new Vector2(10f, _alert.Visible ? 250f : 90f);
@@ -369,10 +427,30 @@ public partial class Hud : CanvasLayer
 			float tw = below ? 416f : 600f;
 			// Runde 17 (Handy-Test: Hintergrund des Hinweises überdeckte den Rand von „Nächster Gegner“): im Flug vor der ersten HUD-Fläche rechts enden
 			if (!onScreen)
-				foreach (var r in Flight.OccupiedRects())
+				foreach (var r in Flight.OccupiedLocal())
 					if (r.Position.X > vpSize.X / 2f && r.Position.Y < _toast.Position.Y + 100f && r.End.Y > _toast.Position.Y)
 						tw = MathF.Min(tw, MathF.Max(300f, r.Position.X - 6f - _toast.Position.X));
 			_toast.Size = new Vector2(tw, 0f);   // Runde 21: Höhe folgt dem Text
+		}
+		// Runde 33 (E2): im Kompakt-HUD (UI-Faktor > 1) kann die Wunschlage auf Tasten oder Beschuss-/Fluchtzeile fallen — dann die nächste freie Lage
+		if (!onScreen && Screens.Current != DockMenu && Flight.Layout is { Compact: true } && _toast.Modulate.A > 0.02f && _toast.Text.Length > 0)
+		{
+			var occ = Flight.OccupiedLocal();
+			if (_alert.Visible) occ.Add(new Rect2(_alert.Position, _alert.Size).Grow(6f));
+			float th = MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y);
+			var want = new Rect2(_toast.Position, new Vector2(_toast.Size.X, th));
+			if (occ.Exists(r => r.Intersects(want)))
+			{
+				var key = (vpSize, _toast.Text, occ.Count, occ.Aggregate(0f, (a, r) => a + r.Position.X * 3f + r.Position.Y * 7f + r.Size.X));
+				if (key != _toastKey)
+				{
+					_toastKey = key;
+					var list = occ.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
+					_toastSpot = SpaceSim.Core.Ui.FlightHudLayout.FindSpot(new SpaceSim.Core.Ui.UiRect(0, 0, vpSize.X, vpSize.Y), list, want.Size.X, th,
+						MathF.Min(want.Size.X, 280f), want.GetCenter().X, want.Position.Y, 12f);
+				}
+				if (_toastSpot is { } sp) { _toast.Position = new Vector2(sp.X, sp.Y); _toast.Size = new Vector2(sp.W, 0f); }
+			}
 		}
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 		// Runde 7: Beschuss- und Fluchtzeile unter einen mehrzeiligen Hinweis im Flug
@@ -381,6 +459,7 @@ public partial class Hud : CanvasLayer
 	}
 
 	/// <summary>Selbsttest Runde 7: Lage des Hinweises (mit gewachsener Höhe).</summary>
+	public string TestToastText => _toast.Modulate.A > 0.05f ? _toast.Text : "";
 	public Rect2 TestToastRect => new(_toast.Position, new Vector2(_toast.Size.X, MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y)));
 
 	readonly Label _debugLine = new();

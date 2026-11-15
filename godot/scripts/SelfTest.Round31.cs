@@ -7,7 +7,7 @@ using SpaceAdventure.Ui.Kit;
 namespace SpaceAdventure;
 
 /// <summary>
-/// Selbsttest-Stufe 108 (Runde 31, UI-ANPASSUNG.md Etappe 1): UI-Größe. (1) Voreinstellung „normal“ ergibt heute Faktor 1 (starre 1280×720-Bildschirme,
+/// Selbsttest-Stufe 108 (Runde 31, UI-ANPASSUNG.md Etappe 1; Runde 33: Faktor je Schicht — die Flug-Schicht trägt den Faktor, die Wurzel bleibt 1): UI-Größe. (1) Voreinstellung „normal“ ergibt heute Faktor 1 (starre 1280×720-Bildschirme,
 /// Obergrenze 1) — pixelgleich zum bisherigen Stand; (2) „groß“ wird in der Test-Einstellungsdatei gespeichert und bleibt bei Faktor 1; (3) erzwungener
 /// Faktor 1,15 (Prüf-Obergrenze, angenommene A15-DPI): Wurzelfenster mit content_scale_factor 1,15, sichtbare Fläche entsprechend kleiner, Stationswahl
 /// per Tipp in Fensterkoordinaten (durch die Streckung der Ansicht) und Kamera Bild↔Welt stimmen; (4) Faktor 1,3 ebenso; (5) zurück auf 1.
@@ -37,7 +37,8 @@ public partial class SelfTest
 				var cfg = new ConfigFile();
 				Check(cfg.Load(Audio.AudioSettings.Path) == Error.Ok && (int)cfg.GetValue("ui", "size", -1) == (int)UiSize.Large && Audio.AudioSettings.Path.Contains("settings-test"),
 					$"UI-Größe gespeichert in der Test-Einstellungsdatei ({Audio.AudioSettings.Path})");
-				Check(UiScale.Factor == 1f && root.ContentScaleFactor == 1f, $"UI-Größe groß: Faktor bleibt 1 bis zum Umbau der Bildschirme ({UiScale.Factor}, Ziel {UiScale.Wanted:0.00})");
+				// Runde 33: Faktor je Schicht — die Wurzel bleibt bei 1, die Flug-Schicht trägt den Faktor der Stufe
+				Check(root.ContentScaleFactor == 1f && Mathf.Abs(_m.HudRef.Flight.Scale.X - UiScale.Factor) < 0.001f, $"UI-Größe groß: Wurzel 1, Flug-Schicht {_m.HudRef.Flight.Scale.X} = Faktor {UiScale.Factor} (Ziel {UiScale.Wanted:0.00})");
 				UiScale.Set(UiSize.Normal);
 				return false;
 			}
@@ -50,7 +51,8 @@ public partial class SelfTest
 				string d1 = UiScale.Describe();
 				UiScale.Set(UiSize.Large);
 				string d2 = UiScale.Describe();
-				Check(d1.Contains($"≈ {mm:0.0} mm") && !d1.Contains("mindestens 7 mm") && d2.Contains("erst mit den nächsten Ausbaustufen"),
+				// Runde 33: „etwa“ (DPI auf Android = Dichteklasse) und dass Dock/Kommandozentrale vorerst bei 1 bleiben
+				Check(d1.Contains($"etwa {mm:0.0} mm") && !d1.Contains("mindestens 7 mm") && d2.Contains("Dock und Kommandozentrale bleiben vorerst"),
 					$"UI-Größe: Text nennt echte Tastengröße und den späteren Ausbau („{d1}“ / „{d2}“)");
 				UiScale.TestPpi = null;
 				UiScale.Set(UiSize.Normal);
@@ -66,12 +68,15 @@ public partial class SelfTest
 			}
 			case 12: case 42:
 			{
-				Check(Mathf.Abs(UiScale.Factor - _r31Factor) < 0.001f && Mathf.Abs(root.ContentScaleFactor - _r31Factor) < 0.001f,
-					$"UI-Größe: erzwungener Faktor {_r31Factor} gesetzt ({UiScale.Factor}, Wurzel {root.ContentScaleFactor})");
+				// Runde 33: Faktor je Schicht — Flug-Schicht skaliert, Wurzel bei 1, logische Fläche der Schicht = sichtbare Fläche ÷ Faktor
+				var fl = _m.HudRef.Flight;
+				Check(Mathf.Abs(UiScale.Factor - _r31Factor) < 0.001f && Mathf.Abs(fl.Scale.X - _r31Factor) < 0.001f && root.ContentScaleFactor == 1f,
+					$"UI-Größe: erzwungener Faktor {_r31Factor} auf der Flug-Schicht ({UiScale.Factor}, Schicht {fl.Scale.X}, Wurzel {root.ContentScaleFactor})");
 				var win = root.Size;
 				var vis = GetViewport().GetVisibleRect().Size;
 				float stretch = UiLayout.StretchScale(win.X, win.Y);
-				Check(Mathf.Abs(vis.Y - win.Y / (stretch * _r31Factor)) < 2f, $"UI-Größe: sichtbare Fläche {vis} bei Fenster {win} und Faktor {_r31Factor}");
+				Check(Mathf.Abs(fl.Size.Y - win.Y / (stretch * _r31Factor)) < 2f && fl.Layout is { Compact: true },
+					$"UI-Größe: Fläche der Flug-Schicht {fl.Size} bei Fenster {win} und Faktor {_r31Factor} (kompakt {fl.Layout?.Compact})");
 				// Kamera: Bild ↔ Welt um das eigene Schiff
 				var ship = _m.Player.GlobalPosition;
 				var sp = _m.TestCam.UnprojectPosition(ship);
@@ -95,8 +100,8 @@ public partial class SelfTest
 				_r31Station = st.Id;
 				var logical = _m.TestCam.UnprojectPosition(BodyPoint(st, ship));
 				_r31Window = root.GetFinalTransform() * logical;
-				Check(Mathf.Abs(_r31Window.X / logical.X - stretch * _r31Factor) < 0.02f || logical.X < 1f,
-					$"UI-Größe: Fensterkoordinate {_r31Window} = Bild {logical} × {stretch * _r31Factor:0.000}");
+				Check(Mathf.Abs(_r31Window.X / logical.X - stretch) < 0.02f || logical.X < 1f,
+					$"UI-Größe: Fensterkoordinate {_r31Window} = Bild {logical} × {stretch:0.000} (Wurzel ungeskaliert)");
 				PushWindow(_r31Window, true);
 				return false;
 			}

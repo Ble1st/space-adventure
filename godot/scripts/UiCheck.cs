@@ -22,6 +22,8 @@ public partial class UiCheck : Node
 	readonly Main _m;
 	readonly string _dir;
 	public UiCheck(Main m, string dir) { _m = m; _dir = dir; }
+	/// <summary>Runde 33: nur die Flug-Zustände (HUD, Menü, Meldung) — für schnelle Durchläufe der Etappe E2.</summary>
+	public bool FlightOnly { get; init; }
 
 	/// <summary>Fenstergröße und angenommene Geräte-DPI (dokumentierte Annahme je Auflösung).</summary>
 	static readonly (int W, int H, float Ppi, string Device)[] Sizes =
@@ -82,22 +84,25 @@ public partial class UiCheck : Node
 		Add("flug-normal", () => { _m.TestMenu("new:trader"); }, 60);
 		Add("hamburger-menue", () => _m.TestOpenCommand(), 10);
 		Add("meldung-toast", () => { _m.TestCommand("close"); _m.HudRef.Alert("Prüfmeldung: Überfall angekündigt — andocken oder Sektor verlassen. Dritte Zeile zum Messen.", 30f); _m.HudRef.Toast("Prüftoast: Ware verkauft, 10 × 21,3 = 213 Cr", 30f); }, 10);
-		Add("sternenkarte", () => { _m.HudRef.HideAlert(); _m.TestCommand("map"); }, 12);
-		Add("dockmenue", () =>
+		if (!FlightOnly)
 		{
-			_m.HudRef.Map.Visible = false;
-			var yard = u().StationsById().First(s => s.TypeKey == "shipyard");
-			_m.TestDockAt(yard.Id);
-			// alle verfügbaren Dock-Bereiche dieser Station gleich hinter diesen Schritt einreihen
-			int at = 0;
-			foreach (var def in _m.TestDockAreas().Where(d => d.Available).Select(d => d.Id).ToList())
-				_plan.Insert(at++, ("dock-" + def, () => _m.TestOpenDockArea(def), 12));
-		}, 20);
-		Add("kz-open", () => { _m.TestUndock(); }, 20);
-		foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
-			Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
-		Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
-		Add("flug-automining", () => { _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);
+			Add("sternenkarte", () => { _m.HudRef.HideAlert(); _m.TestCommand("map"); }, 12);
+			Add("dockmenue", () =>
+			{
+				_m.HudRef.Map.Visible = false;
+				var yard = u().StationsById().First(s => s.TypeKey == "shipyard");
+				_m.TestDockAt(yard.Id);
+				// alle verfügbaren Dock-Bereiche dieser Station gleich hinter diesen Schritt einreihen
+				int at = 0;
+				foreach (var def in _m.TestDockAreas().Where(d => d.Available).Select(d => d.Id).ToList())
+					_plan.Insert(at++, ("dock-" + def, () => _m.TestOpenDockArea(def), 12));
+			}, 20);
+			Add("kz-open", () => { _m.TestUndock(); }, 20);
+			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
+				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
+			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
+		}
+		Add("flug-automining", () => { _m.HudRef.HideAlert(); _m.HudRef.Map.Visible = false; _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);
 		Add("flug-automining2", () => { _m.TestStartMining(); }, 90);
 		Add("flug-warnung", () => { _m.TestMenu("new:combat"); }, 40);
 		Add("flug-gefecht", () => { _m.TestSetFast(true); }, 120);
@@ -130,15 +135,16 @@ public partial class UiCheck : Node
 				_first = null;
 				_results.Add(pick);
 				_lastMeasured = pick.State;
+				foreach (var note in pick.Notes.Where(x => x.StartsWith("außerhalb") || x.StartsWith("Überlappung") || x.StartsWith("gekürzt") || x.StartsWith("Taste gekürzt"))) GD.Print($"[ui-check]   {note}");
 				GD.Print($"[ui-check] {pick.W}x{pick.H} f{pick.Factor:0.00} {pick.State}: Tasten {pick.Interactive}, Überlappung {pick.Overlaps}, gekürzt {pick.Truncated}, <7 mm {pick.Small7}, <5 mm {pick.Small5}, außerhalb {pick.Outside}, Füllgrad {(pick.Fill < 0 ? "–" : $"{pick.Fill * 100:0} %")}");
 			}
 			_skip = false;
 			_state = "";
-			if (!Headless && _factorIdx == 0 && _lastMeasured is { } name)
+			if (!Headless && (_factorIdx == 0 || FlightOnly) && _lastMeasured is { } name)
 			{
 				_shot = true;
 				var (w, h, _, _) = Sizes[_sizeIdx];
-				string file = System.IO.Path.Combine(_dir, $"{w}x{h}_{name}.png");
+				string file = System.IO.Path.Combine(_dir, _factorIdx == 0 ? $"{w}x{h}_{name}.png" : $"{w}x{h}_f{Factors[_factorIdx] * 100:0}_{name}.png");
 				RenderingServer.FramePostDraw += Shot;
 				void Shot()
 				{
@@ -204,7 +210,9 @@ public partial class UiCheck : Node
 		var (w, h, ppi, _) = Sizes[_sizeIdx];
 		float f = Factors[_factorIdx];
 		var vp = GetViewport().GetVisibleRect();
-		if (MathF.Abs(GetTree().Root.ContentScaleFactor - f) > 0.001f) GD.PrintErr($"[ui-check] Faktor {GetTree().Root.ContentScaleFactor} statt {f}");
+		// Runde 33: Faktor je Schicht — die Wurzel bleibt bei 1, die Flug-Schicht trägt den Faktor (Vollbilder bis E3–E5 bei 1)
+		if (MathF.Abs(UiScale.Factor - f) > 0.001f || MathF.Abs(_m.HudRef.Flight.Scale.X - f) > 0.001f) GD.PrintErr($"[ui-check] Flug-Faktor {_m.HudRef.Flight.Scale.X} statt {f}");
+		float rootF = GetTree().Root.ContentScaleFactor;   // globale Rechtecke sind in Bildpunkten dieser Wurzel (Skalierung der Schicht ist darin enthalten)
 		if (GetTree().Root.Size != WindowFor(w, h)) GD.PrintErr($"[ui-check] Fenster {GetTree().Root.Size} statt {WindowFor(w, h)} ({w}×{h})");
 		var font = ThemeDB.FallbackFont;
 		var all = Visible(GetTree().Root).ToList();
@@ -224,7 +232,7 @@ public partial class UiCheck : Node
 		foreach (var c in inter)
 		{
 			var r = c.GetGlobalRect();
-			float mm = UiLayout.Millimetres(MathF.Min(r.Size.X, r.Size.Y), w, h, f, ppi);
+			float mm = UiLayout.Millimetres(MathF.Min(r.Size.X, r.Size.Y), w, h, rootF, ppi);
 			if (mm < 7f) small7++;
 			if (mm < 5f) { small5++; if (notes.Count < 24) notes.Add($"Tippfläche {mm:0.0} mm „{Label(c)}“"); }
 			if (!vp.Grow(0.5f).Encloses(Clipped(c))) { outside++; if (notes.Count < 30) notes.Add($"außerhalb „{Label(c)}“ {r.Position.X:0},{r.Position.Y:0} {r.Size.X:0}×{r.Size.Y:0}"); }
@@ -262,7 +270,7 @@ public partial class UiCheck : Node
 	{
 		UiScale.TestPpi = null; UiScale.TestCap = null; UiScale.TestForce = null;
 		UiScale.Apply();
-		var sb = new StringBuilder("UI-PRÜFUNG (Runde 31, Etappe 0): je Bildschirm × Fenster × UI-Faktor — Ü Überlappungen interaktiver Elemente, K gekürzte Texte, "
+		var sb = new StringBuilder("UI-PRÜFUNG (Runde 31/33): je Bildschirm × Fenster × UI-Faktor (Runde 33: Faktor der Flug-Schicht; Vollbilder bleiben bei 1) — Ü Überlappungen interaktiver Elemente, K gekürzte Texte, "
 			+ "T7/T5 Tippflächen unter 7/5 mm (angenommene DPI), A außerhalb der Fläche, F Füllgrad eines Vollbild-Bildschirms\n");
 		foreach (var (w, h, ppi, dev) in Sizes) sb.AppendLine($"  {w}×{h}: {dev}, {ppi:0} ppi, Taste 56 px = {UiLayout.Millimetres(56f, w, h, 1f, ppi):0.0} mm bei Faktor 1, DPI-Ziel {UiLayout.DpiFactor(w, h, ppi):0.00}×");
 		foreach (float f in Factors)

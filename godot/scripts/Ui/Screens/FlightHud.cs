@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Ui;
 using SpaceSim.Core.Weapons;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
@@ -34,6 +35,8 @@ public sealed class FlightHudData
 	public float Shield, ShieldMax, PowerOutput, PowerDraw, Charge, ChargeMax;
 	public PowerMode PowerMode;
 	public string SectorName = "", FactionName = "";
+	/// <summary>Runde 33: Kürzel der Besitzerfraktion („[UNI]“) — passt der Name nicht in den Sektorchip, steht das Kürzel.</summary>
+	public string FactionTag = "";
 	/// <summary>Phase 11: Fahndungszeile des Spielers (leer = sauber, dann ausgeblendet) und Lage des Sektors (Sicherheit/Bedrohung).</summary>
 	public string Wanted = "", Security = "";
 	public bool WantedSevere;
@@ -207,6 +210,8 @@ public partial class FlightHud : Control, IScreen
 	Control? _reverseLabel;
 	/// <summary>Runde 19 (Handy-Test B_4: der Warnkasten verdeckte „RÜCK · max 20 %“): Bildschirmfläche der Beschriftung über der Rücktaste.</summary>
 	public Rect2 ReverseLabelRect => _reverseLabel is { } l ? l.GetGlobalRect() : new Rect2();
+	/// <summary>Runde 33: dieselbe Fläche in Einheiten der Schicht.</summary>
+	public Rect2 ReverseLabelLocal => _reverseLabel is { } l ? new Rect2(l.Position, l.Size) : new Rect2();
 	public Rect2 TestBayRect(int i) => new(_bayButtons[i].Position, _bayButtons[i].Size);
 	/// <summary>Runde 18: erste sichtbare Schachtzeile, die gekürzt würde (leer = alles passt).</summary>
 	public string TestBayOverflow => _bayButtons.Where(b => b.Visible).Select(b => b.Overflow()).FirstOrDefault(o => o.Length > 0) ?? "";
@@ -247,8 +252,22 @@ public partial class FlightHud : Control, IScreen
 		if (!Visible) return list;
 		var screen = GetViewportRect().Size;
 		foreach (var c in GetChildren())
-			if (c is Control ctl && ctl.Visible && ctl.Size.X * ctl.Size.Y < 0.3f * screen.X * screen.Y && ctl.Size.X > 4f && ctl.Size.Y > 4f)
-				list.Add(ctl.GetGlobalRect().Grow(6f));
+		{
+			if (c is not Control ctl || !ctl.Visible || ctl.Size.X <= 4f || ctl.Size.Y <= 4f) continue;
+			var g = ctl.GetGlobalRect();   // Runde 33: enthält die Skalierung der Schicht → Bildpunkte
+			if (g.Size.X * g.Size.Y < 0.3f * screen.X * screen.Y) list.Add(g.Grow(6f));
+		}
+		return list;
+	}
+
+	/// <summary>Runde 33: <see cref="OccupiedRects"/> in Einheiten der Schicht (für Meldung/Hinweis, die im Flug mit derselben Skalierung liegen).</summary>
+	public List<Rect2> OccupiedLocal(bool interactiveOnly = false)
+	{
+		var list = interactiveOnly
+			? GetChildren().OfType<Control>().Where(c => c.Visible && c is KitButton or KitSlider && c.Size.X > 4f).Select(c => c.GetGlobalRect().Grow(6f)).ToList()
+			: OccupiedRects();
+		float k = Scale.X > 0f ? 1f / Scale.X : 1f;
+		for (int i = 0; i < list.Count; i++) list[i] = new Rect2(list[i].Position * k, list[i].Size * k);
 		return list;
 	}
 	public PowerMode TestMode => _d.PowerMode;
@@ -256,8 +275,9 @@ public partial class FlightHud : Control, IScreen
 	public void TestPressMode(PowerMode m) => PressMode(m);
 	/// <summary>Selbsttest: Größe und Lage einer Verteilungstaste (Mindest-Trefferfläche, keine Überdeckung).</summary>
 	/// <summary>Runde 17: linke Spalte unter den Leistungstasten (Platz für Hinweise im Gefecht) — Bildschirmkoordinaten.</summary>
-	public float LeftColumnX() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.GetGlobalRect().Position.X : 14f;
-	public float LeftColumnTop() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.GetGlobalRect().End.Y + 40f : 300f;
+	/// <summary>Runde 33: in Einheiten der Schicht (wie Meldung/Hinweis im Flug).</summary>
+	public float LeftColumnX() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.Position.X : 14f;
+	public float LeftColumnTop() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.Position.Y + b.Size.Y + 40f : 300f;
 	public Rect2 TestModeRect(PowerMode m) => new(_modeButtons[m].Position, _modeButtons[m].Size);
 	Control _fuelRow = null!;
 	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>
@@ -321,7 +341,7 @@ public partial class FlightHud : Control, IScreen
 
 		// ── Status oben links: Hülle, Schild, Sprit und Leistung echt (Phase 23) ──
 		// Gerätetest Phase 27: Credits und Leistungsstellung stehen im Rahmen der Statusleiste (vorher frei über der Szene: orange auf orangem Planeten unlesbar)
-		var status = Win(this, 14, 12, 300, 200, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
+		var status = _status = Win(this, 14, 12, 300, 200, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
 		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 8, 280, 184);
 		sv.AddThemeConstantOverride("separation", 5);
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
@@ -348,17 +368,22 @@ public partial class FlightHud : Control, IScreen
 		}
 
 		// ── Sektorchip oben Mitte (echt: Sektorname und Besitzerfraktion) ──
-		var chip = Win(this, 420, 12, 430, 42, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 20);
-		var cr = At(chip, new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 14, 0, 402, 42);
+		var chip = _chip = Win(this, 420, 12, 430, 42, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 20);
+		var cr = _chipRow = At(chip, new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 14, 0, 402, 42);
 		cr.AddThemeConstantOverride("separation", 12);
 		_sector = Text("", 18, UiKit.Cyan);
 		_factionChip = Text("", 15, UiKit.Dim);
 		cr.AddChild(_sector); cr.AddChild(_factionChip);
+		// Runde 33: im schmalen Chip schrumpft der Fraktionsname (mit „…“), statt den Chip über die Kommandotaste zu schieben
+		_factionChip.ClipText = true; _factionChip.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_factionChip.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		// Phase 11: Lage des Sektors unter dem Chip, Fahndung (nur wenn gesucht) darunter
 		_security = At(this, Text("", 13, UiKit.Dim, HorizontalAlignment.Center), 420, 56, 430, 18);
 		_wanted = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 74, 430, 20);
 		// Phase 26: Brandwarnung (rot, nur bei Brand)
 		_fire = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 300, 94, 670, 20);
+		// Runde 33: im Kompakt-HUD sind die Zeilen so breit wie der Chip — lange Texte enden mit „…“ statt über den Rand zu laufen
+		foreach (var l in new[] { _security, _wanted, _fire }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
 
 		// ── Kommandozentrale, Karte und Zeitraffer oben rechts ──
 		_mapBtn = At(this, new KitButton("Karte", new Vector2(110, 50)) { FontSize = 18 }, 1030, 12);
@@ -398,7 +423,7 @@ public partial class FlightHud : Control, IScreen
 		_contextBtn.Pressed += () => ContextPressed?.Invoke();
 
 		// ── Unten links: Wenden (Haltetasten) und Hamburger-Menü ──
-		At(this, Text("WENDEN", 13, UiKit.Dim, HorizontalAlignment.Center), 100, 560, 260, 20);
+		_turnLabel = At(this, Text("WENDEN", 13, UiKit.Dim, HorizontalAlignment.Center), 100, 560, 260, 20);
 		_turnL = At(this, new KitButton("◀", new Vector2(120, 100)) { FontSize = 44 }, 96, 584);
 		_turnR = At(this, new KitButton("▶", new Vector2(120, 100)) { FontSize = 44 }, 230, 584);
 		// RÜCK: 50 % der Kanten (80x56, Mindest-Trefferfläche), mittig zwischen Wendetasten (bis x=350) und Slider (ab x=660)
@@ -415,8 +440,7 @@ public partial class FlightHud : Control, IScreen
 		for (int i = 0; i < MaxBays; i++)
 		{
 			int idx = i;
-			var (bx, by) = BayPos(i);
-			var b = At(this, new KitButton("", new Vector2(176, BayH)), bx, by);
+			var b = At(this, new KitButton("", new Vector2(176, BayH)), 1090, 330 + i * BayStep);
 			b.Symbol = g => PaintArcSymbol(g, idx);
 			b.Down += () => BayDown?.Invoke(idx);
 			_bayButtons.Add(b);
@@ -454,56 +478,92 @@ public partial class FlightHud : Control, IScreen
 		_escape.Visible = false;
 		// Prüfung Phase 28: dunkler Grund unter Lage-, Fahndungs- und Beschusszeile (3D-Beschriftungen und Ringe schienen durch) und Beschusszeile links von „Nächster Gegner“
 		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
-		// Gerätetest (breite Displays): Grundlage merken, dann an die Breite anpassen
-		foreach (var child in GetChildren())
-			if (child is Control c && c != _arcs) _layoutBase[c] = c.Position;
+		// Runde 33 (UI-ANPASSUNG.md E2): jedes Element gehört zu einer Zone; die Lagen rechnet FlightHudLayout im Core
+		_items = new()
+		{
+			[HudItem.Status] = _status, [HudItem.Mode0] = _modeButtons[PowerMode.Weapons], [HudItem.Mode1] = _modeButtons[PowerMode.Shield], [HudItem.Mode2] = _modeButtons[PowerMode.Engine],
+			[HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire,
+			[HudItem.Command] = _cmdBtn, [HudItem.Map] = _mapBtn, [HudItem.Fast] = _fastBtn,
+			[HudItem.Card] = _card, [HudItem.Autopilot] = _autopilotBtn, [HudItem.AutoMine] = _autoMineBtn, [HudItem.Context] = _contextBtn,
+			[HudItem.TurnLabel] = _turnLabel, [HudItem.TurnLeft] = _turnL, [HudItem.TurnRight] = _turnR, [HudItem.ReverseLabel] = _reverseLabel!, [HudItem.Reverse] = _reverse,
+			[HudItem.Hamburger] = _hamburger, [HudItem.Slider] = _slider,
+			[HudItem.AllFire] = _allFire, [HudItem.AutoFire] = _autoFire, [HudItem.Ready] = _ready, [HudItem.NextEnemy] = _nextEnemy,
+			[HudItem.AimAssist] = _aimAssist, [HudItem.Surrender] = _surrender, [HudItem.HitWarning] = _hitWarning, [HudItem.Escape] = _escape,
+		};
+		for (int i = 0; i < _bayButtons.Count; i++) _items[HudItem.Bay0 + i] = _bayButtons[i];
 		Relayout();
 	}
 
-	/// <summary>Grundpositionen der HUD-Elemente im 1280 × 720-Entwurf (für die Verankerung an den Rändern).</summary>
-	readonly Dictionary<Control, Vector2> _layoutBase = new();
+	Control _status = null!, _chip = null!, _chipRow = null!, _turnLabel = null!;
+	Dictionary<HudItem, Control> _items = new();
+	int _layoutBays;
+	/// <summary>Runde 33: zuletzt gerechnete Anordnung (Selbsttest, Prüfwerkzeug).</summary>
+	public FlightHudLayout? Layout { get; private set; }
+	/// <summary>Runde 33, Selbsttest: Safe-Area-Ränder vorgeben (logisch, null = Gerät).</summary>
+	public static UiInsets? TestInsets;
+	public void TestRelayout() => Relayout();
+	public Rect2 TestSliderRect => new(_slider.Position, _slider.Size);
+	public Rect2 TestReverseRect => new(_reverse.Position, _reverse.Size);
 
 	public override void _Notification(int what)
 	{
-		if (what == NotificationResized && _layoutBase.Count > 0) Relayout();
+		if (what == NotificationResized && _items.Count > 0) Relayout();
 	}
 
 	/// <summary>
-	/// Gerätetest (breite Displays, 19,5 : 9): Das HUD ist für 1280 × 720 entworfen; bei breiterer Fläche (Stretch „expand“) bleiben Elemente der linken Seite
-	/// am linken Rand, Elemente der rechten Seite wandern an den rechten Rand, mittige Elemente bleiben mittig. Dazu die sicheren Ränder des Geräts
-	/// (Kamera-Aussparung, <see cref="DisplayServer.GetDisplaySafeArea"/>). In 1280 × 720 ohne Aussparung bleibt alles, wo es war.
+	/// Runde 33 (E2): Faktor der Flug-Schicht anwenden — die Schicht wird um <paramref name="factor"/> vergrößert und ihre logische Fläche entsprechend
+	/// kleiner (<paramref name="viewport"/> ÷ Faktor); die Zonen ordnen sich darin neu an. Alles, was Bildschirm ↔ Welt rechnet, liest globale Rechtecke
+	/// (<see cref="Control.GetGlobalRect"/> enthält die Skalierung) und bleibt in Bildpunkten.
+	/// </summary>
+	public void ApplyScale(Vector2 viewport, float factor)
+	{
+		var size = viewport / factor;
+		if (Mathf.Abs(Scale.X - factor) < 1e-4f && (Size - size).LengthSquared() < 0.01f && Position == Vector2.Zero) return;
+		AnchorLeft = 0f; AnchorTop = 0f; AnchorRight = 0f; AnchorBottom = 0f;
+		Position = Vector2.Zero;
+		Scale = new Vector2(factor, factor);
+		Size = size;
+		Relayout();
+	}
+
+	/// <summary>
+	/// Runde 33 (UI-ANPASSUNG.md E2): Zonen aus der logischen Fläche der Schicht (<see cref="FlightHudLayout"/>, reine Rechnung im Core) statt fester
+	/// 1280 × 720-Lagen: waagerecht und senkrecht verankert, Safe Area an allen vier Seiten; unter 1280 × 720 (UI-Faktor &gt; 1) kompakt mit fließender
+	/// Kampfspalte. Bei 1280 × 720 ohne Ränder bleibt jede Lage wie bisher.
 	/// </summary>
 	void Relayout()
 	{
-		float extra = MathF.Max(0f, Size.X - 1280f);
-		var (insetL, insetR) = SafeInsets();
-		foreach (var (c, b) in _layoutBase)
+		var layout = FlightHudLayout.Compute(Size.X, Size.Y, SafeInsets(), _layoutBays);
+		Layout = layout;
+		foreach (var (item, c) in _items)
 		{
-			// Zuordnung nach der Mitte des Elements im 1280-Entwurf: links (< 400), rechts (> 820), sonst mittig
-			float mid = b.X + c.Size.X / 2f;
-			float x = mid > 820f ? b.X + extra - insetR
-				: mid >= 400f ? b.X + extra / 2f
-				: b.X + insetL;
-			c.Position = new Vector2(x, b.Y);
+			var r = layout[item];
+			c.Position = new Vector2(r.X, r.Y);
+			// nur Elemente mit veränderlicher Breite bekommen eine neue Größe (Tasten behalten ihr Maß)
+			if (item is HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire or HudItem.Slider or HudItem.HitWarning or HudItem.Escape or HudItem.TurnLabel or HudItem.ReverseLabel)
+			{ c.CustomMinimumSize = new Vector2(r.W, r.H); c.Size = new Vector2(r.W, r.H); }   // UiKit.At setzt das Mindestmaß — sonst bliebe die alte Breite
 		}
+		_chipRow.CustomMinimumSize = Vector2.Zero;
+		_chipRow.Size = new Vector2(MathF.Max(0f, layout[HudItem.Chip].W - 28f), 42f);
+		_turnLabel.Visible = !layout.Hidden(HudItem.TurnLabel);
+		_ready.Visible = !layout.Hidden(HudItem.Ready);
+		_gateAttack.Position = _stationAttack.Position = new Vector2(layout[HudItem.Attack].X, layout[HudItem.Attack].Y);
 	}
 
-	/// <summary>Sichere Ränder links/rechts in Spielflächen-Einheiten (0, wenn das Gerät keine meldet).</summary>
-	(float L, float R) SafeInsets()
+	/// <summary>Sichere Ränder (Kamera-Aussparung, Gestenleiste) an allen vier Seiten in Einheiten der Schicht; nur auf Mobilgeräten (am Desktop meldet die Safe Area den Arbeitsbereich des Bildschirms, nicht das Fenster).</summary>
+	UiInsets SafeInsets()
 	{
+		if (TestInsets is { } t) return t;
+		if (!OS.HasFeature("mobile")) return new UiInsets(0, 0, 0, 0);
 		var win = DisplayServer.WindowGetSize();
 		var safe = DisplayServer.GetDisplaySafeArea();
-		if (win.X <= 0 || safe.Size.X <= 0 || safe.Size.X >= win.X) return (0f, 0f);
-		float k = Size.X / win.X;
-		return (MathF.Max(0f, safe.Position.X) * k, MathF.Max(0f, win.X - safe.End.X) * k);
+		if (win.X <= 0 || win.Y <= 0 || safe.Size.X <= 0 || safe.Size.Y <= 0) return new UiInsets(0, 0, 0, 0);
+		return UiLayout.Usable(win.X, win.Y, safe.Position.X, safe.Position.Y, safe.Size.X, safe.Size.Y, Scale.X);
 	}
 
 	const int MaxBays = 6;
 	const float BayH = 56f, BayStep = 60f;
-	/// <summary>Phase 25: Lage einer Schachttaste — vier in der rechten Spalte, weitere links daneben.</summary>
-	/// Runde 7 (Handy-Test, Bollwerk mit fünf und mehr Schächten): die zweite Spalte beginnt unter „Ergeben“ (y 398–454) — vorher lag der fünfte Schacht unter
-	/// „Ziel folgen“, der sechste unter „Ergeben“.
-	static (float X, float Y) BayPos(int i) => i < 4 ? (1090f, 330f + i * BayStep) : (906f, 456f + (i - 4) * BayStep);
+	// Runde 33: Lagen der Schächte rechnet FlightHudLayout (klassisch wie bis Runde 32: vier rechts, weitere links daneben ab y 456)
 
 	/// <summary>Fenster mit freier Platzierung der Kinder (ein PanelContainer würde alle Kinder strecken).</summary>
 	static Control Win(Control parent, float x, float y, float w, float h, Color bg, Color? border, int radius)
@@ -611,7 +671,13 @@ public partial class FlightHud : Control, IScreen
 		_fire.Text = d.Fire;
 		_fire.Visible = d.Fire.Length > 0;
 		_sector.Text = d.SectorName;
-		_factionChip.Text = d.FactionName;
+		// Runde 33: im schmalen Chip (Kompakt-HUD) das Kürzel statt des langen Fraktionsnamens — mit der Schrift gemessen
+		{
+			var font = _factionChip.GetThemeFont("font");
+			float room = _chipRow.Size.X - 12f - _sector.GetThemeFont("font").GetStringSize(d.SectorName, HorizontalAlignment.Left, -1, _sector.GetThemeFontSize("font_size")).X;
+			bool fits = font.GetStringSize(d.FactionName, HorizontalAlignment.Left, -1, _factionChip.GetThemeFontSize("font_size")).X <= room;
+			_factionChip.Text = fits || d.FactionTag.Length == 0 ? d.FactionName : d.FactionTag;
+		}
 		_security.Text = d.Security;
 		_wanted.Text = d.Wanted;
 		_wanted.Visible = d.Wanted.Length > 0;
@@ -656,14 +722,9 @@ public partial class FlightHud : Control, IScreen
 		}
 		_ready.Text = d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
 		// Phase 8/25: „Alle Feuer“ (und Dauerfeuer daneben) rutschen unter die rechte Schachtspalte; die Bereit-Zeile steht über den Schächten
-		float fireY = Math.Max(462f, 330f + Math.Min(d.Bays.Count, 4) * BayStep + 4f);   // vier Schächte: „Alle Feuer“ endet bei 630, 16 px über dem Schieberegler
-		// Grundposition (1280-Entwurf) setzen, die Verankerung an den rechten Rand übernimmt Relayout
-		if (_layoutBase.ContainsKey(_allFire) && (_layoutBase[_allFire].Y != fireY))
-		{
-			_layoutBase[_allFire] = new Vector2(1090, fireY);
-			_layoutBase[_autoFire] = new Vector2(906, fireY);
-			Relayout();
-		}
+		// Runde 33: die Zahl der Schächte bestimmt die Lage von „Alle Feuer“/„Dauerfeuer“ (klassisch) bzw. die Zellen der Kampfspalte (kompakt)
+		if (d.Bays.Count != _layoutBays) { _layoutBays = d.Bays.Count; Relayout(); }
+		_allFire.Sub = Layout is { Compact: true } && d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
 		// Runde 15 (Handy-Test): solange ein Überfall läuft und Dauerfeuer aus ist, pulsiert die Taste (Warnrahmen, Helligkeit)
@@ -710,6 +771,7 @@ public partial class FlightHud : Control, IScreen
 		{
 			var d = Data;
 			if (d == null || d.ShipScreen is not { } ship) return;
+			DrawSetTransformMatrix(GetGlobalTransform().AffineInverse());   // Runde 33: Schiffs-/Zielposition kommen in Bildpunkten, die Schicht ist skaliert
 			const float r = 290f;
 			for (int i = 0; i < d.Bays.Count; i++)
 			{

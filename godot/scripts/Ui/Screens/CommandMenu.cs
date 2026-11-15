@@ -46,7 +46,7 @@ public partial class CommandMenu : Control, IScreen
 	public void SetAudioState()
 	{
 		if (_music is not null) { _music.Text = SpaceAdventure.Audio.AudioSettings.MusicText; _music.State = SpaceAdventure.Audio.AudioSettings.MusicMuted ? KitButtonState.Normal : KitButtonState.On; }
-		if (_uiSize is not null) _uiSize.Text = UiScale.Text;   // Runde 31
+		if (_uiSize is not null) { _uiSize.Text = UiScale.Text; _uiSize.Sub = UiScale.SubText; _uiSize.QueueRedraw(); }   // Runde 31; Runde 33: kurz, Faktor/mm in der Unterzeile
 		if (_effects is not null) { _effects.Text = SpaceAdventure.Audio.AudioSettings.EffectsText; _effects.State = SpaceAdventure.Audio.AudioSettings.EffectsMuted ? KitButtonState.Normal : KitButtonState.On; }
 	}
 
@@ -54,6 +54,8 @@ public partial class CommandMenu : Control, IScreen
 	public void SetFuelActive(bool on) { if (_emergency is not null) _emergency.Visible = on; }
 	/// <summary>Selbsttest: ist der Menüpunkt „Notruf“ sichtbar?</summary>
 	public bool TestEmergencyVisible => _emergency?.Visible ?? false;
+	/// <summary>Runde 33 (Handytest): Menüzeile „UI-Größe“ — Text, Unterzeile, Überlauf (leer = passt) und Bildschirmmitte für einen echten Tipp.</summary>
+	public KitButton? TestUiSizeButton => _uiSize;
 	Label _zoomText = null!, _modeHint = null!;
 
 	public CommandMenu()

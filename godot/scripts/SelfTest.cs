@@ -39,6 +39,7 @@ public partial class SelfTest : Node
 	public SelfTest(Main m)
 	{
 		_m = m; SpaceAdventure.Ui.Kit.KitConfirm.DebounceMs = 0;   // der Selbsttest tippt ohne Pause doppelt
+		SpaceAdventure.Ui.Kit.UiScale.PinnedFactor = 1f; SpaceAdventure.Ui.Kit.UiScale.Apply();   // Runde 33: Faktor 1 unabhängig von der DPI des Prüfrechners (Stufen 108/109 prüfen höhere Faktoren gezielt)
 		// Phase 27: „--selftest-from=67“ beginnt bei einer späteren, in sich geschlossenen Stufe (Entwicklungshilfe; der volle Lauf beginnt bei 0)
 		foreach (var a in OS.GetCmdlineUserArgs())
 			if (a.StartsWith("--selftest-from=") && int.TryParse(a["--selftest-from=".Length..], out int from)) _stage = from;
@@ -2411,7 +2412,7 @@ public partial class SelfTest : Node
 					var lay = _m.HudRef.Flight.TestCombatLayout(6);
 					var clash = new List<string>();
 					for (int a = 0; a < lay.Count; a++) for (int b = a + 1; b < lay.Count; b++) if (lay[a].Rect.Intersects(lay[b].Rect)) clash.Add($"{lay[a].Name}/{lay[b].Name}");
-					Check(clash.Count == 0, $"Kampf-HUD ohne Überlappung ({_m.TestBayPlaces.Count()} Schächte; {string.Join(", ", clash)})");
+					Check(clash.Count == 0, $"Kampf-HUD ohne Überlappung ({_m.TestBayPlaces.Count()} Schächte; {string.Join(", ", clash)}; Schicht {_m.HudRef.Flight.Size} × {_m.HudRef.Flight.Scale.X}, kompakt {_m.HudRef.Flight.Layout?.Compact})");   // Runde 33: Fläche der Flug-Schicht im Befund
 					_m.HudRef.Toast("Verstärkung (Verband): ein langer Hinweis, der über drei Zeilen umbricht, damit die Beschusswarnung darunter rücken muss — wie am Handy beobachtet.", 5f);
 					break;
 				}
@@ -2672,6 +2673,7 @@ public partial class SelfTest : Node
 			case 105: if (Round27Stage(_frame - _stageStart)) Next(); break;
 			case 106: if (Round28Stage(_frame - _stageStart)) Next(); break;
 			case 107: if (Round30Stage(_frame - _stageStart)) Next(); break;
+			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
 			default:
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
