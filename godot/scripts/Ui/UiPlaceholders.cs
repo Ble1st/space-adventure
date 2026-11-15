@@ -28,10 +28,8 @@ public static class UiPlaceholders
 		_ => "Dieser Bereich ist noch nicht gebaut.",
 	};
 
-	/// <summary>Platzhalter für „Rückgängig“ im Handel (der Core führt keine Transaktionshistorie).</summary>
-	public const string UndoSoon = "Rückgängig kommt, sobald der Core eine Transaktionshistorie führt – " + Soon;
 	/// <summary>Platzhalter für Preisverlauf-Trends im Handel (der Core speichert keine Preis-Historie).</summary>
-	public const string TrendSoon = "Preisverlauf: " + Soon;
+	public const string TrendSoon = "Preisverlauf: " + Soon;   // Runde 39: „Rückgängig“ im Handel ist echt (TradeJournal im Core), dieser Platzhalter bleibt
 	// ── Kommandozentrale (UI.md Abschnitt 4) ──
 
 	/// <summary>Eine Platzhalter-Nachricht im Comms-Postfach (Texte und Zahlen zentral hier, nie im Code verstreut).</summary>

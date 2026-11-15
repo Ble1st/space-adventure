@@ -65,16 +65,21 @@ public static class PlayerFleet
         ship.DockedAt = st.Id;
     }
 
-    /// <summary>Das aktive Schiff legt ab (Andocken endet; die Ansicht fliegt es).</summary>
-    public static void Undock(Universe u, Ship ship) => ship.DockedAt = default;
+    /// <summary>Das aktive Schiff legt ab (Andocken endet; die Ansicht fliegt es). Runde 39: löscht die Rücknahme im Handel.</summary>
+    public static void Undock(Universe u, Ship ship)
+    {
+        ship.DockedAt = default;
+        if (u.Journal.Last is { } e && e.Ship == ship.Id) u.Journal.Clear();
+    }
 
-    /// <summary>Macht ein eigenes Schiff zum aktiven (Sektor der Ansicht folgt) und veröffentlicht <see cref="ActiveShipChanged"/>.</summary>
+    /// <summary>Macht ein eigenes Schiff zum aktiven (Sektor der Ansicht folgt) und veröffentlicht <see cref="ActiveShipChanged"/>. Runde 39: Schiffswechsel löscht die Rücknahme.</summary>
     public static void Activate(Universe u, Ship target, StationId at)
     {
         var old = u.PlayerShip;
         if (target.Command is not null) Commands.Cancel(u, target, "du übernimmst");
         u.PlayerShip = target.Id;
         u.PlayerSector = target.Sector;
+        u.Journal.Clear();
         u.Events.Publish(new ActiveShipChanged(old, target.Id, at));
     }
 }

@@ -51,9 +51,10 @@ public sealed class KitConfirm
 	/// Verdrahtet eine Taste: Beschriftung nach Zustand, <paramref name="confirmed"/> beim zweiten Tipp. Phase 19: ein <see cref="KitConfirmTicker"/> als Kind
 	/// der Taste stellt die Beschriftung zurück, sobald die Frist abgelaufen ist.
 	/// </summary>
-	public KitButton Wire(KitButton b, string key, string text, Action confirmed)
+	/// <param name="sub">Runde 39: Unterzeile im Ruhezustand (z. B. die rückgängig gemachte Buchung); null = keine.</param>
+	public KitButton Wire(KitButton b, string key, string text, Action confirmed, string? sub = null)
 	{
-		void Label() { bool armed = IsArmed(key); b.Text = armed ? "Wirklich?" : text; b.Sub = armed ? "nochmal tippen" : ""; }
+		void Label() { bool armed = IsArmed(key); b.Text = armed ? "Wirklich?" : text; b.Sub = armed ? "nochmal tippen" : (sub ?? ""); }
 		b.State = KitButtonState.Warn;
 		b.SetMeta(MetaKey, key);
 		Label();

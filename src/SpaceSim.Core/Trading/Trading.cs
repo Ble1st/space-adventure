@@ -5,7 +5,8 @@ using SpaceSim.Core.Simulation;
 namespace SpaceSim.Core.Trading;
 
 /// <param name="Capped">Runde 31: davon zum Rückkaufpreis <paramref name="CapPrice"/> gerechnete Einheiten (PlayerLedger).</param>
-public sealed record SaleResult(float Revenue, IReadOnlyDictionary<GoodId, float> Sold, float Unsold, float Capped = 0f, float CapPrice = 0f);
+/// <param name="RevenueByGood">Runde 39: Erlös je verkaufter Ware (für das Handelsjournal); null = nicht einzeln ausgewiesen.</param>
+public sealed record SaleResult(float Revenue, IReadOnlyDictionary<GoodId, float> Sold, float Unsold, float Capped = 0f, float CapPrice = 0f, IReadOnlyDictionary<GoodId, float>? RevenueByGood = null);
 
 public enum BuyOutcome { Ok, NotSold, OutOfStock, NoCredits, NoSpace }
 
@@ -70,6 +71,7 @@ public static class TradeActions
     {
         float revenue = 0f, capped = 0f;
         var sold = new Dictionary<GoodId, float>();
+        var byGood = new Dictionary<GoodId, float>();   // Runde 39: Erlös je Ware (Journal)
         if (Refusal(u, ship, station) is not null) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());   // Phase 25: gesucht → kein Handel
         var wallet = u.WalletOf(ship);
         // feste Reihenfolge (GoodId), nicht die Einfügereihenfolge des Dictionarys: die geht beim Speichern/Laden nach Entnahmen verloren
@@ -88,12 +90,13 @@ public static class TradeActions
             if (have - units <= 0.0001f) ship.Cargo.Remove(good); else ship.Cargo[good] = have - units;
             revenue += pay;
             sold[good] = units;
+            byGood[good] = pay;
             if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, units, pay));
             else u.Events.Publish(new MineDelivered(ship.Id, station.Id, good, units, pay));
             if (station.IsBuildSite) ConstructionRules.OnDelivered(u, station, ship, good, units, ship.IsPlayer ? "player" : "trader");
             ExportRules.OnDelivered(u, station, good, units, pay);   // Phase 14: Exportsenke
         }
-        return new SaleResult(revenue, sold, ship.Cargo.Values.Sum(), capped);
+        return new SaleResult(revenue, sold, ship.Cargo.Values.Sum(), capped, 0f, byGood);
     }
 
     /// <summary>Kauft bis zu <paramref name="units"/> Einheiten einer Ware zum Stationspreis. Phase 14: Exportwaren einer Exportsenke sind reiner Ankauf (nicht käuflich). Begrenzt durch Lagerbestand, Credits und Laderaum; die Station behält nichts zurück, was sie nicht liefern kann.</summary>
@@ -155,7 +158,7 @@ public static class TradeActions
         if (ship.IsPlayer) u.Events.Publish(new PlayerSold(ship.Id, station.Id, good, n, pay));
         if (station.IsBuildSite) ConstructionRules.OnDelivered(u, station, ship, good, n, ship.IsPlayer ? "player" : "trader");
         ExportRules.OnDelivered(u, station, good, n, pay);   // Phase 14: Exportsenke
-        return new SaleResult(pay, sold, ship.Cargo.Values.Sum(), bs.Ledgered, bs.LedgerPrice);
+        return new SaleResult(pay, sold, ship.Cargo.Values.Sum(), bs.Ledgered, bs.LedgerPrice, new Dictionary<GoodId, float> { [good] = pay });   // Runde 39: Erlös je Ware (Journal)
     }
 
     /// <summary>
@@ -230,5 +233,146 @@ public static class TradeActions
             if (score > bestScore) { bestScore = score; best = st; }
         }
         return best;
+    }
+
+    // ───────── Runde 39: Rückgängig im Handel ─────────
+
+    /// <summary>
+    /// Runde 39: Sperrgrund für die Rücknahme der letzten Buchung (<paramref name="journal"/>) — null = möglich. Rein: liest nur.
+    /// Reihenfolge der Gründe: keine Buchung, nicht mehr angedockt, anderes Schiff, Fenster abgelaufen, Ware nicht mehr an Bord /
+    /// nicht mehr im Lager, Kasse reicht nicht, Station kann nicht zahlen, Baustelle, Gefecht, Rückkaufeintrag hat sich geändert.
+    /// </summary>
+    public static string? UndoIssue(Universe u, TradeJournal journal, Ship ship, Station station)
+    {
+        var e = journal.Last;
+        if (e is null) return "Keine offene Buchung";
+        if (e.Station != station.Id || ship.DockedAt != station.Id) return "Nicht mehr angedockt";
+        if (e.Ship != ship.Id) return "Anderes Schiff";
+        if (u.Tick - e.Tick > TradeJournal.WindowTicks) return $"Fenster {TradeJournal.WindowTicks} Ticks abgelaufen";
+        var wallet = u.WalletOf(ship);
+        foreach (var l in e.Lines)
+        {
+            if (!station.Market.TryGetValue(l.Good, out var me) || me.Price <= 0f) return "Rückkaufeintrag hat sich geändert";
+            if (e.Kind == TradeKind.Buy)
+            {
+                if (ship.Cargo.GetValueOrDefault(l.Good) < l.Units - 0.0001f) return "Ware nicht mehr an Bord";
+                float refund = RefundFor(u, ship, station, l);
+                if (station.Credits < refund - 0.0001f) return "Station kann nicht zahlen";
+            }
+            else
+            {
+                if (me.Amount < l.Units - 0.0001f) return "Ware nicht mehr im Lager";
+                // Laderaum: alle Zeilen derselben Frachtform zusammen müssen wieder hineinpassen (z. B. inzwischen aus dem Lagerhaus geholt)
+                var form = u.Goods[l.Good].Form;
+                float need = 0f;
+                foreach (var o in e.Lines) if (u.Goods[o.Good].Form == form) need += o.Units * u.Goods[o.Good].VolumePerUnit;
+                if (ship.FreeVolumeForForm(u, form) < need - 0.0001f) return "Kein Platz im Laderaum";
+                float pay = PaymentFor(u, ship, station, l);
+                if (wallet.Credits < pay - 0.0001f) return "Kasse reicht nicht";
+            }
+        }
+        if (station.IsBuildSite) return "Baustelle";
+        if (u.Fights.IsEngaged(ship.Id)) return "Gefecht";
+        foreach (var l in e.Lines)
+            if (!TradeJournal.Same(RawPost(u, station, l.Good), l.PostAfter)) return "Rückkaufeintrag hat sich geändert";
+        return null;
+    }
+
+    /// <summary>
+    /// Runde 39: Geldfluss der Rücknahme von <paramref name="e"/> (rein): Kauf zurück = Erstattung min(gezahlt, heutiger Verkaufswert
+    /// mit Rückkaufdeckel), Verkauf zurück = Zahlung max(erhalten, heutige Kosten mit Rückkaufboden). Positiv = der Spieler bekommt Geld.
+    /// </summary>
+    public static float UndoAmount(Universe u, Ship ship, Station station, TradeEntry e)
+    {
+        float amount = 0f;
+        foreach (var l in e.Lines)
+            amount += e.Kind == TradeKind.Buy ? RefundFor(u, ship, station, l) : -PaymentFor(u, ship, station, l);
+        return amount;
+    }
+
+    /// <summary>
+    /// Runde 39: bucht die letzte Transaktion zurück (Ware und Geld tauschen zurück, Ledger-Posten auf das Abbild vor der Buchung,
+    /// entstandene Exportchargen entfernt) und veröffentlicht <see cref="Events.TradeUndone"/>. Sperrgrund via <see cref="UndoIssue"/>:
+    /// bei einem Grund ändert sich nichts und es gibt kein Ereignis.
+    /// </summary>
+    public static UndoResult Undo(Universe u, TradeJournal journal, Ship ship, Station station)
+    {
+        if (UndoIssue(u, journal, ship, station) is { } issue) return new UndoResult(false, issue, 0f, 0f);
+        var e = journal.Last!;
+        var wallet = u.WalletOf(ship);
+        float amount = 0f, units = 0f;
+        var lines = new List<UndoLine>(e.Lines.Count);
+        foreach (var l in e.Lines)
+        {
+            var me = station.Market[l.Good];
+            if (e.Kind == TradeKind.Buy)
+            {
+                // Kauf zurück: die Station kauft die Ware zurück — nie teurer als gezahlt und nie teurer als der Markt jetzt (Rückkaufdeckel)
+                float refund = RefundFor(u, ship, station, l);
+                me.Amount += l.Units;
+                station.Credits -= refund;
+                wallet.Credits += refund;
+                float have = ship.Cargo.GetValueOrDefault(l.Good);
+                if (have - l.Units <= 0.0001f) ship.Cargo.Remove(l.Good); else ship.Cargo[l.Good] = have - l.Units;
+                amount += refund;
+                lines.Add(new UndoLine(l.Good, l.Units, refund));
+            }
+            else
+            {
+                // Verkauf zurück: der Spieler kauft die Ware zurück — nie weniger als erhalten und nie billiger als der Markt jetzt (Rückkaufboden)
+                float pay = PaymentFor(u, ship, station, l);
+                me.Amount -= l.Units;
+                station.Credits += pay;
+                wallet.Credits -= pay;
+                ship.Cargo[l.Good] = ship.Cargo.GetValueOrDefault(l.Good) + l.Units;
+                amount -= pay;
+                lines.Add(new UndoLine(l.Good, l.Units, -pay));
+            }
+            units += l.Units;
+            RestorePost(u, station, l.Good, l.PostBefore);
+        }
+        foreach (var b in e.Batches) station.Exports.Remove(b);   // entstandene, noch nicht fällige Exportcharge entfernen
+        journal.Clear();
+        u.Events.Publish(new Events.TradeUndone(ship.Id, station.Id, lines, amount));
+        return new UndoResult(true, null, amount, units);
+    }
+
+    /// <summary>Runde 39: Erstattung für die Rücknahme eines Kaufs — min(gezahlt, heutiger Verkaufswert dieser Menge mit Rückkaufdeckel).</summary>
+    static float RefundFor(Universe u, Ship ship, Station station, TradeLine l)
+    {
+        float price = station.Market[l.Good].Price;
+        float now = PlayerLedger.SaleValue(u, ship, station, l.Good, l.Units, price).Revenue;
+        return MathF.Min(l.Amount, now);
+    }
+
+    /// <summary>Runde 39: Zahlung für die Rücknahme eines Verkaufs — max(erhalten, heutige Kosten dieser Menge mit Rückkaufboden).</summary>
+    static float PaymentFor(Universe u, Ship ship, Station station, TradeLine l)
+    {
+        float price = station.Market[l.Good].Price;
+        float now = PlayerLedger.BuyCost(u, ship, station, l.Good, l.Units, price).Cost;
+        return MathF.Max(l.Amount, now);
+    }
+
+    static LedgerPost? RawPost(Universe u, Station st, GoodId good)
+    {
+        var key = (u.PlayerActor.Value, st.Id.Value, good.Value);
+        return u.Ledger.TryGetValue(key, out var p) ? p : null;
+    }
+
+    /// <summary>Runde 39: Ledger-Eintrag auf das Abbild vor der Buchung zurück (null = Eintrag entfernen).</summary>
+    static void RestorePost(Universe u, Station st, GoodId good, LedgerPost? before)
+    {
+        var key = (u.PlayerActor.Value, st.Id.Value, good.Value);
+        if (before is null) { u.Ledger.Remove(key); return; }
+        if (u.Ledger.TryGetValue(key, out var p)) CopyInto(before, p);
+        else u.Ledger[key] = TradeJournal.Copy(before);
+    }
+
+    static void CopyInto(LedgerPost from, LedgerPost to)
+    {
+        to.BoughtQty = from.BoughtQty; to.BoughtPrice = from.BoughtPrice; to.BoughtStockBefore = from.BoughtStockBefore;
+        to.SoldQty = from.SoldQty; to.SoldPrice = from.SoldPrice; to.SoldStockBefore = from.SoldStockBefore;
+        to.BoughtOpen = from.BoughtOpen; to.SoldOpen = from.SoldOpen; to.LastTick = from.LastTick;
+        to.MissingQty = from.MissingQty; to.MissingSeen = from.MissingSeen;
     }
 }
