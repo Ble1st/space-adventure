@@ -20,20 +20,44 @@ public class Runde35cTests
         return d!.FullName;
     }
 
+    /// <summary>
+    /// Runde 37 (Prüfung): ganz godot/scripts (nicht nur Ui), alle Zeichenaufrufe für Text (DrawString, DrawMultilineString, DrawStringOutline,
+    /// DrawMultilineStringOutline, DrawChar, DrawCharOutline) auch mit Leerzeichen vor der Klammer; Kommentare (auch hinter Code) zählen nicht.
+    /// </summary>
+    static readonly System.Text.RegularExpressions.Regex DrawCall = new(@"\bDraw(String|MultilineString|StringOutline|MultilineStringOutline|Char|CharOutline)\s*\(");
+
+    static string Code(string line)
+    {
+        int c = line.IndexOf("//", StringComparison.Ordinal);
+        return c >= 0 ? line[..c] : line;
+    }
+
     [Fact]
     public void UiZeichnetTexteNurMitMeldung()
     {
-        var ui = Path.Combine(RepoRoot(), "godot", "scripts", "Ui");
-        Assert.True(Directory.Exists(ui), ui);
-        var offenders = Directory.EnumerateFiles(ui, "*.cs", SearchOption.AllDirectories)
+        var scripts = Path.Combine(RepoRoot(), "godot", "scripts");
+        Assert.True(Directory.Exists(scripts), scripts);
+        var offenders = Directory.EnumerateFiles(scripts, "*.cs", SearchOption.AllDirectories)
             .Where(f => Path.GetFileName(f) != "UiKit.cs")
             .SelectMany(f => File.ReadAllLines(f).Select((line, i) => (f, line, i)))
-            .Where(x => x.line.Contains("DrawString(") && !x.line.TrimStart().StartsWith("//"))
-            .Select(x => $"{Path.GetRelativePath(ui, x.f)}:{x.i + 1}")
+            .Where(x => DrawCall.IsMatch(Code(x.line)))
+            .Select(x => $"{Path.GetRelativePath(scripts, x.f)}:{x.i + 1}")
             .ToList();
-        Assert.True(offenders.Count == 0, "DrawString ohne Meldeweg (UiKit.DrawText/DrawFit benutzen): " + string.Join(", ", offenders));
-        // die Meldehelfer selbst melden
-        var kit = File.ReadAllText(Path.Combine(ui, "Kit", "UiKit.cs"));
-        Assert.Equal(kit.Split("ci.DrawString(").Length - 1, kit.Split("DrawnText.Report(ci").Length - 1);
+        Assert.True(offenders.Count == 0, "Textzeichnen ohne Meldeweg (UiKit.DrawText/DrawFit benutzen): " + string.Join(", ", offenders));
+        // die Meldehelfer selbst melden: jeder Zeichenaufruf in UiKit.cs steht neben einer Meldung
+        var kit = File.ReadAllLines(Path.Combine(scripts, "Ui", "Kit", "UiKit.cs")).Select(Code).ToList();
+        int calls = kit.Count(l => DrawCall.IsMatch(l));
+        int reports = kit.Count(l => l.Contains("DrawnText.Report(", StringComparison.Ordinal));
+        Assert.True(calls > 0 && calls == reports, $"UiKit.cs: {calls} Zeichenaufrufe, {reports} Meldungen");
     }
+
+    [Theory]
+    [InlineData("x.DrawString(font, p, t);", true)]
+    [InlineData("x.DrawString (font, p, t);", true)]
+    [InlineData("DrawMultilineString(font, p, t);", true)]
+    [InlineData("DrawStringOutline(font, p, t);", true)]
+    [InlineData("DrawChar(font, p, \"a\");", true)]
+    [InlineData("var a = 1; // DrawString(font)", false)]
+    [InlineData("UiKit.DrawText(this, 0, font, p, t, 12, c);", false)]
+    public void Waechter_ErkenntAlleZeichenaufrufe(string line, bool hit) => Assert.Equal(hit, DrawCall.IsMatch(Code(line)));
 }

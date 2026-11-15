@@ -478,26 +478,24 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 				SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(name, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, ns).X, 180f);
 			}
 		double fit = sw.Elapsed.TotalMilliseconds / n;
-		// Runde 35c (Prüfung: der Test schrieb Pseudo-Einträge in den statischen Zwischenspeicher und maß nur das Nachschlagen): eigener Speicher, derselbe
-		// Weg wie beim Zeichnen (Schlüssel bilden, nachschlagen, bei Fehlen einpassen und ablegen); der erste Durchgang füllt (kalt), gemessen wird das Mittel
-		// über alle n Durchgänge — so oft zeichnen die Zeilen bei unveränderten Namen neu
-		var cache = new Dictionary<(string, float, int), (int, string)>();
+		// Runde 37 (Prüfung: die Messung lief über einen eigenen Speicher, nicht über den des Spiels): gemessen wird FitName — derselbe Aufruf wie in
+		// TradeRow._Draw, mit dem echten Zwischenspeicher, der Namensbreite und Untergrenze der gezeichneten Zeilen. Der Speicher wird vorher geleert, der
+		// erste Durchgang füllt ihn (kalt, getrennt ausgegeben), gemessen wird das Mittel über alle n Durchgänge
+		var drawn = new List<(float W, int Floor)>();
+		static void Collect(Node nd, List<(float, int)> acc) { foreach (var c in nd.GetChildren()) { if (c is TradeRow r && !r.IsQueuedForDeletion()) acc.Add((172f + Mathf.Clamp(r.Size.X - 640f, 0f, 100f), Math.Max(14, SpaceSim.Core.Ui.UiLayout.FontFloor(20, UiKit.LayerFactor(r))))); Collect(c, acc); } }
+		Collect(this, drawn);
+		var (nw, nfl) = drawn.Count > 0 ? drawn[0] : (172f, 16);
+		NameFitCache.Clear();
+		sw.Restart();
+		foreach (var name in rows) FitName(font, name, nw, nfl);
+		ColdFitMs = sw.Elapsed.TotalMilliseconds;
 		sw.Restart();
 		for (int i = 0; i < n; i++)
-			foreach (var name in rows)
-			{
-				var key = (name, 172f, 16);
-				if (!cache.TryGetValue(key, out var v))
-				{
-					int ns = SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(name, HorizontalAlignment.Left, -1, fs).X, 172f, 20, 16);
-					v = (ns, SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(name, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, ns).X, 172f));
-					cache[key] = v;
-				}
-			}
+			foreach (var name in rows) FitName(font, name, nw, nfl);
 		CachedFitMs = sw.Elapsed.TotalMilliseconds / n;
 		return (rb, rb0, fit, rows.Count);
 	}
-	public double CachedFitMs;
+	public double CachedFitMs, ColdFitMs;
 	System.Collections.Generic.List<string> BuildRowsForTest() => Ctx is { } c ? c.Station.Market.Keys.Select(g => c.U.Goods[g].Name).ToList() : new();
 	/// <summary>Phase 16: klappt die Zeile einer Ware auf (Screenshot).</summary>
 	public void TestExpand(GoodId good)
@@ -623,15 +621,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			float ex = Mathf.Clamp(Size.X - 640f, 0f, 100f), nameW = 172f + ex;   // Runde 35c: mindestens 14 px Abstand zum Preis (bei 220)
 			// Runde 35b (Prüfung Punkt 11: Einpassen aller 54 Namen kostete ≈ 2 ms je Neuzeichnen): Ergebnis je (Name, Breite, Untergrenze) zwischengespeichert
 			int nfloor = Math.Max(14, SpaceSim.Core.Ui.UiLayout.FontFloor(20, UiKit.LayerFactor(this)));
-			var nkey = (u.Name, nameW, nfloor);
-			if (!NameFitCache.TryGetValue(nkey, out var nf))
-			{
-				int fsz = SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(u.Name, HorizontalAlignment.Left, -1, fs).X, nameW, 20, nfloor);
-				nf = (fsz, SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(u.Name, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, fsz).X, nameW));
-				if (NameFitCache.Count > 2000) NameFitCache.Clear();
-				NameFitCache[nkey] = nf;
-			}
-			var (ns, nm) = nf;
+			var (ns, nm) = FitName(font, u.Name, nameW, nfloor);
 			DrawnText.Clear(this);
 			if (nm == u.Name)
 			{
@@ -688,6 +678,18 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	/// <summary>Runde 34b, Selbsttest: gezeichneter Warenname je Zeile (eingepasst).</summary>
 	public static readonly Dictionary<int, string> TestRowNames = new();
 	static readonly Dictionary<(string, float, int), (int Size, string Shown)> NameFitCache = new();
+
+	/// <summary>Runde 35b/37: eingepasster Warenname (Schriftgröße, gezeigte Fassung) über den Zwischenspeicher — derselbe Aufruf beim Zeichnen und in der Messung.</summary>
+	static (int Size, string Shown) FitName(Font font, string name, float nameW, int floor)
+	{
+		var key = (name, nameW, floor);
+		if (NameFitCache.TryGetValue(key, out var nf)) return nf;
+		int fsz = SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(name, HorizontalAlignment.Left, -1, fs).X, nameW, 20, floor);
+		nf = (fsz, SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(name, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, fsz).X, nameW));
+		if (NameFitCache.Count > 2000) NameFitCache.Clear();
+		NameFitCache[key] = nf;
+		return nf;
+	}
 
 	/// <summary>
 	/// Runde 34 (Handytest r33): Hinweis unter dem Preis einer Warenzeile — die längste Fassung, die mit der Schrift gemessen in <paramref name="room"/> passt;
@@ -787,13 +789,17 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			CustomMinimumSize = new Vector2(w, HeightFor(row));
 			Size = CustomMinimumSize;
 
-			At(this, Text("Menge", 16, Dim), 34, 22);
-			var minus = At(this, new KitButton("−", new Vector2(52, 44)) { FontSize = 26 }, 100, 8);
-			_qtyLabel = At(this, Text("1", 26, White, HorizontalAlignment.Center), 156, 8, 80, 44);
-			var plus = At(this, new KitButton("+", new Vector2(52, 44)) { FontSize = 26 }, 240, 8);
-			var max = At(this, new KitButton("Max", new Vector2(64, 44)) { FontSize = 16 }, 296, 8);
-			_buyBtn = At(this, new KitButton("Kaufen", new Vector2(132, 44)) { FontSize = 19, State = KitButtonState.Ready }, 380, 8);
-			_sellBtn = At(this, new KitButton("Verkaufen", new Vector2(132, 44)) { FontSize = 17, State = KitButtonState.Warn }, 518, 8);
+			// Runde 37 (Handytest r35 g31/g34: „Verkaufen“ ragte bei „groß“ über den rechten Zeilenrand): Tastenreihe aus der Breite — erst fällt das Wort
+			// „Menge“, dann werden Mengenfeld und Kauf-/Verkaufstasten schmaler; nie über den Rand
+			var lay = ButtonRow(w);
+			if (lay.Label) At(this, Text("Menge", 16, Dim), 34, 22);
+			var minus = At(this, new KitButton("−", new Vector2(52, 44)) { FontSize = 26 }, lay.X0, 8);
+			_qtyLabel = At(this, Text("1", 26, White, HorizontalAlignment.Center), lay.X0 + 56, 8, lay.Qty, 44);
+			var plus = At(this, new KitButton("+", new Vector2(52, 44)) { FontSize = 26 }, lay.X0 + 60 + lay.Qty, 8);
+			var max = At(this, new KitButton("Max", new Vector2(64, 44)) { FontSize = 16 }, lay.X0 + 116 + lay.Qty, 8);
+			float bx = lay.X0 + 116 + lay.Qty + 64 + lay.Gap;
+			_buyBtn = At(this, new KitButton("Kaufen", new Vector2(lay.Btn, 44)) { FontSize = 19, State = KitButtonState.Ready }, bx, 8);
+			_sellBtn = At(this, new KitButton("Verkaufen", new Vector2(lay.Btn, 44)) { FontSize = lay.Btn < 120f ? 16 : 17, State = KitButtonState.Warn }, bx + lay.Btn + 6, 8);
 
 			minus.Pressed += () => SetQty(_qty - 1f);
 			plus.Pressed += () => SetQty(_qty + 1f);
@@ -814,6 +820,24 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		}
 
 		public string QtyText => _qtyLabel.Text;
+
+		/// <summary>
+		/// Runde 37: Tastenreihe des Editors für die Zeilenbreite <paramref name="w"/> — Startpunkt der Stepper, Breite des Mengenfelds, Kauf-/Verkaufstasten,
+		/// ob das Wort „Menge“ Platz hat. Rechts bleiben 12 px Rand; bei 662 px und mehr die alte Reihe (100/80/132).
+		/// </summary>
+		public static (float X0, float Qty, float Btn, float Gap, bool Label) ButtonRow(float w)
+		{
+			float right = w - 12f;
+			// alte Reihe: Menge 34, − 100, Feld 80, + , Max, Kaufen 132, Verkaufen 132 → endet bei 650
+			if (right >= 650f) return (100f, 80f, 132f, 20f, true);
+			bool label = right >= 600f;
+			float x0 = label ? 100f : 12f;
+			float qty = 64f, gap = 8f;
+			float btn = MathF.Floor((right - (x0 + 116f + qty + 64f + gap) - 6f) / 2f);
+			if (btn > 132f) btn = 132f;
+			if (btn < 104f) { qty = 52f; btn = MathF.Floor((right - (x0 + 116f + qty + 64f + gap) - 6f) / 2f); }
+			return (x0, qty, MathF.Max(88f, btn), gap, label);
+		}
 
 		public void SetQty(float q, bool notify = true)
 		{

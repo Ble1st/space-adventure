@@ -46,10 +46,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			row.AddThemeStyleboxOverride("panel", Box(isSel ? new Color(0.14f, 0.24f, 0.42f, 0.95f) : Card, isSel ? Cyan : null, 8, isSel ? 2 : 0, 10));
 			row.CustomMinimumSize = new Vector2(narrow ? InnerW(inner) - 24f : 328, 74);
 			int idx = i;
-			row.GuiInput += e =>
-			{
-				if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) { _sel = idx; Invalidate(); row.AcceptEvent(); }
-			};
+			UiKit.OnTap(row, () => { _sel = idx; Invalidate(); });   // Runde 37: Wisch wählt nichts
 			row.AddChild(new InboxRow(m, isSel));
 			inbox.AddChild(row);
 		}

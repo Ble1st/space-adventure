@@ -34,7 +34,13 @@ public partial class UiCheck : Node
 		(1920, 1200, 224f, "10,1″-Tablet 16:10"),
 		(2048, 1536, 264f, "9,7″-Tablet 4:3"),
 		(960, 540, 245f, "4,5″-Handy / kleines Fenster"),
+		(2340, 1080, 396f, "Samsung A15 mit Kamera-Aussparung links"),
 	};
+	/// <summary>
+	/// Runde 37 (Handytest r35 g31: „Verkaufen“ ragte über den Zeilenrand — am Gerät nimmt die Kamera-Aussparung links ≈ 80 Bildpunkte, die Prüfung lief ohne
+	/// sichere Ränder und sah breitere Zeilen): sichere Ränder je Gerät in logischen Bildpunkten bei Faktor 1 (L, O, R, U).
+	/// </summary>
+	static UiInsets InsetsOf(string device) => device.Contains("Aussparung") ? new UiInsets(54f, 0f, 0f, 0f) : new UiInsets(0f, 0f, 0f, 0f);
 	static readonly float[] AllFactors = { 1f, 1.15f, 1.3f };
 	(int W, int H, float Ppi, string Device)[] Sizes = AllSizes;
 	float[] Factors = AllFactors;
@@ -43,7 +49,7 @@ public partial class UiCheck : Node
 	/// <summary>Runde 35b: Auswahl für schnelle Durchläufe — „1280x720,2340x1080“ bzw. „1.3“ (leer = alle).</summary>
 	public void Select(string? sizes, string? factors)
 	{
-		if (!string.IsNullOrEmpty(sizes)) Sizes = AllSizes.Where(z => sizes.Split(',').Contains($"{z.W}x{z.H}")).ToArray();
+		if (!string.IsNullOrEmpty(sizes)) Sizes = AllSizes.Where(z => sizes.Split(',').Contains(z.Device.Contains("Aussparung") ? $"{z.W}x{z.H}a" : $"{z.W}x{z.H}")).ToArray();
 		if (!string.IsNullOrEmpty(factors)) Factors = factors.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 	}
 
@@ -67,7 +73,8 @@ public partial class UiCheck : Node
 
 	void BeginSize()
 	{
-		var (w, h, ppi, _) = Sizes[_sizeIdx];
+		var (w, h, ppi, dev) = Sizes[_sizeIdx];
+		UiScale.TestInsets = InsetsOf(dev);
 		// Größer als der Prüfbildschirm (2340×1080 auf 1920×1080): bei Streckmodus canvas_items/expand hängt das logische Layout nur vom
 		// Seitenverhältnis ab — das Fenster bekommt dasselbe Seitenverhältnis in passender Größe, die Millimeter rechnen mit der Zielauflösung
 		var win = WindowFor(w, h);
@@ -128,6 +135,19 @@ public partial class UiCheck : Node
 				_m.TestOpenDockArea(SpaceAdventure.Ui.Screens.DockAreas.Trade);
 				_m.HudRef.DockTrade.TestShipOpen = true;
 			}, 20);
+			// Runde 37 (Handytest r35 g31: „Verkaufen“ ragte im offenen Editor über den Zeilenrand — das Werkzeug öffnete nie eine Zeile): Handel mit
+			// aufgeklappter Zeile (Ware an Bord, damit der Verkaufsteil gezeichnet wird)
+			Add("dock-handel-zeile", () =>
+			{
+				_m.HudRef.DockTrade.TestShipOpen = false;
+				var tr = _m.HudRef.DockTrade;
+				var goods = tr.TestGoods;
+				if (goods.Count == 0) return;
+				var g = goods[0];
+				var ship = u().Ships.TryGetValue(u().PlayerShip, out var ps) ? ps : null;
+				if (ship is not null && ship.FreeUnits(u(), g) >= 3f) ship.Cargo[g] = (ship.Cargo.TryGetValue(g, out var have) ? have : 0f) + 3f;
+				tr.TestOpenRow(g);
+			}, 20);
 			Add("dock-menue-toast", () => { _m.HudRef.DockTrade.TestShipOpen = false;  _m.TestOpenCommand(); _m.HudRef.Toast(UiScale.ShortText() + " — zweite Zeile zum Messen des Umbruchs über dem offenen Menü", 30f); }, 12);
 			Add("kz-open", () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); }, 20);
 			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
@@ -181,8 +201,9 @@ public partial class UiCheck : Node
 			if (!Headless && _lastMeasured is { } name)   // Runde 35b: Bilder für alle Faktoren
 			{
 				_shot = true;
-				var (w, h, _, _) = Sizes[_sizeIdx];
-				string file = System.IO.Path.Combine(_dir, MathF.Abs(Factors[_factorIdx] - 1f) < 0.001f ? $"{w}x{h}_{name}.png" : $"{w}x{h}_f{Factors[_factorIdx] * 100:0}_{name}.png");
+				var (w, h, _, dv) = Sizes[_sizeIdx];
+				string wh = dv.Contains("Aussparung") ? $"{w}x{h}a" : $"{w}x{h}";
+				string file = System.IO.Path.Combine(_dir, MathF.Abs(Factors[_factorIdx] - 1f) < 0.001f ? $"{wh}_{name}.png" : $"{wh}_f{Factors[_factorIdx] * 100:0}_{name}.png");
 				RenderingServer.FramePostDraw += Shot;
 				void Shot()
 				{
@@ -306,6 +327,19 @@ public partial class UiCheck : Node
 				if (!outsideX && !outsideY) continue;
 				if (frame && !pc.ClipContents && full.Intersection(pr).Size.X <= 0f) continue;   // ganz außerhalb des Rahmens: Teil einer anderen Ebene (z. B. Überlagerung)
 				why = $"{(outsideX ? "seitlich" : "senkrecht")} am Rahmen {pc.GetType().Name}";
+			}
+			// Runde 37 (Handytest r35 g31: „Verkaufen“ ragte über eine selbst gezeichnete Zeile — kein Panel, kein Clip, also nie gemeldet): eine Taste
+			// darf nicht seitlich über die Fläche ihres nächsten ausgelegten Vorfahren (Größe > 0) hinausragen
+			if (why is null && !drawn && owner is not Godot.Label && inter.Contains(owner))
+			{
+				for (Node? n = owner.GetParent(); n is not null; n = n.GetParent())
+				{
+					if (n is not Control pc || n is ScrollContainer) break;
+					var pr = pc.GetGlobalRect();
+					if (pr.Size.X <= 0.5f || pr.Size.Y <= 0.5f) continue;
+					if (full.Position.X < pr.Position.X - 1.5f || full.End.X > pr.End.X + 1.5f) why = $"seitlich über {pc.GetType().Name}";
+					break;
+				}
 			}
 			if (why is not null) { clippedCount++; if (notes.Count < 56) notes.Insert(0, $"beschnitten „{Short(name)}“ ({why})"); }
 		}
@@ -471,7 +505,7 @@ public partial class UiCheck : Node
 		}
 		// Runde 34b: Lagesumme der Tasten — eine Messung mitten im Aufbau (Raster noch ohne Layout, alle Tasten auf 0,0) gilt nicht als stabil
 		float layoutSum = inter.Sum(c => c.GetGlobalRect().Position.X * 0.37f + c.GetGlobalRect().Position.Y);
-		return new Finding(state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, covered, eff, msgCovers, content, minMm, all.Count, false, layoutSum, textOver, clippedCount, minFont, notes);
+		return new Finding((Sizes[_sizeIdx].Device.Contains("Aussparung") ? "aussparung-" : "") + state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, covered, eff, msgCovers, content, minMm, all.Count, false, layoutSum, textOver, clippedCount, minFont, notes);
 	}
 
 	static string Label(Control c) => c switch { KitButton k => Short(k.Text), Label l => Short(l.Text), _ => c.GetType().Name };

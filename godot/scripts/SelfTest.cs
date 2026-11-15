@@ -2677,6 +2677,7 @@ public partial class SelfTest : Node
 			case 106: if (Round28Stage(_frame - _stageStart)) Next(); break;
 			case 107: if (Round30Stage(_frame - _stageStart)) Next(); break;
 			case 111: if (Round35Stage(_frame - _stageStart)) Next(); break;   // Runde 35: Kommandozentrale adaptiv (SelfTest.Round35.cs)
+			case 112: if (Round37Stage(_frame - _stageStart)) Next(); break;   // Runde 37: Wisch wählt nichts, Fraktionen Liste/Detail, Leiste bleibt gerollt, Handels-Editor, Menü-Schicht (SelfTest.Round37.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)

@@ -168,11 +168,14 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);
 		railScroll.AddChild(rv);
+		int activeIdx = 0, ii = 0;
 		foreach (var (id, label, sub) in CommandAreas.All)
 		{
 			var b = new KitButton(label, new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, Sub = sub };
 			string key = id;
-			b.Pressed += () => AreaSelected?.Invoke(key);
+			if (id == AreaId) activeIdx = ii;
+			ii++;
+			b.Pressed += () => { RailPos = railScroll.ScrollVertical; AreaSelected?.Invoke(key); };
 			if (id == AreaId) b.State = KitButtonState.On;
 			if (id == CommandAreas.Comms && UiPlaceholders.CommsUnread > 0)
 			{
@@ -183,6 +186,16 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		}
 		rv.AddChild(new Control { SizeFlagsVertical = Control.SizeFlags.ExpandFill });
 		rv.AddChild(Text($"Schiff: #{ship.Id.Value} (aktiv)", 13, Dim));
+		// Runde 37 (Handytest r35 g16–g18: nach Rollen der Leiste und Antippen sprang sie nach oben, „System“ war bei „groß“ kaum erreichbar): jeder Bereich ist
+		// ein eigener Bildschirm mit eigener Leiste — die Rollposition gilt für alle gemeinsam, und der aktive Eintrag bleibt sichtbar
+		float view = MathF.Max(56f, L.Rail.H - 16f);
+		float top0 = activeIdx * 62f, bot0 = top0 + 56f + 26f;   // + Platz für den Hinweis „weiter unten“ (KitScroll), der sonst den Eintrag verdeckt
+		int pos = RailPos;
+		if (top0 < pos) pos = (int)top0;
+		else if (bot0 > pos + view) pos = (int)MathF.Ceiling(bot0 - view);
+		RailPos = pos;
+		railScroll.ScrollTo(pos);
+		_railScroll = railScroll;
 
 		// ── Mittelteil (Runde 35: Innenfläche aus dem Gerüst; ist der Inhalt höher, rollt der Bereich als Ganzes) ──
 		var center = At(this, new PanelContainer(), L.Center.X, L.Center.Y, L.Center.W, L.Center.H);
@@ -199,6 +212,12 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		var back = At(this, new KitButton("← Flug", new Vector2(L.Back.W, L.Back.H)) { FontSize = 20 }, L.Back.X, L.Back.Y);
 		back.Pressed += () => BackToFlight?.Invoke();
 	}
+
+	/// <summary>Runde 37: gemeinsame Rollposition der Bereichsleiste aller Kommandozentralen-Bildschirme.</summary>
+	public static int RailPos;
+	KitScroll? _railScroll;
+	/// <summary>Selbsttest: Rollposition der Leiste dieses Bildschirms.</summary>
+	public int TestRailScroll => _railScroll is { } r && IsInstanceValid(r) ? r.ScrollVertical : -1;
 
 	/// <summary>Runde 35: zuletzt gerechnetes Gerüst.</summary>
 	public SpaceSim.Core.Ui.CommandShell? Shell { get; private set; }

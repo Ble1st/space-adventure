@@ -61,4 +61,37 @@ public sealed class LabelLayout
 		}
 		return false;
 	}
+
+	/// <summary>
+	/// Runde 37 (Handytest r35: Stationen ohne Namen auf der Sektorkarte): letzter Versuch — Plätze weiter weg (vier Ringe, zwölf Richtungen, feste Reihenfolge)
+	/// mit einer dünnen Linie vom Anker zur Beschriftung, damit die Zuordnung erkennbar bleibt.
+	/// </summary>
+	public bool DrawWithLeader(CanvasItem canvas, Vector2 anchor, string text, int size, Color color, float gap, float maxWidth = 160f)
+	{
+		string full = text;
+		text = KitButton.Fit(_font, text, size, maxWidth);
+		var sz = _font.GetStringSize(text, HorizontalAlignment.Left, -1, size);
+		float w = sz.X + 4f, h = size + 4f;
+		for (int ring = 1; ring <= 4; ring++)
+		{
+			float rad = gap + ring * (h + 6f);
+			for (int k = 0; k < 12; k++)
+			{
+				float a = k * Mathf.Tau / 12f + (ring % 2) * Mathf.Tau / 24f;
+				var p = anchor + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rad;
+				var r = new Rect2(p - new Vector2(Mathf.Cos(a) < -0.2f ? w : Mathf.Cos(a) > 0.2f ? 0f : w / 2f, Mathf.Sin(a) < -0.2f ? h : Mathf.Sin(a) > 0.2f ? 0f : h / 2f), new Vector2(w, h));
+				if (!_bounds.Encloses(r)) continue;
+				bool free = true;
+				foreach (var t in _taken) if (t.Intersects(r)) { free = false; break; }
+				if (!free) continue;
+				_taken.Add(r);
+				var near = new Vector2(Mathf.Clamp(anchor.X, r.Position.X, r.End.X), Mathf.Clamp(anchor.Y, r.Position.Y, r.End.Y));
+				canvas.DrawLine(anchor, near, new Color(color, 0.6f), 1f, true);
+				if (Backdrop.A > 0f) canvas.DrawRect(r.Grow(1f), Backdrop);
+				UiKit.DrawText(canvas, 1000 + _taken.Count, _font, r.Position + new Vector2(2f, size), text, size, color, full: full);
+				return true;
+			}
+		}
+		return false;
+	}
 }

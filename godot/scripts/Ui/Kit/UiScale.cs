@@ -71,6 +71,8 @@ public static class UiScale
 	public static float DockFactor { get; set; } = 1f;
 	/// <summary>Runde 35: wirksamer Faktor der Kommandozentrale.</summary>
 	public static float CommandFactor { get; set; } = 1f;
+	/// <summary>Runde 37 (E5): wirksamer Faktor der Menü-Schicht (Hamburger-Menü, Sternenkarte).</summary>
+	public static float MenuFactor { get; set; } = 1f;
 
 	/// <summary>Faktor neu rechnen und setzen (Fenstergröße, DPI, Stufe). Die Wurzel bleibt bei 1 (Faktor je Schicht).</summary>
 	public static void Apply()

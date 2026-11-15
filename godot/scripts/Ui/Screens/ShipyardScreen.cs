@@ -52,7 +52,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 		_scroll = null;
 		float assembly = u.StationTypes.TryGetValue(Ctx.Station.TypeKey, out var t) && t.ShipDealer is { } sd ? sd.Assembly : 0f;
 		At(inner, Text(_message.Length > 0 ? _message
-			: $"Preis = Bausatz + Module + {assembly * 100f:0} % Montage. Güteklasse wird gewürfelt: {QualityOdds(u)}",
+			: $"Preis = Bausatz + Module + {assembly * 100f:0}\u00A0% Montage. Güteklasse wird gewürfelt: {QualityOdds(u)}",
 			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 36);
 
 		var svc = Service;
@@ -93,7 +93,9 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 			: "Fehlt im Lager: " + string.Join(", ", q.Missing.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"));
 		// Phase 13: gesperrte Modelle bleiben sichtbar — statt des Materials steht, welche Forschung fehlt
 		if (q.Locked is { } locked) material = $"Nicht erforscht: {Ctx.U.Research.LockOf(UnlockKind.Model, q.Model.Key)?.Name ?? locked} — die Fraktion dieser Werft muss es erst erforschen.";
-		WrappedText(row, material, 84, 56, w - 84 - 190, 13, q.Locked is not null ? new Color(0.75f, 0.6f, 1f) : q.Missing.Count == 0 ? Green : Orange, 18);   // zweizeilig, endet vor der Kauftaste
+		float matEnd = WrappedText(row, material, 84, 56, w - 84 - 190, 13, q.Locked is not null ? new Color(0.75f, 0.6f, 1f) : q.Missing.Count == 0 ? Green : Orange, 18);   // mehrzeilig, endet vor der Kauftaste
+		// Runde 37 (Handytest r35 n44/g54: „1× Kinetisches Geschütz“ lag auf dem Kartenrand): die Karte wächst mit der Materialliste
+		if (matEnd + 8f > 112f) row.CustomMinimumSize = new Vector2(w, matEnd + 8f);
 		At(row, Text(q.Affordable ? $"{o.Price:0} Cr" : $"zu teuer · {o.Price:0} Cr", 20, q.Affordable ? Orange : Red, HorizontalAlignment.Right), w - 316, 6, 300, 28);
 		var b = At(row, new KitButton("Kaufen", new Vector2(150, 56)) { FontSize = 18, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 166, 44);
 		if (q.Locked is not null) _locked++;
@@ -104,7 +106,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 
 	/// <summary>Phase 7: Chancen der Güteklassen aus den Regeln, z. B. „Standard 70 % · Verbessert 20 % · Elite 8 % · Meisterwerk 2 %“.</summary>
 	static string QualityOdds(Universe u) => string.Join(" · ", u.Rules.QualityChances.Take(4)
-		.Select((c, i) => $"{ShipQualityNames.Name((ShipQuality)i)} {c * 100f:0} %"));
+		.Select((c, i) => $"{ShipQualityNames.Name((ShipQuality)i)}\u00A0{c * 100f:0}\u00A0%"));   // Runde 37: „%“ nie allein in einer Zeile
 
 	/// <summary>Führt ein Angebot über den Dienst aus, zeigt dessen Meldung und übernimmt bei Erfolg das neue aktive Schiff in den Kontext.</summary>
 	public ServiceResult Execute(string offer)

@@ -21,6 +21,9 @@ public partial class KitScroll : ScrollContainer
 	/// Aufsetzen und Ziehen ersetzte den Bereich, der erste Wisch von einer Taste aus rollte nicht)? Die Bereiche bauen sich dann nicht neu auf.
 	/// </summary>
 	public static bool Dragging => _active > 0 || _held > 0;
+	/// <summary>Runde 37: läuft gerade ein echter Wisch (über die Totzone hinaus) — oder endete er in diesem Bild (Loslassen nach einem Wisch ist kein Tipp)?</summary>
+	public static bool Swiping => _active > 0 || Engine.GetProcessFrames() <= _swipeEndFrame + 1;
+	static ulong _swipeEndFrame;
 	static int _active, _held;
 	bool _holding;
 
@@ -44,6 +47,34 @@ public partial class KitScroll : ScrollContainer
 		// Zweiter Gerätetest Phase 28: die gemerkte Position gleich nach dem Layout setzen (im selben Bild) — vorher stand die Liste nach jedem Neuaufbau
 		// ein oder mehrere Bilder oben, die Handelsliste sprang sichtbar zwischen oben und gerollt
 		SortChildren += ApplyPending;
+		// Runde 37 (Prüfung: Detailkarten mit halb abgeschnittener letzter Zeile): Hinweis „es geht weiter“ — Verlauf und Pfeil am unteren Rand, solange
+		// unten noch Inhalt liegt. Innerer Kindknoten (der Rollbereich ordnet ihn nicht an, er rollt nicht mit), fängt keine Eingaben
+		_hint = new MoreHint { MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+		AddChild(_hint, false, InternalMode.Back);
+	}
+
+	readonly MoreHint _hint;
+	/// <summary>Runde 37: zeigt der Bereich gerade den Hinweis „weiter unten“?</summary>
+	public bool MoreBelow => _hint.Visible;
+
+	void UpdateHint()
+	{
+		bool more = CanScroll() && GetVScrollBar() is { } bar && ScrollVertical < bar.MaxValue - bar.Page - 2;
+		if (more) { _hint.Position = new Vector2(0, Size.Y - 22f); _hint.Size = new Vector2(Size.X, 22f); }
+		if (_hint.Visible != more) _hint.Visible = more;
+	}
+
+	/// <summary>Runde 37: Verlauf zum Hintergrund und ein kleiner Pfeil — ohne Text (zählt nicht als Schrift über Inhalt).</summary>
+	sealed partial class MoreHint : Control
+	{
+		public override void _Draw()
+		{
+			var bg = new Color(0.02f, 0.04f, 0.09f);
+			var cols = new[] { new Color(bg, 0f), new Color(bg, 0f), new Color(bg, 0.85f), new Color(bg, 0.85f) };
+			DrawPolygon(new[] { new Vector2(0, 0), new Vector2(Size.X, 0), new Vector2(Size.X, Size.Y), new Vector2(0, Size.Y) }, cols);
+			float cx = Size.X - 22f, y = Size.Y - 15f;
+			DrawColoredPolygon(new[] { new Vector2(cx - 7, y), new Vector2(cx + 7, y), new Vector2(cx, y + 8) }, new Color(UiKit.Cyan, 0.9f));
+		}
 	}
 
 	void ApplyPending()
@@ -121,6 +152,7 @@ public partial class KitScroll : ScrollContainer
 
 	public override void _Process(double delta)
 	{
+		UpdateHint();
 		if (_pending < 0) return;
 		// Gerätetest Phase 28 (Startpaket-Liste sprang an den Anfang): warten, bis das Layout den Bereich wirklich rollbar macht (am Gerät dauert das länger als
 		// 4 Bilder) — erst dann setzen; nach 60 Bildern aufgeben
@@ -189,7 +221,7 @@ public partial class KitScroll : ScrollContainer
 	void Release()
 	{
 		_finger = -1;
-		if (_dragging) { _dragging = false; _active = Mathf.Max(0, _active - 1); }
+		if (_dragging) { _dragging = false; _active = Mathf.Max(0, _active - 1); _swipeEndFrame = Engine.GetProcessFrames(); }
 		if (_holding) { _holding = false; _held = Mathf.Max(0, _held - 1); }
 	}
 

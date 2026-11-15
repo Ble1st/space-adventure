@@ -122,11 +122,12 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 			foreach (var o in rental.Offers(u, st, ship).Take(3))
 			{
 				bool can = o.Amount >= 1f;
-				At(inner, Text(o.Text, 13, can ? White : Dim), rx, fy, rw, 22);
-				var b = At(inner, new KitButton(o.Key.StartsWith(RentalService.Rent + ":") ? $"Mieten {o.Price:0}" : "Zurückgeben", new Vector2(rw, 56)) { FontSize = 15, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, rx, fy + 22);
+				// Runde 37 (Prüfwerkzeug mit Kamera-Aussparung: „Leihschiff Kiebitz mieten (60 Cr + 400 …“): der Angebotstext bricht um, die Taste rückt nach
+				float ty = WrappedText(inner, o.Text, rx, fy, rw, 13, can ? White : Dim, 17);
+				var b = At(inner, new KitButton(o.Key.StartsWith(RentalService.Rent + ":") ? $"Mieten {o.Price:0}" : "Zurückgeben", new Vector2(rw, 56)) { FontSize = 15, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, rx, ty + 4f);
 				string key = o.Key;
 				if (can) b.Pressed += () => Execute(RentalService.ServiceKey, key);
-				fy += 84f;
+				fy = ty + 4f + 62f;
 			}
 	}
 

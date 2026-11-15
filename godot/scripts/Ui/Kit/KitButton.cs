@@ -143,9 +143,26 @@ public partial class KitButton : Control
 		var font = ThemeDB.FallbackFont;
 		bool left = Symbol != null || AlignLeft;
 		float room = left ? Size.X - (Symbol != null ? 58f : 14f) - 8f : Size.X - 12f;
-		foreach (var (t, sz) in new[] { (Text, FontSize), (Sub, left ? 12 : 13), (Detail, left ? 13 : 12) })
+		foreach (var (t, sz) in new[] { (Text, MainSize(font, room, left)), (Sub, left ? 12 : 13), (Detail, left ? 13 : 12) })
 			if (t.Length > 0 && Fit(font, t, sz, room) != t) return t;
 		return "";
+	}
+
+	/// <summary>
+	/// Runde 37 (Handytest r35 g21: „Station angreif…“ bei „groß“; g20: „Laser“ klebte am oberen Rand): Schriftgröße der Hauptzeile — erst kleiner bis zur
+	/// Untergrenze der Ebene (nie unter „klein“), dann erst „…“; links ausgerichtete Tasten mit Unter- und Zustandszeile halten oben und unten 4 px Rand.
+	/// </summary>
+	int MainSize(Font font, float room, bool left)
+	{
+		int size = FontSize;
+		if (left)
+		{
+			float rest = (Sub.Length > 0 ? 12 + 2 : 0) + (Detail.Length > 0 ? 13 + 2 : 0);
+			size = Math.Max(11, Math.Min(size, (int)MathF.Floor(Size.Y - 8f - rest)));
+		}
+		if (Text.Length == 0 || room <= 0f) return size;
+		int floor = Math.Min(size, SpaceSim.Core.Ui.UiLayout.FontFloor(FontSize, UiKit.LayerFactor(this)));
+		return SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(Text, HorizontalAlignment.Left, -1, fs).X, room, size, floor);
 	}
 
 	public override void _Draw()
@@ -164,18 +181,20 @@ public partial class KitButton : Control
 			float room = Size.X - tx - 8f;   // Gerätetest: Text endet vor dem Rand (Innenabstand), zu lange Zeilen mit „…“
 			// Runde 35c (Prüfwerkzeug, Hamburger-Menü: Unterlänge der Hauptzeile berührte die Unterzeile): die Zeilen als Block nach ihren Schriftgrößen
 			// senkrecht mittig gesetzt (Abstand 3), statt an festen Anteilen der Höhe
-			float total = FontSize + (Sub.Length > 0 ? 12 + 2 : 0) + (Detail.Length > 0 ? 13 + 2 : 0);
-			float y0 = MathF.Max(1f, (Size.Y - total) / 2f);
-			UiKit.DrawText(this, 0, font, new Vector2(tx, y0 + FontSize * 0.8f), Fit(font, Text, FontSize, room), FontSize, fg, full: Text);
-			y0 += FontSize + 2f;
+			int ms = MainSize(font, room, true);
+			float total = ms + (Sub.Length > 0 ? 12 + 2 : 0) + (Detail.Length > 0 ? 13 + 2 : 0);
+			float y0 = MathF.Max(4f, (Size.Y - total) / 2f);
+			UiKit.DrawText(this, 0, font, new Vector2(tx, y0 + ms * 0.8f), Fit(font, Text, ms, room), ms, fg, full: Text);
+			y0 += ms + 2f;
 			if (Sub.Length > 0) { UiKit.DrawText(this, 1, font, new Vector2(tx, y0 + 12 * 0.8f), Fit(font, Sub, 12, room), 12, UiKit.Dim, full: Sub); y0 += 12 + 2f; }
 			if (Detail.Length > 0) UiKit.DrawText(this, 2, font, new Vector2(tx, y0 + 13 * 0.8f), Fit(font, Detail, 13, room), 13, DetailColor, full: Detail);
 		}
 		else
 		{
 			// Runde 35c (Prüfwerkzeug: Text und Zustandszeile berührten sich bei 46 px hohen Tasten): mit Zustandszeile rückt der Text etwas nach oben
-			float cy = Size.Y / 2f + FontSize * 0.35f - (Sub.Length > 0 ? 8f : 0f) - (Detail.Length > 0 && Sub.Length == 0 ? 5f : 0f);
-			UiKit.DrawText(this, 0, font, new Vector2(6, cy), Fit(font, Text, FontSize, Size.X - 12f), FontSize, fg, HorizontalAlignment.Center, Size.X - 12f, Text);
+			int ms = MainSize(font, Size.X - 12f, false);
+			float cy = Size.Y / 2f + ms * 0.35f - (Sub.Length > 0 ? 8f : 0f) - (Detail.Length > 0 && Sub.Length == 0 ? 5f : 0f);
+			UiKit.DrawText(this, 0, font, new Vector2(6, cy), Fit(font, Text, ms, Size.X - 12f), ms, fg, HorizontalAlignment.Center, Size.X - 12f, Text);
 			if (Sub.Length > 0) UiKit.DrawText(this, 1, font, new Vector2(6, cy + 20f), Fit(font, Sub, 13, Size.X - 12f), 13, UiKit.Dim, HorizontalAlignment.Center, Size.X - 12f, Sub);
 			// Gerätetest: Zustandszeile unten in der Taste (vorher rechts außerhalb gezeichnet: „Com…“ am Bildrand)
 			if (Detail.Length > 0) UiKit.DrawText(this, 2, font, new Vector2(6, Size.Y - 6), Fit(font, Detail, 12, Size.X - 12f), 12, DetailColor, HorizontalAlignment.Center, Size.X - 12f, Detail);

@@ -316,30 +316,68 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			return map;
 		}
 
-		Vector2 Place(Vec2 world)
-		{
-			return MapCenter + new Vector2(world.X * ContentScale(), world.Y * ContentScale());
-		}
+		Vector2 Place(Vec2 world) { var f = Fit(); return f.Origin + new Vector2(world.X * f.Scale * f.Stretch, world.Y * f.Scale); }
 
-		/// <summary>Zoom auf den Inhalt (Stationen, Gürtel, Gates, Spieler), nicht auf den leeren Sektorrand.</summary>
-		float ContentScale()
+		/// <summary>
+		/// Runde 37 (Handytest r35 n12/n13: der Kreis nutzte nur einen kleinen Teil der Fläche, viele Stationen ohne Namen): Maßstab und Mitte aus dem
+		/// Begrenzungsrechteck des Inhalts (Stationen, Tore, Gürtel) — es füllt die Kartenfläche (Rand für Beschriftungen seitlich 70, oben/unten 34), statt
+		/// einen Kreis von mindestens 260 Einheiten in das kleinere Maß zu legen. Der Spieler bestimmt den Maßstab nicht (er steht notfalls am Rand).
+		/// </summary>
+		(float Scale, Vector2 Origin, float Stretch) Fit()
 		{
 			var s = _u.Sectors[_owner.Selected];
-			float maxD = 260f;
-			foreach (var sid in s.Stations) maxD = Mathf.Max(maxD, _u.Stations[sid].Position.Length);
-			foreach (var f in s.Fields) maxD = Mathf.Max(maxD, f.Position.Length + SpaceSim.Core.Mining.MiningRules.BeltRadius);
-			foreach (var gid in s.Gates) maxD = Mathf.Max(maxD, _u.Gates[gid].Position.Length);
-			// Gerätetest: der Spieler bestimmt den Maßstab nicht mehr (weit draußen ballte er alles in der Mitte) — er wird am Rand gezeigt
-			return (MapSize / 2f - 36f) / maxD;
+			var key = (Size, s.Id, s.Stations.Count, s.Fields.Count);   // Lagen von Stationen/Toren/Gürteln ändern sich nicht — je Größe und Sektor einmal
+			if (_fitKey == key) return _fit;
+			_fitKey = key;
+			return _fit = ComputeFit(s);
 		}
+		(Vector2, SectorId, int, int)? _fitKey;
+		(float Scale, Vector2 Origin, float Stretch) _fit;
+
+		/// <summary>Runde 37: höchste waagerechte Streckung der Draufsicht (breite Fläche auf dem Handy; Kreise bleiben Kreise, nur die Lagen rücken auseinander).</summary>
+		internal const float MaxStretch = 1.4f;
+
+		(float Scale, Vector2 Origin, float Stretch) ComputeFit(Sector s)
+		{
+			float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+			void Add(float x, float y, float r) { minX = MathF.Min(minX, x - r); maxX = MathF.Max(maxX, x + r); minY = MathF.Min(minY, y - r); maxY = MathF.Max(maxY, y + r); }
+			foreach (var sid in s.Stations) Add(_u.Stations[sid].Position.X, _u.Stations[sid].Position.Y, 10f);
+			foreach (var f in s.Fields) Add(f.Position.X, f.Position.Y, SpaceSim.Core.Mining.MiningRules.BeltRadius);
+			foreach (var gid in s.Gates) Add(_u.Gates[gid].Position.X, _u.Gates[gid].Position.Y, 10f);
+			if (minX > maxX) { minX = minY = -150f; maxX = maxY = 150f; }
+			// mindestens 160 Einheiten je Richtung (ein Sektor mit zwei nahen Stationen wird nicht riesig)
+			float cx = (minX + maxX) / 2f, cy = (minY + maxY) / 2f;
+			float bw = MathF.Max(160f, maxX - minX), bh = MathF.Max(160f, maxY - minY);
+			float w = Size.X, h = Size.Y - LegendHeight;
+			float scale = MathF.Max(0.05f, MathF.Min((w - 140f) / bw, (h - 68f) / bh));
+			// Runde 37 (Handytest r35: die Draufsicht nutzte auf dem breiten Handy nur die Mitte): ist die Fläche breiter als der Inhalt, rücken die Lagen
+			// waagerecht bis 1,4-fach auseinander — Symbole und Beschriftungen bekommen Platz, die Anordnung bleibt erkennbar
+			float stretch = Mathf.Clamp((w - 140f) / (bw * scale), 1f, MaxStretch);
+			return (scale, new Vector2(w / 2f - cx * scale * stretch, h / 2f - cy * scale), stretch);
+		}
+		float ContentScale() => Fit().Scale;
+		Vector2 MapOrigin => Fit().Origin;
 		// Runde 21 (Handy-Test b04: die Legende überlappte den Kreisrand): die Karte liegt über einem eigenen Legendenstreifen
 		internal const float LegendHeight = 60f;
-		Vector2 MapCenter => new(Size.X / 2f, (Size.Y - LegendHeight) / 2f);
-		float MapSize => Mathf.Min(Size.X, Size.Y - LegendHeight);
-		/// <summary>Runde 21: Radius, mit dem der Sektorrand gezeichnet wird (nie in den Legendenstreifen).</summary>
-		internal float RimRadius => MathF.Min(_u?.Sectors[_owner.Selected].Radius * ContentScale() ?? 0f, MapSize / 2f - 4f);
-		/// <summary>Runde 21: unterer Rand des Kreises und oberer Rand der Legende (Selbsttest).</summary>
-		internal (float CircleBottom, float LegendTop) TestLegendGap => (MapCenter.Y + RimRadius + 1f, Size.Y - 44f - 13f);
+		Rect2 MapRect => new(Vector2.Zero, new Vector2(Size.X, Size.Y - LegendHeight));
+		/// <summary>Runde 21/37: unterster Punkt des gezeichneten Sektorrands (nie in den Legendenstreifen) und Oberkante der Legende (Selbsttest).</summary>
+		float Stretch => Fit().Stretch;
+		internal (float CircleBottom, float LegendTop) TestLegendGap => (MathF.Min(MapOrigin.Y + (_u?.Sectors[_owner.Selected].Radius ?? 0f) * ContentScale(), MapRect.End.Y - 2f) + 1f, Size.Y - 44f - 13f);
+
+		/// <summary>Runde 37: Kreis nur so weit zeichnen, wie er in der Kartenfläche liegt (der Sektorrand ist oft größer als die Fläche).</summary>
+		void DrawClippedCircle(Vector2 c, float r, Color col, float width, float sx = 1f)
+		{
+			var rect = MapRect.Grow(-2f);
+			var pts = new List<Vector2>();
+			const int n = 128;
+			for (int i = 0; i <= n; i++)
+			{
+				var p = c + new Vector2(MathF.Cos(i * Mathf.Tau / n) * sx, MathF.Sin(i * Mathf.Tau / n)) * r;
+				if (rect.HasPoint(p)) pts.Add(p);
+				else { if (pts.Count >= 2) DrawPolyline(pts.ToArray(), col, width, true); pts.Clear(); }
+			}
+			if (pts.Count >= 2) DrawPolyline(pts.ToArray(), col, width, true);
+		}
 
 		public override void _GuiInput(InputEvent @event)
 		{
@@ -367,28 +405,20 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			if (_u == null) return;
 			var s = _u.Sectors[_owner.Selected];
 			float scale = ContentScale();
-			var c = MapCenter;
+			var c = MapRect.GetCenter();
 			var font = ThemeDB.FallbackFont;
 			// Gerätetest: Beschriftungen werden gesammelt und zum Schluss kollisionsfrei gesetzt (LabelLayout), Symbole halten ihren Platz frei
 			SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
 			var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(Vector2.Zero, Size - new Vector2(0, LegendHeight)), font);
 			var labels = new System.Collections.Generic.List<(int Prio, Vector2 At, string Text, int Size, Color Col, float Gap)>();
 
-			// Sektorscheibe (nur wenn im Bild), Ringe
+			// Sektorscheibe (Runde 37: nur der Teil in der Kartenfläche), Ringe
 			float edge = s.Radius * scale;
-			float rimR = RimRadius;
-			if (edge < 700f && edge <= rimR + 0.5f)
-			{
-				DrawCircle(c, edge, new Color(0.03f, 0.05f, 0.1f, 0.9f));
-				DrawArc(c, edge, 0, Mathf.Tau, 64, new Color(Edge, 0.6f), 2f, true);
-			}
-			else
-			{
-				DrawRect(new Rect2(Vector2.Zero, new Vector2(Size.X, Size.Y - LegendHeight)), new Color(0.03f, 0.05f, 0.1f, 0.9f));
-				DrawArc(c, rimR, 0, Mathf.Tau, 64, new Color(Edge, 0.6f), 2f, true);
-			}
-			DrawArc(c, edge * 0.66f, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.05f), 1f);
-			DrawArc(c, edge * 0.33f, 0, Mathf.Tau, 48, new Color(1, 1, 1, 0.05f), 1f);
+			var o = MapOrigin;
+			DrawRect(MapRect, new Color(0.03f, 0.05f, 0.1f, 0.9f));
+			DrawClippedCircle(o, edge, new Color(Edge, 0.6f), 2f, Stretch);
+			DrawClippedCircle(o, edge * 0.66f, new Color(1, 1, 1, 0.05f), 1f, Stretch);
+			DrawClippedCircle(o, edge * 0.33f, new Color(1, 1, 1, 0.05f), 1f, Stretch);
 
 			// Rohstoffgürtel (Label unterhalb des Gürtels, damit es die Stationsnamen nicht verdeckt)
 			foreach (var f in s.Fields)
@@ -423,7 +453,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				var st = _u.Stations[sid];
 				var real = Place(st.Position);
 				var p = spots[sid];
-				if (p.DistanceTo(real) > 3f) { DrawLine(real, p, new Color(Dim, 0.5f), 1f); DrawCircle(real, 2f, new Color(Dim, 0.8f)); }
+				// Runde 37 (Handytest r35: Linie zum echten Ort nicht erkennbar): deutlicher — hellere Linie und ein Ring am echten Ort
+				if (p.DistanceTo(real) > 3f) { DrawLine(real, p, new Color(White, 0.55f), 1.5f, true); DrawArc(real, 3f, 0, Mathf.Tau, 10, new Color(White, 0.8f), 1.5f, true); }
 				bool sel = _owner._selStation == sid;
 				var col = MapOverlay.FactionColor(_u.FactionOf(st) ?? default);
 				if (ConstructionInfo.Of(_u, st) is { } site)
@@ -457,7 +488,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				}
 				if (sel) DrawArc(p, 20f, 0, Mathf.Tau, 24, Cyan, 2f, true);
 				layout.ReserveCircle(p, 12f);
-				labels.Add((sel ? 0 : 1, p, st.Name, sel ? 13 : 11, sel ? Cyan : White, 14f));
+				labels.Add((sel ? 0 : 1, p, st.Name, sel ? 13 : 12, sel ? Cyan : White, 14f));
 			}
 
 			// Phase 26: Wracks (graues Kreuz) und Frachtbehälter (oranges Quadrat), echt aus Universe.Wrecks
@@ -508,15 +539,31 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				var pl = _u.Ships[_u.PlayerShip];
 				var p = Place(pl.Position);
 				// Gerätetest: weit draußen am Kartenrand mit Richtungshinweis statt den Maßstab zu sprengen
-				float rim = MapSize / 2f - 22f;
-				bool outside = (p - c).Length() > rim;
-				if (outside) p = c + (p - c).Normalized() * rim;
+				var inside = MapRect.Grow(-22f);
+				bool outside = !inside.HasPoint(p);
+				if (outside) p = new Vector2(Mathf.Clamp(p.X, inside.Position.X, inside.End.X), Mathf.Clamp(p.Y, inside.Position.Y, inside.End.Y));
 				DrawShip(p, 9f, Cyan);
 				layout.ReserveCircle(p, 10f);
 				labels.Add((0, p, outside ? $"du · #{pl.Id.Value} (außerhalb)" : $"du · #{pl.Id.Value}", 12, Cyan, 12f));
 			}
 
-			foreach (var l in labels.OrderBy(l => l.Prio)) layout.Draw(this, l.At, l.Text, l.Size, l.Col, l.Gap);
+			// Runde 37 (Handytest r35: viele Stationen ohne Namen; 4:3: Namen weit vom Symbol): passt der Name nicht, kleiner, dann nur das erste Wort
+			// („Sektor-HQ“, „Farm“) — so bleibt fast jedes Symbol beschriftet, und der Name liegt dicht am Symbol
+			TestUnlabeled = 0;
+			foreach (var l in labels.OrderBy(l => l.Prio))
+			{
+				if (layout.Draw(this, l.At, l.Text, l.Size, l.Col, l.Gap, 200f)) continue;
+				if (layout.Draw(this, l.At, l.Text, 10, l.Col, l.Gap - 2f, 160f)) continue;
+				// Tore: „→ Sektor Nebelmark“ → „→ Nebelmark“ (das erste Wort allein wäre nur der Pfeil)
+				string shortT = l.Text.Replace("Sektor ", "");
+				if (shortT != l.Text && layout.Draw(this, l.At, shortT, 10, l.Col, l.Gap - 2f, 160f)) continue;
+				if (l.Prio <= 2 && layout.DrawWithLeader(this, l.At, shortT, 10, l.Col, l.Gap - 2f)) continue;
+				var words = shortT.Split(' ');
+				string first = words[0] == "→" && words.Length > 1 ? "→ " + words[1] : words[0];
+				if (first != shortT && layout.Draw(this, l.At, first, 10, l.Col, l.Gap - 2f, 120f)) continue;
+				if (first != shortT && l.Prio <= 2 && layout.DrawWithLeader(this, l.At, first, 10, l.Col, l.Gap - 2f)) continue;
+				if (l.Prio <= 1) TestUnlabeled++;
+			}
 			// Legende zweizeilig, gekürzt auf die Breite (lief auf dem Handy über den Rand)
 			float lw = Size.X - 24f;
 			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 900, font, new Vector2(12, Size.Y - 44), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du", 13, lw, new Color(Dim, 0.8f));
@@ -536,6 +583,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		}
 	}
 
+	/// <summary>Runde 37: Stationen/Spieler ohne Beschriftung beim letzten Zeichnen (Selbsttest).</summary>
+	public static int TestUnlabeled { get; private set; }
 	/// <summary>Selbsttest: Planet in der zuletzt gezeichneten Sektor-Detailkarte (Phase 14; leer ohne Planet).</summary>
 	public string TestPlanet { get; private set; } = "";
 	/// <summary>Phase 27: Flottenzeile der Sektorkarte (Verbände/Geleit/Verfolgung; leer = keine) und Zahl der gezeichneten Verbindungslinien.</summary>

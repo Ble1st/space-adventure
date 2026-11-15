@@ -91,10 +91,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			row.AddThemeStyleboxOverride("panel", Box(active ? new Color(0.12f, 0.22f, 0.4f, 0.95f) : Card, active ? Cyan : Edge, 10, 2, 12));
 			row.CustomMinimumSize = new Vector2(lw - 20f, 92);
 			var s2 = s;
-			row.GuiInput += e =>
-			{
-				if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) { _detailShip = s2.Id; Invalidate(); row.AcceptEvent(); }
-			};
+			UiKit.OnTap(row, () => { _detailShip = s2.Id; Invalidate(); });   // Runde 37: Wisch wählt nichts
 			row.AddChild(new AssetRow(u, s2, active, Ctx.Docked, lw - 44f));
 			list.AddChild(row);
 		}

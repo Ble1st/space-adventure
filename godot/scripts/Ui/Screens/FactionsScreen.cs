@@ -21,7 +21,15 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.factions";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
-	public void ResetSession() { Selected = null; }
+	public void ResetSession() { Selected = null; _detailOpen = false; }
+
+	/// <summary>
+	/// Runde 37 (Handytest r35 g12: schmal lag die Liste über dem Detail mit doppeltem Rollen, nur ≈ 2,5 Zeilen sichtbar): schmal zeigt der Bereich entweder
+	/// die Liste über die ganze Höhe oder — nach dem Antippen einer Zeile — das Detail mit „← Liste“.
+	/// </summary>
+	bool _detailOpen;
+	/// <summary>Selbsttest: schmal ist das Detail offen.</summary>
+	public bool TestDetailOpen { get => _detailOpen; set { _detailOpen = value; Invalidate(); } }
 
 	/// <summary>Angezeigter Akteur (null = erste Fraktion); setzt der Aufrufer oder Antippen.</summary>
 	public ActorId? Selected { get; set; }
@@ -68,8 +76,15 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		var sel = Selected is { } s && rows.Any(r => r.Id == s) ? s : rows[0].Id;
 
 		// ── Liste links (scrollbar: aufgestiegene Einzelakteure kommen und gehen) ──
-		bool narrow = Narrow(inner);   // Runde 35: schmal — Liste oben, Detail darunter
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 12, 12, narrow ? InnerW(inner) - 24f : 404, narrow ? 230 : 500);
+		bool narrow = Narrow(inner);   // Runde 35/37: schmal — Liste oder Detail
+		if (!narrow || !_detailOpen) BuildList(inner, u, rows, sel, narrow);
+		if (narrow && !_detailOpen) return;
+		BuildDetail(inner, u, rows, sel, narrow);
+	}
+
+	void BuildList(Control inner, Universe u, List<ActorStat> rows, ActorId sel, bool narrow)
+	{
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 12, 12, narrow ? InnerW(inner) - 24f : 404, narrow ? InnerH(inner) - 24f : 500);
 		var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
@@ -80,19 +95,32 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			row.AddThemeStyleboxOverride("panel", Box(isSel ? new Color(0.14f, 0.24f, 0.42f, 0.95f) : Card, isSel ? Cyan : null, 8, isSel ? 2 : 0, 8));
 			row.CustomMinimumSize = new Vector2(388, 84);
 			var id = a.Id;
-			row.GuiInput += e =>
-			{
-				if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) { Selected = id; Invalidate(); row.AcceptEvent(); }
-			};
+			UiKit.OnTap(row, () => { Selected = id; if (narrow) _detailOpen = true; Invalidate(); });   // Runde 37: Wisch wählt nichts; schmal öffnet das Detail
 			float rel = Relations.Effective(u, a.Id, u.PlayerActor);
 			row.AddChild(new ActorRow(a, ColorOf(u, a.Id), rel, isSel));
 			list.AddChild(row);
 		}
+	}
 
-		// ── Detail rechts ──
+	void BuildDetail(Control inner, Universe u, List<ActorStat> rows, ActorId sel, bool narrow)
+	{
+		// ── Detail rechts (schmal: über die ganze Fläche, mit „← Liste“) ──
 		var stat = rows.First(r => r.Id == sel);
 		var actor = u.Actors[sel];
-		var det = narrow ? CardBg(inner, 12, 254, MathF.Max(598f, InnerW(inner) - 24f), 500, Card) : CardBg(inner, 424, 12, 598, 500, Card);
+		float dy = 12f;
+		if (narrow)
+		{
+			var back = At(inner, new KitButton("← Liste", new Vector2(160, 56)) { FontSize = 17 }, 12, 8);
+			back.Pressed += () => { _detailOpen = false; Invalidate(); };
+			dy = 72f;
+		}
+		// Runde 37 (Handytest r35 n14: bei „normal“ lagen die Knöpfe unter dem Rand): Karte in der Höhe der Fläche, Knöpfe als fester Fuß, der Text darüber rollt
+		float detW = narrow ? MathF.Max(598f, InnerW(inner) - 24f) : 598f;
+		float detH = MathF.Max(300f, InnerH(inner) - dy - 12f);
+		var frame = narrow ? CardBg(inner, 12, dy, detW, detH, Card) : CardBg(inner, 424, 12, detW, detH, Card);
+		var bodyScroll = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 0, detW, detH - 76f);
+		var det = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(detW - 8f, 10) };
+		bodyScroll.AddChild(det);
 		bool isFaction = actor.IsFaction(u);
 		bool isFree = actor.Kind == ActorKind.Free;
 		At(det, new ColorRect { Color = ColorOf(u, sel), CustomMinimumSize = new Vector2(22, 22), Size = new Vector2(22, 22), MouseFilter = MouseFilterEnum.Ignore }, 18, 18);
@@ -180,12 +208,13 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		}
 
 		// Knöpfe
-		var bComms = At(det, new KitButton("Kontakt aufnehmen", new Vector2(220, 56)) { FontSize = 17 }, 362, 432);
+		det.CustomMinimumSize = new Vector2(detW - 8f, UiKit.ContentBottom(det) + 8f);
+		var bComms = At(frame, new KitButton("Kontakt aufnehmen", new Vector2(220, 56)) { FontSize = 17 }, 362, detH - 68f);
 		bComms.Pressed += () => CommsRequested?.Invoke();
 		bComms.Detail = UiPlaceholders.Tag;
 		if (isFaction)
 		{
-			var bMap = At(det, new KitButton("Gebiet auf Karte", new Vector2(200, 56)) { FontSize = 16 }, 150, 432);
+			var bMap = At(frame, new KitButton("Gebiet auf Karte", new Vector2(200, 56)) { FontSize = 16 }, 150, detH - 68f);
 			var f = new FactionId(sel.Value);
 			bMap.Pressed += () => TerritoryRequested?.Invoke(f);
 		}

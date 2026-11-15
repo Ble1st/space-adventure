@@ -51,7 +51,36 @@ public partial class CommandMenu : Control, IScreen
 	}
 
 	/// <summary>Phase 14: Notruf nur mit eingeschaltetem Treibstoff anzeigen.</summary>
-	public void SetFuelActive(bool on) { if (_emergency is not null) _emergency.Visible = on; }
+	public void SetFuelActive(bool on) { if (_emergency is not null && _emergency.Visible != on) { _emergency.Visible = on; LayoutSystemRows(); } }
+
+	readonly System.Collections.Generic.List<KitButton> _systemButtons = new();
+	readonly System.Collections.Generic.List<HBoxContainer> _systemRows = new();
+	VBoxContainer _list = null!;
+
+	/// <summary>Runde 37: Systemtasten zu zweit je Zeile — nur die sichtbaren (ausgeblendeter „Notruf“ hinterlässt keine halbe Zeile).</summary>
+	void LayoutSystemRows()
+	{
+		foreach (var r in _systemRows) { foreach (var c in r.GetChildren()) r.RemoveChild(c); _list.RemoveChild(r); r.QueueFree(); }
+		_systemRows.Clear();
+		HBoxContainer? row = null;
+		foreach (var b in _systemButtons)
+		{
+			if (b.GetParent() is { } old) old.RemoveChild(b);
+			if (!b.Visible) { _hidden.AddChild(b); continue; }
+			if (row is null || row.GetChildCount() >= 2)
+			{
+				row = new HBoxContainer { CustomMinimumSize = new Vector2(540, 52) };
+				row.AddThemeConstantOverride("separation", 10);
+				_list.AddChild(row);
+				_systemRows.Add(row);
+			}
+			row.AddChild(b);
+		}
+	}
+	/// <summary>Halter der ausgeblendeten Systemtasten (nicht im Baum der Liste).</summary>
+	readonly Control _hidden = new() { Visible = false };
+	/// <summary>Selbsttest: Zahl der Tasten je Systemzeile.</summary>
+	public System.Collections.Generic.List<int> TestSystemRows => _systemRows.ConvertAll(r => r.GetChildCount());
 	/// <summary>Selbsttest: ist der Menüpunkt „Notruf“ sichtbar?</summary>
 	public bool TestEmergencyVisible => _emergency?.Visible ?? false;
 	/// <summary>Runde 33 (Handytest): Menüzeile „UI-Größe“ — Text, Unterzeile, Überlauf (leer = passt) und Bildschirmmitte für einen echten Tipp.</summary>
@@ -67,6 +96,7 @@ public partial class CommandMenu : Control, IScreen
 		Visible = false;
 		_win = new KitWindow("Menü", new Vector2(580, 688)) { Position = new Vector2(350, 16) };
 		AddChild(_win);
+		AddChild(_hidden);
 		var scroll = new KitScroll { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
 		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		list.AddThemeConstantOverride("separation", 8);
@@ -110,15 +140,10 @@ public partial class CommandMenu : Control, IScreen
 		// ── System ──
 		list.AddChild(Text("SYSTEM", 15, Cyan));
 		// Gerätetest Phase 28: zwei Tasten je Zeile — „Neues Spiel“ ist ohne Rollen erreichbar
-		HBoxContainer? row = null;
+		// Runde 37 (Handytest r35: „Speichern“ stand allein in einer Zeile — der ausgeblendete „Notruf“ belegte ihren Nachbarplatz): die Zeilen werden aus den
+		// sichtbaren Tasten gelegt (LayoutSystemRows), ausgeblendete zählen nicht
 		foreach (var (label, sub, key) in Entries)
 		{
-			if (row is null || row.GetChildCount() >= 2)
-			{
-				row = new HBoxContainer { CustomMinimumSize = new Vector2(540, 52) };
-				row.AddThemeConstantOverride("separation", 10);
-				list.AddChild(row);
-			}
 			var b = new KitButton(label, new Vector2(265, 52)) { AlignLeft = true, FontSize = 19, Sub = sub };
 			string k = key;
 			b.Pressed += () => Action?.Invoke(k);
@@ -126,8 +151,10 @@ public partial class CommandMenu : Control, IScreen
 			if (k == "music_mute") _music = b;
 			if (k == "effects_mute") _effects = b;
 			if (k == "ui_size") _uiSize = b;
-			row.AddChild(b);
+			_systemButtons.Add(b);
 		}
+		_list = list;
+		LayoutSystemRows();
 		scroll.AddChild(list);
 		_win.Content.AddChild(scroll);
 		var close = new KitButton("Schließen", new Vector2(540, 56)) { FontSize = 20 };
@@ -148,7 +175,25 @@ public partial class CommandMenu : Control, IScreen
 			: "Freie Kamera: Mit einem Finger wischen schwenkt, mit zwei Fingern zoomt (Mausrad am Desktop).";
 	}
 
-	public void Open() { Visible = true; QueueRedraw(); }
+	public void Open() { Visible = true; LayoutWindow(); QueueRedraw(); }
+
+	/// <summary>
+	/// Runde 37 (UI-ANPASSUNG.md E5): das Menü liegt in der Menü-Schicht mit dem UI-Faktor — Fenster mittig, höchstens 688 hoch und nie höher als die
+	/// Fläche (die Liste rollt; „Schließen“ bleibt unten im Fenster). Vorher fest 580 × 688 bei (350, 16) in einer 1280 breiten Mitte.
+	/// </summary>
+	void LayoutWindow()
+	{
+		if (Size.X <= 0f || Size.Y <= 0f) return;
+		float h = MathF.Min(688f, Size.Y - 24f);
+		_win.CustomMinimumSize = new Vector2(580, h);
+		_win.Size = new Vector2(580, h);
+		_win.Position = new Vector2(MathF.Max(8f, (Size.X - 580f) / 2f), MathF.Max(8f, (Size.Y - h) / 2f));
+	}
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationResized) LayoutWindow();
+	}
 	public void Close() => Visible = false;
 	public void Refresh() { }
 

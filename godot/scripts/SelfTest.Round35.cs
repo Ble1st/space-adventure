@@ -174,7 +174,7 @@ public partial class SelfTest
 			case 100:
 			{
 				var (rb, rb0, fit, rows) = _m.HudRef.DockTrade.TestTimeRebuild(20);
-				GD.Print($"[perf] Handelsliste Werft Delta: Neuaufbau {rb:0.00} ms (ohne Einpassen der Labels {rb0:0.00} ms), Namens-Einpassung aller {rows} Zeilen beim Zeichnen {fit:0.000} ms ungespeichert, {_m.HudRef.DockTrade.CachedFitMs:0.000} ms mit Zwischenspeicher (Mittel aus 20 Durchgängen, der erste füllt den Speicher)");
+				GD.Print($"[perf] Handelsliste Werft Delta: Neuaufbau {rb:0.00} ms (ohne Einpassen der Labels {rb0:0.00} ms), Namens-Einpassung aller {rows} Zeilen beim Zeichnen {fit:0.000} ms ungespeichert, {_m.HudRef.DockTrade.CachedFitMs:0.000} ms mit dem Zwischenspeicher des Spiels (FitName wie beim Zeichnen; erster, kalter Durchgang {_m.HudRef.DockTrade.ColdFitMs:0.000} ms)");
 				Check(rows > 30, $"35b: Handelsliste mit {rows} Zeilen gemessen");
 				_m.TestUndock();
 				_m.TestMenu("new:combat");

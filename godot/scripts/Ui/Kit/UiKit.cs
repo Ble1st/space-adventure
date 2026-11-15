@@ -95,6 +95,26 @@ public static class UiKit
 	}
 
 	/// <summary>Runde 35b: Faktor der Ebene, in der das Element liegt (Maßstab der globalen Transformation; außerhalb des Baums 1).</summary>
+	/// <summary>
+	/// Runde 37 (Handytest r35: ein Wisch in der Fraktionsliste wählte am Ende die Zeile unter dem Finger): Tipp-Erkennung für Listenzeilen ohne
+	/// <see cref="KitButton"/> — ausgelöst wird beim Loslassen, nur wenn Drücken und Loslassen auf dieser Zeile lagen, der Finger höchstens
+	/// <see cref="KitScroll.Deadzone"/> Pixel wanderte und kein Rollbereich gerade wischt. Ein Wisch über die Totzone wählt nie etwas.
+	/// </summary>
+	public static void OnTap(Control row, Action tapped)
+	{
+		Vector2? down = null;
+		row.GuiInput += e =>
+		{
+			if (!Pointer.TryRead(e, out _, out var pos, out bool pressed, out bool motion)) return;
+			var at = row.GetGlobalTransformWithCanvas() * pos;
+			if (motion) { if (down is { } d0 && (d0.DistanceTo(at) > KitScroll.Deadzone || KitScroll.Swiping)) down = null; return; }
+			if (pressed) { down = at; return; }
+			bool fire = down is { } d && d.DistanceTo(at) <= KitScroll.Deadzone && !KitScroll.Swiping && new Rect2(Vector2.Zero, row.Size).HasPoint(pos);
+			down = null;
+			if (fire) { tapped(); row.AcceptEvent(); }
+		};
+	}
+
 	public static float LayerFactor(CanvasItem c) => c.IsInsideTree() ? MathF.Max(1f, c.GetGlobalTransform().Scale.Y) : 1f;
 
 	/// <summary>

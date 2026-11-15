@@ -197,7 +197,6 @@ public partial class Hud : CanvasLayer
 		Economy.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
 		Economy.Position = new Vector2(-470, 10);
 		root.AddChild(Economy);
-		root.AddChild(Map);
 		// Gerätetest (breite Displays): Vollbild-Bildschirme sind für 1280 × 720 gebaut — sie liegen mittig in einer 1280 breiten Fläche, die Ränder deckt
 		// ein dunkler Hintergrund ab (statt schwarzer Balken über das ganze Spiel); Flug-HUD, Karte und Meldungen nutzen die volle Breite
 		_backdrop.Color = new Color(0.01f, 0.02f, 0.05f, 1f);
@@ -209,7 +208,12 @@ public partial class Hud : CanvasLayer
 		_center.AnchorLeft = 0.5f; _center.AnchorRight = 0.5f; _center.AnchorTop = 0f; _center.AnchorBottom = 1f;
 		_center.OffsetLeft = -640f; _center.OffsetRight = 640f; _center.OffsetTop = 0f; _center.OffsetBottom = 0f;
 		root.AddChild(_center);
-		_center.AddChild(Command);
+		// Runde 37 (UI-ANPASSUNG.md E5): Sternenkarte und Hamburger-Menü in einer eigenen, ganzflächigen Schicht mit dem UI-Faktor (vorher fest 1 in einer
+		// 1280 breiten Mitte) — beide legen sich aus ihrer Fläche aus
+		_menuLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
+		root.AddChild(_menuLayer);
+		_menuLayer.AddChild(Map);
+		_menuLayer.AddChild(Command);
 		// Runde 34 (UI-ANPASSUNG.md E3): Dock-Menü und Dock-Bereiche liegen in einer eigenen Schicht über die ganze Fläche (statt mittig in 1280 Breite), mit
 		// dem Faktor der Dock-Schicht (DockLayout.FitFactor) — gleiche Idee wie das Flug-HUD
 		_dockLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -230,6 +234,9 @@ public partial class Hud : CanvasLayer
 	public bool AnyModalOpen => Map.Visible || Screens.Current != null;
 
 	readonly Control _center = new();
+	/// <summary>Runde 37 (E5): Schicht von Sternenkarte und Hamburger-Menü (ganze Fläche, Faktor <see cref="MenuFactor"/>).</summary>
+	readonly Control _menuLayer = new();
+	public float MenuFactor => _menuLayer.Scale.X;
 	/// <summary>Runde 34: Schicht der Dock-Bildschirme (ganze Fläche, Faktor <see cref="DockFactor"/>).</summary>
 	readonly Control _dockLayer = new();
 	/// <summary>Runde 35: Schicht der Kommandozentrale (ganze Fläche, Faktor <see cref="CcFactor"/>).</summary>
@@ -273,6 +280,13 @@ public partial class Hud : CanvasLayer
 			_ccLayer.Scale = new Vector2(cf, cf);
 			_ccLayer.Size = vp / cf;
 			UiScale.CommandFactor = cf;
+			// Runde 37 (E5): Menü-Schicht mit der Stufe selbst (UiScale.Factor ist schon auf die Mindestfläche 960 × 540 begrenzt; das Menüfenster wird
+			// höchstens so hoch wie die Fläche, die Sternenkarte rechnet ihren Maßstab aus der Fläche)
+			_menuLayer.AnchorLeft = 0f; _menuLayer.AnchorTop = 0f; _menuLayer.AnchorRight = 0f; _menuLayer.AnchorBottom = 0f;
+			_menuLayer.Position = Vector2.Zero;
+			_menuLayer.Scale = new Vector2(f, f);
+			_menuLayer.Size = vp / f;
+			UiScale.MenuFactor = f;
 		}
 		bool flight = Screens.Current == null || Screens.Current == Flight;
 		float s = flight ? Flight.Scale.X : UiScale.ScreensFactor;   // Runde 33b: der wirksame Faktor der Flug-Schicht (kann unter der Stufe liegen)
