@@ -100,22 +100,67 @@ public partial class SelfTest
 		}
 		if (f == 100)
 		{
-			// Safe Area: Ränder in Einheiten der Schicht (Aussparung links, Gestenleiste unten)
+			// Safe Area: Ränder in Bildpunkten bei Faktor 1 (Aussparung links, Gestenleiste unten)
 			FlightHud_TestInsets(new UiInsets(44, 14, 30, 24));
 			return false;
 		}
 		if (f == 104)
 		{
 			var vis = GetViewport().GetVisibleRect().Size;
-			float k = fl.Scale.X;
-			var usable = new Rect2(new Vector2(44, 14) * k, vis - new Vector2(44 + 30, 14 + 24) * k);
+			var usable = new Rect2(new Vector2(44, 14), vis - new Vector2(44 + 30, 14 + 24));
 			CheckFlightRects("Safe Area", usable);
 			FlightHud_TestInsets(null);
+			// Runde 33b: Kriegstest (Bollwerk, fünf Schächte) bei Faktor 1,3 — echte Tipps auf skalierte Tasten
+			_m.TestMenu("new:war");
+			return false;
+		}
+		if (f == 150)
+		{
+			UiScale.TestForce = 1.3f; UiScale.Apply();
+			return false;
+		}
+		if (f == 156)
+		{
+			int bays = _m.TestBayPlaces.Count();
+			Check(bays >= 5 && fl.Layout is { Compact: true, Overflow: 0 } && fl.Scale.X < 1.3f - 0.001f && fl.Scale.X >= 1f && fl.WantedFactor == 1.3f,
+				$"33b: {bays} Schächte bei Stufe 1,3 → Schicht {fl.Scale.X:0.00} (gesenkt, jede Taste eigene Zelle; Überlauf {fl.Layout?.Overflow})");
+			CheckFlightRects("33b fünf Schächte", new Rect2(Vector2.Zero, GetViewport().GetVisibleRect().Size));
+			_r33Tap = root.GetFinalTransform() * fl.TestTurnLeftRect.GetCenter();
+			PushWindow(_r33Tap, true);
+			return false;
+		}
+		if (f == 158) { Check(fl.TurnLeftHeld, "33b: echter Tipp auf ◀ bei Faktor 1,3 hält die Taste"); PushWindow(_r33Tap, false); return false; }
+		if (f == 160)
+		{
+			_m.TestSetSlider(0f);
+			_r33Tap = root.GetFinalTransform() * fl.TestSliderPoint(0.75f);
+			PushWindow(_r33Tap, true);
+			return false;
+		}
+		if (f == 162) { PushWindow(_r33Tap, false); return false; }
+		if (f == 164)
+		{
+			Check(Mathf.Abs(fl.SliderValue - 0.75f) < 0.06f, $"33b: Tipp auf 75 % des skalierten Schubreglers ergibt {fl.SliderValue:0.00}");
+			_m.TestSetSlider(0f);
+			_r33Fire = _m.TestFight.AutoFire;
+			_r33Tap = root.GetFinalTransform() * fl.TestAutoFireGlobal.GetCenter();
+			PushWindow(_r33Tap, true);
+			return false;
+		}
+		if (f == 166) { PushWindow(_r33Tap, false); return false; }
+		if (f == 170)
+		{
+			Check(_m.TestFight.AutoFire != _r33Fire, $"33b: echter Tipp auf „Dauerfeuer“ bei Faktor 1,3 schaltet um ({_r33Fire} → {_m.TestFight.AutoFire})");
+			// Leviathan (zehn Waffenschächte): die sechste Taste fasst den Rest zusammen
+			var d = new Ui.Screens.FlightHudData { HasWeapons = true };
+			d.Bays = Enumerable.Range(0, 10).Select(i => new Ui.Screens.BayView { Name = $"Laser {i + 1}", Place = "Turm", Detail = "", State = i % 2 == 0 ? SpaceSim.Core.Weapons.BayState.Ready : SpaceSim.Core.Weapons.BayState.Reloading }).ToList();
+			fl.Refresh(d);
+			Check(fl.TestBay6Text == "+5 weitere", $"33b: zehn Schächte → sechste Taste „{fl.TestBay6Text}“");
 			UiScale.TestForce = null; UiScale.TestPpi = null;
 			UiScale.Set(UiSize.Normal);
 			return false;
 		}
-		if (f == 108)
+		if (f == 176)
 		{
 			Check(fl.Scale.X == UiScale.Factor && root.ContentScaleFactor == 1f, $"E2: zurück (Schicht {fl.Scale.X}, Faktor {UiScale.Factor})");
 			return true;
@@ -124,6 +169,7 @@ public partial class SelfTest
 	}
 
 	Vector2 _r33Tap;
+	bool _r33Fire;
 
 	void FlightHud_TestInsets(UiInsets? ins)
 	{

@@ -37,7 +37,7 @@ public partial class UiCheck : Node
 	};
 	static readonly float[] Factors = { 1f, 1.15f, 1.3f };
 
-	sealed record Finding(string State, int W, int H, float Factor, int Interactive, int Overlaps, int Truncated, int Small7, int Small5, int Outside, float Fill,
+	sealed record Finding(string State, int W, int H, float Factor, int Interactive, int Overlaps, int Truncated, int Small7, int Small5, int Outside, float Fill, int ShipCovered, float Effective,
 		List<string> Notes);
 	readonly List<Finding> _results = new();
 	readonly List<(string Name, Action Setup, int Wait)> _plan = new();
@@ -87,17 +87,26 @@ public partial class UiCheck : Node
 		if (!FlightOnly)
 		{
 			Add("sternenkarte", () => { _m.HudRef.HideAlert(); _m.TestCommand("map"); }, 12);
-			Add("dockmenue", () =>
+			// Runde 34 (E3): Dock-Menü und alle Dock-Bereiche — an der Werft und an weiteren Stationen für die Bereiche, die die Werft nicht hat (Lager, Behörde,
+			// Taxi …); jeder Bereich wird einmal vermessen
+			var seenAreas = new HashSet<string>();
+			foreach (var typeKey in new[] { "shipyard", "warehouse", "sector_hq", "trade_station" })
 			{
-				_m.HudRef.Map.Visible = false;
-				var yard = u().StationsById().First(s => s.TypeKey == "shipyard");
-				_m.TestDockAt(yard.Id);
-				// alle verfügbaren Dock-Bereiche dieser Station gleich hinter diesen Schritt einreihen
-				int at = 0;
-				foreach (var def in _m.TestDockAreas().Where(d => d.Available).Select(d => d.Id).ToList())
-					_plan.Insert(at++, ("dock-" + def, () => _m.TestOpenDockArea(def), 12));
-			}, 20);
-			Add("kz-open", () => { _m.TestUndock(); }, 20);
+				string tk = typeKey;
+				Add(tk == "shipyard" ? "dockmenue" : "dockmenue-" + tk, () =>
+				{
+					_m.HudRef.Map.Visible = false;
+					if (_m.TestDocked) _m.TestUndock();
+					var st = u().StationsById().FirstOrDefault(s => s.TypeKey == tk);
+					if (st is null) return;
+					_m.TestDockAt(st.Id);
+					int at = 0;
+					foreach (var def in _m.TestDockAreas().Where(d => d.Available).Select(d => d.Id).ToList())
+						if (seenAreas.Add(def)) _plan.Insert(at++, ("dock-" + def, () => _m.TestOpenDockArea(def), 12));
+				}, 20);
+			}
+			Add("dock-menue-toast", () => { _m.TestOpenCommand(); _m.HudRef.Toast(UiScale.ShortText() + " — zweite Zeile zum Messen des Umbruchs über dem offenen Menü", 30f); }, 12);
+			Add("kz-open", () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); }, 20);
 			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
 				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
 			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
@@ -135,7 +144,7 @@ public partial class UiCheck : Node
 				_first = null;
 				_results.Add(pick);
 				_lastMeasured = pick.State;
-				foreach (var note in pick.Notes.Where(x => x.StartsWith("außerhalb") || x.StartsWith("Überlappung") || x.StartsWith("gekürzt") || x.StartsWith("Taste gekürzt"))) GD.Print($"[ui-check]   {note}");
+				foreach (var note in pick.Notes.Where(x => x.StartsWith("außerhalb") || x.StartsWith("Schiff verdeckt") || x.StartsWith("Überlappung") || x.StartsWith("gekürzt") || x.StartsWith("Taste gekürzt"))) GD.Print($"[ui-check]   {note}");
 				GD.Print($"[ui-check] {pick.W}x{pick.H} f{pick.Factor:0.00} {pick.State}: Tasten {pick.Interactive}, Überlappung {pick.Overlaps}, gekürzt {pick.Truncated}, <7 mm {pick.Small7}, <5 mm {pick.Small5}, außerhalb {pick.Outside}, Füllgrad {(pick.Fill < 0 ? "–" : $"{pick.Fill * 100:0} %")}");
 			}
 			_skip = false;
@@ -211,7 +220,8 @@ public partial class UiCheck : Node
 		float f = Factors[_factorIdx];
 		var vp = GetViewport().GetVisibleRect();
 		// Runde 33: Faktor je Schicht — die Wurzel bleibt bei 1, die Flug-Schicht trägt den Faktor (Vollbilder bis E3–E5 bei 1)
-		if (MathF.Abs(UiScale.Factor - f) > 0.001f || MathF.Abs(_m.HudRef.Flight.Scale.X - f) > 0.001f) GD.PrintErr($"[ui-check] Flug-Faktor {_m.HudRef.Flight.Scale.X} statt {f}");
+		// Runde 33b: die Flug-Schicht darf unter dem Stufenfaktor liegen (FitFactor: lieber kleiner als zwei Tasten in einer Zelle), nie darüber
+		if (MathF.Abs(UiScale.Factor - f) > 0.001f || _m.HudRef.Flight.Scale.X > f + 0.001f) GD.PrintErr($"[ui-check] Flug-Faktor {_m.HudRef.Flight.Scale.X} statt ≤ {f}");
 		float rootF = GetTree().Root.ContentScaleFactor;   // globale Rechtecke sind in Bildpunkten dieser Wurzel (Skalierung der Schicht ist darin enthalten)
 		if (GetTree().Root.Size != WindowFor(w, h)) GD.PrintErr($"[ui-check] Fenster {GetTree().Root.Size} statt {WindowFor(w, h)} ({w}×{h})");
 		var font = ThemeDB.FallbackFont;
@@ -250,6 +260,17 @@ public partial class UiCheck : Node
 			}
 		}
 		// Füllgrad eines Vollbild-Bildschirms: Fläche der sichtbaren Inhalte (Hülle) / sichtbare Fläche
+		// Runde 33b: eigenes Schiff im Flug nicht verdeckt — keine sichtbare Taste, keine Meldung, kein Hinweis über der Schiffsmitte (±16 px)
+		int covered = 0;
+		float eff = modal is null ? _m.HudRef.Flight.Scale.X : modal.GetGlobalTransform().Scale.X;
+		if (modal is null && _m.HudRef.Flight.IsVisibleInTree() && _m.HudRef.Flight.ShipScreen is { } sp)
+		{
+			var box = new Rect2(sp - new Vector2(16f, 16f), new Vector2(32f, 32f));
+			var cover = inter.Where(c => Clipped(c).Intersects(box)).Select(c => Label(c)).ToList();
+			if (_m.HudRef.AlertRect is { } ar && ar.Intersects(box)) cover.Add("Meldung");
+			if (_m.HudRef.ToastRect is { } tr && tr.Intersects(box)) cover.Add("Hinweis");
+			if (cover.Count > 0) { covered = 1; notes.Insert(0, $"Schiff verdeckt von {string.Join(", ", cover)} bei {sp.X:0},{sp.Y:0}"); }
+		}
 		float fill = -1f;
 		if (_m.HudRef.Screens.Current is Control screen && screen.IsVisibleInTree() && screen is not SpaceAdventure.Ui.Screens.CommandMenu)
 		{
@@ -260,7 +281,7 @@ public partial class UiCheck : Node
 				fill = box.Size.X * box.Size.Y / (vp.Size.X * vp.Size.Y);
 			}
 		}
-		return new Finding(state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, notes);
+		return new Finding(state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, covered, eff, notes);
 	}
 
 	static string Label(Control c) => c switch { KitButton k => Short(k.Text), Label l => Short(l.Text), _ => c.GetType().Name };
@@ -270,7 +291,7 @@ public partial class UiCheck : Node
 	{
 		UiScale.TestPpi = null; UiScale.TestCap = null; UiScale.TestForce = null;
 		UiScale.Apply();
-		var sb = new StringBuilder("UI-PRÜFUNG (Runde 31/33): je Bildschirm × Fenster × UI-Faktor (Runde 33: Faktor der Flug-Schicht; Vollbilder bleiben bei 1) — Ü Überlappungen interaktiver Elemente, K gekürzte Texte, "
+		var sb = new StringBuilder("UI-PRÜFUNG (Runde 31/33/34): je Bildschirm × Fenster × UI-Faktor der Stufe (wirkt je Schicht; in Klammern der wirksame Faktor, wenn die Schicht ihn senken musste; S! = eigenes Schiff verdeckt) — Ü Überlappungen interaktiver Elemente, K gekürzte Texte, "
 			+ "T7/T5 Tippflächen unter 7/5 mm (angenommene DPI), A außerhalb der Fläche, F Füllgrad eines Vollbild-Bildschirms\n");
 		foreach (var (w, h, ppi, dev) in Sizes) sb.AppendLine($"  {w}×{h}: {dev}, {ppi:0} ppi, Taste 56 px = {UiLayout.Millimetres(56f, w, h, 1f, ppi):0.0} mm bei Faktor 1, DPI-Ziel {UiLayout.DpiFactor(w, h, ppi):0.00}×");
 		foreach (float f in Factors)
@@ -285,7 +306,7 @@ public partial class UiCheck : Node
 				foreach (var (w, h, _, _) in Sizes)
 				{
 					var r = _results.FirstOrDefault(x => x.State == state && x.W == w && x.H == h && x.Factor == f);
-					sb.Append(r is null ? $" | {"–",-22}" : $" | {$"Ü{r.Overlaps} K{r.Truncated} T7 {r.Small7}/{r.Interactive} T5 {r.Small5} A{r.Outside}{(r.Fill < 0 ? "" : $" F{r.Fill * 100:0}%")}",-22}");
+					sb.Append(r is null ? $" | {"–",-26}" : $" | {$"Ü{r.Overlaps} K{r.Truncated} T7 {r.Small7}/{r.Interactive} T5 {r.Small5} A{r.Outside}{(r.ShipCovered > 0 ? " S!" : "")}{(r.Fill < 0 ? "" : $" F{r.Fill * 100:0}%")}{(MathF.Abs(r.Effective - r.Factor) > 0.005f ? $" ({r.Effective:0.00})" : "")}",-26}");
 				}
 				sb.AppendLine();
 			}
@@ -297,7 +318,7 @@ public partial class UiCheck : Node
 		System.IO.File.WriteAllText(txt, sb.ToString());
 		var json = new StringBuilder("[\n");
 		foreach (var r in _results)
-			json.AppendLine($"  {{\"state\":\"{r.State}\",\"w\":{r.W},\"h\":{r.H},\"factor\":{r.Factor.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"interactive\":{r.Interactive},\"overlaps\":{r.Overlaps},\"truncated\":{r.Truncated},\"tapUnder7mm\":{r.Small7},\"tapUnder5mm\":{r.Small5},\"outside\":{r.Outside},\"fill\":{r.Fill.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}}},");
+			json.AppendLine($"  {{\"state\":\"{r.State}\",\"w\":{r.W},\"h\":{r.H},\"factor\":{r.Factor.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"interactive\":{r.Interactive},\"overlaps\":{r.Overlaps},\"truncated\":{r.Truncated},\"tapUnder7mm\":{r.Small7},\"tapUnder5mm\":{r.Small5},\"outside\":{r.Outside},\"shipCovered\":{r.ShipCovered},\"effective\":{r.Effective.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},\"fill\":{r.Fill.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}}},");
 		System.IO.File.WriteAllText(System.IO.Path.Combine(_dir, "ui-check.json"), json.ToString().TrimEnd(',', '\n', '\r') + "\n]\n");
 		GD.Print($"[ui-check] fertig: {txt}");
 		GD.Print("UI-CHECK OK");

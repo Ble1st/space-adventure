@@ -210,18 +210,12 @@ public partial class Hud : CanvasLayer
 		_center.OffsetLeft = -640f; _center.OffsetRight = 640f; _center.OffsetTop = 0f; _center.OffsetBottom = 0f;
 		root.AddChild(_center);
 		_center.AddChild(Command);
-		_center.AddChild(DockMenu);
-		_center.AddChild(DockTrade);
-		_center.AddChild(DockInfo);
-		_center.AddChild(DockHangar);
-		_center.AddChild(DockTaxi);
-		_center.AddChild(DockRepair);
-		_center.AddChild(DockOutfitter);
-		_center.AddChild(DockShipyard);
-		_center.AddChild(DockStorage);
-		_center.AddChild(DockAuthority);
-		_center.AddChild(DockResearch);
-		_center.AddChild(DockPlaceholder);
+		// Runde 34 (UI-ANPASSUNG.md E3): Dock-Menü und Dock-Bereiche liegen in einer eigenen Schicht über die ganze Fläche (statt mittig in 1280 Breite), mit
+		// dem Faktor der Dock-Schicht (DockLayout.FitFactor) — gleiche Idee wie das Flug-HUD
+		_dockLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
+		root.AddChild(_dockLayer);
+		foreach (var sc in new Control[] { DockMenu, DockTrade, DockInfo, DockHangar, DockTaxi, DockRepair, DockOutfitter, DockShipyard, DockStorage, DockAuthority, DockResearch, DockPlaceholder })
+			_dockLayer.AddChild(sc);
 		_center.AddChild(CcUniverse);
 		_center.AddChild(CcSector);
 		_center.AddChild(CcFactions);
@@ -240,6 +234,11 @@ public partial class Hud : CanvasLayer
 	public bool AnyModalOpen => Map.Visible || Screens.Current != null;
 
 	readonly Control _center = new();
+	/// <summary>Runde 34: Schicht der Dock-Bildschirme (ganze Fläche, Faktor <see cref="DockFactor"/>).</summary>
+	readonly Control _dockLayer = new();
+	/// <summary>Runde 34: wirksamer Faktor der Dock-Schicht (Stufe, gesenkt bis jeder Bereich seine Mindestfläche hat).</summary>
+	public float DockFactor => _dockLayer.Scale.X;
+	public Control DockLayerNode => _dockLayer;
 	/// <summary>Runde 33: Ebene von Meldung, Hinweis und Diagnosezeile — im Flug mit dem Faktor der Flug-Schicht skaliert, über Vollbildern mit 1.</summary>
 	readonly Control _alertRoot = new();
 	/// <summary>Runde 33: aktueller Maßstab der Meldungsebene; <see cref="AlertSpace"/> = ihre logische Fläche.</summary>
@@ -250,13 +249,28 @@ public partial class Hud : CanvasLayer
 	/// Runde 33 (UI-ANPASSUNG.md E2): Faktor je Schicht. Flug-HUD (und im Flug Meldung/Hinweis) mit <see cref="UiScale.Factor"/>; Vollbild-Bildschirme,
 	/// Menü, Karte und Zielmarker bleiben bei 1 (E3–E5). Jedes Bild geprüft — billig, nur bei Änderung wird umgebaut.
 	/// </summary>
+	/// <summary>Runde 34: Schichtfaktoren sofort neu rechnen (z. B. nach dem Umschalten der UI-Größe, damit der Hinweis die neuen Werte nennt).</summary>
+	public void UpdateLayerScales() => ApplyLayerScale();
+
 	void ApplyLayerScale()
 	{
 		var vp = GetViewport().GetVisibleRect().Size;
 		float f = UiScale.Factor;
 		Flight.ApplyScale(vp, f);
+		// Runde 34: Dock-Schicht — ein Faktor für alle Dock-Bildschirme (Core: DockLayout.FitFactor), nur bei Änderung neu
+		var dkey = (vp, f, UiScale.SafeInsets1());
+		if (dkey != _dockKey)
+		{
+			_dockKey = dkey;
+			float df = SpaceSim.Core.Ui.DockLayout.FitFactor(vp.X, vp.Y, dkey.Item3, f);
+			_dockLayer.AnchorLeft = 0f; _dockLayer.AnchorTop = 0f; _dockLayer.AnchorRight = 0f; _dockLayer.AnchorBottom = 0f;
+			_dockLayer.Position = Vector2.Zero;
+			_dockLayer.Scale = new Vector2(df, df);
+			_dockLayer.Size = vp / df;
+			UiScale.DockFactor = df;
+		}
 		bool flight = Screens.Current == null || Screens.Current == Flight;
-		float s = flight ? f : UiScale.ScreensFactor;
+		float s = flight ? Flight.Scale.X : UiScale.ScreensFactor;   // Runde 33b: der wirksame Faktor der Flug-Schicht (kann unter der Stufe liegen)
 		var size = vp / s;
 		if (Mathf.Abs(_alertScale - s) > 1e-4f || (_alertRoot.Size - size).LengthSquared() > 0.01f)
 		{
@@ -320,12 +334,19 @@ public partial class Hud : CanvasLayer
 		bool screen = Screens.Current != null && Screens.Current != Flight;
 		// Gerätetest Phase 28: über dem Dock-Menü (schmales Fenster in der Mitte, Titel oben) links neben dem Fenster, mehrzeilig — oben verdeckte es den Titel
 		bool dockMenu = Screens.Current == DockMenu;
-		float side = (vp.X - DockMenuWidth) / 2f - 20f;
+		float side = DockMenuSide();
 		// Runde 12: im Flug unten, links der Kampftasten (zweite Schachtspalte ab x 906) — 536 breit ab der Bildmitte − 280
 		var size = dockMenu ? new Vector2(MathF.Max(300f, side), 150f) : screen ? new Vector2(ScreenAlertWidth, ScreenAlertHeight) : new Vector2(FlightAlertWidth, AlertHeight);
 		_alert.Size = size;
 		// Runde 33: im Flug unten verankert (720er-Entwurf: y 508 = Unterkante − 212)
 		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2(vp.X / 2f - 280f, vp.Y - (720f - FlightAlertY));
+		// Runde 34: Dock-Bereiche liegen über die ganze Fläche — die Meldung in die Lücke der Kopfleiste (Core: DockShell.AlertSlot, in Bildpunkten)
+		if (screen && Screens.Current is DockAreaScreen da && da.AlertSlotGlobal is { } slot)
+		{
+			size = new Vector2(slot.Size.X, ScreenAlertHeight);
+			_alert.Size = size;
+			_alert.Position = slot.Position;
+		}
 		// Runde 19 (Handy-Test B_4): im Flug endet die Meldung über der Beschriftung „RÜCK · max 20 %“ (nach dem Rand-Layout der echten Auflösung)
 		float realH = MathF.Max(size.Y, _alert.GetCombinedMinimumSize().Y);   // die Meldung kann mit ihrem Text wachsen
 		if (!dockMenu && !screen && Flight.ReverseLabelLocal is { Size.Y: > 0f } rl && new Rect2(_alert.Position, new Vector2(size.X, realH)).Intersects(rl.Grow(6f)))
@@ -334,6 +355,7 @@ public partial class Hud : CanvasLayer
 		if (!dockMenu && !screen && Flight.Layout is { Compact: true })
 		{
 			var occ = Flight.OccupiedLocal();
+			if (Flight.ShipRectLocal() is { } shipR) occ.Add(shipR);   // Runde 33b: nie über dem eigenen Schiff
 			var want = new Rect2(_alert.Position, new Vector2(size.X, realH));
 			if (occ.Exists(r => r.Intersects(want)))
 			{
@@ -345,7 +367,9 @@ public partial class Hud : CanvasLayer
 					var area = new SpaceSim.Core.Ui.UiRect(0, 0, vp.X, vp.Y);
 					_spot = SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, list, size.X, realH, 360f, vp.X / 2f, want.Position.Y);
 					// kein Platz neben allem (Gefecht bei Faktor 1,3 auf 16:9): dann nur Tasten frei lassen — die Meldung darf kurz über Status/Sektorzeilen liegen
-					_spot ??= SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, Flight.OccupiedLocal(interactiveOnly: true)
+					var tapsAndShip = Flight.OccupiedLocal(interactiveOnly: true);
+					if (Flight.ShipRectLocal() is { } shipR2) tapsAndShip.Add(shipR2);
+					_spot ??= SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, tapsAndShip
 						.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList(), size.X, realH, 300f, vp.X / 2f, want.Position.Y);
 				}
 				if (_spot is { } sp) { size = new Vector2(sp.W, size.Y); _alert.Size = size; _alert.Position = new Vector2(sp.X, sp.Y); }
@@ -357,6 +381,9 @@ public partial class Hud : CanvasLayer
 		_alertClose.Position = new Vector2(size.X - 60, dockMenu ? size.Y - 60 : (size.Y - 56) / 2f);
 	}
 	const float DockMenuWidth = 580f;
+	/// <summary>Runde 34: Platz links neben der Dock-Menü-Karte (Bildpunkte; die Karte liegt in der skalierten Dock-Schicht).</summary>
+	float DockMenuSide() => DockMenu.CardGlobal is { } c && c.Size.X > 0f ? c.Position.X - 20f : (AlertSpace.X - DockMenuWidth) / 2f - 20f;
+	(Vector2, float, SpaceSim.Core.Ui.UiInsets) _dockKey;
 	(Vector2, float, int, float) _spotKey;
 	(Vector2, string, int, float) _toastKey;
 	SpaceSim.Core.Ui.UiRect? _toastSpot;
@@ -412,7 +439,7 @@ public partial class Hud : CanvasLayer
 		if (Screens.Current == DockMenu)   // Dock-Menü: links neben dem Fenster, unter einer Meldung
 		{
 			_toast.Position = new Vector2(10f, _alert.Visible ? 250f : 90f);
-			_toast.Size = new Vector2(MathF.Max(300f, (vpSize.X - DockMenuWidth) / 2f - 20f), 0f);   // Runde 21: Höhe folgt dem Text
+			_toast.Size = new Vector2(MathF.Max(300f, DockMenuSide()), 0f);   // Runde 21: Höhe folgt dem Text
 		}
 		else if (!onScreen && EdgeThin)
 		{
@@ -431,11 +458,18 @@ public partial class Hud : CanvasLayer
 					if (r.Position.X > vpSize.X / 2f && r.Position.Y < _toast.Position.Y + 100f && r.End.Y > _toast.Position.Y)
 						tw = MathF.Min(tw, MathF.Max(300f, r.Position.X - 6f - _toast.Position.X));
 			_toast.Size = new Vector2(tw, 0f);   // Runde 21: Höhe folgt dem Text
+			// Runde 34 (Handytest r33 c2/c4: über dem offenen Menü lief ein mehrzeiliger Hinweis unten aus dem Bild): über Vollbildern endet er 12 über dem Rand
+			if (onScreen)
+			{
+				float th = MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y);
+				_toast.Position = new Vector2(_toast.Position.X, MathF.Min(_toast.Position.Y, vpSize.Y - 12f - th));
+			}
 		}
 		// Runde 33 (E2): im Kompakt-HUD (UI-Faktor > 1) kann die Wunschlage auf Tasten oder Beschuss-/Fluchtzeile fallen — dann die nächste freie Lage
 		if (!onScreen && Screens.Current != DockMenu && Flight.Layout is { Compact: true } && _toast.Modulate.A > 0.02f && _toast.Text.Length > 0)
 		{
 			var occ = Flight.OccupiedLocal();
+			if (Flight.ShipRectLocal() is { } shipR) occ.Add(shipR);   // Runde 33b: nie über dem eigenen Schiff
 			if (_alert.Visible) occ.Add(new Rect2(_alert.Position, _alert.Size).Grow(6f));
 			float th = MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y);
 			var want = new Rect2(_toast.Position, new Vector2(_toast.Size.X, th));

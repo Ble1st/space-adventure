@@ -62,9 +62,13 @@ public static class UiScale
 	/// physischen 396 ppi des A15) — daher „etwa“. Die Stufe wirkt im Flug; Dock und Kommandozentrale folgen mit den nächsten Ausbaustufen.
 	/// </summary>
 	public static string Describe() =>
-		$"UI-Größe {Name(Size)}: {Factor:0.00}×" + (float.IsNaN(TapMm) ? "" : $", Tasten etwa {TapMm:0.0} mm") + " im Flug."
+		$"UI-Größe {Name(Size)}: Flug {Factor:0.00}×, Dock {DockFactor:0.00}×" + (float.IsNaN(TapMm) ? "" : $", Tasten etwa {TapMm:0.0} mm") + "."
 		+ (Wanted > Factor + 0.001f ? $" Mehr ({Wanted:0.00}×) passt nicht auf diese Fläche." : "")
-		+ " Dock und Kommandozentrale bleiben vorerst bei 1,00×.";
+		+ " Kommandozentrale vorerst 1,00×.";
+	/// <summary>Runde 34 (Handytest r33: der lange Hinweis über dem Menü war abgeschnitten): kurze Fassung für den Hinweis nach dem Umschalten.</summary>
+	public static string ShortText() => $"UI-Größe {Name(Size)}: Flug {Factor:0.00}×, Dock {DockFactor:0.00}×" + (float.IsNaN(TapMm) ? "" : $" · Taste etwa {TapMm:0.0} mm");
+	/// <summary>Runde 34: wirksamer Faktor der Dock-Schicht (setzt die Oberfläche; kann wegen der Mindestfläche der Bereiche unter <see cref="Factor"/> liegen).</summary>
+	public static float DockFactor { get; set; } = 1f;
 
 	/// <summary>Faktor neu rechnen und setzen (Fenstergröße, DPI, Stufe). Die Wurzel bleibt bei 1 (Faktor je Schicht).</summary>
 	public static void Apply()
@@ -82,6 +86,25 @@ public static class UiScale
 		if (Math.Abs(_root.ContentScaleFactor - 1f) > 0.0001f) _root.ContentScaleFactor = 1f;
 		Changed?.Invoke();
 	}
+
+	/// <summary>Runde 33b/34, Selbsttest: Safe-Area-Ränder vorgeben (Bildpunkte der Wurzel bei Faktor 1, null = Gerät).</summary>
+	public static UiInsets? TestInsets;
+
+	/// <summary>
+	/// Runde 34: Safe-Area-Ränder (Kamera-Aussparung, Gestenleiste) an allen vier Seiten in Bildpunkten der Wurzel (Faktor 1); nur auf Mobilgeräten (am Desktop
+	/// meldet die Safe Area den Arbeitsbereich des Bildschirms, nicht das Fenster). Jede Schicht teilt durch ihren Faktor.
+	/// </summary>
+	public static UiInsets SafeInsets1()
+	{
+		if (TestInsets is { } t) return t;
+		if (!OS.HasFeature("mobile")) return new UiInsets(0, 0, 0, 0);
+		var win = DisplayServer.WindowGetSize();
+		var safe = DisplayServer.GetDisplaySafeArea();
+		if (win.X <= 0 || win.Y <= 0 || safe.Size.X <= 0 || safe.Size.Y <= 0) return new UiInsets(0, 0, 0, 0);
+		return UiLayout.Usable(win.X, win.Y, safe.Position.X, safe.Position.Y, safe.Size.X, safe.Size.Y, 1f);
+	}
+
+	public static UiInsets Div(UiInsets i, float f) => f <= 0f ? i : new UiInsets(i.Left / f, i.Top / f, i.Right / f, i.Bottom / f);
 
 	static void Save()
 	{

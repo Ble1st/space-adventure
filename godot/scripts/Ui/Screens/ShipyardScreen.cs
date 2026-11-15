@@ -57,7 +57,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 
 		var svc = Service;
 		if (svc is null) { At(inner, Text("Diese Station verkauft keine Schiffe.", 16, new Color(Dim, 0.8f)), 0, 48, w, 26); return; }
-		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 42, w, 520 - 42 - 4);
+		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 42, w, (inner.Size.Y > 0 ? inner.Size.Y : 520f) - 42 - 4);   // Runde 34: Höhe des Bereichs
 		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);

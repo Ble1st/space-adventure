@@ -46,4 +46,30 @@ public static class FreeField
             }
         return bestArea < 0f ? new Box(0f, 0f, width, height) : best;
     }
+
+    /// <summary>
+    /// Runde 33b (Prüfung: im Kompakt-HUD bei UI-Faktor 1,3 liegt die Bildmitte unter einer Kampftaste — <see cref="Largest"/> lieferte dann das ganze Bild und
+    /// das Schiff blieb verdeckt): wie <see cref="Largest"/>; ist die Mitte belegt, das größte freie Rechteck um einen freien Rasterpunkt (9 × 7, bei gleicher
+    /// Fläche der Mitte am nächsten). Ist nichts frei, das ganze Bild.
+    /// </summary>
+    public static Box LargestNear(float width, float height, IReadOnlyList<Box> occupied, float cx, float cy)
+    {
+        static bool Covered(IReadOnlyList<Box> occ, float x, float y)
+        {
+            foreach (var r in occ) if (x > r.X && x < r.X1 && y > r.Y && y < r.Y1) return true;
+            return false;
+        }
+        if (!Covered(occupied, cx, cy)) return Largest(width, height, occupied, cx, cy);
+        Box best = new(0f, 0f, width, height); float bestArea = -1f, bestDist = float.MaxValue;
+        for (int iy = 1; iy <= 7; iy++)
+            for (int ix = 1; ix <= 9; ix++)
+            {
+                float x = width * ix / 10f, y = height * iy / 8f;
+                if (Covered(occupied, x, y)) continue;
+                var b = Largest(width, height, occupied, x, y);
+                float area = b.W * b.H, dist = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+                if (area > bestArea + 1f || (MathF.Abs(area - bestArea) <= 1f && dist < bestDist)) { best = b; bestArea = area; bestDist = dist; }
+            }
+        return best;
+    }
 }

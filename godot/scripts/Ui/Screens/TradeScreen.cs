@@ -51,6 +51,38 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	string _message = "";
 	bool _msgOk = true;
 	ScrollContainer? _scroll;
+	/// <summary>Runde 34: aufgeklappte Zeile (Knoten) und wie viele Bilder lang sie nach dem Öffnen ganz sichtbar gehalten wird.</summary>
+	TradeRow? _openRow;
+	int _ensureFrames;
+
+	/// <summary>
+	/// Runde 34 (Handytest r33 i2: nach dem Öffnen von „Energie“ lagen Menge/Max/Kaufen OBEN abgeschnitten): nach dem Öffnen einige Bilder lang mit den echten
+	/// Knotenlagen (nicht den angenommenen Zeilenhöhen) nachrollen — die Oberkante hat Vorrang, dann die Unterkante samt „Abwerfen“. Ein späteres Wiederherstellen
+	/// der alten Rollposition (Neuaufbau je Tick) kann so die Zeile nicht mehr verschieben.
+	/// </summary>
+	public override void _Process(double delta)
+	{
+		if (_ensureFrames <= 0) return;
+		_ensureFrames--;
+		if (_scroll is not KitScroll ks || _openRow is not { } row || !IsInstanceValid(row) || !row.IsInsideTree() || KitScroll.Dragging) return;
+		float top = row.Position.Y, bottom = top + row.Size.Y + 10f, view = ks.Size.Y, cur = ks.ScrollVertical;
+		if (view <= 1f) return;
+		int want = (int)cur;
+		if (top < cur) want = (int)top;
+		else if (bottom > cur + view) want = (int)MathF.Min(top, bottom - view);
+		if (want != (int)cur) ks.ScrollTo(want);
+	}
+
+	/// <summary>Runde 34, Selbsttest: liegt die aufgeklappte Zeile ganz im sichtbaren Teil der Liste (Oberkante und, wenn sie passt, Unterkante)?</summary>
+	public bool TestOpenRowVisible(out string why)
+	{
+		why = "";
+		if (_scroll is not KitScroll ks || _openRow is not { } row || !IsInstanceValid(row)) { why = "keine offene Zeile"; return false; }
+		var sr = ks.GetGlobalRect(); var rr = row.GetGlobalRect();
+		bool topOk = rr.Position.Y >= sr.Position.Y - 1f, botOk = rr.End.Y <= sr.End.Y + 1f || rr.Size.Y > sr.Size.Y;
+		why = $"Zeile {rr.Position.Y:0}…{rr.End.Y:0}, Liste {sr.Position.Y:0}…{sr.End.Y:0}";
+		return topOk && botOk;
+	}
 	readonly KitConfirm _confirm = new();   // Phase 18: „Abwerfen“ erst beim zweiten Tipp
 	internal readonly HintState _hint = new();
 	/// <summary>Runde 28: letzter Druck auf eine Zeile/Kachel (Ware, Kachel?, Bildschirmposition) — überlebt Neuaufbauten.</summary>
@@ -68,6 +100,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 
 	protected override void BuildContent(Control inner)
 	{
+		_openRow = null;
 		_svc = Ctx.Services.TryGet(TradeService.ServiceKey, out var s) && s.IsAvailable(Ctx.U, Ctx.Station) ? s : null;
 		LoadRows();
 		float w = inner.Size.X > 0 ? inner.Size.X : 670f;
@@ -120,13 +153,13 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 					float before = RowTop(row.Good);
 					_expanded = open ? null : row.Good; if (!open) _qty = KeepQty(); _hint.Release();   // Runde 27: Zeile zu/auf = Abnehmer neu wählen
 					if (_scroll is KitScroll sk) { float delta = RowTop(row.Good) - before; if (MathF.Abs(delta) > 0.5f) sk.ScrollTo((int)MathF.Max(0f, sk.ScrollVertical + delta)); }
-					Invalidate(); if (!open) EnsureExpandedVisible();
+					Invalidate(); if (!open) { EnsureExpandedVisible(); _ensureFrames = 30; }
 				};
 				r.EditorBuy += q => Buy(row, q);
 				r.EditorSell += q => Sell(row, q);
 				r.EditorDrop += q => Drop(row, q);
 				r.EditorQty += q => _qty = q;
-				if (open) r.SetQty(_qty);
+				if (open) { r.SetQty(_qty); _openRow = r; }
 				box.AddChild(r);
 			}
 		}
@@ -135,7 +168,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// ── Kachelmodus: Kacheln oben, Editor-Blatt unten für die gewählte Kachel ──
 			float sheetH = _tileSel is { } ts && _rows.FirstOrDefault(r => r.Good == ts) is { } tr ? 26f + Editor.HeightFor(tr) + 6f : 0f;
 			_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 46, w, fy - 46 - 8 - sheetH);
-			var grid = new GridContainer { Columns = 3, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+			var grid = new GridContainer { Columns = SpaceSim.Core.Ui.DockLayout.GridColumns(w, 214f, 8f), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };   // Runde 34: Spalten aus der Breite (Kachel 214)
 			grid.AddThemeConstantOverride("h_separation", 8);
 			grid.AddThemeConstantOverride("v_separation", 8);
 			_scroll.AddChild(grid);
@@ -545,7 +578,15 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			DrawString(font, new Vector2(438, 38), $"{u.Stock:0}", HorizontalAlignment.Left, -1, 17, Dim);
 			DrawString(font, new Vector2(500, 38), u.Held > 0f ? $"Bord {u.Held:0}" : "", HorizontalAlignment.Left, -1, 17, Cyan);
 			// Phase 16: warum die Station die Ware nicht (mehr) annimmt — gedimmt unter dem Preis
-			if (NoteOf(u) is { } note) DrawString(font, new Vector2(220, 53), note + (ShowDrop(u) && !_open ? " · antippen: Abwerfen" : ""), HorizontalAlignment.Left, Size.X - 260, 12, SellNoteColor(u));
+			// Runde 34 (Handytest r33 j2: der Deckel-Hinweis brach am Zeilenende hart ab, ohne „…“): Fassung nach gemessener Breite, notfalls mit „…“
+			if (NoteOf(u) is { } note)
+			{
+				float room = Size.X - 260f;
+				string drop = ShowDrop(u) && !_open ? " · antippen: Abwerfen" : "";
+				string text = _owner.RowNote(u, note, drop, room, 12);
+				TestRowNotes[u.Good.Value] = (text, font.GetStringSize(text, HorizontalAlignment.Left, -1, 12).X <= room + 0.5f);
+				DrawString(font, new Vector2(220, 53), text, HorizontalAlignment.Left, -1, 12, SellNoteColor(u));
+			}
 			DrawString(font, new Vector2(Size.X - 34, 38), _open ? "▾" : "▸", HorizontalAlignment.Left, -1, 18, Dim);
 		}
 
@@ -565,6 +606,28 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	static Color SellNoteColor(Row r) => r.Held > 0f && !CanSell(r) ? new Color(Orange, 0.9f) : new Color(Dim, 0.8f);
 	/// <summary>Phase 18: Hinweis der Zeile — Annahmegrund des Verkaufs, für nicht gehandelte Fracht der Grund aus dem Abwurf-Angebot.</summary>
 	static string? NoteOf(Row r) => r.HasSell ? r.Sell.Note : r.HasDrop ? r.Drop.Note : null;
+
+	/// <summary>Runde 34, Selbsttest: zuletzt gezeichneter Zeilenhinweis (gemessen gekürzt).</summary>
+	public static readonly Dictionary<int, (string Text, bool Fits)> TestRowNotes = new();
+
+	/// <summary>
+	/// Runde 34 (Handytest r33): Hinweis unter dem Preis einer Warenzeile — die längste Fassung, die mit der Schrift gemessen in <paramref name="room"/> passt;
+	/// für den Rückkaufdeckel die Kurzform („Deckel 4,0 · dein Kauf hier“), zuletzt mit „…“ gekürzt.
+	/// </summary>
+	string RowNote(Row r, string note, string drop, float room, int size)
+	{
+		var font = ThemeDB.FallbackFont;
+		bool Fits(string t) => font.GetStringSize(t, HorizontalAlignment.Left, -1, size).X <= room;
+		var variants = new List<string> { note + drop, note };
+		if (Ctx is { } c && PlayerLedger.SaleNoteShort(c.U, c.Ship, c.Station, r.Good) is { } cap && r.Sell.Note == note)
+		{
+			variants.Add($"{cap} · dein Kauf hier, bis Preis und Lager zurück");
+			variants.Add($"{cap} · dein Kauf hier");
+			variants.Add(cap);
+		}
+		foreach (var v in variants) if (Fits(v)) return v;
+		return KitButton.Fit(font, variants[^1], size, room);
+	}
 
 	/// <summary>Eine Kachel des Kachelmodus.</summary>
 	sealed partial class TradeTile : Control
@@ -782,9 +845,15 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 						: Riskant(b, today, MathF.Min(b.Units, units) * b.PriceAfterLoad - units * price, head, Pick);
 				}
 			}
+			// Runde 34 (Handytest r33: „hier: Wegen deines Kaufs hier: …“ doppelt): der Deckel-Hinweis ist schon ein ganzer Satz — ohne Vorsilbe; nur
+			// Annahmegründe der Station („Lager voll“ …) bekommen „Verkauf hier:“
 			if (row.Sell.Note is { } note && row.Held > 0f)
-				l3 = Pick(13, $"Verkauf hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}" + (l3.Length > 0 ? " · " + l3 : ""), $"hier: {note}",
-					PlayerLedger.SaleNoteShort(u, ship, st, row.Good) is { } shortCap ? $"hier: {shortCap}, bis Preis und Lager zurück" : $"hier: {note}");
+			{
+				string tail = l3.Length > 0 ? " · " + l3 : "";
+				l3 = PlayerLedger.SaleNoteShort(u, ship, st, row.Good) is { } shortCap && PlayerLedger.SaleNote(u, ship, st, row.Good) == note
+					? Pick(13, note + tail, note, $"Verkauf hier {shortCap} (dein Kauf hier) bis Preis und Lager zurück", $"Verkauf hier {shortCap} (dein Kauf hier)", $"Verkauf {shortCap}")
+					: Pick(13, $"Verkauf hier: {note}" + tail, $"Verkauf hier: {note}", note);
+			}
 			return (buy + sell, l2, l3, verdict, best?.Station.Id ?? default);
 		}
 

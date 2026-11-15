@@ -132,7 +132,8 @@ public partial class Main : Node3D
 		_hud.Flight.CommandPressed += () => { _hud.Map.Visible = false; OpenCcArea(CommandAreas.Universe); };
 		_hud.Flight.SetCommandBadge(UiPlaceholders.CommsUnread);
 		_hud.Flight.BayDown += OnBayDown;
-		_hud.Flight.AllFire += FireReadyBays;
+		_hud.Flight.AllFire += () => FireReadyBays();
+		_hud.Flight.MoreBaysDown += from => FireReadyBays(from);   // Runde 33b: Sammeltaste „+n weitere“ (Leviathan)
 		// Phase 25: Dauerfeuer und „Nächster Gegner“
 		_hud.Flight.AutoFirePressed += () =>
 		{
@@ -524,7 +525,7 @@ public partial class Main : Node3D
 		var rects = _hud.Flight.OccupiedRects();
 		if (_hud.AlertRect is { } ar) rects.Add(ar);
 		var boxes = rects.Select(r => new SpaceSim.Core.Flight.FreeField.Box(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
-		var b = SpaceSim.Core.Flight.FreeField.Largest(size.X, size.Y, boxes, size.X / 2f, size.Y / 2f);
+		var b = SpaceSim.Core.Flight.FreeField.LargestNear(size.X, size.Y, boxes, size.X / 2f, size.Y / 2f);   // Runde 33b: auch wenn die Bildmitte belegt ist
 		_freeField = new Rect2(b.X, b.Y, b.W, b.H); _freeFieldAt = now; _freeFieldSize = size;
 		return _freeField;
 	}
@@ -654,7 +655,7 @@ public partial class Main : Node3D
 		{
 			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); break;   // Runde 12
 			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); break;
-			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Describe(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
+			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
 			case "save": SaveNow(manual: true); break;
 			case "load":
 				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
@@ -687,7 +688,7 @@ public partial class Main : Node3D
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
 			// Runde 33 (Handytest A15: „UI-Größe“ im Menü ohne Wirkung): dieselbe Ursache — die Aktion kam hier an und fiel in den default-Zweig (kein
 			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
-			case "ui_size": _sfx.Play(SfxId.Click); Ui.Kit.UiScale.Cycle(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.Describe(), 4f); break;
+			case "ui_size": _sfx.Play(SfxId.Click); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
 			case "cam_debug": _camDebug = !_camDebug; _hud.SetDebugLine(_camDebug ? CameraDebugLine() : null); _hud.Toast(_camDebug ? "Kamera-Diagnose an" : "Kamera-Diagnose aus"); break;   // Runde 16
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
@@ -1198,6 +1199,14 @@ public partial class Main : Node3D
 			focus = new Vector3(fr.FocusX - _player.Position.X, 0f, fr.FocusZ - _player.Position.Z);
 		}
 		else if (FramingTarget() is null) { _framingActive = false; _manualZoomInFight = false; }
+		// Runde 33b: ist die Bildmitte von HUD-Tasten belegt (Kompakt-HUD bei UI-Faktor > 1), legt der Blickpunkt das Schiff in die Mitte des freien Felds
+		if (!_framingActive && _docked == null && FramingField() is var ff && !(ff.X0 < -0.08f && ff.X1 > 0.08f && ff.Y0 < -0.08f && ff.Y1 > 0.08f))
+		{
+			var vsz = GetViewport().GetVisibleRect().Size;
+			float dist = Mathf.Sqrt(want.X * want.X + want.Y * want.Y + want.Z * want.Z);
+			var cf = SpaceSim.Core.Flight.CombatFraming.CenterShip(_player.Position.X, _player.Position.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov, vsz.X / Mathf.Max(1f, vsz.Y), dist, ff);
+			focus = new Vector3(cf.FocusX - _player.Position.X, 0f, cf.FocusZ - _player.Position.Z);
+		}
 		if (!_framingActive && NearLargeStationZoom() is var kz and > 1f) want = new CamVec3(want.X * kz, want.Y * kz, want.Z * kz);   // Runde 14: große Stationen
 		// Runde 18 (Handy-Test: Bohrerdrehung kaum zu sehen): verankert rückt die Kamera näher an Bug, Trossen und Werkzeug (manueller Zoom bleibt die Grundlage)
 		if (!_framingActive && _docked == null && PlayerData.AnchorRock != 0) want = new CamVec3(want.X * AnchorZoom, want.Y * AnchorZoom, want.Z * AnchorZoom);
@@ -1208,7 +1217,10 @@ public partial class Main : Node3D
 		_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
 		_cam.LookAt(_player.Position + _camFocus);
 		// Runde 15: das eigene Schiff verlässt nie das freie Feld — liegt es (im Übergang) außerhalb, rückt der Blickpunkt sofort zum Schiff
-		for (int guard = 0; guard < 6 && !ShipInFreeField(); guard++)
+		// Runde 33b: nur wenn die Bildmitte selbst frei ist — im Kompakt-HUD (Mitte unter Kampftasten) zog das Zurückziehen das Schiff genau unter die Tasten
+		var gf = FramingField();
+		bool centerFree = gf.X0 < -0.02f && gf.X1 > 0.02f && gf.Y0 < -0.02f && gf.Y1 > 0.02f;
+		for (int guard = 0; guard < 6 && centerFree && !ShipInFreeField(); guard++)
 		{
 			_camFocus *= 0.6f;
 			_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
@@ -2530,11 +2542,11 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>„Alle Feuer“: löst nur bereite Waffen im Winkel aus (hier: der Laser).</summary>
-	void FireReadyBays()
+	void FireReadyBays(int from = 0)
 	{
 		var bays = _bays;
 		bool any = false;
-		for (int i = 0; i < bays.Count && i < _bayStates.Length; i++)
+		for (int i = Math.Max(0, from); i < bays.Count && i < _bayStates.Length; i++)
 		{
 			if (bays[i].Key is "tractor" or "split" or "salvage" or "contact" || _bayStates[i] != BayState.Ready) continue;
 			if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) { if (FireWeapon(ws, quiet: true)) any = true; }
@@ -2856,6 +2868,7 @@ public partial class Main : Node3D
 	/// <summary>Ist der Bildschirm mit dieser Id gerade exklusiv geöffnet?</summary>
 	internal bool TestScreenOpen(string id) => _hud.Screens.TryGet(id, out var s) && _hud.Screens.Current == s;
 	internal void TestSetStationTarget(StationId id) { var u = _session.U; SetTarget(Navigator.ForStation(u, id, u.PlayerShip), id); }
+	internal bool TestDocked => _docked != null;   // Runde 34: Prüfwerkzeug
 	internal void TestUndock() => Undock();
 	internal void TestSwitchShip(ShipId id) => SwitchShip(id);
 	/// <summary>Phase 12: Flotte öffnen mit diesem Schiff gewählt.</summary>

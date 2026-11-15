@@ -2217,6 +2217,9 @@ public partial class SelfTest : Node
 				var energy = uni.FindGood("energy")!.Id;
 				if (f == 1)
 				{
+					// Runde 34: das Dock füllt jetzt die ganze Fläche — headless ist das Fenster 64 × 64 (logisch 1280 × 1280, alle Zeilen passen); die Stufe prüft das
+					// Rollen im 1280 × 720-Raster
+					if (GetTree().Root.Size.Y < 640 || GetTree().Root.Size.X == GetTree().Root.Size.Y) GetTree().Root.Size = new Vector2I(1280, 720);
 					var ww = uni.Stations.Values.First(x => x.Name == "Wasserwerk Alpha");
 					_m.Session.RunTicks(2);   // neue Welt: Preise gibt es erst nach dem ersten Takt
 					_m.TestDockAt(ww.Id);
@@ -2673,6 +2676,7 @@ public partial class SelfTest : Node
 			case 105: if (Round27Stage(_frame - _stageStart)) Next(); break;
 			case 106: if (Round28Stage(_frame - _stageStart)) Next(); break;
 			case 107: if (Round30Stage(_frame - _stageStart)) Next(); break;
+			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
 			default:

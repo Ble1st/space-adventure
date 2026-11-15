@@ -50,7 +50,7 @@ public sealed partial class TaxiScreen : DockAreaScreen, ISessionScreen
 		// Phase 21: Ziele in einer Bildlaufliste (vorher die ersten sechs); gezeigt werden nur Ziele, an denen ein eigenes Schiff wartet oder ein Leihschiff
 		// zu haben ist — bei 11 Sektoren gibt es Dutzende Hangar-Stationen ohne beides, die nie buchbar sind (sie stehen als Summe unter der Liste);
 		// buchbare zuerst, dann nach Reisezeit (Reihenfolge aus TaxiService.Quotes)
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 32, w, 520 - 32 - 4);
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 32, w, (inner.Size.Y > 0 ? inner.Size.Y : 520f) - 32 - 4);   // Runde 34: Höhe des Bereichs
 		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);

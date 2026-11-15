@@ -121,6 +121,23 @@ public partial class FlightHud : Control, IScreen
 	public event Action? HamburgerPressed, MapPressed, FastPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire, CommandPressed;
 	/// <summary>Finger auf einer Waffenschacht-Taste (Index in <see cref="FlightHudData.Bays"/>).</summary>
 	public event Action<int>? BayDown;
+	/// <summary>Runde 33b: Sammeltaste „+n weitere“ (Schächte ab Index) gedrückt.</summary>
+	public event Action<int>? MoreBaysDown;
+	int _bayMore;
+	/// <summary>Selbsttest/Prüfung: Text der sechsten Schachttaste (Sammeltaste) und ob gerade zusammengefasst wird.</summary>
+	public string TestBay6Text => _bayButtons.Count >= MaxBays ? _bayButtons[MaxBays - 1].Text : "";
+	/// <summary>
+	/// Runde 33b: Bildschirmlage des eigenen Schiffs (Bildpunkte, null = hinter der Kamera) — Meldung/Hinweis meiden sie, das Prüfwerkzeug prüft, dass keine
+	/// HUD-Taste sie verdeckt.
+	/// </summary>
+	public Vector2? ShipScreen => _d.ShipScreen;
+	/// <summary>Runde 33b: Fläche um das eigene Schiff (Ring) in Einheiten der Schicht.</summary>
+	public Rect2? ShipRectLocal(float radiusPx = 70f)
+	{
+		if (_d.ShipScreen is not { } p) return null;
+		float k = Scale.X > 0f ? 1f / Scale.X : 1f;
+		return new Rect2((p - new Vector2(radiusPx, radiusPx)) * k, new Vector2(2f * radiusPx, 2f * radiusPx) * k);
+	}
 	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
 	public event Action<PowerMode>? PowerModePressed;
 	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
@@ -442,7 +459,7 @@ public partial class FlightHud : Control, IScreen
 			int idx = i;
 			var b = At(this, new KitButton("", new Vector2(176, BayH)), 1090, 330 + i * BayStep);
 			b.Symbol = g => PaintArcSymbol(g, idx);
-			b.Down += () => BayDown?.Invoke(idx);
+			b.Down += () => { if (_bayMore > 0 && idx == MaxBays - 1) MoreBaysDown?.Invoke(idx); else BayDown?.Invoke(idx); };
 			_bayButtons.Add(b);
 		}
 		_allFire = At(this, new KitButton("Alle Feuer", new Vector2(176, 56)) { FontSize = 19 }, 1090, 490);
@@ -499,11 +516,16 @@ public partial class FlightHud : Control, IScreen
 	int _layoutBays;
 	/// <summary>Runde 33: zuletzt gerechnete Anordnung (Selbsttest, Prüfwerkzeug).</summary>
 	public FlightHudLayout? Layout { get; private set; }
-	/// <summary>Runde 33, Selbsttest: Safe-Area-Ränder vorgeben (logisch, null = Gerät).</summary>
-	public static UiInsets? TestInsets;
-	public void TestRelayout() => Relayout();
+	/// <summary>Runde 33, Selbsttest: Safe-Area-Ränder vorgeben (Bildpunkte bei Faktor 1, null = Gerät) — gilt seit Runde 34 für alle Schichten.</summary>
+	public static UiInsets? TestInsets { get => UiScale.TestInsets; set => UiScale.TestInsets = value; }
+	public void TestRelayout() { if (_viewport != Vector2.Zero) { Scale = Vector2.Zero; ApplyScale(_viewport, _wantFactor); } Relayout(); }
 	public Rect2 TestSliderRect => new(_slider.Position, _slider.Size);
 	public Rect2 TestReverseRect => new(_reverse.Position, _reverse.Size);
+	/// <summary>Runde 33b: globale Rechtecke/Punkte (mit Skalierung der Schicht) für echte Tipps im Selbsttest.</summary>
+	public Rect2 TestTurnLeftRect => _turnL.GetGlobalRect();
+	public Rect2 TestAutoFireGlobal => _autoFire.GetGlobalRect();
+	/// <summary>Bildschirmpunkt auf dem Schubregler beim Wert <paramref name="v"/> (Spur von x 100 bis Breite − 30, Mitte der Höhe).</summary>
+	public Vector2 TestSliderPoint(float v) => _slider.GetGlobalTransform() * new Vector2(100f + v * (_slider.Size.X - 130f), _slider.Size.Y * 0.5f);
 
 	public override void _Notification(int what)
 	{
@@ -517,6 +539,9 @@ public partial class FlightHud : Control, IScreen
 	/// </summary>
 	public void ApplyScale(Vector2 viewport, float factor)
 	{
+		_wantFactor = factor; _viewport = viewport;
+		// Runde 33b: nie zwei Tasten in einer Zelle — der Faktor sinkt (Core: FitFactor), bis Schächte und alle Kampftasten eigene Zellen haben
+		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), _layoutBays, factor);
 		var size = viewport / factor;
 		if (Mathf.Abs(Scale.X - factor) < 1e-4f && (Size - size).LengthSquared() < 0.01f && Position == Vector2.Zero) return;
 		AnchorLeft = 0f; AnchorTop = 0f; AnchorRight = 0f; AnchorBottom = 0f;
@@ -551,15 +576,21 @@ public partial class FlightHud : Control, IScreen
 	}
 
 	/// <summary>Sichere Ränder (Kamera-Aussparung, Gestenleiste) an allen vier Seiten in Einheiten der Schicht; nur auf Mobilgeräten (am Desktop meldet die Safe Area den Arbeitsbereich des Bildschirms, nicht das Fenster).</summary>
+	float _wantFactor = 1f;
+	Vector2 _viewport;
+	/// <summary>Runde 33b: angeforderter Faktor der Stufe (die Schicht kann darunter liegen, siehe <see cref="FlightHudLayout.FitFactor"/>).</summary>
+	public float WantedFactor => _wantFactor;
+
+	/// <summary>Safe-Area-Ränder in Einheiten der aktuellen Schicht.</summary>
 	UiInsets SafeInsets()
 	{
-		if (TestInsets is { } t) return t;
-		if (!OS.HasFeature("mobile")) return new UiInsets(0, 0, 0, 0);
-		var win = DisplayServer.WindowGetSize();
-		var safe = DisplayServer.GetDisplaySafeArea();
-		if (win.X <= 0 || win.Y <= 0 || safe.Size.X <= 0 || safe.Size.Y <= 0) return new UiInsets(0, 0, 0, 0);
-		return UiLayout.Usable(win.X, win.Y, safe.Position.X, safe.Position.Y, safe.Size.X, safe.Size.Y, Scale.X);
+		var i = SafeInsets1();
+		float k = Scale.X > 0f ? 1f / Scale.X : 1f;
+		return new UiInsets(i.Left * k, i.Top * k, i.Right * k, i.Bottom * k);
 	}
+
+	/// <summary>Runde 33b: Safe-Area-Ränder in Bildpunkten der Wurzel (Faktor 1) — Grundlage für <see cref="FlightHudLayout.FitFactor"/>.</summary>
+	static UiInsets SafeInsets1() => UiScale.SafeInsets1();
 
 	const int MaxBays = 6;
 	const float BayH = 56f, BayStep = 60f;
@@ -701,10 +732,25 @@ public partial class FlightHud : Control, IScreen
 		_slider.SetValue(d.SliderValue, notify: false);
 		_slider.SpeedText = $"{(int)d.Speed} m/s";
 
+		// Runde 33b (Prüfung: der Leviathan hat 10 Waffenschächte, das HUD 6 Tasten): mehr als sechs → die sechste Taste fasst den Rest zusammen
+		// („+5 weitere“, feuert alle bereiten davon; MoreBaysDown) — vorher feuerten Schacht 7–10 nur über „Alle Feuer“/„Dauerfeuer“, ohne Anzeige
+		_bayMore = d.Bays.Count > MaxBays ? d.Bays.Count - (MaxBays - 1) : 0;
 		for (int i = 0; i < _bayButtons.Count; i++)
 		{
 			var b = _bayButtons[i];
 			if (i >= d.Bays.Count) { b.Visible = false; continue; }
+			if (_bayMore > 0 && i == MaxBays - 1)
+			{
+				int rdy = 0;
+				for (int k = i; k < d.Bays.Count; k++) if (d.Bays[k].State == BayState.Ready) rdy++;
+				b.Visible = true;
+				b.Text = $"+{_bayMore} weitere";
+				b.Sub = $"Schacht {i + 1}–{d.Bays.Count}";
+				(b.State, b.Detail, b.DetailColor) = rdy > 0 ? (KitButtonState.Ready, $"{rdy} bereit · feuern", UiKit.Green) : (KitButtonState.Busy, "keiner bereit", UiKit.Dim);
+				b.Progress = 0f;
+				b.QueueRedraw();
+				continue;
+			}
 			var bay = d.Bays[i];
 			b.Visible = true;
 			b.Text = bay.Name;
@@ -723,7 +769,8 @@ public partial class FlightHud : Control, IScreen
 		_ready.Text = d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
 		// Phase 8/25: „Alle Feuer“ (und Dauerfeuer daneben) rutschen unter die rechte Schachtspalte; die Bereit-Zeile steht über den Schächten
 		// Runde 33: die Zahl der Schächte bestimmt die Lage von „Alle Feuer“/„Dauerfeuer“ (klassisch) bzw. die Zellen der Kampfspalte (kompakt)
-		if (d.Bays.Count != _layoutBays) { _layoutBays = d.Bays.Count; Relayout(); }
+		int shown = Math.Min(d.Bays.Count, MaxBays);
+		if (shown != _layoutBays) { _layoutBays = shown; if (_viewport != Vector2.Zero) ApplyScale(_viewport, _wantFactor); Relayout(); }
 		_allFire.Sub = Layout is { Compact: true } && d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;

@@ -56,6 +56,15 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 	/// <summary>Runde 17 (Speicher wächst mit „Neues Spiel“): die Schiffskarten halten das alte Universum — beim Sitzungswechsel alles abbauen.</summary>
 	public void ResetSession() { foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } }
 
+	SpaceSim.Core.Ui.UiRect _card;
+	/// <summary>Runde 34: Karte in Bildpunkten (Meldung/Hinweis links daneben); leer, solange nicht gebaut.</summary>
+	public Rect2? CardGlobal => _card.W > 0f && IsVisibleInTree() ? new Rect2(GetGlobalTransform() * new Vector2(_card.X, _card.Y), new Vector2(_card.W, _card.H) * GetGlobalTransform().Scale.X) : null;
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationResized && Visible && Ctx is not null && GetChildCount() > 0) Rebuild();
+	}
+
 	void Rebuild()
 	{
 		_builtTick = Ctx.U.Tick;
@@ -67,7 +76,13 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 		string sector = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
 
 		// Karte mit freier Platzierung (ein PanelContainer würde alle Kinder strecken); Innenrand 20 px
-		var card = CardBg(this, 350, 30, 580, 662, PanelSolid, Edge, 16, 2);   // Runde 23: Fußzeilen berührten den Rahmen
+		// Runde 34 (E3): Karte aus der Fläche der Dock-Schicht (Core: DockLayout.MenuCard) — bei 1280 × 720 wie bisher (350, 30, 580 × 662), sonst mittig
+		// und höchstens so hoch wie die Fläche (die Bereichskacheln rollen dann)
+		float k0 = GetParent() is Control lp && lp.Scale.X > 0f ? lp.Scale.X : 1f;
+		var cr = SpaceSim.Core.Ui.DockLayout.MenuCard(Size.X, Size.Y, UiScale.Div(UiScale.SafeInsets1(), k0));
+		_card = cr;
+		float ch = cr.H;
+		var card = CardBg(this, cr.X, cr.Y, cr.W, ch, PanelSolid, Edge, 16, 2);   // Runde 23: Fußzeilen berührten den Rahmen
 
 		// Titel: Station, Sektor, Fraktion, Typ
 		At(card, Text(st.Name, 26, Cyan), 20, 14, 460, 32);
@@ -97,7 +112,7 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 
 		// Bereiche darunter, je mit Untertitel; bis zu neun Kacheln — das Raster rollt bei Bedarf
 		var defs = DockAreas.Build(u, st, Ctx.Services, ship);
-		var scroll = At(card, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 20, 198, 552, 348);
+		var scroll = At(card, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 20, 198, 552, ch - 314);
 		var grid = new GridContainer { Columns = 2, MouseFilter = MouseFilterEnum.Ignore };
 		grid.AddThemeConstantOverride("h_separation", 10);
 		grid.AddThemeConstantOverride("v_separation", 8);
@@ -113,14 +128,14 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 		TestTiles = defs.Count;
 
 		// Große Taste „Abdocken“ unten
-		var undock = At(card, new KitButton("Abdocken", new Vector2(540, 64)) { FontSize = 24, State = KitButtonState.Ready }, 20, 556);
+		var undock = At(card, new KitButton("Abdocken", new Vector2(540, 64)) { FontSize = 24, State = KitButtonState.Ready }, 20, ch - 106);
 		undock.Pressed += () => UndockPressed?.Invoke();
 		float fee = own.Sum(s => SpaceSim.Core.Simulation.Hangar.BerthFeeNow(u, s));
 		string berth = st.Owner == u.PlayerActor ? "eigene Station: Liegeplätze gratis"
 			: fee > 0f ? $"Liegegebühr hier {fee:0} Cr/Tag für {own.Count} Schiff{(own.Count == 1 ? "" : "e")}" : "Liegegebühr nur für geparkte Schiffe";
 		// Runde 4: zwei Zeilen (eine Zeile wurde am Rand gekürzt: „Liegegebühr nur für …“)
-		At(card, Text($"Hülle {(int)ship.Hull}/{(int)ship.MaxHull}{(SpaceSim.Core.Services.RepairService.NeedsRepair(ship) ? " – Reparatur im Dienst „Reparatur“" : "")} · {(int)u.WalletOf(ship).Credits} Credits", 13, Dim, HorizontalAlignment.Center), 20, 624, 540, 18);
-		At(card, Text(berth, 13, Dim, HorizontalAlignment.Center), 20, 640, 540, 18);
+		At(card, Text($"Hülle {(int)ship.Hull}/{(int)ship.MaxHull}{(SpaceSim.Core.Services.RepairService.NeedsRepair(ship) ? " – Reparatur im Dienst „Reparatur“" : "")} · {(int)u.WalletOf(ship).Credits} Credits", 13, Dim, HorizontalAlignment.Center), 20, ch - 38, 540, 18);
+		At(card, Text(berth, 13, Dim, HorizontalAlignment.Center), 20, ch - 22, 540, 18);
 	}
 
 	/// <summary>Runde 23: Unterzeile des Titels (Selbsttest: Kasse sichtbar).</summary>

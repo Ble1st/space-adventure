@@ -52,7 +52,7 @@ public partial class SelfTest
 				UiScale.Set(UiSize.Large);
 				string d2 = UiScale.Describe();
 				// Runde 33: „etwa“ (DPI auf Android = Dichteklasse) und dass Dock/Kommandozentrale vorerst bei 1 bleiben
-				Check(d1.Contains($"etwa {mm:0.0} mm") && !d1.Contains("mindestens 7 mm") && d2.Contains("Dock und Kommandozentrale bleiben vorerst"),
+				Check(d1.Contains($"etwa {mm:0.0} mm") && !d1.Contains("mindestens 7 mm") && d2.Contains("Kommandozentrale vorerst 1,00"),
 					$"UI-Größe: Text nennt echte Tastengröße und den späteren Ausbau („{d1}“ / „{d2}“)");
 				UiScale.TestPpi = null;
 				UiScale.Set(UiSize.Normal);

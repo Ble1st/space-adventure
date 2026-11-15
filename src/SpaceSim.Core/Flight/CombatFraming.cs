@@ -173,6 +173,16 @@ public static class CombatFraming
         return new CombatFrame(ox, oz, sd, false);
     }
 
+    /// <summary>
+    /// Runde 33b (Prüfung: bei UI-Faktor 1,3 lag das eigene Schiff unter Kampftasten — die Bildmitte war belegt): Blickpunkt, bei dem das Schiff aus Abstand
+    /// <paramref name="distance"/> in der Mitte des freien Felds liegt (dieselbe Rechnung wie die Gefechtsrahmung ohne Ziel).
+    /// </summary>
+    public static Frame CenterShip(float sx, float sz, float yawDeg, float pitchDeg, float fovDeg, float aspect, float distance, FreeRect free)
+    {
+        var f = ComputeCombat(sx, sz, sx, sz, yawDeg, pitchDeg, fovDeg, aspect, distance, distance, distance, free);
+        return new Frame(f.FocusX, f.FocusZ, distance);
+    }
+
     /// <summary>Liegt der Punkt (Ebene, Höhe 0) mit Rand im freien Bildfeld einer Kamera, die aus Abstand <paramref name="d"/> auf den Blickpunkt schaut?</summary>
     public static bool Fits(float px, float pz, float fx, float fz, float d, float yawDeg, float pitchDeg, float fovDeg, float aspect, float margin = 0f)
     {

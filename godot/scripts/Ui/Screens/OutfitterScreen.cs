@@ -79,7 +79,8 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		// ── links: Slots ──
 		At(inner, Text($"Slots · {(u.ShipModels.TryGetValue(ship.ModelKey, out var m) ? m.Name : ship.ModelKey)} · {ShipQualityNames.Name(ship.Quality)}", 17, Cyan), 0, 40, 330, 24);
 		// Gerätetest Phase 27: Slotliste rollt (KitScroll), die Leistungsbilanz steht fest unten im Rahmen — nichts ragt mehr unter den Rahmen
-		float py = 520f - 4f - 88f;
+		float ih = inner.Size.Y > 0 ? inner.Size.Y : 520f;   // Runde 34: Höhe des Bereichs (Dock-Schicht)
+		float py = ih - 4f - 88f;
 		var slotScroll = At(inner, new KitScroll(), 0, 68, 336, py - 72);
 		var slotBox = new VBoxContainer();
 		slotBox.AddThemeConstantOverride("separation", 4);
@@ -125,7 +126,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		string curType = u.SlotTypes.TryGetValue(cur.Type, out var ct) ? ct.Name : cur.Type;
 		At(inner, Text($"Slot {_slot + 1}: {curType} ({cur.Size})", 17, Cyan), rx, 40, rw, 24);
 		var slotOffers = offers.Where(o => OfferSlot(o.Key) == _slot).ToList();
-		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, rx, 68, rw, 520 - 68 - 4);
+		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, rx, 68, rw, ih - 68 - 4);
 		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);

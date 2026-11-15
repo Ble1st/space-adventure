@@ -56,7 +56,10 @@ public sealed class FlightHudLayout
     public bool Compact { get; private init; }
     /// <summary>Nutzbare Fläche (nach Safe Area).</summary>
     public UiRect Area { get; private init; }
-    /// <summary>Kampftasten ohne freie Zelle (liegen dann auf einer Ersatzlage) — 0 im Normalfall.</summary>
+    /// <summary>
+    /// Kampftasten ohne eigene Zelle (die letzten in <see cref="CombatItems"/>-Reihenfolge — Angriff, Ergeben —, sie lägen auf der Zelle einer anderen
+    /// Taste). Runde 33b: kommt im Spiel nicht vor, weil <see cref="FitFactor"/> den Faktor der Schicht so weit senkt, bis jede Taste eine eigene Zelle hat.
+    /// </summary>
     public int Overflow { get; private set; }
 
     public UiRect this[HudItem item] => _rects[item];
@@ -214,6 +217,24 @@ public sealed class FlightHudLayout
             }
         }
         return list;
+    }
+
+    /// <summary>
+    /// Runde 33b (Prüfung: bei 985 × 554 und fünf Schächten lag „Ergeben“ auf „Station angreifen“): größter UI-Faktor ≤ <paramref name="wanted"/>, bei dem auf der
+    /// Fläche <paramref name="w1"/> × <paramref name="h1"/> (logisch bei Faktor 1) mit den Rändern <paramref name="safe1"/> (ebenfalls bei Faktor 1) jede
+    /// Kampftaste und jeder der <paramref name="bays"/> Schächte eine eigene Zelle hat (<see cref="Overflow"/> = 0). Schritte von 0,01; nie unter 1.
+    /// Gilt für jede Fläche, jeden Rand und jede Schachtzahl — die Tasten werden lieber etwas kleiner als übereinander gelegt.
+    /// </summary>
+    public static float FitFactor(float w1, float h1, UiInsets safe1, int bays, float wanted)
+    {
+        if (wanted <= 1f) return MathF.Max(1f, wanted <= 0f ? 1f : wanted);
+        for (int k = (int)MathF.Round(wanted * 100f); k > 100; k--)
+        {
+            float f = k / 100f;
+            var l = Compute(w1 / f, h1 / f, new UiInsets(safe1.Left / f, safe1.Top / f, safe1.Right / f, safe1.Bottom / f), bays);
+            if (l.Overflow == 0) return f;
+        }
+        return 1f;
     }
 
     /// <summary>

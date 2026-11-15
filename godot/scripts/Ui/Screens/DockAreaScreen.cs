@@ -3,6 +3,7 @@ using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Ui;
 using static SpaceAdventure.Ui.Kit.UiKit;
 
 namespace SpaceAdventure.Ui.Screens;
@@ -91,15 +92,19 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		string faction = SpaceSim.Core.Model.ActorNames.Tagged(u, st.Owner);   // Phase 29: mit Kürzel   // Phase 9: Besitzer ist ein Akteur (Fraktionen tragen ihren Namen)
 		string sector = u.Sectors.TryGetValue(st.Sector, out var sec) ? sec.Name : "?";
 
+		// Runde 34 (UI-ANPASSUNG.md E3): Gerüst aus der Fläche der Dock-Schicht (Core: DockLayout.Shell) — bei 1280 × 720 die bisherigen Lagen
+		var L = Shell = DockLayout.Shell(Size.X, Size.Y, UiScale.Div(UiScale.SafeInsets1(), Scale0()), ShowShip);
+
 		// ── Top-Leiste: Station links, Credits und Stationskasse rechts ──
-		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, 20, 10, 1240, 64);
-		At(top, Text(st.Name, 28, Cyan), 0, 6);
-		At(top, Text($"{type} · {faction} · {sector}", 16, Dim), 0, 42);
-		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", 26, Orange, HorizontalAlignment.Right), 940, 0, 300, 32);
-		At(top, Text($"Kasse der Station {st.Credits:0} Cr", 16, Dim, HorizontalAlignment.Right), 940, 38, 300, 22);
+		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, L.Top.X, L.Top.Y, L.Top.W, L.Top.H);
+		float cx = L.Credits.X - L.Top.X;
+		At(top, Text(st.Name, L.Compact ? 24 : 28, Cyan), 0, L.Compact ? 2 : 6, cx - 10, 34);
+		At(top, Text($"{type} · {faction} · {sector}", L.Compact ? 14 : 16, Dim), 0, L.Compact ? 36 : 42, cx - 10, 22);
+		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", L.Compact ? 22 : 26, Orange, HorizontalAlignment.Right), cx, 0, L.Credits.W, 32);
+		At(top, Text($"Kasse der Station {st.Credits:0} Cr", L.Compact ? 14 : 16, Dim, HorizontalAlignment.Right), cx, L.Compact ? 34 : 38, L.Credits.W, 22);
 
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Daten aus DockAreas) ──
-		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, 14, 84, 200, 540);
+		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, L.Rail.X, L.Rail.Y, L.Rail.W, L.Rail.H);
 		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
 		// Phase 12: bis zu neun Bereiche — die Leiste rollt senkrecht, statt Bereiche zu verdrängen
 		var scroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
@@ -109,7 +114,7 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		scroll.AddChild(rv);
 		foreach (var def in DockAreas.Build(u, st, Ctx.Services))
 		{
-			var b = new KitButton(DockAreas.ShortLabelFor(def.Id), new Vector2(184, 56)) { AlignLeft = true, FontSize = 16, Sub = def.Sub };
+			var b = new KitButton(DockAreas.ShortLabelFor(def.Id), new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, Sub = def.Sub };
 			string id = def.Id;
 			b.Pressed += () => AreaSelected?.Invoke(id);   // auch Platzhalter-Bereiche öffnen ihre „Bald“-Seite
 			if (!def.Available) b.Modulate = new Color(1f, 1f, 1f, 0.5f);   // Sub trägt schon „Bald“
@@ -120,27 +125,47 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		rv.AddChild(Text($"Schiff: #{ship.Id.Value} (aktiv)", 13, Dim));
 
 		// ── Mittelteil ──
-		float cw = ShowShip ? 690f : 1040f;
-		var center = At(this, new PanelContainer(), 224, 84, cw, 540);
+		float cw = L.Center.W;
+		var center = At(this, new PanelContainer(), L.Center.X, L.Center.Y, cw, L.Center.H);
 		// Gerätetest: seitlicher Innenabstand 16 (Texte klebten am Rahmen)
 		var centerBox = Box(PanelBg, Edge, 10, 2, 10);
 		centerBox.ContentMarginLeft = 16; centerBox.ContentMarginRight = 16;
 		center.AddThemeStyleboxOverride("panel", centerBox);
-		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(cw - 32, 520), Size = new Vector2(cw - 32, 520) };
-		center.AddChild(inner);
+		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(L.InnerW, L.InnerH), Size = new Vector2(L.InnerW, L.InnerH) };
+		// Runde 34: auf dem Handy (UI-Faktor > 1) ist der Mittelteil niedriger als im Entwurf — Bereiche, deren Inhalt dann über den Rand reicht (Hangar,
+		// Lager, Behörde …), rollen als Ganzes; Bereiche mit eigener Liste (Handel, Werft, Ausrüster) passen und rollen nur innen
+		var areaScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		center.AddChild(areaScroll);
+		areaScroll.AddChild(inner);
 		BuildContent(inner);
+		float bottom = 0f;
+		foreach (var ch in inner.GetChildren()) if (ch is Control cc && cc.Visible) bottom = MathF.Max(bottom, cc.Position.Y + MathF.Max(cc.Size.Y, cc.GetCombinedMinimumSize().Y));
+		if (bottom > L.InnerH + 1f) inner.CustomMinimumSize = new Vector2(L.InnerW, bottom + 8f);
 
 		// ── Rechte Spalte: das Schiff (Fracht, Laderaum, Credits – echt) ──
-		if (ShowShip) BuildShipPanel(224 + cw + 10, 84, 1266 - (224 + cw + 10), 540);
+		if (ShowShip) BuildShipPanel(L.Ship.X, L.Ship.Y, L.Ship.W, L.Ship.H);
 
-		// ── Fußleiste: „← Menü“ und „Abdocken“ immer sichtbar ──
-		var back = At(this, new KitButton("← Menü", new Vector2(160, 58)) { FontSize = 20 }, 14, 648);
+		// ── Fußleiste: „← Menü“ und „Abdocken“ immer sichtbar (kompakt: „← Menü“ unter der Leiste, „Abdocken“ oben rechts) ──
+		var back = At(this, new KitButton("← Menü", new Vector2(L.Back.W, L.Back.H)) { FontSize = 20 }, L.Back.X, L.Back.Y);
 		back.Pressed += () => BackToMenu?.Invoke();
-		var undock = At(this, new KitButton("Abdocken", new Vector2(200, 58)) { FontSize = 22, State = KitButtonState.Ready }, 1066, 648);
+		var undock = At(this, new KitButton("Abdocken", new Vector2(L.Undock.W, L.Undock.H)) { FontSize = 22, State = KitButtonState.Ready }, L.Undock.X, L.Undock.Y);
 		undock.Pressed += () => UndockPressed?.Invoke();
 	}
 
-	/// <summary>Baut den Inhalt des Mittelteils (Innenbereich ca. 670/1020 × 520 px).</summary>
+	/// <summary>Runde 34: zuletzt gerechnetes Gerüst (Selbsttest, Meldungslage).</summary>
+	public DockShell? Shell { get; private set; }
+	/// <summary>Maßstab der Dock-Schicht (Eltern-Steuerelement).</summary>
+	float Scale0() => GetParent() is Control p && p.Scale.X > 0f ? p.Scale.X : 1f;
+	/// <summary>Runde 34: Lücke der Kopfleiste für die große Meldung, in Bildpunkten (null = nicht gebaut).</summary>
+	public Rect2? AlertSlotGlobal => Shell is { } l && IsVisibleInTree()
+		? new Rect2(GetGlobalTransform() * new Vector2(l.AlertSlot.X, l.AlertSlot.Y), new Vector2(l.AlertSlot.W, l.AlertSlot.H) * GetGlobalTransform().Scale.X) : null;
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationResized && Visible && Ctx is not null && GetChildCount() > 0) { _dirty = true; SafeRebuild(); }
+	}
+
+	/// <summary>Baut den Inhalt des Mittelteils (Innenbereich: <see cref="DockShell.InnerW"/> × <see cref="DockShell.InnerH"/>; bei 1280 × 720 658/1008 × 520).</summary>
 	protected abstract void BuildContent(Control inner);
 
 	/// <summary>
@@ -151,9 +176,12 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		var u = Ctx.U; var ship = Ctx.Ship;
 		var p = At(this, new PanelContainer(), x, y, w, h);
 		p.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 12));
-		var sv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		var sv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		sv.AddThemeConstantOverride("separation", 7);
-		p.AddChild(sv);
+		// Runde 34: die Spalte rollt, wenn die Fracht länger ist als die (auf dem Handy kürzere) Spalte — vorher wuchs die Karte über den Rand
+		var shipScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(1, 1) };
+		p.AddChild(shipScroll);
+		shipScroll.AddChild(sv);
 		sv.AddChild(Text("Dein Schiff", 20, Cyan));
 		var sketch = new ShipSketch { CustomMinimumSize = new Vector2(w - 28, 84), Size = new Vector2(w - 28, 84), MouseFilter = MouseFilterEnum.Ignore };
 		sv.AddChild(sketch);
