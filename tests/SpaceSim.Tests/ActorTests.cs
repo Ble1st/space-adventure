@@ -52,6 +52,8 @@ public class ActorTests
     }
 
     static Universe Fresh() => DemoUniverse.Create();
+    /// <summary>Runde 38: Weltbeschreibung mit dem Spieler als Mitglied der Startfraktion (Verhalten bis Runde 37).</summary>
+    static WorldDef Runde38Off(WorldDef def) { Runde38Tests.RevertRunde38(def); return def; }
 
     // ───────── Akteure der Startwelt ─────────
 
@@ -66,15 +68,17 @@ public class ActorTests
             Assert.Equal(f.Name, a.Name);
             Assert.Equal(f.Id, a.Membership);
             Assert.True(a.IsFaction(u));
-            Assert.False(a.ShipsUseTreasury);
+            // Runde 38: die Spielerfraktion bucht ihre Schiffe auf die Spielerkasse; KI-Fraktionen betreiben Eigenbetriebe
+            Assert.Equal(u.IsPlayerFaction(f.Id), a.ShipsUseTreasury);
         }
         Assert.Equal(ActorKind.State, u.Actors[new ActorId(1)].Kind);
         Assert.Equal(ActorKind.Guild, u.Actors[new ActorId(2)].Kind);
         Assert.Equal(0.8f, u.Actors[new ActorId(1)].Personality.Lawfulness, 3);
         Assert.Equal(0.7f, u.Actors[new ActorId(2)].Personality.Greed, 3);
-        // Spieler: Einzelakteur, Mitglied der Fraktion des Spielereintrags, seine Kasse ist die Spielerkasse
+        // Spieler: Einzelakteur, seine Kasse ist die Spielerkasse; Runde 38: Mitglied seiner eigenen Fraktion (vorher der Fraktion des Spielereintrags)
         Assert.Equal(ActorKind.Player, u.Player.Kind);
-        Assert.Equal(new FactionId(def.Player.Faction), u.Player.Membership);
+        Assert.Equal(u.PlayerFaction, u.Player.Membership);
+        Assert.Equal(new FactionId(def.Player.Faction), WorldBuilder.Build(Runde38Off(def)).Player.Membership);
         Assert.Same(u.Player.Treasury, u.PlayerWallet);
         Assert.Equal(def.Player.Credits, u.PlayerWallet.Credits);
         Assert.Equal(ActorKind.Free, u.Actors[u.FreeActor].Kind);
@@ -139,7 +143,7 @@ public class ActorTests
 
         var u = Fresh();
         var stats = EconomyStats.Actors(u);
-        foreach (var f in u.Factions.Keys)
+        foreach (var f in u.NpcFactionIds())   // Runde 38: die Spielerfraktion ist so groß wie ihr Besitz (Einzelakteur)
             Assert.Equal(ActorSizeClass.State, stats.Single(a => a.Id == f).Class);
         Assert.Equal(ActorSizeClass.Single, stats.Single(a => a.Id == u.PlayerActor).Class);
         Assert.Equal(u.Ships.Values.Count(s => s.Owner == u.FreeActor), stats.Single(a => a.Id == u.FreeActor).Ships);
@@ -298,9 +302,9 @@ public class ActorTests
         // (Phase 10: Regierungsstationen zahlen ihren Unterhalt aus der Kasse — ohne Kasse aus der eigenen; sie sind keine Abgabenzahler)
         foreach (var st in a.Stations.Values.Where(s => !StationProtection.IsOfficial(a, s))) Assert.Equal(b.Stations[st.Id].Credits, st.Credits);
         foreach (var s in a.Ships.Values) Assert.Equal(b.Ships[s.Id].Credits, s.Credits);
-        float treasuries = a.Factions.Keys.Sum(f => a.Actors[f].Treasury.Credits);
+        float treasuries = a.NpcFactionIds().Sum(f => a.Actors[f].Treasury.Credits);   // Runde 38: Kassen der KI-Fraktionen (die Spielerkasse ist keine Abgabenkasse)
         Assert.True(treasuries > 0f);
-        Assert.Equal(0f, b.Factions.Keys.Sum(f => b.Actors[f].Treasury.Credits));
+        Assert.Equal(0f, b.NpcFactionIds().Sum(f => b.Actors[f].Treasury.Credits));
         // erklärbar: Kasse = Summe der gemeldeten Abgaben (Gleitkomma-Summen über viele kleine Buchungen: relative Toleranz)
         double net = taxes.Sum(t => (double)t.Amount) - upkeep + income;
         Assert.InRange(treasuries, net - 1e-4 * net - 1, net + 1e-4 * net + 1);
@@ -342,7 +346,8 @@ public class ActorTests
     [Fact]
     public void Beziehungen_Vorgaben_Abweichungen_Sparsam()
     {
-        var u = Fresh();
+        // Runde 38: dieser Test prüft die Vererbung über die Mitgliedschaft (Spieler als Unionsmitglied) — Regel aus; die eigene Fraktion prüft Runde38Tests
+        var u = WorldBuilder.Build(Runde38Off(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson())));
         var union = new ActorId(1);
         var guild = new ActorId(2);
         Assert.Equal(0.25f, Relations.Effective(u, union, guild), 3);                     // Hauptbeziehung aus der Weltdatei

@@ -22,6 +22,8 @@ public sealed class CommandContext
 	public StationId? Docked;
 	/// <summary>Phase 12: Dienst-Registry (Taxi auf der Universumskarte, Verkauf im Besitz); Instanz aus der Sitzung.</summary>
 	public SpaceSim.Core.Services.StationServices Services = SpaceSim.Core.Services.StationServices.Default();
+	/// <summary>Runde 38: Einnahmen der Spielerkasse (Ereignisse des letzten Spieltags) für „Meine Fraktion“; null = keine Messung.</summary>
+	public Func<SpaceSim.Core.Diagnostics.PlayerIncome?> Income = () => null;
 }
 
 /// <summary>Bereiche der Kommandozentrale (linke Leiste), Reihenfolge wie in UI.md Abschnitt 4.</summary>

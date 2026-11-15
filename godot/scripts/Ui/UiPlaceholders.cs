@@ -79,14 +79,18 @@ public static class UiPlaceholders
 	// ── Meine Fraktion ──
 	// Phase 9: Größe, Fortschritt, Mitgliedschaft, Beziehungen und Persönlichkeit sind echt (Akteure im Core); hier bleibt der Rest.
 
-	/// <summary>Einnahmen pro Tag (Platzhalter).</summary>
-	public const string MyFactionIncome = "+210 Cr/Tag – " + Tag;
-	/// <summary>Fähigkeiten mit Schloss nach Größenstufe (Platzhalter).</summary>
-	public static (string Name, bool Unlocked, string Note)[] MyFactionAbilities => new[]
-	{
-		("Büro an eigener Station", false, "ab Kleinfirma – " + Soon),
-		("Fehde erklären", false, "ab Kleinfirma – " + Soon),
-		("Firmensitz", false, "ab Firma – " + Soon),
-		("Zoll und Sperren", false, "ab Sektor-Dominanz – " + Soon),   // Runde 26 (Gerätetest c05): passt in die Spalte
-	};
+	// Runde 38: „Einnahmen/Tag“ ist echt (PlayerIncome aus Ereignissen), Beitreten/Gründen entfallen (der Spieler ist von Anbeginn eine eigene Fraktion).
+	/// <summary>
+	/// Fähigkeiten mit Schloss nach Größenstufe (Platzhalter). Runde 38: Büro, Fehde und Firmensitz erscheinen erst, wenn der Spieler eine Station besitzt
+	/// (<paramref name="hasStations"/>) — vorher kein „Bald“ für Dinge ohne Grundlage; „Zoll und Sperren“ bleibt mit Schloss, bis der Spieler einen Sektor dominiert.
+	/// </summary>
+	public static (string Name, bool Unlocked, string Note)[] MyFactionAbilities(bool hasStations) => hasStations
+		? new[]
+		{
+			("Büro an eigener Station", false, "ab Kleinfirma – " + Soon),
+			("Fehde erklären", false, "ab Kleinfirma – " + Soon),
+			("Firmensitz", false, "ab Firma – " + Soon),
+			("Zoll und Sperren", false, "ab Sektor-Dominanz – " + Soon),
+		}
+		: new[] { ("Zoll und Sperren", false, "ab Sektor-Dominanz – " + Soon) };   // Runde 26 (Gerätetest c05): passt in die Spalte
 }

@@ -372,7 +372,11 @@ public class Phase31Tests
     [Fact]
     public void Stationsgeschuetze_GesuchtesMitgliedDerEigenenFraktionIstZiel()
     {
-        var u = Standard();
+        // Runde 38: der Fall „Mitglied der Stationsfraktion“ gibt es nur noch mit Regel aus (sonst ist der Spieler seine eigene Fraktion)
+        var def = TestWorlds.Def(fuel: false, research: false);
+        Runde38Tests.RevertRunde38(def);
+        var u = WorldBuilder.Build(def);
+        u.Rules.GateCombat = true;
         var me = u.Ships[u.PlayerShip];
         var hq = u.StationsById().First(s => StationCombat.DefenseOf(u, s) is { Guns.Count: > 0 } && u.FactionOf(s) == u.Player.Membership);
         var e = new Encounter { Cause = EncounterCause.Assault, Sector = hq.Sector };

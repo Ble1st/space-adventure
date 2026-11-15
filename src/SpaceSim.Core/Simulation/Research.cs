@@ -34,7 +34,7 @@ public static class Research
 
     /// <summary>Kann irgendeine Fraktion diesen Content nutzen (für die Bauwahl des Lebenszyklus)?</summary>
     public static bool UnlockedAnywhere(Universe u, UnlockKind kind, string key) =>
-        u.Research.LockOf(kind, key) is null || !u.Rules.ResearchActive || u.Factions.Keys.Any(f => IsUnlocked(u, f, kind, key));
+        u.Research.LockOf(kind, key) is null || !u.Rules.ResearchActive || u.NpcFactionIds().Any(f => IsUnlocked(u, f, kind, key));
 
     /// <summary>Anzeigetext für gesperrten Content an einer Station („nicht erforscht: Projekt“), null = frei.</summary>
     public static string? LockText(Universe u, Station st, UnlockKind kind, string key)

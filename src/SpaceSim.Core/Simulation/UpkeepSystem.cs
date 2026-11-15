@@ -106,13 +106,14 @@ public sealed class UpkeepSystem : ISimSystem
     public static Dictionary<int, float> FiscalFactors(Universe u)
     {
         var result = new Dictionary<int, float>();
-        if (u.Rules.TreasuryTargetShare <= 0f || u.Factions.Count == 0) return result;
+        var npc = u.NpcFactionIds();   // Runde 38: nur KI-Fraktionen (die Spielerfraktion hat keine Steuern und zählt nicht zur Fraktionszahl)
+        if (u.Rules.TreasuryTargetShare <= 0f || npc.Count == 0) return result;
         double money = 0;
         foreach (var st in u.Stations.Values) money += Math.Max(0f, st.Credits);
         foreach (var sh in u.Ships.Values) if (sh.IsEconomyAi) money += Math.Max(0f, sh.Credits);
         foreach (var a in u.Actors.Values) if (a.Id != u.PlayerActor) money += Math.Max(0f, a.Treasury.Credits);
-        float target = (float)(money * u.Rules.TreasuryTargetShare / u.Factions.Count);
-        foreach (var f in u.Factions.Keys)
+        float target = (float)(money * u.Rules.TreasuryTargetShare / npc.Count);
+        foreach (var f in npc)
         {
             float t = u.Actors.TryGetValue(f, out var a) ? a.Treasury.Credits : 0f;
             result[f.Value] = target <= 0f ? 0f : Math.Clamp(1f - t / target, 0f, 1f);
@@ -122,5 +123,5 @@ public sealed class UpkeepSystem : ISimSystem
 
     /// <summary>Wer die Abgabe eines Schiffs bekommt: die Fraktion seines Besitzers, für freie Einzelschiffe die Fraktion, der der Sektor gehört.</summary>
     public static FactionId? TaxAuthority(Universe u, Ship ship) =>
-        u.FactionOf(ship) ?? (u.Sectors.TryGetValue(ship.Sector, out var sec) && u.Factions.ContainsKey(sec.Owner) ? sec.Owner : null);
+        u.FactionOf(ship) is { } own && !u.IsPlayerFaction(own) ? own : (u.Sectors.TryGetValue(ship.Sector, out var sec) && u.IsNpcFaction(sec.Owner) ? sec.Owner : null);
 }

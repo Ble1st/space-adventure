@@ -46,5 +46,5 @@ public static class MapConnectivity
 
     /// <summary>Zerfall je Fraktion (Profil des Fraktionsakteurs, beladen): politische Sperren gegen diese Fraktion.</summary>
     public static IReadOnlyList<MapSplit> Factions(Universe u) =>
-        u.Factions.Values.OrderBy(f => f.Id.Value).Select(f => Check(u, MobilityProfile.For(f.Id, laden: true), f.Name)).ToList();
+        u.NpcFactionIds().Select(id => u.Factions[id]).Select(f => Check(u, MobilityProfile.For(f.Id, laden: true), f.Name)).ToList();
 }

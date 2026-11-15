@@ -11,8 +11,16 @@ public static class UniverseHash
     /// Runde 12: Hash wahlweise ohne die Akteurskürzel (<see cref="Actor.Tag"/>) — die Kürzel hängen von der Namensliste ab; der Vergleichswert ohne sie zeigt, dass
     /// eine geänderte Referenzkonstante nur von Namen/Kürzeln kommt und das Verhalten gleich blieb.
     /// </summary>
-    public static ulong Compute(Universe u, bool includeTags)
+    public static ulong Compute(Universe u, bool includeTags) => Compute(u, includeTags, includePlayerPolitics: true);
+
+    /// <summary>
+    /// Runde 38: Hash wahlweise ohne die Spielerpolitik — Spielerfraktion (Eintrag und Forschungsstand), Mitgliedschaft des Spielerakteurs und alle
+    /// Beziehungseinträge von und zu ihr. Der Vergleichswert mit Regel <see cref="EconomyRules.PlayerOwnFaction"/> an und aus muss gleich sein: Beweis, dass die
+    /// KI-Welt von der Spielerfraktion nichts merkt (wie Runde 12 für die Kürzel).
+    /// </summary>
+    public static ulong Compute(Universe u, bool includeTags, bool includePlayerPolitics)
     {
+        bool Skip(FactionId f) => !includePlayerPolitics && f.Value == u.PlayerActor.Value;
         ulong h = 14695981039346656037UL;
         void Mix(ulong v) { h ^= v; h *= 1099511628211UL; }
         void MixF(float f) => Mix((ulong)BitConverter.SingleToInt32Bits(MathF.Round(f, 3)));
@@ -46,6 +54,7 @@ public static class UniverseHash
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
         {
+            if (Skip(f.Id)) continue;
             Mix((ulong)f.LastEmergencyBuildTick);
             // Phase 13: Forschungsstand (laufendes Projekt, FP je Projekt, Abschlüsse, Summen)
             var r = f.Research;
@@ -86,12 +95,16 @@ public static class UniverseHash
         // Phase 9: Akteure (Art, Mitgliedschaft, Kasse — darunter die Spielerkasse aus Phase 5b —, Persönlichkeit, Beziehungsabweichungen)
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {
-            Mix((ulong)a.Id.Value); Mix((ulong)a.Kind); Mix((ulong)(a.Membership?.Value ?? -1)); MixF(a.Treasury.Credits); Mix(a.ShipsUseTreasury ? 1UL : 0UL);
+            Mix((ulong)a.Id.Value); Mix((ulong)a.Kind);
+            if (includePlayerPolitics || a.Id != u.PlayerActor) Mix((ulong)(a.Membership?.Value ?? -1)); MixF(a.Treasury.Credits); Mix(a.ShipsUseTreasury ? 1UL : 0UL);
             MixF(a.Personality.Aggression); MixF(a.Personality.Greed); MixF(a.Personality.Cooperation); MixF(a.Personality.Lawfulness);
             foreach (var (k, v) in a.Relations.OrderBy(k => k.Key.Value)) { Mix((ulong)k.Value); MixF(v); }
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))
-            foreach (var (k, v) in f.Relations.OrderBy(k => k.Key.Value)) { Mix((ulong)k.Value); MixF(v); }
+        {
+            if (Skip(f.Id)) continue;
+            foreach (var (k, v) in f.Relations.OrderBy(k => k.Key.Value)) { if (Skip(k)) continue; Mix((ulong)k.Value); MixF(v); }
+        }
         Mix((ulong)u.PlayerActor.Value); Mix((ulong)u.FreeActor.Value); Mix((ulong)u.NextActorId);
         Mix((ulong)u.PlayerShip.Value);   // Phase 5c: aktives Schiff kann wechseln (Kauf, Hangar)
         // Phase 10: Gate-Zustände, Sektorbesitz, Sperren (Stufen, Zeiten, Durchsetzung), Einfluss, Kontrollstufe, umkämpft, unsterbliche Stationen

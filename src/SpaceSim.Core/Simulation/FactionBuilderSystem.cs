@@ -18,7 +18,7 @@ public sealed class FactionBuilderSystem : ISimSystem
 
     /// <summary>KI-Bauschiff, das einer Fraktion gehört (Besitzer = Fraktionsakteur)?</summary>
     public static bool IsFactionBuilder(Universe u, Ship ship) =>
-        ship.Controller == Controller.Ai && ship.Role == ShipRole.Builder && u.Factions.ContainsKey(new FactionId(ship.Owner.Value));
+        ship.Controller == Controller.Ai && ship.Role == ShipRole.Builder && u.IsNpcFaction(new FactionId(ship.Owner.Value));
 
     /// <summary>Bauschiffe einer Fraktion (nach Id).</summary>
     public static List<Ship> Of(Universe u, FactionId f) =>
@@ -28,7 +28,7 @@ public sealed class FactionBuilderSystem : ISimSystem
     {
         var r = u.Rules;
         if (r.MinBuildersPerFaction <= 0 && r.BuilderUpkeepPerTick <= 0f) return;
-        foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList())
+        foreach (var f in u.NpcFactionIds().ToList())   // Runde 38: die Spielerfraktion hat kein Fraktions-Bauschiff
         {
             if (!u.Actors.TryGetValue(f, out var actor) || actor.Kind == ActorKind.Outlaw) continue;
             var builders = Of(u, f);

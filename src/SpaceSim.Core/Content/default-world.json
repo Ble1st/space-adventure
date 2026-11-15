@@ -2,6 +2,7 @@
  "seed": 20260101,
  "randomNames": true,
  "rules": {
+  "playerOwnFaction": true,
   "gateCombat": true,
   "miningAnchors": true,
   "armedTraderBaseline": 6,

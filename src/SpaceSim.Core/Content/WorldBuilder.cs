@@ -402,6 +402,8 @@ public static class WorldBuilder
         var player = NewShip(u, new ShipId(100), ShipRole.Player, u.PlayerActor, new SectorId(playerSector), 0f, 100, playerModel);
         u.Player.Treasury.Credits = playerCredits;
         u.Player.Membership = u.Factions.ContainsKey(new FactionId(def.Player.Faction)) ? new FactionId(def.Player.Faction) : null;
+        // Runde 38: der Spieler ist von Anbeginn eine eigene Fraktion (Startbeziehung +0,2 zur Fraktion des Startsektors, sonst 0,1)
+        if (u.Rules.PlayerOwnFaction) Simulation.PlayerFaction.Create(u, new SectorId(playerSector));
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;

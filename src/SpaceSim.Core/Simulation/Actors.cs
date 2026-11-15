@@ -293,6 +293,13 @@ public static class Relations
 
     /// <summary>Anzahl gespeicherter Beziehungseinträge (Fraktionen plus Akteure) — muss linear in der Zahl der Akteure bleiben.</summary>
     public static int StoredEntries(Universe u) => u.Factions.Values.Sum(f => f.Relations.Count) + u.Actors.Values.Sum(a => a.Relations.Count);
+
+    /// <summary>Runde 38: gespeicherte Beziehungseinträge ohne die von und zu der Spielerfraktion (KI-Welt; Diagnose).</summary>
+    public static int StoredNpcEntries(Universe u) =>
+        u.Factions.Values.Where(f => !u.IsPlayerFaction(f.Id)).Sum(f => f.Relations.Keys.Count(k => !u.IsPlayerFaction(k))) + u.Actors.Values.Sum(a => a.Relations.Count);
+
+    /// <summary>Runde 38: gespeicherte Beziehungseinträge von und zu der Spielerfraktion.</summary>
+    public static int StoredPlayerEntries(Universe u) => StoredEntries(u) - StoredNpcEntries(u);
 }
 
 /// <summary>

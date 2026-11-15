@@ -740,6 +740,7 @@ public partial class Main : Node3D
 		_hud.CcCtx.AutoMiningOn = () => _miner.Enabled;
 		_hud.CcCtx.Docked = _docked;
 		_hud.CcCtx.Services = _session.Services;
+		_hud.CcCtx.Income = () => _session.Income;   // Runde 38
 		// Runde 17: die Sektoransicht zeigt beim Öffnen den Spielersektor, außer die Universumskarte hat bewusst einen anderen gewählt
 		if (areaId == CommandAreas.Sector && (!_sectorChosen || _hud.CcSector.SelectedSector == null)) _hud.CcSector.ShowPlayerSector(u.PlayerSector);
 		_sectorChosen = false;
