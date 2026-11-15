@@ -41,6 +41,9 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 	SectorId? _target;
 	readonly TouchButton _close = new("Schließen", new Vector2(150, 56));
 
+	/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole.</summary>
+	public int TestMissionSymbols;
+
 	public MapOverlay()
 	{
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -127,6 +130,17 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 			DrawArc(p, 30f, 0, Mathf.Tau, 40, col, 3f);
 			if (s.Id == _player) DrawArc(p, 38f, 0, Mathf.Tau, 40, Colors.White, 3f);
 			if (s.Id == _target) DrawArc(p, 46f, 0, Mathf.Tau, 40, Colors.Yellow, 3f);
+			// Runde 41: Missionsziel im Sektor — goldener Diamant am Knoten (einer je Auftrag, max 3)
+			int mmi = 0;
+			foreach (var _mk in SpaceSim.Core.Missions.MissionMarkers.For(_u).Where(mk => mk.Sector == s.Id))
+			{
+				if (mmi >= 3) break;
+				var c = p + new Vector2(30f + mmi * 13f, -30f);
+				float d = 7f;
+				DrawColoredPolygon(new[] { c + new Vector2(0, -d), c + new Vector2(d, 0), c + new Vector2(0, d), c + new Vector2(-d, 0) }, Screens.FlightHud.MissionGold);
+				mmi++;
+			}
+			TestMissionSymbols += mmi;
 			// Phase 21: Name ohne „Sektor “ und kleiner, damit 11 Sektoren nebeneinander lesbar bleiben
 			// Gerätetest: Name und Stationszahl kollisionsfrei neben dem Knoten (LabelLayout)
 			layout.Draw(this, p, s.Name.Replace("Sektor ", "") + $" · {s.Stations.Count} St.", 14, Colors.White, 40f, 160f);

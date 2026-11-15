@@ -47,6 +47,7 @@ public static class DockAreas
 	public const string Info = "info";
 	public const string Taxi = "taxi";
 	public const string Missions = "missions";
+	/// <summary>Runde 41: Aufträge (Dienst „missions“).</summary>
 	/// <summary>Phase 8: persönliches Lager (Dienst „storage“, Lagerhaus); ersetzt an solchen Stationen die Taxi-Kachel.</summary>
 	public const string Storage = "storage";
 	/// <summary>Phase 11: Behörde (Dienste „court“ und „bounty“, Regierungsstationen); ersetzt dort die Kachel „Aufträge“.</summary>
@@ -131,14 +132,16 @@ public static class DockAreas
 		// Phase 13: Forschung (Projekte ansehen, beauftragen, mitfinanzieren) an Forschungsstationen
 		if (offered.Contains(ResearchService.ServiceKey) && SpaceSim.Core.Simulation.ResearchInfo.ForStation(u, st) is { } rv)
 			list.Add(new DockAreaDef { Id = Research, Label = LabelFor(Research), Sub = $"{rv.Completed}/{rv.Total} erforscht" + (rv.Current is not null ? " · läuft" : ""), Available = true });
-		// Phase 11: Gericht und Kopfgeldbüro statt der Aufträge-Platzhalterkachel (Missionen gibt es noch nicht)
+		// Phase 11: Gericht und Kopfgeldbüro an Regierungsstationen (zusätzliche Kachel)
 		if (offered.Contains(CourtService.ServiceKey) || offered.Contains(BountyService.ServiceKey))
 		{
 			int open = u.Player.Wanted.Count;
 			list.Add(new DockAreaDef { Id = Authority, Label = LabelFor(Authority), Sub = open > 0 ? $"{open} Strafe{(open == 1 ? "" : "n")} offen" : "Gericht · Kopfgeld", Available = true });
 		}
-		else
-			list.Add(new DockAreaDef { Id = Missions, Label = LabelFor(Missions), Sub = UiPlaceholders.Soon, Available = false });
+		// Runde 41: Aufträge (Dienst „missions“) — immer als eigene Kachel, auch an Regierungsstationen
+		bool missions = offered.Contains(MissionService.ServiceKey);
+		int offers = u.MissionOffers.Count(o => o.At == st.Id);
+		list.Add(new DockAreaDef { Id = Missions, Label = LabelFor(Missions), Sub = missions ? (offers > 0 ? $"{offers} Angebot{(offers == 1 ? "" : "e")}" : "Keine offen") : "Nicht hier", Available = missions });
 		return list;
 	}
 }

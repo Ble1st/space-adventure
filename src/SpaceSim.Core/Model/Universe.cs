@@ -207,6 +207,24 @@ public sealed class Universe
     /// <summary>Runde 40: nächste Nachrichten-Id (fortlaufend, gespeichert).</summary>
     public int NextMessageId { get; set; } = 1;
 
+    /// <summary>
+    /// Runde 41: Auftragsangebote (<see cref="Missions.MissionBoardSystem"/>; eigener Zufall aus dem Welt-Seed, nie <see cref="Rng"/>).
+    /// Additiv gespeichert, aber <b>nicht gehasht</b> — reine Anzeige, bis der Spieler annimmt; Angebote ändern keinen Hash.
+    /// </summary>
+    public List<MissionOffer> MissionOffers { get; } = new();
+    /// <summary>
+    /// Runde 41: angenommene Aufträge (Lieferung, Transport). Gespeichert und <b>gehasht</b>, sobald welche laufen — erst eine Annahme
+    /// des Spielers ändert den Hash. Abgeschlossene/gescheiterte Aufträge werden entfernt (ihre Geldflüsse stehen in den Ereignissen).
+    /// </summary>
+    public List<Mission> Missions { get; } = new();
+    /// <summary>Runde 41: nächste Auftrags-Id (fortlaufend, gespeichert, nicht gehasht).</summary>
+    public int NextMissionId { get; set; } = 1;
+    /// <summary>
+    /// Runde 41: Budget-/Sperrbuchaltung der Aufträge je Auftraggeber (Akteur-Id). Wird nur durch Spielerhandlungen geschrieben
+    /// (Annahme, Scheitern) — ohne angenommenen Auftrag leer, der NPC-Hash ändert sich nicht. Gespeichert und gehasht, sobald Einträge existieren.
+    /// </summary>
+    public Dictionary<int, MissionFactionState> MissionFactions { get; } = new();
+
     /// <summary>Zählt Änderungen an Sektorinhalten (Stationen gebaut/entfernt), damit die Darstellung neu aufbauen kann.</summary>
     public int StructureVersion { get; private set; }
 

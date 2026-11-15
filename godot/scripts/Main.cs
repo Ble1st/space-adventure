@@ -34,6 +34,7 @@ public partial class Main : Node3D
 	GameSession _session = null!;
 	bool _allSystems;   // Phase 14: Weltaufbau mit eingeschaltetem Treibstoff und Forschung (Selbsttest, Bildschirmfotos)
 	SectorView _view = null!;
+	MissionView _missions = null!;   // Runde 41: Leuchtfeuer der Missionsziele
 	PlayerShip _player = null!;
 	Camera3D _cam = null!;
 	Hud _hud = null!;
@@ -102,6 +103,7 @@ public partial class Main : Node3D
 		BuildStars();
 
 		_view = new SectorView(); AddChild(_view);
+		_missions = new MissionView(); AddChild(_missions);   // Runde 41
 		_mining = new MiningView { GoodColor = id => GoodColor(id) }; AddChild(_mining);
 		_combat = new CombatView(); AddChild(_combat);
 		// Runde 11: Schüsse und Raketen starten an der sichtbaren Stellung des feuernden Slots (Schiff) bzw. Geschützes (Station)
@@ -121,6 +123,7 @@ public partial class Main : Node3D
 
 		_hud.TargetScreenPosition = ScreenPositionOfTarget;
 		_hud.StationScreenPositions = StationScreenPositions;
+		_hud.MissionEdges = MissionScreenPositions;   // Runde 41: Gold-Randpfeile der Missionsziele
 		_hud.FreeField = () => _session != null ? FreeFieldPixels() : new Rect2();   // Runde 16
 		_hud.TargetEdge = TargetEdge;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
@@ -193,6 +196,10 @@ public partial class Main : Node3D
 		_hud.DockAuthority.BackToMenu += ShowDockMenu;
 		_hud.DockAuthority.UndockPressed += Undock;
 		_hud.DockAuthority.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.DockMissions.AreaSelected += OnDockArea;
+		_hud.DockMissions.BackToMenu += ShowDockMenu;
+		_hud.DockMissions.UndockPressed += Undock;
+		_hud.DockMissions.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockResearch.AreaSelected += OnDockArea;
 		_hud.DockResearch.BackToMenu += ShowDockMenu;
 		_hud.DockResearch.UndockPressed += Undock;
@@ -397,7 +404,12 @@ public partial class Main : Node3D
 	{
 		if (_warnText is null || _warnShown is null) return;
 		var u = _session.U;
-		if (SpaceSim.Core.Combat.WarningCountdown.Pending(u, u.PlayerShip, _warnDue) is null) { _warnText = null; return; }
+		if (SpaceSim.Core.Combat.WarningCountdown.Pending(u, u.PlayerShip, _warnDue) is null)
+		{
+			// Runde 41 (A2): Ursache abgelaufen (angedockt, Sektor verlassen, Waffenstillstand/Frieden) — die Warnmeldung verschwindet sofort
+			if (_hud.TestAlert == _warnShown) _hud.HideAlert();
+			_warnText = null; return;
+		}
 		string text = SpaceSim.Core.Combat.WarningCountdown.Apply(_warnText, SpaceSim.Core.Combat.WarningCountdown.SecondsLeft(_warnDue, u.Tick));
 		if (text == _warnShown) return;
 		if (_hud.ReplaceAlertText(_warnShown, text)) _warnShown = text; else _warnText = null;   // Meldung ersetzt oder geschlossen → nicht weiter zählen
@@ -1131,7 +1143,11 @@ public partial class Main : Node3D
 				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, WarnSeconds(w.DueTick)); LastSecurityMessage = w.Message;
 				StartCountdown(w.DueTick); break;
 			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
-			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
+			case EncounterEscaped x when x.Target == _session.U.PlayerShip:
+				_hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message;
+				// Runde 41 (A2): Warnung aufgehoben (z. B. Waffenstillstand) — die stehende Warnmeldung im Alert sofort entfernen
+				if (_warnShown is not null && _hud.TestAlert == _warnShown) { _hud.HideAlert(); _warnText = null; }
+				break;
 			case RaidResolved rr when rr.Player: _hud.Alert(rr.Message, 8f); LastSecurityMessage = rr.Message; break;
 			case RaidResolved rn when rn.Sector == _session.U.PlayerSector:
 				_hud.Info($"Hier im Sektor: {rn.Message}", 3f); break;   // Runde 38a: fremder Überfall = Info   // Runde 4: welches Schiff (vorher klang es mitten im Stationsangriff nach dem eigenen Gefecht)
@@ -1211,6 +1227,7 @@ public partial class Main : Node3D
 		_view.SyncWrecks(_session.U);   // Phase 26: Wracks und Frachtbehälter
 		GateSparks(delta);   // Phase 31: beschädigte Tore sprühen Funken
 		_view.SyncStations(_session.U);   // Runde 8: Besitzerfarbe und Zustand der Stationsmodelle
+		_missions.Sync(_session.U, delta);   // Runde 41: Leuchtfeuer der Missionsziele im Sektor
 
 		// Phase 26: keine Gratis-Regeneration der Hülle mehr (Reparatur nur über den Dienst „repair“); ohne Schadensmodell wie bisher
 		_sinceHit += delta;
@@ -1652,6 +1669,7 @@ public partial class Main : Node3D
 			DockAreas.Shipyard => _hud.DockShipyard,
 			DockAreas.Storage => _hud.DockStorage,
 			DockAreas.Authority => _hud.DockAuthority,
+			DockAreas.Missions => _hud.DockMissions,
 			DockAreas.Research => _hud.DockResearch,
 			_ => _hud.DockMenu,
 		};
@@ -1935,6 +1953,23 @@ public partial class Main : Node3D
 			var p = _cam.UnprojectPosition(w);
 			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
 			list.Add((p, ActorNames.Tagged(u, st.Owner, st.Name), st.Id.Value));   // Phase 29: Kürzel
+		}
+		return list;
+	}
+
+	/// <summary>Runde 41: Bildschirmpositionen der Missionsmarker im aktuellen Sektor (Projektion wie die Stationen; auch außerhalb des Bildes → Randpfeil).</summary>
+	IReadOnlyList<(Vector2 Screen, string Label, int MissionId)> MissionScreenPositions()
+	{
+		var list = new List<(Vector2, string, int)>();
+		if (_session == null || _docked != null) return list;
+		var u = _session.U;
+		foreach (var mk in SpaceSim.Core.Missions.MissionMarkers.For(u))
+		{
+			if (mk.Sector != u.PlayerSector) continue;   // anderer Sektor: Symbol auf der Karte, kein Randpfeil hier
+			var w = new Vector3(mk.Position.X, 0, mk.Position.Y);
+			var p = _cam.UnprojectPosition(w);
+			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
+			list.Add((p, mk.Label, mk.Mission));
 		}
 		return list;
 	}
@@ -2281,6 +2316,7 @@ public partial class Main : Node3D
 			Wanted = SecurityInfo.HudLine(u) ?? "",
 			WantedSevere = SpaceSim.Core.Simulation.Wanted.MaxLevel(u, u.PlayerActor) >= 3,
 			Fire = SpaceSim.Core.Combat.DamageInfo.FireWarning(u, PlayerData) ?? "",   // Phase 26
+			Mission = SpaceSim.Core.Missions.MissionMarkers.First(u) is { } mk ? mk.Label : "",   // Runde 41: Auftragszeile (Gold)
 			AutopilotOn = _autopilot,
 			AutoMineOn = _miner.Enabled,
 			TractorOn = _tractorOn,
@@ -3232,6 +3268,10 @@ public partial class Main : Node3D
 	}
 	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (auch Baustelle) und Andocken.</summary>
 	internal void TestDockAt(StationId id) { TestEnterSector(_session.U.Stations[id].Sector); TestTeleportNear(id); Dock(id); }
+	/// <summary>Runde 41 (Selbsttest): sichtbare Missions-Leuchtfeuer im aktuellen Sektor.</summary>
+	internal int TestMissionBeacons => _missions.TestVisible;
+	/// <summary>Runde 41 (Selbsttest): Texte der sichtbaren Missions-Leuchtfeuer.</summary>
+	internal IReadOnlyList<string> TestMissionBeaconLabels => _missions.TestLabels;
 	/// <summary>Phase 8: Teleport in Andocknähe einer bestimmten Station (Bildschirmfotos der Baustelle im Flug).</summary>
 	internal void TestTeleportNear(StationId id)
 	{

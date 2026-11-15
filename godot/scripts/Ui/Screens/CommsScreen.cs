@@ -22,12 +22,13 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	/// <summary>Gerätetest: Auswahl, Reiter und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { _tab = "inbox"; _sel = -1; _diplSel = 0; _detailOpen = false; _message = ""; }
 
-	string _tab = "inbox";        // "inbox" | "diplomacy"
+	string _tab = "inbox";        // "inbox" | "diplomacy" | "missions"
 	int _sel = -1;                // gewählte Nachricht (Id)
 	int _diplSel;                 // gewählte Fraktion (Index in NpcFactionIds)
 	bool _detailOpen;             // schmal: Detail statt Liste
 	string _message = "";
 	readonly KitConfirm _confirm = new();
+	KitScroll? _detailScroll;   // Runde 41 (A3): Vorschauzeilen unter den Knöpfen schieben sie tiefer — Detail scrollt (Test-Hook)
 
 	// ── Test-Hooks ──
 	/// <summary>Selbsttest: Zahl der Posteingang-Nachrichten.</summary>
@@ -44,6 +45,12 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public void TestSelectFaction(int i) { _diplSel = i; _detailOpen = true; Invalidate(); }
 	/// <summary>Selbsttest: zuletzt gemeldetes Aktionsergebnis.</summary>
 	public string TestMessage => _message;
+	/// <summary>Selbsttest: Zahl der aktiven Aufträge im Reiter „Aufträge“.</summary>
+	public int TestMissionRows => Ctx.U.Missions.Count(m => m.State == SpaceSim.Core.Model.MissionState.Active);
+	/// <summary>Selbsttest: Diplomatie-Detail ganz nach unten scrollen (Knöpfe mit Vorschauzeile liegen sonst unten abgeschnitten).</summary>
+	public void TestScrollDetailEnd() { if (_detailScroll is { } sc) { sc.ScrollVertical = (int)sc.GetVScrollBar().MaxValue; Invalidate(); } }
+	/// <summary>Selbsttest: Diplomatie-Detail schrittweise nach unten scrollen (bis zu einem límites).</summary>
+	public void TestScrollDetailStep(int d) { if (_detailScroll is { } sc) sc.ScrollVertical = (int)Mathf.Min(sc.GetVScrollBar().MaxValue, Math.Max(0, sc.ScrollVertical + d)); }
 
 	static string FactionNameOf(Universe u, FactionId f) => u.Factions.TryGetValue(f, out var x) ? SpaceSim.Core.Model.ActorNames.Tagged(u, f, x.Name) : $"?{f.Value}";
 
@@ -52,16 +59,23 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		var u = Ctx.U;
 		// ── Reiter ──
 		float tx = 12;
-		foreach (var (id, label) in new[] { ("inbox", "Posteingang"), ("diplomacy", "Diplomatie") })
+		foreach (var (id, label) in new[] { ("inbox", "Posteingang"), ("diplomacy", "Diplomatie"), ("missions", "Aufträge") })
 		{
 			int unread = SpaceSim.Core.Comms.Comms.Unread(u);
 			var b = At(inner, new KitButton(label, new Vector2(180, 44)) { FontSize = 17, State = _tab == id ? KitButtonState.On : KitButtonState.Normal }, tx, 12);
 			if (id == "inbox" && unread > 0) { b.Detail = unread.ToString(); b.DetailColor = Orange; }
+			if (id == "missions")
+			{
+				int act = u.Missions.Count(m => m.State == SpaceSim.Core.Model.MissionState.Active);
+				if (act > 0) { b.Detail = act.ToString(); b.DetailColor = Cyan; }
+			}
 			string t = id;
 			b.Pressed += () => { _tab = t; _detailOpen = false; Invalidate(); };
 			tx += 192;
 		}
-		if (_tab == "inbox") BuildInbox(inner, u); else BuildDiplomacy(inner, u);
+		if (_tab == "inbox") BuildInbox(inner, u);
+		else if (_tab == "diplomacy") BuildDiplomacy(inner, u);
+		else BuildMissions(inner, u);
 	}
 
 	// ───────── Posteingang ─────────
@@ -137,17 +151,22 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 				var offer = Ctx.Comms.Preview(u, key);
 				string label = key.StartsWith("war:", StringComparison.Ordinal) ? "Krieg erklären"
 					: key.StartsWith("ceasefire:", StringComparison.Ordinal) ? "Waffenstillstand annehmen"
-					: key.StartsWith("peace:", StringComparison.Ordinal) ? "Frieden annehmen" : key;
+					: key.StartsWith("peace:", StringComparison.Ordinal) ? "Frieden annehmen"
+					: key.StartsWith("mission:accept:", StringComparison.Ordinal) ? "Auftrag annehmen"
+					: key.StartsWith("contract:haggle:", StringComparison.Ordinal) ? "Nachverhandeln (+5 %)" : key;
 				string k = key;
 				KitButton b;
 				if (key.StartsWith("war:", StringComparison.Ordinal))
-					b = _confirm.Wire(new KitButton(label, new Vector2(dw - 32, 64)) { FontSize = 16, AlignLeft = true }, "comms:" + key, label, () => Execute(k), Short(offer.Preview));
+					b = _confirm.Wire(new KitButton(label, new Vector2(dw - 32, 56)) { FontSize = 16, AlignLeft = true }, "comms:" + key, label, () => Execute(k));
 				else
-					b = new KitButton(label, new Vector2(dw - 32, 64)) { FontSize = 16, AlignLeft = true, Sub = Short(offer.Preview) };
-				if (!offer.Possible) { b.State = KitButtonState.Disabled; b.Detail = Short(offer.Reason ?? "nicht möglich"); }
+					b = new KitButton(label, new Vector2(dw - 32, 56)) { FontSize = 16, AlignLeft = true };
+				if (!offer.Possible) b.State = KitButtonState.Disabled;
 				else b.Pressed += () => Execute(k);
 				At(card, b, 16, y - dy);
-				y += 70;
+				y += 62;
+				// Runde 41 (A3): Folgen als umbrechende Vorschauzeile unter dem Knopf, nicht in der Knopfzeile (wurde abgeschnitten)
+				string preview = offer.Possible ? offer.Preview : (offer.Reason ?? "nicht möglich");
+				if (preview.Length > 0) y += WrappedText(card, preview, 22, y - dy, dw - 60, 12, offer.Possible ? new Color(UiKit.Dim, 0.95f) : Orange, 15) + 8;
 			}
 		}
 		// Ignorieren kostet nichts
@@ -156,6 +175,59 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		ign.Pressed += () => { SpaceSim.Core.Comms.Comms.MarkRead(u, mid); _message = "Als gelesen markiert."; if (narrow) _detailOpen = false; Invalidate(); };
 		if (_message.Length > 0)
 			WrappedText(card, _message, 190, dh - 52, dw - 206, 13, Orange, 16);
+	}
+
+	// ───────── Aufträge (Runde 41) ─────────
+
+	/// <summary>Reiter „Aufträge“: aktive Aufträge mit Abbrechen (Folge als Vorschauzeile darunter) und offene Comms-Angebote
+	/// (Lieferverträge annehmen/nachverhandeln). Anzeige rein aus dem Core, Ausführung nur über die Comms-Registry.</summary>
+	void BuildMissions(Control inner, Universe u)
+	{
+		float w = InnerW(inner) - 24f;
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 64, w, InnerH(inner) - 76f);
+		var box = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
+		box.AddThemeConstantOverride("separation", 8);
+		scroll.AddChild(box);
+		var inner2 = box;
+
+		At(inner2, Text("Aktive Aufträge", 20, Cyan), 0, 0, w - 20, 28);
+		float y = 34f;
+		var active = u.Missions.Where(m => m.State == SpaceSim.Core.Model.MissionState.Active).OrderBy(m => m.Id).ToList();
+		if (active.Count == 0) { At(inner2, Text("Keine laufenden Aufträge — Angebote hängen an Stationen (Dock → Aufträge) oder im Posteingang (Liefervertrag).", 14, new Color(Dim, 0.9f)), 0, y, w - 20, 40); y += 46f; }
+		foreach (var m in active)
+		{
+			if (SpaceSim.Core.Missions.MissionRules.Types.Get(m.Type) is not { } type) continue;
+			float mh = WrappedText(inner2, type.Describe(u, m), 0, y, w - 20, 15, Orange, 19);
+			float bh = WrappedText(inner2, $"Belohnung {m.Reserved:0} Cr (reserviert) · Pfand {m.Deposit:0} Cr · Rest {Math.Max(0L, m.Deadline - u.Tick) / 240} min", 0, y + mh + 2, w - 20, 13, Dim, 17);
+			var key = $"mission:abandon:{m.Id}";
+			var offer = Ctx.Comms.Preview(u, key);
+			var b = At(inner2, new KitButton("Abbrechen", new Vector2(160, 52)) { FontSize = 16, State = offer.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, w - 172, y - 2);
+			string k = key;
+			if (offer.Possible) b.Pressed += () => Execute(k);
+			y += MathF.Max(50f, mh + bh + 8f);
+			string folge = offer.Possible ? offer.Preview : (offer.Reason ?? "nicht möglich");
+			if (folge.Length > 0) y += WrappedText(inner2, folge, 6, y, w - 32, 12, offer.Possible ? new Color(Dim, 0.95f) : Orange, 15) + 10;
+		}
+
+		// offene Comms-Angebote (Lieferverträge): annehmen / nachverhandeln
+		y += 6f;
+		At(inner2, Text("Offene Angebote (Comms)", 20, Cyan), 0, y, w - 20, 28);
+		y += 34f;
+		var offers = Ctx.Comms.Offers(u).Where(o => o.Key.StartsWith("mission:accept:", StringComparison.Ordinal) || o.Key.StartsWith("contract:haggle:", StringComparison.Ordinal)).ToList();
+		if (offers.Count == 0) { At(inner2, Text("Keine offenen Angebote.", 14, new Color(Dim, 0.9f)), 0, y, w - 20, 22); y += 28f; }
+		foreach (var o in offers)
+		{
+			string label = o.Key.StartsWith("mission:accept:", StringComparison.Ordinal) ? "Annehmen" : "Nachverhandeln (+5 %)";
+			var b = At(inner2, new KitButton(label, new Vector2(200, 52)) { FontSize = 16, State = o.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, 0, y);
+			string k = o.Key;
+			if (o.Possible) b.Pressed += () => Execute(k);
+			float oh = WrappedText(inner2, o.Text, 210, y + 4, w - 220, 14, White, 18);
+			y += MathF.Max(58f, oh + 10f);
+			string prev = o.Possible ? o.Preview : (o.Reason ?? "nicht möglich");
+			if (prev.Length > 0) y += WrappedText(inner2, prev, 6, y, w - 32, 12, o.Possible ? new Color(Dim, 0.95f) : Orange, 15) + 8;
+		}
+		if (_message.Length > 0)
+			WrappedText(inner, _message, 12, 64 + InnerH(inner) - 116f, w, 13, Orange, 16);
 	}
 
 	// ───────── Diplomatie ─────────
@@ -206,6 +278,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			bodyTop = 56f;   // Inhalt erst unter der „← Liste“-Taste (Runde 40: Name/Relation lagen über der Taste)
 		}
 		var body = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, bodyTop, dw, dh - 64 - bodyTop);
+		_detailScroll = body;
 		var det = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(dw - 16f, 10) };
 		body.AddChild(det);
 
@@ -228,20 +301,28 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		y += 6;
 		At(det, Text("Aktionen (Vorschau echt, Ausführung über die Comms-Registry)", 14, Cyan), 18, y, dw - 36, 20); y += 26;
 
-		// Knöpfe je Aktion mit Vorschau; Krieg zweistufig (KitConfirm)
+		// Knöpfe je Aktion; die Folgen stehen als umbrechende Vorschauzeile UNTER dem Knopf (Runde 41, A3: in der Knopf-Zeile wurde der
+		// Text abgeschnitten — „…Kriegss…“), der Knopf selbst trägt nur Titel und Betrag
 		void ActionButton(string key, string label, bool confirm)
 		{
 			var offer = Ctx.Comms.Preview(u, key);
 			string k = key;
+			string detail = offer.Cost < 0f ? $"{-offer.Cost:0} Cr zahlen" : "";
 			KitButton b;
 			if (confirm)
-				b = _confirm.Wire(new KitButton(label, new Vector2(dw - 36, 66)) { FontSize = 16, AlignLeft = true }, "comms:" + key, label, () => Execute(k), Short(offer.Preview));
+				b = _confirm.Wire(new KitButton(label, new Vector2(dw - 36, 56)) { FontSize = 16, AlignLeft = true, Detail = detail }, "comms:" + key, label, () => Execute(k));
 			else
-				b = new KitButton(label, new Vector2(dw - 36, 66)) { FontSize = 16, AlignLeft = true, Sub = Short(offer.Preview) };
-			if (!offer.Possible) { b.State = KitButtonState.Disabled; b.Detail = Short(offer.Reason ?? "nicht möglich"); b.Sub = ""; }
+				b = new KitButton(label, new Vector2(dw - 36, 56)) { FontSize = 16, AlignLeft = true, Detail = detail };
+			if (!offer.Possible) { b.State = KitButtonState.Disabled; }
 			else if (!confirm) b.Pressed += () => Execute(k);
 			At(det, b, 18, y);
-			y += 72;
+			y += 62;
+			string preview = offer.Possible ? offer.Preview : (offer.Reason ?? "nicht möglich");
+			if (preview.Length > 0)
+			{
+				float ph = WrappedText(det, preview, 24, y, dw - 60, 12, offer.Possible ? new Color(UiKit.Dim, 0.95f) : Orange, 15);
+				y += ph + 8;
+			}
 		}
 		ActionButton($"fine:{f.Value}", "Strafe zahlen", confirm: false);
 		ActionButton($"war:{f.Value}", "Krieg erklären", confirm: true);
@@ -253,9 +334,6 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		if (_message.Length > 0)
 			WrappedText(frame, _message, 16, dh - 52, dw - 32, 13, Orange, 16);
 	}
-
-	/// <summary>Kurztext für Unterzeilen (einzeilig).</summary>
-	static string Short(string? s) => s is null ? "" : s.Replace('\n', ' ').Length > 110 ? s.Replace('\n', ' ')[..107] + "…" : s.Replace('\n', ' ');
 
 	/// <summary>Führt ein Comms-Angebot aus (nur über die Registry) und meldet das Ergebnis.</summary>
 	void Execute(string key)

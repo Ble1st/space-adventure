@@ -4,7 +4,7 @@ namespace SpaceAdventure.Ui;
 
 /// <summary>
 /// Sammelstelle für ALLE erfundenen Anzeigewerte der Oberfläche (Platzhalter). Nichts davon stammt aus der
-/// Simulation und nichts wird gespeichert: noch nicht gebaute Bereiche (Comms-Postfach, Aufträge …) fehlen im Core und werden hier als gedämpfte
+/// Simulation und nichts wird gespeichert: noch nicht gebaute Bereiche fehlen im Core und werden hier als gedämpfte
 /// Platzhalter geführt. Schild und Leistung sind seit Phase 23 echt (Core: <c>Ship.ShieldNow</c>, <c>ShipStats</c>, <c>Combat.ShipSystems</c>).
 /// Echte Werte (Credits, Hülle, Fracht, Sektoren, Stationen …) lesen die Bildschirme immer aus dem Core.
 /// </summary>
@@ -24,7 +24,6 @@ public static class UiPlaceholders
 		"outfitter" => "Ausrüster gibt es an Werften und Handelsstationen: Module aus dem Stationslager ein- und ausbauen. Diese Station führt keine Module.",
 		"shipyard" => "Schiffe kaufen kannst du an Werften (alle Klassen) und an Handelsstationen (kleine Schiffe der Skiff-Klasse). Diese Station verkauft keine Schiffe.",
 		"taxi" => "Taxi gibt es an Verkehrsknoten (Werft, Handelsstation, Raffinerie, Lagerhaus, Hauptquartier, Sektor-HQ): Du reist allein zu einer Station, an der ein eigenes Schiff wartet oder ein Leihschiff zu haben ist. Diese Station hat keinen Taxistand.",
-		"missions" => "Aufträge: Offene Missionen der Station und Fraktionen. Kommt mit Phase 9+ (Akteure, Missionen).",
 		_ => "Dieser Bereich ist noch nicht gebaut.",
 	};
 

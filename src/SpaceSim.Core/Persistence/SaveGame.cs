@@ -78,6 +78,14 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CommsMessageSave>? Inbox { get; set; }
     /// <summary>Runde 40: nächste Nachrichten-Id des Posteingangs; fehlt (alte Stände) = 1.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextMessageId { get; set; }
+    /// <summary>Runde 41 (additiv): Auftragsangebote (gespeichert, nicht gehasht); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<MissionOfferSave>? MissionOffers { get; set; }
+    /// <summary>Runde 41 (additiv): angenommene Aufträge (gespeichert und gehasht); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<MissionSave>? Missions { get; set; }
+    /// <summary>Runde 41: nächste Auftrags-Id; fehlt = 1.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextMissionId { get; set; }
+    /// <summary>Runde 41 (additiv): Budget-/Sperrbuchaltung der Aufträge je Auftraggeber; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<MissionFactionSave>? MissionFactions { get; set; }
     /// <summary>Phase 12 (v15): Verbände; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
     /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
@@ -178,6 +186,50 @@ public sealed class CommsMessageSave
     public long Created { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long Expires { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Read { get; set; }
+}
+
+/// <summary>Runde 41: ein Auftragsangebot im Save (gespeichert, nicht gehasht).</summary>
+public sealed class MissionOfferSave
+{
+    public int Id { get; set; }
+    public string Type { get; set; } = "";
+    public int Client { get; set; }
+    public int At { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, string>? Args { get; set; }
+    public float Reward { get; set; }
+    public float Deposit { get; set; }
+    public long Expires { get; set; }
+    public long Created { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Haggled { get; set; }
+}
+
+/// <summary>Runde 41: ein angenommener Auftrag im Save (gespeichert und gehasht).</summary>
+public sealed class MissionSave
+{
+    public int Id { get; set; }
+    public string Type { get; set; } = "";
+    public int Client { get; set; }
+    public int At { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, string>? Args { get; set; }
+    public float Reserved { get; set; }
+    public float Deposit { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float ReservedCash { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float CargoVolume { get; set; }
+    public float Sold { get; set; }
+    public float Bought { get; set; }
+    public long Deadline { get; set; }
+    public long AcceptedTick { get; set; }
+    public string State { get; set; } = "Active";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Haggled { get; set; }
+}
+
+/// <summary>Runde 41: Budget-/Sperrbuchaltung der Aufträge je Auftraggeber (gespeichert und gehasht).</summary>
+public sealed class MissionFactionSave
+{
+    public int Actor { get; set; }
+    public long Day { get; set; }
+    public float Spent { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long BlockedUntil { get; set; }
 }
 
 /// <summary>Phase 28: Rakete im Flug.</summary>
@@ -704,6 +756,8 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float RentalDeposit { get; set; }
     /// <summary>Phase 26 (additiv): bereits abgerechnete Miettage.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RentPaidDays { get; set; }
+    /// <summary>Runde 41 (additiv): versiegelte Fracht eines Transportauftrags (Laderaum-Volumen, keine Ware); fehlt = 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MissionCargo { get; set; }
     /// <summary>Phase 23 (additiv): Laufzeitzustand der Bordsysteme; fehlt = voll, ausgeglichen, unbeschädigt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipSystemsSave? Systems { get; set; }
 }

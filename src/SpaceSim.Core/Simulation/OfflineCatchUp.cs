@@ -73,6 +73,8 @@ public sealed class CatchUpJob
         if (_finished) return 0;
         long n = Math.Min(maxTicks, Total - Ran);
         for (long i = 0; i < n; i++) { runner.Step(_u); Ran++; }
+        // Runde 41: Offline-Aufholen verlängert die Fristen aktiver Aufträge um die nachgespielten Ticks (der Spieler kann offline nicht handeln)
+        Missions.MissionRules.ExtendDeadlines(_u, n);
         return n;
     }
 

@@ -84,8 +84,8 @@ public sealed class CommsActions
         ForOffer(offer) is { } a ? a.Execute(u, offer) : new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{offer}'.");
 
     /// <summary>
-    /// Standard-Registry in fester Reihenfolge: Strafe (fine), Krieg (war), Waffenstillstand (ceasefire), Frieden (peace), Tribut (tribute);
-    /// dazu die reservierten Platzhalter für Aufträge und Lieferverträge (Runde 41), die noch keine Angebote liefern und streng fehlschlagen.
+    /// Standard-Registry in fester Reihenfolge: Strafe (fine), Krieg (war), Waffenstillstand (ceasefire), Frieden (peace), Tribut (tribute),
+    /// Auftrag annehmen (mission:accept, Runde 41), Liefervertrag nachverhandeln (contract:haggle, Runde 41).
     /// </summary>
     public static CommsActions Default()
     {
@@ -95,9 +95,18 @@ public sealed class CommsActions
         r.Register(new CeasefireAction());
         r.Register(new PeaceAction());
         r.Register(new TributeAction());
-        r.Register(new MissionAcceptAction());     // reserviert (Runde 41: Aufträge)
-        r.Register(new ContractHaggleAction());    // reserviert (Runde 41: Lieferverträge)
+        r.Register(new MissionAcceptAction());     // Runde 41: Aufträge
+        r.Register(new MissionAbandonAction());    // Runde 41: Auftrag abbrechen (Reiter „Aufträge“)
+        r.Register(new ContractHaggleAction());    // Runde 41: Lieferverträge
         return r;
+    }
+
+    /// <summary>Parst „prefix:&lt;Id&gt;“ streng (nur Ziffern, Id &gt; 0) — Runde 41: Auftrags-/Angebots-Ids. false = kein Match.</summary>
+    public static bool TryId(string offer, string prefix, out int id)
+    {
+        id = 0;
+        if (!offer.StartsWith(prefix + ":", StringComparison.Ordinal)) return false;
+        return TryId(offer[(prefix.Length + 1)..], out id) && id > 0;
     }
 
     /// <summary>Parst „prefix:&lt;Fraktions-Id&gt;“ streng (nur Ziffern, Id &gt; 0); false = kein Match.</summary>

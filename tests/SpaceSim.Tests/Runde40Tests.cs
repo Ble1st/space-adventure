@@ -130,7 +130,7 @@ public class Runde40Tests
     {
         var u = World();
         var actions = CommsActions.Default();
-        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "contract" }, actions.Keys);
+        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "mission_abandon", "contract" }, actions.Keys);   // Runde 41: mission_abandon dazu
         int evts = 0;
         u.Events.Raised += _ => evts++;
         float wallet = u.Player.Treasury.Credits;

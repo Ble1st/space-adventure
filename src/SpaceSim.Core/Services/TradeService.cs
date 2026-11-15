@@ -49,7 +49,7 @@ public sealed class TradeService : IStationService
             float held = ship.Cargo.GetValueOrDefault(good);
             // Phase 16: Annahmestatus (Menge und Grund) — dieselbe Regel wie der Verkauf. Phase 17: Angebotsmenge = was „Verkaufen“ der ganzen Ladung
             // bewegen würde (TradeActions.SaleUnits: alles, wenn die Station alles nimmt, auch einen Bruchteil; sonst ganze Einheiten) — Menge > 0 ⇔ Execute gelingt
-            var intake = MarketInfo.Acceptance(u, station, good);
+            var intake = MarketInfo.Acceptance(u, station, good, ship);
             float sellable = intake.SellableFrom(held);
             // Runde 30: Rückkaufdeckel — der Hinweis nennt den wirksamen Mindest- bzw. Höchstpreis (PlayerLedger), Menge und Ausführung rechnen damit
             // Runde 31: Price = wirksamer Stückpreis für die Angebotsmenge (mit Rückkaufdeckel), nicht nur der Hinweis
@@ -66,7 +66,7 @@ public sealed class TradeService : IStationService
             foreach (var (good, held) in ship.Cargo.OrderBy(kv => kv.Key.Value))
             {
                 if (held <= 0f) continue;
-                var intake = MarketInfo.Acceptance(u, station, good);
+                var intake = MarketInfo.Acceptance(u, station, good, ship);
                 string? note = intake.SellableFrom(held) >= held - 0.0001f ? null : intake.NoteFor(held) ?? intake.Reason;
                 // Phase 19: Treuhand-Material einer Baustelle ist gesperrt (Menge 0, Grund als Hinweis)
                 var blocked = CargoJettison.Issue(u, ship, good);
@@ -204,12 +204,14 @@ public sealed class TradeService : IStationService
 
     // ───────── Runde 39: Journal der letzten Buchung („Rückgängig“) ─────────
 
-    /// <summary>Schnappschuss vor einer Buchung: Kassen, Lagerstände, Rückkauf-Posten und Zahl der Exportchargen je Ware.</summary>
+    /// <summary>Schnappschuss vor einer Buchung: Kassen, Lagerstände, Rückkauf-Posten, Zahl der Exportchargen je Ware und Auftrags-Fortschritt (Runde 41).</summary>
     sealed class Pre
     {
         public float Wallet, StationCash;
         public int Exports;
         public readonly Dictionary<GoodId, (float Stock, LedgerPost? Post)> Goods = new();
+        /// <summary>Runde 41: (Auftrags-Id, Verkauft, Gekauft) vor der Buchung — die Differenz landet im Journal (<see cref="TradeEntry.Progress"/>).</summary>
+        public readonly Dictionary<int, (float Sold, float Bought)> Missions = new();
     }
 
     static Pre CapturePre(Universe u, Station station, Ship ship, IEnumerable<GoodId> goods)
@@ -217,6 +219,8 @@ public sealed class TradeService : IStationService
         var p = new Pre { Wallet = u.WalletOf(ship).Credits, StationCash = station.Credits, Exports = station.Exports.Count };
         foreach (var g in goods)
             p.Goods[g] = (station.Market.TryGetValue(g, out var e) ? e.Amount : 0f, TradeJournal.PostSnap(u, station, g));
+        foreach (var m in u.Missions)   // Runde 41: nur aktive Aufträge, meist keine
+            if (m.State == Model.MissionState.Active) p.Missions[m.Id] = (m.Sold, m.Bought);
         return p;
     }
 
@@ -242,6 +246,13 @@ public sealed class TradeService : IStationService
             });
         }
         for (int i = pre.Exports; i < station.Exports.Count; i++) e.Batches.Add(station.Exports[i]);
+        // Runde 41: entstandener Auftragsfortschritt (Verkauf minus Einkauf an der Zielstation) — Rückgängig nimmt ihn mit zurück
+        foreach (var m in u.Missions)
+        {
+            if (m.State != Model.MissionState.Active || !pre.Missions.TryGetValue(m.Id, out var before)) continue;
+            float ds = m.Sold - before.Sold, db = m.Bought - before.Bought;
+            if (ds > 0.0001f || db > 0.0001f) (e.Progress ??= new()).Add((m.Id, ds, db));
+        }
         u.Journal.Record(e);
     }
 
@@ -251,7 +262,7 @@ public sealed class TradeService : IStationService
     {
         float held = ship.Cargo.GetValueOrDefault(good);
         if (held <= 0f) return "Nichts an Bord";
-        var intake = MarketInfo.Acceptance(u, station, good);
+        var intake = MarketInfo.Acceptance(u, station, good, ship);
         return intake.NoteFor(held) ?? intake.Reason ?? "Station kann nichts mehr abnehmen oder bezahlen";
     }
 

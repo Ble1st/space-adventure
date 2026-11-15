@@ -118,7 +118,7 @@ public class StationServiceConfigTests
 
         var services = registry.ForStation(u, st);
 
-        Assert.Equal(new[] { TradeService.ServiceKey, HangarService.ServiceKey }, services.Select(s => s.Key));   // Phase 12: Hangar
+        Assert.Equal(new[] { TradeService.ServiceKey, HangarService.ServiceKey, MissionService.ServiceKey }, services.Select(s => s.Key));   // Phase 12: Hangar; Runde 41: missions an jeder Station
     }
 
     [Fact]
@@ -145,6 +145,6 @@ public class StationServiceConfigTests
         var st = u.Stations.Values.First(s => s.Market.Count > 0);
         st.Market.Clear();
 
-        Assert.Equal(new[] { HangarService.ServiceKey }, registry.ForStation(u, st).Select(s => s.Key));   // Phase 12: der Hangar braucht keinen Markt
+        Assert.Equal(new[] { HangarService.ServiceKey, MissionService.ServiceKey }, registry.ForStation(u, st).Select(s => s.Key));   // Phase 12: der Hangar braucht keinen Markt; Runde 41: missions hängt an jeder Station
     }
 }

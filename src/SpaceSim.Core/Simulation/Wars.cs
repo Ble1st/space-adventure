@@ -214,6 +214,7 @@ public static class Wars
         float tribute = CeasefireFree(u, w, f) ? 0f : TributeFor(u, w, f);
         if (tribute > 0f) PayTribute(u, f, tribute, w);
         w.CeasefireUntil = u.Tick + u.Rules.CeasefireTicks;
+        DropWarWarnings(u, w, "Waffenstillstand — der Angriff unterbleibt.");   // Runde 41 (A2): Warnung aufgehoben → Meldung entfällt sofort
         u.TouchAccess();
         string na = u.Factions.TryGetValue(w.A, out var fa) ? fa.Name : "?", nb = u.Factions.TryGetValue(w.B, out var fb) ? fb.Name : "?";
         u.Events.Publish(new CeasefireConcluded(w.A, w.B, w.CeasefireUntil, tribute,
@@ -304,6 +305,8 @@ public static class Wars
     public static void MakePeace(Universe u, War w, string reason)
     {
         if (!u.Wars.Remove(w)) return;
+        // Runde 41 (A2): Kriegswarnungen gegen den Spieler sind mit dem Krieg aufgehoben — Ursache abgelaufen, Meldung entfällt sofort
+        DropWarWarnings(u, w, "Frieden — der Angriff unterbleibt.");
         // Runde 38: Spielerbeziehungen driften nicht zurück — nach einem Spielerkrieg mindestens PlayerPeaceRelation (über der ersten Sperrschwelle, kein Dauerzoll)
         float floor = u.IsPlayerFaction(w.A) || u.IsPlayerFaction(w.B) ? u.Rules.PlayerPeaceRelation : u.Rules.PeaceRelation;
         Relations.Set(u, w.A, w.B, MathF.Max(Relations.Effective(u, w.A, w.B), floor));
@@ -313,6 +316,22 @@ public static class Wars
         string na = u.Factions.TryGetValue(w.A, out var fa) ? fa.Name : "?", nb = u.Factions.TryGetValue(w.B, out var fb) ? fb.Name : "?";
         string why = reason switch { "weary" => "Kriegsmüdigkeit", "broke" => "leere Kasse", _ => "Vereinbarung" };
         u.Events.Publish(new PeaceConcluded(w.A, w.B, reason, u.Tick - w.Since, $"Frieden zwischen {na} und {nb} ({why})."));
+    }
+
+    /// <summary>
+    /// Runde 41 (A2): hebt laufende Kriegswarnungen (PendingEncounter <see cref="EncounterKind.War"/>) gegen den Spieler auf, deren Ursache
+    /// weg ist (Waffenstillstand/Frieden mit einer Kriegspartei) — veröffentlicht je Warnung <see cref="EncounterEscaped"/>, damit die
+    /// Darstellung die Meldung sofort entfernt. Ohne Spieler oder ohne solche Warnungen nichts.
+    /// </summary>
+    public static void DropWarWarnings(Universe u, War w, string message)
+    {
+        if (!u.Ships.TryGetValue(u.PlayerShip, out var player)) return;
+        foreach (var e in u.PendingEncounters.Where(e => e.Kind == EncounterKind.War && e.Target == player.Id
+            && u.Sectors.TryGetValue(e.Sector, out var sec) && (sec.Owner == w.A || sec.Owner == w.B)).ToList())
+        {
+            u.PendingEncounters.Remove(e);
+            u.Events.Publish(new EncounterEscaped(EncounterKind.War, e.Source, e.Target, message));
+        }
     }
 
     /// <summary>Im Krieg bleibt die Beziehung beider Seiten höchstens <see cref="EconomyRules.WarRelation"/>.</summary>

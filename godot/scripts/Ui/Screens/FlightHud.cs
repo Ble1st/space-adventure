@@ -51,6 +51,8 @@ public sealed class FlightHudData
 	public bool WantedSevere;
 	/// <summary>Phase 26: Brandwarnung (leer = kein Brand) — rot unter der Fahndungszeile.</summary>
 	public string Fire = "";
+	/// <summary>Runde 41: Auftragszeile des aktiven Auftrags (Gold; leer = ausgeblendet) — Text aus <see cref="SpaceSim.Core.Missions.MissionMarkers"/>.</summary>
+	public string Mission = "";
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
 	public string TargetInfo = "Station, Tor, Fels antippen";   // Runde 20: passt in die Zielkarte (vorher „… Asteroid antipp…“)
@@ -119,11 +121,16 @@ public sealed class FlightHudData
 /// </summary>
 public partial class FlightHud : Control, IScreen
 {
+	/// <summary>Runde 41: Gold der Missionsmarker (Randpfeile, Auftragszeile, Leuchtfeuer).</summary>
+	public static readonly Color MissionGold = new(1f, 0.84f, 0.2f);
+
 	public string Id => "flight";
 	/// <summary>Selbsttest: angezeigte Fahndungs- und Lagezeile (Phase 11).</summary>
 	public string TestWanted => _wanted.Visible ? _wanted.Text : "";
 	/// <summary>Phase 26: sichtbare Brandwarnung (leer = keine) und Kassenanzeige (zeigt „Schulden“ bei negativer Kasse).</summary>
 	public string TestFire => _fire.Visible ? _fire.Text : "";
+	/// <summary>Runde 41: sichtbare Auftragszeile (leer = kein aktiver Auftrag).</summary>
+	public string TestMission => _mission.Visible ? _mission.Text : "";
 	public string TestCredits => _credits.Text;
 	public string TestSecurity => _security.Text;
 	/// <summary>Selbsttest (Gerätetest Phase 27): angezeigter Sektorname im Chip.</summary>
@@ -328,7 +335,7 @@ public partial class FlightHud : Control, IScreen
 	public bool TestFuelVisible => _fuelRow.Visible;
 	Label _hullVal = null!;
 	Label _powerInfo = null!;
-	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!, _fire = null!;
+	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!, _fire = null!, _mission = null!;
 	KitButton _mapBtn = null!;
 	bool _fastOn;
 	int _menuBadge;
@@ -426,7 +433,8 @@ public partial class FlightHud : Control, IScreen
 		_security = At(this, Text("", 13, UiKit.Dim, HorizontalAlignment.Center), 420, 54, 430, 18);
 		_wanted = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 74, 430, 20);
 		_fire = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 96, 430, 20);
-		foreach (var l in new[] { _security, _wanted, _fire }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
+		_mission = At(this, Text("", 13, MissionGold, HorizontalAlignment.Center), 420, 118, 430, 18);   // Runde 41: Auftragszeile
+		foreach (var l in new[] { _security, _wanted, _fire, _mission }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
 
 		// ── oben rechts: Karte und Menü (Symboltasten), Zielkarte links daneben ──
 		_mapBtn = At(this, new KitButton("", new Vector2(64, 64)), 1140, 8);
@@ -518,10 +526,10 @@ public partial class FlightHud : Control, IScreen
 		_escape = At(this, Text("", 14, UiKit.Orange, HorizontalAlignment.Center), 452, 688, 400, 22);
 		_escape.ClipText = true; _escape.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		_escape.Visible = false;
-		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));
+		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape, _mission }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));
 		_items = new()
 		{
-			[HudItem.Status] = _status, [HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire,
+			[HudItem.Status] = _status, [HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire, [HudItem.Mission] = _mission,
 			[HudItem.Map] = _mapBtn, [HudItem.Hamburger] = _hamburger, [HudItem.Card] = _card,
 			[HudItem.Autopilot] = _autopilotBtn, [HudItem.AutoMine] = _autoMineBtn, [HudItem.Context] = _contextBtn,
 			[HudItem.Power] = _power, [HudItem.NextEnemy] = _nextEnemy, [HudItem.AimAssist] = _aimAssist, [HudItem.AutoFire] = _autoFire, [HudItem.Surrender] = _surrender,
@@ -617,7 +625,7 @@ public partial class FlightHud : Control, IScreen
 		{
 			var r = layout[item];
 			c.Position = new Vector2(r.X, r.Y);
-			if (item is HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire or HudItem.Slider or HudItem.HitWarning or HudItem.Escape or HudItem.ReverseLabel)
+			if (item is HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire or HudItem.Mission or HudItem.Slider or HudItem.HitWarning or HudItem.Escape or HudItem.ReverseLabel)
 			{ c.CustomMinimumSize = new Vector2(r.W, r.H); c.Size = new Vector2(r.W, r.H); }
 		}
 		_chipRow.CustomMinimumSize = Vector2.Zero;
@@ -771,6 +779,8 @@ public partial class FlightHud : Control, IScreen
 		_credits.AddThemeColorOverride("font_color", d.Credits < 0f ? UiKit.Red : UiKit.Orange);
 		_fire.Text = d.Fire;
 		_fire.Visible = d.Fire.Length > 0;
+		_mission.Text = d.Mission;   // Runde 41: Auftragszeile (Gold)
+		_mission.Visible = d.Mission.Length > 0;
 		// HUD-Neu: der Zeitraffer steht im Menü — läuft er, zeigt der Sektorchip „×10“
 		_sector.Text = d.FastOn ? $"{d.SectorName} · ×10" : d.SectorName;
 		{

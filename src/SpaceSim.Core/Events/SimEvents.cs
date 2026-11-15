@@ -364,6 +364,18 @@ public sealed record PeaceOffered(FactionId From, FactionId To, string Message) 
 public sealed record TributePaid(ActorId Payer, FactionId To, float Amount, string Message) : SimEvent;
 /// <summary>Runde 40: Comms-Aktion des Spielers ausgeführt (Strafe, Krieg, Waffenstillstand, Frieden, Tribut); nur bei Erfolg.</summary>
 public sealed record CommsActionPerformed(string Action, int Faction, float Credits, string Message) : SimEvent;
+
+// ───────── Runde 41: Aufträge ─────────
+/// <summary>Runde 41: neues Auftragsangebot (Comms-Kanal → Posteingang); nie aus <c>Universe.Rng</c>, Angebote sind nicht gehasht.</summary>
+public sealed record MissionOffered(int Offer, ActorId Client, string Type, string Message) : SimEvent;
+/// <summary>Runde 41: der Spieler hat ein Angebot angenommen (Belohnung reserviert, Pfand gehalten).</summary>
+public sealed record MissionAccepted(int Mission, ActorId Client, string Type, string Message) : SimEvent;
+/// <summary>Runde 41: Auftrag erfüllt (Belohnung zahlt die reservierte Kasse an die Spielerkasse, siehe <see cref="MissionPaid"/>).</summary>
+public sealed record MissionCompleted(int Mission, ActorId Client, string Type, float Paid, string Message) : SimEvent;
+/// <summary>Runde 41: Auftrag gescheitert oder abgebrochen (Reservierung zurück, Pfand verfällt an die Station; <paramref name="Reason"/> z. B. „Frist abgelaufen“, „abgebrochen“).</summary>
+public sealed record MissionFailed(int Mission, ActorId Client, string Type, string Reason, float Returned, string Message) : SimEvent;
+/// <summary>Runde 41: Belohnung eines erfüllten Auftrags an die Spielerkasse gezahlt (aus der beim Annehmen reservierten Kasse). Erklärt den Geldfluss.</summary>
+public sealed record MissionPaid(int Mission, ActorId Client, float Amount, string Message) : SimEvent;
 /// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort geladen (Diagnose; nur Bus, nicht gespeichert).</summary>
 public sealed record TraderBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
 /// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort nicht gekauft, weil der Preis dort den Preis seines Abnehmers erreicht hat (sicherer Verlust).</summary>

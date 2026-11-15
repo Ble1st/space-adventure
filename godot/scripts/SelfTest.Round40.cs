@@ -19,6 +19,13 @@ public partial class SelfTest
 	Ui.Kit.KitButton? _r40War;
 	FactionId _r40Fac;
 
+	Ui.Kit.KitButton? WarButton(Ui.Hud hud) =>
+		Buttons(hud.CcComms).FirstOrDefault(b => (b.Text == "Krieg erklären" || b.Text == "Wirklich?") && b.IsVisibleInTree() && b.State != Ui.Kit.KitButtonState.Disabled);
+
+	/// <summary>Tippt „Krieg erklären“ über den Test-Hook des Knopfes (Pressed) — Runde 41 (A3): mit Vorschauzeile unter jedem
+	/// Knopf liegt „Krieg erklären“ unten im Detail-Scroll; der Mauspfad ist in anderen Stufen abgedeckt.</summary>
+	void WarTap(Ui.Hud hud) => WarButton(hud)?.TestPress();
+
 	bool Round40Stage(int f)
 	{
 		var hud = _m.HudRef;
@@ -84,8 +91,7 @@ public partial class SelfTest
 			}
 			case 15:
 				if (_r40War is null) return true;
-				_r40At = _r40War.GetGlobalRect().GetCenter();
-				PushMouse(_r40At, true, false);   // erster Tipp (down)
+				WarTap(hud);   // erster Tipp → nur armed (KitConfirm)
 				return false;
 			case 17:
 				PushMouse(_r40At, false, false);   // erster Tipp loslassen → nur armed (KitConfirm)
@@ -93,12 +99,11 @@ public partial class SelfTest
 			case 19:
 			{
 				Check(u.Wars.Count == 0, "40: erster Tipp auf „Krieg erklären“ führt noch nicht aus (zwei Taps)");
-				PushMouse(_r40At, true, false);   // zweiter Tipp (down)
+				WarTap(hud);   // zweiter Tipp → bestätigt
 				return false;
 			}
 			case 21:
-				PushMouse(_r40At, false, false);   // zweiter Tipp loslassen → bestätigt
-				return false;
+				return false;   // Bestätigung lief beim zweiten TestPress in case 19
 			case 23:
 			{
 				hud.Screens.Current?.Refresh();

@@ -1,4 +1,5 @@
 using SpaceSim.Core.Events;
+using SpaceSim.Core.Missions;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Services;
 using SpaceSim.Core.Simulation;
@@ -314,26 +315,160 @@ public sealed class TributeAction : ICommsAction
 }
 
 /// <summary>
-/// Runde 40: reservierter Platzhalter für Aufträge (Runde 41) — Schlüssel <c>mission:accept:&lt;id&gt;</c>. Liefert noch keine Angebote und
-/// schlägt streng fehl, damit die Registry-Struktur (Schlüsselraum) schon steht.
+/// Runde 41: Comms-Aktion „mission“ — Schlüssel <c>mission:accept:&lt;id&gt;</c>. Nimmt ein Auftragsangebot über Comms an
+/// (remote — ohne Andocken; dieselbe Regel wie am Dock über <see cref="MissionRules.Accept"/>: Belohnung reserviert aus
+/// <see cref="FactionViability.Spendable"/>, Pfand gehalten). Angebote kommen aus <see cref="MissionBoardSystem"/> (Comms-Kanal =
+/// Liefervertrag, Posteingang-Nachricht <c>contract_offer</c>).
 /// </summary>
 public sealed class MissionAcceptAction : ICommsAction
 {
-    public string Key => "mission";
-    public bool Handles(string offer) => offer.StartsWith("mission:accept:", StringComparison.Ordinal);
-    public IReadOnlyList<CommsOffer> Offers(Universe u) => Array.Empty<CommsOffer>();
-    public CommsOffer Preview(Universe u, string offer) => new(offer, "Auftrag annehmen", "Aufträge kommen mit Runde 41.", 0f, false, "Noch nicht verfügbar (kommt mit den Aufträgen).");
-    public ServiceResult Execute(Universe u, string offer) => new(false, 0f, 0f, "Noch nicht verfügbar (kommt mit den Aufträgen).");
+    public const string KeyId = "mission";
+    public string Key => KeyId;
+    public bool Handles(string offer) => offer.StartsWith(Prefix, StringComparison.Ordinal);
+    const string Prefix = KeyId + ":accept:";
+
+    public IReadOnlyList<CommsOffer> Offers(Universe u)
+    {
+        var list = new List<CommsOffer>();
+        if (!u.Rules.MissionsActive || !u.Ships.TryGetValue(u.PlayerShip, out var ship)) return list;
+        foreach (var o in u.MissionOffers.Where(o => o.Args.TryGetValue("channel", out var ch) && ch == "comms").OrderBy(o => o.Id))
+        {
+            string? issue = MissionRules.AcceptIssue(u, o.Id, ship, remote: true);
+            var type = MissionRules.Types.Get(o.Type);
+            list.Add(new CommsOffer($"{KeyId}:accept:{o.Id}", $"Auftrag annehmen: {type?.DescribeOffer(u, o) ?? o.Type}",
+                issue ?? $"Belohnung {o.Reward:0} Cr reserviert · Pfand {o.Deposit:0} Cr · Frist {(MissionRules.DeadlineFrom(u, ship, u.Stations[o.At]) - u.Tick) / 240} min.",
+                -o.Deposit, issue is null, issue));
+        }
+        return list;
+    }
+
+    public CommsOffer Preview(Universe u, string offer)
+    {
+        if (!CommsActions.TryId(offer, Prefix.TrimEnd(':'), out var id)) return new(offer, "Auftrag annehmen", "", 0f, false, $"Unbekanntes Angebot '{offer}'.");
+        if (!u.Ships.TryGetValue(u.PlayerShip, out var ship)) return new(offer, "Auftrag annehmen", "", 0f, false, "Kein aktives Schiff.");
+        var o = u.MissionOffers.FirstOrDefault(x => x.Id == id);
+        if (o is null) return new(offer, "Auftrag annehmen", "Angebot unbekannt oder abgelaufen.", 0f, false, "Angebot unbekannt.");
+        var type = MissionRules.Types.Get(o.Type);
+        string? issue = MissionRules.AcceptIssue(u, id, ship, remote: true);
+        return new(offer, $"Auftrag annehmen: {type?.DescribeOffer(u, o) ?? o.Type}",
+            issue ?? $"Belohnung {o.Reward:0} Cr · Pfand {o.Deposit:0} Cr · Ziel {u.Stations[o.At].Name}.",
+            -o.Deposit, issue is null, issue);
+    }
+
+    public ServiceResult Execute(Universe u, string offer)
+    {
+        if (!CommsActions.TryId(offer, Prefix.TrimEnd(':'), out var id)) return new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{offer}'.");
+        if (!u.Ships.TryGetValue(u.PlayerShip, out var ship)) return new ServiceResult(false, 0f, 0f, "Kein aktives Schiff.");
+        var (m, issue) = MissionRules.Accept(u, id, ship, remote: true);
+        if (m is null) return new ServiceResult(false, 0f, 0f, issue ?? "Annahme nicht möglich.");
+        var type = MissionRules.Types.Get(m.Type)!;
+        string msg = $"Auftrag angenommen: {type.Describe(u, m)}";
+        u.Events.Publish(new CommsActionPerformed(KeyId, m.Client.Value, -(m.Deposit), msg));
+        return new ServiceResult(true, 1f, -m.Deposit, msg);
+    }
 }
 
 /// <summary>
-/// Runde 40: reservierter Platzhalter für Lieferverträge (Runde 41, PLAN Abschnitt 2.3) — Schlüssel <c>contract:haggle:&lt;id&gt;</c>.
+/// Runde 41: Comms-Aktion „mission_abandon“ — Schlüssel <c>mission:abandon:&lt;id&gt;</c>. Bricht einen aktiven Auftrag ab
+/// (auch ohne Andocken, z. B. aus dem Reiter „Aufträge“ der Comms): Folge wie Scheitern — Pfand verfällt an die Station,
+/// Reservierung zurück in die Auftraggeber-Kasse, Beziehung −, Sperrfrist. Ausführung nur über <see cref="MissionRules.Abandon"/>.
+/// </summary>
+public sealed class MissionAbandonAction : ICommsAction
+{
+    public const string KeyId = "mission_abandon";
+    const string Prefix = "mission:abandon:";
+    public string Key => KeyId;
+    public bool Handles(string offer) => offer.StartsWith(Prefix, StringComparison.Ordinal);
+
+    static bool TryParse(string offer, out int id)
+    {
+        id = 0;
+        if (!offer.StartsWith(Prefix, StringComparison.Ordinal)) return false;
+        string tail = offer[Prefix.Length..];
+        return tail.Length > 0 && tail.All(c => c is >= '0' and <= '9') && int.TryParse(tail, out id) && id > 0;
+    }
+
+    public IReadOnlyList<CommsOffer> Offers(Universe u)
+    {
+        var list = new List<CommsOffer>();
+        if (!u.Rules.MissionsActive || !u.Ships.TryGetValue(u.PlayerShip, out var ship)) return list;
+        foreach (var m in u.Missions.Where(m => m.State == Model.MissionState.Active).OrderBy(m => m.Id))
+            list.Add(PreviewFor(u, ship, m));
+        return list;
+    }
+
+    CommsOffer PreviewFor(Universe u, Ship ship, Model.Mission m)
+    {
+        string? issue = ship.Id != u.PlayerShip ? "Nur mit dem aktiven Schiff möglich." : null;   // rein — Abandon selbst nicht ausführen
+        return new CommsOffer($"{Prefix}{m.Id}", $"Auftrag abbrechen: #{m.Id}",
+            issue ?? $"Pfand {m.Deposit:0} Cr verfällt · Belohnung {m.Reserved:0} Cr zurück in die Kasse · Beziehung −{u.Rules.MissionRelationLoss:0.00} · {u.Rules.MissionBlockTicks / 240} min keine neuen Aufträge.",
+            0f, issue is null, issue);
+    }
+
+    public CommsOffer Preview(Universe u, string offer)
+    {
+        if (!TryParse(offer, out var id)) return new(offer, "Auftrag abbrechen", "", 0f, false, $"Unbekanntes Angebot '{offer}'.");
+        if (!u.Ships.TryGetValue(u.PlayerShip, out var ship)) return new(offer, "Auftrag abbrechen", "", 0f, false, "Kein aktives Schiff.");
+        var m = u.Missions.FirstOrDefault(x => x.Id == id && x.State == Model.MissionState.Active);
+        if (m is null) return new(offer, "Auftrag abbrechen", "Kein laufender Auftrag mit dieser Id.", 0f, false, "Kein laufender Auftrag.");
+        return PreviewFor(u, ship, m);
+    }
+
+    public ServiceResult Execute(Universe u, string offer)
+    {
+        if (!TryParse(offer, out var id)) return new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{offer}'.");
+        if (!u.Ships.TryGetValue(u.PlayerShip, out var ship)) return new ServiceResult(false, 0f, 0f, "Kein aktives Schiff.");
+        var (ok, issue) = MissionRules.Abandon(u, id, ship);
+        if (!ok) return new ServiceResult(false, 0f, 0f, issue ?? "Abbruch nicht möglich.");
+        var m = u.Missions.FirstOrDefault(x => x.Id == id);
+        string msg = $"Auftrag #{id} abgebrochen — Pfand verfällt, Reservierung zurück.";
+        u.Events.Publish(new CommsActionPerformed(KeyId, m?.Client.Value ?? 0, 0f, msg));
+        return new ServiceResult(true, 1f, 0f, msg);
+    }
+}
+
+/// <summary>
+/// Runde 41: Comms-Aktion „contract“ — Schlüssel <c>contract:haggle:&lt;id&gt;</c>. Liefervertrag einmal nachverhandeln:
+/// +<see cref="EconomyRules.ContractHaggleShare"/> auf den Festpreis, nur wenn der heutige Preis das deckt und die Beziehung
+/// mindestens <see cref="EconomyRules.ContractHaggleRelation"/> ist (deterministisch, <see cref="MissionRules.Haggle"/>).
 /// </summary>
 public sealed class ContractHaggleAction : ICommsAction
 {
-    public string Key => "contract";
-    public bool Handles(string offer) => offer.StartsWith("contract:haggle:", StringComparison.Ordinal);
-    public IReadOnlyList<CommsOffer> Offers(Universe u) => Array.Empty<CommsOffer>();
-    public CommsOffer Preview(Universe u, string offer) => new(offer, "Vertrag nachverhandeln", "Lieferverträge kommen mit Runde 41.", 0f, false, "Noch nicht verfügbar (kommt mit den Lieferverträgen).");
-    public ServiceResult Execute(Universe u, string offer) => new(false, 0f, 0f, "Noch nicht verfügbar (kommt mit den Lieferverträgen).");
+    public const string KeyId = "contract";
+    public string Key => KeyId;
+    public bool Handles(string offer) => offer.StartsWith(Prefix, StringComparison.Ordinal);
+    const string Prefix = KeyId + ":haggle:";
+
+    public IReadOnlyList<CommsOffer> Offers(Universe u)
+    {
+        var list = new List<CommsOffer>();
+        if (!u.Rules.MissionsActive) return list;
+        foreach (var o in u.MissionOffers.Where(o => o.Args.TryGetValue("contract", out var c) && c == "1" && !o.Haggled).OrderBy(o => o.Id))
+        {
+            var (_, issue, _) = MissionRules.Haggle(u, o.Id);
+            list.Add(new CommsOffer($"{KeyId}:haggle:{o.Id}", $"Liefervertrag nachverhandeln (#{o.Id})",
+                issue ?? $"+{u.Rules.ContractHaggleShare * 100:0} % auf den Festpreis — einmal je Angebot.", 0f, issue is null, issue));
+        }
+        return list;
+    }
+
+    public CommsOffer Preview(Universe u, string offer)
+    {
+        if (!CommsActions.TryId(offer, Prefix.TrimEnd(':'), out var id)) return new(offer, "Vertrag nachverhandeln", "", 0f, false, $"Unbekanntes Angebot '{offer}'.");
+        var o = u.MissionOffers.FirstOrDefault(x => x.Id == id);
+        if (o is null) return new(offer, "Vertrag nachverhandeln", "Angebot unbekannt.", 0f, false, "Angebot unbekannt.");
+        var (ok, issue, newPrice) = MissionRules.Haggle(u, id);
+        return new(offer, $"Liefervertrag #{id} nachverhandeln",
+            issue ?? $"Neuer Festpreis {newPrice:0.00} Cr (+{u.Rules.ContractHaggleShare * 100:0} %) — gilt bei Annahme.", 0f, ok, issue);
+    }
+
+    public ServiceResult Execute(Universe u, string offer)
+    {
+        if (!CommsActions.TryId(offer, Prefix.TrimEnd(':'), out var id)) return new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{offer}'.");
+        var (ok, issue, newPrice) = MissionRules.Haggle(u, id);
+        if (!ok) return new ServiceResult(false, 0f, 0f, issue ?? "Nicht möglich.");
+        string msg = $"Liefervertrag nachverhandelt: neuer Festpreis {newPrice:0.00} Cr (+{u.Rules.ContractHaggleShare * 100:0} %).";
+        u.Events.Publish(new CommsActionPerformed(KeyId, u.MissionOffers.FirstOrDefault(o => o.Id == id)?.Client.Value ?? 0, 0f, msg));
+        return new ServiceResult(true, 1f, 0f, msg);
+    }
 }

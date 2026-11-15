@@ -32,6 +32,8 @@ public partial class Hud : CanvasLayer
 	public ShipyardScreen DockShipyard { get; } = new();
 	public StorageScreen DockStorage { get; } = new();
 	public AuthorityScreen DockAuthority { get; } = new();
+	/// <summary>Runde 41: Aufträge (Dienst „missions“).</summary>
+	public MissionsScreen DockMissions { get; } = new();
 	/// <summary>Phase 13: Forschung (Dienst „research“ an Forschungsstationen).</summary>
 	public ResearchScreen DockResearch { get; } = new();
 	public PlaceholderAreaScreen DockPlaceholder { get; } = new();
@@ -57,6 +59,10 @@ public partial class Hud : CanvasLayer
 	public Func<IReadOnlyList<(Vector2 Screen, string Name, int Id)>>? StationScreenPositions { get; set; }
 	/// <summary>Zuletzt gezeichnete Randmarker (Bildschirmposition, Stations-Id) — für das Antippen.</summary>
 	public List<(Vector2 Pos, int Id)> EdgeMarkers { get; } = new();
+	/// <summary>Runde 41: Bildschirmpositionen der Missionsmarker im aktuellen Sektor (Projektion, auch außerhalb des Bildes) mit Label und Auftrags-Id — Gold-Randpfeile.</summary>
+	public Func<IReadOnlyList<(Vector2 Screen, string Label, int MissionId)>>? MissionEdges { get; set; }
+	/// <summary>Runde 41: zuletzt gezeichnete Missions-Randpfeile (Bildschirmposition, Auftrags-Id).</summary>
+	public List<(Vector2 Pos, int MissionId)> MissionEdgeMarkers { get; } = new();
 	/// <summary>Runde 16: freies Feld (Bildpunkte) für Randpfeile; Zielpfeil (Bildposition, Name, feindlich) — gesetzt von Main.</summary>
 	public Func<Rect2>? FreeField { get; set; }
 	public Func<(Vector2 Screen, string Label, bool Hostile)?>? TargetEdge { get; set; }
@@ -86,6 +92,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(DockShipyard);
 		Screens.Register(DockStorage);
 		Screens.Register(DockAuthority);
+		Screens.Register(DockMissions);
 		Screens.Register(DockResearch);
 		Screens.Register(DockPlaceholder);
 		DockMenu.Ctx = DockCtx;
@@ -98,6 +105,7 @@ public partial class Hud : CanvasLayer
 		DockShipyard.Ctx = DockCtx;
 		DockStorage.Ctx = DockCtx;
 		DockAuthority.Ctx = DockCtx;
+		DockMissions.Ctx = DockCtx;
 		DockResearch.Ctx = DockCtx;
 		DockPlaceholder.Ctx = DockCtx;
 		Screens.Register(CcUniverse);
@@ -218,7 +226,7 @@ public partial class Hud : CanvasLayer
 		// dem Faktor der Dock-Schicht (DockLayout.FitFactor) — gleiche Idee wie das Flug-HUD
 		_dockLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
 		root.AddChild(_dockLayer);
-		foreach (var sc in new Control[] { DockMenu, DockTrade, DockInfo, DockHangar, DockTaxi, DockRepair, DockOutfitter, DockShipyard, DockStorage, DockAuthority, DockResearch, DockPlaceholder })
+		foreach (var sc in new Control[] { DockMenu, DockTrade, DockInfo, DockHangar, DockTaxi, DockRepair, DockOutfitter, DockShipyard, DockStorage, DockAuthority, DockMissions, DockResearch, DockPlaceholder })
 			_dockLayer.AddChild(sc);
 		// Runde 35 (E4): Kommandozentrale in eigener, ganzflächiger Schicht mit eigenem Faktor (CommandLayout.FitFactor)
 		_ccLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -524,6 +532,14 @@ public partial class Hud : CanvasLayer
 	{
 		ApplyLayerScale();
 		if (_alert.Visible && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
+		// Runde 41 (A2): abgelaufene Hinweise (Info-Meldungen) werden nach ihrer Zeit auch aus dem Meldungsstreifen ausgeblendet — Text weg,
+		// sobald die Zeit um ist (auch wenn das Ausblend-Tween inzwischen gekillt wurde, z. B. von einer Meldung)
+		if (_toast.Text.Length > 0 && Time.GetTicksMsec() / 1000.0 > _toastUntil)
+		{
+			_toastTween?.Kill();
+			_toast.Modulate = new Color(1, 1, 1, 0);
+			_toast.Text = "";
+		}
 		if (_alert.Visible) { PlaceAlert(); ClampSafe(_alert); }
 		// der Hinweis rückt unter eine stehende Meldung (statt sie zu überdecken)
 		// Prüfung Runde 2: unter einer Meldung im Flug schmaler und links der Kampftasten („Nächster Gegner“ beginnt bei x 764 im 1280er-Raster)
@@ -675,6 +691,9 @@ public partial class Hud : CanvasLayer
 		// Prüfung Phase 28: ein neuer Hinweis ersetzt eine ältere Meldung, die schon mindestens 3 s stand (keine zwei Felder übereinander)
 		if (_alert.Visible && !_alertSticky && Time.GetTicksMsec() / 1000.0 - _alertShown >= 3.0) _alert.Visible = false;
 		_toast.Text = text;
+		// Runde 41 (A2): Verfallszeit merken — Info-Meldungen verschwinden nach ihrer Zeit auch aus dem Meldungsstreifen (auch wenn das
+		// Ausblend-Tween inzwischen gekillt wurde, z. B. von einer Meldung), statt dort als alter Text stehen zu bleiben
+		_toastUntil = Time.GetTicksMsec() / 1000.0 + seconds + 0.6;
 		// Runde 21 (Handy-Test b08: nach einem mehrzeiligen Hinweis blieb die dunkle Fläche dreizeilig hoch): Höhe auf den neuen Text zurücksetzen
 		_toast.Size = new Vector2(_toast.Size.X, 0f);
 		_toastTween?.Kill();
@@ -683,6 +702,7 @@ public partial class Hud : CanvasLayer
 		_toastTween.TweenInterval(seconds);
 		_toastTween.TweenProperty(_toast, "modulate:a", 0.0, 0.6);
 	}
+	double _toastUntil;
 
 	public void Flash(Color color, float seconds = 0.5f)
 	{
@@ -808,6 +828,50 @@ public partial class Hud : CanvasLayer
 			}
 		}
 
+		/// <summary>Runde 41: Gold-Randpfeile der Missionsziele am Rand des freien Felds (höchstens 3, wie Runde 17); im Bild zeichnet das Leuchtfeuer selbst.</summary>
+		void DrawMissionEdges()
+		{
+			Hud.MissionEdgeMarkers.Clear();
+			if (Hud.MissionEdges?.Invoke() is not { } list || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
+			var font = ThemeDB.FallbackFont;
+			var col = FlightHud.MissionGold;
+			var field = Field();
+			var c = field.GetCenter();
+			var occupied = Occupied();
+			if (_arrowBox is { } ab) occupied.Add(ab.Grow(12f));
+			foreach (var (screen, label0, mid) in list)
+			{
+				if (Hud.MissionEdgeMarkers.Count >= 3) break;
+				if (field.Grow(24f).HasPoint(screen) && !occupied.Exists(r => r.HasPoint(screen))) continue;   // im freien Feld sichtbar: Leuchtfeuer in der Welt
+				var dir = (screen - c).Normalized();
+				if (dir == Vector2.Zero) continue;
+				float t = Mathf.Min(Mathf.Abs(field.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(field.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));
+				var tip = c + dir * t;
+				if (occupied.Exists(r => r.HasPoint(tip))) continue;
+				bool near = false;
+				foreach (var (mp, _) in Hud.EdgeMarkers) if (mp.DistanceTo(tip - dir * 18f) < 70f) { near = true; break; }
+				foreach (var (mp, _) in Hud.MissionEdgeMarkers) if (mp.DistanceTo(tip - dir * 20f) < 70f) { near = true; break; }
+				if (near) continue;
+				var side = new Vector2(-dir.Y, dir.X) * 10f;
+				DrawColoredPolygon(new[] { tip, tip - dir * 20f + side, tip - dir * 20f - side }, new Color(col, 0.95f));
+				var (label, lfs) = UiKit.FitText(this, font, label0, 13, 190f);
+				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
+				var lp = tip - dir * 32f - new Vector2(w / 2f, -4f);
+				{
+					var si2 = UiScale.SafeInsets1(); var vs2 = GetViewportRect().Size;
+					lp.X = Mathf.Clamp(lp.X, si2.Left + 6f, MathF.Max(si2.Left + 6f, vs2.X - si2.Right - 6f - w));
+				}
+				var box = new Rect2(lp - new Vector2(4f, 13f), new Vector2(w + 8f, 18f));
+				if (!_labelBoxes.Exists(b => b.Intersects(box)) && !occupied.Exists(r => r.Intersects(box)))
+				{
+					_labelBoxes.Add(box);
+					DrawRect(box, new Color(0.09f, 0.07f, 0.01f, 0.8f));
+					UiKit.DrawText(this, 200 + _labelBoxes.Count, font, lp, label, lfs, col, full: label0);
+				}
+				Hud.MissionEdgeMarkers.Add((tip - dir * 20f, mid));
+			}
+		}
+
 		public Hud Hud = null!;
 		public TargetMarker() { MouseFilter = MouseFilterEnum.Ignore; SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); }
 		public override void _Process(double delta) => QueueRedraw();
@@ -818,6 +882,7 @@ public partial class Hud : CanvasLayer
 			_arrowBox = null;
 			DrawTargetArrow();   // Runde 16 (Runde 17: zuerst — die Stationspfeile weichen ihm aus)
 			DrawEdgeStations();
+			DrawMissionEdges();   // Runde 41: Gold-Randpfeile der Missionsziele (höchstens 3)
 			var p = Hud.TargetScreenPosition?.Invoke();
 			if (p is not { } pos) return;
 			var rect = new Rect2(Vector2.Zero, Size).Grow(-30f);

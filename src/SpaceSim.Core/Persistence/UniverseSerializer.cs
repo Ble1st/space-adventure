@@ -180,6 +180,29 @@ public static class UniverseSerializer
                 Created = m.Created, Expires = m.Expires, Read = m.Read,
             }).ToList();
         if (u.NextMessageId != 1) s.NextMessageId = u.NextMessageId;
+        // Runde 41: Auftragsangebote (gespeichert, nicht gehasht) und angenommene Aufträge (gehasht)
+        if (u.MissionOffers.Count > 0)
+            s.MissionOffers = u.MissionOffers.OrderBy(o => o.Id).Select(o => new MissionOfferSave
+            {
+                Id = o.Id, Type = o.Type, Client = o.Client.Value, At = o.At.Value,
+                Args = o.Args.Count == 0 ? null : o.Args.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
+                Reward = o.Reward, Deposit = o.Deposit, Expires = o.Expires, Created = o.Created, Haggled = o.Haggled,
+            }).ToList();
+        if (u.Missions.Count > 0)
+            s.Missions = u.Missions.OrderBy(m => m.Id).Select(m => new MissionSave
+            {
+                Id = m.Id, Type = m.Type, Client = m.Client.Value, At = m.At.Value,
+                Args = m.Args.Count == 0 ? null : m.Args.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
+                Reserved = m.Reserved, Deposit = m.Deposit, ReservedCash = m.ReservedCash, CargoVolume = m.CargoVolume,
+                Sold = m.Sold, Bought = m.Bought, Deadline = m.Deadline, AcceptedTick = m.AcceptedTick,
+                State = m.State.ToString(), Haggled = m.Haggled,
+            }).ToList();
+        if (u.NextMissionId != 1) s.NextMissionId = u.NextMissionId;
+        if (u.MissionFactions.Count > 0)
+            s.MissionFactions = u.MissionFactions.OrderBy(kv => kv.Key).Select(kv => new MissionFactionSave
+            {
+                Actor = kv.Key, Day = kv.Value.Day, Spent = kv.Value.Spent, BlockedUntil = kv.Value.BlockedUntil,
+            }).ToList();
         // Phase 24: laufende Gefechte
         s.NextEncounterId = u.Fights.NextId;
         if (u.Fights.Count > 0)
@@ -344,6 +367,7 @@ public static class UniverseSerializer
                 Command = sh.Command is null ? null : ToSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
                 RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit, RentPaidDays = sh.RentPaidDays,
+                MissionCargo = sh.MissionCargo,   // Runde 41
                 Systems = ToSave(sh.Systems),
             });
         if (u.Squadrons.Count > 0)
@@ -419,6 +443,30 @@ public static class UniverseSerializer
                     Created = m.Created, Expires = m.Expires, Read = m.Read,
                 });
         u.NextMessageId = Math.Max(Math.Max(1, s.NextMessageId), u.Inbox.Count == 0 ? 1 : u.Inbox.Max(m => m.Id) + 1);
+        // Runde 41: Auftragsangebote und Aufträge (Angebote nicht gehasht, Aufträge schon)
+        if (s.MissionOffers is not null)
+            foreach (var o in s.MissionOffers)
+                u.MissionOffers.Add(new MissionOffer
+                {
+                    Id = o.Id, Type = o.Type, Client = new ActorId(o.Client), At = new StationId(o.At),
+                    Args = o.Args is null ? new() : new Dictionary<string, string>(o.Args),
+                    Reward = o.Reward, Deposit = o.Deposit, Expires = o.Expires, Created = o.Created, Haggled = o.Haggled,
+                });
+        if (s.Missions is not null)
+            foreach (var m in s.Missions)
+                u.Missions.Add(new Mission
+                {
+                    Id = m.Id, Type = m.Type, Client = new ActorId(m.Client), At = new StationId(m.At),
+                    Args = m.Args is null ? new() : new Dictionary<string, string>(m.Args),
+                    Reserved = m.Reserved, Deposit = m.Deposit, ReservedCash = m.ReservedCash, CargoVolume = m.CargoVolume,
+                    Sold = m.Sold, Bought = m.Bought, Deadline = m.Deadline, AcceptedTick = m.AcceptedTick,
+                    State = Enum.TryParse<MissionState>(m.State, out var ms) ? ms : MissionState.Active, Haggled = m.Haggled,
+                });
+        u.NextMissionId = Math.Max(Math.Max(1, s.NextMissionId), u.MissionOffers.Count == 0 ? 1 : u.MissionOffers.Max(o => o.Id) + 1);
+        u.NextMissionId = Math.Max(u.NextMissionId, u.Missions.Count == 0 ? 1 : u.Missions.Max(m => m.Id) + 1);
+        if (s.MissionFactions is not null)
+            foreach (var f in s.MissionFactions)
+                u.MissionFactions[f.Actor] = new MissionFactionState { Day = f.Day, Spent = f.Spent, BlockedUntil = f.BlockedUntil };
         // Phase 26: Wracks und Frachtbehälter
         u.NextWreckId = Math.Max(1, s.NextWreckId);
         if (s.Wrecks is not null)
@@ -629,7 +677,8 @@ public static class UniverseSerializer
                 Command = sh.Command is null ? null : CommandFromSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
                 DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
-                RentPaidDays = sh.RentPaidDays, Systems = FromSave(sh.Systems),
+                RentPaidDays = sh.RentPaidDays, MissionCargo = sh.MissionCargo,   // Runde 41
+                Systems = FromSave(sh.Systems),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
             ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;

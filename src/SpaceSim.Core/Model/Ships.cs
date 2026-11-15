@@ -45,6 +45,11 @@ public sealed class Ship : ICreditAccount
     const float NoModelHull = 100f;
     public float CargoCapacity = 100f;
     public Dictionary<GoodId, float> Cargo = new();
+    /// <summary>
+    /// Runde 41: versiegelte Fracht eines Transportauftrags (belegt Laderaum-Volumen, ist keine Ware; nur Spielerschiffe).
+    /// Additiv gespeichert und gehasht, sobald &gt; 0. Wird bei Annahme/Ablieferung/Scheitern gesetzt (siehe <see cref="Missions.TransportMission"/>).
+    /// </summary>
+    public float MissionCargo;
     /// <summary>Treibstoff an Bord je Ware, getrennt vom Laderaum; Summe ≤ <see cref="ShipStats.FuelCapacity"/>. Schiffe ohne Modell: leer (Kapazität 0).</summary>
     public Dictionary<GoodId, float> Fuel = new();
     /// <summary>

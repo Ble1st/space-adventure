@@ -27,6 +27,8 @@ public enum HudItem
     FireBtn, Group0, Group1, Group2, Group3, Group4, Group5, Expand,
     Bay0, Bay1, Bay2, Bay3, Bay4, Bay5, Bay6, Bay7, Bay8, Bay9, Bay10, Bay11, Bay12, Bay13, Bay14,
     HitWarning, Escape,
+    /// <summary>Runde 41: Auftragszeile unter der Lagezeile (Gold, leer = ausgeblendet).</summary>
+    Mission,
 }
 
 /// <summary>
@@ -70,7 +72,7 @@ public sealed class FlightHudLayout
 
     /// <summary>Tasten (antippbar) — für Überlappungs- und Größenprüfungen.</summary>
     public static bool IsInteractive(HudItem i) => i is not (HudItem.Status or HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire
-        or HudItem.Card or HudItem.ReverseLabel or HudItem.HitWarning or HudItem.Escape);
+        or HudItem.Card or HudItem.ReverseLabel or HudItem.HitWarning or HudItem.Escape or HudItem.Mission);
 
     FlightHudLayout() { }
 
@@ -132,6 +134,7 @@ public sealed class FlightHudLayout
         Set(HudItem.Security, chipX, chipY + 46, cw, 18);
         Set(HudItem.Wanted, chipX, chipY + 66, cw, 20);
         Set(HudItem.Fire, chipX, chipY + 88, cw, 20);
+        Set(HudItem.Mission, chipX, chipY + 110, cw, 18);   // Runde 41: Auftragszeile (Gold) unter der Brandzeile
         // ── unten rechts: Daumenbogen — FEUER in der Ecke, Gruppen im Bogen darum, „Einzeln“ in der nächsten freien Stelle ──
         float fx = x1 - 12 - FireSize, fy = y1 - 12 - FireSize;
         Set(HudItem.FireBtn, fx, fy, FireSize, FireSize);
@@ -179,6 +182,7 @@ public sealed class FlightHudLayout
         if (expanded && bays > 0)
         {
             _hidden.Add(HudItem.Autopilot); _hidden.Add(HudItem.AutoMine); _hidden.Add(HudItem.Context);
+            _hidden.Add(HudItem.Mission); Set(HudItem.Mission, 0, 0, 0, 0);   // Runde 41: Schächte verdecken die Auftragszeile
             float top = y0 + 134, bottom = arcTop - 8f, right = cx0 - 8f;
             int rows = Math.Max(1, (int)MathF.Floor((bottom - top + 8f) / CellStepY));
             for (int b = 0; b < MaxBays; b++)

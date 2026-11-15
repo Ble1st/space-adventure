@@ -34,10 +34,11 @@ public sealed class TradeEntry
     /// <summary>Exportchargen (<see cref="Simulation.ExportRules"/>), die durch diesen Verkauf entstanden (noch nicht fällig).</summary>
     public List<ExportBatch> Batches = new();
     /// <summary>
-    /// Erweiterungsstelle für Runde 41 (Aufträge): Auftragsfortschritt, der durch diese Buchung entstand und beim
-    /// Rückgängig mit zurückgesetzt wird. Heute immer null (es gibt noch keine Aufträge).
+    /// Runde 41 (Aufträge): Fortschritt, der durch diese Buchung entstand (Auftrags-Id, ΔVerkauft, ΔGekauft an der Zielstation)
+    /// und beim Rückgängig mit zurückgesetzt wird (<see cref="Missions.MissionSystem.RollbackProgress"/>). Leer, wenn die Buchung
+    /// keinen Auftrag betrifft.
     /// </summary>
-    public (int MissionId, float Delta)? Progress;
+    public List<(int MissionId, float DSold, float DBought)>? Progress;
 }
 
 /// <summary>Runde 39: eine Zeile des <see cref="Events.TradeUndone"/>-Ereignisses (Ware, Menge, Geldfluss; negativ = Zahlung des Spielers).</summary>
@@ -90,6 +91,30 @@ public sealed class TradeJournal
             && MathF.Abs(a.SoldQty - b.SoldQty) <= e && MathF.Abs(a.SoldPrice - b.SoldPrice) <= e && MathF.Abs(a.SoldStockBefore - b.SoldStockBefore) <= e
             && a.BoughtOpen == b.BoughtOpen && a.SoldOpen == b.SoldOpen && a.LastTick == b.LastTick
             && MathF.Abs(a.MissingQty - b.MissingQty) <= e && MathF.Abs(a.MissingSeen - b.MissingSeen) <= e;
+    }
+
+    /// <summary>
+    /// Runde 41 (A1): Vergleich für die Rücknahme-Sperre — <paramref name="after"/> = Abbild nach der Buchung, <paramref name="raw"/> = der
+    /// Posten jetzt. Erlaubt sind nur die Änderungen, die der Verfall (<see cref="PlayerLedger.Prune"/>) allein im Tick vornehmen kann:
+    /// Teile schließen (Open-Flag fällt, Menge schrumpft, Posten wird leer und entfernt), MissingQty wird aufgefüllt. Eine Buchung
+    /// (anderes eigenes Schiff) erkennt der Tick <see cref="LedgerPost.LastTick"/> oder eine wachsende Menge. Kauf direkt vor Verkauf derselben
+    /// Ware an derselben Station: der Verkauf baut den Kauf-Posten ab, der Verfall schließt ihn im nächsten Tick — die Rücknahme des Verkaufs
+    /// bleibt erlaubt und stellt das Abbild vor dem Verkauf wieder her (Rückkaufdeckel wie nach dem Kauf; kein Gewinn, die Beträge der
+    /// Rücknahme rechnen gegen den Markt jetzt, nicht gegen das Abbild).
+    /// </summary>
+    public static bool SameOrPruned(LedgerPost? after, LedgerPost? raw)
+    {
+        if (after is null) return raw is null;
+        if (raw is null) return true;   // Verfall hat den ganzen Posten entfernt
+        const float e = 0.0001f;
+        if (raw.LastTick != after.LastTick) return false;   // eine Buchung hat angefasst
+        if (MathF.Abs(raw.BoughtPrice - after.BoughtPrice) > e || MathF.Abs(raw.BoughtStockBefore - after.BoughtStockBefore) > e) return false;
+        if (MathF.Abs(raw.SoldPrice - after.SoldPrice) > e || MathF.Abs(raw.SoldStockBefore - after.SoldStockBefore) > e) return false;
+        if (raw.BoughtQty > after.BoughtQty + e || raw.SoldQty > after.SoldQty + e) return false;   // Verfall schrumpft nur
+        if (raw.BoughtOpen && !after.BoughtOpen) return false;
+        if (raw.SoldOpen && !after.SoldOpen) return false;
+        if (raw.MissingQty > after.MissingQty + e) return false;
+        return true;
     }
 
     /// <summary>Kurztext der Buchung für Angebot und Meldung, z. B. „Kauf 10 Energie · 1:42“ (Dauer seit der Buchung als m:ss).</summary>

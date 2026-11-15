@@ -70,7 +70,33 @@ public sealed class CommsSystem : ISimSystem
             _sub = u;
         }
         Comms.Prune(u);
+        SyncContractOffers(u);
     }
+
+    /// <summary>
+    /// Runde 41: Liefervertrags-Angebote (Comms-Kanal) der Station, an der der Spieler gerade angedockt ist, als Posteingang-Nachricht —
+    /// gezogen beim Andocken und bei jedem neuen Angebot. Ohne Andocken erzeugt die NPC-Welt keine Post für den Spieler (Inbox bleibt leer,
+    /// wenn der Spieler nicht handelt). Verbraucht keine Zufallszahl.
+    /// </summary>
+    static void SyncContractOffers(Universe u)
+    {
+        if (u.PlayerFaction is null || !u.Ships.TryGetValue(u.PlayerShip, out var ps) || ps.DockedAt == default) return;
+        var dock = ps.DockedAt;
+        foreach (var o in u.MissionOffers)
+        {
+            if (o.At != dock || !o.Args.TryGetValue("channel", out var ch) || ch != "comms") continue;
+            string id = o.Id.ToString();
+            if (u.Inbox.Any(m => m.Kind == "contract_offer" && m.Args.TryGetValue("offer", out var os) && os == id)) continue;
+            Comms.Add(u, o.Client, "contract_offer", ContractArgs(u, o), u.Rules.OfferMessageTicks);
+        }
+    }
+
+    static Dictionary<string, string> ContractArgs(Universe u, MissionOffer o) => new()
+    {
+        ["offer"] = o.Id.ToString(),
+        ["faction"] = (u.FactionOf(o.Client) is { } f ? f.Value : 0).ToString(),
+        ["message"] = Missions.MissionRules.DescribeOfferText(u, o),
+    };
 
     /// <summary>Ereignis → Nachricht(en). Rein bis auf den Inbox-Eintrag; ohne Zufallszahl. Auch direkt aufrufbar (Tests).</summary>
     public static void OnEvent(Universe u, SimEvent e)
@@ -120,6 +146,25 @@ public sealed class CommsSystem : ISimSystem
                     ["amount"] = be.Amount.ToString("0", System.Globalization.CultureInfo.InvariantCulture),
                 }, u.Rules.InboxMessageTicks);
                 break;
+            // Runde 41: Aufträge — Liefervertrags-Angebot (Comms-Kanal) und Annahme/Erfüllung/Scheitern
+            case MissionOffered mo:
+            {
+                var offer = u.MissionOffers.FirstOrDefault(o => o.Id == mo.Offer);
+                if (offer is null) break;
+                // nur wenn der Spieler an der anbietenden Station angedockt ist (sonst wäre die NPC-Welt voller Post für ihn)
+                if (!u.Ships.TryGetValue(u.PlayerShip, out var ps) || ps.DockedAt == default || ps.DockedAt != offer.At) break;
+                Comms.Add(u, mo.Client, "contract_offer", ContractArgs(u, offer), u.Rules.OfferMessageTicks);
+                break;
+            }
+            case MissionAccepted ma:
+                Comms.Add(u, ma.Client, "mission_accepted", new() { ["mission"] = ma.Mission.ToString(), ["message"] = ma.Message }, u.Rules.InboxMessageTicks);
+                break;
+            case MissionCompleted mc:
+                Comms.Add(u, mc.Client, "mission_completed", new() { ["mission"] = mc.Mission.ToString(), ["amount"] = mc.Paid.ToString("0", System.Globalization.CultureInfo.InvariantCulture), ["message"] = mc.Message }, u.Rules.InboxMessageTicks);
+                break;
+            case MissionFailed mf:
+                Comms.Add(u, mf.Client, "mission_failed", new() { ["mission"] = mf.Mission.ToString(), ["reason"] = mf.Reason, ["message"] = mf.Message }, u.Rules.InboxMessageTicks);
+                break;
         }
     }
 }
@@ -148,16 +193,24 @@ public static class CommsText
                     : $"Deine Fahndung bei {F()} ist gestiegen."),
             "bounty_earned" => ($"Kopfgeld verdient – {F()}",
                 m.Args.TryGetValue("amount", out var as_) ? $"Kopfgeld {as_} Cr bei {F()} — abholen im Kopfgeldbüro." : $"Kopfgeld bei {F()} verdient."),
+            // Runde 41: Aufträge
+            "contract_offer" => ($"Liefervertrag – {F()}",
+                m.Args.TryGetValue("message", out var cms) ? cms : "Angebot einer Station: Ware zum Festpreis abnehmen (Annahme und Kasse reserviert)."),
+            "mission_accepted" => ("Auftrag angenommen", Msg()),
+            "mission_completed" => ("Auftrag erfüllt", m.Args.TryGetValue("amount", out var am) ? $"{Msg()} Belohnung {am} Cr." : Msg()),
+            "mission_failed" => ($"Auftrag gescheitert{(m.Args.TryGetValue("reason", out var rs) ? $" ({rs})" : "")}", Msg()),
             _ => (m.Kind, Msg()),
         };
     }
 
     /// <summary>
     /// Antwort-Angebote der Nachricht als Comms-Schlüssel (werden über die Registry vorgeschaut/ausgeführt). Angebote der KI (Waffenstillstand/
-    /// Frieden) können angenommen werden; „Ignorieren“ ist implizit und kostet nichts.
+    /// Frieden) können angenommen werden; Runde 41: Liefervertrag annehmen/nachverhandeln; „Ignorieren“ ist implizit und kostet nichts.
     /// </summary>
     public static IReadOnlyList<string> Answers(Universe u, CommsMessage m)
     {
+        if (m.Args.TryGetValue("offer", out var os_) && int.TryParse(os_, out var ov) && m.Kind == "contract_offer")
+            return new[] { $"mission:accept:{ov}", $"contract:haggle:{ov}" };
         if (m.Args.TryGetValue("faction", out var fs) && int.TryParse(fs, out var fv))
         {
             return m.Kind switch

@@ -193,7 +193,7 @@ public class RefuelRepairTests
         Assert.DoesNotContain("repair", reg.ForStation(u, u.Stations[new StationId(25)]).Select(s => s.Key));
         Assert.Contains("repair", reg.ForStation(u, Plating(u)).Select(s => s.Key));
         var solar = u.Stations.Values.First(s => s.TypeKey == "solar_plant");
-        Assert.Equal(new[] { "trade", "hangar" }, reg.ForStation(u, solar).Select(s => s.Key));   // Phase 12: Hangar
+        Assert.Equal(new[] { "trade", "hangar", "missions" }, reg.ForStation(u, solar).Select(s => s.Key));   // Phase 12: Hangar; Runde 41: missions
     }
 
     // ───────── Spielerverbrauch und Notruf ─────────

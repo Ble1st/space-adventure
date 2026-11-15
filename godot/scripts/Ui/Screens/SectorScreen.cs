@@ -51,6 +51,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	public void TestSelectGate(GateId g) { _selGate = g; _selStation = null; Invalidate(); }
 	/// <summary>Runde 35b (Selbsttest): gewählte Station und Bildpunkt einer Station auf der Karte.</summary>
 	public StationId? TestSelStation => _selStation;
+	/// <summary>Runde 41 (Selbsttest): Zahl der Missionssymbole auf der Sektorkarte.</summary>
+	public int TestMissionSymbols => _map is null ? 0 : _map.TestMissionSymbols;
 	public Vector2? TestStationScreen(StationId id) => _map is not null && IsInstanceValid(_map) ? _map.GlobalOf(id) : null;
 
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
@@ -253,6 +255,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	/// <summary>Draufsicht eines Sektors: Stationen, Gürtel, Gates mit Ziel, NPC-Schiffe (Materializer), Spieler.</summary>
 	sealed partial class SectorMapCanvas : Control
 	{
+		/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole.</summary>
+		public int TestMissionSymbols;
 		SectorScreen _owner = null!;
 		Universe _u = null!;
 		public event Action<StationId>? StationTapped;
@@ -493,6 +497,20 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				float sh = SymbolHalf(st) + 4f;
 				layout.Reserve(new Rect2(p - new Vector2(sh, sh), new Vector2(sh * 2f, sh * 2f)));
 				labels.Add((1, p, st.Name, 12, sel ? Cyan : White, sh + 2f));
+			}
+
+			// Runde 41: Missionsziele im Sektor — goldene Diamanten mit Auftragstext (höchstens 3)
+			TestMissionSymbols = 0;
+			foreach (var mk in SpaceSim.Core.Missions.MissionMarkers.For(_u).Where(m => m.Sector == s.Id).Take(3))
+			{
+				var p = Place(mk.Position);
+				float d = 9f;
+				var pts = new[] { p + new Vector2(0, -d), p + new Vector2(d, 0), p + new Vector2(0, d), p + new Vector2(-d, 0), p + new Vector2(0, -d) };
+				DrawColoredPolygon(pts[..4], new Color(0.09f, 0.07f, 0.01f, 0.92f));
+				DrawPolyline(pts, FlightHud.MissionGold, 2.5f, true);
+				layout.ReserveCircle(p, d + 2f);
+				labels.Add((0, p + new Vector2(0, d + 9f), mk.Label, 11, FlightHud.MissionGold, 4f));
+				TestMissionSymbols++;
 			}
 
 			// Phase 26: Wracks (graues Kreuz) und Frachtbehälter (oranges Quadrat), echt aus Universe.Wrecks

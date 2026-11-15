@@ -22,6 +22,8 @@ namespace SpaceAdventure.Ui.Screens;
 public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.universe";
+	/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole auf der Universumskarte.</summary>
+	public int TestMissionSymbols;
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { SelectedSector = null; }
 
@@ -323,6 +325,17 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 					DrawLine(cx + new Vector2(-6, -6), cx + new Vector2(6, 6), Red, 3f);
 					DrawLine(cx + new Vector2(-6, 6), cx + new Vector2(6, -6), Red, 3f);
 				}
+				// Runde 41: Missionsziel im Sektor — goldene Diamanten rechts oben am Knoten (einer je Auftrag, max 3)
+				int mmi = 0;
+				foreach (var _mk in SpaceSim.Core.Missions.MissionMarkers.For(_u).Where(mk => mk.Sector == s.Id))
+				{
+					if (mmi >= 3) break;
+					var c = p + new Vector2(rNode * 0.75f + mmi * 12f, -rNode * 0.75f);
+					float d = 6f;
+					DrawColoredPolygon(new[] { c + new Vector2(0, -d), c + new Vector2(d, 0), c + new Vector2(0, d), c + new Vector2(-d, 0) }, FlightHud.MissionGold);
+					mmi++;
+				}
+				_owner.TestMissionSymbols += mmi;
 				var font = ThemeDB.FallbackFont;
 				// Phase 21: ohne „Sektor “, damit lange Namen (Hephaistos) in die Spalte passen
 				// Gerätetest: Name im Knoten, Unterzeile unter dem Halo, beide auf ihren Platz gekürzt (überlappten auf dem Handy die Nachbarn)

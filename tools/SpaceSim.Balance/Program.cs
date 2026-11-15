@@ -244,6 +244,9 @@ u.Events.Raised += e =>
 int raids = 0, raidsWon = 0, raidsOnPlayer = 0, victimsLost = 0, raidersLost = 0, intercepts = 0, interceptsWon = 0, raidersBuilt = 0, policeBought = 0, policeGone = 0, policeHelped = 0;
 int crimes = 0, warnings = 0;
 double lootValue = 0, fenced = 0, tradeValue = 0, policeCost = 0, policeUnpaid = 0, pirateCost = 0, fines = 0, bounties = 0;
+// Runde 41: Aufträge — Angebote/Annahmen/Erfüllungen/Scheitern und der Geldfluss (Reservierung, Zahlung, Rückgabe, Pfand)
+int mOffered = 0, mAccepted = 0, mCompleted = 0, mFailed = 0;
+double mReserve = 0, mPaid = 0, mReturn = 0, mDepositForfeit = 0;
 var victimsByRole = new SortedDictionary<string, int>(StringComparer.Ordinal);
 u.Events.Raised += e =>
 {
@@ -266,6 +269,15 @@ u.Events.Raised += e =>
         case EncounterWarning: warnings++; break;
         case TradeCompleted tcv: tradeValue += tcv.Revenue; break;
         case MineDelivered md: tradeValue += md.Revenue; break;
+        // Runde 41: Aufträge (Geldfluss erklärbar: Reservierung bei Annahme, Zahlung bei Erfüllung, Rückgabe/Pfand bei Scheitern)
+        case MissionOffered: mOffered++; break;
+        case MissionAccepted: mAccepted++; break;
+        case MissionCompleted mc: mCompleted++; break;
+        case MissionFailed: mFailed++; break;
+        case MissionPaid mp: mPaid += mp.Amount; break;
+        case TreasuryUpkeep { Purpose: "mission_reserve" } mr: mReserve += mr.Amount; break;
+        case TreasuryIncome { Purpose: "mission_return" } mr2: mReturn += mr2.Amount; break;
+        case TreasuryIncome { Purpose: "mission_deposit" } md2: mDepositForfeit += md2.Amount; break;
     }
 };
 // Phase 24: Rundengefecht — Gefechte, Dauer, Schüsse/Treffer, Ausgänge, Munition, bewaffnete Händler
@@ -882,6 +894,9 @@ if (u.Modules.Count > 0)
     foreach (var a in u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value))
         Console.WriteLine($"  Piraten {a.Name}: {u.Ships.Values.Count(x => ThreatMap.IsRaider(x) && x.Owner == a.Id)} Kaperschiffe, Kasse {a.Treasury.Credits:0} Cr, Kosten {pirateCost:0} Cr; Fahndung "
             + string.Join(", ", a.Wanted.OrderBy(kv => kv.Key.Value).Select(kv => $"{u.Factions[kv.Key].Name} {SecurityNames.WantedLevel(Wanted.Level(u.Rules, kv.Value.Heat))}")));
+    // Runde 41: Aufträge — in der NPC-Welt ohne Spielerannahme nur Angebote (nicht gehasht), Geldfluss 0
+    Console.WriteLine($"Aufträge: Angebote {mOffered} (aktuell {u.MissionOffers.Count}), angenommen {mAccepted}, erfüllt {mCompleted}, gescheitert {mFailed}"
+        + $" — Reserviert {mReserve:0} Cr, ausgezahlt {mPaid:0} Cr, zurück {mReturn:0} Cr, Pfand verfallen {mDepositForfeit:0} Cr; laufend {u.Missions.Count(m => m.State == SpaceSim.Core.Model.MissionState.Active)}");
     Console.WriteLine("Lagekarte: " + string.Join(", ", u.Sectors.Values.OrderBy(x => x.Id.Value)
         .Select(x => $"{x.Name} Bedrohung {x.Threat:0.00} Sicherheit {x.Security:0.0} Verkehr {x.Traffic:0}")) + $"; Verbrechen gemeldet {crimes}");
     // Phase 24: Rundengefecht

@@ -1101,4 +1101,56 @@ public sealed class EconomyRules
     public float TributeBase = 10000f;
     /// <summary>Tribut: Anteil der eigenen Kriegsverluste (Cr Materialwert), der zusätzlich gefordert wird.</summary>
     public float TributeLossShare = 0.5f;
+
+    // ── Runde 41: Aufträge (Lieferung, Transport) und Lieferverträge über Comms ──
+    /// <summary>Aufträge an (Angebote je Station, Annahme/Erfüllung/Scheitern, Marker). Standardwelt an; aus = Verhalten bis Runde 40 (keine Angebote, keine Änderung am Hash).</summary>
+    public bool MissionsActive = true;
+    /// <summary>Lieferbonus: Anteil des Basiswerts der gelieferten Ware, den die Auftraggeber-Kasse zahlt (nur für netto gelieferte Einheiten).</summary>
+    public float MissionBonusShare = 0.1f;
+    /// <summary>Budgetdeckel je Fraktion und Tag: dieser Anteil der Kasse (mindestens <see cref="MissionMinDailyBudget"/>) darf für Auftragsbelohnungen reserviert werden.</summary>
+    public float MissionBudgetShare = 0.05f;
+    /// <summary>Mindest-Tagesbudget für Auftragsbelohnungen je Fraktion (Credits).</summary>
+    public float MissionMinDailyBudget = 3000f;
+    /// <summary>Höchstens so viele aktive Aufträge (plus eine je Größenklasse, gedeckelt auf <see cref="MissionMaxActiveCap"/>).</summary>
+    public int MissionMaxActive = 3;
+    /// <summary>Deckel der aktiven Aufträge (mit Größenklassen-Bonus).</summary>
+    public int MissionMaxActiveCap = 6;
+    /// <summary>Frist = geschätzte Spielerflugzeit × diesen Faktor.</summary>
+    public float MissionDeadlineFactor = 3f;
+    /// <summary>Mindestfrist eines Auftrags in Ticks.</summary>
+    public int MissionMinDeadlineTicks = 2400;
+    /// <summary>Beziehung + bei Erfüllung (gedeckelt +0,5 über PlayerStanding).</summary>
+    public float MissionRelationGain = 0.02f;
+    /// <summary>Beziehung − bei Scheitern/Abbruch.</summary>
+    public float MissionRelationLoss = 0.03f;
+    /// <summary>Alle so vielen Ticks werden die Angebote neu erzeugt (eigener Missions-RNG je Station und Bucket).</summary>
+    public int MissionRefreshTicks = 2400;
+    /// <summary>Lebensdauer eines Angebots in Ticks.</summary>
+    public int MissionOfferTicks = 7200;
+    /// <summary>Bestand/Ziel darunter → Liefervertrag (Angebot über Comms mit Kassen-Reservierung).</summary>
+    public float MissionScarceShare = 0.3f;
+    /// <summary>Bestand/Ziel darunter → normales Lieferangebot am Dock.</summary>
+    public float MissionMildScarceShare = 0.6f;
+    /// <summary>Mindestliefermenge eines Angebots (Einheiten).</summary>
+    public int MissionMinUnits = 5;
+    /// <summary>Höchstliefermenge eines Angebots (Einheiten).</summary>
+    public int MissionMaxUnits = 100;
+    /// <summary>Ab dieser Fahndungsstufe bei der Auftraggeber-Fraktion gibt es keine Aufträge von ihr.</summary>
+    public int MissionWantedBlockLevel = 2;
+    /// <summary>So viele Ticks vergibt eine Fraktion nach einem gescheiterten/abgebrochenen Auftrag keine neuen Aufträge.</summary>
+    public int MissionBlockTicks = 1200;
+    /// <summary>Liefervertrag: Pfand als Anteil des Vertragswerts (n × Festpreis).</summary>
+    public float ContractDepositShare = 0.10f;
+    /// <summary>Liefervertrag: einmaliges Nachverhandeln um diesen Anteil auf den Festpreis (+5 %).</summary>
+    public float ContractHaggleShare = 0.05f;
+    /// <summary>Liefervertrag: Nachverhandeln nur ab dieser Beziehung zum Auftraggeber.</summary>
+    public float ContractHaggleRelation = 0.25f;
+    /// <summary>Transport: versiegelte Fracht je Auftrag (Laderaum-Volumen; keine Ware).</summary>
+    public float MissionTransportUnits = 20f;
+    /// <summary>Transport: Frachtwert je Volumen — daraus das Pfand.</summary>
+    public float MissionTransportValuePerVolume = 10f;
+    /// <summary>Transport: Grundbelohnung aus der Auftraggeber-Kasse.</summary>
+    public float MissionTransportBaseReward = 200f;
+    /// <summary>Transport: Belohnung je Gate-Sprung der Strecke.</summary>
+    public float MissionTransportRewardPerHop = 50f;
 }

@@ -174,3 +174,16 @@ public sealed class PoliticsModule : ISimModule
          .Add(new WarSystem(), WarSystem.Interval)   // Phase 28: Krieg und Frieden
          .Add(new SpaceSim.Core.Comms.CommsSystem(), SpaceSim.Core.Comms.CommsSystem.Interval);   // Runde 40: Posteingang aus Ereignissen
 }
+
+/// <summary>
+/// Runde 41: Aufträge (Lieferung, Transport). Läuft NACH der Politik, damit das CommsSystem (Posteingang) beim ersten Tick schon am
+/// Ereignisbus hängt, bevor das Angebots-Board die ersten Lieferverträge meldet. Angebote entstehen mit eigenem Zufall aus dem Welt-Seed
+/// (nie <see cref="Universe.Rng"/>) und sind nicht gehasht; nur angenommene Aufträge ändern den Hash. Ohne Aufträge ändern die Systeme nichts.
+/// </summary>
+public sealed class MissionModule : ISimModule
+{
+    public string Name => "Missions";
+    public void Register(SimulationBuilder b) =>
+        b.Add(new SpaceSim.Core.Missions.MissionBoardSystem(), SpaceSim.Core.Missions.MissionBoardSystem.Interval)   // Angebote je Station
+         .Add(new SpaceSim.Core.Missions.MissionSystem(), SpaceSim.Core.Missions.MissionSystem.Interval);             // Fortschritt, Fristen, Abschluss
+}

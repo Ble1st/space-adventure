@@ -48,12 +48,22 @@ public static class TradeActions
     /// <c>AllCap</c> = min(Annahme + Resttoleranz, Kasse ÷ Preis) für „alles“, wenn die Station die Ware überhaupt annimmt (Annahme &gt; 0) und keine
     /// Baustelle ist (deren Stückliste ist genau). (0, 0) ohne Preis.
     /// </summary>
-    public static (float Cap, float AllCap) SaleCaps(Universe u, Station station, GoodId good, float credits, float? acceptOverride = null)
+    public static (float Cap, float AllCap) SaleCaps(Universe u, Station station, GoodId good, float credits, float? acceptOverride = null, Ship? ship = null)
     {
         if (!station.Market.TryGetValue(good, out var e) || e.Price <= 0f) return (0f, 0f);
         float pay = MathF.Max(0f, credits) / e.Price;
         // Phase 22: eine zugesagte Lieferung darf eine größere Annahme haben (TraderSystem, EconomyRules.HonourPlannedDelivery)
         float accept = acceptOverride ?? station.AcceptableUnits(good, u.Rules);
+        // Runde 41: Liefervertrag — die Station hat die Annahme für die reservierte Menge (n − gelieferte) garantiert (nur Spielerschiffe, nur solange Aufträge laufen)
+        if (ship is not null && u.Missions.Count > 0 && ship.Owner == u.PlayerActor && acceptOverride is null)
+            foreach (var m in u.Missions)
+                if (m.State == MissionState.Active && m.At == station.Id && m.Args.TryGetValue("contract", out var c) && c == "1"
+                    && m.Args.TryGetValue("good", out var gs) && int.TryParse(gs, out var gv) && gv == good.Value
+                    && m.Args.TryGetValue("units", out var us) && float.TryParse(us, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var need))
+                {
+                    float left = MathF.Max(0f, need - m.Sold);
+                    if (left > 0f) accept += left;
+                }
         float cap = MathF.Min(pay, accept);
         float allCap = accept > 0f && station.Site is null && u.Rules.SaleRestTolerance > 0f ? MathF.Min(pay, accept + u.Rules.SaleRestTolerance) : cap;
         return (MathF.Max(0f, cap), MathF.Max(0f, allCap));
@@ -81,7 +91,7 @@ public static class TradeActions
             float have = ship.Cargo[good];
             if (have <= 0f || !station.Market.TryGetValue(good, out var entry) || entry.Price <= 0f) continue;
 
-            var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
+            var (cap, allCap) = SaleCaps(u, station, good, station.Credits, null, ship);
             float units = SaleUnits(have, have, cap, allCap);
             if (units <= 0f) continue;
             var bk = PlayerLedger.BookSale(u, ship, station, good, units, wallet);   // Runde 30/31: Rückkaufdeckel über die eine Buchung
@@ -152,7 +162,7 @@ public static class TradeActions
         var sold = new Dictionary<GoodId, float>();
         if (have <= 0f || units <= 0f || !station.Market.TryGetValue(good, out var e) || e.Price <= 0f || Refusal(u, ship, station) is not null)
             return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
-        var (cap, allCap) = SaleCaps(u, station, good, station.Credits);
+        var (cap, allCap) = SaleCaps(u, station, good, station.Credits, null, ship);
         float n = SaleUnits(have, units, cap, allCap);
         if (n <= 0f) return new SaleResult(0f, sold, ship.Cargo.Values.Sum());
         var bs = PlayerLedger.BookSale(u, ship, station, good, n, u.WalletOf(ship));   // Runde 30/31: Rückkaufdeckel über die eine Buchung
@@ -180,7 +190,7 @@ public static class TradeActions
         foreach (var (good, have) in ship.Cargo.OrderBy(kv => kv.Key.Value))
             if (have > 0f && station.Market.TryGetValue(good, out var e) && e.Price > 0f)
             {
-                var (cap, allCap) = SaleCaps(u, station, good, credits);
+                var (cap, allCap) = SaleCaps(u, station, good, credits, null, ship);
                 float n = SaleUnits(have, have, cap, allCap);
                 if (n <= 0f) continue;
                 float r = PlayerLedger.SaleValue(u, ship, station, good, n, e.Price).Revenue;   // Runde 30
@@ -278,7 +288,7 @@ public static class TradeActions
         if (station.IsBuildSite) return "Baustelle";
         if (u.Fights.IsEngaged(ship.Id)) return "Gefecht";
         foreach (var l in e.Lines)
-            if (!TradeJournal.Same(RawPost(u, station, l.Good), l.PostAfter)) return "Rückkaufeintrag hat sich geändert";
+            if (!TradeJournal.SameOrPruned(l.PostAfter, RawPost(u, station, l.Good))) return "Rückkaufeintrag hat sich geändert";   // Runde 41 (A1): Verfall allein sperrt nicht
         return null;
     }
 
@@ -336,6 +346,7 @@ public static class TradeActions
             RestorePost(u, station, l.Good, l.PostBefore);
         }
         foreach (var b in e.Batches) station.Exports.Remove(b);   // entstandene, noch nicht fällige Exportcharge entfernen
+        SpaceSim.Core.Missions.MissionRules.RollbackProgress(u, e.Progress);   // Runde 41: Auftragsfortschritt der Buchung zurücknehmen
         journal.Clear();
         u.Events.Publish(new Events.TradeUndone(ship.Id, station.Id, lines, amount));
         return new UndoResult(true, null, amount, units);

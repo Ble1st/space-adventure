@@ -89,14 +89,14 @@ public static class MarketInfo
     /// Kasse ÷ Preis)) und der Grund, wenn sie begrenzt ist: Hersteller nehmen ihr reines Produkt nicht an, Regale nur bis Wunschbestand, Zutaten pausierter
     /// Rezepte nur bis Wunschbestand, Exportsenken nur Endwaren, Baustellen nur die Fehlmenge, und niemand mehr, als er bezahlen kann. Reine Auswertung.
     /// </summary>
-    public static Intake Acceptance(Universe u, Station st, GoodId good)
+    public static Intake Acceptance(Universe u, Station st, GoodId good, Ship? ship = null)
     {
         if (!st.Market.TryGetValue(good, out var e) || e.Price <= 0f)
             return new Intake(0f, IntakeLimit.NotTraded, ExportRules.ConfigOf(u, st) is not null ? "Nimmt nur Endwaren" : "Handelt diese Ware nicht");
         float accept = st.AcceptableUnits(good, u.Rules);
         float pay = MathF.Max(0f, st.Credits) / e.Price;
         float cap = MathF.Max(0f, MathF.Min(pay, accept));   // Phase 17: wie TradeActions.SaleCap
-        var (_, allCap) = TradeActions.SaleCaps(u, st, good, st.Credits);   // Phase 18: Rest unter einer Einheit
+        var (_, allCap) = TradeActions.SaleCaps(u, st, good, st.Credits, null, ship);   // Phase 18: Rest unter einer Einheit
         return Classify() with { Cap = cap, AllCap = allCap };
 
         Intake Classify()

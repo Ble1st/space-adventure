@@ -88,7 +88,8 @@ public partial class SelfTest : Node
 					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Info && a.Available) && areas.Any(a => a.Id == Ui.Screens.DockAreas.Hangar && a.Available),
 						"Station-Info und Hangar sind immer aktiv");
 					var offered = _m.Session.Services.ForStation(u, st).Select(x => x.Key).ToList();
-					Check(areas.Where(a => a.Id is Ui.Screens.DockAreas.Missions).All(a => !a.Available), "Platzhalterbereich Aufträge ist nicht aktiv");
+					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Missions && a.Available) == offered.Contains("missions"),
+						"Runde 41: Aufträge-Kachel aktiv, wenn ForStation „missions“ liefert (Platzhalter „Bald“ ist weg)");
 					// Runde 23: ohne buchbares Ziel bleibt die Taxi-Kachel abgeblendet mit Grund
 					var taxiTile = areas.FirstOrDefault(a => a.Id == Ui.Screens.DockAreas.Taxi);
 					Check(offered.Contains("taxi") ? taxiTile is not null && (taxiTile.Available || taxiTile.Sub == "Kein Ziel buchbar") : taxiTile is null || !taxiTile.Available,
@@ -2704,6 +2705,7 @@ public partial class SelfTest : Node
 			case 114: if (Round38aStage(_frame - _stageStart)) Next(); break;   // Runde 38a: Menü bleibt offen und an der Zeile, Info-Meldungen leise (SelfTest.Round38a.cs)
 			case 115: if (HudNeuStage(_frame - _stageStart)) Next(); break;   // HUD-Neu: Daumenbogen, FEUER halten, Gruppen, ⚡, Einzeln, Leviathan, 7 mm, Menü (SelfTest.HudNeu.cs)
 			case 116: if (Round40Stage(_frame - _stageStart)) Next(); break;   // Runde 40: Comms echt — Posteingang, Diplomatie, Strafe per Knopf, Krieg per zwei Taps (SelfTest.Round40.cs)
+			case 117: if (Round41Stage(_frame - _stageStart)) Next(); break;   // Runde 41: Aufträge — Dock → Aufträge → annehmen → Marker → liefern → Belohnung (SelfTest.Round41.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)

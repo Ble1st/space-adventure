@@ -4,6 +4,7 @@
  "rules": {
   "playerOwnFaction": true,
   "aiWarOnPlayer": true,
+  "missionsActive": true,
   "gateCombat": true,
   "miningAnchors": true,
   "armedTraderBaseline": 6,
