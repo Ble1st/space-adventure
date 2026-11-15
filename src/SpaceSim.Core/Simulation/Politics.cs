@@ -182,7 +182,11 @@ public sealed class FactionPolicySystem : ISimSystem
         }
     }
 
-    /// <summary>Schlechteste Beziehung der Fraktion zu einer anderen Fraktion und zu wem (feste Reihenfolge; ohne andere Fraktionen 1).</summary>
+    /// <summary>
+    /// Schlechteste Beziehung der Fraktion zu einer anderen Fraktion und zu wem (feste Reihenfolge; ohne andere Fraktionen 1). Runde 38 (Entscheidung des
+    /// Nutzers: Sperren im Krieg mit dem Spieler wie bei KI-Kriegen, für alle): die Spielerfraktion zählt mit. Sie steht in der Id-Reihenfolge hinten, bei
+    /// Gleichstand gewinnt die KI-Fraktion; ihre Startbeziehungen (≥ 0,1) liegen über jeder Sperrschwelle, ohne Spielerhandlung ändert sich also nichts.
+    /// </summary>
     public static (float Worst, FactionId? Against) WorstRelation(Universe u, FactionId f)
     {
         float worst = 1f;
@@ -306,7 +310,7 @@ public sealed class FactionPolicySystem : ISimSystem
     public static void StepRelations(Universe u)
     {
         var rules = u.Rules;
-        var factions = u.Factions.Keys.OrderBy(k => k.Value).ToList();
+        var factions = u.NpcFactionIds();   // Runde 38: Spielerbeziehungen bewegen sich nie durch Drift
         if (factions.Count < 2) return;
         var share = TradeShares(u);
         bool any = false;

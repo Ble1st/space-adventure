@@ -21,6 +21,8 @@ worldDef.Rules ??= new EconomyRules();
 // ihre Stationen (Forschungsstationen, Treibstoffraffinerien) in der Welt weg
 if (opts.TryGetValue("research", out var resOpt)) worldDef.Rules.ResearchActive = resOpt == "on";
 if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelOpt == "on";
+// Runde 38: --playerfaction on|off — Spieler als eigene Fraktion (Vergleichslauf: der Hash ohne Spielerpolitik muss gleich sein)
+if (opts.TryGetValue("playerfaction", out var pfOpt)) worldDef.Rules.PlayerOwnFaction = pfOpt == "on";
 if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
@@ -69,6 +71,16 @@ long gateDownEvery = opts.TryGetValue("gatedown", out var gdOpt) ? long.Parse(gd
 bool gateDownSplit = opts.TryGetValue("gatedownsplit", out var gdsOpt) && gdsOpt == "on";
 if (gateDownEvery > 0) u.Rules.GateCombat = true;
 int gateDownCursor = 0;
+// Runde 38: Spielerkrieg als Testtreiber (--playerwar F@tick, Tick auf 20 genau); Kennzahlen am Ende
+(int Faction, long Tick)? playerWar = null;
+long playerWarStarted = -1;
+string playerPeace = "";
+int playerLocks = 0;
+if (opts.TryGetValue("playerwar", out var pwOpt))
+{
+    var pwp = pwOpt.Split('@');
+    playerWar = (int.Parse(pwp[0], CultureInfo.InvariantCulture), long.Parse(pwp[1], CultureInfo.InvariantCulture) / 20 * 20);
+}
 // Phase 31: Torkampf-Kennzahlen
 int gatesDisabled = 0, gatesDisabledSplit = 0, gatesAttacked = 0, gateShots = 0, gateDownMax = 0, tradersBrokeWhileDown = 0;
 var gateRestored = new SortedDictionary<string, int>(StringComparer.Ordinal);
@@ -350,6 +362,7 @@ var refusedBy = new SortedDictionary<string, int>(StringComparer.Ordinal);   // 
 var outpostsBuilt = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int outpostsCalm = 0, outpostFights = 0, outpostShots = 0;
 double outpostCost = 0;
+var warLog = new List<string>();   // Runde 38: Kriegserklärungen mit Tick (Kaskaden sichtbar machen)
 int missilesLaunched = 0, stationShots = 0, stationHits = 0, shotsAtStations = 0, sieges = 0, warsDeclared = 0, warshipsBought = 0, warshipsGone = 0, stationRepairs = 0;
 double stationHullDmg = 0, stationRepairHull = 0, stationRepairPlates = 0, stationRepairCost = 0, navyCost = 0, stationGunDmg = 0;
 u.Events.Raised += e =>
@@ -363,8 +376,12 @@ u.Events.Raised += e =>
         case SiegeStarted: sieges++; break;
         case StationFell sf: stationFalls[sf.How] = stationFalls.GetValueOrDefault(sf.How) + 1; break;
         case StationRepaired sr: stationRepairs++; stationRepairHull += sr.Hull; stationRepairPlates += sr.Plates; stationRepairCost += sr.Cost; break;
-        case WarDeclared: warsDeclared++; break;
-        case PeaceConcluded pc: peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1; break;
+        case WarDeclared wd: warsDeclared++; warLog.Add($"Tick {u.Tick}: {wd.Message} (Beziehung {wd.Relation:0.00})"); break;
+        case PeaceConcluded pc:
+            peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1;
+            if (u.IsPlayerFaction(pc.A) || u.IsPlayerFaction(pc.B)) playerPeace = $"Frieden bei Tick {u.Tick} ({pc.Reason})";
+            break;
+        case SectorAccessChanged sac when sac.Against is { } sag && u.IsPlayerFaction(sag) && sac.ToEntry > 0: playerLocks++; break;
         case WarshipCommissioned: warshipsBought++; break;
         case WarshipDecommissioned: warshipsGone++; break;
         case TraderBuyRefused br:
@@ -586,6 +603,14 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
         {
             // Phase 16: bis zum nächsten Vielfachen von WatchEvery laufen — die Messpunkte liegen so unabhängig von --every immer auf denselben Ticks
             int step = Math.Min(WatchEvery - (int)(u.Tick % WatchEvery), chunk - done);
+            // Runde 38: --playerwar F@tick — der Spieler erklärt Fraktion F zum Tick den Krieg (Kriegskasse wird gestellt, falls sie fehlt)
+            if (playerWar is { } pw && u.Tick == pw.Tick && u.PlayerFaction is not null)
+            {
+                if (u.Player.Treasury.Credits < u.Rules.WarChest) u.Player.Treasury.Credits = u.Rules.WarChest;
+                var issue = Wars.PlayerDeclareIssue(u, new FactionId(pw.Faction));
+                if (issue is null) { Wars.PlayerDeclare(u, new FactionId(pw.Faction)); playerWarStarted = u.Tick; }
+                Console.WriteLine($"   Testtreiber: Spielerkrieg gegen {u.Factions.GetValueOrDefault(new FactionId(pw.Faction))?.Name ?? "?"} bei Tick {u.Tick}: {issue ?? "erklärt"}");
+            }
             if (gateDownEvery > 0 && u.Tick > 0 && u.Tick % gateDownEvery == 0 && GateCombat.DownCount(u) == 0)
             {
                 // Testtreiber: das nächste Tor-Paar (Id-Reihenfolge, reihum), das Kampfwerte hat und — ohne --gatedownsplit — die Karte nicht teilt
@@ -642,13 +667,13 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                         }
                     capSamples++;
                     // Phase 22: Invarianten der Handlungsfähigkeit je Fraktion und Piratengruppe
-                    foreach (var va in u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsFaction(u)).OrderBy(a => a.Id.Value))
+                    foreach (var va in u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsNpcFaction(u)).OrderBy(a => a.Id.Value))
                     {
                         var issues = FactionViability.Check(u, va.Id);
                         var cur = viaSamples.TryGetValue(va.Id.Value, out var vs) ? vs : (N: 0, Bad: 0, Kinds: new SortedDictionary<string, int>(StringComparer.Ordinal));
                         foreach (var iss in issues) cur.Kinds[iss.Kind.ToString()] = cur.Kinds.GetValueOrDefault(iss.Kind.ToString()) + 1;
                         // Gerätetest (Phase 26): Rücklage im Aufbau (kein Verstoß) getrennt mitzählen
-                        if (va.IsFaction(u) && FactionViability.ReserveBuilding(u, va) && va.Treasury.Credits < FactionViability.ReserveOf(u, va))
+                        if (va.IsNpcFaction(u) && FactionViability.ReserveBuilding(u, va) && va.Treasury.Credits < FactionViability.ReserveOf(u, va))
                             cur.Kinds["RücklageImAufbau(kein Verstoß)"] = cur.Kinds.GetValueOrDefault("RücklageImAufbau(kein Verstoß)") + 1;
                         viaSamples[va.Id.Value] = (cur.N + 1, cur.Bad + (issues.Count > 0 ? 1 : 0), cur.Kinds);
                     }
@@ -703,6 +728,10 @@ sw.Stop();
 
 Console.WriteLine();
 Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.Max(1.0, sw.ElapsedMilliseconds):0.0} Ticks/ms, {sw.Elapsed.TotalMilliseconds / Math.Max(1, ticks):0.000} ms/Tick), Hash {UniverseHash.Compute(u):X16}");
+if (playerWar is not null)
+    Console.WriteLine($"Spielerkrieg (Testtreiber): erklärt bei Tick {playerWarStarted}; {(playerPeace.Length > 0 ? playerPeace : "läuft noch")}; Sperränderungen gegen dich {playerLocks}; "
+        + $"Sektoren jetzt gegen dich gesperrt: {u.Sectors.Values.Count(x => x.Access.EntryLevel > 0 && x.Access.Against is { } ag && u.IsPlayerFaction(ag))}");
+Console.WriteLine($"Hash ohne Spielerpolitik {UniverseHash.Compute(u, includeTags: true, includePlayerPolitics: false):X16} (Runde 38: gleich mit Spielerfraktion an/aus; Spielerbeziehungen {Relations.StoredPlayerEntries(u)})");
 // Phase 17: Rechenzeit je System (Top 5 in % der Laufzeit; der Rest ist Ereignisauswertung, Messpunkte und Messaufwand des Tools)
 {
     double total = Math.Max(1.0, sw.Elapsed.TotalMilliseconds);
@@ -803,7 +832,7 @@ if (u.Modules.Count > 0)
         + (subsidized.Count == 0 ? "" : " (" + string.Join(", ", subsidized.OrderByDescending(kv => kv.Value).Take(6).Select(kv => $"{u.Stations.GetValueOrDefault(new StationId(kv.Key))?.Name ?? "#" + kv.Key} {kv.Value:0}")) + ")"));
     Console.WriteLine("Kassenanteil an der Geldmenge: " + string.Join(", ", history.Where(h => h.Tick > 0).Select(h => $"{h.Tick} {(h.TotalCredits > 0 ? 100.0 * h.TreasuryCredits / h.TotalCredits : 0):0}%")));
     var actors = snap.Actors ?? Array.Empty<ActorStat>();
-    Console.WriteLine($"Akteure: {actors.Count} ({promoted} aufgestiegen, {removedActors} abgestiegen); Beziehungseinträge {Relations.StoredEntries(u)}; "
+    Console.WriteLine($"Akteure: {actors.Count} ({promoted} aufgestiegen, {removedActors} abgestiegen); Beziehungseinträge {Relations.StoredNpcEntries(u)}; "
         + "Größenklassen " + string.Join(", ", actors.GroupBy(a => a.Class).OrderBy(g => g.Key).Select(g => $"{ActorNames.Size(g.Key)} {g.Count()}")));
     foreach (var a in actors.Where(a => a.Kind != ActorKind.Independent || a.Ships + a.Stations > 1).Take(12))
         Console.WriteLine($"  {a.Name,-26} {ActorNames.Kind(a.Kind),-20} {ActorNames.Size(a.Class),-12} Kasse {a.Treasury,9:0}  {a.Ships,3} Schiffe {a.Stations,3} Stationen  Größe {a.Size:0.0}");
@@ -815,7 +844,7 @@ if (u.Modules.Count > 0)
         var (n, bad, kinds) = kv.Value;
         return bad == 0 ? $"{name} ja (0 % Verstoß{string.Concat(kinds.Select(k => $", {k.Key} {100.0 * k.Value / Math.Max(1, n):0.#} %"))})"
             : $"{name} {(bad == n ? "nein" : "zeitweise nicht")} ({100.0 * bad / Math.Max(1, n):0.#} % Verstoß: {string.Join(", ", kinds.Select(k => $"{k.Key} {100.0 * k.Value / Math.Max(1, n):0.#} %"))})";
-    })) + $"; jetzt: {string.Join(", ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsFaction(u)).OrderBy(a => a.Id.Value).Select(a => $"{a.Name} {FactionViability.Text(u, a.Id)}"))}"));
+    })) + $"; jetzt: {string.Join(", ", u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsNpcFaction(u)).OrderBy(a => a.Id.Value).Select(a => $"{a.Name} {FactionViability.Text(u, a.Id)}"))}"));
     Console.WriteLine($"Notkäufe zur Wiederherstellung: {restores.Count}" + (restores.Count == 0 ? "" : " — " + string.Join("; ", restores.Take(8))));
 }
 // Phase 10: Gate-Zugang, Sektorkontrolle, Beziehungen, Regierungsstationen
@@ -830,7 +859,7 @@ if (u.Modules.Count > 0)
         Console.WriteLine($"  {sec.Name,-14} {(u.Factions.TryGetValue(sec.Owner, out var of) ? of.Name : "?"),-20} {AccessNames.Stage(sec.Control),-10}{(sec.Contested ? " umkämpft" : "")}  "
             + $"Sperre {sec.Access.EntryLevel}/{sec.Access.ExitLevel}{(sec.Access.Enforced ? "" : " (Papier)")}  Einfluss {inf}");
     }
-    var fs = u.Factions.Keys.OrderBy(k => k.Value).ToList();
+    var fs = u.NpcFactionIds().ToList();
     Console.WriteLine("Beziehungen: " + string.Join(", ", fs.SelectMany(a => fs.Where(b => b != a).Select(b => $"{u.Factions[a].Name}→{u.Factions[b].Name} {Relations.Effective(u, a, b):0.00}"))));
     foreach (var fsplit in MapConnectivity.Factions(u).Where(x => x.IsSplit))
         Console.WriteLine($"  Für {fsplit.Profile} gesperrt: {string.Join(", ", fsplit.Isolated.Select(id => u.Sectors[id].Name))} (Politik)");
@@ -842,7 +871,7 @@ if (u.Modules.Count > 0)
         + $"{warnings} Vorwarnungen; Abfangen {intercepts} ({interceptsWon} von der Polizei gewonnen); Kaperschiffe verloren {raidersLost}, neu {raidersBuilt}; Opferschiffe verloren {victimsLost}");
     Console.WriteLine($"Verlustquote: Beute {lootValue:0} Cr (Basiswert) = {(tradeValue > 0 ? 100.0 * lootValue / tradeValue : 0):0.00}% des Handelsumsatzes ({tradeValue:0} Cr); "
         + $"Hehlerei {fenced:0} Cr; Schiffsverluste {victimsLost}");
-    Console.WriteLine($"Polizei: {u.Factions.Keys.OrderBy(k => k.Value).Select(f => $"{u.Factions[f].Name} {SecuritySystem.PoliceOf(u, f).Count}/{SecuritySystem.Desired(u, f)}").Aggregate((a, b) => a + ", " + b)} (Ist/Soll); "
+    Console.WriteLine($"Polizei: {u.NpcFactionIds().Select(f => $"{u.Factions[f].Name} {SecuritySystem.PoliceOf(u, f).Count}/{SecuritySystem.Desired(u, f)}").Aggregate((a, b) => a + ", " + b)} (Ist/Soll); "
         + $"gekauft {policeBought}, abgebaut {policeGone}; Kosten {policeCost:0} Cr (ungedeckt {policeUnpaid:0}) = {(income > 0 ? 100.0 * policeCost / income : 0):0.0}% der Kasseneinnahmen "
         + $"(Abgaben {taxIn:0} + Zoll {tolls:0} + Strafen {fines:0}); Kopfgeld ausgezahlt {bounties:0}");
     foreach (var a in u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value))
@@ -891,8 +920,9 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Krieg: erklärt {warsDeclared}, Frieden {(peaceReasons.Count == 0 ? "–" : string.Join(", ", peaceReasons.Select(kv => $"{kv.Key} {kv.Value}")))}, laufend {u.Wars.Count}"
         + (u.Wars.Count == 0 ? "" : " (" + string.Join(", ", u.Wars.Select(w => $"{u.Factions[w.A].Name}–{u.Factions[w.B].Name} Müdigkeit {w.Weariness:0.00}")) + ")")
         + $"; Kriegsschiffe gekauft {warshipsBought}, abgebaut {warshipsGone}, jetzt {u.Ships.Values.Count(Wars.IsWarship)}, Unterhalt {navyCost:0} Cr; "
-        + "Beziehungen " + string.Join(", ", u.Factions.Keys.OrderBy(k => k.Value).SelectMany(a => u.Factions.Keys.OrderBy(k => k.Value).Where(b => b.Value > a.Value)
+        + "Beziehungen " + string.Join(", ", u.NpcFactionIds().SelectMany(a => u.NpcFactionIds().Where(b => b.Value > a.Value)
             .Select(b => $"{u.Factions[a].Name}–{u.Factions[b].Name} {Relations.Effective(u, a, b):0.00}/{Relations.Effective(u, b, a):0.00}"))));
+    if (warLog.Count > 0) Console.WriteLine("Kriegserklärungen: " + string.Join("; ", warLog));
     Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "
         + $"{(income > 0 ? 100.0 * ammoPolice / income : 0):0.00}% der Kasseneinnahmen); fehlt jetzt {u.Ships.Values.Sum(x => x.Systems.AmmoMissing):0}");
     {
@@ -922,7 +952,7 @@ if (u.Rules.ResearchActive)
         + (stallReasons.Count == 0 ? "" : " (" + string.Join(", ", stallReasons.Select(kv => $"{kv.Key} {kv.Value}")) + ")")
         + $"; Ausgaben: Budget aus Kassen {researchFunding:0} Cr, Personal {researchSalary:0} Cr (Senke), Güter {researchGoods:0} Cr (Basiswert), Spieler {researchPlayer:0} Cr");
     Console.WriteLine("Freischaltungen: " + (researchDone.Count == 0 ? "keine" : string.Join("; ", researchDone)));
-    foreach (var f in u.Factions.Keys.OrderBy(k => k.Value))
+    foreach (var f in u.NpcFactionIds())
         if (ResearchInfo.ForFaction(u, f) is { } rv)
             Console.WriteLine($"  {rv.Name,-20} {rv.Summary}; {rv.PointsTotal:0} FP gesamt, Personal {rv.Spent:0} Cr"
                 + string.Concat(rv.Stations.Select(st => $"; {st.Station.Name}: {(st.Stalled ?? "läuft")}, Kasse {st.Credits:0}")));

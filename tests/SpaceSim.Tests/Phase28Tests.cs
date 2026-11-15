@@ -737,10 +737,10 @@ public class Phase28Tests
         Assert.Empty(ev.OfType<WarDeclared>());
         Assert.DoesNotContain(u.ShipsById(), Wars.IsWarship);
         Assert.Empty(ev.OfType<StationFell>());   // Runde 13b: wieder streng (Piraten bauen keine Stellungen mehr)
-        foreach (var f in u.Factions.Keys)
+        foreach (var f in u.NpcFactionIds())   // Runde 38: KI-Fraktionen (die Spielerfraktion hat keine Polizei)
         {
             Assert.True(SecuritySystem.PoliceOf(u, f).Count >= u.Rules.PoliceMinPerFaction, $"Polizei {f.Value}");
-            Assert.True(Relations.Effective(u, f, u.Factions.Keys.First(k => k != f)) > Wars.DeclareThreshold(u, f));
+            Assert.True(Relations.Effective(u, f, u.NpcFactionIds().First(k => k != f)) > Wars.DeclareThreshold(u, f));
         }
         float revenue = ev.OfType<TradeCompleted>().Sum(t => t.Revenue);
         float loot = ev.OfType<RaidResolved>().Sum(r => r.LootValue);

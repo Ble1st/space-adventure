@@ -83,7 +83,7 @@ public static class StartScenario
     static void ApplyRock(Universe u, Ship player, ScenarioDef sc, string key)
     {
         if (sc.PoliceHoldTicks is int hold and > 0)
-            foreach (var a in u.Actors.Values.Where(a => a.IsFaction(u))) a.LastForceTick = u.Tick + hold;   // in der Zukunft: Polizei erst nach Frist + Wechselsperre, Kriegsschiffe erst nach der Frist
+            foreach (var a in u.Actors.Values.Where(a => a.IsNpcFaction(u))) a.LastForceTick = u.Tick + hold;   // in der Zukunft: Polizei erst nach Frist + Wechselsperre, Kriegsschiffe erst nach der Frist
         if (sc.Calm)
         {
             u.Rules.PlayerRaids = false;

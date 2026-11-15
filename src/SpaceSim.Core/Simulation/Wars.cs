@@ -43,10 +43,22 @@ public static class Wars
     public static bool CanWage(Universe u, FactionId f) =>
         u.Factions.ContainsKey(f) && u.Actors.TryGetValue(f, out var a) && a.Kind is ActorKind.State or ActorKind.Guild;
 
-    /// <summary>Kriegsstärke: Kampfstärke der Polizei und Kriegsschiffe + verfügbares Geld ÷ <see cref="EconomyRules.WarStrengthMoneyScale"/>.</summary>
+    /// <summary>Runde 38: Kriegspartei — eine kriegsfähige KI-Fraktion oder die Spielerfraktion.</summary>
+    public static bool IsParty(Universe u, FactionId f) => CanWage(u, f) || u.IsPlayerFaction(f);
+
+    /// <summary>
+    /// Kriegsstärke: Kampfstärke der Polizei und Kriegsschiffe + verfügbares Geld ÷ <see cref="EconomyRules.WarStrengthMoneyScale"/>. Runde 38: für die
+    /// Spielerfraktion die Kampfstärke ihrer bewaffneten Schiffe + Kasse ÷ Maßstab.
+    /// </summary>
     public static float Strength(Universe u, FactionId f)
     {
         float s = 0f;
+        if (u.IsPlayerFaction(f))
+        {
+            foreach (var ship in u.ShipsById())
+                if (ship.Owner == u.PlayerActor && ship.Has(Capability.Combat)) s += CombatRules.Strength(ship);
+            return s + MathF.Max(0f, u.Player.Treasury.Credits) / MathF.Max(1f, u.Rules.WarStrengthMoneyScale);
+        }
         foreach (var ship in u.ShipsById())
             if ((ThreatMap.IsPolice(ship) || IsWarship(ship)) && u.FactionOf(ship) == f) s += CombatRules.Strength(ship);
         if (u.Actors.TryGetValue(f, out var a)) s += FactionViability.Spendable(u, a) / MathF.Max(1f, u.Rules.WarStrengthMoneyScale);
@@ -62,7 +74,10 @@ public static class Wars
     {
         var r = u.Rules;
         if (!Active(u)) return "Krieg ist abgeschaltet.";
-        if (a == b || !CanWage(u, a) || !CanWage(u, b)) return "Keine kriegsfähigen Fraktionen.";
+        // Runde 38: eine KI-Fraktion erklärt dem Spieler nur mit Regel AiWarOnPlayer den Krieg (sonst gleiche Bedingungen); der Spieler erklärt über PlayerDeclareIssue
+        bool vsPlayer = u.IsPlayerFaction(b);
+        if (vsPlayer && !r.AiWarOnPlayer) return "Krieg gegen den Spieler ist (noch) abgeschaltet.";
+        if (a == b || !CanWage(u, a) || !(CanWage(u, b) || vsPlayer)) return "Keine kriegsfähigen Fraktionen.";
         if (AtWar(u, a, b)) return "Schon im Krieg.";
         if (u.PeaceSince.TryGetValue(Key(a, b), out var peace) && u.Tick - peace < r.PeaceCooldownTicks) return "Frieden ist zu frisch.";
         float rel = Relations.Effective(u, a, b);
@@ -71,6 +86,38 @@ public static class Wars
         float own = Strength(u, a), enemy = Strength(u, b);
         if (own < r.WarMinStrengthRatio * enemy) return "Klar unterlegen.";
         return null;
+    }
+
+    /// <summary>
+    /// Runde 38 (Entscheidung des Nutzers: kein Kriegsgrund nötig): warum der Spieler <paramref name="f"/> jetzt nicht den Krieg erklären kann (null = er kann).
+    /// Bedingungen: Krieg an, Spielerfraktion vorhanden, <paramref name="f"/> kriegsfähige KI-Fraktion, noch kein Krieg, Abkühlzeit nach dem letzten Frieden
+    /// (<see cref="EconomyRules.PeaceCooldownTicks"/>) vorbei, Kriegskasse (Spielerkasse ≥ <see cref="EconomyRules.WarChest"/>). Rein.
+    /// </summary>
+    public static string? PlayerDeclareIssue(Universe u, FactionId f)
+    {
+        var r = u.Rules;
+        if (!Active(u)) return "Krieg ist abgeschaltet.";
+        if (u.PlayerFaction is not { } me) return "Du bist keine eigene Fraktion.";
+        if (!CanWage(u, f)) return "Mit dieser Fraktion kann man keinen Krieg führen.";
+        if (AtWar(u, me, f)) return "Schon im Krieg.";
+        if (u.PeaceSince.TryGetValue(Key(me, f), out var peace) && u.Tick - peace < r.PeaceCooldownTicks)
+            return $"Frieden ist zu frisch (noch {(r.PeaceCooldownTicks - (u.Tick - peace)) / 240} min).";
+        if (u.Player.Treasury.Credits < r.WarChest) return $"Kriegskasse fehlt ({r.WarChest:0} Cr nötig).";
+        return null;
+    }
+
+    /// <summary>
+    /// Runde 38: der Spieler erklärt <paramref name="f"/> den Krieg (ohne Prüfung; <see cref="PlayerDeclareIssue"/> vorher). Die Beziehung jeder anderen
+    /// KI-Fraktion zu ihm sinkt um <see cref="EconomyRules.PlayerWarRelationLoss"/> (<see cref="PlayerStanding.Change"/>). Die Kriegskasse bleibt beim Spieler
+    /// (Bedingung, kein Preis — wie bei KI-Kriegen).
+    /// </summary>
+    public static War PlayerDeclare(Universe u, FactionId f)
+    {
+        var me = u.PlayerFaction ?? throw new InvalidOperationException("Keine Spielerfraktion");
+        var w = Declare(u, me, f);
+        foreach (var other in u.NpcFactionIds())
+            if (other != f && CanWage(u, other)) PlayerStanding.Change(u, other, -u.Rules.PlayerWarRelationLoss, "war_declared");
+        return w;
     }
 
     /// <summary>Krieg erklären (ohne Prüfung; die Bedingungen prüft <see cref="DeclareIssue"/>). Beziehungen werden feindlich, Ereignis.</summary>
@@ -91,8 +138,10 @@ public static class Wars
     public static void MakePeace(Universe u, War w, string reason)
     {
         if (!u.Wars.Remove(w)) return;
-        Relations.Set(u, w.A, w.B, MathF.Max(Relations.Effective(u, w.A, w.B), u.Rules.PeaceRelation));
-        Relations.Set(u, w.B, w.A, MathF.Max(Relations.Effective(u, w.B, w.A), u.Rules.PeaceRelation));
+        // Runde 38: Spielerbeziehungen driften nicht zurück — nach einem Spielerkrieg mindestens PlayerPeaceRelation (über der ersten Sperrschwelle, kein Dauerzoll)
+        float floor = u.IsPlayerFaction(w.A) || u.IsPlayerFaction(w.B) ? u.Rules.PlayerPeaceRelation : u.Rules.PeaceRelation;
+        Relations.Set(u, w.A, w.B, MathF.Max(Relations.Effective(u, w.A, w.B), floor));
+        Relations.Set(u, w.B, w.A, MathF.Max(Relations.Effective(u, w.B, w.A), floor));
         u.PeaceSince[Key(w.A, w.B)] = u.Tick;
         u.TouchAccess();
         string na = u.Factions.TryGetValue(w.A, out var fa) ? fa.Name : "?", nb = u.Factions.TryGetValue(w.B, out var fb) ? fb.Name : "?";
@@ -219,12 +268,20 @@ public sealed class WarSystem : ISimSystem
             if (ticks >= r.WarMinTicks && w.Weariness >= 1f) Wars.MakePeace(u, w, "weary");
         }
         if (!r.WarDeclarations) return;
-        var factions = u.Factions.Keys.OrderBy(k => k.Value).ToList();
+        var factions = u.NpcFactionIds();   // Runde 38: die KI erklärt nur KI-Fraktionen den Krieg …
         foreach (var a in factions)
             foreach (var b in factions)
             {
                 if (a == b || Wars.DeclareIssue(u, a, b) is not null) continue;
                 Wars.Declare(u, a, b);
+                return;
+            }
+        // … und dem Spieler nur mit Regel AiWarOnPlayer (vorbereitet, an mit Runde 40), nach denselben Bedingungen
+        if (r.AiWarOnPlayer && u.PlayerFaction is { } me)
+            foreach (var a in factions)
+            {
+                if (Wars.DeclareIssue(u, a, me) is not null) continue;
+                Wars.Declare(u, a, me);
                 return;
             }
     }
@@ -249,7 +306,7 @@ public sealed class NavySystem : ISimSystem
     {
         var r = u.Rules;
         if (!r.Warfare) return;
-        foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList())
+        foreach (var f in u.NpcFactionIds().ToList())   // Runde 38: der Spieler kauft keine KI-Kriegsschiffe
         {
             if (!Wars.CanWage(u, f) || !u.Actors.TryGetValue(f, out var actor)) continue;
             var ships = Wars.WarshipsOf(u, f);

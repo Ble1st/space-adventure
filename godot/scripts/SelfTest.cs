@@ -413,8 +413,16 @@ public partial class SelfTest : Node
 					}
 					// Phase 9: Fraktionen und Meine Fraktion zeigen die echten Akteure (Fraktionen, Sammelgruppe; der Spieler ist Einzelakteur)
 					var rows = _m.HudRef.CcFactions.TestRows;
-					Check(u.Factions.Keys.All(f => rows.Any(r => r.Id == f)) && rows.Any(r => r.Id == u.FreeActor) && rows.All(r => r.Id != u.PlayerActor),
-						$"Fraktionen-Liste aus den Akteuren: {rows.Count} Zeilen (Fraktionen, Einzelakteure, Freie; ohne Spieler)");
+					// Runde 38: der Spieler ist eine eigene Fraktion und steht als eigene Zeile vorn
+					Check(u.NpcFactionIds().All(f => rows.Any(r => r.Id == f)) && rows.Any(r => r.Id == u.FreeActor)
+						&& (u.PlayerFaction is null ? rows.All(r => r.Id != u.PlayerActor) : rows[0].Id == u.PlayerActor),
+						$"Fraktionen-Liste aus den Akteuren: {rows.Count} Zeilen (eigene Fraktion vorn, KI-Fraktionen, Einzelakteure, Freie)");
+					// Runde 38: „Meine Fraktion“ zeigt echte Einnahmen (aus Ereignissen), keine Beitreten/Gründen-Knöpfe
+					_m.TestOpenCcArea("myfaction");
+					_m.HudRef.Screens.Current?.Refresh();
+					Check(_m.HudRef.CcMyFaction.TestIncomeText.Length > 0 && !_m.HudRef.CcMyFaction.TestIncomeText.Contains(Ui.UiPlaceholders.Tag)
+						&& (u.PlayerFaction is null || u.Player.Membership == u.PlayerFaction),
+						$"Meine Fraktion: eigene Fraktion, Einnahmen/Tag echt („{_m.HudRef.CcMyFaction.TestIncomeText}“)");
 					_m.TestOpenCcArea("factions");
 					_m.TestCcSelectFaction(new FactionId(2));
 					_m.HudRef.Screens.Current?.Refresh();
@@ -675,9 +683,11 @@ public partial class SelfTest : Node
 						var union = new FactionId(1);
 						var pl = _m.Session.Player;
 						foreach (var kv in pl.Cargo.ToList()) pl.Cargo.Remove(kv.Key);
-						SpaceSim.Core.Simulation.Relations.Set(uni, guild, union, -0.9f);
+						// Runde 38: der Spieler ist seine eigene Fraktion — die Gilde wird ihr feind (vorher: der Union, deren Mitglied er war)
+						var mine = uni.Player.Membership ?? union;
+						SpaceSim.Core.Simulation.Relations.Set(uni, guild, mine, -0.9f);
 						int lvl = SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, gamma, 3);
-						Check(lvl == 3 && gamma.Access.EntryLevel == 3, "Gamma (Kontrolle der Gilde) sperrt auf Stufe 3 gegen die Union");
+						Check(lvl == 3 && gamma.Access.EntryLevel == 3, "Gamma (Kontrolle der Gilde) sperrt auf Stufe 3 gegen die Fraktion des Spielers");
 						var gate = uni.Gates.Values.First(g => g.Sector == uni.PlayerSector && uni.Gates[g.Target].Sector == gamma.Id);
 						Check(gate.State == GateState.Open && uni.Gates[gate.Target].State == GateState.Restricted, "Gate nach Gamma ist auf der Gamma-Seite eingeschränkt");
 						bool jumped = _m.TestJumpThrough(gate.Id);
@@ -704,7 +714,7 @@ public partial class SelfTest : Node
 						_m.HudRef.DockCtx.Station = beta;
 						_m.TestUndock();
 						// Zoll: neutral statt feindlich auf Stufe 1 — Sprung erlaubt, Zoll aus der Spielerkasse
-						SpaceSim.Core.Simulation.Relations.Set(uni, guild, union, 0f);
+						SpaceSim.Core.Simulation.Relations.Set(uni, guild, mine, 0f);
 						SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, gamma, 1);
 						float before = uni.PlayerWallet.Credits;
 						bool jumped2 = _m.TestJumpThrough(gate.Id);
@@ -713,6 +723,7 @@ public partial class SelfTest : Node
 							$"Zoll {uni.Rules.GateTollPerLevel:0} Cr aus der Spielerkasse an die Gilde („{_m.LastJumpMessage}“)");
 						SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, gamma, 0);
 						SpaceSim.Core.Simulation.Relations.Set(uni, guild, union, 0.25f);
+						if (mine != union) SpaceSim.Core.Simulation.Relations.Set(uni, guild, mine, uni.Rules.PlayerStartRelationOther);
 						Check(gamma.Access.IsOpen && !uni.AccessRestricted, "Sperre aufgehoben, alle Gates wieder offen");
 					}
 					catch (System.Exception ex) { Fail("Gate-Zugang warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }

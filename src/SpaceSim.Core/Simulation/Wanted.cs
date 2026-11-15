@@ -43,7 +43,8 @@ public static class Wanted
     /// </summary>
     public static void Report(Universe u, ActorId actor, FactionId faction, string crime, float extraFine = 0f)
     {
-        if (!u.Actors.TryGetValue(actor, out var a) || !u.Factions.ContainsKey(faction)) return;
+        // Runde 38: nur KI-Fraktionen führen Fahndung (die Spielerfraktion hat weder Polizei noch Gericht)
+        if (!u.Actors.TryGetValue(actor, out var a) || !u.IsNpcFaction(faction)) return;
         var r = u.Rules;
         if (!a.Wanted.TryGetValue(faction, out var w)) a.Wanted[faction] = w = new WantedRecord();
         int before = Level(r, w.Heat);
@@ -64,8 +65,8 @@ public static class Wanted
     public static List<FactionId> AssaultAuthorities(Universe u, SectorId sector, ActorId victimOwner)
     {
         var set = new SortedSet<int>();
-        if (u.Sectors.TryGetValue(sector, out var sec) && u.Factions.ContainsKey(sec.Owner)) set.Add(sec.Owner.Value);
-        if (u.Actors.TryGetValue(victimOwner, out var va) && va.Membership is { } m && u.Factions.ContainsKey(m)) set.Add(m.Value);
+        if (u.Sectors.TryGetValue(sector, out var sec) && u.IsNpcFaction(sec.Owner)) set.Add(sec.Owner.Value);
+        if (u.Actors.TryGetValue(victimOwner, out var va) && va.Membership is { } m && u.IsNpcFaction(m)) set.Add(m.Value);
         if (set.Count == 0 && sec is not null)
         {
             // Nachbarn über Tore, dann Breitensuche bis zur ersten Ebene mit einem Sektorbesitzer
@@ -81,7 +82,7 @@ public static class Wanted
                         if (seen.Add(far.Value)) next.Add(far);
                     }
                 foreach (var n in next.OrderBy(x => x.Value))
-                    if (u.Factions.ContainsKey(u.Sectors[n].Owner)) set.Add(u.Sectors[n].Owner.Value);
+                    if (u.IsNpcFaction(u.Sectors[n].Owner)) set.Add(u.Sectors[n].Owner.Value);
                 ring = next;
             }
         }

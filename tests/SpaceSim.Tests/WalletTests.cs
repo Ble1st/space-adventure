@@ -55,7 +55,8 @@ public class WalletTests
         var u = DemoUniverse.Create();
         var player = u.Ships[u.PlayerShip];
         Assert.Equal(def.Player.Credits, u.PlayerWallet.Credits);
-        Assert.Equal(new FactionId(def.Player.Faction), u.Player.Membership);   // Phase 9: Mitgliedschaft des Spielerakteurs
+        Assert.Equal(u.PlayerFaction, u.Player.Membership);   // Phase 9: Mitgliedschaft des Spielerakteurs; Runde 38: seine eigene Fraktion
+        Assert.True(def.Rules!.PlayerOwnFaction);
         Assert.Equal(0f, player.Credits);
         Assert.Same(u.PlayerWallet, u.WalletOf(player));
         // NPC-Schiffe sind ihre eigene Kasse

@@ -151,8 +151,8 @@ public class ConstructionTests
         Assert.Equal("ship_kit_medium", u.ShipClasses["construction_ship"].Kit);
         Assert.Equal(new List<string> { "mine" }, u.ShipModels["rockbreaker_ii"].Jobs);
         Assert.Empty(u.ShipModels["quarry"].Jobs);
-        // je Fraktion ein KI-Bauschiff mit Fähigkeit Construction (und keinem Laser)
-        foreach (var f in u.Factions.Keys)
+        // je KI-Fraktion ein KI-Bauschiff mit Fähigkeit Construction (und keinem Laser); Runde 38: die Spielerfraktion hat keins
+        foreach (var f in u.NpcFactionIds())
         {
             var b = Assert.Single(u.Ships.Values, s => s.IsAiBuilder && s.Owner == f);   // Phase 9: Bauschiffe gehören dem Fraktionsakteur
             Assert.Equal(Capability.Cargo | Capability.Construction, b.Capabilities);
@@ -675,7 +675,10 @@ public class ConstructionTests
     [Fact]
     public void Migration_V10ToV11_LagerhausBauschiffeContent_WieFrischeWelt()
     {
-        var u = DemoUniverse.Create();
+        // Runde 38: ein v10-Stand kennt keine Spielerfraktion (die Kette legt aus jeder Fraktion einen Akteur an) — die Welt vor Runde 38 herabstufen
+        var def = SpaceSim.Core.Content.WorldBuilder.Parse(SpaceSim.Core.Content.WorldBuilder.DefaultWorldJson());
+        Runde38Tests.RevertRunde38(def);
+        var u = SpaceSim.Core.Content.WorldBuilder.Build(def);
         var v10 = ToV10Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":10", v10);
         Assert.DoesNotContain("warehouse", v10);

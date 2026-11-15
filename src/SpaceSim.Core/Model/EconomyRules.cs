@@ -1052,4 +1052,25 @@ public sealed class EconomyRules
     /// den Ankern (gemessen, Phase 32). Die Kapazitätseinheiten (<see cref="ShipStats.MiningTier"/>) bleiben unverändert.
     /// </summary>
     public float AnchorRateFactor = 1f;
+
+    // ── Runde 38: der Spieler ist von Anbeginn eine eigene Fraktion ──
+    /// <summary>
+    /// Der Spielerakteur ist zugleich eine Fraktion (Id-Zahl des Spielerakteurs, <see cref="Universe.IsPlayerFaction"/>) und Mitglied seiner selbst statt Mitglied
+    /// einer KI-Fraktion. Alle KI-Fraktionsregeln (Fiskalbremse, Beziehungsdrift, Handlungsfähigkeit, Polizei, Bauschiffe, Kriegs-KI, Forschung, Fahndungsmeldungen)
+    /// sehen nur <see cref="Universe.NpcFactionIds"/>. false = Verhalten bis Runde 37 (Mitglied der Fraktion aus <c>player.faction</c>). Standardwelt an.
+    /// </summary>
+    public bool PlayerOwnFaction;
+    /// <summary>Startbeziehung (beide Richtungen) zwischen Spielerfraktion und der Fraktion, der der Startsektor gehört.</summary>
+    public float PlayerStartRelationOwner = 0.2f;
+    /// <summary>Startbeziehung (beide Richtungen) zwischen Spielerfraktion und jeder anderen KI-Fraktion (= <see cref="RelationFree"/>).</summary>
+    public float PlayerStartRelationOther = 0.1f;
+    /// <summary>
+    /// Darf eine KI-Fraktion dem Spieler von sich aus den Krieg erklären (gleiche Bedingungen wie zwischen KI-Fraktionen)? Vorbereitet, aus bis Runde 40
+    /// (Comms mit Waffenstillstand/Frieden und Kriegsangriffe auf Spielerschiffe) — vorher hätte der Spieler keinen Ausweg außer der Erschöpfung.
+    /// </summary>
+    public bool AiWarOnPlayer;
+    /// <summary>Erklärt der Spieler einer Fraktion den Krieg, sinkt die Beziehung jeder anderen KI-Fraktion zu ihm (beide Richtungen) um diesen Betrag.</summary>
+    public float PlayerWarRelationLoss = 0.05f;
+    /// <summary>Frieden in einem Krieg mit dem Spieler: Beziehung beider Seiten mindestens so (über der ersten Sperrschwelle — kein Dauerzoll nach dem Krieg).</summary>
+    public float PlayerPeaceRelation = 0f;
 }

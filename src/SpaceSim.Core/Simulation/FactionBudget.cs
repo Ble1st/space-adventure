@@ -151,7 +151,7 @@ public sealed class SubsidySystem : ISimSystem
         if (u.Rules.SubsidyPerDay <= 0f || u.Rules.SubsidyFloorShare <= 0f) return;
         float cap = u.Rules.SubsidyPerDay * dt / MathF.Max(1f, u.Rules.DayTicks);
         var stations = u.StationsById().Where(s => !s.IsBuildSite && s.Market.Count > 0).ToList();
-        foreach (var f in u.Factions.Keys.OrderBy(k => k.Value))
+        foreach (var f in u.NpcFactionIds())   // Runde 38: KI-Fraktionen
         {
             if (!u.Actors.TryGetValue(f, out var actor)) continue;
             float spent = 0f;

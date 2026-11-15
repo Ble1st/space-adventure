@@ -42,18 +42,18 @@ public static class FactionViability
 
     /// <summary>Betriebsreserve der Kasse (Credits); 0 ohne Regel oder für Akteure ohne Fraktion.</summary>
     public static float Reserve(Universe u, FactionId f) =>
-        u.Rules.FactionKeepsReserve && u.Factions.ContainsKey(f) && u.Actors.TryGetValue(f, out var a) && a.Kind != ActorKind.Outlaw
+        u.Rules.FactionKeepsReserve && u.IsNpcFaction(f) && u.Actors.TryGetValue(f, out var a) && a.Kind != ActorKind.Outlaw
             ? ObligatoryPerTick(u, f) * MathF.Max(0, u.Rules.FactionReserveTicks) : 0f;
 
     /// <summary>Reserve des Akteurs, wenn er eine Fraktion ist (sonst 0).</summary>
-    public static float ReserveOf(Universe u, Actor a) => a.IsFaction(u) ? Reserve(u, new FactionId(a.Id.Value)) : 0f;
+    public static float ReserveOf(Universe u, Actor a) => a.IsNpcFaction(u) ? Reserve(u, new FactionId(a.Id.Value)) : 0f;
 
     /// <summary>
     /// Was eine freiwillige Ausgabe aus der Kasse höchstens nehmen darf: Kasse − Reserve − Ersatzkosten eines fehlenden Mindestbestands
     /// (<see cref="ReplacementCost"/>), mindestens 0. Für Akteure ohne Fraktion die ganze Kasse.
     /// </summary>
     public static float Spendable(Universe u, Actor a) =>
-        a.IsFaction(u) ? MathF.Max(0f, a.Treasury.Credits - ReserveOf(u, a) - ReplacementCost(u, new FactionId(a.Id.Value))) : MathF.Max(0f, a.Treasury.Credits);
+        a.IsNpcFaction(u) ? MathF.Max(0f, a.Treasury.Credits - ReserveOf(u, a) - ReplacementCost(u, new FactionId(a.Id.Value))) : MathF.Max(0f, a.Treasury.Credits);
 
     /// <summary>
     /// Was der Ersatz eines fehlenden Mindestbestands ungefähr kostet (Material des Modells zum Basispreis, Bauschiff zuzüglich Startkapital); 0, wenn nichts fehlt
@@ -105,7 +105,7 @@ public static class FactionViability
                 list.Add(new ViabilityIssue(ViabilityIssueKind.CannotHunt, "kein Kaperschiff kann jagen"));
             return list;
         }
-        if (!a.IsFaction(u)) return list;
+        if (!a.IsNpcFaction(u)) return list;   // Runde 38: der Spieler hat keine Invarianten (Pflicht zu HQ/Polizei/Bauschiff nur für KI-Fraktionen)
         var f = new FactionId(actor.Value);
         float reserve = Reserve(u, f);
         if (reserve > 0f && a.Treasury.Credits < reserve && !ReserveBuilding(u, a))
@@ -142,13 +142,13 @@ public static class FactionViability
     /// <summary>Anzeigezeile: „handlungsfähig“ bzw. „nicht handlungsfähig: …“; null für Akteure ohne Invarianten.</summary>
     public static string? Text(Universe u, ActorId actor)
     {
-        if (!u.Actors.TryGetValue(actor, out var a) || !(a.Kind == ActorKind.Outlaw || a.IsFaction(u))) return null;
+        if (!u.Actors.TryGetValue(actor, out var a) || !(a.Kind == ActorKind.Outlaw || a.IsNpcFaction(u))) return null;
         var issues = Check(u, actor);
         // Gerätetest (Phase 26): fehlt nur die Rücklage, ist das kein Alarm — die Fraktion handelt, nur freiwillige Ausgaben warten. In der Aufbauzeit
         // (die Startkassen beginnen leer, die Rücklage wächst aus den Abgaben) „Rücklage im Aufbau“, danach „Rücklage unterschritten“ (bleibt ein Verstoß).
         float reserve = ReserveOf(u, a);
         if (issues.Count == 0)
-            return a.IsFaction(u) && reserve > 0f && a.Treasury.Credits < reserve
+            return a.IsNpcFaction(u) && reserve > 0f && a.Treasury.Credits < reserve
                 ? $"handlungsfähig – Rücklage im Aufbau ({a.Treasury.Credits:0} von {reserve:0} Cr)"
                 : "handlungsfähig";
         if (issues.TrueForAll(i => i.Kind == ViabilityIssueKind.TreasuryBelowReserve))
@@ -212,7 +212,7 @@ public sealed class FactionViabilitySystem : ISimSystem
     {
         var r = u.Rules;
         if (r.ViabilityRestoreShare <= 0f) return;
-        foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList())
+        foreach (var f in u.NpcFactionIds().ToList())   // Runde 38: der Spieler hat keine Pflicht zu HQ/Polizei/Bauschiff
         {
             if (!u.Actors.TryGetValue(f, out var actor) || actor.Kind == ActorKind.Outlaw) continue;
             if (u.Tick - actor.LastRestoreTick < r.ViabilityRestoreCooldown) continue;
