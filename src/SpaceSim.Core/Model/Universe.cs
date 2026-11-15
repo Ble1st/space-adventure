@@ -91,6 +91,30 @@ public sealed class Universe
     /// <summary>Neue Akteur-Id (fortlaufend ab <see cref="ActorId.FirstGenerated"/>).</summary>
     public ActorId NewActorId() => new(NextActorId++);
 
+    /// <summary>Runde 38: ist <paramref name="f"/> die Fraktion des Spielers (Id-Zahl des Spielerakteurs, nur mit angelegter Spielerfraktion)?</summary>
+    public bool IsPlayerFaction(FactionId f) => f.Value == PlayerActor.Value && f.Value != 0 && Factions.ContainsKey(f);
+
+    /// <summary>Runde 38: Fraktion des Spielers (null = Spieler ist keine eigene Fraktion, Regel <see cref="EconomyRules.PlayerOwnFaction"/> aus).</summary>
+    public FactionId? PlayerFaction => Factions.ContainsKey(new FactionId(PlayerActor.Value)) ? new FactionId(PlayerActor.Value) : null;
+
+    List<FactionId>? _npcFactions; int _npcFactionsCount = -1;
+    /// <summary>
+    /// Runde 38: alle KI-Fraktionen (ohne die Spielerfraktion) in Id-Reihenfolge — der zentrale Filter für jede Fraktionsregel der KI (Fiskalbremse,
+    /// Beziehungsdrift, Handlungsfähigkeit, Polizei, Bauschiffe, Kriegs-KI, Forschung, Diagnose). Gecacht, solange sich die Zahl der Fraktionen nicht ändert.
+    /// </summary>
+    public IReadOnlyList<FactionId> NpcFactionIds()
+    {
+        if (_npcFactions is null || _npcFactionsCount != Factions.Count)
+        {
+            _npcFactions = Factions.Keys.Where(f => !IsPlayerFaction(f)).OrderBy(f => f.Value).ToList();
+            _npcFactionsCount = Factions.Count;
+        }
+        return _npcFactions;
+    }
+
+    /// <summary>Runde 38: ist <paramref name="f"/> eine KI-Fraktion (vorhanden, nicht der Spieler)?</summary>
+    public bool IsNpcFaction(FactionId f) => Factions.ContainsKey(f) && !IsPlayerFaction(f);
+
     /// <summary>Der Spielerakteur.</summary>
     public Actor Player => Actors[PlayerActor];
 

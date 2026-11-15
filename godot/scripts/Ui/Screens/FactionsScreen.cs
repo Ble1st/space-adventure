@@ -47,11 +47,16 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// <summary>Test-Hook: die Zeilen der Liste (Akteure in Anzeige-Reihenfolge).</summary>
 	public IReadOnlyList<ActorStat> TestRows => Rows(Ctx.U);
 
-	/// <summary>Reihenfolge der Liste: Fraktionen (Id), Einzelakteure (Größe absteigend, Id), Sammelgruppe; der Spieler steht unter „Meine Fraktion“.</summary>
+	/// <summary>
+	/// Reihenfolge der Liste: KI-Fraktionen (Id), Einzelakteure (Größe absteigend, Id), Sammelgruppe. Runde 38: ist der Spieler eine eigene Fraktion, steht
+	/// er als eigene Zeile vorn (Detail ohne Persönlichkeit); sonst steht er nur unter „Meine Fraktion“.
+	/// </summary>
 	static List<ActorStat> Rows(Universe u)
 	{
-		var all = EconomyStats.Actors(u).Where(a => a.Id != u.PlayerActor).ToList();
-		return all.Where(a => u.Factions.ContainsKey(new FactionId(a.Id.Value))).OrderBy(a => a.Id.Value)
+		var stats = EconomyStats.Actors(u);
+		var all = stats.Where(a => a.Id != u.PlayerActor).ToList();
+		var me = u.PlayerFaction is not null ? stats.Where(a => a.Id == u.PlayerActor) : Enumerable.Empty<ActorStat>();
+		return me.Concat(all.Where(a => u.IsNpcFaction(new FactionId(a.Id.Value))).OrderBy(a => a.Id.Value))
 			.Concat(all.Where(a => a.Kind == ActorKind.Independent).OrderByDescending(a => a.Size).ThenBy(a => a.Id.Value))
 			.Concat(all.Where(a => a.Kind == ActorKind.Free))
 			.ToList();
@@ -135,8 +140,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		At(det, Text(head, 14, Dim), 50, 46, 530, 20);
 
 		float relMe = Relations.Effective(u, sel, u.PlayerActor);
+		bool isMe = sel == u.PlayerActor;   // Runde 38: die eigene Fraktion
 		var ry = 74f;
-		Row(det, 18, ry, 560, "Beziehung zu dir", $"{Relations.Label(relMe)} ({Signed(relMe)})", 14); ry += 22;
+		Row(det, 18, ry, 560, "Beziehung zu dir", isMe ? "– (deine Fraktion)" : $"{Relations.Label(relMe)} ({Signed(relMe)})", 14); ry += 22;
 		Row(det, 18, ry, 560, "Kasse", isFree ? "keine (jedes Schiff hat seine Betriebskasse)" : $"{stat.Treasury:0} Cr", 14); ry += 22;
 		Row(det, 18, ry, 560, "Besitz", $"{Count(stat.Ships, "Schiff", "Schiffe")} · {Count(stat.Stations, "Station", "Stationen")} · {Count(stat.Sectors, "Sektor", "Sektoren")}", 14); ry += 22;
 		var sectors = isFaction ? u.Sectors.Values.Where(x => x.Owner.Value == sel.Value).OrderBy(x => x.Id.Value).Select(x => x.Name).ToList() : new List<string>();
@@ -154,11 +160,12 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			At(det, Text(line, 12, war ? Red : TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
 		}
 
-		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte)
-		At(det, Text("Persönlichkeit", 16, Cyan), 18, 176, 280, 22);
+		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte). Runde 38: die eigene Fraktion hat keine (der Spieler entscheidet selbst)
+		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 176, 280, 22);
 		var p = actor.Personality;
 		float py = 202;
-		foreach (var (name, v) in new[] { ("Aggression", p.Aggression), ("Gier", p.Greed), ("Kooperation", p.Cooperation), ("Gesetzestreue", p.Lawfulness) })
+		if (isMe) WrappedText(det, "Du entscheidest selbst. Beziehungen ändern sich nur durch deine Handlungen (Krieg, später Aufträge und Diplomatie).", 18, py, 320, 13, new Color(Dim, 0.9f), 18);
+		foreach (var (name, v) in isMe ? Array.Empty<(string, float)>() : new[] { ("Aggression", p.Aggression), ("Gier", p.Greed), ("Kooperation", p.Cooperation), ("Gesetzestreue", p.Lawfulness) })
 		{
 			At(det, Text(name, 14, Dim), 18, py, 130, 18);
 			At(det, new ColorRect { Color = new Color(0, 0, 0, 0.5f), CustomMinimumSize = new Vector2(150, 10), Size = new Vector2(150, 10), MouseFilter = MouseFilterEnum.Ignore }, 150, py + 4);
@@ -169,7 +176,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 
 		// Beziehungen zu den Fraktionen und Gruppen (echt: gespeicherte Abweichung oder Vorgabe)
 		At(det, Text("Beziehungen", 16, Cyan), 356, 176, 226, 22);
-		var others = u.Factions.Keys.OrderBy(f => f.Value).Select(f => (ActorId)f).Append(u.FreeActor).Where(o => o != sel).Take(5).ToList();
+		// Runde 38: die Beziehung zu dir steht oben („Beziehung zu dir“); hier die KI-Fraktionen und die Freien
+		var others = u.NpcFactionIds().Select(f => (ActorId)f).Append(u.FreeActor).Where(o => o != sel).Take(5).ToList();
 		float oy = 202;
 		foreach (var o in others)
 		{

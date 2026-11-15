@@ -24,6 +24,7 @@ public class Phase29Tests
     internal static void RevertRunde24(WorldDef def)
     {
         def.Rules!.CommandShipWeight = def.Rules.ActorShipWeight;
+        Runde38Tests.RevertRunde38(def);   // Runde 38: Spieler wieder Mitglied der Startfraktion (die Referenz-Hashes stammen von davor)
         var yard = def.StationTypes.First(t => t.Key == "shipyard");
         foreach (var (good, amount, target) in new[] { ("cargo_universal_60", 2f, 5f), ("cargo_universal_100", 2f, 5f), ("chem_engine_m", 1f, 2f), ("reactor_mk2", 1f, 2f),
             ("missile_launcher_s", 1f, 2f), ("shield_m", 0f, 1f), ("armor_plating_m", 0f, 1f), ("reactor_m", 0f, 1f), ("weapon_laser_m", 0f, 1f), ("reactor_mk3", 0f, 1f),

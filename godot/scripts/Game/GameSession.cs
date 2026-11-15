@@ -21,6 +21,8 @@ public sealed class GameSession
     public StationServices Services { get; } = StationServices.Default();
     /// <summary>Runde 26: Preisgedächtnis für die Abnehmer-Auskunft (nicht gespeichert, nicht gehasht; beginnt mit jedem Universum neu).</summary>
     public SpaceSim.Core.Trading.PriceMemory Prices { get; } = new();
+    /// <summary>Runde 38: Einnahmen der Spielerkasse im letzten Spieltag (aus Ereignissen; nicht gespeichert, beginnt mit jedem Universum neu).</summary>
+    public PlayerIncome Income { get; private set; } = null!;
 
     /// <summary>Wird nach jedem Austausch des Universums ausgelöst (neues Spiel, Laden).</summary>
     public event Action? UniverseReplaced;
@@ -47,6 +49,7 @@ public sealed class GameSession
     {
         U = u;
         Routes = new RouteRecorder(u);
+        Income = new PlayerIncome(u);
         _acc = 0f; _rateSeconds = 0f; _rateSteps = 0; TickRate = 0f;
         UniverseReplaced?.Invoke();
     }

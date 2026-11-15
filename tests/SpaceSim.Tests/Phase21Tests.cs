@@ -68,13 +68,14 @@ public class Phase21Tests
     public void Welt_DritteFraktion_HerrenloseSektoren_ZweitePiratengruppe()
     {
         var u = TestWorlds.Default(null, fuel: false, research: false);   // Phase 29: feste Fraktionsnamen
-        Assert.Equal(3, u.Factions.Count);
+        Assert.Equal(3, u.NpcFactionIds().Count);   // Runde 38: dazu die Spielerfraktion
+        Assert.Equal(4, u.Factions.Count);
         var mb = u.Factions[new FactionId(3)];
         Assert.Equal("Montanbund", mb.Name);
         Assert.Equal(ActorKind.Guild, u.Actors[mb.Id].Kind);
         Assert.Equal(new[] { 7, 8 }, mb.Territory.Select(s => s.Value).OrderBy(x => x));
-        // jede Fraktion: Hauptquartier, Polizei, Bauschiff, Gebiet
-        foreach (var f in u.Factions.Values)
+        // jede KI-Fraktion: Hauptquartier, Polizei, Bauschiff, Gebiet (Runde 38: die Spielerfraktion beginnt ohne)
+        foreach (var f in u.NpcFactionIds().Select(id => u.Factions[id]))
         {
             Assert.Contains(u.Stations.Values, st => st.TypeKey == "headquarters" && u.FactionOf(st) == f.Id);
             Assert.True(u.Ships.Values.Count(s => s.Role == ShipRole.Police && s.Owner == (ActorId)f.Id) >= 2, f.Name);
@@ -98,9 +99,9 @@ public class Phase21Tests
             Assert.Contains(u.Ships.Values, s => s.Role == ShipRole.Pirate && s.Owner == o.Id);
             if (o.Name == "Schwarze Klingen") Assert.Equal(11, hideout.Sector.Value);
         }
-        // Beziehungen in der Startwelt freundlich (keine Sperre entsteht von selbst)
-        foreach (var a in u.Factions.Keys)
-            foreach (var b in u.Factions.Keys.Where(b => b != a))
+        // Beziehungen in der Startwelt freundlich (keine Sperre entsteht von selbst); Runde 38: zur Spielerfraktion 0,1/0,2 (Runde38Tests)
+        foreach (var a in u.NpcFactionIds())
+            foreach (var b in u.NpcFactionIds().Where(b => b != a))
                 Assert.True(Relations.Effective(u, a, b) > 0.1f, $"{a.Value}→{b.Value}");
     }
 
@@ -292,8 +293,8 @@ public class Phase21Tests
             if (s.Order is TradeOrder to) Assert.True((u.Stations.ContainsKey(to.Buy) || (to.Buy.Value == 0 && s.Phase == TradePhase.GoingToSell)) && u.Stations.ContainsKey(to.Sell), $"Handelsauftrag ins Leere bei Schiff {s.Id.Value}");
             if (s.Transit is null) Assert.Contains(s.Id, u.Tracker.ParkedIn(s.Sector));
         }
-        // alle Fraktionen leben: Gebiet, Stationen, Kasse, Polizei
-        foreach (var f in u.Factions.Values)
+        // alle KI-Fraktionen leben: Gebiet, Stationen, Kasse, Polizei (Runde 38: die Spielerfraktion hat zu Beginn nichts davon)
+        foreach (var f in u.NpcFactionIds().Select(id => u.Factions[id]))
         {
             Assert.True(f.Territory.Count >= 2, $"{f.Name}: Gebiet {f.Territory.Count}");
             Assert.True(u.Actors[f.Id].Treasury.Credits > 0f, $"{f.Name}: Kasse leer");

@@ -472,7 +472,7 @@ public class ResearchTests
         Assert.Empty(producedLocked);
         Assert.True(done >= 1, "über 20000 Ticks wird mindestens ein Projekt fertig");
         Assert.True(funded > 0 && salary > 0);
-        Assert.All(u.Factions.Values, f => Assert.True(f.Research.PointsTotal > 0f));
+        Assert.All(u.NpcFactionIds().Select(id => u.Factions[id]), f => Assert.True(f.Research.PointsTotal > 0f));   // Runde 38: die Spielerfraktion forscht nicht
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) >= 12f);
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("mine")!) >= 7f);
     }

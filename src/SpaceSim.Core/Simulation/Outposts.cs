@@ -188,7 +188,7 @@ public sealed class OutpostBuilderSystem : ISimSystem
             if (a.Kind is not (ActorKind.State or ActorKind.Guild or ActorKind.Outlaw)) continue;
             if (u.Tick - a.LastOutpostTick < r.OutpostBuildCooldown && a.LastOutpostTick != 0) continue;
             if (a.Kind == ActorKind.Outlaw) { if (r.OutpostPirates) Pirates(u, a); continue; }
-            if (!a.IsFaction(u)) continue;
+            if (!a.IsNpcFaction(u)) continue;
             var f = new FactionId(a.Id.Value);
             if (TryBuild(u, a, f)) a.LastOutpostTick = u.Tick;
         }

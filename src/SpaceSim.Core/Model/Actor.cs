@@ -108,6 +108,8 @@ public sealed class Actor
     public long ArrestCooldownUntil;
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>
     public bool IsFaction(Universe u) => u.Factions.ContainsKey(new FactionId(Id.Value));
+    /// <summary>Runde 38: ist der Akteur eine KI-Fraktion (Fraktion, aber nicht der Spieler)? Die KI-Fraktionsregeln (Rücklage, Mindestbestand, Kleinstationen) fragen dies.</summary>
+    public bool IsNpcFaction(Universe u) => IsFaction(u) && !u.IsPlayerFaction(new FactionId(Id.Value));
 }
 
 /// <summary>

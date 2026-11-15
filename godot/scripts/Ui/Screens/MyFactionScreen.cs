@@ -26,6 +26,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 	/// <summary>Runde 26: eine Fähigkeitsnotiz, die nicht in ihre Spalte passte ("" = keine).</summary>
 	public string TestAbilityOverflow { get; private set; } = "";
 	public string TestCostsText { get; private set; } = "";
+	/// <summary>Runde 38, Selbsttest: zuletzt gezeigte Einnahmen/Tag.</summary>
+	public string TestIncomeText { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -36,7 +38,9 @@ public sealed partial class MyFactionScreen : CommandScreen
 
 		// ── Karte 1 (links oben): Du ──
 		var a = CardBg(inner, 12, 12, 500, 250, Card);
-		At(a, Text("Du", 26, White), 20, 14, 460, 34);
+		// Runde 38: der Spieler ist von Anbeginn eine eigene Fraktion („Deine Fraktion [SPL]“); ohne Regel weiter „Du“
+		var ownFaction = u.PlayerFaction;
+		At(a, Text(ownFaction is not null ? $"{PlayerFaction.DisplayName} {ActorNames.Tag(u, u.PlayerActor)}".Trim() : "Du", 26, White), 20, 14, 460, 34);
 		At(a, Text($"{ActorNames.Size(me.Class)} · Größe {me.Size:0.0}", 15, Dim), 20, 52, 460, 22);
 		string next = ci < thresholds.Count
 			? $"Nächste Stufe {ActorNames.Size((ActorSizeClass)(ci + 1))} ab Größe {thresholds[ci]:0} (noch {thresholds[ci] - me.Size:0.0})"
@@ -47,8 +51,18 @@ public sealed partial class MyFactionScreen : CommandScreen
 		At(a, new ColorRect { Color = new Color(0, 0, 0, 0.5f), CustomMinimumSize = new Vector2(460, 10), Size = new Vector2(460, 10), MouseFilter = MouseFilterEnum.Ignore }, 20, 108);
 		At(a, new ColorRect { Color = Orange, CustomMinimumSize = new Vector2(460 * frac, 10), Size = new Vector2(460 * frac, 10), MouseFilter = MouseFilterEnum.Ignore }, 20, 108);
 		WrappedText(a, $"Eigene Schiffe: {me.Ships} · eigene Stationen: {me.Stations} · Kasse {me.Treasury:0} Cr (Größe = Schiffe × {u.Rules.ActorShipWeight:0} + Stationen × {u.Rules.ActorStationWeight:0} + Kasse ÷ {u.Rules.ActorMoneyScale:0})", 20, 124, 460, 13, White, 18);
-		string membership = u.Player.Membership is { } m ? FactionName(u, m) : "keiner Fraktion (unabhängig)";
-		WrappedText(a, $"Mitglied von: {membership}", 20, 178, 460, 14, new Color(Dim, 0.95f), 19);
+		if (ownFaction is { } own)
+		{
+			int sectors = u.Factions.TryGetValue(own, out var ofac) ? ofac.Territory.Count : 0;
+			int wars = Wars.CountOf(u, own);
+			WrappedText(a, $"Eigene Fraktion · Gebiet: {(sectors == 0 ? "keins" : $"{sectors} Sektor(en)")}" + (wars > 0 ? $" · Krieg mit {string.Join(", ", Wars.Enemies(u, own).Select(e => FactionName(u, e)))}" : " · im Frieden mit allen"),
+				20, 178, 460, 14, wars > 0 ? Red : new Color(Dim, 0.95f), 19);
+		}
+		else
+		{
+			string membership = u.Player.Membership is { } m ? FactionName(u, m) : "keiner Fraktion (unabhängig)";
+			WrappedText(a, $"Mitglied von: {membership}", 20, 178, 460, 14, new Color(Dim, 0.95f), 19);
+		}
 		// Phase 13: Forschungsstand der eigenen Fraktion (echt, ResearchInfo); ohne Mitgliedschaft der Hinweis zur Größe
 		// Phase 14: mit abgeschalteter Forschung keine Forschungszeile
 		if (u.Rules.ResearchActive && u.Player.Membership is { } mf && ResearchInfo.ForFaction(u, mf) is { Total: > 0 } rv)
@@ -69,9 +83,10 @@ public sealed partial class MyFactionScreen : CommandScreen
 		{ string costs = SpaceSim.Core.Simulation.Hangar.RunningCostsText(u, u.PlayerActor);
 		  Row(b, 20, 126, 446, "Laufende Kosten", costs.Length > 0 ? costs : "keine", 14); TestCostsOverflow = LastRowOverflow; TestCostsText = costs; }
 		Row(b, 20, 150, 446, "Liegegebühr/Tag (fremde St.)", $"−{SpaceSim.Core.Simulation.Hangar.BerthFeesPerDay(u, u.PlayerActor):0} Cr/Tag", 14);   // Phase 12 echt
-		Row(b, 20, 174, 446, "Einnahmen/Tag (Schätzung)", UiPlaceholders.MyFactionIncome, 14);
-		At(b, new KitButton("Beitreten", new Vector2(150, 46)) { FontSize = 16, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 20, 204);
-		At(b, new KitButton("Gründen (ab Kleinfirma)", new Vector2(240, 46)) { FontSize = 15, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 180, 204);
+		// Runde 38: echt — Verkäufe, Flottenhandel, Kopfgeld und Schiffsverkauf des letzten Spieltags (Ereignisse, SpaceSim.Core.Diagnostics.PlayerIncome)
+		{ string income = Ctx.Income() is { } inc ? inc.Text() : "–";
+		  Row(b, 20, 174, 446, "Einnahmen/Tag", income, 14); TestIncomeText = income; }
+		WrappedText(b, "Einnahmen: Verkäufe, Flottenhandel, Kopfgeld und Schiffsverkauf im letzten Spieltag (10 min).", 20, 204, 446, 12, new Color(Dim, 0.75f), 16);
 
 		// ── Karte 3 (links unten): Beziehungen der Fraktionen zu dir und Fahndung (echt) ──
 		var rep = narrow ? CardBg(inner, 12, 536, 500, 234, Card) : CardBg(inner, 12, 274, 500, 234, Card);
@@ -83,7 +98,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 		At(rep, Text(summary + (claims > 0f ? $" · Kopfgeld offen {claims:0} Cr" : ""), 13, wanted.Any(w => w.Level >= 3) ? Red : wanted.Any(w => w.Level > 0) ? Orange : Green), 20, 44, 460, 20);
 		TestWanted = summary;
 		float ry = 72;
-		foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value).Take(4))
+		foreach (var f in u.NpcFactionIds().Select(id => u.Factions[id]).Take(4))   // Runde 38: nur KI-Fraktionen (die eigene steht oben)
 		{
 			float v = Relations.Effective(u, f.Id, u.PlayerActor);
 			var w = wanted.FirstOrDefault(x => x.Faction == f.Id);
@@ -109,7 +124,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 			("Befehle an eigene Schiffe", true, $"bis {SpaceSim.Core.Simulation.Commands.Count(capShips, "Schiff", "Schiffe")}"),
 			("Verbände führen", capSquads > 0, $"bis {SpaceSim.Core.Simulation.Commands.Count(capSquads, "Verband", "Verbände")}"),
 			("Taxi, Hangar, Leihschiff", true, "an Stationen mit Dienst"),
-		}.Concat(UiPlaceholders.MyFactionAbilities);
+		}.Concat(UiPlaceholders.MyFactionAbilities(me.Stations > 0));
 		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand
 		var list = abilities.ToList();
 		TestAbilityOverflow = "";

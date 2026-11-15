@@ -22,7 +22,7 @@ public sealed class SecuritySystem : ISimSystem
         if (!u.Rules.SecurityActive) return;
         ResolvePending(u);
         if (u.Tick % ManageTicks < dt)
-            foreach (var f in u.Factions.Keys.OrderBy(k => k.Value).ToList()) Manage(u, f, ManageTicks);
+            foreach (var f in u.NpcFactionIds().ToList()) Manage(u, f, ManageTicks);   // Runde 38: die Spielerfraktion hat keine Polizei
         // Phase 27: mit Flottenkampf vergibt die Fraktion nur Befehle (Streife, Heimkehr, Geleit, Verfolgung) — die Ausführer fliegen
         foreach (var police in u.ShipsById().Where(ThreatMap.IsPolice).ToList())
             if (u.Rules.FleetCombat) PoliceCommands.Step(u, police); else StepPolice(u, police);
