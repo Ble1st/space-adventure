@@ -12,227 +12,209 @@ public readonly record struct UiRect(float X, float Y, float W, float H)
     public UiRect Offset(float dx, float dy) => new(X + dx, Y + dy, W, H);
 }
 
-/// <summary>Runde 33: Elemente des Flug-HUD, deren Lage die Zonenrechnung bestimmt.</summary>
+/// <summary>
+/// HUD-Neu (Entwurf A, Nutzerentscheidung): Elemente des Flug-HUD. Links Status und senkrechter Schubregler mit ◀ ▶ und RÜCK; oben Mitte Sektorchip mit
+/// Lage-, Fahndungs- und Brandzeile; oben rechts Zielkarte, Karte und Menü; darunter Autopilot, Auto-Mining, Kontexttaste und rechts eine Spalte aus
+/// Leistung (⚡), Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff; unten rechts der Daumenbogen: FEUER und die Gruppenknöpfe nach Waffentyp
+/// (aus Entwurf B: „Einzeln“ klappt die einzelnen Schächte als Leiste auf).
+/// </summary>
 public enum HudItem
 {
-    Status, Mode0, Mode1, Mode2,
-    Chip, Security, Wanted, Fire,
-    Command, Map, Fast,
-    Card, Autopilot, AutoMine, Context,
-    TurnLabel, TurnLeft, TurnRight, ReverseLabel, Reverse, Hamburger, Slider,
-    Bay0, Bay1, Bay2, Bay3, Bay4, Bay5,
-    AllFire, AutoFire, Ready, NextEnemy, Attack, AimAssist, Surrender,
+    Status, Chip, Security, Wanted, Fire,
+    Map, Hamburger, Card, Autopilot, AutoMine, Context,
+    Power, NextEnemy, AimAssist, AutoFire, Surrender, Attack,
+    Slider, TurnLeft, TurnRight, Reverse, ReverseLabel,
+    FireBtn, Group0, Group1, Group2, Group3, Group4, Group5, Expand,
+    Bay0, Bay1, Bay2, Bay3, Bay4, Bay5, Bay6, Bay7, Bay8, Bay9, Bay10, Bay11, Bay12, Bay13, Bay14,
     HitWarning, Escape,
 }
 
 /// <summary>
-/// Runde 33 — Zonen des Flug-HUD als reine Rechnung (UI-ANPASSUNG.md Abschnitt 3.4, Etappe 2). Eingabe: logische Fläche der HUD-Schicht (nach
-/// Stretch und UI-Faktor), Safe-Area-Ränder an allen vier Seiten, Zahl der Waffenschächte. Ausgabe: Rechteck je <see cref="HudItem"/>.
-/// <para>
-/// <b>Klassisch</b> (nutzbare Fläche mindestens 1280 × 720): die bisherigen Lagen des 1280 × 720-Entwurfs, links/mittig/rechts verankert (wie bisher)
-/// und nun auch senkrecht — die untere Zone (Wenden, RÜCK, Menü, Schubregler, Beschuss-/Fluchtzeile) sitzt am unteren Rand, alles andere am oberen.
-/// Bei genau 1280 × 720 ohne Ränder ist jede Lage unverändert.
-/// </para>
-/// <para>
-/// <b>Kompakt</b> (kleiner, d. h. UI-Faktor &gt; 1 oder Safe-Area-Ränder): feste Ecken (Status oben links, Kommando/Karte/Zeit + Zielkarte oben rechts,
-/// Wenden/RÜCK/Menü unten links, Schubregler unten rechts), der Sektorchip schrumpft auf den Raum zwischen Status und Kommandotaste, und die
-/// Kampfspalte (Schächte, Alle Feuer, Dauerfeuer, Ergeben, Nächster Gegner, Angriff, Ziel folgen) fließt in ein Raster von 176 × 56-Zellen, das
-/// von unten rechts (über dem Schubregler) zeilenweise nach links und oben gefüllt wird und keine feste Fläche berührt. Die Zellen sind für alle
-/// Kampftasten reserviert (auch unsichtbare), damit nichts springt, wenn eine Taste erscheint.
-/// </para>
+/// HUD-Neu — Zonen des Flug-HUD als reine Rechnung. Eingabe: logische Fläche der HUD-Schicht (nach Stretch und UI-Faktor), Safe-Area-Ränder an allen vier
+/// Seiten, Zahl der Gruppen im Daumenbogen und der Einzelschächte (aufgeklappt oder nicht). Ausgabe: Rechteck je <see cref="HudItem"/>. Jede Taste ist
+/// mindestens <see cref="Tap"/> (64) logische Punkte groß — bei „normal“ (Faktor 1,15) auf dem A15 ≥ 7 mm. Die Ecken sind fest verankert (links Status und
+/// Regler, oben rechts Karte/Menü und Zielkarte, unten rechts der Daumenbogen); die aufgeklappten Einzelschächte füllen ein Raster von rechts nach links
+/// zwischen Zielkarte und Daumenbogen und verdecken solange Autopilot, Auto-Mining und Kontexttaste.
 /// </summary>
 public sealed class FlightHudLayout
 {
     public const float BaseW = UiLayout.BaseWidth, BaseH = UiLayout.BaseHeight;
-    public const float CellW = 176f, CellH = 56f, CellStepX = 182f, CellStepY = 60f;
-    /// <summary>Mindestabstand zwischen einer Kampfzelle und einer festen Fläche.</summary>
+    /// <summary>Mindestmaß einer Taste (logisch).</summary>
+    public const float Tap = 64f;
+    public const float CellW = 176f, CellH = 64f, CellStepX = 184f, CellStepY = 72f;
+    public const float GroupW = 128f, GroupH = 64f, FireSize = 128f, IconW = 64f;
+    public const int MaxGroups = 6, MaxBays = 15;
     public const float Gap = 3f;
-    public const int MaxBays = 6;
 
     readonly Dictionary<HudItem, UiRect> _rects = new();
     readonly HashSet<HudItem> _hidden = new();
 
-    /// <summary>Kompakte Anordnung (Fläche kleiner als 1280 × 720)?</summary>
+    /// <summary>Kompakt (kleiner als 1280 × 720) — nur zur Auskunft, die Anordnung ist dieselbe.</summary>
     public bool Compact { get; private init; }
-    /// <summary>Nutzbare Fläche (nach Safe Area).</summary>
+    /// <summary>Sektorchip und Lagezeilen liegen unter dem Status (zu schmal oben); siehe <see cref="ChipMinW"/>.</summary>
+    public bool ChipBelowStatus { get; private set; }
+    /// <summary>Mindestbreite des Sektorchips oben zwischen Status und Zielkarte.</summary>
+    public const float ChipMinW = 300f;
+    /// <summary>Mindestbreite der Beschuss-/Fluchtzeile unten zwischen RÜCK und Daumenbogen.</summary>
+    public const float WarnMinW = 320f;
     public UiRect Area { get; private init; }
-    /// <summary>
-    /// Kampftasten ohne eigene Zelle (die letzten in <see cref="CombatItems"/>-Reihenfolge — Angriff, Ergeben —, sie lägen auf der Zelle einer anderen
-    /// Taste). Runde 33b: kommt im Spiel nicht vor, weil <see cref="FitFactor"/> den Faktor der Schicht so weit senkt, bis jede Taste eine eigene Zelle hat.
-    /// </summary>
+    /// <summary>Zahl der Tasten, die keinen eigenen Platz fanden (überlappen oder aus der Fläche ragen); <see cref="FitFactor"/> senkt den Faktor, bis 0.</summary>
     public int Overflow { get; private set; }
+    /// <summary>Einzelschächte aufgeklappt?</summary>
+    public bool Expanded { get; private init; }
 
     public UiRect this[HudItem item] => _rects[item];
     public bool Has(HudItem item) => _rects.ContainsKey(item);
-    /// <summary>Element in dieser Anordnung ausgeblendet (z. B. die Beschriftung „WENDEN“ im Kompaktmodus).</summary>
     public bool Hidden(HudItem item) => _hidden.Contains(item);
     public IReadOnlyDictionary<HudItem, UiRect> Rects => _rects;
 
-    /// <summary>Tasten (antippbar) — für Überlappungsprüfungen.</summary>
+    /// <summary>Tasten (antippbar) — für Überlappungs- und Größenprüfungen.</summary>
     public static bool IsInteractive(HudItem i) => i is not (HudItem.Status or HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire
-        or HudItem.Card or HudItem.TurnLabel or HudItem.ReverseLabel or HudItem.Ready or HudItem.HitWarning or HudItem.Escape);
-
-    /// <summary>Kampfspalte in der Reihenfolge, in der sie die Zellen belegt.</summary>
-    public static IEnumerable<HudItem> CombatItems(int bays)
-    {
-        for (int i = 0; i < Math.Clamp(bays, 0, MaxBays); i++) yield return HudItem.Bay0 + i;
-        yield return HudItem.AllFire;
-        yield return HudItem.AutoFire;
-        yield return HudItem.NextEnemy;
-        yield return HudItem.AimAssist;
-        yield return HudItem.Attack;
-        yield return HudItem.Surrender;
-    }
-
-    // ── 1280 × 720-Entwurf (Lagen wie bis Runde 32) ──
-    static readonly (HudItem Item, float X, float Y, float W, float H)[] Base =
-    {
-        (HudItem.Status, 14, 12, 300, 200),
-        (HudItem.Mode0, 14, 222, 96, 56), (HudItem.Mode1, 116, 222, 96, 56), (HudItem.Mode2, 218, 222, 96, 56),
-        (HudItem.Chip, 420, 12, 430, 42), (HudItem.Security, 420, 56, 430, 18), (HudItem.Wanted, 420, 74, 430, 20), (HudItem.Fire, 300, 94, 670, 20),
-        (HudItem.Command, 862, 8, 160, 56), (HudItem.Map, 1030, 12, 110, 50), (HudItem.Fast, 1150, 12, 110, 50),
-        (HudItem.Card, 930, 72, 340, 132), (HudItem.Autopilot, 930, 212, 160, 42), (HudItem.AutoMine, 1100, 212, 170, 42), (HudItem.Context, 930, 262, 340, 52),
-        (HudItem.TurnLabel, 100, 560, 260, 20), (HudItem.TurnLeft, 96, 584, 120, 100), (HudItem.TurnRight, 230, 584, 120, 100),
-        (HudItem.ReverseLabel, 410, 566, 200, 20), (HudItem.Reverse, 470, 590, 80, 56), (HudItem.Hamburger, 16, 644, 60, 60), (HudItem.Slider, 660, 646, 600, 68),
-        (HudItem.Ready, 1090, 314, 176, 16),
-        (HudItem.NextEnemy, 764, 206, 160, 56), (HudItem.Attack, 764, 330, 136, 56), (HudItem.AimAssist, 764, 392, 136, 56), (HudItem.Surrender, 906, 398, 176, 56),
-        (HudItem.HitWarning, 590, 534, 310, 28), (HudItem.Escape, 590, 566, 310, 22),
-    };
-    static readonly HashSet<HudItem> BottomZone = new()
-    {
-        HudItem.TurnLabel, HudItem.TurnLeft, HudItem.TurnRight, HudItem.ReverseLabel, HudItem.Reverse, HudItem.Hamburger, HudItem.Slider,
-        HudItem.HitWarning, HudItem.Escape,
-    };
-
-    /// <summary>Klassische Lage eines Waffenschachts (vier rechts, weitere links daneben ab y 456 — wie bis Runde 32).</summary>
-    static (float X, float Y) ClassicBay(int i) => i < 4 ? (1090f, 330f + i * CellStepY) : (906f, 456f + (i - 4) * CellStepY);
-    /// <summary>„Alle Feuer“/„Dauerfeuer“ unter der rechten Schachtspalte (wie bis Runde 32).</summary>
-    public static float ClassicFireY(int bays) => MathF.Max(462f, 330f + Math.Min(Math.Max(0, bays), 4) * CellStepY + 4f);
+        or HudItem.Card or HudItem.ReverseLabel or HudItem.HitWarning or HudItem.Escape);
 
     FlightHudLayout() { }
 
-    /// <summary>Anordnung für eine HUD-Fläche <paramref name="w"/> × <paramref name="h"/> (logisch) mit Safe-Area-Rändern und <paramref name="bays"/> Schächten.</summary>
-    public static FlightHudLayout Compute(float w, float h, UiInsets safe, int bays)
+    /// <summary>
+    /// Anordnung für eine HUD-Fläche <paramref name="w"/> × <paramref name="h"/> (logisch) mit Safe-Area-Rändern, <paramref name="groups"/> Gruppenknöpfen
+    /// (ohne FEUER), <paramref name="bays"/> Einzelschächten und dem Zustand der Leiste (<paramref name="expanded"/>). <paramref name="fire"/>: FEUER sichtbar
+    /// (Schiff hat Kampfwaffen).
+    /// </summary>
+    public static FlightHudLayout Compute(float w, float h, UiInsets safe, int groups, int bays, bool expanded, bool fire = true)
     {
         var area = new UiRect(safe.Left, safe.Top, MathF.Max(0f, w - safe.Left - safe.Right), MathF.Max(0f, h - safe.Top - safe.Bottom));
-        bool compact = area.W < BaseW - 0.5f || area.H < BaseH - 0.5f;
-        var l = new FlightHudLayout { Compact = compact, Area = area };
-        if (compact) l.Fill(area, bays); else l.Classic(w, h, safe, bays);
+        var l = new FlightHudLayout { Compact = area.W < BaseW - 0.5f || area.H < BaseH - 0.5f, Area = area, Expanded = expanded };
+        l.Fill(area, Math.Clamp(groups, 0, MaxGroups), Math.Clamp(bays, 0, MaxBays), expanded, fire);
         return l;
     }
 
-    void Classic(float w, float h, UiInsets s, int bays)
-    {
-        float dxL = s.Left, dxR = w - BaseW - s.Right, dxC = (w - BaseW + s.Left - s.Right) / 2f;
-        float dyT = s.Top, dyB = h - BaseH - s.Bottom;
-        UiRect Place(float x, float y, float rw, float rh, bool bottom)
-        {
-            float mid = x + rw / 2f;   // Zuordnung wie bisher nach der Mitte im 1280-Entwurf: links (< 400), rechts (> 820), sonst mittig
-            float dx = mid > 820f ? dxR : mid >= 400f ? dxC : dxL;
-            return new UiRect(x + dx, y + (bottom ? dyB : dyT), rw, rh);
-        }
-        foreach (var (item, x, y, rw, rh) in Base) _rects[item] = Place(x, y, rw, rh, BottomZone.Contains(item));
-        for (int i = 0; i < MaxBays; i++) { var (bx, by) = ClassicBay(i); _rects[HudItem.Bay0 + i] = Place(bx, by, CellW, CellH, false); }
-        float fy = ClassicFireY(bays);
-        _rects[HudItem.AllFire] = Place(1090f, fy, CellW, CellH, false);
-        _rects[HudItem.AutoFire] = Place(906f, fy, CellW, CellH, false);
-    }
+    void Set(HudItem i, float x, float y, float rw, float rh) => _rects[i] = new UiRect(x, y, rw, rh);
 
-    void Fill(UiRect a, int bays)
+    void Fill(UiRect a, int groups, int bays, bool expanded, bool fire)
     {
         float x0 = a.X, y0 = a.Y, x1 = a.Right, y1 = a.Bottom;
-        void Set(HudItem i, float x, float y, float rw, float rh) => _rects[i] = new UiRect(x, y, rw, rh);
-        // oben links: Status, Leistungsverteilung
-        Set(HudItem.Status, x0 + 14, y0 + 12, 300, 200);
-        for (int i = 0; i < 3; i++) Set(HudItem.Mode0 + i, x0 + 14 + i * 102, y0 + 222, 96, 56);
-        // oben rechts: Kommando, Karte, Zeit; Zielkarte mit Autopilot/Auto-Mining und Kontexttaste
-        Set(HudItem.Fast, x1 - 130, y0 + 12, 110, 50);
-        Set(HudItem.Map, x1 - 250, y0 + 12, 110, 50);
-        Set(HudItem.Command, x1 - 418, y0 + 8, 160, 56);
-        Set(HudItem.Card, x1 - 350, y0 + 72, 340, 132);
-        Set(HudItem.Autopilot, x1 - 350, y0 + 212, 160, 42);
-        Set(HudItem.AutoMine, x1 - 180, y0 + 212, 170, 42);
-        Set(HudItem.Context, x1 - 350, y0 + 262, 340, 52);
-        // oben Mitte: Sektorchip und Zeilen zwischen Status und Kommandotaste, so mittig wie möglich
-        float lo = x0 + 320f, hi = x1 - 424f;
+        // ── links: Status, senkrechter Schubregler, ◀ ▶ und RÜCK unten ──
+        Set(HudItem.Status, x0 + 12, y0 + 8, 300, 132);
+        Set(HudItem.Slider, x0 + 12, y0 + 152, 88, MathF.Max(Tap * 2f, y1 - 12 - (y0 + 152)));
+        Set(HudItem.TurnLeft, x0 + 112, y1 - 112, 104, 100);
+        Set(HudItem.TurnRight, x0 + 224, y1 - 112, 104, 100);
+        Set(HudItem.ReverseLabel, x0 + 332, y1 - 108, 112, 18);
+        Set(HudItem.Reverse, x0 + 336, y1 - 84, 96, 72);
+        // ── oben rechts: Menü, Karte; Zielkarte links daneben; darunter Autopilot, Auto-Mining, Kontexttaste ──
+        Set(HudItem.Hamburger, x1 - 12 - IconW, y0 + 8, IconW, IconW);
+        Set(HudItem.Map, x1 - 12 - 2 * IconW - 8, y0 + 8, IconW, IconW);
+        float cardX = x1 - 12 - 2 * IconW - 8 - 8 - 330;
+        Set(HudItem.Card, cardX, y0 + 8, 330, 118);
+        Set(HudItem.Autopilot, cardX, y0 + 134, 161, Tap);
+        Set(HudItem.AutoMine, cardX + 169, y0 + 134, 161, Tap);
+        Set(HudItem.Context, cardX, y0 + 206, 330, Tap);
+        // rechte Spalte (2 × 3 Symboltasten) unter Karte/Menü: Leistung, Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff
+        float cx0 = x1 - 12 - 2 * IconW - 8, cx1 = x1 - 12 - IconW;
+        Set(HudItem.Power, cx0, y0 + 80, IconW, IconW);
+        Set(HudItem.NextEnemy, cx1, y0 + 80, IconW, IconW);
+        Set(HudItem.AimAssist, cx0, y0 + 152, IconW, IconW);
+        Set(HudItem.AutoFire, cx1, y0 + 152, IconW, IconW);
+        Set(HudItem.Surrender, cx0, y0 + 224, IconW, IconW);
+        Set(HudItem.Attack, cx1, y0 + 224, IconW, IconW);
+        // ── oben Mitte: Sektorchip und Zeilen zwischen Status und Zielkarte ──
+        float lo = x0 + 324f, hi = cardX - 8f;
         float cw = MathF.Max(0f, MathF.Min(430f, hi - lo));
-        float cx = Math.Clamp((x0 + x1) / 2f - cw / 2f, lo, MathF.Max(lo, hi - cw));
-        Set(HudItem.Chip, cx, y0 + 12, cw, 42);
-        // Lage-, Fahndungs- und Brandzeile unter der oberen Tastenleiste: dort reichen sie bis vor die Zielkarte (breiter als der Chip)
-        float lhi = x1 - 356f;
-        float lw = MathF.Max(0f, MathF.Min(430f, lhi - lo));
-        float lx = Math.Clamp((x0 + x1) / 2f - lw / 2f, lo, MathF.Max(lo, lhi - lw));
-        Set(HudItem.Security, lx, y0 + 66, lw, 18);
-        Set(HudItem.Wanted, lx, y0 + 86, lw, 20);
-        Set(HudItem.Fire, lx, y0 + 108, lw, 20);
-        // unten links: Menü, Wenden, RÜCK (eng daneben, Beschriftung darüber); „WENDEN“ entfällt, dort stehen Beschuss- und Fluchtzeile
-        Set(HudItem.Hamburger, x0 + 16, y1 - 76, 60, 60);
-        Set(HudItem.TurnLeft, x0 + 96, y1 - 136, 120, 100);
-        Set(HudItem.TurnRight, x0 + 230, y1 - 136, 120, 100);
-        Set(HudItem.TurnLabel, x0 + 100, y1 - 160, 250, 20);
-        _hidden.Add(HudItem.TurnLabel);
-        Set(HudItem.ReverseLabel, x0 + 356, y1 - 134, 112, 20);
-        Set(HudItem.Reverse, x0 + 364, y1 - 110, 80, 56);
-        Set(HudItem.HitWarning, x0 + 14, y1 - 196, 336, 26);
-        Set(HudItem.Escape, x0 + 14, y1 - 166, 336, 22);
-        // unten rechts: Schubregler rechts der RÜCK-Taste, höchstens 600 breit (dann rechtsbündig wie im Entwurf)
-        float sx = x0 + 456f, sw = x1 - 20f - sx;
-        if (sw > 600f) { sx = x1 - 20f - 600f; sw = 600f; }
-        Set(HudItem.Slider, sx, y1 - 74, MathF.Max(0f, sw), 68);
-        // „n von m bereit“ steht im Kompaktmodus in „Alle Feuer“ (die Zeile hätte keinen eigenen Platz)
-        Set(HudItem.Ready, 0, 0, 0, 0);
-        _hidden.Add(HudItem.Ready);
-
-        var fixedRects = _rects.Where(kv => !_hidden.Contains(kv.Key)).Select(kv => kv.Value).ToList();
-        var cells = Cells(a, fixedRects, _rects[HudItem.Slider].Y);
-        var items = CombatItems(bays).ToList();
-        // nicht belegte Schächte bekommen keine eigene Zelle (sie sind unsichtbar) — Ersatzlage auf Schacht 1
-        int k = 0;
-        foreach (var item in items)
+        float chipY = y0 + 8;
+        float chipX = Math.Clamp((x0 + x1) / 2f - cw / 2f, lo, MathF.Max(lo, hi - cw));
+        // schmal (UI-Faktor 1,3 auf 16:9 und schmaler): oben zwischen Status und Zielkarte ist kein Platz für Sektorname, Fraktion und Lagezeile — der Block
+        // rückt unter den Status rechts neben den Regler (dort ist bis zur Zielkarten-Spalte Platz)
+        ChipBelowStatus = cw < ChipMinW;
+        if (ChipBelowStatus)
         {
-            if (k < cells.Count) { _rects[item] = cells[k++]; continue; }
-            Overflow++;
-            _rects[item] = cells.Count > 0 ? cells[^1] : new UiRect(x1 - 14 - CellW, y0 + 330, CellW, CellH);
+            chipX = x0 + 112f; chipY = y0 + 148f;
+            cw = MathF.Max(0f, MathF.Min(430f, cardX - 8f - chipX));
         }
-        for (int i = Math.Clamp(bays, 0, MaxBays); i < MaxBays; i++)
-            _rects[HudItem.Bay0 + i] = _rects.TryGetValue(HudItem.Bay0, out var b0) ? b0 : new UiRect(x1 - 14 - CellW, y0 + 330, CellW, CellH);
-    }
-
-    /// <summary>
-    /// Freie Zellen 176 × 56 für die Kampfspalte: Zeilen im Abstand 60 von über dem Schubregler nach oben, in jeder Zeile von rechts nach links
-    /// (Schritt 4, bis eine Zelle frei ist, dann eine Zellenbreite weiter) — keine Zelle berührt eine feste Fläche.
-    /// </summary>
-    static List<UiRect> Cells(UiRect a, List<UiRect> fixedRects, float sliderY)
-    {
-        var list = new List<UiRect>();
-        for (float y = sliderY - 6f - CellH; y >= a.Y + 8f; y -= CellStepY)
+        Set(HudItem.Chip, chipX, chipY, cw, 42);
+        Set(HudItem.Security, chipX, chipY + 46, cw, 18);
+        Set(HudItem.Wanted, chipX, chipY + 66, cw, 20);
+        Set(HudItem.Fire, chipX, chipY + 88, cw, 20);
+        // ── unten rechts: Daumenbogen — FEUER in der Ecke, Gruppen im Bogen darum, „Einzeln“ in der nächsten freien Stelle ──
+        float fx = x1 - 12 - FireSize, fy = y1 - 12 - FireSize;
+        Set(HudItem.FireBtn, fx, fy, FireSize, FireSize);
+        if (!fire) _hidden.Add(HudItem.FireBtn);
+        var slots = new List<UiRect>
         {
-            float x = a.Right - 14f - CellW;
-            while (x >= a.X + 14f)
+            new(fx - 8 - GroupW, y1 - 12 - GroupH, GroupW, GroupH),                    // links unten neben FEUER
+            new(fx - 8 - GroupW, y1 - 12 - 2 * GroupH - 8, GroupW, GroupH),            // links oben neben FEUER
+            new(x1 - 12 - GroupW, fy - 8 - GroupH, GroupW, GroupH),                    // über FEUER
+            new(fx - 16 - 2 * GroupW, y1 - 12 - GroupH, GroupW, GroupH),               // zweiter Ring links unten
+            new(fx - 16 - 2 * GroupW, y1 - 12 - 2 * GroupH - 8, GroupW, GroupH),       // zweiter Ring links oben
+            new(fx - 8 - GroupW, fy - 8 - GroupH, GroupW, GroupH),                     // links über dem ersten Ring
+            new(fx - 16 - 2 * GroupW, fy - 8 - GroupH, GroupW, GroupH),
+        };
+        // ohne FEUER rückt der Bogen in die Ecke (erste Stelle = FEUER-Platz unten rechts)
+        if (!fire) slots.Insert(0, new UiRect(x1 - 12 - GroupW, y1 - 12 - GroupH, GroupW, GroupH));
+        int si = 0;
+        for (int g = 0; g < MaxGroups; g++)
+        {
+            if (g < groups && si < slots.Count) Set(HudItem.Group0 + g, slots[si].X, slots[si].Y, slots[si].W, slots[si].H);
+            else { Set(HudItem.Group0 + g, 0, 0, 0, 0); _hidden.Add(HudItem.Group0 + g); }
+            if (g < groups) si++;
+        }
+        if (bays >= 2 && si < slots.Count) Set(HudItem.Expand, slots[si].X, slots[si].Y, slots[si].W, slots[si].H);
+        else { Set(HudItem.Expand, 0, 0, 0, 0); _hidden.Add(HudItem.Expand); }
+        // Beschuss- und Fluchtzeile unten Mitte zwischen RÜCK und Daumenbogen
+        float arcLeft = MathF.Min(fx, _rects.Where(kv => kv.Key is >= HudItem.Group0 and <= HudItem.Expand && !_hidden.Contains(kv.Key)).Select(kv => kv.Value.X).DefaultIfEmpty(fx).Min());
+        float wl = x0 + 452f, wr = arcLeft - 12f;
+        if (wr - wl >= WarnMinW)
+        {
+            Set(HudItem.HitWarning, wl, y1 - 64, MathF.Max(0f, wr - wl), 28);
+            Set(HudItem.Escape, wl, y1 - 32, MathF.Max(0f, wr - wl), 22);
+        }
+        else
+        {
+            // schmal (Bogen mit mehreren Gruppen bei großem UI-Faktor): die Zeilen rücken über die Wendetasten, dort reichen sie vom Regler bis zum Bogen
+            wl = x0 + 112f;
+            Set(HudItem.HitWarning, wl, y1 - 178, MathF.Max(0f, wr - wl), 28);
+            Set(HudItem.Escape, wl, y1 - 146, MathF.Max(0f, wr - wl), 22);
+        }
+
+        // ── Einzelschächte (aufgeklappt): Raster 176 × 64, von rechts (links der Symbolspalte) nach links, von oben (unter der Zielkarte) nach unten bis über
+        // den Daumenbogen; solange offen, sind Autopilot, Auto-Mining und Kontexttaste verdeckt ──
+        float arcTop = _rects.Where(kv => kv.Key is >= HudItem.FireBtn and <= HudItem.Expand && !_hidden.Contains(kv.Key)).Select(kv => kv.Value.Y).DefaultIfEmpty(fy).Min();
+        if (expanded && bays > 0)
+        {
+            _hidden.Add(HudItem.Autopilot); _hidden.Add(HudItem.AutoMine); _hidden.Add(HudItem.Context);
+            float top = y0 + 134, bottom = arcTop - 8f, right = cx0 - 8f;
+            int rows = Math.Max(1, (int)MathF.Floor((bottom - top + 8f) / CellStepY));
+            for (int b = 0; b < MaxBays; b++)
             {
-                var c = new UiRect(x, y, CellW, CellH);
-                if (fixedRects.Exists(f => f.W > 0f && c.Intersects(f, Gap)) || list.Exists(o => c.Intersects(o, 2f))) { x -= 4f; continue; }
-                list.Add(c);
-                x -= CellStepX;
+                if (b >= bays) { Set(HudItem.Bay0 + b, 0, 0, 0, 0); _hidden.Add(HudItem.Bay0 + b); continue; }
+                int col = b / rows, row = b % rows;
+                Set(HudItem.Bay0 + b, right - CellW - col * CellStepX, top + row * CellStepY, CellW, CellH);
             }
         }
-        return list;
+        else
+            for (int b = 0; b < MaxBays; b++) { Set(HudItem.Bay0 + b, 0, 0, 0, 0); _hidden.Add(HudItem.Bay0 + b); }
+
+        // Überlauf: sichtbare Tasten, die sich überlappen oder aus der Fläche ragen
+        var vis = _rects.Where(kv => !_hidden.Contains(kv.Key) && kv.Value.W > 0f).ToList();
+        for (int i = 0; i < vis.Count; i++)
+        {
+            if (!vis[i].Value.Inside(a, 0.5f)) { Overflow++; continue; }
+            // jede Taste gegen jede andere Fläche (auch Texte wie Chip und Lagezeilen, die vor ihr in der Liste stehen)
+            if (!IsInteractive(vis[i].Key)) continue;
+            for (int j = 0; j < vis.Count; j++)
+                if (j != i && (j > i || !IsInteractive(vis[j].Key)) && vis[i].Value.Intersects(vis[j].Value, -0.5f)) { Overflow++; break; }
+        }
     }
 
     /// <summary>
-    /// Runde 33b (Prüfung: bei 985 × 554 und fünf Schächten lag „Ergeben“ auf „Station angreifen“): größter UI-Faktor ≤ <paramref name="wanted"/>, bei dem auf der
-    /// Fläche <paramref name="w1"/> × <paramref name="h1"/> (logisch bei Faktor 1) mit den Rändern <paramref name="safe1"/> (ebenfalls bei Faktor 1) jede
-    /// Kampftaste und jeder der <paramref name="bays"/> Schächte eine eigene Zelle hat (<see cref="Overflow"/> = 0). Schritte von 0,01; nie unter 1.
-    /// Gilt für jede Fläche, jeden Rand und jede Schachtzahl — die Tasten werden lieber etwas kleiner als übereinander gelegt.
+    /// Größter UI-Faktor ≤ <paramref name="wanted"/>, bei dem auf der Fläche <paramref name="w1"/> × <paramref name="h1"/> (logisch bei Faktor 1) mit den Rändern
+    /// <paramref name="safe1"/> jede Taste ihren Platz hat — geprüft im ungünstigsten Fall (Einzelschächte aufgeklappt). Schritte 0,01, nie unter 1.
     /// </summary>
-    public static float FitFactor(float w1, float h1, UiInsets safe1, int bays, float wanted)
+    public static float FitFactor(float w1, float h1, UiInsets safe1, int groups, int bays, float wanted)
     {
         if (wanted <= 1f) return MathF.Max(1f, wanted <= 0f ? 1f : wanted);
         for (int k = (int)MathF.Round(wanted * 100f); k > 100; k--)
         {
             float f = k / 100f;
-            var l = Compute(w1 / f, h1 / f, new UiInsets(safe1.Left / f, safe1.Top / f, safe1.Right / f, safe1.Bottom / f), bays);
-            if (l.Overflow == 0) return f;
+            var s = new UiInsets(safe1.Left / f, safe1.Top / f, safe1.Right / f, safe1.Bottom / f);
+            if (Compute(w1 / f, h1 / f, s, groups, bays, expanded: true).Overflow == 0 && Compute(w1 / f, h1 / f, s, groups, bays, expanded: false).Overflow == 0) return f;
         }
         return 1f;
     }

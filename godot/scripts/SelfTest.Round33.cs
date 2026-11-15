@@ -36,8 +36,9 @@ public partial class SelfTest
 				var vis = GetViewport().GetVisibleRect().Size;
 				Check(fl.Scale.X == 1f && fl.Layout is { Compact: false }, $"E2: Faktor 1 bei {vis} → klassische Anordnung (Schicht {fl.Scale.X}, kompakt {fl.Layout?.Compact})");
 				if (Mathf.Abs(vis.X - 1280f) < 1f && Mathf.Abs(vis.Y - 720f) < 1f)
-					Check(fl.TestSliderRect == new Rect2(660, 646, 600, 68) && fl.TestReverseRect == new Rect2(470, 590, 80, 56),
-						$"E2: 1280 × 720 unverändert (Regler {fl.TestSliderRect}, RÜCK {fl.TestReverseRect})");
+					// HUD-Neu: Regler senkrecht links unter dem Status, RÜCK unten links zwischen den Wendetasten (Core: FlightHudLayout)
+					Check(fl.TestSliderRect == new Rect2(12, 152, 88, 556) && fl.TestReverseRect == new Rect2(336, 636, 96, 72),
+						$"E2: 1280 × 720 Grundanordnung (Regler {fl.TestSliderRect}, RÜCK {fl.TestReverseRect})");
 				// Menüzeile „UI-Größe“
 				UiScale.TestPpi = 396f;
 				UiScale.Set(UiSize.Normal);
@@ -122,8 +123,9 @@ public partial class SelfTest
 		if (f == 156)
 		{
 			int bays = _m.TestBayPlaces.Count();
-			Check(bays >= 5 && fl.Layout is { Compact: true, Overflow: 0 } && fl.Scale.X < 1.3f - 0.001f && fl.Scale.X >= 1f && fl.WantedFactor == 1.3f,
-				$"33b: {bays} Schächte bei Stufe 1,3 → Schicht {fl.Scale.X:0.00} (gesenkt, jede Taste eigene Zelle; Überlauf {fl.Layout?.Overflow})");
+			// HUD-Neu: Gruppen statt Einzelschächte — der Faktor sinkt nur, wenn nicht einmal die aufgeklappte Leiste Platz hätte
+			Check(bays >= 5 && fl.Layout is { Overflow: 0 } && fl.Scale.X <= 1.3f + 0.001f && fl.Scale.X >= 1f && fl.WantedFactor == 1.3f,
+				$"33b: {bays} Schächte bei Stufe 1,3 → Schicht {fl.Scale.X:0.00} (jede Taste eigener Platz; Überlauf {fl.Layout?.Overflow})");
 			CheckFlightRects("33b fünf Schächte", new Rect2(Vector2.Zero, GetViewport().GetVisibleRect().Size));
 			_r33Tap = root.GetFinalTransform() * fl.TestTurnLeftRect.GetCenter();
 			PushWindow(_r33Tap, true);
@@ -151,11 +153,16 @@ public partial class SelfTest
 		if (f == 170)
 		{
 			Check(_m.TestFight.AutoFire != _r33Fire, $"33b: echter Tipp auf „Dauerfeuer“ bei Faktor 1,3 schaltet um ({_r33Fire} → {_m.TestFight.AutoFire})");
-			// Leviathan (zehn Waffenschächte): die sechste Taste fasst den Rest zusammen
+			// HUD-Neu (Leviathan, zehn Waffenschächte): Gruppen im Daumenbogen; aufgeklappt jeder Schacht einzeln (keine Sammeltaste mehr)
 			var d = new Ui.Screens.FlightHudData { HasWeapons = true };
 			d.Bays = Enumerable.Range(0, 10).Select(i => new Ui.Screens.BayView { Name = $"Laser {i + 1}", Place = "Turm", Detail = "", State = i % 2 == 0 ? SpaceSim.Core.Weapons.BayState.Ready : SpaceSim.Core.Weapons.BayState.Reloading }).ToList();
+			d.Groups = new[] { "Laser", "Rakete", "Geschütz" }.Select(l => new Ui.Screens.GroupView { Label = l, Sub = "1/3 bereit", State = SpaceSim.Core.Weapons.BayState.Ready, Combat = true }).ToList();
 			fl.Refresh(d);
-			Check(fl.TestBay6Text == "+5 weitere", $"33b: zehn Schächte → sechste Taste „{fl.TestBay6Text}“");
+			fl.TestExpanded = true;
+			fl.Refresh(d);
+			Check(fl.TestVisibleBays == 10 && fl.TestGroupLabels.Count == 3 && fl.Layout is { Overflow: 0 }, $"HUD-Neu: zehn Schächte aufgeklappt einzeln ({fl.TestVisibleBays}), drei Gruppen ({string.Join(",", fl.TestGroupLabels)}), Überlauf {fl.Layout?.Overflow}");
+			CheckFlightRects("HUD-Neu Leviathan aufgeklappt", new Rect2(Vector2.Zero, GetViewport().GetVisibleRect().Size));
+			fl.TestExpanded = false;
 			// Runde 34b (Prüfung B6): im Gefecht fällt ein Waffenmodul aus (der Schacht verschwindet) — Schicht und Zellen bleiben stehen
 			float before = fl.Scale.X; int cells = fl.TestLayoutBays;
 			var d2 = new Ui.Screens.FlightHudData { HasWeapons = true, InCombat = true, Bays = d.Bays.Take(2).ToList() };
@@ -190,7 +197,7 @@ public partial class SelfTest
 
 	/// <summary>Sichtbare Tasten/Regler des Flug-HUD als Bildschirmrechtecke (enthält die Skalierung der Schicht).</summary>
 	List<(string Name, Rect2 R)> FlightButtons() =>
-		_m.HudRef.Flight.GetChildren().OfType<Control>().Where(c => c.IsVisibleInTree() && c is KitButton or KitSlider && c.Size.X > 1f)
+		_m.HudRef.Flight.GetChildren().OfType<Control>().Where(c => c.IsVisibleInTree() && c is KitButton or KitSlider or KitVSlider && c.Size.X > 1f)
 			.Select(c => (c is KitButton k ? (k.Text.Length > 0 ? k.Text : "Taste") : "Regler", c.GetGlobalRect())).ToList();
 
 	void CheckFlightRects(string what, Rect2 area)

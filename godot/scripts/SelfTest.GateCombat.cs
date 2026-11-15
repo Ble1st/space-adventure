@@ -84,8 +84,8 @@ public partial class SelfTest
 				_m.TestArmGate(gate.Id);
 				Check(!_m.TestAtGate, "in der Schonfrist kein Angriff");
 				_m.SyncHudForTest();
-				Check(_m.HudRef.Flight.TestGateAttackVisible && _m.HudRef.Flight.TestGateAttackDisabled && _m.HudRef.Flight.TestGateAttackSub.Contains("Notbetrieb"),
-					$"„Tor angreifen“ gesperrt mit Grund ({_m.HudRef.Flight.TestGateAttackSub})");
+				Check(_m.HudRef.Flight.TestGateAttackVisible && _m.HudRef.Flight.TestGateAttackDisabled && _m.HudRef.Flight.TestGateAttackInfo.Contains("Notbetrieb"),
+					$"„Tor angreifen“ gesperrt mit Grund ({_m.HudRef.Flight.TestGateAttackInfo})");
 				if (_gcEv is not null) u.Events.Raised -= _gcEv.Add;
 				return true;
 			}

@@ -1173,10 +1173,10 @@ public partial class SelfTest : Node
 					Check(hud.TestPowerText.StartsWith($"{ship.Stats.PowerDraw:0}/{ship.Stats.PowerOutput:0}"), $"HUD-Leistung aus dem Core („{hud.TestPowerText}“)");
 					Check(hud.TestShieldText == (ship.Stats.Shield > 0f ? $"{(int)ship.ShieldNow}" : "–"), $"HUD-Schild aus dem Core („{hud.TestShieldText}“)");
 					// drei Tasten: Mindest-Trefferfläche 56 px, keine Überdeckung untereinander, mit der Statusleiste (bis y 214) und den Wendetasten (ab y 560)
-					var rects = new[] { PowerMode.Weapons, PowerMode.Shield, PowerMode.Engine }.Select(hud.TestModeRect).ToList();
-					Check(rects.All(r => r.Size.X >= 56f && r.Size.Y >= 56f), "Verteilungstasten mindestens 56 px");
-					Check(rects.All(r => r.Position.Y >= 214f && r.End.Y <= 560f), "Verteilungstasten zwischen Statusleiste und Wendetasten");
-					Check(!rects[0].Intersects(rects[1]) && !rects[1].Intersects(rects[2]) && !rects[0].Intersects(rects[2]), "Verteilungstasten überdecken sich nicht");
+					// HUD-Neu: eine Taste ⚡ (reihum) in der rechten Spalte — Mindestgröße 64, auf keiner anderen Taste
+					var pr = hud.TestModeRect(PowerMode.Weapons);
+					Check(pr.Size.X >= 64f && pr.Size.Y >= 64f, $"⚡ mindestens 64 px ({pr.Size})");
+					Check(hud.TestCombatLayout(0).Where(x => x.Name != "Leistung" && x.Rect.Size.X > 1f && hud.GetChildren().OfType<Control>().Any(c => c.Visible && new Rect2(c.Position, c.Size) == x.Rect)).All(x => !x.Rect.Intersects(pr)), "⚡ überdeckt keine andere Taste");
 					hud.TestPressMode(PowerMode.Shield);
 					Check(ship.PowerMode == PowerMode.Shield, "Taste „Schild“ stellt die Verteilung im Core um");
 					hud.Refresh(new Ui.Screens.FlightHudData { PowerMode = ship.PowerMode });
@@ -2680,6 +2680,7 @@ public partial class SelfTest : Node
 			case 112: if (Round37Stage(_frame - _stageStart)) Next(); break;   // Runde 37: Wisch wählt nichts, Fraktionen Liste/Detail, Leiste bleibt gerollt, Handels-Editor, Menü-Schicht (SelfTest.Round37.cs)
 			case 113: if (Round37bStage(_frame - _stageStart)) Next(); break;   // Runde 37b: alle Wege zurück (Karte, Menü, Zentrale, Zurück-Taste), Leiste in beide Richtungen, Rahmenbreite (SelfTest.Round37b.cs)
 			case 114: if (Round38aStage(_frame - _stageStart)) Next(); break;   // Runde 38a: Menü bleibt offen und an der Zeile, Info-Meldungen leise (SelfTest.Round38a.cs)
+			case 115: if (HudNeuStage(_frame - _stageStart)) Next(); break;   // HUD-Neu: Daumenbogen, FEUER halten, Gruppen, ⚡, Einzeln, Leviathan, 7 mm, Menü (SelfTest.HudNeu.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)

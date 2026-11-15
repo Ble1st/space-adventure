@@ -173,8 +173,21 @@ public partial class UiCheck : Node
 		Add("flug-warnung", () => { _m.TestMenu("new:combat"); }, 40);
 		Add("flug-gefecht", () => { _m.TestSetFast(true); }, 120);
 		Add("flug-gefecht2", () => { _m.TestSetFast(false); }, 20);
+		// HUD-Neu: Leviathan (zehn Waffen) im Gefechtstest — Gruppen im Daumenbogen, dann die Einzelschächte aufgeklappt
+		Add("flug-leviathan", () =>
+		{
+			_m.TestMenu("new:combat");
+		}, 40);
+		Add("flug-leviathan2", () =>
+		{
+			var lev = u().ShipModels.Values.FirstOrDefault(m => m.ClassKey == "battlecruiser");
+			if (lev is not null) _m.TestUseModel(lev.Key);
+		}, 40);
+		Add("flug-leviathan-einzeln", () => { _m.HudRef.Flight.TestExpanded = true; }, 20);
+		Add("flug-leviathan-einzeln2", () => { }, 6);
 		Add("flug-stationsangriff", () =>
 		{
+			_m.HudRef.Flight.TestExpanded = false;
 			_m.TestMenu("new:war");
 		}, 40);
 		// Runde 37b (A4): gewählte Station vor dem Angriff („Station angreifen“ sichtbar, nicht scharf)
@@ -198,7 +211,7 @@ public partial class UiCheck : Node
 		if (_state.Length > 0)
 		{
 			// Zustand vermessen und abbilden
-			if (!_skip && !_state.EndsWith("-open") && _state != "flug-automining" && _state != "flug-gefecht" && _state != "flug-stationsangriff")
+			if (!_skip && !_state.EndsWith("-open") && _state != "flug-automining" && _state != "flug-gefecht" && _state != "flug-stationsangriff" && _state != "flug-leviathan" && _state != "flug-leviathan-einzeln")
 			{
 				// Runde 34b (Prüfung B5): messen, bis zwei aufeinanderfolgende Messungen (Abstand 6 Bilder) dieselbe Zahl sichtbarer und interaktiver Elemente haben —
 				// höchstens 8 Versuche, sonst „instabil“ (vorher wurde von zwei Messungen die „ruhigere“ genommen, das konnte ein halb aufgebauter Zustand sein)
@@ -397,7 +410,7 @@ public partial class UiCheck : Node
 		return _m.HudRef.Screens.Current is Control sc && sc.IsVisibleInTree() && sc != (Control)_m.HudRef.Flight ? sc : null;
 	}
 
-	public static bool Interactive(Control c) => c is KitButton or SpaceAdventure.Ui.TouchButton or KitSlider or BaseButton or LineEdit;
+	public static bool Interactive(Control c) => c is KitButton or SpaceAdventure.Ui.TouchButton or KitSlider or KitVSlider or BaseButton or LineEdit;
 
 	public static IEnumerable<Control> Visible(Node n)
 	{

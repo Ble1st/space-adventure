@@ -125,15 +125,13 @@ public partial class Main : Node3D
 		_hud.TargetEdge = TargetEdge;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
 		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
-		_hud.Flight.FastPressed += () => { _fast = _hud.Flight.FastOn; _sfx.Play(SfxId.Click); };
 		_hud.Flight.AutopilotPressed += ToggleAutopilot;
 		_hud.Flight.AutoMinePressed += () => SetAutoMining(_hud.Flight.AutoMineOn);
 		_hud.Flight.ContextPressed += ContextAction;
-		_hud.Flight.CommandPressed += () => { _hud.Map.Visible = false; OpenCcArea(CommandAreas.Universe); };
 		_hud.Flight.SetCommandBadge(UiPlaceholders.CommsUnread);
 		_hud.Flight.BayDown += OnBayDown;
 		_hud.Flight.AllFire += () => FireReadyBays();
-		_hud.Flight.MoreBaysDown += from => FireReadyBays(from);   // Runde 33b: Sammeltaste „+n weitere“ (Leviathan)
+		_hud.Flight.GroupDown += OnGroupDown;   // HUD-Neu: Gruppenknopf im Daumenbogen
 		// Phase 25: Dauerfeuer und „Nächster Gegner“
 		_hud.Flight.AutoFirePressed += () =>
 		{
@@ -695,6 +693,9 @@ public partial class Main : Node3D
 			// Runde 33 (Handytest A15: „UI-Größe“ im Menü ohne Wirkung): dieselbe Ursache — die Aktion kam hier an und fiel in den default-Zweig (kein
 			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
 			case "ui_size": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("ui_size"); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
+			// HUD-Neu: Kommandozentrale und Zeitraffer stehen im Menü (vorher eigene Tasten oben rechts)
+			case "command": _sfx.Play(SfxId.Click); _hud.Map.Visible = false; OpenCcArea(CommandAreas.Universe); break;
+			case "fast": _sfx.Play(SfxId.Click); _fast = !_fast; _hud.Command.SetFast(_fast); _hud.Toast(_fast ? "Zeitraffer ×10 an" : "Zeitraffer aus (×1)"); break;
 			case "cam_debug": _camDebug = !_camDebug; _hud.SetDebugLine(_camDebug ? CameraDebugLine() : null); _hud.Toast(_camDebug ? "Kamera-Diagnose an" : "Kamera-Diagnose aus"); break;   // Runde 16
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
@@ -864,6 +865,8 @@ public partial class Main : Node3D
 		_hud.Command.SetCameraState(_orbit.Mode == CameraMode.TargetLock, _orbit.InvertDrag, _orbit.Distance, LockTargetPosition() != null);
 		_hud.Command.SetFuelActive(_session.U.Rules.FuelActive);   // Phase 14: Notruf nur mit Treibstoff
 		_hud.Command.SetAudioState();   // Runde 12: Ton-Schalter
+		_hud.Command.SetFast(_fast);   // HUD-Neu
+		_hud.Command.SetCommsBadge(UiPlaceholders.CommsUnread);
 	}
 
 	const float MenuZoomStep = 0.85f;
@@ -2447,6 +2450,24 @@ public partial class Main : Node3D
 		d.ReadyBays = ready;
 		d.FireBays = fire;
 		d.InCombat = _session.U.Fights.Of(PlayerData.Id) is not null;   // Runde 34b: Schicht im Gefecht festhalten
+		// HUD-Neu: Gruppen des Daumenbogens (Core: BayGroups) mit ihrem Zustand aus den Schachtzuständen
+		_groups = SpaceSim.Core.Weapons.BayGroups.Of(_session.U, PlayerData, bays);
+		var gv = new List<GroupView>(_groups.Count);
+		foreach (var g in _groups)
+		{
+			if (!g.Combat)
+			{
+				var v = _bayViews[g.Members[0]];
+				gv.Add(new GroupView { Label = v.Name, Sub = v.Detail, State = v.State, Reload = v.Reload, Combat = false, On = bays[g.Members[0]].Key == "tractor" && _tractorOn });
+				continue;
+			}
+			int rdy = g.Members.Count(m => _bayStates[m] == BayState.Ready);
+			BayState st = rdy > 0 ? BayState.Ready : g.Members.Any(m => _bayStates[m] == BayState.OutsideArc) ? BayState.OutsideArc
+				: g.Members.Any(m => _bayStates[m] == BayState.Reloading) ? BayState.Reloading : g.Members.All(m => _bayStates[m] == BayState.NoAmmo) ? BayState.NoAmmo : BayState.NoTarget;
+			float rel = g.Members.Max(m => _bayViews[m].Reload);
+			gv.Add(new GroupView { Label = g.Label, Sub = $"{rdy}/{g.Members.Count} bereit", State = st, Reload = rel, Combat = true });
+		}
+		d.Groups = gv;
 
 		_hud.Flight.Refresh(d);
 	}
@@ -2565,6 +2586,15 @@ public partial class Main : Node3D
 	/// </summary>
 	public static string ShortBayName(string name)
 	{
+		// HUD-Neu: Größen-/Stufenzusatz („Laserkanone M“, „… Mk2“) bleibt erhalten, gekürzt wird das Wort davor → „Laser M“
+		int sp = name.LastIndexOf(' ');
+		if (sp > 0 && name.Length - sp - 1 is >= 1 and <= 3 && name.Length > 9)
+		{
+			string tier = name[(sp + 1)..] switch { "Mk2" => "II", "Mk3" => "III", "Mk4" => "IV", var t => t };
+			string head = ShortBayName(name[..sp]);
+			if (head == "Raketen") head = "Rakete";
+			return head + " " + tier;
+		}
 		if (name.Length > 13 && name.LastIndexOf(' ') > 0) name = name[(name.LastIndexOf(' ') + 1)..];
 		foreach (var suffix in new[] { "kanone", "geschütz", "werfer" })
 			if (name.Length > 9 && name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && name.Length - suffix.Length >= 3) return name[..^suffix.Length];
@@ -2661,6 +2691,29 @@ public partial class Main : Node3D
 		_hud.Toast(_salvage.LastMessage);
 		return ok;
 	}
+
+	/// <summary>
+	/// HUD-Neu: Gruppenknopf — eine Kampfgruppe feuert alle ihre bereiten Schächte (dieselbe Regel wie FEUER, <see cref="WeaponBays.ReadyToFire"/>, auf die
+	/// Gruppe beschränkt); eine Bergbaugruppe wirkt wie ihr einziger Schacht (Laser, Traktor, Bohrer/Anker, Spalter, Bergen).
+	/// </summary>
+	void OnGroupDown(int index)
+	{
+		if (index < 0 || index >= _groups.Count) return;
+		var g = _groups[index];
+		if (!g.Combat) { OnBayDown(g.Members[0]); return; }
+		if (_docked != null || _hud.AnyModalOpen) return;
+		var members = new HashSet<int>(g.Members);
+		bool any = false;
+		foreach (int i in WeaponBays.ReadyToFire(_bays, _bayStates))
+			if (members.Contains(i) && SpaceSim.Core.Combat.PlayerGunnery.SlotOf(_bays[i].Key) is int ws and >= 0 && FireWeapon(ws, quiet: true)) any = true;
+		if (!any) Hint($"{g.Label}: keine Waffe bereit und im Winkel");
+		LastGroupFired = any ? g.Label : "";
+	}
+	List<SpaceSim.Core.Weapons.BayGroup> _groups = new();
+	/// <summary>Selbsttest: zuletzt gefeuerte Gruppe („“ = keine) und Gruppen.</summary>
+	internal string LastGroupFired { get; private set; } = "";
+	internal IReadOnlyList<SpaceSim.Core.Weapons.BayGroup> TestGroups => _groups;
+	internal void TestGroupDown(int i) => OnGroupDown(i);
 
 	/// <summary>„Alle Feuer“: löst nur bereite Waffen im Winkel aus (hier: der Laser).</summary>
 	void FireReadyBays(int from = 0)
@@ -2859,6 +2912,7 @@ public partial class Main : Node3D
 
 	void Hint(string text)
 	{
+		TestLastHint = text;
 		if (_hintCooldown > 0f) return;
 		_hintCooldown = 1.5f;
 		_hud.Toast(text, 1.5f);
@@ -3046,6 +3100,20 @@ public partial class Main : Node3D
 	/// <summary>Geschwindigkeit entlang der Schiffsnase (negativ = rückwärts).</summary>
 	internal float TestForwardSpeed => _player.Velocity.Dot(Vector3.Forward.Rotated(Vector3.Up, _player.Heading));
 	/// <summary>Phase 29: Werkzeugslot des aktiven Schiffs auf ein Modul setzen (Selbsttest: Laserstufen mit dem Mk1-Laser, danach zurück zum Bohrkopf).</summary>
+	/// <summary>HUD-Neu (Prüfwerkzeug, Bilder): das aktive Schiff auf ein anderes Modell umrüsten (Slots, Fit, Werte) — z. B. den Leviathan mit zehn Waffen.</summary>
+	internal void TestUseModel(string modelKey)
+	{
+		var u = _session.U;
+		if (!u.ShipModels.TryGetValue(modelKey, out var m)) return;
+		var ship = PlayerData;
+		ship.ModelKey = m.Key;
+		ship.Slots = u.ShipClasses[m.ClassKey].Slots.ToList();
+		ship.Fit = m.Fit.ToList();
+		ship.RecomputeStats(u);
+		ship.CargoCapacity = ship.Stats.Cargo;
+		ship.Hull = ship.MaxHull;
+	}
+
 	internal void TestSetTool(string module)
 	{
 		var ship = PlayerData;
@@ -3121,6 +3189,8 @@ public partial class Main : Node3D
 	/// <summary>Gerätetest: Zeitraffer setzen/lesen (Selbsttest der automatischen Abschaltung bei Gefahr).</summary>
 	internal void TestSetFast(bool on) => _fast = on;
 	internal bool TestFast => _fast;
+	/// <summary>HUD-Neu, Selbsttest: zuletzt angeforderter Hinweis (auch wenn er wegen der Sperre nicht gezeigt wurde).</summary>
+	internal string TestLastHint { get; private set; } = "";
 	internal bool TestAutopilotOn => _autopilot;
 	internal IReadOnlyList<WeaponBay> TestBays => _bays;
 	/// <summary>Runde 8: Selbsttest — die Sektoransicht (Stationsmodelle).</summary>

@@ -47,8 +47,15 @@ public partial class SelfTest
 		return true;
 	}
 
+	/// <summary>HUD-Neu: alte Beschriftungen der Flugtasten → neue Symboltasten (gleiche Funktion).</summary>
+	internal static string HudAlias(string label) => label switch
+	{
+		"Nächster Gegner" => "⊕", "Dauerfeuer" => "↻", "Ziel folgen" => "◎", "Ergeben" => "⚑", _ => label,
+	};
+
 	static Ui.Kit.KitButton? FindKit(Node root, string label)
 	{
+		label = HudAlias(label);
 		foreach (var c in root.GetChildren())
 		{
 			if (c is Ui.Kit.KitButton b && b.Text == label && b.IsVisibleInTree()) return b;
@@ -185,7 +192,7 @@ public partial class SelfTest
 				Check(_m.TestFraming, $"Stationsangriff: Gefechtskamera aktiv ({_m.TestFramingDebug})");
 				ShipInField("Stationsangriff");
 				var hw = new Vector3(hq.Position.X, 0f, hq.Position.Y);
-				Check(OnScreen(hw), $"Stationsangriff: HQ im Bild ({_m.TestCam.UnprojectPosition(hw)}; beide {_m.TestFramingBoth}; {_m.TestFrameDebug}; HQ {hw})");
+				Check(OnScreen(hw), $"Stationsangriff: HQ im Bild ({_m.TestCam.UnprojectPosition(hw)}; beide {_m.TestFramingBoth}; {_m.TestFrameDebug}; HQ {hw}; Feld {_m.FreeFieldPixels()}; Meldung {_m.HudRef.AlertRect} „{_m.HudRef.TestAlert}“; Bild {GetViewport().GetVisibleRect().Size}; belegt {string.Join(" ", _m.HudRef.Flight.OccupiedRects())})");
 				_m.SyncHudForTest();
 				Check(_m.HudRef.Flight.TestTargetLinesComplete, $"Zielkarte Stationsangriff vollständig ({_m.HudRef.Flight.TestTargetArc} | {_m.HudRef.Flight.TestTargetCombat})");
 				_m.TestFight.AutoFire = false;

@@ -482,10 +482,11 @@ public partial class Hud : CanvasLayer
 	(Vector2, string, int, float) _toastKey;
 	SpaceSim.Core.Ui.UiRect? _toastSpot;
 	int _toastFs = 22;
+	// HUD-Neu: unten mittig zwischen Wendetasten und Daumenbogen (y 598 bei 720) — höher lag sie mitten im freien Feld der Gefechtskamera
 	// Runde 12 (Handy-Test: Meldung und Beschusszeile verdeckten den Gegner vor dem Bug): im Flug unten mittig über dem Tempo-Regler — hinter dem eigenen
 	// Schiff, dort steht im Gefecht kein Gegner (die Kamera blickt über das Heck nach vorn); oben bleibt die Bildmitte frei
 	const float FlightAlertWidth = 536f;
-	const float FlightAlertY = 508f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
+	const float FlightAlertY = 598f, ScreenAlertX = 420f, ScreenAlertWidth = 600f, ScreenAlertHeight = 56f;
 
 	/// <summary>Runde 14: Fläche der Meldung im Flug (für das freie Feld der Gefechtskamera); null = keine sichtbar oder nicht im Flug.</summary>
 	/// <summary>Runde 17: Fläche der sichtbaren Kurzmeldung (Randpfeil-Beschriftungen weichen ihr aus); null = keine.</summary>
@@ -790,6 +791,11 @@ public partial class Hud : CanvasLayer
 				var (label, lfs) = UiKit.FitText(this, font, bare, 13, 190f);
 				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
 				var lp = tip - dir * 30f - new Vector2(w / 2f, -4f);
+				// HUD-Neu: rechts reicht das freie Feld bis an den Bildrand — den Namen in die sichere Fläche schieben (lief rechts aus dem Bild)
+				{
+					var si2 = UiScale.SafeInsets1(); var vs2 = GetViewportRect().Size;
+					lp.X = Mathf.Clamp(lp.X, si2.Left + 6f, MathF.Max(si2.Left + 6f, vs2.X - si2.Right - 6f - w));
+				}
 				var box = new Rect2(lp - new Vector2(4f, 13f), new Vector2(w + 8f, 18f));
 				// Namen nur, wo sie nicht über einem schon gezeichneten Namen liegen (der Pfeil bleibt)
 				if (!_labelBoxes.Exists(b => b.Intersects(box)) && !occupied.Exists(r => r.Intersects(box)))

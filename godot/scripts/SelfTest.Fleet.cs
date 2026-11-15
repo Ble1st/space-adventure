@@ -100,8 +100,10 @@ public partial class SelfTest
 				return false;
 			}
 			case 22: _m.TestUndock(); return false;
-			case 23: _flTaps = 0; PressButton(_m.HudRef.Flight, "Kommando", true); _flTaps++; return false;
-			case 24: PressButton(_m.HudRef.Flight, "Kommando", false); return false;
+			// HUD-Neu: „Kommando“ liegt im Hamburger-Menü (vorher eigene Flugtaste) — ein Tipp mehr
+			case 23: _flTaps = 1; _m.TestOpenCommand(); return false;
+			case 24: PressButton(_m.HudRef.Command, "Kommando", true); _flTaps++; return false;
+			case 25: PressButton(_m.HudRef.Command, "Kommando", false); return false;
 			case 26: PressButton(cc, "Flotte", true); _flTaps++; return false;
 			case 27: PressButton(cc, "Flotte", false); return false;
 			case 29:

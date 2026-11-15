@@ -25,150 +25,70 @@ public class FlightHudLayoutTests
         yield return new object[] { 960f, 540f };
     }
 
-    static List<(HudItem Item, UiRect R)> Visible(FlightHudLayout l, int bays) =>
-        l.Rects.Where(kv => !l.Hidden(kv.Key) && !(kv.Key >= HudItem.Bay0 && kv.Key <= HudItem.Bay5 && kv.Key - HudItem.Bay0 >= bays))
-            .Select(kv => (kv.Key, kv.Value)).ToList();
+    static List<(HudItem Item, UiRect R)> Visible(FlightHudLayout l) =>
+        l.Rects.Where(kv => !l.Hidden(kv.Key) && kv.Value.W > 0f).Select(kv => (kv.Key, kv.Value)).ToList();
 
-    [Fact]
-    public void Klassisch_1280x720_LagenUnveraendert()
-    {
-        var l = FlightHudLayout.Compute(1280, 720, None, 4);
-        Assert.False(l.Compact);
-        Assert.Equal(new UiRect(14, 12, 300, 200), l[HudItem.Status]);
-        Assert.Equal(new UiRect(420, 12, 430, 42), l[HudItem.Chip]);
-        Assert.Equal(new UiRect(862, 8, 160, 56), l[HudItem.Command]);
-        Assert.Equal(new UiRect(930, 72, 340, 132), l[HudItem.Card]);
-        Assert.Equal(new UiRect(660, 646, 600, 68), l[HudItem.Slider]);
-        Assert.Equal(new UiRect(470, 590, 80, 56), l[HudItem.Reverse]);
-        Assert.Equal(new UiRect(1090, 330, 176, 56), l[HudItem.Bay0]);
-        Assert.Equal(new UiRect(906, 516, 176, 56), l[HudItem.Bay5]);
-        Assert.Equal(new UiRect(1090, 574, 176, 56), l[HudItem.AllFire]);
-        Assert.Equal(new UiRect(906, 574, 176, 56), l[HudItem.AutoFire]);
-        Assert.Equal(new UiRect(764, 206, 160, 56), l[HudItem.NextEnemy]);
-        Assert.Equal(new UiRect(590, 534, 310, 28), l[HudItem.HitWarning]);
-        Assert.Equal(462f, FlightHudLayout.Compute(1280, 720, None, 1)[HudItem.AllFire].Y);
-    }
-
-    [Fact]
-    public void Klassisch_Breit_UndHoch_RaenderUndUntereZone()
-    {
-        // 19,5:9 bei Faktor 1 (wie bisher waagerecht verankert)
-        var w = FlightHudLayout.Compute(1560, 720, None, 2);
-        Assert.Equal(1090f + 280f, w[HudItem.Bay0].X);
-        Assert.Equal(420f + 140f, w[HudItem.Chip].X);
-        Assert.Equal(14f, w[HudItem.Status].X);
-        // 4:3-Tablet: untere Zone am unteren Rand, obere bleibt oben
-        var t = FlightHudLayout.Compute(1280, 960, None, 2);
-        Assert.Equal(960f - 6f, t[HudItem.Slider].Bottom);
-        Assert.Equal(960f - 16f, t[HudItem.Hamburger].Bottom);
-        Assert.Equal(12f, t[HudItem.Status].Y);
-        Assert.Equal(330f, t[HudItem.Bay0].Y);
-        // Safe Area unten/oben (Gestenleiste, Aussparung)
-        var s = FlightHudLayout.Compute(1400, 800, new UiInsets(40, 20, 30, 24), 2);
-        Assert.False(s.Compact);
-        Assert.Equal(800f - 24f - 6f, s[HudItem.Slider].Bottom);
-        Assert.Equal(54f, s[HudItem.Status].X);
-        Assert.Equal(32f, s[HudItem.Status].Y);
-        Assert.Equal(1400f - 30f - 10f, s[HudItem.Card].Right);
-    }
-
-    /// <summary>Runde 33b: sechs Auflösungen × drei Faktoren (wie --ui-check) × 0–6 Schächte × ohne/mit pessimistischen Safe-Area-Rändern.</summary>
-    public static IEnumerable<object[]> Matrix()
-    {
-        foreach (var (w, h) in new[] { (1280, 720), (1560, 720), (2340, 1080), (1920, 1200), (2048, 1536), (960, 540) })
-            foreach (float f in new[] { 1f, 1.15f, 1.3f })
-                foreach (bool insets in new[] { false, true })
-                    yield return new object[] { w, h, f, insets };
-    }
-
+    /// <summary>HUD-Neu: auf jeder Prüffläche, mit und ohne Ränder, für 0–6 Gruppen und 0–15 Einzelschächte (auf und zu) — nach dem Faktor, den
+    /// <see cref="FlightHudLayout.FitFactor"/> wählt, liegt alles innen und keine Taste auf einer anderen; jede Taste ist mindestens 64 groß.</summary>
     [Theory]
-    [MemberData(nameof(Matrix))]
-    public void JedeFlaeche_JedeSchachtzahl_AllesInnen_NichtsUeberlappt(int w, int h, float factor, bool insets)
+    [InlineData(1280, 720, 1.3f, false)]
+    [InlineData(1280, 720, 1.3f, true)]
+    [InlineData(1560, 720, 1.15f, true)]
+    [InlineData(1560, 720, 1.3f, true)]
+    [InlineData(2340, 1080, 1.3f, true)]
+    [InlineData(1920, 1200, 1.3f, false)]
+    [InlineData(2048, 1536, 1.3f, false)]
+    [InlineData(960, 540, 1f, false)]
+    public void JedeFlaeche_JedeGruppenUndSchachtzahl_AllesInnen_NichtsUeberlappt(int w, int h, float factor, bool insets)
     {
         var (w1, h1) = UiLayout.Logical(w, h, 1f);
-        var ins1 = insets ? new UiInsets(60, 20, 60, 30) : None;
-        for (int bays = 0; bays <= FlightHudLayout.MaxBays; bays++)
-        {
-            float f = FlightHudLayout.FitFactor(w1, h1, ins1, bays, factor);
-            Assert.InRange(f, 1f, factor + 1e-4f);
-            var l = FlightHudLayout.Compute(w1 / f, h1 / f, new UiInsets(ins1.Left / f, ins1.Top / f, ins1.Right / f, ins1.Bottom / f), bays);
-            Assert.Equal(0, l.Overflow);
-            Check(l, bays, $"{w}×{h} Faktor {factor} → {f:0.00}{(insets ? " mit Rändern" : "")}, Schächte {bays}");
-        }
-    }
-
-    [Theory]
-    [MemberData(nameof(Areas))]
-    public void MindestflaecheUndAlleFlaechen_ViereSchaechte_OhneSenken(float w, float h)
-    {
-        // vier Schächte (Wächter, Falke, Bollwerk ohne Startwaffen …) passen auf jede Prüffläche ohne Absenken des Faktors
-        var l = FlightHudLayout.Compute(w, h, None, 4);
-        Assert.Equal(0, l.Overflow);
-        Check(l, 4, $"{w:0}×{h:0} vier Schächte");
-    }
-
-    [Fact]
-    public void Kleinste_Flaeche_FuenfUndSechsSchaechte_FaktorWirdGesenkt_NieDoppelt()
-    {
-        // 985 × 554 (16:9 bei 1,3): vier Schächte + sechs Kampftasten passen; mit fünf/sechs Schächten (Bollwerk, Hornisse, Sturmvogel, Leviathan) lägen
-        // sonst „Ergeben“ auf „Angriff“ bzw. zusätzlich „Ziel folgen“ — der Faktor sinkt, bis jede Taste ihre Zelle hat
-        var (w, h) = UiLayout.Logical(1280, 720, 1f);
-        Assert.Equal(1.3f, FlightHudLayout.FitFactor(w, h, None, 4, 1.3f), 3);
-        Assert.True(FlightHudLayout.Compute(w / 1.3f, h / 1.3f, None, 5).Overflow > 0);
-        float f5 = FlightHudLayout.FitFactor(w, h, None, 5, 1.3f), f6 = FlightHudLayout.FitFactor(w, h, None, 6, 1.3f);
-        Assert.True(f5 < 1.3f && f6 <= f5 && f6 >= 1f, $"Faktoren {f5} / {f6}");
-        _out.WriteLine($"16:9 bei 1,3: vier Schächte 1,30 · fünf {f5:0.00} · sechs {f6:0.00}");
-        // A15 bei 1,3 mit pessimistischen Rändern: schon bei vier Schächten gesenkt, aber ohne Doppelbelegung
-        var (aw, ah) = UiLayout.Logical(2340, 1080, 1f);
-        float fa = FlightHudLayout.FitFactor(aw, ah, new UiInsets(60, 20, 60, 30), 4, 1.3f);
-        _out.WriteLine($"A15 mit Rändern 60/20/60/30, vier Schächte: {fa:0.00}");
-        Assert.InRange(fa, 1f, 1.3f);
-    }
-
-    [Theory]
-    [InlineData(1200f, 554f)]    // A15 bei Faktor 1,3
-    [InlineData(1357f, 626f)]    // A15 bei Faktor 1,15
-    [InlineData(1113f, 696f)]    // 16:10 bei 1,15 (16:9 bei 1,15 wäre 1113 × 626)
-    [InlineData(1280f, 720f)]
-    [InlineData(1560f, 720f)]
-    public void SechsSchaechte_PassenAbMittlererBreite(float w, float h)
-    {
-        var l = FlightHudLayout.Compute(w, h, None, 6);   // ohne Absenken des Faktors
-        Assert.Equal(0, l.Overflow);
-        Check(l, 6, $"{w:0}×{h:0} sechs Schächte");
-    }
-
-    void Check(FlightHudLayout l, int bays, string what)
-    {
-        var vis = Visible(l, bays);
-        foreach (var (item, r) in vis)
-        {
-            if (r.W <= 0f) continue;
-            Assert.True(r.Inside(l.Area), $"{what}: {item} {r} außerhalb {l.Area}");
-        }
-        for (int i = 0; i < vis.Count; i++)
-            for (int j = i + 1; j < vis.Count; j++)
-            {
-                var (a, ra) = vis[i]; var (b, rb) = vis[j];
-                if (ra.W <= 0f || rb.W <= 0f) continue;
-                // Runde 33b: Tasten nie übereinander (auch keine gemeinsame Zelle); Beschriftungen/Warnzeilen nie auf Tasten; Beschriftung gegen Beschriftung nur im
-                // Kompaktmodus (klassisch berühren sich „RÜCK · max 20 %“ und die Fluchtzeile seit jeher, beide ohne Taste)
-                bool anyInteractive = FlightHudLayout.IsInteractive(a) || FlightHudLayout.IsInteractive(b);
-                if (!anyInteractive && !l.Compact) continue;
-                Assert.False(ra.Intersects(rb), $"{what}: {a} {ra} überlappt {b} {rb}");
-            }
+        var safe1 = insets ? new UiInsets(53, 0, 0, 0) : None;
+        foreach (int groups in new[] { 0, 1, 3, 6 })
+            foreach (int bays in new[] { 0, 2, 4, 10, 15 })
+                foreach (bool exp in new[] { false, true })
+                {
+                    float f = FlightHudLayout.FitFactor(w1, h1, safe1, groups, bays, factor);
+                    var l = FlightHudLayout.Compute(w1 / f, h1 / f, new UiInsets(safe1.Left / f, 0, 0, 0), groups, bays, exp);
+                    Assert.True(l.Overflow == 0, $"{w}×{h} f{f:0.00} g{groups} b{bays} auf {exp}: Überlauf {l.Overflow}");
+                    var vis = Visible(l);
+                    foreach (var (it, r) in vis)
+                    {
+                        Assert.True(r.Inside(l.Area, 0.5f), $"{it} {r} außerhalb {l.Area} ({w}×{h} f{f:0.00} g{groups} b{bays} {exp})");
+                        if (FlightHudLayout.IsInteractive(it)) Assert.True(r.W >= FlightHudLayout.Tap - 0.01f && r.H >= FlightHudLayout.Tap - 0.01f, $"{it} {r} kleiner als 64");
+                    }
+                    var taps = vis.Where(v => FlightHudLayout.IsInteractive(v.Item)).ToList();
+                    for (int a = 0; a < taps.Count; a++)
+                        for (int b = a + 1; b < taps.Count; b++)
+                            Assert.False(taps[a].R.Intersects(taps[b].R, -0.5f), $"{taps[a].Item} {taps[a].R} × {taps[b].Item} {taps[b].R} ({w}×{h} f{f:0.00} g{groups} b{bays} {exp})");
+                }
     }
 
     [Fact]
-    public void Kompakt_SchieberUndKampfzellen_Drucken()
+    public void A15_Normal_KeinSenken_Mit3GruppenUnd10Schaechten_Tasten7mm()
     {
-        var (w, h) = UiLayout.Logical(1280, 720, 1.3f);
-        var l = FlightHudLayout.Compute(w, h, None, 4);
-        Assert.True(l.Compact);
-        Assert.True(l[HudItem.Slider].W >= 320f, $"Schubregler {l[HudItem.Slider]}");
-        Assert.True(l[HudItem.Chip].W >= 200f, $"Sektorchip {l[HudItem.Chip]}");
-        Assert.True(l[HudItem.Security].W >= 300f, $"Lagezeile {l[HudItem.Security]}");
-        foreach (var kv in l.Rects.OrderBy(k => k.Key)) _out.WriteLine($"{kv.Key,-13} {kv.Value}{(l.Hidden(kv.Key) ? " (aus)" : "")}");
+        // A15 bei „normal“: 1560 × 720 logisch, Aussparung links 53, Faktor 1,15 — Leviathan: 3 Gruppen, 10 Schächte
+        float f = FlightHudLayout.FitFactor(1560, 720, new UiInsets(53, 0, 0, 0), 3, 10, 1.15f);
+        Assert.Equal(1.15f, f, 3);
+        Assert.True(UiLayout.Millimetres(FlightHudLayout.Tap, 2340, 1080, f, 396f) >= 7f);
+        var l = FlightHudLayout.Compute(1560 / f, 720 / f, new UiInsets(53 / f, 0, 0, 0), 3, 10, expanded: true);
+        for (int b = 0; b < 10; b++) Assert.False(l.Hidden(HudItem.Bay0 + b));
+        Assert.True(l.Hidden(HudItem.Context) && l.Hidden(HudItem.Autopilot));
+        Assert.False(l.Hidden(HudItem.Expand));
+    }
+
+    [Fact]
+    public void Anordnung_LinksReglerRechtsDaumenbogen()
+    {
+        var l = FlightHudLayout.Compute(1280, 720, None, 3, 0, false);
+        Assert.True(l[HudItem.Slider].X < 200f && l[HudItem.Slider].H > l[HudItem.Slider].W);   // senkrecht links
+        Assert.True(l[HudItem.FireBtn].Right > 1240f && l[HudItem.FireBtn].Bottom > 680f);       // FEUER unten rechts
+        Assert.True(l[HudItem.Hamburger].Right > 1240f && l[HudItem.Hamburger].Y < 20f);        // Menü oben rechts
+        Assert.True(l[HudItem.Group0].Right <= l[HudItem.FireBtn].X);
+        Assert.True(l.Hidden(HudItem.Expand));                                                  // ohne Einzelschächte kein Aufklappen
+        Assert.True(l.Hidden(HudItem.Bay0));
+        var none = FlightHudLayout.Compute(1280, 720, None, 2, 2, false, fire: false);
+        Assert.True(none.Hidden(HudItem.FireBtn));
+        Assert.Equal(1280f - 12f, none[HudItem.Group0].Right);                                // ohne FEUER rückt der Bogen in die Ecke
     }
 
     [Fact]

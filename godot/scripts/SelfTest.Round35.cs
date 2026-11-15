@@ -199,7 +199,7 @@ public partial class SelfTest
 				var u = _m.Session.U;
 				var ship = u.Ships[u.PlayerShip];
 				if (u.Fights.Of(ship.Id) is null) { Check(false, $"35b: Gefechtstest — kein Gefecht nach dem Zeitraffer (Tick {u.Tick}, Warnung {u.PendingEncounters.Count}, Schiff {ship.ModelKey}, Raids {u.Rules.PlayerRaids})"); return false; }
-				_r35Cells = hud.Flight.TestLayoutBays; _r35Scale = hud.Flight.Scale.X;
+				_r35Cells = hud.Flight.TestLayoutGroups; _r35Scale = hud.Flight.Scale.X;
 				int slot = Enumerable.Range(0, ship.Fit.Count).LastOrDefault(i => ship.Fit[i] is { } m && u.Modules.TryGetValue(m, out var md) && md.IsWeapon, -1);
 				if (slot < 0) { Check(false, "35b: keine Waffe am Falken"); return false; }
 				ship.Fit[slot] = null; ship.RecomputeStats(u);
@@ -208,8 +208,8 @@ public partial class SelfTest
 			case 212:
 			{
 				var u = _m.Session.U;
-				Check(u.Fights.Of(u.PlayerShip) is not null && hud.Flight.TestLayoutBays == _r35Cells && hud.Flight.Scale.X == _r35Scale,
-					$"35b: echtes Gefecht, Schacht fällt weg → Zellen {_r35Cells} → {hud.Flight.TestLayoutBays}, Schicht {_r35Scale:0.00} → {hud.Flight.Scale.X:0.00} (fest)");
+				Check(u.Fights.Of(u.PlayerShip) is not null && hud.Flight.TestLayoutGroups == _r35Cells && hud.Flight.Scale.X == _r35Scale,
+					$"35b: echtes Gefecht, Schacht fällt weg → Zellen {_r35Cells} → {hud.Flight.TestLayoutGroups}, Schicht {_r35Scale:0.00} → {hud.Flight.Scale.X:0.00} (fest)");
 				SpaceSim.Core.Combat.PlayerCombat.Withdraw(u);
 				foreach (var e in u.Fights.In(u.PlayerSector).ToList()) foreach (var p in e.Participants.Where(p => p.Active && p.Ship != u.PlayerShip).ToList()) SpaceSim.Core.Combat.Engage.Leave(u, e, p, SpaceSim.Core.Model.CombatExit.Fled);
 				return false;
@@ -217,8 +217,8 @@ public partial class SelfTest
 			case 240:
 			{
 				var u = _m.Session.U;
-				Check(u.Fights.Of(u.PlayerShip) is null && hud.Flight.TestLayoutBays < _r35Cells,
-					$"35b: Gefecht vorbei → Sperre gelöst (Zellen {_r35Cells} → {hud.Flight.TestLayoutBays})");
+				Check(u.Fights.Of(u.PlayerShip) is null && hud.Flight.TestLayoutGroups < _r35Cells,
+					$"35b: Gefecht vorbei → Sperre gelöst (Gruppen {_r35Cells} → {hud.Flight.TestLayoutGroups})");
 				UiScale.TestForce = null; UiScale.TestPpi = null; UiScale.Set(UiSize.Normal);
 				return false;
 			}

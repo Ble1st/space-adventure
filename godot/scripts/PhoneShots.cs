@@ -100,6 +100,7 @@ public partial class PhoneShots : Node
 
 	void Tap(string label, bool down)
 	{
+		label = SelfTest.HudAlias(label);
 		if (down) _press = Buttons(_m.HudRef.Flight).FirstOrDefault(b => b.Text == label && b.IsVisibleInTree())?.GetGlobalRect().GetCenter();
 		if (_press is not { } at) { GD.Print($"[phone-shots] Taste „{label}“ nicht gefunden"); return; }
 		var vp = GetViewport();

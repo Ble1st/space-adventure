@@ -21,6 +21,15 @@ public sealed class BayView
 	public float ArcDegrees;
 }
 
+/// <summary>HUD-Neu: Anzeigedaten eines Gruppenknopfs (Waffentyp oder einzelner Bergbauschacht).</summary>
+public sealed class GroupView
+{
+	public required string Label, Sub;
+	public required BayState State;
+	public float Reload;
+	public bool Combat, On;
+}
+
 /// <summary>Pro Frame vom Main gelieferte HUD-Daten – die Oberfläche folgt den Daten, sie kennt keine Spielregeln.</summary>
 public sealed class FlightHudData
 {
@@ -58,6 +67,8 @@ public sealed class FlightHudData
 	public string ContextLabel = "";    // "Andocken …" / "Springen …" / "" = versteckt
 	// Waffenschächte
 	public IReadOnlyList<BayView> Bays = Array.Empty<BayView>();
+	/// <summary>HUD-Neu: Gruppen des Daumenbogens (Kampfwaffen nach Typ, Bergbauschächte einzeln) — Anzeige aus <see cref="SpaceSim.Core.Weapons.BayGroups"/>.</summary>
+	public IReadOnlyList<GroupView> Groups = Array.Empty<GroupView>();
 	/// <summary>Runde 34b (Prüfung B6): Spieler im Gefecht — die Zahl der Schachtzellen (und damit der Faktor der Schicht) bleibt dann stehen, auch wenn ein
 	/// Waffenmodul ausfällt und sein Schacht verschwindet (Gunnery.WeaponAt liefert für ausgefallene Module null).</summary>
 	public bool InCombat;
@@ -116,20 +127,17 @@ public partial class FlightHud : Control, IScreen
 	public string TestCredits => _credits.Text;
 	public string TestSecurity => _security.Text;
 	/// <summary>Selbsttest (Gerätetest Phase 27): angezeigter Sektorname im Chip.</summary>
-	public string TestSectorChip => _sector.Text;
+	public string TestSectorChip => _sector.Text.Replace(" · ×10", "");   // HUD-Neu: „×10“ zeigt den Zeitraffer
 	public string Title => "Flug";
 	public Control Node => this;
 	public bool IsOpen => Visible;
 
-	public event Action? HamburgerPressed, MapPressed, FastPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire, CommandPressed;
+	public event Action? HamburgerPressed, MapPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire;
 	/// <summary>Finger auf einer Waffenschacht-Taste (Index in <see cref="FlightHudData.Bays"/>).</summary>
 	public event Action<int>? BayDown;
-	/// <summary>Runde 33b: Sammeltaste „+n weitere“ (Schächte ab Index) gedrückt.</summary>
-	public event Action<int>? MoreBaysDown;
-	int _bayMore;
-	/// <summary>Selbsttest/Prüfung: Text der sechsten Schachttaste (Sammeltaste) und ob gerade zusammengefasst wird.</summary>
+	/// <summary>HUD-Neu: Zahl der Gruppen/Schächte, nach der gerade gelegt ist (im Gefecht fest).</summary>
 	public int TestLayoutBays => _layoutBays;
-	public string TestBay6Text => _bayButtons.Count >= MaxBays ? _bayButtons[MaxBays - 1].Text : "";
+	public int TestLayoutGroups => _layoutGroups;
 	/// <summary>
 	/// Runde 33b: Bildschirmlage des eigenen Schiffs (Bildpunkte, null = hinter der Kamera) — Meldung/Hinweis meiden sie, das Prüfwerkzeug prüft, dass keine
 	/// HUD-Taste sie verdeckt.
@@ -211,9 +219,10 @@ public partial class FlightHud : Control, IScreen
 	public List<(string Name, Rect2 Rect)> TestCombatLayout(int bays)
 	{
 		var list = new List<(string, Rect2)>();
-		for (int i = 0; i < bays && i < _bayButtons.Count; i++) list.Add(($"Schacht {i + 1}", new Rect2(_bayButtons[i].Position, _bayButtons[i].Size)));
-		foreach (var (n, c) in new (string, Control)[] { ("Alle Feuer", _allFire), ("Dauerfeuer", _autoFire), ("Nächster Gegner", _nextEnemy), ("Station angreifen", _stationAttack),
-			("Ziel folgen", _aimAssist), ("Ergeben", _surrender), ("Beschusswarnung", _hitWarning), ("Fluchtzeile", _escape), ("Zielkarte", _tName.GetParent().GetParent<Control>()) })
+		for (int i = 0; i < bays && i < _bayButtons.Count; i++) if (_bayButtons[i].Visible) list.Add(($"Schacht {i + 1}", new Rect2(_bayButtons[i].Position, _bayButtons[i].Size)));
+		for (int i = 0; i < _groupButtons.Count; i++) if (_groupButtons[i].Visible) list.Add(($"Gruppe {_groupButtons[i].Text}", new Rect2(_groupButtons[i].Position, _groupButtons[i].Size)));
+		foreach (var (n, c) in new (string, Control)[] { ("FEUER", _allFire), ("Dauerfeuer", _autoFire), ("Nächster Gegner", _nextEnemy), ("Angriff", _stationAttack),
+			("Ziel folgen", _aimAssist), ("Ergeben", _surrender), ("Leistung", _power), ("Einzeln", _expand), ("Beschusswarnung", _hitWarning), ("Fluchtzeile", _escape), ("Zielkarte", _tName.GetParent().GetParent<Control>()) })
 			list.Add((n, new Rect2(c.Position, c.Size)));
 		return list;
 	}
@@ -269,7 +278,6 @@ public partial class FlightHud : Control, IScreen
 	KitBar _hullBar = null!, _fuelBar = null!, _shieldBar = null!, _powerBar = null!;
 	Label _fuelVal = null!, _shieldVal = null!, _powerVal = null!;
 	// Phase 23: Leistungsverteilung
-	readonly Dictionary<PowerMode, KitButton> _modeButtons = new();
 	/// <summary>Selbsttest: angezeigte Schild- und Leistungswerte, aktive Stellung.</summary>
 	public string TestShieldText => _shieldVal.Text;
 	public string TestPowerText => _powerVal.Text;
@@ -296,7 +304,7 @@ public partial class FlightHud : Control, IScreen
 	public List<Rect2> OccupiedLocal(bool interactiveOnly = false, bool importantOnly = false)
 	{
 		var list = interactiveOnly
-			? GetChildren().OfType<Control>().Where(c => c.Visible && c is KitButton or KitSlider && c.Size.X > 4f).Select(c => c.GetGlobalRect().Grow(6f)).ToList()
+			? GetChildren().OfType<Control>().Where(c => c.Visible && c is KitButton or KitSlider or KitVSlider && c.Size.X > 4f).Select(c => c.GetGlobalRect().Grow(6f)).ToList()
 			: importantOnly
 				// Runde 35b: alles außer Sektorchip und Lagezeile — die darf eine Meldung im Notfall kurz überdecken (Status, Beschuss-/Fluchtzeile, Zielkarte nie)
 				? GetChildren().OfType<Control>().Where(c => c.Visible && c != _chip && c != _security && c.Size.X > 4f && c.Size.Y > 4f
@@ -312,16 +320,18 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Selbsttest: Größe und Lage einer Verteilungstaste (Mindest-Trefferfläche, keine Überdeckung).</summary>
 	/// <summary>Runde 17: linke Spalte unter den Leistungstasten (Platz für Hinweise im Gefecht) — Bildschirmkoordinaten.</summary>
 	/// <summary>Runde 33: in Einheiten der Schicht (wie Meldung/Hinweis im Flug).</summary>
-	public float LeftColumnX() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.Position.X : 14f;
-	public float LeftColumnTop() => _modeButtons.TryGetValue(PowerMode.Weapons, out var b) ? b.Position.Y + b.Size.Y + 40f : 300f;
-	public Rect2 TestModeRect(PowerMode m) => new(_modeButtons[m].Position, _modeButtons[m].Size);
+	public float LeftColumnX() => _slider is null ? 112f : _slider.Position.X + _slider.Size.X + 12f;   // HUD-Neu: rechts neben dem Regler, unter dem Status
+	public float LeftColumnTop() => _status is null ? 160f : Layout is { ChipBelowStatus: true } cl ? cl[HudItem.Fire].Bottom + 12f : _status.Position.Y + _status.Size.Y + 12f;   // schmal: unter dem Chipblock
+	public Rect2 TestModeRect(PowerMode m) => new(_power.Position, _power.Size);   // HUD-Neu: eine Taste ⚡ für alle Stellungen
 	Control _fuelRow = null!;
 	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>
 	public bool TestFuelVisible => _fuelRow.Visible;
 	Label _hullVal = null!;
 	Label _powerInfo = null!;
 	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!, _fire = null!;
-	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
+	KitButton _mapBtn = null!;
+	bool _fastOn;
+	int _menuBadge;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
 
@@ -347,8 +357,8 @@ public partial class FlightHud : Control, IScreen
 	KitButton _autopilotBtn = null!, _autoMineBtn = null!, _contextBtn = null!;
 	// unten links
 	KitButton _turnL = null!, _turnR = null!, _reverse = null!, _hamburger = null!;
-	// Slider
-	KitSlider _slider = null!;
+	// Slider (HUD-Neu: senkrecht links)
+	KitVSlider _slider = null!;
 	// Waffenschächte
 	readonly List<KitButton> _bayButtons = new();
 	KitButton _allFire = null!;
@@ -372,14 +382,10 @@ public partial class FlightHud : Control, IScreen
 	public float SliderValue => _slider.Value;
 	public bool AutopilotOn => _autopilotBtn.On;
 	public bool AutoMineOn => _autoMineBtn.On;
-	public bool FastOn => _fastBtn.On;
+	public bool FastOn => _fastOn;
 
-	/// <summary>Zähler ungelesener Comms-Nachrichten am Kommando-Knopf (0 = keine Anzeige).</summary>
-	public void SetCommandBadge(int unread)
-	{
-		_cmdBtn.Detail = unread > 0 ? $"Comms: {unread}" : "";
-		_cmdBtn.DetailColor = UiKit.Orange;
-	}
+	/// <summary>Zähler ungelesener Comms-Nachrichten — HUD-Neu: am Menüknopf („Menü · 2“; die Kommandozentrale steht im Menü).</summary>
+	public void SetCommandBadge(int unread) { _menuBadge = unread; _hamburger?.QueueRedraw(); }
 
 	public void SetSlider(float v) => _slider.SetValue(v, notify: false);
 	public void SetAutopilot(bool on) => _autopilotBtn.On = on;
@@ -393,196 +399,205 @@ public partial class FlightHud : Control, IScreen
 	{
 		AddChild(_arcs);
 
-		// ── Status oben links: Hülle, Schild, Sprit und Leistung echt (Phase 23) ──
-		// Gerätetest Phase 27: Credits und Leistungsstellung stehen im Rahmen der Statusleiste (vorher frei über der Szene: orange auf orangem Planeten unlesbar)
-		var status = _status = Win(this, 14, 12, 300, 200, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
-		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 8, 280, 184);
-		sv.AddThemeConstantOverride("separation", 5);
+		// ── Status oben links (HUD-Neu: schlank, Balken + Kasse; die Leistungsstellung zeigt ⚡ in der rechten Spalte) ──
+		var status = _status = Win(this, 12, 8, 300, 132, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
+		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 6, 280, 122);
+		sv.AddThemeConstantOverride("separation", 2);
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
 		_shieldBar = BarRow(sv, "Schild", UiKit.Cyan, out _shieldVal!);
 		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal!);
 		_fuelRow = (Control)sv.GetChild(sv.GetChildCount() - 1);
-		// Leistung: Balken = Dauerlast ÷ Reaktorleistung, Wert „Last/Leistung“ (+ Bank, wenn vorhanden)
 		_powerBar = BarRow(sv, "Leistung", PowerColor, out _powerVal!);
-		_powerInfo = Text("", 13, new Color(UiKit.Dim, 0.85f));
-		_powerInfo.ClipText = true; _powerInfo.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _powerInfo.CustomMinimumSize = new Vector2(1, 18);
-		sv.AddChild(_powerInfo);
-		_credits = Text("", 20, UiKit.Orange);
-		_credits.ClipText = true; _credits.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _credits.CustomMinimumSize = new Vector2(1, 26);
+		_powerInfo = Text("", 12, new Color(UiKit.Dim, 0.85f));
+		_powerInfo.Visible = false;   // HUD-Neu: Stellung steht auf ⚡
+		_credits = Text("", 18, UiKit.Orange);
+		_credits.ClipText = true; _credits.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _credits.CustomMinimumSize = new Vector2(1, 24);
 		sv.AddChild(_credits);
 
-		// ── Phase 23: Leistungsverteilung unter den Credits (drei Tasten 96×56, zwischen Statusleiste und Wendetasten nichts überdeckt) ──
-		var modes = new[] { (PowerMode.Weapons, "Waffen"), (PowerMode.Shield, "Schild"), (PowerMode.Engine, "Antrieb") };
-		for (int i = 0; i < modes.Length; i++)
-		{
-			var (mode, label) = modes[i];
-			var b = At(this, new KitButton(label, new Vector2(96, 56)) { FontSize = 16, Toggle = true }, 14 + i * 102, 222);
-			b.Pressed += () => PressMode(mode);
-			_modeButtons[mode] = b;
-		}
-
-		// ── Sektorchip oben Mitte (echt: Sektorname und Besitzerfraktion) ──
-		var chip = _chip = Win(this, 420, 12, 430, 42, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 20);
+		// ── Sektorchip oben Mitte mit Lage-, Fahndungs- und Brandzeile ──
+		var chip = _chip = Win(this, 420, 8, 430, 42, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 20);
 		var cr = _chipRow = At(chip, new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 14, 0, 402, 42);
 		cr.AddThemeConstantOverride("separation", 12);
 		_sector = Text("", 18, UiKit.Cyan);
 		_factionChip = Text("", 15, UiKit.Dim);
 		cr.AddChild(_sector); cr.AddChild(_factionChip);
-		// Runde 33: im schmalen Chip schrumpft der Fraktionsname (mit „…“), statt den Chip über die Kommandotaste zu schieben
 		_factionChip.ClipText = true; _factionChip.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		_factionChip.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		// Phase 11: Lage des Sektors unter dem Chip, Fahndung (nur wenn gesucht) darunter
-		_security = At(this, Text("", 13, UiKit.Dim, HorizontalAlignment.Center), 420, 56, 430, 18);
+		_security = At(this, Text("", 13, UiKit.Dim, HorizontalAlignment.Center), 420, 54, 430, 18);
 		_wanted = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 74, 430, 20);
-		// Phase 26: Brandwarnung (rot, nur bei Brand)
-		_fire = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 300, 94, 670, 20);
-		// Runde 33: im Kompakt-HUD sind die Zeilen so breit wie der Chip — lange Texte enden mit „…“ statt über den Rand zu laufen
+		_fire = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 96, 430, 20);
 		foreach (var l in new[] { _security, _wanted, _fire }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
 
-		// ── Kommandozentrale, Karte und Zeitraffer oben rechts ──
-		_mapBtn = At(this, new KitButton("Karte", new Vector2(110, 50)) { FontSize = 18 }, 1030, 12);
-		_fastBtn = At(this, new KitButton("Zeit ×1", new Vector2(110, 50)) { FontSize = 17, Toggle = true }, 1150, 12);
-		_cmdBtn = At(this, new KitButton("Kommando", new Vector2(160, 56)) { FontSize = 18 }, 862, 8);
+		// ── oben rechts: Karte und Menü (Symboltasten), Zielkarte links daneben ──
+		_mapBtn = At(this, new KitButton("", new Vector2(64, 64)), 1140, 8);
+		_mapBtn.Symbol = g => { var c = new Vector2(32, 24); g.DrawArc(c, 13, 0, Mathf.Tau, 24, UiKit.White, 2f); g.DrawLine(c + new Vector2(-13, 0), c + new Vector2(13, 0), UiKit.White, 1.5f); g.DrawLine(c + new Vector2(0, -13), c + new Vector2(0, 13), UiKit.White, 1.5f);
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), "Karte", 12, UiKit.Dim, HorizontalAlignment.Center, 60); };
 		_mapBtn.Pressed += () => MapPressed?.Invoke();
-		_fastBtn.Pressed += () => FastPressed?.Invoke();
-		_cmdBtn.Pressed += () => CommandPressed?.Invoke();
+		_hamburger = At(this, new KitButton("", new Vector2(64, 64)), 1208, 8);
+		_hamburger.Symbol = g => { foreach (var yy in new[] { 12f, 21f, 30f }) g.DrawRect(new Rect2(18, yy, 28, 4), UiKit.White);
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), _menuBadge > 0 ? $"Menü · {_menuBadge}" : "Menü", 12, _menuBadge > 0 ? UiKit.Orange : UiKit.Dim, HorizontalAlignment.Center, 60); };
+		_hamburger.Pressed += () => HamburgerPressed?.Invoke();
 
-		// ── Zielkarte rechts unter der oberen Leiste ──
-		var card = Win(this, 930, 72, 340, 132, new Color(0.03f, 0.05f, 0.1f, 0.72f), UiKit.Green, 12);
+		var card = Win(this, 800, 8, 330, 118, new Color(0.03f, 0.05f, 0.1f, 0.72f), UiKit.Green, 12);
 		_card = card;
-		var tv = At(card, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 12, 8, 246, 116);
-		tv.AddThemeConstantOverride("separation", 2);
-		_tName = Text("", 18, UiKit.Green); _tInfo = Text("", 15, UiKit.Dim); _tArc = Text("", 15, UiKit.White);
-		_tCombat = Text("", 15, UiKit.Cyan);
-		_tOdds = Text("", 14, UiKit.Orange);   // Runde 5: Kräfteverhältnis eines Stationsangriffs
-		// Gerätetest: Zeilen der Zielkarte enden vor dem Radarkreis (der Hinweistext lief hinein) — gekürzt mit „…“
-		// Runde 26 (Gerätetest b14_1: langer Stationsname lief unter den Radarring): die Zeilen füllen nicht die Kartenbreite (die Kräftezeile ist breiter),
-		// sondern bleiben 246 px breit
+		var tv = At(card, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 12, 6, 246, 108);
+		tv.AddThemeConstantOverride("separation", 1);
+		_tName = Text("", 17, UiKit.Green); _tInfo = Text("", 14, UiKit.Dim); _tArc = Text("", 14, UiKit.White);
+		_tCombat = Text("", 14, UiKit.Cyan);
+		_tOdds = Text("", 13, UiKit.Orange);
 		foreach (var l in new[] { _tName, _tInfo, _tArc, _tCombat }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; l.CustomMinimumSize = new Vector2(246, 0); l.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin; }
-		// Runde 16 (Handy-Test: Zeilen abgeschnitten, Kräftezeile über dem Kartenrand): kurze Texte (Core-Kurzformen) und etwas kleinere Schrift — fünf Zeilen passen
-		// in die 132 px hohe Karte (Umbruch half am Gerät nicht: die Zeilen bekamen keine zweite Höhe)
 		_tName.AddThemeFontSizeOverride("font_size", 17);
 		foreach (var l in new[] { _tInfo, _tArc, _tCombat }) l.AddThemeFontSizeOverride("font_size", 14);
 		_tOdds.AddThemeFontSizeOverride("font_size", 13);
-		_tOdds.ClipText = true; _tOdds.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _tOdds.CustomMinimumSize = new Vector2(316, 0);   // unter dem Radar: ganze Kartenbreite
+		_tOdds.ClipText = true; _tOdds.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _tOdds.CustomMinimumSize = new Vector2(306, 0);
 		tv.AddChild(_tName); tv.AddChild(_tInfo); tv.AddChild(_tArc); tv.AddChild(_tCombat); tv.AddChild(_tOdds);
 		_tOdds.Visible = false;
-		_radar = At(card, new Radar(), 266, 8, 64, 64);
+		_radar = At(card, new Radar(), 258, 6, 64, 64);
 
-		_autopilotBtn = At(this, new KitButton("Autopilot", new Vector2(160, 42)) { FontSize = 16, Toggle = true }, 930, 212);
-		_autoMineBtn = At(this, new KitButton("Auto-Mining", new Vector2(170, 42)) { FontSize = 16, Toggle = true }, 1100, 212);
+		_autopilotBtn = At(this, new KitButton("Autopilot", new Vector2(161, 64)) { FontSize = 17, Toggle = true }, 800, 134);
+		_autoMineBtn = At(this, new KitButton("Auto-Mining", new Vector2(161, 64)) { FontSize = 17, Toggle = true }, 969, 134);
 		_autopilotBtn.Pressed += () => AutopilotPressed?.Invoke();
 		_autoMineBtn.Pressed += () => AutoMinePressed?.Invoke();
-		_contextBtn = At(this, new KitButton("", new Vector2(340, 52)) { FontSize = 20 }, 930, 262);
+		_contextBtn = At(this, new KitButton("", new Vector2(330, 64)) { FontSize = 20 }, 800, 206);
 		_contextBtn.Pressed += () => ContextPressed?.Invoke();
 
-		// ── Unten links: Wenden (Haltetasten) und Hamburger-Menü ──
-		_turnLabel = At(this, Text("WENDEN", 13, UiKit.Dim, HorizontalAlignment.Center), 100, 560, 260, 20);
-		_turnL = At(this, new KitButton("◀", new Vector2(120, 100)) { FontSize = 44 }, 96, 584);
-		_turnR = At(this, new KitButton("▶", new Vector2(120, 100)) { FontSize = 44 }, 230, 584);
-		// RÜCK: 50 % der Kanten (80x56, Mindest-Trefferfläche), mittig zwischen Wendetasten (bis x=350) und Slider (ab x=660)
-		_reverseLabel = At(this, Text("RÜCK · max 20 %", 13, UiKit.Dim, HorizontalAlignment.Center), 410, 566, 200, 20);
-		_reverse = At(this, new KitButton("RÜCK", new Vector2(80, 56)) { FontSize = 20 }, 470, 590);
-		_hamburger = At(this, new KitButton("", new Vector2(60, 60)), 16, 644);
-		_hamburger.Symbol = g => { foreach (var yy in new[] { 20f, 30f, 40f }) g.DrawRect(new Rect2(16, yy, 28, 4), UiKit.White); };
-		_hamburger.Pressed += () => HamburgerPressed?.Invoke();
+		// ── rechte Spalte (Symboltasten 64 × 64): Leistung, Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff ──
+		_power = At(this, new KitButton("⚡", new Vector2(64, 64)) { FontSize = 22 }, 1140, 80);
+		_power.Pressed += () => PowerModePressed?.Invoke(NextMode(_d.PowerMode));
+		_nextEnemy = At(this, new KitButton("⊕", new Vector2(64, 64)) { FontSize = 24, Sub = "Gegner" }, 1208, 80);
+		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
+		_aimAssist = At(this, new KitButton("◎", new Vector2(64, 64)) { FontSize = 24, Sub = "folgen", Toggle = true }, 1140, 152);
+		_aimAssist.Pressed += () => AimAssistPressed?.Invoke();
+		_aimAssist.Visible = false;
+		_autoFire = At(this, new KitButton("↻", new Vector2(64, 64)) { FontSize = 24, Sub = "Dauer", Toggle = true }, 1208, 152);
+		_autoFire.Pressed += () => AutoFirePressed?.Invoke();
+		_surrender = At(this, new KitButton("⚑", new Vector2(64, 64)) { FontSize = 24, Sub = "Ergeben", State = KitButtonState.Warn }, 1140, 224);
+		_surrender.Pressed += () => SurrenderPressed?.Invoke();
+		_surrender.Visible = false;
+		_stationAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(64, 64)) { FontSize = 15 }, "station_attack", "Angriff",
+			() => StationAttackPressed?.Invoke()), 1208, 224);
+		_stationAttack.Visible = false;
+		_gateAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(64, 64)) { FontSize = 15 }, "gate_attack", "Angriff",
+			() => GateAttackPressed?.Invoke()), 1208, 224);
+		_gateAttack.Visible = false;
 
-		// ── Tempo-Slider unten rechts am Bildrand ──
-		_slider = At(this, new KitSlider { Snap = SpaceSim.Core.Flight.Throttle.Snap }, 660, 646, 600, 68);   // Gerätetest: Totzone 5 %/95 %
+		// ── links: senkrechter Schubregler, ◀ ▶ und RÜCK unten ──
+		_slider = At(this, new KitVSlider { Snap = SpaceSim.Core.Flight.Throttle.Snap }, 12, 152, 88, 556);
+		_turnL = At(this, new KitButton("◀", new Vector2(104, 100)) { FontSize = 44 }, 112, 608);
+		_turnR = At(this, new KitButton("▶", new Vector2(104, 100)) { FontSize = 44 }, 224, 608);
+		_reverseLabel = At(this, Text("RÜCK · max 20 %", 12, UiKit.Dim, HorizontalAlignment.Center), 332, 612, 112, 18);
+		_reverse = At(this, new KitButton("RÜCK", new Vector2(96, 72)) { FontSize = 20 }, 336, 636);
 
-		// ── Waffenschächte rechts am Rand, eine Taste je Schacht (Phase 25: bis zu 6, ab dem fünften in einer zweiten Spalte links daneben) ──
+		// ── unten rechts: Daumenbogen — FEUER (Tipp = alle bereiten, halten = Dauerfeuer), Gruppen nach Waffentyp, „Einzeln“ ──
+		_allFire = At(this, new KitButton("FEUER", new Vector2(128, 128)) { FontSize = 26, State = KitButtonState.Warn }, 1140, 580);
+		_allFire.Down += () => { _fireHeld = 0; _fireLong = false; };
+		_allFire.Pressed += () => { if (!_fireLong) AllFire?.Invoke(); };
+		for (int i = 0; i < MaxGroups; i++)
+		{
+			int idx = i;
+			var g = At(this, new KitButton("", new Vector2(128, 64)) { FontSize = 17 }, 1000, 640 - i * 72);
+			g.Down += () => GroupDown?.Invoke(idx);
+			_groupButtons.Add(g);
+		}
+		_expand = At(this, new KitButton("Einzeln", new Vector2(128, 64)) { FontSize = 16, Toggle = true }, 860, 640);
+		_expand.Pressed += () => { _expanded = _expand.On; LayoutForData(force: true); };
 		for (int i = 0; i < MaxBays; i++)
 		{
 			int idx = i;
-			var b = At(this, new KitButton("", new Vector2(176, BayH)), 1090, 330 + i * BayStep);
+			var b = At(this, new KitButton("", new Vector2(176, 64)), 600, 134 + i * 72);
 			b.Symbol = g => PaintArcSymbol(g, idx);
-			b.Down += () => { if (_bayMore > 0 && idx == MaxBays - 1) MoreBaysDown?.Invoke(idx); else BayDown?.Invoke(idx); };
+			b.Down += () => BayDown?.Invoke(idx);
+			b.Visible = false;
 			_bayButtons.Add(b);
 		}
-		_allFire = At(this, new KitButton("Alle Feuer", new Vector2(176, 56)) { FontSize = 19 }, 1090, 490);
-		_allFire.Pressed += () => AllFire?.Invoke();
-		_ready = At(this, Text("", 13, UiKit.Green, HorizontalAlignment.Center), 1090, 314, 176, 16);
-		// Phase 25: Dauerfeuer (Schalter) neben „Alle Feuer“, „Nächster Gegner“ links der Zielkarte, Beschusswarnung unter dem Sektorchip
-		_autoFire = At(this, new KitButton("Dauerfeuer", new Vector2(176, 56)) { FontSize = 17, Toggle = true }, 906, 490);
-		_autoFire.Pressed += () => AutoFirePressed?.Invoke();
-		_nextEnemy = At(this, new KitButton("Nächster Gegner", new Vector2(160, 56)) { FontSize = 15 }, 764, 206);
-		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
-		// Phase 28: Angriff auf die gewählte Station — unter „Nächster Gegner“, nur wenn erlaubt; zwei Tipps (folgenschwer: Fahndung, Gegenwehr)
-		// Runde 23 (Handy-Test 15: lag 6 px neben „Andocken“/„Autopilot“): eine Zeile tiefer und schmaler — frei von der Kontexttaste
-		_stationAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(136, 56)) { FontSize = 15 }, "station_attack", "Station angreifen",
-			() => StationAttackPressed?.Invoke()), 764, 330);
-		_stationAttack.Visible = false;
-		// Phase 31: Angriff auf das gewählte Tor — gleicher Platz, zwei Tipps (schweres Verbrechen bei beiden Endfraktionen, das Tor fällt aus)
-		_gateAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(136, 56)) { FontSize = 15 }, "gate_attack", "Tor angreifen",
-			() => GateAttackPressed?.Invoke()), 764, 330);
-		_gateAttack.Visible = false;
-		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — unter „Station angreifen“ (Umschalter; die Nase folgt dem gewählten Feind mit der Drehrate des Schiffs)
-		_aimAssist = At(this, new KitButton("Ziel folgen", new Vector2(136, 56)) { FontSize = 15, Toggle = true }, 764, 392);
-		_aimAssist.Pressed += () => AimAssistPressed?.Invoke();
-		_aimAssist.Visible = false;
-		// Phase 27: „Ergeben“ — rechts über „Dauerfeuer“, nur wenn die Polizei oder Kaperer eine Aufgabe annehmen; Bestätigung mit zweitem Tippen (KitConfirm)
-		_surrender = At(this, new KitButton("Ergeben", new Vector2(176, 56)) { FontSize = 16, State = KitButtonState.Warn }, 906, 398);
-		_surrender.Pressed += () => SurrenderPressed?.Invoke();
-		_surrender.Visible = false;
-		// Runde 12 (Handy-Test): Beschuss- und Fluchtzeile unten rechts der Rückwärtstaste, unter der Meldungsfläche — die Bildmitte vor dem Bug bleibt frei
-		_hitWarning = At(this, Text("", 17, UiKit.Red, HorizontalAlignment.Center), 590, HitWarningY, 310, 28);   // Runde 13: mehr Abstand zum „RÜCK“-Label   // rechts von „RÜCK“ (bis 550), links der Schachtspalte (ab 906)
-		// Runde 5: Fluchtlage unter der Beschusswarnung — wer noch reicht (dieselbe Regel wie die Simulation)
-		_escape = At(this, Text("", 14, UiKit.Orange, HorizontalAlignment.Center), 590, HitWarningY + 32f, 310, 22);
+		_ready = Text("", 1, UiKit.Green);   // HUD-Neu: „n von m bereit“ steht auf FEUER und den Gruppen
+		_ready.Visible = false;
+
+		// Beschuss- und Fluchtzeile unten Mitte (zwischen RÜCK und Daumenbogen)
+		_hitWarning = At(this, Text("", 17, UiKit.Red, HorizontalAlignment.Center), 452, 656, 400, 28);
+		_escape = At(this, Text("", 14, UiKit.Orange, HorizontalAlignment.Center), 452, 688, 400, 22);
 		_escape.ClipText = true; _escape.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		_escape.Visible = false;
-		// Prüfung Phase 28: dunkler Grund unter Lage-, Fahndungs- und Beschusszeile (3D-Beschriftungen und Ringe schienen durch) und Beschusszeile links von „Nächster Gegner“
-		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));   // Gerätetest: unter der Meldungsfläche (y 112–172), sonst verdeckt eine Meldung die Warnung
-		// Runde 33 (UI-ANPASSUNG.md E2): jedes Element gehört zu einer Zone; die Lagen rechnet FlightHudLayout im Core
+		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));
 		_items = new()
 		{
-			[HudItem.Status] = _status, [HudItem.Mode0] = _modeButtons[PowerMode.Weapons], [HudItem.Mode1] = _modeButtons[PowerMode.Shield], [HudItem.Mode2] = _modeButtons[PowerMode.Engine],
-			[HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire,
-			[HudItem.Command] = _cmdBtn, [HudItem.Map] = _mapBtn, [HudItem.Fast] = _fastBtn,
-			[HudItem.Card] = _card, [HudItem.Autopilot] = _autopilotBtn, [HudItem.AutoMine] = _autoMineBtn, [HudItem.Context] = _contextBtn,
-			[HudItem.TurnLabel] = _turnLabel, [HudItem.TurnLeft] = _turnL, [HudItem.TurnRight] = _turnR, [HudItem.ReverseLabel] = _reverseLabel!, [HudItem.Reverse] = _reverse,
-			[HudItem.Hamburger] = _hamburger, [HudItem.Slider] = _slider,
-			[HudItem.AllFire] = _allFire, [HudItem.AutoFire] = _autoFire, [HudItem.Ready] = _ready, [HudItem.NextEnemy] = _nextEnemy,
-			[HudItem.AimAssist] = _aimAssist, [HudItem.Surrender] = _surrender, [HudItem.HitWarning] = _hitWarning, [HudItem.Escape] = _escape,
+			[HudItem.Status] = _status, [HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire,
+			[HudItem.Map] = _mapBtn, [HudItem.Hamburger] = _hamburger, [HudItem.Card] = _card,
+			[HudItem.Autopilot] = _autopilotBtn, [HudItem.AutoMine] = _autoMineBtn, [HudItem.Context] = _contextBtn,
+			[HudItem.Power] = _power, [HudItem.NextEnemy] = _nextEnemy, [HudItem.AimAssist] = _aimAssist, [HudItem.AutoFire] = _autoFire, [HudItem.Surrender] = _surrender,
+			[HudItem.Slider] = _slider, [HudItem.TurnLeft] = _turnL, [HudItem.TurnRight] = _turnR, [HudItem.Reverse] = _reverse, [HudItem.ReverseLabel] = _reverseLabel!,
+			[HudItem.FireBtn] = _allFire, [HudItem.Expand] = _expand, [HudItem.HitWarning] = _hitWarning, [HudItem.Escape] = _escape,
 		};
+		for (int i = 0; i < _groupButtons.Count; i++) _items[HudItem.Group0 + i] = _groupButtons[i];
 		for (int i = 0; i < _bayButtons.Count; i++) _items[HudItem.Bay0 + i] = _bayButtons[i];
 		Relayout();
 	}
 
-	Control _status = null!, _chip = null!, _chipRow = null!, _turnLabel = null!;
+	/// <summary>HUD-Neu: ⚡ schaltet die Leistungsverteilung reihum (ausgeglichen → Waffen → Schild → Antrieb → ausgeglichen).</summary>
+	static PowerMode NextMode(PowerMode m) => m switch
+	{
+		PowerMode.Balanced => PowerMode.Weapons,
+		PowerMode.Weapons => PowerMode.Shield,
+		PowerMode.Shield => PowerMode.Engine,
+		_ => PowerMode.Balanced,
+	};
+
+	/// <summary>HUD-Neu: FEUER halten (≥ <see cref="LongPressMs"/>) schaltet Dauerfeuer um — das Loslassen feuert dann nicht zusätzlich.</summary>
+	public const ulong LongPressMs = 550;
+	double _fireHeld;   // Haltezeit aus den Bildschritten (am Gerät = Echtzeit; im Kopflos-Lauf mit festem Takt dieselbe Bildzeit wie das Spiel)
+	bool _fireLong;
+	public override void _Process(double delta)
+	{
+		if (_allFire is not null && _allFire.Held) _fireHeld += delta;
+		if (_allFire is not null && _allFire.Held && !_fireLong && _fireHeld * 1000.0 >= LongPressMs)
+		{
+			_fireLong = true;
+			AutoFirePressed?.Invoke();
+		}
+	}
+
+	Control _status = null!, _chip = null!, _chipRow = null!;
 	Dictionary<HudItem, Control> _items = new();
-	int _layoutBays;
+	KitButton _power = null!, _expand = null!;
+	readonly List<KitButton> _groupButtons = new();
+	bool _expanded;
+	int _layoutGroups = -1, _layoutBays = -1;
+	bool _layoutFire = true;
+	/// <summary>HUD-Neu: Gruppenknopf gedrückt (Index in <see cref="FlightHudData.Groups"/>).</summary>
+	public event Action<int>? GroupDown;
+	/// <summary>Selbsttest: Einzelschächte aufgeklappt, Gruppentexte, Lage einer Gruppe/des FEUER-Knopfs.</summary>
+	public bool TestExpanded { get => _expanded; set { _expanded = value; _expand.On = value; LayoutForData(force: true); } }
+	public List<string> TestGroupLabels => _groupButtons.Where(b => b.Visible).Select(b => b.Text).ToList();
+	public Rect2 TestGroupRect(int i) => _groupButtons[i].GetGlobalRect();
+	public bool TestGroupDisabled(int i) => _groupButtons[i].State == KitButtonState.Disabled;
+	public string TestGroupSub(int i) => _groupButtons[i].Sub;
+	public Rect2 TestFireRect => _allFire.GetGlobalRect();
+	public Rect2 TestPowerRect => _power.GetGlobalRect();
+	public bool TestExpandVisible => _expand.Visible;
+	public int TestVisibleBays => _bayButtons.Count(b => b.Visible);
 	/// <summary>Runde 33: zuletzt gerechnete Anordnung (Selbsttest, Prüfwerkzeug).</summary>
 	public FlightHudLayout? Layout { get; private set; }
-	/// <summary>Runde 33, Selbsttest: Safe-Area-Ränder vorgeben (Bildpunkte bei Faktor 1, null = Gerät) — gilt seit Runde 34 für alle Schichten.</summary>
 	public static UiInsets? TestInsets { get => UiScale.TestInsets; set => UiScale.TestInsets = value; }
 	public void TestRelayout() { if (_viewport != Vector2.Zero) { Scale = Vector2.Zero; ApplyScale(_viewport, _wantFactor); } Relayout(); }
 	public Rect2 TestSliderRect => new(_slider.Position, _slider.Size);
 	public Rect2 TestReverseRect => new(_reverse.Position, _reverse.Size);
-	/// <summary>Runde 33b: globale Rechtecke/Punkte (mit Skalierung der Schicht) für echte Tipps im Selbsttest.</summary>
 	public Rect2 TestTurnLeftRect => _turnL.GetGlobalRect();
 	public Rect2 TestAutoFireGlobal => _autoFire.GetGlobalRect();
-	/// <summary>Bildschirmpunkt auf dem Schubregler beim Wert <paramref name="v"/> (Spur von x 100 bis Breite − 30, Mitte der Höhe).</summary>
-	public Vector2 TestSliderPoint(float v) => _slider.GetGlobalTransform() * new Vector2(100f + v * (_slider.Size.X - 130f), _slider.Size.Y * 0.5f);
+	/// <summary>Bildschirmpunkt auf dem (senkrechten) Schubregler beim Wert <paramref name="v"/>.</summary>
+	public Vector2 TestSliderPoint(float v) => _slider.GetGlobalTransform() * new Vector2(_slider.Size.X * 0.5f, _slider.YOf(v));
 
 	public override void _Notification(int what)
 	{
 		if (what == NotificationResized && _items.Count > 0) Relayout();
 	}
 
-	/// <summary>
-	/// Runde 33 (E2): Faktor der Flug-Schicht anwenden — die Schicht wird um <paramref name="factor"/> vergrößert und ihre logische Fläche entsprechend
-	/// kleiner (<paramref name="viewport"/> ÷ Faktor); die Zonen ordnen sich darin neu an. Alles, was Bildschirm ↔ Welt rechnet, liest globale Rechtecke
-	/// (<see cref="Control.GetGlobalRect"/> enthält die Skalierung) und bleibt in Bildpunkten.
-	/// </summary>
 	SpaceSim.Core.Ui.UiInsets _laidInsets;
 	public void ApplyScale(Vector2 viewport, float factor)
 	{
 		_wantFactor = factor; _viewport = viewport;
-		// Runde 33b: nie zwei Tasten in einer Zelle — der Faktor sinkt (Core: FitFactor), bis Schächte und alle Kampftasten eigene Zellen haben
-		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), _layoutBays, factor);
+		// nie zwei Tasten übereinander — der Faktor sinkt (Core: FitFactor), bis Gruppen, FEUER und die aufgeklappten Schächte ihren Platz haben
+		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), factor);
 		var size = viewport / factor;
-		// Runde 37d (Prüfung: bei gleichem Faktor und gleicher Fläche, aber anderen sicheren Rändern blieb das HUD in der alten Lage — betrifft Geräte, die
-		// die Ränder zur Laufzeit ändern: Drehen, Mehrfenster): auch bei geänderten Rändern neu legen
 		var insets = SafeInsets1();
 		if (Mathf.Abs(Scale.X - factor) < 1e-4f && (Size - size).LengthSquared() < 0.01f && Position == Vector2.Zero && insets == _laidInsets) return;
 		_laidInsets = insets;
@@ -593,37 +608,55 @@ public partial class FlightHud : Control, IScreen
 		Relayout();
 	}
 
-	/// <summary>
-	/// Runde 33 (UI-ANPASSUNG.md E2): Zonen aus der logischen Fläche der Schicht (<see cref="FlightHudLayout"/>, reine Rechnung im Core) statt fester
-	/// 1280 × 720-Lagen: waagerecht und senkrecht verankert, Safe Area an allen vier Seiten; unter 1280 × 720 (UI-Faktor &gt; 1) kompakt mit fließender
-	/// Kampfspalte. Bei 1280 × 720 ohne Ränder bleibt jede Lage wie bisher.
-	/// </summary>
+	/// <summary>HUD-Neu: Lagen aus <see cref="FlightHudLayout"/> (Core) — Gruppen, FEUER und aufgeklappte Schächte nach den aktuellen Daten.</summary>
 	void Relayout()
 	{
-		var layout = FlightHudLayout.Compute(Size.X, Size.Y, SafeInsets(), _layoutBays);
+		var layout = FlightHudLayout.Compute(Size.X, Size.Y, SafeInsets(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), _expanded, _layoutFire);
 		Layout = layout;
 		foreach (var (item, c) in _items)
 		{
 			var r = layout[item];
 			c.Position = new Vector2(r.X, r.Y);
-			// nur Elemente mit veränderlicher Breite bekommen eine neue Größe (Tasten behalten ihr Maß)
-			if (item is HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire or HudItem.Slider or HudItem.HitWarning or HudItem.Escape or HudItem.TurnLabel or HudItem.ReverseLabel)
-			{ c.CustomMinimumSize = new Vector2(r.W, r.H); c.Size = new Vector2(r.W, r.H); }   // UiKit.At setzt das Mindestmaß — sonst bliebe die alte Breite
+			if (item is HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire or HudItem.Slider or HudItem.HitWarning or HudItem.Escape or HudItem.ReverseLabel)
+			{ c.CustomMinimumSize = new Vector2(r.W, r.H); c.Size = new Vector2(r.W, r.H); }
 		}
 		_chipRow.CustomMinimumSize = Vector2.Zero;
 		_chipRow.Size = new Vector2(MathF.Max(0f, layout[HudItem.Chip].W - 28f), 42f);
-		_turnLabel.Visible = !layout.Hidden(HudItem.TurnLabel);
-		_ready.Visible = !layout.Hidden(HudItem.Ready);
 		_gateAttack.Position = _stationAttack.Position = new Vector2(layout[HudItem.Attack].X, layout[HudItem.Attack].Y);
+		ApplyHidden();
 	}
 
-	/// <summary>Sichere Ränder (Kamera-Aussparung, Gestenleiste) an allen vier Seiten in Einheiten der Schicht; nur auf Mobilgeräten (am Desktop meldet die Safe Area den Arbeitsbereich des Bildschirms, nicht das Fenster).</summary>
+	/// <summary>Ausblendungen der Anordnung (verdeckte Autopilot-Zeile bei aufgeklappter Leiste, leere Gruppen-/Schachtplätze).</summary>
+	void ApplyHidden()
+	{
+		if (Layout is not { } l) return;
+		foreach (var it in new[] { HudItem.Autopilot, HudItem.AutoMine }) _items[it].Visible = !l.Hidden(it);
+		if (l.Hidden(HudItem.Context)) _contextBtn.Visible = false;
+		_expand.Visible = !l.Hidden(HudItem.Expand);
+		_allFire.Visible = !l.Hidden(HudItem.FireBtn) && _d.HasWeapons;
+		for (int i = 0; i < _groupButtons.Count; i++) if (l.Hidden(HudItem.Group0 + i)) _groupButtons[i].Visible = false;
+		for (int i = 0; i < _bayButtons.Count; i++) if (l.Hidden(HudItem.Bay0 + i)) _bayButtons[i].Visible = false;
+	}
+
+	/// <summary>Neu legen, wenn sich Zahl der Gruppen/Schächte, FEUER oder der Aufklappzustand ändert (im Gefecht bleibt die Zahl stehen).</summary>
+	void LayoutForData(bool force = false)
+	{
+		// Einzelschächte nur, wenn eine Gruppe mehrere Schächte hat (sonst zeigt der Bogen schon jeden Schacht)
+		int groups = Math.Min(_d.Groups.Count, MaxGroups), bays = _d.Bays.Count > _d.Groups.Count || _d.Groups.Count > MaxGroups ? Math.Min(_d.Bays.Count, MaxBays) : 0;
+		if (_d.InCombat) { groups = Math.Max(groups, _layoutGroups); bays = Math.Max(bays, _layoutBays); }
+		bool fire = _d.HasWeapons;
+		if (!force && groups == _layoutGroups && bays == _layoutBays && fire == _layoutFire) return;
+		_layoutGroups = groups; _layoutBays = bays; _layoutFire = fire;
+		if (bays < 2 && _expanded) { _expanded = false; _expand.On = false; }
+		if (_viewport != Vector2.Zero) { Scale = Vector2.Zero; ApplyScale(_viewport, _wantFactor); }
+		Relayout();
+	}
+
 	float _wantFactor = 1f;
 	Vector2 _viewport;
-	/// <summary>Runde 33b: angeforderter Faktor der Stufe (die Schicht kann darunter liegen, siehe <see cref="FlightHudLayout.FitFactor"/>).</summary>
+	/// <summary>angeforderter Faktor der Stufe (die Schicht kann darunter liegen, siehe <see cref="FlightHudLayout.FitFactor"/>).</summary>
 	public float WantedFactor => _wantFactor;
 
-	/// <summary>Safe-Area-Ränder in Einheiten der aktuellen Schicht.</summary>
 	UiInsets SafeInsets()
 	{
 		var i = SafeInsets1();
@@ -631,14 +664,10 @@ public partial class FlightHud : Control, IScreen
 		return new UiInsets(i.Left * k, i.Top * k, i.Right * k, i.Bottom * k);
 	}
 
-	/// <summary>Runde 33b: Safe-Area-Ränder in Bildpunkten der Wurzel (Faktor 1) — Grundlage für <see cref="FlightHudLayout.FitFactor"/>.</summary>
 	static UiInsets SafeInsets1() => UiScale.SafeInsets1();
 
-	const int MaxBays = 6;
-	const float BayH = 56f, BayStep = 60f;
-	// Runde 33: Lagen der Schächte rechnet FlightHudLayout (klassisch wie bis Runde 32: vier rechts, weitere links daneben ab y 456)
+	const int MaxBays = FlightHudLayout.MaxBays, MaxGroups = FlightHudLayout.MaxGroups;
 
-	/// <summary>Fenster mit freier Platzierung der Kinder (ein PanelContainer würde alle Kinder strecken).</summary>
 	static Control Win(Control parent, float x, float y, float w, float h, Color bg, Color? border, int radius)
 	{
 		var c = At(parent, new Control { MouseFilter = Control.MouseFilterEnum.Ignore }, x, y, w, h);
@@ -649,21 +678,21 @@ public partial class FlightHud : Control, IScreen
 		return c;
 	}
 
-	/// <summary>Phase 23: erneutes Tippen auf die aktive Stellung schaltet auf ausgeglichen zurück.</summary>
+	/// <summary>Phase 23: erneutes Tippen auf die aktive Stellung schaltet auf ausgeglichen zurück (Selbsttest; das HUD schaltet über ⚡ reihum).</summary>
 	void PressMode(PowerMode m) => PowerModePressed?.Invoke(_d.PowerMode == m ? PowerMode.Balanced : m);
 
 	KitBar BarRow(Control parent, string name, Color fill, out Label? valueLabel, float value = 0f, bool placeholder = false)
 	{
 		var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		row.AddThemeConstantOverride("separation", 8);
-		var l = Text(name, 16, placeholder ? new Color(UiKit.Dim, 0.75f) : UiKit.Dim);
+		var l = Text(name, 14, placeholder ? new Color(UiKit.Dim, 0.75f) : UiKit.Dim);
 		l.CustomMinimumSize = new Vector2(66, 0);
 		row.AddChild(l);
-		var bar = new KitBar(140, 12, fill);
+		var bar = new KitBar(140, 10, fill);
 		if (placeholder) bar.Modulate = new Color(1, 1, 1, 0.45f);
 		bar.Set(value, fill);
 		row.AddChild(bar);
-		var v = Text(placeholder ? $"{(int)value} %" : "", 14, new Color(UiKit.Dim, 0.7f));
+		var v = Text(placeholder ? $"{(int)value} %" : "", 13, new Color(UiKit.Dim, 0.7f));
 		v.ClipText = true; v.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; v.CustomMinimumSize = new Vector2(52, 0);
 		row.AddChild(v);
 		valueLabel = v;
@@ -723,31 +752,30 @@ public partial class FlightHud : Control, IScreen
 		_hullBar.Set(d.Hull, d.Hull > 60f ? UiKit.Green : UiKit.Orange);
 		_hullVal.Text = $"{(int)d.Hull}";
 		float fuelPct = d.FuelCapacity > 0f ? 100f * d.Fuel / d.FuelCapacity : 0f;
-		_fuelBar.Set(fuelPct, fuelPct < 20f ? UiKit.Red : UiKit.Orange);   // Warnfarbe unter 20 %
+		_fuelBar.Set(fuelPct, fuelPct < 20f ? UiKit.Red : UiKit.Orange);
 		_fuelVal.Text = d.FuelCapacity > 0f ? $"{(int)d.Fuel}" : "–";
-		_fuelRow.Visible = d.FuelActive;   // Phase 14: Treibstoff abgeschaltet → keine Tankanzeige
-		// Phase 23: Schild und Leistung echt
+		_fuelRow.Visible = d.FuelActive;
 		float shieldPct = d.ShieldMax > 0f ? 100f * d.Shield / d.ShieldMax : 0f;
 		_shieldBar.Set(shieldPct, shieldPct < 30f ? UiKit.Orange : UiKit.Cyan);
 		_shieldVal.Text = d.ShieldMax > 0f ? $"{(int)d.Shield}" : "–";
 		float loadPct = d.PowerOutput > 0f ? 100f * d.PowerDraw / d.PowerOutput : 100f;
 		_powerBar.Set(Math.Min(100f, loadPct), d.PowerDraw > d.PowerOutput ? UiKit.Red : PowerColor);
 		_powerVal.Text = $"{d.PowerDraw:0}/{d.PowerOutput:0}";
-		// Gerätetest: Stellung sichtbar — eigene Zeile, damit nichts über den Rahmen ragt
+		// HUD-Neu: Stellung auf ⚡ (Unterzeile), aktiv = nicht ausgeglichen
+		_power.Sub = d.PowerMode switch { PowerMode.Weapons => "Waffen", PowerMode.Shield => "Schild", PowerMode.Engine => "Antrieb", _ => "ausgegl." };
+		_power.On = d.PowerMode != PowerMode.Balanced;
 		_powerInfo.Text = "Stellung " + (d.PowerMode == PowerMode.Balanced ? "ausgeglichen" : SpaceSim.Core.Combat.ShipSystems.ModeName(d.PowerMode))
 			+ (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}/{(int)d.ChargeMax}" : "");
-		foreach (var (mode, b) in _modeButtons) b.On = d.PowerMode == mode;
-		// Phase 26: negative Kasse = Schulden (z. B. laufende Leihmiete)
 		_credits.Text = (d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits")
-			+ (d.CostsPerMinute > 0.001f ? $" · −{d.CostsPerMinute.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))}/min" : "");   // Runde 16: Verbandsunterhalt sichtbar
+			+ (d.CostsPerMinute > 0.001f ? $" · −{d.CostsPerMinute.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))}/min" : "");
 		_credits.AddThemeColorOverride("font_color", d.Credits < 0f ? UiKit.Red : UiKit.Orange);
 		_fire.Text = d.Fire;
 		_fire.Visible = d.Fire.Length > 0;
-		_sector.Text = d.SectorName;
-		// Runde 33: im schmalen Chip (Kompakt-HUD) das Kürzel statt des langen Fraktionsnamens — mit der Schrift gemessen
+		// HUD-Neu: der Zeitraffer steht im Menü — läuft er, zeigt der Sektorchip „×10“
+		_sector.Text = d.FastOn ? $"{d.SectorName} · ×10" : d.SectorName;
 		{
 			var font = _factionChip.GetThemeFont("font");
-			float room = _chipRow.Size.X - 12f - _sector.GetThemeFont("font").GetStringSize(d.SectorName, HorizontalAlignment.Left, -1, _sector.GetThemeFontSize("font_size")).X;
+			float room = _chipRow.Size.X - 12f - _sector.GetThemeFont("font").GetStringSize(_sector.Text, HorizontalAlignment.Left, -1, _sector.GetThemeFontSize("font_size")).X;
 			bool fits = font.GetStringSize(d.FactionName, HorizontalAlignment.Left, -1, _factionChip.GetThemeFontSize("font_size")).X <= room;
 			_factionChip.Text = fits || d.FactionTag.Length == 0 ? d.FactionName : d.FactionTag;
 		}
@@ -755,12 +783,10 @@ public partial class FlightHud : Control, IScreen
 		_wanted.Text = d.Wanted;
 		_wanted.Visible = d.Wanted.Length > 0;
 		_wanted.AddThemeColorOverride("font_color", d.WantedSevere ? UiKit.Red : UiKit.Orange);
-		_fastBtn.Text = d.FastOn ? "Zeit ×10" : "Zeit ×1";
-		_fastBtn.On = d.FastOn;
+		_fastOn = d.FastOn;
 		_autopilotBtn.On = d.AutopilotOn;
 		_autoMineBtn.On = d.AutoMineOn;
 
-		// Runde 35b (Prüfwerkzeug: „Korsar #22 ([RSC] Rostige Schakale)“ gekürzt): erst kleiner bis zur Untergrenze der Ebene, dann ohne Besitzernamen (Kürzel bleibt)
 		_tName.Text = FitTargetName(d.TargetName);
 		_tName.AddThemeColorOverride("font_color", d.TargetHasInfo ? UiKit.Green : UiKit.Dim);
 		_tInfo.Text = d.TargetInfo;
@@ -775,25 +801,33 @@ public partial class FlightHud : Control, IScreen
 		_slider.SetValue(d.SliderValue, notify: false);
 		_slider.SpeedText = $"{(int)d.Speed} m/s";
 
-		// Runde 33b (Prüfung: der Leviathan hat 10 Waffenschächte, das HUD 6 Tasten): mehr als sechs → die sechste Taste fasst den Rest zusammen
-		// („+5 weitere“, feuert alle bereiten davon; MoreBaysDown) — vorher feuerten Schacht 7–10 nur über „Alle Feuer“/„Dauerfeuer“, ohne Anzeige
-		_bayMore = d.Bays.Count > MaxBays ? d.Bays.Count - (MaxBays - 1) : 0;
+		// HUD-Neu: Anordnung nach Zahl der Gruppen/Schächte und FEUER (im Gefecht springt sie nicht)
+		LayoutForData();
+
+		// Gruppen im Daumenbogen
+		for (int i = 0; i < _groupButtons.Count; i++)
+		{
+			var b = _groupButtons[i];
+			if (i >= d.Groups.Count || Layout is { } lg && lg.Hidden(HudItem.Group0 + i)) { b.Visible = false; continue; }
+			var g = d.Groups[i];
+			b.Visible = true;
+			b.Text = g.Label;
+			b.Sub = g.Sub;
+			b.State = g.State switch
+			{
+				BayState.Ready => KitButtonState.Ready,
+				BayState.OutsideArc => KitButtonState.Warn,
+				BayState.Reloading => KitButtonState.Busy,
+				_ => g.On ? KitButtonState.On : KitButtonState.Disabled,
+			};
+			b.Progress = g.Reload;
+			b.QueueRedraw();
+		}
+		// Einzelschächte (aufgeklappt)
 		for (int i = 0; i < _bayButtons.Count; i++)
 		{
 			var b = _bayButtons[i];
-			if (i >= d.Bays.Count) { b.Visible = false; continue; }
-			if (_bayMore > 0 && i == MaxBays - 1)
-			{
-				int rdy = 0;
-				for (int k = i; k < d.Bays.Count; k++) if (d.Bays[k].State == BayState.Ready) rdy++;
-				b.Visible = true;
-				b.Text = $"+{_bayMore} weitere";
-				b.Sub = $"Schacht {i + 1}–{d.Bays.Count}";
-				(b.State, b.Detail, b.DetailColor) = rdy > 0 ? (KitButtonState.Ready, $"{rdy} bereit · feuern", UiKit.Green) : (KitButtonState.Busy, "keiner bereit", UiKit.Dim);
-				b.Progress = 0f;
-				b.QueueRedraw();
-				continue;
-			}
+			if (!_expanded || i >= d.Bays.Count || Layout is { } lb && lb.Hidden(HudItem.Bay0 + i)) { b.Visible = false; continue; }
 			var bay = d.Bays[i];
 			b.Visible = true;
 			b.Text = bay.Name;
@@ -809,50 +843,56 @@ public partial class FlightHud : Control, IScreen
 			b.Progress = bay.Reload;
 			b.QueueRedraw();
 		}
-		_ready.Text = d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
-		// Phase 8/25: „Alle Feuer“ (und Dauerfeuer daneben) rutschen unter die rechte Schachtspalte; die Bereit-Zeile steht über den Schächten
-		// Runde 33: die Zahl der Schächte bestimmt die Lage von „Alle Feuer“/„Dauerfeuer“ (klassisch) bzw. die Zellen der Kampfspalte (kompakt)
-		int shown = Math.Min(d.Bays.Count, MaxBays);
-		if (d.InCombat) shown = Math.Max(shown, _layoutBays);   // Runde 34b: im Gefecht springt die Schicht nicht
-		if (shown != _layoutBays) { _layoutBays = shown; if (_viewport != Vector2.Zero) ApplyScale(_viewport, _wantFactor); Relayout(); }
-		_allFire.Sub = Layout is { Compact: true } && d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
+		_expand.Sub = $"{d.Bays.Count} Schächte";
+		// FEUER: alle bereiten; halten = Dauerfeuer (Zustand in der Unterzeile)
+		_allFire.Visible = d.HasWeapons && !(Layout?.Hidden(HudItem.FireBtn) ?? false);
+		_allFire.Sub = d.AutoFireOn ? "Dauerfeuer AN" : d.FireBays > 0 ? $"{d.ReadyBays}/{d.FireBays} bereit" : "";
+		_allFire.Detail = d.AutoFireOn ? "" : "halten = Dauer";
+		_allFire.State = d.ReadyBays > 0 || d.AutoFireOn ? KitButtonState.Warn : KitButtonState.Busy;
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
-		// Runde 15 (Handy-Test): solange ein Überfall läuft und Dauerfeuer aus ist, pulsiert die Taste (Warnrahmen, Helligkeit)
 		_autoFireHint = d.AutoFireHint && !d.AutoFireOn;
 		_autoFire.State = _autoFireHint ? KitButtonState.Warn : KitButtonState.Normal;
-		float pulse = _autoFireHint ? 0.85f + 0.45f * Mathf.Sin((float)Time.GetTicksMsec() / 1000f * 5f) : 1f;   // Runde 16: deutlicher (0,4 … 1,3)
-		_autoFire.Modulate = new Color(1f, 1f, 1f, 1f) * new Color(pulse, pulse, pulse, 1f);
+		float pulse = _autoFireHint ? 0.85f + 0.45f * Mathf.Sin((float)Time.GetTicksMsec() / 1000f * 5f) : 1f;
+		_autoFire.Modulate = new Color(pulse, pulse, pulse, 1f);
+		_allFire.Modulate = _autoFireHint ? new Color(pulse, pulse, pulse, 1f) : Colors.White;   // auch FEUER pulsiert (Langdruck = Dauerfeuer)
 		_nextEnemy.Visible = d.HasWeapons || d.EnemyNear;
-		// Prüfung Runde 2: bewaffnet, aber kein Gegner im Sektor — Taste bleibt an ihrem Platz, gesperrt mit Grund (vorher sah sie aktiv aus)
 		_nextEnemy.State = d.EnemyNear ? KitButtonState.Normal : KitButtonState.Disabled;
-		_nextEnemy.Sub = d.EnemyNear ? "" : "kein Gegner";
+		_nextEnemy.Sub = d.EnemyNear ? "Gegner" : "keiner";
 		_stationAttack.Visible = d.CanAttackStation && !d.StationAttackArmed;
 		_gateAttack.Visible = (d.CanAttackGate || d.GateAttackBlocked.Length > 0) && !d.StationAttackArmed && !d.CanAttackStation;
 		_gateAttack.State = d.GateAttackBlocked.Length > 0 ? KitButtonState.Disabled : KitButtonState.Warn;
-		if (_gateAttack.Text != "Wirklich?") _gateAttack.Sub = d.GateAttackBlocked.Length > 0 ? d.GateAttackBlocked : d.GateAttackInfo;
-		// Runde 5: aussichtslos → Warnfarbe und die Warnung statt der Geschützzeile (Hinweis, kein Verbot)
-		if (_stationAttack.Text != "Wirklich?") _stationAttack.Sub = d.StationHopeless ? "Aussichtslos!" : d.StationAttackInfo;
-		TestStationAttackInfo = d.StationAttackInfo;   // scharf: „nochmal tippen“ bleibt
+		// HUD-Neu: Angriffstaste ist ein 64er-Symbol — Gegenwehr, Kräfte und Sperrgrund stehen auf der Zielkarte; die Taste nennt nur „Station“/„Tor“
+		if (_gateAttack.Text != "Wirklich?") _gateAttack.Sub = d.GateAttackBlocked.Length > 0 ? "gesperrt" : "Tor";
+		if (_stationAttack.Text != "Wirklich?") _stationAttack.Sub = d.StationHopeless ? "aussichtsl." : "Station";
+		TestStationAttackInfo = d.StationAttackInfo;
+		TestGateAttackInfo = d.GateAttackBlocked.Length > 0 ? d.GateAttackBlocked : d.GateAttackInfo;
 		_aimAssist.Visible = d.AimAssistVisible;
 		_aimAssist.On = d.AimAssistOn;
 		_surrender.Visible = d.CanSurrender || d.SurrenderRelevant;
 		_surrender.State = d.CanSurrender ? KitButtonState.Warn : KitButtonState.Disabled;
-		_surrender.Sub = d.CanSurrender ? "" : d.SurrenderReason;
+		_surrender.Sub = d.CanSurrender ? "Ergeben" : "Ergeben";
+		TestSurrenderReason = d.CanSurrender ? "" : d.SurrenderReason;
 		_tCombat.Text = d.TargetCombat;
 		_tCombat.Visible = d.TargetCombat.Length > 0;
 		if (d.TargetCombat.Length > 0) _tName.AddThemeColorOverride("font_color", d.TargetHostile ? UiKit.Red : UiKit.Orange);
 		_hitWarning.Text = d.HitWarning;
 		_hitWarning.Visible = d.HitWarning.Length > 0;
-		_tOdds.Text = d.StationOdds;
-		_tOdds.Visible = d.StationOdds.Length > 0;
-		_tOdds.AddThemeColorOverride("font_color", d.StationHopeless ? UiKit.Red : d.StationOdds.StartsWith("Knapp") ? UiKit.Orange : UiKit.Green);
-		// Runde 37b (Prüfwerkzeug 960 × 540 × 1,3: „Flucht: Stationsgeschütze in Reichweite…“): kürzere Fassungen, die mit der Schrift gemessen passen
+		// HUD-Neu: Gegenwehr der gewählten Station bzw. Sperrgrund des Tors stehen in der Kräftezeile der Zielkarte (die Taste ist dafür zu klein)
+		string odds = d.StationOdds.Length > 0 ? d.StationOdds : (d.CanAttackStation && d.StationAttackInfo.Length > 0 ? d.StationAttackInfo : d.CanAttackGate || d.GateAttackBlocked.Length > 0 ? TestGateAttackInfo : "");
+		_tOdds.Text = odds;
+		_tOdds.Visible = odds.Length > 0;
+		_tOdds.AddThemeColorOverride("font_color", d.StationHopeless || d.GateAttackBlocked.Length > 0 ? UiKit.Red : odds.StartsWith("Knapp") ? UiKit.Orange : UiKit.Green);
 		_escape.Text = FitEscape(d.EscapeStatus);
 		_escape.Visible = d.EscapeStatus.Length > 0;
+		ApplyHidden();
 		_arcs.Data = d;
 		_arcs.QueueRedraw();
 	}
+
+	/// <summary>HUD-Neu: Begründungen, die nicht mehr auf der kleinen Taste stehen (Selbsttest).</summary>
+	public string TestGateAttackInfo { get; private set; } = "";
+	public string TestSurrenderReason { get; private set; } = "";
 
 	/// <summary>Zeichnet die Feuerwinkel als Kegel um das Schiff (Bildschirmposition des Schiffs, 290 px Radius).</summary>
 	sealed partial class ArcOverlay : Control

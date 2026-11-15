@@ -26,6 +26,8 @@ public partial class CommandMenu : Control, IScreen
 	// (Anzeige, Untertitel, Aktionsschlüssel)
 	static readonly (string Label, string Sub, string Key)[] Entries =
 	{
+		("Kommando", "Kommandozentrale", "command"),   // HUD-Neu: vorher Taste oben rechts im Flug
+		("Zeitraffer", "×1 · antippen = ×10", "fast"),  // HUD-Neu: vorher Taste „Zeit ×1“ im Flug
 		("Karte", "Sternenkarte öffnen", "map"),
 		("Wirtschaft", "Debug-Übersicht", "economy"),
 		("Notruf", "Treibstoff zum Aufpreis bei leerem Tank", "emergency"),
@@ -40,7 +42,11 @@ public partial class CommandMenu : Control, IScreen
 
 	readonly KitWindow _win;
 	KitButton _free = null!, _lock = null!, _invert = null!;
-	KitButton? _emergency, _music, _effects, _uiSize;
+	KitButton? _emergency, _music, _effects, _uiSize, _fast, _command;
+	/// <summary>HUD-Neu: Zeitraffer-Zeile zeigt den Zustand.</summary>
+	public void SetFast(bool on) { if (_fast is null) return; _fast.Text = on ? "Zeitraffer ×10" : "Zeitraffer"; _fast.Sub = on ? "läuft · antippen = ×1" : "×1 · antippen = ×10"; _fast.State = on ? KitButtonState.On : KitButtonState.Normal; }
+	/// <summary>HUD-Neu: ungelesene Comms an der Zeile „Kommando“.</summary>
+	public void SetCommsBadge(int unread) { if (_command is null) return; _command.Sub = unread > 0 ? $"Kommandozentrale · Comms: {unread}" : "Kommandozentrale"; }
 
 	/// <summary>Runde 12: Anzeige der Ton-Schalter (stumm = normal, an = grün).</summary>
 	public void SetAudioState()
@@ -188,6 +194,8 @@ public partial class CommandMenu : Control, IScreen
 			if (k == "music_mute") _music = b;
 			if (k == "effects_mute") _effects = b;
 			if (k == "ui_size") _uiSize = b;
+			if (k == "fast") _fast = b;
+			if (k == "command") _command = b;
 			_byKey[k] = b;
 			_systemButtons.Add(b);
 		}
