@@ -794,26 +794,39 @@ public partial class Main : Node3D
 	internal string BackRequested(string source)
 	{
 		ulong frame = Engine.GetProcessFrames();
-		if (_lastBackFrame != ulong.MaxValue && frame - _lastBackFrame <= BackDebounceFrames)
+		// Runde 37d: nur verwerfen, wenn BEIDES gilt — höchstens 6 Bilder UND höchstens 150 ms (bei unter 20 Bildern/s wären 6 Bilder sonst mehr als ein
+		// echter schneller Doppeldruck; die Doppelzustellung am Gerät kommt nach 2–16 ms)
+		ulong nowMs = BackClock();
+		if (_lastBackFrame != ulong.MaxValue && frame - _lastBackFrame <= BackDebounceFrames && nowMs - _lastBackMs <= BackDebounceMs)
 		{
 			GD.Print($"[ui] Zurück-Taste ({source}) verworfen: zweite Zustellung desselben Drucks ({frame - _lastBackFrame} Bilder)");
 			BackIgnored++;
 			return "verworfen";
 		}
 		_lastBackFrame = frame;
+		_lastBackMs = nowMs;
 		string r = HandleBack();
 		BackHandled++;
+		LastBackResult = r;
 		GD.Print($"[ui] Zurück-Taste ({source}): {r}");
 		return r;
 	}
 	internal const ulong BackDebounceFrames = 6;
+	internal const ulong BackDebounceMs = 150;
+	ulong _lastBackMs;
+	/// <summary>Runde 37d: Uhr der Entprellung (Selbsttest setzt eine eigene, um eine niedrige Bildrate nachzustellen).</summary>
+	internal Func<ulong> BackClock = () => Time.GetTicksMsec();
 	ulong _lastBackFrame = ulong.MaxValue;
 	/// <summary>Selbsttest: verarbeitete und verworfene Zurück-Zustellungen.</summary>
 	internal int BackHandled, BackIgnored;
+	internal string LastBackResult = "";
+	internal bool TestTransition => _transition;
 
 	internal string HandleBack()
 	{
 		if (_catchUp is not null) return "nachholen";
+		// Runde 37d: während der An-/Abdock-Animation nichts (vorher öffnete Zurück mitten im Anflug das Menü)
+		if (_transition) return "animation";
 		var cur = _hud.Screens.Current;
 		// Runde 37c: innerste Ebene zuerst — offene Meldung, Fraktionsdetail (→ Liste), Startpaket-Auswahl, offene Handelszeile
 		if (_hud.TestAlert.Length > 0) { _hud.HideAlert(); return "meldung"; }

@@ -574,13 +574,18 @@ public partial class FlightHud : Control, IScreen
 	/// kleiner (<paramref name="viewport"/> ÷ Faktor); die Zonen ordnen sich darin neu an. Alles, was Bildschirm ↔ Welt rechnet, liest globale Rechtecke
 	/// (<see cref="Control.GetGlobalRect"/> enthält die Skalierung) und bleibt in Bildpunkten.
 	/// </summary>
+	SpaceSim.Core.Ui.UiInsets _laidInsets;
 	public void ApplyScale(Vector2 viewport, float factor)
 	{
 		_wantFactor = factor; _viewport = viewport;
 		// Runde 33b: nie zwei Tasten in einer Zelle — der Faktor sinkt (Core: FitFactor), bis Schächte und alle Kampftasten eigene Zellen haben
 		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), _layoutBays, factor);
 		var size = viewport / factor;
-		if (Mathf.Abs(Scale.X - factor) < 1e-4f && (Size - size).LengthSquared() < 0.01f && Position == Vector2.Zero) return;
+		// Runde 37d (Prüfung: bei gleichem Faktor und gleicher Fläche, aber anderen sicheren Rändern blieb das HUD in der alten Lage — betrifft Geräte, die
+		// die Ränder zur Laufzeit ändern: Drehen, Mehrfenster): auch bei geänderten Rändern neu legen
+		var insets = SafeInsets1();
+		if (Mathf.Abs(Scale.X - factor) < 1e-4f && (Size - size).LengthSquared() < 0.01f && Position == Vector2.Zero && insets == _laidInsets) return;
+		_laidInsets = insets;
 		AnchorLeft = 0f; AnchorTop = 0f; AnchorRight = 0f; AnchorBottom = 0f;
 		Position = Vector2.Zero;
 		Scale = new Vector2(factor, factor);

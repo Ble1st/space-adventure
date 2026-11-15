@@ -114,7 +114,7 @@ public partial class SelfTest
 	{
 		var hud = _m.HudRef;
 		Func<SpaceSim.Core.Model.Universe> u = () => _m.Session.U;
-		Step("Start", 20, () =>
+		Step("Start", 60, () =>
 		{
 			_m.TestCloseCommand();
 			if (_m.TestDocked) _m.TestUndock();
@@ -170,7 +170,7 @@ public partial class SelfTest
 		Step("Zurück aus Zentrale", 10, () => Back());
 		Step("nach Zurück Zentrale", 0, () => ExpectBase("Dock → Zentrale → Zurück-Taste"));
 		// ── Flug ──
-		Step("abdocken", 30, () => _m.TestUndock());
+		Step("abdocken", 60, () => _m.TestUndock());
 		Step("Flug", 0, () => ExpectBase("abgedockt"));
 		Step("Zurück im Flug", 10, () => Back());
 		Step("Menü durch Zurück", 0, () => Check(hud.Screens.Current == hud.Command, $"37b: Zurück-Taste im Flug öffnet das Menü ({hud.Screens.Current?.Id})"));
@@ -201,7 +201,7 @@ public partial class SelfTest
 		Step("zur Liste", 0, () => { CheckSingleBack("Fraktionsdetail"); Check(hud.Screens.Current == hud.CcFactions && !hud.CcFactions.TestDetailOpen, $"37c: Zurück im schmalen Fraktionsdetail führt zur Liste ({hud.Screens.Current?.Id}, Detail {hud.CcFactions.TestDetailOpen})"); });
 		Step("Zurück aus Fraktionen", 12, () => { Back(); });
 		Step("nach Zurück Fraktionen", 0, () => { ExpectBase("Fraktionsliste → Zurück"); UiScale.TestForce = null; UiScale.TestPpi = null; UiScale.Set(UiSize.Normal); });
-		Step("Werft andocken", 20, () => _m.TestDockAt(u().StationsById().First(x => x.Name == "Werft Delta").Id));
+		Step("Werft andocken", 60, () => _m.TestDockAt(u().StationsById().First(x => x.Name == "Werft Delta").Id));
 		Step("Handel mit offener Zeile", 16, () => { _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade); hud.DockTrade.TestOpenRow(hud.DockTrade.TestGoods[0]); });
 		Step("Zurück schließt die Zeile", 12, () => Back());
 		Step("Zeile zu, Handel bleibt", 0, () => { CheckSingleBack("Handelszeile"); Check(hud.Screens.Current == hud.DockTrade && hud.DockTrade.TestExpanded is null, $"37c: Zurück schließt zuerst die offene Handelszeile ({hud.Screens.Current?.Id}, offen {hud.DockTrade.TestExpanded?.Value})"); });
@@ -242,6 +242,29 @@ public partial class SelfTest
 			Check(before!.Count > 3 && moved.Count == 0 && gone.Count == 0, $"37c: Beschriftungen der Sektorkarte bleiben beim Auswählen stehen ({before!.Count} Namen; verschoben [{string.Join(", ", moved)}], verschwunden [{string.Join(", ", gone)}])");
 			_m.TestCloseCommand(); UiScale.TestForce = null; UiScale.TestPpi = null; UiScale.Set(UiSize.Normal);
 		});
+
+		// ── Runde 37d: Entprellung mit Zeitgrenze (niedrige Bildrate nachgestellt) und Zurück während der Andock-Animation ──
+		ulong fakeMs = 1_000_000;
+		int h0 = 0;
+		void Note() => GetTree().Root.PropagateNotification((int)Node.NotificationWMGoBackRequest);
+		Step("Uhr nachstellen", 6, () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); hud.HideAlert(); _m.BackClock = () => fakeMs; });
+		Step("langsam: erster Druck", 2, () => { _r37bBackPending = false; h0 = _m.BackHandled; fakeMs += 1000; Note(); });
+		Step("langsam: zweiter Druck 1 Bild und 200 ms später", 2, () => { fakeMs += 200; Note(); });
+		Step("langsam: beide verarbeitet", 12, () =>
+		{
+			Check(_m.BackHandled - h0 == 2, $"37d: bei niedriger Bildrate (2 Bilder, 200 ms) zählen zwei schnelle Drücke als zwei ({_m.BackHandled - h0} verarbeitet)");
+			Check(hud.Screens.Current is null or Ui.Screens.FlightHud && hud.Flight.Visible, $"37d: Menü auf und wieder zu ({hud.Screens.Current?.Id ?? "-"})");
+		});
+		Step("schnell: Doppelzustellung", 1, () => { h0 = _m.BackHandled; fakeMs += 1000; Note(); });
+		Step("schnell: zweite Zustellung 10 ms später", 12, () => { fakeMs += 10; Note(); });
+		Step("schnell: einmal", 0, () => Check(_m.BackHandled - h0 == 1 && hud.Screens.Current == hud.Command, $"37d: Doppelzustellung nach 10 ms bleibt ein Druck ({_m.BackHandled - h0} verarbeitet, {hud.Screens.Current?.Id ?? "-"})"));
+		Step("Menü zu", 12, () => { fakeMs += 1000; Note(); });
+		Step("Uhr zurück", 4, () => { _m.BackClock = () => Time.GetTicksMsec(); ExpectBase("nach dem Uhrtest"); });
+		Step("andocken mit Animation", 1, () => { hud.HideAlert(); _m.TestDockAt(u().StationsById().First(x => x.Name == "Kraftwerk Delta" || x.Sector == u().PlayerSector && x.Dockable).Id); });
+		Step("Zurück im Anflug", 2, () => { Check(_m.TestTransition, "37d: Anflug-Animation läuft"); Back(); });
+		Step("Zurück ignoriert", 60, () => { _r37bBackPending = false; Check(_m.LastBackResult == "animation" && hud.Screens.Current != hud.Command, $"37d: Zurück während der Andock-Animation tut nichts ({_m.LastBackResult}, {hud.Screens.Current?.Id ?? "-"})"); });
+		Step("nach der Animation", 0, () => ExpectBase("nach der Andock-Animation"));
+		Step("abdocken 37d", 40, () => _m.TestUndock());
 
 		// ── N2: Leiste der Zentrale bei 1,3 in beide Richtungen wischen — zuerst aus „System“ (aktiver Eintrag unten) nach oben, dann wieder nach unten ──
 		Step("Zentrale 1,3 System", 24, () => { UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply(); Ui.Screens.CommandScreen.RailPos = 0; Ui.Screens.CommandScreen.ForgetRailArea(); _m.TestOpenCcArea(Ui.Screens.CommandAreas.System); });

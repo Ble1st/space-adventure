@@ -1314,3 +1314,9 @@ Three open points (user decision "Handel so lassen" still binding: player-only r
 - **Safe area (M3):** star map, hamburger window, flight alert/toast search, edge-marker names and every alert/toast stay inside the safe area. ui-check reports any button or text (also drawn, alert, toast) outside it; sizes `2340x1080a` (runtime inset from the device log: left 80 px → 53 logical) and `2340x1080d` (dumpsys: also top 84, right 135) are distinguishable in logs/files (`Finding.Key`); the truncation exception is bound to `dockmenue-trade_station`.
 - Sector map: whole symbol areas reserved for leader lines, more spacing, selection changes colour only (labels stay put — selftest compares positions).
 - Selftest 113 simulates each back press via notification + key event + a second notification next frame and requires exactly one handling (mutation without debounce: 19 failures); also back with alert, start chooser, narrow faction detail, open trade row, taxi, and a docked station removed.
+
+## Round 37d (English summary): back debounce with a time limit, HUD re-laid on inset change, back ignored during dock animation
+
+- A second back delivery is dropped only within 6 frames **and** 150 ms (`Main.BackDebounceMs`, injectable `Main.BackClock`), so quick real double presses at low frame rates still count.
+- `FlightHud.ApplyScale` also re-lays the HUD when the safe-area insets change at the same factor/size (rotation, multi-window); this was the cause of the non-reproducible ui-check subset finding.
+- Back during the dock/undock animation (`_transition`) does nothing. Selftest 113 covers low frame rate, 10-ms double delivery and back during the dock animation; mutations of both rules turn it red.
