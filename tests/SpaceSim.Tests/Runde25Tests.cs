@@ -128,7 +128,10 @@ public class Runde25Tests
         Assert.Equal(cap, Commands.Commanded(u, u.PlayerActor));
         Assert.Equal(0, Commands.OverCapacity(u, u.PlayerActor));
         Assert.Equal("", Commands.OverCapacityText(u, u.PlayerActor));
-        Squadrons.Disband(u, sq);
+        // Runde 36: Auflösen über der Grenze ist verweigert (die Umgehung ist geschlossen); über die Kapazität kommt man nur noch, wenn die Befehlsstufe sinkt
+        Assert.False(Squadrons.Disband(u, sq));
+        u.Rules.CommandShips = u.Rules.CommandShips.Select(x => x - 2).ToList();
+        cap = Commands.Capacity(u, u.PlayerActor).Ships;
         Assert.All(new[] { a, b, c }, s => Assert.IsType<TradeCommand>(s.Command));   // Arbeitsbefehle bleiben
         Assert.True(Commands.OverCapacity(u, u.PlayerActor) > 0, $"Befehle {Commands.Commanded(u, u.PlayerActor)}/{Commands.Capacity(u, u.PlayerActor).Ships} vorher {cap}, a {a.Command} b {b.Command} c {c.Command}");
         Assert.Contains("neue Einzelbefehle gesperrt", Commands.OverCapacityText(u, u.PlayerActor));
@@ -136,7 +139,7 @@ public class Runde25Tests
         Assert.Equal(cap, Commands.Capacity(u, u.PlayerActor).Ships);
         Assert.False(Commands.Give(u, extra, new HoldCommand(), out var mx));
         Assert.Contains("Befehlskapazität erreicht", mx);
-        Assert.True(Commands.Give(u, a, new HoldCommand(), out var my), my);   // ändern erlaubt
+        Assert.True(Commands.Give(u, spare[0], new HoldCommand(), out var my), my);   // ändern erlaubt
     }
 
     /// <summary>Runde 25 (Gerätetest: Werftkasse 59–449 Cr): kann die Station den Schiffspreis nicht zahlen, nennt das Angebot den Grund mit der Kasse.</summary>

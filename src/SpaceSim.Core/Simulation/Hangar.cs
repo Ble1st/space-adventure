@@ -28,15 +28,23 @@ public static class Hangar
     }
 
     /// <summary>Gebühr je Tag, die das Schiff dort, wo es liegt, tatsächlich zahlt (eigene Station, aktiv, unterwegs, Leihschiff: 0).</summary>
-    public static float BerthFeeNow(Universe u, Ship ship) =>
-        ship.IsPlayer && ship.Id != u.PlayerShip && ship.Transit is null && !ship.IsRental && !InFormation(u, ship) && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner
-            ? BerthFeePerDay(u, ship) : 0f;
+    public static float BerthFeeNow(Universe u, Ship ship) => PaysBerthFee(u, ship) ? BerthFeePerDay(u, ship) : 0f;
+
+    /// <summary>
+    /// Runde 36 (Liegegebühr-Lücke): EINE Regel — ein nicht aktives Spielerschiff (kein Leihschiff, nicht unterwegs) mit Liegeplatz (<see cref="Ship.DockedAt"/>)
+    /// an einer fremden Station zahlt. Verbandsmitgliedschaft und „Folgen“ befreien nicht mehr (vorher <see cref="InFormation"/>: Begleiter eines schwebenden
+    /// Führers lagen angedockt und zahlten nichts). Begleiter, die nur in Formation fliegen oder schweben, haben keinen Liegeplatz (Runde 20,
+    /// <c>FollowExecutor</c> löscht ihn) und zahlen darum ohnehin nichts — auch in Ketten (Begleiter folgt Begleiter).
+    /// </summary>
+    public static bool PaysBerthFee(Universe u, Ship ship) =>
+        ship.IsPlayer && ship.Id != u.PlayerShip && ship.Transit is null && !ship.IsRental && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner;
 
     /// <summary>
     /// Runde 17 (Handy-Test: Credits sanken zeitweise mit −16,8 statt −4,8 Cr/min): ein Begleiter, der in Formation folgt (Befehl „Folgen“), liegt nicht am Liegeplatz,
     /// auch wenn seine Reise zufällig am Andockpunkt einer Station endet — er zahlt Flottenunterhalt, aber keine Liegegebühr.
     /// Runde 18 (Prüfung: Schlupfloch): nur solange der Führer selbst nicht angedockt liegt — ein an einer fremden Station geparkter Verband zahlt (der Führer
     /// liegt dort, die Folgenden auch). Fehlt der Führer, zählt das Schiff als geparkt.
+    /// Runde 36: befreit nicht mehr von der Liegegebühr (siehe <see cref="PaysBerthFee"/>); nur noch Anzeige/Diagnose.
     /// </summary>
     public static bool InFormation(Universe u, Ship ship) =>
         ship.Command is FollowCommand f && u.Ships.TryGetValue(f.Target, out var leader) && leader.DockedAt.Value == 0;

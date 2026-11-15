@@ -58,18 +58,29 @@ public static class Squadrons
         return true;
     }
 
-    /// <summary>Schiff verlässt den Verband (behält einen eigenen Arbeitsbefehl, ein Folgebefehl entfällt); der Anführer folgt nach.</summary>
-    public static void Leave(Universe u, Ship ship)
+    /// <summary>Schiff verlässt den Verband (behält einen eigenen Arbeitsbefehl, ein Folgebefehl entfällt); der Anführer folgt nach. false = verweigert (<see cref="LeaveIssue"/>).</summary>
+    public static bool Leave(Universe u, Ship ship) => Leave(u, ship, out _);
+
+    /// <inheritdoc cref="Leave(Universe, Ship)"/>
+    public static bool Leave(Universe u, Ship ship, out string message)
     {
-        if (Get(u, ship) is not { } sq) return;
+        if (Get(u, ship) is not { } sq) { message = "Das Schiff gehört zu keinem Verband."; return false; }
+        if (LeaveIssue(u, ship) is { } issue) { message = issue; return false; }
         if (ship.Command is FollowCommand f && f.Target == sq.Leader) Commands.Cancel(u, ship, "Verband verlassen");
         Detach(u, sq, ship, inheritCommand: false);
         u.Events.Publish(new SquadronChanged(sq.Id, "left", ship.Id));
+        message = "Verband verlassen.";
+        return true;
     }
 
-    /// <summary>Löst den Verband auf: Folgebefehle entfallen, Arbeitsbefehle bleiben.</summary>
-    public static void Disband(Universe u, Squadron sq)
+    /// <summary>Löst den Verband auf: Folgebefehle entfallen, Arbeitsbefehle bleiben. false = verweigert (<see cref="DisbandIssue"/>).</summary>
+    public static bool Disband(Universe u, Squadron sq) => Disband(u, sq, out _);
+
+    /// <inheritdoc cref="Disband(Universe, Squadron)"/>
+    public static bool Disband(Universe u, Squadron sq, out string message)
     {
+        if (DisbandIssue(u, sq) is { } issue) { message = issue; return false; }
+        message = "Verband aufgelöst.";
         foreach (var id in sq.Members.ToList())
             if (u.Ships.TryGetValue(id, out var s))
             {
@@ -78,9 +89,41 @@ public static class Squadrons
             }
         u.Squadrons.Remove(sq.Id);
         u.Events.Publish(new SquadronChanged(sq.Id, "disbanded", sq.Leader));
+        return true;
     }
 
-    /// <summary>Ein Schiff ist weg (zerstört, verkauft): aus dem Verband nehmen; fiel der Anführer aus, übernimmt das nächste Mitglied seinen Befehl.</summary>
+    /// <summary>Behält das Mitglied beim Austritt einen Befehl (alles außer „Folgen“ zum Anführer)? Dann zählt es danach als Einzelbefehl.</summary>
+    static bool KeepsCommand(Squadron sq, Ship s) => s.Command is not null && !(s.Command is FollowCommand f && f.Target == sq.Leader);
+
+    /// <summary>
+    /// Runde 36 (Lücke: Verband bilden, Arbeitsbefehl an alle, auflösen — die Mitglieder behielten Einzelbefehle über die Befehlskapazität hinaus, beliebig
+    /// wiederholbar): Verlassen ist verweigert, wenn das Schiff danach seinen Befehl als Einzelbefehl behielte und damit mehr Einzelbefehle liefen als die
+    /// Kapazität erlaubt (bzw. als schon laufen, wenn die Befehlsstufe gesunken ist — Runde 25: was läuft, bleibt). Nur Spieler-Verbände; null = erlaubt.
+    /// </summary>
+    public static string? LeaveIssue(Universe u, Ship ship) =>
+        Get(u, ship) is { } sq && sq.Owner == u.PlayerActor && u.PlayerActor.Value != 0 && KeepsCommand(sq, ship) ? CapacityIssue(u, sq.Owner, 1, "Verlassen") : null;
+
+    /// <summary>Runde 36: wie <see cref="LeaveIssue"/> für das Auflösen — alle Mitglieder, die einen eigenen Befehl behalten, zählen danach als Einzelbefehle.</summary>
+    public static string? DisbandIssue(Universe u, Squadron sq)
+    {
+        if (sq.Owner != u.PlayerActor || u.PlayerActor.Value == 0) return null;
+        int adds = sq.Members.Count(id => u.Ships.TryGetValue(id, out var m) && KeepsCommand(sq, m));
+        return CapacityIssue(u, sq.Owner, adds, "Auflösen");
+    }
+
+    static string? CapacityIssue(Universe u, ActorId owner, int adds, string what)
+    {
+        if (adds <= 0) return null;
+        int before = Commands.Commanded(u, owner), cap = Commands.Capacity(u, owner).Ships, after = before + adds;
+        if (after <= cap) return null;
+        int must = after - Math.Max(cap, before);
+        return $"{what} gesperrt: danach {after} Einzelbefehle, erlaubt {cap} – erst bei {Commands.Count(must, "Schiff", "Schiffen")} im Verband den Befehl beenden.";
+    }
+
+    /// <summary>
+    /// Ein Schiff ist weg (zerstört, verkauft): aus dem Verband nehmen; fiel der Anführer aus, übernimmt das nächste Mitglied seinen Befehl. Runde 36: führt nie
+    /// zu mehr Einzelbefehlen — der Nachfolger bleibt im Verband (sein geerbter Befehl zählt über den Verband), das entfernte Schiff zählt nicht mehr.
+    /// </summary>
     public static void OnShipRemoved(Universe u, Ship ship)
     {
         if (Get(u, ship) is not { } sq) return;

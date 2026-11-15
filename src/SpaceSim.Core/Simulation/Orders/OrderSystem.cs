@@ -125,10 +125,9 @@ public sealed class HangarSystem : ISimSystem
     {
         if (u.Rules.DayTicks <= 0) return;
         ChargeRent(u);
-        foreach (var ship in u.Ships.Values.Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Transit is null && s.DockedAt.Value != 0 && !s.IsRental && !Hangar.InFormation(u, s))
-                     .OrderBy(s => s.Id.Value).ToList())
+        foreach (var ship in u.Ships.Values.Where(s => Hangar.PaysBerthFee(u, s)).OrderBy(s => s.Id.Value).ToList())   // Runde 36: eine Regel für Anzeige und Buchung
         {
-            if (!u.Stations.TryGetValue(ship.DockedAt, out var st) || st.Owner == ship.Owner) continue;
+            var st = u.Stations[ship.DockedAt];
             float fee = Hangar.BerthFeePerDay(u, ship) * dt / u.Rules.DayTicks;
             if (fee <= 0f) continue;
             var wallet = u.WalletOf(ship);

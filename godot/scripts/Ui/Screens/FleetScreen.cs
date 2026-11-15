@@ -307,10 +307,10 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		}
 		else
 		{
-			Btn("Verlassen", () => { Squadrons.Leave(u, ship); Say(Join("Verband verlassen.", Commands.OverCapacityText(u, u.PlayerActor)), true); });
+			Btn("Verlassen", () => { bool ok = Squadrons.Leave(u, ship, out var lm); Say(ok ? Join(lm, Commands.OverCapacityText(u, u.PlayerActor)) : lm, ok); });   // Runde 36: verweigert über der Kapazität
 			bool lead = sq.Leader == ship.Id;
 			Btn($"Formation", () => { sq.Formation = (Formation)(((int)sq.Formation + 1) % 4); Say($"Formation {CommandNames.Formation(sq.Formation)} (nur Darstellung) · {sq.Members.Count}/{u.Rules.SquadronMaxMembers} Schiffe.", true); }, lead, "nur Anführer");
-			Btn("Auflösen", () => { Squadrons.Disband(u, sq); Say(Join("Verband aufgelöst.", Commands.OverCapacityText(u, u.PlayerActor)), true); }, lead, "nur Anführer");
+			Btn("Auflösen", () => { bool ok = Squadrons.Disband(u, sq, out var dm); Say(ok ? Join(dm, Commands.OverCapacityText(u, u.PlayerActor)) : dm, ok); }, lead, "nur Anführer");
 		}
 		if (cancel)
 		{

@@ -274,6 +274,9 @@ public class Runde30Tests
         {
             var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
             def.Rules!.BuybackCap = cap;
+            // Runde 36: der Zutatendeckel greift auch in ehrlichen Flottenhandel ein (Flotte kauft ein Produkt, ein anderes Flottenschiff liefert dessen Zutat
+            // an dieselbe Station — dann nur das Gebot ohne den eigenen Kauf); seine Kosten misst r36/fleet getrennt. Hier geht es um den Rückkaufdeckel selbst.
+            def.Rules.BuybackInputCap = false;
             var u = WorldBuilder.Build(def, 11, "trader");
             var beta = u.StationsById().First(s => s.Name == "Handelsstation Beta");
             var m = u.ShipModels["nomad"];

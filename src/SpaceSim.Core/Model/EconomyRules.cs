@@ -470,6 +470,12 @@ public sealed class EconomyRules
     /// <summary>Runde 31/32: ein Kauf-Posten verfällt nicht, solange der Spieler Ware dieser Sorte hält (an Bord seiner Schiffe oder im Lager der Station); false = Messung.</summary>
     public bool BuybackHeldKeepsPost = true;
     /// <summary>
+    /// Runde 36 (Zwei-Waren-Lücke): solange ein Kauf-Posten des Spielers für ein Produkt P an einer Station offen ist, bekommt er dort für eine Zutat eines
+    /// Rezepts, das P herstellt, höchstens das Gebot, das die Station ohne seinen Kauf hätte (<see cref="Trading.PlayerLedger.InputCap"/>). Grund: der Kauf hebt
+    /// den Knappheitspreis von P und über die Zahlungsbereitschaft (<see cref="InputWillingness"/>) das Gebot für die Zutaten. false = Messung ohne.
+    /// </summary>
+    public bool BuybackInputCap = true;
+    /// <summary>
     /// Runde 32, nur Messung (Variante V2 der Prüfung): Dock-Handel des Spieler-Akteurs stückweise entlang der Bestandskurve — jede Einheit zum Preis nach dem
     /// Bestand, den die vorigen Einheiten dieses Handels hinterlassen (Tickpreis × Kurvenverhältnis); zustandslos, ohne Posten. Standard aus.
     /// </summary>
