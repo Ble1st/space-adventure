@@ -55,9 +55,10 @@ public class Runde18Tests
         Assert.Equal(2, wing.Count);
         var foreign = u.StationsById().First(st => st.Sector == me.Sector && st.Owner != me.Owner && st.Dockable && !st.IsBuildSite);
         foreach (var w in wing) w.DockedAt = foreign.Id;
-        // Führer fliegt: Gefolge in Formation, keine Liegegebühr
+        // Führer fliegt: Runde 36 — wer trotzdem angedockt an einer fremden Station liegt, zahlt (Mitgliedschaft befreit nicht; Begleiter in Formation haben
+        // keinen Liegeplatz, siehe Runde36Tests)
         me.DockedAt = default;
-        Assert.All(wing, w => Assert.Equal(0f, Hangar.BerthFeeNow(u, w)));
+        Assert.All(wing, w => Assert.True(Hangar.BerthFeeNow(u, w) > 0f));
         // Führer liegt selbst an der fremden Station: der Verband ist geparkt und zahlt
         me.DockedAt = foreign.Id;
         Assert.All(wing, w => Assert.True(Hangar.BerthFeeNow(u, w) > 0f));

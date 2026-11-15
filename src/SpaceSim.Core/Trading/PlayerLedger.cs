@@ -44,6 +44,13 @@ public static class PlayerLedger
         foreach (var (k, p) in u.Ledger)
         {
             float amount = u.Stations.TryGetValue(new StationId(k.Item2), out var st) && st.Market.TryGetValue(new GoodId(k.Item3), out var e) ? e.Amount : float.NaN;
+            if (!float.IsNaN(amount) && p.MissingQty > 0f)
+            {
+                // Runde 36: jeder Bestandszuwachs füllt zuerst die vom Spieler gekauften Einheiten auf (vor der Verfallsprüfung, unabhängig davon)
+                float refill = MathF.Max(0f, amount - p.MissingSeen);
+                p.MissingQty = refill >= p.MissingQty - 0.0001f ? 0f : p.MissingQty - refill;
+                p.MissingSeen = p.MissingQty > 0f ? amount : 0f;
+            }
             if (float.IsNaN(amount)) { CloseBuy(p); CloseSale(p); }
             // Runde 32b: frühestens im Tick nach der letzten Buchung — der Markt hat den vom Spieler bewegten Bestand dann neu bepreist (die Prüfung fand
             // Gegenbuchungen im selben Tick, die den Posten vorzeitig beendeten)
@@ -83,7 +90,7 @@ public static class PlayerLedger
         if (gone is not null) foreach (var k in gone) u.Ledger.Remove(k);
     }
 
-    static void CloseBuy(LedgerPost p) { p.BoughtQty = 0f; p.BoughtOpen = false; }
+    static void CloseBuy(LedgerPost p) { p.BoughtQty = 0f; p.BoughtOpen = false; p.MissingQty = 0f; p.MissingSeen = 0f; }
     static void CloseSale(LedgerPost p) { p.SoldQty = 0f; p.SoldOpen = false; }
 
     /// <summary>
@@ -109,11 +116,107 @@ public static class PlayerLedger
     public static (float Revenue, float Capped, float CapPrice) SaleValue(Universe u, Ship ship, Station st, GoodId good, float units, float price)
     {
         if (Piecewise(u, ship, st, good) is { } e2) return (Curve(u, st, good, e2, units, price, sale: true), 0f, price);
-        if (!Applies(u, ship) || Post(u, st, good) is not { } p || !BuyActive(u, p) || p.BoughtPrice >= price) return (units * price, 0f, price);
-        // Runde 32 (V1): solange der Kauf-Posten offen ist, jede Einheit — auch mitgebrachte Ware (Prüfung: 50 gekauft, Preis hochgetrieben, 50 + 50 mitgebrachte
-        // verkauft: die mitgebrachten liefen zum selbst hochgetriebenen Preis, +4 848 Cr je Fahrt)
-        float c = u.Rules.BuybackWholeTrade ? units : MathF.Min(units, p.BoughtQty);
-        return (c * p.BoughtPrice + (units - c) * price, c, p.BoughtPrice);
+        if (!Applies(u, ship)) return (units * price, 0f, price);
+        // Runde 36: Zutatendeckel aus offenen Produkt-Posten dieser Station (gilt für jede Einheit, wie V1)
+        float rest = MathF.Min(price, InputCap(u, st, good)?.Price ?? price);
+        float own = price, c = 0f;
+        if (Post(u, st, good) is { } p && BuyActive(u, p) && p.BoughtPrice < price)
+        {
+            // Runde 32 (V1): solange der Kauf-Posten offen ist, jede Einheit — auch mitgebrachte Ware (Prüfung: 50 gekauft, Preis hochgetrieben, 50 + 50 mitgebrachte
+            // verkauft: die mitgebrachten liefen zum selbst hochgetriebenen Preis, +4 848 Cr je Fahrt)
+            own = p.BoughtPrice;
+            c = u.Rules.BuybackWholeTrade ? units : MathF.Min(units, p.BoughtQty);
+        }
+        float first = MathF.Min(own, rest);
+        float capped = (first < price ? c : 0f) + (rest < price ? units - c : 0f);
+        if (capped <= 0f) return (units * price, 0f, price);
+        return (c * first + (units - c) * rest, capped, c > 0f ? first : rest);
+    }
+
+    /// <summary>
+    /// Runde 36 (Zwei-Waren-Lücke, Prüfung Runde 32: vier mittlere Bausätze an der Werft Hephaistos gekauft, Hüllenplatten 108,5 → 400 bei gleichem Bestand):
+    /// Zutatendeckel für <paramref name="good"/> an dieser Station — das Gebot, das die Station hätte, wenn der Spieler die Produkte, für die er hier einen
+    /// offenen Kauf-Posten hat, nicht gekauft hätte (<see cref="CounterfactualCeiling"/>); null = kein Deckel (kein solches Produkt, dessen Rezept die Ware
+    /// verwendet, oder die Zahlungsbereitschaft ändert sich durch den Kauf nicht). Samt dem Produkt, das ihn setzt. Kauf an S und Verkauf der Zutat an einer
+    /// anderen Station bleibt frei (gewöhnliche Arbitrage); NPCs haben keine Posten.
+    /// <para>Erst gebaut als Schnappschuss des Gebots beim ersten Produktkauf: schloss die Lücke ebenso, kostete die ehrliche Spielerflotte aber ~36 %
+    /// (Flottenposten bleiben lange offen, der alte Schnappschuss deckelte auch natürliche Preisanstiege der Zutat). Die kontrafaktische Rechnung nimmt nur den
+    /// Anteil weg, den der eigene Kauf verursacht hat.</para>
+    /// </summary>
+    public static (float Price, GoodId Product)? InputCap(Universe u, Station st, GoodId good)
+    {
+        if (!u.Rules.BuybackInputCap || u.Ledger.Count == 0 || st.Production.Count == 0) return null;
+        List<(GoodId P, LedgerPost Post)>? posts = null;
+        int me = u.PlayerActor.Value, sid = st.Id.Value;
+        foreach (var (k, p) in u.Ledger)
+        {
+            if (k.Item1 != me || k.Item2 != sid || !BuyActive(u, p) || p.MissingQty <= 0.0001f) continue;
+            var prod = new GoodId(k.Item3);
+            if (!st.Produces(prod)) continue;
+            (posts ??= new()).Add((prod, p));
+        }
+        if (posts is null) return null;
+        posts.Sort((a, b) => a.P.Value.CompareTo(b.P.Value));
+        GoodId by = default;
+        foreach (var recipe in st.Production)
+            if (recipe.Inputs.ContainsKey(good) && !recipe.Outputs.ContainsKey(good))
+                foreach (var (prod, _) in posts) if (by.Value == 0 && recipe.Outputs.ContainsKey(prod)) by = prod;
+        if (by.Value == 0) return null;
+        float act = CounterfactualCeiling(u, st, good, null), cf = CounterfactualCeiling(u, st, good, posts);
+        if (act <= 0f || cf >= act - 0.001f || !st.Market.TryGetValue(good, out var ze)) return null;
+        // bindet die Grenze (Marktpreis ≈ nachgerechnete Grenze), wird genau der Anteil des eigenen Kaufs abgezogen — so wirkt eine kleine Abweichung der
+        // Nachrechnung (Gebote des Vortakts) nicht als Deckel; sonst gilt die kontrafaktische Grenze selbst
+        float cap = MathF.Abs(ze.Price - act) <= 0.02f * act ? ze.Price * (cf / act) : cf;
+        return (MathF.Max(u.GoodOf(good).BasePrice * 0.25f, cap), by);
+    }
+
+    /// <summary>
+    /// Runde 36: Zahlungsbereitschaft der Station für die Zutat <paramref name="good"/> nach der Regel von <see cref="Simulation.MarketSystem"/> (höchste Grenze
+    /// über ihre Rezepte, Produktwert = eigener Preis, höchstens das beste Gebot eines Abnehmers). Mit <paramref name="undo"/> wird der eigene Preis jedes dort
+    /// genannten Produkts so gerechnet, als lägen die vom Spieler gekauften und noch nicht nachgefüllten Einheiten (<see cref="LedgerPost.MissingQty"/>) noch im
+    /// Lager. ≤ 0 = kein Rezept verwendet die Ware.
+    /// </summary>
+    static float CounterfactualCeiling(Universe u, Station st, GoodId good, List<(GoodId P, LedgerPost Post)>? undo)
+    {
+        float best = -1f;
+        foreach (var recipe in st.Production)
+        {
+            if (recipe.Outputs.Count == 0 || !recipe.Inputs.TryGetValue(good, out var qtyIn) || recipe.Outputs.ContainsKey(good)) continue;
+            float outValue = 0f;
+            foreach (var (g, qty) in recipe.Outputs)
+            {
+                var e = st.Stock(g);
+                float own = e.Price;
+                if (undo is not null)
+                    foreach (var (prod, post) in undo)
+                        if (prod == g)
+                        {
+                            float stock = e.Amount + post.MissingQty;
+                            own = MathF.Min(own, Simulation.MarketSystem.StockPrice(u.GoodOf(g), e, stock));
+                        }
+                float bid = u.Rules.WillingnessFromBuyers ? BestBid(u, g) : 0f;
+                outValue += qty * (bid > 0f ? MathF.Min(own, bid) : own);
+            }
+            float inBase = 0f;
+            foreach (var (g, qty) in recipe.Inputs) inBase += qty * u.GoodOf(g).BasePrice;
+            if (inBase <= 0f) continue;
+            float ceiling = outValue * u.Rules.InputWillingness * (qtyIn * u.GoodOf(good).BasePrice / inBase) / qtyIn;
+            best = MathF.Max(best, ceiling);
+        }
+        return best;
+    }
+
+    /// <summary>Runde 36: bestes Abnehmergebot einer Ware wie <see cref="Simulation.MarketSystem.BuyerBids(Universe, float[])"/>, nur für diese eine Ware.</summary>
+    static float BestBid(Universe u, GoodId g)
+    {
+        float best = 0f;
+        foreach (var st in u.Stations.Values)
+        {
+            if (st.IsBuildSite || !st.Market.TryGetValue(g, out var e) || e.Price <= 0f) continue;
+            if (st.Produces(g) && !st.Consumes(g)) continue;   // reiner Hersteller
+            if (e.Price > best) best = e.Price;
+        }
+        return best;
     }
 
     /// <summary>
@@ -166,6 +269,8 @@ public static class PlayerLedger
             // der Deckel gilt zum niedrigsten Kaufpreis der offenen Menge
             if (!BuyActive(u, p)) { p.BoughtStockBefore = stockBefore; p.BoughtPrice = unit; p.BoughtQty = rest; }
             else { p.BoughtPrice = MathF.Min(p.BoughtPrice, unit); p.BoughtQty += rest; }
+            // Runde 36: fehlende Einheiten für den Zutatendeckel (nur Produkte der Station)
+            if (u.Rules.BuybackInputCap && st.Produces(good)) { p.MissingQty += rest; p.MissingSeen = stockBefore - units; }
             p.BoughtOpen = true;
         }
         Touch(u, p);
@@ -308,20 +413,33 @@ public static class PlayerLedger
 
     /// <summary>Runde 31: wirksamer Stückpreis eines Verkaufs von <paramref name="units"/> Einheiten (für <c>ServiceOffer.Price</c>).</summary>
     public static float SaleUnitPrice(Universe u, Ship ship, Station st, GoodId good, float units, float price) =>
-        units > 0f ? SaleValue(u, ship, st, good, units, price).Revenue / units : MathF.Min(price, Post(u, st, good) is { } p && BuyActive(u, p) && Applies(u, ship) ? p.BoughtPrice : price);
+        SaleValue(u, ship, st, good, MathF.Max(units, 1f), price).Revenue / MathF.Max(units, 1f);
 
     /// <summary>
     /// Hinweis für Angebot und Editor: wirksamer Deckel beim Verkauf hier (null = keiner). Runde 32b: ehrlich — er gilt für jede Menge (auch mitgebrachte Ware)
     /// und endet erst, wenn Preis und Bestand der Station zurück sind, nicht durch einen Teilverkauf.
     /// </summary>
-    public static string? SaleNote(Universe u, Ship ship, Station st, GoodId good) =>
-        CapActive(u, ship, st, good) is { } p
+    public static string? SaleNote(Universe u, Ship ship, Station st, GoodId good)
+    {
+        var own = CapActive(u, ship, st, good);
+        // Runde 36: bindet der Zutatendeckel (niedriger als der eigene), nennt der Hinweis das gekaufte Produkt
+        if (InputCapActive(u, ship, st, good) is { } ic && (own is null || ic.Price < own.BoughtPrice))
+            return $"Wegen deines Kaufs von {u.GoodOf(ic.Product).Name} hier: höchstens {ic.Price:0.0} je Einheit, bis Preis und Lager zurück sind";
+        return own is { } p
             ? (u.Rules.BuybackWholeTrade ? $"Wegen deines Kaufs hier: höchstens {p.BoughtPrice:0.0} je Einheit, bis Preis und Lager zurück sind"
                 : $"Rückkauf: höchstens dein Kaufpreis {p.BoughtPrice:0.0} für {p.BoughtQty:0.#} E.") : null;
+    }
 
-    /// <summary>Runde 32b: kurze Fassung des Deckels für enge Zeilen („Deckel 183,0“).</summary>
-    public static string? SaleNoteShort(Universe u, Ship ship, Station st, GoodId good) =>
-        CapActive(u, ship, st, good) is { } p ? $"Deckel {p.BoughtPrice:0.0}" : null;
+    /// <summary>Runde 32b: kurze Fassung des Deckels für enge Zeilen („Deckel 183,0“); Runde 36: auch der Zutatendeckel.</summary>
+    public static string? SaleNoteShort(Universe u, Ship ship, Station st, GoodId good)
+    {
+        float? cap = CapActive(u, ship, st, good)?.BoughtPrice;
+        if (InputCapActive(u, ship, st, good) is { } ic && (cap is null || ic.Price < cap)) cap = ic.Price;
+        return cap is { } c ? $"Deckel {c:0.0}" : null;
+    }
+
+    static (float Price, GoodId Product)? InputCapActive(Universe u, Ship ship, Station st, GoodId good) =>
+        Applies(u, ship) && st.Market.TryGetValue(good, out var e) && InputCap(u, st, good) is { } ic && ic.Price < e.Price ? ic : null;
 
     /// <summary>Hinweis für Angebot und Editor: wirksamer Mindestpreis beim Kauf hier (null = keiner). Runde 32b: gilt für jede Menge, bis Preis und Lager zurück sind.</summary>
     public static string? BuyNote(Universe u, Ship ship, Station st, GoodId good) =>

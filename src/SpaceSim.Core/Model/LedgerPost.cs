@@ -17,5 +17,11 @@ public sealed class LedgerPost
     public bool BoughtOpen, SoldOpen;
     /// <summary>Runde 32b: Tick der letzten Buchung des Spielers an diesem Posten — der Verfall prüft erst, wenn der Markt danach neu bepreist hat.</summary>
     public long LastTick;
+    /// <summary>
+    /// Runde 36 (Zwei-Waren-Lücke): Einheiten aus den Käufen dieses Postens, die der Station noch fehlen — jeder Kauf erhöht sie, jeder Bestandszuwachs der
+    /// Station (Produktion, Lieferungen) füllt sie zuerst auf (<see cref="Trading.PlayerLedger.Prune"/>; <see cref="MissingSeen"/> = zuletzt gesehener Bestand).
+    /// Der Zutatendeckel rechnet nur diese Einheiten aus dem Produktpreis heraus (<see cref="Trading.PlayerLedger.InputCap"/>); 0 = kein Einfluss mehr.
+    /// </summary>
+    public float MissingQty, MissingSeen;
     public bool Empty => !BoughtOpen && !SoldOpen && BoughtQty <= 0.0001f && SoldQty <= 0.0001f;
 }

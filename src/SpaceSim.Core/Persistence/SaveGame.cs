@@ -219,6 +219,9 @@ public sealed class LedgerSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? SoldOpen { get; set; }
     /// <summary>Runde 32b: Tick der letzten Buchung (fehlt = 0).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastTick { get; set; }
+    /// <summary>Runde 36: noch fehlende gekaufte Einheiten und zuletzt gesehener Bestand (fehlt = 0).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MissingQty { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MissingSeen { get; set; }
 }
 
 public sealed class PendingEncounterSave

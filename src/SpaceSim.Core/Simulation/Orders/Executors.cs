@@ -316,14 +316,20 @@ public class FollowExecutor : IOrderExecutor
     public CommandStatus Step(Universe u, Ship ship, ShipCommand command, int dt)
     {
         if (!u.Ships.TryGetValue(TargetOf(command), out var target)) return CommandStatus.Failed;
-        if (OrderMove.StepTransit(u, ship) == OrderMove.Progress.Moving) return CommandStatus.Running;
-        if (u.Tick < ship.NextThinkTick) return CommandStatus.Running;
+        var progress = OrderMove.StepTransit(u, ship);
+        if (progress == OrderMove.Progress.Moving) return CommandStatus.Running;
+        // Runde 36: ein Spielerschiff prüft bei der Ankunft sofort (sonst lag es nach einer kurzen Folgereise bis zu CheckTicks mit Liegeplatz neben einer
+        // fremden Station — seit Runde 36 zahlt jeder Liegeplatz Gebühr); NPC-Takt unverändert
+        if (u.Tick < ship.NextThinkTick && !(progress == OrderMove.Progress.Arrived && ship.IsPlayer)) return CommandStatus.Running;
         ship.NextThinkTick = u.Tick + CheckTicks;
         // Ziel: Reiseziel des Ziels, sonst sein Liegeplatz (dann ebenfalls andocken), sonst seine Position
         SectorId sector; Vec2 pos; StationId station = default;
         if (target.Transit is { } t) { sector = t.ToSector; pos = t.ToPosition; station = u.StationAt(t.ToSector, t.ToPosition); }
         else if (target.DockedAt.Value != 0 && u.Stations.TryGetValue(target.DockedAt, out var st)) { sector = st.Sector; pos = st.DockPoint(ship.Id); station = st.Id; }
         else { sector = target.Sector; pos = target.Position; }
+        // Runde 36 (Kette: Begleiter folgt Begleiter): das Reiseziel eines Begleiters endet oft nahe einem Andockpunkt, ohne dass er dort andockt — ein
+        // Spielerschiff dockt nur, wenn die Kette der Führer dort wirklich andockt (sonst lag es kurz mit Liegeplatz und zahlte Gebühr)
+        if (ship.IsPlayer && station.Value != 0 && target.Transit is not null && !DocksAt(u, target, station, 8)) station = default;
         // Runde 20 (Handy-Test: eigene Begleiter neben dem Spieler galten als „angedockt“): folgt ein Spielerschiff einem Schiff, das nicht angedockt ist und
         // keine Station ansteuert, liegt es nicht am Liegeplatz — auch wenn seine Folgereise zufällig am Andockpunkt endete (nur Spielerschiffe: NPC unverändert)
         if (station.Value == 0 && ship.IsPlayer && ship.DockedAt.Value != 0 && ship.Transit is null) ship.DockedAt = default;
@@ -334,6 +340,18 @@ public class FollowExecutor : IOrderExecutor
     }
 
     public void Stop(Universe u, Ship ship, ShipCommand command) => OrderMove.StopHere(u, ship);
+
+    /// <summary>
+    /// Runde 36: dockt <paramref name="s"/> an <paramref name="station"/> an? Ein Schiff mit eigenem Befehl (kein Folgen/Eskorte) ja, ein Begleiter nur, wenn
+    /// sein Führer dort liegt oder (rekursiv, höchstens <paramref name="depth"/> Glieder) selbst dorthin zum Andocken unterwegs ist.
+    /// </summary>
+    static bool DocksAt(Universe u, Ship s, StationId station, int depth)
+    {
+        if (depth <= 0 || !u.Ships.TryGetValue(TargetOf(s.Command ?? new HoldCommand()), out var lead)) return s.Command is not (FollowCommand or EscortCommand) || depth <= 0;
+        if (lead.DockedAt == station) return true;
+        return lead.Transit is { } t && u.StationAt(t.ToSector, t.ToPosition) == station && DocksAt(u, lead, station, depth - 1);
+    }
+
     public virtual string Describe(Universe u, Ship ship, ShipCommand command) => $"Folgt {OrderMove.ShipName(u, TargetOf(command))}";
 }
 
