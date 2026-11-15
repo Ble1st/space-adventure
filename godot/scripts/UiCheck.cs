@@ -35,6 +35,7 @@ public partial class UiCheck : Node
 		(2048, 1536, 264f, "9,7″-Tablet 4:3"),
 		(960, 540, 245f, "4,5″-Handy / kleines Fenster"),
 		(2340, 1080, 396f, "Samsung A15 mit Kamera-Aussparung links"),
+		(2340, 1080, 396f, "Samsung A15 mit Aussparung laut dumpsys"),
 	};
 	/// <summary>
 	/// Runde 37 (Handytest r35 g31: „Verkaufen“ ragte über den Zeilenrand — am Gerät nimmt die Kamera-Aussparung links ≈ 80 Bildpunkte, die Prüfung lief ohne
@@ -42,7 +43,13 @@ public partial class UiCheck : Node
 	/// </summary>
 	/// Runde 37b: die echten Werte des A15 (dumpsys: Querformat links 80, rechts 135, oben 84 Gerätepunkte bei 2340 × 1080) in logische Punkte umgerechnet
 	/// (× 720/1080): links 53, rechts 90, oben 56.
-	static UiInsets InsetsOf(string device) => device.Contains("Aussparung") ? new UiInsets(80f * 720f / 1080f, 84f * 720f / 1080f, 135f * 720f / 1080f, 0f) : new UiInsets(0f, 0f, 0f, 0f);
+	/// Runde 37c: zwei Fassungen — „a“ = was die App zur Laufzeit bekommt (Gerätelog r37b: GetDisplaySafeArea 80,0 2260×1080 → nur links 80 Gerätepunkte =
+	/// 53 logisch; dagegen wird gebaut), „d“ = die dumpsys-Werte (zusätzlich oben 84, rechts 135 — Statusleiste/Navigationsleiste, falls sie in einem
+	/// anderen Modus doch gemeldet werden; strengere Gegenprobe).
+	static UiInsets InsetsOf(string device) => device.Contains("dumpsys") ? new UiInsets(80f * 720f / 1080f, 84f * 720f / 1080f, 135f * 720f / 1080f, 0f)
+		: device.Contains("Aussparung") ? new UiInsets(80f * 720f / 1080f, 0f, 0f, 0f) : new UiInsets(0f, 0f, 0f, 0f);
+	/// <summary>Runde 37c: Kürzel der Prüfgröße (Dateinamen, Protokoll, Auswahl): „2340x1080“, „2340x1080a“ (Laufzeit-Aussparung), „2340x1080d“ (dumpsys).</summary>
+	static string KeyOf((int W, int H, float Ppi, string Device) z) => $"{z.W}x{z.H}" + (z.Device.Contains("dumpsys") ? "d" : z.Device.Contains("Aussparung") ? "a" : "");
 	static readonly float[] AllFactors = { 1f, 1.15f, 1.3f };
 	(int W, int H, float Ppi, string Device)[] Sizes = AllSizes;
 	float[] Factors = AllFactors;
@@ -51,13 +58,13 @@ public partial class UiCheck : Node
 	/// <summary>Runde 35b: Auswahl für schnelle Durchläufe — „1280x720,2340x1080“ bzw. „1.3“ (leer = alle).</summary>
 	public void Select(string? sizes, string? factors)
 	{
-		if (!string.IsNullOrEmpty(sizes)) Sizes = AllSizes.Where(z => sizes.Split(',').Contains(z.Device.Contains("Aussparung") ? $"{z.W}x{z.H}a" : $"{z.W}x{z.H}")).ToArray();
+		if (!string.IsNullOrEmpty(sizes)) Sizes = AllSizes.Where(z => sizes.Split(',').Contains(KeyOf(z))).ToArray();
 		if (!string.IsNullOrEmpty(factors)) Factors = factors.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 	}
 
 	sealed record Finding(string State, int W, int H, float Factor, int Interactive, int Overlaps, int Truncated, int Small7, int Small5, int Outside, float Fill, int ShipCovered, float Effective,
 		int MessageCovers, float Content, float MinMm, int Visible, bool Unstable, float Layout, int TextOverlaps, int ClippedCount, float MinFont,
-		List<string> Notes);
+		List<string> Notes, string Key = "");
 	readonly List<Finding> _results = new();
 	readonly List<(string Name, Action Setup, int Wait)> _plan = new();
 	int _sizeIdx, _factorIdx, _wait;
@@ -205,8 +212,8 @@ public partial class UiCheck : Node
 				_first = null; _tries = 0;
 				_results.Add(pick);
 				_lastMeasured = pick.State;
-				foreach (var note in pick.Notes.Where(x => x.StartsWith("außerhalb") || x.StartsWith("Schiff verdeckt") || x.StartsWith("Meldung") || x.StartsWith("Hinweis") || x.StartsWith("Text über") || x.StartsWith("beschnitten") || x.StartsWith("Überlappung") || x.StartsWith("gekürzt") || x.StartsWith("Taste gekürzt"))) GD.Print($"[ui-check]   {note}");
-				GD.Print($"[ui-check] {pick.W}x{pick.H} f{pick.Factor:0.00} {pick.State}: Tasten {pick.Interactive}, Überlappung {pick.Overlaps}, gekürzt {pick.Truncated}, <7 mm {pick.Small7}, <5 mm {pick.Small5}, kleinste {pick.MinMm:0.0} mm, außerhalb {pick.Outside}, Meldung über Inhalt {pick.MessageCovers}, Text über {pick.TextOverlaps}, beschnitten {pick.ClippedCount}, kleinste Schrift {pick.MinFont:0.0} px, Hülle {(pick.Fill < 0 ? "–" : $"{pick.Fill * 100:0} %")}, belegt {(pick.Content < 0 ? "–" : $"{pick.Content * 100:0} %")}{(pick.Unstable ? " INSTABIL" : "")}");
+				foreach (var note in pick.Notes.Where(x => x.Contains("außerhalb") || x.StartsWith("Schiff verdeckt") || x.StartsWith("Meldung") || x.StartsWith("Hinweis") || x.StartsWith("Text über") || x.StartsWith("beschnitten") || x.StartsWith("Überlappung") || x.StartsWith("gekürzt") || x.StartsWith("Taste gekürzt"))) GD.Print($"[ui-check]   {note}");
+				GD.Print($"[ui-check] {pick.Key} f{pick.Factor:0.00} {pick.State}: Tasten {pick.Interactive}, Überlappung {pick.Overlaps}, gekürzt {pick.Truncated}, <7 mm {pick.Small7}, <5 mm {pick.Small5}, kleinste {pick.MinMm:0.0} mm, außerhalb {pick.Outside}, Meldung über Inhalt {pick.MessageCovers}, Text über {pick.TextOverlaps}, beschnitten {pick.ClippedCount}, kleinste Schrift {pick.MinFont:0.0} px, Hülle {(pick.Fill < 0 ? "–" : $"{pick.Fill * 100:0} %")}, belegt {(pick.Content < 0 ? "–" : $"{pick.Content * 100:0} %")}{(pick.Unstable ? " INSTABIL" : "")}");
 			}
 			_skip = false;
 			_state = "";
@@ -214,7 +221,7 @@ public partial class UiCheck : Node
 			{
 				_shot = true;
 				var (w, h, _, dv) = Sizes[_sizeIdx];
-				string wh = dv.Contains("Aussparung") ? $"{w}x{h}a" : $"{w}x{h}";
+				string wh = KeyOf(Sizes[_sizeIdx]);
 				string file = System.IO.Path.Combine(_dir, MathF.Abs(Factors[_factorIdx] - 1f) < 0.001f ? $"{wh}_{name}.png" : $"{wh}_f{Factors[_factorIdx] * 100:0}_{name}.png");
 				RenderingServer.FramePostDraw += Shot;
 				void Shot()
@@ -439,6 +446,29 @@ public partial class UiCheck : Node
 			if (mm < 5f) { small5++; if (notes.Count < 24) notes.Add($"Tippfläche {mm:0.0} mm „{Label(c)}“"); }
 			if (!vp.Grow(0.5f).Encloses(Clipped(c))) { outside++; if (notes.Count < 30) notes.Add($"außerhalb „{Label(c)}“ {r.Position.X:0},{r.Position.Y:0} {r.Size.X:0}×{r.Size.Y:0}"); }
 		}
+		// Runde 37c (Prüfung M3): sichere Ränder — keine Taste und kein Text (auch gezeichnet) in der Aussparung, für alle Ebenen
+		var si = UiScale.SafeInsets1();
+		if (si.Left + si.Top + si.Right + si.Bottom > 0.5f)
+		{
+			var safe = new Rect2(vp.Position + new Vector2(si.Left, si.Top), vp.Size - new Vector2(si.Left + si.Right, si.Top + si.Bottom)).Grow(0.5f);
+			var alertLayer0 = _m.HudRef.TestAlertLayer;
+			foreach (var c in inter.Where(c => !safe.Encloses(Clipped(c))))
+			{ outside++; if (notes.Count < 34) notes.Add($"außerhalb der sicheren Fläche „{Label(c)}“"); }
+			foreach (var c in all.Where(c => c is Label { Text.Length: > 0 } l && Alpha(c) >= 0.05f && (modal is null || modal == c || modal.IsAncestorOf(c) || alertLayer0.IsAncestorOf(c)) && Clipped(c).Size.X > 1f))
+			{
+				var lr = Clipped(c);
+				if (!safe.Encloses(lr) && lr.Intersection(safe).Size.X * lr.Intersection(safe).Size.Y < lr.Size.X * lr.Size.Y - 4f) { outside++; if (notes.Count < 34) notes.Add($"Text außerhalb der sicheren Fläche „{Short(((Label)c).Text)}“"); }
+			}
+			var scopeIds = new HashSet<ulong>(all.Where(c => modal is null || modal == c || modal.IsAncestorOf(c) || alertLayer0.IsAncestorOf(c)).Select(c => c.GetInstanceId()));
+			foreach (var e in SpaceAdventure.Ui.Kit.DrawnText.All)
+			{
+				if (!scopeIds.Contains(e.Owner) || GodotObject.InstanceFromId(e.Owner) is not Control oc) continue;
+				var gt = oc.GetGlobalTransform();
+				var r = ClipOf(oc).Intersection(new Rect2(gt * e.Local.Position, e.Local.Size * gt.Scale.Y));
+				if (r.Size.X <= 1f || safe.Encloses(r)) continue;
+				outside++; if (notes.Count < 34) notes.Add($"Text außerhalb der sicheren Fläche „{Short(e.Shown)}“ (gezeichnet)");
+			}
+		}
 		// Runde 37b (Handytest r37 N3: Comms/System-Rahmen breiter als in den anderen Bereichen): Mittelteil-Rahmen hat genau die Größe aus dem Gerüst
 		var cc = modal switch { SpaceAdventure.Ui.Screens.CommandScreen cs => cs.CenterCheck, SpaceAdventure.Ui.Screens.DockAreaScreen ds => ds.CenterCheck, _ => null };
 		if (cc is { } chk && (MathF.Abs(chk.Actual.Size.X - chk.ExpectedSize.X) > 1.5f || MathF.Abs(chk.Actual.Size.Y - chk.ExpectedSize.Y) > 1.5f))
@@ -534,7 +564,7 @@ public partial class UiCheck : Node
 		}
 		// Runde 34b: Lagesumme der Tasten — eine Messung mitten im Aufbau (Raster noch ohne Layout, alle Tasten auf 0,0) gilt nicht als stabil
 		float layoutSum = inter.Sum(c => c.GetGlobalRect().Position.X * 0.37f + c.GetGlobalRect().Position.Y);
-		return new Finding((Sizes[_sizeIdx].Device.Contains("Aussparung") ? "aussparung-" : "") + state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, covered, eff, msgCovers, content, minMm, all.Count, false, layoutSum, textOver, clippedCount, minFont, notes);
+		return new Finding(state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, covered, eff, msgCovers, content, minMm, all.Count, false, layoutSum, textOver, clippedCount, minFont, notes, KeyOf(Sizes[_sizeIdx]));
 	}
 
 	static string Label(Control c) => c switch { KitButton k => Short(k.Text), Label l => Short(l.Text), _ => c.GetType().Name };
@@ -551,37 +581,37 @@ public partial class UiCheck : Node
 		{
 			sb.AppendLine($"\n== UI-Faktor {f:0.00} ==");
 			sb.Append($"{"Bildschirm",-22}");
-			foreach (var (w, h, _, _) in Sizes) sb.Append($" | {$"{w}×{h}",-22}");
+			foreach (var z in Sizes) sb.Append($" | {KeyOf(z),-22}");
 			sb.AppendLine();
 			foreach (var state in _results.Where(r => r.Factor == f).Select(r => r.State).Distinct())
 			{
 				sb.Append($"{state,-22}");
-				foreach (var (w, h, _, _) in Sizes)
+				foreach (var z in Sizes)
 				{
-					var r = _results.FirstOrDefault(x => x.State == state && x.W == w && x.H == h && x.Factor == f);
+					var r = _results.FirstOrDefault(x => x.State == state && x.Key == KeyOf(z) && x.Factor == f);
 					sb.Append(r is null ? $" | {"–",-44}" : $" | {$"Ü{r.Overlaps} K{r.Truncated} T7 {r.Small7}/{r.Interactive} T5 {r.Small5} A{r.Outside}{(r.TextOverlaps > 0 ? $" T{r.TextOverlaps}" : "")}{(r.ClippedCount > 0 ? $" C{r.ClippedCount}" : "")}{(r.MessageCovers > 0 ? $" M{r.MessageCovers}" : "")}{(r.ShipCovered > 0 ? " S!" : "")}{(r.Content < 0 ? "" : $" B{r.Content * 100:0}%")}{(float.IsNaN(r.MinMm) ? "" : $" {r.MinMm:0.0}mm")}{(float.IsNaN(r.MinFont) ? "" : $" S{r.MinFont:0}")}{(r.Unstable ? " ?!" : "")}{(MathF.Abs(r.Effective - r.Factor) > 0.005f ? $" ({r.Effective:0.00})" : "")}",-44}");
 				}
 				sb.AppendLine();
 			}
 		}
 		sb.AppendLine("\nEinzelbefunde (Faktor 1, 2340×1080):");
-		foreach (var r in _results.Where(x => x.Factor == 1f && x.W == 2340))
+		foreach (var r in _results.Where(x => x.Factor == 1f && x.Key == "2340x1080"))
 			foreach (var n in r.Notes.Take(8)) sb.AppendLine($"  {r.State}: {n}");
 		string txt = System.IO.Path.Combine(_dir, "ui-check.txt");
 		System.IO.File.WriteAllText(txt, sb.ToString());
 		var json = new StringBuilder("[\n");
 		foreach (var r in _results)
-			json.AppendLine($"  {{\"state\":\"{r.State}\",\"w\":{r.W},\"h\":{r.H},\"factor\":{r.Factor.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"interactive\":{r.Interactive},\"overlaps\":{r.Overlaps},\"truncated\":{r.Truncated},\"tapUnder7mm\":{r.Small7},\"tapUnder5mm\":{r.Small5},\"outside\":{r.Outside},\"shipCovered\":{r.ShipCovered},\"messageCovers\":{r.MessageCovers},\"textOverlaps\":{r.TextOverlaps},\"clipped\":{r.ClippedCount},\"minFontPx\":{(float.IsNaN(r.MinFont) ? "null" : r.MinFont.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))},\"content\":{r.Content.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)},\"minMm\":{(float.IsNaN(r.MinMm) ? "null" : r.MinMm.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))},\"unstable\":{(r.Unstable ? "true" : "false")},\"effective\":{r.Effective.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},\"fill\":{r.Fill.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}}},");
+			json.AppendLine($"  {{\"size\":\"{r.Key}\",\"state\":\"{r.State}\",\"w\":{r.W},\"h\":{r.H},\"factor\":{r.Factor.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"interactive\":{r.Interactive},\"overlaps\":{r.Overlaps},\"truncated\":{r.Truncated},\"tapUnder7mm\":{r.Small7},\"tapUnder5mm\":{r.Small5},\"outside\":{r.Outside},\"shipCovered\":{r.ShipCovered},\"messageCovers\":{r.MessageCovers},\"textOverlaps\":{r.TextOverlaps},\"clipped\":{r.ClippedCount},\"minFontPx\":{(float.IsNaN(r.MinFont) ? "null" : r.MinFont.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))},\"content\":{r.Content.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)},\"minMm\":{(float.IsNaN(r.MinMm) ? "null" : r.MinMm.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))},\"unstable\":{(r.Unstable ? "true" : "false")},\"effective\":{r.Effective.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},\"fill\":{r.Fill.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}}},");
 		System.IO.File.WriteAllText(System.IO.Path.Combine(_dir, "ui-check.json"), json.ToString().TrimEnd(',', '\n', '\r') + "\n]\n");
 		GD.Print($"[ui-check] fertig: {txt}");
 		// Runde 37b (Prüfauflage A3): bei Befunden „UI-CHECK FEHLER“ und Exit-Code 1; begründete Ausnahmen stehen in AllowedTruncations
 		var bad = new List<string>();
 		foreach (var r in _results)
 		{
-			int allowed = r.Notes.Count(n => n.StartsWith("gekürzt", StringComparison.Ordinal) && AllowedTruncations.Any(a => n.Contains(a.Pattern, StringComparison.Ordinal)));
+			int allowed = r.Notes.Count(n => n.StartsWith("gekürzt", StringComparison.Ordinal) && AllowedTruncations.Any(a => r.State == a.State && n.Contains(a.Pattern, StringComparison.Ordinal)));
 			int trunc = Math.Max(0, r.Truncated - allowed);
 			int sum = r.Overlaps + trunc + r.Outside + r.TextOverlaps + r.ClippedCount + r.MessageCovers + r.ShipCovered + (r.Unstable ? 1 : 0);
-			if (sum > 0) bad.Add($"{r.W}x{r.H} f{r.Factor:0.00} {r.State}: Ü{r.Overlaps} K{trunc} A{r.Outside} T{r.TextOverlaps} C{r.ClippedCount} M{r.MessageCovers}{(r.ShipCovered > 0 ? " S!" : "")}{(r.Unstable ? " instabil" : "")} [{string.Join("; ", r.Notes.Take(3))}]");
+			if (sum > 0) bad.Add($"{r.Key} f{r.Factor:0.00} {r.State}: Ü{r.Overlaps} K{trunc} A{r.Outside} T{r.TextOverlaps} C{r.ClippedCount} M{r.MessageCovers}{(r.ShipCovered > 0 ? " S!" : "")}{(r.Unstable ? " instabil" : "")} [{string.Join("; ", r.Notes.Where(n => !n.StartsWith("Tippfläche", StringComparison.Ordinal)).Take(4))}]");
 		}
 		if (bad.Count == 0) { GD.Print("UI-CHECK OK"); GetTree().Quit(0); return; }
 		foreach (var b in bad) GD.PrintErr("[ui-check] BEFUND " + b);
@@ -590,8 +620,8 @@ public partial class UiCheck : Node
 	}
 
 	/// <summary>Runde 37b (A3): begründete Ausnahmen — gekürzte Texte, die bewusst so bleiben (Muster im Hinweis, Begründung).</summary>
-	public static readonly (string Pattern, string Why)[] AllowedTruncations =
+	public static readonly (string State, string Pattern, string Why)[] AllowedTruncations =
 	{
-		("Einheitsf…", "Schiffs-Chip im Dock-Menü (126 px, vier je Zeile): lange NPC-Schiffsnamen in der Mitte gekürzt, voller Name im Hangar (Runde 35b)"),
+		("dockmenue-trade_station", "Einheitsf…", "Schiffs-Chip im Dock-Menü (126 px, vier je Zeile): lange NPC-Schiffsnamen in der Mitte gekürzt, voller Name im Hangar (Runde 35b)"),
 	};
 }

@@ -25,7 +25,12 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 {
 	/// <summary>Runde 37b (Prüfauflage A2): unterer Streifen ohne Knoten und Namen — Meldung und Hinweis liegen dort statt über der Karte.</summary>
 	public const float StripHeight = 60f;
-	public Rect2? MessageStripGlobal => IsVisibleInTree() ? new Rect2(GetGlobalTransform() * new Vector2(16f, Size.Y - StripHeight - 8f), new Vector2(Size.X - 32f, StripHeight) * GetGlobalTransform().Scale.X) : null;
+	public Rect2? MessageStripGlobal => IsVisibleInTree() ? new Rect2(GetGlobalTransform() * new Vector2(Safe.Left + 16f, Size.Y - Safe.Bottom - StripHeight - 8f), new Vector2(Size.X - Safe.Left - Safe.Right - 32f, StripHeight) * GetGlobalTransform().Scale.X) : null;
+
+	/// <summary>Runde 37c (Prüfung M3): sichere Ränder der Karte in ihrer Schicht (Titel, Schließen, Meldungsstreifen und Karte liegen innerhalb).</summary>
+	SpaceSim.Core.Ui.UiInsets Safe => SpaceAdventure.Ui.Kit.UiScale.Div(SpaceAdventure.Ui.Kit.UiScale.SafeInsets1(), IsInsideTree() ? MathF.Max(1f, GetGlobalTransform().Scale.X) : 1f);
+	/// <summary>Nutzbare Fläche (innerhalb der sicheren Ränder).</summary>
+	Rect2 Usable => new(new Vector2(Safe.Left, Safe.Top), Size - new Vector2(Safe.Left + Safe.Right, Safe.Top + Safe.Bottom));
 	public event Action<SectorId>? SectorSelected;
 	public event Action? Closed;
 
@@ -45,6 +50,8 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 		AddChild(_close);
 	}
 
+	void PlaceClose() { var p = new Vector2(Size.X - Safe.Right - 170, Safe.Top + 16); if (_close.Position != p) _close.Position = p; }
+
 	public void Open(Universe u, SectorId player, SectorId? target) { _u = u; _player = player; _target = target; Visible = true; QueueRedraw(); }
 
 	Vector2 Place(Sector s, Vector2 center, float scale)
@@ -59,8 +66,8 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 	{
 		var all = _u!.Sectors.Values.Select(x => x.MapPosition).ToList();
 		float rx = all.Max(p => p.X) - all.Min(p => p.X), ry = all.Max(p => p.Y) - all.Min(p => p.Y);
-		float sx = rx > 0.001f ? (Size.X - 200f) / rx : 220f;
-		float sy = ry > 0.001f ? (Size.Y - 190f - StripHeight) / ry : 220f;   // Runde 37b: Platz für den Meldungsstreifen unten
+		float sx = rx > 0.001f ? (Usable.Size.X - 200f) / rx : 220f;
+		float sy = ry > 0.001f ? (Usable.Size.Y - 190f - StripHeight) / ry : 220f;   // Runde 37b: Platz für den Meldungsstreifen unten
 		return Mathf.Clamp(Mathf.Min(sx, sy), 90f, 220f);
 	}
 
@@ -68,11 +75,11 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 	public Vector2? TestSectorScreen(SectorId id) => _u is null || !_u.Sectors.TryGetValue(id, out var s) ? null : GetGlobalTransform() * Place(s, MapCenter(), MapScale());
 
 	/// <summary>Mittelpunkt der Karte (unter der Überschrift).</summary>
-	Vector2 MapCenter() => Size / 2f + new Vector2(0, 26f - StripHeight / 2f);
+	Vector2 MapCenter() => Usable.GetCenter() + new Vector2(0, 26f - StripHeight / 2f);
 
 	public override void _Notification(int what)
 	{
-		if (what == NotificationResized && _close != null) _close.Position = new Vector2(Size.X - 170, 16);
+		if (what == NotificationResized && _close != null) PlaceClose();
 	}
 
 	public override void _GuiInput(InputEvent @event)
@@ -91,7 +98,9 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 		DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.03f, 0.08f, 1f));   // Gerätetest: deckend (das HUD schien durch)
 		var font = ThemeDB.FallbackFont;
 		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
-		SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 0, font, new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", 24, Size.X - 48f, Colors.White);
+		PlaceClose();
+		var us = Usable;
+		SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 0, font, us.Position + new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", 24, us.Size.X - 48f - 170f, Colors.White);
 		var center = MapCenter();
 		float scale = MapScale();
 
@@ -107,7 +116,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 			}
 
 		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
-		var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(new Vector2(0, 60), Size - new Vector2(0, 60 + StripHeight + 8f)), font);
+		var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(us.Position + new Vector2(0, 60), us.Size - new Vector2(0, 60 + StripHeight + 8f)), font);
 		foreach (var s in _u.Sectors.Values) layout.ReserveCircle(Place(s, center, scale), 40f);
 		foreach (var s in _u.Sectors.Values)
 		{

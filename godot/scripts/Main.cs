@@ -773,6 +773,7 @@ public partial class Main : Node3D
 	/// </summary>
 	void ShowBase()
 	{
+		if (_hud.Screens.Current is CommandScreen) CommandScreen.ForgetRailArea();   // Runde 37c (Prüfung M2): beim Schließen der Zentrale
 		_hud.Map.Visible = false;
 		_hud.Screens.Hide();
 		if (_docked == null) _hud.Flight.Visible = true;
@@ -784,13 +785,44 @@ public partial class Main : Node3D
 	/// (→ Dock-Menü); im Dock-Menü ein Hinweis (Abdocken bleibt eine bewusste Taste), im Flug öffnet sie das Hamburger-Menü. Nie die App beenden
 	/// (project.godot: application/config/quit_on_go_back=false). Escape am Desktop wirkt gleich.
 	/// </summary>
+	/// <summary>
+	/// Runde 37c (Handytest r37b, Blocker: ein Druck der Android-Zurück-Taste löste HandleBack zweimal aus, 2–16 ms Abstand — Menü schloss und öffnete sich,
+	/// im Flug passierte nichts): Godot stellt einen Druck auf manchen Geräten doppelt zu (Tasten-Ab und -Auf rufen je onBackPressed; beide kommen als
+	/// WM_GO_BACK_REQUEST an). Ein Druck wird nur einmal verarbeitet: jede weitere Zustellung innerhalb von <see cref="BackDebounceFrames"/> Bildern
+	/// (gleich, ob Benachrichtigung oder Taste) wird verworfen und protokolliert.
+	/// </summary>
+	internal string BackRequested(string source)
+	{
+		ulong frame = Engine.GetProcessFrames();
+		if (_lastBackFrame != ulong.MaxValue && frame - _lastBackFrame <= BackDebounceFrames)
+		{
+			GD.Print($"[ui] Zurück-Taste ({source}) verworfen: zweite Zustellung desselben Drucks ({frame - _lastBackFrame} Bilder)");
+			BackIgnored++;
+			return "verworfen";
+		}
+		_lastBackFrame = frame;
+		string r = HandleBack();
+		BackHandled++;
+		GD.Print($"[ui] Zurück-Taste ({source}): {r}");
+		return r;
+	}
+	internal const ulong BackDebounceFrames = 6;
+	ulong _lastBackFrame = ulong.MaxValue;
+	/// <summary>Selbsttest: verarbeitete und verworfene Zurück-Zustellungen.</summary>
+	internal int BackHandled, BackIgnored;
+
 	internal string HandleBack()
 	{
 		if (_catchUp is not null) return "nachholen";
 		var cur = _hud.Screens.Current;
+		// Runde 37c: innerste Ebene zuerst — offene Meldung, Fraktionsdetail (→ Liste), Startpaket-Auswahl, offene Handelszeile
+		if (_hud.TestAlert.Length > 0) { _hud.HideAlert(); return "meldung"; }
 		if (_hud.Map.Visible) { _hud.Map.Visible = false; ShowBase(); return "karte"; }
 		if (cur == _hud.Command) { _sfx.Play(SfxId.Click); ShowBase(); return "menü"; }
+		if (cur == _hud.CcFactions && _hud.CcFactions.TestDetailOpen && _hud.CcFactions.IsNarrow) { _hud.CcFactions.TestDetailOpen = false; return "fraktionsliste"; }
+		if (cur == _hud.CcSystem && _hud.CcSystem.TestChoosing) { _hud.CcSystem.TestChoosing = false; return "startpakete"; }
 		if (cur is CommandScreen) { CloseCommand(); return "zentrale"; }
+		if (cur == _hud.DockTrade && _hud.DockTrade.CloseOpenRow()) return "handelszeile";
 		if (cur is not null && cur != _hud.DockMenu && cur != _hud.Flight && _docked != null) { _sfx.Play(SfxId.Click); ShowDockMenu(); return "dockbereich"; }
 		if (cur == _hud.DockMenu) { _hud.Toast("Zum Abdocken „Abdocken“ antippen."); return "dockmenü"; }
 		ToggleCommand();
@@ -958,7 +990,7 @@ public partial class Main : Node3D
 		// Runde 12: Musik hält bei App-Pause an und läuft beim Fortsetzen weiter
 		if (_music is not null && what == NotificationApplicationPaused) _music.SetPaused(true);
 		if (_music is not null && what == NotificationApplicationResumed) _music.SetPaused(false);
-		if (what == NotificationWMGoBackRequest && _hud is not null) GD.Print($"[ui] Zurück-Taste: {HandleBack()}");   // Runde 37b
+		if (what == NotificationWMGoBackRequest && _hud is not null) BackRequested("Benachrichtigung");   // Runde 37b/37c
 	}
 
 	void OnSimEvent(SimEvent e)
@@ -1054,6 +1086,9 @@ public partial class Main : Node3D
 					: SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default);
 				_hud.Toast(LastCombatMessage, 4f); break;
 			// Phase 22: Station im Spielersektor aufgegeben — Grund (pleite / länger nicht rentabel) im Text
+			case StationDeparted mine when _docked is { } dk && mine.Station == dk:
+				_lostStationMessage = (SpaceSim.Core.Simulation.Departures.StationToast(mine) ?? "Die Station wurde aufgegeben.") + " Du bist abgedockt und wieder im Flug.";
+				break;
 			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
 				LastDepartureMessage = departed; _hud.Toast(departed, 4.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
@@ -1144,6 +1179,9 @@ public partial class Main : Node3D
 		_anchorBrokeLeft = Mathf.Max(0f, _anchorBrokeLeft - delta);   // Runde 18
 
 		_session.Advance(delta, _fast ? 10f : 1f);
+		// Runde 37c (Prüfung M1): die angedockte Station kann verschwinden (pleite, aufgegeben, zerstört) — dann zurück in den Flug, mit Meldung (sonst blieb
+		// _docked stehen und ShowBase/ShowDockMenu zeigten nichts)
+		if (_docked is { } dockedId && !_session.U.Stations.ContainsKey(dockedId)) ForcedUndock(_lostStationMessage ?? "Die Station, an der du angedockt warst, gibt es nicht mehr — du bist wieder im Flug.");
 		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; _anchors.Clear(); }
 		_view.SyncAsteroids(_session.U, delta);
 		_view.SyncWrecks(_session.U);   // Phase 26: Wracks und Frachtbehälter
@@ -1668,6 +1706,28 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Abdocken: Das Schiff taucht aus der Station auf und fliegt zum Parkpunkt; danach kurze Schonfrist ohne Schaden. Funktioniert aus jedem Dock-Bereich.</summary>
+	string? _lostStationMessage;
+
+	/// <summary>Runde 37c (M1): angedockt, aber die Station ist weg — Dock-Zustand lösen, alle Bildschirme zu, Schiff sichtbar an seiner Lage, Meldung.</summary>
+	void ForcedUndock(string message)
+	{
+		_docked = null;
+		_lostStationMessage = null;
+		_transition = false;
+		_hud.Map.Visible = false;
+		_hud.Screens.Hide();
+		_hud.Flight.Visible = true;
+		var p = PlayerData.Position;
+		_player.Position = new Vector3(p.X, 0, p.Y);
+		_player.Scale = Vector3.One;
+		_player.Visible = true;
+		_player.GiveGrace(2.5f);
+		_hud.Alert(message, 8f);
+		LastForcedUndock = message;
+	}
+	/// <summary>Selbsttest: Meldung des letzten erzwungenen Abdockens.</summary>
+	internal string LastForcedUndock { get; private set; } = "";
+
 	void Undock()
 	{
 		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
@@ -1698,7 +1758,10 @@ public partial class Main : Node3D
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		if (_catchUp is not null) return;   // Phase 28: während des Nachholens keine Eingaben
-		if (_hud != null && @event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) { HandleBack(); GetViewport().SetInputAsHandled(); return; }   // Runde 37b: wie die Zurück-Taste
+		// Runde 37b: Escape wie die Zurück-Taste — Runde 37c: nur am Desktop (auf dem Gerät kommt die Zurück-Taste als Benachrichtigung); eine Taste
+		// „Zurück“ (Key.Back), falls ein Gerät sie zusätzlich als Tastenereignis schickt, läuft durch dieselbe Entprellung
+		if (_hud != null && @event is InputEventKey { Pressed: true, Echo: false } bk && (bk.Keycode == Key.Back || (bk.Keycode == Key.Escape && !OS.HasFeature("mobile"))))
+		{ BackRequested(bk.Keycode == Key.Back ? "Taste Zurück" : "Escape"); GetViewport().SetInputAsHandled(); return; }
 		if (_hud == null || _hud.AnyModalOpen) return;   // Menüs/Dock: Eingaben gehören der Oberfläche, Kamera bleibt stehen
 		if (@event is InputEventKey { Pressed: true, Echo: false } key)
 		{

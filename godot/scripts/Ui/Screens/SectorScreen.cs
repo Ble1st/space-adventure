@@ -287,7 +287,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				for (int i = 0; i < ids.Count; i++)
 					for (int j = i + 1; j < ids.Count; j++)
 					{
-						float need = (half[i] + half[j]) * 1.42f + 4f;   // Quadrate: Diagonale
+						float need = (half[i] + half[j]) * 1.42f + 10f;   // Quadrate: Diagonale; Runde 37c: mehr Luft (Handytest r37b: Stahlwerk/Panzerwerk eng)
 						var d = pos[j] - pos[i];
 						float len = d.Length();
 						if (len >= need) continue;
@@ -488,8 +488,11 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 					DrawRect(new Rect2(p - new Vector2(h, h), new Vector2(h * 2f, h * 2f)), col, false, sel ? 4f : 2f);
 				}
 				if (sel) DrawArc(p, 20f, 0, Mathf.Tau, 24, Cyan, 2f, true);
-				layout.ReserveCircle(p, 12f);
-				labels.Add((sel ? 0 : 1, p, st.Name, sel ? 13 : 12, sel ? Cyan : White, 14f));
+				// Runde 37c (Handytest r37b: Leitlinien kreuzten Symbole; Beschriftungen sprangen beim Auswählen): ganze Symbolfläche freihalten; Auswahl ändert nur
+				// die Farbe, nicht Reihenfolge oder Größe — die Lage der Namen bleibt stabil
+				float sh = SymbolHalf(st) + 4f;
+				layout.Reserve(new Rect2(p - new Vector2(sh, sh), new Vector2(sh * 2f, sh * 2f)));
+				labels.Add((1, p, st.Name, 12, sel ? Cyan : White, sh + 2f));
 			}
 
 			// Phase 26: Wracks (graues Kreuz) und Frachtbehälter (oranges Quadrat), echt aus Universe.Wrecks

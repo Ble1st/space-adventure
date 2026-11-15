@@ -28,6 +28,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// die Liste über die ganze Höhe oder — nach dem Antippen einer Zeile — das Detail mit „← Liste“.
 	/// </summary>
 	bool _detailOpen;
+	/// <summary>Runde 37c: zuletzt schmal gebaut (Liste oder Detail)?</summary>
+	public bool IsNarrow { get; private set; }
 	/// <summary>Selbsttest: schmal ist das Detail offen.</summary>
 	public bool TestDetailOpen { get => _detailOpen; set { _detailOpen = value; Invalidate(); } }
 
@@ -76,7 +78,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		var sel = Selected is { } s && rows.Any(r => r.Id == s) ? s : rows[0].Id;
 
 		// ── Liste links (scrollbar: aufgestiegene Einzelakteure kommen und gehen) ──
-		bool narrow = InnerW(inner) < 1021.5f;   // Runde 35/37: schmal — Liste oder Detail; Runde 37b: schmal, sobald Liste (404) und Detail (598) ab x 424 nicht nebeneinander passen
+		bool narrow = IsNarrow = InnerW(inner) < 1021.5f;   // Runde 35/37: schmal — Liste oder Detail; Runde 37b: schmal, sobald Liste (404) und Detail (598) ab x 424 nicht nebeneinander passen
 		if (!narrow || !_detailOpen) BuildList(inner, u, rows, sel, narrow);
 		if (narrow && !_detailOpen) return;
 		BuildDetail(inner, u, rows, sel, narrow);

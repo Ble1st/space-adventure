@@ -300,6 +300,24 @@ public partial class Hud : CanvasLayer
 			_alertRoot.Size = size;
 		}
 	}
+	/// <summary>
+	/// Runde 37c (Prüfung M3): Meldung/Hinweis in die sichere Fläche schieben (Ränder in Einheiten der Meldungsebene) — erst verschieben, dann schmaler.
+	/// </summary>
+	void ClampSafe(Control c)
+	{
+		var si = UiScale.Div(UiScale.SafeInsets1(), _alertScale);
+		var vp = AlertSpace;
+		float h = MathF.Max(c.Size.Y, c.GetCombinedMinimumSize().Y);
+		float maxW = vp.X - si.Left - si.Right;
+		var size = c.Size;
+		if (size.X > maxW) size = new Vector2(maxW, size.Y);
+		float x = Mathf.Clamp(c.Position.X, si.Left, MathF.Max(si.Left, vp.X - si.Right - size.X));
+		float y = Mathf.Clamp(c.Position.Y, si.Top, MathF.Max(si.Top, vp.Y - si.Bottom - h));
+		var pos = new Vector2(x, y);
+		if (pos != c.Position) c.Position = pos;
+		if (size != c.Size) c.Size = size;
+	}
+
 	/// <summary>Runde 33: Maßstab der Meldungsebene (Selbsttest).</summary>
 	public float TestAlertScale => _alertScale;
 	readonly ColorRect _backdrop = new();
@@ -409,7 +427,8 @@ public partial class Hud : CanvasLayer
 		if (key != _flightAlertKey && !keep)
 		{
 			_flightAlertKey = key;
-			var area = new SpaceSim.Core.Ui.UiRect(0, 0, vp.X, vp.Y);
+			var sa = UiScale.Div(UiScale.SafeInsets1(), _alertScale);   // Runde 37c: nur in der sicheren Fläche suchen
+			var area = new SpaceSim.Core.Ui.UiRect(sa.Left, sa.Top, vp.X - sa.Left - sa.Right, vp.Y - sa.Top - sa.Bottom);
 			int ls = _alertText.GetThemeConstant("line_spacing");
 			int Lines(float w, int fs) => (int)MathF.Round(font.GetMultilineStringSize(_alertText.Text, HorizontalAlignment.Left, w - 12 - 64, fs).Y / font.GetHeight(fs));
 			float H(float w, int fs) => MathF.Max(AlertHeight, Lines(w, fs) * (font.GetHeight(fs) + ls) + 12f);
@@ -491,7 +510,7 @@ public partial class Hud : CanvasLayer
 	{
 		ApplyLayerScale();
 		if (_alert.Visible && Time.GetTicksMsec() / 1000.0 > _alertUntil) _alert.Visible = false;
-		if (_alert.Visible) PlaceAlert();
+		if (_alert.Visible) { PlaceAlert(); ClampSafe(_alert); }
 		// der Hinweis rückt unter eine stehende Meldung (statt sie zu überdecken)
 		// Prüfung Runde 2: unter einer Meldung im Flug schmaler und links der Kampftasten („Nächster Gegner“ beginnt bei x 764 im 1280er-Raster)
 		bool onScreen = Screens.Current != null && Screens.Current != Flight;
@@ -516,8 +535,9 @@ public partial class Hud : CanvasLayer
 		}
 		else if (Screens.Current == Command && Command.WindowGlobal is { } mw)   // Hamburger-Menü: links neben dem Fenster (unten mittig lag er auf „Schließen“)
 		{
-			_toast.Position = new Vector2(10f, 90f);
-			_toast.Size = new Vector2(MathF.Max(200f, mw.Position.X - 20f), 0f);
+			float sl = UiScale.Div(UiScale.SafeInsets1(), _alertScale).Left;   // Runde 37c: neben der Aussparung
+			_toast.Position = new Vector2(sl + 10f, 90f);
+			_toast.Size = new Vector2(MathF.Max(200f, mw.Position.X / _alertScale - 20f - sl), 0f);
 		}
 		else if (Screens.Current == DockMenu)   // Dock-Menü: links neben dem Fenster, unter einer Meldung
 		{
@@ -574,7 +594,8 @@ public partial class Hud : CanvasLayer
 					int tls = _toast.GetThemeConstant("line_spacing");
 					float TH(float w, int fs) => MathF.Round(tfont.GetMultilineStringSize(_toast.Text, HorizontalAlignment.Left, w - 12f, fs).Y / tfont.GetHeight(fs)) * (tfont.GetHeight(fs) + tls) + 12f;
 					int tfloor = SpaceSim.Core.Ui.UiLayout.FontFloor(22, UiKit.LayerFactor(_toast));   // Grundgröße im Flug 22
-					var full = new SpaceSim.Core.Ui.UiRect(0, 0, vpSize.X, vpSize.Y);
+					var st = UiScale.Div(UiScale.SafeInsets1(), _alertScale);   // Runde 37c: nur in der sicheren Fläche suchen
+					var full = new SpaceSim.Core.Ui.UiRect(st.Left, st.Top, vpSize.X - st.Left - st.Right, vpSize.Y - st.Top - st.Bottom);
 					var imp = Flight.OccupiedLocal(importantOnly: true);
 					if (_alert.Visible) imp.Add(new Rect2(_alert.Position, _alert.Size).Grow(6f));
 					if (Flight.ShipRectLocal() is { } sr2) imp.Add(sr2);
@@ -598,6 +619,7 @@ public partial class Hud : CanvasLayer
 				if (_toastSpot is { } sp) { _toast.Position = new Vector2(sp.X, sp.Y); _toast.Size = new Vector2(sp.W, 0f); _toast.AddThemeFontSizeOverride("font_size", _toastFs); }
 			}
 		}
+		if (_toast.Text.Length > 0) ClampSafe(_toast);   // Runde 37c (Prüfung M3): Hinweis nie in der Aussparung
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
 		// Runde 7: Beschuss- und Fluchtzeile unter einen mehrzeiligen Hinweis im Flug
 		bool toastShown = _toast.Modulate.A > 0.02f && !onScreen && Screens.Current != DockMenu;
@@ -701,6 +723,14 @@ public partial class Hud : CanvasLayer
 			var field = Field();
 			var c = field.GetCenter();
 			var occupied = Occupied();   // Runde 4: Namen und Pfeile nie über HUD-Tasten/-Beschriftungen (Runde 17: auch Kurzmeldung/Meldung)
+			// Runde 37c (Prüfung M3): Aussparung als belegte Fläche — weder Pfeil noch Name dort
+			{
+				var si = UiScale.SafeInsets1(); var vs = GetViewportRect().Size;
+				if (si.Left > 0f) occupied.Add(new Rect2(0, 0, si.Left, vs.Y));
+				if (si.Right > 0f) occupied.Add(new Rect2(vs.X - si.Right, 0, si.Right, vs.Y));
+				if (si.Top > 0f) occupied.Add(new Rect2(0, 0, vs.X, si.Top));
+				if (si.Bottom > 0f) occupied.Add(new Rect2(0, vs.Y - si.Bottom, vs.X, si.Bottom));
+			}
 			// Runde 17: dem Gefechtsziel und seinem Pfeil ausweichen; im Gefecht nur die drei wichtigsten Stationen (verteidigte zuerst)
 			if (_arrowBox is { } ab) occupied.Add(ab.Grow(12f));
 			if (Hud.TargetScreenPosition?.Invoke() is { } tsp) occupied.Add(new Rect2(tsp - new Vector2(60f, 40f), new Vector2(120f, 80f)));

@@ -23,6 +23,15 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 {
 	public override string Id => "dock.trade";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
+	/// <summary>Runde 37c: Zurück-Taste — eine offene Zeile bzw. ein offenes Kachelblatt zuerst schließen (true = geschlossen).</summary>
+	public bool CloseOpenRow()
+	{
+		if (_expanded is null && _tileSel is null) return false;
+		_expanded = null; _tileSel = null;
+		Invalidate();
+		return true;
+	}
+
 	public void ResetSession() { _expanded = null; _tileSel = null; _qty = 10f; _message = ""; _msgOk = true; _hint.Clear(); }
 	protected override bool ShowShip => true;
 

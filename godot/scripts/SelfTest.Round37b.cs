@@ -30,6 +30,8 @@ public partial class SelfTest
 			Build37b();
 			return false;
 		}
+		// Runde 37c: zweite Zustellung desselben Drucks im nächsten Bild (wie am Gerät, 2–16 ms später)
+		if (_r37bSecondBack) { _r37bSecondBack = false; GetTree().Root.PropagateNotification((int)Node.NotificationWMGoBackRequest); }
 		if (_r37bIdx >= _r37b.Count) return true;
 		if (_r37bWait > 0) { _r37bWait--; return false; }
 		var (name, wait, act) = _r37b[_r37bIdx];
@@ -56,6 +58,7 @@ public partial class SelfTest
 
 	void ExpectBase(string what)
 	{
+		CheckSingleBack(what);
 		var hud = _m.HudRef;
 		bool docked = _m.TestDocked;
 		bool ok = docked ? hud.Screens.Current == hud.DockMenu && hud.DockMenu.Visible && !hud.Map.Visible
@@ -79,7 +82,28 @@ public partial class SelfTest
 		Step("Wisch " + name + " loslassen", 40, () => PushMouse(_r37bAt + new Vector2(0, 400 * dir), false, false));
 	}
 
-	void Back() { GetTree().Root.PropagateNotification((int)Node.NotificationWMGoBackRequest); }
+	/// <summary>
+	/// Runde 37c (Handytest r37b, Blocker: ein Druck wirkte doppelt): ein echter Druck der Android-Zurück-Taste — im selben Bild die Benachrichtigung und
+	/// ein Tastenereignis „Zurück“, im nächsten Bild die Benachrichtigung noch einmal. Geprüft wird, dass genau eine Zustellung verarbeitet wurde.
+	/// </summary>
+	void Back()
+	{
+		_r37bHandled0 = _m.BackHandled;
+		GetTree().Root.PropagateNotification((int)Node.NotificationWMGoBackRequest);
+		GetViewport().PushInput(new InputEventKey { Keycode = Key.Back, Pressed = true }, true);
+		GetViewport().PushInput(new InputEventKey { Keycode = Key.Back, Pressed = false }, true);
+		_r37bSecondBack = true;
+		_r37bBackPending = true;
+	}
+	bool _r37bSecondBack, _r37bBackPending;
+	int _r37bHandled0;
+	/// <summary>Nach einem simulierten Druck: genau eine Zustellung verarbeitet (sonst Doppelwirkung).</summary>
+	void CheckSingleBack(string what)
+	{
+		if (!_r37bBackPending) return;
+		_r37bBackPending = false;
+		Check(_m.BackHandled - _r37bHandled0 == 1, $"37c: ein Druck der Zurück-Taste wirkt genau einmal ({what}: {_m.BackHandled - _r37bHandled0} verarbeitet, {_m.BackIgnored} verworfen insgesamt)");
+	}
 	void Escape()
 	{
 		GetViewport().PushInput(new InputEventKey { Keycode = Key.Escape, Pressed = true }, true);
@@ -95,6 +119,7 @@ public partial class SelfTest
 			_m.TestCloseCommand();
 			if (_m.TestDocked) _m.TestUndock();
 			hud.Map.Visible = false;
+			hud.HideAlert();   // Runde 37c: eine offene Meldung früherer Stufen nähme den ersten Zurück-Druck (innere Ebene zuerst)
 			var root = GetTree().Root;
 			if (root.Size.X < 640 || root.Size.X == root.Size.Y) root.Size = new Vector2I(1280, 720);
 			UiScale.TestForce = null; UiScale.TestPpi = null; UiScale.Set(UiSize.Normal);
@@ -122,10 +147,10 @@ public partial class SelfTest
 		TapSteps("Menü-Hintergrund", () => hud.Command.WindowGlobal is { } w ? new Rect2(new Vector2(MathF.Max(4f, w.Position.X / 2f), w.End.Y - 20f), Vector2.One * 2f) : null);
 		Step("nach Hintergrund", 0, () => ExpectBase("Dock → Menü → Hintergrund"));
 		// Zurück-Taste und Escape
-		Step("Handel öffnen", 12, () => _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade));
+		Step("Handel öffnen", 12, () => { _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade); hud.DockTrade.CloseOpenRow(); hud.HideAlert(); });
 		Step("Zurück aus Handel", 10, () => Back());
 		Step("nach Zurück Handel", 0, () => ExpectBase("Dock-Bereich → Zurück-Taste"));
-		Step("Handel öffnen 2", 12, () => _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade));
+		Step("Handel öffnen 2", 12, () => { _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade); hud.DockTrade.CloseOpenRow(); });
 		Step("Escape aus Handel", 10, () => Escape());
 		Step("nach Escape Handel", 0, () => ExpectBase("Dock-Bereich → Escape"));
 		Step("Zurück im Dock-Menü", 10, () => Back());
@@ -157,6 +182,66 @@ public partial class SelfTest
 		Step("Karte im Flug 2", 10, () => _m.TestCommand("map"));
 		Step("Escape Karte Flug", 10, () => Escape());
 		Step("nach Escape Karte Flug", 0, () => ExpectBase("Flug → Karte → Escape"));
+
+		// ── Runde 37c: Doppelzustellung im Flug (Menü auf, nicht auf+zu), innere Ebenen zuerst, verschwundene Station ──
+		Step("Zurück im Flug (doppelt zugestellt)", 12, () => Back());
+		Step("Menü genau einmal auf", 0, () => { CheckSingleBack("Flug"); Check(hud.Screens.Current == hud.Command, $"37c: Zurück im Flug öffnet das Menü (bleibt offen, kein Auf+Zu; {hud.Screens.Current?.Id})"); });
+		Step("Zurück im Menü (doppelt)", 12, () => Back());
+		Step("Menü genau einmal zu", 0, () => ExpectBase("Flug → Menü → Zurück (doppelt zugestellt)"));
+		Step("Meldung offen", 4, () => hud.Alert("Prüfmeldung für die Zurück-Taste", 30f));
+		Step("Zurück schließt die Meldung", 12, () => Back());
+		Step("nur die Meldung zu", 0, () => { CheckSingleBack("Meldung"); Check(hud.TestAlert.Length == 0 && hud.Screens.Current != hud.Command, $"37c: Zurück schließt zuerst die Meldung ({hud.Screens.Current?.Id ?? "-"})"); });
+		Step("Startpakete", 16, () => { _m.TestOpenCcArea(Ui.Screens.CommandAreas.System); hud.CcSystem.TestChoosing = true; });
+		Step("Zurück aus Startpaketen", 12, () => Back());
+		Step("Startpakete zu, System bleibt", 0, () => { CheckSingleBack("Startpakete"); Check(hud.Screens.Current == hud.CcSystem && !hud.CcSystem.TestChoosing, $"37c: Zurück schließt die Startpaket-Auswahl, „System“ bleibt ({hud.Screens.Current?.Id})"); });
+		Step("Zurück aus System", 12, () => Back());
+		Step("nach Zurück System", 0, () => ExpectBase("System → Zurück"));
+		Step("Fraktionsdetail schmal", 20, () => { UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply(); _m.TestOpenCcArea(Ui.Screens.CommandAreas.Factions); hud.CcFactions.Selected = hud.CcFactions.TestRows[0].Id; hud.CcFactions.TestDetailOpen = true; });
+		Step("Zurück im Fraktionsdetail", 12, () => Back());
+		Step("zur Liste", 0, () => { CheckSingleBack("Fraktionsdetail"); Check(hud.Screens.Current == hud.CcFactions && !hud.CcFactions.TestDetailOpen, $"37c: Zurück im schmalen Fraktionsdetail führt zur Liste ({hud.Screens.Current?.Id}, Detail {hud.CcFactions.TestDetailOpen})"); });
+		Step("Zurück aus Fraktionen", 12, () => { Back(); });
+		Step("nach Zurück Fraktionen", 0, () => { ExpectBase("Fraktionsliste → Zurück"); UiScale.TestForce = null; UiScale.TestPpi = null; UiScale.Set(UiSize.Normal); });
+		Step("Werft andocken", 20, () => _m.TestDockAt(u().StationsById().First(x => x.Name == "Werft Delta").Id));
+		Step("Handel mit offener Zeile", 16, () => { _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade); hud.DockTrade.TestOpenRow(hud.DockTrade.TestGoods[0]); });
+		Step("Zurück schließt die Zeile", 12, () => Back());
+		Step("Zeile zu, Handel bleibt", 0, () => { CheckSingleBack("Handelszeile"); Check(hud.Screens.Current == hud.DockTrade && hud.DockTrade.TestExpanded is null, $"37c: Zurück schließt zuerst die offene Handelszeile ({hud.Screens.Current?.Id}, offen {hud.DockTrade.TestExpanded?.Value})"); });
+		Step("Zurück aus Handel 2", 12, () => Back());
+		Step("nach Handel 2", 0, () => ExpectBase("Handel → Zurück"));
+		Step("Taxi", 16, () => _m.TestOpenDockArea(Ui.Screens.DockAreas.Taxi));
+		Step("Zurück aus Taxi", 12, () => Back());
+		Step("nach Taxi", 0, () => ExpectBase("Taxi-Buchung → Zurück"));
+		// M1: die angedockte Station verschwindet
+		Step("Station entfernen", 4, () =>
+		{
+			var st = u().Stations[u().StationsById().First(x => x.Name == "Werft Delta").Id];
+			SpaceSim.Core.Simulation.Departures.RemoveStation(u(), st, SpaceSim.Core.Model.DepartureReason.Bankrupt, "test");
+		});
+		Step("Flug nach Stationsverlust", 20, () => { });
+		Step("im Flug mit Meldung", 0, () => Check(!_m.TestDocked && hud.Flight.Visible && hud.Screens.Current is null or Ui.Screens.FlightHud && _m.LastForcedUndock.Length > 0,
+			$"37c M1: angedockte Station verschwindet → Flug mit Meldung (angedockt {_m.TestDocked}, Flug {hud.Flight.Visible}, Bildschirm {hud.Screens.Current?.Id ?? "-"}, Meldung „{_m.LastForcedUndock}“)"));
+		Step("Menü nach Stationsverlust", 10, () => { _m.TestCommand("close"); });
+		Step("Grundansicht nach Stationsverlust", 0, () => ExpectBase("nach Stationsverlust"));
+
+		// ── Runde 37c (Handytest r37b k02/k03): Beschriftungen der Sektorkarte bleiben beim Auswählen einer Station, wo sie waren ──
+		Dictionary<string, Vector2>? before = null;
+		Dictionary<string, Vector2> MapLabels()
+		{
+			var d = new Dictionary<string, Vector2>();
+			foreach (var e in DrawnText.All)
+				if (GodotObject.InstanceFromId(e.Owner) is Control c && c.GetType().Name == "SectorMapCanvas" && c.IsVisibleInTree()) d[e.Shown] = e.Local.Position;
+			return d;
+		}
+		Step("Sektor 1,3", 30, () => { DrawnText.Enabled = true; UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply(); hud.CcSector.ShowPlayerSector(u().PlayerSector); _m.TestOpenCcArea(Ui.Screens.CommandAreas.Sector); });
+		Step("Beschriftungen vorher", 0, () => { before = MapLabels(); });
+		Step("Station wählen", 20, () => hud.CcSector.TestSelectStation(u().Sectors[u().PlayerSector].Stations.OrderBy(x => x.Value).Skip(2).First()));
+		Step("Beschriftungen nachher", 0, () =>
+		{
+			var after = MapLabels();
+			var moved = before!.Where(kv => after.TryGetValue(kv.Key, out var p) && p.DistanceTo(kv.Value) > 0.5f).Select(kv => kv.Key).ToList();
+			var gone = before!.Keys.Where(k => !after.ContainsKey(k)).ToList();
+			Check(before!.Count > 3 && moved.Count == 0 && gone.Count == 0, $"37c: Beschriftungen der Sektorkarte bleiben beim Auswählen stehen ({before!.Count} Namen; verschoben [{string.Join(", ", moved)}], verschwunden [{string.Join(", ", gone)}])");
+			_m.TestCloseCommand(); UiScale.TestForce = null; UiScale.TestPpi = null; UiScale.Set(UiSize.Normal);
+		});
 
 		// ── N2: Leiste der Zentrale bei 1,3 in beide Richtungen wischen — zuerst aus „System“ (aktiver Eintrag unten) nach oben, dann wieder nach unten ──
 		Step("Zentrale 1,3 System", 24, () => { UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply(); Ui.Screens.CommandScreen.RailPos = 0; Ui.Screens.CommandScreen.ForgetRailArea(); _m.TestOpenCcArea(Ui.Screens.CommandAreas.System); });

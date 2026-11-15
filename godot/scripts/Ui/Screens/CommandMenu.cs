@@ -184,10 +184,13 @@ public partial class CommandMenu : Control, IScreen
 	void LayoutWindow()
 	{
 		if (Size.X <= 0f || Size.Y <= 0f) return;
-		float h = MathF.Min(688f, Size.Y - 24f);
+		// Runde 37c (Prüfung M3): innerhalb der sicheren Fläche
+		var si = UiScale.Div(UiScale.SafeInsets1(), IsInsideTree() ? MathF.Max(1f, GetGlobalTransform().Scale.X) : 1f);
+		float uw = Size.X - si.Left - si.Right, uh = Size.Y - si.Top - si.Bottom;
+		float h = MathF.Min(688f, uh - 24f);
 		_win.CustomMinimumSize = new Vector2(580, h);
 		_win.Size = new Vector2(580, h);
-		_win.Position = new Vector2(MathF.Max(8f, (Size.X - 580f) / 2f), MathF.Max(8f, (Size.Y - h) / 2f));
+		_win.Position = new Vector2(si.Left + MathF.Max(8f, (uw - 580f) / 2f), si.Top + MathF.Max(8f, (uh - h) / 2f));
 	}
 
 	public override void _Notification(int what)
