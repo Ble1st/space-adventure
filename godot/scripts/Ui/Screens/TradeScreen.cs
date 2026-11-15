@@ -13,11 +13,12 @@ namespace SpaceAdventure.Ui.Screens;
 /// <summary>
 /// Dock-Bereich „Handel“ (UI.md Abschnitt 3): Zeilen kommen vollständig aus <see cref="IStationService.Offers"/>,
 /// Aktionen laufen ausschließlich über <see cref="IStationService.Execute"/> („buy:&lt;id&gt;“, „sell:&lt;id&gt;“,
-/// „sell_all“) – <see cref="TradeActions"/> wird von der Oberfläche nicht direkt aufgerufen. Liste/Kacheln
+/// „sell_all“, „undo“ (Runde 39)) – <see cref="TradeActions"/> wird von der Oberfläche nicht direkt aufgerufen. Liste/Kacheln
 /// umschaltbar; Tippen auf eine Zeile klappt Menge (Stepper +/-/Max), Summe und Kaufen/Verkaufen auf; die
 /// Ergebnismeldung (<see cref="ServiceResult.Message"/>) erscheint als Hinweis; rechts das Schiff mit Fracht,
-/// Laderaum und Credits (echt). „Beste bekannte Verkaufsstelle“ je Ware aus <see cref="MarketInfo"/>, „Rückgängig“
-/// und Preisverlauf-Trends sind Platzhalter.
+/// Laderaum und Credits (echt). „Beste bekannte Verkaufsstelle“ je Ware aus <see cref="MarketInfo"/>; die Fußzeile
+/// „Rückgängig“ ist echt (zwei Taps über <see cref="KitConfirm"/>, Unterzeile = Buchung bzw. Sperrgrund, Ausführung
+/// nur über Execute(„undo“)); Preisverlauf-Trends bleiben Platzhalter.
 /// </summary>
 public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 {
@@ -38,6 +39,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	/// <summary>Wird nach jedem Execute ausgelöst (true = Erfolg) – Main spielt den Ton.</summary>
 	public event Action<bool>? Executed;
 	ServiceOffer _sellAll;   // Phase 17: Angebot „Alles verkaufen“ (Menge = was es bewegt)
+	ServiceOffer _undo;      // Runde 39: Angebot „undo“ (Menge 1 = ausführbar, Notiz = Sperrgrund)
 
 	sealed class Row
 	{
@@ -131,7 +133,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		listBtn.Pressed += () => { if (_tiles) { _tiles = false; _tileSel = null; Invalidate(); } };
 		tileBtn.Pressed += () => { if (!_tiles) { _tiles = true; Invalidate(); } };
 
-		// ── Fußzeile: Alles verkaufen + Rückgängig (Platzhalter) ──
+		// ── Fußzeile: Alles verkaufen + Rückgängig ──
 		float fy = inner.Size.Y - 56;
 		var sellAll = At(inner, new KitButton("Alles verkaufen", new Vector2(220, 52)) { FontSize = 18 }, 0, fy);
 		bool anyCargo = Ctx.Ship.Cargo.Values.Any(v => v > 0f);
@@ -139,7 +141,16 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		if (!anyCargo) { sellAll.State = KitButtonState.Disabled; sellAll.Sub = "Fracht leer"; }
 		else if (_sellAll.Amount <= 0f) { sellAll.State = KitButtonState.Disabled; sellAll.Sub = "Station nimmt nichts an"; }
 		else sellAll.Pressed += () => Execute(TradeService.SellAll, 0f);
-		At(inner, new KitButton("Rückgängig", new Vector2(170, 52)) { FontSize = 18, State = KitButtonState.Disabled, Sub = UiPlaceholders.Soon }, 232, fy);   // Text: UiPlaceholders.UndoSoon
+		// Runde 39: „Rückgängig“ echt — zwei Taps (KitConfirm), Unterzeile = die Buchung (Angebotstext) bzw. der Sperrgrund, Ausführung nur über Execute("undo")
+		float uw = MathF.Max(170f, w - 240f);
+		var undoBtn = At(inner, new KitButton("Rückgängig", new Vector2(uw, 52)) { FontSize = 18 }, 232, fy);
+		if (_undo.Amount > 0f)
+			_confirm.Wire(undoBtn, TradeService.Undo, "Rückgängig", () => Execute(TradeService.Undo, 0f), _undo.Text);
+		else
+		{
+			undoBtn.State = KitButtonState.Disabled;
+			undoBtn.Sub = _undo.Note ?? "Keine offene Buchung";
+		}
 
 		if (_svc == null)
 		{
@@ -332,13 +343,15 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	{
 		_rows.Clear();
 		_sellAll = default;
+		_undo = default;
 		if (_svc == null) return;
 		var u = Ctx.U; var st = Ctx.Station;
 		var byGood = new Dictionary<GoodId, Row>();
 		foreach (var o in _svc.Offers(u, st, Ctx.Ship))
 		{
 			if (o.Key == TradeService.SellAll) { _sellAll = o; continue; }   // Phase 17: Fußzeile, Menge = was der Verkauf bewegt
-			if (o.Good.Value == 0) continue;   // „alles verkaufen“ ist Fußzeile, keine Ware
+			if (o.Key == TradeService.Undo) { _undo = o; continue; }   // Runde 39: Fußzeile „Rückgängig“
+			if (o.Good.Value == 0) continue;   // Fußzeilen-Angebote ohne Ware sind keine Zeilen
 			if (!byGood.TryGetValue(o.Good, out var row))
 			{
 				row = new Row
@@ -539,6 +552,22 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 
 	/// <summary>Phase 17: ob „Alles verkaufen“ aktiv ist (Angebotsmenge &gt; 0).</summary>
 	public bool TestSellAllEnabled => Ctx.Ship.Cargo.Values.Any(v => v > 0f) && _sellAll.Amount > 0f;
+
+	/// <summary>Runde 39, Selbsttest: „Rückgängig“ angeboten (Menge &gt; 0) — Text = die Buchung, Notiz = Sperrgrund.</summary>
+	public bool TestUndoEnabled => _undo.Amount > 0f;
+	public string TestUndoText => _undo.Text;
+	public string? TestUndoNote => _undo.Note;
+	/// <summary>
+	/// Runde 39, Selbsttest: ein Tipp auf „Rückgängig“ in der Fußzeile (wie die Taste: der erste macht scharf, der zweite
+	/// innerhalb von 3 s führt über Execute(„undo“) aus); true = ausgeführt.
+	/// </summary>
+	public bool TestTapUndo()
+	{
+		if (_undo.Amount <= 0f) return false;
+		if (!_confirm.Tap(TradeService.Undo)) return false;
+		Execute(TradeService.Undo, 0f);
+		return true;
+	}
 
 	/// <summary>Phase 17: Verkauf möglich ⇔ der Dienst würde etwas bewegen (Angebotsmenge &gt; 0; auch ein Bruchteil an Bord, den die Station ganz nimmt).</summary>
 	static bool CanSell(Row r) => r.Held > 0f && r.Sell.Amount > 0f;

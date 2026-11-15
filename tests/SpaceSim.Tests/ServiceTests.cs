@@ -138,7 +138,7 @@ public class TradeServiceTests
 
         var expected = st.Market.Where(kv => kv.Value.Price > 0f).OrderBy(kv => kv.Key.Value)
             .SelectMany(kv => new[] { $"{TradeService.Buy}:{kv.Key.Value}", $"{TradeService.Sell}:{kv.Key.Value}" })
-            .Append(TradeService.SellAll).ToList();
+            .Append(TradeService.SellAll).Append(TradeService.Undo).ToList();   // Runde 39: „undo“ am Ende
         Assert.Equal(expected, offers.Select(o => o.Key).ToList());
         Assert.Contains(offers, o => o.Key == $"{TradeService.Buy}:{good.Value}" && o.Price > 0f && o.Amount >= 20f);
         Assert.Contains(offers, o => o.Key == $"{TradeService.Sell}:{good.Value}");

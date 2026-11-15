@@ -22,6 +22,13 @@ public sealed record PlayerSold(ShipId Ship, StationId Station, GoodId Good, flo
 public sealed record LedgerApplied(ShipId Ship, StationId Station, GoodId Good, float Units, float Lost, bool Sale) : SimEvent;
 public sealed record PlayerBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
 /// <summary>
+/// Runde 39: die letzte Handelsbuchung eines Spielerschiffs wurde rückgängig gemacht (<see cref="Trading.TradeActions.Undo"/>):
+/// Ware und Geld sind zurückgetauscht, der Ledger-Posten steht auf dem Stand vor der Buchung, entstandene Exportchargen sind entfernt.
+/// <paramref name="Lines"/> je Ware (Menge, Geldfluss — negativ = Zahlung des Spielers), <paramref name="Amount"/> = Veränderung der
+/// Spielerkasse (positiv = Erstattung). Nur Bus, nie gespeichert.
+/// </summary>
+public sealed record TradeUndone(ShipId Ship, StationId Station, IReadOnlyList<Trading.UndoLine> Lines, float Amount) : SimEvent;
+/// <summary>
 /// Ein Stationsdienst wurde ausgeführt. Wird nur bei Erfolg veröffentlicht (mindestens eine Einheit bewegt, bei "alles verkaufen" Erlös &gt; 0);
 /// Units = bewegte Einheiten, Credits = Veränderung der Schiffs-Credits (negativ = Zahlung), Offer = ausgeführter Angebots-Schlüssel ohne Ware ("buy", "sell", "sell_all"), Good = default bei "alles verkaufen".
 /// </summary>

@@ -23,6 +23,11 @@ public sealed class TradeService : IStationService
     /// die Ware verschwindet ohne Erlös (<see cref="CargoJettison"/>). Der Ausweg für einen Rest, den die Station nicht nimmt.
     /// </summary>
     public const string Drop = "drop";
+    /// <summary>
+    /// Runde 39: Angebots-Schlüssel „Rückgängig“ (ohne Ware, ohne Menge): die letzte Buchung dieses Schiffs an dieser Station wird
+    /// zurückgenommen (<see cref="TradeActions.Undo"/>). Menge 1, wenn möglich, sonst 0 mit dem Sperrgrund als Hinweis.
+    /// </summary>
+    public const string Undo = "undo";
 
     public string Key => ServiceKey;
 
@@ -74,6 +79,12 @@ public sealed class TradeService : IStationService
         if (refusal is not null) { allUnits = 0f; allRevenue = 0f; }
         offers.Add(new ServiceOffer(SellAll, "Alles verkaufen", allRevenue, allUnits, default, 0f, 0f,
             refusal ?? (cargo > 0f && allUnits <= 0f ? "Station nimmt nichts von der Fracht an" : null)));
+        // Runde 39: „Rückgängig“ — Menge 1, wenn TradeActions.UndoIssue keinen Grund liefert, sonst 0 mit dem Grund; Text = die Buchung (z. B. „Kauf 10 Energie · 1:42")
+        var undoEntry = u.Journal.Last;
+        string? undoIssue = TradeActions.UndoIssue(u, u.Journal, ship, station);
+        string undoText = undoEntry is null ? "Rückgängig" : TradeJournal.Describe(u, undoEntry);
+        float undoPrice = undoIssue is null && undoEntry is not null ? MathF.Abs(TradeActions.UndoAmount(u, ship, station, undoEntry)) : 0f;
+        offers.Add(new ServiceOffer(Undo, undoText, undoPrice, undoIssue is null ? 1f : 0f, default, 0f, 0f, undoIssue));
         return offers;
     }
 
@@ -96,8 +107,13 @@ public sealed class TradeService : IStationService
             {
                 // Menge ≤ 0 = Maximum; ist das Maximum 0, fragt der Dienst eine Einheit an, damit TradeActions den Grund nennt
                 float want = request.Units > 0f ? request.Units : MathF.Max(1f, TradeActions.MaxBuyable(u, ship, station, good));
+                var pre = CapturePre(u, station, ship, new[] { good });   // Runde 39: Journal-Schnappschuss vor der Buchung
                 var r = TradeActions.Buy(u, ship, station, good, want);
-                if (r.Units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Buy, good, r.Units, -r.Cost));
+                if (r.Units > 0f)
+                {
+                    Record(u, station, ship, TradeKind.Buy, new[] { (good, r.Units, r.Cost) }, pre);
+                    u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Buy, good, r.Units, -r.Cost));
+                }
                 // Runde 26 (Gerätetest: 53 statt angezeigter 56 Cr gebucht — der Preis fällt im Takt der Ticks): die Meldung nennt den gebuchten Betrag;
                 // Runde 28: mit Nachkommastelle (101,5 statt gerundet 101 bei 102 Cr weniger in der Kasse)
                 // Runde 30: gemischte Abrechnung nennt den Rückkaufteil
@@ -107,22 +123,44 @@ public sealed class TradeService : IStationService
             case Sell:
             {
                 float want = request.Units > 0f ? request.Units : ship.Cargo.GetValueOrDefault(good);
+                var pre = CapturePre(u, station, ship, new[] { good });   // Runde 39
                 var r = TradeActions.Sell(u, ship, station, good, want);
                 float units = r.Sold.GetValueOrDefault(good);
-                if (units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Sell, good, units, r.Revenue));
+                if (units > 0f)
+                {
+                    Record(u, station, ship, TradeKind.Sell, new[] { (good, units, r.Revenue) }, pre);
+                    u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Sell, good, units, r.Revenue));
+                }
                 string part = r.Capped > 0f && units > 0f ? $", davon {r.Capped:0.#} zum Rückkaufpreis {r.CapPrice:0.0}" : "";
                 return new ServiceResult(units > 0f, units, r.Revenue, units > 0f ? $"Verkauft {units:0.#} × {r.Revenue / units:0.0#} = {r.Revenue:0.#} Cr{part}" : SellFailure(u, station, ship, good));
             }
             case SellAll:
             {
+                var pre = CapturePre(u, station, ship, ship.Cargo.Keys);   // Runde 39
                 var r = TradeActions.SellAll(u, ship, station);
                 float units = r.Sold.Values.Sum();
-                if (units > 0f) u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, SellAll, default, units, r.Revenue));
+                if (units > 0f)
+                {
+                    Record(u, station, ship, TradeKind.SellAll,
+                        r.Sold.Select(kv => (kv.Key, kv.Value, (r.RevenueByGood ?? new Dictionary<GoodId, float>()).GetValueOrDefault(kv.Key))).ToArray(), pre);
+                    u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, SellAll, default, units, r.Revenue));
+                }
                 // Runde 31 (Gerätetest handy31): die Meldung nennt Menge, Betrag und den Rückkaufteil wie beim Einzelverkauf
                 string part = r.Capped > 0f ? $", davon {r.Capped:0.#} zum Rückkaufpreis" : "";
                 string msg = units <= 0f ? (ship.Cargo.Values.Sum() > 0f ? "Station nimmt nichts von der Fracht an" : "Nichts zu verkaufen")
                     : $"{(r.Unsold > 0.0001f ? "Verkauft" : "Alles verkauft")}: {units:0.#} Einheiten für {r.Revenue:0.#} Cr{part}{(r.Unsold > 0.0001f ? " – Rest bleibt an Bord" : "")}";
                 return new ServiceResult(units > 0f, units, r.Revenue, msg);
+            }
+            case Undo:
+            {
+                // Runde 39: strikt — „undo“ genau; sperrt mit Grund, ändert nichts und veröffentlicht nichts
+                var entry = u.Journal.Last;
+                string label = entry is null ? "Rückgängig" : TradeJournal.Describe(u, entry);
+                var r = TradeActions.Undo(u, u.Journal, ship, station);
+                if (!r.Ok) return new ServiceResult(false, 0f, 0f, r.Reason ?? "Rückgängig nicht möglich");
+                u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Undo, default, r.Units, r.Amount));
+                string money = r.Amount >= 0f ? $"Erstattung {r.Amount:0.#} Cr" : $"Zahlung {-r.Amount:0.#} Cr";
+                return new ServiceResult(true, r.Units, r.Amount, $"Rückgängig: {label} · {money}");
             }
             case Drop:
             {
@@ -138,14 +176,15 @@ public sealed class TradeService : IStationService
     }
 
     /// <summary>
-    /// Zerlegt einen Angebots-Schlüssel streng: erlaubt sind nur "buy:&lt;GoodId&gt;", "sell:&lt;GoodId&gt;", "drop:&lt;GoodId&gt;" (Phase 18) und "sell_all".
-    /// Alles andere (ohne Ware, unlesbare Zahl, unbekannte Aktion, "sell_all:...") gilt als unbekannt.
+    /// Zerlegt einen Angebots-Schlüssel streng: erlaubt sind nur "buy:&lt;GoodId&gt;", "sell:&lt;GoodId&gt;", "drop:&lt;GoodId&gt;" (Phase 18), "sell_all"
+    /// und "undo" (Runde 39). Alles andere (ohne Ware, unlesbare Zahl, unbekannte Aktion, "sell_all:...", "undo:...") gilt als unbekannt.
     /// </summary>
     static bool TryParseOffer(string offer, out string action, out GoodId good)
     {
         action = "";
         good = default;
         if (offer == SellAll) { action = SellAll; return true; }
+        if (offer == Undo) { action = Undo; return true; }   // Runde 39: strikt, ohne Ware/Menge
 
         int sep = offer.IndexOf(':');
         if (sep < 0) return false;
@@ -161,6 +200,49 @@ public sealed class TradeService : IStationService
         action = head;
         good = new GoodId(value);
         return true;
+    }
+
+    // ───────── Runde 39: Journal der letzten Buchung („Rückgängig“) ─────────
+
+    /// <summary>Schnappschuss vor einer Buchung: Kassen, Lagerstände, Rückkauf-Posten und Zahl der Exportchargen je Ware.</summary>
+    sealed class Pre
+    {
+        public float Wallet, StationCash;
+        public int Exports;
+        public readonly Dictionary<GoodId, (float Stock, LedgerPost? Post)> Goods = new();
+    }
+
+    static Pre CapturePre(Universe u, Station station, Ship ship, IEnumerable<GoodId> goods)
+    {
+        var p = new Pre { Wallet = u.WalletOf(ship).Credits, StationCash = station.Credits, Exports = station.Exports.Count };
+        foreach (var g in goods)
+            p.Goods[g] = (station.Market.TryGetValue(g, out var e) ? e.Amount : 0f, TradeJournal.PostSnap(u, station, g));
+        return p;
+    }
+
+    /// <summary>Erfasst eine erfolgreiche Buchung im <see cref="TradeJournal"/> des Universums (eine neue Buchung ersetzt die alte).</summary>
+    static void Record(Universe u, Station station, Ship ship, TradeKind kind, IReadOnlyList<(GoodId Good, float Units, float Amount)> moved, Pre pre)
+    {
+        var e = new TradeEntry { Ship = ship.Id, Station = station.Id, Tick = u.Tick, Kind = kind };
+        var wallet = u.WalletOf(ship);
+        foreach (var (good, units, amount) in moved)
+        {
+            var g = pre.Goods.TryGetValue(good, out var pg) ? pg : (0f, null);
+            e.Lines.Add(new TradeLine
+            {
+                Good = good,
+                Units = units,
+                Amount = amount,
+                StockBefore = g.Stock,
+                StockAfter = station.Market.TryGetValue(good, out var me) ? me.Amount : 0f,
+                CashBefore = pre.Wallet,
+                CashAfter = wallet.Credits,
+                PostBefore = g.Post,
+                PostAfter = TradeJournal.PostSnap(u, station, good),
+            });
+        }
+        for (int i = pre.Exports; i < station.Exports.Count; i++) e.Batches.Add(station.Exports[i]);
+        u.Journal.Record(e);
     }
 
     /// <summary>Grund, warum ein Verkauf nichts bewegt hat (nach dem Versuch ermittelt; der Zustand ist unverändert).</summary>

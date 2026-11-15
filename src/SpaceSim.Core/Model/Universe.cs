@@ -173,6 +173,12 @@ public sealed class Universe
     public SimEvents Events { get; } = new();
     public ShipTracker Tracker { get; } = new();
     /// <summary>
+    /// Runde 39: Journal der letzten Handelsbuchung des Spielers („Rückgängig“ im Handel), siehe <see cref="Trading.TradeJournal"/>.
+    /// Abgeleiteter Zustand wie <see cref="Events"/>: <b>nicht gespeichert, nicht gehasht</b>; neues Spiel und Laden beginnen mit leerem
+    /// Journal. Abdocken/Schiffswechsel/Entfernen der Station löschen den Eintrag (Hooks an den Stellen, die <see cref="Ship.DockedAt"/> auflösen).
+    /// </summary>
+    public Trading.TradeJournal Journal { get; } = new();
+    /// <summary>
     /// Phase 23: Schiffe, deren Bordsysteme sich erholen (Schild, Bank nicht voll) — abgeleitet, nicht gespeichert, beim Laden neu aufgebaut
     /// (<see cref="Combat.RecoveryIndex.Rebuild"/>). Nur diese Schiffe kosten <see cref="Combat.ShipSystemsSystem"/> Rechenzeit.
     /// </summary>
@@ -276,6 +282,7 @@ public sealed class Universe
         if (!Ships.TryGetValue(id, out var s)) return;
         if (s.Transit is { } t) Tracker.RemoveTransit(t, id); else Tracker.RemoveParked(s.Sector, id);
         Ships.Remove(id);
+        if (Journal.Last is { } je && je.Ship == id) Journal.Clear();   // Runde 39: Rücknahme mit dem Schiff weg
         // Phase 13 (Determinismus): Lücken schließen, damit spätere Schiffe hinten angehängt werden wie in einem geladenen Stand — sonst landet ein
         // neues Schiff im frei gewordenen Platz, und Systeme, die Ships.Values durchlaufen, sähen nach Speichern/Laden eine andere Reihenfolge
         Compact(Ships);
@@ -289,6 +296,7 @@ public sealed class Universe
         if (s.Transit is { } old) Tracker.RemoveTransit(old, s.Id); else Tracker.RemoveParked(s.Sector, s.Id);
         s.Transit = t;
         s.DockedAt = default;   // Phase 12: wer abfliegt, liegt nicht mehr angedockt
+        if (Journal.Last is { } je && je.Ship == s.Id) Journal.Clear();   // Runde 39: Abflug löscht die Rücknahme
         Tracker.AddTransit(t, s.Id);
     }
 
@@ -329,6 +337,7 @@ public sealed class Universe
         Tracker.RemoveParked(ship.Sector, ship.Id);
         ship.Sector = to;
         ship.DockedAt = default;
+        if (Journal.Last is { } je && je.Ship == ship.Id) Journal.Clear();   // Runde 39: Sprung löscht die Rücknahme
         Tracker.AddParked(to, ship.Id);
     }
 
@@ -357,6 +366,7 @@ public sealed class Universe
         Stations.Remove(id);
         Compact(Stations);   // wie bei RemoveShip: Einfügereihenfolge wie nach dem Laden
         Sectors[st.Sector].Stations.Remove(id);
+        if (Journal.Last is { } je && je.Station == id) Journal.Clear();   // Runde 39: Station weg löscht die Rücknahme
         foreach (var ship in Ships.Values)
         {
             if (ship.DockedAt == id) ship.DockedAt = default;   // Phase 12: Liegeplatz weg

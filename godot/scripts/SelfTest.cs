@@ -143,6 +143,15 @@ public partial class SelfTest : Node
 					Check(pl.Cargo.GetValueOrDefault(gid) == before + 5f, "Fracht nach Kauf um 5 erhöht");
 					Check(System.Math.Abs(_m.Session.U.PlayerWallet.Credits - (creditsBefore - 5f * price)) < 0.01f, "Credits nach Kauf um 5 × Preis gesunken");
 					Check(_m.HudRef.DockTrade.TestMessage.Length > 0, "Ergebnismeldung (ServiceResult.Message) wird angezeigt");
+					// Runde 39: „Rückgängig“ in der Fußzeile — Knopf verdrahtet, zwei Taps, stellt Kasse und Fracht wieder her; danach wieder kaufen für den Verkauf-Test
+					Check(_m.HudRef.DockTrade.TestUndoEnabled && _m.HudRef.DockTrade.TestUndoNote == null, "Rückgängig nach Kauf angeboten (Menge 1, Text = Buchung)");
+					Check(SpaceAdventure.Ui.Kit.KitConfirm.Find(_m.HudRef.DockTrade, SpaceSim.Core.Services.TradeService.Undo) != null, "Rückgängig-Knopf in der Fußzeile verdrahtet (zwei Taps)");
+					Check(!_m.HudRef.DockTrade.TestTapUndo(), "erster Tipp auf Rückgängig führt noch nicht aus");
+					Check(_m.HudRef.DockTrade.TestTapUndo(), "zweiter Tipp auf Rückgängig führt aus (Execute undo)");
+					Check(pl.Cargo.GetValueOrDefault(gid) == before, "Fracht nach Rückgängig wieder auf Anfangsstand");
+					Check(System.Math.Abs(_m.Session.U.PlayerWallet.Credits - creditsBefore) < 0.01f, "Credits nach Rückgängig wieder hergestellt");
+					Check(!_m.HudRef.DockTrade.TestExecute("undo", 0f).Success, "zweites Rückgängig ohne neue Buchung schlägt fehl");
+					_m.HudRef.DockTrade.TestExecute($"buy:{gid.Value}", 5f);
 					var sell = _m.HudRef.DockTrade.TestExecute($"sell:{gid.Value}", 5f);
 					Check(sell.Success && sell.Units == 5f, "Verkaufen über Dienst+Oberfläche (Execute sell)");
 					Check(pl.Cargo.GetValueOrDefault(gid) == before, "Fracht nach Verkauf wieder auf Anfangsstand");
