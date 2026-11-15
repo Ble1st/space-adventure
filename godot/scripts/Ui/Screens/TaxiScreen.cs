@@ -69,7 +69,7 @@ public sealed partial class TaxiScreen : DockAreaScreen, ISessionScreen
 			string sector = u.Sectors.TryGetValue(q.To.Sector, out var sec) ? sec.Name : "?";
 			At(row, Text($"{q.To.Name} · {sector}", 18, can ? White : Dim), 12, 4, rw - 290, 24);
 			string there = q.WaitingShip is { } ws ? $"Dort wartet: #{ws.Id.Value} {(u.ShipModels.TryGetValue(ws.ModelKey, out var m) ? m.Name : "")}"
-				: q.RentalThere ? $"Kein eigenes Schiff · Leihschiff ab {q.RentalUpfront:0} Cr (inkl. Pfand)" : "Kein eigenes Schiff, kein Leihdienst";
+				: q.RentalThere ? $"Kein eigenes Schiff · {q.Breakdown(u.Rules)}" : "Kein eigenes Schiff, kein Leihdienst";   // Runde 38a: aufgeschlüsselt = Abbuchung
 			string detail = q.Issue is null || q.Issue.StartsWith("Nicht genügend", StringComparison.Ordinal)
 				? $"{q.Jumps} {(q.Jumps == 1 ? "Sprung" : "Sprünge")} · {q.Ticks / SpaceSim.Core.Simulation.SimClock.TicksPerSecond:0} s · Zoll {q.Toll:0} Cr · {q.Situation}"
 				: q.Issue;

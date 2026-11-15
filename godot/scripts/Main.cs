@@ -659,8 +659,8 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Click);
 		switch (action)
 		{
-			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); break;   // Runde 12
-			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); break;
+			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); return;   // Runde 12; Runde 38a: Menü bleibt offen (wie „UI-Größe“)
+			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); return;   // Runde 38a: schloss das Menü
 			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
 			case "save": SaveNow(manual: true); break;
 			case "load":
@@ -694,7 +694,7 @@ public partial class Main : Node3D
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
 			// Runde 33 (Handytest A15: „UI-Größe“ im Menü ohne Wirkung): dieselbe Ursache — die Aktion kam hier an und fiel in den default-Zweig (kein
 			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
-			case "ui_size": _sfx.Play(SfxId.Click); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
+			case "ui_size": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("ui_size"); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
 			case "cam_debug": _camDebug = !_camDebug; _hud.SetDebugLine(_camDebug ? CameraDebugLine() : null); _hud.Toast(_camDebug ? "Kamera-Diagnose an" : "Kamera-Diagnose aus"); break;   // Runde 16
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
@@ -1011,13 +1011,13 @@ public partial class Main : Node3D
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
-			case StationBuilt b when _session.U.Stations.TryGetValue(b.Station, out var nb) && nb.Sector == _session.U.PlayerSector: _hud.Toast($"Neue Station: {nb.Name}"); break;
-			case ConstructionStarted cs when cs.Sector == _session.U.PlayerSector: _hud.Toast($"Neue Baustelle: {_session.U.Stations[cs.Site].Name}"); break;
+			case StationBuilt b when _session.U.Stations.TryGetValue(b.Station, out var nb) && nb.Sector == _session.U.PlayerSector: _hud.Info($"Neue Station: {nb.Name}"); break;   // Runde 38a: Info (MessageRules)
+			case ConstructionStarted cs when cs.Sector == _session.U.PlayerSector: _hud.Info($"Neue Baustelle: {_session.U.Stations[cs.Site].Name}"); break;
 			// Phase 20: Versorgungspanik nach einem geschlossenen/zerstörten Tor (welt-weit sichtbar: die abgeschnittenen und die übrigen Sektoren reagieren)
 			case SupplyPanicRaised sp when _session.U.Tick != _panicToastTick:   // je Tick ein Hinweis (eine Sperre löst oft mehrere Waren zugleich aus)
 				_panicToastTick = _session.U.Tick;
-				LastPanicMessage = SpaceSim.Core.Simulation.SupplyPanic.Describe(_session.U, sp); _hud.Toast(LastPanicMessage, 5f); break;
-			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Toast($"Notbau: {es.Name}"); break;
+				LastPanicMessage = SpaceSim.Core.Simulation.SupplyPanic.Describe(_session.U, sp); _hud.Info(LastPanicMessage, 4f); break;
+			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Info($"Notbau: {es.Name}"); break;
 			case PlayerSold: _sales++; break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case ContactMined cm when cm.Sector == _session.U.PlayerSector: OnContactMined(cm); break;
@@ -1079,7 +1079,7 @@ public partial class Main : Node3D
 				break;
 			case StationFell fell:
 				LastWarMessage = fell.How switch { "destroyed" => $"{fell.Name} wurde zerstört.", "captured" => $"{fell.Name} wurde erobert.", _ => $"{fell.Name} ist ausgeschaltet." };
-				if (fell.Sector == _session.U.PlayerSector) _hud.Alert(LastWarMessage, 6f); else _hud.Toast(LastWarMessage, 4f);
+				if (fell.Sector == _session.U.PlayerSector) _hud.Alert(LastWarMessage, 6f); else _hud.Info(LastWarMessage, 3f);
 				break;
 			case WarDeclared wd: LastWarMessage = wd.Message; _hud.Alert(wd.Message, 8f); _music.Sting("sting_war", Now); break;
 			case PeaceConcluded pc: LastWarMessage = pc.Message; _hud.Alert(pc.Message, 6f); _music.Sting("sting_peace", Now); break;
@@ -1097,13 +1097,15 @@ public partial class Main : Node3D
 			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
 				LastCombatMessage = es.Cause == EncounterCause.Assault ? es.Message
 					: SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default);
-				_hud.Toast(LastCombatMessage, 4f); break;
+				// Runde 38a: fremdes Gefecht im Sektor = Info; dein eigenes (z. B. Angriff) wichtig
+				if (SpaceSim.Core.Ui.MessageRules.InMyFight(_session.U, es.Encounter)) _hud.Toast(LastCombatMessage, 4f); else _hud.Info(LastCombatMessage, 3f);
+				break;
 			// Phase 22: Station im Spielersektor aufgegeben — Grund (pleite / länger nicht rentabel) im Text
 			case StationDeparted mine when _docked is { } dk && mine.Station == dk:
 				_lostStationMessage = (SpaceSim.Core.Simulation.Departures.StationToast(mine) ?? "Die Station wurde aufgegeben.") + " Du bist abgedockt und wieder im Flug.";
 				break;
 			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
-				LastDepartureMessage = departed; _hud.Toast(departed, 4.5f); break;
+				LastDepartureMessage = departed; _hud.Info(departed, 3.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
 			// Phase 25: Verlust des aktiven Schiffs — Explosion, Meldung; die Ansicht setzt im nächsten Frame in das neue Schiff um (EnterActiveShip)
 			case PlayerShipLost lost when Sting("sting_loss"):
@@ -1128,9 +1130,9 @@ public partial class Main : Node3D
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip: _hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message; break;
 			case RaidResolved rr when rr.Player: _hud.Alert(rr.Message, 8f); LastSecurityMessage = rr.Message; break;
 			case RaidResolved rn when rn.Sector == _session.U.PlayerSector:
-				_hud.Toast($"Hier im Sektor: {rn.Message}", 3.5f); break;   // Runde 4: welches Schiff (vorher klang es mitten im Stationsangriff nach dem eigenen Gefecht)
+				_hud.Info($"Hier im Sektor: {rn.Message}", 3f); break;   // Runde 38a: fremder Überfall = Info   // Runde 4: welches Schiff (vorher klang es mitten im Stationsangriff nach dem eigenen Gefecht)
 			case RaiderIntercepted ri when ri.Sector == _session.U.PlayerSector:
-				_hud.Toast(ri.PoliceWon ? (ri.RaiderDestroyed ? "Polizei hat ein Kaperschiff zerstört" : "Polizei vertreibt ein Kaperschiff") : "Ein Kaperschiff entkommt der Polizei", 3.5f); break;
+				_hud.Info(ri.PoliceWon ? (ri.RaiderDestroyed ? "Polizei hat ein Kaperschiff zerstört" : "Polizei vertreibt ein Kaperschiff") : "Ein Kaperschiff entkommt der Polizei", 3f); break;
 			case PlayerIntercepted pi: _hud.Toast(pi.Message, 6f); LastSecurityMessage = pi.Message; break;
 			// Phase 27: Flottenkampf — Ergeben, Polizeigefecht, Verstärkung, Zuflucht, Verfolgung, Geleit im Spielersektor
 			case PlayerSurrendered ps: _hud.Alert(ps.Message, 6f); LastSecurityMessage = ps.Message; break;
@@ -1149,7 +1151,12 @@ public partial class Main : Node3D
 				_hud.Toast(se.Message, 4f); LastCombatMessage = se.Message; break;
 			case EncounterEnded ae when ae.Cause == EncounterCause.Arrest: _hud.Alert(ae.Message, 6f); LastCombatMessage = ae.Message; break;
 			case CombatJoined or RefugeReached or PursuitStarted or EscortAssigned or ForceSquadron when SpaceSim.Core.Combat.FleetInfo.Toast(_session.U, e) is { } ft:
-				_hud.Toast(ft, 3.5f); LastFleetMessage = ft; break;
+				// Runde 38a (Handy-Abschlusstest z1/z2): fremde Flucht/Verstärkung/Verfolgung nur als Info; groß nur, was dich oder dein Gefecht betrifft
+				if (SpaceSim.Core.Ui.MessageRules.FleetWeight(_session.U, e) == SpaceSim.Core.Ui.MessageWeight.Important) _hud.Toast(ft, 3.5f); else _hud.Info(ft, 3f);
+				LastFleetMessage = ft; break;
+			// Runde 38a (Handy-Abschlusstest k7: der zweite Gegner verschwand ohne Meldung): jeder Ausgang eines Gegners in deinem Gefecht
+			case CombatExited cx when SpaceSim.Core.Ui.MessageRules.EnemyExit(_session.U, cx) is { } exitMsg:
+				_hud.Toast(exitMsg, 3.5f); LastCombatMessage = exitMsg; LastEnemyExit = exitMsg; break;
 			case CrimeReported cr when cr.Actor == _session.U.PlayerActor:
 				_hud.Toast($"Fahndung bei {(_session.U.Factions.TryGetValue(cr.Faction, out var cf) ? cf.Name : "?")}: {SecurityNames.WantedLevel(cr.Level)} ({SecurityNames.Crime(cr.Crime)})", 4.5f); break;
 		}
@@ -1720,6 +1727,8 @@ public partial class Main : Node3D
 
 	/// <summary>Abdocken: Das Schiff taucht aus der Station auf und fliegt zum Parkpunkt; danach kurze Schonfrist ohne Schaden. Funktioniert aus jedem Dock-Bereich.</summary>
 	string? _lostStationMessage;
+	/// <summary>Runde 38a, Selbsttest: letzte Meldung zum Ausgang eines Gegners.</summary>
+	internal string LastEnemyExit { get; private set; } = "";
 
 	/// <summary>Runde 37c (M1): angedockt, aber die Station ist weg — Dock-Zustand lösen, alle Bildschirme zu, Schiff sichtbar an seiner Lage, Meldung.</summary>
 	void ForcedUndock(string message)

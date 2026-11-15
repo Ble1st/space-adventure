@@ -114,6 +114,7 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		if (foreign.Count == 0) { At(inner, Text("Keine fremden Schiffe angedockt.", 14, new Color(Dim, 0.8f)), rx, fy, rw, 20); fy += 28f; }
 
 		var rental = Svc(RentalService.ServiceKey);
+		TestRentalNotes.Clear();
 		// Runde 35b (Prüfung: gestapelt stand der Leihdienst mit großer Lücke am Fuß, „Mieten“ angeschnitten): gestapelt direkt unter den fremden Schiffen
 		fy = stacked ? fy + 8f : Math.Max(fy + 8f, ry + 176f);   // Gerätetest Phase 27: zwei Angebote passen in den Rahmen (vorher ragte „Zurückgeben“ darüber)
 		At(inner, Text(rental is null ? "Kein Leihdienst an dieser Station" : "Leihschiff", 17, rental is null ? new Color(Dim, 0.8f) : Cyan), rx, fy, rw, 24);
@@ -128,8 +129,18 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 				string key = o.Key;
 				if (can) b.Pressed += () => Execute(RentalService.ServiceKey, key);
 				fy = ty + 4f + 62f;
+				// Runde 38a (Handytest f32/f33: „Zurückgeben“ ausgegraut, Tipp ohne Meldung): der Grund steht unter der Taste, ein Tipp nennt ihn auch
+				if (!can && o.Note is { Length: > 0 } why)
+				{
+					fy = WrappedText(inner, why, rx, fy - 4f, rw, 13, new Color(Orange, 0.9f), 17) + 6f;
+					b.Pressed += () => { _message = why; _msgOk = false; Invalidate(); };
+					TestRentalNotes.Add(why);
+				}
 			}
 	}
+
+	/// <summary>Runde 38a: zuletzt gezeigte Gründe unter ausgegrauten Leih-Tasten (Selbsttest).</summary>
+	public readonly System.Collections.Generic.List<string> TestRentalNotes = new();
 
 	/// <summary>Führt ein Angebot eines Dienstes (hangar oder rental) aus und zeigt dessen Meldung.</summary>
 	public ServiceResult Execute(string service, string offer)

@@ -9,8 +9,12 @@ public sealed record TaxiQuote(Station To, float Price, float Toll, long Ticks, 
     string Situation, string? Issue)
 {
     public bool Bookable => Issue is null;
-    /// <summary>Gesamtkosten inklusive Leihschiff am Ziel (Gebühr + Pfand), falls dort kein eigenes Schiff wartet.</summary>
+    /// <summary>Gesamtkosten inklusive Leihschiff am Ziel (Gebühr + Pfand + erster Tag), falls dort kein eigenes Schiff wartet — Runde 38a: = Abbuchung.</summary>
     public float Total => Price + (WaitingShip is null && RentalThere ? RentalUpfront : 0f);
+    /// <summary>Runde 38a: Aufschlüsselung des Gesamtpreises („Fahrt 99 + Leihschiff 60 Gebühr + 400 Pfand + 120 erster Tag“).</summary>
+    public string Breakdown(EconomyRules r) => WaitingShip is null && RentalThere
+        ? $"Fahrt {Price:0}{(Toll > 0f ? $" (inkl. {Toll:0} Zoll)" : "")} + Leihschiff {r.RentalFee:0} + {r.RentalDeposit:0} Pfand + {r.RentalPerDay:0} 1. Tag = {Total:0} Cr"
+        : $"Fahrt {Price:0} Cr{(Toll > 0f ? $" (inkl. {Toll:0} Zoll)" : "")}";
 }
 
 /// <summary>
@@ -106,7 +110,7 @@ public sealed class TaxiService : IStationService
         }
         u.Events.Publish(new TaxiRide(station.Id, to.Id, q.Price, q.Ticks));
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Ride, default, 1f, -q.Price));
-        return new ServiceResult(true, q.Ticks, -q.Price, $"Taxi nach {to.Name} ({q.Price:0} Cr, {q.Ticks / Simulation.SimClock.TicksPerSecond:0} s). {arrive}");
+        return new ServiceResult(true, q.Ticks, -q.Total, $"Taxi nach {to.Name} ({q.Breakdown(u.Rules)}, {q.Ticks / Simulation.SimClock.TicksPerSecond:0} s). {arrive}");
     }
 
     static ServiceResult Fail(string m) => new(false, 0f, 0f, m);
@@ -130,11 +134,12 @@ public sealed class RentalService : IStationService
     {
         var list = new List<ServiceOffer>();
         string model = u.ShipModels.TryGetValue(u.Rules.RentalModel, out var m) ? m.Name : u.Rules.RentalModel;
-        list.Add(new ServiceOffer($"{Rent}:1", $"Leihschiff {model} mieten ({u.Rules.RentalFee:0} Cr + {u.Rules.RentalDeposit:0} Cr Pfand, {u.Rules.RentalPerDay:0} Cr/Tag)",
-            Hangar.RentalUpfront(u.Rules), Hangar.RentIssue(u, station, ship) is null ? 1f : 0f, default, 0f, 0f));
+        list.Add(new ServiceOffer($"{Rent}:1", $"Leihschiff {model} mieten ({u.Rules.RentalFee:0} Cr Gebühr + {u.Rules.RentalDeposit:0} Cr Pfand + {u.Rules.RentalPerDay:0} Cr erster Tag, danach {u.Rules.RentalPerDay:0} Cr/Tag)",
+            Hangar.RentalUpfront(u.Rules), Hangar.RentIssue(u, station, ship) is null ? 1f : 0f, default, 0f, 0f, Hangar.RentIssue(u, station, ship)));
+        // Runde 38a (Handytest: „Zurückgeben“ ausgegraut ohne Grund): der Grund steht im Angebot (Note) und damit unter der Taste
         foreach (var s in u.Ships.Values.Where(s => s.IsPlayer && s.IsRental).OrderBy(s => s.Id.Value))
             list.Add(new ServiceOffer($"{Return}:{s.Id.Value}", $"Leihschiff #{s.Id.Value} zurückgeben ({Hangar.RentalDays(u, s)} Tag(e))",
-                Hangar.RentalDays(u, s) * u.Rules.RentalPerDay, Hangar.ReturnIssue(u, station, s) is null ? 1f : 0f, default, 0f, 0f));
+                Hangar.RentalDays(u, s) * u.Rules.RentalPerDay, Hangar.ReturnIssue(u, station, s) is null ? 1f : 0f, default, 0f, 0f, Hangar.ReturnIssue(u, station, s)));
         return list;
     }
 

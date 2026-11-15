@@ -503,7 +503,7 @@ public class FleetCommandTests
         var rented = u.Ships[u.PlayerShip];
         Assert.True(rented.IsRental);
         Assert.Equal("pip", rented.ModelKey);
-        Assert.Equal(wallet - u.Rules.RentalFee - u.Rules.RentalDeposit, u.PlayerWallet.Credits, 2);
+        Assert.Equal(wallet - Hangar.RentalUpfront(u.Rules), u.PlayerWallet.Credits, 2);   // Runde 38a: Gebühr + Pfand + erster Tag sofort
         Assert.False(rental.Execute(u, station, rented, new ServiceRequest("rent:1", default, 0f)).Success);   // höchstens eines
         Assert.False(rental.Execute(u, station, rented, new ServiceRequest("rent:2", default, 0f)).Success);   // strenger Schlüssel
         Assert.NotNull(Hangar.SellIssue(u, station, rented));                                                    // nicht verkaufbar
@@ -513,7 +513,7 @@ public class FleetCommandTests
         Run(u, u.Rules.DayTicks + 60);   // zwei angefangene Tage
         // Phase 26: die Miete läuft täglich (HangarSystem) — zwei Tage sind schon abgerechnet, nicht erst bei der Rückgabe
         Assert.Equal(2, rented.RentPaidDays);
-        float rent = 2 * u.Rules.RentalPerDay;
+        float rent = 1 * u.Rules.RentalPerDay;   // Runde 38a: der erste Tag wurde beim Mieten bezahlt, abgerechnet wird nur der zweite
         Assert.Equal(rent, charged, 1);
         wallet = u.PlayerWallet.Credits;
         var back = rental.Execute(u, station, rented, new ServiceRequest($"return:{rented.Id.Value}", default, 0f));

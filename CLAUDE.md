@@ -1320,3 +1320,10 @@ Three open points (user decision "Handel so lassen" still binding: player-only r
 - A second back delivery is dropped only within 6 frames **and** 150 ms (`Main.BackDebounceMs`, injectable `Main.BackClock`), so quick real double presses at low frame rates still count.
 - `FlightHud.ApplyScale` also re-lays the HUD when the safe-area insets change at the same factor/size (rotation, multi-window); this was the cause of the non-reproducible ui-check subset finding.
 - Back during the dock/undock animation (`_transition`) does nothing. Selftest 113 covers low frame rate, 10-ms double delivery and back during the dock animation; mutations of both rules turn it red.
+
+## Round 38a (English summary): fixes from the final device test
+
+- Back key never quits; in flight it opens the menu (user decision).
+- Rental return: the core rule (an active rental can only be returned where an own ship is docked to switch into) is unchanged, but the reason is now an offer note shown under the disabled button. Renting charges fee + deposit + first day at once (`Hangar.RentalUpfront`, `RentPaidDays` = 1); taxi and rent offers show the whole amount with a breakdown (displayed price = deduction, tests).
+- `SpaceSim.Core/Ui/MessageRules`: important (about you or your fight, large toast/alert), info (`Hud.Info`: small, dimmed, never replaces an important toast — foreign events in your sector), off (elsewhere). `EnemyExit` gives a message for every way an enemy leaves your fight.
+- Hamburger menu: music/effects keep it open; a new UI factor reaches the menu layer only after the menu closes, so nothing moves under the finger. Selftest stage 114 (`SelfTest.Round38a.cs`), tests `Runde38aTests`.

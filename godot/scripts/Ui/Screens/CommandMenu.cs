@@ -54,6 +54,43 @@ public partial class CommandMenu : Control, IScreen
 	public void SetFuelActive(bool on) { if (_emergency is not null && _emergency.Visible != on) { _emergency.Visible = on; LayoutSystemRows(); } }
 
 	readonly System.Collections.Generic.List<KitButton> _systemButtons = new();
+	KitScroll _scroll = null!;
+	readonly System.Collections.Generic.Dictionary<string, KitButton> _byKey = new();
+	KitButton? _holdRow;
+	float _holdOffset;
+	int _holdFrames;
+
+	/// <summary>
+	/// Runde 38a (Handy-Abschlusstest v4 → v7: beim Wechsel der UI-Größe sprang die Rollposition, der nächste Tipp traf ein anderes Element): die Zeile dieser
+	/// Taste bleibt an derselben Stelle im sichtbaren Teil der Liste (Abstand zum oberen Rand der Liste in logischen Punkten), auch wenn die Schicht neu
+	/// skaliert und das Fenster eine andere Höhe bekommt.
+	/// </summary>
+	public void HoldRow(string key)
+	{
+		if (!_byKey.TryGetValue(key, out var b) || !b.IsInsideTree()) return;
+		_holdRow = b;
+		_holdOffset = b.GetGlobalRect().Intersection(_scroll.GetGlobalRect()).GetCenter().Y;   // Bildschirmlage der sichtbaren Mitte (Bildpunkte): der nächste Tipp dort soll dieselbe Zeile treffen
+		_holdFrames = 8;
+	}
+	/// <summary>Selbsttest: Abstand der Taste zum oberen Listenrand in logischen Punkten.</summary>
+	public float TestRowOffset(string key) => _byKey.TryGetValue(key, out var b) && b.IsInsideTree()
+		? (b.GetGlobalRect().Position.Y - _scroll.GetGlobalRect().Position.Y) / MathF.Max(0.01f, b.GetGlobalTransform().Scale.Y) : float.NaN;
+	public KitScroll TestScroll => _scroll;
+
+	public override void _Process(double delta)
+	{
+		if (_holdRow is null || _holdFrames <= 0) return;
+		_holdFrames--;
+		// Lage der Taste im Inhalt der Liste (logisch) minus gewünschter Abstand zum oberen Listenrand = Rollposition; der Abstand folgt aus der alten
+		// Bildschirmlage, im sichtbaren Teil der Liste gehalten
+		float k = MathF.Max(0.01f, _holdRow.GetGlobalTransform().Scale.Y);
+		float inContent = (_holdRow.GetGlobalRect().Position.Y - _list.GetGlobalRect().Position.Y) / k;
+		float view = _scroll.GetGlobalRect().Size.Y / k, rowH = _holdRow.GetGlobalRect().Size.Y / k;
+		float offset = Mathf.Clamp((_holdOffset - _scroll.GetGlobalRect().Position.Y) / k - rowH / 2f, 0f, MathF.Max(0f, view - rowH));
+		int want = Math.Max(0, (int)MathF.Round(inContent - offset));
+		if (_scroll.ScrollVertical != want) _scroll.ScrollVertical = want;
+		if (_holdFrames == 0) _holdRow = null;
+	}
 	readonly System.Collections.Generic.List<HBoxContainer> _systemRows = new();
 	VBoxContainer _list = null!;
 
@@ -151,11 +188,13 @@ public partial class CommandMenu : Control, IScreen
 			if (k == "music_mute") _music = b;
 			if (k == "effects_mute") _effects = b;
 			if (k == "ui_size") _uiSize = b;
+			_byKey[k] = b;
 			_systemButtons.Add(b);
 		}
 		_list = list;
 		LayoutSystemRows();
 		scroll.AddChild(list);
+		_scroll = scroll;
 		_win.Content.AddChild(scroll);
 		var close = new KitButton("Schließen", new Vector2(540, 56)) { FontSize = 20 };
 		close.Pressed += () => Action?.Invoke("close");

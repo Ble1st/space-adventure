@@ -525,9 +525,11 @@ public class Phase26Tests
         Assert.Equal(1, rented.RentPaidDays);
         for (int d = 0; d < 3; d++) { u.Tick += u.Rules.DayTicks; hangar.Step(u, 50); }
         Assert.Equal(4, rented.RentPaidDays);
-        Assert.Equal(50f - 4 * u.Rules.RentalPerDay, u.PlayerWallet.Credits, 2);
+        // Runde 38a: der erste Tag wurde beim Mieten bezahlt — täglich abgebucht werden die drei folgenden (Liegegebühr des geparkten eigenen Schiffs gesondert)
+        float other = ev.OfType<BerthFeePaid>().Sum(b => b.Amount) + ev.OfType<FleetUpkeepPaid>().Sum(f => f.Amount);
+        Assert.Equal(50f - 3 * u.Rules.RentalPerDay - other, u.PlayerWallet.Credits, 2);
         Assert.True(Hangar.Debt(u) > 0f);
-        Assert.Equal(4, ev.OfType<RentCharged>().Count());
+        Assert.Equal(3, ev.OfType<RentCharged>().Count());
         Assert.Equal(0f, Hangar.OpenRent(u, rented));
         // Verlust: nur offene Tage, keine doppelte Miete
         u.Tick += 10;

@@ -151,8 +151,11 @@ public static class Hangar
 
     // ───────── Leihschiff ─────────
 
-    /// <summary>Kosten beim Mieten: einmalige Gebühr plus Pfand.</summary>
-    public static float RentalUpfront(EconomyRules r) => r.RentalFee + r.RentalDeposit;
+    /// <summary>
+    /// Kosten beim Mieten: einmalige Gebühr, Pfand und — Runde 38a (Handytest: „Buchen 559 Cr“, abgebucht 680) — die Miete des ersten (angefangenen) Tages,
+    /// die bisher sofort danach von der täglichen Abrechnung abgebucht wurde, ohne dass sie im Preis stand. Jetzt wird sie beim Mieten mitbezahlt.
+    /// </summary>
+    public static float RentalUpfront(EconomyRules r) => r.RentalFee + r.RentalDeposit + r.RentalPerDay;
 
     /// <summary>Angefangene Miettage seit Beginn (mindestens 1).</summary>
     public static int RentalDays(Universe u, Ship ship) =>
@@ -183,11 +186,12 @@ public static class Hangar
         var cls = u.ShipClasses[model.ClassKey];
         var wallet = u.WalletOf(payer);
         wallet.Credits -= RentalUpfront(u.Rules);
-        st.Credits += u.Rules.RentalFee;
+        st.Credits += u.Rules.RentalFee + u.Rules.RentalPerDay;   // Runde 38a: erster Tag gleich bezahlt
         var ship = ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Player, Controller.Player, payer.Owner, st, 0f);
         ship.RentedFrom = st.Id;
         ship.RentedSince = u.Tick;
         ship.RentalDeposit = u.Rules.RentalDeposit;
+        ship.RentPaidDays = 1;   // Runde 38a
         ship.HomeBase = st.Id;
         u.AddShip(ship);
         u.Events.Publish(new ShipRented(ship.Id, st.Id, u.Rules.RentalFee, u.Rules.RentalDeposit));
@@ -195,7 +199,7 @@ public static class Hangar
         if (old is not null && old.Transit is null && old.Id != ship.Id && old.Sector == st.Sector && Vec2.Distance(old.Position, st.Position) <= Universe.DockRadius * 2f)
             PlayerFleet.Dock(u, old, st);
         PlayerFleet.Activate(u, ship, st.Id);
-        message = $"Leihschiff {model.Name} #{ship.Id.Value} gemietet: {u.Rules.RentalFee:0} Cr Gebühr, {u.Rules.RentalDeposit:0} Cr Pfand, {u.Rules.RentalPerDay:0} Cr je Tag.";
+        message = $"Leihschiff {model.Name} #{ship.Id.Value} gemietet: {RentalUpfront(u.Rules):0} Cr abgebucht ({u.Rules.RentalFee:0} Cr Gebühr + {u.Rules.RentalDeposit:0} Cr Pfand + {u.Rules.RentalPerDay:0} Cr erster Tag), danach {u.Rules.RentalPerDay:0} Cr je Tag.";
         return ship;
     }
 
@@ -206,7 +210,11 @@ public static class Hangar
         bool active = ship.Id == u.PlayerShip;
         if (!active && (ship.Transit is not null || ship.DockedAt != st.Id)) return "Das Leihschiff liegt nicht hier.";
         if (ship.Cargo.Values.Sum() > 0.001f) return "Erst die Fracht verkaufen oder einlagern.";
-        if (active && ParkedOwn(u, st) is null) return "Du brauchst hier ein eigenes Schiff, in das du wechselst.";
+        // Runde 38a: der Grund nennt den Ausweg (eigenes Schiff per Taxi holen bzw. mit dem Leihschiff hinfliegen)
+        if (active && ParkedOwn(u, st) is null)
+            return PlayerFleet.Owned(u).Any(s => !s.IsRental && s.Id != ship.Id)
+                ? "Zurückgeben geht nur, wenn hier ein eigenes Schiff angedockt ist, in das du wechselst — fliege mit dem Leihschiff zu deinem Schiff; liegt es an einer Station mit Verleih, gibst du das Leihschiff dort zurück."
+                : "Zurückgeben geht nur, wenn hier ein eigenes Schiff angedockt ist, in das du wechselst — du hast keins; kaufe eines in der Werft oder behalte das Leihschiff.";
         return null;
     }
 

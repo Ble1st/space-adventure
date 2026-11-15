@@ -879,7 +879,7 @@ public partial class SelfTest : Node
 				var rent = _m.HudRef.DockHangar.Execute(SpaceSim.Core.Services.RentalService.ServiceKey, "rent:1");
 				var rented = _m.Session.Player;
 				Check(rent.Success && rented.IsRental && rented.ModelKey == uni.Rules.RentalModel, $"Leihschiff gemietet ({rent.Message})");
-				Check(System.Math.Abs(uni.PlayerWallet.Credits - (cr - uni.Rules.RentalFee - uni.Rules.RentalDeposit)) < 0.05f, "Gebühr und Pfand aus der Kasse");
+				Check(System.Math.Abs(uni.PlayerWallet.Credits - (cr - SpaceSim.Core.Simulation.Hangar.RentalUpfront(uni.Rules))) < 0.05f, "Gebühr, Pfand und erster Tag aus der Kasse (Runde 38a)");
 				Check(_m.HudRef.DockHangar.TestParkedRows >= 1, "Hangar zeigt das eigene Zweitschiff als geparkt");
 				var back = _m.HudRef.DockHangar.Execute(SpaceSim.Core.Services.RentalService.ServiceKey, $"return:{rented.Id.Value}");
 				Check(back.Success && !uni.Ships.ContainsKey(rented.Id) && uni.PlayerShip == _secondShip, $"Leihschiff zurückgegeben, wieder im eigenen Schiff ({back.Message})");
@@ -2679,6 +2679,7 @@ public partial class SelfTest : Node
 			case 111: if (Round35Stage(_frame - _stageStart)) Next(); break;   // Runde 35: Kommandozentrale adaptiv (SelfTest.Round35.cs)
 			case 112: if (Round37Stage(_frame - _stageStart)) Next(); break;   // Runde 37: Wisch wählt nichts, Fraktionen Liste/Detail, Leiste bleibt gerollt, Handels-Editor, Menü-Schicht (SelfTest.Round37.cs)
 			case 113: if (Round37bStage(_frame - _stageStart)) Next(); break;   // Runde 37b: alle Wege zurück (Karte, Menü, Zentrale, Zurück-Taste), Leiste in beide Richtungen, Rahmenbreite (SelfTest.Round37b.cs)
+			case 114: if (Round38aStage(_frame - _stageStart)) Next(); break;   // Runde 38a: Menü bleibt offen und an der Zeile, Info-Meldungen leise (SelfTest.Round38a.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)

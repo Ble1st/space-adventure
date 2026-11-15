@@ -237,6 +237,7 @@ public partial class Hud : CanvasLayer
 	/// <summary>Runde 37 (E5): Schicht von Sternenkarte und Hamburger-Menü (ganze Fläche, Faktor <see cref="MenuFactor"/>).</summary>
 	readonly Control _menuLayer = new();
 	public float MenuFactor => _menuLayer.Scale.X;
+	bool _menuPending = true;
 	/// <summary>Runde 34: Schicht der Dock-Bildschirme (ganze Fläche, Faktor <see cref="DockFactor"/>).</summary>
 	readonly Control _dockLayer = new();
 	/// <summary>Runde 35: Schicht der Kommandozentrale (ganze Fläche, Faktor <see cref="CcFactor"/>).</summary>
@@ -282,11 +283,23 @@ public partial class Hud : CanvasLayer
 			UiScale.CommandFactor = cf;
 			// Runde 37 (E5): Menü-Schicht mit der Stufe selbst (UiScale.Factor ist schon auf die Mindestfläche 960 × 540 begrenzt; das Menüfenster wird
 			// höchstens so hoch wie die Fläche, die Sternenkarte rechnet ihren Maßstab aus der Fläche)
+			_menuPending = true;
+		}
+		// Runde 38a (Handy-Abschlusstest v4 → v7: beim Wechsel der UI-Größe im offenen Menü sprang alles, der nächste Tipp traf „Schließen“): die Menü-Schicht
+		// übernimmt einen neuen Faktor erst, wenn das Menü zu ist — solange es offen ist, bleibt alles unter dem Finger; der Hinweis nennt die neue Größe
+		if (_menuPending && !Command.Visible)
+		{
+			_menuPending = false;
 			_menuLayer.AnchorLeft = 0f; _menuLayer.AnchorTop = 0f; _menuLayer.AnchorRight = 0f; _menuLayer.AnchorBottom = 0f;
 			_menuLayer.Position = Vector2.Zero;
 			_menuLayer.Scale = new Vector2(f, f);
 			_menuLayer.Size = vp / f;
 			UiScale.MenuFactor = f;
+		}
+		else if (_menuPending && Command.Visible && (_menuLayer.Size * _menuLayer.Scale.X - vp).LengthSquared() > 1f)
+		{
+			// Fenstergröße geändert (Drehen): dann sofort, mit dem bisherigen Faktor
+			_menuLayer.Size = vp / _menuLayer.Scale.X;
 		}
 		bool flight = Screens.Current == null || Screens.Current == Flight;
 		float s = flight ? Flight.Scale.X : UiScale.ScreensFactor;   // Runde 33b: der wirksame Faktor der Flug-Schicht (kann unter der Stufe liegen)
@@ -517,7 +530,7 @@ public partial class Hud : CanvasLayer
 		bool below = _alert.Visible && !onScreen;
 		// Runde 4: über Vollbildern unten mittig (zwischen „← Menü“/„← Flug“ und „Abdocken“), im Flug mit Abstand zur Lage-/Brandzeile
 		var vpSize = AlertSpace;   // Runde 33: in Einheiten der Meldungsebene (im Flug skaliert)
-		_toast.AddThemeFontSizeOverride("font_size", onScreen ? 16 : 22);   // Runde 34b: über Vollbildern kleiner (passt in den Meldungsstreifen)
+		_toast.AddThemeFontSizeOverride("font_size", onScreen ? 16 : _toastQuiet ? 15 : 22);   // Runde 38a: Info-Meldungen klein   // Runde 34b: über Vollbildern kleiner (passt in den Meldungsstreifen)
 		bool onMap = MapStrip is not null;
 		if (MapStrip is { } mapStrip)
 		{
@@ -637,8 +650,27 @@ public partial class Hud : CanvasLayer
 	public void SetDebugLine(string? text) { _debugLine.Visible = text is not null; if (text is not null) _debugLine.Text = text; }
 	public string TestDebugLine => _debugLine.Visible ? _debugLine.Text : "";
 
+	/// <summary>
+	/// Runde 38a (MessageRules): Info-Meldung — fremdes Geschehen in deinem Sektor; klein, gedimmt, kurz, und sie verdrängt keinen wichtigen Hinweis
+	/// (steht gerade einer, entfällt sie).
+	/// </summary>
+	public void Info(string text, float seconds = 2.5f)
+	{
+		if (!_toastQuiet && _toast.Modulate.A > 0.3f && _toast.Text.Length > 0) return;
+		Toast(text, seconds);
+		_toastQuiet = true;
+		_toast.AddThemeColorOverride("font_color", new Color(0.78f, 0.84f, 0.92f, 0.85f));
+		TestLastInfo = text;
+	}
+	bool _toastQuiet;
+	/// <summary>Selbsttest: letzte Info-Meldung und ob der sichtbare Hinweis leise ist.</summary>
+	public string TestLastInfo { get; private set; } = "";
+	public bool TestToastQuiet => _toastQuiet;
+
 	public void Toast(string text, float seconds = 2.5f)
 	{
+		_toastQuiet = false;
+		_toast.RemoveThemeColorOverride("font_color");
 		// Prüfung Phase 28: ein neuer Hinweis ersetzt eine ältere Meldung, die schon mindestens 3 s stand (keine zwei Felder übereinander)
 		if (_alert.Visible && !_alertSticky && Time.GetTicksMsec() / 1000.0 - _alertShown >= 3.0) _alert.Visible = false;
 		_toast.Text = text;
