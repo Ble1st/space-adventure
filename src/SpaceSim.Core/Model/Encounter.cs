@@ -6,8 +6,9 @@ public enum DamageType { Energy, Kinetic, Explosive }
 
 /// <summary>Phase 24: Anlass eines Gefechts (KAMPF.md 4.1); Phase 25: <see cref="Assault"/> = der Spieler greift ein Schiff an (Schuss auf ein fremdes Schiff);
 /// Phase 27: <see cref="Arrest"/> = die Polizei stellt einen gesuchten Spieler (Fahndungsstufe ≥ 3) als echtes Gefecht; Phase 28: <see cref="Siege"/> = Angriff
-/// auf eine Station (<see cref="Encounter.Station"/>; Kriegsschiffe im Krieg, der Spieler).</summary>
-public enum EncounterCause { Raid, Intercept, Assault, Arrest, Siege }
+/// auf eine Station (<see cref="Encounter.Station"/>; Kriegsschiffe im Krieg, der Spieler); Runde 40: <see cref="War"/> = Polizei/Kriegsschiffe einer
+/// Kriegsfraktion stellen das Spielerschiff in ihrem Gebiet (nach Warnung; kein Ergeben gegen Geld).</summary>
+public enum EncounterCause { Raid, Intercept, Assault, Arrest, Siege, War }
 
 /// <summary>Phase 24: Bewegung eines Teilnehmers in einem Takt (Abstandszahl statt Physik, KAMPF.md 4.2).</summary>
 public enum CombatMove { Approach, Hold, Flee }

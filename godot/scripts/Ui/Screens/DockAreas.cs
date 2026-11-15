@@ -90,14 +90,14 @@ public static class DockAreas
 	{
 		var list = new List<DockAreaDef>(10);
 		ship ??= u.Ships.GetValueOrDefault(u.PlayerShip);
-		bool trade = services.ForStation(u, st).Any(s => s.Key == TradeService.ServiceKey);
+		bool trade = services.ForStation(u, st, ship).Any(s => s.Key == TradeService.ServiceKey);   // Runde 40: im Krieg liefert die Station keine Dienste (ServiceRefusal)
 		if (trade)
 		{
 			int wares = st.Market.Count(kv => kv.Value.Price > 0f);
 			list.Add(new DockAreaDef { Id = Trade, Label = LabelFor(Trade), Sub = $"{wares} Waren", Available = true });
 		}
 		// Reparatur & Tanken: verfügbar, sobald die Station „refuel“ oder „repair“ liefert (Phase 4c)
-		var offered = services.ForStation(u, st).Select(s => s.Key).ToList();
+		var offered = services.ForStation(u, st, ship).Select(s => s.Key).ToList();   // Runde 40: mit Schiff — im Krieg leer
 		bool refuel = offered.Contains(RefuelService.ServiceKey), repair = offered.Contains(RepairService.ServiceKey);
 		bool rearm = offered.Contains(RearmService.ServiceKey);   // Phase 25: Munition nachladen als Abschnitt der Reparatur
 		// Führt der Stationstyp den Dienst, ist er aber gerade nicht lieferbar (Lager leer), steht das dort statt „Bald“

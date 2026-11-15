@@ -42,8 +42,13 @@ public static class Siege
             : $"Gefecht in {where}: {u.ActorName(attacker.Owner)} greift {t.Name} an";
         if (attacker.IsPlayer && sec is not null)
         {
-            if (gate && t.Defenders.Count > 0) foreach (var f in t.Defenders) Wanted.Report(u, u.PlayerActor, f, t.Crime);
-            else Wanted.ReportAssault(u, u.PlayerActor, sec.Id, t.Owner, t.Crime);
+            // Runde 40: Angriffe auf Stationen/Tore des Kriegsgegners sind kein Verbrechen
+            bool atWar = gate ? t.Defenders.Any(d => Wars.AtWar(u, u.PlayerActor, d)) : Wars.AtWar(u, u.PlayerActor, t.Owner);
+            if (!atWar)
+            {
+                if (gate && t.Defenders.Count > 0) foreach (var f in t.Defenders) Wanted.Report(u, u.PlayerActor, f, t.Crime);
+                else Wanted.ReportAssault(u, u.PlayerActor, sec.Id, t.Owner, t.Crime);
+            }
         }
         u.Events.Publish(new EncounterStarted(e.Id, t.Sector, EncounterCause.Siege, attacker.Id, default, msg));
         if (gate) u.Events.Publish(new GateAttacked(e.Id, t.Ref.Gate, t.Sector, attacker.Owner, msg));

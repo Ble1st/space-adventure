@@ -87,7 +87,7 @@ public static class Outposts
         // Runde 13b: ein Gesuchter ist auch für Stellungen der eigenen Fraktion ein Ziel (wie für ihre Polizei)
         if (ship.IsPlayer && u.FactionOf(st) is { } fw && Wanted.LevelOf(u, ship.Owner, fw) >= u.Rules.TradeRefusalWantedLevel) return true;
         if (u.FactionOf(ship) is { } sf && u.FactionOf(st) == sf) return false;
-        if (Wars.AtWar(u, st.Owner, ship.Owner)) return true;
+        if (Wars.AtWar(u, st.Owner, ship.Owner)) return Wars.Hostile(u, st.Owner, ship.Owner);   // Runde 40: im Krieg zählt nur Hostile (Waffenstillstand sperrt)
         if (Relations.Effective(u, st.Owner, ship.Owner) <= u.Rules.HostileRelation) return true;
         return ship.IsPlayer && u.FactionOf(st) is { } fs && Wanted.LevelOf(u, ship.Owner, fs) >= u.Rules.TradeRefusalWantedLevel;
     }

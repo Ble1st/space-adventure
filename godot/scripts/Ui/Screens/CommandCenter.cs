@@ -22,6 +22,8 @@ public sealed class CommandContext
 	public StationId? Docked;
 	/// <summary>Phase 12: Dienst-Registry (Taxi auf der Universumskarte, Verkauf im Besitz); Instanz aus der Sitzung.</summary>
 	public SpaceSim.Core.Services.StationServices Services = SpaceSim.Core.Services.StationServices.Default();
+	/// <summary>Runde 40: Comms-Aktionsregistry der Sitzung (Posteingang-Antworten und Diplomatie-Knöpfe führen nur darüber aus).</summary>
+	public SpaceSim.Core.Comms.CommsActions Comms = SpaceSim.Core.Comms.CommsActions.Default();
 	/// <summary>Runde 38: Einnahmen der Spielerkasse (Ereignisse des letzten Spieltags) für „Meine Fraktion“; null = keine Messung.</summary>
 	public Func<SpaceSim.Core.Diagnostics.PlayerIncome?> Income = () => null;
 }
@@ -182,9 +184,10 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 			ii++;
 			b.Pressed += () => { RailPos = railScroll.ScrollVertical; AreaSelected?.Invoke(key); };
 			if (id == AreaId) b.State = KitButtonState.On;
-			if (id == CommandAreas.Comms && UiPlaceholders.CommsUnread > 0)
+			int unread = SpaceSim.Core.Comms.Comms.Unread(u);   // Runde 40: echter Zähler aus dem Posteingang
+			if (id == CommandAreas.Comms && unread > 0)
 			{
-				b.Detail = UiPlaceholders.CommsUnread.ToString();
+				b.Detail = unread.ToString();
 				b.DetailColor = Orange;
 			}
 			rv.AddChild(b);

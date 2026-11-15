@@ -35,6 +35,16 @@ public static class Wars
         foreach (var w in u.Wars) if (w.Involves(f)) yield return w.Other(f);
     }
 
+    /// <summary>
+    /// Runde 40: verweigert die Station dem Schiff Handel/Dienste wegen Krieg (null = nicht)? Nur das aktive Spielerschiff gegen die
+    /// Stationsfraktion im Krieg (auch im Waffenstillstand — <see cref="AtWar(Universe, FactionId, FactionId)"/>, nicht <see cref="Hostile(Universe, FactionId, FactionId)"/>).
+    /// </summary>
+    public static string? ServiceRefusal(Universe u, Station st, Ship ship)
+    {
+        if (!ship.IsPlayer || u.FactionOf(st) is not { } f || !AtWar(u, u.PlayerActor, f)) return null;
+        return $"Krieg mit {(u.Factions.TryGetValue(f, out var fa) ? fa.Name : "der Fraktion")}";
+    }
+
     public static int CountOf(Universe u, FactionId f) => u.Wars.Count(w => w.Involves(f));
 
     static (int, int) Key(FactionId a, FactionId b) => a.Value < b.Value ? (a.Value, b.Value) : (b.Value, a.Value);
@@ -118,6 +128,162 @@ public static class Wars
         foreach (var other in u.NpcFactionIds())
             if (other != f && CanWage(u, other)) PlayerStanding.Change(u, other, -u.Rules.PlayerWarRelationLoss, "war_declared");
         return w;
+    }
+
+    // ───────── Runde 40: Waffenstillstand, Frieden, Tribut (Comms-Diplomatie) ─────────
+
+    /// <summary>Läuft für diesen Krieg gerade ein Waffenstillstand?</summary>
+    public static bool CeasefireActive(Universe u, War w) => w.CeasefireUntil > u.Tick;
+
+    /// <summary>
+    /// Feindlich im Kampf (rein): Krieg <b>und</b> kein laufender Waffenstillstand. An den Kampfstellen ersetzt das <see cref="AtWar(Universe, FactionId, FactionId)"/>:
+    /// während des Waffenstillstands keine Kriegsangriffe, Belagerungen oder Stationsgeschütze gegen Kriegsgegner. Sperren und Handelsverweigerung bleiben
+    /// über <see cref="AtWar(Universe, FactionId, FactionId)"/> bestehen (Handel bleibt im Waffenstillstand gesperrt).
+    /// </summary>
+    public static bool Hostile(Universe u, FactionId a, FactionId b) => a != b && Between(u, a, b) is { } w && !CeasefireActive(u, w);
+
+    /// <summary>Wie oben für zwei Akteure (über ihre Fraktionen).</summary>
+    public static bool Hostile(Universe u, ActorId a, ActorId b) =>
+        a != b && u.FactionOf(a) is { } fa && u.FactionOf(b) is { } fb && Hostile(u, fa, fb);
+
+    /// <summary>Runde 40: laufender Krieg zwischen Spielerfraktion und <paramref name="f"/> (null = keiner).</summary>
+    public static War? PlayerWar(Universe u, FactionId f) => u.PlayerFaction is { } me ? Between(u, me, f) : null;
+
+    /// <summary>Verbleibende Sperrzeit für ein neues Angebot (Waffenstillstand/Frieden) in diesem Krieg (0 = frei).</summary>
+    public static long OfferCooldownLeft(Universe u, War w) =>
+        w.LastOfferTick > 0 ? Math.Max(0L, u.Rules.OfferCooldownTicks - (u.Tick - w.LastOfferTick)) : 0L;
+
+    /// <summary>Tick eines Angebots eintragen (0 = keines; Tick 0 wird auf 1 gehoben, damit das „0 = nie“-Sentinel nicht kollidiert).</summary>
+    public static void MarkOffered(Universe u, War w) => w.LastOfferTick = Math.Max(1L, u.Tick);
+
+    /// <summary>
+    /// Runde 40: geforderter Tribut (Cr) der Seite <paramref name="ai"/> für Waffenstillstand/Frieden ohne ausreichende Müdigkeit —
+    /// <see cref="EconomyRules.TributeBase"/> × (1 − Müdigkeit) + eigene Verluste × <see cref="EconomyRules.TributeLossShare"/>, gemindert um den bereits
+    /// gezahlten Tribut (<see cref="War.TributePaid"/>). Deterministisch, nie &lt; 0.
+    /// </summary>
+    public static float TributeFor(Universe u, War w, FactionId ai)
+    {
+        float lossAi = w.A == ai ? w.LossA : w.LossB;
+        float raw = MathF.Max(0f, u.Rules.TributeBase * (1f - MathF.Min(1f, w.Weariness))) + lossAi * u.Rules.TributeLossShare;
+        return MathF.Max(0f, raw - w.TributePaid);
+    }
+
+    /// <summary>Nimmt die Seite <paramref name="ai"/> einen Waffenstillstand ohne Zahlung an (deterministisch: Müdigkeit oder klare Unterlegenheit)?</summary>
+    public static bool CeasefireFree(Universe u, War w, FactionId ai)
+    {
+        if (w.Weariness >= u.Rules.CeasefireWeariness) return true;
+        return Strength(u, ai) < u.Rules.CeasefireStrengthRatio * MathF.Max(0.0001f, Strength(u, w.Other(ai)));
+    }
+
+    /// <summary>Nimmt die Seite <paramref name="ai"/> Frieden ohne Zahlung an (deterministisch: Mindestdauer + Müdigkeit)?</summary>
+    public static bool PeaceFree(Universe u, War w, FactionId ai) =>
+        u.Tick - w.Since >= u.Rules.WarMinTicks && w.Weariness >= u.Rules.PeaceWeariness;
+
+    /// <summary>
+    /// Runde 40: warum der Spieler <paramref name="f"/> jetzt keinen Waffenstillstand anbieten kann (null = er kann; die KI-Entscheidung ist dann
+    /// deterministisch über <see cref="CeasefireFree"/>/<see cref="TributeFor"/>). Bedingungen: Krieg an, laufender Krieg mit <paramref name="f"/>,
+    /// kein aktiver Waffenstillstand, Angebots-Abkühlzeit (<see cref="EconomyRules.OfferCooldownTicks"/>), und falls kein kostenloser Annahme:
+    /// Tribut in der Kasse.
+    /// </summary>
+    public static string? CeasefireIssue(Universe u, FactionId f)
+    {
+        var r = u.Rules;
+        if (!Active(u)) return "Krieg ist abgeschaltet.";
+        if (u.PlayerFaction is not { } me) return "Du bist keine eigene Fraktion.";
+        if (Between(u, me, f) is not { } w) return "Kein Krieg mit dieser Fraktion.";
+        if (CeasefireActive(u, w)) return $"Waffenstillstand läuft schon (noch {(w.CeasefireUntil - u.Tick) / 240} min).";
+        if (OfferCooldownLeft(u, w) is > 0 and var left) return $"Angebot erst wieder in {left / 240} min möglich.";
+        if (!CeasefireFree(u, w, f))
+        {
+            float t = TributeFor(u, w, f);
+            if (t > 0f && u.Player.Treasury.Credits < t) return $"Die KI verlangt einen Tribut von {t:0} Cr — Kasse reicht nicht.";
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Runde 40: der Spieler bietet <paramref name="f"/> den Waffenstillstand an (ohne Prüfung; <see cref="CeasefireIssue"/> vorher). Ergebnis null bei Sperre,
+    /// sonst Krieg und gezahlter Tribut. Setzt <see cref="War.LastOfferTick"/> und <see cref="War.CeasefireUntil"/>; bei nicht kostenloser Annahme zahlt der
+    /// Spieler den Tribut an die Fraktionskasse. Deterministisch — dieselbe Entscheidung wie in der Vorschau.
+    /// </summary>
+    public static (War War, float Tribute)? CeasefireAccept(Universe u, FactionId f)
+    {
+        if (CeasefireIssue(u, f) is not null) return null;
+        var w = Between(u, u.PlayerFaction ?? throw new InvalidOperationException("Keine Spielerfraktion"), f)!;
+        MarkOffered(u, w);
+        float tribute = CeasefireFree(u, w, f) ? 0f : TributeFor(u, w, f);
+        if (tribute > 0f) PayTribute(u, f, tribute, w);
+        w.CeasefireUntil = u.Tick + u.Rules.CeasefireTicks;
+        u.TouchAccess();
+        string na = u.Factions.TryGetValue(w.A, out var fa) ? fa.Name : "?", nb = u.Factions.TryGetValue(w.B, out var fb) ? fb.Name : "?";
+        u.Events.Publish(new CeasefireConcluded(w.A, w.B, w.CeasefireUntil, tribute,
+            $"Waffenstillstand zwischen {na} und {nb} bis Tick {w.CeasefireUntil}{(tribute > 0f ? $" — Tribut {tribute:0} Cr" : "")}."));
+        return (w, tribute);
+    }
+
+    /// <summary>
+    /// Runde 40: warum der Spieler <paramref name="f"/> jetzt keinen Frieden schließen kann (null = er kann). Wie <see cref="CeasefireIssue"/>, aber die
+    /// kostenlose Annahme braucht <see cref="PeaceFree"/> (Mindestdauer + <see cref="EconomyRules.PeaceWeariness"/>), sonst Tribut.
+    /// </summary>
+    public static string? PeaceIssue(Universe u, FactionId f)
+    {
+        var r = u.Rules;
+        if (!Active(u)) return "Krieg ist abgeschaltet.";
+        if (u.PlayerFaction is not { } me) return "Du bist keine eigene Fraktion.";
+        if (Between(u, me, f) is not { } w) return "Kein Krieg mit dieser Fraktion.";
+        if (OfferCooldownLeft(u, w) is > 0 and var left) return $"Angebot erst wieder in {left / 240} min möglich.";
+        if (!PeaceFree(u, w, f))
+        {
+            float t = TributeFor(u, w, f);
+            if (t > 0f && u.Player.Treasury.Credits < t) return $"Die KI verlangt einen Tribut von {t:0} Cr — Kasse reicht nicht.";
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Runde 40: der Spieler schließt mit <paramref name="f"/> Frieden (ohne Prüfung; <see cref="PeaceIssue"/> vorher). Null bei Sperre, sonst gezahlter Tribut.
+    /// Bei nicht kostenloser Annahme zahlt der Spieler den Tribut an die Fraktionskasse, dann <see cref="MakePeace"/> (Grund „negotiated").
+    /// </summary>
+    public static float? PeaceAccept(Universe u, FactionId f)
+    {
+        if (PeaceIssue(u, f) is not null) return null;
+        var w = Between(u, u.PlayerFaction ?? throw new InvalidOperationException("Keine Spielerfraktion"), f)!;
+        MarkOffered(u, w);
+        float tribute = PeaceFree(u, w, f) ? 0f : TributeFor(u, w, f);
+        if (tribute > 0f) PayTribute(u, f, tribute, w);
+        MakePeace(u, w, "negotiated");
+        return tribute;
+    }
+
+    /// <summary>Runde 40: warum der Spieler <paramref name="f"/> jetzt keinen Tribut von <paramref name="amount"/> Cr zahlen kann (null = er kann).</summary>
+    public static string? TributeIssue(Universe u, FactionId f, float amount)
+    {
+        if (!Active(u)) return "Krieg ist abgeschaltet.";
+        if (u.PlayerFaction is not { } me) return "Du bist keine eigene Fraktion.";
+        if (Between(u, me, f) is null) return "Kein Krieg mit dieser Fraktion.";
+        if (amount <= 0f) return "Betrag muss positiv sein.";
+        if (u.Player.Treasury.Credits < amount) return $"Kasse reicht nicht ({amount:0} Cr nötig).";
+        return null;
+    }
+
+    /// <summary>
+    /// Runde 40: Tribut zahlen (ohne Prüfung; <see cref="TributeIssue"/> vorher): Spielerkasse → Kasse der Fraktion
+    /// (<see cref="TreasuryIncome"/> „tribute“), zählt auf <see cref="War.TributePaid"/> und mindert so den geforderten Tribut. Ereignisse
+    /// <see cref="TributePaid"/> und <see cref="CommsActionPerformed"/>.
+    /// </summary>
+    public static void PayTribute(Universe u, FactionId f, float amount, War? w = null)
+    {
+        w ??= PlayerWar(u, f);
+        u.Player.Treasury.Credits -= amount;
+        if (u.Actors.TryGetValue(f, out var authority))
+        {
+            authority.Treasury.Credits += amount;
+            u.Events.Publish(new TreasuryIncome(authority.Id, "tribute", amount));
+        }
+        if (w is not null) w.TributePaid += amount;
+        string name = u.Factions.TryGetValue(f, out var fac) ? fac.Name : "?";
+        u.Events.Publish(new TributePaid(u.PlayerActor, f, amount, $"Tribut {amount:0} Cr an {name} gezahlt."));
+        u.Events.Publish(new CommsActionPerformed("tribute", f.Value, -amount, $"Tribut {amount:0} Cr an {name}."));
     }
 
     /// <summary>Krieg erklären (ohne Prüfung; die Bedingungen prüft <see cref="DeclareIssue"/>). Beziehungen werden feindlich, Ereignis.</summary>
@@ -266,6 +432,17 @@ public sealed class WarSystem : ISimSystem
             bool broke = Broke(u, w.A) || Broke(u, w.B);
             if (broke) { Wars.MakePeace(u, w, "broke"); continue; }
             if (ticks >= r.WarMinTicks && w.Weariness >= 1f) Wars.MakePeace(u, w, "weary");
+            // Runde 40: ab Müdigkeit AiOfferWeariness bietet die KI dem Spieler Waffenstillstand/Frieden per Comms an (höchstens ein Angebot je OfferCooldownTicks)
+            if (u.PlayerFaction is { } pf && w.Involves(pf) && w.Weariness >= r.AiOfferWeariness && Wars.OfferCooldownLeft(u, w) == 0)
+            {
+                var ai = w.Other(pf);
+                Wars.MarkOffered(u, w);
+                string name = u.Factions.TryGetValue(ai, out var fa) ? fa.Name : "?";
+                if (Wars.PeaceFree(u, w, ai))
+                    u.Events.Publish(new PeaceOffered(ai, pf, $"{name} bietet dir Frieden an (Kriegsmüdigkeit {w.Weariness:0.00})."));
+                else
+                    u.Events.Publish(new CeasefireOffered(ai, pf, $"{name} bietet dir einen Waffenstillstand an (Kriegsmüdigkeit {w.Weariness:0.00})."));
+            }
         }
         if (!r.WarDeclarations) return;
         var factions = u.NpcFactionIds();   // Runde 38: die KI erklärt nur KI-Fraktionen den Krieg …
@@ -358,7 +535,9 @@ public sealed class NavySystem : ISimSystem
         if (s.HomeBase.Value == 0 || !u.Stations.ContainsKey(s.HomeBase))
             if (SecuritySystem.HomeBaseFor(u, f, s.Sector) is { } h) s.HomeBase = h.Id;
         if (s.Command is ReturnCommand) return;
-        if (NeedsBase(u, s) || Wars.CountOf(u, f) == 0)
+        // Runde 40: während eines Waffenstillstands im Krieg keine Angriffe (wie Frieden), die Kriegsschiffe bleiben aber stationiert
+        bool ceasefire = Wars.CountOf(u, f) > 0 && u.Wars.Any(w => w.Involves(f) && Wars.CeasefireActive(u, w));
+        if (NeedsBase(u, s) || Wars.CountOf(u, f) == 0 || ceasefire)
         {
             bool atHome = s.Transit is null && s.DockedAt == s.HomeBase;
             if (!atHome || NeedsBase(u, s)) Commands.Give(u, s, new ReturnCommand(), out _, ignoreCapacity: true);

@@ -314,7 +314,7 @@ public static class PlayerCombat
         if (TargetIssue(u, player, target) is not null) return (null, null, null);
         var r = u.Rules;
         var sector = u.Sectors[player.Sector];
-        bool crime = !IsOutlaw(u, target.Owner);
+        bool crime = !IsOutlaw(u, target.Owner) && !Wars.AtWar(u, u.PlayerActor, target.Owner);   // Runde 40: Angriffe auf Kriegsgegner sind kein Verbrechen
         var mine = u.Fights.Of(player.Id);
         var theirs = u.Fights.Of(target.Id);
         if (mine is not null && theirs is not null && mine.Id == theirs.Id) return (mine, mine.Of(player.Id), mine.Of(target.Id));

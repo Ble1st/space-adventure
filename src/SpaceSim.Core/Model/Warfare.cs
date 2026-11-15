@@ -72,6 +72,12 @@ public sealed class War
     public float LossA;
     public float LossB;
     public int Sieges;
+    /// <summary>Runde 40: Waffenstillstand läuft bis zu diesem Tick (0 = keiner); gespeichert, gehasht nur wenn gesetzt. Währenddessen keine Kriegsangriffe (<see cref="Simulation.Wars.Hostile(Universe, FactionId, FactionId)"/>), Handel/Sperren bleiben.</summary>
+    public long CeasefireUntil;
+    /// <summary>Runde 40: Tick des letzten Angebots (Waffenstillstand/Frieden, egal welche Seite; 0 = keines); gespeichert, gehasht nur wenn gesetzt. Sperrt <see cref="EconomyRules.OfferCooldownTicks"/>.</summary>
+    public long LastOfferTick;
+    /// <summary>Runde 40: bereits gezahlter Tribut (Cr) auf diesen Krieg; gespeichert, gehasht nur wenn &gt; 0; mindert den geforderten Tribut.</summary>
+    public float TributePaid;
 
     public bool Involves(FactionId f) => A == f || B == f;
     public FactionId Other(FactionId f) => A == f ? B : A;

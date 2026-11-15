@@ -32,6 +32,40 @@ public sealed class SecuritySystem : ISimSystem
             if (s.Transit is null && s.Id != u.PlayerShip && !ThreatMap.IsPolice(s) && !ThreatMap.IsRaider(s) && s.Hull < s.MaxHull && !u.Fights.IsEngaged(s.Id))
                 s.Hull = MathF.Min(s.MaxHull, s.Hull + u.Rules.NpcHullRegenPerTick * dt);
         CheckWantedPlayer(u);
+        CheckWarPlayer(u);   // Runde 40: Kriegsgegner stellen das Spielerschiff in ihrem Gebiet
+    }
+
+    /// <summary>
+    /// Runde 40: Krieg — steht der Spieler mit der Sektorfraktion im Krieg (und läuft kein Waffenstillstand, <see cref="Wars.Hostile(Universe, FactionId, FactionId)"/>)
+    /// und sind ihre Polizei oder Kriegsschiffe im Sektor, kündigt die erste von ihnen den Angriff an (<see cref="EncounterKind.War"/>; nach Ablauf
+    /// <see cref="Engage.StartWar"/> — kein Ergeben gegen Geld). Wie die Festnahme: nicht im Gefecht/angedockt, mit Abkühlzeit gegen Schleifen.
+    /// </summary>
+    static void CheckWarPlayer(Universe u)
+    {
+        if (!u.Rules.Warfare || u.PlayerFaction is not { } me) return;
+        if (!u.Ships.TryGetValue(u.PlayerShip, out var player) || !u.Sectors.TryGetValue(player.Sector, out var sector)) return;
+        if (!u.IsNpcFaction(sector.Owner) || !Wars.Hostile(u, sector.Owner, me)) return;
+        if (u.PendingEncounters.Any(e => e.Target == player.Id)) return;
+        if (u.Rules.FleetCombat && (u.Fights.IsEngaged(player.Id) || player.DockedAt.Value != 0)) return;
+        if (u.Rules.ArrestCooldownTicks > 0 && u.Actors.TryGetValue(player.Owner, out var actor) && u.Tick < actor.ArrestCooldownUntil) return;
+        var attackers = WarAttackersIn(u, sector.Id);
+        if (attackers.Count == 0) return;
+        var pending = new PendingEncounter { Kind = EncounterKind.War, Source = attackers[0].Id, Target = player.Id, Sector = sector.Id, DueTick = u.Tick + u.Rules.PlayerWarningTicks };
+        u.PendingEncounters.Add(pending);
+        string who = u.Factions.TryGetValue(sector.Owner, out var fac) ? fac.Name : "Kriegsmacht";
+        u.Events.Publish(new EncounterWarning(EncounterKind.War, sector.Id, attackers[0].Id, player.Id, pending.DueTick,
+            $"Krieg: {who} stellt dich in {sector.Name} — verlasse den Sektor oder kämpfe ({u.Rules.PlayerWarningTicks / SimClock.TicksPerSecond:0} s), sonst greifen ihre Schiffe an. Kein Ergeben."));
+    }
+
+    /// <summary>Runde 40: Polizei und Kriegsschiffe der Fraktion <paramref name="f"/>, die gerade im Sektor <paramref name="sector"/> sind (feste Reihenfolge).</summary>
+    public static List<Ship> WarAttackersIn(Universe u, SectorId sector)
+    {
+        if (!u.Sectors.TryGetValue(sector, out var sec)) return new List<Ship>();
+        var f = sec.Owner;
+        var list = PirateSystem.PoliceIn(u, sector).Where(p => u.FactionOf(p) == f).ToList();
+        foreach (var w in Wars.WarshipsOf(u, f))
+            if (w.Sector == sector && !u.Fights.IsEngaged(w.Id)) list.Add(w);
+        return list;
     }
 
     // ───────── Fraktion: Unterhalt, Soll, Kauf/Abbau, Zuweisung ─────────
@@ -355,6 +389,38 @@ public sealed class SecuritySystem : ISimSystem
                 continue;
             }
             InterceptPlayer(u, player, sec);
+        }
+        // Runde 40: Kriegs-Warnung — Polizei/Kriegsschiffe des Sektorsbesitzers stellen das Spielerschiff im Krieg (EncounterCause.War, kein Ergeben)
+        foreach (var e in u.PendingEncounters.Where(e => e.Kind == EncounterKind.War && u.Tick >= e.DueTick).ToList())
+        {
+            u.PendingEncounters.Remove(e);
+            if (!u.Ships.TryGetValue(e.Target, out var player) || player.Id != u.PlayerShip || player.Sector != e.Sector || !u.Sectors.TryGetValue(e.Sector, out var sec)
+                || u.PlayerFaction is not { } me || !u.IsNpcFaction(sec.Owner) || !Wars.Hostile(u, sec.Owner, me))
+            {
+                if (u.Ships.TryGetValue(e.Target, out var esc)) ArrestCooldown(u, esc.Owner);
+                bool ceasefire = u.PlayerFaction is { } mf && u.Sectors.TryGetValue(e.Sector, out var esec) && u.IsNpcFaction(esec.Owner)
+                    && Wars.Between(u, esec.Owner, mf) is { } ew && Wars.CeasefireActive(u, ew);
+                u.Events.Publish(new EncounterEscaped(EncounterKind.War, e.Source, e.Target,
+                    ceasefire ? "Waffenstillstand — der Angriff unterbleibt." : "Du hast den Sektor verlassen — der Kriegsgegner lässt dich ziehen."));
+                continue;
+            }
+            if (u.Rules.FleetCombat && u.Rules.CombatRounds && u.Rules.PlayerRaids)
+            {
+                var attackers = WarAttackersIn(u, sec.Id);
+                if (player.DockedAt.Value != 0 || u.Fights.IsEngaged(player.Id) || attackers.Count == 0)
+                {
+                    ArrestCooldown(u, player.Owner);
+                    string why = u.Fights.IsEngaged(player.Id) ? "Schon im Gefecht — die Kriegsschiffe kämpfen dort mit."
+                        : player.DockedAt.Value != 0 ? "Du liegst angedockt — keine Kontrolle dort."
+                        : "Keine Kriegsschiffe mehr im Sektor — du hast dich dem Krieg entzogen.";
+                    u.Events.Publish(new EncounterEscaped(EncounterKind.War, e.Source, e.Target, why));
+                    continue;
+                }
+                Combat.Engage.StartWar(u, attackers, player, sec);
+                continue;
+            }
+            ArrestCooldown(u, player.Owner);
+            u.Events.Publish(new EncounterEscaped(EncounterKind.War, e.Source, e.Target, "Ohne Flottenkampf greifen Kriegsgegner nicht an."));
         }
     }
 

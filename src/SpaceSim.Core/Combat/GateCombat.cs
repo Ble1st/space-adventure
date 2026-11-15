@@ -225,7 +225,8 @@ public static class GateCombat
         {
             if (u.FactionOf(ship) == f) continue;
             if ((e.Gate == g.Id || e.Gate == g.Target) && p.Side == 0) return true;
-            if (Wars.AtWar(u, (ActorId)f, ship.Owner) || Relations.Effective(u, f, ship.Owner) <= u.Rules.HostileRelation) return true;
+            if (Wars.AtWar(u, (ActorId)f, ship.Owner)) return Wars.Hostile(u, (ActorId)f, ship.Owner);   // Runde 40: im Krieg zählt nur Hostile (Waffenstillstand sperrt)
+            if (Relations.Effective(u, f, ship.Owner) <= u.Rules.HostileRelation) return true;
             if (ship.IsPlayer && Wanted.LevelOf(u, ship.Owner, f) >= u.Rules.TradeRefusalWantedLevel) return true;
         }
         return false;

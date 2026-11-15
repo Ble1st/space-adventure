@@ -24,6 +24,9 @@ public static class Docking
     public static string? Issue(Universe u, Station st, Ship ship)
     {
         if (!st.Dockable) return "Keine Andockmöglichkeit (Kleinstation)";
+        // Runde 40: im Krieg mit der Stationsfraktion verweigert sie das Andocken (auch im Waffenstillstand)
+        if (ship.IsPlayer && u.FactionOf(st) is { } wf && Wars.AtWar(u, u.PlayerActor, wf))
+            return $"Andocken verweigert: Krieg mit {(u.Factions.TryGetValue(wf, out var wfac) ? wfac.Name : "der Fraktion")}.";
         if (Allows(u, st, ship)) return null;
         var t = u.StationTypes[st.TypeKey];
         return $"Station zu klein für dieses Schiff ({StationName(t.Size)} nimmt Schiffe bis {StationSizes.MaxShip(t.Size)})";

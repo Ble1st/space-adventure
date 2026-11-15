@@ -23,8 +23,8 @@ public class Runde38Tests
         return WorldBuilder.Build(def, seed);
     }
 
-    /// <summary>Runde 38 zurückdrehen (Referenz-Hash-Tests über <see cref="Phase29Tests.RevertRunde24"/>): Spieler wieder Mitglied der Startfraktion.</summary>
-    internal static void RevertRunde38(WorldDef def) { def.Rules ??= new EconomyRules(); def.Rules.PlayerOwnFaction = false; }
+    /// <summary>Runde 38 zurückdrehen (Referenz-Hash-Tests über <see cref="Phase29Tests.RevertRunde24"/>): Spieler wieder Mitglied der Startfraktion; Runde 40: AiWarOnPlayer wieder aus.</summary>
+    internal static void RevertRunde38(WorldDef def) { def.Rules ??= new EconomyRules(); def.Rules.PlayerOwnFaction = false; def.Rules.AiWarOnPlayer = false; }
 
     static FactionId Me(Universe u) => u.PlayerFaction ?? throw new Xunit.Sdk.XunitException("keine Spielerfraktion");
 
@@ -204,7 +204,9 @@ public class Runde38Tests
         var a = new FactionId(1);
         Relations.Set(u, a, u.PlayerActor, -0.9f);
         u.Actors[a].Treasury.Credits = 500000f;
-        Assert.False(u.Rules.AiWarOnPlayer);
+        // Runde 40 (Nutzerentscheidung): in der Standardwelt ist der Schalter jetzt an
+        Assert.True(u.Rules.AiWarOnPlayer);
+        u.Rules.AiWarOnPlayer = false;   // Vergleich: aus
         Assert.Contains("abgeschaltet", Wars.DeclareIssue(u, a, me));
         new WarSystem().Step(u, WarSystem.Interval);
         Assert.False(Wars.AtWar(u, a, me));

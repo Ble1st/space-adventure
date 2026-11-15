@@ -199,6 +199,13 @@ public sealed class Universe
     public List<War> Wars { get; } = new();
     /// <summary>Phase 28: Friedensschluss je Fraktionspaar (kleinere Id zuerst) → Tick; sperrt eine neue Kriegserklärung für <see cref="EconomyRules.PeaceCooldownTicks"/>.</summary>
     public Dictionary<(int A, int B), long> PeaceSince { get; } = new();
+    /// <summary>
+    /// Runde 40: Posteingang des Spielers (Nachrichten aus Simulationsereignissen, siehe <see cref="Comms.CommsSystem"/>). Additiv gespeichert,
+    /// aber <b>nicht gehasht</b> — reine Anzeige für den Spieler, verbraucht keine Zufallszahl. Höchstes <see cref="Comms.Comms.MaxInbox"/> Einträge.
+    /// </summary>
+    public List<CommsMessage> Inbox { get; } = new();
+    /// <summary>Runde 40: nächste Nachrichten-Id (fortlaufend, gespeichert).</summary>
+    public int NextMessageId { get; set; } = 1;
 
     /// <summary>Zählt Änderungen an Sektorinhalten (Stationen gebaut/entfernt), damit die Darstellung neu aufbauen kann.</summary>
     public int StructureVersion { get; private set; }

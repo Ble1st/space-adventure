@@ -184,8 +184,8 @@ public static class UniverseHash
                 if (e.Spatial) { MixF(m.From.X); MixF(m.From.Y); }
             }
         }
-        // Phase 28: Kriege und Friedensschlüsse (ohne Krieg mischt nichts)
-        foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); if (w.Blockades != 0) Mix((ulong)w.Blockades + 0x3104u); }
+        // Phase 28: Kriege und Friedensschlüsse (ohne Krieg mischt nichts). Runde 40: Waffenstillstand/Angebots-Tick/Tribut nur, wenn gesetzt.
+        foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); if (w.Blockades != 0) Mix((ulong)w.Blockades + 0x3104u); if (w.CeasefireUntil != 0) Mix((ulong)w.CeasefireUntil + 0x4001u); if (w.LastOfferTick != 0) Mix((ulong)w.LastOfferTick + 0x4002u); if (w.TributePaid != 0f) MixF(w.TributePaid + 4000f); }
         foreach (var (k, t) in u.PeaceSince.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2806u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         // Runde 30: Rückkauf-Posten (ohne Spielerhandel leer — mischt nichts)
         foreach (var (k, l) in u.Ledger.OrderBy(kv => kv.Key.Actor).ThenBy(kv => kv.Key.Station).ThenBy(kv => kv.Key.Good))

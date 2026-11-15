@@ -19,6 +19,8 @@ public sealed class GameSession
     public Ship Player => U.Ships[U.PlayerShip];
     /// <summary>Registry der Stationsdienste (Instanz beim Aufrufer, kein globaler Zustand); die Dock-Bereiche lesen daraus.</summary>
     public StationServices Services { get; } = StationServices.Default();
+    /// <summary>Runde 40: Registry der Comms-Aktionen (Strafe/Krieg/Waffenstillstand/Frieden/Tribut); der Comms-Bildschirm liest/ausführt nur darüber.</summary>
+    public SpaceSim.Core.Comms.CommsActions Comms { get; } = SpaceSim.Core.Comms.CommsActions.Default();
     /// <summary>Runde 26: Preisgedächtnis für die Abnehmer-Auskunft (nicht gespeichert, nicht gehasht; beginnt mit jedem Universum neu).</summary>
     public SpaceSim.Core.Trading.PriceMemory Prices { get; } = new();
     /// <summary>Runde 38: Einnahmen der Spielerkasse im letzten Spieltag (aus Ereignissen; nicht gespeichert, beginnt mit jedem Universum neu).</summary>

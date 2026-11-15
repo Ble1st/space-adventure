@@ -2490,16 +2490,18 @@ public partial class SelfTest : Node
 					if (uni.Fights.Of(uni.PlayerShip) is { } e && e.Of(uni.PlayerShip) is { Active: true } pp) SpaceSim.Core.Combat.Engage.Leave(uni, e, pp, CombatExit.Fled);
 					_m.TestFight.ClearTarget();
 					_m.TestClearTarget();
+					_m.TestStopShip();   // Runde 40: Schiff steht — sonst bewegen sich die Randmarker zwischen Lesen und Tipp (treffen dann eine andere Station)
 					break;
 				}
 				if (f == 5)
 				{
 					var marks = _m.HudRef.EdgeMarkers.ToList();
 					Check(marks.Count > 0, $"Randmarker für Stationen außerhalb des Bildes ({marks.Count})");
-					if (marks.Count > 0) { _p28MarkId = marks[0].Id; Tap(marks[0].Pos, true); }
+					if (marks.Count > 0) { _p28MarkId = marks[0].Id; _p28MarkPos = marks[0].Pos; Tap(marks[0].Pos, true); }
 					break;
 				}
-				if (f == 6) { if (_p28MarkId != 0) Tap(_m.HudRef.EdgeMarkers.FirstOrDefault(m => m.Id == _p28MarkId).Pos, false); break; }
+				// Runde 40: Loslassen an der aktuellen Markerposition ( Schiff steht, s. f==1 — fällt zurück auf die gemerkte Position, falls der Marker verschwand)
+				if (f == 6) { if (_p28MarkId != 0) { var m6 = _m.HudRef.EdgeMarkers.FirstOrDefault(m => m.Id == _p28MarkId); Tap(m6.Id == _p28MarkId ? m6.Pos : _p28MarkPos, false); } break; }
 				if (f == 9)
 				{
 					Check(_p28MarkId == 0 || _m.TestTargetStation == _p28MarkId, $"Tipp auf den Randmarker wählt die Station ({_m.TestTargetStation} statt {_p28MarkId})");
@@ -2701,6 +2703,7 @@ public partial class SelfTest : Node
 			case 113: if (Round37bStage(_frame - _stageStart)) Next(); break;   // Runde 37b: alle Wege zurück (Karte, Menü, Zentrale, Zurück-Taste), Leiste in beide Richtungen, Rahmenbreite (SelfTest.Round37b.cs)
 			case 114: if (Round38aStage(_frame - _stageStart)) Next(); break;   // Runde 38a: Menü bleibt offen und an der Zeile, Info-Meldungen leise (SelfTest.Round38a.cs)
 			case 115: if (HudNeuStage(_frame - _stageStart)) Next(); break;   // HUD-Neu: Daumenbogen, FEUER halten, Gruppen, ⚡, Einzeln, Leviathan, 7 mm, Menü (SelfTest.HudNeu.cs)
+			case 116: if (Round40Stage(_frame - _stageStart)) Next(); break;   // Runde 40: Comms echt — Posteingang, Diplomatie, Strafe per Knopf, Krieg per zwei Taps (SelfTest.Round40.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
@@ -2780,6 +2783,7 @@ public partial class SelfTest : Node
 	int _p28ProbeHits;
 	float _p28Max, _p28Cargo, _p28Buyable, _p28MaxOff;
 	int _p28MarkId;
+	Vector2 _p28MarkPos;   // Runde 40: gemerkte Markerposition für den Randmarker-Tipp (Fallback beim Loslassen)
 	long _p28Nodes, _p28Objects, _p28Orphans;
 	/// <summary>Phase 26: Schaden, Reparatur, Bergung (Stufen 63–66).</summary>
 	int _p26Laser, _p26Wreck;

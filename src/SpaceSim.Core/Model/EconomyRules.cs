@@ -1073,4 +1073,32 @@ public sealed class EconomyRules
     public float PlayerWarRelationLoss = 0.05f;
     /// <summary>Frieden in einem Krieg mit dem Spieler: Beziehung beider Seiten mindestens so (über der ersten Sperrschwelle — kein Dauerzoll nach dem Krieg).</summary>
     public float PlayerPeaceRelation = 0f;
+
+    // ── Runde 40: Comms (Posteingang + Diplomatie) ──
+    /// <summary>Posteingang an (Nachrichten aus Ereignissen); aus = keine Nachrichten (Verhalten bis Runde 39). Standardwelt an.</summary>
+    public bool CommsActive = true;
+    /// <summary>Höchstens so viele Nachrichten im Posteingang; älteste gelesene fallen zuerst weg.</summary>
+    public int MaxInbox = 40;
+    /// <summary>Lebensdauer einer Info-Nachricht im Posteingang (Ticks); Angebote verfallen früher (<see cref="OfferMessageTicks"/>).</summary>
+    public int InboxMessageTicks = 40000;
+    /// <summary>Lebensdauer einer Angebots-Nachricht (Waffenstillstand/Frieden der KI) im Posteingang (Ticks).</summary>
+    public int OfferMessageTicks = 12000;
+    /// <summary>Fernzahlungsaufschlag der Strafe per Comms gegenüber dem Gericht (nur an die betroffene Fraktion).</summary>
+    public float CommsFineMarkup = 0.10f;
+    /// <summary>Waffenstillstand: Dauer in Ticks (keine Belagerungen/Kriegsangriffe beider Seiten, Handel bleibt gesperrt).</summary>
+    public int CeasefireTicks = 12000;
+    /// <summary>Höchstens ein Angebot (Waffenstillstand/Frieden, egal welche Seite) je Krieg und diesem Abstand in Ticks.</summary>
+    public int OfferCooldownTicks = 2400;
+    /// <summary>Waffenstillstand: Die KI nimmt ohne Zahlung an, wenn ihre Kriegsmüdigkeit mindestens so ist.</summary>
+    public float CeasefireWeariness = 0.4f;
+    /// <summary>Waffenstillstand: Die KI nimmt ohne Zahlung an, wenn ihre Stärke unter diesem Anteil der gegnerischen steht (klare Unterlegenheit).</summary>
+    public float CeasefireStrengthRatio = 0.6f;
+    /// <summary>Frieden: Die KI nimmt ohne Zahlung an, wenn die Mindestdauer des Kriegs erreicht ist und ihre Müdigkeit mindestens so ist.</summary>
+    public float PeaceWeariness = 0.6f;
+    /// <summary>Ab dieser Müdigkeit bietet die KI dem Spieler von sich aus Waffenstillstand/Frieden per Nachricht an.</summary>
+    public float AiOfferWeariness = 0.5f;
+    /// <summary>Tribut-Basisbetrag (Cr) für Waffenstillstand/Frieden ohne ausreichende Müdigkeit; skaliert mit (1 − Müdigkeit).</summary>
+    public float TributeBase = 10000f;
+    /// <summary>Tribut: Anteil der eigenen Kriegsverluste (Cr Materialwert), der zusätzlich gefordert wird.</summary>
+    public float TributeLossShare = 0.5f;
 }

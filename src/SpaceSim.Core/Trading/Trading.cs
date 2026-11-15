@@ -133,7 +133,11 @@ public static class TradeActions
     public static string? Refusal(Universe u, Ship ship, Station station)
     {
         int min = u.Rules.TradeRefusalWantedLevel;
-        if (min <= 0 || ship.Id != u.PlayerShip || u.FactionOf(station) is not { } f) return null;
+        if (ship.Id != u.PlayerShip || u.FactionOf(station) is not { } f) return null;
+        // Runde 40: im Krieg mit der Stationsfraktion verweigert die Station Handel (auch im Waffenstillstand — AtWar, nicht Hostile)
+        if (Simulation.Wars.AtWar(u, u.PlayerActor, f))
+            return $"Handel verweigert: Krieg mit {(u.Factions.TryGetValue(f, out var wf) ? wf.Name : "der Fraktion")}.";
+        if (min <= 0) return null;
         int level = Wanted.LevelOf(u, u.PlayerActor, f);
         return level >= min ? $"Handel verweigert: du wirst bei {(u.Factions.TryGetValue(f, out var fa) ? fa.Name : "der Fraktion")} gesucht ({SecurityNames.WantedLevel(level)})." : null;
     }

@@ -171,5 +171,6 @@ public sealed class PoliticsModule : ISimModule
     public string Name => "Politics";
     public void Register(SimulationBuilder b) =>
         b.Add(new SectorControlSystem(), interval: 50).Add(new FactionPolicySystem(), interval: 20)
-         .Add(new WarSystem(), WarSystem.Interval);   // Phase 28: Krieg und Frieden
+         .Add(new WarSystem(), WarSystem.Interval)   // Phase 28: Krieg und Frieden
+         .Add(new SpaceSim.Core.Comms.CommsSystem(), SpaceSim.Core.Comms.CommsSystem.Interval);   // Runde 40: Posteingang aus Ereignissen
 }

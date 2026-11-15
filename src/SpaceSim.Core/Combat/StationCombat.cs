@@ -74,7 +74,8 @@ public static class StationCombat
         // Phase 31 (wie die Kleinstationen in Runde 13b): ein gesuchter Spieler ist auch für Stationen der eigenen Fraktion ein Ziel
         if (ship.IsPlayer && ship.Owner != st.Owner && Wanted.LevelOf(u, ship.Owner, f) >= u.Rules.TradeRefusalWantedLevel) return true;
         if (ship.Owner == st.Owner || u.FactionOf(ship) == f) return false;
-        if (Wars.AtWar(u, st.Owner, ship.Owner)) return true;
+        // Runde 40: im Krieg entscheidet allein der Waffenstillstand (AtWar + Hostile); die feindliche Beziehung greift im Krieg nicht doppelt
+        if (Wars.AtWar(u, st.Owner, ship.Owner)) return Wars.Hostile(u, st.Owner, ship.Owner);
         if (Relations.Effective(u, st.Owner, ship.Owner) <= u.Rules.HostileRelation) return true;
         if (ship.IsPlayer)
         {

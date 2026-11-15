@@ -3,6 +3,7 @@
  "randomNames": true,
  "rules": {
   "playerOwnFaction": true,
+  "aiWarOnPlayer": true,
   "gateCombat": true,
   "miningAnchors": true,
   "armedTraderBaseline": 6,

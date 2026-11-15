@@ -35,16 +35,16 @@ public sealed class AssaultExecutor : IOrderExecutor
     public static Vec2 Standoff(Universe u, SectorId sector, Vec2 at, Ship ship) =>
         CombatSpace.Clear(u, sector, at + Vec2.FromAngle(ship.Id.Value * 1.7f) * (u.Rules.SiegeStartDistance * 0.8f));
 
-    /// <summary>Gilt das Ziel noch (steht, nicht ausgeschaltet, Besitzer ist Kriegsgegner der Fraktion des Schiffs)?</summary>
+    /// <summary>Gilt das Ziel noch (steht, nicht ausgeschaltet, Besitzer ist Kriegsgegner der Fraktion des Schiffs)? Runde 40: im Waffenstillstand nicht (Hostile statt AtWar).</summary>
     public static bool StillTarget(Universe u, Ship ship, Station st) =>
-        u.Rules.Warfare && !st.IsBuildSite && !StationCombat.IsDown(u, st) && u.FactionOf(ship) is { } f && u.FactionOf(st) is { } g && Wars.AtWar(u, f, g);
+        u.Rules.Warfare && !st.IsBuildSite && !StationCombat.IsDown(u, st) && u.FactionOf(ship) is { } f && u.FactionOf(st) is { } g && Wars.Hostile(u, f, g);
 
-    /// <summary>Phase 31: wie oben für jedes Ziel — ein Tor gilt, solange es steht und ein Verteidiger Kriegsgegner ist.</summary>
+    /// <summary>Phase 31: wie oben für jedes Ziel — ein Tor gilt, solange es steht und ein Verteidiger Kriegsgegner ist. Runde 40: Hostile (Waffenstillstand sperrt).</summary>
     public static bool StillTarget(Universe u, Ship ship, ISiegeTarget t)
     {
         if (t is StationTarget st) return StillTarget(u, ship, st.Station);
         if (!u.Rules.Warfare || t.IsDown || u.FactionOf(ship) is not { } f) return false;
-        foreach (var d in t.Defenders) if (Wars.AtWar(u, f, d)) return true;
+        foreach (var d in t.Defenders) if (Wars.Hostile(u, f, d)) return true;
         return false;
     }
 

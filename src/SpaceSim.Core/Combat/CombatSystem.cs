@@ -423,7 +423,7 @@ public sealed class CombatSystem : ISimSystem
                 if (p.Exit != CombatExit.Destroyed || p.Side == 0) continue;
                 if (u.Actors.TryGetValue(p.Owner, out var owner) && owner.Kind == ActorKind.Outlaw && sector is not null)
                     bounty += PayBounty(u, e, p.Owner, sector.Owner, side: 0, p.Ship);
-                else if (sector is not null) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
+                else if (sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner)) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }   // Runde 40: Abschuss eines Kriegsgegners ist kein Verbrechen
             }
             msg = e.Loot > 0f ? $"Das Schiff wirft Fracht im Wert von {e.Loot:0} Cr ab — mit dem Traktorstrahl einsammeln."
                 : destroyed > 0 ? "Ziel zerstört." + (bounty > 0f && sector is not null ? Services.CourtService.Hint(u, sector.Id, sector.Owner, bounty) : killed > 0 ? " Die Fahndung steigt." : "")
@@ -434,11 +434,23 @@ public sealed class CombatSystem : ISimSystem
             // Phase 28: Belagerung — Ausgang an der Station; jede vom Spieler zerstörte Schiff einer Fraktion ist ein Angriff (Fahndung)
             var st = SiegeTargets.Of(u, e);
             foreach (var p in e.Participants)
-                if (p.Exit == CombatExit.Destroyed && p.Side == 1 && sector is not null && e.Participants.Any(q => q.Side == 0 && u.Ships.TryGetValue(q.Ship, out var qs) && qs.IsPlayer))
+                if (p.Exit == CombatExit.Destroyed && p.Side == 1 && sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner) && e.Participants.Any(q => q.Side == 0 && u.Ships.TryGetValue(q.Ship, out var qs) && qs.IsPlayer))   // Runde 40: kein Verbrechen im Krieg
                     Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner);
             bool gateSiege = e.Gate.Value != 0;
             msg = st is null ? "Die Station ist zerstört." : st.IsDown ? (gateSiege ? $"{st.Name} ist außer Betrieb." : $"{st.Name} ist ausgeschaltet.")
                 : st.Defends(e) ? $"Die Angreifer brechen die Belagerung von {st.Name} ab." : $"{st.Name} hat den Besitzer gewechselt.";
+        }
+        else if (e.Cause == EncounterCause.War)
+        {
+            // Runde 40: Kriegsgefecht gegen das Spielerschiff — zerstörte Angreifer des Kriegsgegners sind kein Verbrechen (AtWar)
+            int killed = 0;
+            foreach (var p in e.Participants)
+                if (p.Exit == CombatExit.Destroyed && p.Side == 0 && sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner)) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
+            if (victimP is not null && victimP.Exit != CombatExit.Destroyed) SecuritySystem.ArrestCooldown(u, victimP.Owner);   // keine sofortige neue Kriegs-Warnung
+            msg = victimP?.Exit == CombatExit.Destroyed ? "Dein Schiff wurde im Krieg zerstört."
+                : victimP?.Exit == CombatExit.Surrendered ? "Ergeben — im Krieg nicht vorgesehen."
+                : victimP?.Exit == CombatExit.Fled ? "Du bist dem Kriegsgegner entkommen."
+                : killed > 0 ? "Die Kriegsschiffe sind zerstört." : "Die Kriegsschiffe brechen ab.";
         }
         else if (e.Cause == EncounterCause.Arrest)
         {

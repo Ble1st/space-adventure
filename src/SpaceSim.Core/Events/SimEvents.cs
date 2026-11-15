@@ -354,6 +354,16 @@ public sealed record PeaceConcluded(FactionId A, FactionId B, string Reason, lon
 public sealed record WarshipCommissioned(FactionId Faction, ShipId Ship, StationId Yard, float Price) : SimEvent;
 /// <summary>Phase 28: Kriegsschiff nach dem Frieden oder wegen der Rücklage abgebaut.</summary>
 public sealed record WarshipDecommissioned(FactionId Faction, ShipId Ship, string Reason) : SimEvent;
+/// <summary>Runde 40: Waffenstillstand vereinbart (läuft bis <paramref name="Until"/>; <paramref name="Tribute"/> = gezahlter Tribut, 0 = ohne).</summary>
+public sealed record CeasefireConcluded(FactionId A, FactionId B, long Until, float Tribute, string Message) : SimEvent;
+/// <summary>Runde 40: eine KI-Fraktion bietet dem Spieler Waffenstillstand an (per Comms-Nachricht annehmbar).</summary>
+public sealed record CeasefireOffered(FactionId From, FactionId To, string Message) : SimEvent;
+/// <summary>Runde 40: eine KI-Fraktion bietet dem Spieler Frieden an (per Comms-Nachricht annehmbar).</summary>
+public sealed record PeaceOffered(FactionId From, FactionId To, string Message) : SimEvent;
+/// <summary>Runde 40: Tribut gezahlt (Zahler → Fraktionskasse; mindert den Tribut eines Kriegs).</summary>
+public sealed record TributePaid(ActorId Payer, FactionId To, float Amount, string Message) : SimEvent;
+/// <summary>Runde 40: Comms-Aktion des Spielers ausgeführt (Strafe, Krieg, Waffenstillstand, Frieden, Tribut); nur bei Erfolg.</summary>
+public sealed record CommsActionPerformed(string Action, int Faction, float Credits, string Message) : SimEvent;
 /// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort geladen (Diagnose; nur Bus, nicht gespeichert).</summary>
 public sealed record TraderBought(ShipId Ship, StationId Station, GoodId Good, float Units, float Cost) : SimEvent;
 /// <summary>Phase 28 (Nacharbeit): ein KI-Händler hat am Einkaufsort nicht gekauft, weil der Preis dort den Preis seines Abnehmers erreicht hat (sicherer Verlust).</summary>

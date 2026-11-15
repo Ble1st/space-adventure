@@ -168,9 +168,18 @@ public static class UniverseSerializer
             }).ToList();
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
-            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades }).ToList();
+            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid }).ToList();
         if (u.PeaceSince.Count > 0)
             s.PeaceSince = u.PeaceSince.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
+        // Runde 40: Posteingang (gespeichert, nicht gehasht)
+        if (u.Inbox.Count > 0)
+            s.Inbox = u.Inbox.Select(m => new CommsMessageSave
+            {
+                Id = m.Id, From = m.From.Value, Kind = m.Kind,
+                Args = m.Args.Count == 0 ? null : m.Args.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
+                Created = m.Created, Expires = m.Expires, Read = m.Read,
+            }).ToList();
+        if (u.NextMessageId != 1) s.NextMessageId = u.NextMessageId;
         // Phase 24: laufende Gefechte
         s.NextEncounterId = u.Fights.NextId;
         if (u.Fights.Count > 0)
@@ -397,9 +406,19 @@ public static class UniverseSerializer
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)
             foreach (var w in s.Wars)
-                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades });
+                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid });
         if (s.PeaceSince is not null)
             foreach (var p in s.PeaceSince) if (p.Length >= 3) u.PeaceSince[((int)p[0], (int)p[1])] = p[2];
+        // Runde 40: Posteingang (gespeichert, nicht gehasht)
+        if (s.Inbox is not null)
+            foreach (var m in s.Inbox)
+                u.Inbox.Add(new CommsMessage
+                {
+                    Id = m.Id, From = new ActorId(m.From), Kind = m.Kind,
+                    Args = m.Args is null ? new() : new Dictionary<string, string>(m.Args),
+                    Created = m.Created, Expires = m.Expires, Read = m.Read,
+                });
+        u.NextMessageId = Math.Max(Math.Max(1, s.NextMessageId), u.Inbox.Count == 0 ? 1 : u.Inbox.Max(m => m.Id) + 1);
         // Phase 26: Wracks und Frachtbehälter
         u.NextWreckId = Math.Max(1, s.NextWreckId);
         if (s.Wrecks is not null)

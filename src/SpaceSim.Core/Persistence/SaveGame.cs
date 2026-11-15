@@ -74,6 +74,10 @@ public sealed class SaveGame
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }
+    /// <summary>Runde 40 (additiv, v17 bleibt): Posteingang des Spielers (reine Anzeige; gespeichert, aber nie gehasht); fehlt = leer.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CommsMessageSave>? Inbox { get; set; }
+    /// <summary>Runde 40: nächste Nachrichten-Id des Posteingangs; fehlt (alte Stände) = 1.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextMessageId { get; set; }
     /// <summary>Phase 12 (v15): Verbände; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
     /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
@@ -156,6 +160,24 @@ public sealed class WarSave
     public float LossA { get; set; } public float LossB { get; set; } public int Sieges { get; set; }
     /// <summary>Phase 31: Torblockaden.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Blockades { get; set; }
+    /// <summary>Runde 40: Waffenstillstand bis zu diesem Tick (0 = keiner).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long CeasefireUntil { get; set; }
+    /// <summary>Runde 40: Tick des letzten Angebots (0 = keines).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastOfferTick { get; set; }
+    /// <summary>Runde 40: bereits gezahlter Tribut (0 = keiner).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float TributePaid { get; set; }
+}
+
+/// <summary>Runde 40: eine Nachricht im Posteingang des Spielers (gespeichert, nicht gehasht).</summary>
+public sealed class CommsMessageSave
+{
+    public int Id { get; set; }
+    public int From { get; set; }
+    public string Kind { get; set; } = "";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, string>? Args { get; set; }
+    public long Created { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long Expires { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Read { get; set; }
 }
 
 /// <summary>Phase 28: Rakete im Flug.</summary>

@@ -31,48 +31,9 @@ public static class UiPlaceholders
 	/// <summary>Platzhalter für Preisverlauf-Trends im Handel (der Core speichert keine Preis-Historie).</summary>
 	public const string TrendSoon = "Preisverlauf: " + Soon;   // Runde 39: „Rückgängig“ im Handel ist echt (TradeJournal im Core), dieser Platzhalter bleibt
 	// ── Kommandozentrale (UI.md Abschnitt 4) ──
-
-	/// <summary>Eine Platzhalter-Nachricht im Comms-Postfach (Texte und Zahlen zentral hier, nie im Code verstreut).</summary>
-	public sealed record CommsMessage(string From, string Subject, string Body, bool IsNew, CommsAnswer[] Answers);
-	/// <summary>Antwortmöglichkeit mit Folgenvorschau (Ruf/Kosten/Chance) – Platzhalter.</summary>
-	public sealed record CommsAnswer(string Text, string EffectPreview);
-
-	/// <summary>Alle Platzhalter-Nachrichten des Comms-Postfachs (Vorschau, nichts davon ist echt oder gespeichert).</summary>
-	public static CommsMessage[] CommsMessages => new[]
-	{
-		new CommsMessage("Terranische Union · Zollbehörde", "Zollbescheid Delta-Route",
-			"Pilot, deine Lieferungen nach Delta werden künftig mit 4 % Zoll belegt. Die Behörde erwartet eine Antwort.",
-			true,
-			new[]
-			{
-				new CommsAnswer("Zoll akzeptieren", "Kosten: 4 % Zoll · Ruf −1"),
-				new CommsAnswer("Einspruch einlegen", "Chance 40 % · bei Misserfolg Ruf −3"),
-				new CommsAnswer("Ignorieren", "Angebot verfällt in 2 Tagen · Ruf −2"),
-			}),
-		new CommsMessage("Freie Händler · Marktbüro", "Angebot: Handelsvertrag",
-			"Die Freien Händler bieten dir feste Ankaufmengen zu garantierten Preisen – gegen eine kleine Gebühr.",
-			true,
-			new[]
-			{
-				new CommsAnswer("Vertrag annehmen", "Gebühr 200 Cr · Ruf +4 · Pflicht: 40 Einheiten/Woche"),
-				new CommsAnswer("Tarif verhandeln", "Chance 55 % · bei Misserfolg Ruf −2"),
-				new CommsAnswer("Ablehnen", "kein Ruf-Verlust · Angebot verfällt"),
-			}),
-		new CommsMessage("Werft Delta · Kundendienst", "Wartungsangebot",
-			"Ihre Techniker bieten einen Wartungsvertrag für deine Flotte an – inklusive kostenloser Reparaturen an der Werft.",
-			false,
-			new[]
-			{
-				new CommsAnswer("Schutzvertrag anfragen", "120 Cr/Tag · Patrouille deiner Stationen"),
-				new CommsAnswer("Später", "kein Effekt"),
-			}),
-	};
-
-	/// <summary>Zähler ungelesener Platzhalter-Nachrichten am Hamburger-Menü und im Comms-Bereich.</summary>
-	public static int CommsUnread => CommsMessages.Count(m => m.IsNew);
-
-	/// <summary>Ereignisliste einer Fraktion (Platzhalter; Politik und Ereignisse kommen ab Phase 10).</summary>
-	public static string[] FactionEvents => new[] { "Keine Ereignisse aufgezeichnet – " + Tag };
+	// Runde 40: Posteingang und Diplomatie sind echt (Core: CommsSystem, CommsActions) — die Platzhalter
+	// CommsMessages/CommsUnread/FactionEvents sind entfallen; der Zähler liest SpaceSim.Core.Comms.Comms.Unread(u),
+	// „Letzte Ereignisse“ einer Fraktion liest deren Nachrichten aus dem Posteingang.
 
 	// ── Meine Fraktion ──
 	// Phase 9: Größe, Fortschritt, Mitgliedschaft, Beziehungen und Persönlichkeit sind echt (Akteure im Core); hier bleibt der Rest.

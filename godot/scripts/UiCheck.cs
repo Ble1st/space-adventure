@@ -163,6 +163,8 @@ public partial class UiCheck : Node
 			Add("kz-open", () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); }, 20);
 			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
 				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
+			// Runde 40: Comms mit Diplomatie-Reiter und ausgewählter Fraktion (Knöpfe mit Vorschau)
+			Add("kz-comms-diplomatie", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); _m.HudRef.CcComms.TestSetTab("diplomacy"); _m.HudRef.CcComms.TestSelectFaction(0); }, 12);
 			// Runde 37b (A4): Fraktionsdetail (schmal: Detail statt Liste)
 			Add("kz-fraktionsdetail", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Factions); var fr = _m.HudRef.CcFactions; fr.Selected = fr.TestRows.FirstOrDefault()?.Id; fr.TestDetailOpen = true; }, 12);
 			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);

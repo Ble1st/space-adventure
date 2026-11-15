@@ -32,8 +32,15 @@ public sealed class StationServices
     /// Die verfügbaren Dienste einer Station in der Reihenfolge ihrer Typ-Liste (<see cref="StationType.Services"/>).
     /// Unbekannte Schlüssel und Dienste, die an dieser Station nicht verfügbar sind (<see cref="IStationService.IsAvailable"/>), bleiben weg.
     /// </summary>
-    public IReadOnlyList<IStationService> ForStation(Universe u, Station station)
+    public IReadOnlyList<IStationService> ForStation(Universe u, Station station) => ForStation(u, station, null);
+
+    /// <summary>
+    /// Wie oben, aber mit Schiff: Runde 40 verweigert eine Station im Krieg mit dem Spielerschiff alle Dienste
+    /// (<see cref="Simulation.Wars.ServiceRefusal"/> — Handel, Andocken und Dienste sind im Krieg gesperrt).
+    /// </summary>
+    public IReadOnlyList<IStationService> ForStation(Universe u, Station station, Ship? ship)
     {
+        if (ship is not null && Simulation.Wars.ServiceRefusal(u, station, ship) is not null) return Array.Empty<IStationService>();
         if (!u.StationTypes.TryGetValue(station.TypeKey, out var type)) return Array.Empty<IStationService>();
         var list = new List<IStationService>(type.Services.Count);
         foreach (var key in type.Services)

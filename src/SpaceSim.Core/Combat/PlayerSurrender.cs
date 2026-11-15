@@ -23,12 +23,14 @@ public static class PlayerSurrender
         if (!u.Ships.TryGetValue(u.PlayerShip, out var me)) return "Kein Schiff.";
         if (u.Fights.Of(me.Id) is { } e && e.Of(me.Id) is { Active: true } p)
         {
+            if (e.Cause == EncounterCause.War) return "Im Krieg gibt es kein Ergeben.";   // Runde 40: EncounterCause.War — kein Ergeben gegen Geld
             if (Enemy(u, e, p, police: true) is not null) return null;
             if (Enemy(u, e, p, police: false) is not null) return ThreatMap.CargoValue(u, me) > 0f ? null : "Keine Fracht";
             return "Dieser Gegner nimmt keine Aufgabe an.";
         }
         var pending = u.PendingEncounters.FirstOrDefault(x => x.Target == me.Id);
         if (pending is null) return "Niemand verlangt deine Aufgabe.";
+        if (pending.Kind == EncounterKind.War) return "Im Krieg gibt es kein Ergeben.";   // Runde 40
         if (pending.Kind == EncounterKind.Intercept) return null;
         return ThreatMap.CargoValue(u, me) > 0f ? null : "Keine Fracht";
     }

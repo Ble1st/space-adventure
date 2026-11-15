@@ -14,8 +14,8 @@ public sealed class WantedRecord
     public string LastCrime = "";
 }
 
-/// <summary>Art einer angekündigten Begegnung mit dem Spieler (Vorwarnung, dann Auflösung).</summary>
-public enum EncounterKind { Raid, Intercept }
+/// <summary>Art einer angekündigten Begegnung mit dem Spieler (Vorwarnung, dann Auflösung). Runde 40: <see cref="War"/> = Polizei/Kriegsschiffe einer Kriegsfraktion stellen das Spielerschiff in ihrem Gebiet (kein Ergeben gegen Geld).</summary>
+public enum EncounterKind { Raid, Intercept, War }
 
 /// <summary>
 /// Angekündigte Begegnung mit dem Spieler (Phase 11): Ein Kaperschiff (Überfall) oder eine Streife (Abfangen bei Fahndungsstufe „gesucht“) hat ihn im

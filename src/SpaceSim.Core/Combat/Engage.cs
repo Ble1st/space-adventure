@@ -113,7 +113,7 @@ public static class Engage
         p.Exit = CombatExit.Destroyed;
         u.Fights.Unmark(p.Ship);
         u.Events.Publish(new CombatExited(e.Id, p.Ship, ship.Role, CombatExit.Destroyed));
-        string detail = e.Cause switch { EncounterCause.Raid => "raid", EncounterCause.Intercept => "intercept", _ => "assault" };
+        string detail = e.Cause switch { EncounterCause.Raid => "raid", EncounterCause.Intercept => "intercept", EncounterCause.War => "war", _ => "assault" };
         // Phase 25: das aktive Spielerschiff geht wirklich verloren — vorher landet die Person an einer Station (ShipLoss), dann der Abgang
         if (ship.Id == u.PlayerShip)
         {
@@ -121,6 +121,7 @@ public static class Engage
             {
                 EncounterCause.Raid => "Piraten",
                 EncounterCause.Intercept or EncounterCause.Arrest => "Polizei",
+                EncounterCause.War => "Kriegsschiff",
                 EncounterCause.Siege => "Stationsgeschütze",
                 _ => "Gefecht",
             };
@@ -234,6 +235,33 @@ public static class Engage
         string who = u.Factions.TryGetValue(sector.Owner, out var fac) ? fac.Name : "Polizei";
         u.Events.Publish(new EncounterStarted(e.Id, sector.Id, EncounterCause.Arrest, police[0].Id, player.Id,
             $"Polizei von {who} greift an — „Ergeben“ zahlt die Strafe, sonst kämpfen oder fliehen."));
+        Reinforcements.Step(u, e);
+        return e;
+    }
+
+    /// <summary>
+    /// Runde 40: Krieg — Polizei und Kriegsschiffe einer Fraktion, mit der der Spieler im Krieg steht, stellen sein Schiff in ihrem Gebiet als echtes
+    /// Gefecht (<see cref="EncounterCause.War"/>, nach der Vorwarnung). Kein Ergeben gegen Geld (<see cref="PlayerSurrender"/> sperrt es). Die Angreifer
+    /// sind die Polizeischiffe und Kriegsschiffe der Fraktion im Sektor (höchstens ein Verband wie bei der Festnahme).
+    /// </summary>
+    public static Encounter StartWar(Universe u, IReadOnlyList<Ship> attackers, Ship player, Sector sector)
+    {
+        var r = u.Rules;
+        var e = Begin(u, EncounterCause.War, sector.Id);
+        e.Victim = player.Id;
+        e.Police = attackers[0].Id;
+        var at = player.Position;
+        Join(u, e, player, 1, CombatTactics.Player, r.CombatStartDistance, e.Spatial ? at : null);
+        int n = 0;
+        foreach (var a in attackers)
+        {
+            if (u.Fights.IsEngaged(a.Id) || n >= Math.Max(1, r.SquadronMaxMembers)) continue;
+            Join(u, e, a, 0, CombatTactics.Police, -HelperOffset(n), e.Spatial ? CombatSpace.Clear(u, sector.Id, CombatSpace.Around(at, a.Position, r.CombatStartDistance + HelperOffset(n))) : null);
+            n++;
+        }
+        string who = u.Factions.TryGetValue(sector.Owner, out var fac) ? fac.Name : "Kriegsmacht";
+        u.Events.Publish(new EncounterStarted(e.Id, sector.Id, EncounterCause.War, attackers[0].Id, player.Id,
+            $"Krieg: {who} greift dein Schiff in {sector.Name} an — kämpfen oder fliehen (kein Ergeben)."));
         Reinforcements.Step(u, e);
         return e;
     }

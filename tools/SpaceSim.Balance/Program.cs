@@ -363,6 +363,7 @@ var outpostsBuilt = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int outpostsCalm = 0, outpostFights = 0, outpostShots = 0;
 double outpostCost = 0;
 var warLog = new List<string>();   // Runde 38: Kriegserklärungen mit Tick (Kaskaden sichtbar machen)
+var playerWarLog = new List<string>();   // Runde 40: Kriegserklärungen gegen den Spieler (AiWarOnPlayer)
 int missilesLaunched = 0, stationShots = 0, stationHits = 0, shotsAtStations = 0, sieges = 0, warsDeclared = 0, warshipsBought = 0, warshipsGone = 0, stationRepairs = 0;
 double stationHullDmg = 0, stationRepairHull = 0, stationRepairPlates = 0, stationRepairCost = 0, navyCost = 0, stationGunDmg = 0;
 u.Events.Raised += e =>
@@ -376,7 +377,11 @@ u.Events.Raised += e =>
         case SiegeStarted: sieges++; break;
         case StationFell sf: stationFalls[sf.How] = stationFalls.GetValueOrDefault(sf.How) + 1; break;
         case StationRepaired sr: stationRepairs++; stationRepairHull += sr.Hull; stationRepairPlates += sr.Plates; stationRepairCost += sr.Cost; break;
-        case WarDeclared wd: warsDeclared++; warLog.Add($"Tick {u.Tick}: {wd.Message} (Beziehung {wd.Relation:0.00})"); break;
+        case WarDeclared wd:
+            warsDeclared++;
+            warLog.Add($"Tick {u.Tick}: {wd.Message} (Beziehung {wd.Relation:0.00})");
+            if (u.IsPlayerFaction(wd.A) || u.IsPlayerFaction(wd.B)) playerWarLog.Add($"Tick {u.Tick}: {wd.Message}");
+            break;
         case PeaceConcluded pc:
             peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1;
             if (u.IsPlayerFaction(pc.A) || u.IsPlayerFaction(pc.B)) playerPeace = $"Frieden bei Tick {u.Tick} ({pc.Reason})";
@@ -923,6 +928,8 @@ if (u.Modules.Count > 0)
         + "Beziehungen " + string.Join(", ", u.NpcFactionIds().SelectMany(a => u.NpcFactionIds().Where(b => b.Value > a.Value)
             .Select(b => $"{u.Factions[a].Name}–{u.Factions[b].Name} {Relations.Effective(u, a, b):0.00}/{Relations.Effective(u, b, a):0.00}"))));
     if (warLog.Count > 0) Console.WriteLine("Kriegserklärungen: " + string.Join("; ", warLog));
+    Console.WriteLine($"Kriegserklärungen gegen den Spieler (AiWarOnPlayer {(u.Rules.AiWarOnPlayer ? "an" : "aus")}): {playerWarLog.Count}"
+        + (playerWarLog.Count > 0 ? " — " + string.Join("; ", playerWarLog) : ""));
     Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "
         + $"{(income > 0 ? 100.0 * ammoPolice / income : 0):0.00}% der Kasseneinnahmen); fehlt jetzt {u.Ships.Values.Sum(x => x.Systems.AmmoMissing):0}");
     {

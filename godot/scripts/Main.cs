@@ -128,7 +128,7 @@ public partial class Main : Node3D
 		_hud.Flight.AutopilotPressed += ToggleAutopilot;
 		_hud.Flight.AutoMinePressed += () => SetAutoMining(_hud.Flight.AutoMineOn);
 		_hud.Flight.ContextPressed += ContextAction;
-		_hud.Flight.SetCommandBadge(UiPlaceholders.CommsUnread);
+		_hud.Flight.SetCommandBadge(0);   // Runde 40: echter Comms-Zähler folgt in UpdateHud je Bild
 		_hud.Flight.BayDown += OnBayDown;
 		_hud.Flight.AllFire += () => FireReadyBays();
 		_hud.Flight.GroupDown += OnGroupDown;   // HUD-Neu: Gruppenknopf im Daumenbogen
@@ -333,7 +333,7 @@ public partial class Main : Node3D
 		AttachedUniverses.Add(new WeakReference(u));
 		AttachedLabels.Add($"#{++_attachCount} {u.Ships[u.PlayerShip].ModelKey}");
 		// Runde 17 (Speicher wächst mit „Neues Spiel“): keine Ansicht hält das alte Universum fest
-		_hud.CcCtx.U = u; _hud.CcCtx.Player = u.Ships[u.PlayerShip];
+		_hud.CcCtx.U = u; _hud.CcCtx.Player = u.Ships[u.PlayerShip]; _hud.CcCtx.Comms = _session.Comms;   // Runde 40: Comms-Registry der Sitzung
 		_hud.DockCtx.U = u; _hud.DockCtx.Ship = u.Ships[u.PlayerShip]; _hud.DockCtx.Station = null!;
 		_hud.Map.Forget();
 		foreach (var sc in _hud.Screens.All)
@@ -867,7 +867,7 @@ public partial class Main : Node3D
 		_hud.Command.SetFuelActive(_session.U.Rules.FuelActive);   // Phase 14: Notruf nur mit Treibstoff
 		_hud.Command.SetAudioState();   // Runde 12: Ton-Schalter
 		_hud.Command.SetFast(_fast);   // HUD-Neu
-		_hud.Command.SetCommsBadge(UiPlaceholders.CommsUnread);
+		_hud.Command.SetCommsBadge(SpaceSim.Core.Comms.Comms.Unread(_session.U));   // Runde 40: echter Zähler
 	}
 
 	const float MenuZoomStep = 0.85f;
@@ -2243,6 +2243,9 @@ public partial class Main : Node3D
 	void UpdateHud()
 	{
 		TickCountdown();
+		int commsUnread = SpaceSim.Core.Comms.Comms.Unread(_session.U);   // Runde 40: Comms-Zähler echt (Hamburger-Menü + Kommando-Knopf)
+		_hud.Flight.SetCommandBadge(commsUnread);
+		_hud.Command.SetCommsBadge(commsUnread);
 		// Runde 22 (Handy-Test h3: „Kein Ziel“ neben dem angekündigten Kaperer): ein verschobener Überfall (kam während eines Gefechts fällig) wird ohne neue
 		// Warnung neu terminiert — auch dann ist der ankündigende Kaperer Ziel, solange kein anderes gewählt ist
 		if (_fight.Target.Value == 0 && !_fight.AtStation && !_fight.AtGate && _docked is null
@@ -3190,6 +3193,8 @@ public partial class Main : Node3D
 	/// <summary>Gerätetest: Zeitraffer setzen/lesen (Selbsttest der automatischen Abschaltung bei Gefahr).</summary>
 	internal void TestSetFast(bool on) => _fast = on;
 	internal bool TestFast => _fast;
+	/// <summary>Runde 40, Selbsttest: Schiff anhalten (Autopilot aus, Schub 0, Geschwindigkeit 0) — für positionsgenaue Tipp-Prüfungen (Randmarker).</summary>
+	internal void TestStopShip() { _autopilot = false; _hud.Flight.SetAutopilot(false); SetAutoMining(false, announce: false); _player.Velocity = Vector3.Zero; }
 	/// <summary>HUD-Neu, Selbsttest: zuletzt angeforderter Hinweis (auch wenn er wegen der Sperre nicht gezeigt wurde).</summary>
 	internal string TestLastHint { get; private set; } = "";
 	internal bool TestAutopilotOn => _autopilot;

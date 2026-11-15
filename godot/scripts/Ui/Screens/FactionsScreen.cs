@@ -211,10 +211,14 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		{
 			TestResearchShown = false;
 			At(det, Text("Letzte Ereignisse", 16, Cyan), 18, 316, 280, 22);
+			// Runde 40: echt — die letzten Posteingang-Nachrichten dieser Fraktion (Core: CommsSystem)
 			float ey = 342;
-			foreach (var ev in UiPlaceholders.FactionEvents)
+			var evs = u.Inbox.Where(m => m.From.Value == sel.Value).OrderByDescending(m => m.Id).Take(5).ToList();
+			if (evs.Count == 0) At(det, Text("Keine Ereignisse.", 13, new Color(Dim, 0.85f)), 18, ey, 560, 18);
+			foreach (var ev in evs)
 			{
-				At(det, Text("▮ " + ev, 13, new Color(Dim, 0.85f)), 18, ey, 560, 18);
+				var (subject, _) = SpaceSim.Core.Comms.CommsText.Describe(u, ev);
+				At(det, Text("▮ " + subject, 13, new Color(Dim, 0.85f)), 18, ey, 560, 18);
 				ey += 20;
 			}
 		}
@@ -224,8 +228,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		Control btnHost = narrow ? inner : frame;
 		float bx0 = narrow ? 184f : 362f, by0 = narrow ? 8f : detH - 68f, mapX = narrow ? 184f + 232f : 150f;
 		var bComms = At(btnHost, new KitButton("Kontakt aufnehmen", new Vector2(220, 56)) { FontSize = 17 }, bx0, by0);
-		bComms.Pressed += () => CommsRequested?.Invoke();
-		bComms.Detail = UiPlaceholders.Tag;
+		bComms.Pressed += () => CommsRequested?.Invoke();   // Runde 40: öffnet den echten Comms-Bereich (Diplomatie)
 		if (isFaction)
 		{
 			var bMap = At(btnHost, new KitButton("Gebiet auf Karte", new Vector2(200, 56)) { FontSize = 16 }, mapX, by0);
