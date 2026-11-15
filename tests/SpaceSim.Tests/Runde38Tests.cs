@@ -250,4 +250,44 @@ public class Runde38Tests
         Assert.Equal(0f, inc.LastDay().Credits, 3);
         Assert.Equal(u.Rules.DayTicks, inc.LastDay().Ticks);
     }
+
+    [Fact]
+    public void Runde38b_SperrenGegenDenSpieler_AergernDritteNicht_KeinFolgekrieg()
+    {
+        var u = World(true);
+        var me = Me(u);
+        var target = new FactionId(1);
+        // Regel: eine Sperre gegen den Spieler zählt für die Vergeltung Dritter nicht, gegen den Spieler selbst schon
+        var sector = u.Sectors.Values.Where(s => s.Owner == target).OrderByDescending(s => (int)s.Control).First();
+        Relations.Set(u, target, u.PlayerActor, -0.9f);
+        FactionPolicySystem.SetLevel(u, sector, 5, me);
+        Assert.True(sector.Access.EntryLevel > 0 && sector.Access.Against == me);
+        Assert.Equal(0, FactionPolicySystem.LocksAgainst(u, target, new FactionId(2)));
+        Assert.Equal(sector.Access.EntryLevel, FactionPolicySystem.LocksAgainst(u, target, me));
+        FactionPolicySystem.SetLevel(u, sector, 0);
+
+        // Langlauf: Spielerkrieg gegen Fraktion 1 — keine KI-gegen-KI-Kriegserklärung, keine KI-Sperre gegen eine andere KI-Fraktion
+        u.Player.Treasury.Credits = 20000f;
+        Wars.PlayerDeclare(u, target);
+        var declared = new List<WarDeclared>();
+        var npcLocks = new List<SectorAccessChanged>();
+        u.Events.Raised += e =>
+        {
+            if (e is WarDeclared wd) declared.Add(wd);
+            if (e is SectorAccessChanged sc && sc.ToEntry > 0 && sc.Against is { } ag && !u.IsPlayerFaction(ag)) npcLocks.Add(sc);
+        };
+        bool locked = false;
+        var runner = new SimulationRunner();
+        for (int t = 0; t < 40000; t += 100)
+        {
+            runner.Run(u, 100);
+            locked |= u.Sectors.Values.Any(s => s.Access.EntryLevel >= 4 && s.Access.Against == me);
+        }
+        Assert.True(locked, "die Sperren gegen den Spieler (für alle) gibt es weiterhin");
+        Assert.Empty(declared);
+        Assert.Empty(npcLocks);
+        foreach (var a in u.NpcFactionIds())
+            foreach (var b in u.NpcFactionIds().Where(b => b != a))
+                Assert.True(Relations.Effective(u, a, b) > u.Rules.LockThresholds[0], $"{a.Value}→{b.Value} {Relations.Effective(u, a, b):0.00}");
+    }
 }

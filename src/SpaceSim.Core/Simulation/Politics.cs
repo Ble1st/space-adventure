@@ -367,7 +367,13 @@ public sealed class FactionPolicySystem : ISimSystem
         if (Relations.Effective(u, owner, target) >= u.Rules.AllyRelation) return 0;
         int sum = 0;
         foreach (var s in u.Sectors.Values)
-            if (s.Owner == owner && s.Access.Enforced) sum += s.Access.EntryLevel;
+        {
+            if (s.Owner != owner || !s.Access.Enforced) continue;
+            // Runde 38b (Entscheidung des Nutzers „nur Spieler-Sperren ärgern Dritte nicht“): eine Sperre gegen die Spielerfraktion gilt weiter für alle,
+            // löst aber bei anderen KI-Fraktionen keinen Groll aus — kein KI-gegen-KI-Folgekrieg aus einem Spielerkrieg
+            if (s.Access.Against is { } ag && ag != target && u.IsPlayerFaction(ag)) continue;
+            sum += s.Access.EntryLevel;
+        }
         return sum;
     }
 }
