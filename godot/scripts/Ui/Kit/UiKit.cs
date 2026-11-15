@@ -94,7 +94,6 @@ public static class UiKit
 		{ l.ClipText = false; l.AutowrapMode = TextServer.AutowrapMode.WordSmart; l.MaxLinesVisible = (int)(l.Size.Y / font.GetHeight(fit)); }
 	}
 
-	/// <summary>Runde 35b: Faktor der Ebene, in der das Element liegt (Maßstab der globalen Transformation; außerhalb des Baums 1).</summary>
 	/// <summary>
 	/// Runde 37 (Handytest r35: ein Wisch in der Fraktionsliste wählte am Ende die Zeile unter dem Finger): Tipp-Erkennung für Listenzeilen ohne
 	/// <see cref="KitButton"/> — ausgelöst wird beim Loslassen, nur wenn Drücken und Loslassen auf dieser Zeile lagen, der Finger höchstens
@@ -115,6 +114,7 @@ public static class UiKit
 		};
 	}
 
+	/// <summary>Runde 35b: Faktor der Ebene, in der das Element liegt (Maßstab der globalen Transformation; außerhalb des Baums 1).</summary>
 	public static float LayerFactor(CanvasItem c) => c.IsInsideTree() ? MathF.Max(1f, c.GetGlobalTransform().Scale.Y) : 1f;
 
 	/// <summary>

@@ -21,8 +21,11 @@ static class UiStyle
 }
 
 /// <summary>Sternenkarte: Sektoren als Knoten, Gates als Linien. Antippen eines Sektors setzt ihn als Autopilot-Ziel.</summary>
-public partial class MapOverlay : Control
+public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 {
+	/// <summary>Runde 37b (Prüfauflage A2): unterer Streifen ohne Knoten und Namen — Meldung und Hinweis liegen dort statt über der Karte.</summary>
+	public const float StripHeight = 60f;
+	public Rect2? MessageStripGlobal => IsVisibleInTree() ? new Rect2(GetGlobalTransform() * new Vector2(16f, Size.Y - StripHeight - 8f), new Vector2(Size.X - 32f, StripHeight) * GetGlobalTransform().Scale.X) : null;
 	public event Action<SectorId>? SectorSelected;
 	public event Action? Closed;
 
@@ -57,12 +60,15 @@ public partial class MapOverlay : Control
 		var all = _u!.Sectors.Values.Select(x => x.MapPosition).ToList();
 		float rx = all.Max(p => p.X) - all.Min(p => p.X), ry = all.Max(p => p.Y) - all.Min(p => p.Y);
 		float sx = rx > 0.001f ? (Size.X - 200f) / rx : 220f;
-		float sy = ry > 0.001f ? (Size.Y - 230f) / ry : 220f;
+		float sy = ry > 0.001f ? (Size.Y - 190f - StripHeight) / ry : 220f;   // Runde 37b: Platz für den Meldungsstreifen unten
 		return Mathf.Clamp(Mathf.Min(sx, sy), 90f, 220f);
 	}
 
+	/// <summary>Runde 37b (Selbsttest): Bildpunkt eines Sektorknotens (für einen echten Tipp).</summary>
+	public Vector2? TestSectorScreen(SectorId id) => _u is null || !_u.Sectors.TryGetValue(id, out var s) ? null : GetGlobalTransform() * Place(s, MapCenter(), MapScale());
+
 	/// <summary>Mittelpunkt der Karte (unter der Überschrift).</summary>
-	Vector2 MapCenter() => Size / 2f + new Vector2(0, 20f);
+	Vector2 MapCenter() => Size / 2f + new Vector2(0, 26f - StripHeight / 2f);
 
 	public override void _Notification(int what)
 	{
@@ -101,7 +107,7 @@ public partial class MapOverlay : Control
 			}
 
 		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
-		var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(new Vector2(0, 60), Size - new Vector2(0, 60)), font);
+		var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(new Vector2(0, 60), Size - new Vector2(0, 60 + StripHeight + 8f)), font);
 		foreach (var s in _u.Sectors.Values) layout.ReserveCircle(Place(s, center, scale), 40f);
 		foreach (var s in _u.Sectors.Values)
 		{

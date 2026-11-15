@@ -90,7 +90,11 @@ public static class UiScale
 		if (Math.Abs(_root.ContentScaleFactor - 1f) > 0.0001f) _root.ContentScaleFactor = 1f;
 		// Runde 34b (Handytest r34: Dock „groß“ nur 1,20× — vermutlich Safe-Area-Ränder): gemeldete Ränder ins Protokoll und in die Diagnosezeile
 		var ins = SafeInsets1();
-		InsetsText = $"Safe Area L{ins.Left:0} O{ins.Top:0} R{ins.Right:0} U{ins.Bottom:0} (Fenster {w:0}×{h:0}, DPI {ppi:0})";
+		// Runde 37b (Handytest r37: dumpsys meldet links 80, rechts 135, oben 84 Gerätepunkte): auch die rohe Safe Area des Geräts (Gerätepunkte) ins Protokoll,
+		// um zu sehen, ob GetDisplaySafeArea diese Werte liefert
+		var rawSafe = DisplayServer.GetDisplaySafeArea();
+		var rawWin = DisplayServer.WindowGetSize();
+		InsetsText = $"Safe Area L{ins.Left:0} O{ins.Top:0} R{ins.Right:0} U{ins.Bottom:0} (logisch; Fenster {w:0}×{h:0}, DPI {ppi:0}; roh {rawSafe.Position.X},{rawSafe.Position.Y} {rawSafe.Size.X}×{rawSafe.Size.Y} in {rawWin.X}×{rawWin.Y}, mobil {OS.HasFeature("mobile")})";
 		if (InsetsText != _lastInsetsLog) { _lastInsetsLog = InsetsText; GD.Print("[ui] " + InsetsText); }
 		Changed?.Invoke();
 	}

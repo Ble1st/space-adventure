@@ -347,9 +347,26 @@ public partial class Hud : CanvasLayer
 	/// Oben: im Flug mittig unter Sektorchip und Lagezeile (frei bis zur Zielkarte, höchstens drei Zeilen); über Vollbildern und dem Dock-Menü in der
 	/// Kopfleiste zwischen Bereichstitel und Kasse, zwei Zeilen hoch über dem Fensterrand (Prüfung Runde 2: sie verdeckte Lagezeile bzw. Bereichstitel).
 	/// </summary>
+	/// <summary>Runde 37b (Prüfauflage A2): Meldungsstreifen der Sternenkarte in Einheiten der Meldungsebene (null = Karte zu).</summary>
+	Rect2? MapStrip => Map.Visible && Map.MessageStripGlobal is { } g ? new Rect2(g.Position / _alertScale, g.Size / _alertScale) : null;
+
 	void PlaceAlert()
 	{
 		var vp = AlertSpace;
+		// Runde 37b (A2): über der Sternenkarte in deren Meldungsstreifen (unten, frei von Knoten und Namen)
+		if (MapStrip is { } mstrip0)
+		{
+			// mit Hinweis teilen sich Meldung (links) und Hinweis (rechts) den Streifen
+			bool share = _toast.Modulate.A > 0.02f && _toast.Text.Length > 0;
+			var mstrip = share ? new Rect2(mstrip0.Position, new Vector2(mstrip0.Size.X / 2f - 6f, mstrip0.Size.Y)) : mstrip0;
+			_alert.Size = mstrip.Size;
+			_alert.Position = mstrip.Position;
+			_alertText.MaxLinesVisible = 2;
+			_alertText.AddThemeFontSizeOverride("font_size", 14);
+			_alertText.Position = new Vector2(12, 4); _alertText.Size = new Vector2(mstrip.Size.X - 12 - 64, mstrip.Size.Y - 8);
+			_alertClose.Position = new Vector2(mstrip.Size.X - 60, (mstrip.Size.Y - 56) / 2f);
+			return;
+		}
 		bool screen = Screens.Current != null && Screens.Current != Flight;
 		// Gerätetest Phase 28: über dem Dock-Menü (schmales Fenster in der Mitte, Titel oben) links neben dem Fenster, mehrzeilig — oben verdeckte es den Titel
 		bool dockMenu = Screens.Current == DockMenu;
@@ -482,7 +499,16 @@ public partial class Hud : CanvasLayer
 		// Runde 4: über Vollbildern unten mittig (zwischen „← Menü“/„← Flug“ und „Abdocken“), im Flug mit Abstand zur Lage-/Brandzeile
 		var vpSize = AlertSpace;   // Runde 33: in Einheiten der Meldungsebene (im Flug skaliert)
 		_toast.AddThemeFontSizeOverride("font_size", onScreen ? 16 : 22);   // Runde 34b: über Vollbildern kleiner (passt in den Meldungsstreifen)
-		if (onScreen && Screens.Current is IMessageStrip tms && tms.MessageStripGlobal is { } tstrip)
+		bool onMap = MapStrip is not null;
+		if (MapStrip is { } mapStrip)
+		{
+			// Runde 37b (A2): über der Sternenkarte im Meldungsstreifen (mit Meldung darüber)
+			_toast.AddThemeFontSizeOverride("font_size", 16);
+			float half = mapStrip.Size.X / 2f - 6f;
+			_toast.Size = new Vector2(_alert.Visible ? half : mapStrip.Size.X, 0f);
+			_toast.Position = _alert.Visible ? new Vector2(mapStrip.Position.X + mapStrip.Size.X - half, mapStrip.Position.Y) : mapStrip.Position;
+		}
+		else if (onScreen && Screens.Current is IMessageStrip tms && tms.MessageStripGlobal is { } tstrip)
 		{
 			// Runde 34b (Prüfung B2): Hinweis im Meldungsstreifen statt über „Alles verkaufen“/„Tempo …“
 			_toast.Position = tstrip.Position;
@@ -524,7 +550,7 @@ public partial class Hud : CanvasLayer
 		}
 		// Runde 33 (E2): im Kompakt-HUD (UI-Faktor > 1) kann die Wunschlage auf Tasten oder Beschuss-/Fluchtzeile fallen — dann die nächste freie Lage
 		// Runde 35b (Prüfwerkzeug: im klassischen HUD bei Faktor 1,3 lag der Hinweis über „Ziel folgen“, „RÜCK“ und der Beschusszeile): auch klassisch
-		if (!onScreen && Screens.Current != DockMenu && Screens.Current != Command && _toast.Modulate.A > 0.02f && _toast.Text.Length > 0)
+		if (!onScreen && !onMap && Screens.Current != DockMenu && Screens.Current != Command && _toast.Modulate.A > 0.02f && _toast.Text.Length > 0)
 		{
 			var occ = Flight.OccupiedLocal();
 			if (Flight.ShipRectLocal() is { } shipR) occ.Add(shipR);   // Runde 33b: nie über dem eigenen Schiff
@@ -559,7 +585,8 @@ public partial class Hud : CanvasLayer
 					foreach (var rects in new[] { occ, imp, taps })
 					{
 						var list = rects.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
-						for (float w = want.Size.X; w >= 220f && _toastSpot is null; w -= 40f)
+						// Runde 37b (Prüfwerkzeug mit echter Aussparung: der Hinweis lag über Sektorchip und Lagezeile): auch breiter als die Wunschlage suchen
+						for (float w = MathF.Max(want.Size.X, 600f); w >= 220f && _toastSpot is null; w -= 40f)
 							for (int fs = tfs; fs >= tfloor && _toastSpot is null; fs--)
 							{
 								float h = TH(w, fs);

@@ -162,6 +162,9 @@ public partial class Main : Node3D
 		};
 		_hud.Command.Action += OnCommandAction;
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
+		// Runde 37b (Handytest r37 N1, Blocker: Dock → „≡ Menü“ → „Karte“ → „Schließen“ ließ nur die nackte 3D-Szene zurück — die Karte meldete das Schließen,
+		// niemand hörte zu, angedockt war weder Dock-Menü noch Flug-HUD sichtbar): jedes Schließen der Karte führt zur Grundansicht zurück
+		_hud.Map.Closed += ShowBase;
 		_hud.DockMenu.AreaSelected += OnDockArea;
 		_hud.DockMenu.UndockPressed += Undock;
 		_hud.DockMenu.MenuPressed += ToggleCommand;   // Runde 23
@@ -685,7 +688,7 @@ public partial class Main : Node3D
 		switch (action)
 		{
 			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); break;
-			case "economy": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); break;
+			case "economy": _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); ShowBase(); break;
 			case "save": case "load": OnMenu(action); break;
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
@@ -706,7 +709,7 @@ public partial class Main : Node3D
 			case "cam_invert": _sfx.Play(SfxId.Click); _orbit.InvertDrag = !_orbit.InvertDrag; RefreshCameraMenu(); break;
 			case "cam_reset": ResetCamera(); RefreshCameraMenu(); break;
 			case "emergency": CallEmergency(); break;
-			case "close": _sfx.Play(SfxId.Click); _hud.Screens.Hide(); if (_docked == null) _hud.Flight.Visible = true; else ShowDockMenu(); break;   // Runde 23: angedockt zurück ins Dock-Menü
+			case "close": _sfx.Play(SfxId.Click); ShowBase(); break;   // Runde 23: angedockt zurück ins Dock-Menü
 			default:
 				if (CommandAreas.All.Any(a => a.Id == action)) OpenCcArea(action);
 				break;
@@ -721,8 +724,7 @@ public partial class Main : Node3D
 			? new Refuel.EmergencyResult(false, 0f, 0f, "Angedockt – Notruf nur im Flug.")
 			: Refuel.PlayerEmergency(_session.U, PlayerData);
 		_sfx.Play(r.Success ? SfxId.Pickup : SfxId.Click);
-		_hud.Screens.Hide();
-		if (_docked == null) _hud.Flight.Visible = true;
+		ShowBase();
 		_hud.Toast(r.Message, 5f);
 	}
 
@@ -762,14 +764,42 @@ public partial class Main : Node3D
 	void CloseCommand()
 	{
 		_sfx.Play(SfxId.Click);
+		ShowBase();   // Runde 23: Kommandozentrale/Menü angedockt geöffnet → zurück ins Dock-Menü
+	}
+
+	/// <summary>
+	/// Runde 37b (N1): Grundansicht — alle Bildschirme und die Karte zu, angedockt das Dock-Menü, sonst das Flug-HUD. Der eine Rückweg für Schließen, „← Flug“,
+	/// Karte und Zurück-Taste (vorher an jeder Stelle einzeln, die Karte hatte keinen).
+	/// </summary>
+	void ShowBase()
+	{
+		_hud.Map.Visible = false;
 		_hud.Screens.Hide();
 		if (_docked == null) _hud.Flight.Visible = true;
-		else ShowDockMenu();   // Runde 23: Kommandozentrale/Menü angedockt geöffnet → zurück ins Dock-Menü
+		else ShowDockMenu();
+	}
+
+	/// <summary>
+	/// Runde 37b (Handytest r37: die Android-Zurück-Taste beendete die App): schließt die oberste Ebene — Karte, Hamburger-Menü, Kommandozentrale, Dock-Bereich
+	/// (→ Dock-Menü); im Dock-Menü ein Hinweis (Abdocken bleibt eine bewusste Taste), im Flug öffnet sie das Hamburger-Menü. Nie die App beenden
+	/// (project.godot: application/config/quit_on_go_back=false). Escape am Desktop wirkt gleich.
+	/// </summary>
+	internal string HandleBack()
+	{
+		if (_catchUp is not null) return "nachholen";
+		var cur = _hud.Screens.Current;
+		if (_hud.Map.Visible) { _hud.Map.Visible = false; ShowBase(); return "karte"; }
+		if (cur == _hud.Command) { _sfx.Play(SfxId.Click); ShowBase(); return "menü"; }
+		if (cur is CommandScreen) { CloseCommand(); return "zentrale"; }
+		if (cur is not null && cur != _hud.DockMenu && cur != _hud.Flight && _docked != null) { _sfx.Play(SfxId.Click); ShowDockMenu(); return "dockbereich"; }
+		if (cur == _hud.DockMenu) { _hud.Toast("Zum Abdocken „Abdocken“ antippen."); return "dockmenü"; }
+		ToggleCommand();
+		return "flug";
 	}
 
 	void ToggleCommand()
 	{
-		if (_hud.Screens.Current == _hud.Command) { _hud.Screens.Hide(); if (_docked != null) ShowDockMenu(); }
+		if (_hud.Screens.Current == _hud.Command) { ShowBase(); return; }
 		else { _hud.Map.Visible = false; RefreshCameraMenu(); _hud.Screens.Show(_hud.Command); }
 	}
 
@@ -928,6 +958,7 @@ public partial class Main : Node3D
 		// Runde 12: Musik hält bei App-Pause an und läuft beim Fortsetzen weiter
 		if (_music is not null && what == NotificationApplicationPaused) _music.SetPaused(true);
 		if (_music is not null && what == NotificationApplicationResumed) _music.SetPaused(false);
+		if (what == NotificationWMGoBackRequest && _hud is not null) GD.Print($"[ui] Zurück-Taste: {HandleBack()}");   // Runde 37b
 	}
 
 	void OnSimEvent(SimEvent e)
@@ -1667,6 +1698,7 @@ public partial class Main : Node3D
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		if (_catchUp is not null) return;   // Phase 28: während des Nachholens keine Eingaben
+		if (_hud != null && @event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) { HandleBack(); GetViewport().SetInputAsHandled(); return; }   // Runde 37b: wie die Zurück-Taste
 		if (_hud == null || _hud.AnyModalOpen) return;   // Menüs/Dock: Eingaben gehören der Oberfläche, Kamera bleibt stehen
 		if (@event is InputEventKey { Pressed: true, Echo: false } key)
 		{

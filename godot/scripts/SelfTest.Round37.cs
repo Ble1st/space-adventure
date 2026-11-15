@@ -32,18 +32,27 @@ public partial class SelfTest
 				if (root.Size.X < 640 || root.Size.X == root.Size.Y) root.Size = new Vector2I(1280, 720);
 				UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply();
 				hud.CcFactions.ResetSession();
+				// Runde 37b (Prüfauflage A1: die Liste war in der Testgeometrie nicht rollbar, gewischt wurde die Leiste): genug Akteure, dass die Fraktionsliste rollt
+				{
+					var u = _m.Session.U;
+					foreach (var sh in u.ShipsById().Where(x => x.Owner == u.FreeActor && x.IsEconomyAi).Take(10).ToList()) SpaceSim.Core.Simulation.ActorRules.Promote(u, sh);
+				}
 				_m.TestOpenCcArea(Ui.Screens.CommandAreas.Factions);
 				return false;
 			case 20:
 			{
 				// (1) Wisch beginnt auf der zweiten Zeile
 				var rows = hud.CcFactions.TestRows;
-				var list = UiCheck.Visible(hud.CcFactions).OfType<KitScroll>().Where(x => x.GetVScrollBar().MaxValue - x.GetVScrollBar().Page > 30)
-					.OrderByDescending(x => { int d = 0; for (Node? n = x; n is not null; n = n.GetParent()) d++; return d; }).FirstOrDefault();
-				Check(!hud.CcFactions.TestDetailOpen && list is not null, $"37: schmal zeigt „Fraktionen“ die Liste über die ganze Höhe (Detail offen {hud.CcFactions.TestDetailOpen}, Liste {list?.GetGlobalRect()})");
+				// die Fraktionsliste selbst (Schlüssel aus FactionsScreen.cs), nicht die Leiste
+				var list = FactionList(hud);
+				float room = list is null ? 0f : (float)(list.GetVScrollBar().MaxValue - list.GetVScrollBar().Page);
+				Check(!hud.CcFactions.TestDetailOpen && list is not null && room > 100f, $"37b: schmal zeigt „Fraktionen“ die Liste über die ganze Höhe, rollbar ({room:0} px, Detail offen {hud.CcFactions.TestDetailOpen})");
 				if (list is null) return false;
 				list.ScrollTo(0);
-				_r37At = list.GetGlobalRect().Position + new Vector2(list.GetGlobalRect().Size.X / 2f, 140f);
+				// Aufsetzen mitten auf der zweiten Zeile (kein Leerraum, keine Taste)
+				var row = list.GetChild(0).GetChildren().OfType<PanelContainer>().Skip(1).FirstOrDefault();
+				_r37At = row?.GetGlobalRect().GetCenter() ?? list.GetGlobalRect().GetCenter();
+				_r37Scroll0 = list.ScrollVertical;
 				PushMouse(_r37At, true, false);
 				return false;
 			}
@@ -51,16 +60,19 @@ public partial class SelfTest
 			case 24: PushMouse(_r37At - new Vector2(0, 120), true, true); return false;
 			case 26: PushMouse(_r37At - new Vector2(0, 120), false, false); return false;
 			case 34:
+				Check(FactionList(hud) is { } fl && fl.ScrollVertical > _r37Scroll0 + 40, $"37b: der Wisch rollte die Fraktionsliste ({FactionList(hud)?.ScrollVertical} statt {_r37Scroll0})");
 				Check(hud.CcFactions.Selected is null && !hud.CcFactions.TestDetailOpen, $"37: Wisch über die Fraktionsliste wählt nichts (gewählt {hud.CcFactions.Selected?.Value}, Detail {hud.CcFactions.TestDetailOpen})");
 				_r37Wait = 0; _r37Rect = default;
 				return false;
 			case 35:
 			{
 				// (2) echter Tipp auf die erste sichtbare Zeile
-				var list = UiCheck.Visible(hud.CcFactions).OfType<KitScroll>().OrderByDescending(x => { int d = 0; for (Node? n = x; n is not null; n = n.GetParent()) d++; return d; }).First();
-				var r = list.GetGlobalRect();
+				var list = FactionList(hud);
+				if (list is null) { Check(false, "37: Fraktionsliste fehlt"); return false; }
+				var row = list.GetChild(0).GetChildren().OfType<PanelContainer>().FirstOrDefault(x => list.GetGlobalRect().Encloses(x.GetGlobalRect()));
+				var r = row?.GetGlobalRect() ?? list.GetGlobalRect();
 				if (r != _r37Rect && _r37Wait++ < 30) { _r37Rect = r; _stageStart += 1; return false; }
-				_r37At = r.Position + new Vector2(r.Size.X / 2f, 40f);
+				_r37At = r.GetCenter();
 				Tap(_r37At, true);
 				return false;
 			}
@@ -154,6 +166,9 @@ public partial class SelfTest
 		}
 		return false;
 	}
+
+	int _r37Scroll0;
+	static KitScroll? FactionList(Ui.Hud hud) => UiCheck.Visible(hud.CcFactions).OfType<KitScroll>().FirstOrDefault(x => x.ScrollKey.StartsWith("FactionsScreen.cs", StringComparison.Ordinal) && x.GetChildCount() > 0 && x.GetChild(0) is VBoxContainer);
 
 	/// <summary>Rollbereich der Bereichsleiste eines Zentralen-Bildschirms (die Leiste enthält „Universum“).</summary>
 	static KitScroll? RailScroll(Control screen) =>

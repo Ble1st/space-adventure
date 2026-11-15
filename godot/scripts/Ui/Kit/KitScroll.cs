@@ -32,6 +32,8 @@ public partial class KitScroll : ScrollContainer
 	/// ihn wiederhergestellt statt über die Baumreihenfolge (die sich verschiebt, wenn Zeilen oder Bereiche dazukommen oder wegfallen).
 	/// </summary>
 	public string ScrollKey { get; set; }
+	/// <summary>Runde 37b: Rollposition wird vom Bildschirm selbst geführt (Leiste der Zentrale) — Capture/Restore lassen sie aus.</summary>
+	public bool OwnPosition { get; set; }
 
 	int _finger = -1;
 	int _pending = -1, _pendingFrames;
@@ -54,6 +56,8 @@ public partial class KitScroll : ScrollContainer
 	}
 
 	readonly MoreHint _hint;
+	/// <summary>Runde 37b: gewollte Rollposition — eine noch nicht angewandte (nach dem Layout) oder die aktuelle.</summary>
+	public int WantedScroll => _pending >= 0 ? _pending : ScrollVertical;
 	/// <summary>Runde 37: zeigt der Bereich gerade den Hinweis „weiter unten“?</summary>
 	public bool MoreBelow => _hint.Visible;
 
@@ -100,7 +104,7 @@ public partial class KitScroll : ScrollContainer
 		{
 			foreach (var c in n.GetChildren())
 			{
-				if (c is KitScroll k && !k.IsQueuedForDeletion())
+				if (c is KitScroll k && !k.IsQueuedForDeletion() && !k.OwnPosition)
 				{
 					int nth = seen.GetValueOrDefault(k.ScrollKey); seen[k.ScrollKey] = nth + 1;
 					map[$"{k.ScrollKey}#{nth}"] = k._pending >= 0 ? k._pending : k.ScrollVertical;
@@ -120,10 +124,11 @@ public partial class KitScroll : ScrollContainer
 		{
 			foreach (var c in n.GetChildren())
 			{
-				if (c is KitScroll k && !k.IsQueuedForDeletion())
+				if (c is KitScroll k && !k.IsQueuedForDeletion() && !k.OwnPosition)
 				{
 					int nth = seen.GetValueOrDefault(k.ScrollKey); seen[k.ScrollKey] = nth + 1;
-					if (positions.TryGetValue($"{k.ScrollKey}#{nth}", out int v)) k.SetPending(v);
+					// Runde 37b (Handytest r37 N2): auch „ganz oben“ (0) wiederherstellen — vorher blieb eine ältere, gemerkte Position stehen und die Liste sprang zurück
+					if (positions.TryGetValue($"{k.ScrollKey}#{nth}", out int v)) { if (v > 0) k.SetPending(v); else { k._pending = -1; k.ScrollVertical = 0; } }
 				}
 				Walk(c);
 			}

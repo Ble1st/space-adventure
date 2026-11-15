@@ -66,7 +66,30 @@ public sealed class LabelLayout
 	/// Runde 37 (Handytest r35: Stationen ohne Namen auf der Sektorkarte): letzter Versuch — Plätze weiter weg (vier Ringe, zwölf Richtungen, feste Reihenfolge)
 	/// mit einer dünnen Linie vom Anker zur Beschriftung, damit die Zuordnung erkennbar bleibt.
 	/// </summary>
-	public bool DrawWithLeader(CanvasItem canvas, Vector2 anchor, string text, int size, Color color, float gap, float maxWidth = 160f)
+	readonly List<(Vector2 A, Vector2 B)> _leaders = new();
+
+	/// <summary>Runde 37b: schneidet die Strecke eine schon gezogene Leitlinie oder eine gesetzte Fläche, die den Anfangspunkt nicht enthält?</summary>
+	bool Crosses(Vector2 a, Vector2 b)
+	{
+		foreach (var (c, d) in _leaders) if (Cross(a, b, c, d)) return true;
+		foreach (var t in _taken)
+		{
+			if (t.Grow(1f).HasPoint(a) || t.Grow(1f).HasPoint(b)) continue;
+			var e = t.End;
+			var corners = new[] { t.Position, new Vector2(e.X, t.Position.Y), e, new Vector2(t.Position.X, e.Y) };
+			for (int i = 0; i < 4; i++) if (Cross(a, b, corners[i], corners[(i + 1) % 4])) return true;
+		}
+		return false;
+	}
+
+	static bool Cross(Vector2 p, Vector2 p2, Vector2 q, Vector2 q2)
+	{
+		static float O(Vector2 a, Vector2 b, Vector2 c) => (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+		float d1 = O(q, q2, p), d2 = O(q, q2, p2), d3 = O(p, p2, q), d4 = O(p, p2, q2);
+		return (d1 > 0f) != (d2 > 0f) && (d3 > 0f) != (d4 > 0f) && d1 != 0f && d2 != 0f && d3 != 0f && d4 != 0f;
+	}
+
+	public bool DrawWithLeader(CanvasItem canvas, Vector2 anchor, string text, int size, Color color, float gap, float maxWidth = 160f, bool allowCross = false)
 	{
 		string full = text;
 		text = KitButton.Fit(_font, text, size, maxWidth);
@@ -84,8 +107,11 @@ public sealed class LabelLayout
 				bool free = true;
 				foreach (var t in _taken) if (t.Intersects(r)) { free = false; break; }
 				if (!free) continue;
-				_taken.Add(r);
 				var near = new Vector2(Mathf.Clamp(anchor.X, r.Position.X, r.End.X), Mathf.Clamp(anchor.Y, r.Position.Y, r.End.Y));
+				// Runde 37b (Handytest r37: Leitlinien kreuzten sich): die Linie kreuzt keine andere Leitlinie und läuft durch keine gesetzte Beschriftung
+				if (!allowCross && Crosses(anchor, near)) continue;
+				_taken.Add(r);
+				_leaders.Add((anchor, near));
 				canvas.DrawLine(anchor, near, new Color(color, 0.6f), 1f, true);
 				if (Backdrop.A > 0f) canvas.DrawRect(r.Grow(1f), Backdrop);
 				UiKit.DrawText(canvas, 1000 + _taken.Count, _font, r.Position + new Vector2(2f, size), text, size, color, full: full);

@@ -143,6 +143,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		// ── Mittelteil ──
 		float cw = L.Center.W;
 		var center = At(this, new PanelContainer(), L.Center.X, L.Center.Y, cw, L.Center.H);
+		_centerFrame = center; _centerWant = new Vector2(cw, L.Center.H);
 		// Gerätetest: seitlicher Innenabstand 16 (Texte klebten am Rahmen)
 		var centerBox = Box(PanelBg, Edge, 10, 2, 10);
 		centerBox.ContentMarginLeft = 16; centerBox.ContentMarginRight = 16;
@@ -150,7 +151,8 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(L.InnerW, L.InnerH), Size = new Vector2(L.InnerW, L.InnerH) };
 		// Runde 34: auf dem Handy (UI-Faktor > 1) ist der Mittelteil niedriger als im Entwurf — Bereiche, deren Inhalt dann über den Rand reicht (Hangar,
 		// Lager, Behörde …), rollen als Ganzes; Bereiche mit eigener Liste (Handel, Werft, Ausrüster) passen und rollen nur innen
-		var areaScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		// Runde 37b (wie die Zentrale, Handytest r37 N3): Rollbalken des ganzen Bereichs ausgeblendet — er verbreiterte den Rahmen
+		var areaScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever, MouseFilter = MouseFilterEnum.Pass };
 		center.AddChild(areaScroll);
 		areaScroll.AddChild(inner);
 		BuildContent(inner);
@@ -186,6 +188,12 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 	/// <summary>Runde 34b: Meldungsstreifen (Core: DockShell.MessageStrip) in Bildpunkten.</summary>
 	public Rect2? MessageStripGlobal => Shell is { } l && IsVisibleInTree() && l.MessageStrip.W > 0f
 		? new Rect2(GetGlobalTransform() * new Vector2(l.MessageStrip.X, l.MessageStrip.Y), new Vector2(l.MessageStrip.W, l.MessageStrip.H) * GetGlobalTransform().Scale.X) : null;
+
+	/// <summary>Runde 37b (N3): Mittelteil-Rahmen — wirklich (Bildpunkte) und laut Gerüst; das Prüfwerkzeug vergleicht beide.</summary>
+	Control? _centerFrame;
+	Vector2 _centerWant;
+	public (Rect2 Actual, Vector2 ExpectedSize)? CenterCheck => _centerFrame is { } cf && IsInstanceValid(cf) && cf.IsVisibleInTree()
+		? (cf.GetGlobalRect(), _centerWant * cf.GetGlobalTransform().Scale.X) : null;
 
 	public override void _Notification(int what)
 	{

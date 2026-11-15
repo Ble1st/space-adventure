@@ -40,7 +40,9 @@ public partial class UiCheck : Node
 	/// Runde 37 (Handytest r35 g31: „Verkaufen“ ragte über den Zeilenrand — am Gerät nimmt die Kamera-Aussparung links ≈ 80 Bildpunkte, die Prüfung lief ohne
 	/// sichere Ränder und sah breitere Zeilen): sichere Ränder je Gerät in logischen Bildpunkten bei Faktor 1 (L, O, R, U).
 	/// </summary>
-	static UiInsets InsetsOf(string device) => device.Contains("Aussparung") ? new UiInsets(54f, 0f, 0f, 0f) : new UiInsets(0f, 0f, 0f, 0f);
+	/// Runde 37b: die echten Werte des A15 (dumpsys: Querformat links 80, rechts 135, oben 84 Gerätepunkte bei 2340 × 1080) in logische Punkte umgerechnet
+	/// (× 720/1080): links 53, rechts 90, oben 56.
+	static UiInsets InsetsOf(string device) => device.Contains("Aussparung") ? new UiInsets(80f * 720f / 1080f, 84f * 720f / 1080f, 135f * 720f / 1080f, 0f) : new UiInsets(0f, 0f, 0f, 0f);
 	static readonly float[] AllFactors = { 1f, 1.15f, 1.3f };
 	(int W, int H, float Ppi, string Device)[] Sizes = AllSizes;
 	float[] Factors = AllFactors;
@@ -106,6 +108,8 @@ public partial class UiCheck : Node
 		if (!FlightOnly)
 		{
 			Add("sternenkarte", () => { _m.HudRef.HideAlert(); _m.TestCommand("map"); }, 12);
+			// Runde 37b (Prüfauflage A4/A2): Sternenkarte mit Hinweis und Meldung (im Meldungsstreifen, nie über Knoten/Namen)
+			Add("sternenkarte-toast", () => { _m.HudRef.Alert("Prüfmeldung über der Sternenkarte", 30f); _m.HudRef.Toast("Prüftoast über der Sternenkarte: Autopilot gesetzt, zweite Zeile zum Messen des Umbruchs", 30f); }, 12);
 			// Runde 34 (E3): Dock-Menü und alle Dock-Bereiche — an der Werft und an weiteren Stationen für die Bereiche, die die Werft nicht hat (Lager, Behörde,
 			// Taxi …); jeder Bereich wird einmal vermessen
 			var seenAreas = new HashSet<string>();
@@ -114,7 +118,7 @@ public partial class UiCheck : Node
 				string tk = typeKey;
 				Add(tk == "shipyard" ? "dockmenue" : "dockmenue-" + tk, () =>
 				{
-					_m.HudRef.Map.Visible = false;
+					_m.HudRef.Map.Visible = false; _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f);
 					if (_m.TestDocked) _m.TestUndock();
 					var st = u().StationsById().FirstOrDefault(s => s.TypeKey == tk);
 					if (st is null) return;
@@ -152,9 +156,11 @@ public partial class UiCheck : Node
 			Add("kz-open", () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); }, 20);
 			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
 				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
+			// Runde 37b (A4): Fraktionsdetail (schmal: Detail statt Liste)
+			Add("kz-fraktionsdetail", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Factions); var fr = _m.HudRef.CcFactions; fr.Selected = fr.TestRows.FirstOrDefault()?.Id; fr.TestDetailOpen = true; }, 12);
 			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
 		}
-		if (NoFlight) { Add("ende", () => { _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); }, 5); return; }
+		if (NoFlight) { Add("ende", () => { _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f); }, 5); return; }   // Runde 37b: der lange Prüfhinweis des Menüs gehört nicht in den Flug
 		Add("flug-automining", () => { _m.HudRef.HideAlert(); _m.HudRef.Map.Visible = false; _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);
 		Add("flug-automining2", () => { _m.TestStartMining(); }, 90);
 		Add("flug-warnung", () => { _m.TestMenu("new:combat"); }, 40);
@@ -164,6 +170,12 @@ public partial class UiCheck : Node
 		{
 			_m.TestMenu("new:war");
 		}, 40);
+		// Runde 37b (A4): gewählte Station vor dem Angriff („Station angreifen“ sichtbar, nicht scharf)
+		Add("flug-stationswahl", () =>
+		{
+			var hq = u().StationsById().Where(s => s.Sector == u().PlayerSector && s.TypeKey == "sector_hq").FirstOrDefault();
+			if (hq is not null) _m.TestSelectStation(hq.Id);
+		}, 30);
 		Add("flug-stationsangriff2", () =>
 		{
 			var hq = u().StationsById().Where(s => s.Sector == u().PlayerSector && s.TypeKey == "sector_hq").FirstOrDefault();
@@ -427,6 +439,10 @@ public partial class UiCheck : Node
 			if (mm < 5f) { small5++; if (notes.Count < 24) notes.Add($"Tippfläche {mm:0.0} mm „{Label(c)}“"); }
 			if (!vp.Grow(0.5f).Encloses(Clipped(c))) { outside++; if (notes.Count < 30) notes.Add($"außerhalb „{Label(c)}“ {r.Position.X:0},{r.Position.Y:0} {r.Size.X:0}×{r.Size.Y:0}"); }
 		}
+		// Runde 37b (Handytest r37 N3: Comms/System-Rahmen breiter als in den anderen Bereichen): Mittelteil-Rahmen hat genau die Größe aus dem Gerüst
+		var cc = modal switch { SpaceAdventure.Ui.Screens.CommandScreen cs => cs.CenterCheck, SpaceAdventure.Ui.Screens.DockAreaScreen ds => ds.CenterCheck, _ => null };
+		if (cc is { } chk && (MathF.Abs(chk.Actual.Size.X - chk.ExpectedSize.X) > 1.5f || MathF.Abs(chk.Actual.Size.Y - chk.ExpectedSize.Y) > 1.5f))
+		{ outside++; notes.Add($"außerhalb: Rahmen des Mittelteils {chk.Actual.Size.X:0}×{chk.Actual.Size.Y:0} statt {chk.ExpectedSize.X:0}×{chk.ExpectedSize.Y:0}"); }
 		foreach (var c in all.Where(c => (modal is null || modal == c || modal.IsAncestorOf(c)) && Clipped(c).Size.X > 1f))
 		{
 			if (c is Label l && l.Text.Length > 0)
@@ -463,6 +479,19 @@ public partial class UiCheck : Node
 				if (x.Size.X * x.Size.Y < 25f) continue;
 				msgCovers++;
 				if (notes.Count < 40) notes.Insert(0, $"{oname} verdeckt „{Label(c)}“");
+			}
+		// Runde 37b (Prüfauflage A2): auch selbst gezeichnete Texte (Sternenkarte, Karten, Zeilen) gelten als Inhalt, den Meldung/Hinweis nicht verdecken dürfen
+		var drawnScope = new HashSet<ulong>(all.Where(c => (modal is null || modal == c || modal.IsAncestorOf(c)) && !alertLayer.IsAncestorOf(c)).Select(c => c.GetInstanceId()));
+		foreach (var (oname, orect) in overlays)
+			foreach (var e in SpaceAdventure.Ui.Kit.DrawnText.All)
+			{
+				if (!drawnScope.Contains(e.Owner) || GodotObject.InstanceFromId(e.Owner) is not Control oc) continue;
+				var gt = oc.GetGlobalTransform();
+				var r = ClipOf(oc).Intersection(new Rect2(gt * e.Local.Position, e.Local.Size * gt.Scale.Y));
+				var x = r.Intersection(orect);
+				if (r.Size.X <= 1f || x.Size.X * x.Size.Y < 25f) continue;
+				msgCovers++;
+				if (notes.Count < 40) notes.Insert(0, $"{oname} verdeckt „{Short(e.Shown)}“ (gezeichnet)");
 			}
 		// kleinste Tippfläche (mm) und von Inhalt belegte Fläche (Rasterprobe 48 × 27 über Texte, Tasten, Balken und gezeichnete Flächen; ohne Hintergründe)
 		float minMm = inter.Count == 0 ? float.NaN : inter.Min(c => UiLayout.Millimetres(MathF.Min(c.GetGlobalRect().Size.X, c.GetGlobalRect().Size.Y), w, h, GetTree().Root.ContentScaleFactor, ppi));
@@ -545,7 +574,24 @@ public partial class UiCheck : Node
 			json.AppendLine($"  {{\"state\":\"{r.State}\",\"w\":{r.W},\"h\":{r.H},\"factor\":{r.Factor.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"interactive\":{r.Interactive},\"overlaps\":{r.Overlaps},\"truncated\":{r.Truncated},\"tapUnder7mm\":{r.Small7},\"tapUnder5mm\":{r.Small5},\"outside\":{r.Outside},\"shipCovered\":{r.ShipCovered},\"messageCovers\":{r.MessageCovers},\"textOverlaps\":{r.TextOverlaps},\"clipped\":{r.ClippedCount},\"minFontPx\":{(float.IsNaN(r.MinFont) ? "null" : r.MinFont.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))},\"content\":{r.Content.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)},\"minMm\":{(float.IsNaN(r.MinMm) ? "null" : r.MinMm.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))},\"unstable\":{(r.Unstable ? "true" : "false")},\"effective\":{r.Effective.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},\"fill\":{r.Fill.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}}},");
 		System.IO.File.WriteAllText(System.IO.Path.Combine(_dir, "ui-check.json"), json.ToString().TrimEnd(',', '\n', '\r') + "\n]\n");
 		GD.Print($"[ui-check] fertig: {txt}");
-		GD.Print("UI-CHECK OK");
-		GetTree().Quit(0);
+		// Runde 37b (Prüfauflage A3): bei Befunden „UI-CHECK FEHLER“ und Exit-Code 1; begründete Ausnahmen stehen in AllowedTruncations
+		var bad = new List<string>();
+		foreach (var r in _results)
+		{
+			int allowed = r.Notes.Count(n => n.StartsWith("gekürzt", StringComparison.Ordinal) && AllowedTruncations.Any(a => n.Contains(a.Pattern, StringComparison.Ordinal)));
+			int trunc = Math.Max(0, r.Truncated - allowed);
+			int sum = r.Overlaps + trunc + r.Outside + r.TextOverlaps + r.ClippedCount + r.MessageCovers + r.ShipCovered + (r.Unstable ? 1 : 0);
+			if (sum > 0) bad.Add($"{r.W}x{r.H} f{r.Factor:0.00} {r.State}: Ü{r.Overlaps} K{trunc} A{r.Outside} T{r.TextOverlaps} C{r.ClippedCount} M{r.MessageCovers}{(r.ShipCovered > 0 ? " S!" : "")}{(r.Unstable ? " instabil" : "")} [{string.Join("; ", r.Notes.Take(3))}]");
+		}
+		if (bad.Count == 0) { GD.Print("UI-CHECK OK"); GetTree().Quit(0); return; }
+		foreach (var b in bad) GD.PrintErr("[ui-check] BEFUND " + b);
+		GD.PrintErr($"UI-CHECK FEHLER: {bad.Count} Messungen mit Befunden");
+		GetTree().Quit(1);
 	}
+
+	/// <summary>Runde 37b (A3): begründete Ausnahmen — gekürzte Texte, die bewusst so bleiben (Muster im Hinweis, Begründung).</summary>
+	public static readonly (string Pattern, string Why)[] AllowedTruncations =
+	{
+		("Einheitsf…", "Schiffs-Chip im Dock-Menü (126 px, vier je Zeile): lange NPC-Schiffsnamen in der Mitte gekürzt, voller Name im Hangar (Runde 35b)"),
+	};
 }

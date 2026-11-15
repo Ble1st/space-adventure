@@ -104,7 +104,7 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 	}
 
 	public void Open() { Visible = true; Rebuild(); }
-	public void Close() => Visible = false;
+	public void Close() { Visible = false; }
 	/// <summary>Runde 17 (Speicher wächst mit „Neues Spiel“): Inhalt abbauen — Knöpfe und Zeilen halten das alte Universum in ihren Schließungen; Open baut neu.</summary>
 	public void DropContent() { foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } _dirty = true; }
 
@@ -143,6 +143,9 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 	{
 		_builtTick = Ctx.U.Tick;
 		_dirty = false;
+		// Runde 37b (Handytest r37 N2: die nach unten gerollte Leiste ließ sich nicht mehr nach oben wischen): die gemeinsame Leistenposition folgt der echten
+		// Rollposition — vorher wurde sie nur beim Tipp gemerkt, jeder Neuaufbau (je Tick) setzte die Leiste auf den alten Wert zurück
+		if (_railScroll is { } rs && IsInstanceValid(rs) && rs.IsInsideTree()) RailPos = rs.WantedScroll;
 		foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
 
 		var u = Ctx.U; var ship = Ctx.Player;
@@ -163,7 +166,7 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Runde 35: rollt, wenn die Leiste niedriger ist als acht Bereiche) ──
 		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, L.Rail.X, L.Rail.Y, L.Rail.W, L.Rail.H);
 		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
-		var railScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		var railScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass, OwnPosition = true };   // Runde 37b: Position über RailPos
 		rail.AddChild(railScroll);
 		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);
@@ -191,17 +194,27 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		float view = MathF.Max(56f, L.Rail.H - 16f);
 		float top0 = activeIdx * 62f, bot0 = top0 + 56f + 26f;   // + Platz für den Hinweis „weiter unten“ (KitScroll), der sonst den Eintrag verdeckt
 		int pos = RailPos;
-		if (top0 < pos) pos = (int)top0;
-		else if (bot0 > pos + view) pos = (int)MathF.Ceiling(bot0 - view);
+		// Runde 37b (N2): nur beim Wechsel des Bereichs den aktiven Eintrag ins Bild holen — nicht bei jedem Neuaufbau (sonst holt jeder Tick die Leiste zurück,
+		// nachdem man sie weggewischt hat)
+		string shownKey = $"{AreaId}@{view:0}";   // auch neu, wenn sich die Leistenhöhe ändert (UI-Größe, Drehen)
+		if (_railShownFor != shownKey)
+		{
+			if (top0 < pos) pos = (int)top0;
+			else if (bot0 > pos + view) pos = (int)MathF.Ceiling(bot0 - view);
+			_railShownFor = shownKey;
+		}
 		RailPos = pos;
 		railScroll.ScrollTo(pos);
 		_railScroll = railScroll;
 
 		// ── Mittelteil (Runde 35: Innenfläche aus dem Gerüst; ist der Inhalt höher, rollt der Bereich als Ganzes) ──
 		var center = At(this, new PanelContainer(), L.Center.X, L.Center.Y, L.Center.W, L.Center.H);
+		_centerFrame = center; _centerWant = new Vector2(L.Center.W, L.Center.H);
 		center.AddThemeStyleboxOverride("panel", Box(PanelBg, Edge, 10, 2, 10));
 		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(L.InnerW, L.InnerH), Size = new Vector2(L.InnerW, L.InnerH) };
-		var areaScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		// Runde 37b (Handytest r37 N3: Comms/System-Rahmen ≈ 18 px weiter rechts): der sichtbare Rollbalken des als Ganzes rollenden Bereichs vergrößerte die
+		// Mindestbreite des Rahmens — Balken ausgeblendet (Rollen per Wisch/Rad bleibt, der Hinweis „weiter unten“ zeigt es an)
+		var areaScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever, MouseFilter = MouseFilterEnum.Pass };
 		center.AddChild(areaScroll);
 		areaScroll.AddChild(inner);
 		BuildContent(inner);
@@ -215,6 +228,9 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 
 	/// <summary>Runde 37: gemeinsame Rollposition der Bereichsleiste aller Kommandozentralen-Bildschirme.</summary>
 	public static int RailPos;
+	static string _railShownFor = "";
+	/// <summary>Runde 37b: beim Schließen der Zentrale vergessen, für welchen Bereich der aktive Eintrag zuletzt ins Bild geholt wurde.</summary>
+	public static void ForgetRailArea() => _railShownFor = "";
 	KitScroll? _railScroll;
 	/// <summary>Selbsttest: Rollposition der Leiste dieses Bildschirms.</summary>
 	public int TestRailScroll => _railScroll is { } r && IsInstanceValid(r) ? r.ScrollVertical : -1;
@@ -224,6 +240,12 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 	/// <summary>Runde 35: Meldungsstreifen (Core: CommandShell.MessageStrip) in Bildpunkten.</summary>
 	public Rect2? MessageStripGlobal => Shell is { } l && IsVisibleInTree() && l.MessageStrip.W > 0f
 		? new Rect2(GetGlobalTransform() * new Vector2(l.MessageStrip.X, l.MessageStrip.Y), new Vector2(l.MessageStrip.W, l.MessageStrip.H) * GetGlobalTransform().Scale.X) : null;
+
+	/// <summary>Runde 37b (N3): Mittelteil-Rahmen — wirklich (Bildpunkte) und laut Gerüst; das Prüfwerkzeug vergleicht beide.</summary>
+	Control? _centerFrame;
+	Vector2 _centerWant;
+	public (Rect2 Actual, Vector2 ExpectedSize)? CenterCheck => _centerFrame is { } cf && IsInstanceValid(cf) && cf.IsVisibleInTree()
+		? (cf.GetGlobalRect(), _centerWant * cf.GetGlobalTransform().Scale.X) : null;
 
 	public override void _Notification(int what)
 	{

@@ -76,7 +76,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		var sel = Selected is { } s && rows.Any(r => r.Id == s) ? s : rows[0].Id;
 
 		// ── Liste links (scrollbar: aufgestiegene Einzelakteure kommen und gehen) ──
-		bool narrow = Narrow(inner);   // Runde 35/37: schmal — Liste oder Detail
+		bool narrow = InnerW(inner) < 1021.5f;   // Runde 35/37: schmal — Liste oder Detail; Runde 37b: schmal, sobald Liste (404) und Detail (598) ab x 424 nicht nebeneinander passen
 		if (!narrow || !_detailOpen) BuildList(inner, u, rows, sel, narrow);
 		if (narrow && !_detailOpen) return;
 		BuildDetail(inner, u, rows, sel, narrow);
@@ -118,7 +118,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		float detW = narrow ? MathF.Max(598f, InnerW(inner) - 24f) : 598f;
 		float detH = MathF.Max(300f, InnerH(inner) - dy - 12f);
 		var frame = narrow ? CardBg(inner, 12, dy, detW, detH, Card) : CardBg(inner, 424, 12, detW, detH, Card);
-		var bodyScroll = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 0, detW, detH - 76f);
+		// Runde 37b (Handytest r37: schmal nur ≈ 4 Zeilen über der Knopfzeile): schmal stehen die Knöpfe oben neben „← Liste“, der Text hat die ganze Karte
+		float footH = narrow ? 0f : 76f;
+		var bodyScroll = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 0, detW, detH - footH);
 		var det = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(detW - 8f, 10) };
 		bodyScroll.AddChild(det);
 		bool isFaction = actor.IsFaction(u);
@@ -209,12 +211,14 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 
 		// Knöpfe
 		det.CustomMinimumSize = new Vector2(detW - 8f, UiKit.ContentBottom(det) + 8f);
-		var bComms = At(frame, new KitButton("Kontakt aufnehmen", new Vector2(220, 56)) { FontSize = 17 }, 362, detH - 68f);
+		Control btnHost = narrow ? inner : frame;
+		float bx0 = narrow ? 184f : 362f, by0 = narrow ? 8f : detH - 68f, mapX = narrow ? 184f + 232f : 150f;
+		var bComms = At(btnHost, new KitButton("Kontakt aufnehmen", new Vector2(220, 56)) { FontSize = 17 }, bx0, by0);
 		bComms.Pressed += () => CommsRequested?.Invoke();
 		bComms.Detail = UiPlaceholders.Tag;
 		if (isFaction)
 		{
-			var bMap = At(frame, new KitButton("Gebiet auf Karte", new Vector2(200, 56)) { FontSize = 16 }, 150, detH - 68f);
+			var bMap = At(btnHost, new KitButton("Gebiet auf Karte", new Vector2(200, 56)) { FontSize = 16 }, mapX, by0);
 			var f = new FactionId(sel.Value);
 			bMap.Pressed += () => TerritoryRequested?.Invoke(f);
 		}

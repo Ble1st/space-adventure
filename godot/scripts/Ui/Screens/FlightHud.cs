@@ -179,6 +179,17 @@ public partial class FlightHud : Control, IScreen
 	Label _tCombat = null!, _hitWarning = null!, _tOdds = null!, _escape = null!;
 	/// <summary>Selbsttest Runde 5: Kräftezeile der Zielkarte, Fluchtzeile.</summary>
 	public string TestStationOdds => _tOdds.Visible ? _tOdds.Text : "";
+	string FitEscape(string t)
+	{
+		if (t.Length == 0 || _escape.Size.X <= 0f) return t;
+		var font = _escape.GetThemeFont("font");
+		int fs = _escape.GetThemeFontSize("font_size");
+		string noParen = System.Text.RegularExpressions.Regex.Replace(t, @"\s*\([^)]*\)", "");
+		foreach (var v in new[] { t, noParen, noParen.Replace("Flucht: ", ""), noParen.Replace("Flucht: ", "").Replace(" in Reichweite", "") })
+			if (font.GetStringSize(v, HorizontalAlignment.Left, -1, fs).X <= _escape.Size.X - 2f) return v;
+		return noParen.Replace("Flucht: ", "").Replace(" in Reichweite", "");
+	}
+
 	public string TestEscapeStatus => _escape.Visible ? _escape.Text : "";
 	public string TestStationAttackSub => _stationAttack.Sub;
 	public string TestTargetName => _tName.Text;
@@ -831,7 +842,8 @@ public partial class FlightHud : Control, IScreen
 		_tOdds.Text = d.StationOdds;
 		_tOdds.Visible = d.StationOdds.Length > 0;
 		_tOdds.AddThemeColorOverride("font_color", d.StationHopeless ? UiKit.Red : d.StationOdds.StartsWith("Knapp") ? UiKit.Orange : UiKit.Green);
-		_escape.Text = d.EscapeStatus;
+		// Runde 37b (Prüfwerkzeug 960 × 540 × 1,3: „Flucht: Stationsgeschütze in Reichweite…“): kürzere Fassungen, die mit der Schrift gemessen passen
+		_escape.Text = FitEscape(d.EscapeStatus);
 		_escape.Visible = d.EscapeStatus.Length > 0;
 		_arcs.Data = d;
 		_arcs.QueueRedraw();

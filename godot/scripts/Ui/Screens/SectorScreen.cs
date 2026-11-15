@@ -335,7 +335,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		(float Scale, Vector2 Origin, float Stretch) _fit;
 
 		/// <summary>Runde 37: höchste waagerechte Streckung der Draufsicht (breite Fläche auf dem Handy; Kreise bleiben Kreise, nur die Lagen rücken auseinander).</summary>
-		internal const float MaxStretch = 1.4f;
+		internal const float MaxStretch = 2.5f;
 
 		(float Scale, Vector2 Origin, float Stretch) ComputeFit(Sector s)
 		{
@@ -351,7 +351,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			float w = Size.X, h = Size.Y - LegendHeight;
 			float scale = MathF.Max(0.05f, MathF.Min((w - 140f) / bw, (h - 68f) / bh));
 			// Runde 37 (Handytest r35: die Draufsicht nutzte auf dem breiten Handy nur die Mitte): ist die Fläche breiter als der Inhalt, rücken die Lagen
-			// waagerecht bis 1,4-fach auseinander — Symbole und Beschriftungen bekommen Platz, die Anordnung bleibt erkennbar
+			// waagerecht auseinander — Symbole und Beschriftungen bekommen Platz, die Anordnung bleibt erkennbar
+			// Runde 37b (Handytest r37 f03: noch immer nur die halbe Fläche): Maßstab je Achse nach dem Inhalt, waagerecht bis 2,5-fach
 			float stretch = Mathf.Clamp((w - 140f) / (bw * scale), 1f, MaxStretch);
 			return (scale, new Vector2(w / 2f - cx * scale * stretch, h / 2f - cy * scale), stretch);
 		}
@@ -562,6 +563,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				string first = words[0] == "→" && words.Length > 1 ? "→ " + words[1] : words[0];
 				if (first != shortT && layout.Draw(this, l.At, first, 10, l.Col, l.Gap - 2f, 120f)) continue;
 				if (first != shortT && l.Prio <= 2 && layout.DrawWithLeader(this, l.At, first, 10, l.Col, l.Gap - 2f)) continue;
+				// letzter Ausweg: Leitlinie darf eine andere kreuzen (lieber eine Kreuzung als ein Symbol ohne Namen)
+				if (l.Prio <= 1 && layout.DrawWithLeader(this, l.At, first, 10, l.Col, l.Gap - 2f, 120f, allowCross: true)) continue;
 				if (l.Prio <= 1) TestUnlabeled++;
 			}
 			// Legende zweizeilig, gekürzt auf die Breite (lief auf dem Handy über den Rand)
