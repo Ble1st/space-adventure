@@ -91,10 +91,10 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 	/// </summary>
 	void BuildStartChooser(Control inner)
 	{
-		float x = 350f, w = 1022f - x - 10f;
+		float x = 350f, w = InnerW(inner) - x - 10f;   // Runde 35: Breite aus der Fläche
 		At(inner, Text("Startpaket wählen", 22, Cyan), x, 16, w, 30);
 		// Gerätetest Phase 27: Liste rollt (KitScroll) — „Standard“ lief über den Rahmen
-		var scroll = At(inner, new KitScroll(), x, 56, w, 520 - 56 - 8);
+		var scroll = At(inner, new KitScroll(), x, 56, w, InnerH(inner) - 56 - 8);
 		var box = new VBoxContainer();
 		box.AddThemeConstantOverride("separation", 8);
 		scroll.AddChild(box);
@@ -116,12 +116,15 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 			// Gerätetest Phase 28: Kartenhöhe nach der Länge der Beschreibung (lange Testpaket-Texte liefen über den Kartenrand); ≈ 6,8 px je Zeichen bei 13 px
 			// zweiter Gerätetest Phase 28: Zeilen gemessen statt geschätzt (der Festnahmetest wurde in der dritten Zeile gekürzt)
 			int lines = Math.Max(2, Wrap(o.Description, 13, cw - 210f).Count);
-			float ch = Math.Max(100f, 40f + lines * 18f);
+			// Runde 35b (Prüfwerkzeug: „Händler · Nomade · 1500 Cr“ bei 1,3 gekürzt): der Titel bricht um statt gekürzt zu werden
+			string title = $"{o.Name} · {ModelName(o.Model)} · {o.Credits:0} Cr";
+			int tl = Math.Max(1, Wrap(title, 18, cw - 200f).Count);
+			float ch = Math.Max(100f, 40f + (tl - 1) * 24f + lines * 18f);
 			var holder = new Control { CustomMinimumSize = new Vector2(cw, ch), MouseFilter = MouseFilterEnum.Pass };
 			box.AddChild(holder);
 			var card = CardBg(holder, 0, 0, cw, ch, Card, new Color(Edge, 0.6f), 10, 1);
-			At(card, Text($"{o.Name} · {ModelName(o.Model)} · {o.Credits:0} Cr", 18, White), 14, 6, cw - 200, 26);
-			WrappedText(card, o.Description, 14, 34, cw - 210, 13, Dim, 18);
+			float ty = WrappedText(card, title, 14, 6, cw - 200, 18, White, 24);
+			WrappedText(card, o.Description, 14, ty + 4, cw - 210, 13, Dim, 18);
 			var b = At(card, new KitButton("Starten", new Vector2(160, 56)) { FontSize = 17, State = KitButtonState.Ready }, cw - 172, 22);
 			string key = o.Key;
 			b.Pressed += () => { _choosing = false; RaiseSystemAction("new:" + key); };

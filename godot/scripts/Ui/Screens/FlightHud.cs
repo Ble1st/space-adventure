@@ -58,6 +58,9 @@ public sealed class FlightHudData
 	public string ContextLabel = "";    // "Andocken …" / "Springen …" / "" = versteckt
 	// Waffenschächte
 	public IReadOnlyList<BayView> Bays = Array.Empty<BayView>();
+	/// <summary>Runde 34b (Prüfung B6): Spieler im Gefecht — die Zahl der Schachtzellen (und damit der Faktor der Schicht) bleibt dann stehen, auch wenn ein
+	/// Waffenmodul ausfällt und sein Schacht verschwindet (Gunnery.WeaponAt liefert für ausgefallene Module null).</summary>
+	public bool InCombat;
 	public int ReadyBays, FireBays;
 	// Feuerwinkel-Kegel um das Schiff
 	public Vector2? ShipScreen;
@@ -125,6 +128,7 @@ public partial class FlightHud : Control, IScreen
 	public event Action<int>? MoreBaysDown;
 	int _bayMore;
 	/// <summary>Selbsttest/Prüfung: Text der sechsten Schachttaste (Sammeltaste) und ob gerade zusammengefasst wird.</summary>
+	public int TestLayoutBays => _layoutBays;
 	public string TestBay6Text => _bayButtons.Count >= MaxBays ? _bayButtons[MaxBays - 1].Text : "";
 	/// <summary>
 	/// Runde 33b: Bildschirmlage des eigenen Schiffs (Bildpunkte, null = hinter der Kamera) — Meldung/Hinweis meiden sie, das Prüfwerkzeug prüft, dass keine
@@ -278,11 +282,15 @@ public partial class FlightHud : Control, IScreen
 	}
 
 	/// <summary>Runde 33: <see cref="OccupiedRects"/> in Einheiten der Schicht (für Meldung/Hinweis, die im Flug mit derselben Skalierung liegen).</summary>
-	public List<Rect2> OccupiedLocal(bool interactiveOnly = false)
+	public List<Rect2> OccupiedLocal(bool interactiveOnly = false, bool importantOnly = false)
 	{
 		var list = interactiveOnly
 			? GetChildren().OfType<Control>().Where(c => c.Visible && c is KitButton or KitSlider && c.Size.X > 4f).Select(c => c.GetGlobalRect().Grow(6f)).ToList()
-			: OccupiedRects();
+			: importantOnly
+				// Runde 35b: alles außer Sektorchip und Lagezeile — die darf eine Meldung im Notfall kurz überdecken (Status, Beschuss-/Fluchtzeile, Zielkarte nie)
+				? GetChildren().OfType<Control>().Where(c => c.Visible && c != _chip && c != _security && c.Size.X > 4f && c.Size.Y > 4f
+					&& c.Size.X * c.Size.Y < 0.3f * GetViewportRect().Size.X * GetViewportRect().Size.Y / MathF.Max(1f, Scale.X * Scale.X)).Select(c => c.GetGlobalRect().Grow(6f)).ToList()
+				: OccupiedRects();
 		float k = Scale.X > 0f ? 1f / Scale.X : 1f;
 		for (int i = 0; i < list.Count; i++) list[i] = new Rect2(list[i].Position * k, list[i].Size * k);
 		return list;
@@ -305,6 +313,24 @@ public partial class FlightHud : Control, IScreen
 	KitButton _mapBtn = null!, _fastBtn = null!, _cmdBtn = null!;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
+
+	string FitTargetName(string full)
+	{
+		var font = _tName.GetThemeFont("font");
+		float room = _tName.CustomMinimumSize.X;
+		int floor = SpaceSim.Core.Ui.UiLayout.FontFloor(17, UiKit.LayerFactor(_tName));
+		string text = full;
+		int fs = SpaceSim.Core.Ui.UiLayout.FitFontSize(s => font.GetStringSize(text, HorizontalAlignment.Left, -1, s).X, room, 17, floor);
+		if (font.GetStringSize(text, HorizontalAlignment.Left, -1, fs).X > room + 0.5f)
+		{
+			// „Korsar #22 ([RSC] Rostige Schakale)“ → „Korsar #22 [RSC]“
+			var m = System.Text.RegularExpressions.Regex.Match(full, @"^(.*?)\s*\((\[[A-Z]{2,4}\])[^)]*\)\s*$");
+			if (m.Success) text = $"{m.Groups[1].Value} {m.Groups[2].Value}";
+			fs = SpaceSim.Core.Ui.UiLayout.FitFontSize(s => font.GetStringSize(text, HorizontalAlignment.Left, -1, s).X, room, 17, floor);
+		}
+		_tName.AddThemeFontSizeOverride("font_size", fs);
+		return text;
+	}
 	Control _card = null!;
 	Radar _radar = null!;
 	KitButton _autopilotBtn = null!, _autoMineBtn = null!, _contextBtn = null!;
@@ -718,7 +744,8 @@ public partial class FlightHud : Control, IScreen
 		_autopilotBtn.On = d.AutopilotOn;
 		_autoMineBtn.On = d.AutoMineOn;
 
-		_tName.Text = d.TargetName;
+		// Runde 35b (Prüfwerkzeug: „Korsar #22 ([RSC] Rostige Schakale)“ gekürzt): erst kleiner bis zur Untergrenze der Ebene, dann ohne Besitzernamen (Kürzel bleibt)
+		_tName.Text = FitTargetName(d.TargetName);
 		_tName.AddThemeColorOverride("font_color", d.TargetHasInfo ? UiKit.Green : UiKit.Dim);
 		_tInfo.Text = d.TargetInfo;
 		_tArc.Text = d.TargetArc;
@@ -770,6 +797,7 @@ public partial class FlightHud : Control, IScreen
 		// Phase 8/25: „Alle Feuer“ (und Dauerfeuer daneben) rutschen unter die rechte Schachtspalte; die Bereit-Zeile steht über den Schächten
 		// Runde 33: die Zahl der Schächte bestimmt die Lage von „Alle Feuer“/„Dauerfeuer“ (klassisch) bzw. die Zellen der Kampfspalte (kompakt)
 		int shown = Math.Min(d.Bays.Count, MaxBays);
+		if (d.InCombat) shown = Math.Max(shown, _layoutBays);   // Runde 34b: im Gefecht springt die Schicht nicht
 		if (shown != _layoutBays) { _layoutBays = shown; if (_viewport != Vector2.Zero) ApplyScale(_viewport, _wantFactor); Relayout(); }
 		_allFire.Sub = Layout is { Compact: true } && d.FireBays > 0 ? $"{d.ReadyBays} von {d.FireBays} bereit" : "";
 		_autoFire.Visible = d.HasWeapons;

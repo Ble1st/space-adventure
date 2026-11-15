@@ -68,7 +68,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		var sel = Selected is { } s && rows.Any(r => r.Id == s) ? s : rows[0].Id;
 
 		// ── Liste links (scrollbar: aufgestiegene Einzelakteure kommen und gehen) ──
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 12, 12, 404, 500);
+		bool narrow = Narrow(inner);   // Runde 35: schmal — Liste oben, Detail darunter
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 12, 12, narrow ? InnerW(inner) - 24f : 404, narrow ? 230 : 500);
 		var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
@@ -91,7 +92,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		// ── Detail rechts ──
 		var stat = rows.First(r => r.Id == sel);
 		var actor = u.Actors[sel];
-		var det = CardBg(inner, 424, 12, 598, 500, Card);
+		var det = narrow ? CardBg(inner, 12, 254, MathF.Max(598f, InnerW(inner) - 24f), 500, Card) : CardBg(inner, 424, 12, 598, 500, Card);
 		bool isFaction = actor.IsFaction(u);
 		bool isFree = actor.Kind == ActorKind.Free;
 		At(det, new ColorRect { Color = ColorOf(u, sel), CustomMinimumSize = new Vector2(22, 22), Size = new Vector2(22, 22), MouseFilter = MouseFilterEnum.Ignore }, 18, 18);
@@ -142,8 +143,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		{
 			float v = Relations.Effective(u, sel, o);
 			bool stored = Relations.IsStored(u, sel, o);
-			At(det, Text(SpaceSim.Core.Model.ActorNames.Tagged(u, o), 13, White), 356, oy, 140, 18);
-			At(det, Text($"{Signed(v)}", 13, RelColor(v), HorizontalAlignment.Right), 496, oy, 86, 18);
+			// Runde 35b: Namensspalte breiter (bei 1,15 wurde „[HPY] Handelsbund Pyrrha“ gekürzt), der Wert braucht nur „+0,50“
+			At(det, Text(SpaceSim.Core.Model.ActorNames.Tagged(u, o), 13, White), 356, oy, 176, 18);
+			At(det, Text($"{Signed(v)}", 13, RelColor(v), HorizontalAlignment.Right), 532, oy, 50, 18);
 			At(det, Text(stored ? Relations.Label(v) : $"{Relations.Label(v)} · Vorgabe", 11, new Color(Dim, 0.85f)), 356, oy + 16, 226, 14);
 			oy += 34;
 		}
@@ -205,14 +207,16 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		{
 			var font = ThemeDB.FallbackFont;
 			DrawCircle(new Vector2(20, 22), 10f, _col);
-			DrawString(font, new Vector2(40, 28), _a.Tag.Length > 0 ? $"[{_a.Tag}] {_a.Name}" : _a.Name, HorizontalAlignment.Left, 250, 18, White);   // Phase 29: Kürzel
+			DrawnText.Clear(this);
+			float tw = Size.X - 52f;   // Runde 35b: Breite der Zeile, gemessen eingepasst und gemeldet
+			UiKit.DrawFit(this, 0, font, new Vector2(40, 28), _a.Tag.Length > 0 ? $"[{_a.Tag}] {_a.Name}" : _a.Name, 18, tw - 20f, White, minSize: 13);   // Phase 29: Kürzel
 			string line = _a.Kind == ActorKind.Free
 				? $"Sammelgruppe · {Count(_a.Ships, "Schiff", "Schiffe")}"
 				: $"{KindAndClass(_a.Kind, _a.Class)} · {Count(_a.Ships, "Schiff", "Schiffe")} · {Count(_a.Stations, "Station", "Stationen")}";
-			DrawString(font, new Vector2(40, 48), line, HorizontalAlignment.Left, 330, 13, Dim);
+			UiKit.DrawFit(this, 1, font, new Vector2(40, 48), line, 13, tw, Dim);
 			string money = _a.Kind == ActorKind.Free ? "Betriebskassen je Schiff" : $"Kasse {_a.Treasury:0} Cr";
-			DrawString(font, new Vector2(40, 66), $"{money} · zu dir: {Relations.Label(_rel)}", HorizontalAlignment.Left, 330, 12, new Color(Dim, 0.9f));
-			if (_sel) DrawString(font, new Vector2(350, 28), "▶", HorizontalAlignment.Left, -1, 14, Cyan);
+			UiKit.DrawFit(this, 2, font, new Vector2(40, 66), $"{money} · zu dir: {Relations.Label(_rel)}", 12, tw, new Color(Dim, 0.9f));
+			if (_sel) UiKit.DrawText(this, 3, font, new Vector2(Size.X - 18f, 28), "▶", 14, Cyan);
 		}
 	}
 

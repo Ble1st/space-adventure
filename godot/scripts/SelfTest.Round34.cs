@@ -19,7 +19,7 @@ public partial class SelfTest
 {
 	Vector2 _r34At;
 	Rect2 _r34Head;
-	int _r34Try;
+	int _r34Try, _r34Wait, _r34Wait2;
 
 	bool Round34Stage(int f)
 	{
@@ -71,7 +71,7 @@ public partial class SelfTest
 			case 40:
 			{
 				var cap = SpaceSim.Core.Trading.PlayerLedger.SaleNoteShort(u, u.Ships[u.PlayerShip], _m.HudRef.DockCtx.Station, SpaceSim.Core.Demo.DemoUniverse.Energy);
-				Check(cap is not null, $"E3: Kauf hier öffnet den Rückkaufdeckel (Deckel {cap ?? "–"}; Meldung „{trade.TestMessageText}“, an Bord {u.Ships[u.PlayerShip].Cargo.GetValueOrDefault(SpaceSim.Core.Demo.DemoUniverse.Energy):0}, Preis {_m.HudRef.DockCtx.Station.Market[SpaceSim.Core.Demo.DemoUniverse.Energy].Price:0.0}, Posten {u.Ledger.Count})");
+				Check(cap is not null, $"E3: Kauf hier öffnet den Rückkaufdeckel ({cap ?? "kein Deckel"}; Meldung „{trade.TestMessageText}“, an Bord {u.Ships[u.PlayerShip].Cargo.GetValueOrDefault(SpaceSim.Core.Demo.DemoUniverse.Energy):0}, Preis {_m.HudRef.DockCtx.Station.Market[SpaceSim.Core.Demo.DemoUniverse.Energy].Price:0.0}, Posten {u.Ledger.Count})");
 				var rn = Ui.Screens.TradeScreen.TestRowNotes.GetValueOrDefault(SpaceSim.Core.Demo.DemoUniverse.Energy.Value);
 				Check(rn.Fits && rn.Text is { Length: > 0 } && rn.Text.Contains("Deckel"),
 					$"E3/Handytest j2: Deckel-Hinweis der Energiezeile passt gemessen in die Zeile („{rn.Text}“)");
@@ -96,6 +96,8 @@ public partial class SelfTest
 			{
 				var head = trade.TestRowHead(trade.TestGoods[0]);
 				var area = trade.TestScroll?.GetGlobalRect() ?? new Rect2();
+				// Runde 34b: erst tippen, wenn das Layout steht (Kopflage zwei Bilder gleich) — sonst trifft der Tipp eine noch nicht einsortierte Zeile
+				if (head != _r34Head && _r34Wait++ < 30) { _r34Head = head; _stageStart += 1; return false; }
 				var visible = head.Intersection(area);
 				if (visible.Size.Y < 8f) { if (++_r34Try < 5) { trade.TestScroll?.ScrollTo(0); _stageStart += 6; } return false; }
 				_r34At = visible.GetCenter();
@@ -129,19 +131,45 @@ public partial class SelfTest
 				Check(Mathf.Abs(_m.HudRef.DockFactor - want) < 0.005f && want > 1f && trade.Shell is { Compact: true } sh && sh.InnerW >= DockLayout.MinInnerShipW - 0.5f,
 					$"E3: Dock-Schicht bei Stufe 1,3 → {_m.HudRef.DockFactor:0.00} (soll {want:0.00}), kompakt {trade.Shell?.Compact}, Innenbreite {trade.Shell?.InnerW:0}");
 				CheckButtons("E3 Handel 1,3", trade, vis);
-				_r34At = Buttons(trade).First(b => b.Text == "Kacheln" && b.IsVisibleInTree()).GetGlobalRect().GetCenter();
+				return false;
+			}
+			case 131:
+			{
+				// Runde 34b: erst tippen, wenn die Taste nach dem Umskalieren still liegt (zwei Bilder gleiche Lage)
+				var kr = Buttons(trade).First(b => b.Text == "Kacheln" && b.IsVisibleInTree()).GetGlobalRect();
+				if (kr != _r34Head && _r34Wait2++ < 30) { _r34Head = kr; _stageStart += 1; return false; }
+				_r34At = kr.GetCenter();
 				Tap(_r34At, true);
 				return false;
 			}
-			case 132: Tap(_r34At, false); return false;
+			case 133: Tap(_r34At, false); return false;
 			case 140:
 			{
 				Check(Buttons(trade).Any(b => b.Text == "Kacheln" && b.State == KitButtonState.On), "E3: echter Tipp auf „Kacheln“ bei skaliertem Dock");
 				trade.TestSetTiles(false);
+				return false;
+			}
+			case 144:
+			{
+				// Runde 34b (Prüfung B4, Handytest r34: 400 px Finger → 470 px Liste): echter Wisch in der skalierten Dock-Schicht — der Inhalt folgt dem Finger 1:1
+				if (trade.TestScroll is not { } sc) { Check(false, "34b: Handelsliste fehlt"); return false; }
+				sc.ScrollTo(0);
+				_r34At = sc.GetGlobalRect().GetCenter() + new Vector2(0, 60);
+				PushMouse(_r34At, true, false);
+				return false;
+			}
+			case 146: PushMouse(_r34At - new Vector2(0, 40), true, true); return false;
+			case 148: PushMouse(_r34At - new Vector2(0, 160), true, true); return false;
+			case 150:
+			{
+				PushMouse(_r34At - new Vector2(0, 160), false, false);
+				float k = _m.HudRef.DockFactor;
+				int got = trade.TestScroll?.ScrollVertical ?? -1;
+				Check(Mathf.Abs(got - 160f / k) <= 3f, $"34b: Wisch 160 px bei Dock-Schicht {k:0.00} rollt {got} (soll {160f / k:0}) — der Inhalt folgt dem Finger 1:1");
 				_m.TestOpenDockArea(Ui.Screens.DockAreas.Info);
 				return false;
 			}
-			case 150:
+			case 160:
 			{
 				CheckButtons("E3 Stationsinfo 1,3", _m.HudRef.DockInfo, GetViewport().GetVisibleRect());
 				_m.HudRef.DockMenu.Visible = false;
@@ -149,11 +177,22 @@ public partial class SelfTest
 				_m.TestUndock();
 				return false;
 			}
-			case 160:
+			case 170:
 				Check(_m.HudRef.DockFactor == UiScale.DockFactor, $"E3: zurück (Dock {_m.HudRef.DockFactor})");
 				return true;
 		}
 		return false;
+	}
+
+	void PushMouse(Vector2 at, bool down, bool motion)
+	{
+		if (Ui.Pointer.TouchMode)
+		{
+			if (motion) GetViewport().PushInput(new InputEventScreenDrag { Index = 0, Position = at }, true);
+			else GetViewport().PushInput(new InputEventScreenTouch { Index = 0, Position = at, Pressed = down }, true);
+		}
+		else if (motion) GetViewport().PushInput(new InputEventMouseMotion { Position = at, GlobalPosition = at, ButtonMask = MouseButtonMask.Left }, true);
+		else GetViewport().PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Position = at, GlobalPosition = at, Pressed = down, ButtonMask = down ? MouseButtonMask.Left : 0 }, true);
 	}
 
 	/// <summary>Alle sichtbaren Tasten eines Bildschirms (sichtbarer Teil, beschnitten durch rollende Vorfahren): in der Fläche, keine Überlappung.</summary>

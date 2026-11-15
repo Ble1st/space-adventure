@@ -79,4 +79,31 @@ public class UiLayoutTests
         Assert.Equal(500f, tight.Sum(), 1);
         Assert.Equal(200f, tight[0], 1);
     }
+
+    [Theory]
+    [InlineData(16, 1.0f, 11)]
+    [InlineData(16, 1.15f, 14)]
+    [InlineData(16, 1.3f, 13)]
+    [InlineData(13, 1.3f, 11)]
+    [InlineData(20, 1.3f, 16)]
+    [InlineData(10, 1.3f, 10)]
+    public void Runde35b_Schriftuntergrenze(int baseSize, float factor, int expect)
+    {
+        Assert.Equal(expect, UiLayout.FontFloor(baseSize, factor));
+    }
+
+    [Fact]
+    public void Runde35b_WirksameSchrift_NieKleinerAlsBeiKlein()
+    {
+        // Regel: bei „klein“ (Faktor 1) ist ein Text höchstens so groß wie seine Grundgröße; bei „normal“/„groß“ nie wirksam kleiner als diese
+        foreach (int b in new[] { 11, 12, 13, 14, 15, 16, 18, 20, 24, 28 })
+            foreach (float f in new[] { 1.05f, 1.15f, 1.2f, 1.3f })
+            {
+                int floor = UiLayout.FontFloor(b, f);
+                Assert.True(floor * f >= b - 0.01f || floor >= 11 && b <= 11, $"{b} bei {f}: {floor}");
+                Assert.True(floor <= b);
+                int fit = UiLayout.FitFontSize(s => s * 10f, 50f, b, floor);   // passt nie: endet auf der Untergrenze
+                Assert.Equal(floor, fit);
+            }
+    }
 }

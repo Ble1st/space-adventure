@@ -43,7 +43,10 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		float w = inner.Size.X > 0 ? inner.Size.X : 1020f;
 		float h = inner.Size.Y > 0 ? inner.Size.Y : 520f;
 		// Gerätetest Phase 27: Spalten mit festen Breiten; jede Zeile kürzt mit „…“ statt in die Nachbarspalte zu laufen
-		float cw = (w - 20) * 0.32f, mw = (w - 20) * 0.37f;
+		// Runde 34b (Handytest r34 #4: bei „groß“ waren die Dienste-Chips abgeschnitten, nur per Rollen sichtbar): niedrige Fläche → „Allgemein“ und „Markt“
+		// nebeneinander, „Politik & Hinweise“ darunter in voller Breite und voller Höhe (der Bereich rollt als Ganzes)
+		bool stack = h < 470f || w < 900f;   // auch schmal (4:3-Tablet bei „groß“: drei Spalten à 230 kürzten Namen)
+		float cw = stack ? (w - 10) * 0.46f : (w - 20) * 0.32f, mw = stack ? (w - 10) * 0.54f : (w - 20) * 0.37f;
 		_rowW = cw - 44f;   // Platz für den Rollbalken der Karte
 
 		// ── Karte 1: Allgemein (alles echt) ──
@@ -78,7 +81,13 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 			Row(v1, "Schutz", st.BankruptcyProtected ? "vor Pleite geschützt" : StationCriticality.IsCritical(u, st) ? "kritisch (letzte ihrer Kette)" : "keiner");
 		// Phase 15: Instandhaltung (Material über den Handel, die Fraktionskasse erstattet) — „gedeckt“ oder „offen: …“ (reine Core-Anzeige)
 		TestMaintenance = Maintenance.StatusText(u, st) ?? "";
-		if (TestMaintenance.Length > 0) Row(v1, "Instandhaltung", TestMaintenance);
+		if (TestMaintenance.Length > 0)
+		{
+			// Runde 34b (Handytest r34 n2: „offen: 2 Stahl, 0,1 Elektr…“): Zustand und offene Mengen in zwei Zeilen
+			int colon = TestMaintenance.IndexOf(": ", System.StringComparison.Ordinal);
+			if (colon > 0) { Row(v1, "Instandhaltung", TestMaintenance[..colon]); Row(v1, "", TestMaintenance[(colon + 2)..]); }
+			else Row(v1, "Instandhaltung", TestMaintenance);
+		}
 		// Phase 22: Rentabilität (gleitender Netto-Geldfluss, reine Core-Anzeige; Grund c für das Aufgeben einer Station)
 		TestProfit = st.IsBuildSite ? "" : Profitability.Text(u, st.Profit) ?? "";
 		if (TestProfit.Length > 0)
@@ -110,7 +119,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		v2.AddChild(Text(st.IsBuildSite ? "Material (geliefert/verlangt)" : "Marktübersicht", 22, Cyan));
 		var scroll = new KitScroll { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, CustomMinimumSize = new Vector2(mw - 32f, 0) };
 		var list = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(mw - 44f, 0) };
-		list.AddThemeConstantOverride("separation", 4);
+		list.AddThemeConstantOverride("separation", 2);   // Runde 35c: die Zebrastreifen trennen die Waren
+		_marketRow = 0;
 		scroll.AddChild(list);
 		v2.AddChild(scroll);
 		foreach (var (gid, e) in st.Market.OrderBy(kv => kv.Key.Value))
@@ -124,21 +134,53 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 				MarketPressure.Glut => ("Überschuss", Green),
 				_ => ("ok", Dim),
 			};
+			// Runde 34b (Prüfung B3: „Universalfrachtrau…“ dreimal untereinander, daneben Platz frei): zwei Zeilen je Ware — der Name bekommt die ganze
+			// Spaltenbreite (mit der Schrift gemessen: erst kleiner bis 11, dann in der Mitte gekürzt, damit das unterscheidende Ende sichtbar bleibt), darunter
+			// rechtsbündig Bestand/Ziel, Lage und Preis
+			// Runde 35c (Prüfung: Werte standen 22–27 px unter dem Namen zwischen zwei Waren): passen Name und Werte in eine Zeile, stehen sie auf derselben
+			// Grundlinie (Werte rechtsbündig); sonst zweizeilig als Paar auf einem Zebrastreifen (jede zweite Ware leicht hinterlegt), so dass klar ist,
+			// welche Werte zu welchem Namen gehören
+			string vals = $"{e.Amount:0}/{e.Target:0} · {word} · {e.Price:0}";
+			var font = ThemeDB.FallbackFont;
+			float rowW = mw - 56f;
+			float valW = font.GetStringSize(vals, HorizontalAlignment.Left, -1, 12).X;
+			float nameFull = font.GetStringSize(name, HorizontalAlignment.Left, -1, 15).X;
+			bool oneLine = 14f + 8f + nameFull + 16f + valW <= rowW;
+			var stripe = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore };
+			stripe.AddThemeStyleboxOverride("panel", Box(_marketRow++ % 2 == 0 ? new Color(1f, 1f, 1f, 0.05f) : new Color(0, 0, 0, 0), null, 4, 0, 3));
 			var r = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 			r.AddThemeConstantOverride("separation", 8);
-			var chip = new ColorRect { Color = col, CustomMinimumSize = new Vector2(14, 14), Size = new Vector2(14, 14), MouseFilter = MouseFilterEnum.Ignore };
+			var chip = new ColorRect { Color = col, CustomMinimumSize = new Vector2(14, 14), Size = new Vector2(14, 14), MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ShrinkCenter };
 			r.AddChild(chip);
-			r.AddChild(Clip(Text(name, 15, White)));
-			var right = Clip(Text($"{e.Amount:0}/{e.Target:0} · {word} · {e.Price:0}", 12, wcol, HorizontalAlignment.Right));
-			right.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
-			right.CustomMinimumSize = new Vector2(Math.Min(150f, (mw - 70f) * 0.48f), 0);
-			r.AddChild(right);
-			list.AddChild(r);
+			if (oneLine)
+			{
+				var nl = Text(name, 15, White);
+				nl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				r.AddChild(nl);
+				var vl = Text(vals, 12, wcol, HorizontalAlignment.Right);
+				r.AddChild(vl);
+				stripe.AddChild(r);
+			}
+			else
+			{
+				float nameRoom = rowW - 22f - 6f;
+				var nl = Text(name, 15, White);
+				FitInto(nl, name, nameRoom);
+				r.AddChild(nl);
+				var pair = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+				pair.AddThemeConstantOverride("separation", -2);
+				pair.AddChild(r);
+				var right = Text(vals, 12, wcol, HorizontalAlignment.Right);
+				right.CustomMinimumSize = new Vector2(rowW - 6f, 0);
+				pair.AddChild(right);
+				stripe.AddChild(pair);
+			}
+			list.AddChild(stripe);
 		}
 
 		// ── Karte 3: Politik und Hinweise (Phase 10 echt aus AccessInfo: Ruf = Beziehung des Besitzers zu dir, Zoll und Sperrstufe des Sektors) ──
-		float pw = w - (cw + 10) - (mw + 10);
-		var c3 = CardPanel(inner, cw + mw + 20, 0, pw, h);
+		float pw = stack ? w : w - (cw + 10) - (mw + 10);
+		var c3 = stack ? CardPanel(inner, 0, h + 10, pw, h) : CardPanel(inner, cw + mw + 20, 0, pw, h);
 		var s3 = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ExpandFill };
 		c3.AddChild(s3);
 		var v3 = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -180,6 +222,12 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		foreach (var s in services)
 			chips.AddChild(Chip(DockAreas.ServiceName(s.Key, u)));   // Dienst, nicht Dockbereich — immer der deutsche Name
 		v3.AddChild(chips);
+		if (stack)
+		{
+			// volle Höhe des Inhalts — die Karte rollt nicht selbst, der Bereich rollt
+			float need = v3.GetCombinedMinimumSize().Y + 34f;
+			c3.CustomMinimumSize = new Vector2(pw, need); c3.Size = c3.CustomMinimumSize;
+		}
 	}
 
 	/// <summary>Mehrzeiliger Text mit manuellem Umbruch (Label-Autowrap ist in Karten unzuverlässig).</summary>
@@ -221,12 +269,36 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	{
 		var r = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(_rowW, 0), Size = new Vector2(_rowW, 0) };
 		r.AddThemeConstantOverride("separation", 8);
-		var l = Clip(Text(name, 14, Dim)); l.SizeFlagsHorizontal = Control.SizeFlags.Fill; l.CustomMinimumSize = new Vector2(Math.Min(118f, _rowW * 0.38f), 0);
+		float nw = Math.Min(118f, _rowW * 0.38f);
+		var l = Clip(Text(name, 14, Dim)); l.SizeFlagsHorizontal = Control.SizeFlags.Fill; l.CustomMinimumSize = new Vector2(nw, 0);
+		FitSize(l, name, nw);   // Runde 34b: erst kleiner (bis 11), dann „…“
 		r.AddChild(l);
 		var v = Clip(Text(value, 15, White));
+		FitSize(v, value, _rowW - nw - 8f);
 		v.TooltipText = value;
 		r.AddChild(v);
 		parent.AddChild(r);
+	}
+
+	/// <summary>Runde 34b: Schriftgröße so wählen, dass <paramref name="text"/> in <paramref name="room"/> passt (Core: UiLayout.FitFontSize, bis 11).</summary>
+	static void FitSize(Label l, string text, float room)
+	{
+		var font = ThemeDB.FallbackFont;
+		int size = l.GetThemeFontSize("font_size");
+		int fit = SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(text, HorizontalAlignment.Left, -1, fs).X, room, size);
+		if (fit != size) l.AddThemeFontSizeOverride("font_size", fit);
+	}
+
+	/// <summary>Runde 34b: Warenname einpassen — kleiner bis 11, passt er dann noch nicht, in der Mitte kürzen (Core: UiLayout.MiddleEllipsis).</summary>
+	int _marketRow;
+
+	static void FitInto(Label l, string text, float room)
+	{
+		FitSize(l, text, room);
+		var font = ThemeDB.FallbackFont;
+		int size = l.GetThemeFontSize("font_size");
+		l.Text = SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(text, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, size).X, room);
+		l.CustomMinimumSize = new Vector2(room, 0);
 	}
 
 	static Control Chip(string label)

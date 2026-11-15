@@ -44,14 +44,14 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 		float total = SectorEconomy.PlayerNetWorth(u);   // Runde 22: Spielerkasse + Verkaufswert und Fracht aller Spielerschiffe
 
 		// ── Kopf: Kasse, Zahlen, Gesamtwert (echt) ──
-		float x = 20;
+		float x = 20, xstep = MathF.Min(200f, (InnerW(inner) - 40f) / 4f);   // Runde 35: vier Zahlen in der Breite der Fläche
 		foreach (var (label, val, col) in new[] { ("Kasse", $"{(int)u.PlayerWallet.Credits} Cr", Orange), ("Schiffe", myShips.ToString(), White), ("Stationen", myStations.ToString(), White), ("Gesamtwert", $"≈ {total:0} Cr", White) })
 		{
-			At(inner, Text(val, 22, col), x, 8, 190, 28);
-			At(inner, Text(label, 13, Dim), x, 38, 190, 18);
-			x += 200;
+			At(inner, Text(val, 22, col), x, 8, xstep - 10, 28);
+			At(inner, Text(label, 13, Dim), x, 38, xstep - 10, 18);
+			x += xstep;
 		}
-		At(inner, Text("Kasse + Schiffe + Fracht", 11, new Color(Dim, 0.75f)), 620, 58, 190, 16);
+		At(inner, Text("Kasse + Schiffe + Fracht", 11, new Color(Dim, 0.75f)), 20 + 3 * xstep, 58, xstep - 10, 16);
 
 		// ── Tabs ──
 		float tx = 12;
@@ -81,24 +81,25 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 8);
 		// Phase 12: eine Flotte passt nicht auf eine Seite — die Liste rollt
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 128, 998, 366);
+		float lw = InnerW(inner) - 24f;   // Runde 35: Liste in der Breite der Fläche
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 128, lw, InnerH(inner) - 154);
 		scroll.AddChild(list);
 		foreach (var s in u.Ships.Values.Where(s => s.IsPlayer).OrderBy(s => s.Id.Value))
 		{
 			bool active = s.Id == u.PlayerShip;
 			var row = new PanelContainer { MouseFilter = MouseFilterEnum.Stop };
 			row.AddThemeStyleboxOverride("panel", Box(active ? new Color(0.12f, 0.22f, 0.4f, 0.95f) : Card, active ? Cyan : Edge, 10, 2, 12));
-			row.CustomMinimumSize = new Vector2(978, 92);
+			row.CustomMinimumSize = new Vector2(lw - 20f, 92);
 			var s2 = s;
 			row.GuiInput += e =>
 			{
 				if (Pointer.TryRead(e, out _, out _, out bool pressed, out bool motion) && pressed && !motion) { _detailShip = s2.Id; Invalidate(); row.AcceptEvent(); }
 			};
-			row.AddChild(new AssetRow(u, s2, active, Ctx.Docked));
+			row.AddChild(new AssetRow(u, s2, active, Ctx.Docked, lw - 44f));
 			list.AddChild(row);
 		}
 		if (myShips == 0) At(inner, Text("Du besitzt noch keine Schiffe.", 15, Dim), 24, 140, 600, 22);
-		At(inner, Text("Tippen auf ein Schiff öffnet das Detailfenster.", 13, new Color(Dim, 0.75f)), 20, 500, 600, 18);
+		At(inner, Text("Tippen auf ein Schiff öffnet das Detailfenster.", 13, new Color(Dim, 0.75f)), 20, InnerH(inner) - 20, 600, 18);
 	}
 
 	static void EmptyTab(Control inner, string text)
@@ -122,8 +123,12 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 	void BuildShipDetail(Control inner, Universe u, Ship s)
 	{
 		// abgedunkeltes Overlay + Fenster (wie prototypes/FinalUi2.cs „AssetDetail“)
-		var dim = At(inner, new ColorRect { Color = new Color(0.01f, 0.02f, 0.05f, 0.55f), MouseFilter = MouseFilterEnum.Stop }, 0, 0, 1022, 520);
-		var w = CardBg(inner, 61, 10, 900, 500, PanelSolid, Cyan, 16, 2);
+		var dim = At(inner, new ColorRect { Color = new Color(0.01f, 0.02f, 0.05f, 0.55f), MouseFilter = MouseFilterEnum.Stop }, 0, 0, InnerW(inner), InnerH(inner));
+		// Runde 35: das Fenster ist für 900 × 500 gebaut — auf schmaleren Flächen wird es als Ganzes passend verkleinert (nie unter die Größe bei Faktor 1, weil
+		// die Schicht selbst um den UI-Faktor vergrößert ist) und mittig gelegt
+		float ws = MathF.Min(1f, (InnerW(inner) - 24f) / 900f);   // nur nach der Breite; ist es höher als die Fläche, rollt der Bereich
+		var w = CardBg(inner, (InnerW(inner) - 900f * ws) / 2f, 10, 900, 500, PanelSolid, Cyan, 16, 2);
+		w.Scale = new Vector2(ws, ws);
 		bool active = s.Id == u.PlayerShip;
 
 		// Schiffskarte links
@@ -266,12 +271,12 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 	/// Runde 21 (Handy-Test a09: „… · Fracht 428/500 m³ · Wert…“ abgeschnitten): die erste Fassung der Zeile unter dem Namen, die in 310 px passt —
 	/// der Wert steht immer drin, Fracht und Koordinaten fallen zuerst weg (die Fracht zeigt der Balken rechts).
 	/// </summary>
-	internal static string RowDetail(Font font, Universe u, Ship s, string ort)
+	internal static string RowDetail(Font font, Universe u, Ship s, string ort, float room = 310f)
 	{
 		string value = $"≈ {SectorEconomy.PlayerShipValue(u, s):0} Cr";   // Runde 22: Verkaufswert + Fracht (vorher nur Fracht: Fregatte „≈ 0 Cr“)
 		string place = s.Transit is null && !ort.StartsWith("angedockt") && u.Sectors.TryGetValue(s.Sector, out var sec) ? sec.Name : ort;
 		foreach (var t in new[] { $"{ort} · Fracht {s.UsedVolume(u):0.#}/{s.CargoCapacity:0} · Wert {value}", $"{ort} · Wert {value}", $"{place} · Fracht {s.UsedVolume(u):0}/{s.CargoCapacity:0} · Wert {value}", $"{place} · Wert {value}" })
-			if (font.GetStringSize(t, HorizontalAlignment.Left, -1, 13).X <= 310f) return t;
+			if (font.GetStringSize(t, HorizontalAlignment.Left, -1, 13).X <= room) return t;
 		return $"{place} · Wert {value}";
 	}
 
@@ -324,16 +329,23 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 	sealed partial class AssetRow : Control
 	{
 		readonly Universe _u; readonly Ship _s; readonly bool _active; readonly StationId? _docked;
-		public AssetRow(Universe u, Ship s, bool active, StationId? docked)
+		readonly float _w;
+		readonly bool _narrow;
+		public AssetRow(Universe u, Ship s, bool active, StationId? docked, float width = 954f)
 		{
 			_u = u; _s = s; _active = active; _docked = docked;
 			MouseFilter = MouseFilterEnum.Ignore;
-			CustomMinimumSize = new Vector2(954, 68);
+			// Runde 35b (Prüfung: bei 1280×720 × 1,3 liefen Wert, Zustand, „AKTIV“ und „Fracht“ ineinander): unter 954 px dreizeilig — links Name/Ort/Befehl,
+			// rechts eine feste Spalte mit Hülle, Fracht und „AKTIV“; alle Texte mit der Schrift eingepasst und an DrawnText gemeldet
+			_w = MathF.Min(954f, width);
+			_narrow = _w < 954f;
+			CustomMinimumSize = new Vector2(_w, _narrow ? 76 : 68);
 			Size = CustomMinimumSize;
 		}
 
 		public override void _Draw()
 		{
+			DrawnText.Clear(this);
 			var font = ThemeDB.FallbackFont;
 			var c = new Vector2(44, 36); float sc = 20f;
 			var pts = new[]
@@ -346,23 +358,43 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 
 			string ort = OrtText(_u, _s, _active ? _docked : _s.DockedAt);
 			string model = _u.ShipModels.TryGetValue(_s.ModelKey, out var md) ? md.Name : "";
-			// Gerätetest: jede Spalte auf ihre Breite gekürzt (Wert lief in „geparkt“), Zustand des aktiven Schiffs richtig („im Flug“/„angedockt“ statt „geparkt“)
-			DrawString(font, new Vector2(96, 26), KitButton.Fit(font, $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}", 20, 310), HorizontalAlignment.Left, -1, 20, White);
-			DrawString(font, new Vector2(96, 48), KitButton.Fit(font, RowDetail(font, _u, _s, ort), 13, 310), HorizontalAlignment.Left, -1, 13, Dim);
-			DrawString(font, new Vector2(420, 26), KitButton.Fit(font, _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s), 14, 230), HorizontalAlignment.Left, -1, 14, White);
-			string state = KitButton.Fit(font, StateText(_s, _active, _docked is not null, _u), 12, 230);
-			DrawString(font, new Vector2(420, 48), state, HorizontalAlignment.Left, -1, 12, Dim);
+			string name = $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}";
+			string cmd = _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s);
+			string state = StateText(_s, _active, _docked is not null, _u);
+			string tag = _active ? "AKTIV" : "Tippen ▸";
+			Color tagCol = _active ? Cyan : Dim;
+			if (_narrow)
+			{
+				float right = _w - 196f;            // feste rechte Spalte: Beschriftung 44 + Balken 100 + Zahl 44
+				float tw = right - 96f - 10f;
+				UiKit.DrawFit(this, 0, font, new Vector2(96, 22), name, 18, tw, White, minSize: 13);
+				UiKit.DrawFit(this, 1, font, new Vector2(96, 44), RowDetail(font, _u, _s, ort, tw), 13, tw, Dim);
+				UiKit.DrawFit(this, 2, font, new Vector2(96, 66), $"{cmd} · {state}", 13, tw, White);
+				DrawBars(font, right, 3);
+				UiKit.DrawFit(this, 7, font, new Vector2(right, 68), tag, 14, 190f, tagCol, HorizontalAlignment.Right);
+				return;
+			}
+			// breit wie bisher: jede Spalte auf ihre Breite eingepasst
+			UiKit.DrawFit(this, 0, font, new Vector2(96, 26), name, 20, 310, White, minSize: 14);
+			UiKit.DrawFit(this, 1, font, new Vector2(96, 48), RowDetail(font, _u, _s, ort), 13, 310, Dim);
+			UiKit.DrawFit(this, 2, font, new Vector2(420, 26), cmd, 14, 230, White);
+			UiKit.DrawFit(this, 3, font, new Vector2(420, 48), state, 12, 230, Dim);
+			DrawBars(font, 660f, 4);
+			UiKit.DrawFit(this, 8, font, new Vector2(870, 26), tag, 14, 74, tagCol, HorizontalAlignment.Right);
+		}
 
-			DrawString(font, new Vector2(660, 22), "Hülle", HorizontalAlignment.Left, -1, 12, Dim);
-			DrawRect(new Rect2(706, 14, 120, 9), new Color(0, 0, 0, 0.5f));
-			DrawRect(new Rect2(706, 14, 120 * Mathf.Clamp(_s.Hull / _s.MaxHull, 0f, 1f), 9), _s.Hull > 60f ? Green : Orange);
-			DrawString(font, new Vector2(836, 22), $"{(int)_s.Hull}", HorizontalAlignment.Left, -1, 13, White);
-			DrawString(font, new Vector2(660, 44), "Fracht", HorizontalAlignment.Left, -1, 12, Dim);
-			DrawRect(new Rect2(706, 36, 120, 9), new Color(0, 0, 0, 0.5f));
-			DrawRect(new Rect2(706, 36, 120 * Mathf.Clamp(_s.UsedVolume(_u) / _s.CargoCapacity, 0f, 1f), 9), Cyan);
-			DrawString(font, new Vector2(836, 44), $"{_s.UsedVolume(_u):0.#}", HorizontalAlignment.Left, -1, 13, White);
-
-			DrawString(font, new Vector2(870, 26), _active ? "AKTIV" : "Tippen ▸", HorizontalAlignment.Right, 74, 14, _active ? Cyan : Dim);   // Gerätetest: rechtsbündig in seiner Spalte (war abgeschnitten)
+		/// <summary>Hülle und Fracht als zwei Balkenzeilen ab <paramref name="x"/> (Beschriftung 44, Balken bis 100/120, Zahl dahinter).</summary>
+		void DrawBars(Font font, float x, int slot)
+		{
+			float bw = _narrow ? 100f : 120f;
+			UiKit.DrawFit(this, slot, font, new Vector2(x, 22), "Hülle", 12, 44, Dim);
+			DrawRect(new Rect2(x + 46, 14, bw, 9), new Color(0, 0, 0, 0.5f));
+			DrawRect(new Rect2(x + 46, 14, bw * Mathf.Clamp(_s.Hull / _s.MaxHull, 0f, 1f), 9), _s.Hull > 60f ? Green : Orange);
+			UiKit.DrawFit(this, slot + 1, font, new Vector2(x + 52 + bw, 22), $"{(int)_s.Hull}", 13, 40, White);
+			UiKit.DrawFit(this, slot + 2, font, new Vector2(x, 44), "Fracht", 12, 44, Dim);
+			DrawRect(new Rect2(x + 46, 36, bw, 9), new Color(0, 0, 0, 0.5f));
+			DrawRect(new Rect2(x + 46, 36, bw * Mathf.Clamp(_s.UsedVolume(_u) / _s.CargoCapacity, 0f, 1f), 9), Cyan);
+			UiKit.DrawFit(this, slot + 3, font, new Vector2(x + 52 + bw, 44), $"{_s.UsedVolume(_u):0.#}", 13, 40, White);
 		}
 	}
 }

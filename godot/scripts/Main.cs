@@ -285,7 +285,10 @@ public partial class Main : Node3D
 			SaveService.UseFile("ui-check.json");
 			string dir = args[checkIdx + 1];
 			if (!System.IO.Path.IsPathRooted(dir)) dir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), dir);
-			AddChild(new UiCheck(this, dir) { FlightOnly = Array.IndexOf(args, "--ui-check-flight") >= 0 });   // Runde 33: nur Flug-Zustände (schneller)
+			string? Opt(string k) => args.FirstOrDefault(a => a.StartsWith(k + "="))?[(k.Length + 1)..];
+			var check = new UiCheck(this, dir) { FlightOnly = Array.IndexOf(args, "--ui-check-flight") >= 0, NoFlight = Array.IndexOf(args, "--ui-check-noflight") >= 0 };   // Runde 33/35b
+			check.Select(Opt("--ui-check-sizes"), Opt("--ui-check-factors"));   // Runde 35b: Auswahl für schnelle Durchläufe
+			AddChild(check);
 		}
 		int phoneIdx = Array.IndexOf(args, "--phone-shots");
 		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { SaveService.UseFile("phone-shots.json"); AddChild(new PhoneShots(this, args[phoneIdx + 1]) { Mining = Array.IndexOf(args, "--phone-mining") >= 0 }); }
@@ -566,7 +569,7 @@ public partial class Main : Node3D
 	{
 		var vs = GetViewport().GetVisibleRect().Size;
 		var f = _camField;
-		return $"Takt {_session.TickRate:0.0} Ticks/s{(_fast ? " (×10)" : "")} · Kamera: Gefecht {(_framingActive && !_manualZoomInFight ? "aktiv" : "aus")} · {(_camReason.Length > 0 ? _camReason : "–")} · Feld x {f.X0:0.00}..{f.X1:0.00} y {f.Y0:0.00}..{f.Y1:0.00} · Abstand {_camOffset.Length:0} (Soll {_lastFrame.Distance:0}) · Ziel {_fight.Target.Value} · Bild {vs.X:0}×{vs.Y:0} · Fenster {GetWindow().Size.X}×{GetWindow().Size.Y}";
+		return $"Takt {_session.TickRate:0.0} Ticks/s{(_fast ? " (×10)" : "")} · Kamera: Gefecht {(_framingActive && !_manualZoomInFight ? "aktiv" : "aus")} · {(_camReason.Length > 0 ? _camReason : "–")} · Feld x {f.X0:0.00}..{f.X1:0.00} y {f.Y0:0.00}..{f.Y1:0.00} · Abstand {_camOffset.Length:0} (Soll {_lastFrame.Distance:0}) · Ziel {_fight.Target.Value} · Bild {vs.X:0}×{vs.Y:0} · Fenster {GetWindow().Size.X}×{GetWindow().Size.Y} · Faktoren Flug {_hud.Flight.Scale.X:0.00}/Dock {_hud.DockFactor:0.00}/Zentrale {_hud.CcFactor:0.00} · {Ui.Kit.UiScale.InsetsText}";
 	}
 	bool _camDebug;
 	/// <summary>Runde 15: Rahmt die Gefechtskamera Schiff und Ziel (sonst nur das Schiff, Ziel per Randpfeil)?</summary>
@@ -2326,6 +2329,7 @@ public partial class Main : Node3D
 		}
 		d.ReadyBays = ready;
 		d.FireBays = fire;
+		d.InCombat = _session.U.Fights.Of(PlayerData.Id) is not null;   // Runde 34b: Schicht im Gefecht festhalten
 
 		_hud.Flight.Refresh(d);
 	}
@@ -2546,9 +2550,9 @@ public partial class Main : Node3D
 	{
 		var bays = _bays;
 		bool any = false;
-		for (int i = Math.Max(0, from); i < bays.Count && i < _bayStates.Length; i++)
+		// Runde 34b (Prüfung B8): eine Kernregel für „Alle Feuer“ und die Sammeltaste (bereit = geladen, im Feuerwinkel, mit Ziel)
+		foreach (int i in WeaponBays.ReadyToFire(bays, _bayStates, from))
 		{
-			if (bays[i].Key is "tractor" or "split" or "salvage" or "contact" || _bayStates[i] != BayState.Ready) continue;
 			if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(bays[i].Key) is int ws and >= 0) { if (FireWeapon(ws, quiet: true)) any = true; }
 			else { _fireRequested = true; any = true; }
 		}
@@ -2727,7 +2731,9 @@ public partial class Main : Node3D
 	{
 		if (!_fast) { if (message != null) _hud.Alert(message, seconds, sticky); return; }
 		_fast = false;
-		_hud.Alert($"Zeitraffer aus: {reason}" + (message != null ? $" — {message}" : ""), seconds, sticky);
+		// Runde 35c (Prüfung: „Zeitraffer aus: Überfall — Überfall! …“): beginnt die Meldung schon mit dem Grund, steht er nur einmal da
+		string head = message is not null && message.StartsWith(reason, StringComparison.OrdinalIgnoreCase) ? "Zeitraffer aus" : $"Zeitraffer aus: {reason}";
+		_hud.Alert(head + (message != null ? $" — {message}" : ""), seconds, sticky);
 		LastDangerMessage = reason;
 	}
 

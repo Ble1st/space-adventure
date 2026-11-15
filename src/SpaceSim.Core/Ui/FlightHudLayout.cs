@@ -265,6 +265,38 @@ public sealed class FlightHudLayout
                 }
             }
         }
+        return EdgeSpot(area, occupied, w, h, minW, prefX, prefY);
+    }
+
+    /// <summary>
+    /// Runde 35b: zweiter Durchgang, wenn das Raster nichts fand — Lagen an den Kanten der belegten Flächen (rechts/links neben, unter/über einer Fläche,
+    /// am Bereichsrand), damit enge Lücken (eine Meldung zwischen zwei Tastenreihen) nicht durch das 8/24-Raster fallen. Die Lage mit dem kleinsten Abstand zur
+    /// Wunschlage gewinnt.
+    /// </summary>
+    static UiRect? EdgeSpot(UiRect area, IReadOnlyList<UiRect> occupied, float w, float h, float minW, float prefX, float prefY)
+    {
+        for (float ww = w; ww >= minW - 0.01f; ww -= 40f)
+        {
+            var xs = new List<float> { area.X, area.Right - ww };
+            var ys = new List<float> { area.Y, area.Bottom - h };
+            foreach (var o in occupied) { xs.Add(o.Right); xs.Add(o.X - ww); ys.Add(o.Bottom); ys.Add(o.Y - h); }
+            UiRect? best = null; float bestD = float.MaxValue;
+            foreach (float y in ys)
+            {
+                if (y < area.Y - 0.01f || y + h > area.Bottom + 0.01f) continue;
+                foreach (float x in xs)
+                {
+                    if (x < area.X - 0.01f || x + ww > area.Right + 0.01f) continue;
+                    var r = new UiRect(x, y, ww, h);
+                    bool hit = false;
+                    for (int i = 0; i < occupied.Count && !hit; i++) hit = r.Intersects(occupied[i]);
+                    if (hit) continue;
+                    float d = MathF.Abs(x + ww / 2f - prefX) + MathF.Abs(y - prefY);
+                    if (d < bestD) { bestD = d; best = r; }
+                }
+            }
+            if (best is not null) return best;
+        }
         return null;
     }
 }

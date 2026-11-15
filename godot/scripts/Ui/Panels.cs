@@ -84,7 +84,8 @@ public partial class MapOverlay : Control
 		if (_u == null) return;
 		DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.03f, 0.08f, 1f));   // Gerätetest: deckend (das HUD schien durch)
 		var font = ThemeDB.FallbackFont;
-		DrawString(font, new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", HorizontalAlignment.Left, -1, 24, Colors.White);
+		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
+		SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 0, font, new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", 24, Size.X - 48f, Colors.White);
 		var center = MapCenter();
 		float scale = MapScale();
 
@@ -99,6 +100,7 @@ public partial class MapOverlay : Control
 				DrawLine(Place(_u.Sectors[g.Sector], center, scale), Place(_u.Sectors[far.Sector], center, scale), col, 3f);
 			}
 
+		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
 		var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(new Vector2(0, 60), Size - new Vector2(0, 60)), font);
 		foreach (var s in _u.Sectors.Values) layout.ReserveCircle(Place(s, center, scale), 40f);
 		foreach (var s in _u.Sectors.Values)

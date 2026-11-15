@@ -57,7 +57,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 			WrappedText(a, "Weitere Schiffe, eine eigene Station oder mehr Geld heben die Stufe.", 20, 206, 460, 13, new Color(Dim, 0.75f), 17);
 
 		// ── Karte 2 (rechts oben): Kasse der Person ──
-		var b = CardBg(inner, 524, 12, 486, 250, Card);
+		bool narrow = Narrow(inner);   // Runde 35: schmal — die vier Karten untereinander
+		var b = narrow ? CardBg(inner, 12, 274, 486, 250, Card) : CardBg(inner, 524, 12, 486, 250, Card);
 		At(b, Text("Kasse der Person", 18, Cyan), 20, 14, 446, 26);
 		// Phase 5b: das Geld hängt an der Person (Universe.PlayerWallet), nicht am Schiff (POLITIK.md „Spielerkasse“)
 		// Phase 26: negative Kasse = Schulden (laufende Leihmiete)
@@ -73,7 +74,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 		At(b, new KitButton("Gründen (ab Kleinfirma)", new Vector2(240, 46)) { FontSize = 15, State = KitButtonState.Disabled, Detail = UiPlaceholders.Soon }, 180, 204);
 
 		// ── Karte 3 (links unten): Beziehungen der Fraktionen zu dir und Fahndung (echt) ──
-		var rep = CardBg(inner, 12, 274, 500, 234, Card);
+		var rep = narrow ? CardBg(inner, 12, 536, 500, 234, Card) : CardBg(inner, 12, 274, 500, 234, Card);
 		At(rep, Text("Beziehungen und Fahndung", 18, Cyan), 20, 14, 460, 26);
 		// Phase 11: Fahndung je Hoheitsgebiet und offenes Kopfgeld (echt, SecurityInfo.ForPlayer)
 		var wanted = SecurityInfo.ForPlayer(u);
@@ -96,7 +97,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 		}
 
 		// ── Karte 4 (rechts unten): Fähigkeiten mit Schloss ──
-		var perm = CardBg(inner, 524, 274, 486, 234, Card);
+		var perm = narrow ? CardBg(inner, 12, 782, 486, 234, Card) : CardBg(inner, 524, 274, 486, 234, Card);
 		At(perm, Text("Fähigkeiten nach Größe", 18, Cyan), 20, 14, 260, 26);
 		var (capShips, capSquads) = SpaceSim.Core.Simulation.Commands.Capacity(u, u.PlayerActor);
 		float ay = 48;

@@ -49,6 +49,9 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	}
 	/// <summary>Runde 16: Tor in der Sektoransicht wählen (wie Antippen auf der Karte).</summary>
 	public void TestSelectGate(GateId g) { _selGate = g; _selStation = null; Invalidate(); }
+	/// <summary>Runde 35b (Selbsttest): gewählte Station und Bildpunkt einer Station auf der Karte.</summary>
+	public StationId? TestSelStation => _selStation;
+	public Vector2? TestStationScreen(StationId id) => _map is not null && IsInstanceValid(_map) ? _map.GlobalOf(id) : null;
 
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
 
@@ -69,6 +72,9 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	/// <summary>Test-Hook: „Autopilot hierhin“ auslösen.</summary>
 	public void TestAutopilotHere() => AutopilotHere();
 
+	/// <summary>Runde 35: Kartenbreite = Innenbreite − Detailkarte (300) − Abstände; bei 1022 Innenbreite wie bisher 700.</summary>
+	static float MapW(Control inner) => MathF.Max(300f, (inner.Size.X > 0 ? inner.Size.X : 1022f) - 322f);
+
 	protected override void BuildContent(Control inner)
 	{
 		var u = Ctx.U;
@@ -82,7 +88,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		At(inner, Text($"{s.Name} · {FactionName(u, s.Owner)}", 17, MapOverlay.FactionColor(s.Owner)), 280, 18, 400, 24);
 
 		// ── Karte links ──
-		_map = At(inner, new SectorMapCanvas { MouseFilter = MouseFilterEnum.Stop }, 0, 56, 700, 464);
+		_map = At(inner, new SectorMapCanvas { MouseFilter = MouseFilterEnum.Stop }, 0, 56, MapW(inner), inner.Size.Y - 56);   // Runde 35: Karte nutzt die gewonnene Fläche
 		_map.Setup(this);
 		_map.StationTapped += id => { _selStation = id; _selGate = null; _showInfo = false; Invalidate(); };
 		_map.GateTapped += id => { _selGate = id; _selStation = null; Invalidate(); };
@@ -95,7 +101,13 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	{
 		var u = Ctx.U;
 		var s = u.Sectors[sel];
-		var card = CardBg(inner, 712, 56, 300, 464, Card);
+		// Runde 35b (Prüfung: „Autopilot hin“ in der zweiten Reihe angeschnitten): Karte in der Höhe der Fläche, Knöpfe als fester Fuß, Text darüber rollt
+		float cardH = MathF.Max(inner.Size.Y - 56, 300f);
+		var frame = CardBg(inner, MapW(inner) + 12, 56, 300, cardH, Card);
+		const float footH = 2 * 54 + 10;
+		var bodyScroll = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 4, 300, cardH - footH - 8);
+		var card = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(292, 10) };
+		bodyScroll.AddChild(card);
 
 		if (_selStation is { } sid && u.Stations.TryGetValue(sid, out var st))
 		{
@@ -184,8 +196,10 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 		// Knöpfe unten: „Autopilot hierhin“ (echt, nur aktueller Sektor bzw. über Route) und „Info“
 		// Runde 4: „Ziel wählen“ (ohne loszufliegen) neben „Autopilot“
-		var bTarget = At(card, new KitButton("Ziel wählen", new Vector2(130, 52)) { FontSize = 16 }, 16, 300);
-		var bAuto = At(card, new KitButton("Autopilot hin", new Vector2(130, 52)) { FontSize = 16 }, 154, 300);
+		card.CustomMinimumSize = new Vector2(292, UiKit.ContentBottom(card) + 8);
+		float fy = cardH - footH + 2;
+		var bTarget = At(frame, new KitButton("Ziel wählen", new Vector2(130, 50)) { FontSize = 16 }, 16, fy);
+		var bAuto = At(frame, new KitButton("Autopilot hin", new Vector2(130, 50)) { FontSize = 16 }, 154, fy);
 		if (CanAutopilot(u, sel, out var nav, out var dock))
 		{
 			bAuto.Pressed += () => { if (CanAutopilot(u, sel, out var n2, out var d2)) AutopilotRequested?.Invoke(n2, d2); };
@@ -197,14 +211,14 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		}
 		else
 		{
-			string why = sel == u.PlayerSector ? "Station/Gate antippen" : "kein Weg";
+			string why = sel == u.PlayerSector ? "Ziel antippen" : "kein Weg";
 			bAuto.State = KitButtonState.Disabled; bAuto.Sub = why;
 			bTarget.State = KitButtonState.Disabled; bTarget.Sub = why;
 		}
-		var bInfo = At(card, new KitButton("Info", new Vector2(130, 48)) { FontSize = 17 }, 16, 360);
+		var bInfo = At(frame, new KitButton("Info", new Vector2(130, 50)) { FontSize = 17 }, 16, fy + 54);
 		if (_selStation != null) bInfo.Pressed += () => { _showInfo = !_showInfo; Invalidate(); };
 		else { bInfo.State = KitButtonState.Disabled; bInfo.Detail = "Station antippen"; }
-		var bBack = At(card, new KitButton("← Universum", new Vector2(130, 48)) { FontSize = 17 }, 154, 360);
+		var bBack = At(frame, new KitButton("← Universum", new Vector2(130, 50)) { FontSize = 17 }, 154, fy + 54);
 		bBack.Pressed += () => RaiseAreaSelected(CommandAreas.Universe);
 	}
 
@@ -250,6 +264,58 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			_u = owner.Ctx.U;
 		}
 
+		/// <summary>Runde 35b (Selbsttest): Bildpunkt einer Station auf der Karte (wie der Tipp sie sucht).</summary>
+		public Vector2 GlobalOf(StationId id) => GetGlobalTransform() * (Spots().TryGetValue(id, out var sp) ? sp : Place(_u.Stations[id].Position));
+
+		/// <summary>Halbe Symbolgröße einer Station auf der Karte (Quadrat nach Größenklasse).</summary>
+		static float SymbolHalf(Station st) => !st.Dockable ? 7f : Mathf.Clamp(st.Radius * 0.6f, 6f, 16f);
+
+		/// <summary>
+		/// Runde 35c (Prüfung: Stationsquadrate lagen bei 1280 × 720 × 1,3 in der Mitte übereinander): Anzeigelage der Stationssymbole — von der echten Lage aus
+		/// so lange paarweise auseinandergeschoben, bis sich keine zwei Symbole berühren (feste Reihenfolge nach Id, keine Zufallszahl, reine Anzeige).
+		/// Tipp und Beschriftung nutzen dieselbe Lage; eine dünne Linie verbindet ein verschobenes Symbol mit seinem echten Ort.
+		/// </summary>
+		System.Collections.Generic.Dictionary<StationId, Vector2> Spots()
+		{
+			var s = _u.Sectors[_owner.Selected];
+			var ids = s.Stations.OrderBy(x => x.Value).ToList();
+			var pos = ids.Select(id => Place(_u.Stations[id].Position)).ToArray();
+			var half = ids.Select(id => SymbolHalf(_u.Stations[id])).ToArray();
+			for (int it = 0; it < 40; it++)
+			{
+				bool moved = false;
+				for (int i = 0; i < ids.Count; i++)
+					for (int j = i + 1; j < ids.Count; j++)
+					{
+						float need = (half[i] + half[j]) * 1.42f + 4f;   // Quadrate: Diagonale
+						var d = pos[j] - pos[i];
+						float len = d.Length();
+						if (len >= need) continue;
+						var dir = len > 0.01f ? d / len : new Vector2(MathF.Cos(i + j), MathF.Sin(i + j));
+						var push = dir * ((need - len) / 2f + 0.5f);
+						pos[i] -= push; pos[j] += push; moved = true;
+					}
+				// Tore bleiben, wo sie sind (Kreis 13): Stationssymbole weichen ihnen aus
+				foreach (var gid in s.Gates)
+				{
+					var gp = Place(_u.Gates[gid].Position);
+					for (int i = 0; i < ids.Count; i++)
+					{
+						float need = half[i] * 1.42f + 13f + 4f;
+						var d = pos[i] - gp;
+						float len = d.Length();
+						if (len >= need) continue;
+						var dir = len > 0.01f ? d / len : new Vector2(1f, 0f);
+						pos[i] += dir * (need - len + 0.5f); moved = true;
+					}
+				}
+				if (!moved) break;
+			}
+			var map = new System.Collections.Generic.Dictionary<StationId, Vector2>();
+			for (int i = 0; i < ids.Count; i++) map[ids[i]] = pos[i];
+			return map;
+		}
+
 		Vector2 Place(Vec2 world)
 		{
 			return MapCenter + new Vector2(world.X * ContentScale(), world.Y * ContentScale());
@@ -280,9 +346,10 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			if (!Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion) || motion || pressed) return;
 			var s = _u.Sectors[_owner.Selected];
 			StationId? st = null; float sd = 24f;
+			var spots = Spots();
 			foreach (var sid in s.Stations)
 			{
-				float d = Place(_u.Stations[sid].Position).DistanceTo(pos);
+				float d = spots[sid].DistanceTo(pos);
 				if (d < sd) { sd = d; st = sid; }
 			}
 			if (st is { } station) { StationTapped?.Invoke(station); AcceptEvent(); return; }
@@ -303,6 +370,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			var c = MapCenter;
 			var font = ThemeDB.FallbackFont;
 			// Gerätetest: Beschriftungen werden gesammelt und zum Schluss kollisionsfrei gesetzt (LabelLayout), Symbole halten ihren Platz frei
+			SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
 			var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(Vector2.Zero, Size - new Vector2(0, LegendHeight)), font);
 			var labels = new System.Collections.Generic.List<(int Prio, Vector2 At, string Text, int Size, Color Col, float Gap)>();
 
@@ -349,10 +417,13 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			}
 
 			// Stationen: Label radial nach außen versetzt, damit die Namen sich nicht stapeln
+			var spots = Spots();
 			foreach (var sid in s.Stations)
 			{
 				var st = _u.Stations[sid];
-				var p = Place(st.Position);
+				var real = Place(st.Position);
+				var p = spots[sid];
+				if (p.DistanceTo(real) > 3f) { DrawLine(real, p, new Color(Dim, 0.5f), 1f); DrawCircle(real, 2f, new Color(Dim, 0.8f)); }
 				bool sel = _owner._selStation == sid;
 				var col = MapOverlay.FactionColor(_u.FactionOf(st) ?? default);
 				if (ConstructionInfo.Of(_u, st) is { } site)
@@ -448,9 +519,9 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			foreach (var l in labels.OrderBy(l => l.Prio)) layout.Draw(this, l.At, l.Text, l.Size, l.Col, l.Gap);
 			// Legende zweizeilig, gekürzt auf die Breite (lief auf dem Handy über den Rand)
 			float lw = Size.X - 24f;
-			DrawString(font, new Vector2(12, Size.Y - 44), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
-			DrawString(font, new Vector2(12, Size.Y - 26), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "▲ orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
-			DrawString(font, new Vector2(12, Size.Y - 8), SpaceAdventure.Ui.Kit.KitButton.Fit(font, "Linie: blau Verband, grün Geleit, orange gestrichelt Verfolgung", 13, lw), HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 900, font, new Vector2(12, Size.Y - 44), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du", 13, lw, new Color(Dim, 0.8f));
+			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 901, font, new Vector2(12, Size.Y - 26), "▲ orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht", 13, lw, new Color(Dim, 0.8f));
+			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 902, font, new Vector2(12, Size.Y - 8), "Linie: blau Verband, grün Geleit, orange gestrichelt Verfolgung", 13, lw, new Color(Dim, 0.8f));
 		}
 
 		void DrawShip(Vector2 c, float s, Color col)

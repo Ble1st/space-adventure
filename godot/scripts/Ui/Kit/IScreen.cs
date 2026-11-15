@@ -65,3 +65,12 @@ public sealed class ScreenRegistry
 		_current = null;
 	}
 }
+
+/// <summary>
+/// Runde 34b (Prüfung B2): ein Vollbild-Bildschirm mit einem Streifen, in dem Meldung und Hinweis stehen dürfen, ohne Tasten oder Text zu verdecken (Bildpunkte;
+/// null = keiner, dann gilt die alte Lage).
+/// </summary>
+public interface IMessageStrip
+{
+	Godot.Rect2? MessageStripGlobal { get; }
+}

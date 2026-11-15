@@ -87,7 +87,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 			+ (weapons > 0 ? $"{(s.Capabilities.HasFlag(Capability.Mining) ? " · " : "")}{weapons} {(weapons == 1 ? "Waffe" : "Waffen")}" : "") + (s.CargoSolid > 0f || s.CargoLiquid > 0f
 			? $" · fest {s.CargoSolid + s.CargoAny:0}/flüssig {s.CargoLiquid + s.CargoAny:0}" : "")
 			+ (q.Model.Jobs.Count >= 2 ? " · Mehrzweck" : "");   // Phase 6: Multirole-Modell (KI wählt Handel oder Schürfen)
-		At(row, Text($"Fracht {s.Cargo:0} m³ · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")} · {caps}", 14, Dim), 84, 32, w - 420, 22);
+		At(row, Text($"Fracht {s.Cargo:0} m³ · Hülle {s.Hull:0} · Tempo {s.Speed:0.0}{(Ctx.U.Rules.FuelActive ? $" · Tank {s.FuelCapacity:0}" : "")} · {caps}", 14, Dim), 84, 32, w - 84 - 176, 22);   // Runde 34b (Handytest r34 g2: „Mehr…“): bis vor die Kauftaste (darunter), Schrift wird eingepasst
 		string material = q.Missing.Count == 0
 			? "Material im Lager: " + string.Join(", ", q.Materials.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"))
 			: "Fehlt im Lager: " + string.Join(", ", q.Missing.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"));

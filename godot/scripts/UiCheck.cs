@@ -26,7 +26,7 @@ public partial class UiCheck : Node
 	public bool FlightOnly { get; init; }
 
 	/// <summary>Fenstergröße und angenommene Geräte-DPI (dokumentierte Annahme je Auflösung).</summary>
-	static readonly (int W, int H, float Ppi, string Device)[] Sizes =
+	static readonly (int W, int H, float Ppi, string Device)[] AllSizes =
 	{
 		(1280, 720, 294f, "5″-Handy 720p"),
 		(1560, 720, 282f, "6,1″-Handy 19,5:9 720p"),
@@ -35,9 +35,20 @@ public partial class UiCheck : Node
 		(2048, 1536, 264f, "9,7″-Tablet 4:3"),
 		(960, 540, 245f, "4,5″-Handy / kleines Fenster"),
 	};
-	static readonly float[] Factors = { 1f, 1.15f, 1.3f };
+	static readonly float[] AllFactors = { 1f, 1.15f, 1.3f };
+	(int W, int H, float Ppi, string Device)[] Sizes = AllSizes;
+	float[] Factors = AllFactors;
+	/// <summary>Nur Dock-/Kommandozentralen-Zustände, keine Flugzustände (Runde 35b: schneller Durchlauf).</summary>
+	public bool NoFlight { get; init; }
+	/// <summary>Runde 35b: Auswahl für schnelle Durchläufe — „1280x720,2340x1080“ bzw. „1.3“ (leer = alle).</summary>
+	public void Select(string? sizes, string? factors)
+	{
+		if (!string.IsNullOrEmpty(sizes)) Sizes = AllSizes.Where(z => sizes.Split(',').Contains($"{z.W}x{z.H}")).ToArray();
+		if (!string.IsNullOrEmpty(factors)) Factors = factors.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+	}
 
 	sealed record Finding(string State, int W, int H, float Factor, int Interactive, int Overlaps, int Truncated, int Small7, int Small5, int Outside, float Fill, int ShipCovered, float Effective,
+		int MessageCovers, float Content, float MinMm, int Visible, bool Unstable, float Layout, int TextOverlaps, int ClippedCount, float MinFont,
 		List<string> Notes);
 	readonly List<Finding> _results = new();
 	readonly List<(string Name, Action Setup, int Wait)> _plan = new();
@@ -48,6 +59,7 @@ public partial class UiCheck : Node
 
 	public override void _Ready()
 	{
+		SpaceAdventure.Ui.Kit.DrawnText.Enabled = true;   // Runde 35b: gezeichnete Texte melden
 		DirAccess.MakeDirRecursiveAbsolute(_dir);
 		GD.Print($"[ui-check] Zielordner {_dir}");
 		BeginSize();
@@ -82,8 +94,8 @@ public partial class UiCheck : Node
 		Func<Universe> u = () => _m.Session.U;
 		void Add(string n, Action a, int wait = 12) => _plan.Add((n, a, wait));
 		Add("flug-normal", () => { _m.TestMenu("new:trader"); }, 60);
-		Add("hamburger-menue", () => _m.TestOpenCommand(), 10);
-		Add("meldung-toast", () => { _m.TestCommand("close"); _m.HudRef.Alert("Prüfmeldung: Überfall angekündigt — andocken oder Sektor verlassen. Dritte Zeile zum Messen.", 30f); _m.HudRef.Toast("Prüftoast: Ware verkauft, 10 × 21,3 = 213 Cr", 30f); }, 10);
+		if (!NoFlight) Add("hamburger-menue", () => _m.TestOpenCommand(), 10);
+		if (!NoFlight) Add("meldung-toast", () => { _m.TestCommand("close"); _m.HudRef.Alert("Prüfmeldung: Überfall angekündigt — andocken oder Sektor verlassen. Dritte Zeile zum Messen.", 30f); _m.HudRef.Toast("Prüftoast: Ware verkauft, 10 × 21,3 = 213 Cr", 30f); }, 10);
 		if (!FlightOnly)
 		{
 			Add("sternenkarte", () => { _m.HudRef.HideAlert(); _m.TestCommand("map"); }, 12);
@@ -105,12 +117,24 @@ public partial class UiCheck : Node
 						if (seenAreas.Add(def)) _plan.Insert(at++, ("dock-" + def, () => _m.TestOpenDockArea(def), 12));
 				}, 20);
 			}
-			Add("dock-menue-toast", () => { _m.TestOpenCommand(); _m.HudRef.Toast(UiScale.ShortText() + " — zweite Zeile zum Messen des Umbruchs über dem offenen Menü", 30f); }, 12);
+			// Runde 35c (Prüfung W5): die aufgeklappte Schiffskarte („Dein Schiff“ bei eingeklappter Schiffsspalte) — ohne Einklappen zeigt der Handel die Spalte
+			Add("dock-schiff", () =>
+			{
+				_m.HudRef.Map.Visible = false;
+				if (_m.TestDocked) _m.TestUndock();
+				var yard = u().StationsById().FirstOrDefault(s => s.TypeKey == "shipyard");
+				if (yard is null) return;
+				_m.TestDockAt(yard.Id);
+				_m.TestOpenDockArea(SpaceAdventure.Ui.Screens.DockAreas.Trade);
+				_m.HudRef.DockTrade.TestShipOpen = true;
+			}, 20);
+			Add("dock-menue-toast", () => { _m.HudRef.DockTrade.TestShipOpen = false;  _m.TestOpenCommand(); _m.HudRef.Toast(UiScale.ShortText() + " — zweite Zeile zum Messen des Umbruchs über dem offenen Menü", 30f); }, 12);
 			Add("kz-open", () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); }, 20);
 			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
 				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
 			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
 		}
+		if (NoFlight) { Add("ende", () => { _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); }, 5); return; }
 		Add("flug-automining", () => { _m.HudRef.HideAlert(); _m.HudRef.Map.Visible = false; _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);
 		Add("flug-automining2", () => { _m.TestStartMining(); }, 90);
 		Add("flug-warnung", () => { _m.TestMenu("new:combat"); }, 40);
@@ -137,23 +161,28 @@ public partial class UiCheck : Node
 			// Zustand vermessen und abbilden
 			if (!_skip && !_state.EndsWith("-open") && _state != "flug-automining" && _state != "flug-gefecht" && _state != "flug-stationsangriff")
 			{
-				// zweimal im Abstand von 6 Bildern messen und den ruhigeren Befund nehmen (ein Umbau mitten in der Messung zählte sonst doppelte Tasten)
+				// Runde 34b (Prüfung B5): messen, bis zwei aufeinanderfolgende Messungen (Abstand 6 Bilder) dieselbe Zahl sichtbarer und interaktiver Elemente haben —
+				// höchstens 8 Versuche, sonst „instabil“ (vorher wurde von zwei Messungen die „ruhigere“ genommen, das konnte ein halb aufgebauter Zustand sein)
 				var m = Measure(_state);
-				if (_first is null) { _first = m; _wait = 6; return; }
-				var pick = (m.Overlaps + m.Outside) <= (_first.Overlaps + _first.Outside) ? m : _first;
-				_first = null;
+				if (_first is null || m.Interactive != _first.Interactive || m.Visible != _first.Visible || MathF.Abs(m.Layout - _first.Layout) > 0.5f)
+				{
+					if (++_tries < 8) { _first = m; _wait = 6; return; }
+					m = m with { Unstable = true };
+				}
+				var pick = m;
+				_first = null; _tries = 0;
 				_results.Add(pick);
 				_lastMeasured = pick.State;
-				foreach (var note in pick.Notes.Where(x => x.StartsWith("außerhalb") || x.StartsWith("Schiff verdeckt") || x.StartsWith("Überlappung") || x.StartsWith("gekürzt") || x.StartsWith("Taste gekürzt"))) GD.Print($"[ui-check]   {note}");
-				GD.Print($"[ui-check] {pick.W}x{pick.H} f{pick.Factor:0.00} {pick.State}: Tasten {pick.Interactive}, Überlappung {pick.Overlaps}, gekürzt {pick.Truncated}, <7 mm {pick.Small7}, <5 mm {pick.Small5}, außerhalb {pick.Outside}, Füllgrad {(pick.Fill < 0 ? "–" : $"{pick.Fill * 100:0} %")}");
+				foreach (var note in pick.Notes.Where(x => x.StartsWith("außerhalb") || x.StartsWith("Schiff verdeckt") || x.StartsWith("Meldung") || x.StartsWith("Hinweis") || x.StartsWith("Text über") || x.StartsWith("beschnitten") || x.StartsWith("Überlappung") || x.StartsWith("gekürzt") || x.StartsWith("Taste gekürzt"))) GD.Print($"[ui-check]   {note}");
+				GD.Print($"[ui-check] {pick.W}x{pick.H} f{pick.Factor:0.00} {pick.State}: Tasten {pick.Interactive}, Überlappung {pick.Overlaps}, gekürzt {pick.Truncated}, <7 mm {pick.Small7}, <5 mm {pick.Small5}, kleinste {pick.MinMm:0.0} mm, außerhalb {pick.Outside}, Meldung über Inhalt {pick.MessageCovers}, Text über {pick.TextOverlaps}, beschnitten {pick.ClippedCount}, kleinste Schrift {pick.MinFont:0.0} px, Hülle {(pick.Fill < 0 ? "–" : $"{pick.Fill * 100:0} %")}, belegt {(pick.Content < 0 ? "–" : $"{pick.Content * 100:0} %")}{(pick.Unstable ? " INSTABIL" : "")}");
 			}
 			_skip = false;
 			_state = "";
-			if (!Headless && (_factorIdx == 0 || FlightOnly) && _lastMeasured is { } name)
+			if (!Headless && _lastMeasured is { } name)   // Runde 35b: Bilder für alle Faktoren
 			{
 				_shot = true;
 				var (w, h, _, _) = Sizes[_sizeIdx];
-				string file = System.IO.Path.Combine(_dir, _factorIdx == 0 ? $"{w}x{h}_{name}.png" : $"{w}x{h}_f{Factors[_factorIdx] * 100:0}_{name}.png");
+				string file = System.IO.Path.Combine(_dir, MathF.Abs(Factors[_factorIdx] - 1f) < 0.001f ? $"{w}x{h}_{name}.png" : $"{w}x{h}_f{Factors[_factorIdx] * 100:0}_{name}.png");
 				RenderingServer.FramePostDraw += Shot;
 				void Shot()
 				{
@@ -180,9 +209,126 @@ public partial class UiCheck : Node
 		_wait = wait;
 	}
 	string? _lastMeasured;
+	int _tries;
 	Finding? _first;
 
 	/// <summary>Sichtbarer Teil eines Elements: geschnitten mit allen Vorfahren, die ihren Inhalt beschneiden (rollende Listen).</summary>
+
+	/// <summary>
+	/// Runde 35b: Textprüfung (Selbsttest Stufe 111 nutzt dieselbe Regel) — Textflächen mit der Schrift gemessen (Labels, gezeichnete Texte aus
+	/// <see cref="SpaceAdventure.Ui.Kit.DrawnText"/>), Text über Text/Taste und Beschnitt am Rahmen bzw. Clip (senkrecht nur innerhalb rollender Listen erlaubt).
+	/// </summary>
+	public static (List<(Control Owner, Rect2 R, Rect2 Full, string Text, float Eff)> Texts, int TextOverlaps, int Clipped, int DrawnTruncated) TextChecks(List<Control> scope, List<Control> inter, List<string> notes)
+	{
+		var font = ThemeDB.FallbackFont;
+		int drawnTrunc = 0;
+		// ── Runde 35b (Prüfung: das Werkzeug übersah sichtbare Mängel) ──
+		// Textflächen: sichtbare Labels mit der Schrift gemessen (nicht die Control-Breite), gezeichnete Texte aus DrawnText
+		// R = sichtbarer Teil (für Überdeckung), Full = ungeschnittene Textfläche (für den Beschnitt; Runde 35c, Prüfung W1: geschnitten konnte C nie anschlagen)
+		var texts = new List<(Control Owner, Rect2 R, Rect2 Full, string Text, float Eff)>();
+		foreach (var c in scope)
+		{
+			if (c is not Godot.Label l || l.Text.Length == 0 || Clipped(c).Size.X <= 1f || Alpha(c) < 0.05f) continue;   // ausgeblendet (Modulate) zählt nicht
+			var g = l.GetGlobalRect(); float k = l.GetGlobalTransform().Scale.Y;
+			int fs = l.GetThemeFontSize("font_size");
+			var lf = l.GetThemeFont("font") ?? font;
+			float tw, th;
+			float lh = lf.GetHeight(fs) + l.GetThemeConstant("line_spacing");
+			int nl;
+			if (l.AutowrapMode != TextServer.AutowrapMode.Off) { tw = l.Size.X; nl = Math.Max(1, l.GetVisibleLineCount()); }
+			else
+			{
+				tw = lf.GetStringSize(l.Text, HorizontalAlignment.Left, -1, fs).X;
+				if (l.ClipText) tw = MathF.Min(tw, l.Size.X);
+				nl = Math.Max(1, l.Text.Split('\n').Length);
+			}
+			th = nl * lh - l.GetThemeConstant("line_spacing");   // Zeilenblock ohne den Abstand nach der letzten Zeile
+			float x = l.HorizontalAlignment == HorizontalAlignment.Center ? (l.Size.X - tw) / 2f : l.HorizontalAlignment == HorizontalAlignment.Right ? l.Size.X - tw : 0f;
+			float y = l.VerticalAlignment == VerticalAlignment.Center ? (l.Size.Y - th) / 2f : l.VerticalAlignment == VerticalAlignment.Bottom ? l.Size.Y - th : 0f;
+			// Glyphenkern: die Zeilenhöhe enthält Ober-/Unterlängenraum; eng gesetzte Zeilen berühren sich dort, ohne dass sich Schrift überdeckt
+			float pad = MathF.Max(0f, (lf.GetHeight(fs) - fs) / 2f);
+			y += pad; th = MathF.Max(1f, (nl - 1) * lh + fs);
+			var full = new Rect2(g.Position + new Vector2(x, y) * k, new Vector2(tw, th) * k);
+			var r = full.Intersection(ClipOf(l));   // was ein rollender/beschneidender Vorfahr wegschneidet, ist nicht sichtbar
+			if (r.Size.X <= 1f || r.Size.Y <= 1f) continue;
+			texts.Add((l, r, full, l.Text, fs * k));
+		}
+		var drawnOwners = new Dictionary<ulong, CanvasItem>();
+		foreach (var c in scope) drawnOwners[c.GetInstanceId()] = c;
+		foreach (var e in SpaceAdventure.Ui.Kit.DrawnText.All)
+		{
+			if (!drawnOwners.TryGetValue(e.Owner, out var ci) || ci is not Control oc) continue;
+			var gt = oc.GetGlobalTransform();
+			var r = new Rect2(gt * e.Local.Position, e.Local.Size * gt.Scale.Y);
+			var vis = ClipOf(oc).Intersection(r);
+			if (vis.Size.X <= 1f || vis.Size.Y <= 1f) continue;
+			texts.Add((oc, vis, r, e.Shown, e.Size * gt.Scale.Y));
+			if (e.Shown != e.Full) { drawnTrunc++; if (notes.Count < 44) notes.Add($"gekürzt (gezeichnet) „{Short(e.Shown)}“"); }
+		}
+		// Text gegen Text und Text gegen Taste (nicht Vorfahr/Nachfahr; Überdeckung ≥ 9 px²)
+		int textOver = 0;
+		for (int i = 0; i < texts.Count; i++)
+		{
+			for (int j = i + 1; j < texts.Count; j++)
+			{
+				if (texts[i].Owner == texts[j].Owner && texts[i].Owner is not Godot.Label) { if (texts[i].R.Intersection(texts[j].R) is var xx && xx.Size.X * xx.Size.Y >= 9f) { textOver++; if (notes.Count < 50) notes.Insert(0, $"Text über Text „{Short(texts[i].Text)}“ × „{Short(texts[j].Text)}“"); } continue; }
+				if (texts[i].Owner.IsAncestorOf(texts[j].Owner) || texts[j].Owner.IsAncestorOf(texts[i].Owner)) continue;
+				var x = texts[i].R.Intersection(texts[j].R);
+				if (x.Size.X * x.Size.Y >= 9f) { textOver++; if (notes.Count < 50) notes.Insert(0, $"Text über Text „{Short(texts[i].Text)}“ × „{Short(texts[j].Text)}“"); }
+			}
+			foreach (var b in inter)
+			{
+				if (b == texts[i].Owner || b.IsAncestorOf(texts[i].Owner) || texts[i].Owner.IsAncestorOf(b)) continue;
+				var x = texts[i].R.Intersection(Clipped(b));
+				if (x.Size.X * x.Size.Y >= 9f) { textOver++; if (notes.Count < 50) notes.Insert(0, $"Text über Taste „{Short(texts[i].Text)}“ × „{Label(b)}“"); }
+			}
+		}
+		// Beschnitt: Text/Taste nicht ganz sichtbar, ohne dass der Bereich dort senkrecht rollt; oder über den Rahmen der Karte hinaus
+		int clippedCount = 0;
+		var shapes = texts.Select(t => (t.Owner, R: t.Full, Name: t.Text, Drawn: t.Owner is not Godot.Label)).Concat(inter.Select(b => (Owner: b, R: b.GetGlobalRect(), Name: Label(b), Drawn: false))).ToList();
+		foreach (var (owner, full, name, drawn) in shapes)
+		{
+			string? why = null;
+			bool inList = false;   // schon durch eine senkrecht rollende Liste gegangen: oben/unten anschneiden ist dort Absicht
+			// gezeichnete Texte: auch der Zeichner selbst begrenzt, wenn er beschneidet (seine Fläche ist dann der Rahmen)
+			for (Node? n = drawn && owner.ClipContents ? owner : owner.GetParent(); n is not null && why is null; n = n.GetParent())
+			{
+				if (n is not Control pc) continue;
+				var pr = pc.GetGlobalRect();
+				if (pr.Size.X <= 0f || pr.Size.Y <= 0f) continue;   // noch nicht ausgelegt (Neuaufbau im selben Bild)
+				bool frame = pc is PanelContainer || (pc.GetChildCount() > 0 && pc.GetChild(0) is Panel && pc is not ScrollContainer);
+				bool vlist = pc is ScrollContainer sc0 && sc0.VerticalScrollMode != ScrollContainer.ScrollMode.Disabled;
+				if (!pc.ClipContents && !frame && !vlist) continue;
+				bool outsideX = full.Position.X < pr.Position.X - 1.5f || full.End.X > pr.End.X + 1.5f;
+				bool outsideY = !inList && (full.Position.Y < pr.Position.Y - 1.5f || full.End.Y > pr.End.Y + 1.5f);
+				// eine rollende Liste (auch der als Ganzes rollende Bereich) darf unten/oben anschneiden — seitlich nicht
+				if (vlist && !outsideX) { inList = true; continue; }
+				if (!outsideX && !outsideY) continue;
+				if (frame && !pc.ClipContents && full.Intersection(pr).Size.X <= 0f) continue;   // ganz außerhalb des Rahmens: Teil einer anderen Ebene (z. B. Überlagerung)
+				why = $"{(outsideX ? "seitlich" : "senkrecht")} am Rahmen {pc.GetType().Name}";
+			}
+			if (why is not null) { clippedCount++; if (notes.Count < 56) notes.Insert(0, $"beschnitten „{Short(name)}“ ({why})"); }
+		}
+		return (texts, textOver, clippedCount, drawnTrunc);
+	}
+
+	/// <summary>Runde 35b: Fläche, auf die die beschneidenden Vorfahren (ClipContents, auch der Knoten selbst) begrenzen — ohne den Knoten-Rahmen selbst.</summary>
+	static Rect2 ClipOf(Control c)
+	{
+		var r = new Rect2(-1e6f, -1e6f, 2e6f, 2e6f);
+		for (Node? n = c; n is not null; n = n.GetParent())
+			if (n is Control pc && pc.ClipContents) r = r.Intersection(pc.GetGlobalRect());
+		return r;
+	}
+
+	/// <summary>Runde 35b: wirksame Deckkraft (Modulate der Vorfahren × eigenes) — ein ausgeblendeter Hinweis liegt noch im Baum, ist aber unsichtbar.</summary>
+	static float Alpha(CanvasItem c)
+	{
+		float a = c.SelfModulate.A;
+		for (Node? n = c; n is CanvasItem ci; n = n.GetParent()) a *= ci.Modulate.A;
+		return a;
+	}
+
 	static Rect2 Clipped(Control c)
 	{
 		var r = c.GetGlobalRect();
@@ -198,9 +344,9 @@ public partial class UiCheck : Node
 		return _m.HudRef.Screens.Current is Control sc && sc.IsVisibleInTree() && sc != (Control)_m.HudRef.Flight ? sc : null;
 	}
 
-	static bool Interactive(Control c) => c is KitButton or SpaceAdventure.Ui.TouchButton or KitSlider or BaseButton or LineEdit;
+	public static bool Interactive(Control c) => c is KitButton or SpaceAdventure.Ui.TouchButton or KitSlider or BaseButton or LineEdit;
 
-	static IEnumerable<Control> Visible(Node n)
+	public static IEnumerable<Control> Visible(Node n)
 	{
 		foreach (var ch in n.GetChildren())
 		{
@@ -251,15 +397,57 @@ public partial class UiCheck : Node
 		{
 			if (c is Label l && l.Text.Length > 0)
 			{
-				bool cut = l.Text.Contains('…') || (l.ClipText && font.GetStringSize(l.Text, HorizontalAlignment.Left, -1, l.GetThemeFontSize("font_size")).X > l.Size.X + 1f);
+				// Runde 35b: umbrechende Labels sind gekürzt, wenn nicht alle Zeilen sichtbar sind (nicht, wenn der Text breiter ist als eine Zeile)
+				bool cut = l.Text.Contains('…') || (l.AutowrapMode != TextServer.AutowrapMode.Off
+					? l.GetVisibleLineCount() < l.GetLineCount()
+					: l.ClipText && font.GetStringSize(l.Text, HorizontalAlignment.Left, -1, l.GetThemeFontSize("font_size")).X > l.Size.X + 1f);
 				if (cut) { trunc++; if (notes.Count < 36) notes.Add($"gekürzt „{Short(l.Text)}“"); }
 			}
 			else if (c is KitButton kb && kb.Text.Length > 0)
 			{
-				if (font.GetStringSize(kb.Text, HorizontalAlignment.Left, -1, kb.FontSize).X > kb.Size.X - 8f) { trunc++; if (notes.Count < 36) notes.Add($"Taste gekürzt „{Short(kb.Text)}“"); }
+				// Runde 35b: alle Zeilen der Taste (Text, Unterzeile, Detail) so, wie die Taste sie zeichnet
+				if (kb.Overflow() is { Length: > 0 } ov) { trunc++; if (notes.Count < 36) notes.Add($"Taste gekürzt „{Short(ov)}“"); }
 			}
 		}
+		// ── Runde 35b (Prüfung: das Werkzeug übersah sichtbare Mängel) ── gemeinsame Regel auch für den Selbsttest
+		var scope = all.Where(c => (modal is null || modal == c || modal.IsAncestorOf(c))).ToList();
+		var tc = TextChecks(scope, inter, notes);
+		var texts = tc.Texts.Select(t => (t.Owner, t.R, t.Text, t.Eff)).ToList(); int textOver = tc.TextOverlaps, clippedCount = tc.Clipped; trunc += tc.DrawnTruncated;
+		float minFont = texts.Count == 0 ? float.NaN : texts.Min(t => t.Eff);
+		foreach (var b in inter.OfType<KitButton>()) minFont = MathF.Min(float.IsNaN(minFont) ? 999f : minFont, b.FontSize * b.GetGlobalTransform().Scale.Y);
 		// Füllgrad eines Vollbild-Bildschirms: Fläche der sichtbaren Inhalte (Hülle) / sichtbare Fläche
+		// Runde 34b (Prüfung B2): Meldung und Hinweis dürfen keine Taste und keinen Text verdecken (sichtbarer Teil, Überdeckung ≥ 25 px²)
+		int msgCovers = 0;
+		var overlays = new List<(string Name, Rect2 R)>();
+		if (_m.HudRef.TestAlert.Length > 0) overlays.Add(("Meldung", _m.HudRef.TestAlertRect));
+		if (_m.HudRef.ToastRect is { } toastR) overlays.Add(("Hinweis", toastR));
+		var alertLayer = _m.HudRef.TestAlertLayer;
+		foreach (var (oname, orect) in overlays)
+			foreach (var c in all.Where(c => (c is Label { Text.Length: > 0 } || Interactive(c)) && Alpha(c) >= 0.05f && !alertLayer.IsAncestorOf(c) && (modal is null || modal == c || modal.IsAncestorOf(c))))
+			{
+				var x = Clipped(c).Intersection(orect);
+				if (x.Size.X * x.Size.Y < 25f) continue;
+				msgCovers++;
+				if (notes.Count < 40) notes.Insert(0, $"{oname} verdeckt „{Label(c)}“");
+			}
+		// kleinste Tippfläche (mm) und von Inhalt belegte Fläche (Rasterprobe 48 × 27 über Texte, Tasten, Balken und gezeichnete Flächen; ohne Hintergründe)
+		float minMm = inter.Count == 0 ? float.NaN : inter.Min(c => UiLayout.Millimetres(MathF.Min(c.GetGlobalRect().Size.X, c.GetGlobalRect().Size.Y), w, h, GetTree().Root.ContentScaleFactor, ppi));
+		float content = -1f;
+		if (modal is not null)
+		{
+			var leaves = Visible(modal).Where(c => c is Label { Text.Length: > 0 } || Interactive(c) || c is KitBar
+				|| (c.GetType() != typeof(Control) && c is not Container && c is not Panel && c is not ColorRect && c is not ScrollBar && c.GetChildCount() == 0 && c.Size.X > 4f && c.Size.Y > 4f))
+				.Select(Clipped).Where(r => r.Size.X > 1f && r.Size.Y > 1f).ToList();
+			int hit = 0, n = 0;
+			for (int iy = 0; iy < 27; iy++)
+				for (int ix = 0; ix < 48; ix++)
+				{
+					var pt = vp.Position + new Vector2((ix + 0.5f) * vp.Size.X / 48f, (iy + 0.5f) * vp.Size.Y / 27f);
+					n++;
+					if (leaves.Exists(r => r.HasPoint(pt))) hit++;
+				}
+			content = (float)hit / n;
+		}
 		// Runde 33b: eigenes Schiff im Flug nicht verdeckt — keine sichtbare Taste, keine Meldung, kein Hinweis über der Schiffsmitte (±16 px)
 		int covered = 0;
 		float eff = modal is null ? _m.HudRef.Flight.Scale.X : modal.GetGlobalTransform().Scale.X;
@@ -281,7 +469,9 @@ public partial class UiCheck : Node
 				fill = box.Size.X * box.Size.Y / (vp.Size.X * vp.Size.Y);
 			}
 		}
-		return new Finding(state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, covered, eff, notes);
+		// Runde 34b: Lagesumme der Tasten — eine Messung mitten im Aufbau (Raster noch ohne Layout, alle Tasten auf 0,0) gilt nicht als stabil
+		float layoutSum = inter.Sum(c => c.GetGlobalRect().Position.X * 0.37f + c.GetGlobalRect().Position.Y);
+		return new Finding(state.TrimEnd('2'), w, h, f, inter.Count, overlaps, trunc, small7, small5, outside, fill, covered, eff, msgCovers, content, minMm, all.Count, false, layoutSum, textOver, clippedCount, minFont, notes);
 	}
 
 	static string Label(Control c) => c switch { KitButton k => Short(k.Text), Label l => Short(l.Text), _ => c.GetType().Name };
@@ -291,7 +481,7 @@ public partial class UiCheck : Node
 	{
 		UiScale.TestPpi = null; UiScale.TestCap = null; UiScale.TestForce = null;
 		UiScale.Apply();
-		var sb = new StringBuilder("UI-PRÜFUNG (Runde 31/33/34): je Bildschirm × Fenster × UI-Faktor der Stufe (wirkt je Schicht; in Klammern der wirksame Faktor, wenn die Schicht ihn senken musste; S! = eigenes Schiff verdeckt) — Ü Überlappungen interaktiver Elemente, K gekürzte Texte, "
+		var sb = new StringBuilder("UI-PRÜFUNG (Runde 31/33/34): je Bildschirm × Fenster × UI-Faktor der Stufe (wirkt je Schicht; in Klammern der wirksame Faktor, wenn die Schicht ihn senken musste; S! = eigenes Schiff verdeckt; Runde 34b: M = Meldung/Hinweis über Taste/Text, B = von Inhalt belegte Fläche (Rasterprobe; F war das Hüllenmaß und entfällt), mm = kleinste Taste, ?! = instabil; Runde 35b: T = Text über Text/Taste (mit der Schrift gemessen, auch gezeichnete Texte), C = beschnitten (seitlich am Rahmen/Clip oder senkrecht ohne Rollen), S = kleinste wirksame Schrift in px) — Ü Überlappungen interaktiver Elemente, K gekürzte Texte, "
 			+ "T7/T5 Tippflächen unter 7/5 mm (angenommene DPI), A außerhalb der Fläche, F Füllgrad eines Vollbild-Bildschirms\n");
 		foreach (var (w, h, ppi, dev) in Sizes) sb.AppendLine($"  {w}×{h}: {dev}, {ppi:0} ppi, Taste 56 px = {UiLayout.Millimetres(56f, w, h, 1f, ppi):0.0} mm bei Faktor 1, DPI-Ziel {UiLayout.DpiFactor(w, h, ppi):0.00}×");
 		foreach (float f in Factors)
@@ -306,7 +496,7 @@ public partial class UiCheck : Node
 				foreach (var (w, h, _, _) in Sizes)
 				{
 					var r = _results.FirstOrDefault(x => x.State == state && x.W == w && x.H == h && x.Factor == f);
-					sb.Append(r is null ? $" | {"–",-26}" : $" | {$"Ü{r.Overlaps} K{r.Truncated} T7 {r.Small7}/{r.Interactive} T5 {r.Small5} A{r.Outside}{(r.ShipCovered > 0 ? " S!" : "")}{(r.Fill < 0 ? "" : $" F{r.Fill * 100:0}%")}{(MathF.Abs(r.Effective - r.Factor) > 0.005f ? $" ({r.Effective:0.00})" : "")}",-26}");
+					sb.Append(r is null ? $" | {"–",-44}" : $" | {$"Ü{r.Overlaps} K{r.Truncated} T7 {r.Small7}/{r.Interactive} T5 {r.Small5} A{r.Outside}{(r.TextOverlaps > 0 ? $" T{r.TextOverlaps}" : "")}{(r.ClippedCount > 0 ? $" C{r.ClippedCount}" : "")}{(r.MessageCovers > 0 ? $" M{r.MessageCovers}" : "")}{(r.ShipCovered > 0 ? " S!" : "")}{(r.Content < 0 ? "" : $" B{r.Content * 100:0}%")}{(float.IsNaN(r.MinMm) ? "" : $" {r.MinMm:0.0}mm")}{(float.IsNaN(r.MinFont) ? "" : $" S{r.MinFont:0}")}{(r.Unstable ? " ?!" : "")}{(MathF.Abs(r.Effective - r.Factor) > 0.005f ? $" ({r.Effective:0.00})" : "")}",-44}");
 				}
 				sb.AppendLine();
 			}
@@ -318,7 +508,7 @@ public partial class UiCheck : Node
 		System.IO.File.WriteAllText(txt, sb.ToString());
 		var json = new StringBuilder("[\n");
 		foreach (var r in _results)
-			json.AppendLine($"  {{\"state\":\"{r.State}\",\"w\":{r.W},\"h\":{r.H},\"factor\":{r.Factor.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"interactive\":{r.Interactive},\"overlaps\":{r.Overlaps},\"truncated\":{r.Truncated},\"tapUnder7mm\":{r.Small7},\"tapUnder5mm\":{r.Small5},\"outside\":{r.Outside},\"shipCovered\":{r.ShipCovered},\"effective\":{r.Effective.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},\"fill\":{r.Fill.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}}},");
+			json.AppendLine($"  {{\"state\":\"{r.State}\",\"w\":{r.W},\"h\":{r.H},\"factor\":{r.Factor.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"interactive\":{r.Interactive},\"overlaps\":{r.Overlaps},\"truncated\":{r.Truncated},\"tapUnder7mm\":{r.Small7},\"tapUnder5mm\":{r.Small5},\"outside\":{r.Outside},\"shipCovered\":{r.ShipCovered},\"messageCovers\":{r.MessageCovers},\"textOverlaps\":{r.TextOverlaps},\"clipped\":{r.ClippedCount},\"minFontPx\":{(float.IsNaN(r.MinFont) ? "null" : r.MinFont.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))},\"content\":{r.Content.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)},\"minMm\":{(float.IsNaN(r.MinMm) ? "null" : r.MinMm.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))},\"unstable\":{(r.Unstable ? "true" : "false")},\"effective\":{r.Effective.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},\"fill\":{r.Fill.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}}},");
 		System.IO.File.WriteAllText(System.IO.Path.Combine(_dir, "ui-check.json"), json.ToString().TrimEnd(',', '\n', '\r') + "\n]\n");
 		GD.Print($"[ui-check] fertig: {txt}");
 		GD.Print("UI-CHECK OK");

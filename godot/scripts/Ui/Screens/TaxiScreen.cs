@@ -71,7 +71,7 @@ public sealed partial class TaxiScreen : DockAreaScreen, ISessionScreen
 			string there = q.WaitingShip is { } ws ? $"Dort wartet: #{ws.Id.Value} {(u.ShipModels.TryGetValue(ws.ModelKey, out var m) ? m.Name : "")}"
 				: q.RentalThere ? $"Kein eigenes Schiff · Leihschiff ab {q.RentalUpfront:0} Cr (inkl. Pfand)" : "Kein eigenes Schiff, kein Leihdienst";
 			string detail = q.Issue is null || q.Issue.StartsWith("Nicht genügend", StringComparison.Ordinal)
-				? $"{q.Jumps} Sprung{(q.Jumps == 1 ? "" : "e")} · {q.Ticks / SpaceSim.Core.Simulation.SimClock.TicksPerSecond:0} s · Zoll {q.Toll:0} Cr · {q.Situation}"
+				? $"{q.Jumps} {(q.Jumps == 1 ? "Sprung" : "Sprünge")} · {q.Ticks / SpaceSim.Core.Simulation.SimClock.TicksPerSecond:0} s · Zoll {q.Toll:0} Cr · {q.Situation}"
 				: q.Issue;
 			At(row, Text(there, 14, q.WaitingShip is not null ? Cyan : Orange), 12, 28, rw - 290, 20);
 			At(row, Text(detail, 13, q.Issue is null ? Dim : Red), 12, 50, rw - 290, 20);

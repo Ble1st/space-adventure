@@ -128,6 +128,9 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		var slotOffers = offers.Where(o => OfferSlot(o.Key) == _slot).ToList();
 		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, rx, 68, rw, ih - 68 - 4);
 		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		// Runde 35b (Prüfung: die rechte Spalte war seitlich abgeschnitten — eine lange Abschnittsüberschrift machte die Liste breiter als ihren Rahmen):
+		// Überschriften und Hinweise umbrechen in der Spaltenbreite
+		Label Head(string t, int size, Color col) { var l = Text(t, size, col); l.AutowrapMode = TextServer.AutowrapMode.WordSmart; l.CustomMinimumSize = new Vector2(rw - 14, 0); return l; }
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);
 		// Phase 7: Abschnitt „Verbessern“ (Dienst „upgrade“): Modul dieses Slots, Slot vergrößern, Bonusslot dieser Slotart
@@ -135,13 +138,13 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		var slotUps = upOffers.Where(o => OfferSlot(o.Key) == _slot || o.Key == $"bonus:{cur.Type}").ToList();
 		if (slotUps.Count > 0)
 		{
-			box.AddChild(Text("Verbessern · Chance steigt mit jedem Fehlschlag (Mitleidszähler)", 15, Cyan));
+			box.AddChild(Head("Verbessern · Chance steigt mit jedem Fehlschlag (Mitleidszähler)", 15, Cyan));
 			foreach (var o in slotUps) { box.AddChild(UpgradeRow(o, rw - 14)); _upRows++; }
-			if (svc is not null) box.AddChild(Text("Umrüsten", 15, Cyan));
+			if (svc is not null) box.AddChild(Head("Umrüsten", 15, Cyan));
 		}
 		if (svc is null) return;
 		if (slotOffers.Count == 0)
-			box.AddChild(Text(ship.Fit[_slot] is null ? "Kein passendes Modul auf Lager." : "Kein passendes Modul auf Lager; Pflichtslots lassen sich nur tauschen.", 15, new Color(Dim, 0.8f)));
+			box.AddChild(Head(ship.Fit[_slot] is null ? "Kein passendes Modul auf Lager." : "Kein passendes Modul auf Lager; Pflichtslots lassen sich nur tauschen.", 15, new Color(Dim, 0.8f)));
 		foreach (var o in slotOffers)
 		{
 			box.AddChild(OfferRow(o, rw - 14));
@@ -150,26 +153,32 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 	}
 
 	/// <summary>Phase 7: eine Upgrade-Zeile — Änderung und Chance aus dem Angebot, Material/Preis/Mitleid aus <see cref="ShipUpgrade.Quote"/>, Taste „Versuchen“.</summary>
+	/// <summary>Runde 34b: unter dieser Zeilenbreite steht die Taste unter den Textzeilen.</summary>
+	const float NarrowRow = 560f;
+
 	Control UpgradeRow(ServiceOffer o, float w)
 	{
 		var u = Ctx.U;
 		var q = ShipUpgrade.Quote(u, Ctx.Station, Ctx.Ship, o.Key);
 		bool can = o.Amount >= 1f;
-		var row = new Control { CustomMinimumSize = new Vector2(w, 82), MouseFilter = MouseFilterEnum.Pass };
+		// Runde 34b (Prüfung B1: schmale Fläche bei „groß“): unter 560 Breite steht die Taste unter den Zeilen, die Texte bekommen die ganze Breite
+		bool narrow = w < NarrowRow;
+		float tw = narrow ? w - 28f : w - 190f;
+		var row = new Control { CustomMinimumSize = new Vector2(w, narrow ? 144 : 82), MouseFilter = MouseFilterEnum.Pass };
 		var bg = new Panel { MouseFilter = MouseFilterEnum.Ignore };
 		bg.AddThemeStyleboxOverride("panel", Box(Card, can ? Orange : new Color(Dim, 0.25f), 10, 1, 0));
 		row.AddChild(bg);
 		bg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		At(row, Text(o.Text, 15, White), 14, 4, w - 180, 24);
+		At(row, Text(o.Text, 15, White), 14, 4, narrow ? tw : w - 180, 24);
 		if (q is not null)
 		{
 			string mat = string.Join(", ", q.Materials.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"));
-			At(row, Text($"Material {mat} · {o.Price:0} Cr · Mitleidszähler {q.Pity}", 13, Dim), 14, 28, w - 190, 20);
+			At(row, Text($"Material {mat} · {o.Price:0} Cr · Mitleidszähler {q.Pity}", 13, Dim), 14, 28, tw, 20);
 			string state = q.Issue ?? (q.Missing.Count > 0 ? "Fehlt im Lager: " + string.Join(", ", q.Missing.Select(n => $"{n.Units:0}× {u.Goods[n.Good].Name}"))
 				: !q.Affordable ? "Nicht genügend Credits" : "Material wird auch bei Misserfolg verbraucht");
-			At(row, Text(state, 13, can ? Green : Orange), 14, 52, w - 190, 22);
+			At(row, Text(state, 13, can ? Green : Orange), 14, 52, tw, 22);
 		}
-		var b = At(row, new KitButton("Versuchen", new Vector2(150, 56)) { FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 160, 13);
+		var b = At(row, new KitButton("Versuchen", new Vector2(150, 56)) { FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 160, narrow ? 80 : 13);
 		string key = o.Key;
 		if (can) b.Pressed += () => ExecuteUpgrade(key);
 		return row;
@@ -198,7 +207,9 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		var p = OutfitterService.Preview(u, Ctx.Station, ship, _slot, moduleKey);
 		bool can = o.Amount >= 1f;
 
-		var row = new Control { CustomMinimumSize = new Vector2(w, 82), MouseFilter = MouseFilterEnum.Pass };
+		bool narrow = w < NarrowRow;   // Runde 34b: Taste unter den Zeilen
+		float tw = narrow ? w - 44f : w - 200f;
+		var row = new Control { CustomMinimumSize = new Vector2(w, narrow ? 144 : 82), MouseFilter = MouseFilterEnum.Pass };
 		var bg = new Panel { MouseFilter = MouseFilterEnum.Ignore };
 		bg.AddThemeStyleboxOverride("panel", Box(Card, can ? Edge : new Color(Dim, 0.25f), 10, 1, 0));
 		row.AddChild(bg);
@@ -207,11 +218,11 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		At(row, chip, 10, 12, 12, 12);
 		// Phase 13: der Sperrgrund steht in der Wirkungszeile — der Titel bleibt kurz (sonst läuft er unter die Taste)
 		string title = o.Text.IndexOf(" – nicht erforscht", StringComparison.Ordinal) is var cut and > 0 ? o.Text[..cut] : o.Text;
-		At(row, Text(title, 16, White), 30, 4, w - 200, 24);
+		At(row, Text(title, 16, White), 30, 4, tw, 24);
 		string source = remove
 			? (o.Price > 0f ? $"Station kauft an: {o.Price:0} Cr" : "Station nimmt nicht an → in die Fracht")
 			: (o.Price <= 0f ? $"aus der Fracht ({o.Held:0} an Bord) · kostenlos" : $"Lager {o.Stock:0.#} · {o.Price:0} Cr");
-		At(row, Text(source, 13, Dim), 30, 28, w - 200, 20);
+		At(row, Text(source, 13, Dim), 30, 28, tw, 20);
 		string effect = p is null ? "" : !p.Valid
 			? (p.Issue is { } issue ? FitRules.Describe(issue) : p.CargoProblem ?? "")
 			: Diff(p.Before, p.After);
@@ -221,9 +232,9 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		// Gerätetest Phase 27: der Grund des Angebots (beschädigtes Modul: „erst reparieren“) geht vor „Nicht genügend Credits“
 		else if (!can && o.Note is { Length: > 0 } note) effect = note;
 		else if (p is { Valid: true } && !can) effect = "Nicht genügend Credits · " + effect;
-		At(row, Text(effect, 13, p is { Valid: true } && can ? Green : Orange), 30, 52, w - 200, 22);
+		At(row, Text(effect, 13, p is { Valid: true } && can ? Green : Orange), 30, 52, tw, 22);
 		var b = At(row, new KitButton(remove ? "Ausbauen" : ship.Fit[_slot] is null ? "Einbauen" : "Tauschen", new Vector2(150, 56))
-		{ FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 160, 13);
+		{ FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled }, w - 160, narrow ? 80 : 13);
 		string key = o.Key;
 		if (can) b.Pressed += () => Execute(key);
 		return row;

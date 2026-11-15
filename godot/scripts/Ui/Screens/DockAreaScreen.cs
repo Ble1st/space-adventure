@@ -14,7 +14,7 @@ namespace SpaceAdventure.Ui.Screens;
 /// <see cref="DockAreas.Build"/>), unten „← Menü“ und „Abdocken“ immer sichtbar. Konkrete Bereiche bauen den
 /// Mittelteil in <see cref="BuildContent"/>; bei <see cref="ShowShip"/> erscheint rechts die Schiff-Spalte.
 /// </summary>
-public abstract partial class DockAreaScreen : Control, IScreen
+public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 {
 	public abstract string Id { get; }
 	/// <summary>Id des angezeigten Bereichs; setzt der Aufrufer vor dem Öffnen (<see cref="DockAreas"/>).</summary>
@@ -81,8 +81,12 @@ public abstract partial class DockAreaScreen : Control, IScreen
 	}
 
 	/// <summary>Baut das gesamte Gerüst neu auf (Top-Leiste, Seitenleiste, Mittelteil, Fußleiste).</summary>
+	/// <summary>Selbsttest: Zahl der Neuaufbauten (Diagnose).</summary>
+	public int TestBuilds { get; private set; }
+
 	protected virtual void Rebuild()
 	{
+		TestBuilds++;
 		_builtTick = Ctx.U.Tick;
 		_dirty = false;
 		foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
@@ -101,7 +105,9 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		At(top, Text(st.Name, L.Compact ? 24 : 28, Cyan), 0, L.Compact ? 2 : 6, cx - 10, 34);
 		At(top, Text($"{type} · {faction} · {sector}", L.Compact ? 14 : 16, Dim), 0, L.Compact ? 36 : 42, cx - 10, 22);
 		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", L.Compact ? 22 : 26, Orange, HorizontalAlignment.Right), cx, 0, L.Credits.W, 32);
-		At(top, Text($"Kasse der Station {st.Credits:0} Cr", L.Compact ? 14 : 16, Dim, HorizontalAlignment.Right), cx, L.Compact ? 34 : 38, L.Credits.W, 22);
+		// Runde 34b: eingeklappte Schiffsspalte (schmale Fläche) — der Laderaum steht dann hier statt der Stationskasse (die steht in der Stationsinfo)
+		string second = L.ShipCollapsed ? $"Laderaum {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³ · Hülle {(int)ship.Hull}/{(int)ship.MaxHull}" : $"Kasse der Station {st.Credits:0} Cr";
+		At(top, Text(second, L.Compact ? 14 : 16, Dim, HorizontalAlignment.Right), cx, L.Compact ? 34 : 38, L.Credits.W, 22);
 
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Daten aus DockAreas) ──
 		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, L.Rail.X, L.Rail.Y, L.Rail.W, L.Rail.H);
@@ -112,13 +118,23 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(rv);
+		// Runde 35b (Prüfung: bei eingeklappter Schiffsspalte fehlten Fracht „An Bord“ und Schild): oben in der Leiste „Dein Schiff“ — klappt die Schiffskarte
+		// über den Mittelteil auf (nochmal tippen oder ein Bereich schließt sie)
+		if (ShowShip && L.ShipCollapsed)
+		{
+			var sb = new KitButton("Dein Schiff", new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, State = _shipOpen ? KitButtonState.On : KitButtonState.Normal,
+				Sub = $"Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} · Schild {(ship.Stats.Shield > 0f ? $"{(int)ship.ShieldNow}" : "–")}" };
+			sb.Pressed += () => { _shipOpen = !_shipOpen; _dirty = true; SafeRebuild(); };
+			rv.AddChild(sb);
+		}
+		else _shipOpen = false;
 		foreach (var def in DockAreas.Build(u, st, Ctx.Services))
 		{
 			var b = new KitButton(DockAreas.ShortLabelFor(def.Id), new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, Sub = def.Sub };
 			string id = def.Id;
-			b.Pressed += () => AreaSelected?.Invoke(id);   // auch Platzhalter-Bereiche öffnen ihre „Bald“-Seite
+			b.Pressed += () => { _shipOpen = false; AreaSelected?.Invoke(id); };   // auch Platzhalter-Bereiche öffnen ihre „Bald“-Seite
 			if (!def.Available) b.Modulate = new Color(1f, 1f, 1f, 0.5f);   // Sub trägt schon „Bald“
-			else if (def.Id == AreaId)
+			else if (def.Id == AreaId && !_shipOpen)   // Runde 35c: bei offener Schiffskarte ist nur „Dein Schiff“ aktiv
 				b.State = KitButtonState.On;
 			rv.AddChild(b);
 		}
@@ -138,12 +154,17 @@ public abstract partial class DockAreaScreen : Control, IScreen
 		center.AddChild(areaScroll);
 		areaScroll.AddChild(inner);
 		BuildContent(inner);
-		float bottom = 0f;
-		foreach (var ch in inner.GetChildren()) if (ch is Control cc && cc.Visible) bottom = MathF.Max(bottom, cc.Position.Y + MathF.Max(cc.Size.Y, cc.GetCombinedMinimumSize().Y));
+		float bottom = ContentBottom(inner);   // Runde 35: rekursiv (Tasten in Karten zählen mit)
 		if (bottom > L.InnerH + 1f) inner.CustomMinimumSize = new Vector2(L.InnerW, bottom + 8f);
 
 		// ── Rechte Spalte: das Schiff (Fracht, Laderaum, Credits – echt) ──
-		if (ShowShip) BuildShipPanel(L.Ship.X, L.Ship.Y, L.Ship.W, L.Ship.H);
+		if (ShowShip && L.Ship.W > 0f) BuildShipPanel(L.Ship.X, L.Ship.Y, L.Ship.W, L.Ship.H);
+		else if (_shipOpen)
+		{
+			// Runde 35c: die aufgeklappte Schiffskarte ersetzt den Mittelteil (darunter liegende Zeilen wären verdeckt, aber noch antippbar)
+			center.Visible = false;
+			BuildShipPanel(L.Center.X, L.Center.Y, MathF.Min(L.Center.W, 420f), L.Center.H, overlay: true);
+		}
 
 		// ── Fußleiste: „← Menü“ und „Abdocken“ immer sichtbar (kompakt: „← Menü“ unter der Leiste, „Abdocken“ oben rechts) ──
 		var back = At(this, new KitButton("← Menü", new Vector2(L.Back.W, L.Back.H)) { FontSize = 20 }, L.Back.X, L.Back.Y);
@@ -154,11 +175,17 @@ public abstract partial class DockAreaScreen : Control, IScreen
 
 	/// <summary>Runde 34: zuletzt gerechnetes Gerüst (Selbsttest, Meldungslage).</summary>
 	public DockShell? Shell { get; private set; }
+	/// <summary>Runde 35b: eingeklappte Schiffsspalte als Karte über dem Mittelteil geöffnet.</summary>
+	bool _shipOpen;
+	public bool TestShipOpen { get => _shipOpen; set { _shipOpen = value; _dirty = true; SafeRebuild(); } }
 	/// <summary>Maßstab der Dock-Schicht (Eltern-Steuerelement).</summary>
 	float Scale0() => GetParent() is Control p && p.Scale.X > 0f ? p.Scale.X : 1f;
 	/// <summary>Runde 34: Lücke der Kopfleiste für die große Meldung, in Bildpunkten (null = nicht gebaut).</summary>
 	public Rect2? AlertSlotGlobal => Shell is { } l && IsVisibleInTree()
 		? new Rect2(GetGlobalTransform() * new Vector2(l.AlertSlot.X, l.AlertSlot.Y), new Vector2(l.AlertSlot.W, l.AlertSlot.H) * GetGlobalTransform().Scale.X) : null;
+	/// <summary>Runde 34b: Meldungsstreifen (Core: DockShell.MessageStrip) in Bildpunkten.</summary>
+	public Rect2? MessageStripGlobal => Shell is { } l && IsVisibleInTree() && l.MessageStrip.W > 0f
+		? new Rect2(GetGlobalTransform() * new Vector2(l.MessageStrip.X, l.MessageStrip.Y), new Vector2(l.MessageStrip.W, l.MessageStrip.H) * GetGlobalTransform().Scale.X) : null;
 
 	public override void _Notification(int what)
 	{
@@ -171,11 +198,11 @@ public abstract partial class DockAreaScreen : Control, IScreen
 	/// <summary>
 	/// Rechte Spalte: Schiffskarte mit Hülle, Schild (Phase 23), Sprit, Laderaum, Credits und Fracht (alles echt).
 	/// </summary>
-	protected void BuildShipPanel(float x, float y, float w, float h)
+	protected void BuildShipPanel(float x, float y, float w, float h, bool overlay = false)
 	{
 		var u = Ctx.U; var ship = Ctx.Ship;
-		var p = At(this, new PanelContainer(), x, y, w, h);
-		p.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 12));
+		var p = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, x, y, w, h);
+		p.AddThemeStyleboxOverride("panel", overlay ? Box(PanelSolid, Cyan, 10, 2, 12) : Box(PanelBg, null, 10, 0, 12));
 		var sv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		sv.AddThemeConstantOverride("separation", 7);
 		// Runde 34: die Spalte rollt, wenn die Fracht länger ist als die (auf dem Handy kürzere) Spalte — vorher wuchs die Karte über den Rand

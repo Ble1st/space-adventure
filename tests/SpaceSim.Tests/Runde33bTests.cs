@@ -30,3 +30,24 @@ public class Runde33bTests
         Assert.Equal(field.CenterY, v / tv, 2);
     }
 }
+
+/// <summary>Runde 34b (Prüfung B8): eine Regel für „Alle Feuer“ und die Sammeltaste „+n weitere“.</summary>
+public class Runde34bWeaponTests
+{
+    [Fact]
+    public void Sammeltaste_FeuertNurBereiteKampfschaechteAbIndex()
+    {
+        var bays = new List<SpaceSim.Core.Weapons.WeaponBay>
+        {
+            new() { Key = "tractor", Name = "Traktor" },
+            new() { Key = "w:1", Name = "Laser" }, new() { Key = "w:2", Name = "Laser" }, new() { Key = "w:3", Name = "Laser" },
+            new() { Key = "w:4", Name = "Laser" }, new() { Key = "w:5", Name = "Laser" }, new() { Key = "w:6", Name = "Laser" },
+            new() { Key = "w:7", Name = "Laser" }, new() { Key = "contact", Name = "Bohrer" },
+        };
+        var st = new[] { SpaceSim.Core.Weapons.BayState.Ready, SpaceSim.Core.Weapons.BayState.Ready, SpaceSim.Core.Weapons.BayState.OutsideArc, SpaceSim.Core.Weapons.BayState.Ready,
+            SpaceSim.Core.Weapons.BayState.Reloading, SpaceSim.Core.Weapons.BayState.Ready, SpaceSim.Core.Weapons.BayState.NoAmmo, SpaceSim.Core.Weapons.BayState.Ready, SpaceSim.Core.Weapons.BayState.Ready };
+        Assert.Equal(new[] { 1, 3, 5, 7 }, SpaceSim.Core.Weapons.WeaponBays.ReadyToFire(bays, st));
+        Assert.Equal(new[] { 5, 7 }, SpaceSim.Core.Weapons.WeaponBays.ReadyToFire(bays, st, 5));   // Sammeltaste ab dem sechsten Schacht
+        Assert.Empty(SpaceSim.Core.Weapons.WeaponBays.ReadyToFire(bays, st, 8));                  // Bohrer feuert nicht
+    }
+}

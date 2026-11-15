@@ -186,4 +186,22 @@ public class FlightHudLayoutTests
         // kein Platz
         Assert.Null(FlightHudLayout.FindSpot(area, new List<UiRect> { area }, 536, 62, 380, 500, 420));
     }
+
+    [Fact]
+    public void Runde35b_FindSpot_EngeLueckeZwischenFlaechen_WirdGefunden()
+    {
+        // Lücke 343 × 95 zwischen zwei Reihen (Raster 8/24 trifft sie nicht genau): die Kantensuche findet sie
+        var area = new UiRect(0, 0, 985, 554);
+        var occ = new List<UiRect>
+        {
+            new(0, 0, 985, 258.4f),          // oben alles belegt
+            new(0, 353.3f, 985, 200.7f),     // unten alles belegt
+            new(0, 258.4f, 636.2f, 95f),      // links in der Lücke belegt
+        };
+        var spot = FlightHudLayout.FindSpot(area, occ, 336f, 92f, 336f, 492f, 400f);
+        Assert.NotNull(spot);
+        Assert.True(spot!.Value.Inside(area));
+        Assert.DoesNotContain(occ, o => o.Intersects(spot.Value));
+        Assert.Equal(336f, spot.Value.W);
+    }
 }

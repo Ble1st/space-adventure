@@ -60,6 +60,6 @@ public partial class TouchButton : Control
 		var font = ThemeDB.FallbackFont;
 		int fs = 20;
 		var ts = font.GetStringSize(Text, HorizontalAlignment.Left, -1, fs);
-		DrawString(font, new Vector2((Size.X - ts.X) / 2f, (Size.Y + fs * 0.7f) / 2f), Text, HorizontalAlignment.Left, -1, fs, Colors.White);
+		SpaceAdventure.Ui.Kit.UiKit.DrawText(this, 0, font, new Vector2((Size.X - ts.X) / 2f, (Size.Y + fs * 0.7f) / 2f), Text, fs, Colors.White);
 	}
 }

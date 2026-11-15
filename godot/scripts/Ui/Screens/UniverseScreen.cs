@@ -41,6 +41,10 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 	public event Action<SectorId>? PlanRoute;
 
 	UniverseMapCanvas _map = null!;
+	/// <summary>Runde 35, Selbsttest: Kartenfläche in Bildpunkten.</summary>
+	/// <summary>Runde 35b (Selbsttest): Bildpunkt eines Sektors auf der Karte (wie der Tipp ihn sucht).</summary>
+	public Vector2? TestSectorScreen(SectorId id) => _map is not null && IsInstanceValid(_map) ? _map.GlobalOf(id) : null;
+	public Rect2 TestMapRect => _map is not null && IsInstanceValid(_map) ? _map.GetGlobalRect() : new Rect2();
 
 	/// <summary>Gewählter Sektor (null aufgelöst auf den Spielersektor).</summary>
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
@@ -56,6 +60,9 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 	public void TestSelect(SectorId s) { SelectedSector = s; Invalidate(); }
 	/// <summary>Test-Hook: „Route planen/Autopilot“ für den gewählten Sektor auslösen.</summary>
 	public void TestPlanRoute() { if (SelectedSector is { } s) PlanRoute?.Invoke(s); }
+
+	/// <summary>Runde 35: Kartenbreite = Innenbreite − Detailkarte (300) − Abstände; bei 1022 Innenbreite wie bisher 700.</summary>
+	static float MapW(Control inner) => MathF.Max(300f, (inner.Size.X > 0 ? inner.Size.X : 1022f) - 322f);
 
 	protected override void BuildContent(Control inner)
 	{
@@ -76,7 +83,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		}
 
 		// ── Karte links ──
-		_map = At(inner, new UniverseMapCanvas { MouseFilter = MouseFilterEnum.Stop }, 0, 56, 700, 464);
+		_map = At(inner, new UniverseMapCanvas { MouseFilter = MouseFilterEnum.Stop }, 0, 56, MapW(inner), inner.Size.Y - 56);   // Runde 35: Karte nutzt die gewonnene Fläche
 		_map.Setup(this);
 		_map.Tapped += s => { SelectedSector = s; Invalidate(); };
 
@@ -88,7 +95,13 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 	{
 		var u = Ctx.U;
 		var s = u.Sectors[sel];
-		var card = CardBg(inner, 712, 56, 300, 464, Card);
+		// Runde 35b (Prüfung: „Sektorkarte öffnen“ lag halb unter dem Rand): Karte in der Höhe der Fläche, die drei Knöpfe als fester Fuß, der Text darüber rollt
+		float cardH = MathF.Max(inner.Size.Y - 56, 300f);
+		var frame = CardBg(inner, MapW(inner) + 12, 56, 300, cardH, Card);
+		const float footH = 3 * 54 + 10;
+		var bodyScroll = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 4, 300, cardH - footH - 8);
+		var card = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(292, 10) };
+		bodyScroll.AddChild(card);
 
 		bool isPlayer = sel == u.PlayerSector;
 		string owner = FactionName(u, s.Owner);
@@ -99,12 +112,13 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		At(card, Text(s.Name, 24, Cyan), 16, 10, 268, 32);
 		// Phase 14: Planet des Sektors (in der Zeile mit Stationen und Schiffen)
 		TestPlanet = s.Planet?.Name ?? "";
-		At(card, Text($"{owner} · {pol.Stage}{(isPlayer ? " · du hier" : "")}", 15, ownerCol), 16, 44, 268, 22);
-		if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · Stationen {s.Stations.Count} · Schiffe {ships}", 13, White), 16, 68, 268, 20);
-		else At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, 68, 268, 20);
+		// Runde 35b (Prüfwerkzeug: „… · Dominanz · du hier“ bei 1,15 gekürzt): Besitzerzeile bricht um, der Rest rückt nach
+		float oy = WrappedText(card, $"{owner} · {pol.Stage}{(isPlayer ? " · du hier" : "")}", 16, 44, 268, 15, ownerCol, 20);
+		if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · Stationen {s.Stations.Count} · Schiffe {ships}", 13, White), 16, oy + 2, 268, 20);
+		else At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, oy + 2, 268, 20);
 		// Phase 10: Sperre und Einfluss (echt)
 		Color lockCol = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
-		float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, 92, 268, 13, lockCol, 16);
+		float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, oy + 26, 268, 13, lockCol, 16);
 		py = WrappedText(card, $"Für dich: {pol.ForPlayer}", 16, py, 268, 13, lockCol, 16);
 		py = WrappedText(card, $"Einfluss: {pol.Influence}", 16, py + 2, 268, 12, new Color(Dim, 0.9f), 16);
 		// Phase 11: Lagekarte und deine Fahndung beim Besitzer (echt)
@@ -125,35 +139,38 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			At(card, Text($"→ {target.Name} · {gp.State}{(gp.Denied ? " · gesperrt" : gp.Toll > 0f ? $" · Zoll {gp.Toll:0}" : "")}", 13, gc), 24, gy, 260, 18);
 			gy += 18;
 		}
-		if (s.Gates.Count > maxGates) { At(card, Text($"… und {s.Gates.Count - maxGates} weitere", 12, Dim), 24, gy, 268, 16); gy += 16; }
+		if (s.Gates.Count > maxGates) { At(card, Text($"+ {s.Gates.Count - maxGates} weitere Gates", 12, Dim), 24, gy, 268, 16); gy += 16; }
 
 		// Route vom aktuellen Sektor nach deinem Mobilitätsprofil (echt über Universe.FindRoute mit Profil)
 		gy += 4;
 		var route = PlayerRoute(u, sel);
 		int hops = route?.Count ?? -1;
+		float end;
 		if (hops < 0)
-			WrappedText(card, "Route: nicht erreichbar – " + (GateAccess.BlockReason(u, u.Ships[u.PlayerShip], u.PlayerSector, sel) ?? "Gates gesperrt"), 16, gy, 268, 13, Red, 16);
+			end = WrappedText(card, "Route: nicht erreichbar – " + (GateAccess.BlockReason(u, u.Ships[u.PlayerShip], u.PlayerSector, sel) ?? "Gates gesperrt"), 16, gy, 268, 13, Red, 16);
 		else if (hops == 0)
-			At(card, Text("Route: du bist in diesem Sektor", 14, Green), 16, gy, 268, 20);
+		{ At(card, Text("Route: du bist in diesem Sektor", 14, Green), 16, gy, 268, 20); end = gy + 20; }
 		else
 		{
 			At(card, Text($"Route: {hops} {(hops == 1 ? "Sprung" : "Sprünge")} ab {SectorName(u, u.PlayerSector)}", 14, White), 16, gy, 268, 20);
 			var way = new List<string>();
 			foreach (var gid in route!) way.Add(SectorName(u, u.Gates[u.Gates[gid].Target].Sector));
-			WrappedText(card, string.Join(" → ", way), 24, gy + 20, 260, 12, new Color(Dim, 0.9f), 15);
+			end = WrappedText(card, string.Join(" → ", way), 24, gy + 20, 260, 12, new Color(Dim, 0.9f), 15);
 		}
+		card.CustomMinimumSize = new Vector2(292, end + 8);
 
-		// Knöpfe unten
-		var bOpen = At(card, new KitButton("Sektorkarte öffnen", new Vector2(268, 52)) { FontSize = 17 }, 16, 294);
+		// Knöpfe als fester Fuß der Karte
+		float fy = cardH - footH + 2;
+		var bOpen = At(frame, new KitButton("Sektorkarte öffnen", new Vector2(268, 50)) { FontSize = 17 }, 16, fy);
 		bOpen.Pressed += () => OpenSectorMap?.Invoke(sel);
-		var bRoute = At(card, new KitButton("Route planen / Autopilot", new Vector2(268, 52)) { FontSize = 17 }, 16, 350);
+		var bRoute = At(frame, new KitButton("Route planen / Autopilot", new Vector2(268, 50)) { FontSize = 17 }, 16, fy + 54);
 		if (hops >= 0) bRoute.Pressed += () => PlanRoute?.Invoke(sel);
 		else { bRoute.State = KitButtonState.Disabled; bRoute.Detail = "nicht erreichbar"; }
 		// Phase 12: Taxi echt — nur angedockt an einer Station mit Taxi; günstigstes buchbares Ziel im gewählten Sektor (Core: TaxiService.Quote)
 		var from = Ctx.Docked is { } d && u.Stations.TryGetValue(d, out var ds) && Ctx.Services.ForStation(u, ds).Any(x => x.Key == SpaceSim.Core.Services.TaxiService.ServiceKey) ? ds : null;
 		var quote = from is null ? null : SpaceSim.Core.Services.TaxiService.Quotes(u, from, Ctx.Player).Where(q => q.To.Sector == sel && q.Bookable).OrderBy(q => q.Total).FirstOrDefault();
-		var bTaxi = At(card, new KitButton("Taxi buchen", new Vector2(268, 54)) { FontSize = 16, State = quote is null ? KitButtonState.Disabled : KitButtonState.Ready,
-			Detail = quote is not null ? $"{quote.Total:0} Cr → {quote.To.Name}" : from is null ? "nur angedockt (Taxistand)" : "kein Ziel hier", DetailColor = new Color(Dim, 0.9f) }, 16, 406);
+		var bTaxi = At(frame, new KitButton("Taxi buchen", new Vector2(268, 50)) { FontSize = 16, State = quote is null ? KitButtonState.Disabled : KitButtonState.Ready,
+			Detail = quote is not null ? $"{quote.Total:0} Cr → {quote.To.Name}" : from is null ? "nur angedockt (Taxistand)" : "kein Ziel hier", DetailColor = new Color(Dim, 0.9f) }, 16, fy + 108);
 		if (quote is not null) { var to = quote.To.Id; bTaxi.Pressed += () => TaxiRequested?.Invoke(to); }
 	}
 
@@ -202,8 +219,18 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			float sy = ry > 0.001f ? (Size.Y - 130f) / ry : 1f;
 			if (rx <= 0.001f) sx = sy;
 			if (ry <= 0.001f) sy = sx;
+			// Runde 35c (Prüfung: bei 2048 × 1536 lag die Unterzeile von „Abgrund“ halb unter dem Kartenrand): unter der untersten Zeile Platz für Halo und zwei
+			// Unterzeilen (Mitte liegt 10 tiefer) — der Halo wächst mit dem Maßstab, deshalb zweimal nachrechnen
+			if (ry > 0.001f)
+				for (int i = 0; i < 2; i++)
+				{
+					float r = HaloRadius(Mathf.Min(sx, sy));
+					sy = Mathf.Min(sy, (Size.Y - 2f * (r + 32f) - 20f) / ry);
+				}
 			return new Vector2(Mathf.Min(sx, 2f * sy), Mathf.Min(sy, 2f * sx));
 		}
+
+		public Vector2 GlobalOf(SectorId id) => GetGlobalTransform() * Place(_u.Sectors[id], Size / 2f + new Vector2(0, 10f), MapScale());
 
 		public override void _GuiInput(InputEvent @event)
 		{
@@ -220,8 +247,9 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		}
 
 		/// <summary>Phase 21: Halo- und Knotengröße folgen dem Feldabstand, damit sich bei 11 Sektoren (4 Zeilen) die Halos nicht überlappen.</summary>
-		static float HaloRadius(float scale) => Mathf.Clamp(scale * 0.44f, 30f, 44f);
-		static float NodeRadius(float scale) => Mathf.Clamp(scale * 0.27f, 18f, 26f);
+		// Runde 35b: bei engem Feld (Faktor 1,3, 4:3) kleinere Halos, damit zwischen den Zeilen Platz für die Unterzeile bleibt
+		static float HaloRadius(float scale) => Mathf.Clamp(scale * 0.34f, 24f, 44f);
+		static float NodeRadius(float scale) => Mathf.Clamp(scale * 0.24f, 16f, 26f);
 
 		public override void _Draw()
 		{
@@ -232,6 +260,14 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			var sel = _owner.Selected;
 			var layer = _owner.CurrentLayer;
 			var mark = _owner.MarkFaction;
+			DrawnText.Clear(this);
+			int slot = 0;
+			// Runde 35c (Prüfung: Linien und Halo-Ringe kreuzten Namen und Unterzeilen): Beschriftungen werden gesammelt und zuletzt auf einer dezenten
+			// Plakette gezeichnet — keine Linie, kein Ring und kein Knoten eines Nachbarn liegt mehr über einem Text
+			var queued = new List<(Vector2 Pos, string Full, int Size, float W, Color Col, bool Middle)>();
+			void Queue(Vector2 pos, string full, int size, float w, Color col, bool middle = false) => queued.Add((pos, full, size, w, col, middle));
+			// Runde 35b: Platz je Knoten aus dem Spaltenabstand (nicht aus dem Halo) — Namen bei Faktor 1,3 und 4:3 wurden gekürzt
+			float colW = Mathf.Max(2f * rHalo + 12f, scale.X - 8f);
 
 			// Gates als Linien (jedes Paar einmal)
 			foreach (var g in _u.Gates.Values)
@@ -290,9 +326,8 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 				var font = ThemeDB.FallbackFont;
 				// Phase 21: ohne „Sektor “, damit lange Namen (Hephaistos) in die Spalte passen
 				// Gerätetest: Name im Knoten, Unterzeile unter dem Halo, beide auf ihren Platz gekürzt (überlappten auf dem Handy die Nachbarn)
-				float nameW = 2f * rHalo + 12f;
-				string nm = KitButton.Fit(font, s.Name.Replace("Sektor ", ""), 16, nameW);
-				DrawString(font, p + new Vector2(-nameW / 2f, 6), nm, HorizontalAlignment.Center, nameW, 16, White);
+				float nameW = colW;
+				Queue(p + new Vector2(-nameW / 2f, 6), s.Name.Replace("Sektor ", ""), 16, nameW, White);
 				string sub = layer switch
 				{
 					UniverseScreen.Layer.Prices => $"{SectorEconomy.PriceLevel(_u, s.Id):0.00}× · {s.Stations.Count} St.",
@@ -303,8 +338,24 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 					UniverseScreen.Layer.Ships => $"{ShipCountOf(_u, s.Id)} Schiffe · {s.Stations.Count} St.",
 					_ => $"{FactionName(_u, s.Owner)} · {AccessNames.Stage(s.Control)}{(s.Contested ? " · umkämpft" : "")}",
 				};
-				float subW = 2f * rHalo + 24f;
-				DrawString(font, p + new Vector2(-subW / 2f, rHalo + 13f), KitButton.Fit(font, sub, 11, subW), HorizontalAlignment.Center, subW, 11, new Color(Dim, 0.9f));
+				// Kurzform für enge Karten: Fraktion nur mit Kürzel
+				string subShort = layer != UniverseScreen.Layer.Faction ? sub
+					: _u.Factions.ContainsKey(s.Owner) ? $"{SpaceSim.Core.Model.ActorNames.Tag(_u, s.Owner)} {AccessNames.Stage(s.Control)}{(s.Contested ? " · umk." : "")}"
+					: "herrenlos";
+				float subW = colW;
+				// Runde 35b: Platz bis zum Halo der nächsten Zeile entscheidet — zwei Zeilen, eine Zeile (Kurzform) oder keine (steht in der Detailkarte)
+				float below = scale.Y - 2f * rHalo - 4f;
+				int lines = below >= 30f ? 2 : below >= 15f ? 1 : 0;
+				int cut = sub.IndexOf(" · ", StringComparison.Ordinal);
+				bool fitsOne = font.GetStringSize(sub, HorizontalAlignment.Left, -1, 11).X <= subW + 0.5f;
+				if (lines == 0) { }
+				else if (lines == 1 || fitsOne || cut <= 0 || font.GetStringSize(sub[..cut], HorizontalAlignment.Left, -1, 11).X > subW + 0.5f)
+					Queue(p + new Vector2(-subW / 2f, rHalo + 13f), fitsOne ? sub : subShort, 11, subW, new Color(Dim, 0.9f), middle: true);
+				else
+				{
+					Queue(p + new Vector2(-subW / 2f, rHalo + 13f), sub[..cut], 11, subW, new Color(Dim, 0.9f), middle: true);
+					Queue(p + new Vector2(-subW / 2f, rHalo + 26f), sub[(cut + 3)..], 11, subW, new Color(Dim, 0.9f));
+				}
 
 				// Schiffe-Ebene: NPC-Schiffe als Symbole um den Sektor
 				if (layer == UniverseScreen.Layer.Ships)
@@ -316,26 +367,41 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 						var dv = Vec2.FromAngle(i * 2.4f) * (rHalo + 6f);
 						DrawCircle(p + new Vector2(dv.X, dv.Y), 3.5f, Green);
 					}
-					if (n > 8) DrawString(font, p + new Vector2(40, 40), $"+{n - 8}", HorizontalAlignment.Left, -1, 12, Green);
+					if (n > 8) UiKit.DrawFit(this, slot++, font, p + new Vector2(40, 40), $"+{n - 8}", 12, 0f, Green);
 				}
 				// Spielerposition
 				if (s.Id == _u.PlayerSector)
 				{
-					var sp = p + new Vector2(-18, -38);
+					// Runde 35b: links neben dem Knoten (über dem Knoten lag es auf der Unterzeile des Sektors darüber)
+					var sp = p + new Vector2(-rNode - 12f, -rNode * 0.5f);
 					DrawShip(sp, 9f, Cyan);
+				}
+			}
+
+			// Beschriftungen zuletzt, je auf einer Plakette (mittig über ihrer Breite)
+			{
+				var lf = ThemeDB.FallbackFont;
+				foreach (var q in queued)
+				{
+					var (shown, fs) = UiKit.FitText(this, lf, q.Full, q.Size, q.W, q.Middle);
+					float tw = lf.GetStringSize(shown, HorizontalAlignment.Left, -1, fs).X;
+					var plate = new Rect2(q.Pos.X + (q.W - tw) / 2f - 3f, q.Pos.Y - fs * 0.85f - 1f, tw + 6f, fs * 1.15f + 2f);
+					DrawRect(plate, new Color(0.02f, 0.04f, 0.09f, 0.82f));
+					UiKit.DrawFit(this, slot++, lf, q.Pos, q.Full, q.Size, q.W, q.Col, HorizontalAlignment.Center, q.Middle);
 				}
 			}
 
 			// Legende oben im Kartenbereich
 			var font2 = ThemeDB.FallbackFont;
-			DrawString(font2, new Vector2(12, 20), "— offen   — eingeschränkt   — für dich gesperrt   - - geschlossen", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+			float lw = Size.X - 24f;
+			UiKit.DrawFit(this, slot++, font2, new Vector2(12, 20), "— offen   — eingeschränkt   — für dich gesperrt   - - geschlossen", 13, lw, new Color(Dim, 0.8f));
 			DrawLine(new Vector2(12, 26), new Vector2(26, 26), new Color(Dim, 0.7f), 2f);
 			DrawLine(new Vector2(78, 26), new Vector2(92, 26), Orange, 2f);
 			DrawLine(new Vector2(196, 26), new Vector2(210, 26), Red, 2f);
 			if (layer == UniverseScreen.Layer.Security)
-				DrawString(font2, new Vector2(12, 46), "Lage: grün sicher · gelb schwach geschützt · orange bedroht/Sperre ab 3 · rot stark bedroht/gesperrt", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+				UiKit.DrawFit(this, slot++, font2, new Vector2(12, 46), "Lage: grün sicher · gelb schwach geschützt · orange bedroht/Sperre ab 3 · rot stark bedroht/gesperrt", 13, lw, new Color(Dim, 0.8f));
 			if (layer == UniverseScreen.Layer.Prices)
-				DrawString(font2, new Vector2(12, 46), "Preise: grün günstig · rot teuer (× Basis)", HorizontalAlignment.Left, -1, 13, new Color(Dim, 0.8f));
+				UiKit.DrawFit(this, slot++, font2, new Vector2(12, 46), "Preise: grün günstig · rot teuer (× Basis)", 13, lw, new Color(Dim, 0.8f));
 		}
 
 		void Dashed(Vector2 a, Vector2 b, Color c, float w)

@@ -12,7 +12,7 @@ namespace SpaceAdventure.Ui.Screens;
 /// darunter die Bereiche mit Untertitel (Daten aus <see cref="DockAreas.Build"/>, rollbares Raster für bis zu neun Kacheln), unten die große Taste
 /// „Abdocken“ und die Liegegebühr der hier geparkten eigenen Schiffe. Als IScreen in der Registry; der Aufrufer setzt <see cref="Ctx"/>.
 /// </summary>
-public sealed partial class DockMenu : Control, IScreen, ISessionScreen
+public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessageStrip
 {
 	public string Id => "dock.menu";
 	public string Title => Ctx != null ? Ctx.Station.Name : "Dock";
@@ -58,6 +58,9 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 
 	SpaceSim.Core.Ui.UiRect _card;
 	/// <summary>Runde 34: Karte in Bildpunkten (Meldung/Hinweis links daneben); leer, solange nicht gebaut.</summary>
+	SpaceSim.Core.Ui.UiRect _strip;
+	/// <summary>Runde 34b: Meldungsstreifen (Core: DockLayout.MenuStrip) in Bildpunkten.</summary>
+	public Rect2? MessageStripGlobal => _strip.W > 0f && IsVisibleInTree() ? new Rect2(GetGlobalTransform() * new Vector2(_strip.X, _strip.Y), new Vector2(_strip.W, _strip.H) * GetGlobalTransform().Scale.X) : null;
 	public Rect2? CardGlobal => _card.W > 0f && IsVisibleInTree() ? new Rect2(GetGlobalTransform() * new Vector2(_card.X, _card.Y), new Vector2(_card.W, _card.H) * GetGlobalTransform().Scale.X) : null;
 
 	public override void _Notification(int what)
@@ -81,6 +84,7 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 		float k0 = GetParent() is Control lp && lp.Scale.X > 0f ? lp.Scale.X : 1f;
 		var cr = SpaceSim.Core.Ui.DockLayout.MenuCard(Size.X, Size.Y, UiScale.Div(UiScale.SafeInsets1(), k0));
 		_card = cr;
+		_strip = SpaceSim.Core.Ui.DockLayout.MenuStrip(Size.X, Size.Y, UiScale.Div(UiScale.SafeInsets1(), k0));
 		float ch = cr.H;
 		var card = CardBg(this, cr.X, cr.Y, cr.W, ch, PanelSolid, Edge, 16, 2);   // Runde 23: Fußzeilen berührten den Rahmen
 
@@ -179,17 +183,18 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen
 				DrawPolyline(closed.ToArray(), own ? Cyan : Orange, 1.5f, true);
 				string model = _u.ShipModels.TryGetValue(_ship.ModelKey, out var m) ? m.Name : "";
 				string label = $"#{_ship.Id.Value} {model}";
-				if (label.Length > 16) label = label[..15] + "…";
-				DrawString(font, new Vector2(0, 58), label, HorizontalAlignment.Center, 126, 13, White);
+				DrawnText.Clear(this);
+				UiKit.DrawFit(this, 0, font, new Vector2(3, 58), label, 13, 120, White, HorizontalAlignment.Center, middle: true);
 				string who = _sel ? "aktiv" : own ? (_ship.IsRental ? "Leihschiff" : "im Hangar") : SpaceSim.Core.Model.ActorNames.Tagged(_u, _ship.Owner);
-				DrawString(font, new Vector2(0, 75), who, HorizontalAlignment.Center, 126, 12, own || _sel ? Cyan : Dim);
+				UiKit.DrawFit(this, 1, font, new Vector2(3, 75), who, 12, 120, own || _sel ? Cyan : Dim, HorizontalAlignment.Center);
 				DrawRect(new Rect2(14, 82, 98, 4), new Color(0, 0, 0, 0.5f));
 				DrawRect(new Rect2(14, 82, 98 * Mathf.Clamp(_ship.Hull / _ship.MaxHull, 0f, 1f), 4), _ship.Hull > _ship.MaxHull * 0.6f ? Green : Orange);
 			}
 			else
 			{
-				DrawString(font, new Vector2(0, 44), $"+{_more}", HorizontalAlignment.Center, 126, 24, new Color(Dim, 0.9f));
-				DrawString(font, new Vector2(0, 66), "weitere im Hangar", HorizontalAlignment.Center, 126, 12, new Color(Dim, 0.8f));
+				DrawnText.Clear(this);
+				UiKit.DrawFit(this, 0, font, new Vector2(3, 44), $"+{_more}", 24, 120, new Color(Dim, 0.9f), HorizontalAlignment.Center);
+				UiKit.DrawFit(this, 1, font, new Vector2(3, 66), "weitere im Hangar", 12, 120, new Color(Dim, 0.8f), HorizontalAlignment.Center);
 			}
 		}
 	}

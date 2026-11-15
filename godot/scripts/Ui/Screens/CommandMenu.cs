@@ -56,6 +56,8 @@ public partial class CommandMenu : Control, IScreen
 	public bool TestEmergencyVisible => _emergency?.Visible ?? false;
 	/// <summary>Runde 33 (Handytest): Menüzeile „UI-Größe“ — Text, Unterzeile, Überlauf (leer = passt) und Bildschirmmitte für einen echten Tipp.</summary>
 	public KitButton? TestUiSizeButton => _uiSize;
+	/// <summary>Runde 34b: Fenster in Bildpunkten (der Hinweis steht links daneben).</summary>
+	public Rect2? WindowGlobal => Visible ? _win.GetGlobalRect() : null;
 	Label _zoomText = null!, _modeHint = null!;
 
 	public CommandMenu()

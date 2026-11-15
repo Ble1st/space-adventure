@@ -111,4 +111,43 @@ public static class UiLayout
         if (grow > 0f && rest > 0f) for (int i = 0; i < n; i++) w[i] += rest * cols[i].Grow / grow;
         return w;
     }
+
+    /// <summary>
+    /// Runde 34b: Schriftgröße, bei der ein Text in <paramref name="room"/> passt — von <paramref name="size"/> schrittweise bis <paramref name="min"/> verkleinert
+    /// (<paramref name="width"/> misst die Breite bei einer Größe, z. B. mit der Godot-Schrift). Passt er auch dann nicht, <paramref name="min"/> (der Rest wird gekürzt).
+    /// </summary>
+    /// <summary>
+    /// Runde 35b (Prüfung: automatisches Verkleinern hob die UI-Vergrößerung wieder auf): kleinste erlaubte Schriftgröße eines Elements der Grundgröße
+    /// <paramref name="baseSize"/> auf einer Ebene mit dem Faktor <paramref name="factor"/>. Bei „klein“ (Faktor ≤ 1) bis 11; bei „normal“/„groß“ nie unter
+    /// Grundgröße ÷ Faktor (aufgerundet, mindestens 11) — die wirksame Größe (Schrift × Faktor) ist dann nie kleiner als bei „klein“ (dort höchstens die
+    /// Grundgröße). Passt der Text darauf nicht, wird umgebrochen oder zuletzt gekürzt, nicht weiter verkleinert.
+    /// </summary>
+    public static int FontFloor(int baseSize, float factor)
+    {
+        if (factor <= 1.001f) return Math.Min(baseSize, 11);
+        return Math.Min(baseSize, Math.Max(11, (int)Math.Ceiling(baseSize / factor - 0.001f)));
+    }
+
+    public static int FitFontSize(Func<int, float> width, float room, int size, int min = 11)
+    {
+        int s = size;
+        while (s > min && width(s) > room + 0.5f) s--;
+        return s;
+    }
+
+    /// <summary>
+    /// Runde 34b (Prüfung B3): passt <paramref name="text"/> nicht in <paramref name="room"/>, wird er in der Mitte gekürzt („Universalfr…raum 100“) — Anfang und
+    /// das unterscheidende Ende bleiben sichtbar. <paramref name="width"/> misst eine Fassung.
+    /// </summary>
+    public static string MiddleEllipsis(string text, Func<string, float> width, float room)
+    {
+        if (width(text) <= room + 0.5f || text.Length <= 3) return text;
+        for (int keep = text.Length - 1; keep >= 2; keep--)
+        {
+            int tail = Math.Max(1, keep * 2 / 5), head = keep - tail;
+            string t = text[..head].TrimEnd() + "…" + text[^tail..].TrimStart();
+            if (width(t) <= room + 0.5f) return t;
+        }
+        return "…";
+    }
 }

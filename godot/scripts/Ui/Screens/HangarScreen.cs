@@ -57,7 +57,9 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive ? $" · Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
 
 		// ── Eigene Schiffe hier (Dienst „hangar“) ──
-		float lw = 610f;
+		// Runde 34b (Prüfung B1): schmale Fläche (Handy bei „groß“) — die rechte Spalte (fremde Schiffe, Leihdienst) rückt unter die eigenen Schiffe
+		bool stacked = w < 900f;
+		float lw = stacked ? w : 610f;
 		var hangar = Svc(HangarService.ServiceKey);
 		var offers = hangar?.Offers(u, st, ship) ?? Array.Empty<ServiceOffer>();
 		var parked = PlayerFleet.ParkedAt(u, st);
@@ -93,13 +95,14 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 			y += 114f;
 			_parkedRows++;
 		}
-		if (parked.Count > 3) At(inner, Text($"… und {parked.Count - 3} weitere (Flotte in der Kommandozentrale)", 13, Dim), 0, y, lw, 20);
+		if (parked.Count > 3) At(inner, Text($"+ {parked.Count - 3} weitere (Flotte in der Kommandozentrale)", 13, Dim), 0, y, lw, 20);
 
 		// ── Rechts: fremde Schiffe und Leihdienst ──
-		float rx = lw + 8, rw = w - rx - 8;
+		float rx = stacked ? 0f : lw + 8, rw = stacked ? w - 8 : w - rx - 8;
+		float ry = stacked ? y + (parked.Count > 3 ? 28f : 8f) : 114f;
 		var foreign = Hangar.ForeignDocked(u, st, u.PlayerActor).Where(s => s.Id != ship.Id).ToList();
-		At(inner, Text($"Fremde Schiffe hier ({foreign.Count})", 17, Cyan), rx, 114, rw, 24);
-		float fy = 142f;
+		At(inner, Text($"Fremde Schiffe hier ({foreign.Count})", 17, Cyan), rx, ry, rw, 24);
+		float fy = ry + 28f;
 		foreach (var f in foreign.Take(4))
 		{
 			string job = f.Role switch { ShipRole.Trader => "Händler", ShipRole.Miner => "Schürfer", ShipRole.Builder => "Bauschiff", ShipRole.Police => "Polizei", ShipRole.Pirate => "Pirat", _ => f.Role.ToString() };
@@ -111,7 +114,8 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		if (foreign.Count == 0) { At(inner, Text("Keine fremden Schiffe angedockt.", 14, new Color(Dim, 0.8f)), rx, fy, rw, 20); fy += 28f; }
 
 		var rental = Svc(RentalService.ServiceKey);
-		fy = Math.Max(fy + 8f, 290f);   // Gerätetest Phase 27: zwei Angebote passen in den Rahmen (vorher ragte „Zurückgeben“ darüber)
+		// Runde 35b (Prüfung: gestapelt stand der Leihdienst mit großer Lücke am Fuß, „Mieten“ angeschnitten): gestapelt direkt unter den fremden Schiffen
+		fy = stacked ? fy + 8f : Math.Max(fy + 8f, ry + 176f);   // Gerätetest Phase 27: zwei Angebote passen in den Rahmen (vorher ragte „Zurückgeben“ darüber)
 		At(inner, Text(rental is null ? "Kein Leihdienst an dieser Station" : "Leihschiff", 17, rental is null ? new Color(Dim, 0.8f) : Cyan), rx, fy, rw, 24);
 		fy += 28f;
 		if (rental is not null)

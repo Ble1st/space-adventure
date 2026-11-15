@@ -48,6 +48,19 @@ public static class WeaponBays
         new WeaponBay { Key = "tractor", Name = "Traktor", Facing = Facing.Bow, ArcDegrees = 360f, Range = MiningRules.TractorRange },
     };
 
+    /// <summary>
+    /// Runde 34b (Prüfung B8): welche Schächte „Alle Feuer“ bzw. die Sammeltaste „+n weitere“ (ab <paramref name="from"/>) auslöst — genau die bereiten
+    /// (<see cref="BayState.Ready"/>: geladen, im Feuerwinkel, mit Ziel, Energie und Munition) und nur Schächte, die feuern (nicht Traktor, Spalter, Bergen, Bohrer).
+    /// Eine Regel für beide Tasten.
+    /// </summary>
+    public static List<int> ReadyToFire(IReadOnlyList<WeaponBay> bays, IReadOnlyList<BayState> states, int from = 0)
+    {
+        var list = new List<int>();
+        for (int i = Math.Max(0, from); i < bays.Count && i < states.Count; i++)
+            if (bays[i].Key is not ("tractor" or "split" or "salvage" or "contact") && states[i] == BayState.Ready) list.Add(i);
+        return list;
+    }
+
     /// <summary>Phase 8: Spaltlaser (Asteroidenbrecher) als eigener Schacht, Reichweite wie der Mining-Laser.</summary>
     public static WeaponBay Splitter { get; } = new() { Key = "split", Name = "Spalter", Facing = Facing.Bow, ArcDegrees = 360f, Range = MiningRules.LaserRange };
 

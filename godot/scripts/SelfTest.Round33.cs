@@ -156,6 +156,11 @@ public partial class SelfTest
 			d.Bays = Enumerable.Range(0, 10).Select(i => new Ui.Screens.BayView { Name = $"Laser {i + 1}", Place = "Turm", Detail = "", State = i % 2 == 0 ? SpaceSim.Core.Weapons.BayState.Ready : SpaceSim.Core.Weapons.BayState.Reloading }).ToList();
 			fl.Refresh(d);
 			Check(fl.TestBay6Text == "+5 weitere", $"33b: zehn Schächte → sechste Taste „{fl.TestBay6Text}“");
+			// Runde 34b (Prüfung B6): im Gefecht fällt ein Waffenmodul aus (der Schacht verschwindet) — Schicht und Zellen bleiben stehen
+			float before = fl.Scale.X; int cells = fl.TestLayoutBays;
+			var d2 = new Ui.Screens.FlightHudData { HasWeapons = true, InCombat = true, Bays = d.Bays.Take(2).ToList() };
+			fl.Refresh(d2);
+			Check(fl.Scale.X == before && fl.TestLayoutBays == cells, $"34b: im Gefecht springt die Schicht nicht, wenn Schächte wegfallen (Faktor {before:0.00} → {fl.Scale.X:0.00}, Zellen {cells} → {fl.TestLayoutBays})");
 			UiScale.TestForce = null; UiScale.TestPpi = null;
 			UiScale.Set(UiSize.Normal);
 			return false;

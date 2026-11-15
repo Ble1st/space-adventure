@@ -63,8 +63,11 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		// Runde 25: über der Kapazität (z. B. nach Auflösen eines Verbands) rot mit Hinweis — laufende Befehle bleiben, neue sind gesperrt
 		bool over = Commands.OverCapacity(u, u.PlayerActor) > 0;
 		// Runde 26 (Gerätetest c03: „Befehle 0/4“ trotz zweier „Halten“ an Begleiter): gezählt werden Einzelbefehle; Schiffe im Verband zählen über den Verband
-		At(inner, Text(KitButton.Fit(ThemeDB.FallbackFont, $"Einzelbefehle {Commands.Commanded(u, u.PlayerActor)}/{capShips}{(over ? " (zu viele)" : "")} · Verbände {Squadrons.Of(u, u.PlayerActor).Count}/{capSquads}{(Squadrons.Of(u, u.PlayerActor).Count > 0 ? " · Verband zählt als 1" : "")}", 13, 368), 13, over ? Red : Dim), 12, 32, 368, 18);
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 56, 368, 456);
+		At(inner, Text(KitButton.Fit(ThemeDB.FallbackFont, $"Einzelbefehle {Commands.Commanded(u, u.PlayerActor)}/{capShips}{(over ? " (zu viele)" : "")} · Verbände {Squadrons.Of(u, u.PlayerActor).Count}/{capSquads}{(Squadrons.Of(u, u.PlayerActor).Count > 0 ? " · Verband zählt als 1" : "")}", 13, 368), 13, over ? Red : Dim), 12, 32, Narrow(inner) ? InnerW(inner) - 24f : 368, 18);
+		bool narrow = Narrow(inner);   // Runde 35: schmal — Liste oben, Detail darunter
+		// Runde 35b (Prüfung: schmal stand eine große Lücke zwischen Liste und Detail): Listenhöhe nach Inhalt, höchstens 220, das Detail folgt direkt darunter
+		float listH = narrow ? MathF.Min(220f, MathF.Max(1, ships.Count) * 70f - 6f) : 456f;
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 56, narrow ? InnerW(inner) - 24f : 368, listH);
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
@@ -95,7 +98,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		}
 
 		// ── Rechts: Detail ──
-		var det = CardBg(inner, 392, 6, 618, 506, Card);
+		var det = Narrow(inner) ? CardBg(inner, 12, 56 + listH + 10, MathF.Max(618f, InnerW(inner) - 24f), 506, Card) : CardBg(inner, 392, 6, 618, 506, Card);
 		bool isActive = ship.Id == u.PlayerShip;
 		At(det, Text($"#{ship.Id.Value} {ModelName(u, ship)}{(ship.IsRental ? " (Leihschiff)" : "")}", 20, White), 14, 6, 400, 26);
 		// Runde 25 (Gerätetest d06: „Handel automatisch (…)“ lief unter „Übernehmen“): neben der Taste nur bis zu ihr, mit der Schrift gekürzt

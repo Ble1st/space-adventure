@@ -64,11 +64,13 @@ public static class UiScale
 	public static string Describe() =>
 		$"UI-Größe {Name(Size)}: Flug {Factor:0.00}×, Dock {DockFactor:0.00}×" + (float.IsNaN(TapMm) ? "" : $", Tasten etwa {TapMm:0.0} mm") + "."
 		+ (Wanted > Factor + 0.001f ? $" Mehr ({Wanted:0.00}×) passt nicht auf diese Fläche." : "")
-		+ " Kommandozentrale vorerst 1,00×.";
+		+ $" Kommandozentrale {CommandFactor:0.00}×.";
 	/// <summary>Runde 34 (Handytest r33: der lange Hinweis über dem Menü war abgeschnitten): kurze Fassung für den Hinweis nach dem Umschalten.</summary>
-	public static string ShortText() => $"UI-Größe {Name(Size)}: Flug {Factor:0.00}×, Dock {DockFactor:0.00}×" + (float.IsNaN(TapMm) ? "" : $" · Taste etwa {TapMm:0.0} mm");
+	public static string ShortText() => $"UI-Größe {Name(Size)}: Flug {Factor:0.00}×, Dock {DockFactor:0.00}×, Zentrale {CommandFactor:0.00}×" + (float.IsNaN(TapMm) ? "" : $" · Taste etwa {TapMm:0.0} mm");
 	/// <summary>Runde 34: wirksamer Faktor der Dock-Schicht (setzt die Oberfläche; kann wegen der Mindestfläche der Bereiche unter <see cref="Factor"/> liegen).</summary>
 	public static float DockFactor { get; set; } = 1f;
+	/// <summary>Runde 35: wirksamer Faktor der Kommandozentrale.</summary>
+	public static float CommandFactor { get; set; } = 1f;
 
 	/// <summary>Faktor neu rechnen und setzen (Fenstergröße, DPI, Stufe). Die Wurzel bleibt bei 1 (Faktor je Schicht).</summary>
 	public static void Apply()
@@ -84,6 +86,10 @@ public static class UiScale
 		Factor = f;
 		TapMm = ppi > 0f ? UiLayout.Millimetres(UiLayout.BaseTapPx, w, h, f, ppi) : float.NaN;
 		if (Math.Abs(_root.ContentScaleFactor - 1f) > 0.0001f) _root.ContentScaleFactor = 1f;
+		// Runde 34b (Handytest r34: Dock „groß“ nur 1,20× — vermutlich Safe-Area-Ränder): gemeldete Ränder ins Protokoll und in die Diagnosezeile
+		var ins = SafeInsets1();
+		InsetsText = $"Safe Area L{ins.Left:0} O{ins.Top:0} R{ins.Right:0} U{ins.Bottom:0} (Fenster {w:0}×{h:0}, DPI {ppi:0})";
+		if (InsetsText != _lastInsetsLog) { _lastInsetsLog = InsetsText; GD.Print("[ui] " + InsetsText); }
 		Changed?.Invoke();
 	}
 
@@ -105,6 +111,10 @@ public static class UiScale
 	}
 
 	public static UiInsets Div(UiInsets i, float f) => f <= 0f ? i : new UiInsets(i.Left / f, i.Top / f, i.Right / f, i.Bottom / f);
+
+	/// <summary>Runde 34b: zuletzt gemeldete Safe-Area-Ränder (Bildpunkte bei Faktor 1), Fenster und DPI — für die Kamera-Diagnosezeile.</summary>
+	public static string InsetsText { get; private set; } = "";
+	static string _lastInsetsLog = "";
 
 	static void Save()
 	{

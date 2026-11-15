@@ -36,6 +36,7 @@ public sealed class LabelLayout
 	/// </summary>
 	public bool Draw(CanvasItem canvas, Vector2 anchor, string text, int size, Color color, float gap = 12f, float maxWidth = 180f)
 	{
+		string full = text;
 		text = KitButton.Fit(_font, text, size, maxWidth);
 		var sz = _font.GetStringSize(text, HorizontalAlignment.Left, -1, size);
 		float w = sz.X + 4f, h = size + 4f;
@@ -55,7 +56,7 @@ public sealed class LabelLayout
 			_taken.Add(r);
 			// Gerätetest Phase 27: dunkler Hintergrund unter jeder Beschriftung — Linien (Tore, Routen), die darunter laufen, verdecken sie nicht mehr
 			if (Backdrop.A > 0f) canvas.DrawRect(r.Grow(1f), Backdrop);
-			canvas.DrawString(_font, r.Position + new Vector2(2f, size), text, HorizontalAlignment.Left, -1, size, color);
+			UiKit.DrawText(canvas, 1000 + _taken.Count, _font, r.Position + new Vector2(2f, size), text, size, color, full: full);   // Runde 35b/c: gezeichnet und gemeldet
 			return true;
 		}
 		return false;

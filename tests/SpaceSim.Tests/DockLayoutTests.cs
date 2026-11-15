@@ -51,19 +51,22 @@ public class DockLayoutTests
         {
             var s = DockLayout.Shell(w1 / f, h1 / f, i, ship);
             var parts = new List<(string, UiRect)> { ("Top", s.Top), ("Rail", s.Rail), ("Center", s.Center), ("Back", s.Back), ("Undock", s.Undock) };
-            if (ship) parts.Add(("Ship", s.Ship));
+            if (ship && !s.ShipCollapsed) parts.Add(("Ship", s.Ship));
+            parts.Add(("Meldungsstreifen", s.MessageStrip));
             foreach (var (n, r) in parts) Assert.True(r.Inside(s.Area), $"{w}×{h} {wanted}→{f:0.00} {n} {r} außerhalb {s.Area}");
             for (int a = 0; a < parts.Count; a++)
                 for (int b = a + 1; b < parts.Count; b++)
                     Assert.False(parts[a].Item2.Intersects(parts[b].Item2), $"{w}×{h} {f:0.00}: {parts[a].Item1} {parts[a].Item2} × {parts[b].Item1} {parts[b].Item2}");
-            if (f > 1f || s.Compact)   // bei Faktor 1 auf der Mindestfläche (960 × 540 ist logisch 1280 × 720) gilt der Entwurf
-            {
-                Assert.True(s.InnerH >= DockLayout.MinInnerH - 0.01f || f == 1f, $"Innenhöhe {s.InnerH}");
-                Assert.True(s.InnerW >= (ship ? DockLayout.MinInnerShipW : DockLayout.MinInnerW) - 0.01f || f == 1f, $"Innenbreite {s.InnerW}");
-            }
+            // Runde 34b (B8): ohne Ausnahme für Faktor 1 — jede Fläche der Matrix (auch mit Rändern) hat die Mindest-Innenfläche
+            Assert.True(s.InnerH >= DockLayout.MinInnerH - 0.01f, $"{w}×{h} {f:0.00} Innenhöhe {s.InnerH}");
+            Assert.True(s.InnerW >= (ship && !s.ShipCollapsed ? DockLayout.MinInnerShipW : DockLayout.MinInnerW) - 0.01f, $"{w}×{h} {f:0.00} Innenbreite {s.InnerW} (Schiff {ship}, eingeklappt {s.ShipCollapsed})");
+            if (ship && s.ShipCollapsed) Assert.Equal(0f, s.Ship.W);
             Assert.True(s.Credits.Inside(s.Top), "Kasse in der Kopfleiste");
         }
         var m = DockLayout.MenuCard(w1 / f, h1 / f, i);
+        var ms = DockLayout.MenuStrip(w1 / f, h1 / f, i);
+        Assert.False(ms.Intersects(m), $"Meldungsstreifen {ms} liegt auf der Menükarte {m}");
+        Assert.True(ms.Inside(new UiRect(i.Left, i.Top, w1 / f - i.Left - i.Right, h1 / f - i.Top - i.Bottom)), $"Meldungsstreifen {ms}");
         Assert.True(m.Inside(new UiRect(i.Left, i.Top, w1 / f - i.Left - i.Right, h1 / f - i.Top - i.Bottom)), $"Menükarte {m}");
         if (!insets) _out.WriteLine($"{w}×{h} Stufe {wanted:0.00} → Dock {f:0.00}");
     }
@@ -76,8 +79,9 @@ public class DockLayoutTests
         var (w2, h2) = UiLayout.Logical(1280, 720, 1f);
         float p169 = DockLayout.FitFactor(w2, h2, None, 1.3f);
         _out.WriteLine($"A15 groß → {a15:0.00}, 16:9 groß → {p169:0.00}");
-        Assert.True(a15 > 1.1f, $"A15 {a15}");
-        Assert.True(p169 >= 1f && p169 <= a15);
+        // Runde 34b (B1): auch 16:9-Handys erreichen „groß“ — die Höhe begrenzt (554 logisch), nicht die Breite
+        Assert.Equal(1.3f, a15, 2);
+        Assert.Equal(1.3f, p169, 2);
     }
 
     [Theory]

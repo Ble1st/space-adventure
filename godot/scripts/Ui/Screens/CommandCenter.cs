@@ -69,7 +69,7 @@ public static class CommandAreas
 /// (<see cref="CommandAreas"/>), Inhalt rechts, „← Flug“ unten links. Konkrete Bereiche bauen den Mittelteil
 /// in <see cref="BuildContent"/>.
 /// </summary>
-public abstract partial class CommandScreen : Control, IScreen
+public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 {
 	public abstract string Id { get; }
 	/// <summary>Id des angezeigten Bereichs; setzt der Aufrufer vor dem Öffnen (<see cref="CommandAreas"/>).</summary>
@@ -148,22 +148,29 @@ public abstract partial class CommandScreen : Control, IScreen
 		var u = Ctx.U; var ship = Ctx.Player;
 		string sector = u.Sectors.TryGetValue(u.PlayerSector, out var sec) ? sec.Name : "?";
 
-		// ── Top-Leiste: Titel links, Credits und Schiff rechts ──
-		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, 20, 10, 1240, 64);
-		At(top, Text("Kommandozentrale", 28, Cyan), 0, 6);
-		At(top, Text(HeaderInfo(u, sector), 16, Dim), 0, 42);
-		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", 26, Orange, HorizontalAlignment.Right), 940, 0, 300, 32);
-		At(top, Text($"Schiff #{ship.Id.Value} · {sector}", 15, Dim, HorizontalAlignment.Right), 940, 38, 300, 22);
+		// Runde 35 (UI-ANPASSUNG.md E4): Gerüst aus der Fläche der Schicht (Core: CommandLayout.Shell) — bei 1280 × 720 die bisherigen Lagen
+		float k0 = GetParent() is Control lp && lp.Scale.X > 0f ? lp.Scale.X : 1f;
+		var L = Shell = SpaceSim.Core.Ui.CommandLayout.Shell(Size.X, Size.Y, UiScale.Div(UiScale.SafeInsets1(), k0));
 
-		// ── Linke Leiste: Wechsel zwischen den Bereichen ──
-		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, 14, 84, 200, 540);
+		// ── Top-Leiste: Titel links, Credits und Schiff rechts ──
+		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, L.Top.X, L.Top.Y, L.Top.W, L.Top.H);
+		float cxr = L.Credits.X - L.Top.X;
+		At(top, Text("Kommandozentrale", L.Compact ? 24 : 28, Cyan), 0, L.Compact ? 2 : 6, cxr - 10, 34);
+		At(top, Text(HeaderInfo(u, sector), L.Compact ? 14 : 16, Dim), 0, L.Compact ? 36 : 42, cxr - 10, 22);
+		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", L.Compact ? 22 : 26, Orange, HorizontalAlignment.Right), cxr, 0, L.Credits.W, 32);
+		At(top, Text($"Schiff #{ship.Id.Value} · {sector}", L.Compact ? 14 : 15, Dim, HorizontalAlignment.Right), cxr, L.Compact ? 34 : 38, L.Credits.W, 22);
+
+		// ── Linke Leiste: Wechsel zwischen den Bereichen (Runde 35: rollt, wenn die Leiste niedriger ist als acht Bereiche) ──
+		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, L.Rail.X, L.Rail.Y, L.Rail.W, L.Rail.H);
 		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
-		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		var railScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		rail.AddChild(railScroll);
+		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);
-		rail.AddChild(rv);
+		railScroll.AddChild(rv);
 		foreach (var (id, label, sub) in CommandAreas.All)
 		{
-			var b = new KitButton(label, new Vector2(184, 56)) { AlignLeft = true, FontSize = 16, Sub = sub };
+			var b = new KitButton(label, new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, Sub = sub };
 			string key = id;
 			b.Pressed += () => AreaSelected?.Invoke(key);
 			if (id == AreaId) b.State = KitButtonState.On;
@@ -177,20 +184,43 @@ public abstract partial class CommandScreen : Control, IScreen
 		rv.AddChild(new Control { SizeFlagsVertical = Control.SizeFlags.ExpandFill });
 		rv.AddChild(Text($"Schiff: #{ship.Id.Value} (aktiv)", 13, Dim));
 
-		// ── Mittelteil ──
-		var center = At(this, new PanelContainer(), 224, 84, 1042, 540);
+		// ── Mittelteil (Runde 35: Innenfläche aus dem Gerüst; ist der Inhalt höher, rollt der Bereich als Ganzes) ──
+		var center = At(this, new PanelContainer(), L.Center.X, L.Center.Y, L.Center.W, L.Center.H);
 		center.AddThemeStyleboxOverride("panel", Box(PanelBg, Edge, 10, 2, 10));
-		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(1022, 520), Size = new Vector2(1022, 520) };
-		center.AddChild(inner);
+		var inner = new Control { MouseFilter = MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(L.InnerW, L.InnerH), Size = new Vector2(L.InnerW, L.InnerH) };
+		var areaScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		center.AddChild(areaScroll);
+		areaScroll.AddChild(inner);
 		BuildContent(inner);
+		float bottom = ContentBottom(inner);   // Runde 35: rekursiv (Tasten in Karten zählen mit)
+		if (bottom > L.InnerH + 1f) inner.CustomMinimumSize = new Vector2(L.InnerW, bottom + 8f);
 
 		// ── Fußleiste: „← Flug“ immer sichtbar ──
-		var back = At(this, new KitButton("← Flug", new Vector2(160, 58)) { FontSize = 20 }, 14, 648);
+		var back = At(this, new KitButton("← Flug", new Vector2(L.Back.W, L.Back.H)) { FontSize = 20 }, L.Back.X, L.Back.Y);
 		back.Pressed += () => BackToFlight?.Invoke();
 	}
 
-	/// <summary>Baut den Inhalt des Mittelteils (Innenbereich 1022 × 520 px).</summary>
+	/// <summary>Runde 35: zuletzt gerechnetes Gerüst.</summary>
+	public SpaceSim.Core.Ui.CommandShell? Shell { get; private set; }
+	/// <summary>Runde 35: Meldungsstreifen (Core: CommandShell.MessageStrip) in Bildpunkten.</summary>
+	public Rect2? MessageStripGlobal => Shell is { } l && IsVisibleInTree() && l.MessageStrip.W > 0f
+		? new Rect2(GetGlobalTransform() * new Vector2(l.MessageStrip.X, l.MessageStrip.Y), new Vector2(l.MessageStrip.W, l.MessageStrip.H) * GetGlobalTransform().Scale.X) : null;
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationResized && Visible && Ctx is not null && GetChildCount() > 0) { _dirty = true; SafeRebuild(); }
+	}
+
+	/// <summary>Baut den Inhalt des Mittelteils (Innenbereich <see cref="SpaceSim.Core.Ui.CommandShell.InnerW"/> × InnerH; bei 1280 × 720 1022 × 520).</summary>
 	protected abstract void BuildContent(Control inner);
+
+	/// <summary>
+	/// Runde 35 (E4): schmale Innenfläche (Handy bei „groß“, unter 1000) — Bereiche mit Liste + Detail legen beides untereinander (die Liste oben, das Detail
+	/// darunter in voller Breite); der Bereich rollt als Ganzes. Bei 1280 × 720 (1022 breit) bleibt alles nebeneinander.
+	/// </summary>
+	protected static bool Narrow(Control inner) => (inner.Size.X > 0 ? inner.Size.X : 1022f) < 1000f;
+	protected static float InnerW(Control inner) => inner.Size.X > 0 ? inner.Size.X : 1022f;
+	protected static float InnerH(Control inner) => inner.Size.Y > 0 ? inner.Size.Y : 520f;
 
 	/// <summary>Zeilenhilfe in frei platzierten Karten: Name links, Wert rechts, an fester Position.</summary>
 	protected static void Row(Control parent, float x, float y, float w, string name, string value, int size = 15)

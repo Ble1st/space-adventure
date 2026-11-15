@@ -53,6 +53,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	ScrollContainer? _scroll;
 	/// <summary>Runde 34: aufgeklappte Zeile (Knoten) und wie viele Bilder lang sie nach dem Öffnen ganz sichtbar gehalten wird.</summary>
 	TradeRow? _openRow;
+	float _tileW = 214f;
 	int _ensureFrames;
 
 	/// <summary>
@@ -63,6 +64,7 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	public override void _Process(double delta)
 	{
 		if (_ensureFrames <= 0) return;
+		if (KitScroll.Dragging) { _ensureFrames = 0; return; }   // Runde 34b (Prüfung B7): der Nutzer rollt selbst — nicht zurückholen
 		_ensureFrames--;
 		if (_scroll is not KitScroll ks || _openRow is not { } row || !IsInstanceValid(row) || !row.IsInsideTree() || KitScroll.Dragging) return;
 		float top = row.Position.Y, bottom = top + row.Size.Y + 10f, view = ks.Size.Y, cur = ks.ScrollVertical;
@@ -168,14 +170,16 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			// ── Kachelmodus: Kacheln oben, Editor-Blatt unten für die gewählte Kachel ──
 			float sheetH = _tileSel is { } ts && _rows.FirstOrDefault(r => r.Good == ts) is { } tr ? 26f + Editor.HeightFor(tr) + 6f : 0f;
 			_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 46, w, fy - 46 - 8 - sheetH);
-			var grid = new GridContainer { Columns = SpaceSim.Core.Ui.DockLayout.GridColumns(w, 214f, 8f), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };   // Runde 34: Spalten aus der Breite (Kachel 214)
+			int cols = SpaceSim.Core.Ui.DockLayout.GridColumns(w, 214f, 8f);   // Runde 34: Spalten aus der Breite (Kachel 214)
+			_tileW = MathF.Floor((w - 8f * (cols - 1)) / cols);   // Runde 34b: die Kacheln teilen sich die ganze Breite
+			var grid = new GridContainer { Columns = cols, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 			grid.AddThemeConstantOverride("h_separation", 8);
 			grid.AddThemeConstantOverride("v_separation", 8);
 			_scroll.AddChild(grid);
 			foreach (var row in _rows)
 			{
 				bool sel = _tileSel is { } g && g == row.Good;
-				var t = new TradeTile(this, row, sel);
+				var t = new TradeTile(this, row, sel, _tileW);
 				t.Tapped += () => { _tileSel = sel ? null : row.Good; if (!sel) _qty = KeepQty(); Invalidate(); };
 				grid.AddChild(t);
 			}
@@ -450,6 +454,51 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 	}
 	/// <summary>Phase 16: baut die Zeilen neu auf (nach einem Stationswechsel im Test, wenn der Bereich schon offen ist).</summary>
 	public void TestRebuild() => Invalidate();
+	/// <summary>Runde 35b (Prüfung Punkt 11): Zeit eines Neuaufbaus der Liste (ms, Mittel über <paramref name="n"/>) und der Namens-Einpassung aller Zeilen
+	/// (FitFontSize + MiddleEllipsis, wie beim Zeichnen; ms je Durchgang über alle Zeilen).</summary>
+	public (double RebuildMs, double RebuildNoFitMs, double FitMs, int Rows) TestTimeRebuild(int n)
+	{
+		UiKit.AutoFit = false;
+		Rebuild();
+		var sw = System.Diagnostics.Stopwatch.StartNew();
+		for (int i = 0; i < n; i++) Rebuild();
+		double rb0 = sw.Elapsed.TotalMilliseconds / n;
+		UiKit.AutoFit = true;
+		Rebuild();
+		sw.Restart();
+		for (int i = 0; i < n; i++) Rebuild();
+		double rb = sw.Elapsed.TotalMilliseconds / n;
+		var font = ThemeDB.FallbackFont;
+		var rows = BuildRowsForTest();
+		sw.Restart();
+		for (int i = 0; i < n; i++)
+			foreach (var name in rows)
+			{
+				int ns = SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(name, HorizontalAlignment.Left, -1, fs).X, 180f, 20, 16);
+				SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(name, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, ns).X, 180f);
+			}
+		double fit = sw.Elapsed.TotalMilliseconds / n;
+		// Runde 35c (Prüfung: der Test schrieb Pseudo-Einträge in den statischen Zwischenspeicher und maß nur das Nachschlagen): eigener Speicher, derselbe
+		// Weg wie beim Zeichnen (Schlüssel bilden, nachschlagen, bei Fehlen einpassen und ablegen); der erste Durchgang füllt (kalt), gemessen wird das Mittel
+		// über alle n Durchgänge — so oft zeichnen die Zeilen bei unveränderten Namen neu
+		var cache = new Dictionary<(string, float, int), (int, string)>();
+		sw.Restart();
+		for (int i = 0; i < n; i++)
+			foreach (var name in rows)
+			{
+				var key = (name, 172f, 16);
+				if (!cache.TryGetValue(key, out var v))
+				{
+					int ns = SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(name, HorizontalAlignment.Left, -1, fs).X, 172f, 20, 16);
+					v = (ns, SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(name, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, ns).X, 172f));
+					cache[key] = v;
+				}
+			}
+		CachedFitMs = sw.Elapsed.TotalMilliseconds / n;
+		return (rb, rb0, fit, rows.Count);
+	}
+	public double CachedFitMs;
+	System.Collections.Generic.List<string> BuildRowsForTest() => Ctx is { } c ? c.Station.Market.Keys.Select(g => c.U.Goods[g].Name).ToList() : new();
 	/// <summary>Phase 16: klappt die Zeile einer Ware auf (Screenshot).</summary>
 	public void TestExpand(GoodId good)
 	{
@@ -568,26 +617,53 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			var font = ThemeDB.FallbackFont;
 			// Kopfzeile
 			DrawRect(new Rect2(6, 12, 18, 18), u.Color);
-			DrawString(font, new Vector2(34, 38), KitButton.Fit(font, u.Name, 20, 180f), HorizontalAlignment.Left, -1, 20, White);   // Gerätetest Phase 27: nie über den Preis
+			// Runde 34b (Handytest r34 g3: „Universalfrachtr…“ zweimal untereinander): Name mit der Schrift einpassen — erst kleiner (bis 14), dann in der Mitte
+			// kürzen, damit das unterscheidende Ende („… 60“/„… 100“) sichtbar bleibt; nie über den Preis
+			// Runde 35b: breite Zeile → breitere Namensspalte (die übrigen Spalten rücken nach rechts); Schrift nie unter die Untergrenze der Ebene
+			float ex = Mathf.Clamp(Size.X - 640f, 0f, 100f), nameW = 172f + ex;   // Runde 35c: mindestens 14 px Abstand zum Preis (bei 220)
+			// Runde 35b (Prüfung Punkt 11: Einpassen aller 54 Namen kostete ≈ 2 ms je Neuzeichnen): Ergebnis je (Name, Breite, Untergrenze) zwischengespeichert
+			int nfloor = Math.Max(14, SpaceSim.Core.Ui.UiLayout.FontFloor(20, UiKit.LayerFactor(this)));
+			var nkey = (u.Name, nameW, nfloor);
+			if (!NameFitCache.TryGetValue(nkey, out var nf))
+			{
+				int fsz = SpaceSim.Core.Ui.UiLayout.FitFontSize(fs => font.GetStringSize(u.Name, HorizontalAlignment.Left, -1, fs).X, nameW, 20, nfloor);
+				nf = (fsz, SpaceSim.Core.Ui.UiLayout.MiddleEllipsis(u.Name, t => font.GetStringSize(t, HorizontalAlignment.Left, -1, fsz).X, nameW));
+				if (NameFitCache.Count > 2000) NameFitCache.Clear();
+				NameFitCache[nkey] = nf;
+			}
+			var (ns, nm) = nf;
+			DrawnText.Clear(this);
+			if (nm == u.Name)
+			{
+				TestRowNames[u.Good.Value] = nm;
+				UiKit.DrawText(this, 0, font, new Vector2(34, 38), nm, ns, White, full: u.Name);
+			}
+			else
+			{
+				// Runde 35b (Prüfwerkzeug: „Leichter Sc…bausatz“ bei 1,15 auf Tablets): passt der Name nicht, zweizeilig (Kopfzeile 56 hoch) statt gekürzt
+				TestRowNames[u.Good.Value] = u.Name;
+				UiKit.DrawFit2(this, 0, font, new Vector2(34, 27), new Vector2(34, 38), u.Name, 18, nameW, White, minSize: 14);
+			}
 			float live = _owner.LivePrice(u);
 			if (u.Traded) _owner.Shown(u.Good, live);
-			DrawString(font, new Vector2(220, 38), u.Traded ? $"{live:0.0}" : "—", HorizontalAlignment.Left, -1, 20, u.Traded ? PriceColor(u) : Dim);
+			UiKit.DrawText(this, 1, font, new Vector2(220 + ex, 38), u.Traded ? $"{live:0.0}" : "—", 20, u.Traded ? PriceColor(u) : Dim);
 			float fill = u.Target > 0f ? Mathf.Clamp(u.Stock / u.Target, 0f, 1.4f) / 1.4f : 0f;
-			DrawRect(new Rect2(320, 18, 110, 10), new Color(0, 0, 0, 0.5f));
-			DrawRect(new Rect2(320, 18, 110 * fill, 10), u.Color);
-			DrawString(font, new Vector2(438, 38), $"{u.Stock:0}", HorizontalAlignment.Left, -1, 17, Dim);
-			DrawString(font, new Vector2(500, 38), u.Held > 0f ? $"Bord {u.Held:0}" : "", HorizontalAlignment.Left, -1, 17, Cyan);
+			DrawRect(new Rect2(320 + ex, 18, 110, 10), new Color(0, 0, 0, 0.5f));
+			DrawRect(new Rect2(320 + ex, 18, 110 * fill, 10), u.Color);
+			UiKit.DrawText(this, 2, font, new Vector2(438 + ex, 38), $"{u.Stock:0}", 17, Dim);
+			if (u.Held > 0f) UiKit.DrawText(this, 3, font, new Vector2(500 + ex, 38), $"Bord {u.Held:0}", 17, Cyan);
 			// Phase 16: warum die Station die Ware nicht (mehr) annimmt — gedimmt unter dem Preis
 			// Runde 34 (Handytest r33 j2: der Deckel-Hinweis brach am Zeilenende hart ab, ohne „…“): Fassung nach gemessener Breite, notfalls mit „…“
 			if (NoteOf(u) is { } note)
 			{
-				float room = Size.X - 260f;
+				float room = Size.X - 260f - ex;
 				string drop = ShowDrop(u) && !_open ? " · antippen: Abwerfen" : "";
-				string text = _owner.RowNote(u, note, drop, room, 12);
+				// Runde 34b (Handytest r34 #9: der Deckel-Satz stand bei offener Zeile zweimal im Bild): offen steht er im Editor, in der Zeile nur die Kurzform
+				string text = _open && _owner.CapShort(u) is { } capShort ? capShort : _owner.RowNote(u, note, drop, room, 12);
 				TestRowNotes[u.Good.Value] = (text, font.GetStringSize(text, HorizontalAlignment.Left, -1, 12).X <= room + 0.5f);
-				DrawString(font, new Vector2(220, 53), text, HorizontalAlignment.Left, -1, 12, SellNoteColor(u));
+				UiKit.DrawText(this, 4, font, new Vector2(220 + ex, 53), text, 12, SellNoteColor(u));
 			}
-			DrawString(font, new Vector2(Size.X - 34, 38), _open ? "▾" : "▸", HorizontalAlignment.Left, -1, 18, Dim);
+			UiKit.DrawText(this, 5, font, new Vector2(Size.X - 34, 38), _open ? "▾" : "▸", 18, Dim);
 		}
 
 		static Color PriceColor(Row r)
@@ -609,11 +685,16 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 
 	/// <summary>Runde 34, Selbsttest: zuletzt gezeichneter Zeilenhinweis (gemessen gekürzt).</summary>
 	public static readonly Dictionary<int, (string Text, bool Fits)> TestRowNotes = new();
+	/// <summary>Runde 34b, Selbsttest: gezeichneter Warenname je Zeile (eingepasst).</summary>
+	public static readonly Dictionary<int, string> TestRowNames = new();
+	static readonly Dictionary<(string, float, int), (int Size, string Shown)> NameFitCache = new();
 
 	/// <summary>
 	/// Runde 34 (Handytest r33): Hinweis unter dem Preis einer Warenzeile — die längste Fassung, die mit der Schrift gemessen in <paramref name="room"/> passt;
 	/// für den Rückkaufdeckel die Kurzform („Deckel 4,0 · dein Kauf hier“), zuletzt mit „…“ gekürzt.
 	/// </summary>
+	string? CapShort(Row r) => Ctx is { } c && r.Sell.Note is not null ? PlayerLedger.SaleNoteShort(c.U, c.Ship, c.Station, r.Good) : null;
+
 	string RowNote(Row r, string note, string drop, float room, int size)
 	{
 		var font = ThemeDB.FallbackFont;
@@ -637,11 +718,11 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 		readonly bool _sel;
 
 		readonly TradeScreen _owner;
-		public TradeTile(TradeScreen owner, Row row, bool sel)
+		public TradeTile(TradeScreen owner, Row row, bool sel, float width = 214f)
 		{
 			_owner = owner; _row = row; _sel = sel;
 			MouseFilter = MouseFilterEnum.Stop;
-			CustomMinimumSize = new Vector2(214, 140);
+			CustomMinimumSize = new Vector2(MathF.Max(214f, width), 140);   // Runde 34b (Handytest r34 g3: rechts 140 px frei): Breite aus der Fläche
 			Size = CustomMinimumSize;
 		}
 
@@ -664,19 +745,21 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			DrawRect(new Rect2(Vector2.Zero, Size), _sel ? Cyan : Edge, false, 2f);
 			DrawRect(new Rect2(0, 0, Size.X, 7), r.Color);
 			var font = ThemeDB.FallbackFont;
-			DrawString(font, new Vector2(12, 34), KitButton.Fit(font, r.Name, 20, Size.X - 24f), HorizontalAlignment.Left, -1, 20, White);
-			DrawString(font, new Vector2(12, 74), $"{r.Price:0.0}", HorizontalAlignment.Left, -1, 30, White);
-			DrawString(font, new Vector2(112, 70), UiPlaceholders.TrendSoon, HorizontalAlignment.Left, 96, 11, new Color(Dim, 0.7f));
+			DrawnText.Clear(this);
+			// Runde 35b (Prüfwerkzeug: „Leichter Sc…bausatz“ in schmalen Kacheln): zweizeilig statt in der Mitte gekürzt
+			UiKit.DrawFit2(this, 0, font, new Vector2(12, 25), new Vector2(12, 34), r.Name, 20, Size.X - 24f, White, minSize: 14);
+			UiKit.DrawText(this, 1, font, new Vector2(12, 74), $"{r.Price:0.0}", 30, White);
+			UiKit.DrawFit(this, 2, font, new Vector2(112, 70), UiPlaceholders.TrendSoon, 11, MathF.Min(96f, Size.X - 124f), new Color(Dim, 0.7f));
 			float fill = r.Target > 0f ? Mathf.Clamp(r.Stock / r.Target, 0f, 1.4f) / 1.4f : 0f;
 			// Runde 29 (Gerätetest b05: „Stellt die Ware selbst her“ lag über „Bestand 152“): Balken, Hinweis und Bestand je in eigener Zeile
 			DrawRect(new Rect2(12, 84, 190, 8), new Color(0, 0, 0, 0.5f));
 			DrawRect(new Rect2(12, 84, 190 * fill, 8), r.Color);
-			if (NoteOf(r) is { } note) DrawString(font, new Vector2(12, 106), KitButton.Fit(font, note, 11, 190), HorizontalAlignment.Left, 190, 11, SellNoteColor(r));   // Phase 16
-			DrawString(font, new Vector2(12, 128), $"Bestand {r.Stock:0}", HorizontalAlignment.Left, 110, 14, Dim);
+			if (NoteOf(r) is { } note) UiKit.DrawFit(this, 3, font, new Vector2(12, 106), note, 11, Size.X - 24f, SellNoteColor(r));   // Phase 16
+			UiKit.DrawFit(this, 4, font, new Vector2(12, 128), $"Bestand {r.Stock:0}", 14, 110, Dim);
 			if (r.Held > 0f)
 			{
 				DrawRect(new Rect2(128, 112, 74, 22), new Color(Cyan, 0.25f));
-				DrawString(font, new Vector2(128, 128), $"Bord {r.Held:0}", HorizontalAlignment.Center, 74, 14, Cyan);
+				UiKit.DrawFit(this, 5, font, new Vector2(128, 128), $"Bord {r.Held:0}", 14, 74, Cyan, HorizontalAlignment.Center);
 			}
 		}
 	}
@@ -903,12 +986,13 @@ public sealed partial class TradeScreen : DockAreaScreen, ISessionScreen
 			_owner.Shown(_row.Good, _owner.LivePrice(_row));
 			TestOverflow = font.GetStringSize(l1, HorizontalAlignment.Left, -1, 14).X > w || font.GetStringSize(l2, HorizontalAlignment.Left, -1, 14).X > w
 				|| font.GetStringSize(l3, HorizontalAlignment.Left, -1, 13).X > w;
-			DrawString(font, new Vector2(34, 78), KitButton.Fit(font, l1, 14, w), HorizontalAlignment.Left, -1, 14, Dim);
-			DrawString(font, new Vector2(34, 98), KitButton.Fit(font, l2, 14, w), HorizontalAlignment.Left, -1, 14, l2.StartsWith("Derzeit") ? new Color(Dim, 0.7f) : White);
+			DrawnText.Clear(this);
+			UiKit.DrawFit(this, 0, font, new Vector2(34, 78), l1, 14, w, Dim);
+			UiKit.DrawFit(this, 1, font, new Vector2(34, 98), l2, 14, w, l2.StartsWith("Derzeit") ? new Color(Dim, 0.7f) : White);
 			// Runde 26: Ampel — grün nur, wenn auch die vorsichtige Schätzung Gewinn zeigt und der Abnehmer die Ladung sicher nimmt; gelb „unsicher“
 			var c3 = verdict switch { TripVerdict.Good => Green, TripVerdict.Unsure => Orange, TripVerdict.Loss => Red, _ => SellNoteColor(_row) };
 			if (_row.Sell.Note is not null && _row.Held > 0f && verdict is null) c3 = SellNoteColor(_row);
-			DrawString(font, new Vector2(34, 118), KitButton.Fit(font, l3, 13, w), HorizontalAlignment.Left, -1, 13, c3);
+			UiKit.DrawFit(this, 2, font, new Vector2(34, 118), l3, 13, w, c3);
 			TestLines = (l1, l2, l3);
 			TestVerdict = verdict;
 			TestBuyer = buyerId;

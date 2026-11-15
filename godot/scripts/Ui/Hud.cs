@@ -216,14 +216,10 @@ public partial class Hud : CanvasLayer
 		root.AddChild(_dockLayer);
 		foreach (var sc in new Control[] { DockMenu, DockTrade, DockInfo, DockHangar, DockTaxi, DockRepair, DockOutfitter, DockShipyard, DockStorage, DockAuthority, DockResearch, DockPlaceholder })
 			_dockLayer.AddChild(sc);
-		_center.AddChild(CcUniverse);
-		_center.AddChild(CcSector);
-		_center.AddChild(CcFactions);
-		_center.AddChild(CcMyFaction);
-		_center.AddChild(CcFleet);
-		_center.AddChild(CcAssets);
-		_center.AddChild(CcComms);
-		_center.AddChild(CcSystem);
+		// Runde 35 (E4): Kommandozentrale in eigener, ganzflächiger Schicht mit eigenem Faktor (CommandLayout.FitFactor)
+		_ccLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
+		root.AddChild(_ccLayer);
+		foreach (var sc in new Control[] { CcUniverse, CcSector, CcFactions, CcMyFaction, CcFleet, CcAssets, CcComms, CcSystem }) _ccLayer.AddChild(sc);
 
 		_flash.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		root.AddChild(_flash);
@@ -236,6 +232,9 @@ public partial class Hud : CanvasLayer
 	readonly Control _center = new();
 	/// <summary>Runde 34: Schicht der Dock-Bildschirme (ganze Fläche, Faktor <see cref="DockFactor"/>).</summary>
 	readonly Control _dockLayer = new();
+	/// <summary>Runde 35: Schicht der Kommandozentrale (ganze Fläche, Faktor <see cref="CcFactor"/>).</summary>
+	readonly Control _ccLayer = new();
+	public float CcFactor => _ccLayer.Scale.X;
 	/// <summary>Runde 34: wirksamer Faktor der Dock-Schicht (Stufe, gesenkt bis jeder Bereich seine Mindestfläche hat).</summary>
 	public float DockFactor => _dockLayer.Scale.X;
 	public Control DockLayerNode => _dockLayer;
@@ -268,6 +267,12 @@ public partial class Hud : CanvasLayer
 			_dockLayer.Scale = new Vector2(df, df);
 			_dockLayer.Size = vp / df;
 			UiScale.DockFactor = df;
+			float cf = SpaceSim.Core.Ui.CommandLayout.FitFactor(vp.X, vp.Y, dkey.Item3, f);
+			_ccLayer.AnchorLeft = 0f; _ccLayer.AnchorTop = 0f; _ccLayer.AnchorRight = 0f; _ccLayer.AnchorBottom = 0f;
+			_ccLayer.Position = Vector2.Zero;
+			_ccLayer.Scale = new Vector2(cf, cf);
+			_ccLayer.Size = vp / cf;
+			UiScale.CommandFactor = cf;
 		}
 		bool flight = Screens.Current == null || Screens.Current == Flight;
 		float s = flight ? Flight.Scale.X : UiScale.ScreensFactor;   // Runde 33b: der wirksame Faktor der Flug-Schicht (kann unter der Stufe liegen)
@@ -341,53 +346,79 @@ public partial class Hud : CanvasLayer
 		// Runde 33: im Flug unten verankert (720er-Entwurf: y 508 = Unterkante − 212)
 		_alert.Position = dockMenu ? new Vector2(10f, 90f) : screen ? new Vector2((vp.X - 1280f) / 2f + ScreenAlertX, 0f) : new Vector2(vp.X / 2f - 280f, vp.Y - (720f - FlightAlertY));
 		// Runde 34: Dock-Bereiche liegen über die ganze Fläche — die Meldung in die Lücke der Kopfleiste (Core: DockShell.AlertSlot, in Bildpunkten)
-		if (screen && Screens.Current is DockAreaScreen da && da.AlertSlotGlobal is { } slot)
+		// Runde 34b (Prüfung B2): in den Meldungsstreifen (keine Taste, kein Text darunter)
+		if (screen && Screens.Current is IMessageStrip ms && ms.MessageStripGlobal is { } slot)
 		{
-			size = new Vector2(slot.Size.X, ScreenAlertHeight);
+			size = new Vector2(slot.Size.X, dockMenu ? slot.Size.Y : ScreenAlertHeight);
 			_alert.Size = size;
 			_alert.Position = slot.Position;
 		}
-		// Runde 19 (Handy-Test B_4): im Flug endet die Meldung über der Beschriftung „RÜCK · max 20 %“ (nach dem Rand-Layout der echten Auflösung)
-		float realH = MathF.Max(size.Y, _alert.GetCombinedMinimumSize().Y);   // die Meldung kann mit ihrem Text wachsen
-		if (!dockMenu && !screen && Flight.ReverseLabelLocal is { Size.Y: > 0f } rl && new Rect2(_alert.Position, new Vector2(size.X, realH)).Intersects(rl.Grow(6f)))
-			_alert.Position = new Vector2(_alert.Position.X, rl.Position.Y - 6f - realH);
-		// Runde 33 (E2): im Kompakt-HUD (UI-Faktor > 1) kann diese Lage auf Tasten fallen — dann die nächste freie Lage (FlightHudLayout.FindSpot, Core)
-		if (!dockMenu && !screen && Flight.Layout is { Compact: true })
+		if (dockMenu || screen)
 		{
-			var occ = Flight.OccupiedLocal();
-			if (Flight.ShipRectLocal() is { } shipR) occ.Add(shipR);   // Runde 33b: nie über dem eigenen Schiff
-			var want = new Rect2(_alert.Position, new Vector2(size.X, realH));
-			if (occ.Exists(r => r.Intersects(want)))
-			{
-				var key = (vp, realH, occ.Count, occ.Aggregate(0f, (a, r) => a + r.Position.X * 3f + r.Position.Y * 7f + r.Size.X));
-				if (key != _spotKey)
-				{
-					_spotKey = key;
-					var list = occ.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
-					var area = new SpaceSim.Core.Ui.UiRect(0, 0, vp.X, vp.Y);
-					_spot = SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, list, size.X, realH, 360f, vp.X / 2f, want.Position.Y);
-					// kein Platz neben allem (Gefecht bei Faktor 1,3 auf 16:9): dann nur Tasten frei lassen — die Meldung darf kurz über Status/Sektorzeilen liegen
-					var tapsAndShip = Flight.OccupiedLocal(interactiveOnly: true);
-					if (Flight.ShipRectLocal() is { } shipR2) tapsAndShip.Add(shipR2);
-					_spot ??= SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, tapsAndShip
-						.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList(), size.X, realH, 300f, vp.X / 2f, want.Position.Y);
-				}
-				if (_spot is { } sp) { size = new Vector2(sp.W, size.Y); _alert.Size = size; _alert.Position = new Vector2(sp.X, sp.Y); }
-			}
+			_alertText.MaxLinesVisible = dockMenu ? 6 : 2;
+			_alertText.AddThemeFontSizeOverride("font_size", 14);
+			_alertText.Position = new Vector2(12, 4); _alertText.Size = new Vector2(size.X - 12 - 64, size.Y - 8);
+			_alertClose.Position = new Vector2(size.X - 60, dockMenu ? size.Y - 60 : (size.Y - 56) / 2f);
+			return;
 		}
-		_alertText.MaxLinesVisible = dockMenu ? 6 : screen ? 2 : 3;
-		_alertText.AddThemeFontSizeOverride("font_size", screen ? 14 : 15);
+		// ── Flug ── Runde 35b (Prüfung: bei Faktor 1,3 auf 16:9 lag die große Meldung über dem Statusfeld und war gekürzt): Höhe aus dem Text (mit der Schrift
+		// gemessen, kein „…“); gesucht wird zuerst neben allem (Tasten, Texte, Schiff), dabei schmaler und mit kleinerer Schrift bis zur Untergrenze der Ebene
+		// (Core: UiLayout.FontFloor) und bis drei Zeilen; dann nur neben Tasten und Schiff bis fünf Zeilen; zuletzt die Grundlage in voller Höhe
+		var occ = Flight.OccupiedLocal();
+		if (Flight.ShipRectLocal() is { } shipR) occ.Add(shipR);   // Runde 33b: nie über dem eigenen Schiff
+		// Runde 19 (Handy-Test B_4): die Beschriftung „RÜCK · max 20 %“ bleibt frei
+		if (Flight.ReverseLabelLocal is { Size.Y: > 0f } rl) occ.Add(rl.Grow(6f));
+		var font = _alertText.GetThemeFont("font");
+		int floor = SpaceSim.Core.Ui.UiLayout.FontFloor(15, UiKit.LayerFactor(_alert));
+		var key = (vp, _alertText.Text.GetHashCode(), occ.Count, occ.Aggregate(0f, (a, r) => a + r.Position.X * 3f + r.Position.Y * 7f + r.Size.X + r.Size.Y * 5f));
+		// gleiche Meldung und die bisherige Lage ist noch frei: bleiben (kein Springen, wenn sich das Schiff bewegt)
+		bool keep = key.Item2 == _flightAlertKey.Item2 && key.Item1 == _flightAlertKey.Item1 && _flightAlert.R.W > 0f
+			&& !Flight.OccupiedLocal(importantOnly: true).Concat(Flight.ShipRectLocal() is { } sk ? new[] { sk } : System.Array.Empty<Rect2>())
+				.Any(r => r.Intersects(new Rect2(_flightAlert.R.X, _flightAlert.R.Y, _flightAlert.R.W, _flightAlert.R.H)));
+		if (key != _flightAlertKey && !keep)
+		{
+			_flightAlertKey = key;
+			var area = new SpaceSim.Core.Ui.UiRect(0, 0, vp.X, vp.Y);
+			int ls = _alertText.GetThemeConstant("line_spacing");
+			int Lines(float w, int fs) => (int)MathF.Round(font.GetMultilineStringSize(_alertText.Text, HorizontalAlignment.Left, w - 12 - 64, fs).Y / font.GetHeight(fs));
+			float H(float w, int fs) => MathF.Max(AlertHeight, Lines(w, fs) * (font.GetHeight(fs) + ls) + 12f);
+			var taps = Flight.OccupiedLocal(interactiveOnly: true);
+			if (Flight.ShipRectLocal() is { } shipR2) taps.Add(shipR2);
+			(SpaceSim.Core.Ui.UiRect R, int Fs)? pick = null;
+			var important = Flight.OccupiedLocal(importantOnly: true);
+			if (Flight.ShipRectLocal() is { } shipR3) important.Add(shipR3);
+			if (Flight.ReverseLabelLocal is { Size.Y: > 0f } rl2) important.Add(rl2.Grow(6f));
+			foreach (var (rects, maxLines, minW) in new[] { (occ, 3, 300f), (occ, 6, 216f), (important, 6, 216f), (taps, 5, 300f) })
+			{
+				var list = rects.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
+				for (float w = FlightAlertWidth; w >= minW && pick is null; w -= 40f)
+					for (int fs = 15; fs >= floor && pick is null; fs--)
+					{
+						if (Lines(w, fs) > maxLines) continue;
+						float h = H(w, fs);
+						if (SpaceSim.Core.Ui.FlightHudLayout.FindSpot(area, list, w, h, w, vp.X / 2f, _alert.Position.Y) is { } sp) pick = (sp with { H = h }, fs);
+					}
+				if (pick is not null) break;
+			}
+			_flightAlert = pick ?? (new SpaceSim.Core.Ui.UiRect(_alert.Position.X, _alert.Position.Y, FlightAlertWidth, H(FlightAlertWidth, floor)), floor);
+		}
+		var (ar, afs) = _flightAlert;
+		size = new Vector2(ar.W, ar.H);
+		_alert.Size = size; _alert.Position = new Vector2(ar.X, ar.Y);
+		_alertText.MaxLinesVisible = -1;
+		_alertText.AddThemeFontSizeOverride("font_size", afs);
 		_alertText.Position = new Vector2(12, 4); _alertText.Size = new Vector2(size.X - 12 - 64, size.Y - 8);
-		_alertClose.Position = new Vector2(size.X - 60, dockMenu ? size.Y - 60 : (size.Y - 56) / 2f);
+		_alertClose.Position = new Vector2(size.X - 60, (size.Y - 56) / 2f);
 	}
 	const float DockMenuWidth = 580f;
 	/// <summary>Runde 34: Platz links neben der Dock-Menü-Karte (Bildpunkte; die Karte liegt in der skalierten Dock-Schicht).</summary>
 	float DockMenuSide() => DockMenu.CardGlobal is { } c && c.Size.X > 0f ? c.Position.X - 20f : (AlertSpace.X - DockMenuWidth) / 2f - 20f;
 	(Vector2, float, SpaceSim.Core.Ui.UiInsets) _dockKey;
-	(Vector2, float, int, float) _spotKey;
+	(Vector2, int, int, float) _flightAlertKey;
+	(SpaceSim.Core.Ui.UiRect R, int Fs) _flightAlert;
 	(Vector2, string, int, float) _toastKey;
 	SpaceSim.Core.Ui.UiRect? _toastSpot;
-	SpaceSim.Core.Ui.UiRect? _spot;
+	int _toastFs = 22;
 	// Runde 12 (Handy-Test: Meldung und Beschusszeile verdeckten den Gegner vor dem Bug): im Flug unten mittig über dem Tempo-Regler — hinter dem eigenen
 	// Schiff, dort steht im Gefecht kein Gegner (die Kamera blickt über das Heck nach vorn); oben bleibt die Bildmitte frei
 	const float FlightAlertWidth = 536f;
@@ -436,7 +467,19 @@ public partial class Hud : CanvasLayer
 		bool below = _alert.Visible && !onScreen;
 		// Runde 4: über Vollbildern unten mittig (zwischen „← Menü“/„← Flug“ und „Abdocken“), im Flug mit Abstand zur Lage-/Brandzeile
 		var vpSize = AlertSpace;   // Runde 33: in Einheiten der Meldungsebene (im Flug skaliert)
-		if (Screens.Current == DockMenu)   // Dock-Menü: links neben dem Fenster, unter einer Meldung
+		_toast.AddThemeFontSizeOverride("font_size", onScreen ? 16 : 22);   // Runde 34b: über Vollbildern kleiner (passt in den Meldungsstreifen)
+		if (onScreen && Screens.Current is IMessageStrip tms && tms.MessageStripGlobal is { } tstrip)
+		{
+			// Runde 34b (Prüfung B2): Hinweis im Meldungsstreifen statt über „Alles verkaufen“/„Tempo …“
+			_toast.Position = tstrip.Position;
+			_toast.Size = new Vector2(tstrip.Size.X, 0f);
+		}
+		else if (Screens.Current == Command && Command.WindowGlobal is { } mw)   // Hamburger-Menü: links neben dem Fenster (unten mittig lag er auf „Schließen“)
+		{
+			_toast.Position = new Vector2(10f, 90f);
+			_toast.Size = new Vector2(MathF.Max(200f, mw.Position.X - 20f), 0f);
+		}
+		else if (Screens.Current == DockMenu)   // Dock-Menü: links neben dem Fenster, unter einer Meldung
 		{
 			_toast.Position = new Vector2(10f, _alert.Visible ? 250f : 90f);
 			_toast.Size = new Vector2(MathF.Max(300f, DockMenuSide()), 0f);   // Runde 21: Höhe folgt dem Text
@@ -466,12 +509,17 @@ public partial class Hud : CanvasLayer
 			}
 		}
 		// Runde 33 (E2): im Kompakt-HUD (UI-Faktor > 1) kann die Wunschlage auf Tasten oder Beschuss-/Fluchtzeile fallen — dann die nächste freie Lage
-		if (!onScreen && Screens.Current != DockMenu && Flight.Layout is { Compact: true } && _toast.Modulate.A > 0.02f && _toast.Text.Length > 0)
+		// Runde 35b (Prüfwerkzeug: im klassischen HUD bei Faktor 1,3 lag der Hinweis über „Ziel folgen“, „RÜCK“ und der Beschusszeile): auch klassisch
+		if (!onScreen && Screens.Current != DockMenu && Screens.Current != Command && _toast.Modulate.A > 0.02f && _toast.Text.Length > 0)
 		{
 			var occ = Flight.OccupiedLocal();
 			if (Flight.ShipRectLocal() is { } shipR) occ.Add(shipR);   // Runde 33b: nie über dem eigenen Schiff
 			if (_alert.Visible) occ.Add(new Rect2(_alert.Position, _alert.Size).Grow(6f));
-			float th = MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y);
+			// Runde 35b: Höhe mit der Schrift gemessen — die Mindestgröße eines umbrechenden Labels ist nur eine Zeile (der Hinweis wuchs über die Fluchtzeile)
+			var mfont = _toast.GetThemeFont("font");
+			int mfs = _toast.GetThemeFontSize("font_size");
+			float th = MathF.Max(_toast.GetCombinedMinimumSize().Y, MathF.Round(mfont.GetMultilineStringSize(_toast.Text, HorizontalAlignment.Left, _toast.Size.X - 12f, mfs).Y / mfont.GetHeight(mfs))
+				* (mfont.GetHeight(mfs) + _toast.GetThemeConstant("line_spacing")) + 12f);
 			var want = new Rect2(_toast.Position, new Vector2(_toast.Size.X, th));
 			if (occ.Exists(r => r.Intersects(want)))
 			{
@@ -479,11 +527,34 @@ public partial class Hud : CanvasLayer
 				if (key != _toastKey)
 				{
 					_toastKey = key;
-					var list = occ.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
-					_toastSpot = SpaceSim.Core.Ui.FlightHudLayout.FindSpot(new SpaceSim.Core.Ui.UiRect(0, 0, vpSize.X, vpSize.Y), list, want.Size.X, th,
-						MathF.Min(want.Size.X, 280f), want.GetCenter().X, want.Position.Y, 12f);
+					// Runde 35b: Höhe je Breite mit der Schrift gemessen (vorher: schmalere Lage mit der Höhe der breiten — der Text wuchs nach unten über die
+					// Beschusszeilen); Stufen: neben allem → alles außer Sektorchip/Lagezeile → nur Tasten und Schiff
+					var tfont = _toast.GetThemeFont("font");
+					int tfs = _toast.GetThemeFontSize("font_size");
+					int tls = _toast.GetThemeConstant("line_spacing");
+					float TH(float w, int fs) => MathF.Round(tfont.GetMultilineStringSize(_toast.Text, HorizontalAlignment.Left, w - 12f, fs).Y / tfont.GetHeight(fs)) * (tfont.GetHeight(fs) + tls) + 12f;
+					int tfloor = SpaceSim.Core.Ui.UiLayout.FontFloor(22, UiKit.LayerFactor(_toast));   // Grundgröße im Flug 22
+					var full = new SpaceSim.Core.Ui.UiRect(0, 0, vpSize.X, vpSize.Y);
+					var imp = Flight.OccupiedLocal(importantOnly: true);
+					if (_alert.Visible) imp.Add(new Rect2(_alert.Position, _alert.Size).Grow(6f));
+					if (Flight.ShipRectLocal() is { } sr2) imp.Add(sr2);
+					var taps = Flight.OccupiedLocal(interactiveOnly: true);
+					if (Flight.ShipRectLocal() is { } sr) taps.Add(sr);
+					if (_alert.Visible) taps.Add(new Rect2(_alert.Position, _alert.Size).Grow(6f));
+					_toastSpot = null;
+					foreach (var rects in new[] { occ, imp, taps })
+					{
+						var list = rects.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
+						for (float w = want.Size.X; w >= 220f && _toastSpot is null; w -= 40f)
+							for (int fs = tfs; fs >= tfloor && _toastSpot is null; fs--)
+							{
+								float h = TH(w, fs);
+								if (SpaceSim.Core.Ui.FlightHudLayout.FindSpot(full, list, w, h, w, want.GetCenter().X, want.Position.Y, 12f) is { } spot) { _toastSpot = spot; _toastFs = fs; }
+							}
+						if (_toastSpot is not null) break;
+					}
 				}
-				if (_toastSpot is { } sp) { _toast.Position = new Vector2(sp.X, sp.Y); _toast.Size = new Vector2(sp.W, 0f); }
+				if (_toastSpot is { } sp) { _toast.Position = new Vector2(sp.X, sp.Y); _toast.Size = new Vector2(sp.W, 0f); _toast.AddThemeFontSizeOverride("font_size", _toastFs); }
 			}
 		}
 		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
@@ -493,6 +564,8 @@ public partial class Hud : CanvasLayer
 	}
 
 	/// <summary>Selbsttest Runde 7: Lage des Hinweises (mit gewachsener Höhe).</summary>
+	/// <summary>Runde 34b: Ebene von Meldung/Hinweis (Prüfwerkzeug schließt ihre eigenen Elemente aus).</summary>
+	public Node TestAlertLayer => _alertLayer;
 	public string TestToastText => _toast.Modulate.A > 0.05f ? _toast.Text : "";
 	public Rect2 TestToastRect => new(_toast.Position, new Vector2(_toast.Size.X, MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y)));
 
@@ -557,8 +630,11 @@ public partial class Hud : CanvasLayer
 			var col = t.Hostile ? new Color(1f, 0.3f, 0.25f, 0.95f) : new Color(0.5f, 1f, 0.6f, 0.95f);
 			DrawColoredPolygon(new[] { tip, tip - dir * 28f + side, tip - dir * 28f - side }, col);
 			var font = ThemeDB.FallbackFont;
-			string label = t.Label.Length > 22 ? t.Label[..21] + "…" : t.Label;
-			float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, 14).X;
+			// Runde 35c: mit der Schrift eingepasst (erst kleiner, dann „…“) statt nach 22 Zeichen abgeschnitten
+			// lange Zielnamen ohne Besitzernamen (Kürzel bleibt): „Korsar #22 ([RSC] Rostige Schakale)“ → „Korsar #22 [RSC]“
+			string tl = System.Text.RegularExpressions.Regex.Replace(t.Label, @"\s*\((\[[A-Z]{2,4}\])[^)]*\)", " $1");
+			var (label, lfs) = UiKit.FitText(this, font, tl, 14, 200f);
+			float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
 			var lp = tip - dir * 44f - new Vector2(w / 2f, -5f);
 			var box = new Rect2(lp - new Vector2(4f, 14f), new Vector2(w + 8f, 19f));
 			// Runde 17: Beschriftung nicht über HUD/Kurzmeldung (Warnphase: Textknäuel oben) — sonst weiter innen, notfalls nur der Pfeil
@@ -568,7 +644,7 @@ public partial class Hud : CanvasLayer
 			if (!occ.Exists(r => r.Intersects(box)))
 			{
 				DrawRect(box, new Color(0.1f, 0.02f, 0.02f, 0.8f));
-				DrawString(font, lp, label, HorizontalAlignment.Left, -1, 14, col);
+				UiKit.DrawText(this, 0, font, lp, label, lfs, col, full: tl);
 			}
 			Hud.TargetArrowShown = true;
 			Hud.TargetArrowAt = tip;
@@ -605,8 +681,11 @@ public partial class Hud : CanvasLayer
 				if (Hud.EdgeMarkers.Count >= maxMarkers) break;
 				var side = new Vector2(-dir.Y, dir.X) * 9f;
 				DrawColoredPolygon(new[] { tip, tip - dir * 18f + side, tip - dir * 18f - side }, col);
-				string label = name.Length > 20 ? name[..19] + "…" : name;
-				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, 13).X;
+				// Runde 35c (Prüfwerkzeug: Randbeschriftungen nach 20 Zeichen abgeschnitten): ohne Besitzerkürzel (der Pfeil zeigt nur die Richtung), mit der
+				// Schrift eingepasst — erst kleiner bis zur Untergrenze, dann „…“
+				string bare = System.Text.RegularExpressions.Regex.Replace(name, @"^\[[A-Z]{2,4}\]\s*", "");
+				var (label, lfs) = UiKit.FitText(this, font, bare, 13, 190f);
+				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
 				var lp = tip - dir * 30f - new Vector2(w / 2f, -4f);
 				var box = new Rect2(lp - new Vector2(4f, 13f), new Vector2(w + 8f, 18f));
 				// Namen nur, wo sie nicht über einem schon gezeichneten Namen liegen (der Pfeil bleibt)
@@ -614,7 +693,7 @@ public partial class Hud : CanvasLayer
 				{
 					_labelBoxes.Add(box);
 					DrawRect(box, new Color(0.02f, 0.04f, 0.09f, 0.75f));
-					DrawString(font, lp, label, HorizontalAlignment.Left, -1, 13, col);
+					UiKit.DrawText(this, 100 + _labelBoxes.Count, font, lp, label, lfs, col, full: bare);
 				}
 				Hud.EdgeMarkers.Add((tip - dir * 18f, id));
 			}
@@ -626,6 +705,7 @@ public partial class Hud : CanvasLayer
 
 		public override void _Draw()
 		{
+			DrawnText.Clear(this);   // Runde 35c: Randbeschriftungen werden je Bild neu gemeldet
 			_arrowBox = null;
 			DrawTargetArrow();   // Runde 16 (Runde 17: zuerst — die Stationspfeile weichen ihm aus)
 			DrawEdgeStations();

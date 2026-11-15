@@ -152,6 +152,7 @@ public partial class KitButton : Control
 	{
 		DrawStyleBox(Style(), new Rect2(Vector2.Zero, Size));
 		var font = ThemeDB.FallbackFont;
+		DrawnText.Clear(this);
 		Color fg = _state == KitButtonState.Disabled ? UiKit.Dim : UiKit.White;
 		bool left = Symbol != null || AlignLeft;
 		// Gerätetest Phase 27: der Platz für ein Symbol (58 px) nur, wenn es eines gibt — linksbündige Tasten ohne Symbol kürzten sonst „Befehle“ zu „Befe…“
@@ -161,24 +162,31 @@ public partial class KitButton : Control
 		{
 			Symbol?.Invoke(this);
 			float room = Size.X - tx - 8f;   // Gerätetest: Text endet vor dem Rand (Innenabstand), zu lange Zeilen mit „…“
-			DrawString(font, new Vector2(tx, Size.Y * 0.40f), Fit(font, Text, FontSize, room), HorizontalAlignment.Left, -1, FontSize, fg);
-			if (Sub.Length > 0) DrawString(font, new Vector2(tx, Size.Y * 0.64f), Fit(font, Sub, 12, room), HorizontalAlignment.Left, -1, 12, UiKit.Dim);
-			if (Detail.Length > 0) DrawString(font, new Vector2(tx, Size.Y * 0.88f), Fit(font, Detail, 13, room), HorizontalAlignment.Left, -1, 13, DetailColor);
+			// Runde 35c (Prüfwerkzeug, Hamburger-Menü: Unterlänge der Hauptzeile berührte die Unterzeile): die Zeilen als Block nach ihren Schriftgrößen
+			// senkrecht mittig gesetzt (Abstand 3), statt an festen Anteilen der Höhe
+			float total = FontSize + (Sub.Length > 0 ? 12 + 2 : 0) + (Detail.Length > 0 ? 13 + 2 : 0);
+			float y0 = MathF.Max(1f, (Size.Y - total) / 2f);
+			UiKit.DrawText(this, 0, font, new Vector2(tx, y0 + FontSize * 0.8f), Fit(font, Text, FontSize, room), FontSize, fg, full: Text);
+			y0 += FontSize + 2f;
+			if (Sub.Length > 0) { UiKit.DrawText(this, 1, font, new Vector2(tx, y0 + 12 * 0.8f), Fit(font, Sub, 12, room), 12, UiKit.Dim, full: Sub); y0 += 12 + 2f; }
+			if (Detail.Length > 0) UiKit.DrawText(this, 2, font, new Vector2(tx, y0 + 13 * 0.8f), Fit(font, Detail, 13, room), 13, DetailColor, full: Detail);
 		}
 		else
 		{
-			float cy = Size.Y / 2f + FontSize * 0.35f - (Sub.Length > 0 ? 8f : 0f);
-			DrawString(font, new Vector2(6, cy), Fit(font, Text, FontSize, Size.X - 12f), HorizontalAlignment.Center, Size.X - 12f, FontSize, fg);
-			if (Sub.Length > 0) DrawString(font, new Vector2(6, cy + 20f), Fit(font, Sub, 13, Size.X - 12f), HorizontalAlignment.Center, Size.X - 12f, 13, UiKit.Dim);
+			// Runde 35c (Prüfwerkzeug: Text und Zustandszeile berührten sich bei 46 px hohen Tasten): mit Zustandszeile rückt der Text etwas nach oben
+			float cy = Size.Y / 2f + FontSize * 0.35f - (Sub.Length > 0 ? 8f : 0f) - (Detail.Length > 0 && Sub.Length == 0 ? 5f : 0f);
+			UiKit.DrawText(this, 0, font, new Vector2(6, cy), Fit(font, Text, FontSize, Size.X - 12f), FontSize, fg, HorizontalAlignment.Center, Size.X - 12f, Text);
+			if (Sub.Length > 0) UiKit.DrawText(this, 1, font, new Vector2(6, cy + 20f), Fit(font, Sub, 13, Size.X - 12f), 13, UiKit.Dim, HorizontalAlignment.Center, Size.X - 12f, Sub);
 			// Gerätetest: Zustandszeile unten in der Taste (vorher rechts außerhalb gezeichnet: „Com…“ am Bildrand)
-			if (Detail.Length > 0) DrawString(font, new Vector2(6, Size.Y - 6), Fit(font, Detail, 12, Size.X - 12f), HorizontalAlignment.Center, Size.X - 12f, 12, DetailColor);
+			if (Detail.Length > 0) UiKit.DrawText(this, 2, font, new Vector2(6, Size.Y - 6), Fit(font, Detail, 12, Size.X - 12f), 12, DetailColor, HorizontalAlignment.Center, Size.X - 12f, Detail);
 		}
 		if (_state == KitButtonState.Busy)
 		{
 			// Prüfung Phase 28: bei linksbündiger Taste mit Zustandszeile (Waffenschacht) oben, sonst berührte „lädt nach“ den Balken
-			float by = left && Detail.Length > 0 ? 4f : Size.Y - 8f;
-			var r = new Rect2(8, by, (Size.X - 16) * Mathf.Clamp(Progress, 0f, 1f), 4);
-			DrawRect(new Rect2(8, by, Size.X - 16, 4), new Color(0, 0, 0, 0.5f));
+			float by = left && Detail.Length > 0 ? 0.5f : Size.Y - 8f;   // Runde 35c: ganz oben (die Zeilen stehen jetzt als Block mittig)
+			float bh = left && Detail.Length > 0 ? 3f : 4f;
+			var r = new Rect2(8, by, (Size.X - 16) * Mathf.Clamp(Progress, 0f, 1f), bh);
+			DrawRect(new Rect2(8, by, Size.X - 16, bh), new Color(0, 0, 0, 0.5f));
 			DrawRect(r, UiKit.Cyan);
 		}
 	}

@@ -180,7 +180,9 @@ public partial class KitScroll : ScrollContainer
 			CancelPresses(this);
 		}
 		if (!_dragging) return;
-		ScrollVertical = Mathf.RoundToInt(_startScroll - dy);
+		// Runde 34b (Prüfung B4): dy ist in Bildpunkten, die Schicht kann skaliert sein — durch ihren Maßstab teilen, damit der Inhalt dem Finger 1:1 folgt
+		float k = GetGlobalTransform().Scale.Y;
+		ScrollVertical = Mathf.RoundToInt(_startScroll - dy / (k > 0.01f ? k : 1f));
 		GetViewport().SetInputAsHandled();
 	}
 

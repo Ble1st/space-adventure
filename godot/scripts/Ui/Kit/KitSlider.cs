@@ -65,21 +65,23 @@ public partial class KitSlider : Control
 	{
 		var font = ThemeDB.FallbackFont;
 		float left = Left, right = Right, cy = Cy, stop = StopX;
-		DrawString(font, new Vector2(0, 26), Caption, HorizontalAlignment.Left, -1, 14, UiKit.Dim);
-		DrawString(font, new Vector2(0, 50), SpeedText, HorizontalAlignment.Left, -1, 18, UiKit.White);
+		DrawnText.Clear(this);
+		UiKit.DrawText(this, 0, font, new Vector2(0, 26), Caption, 14, UiKit.Dim);
+		UiKit.DrawText(this, 1, font, new Vector2(0, 50), SpeedText, 18, UiKit.White);
 		DrawRect(new Rect2(stop, cy - 7, right - stop, 14), new Color(1, 1, 1, 0.16f));
 		float tx = XOf(Value);
 		if (Value > 0f) DrawRect(new Rect2(stop, cy - 7, tx - stop, 14), new Color(UiKit.Cyan, 0.8f));
+		int ls = 10;
 		foreach (var (lab, f) in new[] { ("STOPP", 0f), ("25", 0.25f), ("50", 0.5f), ("75", 0.75f), ("MAX", 1f) })
 		{
 			float x = stop + f * (right - stop);
 			DrawLine(new Vector2(x, cy + 11), new Vector2(x, cy + 20), new Color(1, 1, 1, 0.5f), 2);
-			DrawString(font, f > 0 ? new Vector2(x - 30, cy + 36) : new Vector2(stop - 14, cy + 36), lab,
-				f > 0 ? HorizontalAlignment.Center : HorizontalAlignment.Left, f > 0 ? 60 : -1, 12, f > 0 ? UiKit.Dim : UiKit.White);
+			UiKit.DrawText(this, ls++, font, f > 0 ? new Vector2(x - 30, cy + 36) : new Vector2(stop - 14, cy + 36), lab, 12, f > 0 ? UiKit.Dim : UiKit.White,
+				f > 0 ? HorizontalAlignment.Center : HorizontalAlignment.Left, f > 0 ? 60 : -1);
 		}
 		var th = new Rect2(tx - 32, cy - 19, 64, 38);
 		DrawRect(th, new Color(0.2f, 0.38f, 0.62f, 0.97f));
 		DrawRect(th, UiKit.Cyan, false, 2);
-		DrawString(font, new Vector2(tx - 32, cy + 6), (Value >= 0.999f ? "MAX" : $"{Mathf.RoundToInt(Value * 100)} %"), HorizontalAlignment.Center, 64, 18, UiKit.White);
+		UiKit.DrawText(this, 2, font, new Vector2(tx - 32, cy + 6), Value >= 0.999f ? "MAX" : $"{Mathf.RoundToInt(Value * 100)} %", 18, UiKit.White, HorizontalAlignment.Center, 64);
 	}
 }

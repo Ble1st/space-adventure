@@ -104,7 +104,7 @@ public static class DockAreas
 		bool listed = u.StationTypes.TryGetValue(st.TypeKey, out var type)
 			&& type.Services.Any(k => k is RefuelService.ServiceKey or RepairService.ServiceKey or RearmService.ServiceKey);
 		string repairSub = refuel && repair ? "Tanken · Reparatur" : refuel ? "Tanken" : repair ? "Reparatur" : rearm ? "Munition"
-			: listed ? "Lager leer" : "Nicht an dieser Station";
+			: listed ? "Lager leer" : "Nicht hier";
 		if (rearm && (refuel || repair)) repairSub += " · Munition";
 		list.Add(new DockAreaDef { Id = Repair, Label = LabelFor(Repair, u), Sub = repairSub, Available = refuel || repair || rearm });
 		// Ausrüster und Werft (Phase 5c): echt, sobald ForStation „outfitter“ bzw. „shipdealer“ liefert
