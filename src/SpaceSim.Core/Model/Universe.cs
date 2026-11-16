@@ -335,6 +335,7 @@ public sealed class Universe
         s.Position = t.ToPosition;
         s.DockedAt = StationAt(s.Sector, s.Position);   // Phase 12: Ankunft am Andockpunkt = angedockt
         Tracker.AddParked(s.Sector, s.Id);
+        Events.Publish(new ShipArrived(s.Id, s.Sector, s.Position));   // Runde 42: reine Meldung (z. B. Eskorte), nicht gespeichert/gehasht
     }
 
     /// <summary>Phase 12: Höchstabstand vom Stationszentrum, in dem ein liegendes Schiff als angedockt gilt (Andockpunkte liegen bei 22).</summary>

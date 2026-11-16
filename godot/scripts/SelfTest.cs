@@ -2706,6 +2706,7 @@ public partial class SelfTest : Node
 			case 115: if (HudNeuStage(_frame - _stageStart)) Next(); break;   // HUD-Neu: Daumenbogen, FEUER halten, Gruppen, ⚡, Einzeln, Leviathan, 7 mm, Menü (SelfTest.HudNeu.cs)
 			case 116: if (Round40Stage(_frame - _stageStart)) Next(); break;   // Runde 40: Comms echt — Posteingang, Diplomatie, Strafe per Knopf, Krieg per zwei Taps (SelfTest.Round40.cs)
 			case 117: if (Round41Stage(_frame - _stageStart)) Next(); break;   // Runde 41: Aufträge — Dock → Aufträge → annehmen → Marker → liefern → Belohnung (SelfTest.Round41.cs)
+			case 118: if (Round42Stage(_frame - _stageStart)) Next(); break;   // Runde 42: Patrouille per Comms annehmen + Wegpunkte abfliegen → Belohnung; Kopfgeld-Angebot mit Marker (SelfTest.Round42.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)

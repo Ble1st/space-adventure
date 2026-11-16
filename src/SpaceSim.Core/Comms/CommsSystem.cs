@@ -86,10 +86,13 @@ public sealed class CommsSystem : ISimSystem
         {
             if (o.At != dock || !o.Args.TryGetValue("channel", out var ch) || ch != "comms") continue;
             string id = o.Id.ToString();
-            if (u.Inbox.Any(m => m.Kind == "contract_offer" && m.Args.TryGetValue("offer", out var os) && os == id)) continue;
-            Comms.Add(u, o.Client, "contract_offer", ContractArgs(u, o), u.Rules.OfferMessageTicks);
+            string kind = IsContract(o) ? "contract_offer" : "mission_offer";   // Runde 42: auch Kopfgeld/Eskorte/Patrouille
+            if (u.Inbox.Any(m => m.Kind == kind && m.Args.TryGetValue("offer", out var os) && os == id)) continue;
+            Comms.Add(u, o.Client, kind, ContractArgs(u, o), u.Rules.OfferMessageTicks);
         }
     }
+
+    static bool IsContract(MissionOffer o) => o.Args.TryGetValue("contract", out var c) && c == "1";
 
     static Dictionary<string, string> ContractArgs(Universe u, MissionOffer o) => new()
     {
@@ -146,14 +149,14 @@ public sealed class CommsSystem : ISimSystem
                     ["amount"] = be.Amount.ToString("0", System.Globalization.CultureInfo.InvariantCulture),
                 }, u.Rules.InboxMessageTicks);
                 break;
-            // Runde 41: Aufträge — Liefervertrags-Angebot (Comms-Kanal) und Annahme/Erfüllung/Scheitern
+            // Runde 41: Aufträge — Liefervertrags-Angebot (Comms-Kanal) und Annahme/Erfüllung/Scheitern; Runde 42: alle Comms-Angebote (auch Kopfgeld/Eskorte/Patrouille)
             case MissionOffered mo:
             {
                 var offer = u.MissionOffers.FirstOrDefault(o => o.Id == mo.Offer);
                 if (offer is null) break;
                 // nur wenn der Spieler an der anbietenden Station angedockt ist (sonst wäre die NPC-Welt voller Post für ihn)
                 if (!u.Ships.TryGetValue(u.PlayerShip, out var ps) || ps.DockedAt == default || ps.DockedAt != offer.At) break;
-                Comms.Add(u, mo.Client, "contract_offer", ContractArgs(u, offer), u.Rules.OfferMessageTicks);
+                Comms.Add(u, mo.Client, IsContract(offer) ? "contract_offer" : "mission_offer", ContractArgs(u, offer), u.Rules.OfferMessageTicks);
                 break;
             }
             case MissionAccepted ma:
@@ -193,9 +196,11 @@ public static class CommsText
                     : $"Deine Fahndung bei {F()} ist gestiegen."),
             "bounty_earned" => ($"Kopfgeld verdient – {F()}",
                 m.Args.TryGetValue("amount", out var as_) ? $"Kopfgeld {as_} Cr bei {F()} — abholen im Kopfgeldbüro." : $"Kopfgeld bei {F()} verdient."),
-            // Runde 41: Aufträge
+            // Runde 41: Aufträge; Runde 42: allgemeine Auftragsangebote (Kopfgeldjagd, Eskorte, Patrouille)
             "contract_offer" => ($"Liefervertrag – {F()}",
                 m.Args.TryGetValue("message", out var cms) ? cms : "Angebot einer Station: Ware zum Festpreis abnehmen (Annahme und Kasse reserviert)."),
+            "mission_offer" => ($"Auftrag angeboten – {F()}",
+                m.Args.TryGetValue("message", out var ms) ? ms : "Angebot einer Station: ein Auftrag (z. B. Kopfgeldjagd, Eskorte, Patrouille)."),
             "mission_accepted" => ("Auftrag angenommen", Msg()),
             "mission_completed" => ("Auftrag erfüllt", m.Args.TryGetValue("amount", out var am) ? $"{Msg()} Belohnung {am} Cr." : Msg()),
             "mission_failed" => ($"Auftrag gescheitert{(m.Args.TryGetValue("reason", out var rs) ? $" ({rs})" : "")}", Msg()),
@@ -211,6 +216,8 @@ public static class CommsText
     {
         if (m.Args.TryGetValue("offer", out var os_) && int.TryParse(os_, out var ov) && m.Kind == "contract_offer")
             return new[] { $"mission:accept:{ov}", $"contract:haggle:{ov}" };
+        if (m.Args.TryGetValue("offer", out var os2) && int.TryParse(os2, out var ov2) && m.Kind == "mission_offer")   // Runde 42: Kopfgeld/Eskorte/Patrouille annehmen
+            return new[] { $"mission:accept:{ov2}" };
         if (m.Args.TryGetValue("faction", out var fs) && int.TryParse(fs, out var fv))
         {
             return m.Kind switch

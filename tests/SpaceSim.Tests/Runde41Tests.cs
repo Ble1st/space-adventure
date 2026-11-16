@@ -568,6 +568,6 @@ public class Runde41Tests
         Assert.True(MathF.Abs(gain - (revenue + m.Reserved + m.Deposit)) < 0.05f,
             $"Gewinn {gain:0.##} = Verkaufserlös {revenue:0.##} + Bonus {m.Reserved:0.##} + Pfand {m.Deposit:0.##} (nichts darüber hinaus)");
         Assert.True(m.Reserved <= u.Rules.MissionBonusShare * units * u.GoodOf(good).BasePrice + 0.01f, "Bonus ≤ 10 % des Basiswerts");
-        Assert.Single(ev.OfType<MissionPaid>().Where(e => e.Mission == m.Id));   // Bonus genau einmal
+        Assert.Equal(1, ev.OfType<MissionPaid>().Count(e => e.Mission == m.Id));   // Bonus genau einmal
     }
 }

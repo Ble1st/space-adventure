@@ -330,29 +330,29 @@ public sealed class MissionSystem : ISimSystem
             if (MissionRules.Types.Get(m.Type) is { } type) type.Check(u, m);
     }
 
-    /// <summary>Ereignis → Auftragsfortschritt / Scheitern. Auch direkt aufrufbar (Tests).</summary>
+    /// <summary>
+    /// Ereignis → Auftragsfortschritt / Scheitern. Auch direkt aufrufbar (Tests). Runde 42: jedes Ereignis geht an die Typen
+    /// (<see cref="IMissionType.OnEvent"/> filtert selbst — Kopfgeldjagd wertet <see cref="CombatExited"/> aus, Eskorte
+    /// <see cref="ShipArrived"/>); die Sonderfälle (eigenes Transportschiff weg, Zielstation weg) scheitern direkt.
+    /// </summary>
     public static void OnEvent(Universe u, SimEvent e)
     {
         if (!u.Rules.MissionsActive || u.Missions.Count == 0) return;
-        switch (e)
+        foreach (var m in u.Missions.Where(x => x.State == MissionState.Active).ToList())
         {
-            case PlayerSold or PlayerBought:
-                foreach (var m in u.Missions.Where(x => x.State == MissionState.Active).ToList())
-                    if (MissionRules.Types.Get(m.Type) is { } t) t.OnEvent(u, m, e);
-                break;
-            case TraderBought tb when u.Ships.TryGetValue(tb.Ship, out var ts) && ts.Owner == u.PlayerActor:
-                foreach (var m in u.Missions.Where(x => x.State == MissionState.Active).ToList())
-                    if (MissionRules.Types.Get(m.Type) is { } t) t.OnEvent(u, m, e);
-                break;
-            case ShipRemoved sr:
-                foreach (var m in u.Missions.Where(x => x.State == MissionState.Active
-                    && x.Args.TryGetValue("ship", out var ss) && int.TryParse(ss, out var sid) && sid == sr.Ship.Value).ToList())
+            if (MissionRules.Types.Get(m.Type) is not { } t) continue;
+            switch (e)
+            {
+                case ShipRemoved sr when m.Args.TryGetValue("ship", out var ss) && int.TryParse(ss, out var sid) && sid == sr.Ship.Value:
                     MissionRules.Fail(u, m, "Schiff verloren");
-                break;
-            case StationRemoved stn:
-                foreach (var m in u.Missions.Where(x => x.State == MissionState.Active).ToList())
-                    if (MissionRules.Types.Get(m.Type) is { } t && t.TargetGone(u, m)) MissionRules.Fail(u, m, "Zielstation weg");
-                break;
+                    continue;
+                case StationRemoved:
+                    if (t.TargetGone(u, m)) { MissionRules.Fail(u, m, "Zielstation weg"); continue; }
+                    break;
+                case TraderBought tb when !(u.Ships.TryGetValue(tb.Ship, out var ts) && ts.Owner == u.PlayerActor):
+                    continue;   // nur Käufe eigener Flottenschiffe zählen (wie Runde 41)
+            }
+            t.OnEvent(u, m, e);
         }
     }
 }

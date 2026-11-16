@@ -336,7 +336,7 @@ public sealed class MissionAcceptAction : ICommsAction
             string? issue = MissionRules.AcceptIssue(u, o.Id, ship, remote: true);
             var type = MissionRules.Types.Get(o.Type);
             list.Add(new CommsOffer($"{KeyId}:accept:{o.Id}", $"Auftrag annehmen: {type?.DescribeOffer(u, o) ?? o.Type}",
-                issue ?? $"Belohnung {o.Reward:0} Cr reserviert · Pfand {o.Deposit:0} Cr · Frist {(MissionRules.DeadlineFrom(u, ship, u.Stations[o.At]) - u.Tick) / 240} min.",
+                issue ?? $"Belohnung {o.Reward:0} Cr reserviert · Pfand {o.Deposit:0} Cr · Frist {(type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, u.Stations[o.At]) - u.Tick) / 240} min · Ziel {type?.TargetText(u, o)}",
                 -o.Deposit, issue is null, issue));
         }
         return list;
@@ -351,7 +351,7 @@ public sealed class MissionAcceptAction : ICommsAction
         var type = MissionRules.Types.Get(o.Type);
         string? issue = MissionRules.AcceptIssue(u, id, ship, remote: true);
         return new(offer, $"Auftrag annehmen: {type?.DescribeOffer(u, o) ?? o.Type}",
-            issue ?? $"Belohnung {o.Reward:0} Cr · Pfand {o.Deposit:0} Cr · Ziel {u.Stations[o.At].Name}.",
+            issue ?? $"Belohnung {o.Reward:0} Cr · Pfand {o.Deposit:0} Cr · Ziel {type?.TargetText(u, o) ?? u.Stations[o.At].Name}.",
             -o.Deposit, issue is null, issue);
     }
 

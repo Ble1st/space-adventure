@@ -46,11 +46,17 @@ public interface IMissionType
     /// <summary>Ist das Ziel des Auftrags weg (Station entfernt)? Dann scheitert er.</summary>
     bool TargetGone(Universe u, Mission m);
 
-    /// <summary>Marker-Ziel (Sektor, Position, Anzeige) oder null, wenn es keines gibt.</summary>
-    (SectorId Sector, Vec2 Pos, string Label)? Marker(Universe u, Mission m);
+    /// <summary>Marker-Ziel (Sektor, Position, Anzeige, Art des Ziels — Leuchtfeuer/Randpfeil/Karten) oder null, wenn es keines gibt.</summary>
+    (SectorId Sector, Vec2 Pos, string Label, MissionMarkerKind Kind)? Marker(Universe u, Mission m);
 
     /// <summary>Anzeige des Angebots (Vorschau: Belohnung, Pfand, Frist, Ziel).</summary>
     string DescribeOffer(Universe u, MissionOffer o);
+
+    /// <summary>Ziel des Angebots als Kurztext für die Vorschauzeile (Station, Schiff, Sektor …), leer = keins.</summary>
+    string TargetText(Universe u, MissionOffer o);
+
+    /// <summary>Frist des Angebots bei Annahme ab jetzt (Ticks), so wie <see cref="Accept"/> sie setzen würde — für die Vorschau.</summary>
+    long DeadlineOf(Universe u, MissionOffer o, Ship ship);
 
     /// <summary>Anzeige des laufenden Auftrags (HUD-Zeile, Listen).</summary>
     string Describe(Universe u, Mission m);
@@ -86,12 +92,15 @@ public sealed class MissionTypes
 
     public IReadOnlyList<IMissionType> All => _types;
 
-    /// <summary>Standard-Registry: Lieferung und Transport (Runde 41); Runde 42 ergänzt Kopfgeldjagd/Eskorte/Patrouille.</summary>
+    /// <summary>Standard-Registry: Lieferung und Transport (Runde 41) sowie Kopfgeldjagd, Eskorte und Patrouille (Runde 42).</summary>
     public static MissionTypes Default()
     {
         var r = new MissionTypes();
         r.Register(new DeliveryMission());
         r.Register(new TransportMission());
+        r.Register(new BountyMission());
+        r.Register(new EscortMission());
+        r.Register(new PatrolMission());
         return r;
     }
 }

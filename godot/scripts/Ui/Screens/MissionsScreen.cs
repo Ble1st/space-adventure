@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
@@ -27,25 +28,26 @@ public sealed partial class MissionsScreen : DockAreaScreen
 	string _message = "";
 	bool _msgOk = true;
 	int _offers;
+	readonly Dictionary<int, KitButton> _acceptButtons = new();   // Runde 42 (Selbsttest): Annehmen-Knopf je Angebots-Id
 
 	SpaceSim.Core.Services.IStationService? Service() =>
 		Ctx.Services.ForStation(Ctx.U, Ctx.Station, Ctx.Ship).FirstOrDefault(s => s.Key == MissionService.ServiceKey);
 
 	static string StationName(Universe u, StationId id) => u.Stations.TryGetValue(id, out var s) ? s.Name : $"#{id.Value}";
 
-	/// <summary>Vorschauzeile eines Angebots: Belohnung, Pfand, Frist (bei Annahme), Ziel.</summary>
+	/// <summary>Vorschauzeile eines Angebots: Belohnung, Pfand, Frist (bei Annahme, je Auftragsart), Ziel (je Auftragsart).</summary>
 	static string Preview(Universe u, Station st, Ship ship, MissionOffer o)
 	{
-		string ziel = o.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv)
-			? StationName(u, new StationId(tv))
-			: st.Name;
-		long frist = MissionRules.DeadlineFrom(u, ship, st) - u.Tick;
+		var type = MissionRules.Types.Get(o.Type);
+		string ziel = type?.TargetText(u, o) ?? st.Name;   // Runde 42: Ziel je Art (Station, Schiff, Wegpunkte)
+		long frist = type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, st) - u.Tick;
 		string reward = o.Reward > 0f ? $"Belohnung {o.Reward:0} Cr" : "Ware zum Festpreis (Liefervertrag)";
 		return $"{reward} · Pfand {o.Deposit:0} Cr · Frist {frist / 240} min · Ziel {ziel}";
 	}
 
 	protected override void BuildContent(Control inner)
 	{
+		_acceptButtons.Clear();
 		float w = inner.Size.X > 0 ? inner.Size.X : 670f;
 		float tw = w - 160f;
 		_offers = 0;
@@ -67,6 +69,7 @@ public sealed partial class MissionsScreen : DockAreaScreen
 			var b = At(inner, new KitButton("Annehmen", new Vector2(148, 56)) { FontSize = 16, State = issue is null ? KitButtonState.Ready : KitButtonState.Disabled, Detail = issue is null ? "" : "nicht möglich" }, w - 150, y);
 			string key = $"{MissionService.Accept}:{o.Id}";
 			if (issue is null) b.Pressed += () => Execute(key);
+			_acceptButtons[o.Id] = b;   // Runde 42: Testhilfe
 			y += MathF.Max(52f, th + ph + 8f);
 			_offers++;
 		}
@@ -116,4 +119,6 @@ public sealed partial class MissionsScreen : DockAreaScreen
 	// ── Zugriff für Selbsttest/Bildschirmfotos ──
 	public int TestOfferCount => _offers;
 	public string TestMessage => _message;
+	/// <summary>Runde 42 (Selbsttest): Annehmen-Knopf des Angebots mit dieser Id (null = nicht in der Liste).</summary>
+	public KitButton? TestAcceptButton(int offerId) => _acceptButtons.TryGetValue(offerId, out var b) && !b.IsQueuedForDeletion() ? b : null;
 }

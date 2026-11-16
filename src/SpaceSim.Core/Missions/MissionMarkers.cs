@@ -14,7 +14,7 @@ public sealed record MissionMarker(int Mission, SectorId Sector, Vec2 Position, 
 /// <summary>Runde 41: Marker aller aktiven Aufträge (feste Reihenfolge nach Auftrags-Id).</summary>
 public static class MissionMarkers
 {
-    /// <summary>Alle Marker aktiver Aufträge (Lieferung → Angebots-Station, Transport → Zielstation; später: bewegte Ziele).</summary>
+    /// <summary>Alle Marker aktiver Aufträge (Lieferung → Angebots-Station, Transport → Zielstation; Runde 42: Kopfgeld → Zielschiff/Sektor, Eskorte → Schützling, Patrouille → nächster Wegpunkt).</summary>
     public static List<MissionMarker> For(Universe u)
     {
         var list = new List<MissionMarker>();
@@ -22,7 +22,7 @@ public static class MissionMarkers
         foreach (var m in u.Missions.Where(x => x.State == MissionState.Active).OrderBy(x => x.Id))
         {
             if (MissionRules.Types.Get(m.Type) is not { } type) continue;
-            if (type.Marker(u, m) is { } mk) list.Add(new MissionMarker(m.Id, mk.Sector, mk.Pos, mk.Label, MissionMarkerKind.Station));
+            if (type.Marker(u, m) is { } mk) list.Add(new MissionMarker(m.Id, mk.Sector, mk.Pos, mk.Label, mk.Kind));
         }
         return list;
     }

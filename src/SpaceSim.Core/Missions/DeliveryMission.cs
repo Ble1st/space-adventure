@@ -152,11 +152,17 @@ public sealed class DeliveryMission : IMissionType
 
     public bool TargetGone(Universe u, Mission m) => !u.Stations.ContainsKey(m.At);
 
-    public (SectorId Sector, Vec2 Pos, string Label)? Marker(Universe u, Mission m)
+    public (SectorId Sector, Vec2 Pos, string Label, MissionMarkerKind Kind)? Marker(Universe u, Mission m)
     {
         if (!u.Stations.TryGetValue(m.At, out var st)) return null;
-        return (st.Sector, st.Position, Describe(u, m));
+        return (st.Sector, st.Position, Describe(u, m), MissionMarkerKind.Station);
     }
+
+    public string TargetText(Universe u, MissionOffer o) =>
+        u.Stations.TryGetValue(o.At, out var st) ? st.Name : "";
+
+    public long DeadlineOf(Universe u, MissionOffer o, Ship ship) =>
+        u.Stations.TryGetValue(o.At, out var st) ? MissionRules.DeadlineFrom(u, ship, st) - u.Tick : u.Rules.MissionMinDeadlineTicks;
 
     public string DescribeOffer(Universe u, MissionOffer o)
     {

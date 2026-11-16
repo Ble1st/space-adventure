@@ -78,11 +78,17 @@ public sealed class TransportMission : IMissionType
     public bool TargetGone(Universe u, Mission m) =>
         !m.Args.TryGetValue("target", out var ts) || !int.TryParse(ts, out var tv) || !u.Stations.ContainsKey(new StationId(tv));
 
-    public (SectorId Sector, Vec2 Pos, string Label)? Marker(Universe u, Mission m)
+    public (SectorId Sector, Vec2 Pos, string Label, MissionMarkerKind Kind)? Marker(Universe u, Mission m)
     {
         if (!m.Args.TryGetValue("target", out var ts) || !int.TryParse(ts, out var tv) || !u.Stations.TryGetValue(new StationId(tv), out var st)) return null;
-        return (st.Sector, st.Position, Describe(u, m));
+        return (st.Sector, st.Position, Describe(u, m), MissionMarkerKind.Station);
     }
+
+    public string TargetText(Universe u, MissionOffer o) =>
+        u.Stations.TryGetValue(TargetOf(o), out var st) ? st.Name : "";
+
+    public long DeadlineOf(Universe u, MissionOffer o, Ship ship) =>
+        u.Stations.TryGetValue(TargetOf(o), out var st) ? MissionRules.DeadlineFrom(u, ship, st) - u.Tick : u.Rules.MissionMinDeadlineTicks;
 
     public string DescribeOffer(Universe u, MissionOffer o)
     {
