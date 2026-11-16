@@ -36,7 +36,18 @@ if (opts.TryGetValue("exportbid", out var ebOpt))
 }
 if (opts.TryGetValue("sellcap", out var scOpt)) worldDef.Rules.ProducerPriceCapShare = float.Parse(scOpt, CultureInfo.InvariantCulture);
 if (opts.TryGetValue("wcshare", out var wcOpt)) worldDef.Rules.StationWorkingCapitalShare = float.Parse(wcOpt, CultureInfo.InvariantCulture);
-if (opts.TryGetValue("buyback", out var bbOpt)) worldDef.Rules.BuybackCap = bbOpt == "on";   // Runde 30: Rückkaufdeckel an/aus (Vergleich)
+if (opts.TryGetValue("buyback", out var bbOpt)) worldDef.Rules.BuybackCap = bbOpt == "on";
+// Runde 44: --sectorscale 1|map|X — Maßstab aller Sektoren (1 = Grundmaßstab, map = wie in der Weltdatei, X = alle gleich X); --maxtraders/--maxminers N
+// (Kapazitätseinheiten); --raidreach X / --policerange X (0 = ganzer Sektor)
+if (opts.TryGetValue("sectorscale", out var ssOpt) && ssOpt != "map")
+{
+    float ss = float.Parse(ssOpt, CultureInfo.InvariantCulture);
+    foreach (var sd in worldDef.Sectors) sd.Scale = ss;
+}
+if (opts.TryGetValue("maxtraders", out var mtOpt)) worldDef.Rules.MaxTraders = int.Parse(mtOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("maxminers", out var mmOpt)) worldDef.Rules.MaxMiners = int.Parse(mmOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("raidreach", out var rrOpt)) worldDef.Rules.RaidReach = float.Parse(rrOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("policerange", out var prOpt)) worldDef.Rules.PoliceResponseRange = float.Parse(prOpt, CultureInfo.InvariantCulture);   // Runde 30: Rückkaufdeckel an/aus (Vergleich)
 // Runde 29: --probe rueckkauf misst die Kauf-/Rückverkaufsschleife an einer Station (eigene Welten, eigener Bericht) und endet
 if (opts.TryGetValue("probe", out var rkOpt) && rkOpt == "rueckkauf") { Console.WriteLine(ExploitProbe.Run(worldDef, seed ?? 1)); return 0; }
 var u = WorldBuilder.Build(worldDef, seed, opts.TryGetValue("start", out var startOpt) ? startOpt : null);   // Runde 26: --start trader wie „Neues Spiel“
@@ -111,6 +122,16 @@ if (opts.TryGetValue("spareloot", out var slOpt)) u.Rules.RaidersSpareLoot = slO
 // Phase 32: --anchors on|off schaltet die Verankerung beim Kontaktabbau (Vergleichslauf); Erzfluss und Ankerkennzahlen
 if (opts.TryGetValue("anchors", out var anOpt)) u.Rules.MiningAnchors = anOpt == "on";
 double oreContact = 0, oreLaser = 0, oreDelivered = 0;
+// Runde 44: Fahrten (Dauer je Händler-/Schürferfahrt, Anteil in Fahrt, Laderaumfüllung) und Abgänge (pleite/nicht rentabel) je 5000-Tick-Fenster
+var tripSeen = new HashSet<(int Ship, long Start)>();
+var tripTicks = new Dictionary<ShipRole, List<long>> { [ShipRole.Trader] = new(), [ShipRole.Miner] = new() };
+var tripTransit = new Dictionary<ShipRole, (long In, long All, double Fill, long FillN)> { [ShipRole.Trader] = default, [ShipRole.Miner] = default };
+var leaveWindows = new SortedDictionary<long, int>();
+u.Events.Raised += e =>
+{
+    if (e is ShipDeparted { Reason: DepartureReason.Bankrupt or DepartureReason.Unprofitable } lw && lw.Role is ShipRole.Trader or ShipRole.Miner)
+        leaveWindows[u.Tick / 5000] = leaveWindows.GetValueOrDefault(u.Tick / 5000) + 1;
+};
 int anchorsFired = 0, anchorsHeld = 0;
 var anchorReleases = new SortedDictionary<string, int>(StringComparer.Ordinal);
 u.Events.Raised += e =>
@@ -667,6 +688,15 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             {
                 probeWatch.Start();
                 watch.Sample(u);
+                foreach (var ts in u.Ships.Values)   // Runde 44: Fahrten
+                {
+                    if (!ts.IsEconomyAi || ts.Role is not (ShipRole.Trader or ShipRole.Miner)) continue;
+                    var cur = tripTransit[ts.Role];
+                    bool moving = ts.Transit is not null;
+                    float cap = MathF.Max(1f, ts.CargoCapacity);
+                    tripTransit[ts.Role] = (cur.In + (moving ? 1 : 0), cur.All + 1, cur.Fill + (moving ? ts.UsedVolume(u) / cap : 0), cur.FillN + (moving ? 1 : 0));
+                    if (moving && tripSeen.Add((ts.Id.Value, ts.Transit!.StartTick))) tripTicks[ts.Role].Add(ts.Transit.ArrivalTick - ts.Transit.StartTick);
+                }
                 recoveringMax = Math.Max(recoveringMax, u.Recovering.Count);   // Phase 23
                 fightsMax = Math.Max(fightsMax, u.Fights.Count);   // Phase 24
                 gateDownMax = Math.Max(gateDownMax, GateCombat.DownCount(u));   // Phase 31
@@ -824,6 +854,22 @@ if (u.Modules.Count > 0)
     float share = sitesDone > 0 ? 100f * sitesEmergency / sitesDone : 0f;
     Console.WriteLine($"Bau: {sitesStarted} Baustellen angelegt, {sitesDone} fertig (davon Notbau {sitesEmergency} = {share:0}%), {sitesAbandoned} verfallen, "
         + $"{u.Stations.Values.Count(x => x.Site is { Abandoned: false })} laufen, {direct} Direktbau; Bauschiffe {u.Ships.Values.Count(x => x.IsAiBuilder)} (von Fraktionen nachgekauft {buildersCommissioned})");
+    // Runde 44: Fahrten — mittlere und 90-%-Fahrdauer (Ticks), Anteil der Zeit in Fahrt, mittlere Laderaumfüllung während der Fahrt
+    foreach (var role in new[] { ShipRole.Trader, ShipRole.Miner })
+    {
+        var l = tripTicks[role]; l.Sort();
+        var tt = tripTransit[role];
+        string name = role == ShipRole.Trader ? "Händler" : "Schürfer";
+        Console.WriteLine($"Fahrten {name}: {l.Count} Fahrten, Ø {(l.Count > 0 ? l.Average() : 0):0} Ticks, 90 % {(l.Count > 0 ? l[(int)(0.9 * (l.Count - 1))] : 0)} Ticks, "
+            + $"in Fahrt {(tt.All > 0 ? 100.0 * tt.In / tt.All : 0):0}% der Zeit, Laderaum in Fahrt {(tt.FillN > 0 ? 100.0 * tt.Fill / tt.FillN : 0):0}% gefüllt");
+    }
+    {
+        double avg = leaveWindows.Count == 0 ? 0 : leaveWindows.Values.Sum() / (double)Math.Max(1, (ticks + 4999) / 5000);
+        int peak = leaveWindows.Count == 0 ? 0 : leaveWindows.Values.Max();
+        Console.WriteLine($"Abgänge Händler/Schürfer (pleite/nicht rentabel) je 5000 Ticks: Ø {avg:0.00}, höchstens {peak}"
+            + (leaveWindows.Count == 0 ? "" : " — " + string.Join(", ", leaveWindows.Select(kv => $"t{kv.Key * 5}k {kv.Value}"))));
+    }
+    Console.WriteLine($"Baustellen verfallen: {sitesAbandoned}");
     Console.WriteLine($"Versorgungspanik (Phase 20): {panicsRaised} Panik-Ereignisse, {panicBuilds} Ersatz-Baustellen, {panicDone} fertig; Panik-Stationen jetzt {u.Stations.Values.Count(x => x.Panic)}"
         + (panicList.Count == 0 ? "" : " — " + string.Join("; ", panicList)));
     Console.WriteLine($"Stilllegungen/Umwidmungen: {retiredStations.Count}" + (retiredStations.Count == 0 ? "" : " — " + string.Join("; ", retiredStations)));

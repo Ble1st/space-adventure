@@ -496,6 +496,8 @@ public sealed class SectorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Traffic { get; set; }
     /// <summary>Phase 14 (v17): Planet; fehlt = keiner.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PlanetSave? Planet { get; set; }
+    /// <summary>Runde 44: Maßstab des Sektors; fehlt = 1.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Scale { get; set; }
 }
 
 /// <summary>Sperre eines Sektors (Phase 10): Stufen für Ein- und Ausreise, Auslöser, Zeiten (Beginn, Ablauf, Abkühlzeit), Durchsetzung.</summary>

@@ -236,6 +236,8 @@ public static class UniverseHash
             { Mix(0x4102u); Mix((ulong)k); Mix((ulong)v.Day); MixF(v.Spent); Mix((ulong)v.BlockedUntil); }
         // Phase 14: Planeten der Sektoren
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) MixString(sec.Planet?.Name ?? "");
+        // Runde 44: Maßstab nur, wenn ≠ 1 (Welten im Grundmaßstab hashen wie zuvor)
+        foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) if (sec.Scale != 1f) { Mix(0x5CA1Eu); Mix((ulong)sec.Id.Value); MixF(sec.Scale); }
         foreach (var q in u.Squadrons.Values.OrderBy(q => q.Id.Value))
         {
             Mix((ulong)q.Id.Value); Mix((ulong)q.Owner.Value); Mix((ulong)q.Leader.Value); Mix((ulong)q.Formation); Mix((ulong)q.HomeBase.Value); Mix((ulong)q.Rules);

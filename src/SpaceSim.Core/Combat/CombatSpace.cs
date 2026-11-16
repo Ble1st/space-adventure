@@ -96,7 +96,8 @@ public static class CombatSpace
         // Phase 26 (Prüfung Phase 25): bis zu 16 Durchläufe; bleibt eine Überlappung (eingekeilt zwischen Felsen), wird spiralförmig der nächste freie Punkt
         // gesucht (feste Richtungen, kein Zufall); zuletzt in die Gefechtsfläche des Sektors (<see cref="EconomyRules.CombatArenaRadius"/>) begrenzt
         var obstacles = u.GetObstacles(sector);
-        float radius = Simulation.Collision.ShipRadius + 1f, arena = MathF.Max(50f, u.Rules.CombatArenaRadius);
+        // Runde 44: Gefechtsfläche je Sektor (vergrößerte Sektoren: Regel × Maßstab bzw. Ausdehnung + 100)
+        float radius = Simulation.Collision.ShipRadius + 1f, arena = MathF.Max(50f, u.Sectors.TryGetValue(sector, out var sec) ? sec.ArenaRadius(u.Rules) : u.Rules.CombatArenaRadius);
         pos = Bound(pos, arena);
         for (int i = 0; i < 16; i++)
             if (!Simulation.Collision.Resolve(ref pos, radius, obstacles, out _)) break;

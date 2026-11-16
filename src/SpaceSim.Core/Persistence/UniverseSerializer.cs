@@ -298,6 +298,7 @@ public static class UniverseSerializer
                 Contested = sec.Contested,
                 Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
                 Planet = sec.Planet is { } pl ? new PlanetSave { Name = pl.Name, Color = pl.Color, Radius = pl.Radius } : null,
+                Scale = sec.Scale == 1f ? null : sec.Scale,
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
             s.Gates.Add(new GateSave
@@ -607,6 +608,7 @@ public static class UniverseSerializer
                 Contested = sec.Contested,
                 Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
                 Planet = sec.Planet is { } pl ? new Planet { Name = pl.Name, Color = pl.Color, Radius = pl.Radius } : null,
+                Scale = sec.Scale is { } sc && float.IsFinite(sc) && sc >= 1f ? sc : 1f,
             };
         foreach (var g in s.Gates)
             u.Gates[new GateId(g.Id)] = new Gate
@@ -699,6 +701,7 @@ public static class UniverseSerializer
             u.Ships[ship.Id] = ship;   // AddShip würde ein ShipSpawned-Ereignis auslösen
         }
         u.IdCounters = (s.NextShipId, s.NextStationId);
+        SectorExtent.Recompute(u);   // Runde 44: abgeleitet (Gefechtsfläche, Sektorkarte)
         u.RebuildTracker();
         u.Recovering.Rebuild(u);   // Phase 23: abgeleitet — Schiffe, denen Schild oder Ladung fehlt
         // Phase 12: Verbände

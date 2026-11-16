@@ -182,7 +182,7 @@ public static class Engage
         Join(u, e, victim, 1, victim.Id == u.PlayerShip ? CombatTactics.Player : CombatTactics.Trader, r.CombatStartDistance, e.Spatial ? vPos : null);
         foreach (var esc in FleetGuards.Escorts(u, victim, sector.Id))
             if (!u.Fights.IsEngaged(esc.Id)) Join(u, e, esc, 1, CombatTactics.Escort, r.CombatStartDistance, e.Spatial ? CombatSpace.Around(vPos, esc.Position, 8f) : null);
-        var police = PirateSystem.PoliceIn(u, sector.Id);
+        var police = PirateSystem.PoliceIn(u, sector.Id, vPos);   // Runde 44: nur Streifen in Reichweite des Opfers
         if (police.Count > 0 && u.Rng.NextDouble() < MathF.Min(r.PoliceResponseMax, r.PoliceResponseChance * police.Count))
         {
             e.Police = police[0].Id;

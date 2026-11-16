@@ -18,7 +18,8 @@ public static class PlayerTrip
     public const float DockSeconds = 2f;
     /// <summary>Anlauf: Ausrichten der Nase und Abdocken (Selbsttest Stufe 79: die kurzen Flüge dauerten real 1–7 s länger als die reine Strecke).</summary>
     public const float StartSeconds = 1.5f;
-    const int MaxSteps = 8000;
+    /// <summary>Runde 44: 24 000 Schritte (vorher 8000 = 2000 s) — Flüge über mehrere vergrößerte Sektoren dauern Minuten.</summary>
+    const int MaxSteps = 24000;
 
     /// <summary>Sekunden von <paramref name="fromPos"/> bis zum Andockpunkt; PositiveInfinity = nicht erreichbar.</summary>
     public static float Seconds(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship = null)

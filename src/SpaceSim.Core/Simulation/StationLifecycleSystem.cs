@@ -308,7 +308,8 @@ public sealed class StationLifecycleSystem : ISimSystem
     {
         for (int attempt = 0; attempt < 400; attempt++)
         {
-            var p = new Vec2(u.Rng.Range(-150, 150), u.Rng.Range(-150, 150));
+            float half = 150f * MathF.Max(1f, sector.Scale);   // Runde 44: Platzierungsfläche wächst mit dem Maßstab
+            var p = new Vec2(u.Rng.Range(-half, half), u.Rng.Range(-half, half));
             bool ok =
                 sector.Gates.All(g => Vec2.Distance(p, u.Gates[g].Position) > radius + 35f) &&
                 sector.Stations.All(s => Vec2.Distance(p, u.Stations[s].Position) > radius + u.Stations[s].Radius + 20f) &&

@@ -325,7 +325,10 @@ public static class MissionRules
             return Math.Max(1L, (long)(sec * SimClock.TicksPerSecond));
         int hops = u.Hops(fromSector, toSector);
         if (hops < 1) hops = 1;
-        return hops * HopFallbackTicks;
+        // Runde 44: in vergrößerten Sektoren reicht die feste Zeit je Sprung nicht — NPC-Schätzung × 1,9 (Spieler fliegt mit Anlauf/Bremsen), Untergrenze wie bisher
+        float est = Simulation.Travel.Estimate(u, fromSector, fromPos, toSector, toPos, ship);
+        long byEstimate = float.IsFinite(est) && est > 0f ? (long)(est * 1.9f) : 0L;
+        return Math.Max(hops * HopFallbackTicks, byEstimate);
     }
 
     /// <summary>Runde 42c: Flugzeit als Text für Vorschauen („~2:30 min“; „?“ = unbekannt).</summary>

@@ -262,7 +262,9 @@ public static class WorldBuilder
             var owner = new FactionId(sd.Owner);
             Faction? faction = null;
             if (sd.Owner != 0 && !u.Factions.TryGetValue(owner, out faction)) throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Fraktion {sd.Owner}");
-            var sector = new Sector { Id = new SectorId(sd.Id), Name = sd.Name, Owner = owner, MapPosition = V(sd.Map) };
+            // Runde 44: Maßstab 1–10 (Koordinaten der Datei × Faktor)
+            if (!float.IsFinite(sd.Scale) || sd.Scale < 1f || sd.Scale > 10f) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): scale muss zwischen 1 und 10 liegen ({sd.Scale})");
+            var sector = new Sector { Id = new SectorId(sd.Id), Name = sd.Name, Owner = owner, MapPosition = V(sd.Map), Scale = sd.Scale };
             // Phase 14: Planet (Kulisse, Abnehmer der Exportsenke)
             if (sd.Planet is { } pd)
             {
@@ -276,7 +278,7 @@ public static class WorldBuilder
             foreach (var fd in sd.Fields)
                 sector.Fields.Add(new ResourceField
                 {
-                    ClassKey = u.AsteroidClasses.ContainsKey(fd.Class) ? fd.Class : throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Asteroidenklasse '{fd.Class}'"), Position = V(fd.Pos), TargetAsteroids = fd.Belt, RespawnTicks = fd.Respawn,
+                    ClassKey = u.AsteroidClasses.ContainsKey(fd.Class) ? fd.Class : throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Asteroidenklasse '{fd.Class}'"), Position = V(fd.Pos) * sd.Scale, TargetAsteroids = fd.Belt, RespawnTicks = fd.Respawn,
                 });
         }
 
@@ -334,7 +336,7 @@ public static class WorldBuilder
                 }
                 ActorId stOwner = st.Owner is { Length: > 0 } ok ? ActorByKey(ok, $"Station {st.Id}") : u.Sectors[new SectorId(sd.Id)].Owner;
                 string stName = st.Name.Contains("{owner}") ? st.Name.Replace("{owner}", u.ActorName(stOwner)) : st.Name;   // Phase 29: Name des Besitzers
-                var station = StationFactory.Create(u, new StationId(st.Id), type, stName, new SectorId(sd.Id), V(st.Pos), stOwner);
+                var station = StationFactory.Create(u, new StationId(st.Id), type, stName, new SectorId(sd.Id), V(st.Pos) * u.Sectors[new SectorId(sd.Id)].Scale, stOwner);
                 // Phase 10: Regierungsstationen und Wachen sind immer vor Pleite geschützt (Phase 11: Verstecke auch)
                 station.BankruptcyProtected = st.Essential || st.BankruptcyProtected || type.Government != GovernmentKind.None || type.Hideout;
                 station.Immortal = st.Immortal;
@@ -351,7 +353,7 @@ public static class WorldBuilder
         if (omittedEconomic > 0) u.Rules.MaxStations = Math.Max(0, u.Rules.MaxStations - omittedEconomic);
 
         foreach (var sd in def.Sectors)
-            AsteroidGenerator.Populate(u, u.Sectors[new SectorId(sd.Id)], seed: sd.Id * 7919, backgroundCount: sd.Asteroids);
+            AsteroidGenerator.Populate(u, u.Sectors[new SectorId(sd.Id)], seed: sd.Id * 7919, backgroundCount: AsteroidGenerator.BackgroundCount(sd.Asteroids, sd.Scale));
 
         int nextShip = 1;
         foreach (var group in def.Ships)
@@ -412,6 +414,7 @@ public static class WorldBuilder
         // Phase 13: die Startwelt darf nichts brauchen, was erst erforscht werden muss (FORSCHUNG.md „Totlauf“)
         ValidateResearchStart(u, def);
         // Phase 11: Lagekarte der Startwelt (Sicherheit aus Grundschutz und Streifen, Verkehr) vor der Sektorkontrolle (Patrouillenabdeckung)
+        SectorExtent.Recompute(u);   // Runde 44: Ausdehnung (Gefechtsfläche, Sektorkarte)
         Simulation.ThreatMap.Initialize(u);
         // Phase 10: Sektorkontrolle der Startwelt gleich berechnen (Einfluss, Stufe, umkämpft); Besitzer aus der Weltdatei bleibt der Startwert
         foreach (var sector in u.Sectors.Values.OrderBy(s => s.Id.Value)) Simulation.SectorControl.Update(u, sector);
@@ -772,7 +775,9 @@ public static class WorldBuilder
     static Gate AddGate(Universe u, GateEndDef end, GateId target)
     {
         if (!u.Sectors.ContainsKey(new SectorId(end.Sector))) throw new WorldFormatException($"Gate {end.Id}: unbekannter Sektor {end.Sector}");
-        return new Gate { Id = new GateId(end.Id), Sector = new SectorId(end.Sector), Position = V(end.Pos), Target = target };
+        // Runde 44: Tor-Ende im Maßstab seines Sektors
+        float scale = u.Sectors.TryGetValue(new SectorId(end.Sector), out var sec) ? sec.Scale : 1f;
+        return new Gate { Id = new GateId(end.Id), Sector = new SectorId(end.Sector), Position = V(end.Pos) * scale, Target = target };
     }
 
     /// <summary>

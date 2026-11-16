@@ -858,6 +858,16 @@ public sealed class EconomyRules
     public float SalvageMinCondition = 0.5f;
     /// <summary>Phase 26 (Prüfung Phase 25): Gefechtsfläche eines Sektors (Abstand vom Mittelpunkt), in die <see cref="Combat.CombatSpace.Clear"/> Positionen begrenzt.</summary>
     public float CombatArenaRadius = 400f;
+    /// <summary>
+    /// Runde 44 (größere Sektoren): Überfälle nur auf Opfer in dieser Entfernung vom lauernden Kaperer (0 = ganzer Sektor, Verhalten bis Runde 43).
+    /// Ohne Grenze „spränge“ der Kaperer in einem vergrößerten Sektor über Kilometer ans Opfer (StartRaid setzt ihn 30 m daneben).
+    /// </summary>
+    public float RaidReach = 0f;
+    /// <summary>
+    /// Runde 44: Polizeihilfe bei Überfällen und Festnahme-Warnung nur von Streifen in dieser Entfernung (0 = ganzer Sektor). Bei der Warnung an den
+    /// Spieler fliegt die Streife wirklich heran (wie der Kaperer).
+    /// </summary>
+    public float PoliceResponseRange = 0f;
     /// <summary>Phase 26 (Prüfung): Notreparatur auf Schuld — Hülle auf diesen Anteil, ausgefallene Module auf Ausfallschwelle + Rand.</summary>
     public float EmergencyRepairHullShare = 0.25f;
     public float EmergencyRepairMargin = 0.05f;

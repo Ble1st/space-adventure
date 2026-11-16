@@ -32,6 +32,21 @@ public sealed class Sector
     /// <summary>Phase 11: Verkehrswert (geglättet): Wert der Fracht an Bord der KI-Schiffe im Sektor zum Basispreis — der „Wert des Sektors“ für Polizei und Piraten. Gespeichert.</summary>
     public float Traffic;
     public float Radius = 10_000f;
+    /// <summary>
+    /// Runde 44: Maßstab des Sektors (1 = Grundmaßstab). Gespeichert, gehasht nur ≠ 1. Die Positionen sind bereits vergrößert; der Faktor skaliert nur
+    /// Regeln, die die Sektorgröße stillschweigend voraussetzen (Platzierungsfläche, Gefechtsfläche, Hintergrundfelsen).
+    /// </summary>
+    public float Scale = 1f;
+    /// <summary>
+    /// Runde 44: Ausdehnung — größter Abstand einer Station, eines Tors oder einer Feldmitte zum Ursprung plus 60. Abgeleitet (nach Aufbau und Laden,
+    /// <see cref="SectorExtent.Recompute"/>), nicht gespeichert.
+    /// </summary>
+    public float Extent = 400f;
+    /// <summary>
+    /// Runde 44: Gefechtsfläche um den Ursprung — bei Maßstab 1 die Regel (<see cref="EconomyRules.CombatArenaRadius"/>, unverändert), sonst
+    /// max(Regel × Maßstab, Ausdehnung + 100). Ohne das klemmte <c>CombatSpace.Clear</c> Schiffe jenseits von 400 m auf 400 zurück (Teleport).
+    /// </summary>
+    public float ArenaRadius(EconomyRules rules) => Scale <= 1f ? rules.CombatArenaRadius : MathF.Max(rules.CombatArenaRadius * Scale, Extent + 100f);
     /// <summary>Phase 14: Planet des Sektors (Kulisse, Abnehmer der Exportsenke); null = keiner.</summary>
     public Planet? Planet;
     public List<GateId> Gates = new();

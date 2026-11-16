@@ -369,6 +369,11 @@ public sealed class SectorDef
     public int Asteroids { get; set; } = 25;
     /// <summary>Phase 14: Planet des Sektors; fehlt = keiner (dann sind keine Exportstationen erlaubt).</summary>
     public PlanetDef? Planet { get; set; }
+    /// <summary>
+    /// Runde 44: Maßstab des Sektors (1–10, Standard 1). Die Koordinaten in der Datei bleiben im Grundmaßstab; der Weltaufbau multipliziert
+    /// Felder, Stationen und Tor-Enden mit dem Faktor, die Hintergrundfelsen bekommen Fläche und Anzahl × Faktor.
+    /// </summary>
+    public float Scale { get; set; } = 1f;
 }
 
 public sealed class FieldDef

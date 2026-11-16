@@ -179,8 +179,9 @@ public sealed class PirateSystem : ISimSystem
     /// Mögliche Opfer im Sektor (feste Reihenfolge): KI-Schiffe ohne Polizei/Piraten und — wenn erlaubt — das aktive Spielerschiff, die gerade dort sind,
     /// nicht im Schutzradius einer Station liegen und Fracht im Wert von mindestens <see cref="EconomyRules.MinLootValue"/> tragen; mit Gewicht (Wert).
     /// </summary>
-    public static List<(Ship Ship, float Weight)> Victims(Universe u, SectorId sector)
+    public static List<(Ship Ship, float Weight)> Victims(Universe u, SectorId sector, Vec2? from = null)
     {
+        float reach = from is null ? 0f : u.Rules.RaidReach;   // Runde 44: nur Opfer in Reichweite des Kaperers
         var list = new List<(Ship, float)>();
         var ids = u.Tracker.ParkedIn(sector).Concat(u.Tracker.TransitIn(sector)).Distinct().OrderBy(i => i.Value);
         foreach (var id in ids)
@@ -192,6 +193,7 @@ public sealed class PirateSystem : ISimSystem
             if (player && s.Id != u.PlayerShip && !u.Rules.FleetRaids) continue;
             var (where, pos) = ThreatMap.Where(u, s);
             if (where != sector || ThreatMap.NearStation(u, sector, pos)) continue;
+            if (reach > 0f && Vec2.Distance(pos, from!.Value) > reach) continue;
             float value = ThreatMap.CargoValue(u, s);
             if (value < u.Rules.MinLootValue) continue;
             // Phase 24: Kaperer meiden bewaffnete Opfer (Waffenstärke ÷ 6, gewichtet)
@@ -202,13 +204,19 @@ public sealed class PirateSystem : ISimSystem
     }
 
     /// <summary>Polizeischiffe der Sektorfraktion, die gerade im Sektor sind (feste Reihenfolge).</summary>
-    public static List<Ship> PoliceIn(Universe u, SectorId sector)
+    public static List<Ship> PoliceIn(Universe u, SectorId sector, Vec2? near = null)
     {
         var list = new List<Ship>();
         if (!u.Sectors.TryGetValue(sector, out var sec)) return list;
+        float range = near is null ? 0f : u.Rules.PoliceResponseRange;   // Runde 44: nur Streifen in Reichweite (0 = ganzer Sektor)
         var ids = u.Tracker.ParkedIn(sector).Concat(u.Tracker.TransitIn(sector)).Distinct().OrderBy(i => i.Value);
         foreach (var id in ids)
-            if (u.Ships.TryGetValue(id, out var s) && ThreatMap.IsPolice(s) && u.FactionOf(s) == sec.Owner && !u.Fights.IsEngaged(s.Id) && ThreatMap.Where(u, s).Sector == sector) list.Add(s);
+        {
+            if (!u.Ships.TryGetValue(id, out var s) || !ThreatMap.IsPolice(s) || u.FactionOf(s) != sec.Owner || u.Fights.IsEngaged(s.Id)) continue;
+            var (where, pos) = ThreatMap.Where(u, s);
+            if (where != sector || (range > 0f && Vec2.Distance(pos, near!.Value) > range)) continue;
+            list.Add(s);
+        }
         return list;
     }
 
@@ -222,7 +230,7 @@ public sealed class PirateSystem : ISimSystem
         float p = u.Rules.RaidRatePerTick * dt / (1f + u.Rules.RaidSecurityDeterrence * MathF.Max(0f, sector.Security));
         if (u.Rules.FleetCombat) p *= PirateCommands.PackIn(u, raider, sector.Id);
         if (u.Rng.NextDouble() >= p) return;
-        var victims = Victims(u, sector.Id);
+        var victims = Victims(u, sector.Id, ThreatMap.Where(u, raider).Position);
         float total = victims.Sum(v => v.Weight);
         if (victims.Count == 0 || total <= 0f) return;
         double pick = u.Rng.NextDouble() * total;
@@ -420,7 +428,9 @@ public sealed class PirateSystem : ISimSystem
         if (!u.Rules.CombatRounds || !u.Rules.SpatialCombat) return;
         foreach (var e in u.PendingEncounters)
         {
-            if (e.Kind != EncounterKind.Raid || e.Sector != u.PlayerSector || !u.Ships.TryGetValue(e.Source, out var raider) || raider.Transit is not null
+            // Runde 44: mit PoliceResponseRange fliegt auch die Streife der Festnahme-Warnung wirklich heran
+            bool police = e.Kind == EncounterKind.Intercept && e.Station.Value == 0 && u.Rules.PoliceResponseRange > 0f;
+            if ((e.Kind != EncounterKind.Raid && !police) || e.Sector != u.PlayerSector || !u.Ships.TryGetValue(e.Source, out var raider) || raider.Transit is not null
                 || raider.Sector != e.Sector || !u.Ships.TryGetValue(e.Target, out var player) || player.Sector != e.Sector) continue;
             var to = player.Position - raider.Position;
             float dist = to.Length, keep = u.Rules.RaidApproachDistance;

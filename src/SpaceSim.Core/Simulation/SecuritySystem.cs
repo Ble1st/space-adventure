@@ -347,7 +347,7 @@ public sealed class SecuritySystem : ISimSystem
         if (u.Rules.FleetCombat && (u.Fights.IsEngaged(player.Id) || player.DockedAt.Value != 0)) return;   // Phase 27: nicht im Gefecht/angedockt ankündigen
         // Phase 28 (Prüfung Phase 27): Abkühlzeit nach Flucht, Ergeben oder Polizeigefecht — sonst Schleife „Warnung → Gefecht → Flucht → Warnung“
         if (u.Rules.ArrestCooldownTicks > 0 && u.Actors.TryGetValue(player.Owner, out var wantedActor) && u.Tick < wantedActor.ArrestCooldownUntil) return;
-        var police = PirateSystem.PoliceIn(u, sector.Id);
+        var police = PirateSystem.PoliceIn(u, sector.Id, player.Position);   // Runde 44: nur Streifen in Reichweite
         if (police.Count == 0) return;
         var pending = new PendingEncounter { Kind = EncounterKind.Intercept, Source = police[0].Id, Target = player.Id, Sector = sector.Id, DueTick = u.Tick + u.Rules.PlayerWarningTicks };
         u.PendingEncounters.Add(pending);
