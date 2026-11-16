@@ -115,6 +115,7 @@ public partial class Main : Node3D
 		_fx = new Fx(); AddChild(_fx);
 		_anchors = new AnchorView { Name = "Anchors", Fx = _fx }; AddChild(_anchors);
 		SpaceAdventure.Audio.AudioSettings.Init();   // Runde 12: Busse „Musik“/„Effekte“ und gespeicherte Lautstärken (user://settings.cfg)
+		SpaceAdventure.Game.CameraSettings.Load().ApplyTo(_orbit);   // Runde 44: Kameramodus/Rückansicht aus user://settings.cfg
 		Ui.Kit.UiScale.Init(GetTree().Root);   // Runde 31: UI-Größe aus DPI und Stufe; Runde 33: wirkt je Schicht (Flug-HUD), Wurzel bleibt 1
 		_sfx = new Sfx(); AddChild(_sfx);
 		_music = new SpaceAdventure.Audio.MusicDirector(); AddChild(_music);
@@ -650,6 +651,7 @@ public partial class Main : Node3D
 	/// <summary>Setzt die Kamera hart auf Schiff + aktuellen Orbit-Offset und richtet sie auf das Schiff aus (Neustart, Sprung, Teleport).</summary>
 	void SnapCam()
 	{
+		if (_orbit.Mode == CameraMode.Chase) { _orbit.SnapHeading(_player.Heading); _camOffset = _orbit.Offset(); }   // Runde 44: Rückansicht ohne Schwenk
 		var o = _camOffset;
 		_camFocus = Vector3.Zero;
 		_cam.Position = _player.Position + new Vector3(o.X, o.Y, o.Z);
@@ -660,6 +662,8 @@ public partial class Main : Node3D
 	void ResetCamera()
 	{
 		_orbit.Reset();
+		if (_orbit.Mode == CameraMode.Chase) _orbit.ResetChase();   // Runde 44: Rückansicht auf Höhe 45 / Abstand 35
+		PersistCamera();
 		_sfx.Play(SfxId.Click);
 		_hud.Toast("Kamera zurückgesetzt");
 	}
@@ -712,14 +716,17 @@ public partial class Main : Node3D
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
 			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
 			// Kamera-Einstellungen: Menü bleibt offen, damit man die Wirkung sieht
-			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.ZoomStep(-1); ManualZoom(); RefreshCameraMenu(); break;   // Runde 12: gleichmäßige Stufen
-			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.ZoomStep(+1); ManualZoom(); RefreshCameraMenu(); break;
-			case "cam_free": _sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.Free; RefreshCameraMenu(); break;
+			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.ZoomStep(-1); ManualZoom(); PersistCamera(); RefreshCameraMenu(); break;   // Runde 12: gleichmäßige Stufen
+			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.ZoomStep(+1); ManualZoom(); PersistCamera(); RefreshCameraMenu(); break;
+			case "cam_free": _sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.Free; PersistCamera(); RefreshCameraMenu(); break;
+			case "cam_chase": _sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.Chase; _orbit.SnapHeading(_player.Heading); PersistCamera(); RefreshCameraMenu(); break;   // Runde 44
+			case "chase_up": _sfx.Play(SfxId.Click); _orbit.ChaseRaise(+OrbitCamera.ChaseHeightStep); PersistCamera(); RefreshCameraMenu(); break;
+			case "chase_down": _sfx.Play(SfxId.Click); _orbit.ChaseRaise(-OrbitCamera.ChaseHeightStep); PersistCamera(); RefreshCameraMenu(); break;
 			case "cam_lock":
-				_sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.TargetLock; RefreshCameraMenu();
+				_sfx.Play(SfxId.Click); _orbit.Mode = CameraMode.TargetLock; PersistCamera(); RefreshCameraMenu();
 				if (LockTargetPosition() == null) _hud.Toast("Target-Lock: Wähle ein Ziel (Station, Gate, Asteroid antippen)");
 				break;
-			case "cam_invert": _sfx.Play(SfxId.Click); _orbit.InvertDrag = !_orbit.InvertDrag; RefreshCameraMenu(); break;
+			case "cam_invert": _sfx.Play(SfxId.Click); _orbit.InvertDrag = !_orbit.InvertDrag; PersistCamera(); RefreshCameraMenu(); break;
 			case "cam_reset": ResetCamera(); RefreshCameraMenu(); break;
 			case "emergency": CallEmergency(); break;
 			case "close": _sfx.Play(SfxId.Click); ShowBase(); break;   // Runde 23: angedockt zurück ins Dock-Menü
@@ -875,7 +882,7 @@ public partial class Main : Node3D
 	/// <summary>Überträgt den Kamerazustand (Modus, Invertierung, Abstand) in die Anzeige des Hamburger-Menüs.</summary>
 	void RefreshCameraMenu()
 	{
-		_hud.Command.SetCameraState(_orbit.Mode == CameraMode.TargetLock, _orbit.InvertDrag, _orbit.Distance, LockTargetPosition() != null);
+		_hud.Command.SetCameraState(_orbit.Mode, _orbit.InvertDrag, _orbit.Distance, LockTargetPosition() != null, _orbit.ChaseHeight, _orbit.ChaseBack);
 		_hud.Command.SetFuelActive(_session.U.Rules.FuelActive);   // Phase 14: Notruf nur mit Treibstoff
 		_hud.Command.SetAudioState();   // Runde 12: Ton-Schalter
 		_hud.Command.SetFast(_fast);   // HUD-Neu
@@ -883,6 +890,9 @@ public partial class Main : Node3D
 	}
 
 	const float MenuZoomStep = 0.85f;
+
+	/// <summary>Runde 44: Kamera-Einstellungen speichern (Menütipp sofort, Gesten am Gestenende; schreibt nur bei Änderung).</summary>
+	void PersistCamera() => SpaceAdventure.Game.CameraSettings.Save(SpaceSim.Core.Flight.CameraPrefs.Of(_orbit));
 
 	void SaveNow(bool manual)
 	{
@@ -1292,6 +1302,7 @@ public partial class Main : Node3D
 		// Kamera: Ist-Offset folgt weich dem Orbit-Soll-Offset, Kamera sitzt auf Schiff + Offset und blickt auf das Schiff
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt)
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
+		if (_orbit.Mode == CameraMode.Chase && _docked == null) _orbit.FollowHeading(_player.Heading, delta);   // Runde 44: Rückansicht hinter dem Bug (auch rückwärts)
 		// Runde 13 (Handy-Test): Gefechtskamera — mit Gefechtsziel bzw. angekündigtem Überfall rahmt sie Schiff und Ziel (Core: CombatFraming), weich, bis 140
 		var want = _orbit.Offset();
 		var focus = Vector3.Zero;
@@ -1324,6 +1335,12 @@ public partial class Main : Node3D
 			float dist = Mathf.Sqrt(want.X * want.X + want.Y * want.Y + want.Z * want.Z);
 			var cf = SpaceSim.Core.Flight.CombatFraming.CenterShip(_player.Position.X, _player.Position.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov, vsz.X / Mathf.Max(1f, vsz.Y), dist, ff);
 			focus = new Vector3(cf.FocusX - _player.Position.X, 0f, cf.FocusZ - _player.Position.Z);
+		}
+		// Runde 44: Rückansicht — Vorausblick vor dem Bug statt der Mitte des freien Felds (Schutz ShipInFreeField bleibt)
+		if (!_framingActive && _docked == null && _orbit.Mode == CameraMode.Chase)
+		{
+			var la = _orbit.LookAhead(_player.Heading, _manualZoomInFight ? 1f : sz);
+			focus = new Vector3(la.X, 0f, la.Z);
 		}
 		if (!_framingActive && NearLargeStationZoom() is var kz and > 1f) want = new CamVec3(want.X * kz, want.Y * kz, want.Z * kz);   // Runde 14: große Stationen
 		// Runde 18 (Handy-Test: Bohrerdrehung kaum zu sehen): verankert rückt die Kamera näher an Bug, Trossen und Werkzeug (manueller Zoom bleibt die Grundlage)
@@ -1850,11 +1867,12 @@ public partial class Main : Node3D
 			if (@event is InputEventMouseButton mb && (mb.ButtonIndex == MouseButton.Right || mb.ButtonIndex == MouseButton.Middle))
 			{
 				_camMouseDrag = mb.Pressed;
+				if (!mb.Pressed) PersistCamera();   // Runde 44: Gestenende
 				return;
 			}
 			if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
 			{
-				_orbit.Zoom(wheel.ButtonIndex == MouseButton.WheelUp ? WheelZoomIn : WheelZoomOut); ManualZoom();
+				_orbit.Zoom(wheel.ButtonIndex == MouseButton.WheelUp ? WheelZoomIn : WheelZoomOut); ManualZoom(); PersistCamera();
 				return;
 			}
 			if (@event is InputEventMouseMotion mm && _camMouseDrag)
@@ -1882,6 +1900,7 @@ public partial class Main : Node3D
 				_touch.Remove(t.Index);
 				if (_pointerFinger == t.Index) HandlePointer(t.Index, t.Position, pressed: false, motion: false);
 				if (_touch.Count < 2) _pinchLast = 0f;
+				if (_touch.Count == 0) PersistCamera();   // Runde 44: Gestenende
 			}
 			return;
 		}
@@ -1934,6 +1953,7 @@ public partial class Main : Node3D
 		else if (idx == _pointerFinger && !pressed)
 		{
 			bool tap = !_pointerDragging && Time.GetTicksMsec() / 1000.0 - _pointerDownAt < TapMaxTime;
+			if (_pointerDragging) PersistCamera();   // Runde 44: Gestenende
 			_pointerFinger = -1; _pointerDragging = false;
 			if (tap) TryPickTarget(pos);
 		}
@@ -3379,6 +3399,8 @@ public partial class Main : Node3D
 	/// <summary>Schaltet Autopilot und Auto-Mining ab, damit Lenkungstests nur die Handeingabe messen.</summary>
 	internal void TestStopAutomation() { CancelAutopilot(); if (_miner.Enabled) SetAutoMining(false); }
 	internal CameraMode TestCamMode => _orbit.Mode;
+	/// <summary>Runde 44: Höhe und Abstand der Rückansicht.</summary>
+	internal (float Height, float Back) TestCamChase => (_orbit.ChaseHeight, _orbit.ChaseBack);
 	internal bool TestCamInvert => _orbit.InvertDrag;
 	/// <summary>Simuliert einen Ein-Finger-Wisch und liefert das Solltempo aus der Lenkung (muss 0 sein: Touch steuert das Schiff nicht).</summary>
 	internal float TestSwipe(Vector2 from, Vector2 to)

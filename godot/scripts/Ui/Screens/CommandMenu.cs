@@ -41,7 +41,14 @@ public partial class CommandMenu : Control, IScreen
 	};
 
 	readonly KitWindow _win;
-	KitButton _free = null!, _lock = null!, _invert = null!;
+	KitButton _free = null!, _lock = null!, _chase = null!, _invert = null!;
+	/// <summary>Runde 44: Zeile „Höhe − / +“ der Rückansicht (nur in diesem Modus sichtbar).</summary>
+	HBoxContainer _heightRow = null!;
+	Label _heightText = null!;
+	/// <summary>Selbsttest: Moduskasten „Rückansicht“ und die Höhe-Tasten.</summary>
+	public KitButton TestChaseButton => _chase;
+	public KitButton? TestHeightUp { get; private set; }
+	public bool TestHeightRowVisible => _heightRow.Visible;
 	KitButton? _emergency, _music, _effects, _uiSize, _fast, _command;
 	/// <summary>HUD-Neu: Zeitraffer-Zeile zeigt den Zustand.</summary>
 	public void SetFast(bool on) { if (_fast is null) return; _fast.Text = on ? "Zeitraffer ×10" : "Zeitraffer"; _fast.Sub = on ? "läuft · antippen = ×1" : "×1 · antippen = ×10"; _fast.State = on ? KitButtonState.On : KitButtonState.Normal; }
@@ -160,12 +167,27 @@ public partial class CommandMenu : Control, IScreen
 
 		var modeRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56) };
 		modeRow.AddThemeConstantOverride("separation", 10);
-		_free = new KitButton("Freie Kamera", new Vector2(265, 56)) { FontSize = 18 };
-		_lock = new KitButton("Target-Lock", new Vector2(265, 56)) { FontSize = 18 };
+		// Runde 44: drei Modi — frei / Zielfolge / Rückansicht
+		_free = new KitButton("Frei", new Vector2(173, 56)) { FontSize = 18 };
+		_lock = new KitButton("Zielfolge", new Vector2(173, 56)) { FontSize = 18 };
+		_chase = new KitButton("Rückansicht", new Vector2(174, 56)) { FontSize = 18 };
 		_free.Pressed += () => Action?.Invoke("cam_free");
 		_lock.Pressed += () => Action?.Invoke("cam_lock");
-		modeRow.AddChild(_free); modeRow.AddChild(_lock);
+		_chase.Pressed += () => Action?.Invoke("cam_chase");
+		modeRow.AddChild(_free); modeRow.AddChild(_lock); modeRow.AddChild(_chase);
 		list.AddChild(modeRow);
+		_heightRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56), Visible = false };
+		_heightRow.AddThemeConstantOverride("separation", 10);
+		var hDown = new KitButton("−", new Vector2(110, 56)) { FontSize = 30 };
+		_heightText = Text("Höhe", 20, White, HorizontalAlignment.Center);
+		_heightText.CustomMinimumSize = new Vector2(290, 56);
+		_heightText.VerticalAlignment = VerticalAlignment.Center;
+		var hUp = new KitButton("+", new Vector2(110, 56)) { FontSize = 30 };
+		hDown.Pressed += () => Action?.Invoke("chase_down");
+		hUp.Pressed += () => Action?.Invoke("chase_up");
+		TestHeightUp = hUp;
+		_heightRow.AddChild(hDown); _heightRow.AddChild(_heightText); _heightRow.AddChild(hUp);
+		list.AddChild(_heightRow);
 		_modeHint = Text("", 13, new Color(Dim, 0.85f));
 		_modeHint.CustomMinimumSize = new Vector2(540, 36);
 		_modeHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -210,13 +232,19 @@ public partial class CommandMenu : Control, IScreen
 	}
 
 	/// <summary>Zeigt den aktuellen Kamerazustand (Modus, Invertierung, Abstand); wird vor dem Öffnen und nach jeder Kamera-Aktion gesetzt.</summary>
-	public void SetCameraState(bool targetLock, bool invert, float distance, bool hasTarget)
+	public void SetCameraState(SpaceSim.Core.Flight.CameraMode mode, bool invert, float distance, bool hasTarget, float chaseHeight, float chaseBack)
 	{
-		_free.State = targetLock ? KitButtonState.Normal : KitButtonState.On;   // aktiver Modus grün hervorgehoben
+		bool targetLock = mode == SpaceSim.Core.Flight.CameraMode.TargetLock, chase = mode == SpaceSim.Core.Flight.CameraMode.Chase;
+		_free.State = mode == SpaceSim.Core.Flight.CameraMode.Free ? KitButtonState.On : KitButtonState.Normal;   // aktiver Modus grün hervorgehoben
 		_lock.State = targetLock ? KitButtonState.On : KitButtonState.Normal;
+		_chase.State = chase ? KitButtonState.On : KitButtonState.Normal;
 		_invert.State = invert ? KitButtonState.On : KitButtonState.Normal;
-		_zoomText.Text = $"Zoom · Abstand {distance:0}";
-		_modeHint.Text = targetLock
+		_heightRow.Visible = chase;
+		_zoomText.Text = chase ? $"Abstand {chaseBack:0}" : $"Zoom · Abstand {distance:0}";
+		_heightText.Text = $"Höhe {chaseHeight:0}";
+		_modeHint.Text = chase
+			? "Rückansicht: Die Kamera folgt dem Kurs hinter dem Bug. Senkrecht wischen ändert die Höhe, waagrecht wirkt nicht."
+			: targetLock
 			? (hasTarget ? "Target-Lock: Die Kamera dreht sich hinter das Schiff, sodass das gewählte Ziel vor dir liegt. Neigung und Zoom bleiben frei."
 			             : "Target-Lock: Noch kein Ziel gewählt – tippe eine Station, ein Gate oder einen Asteroiden an. Bis dahin bleibt die Kamera stehen.")
 			: "Freie Kamera: Mit einem Finger wischen schwenkt, mit zwei Fingern zoomt (Mausrad am Desktop).";

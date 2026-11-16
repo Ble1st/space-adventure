@@ -18,6 +18,8 @@ public enum CameraMode
     Free,
     /// <summary>Yaw wird automatisch so geführt, dass das Ziel vor dem Schiff liegt (Kamera hinter dem Schiff, vom Ziel weg blickend); Pitch und Zoom bleiben frei.</summary>
     TargetLock,
+    /// <summary>Runde 44: Rückansicht — die Kamera steht in fester Höhe und festem Abstand hinter dem Bug und folgt dem Kurs; waagrechtes Wischen wirkt nicht.</summary>
+    Chase,
 }
 
 /// <summary>
@@ -57,9 +59,66 @@ public sealed class OrbitCamera
     /// <summary>Drehwinkel um das Schiff in Grad, 0..360 (0 = Kamera auf +Z hinter dem Schiff).</summary>
     public float YawDeg { get; private set; }
     /// <summary>Höhe über der XZ-Ebene in Grad, geklemmt auf [<see cref="MinPitchDeg"/>, <see cref="MaxPitchDeg"/>].</summary>
-    public float PitchDeg { get; private set; }
+    public float PitchDeg { get => Mode == CameraMode.Chase ? MathF.Atan2(ChaseHeight, ChaseBack) * 180f / MathF.PI : _pitch; private set => _pitch = value; }
+    float _pitch, _distance;
     /// <summary>Abstand zum Schiff, geklemmt auf [<see cref="MinDistance"/>, <see cref="MaxDistance"/>].</summary>
-    public float Distance { get; private set; }
+    public float Distance { get => Mode == CameraMode.Chase ? MathF.Sqrt(ChaseHeight * ChaseHeight + ChaseBack * ChaseBack) : _distance; private set => _distance = value; }
+
+    /// <summary>Runde 44: Rückansicht — Standardhöhe über dem Schiff (höher als die alte feste Ansicht 38).</summary>
+    public const float DefaultChaseHeight = 45f;
+    /// <summary>Runde 44: Rückansicht — waagrechter Standardabstand hinter dem Bug.</summary>
+    public const float DefaultChaseBack = 35f;
+    public const float MinChaseHeight = 8f, MaxChaseHeight = 120f, MinChaseBack = 8f, MaxChaseBack = 140f;
+    /// <summary>Runde 44: Höhenänderung je Pixel senkrechten Wischens in der Rückansicht.</summary>
+    public const float ChaseHeightPerPixel = 0.15f;
+    /// <summary>Runde 44: Vorausblick — der Blickpunkt liegt um diesen Anteil des Abstands vor dem Bug (Schiff im unteren Bilddrittel).</summary>
+    public const float LookAheadShare = 0.4f;
+    /// <summary>Runde 44: Rückansicht — Höhe über dem Schiff, geklemmt auf [<see cref="MinChaseHeight"/>, <see cref="MaxChaseHeight"/>].</summary>
+    public float ChaseHeight { get; private set; } = DefaultChaseHeight;
+    /// <summary>Runde 44: Rückansicht — waagrechter Abstand hinter dem Bug, geklemmt auf [<see cref="MinChaseBack"/>, <see cref="MaxChaseBack"/>].</summary>
+    public float ChaseBack { get; private set; } = DefaultChaseBack;
+
+    /// <summary>Runde 44: Höhe und Abstand der Rückansicht setzen (geklemmt).</summary>
+    public void SetChase(float height, float back)
+    {
+        ChaseHeight = Clamp(float.IsFinite(height) ? height : DefaultChaseHeight, MinChaseHeight, MaxChaseHeight);
+        ChaseBack = Clamp(float.IsFinite(back) ? back : DefaultChaseBack, MinChaseBack, MaxChaseBack);
+    }
+    /// <summary>Runde 44: Rückansicht auf Standardhöhe/-abstand.</summary>
+    public void ResetChase() => SetChase(DefaultChaseHeight, DefaultChaseBack);
+    /// <summary>Runde 44: Höhe der Rückansicht um <paramref name="delta"/> ändern (Menü „Höhe − / +“, senkrechtes Wischen).</summary>
+    public void ChaseRaise(float delta) => SetChase(ChaseHeight + delta, ChaseBack);
+    /// <summary>Runde 44: Menüschritt der Höhe.</summary>
+    public const float ChaseHeightStep = 10f;
+
+    /// <summary>
+    /// Runde 44: Yaw weich auf den Kurs führen (Kamera hinter dem Bug), auf dem kürzesten Weg über 0/360. Kurs-Konvention wie
+    /// <c>PlayerShip.Heading</c>: vorwärts = (−sin h, −cos h), also Kamera bei (sin h, cos h) · Abstand ⇒ Yaw = h in Grad.
+    /// Wirkt nur in der Rückansicht.
+    /// </summary>
+    public void FollowHeading(float headingRad, float delta, float rate = 5f)
+    {
+        if (Mode != CameraMode.Chase) return;
+        float want = Wrap360(headingRad * 180f / MathF.PI);
+        float t = 1f - MathF.Exp(-rate * MathF.Max(delta, 0f));
+        YawDeg = Wrap360(YawDeg + ShortestAngleDelta(YawDeg, want) * t);
+    }
+
+    /// <summary>Runde 44: Yaw sofort auf den Kurs (Sprung, Abdocken, Respawn — kein Schwenk). Nur in der Rückansicht.</summary>
+    public void SnapHeading(float headingRad)
+    {
+        if (Mode == CameraMode.Chase) YawDeg = Wrap360(headingRad * 180f / MathF.PI);
+    }
+
+    /// <summary>
+    /// Runde 44: Vorausblick der Rückansicht — Blickpunkt relativ zum Schiff (x, z) vor dem Bug; in anderen Modi (0, 0).
+    /// </summary>
+    public (float X, float Z) LookAhead(float headingRad, float zoom = 1f)
+    {
+        if (Mode != CameraMode.Chase) return (0f, 0f);
+        float d = LookAheadShare * ChaseBack * zoom;
+        return (-MathF.Sin(headingRad) * d, -MathF.Cos(headingRad) * d);
+    }
     /// <summary>Kameramodus (Standard: frei).</summary>
     public CameraMode Mode { get; set; } = CameraMode.Free;
     /// <summary>
@@ -101,17 +160,43 @@ public sealed class OrbitCamera
     public void OrbitDrag(float dxPx, float dyPx)
     {
         float sign = InvertDrag ? -1f : 1f;
+        if (Mode == CameraMode.Chase) { ChaseDrag(dyPx); return; }
         float dYaw = Mode == CameraMode.TargetLock ? 0f : -dxPx * DegPerPixelYaw * sign;
         Orbit(dYaw, dyPx * DegPerPixelPitch * sign);
     }
 
-    /// <summary>Zoom um einen Faktor (&lt; 1 = näher heran, z. B. Pinch-Verhältnis oder Mausrad-Stufe).</summary>
-    public void Zoom(float factor) => Distance = Clamp(Distance * factor, MinDistance, MaxDistance);
+    /// <summary>
+    /// Runde 44: senkrechtes Wischen in der Rückansicht ändert nur die Höhe (Wischen nach unten hebt die Kamera — wie der Pitch der freien Kamera);
+    /// <see cref="InvertDrag"/> kehrt um.
+    /// </summary>
+    public void ChaseDrag(float dyPx) => ChaseRaise(dyPx * ChaseHeightPerPixel * (InvertDrag ? -1f : 1f));
+
+    /// <summary>Zoom um einen Faktor (&lt; 1 = näher heran, z. B. Pinch-Verhältnis oder Mausrad-Stufe). Rückansicht: Höhe und Abstand gemeinsam.</summary>
+    public void Zoom(float factor)
+    {
+        if (Mode == CameraMode.Chase) { ScaleChase(factor); return; }
+        Distance = Clamp(Distance * factor, MinDistance, MaxDistance);
+    }
+
+    /// <summary>Runde 44: Höhe und Abstand der Rückansicht mit demselben Faktor (die Neigung bleibt, solange keine Grenze greift).</summary>
+    void ScaleChase(float factor)
+    {
+        if (!float.IsFinite(factor) || factor <= 0f) return;
+        float kMax = MathF.Min(MaxChaseHeight / ChaseHeight, MaxChaseBack / ChaseBack);
+        float kMin = MathF.Max(MinChaseHeight / ChaseHeight, MinChaseBack / ChaseBack);
+        float k = Clamp(factor, kMin, kMax);
+        SetChase(ChaseHeight * k, ChaseBack * k);
+    }
 
     /// <summary>Runde 12 (Handy-Test: „−“ zoomte kaum heraus, „+“ sehr stark hinein): gleichmäßige Menü-Stufen über den ganzen Bereich.</summary>
     public const int ZoomSteps = 8;
     /// <summary>Eine Menü-Zoomstufe: <paramref name="direction"/> &gt; 0 heraus (weiter weg), &lt; 0 hinein; Schritt (Max − Min) ÷ <see cref="ZoomSteps"/>.</summary>
-    public void ZoomStep(int direction) => Distance = Clamp(Distance + Math.Sign(direction) * (MaxDistance - MinDistance) / ZoomSteps, MinDistance, MaxDistance);
+    public void ZoomStep(int direction)
+    {
+        float step = Math.Sign(direction) * (MaxDistance - MinDistance) / ZoomSteps;
+        if (Mode == CameraMode.Chase) { float d = Distance; ScaleChase((d + step) / d); return; }
+        Distance = Clamp(Distance + step, MinDistance, MaxDistance);
+    }
 
     /// <summary>
     /// Offset-Vektor Schiff → Kamera. Bei Yaw 0 und Standard-Pitch liegt die Kamera exakt auf dem bisherigen
