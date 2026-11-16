@@ -21,9 +21,9 @@ public sealed class BountyMission : IMissionType
 
     static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-    /// <summary>Ist die Angebots-Station ein Sektor-HQ oder Hauptquartier (dort hängen die Fraktionsaufträge)?</summary>
+    /// <summary>Ist die Angebots-Station ein Sektor-HQ, Hauptquartier oder eine Polizeiwache (dort hängen die Fraktionsaufträge)? Runde 42b: auch Polizei.</summary>
     public static bool IsOfferStation(Universe u, Station st) =>
-        u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.Government is GovernmentKind.SectorHq or GovernmentKind.Headquarters;
+        u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.Government is GovernmentKind.SectorHq or GovernmentKind.Headquarters or GovernmentKind.Police;
 
     /// <summary>Ziel-Schiff-Id (Args „target“).</summary>
     public static ShipId TargetOf(Mission m) => new(int.Parse(m.Args["target"]));
@@ -163,7 +163,7 @@ public sealed class BountyMission : IMissionType
         string where = u.Ships.ContainsKey(TargetOf(m)) && u.Sectors.TryGetValue(ThreatMap.Where(u, u.Ships[TargetOf(m)]).Sector, out var s) ? s.Name
             : (m.Args.TryGetValue("lastSector", out var ls) && int.TryParse(ls, out var lv) && u.Sectors.TryGetValue(new SectorId(lv), out var s2) ? s2.Name : "verschwunden");
         long left = Math.Max(0L, m.Deadline - u.Tick);
-        return $"Auftrag: Kopfgeld {actor} — Ziel in {where} · {(left / 240)}:{left % 240 / 4:00} min";
+        return $"Auftrag: Kopfgeld {actor} — Ziel in {where} · noch {MissionRules.Rest(left)}";
     }
 
     public void Check(Universe u, Mission m)

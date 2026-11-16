@@ -378,6 +378,10 @@ public class Runde42Tests
         var m = AcceptRemote(u, o);
         float clientAfterAccept = u.Actors[o.Client].Treasury.Credits;
         Assert.True(MathF.Abs(clientAfterAccept - (clientBefore - m.Reserved)) < 0.01f, "reserviert bei Annahme");
+        // Runde 42b: Eskorte wird schon ab EscortMinRemainingTicks (40) Reststrecke angeboten — für den Test die Ankunft
+        // weit genug weg schieben, damit nach den 2 nahen Stichproben genug entfernte dazukommen
+        escort.Transit!.ArrivalTick = u.Tick + 120;   // genug entfernte Stichproben, aber kurz genug, dass die Fraktionskasse nicht anderweitig schrumpft
+        m.Deadline = u.Tick + 140;
         // nur die ersten 40 Ticks in der Nähe (2 Stichproben), dann weg
         FollowEscort(u, escort, m, 40);
         var me = Player(u);

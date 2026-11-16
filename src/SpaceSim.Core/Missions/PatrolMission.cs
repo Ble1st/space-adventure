@@ -165,7 +165,7 @@ public sealed class PatrolMission : IMissionType
         int cur = Math.Min(CurrentOf(m), wps.Count - 1);
         string next = cur >= 0 && u.Sectors.TryGetValue(wps[cur].Sector, out var s) ? s.Name : "?";
         long left = Math.Max(0L, m.Deadline - u.Tick);
-        return $"Auftrag: Patrouille Wegpunkt {Math.Min(CurrentOf(m) + 1, wps.Count)}/{wps.Count} → {next} · {(left / 240)}:{left % 240 / 4:00} min";
+        return $"Auftrag: Patrouille Wegpunkt {Math.Min(CurrentOf(m) + 1, wps.Count)}/{wps.Count} → {next} · noch {MissionRules.Rest(left)}";
     }
 
     public void Check(Universe u, Mission m)

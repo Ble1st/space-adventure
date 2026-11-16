@@ -1715,6 +1715,7 @@ public partial class Main : Node3D
 		if (_hud.DockCtx.Station?.Id != id) _hud.DockTrade.ResetSession();
 		_docked = id;
 		PlayerData.DockedAt = id;   // Phase 12: Liegeplatz des aktiven Schiffs (Hangar, Taxi, Liegegebühr)
+		u.Events.Publish(new ShipDocked(PlayerData.Id, id));   // Runde 42b: Andocken über die Ansicht meldet der Bus (z. B. Transport-Ablieferung)
 		_transition = true;
 		_player.Velocity = Vector3.Zero;
 		_miningStep = null;

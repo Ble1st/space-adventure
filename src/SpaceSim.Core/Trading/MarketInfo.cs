@@ -95,6 +95,11 @@ public static class MarketInfo
             return new Intake(0f, IntakeLimit.NotTraded, ExportRules.ConfigOf(u, st) is not null ? "Nimmt nur Endwaren" : "Handelt diese Ware nicht");
         float accept = st.AcceptableUnits(good, u.Rules);
         float pay = MathF.Max(0f, st.Credits) / e.Price;
+        // Runde 42b: Liefervertrag-Reservierung des Spielerschiffs — dieselbe Regel wie die Ausführung (SaleCaps): die Station nimmt die
+        // reservierte Menge auch bei vollem Lager an und kann sie aus der reservierten Kasse bezahlen
+        var (resAccept, resCash) = TradeActions.ContractReserve(u, st, good, ship);
+        accept += resAccept;
+        pay += resCash / e.Price;
         float cap = MathF.Max(0f, MathF.Min(pay, accept));   // Phase 17: wie TradeActions.SaleCap
         var (_, allCap) = TradeActions.SaleCaps(u, st, good, st.Credits, null, ship);   // Phase 18: Rest unter einer Einheit
         return Classify() with { Cap = cap, AllCap = allCap };

@@ -259,13 +259,22 @@ public static class MissionRules
         if (float.IsInfinity(t) || float.IsNaN(t)) t = u.Rules.MissionMinDeadlineTicks;
         return u.Tick + Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(t * u.Rules.MissionDeadlineFactor));
     }
+
+    /// <summary>Runde 42b: Restzeit als m:ss (geflooret, nie negativ) — statt roher Tick-Zahlen in Anzeigen.</summary>
+    public static string Rest(long ticks)
+    {
+        long s = Math.Max(0L, ticks) / SimClock.TicksPerSecond;
+        return $"{s / 60}:{s % 60:00}";
+    }
 }
 
 /// <summary>
 /// Runde 41: erzeugt die Angebote je Station alle <see cref="EconomyRules.MissionRefreshTicks"/> Ticks (im ersten Intervall des
 /// Buckets) aus dem Weltzustand mit dem eigenen Missions-RNG (<see cref="MissionRng"/>, nie <see cref="Universe.Rng"/>). Angebote
-/// werden gespeichert, aber nicht gehasht; sie verbrauchen keine Zufallszahl des Welt-RNG. Veröffentlicht je neuem Comms-Angebot
-/// (Liefervertrag) <see cref="MissionOffered"/>.
+/// werden gespeichert, aber nicht gehasht; sie verbrauchen keine Zufallszahl des Welt-RNG. Veröffentlicht je neuem Angebot
+/// <see cref="MissionOffered"/> (alle Arten — die Zählung; Posteingang macht daraus nur der Comms-Kanal, <see cref="Comms.CommsSystem"/>).
+/// Runde 42b: die Station, an der der Spieler gerade angedockt ist, wird sofort bei deren Andocken (einmal je Bucket) erzeugt,
+/// damit an einer Station mit passendem Typ zügig Angebote bereitstehen.
 /// </summary>
 public sealed class MissionBoardSystem : ISimSystem
 {
@@ -277,26 +286,37 @@ public sealed class MissionBoardSystem : ISimSystem
         // abgelaufene Angebote entfernen (jeder Aufruf, billige Liste)
         if (u.MissionOffers.Count > 0) u.MissionOffers.RemoveAll(o => o.Expires > 0 && u.Tick >= o.Expires);
         int refresh = Math.Max(Interval, u.Rules.MissionRefreshTicks);
-        if (u.Tick % refresh >= Interval) return;   // nur im ersten Intervall jedes Buckets neu erzeugen
         long bucket = u.Tick / refresh;
-        u.MissionOffers.Clear();
+        bool bucketStart = u.Tick % refresh < Interval;
+        if (bucketStart) u.MissionOffers.Clear();
+        // Runde 42b: Andock-Station des Spielers sofort erzeugen (falls sie in diesem Bucket noch keines hat) — gleicher RNG wie beim Bucket
+        if (!bucketStart && u.Ships.TryGetValue(u.PlayerShip, out var ps) && ps.DockedAt != default
+            && u.Stations.TryGetValue(ps.DockedAt, out var dock) && (dock.Dockable || dock.IsBuildSite)
+            && u.MissionOffers.All(o => o.At != dock.Id))
+            GenerateFor(u, dock, bucket);
+        if (!bucketStart) return;
         foreach (var st in u.StationsById())
         {
             if (!st.Dockable && !st.IsBuildSite) continue;
-            var rng = MissionRng.For(u, st.Id.Value, bucket);
-            foreach (var type in MissionRules.Types.All)
-            {
-                var offer = type.Generate(u, st, rng, bucket);
-                if (offer is null) continue;
-                offer.Id = u.NextMissionId++;
-                offer.At = st.Id;
-                offer.Client = st.Owner;
-                offer.Created = u.Tick;
-                offer.Expires = u.Tick + Math.Max(Interval, u.Rules.MissionOfferTicks);
-                u.MissionOffers.Add(offer);
-                if (offer.Args.TryGetValue("channel", out var ch) && ch == "comms")
-                    u.Events.Publish(new MissionOffered(offer.Id, offer.Client, offer.Type, type.DescribeOffer(u, offer)));
-            }
+            GenerateFor(u, st, bucket);
+        }
+    }
+
+    /// <summary>Erzeugt die Angebote einer Station für dieses Bucket (eigener Missions-RNG, nie <see cref="Universe.Rng"/>).</summary>
+    static void GenerateFor(Universe u, Station st, long bucket)
+    {
+        var rng = MissionRng.For(u, st.Id.Value, bucket);
+        foreach (var type in MissionRules.Types.All)
+        {
+            var offer = type.Generate(u, st, rng, bucket);
+            if (offer is null) continue;
+            offer.Id = u.NextMissionId++;
+            offer.At = st.Id;
+            offer.Client = st.Owner;
+            offer.Created = u.Tick;
+            offer.Expires = u.Tick + Math.Max(Interval, u.Rules.MissionOfferTicks);
+            u.MissionOffers.Add(offer);
+            u.Events.Publish(new MissionOffered(offer.Id, offer.Client, offer.Type, type.DescribeOffer(u, offer)));   // Runde 42b: alle Arten (Comms filtert den Kanal für Post)
         }
     }
 }

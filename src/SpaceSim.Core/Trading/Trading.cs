@@ -54,19 +54,41 @@ public static class TradeActions
         float pay = MathF.Max(0f, credits) / e.Price;
         // Phase 22: eine zugesagte Lieferung darf eine größere Annahme haben (TraderSystem, EconomyRules.HonourPlannedDelivery)
         float accept = acceptOverride ?? station.AcceptableUnits(good, u.Rules);
-        // Runde 41: Liefervertrag — die Station hat die Annahme für die reservierte Menge (n − gelieferte) garantiert (nur Spielerschiffe, nur solange Aufträge laufen)
-        if (ship is not null && u.Missions.Count > 0 && ship.Owner == u.PlayerActor && acceptOverride is null)
-            foreach (var m in u.Missions)
-                if (m.State == MissionState.Active && m.At == station.Id && m.Args.TryGetValue("contract", out var c) && c == "1"
-                    && m.Args.TryGetValue("good", out var gs) && int.TryParse(gs, out var gv) && gv == good.Value
-                    && m.Args.TryGetValue("units", out var us) && float.TryParse(us, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var need))
-                {
-                    float left = MathF.Max(0f, need - m.Sold);
-                    if (left > 0f) accept += left;
-                }
+        // Runde 41/42b: Liefervertrag — die reservierte Annahme und Kasse gelten für das Spielerschiff (Anzeige = Ausführung, siehe ContractReserve)
+        if (acceptOverride is null)
+        {
+            var (resAccept, resCash) = ContractReserve(u, station, good, ship);
+            accept += resAccept;
+            pay += resCash / e.Price;
+        }
         float cap = MathF.Min(pay, accept);
         float allCap = accept > 0f && station.Site is null && u.Rules.SaleRestTolerance > 0f ? MathF.Min(pay, accept + u.Rules.SaleRestTolerance) : cap;
         return (MathF.Max(0f, cap), MathF.Max(0f, allCap));
+    }
+
+    /// <summary>
+    /// Runde 41/42b: Reservierung eines aktiven Liefervertrags des Spielers an dieser Station für diese Ware: noch offene Annahme
+    /// (Einheiten = n − geliefert) und die dafür reservierte Kasse (anteilig). Nur für Spielerschiffe, nur solange Aufträge laufen; sonst (0, 0).
+    /// Anzeige (<see cref="MarketInfo.Acceptance"/>) und Ausführung (<see cref="SaleCaps"/>) rechnen beide damit — die Station nimmt die
+    /// reservierte Menge auch bei vollem Lager an und kann sie bezahlen.
+    /// </summary>
+    public static (float AcceptLeft, float CashLeft) ContractReserve(Universe u, Station station, GoodId good, Ship? ship)
+    {
+        if (ship is null || u.Missions.Count == 0 || ship.Owner != u.PlayerActor) return (0f, 0f);
+        float accept = 0f, cash = 0f;
+        foreach (var m in u.Missions)
+        {
+            if (m.State != MissionState.Active || m.At != station.Id || m.Type != Missions.DeliveryMission.KeyId) continue;
+            if (!m.Args.TryGetValue("contract", out var c) || c != "1") continue;
+            if (!m.Args.TryGetValue("good", out var gs) || !int.TryParse(gs, out var gv) || gv != good.Value) continue;
+            if (!m.Args.TryGetValue("units", out var us)
+                || !float.TryParse(us, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var need) || need <= 0f) continue;
+            float left = MathF.Max(0f, need - m.Sold);
+            if (left <= 0f) continue;
+            accept += left;
+            cash += m.ReservedCash * (left / need);
+        }
+        return (accept, cash);
     }
 
     /// <summary>Phase 17: was die Station von dieser Ware jetzt annimmt und bezahlen kann (Obergrenze für <see cref="SaleUnits(float, float, float)"/>; 0 ohne Preis).</summary>

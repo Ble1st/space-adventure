@@ -204,8 +204,8 @@ public sealed class CeasefireAction : ICommsAction
         if (!CommsActions.TryFaction(offer, KeyId, out var f)) return new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{offer}'.");
         if (Wars.CeasefireAccept(u, f) is not { } res) return new ServiceResult(false, 0f, 0f, Wars.CeasefireIssue(u, f) ?? "Nicht möglich.");
         string msg = res.Tribute > 0f
-            ? $"Waffenstillstand mit {CommsHelp.FactionName(u, f)} bis Tick {res.War.CeasefireUntil} — Tribut {res.Tribute:0} Cr gezahlt."
-            : $"Waffenstillstand mit {CommsHelp.FactionName(u, f)} bis Tick {res.War.CeasefireUntil}.";
+            ? $"Waffenstillstand mit {CommsHelp.FactionName(u, f)} für {Missions.MissionRules.Rest(res.War.CeasefireUntil - u.Tick)} — Tribut {res.Tribute:0} Cr gezahlt."
+            : $"Waffenstillstand mit {CommsHelp.FactionName(u, f)} für {Missions.MissionRules.Rest(res.War.CeasefireUntil - u.Tick)}.";
         u.Events.Publish(new CommsActionPerformed(KeyId, f.Value, -res.Tribute, msg));
         return new ServiceResult(true, 1f, -res.Tribute, msg);
     }
@@ -336,7 +336,7 @@ public sealed class MissionAcceptAction : ICommsAction
             string? issue = MissionRules.AcceptIssue(u, o.Id, ship, remote: true);
             var type = MissionRules.Types.Get(o.Type);
             list.Add(new CommsOffer($"{KeyId}:accept:{o.Id}", $"Auftrag annehmen: {type?.DescribeOffer(u, o) ?? o.Type}",
-                issue ?? $"Belohnung {o.Reward:0} Cr reserviert · Pfand {o.Deposit:0} Cr · Frist {(type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, u.Stations[o.At]) - u.Tick) / 240} min · Ziel {type?.TargetText(u, o)}",
+                issue ?? $"Belohnung {o.Reward:0} Cr reserviert · Pfand {o.Deposit:0} Cr · Frist {MissionRules.Rest(type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, u.Stations[o.At]) - u.Tick)} · Ziel {type?.TargetText(u, o)}",
                 -o.Deposit, issue is null, issue));
         }
         return list;
@@ -401,7 +401,7 @@ public sealed class MissionAbandonAction : ICommsAction
     {
         string? issue = ship.Id != u.PlayerShip ? "Nur mit dem aktiven Schiff möglich." : null;   // rein — Abandon selbst nicht ausführen
         return new CommsOffer($"{Prefix}{m.Id}", $"Auftrag abbrechen: #{m.Id}",
-            issue ?? $"Pfand {m.Deposit:0} Cr verfällt · Belohnung {m.Reserved:0} Cr zurück in die Kasse · Beziehung −{u.Rules.MissionRelationLoss:0.00} · {u.Rules.MissionBlockTicks / 240} min keine neuen Aufträge.",
+            issue ?? $"Pfand {m.Deposit:0} Cr verfällt · Belohnung {m.Reserved:0} Cr zurück in die Kasse · Beziehung −{u.Rules.MissionRelationLoss:0.00} · {Missions.MissionRules.Rest(u.Rules.MissionBlockTicks)} keine neuen Aufträge.",
             0f, issue is null, issue);
     }
 

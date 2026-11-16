@@ -128,6 +128,10 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		float dw = narrow ? InnerW(inner) - 24f : InnerW(inner) - dx - 12f;
 		float dh = narrow ? InnerH(inner) - dy - 12f : InnerH(inner) - dy - 12f;
 		var card = CardBg(inner, dx, dy, dw, dh, Card);
+		// Runde 42b: Inhalt der Karte scrollt, „Ignorieren“ bleibt feste Leiste unten (lange Texte liefen sonst über den Knopf)
+		var scroll = At(card, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 0, dw, dh - 64f);
+		var content = new Control { MouseFilter = MouseFilterEnum.Ignore, Position = Vector2.Zero, Size = new Vector2(dw, dh - 64f) };
+		scroll.AddChild(content);
 		float y = dy + 12;
 		if (narrow)
 		{
@@ -135,17 +139,17 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			back.Pressed += () => { _detailOpen = false; Invalidate(); };
 			y = 64 + 56;
 		}
-		if (m is null) { At(card, Text("Keine Nachricht gewählt.", 15, Dim), 16, y - dy + 8, dw - 32, 22); return; }
+		if (m is null) { At(content, Text("Keine Nachricht gewählt.", 15, Dim), 16, y - dy + 8, dw - 32, 22); return; }
 		var (subject, body) = SpaceSim.Core.Comms.CommsText.Describe(u, m);
 		string from = m.From.Value == 0 ? "System" : u.ActorName(m.From);
-		At(card, Text(from, 20, White), 16, y - dy, dw - 32, 26); y += 28;
-		At(card, Text(subject, 15, Cyan), 16, y - dy, dw - 32, 20); y += 24;
-		y += WrappedText(card, body, 16, y - dy, dw - 32, 14, White, 18) + 8;
+		At(content, Text(from, 20, White), 16, y - dy, dw - 32, 26); y += 28;
+		At(content, Text(subject, 15, Cyan), 16, y - dy, dw - 32, 20); y += 24;
+		y += WrappedText(content, body, 16, y - dy, dw - 32, 14, White, 18) - (y - dy) + 8;
 		// Antworten mit Folgenvorschau (rein aus der Registry berechnet, Ausführung nur über die Registry)
 		var answers = SpaceSim.Core.Comms.CommsText.Answers(u, m);
 		if (answers.Count > 0)
 		{
-			At(card, Text("Deine Antwort", 15, Cyan), 16, y - dy, dw - 32, 20); y += 24;
+			At(content, Text("Deine Antwort", 15, Cyan), 16, y - dy, dw - 32, 20); y += 24;
 			foreach (var key in answers)
 			{
 				var offer = Ctx.Comms.Preview(u, key);
@@ -162,13 +166,14 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 					b = new KitButton(label, new Vector2(dw - 32, 56)) { FontSize = 16, AlignLeft = true };
 				if (!offer.Possible) b.State = KitButtonState.Disabled;
 				else b.Pressed += () => Execute(k);
-				At(card, b, 16, y - dy);
+				At(content, b, 16, y - dy);
 				y += 62;
 				// Runde 41 (A3): Folgen als umbrechende Vorschauzeile unter dem Knopf, nicht in der Knopfzeile (wurde abgeschnitten)
 				string preview = offer.Possible ? offer.Preview : (offer.Reason ?? "nicht möglich");
-				if (preview.Length > 0) y += WrappedText(card, preview, 22, y - dy, dw - 60, 12, offer.Possible ? new Color(UiKit.Dim, 0.95f) : Orange, 15) + 8;
+				if (preview.Length > 0) y += WrappedText(content, preview, 22, y - dy, dw - 60, 12, offer.Possible ? new Color(UiKit.Dim, 0.95f) : Orange, 15) - (y - dy) + 8;
 			}
 		}
+		content.Size = new Vector2(dw, MathF.Max(dh - 64f, y - dy + 8f));   // Inhalt so hoch wie nötig — die Karte scrollt
 		// Ignorieren kostet nichts
 		var ign = At(card, new KitButton("Ignorieren", new Vector2(160, 44)) { FontSize = 15 }, 16, dh - 56 + dy - dy);
 		int mid = m.Id;
@@ -197,8 +202,9 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		foreach (var m in active)
 		{
 			if (SpaceSim.Core.Missions.MissionRules.Types.Get(m.Type) is not { } type) continue;
-			float mh = WrappedText(inner2, type.Describe(u, m), 0, y, w - 20, 15, Orange, 19);
-			float bh = WrappedText(inner2, $"Belohnung {m.Reserved:0} Cr (reserviert) · Pfand {m.Deposit:0} Cr · Rest {Math.Max(0L, m.Deadline - u.Tick) / 240} min", 0, y + mh + 2, w - 20, 13, Dim, 17);
+			// Runde 42b (Handytest): Kartenhöhe aus dem gemessenen Inhalt — WrappedText liefert die End-Y, also Höhe = Ende − Anfang
+			float mh = WrappedText(inner2, type.Describe(u, m), 0, y, w - 20, 15, Orange, 19) - y;
+			float bh = WrappedText(inner2, $"Belohnung {m.Reserved:0} Cr (reserviert) · Pfand {m.Deposit:0} Cr · Rest {SpaceSim.Core.Missions.MissionRules.Rest(Math.Max(0L, m.Deadline - u.Tick))}", 0, y + mh + 2, w - 20, 13, Dim, 17) - (y + mh + 2);
 			var key = $"mission:abandon:{m.Id}";
 			var offer = Ctx.Comms.Preview(u, key);
 			var b = At(inner2, new KitButton("Abbrechen", new Vector2(160, 52)) { FontSize = 16, State = offer.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, w - 172, y - 2);
@@ -206,7 +212,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			if (offer.Possible) b.Pressed += () => Execute(k);
 			y += MathF.Max(50f, mh + bh + 8f);
 			string folge = offer.Possible ? offer.Preview : (offer.Reason ?? "nicht möglich");
-			if (folge.Length > 0) y += WrappedText(inner2, folge, 6, y, w - 32, 12, offer.Possible ? new Color(Dim, 0.95f) : Orange, 15) + 10;
+			if (folge.Length > 0) y += WrappedText(inner2, folge, 6, y, w - 32, 12, offer.Possible ? new Color(Dim, 0.95f) : Orange, 15) - y + 10;
 		}
 
 		// offene Comms-Angebote (Lieferverträge): annehmen / nachverhandeln
@@ -221,10 +227,11 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			var b = At(inner2, new KitButton(label, new Vector2(200, 52)) { FontSize = 16, State = o.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, 0, y);
 			string k = o.Key;
 			if (o.Possible) b.Pressed += () => Execute(k);
-			float oh = WrappedText(inner2, o.Text, 210, y + 4, w - 220, 14, White, 18);
+			// Runde 42b: Höhe aus dem gemessenen Inhalt (WrappedText-End-Y minus Anfang)
+			float oh = WrappedText(inner2, o.Text, 210, y + 4, w - 220, 14, White, 18) - (y + 4);
 			y += MathF.Max(58f, oh + 10f);
 			string prev = o.Possible ? o.Preview : (o.Reason ?? "nicht möglich");
-			if (prev.Length > 0) y += WrappedText(inner2, prev, 6, y, w - 32, 12, o.Possible ? new Color(Dim, 0.95f) : Orange, 15) + 8;
+			if (prev.Length > 0) y += WrappedText(inner2, prev, 6, y, w - 32, 12, o.Possible ? new Color(Dim, 0.95f) : Orange, 15) - y + 8;
 		}
 		if (_message.Length > 0)
 			WrappedText(inner, _message, 12, 64 + InnerH(inner) - 116f, w, 13, Orange, 16);
@@ -290,7 +297,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		Row(det, 18, y, dw - 36, "Beziehung", $"{Relations.Label(rel)} ({(rel > 0 ? "+" : "")}{rel:0.00})", 14); y += 22;
 		var war = me is not null ? Wars.Between(u, me.Value, f) : null;
 		string state = war is null ? "Frieden"
-			: Wars.CeasefireActive(u, war) ? $"Waffenstillstand bis Tick {war.CeasefireUntil} (noch {(war.CeasefireUntil - u.Tick) / 240} min)"
+			: Wars.CeasefireActive(u, war) ? $"Waffenstillstand noch {SpaceSim.Core.Missions.MissionRules.Rest(war.CeasefireUntil - u.Tick)}"
 			: $"Krieg seit Tick {war.Since} (Müdigkeit {war.Weariness:0.00})";
 		Row(det, 18, y, dw - 36, "Verhältnis", state, 14); y += 22;
 		int wanted = Wanted.LevelOf(u, u.PlayerActor, f);
@@ -321,7 +328,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			if (preview.Length > 0)
 			{
 				float ph = WrappedText(det, preview, 24, y, dw - 60, 12, offer.Possible ? new Color(UiKit.Dim, 0.95f) : Orange, 15);
-				y += ph + 8;
+				y += ph - y + 8;
 			}
 		}
 		ActionButton($"fine:{f.Value}", "Strafe zahlen", confirm: false);
@@ -366,7 +373,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			var (subject, _) = SpaceSim.Core.Comms.CommsText.Describe(_u, _m);
 			UiKit.DrawFit(this, 0, font, new Vector2(14, 24), from, 15, Size.X - 40f, White);
 			UiKit.DrawFit(this, 1, font, new Vector2(14, 46), subject, 13, Size.X - 40f, Dim);
-			UiKit.DrawFit(this, 2, font, new Vector2(14, 64), $"Tick {_m.Created}" + (_m.Expires > 0 ? $" · verfällt Tick {_m.Expires}" : ""), 11, Size.X - 40f, new Color(Dim, 0.8f));
+			UiKit.DrawFit(this, 2, font, new Vector2(14, 64), $"vor {SpaceSim.Core.Comms.Comms.Ago(_u, _m.Created)}" + (_m.Expires > 0 ? $" · verfällt in {SpaceSim.Core.Comms.Comms.In(_u, _m.Expires)}" : ""), 11, Size.X - 40f, new Color(Dim, 0.8f));
 			if (!_m.Read) DrawCircle(new Vector2(Size.X - 16f, 20), 6f, Orange);
 		}
 	}

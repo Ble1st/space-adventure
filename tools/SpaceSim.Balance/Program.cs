@@ -246,6 +246,7 @@ int crimes = 0, warnings = 0;
 double lootValue = 0, fenced = 0, tradeValue = 0, policeCost = 0, policeUnpaid = 0, pirateCost = 0, fines = 0, bounties = 0;
 // Runde 41: Aufträge — Angebote/Annahmen/Erfüllungen/Scheitern und der Geldfluss (Reservierung, Zahlung, Rückgabe, Pfand)
 int mOffered = 0, mAccepted = 0, mCompleted = 0, mFailed = 0;
+var mByType = new SortedDictionary<string, int>(StringComparer.Ordinal);   // Runde 42b: Zählung je Auftragsart
 double mReserve = 0, mPaid = 0, mReturn = 0, mDepositForfeit = 0;
 var victimsByRole = new SortedDictionary<string, int>(StringComparer.Ordinal);
 u.Events.Raised += e =>
@@ -270,7 +271,7 @@ u.Events.Raised += e =>
         case TradeCompleted tcv: tradeValue += tcv.Revenue; break;
         case MineDelivered md: tradeValue += md.Revenue; break;
         // Runde 41: Aufträge (Geldfluss erklärbar: Reservierung bei Annahme, Zahlung bei Erfüllung, Rückgabe/Pfand bei Scheitern)
-        case MissionOffered: mOffered++; break;
+        case MissionOffered mo: mOffered++; mByType[mo.Type] = mByType.GetValueOrDefault(mo.Type) + 1; break;   // Runde 42b: je Art
         case MissionAccepted: mAccepted++; break;
         case MissionCompleted mc: mCompleted++; break;
         case MissionFailed: mFailed++; break;
@@ -895,7 +896,7 @@ if (u.Modules.Count > 0)
         Console.WriteLine($"  Piraten {a.Name}: {u.Ships.Values.Count(x => ThreatMap.IsRaider(x) && x.Owner == a.Id)} Kaperschiffe, Kasse {a.Treasury.Credits:0} Cr, Kosten {pirateCost:0} Cr; Fahndung "
             + string.Join(", ", a.Wanted.OrderBy(kv => kv.Key.Value).Select(kv => $"{u.Factions[kv.Key].Name} {SecurityNames.WantedLevel(Wanted.Level(u.Rules, kv.Value.Heat))}")));
     // Runde 41: Aufträge — in der NPC-Welt ohne Spielerannahme nur Angebote (nicht gehasht), Geldfluss 0
-    Console.WriteLine($"Aufträge: Angebote {mOffered} (aktuell {u.MissionOffers.Count}), angenommen {mAccepted}, erfüllt {mCompleted}, gescheitert {mFailed}"
+    Console.WriteLine($"Aufträge: Angebote {mOffered} je Art [{string.Join(", ", mByType.Select(kv => $"{kv.Key} {kv.Value}"))}] (aktuell {u.MissionOffers.Count}), angenommen {mAccepted}, erfüllt {mCompleted}, gescheitert {mFailed}"
         + $" — Reserviert {mReserve:0} Cr, ausgezahlt {mPaid:0} Cr, zurück {mReturn:0} Cr, Pfand verfallen {mDepositForfeit:0} Cr; laufend {u.Missions.Count(m => m.State == SpaceSim.Core.Model.MissionState.Active)}");
     Console.WriteLine("Lagekarte: " + string.Join(", ", u.Sectors.Values.OrderBy(x => x.Id.Value)
         .Select(x => $"{x.Name} Bedrohung {x.Threat:0.00} Sicherheit {x.Security:0.0} Verkehr {x.Traffic:0}")) + $"; Verbrechen gemeldet {crimes}");

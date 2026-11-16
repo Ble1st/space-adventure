@@ -73,7 +73,19 @@ public sealed class TransportMission : IMissionType
         return m;
     }
 
-    public void OnEvent(Universe u, Mission m, SimEvent e) { }   // Transport zählt keinen Warenfluss
+    /// <summary>
+    /// Runde 42b: Ablieferung bei JEDEM Andocken des Frachtschiffs an der Zielstation — über <see cref="ShipDocked"/>
+    /// (Ansicht setzt <see cref="Ship.DockedAt"/> direkt, <see cref="Simulation.PlayerFleet.Dock"/>, <see cref="Universe.FinishTransit"/> am Andockpunkt).
+    /// </summary>
+    public void OnEvent(Universe u, Mission m, SimEvent e)
+    {
+        if (e is not ShipDocked sd) return;
+        if (!m.Args.TryGetValue("ship", out var ss) || !int.TryParse(ss, out var sid) || sd.Ship != new ShipId(sid)) return;
+        if (!m.Args.TryGetValue("target", out var ts) || !int.TryParse(ts, out var tv) || sd.Station != new StationId(tv)) return;
+        if (!u.Ships.TryGetValue(sd.Ship, out var ship) || ship.DockedAt != sd.Station) return;
+        if (!u.Stations.TryGetValue(sd.Station, out var st)) return;
+        Deliver(u, m, ship, st);
+    }
 
     public bool TargetGone(Universe u, Mission m) =>
         !m.Args.TryGetValue("target", out var ts) || !int.TryParse(ts, out var tv) || !u.Stations.ContainsKey(new StationId(tv));
@@ -102,13 +114,18 @@ public sealed class TransportMission : IMissionType
         if (!m.Args.TryGetValue("target", out var ts) || !int.TryParse(ts, out var tv) || !u.Stations.TryGetValue(new StationId(tv), out var st))
             return $"Auftrag #{m.Id}: Ziel weg";
         long left = Math.Max(0L, m.Deadline - u.Tick);
-        return $"Auftrag: versiegelte Fracht ({m.CargoVolume:0.#} m³) → {st.Name} · {(left / 240)}:{left % 240 / 4:00} min";
+        return $"Auftrag: versiegelte Fracht ({m.CargoVolume:0.#} m³) → {st.Name} · noch {MissionRules.Rest(left)} (Andocken an der Zielstation liefert ab)";
     }
 
     public void Check(Universe u, Mission m)
     {
         if (u.Tick >= m.Deadline) { MissionRules.Fail(u, m, "Frist abgelaufen"); return; }
-        if (TargetGone(u, m)) MissionRules.Fail(u, m, "Zielstation weg");
+        if (TargetGone(u, m)) { MissionRules.Fail(u, m, "Zielstation weg"); return; }
+        // Runde 42b: liegt das Frachtschiff an der Zielstation angedockt (z. B. nach dem Laden), wird abgeliefert — jeder Andock-Pfad
+        if (m.Args.TryGetValue("ship", out var ss) && int.TryParse(ss, out var sid) && u.Ships.TryGetValue(new ShipId(sid), out var sh)
+            && m.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv) && sh.DockedAt == new StationId(tv)
+            && u.Stations.TryGetValue(sh.DockedAt, out var st))
+            Deliver(u, m, sh, st);
     }
 
     public string? DeliverIssue(Universe u, Mission m, Ship ship, Station st)

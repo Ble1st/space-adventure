@@ -50,6 +50,8 @@ public sealed class DeliveryMission : IMissionType
             foreach (var (g, e) in st.Market.OrderBy(kv => kv.Key.Value))
             {
                 if (e.Price <= 0f || st.AcceptableUnits(g, r) <= 0f) continue;
+                // Runde 42b: Verträge nur für Waren, die die Station als Zutat oder Regal wirklich annimmt (nicht ihr reines Produkt o. Ä.)
+                if (!st.Consumes(g) && !st.IsStockOnly(g)) continue;
                 float ratio = e.Amount / MathF.Max(1f, e.Target);
                 if (ratio < r.MissionMildScarceShare) (candidates ??= new()).Add((g, MathF.Max(1f, e.Target - e.Amount), ratio));
             }
@@ -170,8 +172,8 @@ public sealed class DeliveryMission : IMissionType
         string g = u.GoodOf(GoodOf(o)).Name;
         float units = UnitsOf(u, o);
         string base_ = Contract(u, o)
-            ? $"Liefervertrag: {units:0.#} {g} bis Tick {u.Tick + u.Rules.MissionOfferTicks} an {st.Name} zum Festpreis {PriceOf(o):0.0} Cr — Annahme und Kasse reserviert, Pfand {o.Deposit:0} Cr."
-            : $"Lieferung: {units:0.#} {g} an {st.Name} — Belohnung {o.Reward:0} Cr, Frist {(MissionRules.DeadlineFrom(u, u.Ships[u.PlayerShip], st) - u.Tick) / 240} min.";
+            ? $"Liefervertrag: {units:0.#} {g} an {st.Name} zum Festpreis {PriceOf(o):0.0} Cr — Annahme und Kasse reserviert, Frist {MissionRules.Rest(u.Rules.MissionOfferTicks)}, Pfand {o.Deposit:0} Cr."
+            : $"Lieferung: {units:0.#} {g} an {st.Name} — Belohnung {o.Reward:0} Cr, Frist {MissionRules.Rest(MissionRules.DeadlineFrom(u, u.Ships[u.PlayerShip], st) - u.Tick)}.";
         return base_;
     }
 
@@ -181,7 +183,7 @@ public sealed class DeliveryMission : IMissionType
         float units = float.Parse(m.Args["units"], System.Globalization.CultureInfo.InvariantCulture);
         string g = u.GoodOf(new GoodId(int.Parse(m.Args["good"]))).Name;
         long left = Math.Max(0L, m.Deadline - u.Tick);
-        return $"Auftrag: {m.Progress:0.#}/{units:0.#} {g} → {st.Name} · {(left / 240)}:{left % 240 / 4:00} min";
+        return $"Auftrag: {m.Progress:0.#}/{units:0.#} {g} → {st.Name} · noch {MissionRules.Rest(left)}";
     }
 
     public void Check(Universe u, Mission m)

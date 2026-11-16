@@ -52,13 +52,15 @@ public sealed class EscortMission : IMissionType
     {
         var r = u.Rules;
         if (MissionRules.Forbidden(u, st.Owner) || MissionRules.Blocked(u, st.Owner.Value)) return null;
-        if (!BountyMission.IsOfferStation(u, st)) return null;
+        // Runde 42b: Eskorte an Handels-/Produktionsstationen (eigener Markt) mit abfliegenden Händlern — nicht nur an HQ
+        if (st.IsBuildSite || st.Market.Count == 0) return null;
         if (u.FactionOf(st.Owner) is not { } f || !u.IsNpcFaction(f)) return null;
         if (MissionRng.NextFloat(rng) >= r.MissionEscortChance) return null;
-        // Kandidaten: beladene NPC-Händler der Fraktion (oder freie Händler) auf langer Reststrecke durch Fraktionsgebiet
+        // Kandidaten: beladene NPC-Händler der Fraktion (oder freie Händler), die gerade von dieser Station abfliegen, auf langer Reststrecke
         var cands = u.Ships.Values
             .Where(s => s.Role == ShipRole.Trader && s.Controller == Controller.Ai && s.Transit is { } t
                 && (u.FactionOf(s.Owner) == f || s.Owner == u.FreeActor)
+                && AccessEnforcement.Where(t, u.Tick).Sector == st.Sector
                 && ThreatMap.CargoValue(u, s) >= r.EscortMinCargoValue
                 && t.ArrivalTick - u.Tick >= r.EscortMinRemainingTicks
                 && RouteTouches(u, s, f))
@@ -142,7 +144,7 @@ public sealed class EscortMission : IMissionType
     {
         string dest = m.Args.TryGetValue("dest", out var ds) && int.TryParse(ds, out var dv) && u.Sectors.TryGetValue(new SectorId(dv), out var s) ? s.Name : "?";
         long left = Math.Max(0L, m.Deadline - u.Tick);
-        return $"Auftrag: Eskorte Händler {m.Args["escort"]} → {dest} · begleitet {HitsOf(m)}/{SamplesOf(m)} · {(left / 240)}:{left % 240 / 4:00} min";
+        return $"Auftrag: Eskorte Händler {m.Args["escort"]} → {dest} · begleitet {HitsOf(m)}/{SamplesOf(m)} · noch {MissionRules.Rest(left)}";
     }
 
     /// <summary>

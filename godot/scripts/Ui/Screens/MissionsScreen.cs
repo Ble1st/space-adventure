@@ -30,6 +30,9 @@ public sealed partial class MissionsScreen : DockAreaScreen
 	int _offers;
 	readonly Dictionary<int, KitButton> _acceptButtons = new();   // Runde 42 (Selbsttest): Annehmen-Knopf je Angebots-Id
 
+	/// <summary>Runde 42b (Handytest): alte Meldung („Auftrag angenommen …“) nicht beim erneuten Öffnen des Bereichs zeigen.</summary>
+	protected override void OnOpen() { _message = ""; }
+
 	SpaceSim.Core.Services.IStationService? Service() =>
 		Ctx.Services.ForStation(Ctx.U, Ctx.Station, Ctx.Ship).FirstOrDefault(s => s.Key == MissionService.ServiceKey);
 
@@ -42,7 +45,7 @@ public sealed partial class MissionsScreen : DockAreaScreen
 		string ziel = type?.TargetText(u, o) ?? st.Name;   // Runde 42: Ziel je Art (Station, Schiff, Wegpunkte)
 		long frist = type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, st) - u.Tick;
 		string reward = o.Reward > 0f ? $"Belohnung {o.Reward:0} Cr" : "Ware zum Festpreis (Liefervertrag)";
-		return $"{reward} · Pfand {o.Deposit:0} Cr · Frist {frist / 240} min · Ziel {ziel}";
+		return $"{reward} · Pfand {o.Deposit:0} Cr · Frist {MissionRules.Rest(frist)} · Ziel {ziel}";
 	}
 
 	protected override void BuildContent(Control inner)
@@ -64,8 +67,9 @@ public sealed partial class MissionsScreen : DockAreaScreen
 		{
 			if (MissionRules.Types.Get(o.Type) is not { } type) continue;
 			string? issue = MissionRules.AcceptIssue(u, o.Id, ship, remote: false);
-			float th = WrappedText(inner, type.DescribeOffer(u, o), 0, y, tw, 15, White, 19);   // Runde 41 (A3-Prüfung): Titel umbrechend, nicht abgeschnitten
-			float ph = WrappedText(inner, Preview(u, st, ship, o) + (issue is not null ? $" · {issue}" : ""), 0, y + th + 2, tw, 13, issue is not null ? Red : Dim, 17);
+			// Runde 42b (Handytest): Kartenhöhe aus dem gemessenen Inhalt — WrappedText liefert die End-Y, also Höhe = Ende − Anfang
+			float th = WrappedText(inner, type.DescribeOffer(u, o), 0, y, tw, 15, White, 19) - y;   // Runde 41 (A3-Prüfung): Titel umbrechend, nicht abgeschnitten
+			float ph = WrappedText(inner, Preview(u, st, ship, o) + (issue is not null ? $" · {issue}" : ""), 0, y + th + 2, tw, 13, issue is not null ? Red : Dim, 17) - (y + th + 2);
 			var b = At(inner, new KitButton("Annehmen", new Vector2(148, 56)) { FontSize = 16, State = issue is null ? KitButtonState.Ready : KitButtonState.Disabled, Detail = issue is null ? "" : "nicht möglich" }, w - 150, y);
 			string key = $"{MissionService.Accept}:{o.Id}";
 			if (issue is null) b.Pressed += () => Execute(key);
@@ -86,11 +90,12 @@ public sealed partial class MissionsScreen : DockAreaScreen
 			bool here = m.At == st.Id;
 			bool deliverHere = here && m.Type == TransportMission.KeyId
 				&& m.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv) && tv == st.Id.Value;
-			float mh = WrappedText(inner, type.Describe(u, m), 0, y, tw, 15, Orange, 19);
+			// Runde 42b: Höhe aus dem gemessenen Inhalt (WrappedText-End-Y minus Anfang)
+			float mh = WrappedText(inner, type.Describe(u, m), 0, y, tw, 15, Orange, 19) - y;
 			string folge = deliverHere
 				? $"Fracht abliefern: Belohnung {m.Reserved:0} Cr + Pfand {m.Deposit:0} Cr zurück"
-				: $"Abbrechen: Pfand {m.Deposit:0} Cr verfällt · Beziehung −{u.Rules.MissionRelationLoss:0.00} · {u.Rules.MissionBlockTicks / 240} min keine neuen Aufträge";
-			float fh = WrappedText(inner, folge, 0, y + mh + 2, tw, 13, Dim, 17);
+				: $"Abbrechen: Pfand {m.Deposit:0} Cr verfällt · Beziehung −{u.Rules.MissionRelationLoss:0.00} · {MissionRules.Rest(u.Rules.MissionBlockTicks)} keine neuen Aufträge";
+			float fh = WrappedText(inner, folge, 0, y + mh + 2, tw, 13, Dim, 17) - (y + mh + 2);
 			if (here)
 			{
 				string label = deliverHere ? "Abliefern" : "Abbrechen";

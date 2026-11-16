@@ -325,14 +325,21 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 					DrawLine(cx + new Vector2(-6, -6), cx + new Vector2(6, 6), Red, 3f);
 					DrawLine(cx + new Vector2(-6, 6), cx + new Vector2(6, -6), Red, 3f);
 				}
-				// Runde 41: Missionsziel im Sektor — goldene Diamanten rechts oben am Knoten (einer je Auftrag, max 3)
+				// Runde 41/42b: Missionsziel im Sektor — goldene Sterne rechts oben am Knoten (eigene Form, nicht die Baustellen-Raute; einer je Auftrag, max 3)
 				int mmi = 0;
 				foreach (var _mk in SpaceSim.Core.Missions.MissionMarkers.For(_u).Where(mk => mk.Sector == s.Id))
 				{
 					if (mmi >= 3) break;
 					var c = p + new Vector2(rNode * 0.75f + mmi * 12f, -rNode * 0.75f);
-					float d = 6f;
-					DrawColoredPolygon(new[] { c + new Vector2(0, -d), c + new Vector2(d, 0), c + new Vector2(0, d), c + new Vector2(-d, 0) }, FlightHud.MissionGold);
+					float d = 6f, id = 2.4f;
+					var star = new List<Vector2>();
+					for (int i = 0; i < 8; i++)
+					{
+						float r = i % 2 == 0 ? d : id;
+						float a = -Mathf.Pi / 2f + i * Mathf.Pi / 4f;
+						star.Add(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+					}
+					DrawColoredPolygon(star.ToArray(), FlightHud.MissionGold);
 					mmi++;
 				}
 				_owner.TestMissionSymbols += mmi;

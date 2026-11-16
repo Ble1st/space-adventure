@@ -499,15 +499,22 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				labels.Add((1, p, st.Name, 12, sel ? Cyan : White, sh + 2f));
 			}
 
-			// Runde 41: Missionsziele im Sektor — goldene Diamanten mit Auftragstext (höchstens 3)
+			// Runde 41/42b: Missionsziele im Sektor — goldene Sterne (eigene Form, nicht die Baustellen-Raute) mit Auftragstext (höchstens 3)
 			TestMissionSymbols = 0;
 			foreach (var mk in SpaceSim.Core.Missions.MissionMarkers.For(_u).Where(m => m.Sector == s.Id).Take(3))
 			{
 				var p = Place(mk.Position);
-				float d = 9f;
-				var pts = new[] { p + new Vector2(0, -d), p + new Vector2(d, 0), p + new Vector2(0, d), p + new Vector2(-d, 0), p + new Vector2(0, -d) };
-				DrawColoredPolygon(pts[..4], new Color(0.09f, 0.07f, 0.01f, 0.92f));
-				DrawPolyline(pts, FlightHud.MissionGold, 2.5f, true);
+				float d = 10f, id = 4f;
+				var star = new List<Vector2>();
+				for (int i = 0; i < 8; i++)
+				{
+					float r = i % 2 == 0 ? d : id;
+					float a = -Mathf.Pi / 2f + i * Mathf.Pi / 4f;
+					star.Add(p + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+				}
+				star.Add(star[0]);
+				DrawColoredPolygon(star.Take(8).ToArray(), new Color(0.09f, 0.07f, 0.01f, 0.92f));
+				DrawPolyline(star.ToArray(), FlightHud.MissionGold, 2.5f, true);
 				layout.ReserveCircle(p, d + 2f);
 				labels.Add((0, p + new Vector2(0, d + 9f), mk.Label, 11, FlightHud.MissionGold, 4f));
 				TestMissionSymbols++;
@@ -590,7 +597,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			}
 			// Legende zweizeilig, gekürzt auf die Breite (lief auf dem Handy über den Rand)
 			float lw = Size.X - 24f;
-			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 900, font, new Vector2(12, Size.Y - 44), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du", 13, lw, new Color(Dim, 0.8f));
+			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 900, font, new Vector2(12, Size.Y - 44), "◼ Station   ◆ Baustelle   ◯ Gate   ▲ cyan = du   ★ = Auftrag", 13, lw, new Color(Dim, 0.8f));
 			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 901, font, new Vector2(12, Size.Y - 26), "▲ orange schürft, blau Polizei, rot Pirat, roter Ring = Gefecht", 13, lw, new Color(Dim, 0.8f));
 			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 902, font, new Vector2(12, Size.Y - 8), "Linie: blau Verband, grün Geleit, orange gestrichelt Verfolgung", 13, lw, new Color(Dim, 0.8f));
 		}

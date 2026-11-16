@@ -44,6 +44,18 @@ public static class Comms
         var m = u.Inbox.FirstOrDefault(x => x.Id == id);
         if (m is not null) m.Read = true;
     }
+
+    /// <summary>Runde 42b: Alter eines Ticks als „vor X min“ (minutengenau; unter einer Minute „&lt;1 min“) — statt roher Tick-Zahlen.</summary>
+    public static string Ago(Universe u, long tick) => MinText(Math.Max(0L, u.Tick - tick));
+
+    /// <summary>Runde 42b: Restzeit bis zu einem Tick als „in X min“.</summary>
+    public static string In(Universe u, long tick) => MinText(Math.Max(0L, tick - u.Tick));
+
+    static string MinText(long ticks)
+    {
+        long m = ticks / (SimClock.TicksPerSecond * 60);
+        return m > 0 ? $"{m} min" : "<1 min";
+    }
 }
 
 /// <summary>
@@ -154,6 +166,8 @@ public sealed class CommsSystem : ISimSystem
             {
                 var offer = u.MissionOffers.FirstOrDefault(o => o.Id == mo.Offer);
                 if (offer is null) break;
+                // Runde 42b: MissionOffered feuert für alle Angebotsarten; Posteingang nur für den Comms-Kanal (Dock-Angebote erscheinen im Dock-Bereich)
+                if (!offer.Args.TryGetValue("channel", out var ch) || ch != "comms") break;
                 // nur wenn der Spieler an der anbietenden Station angedockt ist (sonst wäre die NPC-Welt voller Post für ihn)
                 if (!u.Ships.TryGetValue(u.PlayerShip, out var ps) || ps.DockedAt == default || ps.DockedAt != offer.At) break;
                 Comms.Add(u, mo.Client, IsContract(offer) ? "contract_offer" : "mission_offer", ContractArgs(u, offer), u.Rules.OfferMessageTicks);

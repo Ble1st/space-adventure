@@ -239,6 +239,8 @@ public sealed record SupplyPanicBuild(StationId Site, SectorId Sector, GoodId Go
 public sealed record ShipDeparted(ShipId Ship, ShipRole Role, ActorId Owner, SectorId Sector, DepartureReason Reason, string Detail) : SimEvent;
 /// <summary>Runde 42: ein Schiff ist an seinem Reiseziel angekommen (<see cref="Model.Universe.FinishTransit"/>): Schiff, Zielsektor, Zielposition. Reine Meldung (z. B. Eskorte), ändert keinen Zustand.</summary>
 public sealed record ShipArrived(ShipId Ship, SectorId Sector, Vec2 Position) : SimEvent;
+/// <summary>Runde 42b: ein Schiff hat an einer Station angedockt (<see cref="Model.Universe.FinishTransit"/> am Andockpunkt, <see cref="Simulation.PlayerFleet.Dock"/>, Ansicht des Spielers). Reine Meldung (z. B. Transport-Ablieferung), nicht gespeichert/gehasht.</summary>
+public sealed record ShipDocked(ShipId Ship, StationId Station) : SimEvent;
 /// <summary>Phase 22: Eine Station (oder Baustelle) verlässt die Welt; wie <see cref="ShipDeparted"/>. Anlass z. B. „retired“, „surplus“, „site_expired“.</summary>
 public sealed record StationDeparted(StationId Station, string TypeKey, string Name, ActorId Owner, SectorId Sector, DepartureReason Reason, string Detail) : SimEvent;
 /// <summary>

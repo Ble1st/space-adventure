@@ -56,13 +56,14 @@ public static class PlayerFleet
         return true;
     }
 
-    /// <summary>Setzt ein liegendes Schiff angedockt an eine Station (Andockpunkt, gleicher Sektor).</summary>
+    /// <summary>Setzt ein liegendes Schiff angedockt an eine Station (Andockpunkt, gleicher Sektor). Veröffentlicht <see cref="ShipDocked"/> (Runde 42b: Ablieferung).</summary>
     public static void Dock(Universe u, Ship ship, Station st)
     {
         if (ship.Transit is not null) return;
         if (ship.Sector != st.Sector) u.MoveShip(ship, st.Sector);
         ship.Position = st.DockPoint(ship.Id);
         ship.DockedAt = st.Id;
+        u.Events.Publish(new ShipDocked(ship.Id, st.Id));   // Runde 42b: Andocken meldet der Bus (z. B. Transport-Ablieferung)
     }
 
     /// <summary>Das aktive Schiff legt ab (Andocken endet; die Ansicht fliegt es). Runde 39: löscht die Rücknahme im Handel.</summary>

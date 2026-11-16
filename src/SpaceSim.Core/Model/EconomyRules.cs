@@ -1167,8 +1167,8 @@ public sealed class EconomyRules
     public int EscortSampleTicks = 20;
     /// <summary>Eskorte: nötiger Anteil der Stichproben in Reichweite, damit die Eskorte als erfüllt gilt.</summary>
     public float EscortMinShare = 0.6f;
-    /// <summary>Eskorte: Mindest-Restflugdauer (Ticks) des Schützlings bei Angebotserzeugung (Reisen dauern in der Standardwelt ~60–180 Ticks; 100 = die längsten etwa 8 %).</summary>
-    public int EscortMinRemainingTicks = 100;
+    /// <summary>Eskorte: Mindest-Restflugdauer (Ticks) des Schützlings bei Angebotserzeugung. Runde 42b: 40 statt 100 — Reisen dauern in der Standardwelt ~60–180 Ticks, an den Angebots-Ticks (Bucket-Anfang) ist die längste beobachtete Reststrecke ~76, mit 100 gab es nie Eskorte-Angebote.</summary>
+    public int EscortMinRemainingTicks = 40;
     /// <summary>Eskorte: Mindest-Frachtwert an Bord des Schützlings bei Angebotserzeugung (Cr Basiswert).</summary>
     public float EscortMinCargoValue = 500f;
     /// <summary>Eskorte: Grundbelohnung (Cr) aus der Auftraggeber-Kasse.</summary>
