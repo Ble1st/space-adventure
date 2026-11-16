@@ -317,7 +317,7 @@ public class FuelEconomyTests
     [Fact]
     public void Langlauf_20000Ticks_KeineNegativenTanks_KeinDauerTransit_KeineGeister_SpielerTankUnberuehrt()
     {
-        var u = TestWorlds.Default();
+        var u = TestWorlds.FuelBaseScale();   // Runde 44: Treibstoff ist auf den Grundmaßstab kalibriert (siehe TestWorlds.FuelBaseScale)
         int notk = 0, tankBuys = 0;
         u.Events.Raised += e =>
         {

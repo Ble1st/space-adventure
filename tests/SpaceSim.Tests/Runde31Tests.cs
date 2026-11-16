@@ -44,7 +44,9 @@ public class Runde31Tests
         var b1 = TradeActions.Buy(u, p, st, g, 10f);
         float paid = b1.Cost / b1.Units;
         // NPC füllt auf, Preis fällt unter den Kaufpreis → Bedingungen des Verfalls erfüllt
-        e.Amount = before + 50f; e.Price = paid * 0.8f;
+        // Runde 44: +1 statt +50 — mit den größeren Lagerpuffern (Wunschbestand 150) lag der Bestand nach +50 über der Annahmegrenze der Station und der
+        // Testverkauf wurde aus diesem Grund abgelehnt; „Bestand zurück“ (≥ vor dem Kauf) ist auch mit +1 erfüllt
+        e.Amount = before + 1f; e.Price = paid * 0.8f;
         PlayerLedger.Prune(u);
         var post = PlayerLedger.Post(u, st, g);
         Assert.NotNull(post);
@@ -117,7 +119,9 @@ public class Runde31Tests
         var r = new TradeService().Execute(u, st, p, new ServiceRequest(TradeService.SellAll, default, 0f));
         Assert.True(r.Success);
         float got = u.WalletOf(p).Credits - c0;
-        Assert.Contains($"5 Einheiten für {got:0.#} Cr", r.Message);
+        // Runde 44: die Meldung nennt den gebuchten Erlös; die Kassendifferenz bei 1 000 000 Cr hat nur 0,0625 Cr Auflösung (float) und rundete hier anders
+        Assert.Equal(r.Credits, got, 0.1f);
+        Assert.Contains($"5 Einheiten für {r.Credits:0.#} Cr", r.Message);
         Assert.Contains("davon 5 zum Rückkaufpreis", r.Message);
         Assert.StartsWith("Alles verkauft:", r.Message);
         Assert.DoesNotContain("(dein Kauf hier)", r.Message);

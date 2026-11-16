@@ -1939,6 +1939,9 @@ public partial class SelfTest : Node
 					var r1 = _m.HudRef.Flight.TestNextEnemyRect;
 					Check(r1.Size.Y >= 56f, "Kampftasten mindestens 56 px");
 					_m.TestArmStation();
+					// Runde 44: der Autopilot zur gewählten Station dockte im vergrößerten Sektor (freie Anflugbahn) schon nach ~1 s an — Andocken beendet die
+					// Belagerung (Flucht, Regel seit Phase 28); die Stufe prüft den Angriff, nicht das Andocken
+					_m.TestStopAutomation();
 					Check(_m.TestStationTarget == st.Id, "Station als Angriffsziel scharf");
 					_m.TestFace(st.Position);
 					_m.SyncHudForTest();

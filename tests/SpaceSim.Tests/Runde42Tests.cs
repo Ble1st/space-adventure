@@ -475,7 +475,11 @@ public class Runde42Tests
         Assert.Contains(ev.OfType<MissionCompleted>(), e => e.Mission == m.Id);
         Assert.Contains(ev.OfType<MissionPaid>(), e => e.Mission == m.Id && MathF.Abs(e.Amount - m.Reserved) < 0.001f);
         Assert.True(MathF.Abs(u.WalletOf(ship).Credits - (wallet0 + m.Reserved)) < 0.01f, "Belohnung in der Spielerkasse");
-        Assert.True(m.Reserved <= u.Rules.MissionPatrolBaseReward + wps.Count * u.Rules.MissionPatrolRewardPerWaypoint + 0.01f, "niedrig bezahlt");
+        // Runde 44: plus Anteil je geschätzter Flugminute (Station → Wegpunkte), Obergrenze großzügig mit 2 × der Flugzeit
+        float perMin = u.Rules.MissionPatrolRewardPerMinute;
+        long trip = 0; var (fs, fp) = (u.Stations[o.At].Sector, u.Stations[o.At].DockPoint(default));
+        foreach (var (ws, wp) in wps) { trip += MissionRules.TripTicks(u, fs, fp, ws, wp, null); (fs, fp) = (ws, wp); }
+        Assert.True(m.Reserved <= u.Rules.MissionPatrolBaseReward + wps.Count * u.Rules.MissionPatrolRewardPerWaypoint + perMin * 2f * trip / (60f * SimClock.TicksPerSecond) + 1f, "niedrig bezahlt");
     }
 
     [Fact]

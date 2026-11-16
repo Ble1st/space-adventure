@@ -306,7 +306,7 @@ public class RefuelRepairTests
     [Fact]
     public void WeltGanzOhneTreibstoffquelle_NotkaufHaeltSchiffeBeweglich()
     {
-        var u = TestWorlds.Default();
+        var u = TestWorlds.FuelBaseScale();   // Runde 44: Treibstoff ist auf den Grundmaßstab kalibriert (siehe TestWorlds.FuelBaseScale)
         foreach (var st in u.Stations.Values.Where(s => s.TypeKey == "fuel_refinery").ToList())
             u.RemoveStation(st.Id, "test");
         int emergencies = 0, trades = 0;

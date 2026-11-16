@@ -193,7 +193,15 @@ public class HandelsketteTests
             var (sector, a) = rock;
             if (me.Sector != sector.Id) u.MoveShip(me, sector.Id);
             u.PlayerSector = sector.Id; me.DockedAt = default;
+            // Runde 44: Anflugseite so wählen, dass kein Nachbarfels näher am Bug liegt (fest von −x lag nach dem Umbau der Welt ein nachgewachsener
+            // Fels 15 m neben dem größten seltenen Brocken auf der Anflugseite — der Kontaktabbau nimmt den nächsten Fels)
             var dir = new Vec2(1f, 0f);
+            for (int k = 0; k < 16; k++)
+            {
+                var d = Vec2.FromAngle(k * MathF.PI / 8f);
+                var p0 = a.Position - d * (a.Radius + ContactMining.BowOffset + 1f);
+                if (sector.Asteroids.Where(o => o != a).All(o => Vec2.Distance(o.Position, p0) - o.Radius > Vec2.Distance(a.Position, p0) - a.Radius + 2f)) { dir = d; break; }
+            }
             var pos = a.Position - dir * (a.Radius + ContactMining.BowOffset + 1f);
             me.Position = pos;
             var want = cls.Yields.Where(y => y.Weight > 0f).Select(y => y.Good).ToHashSet();

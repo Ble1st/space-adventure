@@ -58,6 +58,19 @@ public static class PathPlanner
         finally { _margin = Margin; }
     }
 
+    /// <summary>
+    /// Runde 44: Planung mit Glätten und — läuft der Plan trotzdem durch ein Hindernis — dem festen Ringpunkt-Ausweichweg (<see cref="Detour"/>), wie der
+    /// Spieler-Autopilot seit Runde 25. Ohne freien Ausweichweg bleibt der geglättete Plan.
+    /// </summary>
+    public static List<Vec2> PlanRobust(Vec2 from, Vec2 to, IReadOnlyList<Obstacle> obstacles, float margin)
+    {
+        var pts = Smooth(Plan(from, to, obstacles, margin), obstacles, margin);
+        for (int i = 1; i < pts.Count; i++)
+            if (!Clear(pts[i - 1], pts[i], obstacles, margin))
+                return Detour(from, to, obstacles, margin) ?? pts;
+        return pts;
+    }
+
     /// <summary>Runde 25: ist das Stück a→b frei (gleiche Regel wie die Planung: Ziel im Hindernis zählt nicht, Start im Hindernis beim Wegfliegen nicht)?</summary>
     public static bool Clear(Vec2 a, Vec2 b, IReadOnlyList<Obstacle> obstacles, float margin)
     {

@@ -23,6 +23,7 @@ public class Phase29Tests
     /// <summary>Runde 24 zurückdrehen: Startbestände der Werftregale wie vorher; Befehlsstufe ohne Abschlag für eigene Schiffe.</summary>
     internal static void RevertRunde24(WorldDef def)
     {
+        Runde44ScaleTests.RevertRunde44(def);   // Runde 44: Maßstäbe und Stellschrauben (die Referenz-Hashes stammen von davor)
         def.Rules!.CommandShipWeight = def.Rules.ActorShipWeight;
         Runde38Tests.RevertRunde38(def);   // Runde 38: Spieler wieder Mitglied der Startfraktion (die Referenz-Hashes stammen von davor)
         var yard = def.StationTypes.First(t => t.Key == "shipyard");

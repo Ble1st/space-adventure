@@ -3322,6 +3322,8 @@ public partial class Main : Node3D
 	internal void TestTractor(bool on) => _tractorOn = on;
 	/// <summary>Gerätetest: Zeitraffer setzen/lesen (Selbsttest der automatischen Abschaltung bei Gefahr).</summary>
 	internal void TestSetFast(bool on) => _fast = on;
+	/// <summary>Runde 44: Sektoransicht neu aufbauen (Selbsttest, nach einer Test-Umstellung von Stationen).</summary>
+	internal void TestRebuildView() => _view.Rebuild(_session.U);
 	internal bool TestFast => _fast;
 	/// <summary>Runde 40, Selbsttest: Schiff anhalten (Autopilot aus, Schub 0, Geschwindigkeit 0) — für positionsgenaue Tipp-Prüfungen (Randmarker).</summary>
 	internal void TestStopShip() { _autopilot = false; _hud.Flight.SetAutopilot(false); SetAutoMining(false, announce: false); _player.Velocity = Vector3.Zero; }

@@ -46,13 +46,17 @@ public class Phase21Tests
             // Phase 30: zwei Startstationen für die Größenklassen verschoben (Hauptquartier Alpha XL weg vom Tor, Elektrolyse Gamma weg vom Tor)
             var moved = new Dictionary<int, Vec2> { [32] = new Vec2(136f, -4f), [13] = new Vec2(-75f, 25f), [18] = new Vec2(0f, 66f) };
             var expected = moved.TryGetValue(st.Id.Value, out var mp) ? mp : st.Position;
-            Assert.Equal((templated ? n.Name : st.Name, st.TypeKey, st.Sector, expected), (n.Name, n.TypeKey, n.Sector, n.Position));
+            // Runde 44: die Weltdatei bleibt im Grundmaßstab; der Aufbau multipliziert mit dem Maßstab des Sektors
+            float sc = u.Sectors[st.Sector].Scale;
+            Assert.Equal((templated ? n.Name : st.Name, st.TypeKey, st.Sector), (n.Name, n.TypeKey, n.Sector));
+            Assert.True(Vec2.Distance(expected * sc, n.Position) < 0.01f, $"{n.Name}: {n.Position} statt {expected} × {sc}");
             if (templated) Assert.Contains(u.ActorName(n.Owner), n.Name);
         }
         foreach (var g in classic.Gates.Values)
         {
             var n = u.Gates[g.Id];
-            Assert.Equal((g.Sector, g.Target, g.Position, g.MainRoute), (n.Sector, n.Target, n.Position, n.MainRoute));
+            Assert.Equal((g.Sector, g.Target, g.MainRoute), (n.Sector, n.Target, n.MainRoute));
+            Assert.True(Vec2.Distance(g.Position * u.Sectors[g.Sector].Scale, n.Position) < 0.01f, $"Tor {g.Id.Value}: Maßstab");   // Runde 44
         }
         // Neues ist angehängt
         Assert.True(u.Stations.Keys.Where(k => !classic.Stations.ContainsKey(k)).All(k => k.Value > 40));

@@ -63,6 +63,15 @@ public partial class SelfTest
 				Check(hud.TestGateAttackVisible && !hud.TestStationAttackVisible && hud.TestTargetName.Contains("Tor"),
 					$"Station → Tor: „Tor angreifen“, kein „Station angreifen“ ({hud.TestTargetName})");
 				// Kontexttaste (Handy-Test: mit gewähltem Tor blieb „Andocken: <Station>“): am Tor neben einer Station — Station gewählt → Andocken, Tor gewählt → Springen
+				// Runde 44: in den vergrößerten Sektoren steht keine Station mehr in Andockreichweite eines Tors (nächstes Paar ~150 m) — die nächste andockbare
+				// Station wird für diesen Fall neben das Tor gesetzt (die Stufe endet mit „Neues Spiel“)
+				{
+					var dockable = u.Stations.Values.Where(s => s.Sector == u.PlayerSector && s.Dockable && !s.IsBuildSite).OrderBy(s => Vec2.Distance(s.Position, gate.Position)).First();
+					var inward = gate.Position.Length > 1f ? (gate.Position * -1f).Normalized() : new Vec2(1f, 0f);
+					var side = new Vec2(-inward.Y, inward.X);
+					dockable.Position = gate.Position + side * (dockable.Radius + 30f) + inward * 10f;
+					_m.TestRebuildView();
+				}
 				_m.TestTeleportTo(gate.Position + new Vec2(0f, 4f));
 				return false;
 			}

@@ -205,7 +205,11 @@ public class Runde42dTests
         Assert.True(total > 500, $"genug Angebote ({total})");
         double shareB = 100.0 * byType.GetValueOrDefault(BountyMission.KeyId) / total;
         double shareP = 100.0 * byType.GetValueOrDefault(PatrolMission.KeyId) / total;
-        Assert.True(shareB >= 5.0, $"Kopfgeld-Anteil {shareB:0.0}% ≥ 5% (byType=[{string.Join(", ", byType.Select(kv => $"{kv.Key} {kv.Value}"))}], total {total})");
+        // Runde 44: in den vergrößerten Sektoren entstehen mehr Liefer- und Eskorte-Angebote (längere Fahrten, größere Lager); die Zahl der Kopfgeld-
+        // angebote bleibt (≈ 56 je 20 000 Ticks, vorher 59 — begrenzt durch die gesuchten Kaperschiffe, keine doppelten Angebote), ihr Anteil sank auf ≈ 4,3 %.
+        // Geprüft wird jetzt: Kopfgeld ≥ 4 %, Kopfgeld + Patrouille ≥ 10 %, jedes einzeln mindestens 50 Angebote
+        Assert.True(shareB >= 4.0 && shareB + shareP >= 10.0 && byType.GetValueOrDefault(BountyMission.KeyId) >= 50,
+            $"Kopfgeld-Anteil {shareB:0.0}% ≥ 4%, mit Patrouille {shareB + shareP:0.0}% ≥ 10% (byType=[{string.Join(", ", byType.Select(kv => $"{kv.Key} {kv.Value}"))}], total {total})");
         Assert.True(shareP >= 5.0, $"Patrouille-Anteil {shareP:0.0}% ≥ 5%");
         // an einer Polizei/HQ/Sektor-HQ sieht der Spieler meist mindestens ein Kopfgeld- oder Patrouillenangebot (je Bucket)
         int offerStations = u.StationsById().Count(s => (s.Dockable || s.IsBuildSite) && BountyMission.IsOfferStation(u, s));

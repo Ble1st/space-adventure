@@ -59,7 +59,9 @@ public partial class SelfTest
 				Engage.StartRaid(u, raider, me, u.Sectors[me.Sector]);
 				return false;
 			}
-			case 125:
+			// Runde 44: 8 Bilder nach dem Gefechtsbeginn (vorher 5) — der Musikzustand läuft mit 10 Hz (alle 6 Bilder, Runde 13); ob 5 Bilder ein
+			// Musik-Update enthalten, hing von der Phase des Takts zum Stufenbeginn ab (nach den längeren Flügen der vergrößerten Sektoren nicht mehr)
+			case 128:
 				Check(mu.Mood == MusicMood.Combat && Target("layer_combat", 0f) && Target("layer_pad", -3f) && Target("layer_tension", -6f) && mu.TargetGainOf("mood_safe") == 0f,
 					$"Gefecht: Schichten laut music.json ({mu.Mood})");
 				mu.Sting("sting_jump", Time.GetTicksMsec() / 1000.0);

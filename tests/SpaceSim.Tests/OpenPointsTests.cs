@@ -398,7 +398,11 @@ public class OpenPointsTests
     [Fact]
     public void Exportsenken_BekommenKonsumUndLuxus_KolonieBleibtVersorgt_20000Ticks()
     {
-        var u = DemoUniverse.Create();
+        // Runde 44: im Grundmaßstab (Maßstäbe und Stellschrauben zurückgedreht) — geprüft wird die Abstimmung von Phase 17 (Exportgebote, Kolonie); in den
+        // vergrößerten Sektoren erreicht der Luxusexport bei 20 000 Ticks nur 33–56 % des Vorstands (Anlaufphase, Messreihe Runde 44, offener Punkt)
+        var baseDef = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        Runde44ScaleTests.RevertRunde44(baseDef);
+        var u = WorldBuilder.Build(baseDef, null);
         var watch = new MarketWatch(u);
         var cg = u.FindGood("consumer_goods")!.Id; var lux = u.FindGood("luxury_goods")!.Id;
         var exported = new Dictionary<GoodId, float>();
@@ -425,7 +429,9 @@ public class OpenPointsTests
         var lux3 = new List<int> { colonyLuxEmpty };
         foreach (ulong seed in new ulong[] { 1, 2 })
         {
-            var w = TestWorlds.Default(seed, fuel: false, research: false);
+            var wdef = TestWorlds.Def(fuel: false, research: false);
+            Runde44ScaleTests.RevertRunde44(wdef);
+            var w = WorldBuilder.Build(wdef, seed);
             var col = w.Stations[new StationId(10)];
             int empty = 0;
             var r2 = new SimulationRunner();

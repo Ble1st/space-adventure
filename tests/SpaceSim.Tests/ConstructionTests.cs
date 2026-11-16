@@ -272,15 +272,20 @@ public class ConstructionTests
     public void Bauschiff_HoltMaterial_LiefertUndMontiert_StationEntsteht()
     {
         var u = World();
+        OnlyTestSites(u, 1);   // Runde 44: mit den größeren Lagerpuffern legte der Lebenszyklus schon im ersten Tick eine Baustelle an und band das Bauschiff der Union
         var site = Site(u, "farm", 1);
         var id = site.Id;
         var steelBefore = u.Stations.Values.Where(s => !s.IsBuildSite && s.Production.Any(r => r.Outputs.ContainsKey(DemoUniverse.Steel))).Sum(s => s.Market[DemoUniverse.Steel].Amount);
-        var builder = u.Ships.Values.Single(s => s.IsAiBuilder && s.Owner == site.Owner);
-        float builderCredits = builder.Credits;
         var events = new List<SimEvent>();
         u.Events.Raised += events.Add;
         var runner = new SimulationRunner();
-        for (int i = 0; i < 8000 && u.Stations[id].IsBuildSite; i++) runner.Step(u);
+        // Runde 44: das Bauschiff, das die Baustelle übernimmt — in den vergrößerten Sektoren kann zuerst das Bauschiff einer anderen Fraktion denken, das keine
+        // eigene Baustelle hat (Regel: eigene Fraktion zuerst, sonst die nächste); vorher stand hier fest das Bauschiff des Besitzers
+        for (int i = 0; i < 400 && site.Site!.Builder.Value == 0; i++) runner.Step(u);
+        var builder = u.Ships[site.Site!.Builder];
+        Assert.True(builder.IsAiBuilder);
+        float builderCredits = builder.Credits;
+        for (int i = 0; i < 12000 && u.Stations[id].IsBuildSite; i++) runner.Step(u);
 
         var st = u.Stations[id];
         Assert.False(st.IsBuildSite);
@@ -307,10 +312,11 @@ public class ConstructionTests
         RemoveBuilders(u);
         u.Rules.EmergencyBuildTicks = 1_000_000;   // kein Notbau: nur Händler liefern
         u.Rules.CommissionBuilders = false;        // Phase 19: und die Fraktion kauft kein Bauschiff nach
+        OnlyTestSites(u, 1);   // Runde 44: nur die Testbaustelle (der Lebenszyklus legte sonst im ersten Tick eigene an)
         var site = Site(u, "farm", 1);
         var delivered = new List<ConstructionDelivered>();
         u.Events.Raised += e => { if (e is ConstructionDelivered d && d.Site == site.Id) delivered.Add(d); };
-        new SimulationRunner().Run(u, 4000);
+        new SimulationRunner().Run(u, 12000);   // Runde 44: 12 000 statt 4000 Ticks — Fahrten in den vergrößerten Sektoren ≈ 3,4-mal so lang
         Assert.Contains(delivered, d => d.By == "trader");
         // Händler zahlen sich aus dem Treuhandgeld (Gebot = Basispreis × Faktor); nie mehr angenommen als verlangt
         var bs = u.Stations[site.Id].Site!;
@@ -353,11 +359,13 @@ public class ConstructionTests
     public void BauschiffOhneBauausleger_WirdFreigegeben()
     {
         var u = World();
+        OnlyTestSites(u, 1);   // Runde 44: siehe Bauschiff_HoltMaterial…
         var site = Site(u, "farm", 1);
         var runner = new SimulationRunner();
         runner.Run(u, 60);
-        var builder = u.Ships.Values.Single(s => s.IsAiBuilder && s.Owner == site.Owner);
-        Assert.Equal(builder.Id, site.Site!.Builder);
+        // Runde 44: das übernehmende Bauschiff (siehe Bauschiff_HoltMaterial…)
+        var builder = u.Ships[site.Site!.Builder];
+        Assert.True(builder.IsAiBuilder);
         builder.Fit[builder.Fit.IndexOf("construction_rig_s")] = null;
         builder.RecomputeStats(u);
         Assert.False(builder.Has(Capability.Construction));

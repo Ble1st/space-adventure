@@ -61,6 +61,13 @@ public partial class SelfTest
 			case 3: case 33:
 			{
 				_r31Factor = f == 3 ? 1.15f : 1.3f;
+				// Runde 44: in den vergrößerten Sektoren liegt am Startpunkt keine Station mehr im Bild — das Schiff wird 60 m vor die nächste andockbare
+				// Station gesetzt (die Stufe prüft Tipp und Umrechnung, nicht den Startpunkt)
+				{
+					var me = u.Ships[u.PlayerShip];
+					var near = u.StationsById().Where(s => s.Sector == u.PlayerSector && s.Dockable).OrderBy(s => Vec2.Distance(s.Position, me.Position)).First();
+					_m.TestTeleportTo(near.Position + new Vec2(0f, near.Radius + 45f));
+				}
 				UiScale.TestPpi = 396f;
 				UiScale.TestCap = _r31Factor;
 				UiScale.Set(f == 3 ? UiSize.Normal : UiSize.Large);

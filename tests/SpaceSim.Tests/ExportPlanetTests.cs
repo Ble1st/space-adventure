@@ -196,7 +196,8 @@ public class ExportPlanetTests
         var view = ExportInfo.ForStation(u, st)!;
         Assert.Equal((2, 15f, 70f), (view.Batches, view.Units, view.Paid));
         Assert.Equal(u.Rules.ExportDelayTicks - 120, view.NextInTicks);
-        Assert.Equal("Export an Korvan: 2 Chargen unterwegs, nächste in 4:30", view.Line);
+        // Runde 44: die Verzögerung kommt aus der Regel (Standardwelt seit Runde 44 800 statt 1200 Ticks)
+        Assert.Equal($"Export an Korvan: 2 Chargen unterwegs, nächste in {ExportInfo.Duration(u.Rules.ExportDelayTicks - 120)}", view.Line);
         Assert.Equal("0:01", ExportInfo.Duration(1));
     }
 

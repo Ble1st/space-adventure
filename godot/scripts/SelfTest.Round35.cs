@@ -131,7 +131,11 @@ public partial class SelfTest
 			case 52:
 			{
 				var u = _m.Session.U;
-				_r35Station = u.Sectors[u.PlayerSector].Stations.First();
+				// Runde 44: die vergrößerten Sektoren füllen die Karte bis an den Rand — die erste Station konnte unter der Detailkarte liegen; getippt wird
+				// die Station, die der Kartenmitte am nächsten liegt
+				var mid = hud.CcSector.GetGlobalRect().GetCenter();
+				_r35Station = u.Sectors[u.PlayerSector].Stations.Where(id => u.Stations[id].Dockable && hud.CcSector.TestStationScreen(id) is not null)
+					.OrderBy(id => hud.CcSector.TestStationScreen(id)!.Value.DistanceTo(mid)).First();
 				if (hud.CcSector.TestStationScreen(_r35Station) is not { } at) { Check(false, "35b: Sektorkarte fehlt"); return false; }
 				_r35At = at; Tap(at, true); return false;
 			}

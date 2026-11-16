@@ -46,10 +46,21 @@ public static class Travel
     /// <summary>Eine Teilstrecke je Segment des ausweichenden Pfads innerhalb eines Sektors.</summary>
     static long AddSectorLegs(Universe u, List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start, float speed)
     {
-        var pts = PathPlanner.Plan(from, to, u.GetObstacles(sector));
+        var pts = SectorPath(u, sector, from, to);
         long t = start;
         for (int i = 1; i < pts.Count; i++) t = AddLeg(legs, sector, pts[i - 1], pts[i], t, speed);
         return t;
+    }
+
+    /// <summary>
+    /// Ausweichender Pfad einer NPC-Reise im Sektor. Runde 44: in vergrößerten Sektoren (Maßstab &gt; 1) mit Glätten und dem festen Ringpunkt-Ausweichweg
+    /// (<see cref="PathPlanner.PlanRobust"/>) — die längeren Strecken kreuzen mehr Gürtel und Stationen, die Umweg-Rekursion erschöpfte ihre Tiefe in
+    /// Gürtelnischen und der Polygonzug lief durch Stationen. Im Grundmaßstab unverändert.
+    /// </summary>
+    public static List<Vec2> SectorPath(Universe u, SectorId sector, Vec2 from, Vec2 to)
+    {
+        var obs = u.GetObstacles(sector);
+        return u.Sectors.TryGetValue(sector, out var s) && s.Scale > 1f ? PathPlanner.PlanRobust(from, to, obs, PathPlanner.Margin) : PathPlanner.Plan(from, to, obs);
     }
 
     static long AddLeg(List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start, float speed)

@@ -552,10 +552,11 @@ public class Phase26Tests
             {
                 var p = CombatSpace.Clear(u, sector.Id, o.Position);
                 Assert.True(CombatSpace.Free(p, radius, obs), $"{sector.Name}: Überlappung bei {p.X:0.0},{p.Y:0.0}");
-                Assert.True(p.Length <= u.Rules.CombatArenaRadius + 1e-3f);
+                Assert.True(p.Length <= sector.ArenaRadius(u.Rules) + 1e-3f);
             }
+            // Runde 44: Gefechtsfläche je Sektor (Regel × Maßstab bzw. Ausdehnung + 100)
             var outside = CombatSpace.Clear(u, sector.Id, new Vec2(5000f, 0f));
-            Assert.True(outside.Length <= u.Rules.CombatArenaRadius + 1e-3f);
+            Assert.True(outside.Length <= sector.ArenaRadius(u.Rules) + 1e-3f);
         }
     }
 

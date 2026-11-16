@@ -369,6 +369,9 @@ public static class WorldBuilder
             };
             for (int i = 0; i < group.Count; i++)
             {
+                // Runde 44: die Id 100 gehört dem Spielerschiff — mit der größeren Gründerflotte (> 99 Schiffe) überschrieb das Spielerschiff sonst still
+                // ein Gründerschiff (u.Ships[100] = Spieler); Gründer überspringen sie
+                if (nextShip == 100) nextShip++;
                 var ship = NewShip(u, new ShipId(nextShip++), role, owner, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model);
                 // Phase 11: Polizei und Kaperschiffe sind keine Gründerschiffe der Wirtschaft (keine Güteklasse); sie starten an ihrer Heimatbasis
                 if (role is ShipRole.Police or ShipRole.Pirate) PlaceAtHomeBase(u, ship);

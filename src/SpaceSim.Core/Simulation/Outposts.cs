@@ -44,7 +44,8 @@ public static class Outposts
             for (int i = 0; i < 16; i++)
             {
                 var p = anchor + Vec2.FromAngle(i * MathF.PI / 8f) * d;
-                if (MathF.Abs(p.X) > 210f || MathF.Abs(p.Y) > 210f) continue;
+                float bound = 210f * MathF.Max(1f, s.Scale);   // Runde 44: Fläche wächst mit dem Maßstab (fest 210 ließ in vergrößerten Sektoren keine Stellung am Tor zu)
+                if (MathF.Abs(p.X) > bound || MathF.Abs(p.Y) > bound) continue;
                 if (Fits(u, s, p, radius)) return p;
             }
         return null;

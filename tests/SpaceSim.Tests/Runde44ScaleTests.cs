@@ -11,6 +11,33 @@ namespace SpaceSim.Tests;
 /// <summary>Runde 44: Maßstab je Sektor (Technik). Die Weltdatei bleibt im Grundmaßstab; der Aufbau multipliziert die Positionen.</summary>
 public class Runde44ScaleTests
 {
+    /// <summary>
+    /// Runde 44 zurückdrehen (für die Referenz-Hash-Tests über <see cref="Phase29Tests.RevertRunde24"/>): Maßstab 1 in allen Sektoren, Stellschrauben der
+    /// Messreihe wie bis Runde 43 (Kapazitäten, Gründerflotte ÷ 3, Lagerpuffer, Exportsenken, Überfall-/Polizeireichweite, Auftragsbelohnung je Minute,
+    /// Laserkanonen-Regal der Werft).
+    /// </summary>
+    internal static void RevertRunde44(WorldDef def)
+    {
+        def.Rules ??= new EconomyRules();
+        foreach (var sd in def.Sectors) sd.Scale = 1f;
+        if (def.Rules.MaxTraders == 80) def.Rules.MaxTraders = 26;
+        if (def.Rules.MaxMiners == 55) def.Rules.MaxMiners = 22;
+        def.Rules.RaidReach = 0f;
+        def.Rules.PoliceResponseRange = 0f;
+        def.Rules.RecipeStockTarget = 100f;
+        def.Rules.ExportDelayTicks = 1200;
+        def.Rules.MissionTransportRewardPerMinute = def.Rules.MissionPatrolRewardPerMinute = def.Rules.MissionEscortRewardPerMinute = 0f;
+        def.Rules.EscortMinRemainingTicks = 40;
+        foreach (var g in def.Ships) if (g.Role is "trader" or "miner" && g.Count % 3 == 0) g.Count /= 3;
+        foreach (var t in def.StationTypes) if (t.Export is { TargetValue: 6000f } ex) ex.TargetValue = 3000f;
+        if (def.StationTypes.FirstOrDefault(t => t.Key == "shipyard")?.Stocks is { } ys)
+        {
+            if (ys.ContainsKey("weapon_laser_s")) ys["weapon_laser_s"] = new[] { 4f, 4f };
+            if (ys.ContainsKey("shield_mk1")) ys["shield_mk1"] = new[] { 1f, 3f };
+            if (ys.ContainsKey("armor_plating_s")) ys["armor_plating_s"] = new[] { 1f, 3f };
+        }
+    }
+
     static WorldDef DefWithScale(float scale, int? onlySector = null)
     {
         var def = TestWorlds.ClassicDef();
@@ -57,6 +84,18 @@ public class Runde44ScaleTests
         var spot = StationLifecycleSystem.FindFreeSpot(b, sec);
         Assert.NotNull(spot);
         foreach (var sid in sec.Stations) Assert.True(Vec2.Distance(spot!.Value, b.Stations[sid].Position) > Station.BodyRadius + b.Stations[sid].Radius + 20f - 1e-3f);
+    }
+
+    [Fact]
+    public void GroßeGruenderflotte_UeberschreibtDasSpielerschiffNicht()
+    {
+        var def = TestWorlds.Def(fuel: false, research: false);
+        int founders = def.Ships.Sum(g => g.Count);
+        Assert.True(founders >= 100, $"Gründerflotte {founders}");   // die Standardwelt hat seit Runde 44 mehr als 99 Gründerschiffe
+        var u = WorldBuilder.Build(def, 1);
+        Assert.Equal(founders + 1, u.Ships.Count);
+        Assert.True(u.Ships[new ShipId(100)].IsPlayer);
+        Assert.Equal(def.Ships.Where(g => g.Role == "builder").Sum(g => g.Count), u.Ships.Values.Count(s => s.Role == ShipRole.Builder));
     }
 
     [Fact]

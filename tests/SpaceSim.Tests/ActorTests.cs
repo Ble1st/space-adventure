@@ -215,7 +215,8 @@ public class ActorTests
     public void Aufstieg_FreiesSchiffKauftSchiff_WirdEinzelakteurUndBesitztBeide()
     {
         var u = Fresh();
-        u.Rules.MaxTraders = 30;
+        // Runde 44: Platz für ein weiteres Schiff über der (verdreifachten) Gründerflotte — vorher fest 30 bei 17 Gründer-Händlern
+        u.Rules.MaxTraders = (int)MathF.Ceiling(ShipJobs.UsedUnits(u, ShipJobs.Default.First(j => j.Key == "trade"))) + 4;
         foreach (var s in u.Ships.Values) s.Credits = 100f;
         var rich = u.Ships.Values.Where(s => s.Role == ShipRole.Trader).OrderBy(s => s.Id.Value).First();
         rich.Credits = 50_000f;

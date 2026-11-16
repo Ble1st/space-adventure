@@ -96,7 +96,9 @@ public class MinerTests
         u.Rules.SecurityActive = false;
         float fieldsBefore = u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore);
         var founders = u.Ships.Values.Where(s => s.Role == ShipRole.Miner).Select(s => s.Id).ToList();   // später gekaufte Schiffe starten mit weniger
-        new SimulationRunner().Run(u, 2_000);
+        // Runde 44: 6000 statt 2000 Ticks — in den vergrößerten Sektoren dauert eine Fahrt etwa 3,4-mal so lang (Messreihe M0 → M1: Ø 46 → 156 Ticks),
+        // in 2000 Ticks hatte nicht jeder der (dreimal so vielen) Gründungs-Schürfer schon eine Ladung verkauft
+        new SimulationRunner().Run(u, 6_000);
 
         Assert.NotEmpty(founders);
         Assert.All(founders, id => Assert.True(u.Ships.ContainsKey(id), $"Gründungs-Miner {id.Value} fehlt"));
@@ -230,7 +232,8 @@ public class AvoidanceTests
             foreach (var a in points)
                 foreach (var b in points)
                     if (a != b)
-                        try { AssertClear(PathPlanner.Plan(a, b, obs), obs, $"{sector.Name} {a} → {b}"); }
+                        // Runde 44: derselbe Pfad wie die NPC-Reise (Travel.SectorPath — in vergrößerten Sektoren mit Glätten und Ausweichweg)
+                        try { AssertClear(Travel.SectorPath(u, sector.Id, a, b), obs, $"{sector.Name} {a} → {b}"); }
                         catch (Xunit.Sdk.XunitException e) { failures.Add(e.Message.Split('\n')[^1]); }
         }
         Assert.True(failures.Count == 0, string.Join("\n", failures));
