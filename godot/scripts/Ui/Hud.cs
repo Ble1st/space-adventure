@@ -498,7 +498,19 @@ public partial class Hud : CanvasLayer
 
 	/// <summary>Runde 14: Fläche der Meldung im Flug (für das freie Feld der Gefechtskamera); null = keine sichtbar oder nicht im Flug.</summary>
 	/// <summary>Runde 17: Fläche der sichtbaren Kurzmeldung (Randpfeil-Beschriftungen weichen ihr aus); null = keine.</summary>
-	public Rect2? ToastRect => _toast.Modulate.A > 0.05f && _toast.Text.Length > 0 ? _toast.GetGlobalRect() : null;
+	// Runde 44h: Höhe wie gezeichnet (umgebrochener Text ist kurz nach dem Setzen höher als Size) — sonst lagen Randnamen unter der Kurzmeldung
+	public Rect2? ToastRect => _toast.Modulate.A > 0.05f && _toast.Text.Length > 0
+		? _toast.GetGlobalTransform() * new Rect2(Vector2.Zero, new Vector2(_toast.Size.X, ToastDrawnHeight()))
+		: null;
+	/// <summary>Runde 44h: gezeichnete Höhe des Hinweises, mit der Schrift gemessen (ein umbrechendes Label meldet als Mindestgröße nur eine Zeile).</summary>
+	float ToastDrawnHeight()
+	{
+		var f = _toast.GetThemeFont("font"); int fs = _toast.GetThemeFontSize("font_size");
+		if (f is null || _toast.Size.X <= 12f) return MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y);
+		float lines = MathF.Round(f.GetMultilineStringSize(_toast.Text, HorizontalAlignment.Left, _toast.Size.X - 12f, fs).Y / f.GetHeight(fs));
+		float h = lines * (f.GetHeight(fs) + _toast.GetThemeConstant("line_spacing")) + 12f;
+		return MathF.Max(h, MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y));
+	}
 	/// <summary>Runde 17: im Gefecht/in der Warnphase nur wenige Stations-Randpfeile (Main setzt das je Bild).</summary>
 	public bool EdgeThin { get; set; }
 	public Rect2? AlertRect => _alert.Visible && (Screens.Current == null || Screens.Current == Flight) ? _alert.GetGlobalRect() : null;
