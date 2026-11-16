@@ -1229,6 +1229,18 @@ public partial class Main : Node3D
 	int _lastFlightSteps = 1;
 	/// <summary>Selbsttest: Zahl der Flug-Teilschritte im letzten Bild (1 = Echtzeit).</summary>
 	internal int TestFlightSteps => _lastFlightSteps;
+	/// <summary>
+	/// Runde 44g: der eigene Flug läuft im Zeitraffer immer (manuell, Autopilot, Auto-Mining, Abbau) — nicht angedockt, ohne offenes Menü, nicht im Übergang
+	/// und nicht im Gefecht bzw. bei angekündigtem Überfall (Schüsse, Zielhilfe und Dauerfeuer laufen im Bildtakt; ×10-Flug mit ×1-Feuer wäre schief).
+	/// </summary>
+	bool WarpFlightAllowed(bool frozen)
+	{
+		if (!_fast || frozen || _transition) return false;
+		var u = _session.U;
+		if (u.Fights.IsEngaged(u.PlayerShip)) return false;
+		foreach (var p in u.PendingEncounters) if (p.Target == u.PlayerShip) return false;
+		return true;
+	}
 
 	public override void _Process(double deltaD)
 	{
@@ -1256,26 +1268,32 @@ public partial class Main : Node3D
 		if (!_session.U.Rules.DamageActive && _sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull && !_session.U.Fights.IsEngaged(PlayerData.Id)) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
 
 		bool frozen = _hud.AnyModalOpen || _docked != null;
-		_miningStep = _miner.Enabled && !frozen
-			? _miner.Step(_session.U, _chunks, PlayerData, new Vec2(_player.Position.X, _player.Position.Z))
-			: null;
-		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
-		// Runde 44 (größere Sektoren): Zeitraffer auch für den eigenen Flug, aber nur mit Autopilot — der Flug läuft dann in Teilschritten (≤ 1/30 s,
-		// Kollision und Tore je Teilschritt), so schnell wie die Simulation (×10). Gefahr, Warnung und Andocken schalten den Zeitraffer wie bisher ab.
-		bool warpFlight = _fast && _autopilot && !frozen && !_miner.Enabled && !_transition;
+		// Runde 44 (größere Sektoren): Zeitraffer auch für den eigenen Flug — seit 44g immer, nicht nur mit Autopilot (Nutzerwunsch „Zeitraffer auch immer für
+		// Spieler“): manueller Flug, Auto-Mining mit Anflug, Kontaktabbau, Anker, Traktor und Brocken laufen in Teilschritten (≤ 1/30 s, Kollision, Tore,
+		// Eingaben, Abbau je Teilschritt), so schnell wie die Simulation (×10). Gefahr, Warnung und Andocken schalten den Zeitraffer wie bisher ab; im Gefecht
+		// (und bei angekündigtem Überfall) bleibt der eigene Flug in Echtzeit, weil Schüsse, Zielhilfe und Dauerfeuer im Bildtakt laufen.
+		var flightU = _session.U;
+		bool warpFlight = WarpFlightAllowed(frozen);
 		int flightSteps = warpFlight ? Mathf.Clamp(Mathf.CeilToInt(delta * WarpFactor / WarpSubstep), 1, 40) : 1;
 		float flightDt = warpFlight ? delta * WarpFactor / flightSteps : delta;
 		_lastFlightSteps = flightSteps;
+		var flightSector = flightU.PlayerSector;
+		_mineFire = false; _mineAim = null;
 		for (int fs = 0; fs < flightSteps; fs++)
 		{
-		if (fs > 0 && (_docked != null || _transition || !_autopilot || !_fast || _reenter)) break;   // angedockt, Sprung-Übergang oder Autopilot aus: Rest verfällt
-		if (fs > 0) delta = flightDt;
-		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(warpFlight ? flightDt : delta);
+		// angedockt, Sprung, Übergang, Menü, Gefahr oder Zeitraffer aus: der Rest des Bilds verfällt
+		if (fs > 0 && (!WarpFlightAllowed(_hud.AnyModalOpen || _docked != null) || _reenter || flightU.PlayerSector != flightSector || _session.U != flightU)) break;
+		float dt = flightDt;
+		_miningStep = _miner.Enabled && !frozen
+			? _miner.Step(_session.U, _chunks, PlayerData, new Vec2(_player.Position.X, _player.Position.Z))
+			: null;
+		// Reglertasten (W/X) wirken in Echtzeit — einmal je Bild; Wenden und Schub wirken je Teilschritt
+		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(fs == 0 ? delta : 0f);
 		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — ohne Wendetaste, ohne Autopilot/Auto-Mining dreht die Nase mit der Drehrate des Schiffs zum gewählten Feind
 		// (Core-Regel AimAssist.Turn); Schub bleibt beim Regler und zeigt dann in die neue Blickrichtung
 		if (!frozen && turn == 0f && _aimAssist && !_autopilot && !_miner.Enabled && AimTarget() is { } aimAt)
 		{
-			float h = AimAssist.Turn(_player.Heading, AimAssist.Bearing(new Vec2(_player.Position.X, _player.Position.Z), aimAt), AimAssist.PlayerTurnRate, delta);
+			float h = AimAssist.Turn(_player.Heading, AimAssist.Bearing(new Vec2(_player.Position.X, _player.Position.Z), aimAt), AimAssist.PlayerTurnRate, dt);
 			_player.Heading = h;
 			if (throttle != 0f) dir = new Vector2(-Mathf.Sin(h), -Mathf.Cos(h));
 		}
@@ -1287,7 +1305,7 @@ public partial class Main : Node3D
 		AnchorPin(throttle, turn, frozen);   // Phase 32: Verankerung hält das Schiff am Fels, Schub/Wenden reißt sie
 		// Phase 23: Stellung „Antrieb“ hebt das Höchsttempo (Core-Regel ShipSystems.SpeedFactor)
 		float engine = SpaceSim.Core.Combat.ShipSystems.SpeedFactor(_session.U, PlayerData);
-		_player.Step(warpFlight ? flightDt : delta, turn, dir, throttle, speedScale * fuelCap * engine, _view, brake: hold);
+		_player.Step(dt, turn, dir, throttle, speedScale * fuelCap * engine, _view, brake: hold);
 		if (!_player.Locked)
 		{
 			PlayerFuel.ConsumeFlown(_session.U, PlayerData, new Vector2(_player.Position.X - before.X, _player.Position.Z - before.Z).Length());
@@ -1297,9 +1315,11 @@ public partial class Main : Node3D
 		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(Mathf.Abs(throttle), 0.3f, 1f) : 0f);
 
 		if (!frozen) CheckGates();
+		// Abbau je Teilschritt (Kontakt, Anker, Laser-Automatik, Brocken, Traktor) — im Sprung-Teilschritt nicht mehr (anderer Sektor)
+		if (flightU.PlayerSector == flightSector && _session.U == flightU) StepMining(dt, frozen, fs == 0);
 		}
-		delta = (float)deltaD;
-		UpdateMining(delta, frozen);
+		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
+		ShowMining(delta);
 		SyncPlayerData();
 		// Runde 17: im Gefecht und in der Warnphase nur wenige Stations-Randpfeile
 		_hud.EdgeThin = _session.U.Fights.IsEngaged(PlayerData.Id) || _session.U.PendingEncounters.Any(p => p.Target == _session.U.PlayerShip);
@@ -3079,14 +3099,20 @@ public partial class Main : Node3D
 		_hud.Toast(text, 1.5f);
 	}
 
-	/// <summary>Laser und Traktorstrahl des Spielers (manuell oder durch den Automodus), Brocken, Strahldarstellung, NPC-Laser.</summary>
-	void UpdateMining(float delta, bool frozen)
+	/// <summary>Runde 44g: Feuer, Ziel und Traktor des letzten Abbau-Teilschritts (für die Darstellung einmal je Bild).</summary>
+	bool _mineFire, _mineTractor;
+	Asteroid? _mineAim;
+
+	/// <summary>
+	/// Laser und Traktorstrahl des Spielers (manuell oder durch den Automodus), Kontaktabbau/Anker, Brocken — ein Teilschritt der Simulationszeit
+	/// <paramref name="delta"/> (Runde 44g: im Zeitraffer mehrmals je Bild). Ein manueller Schuss gilt nur im ersten Teilschritt.
+	/// </summary>
+	void StepMining(float delta, bool frozen, bool first)
 	{
 		var u = _session.U;
 		var ship = PlayerData;
 		var sector = u.Sectors[u.PlayerSector];
 		var pos = new Vec2(_player.Position.X, _player.Position.Z);
-		_hintCooldown = Mathf.Max(0f, _hintCooldown - delta);
 		if (_mineTarget != null && !_chunks.IsMinable(sector, _mineTarget)) _mineTarget = null;
 
 		bool fire = false, tractor = _tractorOn;
@@ -3096,11 +3122,11 @@ public partial class Main : Node3D
 			if (_miningStep is { } ms) { fire = ms.Fire; tractor |= ms.Tractor; aim = ms.Aim; }   // Automatik: feuert, sobald nachgeladen
 			else
 			{
-				fire = _fireRequested;   // Spieler: ein Tipp / Tastendruck = ein Schuss
+				fire = first && _fireRequested;   // Spieler: ein Tipp / Tastendruck = ein Schuss
 				aim = _mineTarget ?? _chunks.Nearest(sector, pos, MiningRules.LaserRange);
 			}
 		}
-		_fireRequested = false;
+		if (first) _fireRequested = false;
 
 		if (fire)
 		{
@@ -3118,21 +3144,31 @@ public partial class Main : Node3D
 		tractor &= !frozen;
 		// Phase 29: Kontaktabbau läuft von selbst, solange die Werkzeugfront den Fels berührt (gemeinsame Core-Regel mit den NPC-Schürfern)
 		if (!frozen && !_transition && ship.Stats.ContactMining > 0f)
-			_chunks.Contact(u, ship, sector, pos, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), (float)delta, _anchorAllowed);
+			_chunks.Contact(u, ship, sector, pos, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), delta, _anchorAllowed);
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
 		// Gerätetest: klarer Grund, warum ein Brocken nicht geladen wird (Laderaum für seine Form voll)
 		if (_chunks.HoldFull is { } full && u.Goods.TryGetValue(full, out var fg))
 			Hint($"Laderaum für {fg.Name} voll ({(fg.Form == GoodForm.Liquid ? "flüssig" : "fest")}) – verkaufen oder abwerfen");
 		// Phase 26: der Traktorstrahl zieht auch Fracht aus Wracks und Frachtbehältern in Reichweite (Core-Regel Wrecks.TakeCargo)
 		if (tractor && !_transition) { SyncPlayerData(); _salvage.Pull(u, ship, true, delta); }
+		_mineFire |= fire;
+		if (fire && aim != null) _mineAim = aim;
+		_mineTractor = tractor;
+	}
 
-		var shown = fire && aim != null ? aim : _mineTarget;
+	/// <summary>Strahldarstellung von Laser/Traktor, Brocken, NPC-Laser, Schüsse und Raketen — einmal je Bild (Echtzeit).</summary>
+	void ShowMining(float delta)
+	{
+		var u = _session.U;
+		var sector = u.Sectors[u.PlayerSector];
+		_hintCooldown = Mathf.Max(0f, _hintCooldown - delta);
+		var shown = _mineFire && _mineAim != null ? _mineAim : _mineTarget;
 		if (shown != null && sector.Asteroids.Contains(shown))
 			_mining.SetTarget(new Vector3(shown.Position.X, 0, shown.Position.Y), shown.Radius);
 		else _mining.SetTarget(null, 0f);
 
 		double time = Time.GetTicksMsec() / 1000.0;
-		_mining.UpdatePlayer(_player.Position, tractor, _chunks.Chunks, time);
+		_mining.UpdatePlayer(_player.Position, _mineTractor, _chunks.Chunks, time);
 		_mining.UpdateNpc(_view.ShipPosition, time);
 		_combat.UpdateBeams(ShipWorld, time);   // Runde 11: auch Schüsse des Spielers (vorher ohne Strahl: der Spieler ist kein Marker)
 		_combat.UpdateMissiles(u);   // Phase 28: Raketen im Flug
