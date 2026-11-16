@@ -654,6 +654,7 @@ public partial class Main : Node3D
 		if (_orbit.Mode == CameraMode.Chase) { _orbit.SnapHeading(_player.Heading); _camOffset = _orbit.Offset(); }   // Runde 44: Rückansicht ohne Schwenk
 		var o = _camOffset;
 		_camFocus = Vector3.Zero;
+		if (PlayerData.AnchorRock == 0) _anchorZoomNow = 1f;   // Runde 43b: harter Schnitt (Teleport, Sitzung) ohne Nachgleiten des Anker-Zooms
 		_cam.Position = _player.Position + new Vector3(o.X, o.Y, o.Z);
 		_cam.LookAt(_player.Position);
 	}
@@ -1318,7 +1319,9 @@ public partial class Main : Node3D
 		long t3 = System.Diagnostics.Stopwatch.GetTimestamp();
 		Profile("labels", t0 - tl); Profile("ships", t1 - t0); Profile("models", t2 - t1); Profile("music", t3 - t2);
 		// Kamera: Ist-Offset folgt weich dem Orbit-Soll-Offset, Kamera sitzt auf Schiff + Offset und blickt auf das Schiff
-		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt)
+		// Runde 43b (Handy-Test: Kamerawinkel springt beim Lösen der Anker): am (verankerten oder eben gelösten) Fels führt der Target-Lock den Yaw nicht nach —
+		// das Ziel liegt dort wenige Meter vor der Schiffsmitte, jede kleine Verschiebung (Entpinnen, Abprallen, Schub) drehte die Kamera stark
+		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt && !LockHeldAtRock())
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
 		if (_orbit.Mode == CameraMode.Chase && _docked == null) _orbit.FollowHeading(_player.Heading, delta);   // Runde 44: Rückansicht hinter dem Bug (auch rückwärts)
 		// Runde 13 (Handy-Test): Gefechtskamera — mit Gefechtsziel bzw. angekündigtem Überfall rahmt sie Schiff und Ziel (Core: CombatFraming), weich, bis 140
@@ -1362,7 +1365,10 @@ public partial class Main : Node3D
 		}
 		if (!_framingActive && NearLargeStationZoom() is var kz and > 1f) want = new CamVec3(want.X * kz, want.Y * kz, want.Z * kz);   // Runde 14: große Stationen
 		// Runde 18 (Handy-Test: Bohrerdrehung kaum zu sehen): verankert rückt die Kamera näher an Bug, Trossen und Werkzeug (manueller Zoom bleibt die Grundlage)
-		if (!_framingActive && _docked == null && PlayerData.AnchorRock != 0) want = new CamVec3(want.X * AnchorZoom, want.Y * AnchorZoom, want.Z * AnchorZoom);
+		// Runde 43b: der Anker-Zoom gleitet weich hinein und wieder heraus (nur der Abstand ändert sich, Yaw/Neigung bleiben)
+		float zoomWant = !_framingActive && _docked == null && PlayerData.AnchorRock != 0 ? AnchorZoom : 1f;
+		_anchorZoomNow = _docked != null ? 1f : Mathf.MoveToward(_anchorZoomNow, zoomWant, delta * (1f - AnchorZoom) / AnchorZoomSeconds);
+		if (!_framingActive && _anchorZoomNow < 1f) want = new CamVec3(want.X * _anchorZoomNow, want.Y * _anchorZoomNow, want.Z * _anchorZoomNow);
 		_camOffset = OrbitCamera.Follow(_camOffset, want, delta, _framingActive ? 3f : 4f);
 		// Runde 15: Blickpunkt zügig zurück (vorher hing das Schiff nach dem Kampf sekundenlang am oberen Rand)
 		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-(_framingActive ? 3f : 5f) * delta));
@@ -2202,6 +2208,26 @@ public partial class Main : Node3D
 	/// </summary>
 	/// <summary>Runde 18: Kamerafaktor während der Verankerung.</summary>
 	internal const float AnchorZoom = 0.7f;
+	/// <summary>Runde 43b: Dauer, in der der Anker-Zoom ganz hinein- bzw. herausgleitet (Sekunden).</summary>
+	internal const float AnchorZoomSeconds = 0.9f;
+	/// <summary>Runde 43b: aktueller Anker-Zoomfaktor (1 = frei, <see cref="AnchorZoom"/> = verankert), weich nachgeführt.</summary>
+	float _anchorZoomNow = 1f;
+	internal float TestAnchorZoomNow => _anchorZoomNow;
+	/// <summary>Runde 43b: Abstand zur Felsoberfläche, unterhalb dessen der Target-Lock einen Fels nicht nachführt.</summary>
+	const float LockRockMargin = 12f;
+	/// <summary>Runde 43b: Fels, von dem sich der Spieler eben gelöst hat (0 = keiner) — bis er sich davon entfernt, hält der Target-Lock Yaw/Neigung.</summary>
+	int _lockHoldRock;
+	/// <summary>Runde 43b: das Lock-Ziel ist der Fels, an dem das Schiff verankert ist oder (eben gelöst) noch liegt — dann behält die Kamera Yaw/Neigung.</summary>
+	bool LockHeldAtRock()
+	{
+		if (_fight.Target.Value != 0 || _mineTarget is not { } r) { _lockHoldRock = 0; return false; }   // Lock-Ziel ist ein Schiff, eine Station oder ein Tor: normal nachführen
+		if (PlayerData.AnchorRock == r.Id) return true;
+		if (_lockHoldRock != r.Id) return false;
+		var p = new Vec2(_player.Position.X, _player.Position.Z);
+		if (Vec2.Distance(p, r.Position) < r.Radius + LockRockMargin) return true;
+		_lockHoldRock = 0;   // vom Fels weggeflogen: der Lock führt wieder nach
+		return false;
+	}
 	bool _anchorAllowed = true;
 	string _anchorBroke = "", _anchorBrokeShort = "";
 	/// <summary>Runde 18: Restzeit (Spielbilder, nicht Uhrzeit) der Rissanzeige an der Werkzeugtaste.</summary>
@@ -2212,6 +2238,7 @@ public partial class Main : Node3D
 	{
 		_anchors.OnReleased(ar);
 		if (ar.Ship != _session.U.PlayerShip) return;
+		_lockHoldRock = ar.Asteroid;   // Runde 43b
 		_anchorBroke = SpaceSim.Core.Mining.MiningAnchor.ReasonText(ar.Reason);
 		_anchorBrokeShort = SpaceSim.Core.Mining.MiningAnchor.ShortReason(ar.Reason);
 		_anchorBrokeLeft = 2.5f;
@@ -3468,6 +3495,10 @@ public partial class Main : Node3D
 	}
 	/// <summary>Aktuelle Kamera-Winkel und -Abstand (Selbsttest).</summary>
 	internal (float Yaw, float Pitch, float Dist) TestCamAngles => (_orbit.YawDeg, _orbit.PitchDeg, _orbit.Distance);
+	/// <summary>Runde 43b: Blickrichtung der Kamera (Welt) — Selbsttest: Winkel vor/nach dem Lösen der Anker.</summary>
+	internal Vector3 TestCamForward => -_cam.GlobalTransform.Basis.Z;
+	/// <summary>Runde 43b: Abbauziel direkt setzen (Selbsttest: Target-Lock auf den verankerten Fels).</summary>
+	internal void TestSetMineTarget(int rockId) => _mineTarget = _session.U.Sectors[_session.U.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == rockId);
 	/// <summary>Aktueller Ist-Offset der Kamera relativ zum Schiff (Selbsttest).</summary>
 	internal Vector3 TestCamOffset => new(_camOffset.X, _camOffset.Y, _camOffset.Z);
 	internal Camera3D TestCam => _cam;
@@ -3476,6 +3507,4 @@ public partial class Main : Node3D
 	internal Vector3? TestGroundPoint(Vector2 screen) => GroundPoint(screen);
 	/// <summary>Welt → Bildschirm: projiziert einen Weltpunkt (Roundtrip-Prüfung mit gedrehter Kamera).</summary>
 	internal Vector2 TestProject(Vector3 world) => _cam.UnprojectPosition(world);
-	/// <summary>Blickrichtung der Kamera (Einheitsvektor); Selbsttest prüft „blickt aufs Schiff“.</summary>
-	internal Vector3 TestCamForward => -_cam.GlobalTransform.Basis.Z;
 }

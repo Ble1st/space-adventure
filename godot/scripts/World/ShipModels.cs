@@ -257,6 +257,40 @@ public sealed class ShipVisual
 		return new Vector3(best.Axis.X + ux / ul * want, best.Axis.Y + uy / ul * want, local.Z);
 	}
 
+	/// <summary>
+	/// Runde 43b („Bohrer beim Bohren etwas in den Asteroiden“): reine Darstellung — während verankert abgebaut wird, rückt das Modell (Root) entlang der
+	/// Bugachse um <see cref="BiteNow"/> nach vorn, die Spitze steckt so im Fels. Tiefe = max(<see cref="BiteMin"/> × Größenmaßstab, <see cref="BiteShare"/> ×
+	/// Bohrradius), weich ein (<see cref="BiteInSeconds"/>) und aus (<see cref="BiteOutSeconds"/>), langsames Vor-/Zurückpulsieren (±<see cref="BitePulse"/>).
+	/// Schiffs- und Core-Position bleiben unverändert (kein Kollisions- oder Hash-Einfluss).
+	/// </summary>
+	public const float BiteShare = 0.32f, BiteMin = 0.3f, BitePulse = 0.12f, BiteInSeconds = 0.8f, BiteOutSeconds = 0.5f, BitePulseSeconds = 1.6f;
+	/// <summary>Runde 43b: größter Bohrerradius in Welteinheiten (Rotor ohne messbares Mesh: <c>contactRadius</c> aus ships.json).</summary>
+	public float DrillRadiusWorld => (DrillAxes.Count > 0 ? DrillAxes.Max(a => a.Radius) : Info.ContactRadius) * Root.Scale.X;
+	/// <summary>Runde 43b: hat das Modell ein Werkzeug, das eindringen kann?</summary>
+	public bool HasDrill => DrillAxes.Count > 0 || Rotors.Count > 0;
+	/// <summary>Runde 43b: volle Eindringtiefe ohne Pulsieren (0 ohne Werkzeug).</summary>
+	public float BiteDepth => !HasDrill ? 0f : MathF.Max(BiteMin * Info.Scale, BiteShare * DrillRadiusWorld);
+	/// <summary>Runde 43b: Einfahrfortschritt 0..1 (linear; angezeigt geglättet).</summary>
+	public float BiteShown { get; private set; }
+	/// <summary>Runde 43b: aktuelle Eindringtiefe in Welteinheiten (Verschiebung des Modells nach vorn).</summary>
+	public float BiteNow { get; private set; }
+	float _bitePhase;
+
+	/// <summary>Runde 43b: Eindringen je Bild weiterführen (<paramref name="drilling"/> = Anker halten und Abbau läuft).</summary>
+	public void AnimateBite(bool drilling, float delta)
+	{
+		if (!HasDrill) { BiteShown = 0f; BiteNow = 0f; return; }
+		BiteShown = Mathf.MoveToward(BiteShown, drilling ? 1f : 0f, delta / (drilling ? BiteInSeconds : BiteOutSeconds));
+		_bitePhase = BiteShown > 0f ? _bitePhase + delta : 0f;
+		float s = BiteShown * BiteShown * (3f - 2f * BiteShown);
+		float pulse = 1f + BitePulse * MathF.Sin(_bitePhase * MathF.Tau / BitePulseSeconds);
+		BiteNow = BiteDepth * s * pulse;
+		Root.Position = new Vector3(0f, 0f, -BiteNow);
+	}
+
+	/// <summary>Runde 43b: sofort ganz heraus (Sektorwechsel, neue Sitzung).</summary>
+	public void ResetBite() { BiteShown = 0f; BiteNow = 0f; _bitePhase = 0f; Root.Position = Vector3.Zero; }
+
 	/// <summary>Runde 43: Werkzeugspitze in Weltkoordinaten (Selbsttest: Abstand Spitze↔Felsoberfläche).</summary>
 	public Vector3 TipWorld() => Root.GlobalTransform * TipLocal;
 

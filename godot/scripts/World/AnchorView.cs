@@ -35,6 +35,9 @@ public partial class AnchorView : Node3D
 	const float SnapSeconds = 0.35f, TetherRadius = 0.08f;
 	readonly Dictionary<ShipId, Entry> _live = new();
 	readonly List<Entry> _snapping = new();
+	// Runde 43b: Modelle, deren Bohrer gerade im Fels steckt oder herausfährt (reine Ansicht)
+	readonly HashSet<ShipVisual> _biting = new();
+	readonly HashSet<ShipVisual> _bitTouched = new();
 	readonly Stack<Tether> _tetherPool = new();
 	readonly Stack<(CpuParticles3D Plume, CpuParticles3D Puff, CpuParticles3D Chunks)> _fxPool = new();
 	static StandardMaterial3D? _lineMat, _headMat, _plumeMat, _puffMat, _chunkMat;
@@ -68,6 +71,8 @@ public partial class AnchorView : Node3D
 	{
 		foreach (var e in _live.Values.Concat(_snapping).ToList()) Recycle(e);
 		_live.Clear(); _snapping.Clear();
+		foreach (var v in _biting) if (GodotObject.IsInstanceValid(v.Root)) v.ResetBite();
+		_biting.Clear();
 	}
 
 	/// <summary>Core meldet Lösen/Reißen: die Trossen schnappen zurück.</summary>
@@ -86,6 +91,7 @@ public partial class AnchorView : Node3D
 	{
 		var sector = u.Sectors[u.PlayerSector];
 		var seen = new HashSet<ShipId>();
+		_bitTouched.Clear();
 		foreach (var id in u.Tracker.ParkedIn(u.PlayerSector).Append(u.PlayerShip).Distinct())
 		{
 			if (!u.Ships.TryGetValue(id, out var ship) || ship.AnchorRock == 0 || ship.Sector != u.PlayerSector || ship.Transit is not null) continue;
@@ -120,11 +126,29 @@ public partial class AnchorView : Node3D
 			}
 			if (k >= 1f) { _snapping.RemoveAt(i); Recycle(e); }
 		}
+		// Runde 43b: Bohrer ohne laufenden Abbau fahren weich wieder heraus
+		foreach (var v in _biting.ToList())
+		{
+			if (!GodotObject.IsInstanceValid(v.Root)) { _biting.Remove(v); continue; }
+			if (_bitTouched.Contains(v)) continue;
+			v.AnimateBite(false, delta);
+			if (v.BiteShown <= 0f) _biting.Remove(v);
+		}
 	}
 
 	void UpdateEntry(Universe u, Entry e, Ship ship, Asteroid rock, (ShipVisual? Visual, Node3D Body) body, float delta)
 	{
 		var center = new Vector3(rock.Position.X, 0f, rock.Position.Y);
+		var state = MiningAnchor.State(u, ship);
+		float want = state == AnchorState.Held ? 1f : Mathf.Clamp(ship.AnchorProgress / Mathf.Max(1, u.Rules.AnchorTicks) * 1.4f, 0f, 1f);
+		e.Shown = Mathf.MoveToward(e.Shown, want, delta * 2.5f);
+		bool mining = state == AnchorState.Held && e.Shown >= 0.99f;
+		// Runde 43b: Anker halten und Abbau läuft → Bohrer fährt sichtbar etwas in den Fels (Modell nach vorn, Schiffsposition unverändert)
+		if (body.Visual is { } bv)
+		{
+			bv.AnimateBite(mining, delta);
+			_biting.Add(bv); _bitTouched.Add(bv);
+		}
 		e.Muzzles = Muzzles(body.Visual, body.Body, e.Tethers.Count);
 		if (e.Impacts.Length != e.Tethers.Count) e.Impacts = new Vector3[e.Tethers.Count];
 		for (int t = 0; t < e.Tethers.Count; t++)
@@ -132,12 +156,8 @@ public partial class AnchorView : Node3D
 			var d = e.Muzzles[t] - center;
 			e.Impacts[t] = center + (d.LengthSquared() < 1e-4f ? Vector3.Back : d.Normalized()) * rock.Radius * 0.92f;
 		}
-		var state = MiningAnchor.State(u, ship);
-		float want = state == AnchorState.Held ? 1f : Mathf.Clamp(ship.AnchorProgress / Mathf.Max(1, u.Rules.AnchorTicks) * 1.4f, 0f, 1f);
-		e.Shown = Mathf.MoveToward(e.Shown, want, delta * 2.5f);
 		for (int t = 0; t < e.Tethers.Count; t++) Place(e.Tethers[t], e.Muzzles[t], e.Muzzles[t].Lerp(e.Impacts[t], e.Shown));
 		// Abbau: Abraumfahne am Kontaktpunkt (nach hinten-seitlich weg vom Schiff), Stöße der Manövrierdüsen gegen die Werkzeugdrehung
-		bool mining = state == AnchorState.Held && e.Shown >= 0.99f;
 		var shipPos = body.Body.GlobalPosition;
 		var toShip = (shipPos - center); toShip.Y = 0f;
 		var n = toShip.LengthSquared() < 1e-4f ? Vector3.Back : toShip.Normalized();
