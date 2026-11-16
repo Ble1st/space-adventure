@@ -118,9 +118,12 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		float oy = WrappedText(card, $"{owner} · {pol.Stage}{(isPlayer ? " · du hier" : "")}", 16, 44, 268, 15, ownerCol, 20);
 		if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · Stationen {s.Stations.Count} · Schiffe {ships}", 13, White), 16, oy + 2, 268, 20);
 		else At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, oy + 2, 268, 20);
+		// Runde 44: Größe des Sektors und Flugzeit dorthin (echte Spielerflugzeit, gecacht)
+		TestSizeLine = SizeLine(u, s);
+		At(card, Text(TestSizeLine, 13, new Color(Cyan, 0.9f)), 16, oy + 22, 268, 18);
 		// Phase 10: Sperre und Einfluss (echt)
 		Color lockCol = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
-		float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, oy + 26, 268, 13, lockCol, 16);
+		float py = WrappedText(card, $"Sperre: {pol.Lock}", 16, oy + 42, 268, 13, lockCol, 16);
 		py = WrappedText(card, $"Für dich: {pol.ForPlayer}", 16, py, 268, 13, lockCol, 16);
 		py = WrappedText(card, $"Einfluss: {pol.Influence}", 16, py + 2, 268, 12, new Color(Dim, 0.9f), 16);
 		// Phase 11: Lagekarte und deine Fahndung beim Besitzer (echt)
@@ -446,6 +449,23 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			var closed = new List<Vector2>(pts) { pts[0] };
 			DrawPolyline(closed.ToArray(), col, 1.5f, true);
 		}
+	}
+
+	/// <summary>Runde 44: Zeile „Ø 2,3 km · Flug ~1:40 min“ der Sektorkarte (Selbsttest/ui-check).</summary>
+	public string TestSizeLine { get; private set; } = "";
+
+	/// <summary>
+	/// Runde 44: Durchmesser des Sektors (2 × Ausdehnung) und — für einen anderen Sektor — die echte Flugzeit des Spielers bis zur ersten
+	/// andockbaren Station dort (sonst zum Mittelpunkt); <see cref="SpaceSim.Core.Missions.MissionRules.TripSeconds"/> rechnet sie wie die Missionsfristen und cacht sie.
+	/// </summary>
+	static string SizeLine(SpaceSim.Core.Model.Universe u, SpaceSim.Core.Model.Sector s)
+	{
+		string size = "Ø " + SpaceSim.Core.Flight.DistanceText.Format(2f * s.Extent);
+		if (s.Id == u.PlayerSector || !u.Ships.TryGetValue(u.PlayerShip, out var me)) return size;
+		var dock = s.Stations.Select(id => u.Stations[id]).Where(st => st.Dockable).OrderBy(st => st.Id.Value).FirstOrDefault();
+		var to = dock?.DockPoint(me.Id) ?? default;
+		float sec = SpaceSim.Core.Missions.MissionRules.TripSeconds(u, me.Sector, me.Position, s.Id, to, me);
+		return float.IsInfinity(sec) || float.IsNaN(sec) ? size : $"{size} · Flug {SpaceSim.Core.Flight.PlayerTrip.Text(sec)}";
 	}
 
 	/// <summary>Selbsttest: Planet in der zuletzt gezeichneten Sektor-Detailkarte (Phase 14; leer ohne Planet).</summary>

@@ -69,7 +69,10 @@ public sealed class EscortMission : IMissionType
         var pick = cands[MissionRng.NextInt(rng, cands.Count)];
         if (!u.Actors.TryGetValue(st.Owner, out var client)) return null;
         float cargo = ThreatMap.CargoValue(u, pick);
-        float reward = MathF.Round(MathF.Min(r.MissionEscortMaxReward, r.MissionEscortBaseReward + cargo * r.MissionEscortCargoShare));
+        float reward = MathF.Min(r.MissionEscortMaxReward, r.MissionEscortBaseReward + cargo * r.MissionEscortCargoShare);
+        if (r.MissionEscortRewardPerMinute > 0f)   // Runde 44: nach der Restflugdauer des Schützlings
+            reward += r.MissionEscortRewardPerMinute * MathF.Max(0f, pick.Transit!.ArrivalTick - u.Tick) / (60f * SimClock.TicksPerSecond);
+        reward = MathF.Round(reward);
         if (MissionRules.SpentToday(u, st.Owner.Value) + reward > MissionRules.BudgetOf(u, client) + 0.0001f) return null;
         if (FactionViability.Spendable(u, client) < reward - 0.0001f) return null;
         var o = new MissionOffer { Type = KeyId, Reward = reward };

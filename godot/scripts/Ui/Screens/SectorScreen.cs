@@ -369,6 +369,28 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		float Stretch => Fit().Stretch;
 		internal (float CircleBottom, float LegendTop) TestLegendGap => (MathF.Min(MapOrigin.Y + (_u?.Sectors[_owner.Selected].Radius ?? 0f) * ContentScale(), MapRect.End.Y - 2f) + 1f, Size.Y - 44f - 13f);
 
+		/// <summary>Runde 44: Maßstabsleiste unten links in der Kartenfläche (waagrechter Maßstab, also mit der Streckung) — „500 m“, „1 km“.</summary>
+		void DrawScaleBar(Font font, SpaceAdventure.Ui.Kit.LabelLayout layout, float pxPerMeter)
+		{
+			float len = SpaceSim.Core.Flight.DistanceText.NiceLength(pxPerMeter, 150f);
+			if (len <= 0f) return;
+			float px = len * pxPerMeter;
+			var a = new Vector2(16f, MapRect.End.Y - 14f);
+			var b = a + new Vector2(px, 0f);
+			var col = new Color(White, 0.8f);
+			DrawLine(a, b, col, 2f);
+			DrawLine(a + new Vector2(0, -5), a + new Vector2(0, 5), col, 2f);
+			DrawLine(b + new Vector2(0, -5), b + new Vector2(0, 5), col, 2f);
+			string text = SpaceSim.Core.Flight.DistanceText.Format(len);
+			SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 903, font, new Vector2(b.X + 8f, a.Y + 5f), text, 13, 90f, col);
+			ScaleBarText = text;
+			ScaleBarPixels = px;
+			layout.Reserve(new Rect2(a - new Vector2(4f, 14f), new Vector2(px + 110f, 24f)));
+		}
+		/// <summary>Runde 44 (Selbsttest/ui-check): Beschriftung und Länge der Maßstabsleiste.</summary>
+		internal string ScaleBarText = "";
+		internal float ScaleBarPixels;
+
 		/// <summary>Runde 37: Kreis nur so weit zeichnen, wie er in der Kartenfläche liegt (der Sektorrand ist oft größer als die Fläche).</summary>
 		void DrawClippedCircle(Vector2 c, float r, Color col, float width, float sx = 1f)
 		{
@@ -424,6 +446,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			DrawClippedCircle(o, edge, new Color(Edge, 0.6f), 2f, Stretch);
 			DrawClippedCircle(o, edge * 0.66f, new Color(1, 1, 1, 0.05f), 1f, Stretch);
 			DrawClippedCircle(o, edge * 0.33f, new Color(1, 1, 1, 0.05f), 1f, Stretch);
+			DrawScaleBar(font, layout, scale * Stretch);
 
 			// Rohstoffgürtel (Label unterhalb des Gürtels, damit es die Stationsnamen nicht verdeckt)
 			foreach (var f in s.Fields)
@@ -626,6 +649,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	public string TestCombat { get; private set; } = "";
 	/// <summary>Runde 21: unterer Kreisrand und Oberkante der Legende der Draufsicht (Selbsttest: kein Überlappen).</summary>
 	public (float CircleBottom, float LegendTop) TestLegendGap => _map is null || !GodotObject.IsInstanceValid(_map) ? (0f, 1f) : _map.TestLegendGap;
+	/// <summary>Runde 44: Maßstabsleiste der Draufsicht (Text, Länge in Bildpunkten).</summary>
+	public (string Text, float Px) TestScaleBar => _map is null || !GodotObject.IsInstanceValid(_map) ? ("", 0f) : (_map.ScaleBarText, _map.ScaleBarPixels);
 	/// <summary>Phase 26: gezeichnete Wracks/Behälter (aufsummiert über die Zeichendurchläufe; Selbsttest prüft &gt; 0).</summary>
 	public static int TestWrecks;
 }

@@ -808,7 +808,12 @@ public partial class Hud : CanvasLayer
 				// Runde 35c (Prüfwerkzeug: Randbeschriftungen nach 20 Zeichen abgeschnitten): ohne Besitzerkürzel (der Pfeil zeigt nur die Richtung), mit der
 				// Schrift eingepasst — erst kleiner bis zur Untergrenze, dann „…“
 				string bare = System.Text.RegularExpressions.Regex.Replace(name, @"^\[[A-Z]{2,4}\]\s*", "");
-				var (label, lfs) = UiKit.FitText(this, font, bare, 13, 190f);
+				// Runde 44: die Entfernung („ · 1,2 km“) bleibt immer sichtbar — gekürzt wird nur der Name davor
+				int dk = bare.LastIndexOf(" · ", StringComparison.Ordinal);
+				string distPart = dk >= 0 ? bare[dk..] : "";
+				float dw = distPart.Length > 0 ? font.GetStringSize(distPart, HorizontalAlignment.Left, -1, 13).X : 0f;
+				var (namePart, lfs) = UiKit.FitText(this, font, dk >= 0 ? bare[..dk] : bare, 13, 190f - dw);
+				string label = namePart + distPart;
 				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
 				var lp = tip - dir * 30f - new Vector2(w / 2f, -4f);
 				// HUD-Neu: rechts reicht das freie Feld bis an den Bildrand — den Namen in die sichere Fläche schieben (lief rechts aus dem Bild)

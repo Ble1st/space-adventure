@@ -111,7 +111,9 @@ public partial class UiCheck : Node
 		void Add(string n, Action a, int wait = 12) => _plan.Add((n, a, wait));
 		Add("flug-normal", () => { _m.TestMenu("new:trader"); }, 60);
 		if (!NoFlight) Add("hamburger-menue", () => _m.TestOpenCommand(), 10);
-		if (!NoFlight) Add("meldung-toast", () => { _m.TestCommand("close"); _m.HudRef.Alert("Prüfmeldung: Überfall angekündigt — andocken oder Sektor verlassen. Dritte Zeile zum Messen.", 30f); _m.HudRef.Toast("Prüftoast: Ware verkauft, 10 × 21,3 = 213 Cr", 30f); }, 10);
+		// Runde 44: Menü mit Rückansicht (Modus-Taste aktiv, Zeile „Höhe − / +“)
+		if (!NoFlight) Add("menue-kamera-rueck", () => _m.TestCameraAction("cam_chase"), 10);
+		if (!NoFlight) Add("meldung-toast", () => { _m.TestCameraAction("cam_free"); _m.TestCommand("close"); _m.HudRef.Alert("Prüfmeldung: Überfall angekündigt — andocken oder Sektor verlassen. Dritte Zeile zum Messen.", 30f); _m.HudRef.Toast("Prüftoast: Ware verkauft, 10 × 21,3 = 213 Cr", 30f); }, 10);
 		if (!FlightOnly)
 		{
 			Add("sternenkarte", () => { _m.HudRef.HideAlert(); _m.TestCommand("map"); }, 12);

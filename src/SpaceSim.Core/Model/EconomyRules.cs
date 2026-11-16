@@ -864,6 +864,11 @@ public sealed class EconomyRules
     /// </summary>
     public float RaidReach = 0f;
     /// <summary>
+    /// Runde 44: Wunschbestand der Rezeptwaren einer Station (Ein- und Ausgänge ohne eigenen <c>stocks</c>-Eintrag); Startbestand die Hälfte.
+    /// Standard 100 (bis Runde 43 fest). Größere Werte puffern die längeren Fahrten der vergrößerten Sektoren.
+    /// </summary>
+    public float RecipeStockTarget = 100f;
+    /// <summary>
     /// Runde 44: Polizeihilfe bei Überfällen und Festnahme-Warnung nur von Streifen in dieser Entfernung (0 = ganzer Sektor). Bei der Warnung an den
     /// Spieler fliegt die Streife wirklich heran (wie der Kaperer).
     /// </summary>
@@ -1163,6 +1168,13 @@ public sealed class EconomyRules
     public float MissionTransportBaseReward = 200f;
     /// <summary>Transport: Belohnung je Gate-Sprung der Strecke.</summary>
     public float MissionTransportRewardPerHop = 50f;
+    /// <summary>
+    /// Runde 44: Transport, Patrouille, Eskorte — zusätzliche Belohnung je geschätzter Flugminute (Spielerflugzeit bei ×1). In vergrößerten Sektoren
+    /// dauern Aufträge mehrere Minuten; ohne diesen Anteil sänke der Ertrag je Minute auf ein Viertel. Standard 0 (bis Runde 43).
+    /// </summary>
+    public float MissionTransportRewardPerMinute = 0f;
+    public float MissionPatrolRewardPerMinute = 0f;
+    public float MissionEscortRewardPerMinute = 0f;
 
     // ── Runde 42: Aufträge Kopfgeldjagd, Eskorte, Patrouille ──
     /// <summary>Kopfgeldjagd: Mindest-Belohnung (Cr) aus der Fraktionskasse, wenn auf das Ziel kein höheres Kopfgeld steht.</summary>

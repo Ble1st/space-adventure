@@ -85,6 +85,20 @@ public partial class SectorView : Node3D
 
 	/// <summary>Phase 14: Kulissen-Planet des Sektors (nur Darstellung, keine Kollision); null ohne Planet.</summary>
 	public MeshInstance3D? PlanetNode { get; private set; }
+	/// <summary>Runde 44: Lage des Planeten relativ zur Kamera-Bodenposition (er folgt der Kamera mit Parallaxe, <see cref="FollowBackdrop"/>).</summary>
+	public Vector3 PlanetBase { get; private set; }
+	/// <summary>Runde 44: Anteil, mit dem der Planet der Kamera folgt (1 = steht fest im Bild, 0 = steht fest in der Welt).</summary>
+	public const float PlanetParallax = 0.92f;
+
+	/// <summary>
+	/// Runde 44 (größere Sektoren): der Kulissen-Planet folgt der Kamera fast ganz (Parallaxe) — sonst läge er in einem Sektor von mehreren Kilometern
+	/// nur nahe dem Ursprung im Bild.
+	/// </summary>
+	public void FollowBackdrop(Vector3 cam)
+	{
+		if (PlanetNode is null) return;
+		PlanetNode.Position = PlanetBase + new Vector3(cam.X, 0f, cam.Z) * PlanetParallax;
+	}
 
 	/// <summary>
 	/// Phase 14: große Kugel weit unterhalb der Spielfläche (Ebene y = 0) als Kulisse — sie liegt nie zwischen Kamera und Schiff, gehört nicht zu den
@@ -100,7 +114,8 @@ public partial class SectorView : Node3D
 		var mat = Gfx.Mat(color, 0.05f, 0f);
 		mat.Roughness = 1f;
 		var mesh = new SphereMesh { Radius = p.Radius, Height = p.Radius * 2f, RadialSegments = 48, Rings = 24 };
-		PlanetNode = Gfx.Mesh(mesh, mat, new Vector3(-p.Radius * 0.8f, -(p.Radius + 1300f), -(p.Radius + 1700f)), _root!);
+		PlanetBase = new Vector3(-p.Radius * 0.8f, -(p.Radius + 1300f), -(p.Radius + 1700f));
+		PlanetNode = Gfx.Mesh(mesh, mat, PlanetBase, _root!);
 		PlanetNode.Name = "Planet";
 		PlanetNode.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 	}

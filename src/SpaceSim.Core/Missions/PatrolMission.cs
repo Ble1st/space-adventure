@@ -78,7 +78,14 @@ public sealed class PatrolMission : IMissionType
         }
         if (wps.Count < r.PatrolWaypointsMin) return null;
         if (!u.Actors.TryGetValue(st.Owner, out var client)) return null;
-        float reward = MathF.Round(r.MissionPatrolBaseReward + wps.Count * r.MissionPatrolRewardPerWaypoint);
+        float reward = r.MissionPatrolBaseReward + wps.Count * r.MissionPatrolRewardPerWaypoint;
+        if (r.MissionPatrolRewardPerMinute > 0f)   // Runde 44: je geschätzter Flugminute (Station → Wegpunkte der Reihe nach)
+        {
+            long ticks = 0; var (fs, fp) = (st.Sector, st.DockPoint(default));
+            foreach (var (ws, wp) in wps) { ticks += MissionRules.TripTicks(u, fs, fp, ws, wp, null); (fs, fp) = (ws, wp); }
+            reward += r.MissionPatrolRewardPerMinute * ticks / (60f * SimClock.TicksPerSecond);
+        }
+        reward = MathF.Round(reward);
         if (MissionRules.SpentToday(u, st.Owner.Value) + reward > MissionRules.BudgetOf(u, client) + 0.0001f) return null;
         if (FactionViability.Spendable(u, client) < reward - 0.0001f) return null;
         var o = new MissionOffer { Type = KeyId, Reward = reward };

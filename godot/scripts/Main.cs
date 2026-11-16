@@ -1223,6 +1223,12 @@ public partial class Main : Node3D
 			_hud.Toast($"Willkommen zurück – {result.TicksRun / SimClock.TicksPerSecond / 60} Min Spielzeit nachgeholt{(result.Capped ? " (gedeckelt)" : "")}", 4f);
 	}
 
+	/// <summary>Runde 44: Zeitraffer-Faktor und Teilschritt des eigenen Autopilot-Flugs.</summary>
+	const float WarpFactor = 10f, WarpSubstep = 1f / 30f;
+	int _lastFlightSteps = 1;
+	/// <summary>Selbsttest: Zahl der Flug-Teilschritte im letzten Bild (1 = Echtzeit).</summary>
+	internal int TestFlightSteps => _lastFlightSteps;
+
 	public override void _Process(double deltaD)
 	{
 		if (_catchUp is { } catchUp) { StepCatchUp(catchUp); return; }
@@ -1253,7 +1259,17 @@ public partial class Main : Node3D
 			? _miner.Step(_session.U, _chunks, PlayerData, new Vec2(_player.Position.X, _player.Position.Z))
 			: null;
 		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
-		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(delta);
+		// Runde 44 (größere Sektoren): Zeitraffer auch für den eigenen Flug, aber nur mit Autopilot — der Flug läuft dann in Teilschritten (≤ 1/30 s,
+		// Kollision und Tore je Teilschritt), so schnell wie die Simulation (×10). Gefahr, Warnung und Andocken schalten den Zeitraffer wie bisher ab.
+		bool warpFlight = _fast && _autopilot && !frozen && !_miner.Enabled && !_transition;
+		int flightSteps = warpFlight ? Mathf.Clamp(Mathf.CeilToInt(delta * WarpFactor / WarpSubstep), 1, 40) : 1;
+		float flightDt = warpFlight ? delta * WarpFactor / flightSteps : delta;
+		_lastFlightSteps = flightSteps;
+		for (int fs = 0; fs < flightSteps; fs++)
+		{
+		if (fs > 0 && (_docked != null || _transition || !_autopilot || !_fast || _reenter)) break;   // angedockt, Sprung-Übergang oder Autopilot aus: Rest verfällt
+		if (fs > 0) delta = flightDt;
+		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(warpFlight ? flightDt : delta);
 		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — ohne Wendetaste, ohne Autopilot/Auto-Mining dreht die Nase mit der Drehrate des Schiffs zum gewählten Feind
 		// (Core-Regel AimAssist.Turn); Schub bleibt beim Regler und zeigt dann in die neue Blickrichtung
 		if (!frozen && turn == 0f && _aimAssist && !_autopilot && !_miner.Enabled && AimTarget() is { } aimAt)
@@ -1270,7 +1286,7 @@ public partial class Main : Node3D
 		AnchorPin(throttle, turn, frozen);   // Phase 32: Verankerung hält das Schiff am Fels, Schub/Wenden reißt sie
 		// Phase 23: Stellung „Antrieb“ hebt das Höchsttempo (Core-Regel ShipSystems.SpeedFactor)
 		float engine = SpaceSim.Core.Combat.ShipSystems.SpeedFactor(_session.U, PlayerData);
-		_player.Step(delta, turn, dir, throttle, speedScale * fuelCap * engine, _view, brake: hold);
+		_player.Step(warpFlight ? flightDt : delta, turn, dir, throttle, speedScale * fuelCap * engine, _view, brake: hold);
 		if (!_player.Locked)
 		{
 			PlayerFuel.ConsumeFlown(_session.U, PlayerData, new Vector2(_player.Position.X - before.X, _player.Position.Z - before.Z).Length());
@@ -1280,6 +1296,8 @@ public partial class Main : Node3D
 		_sfx.SetThrust(_player.Thrusting ? Mathf.Clamp(Mathf.Abs(throttle), 0.3f, 1f) : 0f);
 
 		if (!frozen) CheckGates();
+		}
+		delta = (float)deltaD;
 		UpdateMining(delta, frozen);
 		SyncPlayerData();
 		// Runde 17: im Gefecht und in der Warnphase nur wenige Stations-Randpfeile
@@ -1351,6 +1369,7 @@ public partial class Main : Node3D
 		var co = _camOffset;
 		_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
 		_cam.LookAt(_player.Position + _camFocus);
+		FollowBackdrop();   // Runde 44: Sterne kacheln mit, Planet mit Parallaxe
 		// Runde 15: das eigene Schiff verlässt nie das freie Feld — liegt es (im Übergang) außerhalb, rückt der Blickpunkt sofort zum Schiff
 		// Runde 33b: nur wenn die Bildmitte selbst frei ist — im Kompakt-HUD (Mitte unter Kampftasten) zog das Zurückziehen das Schiff genau unter die Tasten
 		var gf = FramingField();
@@ -2001,7 +2020,8 @@ public partial class Main : Node3D
 			var w = new Vector3(st.Position.X, 0, st.Position.Y);
 			var p = _cam.UnprojectPosition(w);
 			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
-			list.Add((p, ActorNames.Tagged(u, st.Owner, st.Name), st.Id.Value));   // Phase 29: Kürzel
+			// Runde 44: Entfernung am Pfeil (in vergrößerten Sektoren liegt fast alles außerhalb des Bildes)
+			list.Add((p, ActorNames.Tagged(u, st.Owner, st.Name) + " · " + SpaceSim.Core.Flight.DistanceText.Format(MathF.Max(0f, Vec2.Distance(st.Position, me) - st.Radius)), st.Id.Value));   // Phase 29: Kürzel
 		}
 		return list;
 	}
@@ -2948,6 +2968,22 @@ public partial class Main : Node3D
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-25, 210, 0), LightEnergy = 0.45f, LightColor = new Color(0.7f, 0.8f, 1f), ShadowEnabled = false });
 	}
 
+	/// <summary>Runde 44: Kantenlänge einer Sternkachel; 3 × 3 Kacheln folgen der Kamera auf diesem Raster (das Muster wiederholt sich lückenlos).</summary>
+	const float StarTile = 800f;
+	readonly List<MultiMeshInstance3D> _starTiles = new();
+
+	/// <summary>Runde 44 (größere Sektoren): Sterne kacheln mit der Kamera mit, der Planet folgt mit Parallaxe; Sichtweite aus der Ausdehnung.</summary>
+	void FollowBackdrop()
+	{
+		var c = _cam.Position;
+		float cx = Mathf.Round(c.X / StarTile) * StarTile, cz = Mathf.Round(c.Z / StarTile) * StarTile;
+		for (int i = 0; i < _starTiles.Count; i++)
+			_starTiles[i].Position = new Vector3(cx + (i % 3 - 1) * StarTile, 0f, cz + (i / 3 - 1) * StarTile);
+		_view.FollowBackdrop(c);
+		if (_session != null && _session.U.Sectors.TryGetValue(_session.U.PlayerSector, out var sec))
+			_cam.Far = Mathf.Max(4000f, sec.Extent * 2f + 1500f);
+	}
+
 	void BuildStars()
 	{
 		var mm = new MultiMesh
@@ -2961,9 +2997,15 @@ public partial class Main : Node3D
 		{
 			float s = rng.RandfRange(0.4f, 1.6f);
 			mm.SetInstanceTransform(i, new Transform3D(Basis.Identity.Scaled(new Vector3(s, s, s)),
-				new Vector3(rng.RandfRange(-400, 400), rng.RandfRange(-40, -8), rng.RandfRange(-400, 400))));
+				new Vector3(rng.RandfRange(-StarTile / 2f, StarTile / 2f), rng.RandfRange(-40, -8), rng.RandfRange(-StarTile / 2f, StarTile / 2f))));
 		}
-		AddChild(new MultiMeshInstance3D { Multimesh = mm, MaterialOverride = Gfx.Mat(new Color(0.9f, 0.95f, 1f), 2f) });
+		var starMat = Gfx.Mat(new Color(0.9f, 0.95f, 1f), 2f);
+		for (int i = 0; i < 9; i++)   // Runde 44: 3 × 3 Kacheln derselben Sterne (gemeinsames MultiMesh)
+		{
+			var tile = new MultiMeshInstance3D { Multimesh = mm, MaterialOverride = starMat, Name = "Sterne" + i };
+			AddChild(tile);
+			_starTiles.Add(tile);
+		}
 	}
 
 	// ───────── Abbau ─────────

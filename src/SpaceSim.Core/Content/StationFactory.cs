@@ -51,10 +51,12 @@ public static class StationFactory
                 Inputs = new Dictionary<GoodId, float>(r.Inputs),
                 Outputs = new Dictionary<GoodId, float>(r.Outputs),
             });
+            // Runde 44: Wunschbestand der Rezeptwaren aus der Regel (Lagerpuffer für längere Fahrten in vergrößerten Sektoren; Standard 100 = wie bisher)
+            float target = u.Rules.RecipeStockTarget > 0f ? u.Rules.RecipeStockTarget : DefaultTarget;
             foreach (var g in r.Inputs.Keys.Concat(r.Outputs.Keys))
             {
                 var e = st.Stock(g);
-                if (e.Amount == 0 && e.Target == 100f) { e.Amount = DefaultStock; e.Target = DefaultTarget; }
+                if (e.Amount == 0 && e.Target == 100f) { e.Amount = target * (DefaultStock / DefaultTarget); e.Target = target; }
             }
         }
         // Phase 5a: Lager ohne Rezept (stocks) — zusätzliche Markteinträge; für Rezeptwaren Anfangs-/Wunschbestand des Typs

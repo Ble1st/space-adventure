@@ -32,7 +32,10 @@ public sealed class TransportMission : IMissionType
         var target = targets[MissionRng.NextInt(rng, targets.Count)];
         float volume = r.MissionTransportUnits;
         int hops = Math.Max(1, u.Hops(st.Sector, target.Sector));
-        float reward = MathF.Round(r.MissionTransportBaseReward + hops * r.MissionTransportRewardPerHop);
+        float reward = r.MissionTransportBaseReward + hops * r.MissionTransportRewardPerHop;
+        if (r.MissionTransportRewardPerMinute > 0f)   // Runde 44: je geschätzter Flugminute
+            reward += r.MissionTransportRewardPerMinute * MissionRules.TripTicks(u, st.Sector, st.DockPoint(default), target.Sector, target.DockPoint(default), null) / (60f * SimClock.TicksPerSecond);
+        reward = MathF.Round(reward);
         if (!u.Actors.TryGetValue(st.Owner, out var a)) return null;
         if (MissionRules.SpentToday(u, st.Owner.Value) + reward > MissionRules.BudgetOf(u, a) + 0.0001f) return null;
         if (FactionViability.Spendable(u, a) < reward - 0.0001f) return null;
