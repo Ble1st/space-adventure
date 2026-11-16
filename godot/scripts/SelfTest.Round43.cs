@@ -5,12 +5,13 @@ using SpaceAdventure.World;
 using SpaceSim.Core.Mining;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
+using SpaceSim.Core.Weapons;
 
 namespace SpaceAdventure;
 
 /// <summary>
 /// Selbsttest-Stufe 122 (Runde 43, Bergbau-Darstellung): (1) Für <b>jedes</b> Modell mit Kontaktwerkzeug steht beim Abbau die
-/// Bohrerspitze an der Felsoberfläche (Abstand Spitze↔Oberfläche ≤ 0,5) — beim Spieler (verankert, Pin mit Spitzenabstand)
+/// Bohrerspitze an der Felsoberfläche und dringt beim Abbau sichtbar etwas ein (Runde 43b: Eindringtiefe im erwarteten Band, nach dem Lösen wieder außen) — beim Spieler (verankert, Pin mit Spitzenabstand)
 /// und beim NPC-Schürfer (Marker wird mit der Spitze auf die Oberfläche gesetzt und zum Fels ausgerichtet). (2) Anker: die Trossen
 /// starten außerhalb des Bohrerbereichs (Flanken), treffen die Oberfläche seitlich des Bohrpunkts und sind kurz (&lt; 2× Schiffsradius).
 /// (3) Abbauende NPC-Miner stehen am Fels (nicht am Feld-Arbeitspunkt). (4) Leer abgebauter Fels zerbricht sichtbar (Trümmer ~2 s).
@@ -24,6 +25,12 @@ public partial class SelfTest
 	bool _r43NpcMade;
 	Vec2 _r43NpcStart, _r43NpcLast;
 	float _r43NpcMaxStep;
+	/// <summary>Runde 43b: Bilder je Modell (Spieler: Kontakt, volle Eindringtiefe, Lösen; NPC: Anflug, Eindringtiefe, Lösen).</summary>
+	const int R43Cycle = 320;
+
+	/// <summary>Runde 43b: liegt die Eindringtiefe (−Abstand) im erwarteten Band der vollen Tiefe (mit Pulsieren)?</summary>
+	static bool R43BiteOk(ShipVisual vis, float gap) =>
+		vis.BiteShown >= 0.99f && -gap >= vis.BiteDepth * (1f - ShipVisual.BitePulse) - 0.12f && -gap <= vis.BiteDepth * (1f + ShipVisual.BitePulse) + 0.12f && gap < -0.2f;
 
 	Asteroid R43Rock(int id) => _m.Session.U.Sectors[_m.Session.U.PlayerSector].Asteroids.First(a => a.Id == id);
 
@@ -131,11 +138,11 @@ public partial class SelfTest
 		// Modellesung: Spieler und NPC je Modell
 		if (f > 95)
 		{
-			int mi = (f - 96) / 200;
+			int mi = (f - 96) / R43Cycle;
 			if (mi >= _r43Models.Count)
 			{
 				// Zerbrechen eines leer abgebauten Felsens
-				int bf = f - 96 - 200 * _r43Models.Count;
+				int bf = f - 96 - R43Cycle * _r43Models.Count;
 				if (bf == 1)
 				{
 					var rock3 = sector.Asteroids.First(a => a.Minable && a.Id != _r43Rock && a.Id != _r43RockNpc);
@@ -152,7 +159,7 @@ public partial class SelfTest
 				}
 				return false;
 			}
-			int ph = (f - 96) % 200;
+			int ph = (f - 96) % R43Cycle;
 			if (mi != _r43ModelIdx)
 			{
 				_r43ModelIdx = mi;
@@ -217,13 +224,46 @@ public partial class SelfTest
 				var dir = (rock.Position - me.Position).Normalized();
 				Check(ContactMining.InContact(me.Position, dir, rock, ContactMining.ToolReach(me, u)), $"{keyNow}: Spieler-Werkzeugfront im Kontakt ({me.Position})");
 				float gap = R43TipGap(_m.Player.Visual, rock);
-				Check(Mathf.Abs(gap) <= 0.5f, $"{keyNow}: Spieler-Spitze an der Oberfläche (Abstand {gap:0.00})");
+				float bite = _m.Player.Visual?.BiteNow ?? 0f;
+				Check(Mathf.Abs(gap + bite) <= 0.5f, $"{keyNow}: Spieler-Spitze an der Oberfläche bzw. um die Eindringtiefe darin (Abstand {gap:0.00}, Tiefe {bite:0.00})");
 				var bad = R43AnchorProblems(_m.Player.Visual, _m.TestAnchors, me.Id, rock);
 				Check(bad.Count == 0, $"{keyNow}: Spieler-Anker ok ({string.Join("; ", bad)})");
 				Check(_m.TestAnchors.ChunksOn(me.Id), $"{keyNow}: abfallende Brocken am Bohrpunkt");
 				return false;
 			}
-			if (ph == 190)
+			if (ph == 110)
+			{
+				// Runde 43b: Spieler bohrt — die Spitze steckt um die erwartete Tiefe im Fels (Modell nach vorn, Schiff bleibt gepinnt)
+				var vis = _m.Player.Visual;
+				float gap = R43TipGap(vis, rock);
+				Check(vis is not null && R43BiteOk(vis, gap),
+					$"{keyNow}: Spieler-Bohrer dringt ein (Tiefe {-gap:0.00}, erwartet {vis?.BiteDepth:0.00} ±{ShipVisual.BitePulse:P0}, Bohrradius {vis?.DrillRadiusWorld:0.00}, Einfahrt {vis?.BiteShown:0.00})");
+				Log($"[selftest] R43b {keyNow} (Rotoren {vis?.Rotors.Count}, Achsen {vis?.DrillAxes.Count}, Modell {vis?.Info.Key}): Tiefe {vis?.BiteDepth:0.00} = {(vis is null || vis.DrillRadiusWorld <= 0f ? 0f : vis.BiteDepth / vis.DrillRadiusWorld):P0} des Bohrradius {vis?.DrillRadiusWorld:0.00}");
+				var me = u.Ships[u.PlayerShip];
+				Check(ContactMining.InContact(me.Position, (rock.Position - me.Position).Normalized(), rock, ContactMining.ToolReach(me, u)), $"{keyNow}: Core-Schiffsposition unverändert im Kontakt (nur Darstellung verschoben)");
+				_m.TestPressBay(_m.TestBayKeys.ToList().IndexOf(WeaponBays.Contact.Key));   // „Lösen“
+				return false;
+			}
+			if (ph == 160)
+			{
+				var vis = _m.Player.Visual;
+				float gap = R43TipGap(vis, rock);
+				Check(u.Ships[u.PlayerShip].AnchorRock == 0 && vis is not null && vis.BiteNow < 0.02f && gap >= -0.1f,
+					$"{keyNow}: nach dem Lösen fährt der Spieler-Bohrer wieder heraus (Abstand {gap:0.00}, Tiefe {vis?.BiteNow:0.00})");
+				if (_m.TestContactState == ContactState.Released) _m.TestPressBay(_m.TestBayKeys.ToList().IndexOf(WeaponBays.Contact.Key));   // „Ankern“
+				return false;
+			}
+			if (ph == 310)
+			{
+				var npcShip = u.Ships[_r43Npc];
+				var vis = _m.TestView.TestVisual(_r43Npc);
+				var nr = R43Rock(_r43RockNpc);
+				float gap = R43TipGap(vis, nr);
+				Check(MiningAnchor.State(u, npcShip) != AnchorState.Held && vis is not null && vis.BiteNow < 0.05f && gap >= -0.1f,
+					$"{keyNow}: nach dem Lösen fährt der NPC-Bohrer wieder heraus (Abstand {gap:0.00}, Tiefe {vis?.BiteNow:0.00}, Anker {MiningAnchor.State(u, npcShip)})");
+				return false;
+			}
+			if (ph == 270)
 			{
 				// NPC: Marker steht mit der Spitze an der Felsoberfläche, zum Fels ausgerichtet
 				var npcShip = u.Ships[_r43Npc];
@@ -234,7 +274,8 @@ public partial class SelfTest
 				Check(Vec2.Distance(_r43NpcStart, npcShip.Position) > 10f && _r43NpcMaxStep <= Travel.SpeedOf(npcShip) + 0.01f,
 					$"{keyNow}: NPC-Anflug ohne Sprung ({Vec2.Distance(_r43NpcStart, npcShip.Position):0.0} geflogen, größter Schritt {_r43NpcMaxStep:0.00} ≤ Tempo {Travel.SpeedOf(npcShip):0.0})");
 				float gap = R43TipGap(vis, nr);
-				Check(Mathf.Abs(gap) <= 0.5f, $"{keyNow}: NPC-Spitze an der Oberfläche (Abstand {gap:0.00})");
+				Check(vis is not null && R43BiteOk(vis, gap),
+					$"{keyNow}: NPC-Bohrer dringt ein (Tiefe {-gap:0.00}, erwartet {vis?.BiteDepth:0.00}, Einfahrt {vis?.BiteShown:0.00}, Anker {MiningAnchor.State(u, npcShip)})");
 				var marker = _m.TestView.ShipPosition(_r43Npc);
 				if (marker is { } mp)
 				{
@@ -249,6 +290,8 @@ public partial class SelfTest
 				var bad = R43AnchorProblems(vis, _m.TestAnchors, _r43Npc, nr);
 				Check(bad.Count == 0, $"{keyNow}: NPC-Anker ok ({string.Join("; ", bad)})");
 				Check(_m.TestAnchors.VisibleTethers > 0, $"{keyNow}: NPC-Trossen sichtbar");
+				// Runde 43b: Anker lösen — bis der NPC neu verankert (Ankerzeit), fährt der Bohrer heraus (Prüfung bei Phase 310)
+				MiningAnchor.Release(u, npcShip, sector.Id, "released");
 				return false;
 			}
 			return false;
