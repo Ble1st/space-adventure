@@ -90,7 +90,18 @@ public partial class SelfTest
 				}
 				return false;
 			}
-			case 10: case 18: TapNode(_flBuy!, true); return false;
+			case 10: case 18:
+			{
+				// Runde 44: die Werftliste kann sich zwischen Auswahl und Tipp neu aufbauen (mehr KI-Käufe an der Werft in der größeren Welt verschieben die
+				// lieferbaren Zeilen) — dann die Taste neu suchen
+				if (_flBuy is null || !IsInstanceValid(_flBuy) || _flBuy.IsQueuedForDeletion() || !_flBuy.IsVisibleInTree() || _flBuy.State == Ui.Kit.KitButtonState.Disabled)
+				{
+					var scr2 = (Node?)_m.HudRef.Screens.Current?.Node;
+					if (scr2 is not null) _flBuy = FirstEnabled(scr2, "Kaufen");
+					if (_flBuy is null) { Fail($"Werft: keine freie „Kaufen“-Taste beim Tipp ({_m.HudRef.DockShipyard.TestMessage})"); return true; }
+				}
+				TapNode(_flBuy!, true); return false;
+			}
 			case 11: case 19: Tap(_p28Press!.Value, false); return false;
 			case 13: case 21:
 			{

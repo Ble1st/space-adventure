@@ -1318,6 +1318,14 @@ public partial class SelfTest : Node
 					var uni = _m.Session.U;
 					var pl = uni.Ships[uni.PlayerShip];
 					Check(pl.Id == _p25Falcon && !_m.Docked, "Spieler fliegt den Falken im freien Raum");
+					// Runde 44: weg von Stationsgeschützen — im vergrößerten Sektor holte sonst ein Geschütz der nahen Werft das Kaperschiff herunter (kein Kopfgeld für
+					// den Spieler); geprüft wird der Weg über die Schachttasten
+					{
+						var nearSt = uni.Stations.Values.Where(s => s.Sector == uni.PlayerSector).OrderBy(s => Vec2.Distance(s.Position, pl.Position)).First();
+						var away = pl.Position - nearSt.Position; away = away.Length > 1f ? away.Normalized() : new Vec2(1f, 0f);
+						_m.TestTeleportTo(SpaceSim.Core.Combat.CombatSpace.Clear(uni, uni.PlayerSector, nearSt.Position + away * (nearSt.Radius + 220f)));
+						pl.Position = new Vec2(_m.Player.Position.X, _m.Player.Position.Z);
+					}
 					// Runde 10: ein Kaperer, der gerade nicht kämpft, mit voller Hülle (der Pfad kann den ersten in ein anderes Gefecht verwickelt haben)
 					var raider = uni.ShipsById().Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(r => uni.Fights.IsEngaged(r.Id) ? 1 : 0).First();
 					if (uni.Fights.Of(raider.Id) is { } busy && busy.Of(raider.Id) is { } bp) SpaceSim.Core.Combat.Engage.Leave(uni, busy, bp, SpaceSim.Core.Model.CombatExit.Fled);
@@ -1948,7 +1956,9 @@ public partial class SelfTest : Node
 					_m.TestAllFire();
 					break;
 				}
-				if (_frame - _stageStart < 120) break;
+				// Runde 44: 240 statt 120 Bilder — die Werftgeschütze hatten in der Stufe davor auf die Kaperer gefeuert und laden noch nach (2 s); vorher half der
+				// Autopilot, der das Schiff zum Andocken nah heranflog (Andocken beendet jetzt — zu Recht — die Belagerung, siehe oben)
+				if (_frame - _stageStart < 240) break;
 				Check(_p28Events!.Any(e => e is SpaceSim.Core.Events.ShotAtStation sa && sa.Station == st.Id), "Schüsse auf die Station");
 				Check(uni.Fights.Of(pl.Id) is { Cause: SpaceSim.Core.Model.EncounterCause.Siege } || _p28Events!.Any(e => e is SpaceSim.Core.Events.StationShot ss && ss.Target == pl.Id), "Belagerung läuft");
 				Check(_p28Events!.Any(e => e is SpaceSim.Core.Events.StationShot ss && ss.Target == pl.Id), "die Station schießt zurück");
@@ -2093,7 +2103,9 @@ public partial class SelfTest : Node
 				if (_frame - _stageStart == 3 && _m.Docked) { _m.TestUndock(); break; }
 				if (_frame - _stageStart == 40 + k * 3000)
 				{
-					if (uni.PlayerSector != hq.Sector) _m.TestEnterSector(hq.Sector);
+					// Runde 44: erst den Sektor betreten, den Start ein paar Bilder später setzen — sonst überschrieb die Ankunft am Tor (im vergrößerten Alpha ~700 m
+					// vom HQ) den Teleport, und die Schätzung (vom Startpunkt) passte nicht zum echten Flug (vom Tor)
+					if (uni.PlayerSector != hq.Sector) { _m.TestEnterSector(hq.Sector); _stageStart += 10; break; }
 					var start = hq.Position + Vec2.FromAngle(k * 1.9f + 0.4f) * 230f;
 					_m.TestTeleportTo(SpaceSim.Core.Combat.CombatSpace.Clear(uni, hq.Sector, start));
 					_m.TestSetStationTarget(hq.Id);

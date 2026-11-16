@@ -72,7 +72,11 @@ public class Runde30Tests
         new SimulationRunner().Run(u, 1);
         var b = TradeActions.Buy(u, ship, st, g, n);
         float missing = n - b.Units;   // nicht zurückgekaufte Menge zum heutigen Preis ersetzen
-        return w.Credits - before - missing * st.Market[g].Price;
+        // Runde 44: mit Deckel kostet ein Rückkauf hier mindestens den erhaltenen Preis (Boden des Verkaufspostens) — die nicht zurückgekaufte Menge (die Station
+        // hatte im Tick davon verarbeitet; mit den größeren Lagerpuffern öfter) wird zu diesem Preis ersetzt, nicht zum gesunkenen Marktpreis (ergab Scheingewinne)
+        float received = s.Revenue / MathF.Max(n, 0.0001f);
+        float replace = u.Rules.BuybackCap ? MathF.Max(st.Market[g].Price, received) : st.Market[g].Price;
+        return w.Credits - before - missing * replace;
     }
 
     [Fact]
@@ -108,9 +112,7 @@ public class Runde30Tests
         var s2 = u.Stations[hit!.Value.St];
         float q2 = MathF.Floor(MathF.Min(TradeActions.SaleCap(u, s2, hit.Value.G), 20f));
         float gain = SellThenBuy(u, u.Ships[u.PlayerShip], s2, hit.Value.G, q2);
-        // Runde 44: Grenze 1 Cr (dieselbe Schwelle, ab der der Test ohne Deckel „Gewinn“ nennt) statt 0,5 — gemessen 0,56 Cr an Eisenerz (Basis 10): nicht
-        // zurückgekaufte Einheiten werden zum Marktpreis nach dem Tick ersetzt, den eine NPC-Lieferung im Tick gesenkt hatte
-        Assert.True(gain <= 1f, $"{s2.Name}/{u.Goods[hit.Value.G].Name} q {q2}: Gewinn {gain}");
+        Assert.True(gain <= 0.5f, $"{s2.Name}/{u.Goods[hit.Value.G].Name} q {q2}: Gewinn {gain}");
     }
 
     [Fact]

@@ -25,7 +25,9 @@ public class LifecycleTests
             Assert.True(s.Credits >= 0f && s.Credits < 100_000f && float.IsFinite(s.Credits), $"Schiff {s.Id.Value}: {s.Credits}");
         // Phase 29: mit den Skiffs als Standardmodellen (schnelle Goldsucher) liegt das Schiffsgeld im Anlauf höher (Standard 60000: Spitze ≈ 400 000 um Tick 20000–30000,
         // dann ≈ 280 000; 300000 Ticks ≈ 265 000–290 000 statt 220 000–250 000) — Schranke gegen ein Aufstauen, nicht gegen die neue Verteilung
-        Assert.True(EconomyStats.Snapshot(u).ShipCredits < 450_000f, $"Geld darf sich nicht bei den Schiffen aufstauen ({EconomyStats.Snapshot(u).ShipCredits:0})");
+        // Runde 44: Schranke je wirtschaftlichem KI-Schiff (vorher fest 450 000 bei ≈ 48 Schiffen ≈ 9 400 je Schiff) — die Flotte ist dreimal so groß
+        int econ = u.Ships.Values.Count(x => x.IsEconomyAi);
+        Assert.True(EconomyStats.Snapshot(u).ShipCredits < 10_000f * econ, $"Geld darf sich nicht bei den Schiffen aufstauen ({EconomyStats.Snapshot(u).ShipCredits:0} bei {econ} Schiffen)");
     }
 
     [Fact]

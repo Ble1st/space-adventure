@@ -972,7 +972,7 @@
    "services": ["trade", "outfitter", "shipdealer", "hangar", "taxi", "rental", "rearm"],
    "export": {
     "categories": ["end"],
-    "targetValue": 6000,
+    "targetValue": 5000,
     "bids": { "consumer_goods": 1.25, "luxury_goods": 1.25 }
    },
    "shipDealer": {
@@ -1038,7 +1038,7 @@
    "services": ["trade", "hangar", "taxi"],
    "export": {
     "categories": ["end"],
-    "targetValue": 6000,
+    "targetValue": 5000,
     "bids": { "consumer_goods": 1.25, "luxury_goods": 1.25 }
    },
    "recipes": []

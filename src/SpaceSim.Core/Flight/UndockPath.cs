@@ -11,7 +11,9 @@ namespace SpaceSim.Core.Flight;
 public static class UndockPath
 {
     /// <summary>Freie Strecke, die eine Abflugrichtung haben muss (bei Vollschub etwa die Schonfrist und die Bremszeit).</summary>
-    public const float ClearLength = 140f;
+    /// <summary>Runde 44: 360 statt 140 — in den vergrößerten Sektoren liegt das nächste Tor weit weg; 8 s Vollschub nach dem Abdocken (Selbsttest Stufe 71)
+    /// führten über die freie Strecke hinaus in Hintergrundfelsen.</summary>
+    public const float ClearLength = 360f;
 
     /// <summary>Abflugrichtung (normiert) vom Andockpunkt <paramref name="spot"/> der Station bei <paramref name="station"/>; die Station selbst zählt mit.</summary>
     public static Vec2 Heading(IReadOnlyList<Obstacle> obstacles, Vec2 station, Vec2 spot, float shipRadius = 2.5f, float length = ClearLength)

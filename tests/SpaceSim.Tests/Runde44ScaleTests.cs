@@ -29,7 +29,7 @@ public class Runde44ScaleTests
         def.Rules.MissionTransportRewardPerMinute = def.Rules.MissionPatrolRewardPerMinute = def.Rules.MissionEscortRewardPerMinute = 0f;
         def.Rules.EscortMinRemainingTicks = 40;
         foreach (var g in def.Ships) if (g.Role is "trader" or "miner" && g.Count % 3 == 0) g.Count /= 3;
-        foreach (var t in def.StationTypes) if (t.Export is { TargetValue: 6000f } ex) ex.TargetValue = 3000f;
+        foreach (var t in def.StationTypes) if (t.Export is { TargetValue: 5000f } ex) ex.TargetValue = 3000f;
         if (def.StationTypes.FirstOrDefault(t => t.Key == "shipyard")?.Stocks is { } ys)
         {
             if (ys.ContainsKey("weapon_laser_s")) ys["weapon_laser_s"] = new[] { 4f, 4f };

@@ -22,6 +22,9 @@ public partial class SelfTest
 	{
 		var u = _m.Session.U;
 		var root = GetTree().Root;
+		// Runde 44: nach der Vorstufe (Handel an einer Station) ist das Schiff angedockt — erst abdocken, dann beginnt die Stufe von vorn (angedockt wirkte das
+		// Versetzen nicht; im kleinen Sektor lag die Station trotzdem im Bild)
+		if (f == 1 && _m.TestDocked) { _m.TestCloseCommand(); _m.TestUndock(); _stageStart += 120; return false; }
 		switch (f)
 		{
 			case 1:
@@ -58,6 +61,11 @@ public partial class SelfTest
 				UiScale.Set(UiSize.Normal);
 				return false;
 			}
+			case 30:
+				// Runde 44: der Tipp bei Faktor 1,15 wählte eine Station, der Autopilot flog hin und dockte an — erst abdocken, dann versetzen (Fall 33)
+				_m.TestStopAutomation();
+				if (_m.TestDocked) _m.TestUndock();
+				return false;
 			case 3: case 33:
 			{
 				_r31Factor = f == 3 ? 1.15f : 1.3f;
@@ -66,7 +74,8 @@ public partial class SelfTest
 				{
 					var me = u.Ships[u.PlayerShip];
 					var near = u.StationsById().Where(s => s.Sector == u.PlayerSector && s.Dockable).OrderBy(s => Vec2.Distance(s.Position, me.Position)).First();
-					_m.TestTeleportTo(near.Position + new Vec2(0f, near.Radius + 45f));
+					_m.TestStopAutomation();   // der Tipp bei Faktor 1,15 setzte einen Autopiloten zur Station
+					_m.TestTeleportTo(near.Position + new Vec2(near.Radius + 45f, 0f));   // seitlich: die Station liegt in der Bildmitte-Zeile (oben deckt das Kompakt-HUD)
 				}
 				UiScale.TestPpi = 396f;
 				UiScale.TestCap = _r31Factor;
@@ -116,6 +125,7 @@ public partial class SelfTest
 			case 16: case 46:
 				Check(_m.TestTargetStation == _r31Station.Value,
 					$"UI-Größe {_r31Factor}: Tipp in Fensterkoordinaten wählt die Station (gewählt {_m.TestTargetStation}, erwartet {_r31Station.Value})");
+				_m.TestStopAutomation();   // Runde 44: der Tipp startet den Autopiloten zur Station — nicht hinfliegen und andocken (der nächste Faktor versetzt das Schiff)
 				return false;
 			case 60:
 			{

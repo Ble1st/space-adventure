@@ -155,11 +155,12 @@ public partial class CommandMenu : Control, IScreen
 		list.AddChild(Text("KAMERA", 15, Cyan));
 		var zoomRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56) };
 		zoomRow.AddThemeConstantOverride("separation", 10);
-		var zoomOut = new KitButton("−", new Vector2(110, 56)) { FontSize = 30 };
+		// Runde 44 (Nutzer: „−“ heraus / „+“ heran war verwechselbar): eindeutige Beschriftung mit Unterzeile
+		var zoomOut = new KitButton("Weiter weg", new Vector2(130, 56)) { FontSize = 17, Sub = "Zoom heraus" };
 		_zoomText = Text("Zoom", 20, White, HorizontalAlignment.Center);
-		_zoomText.CustomMinimumSize = new Vector2(290, 56);
+		_zoomText.CustomMinimumSize = new Vector2(250, 56);
 		_zoomText.VerticalAlignment = VerticalAlignment.Center;
-		var zoomIn = new KitButton("+", new Vector2(110, 56)) { FontSize = 30 };
+		var zoomIn = new KitButton("Näher", new Vector2(130, 56)) { FontSize = 17, Sub = "Zoom heran" };
 		zoomOut.Pressed += () => Action?.Invoke("zoom_out");
 		zoomIn.Pressed += () => Action?.Invoke("zoom_in");
 		zoomRow.AddChild(zoomOut); zoomRow.AddChild(_zoomText); zoomRow.AddChild(zoomIn);
@@ -178,11 +179,11 @@ public partial class CommandMenu : Control, IScreen
 		list.AddChild(modeRow);
 		_heightRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56), Visible = false };
 		_heightRow.AddThemeConstantOverride("separation", 10);
-		var hDown = new KitButton("−", new Vector2(110, 56)) { FontSize = 30 };
+		var hDown = new KitButton("Tiefer", new Vector2(130, 56)) { FontSize = 17, Sub = "Höhe −" };
 		_heightText = Text("Höhe", 20, White, HorizontalAlignment.Center);
-		_heightText.CustomMinimumSize = new Vector2(290, 56);
+		_heightText.CustomMinimumSize = new Vector2(250, 56);
 		_heightText.VerticalAlignment = VerticalAlignment.Center;
-		var hUp = new KitButton("+", new Vector2(110, 56)) { FontSize = 30 };
+		var hUp = new KitButton("Höher", new Vector2(130, 56)) { FontSize = 17, Sub = "Höhe +" };
 		hDown.Pressed += () => Action?.Invoke("chase_down");
 		hUp.Pressed += () => Action?.Invoke("chase_up");
 		TestHeightUp = hUp;

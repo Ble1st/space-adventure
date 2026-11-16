@@ -3354,6 +3354,8 @@ public partial class Main : Node3D
 	/// <summary>Phase 11: Teleport an einen Punkt im aktuellen Sektor (Überfall-Test abseits der Stationen).</summary>
 	internal void TestTeleportTo(Vec2 pos)
 	{
+		// Runde 44: ein laufender Ab-/Andock-Tween überschrieb sonst den Teleport (Selbsttest Stufe 108 nach dem Handel der Vorstufe)
+		if (_playerTween is not null && _playerTween.IsValid() && _docked == null) { _playerTween.Kill(); _transition = false; _player.Scale = Vector3.One; _player.Visible = true; }
 		_player.Position = new Vector3(pos.X, 0, pos.Y);
 		_player.Velocity = Vector3.Zero;
 		_player.GiveGrace(5f);

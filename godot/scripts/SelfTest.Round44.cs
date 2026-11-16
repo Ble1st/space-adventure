@@ -38,6 +38,7 @@ public partial class SelfTest
 			Check(_m.TestCamMode == CameraMode.Chase, "R44: Tipp auf „Rückansicht“ schaltet den Modus");
 			Check(_m.HudRef.Command.TestHeightRowVisible, "R44: Zeile „Höhe − / +“ sichtbar");
 			var up = _m.HudRef.Command.TestHeightUp;
+			Check(up?.Text == "Höher" && up.Overflow().Length == 0, $"R44: Höhe-Taste eindeutig beschriftet („{up?.Text}“)");
 			_r44Height = _m.TestCamChase.Height;
 			_r44Tap = up?.GetGlobalRect().GetCenter() ?? Vector2.Zero;
 			Tap(_r44Tap, true);
@@ -52,6 +53,15 @@ public partial class SelfTest
 			Check(file.Mode == CameraMode.Chase && Mathf.Abs(file.ChaseHeight - now.Height) < 0.01f, $"R44: Einstellungsdatei enthält {file}");
 			var c2 = new OrbitCamera(); file.ApplyTo(c2);
 			Check(c2.Mode == CameraMode.Chase && Mathf.Abs(c2.ChaseHeight - now.Height) < 0.01f && Mathf.Abs(c2.ChaseBack - now.Back) < 0.01f, "R44: neu geladene Einstellungen = gleicher Zustand");
+			// Zoomtasten eindeutig (Nutzer: „−/+“ verwechselbar) und wirksam: „Näher“ verringert den Abstand
+			var zin = Buttons(_m.HudRef.Command).FirstOrDefault(b => b.Text == "Näher");
+			var zout = Buttons(_m.HudRef.Command).FirstOrDefault(b => b.Text == "Weiter weg");
+			Check(zin is not null && zout is not null && zin.Overflow().Length == 0 && zout.Overflow().Length == 0, "R44: Zoomtasten „Näher“/„Weiter weg“ passen");
+			float back0 = _m.TestCamChase.Back;
+			_m.TestCameraAction("zoom_in");
+			Check(_m.TestCamChase.Back < back0, $"R44: „Näher“ verringert den Abstand ({back0:0} → {_m.TestCamChase.Back:0})");
+			_m.TestCameraAction("zoom_out");
+			Check(_m.TestCamChase.Back > _m.TestCamChase.Back - 1f && Mathf.Abs(_m.TestCamChase.Back - back0) < 0.5f, $"R44: „Weiter weg“ stellt den Abstand wieder her ({_m.TestCamChase.Back:0})");
 			_m.TestCloseCommand();
 			_r44Tap = root.GetFinalTransform() * fl.TestTurnLeftRect.GetCenter();
 			PushWindow(_r44Tap, true);   // ◀ halten

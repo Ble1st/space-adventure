@@ -66,20 +66,23 @@ public partial class SelfTest
 				// Runde 44: in den vergrößerten Sektoren steht keine Station mehr in Andockreichweite eines Tors (nächstes Paar ~150 m) — die nächste andockbare
 				// Station wird für diesen Fall neben das Tor gesetzt (die Stufe endet mit „Neues Spiel“)
 				{
-					var dockable = u.Stations.Values.Where(s => s.Sector == u.PlayerSector && s.Dockable && !s.IsBuildSite).OrderBy(s => Vec2.Distance(s.Position, gate.Position)).First();
+					var meShip = u.Ships[u.PlayerShip];   // Kriegstest: Bollwerk (L) — nur Stationen, an denen es andocken darf
+					var dockable = u.Stations.Values.Where(s => s.Sector == u.PlayerSector && s.Dockable && !s.IsBuildSite && SpaceSim.Core.Simulation.Docking.Allows(u, s, meShip))
+						.OrderBy(s => Vec2.Distance(s.Position, gate.Position)).First();
 					var inward = gate.Position.Length > 1f ? (gate.Position * -1f).Normalized() : new Vec2(1f, 0f);
 					var side = new Vec2(-inward.Y, inward.X);
 					dockable.Position = gate.Position + side * (dockable.Radius + 30f) + inward * 10f;
 					_m.TestRebuildView();
 				}
-				_m.TestTeleportTo(gate.Position + new Vec2(0f, 4f));
+				// Runde 44: außerhalb des Sprungradius (10) — 4 m vom Tor sprang das Schiff durch das Tor und prüfte den Fall im Nachbarsektor
+				_m.TestTeleportTo(gate.Position + (gate.Position.Length > 1f ? (gate.Position * -1f).Normalized() : new Vec2(1f, 0f)) * 16f);
 				return false;
 			}
 			case 8:
 			{
 				_m.SyncHudForTest();
 				var me = u.Ships[u.PlayerShip];
-				var near = u.Stations.Values.Where(s => s.Sector == u.PlayerSector && s.Dockable).OrderBy(s => Vec2.Distance(s.DockPoint(me.Id), me.Position)).First();
+				var near = u.Stations.Values.Where(s => s.Sector == u.PlayerSector && s.Dockable && SpaceSim.Core.Simulation.Docking.Allows(u, s, me)).OrderBy(s => Vec2.Distance(s.DockPoint(me.Id), me.Position)).First();
 				_r20Near = near.Id;
 				_m.TestSelectGate(_r20Gate); _m.SyncHudForTest();
 				Check(hud.TestContextLabel.Contains("Spring"), $"am Tor mit gewähltem Tor: Springen ({hud.TestContextLabel})");

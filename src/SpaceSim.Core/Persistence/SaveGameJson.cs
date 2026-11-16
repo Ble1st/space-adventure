@@ -138,7 +138,9 @@ public static class SaveGameJson
                 if ((string?)t["key"] == "shipyard")
                     foreach (var (good, amount, target) in new[] { ("reactor_mk1", 2, 5), ("chem_engine_s", 2, 5), ("mining_laser_1", 2, 5), ("weapon_laser_s", 2, 4),
                         // Runde 24: Werften am Start lieferfähig — im Stand v17 kleinere Startbestände
-                        ("cargo_universal_60", 2, 5), ("cargo_universal_100", 2, 5), ("chem_engine_m", 1, 2), ("reactor_mk2", 1, 2), ("reactor_mk3", 0, 1) })
+                        ("cargo_universal_60", 2, 5), ("cargo_universal_100", 2, 5), ("chem_engine_m", 1, 2), ("reactor_mk2", 1, 2), ("reactor_mk3", 0, 1),
+                        // Runde 44: Schild/Panzerung starten mit 2 (ein Bollwerk ist am Start lieferbar) — im Stand v17 1 von 3
+                        ("shield_mk1", 1, 3), ("armor_plating_s", 1, 3) })
                         if (stocks.ContainsKey(good)) stocks[good] = new System.Text.Json.Nodes.JsonArray(amount, target);
             }
             // Phase 25: Dienst „rearm“ kam nach v17
