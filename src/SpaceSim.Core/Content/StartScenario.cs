@@ -1,4 +1,5 @@
 using SpaceSim.Core.Model;
+using SpaceSim.Core.Mining;
 using SpaceSim.Core.Simulation;
 
 namespace SpaceSim.Core.Content;
@@ -92,9 +93,11 @@ public static class StartScenario
         if (sc.AtRock is not { } cls) return;
         if (!u.AsteroidClasses.ContainsKey(cls)) throw new WorldFormatException($"Startpaket '{key}': unbekannte Asteroidenklasse '{cls}'");
         var sector = u.Sectors[player.Sector];
-        var rock = sector.Asteroids.Where(a => a.Minable && a.ClassKey == cls).OrderByDescending(a => a.Radius).ThenBy(a => a.Id).FirstOrDefault()
+        var ofClass = sector.Asteroids.Where(a => a.Minable && a.ClassKey == cls);
+        var rock = (sc.RockRadius > 0f ? ofClass.OrderBy(a => MathF.Abs(a.Radius - sc.RockRadius)).ThenBy(a => a.Id) : ofClass.OrderByDescending(a => a.Radius).ThenBy(a => a.Id)).FirstOrDefault()
                    ?? throw new WorldFormatException($"Startpaket '{key}': kein Fels der Klasse '{cls}' im Startsektor");
-        if (sc.RockOre > 0f) { rock.MaxOre = MathF.Max(rock.MaxOre, sc.RockOre); rock.Ore = rock.MaxOre; }
+        if (sc.RockRadius > 0f) SmallRock(rock, sc);
+        else if (sc.RockOre > 0f) { rock.MaxOre = MathF.Max(rock.MaxOre, sc.RockOre); rock.Ore = rock.MaxOre; }
         float stand = rock.Radius + Collision.ShipRadius + 0.2f;
         Vec2? spot = null;
         for (int i = 0; i < 16 && spot is null; i++)
@@ -107,6 +110,94 @@ public static class StartScenario
         }
         player.Position = spot ?? rock.Position + new Vec2(0f, stand);
         player.DockedAt = default;
+        if (sc.SecondRock) PlaceSecondRock(u, player, sector, rock, sc, key);
+        if (sc.NpcMiners is { Count: > 0 } npcs) PlaceNpcMiners(u, player, sector, npcs, key);
+    }
+
+    /// <summary>Runde 44h: Fels höchstens auf <see cref="ScenarioDef.RockRadius"/> verkleinern, Erz genau <see cref="ScenarioDef.RockOre"/> (falls gesetzt).</summary>
+    static void SmallRock(Asteroid rock, ScenarioDef sc)
+    {
+        rock.BaseRadius = MathF.Min(rock.BaseRadius, sc.RockRadius);
+        if (sc.RockOre > 0f) { rock.MaxOre = sc.RockOre; rock.Ore = sc.RockOre; }
+    }
+
+    /// <summary>Freier Platz für einen Fels/ein Schiff mit Radius <paramref name="r"/>: Abstand zu Felsen, Stationen und weiteren Punkten.</summary>
+    static bool Free(Universe u, Sector sector, Vec2 p, float r, IEnumerable<Asteroid> skip, IEnumerable<(Vec2 P, float R)> others) =>
+        sector.Asteroids.All(o => skip.Contains(o) || Vec2.Distance(o.Position, p) > o.Radius + r + 2f)
+        && sector.Stations.All(id => !u.Stations.TryGetValue(id, out var st) || Vec2.Distance(st.Position, p) > st.Radius + r + 6f)
+        && others.All(o => Vec2.Distance(o.P, p) > o.R + r + 2f);
+
+    /// <summary>
+    /// Runde 44h („Bergbautest“): ein zweiter kleiner Fels der Klasse gleich neben dem ersten — der nächstgroße Fels der Klasse wird dorthin versetzt
+    /// (erste freie von 16 festen Richtungen, nicht auf dem Platz des Spielers).
+    /// </summary>
+    static void PlaceSecondRock(Universe u, Ship player, Sector sector, Asteroid first, ScenarioDef sc, string key)
+    {
+        var second = sector.Asteroids.Where(a => a.Minable && a.ClassKey == first.ClassKey && a != first)
+            .OrderBy(a => MathF.Abs(a.Radius - (sc.RockRadius > 0f ? sc.RockRadius : first.Radius))).ThenBy(a => a.Id).FirstOrDefault()
+            ?? throw new WorldFormatException($"Startpaket '{key}': kein zweiter Fels der Klasse '{first.ClassKey}' im Startsektor");
+        if (sc.RockRadius > 0f) SmallRock(second, sc);
+        float d = first.Radius + second.Radius + 7f;
+        var away = (player.Position - first.Position).Normalized();
+        for (int i = 4; i < 4 + 16; i++)   // erst quer zur Spielerseite (90°), damit der Fels neben dem Schiff im Bild liegt
+        {
+            float a = MathF.Atan2(away.Y, away.X) + MathF.PI * 2f * i / 16f;
+            var p = first.Position + new Vec2(MathF.Cos(a), MathF.Sin(a)) * d;
+            if (Free(u, sector, p, second.Radius, new[] { first, second }, new[] { (first.Position, first.Radius), (player.Position, Collision.ShipRadius + 2f) }))
+            {
+                second.Position = p;
+                return;
+            }
+        }
+        throw new WorldFormatException($"Startpaket '{key}': kein Platz für den zweiten Fels");
+    }
+
+    /// <summary>
+    /// Runde 44h („Bergbautest“): KI-Kontaktschürfer 40–60 Einheiten vom Spieler (feste Richtungen, freier Platz); Ziel ist der nächste abbaubare Fels
+    /// (25–55 Einheiten Anflug — gut eine Sekunde sichtbar —, nicht die Felsen des Spielers) mit reichlich Erz — der Schürfer fliegt ihn selbst an (MinerSystem), kein Versetzen.
+    /// </summary>
+    static void PlaceNpcMiners(Universe u, Ship player, Sector sector, List<string> models, string key)
+    {
+        var mine = sector.Asteroids.Where(a => Vec2.Distance(a.Position, player.Position) < a.Radius + 20f).ToList();   // Fels(en) des Spielers
+        var taken = new List<Asteroid>(mine);
+        var placed = new List<(Vec2 P, float R)> { (player.Position, Collision.ShipRadius + 4f) };
+        var at = u.StationsById().Where(s => s.Sector == player.Sector && !s.IsBuildSite && s.Dockable).OrderBy(s => Vec2.Distance(s.Position, player.Position)).ThenBy(s => s.Id.Value).FirstOrDefault()
+                 ?? u.StationsById().First(s => !s.IsBuildSite);
+        for (int n = 0; n < models.Count; n++)
+        {
+            if (!u.ShipModels.TryGetValue(models[n], out var model)) throw new WorldFormatException($"Startpaket '{key}': unbekanntes Schürfermodell '{models[n]}'");
+            var cls = u.ShipClasses[model.ClassKey];
+            var npc = ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Miner, Controller.Ai, u.FreeActor, at, 2000f);
+            if (!npc.Stats.UsesContact) throw new WorldFormatException($"Startpaket '{key}': Modell '{model.Key}' hat kein Kontaktwerkzeug");
+            u.AddShip(npc);
+            if (npc.Sector != player.Sector) u.MoveShip(npc, player.Sector);
+            npc.DockedAt = default;
+            float reach = ContactMining.ToolReach(npc, u);
+            (Vec2 Start, Asteroid Rock)? pick = null;
+            for (int i = 0; i < 32 && pick is null; i++)
+            {
+                float dist = i < 16 ? 50f : 42f + (i % 3) * 8f;
+                float a = MathF.PI * 2f * ((n * 5 + i * 7) % 16) / 16f + (i >= 16 ? MathF.PI / 16f : 0f);
+                var start = player.Position + new Vec2(MathF.Cos(a), MathF.Sin(a)) * dist;
+                float r = reach + Collision.ShipRadius;
+                if (!Free(u, sector, start, r, Array.Empty<Asteroid>(), placed)) continue;
+                var rock = sector.Asteroids.Where(x => x.Minable && x.Radius >= 2.5f && u.AsteroidClasses.ContainsKey(x.ClassKey) && !taken.Contains(x)
+                                                       && Vec2.Distance(x.Position, start) - x.Radius >= 25f && Vec2.Distance(x.Position, start) - x.Radius <= 55f
+                                                       && Vec2.Distance(x.Position, player.Position) <= 90f)
+                    .OrderBy(x => Vec2.Distance(x.Position, start) - x.Radius).ThenBy(x => x.Id).FirstOrDefault();
+                if (rock is not null) pick = (start, rock);
+            }
+            if (pick is not { } chosen) throw new WorldFormatException($"Startpaket '{key}': kein Platz/Fels für den Schürfer '{model.Key}'");
+            npc.Position = chosen.Start;
+            var target = chosen.Rock;
+            target.MaxOre = MathF.Max(target.MaxOre, 3000f); target.Ore = target.MaxOre;
+            taken.Add(target);
+            placed.Add((chosen.Start, reach + Collision.ShipRadius + 6f));
+            npc.MineAsteroid = target.Id;
+            npc.MinePhase = MinePhase.Mining;
+            int fi = sector.Fields.FindIndex(fl => ReferenceEquals(sector.FieldFor(target.Position), fl));
+            npc.Order = new MineOrder(sector.Id, Math.Max(0, fi), at.Id);
+        }
     }
 
     /// <summary>

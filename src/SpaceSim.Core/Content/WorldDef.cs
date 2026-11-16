@@ -518,6 +518,18 @@ public sealed class ScenarioDef
     /// <summary>Runde 19: ruhige Lage — keine Überfälle auf das aktive Spielerschiff in diesem Spielstand (setzt die gespeicherte Regel PlayerRaids aus; Überfälle auf Flottenschiffe bleiben).</summary>
     public bool Calm { get; set; }
     /// <summary>
+    /// Runde 44h („Bergbautest“): &gt; 0 = statt des größten nimmt <see cref="AtRock"/> den Fels der Klasse, dessen Radius diesem am nächsten liegt, verkleinert ihn
+    /// höchstens auf diesen Radius und setzt seinen Erzvorrat <b>genau</b> auf <see cref="RockOre"/> (kleiner Fels, schnell leer → zerbricht).
+    /// </summary>
+    public float RockRadius { get; set; }
+    /// <summary>Runde 44h: ein zweiter kleiner Fels derselben Klasse (gleicher Radius und Erzvorrat) gleich neben dem ersten — zum Weitermachen nach dem Zerbrechen.</summary>
+    public bool SecondRock { get; set; }
+    /// <summary>
+    /// Runde 44h: KI-Kontaktschürfer (Modellschlüssel) frei im Raum, 40–60 Einheiten vom Spieler; jeder fliegt von selbst einen nahen Fels an und bohrt ihn an
+    /// (Core-Schürfer mit Anflug, kein Versetzen). Feste Richtungen, kein Zufall.
+    /// </summary>
+    public List<string>? NpcMiners { get; set; }
+    /// <summary>
     /// Runde 24: die Fraktionen kaufen in den ersten so vielen Ticks weder Kriegsschiffe noch zusätzliche Polizei (danach noch die Wechselsperre) — der Kriegstest
     /// prüft den Verband gegen die Verteidigung, die da ist; seit die Werften am Start liefern, hätte die Union sonst gleich zwei Kriegsschiffe nachgekauft.
     /// </summary>

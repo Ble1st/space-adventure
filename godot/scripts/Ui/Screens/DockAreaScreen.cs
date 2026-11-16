@@ -115,7 +115,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, L.Rail.X, L.Rail.Y, L.Rail.W, L.Rail.H);
 		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
 		// Phase 12: bis zu neun Bereiche — die Leiste rollt senkrecht, statt Bereiche zu verdrängen
-		var scroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+		var scroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever, MouseFilter = MouseFilterEnum.Pass };   // Runde 44h: ohne sichtbare Leiste (Hinweis „weiter unten“ zeigt das Rollen) — Einträge volle Breite
 		rail.AddChild(scroll);
 		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);

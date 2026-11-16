@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -53,6 +54,32 @@ public partial class KitScroll : ScrollContainer
 		// unten noch Inhalt liegt. Innerer Kindknoten (der Rollbereich ordnet ihn nicht an, er rollt nicht mit), fängt keine Eingaben
 		_hint = new MoreHint { MouseFilter = MouseFilterEnum.Ignore, Visible = false };
 		AddChild(_hint, false, InternalMode.Back);
+	}
+
+	/// <summary>
+	/// Runde 44h (Handy-Test r44 s02: Tasten lagen direkt an der Scrollleiste): durchsichtiger Abstand links an der senkrechten Leiste — die Leiste wird um
+	/// so viel breiter, ihre Bilder (Grund, Griff) werden mit negativem Außenrand links schmal gezeichnet; der Inhalt (um die ganze Leistenbreite schmaler)
+	/// endet so mit Abstand vor der sichtbaren Leiste. 0 = aus (Gegenprobe der UI-Prüfung: <c>--ui-check-nobargap</c>).
+	/// </summary>
+	public static float BarGap = Array.IndexOf(OS.GetCmdlineUserArgs(), "--ui-check-nobargap") >= 0 ? 0f : 6f;
+	/// <summary>Runde 44h: tatsächlich gesetzter durchsichtiger Abstand dieser Leiste (UI-Prüfung: sichtbarer Teil = Leistenfläche minus Abstand).</summary>
+	public float AppliedBarGap { get; private set; }
+
+	public override void _Ready()
+	{
+		if (BarGap <= 0f || VerticalScrollMode is ScrollMode.ShowNever or ScrollMode.Disabled || GetVScrollBar() is not { } bar) return;
+		foreach (var name in new[] { "scroll", "scroll_focus", "grabber", "grabber_highlight", "grabber_pressed" })
+		{
+			if (!bar.HasThemeStylebox(name)) continue;
+			var sb = (StyleBox)bar.GetThemeStylebox(name).Duplicate();
+			// die Leiste wird über den Innenrand ihres Grundes breiter (ScrollContainer misst die Mindestgröße der Leiste, nicht ihre CustomMinimumSize)
+			if (name.StartsWith("scroll")) sb.ContentMarginLeft = MathF.Max(0f, sb.ContentMarginLeft) + BarGap;
+			if (sb is StyleBoxFlat f) f.ExpandMarginLeft -= BarGap;
+			else if (sb is StyleBoxTexture t) t.ExpandMarginLeft -= BarGap;
+			bar.AddThemeStyleboxOverride(name, sb);
+		}
+		AppliedBarGap = BarGap;
+		QueueSort();   // der Inhalt wurde evtl. schon mit der schmalen Leiste ausgelegt
 	}
 
 	readonly MoreHint _hint;

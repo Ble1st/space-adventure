@@ -362,6 +362,11 @@ public partial class UiCheck : Node
 				if (!pc.ClipContents && !frame && !vlist) continue;
 				bool outsideX = full.Position.X < pr.Position.X - 1.5f || full.End.X > pr.End.X + 1.5f;
 				bool outsideY = !inList && (full.Position.Y < pr.Position.Y - 1.5f || full.End.Y > pr.End.Y + 1.5f);
+				// Runde 44h (Handy-Test r44 s02: „Rückansicht“ im Menü lag an der Scrollleiste): eine Taste/ein Text darf die sichtbare senkrechte
+				// Scrollleiste der rollenden Liste nicht berühren oder überdecken — mindestens ScrollbarGap Abstand (die Liste muss um Leiste + Abstand schmaler sein)
+				if (vlist && pc is ScrollContainer sc1 && sc1.GetVScrollBar() is { } vbar && vbar.IsVisibleInTree() && VisibleBar(sc1, vbar) is var vr && vr.Size.X > 0f
+					&& full.Intersection(vr.GrowIndividual(ScrollbarGap, 0f, 0f, 0f)) is var ov && ov.Size.X > 0.5f && ov.Size.Y > 0.5f)
+				{ why = "an/über der Scrollleiste"; break; }
 				// eine rollende Liste (auch der als Ganzes rollende Bereich) darf unten/oben anschneiden — seitlich nicht
 				if (vlist && !outsideX) { inList = true; continue; }
 				if (!outsideX && !outsideY) continue;
@@ -384,6 +389,21 @@ public partial class UiCheck : Node
 			if (why is not null) { clippedCount++; if (notes.Count < 56) notes.Insert(0, $"beschnitten „{Short(name)}“ ({why})"); }
 		}
 		return (texts, textOver, clippedCount, drawnTrunc);
+	}
+
+	/// <summary>Runde 44h: Mindestabstand (Bildpunkte) zwischen Inhalt und sichtbarer senkrechter Scrollleiste.</summary>
+	public const float ScrollbarGap = 4f;
+
+	/// <summary>Runde 44h: gezeichneter Teil der senkrechten Leiste (global) — ohne den durchsichtigen Abstand links, den <see cref="KitScroll"/> setzt.</summary>
+	static Rect2 VisibleBar(ScrollContainer sc, VScrollBar bar)
+	{
+		var r = bar.GetGlobalRect();
+		if (sc is SpaceAdventure.Ui.Kit.KitScroll ks && ks.AppliedBarGap > 0f && bar.Size.X > 0f)
+		{
+			float g = ks.AppliedBarGap * r.Size.X / bar.Size.X;
+			r = new Rect2(r.Position.X + g, r.Position.Y, MathF.Max(0f, r.Size.X - g), r.Size.Y);
+		}
+		return r;
 	}
 
 	/// <summary>Runde 35b: Fläche, auf die die beschneidenden Vorfahren (ClipContents, auch der Knoten selbst) begrenzen — ohne den Knoten-Rahmen selbst.</summary>

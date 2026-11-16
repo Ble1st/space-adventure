@@ -119,7 +119,7 @@ public partial class CommandMenu : Control, IScreen
 			if (!b.Visible) { _hidden.AddChild(b); continue; }
 			if (row is null || row.GetChildCount() >= 2)
 			{
-				row = new HBoxContainer { CustomMinimumSize = new Vector2(540, 52) };
+				row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 52), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };   // Runde 44h: Breite aus der Liste
 				row.AddThemeConstantOverride("separation", 10);
 				_list.AddChild(row);
 				_systemRows.Add(row);
@@ -129,6 +129,8 @@ public partial class CommandMenu : Control, IScreen
 	}
 	/// <summary>Halter der ausgeblendeten Systemtasten (nicht im Baum der Liste).</summary>
 	readonly Control _hidden = new() { Visible = false };
+	/// <summary>Runde 44h: Abstand des Listeninhalts zur senkrechten Scrollleiste.</summary>
+	public const int ScrollbarGap = 10;
 	/// <summary>Selbsttest: Zahl der Tasten je Systemzeile.</summary>
 	public System.Collections.Generic.List<int> TestSystemRows => _systemRows.ConvertAll(r => r.GetChildCount());
 	/// <summary>Selbsttest: ist der Menüpunkt „Notruf“ sichtbar?</summary>
@@ -153,12 +155,13 @@ public partial class CommandMenu : Control, IScreen
 
 		// ── Kamera ──
 		list.AddChild(Text("KAMERA", 15, Cyan));
-		var zoomRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56) };
+		var zoomRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 56) };
 		zoomRow.AddThemeConstantOverride("separation", 10);
 		// Runde 44 (Nutzer: „−“ heraus / „+“ heran war verwechselbar): eindeutige Beschriftung mit Unterzeile
 		var zoomOut = new KitButton("Weiter weg", new Vector2(130, 56)) { FontSize = 17, Sub = "Zoom heraus" };
 		_zoomText = Text("Zoom", 20, White, HorizontalAlignment.Center);
-		_zoomText.CustomMinimumSize = new Vector2(250, 56);
+		_zoomText.CustomMinimumSize = new Vector2(150, 56);
+		_zoomText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_zoomText.VerticalAlignment = VerticalAlignment.Center;
 		var zoomIn = new KitButton("Näher", new Vector2(130, 56)) { FontSize = 17, Sub = "Zoom heran" };
 		zoomOut.Pressed += () => Action?.Invoke("zoom_out");
@@ -166,22 +169,23 @@ public partial class CommandMenu : Control, IScreen
 		zoomRow.AddChild(zoomOut); zoomRow.AddChild(_zoomText); zoomRow.AddChild(zoomIn);
 		list.AddChild(zoomRow);
 
-		var modeRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56) };
+		var modeRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 56) };
 		modeRow.AddThemeConstantOverride("separation", 10);
 		// Runde 44: drei Modi — frei / Zielfolge / Rückansicht
-		_free = new KitButton("Frei", new Vector2(173, 56)) { FontSize = 18 };
-		_lock = new KitButton("Zielfolge", new Vector2(173, 56)) { FontSize = 18 };
-		_chase = new KitButton("Rückansicht", new Vector2(174, 56)) { FontSize = 18 };
+		_free = new KitButton("Frei", new Vector2(150, 56)) { FontSize = 18, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lock = new KitButton("Zielfolge", new Vector2(150, 56)) { FontSize = 18, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_chase = new KitButton("Rückansicht", new Vector2(150, 56)) { FontSize = 18, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		_free.Pressed += () => Action?.Invoke("cam_free");
 		_lock.Pressed += () => Action?.Invoke("cam_lock");
 		_chase.Pressed += () => Action?.Invoke("cam_chase");
 		modeRow.AddChild(_free); modeRow.AddChild(_lock); modeRow.AddChild(_chase);
 		list.AddChild(modeRow);
-		_heightRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56), Visible = false };
+		_heightRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 56), Visible = false };
 		_heightRow.AddThemeConstantOverride("separation", 10);
 		var hDown = new KitButton("Tiefer", new Vector2(130, 56)) { FontSize = 17, Sub = "Höhe −" };
 		_heightText = Text("Höhe", 20, White, HorizontalAlignment.Center);
-		_heightText.CustomMinimumSize = new Vector2(250, 56);
+		_heightText.CustomMinimumSize = new Vector2(150, 56);
+		_heightText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_heightText.VerticalAlignment = VerticalAlignment.Center;
 		var hUp = new KitButton("Höher", new Vector2(130, 56)) { FontSize = 17, Sub = "Höhe +" };
 		hDown.Pressed += () => Action?.Invoke("chase_down");
@@ -190,14 +194,15 @@ public partial class CommandMenu : Control, IScreen
 		_heightRow.AddChild(hDown); _heightRow.AddChild(_heightText); _heightRow.AddChild(hUp);
 		list.AddChild(_heightRow);
 		_modeHint = Text("", 13, new Color(Dim, 0.85f));
-		_modeHint.CustomMinimumSize = new Vector2(540, 36);
+		_modeHint.CustomMinimumSize = new Vector2(0, 36);
+		_modeHint.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_modeHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		list.AddChild(_modeHint);
 
-		var miscRow = new HBoxContainer { CustomMinimumSize = new Vector2(540, 56) };
+		var miscRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 56) };
 		miscRow.AddThemeConstantOverride("separation", 10);
-		_invert = new KitButton("Schwenken invertieren", new Vector2(320, 56)) { FontSize = 17 };
-		var reset = new KitButton("Zurücksetzen", new Vector2(210, 56)) { FontSize = 17 };
+		_invert = new KitButton("Schwenken invertieren", new Vector2(290, 56)) { FontSize = 17, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, SizeFlagsStretchRatio = 1.5f };
+		var reset = new KitButton("Zurücksetzen", new Vector2(170, 56)) { FontSize = 17, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		_invert.Pressed += () => Action?.Invoke("cam_invert");
 		reset.Pressed += () => Action?.Invoke("cam_reset");
 		miscRow.AddChild(_invert); miscRow.AddChild(reset);
@@ -210,7 +215,7 @@ public partial class CommandMenu : Control, IScreen
 		// sichtbaren Tasten gelegt (LayoutSystemRows), ausgeblendete zählen nicht
 		foreach (var (label, sub, key) in Entries)
 		{
-			var b = new KitButton(label, new Vector2(265, 52)) { AlignLeft = true, FontSize = 19, Sub = sub };
+			var b = new KitButton(label, new Vector2(240, 52)) { AlignLeft = true, FontSize = 19, Sub = sub, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 			string k = key;
 			b.Pressed += () => Action?.Invoke(k);
 			if (k == "emergency") _emergency = b;
@@ -224,7 +229,12 @@ public partial class CommandMenu : Control, IScreen
 		}
 		_list = list;
 		LayoutSystemRows();
-		scroll.AddChild(list);
+		// Runde 44h (Handy-Test r44 s02: „Rückansicht“/„Zurücksetzen“ lagen an der Scrollleiste): Inhalt mit Abstand zur Leiste, Tasten füllen die
+		// verfügbare Breite statt fester 540 (die Leiste nimmt der Liste die Breite)
+		var pad = new MarginContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		pad.AddThemeConstantOverride("margin_right", ScrollbarGap);
+		pad.AddChild(list);
+		scroll.AddChild(pad);
 		_scroll = scroll;
 		_win.Content.AddChild(scroll);
 		var close = new KitButton("Schließen", new Vector2(540, 56)) { FontSize = 20 };

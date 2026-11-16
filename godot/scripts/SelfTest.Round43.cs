@@ -105,11 +105,24 @@ public partial class SelfTest
 			}
 		}
 		float rope = av.RopeLength(id);
+		float shipLen = 2f * vis.Root.Scale.X;
+		Log($"[selftest] Seil {vis.Info.Key}: {rope:0.00} von Schiffslänge {shipLen:0.00} = {rope / shipLen:P0}");
 		if (rope >= 2f * Collision.ShipRadius) bad.Add($"Seillänge {rope:0.00} ≥ 2× Schiffsradius");
-		// Spitzen stecken seitlich des Bohrpunkts in der Oberfläche
+		// Runde 44h (Handy-Test r44): kurze Seile — höchstens ein Viertel der Schiffslänge, Start im vorderen Drittel (Modellraum Z ≤ −1/3)
+		if (rope > AnchorView.MaxRopeShare * shipLen) bad.Add($"Seillänge {rope:0.00} > {AnchorView.MaxRopeShare:P0} der Schiffslänge {shipLen:0.00}");
+		var inv = vis.Root.GlobalTransform.AffineInverse();
+		foreach (var m in muz)
+			if ((inv * m).Z > -1f / 3f) { bad.Add($"Seilstart nicht im vorderen Drittel (Modell-Z {(inv * m).Z:0.00})"); break; }
+		// Spitzen stecken seitlich des Bohrpunkts in der Oberfläche, nicht nach innen zur Bugachse (Felskrümmung bei kleinem Fels: 15 % Spiel)
 		var c = new Vector3(rock.Position.X, 0f, rock.Position.Y);
-		foreach (var t in av.TipsOf(id))
-			if (Mathf.Abs(t.DistanceTo(c) - rock.Radius * 0.92f) > 0.6f) { bad.Add("Spitze nicht an der Felsoberfläche"); break; }
+		var tips = av.TipsOf(id).ToList();
+		foreach (var t in tips)
+			if (Mathf.Abs(t.DistanceTo(c) - rock.Radius * AnchorView.ImpactDepth) > 0.6f) { bad.Add("Spitze nicht an der Felsoberfläche"); break; }
+		for (int i = 0; i < tips.Count && i < muz.Count; i++)
+		{
+			var lm = inv * muz[i]; var lt = inv * tips[i];
+			if (new Vector2(lt.X, lt.Y).Length() < 0.85f * new Vector2(lm.X, lm.Y).Length()) { bad.Add($"Seil {i} läuft nach innen (Spitze {new Vector2(lt.X, lt.Y).Length():0.00}, Mündung {new Vector2(lm.X, lm.Y).Length():0.00})"); break; }
+		}
 		return bad;
 	}
 

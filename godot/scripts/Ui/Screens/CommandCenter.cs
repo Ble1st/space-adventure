@@ -172,7 +172,7 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Runde 35: rollt, wenn die Leiste niedriger ist als acht Bereiche) ──
 		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, L.Rail.X, L.Rail.Y, L.Rail.W, L.Rail.H);
 		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
-		var railScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass, OwnPosition = true };   // Runde 37b: Position über RailPos
+		var railScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever, MouseFilter = MouseFilterEnum.Pass, OwnPosition = true };   // Runde 37b: Position über RailPos   // Runde 44h: ohne sichtbare Scrollleiste (Hinweis „weiter unten“)
 		rail.AddChild(railScroll);
 		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		rv.AddThemeConstantOverride("separation", 6);

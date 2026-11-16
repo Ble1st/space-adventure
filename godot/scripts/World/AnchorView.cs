@@ -33,6 +33,12 @@ public partial class AnchorView : Node3D
 	}
 
 	const float SnapSeconds = 0.35f, TetherRadius = 0.08f;
+	/// <summary>Runde 44h: Spitzen stecken so tief in der Oberfläche (Anteil des Felsradius).</summary>
+	public const float ImpactDepth = 0.97f;
+	/// <summary>Runde 44h: zusätzliche Spreizung der Einschläge nach außen (Modellraum, mal Modellmaßstab).</summary>
+	public const float AnchorSpread = 0.12f;
+	/// <summary>Runde 44h: Seile höchstens so lang (Anteil der Schiffslänge) — Selbsttest.</summary>
+	public const float MaxRopeShare = 0.25f;
 	readonly Dictionary<ShipId, Entry> _live = new();
 	readonly List<Entry> _snapping = new();
 	// Runde 43b: Modelle, deren Bohrer gerade im Fels steckt oder herausfährt (reine Ansicht)
@@ -151,10 +157,22 @@ public partial class AnchorView : Node3D
 		}
 		e.Muzzles = Muzzles(body.Visual, body.Body, e.Tethers.Count);
 		if (e.Impacts.Length != e.Tethers.Count) e.Impacts = new Vector3[e.Tethers.Count];
+		// Runde 44h: Einschlag seitlich neben dem Bohrpunkt — vom Oberflächenpunkt unter der Werkzeugspitze um den seitlichen Abstand der Mündung
+		// von der Bugachse plus einer kleinen Spreizung nach außen, auf die Oberfläche projiziert. So laufen die Seile kurz und schräg nach außen.
+		var tipW = body.Visual is { } tv ? tv.TipWorld() : body.Body.GlobalTransform * new Vector3(0f, 0f, -2f);
+		var fwd = body.Visual is { } fv ? -fv.Root.GlobalTransform.Basis.Z.Normalized() : -body.Body.GlobalTransform.Basis.Z.Normalized();
+		float scale = body.Visual is { } sv ? sv.Root.Scale.X : ShipModels.BaseHalfLength;
+		var toTip = tipW - center;
+		var contact = center + (toTip.LengthSquared() < 1e-4f ? Vector3.Back : toTip.Normalized()) * rock.Radius;
 		for (int t = 0; t < e.Tethers.Count; t++)
 		{
-			var d = e.Muzzles[t] - center;
-			e.Impacts[t] = center + (d.LengthSquared() < 1e-4f ? Vector3.Back : d.Normalized()) * rock.Radius * 0.92f;
+			var lat = e.Muzzles[t] - tipW;
+			lat -= fwd * lat.Dot(fwd);
+			float latLen = lat.Length();
+			var dirLat = latLen > 1e-4f ? lat / latLen : new Vector3(-fwd.Z, 0f, fwd.X) * (t % 2 == 0 ? 1f : -1f);
+			var target = contact + dirLat * (latLen + AnchorSpread * scale);
+			var d = target - center;
+			e.Impacts[t] = center + (d.LengthSquared() < 1e-4f ? Vector3.Back : d.Normalized()) * rock.Radius * ImpactDepth;
 		}
 		for (int t = 0; t < e.Tethers.Count; t++) Place(e.Tethers[t], e.Muzzles[t], e.Muzzles[t].Lerp(e.Impacts[t], e.Shown));
 		// Abbau: Abraumfahne am Kontaktpunkt (nach hinten-seitlich weg vom Schiff), Stöße der Manövrierdüsen gegen die Werkzeugdrehung
@@ -185,7 +203,8 @@ public partial class AnchorView : Node3D
 
 	/// <summary>
 	/// Mündungen in Weltkoordinaten: Harpunenknoten — Runde 43 liegt ein Knoten innen im Bohrerbereich (z. B. mittlerer Werfer hinter dem Werkzeug),
-	/// wird er radial auf die Flanke geschoben, damit die Trossen außen am Bohrer entlang zur Felsoberfläche laufen. Ohne Harpunenknoten zwei
+	/// wird er radial auf die Flanke geschoben, damit die Trossen außen am Bohrer entlang zur Felsoberfläche laufen; Runde 44h: längs liegt der Start
+	/// nahe am Bug (<see cref="ShipVisual.AnchorStart"/>), nicht an der Werfermündung in der Rumpfmitte. Ohne Harpunenknoten zwei
 	/// Punkte an den Bugflanken des Grundkörpers.
 	/// </summary>
 	static Vector3[] Muzzles(ShipVisual? v, Node3D body, int count)
@@ -196,7 +215,7 @@ public partial class AnchorView : Node3D
 			for (int i = 0; i < count; i++)
 			{
 				var h = v.Harpoons[Math.Min(i, v.Harpoons.Count - 1)];
-				var local = v.OutsideDrill(v.LocalOf(h), i);
+				var local = v.AnchorStart(v.LocalOf(h), i);   // Runde 44h: nahe am Bug an der Flanke
 				list[i] = v.Root.GlobalTransform * local;
 			}
 			return list;

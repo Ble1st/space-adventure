@@ -68,10 +68,11 @@ public partial class SelfTest
 				var vis = _m.Player.Visual;
 				var muz = av.MuzzlesOf(me.Id);
 				if (vis is { Harpoons.Count: > 0 })
-					Check(muz.Count == vis.Harpoons.Count && muz.Select((m, i) => m.DistanceTo(vis.Harpoons[i].GlobalPosition)).All(d => d < 0.05f), "Trossen beginnen an den Harpunenknoten");
+					Check(muz.Count == vis.Harpoons.Count && muz.Select((m, i) => m.DistanceTo(vis.Root.GlobalTransform * vis.AnchorStart(vis.LocalOf(vis.Harpoons[i]), i))).All(d => d < 0.05f),
+						"Trossen beginnen an der Flanke nahe am Bug (Seite des Harpunenwerfers, Runde 44h)");
 				var rock = u.Sectors[u.PlayerSector].Asteroids.First(a => a.Id == _anRock);
 				var c = new Vector3(rock.Position.X, 0, rock.Position.Y);
-				Check(av.TipsOf(me.Id).All(t => Mathf.Abs(t.DistanceTo(c) - rock.Radius * 0.92f) < 0.6f), "Spitzen stecken in der Felsoberfläche");
+				Check(av.TipsOf(me.Id).All(t => Mathf.Abs(t.DistanceTo(c) - rock.Radius * World.AnchorView.ImpactDepth) < 0.6f), "Spitzen stecken in der Felsoberfläche");
 				Check(av.PlumeOn(me.Id), "Abraumfahne beim Abbau");
 				_anOre = me.UsedVolume(u);
 				Check(_anOre > 1f, $"Abbau läuft verankert ({_anOre:0.0} Einheiten)");

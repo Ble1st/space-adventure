@@ -409,7 +409,7 @@ public class OutfitterShipyardTests
     {
         var options = WorldBuilder.DefaultStartOptions();
         // Runde 11 (Wunsch: „Standardschiff ein Jäger, Händler oder Miner“): genau drei reguläre Pakete, dahinter die Testszenarien; der Generalist entfällt
-        Assert.Equal(new[] { "fighter", "trader", "miner", "test", "combat", "war", "anchor", "arrest" }, options.Select(o => o.Key));
+        Assert.Equal(new[] { "fighter", "trader", "miner", "test", "combat", "war", "anchor", "mining", "arrest" }, options.Select(o => o.Key));
         Assert.Equal(new[] { "fighter", "trader", "miner" }, options.Where(o => o.Scenario is null).Select(o => o.Key));
         foreach (var (key, model, sector) in new[] { ("fighter", "falcon", 4), ("trader", "nomad", 2), ("miner", "prospector", 1) })
         {

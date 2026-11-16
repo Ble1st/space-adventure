@@ -5134,6 +5134,23 @@
     }
    },
    {
+    "key": "mining",
+    "name": "Bergbautest (Test)",
+    "description": "NUR ZUM TESTEN: Goldsucher mit Bohrkopf am Bug an einem kleinen Fels mit nur 25 Einheiten Erz in Alpha, daneben ein zweiter kleiner Fels; Laderaum 200, keine Überfälle. Zwei KI-Bohrschiffe (Spitzhacke S und Maulwurf L mit großer Schneidtrommel) starten 40–60 m entfernt und fliegen selbst einen nahen Fels an. Prüfen: der eigene Fels ist nach gut 10 s leer und zerbricht sichtbar (Trümmer), „Auto-Mining“ geht danach zum zweiten Fels; die KI-Schiffe gleiten an ihren Fels ohne zu springen, ankern (kurze Seile vom Bug) und bohren; der Bohrkopf dreht sich — Menü → Kamera „Näher“.",
+    "model": "prospector",
+    "credits": 1000,
+    "sector": 1,
+    "scenario": {
+     "fit": ["reactor_mk1", "chem_engine_s", "drill_head_s", "cargo_universal_100", "cargo_universal_100", null, null],
+     "atRock": "metal_rock",
+     "rockRadius": 3,
+     "rockOre": 25,
+     "secondRock": true,
+     "npcMiners": ["pickaxe", "strip_miner"],
+     "calm": true
+    }
+   },
+   {
     "key": "arrest",
     "name": "Festnahmetest (Test)",
     "description": "NUR ZUM TESTEN: Falke frei im Raum vor der Werft Delta, bei den Freien Händlern gesucht (Stufe 3); eine Streife als Verband in der Nähe — die Festnahme-Warnung kommt nach wenigen Sekunden. Ergeben, Kämpfen oder Fliehen.",

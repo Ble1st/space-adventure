@@ -258,6 +258,22 @@ public sealed class ShipVisual
 	}
 
 	/// <summary>
+	/// Runde 44h (Handy-Test r44: Seile liefen von der Rumpfmitte parallel nach vorn, fast eine halbe Schiffslänge): Abstand des Seilstarts hinter der
+	/// Werkzeugspitze im Modellraum (Halblänge 1). Der Start liegt so im vorderen Drittel an der Flanke, das Seil ist kurz.
+	/// </summary>
+	public const float AnchorStartBack = 0.24f;
+
+	/// <summary>
+	/// Runde 44h: Seilstart im Modellraum für Harpune <paramref name="index"/> — seitliche Lage (X/Y) des Harpunenwerfers, längs aber nahe am Bug
+	/// (höchstens <see cref="AnchorStartBack"/> hinter der Werkzeugspitze), außerhalb des Bohrerbereichs (<see cref="OutsideDrill"/>).
+	/// </summary>
+	public Vector3 AnchorStart(Vector3 harpoonLocal, int index)
+	{
+		float z = MathF.Min(harpoonLocal.Z, TipLocal.Z + AnchorStartBack);
+		return OutsideDrill(new Vector3(harpoonLocal.X, harpoonLocal.Y, z), index);
+	}
+
+	/// <summary>
 	/// Runde 43b („Bohrer beim Bohren etwas in den Asteroiden“): reine Darstellung — während verankert abgebaut wird, rückt das Modell (Root) entlang der
 	/// Bugachse um <see cref="BiteNow"/> nach vorn, die Spitze steckt so im Fels. Tiefe = max(<see cref="BiteMin"/> × Größenmaßstab, <see cref="BiteShare"/> ×
 	/// Bohrradius), weich ein (<see cref="BiteInSeconds"/>) und aus (<see cref="BiteOutSeconds"/>), langsames Vor-/Zurückpulsieren (±<see cref="BitePulse"/>).
