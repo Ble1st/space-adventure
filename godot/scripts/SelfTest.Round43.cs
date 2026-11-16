@@ -27,6 +27,10 @@ public partial class SelfTest
 	float _r43NpcMaxStep;
 	/// <summary>Runde 43b: Bilder je Modell (Spieler: Kontakt, volle Eindringtiefe, Lösen; NPC: Anflug, Eindringtiefe, Lösen).</summary>
 	const int R43Cycle = 320;
+	(float Yaw, float Pitch, float Dist) _r43Cam;
+	Vector3 _r43Fwd, _r43Pos;
+	float _r43Zoom, _r43ZoomMaxStep, _r43CamMaxDev;
+	bool _r43ZoomDown;
 
 	/// <summary>Runde 43b: liegt die Eindringtiefe (−Abstand) im erwarteten Band der vollen Tiefe (mit Pulsieren)?</summary>
 	static bool R43BiteOk(ShipVisual vis, float gap) =>
@@ -243,6 +247,33 @@ public partial class SelfTest
 				Check(ContactMining.InContact(me.Position, (rock.Position - me.Position).Normalized(), rock, ContactMining.ToolReach(me, u)), $"{keyNow}: Core-Schiffsposition unverändert im Kontakt (nur Darstellung verschoben)");
 				_m.TestPressBay(_m.TestBayKeys.ToList().IndexOf(WeaponBays.Contact.Key));   // „Lösen“
 				return false;
+			}
+			// Runde 43b (Handy-Test: Kamerawinkel ändert sich nach dem Lösen): Target-Lock auf den verankerten Fels — beim Lösen (Phase 110) und leichtem
+			// Abdriften am Fels bleiben Yaw/Neigung gleich, nur der Anker-Zoom gleitet weich auf 1 zurück
+			if (ph == 100) { _m.TestCameraAction("cam_lock"); _m.TestSetMineTarget(_r43Rock); _r43CamMaxDev = 0f; _r43ZoomMaxStep = 0f; _r43ZoomDown = false; }
+			if (ph == 108) { _r43Pos = _m.Player.Position; _r43Cam = _m.TestCamAngles; _r43Fwd = _m.TestCamForward; _r43Zoom = _m.TestAnchorZoomNow; }
+			if (ph > 110 && ph <= 158)
+			{
+				var a2 = _m.TestCamAngles;
+				_r43CamMaxDev = Mathf.Max(_r43CamMaxDev, Mathf.Max(Mathf.Abs(Mathf.AngleDifference(Mathf.DegToRad(a2.Yaw), Mathf.DegToRad(_r43Cam.Yaw))) * 57.2958f, Mathf.Abs(a2.Pitch - _r43Cam.Pitch)));
+				_r43CamMaxDev = Mathf.Max(_r43CamMaxDev, Mathf.RadToDeg(_m.TestCamForward.AngleTo(_r43Fwd)));
+				float z = _m.TestAnchorZoomNow;
+				_r43ZoomMaxStep = Mathf.Max(_r43ZoomMaxStep, Mathf.Abs(z - _r43Zoom));
+				if (z < _r43Zoom - 1e-5f) _r43ZoomDown = true;
+				_r43Zoom = z;
+				// leichtes Abdriften seitlich am Fels entlang (wie Entpinnen/Abprallen)
+				var pp = _m.Player.Position;
+				var rc = new Vector3(rock.Position.X, 0f, rock.Position.Y);
+				var radial = (pp - rc).Normalized();
+				if (ph <= 140) _m.Player.Position = pp + new Vector3(-radial.Z, 0f, radial.X) * 0.04f;
+			}
+			if (ph == 158)
+			{
+				Check(_r43CamMaxDev <= 0.5f, $"{keyNow}: Kamera behält beim Lösen Yaw/Neigung (größte Abweichung {_r43CamMaxDev:0.00}°, Target-Lock auf den Fels)");
+				Check(!_r43ZoomDown && _r43ZoomMaxStep <= (1f - Main.AnchorZoom) / Main.AnchorZoomSeconds / 60f * 1.5f + 1e-4f && _m.TestAnchorZoomNow > 0.95f,
+					$"{keyNow}: Anker-Zoom gleitet weich zurück (größter Schritt je Bild {_r43ZoomMaxStep:0.0000}, jetzt {_m.TestAnchorZoomNow:0.000})");
+				_m.TestCameraAction("cam_free");
+				_m.Player.Position = _r43Pos;   // Abdriften zurücknehmen (Folgeprüfungen am selben Punkt)
 			}
 			if (ph == 160)
 			{
