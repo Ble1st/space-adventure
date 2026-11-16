@@ -418,10 +418,14 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			DrawLine(new Vector2(12, 26), new Vector2(26, 26), new Color(Dim, 0.7f), 2f);
 			DrawLine(new Vector2(78, 26), new Vector2(92, 26), Orange, 2f);
 			DrawLine(new Vector2(196, 26), new Vector2(210, 26), Red, 2f);
-			if (layer == UniverseScreen.Layer.Security)
-				UiKit.DrawFit(this, slot++, font2, new Vector2(12, 46), "Lage: grün sicher · gelb schwach geschützt · orange bedroht/Sperre ab 3 · rot stark bedroht/gesperrt", 13, lw, new Color(Dim, 0.8f));
-			if (layer == UniverseScreen.Layer.Prices)
-				UiKit.DrawFit(this, slot++, font2, new Vector2(12, 46), "Preise: grün günstig · rot teuer (× Basis)", 13, lw, new Color(Dim, 0.8f));
+			// Runde 42c (Handytest): Auftragsmarker (goldene Sterne an den Sektorknoten, s. o.) in der Legende erklären —
+		// Zeile 2 trägt immer „★ = Auftrag“ (kurz genug, dass die Prüfung nicht kürzt)
+			string leg2 = layer == UniverseScreen.Layer.Security
+				? "★ = Auftrag · Lage: grün sicher · gelb schwach · orange bedroht · rot gesperrt"
+				: layer == UniverseScreen.Layer.Prices
+					? "★ = Auftrag · Preise: grün günstig · rot teuer"
+					: "★ = Auftrag — Missionsziel im Sektor";
+			UiKit.DrawFit(this, slot++, font2, new Vector2(12, 46), leg2, 13, lw, new Color(Dim, 0.8f));
 		}
 
 		void Dashed(Vector2 a, Vector2 b, Color c, float w)

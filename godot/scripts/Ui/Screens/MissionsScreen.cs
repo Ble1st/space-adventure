@@ -38,14 +38,22 @@ public sealed partial class MissionsScreen : DockAreaScreen
 
 	static string StationName(Universe u, StationId id) => u.Stations.TryGetValue(id, out var s) ? s.Name : $"#{id.Value}";
 
-	/// <summary>Vorschauzeile eines Angebots: Belohnung, Pfand, Frist (bei Annahme, je Auftragsart), Ziel (je Auftragsart).</summary>
+	/// <summary>Ziel-Station eines Angebots (Transport → Zielstation, sonst die Angebots-Station).</summary>
+	static Station TargetStationOf(Universe u, Station st, MissionOffer o) =>
+		o.Type == TransportMission.KeyId && o.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv)
+			&& u.Stations.TryGetValue(new StationId(tv), out var t) ? t : st;
+
+	/// <summary>Vorschauzeile eines Angebots: Belohnung (bzw. Festpreis beim Vertrag), Pfand, eine Frist (bei Annahme, je Auftragsart), geschätzte Flugzeit, Ziel.</summary>
 	static string Preview(Universe u, Station st, Ship ship, MissionOffer o)
 	{
 		var type = MissionRules.Types.Get(o.Type);
+		var tgt = TargetStationOf(u, st, o);
 		string ziel = type?.TargetText(u, o) ?? st.Name;   // Runde 42: Ziel je Art (Station, Schiff, Wegpunkte)
 		long frist = type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, st) - u.Tick;
 		string reward = o.Reward > 0f ? $"Belohnung {o.Reward:0} Cr" : "Ware zum Festpreis (Liefervertrag)";
-		return $"{reward} · Pfand {o.Deposit:0} Cr · Frist {MissionRules.Rest(frist)} · Ziel {ziel}";
+		// Runde 42c: geschätzte reale Flugzeit des Spielers in der Vorschau (Fristen sind daraus abgeleitet)
+		string flug = MissionRules.TripText(u, ship.Sector, ship.Position, tgt.Sector, tgt.DockPoint(ship.Id), ship);
+		return $"{reward} · Pfand {o.Deposit:0} Cr · Frist {MissionRules.Rest(frist)} · Flug ~{flug} · Ziel {ziel}";
 	}
 
 	protected override void BuildContent(Control inner)
@@ -61,7 +69,10 @@ public sealed partial class MissionsScreen : DockAreaScreen
 		// ── Angebote der Station ──
 		At(inner, Text("Angebote dieser Station", 20, Cyan), 0, 44, w, 28);
 		float y = 76f;
-		var offers = u.MissionOffers.Where(o => o.At == st.Id).OrderBy(o => o.Id).ToList();
+		var allOffers = u.MissionOffers.Where(o => o.At == st.Id).OrderBy(o => o.Id).ToList();
+		// Runde 42c (Handytest): nur annehmbare Angebote zeigen; gibt es keines annehmbare, alle mit Grund (statt stummem „nicht möglich“)
+		var offers = allOffers.Where(o => MissionRules.AcceptIssue(u, o.Id, ship, remote: false) is null).ToList();
+		if (offers.Count == 0 && allOffers.Count > 0) offers = allOffers;
 		if (offers.Count == 0) { At(inner, Text("Gerade keine Angebote — in ein paar Minuten schaut die Station neu.", 15, new Color(Dim, 0.85f)), 0, y, w, 24); y += 32f; }
 		foreach (var o in offers)
 		{

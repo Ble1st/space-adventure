@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
@@ -106,7 +107,8 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		At(top, Text($"{type} · {faction} · {sector}", L.Compact ? 14 : 16, Dim), 0, L.Compact ? 36 : 42, cx - 10, 22);
 		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", L.Compact ? 22 : 26, Orange, HorizontalAlignment.Right), cx, 0, L.Credits.W, 32);
 		// Runde 34b: eingeklappte Schiffsspalte (schmale Fläche) — der Laderaum steht dann hier statt der Stationskasse (die steht in der Stationsinfo)
-		string second = L.ShipCollapsed ? $"Laderaum {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³ · Hülle {(int)ship.Hull}/{(int)ship.MaxHull}" : $"Kasse der Station {st.Credits:0} Cr";
+		// Runde 42c: versiegelte Auftragsfracht (Ship.MissionCargo) zählt zum belegten Laderaum
+		string second = L.ShipCollapsed ? $"Laderaum {ship.UsedVolume(u) + ship.MissionCargo:0.#}/{ship.CargoCapacity:0} m³ · Hülle {(int)ship.Hull}/{(int)ship.MaxHull}" : $"Kasse der Station {st.Credits:0} Cr";
 		At(top, Text(second, L.Compact ? 14 : 16, Dim, HorizontalAlignment.Right), cx, L.Compact ? 34 : 38, L.Credits.W, 22);
 
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Daten aus DockAreas) ──
@@ -123,7 +125,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		if (ShowShip && L.ShipCollapsed)
 		{
 			var sb = new KitButton("Dein Schiff", new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, State = _shipOpen ? KitButtonState.On : KitButtonState.Normal,
-				Sub = $"Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} · Schild {(ship.Stats.Shield > 0f ? $"{(int)ship.ShieldNow}" : "–")}" };
+				Sub = $"Fracht {ship.UsedVolume(u) + ship.MissionCargo:0.#}/{ship.CargoCapacity:0} · Schild {(ship.Stats.Shield > 0f ? $"{(int)ship.ShieldNow}" : "–")}" };   // Runde 42c: versiegelte Fracht zählt mit
 			sb.Pressed += () => { _shipOpen = !_shipOpen; _dirty = true; SafeRebuild(); };
 			rv.AddChild(sb);
 		}
@@ -254,9 +256,9 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 
 		sv.AddChild(Text("Laderaum", 15, Dim));
 		var cargoBar = new KitBar(w - 28, 14, Cyan);
-		cargoBar.Set(ship.UsedVolume(u), Cyan, ship.CargoCapacity);
+		cargoBar.Set(ship.UsedVolume(u) + ship.MissionCargo, Cyan, ship.CargoCapacity);   // Runde 42c: versiegelte Auftragsfracht belegt mit
 		sv.AddChild(cargoBar);
-		sv.AddChild(Text($"{ship.UsedVolume(u):0.#} von {ship.CargoCapacity:0} m³ · {(int)u.WalletOf(ship).Credits} Credits", 14, White));
+		sv.AddChild(Text($"{ship.UsedVolume(u) + ship.MissionCargo:0.#} von {ship.CargoCapacity:0} m³ · {(int)u.WalletOf(ship).Credits} Credits", 14, White));
 
 		sv.AddChild(Text("An Bord", 15, Dim));
 		foreach (var (gid, amount) in ship.Cargo)
@@ -269,7 +271,42 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 			r.AddChild(Text($"{u.Goods[gid].Name}  {amount:0.#}", 15, White));
 			sv.AddChild(r);
 		}
-		if (ship.Cargo.Count == 0) sv.AddChild(Text("leer", 14, new Color(Dim, 0.7f)));
+		// Runde 42c (Handytest): versiegelte Auftragsfracht (Ship.MissionCargo) sichtbar — „versiegelte Fracht 20 m³ → Ziel“
+		// (Label umbrechend, sonst zieht die Zeile die Mindestbreite der Schiffspalte über den sicheren Rand hinaus)
+		if (ship.MissionCargo > 0.01f)
+		{
+			string ziel = "Unterwegs";
+			var am = u.Missions.FirstOrDefault(mm => mm.State == MissionState.Active
+				&& mm.Args.TryGetValue("ship", out var ss) && ss == ship.Id.Value.ToString());
+			if (am is not null && am.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv)
+				&& u.Stations.TryGetValue(new StationId(tv), out var tst)) ziel = tst.Name;
+			var r = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+			r.AddThemeConstantOverride("separation", 8);
+			var chip = new ColorRect { Color = FlightHud.MissionGold, CustomMinimumSize = new Vector2(14, 14), Size = new Vector2(14, 14), MouseFilter = MouseFilterEnum.Ignore };
+			r.AddChild(chip);
+			var lbl = Text($"versiegelte Fracht {ship.MissionCargo:0.#} m³ → {ziel}", 15, new Color(FlightHud.MissionGold, 1f));
+			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			r.AddChild(lbl);
+			sv.AddChild(r);
+		}
+		if (ship.Cargo.Count == 0 && ship.MissionCargo <= 0.01f) sv.AddChild(Text("leer", 14, new Color(Dim, 0.7f)));
+	}
+
+	/// <summary>Runde 42c (Selbsttest): alle Label-Texte der Schiffspalte (z. B. „versiegelte Fracht … → Ziel“).</summary>
+	public List<string> TestShipPanelTexts()
+	{
+		var list = new List<string>();
+		void Walk(Node n)
+		{
+			foreach (var ch in n.GetChildren())
+			{
+				if (ch is Label l && l.Text.Length > 0) list.Add(l.Text);
+				Walk(ch);
+			}
+		}
+		Walk(this);
+		return list;
 	}
 
 	internal static Color GoodColorOf(Universe u, GoodId gid) =>

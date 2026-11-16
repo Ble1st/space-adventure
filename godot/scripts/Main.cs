@@ -932,6 +932,7 @@ public partial class Main : Node3D
 			_player.Visible = false;
 			_player.Position = new Vector3(st.Position.X, 0, st.Position.Y);
 			ShowDockMenu();
+			ResetFastOnDock();   // Runde 42c: auch Taxi/Fernwechsel/Load — Andocken schaltet den Zeitraffer auf ×1
 		}
 		else
 		{
@@ -1733,6 +1734,7 @@ public partial class Main : Node3D
 		SpaceSim.Core.Combat.ModuleDamage.ExtinguishAll(u, PlayerData, "docked");
 		_sfx.Play(SfxId.Dock);
 		ShowDockMenu();
+		ResetFastOnDock();   // Runde 42c: im Dock automatisch ×1 — sonst verfallen Auftragsfristen unbemerkt (×10)
 		if (repaired) _hud.Toast("Hülle repariert");
 		else if (burned) _hud.Toast("Brand beim Andocken gelöscht");
 		else if (SpaceSim.Core.Services.RepairService.NeedsRepair(PlayerData)) _hud.Toast("Schäden: Reparatur im Dienst „Reparatur“");
@@ -1746,6 +1748,18 @@ public partial class Main : Node3D
 			timer.Timeout += () => { if (_docked == id) Undock(); };
 			if (!_miner.Enabled) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }
 		}
+	}
+
+	/// <summary>
+	/// Runde 42c (Handytest): Zeitraffer beim Andocken automatisch auf ×1 schalten (mit Meldung) — im Dock läuft die Simulation
+	/// sonst mit ×10 weiter und Auftragsfristen verfallen unbemerkt. Gilt für jeden Andock-Pfad, der die Ansicht ins Dock bringt.
+	/// </summary>
+	void ResetFastOnDock()
+	{
+		if (!_fast) return;
+		_fast = false;
+		_hud.Command.SetFast(false);
+		_hud.Toast("Zeitraffer aus (×1) — im Dock verfallen Fristen nicht unbemerkt", 3.5f);
 	}
 
 	/// <summary>Abdocken: Das Schiff taucht aus der Station auf und fliegt zum Parkpunkt; danach kurze Schonfrist ohne Schaden. Funktioniert aus jedem Dock-Bereich.</summary>

@@ -107,8 +107,10 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		Visible = false;
 	}
 
-	public void Open() { Visible = true; Rebuild(); }
+	public void Open() { Visible = true; OnOpen(); Rebuild(); }
 	public void Close() { Visible = false; }
+	/// <summary>Runde 42c: Hook beim Öffnen des Bereichs (z. B. Comms setzt die alte Meldung zurück — wie <see cref="DockAreaScreen"/>-Bereiche).</summary>
+	protected virtual void OnOpen() { }
 	/// <summary>Runde 17 (Speicher wächst mit „Neues Spiel“): Inhalt abbauen — Knöpfe und Zeilen halten das alte Universum in ihren Schließungen; Open baut neu.</summary>
 	public void DropContent() { foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } _dirty = true; }
 

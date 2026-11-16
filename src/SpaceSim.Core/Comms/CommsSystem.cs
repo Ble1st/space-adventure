@@ -174,30 +174,68 @@ public sealed class CommsSystem : ISimSystem
                 break;
             }
             case MissionAccepted ma:
-                Comms.Add(u, ma.Client, "mission_accepted", new() { ["mission"] = ma.Mission.ToString(), ["message"] = ma.Message }, u.Rules.InboxMessageTicks);
+                Comms.Add(u, ma.Client, "mission_accepted", MissionArgs(u, ma.Mission, ma.Message), u.Rules.InboxMessageTicks);
                 break;
             case MissionCompleted mc:
-                Comms.Add(u, mc.Client, "mission_completed", new() { ["mission"] = mc.Mission.ToString(), ["amount"] = mc.Paid.ToString("0", System.Globalization.CultureInfo.InvariantCulture), ["message"] = mc.Message }, u.Rules.InboxMessageTicks);
+                Comms.Add(u, mc.Client, "mission_completed", new() { ["mission"] = mc.Mission.ToString(), ["amount"] = mc.Paid.ToString("0", System.Globalization.CultureInfo.InvariantCulture), ["message"] = mc.Message, ["deadline"] = DeadlineArg(u, mc.Mission) }, u.Rules.InboxMessageTicks);
                 break;
             case MissionFailed mf:
-                Comms.Add(u, mf.Client, "mission_failed", new() { ["mission"] = mf.Mission.ToString(), ["reason"] = mf.Reason, ["message"] = mf.Message }, u.Rules.InboxMessageTicks);
+                Comms.Add(u, mf.Client, "mission_failed", new() { ["mission"] = mf.Mission.ToString(), ["reason"] = mf.Reason, ["message"] = mf.Message, ["deadline"] = DeadlineArg(u, mf.Mission) }, u.Rules.InboxMessageTicks);
                 break;
         }
     }
+
+    /// <summary>Runde 42c: Args einer Auftrags-Nachricht inkl. Frist-Tick („deadline“) — die Anzeige rechnet „noch …“ daraus zur Anzeigezeit.</summary>
+    static Dictionary<string, string> MissionArgs(Universe u, int missionId, string message) =>
+        new() { ["mission"] = missionId.ToString(), ["message"] = message, ["deadline"] = DeadlineArg(u, missionId) };
+
+    /// <summary>Runde 42c: Frist-Tick des Auftrags (beim Veröffentlichen von Erfüllen/Scheitern noch in der Liste); „0“ = unbekannt.</summary>
+    static string DeadlineArg(Universe u, int missionId) =>
+        u.Missions.FirstOrDefault(x => x.Id == missionId)?.Deadline.ToString() ?? "0";
 }
 
 /// <summary>
 /// Runde 40: reine Anzeige-Texte einer Posteingang-Nachricht (Betreff, Text, Antwort-Angebote als Comms-Schlüssel). Die Antworten werden über
 /// die <see cref="CommsActions"/>-Registry vorgeschaut und ausgeführt; „Ignorieren“ kostet nichts und ist keine Registry-Aktion.
+/// Runde 42c: Zeiten werden BEIM ANZEIGEN gerechnet, nicht beim Erzeugen (<see cref="RenderTimes"/>): Restzeiten/„vor …“ statt roher Ticks;
+/// Angebots-Nachrichten werden aus dem lebenden Angebot neu aufgebaut, abgelaufene/unbekannte klar als „abgelaufen“ markiert.
 /// </summary>
 public static class CommsText
 {
-    /// <summary>Betreff und Text der Nachricht (aus <see cref="CommsMessage.Kind"/> und <see cref="CommsMessage.Args"/>).</summary>
+    static readonly System.Text.RegularExpressions.Regex BisTick = new(@"bis Tick (\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
+    static readonly System.Text.RegularExpressions.Regex SeitTick = new(@"seit Tick (\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
+    static readonly System.Text.RegularExpressions.Regex Noch = new(@"noch \d+:\d\d", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Runde 42c: Zeiten im Text zur Anzeigezeit rendern — „bis Tick N“ → „bis in X min“ (bzw. „abgelaufen vor X min“),
+    /// „seit Tick N“ → „seit X min“; „noch m:ss“ (bei der Erzeugung gebacken) wird aus der gespeicherten Frist
+    /// (Args „deadline“) neu gerechnet. Reiner Textumbau, keine Zustandsänderung.
+    /// </summary>
+    public static string RenderTimes(Universe u, CommsMessage m, string body)
+    {
+        body = BisTick.Replace(body, mm =>
+        {
+            long t = long.Parse(mm.Groups[1].Value);
+            return t > u.Tick ? $"bis in {Comms.In(u, t)}" : $"abgelaufen vor {Comms.Ago(u, t)}";
+        });
+        body = SeitTick.Replace(body, mm => $"seit {Comms.Ago(u, long.Parse(mm.Groups[1].Value))}");
+        if (m.Args.TryGetValue("deadline", out var ds) && long.TryParse(ds, out var dl) && dl > 0)
+            body = Noch.Replace(body, _ => dl > u.Tick ? $"noch {Missions.MissionRules.Rest(dl - u.Tick)}" : $"abgelaufen vor {Comms.Ago(u, dl)}");
+        return body;
+    }
+
+    /// <summary>Lebendes Angebot zur Nachricht (null = unbekannt oder abgelaufen).</summary>
+    public static MissionOffer? LiveOffer(Universe u, CommsMessage m) =>
+        m.Args.TryGetValue("offer", out var os) && int.TryParse(os, out var ov)
+            ? u.MissionOffers.FirstOrDefault(o => o.Id == ov && (o.Expires <= 0 || u.Tick < o.Expires))
+            : null;
+
+    /// <summary>Betreff und Text der Nachricht (aus <see cref="CommsMessage.Kind"/> und <see cref="CommsMessage.Args"/>; Zeiten zur Anzeigezeit).</summary>
     public static (string Subject, string Body) Describe(Universe u, CommsMessage m)
     {
         string F() => m.Args.TryGetValue("faction", out var fs) && int.TryParse(fs, out var fv) && u.Factions.TryGetValue(new FactionId(fv), out var fac) ? fac.Name : "?";
         string Msg() => m.Args.TryGetValue("message", out var s) ? s : "";
-        return m.Kind switch
+        var (subj, body) = m.Kind switch
         {
             "war_declared" => ($"Kriegserklärung – {F()}", Msg().Length > 0 ? Msg() : $"{F()} erklärt dir den Krieg."),
             "peace_concluded" => ($"Frieden – {F()}", Msg()),
@@ -211,27 +249,44 @@ public static class CommsText
             "bounty_earned" => ($"Kopfgeld verdient – {F()}",
                 m.Args.TryGetValue("amount", out var as_) ? $"Kopfgeld {as_} Cr bei {F()} — abholen im Kopfgeldbüro." : $"Kopfgeld bei {F()} verdient."),
             // Runde 41: Aufträge; Runde 42: allgemeine Auftragsangebote (Kopfgeldjagd, Eskorte, Patrouille)
-            "contract_offer" => ($"Liefervertrag – {F()}",
-                m.Args.TryGetValue("message", out var cms) ? cms : "Angebot einer Station: Ware zum Festpreis abnehmen (Annahme und Kasse reserviert)."),
-            "mission_offer" => ($"Auftrag angeboten – {F()}",
-                m.Args.TryGetValue("message", out var ms) ? ms : "Angebot einer Station: ein Auftrag (z. B. Kopfgeldjagd, Eskorte, Patrouille)."),
+            // Runde 42c: Angebots-Nachrichten aus dem lebenden Angebot neu aufbauen (Restzeiten stimmen), sonst „abgelaufen“
+            "contract_offer" => OfferText(u, m, "Liefervertrag", F(), Msg()),
+            "mission_offer" => OfferText(u, m, "Auftrag angeboten", F(), Msg()),
             "mission_accepted" => ("Auftrag angenommen", Msg()),
             "mission_completed" => ("Auftrag erfüllt", m.Args.TryGetValue("amount", out var am) ? $"{Msg()} Belohnung {am} Cr." : Msg()),
             "mission_failed" => ($"Auftrag gescheitert{(m.Args.TryGetValue("reason", out var rs) ? $" ({rs})" : "")}", Msg()),
             _ => (m.Kind, Msg()),
         };
+        return (subj, RenderTimes(u, m, body));
+    }
+
+    /// <summary>
+    /// Runde 42c: Text einer Angebots-Nachricht zur Anzeigezeit: existiert das Angebot noch, wird die Beschreibung frisch
+    /// gerechnet (Restzeiten ab jetzt); sonst klar als abgelaufen markiert (mit dem ursprünglichen Text als Verweis).
+    /// </summary>
+    static (string, string) OfferText(Universe u, CommsMessage m, string subject, string from, string msg)
+    {
+        string head = $"{subject} – {from}";
+        if (LiveOffer(u, m) is { } o)
+            return (head, Missions.MissionRules.DescribeOfferText(u, o));
+        string body = msg.Length > 0 ? msg : "Angebot einer Station.";
+        return (head, RenderTimes(u, m, body) + " — dieses Angebot ist abgelaufen.");
     }
 
     /// <summary>
     /// Antwort-Angebote der Nachricht als Comms-Schlüssel (werden über die Registry vorgeschaut/ausgeführt). Angebote der KI (Waffenstillstand/
     /// Frieden) können angenommen werden; Runde 41: Liefervertrag annehmen/nachverhandeln; „Ignorieren“ ist implizit und kostet nichts.
+    /// Runde 42c: abgelaufene/unbekannte Auftragsangebote bekommen keine Antworten mehr (statt grauer „Angebot unbekannt“-Knöpfe).
     /// </summary>
     public static IReadOnlyList<string> Answers(Universe u, CommsMessage m)
     {
-        if (m.Args.TryGetValue("offer", out var os_) && int.TryParse(os_, out var ov) && m.Kind == "contract_offer")
-            return new[] { $"mission:accept:{ov}", $"contract:haggle:{ov}" };
-        if (m.Args.TryGetValue("offer", out var os2) && int.TryParse(os2, out var ov2) && m.Kind == "mission_offer")   // Runde 42: Kopfgeld/Eskorte/Patrouille annehmen
-            return new[] { $"mission:accept:{ov2}" };
+        if (m.Args.TryGetValue("offer", out var os_) && int.TryParse(os_, out var ov))
+        {
+            if (m.Kind == "contract_offer")
+                return LiveOffer(u, m) is not null ? new[] { $"mission:accept:{ov}", $"contract:haggle:{ov}" } : Array.Empty<string>();
+            if (m.Kind == "mission_offer")   // Runde 42: Kopfgeld/Eskorte/Patrouille annehmen
+                return LiveOffer(u, m) is not null ? new[] { $"mission:accept:{ov}" } : Array.Empty<string>();
+        }
         if (m.Args.TryGetValue("faction", out var fs) && int.TryParse(fs, out var fv))
         {
             return m.Kind switch

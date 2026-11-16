@@ -98,23 +98,23 @@ public sealed class PatrolMission : IMissionType
 
     public Mission Accept(Universe u, MissionOffer o, Ship ship, bool remote)
     {
-        // Frist: geschätzte Flugzeit über alle Wegpunkte in Reihenfolge × Faktor, mindestens Mindestfrist
-        float t = 0f;
+        // Frist: geschätzte reale Flugzeit über alle Wegpunkte in Reihenfolge × Faktor (mindestens 2), mindestens Mindestfrist
+        // Runde 42c: TripTicks (Spielerflugzeit) statt Travel.Ticks (NPC-Tempo)
+        long t = 0L;
         var fromSec = ship.Sector;
         var fromPos = ship.Position;
         foreach (var (sec, pos) in WaypointsOf(new Mission { Args = new Dictionary<string, string>(o.Args) }))
         {
-            float leg = Travel.Ticks(u, fromSec, fromPos, sec, pos, ship);
-            if (float.IsInfinity(leg) || float.IsNaN(leg)) leg = u.Rules.MissionMinDeadlineTicks;
-            t += leg;
+            t += MissionRules.TripTicks(u, fromSec, fromPos, sec, pos, ship);
             fromSec = sec;
             fromPos = pos;
         }
+        float factor = Math.Max(2f, u.Rules.MissionDeadlineFactor);
         return new Mission
         {
             Type = KeyId, Client = o.Client, At = o.At,
             Args = new Dictionary<string, string>(o.Args),
-            Deadline = u.Tick + Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(t * u.Rules.MissionDeadlineFactor)),
+            Deadline = u.Tick + Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(t * factor)),
         };
     }
 
@@ -138,18 +138,18 @@ public sealed class PatrolMission : IMissionType
 
     public long DeadlineOf(Universe u, MissionOffer o, Ship ship)
     {
-        float t = 0f;
+        // Runde 42c: reale Spielerflugzeit je Leg (TripTicks), nicht NPC-Tempo
+        long t = 0L;
         var fromSec = ship.Sector;
         var fromPos = ship.Position;
         foreach (var (sec, pos) in WaypointsOf(new Mission { Args = new Dictionary<string, string>(o.Args) }))
         {
-            float leg = Travel.Ticks(u, fromSec, fromPos, sec, pos, ship);
-            if (float.IsInfinity(leg) || float.IsNaN(leg)) leg = u.Rules.MissionMinDeadlineTicks;
-            t += leg;
+            t += MissionRules.TripTicks(u, fromSec, fromPos, sec, pos, ship);
             fromSec = sec;
             fromPos = pos;
         }
-        return Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(t * u.Rules.MissionDeadlineFactor));
+        float factor = Math.Max(2f, u.Rules.MissionDeadlineFactor);
+        return Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(t * factor));
     }
 
     public string DescribeOffer(Universe u, MissionOffer o)

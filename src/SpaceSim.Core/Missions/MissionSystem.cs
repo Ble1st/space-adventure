@@ -252,12 +252,63 @@ public static class MissionRules
         foreach (var m in u.Missions) if (m.State == MissionState.Active) m.Deadline += ticks;
     }
 
-    /// <summary>Angenommenes Frist-Ende: geschätzte Spielerflugzeit × <see cref="EconomyRules.MissionDeadlineFactor"/>, mindestens <see cref="EconomyRules.MissionMinDeadlineTicks"/>.</summary>
+    /// <summary>
+    /// Angenommenes Frist-Ende: reale Spielerflugzeit (Ticks bei ×1, <see cref="TripTicks"/>) × Faktor (mindestens 2),
+    /// mindestens <see cref="EconomyRules.MissionMinDeadlineTicks"/>. Runde 42c: nicht mehr <see cref="Travel.Ticks"/> (NPC-Tempo,
+    /// beim angedockten Schiff ≈ 0 — daher Fristen wie „10:00“ für Transporte über mehrere Sprünge, die real nicht schaffbar waren).
+    /// </summary>
     public static long DeadlineFrom(Universe u, Ship ship, Station target)
     {
-        float t = Travel.Ticks(u, ship.Sector, ship.Position, target.Sector, target.Position, ship);
-        if (float.IsInfinity(t) || float.IsNaN(t)) t = u.Rules.MissionMinDeadlineTicks;
-        return u.Tick + Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(t * u.Rules.MissionDeadlineFactor));
+        long trip = TripTicks(u, ship.Sector, ship.Position, target.Sector, target.DockPoint(ship.Id), ship);
+        float factor = Math.Max(2f, u.Rules.MissionDeadlineFactor);
+        return u.Tick + Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(trip * factor));
+    }
+
+    /// <summary>Runde 42c: Fallback je Gate-Sprung in Ticks (5 min), wenn die reale Flugzeit nicht berechenbar ist.</summary>
+    public const long HopFallbackTicks = 1200;
+
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Universe, Dictionary<long, float>> TripCache = new();
+
+    /// <summary>
+    /// Runde 42c: reale Spielerflugzeit in Sekunden bei ×1 (<see cref="Flight.PlayerTrip"/> — dieselbe Wegwahl und dasselbe Tempo
+    /// wie die Ansicht, inkl. Anlauf/Abbremsen und Jump-Zeit). Gecacht je Universum (Schätzung; Positionen auf 16 Einheiten gerastert).
+    /// PositiveInfinity = nicht erreichbar.
+    /// </summary>
+    public static float TripSeconds(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship)
+    {
+        var cache = TripCache.GetOrCreateValue(u);
+        long key = (uint)fromSector.Value;
+        key = key * 1000003 + (int)MathF.Round(fromPos.X / 16f);
+        key = key * 1000003 + (int)MathF.Round(fromPos.Y / 16f);
+        key = key * 1000003 + (uint)toSector.Value;
+        key = key * 1000003 + (int)MathF.Round(toPos.X / 16f);
+        key = key * 1000003 + (int)MathF.Round(toPos.Y / 16f);
+        key = key * 1000003 + (ship?.Id.Value ?? 0);
+        if (cache.TryGetValue(key, out var s)) return s;
+        s = Flight.PlayerTrip.Seconds(u, fromSector, fromPos, toSector, toPos, ship);
+        cache[key] = s;
+        return s;
+    }
+
+    /// <summary>
+    /// Runde 42c: geschätzte Flugzeit in Ticks (×1): reale Spielerflugzeit × <see cref="SimClock.TicksPerSecond"/>;
+    /// nicht berechenbar → Sprünge × <see cref="HopFallbackTicks"/> (großzügig).
+    /// </summary>
+    public static long TripTicks(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship)
+    {
+        float sec = TripSeconds(u, fromSector, fromPos, toSector, toPos, ship);
+        if (!float.IsInfinity(sec) && !float.IsNaN(sec) && sec > 0f)
+            return Math.Max(1L, (long)(sec * SimClock.TicksPerSecond));
+        int hops = u.Hops(fromSector, toSector);
+        if (hops < 1) hops = 1;
+        return hops * HopFallbackTicks;
+    }
+
+    /// <summary>Runde 42c: Flugzeit als Text für Vorschauen („~2:30 min“; „?“ = unbekannt).</summary>
+    public static string TripText(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship)
+    {
+        float sec = TripSeconds(u, fromSector, fromPos, toSector, toPos, ship);
+        return Flight.PlayerTrip.Text(sec);
     }
 
     /// <summary>Runde 42b: Restzeit als m:ss (geflooret, nie negativ) — statt roher Tick-Zahlen in Anzeigen.</summary>
@@ -310,6 +361,9 @@ public sealed class MissionBoardSystem : ISimSystem
         {
             var offer = type.Generate(u, st, rng, bucket);
             if (offer is null) continue;
+            // Runde 42c (Handytest): ein bereits angenommener Auftrag wird nicht erneut angeboten (dasselbe Bucket → derselbe
+            // Missions-RNG → dasselbe Angebot; nach der Annahme darf es nicht wieder auftauchen)
+            if (AlreadyAccepted(u, st, offer)) continue;
             offer.Id = u.NextMissionId++;
             offer.At = st.Id;
             offer.Client = st.Owner;
@@ -319,6 +373,14 @@ public sealed class MissionBoardSystem : ISimSystem
             u.Events.Publish(new MissionOffered(offer.Id, offer.Client, offer.Type, type.DescribeOffer(u, offer)));   // Runde 42b: alle Arten (Comms filtert den Kanal für Post)
         }
     }
+
+    /// <summary>
+    /// Runde 42c: Läuft bereits ein aktiver Auftrag, der aus genau diesem Angebot entstanden ist (gleiche Art, Station und
+    /// Argumente — die Annahme kopiert die Angebots-Args), wird das Angebot nicht neu erzeugt.
+    /// </summary>
+    static bool AlreadyAccepted(Universe u, Station st, MissionOffer offer) =>
+        u.Missions.Any(m => m.State == MissionState.Active && m.Type == offer.Type && m.At == st.Id
+            && offer.Args.All(kv => m.Args.TryGetValue(kv.Key, out var v) && v == kv.Value));
 }
 
 /// <summary>

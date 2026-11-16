@@ -62,8 +62,11 @@ public sealed class DeliveryMission : IMissionType
         var pick = candidates[0];
         bool contract = pick.Ratio < r.MissionScarceShare && !st.IsBuildSite;
         // die Station muss die Menge auch annehmen (Overstock-Deckel) — sonst wäre der Auftrag nie erfüllbar
+        // Runde 42c (Handytest): rundet man die Menge über die annehmbare Menge hinaus auf, ist das Angebot sofort „nicht annehmbar“
         float acceptable = st.AcceptableUnits(pick.Good, r);
-        float units = Math.Clamp(MathF.Ceiling(MathF.Min(pick.Need, MathF.Max(acceptable, 1f))), 1f, r.MissionMaxUnits);
+        float cap = MathF.Floor(acceptable);
+        if (cap < 1f) return null;
+        float units = Math.Clamp(MathF.Ceiling(MathF.Min(pick.Need, cap)), 1f, r.MissionMaxUnits);
         if (units < 1f) return null;
         var o = new MissionOffer { Type = KeyId };
         o.Args["good"] = pick.Good.Value.ToString();
@@ -171,8 +174,10 @@ public sealed class DeliveryMission : IMissionType
         var st = u.Stations[o.At];
         string g = u.GoodOf(GoodOf(o)).Name;
         float units = UnitsOf(u, o);
+        // Runde 42c: eine Frist je Angebot — der Vertrag hat keine eigene „Frist“ im Titel mehr (die Angebots-Lebensdauer
+        // steht in der Posteingangszeile); die Annahme-Frist (bei Annahme ab jetzt) steht in der Vorschauzeile
         string base_ = Contract(u, o)
-            ? $"Liefervertrag: {units:0.#} {g} an {st.Name} zum Festpreis {PriceOf(o):0.0} Cr — Annahme und Kasse reserviert, Frist {MissionRules.Rest(u.Rules.MissionOfferTicks)}, Pfand {o.Deposit:0} Cr."
+            ? $"Liefervertrag: {units:0.#} {g} an {st.Name} zum Festpreis {PriceOf(o):0.0} Cr — Annahme und Kasse der Station reserviert, Pfand {o.Deposit:0} Cr."
             : $"Lieferung: {units:0.#} {g} an {st.Name} — Belohnung {o.Reward:0} Cr, Frist {MissionRules.Rest(MissionRules.DeadlineFrom(u, u.Ships[u.PlayerShip], st) - u.Tick)}.";
         return base_;
     }

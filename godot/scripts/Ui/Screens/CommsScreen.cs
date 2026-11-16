@@ -20,13 +20,22 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.comms";
 	/// <summary>Gerätetest: Auswahl, Reiter und Meldung bei neuer Sitzung zurücksetzen.</summary>
-	public void ResetSession() { _tab = "inbox"; _sel = -1; _diplSel = 0; _detailOpen = false; _message = ""; }
+	public void ResetSession() { _tab = "inbox"; _sel = -1; _diplSel = 0; _detailOpen = false; _message = ""; _msgAt = 0; }
+	/// <summary>Runde 42c (Handytest): beim Öffnen des Bereichs alte Meldung zurücksetzen (wie der Dock-Bereich „Aufträge“).</summary>
+	protected override void OnOpen() { _message = ""; _msgAt = 0; }
 
 	string _tab = "inbox";        // "inbox" | "diplomacy" | "missions"
 	int _sel = -1;                // gewählte Nachricht (Id)
 	int _diplSel;                 // gewählte Fraktion (Index in NpcFactionIds)
 	bool _detailOpen;             // schmal: Detail statt Liste
 	string _message = "";
+	ulong _msgAt;                 // Runde 42c: Zeitpunkt der Meldung (Eigenuhr, test überschreibbar)
+	/// <summary>Runde 42c: Uhr für die Meldungs-Lebensdauer (Selbsttest stellt um).</summary>
+	internal static Func<ulong> MsgNow = () => (ulong)Time.GetTicksMsec();
+	/// <summary>Runde 42c: Meldungen im Comms-Bereich verfallen nach dieser Zeit (ms) — sie dürfen nicht minutenlang stehen bleiben.</summary>
+	const int MsgMs = 6000;
+	/// <summary>Runde 42c: Meldung noch sichtbar (Text da und Frist nicht abgelaufen).</summary>
+	public bool TestMessageVisible => _message.Length > 0 && MsgNow() - _msgAt < MsgMs;
 	readonly KitConfirm _confirm = new();
 	KitScroll? _detailScroll;   // Runde 41 (A3): Vorschauzeilen unter den Knöpfen schieben sie tiefer — Detail scrollt (Test-Hook)
 
@@ -37,8 +46,10 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public int TestUnread => SpaceSim.Core.Comms.Comms.Unread(Ctx.U);
 	/// <summary>Selbsttest: aktiver Reiter.</summary>
 	public string TestTab => _tab;
-	/// <summary>Selbsttest: Reiter setzen.</summary>
-	public void TestSetTab(string t) { _tab = t; Invalidate(); }
+	/// <summary>Selbsttest: Reiter setzen (Meldung wird dabei zurückgesetzt, wie beim Tippen).</summary>
+	public void TestSetTab(string t) { _tab = t; _message = ""; _msgAt = 0; Invalidate(); }
+	/// <summary>Selbsttest (Runde 42c): Meldung setzen, als hätte eine Aktion sie gemeldet.</summary>
+	public void TestShowMessage(string msg) { _message = msg; _msgAt = MsgNow(); Invalidate(); }
 	/// <summary>Selbsttest: Zahl der Fraktionszeilen im Diplomatie-Reiter.</summary>
 	public int TestDiplomacyRows => Ctx.U.NpcFactionIds().Count;
 	/// <summary>Selbsttest: Fraktion wählen (Index) und Detail öffnen.</summary>
@@ -70,36 +81,44 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 				if (act > 0) { b.Detail = act.ToString(); b.DetailColor = Cyan; }
 			}
 			string t = id;
-			b.Pressed += () => { _tab = t; _detailOpen = false; Invalidate(); };
+			b.Pressed += () => { _tab = t; _detailOpen = false; _message = ""; _msgAt = 0; Invalidate(); };   // Runde 42c: Reiterwechsel setzt die Meldung zurück
 			tx += 192;
 		}
-		if (_tab == "inbox") BuildInbox(inner, u);
-		else if (_tab == "diplomacy") BuildDiplomacy(inner, u);
-		else BuildMissions(inner, u);
+		// ── Meldungsfach (Runde 42c, Handytest: alte Meldung lief minutenlang über den Listentext) — eigenes Fach unter den
+		// Reitern, die Liste beginnt erst darunter; Meldung verfällt nach MsgMs und wird bei Wechsel/Öffnen zurückgesetzt ──
+		float top = 64f;
+		if (TestMessageVisible)
+		{
+			float mh = WrappedText(inner, _message, 12, 58, InnerW(inner) - 24f, 14, Orange, 18) - 58f;
+			top = 64f + MathF.Max(24f, mh + 6f);
+		}
+		if (_tab == "inbox") BuildInbox(inner, u, top);
+		else if (_tab == "diplomacy") BuildDiplomacy(inner, u, top);
+		else BuildMissions(inner, u, top);
 	}
 
 	// ───────── Posteingang ─────────
 
-	void BuildInbox(Control inner, Universe u)
+	void BuildInbox(Control inner, Universe u, float top)
 	{
 		var msgs = u.Inbox.OrderByDescending(m => m.Id).ToList();
 		if (_sel < 0 || !msgs.Any(m => m.Id == _sel)) _sel = msgs.Count > 0 ? msgs[0].Id : -1;
 		bool narrow = Narrow(inner);
-		if (narrow && _detailOpen) { BuildInboxDetail(inner, u, msgs, narrow: true); return; }
-		BuildInboxList(inner, u, msgs, narrow);
-		if (!narrow) BuildInboxDetail(inner, u, msgs, narrow: false);
+		if (narrow && _detailOpen) { BuildInboxDetail(inner, u, msgs, narrow: true, top); return; }
+		BuildInboxList(inner, u, msgs, narrow, top);
+		if (!narrow) BuildInboxDetail(inner, u, msgs, narrow: false, top);
 	}
 
-	void BuildInboxList(Control inner, Universe u, System.Collections.Generic.List<CommsMessage> msgs, bool narrow)
+	void BuildInboxList(Control inner, Universe u, System.Collections.Generic.List<CommsMessage> msgs, bool narrow, float top)
 	{
 		float lw = narrow ? InnerW(inner) - 24f : 380f;
-		float lh = narrow ? InnerH(inner) - 96f : InnerH(inner) - 130f;
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 64, lw, lh);
+		float lh = InnerH(inner) - top - (narrow ? 32f : 66f);
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, top, lw, lh);
 		var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
 		if (msgs.Count == 0)
-			At(inner, Text("Keine Nachrichten.", 15, Dim), 24, 80, lw - 20, 22);
+			At(inner, Text("Keine Nachrichten.", 15, Dim), 24, top + 16, lw - 20, 22);
 		foreach (var m in msgs)
 		{
 			bool isSel = m.Id == _sel;
@@ -118,15 +137,15 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			list.AddChild(row);
 		}
 		int unread = SpaceSim.Core.Comms.Comms.Unread(u);
-		At(inner, Text(unread > 0 ? $"{unread} ungelesen" : "alles gelesen", 13, new Color(Dim, 0.85f)), 12, 64 + lh + 6, lw, 18);
+		At(inner, Text(unread > 0 ? $"{unread} ungelesen" : "alles gelesen", 13, new Color(Dim, 0.85f)), 12, top + lh + 6, lw, 18);
 	}
 
-	void BuildInboxDetail(Control inner, Universe u, System.Collections.Generic.List<CommsMessage> msgs, bool narrow)
+	void BuildInboxDetail(Control inner, Universe u, System.Collections.Generic.List<CommsMessage> msgs, bool narrow, float top)
 	{
 		var m = msgs.FirstOrDefault(x => x.Id == _sel);
-		float dx = narrow ? 12f : 404f, dy = narrow ? 64f : 64f;
+		float dx = narrow ? 12f : 404f, dy = top;
 		float dw = narrow ? InnerW(inner) - 24f : InnerW(inner) - dx - 12f;
-		float dh = narrow ? InnerH(inner) - dy - 12f : InnerH(inner) - dy - 12f;
+		float dh = InnerH(inner) - dy - 12f;
 		var card = CardBg(inner, dx, dy, dw, dh, Card);
 		// Runde 42b: Inhalt der Karte scrollt, „Ignorieren“ bleibt feste Leiste unten (lange Texte liefen sonst über den Knopf)
 		var scroll = At(card, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 0, dw, dh - 64f);
@@ -135,9 +154,9 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		float y = dy + 12;
 		if (narrow)
 		{
-			var back = At(inner, new KitButton("← Liste", new Vector2(150, 48)) { FontSize = 16 }, 12, 64);
+			var back = At(inner, new KitButton("← Liste", new Vector2(150, 48)) { FontSize = 16 }, 12, top);
 			back.Pressed += () => { _detailOpen = false; Invalidate(); };
-			y = 64 + 56;
+			y = top + 56;
 		}
 		if (m is null) { At(content, Text("Keine Nachricht gewählt.", 15, Dim), 16, y - dy + 8, dw - 32, 22); return; }
 		var (subject, body) = SpaceSim.Core.Comms.CommsText.Describe(u, m);
@@ -177,84 +196,84 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		// Ignorieren kostet nichts
 		var ign = At(card, new KitButton("Ignorieren", new Vector2(160, 44)) { FontSize = 15 }, 16, dh - 56 + dy - dy);
 		int mid = m.Id;
-		ign.Pressed += () => { SpaceSim.Core.Comms.Comms.MarkRead(u, mid); _message = "Als gelesen markiert."; if (narrow) _detailOpen = false; Invalidate(); };
-		if (_message.Length > 0)
-			WrappedText(card, _message, 190, dh - 52, dw - 206, 13, Orange, 16);
+		ign.Pressed += () => { SpaceSim.Core.Comms.Comms.MarkRead(u, mid); _message = "Als gelesen markiert."; _msgAt = MsgNow(); if (narrow) _detailOpen = false; Invalidate(); };
 	}
 
 	// ───────── Aufträge (Runde 41) ─────────
 
 	/// <summary>Reiter „Aufträge“: aktive Aufträge mit Abbrechen (Folge als Vorschauzeile darunter) und offene Comms-Angebote
-	/// (Lieferverträge annehmen/nachverhandeln). Anzeige rein aus dem Core, Ausführung nur über die Comms-Registry.</summary>
-	void BuildMissions(Control inner, Universe u)
+	/// (Lieferverträge annehmen/nachverhandeln). Anzeige rein aus dem Core, Ausführung nur über die Comms-Registry.
+	/// Runde 42c (Handytest): der Inhalt ist ein freies Control, kein VBox (der streckte die Knöpfe auf volle Breite und
+	/// verzerrte die Zeilenabstände); Höhen kommen aus dem gemessenen Text (WrappedText-End-Y), jeder Knopf steht auf
+	/// eigener Zeile unter seinem Text — nie über Listentext.</summary>
+	void BuildMissions(Control inner, Universe u, float top)
 	{
 		float w = InnerW(inner) - 24f;
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 64, w, InnerH(inner) - 76f);
-		var box = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
-		box.AddThemeConstantOverride("separation", 8);
+		float h = InnerH(inner) - top - 12f;
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, top, w, h);
+		var box = new Control { MouseFilter = MouseFilterEnum.Ignore, Position = Vector2.Zero, Size = new Vector2(w, h) };
 		scroll.AddChild(box);
-		var inner2 = box;
 
-		At(inner2, Text("Aktive Aufträge", 20, Cyan), 0, 0, w - 20, 28);
+		At(box, Text("Aktive Aufträge", 20, Cyan), 0, 0, w - 20, 28);
 		float y = 34f;
 		var active = u.Missions.Where(m => m.State == SpaceSim.Core.Model.MissionState.Active).OrderBy(m => m.Id).ToList();
-		if (active.Count == 0) { At(inner2, Text("Keine laufenden Aufträge — Angebote hängen an Stationen (Dock → Aufträge) oder im Posteingang (Liefervertrag).", 14, new Color(Dim, 0.9f)), 0, y, w - 20, 40); y += 46f; }
+		if (active.Count == 0) { At(box, Text("Keine laufenden Aufträge — Angebote hängen an Stationen (Dock → Aufträge) oder im Posteingang (Liefervertrag).", 14, new Color(Dim, 0.9f)), 0, y, w - 20, 40); y += 46f; }
 		foreach (var m in active)
 		{
 			if (SpaceSim.Core.Missions.MissionRules.Types.Get(m.Type) is not { } type) continue;
-			// Runde 42b (Handytest): Kartenhöhe aus dem gemessenen Inhalt — WrappedText liefert die End-Y, also Höhe = Ende − Anfang
-			float mh = WrappedText(inner2, type.Describe(u, m), 0, y, w - 20, 15, Orange, 19) - y;
-			float bh = WrappedText(inner2, $"Belohnung {m.Reserved:0} Cr (reserviert) · Pfand {m.Deposit:0} Cr · Rest {SpaceSim.Core.Missions.MissionRules.Rest(Math.Max(0L, m.Deadline - u.Tick))}", 0, y + mh + 2, w - 20, 13, Dim, 17) - (y + mh + 2);
+			// Runde 42b/42c: Höhe aus dem gemessenen Inhalt — WrappedText liefert die End-Y, also Höhe = Ende − Anfang
+			float mh = WrappedText(box, type.Describe(u, m), 0, y, w - 8, 15, Orange, 19) - y;
+			float bh = WrappedText(box, $"Belohnung {m.Reserved:0} Cr (reserviert) · Pfand {m.Deposit:0} Cr · Rest {SpaceSim.Core.Missions.MissionRules.Rest(Math.Max(0L, m.Deadline - u.Tick))}", 0, y + mh + 2, w - 8, 13, Dim, 17) - (y + mh + 2);
+			y += mh + bh + 6f;
 			var key = $"mission:abandon:{m.Id}";
 			var offer = Ctx.Comms.Preview(u, key);
-			var b = At(inner2, new KitButton("Abbrechen", new Vector2(160, 52)) { FontSize = 16, State = offer.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, w - 172, y - 2);
+			var b = At(box, new KitButton("Abbrechen", new Vector2(200, 52)) { FontSize = 16, State = offer.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, 0, y);
 			string k = key;
 			if (offer.Possible) b.Pressed += () => Execute(k);
-			y += MathF.Max(50f, mh + bh + 8f);
+			y += 58f;
 			string folge = offer.Possible ? offer.Preview : (offer.Reason ?? "nicht möglich");
-			if (folge.Length > 0) y += WrappedText(inner2, folge, 6, y, w - 32, 12, offer.Possible ? new Color(Dim, 0.95f) : Orange, 15) - y + 10;
+			if (folge.Length > 0) y += WrappedText(box, folge, 0, y, w - 8, 12, offer.Possible ? new Color(Dim, 0.95f) : Orange, 15) - y + 10;
 		}
 
 		// offene Comms-Angebote (Lieferverträge): annehmen / nachverhandeln
 		y += 6f;
-		At(inner2, Text("Offene Angebote (Comms)", 20, Cyan), 0, y, w - 20, 28);
+		At(box, Text("Offene Angebote (Comms)", 20, Cyan), 0, y, w - 20, 28);
 		y += 34f;
 		var offers = Ctx.Comms.Offers(u).Where(o => o.Key.StartsWith("mission:accept:", StringComparison.Ordinal) || o.Key.StartsWith("contract:haggle:", StringComparison.Ordinal)).ToList();
-		if (offers.Count == 0) { At(inner2, Text("Keine offenen Angebote.", 14, new Color(Dim, 0.9f)), 0, y, w - 20, 22); y += 28f; }
+		if (offers.Count == 0) { At(box, Text("Keine offenen Angebote.", 14, new Color(Dim, 0.9f)), 0, y, w - 20, 22); y += 28f; }
 		foreach (var o in offers)
 		{
+			float th = WrappedText(box, o.Text, 0, y, w - 8, 14, White, 18) - y;
+			y += th + 2f;
+			string prev = o.Possible ? o.Preview : (o.Reason ?? "nicht möglich");
+			if (prev.Length > 0) y += WrappedText(box, prev, 0, y, w - 8, 12, o.Possible ? new Color(Dim, 0.95f) : Orange, 15) - y + 6f;
 			string label = o.Key.StartsWith("mission:accept:", StringComparison.Ordinal) ? "Annehmen" : "Nachverhandeln (+5 %)";
-			var b = At(inner2, new KitButton(label, new Vector2(200, 52)) { FontSize = 16, State = o.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, 0, y);
+			var b = At(box, new KitButton(label, new Vector2(230, 52)) { FontSize = 16, State = o.Possible ? KitButtonState.Ready : KitButtonState.Disabled }, 0, y);
 			string k = o.Key;
 			if (o.Possible) b.Pressed += () => Execute(k);
-			// Runde 42b: Höhe aus dem gemessenen Inhalt (WrappedText-End-Y minus Anfang)
-			float oh = WrappedText(inner2, o.Text, 210, y + 4, w - 220, 14, White, 18) - (y + 4);
-			y += MathF.Max(58f, oh + 10f);
-			string prev = o.Possible ? o.Preview : (o.Reason ?? "nicht möglich");
-			if (prev.Length > 0) y += WrappedText(inner2, prev, 6, y, w - 32, 12, o.Possible ? new Color(Dim, 0.95f) : Orange, 15) - y + 8;
+			y += 58f;
 		}
-		if (_message.Length > 0)
-			WrappedText(inner, _message, 12, 64 + InnerH(inner) - 116f, w, 13, Orange, 16);
+		box.Size = new Vector2(w, MathF.Max(h, y + 8f));
 	}
 
 	// ───────── Diplomatie ─────────
 
-	void BuildDiplomacy(Control inner, Universe u)
+	void BuildDiplomacy(Control inner, Universe u, float top)
 	{
 		var factions = u.NpcFactionIds().ToList();
-		if (factions.Count == 0) { At(inner, Text("Keine KI-Fraktionen.", 15, Dim), 24, 80, 400, 22); return; }
+		if (factions.Count == 0) { At(inner, Text("Keine KI-Fraktionen.", 15, Dim), 24, top + 16, 400, 22); return; }
 		if (_diplSel >= factions.Count) _diplSel = 0;
 		bool narrow = Narrow(inner);
-		if (narrow && _detailOpen) { BuildDiplomacyDetail(inner, u, factions[_diplSel], narrow: true); return; }
-		BuildDiplomacyList(inner, u, factions, narrow);
-		if (!narrow) BuildDiplomacyDetail(inner, u, factions[_diplSel], narrow: false);
+		if (narrow && _detailOpen) { BuildDiplomacyDetail(inner, u, factions[_diplSel], narrow: true, top); return; }
+		BuildDiplomacyList(inner, u, factions, narrow, top);
+		if (!narrow) BuildDiplomacyDetail(inner, u, factions[_diplSel], narrow: false, top);
 	}
 
-	void BuildDiplomacyList(Control inner, Universe u, System.Collections.Generic.List<FactionId> factions, bool narrow)
+	void BuildDiplomacyList(Control inner, Universe u, System.Collections.Generic.List<FactionId> factions, bool narrow, float top)
 	{
 		float lw = narrow ? InnerW(inner) - 24f : 380f;
-		float lh = narrow ? InnerH(inner) - 96f : InnerH(inner) - 96f;
-		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 64, lw, lh);
+		float lh = InnerH(inner) - top - 32f;
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, top, lw, lh);
 		var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
@@ -271,16 +290,16 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		}
 	}
 
-	void BuildDiplomacyDetail(Control inner, Universe u, FactionId f, bool narrow)
+	void BuildDiplomacyDetail(Control inner, Universe u, FactionId f, bool narrow, float top)
 	{
-		float dx = narrow ? 12f : 404f, dy = 64f;
+		float dx = narrow ? 12f : 404f, dy = top;
 		float dw = narrow ? InnerW(inner) - 24f : InnerW(inner) - dx - 12f;
 		float dh = InnerH(inner) - dy - 12f;
 		var frame = CardBg(inner, dx, dy, dw, dh, Card);
 		float bodyTop = 0f;
 		if (narrow)
 		{
-			var back = At(inner, new KitButton("← Liste", new Vector2(150, 48)) { FontSize = 16 }, 12, 64);
+			var back = At(inner, new KitButton("← Liste", new Vector2(150, 48)) { FontSize = 16 }, 12, top);
 			back.Pressed += () => { _detailOpen = false; Invalidate(); };
 			bodyTop = 56f;   // Inhalt erst unter der „← Liste“-Taste (Runde 40: Name/Relation lagen über der Taste)
 		}
@@ -338,16 +357,16 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		int tributeAmount = war is not null ? Math.Max(1, (int)MathF.Ceiling(Wars.TributeFor(u, war, f))) : 1;
 		ActionButton($"tribute:{f.Value}:{tributeAmount}", "Tribut zahlen", confirm: false);
 		det.CustomMinimumSize = new Vector2(dw - 16f, y + 8);
-		if (_message.Length > 0)
-			WrappedText(frame, _message, 16, dh - 52, dw - 32, 13, Orange, 16);
+		// Runde 42c: die Meldung steht im eigenen Fach oben (BuildContent) — nie als Überlagerung über diesem Detail
 	}
 
-	/// <summary>Führt ein Comms-Angebot aus (nur über die Registry) und meldet das Ergebnis.</summary>
+	/// <summary>Führt ein Comms-Angebot aus (nur über die Registry) und meldet das Ergebnis (Meldung mit Verfallszeit, Runde 42c).</summary>
 	void Execute(string key)
 	{
 		var u = Ctx.U;
 		var r = Ctx.Comms.Execute(u, key);
 		_message = r.Message;
+		_msgAt = MsgNow();
 		Invalidate();
 	}
 

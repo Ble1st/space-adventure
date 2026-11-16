@@ -327,6 +327,31 @@ public sealed class MissionAcceptAction : ICommsAction
     public bool Handles(string offer) => offer.StartsWith(Prefix, StringComparison.Ordinal);
     const string Prefix = KeyId + ":accept:";
 
+    /// <summary>
+    /// Runde 42c: Vorschauzeile eines Angebots — eine Frist (bei Annahme ab jetzt), dazu Festpreis × Menge (Kasse reserviert)
+    /// statt „Belohnung 0 Cr“ beim Liefervertrag, Pfand, Ziel und geschätzte Flugzeit des Spielers.
+    /// </summary>
+    public static string PreviewLine(Universe u, MissionOffer o, Ship ship, string? issue)
+    {
+        var type = MissionRules.Types.Get(o.Type);
+        long frist = type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, u.Stations[o.At]) - u.Tick;
+        string ziel = type?.TargetText(u, o) ?? (u.Stations.TryGetValue(o.At, out var st0) ? st0.Name : "");
+        string head;
+        if (o.Args.TryGetValue("contract", out var c) && c == "1")
+        {
+            float units = DeliveryMission.UnitsOf(u, o), price = DeliveryMission.PriceOf(o);
+            head = $"Festpreis {price:0.0} Cr × {units:0.#} = {units * price:0} Cr (Kasse reserviert) · Pfand {o.Deposit:0} Cr";
+        }
+        else
+        {
+            head = $"Belohnung {o.Reward:0} Cr (reserviert) · Pfand {o.Deposit:0} Cr";
+        }
+        // Runde 42c: geschätzte Flugzeit zum Ziel in der Vorschau
+        var tgt = o.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv) && u.Stations.TryGetValue(new StationId(tv), out var t) ? t : u.Stations[o.At];
+        string flug = $" · Flug ~{MissionRules.TripText(u, ship.Sector, ship.Position, tgt.Sector, tgt.DockPoint(ship.Id), ship)}";
+        return issue ?? $"{head} · Frist {MissionRules.Rest(frist)} · Ziel {ziel}{flug}";
+    }
+
     public IReadOnlyList<CommsOffer> Offers(Universe u)
     {
         var list = new List<CommsOffer>();
@@ -336,8 +361,7 @@ public sealed class MissionAcceptAction : ICommsAction
             string? issue = MissionRules.AcceptIssue(u, o.Id, ship, remote: true);
             var type = MissionRules.Types.Get(o.Type);
             list.Add(new CommsOffer($"{KeyId}:accept:{o.Id}", $"Auftrag annehmen: {type?.DescribeOffer(u, o) ?? o.Type}",
-                issue ?? $"Belohnung {o.Reward:0} Cr reserviert · Pfand {o.Deposit:0} Cr · Frist {MissionRules.Rest(type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, u.Stations[o.At]) - u.Tick)} · Ziel {type?.TargetText(u, o)}",
-                -o.Deposit, issue is null, issue));
+                PreviewLine(u, o, ship, issue), -o.Deposit, issue is null, issue));
         }
         return list;
     }
@@ -351,8 +375,7 @@ public sealed class MissionAcceptAction : ICommsAction
         var type = MissionRules.Types.Get(o.Type);
         string? issue = MissionRules.AcceptIssue(u, id, ship, remote: true);
         return new(offer, $"Auftrag annehmen: {type?.DescribeOffer(u, o) ?? o.Type}",
-            issue ?? $"Belohnung {o.Reward:0} Cr · Pfand {o.Deposit:0} Cr · Ziel {type?.TargetText(u, o) ?? u.Stations[o.At].Name}.",
-            -o.Deposit, issue is null, issue);
+            PreviewLine(u, o, ship, issue), -o.Deposit, issue is null, issue);
     }
 
     public ServiceResult Execute(Universe u, string offer)

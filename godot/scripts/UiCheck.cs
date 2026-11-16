@@ -130,6 +130,8 @@ public partial class UiCheck : Node
 					var st = u().StationsById().FirstOrDefault(s => s.TypeKey == tk);
 					if (st is null) return;
 					_m.TestDockAt(st.Id);
+					// Runde 42c: versiegelte Auftragsfracht in der Schiffspalte (alle Dock-Zustände messen sie mit)
+					if (u().Ships.TryGetValue(u().PlayerShip, out var ps42) && ps42.MissionCargo < 20f) ps42.MissionCargo = 20f;
 					int at = 0;
 					foreach (var def in _m.TestDockAreas().Where(d => d.Available).Select(d => d.Id).ToList())
 						if (seenAreas.Add(def)) _plan.Insert(at++, ("dock-" + def, () => _m.TestOpenDockArea(def), 12));
@@ -165,6 +167,8 @@ public partial class UiCheck : Node
 				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
 			// Runde 40: Comms mit Diplomatie-Reiter und ausgewählter Fraktion (Knöpfe mit Vorschau)
 			Add("kz-comms-diplomatie", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); _m.HudRef.CcComms.TestSetTab("diplomacy"); _m.HudRef.CcComms.TestSelectFaction(0); }, 12);
+			// Runde 42c (Handytest): Comms-Reiter „Aufträge“ mit aktiver Meldung — Meldungsfach oben, Liste beginnt darunter (nie über Listentext)
+			Add("kz-comms-auftraege-meldung", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); var cs = _m.HudRef.CcComms; cs.TestSetTab("missions"); cs.TestShowMessage("Auftrag angenommen: Transport — versiegelte Fracht 20 m³ → Elektronikfabrik Kalypsо · noch 9:59 (zweite Zeile zum Messen des Umbruchs im Meldungsfach)"); }, 12);
 			// Runde 37b (A4): Fraktionsdetail (schmal: Detail statt Liste)
 			Add("kz-fraktionsdetail", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Factions); var fr = _m.HudRef.CcFactions; fr.Selected = fr.TestRows.FirstOrDefault()?.Id; fr.TestDetailOpen = true; }, 12);
 			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
