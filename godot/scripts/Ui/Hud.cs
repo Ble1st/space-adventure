@@ -812,7 +812,7 @@ public partial class Hud : CanvasLayer
 				int dk = bare.LastIndexOf(" · ", StringComparison.Ordinal);
 				string distPart = dk >= 0 ? bare[dk..] : "";
 				float dw = distPart.Length > 0 ? font.GetStringSize(distPart, HorizontalAlignment.Left, -1, 13).X : 0f;
-				var (namePart, lfs) = UiKit.FitText(this, font, dk >= 0 ? bare[..dk] : bare, 13, 190f - dw);
+				var (namePart, lfs) = UiKit.FitText(this, font, dk >= 0 ? bare[..dk] : bare, 13, (dk >= 0 ? 290f : 190f) - dw);   // Runde 44: mit Entfernung breiter (Kleinstationen „Leichte Waffenstellung Alpha · 220 m“ wurden gekürzt)
 				string label = namePart + distPart;
 				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
 				var lp = tip - dir * 30f - new Vector2(w / 2f, -4f);
