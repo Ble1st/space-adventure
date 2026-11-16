@@ -256,6 +256,10 @@ public sealed class MinerSystem : ISimSystem
                 ship.MineAsteroid = 0;
                 return;
             }
+            // Runde 43: echter Kontakt wie beim Spieler — die Werkzeugfront steht an der Felsoberfläche (ContactMining-Geometrie). Steht das
+            // Schiff noch nicht am Fels (Arbeitspunkt des Feldes, Wechsel zum nächsten Fels), fliegt es mit seinem Tempo an den Ansetzpunkt
+            // (Schiffsmitte auf Radius + Werkzeugreichweite, auf der Linie Felsmitte → Schiff) — kein Sprung, und abgebaut wird nie aus der Ferne.
+            if (!ApproachRock(u, ship, crock)) return;
             // Phase 32: erst verankern (abstrakt am Arbeitspunkt), dann abbauen — dieselbe Regel wie beim Spieler
             if (MiningAnchor.Active(u))
             {
@@ -288,6 +292,25 @@ public sealed class MinerSystem : ISimSystem
             ship.Cargo[shot.Good] = ship.Cargo.GetValueOrDefault(shot.Good) + MathF.Min(shot.Units, ship.FreeUnits(u, shot.Good));   // Traktorstrahl lädt ein
         }
         u.Events.Publish(new MinerShot(sector.Id, ship.Id, rock.Id, rock.Position, rock.Radius, shot.Units, shot.Good));
+    }
+
+    /// <summary>
+    /// Runde 43: Kontaktschürfer an den Fels heranführen. true = die Werkzeugfront berührt den Fels (<see cref="ContactMining.InContact"/> mit
+    /// <see cref="ContactMining.ToolReach"/>), es darf abgebaut werden. Sonst fährt das Schiff in diesem Tick höchstens sein Tempo
+    /// (<see cref="Travel.SpeedOf"/>, Einheiten je Tick) geradlinig auf den Ansetzpunkt zu und baut nicht ab. Ein laufender Anker an einem
+    /// anderen Ort wird dabei nicht berührt (er gehört zu genau diesem Fels und hält das Schiff am Ansetzpunkt). Keine Zufallszahl.
+    /// </summary>
+    internal static bool ApproachRock(Universe u, Ship ship, Asteroid rock)
+    {
+        float reach = ContactMining.ToolReach(ship, u);
+        var to = rock.Position - ship.Position;
+        if (to.Length > 1e-4f && ContactMining.InContact(ship.Position, to.Normalized(), rock, reach)) return true;
+        var spot = MiningAnchor.HoldPosition(ship.Position, rock, reach);
+        var d = spot - ship.Position;
+        float len = d.Length, step = Travel.SpeedOf(ship);
+        ship.Position = len <= step ? spot : ship.Position + d * (step / len);
+        to = rock.Position - ship.Position;
+        return len <= step && to.Length > 1e-4f && ContactMining.InContact(ship.Position, to.Normalized(), rock, reach);
     }
 
     /// <summary>Asteroid im Gürtel des Feldes, auf den der Miner feuert: bleibt beim selben, bis er leer ist; sonst der nächste in Laserreichweite.</summary>

@@ -393,7 +393,10 @@ public class FlottenTests
         Engage.StartRaid(u, raider, tr, sector);
         var r = new SimulationRunner();
         for (int i = 0; i < 40; i++) r.Step(u);
-        bool joined = ev.OfType<CombatJoined>().Any(j => j.Ship == es.Id) || (u.Fights.Of(tr.Id) is { } f && f.Of(es.Id) is { Active: true });
+        // Runde 43: Eskorten treten beim Überfallbeginn direkt bei (ohne CombatJoined); endet das Gefecht binnen der 40 Schritte, verrät das
+        // CombatExited der Eskorte die Teilnahme (vorher galt nur „am Ende noch aktiv“)
+        bool joined = ev.OfType<CombatJoined>().Any(j => j.Ship == es.Id) || ev.OfType<CombatExited>().Any(x => x.Ship == es.Id)
+            || (u.Fights.Of(tr.Id) is { } f && f.Of(es.Id) is { Active: true });
         int shots = ev.OfType<ShotFired>().Count(s => s.Shooter == es.Id);
         _o.WriteLine($"Einsatzregel {rules}: Eskorte tritt bei {joined}, Schüsse {shots}");
         Assert.Equal(joins, joined);

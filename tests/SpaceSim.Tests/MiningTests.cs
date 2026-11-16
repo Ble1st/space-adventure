@@ -133,11 +133,14 @@ public class MiningTests
     }
 
     [Fact]
-    public void AsteroidShrinksWhileMined_AndDisappearsWhenEmpty()
+    public void AsteroidKeepsItsRadiusWhileMined_AndDisappearsWhenEmpty()
     {
+        // Runde 43: Asteroiden schrumpfen nicht mehr — der Radius bleibt der Basisradius (die Ansicht zeigt abfallende Brocken
+        // und ein Zerbrechen bei 0); bei 0 Erz verschwindet der Fels wie bisher (Respawn wächst später nach).
         var (u, ship, sector, rock) = Setup();
         rock.Ore = rock.MaxOre = 30f;
         float radiusBefore = rock.Radius;
+        Assert.Equal(rock.BaseRadius, radiusBefore);
         var chunks = new OreChunks(seed: 9);
         var events = new List<AsteroidDepleted>();
         u.Events.Raised += e => { if (e is AsteroidDepleted d) events.Add(d); };
@@ -147,7 +150,7 @@ public class MiningTests
             ship.Cargo.Clear();   // Laderaum nie voll
             chunks.TryFire(u, ship, sector, rock, InRange(rock));
             chunks.Update(u, ship, InRange(rock), false, 0.05f);
-            if (i == 40) Assert.True(rock.Radius < radiusBefore, "schrumpft während des Abbaus");
+            if (i == 40) Assert.Equal(radiusBefore, rock.Radius);   // Runde 43: schrumpft nicht mehr während des Abbaus
         }
 
         Assert.DoesNotContain(rock, sector.Asteroids);

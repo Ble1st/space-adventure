@@ -47,9 +47,10 @@ public class Phase27Tests
         var u = WorldBuilder.Build(def);
         new SimulationRunner().Run(u, 20000);
         // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher 8BAFCA8A395897AE)
-        Assert.Equal(0x02F599DEDC0101B4UL, UniverseHash.Compute(u));   // Runde 11: nur die Namensliste (Kürzel befördeter Akteure) geändert — mit der alten Liste geprüft: 0x885FAB4DD2BB8F0F
-        // Runde 12: ohne die Kürzel (Namensliste) gilt weiter der Wert vor Phase 29 — die geänderte Konstante kommt nur von den Kürzeln
-        Assert.Equal(0x8BAFCA8A395897AEUL, UniverseHash.Compute(u, includeTags: false));
+        Assert.Equal(0x40BF0F1BE32EEADEUL, UniverseHash.Compute(u));   // Runde 43: Bergbau-Kontakt/konstanter Felsradius (vorher 0x02F599DEDC0101B4)
+        // Runde 11: nur die Namensliste (Kürzel befördeter Akteure) geändert — mit der alten Liste geprüft: 0x885FAB4DD2BB8F0F
+        // Runde 12: ohne die Kürzel (Namensliste) galt der Wert vor Phase 29 (0x8BAFCA8A395897AE); Runde 43 ändert das Verhalten (Felsradius konstant) → neuer Wert
+        Assert.Equal(0x274E05E310A8EEEFUL, UniverseHash.Compute(u, includeTags: false));
     }
 
     // ───────── Hilfen ─────────

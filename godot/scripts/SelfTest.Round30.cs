@@ -72,7 +72,10 @@ public partial class SelfTest
 				var note = new SpaceSim.Core.Services.TradeService().Offers(u, st, me).First(o => o.Key == $"buy:{_r30Good.Value}").Note ?? "";
 				var b = trade.TestExecute($"buy:{_r30Good.Value}", s.Units);
 				float missing = s.Units - b.Units;
-				float gain = u.WalletOf(me).Credits - _r30Cash - missing * st.Market[_r30Good].Price;
+				// Runde 43: nicht zurückgekaufte Einheiten zum wirksamen Kaufpreis bewerten (Boden des offenen Verkaufspostens, sonst Markt) — der Marktpreis allein
+				// unterschätzt sie, weil der Boden für jede Menge gilt (Runde 32b); vorher fiel der Rückkauf hier nie unter die verkaufte Menge
+				float missingCost = missing > 0f ? SpaceSim.Core.Trading.PlayerLedger.BuyUnitPrice(u, me, st, _r30Good, missing, st.Market[_r30Good].Price) * missing : 0f;
+				float gain = u.WalletOf(me).Credits - _r30Cash - missingCost;
 				Check(gain <= 0.5f, $"Verbraucher: Verkauf → Tick → Rückkauf ohne Gewinn ({gain:0.00} Cr; Hinweis „{note}“; {b.Message})");
 				me.Cargo.Clear();
 				return false;

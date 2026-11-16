@@ -82,7 +82,7 @@ public static class AsteroidSplitter
 
     /// <summary>
     /// Platzregel für Fragmente: dieselben Abstände zu Gates, Stationen und Feldmitte wie <see cref="BeltPlacement.Fits"/>, zu anderen Asteroiden
-    /// aber nur deren aktueller Radius plus ein kleiner Spalt (Fragmente liegen dicht am Ursprung, abgebaute Felsen sind geschrumpft).
+    /// aber nur deren Radius plus ein kleiner Spalt (Fragmente liegen dicht am Ursprung; Runde 43: Radien sind konstant).
     /// </summary>
     static bool FitsFragment(Universe u, Sector s, Vec2 p, float r) =>
         s.Gates.All(g => Vec2.Distance(p, u.Gates[g].Position) > BeltPlacement.GateClear + r) &&

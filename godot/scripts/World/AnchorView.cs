@@ -22,7 +22,7 @@ public partial class AnchorView : Node3D
 	{
 		public ShipId Ship; public int Rock;
 		public readonly List<Tether> Tethers = new();
-		public CpuParticles3D Plume = null!, Puff = null!;
+		public CpuParticles3D Plume = null!, Puff = null!, Chunks = null!;
 		public float Shown;                 // angezeigter Flugfortschritt 0..1 (folgt dem Core weich)
 		public float Snap = -1f;            // ≥ 0: Zurückschnappen läuft (Sekunden)
 		public bool Violent;
@@ -36,8 +36,8 @@ public partial class AnchorView : Node3D
 	readonly Dictionary<ShipId, Entry> _live = new();
 	readonly List<Entry> _snapping = new();
 	readonly Stack<Tether> _tetherPool = new();
-	readonly Stack<(CpuParticles3D Plume, CpuParticles3D Puff)> _fxPool = new();
-	static StandardMaterial3D? _lineMat, _headMat, _plumeMat, _puffMat;
+	readonly Stack<(CpuParticles3D Plume, CpuParticles3D Puff, CpuParticles3D Chunks)> _fxPool = new();
+	static StandardMaterial3D? _lineMat, _headMat, _plumeMat, _puffMat, _chunkMat;
 
 	/// <summary>Effekte für Funken beim Riss (setzt Main).</summary>
 	public Fx? Fx { get; set; }
@@ -50,6 +50,17 @@ public partial class AnchorView : Node3D
 	public IReadOnlyList<Vector3> TipsOf(ShipId id) => _live.TryGetValue(id, out var e) ? e.Tethers.Select(t => t.Head.GlobalPosition).ToList() : Array.Empty<Vector3>();
 	public bool HarpoonsHidden(ShipId id) => _live.TryGetValue(id, out var e) && e.Hidden.Count > 0 && e.Hidden.All(h => !h.Visible);
 	public bool PlumeOn(ShipId id) => _live.TryGetValue(id, out var e) && e.Plume.Emitting;
+	/// <summary>Runde 43: Brocken-Partikel am Bohrpunkt aktiv (Selbsttest).</summary>
+	public bool ChunksOn(ShipId id) => _live.TryGetValue(id, out var e) && e.Chunks.Emitting;
+	/// <summary>Runde 43: längste sichtbare Trosse des Schiffs (Selbsttest: Seillänge).</summary>
+	public float RopeLength(ShipId id)
+	{
+		if (!_live.TryGetValue(id, out var e)) return 0f;
+		float m = 0f;
+		for (int t = 0; t < e.Tethers.Count && t < e.Muzzles.Length; t++)
+			m = Mathf.Max(m, e.Muzzles[t].DistanceTo(e.Tethers[t].Head.GlobalPosition));
+		return m;
+	}
 	public int TotalNodes => GetChildCount();
 
 	/// <summary>Sektorwechsel/neue Sitzung: alles in den Pool.</summary>
@@ -65,7 +76,7 @@ public partial class AnchorView : Node3D
 		if (!_live.Remove(ar.Ship, out var e)) return;
 		e.Snap = 0f;
 		e.Violent = ar.Reason is "thrust" or "turn" or "impact" or "hit" or "split" or "combat" or "lost_contact";
-		e.Plume.Emitting = false; e.Puff.Emitting = false;
+		e.Plume.Emitting = false; e.Puff.Emitting = false; e.Chunks.Emitting = false;
 		if (e.Violent && Fx is { } fx) foreach (var p in e.Impacts) fx.Burst(p, new Color(1f, 0.75f, 0.3f), 8, 9f, 0.4f);
 		_snapping.Add(e);
 	}
@@ -92,7 +103,7 @@ public partial class AnchorView : Node3D
 		foreach (var id in _live.Keys.Where(k => !seen.Contains(k)).ToList())
 		{
 			var e = _live[id]; _live.Remove(id);
-			e.Snap = 0f; e.Plume.Emitting = false; e.Puff.Emitting = false;
+			e.Snap = 0f; e.Plume.Emitting = false; e.Puff.Emitting = false; e.Chunks.Emitting = false;
 			_snapping.Add(e);
 		}
 		for (int i = _snapping.Count - 1; i >= 0; i--)
@@ -135,6 +146,10 @@ public partial class AnchorView : Node3D
 		e.Plume.GlobalPosition = center + n * rock.Radius + side * 2.2f + Vector3.Up * 0.2f;
 		e.Plume.Direction = (side * 1f + Vector3.Up * 0.25f - n * 0.15f).Normalized();
 		if (e.Plume.Emitting != mining) e.Plume.Emitting = mining;
+		// Runde 43: abfallende Brocken/Splitter am Bohrpunkt — fallen ab und treiben weg (reine Ansicht, der Fels bleibt ganz)
+		e.Chunks.GlobalPosition = center + n * rock.Radius * 0.98f + side * 1.2f;
+		e.Chunks.Direction = (side * 0.9f + Vector3.Up * 0.35f - n * 0.2f).Normalized();
+		if (e.Chunks.Emitting != mining) e.Chunks.Emitting = mining;
 		e.PuffClock -= delta;
 		if (mining && e.PuffClock <= 0f)
 		{
@@ -148,17 +163,26 @@ public partial class AnchorView : Node3D
 		if (mining && body.Visual is { } v) v.SetEngine(0.35f);   // leichtes Triebwerksglühen gegen den Zug
 	}
 
-	/// <summary>Mündungen in Weltkoordinaten: Harpunenknoten, sonst zwei Punkte am Bug.</summary>
+	/// <summary>
+	/// Mündungen in Weltkoordinaten: Harpunenknoten — Runde 43 liegt ein Knoten innen im Bohrerbereich (z. B. mittlerer Werfer hinter dem Werkzeug),
+	/// wird er radial auf die Flanke geschoben, damit die Trossen außen am Bohrer entlang zur Felsoberfläche laufen. Ohne Harpunenknoten zwei
+	/// Punkte an den Bugflanken des Grundkörpers.
+	/// </summary>
 	static Vector3[] Muzzles(ShipVisual? v, Node3D body, int count)
 	{
 		var list = new Vector3[count];
 		if (v is { Harpoons.Count: > 0 } && v.Root.IsInsideTree())
 		{
-			for (int i = 0; i < count; i++) list[i] = v.Harpoons[Math.Min(i, v.Harpoons.Count - 1)].GlobalPosition;
+			for (int i = 0; i < count; i++)
+			{
+				var h = v.Harpoons[Math.Min(i, v.Harpoons.Count - 1)];
+				var local = v.OutsideDrill(v.LocalOf(h), i);
+				list[i] = v.Root.GlobalTransform * local;
+			}
 			return list;
 		}
 		var tr = body.GlobalTransform;
-		for (int i = 0; i < count; i++) list[i] = tr * new Vector3(i % 2 == 0 ? 0.7f : -0.7f, 0.2f, -2.2f);
+		for (int i = 0; i < count; i++) list[i] = tr * new Vector3(i % 2 == 0 ? 1.3f : -1.3f, 0.2f, -1.6f);
 		return list;
 	}
 
@@ -181,7 +205,7 @@ public partial class AnchorView : Node3D
 		var e = new Entry { Ship = id, Rock = rock };
 		for (int i = 0; i < count; i++) e.Tethers.Add(_tetherPool.Count > 0 ? _tetherPool.Pop() : NewTether());
 		var fx = _fxPool.Count > 0 ? _fxPool.Pop() : NewFx();
-		e.Plume = fx.Plume; e.Puff = fx.Puff;
+		e.Plume = fx.Plume; e.Puff = fx.Puff; e.Chunks = fx.Chunks;
 		if (vis is not null) foreach (var h in vis.Harpoons) { h.Visible = false; e.Hidden.Add(h); }
 		return e;
 	}
@@ -192,8 +216,8 @@ public partial class AnchorView : Node3D
 		e.Tethers.Clear();
 		foreach (var h in e.Hidden) if (IsInstanceValid(h)) h.Visible = true;
 		e.Hidden.Clear();
-		e.Plume.Emitting = false; e.Puff.Emitting = false;
-		_fxPool.Push((e.Plume, e.Puff));
+		e.Plume.Emitting = false; e.Puff.Emitting = false; e.Chunks.Emitting = false;
+		_fxPool.Push((e.Plume, e.Puff, e.Chunks));
 	}
 
 	Tether NewTether()
@@ -206,10 +230,11 @@ public partial class AnchorView : Node3D
 		return new Tether { Line = line, Head = head };
 	}
 
-	(CpuParticles3D Plume, CpuParticles3D Puff) NewFx()
+	(CpuParticles3D Plume, CpuParticles3D Puff, CpuParticles3D Chunks) NewFx()
 	{
 		_plumeMat ??= Gfx.Mat(new Color(0.62f, 0.55f, 0.48f), 0.4f, 0f);
 		_puffMat ??= Gfx.Mat(new Color(0.75f, 0.9f, 1f), 2.5f, 0f);
+		_chunkMat ??= Gfx.Mat(new Color(0.5f, 0.44f, 0.38f), 0.5f, 0.3f);   // Runde 43: abfallende Brocken in Felsfarbe
 		var plume = new CpuParticles3D
 		{
 			Amount = 14, Lifetime = 1.1f, Emitting = false, LocalCoords = false, Spread = 25f, Gravity = Vector3.Zero,
@@ -222,7 +247,14 @@ public partial class AnchorView : Node3D
 			InitialVelocityMin = 5f, InitialVelocityMax = 9f, ScaleAmountMin = 0.3f, ScaleAmountMax = 0.6f, Direction = Vector3.Right,
 			Mesh = new SphereMesh { Radius = 0.18f, Height = 0.36f, RadialSegments = 5, Rings = 2 }, MaterialOverride = _puffMat,
 		};
-		AddChild(plume); AddChild(puff);
-		return (plume, puff);
+		// Runde 43: Brocken/Splitter am Bohrpunkt — kurze Flugbahn, fallen ab (leichter Zug nach unten) und treiben seitlich weg
+		var chunks = new CpuParticles3D
+		{
+			Amount = 9, Lifetime = 1.25f, Emitting = false, LocalCoords = false, Spread = 32f, Gravity = new Vector3(0f, -2.2f, 0f),
+			InitialVelocityMin = 2f, InitialVelocityMax = 5f, ScaleAmountMin = 0.35f, ScaleAmountMax = 0.8f, Direction = Vector3.Right,
+			Mesh = new BoxMesh { Size = new Vector3(0.5f, 0.4f, 0.5f) }, MaterialOverride = _chunkMat,
+		};
+		AddChild(plume); AddChild(puff); AddChild(chunks);
+		return (plume, puff, chunks);
 	}
 }

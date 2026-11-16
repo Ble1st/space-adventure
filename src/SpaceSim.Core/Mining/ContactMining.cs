@@ -19,10 +19,28 @@ public static class ContactMining
     public const float ContactRange = 2.5f;
     /// <summary>Höchster Winkel zwischen Bug und Richtung zur Asteroidenmitte.</summary>
     public const float FrontArcDeg = 35f;
-    /// <summary>Abstand des Bugs von der Schiffsmitte.</summary>
+    /// <summary>Abstand des Bugs von der Schiffsmitte (Schiffe ohne Modell).</summary>
     public const float BowOffset = 2f;
     /// <summary>Höchstens so viele Portionen je Schritt (gegen Sprünge bei großen Schritten).</summary>
     public const int MaxPortionsPerStep = 4;
+
+    /// <summary>
+    /// Runde 43: Abstand Schiffsmitte → Werkzeugfront (Bug mit Werkzeug) je Größenklasse — Halblänge der Klasse
+    /// (S 2,4 · M 3,6 · L 5,76 · XL 8,64; ohne Modell <see cref="BowOffset"/>). Die Ansicht misst die echte Spitze des Modells
+    /// genauer; der Core rechnet mit der Klassen-Halblänge, damit große Schürfer (L) mit ihrem langen Werkzeug Kontakt halten.
+    /// </summary>
+    public static float ToolReach(Ship ship, Universe? u = null)
+    {
+        var size = u is not null ? Simulation.Docking.SizeOf(u, ship) : null;
+        return size switch
+        {
+            Model.SlotSize.S => 2.4f,
+            Model.SlotSize.M => 3.6f,
+            Model.SlotSize.L => 5.76f,
+            Model.SlotSize.XL => 8.64f,
+            _ => BowOffset,
+        };
+    }
 
     /// <summary>
     /// Erz je Sekunde eines Schiffs an einem Asteroiden dieser Klasse — Laser (Brockenchance × mittlere Brockengröße ÷ Nachladezeit) oder Kontaktwerkzeug
@@ -39,14 +57,15 @@ public static class ContactMining
     public static float ContactRate(ShipStats s, AsteroidClass cls) => s.ContactMining * cls.ChunkChance / MiningRules.ChunkChance;
 
     /// <summary>Berührt die Werkzeugfront den Asteroiden? <paramref name="dir"/> = Blickrichtung (Einheitsvektor).</summary>
-    public static bool InContact(Vec2 pos, Vec2 dir, Asteroid rock)
+    /// <param name="bowOffset">Abstand Schiffsmitte → Werkzeugfront; Standard <see cref="BowOffset"/>, mit Modell <see cref="ToolReach"/>.</param>
+    public static bool InContact(Vec2 pos, Vec2 dir, Asteroid rock, float bowOffset = BowOffset)
     {
         var to = rock.Position - pos;
         float len = to.Length;
         if (len < 1e-4f) return true;
         float cos = (to.X * dir.X + to.Y * dir.Y) / len;
         if (cos < MathF.Cos(FrontArcDeg * MathF.PI / 180f)) return false;
-        var bow = pos + dir * BowOffset;
+        var bow = pos + dir * bowOffset;
         return Vec2.Distance(bow, rock.Position) - rock.Radius <= ContactRange;
     }
 

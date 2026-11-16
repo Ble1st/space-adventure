@@ -1,7 +1,8 @@
 namespace SpaceSim.Core.Model;
 
 /// <summary>
-/// Asteroid mit eigenem, endlichem Erzvorrat. Beim Abbau schrumpft er und verschwindet bei 0
+/// Asteroid mit eigenem, endlichem Erzvorrat. Beim Abbau schrumpft er <b>nicht mehr</b> (Runde 43: der Radius bleibt der
+/// Basisradius; die Ansicht zeigt abfallende Brocken und ein Zerbrechen bei 0) und verschwindet bei 0
 /// (<see cref="Simulation.AsteroidRespawnSystem"/> lässt im Gürtel eines Feldes neue nachwachsen).
 /// Ohne Vorrat (<see cref="MaxOre"/> = 0) ist er ein reines Hindernis.
 /// </summary>
@@ -19,8 +20,8 @@ public sealed class Asteroid
 
     public bool Minable => Ore > 0.001f;
 
-    /// <summary>Aktueller Radius: schrumpft mit dem Restvorrat (auf bis zu 45 % des Ausgangswerts).</summary>
-    public float Radius => MaxOre <= 0f ? BaseRadius : BaseRadius * (0.45f + 0.55f * MathF.Sqrt(Math.Clamp(Ore / MaxOre, 0f, 1f)));
+    /// <summary>Aktueller Radius: konstant der Basisradius (Runde 43: Asteroiden schrumpfen beim Abbau nicht mehr).</summary>
+    public float Radius => BaseRadius;
 
     public Obstacle ToObstacle() => new(Position, Radius);
 }

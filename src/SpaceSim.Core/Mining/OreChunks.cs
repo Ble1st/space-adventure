@@ -18,8 +18,8 @@ public enum MineResult { Fired, Cooldown, OutOfRange, NotMinable, CargoFull, NoL
 /// Echtzeit-Mikrosimulation des Spielerabbaus im aktuellen Sektor. Der Laser wird <b>einzeln</b> abgefeuert
 /// (<see cref="TryFire"/>, mit Nachladezeit <see cref="MiningRules.ShotInterval"/>); jeder Schuss löst nach der gemeinsamen
 /// Regel <see cref="LaserShot"/> mit Wahrscheinlichkeit einen Brocken zufälliger Größe aus dem Asteroiden. Das Erz verlässt den
-/// Asteroiden beim Lösen (er schrumpft, bei 0 verschwindet er und wächst später per Respawn nach); der Traktorstrahl
-/// zieht die Brocken ein. Nicht eingesammelte Brocken verfallen. Flüchtig (nicht gespeichert), engine-unabhängig, testbar.
+/// Asteroiden beim Lösen (sein Radius bleibt konstant — Runde 43, er zerbricht in der Ansicht und wächst später per Respawn nach);
+/// der Traktorstrahl zieht die Brocken ein. Nicht eingesammelte Brocken verfallen. Flüchtig (nicht gespeichert), engine-unabhängig, testbar.
 /// </summary>
 public sealed class OreChunks
 {
@@ -94,11 +94,12 @@ public sealed class OreChunks
     {
         if (ship.Stats.ContactMining <= 0f) { MiningAnchor.Release(u, ship, sector.Id, "released"); return LastContact = ContactState.NoTool; }
         if (ContactMining.HoldFull(u, ship)) { MiningAnchor.Release(u, ship, sector.Id, "hold_full"); return LastContact = ContactState.HoldFull; }
-        // Phase 32: am verankerten Fels bleiben (er schrumpft beim Abbau, die Trossen halten den Bug im Kontakt)
+        // Phase 32: am verankerten Fels bleiben (konstanter Radius seit Runde 43, die Trossen halten den Bug im Kontakt)
         var anchored = ship.AnchorRock != 0 ? sector.Asteroids.FirstOrDefault(a => a.Id == ship.AnchorRock) : null;
         if (ship.AnchorRock != 0 && anchored is not { Minable: true }) MiningAnchor.Release(u, ship, sector.Id, "depleted");
-        var rock = anchored is { Minable: true } ? anchored : Nearest(sector, shipPos, ContactMining.ContactRange + ContactMining.BowOffset + 2f);
-        if (rock is null || !HasClass(u, rock) || !ContactMining.InContact(shipPos, dir, rock))
+        float reach = ContactMining.ToolReach(ship, u);   // Runde 43: Werkzeugfront je Schiffsgröße (L-Schürfer reichen weiter als der pauschale Bug)
+        var rock = anchored is { Minable: true } ? anchored : Nearest(sector, shipPos, ContactMining.ContactRange + reach + 2f);
+        if (rock is null || !HasClass(u, rock) || !ContactMining.InContact(shipPos, dir, rock, reach))
         {
             MiningAnchor.Release(u, ship, sector.Id, "lost_contact");
             _holdOff = 0;
@@ -148,7 +149,7 @@ public sealed class OreChunks
                 Position = a.Position + toShip * a.Radius,
                 Velocity = toShip * _rng.Range(3f, 8f) + side * _rng.Range(-5f, 5f),
             });
-            Belt.Remove(u, sector, a, shot.Units);   // Erz verlässt den Asteroiden (schrumpft, bei 0 weg)
+            Belt.Remove(u, sector, a, shot.Units);   // Erz verlässt den Asteroiden (Radius bleibt konstant, bei 0 zerbricht er in der Ansicht)
         }
         Shot?.Invoke(a, shot);
         return MineResult.Fired;

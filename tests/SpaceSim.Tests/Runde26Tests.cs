@@ -124,14 +124,18 @@ public class Runde26Tests
         var b = Navigator.PlayerObstacles(u, p.Sector, p.Position, null);
         Assert.Same(a, b);
         Assert.Equal(u.GetObstacles(p.Sector).Count + u.Sectors[p.Sector].Gates.Count(g => Vec2.Distance(u.Gates[g].Position, p.Position) > 20f), a.Count);
-        // Runde 27: ein Fels schrumpft innerhalb des Ticks (Abbau in der Ansicht) → neue Liste
+        // Runde 27: ein Fels schrumpft innerhalb des Ticks (Abbau in der Ansicht) → neue Liste.
+        // Runde 43: Asteroiden schrumpfen nicht mehr (Radius konstant) — eine reine Erzänderung invalidiert den Cache nicht;
+        // ein entfernter Fels innerhalb des Ticks schon.
         var rock = u.Sectors[p.Sector].Asteroids.FirstOrDefault(r => r.MaxOre > 0f && r.Ore > 1f);
         if (rock is not null)
         {
             rock.Ore *= 0.5f;
+            Assert.Same(a, Navigator.PlayerObstacles(u, p.Sector, p.Position, null));   // Runde 43: konstanter Radius — Erzabbau allein ändert die Liste nicht
+            u.Sectors[p.Sector].Asteroids.Remove(rock);
             var c = Navigator.PlayerObstacles(u, p.Sector, p.Position, null);
             Assert.NotSame(a, c);
-            Assert.Contains(c, o => MathF.Abs(o.Radius - rock.Radius) < 0.001f && o.Position == rock.Position);
+            Assert.DoesNotContain(c, o => o.Position == rock.Position);
             a = c;
         }
         u.Tick++;

@@ -359,7 +359,7 @@ public partial class Main : Node3D
 		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();   // Gerätetest Phase 27: kein Zustand der alten Sitzung
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset(); _anchors.Clear();
-		_transition = false; _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
+		_transition = false; _playerTween?.Kill(); _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
 		_hud.Flight.Visible = true;   // Dock-Bildschirme wurden über Screens.Hide() geschlossen
 		_view.Rebuild(u);
 		var p = PlayerData;
@@ -907,6 +907,9 @@ public partial class Main : Node3D
 
 	/// <summary>Phase 12: Das aktive Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff) — die Ansicht setzt es im nächsten Frame um.</summary>
 	bool _reenter;
+	/// <summary>Runde 43: laufender Dock-/Abdock-Tween des Spielerschiffs — wird bei Sitzungswechsel/Ansicht-Reset gekillt, sonst schreibt ein
+	/// Tween der alten Sitzung nach dem Reset weiter (Schiff blieb z. B. nach „Neues Spiel“ während des Andockens unsichtbar bei Maßstab 0,1).</summary>
+	Godot.Tween? _playerTween;
 
 	/// <summary>
 	/// Phase 12: Ansicht auf das (neue) aktive Schiff setzen, dort wo es ist: Sektor neu aufbauen, Schiff an seine Position, angedockt → Andock-Menü,
@@ -920,7 +923,7 @@ public partial class Main : Node3D
 		_target = null; _targetStation = null; _autopilot = false; _hud.Flight.SetAutopilot(false);
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.ClearTarget();
-		_transition = false; _player.Scale = Vector3.One; _player.Velocity = Vector3.Zero; _player.GiveGrace(2f);
+		_transition = false; _playerTween?.Kill(); _player.Scale = Vector3.One; _player.Velocity = Vector3.Zero; _player.GiveGrace(2f);
 		_lowestHull = p.Hull;
 		_view.Rebuild(u);
 		_player.Position = new Vector3(p.Position.X, 0, p.Position.Y);
@@ -1723,7 +1726,8 @@ public partial class Main : Node3D
 		_miningStep = null;
 
 		var center = new Vector3(st.Position.X, 0, st.Position.Y);
-		var tw = CreateTween();
+		_playerTween?.Kill();
+		var tw = _playerTween = CreateTween();
 		tw.TweenProperty(_player, "position", center, 0.7);
 		tw.Parallel().TweenProperty(_player, "scale", Vector3.One * 0.1f, 0.7);
 		tw.TweenCallback(Callable.From(() => { _player.Visible = false; _transition = false; }));
@@ -1781,6 +1785,7 @@ public partial class Main : Node3D
 		_docked = null;
 		_lostStationMessage = null;
 		_transition = false;
+		_playerTween?.Kill();
 		_hud.Map.Visible = false;
 		_hud.Screens.Hide();
 		_hud.Flight.Visible = true;
@@ -1814,7 +1819,8 @@ public partial class Main : Node3D
 		var outward = new Vector3(dir.X, 0, dir.Y);
 		_player.Heading = Mathf.Atan2(-outward.X, -outward.Z);
 
-		var tw = CreateTween();
+		_playerTween?.Kill();
+		var tw = _playerTween = CreateTween();
 		tw.TweenProperty(_player, "position", new Vector3(spot.X, 0, spot.Y), 0.7);
 		tw.Parallel().TweenProperty(_player, "scale", Vector3.One, 0.7);
 		tw.TweenCallback(Callable.From(() => { _transition = false; _player.Velocity = outward * 8f; _player.GiveGrace(2.5f); }));
@@ -2151,7 +2157,8 @@ public partial class Main : Node3D
 	/// <summary>
 	/// Phase 32: Anker des Spielers in der Ansicht — eigener Schub über der Schwelle oder Wenden reißt die Verankerung (Core-Regel
 	/// <c>MiningAnchor.BreaksFromSteering</c>); angedockt/im Übergang holt das Schiff die Anker ein; solange Harpunen hängen, liegt das Schiff an der
-	/// (schrumpfenden) Felsoberfläche (<c>MiningAnchor.HoldPosition</c>); kappt es nach Gefechtsbeginn die Trossen, steht es so lange still.
+	/// Felsoberfläche (<c>MiningAnchor.HoldPosition</c>, Runde 43 mit dem Abstand der Bohrerspitze, damit das Werkzeug die Oberfläche berührt);
+	/// kappt es nach Gefechtsbeginn die Trossen, steht es so lange still.
 	/// </summary>
 	/// <summary>Runde 18: Kamerafaktor während der Verankerung.</summary>
 	internal const float AnchorZoom = 0.7f;
@@ -2184,7 +2191,9 @@ public partial class Main : Node3D
 		if (me.AnchorRock != 0 && u.Sectors[u.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == me.AnchorRock) is { } rock)
 		{
 			var pos = new Vec2(_player.Position.X, _player.Position.Z);
-			var hold = SpaceSim.Core.Mining.MiningAnchor.HoldPosition(pos, rock, Collision.ShipRadius);
+			// Runde 43: das Schiff liegt so am Fels, dass die Bohrerspitze des Modells die Oberfläche berührt (statt des pauschalen Kollisionskreises)
+			float standoff = _player.Visual is { } pv ? pv.TipOffset : Collision.ShipRadius;
+			var hold = SpaceSim.Core.Mining.MiningAnchor.HoldPosition(pos, rock, standoff);
 			_player.Pin = new Vector3(hold.X, 0f, hold.Y);
 			_player.PinHeading = AimAssist.Bearing(hold, rock.Position);
 			return;

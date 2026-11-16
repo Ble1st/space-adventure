@@ -13,7 +13,7 @@ namespace SpaceAdventure.World;
 public sealed record HardpointDef(int Index, string Kind, Vector3 Pos, Vector3 Dir, string? Node, bool Empty);
 
 /// <summary>Daten eines Schiffsmodells aus <c>ships.json</c> (nur die Felder, die das Spiel braucht).</summary>
-public sealed record ShipModelInfo(string Key, string Size, float Scale, List<HardpointDef> Hardpoints, List<string> Rotors, List<string> Jaws);
+public sealed record ShipModelInfo(string Key, string Size, float Scale, List<HardpointDef> Hardpoints, List<string> Rotors, List<string> Jaws, string Mining = "", float ContactRadius = 0f);
 
 /// <summary>
 /// Gebundene Stellungen einer Modell-Instanz: löst die Turm-Nodes auf, rechnet die Mündung in das Koordinatensystem des Turms um (dreht der Turm, wandert sie
@@ -142,6 +142,12 @@ public sealed class ShipVisual
 	public readonly List<Node3D> Jaws = new();
 	/// <summary>Phase 32: Harpunenspitzen (<c>Harpoon_&lt;n&gt;</c>, Ursprung an der Mündung, lokal −Z = Abschussrichtung) — leer = Trossen vom Bug.</summary>
 	public readonly List<Node3D> Harpoons = new();
+	/// <summary>Runde 43: Spitze des Kontaktwerkzeugs im Modellraum (Root) — vorderster Punkt (kleinstes Z) aller Rotor-Meshes; (0,0,-1) ohne Werkzeug.</summary>
+	public Vector3 TipLocal { get; internal set; } = new(0f, 0f, -1f);
+	/// <summary>Runde 43: Abstand Schiffsmitte → Werkzeugspitze in Welteinheiten entlang der Bugachse (TipLocal mal Maßstab).</summary>
+	public float TipOffset { get; internal set; }
+	/// <summary>Runde 43: Bohrerachsen im Modellraum (Ursprung je Rotor, Radius = contactRadius aus ships.json bzw. Mesh-AABB) — für die Anker-Flankenprüfung.</summary>
+	public readonly List<(Vector3 Axis, float Radius)> DrillAxes = new();
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Engines = new();
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Accents = new();
 	int _engineLevel = -1;
@@ -205,6 +211,61 @@ public sealed class ShipVisual
 		RotorAngle += step;
 		foreach (var r in Rotors) r.RotateObjectLocal(Vector3.Back, step);
 	}
+
+	/// <summary>Lokale Position eines Knotens im Raum der Modellwurzel (Root), ohne Weltbaum.</summary>
+	public Vector3 LocalOf(Node3D n)
+	{
+		var t = n.Transform;
+		for (var p = n.GetParent(); p is Node3D p3 && p != Root; p = p.GetParent()) t = p3.Transform * t;
+		return t.Origin;
+	}
+
+	/// <summary>Runde 43: Punkt <paramref name="local"/> (Modellraum) liegt er im Bohrerbereich (lateral näher als Radius + 0,10 an einer Werkzeugachse)?</summary>
+	public bool InsideDrill(Vector3 local, out float margin)
+	{
+		margin = 0f;
+		foreach (var (axis, r) in DrillAxes)
+		{
+			float dx = local.X - axis.X, dy = local.Y - axis.Y;
+			float d = MathF.Sqrt(dx * dx + dy * dy);
+			if (d < r + 0.10f) { margin = r + 0.10f - d; return true; }
+		}
+		return false;
+	}
+
+	/// <summary>
+	/// Runde 43: Ankerpunkt im Modellraum, der außerhalb des Bohrerbereichs liegt: liegt der Harpunenpunkt innen (z. B. mittlerer Werfer
+	/// direkt hinter dem Werkzeug), wird er radial auf die Flanke geschoben (Radius + 0,16), sonst bleibt er an der Harpunenmündung.
+	/// </summary>
+	public Vector3 OutsideDrill(Vector3 local, int index)
+	{
+		if (DrillAxes.Count == 0) return local;
+		// nächste Bohrerachse
+		(Vector3 Axis, float Radius) best = (Vector3.Zero, 0f);
+		float bestD = float.MaxValue;
+		foreach (var a in DrillAxes)
+		{
+			float dx = local.X - a.Axis.X, dy = local.Y - a.Axis.Y;
+			float d = MathF.Sqrt(dx * dx + dy * dy);
+			if (d < bestD) { bestD = d; best = a; }
+		}
+		float want = best.Radius + 0.16f;
+		if (bestD >= best.Radius + 0.10f) return local;   // liegt schon außen an der Flanke
+		float ux = local.X - best.Axis.X, uy = local.Y - best.Axis.Y;
+		float ul = MathF.Sqrt(ux * ux + uy * uy);
+		if (ul < 1e-4f) { ux = index % 2 == 0 ? 1f : -1f; uy = 0f; ul = 1f; }
+		return new Vector3(best.Axis.X + ux / ul * want, best.Axis.Y + uy / ul * want, local.Z);
+	}
+
+	/// <summary>Runde 43: Werkzeugspitze in Weltkoordinaten (Selbsttest: Abstand Spitze↔Felsoberfläche).</summary>
+	public Vector3 TipWorld() => Root.GlobalTransform * TipLocal;
+
+	/// <summary>Runde 43: Bohrerachsen in Weltkoordinaten (Selbsttest: Seilstart außerhalb des Bohrerbereichs).</summary>
+	public IEnumerable<(Vector3 Axis, float Radius)> DrillAxesWorld()
+	{
+		float s = Root.Scale.X;   // Root hängt direkt am Marker (Maßstab 1) — Weltmaßstab = lokaler Maßstab
+		foreach (var (axis, r) in DrillAxes) yield return (Root.GlobalTransform * axis, r * s);
+	}
 }
 
 /// <summary>
@@ -253,7 +314,9 @@ public static class ShipModels
 				var v = m.Value;
 				string size = v.TryGetProperty("size", out var sz) ? sz.GetString() ?? "S" : "S";
 				float scale = v.TryGetProperty("scale", out var sc) && sc.ValueKind == JsonValueKind.Number ? sc.GetSingle() : _sizeScale.GetValueOrDefault(size, 1f);
-				_info[m.Name] = new ShipModelInfo(m.Name, size, scale, HardpointSet.Parse(v, "slot"), Names(v, "rotors"), Names(v, "jaws"));
+				string mining = v.TryGetProperty("mining", out var mi) ? mi.GetString() ?? "" : "";
+				float contactRadius = v.TryGetProperty("contactRadius", out var cr) && cr.ValueKind == JsonValueKind.Number ? cr.GetSingle() : 0f;
+				_info[m.Name] = new ShipModelInfo(m.Name, size, scale, HardpointSet.Parse(v, "slot"), Names(v, "rotors"), Names(v, "jaws"), mining, contactRadius);
 			}
 		}
 		catch (Exception ex) { GD.PushWarning($"ships.json nicht lesbar: {ex.Message}"); }
@@ -310,6 +373,26 @@ public static class ShipModels
 	/// <summary>Maßstab (Halblänge im Spiel) eines Modells.</summary>
 	public static float ScaleOf(string modelKey) => BaseHalfLength * (Info().TryGetValue(modelKey, out var i) ? i.Scale : 1f);
 
+	static readonly Dictionary<string, float> _tipCache = new();
+	/// <summary>
+	/// Runde 43: Abstand Schiffsmitte → Bohrerspitze in Welteinheiten entlang der Bugachse (aus dem Modell gemessen, je Modell gecacht).
+	/// Ohne Modell (Grundkörper) die Halblänge des Grundkörpers (≈ Kollisionskreis).
+	/// </summary>
+	public static float TipOffsetOf(string modelKey)
+	{
+		if (_tipCache.TryGetValue(modelKey, out var t)) return t;
+		if (modelKey.Length == 0 || !Has(modelKey)) return 2.5f;
+		var v = Create(modelKey, new Color(0.6f, 0.6f, 0.65f));
+		if (v is null) return 2.5f;
+		t = v.TipOffset;
+		v.Root.QueueFree();
+		_tipCache[modelKey] = t;
+		return t;
+	}
+
+	/// <summary>Runde 43: Modelle mit Kontaktwerkzeug (Abbauart „contact“ in ships.json).</summary>
+	public static IEnumerable<ShipModelInfo> ContactModels() => Info().Values.Where(i => i.Mining == "contact");
+
 	/// <summary>Daten aus ships.json (null ohne Eintrag).</summary>
 	public static ShipModelInfo? InfoOf(string modelKey) => Info().TryGetValue(modelKey, out var i) ? i : null;
 
@@ -348,10 +431,36 @@ public static class ShipModels
 		}
 		Walk(node);
 		foreach (var r in v.Rotors) AddRotorMarker(r);   // Runde 18
+		ComputeToolTip(v, info);   // Runde 43: Bohrerspitze und Bohrerachsen messen
 		v.Hardpoints = HardpointSet.Bind(node, info.Hardpoints);
 		v.SetAccent(accent);
 		v.SetEngine(0.2f);
 		return v;
+	}
+
+	/// <summary>Runde 43: misst die Werkzeugspitze (vorderster Punkt aller Rotor-Meshes im Root-Raum) und die Bohrerachsen einer Modellinstanz.</summary>
+	static void ComputeToolTip(ShipVisual v, ShipModelInfo info)
+	{
+		float minZ = -1f;
+		foreach (var r in v.Rotors)
+		{
+			var mesh = r as MeshInstance3D ?? r.GetChildren().OfType<MeshInstance3D>().FirstOrDefault();
+			if (mesh?.Mesh is null) continue;
+			var t = r.Transform;
+			for (var p = r.GetParent(); p is Node3D p3 && p != v.Root; p = p.GetParent()) t = p3.Transform * t;
+			var aabb = mesh.Mesh.GetAabb();
+			float z = float.MaxValue;
+			for (int cx = 0; cx < 2; cx++) for (int cy = 0; cy < 2; cy++) for (int cz = 0; cz < 2; cz++)
+			{
+				var corner = new Vector3(cx == 0 ? aabb.Position.X : aabb.End.X, cy == 0 ? aabb.Position.Y : aabb.End.Y, cz == 0 ? aabb.Position.Z : aabb.End.Z);
+				z = Mathf.Min(z, (t * corner).Z);
+			}
+			minZ = Mathf.Min(minZ, z);
+			float axR = info.ContactRadius > 0f ? info.ContactRadius : Mathf.Max(aabb.Size.X, aabb.Size.Y) * 0.5f;
+			v.DrillAxes.Add((t.Origin, axR));
+		}
+		v.TipLocal = new Vector3(0f, 0f, minZ);
+		v.TipOffset = -minZ * v.Root.Scale.X;
 	}
 
 	static StandardMaterial3D? _rotorMarkMat;

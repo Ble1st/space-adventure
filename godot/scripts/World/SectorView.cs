@@ -16,15 +16,23 @@ public readonly record struct PickTarget(string Kind, int Id, Vector3 Position, 
 public partial class SectorView : Node3D
 {
 	/// <summary>NPC-Schiff in der Szene. Runde 11: <see cref="Visual"/> = Schiffsmodell (ShipModels), <see cref="Simple"/> = Grundkörper (ohne Modell oder weit weg).</summary>
-	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; public ShipVisual? Visual; public Node3D? Simple; public MeshInstance3D? Ring; public string ModelKey = ""; public Color Color; public bool Far; }
+	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; public ShipVisual? Visual; public Node3D? Simple; public MeshInstance3D? Ring; public string ModelKey = ""; public Color Color; public bool Far; public Vector3? Base; }
 
 	Universe? _u;
 	SectorId _sector;
 	int _structureVersion = -1;
 	Node3D _root = null!;
 	readonly List<MeshInstance3D> _gateRings = new();
-	sealed class RockNode { public MeshInstance3D Node = null!; public float Scale; public float Spin; public Vector3 Pos; public float Radius; }
+	sealed class RockNode { public MeshInstance3D Node = null!; public float Scale; public float Spin; public Vector3 Pos; public float Radius; public Color Col; }
 	readonly Dictionary<int, RockNode> _rocks = new();
+	/// <summary>Runde 43: Zerbrechen eines leer abgebauten Felsens — Trümmer fliegen auseinander und verblassen (~2 s), gepoolt.</summary>
+	sealed class Breakup { public float Age; public float Radius; public StandardMaterial3D Mat = null!; public readonly List<MeshInstance3D> Parts = new(); public Vector3[] Vel = System.Array.Empty<Vector3>(); public Vector3[] Spin = System.Array.Empty<Vector3>(); }
+	readonly List<Breakup> _breakups = new();
+	readonly Stack<MeshInstance3D> _debrisPool = new();
+	/// <summary>Dauer des Zerbrechens in Sekunden.</summary>
+	public const float BreakupSeconds = 2f;
+	/// <summary>Selbsttest: Zahl der gerade zerbrechenden Felsen.</summary>
+	public int TestBreakupCount => _breakups.Count;
 	readonly Dictionary<ShipId, Marker> _markers = new();
 	/// <summary>Phase 26: angezeigte Wracks und Frachtbehälter (Id → Knoten), abgeglichen mit <see cref="Universe.Wrecks"/>.</summary>
 	readonly Dictionary<int, Node3D> _wrecks = new();
@@ -60,6 +68,10 @@ public partial class SectorView : Node3D
 		_root?.QueueFree();
 		_root = new Node3D { Name = "Sector" };
 		AddChild(_root);
+		// Runde 43: Trümmer des Zerbrechens hängen am alten _root und werden mit ihm frei — aktive Zerbrechen und Pool zurücksetzen
+		foreach (var b in _breakups) if (IsInstanceValid(b.Mat)) b.Mat.Dispose();
+		_breakups.Clear();
+		_debrisPool.Clear();
 		_gateRings.Clear(); _gateNodes.Clear(); _gateStatus.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
 
 		var sector = u.Sectors[_sector];
@@ -97,11 +109,73 @@ public partial class SectorView : Node3D
 	{
 		foreach (var r in _gateRings) r.RotateZ(delta * 0.8f);
 		foreach (var r in _rocks.Values) { r.Node.RotateY(delta * r.Spin); r.Node.RotateX(delta * r.Spin * 0.5f); }
+		// Runde 43: Trümmer eines zerbrochenen Felsens auseinanderfliegen und verblassen lassen
+		for (int i = _breakups.Count - 1; i >= 0; i--)
+		{
+			var b = _breakups[i];
+			b.Age += delta;
+			float k = Mathf.Clamp(b.Age / BreakupSeconds, 0f, 1f);
+			var col = b.Mat.AlbedoColor; col.A = 1f - k; b.Mat.AlbedoColor = col;
+			for (int p = 0; p < b.Parts.Count; p++)
+			{
+				var n = b.Parts[p];
+				if (!IsInstanceValid(n)) continue;
+				n.Position += b.Vel[p] * delta;
+				b.Vel[p] += new Vector3(0f, -2.5f * delta, 0f);   // leichter Zug nach unten
+				n.RotateX(b.Spin[p].X * delta); n.RotateY(b.Spin[p].Y * delta); n.RotateZ(b.Spin[p].Z * delta);
+				n.Scale = Vector3.One * (1f - k * 0.85f);
+			}
+			if (k >= 1f)
+			{
+				foreach (var n in b.Parts) { if (IsInstanceValid(n)) { n.Visible = false; _debrisPool.Push(n); } }
+				b.Parts.Clear();
+				b.Mat.Dispose();
+				_breakups.RemoveAt(i);
+			}
+		}
+	}
+
+	/// <summary>Runde 43: ein Fels ist leer abgebaut (AsteroidDepleted) — er zerbricht sichtbar: Trümmer fliegen auseinander und verblassen ~2 s.</summary>
+	void SpawnBreakup(Vector3 pos, float radius, Color col)
+	{
+		var b = new Breakup { Age = 0f, Radius = radius };
+		b.Mat = Gfx.Mat(col, 0.15f, 0.2f);
+		b.Mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+		int count = Mathf.Clamp((int)(radius * 2.2f), 6, 16);
+		var rng = new RandomNumberGenerator { Seed = (ulong)(pos.X * 73856093f) ^ (ulong)(pos.Z * 19349663f) ^ (ulong)radius * 83492791UL };
+		float size = Mathf.Max(0.35f, radius * 0.32f);
+		for (int p = 0; p < count; p++)
+		{
+			MeshInstance3D n = new() { Mesh = new BoxMesh() };
+			while (_debrisPool.Count > 0)
+			{
+				var c = _debrisPool.Pop();
+				if (IsInstanceValid(c)) { n = c; break; }
+			}
+			if (n.Mesh is not BoxMesh) n.Mesh = new BoxMesh();
+			((BoxMesh)n.Mesh).Size = new Vector3(size * rng.RandfRange(0.5f, 1.2f), size * rng.RandfRange(0.4f, 0.9f), size * rng.RandfRange(0.5f, 1.2f));
+			n.MaterialOverride = b.Mat;
+			n.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+			float ang = rng.RandfRange(0f, Mathf.Tau);
+			float rr = rng.RandfRange(0f, radius * 0.7f);
+			n.Position = pos + new Vector3(Mathf.Cos(ang) * rr, rng.RandfRange(-0.3f, 0.3f) * radius, Mathf.Sin(ang) * rr);
+			n.Rotation = new Vector3(rng.RandfRange(0f, 3f), rng.RandfRange(0f, 3f), rng.RandfRange(0f, 3f));
+			n.Scale = Vector3.One;
+			n.Visible = true;
+			if (n.GetParent() is null) _root.AddChild(n);
+			b.Parts.Add(n);
+			float speed = rng.RandfRange(2.5f, 2.5f + radius * 1.1f);
+			System.Array.Resize(ref b.Vel, p + 1);
+			System.Array.Resize(ref b.Spin, p + 1);
+			b.Vel[p] = new Vector3(Mathf.Cos(ang), rng.RandfRange(0.4f, 1.2f), Mathf.Sin(ang)) * speed;
+			b.Spin[p] = new Vector3(rng.RandfRange(-4f, 4f), rng.RandfRange(-4f, 4f), rng.RandfRange(-4f, 4f));
+		}
+		_breakups.Add(b);
 	}
 
 	/// <summary>
-	/// Gleicht die Asteroiden-Szene mit den Core-Daten ab: neue (Respawn) wachsen ein, abgebaute schrumpfen mit ihrem Restvorrat,
-	/// leere verschwinden. Aktualisiert außerdem die Kollisionskreise.
+	/// Gleicht die Asteroiden-Szene mit den Core-Daten ab: neue (Respawn) wachsen ein, abgebaute behalten ihren Radius (Runde 43: kein Schrumpfen),
+	/// leere zerbrechen sichtbar (Trümmer) und verschwinden. Aktualisiert außerdem die Kollisionskreise.
 	/// </summary>
 	public void SyncAsteroids(Universe u, float delta, bool instant = false)
 	{
@@ -110,28 +184,31 @@ public partial class SectorView : Node3D
 		foreach (var a in sector.Asteroids)
 		{
 			live.Add(a.Id);
+			var minable = a.Minable;
+			var color = minable && u.AsteroidClasses.TryGetValue(a.ClassKey, out var cls) ? Color.FromHtml(cls.Color) : new Color(0.4f, 0.4f, 0.42f);
 			if (!_rocks.TryGetValue(a.Id, out var rock))
 			{
-				var minable = a.Minable;
-				var color = minable && u.AsteroidClasses.TryGetValue(a.ClassKey, out var cls) ? Color.FromHtml(cls.Color) : new Color(0.4f, 0.4f, 0.42f);
 				var mat = Gfx.Mat(color, minable ? 0.5f : 0f, 0.1f);
 				var mesh = new SphereMesh { Radius = a.BaseRadius, Height = a.BaseRadius * 2f, RadialSegments = 8, Rings = 5 };
 				var node = Gfx.Mesh(mesh, mat, new Vector3(a.Position.X, 0, a.Position.Y), _root);
 				var rng = new RandomNumberGenerator { Seed = (ulong)a.Id * 2654435761UL };
 				node.Rotation = new Vector3(rng.Randf() * Mathf.Tau, rng.Randf() * Mathf.Tau, 0);
-				rock = new RockNode { Node = node, Scale = instant ? a.Radius / a.BaseRadius : 0.05f, Spin = rng.RandfRange(0.1f, 0.3f), Pos = node.Position, Radius = a.Radius };
+				rock = new RockNode { Node = node, Scale = instant ? a.Radius / a.BaseRadius : 0.05f, Spin = rng.RandfRange(0.1f, 0.3f), Pos = node.Position, Radius = a.Radius, Col = color };
 				node.Scale = Vector3.One * rock.Scale;
 				_rocks[a.Id] = rock;
 			}
+			// Runde 43: Asteroiden schrumpfen nicht mehr — die Skalierung bleibt 1 (Restvorrat steckt in abfallenden Brocken, nicht im Radius)
 			float target = a.Radius / a.BaseRadius;
 			rock.Scale = instant ? target : Mathf.Lerp(rock.Scale, target, 1f - Mathf.Exp(-4f * delta));
 			rock.Node.Scale = Vector3.One * rock.Scale;
 			rock.Radius = a.Radius;
+			rock.Col = color;
 		}
 		foreach (var id in _rocks.Keys.Where(id => !live.Contains(id)).ToList())
 		{
 			var r = _rocks[id];
 			AsteroidGone?.Invoke(r.Pos, r.Radius);
+			SpawnBreakup(r.Pos, r.Radius, r.Col);   // Runde 43: leer abgebaut → zerbricht sichtbar
 			r.Node.QueueFree();
 			_rocks.Remove(id);
 		}
@@ -168,6 +245,31 @@ public partial class SectorView : Node3D
 			seen.Add(s.Id);
 			var target = new Vector3(s.Position.X, 0, s.Position.Y);
 			u.Ships.TryGetValue(s.Id, out var ship);
+			float collideR = Collision.ShipRadius;
+			Vec2? faceRock = null;
+			bool contact = false;
+			if (s.Mining && ship is not null)
+			{
+				// Runde 43: abbauender NPC-Schürfer steht mit der Bohrerspitze an der Felsoberfläche, ausgerichtet auf den Fels
+				// (die Simulation hält die Schiffsmitte am Kontaktpunkt, die Ansicht setzt das Modell mit seiner Werkzeugspitze auf die Oberfläche)
+				var rock = u.Sectors[_sector].Asteroids.FirstOrDefault(a => a.Id == (ship.AnchorRock != 0 ? ship.AnchorRock : ship.MineAsteroid));
+				var toR = rock is null ? default : rock.Position - s.Position;
+				if (rock is not null && toR.Length > 1e-4f)
+				{
+					faceRock = toR;
+					// nur im Kontakt laut Core (der Anflug zum Fels zeigt die echte Position — die Ansicht erfindet keinen Kontakt)
+					contact = ship.Stats.UsesContact && SpaceSim.Core.Mining.ContactMining.InContact(s.Position, toR.Normalized(), rock,
+						SpaceSim.Core.Mining.ContactMining.ToolReach(ship, u));
+					if (contact)
+					{
+						var dn = (s.Position - rock.Position).Normalized();
+						float tip = ShipModels.TipOffsetOf(ship.ModelKey);
+						var at = rock.Position + dn * (rock.Radius + tip);
+						target = new Vector3(at.X, 0f, at.Y);
+						collideR = Mathf.Min(Collision.ShipRadius, tip);
+					}
+				}
+			}
 			if (!_markers.TryGetValue(s.Id, out var m))
 			{
 				// Phase 11: Polizei blau, Kaperschiffe rot
@@ -190,14 +292,23 @@ public partial class SectorView : Node3D
 			var desired = Avoidance.Desired(s.Id, s.Position, neighbours);
 			m.Offset = m.Offset.Lerp(new Vector3(desired.X, 0, desired.Y), 1f - Mathf.Exp(-5f * delta));
 			m.Recoil = m.Recoil.Lerp(Vector3.Zero, 1f - Mathf.Exp(-6f * delta));
+			// Runde 43: der Anflug an den Fels läuft im Core in Schritten (Tempo je Tick) — Ansicht glättet nur die Anzeige dieser kurzen Strecke
+			if (s.Mining && !s.Moving && m.Base is { } prev && prev.DistanceTo(target) < 60f) target = prev.Lerp(target, 1f - Mathf.Exp(-8f * delta));
+			m.Base = target;
 			var shown = target + m.Offset + m.Recoil;
 			var shown2 = new Vec2(shown.X, shown.Z);
-			Collision.Resolve(ref shown2, Collision.ShipRadius, Obstacles, out _);   // Ausweichen führt nie in Hindernisse
+			Collision.Resolve(ref shown2, collideR, Obstacles, out _);   // Ausweichen führt nie in Hindernisse
 			m.Pivot.Position = new Vector3(shown2.X, 0, shown2.Y);
 			if (s.Mining) MiningShips.Add((s.Id, m.Pivot.Position));
 			if (s.Moving)
 			{
 				m.Yaw = Mathf.LerpAngle(m.Yaw, Mathf.Atan2(-s.Direction.X, -s.Direction.Y), 1f - Mathf.Exp(-10f * delta));
+				m.Pivot.Rotation = new Vector3(0, m.Yaw, 0);
+			}
+			else if (faceRock is { } fr)   // Runde 43: abbauender NPC blickt zum Fels
+			{
+				var fd = fr.Normalized();
+				m.Yaw = Mathf.LerpAngle(m.Yaw, Mathf.Atan2(-fd.X, -fd.Y), 1f - Mathf.Exp(-10f * delta));
 				m.Pivot.Rotation = new Vector3(0, m.Yaw, 0);
 			}
 			if (m.Visual is { } vis && !m.Far)
@@ -206,7 +317,7 @@ public partial class SectorView : Node3D
 				vis.SetEngine(s.Moving ? 1f : 0.15f);
 				if (ship is not null)
 				{
-					vis.Spin(SpaceSim.Core.Mining.ContactMining.Spin(ship.Stats, s.Mining ? SpaceSim.Core.Mining.ContactState.Mining : SpaceSim.Core.Mining.ContactState.NoContact), delta);
+					vis.Spin(SpaceSim.Core.Mining.ContactMining.Spin(ship.Stats, s.Mining && (contact || !ship.Stats.UsesContact) ? SpaceSim.Core.Mining.ContactState.Mining : SpaceSim.Core.Mining.ContactState.NoContact), delta);
 					if (vis.Hardpoints.TurretCount > 0 && u.Fights.IsEngaged(s.Id) && CombatTarget(u, s.Id) is { } aim) vis.Hardpoints.AimAll(aim, delta);   // Runde 13: nur im Gefecht
 					vis.AnimateJaws(delta);
 				}

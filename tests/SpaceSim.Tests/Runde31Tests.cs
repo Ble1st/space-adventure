@@ -37,6 +37,7 @@ public class Runde31Tests
     {
         var u = World();
         var (st, g) = Consumer(u);
+        st.Credits = MathF.Max(st.Credits, 1_000_000f);   // Runde 43: geprüft wird der Rückkaufdeckel, nicht die Kasse der Station (nach 2000 Ticks je nach Weltlage knapp)
         var p = u.Ships[u.PlayerShip];
         var e = st.Market[g];
         float before = e.Amount;
@@ -64,6 +65,7 @@ public class Runde31Tests
     {
         var u = World();
         var (st, g) = Consumer(u);
+        st.Credits = MathF.Max(st.Credits, 1_000_000f);   // Runde 43: geprüft wird der Rückkaufdeckel, nicht die Kasse der Station (nach 2000 Ticks je nach Weltlage knapp)
         var p = u.Ships[u.PlayerShip];
         var e = st.Market[g];
         float before = e.Amount;
@@ -105,6 +107,7 @@ public class Runde31Tests
     {
         var u = World();
         var (st, g) = Consumer(u);
+        st.Credits = MathF.Max(st.Credits, 1_000_000f);   // Runde 43: geprüft wird der Rückkaufdeckel, nicht die Kasse der Station (nach 2000 Ticks je nach Weltlage knapp)
         var p = u.Ships[u.PlayerShip];
         var e = st.Market[g];
         TradeActions.Buy(u, p, st, g, 5f);
@@ -126,6 +129,7 @@ public class Runde31Tests
     {
         var u = World();
         var (st, g) = Consumer(u);
+        st.Credits = MathF.Max(st.Credits, 1_000_000f);   // Runde 43: geprüft wird der Rückkaufdeckel, nicht die Kasse der Station (nach 2000 Ticks je nach Weltlage knapp)
         var p = u.Ships[u.PlayerShip];
         var e = st.Market[g];
         TradeActions.Buy(u, p, st, g, 5f);

@@ -413,23 +413,27 @@ public sealed class MissionBoardSystem : ISimSystem
 /// eigener Flottenschiffe), Schiffs-/Stationverlust scheitert betroffene Aufträge. Hängt sich wie <see cref="Comms.CommsSystem"/>
 /// an den Bus, sobald es ein anderes Universum sieht.
 /// </summary>
-public sealed class MissionSystem : ISimSystem
+public sealed class MissionSystem : ISimSystem, ISimEventListener
 {
     public const int Interval = 20;
 
     Universe? _sub;
     Action<SimEvent>? _handler;
 
+    /// <summary>Runde 43: am Bus des Universums anmelden (jeden Tick vom Runner, siehe <see cref="ISimEventListener"/>).</summary>
+    public void Attach(Universe u)
+    {
+        if (ReferenceEquals(_sub, u)) return;
+        if (_sub is not null && _handler is not null) _sub.Events.Raised -= _handler;
+        _handler = e => OnEvent(u, e);
+        u.Events.Raised += _handler;
+        _sub = u;
+    }
+
     public void Step(Universe u, int dt)
     {
         if (!u.Rules.MissionsActive) return;
-        if (!ReferenceEquals(_sub, u))
-        {
-            if (_sub is not null && _handler is not null) _sub.Events.Raised -= _handler;
-            _handler = e => OnEvent(u, e);
-            u.Events.Raised += _handler;
-            _sub = u;
-        }
+        Attach(u);
         if (u.MissionOffers.Count > 0) u.MissionOffers.RemoveAll(o => o.Expires > 0 && u.Tick >= o.Expires);
         if (u.Missions.Count == 0) return;
         foreach (var m in u.Missions.Where(x => x.State == MissionState.Active).ToList())

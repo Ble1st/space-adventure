@@ -64,23 +64,27 @@ public static class Comms
 /// ändert sonst nichts. Läuft im Politics-Modul (Intervall 20); hängt sich an den Ereignisbus, sobald er ein anderes Universum sieht
 /// (neues Spiel/Laden: die Systeme der Sitzung bleiben, das Universum wechselt — wie <see cref="Diagnostics.RouteRecorder"/> in der Ansicht).
 /// </summary>
-public sealed class CommsSystem : ISimSystem
+public sealed class CommsSystem : ISimSystem, ISimEventListener
 {
     public const int Interval = 20;
 
     Universe? _sub;
     Action<SimEvent>? _handler;
 
+    /// <summary>Runde 43: am Bus des Universums anmelden (jeden Tick vom Runner, siehe <see cref="ISimEventListener"/>).</summary>
+    public void Attach(Universe u)
+    {
+        if (ReferenceEquals(_sub, u)) return;
+        if (_sub is not null && _handler is not null) _sub.Events.Raised -= _handler;
+        _handler = e => OnEvent(u, e);
+        u.Events.Raised += _handler;
+        _sub = u;
+    }
+
     public void Step(Universe u, int dt)
     {
         if (!u.Rules.CommsActive) return;
-        if (!ReferenceEquals(_sub, u))
-        {
-            if (_sub is not null && _handler is not null) _sub.Events.Raised -= _handler;
-            _handler = e => OnEvent(u, e);
-            u.Events.Raised += _handler;
-            _sub = u;
-        }
+        Attach(u);
         Comms.Prune(u);
         SyncContractOffers(u);
     }

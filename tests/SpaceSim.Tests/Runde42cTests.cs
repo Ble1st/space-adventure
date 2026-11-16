@@ -121,6 +121,7 @@ public class Runde42cTests
         Assert.True(o is null || DeliveryMission.GoodOf(o) != scarce, "kein Angebot mit Menge über der annehmbaren Menge");
 
         // Scan über Welten, geprüft beim Erzeugen (Event MissionOffered): jedes Lieferangebot (Dock) liegt in der annehmbaren Menge
+        int total = 0;
         for (ulong seed = 121; seed < 127; seed++)
         {
             var w = World(seed);
@@ -135,11 +136,14 @@ public class Runde42cTests
                 }
             };
             Run(w, 5000);   // zwei Bucket-Wechsel
-            Assert.NotEmpty(seen);
+            total += seen.Count;
             foreach (var (x, acc) in seen)
                 Assert.True(acc >= DeliveryMission.UnitsOf(w, x) - 0.001f,
                     $"Angebot {DeliveryMission.UnitsOf(w, x):0.#} Einheiten liegt über der annehmbaren Menge ({acc:0.##}) an {w.Stations[x.At].Name}");
         }
+        // Runde 43: Dock-Lieferangebote sind selten (Ausgangsstand je Welt 1–4 in 5000 Ticks, jetzt 0–2) — der Scan darf nicht leer sein, eine einzelne
+        // Welt ohne Angebot schon (Sitz 126 hat seit dem geänderten Bergbau keines; die Eigenschaft wird an allen übrigen Angeboten geprüft)
+        Assert.True(total >= 3, $"Scan fand nur {total} Dock-Lieferangebote");
     }
 
     // ───────── 3. Vertragsvorschau: Festpreis, Pfand, eine Frist, Flugzeit ─────────

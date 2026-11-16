@@ -701,9 +701,9 @@ public class Phase25Tests
         // Phase 27 (Prüfung Phase 26): der Hash mischt zusätzlich Actor.CreatedTick — der Phase-24-Stand 75532A3F54AD3D9A heißt seitdem 68F0D589492ADEDC
         // (ermittelt auf dem unveränderten Phase-26-Code nur mit der Hash-Erweiterung; kein Verhalten geändert)
         // Phase 29: der Hash mischt zusätzlich die Akteurskürzel (Actor.Tag) — geprüft: ohne diese Mischung bleibt der bisherige Wert; kein Verhalten geändert (vorher 68F0D589492ADEDC)
-        Assert.Equal(0xF1AD6CCD3D90D917UL, UniverseHash.Compute(u));   // Runde 11: nur die Namensliste geändert (alte Liste: 0xFA6521C02E1E130E)
-        // Runde 12: ohne die Kürzel (Namensliste) gilt weiter der Wert vor Phase 29 — die geänderte Konstante kommt nur von den Kürzeln
-        Assert.Equal(0x68F0D589492ADEDCUL, UniverseHash.Compute(u, includeTags: false));
+        Assert.Equal(0xEAC6137D911EF09BUL, UniverseHash.Compute(u));   // Runde 43: Kontaktschürfer fliegen an den Fels, Asteroiden schrumpfen nicht (vorher 0xF1AD6CCD3D90D917; Runde 11 nur die Namensliste, alte Liste 0xFA6521C02E1E130E)
+        // Runde 12: ohne die Kürzel (Namensliste) galt der Wert vor Phase 29 (0x68F0D589492ADEDC); Runde 43 ändert das Verhalten (Felsradius konstant) → neuer Wert
+        Assert.Equal(0x8F5E8E275A58EC00UL, UniverseHash.Compute(u, includeTags: false));
     }
 
     // ───────── Zusatz Phase 25: jeder Händler bewaffnet ─────────

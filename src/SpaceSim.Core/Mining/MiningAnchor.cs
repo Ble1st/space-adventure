@@ -12,7 +12,7 @@ public enum AnchorState { None, Flying, Held }
 /// <list type="bullet">
 /// <item>Bei Bugkontakt (<see cref="ContactMining.InContact"/>) fliegen die Harpunen (<see cref="Attach"/>, Ereignis <see cref="AnchorFired"/>); nach
 /// <see cref="EconomyRules.AnchorTicks"/> halten sie (<see cref="AnchorHeld"/>). Abgebaut wird nur mit haltendem Anker (<see cref="Holds"/>).</item>
-/// <item>Ein verankertes Schiff driftet nicht: es liegt an der Oberfläche (<see cref="HoldPosition"/>), auch wenn der Fels beim Abbau schrumpft.</item>
+/// <item>Ein verankertes Schiff driftet nicht: es liegt an der Oberfläche (<see cref="HoldPosition"/>); der Fels behält beim Abbau seinen Radius (Runde 43).</item>
 /// <item>Abreißen (<see cref="Release"/>): eigener Schub/Wenden (<see cref="BreaksFromSteering"/>) oder Taste „Anker lösen“, harter Stoß, Hüllentreffer
 /// (<see cref="OnHullHit"/>), Gefechtsbeginn (<see cref="OnCombat"/>, dazu Trossen kappen: <see cref="EconomyRules.AnchorCastOffTicks"/>), Fels erschöpft oder
 /// gespalten, Kontakt verloren, Laderaum voll, Abflug.</item>
@@ -92,8 +92,9 @@ public static class MiningAnchor
     }
 
     /// <summary>
-    /// Lage eines verankerten Schiffs: auf der Linie Felsmitte → Schiff, Schiffsmitte <paramref name="standoff"/> über der (schrumpfenden) Oberfläche — die
-    /// Trossen ziehen das Schiff nach, der Bug bleibt im Kontakt.
+    /// Lage eines verankerten Schiffs: auf der Linie Felsmitte → Schiff, Schiffsmitte <paramref name="standoff"/> über der Oberfläche (konstanter Radius,
+    /// Runde 43) — die Trossen halten den Bug im Kontakt. <paramref name="standoff"/> = Werkzeugreichweite (<see cref="ContactMining.ToolReach"/>) im Core;
+    /// die Ansicht setzt stattdessen die Bohrerspitze des Modells auf die Oberfläche.
     /// </summary>
     public static Vec2 HoldPosition(Vec2 shipPos, Asteroid rock, float standoff)
     {
