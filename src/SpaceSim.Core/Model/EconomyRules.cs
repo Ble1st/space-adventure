@@ -1155,12 +1155,14 @@ public sealed class EconomyRules
     public float MissionTransportRewardPerHop = 50f;
 
     // ── Runde 42: Aufträge Kopfgeldjagd, Eskorte, Patrouille ──
-    /// <summary>Kopfgeldjagd: Mindest-Bedrohung in einem Sektor der Auftraggeber-Fraktion, damit sie ein Kopfgeld anbietet.</summary>
-    public float MissionBountyMinThreat = 1.5f;
     /// <summary>Kopfgeldjagd: Mindest-Belohnung (Cr) aus der Fraktionskasse, wenn auf das Ziel kein höheres Kopfgeld steht.</summary>
     public float MissionBountyBaseReward = 500f;
-    /// <summary>Kopfgeldjagd: Wahrscheinlichkeit je Angebots-Bucket und Sektor-HQ, dass ein Angebot entsteht.</summary>
-    public float MissionBountyChance = 0.6f;
+    /// <summary>
+    /// Kopfgeldjagd: Wahrscheinlichkeit je Angebots-Bucket und Polizeiwache/HQ/Sektor-HQ, dass ein Angebot entsteht.
+    /// Runde 42d (Handytest): 0.9 statt 0.6 — zusammen mit dem Wegfall der Bedrohungs-Schranke entstehen so ≥ 5 % aller
+    /// Angebote Kopfgeldjagd, und an einer solchen Station sieht der Spieler meist ein Kopfgeldangebot.
+    /// </summary>
+    public float MissionBountyChance = 0.9f;
     /// <summary>Eskorte: Maximalabstand (m) zum Schützling, der als „in Eskorte“ zählt (Stichprobe).</summary>
     public float EscortRange = 60f;
     /// <summary>Eskorte: alle so vielen Ticks eine Stichprobe (gleich dem Intervall des MissionSystem).</summary>
@@ -1185,12 +1187,13 @@ public sealed class EconomyRules
     public int PatrolWaypointsMax = 3;
     /// <summary>Patrouille: Radius um den Wegpunkt (m), in dem er als angeflogen gilt.</summary>
     public float PatrolWaypointRadius = 80f;
-    /// <summary>Patrouille: Mindest-Bedrohung des anbietenden Sektors.</summary>
-    public float PatrolMinThreat = 1.0f;
     /// <summary>Patrouille: Grundbelohnung (Cr) aus der Auftraggeber-Kasse (niedrig — leicht auszusitzen).</summary>
     public float MissionPatrolBaseReward = 120f;
     /// <summary>Patrouille: Belohnung je Wegpunkt (Cr).</summary>
     public float MissionPatrolRewardPerWaypoint = 60f;
-    /// <summary>Patrouille: Wahrscheinlichkeit je Angebots-Bucket und Sektor-HQ, dass ein Angebot entsteht.</summary>
-    public float MissionPatrolChance = 0.7f;
+    /// <summary>
+    /// Patrouille: Wahrscheinlichkeit je Angebots-Bucket und Polizeiwache/HQ/Sektor-HQ, dass ein Angebot entsteht.
+    /// Runde 42d (Handytest): 0.95 statt 0.7 — ohne Bedrohungs-Schranke entstehen so ≥ 5 % aller Angebote Patrouille.
+    /// </summary>
+    public float MissionPatrolChance = 0.95f;
 }

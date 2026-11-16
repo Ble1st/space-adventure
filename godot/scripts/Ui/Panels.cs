@@ -43,6 +43,10 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 
 	/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole.</summary>
 	public int TestMissionSymbols;
+	/// <summary>Runde 42d (Handytest): Legendentext für den Auftragsmarker (goldener Diamant am Sektorknoten).</summary>
+	public const string LegendText = "◆/★ = Auftrag";
+	/// <summary>Runde 42d (Selbsttest): Legende wurde gezeichnet.</summary>
+	public bool TestLegendDrawn;
 
 	public MapOverlay()
 	{
@@ -98,6 +102,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 	public override void _Draw()
 	{
 		if (_u == null) return;
+		TestLegendDrawn = false;
 		DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.03f, 0.08f, 1f));   // Gerätetest: deckend (das HUD schien durch)
 		var font = ThemeDB.FallbackFont;
 		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
@@ -121,6 +126,11 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
 		var layout = new SpaceAdventure.Ui.Kit.LabelLayout(new Rect2(us.Position + new Vector2(0, 60), us.Size - new Vector2(0, 60 + StripHeight + 8f)), font);
 		foreach (var s in _u.Sectors.Values) layout.ReserveCircle(Place(s, center, scale), 40f);
+		// Runde 42d (Handytest): Legende „◆/★ = Auftrag“ für den Auftragsmarker — unter dem Titel, innerhalb der
+		// sicheren Fläche; ihre Fläche wird für Sektorbeschriftungen freigehalten
+		var legendPos = us.Position + new Vector2(24, 76);
+		float legendW = font.GetStringSize(LegendText, HorizontalAlignment.Left, -1, 13).X + 8f;
+		layout.Reserve(new Rect2(legendPos - new Vector2(4, 4), new Vector2(legendW, 22f)));
 		foreach (var s in _u.Sectors.Values)
 		{
 			var p = Place(s, center, scale);
@@ -145,6 +155,10 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 			// Gerätetest: Name und Stationszahl kollisionsfrei neben dem Knoten (LabelLayout)
 			layout.Draw(this, p, s.Name.Replace("Sektor ", "") + $" · {s.Stations.Count} St.", 14, Colors.White, 40f, 160f);
 		}
+
+		// Runde 42d (Handytest): Legende zeichnen (nach den Beschriftungen, damit sie in der Prüf-Tabelle steht)
+		SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 90, font, legendPos, LegendText, 13, us.Size.X - 48f, Screens.FlightHud.MissionGold);
+		TestLegendDrawn = true;
 	}
 
 	/// <summary>Farbe einer Fraktion; Phase 21: herrenlose Sektoren (Fraktion 0) grau.</summary>

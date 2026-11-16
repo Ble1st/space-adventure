@@ -131,6 +131,50 @@ public partial class FlightHud : Control, IScreen
 	public string TestFire => _fire.Visible ? _fire.Text : "";
 	/// <summary>Runde 41: sichtbare Auftragszeile (leer = kein aktiver Auftrag).</summary>
 	public string TestMission => _mission.Visible ? _mission.Text : "";
+
+	/// <summary>
+	/// Runde 42d (Handytest): Auftragszeile nach gemessener Breite kürzen (vorher abgeschnitten „…· noch…“) — zuerst der
+	/// Klammerzusatz, dann das Ziel stufenweise, zuletzt nur „Auftrag … · noch m:ss“. Die Restzeit bleibt immer sichtbar.
+	/// </summary>
+	static string FitMissionLine(string full, Label label)
+	{
+		if (full.Length == 0) return full;
+		var font = label.GetThemeFont("font");
+		int size = label.GetThemeFontSize("font_size");
+		float maxW = label.Size.X - 4f;
+		float W(string s) => font.GetStringSize(s, HorizontalAlignment.Left, -1, size).X;
+		if (maxW <= 10f || W(full) <= maxW) return full;
+		int noch = full.IndexOf(" · noch ", StringComparison.Ordinal);
+		if (noch < 0) return full;   // keine Restzeit im Text — nichts zu kürzen
+		string head = full[..noch], rest = full[noch..];
+		int paren = rest.IndexOf(" (", StringComparison.Ordinal);
+		string restShort = paren > 0 ? rest[..paren] : rest;
+		foreach (string cand in MissionLineCandidates(head, rest, restShort))
+			if (W(cand) <= maxW) return cand;
+		return "Auftrag …" + restShort;
+	}
+
+	/// <summary>Kandidaten der Auftragszeile, längste zuerst: Ziel (nach „→ “/„— Ziel in “) stufenweise gekürzt.</summary>
+	static IEnumerable<string> MissionLineCandidates(string head, string rest, string restShort)
+	{
+		yield return head + restShort;   // Klammerzusatz „(Andocken …)“ zuerst weglassen
+		int arrow = head.LastIndexOf("→ ", StringComparison.Ordinal);
+		int dash = head.LastIndexOf("— Ziel in ", StringComparison.Ordinal);
+		int sep = Math.Max(arrow, dash);
+		string[] heads;
+		if (sep >= 0)
+		{
+			int zs = sep + (arrow >= dash ? 2 : 10);
+			string prefix = head[..zs], ziel = head[zs..];
+			heads = new[] { 20, 14, 10, 6, 3 }.Where(c => ziel.Length > c).Select(c => prefix + ziel[..c].TrimEnd() + "…").ToArray();
+		}
+		else
+		{
+			heads = new[] { 28, 20, 12, 6 }.Where(c => head.Length > c).Select(c => head[..c].TrimEnd() + "…").ToArray();
+		}
+		foreach (var h in heads) yield return h + restShort;
+		foreach (var h in heads) yield return h + rest;
+	}
 	public string TestCredits => _credits.Text;
 	public string TestSecurity => _security.Text;
 	/// <summary>Selbsttest (Gerätetest Phase 27): angezeigter Sektorname im Chip.</summary>
@@ -779,7 +823,9 @@ public partial class FlightHud : Control, IScreen
 		_credits.AddThemeColorOverride("font_color", d.Credits < 0f ? UiKit.Red : UiKit.Orange);
 		_fire.Text = d.Fire;
 		_fire.Visible = d.Fire.Length > 0;
-		_mission.Text = d.Mission;   // Runde 41: Auftragszeile (Gold)
+		// Runde 41: Auftragszeile (Gold); Runde 42d (Handytest): nach gemessener Breite gekürzt — Ziel kürzen,
+		// Restzeit („· noch m:ss“) bleibt immer sichtbar (sonst „…· noch…“ abgeschnitten)
+		_mission.Text = FitMissionLine(d.Mission, _mission);
 		_mission.Visible = d.Mission.Length > 0;
 		// HUD-Neu: der Zeitraffer steht im Menü — läuft er, zeigt der Sektorchip „×10“
 		_sector.Text = d.FastOn ? $"{d.SectorName} · ×10" : d.SectorName;

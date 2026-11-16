@@ -50,6 +50,8 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public void TestSetTab(string t) { _tab = t; _message = ""; _msgAt = 0; Invalidate(); }
 	/// <summary>Selbsttest (Runde 42c): Meldung setzen, als hätte eine Aktion sie gemeldet.</summary>
 	public void TestShowMessage(string msg) { _message = msg; _msgAt = MsgNow(); Invalidate(); }
+	/// <summary>Selbsttest (Runde 42d): zuletzt gebaute Geldzeilen der aktiven Aufträge im Reiter „Aufträge“.</summary>
+	public readonly System.Collections.Generic.List<string> TestMoneyLines = new();
 	/// <summary>Selbsttest: Zahl der Fraktionszeilen im Diplomatie-Reiter.</summary>
 	public int TestDiplomacyRows => Ctx.U.NpcFactionIds().Count;
 	/// <summary>Selbsttest: Fraktion wählen (Index) und Detail öffnen.</summary>
@@ -208,6 +210,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	/// eigener Zeile unter seinem Text — nie über Listentext.</summary>
 	void BuildMissions(Control inner, Universe u, float top)
 	{
+		TestMoneyLines.Clear();
 		float w = InnerW(inner) - 24f;
 		float h = InnerH(inner) - top - 12f;
 		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, top, w, h);
@@ -223,7 +226,10 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			if (SpaceSim.Core.Missions.MissionRules.Types.Get(m.Type) is not { } type) continue;
 			// Runde 42b/42c: Höhe aus dem gemessenen Inhalt — WrappedText liefert die End-Y, also Höhe = Ende − Anfang
 			float mh = WrappedText(box, type.Describe(u, m), 0, y, w - 8, 15, Orange, 19) - y;
-			float bh = WrappedText(box, $"Belohnung {m.Reserved:0} Cr (reserviert) · Pfand {m.Deposit:0} Cr · Rest {SpaceSim.Core.Missions.MissionRules.Rest(Math.Max(0L, m.Deadline - u.Tick))}", 0, y + mh + 2, w - 8, 13, Dim, 17) - (y + mh + 2);
+			// Runde 42d (Handytest): beim Liefervertrag „Festpreis … · Kasse reserviert“ statt „Belohnung 0 Cr (reserviert)“
+			string money = $"{SpaceSim.Core.Missions.MissionRules.MoneyLine(u, m)} · Pfand {m.Deposit:0} Cr · Rest {SpaceSim.Core.Missions.MissionRules.Rest(Math.Max(0L, m.Deadline - u.Tick))}";
+			TestMoneyLines.Add(money);
+			float bh = WrappedText(box, money, 0, y + mh + 2, w - 8, 13, Dim, 17) - (y + mh + 2);
 			y += mh + bh + 6f;
 			var key = $"mission:abandon:{m.Id}";
 			var offer = Ctx.Comms.Preview(u, key);
@@ -392,7 +398,8 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			var (subject, _) = SpaceSim.Core.Comms.CommsText.Describe(_u, _m);
 			UiKit.DrawFit(this, 0, font, new Vector2(14, 24), from, 15, Size.X - 40f, White);
 			UiKit.DrawFit(this, 1, font, new Vector2(14, 46), subject, 13, Size.X - 40f, Dim);
-			UiKit.DrawFit(this, 2, font, new Vector2(14, 64), $"vor {SpaceSim.Core.Comms.Comms.Ago(_u, _m.Created)}" + (_m.Expires > 0 ? $" · verfällt in {SpaceSim.Core.Comms.Comms.In(_u, _m.Expires)}" : ""), 11, Size.X - 40f, new Color(Dim, 0.8f));
+			// Runde 42d (Handytest): nur offene Angebote zeigen „verfällt in …“ (Restzeit); erledigte/angenommene/gescheiterte nicht
+			UiKit.DrawFit(this, 2, font, new Vector2(14, 64), SpaceSim.Core.Comms.CommsText.RowMeta(_u, _m), 11, Size.X - 40f, new Color(Dim, 0.8f));
 			if (!_m.Read) DrawCircle(new Vector2(Size.X - 16f, 20), 6f, Orange);
 		}
 	}

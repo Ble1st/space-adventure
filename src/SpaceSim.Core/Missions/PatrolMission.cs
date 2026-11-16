@@ -53,7 +53,9 @@ public sealed class PatrolMission : IMissionType
         if (MissionRules.Forbidden(u, st.Owner) || MissionRules.Blocked(u, st.Owner.Value)) return null;
         if (!BountyMission.IsOfferStation(u, st)) return null;
         if (u.FactionOf(st.Owner) is not { } f || !u.IsNpcFaction(f)) return null;
-        if (!u.Sectors.TryGetValue(st.Sector, out var own) || own.Owner != f || own.Threat < r.PatrolMinThreat) return null;
+        // Runde 42d (Handytest): Patrouille hängt nicht mehr an der Sektoren-Bedrohung (PatrolMinThreat 1.0 griff in der
+        // Standardwelt praktisch nie) — Polizei/HQ/Sektor-HQ patrouillieren ihr Gebiet auch so; Chance deutlich erhöht.
+        if (!u.Sectors.TryGetValue(st.Sector, out var own) || own.Owner != f) return null;
         if (MissionRng.NextFloat(rng) >= r.MissionPatrolChance) return null;
         // Wegpunkte: Sektoren der Fraktion, erreichbar von der Angebots-Station aus
         var sectors = u.Sectors.Values.Where(s => s.Owner == f).OrderBy(s => s.Id.Value).ToList();

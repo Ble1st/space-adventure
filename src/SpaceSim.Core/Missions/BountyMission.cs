@@ -51,8 +51,9 @@ public sealed class BountyMission : IMissionType
         if (MissionRules.Forbidden(u, st.Owner) || MissionRules.Blocked(u, st.Owner.Value)) return null;
         if (!IsOfferStation(u, st)) return null;
         if (u.FactionOf(st.Owner) is not { } f || !u.IsNpcFaction(f)) return null;
-        // Bedrohung im Gebiet der Fraktion (PLAN 3.1)
-        if (!u.Sectors.Values.Any(s => s.Owner == f && s.Threat >= r.MissionBountyMinThreat)) return null;
+        // Runde 42d (Handytest): Polizeiwache/HQ/Sektor-HQ vergeben die Kopfgeldjagd auch ohne akute Bedrohung —
+        // die Bedrohungs-Schranke (MissionBountyMinThreat 1.5) griff in der Standardwelt praktisch nie (Sektor-Bedrohung
+        // bleibt meist < 1), sodass es fast keine Kopfgeldangebote gab. Chance dafür deutlich erhöht (≥ 5 % aller Angebote).
         if (MissionRng.NextFloat(rng) >= r.MissionBountyChance) return null;
         // Kandidaten: Kaperschiffe von Outlaw-Akteuren, auf die die Fraktion ein Kopfgeld hat
         var cands = u.Ships.Values

@@ -205,11 +205,14 @@ public static class CommsText
     static readonly System.Text.RegularExpressions.Regex BisTick = new(@"bis Tick (\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
     static readonly System.Text.RegularExpressions.Regex SeitTick = new(@"seit Tick (\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
     static readonly System.Text.RegularExpressions.Regex Noch = new(@"noch \d+:\d\d", System.Text.RegularExpressions.RegexOptions.Compiled);
+    /// <summary>Runde 42d: „ · noch m:ss“ ganz streichen (erledigte/angenommene/gescheiterte Meldungen).</summary>
+    static readonly System.Text.RegularExpressions.Regex NochLeer = new(@" · noch \d+:\d\d", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
-    /// Runde 42c: Zeiten im Text zur Anzeigezeit rendern — „bis Tick N“ → „bis in X min“ (bzw. „abgelaufen vor X min“),
-    /// „seit Tick N“ → „seit X min“; „noch m:ss“ (bei der Erzeugung gebacken) wird aus der gespeicherten Frist
-    /// (Args „deadline“) neu gerechnet. Reiner Textumbau, keine Zustandsänderung.
+    /// Zeiten im Text zur Anzeigezeit rendern — „bis Tick N“ → „bis in X min“ (bzw. „abgelaufen vor X min“),
+    /// „seit Tick N“ → „seit X min“. Runde 42d (Handytest): nur offene Angebote tragen eine Restzeit — bei allen anderen
+    /// Meldungen (erledigt/angenommen/gescheitert …) wird die weiterlaufende Restzeit („ · noch m:ss“) gestrichen statt
+    /// neu gerechnet. Reiner Textumbau, keine Zustandsänderung.
     /// </summary>
     public static string RenderTimes(Universe u, CommsMessage m, string body)
     {
@@ -219,10 +222,24 @@ public static class CommsText
             return t > u.Tick ? $"bis in {Comms.In(u, t)}" : $"abgelaufen vor {Comms.Ago(u, t)}";
         });
         body = SeitTick.Replace(body, mm => $"seit {Comms.Ago(u, long.Parse(mm.Groups[1].Value))}");
-        if (m.Args.TryGetValue("deadline", out var ds) && long.TryParse(ds, out var dl) && dl > 0)
-            body = Noch.Replace(body, _ => dl > u.Tick ? $"noch {Missions.MissionRules.Rest(dl - u.Tick)}" : $"abgelaufen vor {Comms.Ago(u, dl)}");
+        if (m.Kind is "contract_offer" or "mission_offer")
+        {
+            if (m.Args.TryGetValue("deadline", out var ds) && long.TryParse(ds, out var dl) && dl > 0)
+                body = Noch.Replace(body, _ => dl > u.Tick ? $"noch {Missions.MissionRules.Rest(dl - u.Tick)}" : $"abgelaufen vor {Comms.Ago(u, dl)}");
+        }
+        else
+        {
+            body = NochLeer.Replace(body, "");
+        }
         return body;
     }
+
+    /// <summary>
+    /// Runde 42d (Handytest): Meta-Zeile einer Posteingangszeile („vor X min“, bei <b>offenen Angeboten</b> zusätzlich
+    /// „ · verfällt in Y min“ — nur die haben eine Restzeit; erledigte/angenommene/gescheiterte Meldungen nicht).
+    /// </summary>
+    public static string RowMeta(Universe u, CommsMessage m) =>
+        $"vor {Comms.Ago(u, m.Created)}" + (LiveOffer(u, m) is not null && m.Expires > 0 ? $" · verfällt in {Comms.In(u, m.Expires)}" : "");
 
     /// <summary>Lebendes Angebot zur Nachricht (null = unbekannt oder abgelaufen).</summary>
     public static MissionOffer? LiveOffer(Universe u, CommsMessage m) =>

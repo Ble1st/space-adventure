@@ -109,7 +109,8 @@ public sealed class TransportMission : IMissionType
         // Runde 42c: geschätzte Flugzeit des Spielers in der Angebotsanzeige (real, nicht NPC-Tempo)
         var ship = u.Ships[u.PlayerShip];
         string flug = MissionRules.TripText(u, ship.Sector, ship.Position, target.Sector, target.DockPoint(ship.Id), ship);
-        return $"Transport: versiegelte Fracht ({VolumeOf(o):0.#} m³) von {from.Name} nach {target.Name} — Belohnung {o.Reward:0} Cr, Pfand {o.Deposit:0} Cr, Flugzeit ~{flug}.";
+        // Runde 42d (Handytest): TripText trägt die Tilde schon selbst („~0:29 min“) — hier keine zweite
+        return $"Transport: versiegelte Fracht ({VolumeOf(o):0.#} m³) von {from.Name} nach {target.Name} — Belohnung {o.Reward:0} Cr, Pfand {o.Deposit:0} Cr, Flugzeit {flug}.";
     }
 
     public string Describe(Universe u, Mission m)

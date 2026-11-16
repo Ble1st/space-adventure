@@ -152,6 +152,30 @@ public static class MissionRules
     /// <summary>Aktive Mission zur Id (null = keine).</summary>
     public static Mission? Active(Universe u, int id) => u.Missions.FirstOrDefault(m => m.Id == id && m.State == MissionState.Active);
 
+    /// <summary>
+    /// Runde 42d (Handytest): Beschreibungstext ohne führendes „Auftrag: “ — für Meldungen wie „Auftrag angenommen: …“,
+    /// damit nicht „Auftrag angenommen: Auftrag: …“ dasteht.
+    /// </summary>
+    public static string AcceptedText(Universe u, Mission m)
+    {
+        string d = Types.Get(m.Type)?.Describe(u, m) ?? m.Type;
+        return d.StartsWith("Auftrag: ", StringComparison.Ordinal) ? d["Auftrag: ".Length..] : d;
+    }
+
+    /// <summary>
+    /// Runde 42d (Handytest): Geldzeile eines laufenden Auftrags — beim Liefervertrag „Festpreis p × n = cash Cr · Kasse
+    /// reserviert“ statt „Belohnung 0 Cr (reserviert)“, sonst die reservierte Belohnung.
+    /// </summary>
+    public static string MoneyLine(Universe u, Mission m)
+    {
+        if (m.Args.TryGetValue("contract", out var c) && c == "1"
+            && m.Args.TryGetValue("units", out var us) && m.Args.TryGetValue("price", out var ps)
+            && float.TryParse(us, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var units)
+            && float.TryParse(ps, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var price))
+            return $"Festpreis {price:0.0} Cr × {units:0.#} = {units * price:0} Cr · Kasse reserviert";
+        return $"Belohnung {m.Reserved:0} Cr (reserviert)";
+    }
+
     /// <summary>Beschreibungstext eines Angebots (so wie beim Ereignis <see cref="MissionOffered"/>).</summary>
     public static string DescribeOfferText(Universe u, MissionOffer o) => Types.Get(o.Type)?.DescribeOffer(u, o) ?? o.Type;
 

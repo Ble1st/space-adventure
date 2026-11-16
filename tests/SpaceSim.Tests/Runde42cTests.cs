@@ -274,19 +274,18 @@ public class Runde42cTests
         Run(u, 240 * 40);   // 40 min vergangen → Frist abgelaufen
         var (_, b2) = CommsText.Describe(u, m1);
         Assert.Contains("abgelaufen vor 10 min", b2);
-        // „noch m:ss“ in einer Auftrags-Nachricht wird aus der gespeicherten Frist (Args „deadline“) neu gerechnet
+        // Runde 42d (Handytest): eine angenommene/erledigte/gescheiterte Meldung trägt KEINE weiterlaufende Restzeit mehr —
+        // „ · noch m:ss“ wird gestrichen (nur offene Angebote haben eine Restzeit); die Frist bleibt als Arg „deadline“ gespeichert
         var ship = Player(u);
         var o = TransportOffer(u);
         var m = AcceptDock(u, o);
         var msg = u.Inbox.First(x => x.Kind == "mission_accepted");
         Assert.Equal(m.Deadline.ToString(), msg.Args["deadline"]);
         var (_, ba) = CommsText.Describe(u, msg);
-        Assert.Contains("noch ", ba);
         Assert.DoesNotContain("Tick", ba);
-        string noch0 = System.Text.RegularExpressions.Regex.Match(ba, @"noch (\d+:\d\d)").Groups[1].Value;
+        Assert.False(System.Text.RegularExpressions.Regex.IsMatch(ba, @"noch \d+:\d\d"), $"keine Restzeit im Detailtext: {ba}");
         Run(u, 240);   // 1 min vergangen
         var (_, bb) = CommsText.Describe(u, msg);
-        string noch1 = System.Text.RegularExpressions.Regex.Match(bb, @"noch (\d+:\d\d)").Groups[1].Value;
-        Assert.NotEqual(noch0, noch1);   // Restzeit frisch gerechnet, nicht die alte von der Erzeugung
+        Assert.False(System.Text.RegularExpressions.Regex.IsMatch(bb, @"noch \d+:\d\d"), $"auch später keine Restzeit: {bb}");
     }
 }

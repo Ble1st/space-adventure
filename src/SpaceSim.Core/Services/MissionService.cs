@@ -62,9 +62,9 @@ public sealed class MissionService : IStationService
             {
                 var (m, issue) = MissionRules.Accept(u, id, ship, remote: false);
                 if (m is null) return new ServiceResult(false, 0f, 0f, issue ?? "Annahme nicht möglich.");
-                var type = MissionRules.Types.Get(m.Type)!;
                 u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Accept, default, 1f, m.Deposit > 0f ? -m.Deposit : 0f));
-                return new ServiceResult(true, 1f, m.Deposit > 0f ? -m.Deposit : 0f, $"Auftrag angenommen: {type.Describe(u, m)}");
+                // Runde 42d (Handytest): ohne doppeltes „Auftrag:“ (Describe beginnt selbst mit „Auftrag: …“)
+                return new ServiceResult(true, 1f, m.Deposit > 0f ? -m.Deposit : 0f, $"Auftrag angenommen: {MissionRules.AcceptedText(u, m)}");
             }
             case Abandon:
             {

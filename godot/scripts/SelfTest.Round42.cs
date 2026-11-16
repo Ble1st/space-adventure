@@ -134,7 +134,7 @@ public partial class SelfTest
 				for (int i = 0; i < 60 && bo is null; i++)
 				{
 					// Bedrohung verfällt pro Tick (ThreatMap.Update) und Fahndung verfällt ohne neues Verbrechen — vor jedem
-					// Angebots-Bucket (alle MissionRefreshTicks) erneut setzen, sonst greift MissionBountyMinThreat nicht.
+					// Angebots-Bucket (alle MissionRefreshTicks) erneut setzen, damit ein Kaperschiff gesucht ist.
 					sec.Threat = MathF.Max(sec.Threat, 50f);
 					var raider = u.Ships.Values.FirstOrDefault(SpaceSim.Core.Simulation.ThreatMap.IsRaider);
 					if (raider is not null)

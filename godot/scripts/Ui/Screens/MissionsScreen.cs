@@ -27,11 +27,19 @@ public sealed partial class MissionsScreen : DockAreaScreen
 
 	string _message = "";
 	bool _msgOk = true;
+	ulong _msgAt;                 // Runde 42d: Zeitpunkt der Meldung (Eigenuhr, Test überschreibbar)
 	int _offers;
 	readonly Dictionary<int, KitButton> _acceptButtons = new();   // Runde 42 (Selbsttest): Annehmen-Knopf je Angebots-Id
 
+	/// <summary>Runde 42d: Uhr für die Meldungs-Lebensdauer (Selbsttest stellt um) — wie im Comms-Bereich.</summary>
+	internal static Func<ulong> MsgNow = () => (ulong)Time.GetTicksMsec();
+	/// <summary>Runde 42d: Meldungen im Dock-Bereich „Aufträge“ verfallen nach dieser Zeit (ms) — wie in Comms.</summary>
+	const int MsgMs = 6000;
+	/// <summary>Runde 42d: Meldung noch sichtbar (Text da und Frist nicht abgelaufen).</summary>
+	public bool TestMessageVisible => _message.Length > 0 && MsgNow() - _msgAt < MsgMs;
+
 	/// <summary>Runde 42b (Handytest): alte Meldung („Auftrag angenommen …“) nicht beim erneuten Öffnen des Bereichs zeigen.</summary>
-	protected override void OnOpen() { _message = ""; }
+	protected override void OnOpen() { _message = ""; _msgAt = 0; }
 
 	SpaceSim.Core.Services.IStationService? Service() =>
 		Ctx.Services.ForStation(Ctx.U, Ctx.Station, Ctx.Ship).FirstOrDefault(s => s.Key == MissionService.ServiceKey);
@@ -52,8 +60,9 @@ public sealed partial class MissionsScreen : DockAreaScreen
 		long frist = type?.DeadlineOf(u, o, ship) ?? MissionRules.DeadlineFrom(u, ship, st) - u.Tick;
 		string reward = o.Reward > 0f ? $"Belohnung {o.Reward:0} Cr" : "Ware zum Festpreis (Liefervertrag)";
 		// Runde 42c: geschätzte reale Flugzeit des Spielers in der Vorschau (Fristen sind daraus abgeleitet)
+		// Runde 42d (Handytest): TripText trägt die Tilde schon selbst — hier keine zweite („~~…“)
 		string flug = MissionRules.TripText(u, ship.Sector, ship.Position, tgt.Sector, tgt.DockPoint(ship.Id), ship);
-		return $"{reward} · Pfand {o.Deposit:0} Cr · Frist {MissionRules.Rest(frist)} · Flug ~{flug} · Ziel {ziel}";
+		return $"{reward} · Pfand {o.Deposit:0} Cr · Frist {MissionRules.Rest(frist)} · Flug {flug} · Ziel {ziel}";
 	}
 
 	protected override void BuildContent(Control inner)
@@ -63,8 +72,10 @@ public sealed partial class MissionsScreen : DockAreaScreen
 		float tw = w - 160f;
 		_offers = 0;
 		var u = Ctx.U; var st = Ctx.Station; var ship = Ctx.Ship;
-		WrappedText(inner, _message.Length > 0 ? _message : $"Aufträge von {st.Name}: annehmen, erfüllen, Belohnung aus der Fraktionskasse. Lieferverträge sichern Annahme und Kasse der Station.",
-			0, 0, w, 14, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f), 18);
+		// Runde 42d (Handytest): die Annahmemeldung verfällt nach ~6 s wie in Comms — sie darf nicht minutenlang oben stehen bleiben
+		bool msgVisible = TestMessageVisible;
+		WrappedText(inner, msgVisible ? _message : $"Aufträge von {st.Name}: annehmen, erfüllen, Belohnung aus der Fraktionskasse. Lieferverträge sichern Annahme und Kasse der Station.",
+			0, 0, w, 14, msgVisible ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f), 18);
 
 		// ── Angebote der Station ──
 		At(inner, Text("Angebote dieser Station", 20, Cyan), 0, 44, w, 28);
@@ -127,6 +138,7 @@ public sealed partial class MissionsScreen : DockAreaScreen
 			: svc.Execute(Ctx.U, Ctx.Station, Ctx.Ship, new ServiceRequest(offer, default, 0f));
 		_message = r.Message;
 		_msgOk = r.Success;
+		_msgAt = MsgNow();   // Runde 42d: Verfallszeit der Meldung (6 s, Test-Uhr MsgNow)
 		Executed?.Invoke(r.Success);
 		Invalidate();
 		return r;

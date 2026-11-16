@@ -348,7 +348,8 @@ public sealed class MissionAcceptAction : ICommsAction
         }
         // Runde 42c: geschätzte Flugzeit zum Ziel in der Vorschau
         var tgt = o.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv) && u.Stations.TryGetValue(new StationId(tv), out var t) ? t : u.Stations[o.At];
-        string flug = $" · Flug ~{MissionRules.TripText(u, ship.Sector, ship.Position, tgt.Sector, tgt.DockPoint(ship.Id), ship)}";
+        // Runde 42d (Handytest): TripText trägt die Tilde schon selbst — keine zweite („~~…“)
+        string flug = $" · Flug {MissionRules.TripText(u, ship.Sector, ship.Position, tgt.Sector, tgt.DockPoint(ship.Id), ship)}";
         return issue ?? $"{head} · Frist {MissionRules.Rest(frist)} · Ziel {ziel}{flug}";
     }
 
@@ -384,8 +385,8 @@ public sealed class MissionAcceptAction : ICommsAction
         if (!u.Ships.TryGetValue(u.PlayerShip, out var ship)) return new ServiceResult(false, 0f, 0f, "Kein aktives Schiff.");
         var (m, issue) = MissionRules.Accept(u, id, ship, remote: true);
         if (m is null) return new ServiceResult(false, 0f, 0f, issue ?? "Annahme nicht möglich.");
-        var type = MissionRules.Types.Get(m.Type)!;
-        string msg = $"Auftrag angenommen: {type.Describe(u, m)}";
+        // Runde 42d (Handytest): ohne doppeltes „Auftrag:“ (Describe beginnt selbst mit „Auftrag: …“)
+        string msg = $"Auftrag angenommen: {MissionRules.AcceptedText(u, m)}";
         u.Events.Publish(new CommsActionPerformed(KeyId, m.Client.Value, -(m.Deposit), msg));
         return new ServiceResult(true, 1f, -m.Deposit, msg);
     }
