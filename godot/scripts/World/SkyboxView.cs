@@ -19,6 +19,12 @@ namespace SpaceAdventure.World;
 /// Schiff außerhalb der Scheibe bleibt; in sehr flachen Ansichten steht der Planet hinter dem Schiff — die Planetentexturen sind dafür abgedunkelt. Das Umgebungslicht bleibt eine feste Farbe, Spiegelungen aus dem Himmel sind aus —
 /// die Textur färbt Schiffe, Stationen und Felsen nicht ein.
 /// </para>
+/// <para>
+/// Rückansicht (<c>CameraMode.Chase</c>): dort folgt der Kamera-Gier dem Kurs, ein weltfester Himmel zeigte den Planeten nur beim Flug in seine
+/// Richtung. In der Rückansicht dreht sich deshalb jeder Himmel (Planeten- wie Sternhimmel, einheitlich) mit dem Gier der echten Kamera um die
+/// Hochachse — der Planet bleibt oben vorn im Bild, an derselben Stelle wie in der Standard-Rückansicht mit Kurs -Z. Bewegung zeigen weiter die
+/// weltfesten Sternstaub-Kacheln. Frei und Zielfolge: weltfest. Beim Moduswechsel blendet der Anteil in <see cref="BlendSeconds"/> über.
+/// </para>
 /// Die Textur wird nur beim Wechsel des Himmels geladen (<see cref="Loads"/>); der vorige Himmel wird freigegeben (ein Himmel im Speicher).
 /// </summary>
 public partial class SkyboxView : Node
@@ -65,8 +71,24 @@ public partial class SkyboxView : Node
 	float _yaw = float.NaN;
 	readonly HashSet<string> _missing = new();   // Diagnose: fehlende Textur nur einmal melden (Apply versucht es sonst jedes Bild)
 
-	public SkyboxView(Godot.Environment env, Func<Universe?> universe)
+	/// <summary>Überblendzeit beim Wechsel Rückansicht ↔ weltfest (Sekunden).</summary>
+	public const float BlendSeconds = 0.5f;
+
+	readonly Func<float?>? _chaseAzimuth;
+	Entry? _entry;
+	float _follow;          // 0 = weltfest, 1 = folgt der Kamera (Rückansicht)
+	float _appliedYaw = float.NaN;
+
+	/// <summary>Gier, mit dem der Himmel gerade ausgerichtet ist (Sektor-<c>skyboxYaw</c> + Kameraanteil in der Rückansicht), Grad.</summary>
+	public float AppliedYaw => _appliedYaw;
+	/// <summary>Anteil, mit dem der Himmel dem Kamera-Gier folgt (0 weltfest … 1 Rückansicht).</summary>
+	public float Follow => _follow;
+
+	/// <param name="chaseAzimuth">Gier der echten Kamera in Grad (Konvention von <see cref="WorldDir"/>: 0 = Blick nach -Z, positiv = +X), solange die
+	/// Rückansicht aktiv ist; sonst null (weltfester Himmel).</param>
+	public SkyboxView(Godot.Environment env, Func<Universe?> universe, Func<float?>? chaseAzimuth = null)
 	{
+		_chaseAzimuth = chaseAzimuth;
 		Name = "Himmel";
 		_env = env;
 		_universe = universe;
@@ -85,8 +107,25 @@ public partial class SkyboxView : Node
 	{
 		var u = _universe();
 		if (u is null || !u.Sectors.TryGetValue(u.PlayerSector, out var sec)) return;
-		if (sec.Id == CurrentSector && sec.Skybox == CurrentKey && sec.SkyboxYaw == _yaw) return;
-		Apply(sec);
+		if (sec.Id != CurrentSector || sec.Skybox != CurrentKey || sec.SkyboxYaw != _yaw) Apply(sec);
+		// Rückansicht: Himmel dreht mit dem (bereits geglätteten) Kamera-Gier; Wechsel weich überblenden
+		float? az = _chaseAzimuth?.Invoke();
+		_follow = Mathf.MoveToward(_follow, az.HasValue ? 1f : 0f, (float)delta / BlendSeconds);
+		if (az.HasValue) _lastAzimuth = az.Value;
+		Orient(_yaw + _follow * Mathf.Wrap(_lastAzimuth, -180f, 180f));
+	}
+
+	float _lastAzimuth;
+
+	/// <summary>Richtet den aktuellen Himmel mit dem Gier <paramref name="yawDeg"/> aus (nur bei Änderung).</summary>
+	void Orient(float yawDeg)
+	{
+		if (_entry is null || _env.Sky is null) return;
+		if (!float.IsNaN(_appliedYaw) && Mathf.Abs(Mathf.Wrap(yawDeg - _appliedYaw, -180f, 180f)) < 0.005f) return;
+		_appliedYaw = yawDeg;
+		Rotation = Orientation(_entry, yawDeg);
+		// Godot dreht die Blickrichtung mit der Inversen der Himmelsorientierung in den Himmelsraum (sky.glsl) — also die Inverse setzen
+		_env.SkyRotation = Rotation.Transposed().GetEuler();
 	}
 
 	/// <summary>Setzt den Himmel des Sektors (lädt die Textur nur, wenn sich der Himmel ändert).</summary>
@@ -97,7 +136,7 @@ public partial class SkyboxView : Node
 		if (!Manifest.TryGetValue(sector.Skybox, out var e))
 		{
 			Log(sector, $"kein Himmel (Schlüssel '{sector.Skybox}', Verzeichnis {Manifest.Count} Einträge) → Farbhintergrund");
-			CurrentKey = sector.Skybox; CurrentHasPlanet = false;
+			CurrentKey = sector.Skybox; CurrentHasPlanet = false; _entry = null;
 			_mat.Panorama = null;
 			_env.BackgroundMode = Godot.Environment.BGMode.Color;
 			_env.BackgroundColor = _fallbackColor;
@@ -111,16 +150,15 @@ public partial class SkyboxView : Node
 			if (tex is null)
 			{
 				if (_missing.Add(e.File)) { GD.PushWarning($"Himmel {e.File} fehlt"); Log(sector, $"Textur {e.File} NICHT geladen"); }
-				CurrentKey = ""; return;
+				CurrentKey = ""; _entry = null; return;
 			}
 			_mat.Panorama = tex;   // der vorige Himmel verliert damit seine letzte Referenz und wird freigegeben
 		}
-		CurrentKey = e.Key; CurrentHasPlanet = e.Planet;
-		Rotation = Orientation(e, sector.SkyboxYaw);
+		CurrentKey = e.Key; CurrentHasPlanet = e.Planet; _entry = e;
 		_env.Sky = _sky;
 		_env.BackgroundMode = Godot.Environment.BGMode.Sky;
-		// Godot dreht die Blickrichtung mit der Inversen der Himmelsorientierung in den Himmelsraum (sky.glsl) — also die Inverse setzen
-		_env.SkyRotation = Rotation.Transposed().GetEuler();
+		_appliedYaw = float.NaN;   // neu ausrichten (Kameraanteil der Rückansicht kommt in _Process dazu)
+		Orient(sector.SkyboxYaw + _follow * Mathf.Wrap(_lastAzimuth, -180f, 180f));
 		Log(sector, $"Himmel '{e.Key}' {Describe(_mat.Panorama)}");
 	}
 

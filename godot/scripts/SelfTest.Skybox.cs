@@ -52,7 +52,7 @@ public partial class SelfTest
 				Check(sky.CurrentHasPlanet == planet, $"Himmel: {sec.Name} {(planet ? "mit" : "ohne")} Planet ({sky.CurrentKey})");
 				Check(_m.View.PlanetNode is null, $"Himmel: {sec.Name} ohne zusätzliche Planetenkugel");
 				var focus = SkyboxView.PanoramaDir(e.FocusU, e.FocusV);
-				var aimed = sky.Rotation * SkyboxView.WorldDir(sec.SkyboxYaw, e.Elevation);
+				var aimed = sky.Rotation * SkyboxView.WorldDir(sky.AppliedYaw, e.Elevation);   // in der Rückansicht kommt der Kamera-Gier dazu
 				Check(aimed.DistanceTo(focus) < 0.01f, $"Himmel: {sec.Name} Fokus in Blickrichtung (Abweichung {aimed.DistanceTo(focus):0.000})");
 				if (planet)
 				{
@@ -112,9 +112,107 @@ public partial class SelfTest
 		if (g == 130)
 		{
 			Check((Sky?.Loads ?? -1) == _skyLoads, $"Himmel: 120 Bilder im selben Sektor ohne Neuladen ({(Sky?.Loads ?? 0) - _skyLoads})");
+			// Rückansicht: Himmel dreht mit dem Kamera-Gier — Planet bleibt oben vorn, auch nach einer Kurve von 120°
+			var p = u.Sectors.Values.Where(s => s.Planet is not null).OrderBy(s => s.Skybox == "ice_planet" ? 0 : 1).ThenBy(s => s.Id.Value).First();
+			_m.TestEnterSector(p.Id);
+			if (_m.TestDocked) _m.TestUndock();
+			return false;
+		}
+		if (g == 136)
+		{
+			_m.TestCameraAction("cam_chase"); _m.TestCameraAction("cam_reset");
+			_m.TestFace(ShipAhead(0f));   // Kurs -Z: Standard-Rückansicht
+			_m.TestCameraAction("cam_chase");   // SnapHeading auf den neuen Kurs
+			return false;
+		}
+		if (g == 240)
+		{
+			Check(Sky is { } s0 && s0.Follow >= 0.999f, $"Himmel: Rückansicht — Himmel folgt der Kamera (Anteil {Sky?.Follow:0.00})");
+			_skyChaseA = ChaseDisc("Kurs -Z");
+			_m.TestFace(ShipAhead(120f));   // Kurve um 120°
+			return false;
+		}
+		if (g == 420)
+		{
+			var b = ChaseDisc("Kurs 120°");
+			Check(Mathf.Abs(Mathf.Wrap(_m.TestCamAngles.Yaw - 120f, -180f, 180f)) < 3f, $"Himmel: Rückansicht hat die Kurve mitgedreht (Kamera-Gier {_m.TestCamAngles.Yaw:0.0}°)");
+			Check(Mathf.Abs(b.Cx - _skyChaseA.Cx) < 0.03f && Mathf.Abs(b.Cy - _skyChaseA.Cy) < 0.03f && Mathf.Abs(b.Share - _skyChaseA.Share) < 0.02f,
+				$"Himmel: Rückansicht — Planet nach der Kurve an derselben Bildstelle (x {_skyChaseA.Cx:0.000}→{b.Cx:0.000}, y {_skyChaseA.Cy:0.000}→{b.Cy:0.000}, Anteil {_skyChaseA.Share:P1}→{b.Share:P1})");
+			_skyPrevYaw = Sky?.AppliedYaw ?? 0f;
+			_m.TestCameraAction("cam_free");
+			return false;
+		}
+		if (g == 421)
+		{
+			float step = Mathf.Abs(Mathf.Wrap((Sky?.AppliedYaw ?? 0f) - _skyPrevYaw, -180f, 180f));
+			Check(step < 10f, $"Himmel: Wechsel zur freien Kamera ohne Sprung (erstes Bild {step:0.0}°)");
+			return false;
+		}
+		if (g == 480)
+		{
+			var sec = u.Sectors[u.PlayerSector];
+			Check(Sky is { } s1 && s1.Follow <= 0.001f && Mathf.Abs(Mathf.Wrap(s1.AppliedYaw - sec.SkyboxYaw, -180f, 180f)) < 0.01f,
+				$"Himmel: freie Kamera — weltfest (Anteil {Sky?.Follow:0.00}, Gier {Sky?.AppliedYaw:0.0}° = {sec.SkyboxYaw:0.0}°)");
+			_m.TestSetCam(120f, OrbitCameraPitch, 44.94f);
+			return false;
+		}
+		if (g == 510)
+		{
+			var sec = u.Sectors[u.PlayerSector];
+			Check(Sky is { } s2 && Mathf.Abs(Mathf.Wrap(s2.AppliedYaw - sec.SkyboxYaw, -180f, 180f)) < 0.01f,
+				$"Himmel: freie Kamera um 120° geschwenkt — Himmel bleibt weltfest ({Sky?.AppliedYaw:0.0}°)");
+			_m.TestCameraAction("cam_reset");
 			return true;
 		}
 		return false;
+	}
+
+	(float Share, float Cx, float Cy) _skyChaseA;
+	float _skyPrevYaw;
+	static float OrbitCameraPitch => SpaceSim.Core.Flight.OrbitCamera.DefaultPitchDeg;
+
+	/// <summary>Punkt 1000 vor dem Schiff in Kursrichtung <paramref name="headingDeg"/> (0 = -Z; Kurs h → Richtung (-sin h, -cos h)).</summary>
+	Vec2 ShipAhead(float headingDeg)
+	{
+		var pos = _m.TestShipViewPos;
+		float h = Mathf.DegToRad(headingDeg);
+		return new Vec2(pos.X - 1000f * Mathf.Sin(h), pos.Z - 1000f * Mathf.Cos(h));
+	}
+
+	/// <summary>
+	/// Lage der Planetenscheibe im Bild der echten Kamera, mit der gerade gesetzten Himmelsdrehung (Planetenmitte = Fokus-Bildpunkt zurück in die Welt);
+	/// prüft dabei, dass die Scheibe oben im Bild liegt und das Schiff außerhalb steht.
+	/// </summary>
+	(float Share, float Cx, float Cy) ChaseDisc(string what)
+	{
+		var sky = Sky;
+		var u = _m.Session.U;
+		var sec = u.Sectors[u.PlayerSector];
+		if (sky is null || !SkyboxView.Manifest.TryGetValue(sec.Skybox, out var e)) { Check(false, "Himmel: Rückansicht ohne Himmel"); return (0f, 0f, 0f); }
+		var c = (sky.Rotation.Transposed() * SkyboxView.PanoramaDir(e.FocusU, e.FocusV)).Normalized();
+		var env = _m.GetChildren().OfType<WorldEnvironment>().First().Environment;
+		var applied = Basis.FromEuler(env.SkyRotation).Transposed();
+		Check(applied.X.DistanceTo(sky.Rotation.X) < 0.01f && applied.Z.DistanceTo(sky.Rotation.Z) < 0.01f, $"Himmel: {what} — Umgebung trägt die Drehung");
+		var cam = _m.TestCam;
+		var b = cam.GlobalBasis;
+		var vp = _m.GetViewport().GetVisibleRect().Size;
+		float aspect = vp.Y > 0f ? vp.X / vp.Y : 16f / 9f;
+		float t = Mathf.Tan(Mathf.DegToRad(cam.Fov * 0.5f)), cosR = Mathf.Cos(Mathf.DegToRad(e.Radius));
+		const int W = 96, H = 48;
+		int n = 0; float sx = 0f, sy = 0f, maxY = 0f;
+		for (int j = 0; j < H; j++)
+			for (int i = 0; i < W; i++)
+			{
+				float uu = (i + 0.5f) / W, vv = (j + 0.5f) / H;
+				var r = (b * new Vector3((2f * uu - 1f) * t * aspect, (1f - 2f * vv) * t, -1f)).Normalized();
+				if (r.Dot(c) < cosR) continue;
+				n++; sx += uu; sy += vv; maxY = Mathf.Max(maxY, vv);
+			}
+		float share = (float)n / (W * H), cx = n > 0 ? sx / n : -1f, cy = n > 0 ? sy / n : 1f;
+		Check(share >= 0.05f && cy < 0.3f && maxY < 0.6f, $"Himmel: {sec.Name} Rückansicht {what}: Planet oben im Bild (Anteil {share:P0}, Schwerpunkt x {cx:0.00} y {cy:0.00}, unterster Punkt {maxY:0.00})");
+		float gap = Mathf.RadToDeg((_m.TestShipViewPos - cam.GlobalPosition).Normalized().AngleTo(c)) - e.Radius;
+		Check(gap >= 5f, $"Himmel: {sec.Name} Rückansicht {what}: Schiff außerhalb der Scheibe (Abstand zum Rand {gap:0.0}°)");
+		return (share, cx, cy);
 	}
 
 	/// <summary>

@@ -50,7 +50,21 @@ public partial class UiShots
 			case 599_022: _m.TestSetCam(0f, 20f, 44.94f); _stage = 599_023; _wait = 20; return;
 			case 599_023: SkyCapture(F("flach"), sec); _stage = 599_012; _wait = 5; return;
 			case 599_012: _m.TestCameraAction("cam_chase"); _m.TestCameraAction("cam_reset"); _stage = 599_013; _wait = 90; return;   // Rückansicht auf Höhe 45 / Abstand 35
-			case 599_013: SkyCapture(F("rueckansicht"), sec); _stage = planet ? 599_030 : 599_014; _wait = 5; return;
+			case 599_013: SkyCapture(F("rueckansicht"), sec); _stage = planet ? 599_040 : 599_014; _wait = 5; return;
+			// Rückansicht nach einer Kurve um 120°: der Himmel dreht mit der Kamera, der Planet steht an derselben Bildstelle
+			case 599_040:
+			{
+				var p = _m.TestShipViewPos; float h = Mathf.DegToRad(120f);
+				_m.TestFace(new Vec2(p.X - 1000f * Mathf.Sin(h), p.Z - 1000f * Mathf.Cos(h)));
+				_stage = 599_041; _wait = 120; return;
+			}
+			case 599_041:
+			{
+				SkyCapture(F("rueck-kurve"), sec);
+				var p = _m.TestShipViewPos;
+				_m.TestFace(new Vec2(p.X, p.Z - 1000f));   // zurück auf Kurs -Z
+				_stage = 599_030; _wait = 120; return;
+			}
 			// flache Rückansicht: Höhe 45 → 15 (drei Stufen tiefer), Abstand 35
 			case 599_030: for (int i = 0; i < 3; i++) _m.TestCameraAction("chase_down"); _stage = 599_031; _wait = 90; return;
 			case 599_031: SkyCapture(F("rueck-flach"), sec); _m.TestCameraAction("cam_reset"); _stage = 599_014; _wait = 5; return;
@@ -77,7 +91,9 @@ public partial class UiShots
 			GD.Print($"[ui-shots] {file}  {img.GetWidth()}x{img.GetHeight()}  err={err}");
 			if (sec.Planet is null || !World.SkyboxView.Manifest.TryGetValue(sec.Skybox, out var e) || e.Radius <= 0f) return;
 			int w = img.GetWidth(), h = img.GetHeight();
-			var c = World.SkyboxView.WorldDir(sec.SkyboxYaw, e.Elevation).Normalized();
+			// Planetenmitte aus der gerade gesetzten Himmelsdrehung (in der Rückansicht dreht der Himmel mit der Kamera)
+			var sky = _m.GetChildren().OfType<World.SkyboxView>().FirstOrDefault();
+			var c = (sky is null ? World.SkyboxView.WorldDir(sec.SkyboxYaw, e.Elevation) : sky.Rotation.Transposed() * World.SkyboxView.PanoramaDir(e.FocusU, e.FocusV)).Normalized();
 			float cosR = Mathf.Cos(Mathf.DegToRad(e.Radius));
 			float t = Mathf.Tan(Mathf.DegToRad(cam.Fov * 0.5f)), aspect = (float)w / h;
 			var b = cam.GlobalBasis;

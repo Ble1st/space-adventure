@@ -3023,7 +3023,7 @@ public partial class Main : Node3D
 			GlowEnabled = true,
 		};
 		AddChild(new WorldEnvironment { Environment = env });
-		AddChild(new World.SkyboxView(env, () => _session?.U));   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor)
+		AddChild(new World.SkyboxView(env, () => _session?.U, ChaseSkyAzimuth));   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor; in der Rückansicht dreht sie mit der Kamera)
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-50, 30, 0), LightEnergy = 1.3f });
 		// Runde 8: schwaches, kühles Fülllicht von der Gegenseite (ohne Schatten, mobil billig) — die abgewandten Seiten der Modelle versinken sonst
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-25, 210, 0), LightEnergy = 0.45f, LightColor = new Color(0.7f, 0.8f, 1f), ShadowEnabled = false });
@@ -3562,7 +3562,21 @@ public partial class Main : Node3D
 	/// <summary>Aktueller Ist-Offset der Kamera relativ zum Schiff (Selbsttest).</summary>
 	internal Vector3 TestCamOffset => new(_camOffset.X, _camOffset.Y, _camOffset.Z);
 	internal Camera3D TestCam => _cam;
+
+	/// <summary>
+	/// Gier der echten Kamera in Grad (0 = Blick nach -Z, positiv = +X), solange die Rückansicht aktiv ist — der Himmel dreht dann mit (Planet bleibt oben
+	/// vorn im Bild); sonst null (weltfester Himmel). Aus der Kamera selbst, damit der Himmel genau der geglätteten Kamera folgt.
+	/// </summary>
+	float? ChaseSkyAzimuth()
+	{
+		if (_orbit.Mode != CameraMode.Chase || _cam is null || !IsInstanceValid(_cam)) return null;
+		var f = -_cam.GlobalBasis.Z;
+		if (f.X * f.X + f.Z * f.Z < 1e-8f) return null;
+		return Mathf.RadToDeg(Mathf.Atan2(f.X, -f.Z));
+	}
 	internal Vector3 TestCamPos => _cam.Position;
+	/// <summary>Weltposition des Spielerschiffs in der Ansicht (Selbsttest Himmel: Schiff außerhalb der Planetenscheibe).</summary>
+	internal Vector3 TestShipViewPos => _player.Position;
 	/// <summary>Bildschirm → Welt: Schnitt des Kamerastrahls durch diesen Pixel mit der XZ-Ebene (wie „Halten fliegt zum Zeiger“).</summary>
 	internal Vector3? TestGroundPoint(Vector2 screen) => GroundPoint(screen);
 	/// <summary>Welt → Bildschirm: projiziert einen Weltpunkt (Roundtrip-Prüfung mit gedrehter Kamera).</summary>
