@@ -72,6 +72,7 @@ if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
 }
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
+if (opts.TryGetValue("blackmarket", out var bmOpt)) u.Rules.BlackMarket = bmOpt == "on";   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
 // Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
 if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
 if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
@@ -960,6 +961,10 @@ if (u.Modules.Count > 0)
     // Phase 28 (Prüfpunkt e): Piratenkassen nach Zweck — Einnahmen gegen Kosten
     Console.WriteLine($"Piratenkassen: Einnahmen {pirateIn.Values.Sum():0} Cr ({(pirateIn.Count == 0 ? "–" : string.Join(", ", pirateIn.Select(kv => $"{kv.Key} {kv.Value:0}")))}), "
         + $"Kosten {pirateOut.Values.Sum():0} Cr ({(pirateOut.Count == 0 ? "–" : string.Join(", ", pirateOut.Select(kv => $"{kv.Key} {kv.Value:0}")))})");
+    // Schwarzmarkt: Hehlerware je Versteck (Beute der Kaperer; nur Ablage, ändert kein NPC-Verhalten)
+    Console.WriteLine($"Schwarzmarkt ({(u.Rules.BlackMarket ? "an" : "aus")}): " + string.Join(" | ", u.StationsById().Where(s => SpaceSim.Core.Trading.BlackMarket.IsAt(u, s))
+        .Select(s => $"{s.Name}: {s.BlackStock.Count} Waren, {s.BlackStock.Values.Sum():0} E. (Basiswert {s.BlackStock.Sum(kv => kv.Value * u.GoodOf(kv.Key).BasePrice):0} Cr)")
+        .DefaultIfEmpty("kein Versteck mit Schwarzmarkt")));
     // Phase 28: Raketen, Stationen, Krieg
     Console.WriteLine($"Kriegsführung (Phase 28: {(u.Rules.Warfare ? "an" : "aus")}): Raketen {missilesLaunched} ({(missileOutcomes.Count == 0 ? "–" : string.Join(", ", missileOutcomes.Select(kv => $"{kv.Key} {kv.Value}")))}); "
         + $"Stationsgeschütze {stationShots} Schüsse ({stationHits} Treffer, Schaden {stationGunDmg:0}); Schüsse auf Stationen {shotsAtStations}, Hüllenschaden an Stationen {stationHullDmg:0}; "

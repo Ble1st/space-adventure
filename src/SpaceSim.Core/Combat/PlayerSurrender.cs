@@ -115,6 +115,7 @@ public static class PlayerSurrender
             float left = me.Cargo[g] - take;
             if (left <= 0.001f) me.Cargo.Remove(g); else me.Cargo[g] = left;
             value += take * u.Goods[g].BasePrice;
+            if (raider is not null) Trading.BlackMarket.Stash(u, raider.Owner, g, take);   // Schwarzmarkt: die eigene Fracht taucht beim Hehler wieder auf
         }
         if (raider is not null && u.Actors.TryGetValue(raider.Owner, out var pirates))
         {

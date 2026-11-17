@@ -678,6 +678,19 @@ public sealed class EconomyRules
     /// Standardwelt 10000 (fünf Neubauten): seit Kaperschiffe seltener zerstört werden, wuchsen die Piratenkassen sonst ohne Ausgabe.
     /// </summary>
     public float PirateTreasuryCap = 0f;
+    /// <summary>
+    /// Schwarzmarkt (docs/SCHWARZMARKT.md): Dienst „blackmarket“ an Verstecken, deren Typ ihn führt. Aus = der Dienst ist nirgends verfügbar und Beute landet
+    /// nicht im Lager des Hehlers. Code-Standard aus (Test- und eigene Welten unverändert), Standardwelt an.
+    /// </summary>
+    public bool BlackMarket = false;
+    /// <summary>Schwarzmarkt: Ankaufspreis = Anteil × min(Basispreis, bestes ehrliches Gebot) — höchstens die Hälfte des Basispreises.</summary>
+    public float BlackMarketBuyShare = 0.5f;
+    /// <summary>Schwarzmarkt: Verkaufspreis der Hehlerware = Faktor × Basispreis (fest, ≥ 3 × jeder Ankaufspreis: kein Rückkaufkreislauf).</summary>
+    public float BlackMarketSellFactor = 1.5f;
+    /// <summary>Schwarzmarkt: der Hehler zahlt Ankäufe nur aus Geld der Piratenkasse über dieser Rücklage.</summary>
+    public float BlackMarketReserve = 2000f;
+    /// <summary>Schwarzmarkt: höchstens so viele Einheiten je Ware im Lager des Hehlers (Überschuss verfällt).</summary>
+    public float BlackMarketStockMax = 40f;
     public int ViabilityRestoreCooldown = 10000;
 
     // ───────── Phase 23: Schiffssysteme (KAMPF.md Abschnitt 3) ─────────

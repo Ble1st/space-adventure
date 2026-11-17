@@ -340,6 +340,7 @@ public sealed class CombatSystem : ISimSystem
             value += take * u.Goods[g].BasePrice;
             // Phase 25: dem Spieler wirft das Opfer die Fracht vor die Nase — seit Phase 26 als gespeicherter Frachtbehälter (Traktorstrahl)
             if (byPlayer) { u.Events.Publish(new CargoDropped(e.Id, e.Sector, ship.Id, pos, g, take)); dropped[g] = take; }
+            else Trading.BlackMarket.Stash(u, raider.Owner, g, take);   // Schwarzmarkt: die Beute landet beim Hehler des Verstecks
         }
         if (byPlayer && dropped.Count > 0) Wrecks.Drop(u, e.Sector, pos, dropped, ship.Id, "Frachtbehälter");
         if (value <= 0f) return false;

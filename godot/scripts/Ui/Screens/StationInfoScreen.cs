@@ -27,6 +27,7 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	/// <summary>Selbsttest: zuletzt gezeigte Lage (Phase 11).</summary>
 	public string TestSecurity { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Exportzeile (Phase 14; leer ohne Exportsenke).</summary>
+	public string TestBlackMarket = "";
 	public string TestExport { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Instandhaltung (Phase 15; leer, wenn die Station nicht instand gehalten wird).</summary>
 	public string TestMaintenance { get; private set; } = "";
@@ -208,6 +209,9 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 			Wrapped(v3, ex.Line, tw, 15, Cyan);
 			Wrapped(v3, $"Kauft {string.Join(", ", ex.Goods.Select(g => u.Goods[g].Name))} an · Erlös am Planeten +{100f * ex.Markup:0} %", tw, 13, new Color(Dim, 0.95f));
 		}
+		// Schwarzmarkt: Hehler im Versteck (reine Core-Anzeige BlackMarket.InfoLine)
+		TestBlackMarket = SpaceSim.Core.Trading.BlackMarket.InfoLine(u, st) ?? "";
+		if (TestBlackMarket.Length > 0) Wrapped(v3, TestBlackMarket, tw, 15, Orange);
 		v3.AddChild(Text("Hinweise", 16, Dim));
 		foreach (var note in pol.Notes) Wrapped(v3, "· " + note, tw, 14, new Color(Dim, 0.95f));
 		// Prüfung Runde 2: die Dienste stehen in der Hinweis-Karte (viel Platz) — in „Allgemein“ war die unterste Chip-Reihe angeschnitten

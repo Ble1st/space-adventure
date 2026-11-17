@@ -36,6 +36,7 @@
   "maxRaiderUnitsPerActor": 2,
   "pirateTreasuryCap": 10000,
   "fenceShare": 0.85,
+  "blackMarket": true,
   "raiderUpkeepPerTick": 0.03,
   "researchActive": false,
   "ammoActive": true
@@ -1166,7 +1167,7 @@
    "buildCost": 10000,
    "upkeep": 0,
    "income": 0,
-   "services": [],
+   "services": ["blackmarket"],
    "recipes": [],
    "capturable": false,
    "defense": { "hull": 1200, "shield": 120, "shieldRegen": 1.5, "armor": 50, "pointDefense": 0, "guns": ["weapon_massdriver_s", "weapon_massdriver_s", "weapon_laser_s"] }

@@ -286,6 +286,7 @@ public sealed class PirateSystem : ISimSystem
                 if (left <= 0.001f) victim.Cargo.Remove(g); else victim.Cargo[g] = left;
                 lootValue += take * u.Goods[g].BasePrice;
                 stolen.Add($"{take:0} {u.Goods[g].Name}");
+                Trading.BlackMarket.Stash(u, raider.Owner, g, take);   // Schwarzmarkt
             }
             fenced = lootValue * r.FenceShare;
             // Phase 22: der Hehler zahlt nur, bis die Kasse der Piraten PirateTreasuryCap erreicht (die Beute ist vernichtet, die Hehlerei schöpft Geld) — mit

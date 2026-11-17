@@ -564,6 +564,8 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public BuildSiteSave? Site { get; set; }
     /// <summary>Persönliches Lager des Spielers (Phase 8, v11, Dienst „storage“; GoodId → Menge); fehlt = leer.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? PlayerStorage { get; set; }
+    /// <summary>Schwarzmarkt (additiv, v17 bleibt): Hehlerware des Verstecks (GoodId → Menge); fehlt = leer.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<int, float>? BlackStock { get; set; }
     /// <summary>Phase 14 (v17): wartende Chargen der Exportsenke in Ankaufsreihenfolge; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<ExportBatchSave>? Exports { get; set; }
     /// <summary>Phase 28 (additiv): Kampfzustand; fehlt = unbeschädigt.</summary>

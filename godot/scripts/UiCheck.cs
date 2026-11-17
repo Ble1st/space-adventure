@@ -122,7 +122,7 @@ public partial class UiCheck : Node
 			// Runde 34 (E3): Dock-Menü und alle Dock-Bereiche — an der Werft und an weiteren Stationen für die Bereiche, die die Werft nicht hat (Lager, Behörde,
 			// Taxi …); jeder Bereich wird einmal vermessen
 			var seenAreas = new HashSet<string>();
-			foreach (var typeKey in new[] { "shipyard", "warehouse", "sector_hq", "trade_station" })
+			foreach (var typeKey in new[] { "shipyard", "warehouse", "sector_hq", "trade_station", "pirate_hideout" })   // Schwarzmarkt: Versteck mit Hehler
 			{
 				string tk = typeKey;
 				Add(tk == "shipyard" ? "dockmenue" : "dockmenue-" + tk, () =>
@@ -132,6 +132,13 @@ public partial class UiCheck : Node
 					var st = u().StationsById().FirstOrDefault(s => s.TypeKey == tk);
 					if (st is null) return;
 					_m.TestDockAt(st.Id);
+					// Schwarzmarkt: Hehlerware und Fracht an Bord, damit beide Spalten Zeilen haben (die Messung braucht Inhalt)
+					if (tk == "pirate_hideout" && u().Ships.TryGetValue(u().PlayerShip, out var psBm))
+					{
+						foreach (var g in u().Goods.Values.Where(g => !u().Modules.ContainsKey(g.Key)).Take(4)) st.BlackStock[g.Id] = 12.5f;
+						var food = u().FindGood("food");
+						if (food is not null) psBm.Cargo[food.Id] = 5f;
+					}
 					// Runde 42c: versiegelte Auftragsfracht in der Schiffspalte (alle Dock-Zustände messen sie mit)
 					if (u().Ships.TryGetValue(u().PlayerShip, out var ps42) && ps42.MissionCargo < 20f) ps42.MissionCargo = 20f;
 					int at = 0;

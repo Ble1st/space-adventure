@@ -41,6 +41,7 @@ public static class UniverseHash
                 foreach (var (g, n) in bs.Required.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
             }
             foreach (var (g, n) in st.PlayerStorage.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }
+            if (st.BlackStock.Count > 0) { Mix(0x5C4DUL); foreach (var (g, n) in st.BlackStock.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); } }   // Schwarzmarkt
             // Phase 14: wartende Exportchargen (Reihenfolge des Ankaufs)
             foreach (var b in st.Exports) { Mix((ulong)b.Good.Value); MixF(b.Amount); MixF(b.Paid); Mix((ulong)b.DueTick); }
             foreach (var (g, n) in st.MaintenanceBacklog.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(n); }   // Phase 15

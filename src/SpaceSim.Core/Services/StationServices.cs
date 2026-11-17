@@ -52,7 +52,7 @@ public sealed class StationServices
         return list;
     }
 
-    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c), outfitter, shipdealer (Phase 5c), upgrade (Phase 7), storage (Phase 8), court und bounty (Phase 11), hangar, taxi und rental (Phase 12), research (Phase 13), rearm (Phase 25), missions (Runde 41).</summary>
+    /// <summary>Standard-Registry mit allen Diensten in fester Reihenfolge: trade, refuel, repair (Phase 4c), outfitter, shipdealer (Phase 5c), upgrade (Phase 7), storage (Phase 8), court und bounty (Phase 11), hangar, taxi und rental (Phase 12), research (Phase 13), rearm (Phase 25), missions (Runde 41), blackmarket (Schwarzmarkt).</summary>
     public static StationServices Default()
     {
         var registry = new StationServices();
@@ -71,6 +71,7 @@ public sealed class StationServices
         registry.Register(new ResearchService());   // Phase 13
         registry.Register(new RearmService());      // Phase 25
         registry.Register(new MissionService());    // Runde 41: Aufträge (Dock-Bereich „Aufträge“)
+        registry.Register(new BlackMarketService()); // Schwarzmarkt (Hehler im Piratenversteck)
         return registry;
     }
 }

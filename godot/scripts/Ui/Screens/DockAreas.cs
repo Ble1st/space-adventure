@@ -54,6 +54,8 @@ public static class DockAreas
 	public const string Authority = "authority";
 	/// <summary>Phase 13: Forschung (Dienst „research“, Forschungsstationen).</summary>
 	public const string Research = "research";
+	/// <summary>Schwarzmarkt (Dienst „blackmarket“, Piratenversteck).</summary>
+	public const string BlackMarket = "blackmarket";
 
 	/// <summary>Anzeige-Label je Bereichs-Id (auch für Dienst-Schlüssel der Station-Info).</summary>
 	public static string LabelFor(string id, Universe? u = null) => id switch
@@ -69,6 +71,7 @@ public static class DockAreas
 		Storage => "Lager",
 		Authority => "Behörde",
 		Research => "Forschung",
+		BlackMarket => "Schwarzmarkt",
 		CourtService.ServiceKey => "Gericht",          // Dienst-Schlüssel (Station-Info)
 		BountyService.ServiceKey => "Kopfgeldbüro",
 		_ => id,
@@ -79,7 +82,7 @@ public static class DockAreas
 	{
 		"trade" => "Handel", "repair" => "Reparatur", "refuel" => "Tanken", "outfitter" => "Ausrüster", "shipdealer" => "Schiffshändler",
 		"upgrade" => "Verbessern", "storage" => "Lager", "court" => "Gericht", "bounty" => "Kopfgeldbüro", "hangar" => "Hangar", "taxi" => "Taxi",
-		"rental" => "Verleih", "research" => "Forschung", "rearm" => "Munition",
+		"rental" => "Verleih", "research" => "Forschung", "rearm" => "Munition", "blackmarket" => "Schwarzmarkt",
 		_ => LabelFor(key, u),
 	};
 
@@ -132,6 +135,12 @@ public static class DockAreas
 		// Phase 13: Forschung (Projekte ansehen, beauftragen, mitfinanzieren) an Forschungsstationen
 		if (offered.Contains(ResearchService.ServiceKey) && SpaceSim.Core.Simulation.ResearchInfo.ForStation(u, st) is { } rv)
 			list.Add(new DockAreaDef { Id = Research, Label = LabelFor(Research), Sub = $"{rv.Completed}/{rv.Total} erforscht" + (rv.Current is not null ? " · läuft" : ""), Available = true });
+		// Schwarzmarkt: Hehler im Piratenversteck (eigene Kachel)
+		if (offered.Contains(BlackMarketService.ServiceKey))
+		{
+			int wares = st.BlackStock.Count(kv => kv.Value >= 0.01f);
+			list.Add(new DockAreaDef { Id = BlackMarket, Label = LabelFor(BlackMarket), Sub = wares > 0 ? $"{wares} Ware{(wares == 1 ? "" : "n")} · kauft alles" : "Kauft alles", Available = true });
+		}
 		// Phase 11: Gericht und Kopfgeldbüro an Regierungsstationen (zusätzliche Kachel)
 		if (offered.Contains(CourtService.ServiceKey) || offered.Contains(BountyService.ServiceKey))
 		{

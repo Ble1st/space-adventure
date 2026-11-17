@@ -19,6 +19,7 @@ public class Runde44ScaleTests
     internal static void RevertRunde44(WorldDef def)
     {
         def.Rules ??= new EconomyRules();
+        SchwarzmarktTests.RevertSchwarzmarkt(def);   // Schwarzmarkt: Beute im Hehlerlager ist gespeicherter Zustand (die Referenz-Hashes stammen von davor)
         foreach (var sd in def.Sectors) sd.Scale = 1f;
         if (def.Rules.MaxTraders == 80) def.Rules.MaxTraders = 26;
         if (def.Rules.MaxMiners == 55) def.Rules.MaxMiners = 22;

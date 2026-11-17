@@ -178,6 +178,11 @@ public sealed class Station
     /// Persönliches Lager des Spielers an dieser Station (Phase 8, Dienst „storage“ am Lagerhaus): Ware → Menge. Getrennt vom Markt; gespeichert.
     /// </summary>
     public Dictionary<GoodId, float> PlayerStorage = new();
+    /// <summary>
+    /// Schwarzmarkt: Hehlerware eines Verstecks (Ware → Menge; Dienst „blackmarket“, <see cref="Trading.BlackMarket"/>) — Beute der Kaperer und was der Spieler
+    /// hier verkauft. Getrennt vom Markt (KI-Händler sehen sie nie); gespeichert, im Hash nur wenn nicht leer.
+    /// </summary>
+    public Dictionary<GoodId, float> BlackStock = new();
     /// <summary>Phase 14: angekaufte Chargen der Exportsenke, in Ankaufsreihenfolge; gespeichert. Leer bei Stationen ohne Exportsenke.</summary>
     public List<ExportBatch> Exports = new();
     /// <summary>

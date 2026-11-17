@@ -190,4 +190,8 @@ Phase 23 und 24 sind die Grundlage; ab Phase 25 merkt der Spieler den Unterschie
 | 3 | Gefechte außerhalb des Spielersektors | Dasselbe Rundengefecht mit Abstandszahl. |
 | 4 | Tiefe des Modulschadens | Zustandswert je Modul, dazu Brand mit Löschchance (Abschnitt 3.3). Keine Besatzung. |
 | 5 | Kampfschiffe für den Spieler | Ja; außerdem können sich Handelsschiffe wehren (Abschnitt 4.2a) — seit Phase 25: **jeder Händler bewaffnet**. Kaperschiffe bleiben gesperrt. |
-| 6 | Händler überfallen | Ja, mit Fahndung. Ein Schwarzmarkt kommt später. |
+| 6 | Händler überfallen | Ja, mit Fahndung. Ein Schwarzmarkt kommt später. **Umgesetzt:** Hehler im Piratenversteck, siehe [SCHWARZMARKT.md](SCHWARZMARKT.md). |
+
+## Schwarzmarkt (umgesetzt)
+
+Der offene Punkt „Schwarzmarkt“ ist umgesetzt: Hehler im Piratenversteck, kauft jede Ware ohne Blick auf die Fahndung zur Hälfte des Werts, verkauft die Beute der Kaperer zu 150 % des Basispreises. Entscheidungen und Begründung: [SCHWARZMARKT.md](SCHWARZMARKT.md).

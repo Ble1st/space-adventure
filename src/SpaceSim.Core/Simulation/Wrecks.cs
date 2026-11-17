@@ -167,6 +167,7 @@ public static class Wrecks
         {
             value += w.Cargo[g] * u.Goods[g].BasePrice;
             u.Events.Publish(new WreckSalvaged(w.Id, raider.Id, g, w.Cargo[g], null, 0f, true));
+            Trading.BlackMarket.Stash(u, raider.Owner, g, w.Cargo[g]);   // Schwarzmarkt
         }
         w.Cargo.Clear();
         if (value > 0f && u.Actors.TryGetValue(raider.Owner, out var pirates))
