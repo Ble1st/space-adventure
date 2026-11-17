@@ -297,6 +297,10 @@ public partial class Main : Node3D
 			string? Opt(string k) => args.FirstOrDefault(a => a.StartsWith(k + "="))?[(k.Length + 1)..];
 			var check = new UiCheck(this, dir) { FlightOnly = Array.IndexOf(args, "--ui-check-flight") >= 0, NoFlight = Array.IndexOf(args, "--ui-check-noflight") >= 0 };   // Runde 33/35b
 			check.Select(Opt("--ui-check-sizes"), Opt("--ui-check-factors"));   // Runde 35b: Auswahl für schnelle Durchläufe
+			// Himmelskugeln (ui-check-Befund „Hinweis verdeckt „Waferfabrik Beta · 10 m“ (gezeichnet)“, nur in einem Lauf): die Prüfung lief nach Main/Hud im selben
+			// Bild — sie las die Lage des Hinweises dieses Bildes, die selbst gezeichneten Randnamen aber vom vorigen (ein Bild Versatz, sobald der Hinweis
+			// seine Lage wechselt). Jetzt misst sie zuerst im Bild: alles, was sie liest, ist der Stand, der zuletzt gezeichnet wurde.
+			check.ProcessPriority = -1000;
 			AddChild(check);
 		}
 		int phoneIdx = Array.IndexOf(args, "--phone-shots");
@@ -3019,6 +3023,7 @@ public partial class Main : Node3D
 			GlowEnabled = true,
 		};
 		AddChild(new WorldEnvironment { Environment = env });
+		AddChild(new World.SkyboxView(env, () => _session?.U));   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor)
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-50, 30, 0), LightEnergy = 1.3f });
 		// Runde 8: schwaches, kühles Fülllicht von der Gegenseite (ohne Schatten, mobil billig) — die abgewandten Seiten der Modelle versinken sonst
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-25, 210, 0), LightEnergy = 0.45f, LightColor = new Color(0.7f, 0.8f, 1f), ShadowEnabled = false });
@@ -3040,25 +3045,35 @@ public partial class Main : Node3D
 			_cam.Far = Mathf.Max(4000f, sec.Extent * 2f + 1500f);
 	}
 
+	/// <summary>Kantenlänge eines Sternwürfels (vor den Himmelskugeln: kleiner als in Runde 44 — 0,5 —, damit es feiner Staub und keine Klötze sind).</summary>
+	public const float StarSize = 0.2f;
+	/// <summary>Helligkeitsband der Sterne (unbeleuchtet, Farbe je Stern; Runde 44: weiß 0,9–1 mit Leuchten 2 — vor dem Himmel zu grell).</summary>
+	public const float StarBrightMin = 0.22f, StarBrightMax = 0.55f;
+
 	void BuildStars()
 	{
 		var mm = new MultiMesh
 		{
 			TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-			Mesh = new BoxMesh { Size = new Vector3(0.5f, 0.5f, 0.5f) },
+			UseColors = true,
+			Mesh = new BoxMesh { Size = new Vector3(StarSize, StarSize, StarSize) },
 			InstanceCount = 500,
 		};
 		var rng = new RandomNumberGenerator { Seed = 42 };
 		for (int i = 0; i < 500; i++)
 		{
-			float s = rng.RandfRange(0.4f, 1.6f);
+			float s = rng.RandfRange(0.5f, 1.3f);
 			mm.SetInstanceTransform(i, new Transform3D(Basis.Identity.Scaled(new Vector3(s, s, s)),
 				new Vector3(rng.RandfRange(-StarTile / 2f, StarTile / 2f), rng.RandfRange(-40, -8), rng.RandfRange(-StarTile / 2f, StarTile / 2f))));
+			// gedämpft und kaum gesättigt: leicht kühl oder leicht warm, damit der Staub zum Himmel passt und nicht vor ihm steht
+			float b = rng.RandfRange(StarBrightMin, StarBrightMax), tint = rng.RandfRange(-0.06f, 0.06f);
+			mm.SetInstanceColor(i, new Color(b * (1f + tint), b, b * (1f - tint) * 1.04f));
 		}
-		var starMat = Gfx.Mat(new Color(0.9f, 0.95f, 1f), 2f);
+		// unbeleuchtet: die Instanzfarbe ist die sichtbare Helligkeit (kein Leuchten, kein Glow-Halo)
+		var starMat = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, VertexColorUseAsAlbedo = true, AlbedoColor = Colors.White };
 		for (int i = 0; i < 9; i++)   // Runde 44: 3 × 3 Kacheln derselben Sterne (gemeinsames MultiMesh)
 		{
-			var tile = new MultiMeshInstance3D { Multimesh = mm, MaterialOverride = starMat, Name = "Sterne" + i };
+			var tile = new MultiMeshInstance3D { Multimesh = mm, MaterialOverride = starMat, Name = "Sterne" + i, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
 			AddChild(tile);
 			_starTiles.Add(tile);
 		}

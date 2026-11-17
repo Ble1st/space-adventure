@@ -34,7 +34,12 @@ public partial class SelfTest
 			var cam = _m.TestCam.Position;
 			var tiles = _m.GetChildren().OfType<MultiMeshInstance3D>().Where(n => n.Name.ToString().StartsWith("Sterne")).ToList();
 			Check(tiles.Count == 9 && tiles.Any(t => Mathf.Abs(t.Position.X - cam.X) <= 400.1f && Mathf.Abs(t.Position.Z - cam.Z) <= 400.1f), $"R44: Sternkacheln um die Kamera ({tiles.Count})");
-			Check(_m.TestCam.Far >= sec.Extent * 2f, $"R44: Sichtweite {_m.TestCam.Far:0} ≥ 2 × Ausdehnung {sec.Extent:0}");
+			// Himmelskugeln: die Sterne sind feiner, gedämpfter Staub (kleine Würfel, unbeleuchtet, Instanzfarbe ≤ StarBrightMax)
+			var smm = tiles.FirstOrDefault()?.Multimesh;
+			bool fine = smm?.Mesh is BoxMesh sb && sb.Size.X <= 0.25f && tiles[0].MaterialOverride is StandardMaterial3D sm && sm.ShadingMode == BaseMaterial3D.ShadingModeEnum.Unshaded
+				&& Enumerable.Range(0, smm.InstanceCount).All(i => smm.GetInstanceColor(i).V <= Main.StarBrightMax * 1.07f);
+			Check(fine, "R44/Himmel: Sterne klein und gedämpft (Würfel ≤ 0,25, unbeleuchtet, Helligkeit ≤ " + Main.StarBrightMax + ")");
+			Check(_m.TestCam.Far >= sec.Extent * 2f,$"R44: Sichtweite {_m.TestCam.Far:0} ≥ 2 × Ausdehnung {sec.Extent:0}");
 			// Sektorkarte mit Maßstabsleiste
 			_m.TestOpenCcArea(Ui.Screens.CommandAreas.Sector);
 			return false;

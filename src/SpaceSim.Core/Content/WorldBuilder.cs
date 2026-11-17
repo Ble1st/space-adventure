@@ -272,6 +272,15 @@ public static class WorldBuilder
                 if (pd.Radius <= 0f || !float.IsFinite(pd.Radius)) throw new WorldFormatException($"Sektor {sd.Id}: Planet '{pd.Name}' braucht radius > 0");
                 sector.Planet = new Planet { Name = pd.Name, Color = pd.Color, Radius = pd.Radius };
             }
+            // Himmelskugel (nur Darstellung): Schlüssel aus Kleinbuchstaben, Ziffern und '_', Drehung endlich
+            if (sd.Skybox is { } sky)
+            {
+                if (sky.Length == 0 || !sky.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_'))
+                    throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): skybox '{sky}' ungültig (nur a–z, 0–9, _)");
+                sector.Skybox = sky;
+            }
+            if (!float.IsFinite(sd.SkyboxYaw)) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): skyboxYaw muss endlich sein");
+            sector.SkyboxYaw = sd.SkyboxYaw;
             if (!u.Sectors.TryAdd(sector.Id, sector)) throw new WorldFormatException($"Sektor {sd.Id} doppelt");
             faction?.Territory.Add(sector.Id);
 

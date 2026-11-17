@@ -1,0 +1,15 @@
+{
+  "_comment": "Himmelskugeln je Sektor (Schlüssel = sectors[].skybox in der Welt-Datei). focusU/focusV = Bildpunkt (0..1, equirektangulär), der in Blickrichtung erscheinen soll (Planetenmitte bzw. Galaxienband); elevation = Höhe dieses Punkts in Grad über der Spielebene (negativ = darunter; die Kamera blickt schräg nach unten); dazu dreht sectors[].skyboxYaw um die Hochachse (0 = Blickrichtung der Standardkamera, -Z). Quelle und Lizenz: LICENSE.txt.",
+  "skyboxes": [
+    { "key": "desert_planet",               "file": "desert_planet.jpg",               "planet": true,  "focusU": 0.445, "focusV": 0.5,  "elevation": -24 },
+    { "key": "earthlike_planet",            "file": "earthlike_planet.jpg",            "planet": true,  "focusU": 0.445, "focusV": 0.5,  "elevation": -24 },
+    { "key": "earthlike_planet_close",      "file": "earthlike_planet_close.jpg",      "planet": true,  "focusU": 0.475, "focusV": 0.5,  "elevation": -6 },
+    { "key": "ice_planet",                  "file": "ice_planet.jpg",                  "planet": true,  "focusU": 0.445, "focusV": 0.5,  "elevation": -24 },
+    { "key": "blue_local_star_and_nebulae", "file": "blue_local_star_and_nebulae.jpg", "planet": false, "focusU": 0.75,  "focusV": 0.48, "elevation": -45 },
+    { "key": "blue_local_star_no_nebulae",  "file": "blue_local_star_no_nebulae.jpg",  "planet": false, "focusU": 0.75,  "focusV": 0.48, "elevation": -45 },
+    { "key": "red_local_star_and_nebulae",  "file": "red_local_star_and_nebulae.jpg",  "planet": false, "focusU": 0.75,  "focusV": 0.48, "elevation": -45 },
+    { "key": "red_local_star_no_nebulae",   "file": "red_local_star_no_nebulae.jpg",   "planet": false, "focusU": 0.75,  "focusV": 0.48, "elevation": -45 },
+    { "key": "white_local_star_and_nebulae","file": "white_local_star_and_nebulae.jpg","planet": false, "focusU": 0.75,  "focusV": 0.48, "elevation": -45 },
+    { "key": "white_local_star_no_nebulae", "file": "white_local_star_no_nebulae.jpg", "planet": false, "focusU": 0.75,  "focusV": 0.48, "elevation": -45 }
+  ]
+}

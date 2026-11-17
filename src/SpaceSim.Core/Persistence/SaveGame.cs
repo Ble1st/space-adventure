@@ -498,6 +498,10 @@ public sealed class SectorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PlanetSave? Planet { get; set; }
     /// <summary>Runde 44: Maßstab des Sektors; fehlt = 1.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Scale { get; set; }
+    /// <summary>Himmelskugel (Darstellung, additiv); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Skybox { get; set; }
+    /// <summary>Drehung des Himmels in Grad; fehlt = 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? SkyboxYaw { get; set; }
 }
 
 /// <summary>Sperre eines Sektors (Phase 10): Stufen für Ein- und Ausreise, Auslöser, Zeiten (Beginn, Ablauf, Abkühlzeit), Durchsetzung.</summary>

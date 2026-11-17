@@ -1069,7 +1069,8 @@ public partial class SelfTest : Node
 					// Phase 15: Instandhaltung der Station (Material über den Handel, Kasse erstattet) als Statuszeile
 					string maint = _m.HudRef.DockInfo.TestMaintenance;
 					Check(maint == "gedeckt" || maint.StartsWith("offen: "), $"Stationsinfo zeigt die Instandhaltung („{maint}“)");
-					Check(_m.View.PlanetNode is not null, "Sektoransicht zeigt den Planeten als Kulisse");
+					Check(_m.View.PlanetNode is not null || (World.SkyboxView.Manifest.TryGetValue(uni.Sectors[uni.PlayerSector].Skybox, out var skyE) && skyE.Planet && _m.View.PlanetNode is null),
+						"Sektoransicht zeigt den Planeten als Kulisse (Himmel mit Planet, keine Extrakugel)");
 					_m.TestUndock();
 					// Werft: Reparatur ohne Tank-Abschnitt
 					var yardSt = uni.Stations.Values.First(s => s.TypeKey == "shipyard");
@@ -2730,6 +2731,7 @@ public partial class SelfTest : Node
 			case 124: if (Round44bStage(_frame - _stageStart)) Next(); break;   // Runde 44: größere Sektoren — Randpfeile mit Entfernung, Sterne/Planet/Sichtweite, Maßstabsleiste, Universumkarte Ø/Flug, Zeitraffer mit Autopilot (SelfTest.Round44b.cs)
 			case 126: if (Round44iStage(_frame - _stageStart)) Next(); break;   // Runde 44i: langer Stationsname auf Kontexttaste und Zielkarte ohne „…“, Ziel-Hinweis höchstens zwei Zeilen (SelfTest.Round44i.cs)
 			case 125: if (Round44hStage(_frame - _stageStart)) Next(); break;   // Runde 44h: Startpaket „Bergbautest“ — kleiner Fels zerbricht, Auto-Mining am zweiten Fels, KI-Bohrschiffe fliegen selbst an, kurze Seile, Trommel dreht (SelfTest.Round44h.cs)
+			case 127: if (SkyboxStage(_frame - _stageStart)) Next(); break;   // Himmelskugeln: jeder Sektor hat einen Himmel, Planetensektoren mit Planet ohne Extrakugel, Torsprung tauscht, kein Neuladen (SelfTest.Skybox.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)

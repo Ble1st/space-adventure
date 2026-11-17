@@ -374,6 +374,13 @@ public sealed class SectorDef
     /// Felder, Stationen und Tor-Enden mit dem Faktor, die Hintergrundfelsen bekommen Fläche und Anzahl × Faktor.
     /// </summary>
     public float Scale { get; set; } = 1f;
+    /// <summary>
+    /// Himmelskugel (Skybox) des Sektors: Schlüssel eines Himmels der Darstellung (Godot: <c>assets/skyboxes/skyboxes.json</c>); fehlt = keiner
+    /// (dann der einfache Hintergrund). Reine Darstellung — nicht im <c>UniverseHash</c>.
+    /// </summary>
+    public string? Skybox { get; set; }
+    /// <summary>Drehung des Himmels um die Hochachse in Grad (Abwechslung bei gleichem Himmel, Lage des Planeten im Blick); Standard 0.</summary>
+    public float SkyboxYaw { get; set; }
 }
 
 public sealed class FieldDef

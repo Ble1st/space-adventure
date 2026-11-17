@@ -108,6 +108,8 @@ public partial class SectorView : Node3D
 	{
 		PlanetNode = null;
 		if (sector.Planet is not { } p) return;
+		// Himmelskugel: zeigt der Sektorhimmel den Planeten schon, ersetzt er die Kugel (kein doppelter Planet); die Kugel bleibt Rückfall für Welten ohne Himmel
+		if (SkyboxView.Resolves(sector.Skybox)) return;
 		// Gerätetest Phase 27: der Planet füllte von oben gesehen das halbe Bild (HUD-Texte unlesbar) — jetzt dunkler, weit unten und hinten am Rand
 		// des Blickfelds (die Kamera reicht dafür weiter, Main: Far 4000)
 		var color = Color.FromHtml(p.Color).Darkened(0.55f);

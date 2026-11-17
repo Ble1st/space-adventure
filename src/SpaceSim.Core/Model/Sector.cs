@@ -49,6 +49,10 @@ public sealed class Sector
     public float ArenaRadius(EconomyRules rules) => Scale <= 1f ? rules.CombatArenaRadius : MathF.Max(rules.CombatArenaRadius * Scale, Extent + 100f);
     /// <summary>Phase 14: Planet des Sektors (Kulisse, Abnehmer der Exportsenke); null = keiner.</summary>
     public Planet? Planet;
+    /// <summary>Himmelskugel des Sektors (Schlüssel der Darstellung); "" = keine. Reine Darstellung, gespeichert, nicht im Hash.</summary>
+    public string Skybox = "";
+    /// <summary>Drehung des Himmels um die Hochachse in Grad.</summary>
+    public float SkyboxYaw;
     public List<GateId> Gates = new();
     public List<StationId> Stations = new();
     public List<ResourceField> Fields = new();

@@ -1,0 +1,22 @@
+Himmelskugeln (Skyboxen) dieses Ordners
+=======================================
+
+Quelle: Space Spheremaps, https://www.spacespheremaps.com/
+  - Mit Planet: https://www.spacespheremaps.com/planetary-spheremaps/
+    (desert_planet, earthlike_planet, earthlike_planet_close, ice_planet)
+  - Ohne Planet: https://www.spacespheremaps.com/local-star-spheremaps/
+    (blue/red/white_local_star_and_nebulae, blue/red/white_local_star_no_nebulae)
+  Alle vom selben Urheber im selben Renderstil.
+
+Lizenz: Creative Commons Attribution 4.0 International (CC BY 4.0),
+https://creativecommons.org/licenses/by/4.0/ — der Urheber verzichtet ausdrücklich
+auf die Namensnennung (wir nennen ihn hier trotzdem). Zusatzbedingung des Urhebers:
+die Bilder dürfen nicht zum Training von KI-Bildmodellen verwendet werden.
+
+Bearbeitung (für alle Dateien gleich, damit Himmel mit und ohne Planet zusammenpassen):
+PNG-Fassung (equirektangulär 8192×4096 bzw. 10000×5000) mit ImageMagick
+  convert <quelle>.png -filter Lanczos -resize 4096x2048! \
+          -level 0%,38%,1.2 -modulate 100,125 +level-colors '#020309','#ffffff' \
+          -quality 88 -sampling-factor 4:2:0 -strip <name>.jpg
+(Weißpunkt auf 38 %: die Vorlagen sind sehr dunkel; Gamma 1.2; Sättigung +25 %;
+Schwarz leicht blaustichig angehoben). Die Originale liegen nicht im Repository.

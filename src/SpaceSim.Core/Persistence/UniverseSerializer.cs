@@ -299,6 +299,8 @@ public static class UniverseSerializer
                 Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
                 Planet = sec.Planet is { } pl ? new PlanetSave { Name = pl.Name, Color = pl.Color, Radius = pl.Radius } : null,
                 Scale = sec.Scale == 1f ? null : sec.Scale,
+                Skybox = sec.Skybox.Length == 0 ? null : sec.Skybox,
+                SkyboxYaw = sec.SkyboxYaw == 0f ? null : sec.SkyboxYaw,
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
             s.Gates.Add(new GateSave
@@ -609,6 +611,8 @@ public static class UniverseSerializer
                 Threat = sec.Threat, Security = sec.Security, Traffic = sec.Traffic,
                 Planet = sec.Planet is { } pl ? new Planet { Name = pl.Name, Color = pl.Color, Radius = pl.Radius } : null,
                 Scale = sec.Scale is { } sc && float.IsFinite(sc) && sc >= 1f ? sc : 1f,
+                Skybox = sec.Skybox ?? "",
+                SkyboxYaw = sec.SkyboxYaw is { } yaw && float.IsFinite(yaw) ? yaw : 0f,
             };
         foreach (var g in s.Gates)
             u.Gates[new GateId(g.Id)] = new Gate
