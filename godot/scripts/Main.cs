@@ -1587,7 +1587,7 @@ public partial class Main : Node3D
 		SelectTarget(Navigator.ForSector(u, u.Gates[gate.Target].Sector, u.PlayerShip), null, quiet: true);
 		_targetGate = gate.Id;
 		// Runde 16: eigener Hinweis für Tore (vorher „Autopilot fliegt hin, Andocken in der Nähe“)
-		_hud.Toast($"Ziel: {SpaceSim.Core.Combat.GateCombat.NameOf(u, gate)} — „Autopilot“ fliegt hin und springt, „Springen“ in der Nähe"
+		_hud.Toast($"Ziel: {SpaceSim.Core.Combat.GateCombat.NameOf(u, gate)} · „Autopilot“ fliegt hin und springt"
 			+ (u.Rules.GateCombat && SpaceSim.Core.Combat.GateCombat.TypeOf(u, gate) is not null ? ", „Tor angreifen“ = schweres Verbrechen" : ""), 3.5f);
 		UpdateHud();
 	}
@@ -1606,7 +1606,9 @@ public partial class Main : Node3D
 		_fight.SetTarget(default);   // Runde 5: das neue Ziel ersetzt ein gewähltes Schiff (vorher zeigte die Zielkarte noch den alten Gegner)
 		_target = target; _targetStation = station;
 		_sfx.Play(SfxId.Click);
-		if (!quiet) _hud.Toast($"Ziel: {target.Label} — „Autopilot“ fliegt hin, „Andocken“ in der Nähe");
+		// Runde 44i (Handytest u18: dreizeiliger Hinweis über dem Spielfeld): Kurzname mit Kürzel, ohne den Zusatz zum Andocken (die Kontexttaste zeigt ihn)
+		string tl = station is { } sid && _session?.U.Stations.TryGetValue(sid, out var tst) == true ? SpaceSim.Core.Model.StationNames.Short(_session.U, tst) : target.Label;
+		if (!quiet) _hud.Toast($"Ziel: {tl} · „Autopilot“ fliegt hin");
 		if (_session != null) UpdateHud();   // Runde 5: Zielkarte sofort, nicht erst im nächsten Bild
 	}
 
@@ -2047,7 +2049,7 @@ public partial class Main : Node3D
 			var p = _cam.UnprojectPosition(w);
 			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
 			// Runde 44: Entfernung am Pfeil (in vergrößerten Sektoren liegt fast alles außerhalb des Bildes)
-			list.Add((p, ActorNames.Tagged(u, st.Owner, st.Name) + " · " + SpaceSim.Core.Flight.DistanceText.Format(MathF.Max(0f, Vec2.Distance(st.Position, me) - st.Radius)), st.Id.Value));   // Phase 29: Kürzel
+			list.Add((p, SpaceSim.Core.Model.StationNames.Short(u, st) + " · " + SpaceSim.Core.Flight.DistanceText.Format(MathF.Max(0f, Vec2.Distance(st.Position, me) - st.Radius)), st.Id.Value));   // Phase 29: Kürzel
 		}
 		return list;
 	}
@@ -2484,6 +2486,7 @@ public partial class Main : Node3D
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast))
 		{
 			d.TargetName = $"Angriff: {ActorNames.Tagged(u, ast.Owner, ast.Name)}";
+			d.TargetPrefix = "Angriff: "; d.TargetNameOptions = SpaceSim.Core.Model.StationNames.Candidates(u, ast);   // Runde 44i: kürzere Formen statt „…“
 			d.TargetHasInfo = true;
 			d.TargetHostile = true;
 			targetWorld = ast.Position;
@@ -2519,6 +2522,7 @@ public partial class Main : Node3D
 		else if (_target is { } t)
 		{
 			d.TargetName = _targetStation is { } tsn && u.Stations.TryGetValue(tsn, out var tst0) ? ActorNames.Tagged(u, tst0.Owner, tst0.Name) : t.Label;   // Phase 29: Kürzel
+			if (_targetStation is { } tsn1 && u.Stations.TryGetValue(tsn1, out var tst1)) d.TargetNameOptions = SpaceSim.Core.Model.StationNames.Candidates(u, tst1);   // Runde 44i
 			d.TargetHasInfo = true;
 			if (t.Sector == u.PlayerSector)
 			{
@@ -2585,7 +2589,12 @@ public partial class Main : Node3D
 		// Runde 20: das gewählte Ziel hat Vorrang (Core: ContextChoice) — mit gewähltem Tor kein „Andocken“ an einer nahen Station
 		var ctx = Context();
 		if (ctx.Kind == ContextKind.Dock && u.Stations.TryGetValue(new StationId(ctx.Id), out var cst))
+		{
 			d.ContextLabel = SpaceSim.Core.Simulation.Docking.Allows(u, cst, PlayerData) ? $"Andocken: {cst.Name}" : $"Zu klein: {cst.Name}";   // Phase 30
+			// Runde 44i (Handytest u19/u21: „Andocken: Hauptquartier – Födera…“): kürzere Namensformen, notfalls zweizeilig
+			d.ContextVerb = SpaceSim.Core.Simulation.Docking.Allows(u, cst, PlayerData) ? "Andocken" : "Zu klein";
+			d.ContextNameOptions = SpaceSim.Core.Model.StationNames.Candidates(u, cst);
+		}
 		else if (ctx.Kind == ContextKind.Jump && u.Gates.TryGetValue(new GateId(ctx.Id), out var cg))
 			d.ContextLabel = $"Springen: {u.Sectors[u.Gates[cg.Target].Sector].Name}";
 

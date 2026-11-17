@@ -672,6 +672,16 @@ public partial class Hud : CanvasLayer
 	/// <summary>Runde 34b: Ebene von Meldung/Hinweis (Prüfwerkzeug schließt ihre eigenen Elemente aus).</summary>
 	public Node TestAlertLayer => _alertLayer;
 	public string TestToastText => _toast.Modulate.A > 0.05f ? _toast.Text : "";
+	/// <summary>Runde 44i: Zeilenzahl des sichtbaren Hinweises, mit der Schrift in seiner Breite gemessen.</summary>
+	public int TestToastLines
+	{
+		get
+		{
+			var f = _toast.GetThemeFont("font"); int fs = _toast.GetThemeFontSize("font_size");
+			if (f is null || _toast.Text.Length == 0) return 0;
+			return (int)MathF.Round(f.GetMultilineStringSize(_toast.Text, HorizontalAlignment.Left, _toast.Size.X - 12f, fs).Y / f.GetHeight(fs));
+		}
+	}
 	public Rect2 TestToastRect => new(_toast.Position, new Vector2(_toast.Size.X, MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y)));
 
 	readonly Label _debugLine = new();

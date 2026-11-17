@@ -2728,6 +2728,7 @@ public partial class SelfTest : Node
 			case 122: if (Round43Stage(_frame - _stageStart)) Next(); break;   // Runde 43: Bergbau-Darstellung — Bohrerspitze je Modell an der Oberfläche (Spieler+NPC), Anker außen an den Flanken, Fels zerbricht bei 0 (SelfTest.Round43.cs)
 			case 123: if (Round44Stage(_frame - _stageStart)) Next(); break;   // Runde 44: Rückansicht — Tipp auf den Modus, ◀ halten, Kamera hinter dem Bug, „Höhe +“ gespeichert, Andocken/Neues Spiel behalten den Modus (SelfTest.Round44.cs)
 			case 124: if (Round44bStage(_frame - _stageStart)) Next(); break;   // Runde 44: größere Sektoren — Randpfeile mit Entfernung, Sterne/Planet/Sichtweite, Maßstabsleiste, Universumkarte Ø/Flug, Zeitraffer mit Autopilot (SelfTest.Round44b.cs)
+			case 126: if (Round44iStage(_frame - _stageStart)) Next(); break;   // Runde 44i: langer Stationsname auf Kontexttaste und Zielkarte ohne „…“, Ziel-Hinweis höchstens zwei Zeilen (SelfTest.Round44i.cs)
 			case 125: if (Round44hStage(_frame - _stageStart)) Next(); break;   // Runde 44h: Startpaket „Bergbautest“ — kleiner Fels zerbricht, Auto-Mining am zweiten Fels, KI-Bohrschiffe fliegen selbst an, kurze Seile, Trommel dreht (SelfTest.Round44h.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)

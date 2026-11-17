@@ -55,6 +55,10 @@ public sealed class FlightHudData
 	public string Mission = "";
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
+	/// <summary>Runde 44i: kürzere Formen des Zielnamens (längste zuerst, z. B. aus <see cref="SpaceSim.Core.Model.StationNames.Candidates"/>);
+	/// die Zielkarte nimmt die erste, die bis zur Schrift-Untergrenze passt. null = nur <see cref="TargetName"/>. Ein Vorsatz („Angriff: “) steht in <see cref="TargetPrefix"/>.</summary>
+	public IReadOnlyList<string>? TargetNameOptions;
+	public string TargetPrefix = "";
 	public string TargetInfo = "Station, Tor, Fels antippen";   // Runde 20: passt in die Zielkarte (vorher „… Asteroid antipp…“)
 	public string TargetArc = "";
 	public bool TargetHasInfo;
@@ -67,6 +71,10 @@ public sealed class FlightHudData
 	public float Speed;                 // m/s Ist
 	// Kontexttaste
 	public string ContextLabel = "";    // "Andocken …" / "Springen …" / "" = versteckt
+	/// <summary>Runde 44i: Kontexttaste aus Verb („Andocken“) und Namensformen — eine Zeile „Verb: Name“, wenn eine Form passt, sonst Verb oben und der
+	/// Name als Unterzeile. Gesetzt, überschreibt <see cref="ContextLabel"/>.</summary>
+	public string ContextVerb = "";
+	public IReadOnlyList<string>? ContextNameOptions;
 	// Waffenschächte
 	public IReadOnlyList<BayView> Bays = Array.Empty<BayView>();
 	/// <summary>HUD-Neu: Gruppen des Daumenbogens (Kampfwaffen nach Typ, Bergbauschächte einzeln) — Anzeige aus <see cref="SpaceSim.Core.Weapons.BayGroups"/>.</summary>
@@ -255,7 +263,10 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Runde 26: rechter Rand der Namenszeile und linker Rand des Radars (Kartenkoordinaten).</summary>
 	public (float NameRight, float RadarLeft) TestTargetNameEdge => (_tName.GetParent<Control>().Position.X + _tName.Position.X + _tName.Size.X, _radar.Position.X);
 	/// <summary>Runde 20: Text der Kontexttaste („“ = verborgen).</summary>
-	public string TestContextLabel => _contextBtn.Visible ? _contextBtn.Text : "";
+	public string TestContextLabel => _contextBtn.Visible ? (_contextBtn.Sub.Length > 0 ? $"{_contextBtn.Text}: {_contextBtn.Sub}" : _contextBtn.Text) : "";
+	/// <summary>Runde 44i: gezeichnete Zeilen der Kontexttaste ohne „…“ (leer = alles passt).</summary>
+	public string TestContextOverflow => _contextBtn.Overflow();
+	public bool TestTargetNameFits { get { var f = _tName.GetThemeFont("font"); int fs = _tName.GetThemeFontSize("font_size"); return f.GetStringSize(_tName.Text, HorizontalAlignment.Left, -1, fs).X <= _tName.CustomMinimumSize.X + 0.5f; } }
 
 	/// <summary>
 	/// Runde 7: der Hinweis (Toast) ist mehrzeilig gewachsen — Beschuss- und Fluchtzeile rücken unter ihn (vorher überdeckte „BESCHUSS (Station)“ den Hinweis
@@ -385,6 +396,33 @@ public partial class FlightHud : Control, IScreen
 	int _menuBadge;
 	// Zielkarte
 	Label _tName = null!, _tInfo = null!, _tArc = null!;
+
+	/// <summary>Runde 44i: erste Namensform, die mit dem Vorsatz bis zur Schrift-Untergrenze in die Zielkarte passt (sonst die kürzeste).</summary>
+	string FitTargetName(string prefix, IReadOnlyList<string> options)
+	{
+		var font = _tName.GetThemeFont("font");
+		float room = _tName.CustomMinimumSize.X;
+		int floor = SpaceSim.Core.Ui.UiLayout.FontFloor(17, UiKit.LayerFactor(_tName));
+		string pick = prefix + options[^1];
+		foreach (var o in options)
+			if (font.GetStringSize(prefix + o, HorizontalAlignment.Left, -1, floor).X <= room + 0.5f) { pick = prefix + o; break; }
+		return FitTargetName(pick);
+	}
+
+	/// <summary>Runde 44i: Kontexttaste — „Verb: Name“ in einer Zeile mit der ersten passenden Namensform, sonst Verb oben und Name als Unterzeile.</summary>
+	void SetContext(string verb, IReadOnlyList<string> options)
+	{
+		var font = ThemeDB.FallbackFont;
+		float room = _contextBtn.Size.X - 12f;
+		int floor = SpaceSim.Core.Ui.UiLayout.FontFloor(_contextBtn.FontSize, UiKit.LayerFactor(_contextBtn));
+		foreach (var o in options)
+			if (font.GetStringSize($"{verb}: {o}", HorizontalAlignment.Left, -1, floor).X <= room) { _contextBtn.Text = $"{verb}: {o}"; _contextBtn.Sub = ""; return; }
+		_contextBtn.Text = verb;
+		string sub = options[^1];
+		foreach (var o in options)
+			if (font.GetStringSize(o, HorizontalAlignment.Left, -1, 13).X <= room) { sub = o; break; }
+		_contextBtn.Sub = sub;
+	}
 
 	string FitTargetName(string full)
 	{
@@ -843,7 +881,7 @@ public partial class FlightHud : Control, IScreen
 		_autopilotBtn.On = d.AutopilotOn;
 		_autoMineBtn.On = d.AutoMineOn;
 
-		_tName.Text = FitTargetName(d.TargetName);
+		_tName.Text = d.TargetNameOptions is { Count: > 0 } tno ? FitTargetName(d.TargetPrefix, tno) : FitTargetName(d.TargetName);
 		_tName.AddThemeColorOverride("font_color", d.TargetHasInfo ? UiKit.Green : UiKit.Dim);
 		_tInfo.Text = d.TargetInfo;
 		_tArc.Text = d.TargetArc;
@@ -851,8 +889,9 @@ public partial class FlightHud : Control, IScreen
 		_radar.HasTarget = d.TargetHasInfo && d.TargetDistance >= 0f;
 		_radar.Distance = d.TargetDistance;
 
-		_contextBtn.Visible = d.ContextLabel.Length > 0;
-		_contextBtn.Text = d.ContextLabel;
+		_contextBtn.Visible = d.ContextLabel.Length > 0 || d.ContextVerb.Length > 0;
+		if (d.ContextVerb.Length > 0 && d.ContextNameOptions is { Count: > 0 } cno) SetContext(d.ContextVerb, cno);
+		else { _contextBtn.Text = d.ContextLabel; _contextBtn.Sub = ""; }
 
 		_slider.SetValue(d.SliderValue, notify: false);
 		_slider.SpeedText = $"{(int)d.Speed} m/s";
