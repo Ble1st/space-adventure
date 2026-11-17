@@ -20,10 +20,12 @@ namespace SpaceAdventure.World;
 /// die Textur färbt Schiffe, Stationen und Felsen nicht ein.
 /// </para>
 /// <para>
-/// Rückansicht (<c>CameraMode.Chase</c>): dort folgt der Kamera-Gier dem Kurs, ein weltfester Himmel zeigte den Planeten nur beim Flug in seine
-/// Richtung. In der Rückansicht dreht sich deshalb jeder Himmel (Planeten- wie Sternhimmel, einheitlich) mit dem Gier der echten Kamera um die
-/// Hochachse — der Planet bleibt oben vorn im Bild, an derselben Stelle wie in der Standard-Rückansicht mit Kurs -Z. Bewegung zeigen weiter die
-/// weltfesten Sternstaub-Kacheln. Frei und Zielfolge: weltfest. Beim Moduswechsel blendet der Anteil in <see cref="BlendSeconds"/> über.
+/// Rückansicht (<c>CameraMode.Chase</c>): dort folgt der Kamera-Gier dem Kurs, und Höhe/Abstand (einstellbar) bestimmen die Neigung — ein weltfester
+/// Himmel zeigte den Planeten nur beim Flug in seine Richtung und bei steiler Rückansicht gar nicht. In der Rückansicht dreht sich deshalb jeder Himmel
+/// (Planeten- wie Sternhimmel, einheitlich) mit der echten Kamera (<see cref="ChaseFollow"/>: Gier um die Hochachse, dann um die waagrechte Rechtsachse
+/// der Kamera um Neigung − Standardneigung) — der Planet bleibt bei jedem Kurs und jeder Höhe/Abstand an derselben Bildstelle wie in der
+/// Standard-Rückansicht (Höhe 45 / Abstand 35, Kurs -Z). Bewegung zeigen weiter die weltfesten Sternstaub-Kacheln. Frei und Zielfolge: weltfest.
+/// Beim Moduswechsel blendet der Anteil in <see cref="BlendSeconds"/> über.
 /// </para>
 /// Die Textur wird nur beim Wechsel des Himmels geladen (<see cref="Loads"/>); der vorige Himmel wird freigegeben (ein Himmel im Speicher).
 /// </summary>
@@ -74,21 +76,20 @@ public partial class SkyboxView : Node
 	/// <summary>Überblendzeit beim Wechsel Rückansicht ↔ weltfest (Sekunden).</summary>
 	public const float BlendSeconds = 0.5f;
 
-	readonly Func<float?>? _chaseAzimuth;
+	readonly Func<Vector3?>? _chaseForward;
 	Entry? _entry;
 	float _follow;          // 0 = weltfest, 1 = folgt der Kamera (Rückansicht)
 	float _appliedYaw = float.NaN;
 
-	/// <summary>Gier, mit dem der Himmel gerade ausgerichtet ist (Sektor-<c>skyboxYaw</c> + Kameraanteil in der Rückansicht), Grad.</summary>
+	/// <summary>Gier, mit dem der Himmel gerade ausgerichtet ist (Sektor-<c>skyboxYaw</c> + Gieranteil der Kamera in der Rückansicht), Grad.</summary>
 	public float AppliedYaw => _appliedYaw;
 	/// <summary>Anteil, mit dem der Himmel dem Kamera-Gier folgt (0 weltfest … 1 Rückansicht).</summary>
 	public float Follow => _follow;
 
-	/// <param name="chaseAzimuth">Gier der echten Kamera in Grad (Konvention von <see cref="WorldDir"/>: 0 = Blick nach -Z, positiv = +X), solange die
-	/// Rückansicht aktiv ist; sonst null (weltfester Himmel).</param>
-	public SkyboxView(Godot.Environment env, Func<Universe?> universe, Func<float?>? chaseAzimuth = null)
+	/// <param name="chaseForward">Blickrichtung der echten Kamera (Welt), solange die Rückansicht aktiv ist; sonst null (weltfester Himmel).</param>
+	public SkyboxView(Godot.Environment env, Func<Universe?> universe, Func<Vector3?>? chaseForward = null)
 	{
-		_chaseAzimuth = chaseAzimuth;
+		_chaseForward = chaseForward;
 		Name = "Himmel";
 		_env = env;
 		_universe = universe;
@@ -108,25 +109,55 @@ public partial class SkyboxView : Node
 		var u = _universe();
 		if (u is null || !u.Sectors.TryGetValue(u.PlayerSector, out var sec)) return;
 		if (sec.Id != CurrentSector || sec.Skybox != CurrentKey || sec.SkyboxYaw != _yaw) Apply(sec);
-		// Rückansicht: Himmel dreht mit dem (bereits geglätteten) Kamera-Gier; Wechsel weich überblenden
-		float? az = _chaseAzimuth?.Invoke();
-		_follow = Mathf.MoveToward(_follow, az.HasValue ? 1f : 0f, (float)delta / BlendSeconds);
-		if (az.HasValue) _lastAzimuth = az.Value;
-		Orient(_yaw + _follow * Mathf.Wrap(_lastAzimuth, -180f, 180f));
+		// Rückansicht: Himmel dreht und neigt sich mit der (bereits geglätteten) Kamera; Wechsel weich überblenden
+		Vector3? fwd = _chaseForward?.Invoke();
+		_follow = Mathf.MoveToward(_follow, fwd.HasValue ? 1f : 0f, (float)delta / BlendSeconds);
+		if (fwd.HasValue) _lastForward = fwd.Value;
+		Orient();
 	}
 
-	float _lastAzimuth;
+	Vector3 _lastForward = WorldDir(0f, -DefaultChasePitchDeg);
+	Basis _appliedFollow = new(new Vector3(float.NaN, 0, 0), Vector3.Up, Vector3.Back);
 
-	/// <summary>Richtet den aktuellen Himmel mit dem Gier <paramref name="yawDeg"/> aus (nur bei Änderung).</summary>
-	void Orient(float yawDeg)
+	/// <summary>Neigung der Standard-Rückansicht (Höhe 45 / Abstand 35): ≈ 52,1° unter der Waagrechten.</summary>
+	public static float DefaultChasePitchDeg => Mathf.RadToDeg(Mathf.Atan2(SpaceSim.Core.Flight.OrbitCamera.DefaultChaseHeight, SpaceSim.Core.Flight.OrbitCamera.DefaultChaseBack));
+
+	/// <summary>
+	/// Drehung (Welt), die die Standard-Rückansicht (Blick nach -Z, Neigung <see cref="DefaultChasePitchDeg"/>, kein Rollen) auf die Kamera mit
+	/// Blickrichtung <paramref name="forward"/> abbildet: Gier um die Hochachse, dann um die waagrechte Rechtsachse der Kamera um (Neigung − Standardneigung).
+	/// Null bei senkrechtem Blick (dort ist die Rechtsachse unbestimmt).
+	/// </summary>
+	public static Basis? ChaseFollow(Vector3 forward)
+	{
+		if (forward.X * forward.X + forward.Z * forward.Z < 1e-6f) return null;
+		return Frame(forward) * Frame(WorldDir(0f, -DefaultChasePitchDeg)).Transposed();
+	}
+
+	/// <summary>Richtet den aktuellen Himmel aus: Sektor-Gier, in der Rückansicht anteilig (<see cref="Follow"/>) der Kamera nachgeführt (nur bei Änderung).</summary>
+	void Orient()
 	{
 		if (_entry is null || _env.Sky is null) return;
-		if (!float.IsNaN(_appliedYaw) && Mathf.Abs(Mathf.Wrap(yawDeg - _appliedYaw, -180f, 180f)) < 0.005f) return;
-		_appliedYaw = yawDeg;
-		Rotation = Orientation(_entry, yawDeg);
+		var full = ChaseFollow(_lastForward) ?? Basis.Identity;
+		var follow = _follow >= 0.9999f ? full : _follow <= 0.0001f ? Basis.Identity
+			: new Basis(Quaternion.Identity.Slerp(full.GetRotationQuaternion(), _follow));
+		if (!float.IsNaN(_appliedFollow.X.X) && follow.X.DistanceTo(_appliedFollow.X) < 1e-4f && follow.Y.DistanceTo(_appliedFollow.Y) < 1e-4f
+			&& follow.Z.DistanceTo(_appliedFollow.Z) < 1e-4f) return;
+		_appliedFollow = follow;
+		var fz = follow * Vector3.Forward;   // Blick nach -Z der Standard-Rückansicht, mitgedreht → Gieranteil
+		_appliedYaw = _yaw + Mathf.RadToDeg(Mathf.Atan2(fz.X, -fz.Z));
+		var fwd = follow * WorldDir(0f, -DefaultChasePitchDeg);
+		AppliedTilt = (_follow <= 0.0001f) ? 0f : Mathf.RadToDeg(Mathf.Asin(Mathf.Clamp(-fwd.Y, -1f, 1f))) - DefaultChasePitchDeg;
+		// Welt → Panorama: Planetenrichtung in der Welt = follow · (Richtung in der Standardausrichtung)
+		Rotation = Orientation(_entry, _yaw) * follow.Transposed();
 		// Godot dreht die Blickrichtung mit der Inversen der Himmelsorientierung in den Himmelsraum (sky.glsl) — also die Inverse setzen
 		_env.SkyRotation = Rotation.Transposed().GetEuler();
 	}
+
+	/// <summary>Gerade angewendete Nachführung (Welt; Identität = weltfest): Planetenrichtung = Nachführung · Richtung der Standardausrichtung.</summary>
+	public Basis AppliedFollow => _appliedFollow;
+
+	/// <summary>Zusätzliche Neigung des Himmels in der Rückansicht (Grad; Kameraneigung − Standardneigung, mal Anteil).</summary>
+	public float AppliedTilt { get; private set; }
 
 	/// <summary>Setzt den Himmel des Sektors (lädt die Textur nur, wenn sich der Himmel ändert).</summary>
 	public void Apply(Sector sector)
@@ -157,8 +188,8 @@ public partial class SkyboxView : Node
 		CurrentKey = e.Key; CurrentHasPlanet = e.Planet; _entry = e;
 		_env.Sky = _sky;
 		_env.BackgroundMode = Godot.Environment.BGMode.Sky;
-		_appliedYaw = float.NaN;   // neu ausrichten (Kameraanteil der Rückansicht kommt in _Process dazu)
-		Orient(sector.SkyboxYaw + _follow * Mathf.Wrap(_lastAzimuth, -180f, 180f));
+		_appliedFollow.X = new Vector3(float.NaN, 0, 0);   // neu ausrichten
+		Orient();
 		Log(sector, $"Himmel '{e.Key}' {Describe(_mat.Panorama)}");
 	}
 

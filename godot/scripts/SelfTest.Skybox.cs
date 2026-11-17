@@ -52,7 +52,7 @@ public partial class SelfTest
 				Check(sky.CurrentHasPlanet == planet, $"Himmel: {sec.Name} {(planet ? "mit" : "ohne")} Planet ({sky.CurrentKey})");
 				Check(_m.View.PlanetNode is null, $"Himmel: {sec.Name} ohne zusätzliche Planetenkugel");
 				var focus = SkyboxView.PanoramaDir(e.FocusU, e.FocusV);
-				var aimed = sky.Rotation * SkyboxView.WorldDir(sky.AppliedYaw, e.Elevation);   // in der Rückansicht kommt der Kamera-Gier dazu
+				var aimed = sky.Rotation * (sky.AppliedFollow * SkyboxView.WorldDir(sec.SkyboxYaw, e.Elevation));   // in der Rückansicht kommt die Kamera-Nachführung dazu
 				Check(aimed.DistanceTo(focus) < 0.01f, $"Himmel: {sec.Name} Fokus in Blickrichtung (Abweichung {aimed.DistanceTo(focus):0.000})");
 				if (planet)
 				{
@@ -138,17 +138,29 @@ public partial class SelfTest
 			Check(Mathf.Abs(Mathf.Wrap(_m.TestCamAngles.Yaw - 120f, -180f, 180f)) < 3f, $"Himmel: Rückansicht hat die Kurve mitgedreht (Kamera-Gier {_m.TestCamAngles.Yaw:0.0}°)");
 			Check(Mathf.Abs(b.Cx - _skyChaseA.Cx) < 0.03f && Mathf.Abs(b.Cy - _skyChaseA.Cy) < 0.03f && Mathf.Abs(b.Share - _skyChaseA.Share) < 0.02f,
 				$"Himmel: Rückansicht — Planet nach der Kurve an derselben Bildstelle (x {_skyChaseA.Cx:0.000}→{b.Cx:0.000}, y {_skyChaseA.Cy:0.000}→{b.Cy:0.000}, Anteil {_skyChaseA.Share:P1}→{b.Share:P1})");
+			// Höhe/Abstand extrem: fast senkrecht (120/15) und sehr flach (15/100), jeweils bei Kurs 120° und nach einer Kurve zurück auf -Z —
+			// der Himmel neigt sich mit, der Planet bleibt an derselben Bildstelle wie in der Standard-Rückansicht
+			_m.TestSetChase(120f, 15f);
+			return false;
+		}
+		if (g == 500) { SkyChaseSame("Höhe 120/Abstand 15, Kurs 120°"); _m.TestFace(ShipAhead(0f)); return false; }
+		if (g == 680) { SkyChaseSame("Höhe 120/Abstand 15, Kurs -Z"); _m.TestSetChase(15f, 100f); return false; }
+		if (g == 760) { SkyChaseSame("Höhe 15/Abstand 100, Kurs -Z"); _m.TestFace(ShipAhead(120f)); return false; }
+		if (g == 940)
+		{
+			SkyChaseSame("Höhe 15/Abstand 100, Kurs 120°");
+			_m.TestCameraAction("cam_reset");   // Rückansicht: Höhe/Abstand zurück auf 45/35
 			_skyPrevYaw = Sky?.AppliedYaw ?? 0f;
 			_m.TestCameraAction("cam_free");
 			return false;
 		}
-		if (g == 421)
+		if (g == 941)
 		{
 			float step = Mathf.Abs(Mathf.Wrap((Sky?.AppliedYaw ?? 0f) - _skyPrevYaw, -180f, 180f));
 			Check(step < 10f, $"Himmel: Wechsel zur freien Kamera ohne Sprung (erstes Bild {step:0.0}°)");
 			return false;
 		}
-		if (g == 480)
+		if (g == 1000)
 		{
 			var sec = u.Sectors[u.PlayerSector];
 			Check(Sky is { } s1 && s1.Follow <= 0.001f && Mathf.Abs(Mathf.Wrap(s1.AppliedYaw - sec.SkyboxYaw, -180f, 180f)) < 0.01f,
@@ -156,7 +168,7 @@ public partial class SelfTest
 			_m.TestSetCam(120f, OrbitCameraPitch, 44.94f);
 			return false;
 		}
-		if (g == 510)
+		if (g == 1030)
 		{
 			var sec = u.Sectors[u.PlayerSector];
 			Check(Sky is { } s2 && Mathf.Abs(Mathf.Wrap(s2.AppliedYaw - sec.SkyboxYaw, -180f, 180f)) < 0.01f,
@@ -168,6 +180,16 @@ public partial class SelfTest
 	}
 
 	(float Share, float Cx, float Cy) _skyChaseA;
+
+	/// <summary>Rückansicht mit geänderter Höhe/Abstand/Kurs: Planetenscheibe an derselben Bildstelle und gleich groß wie in der Standard-Rückansicht.</summary>
+	void SkyChaseSame(string what)
+	{
+		var b = ChaseDisc(what);
+		var (_, pitch, _) = _m.TestCamAngles;
+		Check(Mathf.Abs(b.Cx - _skyChaseA.Cx) < 0.03f && Mathf.Abs(b.Cy - _skyChaseA.Cy) < 0.03f && Mathf.Abs(b.Share - _skyChaseA.Share) < 0.02f,
+			$"Himmel: Rückansicht {what} (Neigung {pitch:0.0}°, Himmel geneigt {Sky?.AppliedTilt:0.0}°) — Planet an derselben Bildstelle " +
+			$"(x {_skyChaseA.Cx:0.000}→{b.Cx:0.000}, y {_skyChaseA.Cy:0.000}→{b.Cy:0.000}, Anteil {_skyChaseA.Share:P1}→{b.Share:P1})");
+	}
 	float _skyPrevYaw;
 	static float OrbitCameraPitch => SpaceSim.Core.Flight.OrbitCamera.DefaultPitchDeg;
 

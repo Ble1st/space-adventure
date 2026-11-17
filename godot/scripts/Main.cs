@@ -2023,14 +2023,28 @@ public partial class Main : Node3D
 		return from + dir * (-from.Y / dir.Y);
 	}
 
+	/// <summary>
+	/// Bildposition eines Weltpunkts für die Randpfeile: hinter der Kamera nach unten geschoben (Pfeil am unteren Rand). Null, solange die Kamera nicht im
+	/// Baum ist oder der Punkt in der Kameraebene liegt (Tiefe 0) — dort hat die Projektion keinen Wert (Godot meldet „p.d == 0“; Gerätetest: in den
+	/// ersten Bildern nach dem Start steht die Kamera noch im Ursprung, eine Station mit z = 0 lag genau in ihrer Ebene).
+	/// </summary>
+	Vector2? EdgeScreen(Vector3 w)
+	{
+		if (_cam is null || !IsInstanceValid(_cam) || !_cam.IsInsideTree()) return null;
+		float depth = (_cam.GlobalTransform.AffineInverse() * w).Z;
+		if (Mathf.Abs(depth) < 1e-3f) return null;
+		var p = _cam.UnprojectPosition(w);
+		if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
+		return p;
+	}
+
 	/// <summary>Runde 16: gewähltes Ziel (Schiff, angegriffene Station/Tor, angekündigter Kaperer) als Bildposition für den Zielpfeil am Rand des freien Felds.</summary>
 	(Vector2 Screen, string Label, bool Hostile)? TargetEdge()
 	{
 		if (_session == null || _docked != null || FramingTargetR() is not { } t) return null;
 		var u = _session.U;
 		var w = t.Pos;
-		var p = _cam.UnprojectPosition(w);
-		if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);
+		if (EdgeScreen(w) is not { } p) return null;
 		string label = _fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var st) ? st.Name
 			: _fight.AtGate && u.Gates.TryGetValue(_fight.GateTarget, out var g) ? SpaceSim.Core.Combat.GateCombat.NameOf(u, g)
 			: _fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var s) ? $"{SpaceSim.Core.Combat.PlayerCombat.Describe(u, s)} · {Vec2.Distance(new Vec2(_player.Position.X, _player.Position.Z), new Vec2(w.X, w.Z)):0} m"
@@ -2055,8 +2069,7 @@ public partial class Main : Node3D
 		foreach (var st in order)
 		{
 			var w = new Vector3(st.Position.X, 0, st.Position.Y);
-			var p = _cam.UnprojectPosition(w);
-			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
+			if (EdgeScreen(w) is not { } p) continue;   // Kamera noch nicht bereit / Punkt in der Kameraebene
 			// Runde 44: Entfernung am Pfeil (in vergrößerten Sektoren liegt fast alles außerhalb des Bildes)
 			list.Add((p, SpaceSim.Core.Model.StationNames.Short(u, st) + " · " + SpaceSim.Core.Flight.DistanceText.Format(MathF.Max(0f, Vec2.Distance(st.Position, me) - st.Radius)), st.Id.Value));   // Phase 29: Kürzel
 		}
@@ -2073,8 +2086,7 @@ public partial class Main : Node3D
 		{
 			if (mk.Sector != u.PlayerSector) continue;   // anderer Sektor: Symbol auf der Karte, kein Randpfeil hier
 			var w = new Vector3(mk.Position.X, 0, mk.Position.Y);
-			var p = _cam.UnprojectPosition(w);
-			if (_cam.IsPositionBehind(w)) p = new Vector2(p.X, GetViewport().GetVisibleRect().Size.Y * 2f);   // hinter der Kamera: nach unten
+			if (EdgeScreen(w) is not { } p) continue;   // Kamera noch nicht bereit / Punkt in der Kameraebene
 			list.Add((p, mk.Label, mk.Mission));
 		}
 		return list;
@@ -3028,7 +3040,7 @@ public partial class Main : Node3D
 			GlowEnabled = true,
 		};
 		AddChild(new WorldEnvironment { Environment = env });
-		AddChild(new World.SkyboxView(env, () => _session?.U, ChaseSkyAzimuth));   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor; in der Rückansicht dreht sie mit der Kamera)
+		AddChild(new World.SkyboxView(env, () => _session?.U, ChaseSkyForward));   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor; in der Rückansicht dreht sie mit der Kamera)
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-50, 30, 0), LightEnergy = 1.3f });
 		// Runde 8: schwaches, kühles Fülllicht von der Gegenseite (ohne Schatten, mobil billig) — die abgewandten Seiten der Modelle versinken sonst
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-25, 210, 0), LightEnergy = 0.45f, LightColor = new Color(0.7f, 0.8f, 1f), ShadowEnabled = false });
@@ -3531,6 +3543,12 @@ public partial class Main : Node3D
 		_camOffset = _orbit.Offset();
 		SnapCam();
 	}
+	/// <summary>Rückansicht auf Höhe/Abstand setzen (Selbsttest Himmel; ohne Speichern).</summary>
+	internal void TestSetChase(float height, float back)
+	{
+		_orbit.SetChase(height, back);
+		_camOffset = _orbit.Offset();
+	}
 	/// <summary>„Kamera ↺“ wie ein Tipp auf den Knopf (Selbsttest).</summary>
 	internal void TestResetCam() => ResetCamera();
 	internal void TestCameraAction(string action) => OnCommandAction(action);
@@ -3569,15 +3587,13 @@ public partial class Main : Node3D
 	internal Camera3D TestCam => _cam;
 
 	/// <summary>
-	/// Gier der echten Kamera in Grad (0 = Blick nach -Z, positiv = +X), solange die Rückansicht aktiv ist — der Himmel dreht dann mit (Planet bleibt oben
-	/// vorn im Bild); sonst null (weltfester Himmel). Aus der Kamera selbst, damit der Himmel genau der geglätteten Kamera folgt.
+	/// Blickrichtung der echten Kamera, solange die Rückansicht aktiv ist — der Himmel dreht und neigt sich dann mit (Planet bleibt bei jedem Kurs und
+	/// jeder Höhe/Abstand oben vorn im Bild); sonst null (weltfester Himmel). Aus der Kamera selbst, damit der Himmel genau der geglätteten Kamera folgt.
 	/// </summary>
-	float? ChaseSkyAzimuth()
+	Vector3? ChaseSkyForward()
 	{
 		if (_orbit.Mode != CameraMode.Chase || _cam is null || !IsInstanceValid(_cam)) return null;
-		var f = -_cam.GlobalBasis.Z;
-		if (f.X * f.X + f.Z * f.Z < 1e-8f) return null;
-		return Mathf.RadToDeg(Mathf.Atan2(f.X, -f.Z));
+		return -_cam.GlobalBasis.Z;
 	}
 	internal Vector3 TestCamPos => _cam.Position;
 	/// <summary>Weltposition des Spielerschiffs in der Ansicht (Selbsttest Himmel: Schiff außerhalb der Planetenscheibe).</summary>

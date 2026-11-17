@@ -67,7 +67,10 @@ public partial class UiShots
 			}
 			// flache Rückansicht: Höhe 45 → 15 (drei Stufen tiefer), Abstand 35
 			case 599_030: for (int i = 0; i < 3; i++) _m.TestCameraAction("chase_down"); _stage = 599_031; _wait = 90; return;
-			case 599_031: SkyCapture(F("rueck-flach"), sec); _m.TestCameraAction("cam_reset"); _stage = 599_014; _wait = 5; return;
+			case 599_031: SkyCapture(F("rueck-flach"), sec); _m.TestSetChase(120f, 15f); _stage = 599_032; _wait = 90; return;
+			// steile Rückansicht (Höhe 120 / Abstand 15, fast senkrecht): der Himmel neigt sich mit, der Planet bleibt oben vorn
+			case 599_032: SkyCapture(F("rueck-steil"), sec); _m.TestSetChase(15f, 100f); _stage = 599_033; _wait = 90; return;
+			case 599_033: SkyCapture(F("rueck-sehrflach"), sec); _m.TestCameraAction("cam_reset"); _stage = 599_014; _wait = 5; return;
 			case 599_014: _m.TestCameraAction("cam_free"); _m.TestSetCam(0f, 30f, 140f); _stage = 599_015; _wait = 20; return;
 			case 599_015: SkyCapture(F("weit"), sec); _skyIdx++; _stage = 599_010; _wait = 5; return;
 		}
