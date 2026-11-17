@@ -1444,13 +1444,20 @@ public partial class Main : Node3D
 	{
 		var flight = _hud.Flight;
 		float turnKeys = (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right) ? 1 : 0) - (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left) ? 1 : 0);
+		bool keyThrottle = delta > 0f && (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) || Input.IsKeyPressed(Key.X));
 		if (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up)) flight.SetSlider(flight.SliderValue + delta * 0.8f);   // W bzw. Pfeil hoch erhöht den Slider
 		if (Input.IsKeyPressed(Key.X)) flight.SetSlider(0f);                                                              // X = STOPP
 		bool reverse = _testReverse || flight.ReverseHeld || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down);                    // eigene Rückwärts-Haltetaste
 		float turn = turnKeys + (flight.TurnRightHeld ? 1f : 0f) - (flight.TurnLeftHeld ? 1f : 0f);
+		// Geräte-Eingabe (Handytest A15: Autopilot fiel nach 2–3 s mit „manuelle Steuerung“ aus, Regler auf 6 % ohne Berührung): Autopilot und
+		// Auto-Mining brechen nur auf bewusste Bedienung ab — ein Finger, der auf dem Regler aufgesetzt und ihn bewegt hat, die Reglertasten, Wenden
+		// oder RÜCK. Ein Reglerwert ≠ 0 ohne solche Bedienung wird während der Automatik verworfen (der Regler zeigt 0, die Automatik fliegt weiter).
+		bool sliderTouched = flight.TakeSliderTouched();
+		bool automation = _autopilot || _miner.Enabled;
+		if (automation && !sliderTouched && !keyThrottle && flight.SliderValue != 0f) flight.SetSlider(0f);
 		float slider = flight.SliderValue;
 
-		if (turn != 0f || reverse || Mathf.Abs(slider) > 0.001f)   // manuell: Slider, Rückwärts und/oder Wenden
+		if (turn != 0f || reverse || sliderTouched || keyThrottle || Mathf.Abs(slider) > 0.001f)   // manuell: Slider, Rückwärts und/oder Wenden
 		{
 			if (_autopilot) _hud.Toast("Autopilot aus (manuelle Steuerung)");   // Gerätetest: nie mehr still
 			CancelAutopilot();
@@ -1959,7 +1966,8 @@ public partial class Main : Node3D
 			else
 			{
 				_touch.Remove(t.Index);
-				if (_pointerFinger == t.Index) HandlePointer(t.Index, t.Position, pressed: false, motion: false);
+				if (_pointerFinger == t.Index && t.Canceled) { _pointerFinger = -1; _pointerDragging = false; }   // Geräte-Eingabe: abgebrochene Geste wählt nichts
+				else if (_pointerFinger == t.Index) HandlePointer(t.Index, t.Position, pressed: false, motion: false);
 				if (_touch.Count < 2) _pinchLast = 0f;
 				if (_touch.Count == 0) PersistCamera();   // Runde 44: Gestenende
 			}

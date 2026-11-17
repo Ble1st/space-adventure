@@ -93,12 +93,13 @@ public partial class KitButton : Control
 	public override void _GuiInput(InputEvent @event)
 	{
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
+		// Geräte-Eingabe: setzt derselbe Finger (Index) neu auf, ging sein Loslassen verloren — die Taste nimmt den neuen Druck an statt hängen zu bleiben
 		if (State == KitButtonState.Disabled) { if (!motion && pressed) AcceptEvent(); return; }
 		bool inside = new Rect2(Vector2.Zero, Size).HasPoint(pos);
-		if (!motion && pressed && inside && _finger < 0) { Press(idx); _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
+		if (!motion && pressed && inside && (_finger < 0 || idx == _finger)) { Press(idx); _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
 		else if (idx == _finger && !pressed && !motion)
 		{
-			bool fire = _down && inside;
+			bool fire = _down && inside && !Pointer.Canceled(@event);   // Geräte-Eingabe: abgebrochene Geste (System übernimmt) ist kein Tipp
 			Release(); _down = false; QueueRedraw(); AcceptEvent();
 			if (fire) { if (Toggle) _on = !_on; Pressed?.Invoke(); }
 		}

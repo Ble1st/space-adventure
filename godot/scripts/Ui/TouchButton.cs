@@ -44,10 +44,10 @@ public partial class TouchButton : Control
 	{
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
 		bool inside = new Rect2(Vector2.Zero, Size).HasPoint(pos);
-		if (!motion && pressed && inside && _finger < 0) { _finger = idx; _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
+		if (!motion && pressed && inside && (_finger < 0 || idx == _finger)) { _finger = idx; _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
 		else if (idx == _finger && !pressed && !motion)
 		{
-			bool fire = _down && inside;
+			bool fire = _down && inside && !Pointer.Canceled(@event);   // Geräte-Eingabe: abgebrochene Geste (System übernimmt) ist kein Tipp
 			_finger = -1; _down = false; QueueRedraw(); AcceptEvent();
 			if (fire) { if (Toggle) _on = !_on; Pressed?.Invoke(); }
 		}

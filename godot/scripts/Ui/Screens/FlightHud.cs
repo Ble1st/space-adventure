@@ -477,6 +477,14 @@ public partial class FlightHud : Control, IScreen
 	public void SetCommandBadge(int unread) { _menuBadge = unread; _hamburger?.QueueRedraw(); }
 
 	public void SetSlider(float v) => _slider.SetValue(v, notify: false);
+	bool _sliderTouched;
+	/// <summary>
+	/// Geräte-Eingabe (Handytest A15): true, wenn seit dem letzten Abruf ein Finger, der auf dem Regler aufgesetzt hat, seinen Wert geändert hat (bewusste
+	/// Bedienung). Setzt die Marke zurück. Nur das (oder eine Taste) bricht Autopilot/Auto-Mining ab — nicht ein bloßer Reglerwert ≠ 0.
+	/// </summary>
+	public bool TakeSliderTouched() { bool t = _sliderTouched; _sliderTouched = false; return t; }
+	/// <summary>Selbsttest: Zahl der bewussten Regleränderungen.</summary>
+	public int TestSliderUserChanges => _slider.UserChanges;
 	public void SetAutopilot(bool on) => _autopilotBtn.On = on;
 	public void SetAutoMine(bool on) => _autoMineBtn.On = on;
 
@@ -573,6 +581,7 @@ public partial class FlightHud : Control, IScreen
 
 		// ── links: senkrechter Schubregler, ◀ ▶ und RÜCK unten ──
 		_slider = At(this, new KitVSlider { Snap = SpaceSim.Core.Flight.Throttle.Snap }, 12, 152, 88, 556);
+		_slider.UserChanged += _ => _sliderTouched = true;
 		_turnL = At(this, new KitButton("◀", new Vector2(104, 100)) { FontSize = 44 }, 112, 608);
 		_turnR = At(this, new KitButton("▶", new Vector2(104, 100)) { FontSize = 44 }, 224, 608);
 		_reverseLabel = At(this, Text("RÜCK · max 20 %", 12, UiKit.Dim, HorizontalAlignment.Center), 332, 612, 112, 18);
@@ -675,6 +684,10 @@ public partial class FlightHud : Control, IScreen
 	public Rect2 TestAutoFireGlobal => _autoFire.GetGlobalRect();
 	/// <summary>Bildschirmpunkt auf dem (senkrechten) Schubregler beim Wert <paramref name="v"/>.</summary>
 	public Vector2 TestSliderPoint(float v) => _slider.GetGlobalTransform() * new Vector2(_slider.Size.X * 0.5f, _slider.YOf(v));
+	/// <summary>Geräte-Eingabe (Selbsttest 131): derselbe Punkt in Fensterpunkten (= Gerätepunkte am Handy).</summary>
+	public Vector2 TestSliderScreenPoint(float v) => _slider.GetScreenTransform() * new Vector2(_slider.Size.X * 0.5f, _slider.YOf(v));
+	/// <summary>Geräte-Eingabe (Selbsttest 131): Steuerelement einer HUD-Zone.</summary>
+	public Control? TestItem(HudItem item) => _items.TryGetValue(item, out var c) ? c : null;
 
 	public override void _Notification(int what)
 	{

@@ -8,7 +8,10 @@ namespace SpaceAdventure.Ui;
 /// </summary>
 public static class Pointer
 {
-	public static bool TouchMode => DisplayServer.IsTouchscreenAvailable();
+	/// <summary>Selbsttest (Geräte-Eingabe): Touchmodus erzwingen (kopflos meldet Godot keinen Touchschirm); null = Gerät.</summary>
+	public static bool? ForceTouch;
+
+	public static bool TouchMode => ForceTouch ?? DisplayServer.IsTouchscreenAvailable();
 
 	public static bool TryRead(InputEvent e, out int index, out Vector2 pos, out bool pressed, out bool isMotion)
 	{
@@ -25,4 +28,10 @@ public static class Pointer
 		}
 		return false;
 	}
+
+	/// <summary>
+	/// Geräte-Eingabe: ein abgebrochenes Loslassen (Android ACTION_CANCEL — das System hat die Geste übernommen, z. B. eine Randgeste) ist kein Tipp:
+	/// Tasten lösen dabei nicht aus, der Schubregler kehrt auf den Wert vor dem Druck zurück.
+	/// </summary>
+	public static bool Canceled(InputEvent e) => e is InputEventScreenTouch { Canceled: true } || e is InputEventMouseButton { Canceled: true };
 }

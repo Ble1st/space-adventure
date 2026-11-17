@@ -15,7 +15,15 @@ public partial class KitVSlider : Control
 	string _speedText = "";
 	public string SpeedText { get => _speedText; set { if (_speedText != value) { _speedText = value; QueueRedraw(); } } }
 	public event Action<float>? ValueChanged;
+	/// <summary>
+	/// Geräte-Eingabe (Handytest A15): nur ein Finger, der auf dem Regler aufgesetzt hat, ändert ihn — dann kommt dieses Ereignis (bewusste Bedienung;
+	/// der Autopilot bricht nur darauf ab, nie auf einen bloßen Wert ≠ 0).
+	/// </summary>
+	public event Action<float>? UserChanged;
+	/// <summary>Zahl der bewussten Änderungen seit dem Start (Selbsttest).</summary>
+	public int UserChanges { get; private set; }
 	int _finger = -1;
+	float _valueAtPress;
 
 	public KitVSlider()
 	{
@@ -37,16 +45,43 @@ public partial class KitVSlider : Control
 		if (notify) ValueChanged?.Invoke(v);
 	}
 
+	void UserSet(float v)
+	{
+		float before = Value;
+		SetValue(v);
+		if (Mathf.Abs(Value - before) >= 1e-5f) { UserChanges++; UserChanged?.Invoke(Value); }
+	}
+
 	float Snapped(float v) => Snap is null ? v : Snap(v);
 	float ValueAt(float y) => Mathf.Clamp((TrackBottom - y) / MathF.Max(1f, TrackBottom - TrackTop), 0f, 1f);
 	public float YOf(float v) => TrackBottom - v * (TrackBottom - TrackTop);
 
+	/// <summary>
+	/// Geräte-Eingabe: sieht jedes Drücken/Loslassen vor der Oberfläche. Setzt ein Finger mit dem Index des Reglerfingers neu auf (das Loslassen
+	/// davor ging verloren — Android verwirft „inkonsistente“ Ereignisse) oder wird er irgendwo losgelassen, ist die Geste des Reglers vorbei. Vorher
+	/// blieb der Index hängen, und ein späterer Wisch in der Welt mit demselben Index, der über den Regler lief, schob ihn (Godot gibt einen Wisch
+	/// ohne Fokus an das Element unter dem Finger) — der Regler stand dann ohne Berührung auf einigen Prozent und schaltete den Autopiloten ab.
+	/// </summary>
+	public override void _Input(InputEvent @event)
+	{
+		if (_finger < 0 || !Pointer.TryRead(@event, out int idx, out _, out _, out bool motion) || motion || idx != _finger) return;
+		EndGesture(Pointer.Canceled(@event));
+	}
+
+	void EndGesture(bool canceled)
+	{
+		if (_finger < 0) return;
+		_finger = -1;
+		if (canceled) UserSet(_valueAtPress);   // das System hat die Geste übernommen: zurück auf den Wert vor dem Druck
+	}
+
 	public override void _GuiInput(InputEvent @event)
 	{
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
-		if (!motion && pressed && _finger < 0) { _finger = idx; SetValue(Snapped(ValueAt(pos.Y))); AcceptEvent(); }
-		else if (idx == _finger && motion) { SetValue(Snapped(ValueAt(pos.Y))); AcceptEvent(); }
-		else if (idx == _finger && !pressed && !motion) { _finger = -1; AcceptEvent(); }
+		bool inside = new Rect2(Vector2.Zero, Size).HasPoint(pos);
+		if (!motion && pressed && inside && _finger < 0) { _finger = idx; _valueAtPress = Value; UserSet(Snapped(ValueAt(pos.Y))); AcceptEvent(); }
+		else if (idx == _finger && motion) { UserSet(Snapped(ValueAt(pos.Y))); AcceptEvent(); }
+		else if (idx == _finger && !pressed && !motion) { EndGesture(Pointer.Canceled(@event)); AcceptEvent(); }
 	}
 
 	public override void _Draw()

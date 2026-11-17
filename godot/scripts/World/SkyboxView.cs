@@ -169,6 +169,7 @@ public partial class SkyboxView : Node
 			Log(sector, $"kein Himmel (Schlüssel '{sector.Skybox}', Verzeichnis {Manifest.Count} Einträge) → Farbhintergrund");
 			CurrentKey = sector.Skybox; CurrentHasPlanet = false; _entry = null;
 			_mat.Panorama = null;
+			ReleaseTexture(null);
 			_env.BackgroundMode = Godot.Environment.BGMode.Color;
 			_env.BackgroundColor = _fallbackColor;
 			_env.Sky = null;
@@ -183,7 +184,8 @@ public partial class SkyboxView : Node
 				if (_missing.Add(e.File)) { GD.PushWarning($"Himmel {e.File} fehlt"); Log(sector, $"Textur {e.File} NICHT geladen"); }
 				CurrentKey = ""; _entry = null; return;
 			}
-			_mat.Panorama = tex;   // der vorige Himmel verliert damit seine letzte Referenz und wird freigegeben
+			_mat.Panorama = tex;
+			ReleaseTexture(tex);
 		}
 		CurrentKey = e.Key; CurrentHasPlanet = e.Planet; _entry = e;
 		_env.Sky = _sky;
@@ -191,6 +193,21 @@ public partial class SkyboxView : Node
 		_appliedFollow.X = new Vector3(float.NaN, 0, 0);   // neu ausrichten
 		Orient();
 		Log(sector, $"Himmel '{e.Key}' {Describe(_mat.Panorama)}");
+	}
+
+	Texture2D? _tex;
+
+	/// <summary>
+	/// Gerätetest (Speicher 775 → 838 MB PSS über 5 Sektoren): der vorige Himmel wird sofort freigegeben. Vorher hielt seine C#-Hülle (vom Laden) die
+	/// Textur fest, bis der .NET-Speicherbereiniger zufällig lief — die verwaltete Halde ist klein, also selten: im Selbsttest lebten bis zu 9 der
+	/// 4096²-Himmel gleichzeitig (je 4 MiB auf der Grafikkarte, beim A15 Teil des Arbeitsspeichers). <see cref="GodotObject.Dispose()"/> gibt nur diese
+	/// Referenz ab; das Material hält die neue Textur selbst.
+	/// </summary>
+	void ReleaseTexture(Texture2D? next)
+	{
+		var old = _tex;
+		_tex = next;
+		if (old is not null && !ReferenceEquals(old, next)) old.Dispose();
 	}
 
 	/// <summary>Diagnosezeile „[sky] …“ (läuft auch auf dem Gerät, je Himmelswechsel eine Zeile).</summary>
