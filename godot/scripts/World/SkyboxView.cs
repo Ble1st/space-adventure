@@ -52,6 +52,7 @@ public partial class SkyboxView : Node
 	public Basis Rotation { get; private set; } = Basis.Identity;
 
 	float _yaw = float.NaN;
+	readonly HashSet<string> _missing = new();   // Diagnose: fehlende Textur nur einmal melden (Apply versucht es sonst jedes Bild)
 
 	public SkyboxView(Godot.Environment env, Func<Universe?> universe)
 	{
@@ -64,6 +65,10 @@ public partial class SkyboxView : Node
 		_sky = new Sky { SkyMaterial = _mat, RadianceSize = Sky.RadianceSizeEnum.Size32, ProcessMode = Sky.ProcessModeEnum.Automatic };
 		_env.ReflectedLightSource = Godot.Environment.ReflectionSource.Disabled;
 	}
+
+	public override void _Ready() =>
+		GD.Print($"[sky] Start: Verzeichnis {Manifest.Count} Himmel, Renderer {RenderingServer.GetCurrentRenderingMethod()}/{RenderingServer.GetCurrentRenderingDriverName()}, " +
+			$"Grafik {RenderingServer.GetVideoAdapterName()}, ETC2 {OS.HasFeature("etc2")}, S3TC {OS.HasFeature("s3tc")}, ASTC {OS.HasFeature("astc")}");
 
 	public override void _Process(double delta)
 	{
@@ -80,6 +85,7 @@ public partial class SkyboxView : Node
 		_yaw = sector.SkyboxYaw;
 		if (!Manifest.TryGetValue(sector.Skybox, out var e))
 		{
+			Log(sector, $"kein Himmel (Schlüssel '{sector.Skybox}', Verzeichnis {Manifest.Count} Einträge) → Farbhintergrund");
 			CurrentKey = sector.Skybox; CurrentHasPlanet = false;
 			_mat.Panorama = null;
 			_env.BackgroundMode = Godot.Environment.BGMode.Color;
@@ -91,7 +97,11 @@ public partial class SkyboxView : Node
 		{
 			var tex = ResourceLoader.Load<Texture2D>(Dir + e.File);
 			Loads++;
-			if (tex is null) { GD.PushWarning($"Himmel {e.File} fehlt"); CurrentKey = ""; return; }
+			if (tex is null)
+			{
+				if (_missing.Add(e.File)) { GD.PushWarning($"Himmel {e.File} fehlt"); Log(sector, $"Textur {e.File} NICHT geladen"); }
+				CurrentKey = ""; return;
+			}
 			_mat.Panorama = tex;   // der vorige Himmel verliert damit seine letzte Referenz und wird freigegeben
 		}
 		CurrentKey = e.Key; CurrentHasPlanet = e.Planet;
@@ -100,6 +110,23 @@ public partial class SkyboxView : Node
 		_env.BackgroundMode = Godot.Environment.BGMode.Sky;
 		// Godot dreht die Blickrichtung mit der Inversen der Himmelsorientierung in den Himmelsraum (sky.glsl) — also die Inverse setzen
 		_env.SkyRotation = Rotation.Transposed().GetEuler();
+		Log(sector, $"Himmel '{e.Key}' {Describe(_mat.Panorama)}");
+	}
+
+	/// <summary>Diagnosezeile „[sky] …“ (läuft auch auf dem Gerät, je Himmelswechsel eine Zeile).</summary>
+	void Log(Sector sector, string what)
+	{
+		string drv = RenderingServer.GetCurrentRenderingDriverName(), meth = RenderingServer.GetCurrentRenderingMethod();
+		GD.Print($"[sky] Sektor {sector.Name} ({sector.Id.Value}): {what} · Hintergrund {_env.BackgroundMode}, Himmel {(_env.Sky is null ? "keiner" : "gesetzt")}, " +
+			$"Material {(_env.Sky?.SkyMaterial is PanoramaSkyMaterial pm && pm.Panorama is not null ? "Panorama" : "leer")} · Renderer {meth}/{drv}, Ladevorgänge {Loads}");
+	}
+
+	static string Describe(Texture2D? t)
+	{
+		if (t is null) return "Textur keine";
+		string fmt = "?";
+		try { var rid = t.GetRid(); fmt = RenderingServer.TextureGetFormat(rid).ToString(); } catch (Exception ex) { fmt = "Fehler " + ex.Message; }
+		return $"Textur {t.ResourcePath} {t.GetWidth()}×{t.GetHeight()} Format {fmt}";
 	}
 
 	/// <summary>Richtung eines Panorama-Bildpunkts (u, v) im Himmelsraum (Godot: u = atan2(x, -z)/2π, v = acos(y)/π).</summary>
@@ -142,7 +169,7 @@ public partial class SkyboxView : Node
 	{
 		var map = new Dictionary<string, Entry>(StringComparer.Ordinal);
 		const string path = Dir + "skyboxes.json";
-		if (!FileAccess.FileExists(path)) return map;
+		if (!FileAccess.FileExists(path)) { GD.Print("[sky] " + path + " fehlt — kein Himmel"); return map; }
 		try
 		{
 			using var doc = JsonDocument.Parse(FileAccess.GetFileAsString(path));
@@ -150,12 +177,12 @@ public partial class SkyboxView : Node
 			{
 				string key = s.GetProperty("key").GetString() ?? "";
 				string file = s.GetProperty("file").GetString() ?? "";
-				if (key.Length == 0 || file.Length == 0 || !ResourceLoader.Exists(Dir + file)) { GD.PushWarning($"Himmel '{key}' ohne Datei"); continue; }
+				if (key.Length == 0 || file.Length == 0 || !ResourceLoader.Exists(Dir + file)) { GD.PushWarning($"Himmel '{key}' ohne Datei"); GD.Print($"[sky] Himmel '{key}' ohne Datei {file}"); continue; }
 				map[key] = new Entry(key, file, s.GetProperty("planet").GetBoolean(),
 					s.GetProperty("focusU").GetSingle(), s.GetProperty("focusV").GetSingle(), s.GetProperty("elevation").GetSingle());
 			}
 		}
-		catch (Exception ex) { GD.PushWarning("skyboxes.json unlesbar: " + ex.Message); }
+		catch (Exception ex) { GD.PushWarning("skyboxes.json unlesbar: " + ex.Message); GD.Print("[sky] skyboxes.json unlesbar: " + ex.Message); }
 		return map;
 	}
 }

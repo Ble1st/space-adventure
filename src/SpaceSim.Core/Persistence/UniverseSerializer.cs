@@ -1,3 +1,4 @@
+using SpaceSim.Core.Content;
 using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Persistence;
@@ -383,6 +384,37 @@ public static class UniverseSerializer
         return s;
     }
 
+    /// <summary>Himmel der eingebetteten Standardwelt je Sektor-Id (einmal gelesen).</summary>
+    static readonly Lazy<Dictionary<int, (string Name, string Skybox, float Yaw)>> DefaultSkies = new(() =>
+    {
+        try
+        {
+            return WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Sectors
+                .ToDictionary(d => d.Id, d => (d.Name, d.Skybox ?? "", float.IsFinite(d.SkyboxYaw) ? d.SkyboxYaw : 0f));
+        }
+        catch (Exception) { return new Dictionary<int, (string, string, float)>(); }
+    });
+
+    /// <summary>
+    /// Spielstände von vor den Himmelskugeln (ohne <c>Skybox</c> in jedem Sektor) zeigten für immer nur den Farbhintergrund (Gerätetest: schwarz
+    /// in jedem Sektor). Gibt es jeden Sektor nach Id und Name auch in der eingebetteten Standardwelt (auch die alte 4-Sektor-Welt), übernimmt das Laden deren Himmel.
+    /// Reine Darstellungsdaten (nicht gehasht); eigene Welten und Stände mit irgendeinem Himmel bleiben unberührt.
+    /// </summary>
+    public static void FillDefaultSkyboxes(Universe u)
+    {
+        if (u.Sectors.Count == 0 || u.Sectors.Values.Any(x => x.Skybox.Length > 0)) return;
+        var byId = DefaultSkies.Value;
+        if (byId.Count == 0) return;
+        foreach (var sec in u.Sectors.Values)
+            if (!byId.TryGetValue(sec.Id.Value, out var sd) || sd.Name != sec.Name) return;
+        foreach (var sec in u.Sectors.Values)
+        {
+            var sd = byId[sec.Id.Value];
+            sec.Skybox = sd.Skybox;
+            sec.SkyboxYaw = sd.Yaw;
+        }
+    }
+
     public static Universe FromSave(SaveGame s)
     {
         var u = new Universe
@@ -719,6 +751,7 @@ public static class UniverseSerializer
                     Rules = Enum.TryParse<Engagement>(q.Rules, out var e) ? e : Engagement.Defend,
                 };
         u.NextSquadronId = Math.Max(s.NextSquadronId, u.Squadrons.Count == 0 ? 1 : u.Squadrons.Keys.Max(k => k.Value) + 1);
+        FillDefaultSkyboxes(u);
         return u;
     }
 
