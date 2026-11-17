@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -16,6 +17,7 @@ public partial class SelfTest
 	List<StationId> _r44iStations = new();
 	int _r44iIdx;
 	Vector2I _r44iSize;
+	GateId _r44iGate;
 
 	bool Round44iStage(int f)
 	{
@@ -30,11 +32,26 @@ public partial class SelfTest
 			_r44iStations = u.Stations.Values.Where(s => s.Dockable && s.Site is null)
 				.OrderByDescending(s => ActorNames.Tagged(u, s.Owner, s.Name).Length).ThenBy(s => s.Id.Value).Take(3).Select(s => s.Id).ToList();
 			Check(_r44iStations.Count == 3, $"R44i: drei lange Stationsnamen ({_r44iStations.Count})");
+			// Runde 44j: das Tor mit dem längsten angezeigten Namen (Ziel-Hinweis ohne Angriffshinweis, höchstens zwei Zeilen)
+			_r44iGate = u.Gates.Values.OrderByDescending(g => SpaceSim.Core.Combat.GateCombat.NameOf(u, g).Length).ThenBy(g => g.Id.Value).First().Id;
 			return false;
 		}
 		if (f < 6) return false;
 		int k = (f - 6) / 40, phase = (f - 6) % 40;
-		if (k >= _r44iStations.Count)
+		if (k == _r44iStations.Count)
+		{
+			var gate = u.Gates[_r44iGate];
+			if (phase == 0) { _m.TestEnterSector(gate.Sector); return false; }
+			if (phase == 4) { var p = gate.Position; float len = MathF.Max(1f, MathF.Sqrt(p.X * p.X + p.Y * p.Y)); _m.TestTeleportTo(new Vec2(p.X - p.X / len * 60f, p.Y - p.Y / len * 60f)); _m.TestSelectGate(_r44iGate); return false; }
+			if (phase == 10)
+			{
+				string toast = _m.HudRef.TestToastText;
+				Check(toast.StartsWith("Ziel: Tor") && _m.HudRef.TestToastLines <= 2 && !toast.Contains("Verbrechen"),
+					$"R44j: Tor-Ziel-Hinweis höchstens zwei Zeilen, ohne „Verbrechen“ ({_m.HudRef.TestToastLines}: „{toast}“)");
+			}
+			return false;
+		}
+		if (k > _r44iStations.Count)
 		{
 			UiScale.TestForce = null; UiScale.Apply();
 			root.Size = _r44iSize;

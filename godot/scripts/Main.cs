@@ -1586,9 +1586,9 @@ public partial class Main : Node3D
 		var gate = u.Gates[id];
 		SelectTarget(Navigator.ForSector(u, u.Gates[gate.Target].Sector, u.PlayerShip), null, quiet: true);
 		_targetGate = gate.Id;
-		// Runde 16: eigener Hinweis für Tore (vorher „Autopilot fliegt hin, Andocken in der Nähe“)
-		_hud.Toast($"Ziel: {SpaceSim.Core.Combat.GateCombat.NameOf(u, gate)} · „Autopilot“ fliegt hin und springt"
-			+ (u.Rules.GateCombat && SpaceSim.Core.Combat.GateCombat.TypeOf(u, gate) is not null ? ", „Tor angreifen“ = schweres Verbrechen" : ""), 3.5f);
+		// Runde 16: eigener Hinweis für Tore (vorher „Autopilot fliegt hin, Andocken in der Nähe“). Runde 44j (Handytest): ohne den Angriffshinweis —
+		// die Taste „Tor angreifen“ nennt „Verbrechen“ selbst; so bleibt der Hinweis höchstens zweizeilig (Tornamen sind schon kurz: „Tor Alpha–Beta“).
+		_hud.Toast($"Ziel: {SpaceSim.Core.Combat.GateCombat.NameOf(u, gate)} · „Autopilot“ fliegt hin und springt", 3.5f);
 		UpdateHud();
 	}
 	internal void TestSelectGate(GateId id) => SelectGate(id);
