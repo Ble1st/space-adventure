@@ -14,14 +14,25 @@ namespace SpaceAdventure.World;
 /// <para>
 /// Die Kamera blickt schräg <b>nach unten</b> auf die Spielebene (Neigung 15–85°), der sichtbare Himmel liegt also vor allem unterhalb des
 /// Horizonts. Deshalb dreht die Komponente jedes Panorama so, dass der Fokus-Bildpunkt (Planetenmitte bzw. Galaxienband) in Höhe
-/// <c>elevation</c> vor der Standardkamera (Blick nach -Z) liegt. Das Umgebungslicht bleibt eine feste Farbe, Spiegelungen aus dem Himmel sind aus —
+/// <c>elevation</c> vor der Standardkamera (Blick nach -Z, gedreht um <c>skyboxYaw</c>) liegt. Planeten stehen <b>unter</b> der Ebene, aber so hoch, dass die
+/// Standardansicht (Neigung 57,7°, Bildoberkante <see cref="DefaultTopEdgeDeg"/>) und die Rückansicht ihre beleuchtete Sichel am oberen Bildrand zeigen und das
+/// Schiff außerhalb der Scheibe bleibt; in sehr flachen Ansichten steht der Planet hinter dem Schiff — die Planetentexturen sind dafür abgedunkelt. Das Umgebungslicht bleibt eine feste Farbe, Spiegelungen aus dem Himmel sind aus —
 /// die Textur färbt Schiffe, Stationen und Felsen nicht ein.
 /// </para>
 /// Die Textur wird nur beim Wechsel des Himmels geladen (<see cref="Loads"/>); der vorige Himmel wird freigegeben (ein Himmel im Speicher).
 /// </summary>
 public partial class SkyboxView : Node
 {
-	public sealed record Entry(string Key, string File, bool Planet, float FocusU, float FocusV, float Elevation);
+	/// <param name="Radius">Winkelradius des Planeten in Grad (0 = kein Planet); mit <see cref="Elevation"/> legt er fest, wie weit die Scheibe in die
+	/// Standardansicht hineinreicht (<see cref="LowerLimb"/>).</param>
+	public sealed record Entry(string Key, string File, bool Planet, float FocusU, float FocusV, float Elevation, float Radius = 0f)
+	{
+		/// <summary>Höhe des unteren Planetenrands in Grad über der Spielebene (Elevation − Radius).</summary>
+		public float LowerLimb => Elevation - Radius;
+	}
+
+	/// <summary>Höhe der Bildoberkante der Standardkamera in Grad über der Ebene (Neigung 57,7°, vertikales Sichtfeld 50°): −32,7°.</summary>
+	public static float DefaultTopEdgeDeg => -SpaceSim.Core.Flight.OrbitCamera.DefaultPitchDeg + 25f;
 
 	const string Dir = "res://assets/skyboxes/";
 	static Dictionary<string, Entry>? _manifest;
@@ -179,7 +190,8 @@ public partial class SkyboxView : Node
 				string file = s.GetProperty("file").GetString() ?? "";
 				if (key.Length == 0 || file.Length == 0 || !ResourceLoader.Exists(Dir + file)) { GD.PushWarning($"Himmel '{key}' ohne Datei"); GD.Print($"[sky] Himmel '{key}' ohne Datei {file}"); continue; }
 				map[key] = new Entry(key, file, s.GetProperty("planet").GetBoolean(),
-					s.GetProperty("focusU").GetSingle(), s.GetProperty("focusV").GetSingle(), s.GetProperty("elevation").GetSingle());
+					s.GetProperty("focusU").GetSingle(), s.GetProperty("focusV").GetSingle(), s.GetProperty("elevation").GetSingle(),
+					s.TryGetProperty("radius", out var rad) ? rad.GetSingle() : 0f);
 			}
 		}
 		catch (Exception ex) { GD.PushWarning("skyboxes.json unlesbar: " + ex.Message); GD.Print("[sky] skyboxes.json unlesbar: " + ex.Message); }

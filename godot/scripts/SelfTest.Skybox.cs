@@ -7,7 +7,7 @@ namespace SpaceAdventure;
 
 /// <summary>
 /// Selbsttest-Stufe 127 (Himmelskugeln): jeder Sektor der Standardwelt bekommt einen Himmel aus dem Verzeichnis; Planetensektoren einen Himmel mit
-/// Planet und <b>keine</b> zusätzliche Planetenkugel, alle anderen einen Himmel ohne Planet; der Hintergrund ist der Himmel (nicht die Farbe); die
+/// Planet (Scheibe am oberen Bildrand der Standard- und Rückansicht, Schiff außerhalb) und <b>keine</b> zusätzliche Planetenkugel, alle anderen einen Himmel ohne Planet; der Hintergrund ist der Himmel (nicht die Farbe); die
 /// Drehung legt den Fokus-Bildpunkt in die vorgesehene Richtung; ein echter Torsprung tauscht den Himmel; im selben Sektor wird die Textur nicht
 /// erneut geladen (höchstens ein Ladevorgang je Wechsel), es bleibt genau eine Himmelskomponente.
 /// </summary>
@@ -54,6 +54,32 @@ public partial class SelfTest
 				var focus = SkyboxView.PanoramaDir(e.FocusU, e.FocusV);
 				var aimed = sky.Rotation * SkyboxView.WorldDir(sec.SkyboxYaw, e.Elevation);
 				Check(aimed.DistanceTo(focus) < 0.01f, $"Himmel: {sec.Name} Fokus in Blickrichtung (Abweichung {aimed.DistanceTo(focus):0.000})");
+				if (planet)
+				{
+					// Planet unter der Ebene, aber am oberen Bildrand: in der Standardansicht (freie Kamera 57,7°, Bildmitte = Schiff) und in der
+					// Standard-Rückansicht (Höhe 45 / Abstand 35, Schiff im unteren Drittel) ist die Scheibe sichtbar, liegt im oberen Bildteil
+					// (Schwerpunkt im oberen Drittel, nicht unter den Eckfeldern des HUD), und das Schiff steht außerhalb der Scheibe.
+					Check(e.Radius > 0f && e.Elevation <= 0f, $"Himmel: {sec.Name} Planet unter der Ebene (Mitte {e.Elevation:0.0}°, Radius {e.Radius:0.0}°)");
+					var c = SkyboxView.WorldDir(sec.SkyboxYaw, e.Elevation);
+					float fov = _m.TestCam.Fov;
+					var vp = _m.GetViewport().GetVisibleRect().Size;
+					float aspect = vp.Y > 0f ? vp.X / vp.Y : 16f / 9f;
+					float freePitch = SpaceSim.Core.Flight.OrbitCamera.DefaultPitchDeg;
+					float chaseH = SpaceSim.Core.Flight.OrbitCamera.DefaultChaseHeight, chaseB = SpaceSim.Core.Flight.OrbitCamera.DefaultChaseBack;
+					float chasePitch = Mathf.RadToDeg(Mathf.Atan2(chaseH, chaseB));
+					float chaseShip = Mathf.RadToDeg(Mathf.Atan2(chaseH, chaseB * (1f - SpaceSim.Core.Flight.OrbitCamera.LookAheadShare)));
+					foreach (var (view, pitch, ship) in new[] { ("Standardansicht", freePitch, freePitch), ("Rückansicht", chasePitch, chaseShip) })
+					{
+						var (share, cx, cy, maxY) = DiscOnScreen(c, e.Radius, pitch, fov, aspect);
+						Check(share >= 0.05f && cy < 0.3f && maxY < 0.6f && cx > 0.25f && cx < 0.8f,
+							$"Himmel: {sec.Name} {view}: Planet oben im Bild (Anteil {share:P0}, Schwerpunkt x {cx:0.00} y {cy:0.00}, unterster Scheibenpunkt y {maxY:0.00})");
+						float gap = Mathf.RadToDeg(SkyboxView.WorldDir(0f, -ship).AngleTo(c)) - e.Radius;
+						Check(gap >= 5f, $"Himmel: {sec.Name} {view}: Schiff außerhalb der Scheibe (Abstand zum Rand {gap:0.0}°)");
+					}
+					var fwd = -_m.TestCam.GlobalBasis.Z.Normalized();
+					Check(Mathf.RadToDeg(fwd.AngleTo(c)) > e.Radius, $"Himmel: {sec.Name} Kamera blickt nicht in den Planeten");
+				}
+				else Check(e.Radius == 0f, $"Himmel: {sec.Name} Sternhimmel ohne Planetenradius");
 				int d = sky.Loads - _skyLoads;
 				Check(d <= 1, $"Himmel: {sec.Name} höchstens ein Ladevorgang beim Wechsel ({d})");
 			}
@@ -90,4 +116,27 @@ public partial class SelfTest
 		}
 		return false;
 	}
+
+	/// <summary>
+	/// Lage der Planetenscheibe (Mitte <paramref name="c"/>, Winkelradius <paramref name="radiusDeg"/>) im Bild einer Kamera mit Blick nach -Z, Neigung
+	/// <paramref name="pitchDeg"/> nach unten: Bildanteil, mittleres x und y (0..1) und unterstes y (0 oben, 1 unten) der Scheibenpunkte (Raster 96 × 48).
+	/// </summary>
+	static (float Share, float CenterX, float CenterY, float MaxY) DiscOnScreen(Vector3 c, float radiusDeg, float pitchDeg, float fovDeg, float aspect)
+	{
+		var f = SkyboxView.WorldDir(0f, -pitchDeg);
+		var z = -f; var x = Vector3.Up.Cross(z).Normalized(); var y = z.Cross(x);
+		float t = Mathf.Tan(Mathf.DegToRad(fovDeg * 0.5f)), cosR = Mathf.Cos(Mathf.DegToRad(radiusDeg));
+		const int W = 96, H = 48;
+		int n = 0; float sx = 0f, sy = 0f, maxY = 0f;
+		for (int j = 0; j < H; j++)
+			for (int i = 0; i < W; i++)
+			{
+				float u = (i + 0.5f) / W, v = (j + 0.5f) / H;
+				var r = ((2f * u - 1f) * t * aspect * x + (1f - 2f * v) * t * y - z).Normalized();
+				if (r.Dot(c) < cosR) continue;
+				n++; sx += u; sy += v; maxY = Mathf.Max(maxY, v);
+			}
+		return n == 0 ? (0f, -1f, 1f, 1f) : ((float)n / (W * H), sx / n, sy / n, maxY);
+	}
 }
+

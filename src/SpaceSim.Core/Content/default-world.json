@@ -1504,6 +1504,7 @@
    "id": 2,
    "name": "Sektor Beta",
    "skybox": "desert_planet",
+   "skyboxYaw": 12,
    "scale": 5.7,
    "owner": 1,
    "planet": { "name": "Korvan", "color": "#c79a6b", "radius": 420 },
@@ -1648,6 +1649,7 @@
    "id": 3,
    "name": "Sektor Gamma",
    "skybox": "earthlike_planet",
+   "skyboxYaw": 12,
    "scale": 7.3,
    "owner": 2,
    "planet": { "name": "Thalassa", "color": "#3f86c9", "radius": 480 },
@@ -2279,6 +2281,7 @@
    "id": 8,
    "name": "Sektor Aurelia",
    "skybox": "earthlike_planet_close",
+   "skyboxYaw": 16,
    "scale": 3.0,
    "owner": 3,
    "map": [
@@ -2417,6 +2420,7 @@
    "id": 10,
    "name": "Sektor Kalypso",
    "skybox": "ice_planet",
+   "skyboxYaw": 12,
    "scale": 5.6,
    "owner": 2,
    "map": [
