@@ -28,7 +28,7 @@ die PNGs sind per .gitignore ausgenommen). Ein neuer Stationstyp ohne Eintrag in
 
 - Ein Mesh je Datei, Ursprung in der Mitte, glTF Y-up; größte Ausdehnung in der Spielebene (Godot XZ)
   = 1, also im Spiel einfach mit `Obstacle.Radius` skalieren. Aufbauten ober- und unterhalb der Ebene.
-- ≤ 3000 Dreiecke, keine Texturen, gemeinsame Materialnamen (`Hull`, `HullDark`, `Accent`, `Window`,
+- ≤ 3000 Dreiecke, keine eigenen Texturen (nur die gemeinsamen Oberflaechen-Texturen, s. u.), gemeinsame Materialnamen (`Hull`, `HullDark`, `Accent`, `Window`,
   `Light`, `LightRed`, `Glass`, `Panel`, `Glow`, `Plasma`, `Rock`, `Gold`, `Copper`, `Hazard`, `Plant`,
   `Ice`, `Crystal`, `Container`); Leuchtmaterialien über Emission.
 - `Accent` ist fast weiß, damit eine Fraktionsfarbe per Multiplikation darüber gelegt werden kann.
@@ -121,3 +121,17 @@ Ausgaben: `godot/assets/ships/<key>.glb`, `godot/assets/ships/ships.json`, `docs
   Stationen (Kolonie, Wasserwerk, Kraftwerk, Waferfabrik) bekommen gezielte Accent-Ringsegmente.
   Offene Gestelle, Erzbrocken und lose Container sind durch geschlossene Bauteile ersetzt (Ausnahmen:
   Baustelle, Piratenversteck). Grenzen: <= 5000 Dreiecke, <= 10 Materialien je Station.
+
+## Gemeinsame Oberflaechen-Texturen
+
+- `surface_textures.py` erzeugt prozedural (numpy, fester Seed, nahtlos kachelbar) `godot/assets/textures/hull_detail.png`
+  (RGB Helligkeitsfaktor: Plattentoene, Fugen, Nieten, Gitter, Klappen, dunkle Fensterschlitze, Schmutz, Laufspuren,
+  abgeplatzte Kanten; A Rauheit), `hull_normal.png`, `hull_lights.png` (beleuchtete Fenster, nur Stationen) und
+  `panel_cells.png` (Solarzellen). Ein Satz fuer alle Modelle, keine Texturen im GLB.
+- Alle Exporte (Stationen, Schiffe ueber `build_stations.export_glb`, Tor) tragen eine Kasten-Projektion als UV
+  (`stationkit.box_uv`, 1 UV-Einheit = 1 Modelleinheit). Das Spiel setzt Texturen und Kachelmassstab je Modell
+  (`godot/scripts/World/SurfaceDetail.cs`).
+
+```
+blender --background --factory-startup --python tools/blender/surface_textures.py
+```

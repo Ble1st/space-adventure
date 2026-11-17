@@ -2,13 +2,13 @@
 
 Aufruf: blender --background --factory-startup --python tools/blender/gate_model.py
 Ausgabe: godot/assets/gates/gate.glb, gate_destroyed.glb, gate.json; docs/gates/gate_final.png, gate_zustaende.jpg
-Eigenstaendig (keine Repo-Importe). Blender: Durchflug entlang Y, Oeffnung in XZ, Z oben.
+Eigenstaendig bis auf stationkit.box_uv (UV fuer die gemeinsamen Oberflaechen-Texturen). Blender: Durchflug entlang Y, Oeffnung in XZ, Z oben.
 glTF-Export (Y-up): Blender +Y -> Godot -Z, Blender Z -> Godot +Y, Blender X -> Godot +X.
 Modell ist auf Oeffnungsradius 1.0 normiert, Ursprung = Mitte der Oeffnung.
 Schalter (Umgebungsvariablen): GATE_RENDER_SHIP=1 stellt das kleine Groessenvergleichs-Schiff in die Bilder (Standard: ohne Schiff;
 das Schiff war nie Teil der glb-Exporte); GATE_RENDER_ONLY=1 rendert nur die Bilder und laesst glb/json unveraendert.
 """
-import json, math, os, subprocess
+import json, math, os, subprocess, sys
 import bpy
 from mathutils import Vector, Matrix, Euler
 
@@ -350,10 +350,13 @@ def frame(cam, obs, az, el, fill=0.88, shift=(0.0, 0.0)):
 
 
 def export_glb(ob, path):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from stationkit import box_uv
     for o in bpy.context.scene.objects:
         o.select_set(False)
     ob.select_set(True)
     bpy.context.view_layer.objects.active = ob
+    box_uv([ob])
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_yup=True,
                               export_apply=True, export_cameras=False, export_lights=False,
                               export_materials="EXPORT")

@@ -44,6 +44,7 @@ public static class StationModels
 		var node = scene.Instantiate<Node3D>();
 		node.Name = "Model";
 		node.Scale = Vector3.One * radius;
+		SurfaceDetail.Apply(node, radius, SurfaceDetail.StationTile, Inhabited(typeKey));   // gemeinsame Oberflächen-Texturen (einmal je Modell)
 		var box = new Aabb();
 		bool first = true;
 		void Walk(Node n, Transform3D xf)
@@ -92,6 +93,9 @@ public static class StationModels
 			}
 		}
 	}
+
+	/// <summary>Bewohnte Stationen tragen Fensterreihen (nicht: Baustelle, Piratenversteck, Satellit, Waffenplattformen).</summary>
+	static bool Inhabited(string typeKey) => typeKey is not ("build_site" or "pirate_hideout" or "satellite_sensor") && !typeKey.StartsWith("platform_");
 
 	/// <summary>Zahl der geteilten Überschreibungsmaterialien (Selbsttest: wächst nicht je Station).</summary>
 	public static int OverrideCount => _overrides.Count;

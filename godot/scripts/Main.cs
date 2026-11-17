@@ -284,8 +284,13 @@ public partial class Main : Node3D
 			SaveService.UseFile(selftest ? "selftest.json" : "ui-shots.json");
 			DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(selftest ? "user://selftest.json" : "user://ui-shots.json"));   // immer frisch beginnen
 		}
+		// Oberflächen-Texturen: --no-surface-detail = Modelle ohne die gemeinsamen Texturen (Vergleichsbilder)
+		if (args.Contains("--no-surface-detail")) World.SurfaceDetail.Enabled = false;
+		if (args.Contains("--model-shots")) { SaveService.UseFile("model-shots.json"); UiScale.PinnedFactor = 1f; }   // eigener Spielstand, nie der echte
 		StartSession();
 		if (selftest) AddChild(new SelfTest(this));
+		int modelIdx = Array.IndexOf(args, "--model-shots");
+		if (modelIdx >= 0 && modelIdx + 1 < args.Length) AddChild(new ModelShots(args[modelIdx + 1], args.Contains("--model-shots-all")));
 		// Runde 16: Handyformat-Fotos aus dem echten Spielablauf (PhoneShots)
 		// Runde 31 (UI-ANPASSUNG.md Etappe 0): Prüfwerkzeug aller Bildschirme in sechs Fenstergrößen und drei UI-Faktoren
 		int checkIdx = Array.IndexOf(args, "--ui-check");

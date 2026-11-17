@@ -225,6 +225,7 @@ def export_glb(ob, path):
     for c in ob.children:
         c.select_set(True)
     bpy.context.view_layer.objects.active = ob
+    stationkit.box_uv([ob] + list(ob.children_recursive))   # UV fuer die gemeinsamen Oberflaechen-Texturen
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True,
                               export_yup=True, export_apply=True, export_cameras=False,
                               export_lights=False, export_materials="EXPORT")

@@ -454,6 +454,7 @@ public static class ShipModels
 		var node = scene.Instantiate<Node3D>();
 		node.Name = "ShipModel";
 		node.Scale = Vector3.One * ScaleOf(modelKey);
+		SurfaceDetail.Apply(node, ScaleOf(modelKey), SurfaceDetail.ShipTile, false);   // gemeinsame Oberflächen-Texturen (einmal je Modell)
 		var v = new ShipVisual { Root = node, Info = info };
 		void Walk(Node n)
 		{

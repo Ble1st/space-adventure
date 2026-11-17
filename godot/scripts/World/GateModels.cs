@@ -89,6 +89,7 @@ public static class GateModels
 		var node = scene.Instantiate<Node3D>();
 		node.Name = look == Look.Destroyed ? "GateWreck" : "GateModel";
 		node.Scale = Vector3.One * Scale;
+		SurfaceDetail.Apply(node, Scale, SurfaceDetail.StationTile, false);   // gemeinsame Oberflächen-Texturen (einmal je Modell)
 		float maxY = 0f;
 		foreach (var (mi, xf) in Meshes(node, Transform3D.Identity))
 		{

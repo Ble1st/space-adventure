@@ -632,6 +632,37 @@ class Builder:
         return ob
 
 
+def box_uv(objects, name="UVMap"):
+    """Kasten-Projektion als UV fuer die gemeinsamen Oberflaechen-Texturen (surface_textures.py): jede Flaeche wird
+    entlang ihrer dominanten Normalenachse (Weltraum = fertiges, normiertes Modell) projiziert, 1 UV-Einheit = 1
+    Modelleinheit (Stationen Radius 1, Schiffe Halblaenge 1). Rueckseiten werden gespiegelt, damit die Textur nicht
+    seitenverkehrt liegt. Das Spiel setzt den Kachelmassstab je Modell (SurfaceDetail.cs)."""
+    for ob in objects:
+        if ob.type != "MESH":
+            continue
+        me = ob.data
+        if me.uv_layers:
+            for l in list(me.uv_layers):
+                me.uv_layers.remove(l)
+        layer = me.uv_layers.new(name=name)
+        mw = ob.matrix_world
+        nm = mw.to_3x3().inverted_safe().transposed()
+        verts = me.vertices
+        for p in me.polygons:
+            n = nm @ p.normal
+            ax = max(range(3), key=lambda i: abs(n[i]))
+            sg = 1.0 if n[ax] >= 0 else -1.0
+            for li in p.loop_indices:
+                co = mw @ verts[me.loops[li].vertex_index].co
+                if ax == 0:
+                    uv = (co.y * sg, co.z)
+                elif ax == 1:
+                    uv = (-co.x * sg, co.z)
+                else:
+                    uv = (co.x, co.y * sg)
+                layer.data[li].uv = uv
+
+
 def tri_count(ob):
     me = ob.data
     me.calc_loop_triangles()
