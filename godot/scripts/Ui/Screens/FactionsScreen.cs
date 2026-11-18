@@ -175,7 +175,14 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 194, 280, 22);
 		var p = actor.Personality;
 		float py = 220;
-		if (isMe) WrappedText(det, "Du entscheidest selbst. Beziehungen ändern sich nur durch deine Handlungen (Krieg, später Aufträge und Diplomatie).", 18, py, 320, 13, new Color(Dim, 0.9f), 18);
+		if (isMe)
+		{
+			// Eigenes Hauptquartier: Sitz der eigenen Fraktion (gegründet oder übernommen)
+			var hq = PlayerHq.Current(u);
+			TestHq = hq is null ? "kein Hauptquartier" : $"Hauptquartier: {hq.Name} ({u.Sectors[hq.Sector].Name})";
+			float hy = WrappedText(det, TestHq + ".", 18, py, 320, 13, hq is null ? new Color(Dim, 0.9f) : Green, 18);
+			WrappedText(det, "Du entscheidest selbst. Beziehungen ändern sich nur durch deine Handlungen (Krieg, später Aufträge und Diplomatie).", 18, hy + 4, 320, 13, new Color(Dim, 0.9f), 18);
+		}
 		foreach (var (name, v) in isMe ? Array.Empty<(string, float)>() : new[] { ("Aggression", p.Aggression), ("Gier", p.Greed), ("Kooperation", p.Cooperation), ("Gesetzestreue", p.Lawfulness) })
 		{
 			At(det, Text(name, 14, Dim), 18, py, 130, 18);
@@ -284,6 +291,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// <summary>Selbsttest: zuletzt gezeigte Handlungsfähigkeit (Phase 22; leer für Akteure ohne Invarianten).</summary>
 	/// <summary>Runde 45, Selbsttest: Bündniszeile der gewählten Fraktion.</summary>
 	public string TestAlliance { get; private set; } = "";
+	/// <summary>Eigenes Hauptquartier, Selbsttest: HQ-Zeile im Detail der eigenen Fraktion.</summary>
+	public string TestHq { get; private set; } = "";
 	/// <summary>Spielersperre (Selbsttest): Ansehenszeile der gewählten Fraktion („Ansehen −0,35 durch Angriff …“) oder leer.</summary>
 	public string TestCrimeStanding { get; private set; } = "";
 	/// <summary>Selbsttest Phase 28: Kriegslage der gewählten Fraktion („Frieden“ / „Krieg mit …“).</summary>

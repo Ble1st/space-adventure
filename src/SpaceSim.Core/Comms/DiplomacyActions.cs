@@ -260,3 +260,71 @@ public sealed class LockAction : ICommsAction
         return new ServiceResult(true, 1f, 0f, msg);
     }
 }
+
+/// <summary>
+/// Eigenes Hauptquartier (docs/POLITIK.md „Eigenes Hauptquartier“): Comms-Aktion „hq“ — gründen oder aufgeben (<see cref="PlayerHq"/>). Schlüssel streng:
+/// <c>hq:found:&lt;SectorId&gt;</c>, <c>hq:close:&lt;StationId&gt;</c>.
+/// </summary>
+public sealed class HqAction : ICommsAction
+{
+    public const string KeyId = "hq";
+    public string Key => KeyId;
+    public bool Handles(string offer) => offer.StartsWith(KeyId + ":", StringComparison.Ordinal);
+
+    public IReadOnlyList<CommsOffer> Offers(Universe u)
+    {
+        var list = new List<CommsOffer>();
+        if (u.PlayerFaction is null || !u.Rules.PlayerHq) return list;
+        var all = PlayerHq.All(u);
+        if (all.Count == 0 && u.Ships.TryGetValue(u.PlayerShip, out var ship)) list.Add(Preview(u, $"{KeyId}:found:{ship.Sector.Value}"));
+        foreach (var st in all) list.Add(Preview(u, $"{KeyId}:close:{st.Id.Value}"));
+        return list;
+    }
+
+    public CommsOffer Preview(Universe u, string offer)
+    {
+        if (CommsActions.TryId(offer, $"{KeyId}:found", out var sid))
+        {
+            var sector = new SectorId(sid);
+            string name = u.Sectors.TryGetValue(sector, out var sec) ? sec.Name : "?";
+            string? issue = PlayerHq.FoundIssue(u, sector);
+            var t = PlayerHq.HqType(u);
+            float cost = t is null ? 0f : PlayerHq.Cost(u, t);
+            float upkeep = t is null ? 0f : PlayerHq.UpkeepPerMinute(t);
+            return new(offer, $"Hauptquartier gründen – {name}",
+                issue ?? $"{cost:0} Cr einmalig, Unterhalt {upkeep:0} Cr/min aus deiner Kasse (notfalls Schulden) — Einfluss 6, Gericht, Reparatur, Geschütze; der Sektor erreicht Kontrolle: Sperrstufe bis 5.",
+                -cost, issue is null, issue);
+        }
+        if (CommsActions.TryId(offer, $"{KeyId}:close", out var stid))
+        {
+            string? issue = PlayerHq.CloseIssue(u, new StationId(stid));
+            string name = u.Stations.TryGetValue(new StationId(stid), out var st) ? st.Name : "?";
+            return new(offer, $"Hauptquartier aufgeben – {name}", issue ?? "Kein Erlös; der Unterhalt endet, Einfluss und Sperrstufe fallen mit der Kontrolle.", 0f, issue is null, issue);
+        }
+        return new(offer, "Hauptquartier", "", 0f, false, $"Unbekanntes Angebot '{offer}'.");
+    }
+
+    public ServiceResult Execute(Universe u, string offer)
+    {
+        if (CommsActions.TryId(offer, $"{KeyId}:found", out var sid))
+        {
+            var sector = new SectorId(sid);
+            if (PlayerHq.FoundIssue(u, sector) is { } issue) return new ServiceResult(false, 0f, 0f, issue);
+            float cost = PlayerHq.Cost(u, PlayerHq.HqType(u)!);
+            var st = PlayerHq.Found(u, sector);
+            string msg = $"{st.Name} gegründet ({cost:0} Cr) — Sitz deiner Fraktion in {u.Sectors[sector].Name}.";
+            u.Events.Publish(new CommsActionPerformed(KeyId, sid, -cost, msg));
+            return new ServiceResult(true, 1f, -cost, msg);
+        }
+        if (CommsActions.TryId(offer, $"{KeyId}:close", out var stid))
+        {
+            if (PlayerHq.CloseIssue(u, new StationId(stid)) is { } issue) return new ServiceResult(false, 0f, 0f, issue);
+            string name = u.Stations[new StationId(stid)].Name;
+            PlayerHq.Close(u, new StationId(stid));
+            string msg = $"{name} aufgegeben.";
+            u.Events.Publish(new CommsActionPerformed(KeyId, stid, 0f, msg));
+            return new ServiceResult(true, 1f, 0f, msg);
+        }
+        return new ServiceResult(false, 0f, 0f, $"Unbekanntes Angebot '{offer}'.");
+    }
+}

@@ -102,6 +102,7 @@ public sealed class CommsActions
         r.Register(new AllianceAction());          // Runde 45: Bündnis vorschlagen/verlassen/Beistand
         r.Register(new SeatAction());              // Runde 45: Sektorbehörde gründen/schließen
         r.Register(new LockAction());              // Runde 45: eigene Sperrstufe
+        r.Register(new HqAction());                // Eigenes Hauptquartier gründen/aufgeben
         return r;
     }
 

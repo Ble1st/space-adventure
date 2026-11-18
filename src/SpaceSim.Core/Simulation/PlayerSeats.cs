@@ -105,7 +105,7 @@ public static class PlayerSeats
         int cap = SectorControl.MaxLevel(u, sec);
         if (level > cap)
             return cap == 0 ? $"Kontrollstufe {AccessNames.Stage(sec.Control)} erlaubt keine Sperre (Dominanz nötig)."
-                : $"Kontrollstufe {AccessNames.Stage(sec.Control)} erlaubt höchstens Stufe {cap} (Stufe 3–5 brauchen Patrouillenabdeckung).";
+                : $"Kontrollstufe {AccessNames.Stage(sec.Control)} erlaubt höchstens Stufe {cap} (Stufe 3–5 brauchen Patrouillenabdeckung, z. B. ein eigenes Hauptquartier).";
         if (acc.EntryLevel == 0 && u.Tick < acc.CooldownUntil) return $"Abkühlzeit nach der letzten Sperre (noch {(acc.CooldownUntil - u.Tick) / 240 + 1} min).";
         if (acc.EntryLevel > 0 && u.Tick - acc.SinceTick < r.LockMinTicks) return $"Mindestdauer der Stufe (noch {(r.LockMinTicks - (u.Tick - acc.SinceTick)) / 240 + 1} min).";
         return null;

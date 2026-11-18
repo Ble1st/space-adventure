@@ -125,7 +125,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 			("Verbände führen", capSquads > 0, $"bis {SpaceSim.Core.Simulation.Commands.Count(capSquads, "Verband", "Verbände")}"),
 			("Taxi, Hangar, Leihschiff", true, "an Stationen mit Dienst"),
 			// Runde 45: echt — eigener Sektor über eine Sektorbehörde (Karte „Sektorpolitik“)
-			("Zoll und Sperren", PlayerSeats.OwnSectors(u).Count > 0, PlayerSeats.OwnSectors(u).Count > 0 ? "eigener Sektor (Stufe 1–2)" : "Sektorbehörde gründen"),
+			("Zoll und Sperren", PlayerSeats.OwnSectors(u).Count > 0, PlayerSeats.OwnSectors(u).Count > 0 ? (PlayerHq.Current(u) is not null ? "eigener Sektor, HQ (Stufe 1–5)" : "eigener Sektor (Stufe 1–2)") : "Sektorbehörde gründen"),
 		}.Concat(UiPlaceholders.MyFactionAbilities(me.Stations > 0));
 		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand
 		var list = abilities.ToList();
@@ -150,6 +150,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 	public string TestPolicyLine { get; private set; } = "";
 	/// <summary>Runde 45, Selbsttest: letzte Meldung einer Sektorpolitik-Aktion.</summary>
 	public string TestPolicyMessage => _policyMsg;
+	/// <summary>Eigenes Hauptquartier, Selbsttest: Zeile des Hauptquartiers (Name und Unterhalt, oder Vorschau bzw. Grund).</summary>
+	public string TestHqLine { get; private set; } = "";
 
 	void PolicyButton(Control card, string key, string label, float x, float y, float w, bool confirm)
 	{
@@ -202,17 +204,54 @@ public sealed partial class MyFactionScreen : CommandScreen
 				At(card, Text(line, 14, White), 20, y, width - 40, 20);
 				y += 26;
 				int cap = SectorControl.MaxLevel(u, sec);
-				float bw = MathF.Min(140f, (width - 40 - 3 * 8) / 4f);
-				for (int lv = 0; lv <= Math.Min(2, 5); lv++)
-					PolicyButton(card, $"lock:{sec.Id.Value}:{lv}", lv == 0 ? "Aufheben" : $"Stufe {lv}", 20 + lv * (bw + 8), y, bw, confirm: false);
 				var seat = PlayerSeats.Seats(u).FirstOrDefault(s => s.Sector == sec.Id);
-				if (seat is not null) PolicyButton(card, $"seat:close:{seat.Id.Value}", "Schließen", 20 + 3 * (bw + 8), y, bw, confirm: true);
-				y += 62;
-				string why = cap < 3 ? $"Höchstens Stufe {cap} ({AccessNames.Stage(sec.Control)}); Stufe 3–5 brauchen Patrouillenabdeckung." : "";
+				// Eigenes Hauptquartier: mit Kontrolle Stufen bis 5 — Stufenknöpfe 0 bis max(2, Deckel), „Schließen“ der Behörde dahinter
+				int topLv = Math.Max(2, cap);
+				bool oneRow = topLv <= 2;   // Runde-45-Anordnung: drei Stufen und „Schließen“ in einer Zeile
+				int nb = oneRow ? 4 : topLv + 1;
+				float bw = MathF.Min(140f, (width - 40 - (nb - 1) * 8) / nb);
+				bool shortLabels = bw < 110f;
+				for (int lv = 0; lv <= topLv; lv++)
+					PolicyButton(card, $"lock:{sec.Id.Value}:{lv}", lv == 0 ? (shortLabels ? "Offen" : "Aufheben") : shortLabels ? $"{lv}" : $"Stufe {lv}", 20 + lv * (bw + 8), y, bw, confirm: false);
+				if (!oneRow) y += 62;
+				if (seat is not null) PolicyButton(card, $"seat:close:{seat.Id.Value}", oneRow ? "Schließen" : "Behörde schließen", oneRow ? 20 + 3 * (bw + 8) : 20, y, oneRow ? bw : MathF.Min(260f, width - 40), confirm: true);
+				if (oneRow || seat is not null) y += 62;
+				string why = cap < 3 ? $"Höchstens Stufe {cap} ({AccessNames.Stage(sec.Control)}); Stufe 3–5 brauchen Patrouillenabdeckung (eigenes Hauptquartier)." : "";
 				var pre = Ctx.Comms.Preview(u, $"lock:{sec.Id.Value}:{Math.Min(cap, Math.Max(1, acc.EntryLevel))}");
 				y = WrappedText(card, (pre.Possible ? pre.Preview : pre.Reason ?? "") + (why.Length > 0 ? " " + why : ""), 20, y, width - 40, 12, new Color(Dim, 0.9f), 16) + 10;
 			}
 			TestPolicyLine = string.Join(" | ", lines);
+		}
+		// Eigenes Hauptquartier (POLITIK.md „Eigenes Hauptquartier“): gründen (zwei Tipps) oder aufgeben, alles über die Comms-Registry („hq:…“)
+		TestHqLine = "";
+		if (u.Rules.PlayerHq)
+		{
+			At(card, Text("Hauptquartier", 16, Cyan), 20, y, width - 40, 22);
+			y += 26;
+			var hqs = PlayerHq.All(u);
+			if (hqs.Count > 0)
+			{
+				foreach (var hq in hqs)
+				{
+					float up = u.StationTypes.TryGetValue(hq.TypeKey, out var ht) ? PlayerHq.UpkeepPerMinute(ht) : 0f;
+					TestHqLine = $"{hq.Name} ({u.Sectors[hq.Sector].Name}) · Unterhalt {up:0} Cr/min aus deiner Kasse";
+					y = WrappedText(card, TestHqLine, 20, y, width - 40, 14, White, 19) + 6;
+					PolicyButton(card, $"hq:close:{hq.Id.Value}", "Hauptquartier aufgeben", 20, y, MathF.Min(320f, width - 40), confirm: true);
+					y += 64;
+				}
+			}
+			else
+			{
+				var ship = u.Ships.TryGetValue(u.PlayerShip, out var ps) ? ps : null;
+				string key = ship is null ? "hq:found:0" : $"hq:found:{ship.Sector.Value}";
+				var offer = Ctx.Comms.Preview(u, key);
+				TestHqLine = offer.Possible ? offer.Preview : offer.Reason ?? "";
+				var t = PlayerHq.HqType(u);
+				string cond = t is null ? "" : $"Bedingungen: eigener Sektor, dein Schiff dort, Größenklasse {ActorNames.Size((ActorSizeClass)u.Rules.PlayerHqMinClass)}, {PlayerHq.Cost(u, t):0} Cr. ";
+				y = WrappedText(card, cond + TestHqLine, 20, y, width - 40, 13, offer.Possible ? new Color(Dim, 0.95f) : Orange, 18) + 6;
+				PolicyButton(card, key, "Hauptquartier gründen", 20, y, MathF.Min(320f, width - 40), confirm: true);
+				y += 64;
+			}
 		}
 		if (_policyMsg.Length > 0) { y = WrappedText(card, _policyMsg, 20, y, width - 40, 13, Green, 18) + 6; }
 		h = MathF.Max(h, y + 12f);

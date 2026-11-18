@@ -46,7 +46,10 @@ public sealed class UpkeepSystem : ISimSystem
                 if (type.Government != GovernmentKind.None && stUpkeep > 0f)
                 {
                     var cur = official.GetValueOrDefault(st.Owner.Value);
-                    if (u.Actors.TryGetValue(st.Owner, out var owner) && owner.Treasury.Credits >= stUpkeep)
+                    // Eigenes Hauptquartier: Regierungsstationen des Spielers buchen immer aus der Spielerkasse, notfalls ins Minus (sonst hielt eine leere
+                    // Kasse Behörde und Hauptquartier umsonst); KI-Fraktionen unverändert
+                    if (u.Actors.TryGetValue(st.Owner, out var owner)
+                        && (owner.Treasury.Credits >= stUpkeep || (st.Owner == u.PlayerActor && u.Rules.PlayerGovernmentDebt)))
                     {
                         owner.Treasury.Credits -= stUpkeep;
                         official[st.Owner.Value] = (cur.paid + stUpkeep, cur.unpaid);

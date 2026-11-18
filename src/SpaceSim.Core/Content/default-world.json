@@ -7,6 +7,8 @@
   "aiTributePeace": true,
   "alliancesActive": true,
   "playerSeats": true,
+  "playerHq": true,
+  "playerGovernmentDebt": true,
   "crimeStandingLoss": { "smuggling": 0.04, "toll_evasion": 0.02, "piracy": 0.1, "assault": 0.1, "assault_station": 0.15, "assault_gate": 0.15, "kill": 0.05 },
   "crimeStandingCapPerDay": 0.3,
   "crimeStandingRecoveryPerDay": 0.02,

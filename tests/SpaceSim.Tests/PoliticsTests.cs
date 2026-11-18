@@ -668,7 +668,10 @@ public class PoliticsTests
         var u = TestWorlds.Classic();
         var v12 = ToV12Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":12", v12);
-        Assert.DoesNotContain("headquarters", v12);
+        // Eigenes Hauptquartier: die gespeicherte Regel PlayerHqType enthält das Wort „headquarters“ — geprüft wird, dass kein Stationstyp/keine Station es trägt
+        Assert.DoesNotContain("\"Key\":\"headquarters\"", v12);
+        Assert.DoesNotContain("\"Type\":\"headquarters\"", v12);
+        Assert.Contains("\"Key\":\"headquarters\"", SaveGameJson.Write(u, Now));   // Gegenprobe: das Muster trifft den unveränderten Stand
         Assert.DoesNotContain("MainRoute", v12);
         var (loaded, _) = SaveGameJson.Read(v12);
         Assert.Equal(4, loaded.Stations.Values.Count(s => StationProtection.IsOfficial(loaded, s) && StationProtection.KindOf(loaded, s) != GovernmentKind.Research));   // Phase 13: Forschungsstationen zählen extra

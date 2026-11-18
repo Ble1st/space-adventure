@@ -393,6 +393,8 @@ public sealed record AllyJoinedWar(FactionId Ally, FactionId Defender, FactionId
 public sealed record TributePeace(FactionId Payer, FactionId Winner, float Amount, float Demanded, string Message) : SimEvent;
 /// <summary>Runde 45: die Spielerfraktion hat eine Sektorbehörde gegründet (Kosten aus der Spielerkasse, Senke).</summary>
 public sealed record PlayerSeatFounded(StationId Station, SectorId Sector, float Cost) : SimEvent;
+/// <summary>Eigenes Hauptquartier: die Spielerfraktion hat ihr Hauptquartier gegründet (Kosten aus der Spielerkasse, Senke).</summary>
+public sealed record PlayerHqFounded(StationId Station, SectorId Sector, float Cost) : SimEvent;
 
 // ───────── Runde 41: Aufträge ─────────
 /// <summary>Runde 41: neues Auftragsangebot (Comms-Kanal → Posteingang); nie aus <c>Universe.Rng</c>, Angebote sind nicht gehasht.</summary>
