@@ -106,6 +106,8 @@ public sealed class Actor
     public long LastOutpostTick;
     /// <summary>Phase 28 (Prüfung Phase 27): bis zu diesem Tick kündigt die Polizei keine neue Festnahme an (nach Flucht, Ergeben oder Ende eines Polizeigefechts); 0 = keine Sperre.</summary>
     public long ArrestCooldownUntil;
+    /// <summary>Spielersperre: durch Verbrechen verlorenes Ansehen je KI-Fraktion (nur beim Spielerakteur). Gespeichert, gehasht wenn vorhanden.</summary>
+    public Dictionary<FactionId, CrimeStandingRecord> CrimeStanding = new();
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>
     public bool IsFaction(Universe u) => u.Factions.ContainsKey(new FactionId(Id.Value));
     /// <summary>Runde 38: ist der Akteur eine KI-Fraktion (Fraktion, aber nicht der Spieler)? Die KI-Fraktionsregeln (Rücklage, Mindestbestand, Kleinstationen) fragen dies.</summary>

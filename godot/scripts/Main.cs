@@ -1004,6 +1004,8 @@ public partial class Main : Node3D
 	internal string? LastDepartureMessage { get; private set; }
 	/// <summary>Phase 24: letzter Gefechtshinweis im Spielersektor (Selbsttest).</summary>
 	internal string? LastCombatMessage { get; private set; }
+	/// <summary>Spielersperre: Ansehensverlust des letzten gemeldeten Verbrechens (Selbsttest).</summary>
+	internal float LastCrimeToast { get; private set; }
 	/// <summary>Phase 27: letzte Meldung des Flottenkampfs (Verstärkung, Zuflucht, Verfolgung, Geleit) — Selbsttest.</summary>
 	internal string? LastFleetMessage { get; private set; }
 	/// <summary>Phase 25: letzte Verlustmeldung des aktiven Schiffs (Selbsttest).</summary>
@@ -1215,7 +1217,10 @@ public partial class Main : Node3D
 			case CombatExited cx when SpaceSim.Core.Ui.MessageRules.EnemyExit(_session.U, cx) is { } exitMsg:
 				_hud.Toast(exitMsg, 3.5f); LastCombatMessage = exitMsg; LastEnemyExit = exitMsg; break;
 			case CrimeReported cr when cr.Actor == _session.U.PlayerActor:
-				_hud.Toast($"Fahndung bei {(_session.U.Factions.TryGetValue(cr.Faction, out var cf) ? cf.Name : "?")}: {SecurityNames.WantedLevel(cr.Level)} ({SecurityNames.Crime(cr.Crime)})", 4.5f); break;
+				// Spielersperre: spürbarer Ansehensverlust steht mit im Hinweis (Sperren folgen der Beziehung)
+				_hud.Toast($"Fahndung bei {(_session.U.Factions.TryGetValue(cr.Faction, out var cf) ? cf.Name : "?")}: {SecurityNames.WantedLevel(cr.Level)} ({SecurityNames.Crime(cr.Crime)})"
+					+ (cr.StandingLoss >= 0.01f ? $" · Beziehung −{SpaceSim.Core.Simulation.CrimeStanding.Num(cr.StandingLoss)}" : ""), 4.5f);
+				LastCrimeToast = cr.StandingLoss; break;
 		}
 	}
 

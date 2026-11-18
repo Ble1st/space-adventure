@@ -145,6 +145,9 @@ public static class UniverseHash
             if (a.ArrestCooldownUntil != 0) Mix((ulong)a.ArrestCooldownUntil + 0x2802u);   // Phase 28: Festnahme-Sperre
             foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }
             foreach (var (f, c) in a.BountyClaims.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(c); }
+            if (includePlayerPolitics)   // Spielersperre: Ansehensschuld des Spielers (Spielerpolitik; nur wenn vorhanden)
+                foreach (var (f, c) in a.CrimeStanding.OrderBy(k => k.Key.Value))
+                { Mix((ulong)f.Value + 0x5e11u); MixF(c.Debt); MixF(c.Base); Mix((ulong)c.WindowStart); MixF(c.WindowLoss); }
         }
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
         { Mix((ulong)sh.Id.Value); Mix((ulong)sh.HomeBase.Value); Mix((ulong)sh.DutySector.Value); MixF(sh.Hull); }   // Hülle: Überfälle, Rückzug

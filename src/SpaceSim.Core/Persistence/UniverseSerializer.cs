@@ -142,6 +142,11 @@ public static class UniverseSerializer
                 BountyClaims = a.BountyClaims.Count == 0 ? null : a.BountyClaims.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick, LastOutpostTick = a.LastOutpostTick,
                 ArrestCooldownUntil = a.ArrestCooldownUntil,
+                CrimeStanding = a.CrimeStanding.Count == 0 ? null : a.CrimeStanding.OrderBy(kv => kv.Key.Value).Select(kv => new CrimeStandingSave
+                {
+                    Faction = kv.Key.Value, Debt = kv.Value.Debt, Base = kv.Value.Base, WindowStart = kv.Value.WindowStart, WindowLoss = kv.Value.WindowLoss,
+                    Reason = kv.Value.LastReason, LastTick = kv.Value.LastTick, LastLoss = kv.Value.LastLoss,
+                }).ToList(),
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
@@ -453,6 +458,11 @@ public static class UniverseSerializer
                 BountyClaims = a.BountyClaims is null ? new Dictionary<FactionId, float>() : a.BountyClaims.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
                 LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick, LastOutpostTick = a.LastOutpostTick,
                 ArrestCooldownUntil = a.ArrestCooldownUntil,
+                CrimeStanding = a.CrimeStanding is null ? new Dictionary<FactionId, CrimeStandingRecord>()
+                    : a.CrimeStanding.ToDictionary(c => new FactionId(c.Faction), c => new CrimeStandingRecord
+                    {
+                        Debt = c.Debt, Base = c.Base, WindowStart = c.WindowStart, WindowLoss = c.WindowLoss, LastReason = c.Reason, LastTick = c.LastTick, LastLoss = c.LastLoss,
+                    }),
             };
         if (s.Encounters is not null)
             foreach (var e in s.Encounters)

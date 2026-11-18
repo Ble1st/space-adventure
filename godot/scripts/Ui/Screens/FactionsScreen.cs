@@ -162,7 +162,14 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			string line = war ? $"{TestWar} · {viable}" : string.Join(" · ", new[] { TestViability, TestWar }.Where(x => x.Length > 0));
 			At(det, Text(line, 12, war ? Red : TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
 		}
-		if (TestAlliance.Length > 0) At(det, Text(TestAlliance, 12, allies.Count > 0 ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 560, 16);
+		// Spielersperre: warum die Beziehung zu dir gefallen ist (letztes Verbrechen, offene Ansehensschuld) — in der Bündniszeile, kein neuer Platz nötig
+		TestCrimeStanding = isFaction && !isMe ? CrimeStanding.Text(u, new FactionId(sel.Value)) ?? "" : "";
+		if (TestCrimeStanding.Length > 0)
+		{
+			At(det, Text(TestAlliance, 12, allies.Count > 0 ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 230, 16);
+			At(det, Text(TestCrimeStanding, 12, Orange), 252, ry + 38, 326, 16);
+		}
+		else if (TestAlliance.Length > 0) At(det, Text(TestAlliance, 12, allies.Count > 0 ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 560, 16);
 
 		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte). Runde 38: die eigene Fraktion hat keine (der Spieler entscheidet selbst)
 		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 194, 280, 22);
@@ -275,6 +282,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// <summary>Selbsttest: zuletzt gezeigte Handlungsfähigkeit (Phase 22; leer für Akteure ohne Invarianten).</summary>
 	/// <summary>Runde 45, Selbsttest: Bündniszeile der gewählten Fraktion.</summary>
 	public string TestAlliance { get; private set; } = "";
+	/// <summary>Spielersperre (Selbsttest): Ansehenszeile der gewählten Fraktion („Ansehen −0,35 durch Angriff …“) oder leer.</summary>
+	public string TestCrimeStanding { get; private set; } = "";
 	/// <summary>Selbsttest Phase 28: Kriegslage der gewählten Fraktion („Frieden“ / „Krieg mit …“).</summary>
 	public string TestWar { get; private set; } = "";
 	public string TestViability { get; private set; } = "";

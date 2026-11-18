@@ -93,6 +93,19 @@ if (opts.TryGetValue("playerwar", out var pwOpt))
     var pwp = pwOpt.Split('@');
     playerWar = (int.Parse(pwp[0], CultureInfo.InvariantCulture), long.Parse(pwp[1], CultureInfo.InvariantCulture) / 20 * 20);
 }
+// Spielersperre: Testtreiber --playercrime F:art[*n]@tick,... — der Spieler begeht zum Tick n Verbrechen der Art bei Fraktion F
+// (art = Schlüssel wie smuggling/toll_evasion/assault/assault_station/assault_gate; „kill“ = Angriff mit Abschuss). Kennzahlen am Ende.
+var crimeDriver = new List<(int Faction, string Kind, int Count, long Tick)>();
+if (opts.TryGetValue("playercrime", out var pcOpt))
+    foreach (var part in pcOpt.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        var at = part.Split('@'); var fk = at[0].Split(':'); var kn = fk[1].Split('*');
+        crimeDriver.Add((int.Parse(fk[0], CultureInfo.InvariantCulture), kn[0], kn.Length > 1 ? int.Parse(kn[1], CultureInfo.InvariantCulture) : 1, long.Parse(at[1], CultureInfo.InvariantCulture) / 20 * 20));
+    }
+var crimeLog = new List<string>();
+double crimeStandingLoss = 0, crimeStandingRecovered = 0, tollsAtFirstCrime = -1, tollsAtFirstLock = -1;
+long firstCrimeTick = -1, firstPlayerLockTick = -1;
+int maxPlayerLock = 0;
 // Runde 45: Testtreiber --aiwar A:B@tick (KI A erklärt KI B den Krieg, ohne Kriegsgrund) und --alliance A:B@tick (Beziehung beider auf 0,7, Bündnis)
 (int A, int B, long Tick)? aiWarDriver = null, allianceDriver = null;
 static (int, int, long) ParsePairAt(string s) { var at = s.Split('@'); var ab = at[0].Split(':'); return (int.Parse(ab[0], CultureInfo.InvariantCulture), int.Parse(ab[1], CultureInfo.InvariantCulture), long.Parse(at[1], CultureInfo.InvariantCulture) / 20 * 20); }
@@ -426,6 +439,7 @@ u.Events.Raised += e =>
             warsDeclared++;
             warLog.Add($"Tick {u.Tick}: {wd.Message} (Beziehung {wd.Relation:0.00})");
             if (u.IsPlayerFaction(wd.A) || u.IsPlayerFaction(wd.B)) playerWarLog.Add($"Tick {u.Tick}: {wd.Message}");
+            if (crimeDriver.Count > 0 && (u.IsPlayerFaction(wd.A) || u.IsPlayerFaction(wd.B))) crimeLog.Add($"Tick {u.Tick}: {wd.Message}");   // Spielersperre
             break;
         case AllianceFormed af: allianceLog.Add($"Tick {u.Tick}: {af.Message}"); break;
         case AllianceDissolved ad: allianceLog.Add($"Tick {u.Tick}: {ad.Message}"); break;
@@ -436,7 +450,20 @@ u.Events.Raised += e =>
             if (allianceDriver is not null || aiWarDriver is not null) allianceLog.Add($"Tick {u.Tick}: {pc.Message}");   // Runde 45: Testtreiber — Friedensschlüsse mit Tick
             if (u.IsPlayerFaction(pc.A) || u.IsPlayerFaction(pc.B)) playerPeace = $"Frieden bei Tick {u.Tick} ({pc.Reason})";
             break;
-        case SectorAccessChanged sac when sac.Against is { } sag && u.IsPlayerFaction(sag) && sac.ToEntry > 0: playerLocks++; break;
+        case SectorAccessChanged sac when sac.Against is { } sag && u.IsPlayerFaction(sag) && sac.ToEntry > 0:
+            playerLocks++;
+            if (crimeDriver.Count > 0)
+            {
+                if (firstPlayerLockTick < 0) { firstPlayerLockTick = u.Tick; tollsAtFirstLock = tolls; }
+                maxPlayerLock = Math.Max(maxPlayerLock, sac.ToEntry);
+                crimeLog.Add($"Tick {u.Tick}: {u.Sectors[sac.Sector].Name} Stufe {sac.ToEntry} gegen dich");
+            }
+            break;
+        case SectorAccessChanged sacEnd when crimeDriver.Count > 0 && sacEnd.ToEntry == 0 && sacEnd.FromEntry > 0:
+            crimeLog.Add($"Tick {u.Tick}: {u.Sectors[sacEnd.Sector].Name} wieder offen");
+            break;
+        case StandingChanged sc when sc.Reason.StartsWith(CrimeStanding.ReasonPrefix, StringComparison.Ordinal): crimeStandingLoss += sc.From - sc.To; break;
+        case StandingChanged sc2 when sc2.Reason is CrimeStanding.RecoveryReason or CrimeStanding.FineReason: crimeStandingRecovered += sc2.To - sc2.From; break;
         case WarshipCommissioned: warshipsBought++; break;
         case WarshipDecommissioned: warshipsGone++; break;
         case TraderBuyRefused br:
@@ -666,6 +693,18 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 if (issue is null) { Wars.PlayerDeclare(u, new FactionId(pw.Faction)); playerWarStarted = u.Tick; }
                 Console.WriteLine($"   Testtreiber: Spielerkrieg gegen {u.Factions.GetValueOrDefault(new FactionId(pw.Faction))?.Name ?? "?"} bei Tick {u.Tick}: {issue ?? "erklärt"}");
             }
+            foreach (var cd in crimeDriver)
+                if (u.Tick == cd.Tick && u.PlayerFaction is not null)
+                {
+                    var cf = new FactionId(cd.Faction);
+                    if (firstCrimeTick < 0) { firstCrimeTick = u.Tick; tollsAtFirstCrime = tolls; }
+                    for (int ci = 0; ci < cd.Count; ci++)
+                    {
+                        Wanted.Report(u, u.PlayerActor, cf, cd.Kind == "kill" ? "assault" : cd.Kind);
+                        if (cd.Kind == "kill") CrimeStanding.Apply(u, u.PlayerActor, cf, "kill");
+                    }
+                    crimeLog.Add($"Tick {u.Tick}: {cd.Count}x {cd.Kind} bei {u.Factions[cf].Name} -> Beziehung {Relations.Effective(u, cf, u.PlayerActor):+0.00;-0.00}, Fahndung {Wanted.LevelOf(u, u.PlayerActor, cf)}");
+                }
             if (allianceDriver is { } ald && u.Tick == ald.Item3)
             {
                 FactionId fa = new(ald.Item1), fb = new(ald.Item2);
@@ -814,6 +853,22 @@ Console.WriteLine($"{ticks} Ticks in {sw.ElapsedMilliseconds} ms ({ticks / Math.
 if (playerWar is not null)
     Console.WriteLine($"Spielerkrieg (Testtreiber): erklärt bei Tick {playerWarStarted}; {(playerPeace.Length > 0 ? playerPeace : "läuft noch")}; Sperränderungen gegen dich {playerLocks}; "
         + $"Sektoren jetzt gegen dich gesperrt: {u.Sectors.Values.Count(x => x.Access.EntryLevel > 0 && x.Access.Against is { } ag && u.IsPlayerFaction(ag))}");
+if (crimeDriver.Count > 0)
+{
+    // Spielersperre: Verlauf, Sperren gegen den Spieler, Zoll der übrigen Welt vor/nach der ersten Sperre, Urteil der Tore für das Spielerschiff
+    Console.WriteLine($"Spielersperre (Testtreiber): erstes Verbrechen Tick {firstCrimeTick}, erste Sperre gegen dich Tick {firstPlayerLockTick}, höchste Stufe {maxPlayerLock}; "
+        + $"Ansehen verloren {crimeStandingLoss:0.00}, erholt {crimeStandingRecovered:0.00}; Zoll gesamt bis 1. Verbrechen {Math.Max(0, tollsAtFirstCrime):0} Cr, bis 1. Sperre {Math.Max(0, tollsAtFirstLock):0} Cr, am Ende {tolls:0} Cr");
+    foreach (var f in crimeDriver.Select(c => c.Faction).Distinct())
+    {
+        var cf = new FactionId(f);
+        var me = u.Ships.GetValueOrDefault(u.PlayerShip);
+        var secs = u.Sectors.Values.Where(x => x.Owner == cf).OrderBy(x => x.Id.Value)
+            .Select(x => $"{x.Name} Stufe {x.Access.Level(AccessDirection.Entry)}" + (me is not null ? $" ({AccessInfo.ForSector(u, x.Id, me).ForPlayer})" : "")).ToList();
+        Console.WriteLine($"   {u.Factions[cf].Name}: Beziehung jetzt {Relations.Effective(u, cf, u.PlayerActor):+0.00;-0.00}, Fahndung {Wanted.LevelOf(u, u.PlayerActor, cf)}, offen {CrimeStanding.Text(u, cf) ?? "-"}; " + string.Join("; ", secs));
+    }
+    foreach (var line in crimeLog.Take(60)) Console.WriteLine("   " + line);
+    if (crimeLog.Count > 60) Console.WriteLine($"   ... {crimeLog.Count - 60} weitere");
+}
 Console.WriteLine($"Hash ohne Spielerpolitik {UniverseHash.Compute(u, includeTags: true, includePlayerPolitics: false):X16} (Runde 38: gleich mit Spielerfraktion an/aus; Spielerbeziehungen {Relations.StoredPlayerEntries(u)})");
 // Phase 17: Rechenzeit je System (Top 5 in % der Laufzeit; der Rest ist Ereignisauswertung, Messpunkte und Messaufwand des Tools)
 {

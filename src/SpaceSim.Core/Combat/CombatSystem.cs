@@ -424,7 +424,7 @@ public sealed class CombatSystem : ISimSystem
                 if (p.Exit != CombatExit.Destroyed || p.Side == 0) continue;
                 if (u.Actors.TryGetValue(p.Owner, out var owner) && owner.Kind == ActorKind.Outlaw && sector is not null)
                     bounty += PayBounty(u, e, p.Owner, sector.Owner, side: 0, p.Ship);
-                else if (sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner)) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }   // Runde 40: Abschuss eines Kriegsgegners ist kein Verbrechen
+                else if (sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner)) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner, kill: true); killed++; }   // Runde 40: Abschuss eines Kriegsgegners ist kein Verbrechen
             }
             msg = e.Loot > 0f ? $"Das Schiff wirft Fracht im Wert von {e.Loot:0} Cr ab — mit dem Traktorstrahl einsammeln."
                 : destroyed > 0 ? "Ziel zerstört." + (bounty > 0f && sector is not null ? Services.CourtService.Hint(u, sector.Id, sector.Owner, bounty) : killed > 0 ? " Die Fahndung steigt." : "")
@@ -436,7 +436,7 @@ public sealed class CombatSystem : ISimSystem
             var st = SiegeTargets.Of(u, e);
             foreach (var p in e.Participants)
                 if (p.Exit == CombatExit.Destroyed && p.Side == 1 && sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner) && e.Participants.Any(q => q.Side == 0 && u.Ships.TryGetValue(q.Ship, out var qs) && qs.IsPlayer))   // Runde 40: kein Verbrechen im Krieg
-                    Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner);
+                    Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner, kill: true);
             bool gateSiege = e.Gate.Value != 0;
             msg = st is null ? "Die Station ist zerstört." : st.IsDown ? (gateSiege ? $"{st.Name} ist außer Betrieb." : $"{st.Name} ist ausgeschaltet.")
                 : st.Defends(e) ? $"Die Angreifer brechen die Belagerung von {st.Name} ab." : $"{st.Name} hat den Besitzer gewechselt.";
@@ -446,7 +446,7 @@ public sealed class CombatSystem : ISimSystem
             // Runde 40: Kriegsgefecht gegen das Spielerschiff — zerstörte Angreifer des Kriegsgegners sind kein Verbrechen (AtWar)
             int killed = 0;
             foreach (var p in e.Participants)
-                if (p.Exit == CombatExit.Destroyed && p.Side == 0 && sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner)) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
+                if (p.Exit == CombatExit.Destroyed && p.Side == 0 && sector is not null && !Wars.AtWar(u, u.PlayerActor, p.Owner)) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner, kill: true); killed++; }
             if (victimP is not null && victimP.Exit != CombatExit.Destroyed) SecuritySystem.ArrestCooldown(u, victimP.Owner);   // keine sofortige neue Kriegs-Warnung
             msg = victimP?.Exit == CombatExit.Destroyed ? "Dein Schiff wurde im Krieg zerstört."
                 : victimP?.Exit == CombatExit.Surrendered ? "Ergeben — im Krieg nicht vorgesehen."
@@ -458,7 +458,7 @@ public sealed class CombatSystem : ISimSystem
             // Phase 27: Polizeigefecht gegen einen gesuchten Spieler — jede zerstörte Streife ist ein weiterer Angriff (Fahndung)
             int killed = 0;
             foreach (var p in e.Participants)
-                if (p.Exit == CombatExit.Destroyed && p.Side == 0 && sector is not null) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner); killed++; }
+                if (p.Exit == CombatExit.Destroyed && p.Side == 0 && sector is not null) { Wanted.ReportAssault(u, u.PlayerActor, sector.Id, p.Owner, kill: true); killed++; }
             if (victimP is not null && victimP.Exit != CombatExit.Destroyed) SecuritySystem.ArrestCooldown(u, victimP.Owner);   // Phase 28: keine sofortige neue Festnahme
             msg = victimP?.Exit == CombatExit.Destroyed ? "Die Polizei hat dein Schiff zerstört."
                 : victimP?.Exit == CombatExit.Surrendered ? "Du hast dich der Polizei ergeben."

@@ -14,6 +14,22 @@ public sealed class WantedRecord
     public string LastCrime = "";
 }
 
+/// <summary>
+/// Spielersperre: durch Verbrechen verlorenes Ansehen des Spielers bei einer KI-Fraktion (<see cref="Simulation.CrimeStanding"/>). <see cref="Debt"/> =
+/// noch nicht zurückgewonnener Verlust, <see cref="Base"/> = Beziehung vor dem ersten Verlust dieser Schuld (Erholungsziel), Tagesfenster für den Deckel,
+/// letzter Grund für die Anzeige. Gespeichert, gehasht (Spielerpolitik).
+/// </summary>
+public sealed class CrimeStandingRecord
+{
+    public float Debt;
+    public float Base;
+    public long WindowStart;
+    public float WindowLoss;
+    public string LastReason = "";
+    public long LastTick;
+    public float LastLoss;
+}
+
 /// <summary>Art einer angekündigten Begegnung mit dem Spieler (Vorwarnung, dann Auflösung). Runde 40: <see cref="War"/> = Polizei/Kriegsschiffe einer Kriegsfraktion stellen das Spielerschiff in ihrem Gebiet (kein Ergeben gegen Geld).</summary>
 public enum EncounterKind { Raid, Intercept, War }
 
@@ -71,6 +87,8 @@ public static class SecurityNames
         "piracy" => "Piraterie",
         "assault" => "Angriff",
         "assault_station" => "Angriff im Stationsschutz",
+        "assault_gate" => "Angriff auf ein Tor",
+        "kill" => "Abschuss",
         "" => "–",
         _ => key,
     };

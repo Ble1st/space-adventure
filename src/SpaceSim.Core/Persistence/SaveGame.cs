@@ -162,6 +162,16 @@ public sealed class ActorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastOutpostTick { get; set; }
     /// <summary>Phase 28 (additiv): Festnahme-Sperre bis zu diesem Tick; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ArrestCooldownUntil { get; set; }
+    /// <summary>Spielersperre (additiv): durch Verbrechen verlorenes Ansehen je Fraktion; fehlt = keins.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CrimeStandingSave>? CrimeStanding { get; set; }
+}
+
+/// <summary>Spielersperre: <see cref="Model.CrimeStandingRecord"/>.</summary>
+public sealed class CrimeStandingSave
+{
+    public int Faction { get; set; } public float Debt { get; set; } public float Base { get; set; }
+    public long WindowStart { get; set; } public float WindowLoss { get; set; }
+    public string Reason { get; set; } = ""; public long LastTick { get; set; } public float LastLoss { get; set; }
 }
 
 /// <summary>Phase 28: Krieg zwischen zwei Fraktionen.</summary>

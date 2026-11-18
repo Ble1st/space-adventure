@@ -79,6 +79,7 @@ public sealed class CourtService : IStationService
             u.Events.Publish(new TreasuryIncome(authority.Id, "fine", fine));
         }
         Wanted.SetHeat(u, actor, faction, 0f, 0f);
+        CrimeStanding.OnFinePaid(u, actor.Id, faction);   // Spielersperre: bezahlte Strafe gibt etwas Ansehen zurück
         u.Events.Publish(new FinePaid(actor.Id, faction, fine));
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Pay, default, 1f, -fine));
         string name = u.Factions.TryGetValue(faction, out var fac) ? fac.Name : "Fraktion";

@@ -94,6 +94,7 @@ public sealed class FineAction : ICommsAction
             u.Events.Publish(new TreasuryIncome(authority.Id, "fine", cost));
         }
         Wanted.SetHeat(u, me, f, 0f, 0f);
+        CrimeStanding.OnFinePaid(u, me.Id, f);   // Spielersperre
         u.Events.Publish(new FinePaid(u.PlayerActor, f, cost));
         string msg = $"Strafe {cost:0} Cr an {CommsHelp.FactionName(u, f)} gezahlt — Fahndung gelöscht.";
         u.Events.Publish(new CommsActionPerformed(KeyId, f.Value, -cost, msg));

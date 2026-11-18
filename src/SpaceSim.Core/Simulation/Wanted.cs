@@ -53,7 +53,8 @@ public static class Wanted
         w.LastCrimeTick = u.Tick;
         w.LastCrime = crime;
         int after = Level(r, w.Heat);
-        u.Events.Publish(new CrimeReported(actor, faction, crime, w.Heat, after));
+        float standing = CrimeStanding.Apply(u, actor, faction, crime);   // Spielersperre: Verbrechen des Spielers senken auch sein Ansehen
+        u.Events.Publish(new CrimeReported(actor, faction, crime, w.Heat, after, standing));
         if (after != before) u.Events.Publish(new WantedChanged(actor, faction, before, after));
     }
 
@@ -90,10 +91,15 @@ public static class Wanted
     }
 
     /// <summary>Phase 25 (Korrektur): meldet einen Angriff bei allen zuständigen Fraktionen (<see cref="AssaultAuthorities"/>). Liefert die Fraktionen.</summary>
-    public static List<FactionId> ReportAssault(Universe u, ActorId actor, SectorId sector, ActorId victimOwner, string crime = "assault")
+    /// Spielersperre: <paramref name="kill"/> = das Opfer wurde zerstört — zusätzlicher Ansehensverlust „kill“ (<see cref="CrimeStanding"/>).
+    public static List<FactionId> ReportAssault(Universe u, ActorId actor, SectorId sector, ActorId victimOwner, string crime = "assault", bool kill = false)
     {
         var list = AssaultAuthorities(u, sector, victimOwner);
-        foreach (var f in list) Report(u, actor, f, crime);
+        foreach (var f in list)
+        {
+            Report(u, actor, f, crime);
+            if (kill) CrimeStanding.Apply(u, actor, f, "kill");
+        }
         return list;
     }
 
@@ -132,5 +138,5 @@ public static class Wanted
 /// <summary>Verfall der Fahndung (Phase 11; selten, Intervall).</summary>
 public sealed class WantedSystem : ISimSystem
 {
-    public void Step(Universe u, int dt) => Wanted.Decay(u, dt);
+    public void Step(Universe u, int dt) { Wanted.Decay(u, dt); CrimeStanding.Recover(u, dt); }   // Spielersperre: Erholung des Ansehens
 }

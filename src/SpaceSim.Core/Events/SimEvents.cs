@@ -164,7 +164,7 @@ public sealed record EncounterEscaped(EncounterKind Kind, ShipId Source, ShipId 
 /// <summary>Die Polizei hat den Spieler gestellt (Fahndungsstufe „gesucht“): Strafe eingezogen, Schmuggelware beschlagnahmt.</summary>
 public sealed record PlayerIntercepted(SectorId Sector, FactionId Faction, float FineCollected, float SeizedUnits, string Message) : SimEvent;
 /// <summary>Ein Verbrechen wurde gemeldet (Fahndung steigt): Akteur, Fraktion (Hoheitsgebiet), Verbrechen, neue Heat und Stufe.</summary>
-public sealed record CrimeReported(ActorId Actor, FactionId Faction, string Crime, float Heat, int Level) : SimEvent;
+public sealed record CrimeReported(ActorId Actor, FactionId Faction, string Crime, float Heat, int Level, float StandingLoss = 0f) : SimEvent;   // Spielersperre: Ansehensverlust
 /// <summary>Fahndungsstufe eines Akteurs bei einer Fraktion hat sich geändert (Verbrechen, Verfall, Strafe bezahlt).</summary>
 public sealed record WantedChanged(ActorId Actor, FactionId Faction, int From, int To) : SimEvent;
 /// <summary>Strafe am Gericht bezahlt (in die Kasse der Fraktion).</summary>
