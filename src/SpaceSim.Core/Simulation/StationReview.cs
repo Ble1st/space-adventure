@@ -53,7 +53,7 @@ public static class StationReview
 
     /// <summary>Darf die Regel diese Station überhaupt prüfen? Fertig, mit Rezepten, nicht geschützt, keine Regierungs-/Export-/Endverbraucherstation, kein Versteck.</summary>
     public static bool Reviewable(Universe u, Station st) =>
-        !st.IsBuildSite && st.Production.Count > 0 && !st.BankruptcyProtected && !st.Immortal
+        !st.IsBuildSite && st.Production.Count > 0 && !st.BankruptcyProtected && !st.Immortal && st.Owner != u.PlayerActor   // Kapitulation: Spielerbesitz verfällt nicht
         && !StationProtection.IsOfficial(u, st) && !StationProtection.IsHideout(u, st)
         && ExportRules.ConfigOf(u, st) is null && !MarketSystem.IsFinalConsumer(st);
 

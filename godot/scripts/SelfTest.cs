@@ -2737,6 +2737,7 @@ public partial class SelfTest : Node
 			case 130: if (JumpCloakStage(_frame - _stageStart)) Next(); break;   // Sprungantrieb und Tarnfeld: „Tarnung“ an/aus per Tipp (durchsichtig), „Sprung“ → Karte → Sektor antippen → Laden → Ankunft, Abklingen (SelfTest.JumpCloak.cs)
 			case 131: if (InputStage(_frame - _stageStart)) Next(); break;   // Geräte-Eingabe (Handytest A15): ein Tipp = ein Umschalten, Autopilot hält trotz fremder Berührungen, Regler nur per eigenem Finger, Karte/Menü im ganzen Rechteck (SelfTest.Input.cs)
 			case 132: if (SpielersperreStage(_frame - _stageStart)) Next(); break;   // Spielersperre: Verbrechen senken das Ansehen — Hinweis und Fraktionen-Detail (SelfTest.Spielersperre.cs)
+			case 140: if (CapitulationStage(_frame - _stageStart)) Next(); break;   // Kapitulation: Kriegstest, „Station angreifen“ per zwei Tipps, Station kapituliert (Chance erzwungen), Andocken an der eigenen Station (SelfTest.Capitulation.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
@@ -2752,7 +2753,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 132;
+	const int LastStage = 140;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;
 	float _p6Hp; long _p6Tick; List<SpaceSim.Core.Events.SimEvent>? _p6Events;
 	/// <summary>Phase 28: Stufen 73–76.</summary>

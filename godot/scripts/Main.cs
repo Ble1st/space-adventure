@@ -1133,8 +1133,23 @@ public partial class Main : Node3D
 				if (mr.Target == _session.U.PlayerShip) { _hud.Flash(new Color(1f, 0.3f, 0.4f), 0.3f); _sfx.Play(SfxId.Hit); }
 				break;
 			case StationFell fell:
-				LastWarMessage = fell.How switch { "destroyed" => $"{fell.Name} wurde zerstört.", "captured" => $"{fell.Name} wurde erobert.", _ => $"{fell.Name} ist ausgeschaltet." };
+				LastWarMessage = fell.How switch
+				{
+					"destroyed" => $"{fell.Name} wurde zerstört.",
+					"captured" => $"{fell.Name} wurde erobert.",
+					// Kapitulation (docs/KAMPF.md): die Station gibt auf — Besitz beim Angreifer, das Gefecht endet
+					"capitulated" when fell.Attacker == _session.U.PlayerActor => $"{fell.Name} kapituliert — die Station gehört jetzt dir. Andocken möglich.",
+					"capitulated" => $"{fell.Name} kapituliert vor {_session.U.ActorName(fell.Attacker)}.",
+					_ => $"{fell.Name} ist ausgeschaltet.",
+				};
+				if (fell.How == "capitulated" && _fight.StationTarget == fell.Station) { _fight.ArmStation(default); _fight.AutoFire = false; }
 				if (fell.Sector == _session.U.PlayerSector) _hud.Alert(LastWarMessage, 6f); else _hud.Info(LastWarMessage, 3f);
+				break;
+			case StationCapitulationRolled cr when !cr.Capitulated && cr.Taker == _session.U.PlayerActor:
+				_hud.Info($"{cr.Name} hält stand (Kapitulation {cr.Chance * 100f:0} % verfehlt) — bei Hülle 0 wird sie zerstört.", 4f);
+				break;
+			case SeatRelocated seat:
+				_hud.Info($"{_session.U.ActorName((ActorId)seat.Faction)} verlegt ihren Sitz nach {(_session.U.Sectors.TryGetValue(seat.Sector, out var seatSec) ? seatSec.Name : "?")}.", 4f);
 				break;
 			case WarDeclared wd: LastWarMessage = wd.Message; _hud.Alert(wd.Message, 8f); _music.Sting("sting_war", Now); break;
 			case PeaceConcluded pc: LastWarMessage = pc.Message; _hud.Alert(pc.Message, 6f); _music.Sting("sting_peace", Now); break;
@@ -3019,8 +3034,20 @@ public partial class Main : Node3D
 		_fight.AutoFire = true;
 		EnableAimAssist();
 		_hud.Toast($"Angriff auf {st.Name}: Dauerfeuer an — „Ziel folgen“ fliegt auf Reichweite deiner Geschütze heran und hält (Regler übersteuert). Fahndung und Gegenwehr folgen."
-			+ (hopeless ? $" {SpaceSim.Core.Combat.WarInfo.SiegeOddsText(_session.U, st, PlayerData)}!" : ""), 5f);
+			+ (hopeless ? $" {SpaceSim.Core.Combat.WarInfo.SiegeOddsText(_session.U, st, PlayerData)}!" : "") + " " + CapitulationHint(st), 5f);
 	}
+
+	/// <summary>Kapitulation (docs/KAMPF.md): Hinweis beim Angriff — ab welcher Hülle die Station aufgeben kann, sonst wird sie bei 0 zerstört.</summary>
+	string CapitulationHint(Station st)
+	{
+		var u = _session.U;
+		if (!u.Rules.StationCapitulation) return "";
+		if (SpaceSim.Core.Combat.Capitulation.IsPirate(u, st)) return "Piratenstation — kapituliert nie.";
+		return SpaceSim.Core.Combat.Capitulation.Next(u, st, u.PlayerActor) is { } next
+			? $"Kapitulation möglich ab {next.Threshold * 100f:0} % Hülle (Chance ≈ {next.Chance * 100f:0} %), sonst bei 0 zerstört."
+			: "Bei Hülle 0 wird die Station zerstört.";
+	}
+	internal string TestCapitulationHint(StationId id) => _session.U.Stations.TryGetValue(id, out var st) ? CapitulationHint(st) : "";
 
 	/// <summary>
 	/// Phase 31: „Tor angreifen“ bestätigt — die Waffen schießen auf das gewählte Tor (schweres Verbrechen bei beiden Endfraktionen; fällt es aus, ist es

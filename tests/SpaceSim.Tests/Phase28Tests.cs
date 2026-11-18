@@ -415,6 +415,7 @@ public class Phase28Tests
     public void Belagerung_RegierungsstationWirdAusgeschaltet_NieZerstoert_UndRepariertSichWieder()
     {
         var u = Standard();
+        u.Rules.StationCapitulation = false;   // prüft die Phase-28-Regel (Regierungsstation nur ausgeschaltet); Kapitulation/Zerstörung: KapitulationTests
         var hq = u.StationsById().First(x => x.TypeKey == "sector_hq" && u.FactionOf(x) == Guild && x.Sector != u.PlayerSector);
         var (ship, st) = SiegeSetup(u, hq);
         st.Condition = new StationCondition { HullMissing = StationCombat.MaxHull(u, st) - 40f, ShieldMissing = StationCombat.MaxShield(u, st) };
@@ -448,6 +449,7 @@ public class Phase28Tests
     public void Eroberung_NurMitRegel_BesitzerWechselt()
     {
         var u = Standard();
+        u.Rules.StationCapitulation = false;   // prüft die Phase-28-Regel (Regierungsstation nur ausgeschaltet); Kapitulation/Zerstörung: KapitulationTests
         u.Rules.AllowStationCapture = true;
         var (ship, st) = SiegeSetup(u, GuildEconomicStation(u));
         st.Condition = new StationCondition { HullMissing = StationCombat.MaxHull(u, st) - 60f };
@@ -1304,6 +1306,7 @@ public class Phase28Tests
     public void Startpaket_Kriegstest_MitVerbandSchaffbar()
     {
         var u = Standard(start: "war");
+        u.Rules.StationCapitulation = false;   // prüft die Phase-28-Regel (Regierungsstation nur ausgeschaltet); Kapitulation/Zerstörung: KapitulationTests
         var me = u.Ships[u.PlayerShip];
         Assert.Equal("bastion", me.ModelKey);
         var sq = Squadrons.Get(u, me);
@@ -1550,6 +1553,7 @@ public class Phase28Tests
     public void Belagerung_StationAus_SiegmeldungUndKeinSchildAusgeschaltet()
     {
         var u = Standard(start: "war");
+        u.Rules.StationCapitulation = false;   // prüft die Phase-28-Regel (Regierungsstation nur ausgeschaltet); Kapitulation/Zerstörung: KapitulationTests
         var me = u.Ships[u.PlayerShip];
         var hq = u.Stations.Values.First(x => x.Name == "Sektor-HQ Beta");
         var runner = new SimulationRunner();

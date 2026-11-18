@@ -74,6 +74,9 @@ if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
 if (opts.TryGetValue("blackmarket", out var bmOpt)) u.Rules.BlackMarket = bmOpt == "on";
 if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc = bmnOpt == "on";   // Schwarzmarkt NPC: gesetzlose KI-Schiffe beim Hehler (Vergleichsläufe)   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
+// Kapitulation: --capitulation off = Phase-28-Regel (Regierungsstationen nur ausgeschaltet, keine Übernahme), --aicapture off = nur der Spieler übernimmt
+if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulation = capOpt == "on";
+if (opts.TryGetValue("aicapture", out var aicOpt)) u.Rules.AiStationCapture = aicOpt == "on";
 // Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
 if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
 if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
@@ -412,6 +415,8 @@ if (probeBroke)
 // Phase 28: Raketen, Stationsgeschütze, Belagerungen, Krieg, Kriegsschiffe; dazu die Piratenkassen nach Zweck (Prüfpunkt e)
 var missileOutcomes = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var stationFalls = new SortedDictionary<string, int>(StringComparer.Ordinal);
+var fallLog = new List<string>();   // Kapitulation: zerstörte/übernommene Stationen und Not-Sitze mit Tick
+int capRolls = 0, capYes = 0, seatsRelocated = 0; double capChanceSum = 0;
 var peaceReasons = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var pirateIn = new SortedDictionary<string, double>(StringComparer.Ordinal);
 var pirateOut = new SortedDictionary<string, double>(StringComparer.Ordinal);
@@ -434,7 +439,12 @@ u.Events.Raised += e =>
         case StationShot ss: stationShots++; if (ss.Hit) { stationHits++; stationGunDmg += ss.ShieldDamage + ss.HullDamage; } break;
         case ShotAtStation sa: shotsAtStations++; stationHullDmg += sa.HullDamage; break;
         case SiegeStarted: sieges++; break;
-        case StationFell sf: stationFalls[sf.How] = stationFalls.GetValueOrDefault(sf.How) + 1; break;
+        case StationFell sf:
+            stationFalls[sf.How] = stationFalls.GetValueOrDefault(sf.How) + 1;
+            if (sf.How is "destroyed" or "capitulated") fallLog.Add($"Tick {u.Tick}: {sf.Name} ({u.ActorName(sf.OldOwner)}) {(sf.How == "destroyed" ? "zerstört" : "kapituliert vor " + u.ActorName(sf.Attacker))}");
+            break;
+        case StationCapitulationRolled cr: capRolls++; if (cr.Capitulated) capYes++; capChanceSum += cr.Chance; break;
+        case SeatRelocated sr2: seatsRelocated++; fallLog.Add($"Tick {u.Tick}: Not-Sitz für {u.ActorName((ActorId)sr2.Faction)} ({sr2.Paid:0} Cr bezahlt, {sr2.Waived:0} erlassen)"); break;
         case StationRepaired sr: stationRepairs++; stationRepairHull += sr.Hull; stationRepairPlates += sr.Plates; stationRepairCost += sr.Cost; break;
         case WarDeclared wd:
             warsDeclared++;
@@ -1075,6 +1085,9 @@ if (u.Modules.Count > 0)
         + $"Stationsgeschütze {stationShots} Schüsse ({stationHits} Treffer, Schaden {stationGunDmg:0}); Schüsse auf Stationen {shotsAtStations}, Hüllenschaden an Stationen {stationHullDmg:0}; "
         + $"Belagerungen {sieges}; Stationen gefallen {(stationFalls.Count == 0 ? "keine" : string.Join(", ", stationFalls.Select(kv => $"{kv.Key} {kv.Value}")))}; "
         + $"beschädigt jetzt {u.Stations.Values.Count(x => x.Condition is not null)}; Reparaturen {stationRepairs} ({stationRepairHull:0} Hülle, {stationRepairPlates:0.#} Hüllenplatten, {stationRepairCost:0} Cr)");
+    Console.WriteLine($"Kapitulation ({(u.Rules.StationCapitulation ? "an" : "aus")}, KI übernimmt {(u.Rules.AiStationCapture ? "ja" : "nein")}): Würfe {capRolls}, kapituliert {capYes}"
+        + $"{(capRolls > 0 ? $" (Ø Chance {capChanceSum / capRolls:0.00})" : "")}; Not-Sitze {seatsRelocated}"
+        + (fallLog.Count == 0 ? "" : " | " + string.Join(" | ", fallLog.Take(30))));
     {
         // Phase 30: Kleinstationen
         var small = u.Stations.Values.Where(x => !x.IsBuildSite && Outposts.IsOutpost(u, x)).ToList();

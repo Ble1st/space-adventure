@@ -352,8 +352,15 @@ public sealed record SiegeWithdrawn(int Encounter, StationId Station, ShipId Pla
 public sealed record StationShot(int Encounter, SectorId Sector, StationId Station, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Gun = -1) : SimEvent;
 /// <summary>Phase 28: Ein Schiff hat auf eine Station geschossen.</summary>
 public sealed record ShotAtStation(int Encounter, SectorId Sector, ShipId Shooter, StationId Station, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Slot = -1) : SimEvent;
-/// <summary>Phase 28: Eine Station ist gefallen — <paramref name="How"/> „destroyed“ (über <see cref="SpaceSim.Core.Simulation.Departures"/>), „captured“ (Besitzer wechselt) oder „disabled“ (Regierung/unzerstörbar: ausgeschaltet).</summary>
+/// <summary>Phase 28: Eine Station ist gefallen — <paramref name="How"/> „destroyed“ (über <see cref="SpaceSim.Core.Simulation.Departures"/>), „captured“ (Besitzer wechselt; Phase 28-Regel), „capitulated“ (Station hat aufgegeben, Besitz beim Angreifer) oder „disabled“ (Regierung/unzerstörbar: ausgeschaltet).</summary>
 public sealed record StationFell(StationId Station, string Name, SectorId Sector, ActorId OldOwner, ActorId Attacker, string How) : SimEvent;
+/// <summary>
+/// Kapitulation (docs/KAMPF.md „Kapitulation“): die Hülle einer angegriffenen Station ist unter eine Schwelle gefallen und sie hat genau einmal gewürfelt —
+/// <paramref name="Capitulated"/> = sie gibt auf (Besitz an <paramref name="Taker"/>, danach <see cref="StationFell"/> mit „capitulated“).
+/// </summary>
+public sealed record StationCapitulationRolled(StationId Station, string Name, SectorId Sector, ActorId Owner, ActorId Taker, float Threshold, float Chance, bool Capitulated) : SimEvent;
+/// <summary>Kapitulation: eine KI-Fraktion hat ihren Sitz verloren und bekommt sofort einen Not-Sitz (bezahlt <paramref name="Paid"/>, erlassen <paramref name="Waived"/>).</summary>
+public sealed record SeatRelocated(FactionId Faction, StationId Station, SectorId Sector, float Paid, float Waived) : SimEvent;
 /// <summary>Phase 28: Station repariert (Hüllenpunkte, Hüllenplatten aus dem Lager, Kosten aus der Kasse bzw. Stationskasse).</summary>
 public sealed record StationRepaired(StationId Station, float Hull, float Plates, float Cost) : SimEvent;
 /// <summary>Phase 28: Belagerung begonnen (Angreifer-Fraktion, Station).</summary>

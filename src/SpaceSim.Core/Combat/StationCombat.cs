@@ -164,6 +164,8 @@ public static class StationCombat
     public static float Apply(Universe u, Encounter? e, Station st, in HitResult hit, ActorId attacker)
     {
         if (!hit.Hit || IsDown(u, st)) return 0f;
+        // Kapitulation: eine schon übergebene Station nimmt keinen Schaden mehr von der neuen Seite (weitere Schüsse desselben Takts)
+        if (u.Rules.StationCapitulation && Capitulation.OwnedBy(u, st, attacker)) return 0f;
         var c = Cond(st);
         if (hit.ShieldDamage > 0f) c.ShieldMissing = MathF.Min(MaxShield(u, st), c.ShieldMissing + hit.ShieldDamage);
         // Gerätetest Phase 28 (Runde 5): jeder Treffer hält den Schild an (wie bei Schiffen) — vorher nur Treffer auf den Schild; bei leerem Schild lief die Pause
@@ -172,6 +174,9 @@ public static class StationCombat
         float before = Hull(u, st);
         c.HullMissing = MathF.Min(MaxHull(u, st), c.HullMissing + hit.HullDamage);
         float dealt = before - Hull(u, st);
+        // Kapitulation (docs/KAMPF.md): unterschrittene Hüllenschwellen — die Station würfelt, ob sie aufgibt (sonst kämpft sie weiter)
+        float max = MaxHull(u, st);
+        if (u.Rules.StationCapitulation && max > 0f && Capitulation.Roll(u, e, st, attacker, before / max, Hull(u, st) / max)) return dealt;
         if (Hull(u, st) <= 0f) Fall(u, st, attacker);
         return dealt;
     }
@@ -185,6 +190,7 @@ public static class StationCombat
         var old = st.Owner;
         float value = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.BuildCost : 0f;
         Wars.OnLoss(u, old, attacker, value);
+        if (u.Rules.StationCapitulation) { FallToZero(u, st, attacker); return; }
         // KI-Angreifer erobern für ihre Fraktion, der Spieler für sich selbst
         bool player = u.Actors.TryGetValue(attacker, out var att) && att.Kind == ActorKind.Player;
         ActorId taker = !player && u.FactionOf(attacker) is { } fa && u.Actors.ContainsKey(fa) ? (ActorId)fa : attacker;
@@ -206,6 +212,29 @@ public static class StationCombat
         }
         Cond(st).Disabled = true;
         u.Events.Publish(new StationFell(st.Id, st.Name, st.Sector, old, taker, "disabled"));
+    }
+
+    /// <summary>
+    /// Kapitulation (docs/KAMPF.md): Hülle 0 einer Station, die nicht kapituliert hat — sie wird zerstört (über <see cref="Departures"/>, Grund a, „siege“),
+    /// für alle Typen einschließlich Regierungs- und Kleinstationen. Ausnahmen: Piratenverstecke und unsterbliche Stationen werden nur ausgeschaltet (die
+    /// Piratengruppe bleibt handlungsfähig, <see cref="ViabilityIssueKind.NoHideout"/>); andere Piratenstationen (Stellungen) wie bisher zerstört, wo der Typ es
+    /// erlaubt. Verliert eine KI-Fraktion dabei ihren Sitz, entsteht ein Not-Sitz (<see cref="SeatRelocation"/>).
+    /// </summary>
+    static void FallToZero(Universe u, Station st, ActorId attacker)
+    {
+        var old = st.Owner;
+        bool pirate = Capitulation.IsPirate(u, st);
+        if (st.Immortal || StationProtection.IsHideout(u, st) || (pirate && !StationProtection.IsDestructible(u, st)))
+        {
+            Cond(st).Disabled = true;
+            u.Events.Publish(new StationFell(st.Id, st.Name, st.Sector, old, attacker, "disabled"));
+            return;
+        }
+        var oldFaction = u.FactionOf(old);
+        u.Events.Publish(new StationFell(st.Id, st.Name, st.Sector, old, attacker, "destroyed"));
+        Departures.RemoveStation(u, st, DepartureReason.Destroyed, "siege");
+        // Sektorkontrolle wie bisher im Takt des SectorControlSystem (Zerstörungen durch Kaperer an Stellungen ändern den Stand der NPC-Welt nicht)
+        if (oldFaction is { } of) SeatRelocation.Ensure(u, of);
     }
 
     /// <summary>Steht die Station in einer laufenden Belagerung?</summary>

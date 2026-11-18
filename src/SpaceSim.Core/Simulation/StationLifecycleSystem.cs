@@ -29,7 +29,7 @@ public sealed class StationLifecycleSystem : ISimSystem
 
     static void RemoveBankrupt(Universe u)
     {
-        foreach (var st in u.Stations.Values.Where(s => !s.BankruptcyProtected && !s.IsBuildSite).ToList())
+        foreach (var st in u.Stations.Values.Where(s => !s.BankruptcyProtected && !s.IsBuildSite && s.Owner != u.PlayerActor).ToList())
         {
             if (st.Credits >= u.Rules.BankruptcyLimit) { st.BelowLimitSince = -1; continue; }
             if (st.BelowLimitSince < 0) st.BelowLimitSince = u.Tick;

@@ -89,6 +89,7 @@ public static class SecurityNames
         "assault_station" => "Angriff im Stationsschutz",
         "assault_gate" => "Angriff auf ein Tor",
         "kill" => "Abschuss",
+        "capture_station" => "Stationsübernahme",
         "" => "–",
         _ => key,
     };

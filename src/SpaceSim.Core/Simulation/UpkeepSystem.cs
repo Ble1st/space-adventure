@@ -61,6 +61,13 @@ public sealed class UpkeepSystem : ISimSystem
                     continue;
                 }
                 st.Credits += (type.IncomePerTick - type.UpkeepPerTick) * dt;
+                // Kapitulation: eine übernommene Station des Spielers zahlt ihren Unterhalt aus ihrer Kasse, was fehlt aus der Spielerkasse (soweit vorhanden)
+                if (st.Credits < 0f && st.Owner == u.PlayerActor && u.Actors.TryGetValue(st.Owner, out var pa) && pa.Treasury.Credits > 0f)
+                {
+                    float take = MathF.Min(-st.Credits, pa.Treasury.Credits);
+                    pa.Treasury.Credits -= take;
+                    st.Credits += take;
+                }
                 // Phase 22: das Grundeinkommen des Typs (Geldquelle) zählt nicht zur Rentabilität — eine Station, die nichts verkauft, trägt nur ihren Unterhalt
                 Profitability.Transfer(st.Profit, type.IncomePerTick * dt);
             }

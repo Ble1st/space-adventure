@@ -215,6 +215,8 @@ public sealed class FactionViabilitySystem : ISimSystem
         foreach (var f in u.NpcFactionIds().ToList())   // Runde 38: der Spieler hat keine Pflicht zu HQ/Polizei/Bauschiff
         {
             if (!u.Actors.TryGetValue(f, out var actor) || actor.Kind == ActorKind.Outlaw) continue;
+            // Kapitulation: Sitz verloren (zerstört/kapituliert) und der sofortige Not-Sitz fand keinen Platz — hier erneut (kein Zufall, keine Bremse)
+            if (r.StationCapitulation) SeatRelocation.Ensure(u, f);
             if (u.Tick - actor.LastRestoreTick < r.ViabilityRestoreCooldown) continue;
             if (r.SecurityActive && r.PoliceMinPerFaction > 0 && u.Tick >= actor.LastForceTick && SecuritySystem.PoliceOf(u, f).Count < r.PoliceMinPerFaction
                 && SecuritySystem.Commission(u, f, priority: true) is null

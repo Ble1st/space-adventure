@@ -369,9 +369,9 @@ public sealed partial class EconomyRules
     public float NpcHullRegenPerTick = 0.05f;
 
     /// <summary>Fahndung: Heat je Verbrechen (Schlüssel).</summary>
-    public Dictionary<string, float> CrimeHeat = new() { ["smuggling"] = 2.5f, ["toll_evasion"] = 1.5f, ["piracy"] = 1.2f, ["assault"] = 3f, ["assault_station"] = 4.5f, ["assault_gate"] = 4.5f };
+    public Dictionary<string, float> CrimeHeat = new() { ["smuggling"] = 2.5f, ["toll_evasion"] = 1.5f, ["piracy"] = 1.2f, ["assault"] = 3f, ["assault_station"] = 4.5f, ["assault_gate"] = 4.5f, ["capture_station"] = 5f };
     /// <summary>Fahndung: Strafe je Verbrechen (Credits, Gericht).</summary>
-    public Dictionary<string, float> CrimeFine = new() { ["smuggling"] = 400f, ["toll_evasion"] = 100f, ["piracy"] = 800f, ["assault"] = 1000f, ["assault_station"] = 1500f, ["assault_gate"] = 2000f };
+    public Dictionary<string, float> CrimeFine = new() { ["smuggling"] = 400f, ["toll_evasion"] = 100f, ["piracy"] = 800f, ["assault"] = 1000f, ["assault_station"] = 1500f, ["assault_gate"] = 2000f, ["capture_station"] = 5000f };
     /// <summary>Fahndung: Schwellen der Stufen 1–4 (auffällig, verwarnt, gesucht, Staatsfeind); Heat höchstens <see cref="WantedMaxHeat"/>.</summary>
     public List<float> WantedLevels = new() { 1f, 2f, 3f, 4f };
     public float WantedMaxHeat = 5f;

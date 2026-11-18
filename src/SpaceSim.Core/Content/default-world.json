@@ -45,6 +45,7 @@
   "fenceShare": 0.85,
   "blackMarket": true,
   "blackMarketNpc": true,
+  "stationCapitulation": true,
   "raiderUpkeepPerTick": 0.03,
   "researchActive": false,
   "ammoActive": true
