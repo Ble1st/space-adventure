@@ -97,7 +97,7 @@ public class FuelModelTests
         Assert.Empty(base_.Inputs);
         Assert.Equal(1f, base_.Outputs[p.Id]);
         var refineries = u.Stations.Values.Where(st => st.TypeKey == "fuel_refinery").OrderBy(st => st.Id.Value).ToList();
-        Assert.Equal(2, refineries.Count);
+        Assert.Equal(5, refineries.Count);   // Treibstoff im Großmaßstab: Alpha, Beta (Phase 4b) und Gamma, Delta, Vesta (Neukalibrierung)
         Assert.All(refineries, st => Assert.True(st.Market.ContainsKey(p.Id)));
     }
 

@@ -23,7 +23,7 @@
   "escortMinRemainingTicks": 200,
   "maxMiners": 55,
   "repairPlatesPerHull": 0.02,
-  "maxStations": 66,
+  "maxStations": 69,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": false,
@@ -1205,20 +1205,20 @@
      10
     ],
     "energy": [
-     20,
-     30
+     60,
+     90
     ],
     "platinum": [
-     2,
-     4
+     6,
+     12
     ],
     "wafers": [
-     4,
-     8
+     12,
+     24
     ],
     "titanium": [
-     3,
-     6
+     9,
+     18
     ]
    },
    "research": {
@@ -1458,16 +1458,16 @@
      "essential": true,
      "stock": {
       "hydrogen": [
-       60,
-       60
+       90,
+       150
       ],
       "energy": [
        120,
-       100
+       150
       ],
       "propellant": [
-       100,
-       100
+       150,
+       150
       ]
      }
     },
@@ -1607,16 +1607,16 @@
      "essential": true,
      "stock": {
       "hydrogen": [
-       60,
-       60
+       90,
+       150
       ],
       "energy": [
        120,
-       100
+       150
       ],
       "propellant": [
-       100,
-       100
+       150,
+       150
       ]
      }
     },
@@ -1805,6 +1805,18 @@
      "name": "Überwachungssatellit Gamma",
      "pos": [105, 52],
      "essential": true
+    },
+    {
+     "id": 82,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Gamma",
+     "pos": [-65, 130],
+     "essential": true,
+     "stock": {
+      "hydrogen": [90, 150],
+      "energy": [120, 150],
+      "propellant": [150, 150]
+     }
     }
    ]
   },
@@ -1958,6 +1970,18 @@
      "name": "Leichte Waffenstellung Delta",
      "pos": [-32, 138],
      "essential": true
+    },
+    {
+     "id": 83,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Delta",
+     "pos": [130, -65],
+     "essential": true,
+     "stock": {
+      "hydrogen": [90, 150],
+      "energy": [120, 150],
+      "propellant": [150, 150]
+     }
     }
    ]
   },
@@ -2172,6 +2196,18 @@
      ],
      "essential": true,
      "credits": 0
+    },
+    {
+     "id": 84,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Vesta",
+     "pos": [150, 70],
+     "essential": true,
+     "stock": {
+      "hydrogen": [90, 150],
+      "energy": [120, 150],
+      "propellant": [150, 150]
+     }
     }
    ]
   },
@@ -2936,7 +2972,7 @@
    "tier": 1,
    "stats": {
     "thrust": 160,
-    "fuelUse": 0.002
+    "fuelUse": 0.001
    },
    "fuel": [
     {
@@ -3174,7 +3210,7 @@
    "tier": 1,
    "stats": {
     "thrust": 240,
-    "fuelUse": 0.003
+    "fuelUse": 0.0015
    },
    "fuel": [
     {
@@ -3288,7 +3324,7 @@
    "tier": 2,
    "stats": {
     "thrust": 190,
-    "fuelUse": 0.0018
+    "fuelUse": 0.0009
    },
    "fuel": [
     {

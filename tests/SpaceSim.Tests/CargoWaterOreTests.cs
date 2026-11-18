@@ -202,8 +202,8 @@ public class CargoWaterOreTests
         var beta = farms.Single(f => f.Id == new StationId(40));
         Assert.Equal("Farm Beta", beta.Name);
         Assert.True(beta.BankruptcyProtected);
-        // Treibstoff aus: −2 Raffinerien gegenüber der Weltdatei; Spielraum für den Lebenszyklus mindestens 4 Plätze (Phase 21: größere Welt, mehr Plätze)
-        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations - 2, u.Rules.MaxStations);
+        // Treibstoff aus: −5 Raffinerien gegenüber der Weltdatei (Großmaßstab-Kalibrierung: fünf statt zwei, Weltdatei 69); Spielraum für den Lebenszyklus mindestens 4 Plätze (Phase 21: größere Welt, mehr Plätze)
+        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations - 5, u.Rules.MaxStations);
         Assert.True(u.Rules.MaxStations - StationProtection.CountEconomic(u) >= 4);
         var water = u.StationTypes["water_plant"].Recipes.Single();
         Assert.Equal(2f, water.Outputs[G(u, "water")]);

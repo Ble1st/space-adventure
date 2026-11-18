@@ -180,6 +180,7 @@ var csv = new StringBuilder();
 // Phase 4b: Treibstoff-Kennzahlen zählen (Tankkäufe an Stationen, Notkäufe zum Aufpreis)
 int fuelBuys = 0, notk = 0;
 float fuelBuyCost = 0f, notkCost = 0f;
+double fuelBuyUnits = 0, notkUnits = 0;   // Treibstoff im Großmaßstab: getankte Einheiten (Stationen/Notkauf)
 // Phase 5a: Modul-Waren — wie viel Händler an Lager (stocks) liefern
 float moduleDelivered = 0f, moduleRevenue = 0f;
 // Phase 5c: KI-Neubauten mit Modulen (volle Kaufregel) bzw. nur aus dem Bausatz
@@ -620,8 +621,8 @@ u.Events.Raised += e =>
 var consumerPrices = new SortedDictionary<string, List<float>>(StringComparer.Ordinal);
 u.Events.Raised += e =>
 {
-    if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; }
-    else if (e is FuelBought fb) { fuelBuys++; fuelBuyCost += fb.Cost; }
+    if (e is EmergencyRefuel er) { notk++; notkCost += er.Cost; notkUnits += er.Units; }
+    else if (e is FuelBought fb) { fuelBuys++; fuelBuyCost += fb.Cost; fuelBuyUnits += fb.Units; }
     else if (e is FleetShipBuilt fsb) { if (fsb.WithModules) buildsWithModules++; else buildsKitOnly++; }
     else if (e is JobChanged) jobSwitches++;
     else if (e is ShipQualityRolled sq) { gradeRolled[(int)sq.Rolled]++; gradeGot[(int)sq.Grade]++; }
@@ -969,6 +970,14 @@ if (u.Modules.Count > 0)
         + $"{warnings} Vorwarnungen; Abfangen {intercepts} ({interceptsWon} von der Polizei gewonnen); Kaperschiffe verloren {raidersLost}, neu {raidersBuilt}; Opferschiffe verloren {victimsLost}");
     Console.WriteLine($"Verlustquote: Beute {lootValue:0} Cr (Basiswert) = {(tradeValue > 0 ? 100.0 * lootValue / tradeValue : 0):0.00}% des Handelsumsatzes ({tradeValue:0} Cr); "
         + $"Hehlerei {fenced:0} Cr; Schiffsverluste {victimsLost}");
+    // Treibstoff im Großmaßstab: Gewicht des Treibstoffs (Kosten ÷ Handelsumsatz, Einheiten je Tick) und Reichweite eines Spielertanks
+    if (u.Rules.FuelActive)
+    {
+        int refineries = u.Stations.Values.Count(st => st.TypeKey == "fuel_refinery" && st.Site is null);
+        Console.WriteLine($"Treibstoffgewicht: Kosten {fuelBuyCost + notkCost:0} Cr = {(tradeValue > 0 ? 100.0 * (fuelBuyCost + notkCost) / tradeValue : 0):0.0}% des Handelsumsatzes; "
+            + $"getankt {fuelBuyUnits:0} + Notkauf {notkUnits:0} Einheiten = {(fuelBuyUnits + notkUnits) / Math.Max(1, ticks):0.000} je Tick; Raffinerien {refineries}");
+        Console.WriteLine("Treibstoff Spieler: " + FuelRange.Describe(u));
+    }
     Console.WriteLine($"Polizei: {u.NpcFactionIds().Select(f => $"{u.Factions[f].Name} {SecuritySystem.PoliceOf(u, f).Count}/{SecuritySystem.Desired(u, f)}").Aggregate((a, b) => a + ", " + b)} (Ist/Soll); "
         + $"gekauft {policeBought}, abgebaut {policeGone}; Kosten {policeCost:0} Cr (ungedeckt {policeUnpaid:0}) = {(income > 0 ? 100.0 * policeCost / income : 0):0.0}% der Kasseneinnahmen "
         + $"(Abgaben {taxIn:0} + Zoll {tolls:0} + Strafen {fines:0}); Kopfgeld ausgezahlt {bounties:0}");

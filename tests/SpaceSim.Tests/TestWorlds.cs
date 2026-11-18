@@ -28,17 +28,8 @@ public static class TestWorlds
         return def;
     }
 
-    /// <summary>
-    /// Runde 44: Standardwelt im Grundmaßstab (Maßstäbe und Stellschrauben von Runde 44 zurückgedreht) mit eingeschaltetem Treibstoff. Der Treibstoff ist in
-    /// der Standardwelt aus und auf den Grundmaßstab kalibriert (Phase 4b: Verbrauch 0,002 je Einheit, Tank 200, Reserve 75 %); in den vergrößerten
-    /// Sektoren sind die Fahrten 3–4-mal so lang — die Treibstoff-Langläufe prüfen die Mechanik daher im Grundmaßstab (Neukalibrierung: offener Punkt).
-    /// </summary>
-    public static Universe FuelBaseScale(ulong? seed = null)
-    {
-        var def = Def(fuel: true, research: true);
-        Runde44ScaleTests.RevertRunde44(def);
-        return WorldBuilder.Build(def, seed);
-    }
+    // Runde 44 hatte hier „FuelBaseScale“ (Standardwelt im Grundmaßstab für die Treibstoff-Langläufe). Seit der Neukalibrierung des Treibstoffs für den
+    // Großmaßstab (fuelUse halbiert, fünf Raffinerien, siehe docs/SCHIFFSSLOTS.md) laufen diese Tests wieder in der Standardwelt; der Helfer ist entfallen.
 
     /// <summary>Standardwelt mit eingeschaltetem Treibstoff (Forschung wie in der Standardwelt aus).</summary>
     public static Universe WithFuel(ulong? seed = null) => Default(seed, fuel: true, research: false);

@@ -31,7 +31,7 @@ public class FuelEconomyTests
     {
         var u = TestWorlds.Default();
         var ship = u.Ships.Values.First(s => s.Role == ShipRole.Trader && s.Sector == new SectorId(1) && s.Transit is null);
-        Assert.Equal(0.002f, ship.Stats.FuelUsePerUnit);   // fuelUse des chem_engine_s in der Startwelt
+        Assert.Equal(0.001f, ship.Stats.FuelUsePerUnit);   // fuelUse des chem_engine_s in der Startwelt (Großmaßstab-Kalibrierung: 0,002 → 0,001, siehe docs/SCHIFFSSLOTS.md)
         var fromSector = ship.Sector;
         var fromPos = ship.Position;
         var st = u.Stations[u.Sectors[new SectorId(3)].Stations[0]];   // Sektor Gamma: 2 Gate-Sprünge ab Alpha
@@ -317,7 +317,7 @@ public class FuelEconomyTests
     [Fact]
     public void Langlauf_20000Ticks_KeineNegativenTanks_KeinDauerTransit_KeineGeister_SpielerTankUnberuehrt()
     {
-        var u = TestWorlds.FuelBaseScale();   // Runde 44: Treibstoff ist auf den Grundmaßstab kalibriert (siehe TestWorlds.FuelBaseScale)
+        var u = TestWorlds.Default();   // Treibstoff im Großmaßstab neu kalibriert (fuelUse halbiert, fünf Raffinerien): der Langlauf läuft wieder in der Standardwelt statt im Grundmaßstab
         int notk = 0, tankBuys = 0;
         u.Events.Raised += e =>
         {

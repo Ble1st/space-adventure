@@ -172,6 +172,28 @@ public static class SaveGameJson
                     }
                 }
         }
+        // Treibstoff im Großmaßstab: drei weitere Raffinerien (Gamma, Delta, Vesta), größere Raffinerie-Lager und halbierter Antriebsverbrauch kamen
+        // nach v17 — im Stand v17 zwei Raffinerien mit Lager 60/100/100 und fuelUse 0,002/0,003/0,0018
+        foreach (var sec in root["sectors"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            if (sec?["stations"] is System.Text.Json.Nodes.JsonArray list)
+            {
+                RemoveWhere(list, st => (int?)st["id"] is 82 or 83 or 84);
+                foreach (var st in list)
+                    if (st is not null && (int?)st["id"] is 25 or 26 && st["stock"] is System.Text.Json.Nodes.JsonObject rs)
+                    {
+                        rs["hydrogen"] = new System.Text.Json.Nodes.JsonArray(60, 60);
+                        rs["energy"] = new System.Text.Json.Nodes.JsonArray(120, 100);
+                        rs["propellant"] = new System.Text.Json.Nodes.JsonArray(100, 100);
+                    }
+            }
+        foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            if (m?["stats"] is System.Text.Json.Nodes.JsonObject fs && fs["fuelUse"] is not null)
+                switch ((string?)m["key"])
+                {
+                    case "chem_engine_s": fs["fuelUse"] = 0.002; break;
+                    case "chem_engine_m": fs["fuelUse"] = 0.003; break;
+                    case "chem_engine_s_mk2": fs["fuelUse"] = 0.0018; break;
+                }
         return root.ToJsonString();
     });
 

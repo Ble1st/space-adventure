@@ -372,3 +372,24 @@ Das Besatzungssystem würde den Umfang sprengen und kommt später. Bis dahin gil
 - Herkunft: Kolonien erzeugen einen Bevölkerungspool, Rekrutierung an Bars und Heuerbüros, die Werft braucht Besatzung für Neubauten. Verluste verkleinern den Pool.
 - NPC-Schiffe haben nur Zahl und gewürfelte Erfahrung, der Spieler ist Kapitän mit Rang.
 - Offene Fragen: Besatzung als Zahl oder Personen, handelbare Ware oder Pool an der Station, Betriebsstoff für Kapitalreaktoren.
+
+## 12. Treibstoff im Großmaßstab (entschieden)
+
+Treibstoff bleibt in der Standardwelt **aus** (`rules.fuelActive` false, Entscheidung Phase 14). Schaltet ein Spieler oder eine eigene Welt ihn ein (`--fuel on`, `TestWorlds.Default(fuel: true)`), muss die vergrößerte Welt (Runde 44: Sektor-Maßstäbe 3–8, Fahrten ≈ 3,4-mal so lang, Flotte verdreifacht) so gut laufen wie die Grundmaßstab-Welt bei der Kalibrierung in Phase 4b.
+
+**Gemessen vorher** (Balance-Tool `--fuel on --research on`, Standard-Seed und Seeds 1–4, 20000/60000 Ticks; Ausgaben unter `space-adventure-scratch-archiv/treibstoff/`):
+- Treibstoffpreis im Schnitt **2,7–3,5× Basis**, Warnung „instabil“ in 6 von 10 Läufen; Raffinerie Beta 55–59 % der Zeit leer.
+- **Notkäufe 133–219 (20000) bzw. 423–668 (60000)**; **Pleiten 19–38 Händler/Schürfer je 60000 Ticks** (mit Treibstoff aus: 0).
+- Treibstoffkosten = **15–17 % des Handelsumsatzes** (Grundmaßstab mit verdreifachter Flotte: 7,3 % bei Preis 1,26).
+- Spieler: Drei-Sektoren-Flug (Median aller Stationspaare mit genau zwei Sprüngen) 2540 Einheiten Strecke statt 484 im Grundmaßstab → 5,1 Treibstoff je Flug, 30–39 Flüge je Tank.
+
+**Ursachen.** (1) Nur zwei Raffinerien (Alpha, Beta — die alte 4-Sektoren-Mitte) für eine dreimal so große Flotte auf 11 Sektoren: Angebot gedeckelt, Preis am Deckel, lange Umwege zur Tankstelle, Notkäufe. (2) Verbrauch je Strecke unverändert, Strecken aber 5-mal so lang (Drei-Sektoren-Flug), während die Handelsspanne je Fahrt an der Ladung hängt und nicht an der Strecke — das Gewicht des Treibstoffs je Fahrt verdoppelte sich gegenüber der Kalibrierung.
+
+**Entscheidungen.**
+- **Verbrauch halbiert:** `fuelUse` der Antriebe 0,002 → **0,001** (chem_engine_s), 0,003 → 0,0015 (chem_engine_m), 0,0018 → 0,0009 (chem_engine_s_mk2). Damit liegt das Treibstoffgewicht wieder beim Grundmaßstab (6,4–6,9 % des Handelsumsatzes). Tankgrößen bleiben.
+- **Drei weitere Raffinerien** (Stationen 82 Gamma (−65, 130), 83 Delta (130, −65), 84 Vesta (150, 70), geschützt): Osten, Süden und Norden der Karte haben eine Tankstelle in der Nähe; alle fünf Raffinerien haben größere Lager (Wasserstoff 90/150, Energie 120/150, Treibstoff 150/150 — längere Lieferwege brauchen Puffer wie die Rezeptlager in Runde 44). Mit Treibstoff aus fehlen sie wie die beiden alten (`FeatureSwitches.OmitFromWorld`); `maxStations` 66 → **69**, damit der Bau-Spielraum in beiden Fällen gleich bleibt (aus: 69 − 5 = 64 wie bisher 66 − 2; an: drei Plätze mehr für drei Stationen mehr).
+- **Spielerreichweite (Phase 4c offen):** Mit halbiertem Verbrauch kostet ein Drei-Sektoren-Flug **2,3–2,6 Treibstoff** (≈ 80 Cr zum Basispreis); ein Tank (150–200) reicht für **59–79** solche Flüge (Grundmaßstab: 155–207, „kaum spürbar“). Entschieden: so lassen — Treibstoff ist für den Spieler ein spürbarer Kostenposten und alle paar Stunden ein Tankstopp, aber keine Reichweitengrenze, die einzelne Flüge plant. Der Notruf bleibt für den leergeflogenen Tank.
+- Die Migrationsbasis (`SaveGameJson.MigrationBaseJson`, Stand v17) stellt Verbrauch, Raffinerien und Lager des Stands v17 wieder her.
+- Die Hilfswelt `TestWorlds.FuelBaseScale` (Treibstoff-Langläufe im Grundmaßstab) ist entfallen: die beiden Langläufe laufen wieder in der Standardwelt.
+
+**Gemessen nachher** (gleiche Läufe): Treibstoffpreis **1,01–1,10×**, Notkäufe **0** (20000) bzw. **0–2** (60000), Pleiten 0–3 je 60000 Ticks, Treibstoffkosten 2,1–2,8 % (20000) bzw. 6,4–6,9 % (60000) des Handelsumsatzes, Kapazität Handel/Bergbau 80,2–80,5/54,7–55,5 (Grenze 80/55), alle Läufe „Preise im Zielbereich“. Die Raffinerien laufen 18–26 % der Zeit (Reserve für Spieler und Flottenwachstum). Mit Treibstoff und Forschung aus bleibt die Standardwelt bitgleich (Hash nach 20000 Ticks 1364698EE92E10DC vorher wie nachher).

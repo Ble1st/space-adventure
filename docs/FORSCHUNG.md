@@ -44,3 +44,12 @@ Kann Forschung beschleunigen, indem er Güter liefert (z. B. Mission "Liefere 50
 
 ## Reihenfolge
 Erst Handelsposten, Schiffshändler und Fraktionsverhalten, dann Forschung, denn ihr Wert entsteht durch sinnvolle Freischaltungen. Das `research`-Datenformat kann früh angelegt werden, damit neue Inhalte von Anfang an als freischaltbar markiert werden können.
+
+## Forschung im Großmaßstab (entschieden)
+
+Forschung bleibt in der Standardwelt **aus** (`rules.researchActive` false, Phase 14). Eingeschaltet (`--research on`) lief sie in der vergrößerten Welt (Runde 44) langsamer als bei der Kalibrierung in Phase 13 (Fusion ≈ 6700, Präzisionslaser ≈ 12700, Tiefbau ≈ 22700 Ticks):
+
+- **Vorher** (mit Treibstoff an, Standard-Seed und Seeds 1–4): Fusionstechnik 8470–9980, Präzisionslaser 14700–36580, Tiefbau-Schürfer 26910–51080 Ticks (die dritte Fraktion bis zu doppelt so spät); 1600–5000 Forschungstakte gestockt (Wafer, Energie, Titan fehlen).
+- **Ursache:** Die Lager der Forschungsstation (Energie 30, Wafer 8, Platin 4, Titan 6) reichten für 150–400 Ticks Betrieb — kürzer als eine Lieferfahrt in der vergrößerten Welt (Ø 150–200 Ticks, 90 % bis 390). Kleine Lieferungen über lange Wege sind für Händler zudem wenig lohnend.
+- **Entscheidung:** Lagerziele der Forschungsstation verdreifacht (Energie 60/90, Platin 6/12, Wafer 12/24, Titan 9/18; Elektronik unverändert 6/10) — derselbe Hebel wie die Rezeptlager in Runde 44. Punkte, Takte, Projektkosten und Budget bleiben.
+- **Nachher:** Fusionstechnik **7080–9040**, Präzisionslaser **13080–15040**, Tiefbau-Schürfer **23080–25040** Ticks — wieder die Zeiten aus Phase 13, und alle drei Fraktionen liegen dicht beieinander. Gestockt nur noch 500–630 Takte (etwa die Hälfte „Budget fehlt“). Budget aus den Kassen: **10,9–11,4 %** der Kasseneinnahmen über 20000 Ticks (Phase 13: 15,8 %), **5,4–5,6 %** über 60000 Ticks (Phase 13: 7,4 %; nach Tick ≈ 25000 ist alles erforscht, die Kassen der größeren Welt wachsen weiter).
