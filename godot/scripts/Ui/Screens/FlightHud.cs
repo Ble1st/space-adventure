@@ -1035,12 +1035,7 @@ public partial class FlightHud : Control, IScreen
 				// Bildschirmwinkel: Nase ist direkt projiziert (Kamera kann gedreht sein); Backbord (+90°) liegt
 				// auf dem Bildschirm 90° gegen den Uhrzeigersinn (y nach unten) von der Nase
 				float center = d.ShipScreenNoseDeg - FiringArc.FacingOffset(bay.Facing);
-				if (bay.ArcDegrees >= 360f)
-				{
-					DrawCircle(ship, r, fill);
-					DrawArc(ship, r, 0, Mathf.Tau, 64, edge, 2f);
-					continue;
-				}
+				if (bay.ArcDegrees >= 360f) continue;   // Rundum-Werkzeug (Laser, Traktor): keine Scheibe ums Schiff, sie sagt keine Richtung
 				float half = Math.Min(bay.ArcDegrees, 180f);
 				var pts = new List<Vector2> { ship };
 				const int n = 28;

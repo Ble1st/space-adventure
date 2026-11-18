@@ -54,17 +54,69 @@ public sealed class JumpChargeFx
 public static class CloakLook
 {
 	/// <summary>Durchsichtigkeit getarnter Schiffe (0 = deckend, 1 = unsichtbar).</summary>
-	public const float Transparency = 0.72f;
+	public const float Transparency = 0.85f;
 
+	/// <summary>Deckkraft der getarnten Materialien (Albedo-Alpha).</summary>
+	public const float Alpha = 1f - Transparency;
+	static readonly System.Collections.Generic.Dictionary<Material, Material> Faded = new();
+	static readonly Material NoOverride = new StandardMaterial3D();
+
+	/// <summary>Tarnung zeigen: <c>GeometryInstance3D.Transparency</c> wirkt im Mobile-Renderer nicht sichtbar, deshalb bekommen die Flächen
+	/// zusätzlich durchsichtige Kopien ihrer Materialien (geteilt je Quellmaterial); beim Enttarnen kommen die vorherigen Overrides zurück.</summary>
 	public static void Apply(Node root, bool cloaked)
 	{
 		float t = cloaked ? Transparency : 0f;
 		void Walk(Node n)
 		{
-			if (n is GeometryInstance3D g && n is not GpuParticles3D && n is not CpuParticles3D) g.Transparency = t;
+			if (n is GeometryInstance3D g && n is not GpuParticles3D && n is not CpuParticles3D)
+			{
+				g.Transparency = t;
+				if (n is MeshInstance3D mi && mi.Mesh is { } mesh) Swap(mi, mesh, cloaked);
+			}
 			foreach (var c in n.GetChildren()) Walk(c);
 		}
 		Walk(root);
+	}
+
+	static void Swap(MeshInstance3D mi, Mesh mesh, bool cloaked)
+	{
+		for (int i = 0; i < mesh.GetSurfaceCount(); i++)
+		{
+			string key = $"cloak_orig_{i}";
+			bool stored = mi.HasMeta(key);
+			if (cloaked)
+			{
+				if (stored) continue;
+				var over = mi.GetSurfaceOverrideMaterial(i);
+				var src = over ?? mesh.SurfaceGetMaterial(i);
+				if (src is null) continue;
+				mi.SetMeta(key, over ?? NoOverride);
+				mi.SetSurfaceOverrideMaterial(i, FadedOf(src));
+			}
+			else if (stored)
+			{
+				var orig = mi.GetMeta(key).As<Material>();
+				mi.SetSurfaceOverrideMaterial(i, orig == NoOverride ? null : orig);
+				mi.RemoveMeta(key);
+			}
+		}
+	}
+
+	static Material FadedOf(Material src)
+	{
+		if (Faded.TryGetValue(src, out var f)) return f;
+		if (src is BaseMaterial3D b)
+		{
+			var d = (BaseMaterial3D)b.Duplicate();
+			d.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+			var c = d.AlbedoColor; c.A *= Alpha; d.AlbedoColor = c;
+			d.EmissionEnergyMultiplier *= 0.4f;
+			d.CullMode = BaseMaterial3D.CullModeEnum.Back;
+			f = d;
+		}
+		else f = src;   // Shader-Materialien (z. B. Triebwerksglühen) bleiben wie sie sind
+		Faded[src] = f;
+		return f;
 	}
 
 	/// <summary>Selbsttest: größte Durchsichtigkeit unter einem Knoten.</summary>

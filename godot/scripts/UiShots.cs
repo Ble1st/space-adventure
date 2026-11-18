@@ -66,6 +66,8 @@ public partial class UiShots : Node
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-ships")) _stage = ShipShotsStart;
 		// Himmelskugeln: --ui-shots-sky nur die Himmelsbilder je Sektor (UiShots.Sky.cs)
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-sky")) _stage = SkyShotsStart;
+		// Tarnfeld: --ui-shots-cloak nur die Bilder ohne/mit Tarnung (UiShots.Cloak.cs)
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-cloak")) _stage = CloakShotsStart;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -780,7 +782,8 @@ public partial class UiShots : Node
 			case 594_6: Capture("92-stationen-sektor-vesta-uebersicht.png"); _m.TestMenu("cam_reset"); _stage = GateShotsStart; _wait = 5; break;
 			case >= GateShotsStart and < 596_000: GateShots(); break;   // Jumpgate-Modelle 93–96
 			case >= ShipShotsStart and < 598_000: ShipShots(); break;   // Runde 11: Schiffsmodelle 97–98
-			case >= SkyShotsStart and < 600_000: SkyShots(); break;   // Himmelskugeln je Sektor
+			case >= SkyShotsStart and < 600_000: SkyShots(); break;
+			case >= CloakShotsStart and < 600_200: CloakShots(); break;   // Tarnfeld ohne/mit
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);
