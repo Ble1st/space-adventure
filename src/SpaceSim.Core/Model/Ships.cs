@@ -92,6 +92,10 @@ public sealed class Ship : ICreditAccount
                 fit.Add(Fit[i] is { } key && u.Modules.TryGetValue(key, out var m) ? m : null);
             Stats = ShipStats.Compute(cls, fit, Systems.Condition.Count > 0 ? Systems.Condition : null, u.Rules.ModuleFailCondition);   // Phase 23: ausgefallene Module
             Capabilities = Stats.Capabilities;   // Schiffe mit Modell: Fähigkeiten folgen immer dem Fit
+            // Sprungantrieb/Tarnfeld: aktiv kosten sie Leistung (der Überschuss sinkt für Schild, Bank, Antrieb). Fällt das Modul aus, beendet das
+            // JumpCloakSystem den Zustand mit Ereignis (hier nur keine Last mehr).
+            if (Cloaked && Stats.Cloak > 0f) Stats.PowerDraw += Stats.CloakDraw;
+            if (JumpTarget.Value != 0 && Stats.JumpRange > 0) Stats.PowerDraw += Stats.JumpDraw;
             ClampFuel();
             ClampSystems();
             Combat.ShipSystems.Wake(u, this);   // Phase 24: nach einem Modulwechsel kann sich ein bisher erholungsloses Schiff wieder erholen
@@ -242,6 +246,17 @@ public sealed class Ship : ICreditAccount
     public int AnchorRock;
     /// <summary>Phase 32: Verankerungsfortschritt in Ticks (hält ab <see cref="EconomyRules.AnchorTicks"/>).</summary>
     public float AnchorProgress;
+
+    /// <summary>Sprungantrieb: Zielsektor des laufenden Aufladens (0 = lädt nicht); siehe <see cref="Flight.JumpDrive"/>. Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public SectorId JumpTarget;
+    /// <summary>Sprungantrieb: geladene Ticks.</summary>
+    public float JumpCharge;
+    /// <summary>Sprungantrieb: Ladepunkt (wer sich weiter als <see cref="EconomyRules.JumpMoveTolerance"/> entfernt, bricht ab).</summary>
+    public Vec2 JumpFrom;
+    /// <summary>Sprungantrieb: bis zu diesem Tick (ausschließlich) kühlt der Antrieb nach einem Sprung ab.</summary>
+    public long JumpCooldownUntil;
+    /// <summary>Tarnfeld: eingeschaltet (<see cref="Flight.Cloak"/>). Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public bool Cloaked;
 
     /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     public long NextThinkTick;

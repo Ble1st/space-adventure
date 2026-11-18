@@ -114,6 +114,7 @@ public sealed class OreChunks
             if (!MiningAnchor.Advance(u, ship, sector.Id, seconds * Simulation.SimClock.TicksPerSecond)) return LastContact = ContactState.Anchoring;
         }
         var cls = u.AsteroidClasses[rock.ClassKey];
+        Flight.Cloak.Break(u, ship, "mining");   // Tarnfeld: Abbau bricht die Tarnung
         foreach (var (good, units) in ContactMining.Step(u, _rng, ship, sector, rock, cls, ref _contactProgress, seconds)) Contacted?.Invoke(rock, good, units);
         if (!rock.Minable || !sector.Asteroids.Contains(rock)) MiningAnchor.Release(u, ship, sector.Id, "depleted");
         return LastContact = ContactState.Mining;
@@ -138,6 +139,7 @@ public sealed class OreChunks
         if (cargoFull) return MineResult.CargoFull;
 
         _cooldown = MiningRules.ShotInterval;
+        Flight.Cloak.Break(u, ship, "mining");   // Tarnfeld: ein Laserschuss bricht die Tarnung
         var shot = LaserShot.Roll(_rng, u.AsteroidClasses[a.ClassKey], a, ship.Stats.LaserChunkChanceMult, ship.Stats.LaserChunkSizeMult);
         if (shot.Hit)
         {

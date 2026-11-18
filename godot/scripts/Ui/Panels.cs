@@ -33,6 +33,11 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 	Rect2 Usable => new(new Vector2(Safe.Left, Safe.Top), Size - new Vector2(Safe.Left + Safe.Right, Safe.Top + Safe.Bottom));
 	public event Action<SectorId>? SectorSelected;
 	public event Action? Closed;
+	/// <summary>Sprungantrieb: Karte im Sprungmodus — erreichbare Sektoren (Reichweite) sind markiert, ein Tipp darauf wählt das Sprungziel.</summary>
+	public event Action<SectorId>? JumpSelected;
+	HashSet<SectorId>? _jumpTargets;
+	/// <summary>Selbsttest: Karte ist im Sprungmodus.</summary>
+	public bool JumpMode => _jumpTargets is not null;
 
 	Universe? _u;
 	/// <summary>Runde 17: Verweis auf das alte Universum lösen (Sitzungswechsel).</summary>
@@ -59,7 +64,10 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 
 	void PlaceClose() { var p = new Vector2(Size.X - Safe.Right - 170, Safe.Top + 16); if (_close.Position != p) _close.Position = p; }
 
-	public void Open(Universe u, SectorId player, SectorId? target) { _u = u; _player = player; _target = target; Visible = true; QueueRedraw(); }
+	public void Open(Universe u, SectorId player, SectorId? target) { _u = u; _player = player; _target = target; _jumpTargets = null; Visible = true; QueueRedraw(); }
+
+	/// <summary>Sprungantrieb: Karte zur Wahl des Sprungziels öffnen (nur <paramref name="targets"/> sind wählbar).</summary>
+	public void OpenJump(Universe u, SectorId player, IEnumerable<SectorId> targets) { Open(u, player, null); _jumpTargets = new HashSet<SectorId>(targets); QueueRedraw(); }
 
 	Vector2 Place(Sector s, Vector2 center, float scale)
 	{
@@ -95,7 +103,17 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 		var center = MapCenter();
 		float scale = MapScale();
 		foreach (var s in _u.Sectors.Values)
-			if (Place(s, center, scale).DistanceTo(pos) < 44f) { SectorSelected?.Invoke(s.Id); Visible = false; Closed?.Invoke(); break; }
+			if (Place(s, center, scale).DistanceTo(pos) < 44f)
+			{
+				if (_jumpTargets is { } jt)
+				{
+					if (!jt.Contains(s.Id)) break;   // Sprungmodus: nur markierte Sektoren
+					var picked = s.Id;
+					_jumpTargets = null; Visible = false; JumpSelected?.Invoke(picked); Closed?.Invoke();
+					break;
+				}
+				SectorSelected?.Invoke(s.Id); Visible = false; Closed?.Invoke(); break;
+			}
 		AcceptEvent();
 	}
 
@@ -108,7 +126,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 		SpaceAdventure.Ui.Kit.DrawnText.Clear(this);
 		PlaceClose();
 		var us = Usable;
-		SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 0, font, us.Position + new Vector2(24, 40), "Sternenkarte – Sektor antippen für Autopilot", 24, us.Size.X - 48f - 170f, Colors.White);
+		SpaceAdventure.Ui.Kit.UiKit.DrawFit(this, 0, font, us.Position + new Vector2(24, 40), _jumpTargets is null ? "Sternenkarte – Sektor antippen für Autopilot" : "Sprungziel wählen – markierten Sektor antippen", 24, us.Size.X - 48f - 170f, Colors.White);
 		var center = MapCenter();
 		float scale = MapScale();
 
@@ -140,6 +158,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 			DrawArc(p, 30f, 0, Mathf.Tau, 40, col, 3f);
 			if (s.Id == _player) DrawArc(p, 38f, 0, Mathf.Tau, 40, Colors.White, 3f);
 			if (s.Id == _target) DrawArc(p, 46f, 0, Mathf.Tau, 40, Colors.Yellow, 3f);
+			if (_jumpTargets?.Contains(s.Id) == true) DrawArc(p, 44f, 0, Mathf.Tau, 40, new Color(0.45f, 0.9f, 1f), 4f);   // Sprungantrieb: in Reichweite
 			// Runde 41: Missionsziel im Sektor — goldener Diamant am Knoten (einer je Auftrag, max 3)
 			int mmi = 0;
 			foreach (var _mk in SpaceSim.Core.Missions.MissionMarkers.For(_u).Where(mk => mk.Sector == s.Id))

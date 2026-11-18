@@ -42,6 +42,14 @@ public sealed record AnchorFired(SectorId Sector, ShipId Ship, int Asteroid, Vec
 public sealed record AnchorHeld(SectorId Sector, ShipId Ship, int Asteroid) : SimEvent;
 /// <summary>Phase 32: Verankerung gelöst oder gerissen; Grund: released, thrust, impact, hit, combat, depleted, split, lost_contact, hold_full, left.</summary>
 public sealed record AnchorReleased(SectorId Sector, ShipId Ship, int Asteroid, string Reason) : SimEvent;
+/// <summary>Sprungantrieb: das Aufladen beginnt (Ansicht: Ladeleuchten am Schiff).</summary>
+public sealed record JumpChargeStarted(ShipId Ship, SectorId From, SectorId To, float ChargeTicks) : SimEvent;
+/// <summary>Sprungantrieb: das Aufladen ist abgebrochen; Grund (deutsch) für die Anzeige, Schlüssel: cancelled, moved, shadow, combat, docked, module, power, denied, fuel, ship.</summary>
+public sealed record JumpChargeAborted(ShipId Ship, SectorId To, string Key, string Reason) : SimEvent;
+/// <summary>Sprungantrieb: Sprung ausgeführt — das Schiff steht im Zielsektor an <paramref name="Position"/> (Ansicht: Blitz, Sektor neu aufbauen).</summary>
+public sealed record ShipDriveJumped(ShipId Ship, SectorId From, SectorId To, Vec2 Position, float Toll, string Message) : SimEvent;
+/// <summary>Tarnfeld an/aus; Grund beim Abschalten (off, fired, docked, mining, combat, hit, module, power, ship).</summary>
+public sealed record CloakChanged(ShipId Ship, bool On, string Reason) : SimEvent;
 public sealed record MinerShot(SectorId Sector, ShipId Ship, int Asteroid, Vec2 AsteroidPosition, float AsteroidRadius, float Units, GoodId Good = default) : SimEvent;
 public sealed record AsteroidDepleted(SectorId Sector, int Asteroid) : SimEvent;
 public sealed record AsteroidRespawned(SectorId Sector, int Asteroid) : SimEvent;

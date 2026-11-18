@@ -1,7 +1,7 @@
 namespace SpaceSim.Core.Model;
 
 /// <summary>Tuningwerte der Wirtschaft (Sinks, Faucets, Wachstum). Datengetrieben und Teil des Spielstands.</summary>
-public sealed class EconomyRules
+public sealed partial class EconomyRules
 {
     // Sinks
     /// <summary>Frühere Credit-Pauschale je geflogener Einheit. Seit Phase 4b verbrauchen KI-Schiffe echten Treibstoff (siehe Simulation.Refuel); der Wert wird nicht mehr abgebucht, bleibt aber Datenbestand alter Spielstände.</summary>

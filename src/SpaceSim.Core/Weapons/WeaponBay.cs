@@ -57,7 +57,7 @@ public static class WeaponBays
     {
         var list = new List<int>();
         for (int i = Math.Max(0, from); i < bays.Count && i < states.Count; i++)
-            if (bays[i].Key is not ("tractor" or "split" or "salvage" or "contact") && states[i] == BayState.Ready) list.Add(i);
+            if (bays[i].Key is not ("tractor" or "split" or "salvage" or "contact" or "jump" or "cloak") && states[i] == BayState.Ready) list.Add(i);
         return list;
     }
 
@@ -75,6 +75,12 @@ public static class WeaponBays
     /// Laderaum voll); Abbau läuft von selbst, solange die Werkzeugfront den Fels berührt (<see cref="ContactMining"/>).
     /// </summary>
     public static WeaponBay Contact { get; } = new() { Key = "contact", Name = "Bohrer", Facing = Facing.Bow, ArcDegrees = ContactMining.FrontArcDeg, Range = ContactMining.ContactRange + ContactMining.BowOffset };
+
+    /// <summary>Sprungantrieb als eigener Schacht (Taste „Sprung“: Ziel auf der Karte wählen, Laden, Abklingen; Ladeabbruch bei erneutem Tippen).</summary>
+    public static WeaponBay Jump { get; } = new() { Key = "jump", Name = "Sprung", Facing = Facing.Bow, ArcDegrees = 360f, Range = 0f };
+
+    /// <summary>Tarnfeld als eigener Schacht (Umschalter „Tarnung“).</summary>
+    public static WeaponBay Cloak { get; } = new() { Key = "cloak", Name = "Tarnung", Facing = Facing.Bow, ArcDegrees = 360f, Range = 0f };
 
     /// <summary>Anzeigetext des Kontaktschachts.</summary>
     /// <summary>Phase 32: Text mit Ankerzustand — „verankert · Abbau läuft“ / „Anker fliegt“; kurz nach einem Abriss dessen Grund.</summary>
@@ -121,6 +127,18 @@ public static class WeaponBays
     /// Kampfwaffe hat), dann ein Schacht je Kampfwaffe (Schlüssel „w:&lt;slot&gt;“, Feuerwinkel und Reichweite aus Slot und Modul).
     /// </summary>
     public static IReadOnlyList<WeaponBay> For(SpaceSim.Core.Model.Universe u, SpaceSim.Core.Model.Ship ship)
+    {
+        var bays = ForWeapons(u, ship);
+        // Sprungantrieb und Tarnfeld: eigene Schächte am Ende (eigene Gruppen im Daumenbogen)
+        bool jump = SpaceSim.Core.Flight.JumpDrive.Fitted(u, ship), cloak = SpaceSim.Core.Flight.Cloak.Fitted(u, ship);
+        if (!jump && !cloak) return bays;
+        var list = bays.ToList();
+        if (jump) list.Add(Jump);
+        if (cloak) list.Add(Cloak);
+        return list;
+    }
+
+    static IReadOnlyList<WeaponBay> ForWeapons(SpaceSim.Core.Model.Universe u, SpaceSim.Core.Model.Ship ship)
     {
         var weapons = SpaceSim.Core.Combat.PlayerGunnery.Bays(u, ship);
         // Zweiter Gerätetest Phase 28: ein Schiff ohne Bergbaulaser (Nomad) zeigt keinen „Laser“-Schacht mehr (Modell mit Fit ohne Mining)

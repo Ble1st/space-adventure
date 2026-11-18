@@ -102,6 +102,7 @@ public static class Hit
         float before = target.Hull;
         target.Hull = MathF.Max(MathF.Min(target.Hull, MathF.Max(minHull, target.Hull - hit.HullDamage)), 0f);
         if (hit.HullDamage > 0f) Mining.MiningAnchor.OnHullHit(u, target);   // Phase 32: ein Hüllentreffer reißt die Trossen
+        if (hit.Hit) { Flight.Cloak.Break(u, target, "hit"); Flight.JumpDrive.Abort(u, target, "hit", "Treffer"); }   // Tarnfeld und Sprungladen brechen bei Treffern
         return before - target.Hull;
     }
 }

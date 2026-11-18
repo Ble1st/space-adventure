@@ -670,6 +670,9 @@ public partial class FlightHud : Control, IScreen
 	public Rect2 TestGroupRect(int i) => _groupButtons[i].GetGlobalRect();
 	public bool TestGroupDisabled(int i) => _groupButtons[i].State == KitButtonState.Disabled;
 	public string TestGroupSub(int i) => _groupButtons[i].Sub;
+	/// <summary>Sprungantrieb/Tarnfeld (Selbsttest): erster abgeschnittene Text einer sichtbaren Gruppentaste ("" = alles passt).</summary>
+	public string TestGroupOverflow => _groupButtons.Where(b => b.Visible).Select(b => b.Overflow()).FirstOrDefault(o => o.Length > 0) ?? "";
+	public KitButtonState TestGroupState(int i) => _groupButtons[i].State;
 	public Rect2 TestFireRect => _allFire.GetGlobalRect();
 	public Rect2 TestPowerRect => _power.GetGlobalRect();
 	public bool TestExpandVisible => _expand.Visible;

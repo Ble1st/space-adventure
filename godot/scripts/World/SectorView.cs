@@ -16,7 +16,7 @@ public readonly record struct PickTarget(string Kind, int Id, Vector3 Position, 
 public partial class SectorView : Node3D
 {
 	/// <summary>NPC-Schiff in der Szene. Runde 11: <see cref="Visual"/> = Schiffsmodell (ShipModels), <see cref="Simple"/> = Grundkörper (ohne Modell oder weit weg).</summary>
-	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; public ShipVisual? Visual; public Node3D? Simple; public MeshInstance3D? Ring; public string ModelKey = ""; public Color Color; public bool Far; public Vector3? Base; }
+	sealed class Marker { public Node3D Pivot = null!; public float Yaw; public Vector3 Offset; public Vector3 Recoil; public ShipVisual? Visual; public Node3D? Simple; public MeshInstance3D? Ring; public string ModelKey = ""; public Color Color; public bool Far; public Vector3? Base; public bool Cloaked; }
 
 	Universe? _u;
 	SectorId _sector;
@@ -357,6 +357,7 @@ public partial class SectorView : Node3D
 		if (key != m.ModelKey || (m.Visual is null && m.Simple is null))
 		{
 			m.ModelKey = key;
+			m.Cloaked = false;   // neues Modell: Durchsichtigkeit neu setzen
 			m.Visual?.Root.QueueFree(); m.Visual = null;
 			if (ship is not null && ShipModels.Create(key, ShipModels.AccentOf(u, ship.Owner)) is { } v) { m.Visual = v; m.Pivot.AddChild(v.Root); }
 			if (m.Simple is null)
@@ -372,6 +373,9 @@ public partial class SectorView : Node3D
 		bool model = m.Visual is not null && !m.Far;
 		if (m.Visual is not null) m.Visual.Root.Visible = model;
 		if (m.Simple is not null) m.Simple.Visible = !model;
+		// Tarnfeld: getarnte Schiffe (heute nur Spielerschiffe — die KI tarnt nicht) halb durchsichtig; nur bei Änderung neu setzen
+		bool cloaked = ship?.Cloaked == true;
+		if (cloaked != m.Cloaked) { m.Cloaked = cloaked; CloakLook.Apply(m.Pivot, cloaked); }
 	}
 
 	/// <summary>Runde 11: Weltposition des Gefechtsziels eines Schiffs (Schiff oder Station), nur lesend aus dem Core.</summary>

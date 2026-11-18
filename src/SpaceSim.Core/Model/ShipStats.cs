@@ -79,6 +79,20 @@ public sealed class ShipStats
     public float PointDefense;
     /// <summary>Phase 24: Panzerung (Summe stats armor; steckt auch in <see cref="Hull"/>) — zieht je Treffer einen festen Betrag ab (<see cref="Combat.Hit"/>).</summary>
     public float Armor;
+    /// <summary>Sprungantrieb (SCHIFFSSLOTS.md 4): Reichweite in Gate-Hops (Modulstat <c>jumpRange</c>, das beste Modul zählt); 0 = kein Sprungantrieb.</summary>
+    public int JumpRange;
+    /// <summary>Sprungantrieb: Ladezeit in Ticks (<c>jumpCharge</c>).</summary>
+    public float JumpChargeTicks;
+    /// <summary>Sprungantrieb: Abklingzeit nach dem Sprung in Ticks (<c>jumpCooldown</c>).</summary>
+    public float JumpCooldownTicks;
+    /// <summary>Sprungantrieb: zusätzliche Leistung während des Ladens (<c>jumpDraw</c>, aus dem Reaktorüberschuss).</summary>
+    public float JumpDraw;
+    /// <summary>Sprungantrieb: Treibstoff je Sprung (<c>jumpFuel</c>; nur mit Schalter <c>fuelActive</c>).</summary>
+    public float JumpFuel;
+    /// <summary>Tarnfeld (SCHIFFSSLOTS.md 6): Tarnstärke, solange die Tarnung an ist (<c>cloak</c>, das beste Modul zählt); 0 = kein Tarnfeld.</summary>
+    public float Cloak;
+    /// <summary>Tarnfeld: zusätzliche Leistung, solange es an ist (<c>cloakDraw</c>, aus dem Reaktorüberschuss).</summary>
+    public float CloakDraw;
     /// <summary>Phase 24: Waffenstärke je Schaden pro Sekunde (abgeleitete Kennzahl aus den Waffenwerten: Schaden × Treffsicherheit ÷ Nachladezeit × dieser Faktor).</summary>
     public const float WeaponPowerPerDps = 2f;
 
@@ -125,6 +139,12 @@ public sealed class ShipStats
             if (m.Stats.TryGetValue("extinguish", out var ext)) s.Extinguish += ext;          // Phase 26: Löschanlage
             if (m.Stats.TryGetValue("missileCapacity", out var mc)) s.MissileCapacity += mc;  // Phase 28: Raketenmagazin
             if (m.Stats.TryGetValue("pointDefense", out var pd)) s.PointDefense += pd;        // Phase 28: Punktabwehr
+            if (m.Stats.TryGetValue("jumpRange", out var jr) && (int)jr > s.JumpRange)       // Sprungantrieb: das beste Modul zählt
+            {
+                s.JumpRange = (int)jr;
+                s.JumpChargeTicks = m.Stat("jumpCharge"); s.JumpCooldownTicks = m.Stat("jumpCooldown"); s.JumpDraw = m.Stat("jumpDraw"); s.JumpFuel = m.Stat("jumpFuel");
+            }
+            if (m.Stats.TryGetValue("cloak", out var ck) && ck > s.Cloak) { s.Cloak = ck; s.CloakDraw = m.Stat("cloakDraw"); }   // Tarnfeld: das beste Modul zählt
             foreach (var f in m.FuelTypes)
             {
                 int idx = s.FuelTypes.FindIndex(x => x.Good == f.Good);

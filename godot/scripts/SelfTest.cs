@@ -2734,12 +2734,14 @@ public partial class SelfTest : Node
 			case 127: if (SkyboxStage(_frame - _stageStart)) Next(); break;   // Himmelskugeln: jeder Sektor hat einen Himmel, Planetensektoren mit Planet ohne Extrakugel, Torsprung tauscht, kein Neuladen (SelfTest.Skybox.cs)
 			case 128: if (BlackMarketStage(_frame - _stageStart)) Next(); break;   // Schwarzmarkt: Kachel am Versteck, Verkauf trotz Fahndung und Kauf der Hehlerware über echte Tipps, Station-Info-Zeile (SelfTest.BlackMarket.cs)
 			case 129: if (Round45Stage(_frame - _stageStart)) Next(); break;   // Runde 45: Bündnis per echtem Tipp in Comms, Tribut fordern (zwei Tipps), Sektorbehörde + Sperrstufe in „Meine Fraktion“ (SelfTest.Round45.cs)
-			case 130: Next(); break;   // vergeben an Sprungantrieb/Tarnung (parallel) — hier nur durchreichen
+			case 130: if (JumpCloakStage(_frame - _stageStart)) Next(); break;   // Sprungantrieb und Tarnfeld: „Tarnung“ an/aus per Tipp (durchsichtig), „Sprung“ → Karte → Sektor antippen → Laden → Ankunft, Abklingen (SelfTest.JumpCloak.cs)
 			case 131: if (InputStage(_frame - _stageStart)) Next(); break;   // Geräte-Eingabe (Handytest A15): ein Tipp = ein Umschalten, Autopilot hält trotz fremder Berührungen, Regler nur per eigenem Finger, Karte/Menü im ganzen Rechteck (SelfTest.Input.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
 			default:
+				// Sprungantrieb/Tarnfeld: Stufennummern dürfen eine Lücke haben (Stufe 129 kommt aus einem parallelen Arbeitsstrang) — bis zur letzten Stufe weiterzählen
+				if (_stage < LastStage) { Next(); break; }
 				if (_fail.Length == 0) { GD.Print("SELFTEST OK"); GetTree().Quit(0); }
 				else { GD.PrintErr("SELFTEST FAILED: " + _fail); GetTree().Quit(1); }
 				SetProcess(false);
@@ -2748,6 +2750,8 @@ public partial class SelfTest : Node
 	}
 
 	void Next() { _stage++; _stageStart = _frame; }
+	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
+	const int LastStage = 131;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;
 	float _p6Hp; long _p6Tick; List<SpaceSim.Core.Events.SimEvent>? _p6Events;
 	/// <summary>Phase 28: Stufen 73–76.</summary>

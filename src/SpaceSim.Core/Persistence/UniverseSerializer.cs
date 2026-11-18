@@ -377,6 +377,8 @@ public static class UniverseSerializer
                 Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
                 RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit, RentPaidDays = sh.RentPaidDays,
                 MissionCargo = sh.MissionCargo,   // Runde 41
+                JumpTarget = sh.JumpTarget.Value, JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpTarget.Value != 0 ? sh.JumpFrom : null,   // Sprungantrieb
+                JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
                 Systems = ToSave(sh.Systems),
             });
         if (u.Squadrons.Count > 0)
@@ -726,6 +728,8 @@ public static class UniverseSerializer
                 Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
                 DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
                 RentPaidDays = sh.RentPaidDays, MissionCargo = sh.MissionCargo,   // Runde 41
+                JumpTarget = new SectorId(sh.JumpTarget), JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpFrom ?? default,   // Sprungantrieb
+                JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
                 Systems = FromSave(sh.Systems),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)

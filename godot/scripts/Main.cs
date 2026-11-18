@@ -164,6 +164,7 @@ public partial class Main : Node3D
 		};
 		_hud.Command.Action += OnCommandAction;
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
+		_hud.Map.JumpSelected += StartJumpTo;   // Sprungantrieb: Ziel auf der Karte
 		// Runde 37b (Handytest r37 N1, Blocker: Dock → „≡ Menü“ → „Karte“ → „Schließen“ ließ nur die nackte 3D-Szene zurück — die Karte meldete das Schließen,
 		// niemand hörte zu, angedockt war weder Dock-Menü noch Flug-HUD sichtbar): jedes Schließen der Karte führt zur Grundansicht zurück
 		_hud.Map.Closed += ShowBase;
@@ -1053,6 +1054,7 @@ public partial class Main : Node3D
 
 	void OnSimEvent(SimEvent e)
 	{
+		if (JumpCloakEvent(e)) return;   // Sprungantrieb und Tarnfeld (Main.JumpCloak.cs)
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
@@ -1275,6 +1277,7 @@ public partial class Main : Node3D
 		GateSparks(delta);   // Phase 31: beschädigte Tore sprühen Funken
 		_view.SyncStations(_session.U);   // Runde 8: Besitzerfarbe und Zustand der Stationsmodelle
 		_missions.Sync(_session.U, delta);   // Runde 41: Leuchtfeuer der Missionsziele im Sektor
+		UpdateJumpCloak(delta);   // Sprungantrieb: Ladeleuchten, Stillhalten; Tarnfeld: Durchsichtigkeit
 
 		// Phase 26: keine Gratis-Regeneration der Hülle mehr (Reparatur nur über den Dienst „repair“); ohne Schadensmodell wie bisher
 		_sinceHit += delta;
@@ -1574,6 +1577,7 @@ public partial class Main : Node3D
 		LastJumpMessage = check.Message;
 		if (check.Message.Length > 0) _hud.Toast(check.Message);
 		var far = u.Gates[u.Gates[gateId].Target];
+		JumpDrive.Abort(u, PlayerData, "moved", "Torsprung");   // Sprungantrieb: ein Torsprung beendet das Laden
 		u.MoveShip(PlayerData, far.Sector);
 		u.PlayerSector = far.Sector;
 		_music.Sting("sting_jump", Now);   // Runde 12
@@ -2593,7 +2597,7 @@ public partial class Main : Node3D
 			d.TargetRelBearing = rel;
 			d.TargetScreen = _cam.IsPositionBehind(new Vector3(tw.X, 0, tw.Y)) ? null : _cam.UnprojectPosition(new Vector3(tw.X, 0, tw.Y));
 			// Phase 25: mit Schiffsziel zählt der erste Waffenschacht, sonst wie bisher der Laser
-			int ai = 0;
+			int ai = _bays.Count > 0 && _bays[0].Key is "jump" or "cloak" ? _bays.Count : 0;   // Sprung/Tarnung haben keinen Feuerwinkel
 			if (d.TargetCombat.Length > 0)
 				for (int k = 0; k < _bays.Count; k++) if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(_bays[k].Key) >= 0) { ai = k; break; }
 			var bay = ai < _bays.Count ? _bays[ai] : WeaponBays.PlayerDefault[0];
@@ -2645,7 +2649,7 @@ public partial class Main : Node3D
 		var bays = _bays;
 		for (int i = 0; i < _bayViews.Length; i++)
 		{
-			if (bays[i].Key is "tractor" or "split" or "contact") continue;   // Traktor ist Umschalter, der Spalter feuert nur einzeln
+			if (bays[i].Key is "tractor" or "split" or "contact" or "jump" or "cloak") continue;   // Traktor ist Umschalter, der Spalter feuert nur einzeln; Sprung/Tarnung sind keine Waffen
 			fire++;
 			if (_bayStates[i] == BayState.Ready) ready++;
 		}
@@ -2660,7 +2664,7 @@ public partial class Main : Node3D
 			if (!g.Combat)
 			{
 				var v = _bayViews[g.Members[0]];
-				gv.Add(new GroupView { Label = v.Name, Sub = v.Detail, State = v.State, Reload = v.Reload, Combat = false, On = bays[g.Members[0]].Key == "tractor" && _tractorOn });
+				gv.Add(new GroupView { Label = v.Name, Sub = v.Detail, State = v.State, Reload = v.Reload, Combat = false, On = bays[g.Members[0]].Key == "tractor" && _tractorOn || bays[g.Members[0]].Key == WeaponBays.Cloak.Key && PlayerData.Cloaked });
 				continue;
 			}
 			int rdy = g.Members.Count(m => _bayStates[m] == BayState.Ready);
@@ -2722,6 +2726,7 @@ public partial class Main : Node3D
 					Reload = SpaceSim.Core.Combat.PlayerGunnery.ReloadProgress(_session.U, PlayerData, wslot), Facing = bay.Facing, ArcDegrees = bay.ArcDegrees };
 				continue;
 			}
+			if (JumpCloakBay(i, bay)) continue;   // Sprungantrieb, Tarnfeld (Main.JumpCloak.cs)
 			if (bay.Key == WeaponBays.Contact.Key)
 			{
 				// Phase 29: Kontaktwerkzeug — reine Anzeige, Zustand aus der Core-Regel (OreChunks.Contact im selben Bild)
@@ -2823,6 +2828,7 @@ public partial class Main : Node3D
 		var bays = _bays;
 		if (index < 0 || index >= bays.Count) return;
 		if (_docked != null || _hud.AnyModalOpen) return;
+		if (bays[index].Key == WeaponBays.Jump.Key || bays[index].Key == WeaponBays.Cloak.Key) { JumpCloakDown(bays[index].Key); return; }   // Sprungantrieb, Tarnfeld
 		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
 		if (bays[index].Key == WeaponBays.Salvager.Key) { GrabSalvage(); return; }
 		if (bays[index].Key == WeaponBays.Contact.Key)

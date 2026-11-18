@@ -68,6 +68,9 @@ public static class UniverseHash
             Mix((ulong)s.Id.Value); Mix((ulong)s.Owner.Value); Mix((ulong)s.Sector.Value); MixF(s.Position.X); MixF(s.Position.Y); MixF(s.Credits);
             Mix(s.Transit is null ? 0UL : (ulong)s.Transit.ArrivalTick); Mix((ulong)s.Phase); Mix((ulong)s.MinePhase); MixF(s.ShotTimer); Mix((ulong)s.MineAsteroid); Mix((ulong)s.Capabilities); Mix((ulong)s.Controller);
             if (s.AnchorRock != 0) { Mix(0xA2C4UL); Mix((ulong)s.AnchorRock); MixF(s.AnchorProgress); }   // Phase 32: Verankerung (nur wenn gesetzt)
+            if (s.JumpTarget.Value != 0) { Mix(0x5A01UL); Mix((ulong)s.JumpTarget.Value); MixF(s.JumpCharge); MixF(s.JumpFrom.X); MixF(s.JumpFrom.Y); }   // Sprungantrieb lädt (nur wenn gesetzt)
+            if (s.JumpCooldownUntil != 0) { Mix(0x5A02UL); Mix((ulong)s.JumpCooldownUntil); }   // Sprungantrieb kühlt ab
+            if (s.Cloaked) Mix(0x5A03UL);   // Tarnfeld an
             MixString(s.ModelKey);                                   // Phase 3: Modell und Fit gehören zum Spielstand
             foreach (var f in s.Fit) { if (f is null) Mix(0UL); else MixString(f); }
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }

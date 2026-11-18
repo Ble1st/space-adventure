@@ -1,4 +1,4 @@
-# Schiffsslots, Treibstoff, Sprungantrieb, Tarnfeld, Dienste (Planung)
+# Schiffsslots, Treibstoff, Sprungantrieb, Tarnfeld, Dienste (Planung; Sprungantrieb und Tarnfeld umgesetzt)
 
 **Status: reine Planung, nichts davon ist umgesetzt.** Ergänzt [SCHIFFE.md](SCHIFFE.md) (Klassen, Modelle, Multirole). Alle Zahlen sind Startwerte zum Tunen mit `tools/SpaceSim.Balance`.
 
@@ -155,7 +155,7 @@ Statt einer Fabrik für alles oder einer Fabrik je Bauteil gibt es **drei Fabrik
 - **Stufe nach Stationsgröße:** Eine kleine Fabrik stellt Mk1 her, eine mittlere Mk2, ein Hub Mk3. Das spart Typen und macht Größe zu einer Entscheidung.
 - **Warum nicht eine einzige Fabrik:** Sie wäre ein Totalausfall-Punkt, bräuchte alle Zutaten zugleich und würde die Ketten nivellieren.
 - **Warum nicht eine pro Bauteil:** 20 und mehr Stationstypen wären zu viel Pflege und würden die Wirtschaft zerstückeln.
-- **Erster Modulsatz:** Reaktor, Triebwerke, Tank, Laser, Traktor, Frachtmodul, Schild, Panzerung. Sprungantrieb und Tarnfeld kommen erst später ins Systemwerk.
+- **Erster Modulsatz:** Reaktor, Triebwerke, Tank, Laser, Traktor, Frachtmodul, Schild, Panzerung. Sprungantrieb und Tarnfeld kamen später ins Systemwerk (Abschnitte 4 und 6).
 
 ## 3. Treibstoff (entschieden)
 
@@ -184,33 +184,30 @@ Neue Stationen dafür (Startwerte, siehe STATIONEN.md):
 - **Liegenbleiber:** Notlösungen sind Rückflug auf Reserve, Schleppdienst und Notkauf zum Aufpreis (Henne-Ei-Logik wie beim Notbau).
 - **Wirtschaft:** Wasserstoff konkurriert weiter mit dem Kraftwerk, aber nur über die Verarbeitungsstufe, was die Nachfrage dämpft. Trotzdem vor der Umsetzung mit `tools/SpaceSim.Balance` prüfen, ob die Energieversorgung der Startwelt leidet.
 
-## 4. Sprungantrieb (zurückgestellt, nur Referenz und Planung)
+## 4. Sprungantrieb (umgesetzt)
 
-Der Sprungantrieb ist ein Utility-Modul (Fähigkeit `Jump`), mit dem ein Schiff **ohne Gate** in einen anderen Sektor springt.
+Der Sprungantrieb ist ein Utility-Modul (Fähigkeit `Jump`), mit dem ein Schiff **ohne Gate** in einen anderen Sektor springt. Umgesetzt in `SpaceSim.Core/Flight/JumpDrive.cs` (Regel), `Simulation/JumpCloakSystem.cs` (je Tick im Kampfmodul), Ansicht in `godot/scripts/Main.JumpCloak.cs`; Tests `tests/SpaceSim.Tests/SprungTarnTests.cs`, Selbsttest-Stufe 130.
 
-### Regeln
+### Entscheidungen
 
-- **Reichweite:** Sprung in Sektoren innerhalb von `jumpRange` auf der Sternenkarte. `Sector.MapPosition` existiert schon, ist heute aber nur Darstellung; mit dem Sprungantrieb wird sie **Spieldaten** (die Kartenlage muss dann stimmig bleiben, und der Wert gehört in Hash und Save-Prüfung). Wenn dieser Abstand zu ungenau ist, wären Gate-Hops die Alternative.
-- **Aufladen:** `chargeTicks` ohne Bewegung, dann der Sprung; danach `cooldownTicks`.
-- **Treibstoff:** `jumpFuel` je Sprung, bevorzugt Fusionsbrennstoff. Das macht Sprünge teuer und die Treibstoffkette strategisch.
-- **Massenschatten:** Kein Sprung in der Nähe großer Massen (Stationen, Gates, große Asteroiden). Das Schiff muss erst aus der Zone fliegen. Das nutzt die vorhandenen Hindernisse (`Obstacle`).
-- **Ankunft:** An einer zufälligen sicheren Position am Sektorrand oder bei einem Zielpunkt, deterministisch über `Universe.Rng`, mit Schonfrist (`Grace`) nach dem Sprung.
-- **Sprungsperre:** Fraktionsstationen und Gates können ein Sperrfeld haben, das Ankunft und Abflug im Umkreis verhindert. Das ist die Verteidigung gegen Sprungantriebe.
+- **Reichweite in Gate-Hops, nicht auf der Sternenkarte.** Gezählt wird über das ganze Tornetz, **auch über geschlossene, gesperrte und zerstörte Tore** (der Antrieb braucht das Tor nicht, nur die Nachbarschaft). `Sector.MapPosition` bleibt reine Darstellung (kein Hash, keine Spielstandsprüfung). Grund: robust, ohne neue Spieldaten, und die Karte bleibt frei gestaltbar. Modul `jump_drive_s` „Sprungantrieb“: Reichweite 2 Hops.
+- **Aufladen** `jumpCharge` (60 Ticks = 15 s) ohne Bewegung (höchstens `jumpMoveTolerance` 4 m vom Ladepunkt), dann der Sprung; danach **Abklingzeit** `jumpCooldown` (1200 Ticks = 5 min). Laden kostet `jumpDraw` (2) Leistung aus dem Reaktorüberschuss (die Dauerlast steigt, Schild/Bank/Antrieb bekommen weniger); ohne genug Überschuss lässt sich nicht laden.
+- **Treibstoff nur mit Schalter:** `jumpFuel` (20) wird nur bei `fuelActive` verbraucht; in der Standardwelt (Treibstoff aus) kostet der Sprung nur Zeit und Leistung.
+- **Massenschatten** (die Hindernisse der Welt): kein Laden und keine Ankunft näher als 60 an der Hülle einer Station, 60 an einem Gate oder 25 an der Oberfläche eines Felsens ab Radius 6 (Regeln `jumpShadowStation`, `jumpShadowGate`, `jumpShadowRock`, `jumpShadowRockRadius`).
+- **Ankunft** deterministisch ohne Zufall (kein `Universe.Rng`, kein `System.Random`): Ring mit 0,7 × Sektorausdehnung um die Mitte (`jumpArrivalRing`), Startrichtung zum Tor, das zum Herkunftssektor führt (sonst aus Schiffs- und Sektor-Ids), dann 16 Richtungen und vier Ringgrößen — die erste Stelle ohne Massenschatten. Die Ansicht gibt danach 2,5 s Schonfrist wie nach einem Gate-Sprung.
+- **Politik wie am Gate, aber ohne Gate:** Ausreise aus dem Startsektor und Einreise in den Zielsektor werden mit den vollen Sperrstufen geprüft (`GateAccess.EvaluateJump`; **keine Hauptroute-Ausnahme** — die gilt nur am Gate). Abriegelung (Ausreise Stufe 5) und gesperrte Einreise **weisen den Sprung ab** (kein Schlupfloch durch die Hintertür); Zoll wird beim Sprung gezahlt (sonst Zollflucht wie am Gate), Schmuggelware an der Ankunft ist **Schmuggel** (Fahndung, Lagekarte). Einziger Weg durch eine Sperre: ein **Tarnfeld stärker als die Sprung-Sensoren** (`jumpSensorStrength` 2, „Sprungspur“) — die Sperre ist rechtlich, also undicht, wie am Gate mit dem `DetectionCheck`. Geprüft wird beim Start (Ablehnung ohne Verbrechen) und noch einmal beim Sprung (dann mit Meldung des Verbrechens).
+- **Abbruch** des Ladens: Schiff bewegt, angedockt, unterwegs, Torsprung, Gefechtsbeginn, Treffer, Massenschatten, Modul ausgefallen, Leistung fehlt, Schiffswechsel, erneutes Tippen auf „Sprung“.
+- **Nur der Spieler** nutzt den Antrieb (die KI nicht): keine NPC-Fahrplanabschnitte, kein `JumpLeg`, keine Routensuche mit Sprungkanten. Die Regeln selbst ändern die NPC-Welt nicht; nur die neuen Modulwaren, Systemwerk-Rezepte und Werftregale verschieben ihren Lauf (ohne diesen Inhalt ist der Referenz-Hash gleich, Test `NpcWelt_OhneDenInhalt_Referenzhash`). Schmuggler/Piraten mit Sprungantrieb sind ein späterer Schritt.
+- **Herstellung:** Modulware, gebaut im Systemwerk (Stufe 2; Elektronik 3, Wafer 2, Platin 2, Brennstoffzellen 2), Werftregal [1, 1]. **Keine Forschungssperre:** eine Freischaltung in „Fusionstechnik Mk3“ hätte die eingefrorene Migrationskette (v15 → v16 ergänzt die Projekte aus der Standardwelt) verändert; mit eingeschalteter Forschung ist der Antrieb frei.
+- **Sprungsperre** (Sperrfeld von Stationen/Toren) ist **nicht** gebaut: der Massenschatten deckt die Nähe zu Stationen und Toren schon ab.
 
-### Auswirkung auf die Architektur
+### Bedienung
 
-Heute kennt `Universe.FindRoute` nur Gates (BFS über offene Gates) und zwischenspeichert nur nach (von, nach). Mit Sprung entstehen zusätzliche Kanten, die vom Schiff abhängen. Daraus folgt:
+Schacht „Sprung“ im Daumenbogen (eigene Gruppe): „Ziel wählen“ öffnet die Sternenkarte im Sprungmodus (erreichbare Sektoren cyan umrandet), ein Tipp auf einen davon startet das Laden (Regler auf STOPP, Autopilot und Auto-Mining aus). Die Taste zeigt „lädt n %“ bzw. „kühlt m:ss“ oder den Grund („Massenschatten“, „Leistung fehlt“); ein Tipp während des Ladens bricht ab. Ladeleuchten (Kugel und Ring) wachsen mit dem Fortschritt, die Ankunft blitzt. Der Zeitraffer läuft auch beim Laden (Simulationsticks).
 
-1. **Mobilitätsprofil:** Die Routensuche bekommt ein Profil (Gate-only, Sprung mit Reichweite R und Cooldown-Status). Der Cache wird nach (von, nach, Profil) aufgeteilt.
-2. **Neuer Abschnitt:** `Travel.Plan` kennt neben der Gate-Etappe (`Leg`) eine `JumpLeg` mit Aufladezeit und Dauer.
-3. **Keine Physik außerhalb:** NPC-Sprünge sind Fahrplanabschnitte wie bisher; nur im Spielersektor sieht man Aufladen und Ankunft.
-4. **Preis:** Sprungantrieb ist teuer (Platin, Brennstoffzellen), schwer und braucht viel Leistung; deshalb haben ihn nur wenige Schiffe.
+### Spielstand
 
-### Zweck im Spiel
-
-- Umgehung geschlossener Gates (Abschnitt 5) und von Sperrzonen.
-- Schnelle Verbindungen für Kuriere, Beute und Schmuggel.
-- Eigene Rolle: Sprungschiffe können abgeschottete Märkte beliefern und Preisunterschiede ausnutzen; das stabilisiert die Wirtschaft, wenn Gates schließen.
+Additiv (v17 bleibt): `ShipSave.JumpTarget`, `JumpCharge`, `JumpFrom`, `JumpCooldownUntil`; gehasht nur wenn gesetzt.
 
 ## 5. Geschlossene Jumpgates
 
@@ -234,16 +231,29 @@ Heute hat `Gate` nur `Open` (Standard `true`); `FindRoute` ignoriert geschlossen
 - **Architektur:** `Gate.Open` wird durch einen Zugriff `gate.CanPass(ship, universe)` ersetzt. `FindRoute` bekommt dafür das Mobilitätsprofil und die Fraktion des Schiffs. Save: `GateSave` erhält Zustand und Politik, plus Migration (alle bisher `Open`).
 - **Blockadebrecher** (später): Fähigkeit, Sperren mit Panzerung, Zollzahlung oder Tarnfeld zu passieren; mit Sprungantrieb gar nicht erst mit dem Gate.
 
-## 6. Tarnfeld (zurückgestellt, nur Referenz und Planung)
+## 6. Tarnfeld (umgesetzt)
 
-Ein Utility-Modul mit der Fähigkeit `Stealth`. Es senkt die Wahrscheinlichkeit, von Fraktionen entdeckt zu werden. Es ist ein Gegenpol zu Sprungsperre und Gate-Kontrolle, nicht Unsichtbarkeit.
+Ein Utility-Modul mit der Fähigkeit `Stealth`. Es senkt die Wahrscheinlichkeit, entdeckt zu werden — kein Unsichtbarkeitsmantel für den Kampf. Umgesetzt in `SpaceSim.Core/Flight/Cloak.cs`; Tests in `SprungTarnTests.cs`, Selbsttest-Stufe 130.
 
-- **Entdeckungswurf:** An Kontrollpunkten (Gate-Passage, Sprung-Ankunft, Stationsscanner, später Patrouillen) vergleicht das System die Tarnstärke des Schiffs mit der Sensorstärke des Kontrollpunkts und würfelt über `Universe.Rng`. Das Ergebnis: unentdeckt (Schiff passiert), entdeckt (Zoll, Fracht beschlagnahmt, Abweisung, später Kampf).
-- **Kosten:** hoher Leistungsbedarf; nicht gleichzeitig mit Waffen und Mining-Laser nutzbar (Schüsse brechen die Tarnung). Wer tarnen will, opfert Feuerkraft. Sprung-Ankunft ist durch Sensoren erkennbar (Sprungspur).
-- **Stufen:** Mk1–Mk3 mit steigender Tarnstärke; höhere Stufen brauchen mehr Platin und Silizium (Wafer).
-- **Zweck:** Schmuggel, Spionage und Blockadebrecher; für den Spieler eine Spielweise (Händler, der Zölle umgeht, Schürfer in fremden Sektoren).
-- **Nicht-Ziel:** Kein echtes „unsichtbar für Kampf-KI“ in diesem Schritt, weil es das Kampfsystem noch nicht gibt.
-- **Architektur:** Eine Schnittstelle `IDetectionCheck` (ein Eintrag je Kontrollpunkt), die `Stealth` und Sensorstärke vergleicht. Heute nutzt nur das Gate-Zugangsmodell sie.
+### Entscheidungen
+
+- **Umschalter statt Dauerwirkung:** Das Modul wirkt nur **eingeschaltet** (`Ship.Cloaked`); eingebaut, aber aus, ist das Schiff normal sichtbar (der passive Modulwert `stealth` bleibt für spätere Inhalte).
+- **Entdeckung ohne Würfel:** Tarnstärke gegen Sensorstärke, deterministisch wie der bestehende `DetectionCheck`: stärker getarnt = unbemerkt. Sensoren: Kontrollpunkt am Gate 1 (`gateSensorStrength`), Kaperer 1 (`raiderSensorStrength`), Polizei 2 (`policeSensorStrength`), Kleinstationen 2 (`stationSensorStrength`), Sprung-Ankunft 2 (`jumpSensorStrength`). **Mk1** `cloak_s` (Stärke 1,5) entgeht Kontrollpunkten und Kaperern, **Mk2** `cloak_s_mk2` (2,5) zusätzlich Polizei, Plattformen und der Sprungspur.
+- **Wirkung:** am Gate unentdeckt (Sperre und Zoll entfallen, wie bisher im `DetectionCheck`); beim Sprung in gesperrte Sektoren (nur Mk2); Kaperer wählen getarnte Schiffe nicht als Opfer; die Polizei kündigt weder Festnahme noch Kriegsangriff an; Plattformen warnen und schießen nicht von sich aus. Im Gefecht bricht die Tarnung ohnehin.
+- **Kosten:** eingeschaltet zieht es `cloakDraw` (Mk1 2, Mk2 3) aus dem Reaktorüberschuss (Dauerlast steigt — Schild, Bank und Antrieb bekommen weniger, gleiche Regel wie die Leistungsverteilung); einschalten nur mit genug Überschuss. Tarnung und Sprungladen zugleich braucht einen stärkeren Reaktor.
+- **Bricht bei:** eigenem Schuss oder Abbau (Laser, Spalter, Bohrer/Kontakt, Anker), Andocken, Gefechtsbeginn, Treffer, Modulausfall, Leistungsmangel, Schiffswechsel.
+- **Nicht einschaltbar:** angedockt, unterwegs, im Gefecht, solange eine Warnung (Überfall, Festnahme, Krieg, Plattform) auf das Schiff läuft, ohne Leistung. Wer gewarnt ist, ist schon entdeckt.
+- **Kein Lizenzsystem:** Tarnung im Hoheitsgebiet ist erlaubt; sie wirkt nur über die Entdeckung (ROADMAP Punkt 7 erledigt).
+- **Nur der Spieler** nutzt es (die KI nicht); Schmuggler-KI ist ein späterer Schritt.
+- **Herstellung:** Modulwaren im Systemwerk (Mk1 Stufe 2: Wafer 3, Elektronik 2, Platin 1; Mk2 Stufe 3: Wafer 4, Elektronik 3, Platin 2; Aufrüstpfad Mk1 → Mk2), Werftregale [1, 1] und [0, 1]. Keine Forschungssperre (wie beim Sprungantrieb, Abschnitt 4).
+
+### Bedienung
+
+Schacht „Tarnung“ im Daumenbogen (Umschalter): „aus“ / „AN · −2 Leist.“ / Grund. Das eigene Schiff wird eingeschaltet halb durchsichtig (Modell und Marker getarnter Schiffe). Meldungen „Tarnung an“, „Tarnung gebrochen: Treffer“.
+
+### Spielstand
+
+Additiv (v17 bleibt): `ShipSave.Cloaked`; gehasht nur wenn gesetzt.
 
 ## 7. Stationsdienste als Zwischenschritt
 

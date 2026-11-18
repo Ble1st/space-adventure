@@ -191,6 +191,7 @@ public sealed class PirateSystem : ISimSystem
             // Phase 12: nicht aktive Spielerschiffe (Flotte) nur mit FleetRaids, das aktive nur mit PlayerRaids im Spielersektor
             if (player && s.Id == u.PlayerShip && (!u.Rules.PlayerRaids || u.PlayerSector != sector)) continue;
             if (player && s.Id != u.PlayerShip && !u.Rules.FleetRaids) continue;
+            if (Flight.Cloak.HiddenFrom(s, u.Rules.RaiderSensorStrength)) continue;   // Tarnfeld: stärker getarnt als die Kaperer-Sensoren = kein Opfer
             var (where, pos) = ThreatMap.Where(u, s);
             if (where != sector || ThreatMap.NearStation(u, sector, pos)) continue;
             if (reach > 0f && Vec2.Distance(pos, from!.Value) > reach) continue;

@@ -734,6 +734,12 @@ public sealed class ShipSave
     /// <summary>Phase 32: Verankerung beim Kontaktabbau (Asteroid, Fortschritt in Ticks); fehlt = nicht verankert.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int AnchorRock { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float AnchorProgress { get; set; }
+    /// <summary>Sprungantrieb (additiv): Zielsektor, geladene Ticks, Ladepunkt, Abklingende; Tarnfeld an. Fehlt = nicht gesetzt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int JumpTarget { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float JumpCharge { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Vec2? JumpFrom { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long JumpCooldownUntil { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Cloaked { get; set; }
     public Dictionary<int, float> Cargo { get; set; } = new();
     /// <summary>Treibstoff an Bord je Ware (GoodId → Menge); fehlt in v4-Saves (die Migration trägt einen vollen Tank nach).</summary>
     public Dictionary<int, float> Fuel { get; set; } = new();

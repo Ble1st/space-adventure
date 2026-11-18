@@ -121,6 +121,7 @@ public sealed class CombatModule : ISimModule
     public void Register(SimulationBuilder b) =>
         b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.ShipSystemsSystem())
          .Add(new SpaceSim.Core.Combat.FireSystem())                       // Phase 26: Brände über den Erholungsindex
+         .Add(new JumpCloakSystem())                                       // Sprungantrieb laden/springen, Tarnfeld prüfen (nur Schiffe mit Zustand)
          .Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10)
          .Add(new WreckSystem(), interval: 50)                             // Phase 26: Wracks verfallen
          .Add(new SpaceSim.Core.Combat.StationRepairSystem(), interval: 50)   // Phase 28: Stationen reparieren (Materialsenke)

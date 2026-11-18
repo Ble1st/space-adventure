@@ -25,7 +25,8 @@ public static class SaveGameJson
         "shield_mk2", "shield_m", "armor_plating_s_mk2", "armor_plating_m", "weapon_laser_s_mk2", "weapon_laser_m", "weapon_massdriver_s_mk2",
         "missile_launcher_s_mk2", "power_bank_s_mk2", "point_defense_s_mk2", "reactor_m", "corvette", "missile_boat",
         "bomber", "gunboat", "destroyer", "battlecruiser", "strip_miner",
-        "drill_head_s", "cutting_wheel_s", "cutting_wheel_m", "cutting_drum_l" };   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
+        "drill_head_s", "cutting_wheel_s", "cutting_wheel_m", "cutting_drum_l",
+        "jump_drive_s", "cloak_s", "cloak_s_mk2" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {

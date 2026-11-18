@@ -23,8 +23,8 @@ Stand der Durchsicht der Dokumente (alles Planung, keine Code-Fehler):
 3. **Größe/Klasse:** Das Wort „Klasse“ steht für Schiffsklasse, Asteroidenklasse und Größenklasse eines Akteurs. In künftigen Texten besser „Größenstufe“ für Akteure.
 4. **Mehrere medium Stationen je Sektor:** Es ist nicht festgelegt, wie viele mittelgroße Stationen ein Sektor fasst (Sektor-HQ, Firmensitz, Patrouillenbasis, Handelsstation konkurrieren).
 5. **Polizeiwache:** als Dienst oder als kleine Station beschrieben; noch zu entscheiden.
-6. **Sprungreichweite:** hängt an `Sector.MapPosition`, die heute nur Darstellung ist.
-7. **Tarnfeld im Hoheitsgebiet:** „unlizenziert“ setzt ein Lizenzsystem voraus, das nirgends beschrieben ist.
+6. **Erledigt (SCHIFFSSLOTS.md Abschnitt 4).** **Sprungreichweite:** zählt in Gate-Hops über das ganze Tornetz (auch über geschlossene und zerstörte Tore); `Sector.MapPosition` bleibt reine Darstellung.
+7. **Erledigt (SCHIFFSSLOTS.md Abschnitt 6).** **Tarnfeld im Hoheitsgebiet:** kein Lizenzsystem — eingeschaltet ist das Tarnfeld überall erlaubt; es wirkt nur über die Entdeckung (Tarnstärke gegen Sensorstärke von Kontrollpunkt, Sprung-Ankunft, Kaperern, Polizei, Kleinstationen). Wer unentdeckt in gesperrte Sektoren kommt, umgeht die Sperre — die Sperre ist rechtlich, also undicht, wie am Gate.
 8. **Persönlichkeitswerte und Wirtschaft:** Sie verändern Zukauf und Zölle und müssen im Balance-Tool beobachtet werden.
 
 ### Zweite Durchsicht: Module, Waren und Lücken

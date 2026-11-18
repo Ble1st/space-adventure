@@ -7,7 +7,7 @@ namespace SpaceSim.Core.Simulation;
 /// Was ein Kontrollpunkt prüft (Phase 10, POLITIK.md Abschnitt 1): Gate, Seite (Sektor und Richtung), wirksame Sperrstufe (nach Hauptroute-Ausnahme
 /// und Durchsetzung), zuständige Fraktion (Besitzer des Sektors), Mobilitätsprofil und — bei einer echten Passage — das Schiff selbst (Fracht).
 /// </summary>
-public readonly record struct AccessContext(Universe U, Gate Gate, Sector Sector, AccessDirection Direction, int Level, FactionId Authority, MobilityProfile Profile, Ship? Ship)
+public readonly record struct AccessContext(Universe U, Gate? Gate, Sector Sector, AccessDirection Direction, int Level, FactionId Authority, MobilityProfile Profile, Ship? Ship)
 {
     /// <summary>Ist das Profil Mitglied der zuständigen Fraktion (eigene Leute passieren immer)?</summary>
     public bool IsMember => U.FactionOf(Profile.Actor) == Authority;
@@ -96,6 +96,20 @@ public sealed class DetectionCheck : IAccessCheck
             : AccessVerdict.Allow;
 }
 
+/// <summary>
+/// Sprungantrieb (SCHIFFSSLOTS.md 4/6): Entdeckung an der Sprung-Ankunft (Sprungspur) — wie <see cref="DetectionCheck"/>, aber gegen die stärkere
+/// <see cref="EconomyRules.JumpSensorStrength"/>. Ohne Würfel.
+/// </summary>
+public sealed class JumpDetectionCheck : IAccessCheck
+{
+    public string Key => "jump_detection";
+
+    public AccessVerdict Check(in AccessContext ctx) =>
+        ctx.Level > 0 && ctx.Profile.Stealth > ctx.U.Rules.JumpSensorStrength
+            ? new AccessVerdict(AccessPolicy.Allow, 0f, $"{ctx.Sector.Name}: unentdeckt", Undetected: true)
+            : AccessVerdict.Allow;
+}
+
 /// <summary>Registry der Kontrollpunkt-Prüfungen in Reihenfolge (Politik, Ware, Entdeckung); doppelte Schlüssel werfen.</summary>
 public sealed class AccessChecks
 {
@@ -114,6 +128,9 @@ public sealed class AccessChecks
 
     /// <summary>Die Standardprüfungen (zustandslos, daher gemeinsam nutzbar).</summary>
     public static readonly AccessChecks Standard = Default();
+
+    /// <summary>Sprungantrieb: Politik und Ware wie am Gate, Entdeckung gegen die Sprung-Sensoren.</summary>
+    public static readonly AccessChecks Jump = new AccessChecks().Register(new PolicyCheck()).Register(new CargoCheck()).Register(new JumpDetectionCheck());
 }
 
 /// <summary>Ergebnis eines Spielersprungs: erlaubt, gezahlter Zoll, Meldung (Grund der Ablehnung oder Zollquittung).</summary>
@@ -139,7 +156,7 @@ public static class GateAccess
     public static MobilityProfile ProfileOf(Universe u, Ship ship) =>
         // Phase 28: Kriegsschiffe brechen durch Sperren (nur der physische Torzustand zählt)
         u.Rules.Warfare && Wars.IsWarship(ship) ? MobilityProfile.Physical :
-        MobilityProfile.For(ship.Owner, ship.Cargo.Values.Any(v => v > 0.001f), ship.HasModel ? ship.Stats.Stealth : 0f);
+        MobilityProfile.For(ship.Owner, ship.Cargo.Values.Any(v => v > 0.001f), ship.HasModel ? ship.Stats.Stealth + Flight.Cloak.ActiveStrength(ship) : 0f);   // Tarnfeld zählt nur eingeschaltet
 
     /// <summary>Wirksame Stufe einer Seite: Sektorsperre (falls durchgesetzt), auf der Hauptroute gedeckelt.</summary>
     public static int EffectiveLevel(Universe u, Gate gate, Sector sector, AccessDirection dir)
@@ -152,6 +169,12 @@ public static class GateAccess
     static AccessVerdict CheckSide(Universe u, Gate gate, Sector sector, AccessDirection dir, MobilityProfile profile, Ship? ship, AccessChecks checks)
     {
         int level = EffectiveLevel(u, gate, sector, dir);
+        return CheckLevel(u, gate, sector, dir, level, profile, ship, checks);
+    }
+
+    /// <summary>Prüft eine Seite bei gegebener Stufe (Gate = null: Sprungantrieb ohne Gate, also ohne Hauptroute-Ausnahme).</summary>
+    static AccessVerdict CheckLevel(Universe u, Gate? gate, Sector sector, AccessDirection dir, int level, MobilityProfile profile, Ship? ship, AccessChecks checks)
+    {
         if (level <= 0) return AccessVerdict.Allow;
         var ctx = new AccessContext(u, gate, sector, dir, level, sector.Owner, profile, ship);
         var result = AccessVerdict.Allow;
@@ -190,6 +213,24 @@ public static class GateAccess
         return new GatePassage(toll > 0f ? AccessPolicy.Toll : AccessPolicy.Allow, toll, reason, toll > 0f ? farSector.Owner : null);
     }
 
+    /// <summary>
+    /// Sprungantrieb (SCHIFFSSLOTS.md 4): Passage ohne Gate — der physische Zustand der Gates zählt nicht (der Antrieb umgeht geschlossene und zerstörte
+    /// Tore), die Politik aber schon: Ausreise aus <paramref name="from"/> und Einreise nach <paramref name="to"/> mit den vollen Sektorstufen (keine
+    /// Hauptroute-Ausnahme, die gilt nur am Gate) und den Prüfungen <see cref="AccessChecks.Jump"/> (Sprungspur gegen die stärkeren Sprung-Sensoren).
+    /// </summary>
+    public static GatePassage EvaluateJump(Universe u, SectorId from, SectorId to, MobilityProfile profile, Ship? ship = null)
+    {
+        if (!u.Sectors.TryGetValue(from, out var a) || !u.Sectors.TryGetValue(to, out var b)) return new GatePassage(AccessPolicy.Deny, 0f, "Sektor unbekannt", null);
+        if (profile.IsPhysical) return new GatePassage(AccessPolicy.Allow, 0f, "", null);
+        var exit = CheckLevel(u, null, a, AccessDirection.Exit, a.Access.Level(AccessDirection.Exit), profile, ship, AccessChecks.Jump);
+        if (exit.Policy == AccessPolicy.Deny) return new GatePassage(AccessPolicy.Deny, 0f, exit.Reason, null, exit.Crime, a.Owner);
+        var entry = CheckLevel(u, null, b, AccessDirection.Entry, b.Access.Level(AccessDirection.Entry), profile, ship, AccessChecks.Jump);
+        if (entry.Policy == AccessPolicy.Deny) return new GatePassage(AccessPolicy.Deny, 0f, entry.Reason, null, entry.Crime, b.Owner);
+        float toll = exit.Toll + entry.Toll;
+        string reason = entry.Reason.Length > 0 ? entry.Reason : exit.Reason;
+        return new GatePassage(toll > 0f ? AccessPolicy.Toll : AccessPolicy.Allow, toll, reason, toll > 0f ? b.Owner : null);
+    }
+
     /// <summary>Weist das Gate dieses Profil nicht ab (Zoll ist erlaubt)? Für die Routensuche.</summary>
     public static bool CanTraverse(Universe u, Gate gate, MobilityProfile profile) => Evaluate(u, gate, profile).Allowed;
 
@@ -197,7 +238,10 @@ public static class GateAccess
     /// Zollt eine Passage: Abbuchung von der Kasse des Schiffs (<see cref="Universe.WalletOf"/>, höchstens was da ist) an die Kasse der Sektorfraktion,
     /// Ereignis <see cref="TollPaid"/>. Gibt den gezahlten Betrag zurück.
     /// </summary>
-    public static float PayToll(Universe u, Ship ship, Gate gate, GatePassage passage)
+    public static float PayToll(Universe u, Ship ship, Gate gate, GatePassage passage) => PayToll(u, ship, gate.Id, passage);
+
+    /// <summary>Wie <see cref="PayToll(Universe, Ship, Gate, GatePassage)"/>; Gate 0 = Sprungantrieb.</summary>
+    public static float PayToll(Universe u, Ship ship, GateId gateId, GatePassage passage)
     {
         if (passage.Toll <= 0f || passage.TollTo is not { } to) return 0f;
         var wallet = u.WalletOf(ship);
@@ -205,7 +249,7 @@ public static class GateAccess
         if (paid <= 0f) return 0f;
         wallet.Credits -= paid;
         if (u.Actors.TryGetValue(to, out var authority)) authority.Treasury.Credits += paid;
-        u.Events.Publish(new TollPaid(ship.Id, gate.Id, to, paid));
+        u.Events.Publish(new TollPaid(ship.Id, gateId, to, paid));
         return paid;
     }
 

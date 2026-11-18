@@ -102,6 +102,7 @@ public static class AsteroidSplitter
         if (rock is null) return (null, "Kein Asteroid gewählt");
         if (Vec2.Distance(ship.Position, rock.Position) - rock.Radius > MiningRules.LaserRange) return (null, "Außer Reichweite");
         if (Issue(u, s, rock) is { } issue) return (null, issue);
+        Flight.Cloak.Break(u, ship, "fired");   // Tarnfeld: der Spaltschuss bricht die Tarnung
         var frags = Split(u, s, rock, ship.Id);
         return frags is null ? (null, "Kein Platz für die Fragmente") : (frags, null);
     }

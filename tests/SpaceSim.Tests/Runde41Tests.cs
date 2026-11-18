@@ -549,7 +549,10 @@ public class Runde41Tests
         var ev = Capture(u);
         Run(u, 5);
 
-        // Angreifer-Szenario: Ware umsonst an Bord (stärkster Fall), an der Zielstation zum Marktpreis verkaufen
+        // Sprungantrieb/Tarnfeld (neue Modulwaren verschieben den Weltlauf): auf Seed 23 ist das gefundene Angebot das Stahlregal des Lagerhauses, das NPC-Händler in den
+        // 5 Ticks bis auf 0,24 Einheiten Annahme füllen — ohne Ticks zwischen den Teilverkäufen erholt sich die Annahme nicht. Das Szenario setzt eine Station voraus,
+        // die die Sollmenge annimmt (siehe DockDelivery): Bestand so weit senken, dass sie es wieder tut (prüft weiter nur den Mehrgewinn)
+        if (st.AcceptableUnits(good, u.Rules) < units) st.Market[good].Amount = MathF.Max(0f, st.Market[good].Amount - (units - st.AcceptableUnits(good, u.Rules)) - 0.01f);
         ship.Cargo[good] = units;
         float revenue = 0f;
         for (int t = 0; t < 8 && m.Progress < units - 0.01f; t++)   // Deckel der Station: in Teilverkäufen liefern
@@ -567,7 +570,8 @@ public class Runde41Tests
         // Gesamtgewinn = reiner Marktverkauf (erlaubt — Handel bleibt) + genau einmal der Bonus aus der Fraktionskasse
         Assert.True(MathF.Abs(gain - (revenue + m.Reserved + m.Deposit)) < 0.05f,
             $"Gewinn {gain:0.##} = Verkaufserlös {revenue:0.##} + Bonus {m.Reserved:0.##} + Pfand {m.Deposit:0.##} (nichts darüber hinaus)");
-        Assert.True(m.Reserved <= u.Rules.MissionBonusShare * units * u.GoodOf(good).BasePrice + 0.01f, "Bonus ≤ 10 % des Basiswerts");
+        // Sprungantrieb/Tarnfeld: der Bonus ist auf ganze Credits gerundet (DeliveryMission: MathF.Round) — auf dem verschobenen Weltlauf liegt er 0,4 Cr über 10 %
+        Assert.True(m.Reserved <= u.Rules.MissionBonusShare * units * u.GoodOf(good).BasePrice + 0.5f, "Bonus ≤ 10 % des Basiswerts (auf ganze Credits gerundet)");
         Assert.Equal(1, ev.OfType<MissionPaid>().Count(e => e.Mission == m.Id));   // Bonus genau einmal
     }
 }
