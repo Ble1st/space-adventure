@@ -256,3 +256,65 @@ Die Formen stehen mit Größe, Diensten und Anzahl in [STATIONEN.md](STATIONEN.m
 - Soll der Spieler Polizeigewalt bekommen, sobald er Dominanz erreicht, oder bleibt Polizei immer KI?
 - Soll ein freies Schiff sofort ein eigener Akteur sein (einfacher, teurer) oder träge zum Akteur werden (Vorschlag)?
 - Darf der Spieler einer Fraktion beitreten und aufsteigen, oder bleibt er unabhängig?
+
+## Runde 45: Tribut, Bündnisse, eigene Sperren
+
+Die Entscheidungen dieser Runde traf der Bearbeiter selbstständig (Auftrag „offene Liste abarbeiten“). Bindend blieben: Handel bleibt wie er ist, der Spieler ist eine eigene Fraktion, Krieg ohne Kriegsgrund, Sperren gegen den Spieler ärgern Dritte nicht (38b), Speicherstand bleibt v17 (nur additiv), NPC-Wirtschaft unverändert, solange niemand die neuen Wege benutzt.
+
+**Befund vorab.** `aiWarOnPlayer` steht in der Standardwelt **schon seit Runde 40 auf an** (`default-world.json`, `Runde40Tests.AiWarOnPlayer_StandardweltAn_…`); der Ausweg des Spielers (Waffenstillstand, Frieden, Tribut zahlen per Comms) existiert und ist getestet. Diese Runde ergänzt ihn um „Tribut fordern“ und um Verbündete, die einen angegriffenen Spieler verteidigen. Die Comms-Diplomatie von Runde 40 hatte keinen eigenen Abschnitt in CLAUDE.md; der Entwurf `plan-1.0/hermes-diplomatie.md` beschrieb den Code im Wesentlichen richtig.
+
+### Tribut
+
+| Regel | Wert | Bedeutung |
+|---|---|---|
+| `aiTributePeace` | Code aus, Standardwelt an | KI-gegen-KI-Kriege können durch Tribut enden |
+| `TributePeaceWeariness` | 0,15 | entspricht der Mindestdauer (6000 von 40 000 Ticks); vorher kein Tributfrieden |
+| `TributeStrengthRatio` | 1,2 | Sieger ist, wer mindestens 1,2-mal so stark ist (`Wars.Strength`) |
+| `TributeAcceptShare` | 0,8 | angenommen, wenn der Verlierer mindestens 80 % der Forderung zahlen kann |
+| `TributeMaxSpendableShare` | 0,5 | ein KI-Zahler gibt höchstens die Hälfte seines verfügbaren Geldes — **nie** die Rücklage |
+| `PlayerDemandRelationLoss` | 0,03 | fordert der Spieler, sinkt die Achtung aller anderen KI-Fraktionen (wie beim Krieg) |
+
+- **KI gegen KI** (`WarSystem`, alle 100 Ticks): nach der Mindestdauer, ohne laufende Angebots-Abkühlzeit und mit einem klaren Sieger fordert der Sieger `TributeFor` (Grundbetrag × (1 − Müdigkeit) + halbe eigene Verluste, abzüglich schon gezahlten Tributs). Kann der Verlierer genug aus seinem Budget zahlen, zahlt er und es ist Frieden (Grund „tribute“), sonst gilt das als Angebot (`LastOfferTick`) und der nächste Versuch kommt erst nach `OfferCooldownTicks` — kein Flackern. Die Pflicht-Friedensschlüsse („broke“, „weary“) bleiben vorrangig.
+- **Spieler fordert** (`demand:<F>`, Comms → Diplomatie, zwei Tipps): **dieselbe Regel** — Mindestdauer, Müdigkeit, klare Überlegenheit, Zahlungsfähigkeit. Geld geht von der KI-Kasse in die Spielerkasse, Frieden, alle anderen KI-Fraktionen −0,03.
+- **Spieler zahlt**: unverändert aus Runde 40 (Waffenstillstand/Frieden gegen Tribut, „Tribut zahlen“).
+- **Buchung**: jede Zahlung als Paar `TreasuryUpkeep`/`TreasuryIncome` „tribute“ plus `TributePaid` und `TributePeace` — die Kassen bleiben aus Ereignissen exakt erklärbar.
+- **Missbrauch**: kein Geldkreislauf. Nach einem Frieden sperrt die Friedens-Abkühlzeit (30 000 Ticks) den nächsten Krieg mit derselben Fraktion; vorab gezahlter Tribut mindert die Forderung (Test: wer erst zahlt und dann fordert, steht um mindestens das Doppelte der Zahlung schlechter); jede Forderung kostet Achtung bei allen Dritten, die nie zurückdriftet (Runde 38). **Bewusst offen:** die Kriegsstärke zählt das Geld mit (wie seit Phase 28), ein sehr reicher Spieler ist darum „überlegen“, auch mit wenigen Schiffen; die KI-Polizei greift ihn im Krieg trotzdem an, und die Forderung ist auf das halbe verfügbare Geld der KI gedeckelt.
+
+### Bündnisse
+
+| Regel | Wert | Bedeutung |
+|---|---|---|
+| `alliancesActive` | Code aus, Standardwelt an | Hauptschalter |
+| `AllianceMinRelation` | 0,6 | Gründung/Annahme ab dieser Beziehung, beide Richtungen |
+| `AllianceBreakRelation` | 0,4 | darunter zerbricht das Bündnis (Hysterese) |
+| `AllianceMinCooperation` | 0,55 | KI-Fraktionen nur mit genug Kooperation |
+| `MaxAlliancesPerFaction` | 2 | kein Netz aus Schutzbündnissen |
+| `AllianceCooldownTicks` | 20 000 | nach dem Ende kein neues Bündnis mit demselben Partner |
+| `AllianceRestBonus` | 0,4 | Bündnistreue: der Ruhewert der Beziehungsdrift steigt um 0,4 (mit 0,25 zog die Drift ein erzwungenes Bündnis in 4900 Ticks unter 0,4 — gemessen) |
+| `AllianceCallTicks` | 2400 | Frist des Beistandsrufs an den Spieler |
+| `AllianceBetrayalLoss` / `AllianceDeclineLoss` / `AllianceLeaveLoss` | 0,3 / 0,1 / 0,05 | Achtungsverlust bei Verrat / ausbleibendem Beistand / Austritt |
+
+- **Gespeichert** als `Universe.Alliances` (A, B, seit) und `AllianceEnded` (Paar → Tick); gehasht nur, wenn vorhanden — der Hash ohne Spielerpolitik lässt Paare mit der Spielerfraktion aus. Beitrittskriege tragen `War.Join` (gespeichert, gehasht nur wenn gesetzt).
+- **Gründung (KI)**: `AllianceSystem` (Politik, nach dem Krieg, Intervall 100) prüft KI-Paare in Id-Reihenfolge, höchstens eine Gründung je Takt; nicht während eines Kriegs einer der beiden (kein Bündnis, um jemanden in einen laufenden Krieg zu ziehen), keine Gesetzlosen. In der Standardwelt liegen die KI-Beziehungen bei 0,1–0,3: es entsteht kein Bündnis (gemessen, Hash unverändert).
+- **Spieler**: schlägt per Comms vor (`alliance:propose:<F>`), die KI entscheidet sofort nach derselben Prüfung; der Posteingang meldet, wann eine Fraktion annehmen würde („Bündnis möglich“). KI-Fraktionen schlagen dem Spieler selbst nichts vor. Austritt jederzeit (`alliance:leave:<F>`). Der Weg dorthin ist die Beziehung: Aufträge heben sie (Runde 41), Krieg, Forderungen und Sperren senken sie.
+- **Wirkung 1 — Beistandspakt (defensiv, Tiefe 1)**: erklärt jemand einem Mitglied den Krieg, erklären die **KI-Verbündeten** des Opfers dem Angreifer sofort den Krieg (ohne Kriegskasse und Kriegsgrund, aber nicht in der Friedens-Abkühlzeit mit dem Angreifer). Beitrittskriege rufen niemanden weiter — keine Weltkriegskaskade. Kriegsschiffe kaufen die Beigetretenen nach den normalen Kriegsregeln. Der **Spieler** als Verbündeter wird nicht gezwungen: er bekommt einen Beistandsruf (Posteingang „Beistandsruf“, Taste „Beistand: Krieg gegen …“, ohne Kriegskasse); tritt er binnen 2400 Ticks nicht bei, endet das Bündnis (−0,1). Wird der **Spieler** angegriffen (KI-Krieg auf den Spieler), verteidigen ihn seine KI-Verbündeten. Greift der Spieler eine Fraktion mit KI-Verbündeten an, treten diese gegen ihn bei — Folge seiner eigenen Handlung, nicht KI-Initiative (deshalb nicht hinter `aiWarOnPlayer`).
+- **Wirkung 2 — Verbündete an Kontrollpunkten, bei der Zuständigkeit der Polizei und beim Sperrgroll**: `PolicyCheck`, `CargoCheck`, `Jurisdiction.Covers` und `LocksAgainst` behandeln Bündnispartner wie Verbündete. Die alte Beziehungsschwelle `AllyRelation` (0,5) gilt **zusätzlich** weiter — ohne Bündnis ist das Verhalten also genau wie bisher.
+- **Auflösung**: Beziehung einer Richtung unter 0,4 („relation“); Angriff auf den Partner („betrayal“); Angriff auf einen Verbündeten des Partners („betrayal_ally“, der Verratene verliert 0,3 und steht dem Opfer bei); fehlender Beistand („no_aid“); Austritt („left“). Danach 20 000 Ticks Abkühlzeit. Zusammen mit der Hysterese 0,6/0,4 verhindert das ein Hin und Her (Test: Beziehung pendelt 40 Mal, höchstens eine Gründung je Abkühlzeit).
+- **Nicht gebaut**: Vermittlung durch Dritte, gemeinsamer Kriegsplan, Angriffsbündnisse, Bündnisse von Kleinakteuren.
+
+### Eigene Sperren der Spielerfraktion
+
+**Befund**: Die Sperrlogik (`FactionPolicySystem.SetLevel`) war bereit; es fehlte der Besitz. Die Spielerfraktion besaß keinen Sektor und hatte keinen Weg dorthin.
+
+**Entscheidung (kleinster ehrlicher Weg, keine zweite Regelwelt):**
+- **Sektorbehörde gründen** (`seat:found:<Sektor>`, „Meine Fraktion“ → Karte „Sektorpolitik“, zwei Tipps): ein **Sektor-HQ** (`playerSeatType`), fertig gekauft wie eine Kleinstation, Kosten = Baukosten × `StationBuildCostFactor` (Standardwelt 22 000 Cr, Senke), Unterhalt 3,3 Cr/Tick (≈ 790 Cr/min) aus der Spielerkasse über den normalen Regierungsunterhalt, dazu die normale Instandhaltung. Nur in einem **herrenlosen** Sektor **ohne Piratenversteck**, in dem das aktive Schiff steht, ab Größenklasse **Firma** (§7: Sektorpolitik für größere Akteure). In der Standardwelt ist das Nebelmark; Abgrund ist wegen des Verstecks ausgeschlossen (sonst sperrte ein Spieler die Piraten aus ihrer Heimat und schaltete sie billig ab). KI-Sektoren können nicht übernommen werden — dort ist der Einfluss der Altsassen ohnehin uneinholbar, und ein Teilanteil würde Sektoren „umkämpft“ machen und KI-Sperren deckeln.
+- **Einfluss nach den bestehenden Regeln** (`SectorControl`): Anteil 100 % + Behörde → **Dominanz** → Sperrstufe höchstens 2 (`StageMaxLevel`). Stufe 3–5 verlangen Kontrolle = Behörde **und** Patrouillenabdeckung; der Spieler hat keine Polizei, darum bleiben sie gesperrt — die Oberfläche nennt den Grund.
+- **Sperre setzen** (`lock:<Sektor>:<Stufe>`): über `FactionPolicySystem.SetLevel` mit denselben Regeln wie die KI — Deckel nach Kontrollstufe, Mindestdauer zwischen Änderungen (`LockMinTicks`), Ablauf (`LockMaxTicks`), danach Abkühlzeit. Aufheben auf 0 startet die Abkühlzeit ebenfalls (sonst ließe sich der Ablauf durch Aus/An umgehen). Die KI-Politik entscheidet in Spielersektoren nichts (nur Ablauf und Deckel) — sonst hätte `Desired` die Stufe des Spielers nach 2000 Ticks aus seinen Beziehungen überschrieben.
+- **Kosten und Wirkung**: Durchsetzung 0,5 Cr je Stufe und Tick aus der Spielerkasse (leer → Sperre nur auf dem Papier), Zoll an der Einreise in die Spielerkasse, **Groll der KI-Fraktionen nach derselben Formel wie KI-Sperren** (`LockOpinionLoss` × Stufen × 0,5; Verbündete ausgenommen). Weil Spielerbeziehungen nie zurückdriften (Runde 38), summiert sich der Groll — eine Sperre ist ein teures politisches Werkzeug, keine Einnahmequelle.
+- **Schließen** (`seat:close:<Station>`): ohne Erlös; die Stufe fällt mit der Kontrollstufe.
+- **Nebenwirkung, bewusst gelassen**: Die Kasse der Spielerbehörde über ihrem Betriebskapital wird wie jede Stationskasse besteuert — die Abgabe geht an den Besitzer, also in die Spielerkasse (klein: die Behörde verdient nur an Reparaturen von NPC-Schiffen).
+
+### Messung
+
+- Standardwelt 20 000 Ticks: Hash 1364698EE92E10DC (unverändert), ohne Spielerpolitik 96750C8EBDA8B9EE; 60 000 Ticks DE796E82E883BA84 (unverändert). Kein Bündnis entsteht, kein Tributfrieden — die neuen Wege ändern die NPC-Wirtschaft nur, wenn jemand sie benutzt.
+- Vorführung mit Testtreibern des Balance-Tools (`--alliance A:B@tick`, `--aiwar A:B@tick`, `--treasury F:Betrag@tick`): Zahlen in CLAUDE.md „Round 45“, Ausgaben in `/home/gerd/space-adventure-scratch-archiv/runde45/`.

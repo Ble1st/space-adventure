@@ -4,6 +4,9 @@
  "rules": {
   "playerOwnFaction": true,
   "aiWarOnPlayer": true,
+  "aiTributePeace": true,
+  "alliancesActive": true,
+  "playerSeats": true,
   "missionsActive": true,
   "gateCombat": true,
   "miningAnchors": true,

@@ -2733,7 +2733,8 @@ public partial class SelfTest : Node
 			case 125: if (Round44hStage(_frame - _stageStart)) Next(); break;   // Runde 44h: Startpaket „Bergbautest“ — kleiner Fels zerbricht, Auto-Mining am zweiten Fels, KI-Bohrschiffe fliegen selbst an, kurze Seile, Trommel dreht (SelfTest.Round44h.cs)
 			case 127: if (SkyboxStage(_frame - _stageStart)) Next(); break;   // Himmelskugeln: jeder Sektor hat einen Himmel, Planetensektoren mit Planet ohne Extrakugel, Torsprung tauscht, kein Neuladen (SelfTest.Skybox.cs)
 			case 128: if (BlackMarketStage(_frame - _stageStart)) Next(); break;   // Schwarzmarkt: Kachel am Versteck, Verkauf trotz Fahndung und Kauf der Hehlerware über echte Tipps, Station-Info-Zeile (SelfTest.BlackMarket.cs)
-			case 129: case 130: Next(); break;   // vergeben an parallele Arbeiten (Diplomatie, Sprungantrieb) — hier nur durchreichen
+			case 129: if (Round45Stage(_frame - _stageStart)) Next(); break;   // Runde 45: Bündnis per echtem Tipp in Comms, Tribut fordern (zwei Tipps), Sektorbehörde + Sperrstufe in „Meine Fraktion“ (SelfTest.Round45.cs)
+			case 130: Next(); break;   // vergeben an Sprungantrieb/Tarnung (parallel) — hier nur durchreichen
 			case 131: if (InputStage(_frame - _stageStart)) Next(); break;   // Geräte-Eingabe (Handytest A15): ein Tipp = ein Umschalten, Autopilot hält trotz fremder Berührungen, Regler nur per eigenem Finger, Karte/Menü im ganzen Rechteck (SelfTest.Input.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)

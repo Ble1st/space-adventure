@@ -368,6 +368,16 @@ public sealed record PeaceOffered(FactionId From, FactionId To, string Message) 
 public sealed record TributePaid(ActorId Payer, FactionId To, float Amount, string Message) : SimEvent;
 /// <summary>Runde 40: Comms-Aktion des Spielers ausgeführt (Strafe, Krieg, Waffenstillstand, Frieden, Tribut); nur bei Erfolg.</summary>
 public sealed record CommsActionPerformed(string Action, int Faction, float Credits, string Message) : SimEvent;
+/// <summary>Runde 45: Bündnis geschlossen (A &lt; B).</summary>
+public sealed record AllianceFormed(FactionId A, FactionId B, string Message) : SimEvent;
+/// <summary>Runde 45: Bündnis beendet — Grund „relation“, „betrayal“, „betrayal_ally“, „no_aid“, „left“, „gone“.</summary>
+public sealed record AllianceDissolved(FactionId A, FactionId B, string Reason, string Message) : SimEvent;
+/// <summary>Runde 45: ein Verbündeter tritt dem Verteidigungskrieg bei (<paramref name="Ally"/> erklärt <paramref name="Attacker"/> den Krieg, weil dieser <paramref name="Defender"/> angriff).</summary>
+public sealed record AllyJoinedWar(FactionId Ally, FactionId Defender, FactionId Attacker, string Message) : SimEvent;
+/// <summary>Runde 45: Krieg durch Tribut beendet (Verlierer zahlt dem Sieger; <paramref name="Demanded"/> = Forderung).</summary>
+public sealed record TributePeace(FactionId Payer, FactionId Winner, float Amount, float Demanded, string Message) : SimEvent;
+/// <summary>Runde 45: die Spielerfraktion hat eine Sektorbehörde gegründet (Kosten aus der Spielerkasse, Senke).</summary>
+public sealed record PlayerSeatFounded(StationId Station, SectorId Sector, float Cost) : SimEvent;
 
 // ───────── Runde 41: Aufträge ─────────
 /// <summary>Runde 41: neues Auftragsangebot (Comms-Kanal → Posteingang); nie aus <c>Universe.Rng</c>, Angebote sind nicht gehasht.</summary>

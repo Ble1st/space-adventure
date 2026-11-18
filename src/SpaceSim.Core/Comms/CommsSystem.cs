@@ -87,6 +87,24 @@ public sealed class CommsSystem : ISimSystem, ISimEventListener
         Attach(u);
         Comms.Prune(u);
         SyncContractOffers(u);
+        SyncAllianceOffers(u);
+    }
+
+    /// <summary>
+    /// Runde 45: würde eine KI-Fraktion ein Bündnisangebot des Spielers annehmen (<see cref="Alliances.ProposeIssue"/>), steht eine Nachricht
+    /// „alliance_offer“ im Posteingang (eine je Fraktion, solange sie nicht abgelaufen ist). Nur Anzeige — keine Zufallszahl, kein Zustand außer der Inbox.
+    /// </summary>
+    static void SyncAllianceOffers(Universe u)
+    {
+        if (!u.Rules.AlliancesActive || u.PlayerFaction is null) return;
+        foreach (var f in u.NpcFactionIds())
+        {
+            if (Alliances.ProposeIssue(u, f) is not null) continue;
+            string fs = f.Value.ToString();
+            if (u.Inbox.Any(m => m.Kind == "alliance_offer" && m.Args.TryGetValue("faction", out var x) && x == fs)) continue;
+            string name = u.Factions.TryGetValue(f, out var fac) ? fac.Name : "?";
+            Comms.Add(u, f, "alliance_offer", new() { ["faction"] = fs, ["message"] = $"{name} wäre zu einem Bündnis bereit (Beistandspakt, Verbündete an den Kontrollpunkten)." }, u.Rules.OfferMessageTicks);
+        }
     }
 
     /// <summary>
@@ -129,6 +147,26 @@ public sealed class CommsSystem : ISimSystem, ISimEventListener
                 Comms.Add(u, other, "war_declared", new() { ["faction"] = other.Value.ToString(), ["message"] = wd.Message }, u.Rules.InboxMessageTicks);
                 break;
             }
+            // Runde 45: Beistandsruf — ein Verbündeter des Spielers wird angegriffen
+            case WarDeclared wc when wc.A != me && wc.B != me && Alliances.Allied(u, me, wc.B) && Wars.Between(u, wc.A, wc.B) is { Join: false }:
+                Comms.Add(u, wc.B, "ally_call", new() { ["faction"] = wc.B.Value.ToString(), ["attacker"] = wc.A.Value.ToString(), ["message"] = $"{wc.Message} Dein Verbündeter ruft dich zum Beistand." }, u.Rules.AllianceCallTicks);
+                break;
+            case AllianceFormed af when af.A == me || af.B == me:
+            {
+                var other = af.A == me ? af.B : af.A;
+                u.Inbox.RemoveAll(m => m.Kind == "alliance_offer" && m.Args.TryGetValue("faction", out var x) && x == other.Value.ToString());
+                Comms.Add(u, other, "alliance_formed", new() { ["faction"] = other.Value.ToString(), ["message"] = af.Message }, u.Rules.InboxMessageTicks);
+                break;
+            }
+            case AllianceDissolved ad when ad.A == me || ad.B == me:
+            {
+                var other = ad.A == me ? ad.B : ad.A;
+                Comms.Add(u, other, "alliance_dissolved", new() { ["faction"] = other.Value.ToString(), ["reason"] = ad.Reason, ["message"] = ad.Message }, u.Rules.InboxMessageTicks);
+                break;
+            }
+            case AllyJoinedWar aj when aj.Defender == me:
+                Comms.Add(u, aj.Ally, "ally_joined", new() { ["faction"] = aj.Ally.Value.ToString(), ["message"] = aj.Message }, u.Rules.InboxMessageTicks);
+                break;
             case PeaceConcluded pc when pc.A == me || pc.B == me:
             {
                 var other = pc.A == me ? pc.B : pc.A;
@@ -263,6 +301,12 @@ public static class CommsText
             "ceasefire_concluded" => ($"Waffenstillstand – {F()}", Msg()),
             "ceasefire_offer" => ($"Angebot: Waffenstillstand – {F()}", Msg()),
             "peace_offer" => ($"Angebot: Frieden – {F()}", Msg()),
+            // Runde 45: Bündnisse
+            "alliance_offer" => ($"Bündnis möglich – {F()}", Msg()),
+            "alliance_formed" => ($"Bündnis geschlossen – {F()}", Msg()),
+            "alliance_dissolved" => ($"Bündnis beendet – {F()}", Msg()),
+            "ally_call" => ($"Beistandsruf – {F()}", Msg()),
+            "ally_joined" => ($"Verbündeter tritt bei – {F()}", Msg()),
             "wanted_up" => ($"Fahndung gestiegen – {F()}",
                 m.Args.TryGetValue("level", out var ls) && m.Args.TryGetValue("fine", out var fs)
                     ? $"Stufe {ls} ({SecurityNames.WantedLevel(int.Parse(ls))}) bei {F()} — offene Strafe {fs} Cr (bezahlen per Diplomatie oder am Gericht)."
@@ -314,6 +358,9 @@ public static class CommsText
             {
                 "ceasefire_offer" => new[] { $"ceasefire:{fv}" },
                 "peace_offer" => new[] { $"peace:{fv}" },
+                "alliance_offer" => Alliances.ProposeIssue(u, new FactionId(fv)) is null ? new[] { $"alliance:propose:{fv}" } : Array.Empty<string>(),
+                "ally_call" => m.Args.TryGetValue("attacker", out var at) && int.TryParse(at, out var av) && Alliances.AidIssue(u, new FactionId(av)) is null
+                    ? new[] { $"alliance:aid:{av}" } : Array.Empty<string>(),
                 _ => Array.Empty<string>(),
             };
         }

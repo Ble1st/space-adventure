@@ -15,7 +15,7 @@ public static class Jurisdiction
     {
         if (!u.Sectors.TryGetValue(sector, out var sec) || !u.Factions.ContainsKey(sec.Owner)) return false;
         if (sec.Owner == faction) return true;
-        return Relations.Effective(u, faction, sec.Owner) >= u.Rules.AllyRelation;
+        return Relations.Effective(u, faction, sec.Owner) >= u.Rules.AllyRelation || Alliances.Allied(u, faction, sec.Owner);   // Runde 45: Bündnis
     }
 
     /// <summary>Zuständigkeit für ein Schiff (Fraktion seines Besitzers); ohne Fraktion nirgends.</summary>

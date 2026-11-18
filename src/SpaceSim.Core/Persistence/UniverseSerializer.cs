@@ -169,9 +169,13 @@ public static class UniverseSerializer
             }).ToList();
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
-            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid }).ToList();
+            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join }).ToList();
         if (u.PeaceSince.Count > 0)
             s.PeaceSince = u.PeaceSince.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
+        if (u.Alliances.Count > 0)   // Runde 45
+            s.Alliances = u.Alliances.Select(al => new[] { (long)al.A.Value, al.B.Value, al.Since }).ToList();
+        if (u.AllianceEnded.Count > 0)
+            s.AllianceEnded = u.AllianceEnded.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
         // Runde 40: Posteingang (gespeichert, nicht gehasht)
         if (u.Inbox.Count > 0)
             s.Inbox = u.Inbox.Select(m => new CommsMessageSave
@@ -466,9 +470,13 @@ public static class UniverseSerializer
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)
             foreach (var w in s.Wars)
-                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid });
+                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join });
         if (s.PeaceSince is not null)
             foreach (var p in s.PeaceSince) if (p.Length >= 3) u.PeaceSince[((int)p[0], (int)p[1])] = p[2];
+        if (s.Alliances is not null)   // Runde 45
+            foreach (var p in s.Alliances) if (p.Length >= 3) u.Alliances.Add(new Alliance { A = new FactionId((int)p[0]), B = new FactionId((int)p[1]), Since = p[2] });
+        if (s.AllianceEnded is not null)
+            foreach (var p in s.AllianceEnded) if (p.Length >= 3) u.AllianceEnded[((int)p[0], (int)p[1])] = p[2];
         // Runde 40: Posteingang (gespeichert, nicht gehasht)
         if (s.Inbox is not null)
             foreach (var m in s.Inbox)

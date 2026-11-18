@@ -48,7 +48,6 @@ public static class UiPlaceholders
 			("Büro an eigener Station", false, "ab Kleinfirma – " + Soon),
 			("Fehde erklären", false, "ab Kleinfirma – " + Soon),
 			("Firmensitz", false, "ab Firma – " + Soon),
-			("Zoll und Sperren", false, "ab Sektor-Dominanz – " + Soon),
 		}
-		: new[] { ("Zoll und Sperren", false, "ab Sektor-Dominanz – " + Soon) };   // Runde 26 (Gerätetest c05): passt in die Spalte
+		: System.Array.Empty<(string, bool, string)>();   // Runde 45: „Zoll und Sperren“ ist echt (MyFactionScreen, Sektorpolitik)
 }

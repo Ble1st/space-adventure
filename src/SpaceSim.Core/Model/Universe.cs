@@ -199,6 +199,10 @@ public sealed class Universe
     public List<War> Wars { get; } = new();
     /// <summary>Phase 28: Friedensschluss je Fraktionspaar (kleinere Id zuerst) → Tick; sperrt eine neue Kriegserklärung für <see cref="EconomyRules.PeaceCooldownTicks"/>.</summary>
     public Dictionary<(int A, int B), long> PeaceSince { get; } = new();
+    /// <summary>Runde 45: bestehende Bündnisse (Reihenfolge der Gründung; gespeichert, gehasht nur wenn vorhanden). Regeln in <see cref="Simulation.Alliances"/>.</summary>
+    public List<Alliance> Alliances { get; } = new();
+    /// <summary>Runde 45: Ende eines Bündnisses je Fraktionspaar (kleinere Id zuerst) → Tick; sperrt ein neues Bündnis für <see cref="EconomyRules.AllianceCooldownTicks"/>.</summary>
+    public Dictionary<(int A, int B), long> AllianceEnded { get; } = new();
     /// <summary>
     /// Runde 40: Posteingang des Spielers (Nachrichten aus Simulationsereignissen, siehe <see cref="Comms.CommsSystem"/>). Additiv gespeichert,
     /// aber <b>nicht gehasht</b> — reine Anzeige für den Spieler, verbraucht keine Zufallszahl. Höchstes <see cref="Comms.Comms.MaxInbox"/> Einträge.

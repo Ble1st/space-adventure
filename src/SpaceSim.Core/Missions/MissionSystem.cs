@@ -21,6 +21,7 @@ public static class MissionRules
     /// <summary>Ist der Auftraggeber eine KI-Fraktion, mit der der Spieler im Krieg steht, oder wird er dort gesucht (Stufe ≥ <see cref="EconomyRules.MissionWantedBlockLevel"/>)? Dann keine Aufträge.</summary>
     public static bool Forbidden(Universe u, ActorId client)
     {
+        if (client == u.PlayerActor) return true;   // Runde 45: an der eigenen Sektorbehörde keine Aufträge an sich selbst
         if (u.FactionOf(client) is not { } f || !u.IsNpcFaction(f)) return false;
         if (u.PlayerFaction is { } me && Wars.AtWar(u, me, f)) return true;
         return Wanted.LevelOf(u, u.PlayerActor, f) >= u.Rules.MissionWantedBlockLevel;

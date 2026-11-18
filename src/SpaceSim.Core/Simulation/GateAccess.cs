@@ -51,7 +51,7 @@ public sealed class PolicyCheck : IAccessCheck
             return new AccessVerdict(AccessPolicy.Deny, 0f, $"{ctx.Sector.Name}: {AccessNames.Level(ctx.Level)} — keine Einreise für Fremde");
         var r = ctx.U.Rules;
         float rel = ctx.Relation;
-        if (rel >= r.AllyRelation) return AccessVerdict.Allow;
+        if (rel >= r.AllyRelation || Alliances.TreatAsAlly(ctx.U, ctx.Authority, ctx.Profile.Actor)) return AccessVerdict.Allow;   // Runde 45: Bündnis
         if (ctx.Level >= 3 && rel <= r.HostileRelation)
             return new AccessVerdict(AccessPolicy.Deny, 0f, $"{ctx.Sector.Name}: nur Verbündete und Neutrale (Beziehung {Relations.Label(rel)})");
         return new AccessVerdict(AccessPolicy.Toll, ctx.Level * r.GateTollPerLevel, $"{ctx.Sector.Name}: Zoll ({AccessNames.Level(ctx.Level)})");
@@ -71,7 +71,7 @@ public sealed class CargoCheck : IAccessCheck
         if (ctx.Level <= 0 || ctx.Direction != AccessDirection.Entry || ctx.IsMember) return AccessVerdict.Allow;
         var r = ctx.U.Rules;
         float rel = ctx.Relation;
-        if (rel >= r.AllyRelation) return AccessVerdict.Allow;
+        if (rel >= r.AllyRelation || Alliances.TreatAsAlly(ctx.U, ctx.Authority, ctx.Profile.Actor)) return AccessVerdict.Allow;   // Runde 45: Bündnis
         if (ctx.Level >= 2 && ctx.Profile.Laden && rel <= r.HostileRelation)
             return new AccessVerdict(AccessPolicy.Deny, 0f, $"{ctx.Sector.Name}: Embargo — Fracht von Gegnern verboten");
         if (ctx.Ship is { } ship && r.Contraband.Count > 0)

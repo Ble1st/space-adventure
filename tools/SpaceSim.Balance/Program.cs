@@ -93,6 +93,15 @@ if (opts.TryGetValue("playerwar", out var pwOpt))
     var pwp = pwOpt.Split('@');
     playerWar = (int.Parse(pwp[0], CultureInfo.InvariantCulture), long.Parse(pwp[1], CultureInfo.InvariantCulture) / 20 * 20);
 }
+// Runde 45: Testtreiber --aiwar A:B@tick (KI A erklärt KI B den Krieg, ohne Kriegsgrund) und --alliance A:B@tick (Beziehung beider auf 0,7, Bündnis)
+(int A, int B, long Tick)? aiWarDriver = null, allianceDriver = null;
+static (int, int, long) ParsePairAt(string s) { var at = s.Split('@'); var ab = at[0].Split(':'); return (int.Parse(ab[0], CultureInfo.InvariantCulture), int.Parse(ab[1], CultureInfo.InvariantCulture), long.Parse(at[1], CultureInfo.InvariantCulture) / 20 * 20); }
+if (opts.TryGetValue("aiwar", out var awOpt)) aiWarDriver = ParsePairAt(awOpt);
+if (opts.TryGetValue("alliance", out var alOpt)) allianceDriver = ParsePairAt(alOpt);
+// --treasury F:Betrag@tick,F:Betrag@tick — Kasse einer Fraktion setzen (Kriegskasse für die Tribut-Vorführung)
+var treasuryDriver = opts.TryGetValue("treasury", out var trOpt) ? trOpt.Split(',').Select(ParsePairAt).ToList() : new List<(int, int, long)>();
+var allianceLog = new List<string>();
+int tributePeaces = 0; double tributeMoney = 0;
 // Phase 31: Torkampf-Kennzahlen
 int gatesDisabled = 0, gatesDisabledSplit = 0, gatesAttacked = 0, gateShots = 0, gateDownMax = 0, tradersBrokeWhileDown = 0;
 var gateRestored = new SortedDictionary<string, int>(StringComparer.Ordinal);
@@ -417,8 +426,13 @@ u.Events.Raised += e =>
             warLog.Add($"Tick {u.Tick}: {wd.Message} (Beziehung {wd.Relation:0.00})");
             if (u.IsPlayerFaction(wd.A) || u.IsPlayerFaction(wd.B)) playerWarLog.Add($"Tick {u.Tick}: {wd.Message}");
             break;
+        case AllianceFormed af: allianceLog.Add($"Tick {u.Tick}: {af.Message}"); break;
+        case AllianceDissolved ad: allianceLog.Add($"Tick {u.Tick}: {ad.Message}"); break;
+        case AllyJoinedWar aj: allianceLog.Add($"Tick {u.Tick}: {aj.Message}"); break;
+        case TributePeace tp: tributePeaces++; tributeMoney += tp.Amount; allianceLog.Add($"Tick {u.Tick}: {tp.Message} (Forderung {tp.Demanded:0})"); break;
         case PeaceConcluded pc:
             peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1;
+            if (allianceDriver is not null || aiWarDriver is not null) allianceLog.Add($"Tick {u.Tick}: {pc.Message}");   // Runde 45: Testtreiber — Friedensschlüsse mit Tick
             if (u.IsPlayerFaction(pc.A) || u.IsPlayerFaction(pc.B)) playerPeace = $"Frieden bei Tick {u.Tick} ({pc.Reason})";
             break;
         case SectorAccessChanged sac when sac.Against is { } sag && u.IsPlayerFaction(sag) && sac.ToEntry > 0: playerLocks++; break;
@@ -650,6 +664,25 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 var issue = Wars.PlayerDeclareIssue(u, new FactionId(pw.Faction));
                 if (issue is null) { Wars.PlayerDeclare(u, new FactionId(pw.Faction)); playerWarStarted = u.Tick; }
                 Console.WriteLine($"   Testtreiber: Spielerkrieg gegen {u.Factions.GetValueOrDefault(new FactionId(pw.Faction))?.Name ?? "?"} bei Tick {u.Tick}: {issue ?? "erklärt"}");
+            }
+            if (allianceDriver is { } ald && u.Tick == ald.Item3)
+            {
+                FactionId fa = new(ald.Item1), fb = new(ald.Item2);
+                Relations.Set(u, fa, fb, 0.7f); Relations.Set(u, fb, fa, 0.7f);
+                var issue = Alliances.FormIssue(u, fa, fb);
+                if (issue is null) Alliances.Form(u, fa, fb);
+                Console.WriteLine($"   Testtreiber: Bündnis {ald.Item1}–{ald.Item2} bei Tick {u.Tick}: {issue ?? "geschlossen"}");
+            }
+            foreach (var td in treasuryDriver)
+                if (u.Tick == td.Item3 && u.Actors.TryGetValue(new ActorId(td.Item1), out var tda))
+                {
+                    tda.Treasury.Credits = td.Item2;
+                    Console.WriteLine($"   Testtreiber: Kasse von {tda.Name} bei Tick {u.Tick} auf {td.Item2} Cr");
+                }
+            if (aiWarDriver is { } awd && u.Tick == awd.Item3)
+            {
+                Wars.Declare(u, new FactionId(awd.Item1), new FactionId(awd.Item2));
+                Console.WriteLine($"   Testtreiber: KI-Krieg {awd.Item1} → {awd.Item2} bei Tick {u.Tick}");
             }
             if (gateDownEvery > 0 && u.Tick > 0 && u.Tick % gateDownEvery == 0 && GateCombat.DownCount(u) == 0)
             {
@@ -995,6 +1028,10 @@ if (u.Modules.Count > 0)
         + "Beziehungen " + string.Join(", ", u.NpcFactionIds().SelectMany(a => u.NpcFactionIds().Where(b => b.Value > a.Value)
             .Select(b => $"{u.Factions[a].Name}–{u.Factions[b].Name} {Relations.Effective(u, a, b):0.00}/{Relations.Effective(u, b, a):0.00}"))));
     if (warLog.Count > 0) Console.WriteLine("Kriegserklärungen: " + string.Join("; ", warLog));
+    Console.WriteLine($"Bündnisse (Runde 45, {(u.Rules.AlliancesActive ? "an" : "aus")}): jetzt {u.Alliances.Count}"
+        + (u.Alliances.Count > 0 ? " (" + string.Join(", ", u.Alliances.Select(al => $"{al.A.Value}–{al.B.Value} seit {al.Since}")) + ")" : "")
+        + $"; Tributfrieden {tributePeaces} für {tributeMoney:0} Cr (Tributfrieden KI {(u.Rules.AiTributePeace ? "an" : "aus")})"
+        + (allianceLog.Count > 0 ? " — " + string.Join("; ", allianceLog) : ""));
     Console.WriteLine($"Kriegserklärungen gegen den Spieler (AiWarOnPlayer {(u.Rules.AiWarOnPlayer ? "an" : "aus")}): {playerWarLog.Count}"
         + (playerWarLog.Count > 0 ? " — " + string.Join("; ", playerWarLog) : ""));
     Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "

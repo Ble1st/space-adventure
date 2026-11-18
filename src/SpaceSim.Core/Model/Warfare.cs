@@ -78,7 +78,22 @@ public sealed class War
     public long LastOfferTick;
     /// <summary>Runde 40: bereits gezahlter Tribut (Cr) auf diesen Krieg; gespeichert, gehasht nur wenn &gt; 0; mindert den geforderten Tribut.</summary>
     public float TributePaid;
+    /// <summary>Runde 45: Beitrittskrieg eines Verbündeten (Beistandspakt, Tiefe 1 — ruft niemanden weiter); gespeichert, gehasht nur wenn gesetzt.</summary>
+    public bool Join;
 
+    public bool Involves(FactionId f) => A == f || B == f;
+    public FactionId Other(FactionId f) => A == f ? B : A;
+}
+
+/// <summary>
+/// Runde 45: Bündnis zwischen zwei Fraktionen (auch der Spielerfraktion; kanonisch <see cref="A"/> &lt; <see cref="B"/>). Gespeichert, gehasht nur wenn
+/// Bündnisse bestehen. Regeln in <see cref="Simulation.Alliances"/>: defensiver Beistandspakt, Sperren wie Verbündete, Auflösung bei Beziehungsverlust oder Verrat.
+/// </summary>
+public sealed class Alliance
+{
+    public FactionId A;
+    public FactionId B;
+    public long Since;
     public bool Involves(FactionId f) => A == f || B == f;
     public FactionId Other(FactionId f) => A == f ? B : A;
 }

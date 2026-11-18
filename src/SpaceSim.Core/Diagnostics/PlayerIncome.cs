@@ -31,6 +31,7 @@ public sealed class PlayerIncome
             case PlayerSold ps: Add(ps.Revenue, "Verkauf"); break;
             case TradeCompleted tc when _u.Ships.TryGetValue(tc.Ship, out var s) && s.Owner == _u.PlayerActor: Add(tc.Revenue, "Flottenhandel"); break;
             case BountyPaid bp when bp.Hunter == _u.PlayerActor: Add(bp.Amount, "Kopfgeld"); break;
+            case TreasuryIncome { Purpose: "tribute" } ti when ti.Actor == _u.PlayerActor: Add(ti.Amount, "Tribut"); break;   // Runde 45: geforderter Tribut
             case ShipSold sold: Add(sold.Price, "Schiffsverkauf"); break;
         }
     }

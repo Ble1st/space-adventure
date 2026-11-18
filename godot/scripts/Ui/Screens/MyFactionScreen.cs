@@ -124,6 +124,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 			("Befehle an eigene Schiffe", true, $"bis {SpaceSim.Core.Simulation.Commands.Count(capShips, "Schiff", "Schiffe")}"),
 			("Verbände führen", capSquads > 0, $"bis {SpaceSim.Core.Simulation.Commands.Count(capSquads, "Verband", "Verbände")}"),
 			("Taxi, Hangar, Leihschiff", true, "an Stationen mit Dienst"),
+			// Runde 45: echt — eigener Sektor über eine Sektorbehörde (Karte „Sektorpolitik“)
+			("Zoll und Sperren", PlayerSeats.OwnSectors(u).Count > 0, PlayerSeats.OwnSectors(u).Count > 0 ? "eigener Sektor (Stufe 1–2)" : "Sektorbehörde gründen"),
 		}.Concat(UiPlaceholders.MyFactionAbilities(me.Stations > 0));
 		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand
 		var list = abilities.ToList();
@@ -137,5 +139,84 @@ public sealed partial class MyFactionScreen : CommandScreen
 			if (ThemeDB.FallbackFont.GetStringSize(note, HorizontalAlignment.Left, -1, 12).X > 168) TestAbilityOverflow = note;
 			ay += step;
 		}
+
+		// ── Karte 5 (unten, ganze Breite): Sektorpolitik — Runde 45: Sektorbehörde gründen und eigene Sperren setzen (nur über die Comms-Registry) ──
+		BuildPolicyCard(inner, u, narrow ? 1028f : 520f, narrow ? 486f : 998f);
+	}
+
+	readonly KitConfirm _confirm = new();
+	string _policyMsg = "";
+	/// <summary>Runde 45, Selbsttest: Zeile der Sektorpolitik (eigene Sektoren oder Grund, warum keine Behörde möglich ist).</summary>
+	public string TestPolicyLine { get; private set; } = "";
+	/// <summary>Runde 45, Selbsttest: letzte Meldung einer Sektorpolitik-Aktion.</summary>
+	public string TestPolicyMessage => _policyMsg;
+
+	void PolicyButton(Control card, string key, string label, float x, float y, float w, bool confirm)
+	{
+		var offer = Ctx.Comms.Preview(Ctx.U, key);
+		string k = key;
+		KitButton b = confirm
+			? _confirm.Wire(new KitButton(label, new Vector2(w, 56)) { FontSize = 15 }, "policy:" + key, label, () => Run(k))
+			: new KitButton(label, new Vector2(w, 56)) { FontSize = 15 };
+		if (!offer.Possible) b.State = KitButtonState.Disabled;
+		else if (!confirm) b.Pressed += () => Run(k);
+		At(card, b, x, y);
+	}
+
+	void Run(string key)
+	{
+		var r = Ctx.Comms.Execute(Ctx.U, key);
+		_policyMsg = r.Message;
+		Invalidate();
+	}
+
+	void BuildPolicyCard(Control inner, Universe u, float top, float width)
+	{
+		if (u.PlayerFaction is null || !u.Rules.PlayerSeats) { TestPolicyLine = ""; return; }
+		var own = PlayerSeats.OwnSectors(u);
+		float h = own.Count == 0 ? 200f : 96f + 150f * own.Count;
+		var card = CardBg(inner, 12, top, width, h, Card);
+		At(card, Text("Sektorpolitik – Behörde und Sperren", 18, Cyan), 20, 14, width - 40, 26);
+		float y = 46;
+		if (own.Count == 0)
+		{
+			var ship = u.Ships.TryGetValue(u.PlayerShip, out var ps) ? ps : null;
+			string key = ship is null ? "seat:found:0" : $"seat:found:{ship.Sector.Value}";
+			var offer = Ctx.Comms.Preview(u, key);
+			TestPolicyLine = offer.Possible ? offer.Preview : offer.Reason ?? "";
+			float ph = WrappedText(card, "Kein eigener Sektor. Eine Sektorbehörde in einem herrenlosen Sektor macht ihn deiner (Dominanz: Zoll, Sperrstufe 1–2). " + TestPolicyLine,
+				20, y, width - 40, 13, offer.Possible ? new Color(Dim, 0.95f) : Orange, 18);
+			y = ph + 6;
+			PolicyButton(card, key, "Sektorbehörde gründen", 20, y, MathF.Min(320f, width - 40), confirm: true);
+			y += 64;
+		}
+		else
+		{
+			var lines = new System.Collections.Generic.List<string>();
+			foreach (var sec in own)
+			{
+				var acc = sec.Access;
+				string line = $"{sec.Name} · {AccessNames.Stage(sec.Control)} · Einfluss {(sec.Influence.TryGetValue(u.PlayerFaction!.Value, out var infl) ? infl : 0f):P0} · "
+					+ (acc.EntryLevel == 0 ? "offen" : $"Stufe {acc.EntryLevel} ({AccessNames.Level(acc.EntryLevel)}){(acc.Enforced ? "" : " – nur auf dem Papier")}, endet in {SpaceSim.Core.Comms.Comms.In(u, acc.ExpiresTick)}");
+				lines.Add(line);
+				At(card, Text(line, 14, White), 20, y, width - 40, 20);
+				y += 26;
+				int cap = SectorControl.MaxLevel(u, sec);
+				float bw = MathF.Min(140f, (width - 40 - 3 * 8) / 4f);
+				for (int lv = 0; lv <= Math.Min(2, 5); lv++)
+					PolicyButton(card, $"lock:{sec.Id.Value}:{lv}", lv == 0 ? "Aufheben" : $"Stufe {lv}", 20 + lv * (bw + 8), y, bw, confirm: false);
+				var seat = PlayerSeats.Seats(u).FirstOrDefault(s => s.Sector == sec.Id);
+				if (seat is not null) PolicyButton(card, $"seat:close:{seat.Id.Value}", "Schließen", 20 + 3 * (bw + 8), y, bw, confirm: true);
+				y += 62;
+				string why = cap < 3 ? $"Höchstens Stufe {cap} ({AccessNames.Stage(sec.Control)}); Stufe 3–5 brauchen Patrouillenabdeckung." : "";
+				var pre = Ctx.Comms.Preview(u, $"lock:{sec.Id.Value}:{Math.Min(cap, Math.Max(1, acc.EntryLevel))}");
+				y = WrappedText(card, (pre.Possible ? pre.Preview : pre.Reason ?? "") + (why.Length > 0 ? " " + why : ""), 20, y, width - 40, 12, new Color(Dim, 0.9f), 16) + 10;
+			}
+			TestPolicyLine = string.Join(" | ", lines);
+		}
+		if (_policyMsg.Length > 0) { y = WrappedText(card, _policyMsg, 20, y, width - 40, 13, Green, 18) + 6; }
+		h = MathF.Max(h, y + 12f);
+		card.CustomMinimumSize = new Vector2(width, h);
+		card.Size = new Vector2(width, h);
 	}
 }

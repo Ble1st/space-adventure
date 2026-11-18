@@ -130,7 +130,8 @@ public class Runde40Tests
     {
         var u = World();
         var actions = CommsActions.Default();
-        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "mission_abandon", "contract" }, actions.Keys);   // Runde 41: mission_abandon dazu
+        // Runde 41: mission_abandon dazu; Runde 45: Tribut fordern, Bündnis, Sektorbehörde, eigene Sperre hinten angehängt (Registrierungsreihenfolge)
+        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "mission_abandon", "contract", "demand", "alliance", "seat", "lock" }, actions.Keys);
         int evts = 0;
         u.Events.Raised += _ => evts++;
         float wallet = u.Player.Treasury.Credits;

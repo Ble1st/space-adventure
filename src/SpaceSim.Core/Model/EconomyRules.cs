@@ -1231,4 +1231,51 @@ public sealed class EconomyRules
     /// Runde 42d (Handytest): 0.95 statt 0.7 — ohne Bedrohungs-Schranke entstehen so ≥ 5 % aller Angebote Patrouille.
     /// </summary>
     public float MissionPatrolChance = 0.95f;
+
+    // ── Runde 45: Tribut, Bündnisse, eigene Sperren (docs/POLITIK.md „Runde 45“) ──
+    /// <summary>KI-gegen-KI-Kriege können durch Tribut enden (Verlierer zahlt dem Sieger aus <see cref="Simulation.FactionViability.Spendable"/>). Code aus, Standardwelt an.</summary>
+    public bool AiTributePeace;
+    /// <summary>Tributfrieden: ab dieser Kriegsmüdigkeit (und nach <see cref="WarMinTicks"/>) nimmt der Sieger einen bezahlten Frieden an bzw. darf der Spieler fordern.</summary>
+    public float TributePeaceWeariness = 0.15f;
+    /// <summary>Tributfrieden: Sieger ist, wer mindestens so viel mal stärker ist (<see cref="Simulation.Wars.Strength"/>).</summary>
+    public float TributeStrengthRatio = 1.2f;
+    /// <summary>Tributfrieden: angenommen, wenn der Verlierer mindestens diesen Anteil der Forderung zahlen kann (sonst läuft der Krieg weiter).</summary>
+    public float TributeAcceptShare = 0.8f;
+    /// <summary>Tributfrieden: ein KI-Zahler gibt höchstens diesen Anteil seines verfügbaren Geldes (die Rücklage bleibt immer unberührt).</summary>
+    public float TributeMaxSpendableShare = 0.5f;
+    /// <summary>Fordert der Spieler Tribut, sinkt die Beziehung jeder anderen KI-Fraktion zu ihm um diesen Betrag (wie <see cref="PlayerWarRelationLoss"/>).</summary>
+    public float PlayerDemandRelationLoss = 0.03f;
+
+    /// <summary>Bündnisse zwischen Fraktionen (auch mit der Spielerfraktion): Gründung, Beistandspakt, Sperren wie Verbündete, Auflösung. Code aus, Standardwelt an.</summary>
+    public bool AlliancesActive;
+    /// <summary>Bündnis entsteht/wird angenommen ab dieser Beziehung (beide Richtungen).</summary>
+    public float AllianceMinRelation = 0.6f;
+    /// <summary>Bündnis zerbricht, wenn eine Richtung der Beziehung darunter fällt (Hysterese gegenüber <see cref="AllianceMinRelation"/>).</summary>
+    public float AllianceBreakRelation = 0.4f;
+    /// <summary>KI-Fraktionen gehen ein Bündnis nur mit mindestens dieser Kooperation (Persönlichkeit) ein.</summary>
+    public float AllianceMinCooperation = 0.55f;
+    /// <summary>Bündnistreue: Verbündete KI-Fraktionen driften zu einem um so viel höheren Ruhewert (sonst zöge die Drift jedes Bündnis unter die Auflösungsschwelle).</summary>
+    public float AllianceRestBonus = 0.4f;
+    /// <summary>Höchstens so viele Bündnisse je Fraktion.</summary>
+    public int MaxAlliancesPerFaction = 2;
+    /// <summary>Nach dem Ende eines Bündnisses kein neues mit demselben Partner für so viele Ticks (gegen Hin und Her).</summary>
+    public int AllianceCooldownTicks = 20000;
+    /// <summary>Verrat (ein Verbündeter greift einen anderen Verbündeten an): Beziehungsverlust der Verratenen zum Angreifer.</summary>
+    public float AllianceBetrayalLoss = 0.3f;
+    /// <summary>Verlässt der Spieler ein Bündnis, sinkt die Beziehung zum Partner um diesen Betrag.</summary>
+    public float AllianceLeaveLoss = 0.05f;
+    /// <summary>Beistandsruf an den Spieler: so viele Ticks nach der Kriegserklärung gegen den Verbündeten muss er beigetreten sein, sonst endet das Bündnis.</summary>
+    public int AllianceCallTicks = 2400;
+    /// <summary>Kein Beistand geleistet: Beziehungsverlust zum Partner.</summary>
+    public float AllianceDeclineLoss = 0.1f;
+
+    /// <summary>
+    /// Die Spielerfraktion darf in einem herrenlosen Sektor ohne Piratenversteck eine Sektorbehörde gründen (<see cref="PlayerSeatType"/>) und in eigenen
+    /// Sektoren Sperren setzen — nach denselben Regeln wie KI-Fraktionen. Code aus, Standardwelt an.
+    /// </summary>
+    public bool PlayerSeats;
+    /// <summary>Stationstyp der Sektorbehörde des Spielers (Behörde = Dominanz → Sperrstufe 1–2).</summary>
+    public string PlayerSeatType = "sector_hq";
+    /// <summary>Mindest-Größenklasse des Spielers für die Gründung (Index in <see cref="ActorSizeThresholds"/>: 2 = Firma).</summary>
+    public int PlayerSeatMinClass = 2;
 }

@@ -38,6 +38,8 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public bool TestMessageVisible => _message.Length > 0 && MsgNow() - _msgAt < MsgMs;
 	readonly KitConfirm _confirm = new();
 	KitScroll? _detailScroll;   // Runde 41 (A3): Vorschauzeilen unter den Knöpfen schieben sie tiefer — Detail scrollt (Test-Hook)
+	/// <summary>Runde 45, Selbsttest: Detail-Scroll des Diplomatie-Reiters (echte Tipps auf Knöpfe weiter unten).</summary>
+	public KitScroll? TestDetailScroll => _detailScroll;
 
 	// ── Test-Hooks ──
 	/// <summary>Selbsttest: Zahl der Posteingang-Nachrichten.</summary>
@@ -52,6 +54,8 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public void TestShowMessage(string msg) { _message = msg; _msgAt = MsgNow(); Invalidate(); }
 	/// <summary>Selbsttest (Runde 42d): zuletzt gebaute Geldzeilen der aktiven Aufträge im Reiter „Aufträge“.</summary>
 	public readonly System.Collections.Generic.List<string> TestMoneyLines = new();
+	/// <summary>Runde 45, Selbsttest: zuletzt gezeigte Bündniszeile im Diplomatie-Detail.</summary>
+	public string TestAllianceRow { get; private set; } = "";
 	/// <summary>Selbsttest: Zahl der Fraktionszeilen im Diplomatie-Reiter.</summary>
 	public int TestDiplomacyRows => Ctx.U.NpcFactionIds().Count;
 	/// <summary>Selbsttest: Fraktion wählen (Index) und Detail öffnen.</summary>
@@ -330,6 +334,17 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		Row(det, 18, y, dw - 36, "Fahndung", wanted > 0 ? $"{SecurityNames.WantedLevel(wanted)} — Strafe {fine:0} Cr" : "sauber", 14); y += 22;
 		float claim = u.Actors[u.PlayerActor].BountyClaims.TryGetValue(f, out var cl) ? cl : 0f;
 		if (claim > 0f) { Row(det, 18, y, dw - 36, "Kopfgeldanspruch", $"{claim:0} Cr (abholen im Kopfgeldbüro)", 14); y += 22; }
+		// Runde 45: Bündnis (eigenes und ihre übrigen Verbündeten) und Tribut im Krieg
+		bool allied = me is not null && Alliances.Allied(u, me.Value, f);
+		var theirAllies = Alliances.AlliesOf(u, f).Where(x => me is null || x != me.Value).Select(x => FactionNameOf(u, x)).ToList();
+		string allianceText = (allied ? $"mit dir seit {SpaceSim.Core.Comms.Comms.Ago(u, Alliances.Between(u, me!.Value, f)!.Since)}" : "nicht mit dir")
+			+ (theirAllies.Count > 0 ? $" · verbündet mit {string.Join(", ", theirAllies)}" : "");
+		Row(det, 18, y, dw - 36, "Bündnis", allianceText, 14); y += 22;
+		TestAllianceRow = allianceText;
+		if (war is not null && me is not null)
+		{
+			Row(det, 18, y, dw - 36, "Tribut", $"sie fordern {Wars.TributeFor(u, war, f):0} Cr · du kannst {Wars.DemandAmount(u, war, f):0} Cr fordern", 14); y += 22;
+		}
 		y += 6;
 		At(det, Text("Aktionen (Vorschau echt, Ausführung über die Comms-Registry)", 14, Cyan), 18, y, dw - 36, 20); y += 26;
 
@@ -362,6 +377,15 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		ActionButton($"peace:{f.Value}", "Frieden", confirm: false);
 		int tributeAmount = war is not null ? Math.Max(1, (int)MathF.Ceiling(Wars.TributeFor(u, war, f))) : 1;
 		ActionButton($"tribute:{f.Value}:{tributeAmount}", "Tribut zahlen", confirm: false);
+		// Runde 45: Tribut fordern, Bündnis vorschlagen/verlassen, Beistand leisten (Ausführung nur über die Registry)
+		if (war is not null) ActionButton($"demand:{f.Value}", "Tribut fordern", confirm: true);
+		if (u.Rules.AlliancesActive)
+		{
+			if (allied) ActionButton($"alliance:leave:{f.Value}", "Bündnis verlassen", confirm: true);
+			else ActionButton($"alliance:propose:{f.Value}", "Bündnis vorschlagen", confirm: false);
+			foreach (var c in Alliances.Calls(u).Where(c => c.Ally == f).ToList())
+				ActionButton($"alliance:aid:{c.Attacker.Value}", $"Beistand: Krieg gegen {FactionNameOf(u, c.Attacker)}", confirm: true);
+		}
 		det.CustomMinimumSize = new Vector2(dw - 16f, y + 8);
 		// Runde 42c: die Meldung steht im eigenen Fach oben (BuildContent) — nie als Überlagerung über diesem Detail
 	}
@@ -430,7 +454,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			int wanted = Wanted.LevelOf(u, u.PlayerActor, _f);
 			string state = war is null ? "Frieden" : Wars.CeasefireActive(u, war) ? "Waffenstillstand" : "KRIEG";
 			Color stCol = war is null ? Dim : Red;
-			string line2 = (war is null ? state : state) + (wanted > 0 ? $" · Fahndung {SecurityNames.WantedLevel(wanted)}" : "");
+			string line2 = (war is null ? state : state) + (u.PlayerFaction is { } m3 && Alliances.Allied(u, m3, _f) ? " · Bündnis" : "") + (wanted > 0 ? $" · Fahndung {SecurityNames.WantedLevel(wanted)}" : "");
 			UiKit.DrawFit(this, 2, font, new Vector2(14, 68), line2, 12, Size.X - 30f, stCol);
 			if (_sel) UiKit.DrawText(this, 3, font, new Vector2(Size.X - 20f, 26), "▶", 14, Cyan);
 		}

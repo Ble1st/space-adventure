@@ -187,8 +187,11 @@ public static class UniverseHash
             }
         }
         // Phase 28: Kriege und Friedensschlüsse (ohne Krieg mischt nichts). Runde 40: Waffenstillstand/Angebots-Tick/Tribut nur, wenn gesetzt.
-        foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); if (w.Blockades != 0) Mix((ulong)w.Blockades + 0x3104u); if (w.CeasefireUntil != 0) Mix((ulong)w.CeasefireUntil + 0x4001u); if (w.LastOfferTick != 0) Mix((ulong)w.LastOfferTick + 0x4002u); if (w.TributePaid != 0f) MixF(w.TributePaid + 4000f); }
+        foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); if (w.Blockades != 0) Mix((ulong)w.Blockades + 0x3104u); if (w.CeasefireUntil != 0) Mix((ulong)w.CeasefireUntil + 0x4001u); if (w.LastOfferTick != 0) Mix((ulong)w.LastOfferTick + 0x4002u); if (w.TributePaid != 0f) MixF(w.TributePaid + 4000f); if (w.Join) Mix(0x4503u); }
         foreach (var (k, t) in u.PeaceSince.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2806u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
+        // Runde 45: Bündnisse und Bündnisenden (ohne Bündnis mischt nichts; ohne Spielerpolitik ohne die Paare mit der Spielerfraktion)
+        foreach (var al in u.Alliances) { if (Skip(al.A) || Skip(al.B)) continue; Mix(0x4501u); Mix((ulong)al.A.Value); Mix((ulong)al.B.Value); Mix((ulong)al.Since); }
+        foreach (var (k, t) in u.AllianceEnded.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { if (Skip(new FactionId(k.A)) || Skip(new FactionId(k.B))) continue; Mix(0x4502u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         // Runde 30: Rückkauf-Posten (ohne Spielerhandel leer — mischt nichts)
         foreach (var (k, l) in u.Ledger.OrderBy(kv => kv.Key.Actor).ThenBy(kv => kv.Key.Station).ThenBy(kv => kv.Key.Good))
         { Mix(0x3001u); Mix((ulong)k.Actor); Mix((ulong)k.Station); Mix((ulong)k.Good); MixF(l.BoughtQty); MixF(l.BoughtPrice); MixF(l.BoughtStockBefore); MixF(l.SoldQty); MixF(l.SoldPrice); MixF(l.SoldStockBefore); Mix(l.BoughtOpen ? 1u : 0u); Mix(l.SoldOpen ? 1u : 0u); Mix((ulong)l.LastTick);

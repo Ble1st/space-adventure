@@ -151,6 +151,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		TestViability = FactionViability.Text(u, sel) ?? "";
 		// Phase 28: Kriegslage neben der Handlungsfähigkeit
 		TestWar = isFaction ? SpaceSim.Core.Combat.WarInfo.FactionLine(u, new FactionId(sel.Value)) : "";
+		// Runde 45: Bündnisse der Fraktion (auch mit dir) — eigene Zeile unter der Kriegslage
+		var allies = isFaction ? Alliances.AlliesOf(u, new FactionId(sel.Value)) : new List<FactionId>();
+		TestAlliance = allies.Count == 0 ? (isFaction ? "keine Bündnisse" : "") : "Bündnis mit " + string.Join(", ", allies.Select(x => u.IsPlayerFaction(x) ? "dir" : FactionName(u, x)));
 		if (TestViability.Length > 0 || TestWar.Length > 0)
 		{
 			bool war = TestWar.StartsWith("Krieg", System.StringComparison.Ordinal);
@@ -159,11 +162,12 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			string line = war ? $"{TestWar} · {viable}" : string.Join(" · ", new[] { TestViability, TestWar }.Where(x => x.Length > 0));
 			At(det, Text(line, 12, war ? Red : TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
 		}
+		if (TestAlliance.Length > 0) At(det, Text(TestAlliance, 12, allies.Count > 0 ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 560, 16);
 
 		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte). Runde 38: die eigene Fraktion hat keine (der Spieler entscheidet selbst)
-		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 176, 280, 22);
+		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 194, 280, 22);
 		var p = actor.Personality;
-		float py = 202;
+		float py = 220;
 		if (isMe) WrappedText(det, "Du entscheidest selbst. Beziehungen ändern sich nur durch deine Handlungen (Krieg, später Aufträge und Diplomatie).", 18, py, 320, 13, new Color(Dim, 0.9f), 18);
 		foreach (var (name, v) in isMe ? Array.Empty<(string, float)>() : new[] { ("Aggression", p.Aggression), ("Gier", p.Greed), ("Kooperation", p.Cooperation), ("Gesetzestreue", p.Lawfulness) })
 		{
@@ -175,10 +179,10 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		}
 
 		// Beziehungen zu den Fraktionen und Gruppen (echt: gespeicherte Abweichung oder Vorgabe)
-		At(det, Text("Beziehungen", 16, Cyan), 356, 176, 226, 22);
+		At(det, Text("Beziehungen", 16, Cyan), 356, 194, 226, 22);
 		// Runde 38: die Beziehung zu dir steht oben („Beziehung zu dir“); hier die KI-Fraktionen und die Freien
 		var others = u.NpcFactionIds().Select(f => (ActorId)f).Append(u.FreeActor).Where(o => o != sel).Take(5).ToList();
-		float oy = 202;
+		float oy = 220;
 		foreach (var o in others)
 		{
 			float v = Relations.Effective(u, sel, o);
@@ -194,9 +198,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		if (u.Rules.ResearchActive && isFaction && ResearchInfo.ForFaction(u, new FactionId(sel.Value)) is { Total: > 0 } rv)   // Phase 14: nur mit Forschung
 		{
 			TestResearchShown = true;
-			At(det, Text("Forschung", 16, Cyan), 18, 316, 120, 22);
-			At(det, Text(rv.Summary, 13, White), 120, 318, 460, 20);
-			float fy = 342;
+			At(det, Text("Forschung", 16, Cyan), 18, 334, 120, 22);
+			At(det, Text(rv.Summary, 13, White), 120, 336, 460, 20);
+			float fy = 360;
 			foreach (var pv in rv.Projects)
 			{
 				var col = pv.Status == ResearchStatus.Done ? Green : pv.Status == ResearchStatus.Running ? Cyan : new Color(Dim, 0.85f);
@@ -210,9 +214,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		else
 		{
 			TestResearchShown = false;
-			At(det, Text("Letzte Ereignisse", 16, Cyan), 18, 316, 280, 22);
+			At(det, Text("Letzte Ereignisse", 16, Cyan), 18, 334, 280, 22);
 			// Runde 40: echt — die letzten Posteingang-Nachrichten dieser Fraktion (Core: CommsSystem)
-			float ey = 342;
+			float ey = 360;
 			var evs = u.Inbox.Where(m => m.From.Value == sel.Value).OrderByDescending(m => m.Id).Take(5).ToList();
 			if (evs.Count == 0) At(det, Text("Keine Ereignisse.", 13, new Color(Dim, 0.85f)), 18, ey, 560, 18);
 			foreach (var ev in evs)
@@ -269,6 +273,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// <summary>Selbsttest: zeigt die Detailansicht den Forschungsstand (Phase 14: nur mit eingeschalteter Forschung)?</summary>
 	public bool TestResearchShown { get; private set; }
 	/// <summary>Selbsttest: zuletzt gezeigte Handlungsfähigkeit (Phase 22; leer für Akteure ohne Invarianten).</summary>
+	/// <summary>Runde 45, Selbsttest: Bündniszeile der gewählten Fraktion.</summary>
+	public string TestAlliance { get; private set; } = "";
 	/// <summary>Selbsttest Phase 28: Kriegslage der gewählten Fraktion („Frieden“ / „Krieg mit …“).</summary>
 	public string TestWar { get; private set; } = "";
 	public string TestViability { get; private set; } = "";

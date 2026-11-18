@@ -287,17 +287,123 @@ public static class Wars
         u.Events.Publish(new CommsActionPerformed("tribute", f.Value, -amount, $"Tribut {amount:0} Cr an {name}."));
     }
 
-    /// <summary>Krieg erklären (ohne Prüfung; die Bedingungen prüft <see cref="DeclareIssue"/>). Beziehungen werden feindlich, Ereignis.</summary>
-    public static War Declare(Universe u, FactionId a, FactionId b)
+    // ───────── Runde 45: Tributfrieden (KI gegen KI) und Tributforderung des Spielers ─────────
+
+    /// <summary>
+    /// Sieger eines Kriegs für den Tributfrieden (rein): die stärkere Seite, wenn sie mindestens <see cref="EconomyRules.TributeStrengthRatio"/> mal so stark ist
+    /// (<see cref="Strength"/>); sonst keiner.
+    /// </summary>
+    public static FactionId? TributeWinner(Universe u, War w)
+    {
+        float sa = Strength(u, w.A), sb = Strength(u, w.B), ratio = u.Rules.TributeStrengthRatio;
+        if (sa >= ratio * MathF.Max(0.0001f, sb)) return w.A;
+        if (sb >= ratio * MathF.Max(0.0001f, sa)) return w.B;
+        return null;
+    }
+
+    /// <summary>Was der KI-Verlierer <paramref name="payer"/> höchstens zahlt: <see cref="EconomyRules.TributeMaxSpendableShare"/> seines verfügbaren Geldes (nie die Rücklage).</summary>
+    public static float TributeBudget(Universe u, FactionId payer) =>
+        u.Actors.TryGetValue(payer, out var a) ? MathF.Max(0f, FactionViability.Spendable(u, a)) * u.Rules.TributeMaxSpendableShare : 0f;
+
+    /// <summary>
+    /// Tributfrieden zwischen zwei KI-Fraktionen (rein; Ergebnis = Zahler, Sieger, Betrag, Forderung, oder null): Regel an, Mindestdauer, Müdigkeit ≥
+    /// <see cref="EconomyRules.TributePeaceWeariness"/>, kein Angebot innerhalb der Abkühlzeit, ein klarer Sieger, Forderung &gt; 0 (<see cref="TributeFor"/> des
+    /// Siegers) und der Verlierer kann mindestens <see cref="EconomyRules.TributeAcceptShare"/> davon aus seinem Tributbudget zahlen.
+    /// </summary>
+    public static (FactionId Payer, FactionId Winner, float Amount, float Demand)? AiTributeDeal(Universe u, War w)
+    {
+        var r = u.Rules;
+        if (!r.AiTributePeace || !u.IsNpcFaction(w.A) || !u.IsNpcFaction(w.B)) return null;
+        if (u.Tick - w.Since < r.WarMinTicks || w.Weariness < r.TributePeaceWeariness || OfferCooldownLeft(u, w) > 0) return null;
+        if (TributeWinner(u, w) is not { } winner) return null;
+        var loser = w.Other(winner);
+        float demand = TributeFor(u, w, winner);
+        if (demand <= 0f) return null;
+        float pay = MathF.Min(demand, TributeBudget(u, loser));
+        if (pay < r.TributeAcceptShare * demand) return null;
+        return (loser, winner, pay, demand);
+    }
+
+    /// <summary>Zahlung Fraktion → Fraktion (KI-Kasse an KI- oder Spielerkasse): Doppelbuchung (Upkeep/Income „tribute“), zählt auf <see cref="War.TributePaid"/>.</summary>
+    static void TransferTribute(Universe u, War w, FactionId payer, FactionId to, float amount)
+    {
+        var from = u.Actors[payer];
+        from.Treasury.Credits -= amount;
+        u.Events.Publish(new TreasuryUpkeep(from.Id, "tribute", amount, 0f));
+        if (u.Actors.TryGetValue(to, out var dest))
+        {
+            dest.Treasury.Credits += amount;
+            u.Events.Publish(new TreasuryIncome(dest.Id, "tribute", amount));
+        }
+        w.TributePaid += amount;
+        string pn = u.Factions.TryGetValue(payer, out var fp) ? fp.Name : "?", tn = u.Factions.TryGetValue(to, out var ft) ? ft.Name : "?";
+        u.Events.Publish(new TributePaid(from.Id, to, amount, $"{pn} zahlt {tn} einen Tribut von {amount:0} Cr."));
+    }
+
+    /// <summary>Führt einen Tributfrieden aus (<see cref="AiTributeDeal"/> vorher): Zahlung, Frieden (Grund „tribute“), Ereignis <see cref="TributePeace"/>.</summary>
+    public static void ConcludeTributePeace(Universe u, War w, FactionId payer, FactionId winner, float amount, float demand)
+    {
+        TransferTribute(u, w, payer, winner, amount);
+        MakePeace(u, w, "tribute");
+        string pn = u.Factions.TryGetValue(payer, out var fp) ? fp.Name : "?", wn = u.Factions.TryGetValue(winner, out var fw) ? fw.Name : "?";
+        u.Events.Publish(new TributePeace(payer, winner, amount, demand, $"{pn} kauft sich mit {amount:0} Cr Tribut von {wn} frei."));
+    }
+
+    /// <summary>Tribut, den der Spieler von <paramref name="f"/> fordern kann: Forderung des Siegers (<see cref="TributeFor"/> der Spielerseite), gedeckelt durch das Tributbudget.</summary>
+    public static float DemandAmount(Universe u, War w, FactionId f) =>
+        u.PlayerFaction is { } me ? MathF.Min(TributeFor(u, w, me), TributeBudget(u, f)) : 0f;
+
+    /// <summary>
+    /// Runde 45: warum der Spieler von <paramref name="f"/> jetzt keinen Tribut fordern kann (null = die KI zahlt und schließt Frieden). Dieselben Bedingungen
+    /// wie der KI-Tributfrieden: Krieg läuft, Mindestdauer, Müdigkeit ≥ <see cref="EconomyRules.TributePeaceWeariness"/>, Angebots-Abkühlzeit, der Spieler ist
+    /// der klare Sieger (<see cref="TributeWinner"/>), und die KI kann mindestens <see cref="EconomyRules.TributeAcceptShare"/> der Forderung aus ihrem Budget zahlen.
+    /// </summary>
+    public static string? DemandIssue(Universe u, FactionId f)
+    {
+        var r = u.Rules;
+        if (!Active(u)) return "Krieg ist abgeschaltet.";
+        if (u.PlayerFaction is not { } me) return "Du bist keine eigene Fraktion.";
+        if (Between(u, me, f) is not { } w) return "Kein Krieg mit dieser Fraktion.";
+        if (u.Tick - w.Since < r.WarMinTicks) return $"Krieg zu jung (noch {(r.WarMinTicks - (u.Tick - w.Since)) / 240 + 1} min).";
+        if (w.Weariness < r.TributePeaceWeariness) return $"Gegner noch nicht kriegsmüde ({w.Weariness:0.00} von {r.TributePeaceWeariness:0.00}).";
+        if (OfferCooldownLeft(u, w) is > 0 and var left) return $"Angebot erst wieder in {left / 240 + 1} min möglich.";
+        if (TributeWinner(u, w) != me) return $"Nicht klar überlegen (Stärke {Strength(u, me):0.0} : {Strength(u, f):0.0}, nötig ×{r.TributeStrengthRatio:0.0}).";
+        float demand = TributeFor(u, w, me);
+        if (demand <= 0f) return "Keine Forderung offen.";
+        if (TributeBudget(u, f) < r.TributeAcceptShare * demand) return $"{(u.Factions.TryGetValue(f, out var fa) ? fa.Name : "Die Fraktion")} kann {demand:0} Cr nicht aufbringen.";
+        return null;
+    }
+
+    /// <summary>Spieler fordert Tribut (<see cref="DemandIssue"/> vorher): KI-Kasse → Spielerkasse, Frieden „tribute“, alle anderen KI-Fraktionen −<see cref="EconomyRules.PlayerDemandRelationLoss"/>.</summary>
+    public static float? Demand(Universe u, FactionId f)
+    {
+        if (DemandIssue(u, f) is not null) return null;
+        var me = u.PlayerFaction!.Value;
+        var w = Between(u, me, f)!;
+        MarkOffered(u, w);
+        float demand = TributeFor(u, w, me);
+        float pay = MathF.Min(demand, TributeBudget(u, f));
+        ConcludeTributePeace(u, w, f, me, pay, demand);
+        foreach (var other in u.NpcFactionIds())
+            if (other != f && CanWage(u, other)) PlayerStanding.Change(u, other, -u.Rules.PlayerDemandRelationLoss, "tribute_demand");
+        return pay;
+    }
+
+    /// <summary>
+    /// Krieg erklären (ohne Prüfung; die Bedingungen prüft <see cref="DeclareIssue"/>). Beziehungen werden feindlich, Ereignis. Runde 45: danach ruft
+    /// <see cref="Alliances.OnWarDeclared"/> die Verbündeten des Opfers (Beistandspakt) — außer bei einem Beitritt selbst (<paramref name="alliedJoin"/>, Tiefe 1).
+    /// </summary>
+    public static War Declare(Universe u, FactionId a, FactionId b, bool alliedJoin = false)
     {
         if (Between(u, a, b) is { } running) return running;
-        var w = new War { A = a, B = b, Since = u.Tick };
+        var w = new War { A = a, B = b, Since = u.Tick, Join = alliedJoin };
         u.Wars.Add(w);
         float rel = Relations.Effective(u, a, b);
         PinHostile(u, w);
         u.TouchAccess();
         string na = u.Factions.TryGetValue(a, out var fa) ? fa.Name : "?", nb = u.Factions.TryGetValue(b, out var fb) ? fb.Name : "?";
         u.Events.Publish(new WarDeclared(a, b, rel, $"{na} erklärt {nb} den Krieg."));
+        if (!alliedJoin) Alliances.OnWarDeclared(u, w);
         return w;
     }
 
@@ -314,7 +420,7 @@ public static class Wars
         u.PeaceSince[Key(w.A, w.B)] = u.Tick;
         u.TouchAccess();
         string na = u.Factions.TryGetValue(w.A, out var fa) ? fa.Name : "?", nb = u.Factions.TryGetValue(w.B, out var fb) ? fb.Name : "?";
-        string why = reason switch { "weary" => "Kriegsmüdigkeit", "broke" => "leere Kasse", _ => "Vereinbarung" };
+        string why = reason switch { "weary" => "Kriegsmüdigkeit", "broke" => "leere Kasse", "tribute" => "Tributzahlung", _ => "Vereinbarung" };
         u.Events.Publish(new PeaceConcluded(w.A, w.B, reason, u.Tick - w.Since, $"Frieden zwischen {na} und {nb} ({why})."));
     }
 
@@ -450,7 +556,14 @@ public sealed class WarSystem : ISimSystem
             w.Weariness = ticks / MathF.Max(1f, r.WarWearyTicks) + MathF.Max(w.LossA, w.LossB) / MathF.Max(1f, r.WarLossScale);
             bool broke = Broke(u, w.A) || Broke(u, w.B);
             if (broke) { Wars.MakePeace(u, w, "broke"); continue; }
-            if (ticks >= r.WarMinTicks && w.Weariness >= 1f) Wars.MakePeace(u, w, "weary");
+            // Runde 45: KI gegen KI — ein klarer Sieger nimmt Tribut, wenn der Verlierer genug aus seinem Budget zahlen kann (vor dem Müdigkeitsfrieden: der Sieger
+            // lässt sich nicht umsonst abspeisen); sonst ein Angebot je Abkühlzeit. Die leere Kasse („broke“) bleibt vorrangig.
+            if (r.AiTributePeace && u.IsNpcFaction(w.A) && u.IsNpcFaction(w.B) && ticks >= r.WarMinTicks && w.Weariness >= r.TributePeaceWeariness && Wars.OfferCooldownLeft(u, w) == 0)
+            {
+                if (Wars.AiTributeDeal(u, w) is { } deal) { Wars.ConcludeTributePeace(u, w, deal.Payer, deal.Winner, deal.Amount, deal.Demand); continue; }
+                if (Wars.TributeWinner(u, w) is not null) Wars.MarkOffered(u, w);
+            }
+            if (ticks >= r.WarMinTicks && w.Weariness >= 1f) { Wars.MakePeace(u, w, "weary"); continue; }
             // Runde 40: ab Müdigkeit AiOfferWeariness bietet die KI dem Spieler Waffenstillstand/Frieden per Comms an (höchstens ein Angebot je OfferCooldownTicks)
             if (u.PlayerFaction is { } pf && w.Involves(pf) && w.Weariness >= r.AiOfferWeariness && Wars.OfferCooldownLeft(u, w) == 0)
             {

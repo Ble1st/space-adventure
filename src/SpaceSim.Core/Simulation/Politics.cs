@@ -238,6 +238,14 @@ public sealed class FactionPolicySystem : ISimSystem
             acc.CooldownUntil = u.Tick + rules.LockCooldownTicks;
             return true;
         }
+        // Runde 45: Sektoren der Spielerfraktion entscheidet der Spieler (PlayerLocks) — hier nur Ablauf (oben) und die Deckelung durch die Kontrollstufe
+        if (u.IsPlayerFaction(sector.Owner))
+        {
+            int capP = SectorControl.MaxLevel(u, sector);
+            if (cur <= capP) return false;
+            Apply(u, sector, capP, acc.Against, "stage");
+            return true;
+        }
         var (target, against, forced) = Desired(u, sector);
         if (target == cur) return false;
         bool minOver = u.Tick - acc.SinceTick >= rules.LockMinTicks;
@@ -323,7 +331,8 @@ public sealed class FactionPolicySystem : ISimSystem
                 float cur = Relations.Effective(u, a, b);
                 float s = share.GetValueOrDefault(Key(a, b));
                 float rest = rules.RelationRestBase + rules.RelationCooperationWeight * (p.Cooperation - 0.5f)
-                             - rules.RelationAggressionWeight * (p.Aggression - 0.5f) + rules.RelationTradeWeight * s;
+                             - rules.RelationAggressionWeight * (p.Aggression - 0.5f) + rules.RelationTradeWeight * s
+                             + (u.Alliances.Count > 0 && Alliances.Allied(u, a, b) ? rules.AllianceRestBonus : 0f);   // Runde 45: Bündnistreue
                 float delta = rules.RelationDriftRate * (Math.Clamp(rest, -1f, 1f) - cur)
                               - rules.ContestOpinionLoss * ContestedBetween(u, a, b)
                               - rules.LockOpinionLoss * LocksAgainst(u, b, a) * (0.5f + s);
@@ -333,6 +342,14 @@ public sealed class FactionPolicySystem : ISimSystem
             }
         }
         if (any) u.TouchAccess();
+        // Runde 45: Sperren der Spielerfraktion verärgern KI-Fraktionen nach derselben Formel wie KI-Sperren (Groll × Stufen × (0,5 + Handelsanteil 0));
+        // die Rückdrift entfällt — Spielerbeziehungen driften nie (Runde 38)
+        if (u.PlayerFaction is { } me && u.Sectors.Values.Any(sec => sec.Owner == me && !sec.Access.IsOpen))
+            foreach (var a in factions)
+            {
+                int locks = LocksAgainst(u, me, a);
+                if (locks > 0) PlayerStanding.Change(u, a, -rules.LockOpinionLoss * locks * 0.5f, "player_lock");
+            }
     }
 
     static (int, int) Key(FactionId a, FactionId b) => a.Value < b.Value ? (a.Value, b.Value) : (b.Value, a.Value);
@@ -364,7 +381,7 @@ public sealed class FactionPolicySystem : ISimSystem
     /// <summary>Summe der durchgesetzten Sperrstufen in Sektoren von <paramref name="owner"/>, die <paramref name="target"/> treffen (kein Bündnis).</summary>
     public static int LocksAgainst(Universe u, FactionId owner, FactionId target)
     {
-        if (Relations.Effective(u, owner, target) >= u.Rules.AllyRelation) return 0;
+        if (Relations.Effective(u, owner, target) >= u.Rules.AllyRelation || Alliances.Allied(u, owner, target)) return 0;   // Runde 45: Bündnis
         int sum = 0;
         foreach (var s in u.Sectors.Values)
         {

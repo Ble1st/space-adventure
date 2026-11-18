@@ -74,6 +74,9 @@ public sealed class SaveGame
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }
+    /// <summary>Runde 45 (additiv): Bündnisse [A, B, Since] und Bündnisenden [A, B, Tick].</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Alliances { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? AllianceEnded { get; set; }
     /// <summary>Runde 40 (additiv, v17 bleibt): Posteingang des Spielers (reine Anzeige; gespeichert, aber nie gehasht); fehlt = leer.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CommsMessageSave>? Inbox { get; set; }
     /// <summary>Runde 40: nächste Nachrichten-Id des Posteingangs; fehlt (alte Stände) = 1.</summary>
@@ -174,6 +177,8 @@ public sealed class WarSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastOfferTick { get; set; }
     /// <summary>Runde 40: bereits gezahlter Tribut (0 = keiner).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float TributePaid { get; set; }
+    /// <summary>Runde 45: Beitrittskrieg eines Verbündeten.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Join { get; set; }
 }
 
 /// <summary>Runde 40: eine Nachricht im Posteingang des Spielers (gespeichert, nicht gehasht).</summary>

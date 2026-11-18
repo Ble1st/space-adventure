@@ -98,6 +98,10 @@ public sealed class CommsActions
         r.Register(new MissionAcceptAction());     // Runde 41: Aufträge
         r.Register(new MissionAbandonAction());    // Runde 41: Auftrag abbrechen (Reiter „Aufträge“)
         r.Register(new ContractHaggleAction());    // Runde 41: Lieferverträge
+        r.Register(new DemandAction());            // Runde 45: Tribut fordern
+        r.Register(new AllianceAction());          // Runde 45: Bündnis vorschlagen/verlassen/Beistand
+        r.Register(new SeatAction());              // Runde 45: Sektorbehörde gründen/schließen
+        r.Register(new LockAction());              // Runde 45: eigene Sperrstufe
         return r;
     }
 
