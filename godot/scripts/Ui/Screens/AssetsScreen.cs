@@ -67,13 +67,90 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 		switch (_tab)
 		{
 			case "ships": BuildShips(inner, u, ship, myShips); break;
-			case "stations": EmptyTab(inner, "Du besitzt noch keine Stationen."); break;
+			case "stations": BuildStations(inner, u); break;   // eigene Stationen: Kasse, Lager, Produktion, Umbuchung
 			case "contracts": EmptyTab(inner, "Du besitzt noch keine Verträge."); break;
 			case "storage": EmptyTab(inner, "Du besitzt noch kein Lager."); break;
 		}
 
 		// ── Detailfenster eines Schiffs (Overlay) ──
 		if (_detailShip is { } did && u.Ships.TryGetValue(did, out var dship)) BuildShipDetail(inner, u, dship);
+	}
+
+	/// <summary>Selbsttest: Zeilen des Stationen-Tabs (Name · Kasse …).</summary>
+	public System.Collections.Generic.List<string> TestStationRows { get; } = new();
+
+	/// <summary>
+	/// Eigene Stationen (docs/STATIONEN.md „Eigene Stationen bauen“): je Station Kasse, Auslastung der Produktion, Lager und Unterhalt; Umbuchung zwischen
+	/// Spielerkasse und Stationskasse (reine Umbuchung, Core <see cref="SpaceSim.Core.Simulation.PlayerBuilding.Transfer"/>). Baustellen mit Materialstand.
+	/// </summary>
+	void BuildStations(Control inner, Universe u)
+	{
+		TestStationRows.Clear();
+		var own = u.StationsById().Where(s => s.Owner == u.PlayerActor && s.Site is not { Abandoned: true }).ToList();
+		if (own.Count == 0) { EmptyTab(inner, "Du besitzt noch keine Stationen. Bauen: Kommandozentrale → „Bauen“."); return; }
+		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		list.AddThemeConstantOverride("separation", 8);
+		float lw = InnerW(inner) - 24f;
+		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 128, lw, InnerH(inner) - 154);
+		scroll.AddChild(list);
+		float rw = lw - 20f;
+		foreach (var st in own)
+		{
+			var row = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(rw, 100) };
+			var panel = new Panel { MouseFilter = MouseFilterEnum.Ignore };
+			panel.AddThemeStyleboxOverride("panel", Box(Card, Edge, 10, 2, 0));
+			row.AddChild(panel);
+			panel.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+			list.AddChild(row);
+			bool site = st.IsBuildSite;
+			float btnW = site ? 0f : 3 * 112f + 16f;
+			float tw = rw - 28f - btnW;
+			string head = $"{st.Name} · {SectorName(u, st.Sector)}";
+			var title = Text(head, 17, White); title.ClipText = true; title.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+			At(row, title, 14, 8, tw, 24);
+			string l2, l3;
+			if (site && SpaceSim.Core.Simulation.ConstructionInfo.Of(u, st) is { } info)
+			{
+				l2 = $"Baustelle {info.TypeName} · Material {info.Progress * 100f:0} % · Treuhand {info.Escrow:0} Cr";
+				l3 = info.State;
+			}
+			else
+			{
+				var type = u.StationTypes.GetValueOrDefault(st.TypeKey);
+				float upkeep = type is null ? 0f : type.UpkeepPerTick * SpaceSim.Core.Simulation.SimClock.TicksPerSecond * 60f;
+				l2 = $"Kasse {st.Credits:0} Cr · Produktion {st.Activity * 100f:0} %{(st.Starved > 0.3f ? " (Zutaten fehlen)" : "")} · Unterhalt {upkeep:0.#} Cr/min";
+				var stock = st.Market.Where(kv => kv.Value.Amount >= 1f).OrderByDescending(kv => kv.Value.Amount).ThenBy(kv => kv.Key.Value).Take(5)
+					.Select(kv => $"{kv.Value.Amount:0} {GoodName(u, kv.Key)}").ToList();
+				l3 = stock.Count == 0 ? "Lager leer" : "Lager: " + string.Join(", ", stock);
+			}
+			TestStationRows.Add($"{head} · {l2}");
+			foreach (var (txt, y, size, col) in new[] { (l2, 38f, 14, Orange), (l3, 64f, 13, Dim) })
+			{
+				var l = Text(txt, size, col); l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+				At(row, l, 14, y, tw, 22);
+			}
+			if (site) continue;
+			var id = st.Id;
+			float bx = rw - 14f - btnW;
+			foreach (var (label, sub, amount) in new[] { ("+1000", "einzahlen", 1000f), ("−1000", "auszahlen", -1000f), ("Alles", "auszahlen", -MathF.Floor(MathF.Max(0f, st.Credits))) })
+			{
+				var b = At(row, new KitButton(label, new Vector2(112, 56)) { FontSize = 17, Sub = sub }, bx, 22);
+				float amt = amount;
+				if (SpaceSim.Core.Simulation.PlayerBuilding.TransferIssue(u, id, amt) is not null) b.State = KitButtonState.Disabled;
+				else b.Pressed += () => Transfer(id, amt);
+				bx += 120f;
+			}
+		}
+		At(inner, Text(_message.Length > 0 ? _message : "Umbuchen ist eine reine Umbuchung zwischen deiner Kasse und der Stationskasse.", 13, _message.Length > 0 ? Orange : new Color(Dim, 0.75f)), 20, InnerH(inner) - 20, MathF.Max(300f, InnerW(inner) - 40f), 18);
+	}
+
+	void Transfer(StationId id, float amount)
+	{
+		var u = Ctx.U;
+		if (SpaceSim.Core.Simulation.PlayerBuilding.TransferIssue(u, id, amount) is { } why) { _message = why; Invalidate(); return; }
+		SpaceSim.Core.Simulation.PlayerBuilding.Transfer(u, id, amount);
+		_message = amount > 0f ? $"{amount:0} Cr an {StationName(u, id)} eingezahlt." : $"{-amount:0} Cr von {StationName(u, id)} ausgezahlt.";
+		Invalidate();
 	}
 
 	void BuildShips(Control inner, Universe u, Ship ship, int myShips)

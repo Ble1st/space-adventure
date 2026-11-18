@@ -510,6 +510,7 @@ public partial class SectorView : Node3D
 		var accent = AccentOf(u, st); var look = LookOf(u, st);
 		if (StationModels.Create(key, st.Radius, accent, look, out float top, out _) is { } model)   // Phase 30: Maßstab = Radius der Größenklasse
 		{
+			if (st.Rotation != 0f) model.RotationDegrees = new Vector3(0f, st.Rotation, 0f);   // eigene Stationen: Drehung (rein optisch)
 			root.AddChild(model);
 			_stations[st.Id] = new StationNode { Root = root, Model = model, Accent = accent, Look = look, Top = top, Guns = HardpointSet.Bind(model, ShipModels.StationGuns(key)) };
 			string label = st.IsBuildSite && !st.Site!.Abandoned

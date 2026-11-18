@@ -597,6 +597,8 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProfitMeterSave? Profit { get; set; }
     /// <summary>Phase 30: ruhig seit (Kleinstation), null = nicht ruhig.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? CalmSince { get; set; }
+    /// <summary>Eigene Stationen: Drehung des Modells in Grad (additiv), null = 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Rotation { get; set; }
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>

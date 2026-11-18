@@ -38,10 +38,12 @@ public static class StationProtection
     public static bool IsEconomic(Universe u, Station st) => !IsOfficial(u, st) && !IsHideout(u, st);
 
     /// <summary>Stationen, die gegen die Bau-Obergrenzen zählen (ohne Regierungsstationen, Wachen und Verstecke).</summary>
-    public static int CountEconomic(Universe u) => u.Stations.Values.Count(s => IsEconomic(u, s));
+    public static int CountEconomic(Universe u) => u.Stations.Values.Count(s => IsEconomic(u, s) && !PlayerBuilding.Applies(u, s));
+
+    // eigene Stationen (Regel PlayerBuilding): Stationen des Spielers zählen nicht gegen die Obergrenzen der KI — er hat eigene (PlayerMaxStations)
 
     /// <summary>Stationen eines Sektors, die gegen die Obergrenze je Sektor zählen.</summary>
-    public static int CountEconomic(Universe u, Sector sector) => sector.Stations.Count(id => u.Stations.TryGetValue(id, out var s) && IsEconomic(u, s));
+    public static int CountEconomic(Universe u, Sector sector) => sector.Stations.Count(id => u.Stations.TryGetValue(id, out var s) && IsEconomic(u, s) && !PlayerBuilding.Applies(u, s));
 }
 
 /// <summary>Einfluss in einem Sektor: Anteile je Fraktion (0..1) und Anteil ohne Fraktion (freie/unabhängige Besitzer).</summary>

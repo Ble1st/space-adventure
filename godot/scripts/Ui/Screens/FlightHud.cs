@@ -350,7 +350,7 @@ public partial class FlightHud : Control, IScreen
 	/// </summary>
 	public List<Rect2> OccupiedRects()
 	{
-		var list = new List<Rect2>();
+		var list = Extra?.Invoke(false) ?? new List<Rect2>();   // eigene Stationen: Platzierungsmodus ersetzt das HUD — seine Tasten und Karte sind belegt
 		if (!Visible) return list;
 		var screen = GetViewportRect().Size;
 		foreach (var c in GetChildren())
@@ -363,14 +363,17 @@ public partial class FlightHud : Control, IScreen
 	}
 
 	/// <summary>Runde 33: <see cref="OccupiedRects"/> in Einheiten der Schicht (für Meldung/Hinweis, die im Flug mit derselben Skalierung liegen).</summary>
+	/// <summary>Eigene Stationen: weitere belegte Flächen in Bildpunkten (Platzierungs-HUD); Argument = nur Tasten.</summary>
+	public Func<bool, List<Rect2>>? Extra { get; set; }
+
 	public List<Rect2> OccupiedLocal(bool interactiveOnly = false, bool importantOnly = false)
 	{
 		var list = interactiveOnly
-			? GetChildren().OfType<Control>().Where(c => c.Visible && c is KitButton or KitSlider or KitVSlider && c.Size.X > 4f).Select(c => c.GetGlobalRect().Grow(6f)).ToList()
+			? (Extra?.Invoke(true) ?? new List<Rect2>()).Concat(GetChildren().OfType<Control>().Where(c => c.IsVisibleInTree() && c is KitButton or KitSlider or KitVSlider && c.Size.X > 4f).Select(c => c.GetGlobalRect().Grow(6f))).ToList()
 			: importantOnly
 				// Runde 35b: alles außer Sektorchip und Lagezeile — die darf eine Meldung im Notfall kurz überdecken (Status, Beschuss-/Fluchtzeile, Zielkarte nie)
-				? GetChildren().OfType<Control>().Where(c => c.Visible && c != _chip && c != _security && c.Size.X > 4f && c.Size.Y > 4f
-					&& c.Size.X * c.Size.Y < 0.3f * GetViewportRect().Size.X * GetViewportRect().Size.Y / MathF.Max(1f, Scale.X * Scale.X)).Select(c => c.GetGlobalRect().Grow(6f)).ToList()
+				? GetChildren().OfType<Control>().Where(c => c.IsVisibleInTree() && c != _chip && c != _security && c.Size.X > 4f && c.Size.Y > 4f
+					&& c.Size.X * c.Size.Y < 0.3f * GetViewportRect().Size.X * GetViewportRect().Size.Y / MathF.Max(1f, Scale.X * Scale.X)).Select(c => c.GetGlobalRect().Grow(6f)).Concat(Extra?.Invoke(false) ?? new List<Rect2>()).ToList()
 				: OccupiedRects();
 		float k = Scale.X > 0f ? 1f / Scale.X : 1f;
 		for (int i = 0; i < list.Count; i++) list[i] = new Rect2(list[i].Position * k, list[i].Size * k);

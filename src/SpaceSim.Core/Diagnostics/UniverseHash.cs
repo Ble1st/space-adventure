@@ -31,6 +31,7 @@ public static class UniverseHash
         {
             Mix((ulong)st.Id.Value); MixF(st.Credits); Mix((ulong)st.Owner.Value);   // Phase 9: Besitzer (Akteur)
             if (st.CalmSince >= 0) Mix((ulong)st.CalmSince);   // Phase 30
+            if (st.Rotation != 0f) { Mix(0x2074UL); MixF(st.Rotation); }   // eigene Stationen: Drehung (nur wenn gesetzt)
             foreach (var (g, e) in st.Market.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(e.Amount); MixF(e.Price); }
             // Phase 8: Schutz, Baustelle (Typ, Stückliste, Bauschiff, Zeiten, Zustand) und Spielerlager gehören zum Spielstand
             Mix(st.BankruptcyProtected ? 1UL : 0UL); MixString(st.TypeKey);

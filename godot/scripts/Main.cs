@@ -232,6 +232,9 @@ public partial class Main : Node3D
 		_hud.CcMyFaction.AreaSelected += OpenCcArea;
 		_hud.CcFleet.AreaSelected += OpenCcArea;
 		_hud.CcAssets.AreaSelected += OpenCcArea;
+		_hud.CcBuild.AreaSelected += OpenCcArea;
+		_hud.CcBuild.PlaceRequested += BeginPlacement;   // eigene Stationen: Bauplatz im Flug wählen
+		WirePlacement();
 		_hud.CcComms.AreaSelected += OpenCcArea;
 		_hud.CcSystem.AreaSelected += OpenCcArea;
 		_hud.CcUniverse.BackToFlight += CloseCommand;
@@ -240,6 +243,7 @@ public partial class Main : Node3D
 		_hud.CcMyFaction.BackToFlight += CloseCommand;
 		_hud.CcFleet.BackToFlight += CloseCommand;
 		_hud.CcAssets.BackToFlight += CloseCommand;
+		_hud.CcBuild.BackToFlight += CloseCommand;
 		_hud.CcComms.BackToFlight += CloseCommand;
 		_hud.CcSystem.BackToFlight += CloseCommand;
 		_hud.CcUniverse.OpenSectorMap += sec => { _hud.CcSector.SelectedSector = sec; _sectorChosen = true; OpenCcArea(CommandAreas.Sector); };
@@ -354,6 +358,7 @@ public partial class Main : Node3D
 	void AttachSession()
 	{
 		var u = _session.U;
+		if (_placeType is not null) EndPlacement(null);   // eigene Stationen: kein Geist aus der alten Sitzung
 		AttachedUniverses.Add(new WeakReference(u));
 		AttachedLabels.Add($"#{++_attachCount} {u.Ships[u.PlayerShip].ModelKey}");
 		// Runde 17 (Speicher wächst mit „Neues Spiel“): keine Ansicht hält das alte Universum fest
@@ -788,6 +793,7 @@ public partial class Main : Node3D
 			CommandAreas.MyFaction => _hud.CcMyFaction,
 			CommandAreas.Fleet => _hud.CcFleet,
 			CommandAreas.Assets => _hud.CcAssets,
+			CommandAreas.Build => _hud.CcBuild,
 			CommandAreas.Comms => _hud.CcComms,
 			CommandAreas.System => _hud.CcSystem,
 			_ => _hud.CcUniverse,
@@ -879,6 +885,7 @@ public partial class Main : Node3D
 		if (cur == _hud.DockTrade && _hud.DockTrade.CloseOpenRow()) return "handelszeile";
 		if (cur is not null && cur != _hud.DockMenu && cur != _hud.Flight && _docked != null) { _sfx.Play(SfxId.Click); ShowDockMenu(); return "dockbereich"; }
 		if (cur == _hud.DockMenu) { _hud.Toast("Zum Abdocken „Abdocken“ antippen."); return "dockmenü"; }
+		if (_placeType is not null) { EndPlacement("Bauplatz-Wahl abgebrochen."); return "platzierung"; }   // eigene Stationen
 		ToggleCommand();
 		return "flug";
 	}
@@ -1063,6 +1070,7 @@ public partial class Main : Node3D
 	void OnSimEvent(SimEvent e)
 	{
 		if (JumpCloakEvent(e)) return;   // Sprungantrieb und Tarnfeld (Main.JumpCloak.cs)
+		if (BuildEvent(e)) return;   // eigene Stationen (Main.Build.cs)
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
@@ -1330,7 +1338,7 @@ public partial class Main : Node3D
 			? _miner.Step(_session.U, _chunks, PlayerData, new Vec2(_player.Position.X, _player.Position.Z))
 			: null;
 		// Reglertasten (W/X) wirken in Echtzeit — einmal je Bild; Wenden und Schub wirken je Teilschritt
-		var (dir, throttle, speedScale, turn) = frozen ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(fs == 0 ? delta : 0f);
+		var (dir, throttle, speedScale, turn) = frozen || _placeType is not null ? (Vector2.Zero, 0f, 1f, 0f) : ReadSteering(fs == 0 ? delta : 0f);   // eigene Stationen: beim Platzieren hält das Schiff
 		// Gerätetest Phase 28: Zielhilfe „Ziel folgen“ — ohne Wendetaste, ohne Autopilot/Auto-Mining dreht die Nase mit der Drehrate des Schiffs zum gewählten Feind
 		// (Core-Regel AimAssist.Turn); Schub bleibt beim Regler und zeigt dann in die neue Blickrichtung
 		if (!frozen && turn == 0f && _aimAssist && !_autopilot && !_miner.Enabled && AimTarget() is { } aimAt)
@@ -1367,6 +1375,7 @@ public partial class Main : Node3D
 		_hud.EdgeThin = _session.U.Fights.IsEngaged(PlayerData.Id) || _session.U.PendingEncounters.Any(p => p.Target == _session.U.PlayerShip);
 		if (!frozen && !_reenter && _fight.AutoFire) FireCombatBays(quiet: true);   // Phase 25: Dauerfeuer
 
+		UpdatePlacement(delta);   // eigene Stationen: Geist, Prüfung, Anzeige
 		_view.Animate(delta);
 		long tl = System.Diagnostics.Stopwatch.GetTimestamp();
 		HideCoveredLabels(delta);
@@ -1431,6 +1440,11 @@ public partial class Main : Node3D
 		float zoomWant = !_framingActive && _docked == null && PlayerData.AnchorRock != 0 ? AnchorZoom : 1f;
 		_anchorZoomNow = _docked != null ? 1f : Mathf.MoveToward(_anchorZoomNow, zoomWant, delta * (1f - AnchorZoom) / AnchorZoomSeconds);
 		if (!_framingActive && _anchorZoomNow < 1f) want = new CamVec3(want.X * _anchorZoomNow, want.Y * _anchorZoomNow, want.Z * _anchorZoomNow);
+		if (!_framingActive && PlacementCamera(Mathf.Sqrt(want.X * want.X + want.Y * want.Y + want.Z * want.Z)) is { } pc)
+		{
+			want = new CamVec3(want.X * pc.Scale, want.Y * pc.Scale, want.Z * pc.Scale);   // eigene Stationen: Schiff und Geist im Bild
+			focus = pc.Focus;
+		}
 		_camOffset = OrbitCamera.Follow(_camOffset, want, delta, _framingActive ? 3f : 4f);
 		// Runde 15: Blickpunkt zügig zurück (vorher hing das Schiff nach dem Kampf sekundenlang am oberen Rand)
 		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-(_framingActive ? 3f : 5f) * delta));
@@ -1986,6 +2000,7 @@ public partial class Main : Node3D
 		if (_hud != null && @event is InputEventKey { Pressed: true, Echo: false } bk && (bk.Keycode == Key.Back || (bk.Keycode == Key.Escape && !OS.HasFeature("mobile"))))
 		{ BackRequested(bk.Keycode == Key.Back ? "Taste Zurück" : "Escape"); GetViewport().SetInputAsHandled(); return; }
 		if (_hud == null || _hud.AnyModalOpen) return;   // Menüs/Dock: Eingaben gehören der Oberfläche, Kamera bleibt stehen
+		if (@event is InputEventKey pk && PlacementKey(pk)) { GetViewport().SetInputAsHandled(); return; }   // eigene Stationen: Platzierungsmodus
 		if (@event is InputEventKey { Pressed: true, Echo: false } key)
 		{
 			if (key.Keycode == Key.F) _fireRequested = true;

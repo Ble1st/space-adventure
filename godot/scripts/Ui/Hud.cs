@@ -46,6 +46,9 @@ public partial class Hud : CanvasLayer
 	public MyFactionScreen CcMyFaction { get; } = new();
 	public FleetScreen CcFleet { get; } = new();
 	public AssetsScreen CcAssets { get; } = new();
+	public BuildScreen CcBuild { get; } = new();
+	/// <summary>Eigene Stationen: Platzierungsmodus im Flug (ersetzt das Flug-HUD, gleicher UI-Faktor).</summary>
+	public PlacementHud Placement { get; } = new();
 	public CommsScreen CcComms { get; } = new();
 	public SystemScreen CcSystem { get; } = new();
 	/// <summary>Registry aller Bildschirme; ein neuer Bildschirm ist eine Klasse plus ein Register-Aufruf.</summary>
@@ -117,6 +120,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(CcMyFaction);
 		Screens.Register(CcFleet);
 		Screens.Register(CcAssets);
+		Screens.Register(CcBuild);
 		Screens.Register(CcComms);
 		Screens.Register(CcSystem);
 		CcUniverse.Ctx = CcCtx;
@@ -125,12 +129,15 @@ public partial class Hud : CanvasLayer
 		CcMyFaction.Ctx = CcCtx;
 		CcFleet.Ctx = CcCtx;
 		CcAssets.Ctx = CcCtx;
+		CcBuild.Ctx = CcCtx;
 		CcComms.Ctx = CcCtx;
 		CcSystem.Ctx = CcCtx;
 
 		_marker.Hud = this;
 		root.AddChild(_marker);
 		root.AddChild(Flight);
+		root.AddChild(Placement);
+		Flight.Extra = Placement.OccupiedGlobal;
 
 		// Hinweistext oben Mitte
 		_toast.HorizontalAlignment = HorizontalAlignment.Center;
@@ -234,7 +241,7 @@ public partial class Hud : CanvasLayer
 		// Runde 35 (E4): Kommandozentrale in eigener, ganzflächiger Schicht mit eigenem Faktor (CommandLayout.FitFactor)
 		_ccLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
 		root.AddChild(_ccLayer);
-		foreach (var sc in new Control[] { CcUniverse, CcSector, CcFactions, CcMyFaction, CcFleet, CcAssets, CcComms, CcSystem }) _ccLayer.AddChild(sc);
+		foreach (var sc in new Control[] { CcUniverse, CcSector, CcFactions, CcMyFaction, CcFleet, CcAssets, CcBuild, CcComms, CcSystem }) _ccLayer.AddChild(sc);
 
 		_flash.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		root.AddChild(_flash);
@@ -275,6 +282,7 @@ public partial class Hud : CanvasLayer
 		var vp = GetViewport().GetVisibleRect().Size;
 		float f = UiScale.Factor;
 		Flight.ApplyScale(vp, f);
+		Placement.ApplyScale(vp, Flight.Scale.X > 0f ? Flight.Scale.X : f, UiScale.SafeInsets1());
 		// Runde 34: Dock-Schicht — ein Faktor für alle Dock-Bildschirme (Core: DockLayout.FitFactor), nur bei Änderung neu
 		var dkey = (vp, f, UiScale.SafeInsets1());
 		if (dkey != _dockKey)

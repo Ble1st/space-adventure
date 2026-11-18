@@ -33,6 +33,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestMaintenance { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Rentabilität (Phase 22; leer, solange nicht gemessen).</summary>
 	public string TestProfit { get; private set; } = "";
+	/// <summary>Eigene Stationen, Selbsttest: Zeile „Deine Station“ (leer bei fremden Stationen).</summary>
+	public string TestOwnLine { get; private set; } = "";
 	/// <summary>Selbsttest Phase 28: Verteidigungszeile (leer bei Baustellen oder abgeschalteter Kriegsführung).</summary>
 	public string TestDefense { get; private set; } = "";
 	/// <summary>Selbsttest Phase 27: Dienst-Chips (deutsche Namen, Komma-getrennt).</summary>
@@ -77,6 +79,13 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 			Row(v1, "Material", $"{100f * site.Progress:0} % geliefert");
 			Row(v1, "Bauschiff", site.Builder);
 			Row(v1, "Status", site.State);
+		}
+		else if (st.Owner == u.PlayerActor && u.Rules.PlayerBuilding)
+		{
+			// eigene Stationen: deine Station — Produktion (Auslastung), Lager-Übersicht; Kasse umbuchen unter „Besitz“
+			TestOwnLine = $"Produktion {st.Activity * 100f:0} %" + (st.Starved > 0.3f ? " · Zutaten fehlen" : "");
+			Row(v1, "Deine Station", TestOwnLine);
+			Row(v1, "", "Kasse umbuchen: Kommando → Besitz → Stationen");
 		}
 		else
 			Row(v1, "Schutz", st.BankruptcyProtected ? "vor Pleite geschützt" : StationCriticality.IsCritical(u, st) ? "kritisch (letzte ihrer Kette)" : "keiner");

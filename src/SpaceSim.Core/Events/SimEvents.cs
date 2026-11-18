@@ -429,3 +429,10 @@ public sealed record ShotAtGate(int Encounter, SectorId Sector, ShipId Shooter, 
 
 /// <summary>Schwarzmarkt NPC (docs/SCHWARZMARKT.md): ein gesetzloses KI-Schiff hat beim Hehler verkauft (<paramref name="Sold"/>) oder Hehlerware gekauft. Credits = Erlös bzw. Kosten (positiv).</summary>
 public sealed record BlackMarketNpcTrade(ShipId Ship, StationId Station, GoodId Good, float Units, float Credits, bool Sold) : SimEvent;
+
+/// <summary>Eigene Stationen: der Spieler hat eine Baustelle angelegt (Bausumme aus der Spielerkasse als Treuhandgeld).</summary>
+public sealed record PlayerSiteStarted(StationId Site, SectorId Sector, string TypeKey, float Cost) : SimEvent;
+/// <summary>Eigene Stationen: der Spieler hat eine eigene Baustelle aufgegeben (Rest des Treuhandgelds zurück).</summary>
+public sealed record PlayerSiteCancelled(StationId Site, float Refund) : SimEvent;
+/// <summary>Eigene Stationen: Umbuchung zwischen Spielerkasse und Stationskasse (positiv = eingezahlt, negativ = ausgezahlt).</summary>
+public sealed record StationCashMoved(StationId Station, float Amount) : SimEvent;

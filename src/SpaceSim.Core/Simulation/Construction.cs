@@ -156,13 +156,13 @@ public static class ConstructionRules
     /// verlangter Ware einem Markteintrag (Bestand = geliefert, Wunschbestand = verlangt) und der Bausumme als Treuhandgeld. Der Investor
     /// zahlt die Bausumme vorher selbst. Veröffentlicht <see cref="ConstructionStarted"/>.
     /// </summary>
-    public static Station StartSite(Universe u, StationType type, SectorId sector, Vec2 spot, ActorId owner, float budget, StationId? investorStation, ShipId? investorShip, ActorId? investorActor = null)
+    public static Station StartSite(Universe u, StationType type, SectorId sector, Vec2 spot, ActorId owner, float budget, StationId? investorStation, ShipId? investorShip, ActorId? investorActor = null, bool reuseAbandoned = true)
     {
         var siteType = SiteType(u) ?? throw new InvalidOperationException("Keine Baustellen in dieser Welt");
         var bill = Bill(u, type) ?? throw new InvalidOperationException($"Stückliste für '{type.Key}' nicht auflösbar");
         var sec = u.Sectors[sector];
         string shortName = sec.Name.Split(' ').Last();
-        var reuse = u.StationsById().Where(s => s.Sector == sector && s.Site is { Abandoned: true }).FirstOrDefault();
+        var reuse = reuseAbandoned ? u.StationsById().Where(s => s.Sector == sector && s.Site is { Abandoned: true }).FirstOrDefault() : null;   // eigene Stationen: der gewählte Platz gilt
         Station site;
         if (reuse is not null)
         {
@@ -292,7 +292,9 @@ public static class ConstructionRules
         var type = u.StationTypes[bs.TypeKey];
         string shortName = u.Sectors[site.Sector].Name.Split(' ').Last();
         var st = StationFactory.Create(u, site.Id, type, StationFactory.BuiltName(u, type, site.Sector, site.Id), site.Sector, site.Position, site.Owner);
-        st.Credits = NewStationCredits;
+        // eigene Stationen: die Station des Spielers beginnt ohne Startkapital (kein neues Geld zum Abschöpfen); KI unverändert
+        st.Credits = PlayerBuilding.Applies(u, site) ? 0f : NewStationCredits;
+        st.Rotation = site.Rotation;   // eigene Stationen: Drehung der Baustelle
         st.Panic = bs.Panic;   // Phase 20: Ersatz aus einer Versorgungspanik
         var builder = bs.Builder;
         if (builder.Value != 0 && u.Ships.TryGetValue(builder, out var b) && b.IsSiteBuilder)
@@ -385,6 +387,8 @@ public sealed class ConstructionSystem : ISimSystem
                 continue;
             }
 
+            // eigene Stationen: eine Baustelle des Spielers wartet auf ihn — kein Nachkauf eines Bauschiffs aus seiner Kasse, kein Notbau, kein Verfall
+            if (PlayerBuilding.Applies(u, site)) { bs.BlockedSince = ConstructionRules.IsBlocked(u, site) ? (bs.BlockedSince < 0 ? u.Tick : bs.BlockedSince) : -1; continue; }
             if (ConstructionRules.IsBlocked(u, site))
             {
                 if (bs.BlockedSince < 0) bs.BlockedSince = u.Tick;
@@ -439,7 +443,8 @@ public sealed class ConstructionSystem : ISimSystem
     /// </summary>
     public static Station? OpenSite(Universe u, Ship ship) =>
         ConstructionRules.ActiveSites(u)
-            .Where(s => s.Site!.Builder.Value == 0 && u.IsReachable(ship.Sector, s.Sector, GateAccess.ProfileOf(u, ship)))
+            .Where(s => s.Site!.Builder.Value == 0 && u.IsReachable(ship.Sector, s.Sector, GateAccess.ProfileOf(u, ship))
+                        && (ship.IsPlayer || !PlayerBuilding.Applies(u, s)))   // eigene Stationen: KI-Bauschiffe übernehmen keine Spielerbaustelle
             .OrderBy(s => u.FactionOf(ship) is { } own && u.FactionOf(s) == own ? 0 : 1)
             .ThenBy(s => Travel.Estimate(u, ship.Sector, ship.Position, s.Sector, s.DockPoint(ship.Id), ship))
             .ThenBy(s => s.Id.Value)
@@ -651,7 +656,10 @@ public static class ConstructionInfo
         if (bs.Abandoned) state = "Verlassen – das Material lagert hier";
         else if (bs.Complete(st) && (bs.Emergency || ConstructionRules.BuilderOnSite(u, st)))
             state = $"{(bs.Emergency ? "Notbau – " : "")}Montage {100f * bs.AssemblyTicks / MathF.Max(1, u.Rules.ConstructionAssemblyTicks):0} %";
-        else if (bs.Complete(st)) state = "Alles geliefert – wartet auf das Bauschiff";
+        else if (bs.Complete(st)) state = PlayerBuilding.Applies(u, st) && bs.Builder.Value == 0
+            ? "Alles geliefert – eigenes Bauschiff mit Befehl „Bauen“ nötig" : "Alles geliefert – wartet auf das Bauschiff";
+        else if (PlayerBuilding.Applies(u, st))   // eigene Stationen: kein Notbau, kein Verfall
+            state = bs.Builder.Value == 0 ? "Wartet auf Material – Montage braucht ein eigenes Bauschiff (Befehl „Bauen“)" : "Wartet auf Material";
         else if (bs.BlockedSince >= 0)
         {
             bool critical = StationCriticality.IsCriticalSite(u, st);

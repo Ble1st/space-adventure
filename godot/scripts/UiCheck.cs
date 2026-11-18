@@ -216,6 +216,14 @@ public partial class UiCheck : Node
 			var hq = u().StationsById().Where(s => s.Sector == u().PlayerSector && s.TypeKey == "sector_hq").FirstOrDefault();
 			if (hq is not null) { _m.TestSelectStation(hq.Id); _m.TestArmStation(); }
 		}, 30);
+		// Eigene Stationen: Platzierungs-HUD (Geist am freien Platz, grün) und am Tor (rot mit Grund)
+		Add("flug-platzierung", () => { _m.TestMenu("new:trader"); }, 40);
+		Add("flug-platzierung2", () => { _m.HudRef.HideAlert(); _m.TestBeginPlacement("farm"); }, 30);
+		Add("flug-platzierung-rot", () =>
+		{
+			var sec = u().Sectors[u().PlayerSector];
+			if (sec.Gates.Count > 0) { var g = u().Gates[sec.Gates[0]].Position; _m.TestPlaceAt(new Godot.Vector2(g.X, g.Y)); }
+		}, 12);
 	}
 	bool _skip;
 
@@ -226,7 +234,7 @@ public partial class UiCheck : Node
 		if (_state.Length > 0)
 		{
 			// Zustand vermessen und abbilden
-			if (!_skip && !_state.EndsWith("-open") && _state != "flug-automining" && _state != "flug-gefecht" && _state != "flug-stationsangriff" && _state != "flug-leviathan" && _state != "flug-leviathan-einzeln")
+			if (!_skip && !_state.EndsWith("-open") && _state != "flug-automining" && _state != "flug-gefecht" && _state != "flug-stationsangriff" && _state != "flug-leviathan" && _state != "flug-leviathan-einzeln" && _state != "flug-platzierung")
 			{
 				// Runde 34b (Prüfung B5): messen, bis zwei aufeinanderfolgende Messungen (Abstand 6 Bilder) dieselbe Zahl sichtbarer und interaktiver Elemente haben —
 				// höchstens 8 Versuche, sonst „instabil“ (vorher wurde von zwei Messungen die „ruhigere“ genommen, das konnte ein halb aufgebauter Zustand sein)

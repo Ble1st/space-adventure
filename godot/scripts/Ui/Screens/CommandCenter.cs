@@ -37,6 +37,7 @@ public static class CommandAreas
 	public const string MyFaction = "myfaction";
 	public const string Fleet = "fleet";
 	public const string Assets = "assets";
+	public const string Build = "build";
 	public const string Comms = "comms";
 	public const string System = "system";
 
@@ -49,6 +50,7 @@ public static class CommandAreas
 		(MyFaction, "Meine Fraktion", "Kasse & Ruf"),
 		(Fleet, "Flotte", "Schiffe & Befehle"),
 		(Assets, "Besitz", "Schiffe & Stationen"),
+		(Build, "Bauen", "Eigene Stationen"),
 		(Comms, "Comms", "Posteingang"),
 		(System, "System", "Spielstand"),
 	};
@@ -61,6 +63,7 @@ public static class CommandAreas
 		MyFaction => "Meine Fraktion",
 		Fleet => "Flotte",
 		Assets => "Besitz",
+		Build => "Bauen",
 		Comms => "Comms",
 		System => "System",
 		_ => id,

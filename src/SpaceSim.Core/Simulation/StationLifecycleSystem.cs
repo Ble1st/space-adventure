@@ -131,7 +131,8 @@ public sealed class StationLifecycleSystem : ISimSystem
         // Phase 10: Regierungsstationen und Wachen zählen nicht gegen die Obergrenzen
         if (StationProtection.CountEconomic(u) >= rules.MaxStations || u.Tick - u.LastStationBuildTick < rules.BuildCooldown) return;
         // Phase 8: höchstens MaxActiveSites Baustellen gleichzeitig (verlassene zählen nicht)
-        var active = ConstructionRules.ActiveSites(u).ToList();
+        // eigene Stationen: Baustellen des Spielers zählen weder gegen die Zahl der KI-Baustellen noch als „Typ schon im Bau“
+        var active = ConstructionRules.ActiveSites(u).Where(s => !PlayerBuilding.Applies(u, s)).ToList();
         if (active.Count >= rules.MaxActiveSites) return;
 
         // Knappheit → Produzent der Ware bauen; sonst bei Überangebot → Verbraucher der Ware bauen (Nachfrage wächst mit billigem Angebot)
@@ -308,14 +309,10 @@ public sealed class StationLifecycleSystem : ISimSystem
     {
         for (int attempt = 0; attempt < 400; attempt++)
         {
-            float half = 150f * MathF.Max(1f, sector.Scale);   // Runde 44: Platzierungsfläche wächst mit dem Maßstab
+            float half = StationPlacement.HalfArea(sector);   // Runde 44: Platzierungsfläche wächst mit dem Maßstab
             var p = new Vec2(u.Rng.Range(-half, half), u.Rng.Range(-half, half));
-            bool ok =
-                sector.Gates.All(g => Vec2.Distance(p, u.Gates[g].Position) > radius + 35f) &&
-                sector.Stations.All(s => Vec2.Distance(p, u.Stations[s].Position) > radius + u.Stations[s].Radius + 20f) &&
-                sector.Fields.All(f => Vec2.Distance(p, f.Position) > radius + 30f) &&
-                sector.Asteroids.All(a => Vec2.Distance(p, a.Position) > a.Radius + radius + 6f);
-            if (ok) return p;
+            // eigene Stationen: dieselbe Platzregel wie das Baufenster des Spielers (StationPlacement)
+            if (StationPlacement.Fits(u, sector, p, radius)) return p;
         }
         return null;
     }

@@ -37,7 +37,8 @@ public static class ExportRules
     public static int ExportDue(Universe u, Station st)
     {
         if (st.Exports.Count == 0 || ConfigOf(u, st) is not { } cfg) return 0;
-        float factor = 1f + cfg.MarkupOf(u.Rules);
+        // eigene Stationen: eine Exportsenke des Spielers gibt nur weiter, was sie bezahlt hat (kein Aufschlag — sonst schöpfte er neues Geld aus Verkäufen an sich selbst)
+        float factor = PlayerBuilding.Applies(u, st) ? 1f : 1f + cfg.MarkupOf(u.Rules);
         int n = 0;
         for (int i = 0; i < st.Exports.Count; )
         {

@@ -229,6 +229,11 @@ public sealed class Station
     public SlotSize? MaxShip;
     /// <summary>Phase 30: Kleinstation — seit wann ihr Sektor ruhig ist (−1 = nicht ruhig); Abbau nach langer Ruhe. Gespeichert, gehasht wenn gesetzt.</summary>
     public long CalmSince = -1;
+    /// <summary>
+    /// Eigene Stationen: Drehung des Modells um die Hochachse in Grad (rein optisch — der Core rechnet mit Kreis-Hindernissen). 0 = Vorgabe (alle KI-Stationen,
+    /// alte Spielstände). Gespeichert und gehasht nur, wenn gesetzt; die Baustelle trägt sie, die fertige Station übernimmt sie.
+    /// </summary>
+    public float Rotation;
 
     /// <summary>Parkposition eines Schiffs an der Station, knapp außerhalb des Körpers (Radius + 7; mittlere Station wie bisher 22).</summary>
     public Vec2 DockPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * (Radius + 7f);

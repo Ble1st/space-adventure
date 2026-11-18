@@ -358,6 +358,7 @@ public static class UniverseSerializer
                 MaintenanceBacklog = st.MaintenanceBacklog.Count == 0 ? null : st.MaintenanceBacklog.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = ToSave(st.Profit),
                 CalmSince = st.CalmSince < 0 ? null : st.CalmSince,
+                Rotation = st.Rotation == 0f ? null : st.Rotation,
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -708,6 +709,7 @@ public static class UniverseSerializer
                 MaintenanceBacklog = st.MaintenanceBacklog is null ? new Dictionary<GoodId, float>() : st.MaintenanceBacklog.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = FromSave(st.Profit),
                 CalmSince = st.CalmSince ?? -1,
+                Rotation = st.Rotation ?? 0f,
             };
         // Phase 30: Radius und Andockbarkeit aus dem Typ (Baustelle: Zieltyp) — abgeleitet, nicht gespeichert
         foreach (var st in u.Stations.Values) Content.StationFactory.ApplySize(u, st);

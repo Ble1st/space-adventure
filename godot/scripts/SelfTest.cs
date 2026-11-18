@@ -2773,6 +2773,7 @@ public partial class SelfTest : Node
 			case 140: if (CapitulationStage(_frame - _stageStart)) Next(); break;   // Kapitulation: Kriegstest, „Station angreifen“ per zwei Tipps, Station kapituliert (Chance erzwungen), Andocken an der eigenen Station (SelfTest.Capitulation.cs)
 			case 141: if (JumpCloakPackageStage(_frame - _stageStart)) Next(); break;   // Startpaket „Sprung- und Tarntest“: Start über die Startauswahl (echter Tipp), Tarnung an (Kaperer/Polizei sehen dich nicht), Sprung zwei Hops mit Tarnung, Treibstoff verbraucht (SelfTest.JumpCloakPackage.cs)
 			case 142: if (PlayerHqStage(_frame - _stageStart)) Next(); break;   // Eigenes Hauptquartier: Sektorbehörde in Nebelmark, „Hauptquartier gründen“ in „Meine Fraktion“ per zwei echten Tipps, Kontrolle, Fraktionen-Detail zeigt das HQ (SelfTest.PlayerHq.cs)
+			case 143: if (PlayerBuildStage(_frame - _stageStart)) Next(); break;   // Eigene Stationen: „Bauen“ per Tipp auf die Leiste, Typ und „Bauplatz wählen“ per Tipp, Geist per ▶/↻ 45° bewegen und drehen, rot am Tor, grün am freien Platz, „Platzieren“ legt die Baustelle an (SelfTest.PlayerBuild.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
@@ -2788,7 +2789,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 142;
+	const int LastStage = 143;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;
