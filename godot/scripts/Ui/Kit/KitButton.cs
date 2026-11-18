@@ -29,6 +29,8 @@ public partial class KitButton : Control
 	public bool On { get => _on; set { _on = value; QueueRedraw(); } }
 	/// <summary>True, solange ein Finger die Taste hält (Haltetasten wie „Wenden“).</summary>
 	public bool Held => _down;
+	/// <summary>Eingabe-Protokoll: welcher Finger hält seit wann (z. B. „idx0 seit 1200 ms“).</summary>
+	public string HeldInfo => _finger >= 0 ? $"idx{_finger} seit {Time.GetTicksMsec() - _pressedAt} ms" : "kein Finger";
 	public int FontSize { get; set; } = 20;
 	/// <summary>Text linksbündig statt zentriert (Listenreihen, Tasten mit Symbol).</summary>
 	public bool AlignLeft;
@@ -78,9 +80,23 @@ public partial class KitButton : Control
 	}
 	static readonly System.Collections.Generic.HashSet<KitButton> _heldSet = new();
 	ulong _pressedAt;
-	void Press(int idx) { _finger = idx; _pressedAt = Time.GetTicksMsec(); _heldSet.Add(this); }
-	void Release() { _finger = -1; _heldSet.Remove(this); }
+	void Press(int idx) { _finger = idx; _pressedAt = Time.GetTicksMsec(); _heldSet.Add(this); SetProcessInput(true); }
+	void Release() { _finger = -1; _heldSet.Remove(this); if (IsInsideTree()) SetProcessInput(false); }
 	public override void _ExitTree() => Release();
+	public override void _Ready() => SetProcessInput(_finger >= 0);   // _Input nur, solange ein Finger hält (Hunderte Tasten, sonst je Ereignis ein Aufruf)
+
+	/// <summary>
+	/// Zweiter Handytest A15 (adb-Tipps, „dropping inconsistent event“): setzt der haltende Finger (Index) außerhalb der Taste neu auf, ging sein Loslassen
+	/// verloren — die Taste lässt los (ohne auszulösen). Vorher blieb sie gedrückt: eine Haltetaste (◀ ▶ RÜCK) meldete weiter „gehalten“, und der Autopilot
+	/// brach mit „manuelle Steuerung“ ab. Läuft vor der Oberfläche; ein neues Drücken in der Taste übernimmt _GuiInput.
+	/// </summary>
+	public override void _Input(InputEvent e)
+	{
+		if (_finger < 0 || !Pointer.TryRead(e, out int idx, out var pos, out bool pressed, out bool motion) || motion || !pressed || idx != _finger) return;
+		if (GetGlobalRect().HasPoint(pos)) return;
+		InputLog.Log($"knopf {InputLog.Name(this)} lässt los: Finger idx{idx} setzt woanders neu auf (Loslassen verloren)");
+		Release(); _down = false; QueueRedraw();
+	}
 
 	public void SetState(KitButtonState state, string? detail = null, Color? detailColor = null)
 	{
@@ -94,12 +110,18 @@ public partial class KitButton : Control
 	{
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
 		// Geräte-Eingabe: setzt derselbe Finger (Index) neu auf, ging sein Loslassen verloren — die Taste nimmt den neuen Druck an statt hängen zu bleiben
-		if (State == KitButtonState.Disabled) { if (!motion && pressed) AcceptEvent(); return; }
+		if (State == KitButtonState.Disabled) { if (!motion && pressed) { AcceptEvent(); InputLog.Log($"knopf {InputLog.Name(this)} gesperrt, Drücken idx{idx} ignoriert"); } return; }
 		bool inside = new Rect2(Vector2.Zero, Size).HasPoint(pos);
-		if (!motion && pressed && inside && (_finger < 0 || idx == _finger)) { Press(idx); _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke(); }
+		if (!motion && pressed && inside && (_finger < 0 || idx == _finger))
+		{
+			if (InputLog.Enabled) InputLog.Log($"knopf {InputLog.Name(this)} gedrückt idx{idx}{(_finger == idx ? " (neu gedrückt: Loslassen davor verloren)" : "")}");
+			Press(idx); _down = true; QueueRedraw(); AcceptEvent(); Down?.Invoke();
+		}
 		else if (idx == _finger && !pressed && !motion)
 		{
-			bool fire = _down && inside && !Pointer.Canceled(@event);   // Geräte-Eingabe: abgebrochene Geste (System übernimmt) ist kein Tipp
+			bool canceled = Pointer.Canceled(@event);
+			bool fire = _down && inside && !canceled;   // Geräte-Eingabe: abgebrochene Geste (System übernimmt) ist kein Tipp
+			if (InputLog.Enabled) InputLog.Log($"knopf {InputLog.Name(this)} losgelassen idx{idx} → {(fire ? "löst aus" : canceled ? "kein Tipp (abgebrochen)" : !inside ? "kein Tipp (außerhalb)" : "kein Tipp")}{(Toggle && fire ? $", Umschalter {(!_on ? "an" : "aus")}" : "")}");
 			Release(); _down = false; QueueRedraw(); AcceptEvent();
 			if (fire) { if (Toggle) _on = !_on; Pressed?.Invoke(); }
 		}

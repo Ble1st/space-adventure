@@ -261,7 +261,14 @@ public partial class CommandMenu : Control, IScreen
 			: "Freie Kamera: Mit einem Finger wischen schwenkt, mit zwei Fingern zoomt (Mausrad am Desktop).";
 	}
 
-	public void Open() { Visible = true; LayoutWindow(); QueueRedraw(); }
+	public void Open()
+	{
+		Visible = true; LayoutWindow(); QueueRedraw();
+		_openFrame = Engine.GetProcessFrames(); _backdropFinger = -1;
+		InputLog.Log($"menü AUF (Aufrufer {InputLog.Caller()})");
+	}
+	ulong _openFrame;
+	int _backdropFinger = -1;
 
 	/// <summary>
 	/// Runde 37 (UI-ANPASSUNG.md E5): das Menü liegt in der Menü-Schicht mit dem UI-Faktor — Fenster mittig, höchstens 688 hoch und nie höher als die
@@ -283,7 +290,11 @@ public partial class CommandMenu : Control, IScreen
 	{
 		if (what == NotificationResized) LayoutWindow();
 	}
-	public void Close() => Visible = false;
+	public void Close()
+	{
+		if (Visible) InputLog.Log($"menü ZU (Aufrufer {InputLog.Caller()})");
+		Visible = false; _backdropFinger = -1;
+	}
 	public void Refresh() { }
 
 	public override void _Draw()
@@ -291,13 +302,28 @@ public partial class CommandMenu : Control, IScreen
 		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.45f));
 	}
 
-	/// <summary>Klick auf den abgedunkelten Hintergrund schließt das Menü.</summary>
+	/// <summary>
+	/// Ein Tipp auf den abgedunkelten Hintergrund schließt das Menü — ein ganzer Tipp: Drücken und Loslassen desselben Fingers außerhalb des Fensters, das
+	/// Drücken in einem späteren Bild als das Öffnen. Zweiter Handytest A15 („Menü“ öffnete in 0 von 15 adb-Tipps): vorher schloss schon das Drücken. Ging
+	/// das Loslassen eines Tipps verloren („dropping inconsistent event“), gibt Godots Android-Eingabe beim nächsten Tipp erst das alte Loslassen (die Taste
+	/// „Menü“ löst aus, das Menü öffnet) und im selben Bild das neue Drücken — das landete auf dem Hintergrund und schloss das Menü sofort wieder.
+	/// </summary>
 	public override void _GuiInput(InputEvent @event)
 	{
-		if (Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion) && !motion && pressed)
+		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion) || motion) return;
+		bool outside = !new Rect2(_win.Position, _win.Size).HasPoint(pos);
+		if (pressed)
 		{
-			if (!new Rect2(_win.Position, _win.Size).HasPoint(pos)) Action?.Invoke("close");
+			if (outside && Engine.GetProcessFrames() > _openFrame) _backdropFinger = idx;
+			else if (outside) InputLog.Log($"menü: Drücken idx{idx} auf dem Hintergrund im Öffnungsbild ignoriert");
 			AcceptEvent();
+			return;
 		}
+		if (idx == _backdropFinger)
+		{
+			_backdropFinger = -1;
+			if (outside && !Pointer.Canceled(@event)) { InputLog.Log($"menü: Tipp auf den Hintergrund idx{idx} schließt"); Action?.Invoke("close"); }
+		}
+		AcceptEvent();
 	}
 }

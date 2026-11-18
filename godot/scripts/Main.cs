@@ -99,6 +99,8 @@ public partial class Main : Node3D
 
 	public override void _Ready()
 	{
+		Ui.InputLog.Init();
+		AddChild(new Ui.InputLogNode());   // zweiter Handytest A15: Eingabe-Protokoll „[input]“ (Debug-Build)
 		BuildEnvironment();
 		BuildStars();
 
@@ -836,12 +838,15 @@ public partial class Main : Node3D
 		if (_lastBackFrame != ulong.MaxValue && frame - _lastBackFrame <= BackDebounceFrames && nowMs - _lastBackMs <= BackDebounceMs)
 		{
 			GD.Print($"[ui] Zurück-Taste ({source}) verworfen: zweite Zustellung desselben Drucks ({frame - _lastBackFrame} Bilder)");
+			Ui.InputLog.Log($"zurück ({source}) verworfen: zweite Zustellung ({frame - _lastBackFrame} Bilder, {nowMs - _lastBackMs} ms)");
 			BackIgnored++;
 			return "verworfen";
 		}
+		string since = _lastBackFrame == ulong.MaxValue ? "erster" : $"{frame - _lastBackFrame} Bilder/{nowMs - _lastBackMs} ms nach dem vorigen";
 		_lastBackFrame = frame;
 		_lastBackMs = nowMs;
 		string r = HandleBack();
+		Ui.InputLog.Log($"zurück ({source}, {since}) → {r}");
 		BackHandled++;
 		LastBackResult = r;
 		GD.Print($"[ui] Zurück-Taste ({source}): {r}");
@@ -880,6 +885,7 @@ public partial class Main : Node3D
 
 	void ToggleCommand()
 	{
+		Ui.InputLog.Log($"menü umschalten (jetzt {(_hud.Screens.Current == _hud.Command ? "offen → zu" : "zu → auf")}, Aufrufer {Ui.InputLog.Caller()})");
 		if (_hud.Screens.Current == _hud.Command) { ShowBase(); return; }
 		else { _hud.Map.Visible = false; RefreshCameraMenu(); _hud.Screens.Show(_hud.Command); }
 	}
@@ -1446,12 +1452,22 @@ public partial class Main : Node3D
 	(Vector2 dir, float throttle, float speedScale, float turn) ReadSteering(float delta)
 	{
 		var flight = _hud.Flight;
-		float turnKeys = (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right) ? 1 : 0) - (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left) ? 1 : 0);
-		bool keyThrottle = delta > 0f && (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) || Input.IsKeyPressed(Key.X));
-		if (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up)) flight.SetSlider(flight.SliderValue + delta * 0.8f);   // W bzw. Pfeil hoch erhöht den Slider
-		if (Input.IsKeyPressed(Key.X)) flight.SetSlider(0f);                                                              // X = STOPP
-		bool reverse = _testReverse || flight.ReverseHeld || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down);                    // eigene Rückwärts-Haltetaste
+		float sliderBefore = flight.SliderValue;
+		// Zweiter Handytest A15: am Handy ohne Tastatur zählen Tastatur-Steuertasten nicht (Verdacht: Gerät/System meldet Tastenereignisse — das Protokoll
+		// „[input] taste …“ zeigt sie; der Regler stieg dann ohne Berührung in Tastenschritten auf 6 % bzw. 56 % und brach den Autopiloten ab)
+		bool keys = KeySteering;
+		bool K(Key k) => keys && Input.IsKeyPressed(k);
+		float turnKeys = (K(Key.D) || K(Key.Right) ? 1 : 0) - (K(Key.A) || K(Key.Left) ? 1 : 0);
+		bool keyThrottle = delta > 0f && (K(Key.W) || K(Key.Up) || K(Key.X));
+		if (K(Key.W) || K(Key.Up)) flight.SetSlider(flight.SliderValue + delta * 0.8f);   // W bzw. Pfeil hoch erhöht den Slider
+		if (K(Key.X)) flight.SetSlider(0f);                                                // X = STOPP
+		bool keyReverse = K(Key.S) || K(Key.Down);
+		bool reverse = _testReverse || flight.ReverseHeld || keyReverse;                    // eigene Rückwärts-Haltetaste
 		float turn = turnKeys + (flight.TurnRightHeld ? 1f : 0f) - (flight.TurnLeftHeld ? 1f : 0f);
+		if (!keys && Ui.InputLog.Enabled && (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) || Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.D)
+			|| Input.IsKeyPressed(Key.Left) || Input.IsKeyPressed(Key.Right) || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down)) && !_keysIgnoredLogged)
+		{ _keysIgnoredLogged = true; Ui.InputLog.Log("steuerung: Tastatur-Steuertaste gedrückt, ignoriert (mobil ohne Hardwaretastatur)"); }
+		else if (!Input.IsKeyPressed(Key.W) && !Input.IsKeyPressed(Key.Up)) _keysIgnoredLogged = false;
 		// Geräte-Eingabe (Handytest A15: Autopilot fiel nach 2–3 s mit „manuelle Steuerung“ aus, Regler auf 6 % ohne Berührung): Autopilot und
 		// Auto-Mining brechen nur auf bewusste Bedienung ab — ein Finger, der auf dem Regler aufgesetzt und ihn bewegt hat, die Reglertasten, Wenden
 		// oder RÜCK. Ein Reglerwert ≠ 0 ohne solche Bedienung wird während der Automatik verworfen (der Regler zeigt 0, die Automatik fliegt weiter).
@@ -1462,8 +1478,22 @@ public partial class Main : Node3D
 
 		if (turn != 0f || reverse || sliderTouched || keyThrottle || Mathf.Abs(slider) > 0.001f)   // manuell: Slider, Rückwärts und/oder Wenden
 		{
+			if ((_autopilot || _miner.Enabled) && Ui.InputLog.Enabled)
+			{
+				var why = new List<string>();
+				if (flight.TurnLeftHeld) why.Add($"◀ gehalten ({flight.TurnLeftInfo})");
+				if (flight.TurnRightHeld) why.Add($"▶ gehalten ({flight.TurnRightInfo})");
+				if (turnKeys != 0f) why.Add("Wendetaste Tastatur (A/D/←/→)");
+				if (flight.ReverseHeld) why.Add($"RÜCK gehalten ({flight.ReverseInfo})");
+				if (keyReverse) why.Add("Rückwärtstaste Tastatur (S/↓)");
+				if (_testReverse) why.Add("Selbsttest-Rückwärts");
+				if (sliderTouched) why.Add($"Regler per Finger ({flight.SliderInfo})");
+				if (keyThrottle) why.Add($"Reglertaste Tastatur (W/↑/X: {(Input.IsKeyPressed(Key.W) ? "W " : "")}{(Input.IsKeyPressed(Key.Up) ? "↑ " : "")}{(Input.IsKeyPressed(Key.X) ? "X" : "")})");
+				if (why.Count == 0) why.Add("Reglerwert ≠ 0");
+				Ui.InputLog.Log($"{(_autopilot ? "autopilot" : "auto-mining")} AUS (manuelle Steuerung): {string.Join(", ", why)} · Regler {sliderBefore:0.00} → {slider:0.00}");
+			}
 			if (_autopilot) _hud.Toast("Autopilot aus (manuelle Steuerung)");   // Gerätetest: nie mehr still
-			CancelAutopilot();
+			CancelAutopilot("manuelle Steuerung");
 			if (_miner.Enabled) SetAutoMining(false, "Auto-Mining aus (manuelle Steuerung)");
 			var fwd = new Vector2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading));
 			return (fwd, Throttle.Fraction(slider, reverse), 1f, turn);
@@ -1644,6 +1674,7 @@ public partial class Main : Node3D
 		_target = target; _targetStation = station;
 		_follower.Reset();   // Prüfer-Empfehlung Phase 28: neuer Plan für das neue Ziel
 		_autopilot = true; _hud.Flight.SetAutopilot(true);
+		Ui.InputLog.Log($"autopilot AN: {target.Label} (Regler {_hud.Flight.SliderValue:0.00} → 0, Aufrufer {Ui.InputLog.Caller()})");
 		_hud.Flight.SetSlider(0f);   // Gerätetest: der Autopilot übernimmt — ein Rest am Regler (1–3 %) hätte ihn sofort wieder abgeschaltet
 		_sfx.Play(SfxId.Click);
 		_hud.Toast($"Autopilot: {target.Label}");
@@ -1652,18 +1683,28 @@ public partial class Main : Node3D
 	void ToggleAutopilot()
 	{
 		_sfx.Play(SfxId.Click);
-		if (_target == null) { _hud.Flight.SetAutopilot(false); _hud.Toast("Kein Ziel – Station oder Gate antippen, oder Karte öffnen"); return; }
+		if (_target == null) { _hud.Flight.SetAutopilot(false); _hud.Toast("Kein Ziel – Station oder Gate antippen, oder Karte öffnen"); Ui.InputLog.Log("autopilot: Taste ohne Ziel"); return; }
 		_autopilot = _hud.Flight.AutopilotOn;
+		Ui.InputLog.Log($"autopilot {(_autopilot ? "AN" : "AUS")} per Taste: {_target.Value.Label} (Regler {_hud.Flight.SliderValue:0.00})");
 		if (_autopilot) _follower.Reset();   // Prüfer-Empfehlung Phase 28: Wiedereinschalten plant von der jetzigen Position
 		if (_autopilot) { _hud.Flight.SetSlider(0f); _hud.Toast($"Autopilot an: {_target.Value.Label}"); }   // Gerätetest: übernimmt den Regler
 		else _hud.Toast("Autopilot aus");
 	}
 
-	void CancelAutopilot()
+	void CancelAutopilot(string why = "", [System.Runtime.CompilerServices.CallerMemberName] string caller = "", [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
 	{
 		if (!_autopilot) return;
+		if (why != "manuelle Steuerung") Ui.InputLog.Log($"autopilot AUS{(why.Length > 0 ? ": " + why : "")} ({caller}:{line})");
 		_autopilot = false; _hud.Flight.SetAutopilot(false);
 	}
+
+	/// <summary>
+	/// Zweiter Handytest A15: Tastatur-Steuertasten (A/D/W/S/X/Pfeile) nur am Desktop oder mit angeschlossener Hardwaretastatur — am Handy ohne Tastatur
+	/// lösen gemeldete Tastenereignisse keine manuelle Steuerung aus (Selbsttest: <see cref="TestKeySteering"/>).
+	/// </summary>
+	bool KeySteering => TestKeySteering ?? (!OS.HasFeature("mobile") || DisplayServer.HasHardwareKeyboard());
+	internal bool? TestKeySteering;
+	bool _keysIgnoredLogged;
 
 	Vector2? ScreenPositionOfTarget()
 	{
@@ -3119,6 +3160,7 @@ public partial class Main : Node3D
 
 	void SetAutoMining(bool on, string? message = null, bool announce = true)
 	{
+		if (on != _miner.Enabled) Ui.InputLog.Log($"auto-mining {(on ? "AN" : "AUS")}{(message is { Length: > 0 } ? ": " + message : "")} (Aufrufer {Ui.InputLog.Caller()})");
 		if (on)
 		{
 			CancelAutopilot(); _target = null; _targetStation = null;
@@ -3453,6 +3495,7 @@ public partial class Main : Node3D
 	/// <summary>HUD-Neu, Selbsttest: zuletzt angeforderter Hinweis (auch wenn er wegen der Sperre nicht gezeigt wurde).</summary>
 	internal string TestLastHint { get; private set; } = "";
 	internal bool TestAutopilotOn => _autopilot;
+	internal bool TestHasTarget => _target != null;
 	internal IReadOnlyList<WeaponBay> TestBays => _bays;
 	/// <summary>Runde 8: Selbsttest — die Sektoransicht (Stationsmodelle).</summary>
 	internal SectorView TestView => _view;

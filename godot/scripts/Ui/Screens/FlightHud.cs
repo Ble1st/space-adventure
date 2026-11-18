@@ -468,6 +468,11 @@ public partial class FlightHud : Control, IScreen
 	public bool TurnLeftHeld => _turnL.Held;
 	public bool TurnRightHeld => _turnR.Held;
 	public bool ReverseHeld => _reverse.Held;
+	/// <summary>Eingabe-Protokoll (zweiter Handytest A15): welcher Finger hält ◀/▶/RÜCK bzw. hat den Regler zuletzt bewegt.</summary>
+	public string TurnLeftInfo => _turnL.HeldInfo;
+	public string TurnRightInfo => _turnR.HeldInfo;
+	public string ReverseInfo => _reverse.HeldInfo;
+	public string SliderInfo => _slider.LastUserInfo;
 	public float SliderValue => _slider.Value;
 	public bool AutopilotOn => _autopilotBtn.On;
 	public bool AutoMineOn => _autoMineBtn.On;
@@ -629,6 +634,7 @@ public partial class FlightHud : Control, IScreen
 		};
 		for (int i = 0; i < _groupButtons.Count; i++) _items[HudItem.Group0 + i] = _groupButtons[i];
 		for (int i = 0; i < _bayButtons.Count; i++) _items[HudItem.Bay0 + i] = _bayButtons[i];
+		foreach (var (item, c) in _items) c.Name = item.ToString();   // Eingabe-Protokoll: lesbare Knotennamen („Hamburger“ statt „@Control@150“)
 		Relayout();
 	}
 

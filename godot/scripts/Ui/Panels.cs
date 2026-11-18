@@ -58,13 +58,13 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		MouseFilter = MouseFilterEnum.Stop;
 		Visible = false;
-		_close.Pressed += () => { Visible = false; Closed?.Invoke(); };
+		_close.Pressed += () => { InputLog.Log("karte ZU („Schließen“)"); Visible = false; Closed?.Invoke(); };
 		AddChild(_close);
 	}
 
 	void PlaceClose() { var p = new Vector2(Size.X - Safe.Right - 170, Safe.Top + 16); if (_close.Position != p) _close.Position = p; }
 
-	public void Open(Universe u, SectorId player, SectorId? target) { _u = u; _player = player; _target = target; _jumpTargets = null; Visible = true; QueueRedraw(); }
+	public void Open(Universe u, SectorId player, SectorId? target) { _u = u; _player = player; _target = target; _jumpTargets = null; Visible = true; QueueRedraw(); InputLog.Log($"karte AUF (Aufrufer {InputLog.Caller()})"); }
 
 	/// <summary>Sprungantrieb: Karte zur Wahl des Sprungziels öffnen (nur <paramref name="targets"/> sind wählbar).</summary>
 	public void OpenJump(Universe u, SectorId player, IEnumerable<SectorId> targets) { Open(u, player, null); _jumpTargets = new HashSet<SectorId>(targets); QueueRedraw(); }

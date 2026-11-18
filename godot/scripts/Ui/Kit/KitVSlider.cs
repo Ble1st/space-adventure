@@ -22,6 +22,8 @@ public partial class KitVSlider : Control
 	public event Action<float>? UserChanged;
 	/// <summary>Zahl der bewussten Änderungen seit dem Start (Selbsttest).</summary>
 	public int UserChanges { get; private set; }
+	/// <summary>Eingabe-Protokoll: letzte bewusste Änderung (Finger, Wert vorher → nachher).</summary>
+	public string LastUserInfo { get; private set; } = "";
 	int _finger = -1;
 	float _valueAtPress;
 
@@ -49,7 +51,7 @@ public partial class KitVSlider : Control
 	{
 		float before = Value;
 		SetValue(v);
-		if (Mathf.Abs(Value - before) >= 1e-5f) { UserChanges++; UserChanged?.Invoke(Value); }
+		if (Mathf.Abs(Value - before) >= 1e-5f) { UserChanges++; LastUserInfo = $"idx{_finger} {before:0.00}→{Value:0.00}"; UserChanged?.Invoke(Value); }
 	}
 
 	float Snapped(float v) => Snap is null ? v : Snap(v);
@@ -64,24 +66,31 @@ public partial class KitVSlider : Control
 	/// </summary>
 	public override void _Input(InputEvent @event)
 	{
-		if (_finger < 0 || !Pointer.TryRead(@event, out int idx, out _, out _, out bool motion) || motion || idx != _finger) return;
-		EndGesture(Pointer.Canceled(@event));
+		if (_finger < 0 || !Pointer.TryRead(@event, out int idx, out _, out bool pressed, out bool motion) || motion || idx != _finger) return;
+		EndGesture(Pointer.Canceled(@event), pressed ? "derselbe Index drückt neu" : "losgelassen");
 	}
 
-	void EndGesture(bool canceled)
+	void EndGesture(bool canceled, string why)
 	{
 		if (_finger < 0) return;
+		InputLog.Log($"regler Geste idx{_finger} endet ({why}{(canceled ? ", abgebrochen → zurück auf " + _valueAtPress.ToString("0.00") : "")}), Wert {Value:0.00}");
 		_finger = -1;
-		if (canceled) UserSet(_valueAtPress);   // das System hat die Geste übernommen: zurück auf den Wert vor dem Druck
+		// das System hat die Geste übernommen: zurück auf den Wert vor dem Druck — ohne „bewusste Änderung“ (zweiter Handytest: ein Abbruch ist keine Bedienung)
+		if (canceled) SetValue(_valueAtPress, notify: false);
 	}
 
 	public override void _GuiInput(InputEvent @event)
 	{
 		if (!Pointer.TryRead(@event, out int idx, out var pos, out bool pressed, out bool motion)) return;
 		bool inside = new Rect2(Vector2.Zero, Size).HasPoint(pos);
-		if (!motion && pressed && inside && _finger < 0) { _finger = idx; _valueAtPress = Value; UserSet(Snapped(ValueAt(pos.Y))); AcceptEvent(); }
-		else if (idx == _finger && motion) { UserSet(Snapped(ValueAt(pos.Y))); AcceptEvent(); }
-		else if (idx == _finger && !pressed && !motion) { EndGesture(Pointer.Canceled(@event)); AcceptEvent(); }
+		if (!motion && pressed && inside && _finger < 0)
+		{
+			_finger = idx; _valueAtPress = Value; UserSet(Snapped(ValueAt(pos.Y))); AcceptEvent();
+			InputLog.Log($"regler gedrückt idx{idx} bei y {pos.Y:0} (Spur {TrackTop:0}–{TrackBottom:0}) → {_valueAtPress:0.00} → {Value:0.00}");
+		}
+		else if (idx == _finger && motion) { float b = Value; UserSet(Snapped(ValueAt(pos.Y))); AcceptEvent(); if (Mathf.Abs(Value - b) >= 0.05f) InputLog.Log($"regler gezogen idx{idx} → {Value:0.00}"); }
+		else if (idx == _finger && !pressed && !motion) { EndGesture(Pointer.Canceled(@event), "losgelassen auf dem Regler"); AcceptEvent(); }
+		else if (!motion && pressed && !inside) InputLog.Log($"regler: Drücken idx{idx} außerhalb (y {pos.Y:0}) ignoriert");
 	}
 
 	public override void _Draw()

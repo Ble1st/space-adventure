@@ -238,6 +238,8 @@ public partial class SelfTest
 		_inScript.Add((t, () => { UiScale.TestInsets = InsetsA15Runtime; UiScale.Apply(); }));
 		t += 10;
 
+		t = AdbPattern(t);
+
 		// ── Aufräumen ──
 		_inScript.Add((t, () =>
 		{
