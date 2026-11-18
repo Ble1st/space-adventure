@@ -1,0 +1,8391 @@
+{
+ "seed": 2424,
+ "randomNames": true,
+ "rules": {
+  "playerOwnFaction": true,
+  "aiWarOnPlayer": true,
+  "aiTributePeace": true,
+  "alliancesActive": true,
+  "playerSeats": true,
+  "crimeStandingLoss": {
+   "smuggling": 0.04,
+   "toll_evasion": 0.02,
+   "piracy": 0.1,
+   "assault": 0.1,
+   "assault_station": 0.15,
+   "assault_gate": 0.15,
+   "kill": 0.05
+  },
+  "crimeStandingCapPerDay": 0.3,
+  "crimeStandingRecoveryPerDay": 0.02,
+  "crimeStandingFineBonus": 0.05,
+  "missionsActive": true,
+  "gateCombat": true,
+  "miningAnchors": true,
+  "armedTraderBaseline": 6,
+  "raidRatePerTick": 0.0065,
+  "maxTraders": 175,
+  "raidReach": 350,
+  "policeResponseRange": 600,
+  "recipeStockTarget": 150,
+  "exportDelayTicks": 800,
+  "missionTransportRewardPerMinute": 30,
+  "missionPatrolRewardPerMinute": 30,
+  "missionEscortRewardPerMinute": 20,
+  "escortMinRemainingTicks": 200,
+  "maxMiners": 120,
+  "repairPlatesPerHull": 0.02,
+  "maxStations": 119,
+  "maxStationsPerSector": 10,
+  "fleetFlexWeight": 0.75,
+  "fuelActive": true,
+  "consumerMaxBidFactor": 2,
+  "overstockFactor": 2.5,
+  "exportOverstockFactor": 3,
+  "maxBuilders": 12,
+  "maxActiveSites": 6,
+  "policeMaxPerFaction": 6,
+  "raiderDestroyChance": 0.15,
+  "raiderRebuildTicks": 6000,
+  "maxRaidersPerActor": 2,
+  "maxRaiderUnitsPerActor": 2,
+  "pirateTreasuryCap": 10000,
+  "pirateFuelPriceFactor": 0.25,
+  "fenceShare": 0.85,
+  "blackMarket": true,
+  "blackMarketNpc": true,
+  "stationCapitulation": true,
+  "raiderUpkeepPerTick": 0.03,
+  "researchActive": true,
+  "ammoActive": true
+ },
+ "goods": [
+  {
+   "key": "iron_ore",
+   "category": "ore",
+   "name": "Eisenerz",
+   "basePrice": 10,
+   "volume": 1,
+   "color": "#a0522d"
+  },
+  {
+   "key": "ice",
+   "category": "ore",
+   "name": "Eis",
+   "basePrice": 8,
+   "volume": 1,
+   "color": "#bfe9ff"
+  },
+  {
+   "key": "copper_ore",
+   "category": "ore",
+   "name": "Kupfererz",
+   "basePrice": 16,
+   "volume": 1,
+   "color": "#cd7f32"
+  },
+  {
+   "key": "silicon",
+   "category": "ore",
+   "name": "Silizium",
+   "basePrice": 14,
+   "volume": 1,
+   "color": "#8fa0b8"
+  },
+  {
+   "key": "titanium_ore",
+   "category": "ore",
+   "name": "Titanerz",
+   "basePrice": 32,
+   "volume": 1,
+   "color": "#b8c4d6"
+  },
+  {
+   "key": "platinum_ore",
+   "category": "ore",
+   "name": "Platinerz",
+   "basePrice": 90,
+   "volume": 1,
+   "color": "#e5e4e2"
+  },
+  {
+   "key": "energy",
+   "category": "refined",
+   "name": "Energie",
+   "basePrice": 8,
+   "volume": 1,
+   "color": "#ffe14d"
+  },
+  {
+   "key": "steel",
+   "category": "refined",
+   "name": "Stahl",
+   "basePrice": 24,
+   "volume": 1,
+   "color": "#7f8c9a"
+  },
+  {
+   "key": "water",
+   "category": "refined",
+   "name": "Wasser",
+   "basePrice": 18,
+   "volume": 1,
+   "color": "#4aa3ff",
+   "form": "liquid"
+  },
+  {
+   "key": "hydrogen",
+   "category": "refined",
+   "name": "Wasserstoff",
+   "basePrice": 36,
+   "volume": 1,
+   "color": "#ffd6a5",
+   "form": "liquid"
+  },
+  {
+   "key": "copper",
+   "category": "refined",
+   "name": "Kupfer",
+   "basePrice": 35,
+   "volume": 1,
+   "color": "#e08a4a"
+  },
+  {
+   "key": "wafers",
+   "category": "refined",
+   "name": "Siliziumwafer",
+   "basePrice": 36,
+   "volume": 1,
+   "color": "#6c7fd1"
+  },
+  {
+   "key": "titanium",
+   "category": "refined",
+   "name": "Titan",
+   "basePrice": 70,
+   "volume": 1,
+   "color": "#cfd8e6"
+  },
+  {
+   "key": "platinum",
+   "category": "refined",
+   "name": "Platin",
+   "basePrice": 220,
+   "volume": 1,
+   "color": "#f4f4f4"
+  },
+  {
+   "key": "electronics",
+   "category": "component",
+   "name": "Elektronik",
+   "basePrice": 90,
+   "volume": 1,
+   "color": "#44d17a"
+  },
+  {
+   "key": "hull_plates",
+   "category": "component",
+   "name": "Hüllenplatten",
+   "basePrice": 100,
+   "volume": 1,
+   "color": "#9aa7b3"
+  },
+  {
+   "key": "fuel_cells",
+   "category": "component",
+   "name": "Brennstoffzellen",
+   "basePrice": 110,
+   "volume": 1,
+   "color": "#ff9f43"
+  },
+  {
+   "key": "life_support",
+   "category": "component",
+   "name": "Lebenserhaltung",
+   "basePrice": 90,
+   "volume": 1,
+   "color": "#7ddfd3"
+  },
+  {
+   "key": "food",
+   "category": "end",
+   "name": "Nahrung",
+   "basePrice": 14,
+   "volume": 1,
+   "color": "#9bd36a"
+  },
+  {
+   "key": "consumer_goods",
+   "category": "end",
+   "name": "Konsumgüter",
+   "basePrice": 140,
+   "volume": 1,
+   "color": "#d97ad9"
+  },
+  {
+   "key": "luxury_goods",
+   "category": "end",
+   "name": "Luxusgüter",
+   "basePrice": 500,
+   "volume": 1,
+   "color": "#ffd700"
+  },
+  {
+   "key": "ship_kit_light",
+   "category": "kit",
+   "name": "Leichter Schiffsbausatz",
+   "basePrice": 500,
+   "volume": 3,
+   "color": "#ff6b6b"
+  },
+  {
+   "key": "propellant",
+   "category": "fuel",
+   "name": "Treibstoff",
+   "basePrice": 32,
+   "volume": 1,
+   "color": "#ffaa33",
+   "form": "liquid"
+  },
+  {
+   "key": "ship_kit_medium",
+   "category": "kit",
+   "name": "Mittlerer Schiffsbausatz",
+   "basePrice": 1200,
+   "volume": 6,
+   "color": "#e8505b"
+  },
+  {
+   "key": "ship_kit_heavy",
+   "category": "kit",
+   "name": "Schwerer Schiffsbausatz",
+   "basePrice": 2100,
+   "volume": 10,
+   "color": "#c0392b"
+  },
+  {
+   "key": "ammo",
+   "category": "ammo",
+   "name": "Munition",
+   "basePrice": 8,
+   "volume": 1,
+   "color": "#d4a373"
+  },
+  {
+   "key": "missile",
+   "category": "missile",
+   "name": "Rakete",
+   "basePrice": 45,
+   "volume": 1,
+   "color": "#ef476f"
+  }
+ ],
+ "asteroidClasses": [
+  {
+   "key": "metal_rock",
+   "name": "Metallasteroid",
+   "color": "#b0764a",
+   "chunkChance": 0.5,
+   "oreFactor": 1.0,
+   "yields": {
+    "iron_ore": 3.5,
+    "copper_ore": 5,
+    "titanium_ore": 1.5
+   }
+  },
+  {
+   "key": "ice_rock",
+   "name": "Eisasteroid",
+   "color": "#bfe9ff",
+   "chunkChance": 0.55,
+   "oreFactor": 1.0,
+   "yields": {
+    "ice": 1
+   }
+  },
+  {
+   "key": "silicate_rock",
+   "name": "Gesteinsasteroid",
+   "color": "#8a8f9c",
+   "chunkChance": 0.5,
+   "oreFactor": 1.0,
+   "yields": {
+    "silicon": 6,
+    "iron_ore": 2
+   }
+  },
+  {
+   "key": "rare_rock",
+   "name": "Seltener Brocken",
+   "color": "#d8c46a",
+   "chunkChance": 0.3,
+   "oreFactor": 0.7,
+   "yields": {
+    "titanium_ore": 3,
+    "platinum_ore": 2
+   }
+  }
+ ],
+ "stationTypes": [
+  {
+   "key": "solar_plant",
+   "name": "Solarkraftwerk",
+   "size": "S",
+   "buildCost": 4000,
+   "upkeep": 0.05,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {},
+     "out": {
+      "energy": 8
+     }
+    }
+   ]
+  },
+  {
+   "key": "steelworks",
+   "name": "Stahlwerk",
+   "size": "M",
+   "buildCost": 5000,
+   "upkeep": 0.08,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "iron_ore": 3,
+      "energy": 1
+     },
+     "out": {
+      "steel": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "water_plant",
+   "name": "Wasserwerk",
+   "size": "S",
+   "buildCost": 3500,
+   "upkeep": 0.05,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "ice": 2,
+      "energy": 2
+     },
+     "out": {
+      "water": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "electrolysis",
+   "name": "Elektrolyse",
+   "size": "S",
+   "buildCost": 4500,
+   "upkeep": 0.06,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "ice": 2,
+      "energy": 2
+     },
+     "out": {
+      "hydrogen": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "copper_smelter",
+   "name": "Kupferhütte",
+   "size": "M",
+   "buildCost": 5000,
+   "upkeep": 0.08,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "copper_ore": 3,
+      "energy": 1
+     },
+     "out": {
+      "copper": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "wafer_fab",
+   "name": "Waferfabrik",
+   "size": "M",
+   "buildCost": 6000,
+   "upkeep": 0.1,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "silicon": 3,
+      "energy": 2
+     },
+     "out": {
+      "wafers": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "titanium_works",
+   "name": "Titanhütte",
+   "size": "M",
+   "buildCost": 7000,
+   "upkeep": 0.1,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 6,
+     "in": {
+      "titanium_ore": 3,
+      "energy": 2
+     },
+     "out": {
+      "titanium": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "platinum_refinery",
+   "name": "Platinraffinerie",
+   "size": "M",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 8,
+     "in": {
+      "platinum_ore": 2,
+      "energy": 2
+     },
+     "out": {
+      "platinum": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "powerplant",
+   "name": "Kraftwerk",
+   "size": "M",
+   "buildCost": 3500,
+   "upkeep": 0.05,
+   "income": 0.5,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "hydrogen": 1
+     },
+     "out": {
+      "energy": 20
+     }
+    }
+   ]
+  },
+  {
+   "key": "farm",
+   "name": "Farm",
+   "size": "M",
+   "buildCost": 3500,
+   "upkeep": 0.05,
+   "income": 0.8,
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "water": 1,
+      "energy": 1
+     },
+     "out": {
+      "food": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "electronics_fab",
+   "name": "Elektronikfabrik",
+   "size": "M",
+   "buildCost": 8000,
+   "upkeep": 0.12,
+   "income": 2,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "copper": 2,
+      "wafers": 2
+     },
+     "out": {
+      "electronics": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "plating_works",
+   "name": "Panzerwerk",
+   "size": "M",
+   "buildCost": 8000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "services": [
+    "trade",
+    "repair",
+    "hangar"
+   ],
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "steel": 4,
+      "titanium": 1
+     },
+     "out": {
+      "hull_plates": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "fuel_cell_fab",
+   "name": "Brennstoffzellenfabrik",
+   "size": "M",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "hydrogen": 4,
+      "platinum": 1
+     },
+     "out": {
+      "fuel_cells": 4
+     }
+    }
+   ]
+  },
+  {
+   "key": "life_support_fab",
+   "name": "Lebenserhaltungswerk",
+   "size": "M",
+   "buildCost": 7000,
+   "upkeep": 0.1,
+   "income": 1,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "water": 3,
+      "electronics": 1
+     },
+     "out": {
+      "life_support": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "goods_factory",
+   "name": "Konsumgüterfabrik",
+   "size": "M",
+   "buildCost": 7000,
+   "upkeep": 0.1,
+   "income": 1.5,
+   "recipes": [
+    {
+     "ticks": 10,
+     "in": {
+      "steel": 2,
+      "electronics": 2
+     },
+     "out": {
+      "consumer_goods": 2
+     }
+    }
+   ]
+  },
+  {
+   "key": "luxury_workshop",
+   "name": "Luxuswerkstatt",
+   "size": "M",
+   "buildCost": 10000,
+   "upkeep": 0.14,
+   "income": 2,
+   "recipes": [
+    {
+     "ticks": 12,
+     "in": {
+      "platinum": 1,
+      "electronics": 2
+     },
+     "out": {
+      "luxury_goods": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "shipyard",
+   "name": "Werft",
+   "size": "L",
+   "buildCost": 12000,
+   "upkeep": 0.15,
+   "income": 2,
+   "services": [
+    "trade",
+    "repair",
+    "outfitter",
+    "shipdealer",
+    "upgrade",
+    "hangar",
+    "taxi",
+    "rental",
+    "rearm"
+   ],
+   "recipes": [
+    {
+     "ticks": 20,
+     "in": {
+      "hull_plates": 2,
+      "electronics": 1,
+      "fuel_cells": 1
+     },
+     "out": {
+      "ship_kit_light": 1
+     }
+    },
+    {
+     "ticks": 40,
+     "in": {
+      "hull_plates": 4,
+      "electronics": 2,
+      "fuel_cells": 2,
+      "titanium": 2
+     },
+     "out": {
+      "ship_kit_medium": 1
+     }
+    },
+    {
+     "ticks": 60,
+     "in": {
+      "hull_plates": 6,
+      "electronics": 3,
+      "fuel_cells": 3,
+      "platinum": 2
+     },
+     "out": {
+      "ship_kit_heavy": 1
+     }
+    }
+   ],
+   "stocks": {
+    "drill_head_s": [
+     5,
+     5
+    ],
+    "cutting_wheel_s": [
+     1,
+     2
+    ],
+    "cutting_wheel_m": [
+     1,
+     2
+    ],
+    "cutting_drum_l": [
+     1,
+     2
+    ],
+    "shield_mk2": [
+     0,
+     1
+    ],
+    "shield_m": [
+     2,
+     1
+    ],
+    "armor_plating_s_mk2": [
+     0,
+     1
+    ],
+    "armor_plating_m": [
+     2,
+     2
+    ],
+    "weapon_laser_s_mk2": [
+     0,
+     1
+    ],
+    "weapon_laser_m": [
+     3,
+     1
+    ],
+    "weapon_massdriver_s_mk2": [
+     0,
+     1
+    ],
+    "missile_launcher_s_mk2": [
+     0,
+     1
+    ],
+    "power_bank_s_mk2": [
+     0,
+     1
+    ],
+    "point_defense_s_mk2": [
+     0,
+     1
+    ],
+    "reactor_m": [
+     2,
+     1
+    ],
+    "ship_kit_light": [
+     10,
+     10
+    ],
+    "hull_plates": [
+     20,
+     20
+    ],
+    "electronics": [
+     10,
+     10
+    ],
+    "fuel_cells": [
+     10,
+     10
+    ],
+    "ship_kit_medium": [
+     5,
+     5
+    ],
+    "ship_kit_heavy": [
+     5,
+     5
+    ],
+    "titanium": [
+     10,
+     10
+    ],
+    "platinum": [
+     5,
+     5
+    ],
+    "reactor_mk1": [
+     5,
+     5
+    ],
+    "chem_engine_s": [
+     5,
+     5
+    ],
+    "mining_laser_1": [
+     5,
+     5
+    ],
+    "cargo_universal_100": [
+     5,
+     6
+    ],
+    "cargo_universal_60": [
+     5,
+     5
+    ],
+    "cargo_solid_s": [
+     1,
+     3
+    ],
+    "canister_bay_s": [
+     6,
+     8
+    ],
+    "cargo_universal_70": [
+     1,
+     3
+    ],
+    "wet_suppressor_s": [
+     1,
+     2
+    ],
+    "wreck_grapple_s": [
+     1,
+     2
+    ],
+    "jump_drive_s": [
+     1,
+     1
+    ],
+    "cloak_s": [
+     1,
+     1
+    ],
+    "cloak_s_mk2": [
+     0,
+     1
+    ],
+    "tractor_beam_s": [
+     1,
+     3
+    ],
+    "fuel_tank_s": [
+     1,
+     3
+    ],
+    "chem_engine_m": [
+     2,
+     2
+    ],
+    "mining_laser_2": [
+     1,
+     2
+    ],
+    "reactor_mk2": [
+     2,
+     2
+    ],
+    "chem_engine_s_mk2": [
+     1,
+     2
+    ],
+    "construction_rig_s": [
+     1,
+     2
+    ],
+    "split_laser_s": [
+     1,
+     2
+    ],
+    "weapon_laser_s": [
+     8,
+     8
+    ],
+    "shield_mk1": [
+     2,
+     3
+    ],
+    "armor_plating_s": [
+     2,
+     3
+    ],
+    "reactor_mk3": [
+     1,
+     2
+    ],
+    "mining_laser_3": [
+     0,
+     1
+    ],
+    "weapon_magazine_s": [
+     1,
+     2
+    ],
+    "weapon_massdriver_s": [
+     1,
+     3
+    ],
+    "power_bank_s": [
+     1,
+     2
+    ],
+    "ammo": [
+     3,
+     8
+    ],
+    "missile": [
+     2,
+     6
+    ],
+    "missile_launcher_s": [
+     2,
+     2
+    ],
+    "point_defense_s": [
+     1,
+     2
+    ]
+   },
+   "shipDealer": {
+    "assembly": 0.05
+   },
+   "defense": {
+    "hull": 2000,
+    "shield": 200,
+    "shieldRegen": 2,
+    "armor": 60,
+    "pointDefense": 0.2,
+    "guns": [
+     "weapon_laser_s",
+     "weapon_laser_s"
+    ]
+   }
+  },
+  {
+   "key": "colony",
+   "name": "Kolonie",
+   "size": "L",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 30,
+   "stocks": {
+    "luxury_goods": [
+     2,
+     4
+    ]
+   },
+   "recipes": [
+    {
+     "ticks": 30,
+     "in": {
+      "food": 4,
+      "consumer_goods": 1,
+      "life_support": 1
+     },
+     "out": {}
+    },
+    {
+     "ticks": 80,
+     "in": {
+      "luxury_goods": 1
+     },
+     "out": {}
+    }
+   ]
+  },
+  {
+   "key": "fuel_refinery",
+   "name": "Treibstoffraffinerie",
+   "size": "M",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "services": [
+    "trade",
+    "refuel",
+    "hangar",
+    "taxi"
+   ],
+   "recipes": [
+    {
+     "ticks": 5,
+     "in": {
+      "hydrogen": 3,
+      "energy": 1
+     },
+     "out": {
+      "propellant": 4
+     }
+    },
+    {
+     "ticks": 20,
+     "in": {},
+     "out": {
+      "propellant": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "drive_works",
+   "name": "Antriebs- und Reaktorwerk",
+   "size": "L",
+   "buildCost": 15000,
+   "upkeep": 0.15,
+   "income": 1,
+   "moduleFactory": {
+    "slots": [
+     "reactor",
+     "storage",
+     "engine",
+     "cargo"
+    ],
+    "maxTier": 3,
+    "ticks": 20,
+    "target": 5,
+    "inputTarget": 20
+   },
+   "recipes": [],
+   "stocks": {
+    "platinum": [
+     10,
+     10
+    ],
+    "chem_engine_m": [
+     1,
+     3
+    ],
+    "reactor_mk2": [
+     1,
+     3
+    ],
+    "chem_engine_s_mk2": [
+     1,
+     3
+    ],
+    "reactor_mk3": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "key": "weapons_works",
+   "name": "Waffen- und Schildwerk",
+   "size": "L",
+   "buildCost": 15000,
+   "upkeep": 0.15,
+   "income": 1,
+   "moduleFactory": {
+    "slots": [
+     "weapon",
+     "shield",
+     "armor"
+    ],
+    "maxTier": 2,
+    "ticks": 20,
+    "target": 5,
+    "inputTarget": 20
+   },
+   "recipes": [
+    {
+     "ticks": 20,
+     "in": {
+      "steel": 1,
+      "copper": 1
+     },
+     "out": {
+      "ammo": 10
+     }
+    },
+    {
+     "ticks": 40,
+     "in": {
+      "steel": 2,
+      "electronics": 1,
+      "fuel_cells": 1
+     },
+     "out": {
+      "missile": 6
+     }
+    }
+   ],
+   "stocks": {
+    "platinum": [
+     10,
+     10
+    ],
+    "ammo": [
+     10,
+     10
+    ],
+    "steel": [
+     5,
+     5
+    ],
+    "missile": [
+     8,
+     8
+    ]
+   }
+  },
+  {
+   "key": "systems_works",
+   "name": "Systemwerk",
+   "size": "L",
+   "buildCost": 15000,
+   "upkeep": 0.15,
+   "income": 1,
+   "moduleFactory": {
+    "slots": [
+     "tool",
+     "utility"
+    ],
+    "maxTier": 3,
+    "ticks": 20,
+    "target": 5,
+    "inputTarget": 20
+   },
+   "recipes": [],
+   "stocks": {
+    "platinum": [
+     10,
+     10
+    ],
+    "mining_laser_2": [
+     1,
+     3
+    ],
+    "construction_rig_s": [
+     1,
+     3
+    ],
+    "split_laser_s": [
+     1,
+     3
+    ],
+    "mining_laser_3": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "key": "trade_station",
+   "name": "Handelsstation",
+   "size": "L",
+   "buildCost": 8000,
+   "upkeep": 0.08,
+   "income": 0.8,
+   "services": [
+    "trade",
+    "outfitter",
+    "shipdealer",
+    "hangar",
+    "taxi",
+    "rental",
+    "rearm"
+   ],
+   "export": {
+    "categories": [
+     "end"
+    ],
+    "targetValue": 5000,
+    "bids": {
+     "consumer_goods": 1.25,
+     "luxury_goods": 1.25
+    }
+   },
+   "shipDealer": {
+    "classes": [
+     "skiff"
+    ],
+    "maxSize": "S",
+    "assembly": 0.1
+   },
+   "stocks": {
+    "drill_head_s": [
+     1,
+     3
+    ],
+    "ammo": [
+     3,
+     8
+    ],
+    "ship_kit_light": [
+     1,
+     3
+    ],
+    "reactor_mk1": [
+     1,
+     3
+    ],
+    "chem_engine_s": [
+     1,
+     3
+    ],
+    "mining_laser_1": [
+     1,
+     3
+    ],
+    "cargo_solid_s": [
+     1,
+     3
+    ],
+    "canister_bay_s": [
+     1,
+     3
+    ],
+    "cargo_universal_60": [
+     1,
+     3
+    ],
+    "cargo_universal_70": [
+     1,
+     3
+    ],
+    "tractor_beam_s": [
+     1,
+     3
+    ],
+    "fuel_tank_s": [
+     1,
+     3
+    ]
+   },
+   "recipes": []
+  },
+  {
+   "key": "trade_post",
+   "name": "Planetenhandel",
+   "size": "M",
+   "buildCost": 8000,
+   "upkeep": 0.08,
+   "income": 0.8,
+   "services": [
+    "trade",
+    "hangar",
+    "taxi"
+   ],
+   "export": {
+    "categories": [
+     "end"
+    ],
+    "targetValue": 5000,
+    "bids": {
+     "consumer_goods": 1.25,
+     "luxury_goods": 1.25
+    }
+   },
+   "recipes": []
+  },
+  {
+   "key": "build_site",
+   "name": "Baustelle",
+   "size": "S",
+   "buildCost": 0,
+   "upkeep": 0,
+   "income": 0,
+   "recipes": [],
+   "services": [
+    "trade"
+   ]
+  },
+  {
+   "key": "warehouse",
+   "name": "Lagerhaus",
+   "size": "L",
+   "buildCost": 6000,
+   "upkeep": 0.06,
+   "income": 0.6,
+   "recipes": [],
+   "services": [
+    "trade",
+    "storage",
+    "hangar",
+    "taxi"
+   ],
+   "stocks": {
+    "steel": [
+     30,
+     40
+    ],
+    "hull_plates": [
+     10,
+     15
+    ],
+    "electronics": [
+     10,
+     15
+    ]
+   }
+  },
+  {
+   "key": "headquarters",
+   "name": "Hauptquartier",
+   "size": "XL",
+   "government": "headquarters",
+   "influence": 6,
+   "security": 1.5,
+   "buildCost": 40000,
+   "upkeep": 6,
+   "income": 0,
+   "services": [
+    "court",
+    "bounty",
+    "repair",
+    "hangar",
+    "taxi"
+   ],
+   "stocks": {
+    "hull_plates": [
+     8,
+     8
+    ],
+    "electronics": [
+     4,
+     4
+    ]
+   },
+   "recipes": [],
+   "capturable": false,
+   "defense": {
+    "hull": 3000,
+    "shield": 400,
+    "shieldRegen": 4,
+    "armor": 80,
+    "pointDefense": 0.3,
+    "guns": [
+     "weapon_laser_s",
+     "weapon_laser_s",
+     "missile_launcher_s",
+     "weapon_laser_s",
+     "weapon_laser_m",
+     "missile_launcher_s"
+    ]
+   }
+  },
+  {
+   "key": "company_seat",
+   "name": "Firmensitz",
+   "size": "L",
+   "government": "company_seat",
+   "influence": 3,
+   "buildCost": 20000,
+   "upkeep": 2,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false
+  },
+  {
+   "key": "sector_hq",
+   "name": "Sektor-HQ",
+   "size": "L",
+   "government": "sector_hq",
+   "influence": 4,
+   "security": 0.5,
+   "buildCost": 20000,
+   "upkeep": 3,
+   "income": 0,
+   "services": [
+    "court",
+    "bounty",
+    "repair",
+    "hangar",
+    "taxi"
+   ],
+   "stocks": {
+    "hull_plates": [
+     8,
+     8
+    ],
+    "electronics": [
+     4,
+     4
+    ]
+   },
+   "recipes": [],
+   "capturable": false,
+   "defense": {
+    "hull": 1300,
+    "shield": 250,
+    "shieldRegen": 3,
+    "armor": 60,
+    "pointDefense": 0.2,
+    "guns": [
+     "weapon_laser_s",
+     "weapon_laser_s",
+     "weapon_laser_s",
+     "weapon_massdriver_s"
+    ]
+   }
+  },
+  {
+   "key": "office",
+   "name": "Büro",
+   "size": "S",
+   "government": "office",
+   "influence": 1.5,
+   "buildCost": 5000,
+   "upkeep": 0.5,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false
+  },
+  {
+   "key": "police_station",
+   "name": "Polizeiwache",
+   "size": "M",
+   "government": "police",
+   "influence": 2,
+   "security": 2,
+   "buildCost": 8000,
+   "upkeep": 1.5,
+   "income": 0,
+   "services": [
+    "court",
+    "bounty",
+    "repair",
+    "hangar",
+    "rearm"
+   ],
+   "recipes": [],
+   "stocks": {
+    "ammo": [
+     3,
+     8
+    ],
+    "hull_plates": [
+     8,
+     8
+    ],
+    "electronics": [
+     4,
+     4
+    ],
+    "missile": [
+     2,
+     6
+    ]
+   },
+   "defense": {
+    "hull": 1800,
+    "shield": 300,
+    "shieldRegen": 3,
+    "armor": 60,
+    "pointDefense": 0.25,
+    "guns": [
+     "weapon_laser_s",
+     "weapon_laser_s",
+     "weapon_massdriver_s"
+    ]
+   }
+  },
+  {
+   "key": "pirate_hideout",
+   "name": "Piratenversteck",
+   "size": "M",
+   "hideout": true,
+   "influence": 0,
+   "buildCost": 10000,
+   "upkeep": 0,
+   "income": 0,
+   "services": [
+    "blackmarket"
+   ],
+   "recipes": [],
+   "capturable": false,
+   "defense": {
+    "hull": 1200,
+    "shield": 120,
+    "shieldRegen": 1.5,
+    "armor": 50,
+    "pointDefense": 0,
+    "guns": [
+     "weapon_massdriver_s",
+     "weapon_massdriver_s",
+     "weapon_laser_s"
+    ]
+   }
+  },
+  {
+   "key": "research_station",
+   "name": "Forschungsstation",
+   "size": "M",
+   "government": "research",
+   "influence": 0,
+   "buildCost": 25000,
+   "upkeep": 1,
+   "income": 0,
+   "services": [
+    "trade",
+    "research",
+    "hangar"
+   ],
+   "recipes": [],
+   "capturable": false,
+   "stocks": {
+    "electronics": [
+     6,
+     10
+    ],
+    "energy": [
+     60,
+     90
+    ],
+    "platinum": [
+     6,
+     12
+    ],
+    "wafers": [
+     12,
+     24
+    ],
+    "titanium": [
+     9,
+     18
+    ]
+   },
+   "research": {
+    "ticks": 10,
+    "points": 5,
+    "credits": 10,
+    "inputs": {
+     "energy": 2
+    },
+    "fundTarget": 5000,
+    "fundPerTick": 8
+   }
+  },
+  {
+   "key": "satellite_sensor",
+   "name": "Überwachungssatellit",
+   "size": "XS",
+   "radius": 2.6,
+   "government": "outpost",
+   "influence": 0,
+   "security": 0.3,
+   "buildCost": 1200,
+   "upkeep": 0.1,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": {
+    "hull": 150,
+    "shield": 0,
+    "shieldRegen": 0,
+    "armor": 10,
+    "pointDefense": 0,
+    "guns": []
+   }
+  },
+  {
+   "key": "platform_light",
+   "name": "Leichte Waffenstellung",
+   "size": "XS",
+   "radius": 3.5,
+   "government": "outpost",
+   "influence": 0,
+   "security": 0.4,
+   "buildCost": 3000,
+   "upkeep": 0.3,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": {
+    "hull": 450,
+    "shield": 80,
+    "shieldRegen": 1,
+    "armor": 30,
+    "pointDefense": 0,
+    "guns": [
+     "weapon_laser_s",
+     "weapon_laser_s"
+    ]
+   }
+  },
+  {
+   "key": "platform_medium",
+   "name": "Mittlere Waffenstellung",
+   "size": "XS",
+   "radius": 6,
+   "government": "outpost",
+   "influence": 0.5,
+   "security": 0.8,
+   "buildCost": 6500,
+   "upkeep": 0.7,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": {
+    "hull": 1000,
+    "shield": 180,
+    "shieldRegen": 2,
+    "armor": 50,
+    "pointDefense": 0.3,
+    "guns": [
+     "weapon_laser_m",
+     "weapon_laser_s",
+     "weapon_massdriver_s"
+    ]
+   }
+  },
+  {
+   "key": "platform_heavy",
+   "name": "Schwere Waffenstellung",
+   "size": "XS",
+   "radius": 8,
+   "government": "outpost",
+   "influence": 1,
+   "security": 1.2,
+   "buildCost": 14000,
+   "upkeep": 1.5,
+   "income": 0,
+   "services": [],
+   "recipes": [],
+   "capturable": false,
+   "defense": {
+    "hull": 2400,
+    "shield": 400,
+    "shieldRegen": 4,
+    "armor": 90,
+    "pointDefense": 0.45,
+    "guns": [
+     "weapon_laser_m",
+     "weapon_laser_m",
+     "weapon_massdriver_s",
+     "missile_launcher_s",
+     "missile_launcher_s"
+    ]
+   }
+  }
+ ],
+ "factions": [
+  {
+   "id": 1,
+   "name": "Terranische Union",
+   "kind": "state",
+   "personality": {
+    "aggression": 0.45,
+    "greed": 0.4,
+    "cooperation": 0.6,
+    "lawfulness": 0.8
+   },
+   "relations": {
+    "2": 0.25,
+    "3": 0.2,
+    "4": 0.2,
+    "5": 0.2
+   }
+  },
+  {
+   "id": 2,
+   "name": "Freie Händler",
+   "kind": "guild",
+   "personality": {
+    "aggression": 0.3,
+    "greed": 0.7,
+    "cooperation": 0.55,
+    "lawfulness": 0.45
+   },
+   "relations": {
+    "1": 0.25,
+    "3": 0.2,
+    "4": 0.2,
+    "5": 0.2
+   }
+  },
+  {
+   "id": 3,
+   "name": "Montanbund",
+   "kind": "guild",
+   "personality": {
+    "aggression": 0.35,
+    "greed": 0.55,
+    "cooperation": 0.6,
+    "lawfulness": 0.6
+   },
+   "relations": {
+    "1": 0.2,
+    "2": 0.2,
+    "4": 0.2,
+    "5": 0.2
+   }
+  },
+  {
+   "id": 4,
+   "name": "Konföderation Orion",
+   "kind": "state",
+   "personality": {
+    "aggression": 0.5,
+    "greed": 0.45,
+    "cooperation": 0.55,
+    "lawfulness": 0.75
+   },
+   "relations": {
+    "1": 0.2,
+    "2": 0.2,
+    "3": 0.2,
+    "5": 0.2
+   }
+  },
+  {
+   "id": 5,
+   "name": "Hanse Sirius",
+   "kind": "guild",
+   "personality": {
+    "aggression": 0.4,
+    "greed": 0.65,
+    "cooperation": 0.55,
+    "lawfulness": 0.5
+   },
+   "relations": {
+    "1": 0.2,
+    "2": 0.2,
+    "3": 0.2,
+    "4": 0.2
+   }
+  }
+ ],
+ "actors": [
+  {
+   "key": "pirates",
+   "name": "Rote Korsaren",
+   "kind": "outlaw",
+   "personality": {
+    "aggression": 0.9,
+    "greed": 0.9,
+    "cooperation": 0.1,
+    "lawfulness": 0.0
+   },
+   "treasury": 6000
+  },
+  {
+   "key": "blades",
+   "name": "Schwarze Klingen",
+   "kind": "outlaw",
+   "personality": {
+    "aggression": 0.85,
+    "greed": 0.8,
+    "cooperation": 0.15,
+    "lawfulness": 0.0
+   },
+   "treasury": 4000
+  },
+  {
+   "key": "reavers",
+   "name": "Die Plünderer",
+   "kind": "outlaw",
+   "personality": {
+    "aggression": 0.88,
+    "greed": 0.85,
+    "cooperation": 0.1,
+    "lawfulness": 0.0
+   },
+   "treasury": 4000
+  }
+ ],
+ "sectors": [
+  {
+   "id": 1,
+   "name": "Sektor Alpha",
+   "skybox": "white_local_star_no_nebulae",
+   "scale": 5.0,
+   "owner": 1,
+   "map": [
+    0,
+    0
+   ],
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      60,
+      60
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "ice_rock",
+     "pos": [
+      -80,
+      80
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 1,
+     "type": "steelworks",
+     "name": "Stahlwerk Alpha",
+     "pos": [
+      -60,
+      -45
+     ],
+     "essential": true
+    },
+    {
+     "id": 2,
+     "type": "copper_smelter",
+     "name": "Kupferhütte Alpha",
+     "pos": [
+      30,
+      -40
+     ],
+     "essential": true
+    },
+    {
+     "id": 3,
+     "type": "water_plant",
+     "name": "Wasserwerk Alpha",
+     "pos": [
+      -10,
+      35
+     ],
+     "essential": true
+    },
+    {
+     "id": 4,
+     "type": "powerplant",
+     "name": "Kraftwerk Alpha",
+     "pos": [
+      -115,
+      5
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ]
+     }
+    },
+    {
+     "id": 20,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Alpha",
+     "pos": [
+      -30,
+      -85
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 26,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Alpha",
+     "pos": [
+      40,
+      -115
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     }
+    },
+    {
+     "id": 27,
+     "type": "drive_works",
+     "name": "Antriebswerk Alpha",
+     "pos": [
+      -110,
+      -90
+     ],
+     "essential": true
+    },
+    {
+     "id": 37,
+     "type": "research_station",
+     "name": "Forschungsinstitut – {owner}",
+     "pos": [
+      -40,
+      -140
+     ],
+     "essential": true,
+     "credits": 5000
+    },
+    {
+     "id": 32,
+     "type": "headquarters",
+     "name": "Hauptquartier – {owner}",
+     "pos": [
+      136,
+      -4
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 76,
+     "type": "satellite_sensor",
+     "name": "Überwachungssatellit Alpha",
+     "pos": [
+      150,
+      62
+     ],
+     "essential": true
+    },
+    {
+     "id": 79,
+     "type": "platform_light",
+     "name": "Leichte Waffenstellung Alpha",
+     "pos": [
+      -28,
+      170
+     ],
+     "essential": true
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Sektor Beta",
+   "skybox": "desert_planet",
+   "skyboxYaw": 12,
+   "scale": 5.7,
+   "owner": 1,
+   "planet": {
+    "name": "Korvan",
+    "color": "#c79a6b",
+    "radius": 420
+   },
+   "map": [
+    1,
+    0
+   ],
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 5,
+     "type": "wafer_fab",
+     "name": "Waferfabrik Beta",
+     "pos": [
+      -30,
+      -50
+     ],
+     "essential": true
+    },
+    {
+     "id": 6,
+     "type": "electronics_fab",
+     "name": "Elektronikfabrik Beta",
+     "pos": [
+      35,
+      -10
+     ],
+     "essential": true
+    },
+    {
+     "id": 7,
+     "type": "electrolysis",
+     "name": "Elektrolyse Beta",
+     "pos": [
+      -50,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 8,
+     "type": "goods_factory",
+     "name": "Konsumgüterfabrik Beta",
+     "pos": [
+      50,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 21,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Beta",
+     "pos": [
+      -20,
+      60
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 25,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Beta",
+     "pos": [
+      -100,
+      -60
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     }
+    },
+    {
+     "id": 28,
+     "type": "systems_works",
+     "name": "Systemwerk Beta",
+     "pos": [
+      -60,
+      -120
+     ],
+     "essential": true
+    },
+    {
+     "id": 30,
+     "type": "trade_station",
+     "name": "Handelsstation Beta",
+     "pos": [
+      -120,
+      60
+     ],
+     "essential": true,
+     "credits": 30000
+    },
+    {
+     "id": 40,
+     "type": "farm",
+     "name": "Farm Beta",
+     "pos": [
+      100,
+      90
+     ],
+     "essential": true
+    },
+    {
+     "id": 33,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Beta",
+     "pos": [
+      -70,
+      95
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Sektor Gamma",
+   "skybox": "earthlike_planet",
+   "skyboxYaw": 12,
+   "scale": 7.3,
+   "owner": 2,
+   "planet": {
+    "name": "Thalassa",
+    "color": "#3f86c9",
+    "radius": 480
+   },
+   "map": [
+    2,
+    0
+   ],
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      -70,
+      -60
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 9,
+     "type": "farm",
+     "name": "Farm Gamma",
+     "pos": [
+      50,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 10,
+     "type": "colony",
+     "name": "Kolonie Gamma",
+     "pos": [
+      5,
+      -45
+     ],
+     "essential": true
+    },
+    {
+     "id": 11,
+     "type": "life_support_fab",
+     "name": "Lebenserhaltung Gamma",
+     "pos": [
+      -30,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 12,
+     "type": "luxury_workshop",
+     "name": "Luxuswerkstatt Gamma",
+     "pos": [
+      60,
+      -40
+     ],
+     "essential": true
+    },
+    {
+     "id": 13,
+     "type": "electrolysis",
+     "name": "Elektrolyse Gamma",
+     "pos": [
+      -75,
+      25
+     ],
+     "essential": true
+    },
+    {
+     "id": 22,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Gamma",
+     "pos": [
+      30,
+      -85
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 29,
+     "type": "weapons_works",
+     "name": "Waffen- und Schildwerk Gamma",
+     "pos": [
+      0,
+      95
+     ],
+     "essential": true
+    },
+    {
+     "id": 31,
+     "type": "warehouse",
+     "name": "Lagerhaus Gamma",
+     "pos": [
+      -110,
+      75
+     ],
+     "essential": true,
+     "credits": 10000
+    },
+    {
+     "id": 39,
+     "type": "trade_post",
+     "name": "Handelsstation Gamma",
+     "pos": [
+      140,
+      -90
+     ],
+     "essential": true,
+     "credits": 30000
+    },
+    {
+     "id": 38,
+     "type": "research_station",
+     "name": "Gildenlabor Gamma",
+     "pos": [
+      120,
+      120
+     ],
+     "essential": true,
+     "credits": 5000
+    },
+    {
+     "id": 34,
+     "type": "headquarters",
+     "name": "Gildenhaus Gamma",
+     "pos": [
+      105,
+      0
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 77,
+     "type": "satellite_sensor",
+     "name": "Überwachungssatellit Gamma",
+     "pos": [
+      105,
+      52
+     ],
+     "essential": true
+    },
+    {
+     "id": 82,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Gamma",
+     "pos": [
+      -65,
+      130
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Sektor Delta",
+   "skybox": "blue_local_star_and_nebulae",
+   "skyboxYaw": 160,
+   "scale": 3.9,
+   "owner": 2,
+   "map": [
+    1,
+    1
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      75,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      -80,
+      -60
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 14,
+     "type": "titanium_works",
+     "name": "Titanhütte Delta",
+     "pos": [
+      30,
+      10
+     ],
+     "essential": true
+    },
+    {
+     "id": 15,
+     "type": "platinum_refinery",
+     "name": "Platinraffinerie Delta",
+     "pos": [
+      -40,
+      35
+     ],
+     "essential": true
+    },
+    {
+     "id": 16,
+     "type": "plating_works",
+     "name": "Panzerwerk Delta",
+     "pos": [
+      -30,
+      -45
+     ],
+     "essential": true
+    },
+    {
+     "id": 17,
+     "type": "fuel_cell_fab",
+     "name": "Brennstoffzellen Delta",
+     "pos": [
+      65,
+      -35
+     ],
+     "essential": true
+    },
+    {
+     "id": 18,
+     "type": "shipyard",
+     "name": "Werft Delta",
+     "pos": [
+      0,
+      66
+     ],
+     "essential": true
+    },
+    {
+     "id": 19,
+     "type": "powerplant",
+     "name": "Kraftwerk Delta",
+     "pos": [
+      -110,
+      30
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ]
+     }
+    },
+    {
+     "id": 23,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Delta",
+     "pos": [
+      -60,
+      95
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 24,
+     "type": "steelworks",
+     "name": "Stahlwerk Delta",
+     "pos": [
+      -60,
+      -5
+     ],
+     "essential": true
+    },
+    {
+     "id": 35,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Delta",
+     "pos": [
+      60,
+      -95
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 36,
+     "type": "pirate_hideout",
+     "name": "Versteck – {owner}",
+     "owner": "pirates",
+     "pos": [
+      215,
+      -195
+     ],
+     "credits": 0
+    },
+    {
+     "id": 80,
+     "type": "platform_light",
+     "name": "Leichte Waffenstellung Delta",
+     "pos": [
+      -32,
+      138
+     ],
+     "essential": true
+    },
+    {
+     "id": 83,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Delta",
+     "pos": [
+      130,
+      -65
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Sektor Borealis",
+   "skybox": "blue_local_star_no_nebulae",
+   "skyboxYaw": 70,
+   "scale": 4.1,
+   "owner": 1,
+   "map": [
+    0,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      80,
+      -70
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      -70,
+      -60
+     ],
+     "belt": 14,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 41,
+     "type": "water_plant",
+     "name": "Wasserwerk Borealis",
+     "pos": [
+      -60,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 42,
+     "type": "electrolysis",
+     "name": "Elektrolyse Borealis",
+     "pos": [
+      -120,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 43,
+     "type": "steelworks",
+     "name": "Stahlwerk Borealis",
+     "pos": [
+      80,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 44,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Borealis",
+     "pos": [
+      20,
+      60
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 45,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Borealis",
+     "pos": [
+      -110,
+      130
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Sektor Vesta",
+   "skybox": "blue_local_star_and_nebulae",
+   "skyboxYaw": -60,
+   "scale": 3.1,
+   "owner": 1,
+   "map": [
+    1,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      0,
+      -90
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 46,
+     "type": "copper_smelter",
+     "name": "Kupferhütte Vesta",
+     "pos": [
+      -80,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 47,
+     "type": "wafer_fab",
+     "name": "Waferfabrik Vesta",
+     "pos": [
+      -120,
+      -90
+     ],
+     "essential": true
+    },
+    {
+     "id": 48,
+     "type": "electronics_fab",
+     "name": "Elektronikfabrik Vesta",
+     "pos": [
+      -20,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 49,
+     "type": "plating_works",
+     "name": "Panzerwerk Vesta",
+     "pos": [
+      40,
+      90
+     ],
+     "essential": true
+    },
+    {
+     "id": 50,
+     "type": "shipyard",
+     "name": "Werft Vesta",
+     "pos": [
+      90,
+      30
+     ],
+     "essential": true
+    },
+    {
+     "id": 51,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Vesta",
+     "pos": [
+      120,
+      -90
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 52,
+     "type": "systems_works",
+     "name": "Systemwerk Vesta",
+     "pos": [
+      -100,
+      130
+     ],
+     "essential": true
+    },
+    {
+     "id": 53,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Vesta",
+     "pos": [
+      130,
+      140
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 54,
+     "type": "police_station",
+     "name": "Polizeiwache Vesta",
+     "pos": [
+      -150,
+      90
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 84,
+     "type": "fuel_refinery",
+     "name": "Treibstoffraffinerie Vesta",
+     "pos": [
+      150,
+      70
+     ],
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "Sektor Hephaistos",
+   "skybox": "red_local_star_and_nebulae",
+   "skyboxYaw": 120,
+   "scale": 3.6,
+   "owner": 3,
+   "map": [
+    2,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      60,
+      -70
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      -60,
+      -90
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 55,
+     "type": "titanium_works",
+     "name": "Titanhütte Hephaistos",
+     "pos": [
+      70,
+      50
+     ],
+     "essential": true
+    },
+    {
+     "id": 56,
+     "type": "platinum_refinery",
+     "name": "Platinraffinerie Hephaistos",
+     "pos": [
+      -30,
+      40
+     ],
+     "essential": true
+    },
+    {
+     "id": 57,
+     "type": "fuel_cell_fab",
+     "name": "Brennstoffzellen Hephaistos",
+     "pos": [
+      150,
+      -10
+     ],
+     "essential": true
+    },
+    {
+     "id": 58,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Hephaistos",
+     "pos": [
+      -120,
+      80
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 59,
+     "type": "shipyard",
+     "name": "Werft Hephaistos",
+     "pos": [
+      80,
+      140
+     ],
+     "essential": true
+    },
+    {
+     "id": 60,
+     "type": "drive_works",
+     "name": "Antriebswerk Hephaistos",
+     "pos": [
+      -90,
+      150
+     ],
+     "essential": true
+    },
+    {
+     "id": 61,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Hephaistos",
+     "pos": [
+      160,
+      -140
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 81,
+     "type": "platform_light",
+     "name": "Leichte Waffenstellung Hephaistos",
+     "pos": [
+      -140,
+      -40
+     ],
+     "essential": true
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Sektor Aurelia",
+   "skybox": "earthlike_planet_close",
+   "skyboxYaw": 16,
+   "scale": 3.0,
+   "owner": 3,
+   "map": [
+    3,
+    0
+   ],
+   "planet": {
+    "name": "Elysion",
+    "color": "#8fbf6a",
+    "radius": 450
+   },
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      60,
+      -60
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 62,
+     "type": "farm",
+     "name": "Farm Aurelia",
+     "pos": [
+      60,
+      60
+     ],
+     "essential": true
+    },
+    {
+     "id": 63,
+     "type": "water_plant",
+     "name": "Wasserwerk Aurelia",
+     "pos": [
+      -50,
+      -40
+     ],
+     "essential": true
+    },
+    {
+     "id": 64,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Aurelia",
+     "pos": [
+      0,
+      40
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 65,
+     "type": "trade_post",
+     "name": "Handelsposten Aurelia",
+     "pos": [
+      130,
+      80
+     ],
+     "essential": true,
+     "credits": 30000
+    },
+    {
+     "id": 75,
+     "type": "research_station",
+     "name": "Forschungszentrum – {owner}",
+     "pos": [
+      -130,
+      -110
+     ],
+     "essential": true,
+     "credits": 5000
+    },
+    {
+     "id": 66,
+     "type": "headquarters",
+     "name": "Hauptsitz – {owner}",
+     "pos": [
+      -60,
+      90
+     ],
+     "essential": true,
+     "credits": 0
+    },
+    {
+     "id": 78,
+     "type": "satellite_sensor",
+     "name": "Überwachungssatellit Aurelia",
+     "pos": [
+      -105,
+      130
+     ],
+     "essential": true
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "name": "Sektor Nebelmark",
+   "skybox": "white_local_star_and_nebulae",
+   "scale": 3.8,
+   "owner": 0,
+   "map": [
+    0,
+    1
+   ],
+   "asteroids": 35,
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      -60,
+      40
+     ],
+     "belt": 12,
+     "respawn": 90
+    },
+    {
+     "class": "ice_rock",
+     "pos": [
+      60,
+      80
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": []
+  },
+  {
+   "id": 10,
+   "name": "Sektor Kalypso",
+   "skybox": "ice_planet",
+   "skyboxYaw": 12,
+   "scale": 5.6,
+   "owner": 2,
+   "map": [
+    2,
+    1
+   ],
+   "planet": {
+    "name": "Tethys",
+    "color": "#5fb3b0",
+    "radius": 440
+   },
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      90,
+      90
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 67,
+     "type": "colony",
+     "name": "Kolonie Tethys",
+     "pos": [
+      0,
+      0
+     ],
+     "essential": true
+    },
+    {
+     "id": 68,
+     "type": "trade_post",
+     "name": "Handelsstation Kalypso",
+     "pos": [
+      -90,
+      90
+     ],
+     "essential": true,
+     "credits": 30000
+    },
+    {
+     "id": 69,
+     "type": "farm",
+     "name": "Farm Kalypso",
+     "pos": [
+      60,
+      -60
+     ],
+     "essential": true
+    },
+    {
+     "id": 70,
+     "type": "life_support_fab",
+     "name": "Lebenserhaltung Kalypso",
+     "pos": [
+      -80,
+      -60
+     ],
+     "essential": true
+    },
+    {
+     "id": 71,
+     "type": "goods_factory",
+     "name": "Konsumgüterfabrik Kalypso",
+     "pos": [
+      120,
+      -30
+     ],
+     "essential": true
+    },
+    {
+     "id": 72,
+     "type": "solar_plant",
+     "name": "Solarkraftwerk Kalypso",
+     "pos": [
+      -20,
+      100
+     ],
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     }
+    },
+    {
+     "id": 73,
+     "type": "sector_hq",
+     "name": "Sektor-HQ Kalypso",
+     "pos": [
+      -150,
+      -120
+     ],
+     "essential": true,
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "name": "Sektor Abgrund",
+   "skybox": "red_local_star_no_nebulae",
+   "skyboxYaw": 200,
+   "scale": 7.9,
+   "owner": 0,
+   "map": [
+    1,
+    2
+   ],
+   "asteroids": 35,
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      -50,
+      50
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "id": 74,
+     "type": "pirate_hideout",
+     "name": "Schlupfwinkel – {owner}",
+     "pos": [
+      210,
+      190
+     ],
+     "essential": true,
+     "owner": "blades",
+     "credits": 0
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "name": "Sektor Zephyr",
+   "skybox": "white_local_star_and_nebulae",
+   "scale": 4.5,
+   "owner": 0,
+   "map": [
+    -1,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "ice_rock",
+     "pos": [
+      -70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [],
+   "asteroids": 35
+  },
+  {
+   "id": 13,
+   "name": "Sektor Westwind",
+   "skybox": "blue_local_star_no_nebulae",
+   "scale": 5.0,
+   "owner": 1,
+   "map": [
+    -1,
+    0
+   ],
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "ice_rock",
+     "pos": [
+      -70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "steelworks",
+     "essential": true,
+     "id": 85,
+     "name": "Stahlwerk Westwind",
+     "pos": [
+      -125,
+      -43
+     ]
+    },
+    {
+     "type": "water_plant",
+     "essential": true,
+     "id": 86,
+     "name": "Wasserwerk Westwind",
+     "pos": [
+      135,
+      131
+     ]
+    },
+    {
+     "type": "powerplant",
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       60,
+       60
+      ],
+      "energy": [
+       120,
+       100
+      ]
+     },
+     "id": 87,
+     "name": "Kraftwerk Westwind",
+     "pos": [
+      141,
+      63
+     ]
+    },
+    {
+     "type": "solar_plant",
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     },
+     "id": 88,
+     "name": "Solarkraftwerk Westwind",
+     "pos": [
+      -50,
+      -89
+     ]
+    },
+    {
+     "type": "fuel_refinery",
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     },
+     "id": 89,
+     "name": "Treibstoffraffinerie Westwind",
+     "pos": [
+      48,
+      52
+     ]
+    },
+    {
+     "type": "sector_hq",
+     "essential": true,
+     "credits": 0,
+     "id": 90,
+     "name": "Sektor-HQ Westwind",
+     "pos": [
+      -143,
+      145
+     ]
+    },
+    {
+     "type": "platform_light",
+     "essential": true,
+     "id": 91,
+     "name": "Leichte Waffenstellung Westwind",
+     "pos": [
+      -121,
+      -112
+     ]
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "name": "Sektor Kaltfront",
+   "skybox": "red_local_star_no_nebulae",
+   "scale": 7.2,
+   "owner": 0,
+   "map": [
+    -1,
+    1
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "silicate_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [],
+   "asteroids": 35
+  },
+  {
+   "id": 15,
+   "name": "Sektor Cassiopeia",
+   "skybox": "blue_local_star_and_nebulae",
+   "scale": 3.8,
+   "owner": 4,
+   "map": [
+    0,
+    -2
+   ],
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "water_plant",
+     "essential": true,
+     "id": 92,
+     "name": "Wasserwerk Cassiopeia",
+     "pos": [
+      -116,
+      139
+     ]
+    },
+    {
+     "type": "electrolysis",
+     "essential": true,
+     "id": 93,
+     "name": "Elektrolyse Cassiopeia",
+     "pos": [
+      76,
+      -114
+     ]
+    },
+    {
+     "type": "steelworks",
+     "essential": true,
+     "id": 94,
+     "name": "Stahlwerk Cassiopeia",
+     "pos": [
+      -145,
+      92
+     ]
+    },
+    {
+     "type": "solar_plant",
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     },
+     "id": 95,
+     "name": "Solarkraftwerk Cassiopeia",
+     "pos": [
+      -45,
+      56
+     ]
+    },
+    {
+     "type": "sector_hq",
+     "essential": true,
+     "credits": 0,
+     "id": 96,
+     "name": "Sektor-HQ Cassiopeia",
+     "pos": [
+      104,
+      -40
+     ]
+    },
+    {
+     "type": "satellite_sensor",
+     "essential": true,
+     "id": 97,
+     "name": "Überwachungssatellit Cassiopeia",
+     "pos": [
+      -116,
+      24
+     ]
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "name": "Sektor Draco",
+   "skybox": "white_local_star_no_nebulae",
+   "scale": 7.3,
+   "owner": 4,
+   "map": [
+    1,
+    -2
+   ],
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "headquarters",
+     "essential": true,
+     "credits": 0,
+     "id": 98,
+     "name": "Hauptquartier – {owner}",
+     "pos": [
+      94,
+      -116
+     ]
+    },
+    {
+     "type": "copper_smelter",
+     "essential": true,
+     "id": 99,
+     "name": "Kupferhütte Draco",
+     "pos": [
+      -127,
+      105
+     ]
+    },
+    {
+     "type": "wafer_fab",
+     "essential": true,
+     "id": 100,
+     "name": "Waferfabrik Draco",
+     "pos": [
+      43,
+      -64
+     ]
+    },
+    {
+     "type": "electronics_fab",
+     "essential": true,
+     "id": 101,
+     "name": "Elektronikfabrik Draco",
+     "pos": [
+      136,
+      76
+     ]
+    },
+    {
+     "type": "plating_works",
+     "essential": true,
+     "id": 102,
+     "name": "Panzerwerk Draco",
+     "pos": [
+      -138,
+      53
+     ]
+    },
+    {
+     "type": "shipyard",
+     "essential": true,
+     "id": 103,
+     "name": "Werft Draco",
+     "pos": [
+      -39,
+      36
+     ]
+    },
+    {
+     "type": "solar_plant",
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     },
+     "id": 104,
+     "name": "Solarkraftwerk Draco",
+     "pos": [
+      74,
+      21
+     ]
+    },
+    {
+     "type": "systems_works",
+     "essential": true,
+     "id": 105,
+     "name": "Systemwerk Draco",
+     "pos": [
+      3,
+      93
+     ]
+    },
+    {
+     "type": "police_station",
+     "essential": true,
+     "credits": 0,
+     "id": 106,
+     "name": "Polizeiwache Draco",
+     "pos": [
+      144,
+      -81
+     ]
+    },
+    {
+     "type": "fuel_refinery",
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     },
+     "id": 107,
+     "name": "Treibstoffraffinerie Draco",
+     "pos": [
+      22,
+      -119
+     ]
+    },
+    {
+     "type": "research_station",
+     "essential": true,
+     "credits": 5000,
+     "id": 108,
+     "name": "Forschungsinstitut – {owner}",
+     "pos": [
+      78,
+      85
+     ]
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "name": "Sektor Lyra",
+   "skybox": "earthlike_planet",
+   "scale": 7.9,
+   "owner": 4,
+   "map": [
+    2,
+    -2
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "titanium_works",
+     "essential": true,
+     "id": 109,
+     "name": "Titanhütte Lyra",
+     "pos": [
+      79,
+      -89
+     ]
+    },
+    {
+     "type": "platinum_refinery",
+     "essential": true,
+     "id": 110,
+     "name": "Platinraffinerie Lyra",
+     "pos": [
+      -102,
+      37
+     ]
+    },
+    {
+     "type": "fuel_cell_fab",
+     "essential": true,
+     "id": 111,
+     "name": "Brennstoffzellen Lyra",
+     "pos": [
+      38,
+      -144
+     ]
+    },
+    {
+     "type": "solar_plant",
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     },
+     "id": 112,
+     "name": "Solarkraftwerk Lyra",
+     "pos": [
+      -135,
+      133
+     ]
+    },
+    {
+     "type": "trade_post",
+     "essential": true,
+     "credits": 30000,
+     "id": 113,
+     "name": "Handelsstation Lyra",
+     "pos": [
+      142,
+      -139
+     ]
+    },
+    {
+     "type": "farm",
+     "essential": true,
+     "id": 114,
+     "name": "Farm Lyra",
+     "pos": [
+      -64,
+      116
+     ]
+    },
+    {
+     "type": "water_plant",
+     "essential": true,
+     "id": 115,
+     "name": "Wasserwerk Lyra",
+     "pos": [
+      123,
+      -48
+     ]
+    },
+    {
+     "type": "sector_hq",
+     "essential": true,
+     "credits": 0,
+     "id": 116,
+     "name": "Sektor-HQ Lyra",
+     "pos": [
+      37,
+      -41
+     ]
+    },
+    {
+     "type": "drive_works",
+     "essential": true,
+     "id": 117,
+     "name": "Antriebswerk Lyra",
+     "pos": [
+      -35,
+      54
+     ]
+    },
+    {
+     "type": "platform_light",
+     "essential": true,
+     "id": 118,
+     "name": "Leichte Waffenstellung Lyra",
+     "pos": [
+      146,
+      149
+     ]
+    }
+   ],
+   "planet": {
+    "name": "Elara",
+    "color": "#7aa6c9",
+    "radius": 380
+   }
+  },
+  {
+   "id": 18,
+   "name": "Sektor Perseus",
+   "skybox": "red_local_star_and_nebulae",
+   "scale": 3.3,
+   "owner": 3,
+   "map": [
+    3,
+    -1
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      -70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "steelworks",
+     "essential": true,
+     "id": 119,
+     "name": "Stahlwerk Perseus",
+     "pos": [
+      85,
+      78
+     ]
+    },
+    {
+     "type": "titanium_works",
+     "essential": true,
+     "id": 120,
+     "name": "Titanhütte Perseus",
+     "pos": [
+      34,
+      43
+     ]
+    },
+    {
+     "type": "solar_plant",
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     },
+     "id": 121,
+     "name": "Solarkraftwerk Perseus",
+     "pos": [
+      138,
+      28
+     ]
+    },
+    {
+     "type": "fuel_cell_fab",
+     "essential": true,
+     "id": 122,
+     "name": "Brennstoffzellen Perseus",
+     "pos": [
+      138,
+      110
+     ]
+    },
+    {
+     "type": "fuel_refinery",
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     },
+     "id": 123,
+     "name": "Treibstoffraffinerie Perseus",
+     "pos": [
+      -138,
+      -93
+     ]
+    },
+    {
+     "type": "sector_hq",
+     "essential": true,
+     "credits": 0,
+     "id": 124,
+     "name": "Sektor-HQ Perseus",
+     "pos": [
+      -44,
+      -135
+     ]
+    },
+    {
+     "type": "platform_light",
+     "essential": true,
+     "id": 125,
+     "name": "Leichte Waffenstellung Perseus",
+     "pos": [
+      -65,
+      -72
+     ]
+    }
+   ]
+  },
+  {
+   "id": 19,
+   "name": "Sektor Sirius",
+   "skybox": "white_local_star_and_nebulae",
+   "scale": 3.6,
+   "owner": 0,
+   "map": [
+    4,
+    0
+   ],
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "rare_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [],
+   "asteroids": 35
+  },
+  {
+   "id": 20,
+   "name": "Sektor Tauri",
+   "skybox": "blue_local_star_and_nebulae",
+   "scale": 6.2,
+   "owner": 5,
+   "map": [
+    3,
+    1
+   ],
+   "fields": [
+    {
+     "class": "silicate_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "ice_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "headquarters",
+     "essential": true,
+     "credits": 0,
+     "id": 126,
+     "name": "Hauptquartier – {owner}",
+     "pos": [
+      -140,
+      113
+     ]
+    },
+    {
+     "type": "farm",
+     "essential": true,
+     "id": 127,
+     "name": "Farm Tauri",
+     "pos": [
+      65,
+      -98
+     ]
+    },
+    {
+     "type": "water_plant",
+     "essential": true,
+     "id": 128,
+     "name": "Wasserwerk Tauri",
+     "pos": [
+      -80,
+      127
+     ]
+    },
+    {
+     "type": "solar_plant",
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     },
+     "id": 129,
+     "name": "Solarkraftwerk Tauri",
+     "pos": [
+      -137,
+      -150
+     ]
+    },
+    {
+     "type": "copper_smelter",
+     "essential": true,
+     "id": 130,
+     "name": "Kupferhütte Tauri",
+     "pos": [
+      75,
+      -34
+     ]
+    },
+    {
+     "type": "wafer_fab",
+     "essential": true,
+     "id": 131,
+     "name": "Waferfabrik Tauri",
+     "pos": [
+      -96,
+      36
+     ]
+    },
+    {
+     "type": "electronics_fab",
+     "essential": true,
+     "id": 132,
+     "name": "Elektronikfabrik Tauri",
+     "pos": [
+      127,
+      -138
+     ]
+    },
+    {
+     "type": "plating_works",
+     "essential": true,
+     "id": 133,
+     "name": "Panzerwerk Tauri",
+     "pos": [
+      149,
+      -73
+     ]
+    },
+    {
+     "type": "shipyard",
+     "essential": true,
+     "id": 134,
+     "name": "Werft Tauri",
+     "pos": [
+      -33,
+      42
+     ]
+    },
+    {
+     "type": "fuel_refinery",
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     },
+     "id": 135,
+     "name": "Treibstoffraffinerie Tauri",
+     "pos": [
+      -147,
+      57
+     ]
+    },
+    {
+     "type": "police_station",
+     "essential": true,
+     "credits": 0,
+     "id": 136,
+     "name": "Polizeiwache Tauri",
+     "pos": [
+      72,
+      -150
+     ]
+    },
+    {
+     "type": "research_station",
+     "essential": true,
+     "credits": 5000,
+     "id": 137,
+     "name": "Forschungsinstitut – {owner}",
+     "pos": [
+      141,
+      147
+     ]
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "name": "Sektor Corvus",
+   "skybox": "red_local_star_no_nebulae",
+   "scale": 6.4,
+   "owner": 0,
+   "map": [
+    0,
+    2
+   ],
+   "fields": [
+    {
+     "class": "ice_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "rare_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [],
+   "asteroids": 35
+  },
+  {
+   "id": 22,
+   "name": "Sektor Hydra",
+   "skybox": "red_local_star_no_nebulae",
+   "scale": 6.8,
+   "owner": 0,
+   "map": [
+    2,
+    2
+   ],
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "pirate_hideout",
+     "owner": "reavers",
+     "credits": 0,
+     "id": 150,
+     "name": "Versteck der Plünderer",
+     "pos": [
+      210,
+      190
+     ],
+     "essential": true
+    }
+   ],
+   "asteroids": 35
+  },
+  {
+   "id": 23,
+   "name": "Sektor Phoenix",
+   "skybox": "desert_planet",
+   "scale": 4.3,
+   "owner": 5,
+   "map": [
+    3,
+    2
+   ],
+   "fields": [
+    {
+     "class": "rare_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "metal_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [
+    {
+     "type": "titanium_works",
+     "essential": true,
+     "id": 138,
+     "name": "Titanhütte Phoenix",
+     "pos": [
+      -97,
+      125
+     ]
+    },
+    {
+     "type": "platinum_refinery",
+     "essential": true,
+     "id": 139,
+     "name": "Platinraffinerie Phoenix",
+     "pos": [
+      109,
+      -36
+     ]
+    },
+    {
+     "type": "steelworks",
+     "essential": true,
+     "id": 140,
+     "name": "Stahlwerk Phoenix",
+     "pos": [
+      133,
+      -138
+     ]
+    },
+    {
+     "type": "goods_factory",
+     "essential": true,
+     "id": 141,
+     "name": "Konsumgüterfabrik Phoenix",
+     "pos": [
+      -142,
+      82
+     ]
+    },
+    {
+     "type": "life_support_fab",
+     "essential": true,
+     "id": 142,
+     "name": "Lebenserhaltung Phoenix",
+     "pos": [
+      135,
+      -85
+     ]
+    },
+    {
+     "type": "colony",
+     "essential": true,
+     "id": 143,
+     "name": "Kolonie Phoenix",
+     "pos": [
+      45,
+      -65
+     ]
+    },
+    {
+     "type": "trade_post",
+     "essential": true,
+     "credits": 30000,
+     "id": 144,
+     "name": "Handelsstation Phoenix",
+     "pos": [
+      -58,
+      62
+     ]
+    },
+    {
+     "type": "luxury_workshop",
+     "essential": true,
+     "id": 145,
+     "name": "Luxuswerkstatt Phoenix",
+     "pos": [
+      -41,
+      140
+     ]
+    },
+    {
+     "type": "sector_hq",
+     "essential": true,
+     "credits": 0,
+     "id": 146,
+     "name": "Sektor-HQ Phoenix",
+     "pos": [
+      72,
+      -127
+     ]
+    },
+    {
+     "type": "weapons_works",
+     "essential": true,
+     "id": 147,
+     "name": "Waffen- und Schildwerk Phoenix",
+     "pos": [
+      -143,
+      -146
+     ]
+    },
+    {
+     "type": "fuel_refinery",
+     "essential": true,
+     "stock": {
+      "hydrogen": [
+       90,
+       150
+      ],
+      "energy": [
+       120,
+       150
+      ],
+      "propellant": [
+       150,
+       150
+      ]
+     },
+     "id": 148,
+     "name": "Treibstoffraffinerie Phoenix",
+     "pos": [
+      -101,
+      32
+     ]
+    },
+    {
+     "type": "solar_plant",
+     "essential": true,
+     "stock": {
+      "energy": [
+       100,
+       100
+      ]
+     },
+     "id": 149,
+     "name": "Solarkraftwerk Phoenix",
+     "pos": [
+      149,
+      1
+     ]
+    }
+   ],
+   "planet": {
+    "name": "Kalida",
+    "color": "#c98f6b",
+    "radius": 400
+   }
+  },
+  {
+   "id": 24,
+   "name": "Sektor Ophiuchus",
+   "skybox": "white_local_star_no_nebulae",
+   "scale": 7.7,
+   "owner": 0,
+   "map": [
+    4,
+    1
+   ],
+   "fields": [
+    {
+     "class": "metal_rock",
+     "pos": [
+      -70,
+      -70
+     ],
+     "belt": 14,
+     "respawn": 90
+    },
+    {
+     "class": "silicate_rock",
+     "pos": [
+      70,
+      70
+     ],
+     "belt": 12,
+     "respawn": 90
+    }
+   ],
+   "stations": [],
+   "asteroids": 35
+  }
+ ],
+ "gateTypes": [
+  {
+   "key": "side",
+   "name": "Nebentor",
+   "defense": {
+    "hull": 2000,
+    "shield": 300,
+    "shieldRegen": 3,
+    "armor": 30,
+    "pointDefense": 0.2,
+    "guns": []
+   }
+  },
+  {
+   "key": "main",
+   "name": "Hauptroutentor",
+   "defense": {
+    "hull": 3500,
+    "shield": 500,
+    "shieldRegen": 5,
+    "armor": 25,
+    "pointDefense": 0.35,
+    "guns": []
+   }
+  }
+ ],
+ "gates": [
+  {
+   "a": {
+    "id": 1,
+    "sector": 1,
+    "pos": [
+     90,
+     -70
+    ]
+   },
+   "b": {
+    "id": 2,
+    "sector": 2,
+    "pos": [
+     -90,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 3,
+    "sector": 2,
+    "pos": [
+     90,
+     30
+    ]
+   },
+   "b": {
+    "id": 4,
+    "sector": 3,
+    "pos": [
+     -90,
+     -30
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 5,
+    "sector": 2,
+    "pos": [
+     0,
+     100
+    ]
+   },
+   "b": {
+    "id": 6,
+    "sector": 4,
+    "pos": [
+     0,
+     -100
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 7,
+    "sector": 1,
+    "pos": [
+     150,
+     -110
+    ]
+   },
+   "b": {
+    "id": 8,
+    "sector": 5,
+    "pos": [
+     0,
+     140
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 9,
+    "sector": 5,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 10,
+    "sector": 6,
+    "pos": [
+     -150,
+     0
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 11,
+    "sector": 6,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 12,
+    "sector": 2,
+    "pos": [
+     10,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 13,
+    "sector": 6,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 14,
+    "sector": 7,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 15,
+    "sector": 7,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 16,
+    "sector": 3,
+    "pos": [
+     -20,
+     -150
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 17,
+    "sector": 3,
+    "pos": [
+     160,
+     40
+    ]
+   },
+   "b": {
+    "id": 18,
+    "sector": 8,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 19,
+    "sector": 1,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 20,
+    "sector": 9,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 21,
+    "sector": 9,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 22,
+    "sector": 4,
+    "pos": [
+     -160,
+     -10
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 23,
+    "sector": 4,
+    "pos": [
+     160,
+     0
+    ]
+   },
+   "b": {
+    "id": 24,
+    "sector": 10,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 25,
+    "sector": 10,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "b": {
+    "id": 26,
+    "sector": 3,
+    "pos": [
+     60,
+     155
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 27,
+    "sector": 4,
+    "pos": [
+     0,
+     160
+    ]
+   },
+   "b": {
+    "id": 28,
+    "sector": 11,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 29,
+    "sector": 13,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 30,
+    "sector": 1,
+    "pos": [
+     -150,
+     -40
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 31,
+    "sector": 13,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "b": {
+    "id": 32,
+    "sector": 12,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 33,
+    "sector": 12,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 34,
+    "sector": 5,
+    "pos": [
+     -150,
+     -10
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 35,
+    "sector": 13,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 36,
+    "sector": 14,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 37,
+    "sector": 14,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 38,
+    "sector": 9,
+    "pos": [
+     -150,
+     0
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 39,
+    "sector": 5,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "b": {
+    "id": 40,
+    "sector": 15,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 41,
+    "sector": 15,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 42,
+    "sector": 16,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 43,
+    "sector": 16,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 44,
+    "sector": 6,
+    "pos": [
+     70,
+     -150
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 45,
+    "sector": 16,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 46,
+    "sector": 17,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 47,
+    "sector": 17,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 48,
+    "sector": 7,
+    "pos": [
+     10,
+     -150
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 49,
+    "sector": 7,
+    "pos": [
+     150,
+     50
+    ]
+   },
+   "b": {
+    "id": 50,
+    "sector": 18,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 51,
+    "sector": 18,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 52,
+    "sector": 8,
+    "pos": [
+     0,
+     -150
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 53,
+    "sector": 8,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 54,
+    "sector": 19,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 55,
+    "sector": 19,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 56,
+    "sector": 24,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 57,
+    "sector": 24,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "b": {
+    "id": 58,
+    "sector": 20,
+    "pos": [
+     150,
+     0
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 59,
+    "sector": 20,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "b": {
+    "id": 60,
+    "sector": 8,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 61,
+    "sector": 20,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "b": {
+    "id": 62,
+    "sector": 10,
+    "pos": [
+     150,
+     20
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 63,
+    "sector": 20,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "b": {
+    "id": 64,
+    "sector": 23,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 65,
+    "sector": 23,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "b": {
+    "id": 66,
+    "sector": 22,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "mainRoute": true
+  },
+  {
+   "a": {
+    "id": 67,
+    "sector": 22,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "b": {
+    "id": 68,
+    "sector": 10,
+    "pos": [
+     0,
+     150
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 69,
+    "sector": 22,
+    "pos": [
+     -150,
+     0
+    ]
+   },
+   "b": {
+    "id": 70,
+    "sector": 11,
+    "pos": [
+     150,
+     0
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 71,
+    "sector": 21,
+    "pos": [
+     150,
+     0
+    ]
+   },
+   "b": {
+    "id": 72,
+    "sector": 11,
+    "pos": [
+     -150,
+     0
+    ]
+   }
+  },
+  {
+   "a": {
+    "id": 73,
+    "sector": 21,
+    "pos": [
+     0,
+     -150
+    ]
+   },
+   "b": {
+    "id": 74,
+    "sector": 9,
+    "pos": [
+     0,
+     150
+    ]
+   },
+   "mainRoute": true
+  }
+ ],
+ "slotTypes": [
+  {
+   "key": "reactor",
+   "name": "Reaktor",
+   "required": true,
+   "color": "#ff8c42"
+  },
+  {
+   "key": "storage",
+   "name": "Speicher",
+   "color": "#ffd166"
+  },
+  {
+   "key": "engine",
+   "name": "Antrieb",
+   "required": true,
+   "color": "#f25f5c"
+  },
+  {
+   "key": "shield",
+   "name": "Schild",
+   "color": "#4cc9f0"
+  },
+  {
+   "key": "armor",
+   "name": "Panzerung",
+   "color": "#8d99ae"
+  },
+  {
+   "key": "weapon",
+   "name": "Waffe",
+   "color": "#e63946"
+  },
+  {
+   "key": "tool",
+   "name": "Werkzeug",
+   "color": "#80ed99"
+  },
+  {
+   "key": "cargo",
+   "name": "Fracht",
+   "color": "#c9a66b"
+  },
+  {
+   "key": "utility",
+   "name": "Utility",
+   "color": "#b892ff"
+  }
+ ],
+ "modules": [
+  {
+   "key": "reactor_mk1",
+   "name": "Fusionsreaktor Mk1",
+   "slot": "reactor",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "powerOutput": 10
+   },
+   "mass": 4,
+   "upkeep": 0.2,
+   "cost": {
+    "steel": 4,
+    "electronics": 2
+   },
+   "upgrade": {
+    "to": "reactor_mk2",
+    "cost": {
+     "electronics": 1,
+     "platinum": 1
+    }
+   }
+  },
+  {
+   "key": "chem_engine_s",
+   "name": "Chemisches Triebwerk S",
+   "slot": "engine",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "thrust": 160,
+    "fuelUse": 0.001
+   },
+   "fuel": [
+    {
+     "good": "propellant",
+     "efficiency": 1.0
+    }
+   ],
+   "powerDraw": 3,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 1
+   },
+   "upgrade": {
+    "to": "chem_engine_s_mk2",
+    "cost": {
+     "electronics": 1,
+     "titanium": 1
+    }
+   }
+  },
+  {
+   "key": "mining_laser_1",
+   "name": "Mining-Laser Mk1",
+   "slot": "tool",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "chunkChanceMult": 1,
+    "chunkSizeMult": 1
+   },
+   "powerDraw": 2,
+   "mass": 1,
+   "cost": {
+    "electronics": 2,
+    "copper": 2
+   },
+   "upgrade": {
+    "to": "mining_laser_2",
+    "cost": {
+     "electronics": 1,
+     "platinum": 1
+    }
+   }
+  },
+  {
+   "key": "cargo_universal_100",
+   "name": "Universalfrachtraum 100",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 100
+   },
+   "holds": "any",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   }
+  },
+  {
+   "key": "cargo_universal_60",
+   "name": "Universalfrachtraum 60",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 60
+   },
+   "holds": "any",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   },
+   "upgrade": {
+    "to": "cargo_universal_70",
+    "cost": {
+     "titanium": 1,
+     "hull_plates": 1
+    }
+   }
+  },
+  {
+   "key": "cargo_solid_s",
+   "name": "Frachtmodul S",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 30
+   },
+   "holds": "solid",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   }
+  },
+  {
+   "key": "canister_bay_s",
+   "name": "Kanisterraum S",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 60
+   },
+   "holds": "liquid",
+   "mass": 3,
+   "cost": {
+    "steel": 3
+   }
+  },
+  {
+   "key": "cargo_universal_70",
+   "name": "Universalfrachtraum 70",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Cargo"
+   ],
+   "stats": {
+    "capacity": 70
+   },
+   "holds": "any",
+   "mass": 3,
+   "cost": {
+    "steel": 5
+   }
+  },
+  {
+   "key": "power_bank_s",
+   "name": "Speicherbank S",
+   "slot": "storage",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "powerStorage": 20
+   },
+   "mass": 2,
+   "cost": {
+    "steel": 2,
+    "copper": 2,
+    "fuel_cells": 1
+   },
+   "upgrade": {
+    "to": "power_bank_s_mk2",
+    "cost": {
+     "copper": 1,
+     "fuel_cells": 1
+    }
+   }
+  },
+  {
+   "key": "fuel_tank_s",
+   "name": "Treibstofftank S",
+   "slot": "cargo",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "fuelCapacity": 100
+   },
+   "mass": 2,
+   "cost": {
+    "steel": 3,
+    "titanium": 1
+   }
+  },
+  {
+   "key": "tractor_beam_s",
+   "name": "Traktorstrahl S",
+   "slot": "tool",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "tractorRange": 30,
+    "tractorPull": 1
+   },
+   "powerDraw": 1,
+   "mass": 1,
+   "cost": {
+    "electronics": 2,
+    "wafers": 1
+   }
+  },
+  {
+   "key": "shield_mk1",
+   "name": "Schildgenerator Mk1",
+   "slot": "shield",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "shieldCapacity": 40,
+    "shieldRegen": 0.5
+   },
+   "powerDraw": 2,
+   "mass": 2,
+   "cost": {
+    "platinum": 1,
+    "wafers": 2,
+    "electronics": 1
+   },
+   "upgrade": {
+    "to": "shield_mk2",
+    "cost": {
+     "wafers": 1,
+     "electronics": 1
+    }
+   }
+  },
+  {
+   "key": "armor_plating_s",
+   "name": "Panzerplattierung S",
+   "slot": "armor",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "armor": 40
+   },
+   "mass": 4,
+   "cost": {
+    "hull_plates": 2,
+    "titanium": 1
+   },
+   "upgrade": {
+    "to": "armor_plating_s_mk2",
+    "cost": {
+     "hull_plates": 1,
+     "titanium": 1
+    }
+   }
+  },
+  {
+   "key": "chem_engine_m",
+   "name": "Chemisches Triebwerk M",
+   "slot": "engine",
+   "size": "M",
+   "tier": 1,
+   "stats": {
+    "thrust": 240,
+    "fuelUse": 0.0015
+   },
+   "fuel": [
+    {
+     "good": "propellant",
+     "efficiency": 1.0
+    }
+   ],
+   "powerDraw": 4,
+   "mass": 5,
+   "cost": {
+    "steel": 5,
+    "electronics": 2,
+    "titanium": 1
+   }
+  },
+  {
+   "key": "mining_laser_2",
+   "name": "Mining-Laser Mk2",
+   "slot": "tool",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "chunkChanceMult": 1.3,
+    "chunkSizeMult": 1.25
+   },
+   "powerDraw": 3,
+   "mass": 1,
+   "cost": {
+    "electronics": 3,
+    "copper": 2,
+    "platinum": 1
+   },
+   "upgrade": {
+    "to": "mining_laser_3",
+    "cost": {
+     "electronics": 2,
+     "platinum": 1
+    }
+   }
+  },
+  {
+   "key": "mining_laser_3",
+   "name": "Mining-Laser Mk3",
+   "slot": "tool",
+   "size": "S",
+   "tier": 3,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "chunkChanceMult": 1.6,
+    "chunkSizeMult": 1.5
+   },
+   "powerDraw": 4,
+   "mass": 1,
+   "cost": {
+    "electronics": 4,
+    "copper": 2,
+    "platinum": 2
+   }
+  },
+  {
+   "key": "reactor_mk2",
+   "name": "Fusionsreaktor Mk2",
+   "slot": "reactor",
+   "size": "S",
+   "tier": 2,
+   "stats": {
+    "powerOutput": 14
+   },
+   "mass": 4,
+   "upkeep": 0.25,
+   "cost": {
+    "steel": 4,
+    "electronics": 3,
+    "platinum": 1
+   },
+   "upgrade": {
+    "to": "reactor_mk3",
+    "cost": {
+     "electronics": 2,
+     "platinum": 1
+    }
+   }
+  },
+  {
+   "key": "reactor_mk3",
+   "name": "Fusionsreaktor Mk3",
+   "slot": "reactor",
+   "size": "S",
+   "tier": 3,
+   "stats": {
+    "powerOutput": 18
+   },
+   "mass": 4,
+   "upkeep": 0.3,
+   "cost": {
+    "steel": 4,
+    "electronics": 4,
+    "platinum": 2
+   }
+  },
+  {
+   "key": "chem_engine_s_mk2",
+   "name": "Chemisches Triebwerk S Mk2",
+   "slot": "engine",
+   "size": "S",
+   "tier": 2,
+   "stats": {
+    "thrust": 190,
+    "fuelUse": 0.0009
+   },
+   "fuel": [
+    {
+     "good": "propellant",
+     "efficiency": 1.0
+    }
+   ],
+   "powerDraw": 3,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 2,
+    "titanium": 1
+   }
+  },
+  {
+   "key": "construction_rig_s",
+   "name": "Bauausleger",
+   "slot": "tool",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Construction"
+   ],
+   "stats": {
+    "buildRate": 1
+   },
+   "powerDraw": 2,
+   "mass": 4,
+   "cost": {
+    "steel": 4,
+    "hull_plates": 2,
+    "electronics": 2
+   }
+  },
+  {
+   "key": "split_laser_s",
+   "name": "Spaltlaser",
+   "slot": "tool",
+   "size": "S",
+   "tier": 2,
+   "grants": [],
+   "stats": {
+    "splitPower": 1
+   },
+   "powerDraw": 4,
+   "peakDraw": 2,
+   "mass": 2,
+   "cost": {
+    "titanium": 2,
+    "fuel_cells": 1,
+    "hull_plates": 1,
+    "electronics": 1
+   }
+  },
+  {
+   "key": "weapon_laser_s",
+   "name": "Laserkanone",
+   "slot": "weapon",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Combat"
+   ],
+   "stats": {
+    "damage": 7,
+    "reload": 2,
+    "range": 60,
+    "accuracy": 0.85,
+    "tracking": 0.8,
+    "ammoPerShot": 0
+   },
+   "damageType": "energy",
+   "powerDraw": 3,
+   "peakDraw": 1,
+   "mass": 2,
+   "cost": {
+    "electronics": 2,
+    "copper": 2,
+    "titanium": 1
+   },
+   "upgrade": {
+    "to": "weapon_laser_s_mk2",
+    "cost": {
+     "electronics": 1,
+     "titanium": 1
+    }
+   }
+  },
+  {
+   "key": "weapon_magazine_s",
+   "name": "Munitionsmagazin",
+   "slot": "utility",
+   "size": "S",
+   "tier": 1,
+   "grants": [],
+   "stats": {
+    "ammoCapacity": 60
+   },
+   "mass": 1,
+   "cost": {
+    "steel": 2,
+    "hull_plates": 1
+   }
+  },
+  {
+   "key": "weapon_massdriver_s",
+   "name": "Kinetisches Geschütz",
+   "slot": "weapon",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Combat"
+   ],
+   "stats": {
+    "damage": 10,
+    "reload": 3,
+    "range": 45,
+    "accuracy": 0.75,
+    "tracking": 0.4,
+    "ammoPerShot": 1,
+    "ammoCapacity": 30
+   },
+   "damageType": "kinetic",
+   "powerDraw": 1,
+   "peakDraw": 0.5,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 1,
+    "titanium": 1
+   },
+   "upgrade": {
+    "to": "weapon_massdriver_s_mk2",
+    "cost": {
+     "electronics": 1,
+     "titanium": 1
+    }
+   }
+  },
+  {
+   "key": "wet_suppressor_s",
+   "name": "Löschanlage",
+   "slot": "utility",
+   "size": "S",
+   "tier": 1,
+   "grants": [],
+   "stats": {
+    "extinguish": 0.35
+   },
+   "powerDraw": 1,
+   "mass": 1,
+   "cost": {
+    "steel": 1,
+    "electronics": 1,
+    "hull_plates": 1
+   }
+  },
+  {
+   "key": "wreck_grapple_s",
+   "name": "Bergungsgreifer",
+   "slot": "tool",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Salvage"
+   ],
+   "stats": {
+    "salvageRange": 30
+   },
+   "powerDraw": 2,
+   "mass": 2,
+   "cost": {
+    "steel": 2,
+    "electronics": 1,
+    "hull_plates": 1
+   }
+  },
+  {
+   "key": "jump_drive_s",
+   "name": "Sprungantrieb",
+   "slot": "utility",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Jump"
+   ],
+   "stats": {
+    "jumpRange": 2,
+    "jumpCharge": 60,
+    "jumpCooldown": 1200,
+    "jumpDraw": 2,
+    "jumpFuel": 20
+   },
+   "powerDraw": 1,
+   "mass": 3,
+   "cost": {
+    "electronics": 3,
+    "wafers": 2,
+    "platinum": 2,
+    "fuel_cells": 2
+   }
+  },
+  {
+   "key": "cloak_s",
+   "name": "Tarnfeld Mk1",
+   "slot": "utility",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Stealth"
+   ],
+   "stats": {
+    "cloak": 1.5,
+    "cloakDraw": 2
+   },
+   "powerDraw": 1,
+   "mass": 2,
+   "cost": {
+    "wafers": 3,
+    "electronics": 2,
+    "platinum": 1
+   },
+   "upgrade": {
+    "to": "cloak_s_mk2",
+    "cost": {
+     "wafers": 2,
+     "platinum": 1
+    }
+   }
+  },
+  {
+   "key": "cloak_s_mk2",
+   "name": "Tarnfeld Mk2",
+   "slot": "utility",
+   "size": "S",
+   "tier": 3,
+   "grants": [
+    "Stealth"
+   ],
+   "stats": {
+    "cloak": 2.5,
+    "cloakDraw": 3
+   },
+   "powerDraw": 1,
+   "mass": 2,
+   "cost": {
+    "wafers": 4,
+    "electronics": 3,
+    "platinum": 2
+   }
+  },
+  {
+   "key": "missile_launcher_s",
+   "name": "Raketenwerfer",
+   "slot": "weapon",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Combat"
+   ],
+   "stats": {
+    "damage": 30,
+    "reload": 8,
+    "range": 110,
+    "accuracy": 0.85,
+    "tracking": 0.75,
+    "ammoPerShot": 0,
+    "missileSpeed": 35,
+    "missileCapacity": 6
+   },
+   "damageType": "explosive",
+   "powerDraw": 2,
+   "peakDraw": 1,
+   "mass": 3,
+   "cost": {
+    "steel": 2,
+    "electronics": 2,
+    "fuel_cells": 1
+   },
+   "upgrade": {
+    "to": "missile_launcher_s_mk2",
+    "cost": {
+     "electronics": 1,
+     "fuel_cells": 1
+    }
+   }
+  },
+  {
+   "key": "point_defense_s",
+   "name": "Punktabwehr",
+   "slot": "utility",
+   "size": "S",
+   "tier": 1,
+   "grants": [],
+   "stats": {
+    "pointDefense": 0.35
+   },
+   "powerDraw": 2,
+   "mass": 2,
+   "cost": {
+    "electronics": 2,
+    "copper": 1,
+    "titanium": 1
+   },
+   "upgrade": {
+    "to": "point_defense_s_mk2",
+    "cost": {
+     "electronics": 1,
+     "titanium": 1
+    }
+   }
+  },
+  {
+   "key": "shield_mk2",
+   "name": "Schildgenerator Mk2",
+   "slot": "shield",
+   "size": "S",
+   "tier": 2,
+   "stats": {
+    "shieldCapacity": 70,
+    "shieldRegen": 0.8
+   },
+   "powerDraw": 3,
+   "mass": 2,
+   "cost": {
+    "wafers": 4,
+    "electronics": 2,
+    "titanium": 1
+   }
+  },
+  {
+   "key": "shield_m",
+   "name": "Schildgenerator M",
+   "slot": "shield",
+   "size": "M",
+   "tier": 2,
+   "stats": {
+    "shieldCapacity": 120,
+    "shieldRegen": 1.2
+   },
+   "powerDraw": 4,
+   "mass": 4,
+   "cost": {
+    "wafers": 4,
+    "electronics": 3,
+    "titanium": 2
+   }
+  },
+  {
+   "key": "armor_plating_s_mk2",
+   "name": "Panzerplattierung S Mk2",
+   "slot": "armor",
+   "size": "S",
+   "tier": 2,
+   "stats": {
+    "armor": 60
+   },
+   "mass": 5,
+   "cost": {
+    "hull_plates": 3,
+    "titanium": 2
+   }
+  },
+  {
+   "key": "armor_plating_m",
+   "name": "Panzerplattierung M",
+   "slot": "armor",
+   "size": "M",
+   "tier": 2,
+   "stats": {
+    "armor": 90
+   },
+   "mass": 8,
+   "cost": {
+    "hull_plates": 4,
+    "titanium": 2
+   }
+  },
+  {
+   "key": "weapon_laser_s_mk2",
+   "name": "Laserkanone Mk2",
+   "slot": "weapon",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Combat"
+   ],
+   "stats": {
+    "damage": 9,
+    "reload": 2,
+    "range": 65,
+    "accuracy": 0.87,
+    "tracking": 0.8,
+    "ammoPerShot": 0
+   },
+   "damageType": "energy",
+   "powerDraw": 4,
+   "peakDraw": 1.5,
+   "mass": 2,
+   "cost": {
+    "electronics": 3,
+    "copper": 2,
+    "titanium": 2
+   }
+  },
+  {
+   "key": "weapon_laser_m",
+   "name": "Laserkanone M",
+   "slot": "weapon",
+   "size": "M",
+   "tier": 2,
+   "grants": [
+    "Combat"
+   ],
+   "stats": {
+    "damage": 14,
+    "reload": 2.5,
+    "range": 70,
+    "accuracy": 0.85,
+    "tracking": 0.65,
+    "ammoPerShot": 0
+   },
+   "damageType": "energy",
+   "powerDraw": 6,
+   "peakDraw": 2,
+   "mass": 4,
+   "cost": {
+    "electronics": 4,
+    "copper": 3,
+    "titanium": 3
+   }
+  },
+  {
+   "key": "weapon_massdriver_s_mk2",
+   "name": "Kinetisches Geschütz Mk2",
+   "slot": "weapon",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Combat"
+   ],
+   "stats": {
+    "damage": 13,
+    "reload": 3,
+    "range": 50,
+    "accuracy": 0.78,
+    "tracking": 0.45,
+    "ammoPerShot": 1,
+    "ammoCapacity": 40
+   },
+   "damageType": "kinetic",
+   "powerDraw": 1.5,
+   "peakDraw": 0.5,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 2,
+    "titanium": 2
+   }
+  },
+  {
+   "key": "missile_launcher_s_mk2",
+   "name": "Raketenwerfer Mk2",
+   "slot": "weapon",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Combat"
+   ],
+   "stats": {
+    "damage": 38,
+    "reload": 8,
+    "range": 120,
+    "accuracy": 0.87,
+    "tracking": 0.78,
+    "ammoPerShot": 0,
+    "missileSpeed": 38,
+    "missileCapacity": 8
+   },
+   "damageType": "explosive",
+   "powerDraw": 2,
+   "peakDraw": 1,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 3,
+    "fuel_cells": 1
+   }
+  },
+  {
+   "key": "power_bank_s_mk2",
+   "name": "Energiespeicher S Mk2",
+   "slot": "storage",
+   "size": "S",
+   "tier": 2,
+   "stats": {
+    "powerStorage": 35
+   },
+   "mass": 2,
+   "cost": {
+    "steel": 2,
+    "copper": 3,
+    "fuel_cells": 2
+   }
+  },
+  {
+   "key": "point_defense_s_mk2",
+   "name": "Punktabwehr Mk2",
+   "slot": "utility",
+   "size": "S",
+   "tier": 2,
+   "grants": [],
+   "stats": {
+    "pointDefense": 0.5
+   },
+   "powerDraw": 3,
+   "mass": 2,
+   "cost": {
+    "electronics": 3,
+    "copper": 1,
+    "titanium": 2
+   }
+  },
+  {
+   "key": "reactor_m",
+   "name": "Fusionsreaktor M",
+   "slot": "reactor",
+   "size": "M",
+   "tier": 2,
+   "stats": {
+    "powerOutput": 24
+   },
+   "mass": 7,
+   "cost": {
+    "steel": 6,
+    "electronics": 4,
+    "titanium": 3
+   }
+  },
+  {
+   "key": "drill_head_s",
+   "name": "Bohrkopf S",
+   "slot": "tool",
+   "size": "S",
+   "tier": 1,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "contactMining": 3.4
+   },
+   "powerDraw": 2,
+   "mass": 1,
+   "cost": {
+    "steel": 2,
+    "titanium": 1,
+    "electronics": 1
+   },
+   "upgrade": {
+    "to": "cutting_wheel_s",
+    "cost": {
+     "titanium": 1,
+     "electronics": 1
+    }
+   }
+  },
+  {
+   "key": "cutting_wheel_s",
+   "name": "Schneidrad S",
+   "slot": "tool",
+   "size": "S",
+   "tier": 2,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "contactMining": 5.525
+   },
+   "powerDraw": 3,
+   "mass": 1,
+   "cost": {
+    "steel": 3,
+    "titanium": 2,
+    "electronics": 2
+   }
+  },
+  {
+   "key": "cutting_wheel_m",
+   "name": "Schneidrad M",
+   "slot": "tool",
+   "size": "M",
+   "tier": 3,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "contactMining": 8.16
+   },
+   "powerDraw": 4,
+   "mass": 2,
+   "cost": {
+    "steel": 4,
+    "titanium": 3,
+    "electronics": 2
+   }
+  },
+  {
+   "key": "cutting_drum_l",
+   "name": "Schneidwalze L",
+   "slot": "tool",
+   "size": "L",
+   "tier": 3,
+   "grants": [
+    "Mining"
+   ],
+   "stats": {
+    "contactMining": 10.2
+   },
+   "powerDraw": 5,
+   "mass": 4,
+   "cost": {
+    "steel": 6,
+    "titanium": 4,
+    "electronics": 3
+   }
+  }
+ ],
+ "shipClasses": [
+  {
+   "key": "unit_trader",
+   "name": "Einheitsfrachter",
+   "size": "S",
+   "baseHull": 100,
+   "baseMass": 8,
+   "baseFuel": 200,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "unit_miner",
+   "name": "Einheitsschürfer",
+   "size": "S",
+   "baseHull": 100,
+   "baseMass": 9,
+   "baseFuel": 200,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "skiff",
+   "name": "Skiff",
+   "size": "S",
+   "baseHull": 60,
+   "baseMass": 4,
+   "baseFuel": 150,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "courier",
+   "name": "Kurier",
+   "size": "S",
+   "baseHull": 50,
+   "baseMass": 2,
+   "baseFuel": 120,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "light_freighter",
+   "name": "Leichter Frachter",
+   "size": "M",
+   "baseHull": 100,
+   "baseMass": 14,
+   "baseFuel": 250,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light",
+   "toolEfficiency": 0.85
+  },
+  {
+   "key": "heavy_freighter",
+   "name": "Schwerer Frachter",
+   "size": "L",
+   "baseHull": 250,
+   "baseMass": 28,
+   "baseFuel": 400,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_heavy",
+   "maxSlotUpgrades": 2
+  },
+  {
+   "key": "miner_light",
+   "name": "Bergbauer leicht",
+   "size": "S",
+   "baseHull": 100,
+   "baseMass": 8,
+   "baseFuel": 200,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "miner_heavy",
+   "name": "Bergbauer schwer",
+   "size": "M",
+   "baseHull": 200,
+   "baseMass": 18,
+   "baseFuel": 300,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium",
+   "maxSlotUpgrades": 2
+  },
+  {
+   "key": "tanker",
+   "name": "Tanker",
+   "size": "M",
+   "baseHull": 120,
+   "baseMass": 14,
+   "baseFuel": 300,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "construction_ship",
+   "name": "Bauschiff",
+   "size": "M",
+   "baseHull": 150,
+   "baseMass": 18,
+   "baseFuel": 300,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "breaker",
+   "name": "Asteroidenbrecher",
+   "size": "M",
+   "baseHull": 220,
+   "baseMass": 20,
+   "baseFuel": 300,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "armor",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium",
+   "maxSlotUpgrades": 2
+  },
+  {
+   "key": "patrol_craft",
+   "name": "Patrouillenboot",
+   "size": "M",
+   "baseHull": 140,
+   "baseMass": 14,
+   "baseFuel": 250,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "raider",
+   "name": "Kaperschiff",
+   "size": "S",
+   "baseHull": 80,
+   "baseMass": 7,
+   "baseFuel": 200,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "shield",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "fighter",
+   "name": "Jäger",
+   "size": "S",
+   "baseHull": 70,
+   "baseMass": 5,
+   "baseFuel": 150,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 45
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 45
+    },
+    {
+     "type": "shield",
+     "size": "S"
+    },
+    {
+     "type": "storage",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "frigate",
+   "name": "Fregatte",
+   "size": "L",
+   "baseHull": 520,
+   "baseMass": 30,
+   "baseFuel": 400,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M",
+     "facing": "bow",
+     "arc": 120
+    },
+    {
+     "type": "weapon",
+     "size": "M",
+     "facing": "bow",
+     "arc": 120
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "storage",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_heavy"
+  },
+  {
+   "key": "corvette",
+   "name": "Korvette",
+   "size": "M",
+   "baseHull": 200,
+   "baseMass": 18,
+   "baseFuel": 280,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "missile_boat",
+   "name": "Raketenboot",
+   "size": "M",
+   "baseHull": 120,
+   "baseMass": 12,
+   "baseFuel": 260,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "shield",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "storage",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "bomber",
+   "name": "Bomber",
+   "size": "S",
+   "baseHull": 110,
+   "baseMass": 9,
+   "baseFuel": 200,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "weapon",
+     "size": "S",
+     "facing": "bow",
+     "arc": 60
+    },
+    {
+     "type": "shield",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "storage",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_light"
+  },
+  {
+   "key": "gunboat",
+   "name": "Kanonenboot",
+   "size": "M",
+   "baseHull": 260,
+   "baseMass": 22,
+   "baseFuel": 280,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "M",
+     "facing": "bow",
+     "arc": 90
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "shield",
+     "size": "S"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
+  },
+  {
+   "key": "destroyer",
+   "name": "Zerstörer",
+   "size": "L",
+   "baseHull": 700,
+   "baseMass": 38,
+   "baseFuel": 450,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "reactor",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "shield",
+     "size": "M"
+    },
+    {
+     "type": "armor",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_heavy"
+  },
+  {
+   "key": "battlecruiser",
+   "name": "Schlachtkreuzer",
+   "size": "XL",
+   "baseHull": 1200,
+   "baseMass": 56,
+   "baseFuel": 600,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "L"
+    },
+    {
+     "type": "reactor",
+     "size": "L"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "L",
+     "facing": "bow",
+     "arc": 120
+    },
+    {
+     "type": "weapon",
+     "size": "L",
+     "facing": "bow",
+     "arc": 120
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "shield",
+     "size": "L"
+    },
+    {
+     "type": "shield",
+     "size": "L"
+    },
+    {
+     "type": "armor",
+     "size": "L"
+    },
+    {
+     "type": "armor",
+     "size": "L"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    },
+    {
+     "type": "storage",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "M"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "reactor",
+     "size": "L"
+    }
+   ],
+   "kit": "ship_kit_heavy",
+   "kitCount": 3,
+   "maxSlotUpgrades": 2
+  },
+  {
+   "key": "strip_miner",
+   "name": "Großschürfer",
+   "size": "L",
+   "baseHull": 300,
+   "baseMass": 26,
+   "baseFuel": 400,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "L"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "cargo",
+     "size": "M"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_heavy"
+  }
+ ],
+ "shipModels": [
+  {
+   "key": "unit_trader_100",
+   "class": "unit_trader",
+   "name": "Einheitsfrachter 100",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    "cargo_universal_100",
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "unit_trader_60",
+   "class": "unit_trader",
+   "name": "Einheitsfrachter 60",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    "cargo_universal_60",
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "unit_miner_100",
+   "class": "unit_miner",
+   "name": "Einheitsschürfer 100",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "drill_head_s",
+    "cargo_universal_100"
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "unit_miner_60",
+   "class": "unit_miner",
+   "name": "Einheitsschürfer 60",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "drill_head_s",
+    "cargo_universal_60"
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "pip",
+   "class": "skiff",
+   "name": "Kiebitz",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "cargo_solid_s",
+    "canister_bay_s",
+    null,
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade",
+    "mine"
+   ]
+  },
+  {
+   "key": "nomad",
+   "class": "skiff",
+   "name": "Nomade",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    "cargo_universal_70",
+    "cargo_solid_s",
+    null,
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "prospector",
+   "class": "skiff",
+   "name": "Goldsucher",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "drill_head_s",
+    "cargo_universal_60",
+    null,
+    null,
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "swift",
+   "class": "courier",
+   "name": "Mauersegler",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "cargo_solid_s",
+    null,
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "mule",
+   "class": "light_freighter",
+   "name": "Maultier",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    null,
+    "weapon_laser_s",
+    "cargo_universal_60",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "hauler",
+   "class": "light_freighter",
+   "name": "Lastkahn",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    null,
+    "weapon_laser_s",
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "tinker",
+   "class": "light_freighter",
+   "name": "Kesselflicker",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "mining_laser_1",
+    "weapon_laser_s",
+    "cargo_universal_60",
+    null,
+    null
+   ],
+   "jobs": [
+    "trade",
+    "mine"
+   ]
+  },
+  {
+   "key": "behemoth",
+   "class": "heavy_freighter",
+   "name": "Behemoth",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    null,
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "pickaxe",
+   "class": "miner_light",
+   "name": "Spitzhacke",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_s",
+    "drill_head_s",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "rockbreaker",
+   "class": "miner_heavy",
+   "name": "Felsbrecher",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "cutting_wheel_s",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "cistern",
+   "class": "tanker",
+   "name": "Zisterne",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
+    "canister_bay_s",
+    null,
+    "weapon_laser_s"
+   ],
+   "jobs": [
+    "trade"
+   ]
+  },
+  {
+   "key": "foreman",
+   "class": "construction_ship",
+   "name": "Polier",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "construction_rig_s",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "build"
+   ]
+  },
+  {
+   "key": "quarry",
+   "class": "breaker",
+   "name": "Steinbruch",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_m",
+    "split_laser_s",
+    "drill_head_s",
+    null,
+    "cargo_universal_60",
+    null,
+    null
+   ]
+  },
+  {
+   "key": "rockbreaker_ii",
+   "class": "breaker",
+   "name": "Felsbrecher II",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_m",
+    "split_laser_s",
+    "cutting_wheel_s",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "warden",
+   "class": "patrol_craft",
+   "name": "Wächter",
+   "fit": [
+    "reactor_m",
+    "chem_engine_m",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "armor_plating_s",
+    "weapon_magazine_s",
+    "weapon_laser_s"
+   ]
+  },
+  {
+   "key": "corsair",
+   "class": "raider",
+   "name": "Korsar",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_s_mk2",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "excavator",
+   "class": "miner_heavy",
+   "name": "Bagger",
+   "fit": [
+    "reactor_mk3",
+    "chem_engine_m",
+    "cutting_wheel_m",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_60",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  },
+  {
+   "key": "falcon",
+   "class": "fighter",
+   "name": "Falke",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_s_mk2",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "power_bank_s",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "bastion",
+   "class": "frigate",
+   "name": "Bollwerk",
+   "fit": [
+    "reactor_mk2",
+    "reactor_mk2",
+    "chem_engine_m",
+    "missile_launcher_s",
+    "missile_launcher_s",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "shield_mk1",
+    "armor_plating_s",
+    "armor_plating_s",
+    "weapon_magazine_s",
+    "point_defense_s",
+    "power_bank_s"
+   ]
+  },
+  {
+   "key": "corvette",
+   "class": "corvette",
+   "name": "Hornisse",
+   "fit": [
+    "reactor_mk2",
+    "reactor_mk2",
+    "chem_engine_m",
+    "weapon_laser_s",
+    "weapon_massdriver_s",
+    "weapon_laser_s",
+    "weapon_laser_s",
+    "shield_m",
+    "armor_plating_s",
+    "point_defense_s",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "missile_boat",
+   "class": "missile_boat",
+   "name": "Lanze",
+   "fit": [
+    "reactor_mk2",
+    "reactor_mk2",
+    "chem_engine_m",
+    "missile_launcher_s",
+    "missile_launcher_s",
+    "weapon_laser_s",
+    "shield_mk1",
+    "point_defense_s",
+    "power_bank_s"
+   ]
+  },
+  {
+   "key": "bomber",
+   "class": "bomber",
+   "name": "Donner",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_s",
+    "missile_launcher_s",
+    "missile_launcher_s",
+    "shield_mk1",
+    null,
+    "power_bank_s"
+   ]
+  },
+  {
+   "key": "gunboat",
+   "class": "gunboat",
+   "name": "Keiler",
+   "fit": [
+    "reactor_m",
+    "chem_engine_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_massdriver_s",
+    "shield_mk1",
+    "armor_plating_m",
+    "armor_plating_m",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "destroyer",
+   "class": "destroyer",
+   "name": "Sturmvogel",
+   "fit": [
+    "reactor_m",
+    "reactor_m",
+    "chem_engine_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_massdriver_s",
+    "shield_m",
+    "shield_m",
+    "armor_plating_m",
+    "point_defense_s",
+    "weapon_magazine_s"
+   ]
+  },
+  {
+   "key": "battlecruiser",
+   "class": "battlecruiser",
+   "name": "Leviathan",
+   "fit": [
+    "reactor_m",
+    "reactor_m",
+    "chem_engine_m",
+    "chem_engine_m",
+    "missile_launcher_s_mk2",
+    "missile_launcher_s_mk2",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "shield_m",
+    "shield_m",
+    "armor_plating_m",
+    "armor_plating_m",
+    "point_defense_s_mk2",
+    "weapon_magazine_s",
+    "point_defense_s_mk2",
+    "power_bank_s_mk2",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_s",
+    "reactor_m"
+   ]
+  },
+  {
+   "key": "strip_miner",
+   "class": "strip_miner",
+   "name": "Maulwurf",
+   "fit": [
+    "reactor_mk2",
+    "chem_engine_m",
+    "cutting_drum_l",
+    null,
+    "cargo_universal_100",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    null
+   ],
+   "jobs": [
+    "mine"
+   ]
+  }
+ ],
+ "ships": [
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 1,
+   "sector": 1,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 1,
+   "sector": 2,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 9
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 2,
+   "sector": 3,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 2,
+   "sector": 4,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 6
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 1,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 2,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 3
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 2,
+   "sector": 3,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 3
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 2,
+   "sector": 4,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "builder",
+   "faction": 1,
+   "sector": 1,
+   "credits": 1500,
+   "cargo": 160,
+   "count": 1,
+   "model": "foreman"
+  },
+  {
+   "role": "builder",
+   "faction": 2,
+   "sector": 4,
+   "credits": 1500,
+   "cargo": 160,
+   "count": 1,
+   "model": "foreman"
+  },
+  {
+   "role": "police",
+   "faction": 1,
+   "sector": 1,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "police",
+   "faction": 2,
+   "sector": 3,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "pirate",
+   "owner": "pirates",
+   "sector": 4,
+   "credits": 0,
+   "count": 3,
+   "model": "corsair"
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 1,
+   "sector": 5,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 3
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 1,
+   "sector": 6,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 3,
+   "sector": 7,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 3,
+   "sector": 8,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 3
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 2,
+   "sector": 10,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 6
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 5,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 6,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 3
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 3,
+   "sector": 7,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 3,
+   "sector": 8,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 3
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 2,
+   "sector": 9,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 3
+  },
+  {
+   "role": "builder",
+   "faction": 3,
+   "sector": 7,
+   "credits": 1500,
+   "cargo": 160,
+   "count": 1,
+   "model": "foreman"
+  },
+  {
+   "role": "police",
+   "faction": 3,
+   "sector": 8,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "pirate",
+   "owner": "blades",
+   "sector": 11,
+   "credits": 0,
+   "count": 2,
+   "model": "corsair"
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 1,
+   "sector": 13,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 8
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 13,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 4,
+   "sector": 15,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 8
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 4,
+   "sector": 15,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 4,
+   "sector": 16,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 8
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 4,
+   "sector": 16,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 4,
+   "sector": 17,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 8
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 4,
+   "sector": 17,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 3,
+   "sector": 18,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 8
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 3,
+   "sector": 18,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 5,
+   "sector": 20,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 8
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 5,
+   "sector": 20,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "trader",
+   "owner": "free",
+   "faction": 5,
+   "sector": 23,
+   "credits": 1500,
+   "cargo": 100,
+   "count": 8
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 5,
+   "sector": 23,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 6
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 12,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 14,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 19,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 21,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "miner",
+   "owner": "free",
+   "faction": 1,
+   "sector": 24,
+   "credits": 1000,
+   "cargo": 60,
+   "count": 2
+  },
+  {
+   "role": "builder",
+   "faction": 4,
+   "sector": 16,
+   "credits": 1500,
+   "cargo": 160,
+   "count": 1,
+   "model": "foreman"
+  },
+  {
+   "role": "police",
+   "faction": 4,
+   "sector": 16,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "builder",
+   "faction": 5,
+   "sector": 20,
+   "credits": 1500,
+   "cargo": 160,
+   "count": 1,
+   "model": "foreman"
+  },
+  {
+   "role": "police",
+   "faction": 5,
+   "sector": 20,
+   "credits": 0,
+   "count": 2,
+   "model": "warden"
+  },
+  {
+   "role": "pirate",
+   "owner": "reavers",
+   "sector": 22,
+   "credits": 0,
+   "count": 2,
+   "model": "corsair"
+  }
+ ],
+ "player": {
+  "faction": 1,
+  "sector": 1,
+  "credits": 500,
+  "startOptions": [
+   {
+    "key": "fighter",
+    "name": "Jäger",
+    "description": "Falke: Laserkanone und kinetisches Geschütz, Schild und Speicherbank, kein Frachtraum. Start an der Werft Delta, nahe am Abgrund mit dem Piratenversteck — du lebst vom Kopfgeld auf Piraten (abholen bei der Behörde).",
+    "model": "falcon",
+    "credits": 600,
+    "sector": 4
+   },
+   {
+    "key": "trader",
+    "name": "Händler",
+    "description": "Nomade: 100 m³ Fracht (70 universal + 30 fest) und eine Laserkanone zur Abwehr. Start in Beta, dem Handelsknoten; mehr Startgeld, lebt von Preisunterschieden.",
+    "model": "nomad",
+    "credits": 1500,
+    "sector": 2
+   },
+   {
+    "key": "miner",
+    "name": "Schürfer",
+    "description": "Goldsucher: Bohrkopf am Bug (mit dem Bug an den Asteroiden fliegen, das Erz geht direkt in den Laderaum) und 60 m³ Frachtraum. Start in Alpha bei den Erzgürteln; wenig Geld, sofort produktiv.",
+    "model": "prospector",
+    "credits": 400,
+    "sector": 1
+   },
+   {
+    "key": "test",
+    "name": "Testszenario (Test)",
+    "description": "NUR ZUM TESTEN: Tinker mit Kinetischem Geschütz, Munition und Bergungsgreifer neben der Werft; Antrieb beschädigt und in Brand, ein Wrack in Reichweite, ein Kaperschiff in Sichtweite. Kampf, Schaden, Reparatur und Bergung in wenigen Minuten.",
+    "model": "tinker",
+    "credits": 3000,
+    "sector": 4,
+    "scenario": {
+     "fit": [
+      "reactor_mk2",
+      "chem_engine_m",
+      "wreck_grapple_s",
+      "weapon_massdriver_s",
+      "cargo_universal_60",
+      "cargo_universal_60",
+      "weapon_magazine_s"
+     ],
+     "station": "shipyard",
+     "damage": {
+      "chem_engine_m": 0.45
+     },
+     "fire": "chem_engine_m",
+     "wreck": true,
+     "outlaw": true,
+     "cargo": {
+      "ammo": 20
+     }
+    }
+   },
+   {
+    "key": "combat",
+    "name": "Gefechtstest (Test)",
+    "description": "NUR ZUM TESTEN: Falke mit kleinem Frachtraum (Nahrung, Munition) frei im Raum vor der Werft Delta, die Nase genau auf ein angeschlagenes Kaperschiff (40 % Hülle, ohne Schild). Es kündigt den Überfall an und greift nach 15 s an; ein zweites (50 % Hülle, ebenfalls ohne Schild) stößt frühestens 60 s später dazu. „Nächster Gegner“ und „Dauerfeuer“ genügen.",
+    "model": "falcon",
+    "credits": 3000,
+    "sector": 4,
+    "scenario": {
+     "station": "shipyard",
+     "distance": 130,
+     "bonusSlots": [
+      "cargo"
+     ],
+     "fit": [
+      "reactor_mk2",
+      "chem_engine_s_mk2",
+      "weapon_laser_s",
+      "weapon_massdriver_s",
+      "shield_mk1",
+      "power_bank_s",
+      "weapon_magazine_s",
+      "cargo_solid_s"
+     ],
+     "raiders": 2,
+     "raiderHull": 0.4,
+     "leadWithoutShield": true,
+     "raidAfterTicks": 60,
+     "reinforceAfterTicks": 240,
+     "reinforceHull": 0.5,
+     "reinforceWithoutShield": true,
+     "leadCargo": {
+      "luxury_goods": 6
+     },
+     "trader": true,
+     "policeSquadron": true,
+     "cargo": {
+      "ammo": 10,
+      "food": 10
+     }
+    }
+   },
+   {
+    "key": "war",
+    "name": "Kriegstest (Test)",
+    "description": "NUR ZUM TESTEN: Fregatte „Bollwerk“ (zwei Raketenwerfer, Laser, Massetreiber, Punktabwehr) mit eigenem Verband aus zwei weiteren Bollwerken (Regel „Angriff“), 80 m vor dem Sektor-HQ Beta. Allein ist eine Station aussichtslos — Zielkarte und Taste „Station angreifen“ zeigen das Kräfteverhältnis. Angreifen, dann bis auf etwa 35 m an die Außenhaut heranfliegen (≈ 55 m bis zur Mitte des großen HQ) — erst dort reichen Laser und Massetreiber, vorher nur die Raketen (12 Stück); die Zielkarte zeigt den Abstand zur Außenhaut und ob deine Geschütze reichen. Die HQ-Geschütze reichen 67 m ab Mitte, der Verband greift mit an und bindet die Polizei: nach zwei bis vier Minuten ist das HQ (vier Geschütze) ausgeschaltet. Rückzug: Dauerfeuer aus und aus der Reichweite aller Gegner fliegen (die Zeile „Flucht: …“ sagt, wer noch reicht; 10 s nach dem letzten eigenen Schuss) — der Angriff endet, dein Verband bricht ab und folgt dir. Raketen nachladen: Werft Vesta oder Polizeiwache Vesta, ein Sprung nördlich. Tore (schweres Verbrechen): Nebentor ≈ 2–3 min, Haupttor ≈ 6–7 min, wenn alle drei Bollwerke innerhalb 45 m bleiben (bei 55 m schweigt der Massetreiber: ≈ 7,5 min, weiter weg wirken nur die ersten Raketen). Die 12 Raketen sind nach ≈ 40 s verschossen, die Munition nach ≈ 4,5 min — danach feuert nur noch der Laser; die Zielkarte sagt es. Der Verband kostet Unterhalt (2 Schiffe, −4,8 Cr/min, in der Credits-Zeile).",
+    "model": "bastion",
+    "credits": 20000,
+    "sector": 2,
+    "scenario": {
+     "policeHoldTicks": 2400,
+     "wingmen": [
+      "bastion",
+      "bastion"
+     ],
+     "station": "sector_hq",
+     "distance": 80
+    }
+   },
+   {
+    "key": "anchor",
+    "name": "Ankertest (Test)",
+    "description": "NUR ZUM TESTEN: Goldsucher mit dem Bohrkopf am Bug an einem großen, erzreichen Fels in Alpha, Laderaum 500 (drei Zusatz-Frachtslots), keine Überfälle. Ohne Automatik verankert er sofort und baut minutenlang ab. Prüfen: „Auto-Mining“ an und wieder aus (der Anker bleibt), ◀ oder ▶ = „Riss: Wenden“, Regler über 30 % = „Riss: Schub“, Werkzeugtaste „Lösen“ = „Anker gelöst“; danach heißt die Taste „Ankern“ und setzt die Harpunen neu (oder einmal vom Fels weg und mit dem Bug wieder heran, Regler unter 30 %).",
+    "model": "prospector",
+    "credits": 1000,
+    "sector": 1,
+    "scenario": {
+     "bonusSlots": [
+      "cargo",
+      "cargo",
+      "cargo"
+     ],
+     "fit": [
+      "reactor_mk1",
+      "chem_engine_s",
+      "drill_head_s",
+      "cargo_universal_100",
+      "cargo_universal_100",
+      null,
+      null,
+      "cargo_universal_100",
+      "cargo_universal_100",
+      "cargo_universal_100"
+     ],
+     "atRock": "metal_rock",
+     "rockOre": 2000,
+     "calm": true
+    }
+   },
+   {
+    "key": "mining",
+    "name": "Bergbautest (Test)",
+    "description": "NUR ZUM TESTEN: Goldsucher mit Bohrkopf am Bug an einem kleinen Fels mit nur 25 Einheiten Erz in Alpha, daneben ein zweiter kleiner Fels; Laderaum 200, keine Überfälle. Zwei KI-Bohrschiffe (Spitzhacke S und Maulwurf L mit großer Schneidtrommel) starten 40–60 m entfernt und fliegen selbst einen nahen Fels an. Prüfen: der eigene Fels ist nach gut 10 s leer und zerbricht sichtbar (Trümmer), „Auto-Mining“ geht danach zum zweiten Fels; die KI-Schiffe gleiten an ihren Fels ohne zu springen, ankern (kurze Seile vom Bug) und bohren; der Bohrkopf dreht sich — Menü → Kamera „Näher“.",
+    "model": "prospector",
+    "credits": 1000,
+    "sector": 1,
+    "scenario": {
+     "fit": [
+      "reactor_mk1",
+      "chem_engine_s",
+      "drill_head_s",
+      "cargo_universal_100",
+      "cargo_universal_100",
+      null,
+      null
+     ],
+     "atRock": "metal_rock",
+     "rockRadius": 3,
+     "rockOre": 25,
+     "secondRock": true,
+     "npcMiners": [
+      "pickaxe",
+      "strip_miner"
+     ],
+     "calm": true
+    }
+   },
+   {
+    "key": "arrest",
+    "name": "Festnahmetest (Test)",
+    "description": "NUR ZUM TESTEN: Falke frei im Raum vor der Werft Delta, bei den Freien Händlern gesucht (Stufe 3); eine Streife als Verband in der Nähe — die Festnahme-Warnung kommt nach wenigen Sekunden. Ergeben, Kämpfen oder Fliehen.",
+    "model": "falcon",
+    "credits": 3000,
+    "sector": 4,
+    "scenario": {
+     "station": "shipyard",
+     "distance": 130,
+     "policeSquadron": true,
+     "wanted": 3,
+     "cargo": {
+      "ammo": 20
+     }
+    }
+   },
+   {
+    "key": "jumpcloak",
+    "name": "Sprung- und Tarntest (Test)",
+    "description": "NUR ZUM TESTEN: Nomade mit Sprungantrieb und Tarnfeld Mk2 (Zusatzslot), frei im Raum vor dem Sektor-HQ Beta; ein Kaperschiff lauert in Sichtweite, eine Polizeistreife steht daneben. Prüfen: „Tarnung“ an (Schiff wird durchsichtig, die Taste zeigt die Leistung; Kaperer und Polizei sehen dich nicht) und wieder aus. „Sprung“ öffnet die Sternenkarte: ein Ziel zwei Sprünge weit antippen (cyan umrandet, z. B. Borealis oder Aurelia), Schiff steht still und lädt (Kugel wächst), Ankunft am Rand des Zielsektors; danach kühlt die Taste ab (≈ 5 min). Tarnung bricht beim Andocken, Schießen und bei Treffern.",
+    "model": "nomad",
+    "credits": 5000,
+    "sector": 2,
+    "scenario": {
+     "station": "sector_hq",
+     "distance": 80,
+     "bonusSlots": [
+      "utility"
+     ],
+     "fit": [
+      "reactor_mk2",
+      "chem_engine_s",
+      null,
+      "cargo_universal_70",
+      "cargo_solid_s",
+      "jump_drive_s",
+      "weapon_laser_s",
+      "cloak_s_mk2"
+     ],
+     "outlaw": true,
+     "policeSquadron": true,
+     "cargo": {
+      "food": 20
+     }
+    }
+   }
+  ]
+ },
+ "research": [
+  {
+   "key": "fusion_mk3",
+   "name": "Fusionstechnik Mk3",
+   "description": "Dichtere Plasmaeinschlüsse: Reaktor Mk3 mit 18 Leistung. Verbraucht zusätzlich Platin.",
+   "points": 3000,
+   "unlocks": [
+    "module:reactor_mk3"
+   ],
+   "inputs": {
+    "platinum": 0.05
+   }
+  },
+  {
+   "key": "precision_lasers",
+   "name": "Präzisionslaser",
+   "description": "Gepulste Bohrlaser: Mining-Laser Mk3 löst öfter und größere Brocken. Verbraucht zusätzlich Wafer.",
+   "points": 3000,
+   "unlocks": [
+    "module:mining_laser_3"
+   ],
+   "inputs": {
+    "wafers": 0.2
+   }
+  },
+  {
+   "key": "deep_mining",
+   "name": "Tiefbau-Schürfer",
+   "description": "Schwerer Bergbaurumpf mit Reaktor Mk3 und Laser Mk3: das Schürfschiff Excavator. Verbraucht zusätzlich Titan.",
+   "points": 5000,
+   "requires": [
+    "fusion_mk3",
+    "precision_lasers"
+   ],
+   "unlocks": [
+    "model:excavator"
+   ],
+   "inputs": {
+    "titanium": 0.2
+   }
+  }
+ ]
+}
