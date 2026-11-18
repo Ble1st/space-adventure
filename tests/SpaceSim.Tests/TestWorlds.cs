@@ -4,8 +4,9 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Tests;
 
 /// <summary>
-/// Phase 14: Die Standardwelt schaltet Treibstoff und Forschung ab (<c>rules.fuelActive</c>/<c>researchActive</c> false). Tests der beiden Systeme bauen
-/// ihre Welt hier mit eingeschaltetem Schalter — vor dem Weltaufbau, damit Treibstoffraffinerien und Forschungsstationen in der Welt stehen.
+/// Phase 14 schaltete Treibstoff und Forschung in der Standardwelt ab; seit „Treibstoff und Forschung dauerhaft an“ sind beide in der Standardwelt wieder an
+/// (<c>rules.fuelActive</c>/<c>researchActive</c> true). Tests, die einen Schalter aus brauchen, bauen ihre Welt hier — vor dem Weltaufbau, denn mit dem
+/// Schalter aus fehlen Treibstoffraffinerien und Forschungsstationen in der Welt.
 /// </summary>
 public static class TestWorlds
 {
@@ -31,10 +32,24 @@ public static class TestWorlds
     // Runde 44 hatte hier „FuelBaseScale“ (Standardwelt im Grundmaßstab für die Treibstoff-Langläufe). Seit der Neukalibrierung des Treibstoffs für den
     // Großmaßstab (fuelUse halbiert, fünf Raffinerien, siehe docs/SCHIFFSSLOTS.md) laufen diese Tests wieder in der Standardwelt; der Helfer ist entfallen.
 
-    /// <summary>Standardwelt mit eingeschaltetem Treibstoff (Forschung wie in der Standardwelt aus).</summary>
+    /// <summary>
+    /// Referenz-Hash-Tests: die Standardwelt wie vor „Treibstoff und Forschung dauerhaft an“ (beide Schalter aus — die Weltdatei war sonst gleich).
+    /// Teil der Rücknahmekette (<c>SprungTarnTests.RevertSprungTarn</c> → <c>Runde44ScaleTests.RevertRunde44</c> → <c>Phase29Tests.RevertRunde24</c> …).
+    /// </summary>
+    public static void RevertFuelResearchOn(WorldDef def)
+    {
+        def.Rules ??= new EconomyRules();
+        def.Rules.FuelActive = false;
+        def.Rules.ResearchActive = false;
+    }
+
+    /// <summary>Standardwelt mit den beiden Schaltern aus (Stand vor „Treibstoff und Forschung dauerhaft an“).</summary>
+    public static Universe DefaultOff(ulong? seed = null, string? startOption = null) => Default(seed, fuel: false, research: false, startOption: startOption);
+
+    /// <summary>Standardwelt mit eingeschaltetem Treibstoff, Forschung aus.</summary>
     public static Universe WithFuel(ulong? seed = null) => Default(seed, fuel: true, research: false);
 
-    /// <summary>Standardwelt mit eingeschalteter Forschung (Treibstoff wie in der Standardwelt aus).</summary>
+    /// <summary>Standardwelt mit eingeschalteter Forschung, Treibstoff aus.</summary>
     public static Universe WithResearch(ulong? seed = null) => Default(seed, fuel: false, research: true);
 
     /// <summary>

@@ -140,7 +140,14 @@ public class Runde24Tests
             Assert.Contains(u.ShipModels.Values, m => m.Jobs.Contains("mine") && Ok(y, m));
             Assert.Contains(u.ShipModels.Values, m => Combat(m) && Ok(y, m));
         }
+        // Seit „Treibstoff und Forschung dauerhaft an“: ein noch nicht erforschtes Modell (Bagger: „Tiefbau-Schürfer“) ist am Start absichtlich gesperrt —
+        // es muss dann an jeder Werft als gesperrt angezeigt werden statt lieferbar zu sein; alle übrigen Modelle wie bisher an mindestens einer Werft
         foreach (var m in u.ShipModels.Values.Where(m => m.Key != "battlecruiser" && m.Key != "unit_player"))
+        {
+            bool locked = yards.All(y => ShipDealerService.Quote(u, y, me, m.Key)?.Locked is not null);
+            if (locked) { Assert.True(u.Rules.ResearchActive, $"{m.Name} gesperrt, obwohl die Forschung aus ist"); continue; }
             Assert.True(yards.Any(y => Ok(y, m)), $"{m.Name} an keiner Werft lieferbar");
+        }
+        Assert.True(yards.All(y => ShipDealerService.Quote(u, y, me, "excavator")?.Locked is not null), "Bagger am Start durch die Forschung gesperrt");
     }
 }

@@ -348,7 +348,7 @@ public class EconomyFixTests
     [Fact]
     public void ServiceAtBase_TanktNichtOhneTreibstoff()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.DefaultOff();   // getestet wird der Schalter aus — seit „Treibstoff und Forschung dauerhaft an“ nicht mehr die Standardwelt
         Assert.False(u.Rules.FuelActive);
         var police = u.Ships.Values.First(s => s.Role == ShipRole.Police);
         police.Fuel.Clear();
@@ -388,8 +388,8 @@ public class EconomyFixTests
     public void Standardwelt_20000Ticks_KapazitaetHaelt_KeineGeister_EndwarenFliessen_ExportkassenNichtLeer()
     {
         var u = DemoUniverse.Create();
-        Assert.False(u.Rules.FuelActive);
-        Assert.False(u.Rules.ResearchActive);
+        Assert.True(u.Rules.FuelActive);       // Standardwelt seit „Treibstoff und Forschung dauerhaft an“: beide Schalter an
+        Assert.True(u.Rules.ResearchActive);
         var watch = new MarketWatch(u);
         var exported = new Dictionary<GoodId, float>();
         float smelterSubsidy = 0f;   // Phase 16: Kupferhütte Alpha

@@ -208,8 +208,12 @@ public class Runde42dTests
         // Runde 44: in den vergrößerten Sektoren entstehen mehr Liefer- und Eskorte-Angebote (längere Fahrten, größere Lager); die Zahl der Kopfgeld-
         // angebote bleibt (≈ 56 je 20 000 Ticks, vorher 59 — begrenzt durch die gesuchten Kaperschiffe, keine doppelten Angebote), ihr Anteil sank auf ≈ 4,3 %.
         // Geprüft wird jetzt: Kopfgeld ≥ 4 %, Kopfgeld + Patrouille ≥ 10 %, jedes einzeln mindestens 50 Angebote
-        Assert.True(shareB >= 4.0 && shareB + shareP >= 10.0 && byType.GetValueOrDefault(BountyMission.KeyId) >= 50,
-            $"Kopfgeld-Anteil {shareB:0.0}% ≥ 4%, mit Patrouille {shareB + shareP:0.0}% ≥ 10% (byType=[{string.Join(", ", byType.Select(kv => $"{kv.Key} {kv.Value}"))}], total {total})");
+        // „Treibstoff und Forschung dauerhaft an“: das Forschungsbudget (≈ 11 % der Kasseneinnahmen, bis alle Projekte erforscht sind, ≈ 25 000 Ticks) zieht
+        // am verfügbaren Geld der Fraktionen, das auch die Kopfgeld-Belohnung decken muss (FactionViability.Spendable). Gemessen (Standard-Seed, 20 000 Ticks,
+        // Kopfgeld/Patrouille/gesamt): beide aus 59/73/1217, nur Treibstoff 60/77/1390, nur Forschung 46/64/1234, beide an 43/66/1295 — die Zahl sinkt
+        // durch die Forschung, nicht durch einen Fehler. Geprüft: Kopfgeld ≥ 3 % und ≥ 40 Angebote, Kopfgeld + Patrouille ≥ 8 % (vorher 4 %/50/10 %)
+        Assert.True(shareB >= 3.0 && shareB + shareP >= 8.0 && byType.GetValueOrDefault(BountyMission.KeyId) >= 40,
+            $"Kopfgeld-Anteil {shareB:0.0}% ≥ 3%, mit Patrouille {shareB + shareP:0.0}% ≥ 8% (byType=[{string.Join(", ", byType.Select(kv => $"{kv.Key} {kv.Value}"))}], total {total})");
         Assert.True(shareP >= 5.0, $"Patrouille-Anteil {shareP:0.0}% ≥ 5%");
         // an einer Polizei/HQ/Sektor-HQ sieht der Spieler meist mindestens ein Kopfgeld- oder Patrouillenangebot (je Bucket)
         int offerStations = u.StationsById().Count(s => (s.Dockable || s.IsBuildSite) && BountyMission.IsOfferStation(u, s));

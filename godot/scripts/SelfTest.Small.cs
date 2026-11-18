@@ -185,6 +185,14 @@ public partial class SelfTest
 				_smMusic = SpaceAdventure.Audio.AudioSettings.MusicMuted;
 				return false;
 			}
+			case 1101:
+			{
+				// Mit Treibstoff (Standardwelt seit „Treibstoff und Forschung dauerhaft an“) steht „Notruf“ im Menü: die Liste ist eine Zeile länger und
+				// „Musik“ kann unter dem sichtbaren Teil liegen — erst in den sichtbaren Bereich rollen, dann echt tippen
+				var mb = Buttons(_m.HudRef.Command).First(b => b.Text.StartsWith("Musik"));
+				_m.HudRef.Command.TestScroll.EnsureControlVisible(mb);
+				return false;
+			}
 			case 1102:
 			{
 				var mb = Buttons(_m.HudRef.Command).First(b => b.Text.StartsWith("Musik"));

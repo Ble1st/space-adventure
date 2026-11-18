@@ -1,3 +1,4 @@
+using SpaceSim.Core.Content;
 using SpaceSim.Core.Demo;
 using SpaceSim.Core.Diagnostics;
 using SpaceSim.Core.Events;
@@ -172,8 +173,10 @@ public class SchwarzmarktNpcTests
     [Fact]
     public void SchalterAus_StandardweltHashWieVorher_20000Ticks()
     {
-        var u = DemoUniverse.Create();
-        u.Rules.BlackMarketNpc = false;
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        TestWorlds.RevertFuelResearchOn(def);   // die Referenz stammt von vor „Treibstoff und Forschung dauerhaft an“ (beide Schalter aus, vor dem Weltaufbau)
+        def.Rules!.BlackMarketNpc = false;
+        var u = WorldBuilder.Build(def);
         new SimulationRunner().Run(u, 20000);
         Assert.Equal(0xF5F1965838C14B59UL, UniverseHash.Compute(u));
     }

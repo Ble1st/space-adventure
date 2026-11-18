@@ -201,13 +201,15 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			oy += 34;
 		}
 
+		// unter Persönlichkeit und Beziehungen (die Beziehungsliste kann bis y ≈ 390 reichen — mit eingeschalteter Forschung lag die Zeile darüber, ui-check)
+		float sy = MathF.Max(334f, MathF.Max(py, oy) + 6f);
 		// Phase 13: Fraktionen zeigen ihren Forschungsstand (echt, ResearchInfo); andere Akteure weiter die Ereignisse (Platzhalter)
 		if (u.Rules.ResearchActive && isFaction && ResearchInfo.ForFaction(u, new FactionId(sel.Value)) is { Total: > 0 } rv)   // Phase 14: nur mit Forschung
 		{
 			TestResearchShown = true;
-			At(det, Text("Forschung", 16, Cyan), 18, 334, 120, 22);
-			At(det, Text(rv.Summary, 13, White), 120, 336, 460, 20);
-			float fy = 360;
+			At(det, Text("Forschung", 16, Cyan), 18, sy, 120, 22);
+			At(det, Text(rv.Summary, 13, White), 120, sy + 2, 460, 20);
+			float fy = sy + 26;
 			foreach (var pv in rv.Projects)
 			{
 				var col = pv.Status == ResearchStatus.Done ? Green : pv.Status == ResearchStatus.Running ? Cyan : new Color(Dim, 0.85f);
@@ -221,9 +223,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		else
 		{
 			TestResearchShown = false;
-			At(det, Text("Letzte Ereignisse", 16, Cyan), 18, 334, 280, 22);
+			At(det, Text("Letzte Ereignisse", 16, Cyan), 18, sy, 280, 22);
 			// Runde 40: echt — die letzten Posteingang-Nachrichten dieser Fraktion (Core: CommsSystem)
-			float ey = 360;
+			float ey = sy + 26;
 			var evs = u.Inbox.Where(m => m.From.Value == sel.Value).OrderByDescending(m => m.Id).Take(5).ToList();
 			if (evs.Count == 0) At(det, Text("Keine Ereignisse.", 13, new Color(Dim, 0.85f)), 18, ey, 560, 18);
 			foreach (var ev in evs)

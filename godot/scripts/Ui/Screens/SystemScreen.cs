@@ -127,12 +127,16 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 			WrappedText(card, o.Description, 14, ty + 4, cw - 210, 13, Dim, 18);
 			var b = At(card, new KitButton("Starten", new Vector2(160, 56)) { FontSize = 17, State = KitButtonState.Ready }, cw - 172, 22);
 			string key = o.Key;
+			_startButtons[key] = b;
 			b.Pressed += () => { _choosing = false; RaiseSystemAction("new:" + key); };
 		}
 		_chooserScroll = scroll;
 	}
 
 	KitScroll? _chooserScroll;
+	readonly Dictionary<string, KitButton> _startButtons = new();
+	/// <summary>Für den Selbsttest: „Starten“-Taste des Startpakets (null = nicht in der offenen Auswahl).</summary>
+	public KitButton? TestStartButton(string key) => _choosing && _startButtons.TryGetValue(key, out var b) && IsInstanceValid(b) && b.IsInsideTree() ? b : null;
 	KitButton? _testMusicMinus, _testMusicMute, _testEffectsMute;
 	/// <summary>Selbsttest: Tontasten (Musik leiser, Musik stumm, Effekte stumm).</summary>
 	public (KitButton? MusicMinus, KitButton? MusicMute, KitButton? EffectsMute) TestAudioButtons => (_testMusicMinus, _testMusicMute, _testEffectsMute);

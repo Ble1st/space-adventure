@@ -1032,31 +1032,35 @@ public partial class SelfTest : Node
 				catch (System.Exception ex) { Fail("Forschung an Werft/Ausrüster warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
-			case 46: // Phase 14: neues Spiel aus der Standardwelt — Treibstoff und Forschung sind dort aus (bis hier lief der Selbsttest mit beiden an)
+			case 46: // Phase 14: neues Spiel aus der Standardwelt — seit „Treibstoff und Forschung dauerhaft an“ sind beide dort an (wie im Selbsttest bis hier)
 			{
 				if (_frame - _stageStart < 30) break;
 				_m.TestMenu("new");
 				Next(); break;
 			}
-			case 47: // Phase 14: Standardwelt — keine Tankanzeige, kein Notruf, keine Forschung; Planeten und Exportsenke
+			case 47: // Standardwelt (Treibstoff und Forschung dauerhaft an): Tankanzeige, Notruf, Forschungsstationen, voller Tank; Planeten und Exportsenke
 			{
 				if (_frame - _stageStart < 20) break;
 				try
 				{
 					var uni = _m.Session.U;
 					uni.Rules.PlayerRaids = false;
-					Check(!uni.Rules.FuelActive && !uni.Rules.ResearchActive, "Standardwelt: Treibstoff und Forschung abgeschaltet");
-					Check(!uni.Stations.Values.Any(s => s.TypeKey is "fuel_refinery" or "research_station"), "Standardwelt ohne Treibstoffraffinerien und Forschungsstationen");
-					Check(!_m.HudRef.Flight.TestFuelVisible, "Flug-HUD zeigt ohne Treibstoff keine Tankanzeige");
+					Check(uni.Rules.FuelActive && uni.Rules.ResearchActive, "Standardwelt: Treibstoff und Forschung eingeschaltet");
+					Check(uni.Stations.Values.Count(s => s.TypeKey == "fuel_refinery") == 5 && uni.Stations.Values.Any(s => s.TypeKey == "research_station"),
+						"Standardwelt mit fünf Treibstoffraffinerien und Forschungsstationen");
+					var me0 = _m.Session.Player;
+					Check(me0.Stats.FuelCapacity > 0f && me0.TotalFuel >= me0.Stats.FuelCapacity - 0.5f, $"Startschiff mit vollem Tank ({me0.TotalFuel:0}/{me0.Stats.FuelCapacity:0})");
+					Check(SpaceSim.Core.Simulation.Refuel.NearestFuelStation(uni, me0, uni.FindGood("propellant")!.Id, me0.TotalFuel) is not null, "Startschiff erreicht mit seinem Tank eine Tankstelle");
+					Check(_m.HudRef.Flight.TestFuelVisible, "Flug-HUD zeigt mit Treibstoff die Tankanzeige");
 					_m.TestOpenCommand();
-					Check(!_m.HudRef.Command.TestEmergencyVisible, "Menü ohne „Notruf“, wenn der Treibstoff aus ist");
+					Check(_m.HudRef.Command.TestEmergencyVisible, "Menü mit „Notruf“, wenn der Treibstoff an ist");
 					_m.TestCloseCommand();
 					// Handelsstation Gamma (Planet Thalassa): Exportsenke, keine Forschung, „Reparatur“ ohne „& Tanken“
 					var post = uni.Stations[new StationId(39)];
 					_m.TestDockAt(post.Id);
 					var areas = _m.TestDockAreas();
-					Check(!areas.Any(a => a.Id == Ui.Screens.DockAreas.Research), "Kein Dock-Bereich „Forschung“ ohne Forschung");
-					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Repair && a.Label == "Reparatur"), "Dock-Bereich heißt ohne Treibstoff nur „Reparatur“");
+					Check(!areas.Any(a => a.Id == Ui.Screens.DockAreas.Research), "Kein Dock-Bereich „Forschung“ an einer Handelsstation (nur an Forschungsstationen)");
+					Check(areas.Any(a => a.Id == Ui.Screens.DockAreas.Repair && a.Label == "Reparatur & Tanken"), "Dock-Bereich heißt mit Treibstoff „Reparatur & Tanken“");
 					var lux = uni.FindGood("luxury_goods")!.Id;
 					var pl = _m.Session.Player;
 					pl.Cargo[lux] = 2f;
@@ -1072,13 +1076,24 @@ public partial class SelfTest : Node
 					Check(_m.View.PlanetNode is not null || (World.SkyboxView.Manifest.TryGetValue(uni.Sectors[uni.PlayerSector].Skybox, out var skyE) && skyE.Planet && _m.View.PlanetNode is null),
 						"Sektoransicht zeigt den Planeten als Kulisse (Himmel mit Planet, keine Extrakugel)");
 					_m.TestUndock();
-					// Werft: Reparatur ohne Tank-Abschnitt
+					// Werft: Reparatur mit Tank-Abschnitt (die Werft verkauft keinen Treibstoff — der Abschnitt sagt es)
 					var yardSt = uni.Stations.Values.First(s => s.TypeKey == "shipyard");
 					_m.TestDockAt(yardSt.Id);
 					pl.Hull = pl.MaxHull - 20f;
 					_m.TestOpenDockArea(Ui.Screens.DockAreas.Repair);
-					Check(_m.TestScreenOpen("dock.repair") && !_m.HudRef.DockRepair.TestFuelSection && _m.HudRef.DockRepair.TestRowCount >= 1,
-						"Reparatur-Bereich ohne Tanken, Reparatur-Zeilen da");
+					Check(_m.TestScreenOpen("dock.repair") && _m.HudRef.DockRepair.TestFuelSection && _m.HudRef.DockRepair.TestRowCount >= 1,
+						"Reparatur-Bereich mit Tank-Abschnitt, Reparatur-Zeilen da");
+					_m.TestUndock();
+					// Treibstoffraffinerie: der Dock-Bereich bietet Tanken an
+					var refinery = uni.Stations.Values.Where(s => s.TypeKey == "fuel_refinery").OrderBy(s => s.Id.Value).First();
+					pl.Fuel.Clear();
+					pl.Fuel[uni.FindGood("propellant")!.Id] = pl.Stats.FuelCapacity * 0.5f;   // halb leer: Volltanken muss angeboten werden
+					_m.TestDockAt(refinery.Id);
+					_m.Session.RunTicks(1);
+					_m.TestOpenDockArea(Ui.Screens.DockAreas.Repair);
+					Check(_m.TestScreenOpen("dock.repair") && _m.HudRef.DockRepair.TestFuelSection, "Raffinerie: Bereich „Reparatur & Tanken“ mit Tank-Abschnitt");
+					var fill = new SpaceSim.Core.Services.RefuelService().Offers(uni, refinery, pl).FirstOrDefault(o => o.Key == "refuel:fill");
+					Check(fill.Key is not null && fill.Amount > 0f, $"Raffinerie bietet Volltanken an ({fill.Amount:0.#} E.)");
 					_m.TestUndock();
 					// Kommandozentrale: Planet im Sektor- und Universums-Detail, Fraktion ohne Forschungsblock
 					_m.TestOpenCommand();
@@ -1090,10 +1105,10 @@ public partial class SelfTest : Node
 					Check(_m.HudRef.CcSector.TestPlanet == "Korvan", "Sektor-Detail nennt den Planeten");
 					_m.TestOpenCcArea("factions");
 					_m.HudRef.CcFactions.TestSelect(new FactionId(1));
-					Check(!_m.HudRef.CcFactions.TestResearchShown, "Fraktionsdetail ohne Forschungsblock, wenn die Forschung aus ist");
+					Check(_m.HudRef.CcFactions.TestResearchShown, "Fraktionsdetail mit Forschungsblock, wenn die Forschung an ist");
 					_m.TestCloseCommand();
 				}
-				catch (System.Exception ex) { Fail("Standardwelt (Phase 14) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
+				catch (System.Exception ex) { Fail("Standardwelt (Treibstoff/Forschung an) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
 			}
 			case 48: // Phase 20: Versorgungspanik — Alpha abgeschnitten (Phase 21: alle drei Tore Alphas, die Karte hat Ringe), Alpha fehlt Wasserstoff fürs
@@ -1385,6 +1400,16 @@ public partial class SelfTest : Node
 					Check(SpaceSim.Core.Combat.PlayerGunnery.ReloadLeft(uni, pl, pl.Fit.IndexOf("weapon_laser_s")) > 0f, "Laserschacht lädt nach");
 					raider.Hull = 1f; raider.Systems.ShieldMissing = raider.Stats.Shield;
 					_m.TestFight.AutoFire = true;
+					var rid = raider.Id;
+					uni.Events.Raised += ev =>
+					{
+						if (ev is SpaceSim.Core.Events.CombatExited ce && ce.Ship == rid) _p25RaiderFight = ce.Encounter;
+						if (ev is not SpaceSim.Core.Events.ShipDeparted d || d.Ship != rid) return;
+						var fe = uni.Fights.Encounters.FirstOrDefault(x => x.Id == _p25RaiderFight);
+						var so = uni.Sectors[d.Sector].Owner;
+						_p25RaiderEnd = $"{d.Reason}/{d.Detail} Tick {uni.Tick}, Sektor {d.Sector.Value} Besitzer {so.Value}, Kopfgeld {SpaceSim.Core.Simulation.Wanted.BountyOn(uni, d.Owner, so)}, Gefecht "
+							+ (fe is null ? "-" : $"{fe.Cause}: " + string.Join(" ", fe.Participants.Select(q => $"{q.Ship.Value}/S{q.Side}/{(uni.Ships.TryGetValue(q.Ship, out var qs) && qs.IsPlayer ? "P" : "N")}/{q.Exit}")));
+					};
 				}
 				catch (System.Exception ex) { Fail("Spielerschuss (Phase 25) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 				Next(); break;
@@ -1402,6 +1427,10 @@ public partial class SelfTest : Node
 						raider.Position = pl.Position + new Vec2(0f, -20f);
 						if (uni.Fights.Of(raider.Id)?.Of(raider.Id) is { } rp) { rp.Pos = rp.PrevPos = raider.Position; }
 					}
+					// seit „Treibstoff und Forschung dauerhaft an“ läuft die Welt hier auf einem anderen Pfad: gerät der Kaperer in ein fremdes Gefecht (Überfall auf
+					// einen Händler, Polizei), stirbt er dort ohne Kopfgeld für den Spieler — geprüft wird aber der Abschuss über die eigenen Schachttasten
+					if (uni.Fights.Of(raider.Id) is { } other && other.Of(pl.Id) is null && other.Of(raider.Id) is { } op)
+						SpaceSim.Core.Combat.Engage.Leave(uni, other, op, SpaceSim.Core.Model.CombatExit.Fled);
 					if (!uni.Fights.IsEngaged(raider.Id)) _m.TestSetShipTarget(raider.Id);
 					_m.TestFace(raider.Position);
 					raider.Hull = System.MathF.Min(raider.Hull, 1f); raider.Systems.ShieldMissing = raider.Stats.Shield;
@@ -1410,8 +1439,12 @@ public partial class SelfTest : Node
 					Next(); break;
 				}
 				if (_frame - _stageStart < 3 + 0) { break; }
+				// Das Kopfgeld wird beim Ende des Gefechts gebucht. Mit einem Rudel (seit „Treibstoff und Forschung dauerhaft an“ läuft die Welt auf einem anderen
+				// Pfad: der Kaperer ist hier mit einem zweiten unterwegs) steht noch ein Gegner im Gefecht — er bricht ab, dann endet das Gefecht
+				if (uni.Fights.Of(pl.Id) is { } mine)
+					foreach (var q in mine.Participants.Where(q => q.Active && q.Side != 0).ToList()) SpaceSim.Core.Combat.Engage.Leave(uni, mine, q, SpaceSim.Core.Model.CombatExit.Fled);
 				_m.Session.RunTicks(2);
-				Check(uni.Actors[uni.PlayerActor].BountyClaims.Values.Sum() > 0f, "Abschuss des Kaperers bringt Kopfgeld");
+				Check(uni.Actors[uni.PlayerActor].BountyClaims.Values.Sum() > 0f, $"Abschuss des Kaperers bringt Kopfgeld ({_p25RaiderEnd})");
 				Check(SpaceSim.Core.Simulation.Wanted.MaxLevel(uni, uni.PlayerActor) == 0, "Abschuss eines Gesetzlosen ist kein Verbrechen");
 				_m.TestFight.AutoFire = false;
 				Next(); break;
@@ -2738,6 +2771,7 @@ public partial class SelfTest : Node
 			case 131: if (InputStage(_frame - _stageStart)) Next(); break;   // Geräte-Eingabe (Handytest A15): ein Tipp = ein Umschalten, Autopilot hält trotz fremder Berührungen, Regler nur per eigenem Finger, Karte/Menü im ganzen Rechteck (SelfTest.Input.cs)
 			case 132: if (SpielersperreStage(_frame - _stageStart)) Next(); break;   // Spielersperre: Verbrechen senken das Ansehen — Hinweis und Fraktionen-Detail (SelfTest.Spielersperre.cs)
 			case 140: if (CapitulationStage(_frame - _stageStart)) Next(); break;   // Kapitulation: Kriegstest, „Station angreifen“ per zwei Tipps, Station kapituliert (Chance erzwungen), Andocken an der eigenen Station (SelfTest.Capitulation.cs)
+			case 141: if (JumpCloakPackageStage(_frame - _stageStart)) Next(); break;   // Startpaket „Sprung- und Tarntest“: Start über die Startauswahl (echter Tipp), Tarnung an (Kaperer/Polizei sehen dich nicht), Sprung zwei Hops mit Tarnung, Treibstoff verbraucht (SelfTest.JumpCloakPackage.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
@@ -2753,7 +2787,9 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 140;
+	const int LastStage = 141;
+	string _p25RaiderEnd = "";
+	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;
 	float _p6Hp; long _p6Tick; List<SpaceSim.Core.Events.SimEvent>? _p6Events;
 	/// <summary>Phase 28: Stufen 73–76.</summary>

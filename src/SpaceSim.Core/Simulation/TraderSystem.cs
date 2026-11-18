@@ -269,7 +269,9 @@ public sealed class TraderSystem : ISimSystem
                 var next = TradeActions.BestBuyer(u, ship, ship.Sector, ship.Position);
                 if (next is not null)
                 {
-                    ship.Order = new TradeOrder(st.Id, next.Id, good);
+                    // Restverkauf (Phase 19: Einkaufsstation Id 0) — die Tankstelle ist nicht die Einkaufsstation; vorher stand sie hier und der Verkauf
+                    // meldete die Raffinerie als Herkunft (TradeCompleted.From), als hätte der Händler dort Titan oder Elektronik gekauft
+                    ship.Order = new TradeOrder(default, next.Id, good);
                     var plan = Refuel.PrepareTrip(u, ship, next.Sector, next.DockPoint(ship.Id));
                     if (plan == Refuel.TripPlan.FuelStop) return;
                     if (plan == Refuel.TripPlan.Depart)

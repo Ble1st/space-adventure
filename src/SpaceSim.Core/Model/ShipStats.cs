@@ -25,6 +25,9 @@ public sealed class ShipStats
     public float CargoLiquid;
     /// <summary>Universal-Laderaum: Summe der Kapazitäten der Frachtmodule mit holds any; wird zwischen den Formen geteilt.</summary>
     public float CargoAny;
+    /// <summary>Frachtraum ausgefallener Frachtmodule (zählt nicht in <see cref="Cargo"/>). Für die Flottenkapazität (<c>ShipJobs.UnitsOf</c>): ein Schiff
+    /// belegt seinen Platz bis zur Reparatur — sonst kaufte die Flotte Ersatz und lag nach der Reparatur über der Grenze.</summary>
+    public float FailedCargo;
     /// <summary>Hülle: baseHull der Klasse + Panzerung (Summe stats armor).</summary>
     public float Hull;
     /// <summary>Gesamtmasse: baseMass der Klasse + Summe der Modulmassen.</summary>
@@ -197,6 +200,7 @@ public sealed class ShipStats
         if (m.Stats.TryGetValue("fuelUse", out var fuelUse)) s.FuelUsePerUnit += fuelUse;   // ein halber Antrieb verbraucht weiter
         foreach (var f in m.FuelTypes)
             if (s.FuelTypes.FindIndex(x => x.Good == f.Good) < 0) s.FuelTypes.Add(f);
+        if (m.Stats.TryGetValue("capacity", out var failedCap)) s.FailedCargo += failedCap;   // nur für die Flottenkapazität, nicht als Laderaum
         // Phase 26: ein ausgefallenes Frachtmodul hält keine Fracht mehr (die überzählige Fracht fällt als Frachtbehälter ins All, ModuleDamage.Spill)
     }
 

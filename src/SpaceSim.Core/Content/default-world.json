@@ -30,7 +30,7 @@
   "maxStations": 69,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
-  "fuelActive": false,
+  "fuelActive": true,
   "consumerMaxBidFactor": 2,
   "overstockFactor": 2.5,
   "exportOverstockFactor": 3,
@@ -42,12 +42,13 @@
   "maxRaidersPerActor": 2,
   "maxRaiderUnitsPerActor": 2,
   "pirateTreasuryCap": 10000,
+  "pirateFuelPriceFactor": 0.25,
   "fenceShare": 0.85,
   "blackMarket": true,
   "blackMarketNpc": true,
   "stationCapitulation": true,
   "raiderUpkeepPerTick": 0.03,
-  "researchActive": false,
+  "researchActive": true,
   "ammoActive": true
  },
  "goods": [
@@ -5309,6 +5310,23 @@
      "policeSquadron": true,
      "wanted": 3,
      "cargo": { "ammo": 20 }
+    }
+   },
+   {
+    "key": "jumpcloak",
+    "name": "Sprung- und Tarntest (Test)",
+    "description": "NUR ZUM TESTEN: Nomade mit Sprungantrieb und Tarnfeld Mk2 (Zusatzslot), frei im Raum vor dem Sektor-HQ Beta; ein Kaperschiff lauert in Sichtweite, eine Polizeistreife steht daneben. Prüfen: „Tarnung“ an (Schiff wird durchsichtig, die Taste zeigt die Leistung; Kaperer und Polizei sehen dich nicht) und wieder aus. „Sprung“ öffnet die Sternenkarte: ein Ziel zwei Sprünge weit antippen (cyan umrandet, z. B. Borealis oder Aurelia), Schiff steht still und lädt (Kugel wächst), Ankunft am Rand des Zielsektors; danach kühlt die Taste ab (≈ 5 min). Tarnung bricht beim Andocken, Schießen und bei Treffern.",
+    "model": "nomad",
+    "credits": 5000,
+    "sector": 2,
+    "scenario": {
+     "station": "sector_hq",
+     "distance": 80,
+     "bonusSlots": ["utility"],
+     "fit": ["reactor_mk2", "chem_engine_s", null, "cargo_universal_70", "cargo_solid_s", "jump_drive_s", "weapon_laser_s", "cloak_s_mk2"],
+     "outlaw": true,
+     "policeSquadron": true,
+     "cargo": { "food": 20 }
     }
    }
   ]

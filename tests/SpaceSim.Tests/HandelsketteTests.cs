@@ -48,6 +48,7 @@ public class HandelsketteTests
         var u = WorldBuilder.BuildDefault();
         var rows = Chain(u).Concat(Modules(u)).ToDictionary(g => g.Id, _ => new NpcRow());
         int fleetBuilt = 0, purchased = 0; float ammoRearmed = 0f; int missiles = 0;
+        var fuelBought = new Dictionary<GoodId, float>();
         var exportedAt = new Dictionary<StationId, float>();
         u.Events.Raised += e =>
         {
@@ -68,6 +69,7 @@ public class HandelsketteTests
                 case ShipPurchased: purchased++; break;
                 case AmmoRearmed a: ammoRearmed += a.Units; break;
                 case SpaceSim.Core.Events.MissileLaunched: missiles++; break;
+                case FuelBought fb: fuelBought[fb.Good] = fuelBought.GetValueOrDefault(fb.Good) + fb.Units; break;
             }
         };
         new SimulationRunner().Run(u, 20000);
@@ -85,7 +87,10 @@ public class HandelsketteTests
             if (ore) Assert.True(u.AsteroidClasses.Values.Any(c => c.Yields.Any(y => y.Good == g.Id)), $"{g.Name}: keine Felsklasse fördert es");
             else if (g.Category != "module") Assert.True(HasProducer(u, g.Id), $"{g.Name}: kein Hersteller in der Welt");
             // Bausätze werden an der Werft selbst verbaut (Schiffskauf aus dem Werftlager) — ein fremder Abnehmer ist kein Muss
-            if (g.Category is not "module" and not "kit") Assert.True(HasTaker(u, g.Id), $"{g.Name}: kein Abnehmer in der Welt");
+            // Treibstoff (seit „Treibstoff und Forschung dauerhaft an“ in der Standardwelt): Abnehmer sind die Tanks der Schiffe, nicht Stationsmärkte —
+            // geprüft wird, dass Schiffe tatsächlich getankt haben
+            if (g.Category == "fuel") Assert.True(fuelBought.GetValueOrDefault(g.Id) > 0f, $"{g.Name}: in 20000 Ticks nicht getankt");
+            else if (g.Category is not "module" and not "kit") Assert.True(HasTaker(u, g.Id), $"{g.Name}: kein Abnehmer in der Welt");
             if (g.Category == "kit" && !HasTaker(u, g.Id)) findings.Add($"{g.Name}: kein Abnehmer außer der Werft selbst (wird dort verbaut)");
             // Befunde (kein Fehlschlag): Ware ohne Fahrten / ohne Verbrauch
             if (g.Category is "ore" or "refined" or "component" or "end")

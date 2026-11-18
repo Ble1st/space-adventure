@@ -75,7 +75,7 @@ public class Phase29NamesTests
         Assert.Contains(a1.ActorName(hq.Owner), hq.Name);
         Assert.DoesNotContain(a1.StationsById(), s => s.Name.Contains("{owner}"));
         // die Wirtschaft ist von den Namen unabhängig (eigener Namenszufall)
-        var fixedNames = TestWorlds.Def(fuel: false, research: false);
+        var fixedNames = TestWorlds.Def();   // Schalter wie die Standardwelt (seit „Treibstoff und Forschung dauerhaft an“ beide an), nur feste Namen
         var c = WorldBuilder.Build(fixedNames, 11);
         new SimulationRunner().Run(a1, 300); new SimulationRunner().Run(c, 300);
         Assert.Equal(a1.Rng.State, c.Rng.State);

@@ -32,6 +32,14 @@ public class ExportPlanetTests
         return t;
     }
 
+    /// <summary>Standardwelt mit Treibstoff und Forschung aus (Schaltertests; seit „Treibstoff und Forschung dauerhaft an“ nicht mehr die Standardwelt).</summary>
+    static Universe WorldOff()
+    {
+        var u = TestWorlds.DefaultOff();
+        new SimulationRunner().Run(u, 1);   // Preise gesetzt
+        return u;
+    }
+
     static Universe World()
     {
         var u = DemoUniverse.Create();
@@ -295,7 +303,7 @@ public class ExportPlanetTests
     [Fact]
     public void TreibstoffAus_KeinVerbrauch_KeinTankdienst_KeineRaffinerie_NotrufZwecklos()
     {
-        var u = World();
+        var u = WorldOff();
         Assert.False(u.Rules.FuelActive);
         Assert.False(u.Stations.ContainsKey(new StationId(25)));   // Treibstoffraffinerien fehlen
         Assert.False(u.Stations.ContainsKey(new StationId(26)));
@@ -344,7 +352,7 @@ public class ExportPlanetTests
     [Fact]
     public void ForschungAus_KeineForschungsstation_AllesFrei_KeinBudget_DienstWeg()
     {
-        var u = World();
+        var u = WorldOff();
         Assert.False(u.Rules.ResearchActive);
         Assert.False(u.Stations.ContainsKey(new StationId(37)));
         Assert.False(u.Stations.ContainsKey(new StationId(38)));

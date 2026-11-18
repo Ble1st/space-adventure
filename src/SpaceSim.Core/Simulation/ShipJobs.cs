@@ -165,7 +165,9 @@ public static class ShipJobs
     public static bool IsMultirole(Universe u, Ship ship) => ship.Controller == Controller.Ai && Of(u, ship).Count >= 2;
 
     /// <summary>Kapazität eines Schiffs in einer Aufgabe (nach seinen Werten).</summary>
-    public static float UnitsOf(Universe u, Ship ship, IShipJob job) => job.Units(ship.Stats, ship.CargoCapacity, u.Rules);
+    /// <remarks>Ein ausgefallenes Frachtmodul zählt bis zur Reparatur weiter (<see cref="ShipStats.FailedCargo"/>), wie ein ausgefallenes Werkzeug
+    /// beim Schürfen: sonst kaufte die Flotte für den vorübergehend fehlenden Laderaum Ersatz und lag nach der Reparatur über ihrer Grenze.</remarks>
+    public static float UnitsOf(Universe u, Ship ship, IShipJob job) => job.Units(ship.Stats, ship.CargoCapacity + ship.Stats.FailedCargo, u.Rules);
 
     /// <summary>
     /// Belegte Kapazität einer Aufgabe: Summe der Einheiten aller KI-Schiffe mit diesem Etikett (Phase 6: statt Stückzahl). Einheitsmodelle zählen

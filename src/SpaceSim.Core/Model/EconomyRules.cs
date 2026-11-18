@@ -679,6 +679,13 @@ public sealed partial class EconomyRules
     /// </summary>
     public float PirateTreasuryCap = 0f;
     /// <summary>
+    /// „Treibstoff und Forschung an“: Anteil des Basispreises, den Gesetzlose im eigenen Versteck für Treibstoff zahlen (<see cref="PirateSystem"/>
+    /// <c>ServiceAtBase</c>; gestohlen oder selbst gebrannt). 1 = Basispreis wie die Polizei (Regel bis dahin). Standardwelt 0,25: zum Basispreis kostete das
+    /// Tanken der Kaperschiffe in den großen Sektoren ≈ 0,37 Cr/Tick (100 000 Ticks: 58 900 statt 22 300 Cr Unterhalt bei 52 000 Cr Hehlerei) — eine Gruppe
+    /// blieb ab ≈ 60 000 Ticks bei einem Schiff und leerer Kasse, die Überfälle halbierten sich.
+    /// </summary>
+    public float PirateFuelPriceFactor = 1f;
+    /// <summary>
     /// Schwarzmarkt (docs/SCHWARZMARKT.md): Dienst „blackmarket“ an Verstecken, deren Typ ihn führt. Aus = der Dienst ist nirgends verfügbar und Beute landet
     /// nicht im Lager des Hehlers. Code-Standard aus (Test- und eigene Welten unverändert), Standardwelt an.
     /// </summary>

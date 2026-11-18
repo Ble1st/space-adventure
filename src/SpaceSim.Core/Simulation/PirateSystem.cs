@@ -102,10 +102,11 @@ public sealed class PirateSystem : ISimSystem
         // Phase 15: Treibstoff aus = kein Tanken aus der Kasse (vorher zahlte die Kasse auch bei fuelActive=false für den Tank)
         if (Refuel.Active(u) && Refuel.ActiveFuel(s) is { } fuel && s.FuelSpace > 0f && u.Goods.TryGetValue(fuel, out var good))
         {
-            float units = MathF.Min(s.FuelSpace, MathF.Max(0f, owner.Treasury.Credits) / MathF.Max(0.01f, good.BasePrice));
+            float price = good.BasePrice * (owner.Kind == ActorKind.Outlaw ? Math.Clamp(u.Rules.PirateFuelPriceFactor, 0f, 1f) : 1f);   // Gesetzlose: eigener Treibstoff im Versteck
+            float units = price > 0f ? MathF.Min(s.FuelSpace, MathF.Max(0f, owner.Treasury.Credits) / price) : s.FuelSpace;
             s.Fuel[fuel] = s.FuelAmount(fuel) + units;
-            spent += units * good.BasePrice;
-            owner.Treasury.Credits -= units * good.BasePrice;
+            spent += units * price;
+            owner.Treasury.Credits -= units * price;
         }
         if (spent > 0f) u.Events.Publish(new TreasuryUpkeep(owner.Id, purpose, spent, 0f));
         Combat.Rearm.AtHome(u, s, u.Stations.GetValueOrDefault(s.HomeBase));   // Phase 24: Munition aus der Kasse nachladen

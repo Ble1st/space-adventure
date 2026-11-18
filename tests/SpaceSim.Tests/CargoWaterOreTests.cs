@@ -100,12 +100,12 @@ public class CargoWaterOreTests
     [Fact]
     public void MiningAutopilot_RestUnterEinerEinheit_KeineSchleifeKeinStopp()
     {
-        var u = DemoUniverse.Create();
+        var u = TestWorlds.DefaultOff();   // Treibstoff aus (vor dem Weltaufbau: keine Raffinerien) — seit „Treibstoff und Forschung dauerhaft an“ nicht mehr die Standardwelt
         var ship = u.Ships[u.PlayerShip];
         var sector = u.Sectors[u.PlayerSector];
         sector.Asteroids.RemoveAll(a => a.Minable);   // hier gibt es nichts mehr abzubauen
         ship.Cargo.Clear();
-        var propellant = DemoUniverse.Propellant;     // Treibstoff aus: niemand handelt ihn
+        var propellant = DemoUniverse.Propellant;     // Treibstoff aus: niemand handelt ihn (eine Ware ohne jeden Käufer)
         Assert.DoesNotContain(u.Stations.Values, s => s.Market.ContainsKey(propellant));
         ship.Cargo[propellant] = 0.4f;
         var auto = new MiningAutopilot();
@@ -202,8 +202,10 @@ public class CargoWaterOreTests
         var beta = farms.Single(f => f.Id == new StationId(40));
         Assert.Equal("Farm Beta", beta.Name);
         Assert.True(beta.BankruptcyProtected);
-        // Treibstoff aus: −5 Raffinerien gegenüber der Weltdatei (Großmaßstab-Kalibrierung: fünf statt zwei, Weltdatei 69); Spielraum für den Lebenszyklus mindestens 4 Plätze (Phase 21: größere Welt, mehr Plätze)
-        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations - 5, u.Rules.MaxStations);
+        // Treibstoff an (seit „Treibstoff und Forschung dauerhaft an“): die fünf Raffinerien stehen in der Welt, MaxStations wie in der Weltdatei (69; mit Treibstoff aus
+        // −5); Spielraum für den Lebenszyklus mindestens 4 Plätze (Phase 21: größere Welt, mehr Plätze)
+        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations, u.Rules.MaxStations);
+        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations - 5, TestWorlds.DefaultOff().Rules.MaxStations);
         Assert.True(u.Rules.MaxStations - StationProtection.CountEconomic(u) >= 4);
         var water = u.StationTypes["water_plant"].Recipes.Single();
         Assert.Equal(2f, water.Outputs[G(u, "water")]);
