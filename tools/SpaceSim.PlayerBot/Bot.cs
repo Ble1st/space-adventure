@@ -318,7 +318,6 @@ public sealed class Bot
 
     // ───────── Sektorbehörden gründen ─────────
 
-    DateTime _dummy;
     bool Founding()
     {
         if (P.Wallet < 0) return false;
@@ -351,7 +350,6 @@ public sealed class Bot
 
     // ───────── Polizei und Militär ─────────
 
-    bool _milBusy;
     /// <summary>Kauft Kampfschiffe (erst bewaffnete Streifen, dann Fregatten/Zerstörer/Schlachtkreuzer) und verteilt Streifen in eigenen Sektoren.</summary>
     bool Military()
     {
