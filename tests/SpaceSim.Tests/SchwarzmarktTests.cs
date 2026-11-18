@@ -20,7 +20,7 @@ public class SchwarzmarktTests
     static readonly DateTimeOffset Now = new(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>Schaltet den Schwarzmarkt einer Weltdefinition ab (Referenz-Hash-Tests: die Hashes stammen von davor; Beute im Hehlerlager ist gespeicherter Zustand).</summary>
-    internal static void RevertSchwarzmarkt(WorldDef def) { def.Rules ??= new EconomyRules(); def.Rules.BlackMarket = false; }
+    internal static void RevertSchwarzmarkt(WorldDef def) { def.Rules ??= new EconomyRules(); def.Rules.BlackMarket = false; def.Rules.BlackMarketNpc = false; }
 
     static readonly Lazy<string> Base = new(() => { var w = DemoUniverse.Create(); new SimulationRunner().Run(w, 1); return SaveGameJson.Write(w, Now); });
 
@@ -273,6 +273,7 @@ public class SchwarzmarktTests
     public void Beute_ImHehlerlager_OhneEinflussAufNpc()
     {
         var on = DemoUniverse.Create();
+        on.Rules.BlackMarketNpc = false;   // hier geht es nur um die Ablage der Beute; NPCs beim Hehler ändern das Verhalten absichtlich (SchwarzmarktNpcTests)
         var defOff = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
         RevertSchwarzmarkt(defOff);
         var off = WorldBuilder.Build(defOff);

@@ -44,6 +44,7 @@
   "pirateTreasuryCap": 10000,
   "fenceShare": 0.85,
   "blackMarket": true,
+  "blackMarketNpc": true,
   "raiderUpkeepPerTick": 0.03,
   "researchActive": false,
   "ammoActive": true

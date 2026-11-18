@@ -553,7 +553,9 @@ public class FlottenTests
             Assert.True(profit > 0f, $"{n} Händler: Gewinn gesamt {profit:0}");
             // Runde 36: der Zutatendeckel verschiebt den Pfad der Flotte (gedeckelte Zutatenverkäufe, 40–81 je Lauf, 7–11 k Cr unter dem selbst getriebenen
             // Marktpreis); mit 4 Händlern geht dabei ein NPC-Händler pleite (ohne Deckel 0) — Pfadwirkung (NPCs haben keine Posten); höchstens einer
-            Assert.True(r.NpcBankrupt <= 1, $"{n} Händler: {r.NpcBankrupt} NPC-Händler pleite");
+            // Schwarzmarkt NPC: gesetzlose Händler beim Hehler verschieben den Pfad erneut; gemessen gehen mit 2 Flottenhändlern zwei gesetzestreue NPC-Händler
+            // (Einzelakteure, Ticks 5540/6480) in der Spirale dünner Ladungen pleite, mit abgeschaltetem Hehler für NPCs einer im 8er-Lauf — Pfadwirkung; höchstens zwei
+            Assert.True(r.NpcBankrupt <= 2, $"{n} Händler: {r.NpcBankrupt} NPC-Händler pleite");
             if (lastProfit is { } lp) Assert.True(profit >= 0.8f * lp, $"Gewinn gesamt sinkt mit mehr Händlern deutlich ({lp:0} → {profit:0})");
             lastProfit = profit;
         }

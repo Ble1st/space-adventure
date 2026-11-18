@@ -417,3 +417,6 @@ public sealed record GateRepaired(GateId Gate, float Hull, float Cost, FactionId
 public sealed record GateShot(int Encounter, SectorId Sector, GateId Gate, ShipId Target, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Gun = -1) : SimEvent;
 /// <summary>Phase 31: Ein Schiff schießt auf ein Tor.</summary>
 public sealed record ShotAtGate(int Encounter, SectorId Sector, ShipId Shooter, GateId Gate, string Weapon, DamageType Type, bool Hit, float ShieldDamage, float HullDamage, int Slot = -1) : SimEvent;
+
+/// <summary>Schwarzmarkt NPC (docs/SCHWARZMARKT.md): ein gesetzloses KI-Schiff hat beim Hehler verkauft (<paramref name="Sold"/>) oder Hehlerware gekauft. Credits = Erlös bzw. Kosten (positiv).</summary>
+public sealed record BlackMarketNpcTrade(ShipId Ship, StationId Station, GoodId Good, float Units, float Credits, bool Sold) : SimEvent;

@@ -217,7 +217,7 @@ public class ExportPlanetTests
                 case TradeCompleted t:
                     if (t.Good == lux) luxTrips++;
                     if (t.Good == cg) cgTrips++;
-                    if (u.Stations.TryGetValue(t.From, out var from) && !from.Produces(t.Good)) fromNonProducer++;
+                    if (u.Stations.TryGetValue(t.From, out var from) && !from.Produces(t.Good) && !BlackMarketNpc.IsFenceType(u, from)) fromNonProducer++;   // Hehlerware gesetzloser Händler (Schwarzmarkt NPC) zählt nicht als ehrlicher Einkauf
                     break;
                 case GoodsExported x: exportedBatches++; exportPaid += x.Paid; exportRevenue += x.Revenue; break;
             }

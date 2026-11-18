@@ -185,6 +185,7 @@ public sealed class MinerSystem : ISimSystem
         else if (ship.MinePhase == MinePhase.GoingToStation)
         {
             var st = u.Stations[order.DeliverTo];
+            if (BlackMarketNpc.Active(u) && BlackMarketNpc.OnMinerArrive(u, ship, st)) return;   // Schwarzmarkt NPC: Rest an den Hehler
             TradeActions.SellAll(u, ship, st);   // veröffentlicht je Ware ein MineDelivered
 
             if (ship.Cargo.Values.Sum() > 0.001f)
@@ -205,6 +206,7 @@ public sealed class MinerSystem : ISimSystem
                     Travel.Start(u, ship, next.Sector, next.DockPoint(ship.Id));
                     return;
                 }
+                if (BlackMarketNpc.TrySendMiner(u, ship, order)) return;   // Schwarzmarkt NPC (a): gesetzlose Schürfer fahren den Rest zum Hehler
                 ship.Cargo.Clear();   // niemand will es: über Bord
             }
             ship.Order = null;

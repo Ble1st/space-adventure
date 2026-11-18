@@ -27,6 +27,7 @@ public sealed class TraderSystem : ISimSystem
             {
                 // Phase 10: Fracht ohne Auftrag (Reise wegen einer Sperre angehalten, Abnehmer weggefallen) zuerst verkaufen
                 if (SellStranded(u, ship)) continue;
+                if (BlackMarketNpc.Active(u) && BlackMarketNpc.TryBuyRound(u, ship)) continue;   // Schwarzmarkt NPC (b): gesetzlose Händler, selten
                 DiscardUnsellable(u, ship);   // Phase 19: niemand nimmt die Fracht — nach der Frist im All abwerfen statt sie ewig mitzuschleppen
                 if (NpcRepair.Seek(u, ship)) continue;   // Phase 26: schwer beschädigt (leerer Laderaum) — erst zur Reparatur
                 if (!PickOrder(u, ship))
@@ -291,6 +292,8 @@ public sealed class TraderSystem : ISimSystem
             return;
         }
 
+        if (BlackMarketNpc.Active(u) && BlackMarketNpc.OnTraderArrive(u, ship, order)) return;   // Schwarzmarkt NPC: Kauf/Verkauf beim Hehler
+
         if (ship.Phase == TradePhase.GoingToBuy)
         {
             var st = u.Stations[order.Buy];
@@ -414,7 +417,7 @@ public sealed class TraderSystem : ISimSystem
     static bool LossGuarded(Ship ship, AutoLimits? limits) => ship.Controller == Controller.Ai || limits is { AllowLoss: false };
 
     /// <summary>Phase 19: Ladung dieser Ware, die andere Händler gerade zu dieser Station fahren (unterwegs zum Verkauf).</summary>
-    static float LadenTowards(Universe u, Ship ship, StationId station, GoodId good)
+    internal static float LadenTowards(Universe u, Ship ship, StationId station, GoodId good)
     {
         float sum = 0f;
         foreach (var o in u.Ships.Values)
@@ -435,6 +438,7 @@ public sealed class TraderSystem : ISimSystem
         if (ship.StrandedSince < 0) { ship.StrandedSince = u.Tick; return; }
         if (u.Tick - ship.StrandedSince < u.Rules.StrandedCargoTicks) return;   // Frist: behalten und beim nächsten Nachdenken wieder versuchen
         ship.StrandedSince = -1;
+        if (BlackMarketNpc.TrySendTrader(u, ship)) return;   // Schwarzmarkt NPC (a): gesetzlose Händler verkaufen den Rest an den Hehler statt ihn abzuwerfen
         foreach (var (g, n) in ship.Cargo.OrderBy(kv => kv.Key.Value).ToList())
         {
             if (n > 0.0001f) u.Events.Publish(new CargoDiscarded(ship.Id, ship.Sector, g, n));

@@ -25,6 +25,8 @@ public class SprungTarnTests
     /// <summary>Sprungantrieb und Tarnfeld zurücknehmen (für die Referenz-Hash-Tests über <see cref="Runde44ScaleTests.RevertRunde44"/>).</summary>
     internal static void RevertSprungTarn(WorldDef def)
     {
+        def.Rules ??= new EconomyRules();
+        def.Rules.BlackMarketNpc = false;   // die Referenz stammt von vor „NPCs beim Hehler“ (docs/SCHWARZMARKT.md)
         def.Modules.RemoveAll(m => Keys.Contains(m.Key));
         foreach (var t in def.StationTypes) if (t.Stocks is { } st) foreach (var k in Keys) st.Remove(k);
         foreach (var p in def.Research) p.Unlocks.RemoveAll(x => Keys.Any(k => x == "module:" + k));

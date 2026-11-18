@@ -72,7 +72,8 @@ if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
 }
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
-if (opts.TryGetValue("blackmarket", out var bmOpt)) u.Rules.BlackMarket = bmOpt == "on";   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
+if (opts.TryGetValue("blackmarket", out var bmOpt)) u.Rules.BlackMarket = bmOpt == "on";
+if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc = bmnOpt == "on";   // Schwarzmarkt NPC: gesetzlose KI-Schiffe beim Hehler (Vergleichsläufe)   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
 // Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
 if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
 if (opts.TryGetValue("warfare", out var wfOpt)) u.Rules.Warfare = wfOpt == "on";
@@ -571,6 +572,7 @@ u.Events.Raised += e =>
 // Phase 19: Stilllegungen/Umwidmungen, Auslastung je Station (alle 200 Ticks), Knappheit ohne freien Platz
 var retiredStations = new List<string>();
 int buildersCommissioned = 0, discardCount = 0;
+int bmnSales = 0, bmnBuys = 0; float bmnSoldUnits = 0f, bmnSoldCr = 0f, bmnBoughtUnits = 0f, bmnBoughtCr = 0f;   // Schwarzmarkt NPC
 var discarded = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: von KI-Händlern im All abgeworfen (kein Käufer nahm den Rest)
 var dumped = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: über die Annahme abgeladen (Station: Ware → Einheiten)
 var utilSum = new SortedDictionary<int, (string Name, string Type, bool Protected, double Act, double Starved, int N)>();
@@ -580,6 +582,7 @@ u.Events.Raised += e =>
 {
     if (e is CargoDumped cdu) { string dk = $"{u.Stations.GetValueOrDefault(cdu.Station)?.Name ?? "#" + cdu.Station.Value}: {u.Goods[cdu.Good].Name}"; dumped[dk] = dumped.GetValueOrDefault(dk) + cdu.Units; }
     if (e is BuilderCommissioned) buildersCommissioned++;
+    if (e is BlackMarketNpcTrade bmt) { if (bmt.Sold) { bmnSales++; bmnSoldUnits += bmt.Units; bmnSoldCr += bmt.Credits; } else { bmnBuys++; bmnBoughtUnits += bmt.Units; bmnBoughtCr += bmt.Credits; } }
     if (e is CargoDiscarded cdi) { discardCount++; string gk = u.Goods[cdi.Good].Name; discarded[gk] = discarded.GetValueOrDefault(gk) + cdi.Units; }
     if (e is StationRetired sre)
         retiredStations.Add($"Tick {u.Tick}: {sre.Name} ({u.StationTypes.GetValueOrDefault(sre.TypeKey)?.Name ?? sre.TypeKey}, Auslastung {100 * sre.Activity:0}%) → "
@@ -1062,6 +1065,11 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Schwarzmarkt ({(u.Rules.BlackMarket ? "an" : "aus")}): " + string.Join(" | ", u.StationsById().Where(s => SpaceSim.Core.Trading.BlackMarket.IsAt(u, s))
         .Select(s => $"{s.Name}: {s.BlackStock.Count} Waren, {s.BlackStock.Values.Sum():0} E. (Basiswert {s.BlackStock.Sum(kv => kv.Value * u.GoodOf(kv.Key).BasePrice):0} Cr)")
         .DefaultIfEmpty("kein Versteck mit Schwarzmarkt")));
+    {
+        int lawless = u.ShipsById().Count(s => (s.Role == ShipRole.Trader || s.Role == ShipRole.Miner) && SpaceSim.Core.Simulation.BlackMarketNpc.LawlessOwner(u, s) is not null);
+        Console.WriteLine($"Schwarzmarkt NPC ({(SpaceSim.Core.Simulation.BlackMarketNpc.Active(u) ? "an" : "aus")}): Verkäufe {bmnSales} ({bmnSoldUnits:0.#} E., {bmnSoldCr:0} Cr), "
+            + $"Käufe {bmnBuys} ({bmnBoughtUnits:0.#} E., {bmnBoughtCr:0} Cr); gesetzlose Händler/Schürfer jetzt {lawless}");
+    }
     // Phase 28: Raketen, Stationen, Krieg
     Console.WriteLine($"Kriegsführung (Phase 28: {(u.Rules.Warfare ? "an" : "aus")}): Raketen {missilesLaunched} ({(missileOutcomes.Count == 0 ? "–" : string.Join(", ", missileOutcomes.Select(kv => $"{kv.Key} {kv.Value}")))}); "
         + $"Stationsgeschütze {stationShots} Schüsse ({stationHits} Treffer, Schaden {stationGunDmg:0}); Schüsse auf Stationen {shotsAtStations}, Hüllenschaden an Stationen {stationHullDmg:0}; "

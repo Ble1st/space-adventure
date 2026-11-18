@@ -691,6 +691,20 @@ public sealed partial class EconomyRules
     public float BlackMarketReserve = 2000f;
     /// <summary>Schwarzmarkt: höchstens so viele Einheiten je Ware im Lager des Hehlers (Überschuss verfällt).</summary>
     public float BlackMarketStockMax = 40f;
+    /// <summary>
+    /// Schwarzmarkt NPC (docs/SCHWARZMARKT.md): KI-Händler und -Schürfer gesetzloser Besitzer (Gesetzestreue unter <see cref="BlackMarketNpcLawfulness"/>)
+    /// verkaufen unverkäufliche Fracht an den Hehler statt sie abzuwerfen und kaufen selten Hehlerware für einen ehrlichen Abnehmer. Wirkt nur mit
+    /// <see cref="BlackMarket"/>. Code-Standard aus, Standardwelt an.
+    /// </summary>
+    public bool BlackMarketNpc = false;
+    /// <summary>Schwarzmarkt NPC: Besitzer mit Gesetzestreue unter dieser Schwelle gehen zum Hehler (aufgestiegene Einzelakteure würfeln 0,35–0,75: etwa ein Viertel).</summary>
+    public float BlackMarketNpcLawfulness = 0.45f;
+    /// <summary>Schwarzmarkt NPC: Reichweite in Sprüngen = max(1, round(Gier × Wert)).</summary>
+    public float BlackMarketNpcMaxJumps = 4f;
+    /// <summary>Schwarzmarkt NPC: kleinster Erlös (Cr), für den ein Schiff Restfracht zum Hehler fährt.</summary>
+    public float BlackMarketNpcMinSale = 20f;
+    /// <summary>Schwarzmarkt NPC: eine Kaufrunde beim Hehler muss mindestens diesen Anteil der Einkaufskosten als Gewinn bringen.</summary>
+    public float BlackMarketNpcBuyMargin = 0.25f;
     public int ViabilityRestoreCooldown = 10000;
 
     // ───────── Phase 23: Schiffssysteme (KAMPF.md Abschnitt 3) ─────────
