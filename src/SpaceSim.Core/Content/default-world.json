@@ -91,7 +91,10 @@
   "stationCapitulation": true,
   "raiderUpkeepPerTick": 0.03,
   "researchActive": true,
-  "ammoActive": true
+  "ammoActive": true,
+  "idleShelfActive": true,
+  "idleShelfTicks": 20000,
+  "idleShelfPriceFactor": 0.5
  },
  "goods": [
   {

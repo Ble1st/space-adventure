@@ -26,7 +26,7 @@ Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so l
 - [ ] 4 NPC-Bergung: Bergeschiffe holen Module (Zustand ≥ 0,5) aus Wracks und verkaufen sie; neues Bergeschiff-Modell
 - [ ] 11 Luxusexport Start: größeres Platin-/Elektroniklager der Luxuswerkstatt, zweite Luxuswerkstatt nahe Planet (Kalypso)
 - [ ] 14 Fahrgäste/Personentaxi (2026-11-19, zusammen mit 10): Missionstyp „Fahrgast“ an Taxi-/Hangarstationen, Modul Passagierkabine S/M (2/6 Plätze, Fracht- oder Utility-Slot), Lohn nach Flugzeit/Entfernung, Eilzuschlag, VIP, Trinkgeld sinkt bei Treffern, Verlust = gescheitert + Ansehen; Sonderfahrgäste Flüchtling/Gesuchter (Kontrollpunkt-Risiko, Verbrechen) und Diplomat (Ansehen); neuer Flottenbefehl „Taxi fahren“ (automatisch, Umkreisgrenzen wie Handel); Swift bekommt Rolle
-- [ ] 12 Ungenutzte Modulregale: nach 20000 Ticks unberührt Ziel −1 und halber Preis
+- [x] 12 Ungenutzte Modulregale: nach 20000 Ticks unberührt Ziel −1 und halber Preis
 
 ## Erledigt
 (Commits hier eintragen)

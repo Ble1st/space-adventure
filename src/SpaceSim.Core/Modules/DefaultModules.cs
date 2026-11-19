@@ -67,6 +67,7 @@ public sealed class TradeModule : ISimModule
     public string Name => "Trade";
     public void Register(SimulationBuilder b)
     {
+        b.Add(new IdleShelfSystem(), IdleShelfSystem.Interval);   // Ausbau Punkt 12: lange unberührte Regale senken ihr Ziel (vor den Händlern)
         b.Add(new TraderSystem());
         b.Add(new LedgerSystem());   // Runde 30: Verfall der Rückkauf-Posten (nichts zu tun ohne Spielerhandel — NPC-Welten unverändert)
     }

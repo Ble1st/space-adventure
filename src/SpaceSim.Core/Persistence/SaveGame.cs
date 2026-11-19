@@ -598,7 +598,12 @@ public sealed class GateConditionSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PrevState { get; set; }
 }
 
-public sealed class StockSave { public float Amount { get; set; } public float Target { get; set; } public float Price { get; set; } }
+public sealed class StockSave
+{
+    public float Amount { get; set; } public float Target { get; set; } public float Price { get; set; }
+    /// <summary>Ausbau Punkt 12 (additiv): Tick der letzten Bewegung (Kauf/Lieferung) eines Regaleintrags; fehlt = keine seit Weltbeginn.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? LastMove { get; set; }
+}
 
 public sealed class StationSave
 {

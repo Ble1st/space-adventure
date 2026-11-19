@@ -35,7 +35,11 @@ public static class UniverseHash
             if (st.Rotation != 0f) { Mix(0x2074UL); MixF(st.Rotation); }   // eigene Stationen: Drehung (nur wenn gesetzt)
             if (st.CapitulationLockUntil != 0) { Mix(0x2076UL); Mix((ulong)st.CapitulationLockUntil); }   // Ausgleich: Kapitulationssperre
             if (st.Unpaid) Mix(0x2077UL);   // Ausgleich: Regierungsunterhalt unbezahlt
-            foreach (var (g, e) in st.Market.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(e.Amount); MixF(e.Price); }
+            foreach (var (g, e) in st.Market.OrderBy(k => k.Key.Value))
+            {
+                Mix((ulong)g.Value); MixF(e.Amount); MixF(e.Price);
+                if (e.LastMove is { } lm) { Mix(0x1D1EUL); Mix((ulong)lm); }   // Ausbau Punkt 12: letzte Regal-Bewegung (nur wenn gesetzt)
+            }
             // Phase 8: Schutz, Baustelle (Typ, Stückliste, Bauschiff, Zeiten, Zustand) und Spielerlager gehören zum Spielstand
             Mix(st.BankruptcyProtected ? 1UL : 0UL); MixString(st.TypeKey);
             if (st.Site is { } bs)

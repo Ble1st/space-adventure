@@ -322,6 +322,7 @@ public static class PlayerLedger
         var (cost, floored, floorPrice) = BuyCost(u, ship, st, good, units, p);
         float before = e.Amount;
         e.Amount -= units;
+        Simulation.IdleShelfSystem.MarkMoved(u, st, good);   // Ausbau Punkt 12: Kauf vom Regal = Bewegung
         st.Credits += cost;
         payer.Credits -= cost;
         if (floored > 0f) u.Events.Publish(new Events.LedgerApplied(ship.Id, st.Id, good, floored, cost - units * p, false));
@@ -341,6 +342,7 @@ public static class PlayerLedger
         var (revenue, capped, capPrice) = SaleValue(u, ship, st, good, paid, p);
         float before = e.Amount;
         e.Amount += units;
+        Simulation.IdleShelfSystem.MarkMoved(u, st, good);   // Ausbau Punkt 12: Lieferung ans Regal = Bewegung
         st.Credits -= revenue;
         payee.Credits += revenue;
         if (capped > 0f) u.Events.Publish(new Events.LedgerApplied(ship.Id, st.Id, good, capped, paid * p - revenue, true));

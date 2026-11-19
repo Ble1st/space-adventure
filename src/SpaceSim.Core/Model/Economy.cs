@@ -44,6 +44,12 @@ public sealed class StockEntry
     /// her (und Wasser zwischen Wasserwerken): Der Hersteller mit dem kleineren Lager kaufte sein eigenes Produkt teuer zu und ging pleite.
     /// </summary>
     public bool NoIntake;
+    /// <summary>
+    /// Ausbau Punkt 12: Tick der letzten Bewegung (Kauf oder Lieferung) dieses Eintrags; null = seit Weltbeginn (Tick 0) keine. Wird nur gesetzt,
+    /// solange <see cref="EconomyRules.IdleShelfActive"/> an ist (sonst bleibt es null und der Hash ändert sich nicht), und nur für Regale
+    /// (stock-only, <see cref="Station.IsStockOnly"/>). Additiv gespeichert; im Hash nur gemischt, wenn gesetzt.
+    /// </summary>
+    public long? LastMove;
 }
 
 /// <summary>Phase 30: Größenklasse eines Stationstyps (wie bei Schiffen); XS = Kleinstation mit eigenem Radius (Satellit, Waffenstellung).</summary>
