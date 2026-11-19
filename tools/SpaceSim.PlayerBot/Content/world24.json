@@ -7,6 +7,9 @@
   "aiTributePeace": true,
   "alliancesActive": true,
   "playerSeats": true,
+  "playerHq": true,
+  "playerGovernmentDebt": true,
+  "playerBuilding": true,
   "crimeStandingLoss": {
    "smuggling": 0.04,
    "toll_evasion": 0.02,

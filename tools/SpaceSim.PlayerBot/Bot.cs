@@ -29,7 +29,11 @@ public sealed class Bot
     long _lastEarnTick;
 
     readonly Extras _x;
-    public Bot(Pilot p, Log log, Metrics m) { P = p; U = p.U; L = log; M = m; _flagship = U.PlayerShip; _x = new Extras(p, log); }
+    public Empire Emp = null!;
+    ShipId _realFlag;
+    public Bot(Pilot p, Log log, Metrics m) { P = p; U = p.U; L = log; M = m; _flagship = U.PlayerShip; _realFlag = _flagship; _x = new Extras(p, log); Emp = new Empire(p, log, m, this, _comms); m.Emp = Emp; }
+    public void UseFlag(ShipId id) { _flagship = id; SwitchToFlag(); }
+    public void RestoreFlag() { if (U.Ships.ContainsKey(_realFlag)) _flagship = _realFlag; SwitchToFlag(); }
     public Extras X => _x;
 
     float Reserve => 1500f;
@@ -45,8 +49,10 @@ public sealed class Bot
         if (U.PlayerShip != _flagship && U.Ships.ContainsKey(_flagship) && P.Me.Id != _flagship) SwitchToFlag();
         if (P.Danger()) { P.Fight(); return; }
 
+        if (Emp.CampaignActive) { P.Where = "Campaign"; ManageCommands(); Emp.Step(); return; }
         P.Where = "Fleet"; Fleet();
         P.Where = "Founding"; if (Founding()) return;
+        P.Where = "Empire"; if (Emp.Step()) return;
         P.Where = "Military"; if (Military()) return;
         P.Where = "Earn"; Earn();
     }
@@ -211,7 +217,7 @@ public sealed class Bot
     /// <summary>Handarbeit lohnt: das Flaggschiff gegen den besten bezahlbaren Schürfer tauschen (höchste Abbaurate), das alte bleibt in der Flotte.</summary>
     void UpgradeFlagship()
     {
-        if (U.Tick < _nextFlagCheck) return;
+        if (U.Tick < _nextFlagCheck || Emp.CampaignActive) return;
         _nextFlagCheck = U.Tick + 3000;
         var flag = Flag; double cur = flag.Stats.ContactMining * Math.Min(1.0, flag.Stats.Cargo / 60.0);
         if (P.Wallet < 6000f) return;
@@ -260,7 +266,7 @@ public sealed class Bot
         int miners = owned.Count(s => s.Command is MineCommand || (s.Squadron.Value != 0 && IsRole(s, "mine")));
         int ownedSec = PlayerSeats.OwnSectors(U).Count;
         // Wirtschaftsflotte bis ~24 Schiffe, danach Polizei/Militär
-        if (own - Police().Count - MilitaryShips().Count < 24) return traders <= miners * 1.5 ? "trade" : "mine";
+        if (own - Police().Count - MilitaryShips().Count < 36) return traders <= miners * 1.5 ? "trade" : "mine";
         return null;
     }
 
@@ -303,7 +309,7 @@ public sealed class Bot
         foreach (var s in PlayerFleet.Owned(U))
         {
             if (s.Id == U.PlayerShip || s.Id == _flagship || s.Command is not null || s.Squadron.Value != 0) continue;
-            if (s.IsRental()) continue;
+            if (s.IsRental() || s.ModelKey == "foreman") continue;
             if (s.Has(Capability.Cargo) && U.ShipModels.TryGetValue(s.ModelKey, out var m) && m.Jobs.Count > 0)
             {
                 bool trade = m.Jobs.Contains("trade") && (!m.Jobs.Contains("mine") || PlayerFleet.Owned(U).Count(x => x.Command is TradeCommand) <= PlayerFleet.Owned(U).Count(x => x.Command is MineCommand));
@@ -324,8 +330,9 @@ public sealed class Bot
         var type = PlayerSeats.SeatType(U); if (type is null) return false;
         float cost = PlayerSeats.Cost(U, type);
         var own = PlayerSeats.OwnSectors(U);
-        if (own.Count >= 5) return false;
+        if (own.Count >= 6) return false;
         if (P.Wallet < cost + 8000f) return false;
+        if (own.Count >= 1 && !Emp.Rich) return false;   // weitere Behörden (47 000 Cr/h Unterhalt je Stück) erst mit Rücklage
         var cls = ActorRules.ClassOf(U, ActorRules.Index(U), U.PlayerActor);
         if ((int)cls < U.Rules.PlayerSeatMinClass) return false;
         var me = P.Me;
@@ -341,7 +348,7 @@ public sealed class Bot
         if (me.DockedAt.Value != 0) P.Undock();
         var issue = PlayerSeats.FoundIssue(U, tgt.Id);
         if (issue is not null) { _seatFail[tgt.Id] = U.Tick; L.Event($"Behörde in {tgt.Name} nicht möglich: {issue}"); return true; }
-        var r = _comms.Execute(U, $"seat:found:{tgt.Id.Value}");
+        var r = P.Book("Behörde gründen", () => _comms.Execute(U, $"seat:found:{tgt.Id.Value}"));
         L.Event($"Behörde gründen {tgt.Name}: {r.Message}");
         if (r.Success) { SeatsFounded++; M.Seats++; P.Run(60); }
         else _seatFail[tgt.Id] = U.Tick;
@@ -360,10 +367,10 @@ public sealed class Bot
         var policeNow = PlayerFleet.Owned(U).Count(s => s.Id != U.PlayerShip && s.Has(Capability.Combat) && s.Command is PatrolCommand or GuardCommand);
         var mil = MilitaryShips();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
-        bool needPolice = policeNow < 6 + 2;
-        bool needMil = mil.Count < 12 || big < 4;
+        bool needPolice = policeNow < 6 + 2 && mil.Count < 40;
+        bool needMil = (mil.Count < 12 || big < 4) && mil.Count < 40;
         if (!needPolice && !needMil) return false;
-        if (P.Wallet < 20000f) return false;
+        if (P.Wallet < 150000f) return false;
         _nextMil = U.Tick + 600;
         var yard = P.NearestWith("shipdealer", st => st.TypeKey == "shipyard");
         if (yard is null) return false;

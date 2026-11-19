@@ -14,12 +14,13 @@ public sealed class Metrics
     public readonly Dictionary<string, float> Costs = new();
     public string Phase = "";
     public int PlayerCrimes; public float EarnedSales, EarnedTrade; public int Purchases, Seats, Exceptions;
-    public bool AllGoals => Reached.Count >= 6;
-    public static readonly string[] GoalNames = { "HQ", "5 Sektoren", "Polizei", "Geld", "Militär", "Supermacht" };
+    public bool AllGoals => GoalNames.All(Reached.ContainsKey);
+    public Empire? Emp;
+    public static readonly string[] GoalNames = { "HQ eigen", "10 Sektoren", "Polizei", "Militär", "Supermacht", "Krieg", "Handelsnetz", "Gericht", "Geld" };
 
     public Metrics(Universe u, Pilot p, string csv, string txt, long every)
     {
-        U = u; P = p; _every = every;
+        U = u; P = p; _every = every; _hourly = new StreamWriter(Path.Combine(Path.GetDirectoryName(csv) ?? ".", "kasse-stunden.txt")) { AutoFlush = true };
         _csv = new StreamWriter(csv) { AutoFlush = true }; _txt = new StreamWriter(txt) { AutoFlush = true };
         _csv.WriteLine("tick;stunden;kasse;schiffe;haendler;schuerfer;polizei;kampfschiffe;gross;stationen;sektoren;groessenklasse;kriege;verbrechen;verluste;exceptions;ms_tick");
         u.Events.Raised += e =>
@@ -39,11 +40,18 @@ public sealed class Metrics
         };
     }
 
+    readonly StreamWriter _hourly;
     long _lastMs = 0; long _lastMsTick = 0; readonly System.Diagnostics.Stopwatch _sw = System.Diagnostics.Stopwatch.StartNew();
 
     public void OnTick(Universe u)
     {
         if (u.Tick % 200 == 0) CheckGoals();
+        if (u.Tick % 20 == 0) Emp?.Book.Sample();
+        if (u.Tick % 14400 == 0 && P.Led is { } led)
+        {
+            _hourly.WriteLine($"=== Stunde {u.Tick / 14400} (Tick {u.Tick}) Kasse {P.Wallet:0} ===");
+            _hourly.Write(led.Report(led.Window, 1.0)); led.Window.Clear(); _hourly.Flush();
+        }
         if (u.Tick % _every == 0) Line();
     }
 
@@ -77,16 +85,22 @@ public sealed class Metrics
 
     void CheckGoals()
     {
-        var hq = U.Stations.Values.FirstOrDefault(s => s.Owner == U.PlayerActor && U.StationTypes.TryGetValue(s.TypeKey, out var t) && (t.Government == GovernmentKind.Headquarters || t.Government == GovernmentKind.SectorHq));
-        if (hq is not null) Mark("HQ", $"{hq.TypeKey} „{hq.Name}“");
+        if (PlayerHq.Current(U) is { } hq) Mark("HQ eigen", $"{hq.TypeKey} „{hq.Name}“");
         int secs = PlayerSeats.OwnSectors(U).Count;
-        if (secs >= 5) Mark("5 Sektoren", $"{secs} Sektoren mit Besitzer Spielerfraktion");
+        if (secs >= 10) Mark("10 Sektoren", $"{secs} Sektoren mit Besitzer Spielerfraktion");
         var (patrol, combat, big, _, _) = Counts();
         if (patrol >= 6) Mark("Polizei", $"{patrol} bewaffnete Eigenschiffe auf Streife/Wache");
-        if (P.Wallet >= 1_000_000f) Mark("Geld", $"Kasse {P.Wallet:0}");
+        if (P.Wallet >= 9_999_999f) Mark("Geld", $"Kasse {P.Wallet:0}");
         if (combat >= 10 && big >= 3) Mark("Militär", $"{combat} Kampfschiffe, davon {big} L/XL");
         var cls = ActorRules.ClassOf(U, ActorRules.Index(U), U.PlayerActor);
         if (cls == ActorSizeClass.State) Mark("Supermacht", "Größenklasse Staat");
+        if (Emp is { } e)
+        {
+            if (e.Mile.ContainsKey("Krieg erklärt") && (e.Mile.ContainsKey("Station erobert") || e.Mile.ContainsKey("Station zerstört"))) Mark("Krieg", string.Join(", ", e.Mile.Where(k => k.Key.StartsWith("Krieg") || k.Key.StartsWith("Station") || k.Key.StartsWith("Frieden")).Select(k => k.Key)));
+            int econ = e.BuiltCount;
+            if (econ >= 10) Mark("Handelsnetz", $"{econ} selbst gebaute Wirtschaftsstationen (fertig)");
+            if (e.Mile.ContainsKey("Gericht")) Mark("Gericht", "eigenes + fremdes Gericht getestet");
+        }
     }
 
     void Line()

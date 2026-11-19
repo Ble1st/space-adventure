@@ -22,6 +22,8 @@ public sealed class Pilot
     public readonly OreChunks Chunks;
     public readonly Log Log;
     public Action<Universe>? OnTick;
+    public Ledger? Led;
+    public T Book<T>(string label, Func<T> f) => Led is null ? f() : Led.Book(label, f);
     public long TicksFlown, TicksMined, TicksDocked, TicksFighting;
     public int Jumps; public float TollsPaid;
     public bool Alive = true;
@@ -40,7 +42,9 @@ public sealed class Pilot
     /// <summary>Ein Tick der Welt; Ereignisse/Metrik über <see cref="OnTick"/>. Gibt false zurück, wenn der Lauf zu Ende ist.</summary>
     public void Step()
     {
+        Led?.BeginSim();
         Runner.Step(U);
+        Led?.EndSim();
         OnTick?.Invoke(U);
     }
 
@@ -84,7 +88,7 @@ public sealed class Pilot
             if (route is null || route.Count == 0) { why = GateAccess.BlockReason(U, me, me.Sector, target) ?? "kein Weg"; return false; }
             var gate = U.Gates[route[0]];
             if (!FlyTo(gate.Position)) { why = "Gefahr"; return false; }
-            var chk = GateAccess.TryPlayerJump(U, me, gate);
+            var chk = Book("Zoll/Torsprung", () => GateAccess.TryPlayerJump(U, me, gate));
             if (!chk.Allowed) { why = chk.Message; return false; }
             TollsPaid += chk.Toll;
             var far = U.Gates[gate.Target];
@@ -121,7 +125,7 @@ public sealed class Pilot
     // ───────── Dienste ─────────
 
     public ServiceResult Do(Station st, IStationService svc, string offer, GoodId good = default, float units = 0f) =>
-        svc.Execute(U, st, Me, new ServiceRequest(offer, good, units));
+        Book(svc.Key + ":" + ((offer ?? "").Contains(':') ? offer![..offer.IndexOf(':')] : offer ?? ""), () => svc.Execute(U, st, Me, new ServiceRequest(offer, good, units)));
 
     public ServiceOffer? Offer(Station st, IStationService svc, string key)
     {
@@ -196,7 +200,7 @@ public sealed class Pilot
             bool armed = slots.Count > 0;
             if ((!armed || me.Hull < me.MaxHull * 0.2f) && PlayerSurrender.Issue(U) is null)
             {
-                var r = PlayerSurrender.Surrender(U);
+                var r = Book("Ergeben (Strafe)", () => PlayerSurrender.Surrender(U));
                 Log.Event($"ergibt sich: {r?.ToString() ?? "-"}");
                 Step(); continue;
             }
