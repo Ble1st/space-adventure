@@ -86,7 +86,7 @@ public class ActorTests
         foreach (var s in u.Ships.Values)
         {
             if (s.IsPlayer) Assert.Equal(u.PlayerActor, s.Owner);
-            else if (s.Role is ShipRole.Trader or ShipRole.Miner) Assert.Equal(u.FreeActor, s.Owner);
+            else if (s.Role is ShipRole.Trader or ShipRole.Miner or ShipRole.Collector) Assert.Equal(u.FreeActor, s.Owner);   // Gasernte: freie Gasschöpfer
             else if (s.Role == ShipRole.Pirate) Assert.Equal(ActorKind.Outlaw, u.Actors[s.Owner].Kind);   // Phase 11: Kaperschiffe gehören dem gesetzlosen Akteur
             else Assert.True(u.Factions.ContainsKey(new FactionId(s.Owner.Value)));
         }

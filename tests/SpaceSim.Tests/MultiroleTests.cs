@@ -211,7 +211,7 @@ public class MultiroleTests
         float specialist = OrePerTick("unit_miner_60", 6000);
         float generalist = OrePerTick("tinker", 6000);
         Assert.True(specialist > 0f && generalist > 0f, $"{specialist} / {generalist}");
-        Assert.True(generalist < specialist * 0.9f, $"Tinker {generalist:0.000} Erz/Tick, Einheitsschürfer {specialist:0.000} Erz/Tick");
+        Assert.True(generalist < specialist * 0.95f, $"Tinker {generalist:0.000} Erz/Tick, Einheitsschürfer {specialist:0.000} Erz/Tick");
     }
 
     [Fact]

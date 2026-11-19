@@ -192,7 +192,7 @@ public sealed class PirateSystem : ISimSystem
             // Phase 12: nicht aktive Spielerschiffe (Flotte) nur mit FleetRaids, das aktive nur mit PlayerRaids im Spielersektor
             if (player && s.Id == u.PlayerShip && (!u.Rules.PlayerRaids || u.PlayerSector != sector)) continue;
             if (player && s.Id != u.PlayerShip && !u.Rules.FleetRaids) continue;
-            if (Flight.Cloak.HiddenFrom(s, u.Rules.RaiderSensorStrength)) continue;   // Tarnfeld: stärker getarnt als die Kaperer-Sensoren = kein Opfer
+            if (Flight.Cloak.HiddenFrom(u, s, u.Rules.RaiderSensorStrength)) continue;   // Tarnfeld: stärker getarnt als die Kaperer-Sensoren = kein Opfer
             var (where, pos) = ThreatMap.Where(u, s);
             if (where != sector || ThreatMap.NearStation(u, sector, pos)) continue;
             if (reach > 0f && Vec2.Distance(pos, from!.Value) > reach) continue;
@@ -231,6 +231,7 @@ public sealed class PirateSystem : ISimSystem
         var sector = u.Sectors[raider.Sector];
         float p = u.Rules.RaidRatePerTick * dt / (1f + u.Rules.RaidSecurityDeterrence * MathF.Max(0f, sector.Security));
         if (u.Rules.FleetCombat) p *= PirateCommands.PackIn(u, raider, sector.Id);
+        p *= Nebula.RaidFactor(u, sector.Id);   // Nebel: Kaperer finden Opfer schlechter
         if (u.Rng.NextDouble() >= p) return;
         var victims = Victims(u, sector.Id, ThreatMap.Where(u, raider).Position);
         float total = victims.Sum(v => v.Weight);
@@ -350,7 +351,7 @@ public sealed class PirateSystem : ISimSystem
         var hunters = FleetGuards.Hunters(u, raider.Sector).Where(s => !u.Fights.IsEngaged(s.Id)).ToList();   // Phase 12: Streifen/Wachen mit Regel „Angriff“
         int n = police.Count + hunters.Count;
         if (n == 0) return false;
-        if (u.Rng.NextDouble() >= u.Rules.InterceptRatePerTick * dt * n) return false;
+        if (u.Rng.NextDouble() >= u.Rules.InterceptRatePerTick * dt * n * Nebula.InterceptFactor(u, raider.Sector)) return false;
         var hunter = police.Count > 0 ? police[0] : hunters[0];
         if (u.Rules.CombatRounds) Combat.Engage.StartIntercept(u, hunter, raider);   // Phase 24: Rundengefecht
         else Intercept(u, hunter, raider);

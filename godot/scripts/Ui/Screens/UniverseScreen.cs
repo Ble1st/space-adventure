@@ -120,6 +120,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		else At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, oy + 2, 268, 20);
 		// Runde 44: Größe des Sektors und Flugzeit dorthin (echte Spielerflugzeit, gecacht)
 		TestSizeLine = SizeLine(u, s);
+		if (s.Nebula) TestSizeLine += s.GasFields.Count > 0 ? " · Nebel, Gas" : " · Nebel";   // Gasernte: Nebelsektor (schwächere Sensoren, Gasfelder)
 		At(card, Text(TestSizeLine, 13, new Color(Cyan, 0.9f)), 16, oy + 22, 268, 18);
 		// Phase 10: Sperre und Einfluss (echt)
 		Color lockCol = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
@@ -317,6 +318,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 						break;
 				}
 				DrawCircle(p, rHalo, new Color(halo, haloA));
+				if (s.Nebula) DrawArc(p, rHalo + 3f, 0, Mathf.Tau, 32, new Color(0.75f, 0.55f, 1f, 0.75f), 4f, true);   // Gasernte: Nebelsektor violetter Saum
 				DrawCircle(p, rNode, PanelSolid);
 				DrawArc(p, rNode, 0, Mathf.Tau, 32, halo, s.Id == sel ? 5f : 3f, true);
 				if (s.Id == _u.PlayerSector) DrawArc(p, rNode + 8f, 0, Mathf.Tau, 32, White, 3f, true);

@@ -6,7 +6,7 @@ namespace SpaceSim.Core.Model;
 /// gesetzlosen Akteurs (<see cref="Simulation.PirateSystem"/>).
 /// </summary>
 /// <summary>Aufgabe (Etikett). Phase 28: <see cref="Warship"/> = Kriegsschiff einer Fraktion (nur im Krieg gekauft).</summary>
-public enum ShipRole { Trader, Miner, Fighter, Player, Builder, Police, Pirate, Warship }
+public enum ShipRole { Trader, Miner, Fighter, Player, Builder, Police, Pirate, Warship, Collector }
 public enum TradePhase { Idle, GoingToBuy, GoingToSell }
 public enum MinePhase { Idle, GoingToField, Mining, GoingToStation }
 
@@ -134,6 +134,10 @@ public sealed class Ship : ICreditAccount
     /// <summary>Koppelt den Tankinhalt an die Kapazität (Invariante Summe ≤ <see cref="ShipStats.FuelCapacity"/>; z. B. nach Fit-Änderung oder Content-Wechsel). Überschuss wird von der höchsten GoodId abgebaut.</summary>
     void ClampFuel()
     {
+        // Gasernte (Ionenantrieb): Treibstoff, den kein eingebauter Antrieb mehr verbrennt (z. B. Treibstoff nach dem Tausch gegen ein Ionentriebwerk),
+        // wird abgelassen — sonst belegte er den Tank. Bestehende Schiffe tragen nur zulässigen Treibstoff (nichts ändert sich).
+        if (Stats.FuelTypes.Count > 0 && Fuel.Count > 0)
+            foreach (var k in Fuel.Keys.Where(k => Stats.FuelTypes.FindIndex(f => f.Good == k) < 0).ToList()) Fuel.Remove(k);
         float total = TotalFuel;
         if (total <= Stats.FuelCapacity) return;
         foreach (var k in Fuel.Keys.OrderByDescending(k => k.Value).ToList())

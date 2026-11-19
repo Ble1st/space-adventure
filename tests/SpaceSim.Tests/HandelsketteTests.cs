@@ -85,15 +85,17 @@ public class HandelsketteTests
             // echte Regelverletzungen: Kettenware ohne Hersteller (Erze: ohne Felsklasse) oder ohne jeden Abnehmer
             bool ore = g.Category == "ore";
             if (ore) Assert.True(u.AsteroidClasses.Values.Any(c => c.Yields.Any(y => y.Good == g.Id)), $"{g.Name}: keine Felsklasse fördert es");
+            else if (g.Category == "gas") Assert.True(u.Sectors.Values.Any(x => x.GasFields.Count > 0), $"{g.Name}: kein Gasfeld in der Welt");   // Gasernte: aus Gasfeldern geschöpft
             else if (g.Category != "module") Assert.True(HasProducer(u, g.Id), $"{g.Name}: kein Hersteller in der Welt");
             // Bausätze werden an der Werft selbst verbaut (Schiffskauf aus dem Werftlager) — ein fremder Abnehmer ist kein Muss
             // Treibstoff (seit „Treibstoff und Forschung dauerhaft an“ in der Standardwelt): Abnehmer sind die Tanks der Schiffe, nicht Stationsmärkte —
             // geprüft wird, dass Schiffe tatsächlich getankt haben
-            if (g.Category == "fuel") Assert.True(fuelBought.GetValueOrDefault(g.Id) > 0f, $"{g.Name}: in 20000 Ticks nicht getankt");
+            // Gasernte: Ionengas tanken nur Schiffe mit Ionentriebwerk (Gasschöpfer mit fast vollem Tank) — es reicht, dass es gehandelt wird (Regale der Raffinerien)
+            if (g.Category == "fuel") Assert.True(fuelBought.GetValueOrDefault(g.Id) > 0f || (g.Key != "propellant" && r.Trips > 0), $"{g.Name}: in 20000 Ticks nicht getankt");
             else if (g.Category is not "module" and not "kit") Assert.True(HasTaker(u, g.Id), $"{g.Name}: kein Abnehmer in der Welt");
             if (g.Category == "kit" && !HasTaker(u, g.Id)) findings.Add($"{g.Name}: kein Abnehmer außer der Werft selbst (wird dort verbaut)");
             // Befunde (kein Fehlschlag): Ware ohne Fahrten / ohne Verbrauch
-            if (g.Category is "ore" or "refined" or "component" or "end")
+            if (g.Category is "ore" or "refined" or "component" or "end" or "gas")
             {
                 Assert.True(r.Trips > 0, $"{g.Name}: in 20000 Ticks keine einzige Fahrt");
                 Assert.True(r.ToConsumer + r.Exported > 0f, $"{g.Name}: weder verbraucht noch exportiert");

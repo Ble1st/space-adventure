@@ -28,6 +28,8 @@
   "economicEmergencyShieldTicks": 600,
   "economicStationPointDefense": [0, 0.2, 0.3],
   "economicStationAlarm": true,
+  "maxCollectors": 10,
+  "nebulaEffects": true,
   "economicEmergencyShield": true,
   "playerSizeByStrength": true,
   "playerShipPricing": true,
@@ -54,7 +56,7 @@
   "escortMinRemainingTicks": 200,
   "maxMiners": 55,
   "repairPlatesPerHull": 0.02,
-  "maxStations": 69,
+  "maxStations": 71,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": true,
@@ -297,6 +299,24 @@
    "basePrice": 45,
    "volume": 1,
    "color": "#ef476f"
+  },
+  {
+   "key": "gas",
+   "category": "gas",
+   "name": "Nebelgas",
+   "form": "liquid",
+   "basePrice": 18,
+   "volume": 1,
+   "color": "#b48cf0"
+  },
+  {
+   "key": "ion_gas",
+   "category": "fuel",
+   "name": "Ionengas",
+   "form": "liquid",
+   "basePrice": 55,
+   "volume": 1,
+   "color": "#7fd8ff"
   }
  ],
  "asteroidClasses": [
@@ -784,6 +804,9 @@
      0,
      1
     ],
+    "gas_scoop_s": [1, 2],
+    "ion_engine_s": [1, 2],
+    "ion_engine_m": [1, 1],
     "tractor_beam_s": [
      1,
      3
@@ -894,7 +917,21 @@
      "out": {
       "propellant": 1
      }
-    }
+    },
+    { "ticks": 5, "in": { "gas": 2, "energy": 1 }, "out": { "propellant": 3 } }
+   ],
+   "stocks": { "ion_gas": [20, 40] }
+  },
+  {
+   "key": "gas_refinery",
+   "name": "Gasraffinerie",
+   "size": "M",
+   "buildCost": 9000,
+   "upkeep": 0.12,
+   "income": 1.5,
+   "services": ["trade", "refuel", "hangar"],
+   "recipes": [
+    { "ticks": 10, "in": { "gas": 2, "energy": 1 }, "out": { "ion_gas": 1 } }
    ]
   },
   {
@@ -2022,6 +2059,8 @@
   {
    "id": 5,
    "name": "Sektor Borealis",
+   "nebula": true,
+   "gasFields": [ { "pos": [-20, -150], "radius": 40 } ],
    "skybox": "blue_local_star_no_nebulae",
    "skyboxYaw": 70,
    "scale": 4.1,
@@ -2051,6 +2090,14 @@
     }
    ],
    "stations": [
+    {
+     "id": 85,
+     "type": "gas_refinery",
+     "name": "Gasraffinerie Borealis",
+     "pos": [140, 150],
+     "essential": true,
+     "stock": { "gas": [60, 150], "energy": [60, 150], "ion_gas": [60, 150] }
+    },
     {
      "id": 41,
      "type": "water_plant",
@@ -2248,6 +2295,8 @@
   {
    "id": 7,
    "name": "Sektor Hephaistos",
+   "nebula": true,
+   "gasFields": [ { "pos": [-10, -150], "radius": 40 } ],
    "skybox": "red_local_star_and_nebulae",
    "skyboxYaw": 120,
    "scale": 3.6,
@@ -2277,6 +2326,14 @@
     }
    ],
    "stations": [
+    {
+     "id": 86,
+     "type": "gas_refinery",
+     "name": "Gasraffinerie Hephaistos",
+     "pos": [160, 90],
+     "essential": true,
+     "stock": { "gas": [60, 150], "energy": [60, 150], "ion_gas": [60, 150] }
+    },
     {
      "id": 55,
      "type": "titanium_works",
@@ -2366,6 +2423,8 @@
   {
    "id": 8,
    "name": "Sektor Aurelia",
+   "nebula": true,
+   "gasFields": [ { "pos": [150, -150], "radius": 40 } ],
    "skybox": "earthlike_planet_close",
    "skyboxYaw": 16,
    "scale": 3.0,
@@ -2613,6 +2672,8 @@
   {
    "id": 11,
    "name": "Sektor Abgrund",
+   "nebula": true,
+   "gasFields": [ { "pos": [-150, 150], "radius": 40 } ],
    "skybox": "red_local_star_no_nebulae",
    "skyboxYaw": 200,
    "scale": 7.9,
@@ -3216,7 +3277,8 @@
    "cost": {
     "platinum": 1,
     "wafers": 2,
-    "electronics": 1
+    "electronics": 1,
+    "gas": 1
    },
    "upgrade": { "to": "shield_mk2", "cost": {"wafers": 1, "electronics": 1} }
   },
@@ -3634,8 +3696,8 @@
    },
    "upgrade": { "to": "point_defense_s_mk2", "cost": {"electronics": 1, "titanium": 1} }
   },
-  {"key": "shield_mk2", "name": "Schildgenerator Mk2", "slot": "shield", "size": "S", "tier": 2, "stats": {"shieldCapacity": 70, "shieldRegen": 0.8}, "powerDraw": 3, "mass": 2, "cost": {"wafers": 4, "electronics": 2, "titanium": 1}},
-  {"key": "shield_m", "name": "Schildgenerator M", "slot": "shield", "size": "M", "tier": 2, "stats": {"shieldCapacity": 120, "shieldRegen": 1.2}, "powerDraw": 4, "mass": 4, "cost": {"wafers": 4, "electronics": 3, "titanium": 2}},
+  {"key": "shield_mk2", "name": "Schildgenerator Mk2", "slot": "shield", "size": "S", "tier": 2, "stats": {"shieldCapacity": 70, "shieldRegen": 0.8}, "powerDraw": 3, "mass": 2, "cost": {"wafers": 4, "electronics": 2, "titanium": 1, "gas": 2}},
+  {"key": "shield_m", "name": "Schildgenerator M", "slot": "shield", "size": "M", "tier": 2, "stats": {"shieldCapacity": 120, "shieldRegen": 1.2}, "powerDraw": 4, "mass": 4, "cost": {"wafers": 4, "electronics": 3, "titanium": 2, "gas": 3}},
   {"key": "armor_plating_s_mk2", "name": "Panzerplattierung S Mk2", "slot": "armor", "size": "S", "tier": 2, "stats": {"armor": 60}, "mass": 5, "cost": {"hull_plates": 3, "titanium": 2}},
   {"key": "armor_plating_m", "name": "Panzerplattierung M", "slot": "armor", "size": "M", "tier": 2, "stats": {"armor": 90}, "mass": 8, "cost": {"hull_plates": 4, "titanium": 2}},
   {"key": "weapon_laser_s_mk2", "name": "Laserkanone Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 9, "reload": 2, "range": 65, "accuracy": 0.87, "tracking": 0.8, "ammoPerShot": 0}, "damageType": "energy", "powerDraw": 4, "peakDraw": 1.5, "mass": 2, "cost": {"electronics": 3, "copper": 2, "titanium": 2}},
@@ -3648,7 +3710,10 @@
   {"key": "drill_head_s", "name": "Bohrkopf S", "slot": "tool", "size": "S", "tier": 1, "grants": ["Mining"], "stats": {"contactMining": 3.4}, "powerDraw": 2, "mass": 1, "cost": {"steel": 2, "titanium": 1, "electronics": 1}, "upgrade": {"to": "cutting_wheel_s", "cost": {"titanium": 1, "electronics": 1}}},
   {"key": "cutting_wheel_s", "name": "Schneidrad S", "slot": "tool", "size": "S", "tier": 2, "grants": ["Mining"], "stats": {"contactMining": 5.525}, "powerDraw": 3, "mass": 1, "cost": {"steel": 3, "titanium": 2, "electronics": 2}},
   {"key": "cutting_wheel_m", "name": "Schneidrad M", "slot": "tool", "size": "M", "tier": 3, "grants": ["Mining"], "stats": {"contactMining": 8.16}, "powerDraw": 4, "mass": 2, "cost": {"steel": 4, "titanium": 3, "electronics": 2}},
-  {"key": "cutting_drum_l", "name": "Schneidwalze L", "slot": "tool", "size": "L", "tier": 3, "grants": ["Mining"], "stats": {"contactMining": 10.2}, "powerDraw": 5, "mass": 4, "cost": {"steel": 6, "titanium": 4, "electronics": 3}}
+  {"key": "cutting_drum_l", "name": "Schneidwalze L", "slot": "tool", "size": "L", "tier": 3, "grants": ["Mining"], "stats": {"contactMining": 10.2}, "powerDraw": 5, "mass": 4, "cost": {"steel": 6, "titanium": 4, "electronics": 3}},
+  {"key": "gas_scoop_s", "name": "Gassammler S", "slot": "tool", "size": "S", "tier": 1, "grants": ["GasHarvest"], "stats": {"gasCollect": 1.5}, "powerDraw": 2, "mass": 1, "cost": {"steel": 2, "electronics": 1, "copper": 1}},
+  {"key": "ion_engine_s", "name": "Ionentriebwerk S", "slot": "engine", "size": "S", "tier": 2, "stats": {"thrust": 128, "fuelUse": 0.001}, "fuel": [{"good": "ion_gas", "efficiency": 2.5}], "powerDraw": 4, "mass": 3, "cost": {"steel": 3, "electronics": 2, "wafers": 1}},
+  {"key": "ion_engine_m", "name": "Ionentriebwerk M", "slot": "engine", "size": "M", "tier": 2, "stats": {"thrust": 192, "fuelUse": 0.0015}, "fuel": [{"good": "ion_gas", "efficiency": 2.5}], "powerDraw": 5, "mass": 5, "cost": {"steel": 5, "electronics": 3, "wafers": 1, "titanium": 1}}
  ],
  "shipClasses": [
   {
@@ -4664,6 +4729,13 @@
    ]
   },
   {
+   "key": "skimmer",
+   "class": "miner_light",
+   "name": "Gasschöpfer",
+   "fit": ["reactor_mk1", "ion_engine_s", "gas_scoop_s", "canister_bay_s", null],
+   "jobs": ["gas"]
+  },
+  {
    "key": "pickaxe",
    "class": "miner_light",
    "name": "Spitzhacke",
@@ -5205,7 +5277,9 @@
    "credits": 0,
    "count": 2,
    "model": "corsair"
-  }
+  },
+  { "role": "collector", "owner": "free", "sector": 5, "credits": 1000, "count": 3, "model": "skimmer" },
+  { "role": "collector", "owner": "free", "sector": 7, "credits": 1000, "count": 3, "model": "skimmer" }
  ],
  "player": {
   "faction": 1,

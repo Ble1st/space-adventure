@@ -26,8 +26,14 @@ public static class Cloak
     /// <summary>Wirksame Tarnstärke (0, wenn aus).</summary>
     public static float ActiveStrength(Ship ship) => ship.Cloaked ? ship.Stats.Cloak : 0f;
 
+    /// <summary>Wirksame Tarnstärke mit Nebelzuschlag des aktuellen Sektors (0, wenn aus).</summary>
+    public static float ActiveStrength(Universe u, Ship ship) => ship.Cloaked ? ship.Stats.Cloak + Simulation.Nebula.CloakBonus(u, ship.Sector) : 0f;
+
     /// <summary>Ist das Schiff vor einem Entdecker dieser Sensorstärke verborgen?</summary>
     public static bool HiddenFrom(Ship ship, float sensor) => ship.Cloaked && ship.Stats.Cloak > sensor;
+
+    /// <summary>Wie <see cref="HiddenFrom(Ship, float)"/>, mit dem Nebelzuschlag des Sektors (<see cref="Simulation.Nebula.CloakBonus"/>): im Nebel wirkt die Tarnung stärker.</summary>
+    public static bool HiddenFrom(Universe u, Ship ship, float sensor) => ship.Cloaked && ship.Stats.Cloak + Simulation.Nebula.CloakBonus(u, ship.Sector) > sensor;
 
     /// <summary>Kann das Schiff ein Tarnfeld überhaupt schalten (Modul eingebaut und funktionsfähig, Schalter an)?</summary>
     public static bool Fitted(Universe u, Ship ship) => u.Rules.Cloaking && ship.HasModel && ship.Stats.Cloak > 0f;

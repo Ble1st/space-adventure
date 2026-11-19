@@ -443,3 +443,6 @@ public sealed record StationCashMoved(StationId Station, float Amount) : SimEven
 
 /// <summary>Ausgleich (Regel PlayerUpkeepFloorActive): eine Regierungsstation des Spielers ist unbezahlt (außer Betrieb) bzw. läuft wieder.</summary>
 public sealed record PlayerGovernmentUnpaidChanged(StationId Station, string Name, SectorId Sector, bool Unpaid) : SimEvent;
+
+/// <summary>Gasernte: ein Gassammler hat Gas geschöpft (NPC je Tick, Spieler je Bild; Anzeige und Auswertung).</summary>
+public sealed record GasCollected(SectorId Sector, ShipId Ship, GoodId Good, float Units) : SimEvent;

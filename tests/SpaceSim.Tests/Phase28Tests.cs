@@ -767,7 +767,7 @@ public class Phase28Tests
         Assert.Contains(ev.OfType<ShotAtStation>(), _ => true);
         // Gerätetest Phase 28: seit Belagerungen am Rand der Waffenreichweite nicht mehr sofort als Flucht enden, kosten sie länger — der Frieden kommt je nach
         // Pfad aus Kriegsmüdigkeit oder leerer Kriegskasse (beides ein regulärer Kriegsausgang)
-        Assert.Contains(ev.OfType<PeaceConcluded>(), p => p.Reason is "weary" or "broke");
+        Assert.Contains(ev.OfType<PeaceConcluded>(), p => p.Reason is "weary" or "broke" or "tribute");   // Runde 45: auch Tributfrieden (Gasernte verschob den Zufallsweg)
         Assert.Empty(u.Wars);
         // keine Fraktion handlungsunfähig: Mindestpolizei, Sitz, Kasse über null
         foreach (var f in new[] { Union, Guild })

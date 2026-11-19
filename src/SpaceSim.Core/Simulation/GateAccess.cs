@@ -156,7 +156,7 @@ public static class GateAccess
     public static MobilityProfile ProfileOf(Universe u, Ship ship) =>
         // Phase 28: Kriegsschiffe brechen durch Sperren (nur der physische Torzustand zählt)
         u.Rules.Warfare && Wars.IsWarship(ship) ? MobilityProfile.Physical :
-        MobilityProfile.For(ship.Owner, ship.Cargo.Values.Any(v => v > 0.001f), ship.HasModel ? ship.Stats.Stealth + Flight.Cloak.ActiveStrength(ship) : 0f);   // Tarnfeld zählt nur eingeschaltet
+        MobilityProfile.For(ship.Owner, ship.Cargo.Values.Any(v => v > 0.001f), ship.HasModel ? ship.Stats.Stealth + Flight.Cloak.ActiveStrength(u, ship) : 0f);   // Tarnfeld zählt nur eingeschaltet (im Nebel mit Zuschlag)
 
     /// <summary>Wirksame Stufe einer Seite: Sektorsperre (falls durchgesetzt), auf der Hauptroute gedeckelt.</summary>
     public static int EffectiveLevel(Universe u, Gate gate, Sector sector, AccessDirection dir)

@@ -46,7 +46,7 @@ public static class Departures
     /// Messung nach <see cref="Profitability.Unprofitable"/>. Rein.
     /// </summary>
     public static bool ShipUnprofitable(Universe u, Ship ship) =>
-        ship.IsEconomyAi && ship.Role is ShipRole.Trader or ShipRole.Miner && !FactionBuilderSystem.IsFactionBuilder(u, ship) && !u.Fights.IsEngaged(ship.Id)
+        ship.IsEconomyAi && ship.Role is ShipRole.Trader or ShipRole.Miner or ShipRole.Collector && !FactionBuilderSystem.IsFactionBuilder(u, ship) && !u.Fights.IsEngaged(ship.Id)
         && ship.Transit is null && ship.Order is null && !ship.Cargo.Values.Any(v => v > 0.001f)
         && Profitability.Unprofitable(u, ship.Profit);
 

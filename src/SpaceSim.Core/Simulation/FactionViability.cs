@@ -133,7 +133,10 @@ public static class FactionViability
             float first = u.Rules.PirateChoosesModels ? CombatModels.CheapestPirateCost(u) : u.Rules.RaiderCost;
             return u.Rules.PirateIdleIncomePerTick <= 0f && a.Treasury.Credits < first * Math.Clamp(u.Rules.RaiderRestartCostFactor, 0f, 1f);
         }
-        return !raiders.Any(s => PirateSystem.CanHunt(u, s, a));
+        // Gasernte (Langlauf): ein beschädigtes Rudel auf dem Heimweg zur Versorgung (Ziel = Sektor der Heimatbasis) zählt wie „im Versteck versorgt“ —
+        // vorher galt die Gruppe für die ganze lange Heimreise als handlungsunfähig. Reine Anzeige/Messung (das System prüft Gesetzlose nicht).
+        return !raiders.Any(s => PirateSystem.CanHunt(u, s, a)
+            || (s.Transit is { } t && ReturnExecutor.Home(u, s) is { } home && t.ToSector == home.Sector));
     }
 
     /// <summary>Gerätetest (Phase 26): Rücklage noch im Aufbau (Fraktion jünger als <see cref="EconomyRules.FactionReserveBuildTicks"/>) — kein Verstoß.</summary>

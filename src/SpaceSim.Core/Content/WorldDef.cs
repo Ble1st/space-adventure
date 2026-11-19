@@ -381,6 +381,20 @@ public sealed class SectorDef
     public string? Skybox { get; set; }
     /// <summary>Drehung des Himmels um die Hochachse in Grad (Abwechslung bei gleichem Himmel, Lage des Planeten im Blick); Standard 0.</summary>
     public float SkyboxYaw { get; set; }
+    /// <summary>Gasernte: der ganze Sektor liegt in einem Nebel (Wirkungen mit Regel <c>nebulaEffects</c>); Standard false.</summary>
+    public bool Nebula { get; set; }
+    /// <summary>Gasernte: Gasfelder (Lage im Grundmaßstab wie Felder; Radius × Maßstab); fehlt = keine.</summary>
+    public List<GasFieldDef> GasFields { get; set; } = new();
+}
+
+/// <summary>Gasfeld eines Sektors (Gasernte).</summary>
+public sealed class GasFieldDef
+{
+    public float[] Pos { get; set; } = { 0, 0 };
+    /// <summary>Radius im Grundmaßstab (wird × Sektormaßstab genommen).</summary>
+    public float Radius { get; set; } = 40f;
+    /// <summary>Dichte: Faktor auf die Sammelrate (Standard 1).</summary>
+    public float Density { get; set; } = 1f;
 }
 
 public sealed class FieldDef

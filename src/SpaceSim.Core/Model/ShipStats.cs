@@ -96,6 +96,8 @@ public sealed class ShipStats
     public float Cloak;
     /// <summary>Tarnfeld: zusätzliche Leistung, solange es an ist (<c>cloakDraw</c>, aus dem Reaktorüberschuss).</summary>
     public float CloakDraw;
+    /// <summary>Gasernte: Gassammler — Gas je Sekunde im Gasfeld (Modulstat <c>gasCollect</c>, Summe); 0 = kein Sammler.</summary>
+    public float GasCollect;
     /// <summary>Phase 24: Waffenstärke je Schaden pro Sekunde (abgeleitete Kennzahl aus den Waffenwerten: Schaden × Treffsicherheit ÷ Nachladezeit × dieser Faktor).</summary>
     public const float WeaponPowerPerDps = 2f;
 
@@ -166,6 +168,7 @@ public sealed class ShipStats
             }
             if (m.Stats.TryGetValue("armor", out var armor)) { s.Hull += armor; s.Armor += armor; }
             if (m.Stats.TryGetValue("thrust", out var thrust)) s.Thrust += thrust;
+            if (m.Stats.TryGetValue("gasCollect", out var gc)) s.GasCollect += gc;   // Gasernte: Gassammler (kein Laser)
             if (m.Grants.Contains(Capability.Mining))
             {
                 if (m.Stats.TryGetValue("contactMining", out var contact)) s.ContactMining += contact;   // Phase 29: mechanisches Werkzeug

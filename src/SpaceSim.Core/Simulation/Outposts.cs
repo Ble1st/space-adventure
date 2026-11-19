@@ -125,7 +125,7 @@ public sealed class OutpostDefenseSystem : ISimSystem
             {
                 if (!u.Ships.TryGetValue(id, out var s) || s.DockedAt.Value != 0 || u.Fights.IsEngaged(s.Id) || !s.Has(Capability.Combat) && !s.IsPlayer) continue;
                 if (s.IsPlayer && s.Id != u.PlayerShip) continue;   // geparkte eigene Flottenschiffe nicht von sich aus
-                if (Flight.Cloak.HiddenFrom(s, u.Rules.StationSensorStrength)) continue;   // Tarnfeld: die Plattform bemerkt das Schiff nicht
+                if (Flight.Cloak.HiddenFrom(u, s, u.Rules.StationSensorStrength)) continue;   // Tarnfeld: die Plattform bemerkt das Schiff nicht
                 if (PirateSystem.AtHome(u, s) || !Outposts.Hostile(u, st, s)) continue;
                 float d = Vec2.Distance(s.Position, st.Position);
                 if (d > bd) continue;

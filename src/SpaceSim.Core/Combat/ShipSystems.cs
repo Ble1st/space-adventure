@@ -42,14 +42,14 @@ public static class ShipSystems
     /// Leistungsfluss (rein): <paramref name="shieldNeeds"/>/<paramref name="bankNeeds"/> = Schild bzw. Bank kann gerade Leistung aufnehmen (fehlt etwas,
     /// und beim Schild: keine Pause nach einem Treffer). Ein System, das nichts aufnimmt, gibt seinen Anteil an das andere weiter.
     /// </summary>
-    public static PowerFlow Flow(ShipStats s, PowerMode mode, bool shieldNeeds, bool bankNeeds, EconomyRules r)
+    public static PowerFlow Flow(ShipStats s, PowerMode mode, bool shieldNeeds, bool bankNeeds, EconomyRules r, float regenFactor = 1f)
     {
         float p = Surplus(s);
         var split = Split(mode, r.PowerFocusShare);
         float shieldP = split.Shield * p, bankP = split.Weapons * p, engineP = split.Engine * p;
         float toShield = shieldNeeds ? shieldP + (bankNeeds ? 0f : bankP) : 0f;
         float toBank = bankNeeds ? bankP + (shieldNeeds ? 0f : shieldP) : 0f;
-        float shieldRate = shieldNeeds ? MathF.Min(s.ShieldRegen, toShield * r.ShieldPerPower) : 0f;
+        float shieldRate = shieldNeeds ? MathF.Min(s.ShieldRegen * regenFactor, toShield * r.ShieldPerPower) : 0f;
         float chargeRate = bankNeeds ? toBank * r.ChargePerPower : 0f;
         return new PowerFlow(p, toShield, toBank, engineP, shieldRate, chargeRate);
     }
@@ -58,13 +58,13 @@ public static class ShipSystems
     /// Schreibt Schild und Bank um <paramref name="seconds"/> fort (rein bis auf den übergebenen Zustand). <paramref name="shieldPaused"/> = Schild in der
     /// Pause nach einem Treffer (sein Anteil lädt dann die Bank). Liefert, ob noch etwas fehlt.
     /// </summary>
-    public static bool Advance(ShipStats s, ShipSystemsState st, float seconds, bool shieldPaused, EconomyRules r)
+    public static bool Advance(ShipStats s, ShipSystemsState st, float seconds, bool shieldPaused, EconomyRules r, float regenFactor = 1f)
     {
         bool shieldNeeds = !shieldPaused && st.ShieldMissing > 0f && s.Shield > 0f;
         bool bankNeeds = st.ChargeMissing > 0f && s.PowerStorage > 0f;
         if (shieldNeeds || bankNeeds)
         {
-            var flow = Flow(s, st.Mode, shieldNeeds, bankNeeds, r);
+            var flow = Flow(s, st.Mode, shieldNeeds, bankNeeds, r, regenFactor);
             if (shieldNeeds) st.ShieldMissing = MathF.Max(0f, st.ShieldMissing - flow.ShieldRate * seconds);
             if (bankNeeds) st.ChargeMissing = MathF.Max(0f, st.ChargeMissing - flow.ChargeRate * seconds);
         }

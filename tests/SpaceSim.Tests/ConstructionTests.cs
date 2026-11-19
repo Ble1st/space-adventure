@@ -273,7 +273,11 @@ public class ConstructionTests
     {
         var u = World();
         OnlyTestSites(u, 1);   // Runde 44: mit den größeren Lagerpuffern legte der Lebenszyklus schon im ersten Tick eine Baustelle an und band das Bauschiff der Union
-        var site = Site(u, "farm", 1);
+        var site = Site(u, "farm", 1, budget: u.StationTypes["farm"].BuildCost * 2f);   // Gasernte: Treuhandgeld reicht auch bei teurem Stahl für die Platten
+        // Gasernte (verschobener Lauf): Hüllenplatten waren gerade knapp (kein Lieferant unter der Preisgrenze), die Baustelle blockierte und bekam nach
+        // 2000 Ticks den Notbau — hier geht es um den Weg über das Bauschiff (der Notbau hat eigene Tests): die Panzerwerke haben Platten auf Lager
+        foreach (var pw in u.Stations.Values.Where(s => s.TypeKey == "plating_works" && s.Market.ContainsKey(DemoUniverse.HullPlates)))
+            pw.Market[DemoUniverse.HullPlates].Amount = MathF.Max(pw.Market[DemoUniverse.HullPlates].Amount, 40f);
         var id = site.Id;
         var steelBefore = u.Stations.Values.Where(s => !s.IsBuildSite && s.Production.Any(r => r.Outputs.ContainsKey(DemoUniverse.Steel))).Sum(s => s.Market[DemoUniverse.Steel].Amount);
         var events = new List<SimEvent>();

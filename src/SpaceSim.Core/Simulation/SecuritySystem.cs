@@ -45,7 +45,7 @@ public sealed class SecuritySystem : ISimSystem
         if (!u.Rules.Warfare || u.PlayerFaction is not { } me) return;
         if (!u.Ships.TryGetValue(u.PlayerShip, out var player) || !u.Sectors.TryGetValue(player.Sector, out var sector)) return;
         if (!u.IsNpcFaction(sector.Owner) || !Wars.Hostile(u, sector.Owner, me)) return;
-        if (Flight.Cloak.HiddenFrom(player, u.Rules.PoliceSensorStrength)) return;   // Tarnfeld: die Kriegsmacht bemerkt das Schiff nicht
+        if (Flight.Cloak.HiddenFrom(u, player, u.Rules.PoliceSensorStrength)) return;   // Tarnfeld: die Kriegsmacht bemerkt das Schiff nicht
         if (u.PendingEncounters.Any(e => e.Target == player.Id)) return;
         if (u.Rules.FleetCombat && (u.Fights.IsEngaged(player.Id) || player.DockedAt.Value != 0)) return;
         if (u.Rules.ArrestCooldownTicks > 0 && u.Actors.TryGetValue(player.Owner, out var actor) && u.Tick < actor.ArrestCooldownUntil) return;
@@ -345,7 +345,7 @@ public sealed class SecuritySystem : ISimSystem
     {
         if (!u.Ships.TryGetValue(u.PlayerShip, out var player) || !u.Sectors.TryGetValue(player.Sector, out var sector)) return;
         if (Wanted.LevelOf(u, player.Owner, sector.Owner) < 3 || u.PendingEncounters.Any(e => e.Target == player.Id)) return;
-        if (Flight.Cloak.HiddenFrom(player, u.Rules.PoliceSensorStrength)) return;   // Tarnfeld: die Streife bemerkt das Schiff nicht
+        if (Flight.Cloak.HiddenFrom(u, player, u.Rules.PoliceSensorStrength)) return;   // Tarnfeld: die Streife bemerkt das Schiff nicht
         if (u.Rules.FleetCombat && (u.Fights.IsEngaged(player.Id) || player.DockedAt.Value != 0)) return;   // Phase 27: nicht im Gefecht/angedockt ankündigen
         // Phase 28 (Prüfung Phase 27): Abkühlzeit nach Flucht, Ergeben oder Polizeigefecht — sonst Schleife „Warnung → Gefecht → Flucht → Warnung“
         if (u.Rules.ArrestCooldownTicks > 0 && u.Actors.TryGetValue(player.Owner, out var wantedActor) && u.Tick < wantedActor.ArrestCooldownUntil) return;

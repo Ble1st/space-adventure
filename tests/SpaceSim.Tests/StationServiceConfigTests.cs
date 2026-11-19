@@ -33,7 +33,8 @@ public class StationServiceConfigTests
         foreach (var t in u.StationTypes.Values)
         {
             // Phase 12: Hangar an allen Stationen mit Liegeplätzen, Taxi und Leihschiff an Verkehrsknoten (Standard ohne Feld: trade + hangar)
-            if (t.Key is "fuel_refinery") Assert.Equal(new[] { "trade", "refuel", "hangar", "taxi" }, t.Services);
+            if (t.Key is "gas_refinery") Assert.Equal(new[] { "trade", "refuel", "hangar" }, t.Services);   // Gasernte
+            else if (t.Key is "fuel_refinery") Assert.Equal(new[] { "trade", "refuel", "hangar", "taxi" }, t.Services);
             else if (t.Key is "plating_works") Assert.Equal(new[] { "trade", "repair", "hangar" }, t.Services);
             else if (t.Key is "shipyard") Assert.Equal(new[] { "trade", "repair", "outfitter", "shipdealer", "upgrade", "hangar", "taxi", "rental", "rearm" }, t.Services);   // Phase 5c, Phase 7, Phase 12, Phase 25
             else if (t.Key is "trade_station") Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental", "rearm" }, t.Services);       // Phase 5c, Phase 12, Phase 25

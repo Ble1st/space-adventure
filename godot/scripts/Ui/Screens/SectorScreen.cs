@@ -459,6 +459,16 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				labels.Add((4, p + new Vector2(0, br), $"Gürtel · {cls}", 12, new Color(Dim, 0.9f), 6f));
 			}
 
+			// Gasernte: Gasfelder als violette Kreise (Radius maßstäblich)
+			foreach (var gf in s.GasFields)
+			{
+				var p = Place(gf.Position);
+				float gr = gf.Radius * scale;
+				DrawCircle(p, gr, new Color(0.62f, 0.42f, 0.92f, 0.12f));
+				DrawArc(p, gr, 0, Mathf.Tau, 48, new Color(0.75f, 0.55f, 1f, 0.6f), 2f, true);
+				labels.Add((4, p + new Vector2(0, gr), "Gasfeld", 12, new Color(0.8f, 0.65f, 1f, 0.95f), 6f));
+			}
+
 			// Gates mit Zielsektor
 			foreach (var gid in s.Gates)
 			{

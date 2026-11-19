@@ -524,6 +524,18 @@ public sealed class SectorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Skybox { get; set; }
     /// <summary>Drehung des Himmels in Grad; fehlt = 0.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? SkyboxYaw { get; set; }
+    /// <summary>Gasernte: Nebelsektor (additiv); fehlt = kein Nebel.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Nebula { get; set; }
+    /// <summary>Gasernte: Gasfelder (additiv); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<GasFieldSave>? GasFields { get; set; }
+}
+
+/// <summary>Gasfeld (Gasernte): Lage, Radius, Dichte.</summary>
+public sealed class GasFieldSave
+{
+    public Vec2 Pos { get; set; }
+    public float Radius { get; set; }
+    public float Density { get; set; } = 1f;
 }
 
 /// <summary>Sperre eines Sektors (Phase 10): Stufen für Ein- und Ausreise, Auslöser, Zeiten (Beginn, Ablauf, Abkühlzeit), Durchsetzung.</summary>

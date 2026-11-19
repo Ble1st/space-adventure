@@ -166,6 +166,9 @@ public class Phase29SpareLootTests
         var u = TestWorlds.Default(seed, fuel: false, research: false);
         u.Rules.PlayerRaids = false;
         u.Rules.RaidersSpareLoot = spare;
+        // Gasernte (verschobener Zufallsweg): ein Treffer unter halber Hülle beschädigte das Frachtmodul, die Fracht fiel ins All — ohne Fracht gibt es nichts zu
+        // schonen, die Regel greift richtig nicht mehr. Hier geht es um die Salve gegen ein beladenes Schiff: ohne Modulschaden
+        u.Rules.DamageActive = false;
         var owner = u.ShipsById().First(ThreatMap.IsRaider).Owner;
         var yard = u.StationsById().First(s => !s.IsBuildSite);
         Ship Make(string model, ShipRole role, ActorId who)

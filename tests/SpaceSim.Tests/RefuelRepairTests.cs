@@ -105,9 +105,12 @@ public class RefuelRepairTests
         u.WalletOf(player).Credits = cr;
         // Lager leer: Dienst nicht verfügbar
         st.Market[Prop].Amount = 0f;
+        float ion = 0f;
+        if (u.FindGood("ion_gas") is { } ig && st.Market.TryGetValue(ig.Id, out var ie)) { ion = ie.Amount; ie.Amount = 0f; }   // Gasernte: Ionengas-Regal der Raffinerie leeren
         Assert.False(svc.IsAvailable(u, st));
         Assert.False(svc.Execute(u, st, player, new ServiceRequest("refuel:fill", default, 0f)).Success);
         st.Market[Prop].Amount = stock;
+        if (u.FindGood("ion_gas") is { } ig2 && st.Market.TryGetValue(ig2.Id, out var ie2)) ie2.Amount = ion;
 
         Assert.Equal(fuel, player.TotalFuel);
         Assert.Equal(cr, u.WalletOf(player).Credits);

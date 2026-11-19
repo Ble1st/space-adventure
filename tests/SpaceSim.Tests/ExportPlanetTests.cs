@@ -308,7 +308,7 @@ public class ExportPlanetTests
         Assert.False(u.Stations.ContainsKey(new StationId(25)));   // Treibstoffraffinerien fehlen
         Assert.False(u.Stations.ContainsKey(new StationId(26)));
         Assert.DoesNotContain(u.Stations.Values, s => s.TypeKey == "fuel_refinery");
-        Assert.Equal(FileMaxStations() - 5, u.Rules.MaxStations);   // Bau-Spielraum bleibt gleich: −5 weggelassene Wirtschaftsstationen (Treibstoff im Großmaßstab: fünf Raffinerien statt zwei; Weltdatei 69)
+        Assert.Equal(FileMaxStations() - 7, u.Rules.MaxStations);   // Bau-Spielraum bleibt gleich: −7 weggelassene Wirtschaftsstationen (fünf Treibstoffraffinerien, Gasernte: zwei Gasraffinerien)
         var reg = StationServices.Default();
         Assert.All(u.Stations.Values, s => Assert.False(reg.TryGet("refuel", out var r) && r.IsAvailable(u, s)));
         // Reise ohne Verbrauch, Spieler ohne Verbrauch und ohne Notantrieb, Notruf zwecklos, Planung ohne Tankstopp

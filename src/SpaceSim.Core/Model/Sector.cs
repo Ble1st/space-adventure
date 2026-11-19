@@ -57,6 +57,17 @@ public sealed class Sector
     public List<StationId> Stations = new();
     public List<ResourceField> Fields = new();
     public List<Asteroid> Asteroids = new();
+    /// <summary>Gasernte: der ganze Sektor liegt in einem Nebel (Wirkungen nur mit Regel <see cref="EconomyRules.NebulaEffects"/>). Aus der Weltdatei, gespeichert, gehasht nur wenn gesetzt.</summary>
+    public bool Nebula;
+    /// <summary>Gasernte: Gasfelder des Sektors (leer = keine). Gespeichert, gehasht nur wenn vorhanden.</summary>
+    public List<GasField> GasFields = new();
+
+    /// <summary>Gasfeld an einer Position (das erste, das sie enthält), sonst null.</summary>
+    public GasField? GasFieldAt(Vec2 p)
+    {
+        foreach (var f in GasFields) if (f.Contains(p)) return f;
+        return null;
+    }
 
     /// <summary>Rohstofffeld, zu dessen Gürtel eine Position gehört (nächstes Feld im <see cref="Mining.MiningRules.BeltRadius"/>).</summary>
     public ResourceField? FieldFor(Vec2 p)

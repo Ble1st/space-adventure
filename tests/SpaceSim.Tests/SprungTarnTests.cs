@@ -25,6 +25,7 @@ public class SprungTarnTests
     /// <summary>Sprungantrieb und Tarnfeld zurücknehmen (für die Referenz-Hash-Tests über <see cref="Runde44ScaleTests.RevertRunde44"/>).</summary>
     internal static void RevertSprungTarn(WorldDef def)
     {
+        GasNebulaTests.RevertGas(def);   // Gasernte und Nebel kamen danach
         TestWorlds.RevertFuelResearchOn(def);   // die Referenz stammt von vor „Treibstoff und Forschung dauerhaft an“
         def.Rules!.BlackMarketNpc = false;   // die Referenz stammt von vor „NPCs beim Hehler“ (docs/SCHWARZMARKT.md)
         def.Modules.RemoveAll(m => Keys.Contains(m.Key));

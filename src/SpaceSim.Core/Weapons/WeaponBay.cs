@@ -57,7 +57,7 @@ public static class WeaponBays
     {
         var list = new List<int>();
         for (int i = Math.Max(0, from); i < bays.Count && i < states.Count; i++)
-            if (bays[i].Key is not ("tractor" or "split" or "salvage" or "contact" or "jump" or "cloak") && states[i] == BayState.Ready) list.Add(i);
+            if (bays[i].Key is not ("tractor" or "split" or "salvage" or "contact" or "jump" or "cloak" or "gas") && states[i] == BayState.Ready) list.Add(i);
         return list;
     }
 
@@ -81,6 +81,9 @@ public static class WeaponBays
 
     /// <summary>Tarnfeld als eigener Schacht (Umschalter „Tarnung“).</summary>
     public static WeaponBay Cloak { get; } = new() { Key = "cloak", Name = "Tarnung", Facing = Facing.Bow, ArcDegrees = 360f, Range = 0f };
+
+    /// <summary>Gasernte: Gassammler als eigener Schacht (Umschalter „Gas“: schöpft, solange das Schiff in einem Gasfeld steht).</summary>
+    public static WeaponBay Gas { get; } = new() { Key = "gas", Name = "Gas", Facing = Facing.Bow, ArcDegrees = 360f, Range = 0f };
 
     /// <summary>Anzeigetext des Kontaktschachts.</summary>
     /// <summary>Phase 32: Text mit Ankerzustand — „verankert · Abbau läuft“ / „Anker fliegt“; kurz nach einem Abriss dessen Grund.</summary>
@@ -131,8 +134,10 @@ public static class WeaponBays
         var bays = ForWeapons(u, ship);
         // Sprungantrieb und Tarnfeld: eigene Schächte am Ende (eigene Gruppen im Daumenbogen)
         bool jump = SpaceSim.Core.Flight.JumpDrive.Fitted(u, ship), cloak = SpaceSim.Core.Flight.Cloak.Fitted(u, ship);
-        if (!jump && !cloak) return bays;
+        bool gas = SpaceSim.Core.Mining.GasHarvest.HasTool(ship);   // Gasernte: Umschalter „Gas“
+        if (!jump && !cloak && !gas) return bays;
         var list = bays.ToList();
+        if (gas) list.Add(Gas);
         if (jump) list.Add(Jump);
         if (cloak) list.Add(Cloak);
         return list;

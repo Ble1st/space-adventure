@@ -254,6 +254,12 @@ public static class UniverseHash
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) MixString(sec.Planet?.Name ?? "");
         // Runde 44: Maßstab nur, wenn ≠ 1 (Welten im Grundmaßstab hashen wie zuvor)
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value)) if (sec.Scale != 1f) { Mix(0x5CA1Eu); Mix((ulong)sec.Id.Value); MixF(sec.Scale); }
+        // Gasernte: Nebel und Gasfelder nur, wenn gesetzt (Welten ohne Gas hashen wie zuvor)
+        foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
+        {
+            if (sec.Nebula) { Mix(0x6E6Bu); Mix((ulong)sec.Id.Value); }
+            foreach (var f in sec.GasFields) { Mix(0x6A5Fu); Mix((ulong)sec.Id.Value); MixF(f.Position.X); MixF(f.Position.Y); MixF(f.Radius); MixF(f.Density); }
+        }
         foreach (var q in u.Squadrons.Values.OrderBy(q => q.Id.Value))
         {
             Mix((ulong)q.Id.Value); Mix((ulong)q.Owner.Value); Mix((ulong)q.Leader.Value); Mix((ulong)q.Formation); Mix((ulong)q.HomeBase.Value); Mix((ulong)q.Rules);

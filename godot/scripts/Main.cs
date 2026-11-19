@@ -378,6 +378,7 @@ public partial class Main : Node3D
 		_hud.HideAlert();   // zweiter Gerätetest Phase 28: keine Meldung der alten Sitzung (Verlustmeldung blieb nach „Neues Spiel“ stehen)
 		_fast = false;      // Runde 4: neue Sitzung beginnt mit Zeit ×1 (der Zeitraffer blieb über „Neues Spiel“ erhalten)
 		_aimAssist = true; _aimOffFor = null; _fight.AutoFire = false; _lastDepleted = "";
+		_gasOn = false;   // Gasernte: Sammler aus in der neuen Sitzung
 		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();   // Gerätetest Phase 27: kein Zustand der alten Sitzung
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset(); _anchors.Clear();
@@ -2687,7 +2688,7 @@ public partial class Main : Node3D
 			d.TargetRelBearing = rel;
 			d.TargetScreen = _cam.IsPositionBehind(new Vector3(tw.X, 0, tw.Y)) ? null : _cam.UnprojectPosition(new Vector3(tw.X, 0, tw.Y));
 			// Phase 25: mit Schiffsziel zählt der erste Waffenschacht, sonst wie bisher der Laser
-			int ai = _bays.Count > 0 && _bays[0].Key is "jump" or "cloak" ? _bays.Count : 0;   // Sprung/Tarnung haben keinen Feuerwinkel
+			int ai = _bays.Count > 0 && _bays[0].Key is "jump" or "cloak" or "gas" ? _bays.Count : 0;   // Sprung/Tarnung haben keinen Feuerwinkel
 			if (d.TargetCombat.Length > 0)
 				for (int k = 0; k < _bays.Count; k++) if (SpaceSim.Core.Combat.PlayerGunnery.SlotOf(_bays[k].Key) >= 0) { ai = k; break; }
 			var bay = ai < _bays.Count ? _bays[ai] : WeaponBays.PlayerDefault[0];
@@ -2739,7 +2740,7 @@ public partial class Main : Node3D
 		var bays = _bays;
 		for (int i = 0; i < _bayViews.Length; i++)
 		{
-			if (bays[i].Key is "tractor" or "split" or "contact" or "jump" or "cloak") continue;   // Traktor ist Umschalter, der Spalter feuert nur einzeln; Sprung/Tarnung sind keine Waffen
+			if (bays[i].Key is "tractor" or "split" or "contact" or "jump" or "cloak" or "gas") continue;   // Traktor ist Umschalter, der Spalter feuert nur einzeln; Sprung/Tarnung sind keine Waffen
 			fire++;
 			if (_bayStates[i] == BayState.Ready) ready++;
 		}
@@ -2817,6 +2818,7 @@ public partial class Main : Node3D
 				continue;
 			}
 			if (JumpCloakBay(i, bay)) continue;   // Sprungantrieb, Tarnfeld (Main.JumpCloak.cs)
+			if (GasBay(i, bay)) continue;   // Gasernte (Main.Gas.cs)
 			if (bay.Key == WeaponBays.Contact.Key)
 			{
 				// Phase 29: Kontaktwerkzeug — reine Anzeige, Zustand aus der Core-Regel (OreChunks.Contact im selben Bild)
@@ -2919,6 +2921,7 @@ public partial class Main : Node3D
 		if (index < 0 || index >= bays.Count) return;
 		if (_docked != null || _hud.AnyModalOpen) return;
 		if (bays[index].Key == WeaponBays.Jump.Key || bays[index].Key == WeaponBays.Cloak.Key) { JumpCloakDown(bays[index].Key); return; }   // Sprungantrieb, Tarnfeld
+		if (bays[index].Key == WeaponBays.Gas.Key) { GasDown(); return; }   // Gasernte: Umschalter
 		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
 		if (bays[index].Key == WeaponBays.Salvager.Key) { GrabSalvage(); return; }
 		if (bays[index].Key == WeaponBays.Contact.Key)
@@ -3148,6 +3151,9 @@ public partial class Main : Node3D
 
 	// ───────── Statische Szene ─────────
 
+	World.NebulaView? _nebula;
+	internal World.NebulaView? TestNebula => _nebula;
+
 	void BuildEnvironment()
 	{
 		var env = new Godot.Environment
@@ -3161,7 +3167,8 @@ public partial class Main : Node3D
 			GlowEnabled = true,
 		};
 		AddChild(new WorldEnvironment { Environment = env });
-		AddChild(new World.SkyboxView(env, () => _session?.U, ChaseSkyForward));   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor; in der Rückansicht dreht sie mit der Kamera)
+		AddChild(new World.SkyboxView(env, () => _session?.U, ChaseSkyForward));
+		AddChild(_nebula = new World.NebulaView(env, () => _session?.U));   // Gasernte: Nebelsektor (Tiefennebel) und Gasfelder   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor; in der Rückansicht dreht sie mit der Kamera)
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-50, 30, 0), LightEnergy = 1.3f });
 		// Runde 8: schwaches, kühles Fülllicht von der Gegenseite (ohne Schatten, mobil billig) — die abgewandten Seiten der Modelle versinken sonst
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-25, 210, 0), LightEnergy = 0.45f, LightColor = new Color(0.7f, 0.8f, 1f), ShadowEnabled = false });
@@ -3308,6 +3315,7 @@ public partial class Main : Node3D
 		// Phase 29: Kontaktabbau läuft von selbst, solange die Werkzeugfront den Fels berührt (gemeinsame Core-Regel mit den NPC-Schürfern)
 		if (!frozen && !_transition && ship.Stats.ContactMining > 0f)
 			_chunks.Contact(u, ship, sector, pos, new Vec2(-Mathf.Sin(_player.Heading), -Mathf.Cos(_player.Heading)), delta, _anchorAllowed);
+		if (!frozen && !_transition) StepGas(delta);   // Gasernte: Sammler schöpft im Gasfeld (Core-Regel GasHarvest)
 		if (_chunks.Update(u, ship, pos, tractor, delta) > 0f) _sfx.Play(SfxId.Pickup);
 		// Gerätetest: klarer Grund, warum ein Brocken nicht geladen wird (Laderaum für seine Form voll)
 		if (_chunks.HoldFull is { } full && u.Goods.TryGetValue(full, out var fg))

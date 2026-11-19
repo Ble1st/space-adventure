@@ -26,7 +26,9 @@ public static class SaveGameJson
         "missile_launcher_s_mk2", "power_bank_s_mk2", "point_defense_s_mk2", "reactor_m", "corvette", "missile_boat",
         "bomber", "gunboat", "destroyer", "battlecruiser", "strip_miner",
         "drill_head_s", "cutting_wheel_s", "cutting_wheel_m", "cutting_drum_l",
-        "jump_drive_s", "cloak_s", "cloak_s_mk2" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
+        "jump_drive_s", "cloak_s", "cloak_s_mk2",
+        // Gasernte und Nebel: Gas, Ionengas, Gassammler, Ionentriebwerke, Gasraffinerie, Gasschöpfer
+        "gas", "ion_gas", "gas_scoop_s", "ion_engine_s", "ion_engine_m", "gas_refinery", "skimmer" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {
@@ -186,6 +188,18 @@ public static class SaveGameJson
                         rs["propellant"] = new System.Text.Json.Nodes.JsonArray(100, 100);
                     }
             }
+        // Gasernte und Nebel (nach v17): Gas aus den Schildkosten, Gasraffinerie-Typ und -Stationen, Nebel/Gasfelder der Sektoren, Gassammler-Gründer
+        foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+            if (m?["cost"] is System.Text.Json.Nodes.JsonObject mc) foreach (var key in mc.Select(kv => kv.Key).Where(Late).ToList()) mc.Remove(key);
+        RemoveWhere(root["stationTypes"]?.AsArray(), n => Late((string?)n["key"]));
+        foreach (var sec in root["sectors"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
+        {
+            if (sec is not System.Text.Json.Nodes.JsonObject so) continue;
+            so.Remove("nebula"); so.Remove("gasFields");
+            RemoveWhere(so["stations"]?.AsArray(), st => Late((string?)st["type"]));
+        }
+        RemoveWhere(root["ships"]?.AsArray(), n => Late((string?)n["model"]));
+        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); if ((int?)rr["maxStations"] == 71) rr["maxStations"] = 69; }
         foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             if (m?["stats"] is System.Text.Json.Nodes.JsonObject fs && fs["fuelUse"] is not null)
                 switch ((string?)m["key"])

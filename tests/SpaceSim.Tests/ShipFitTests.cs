@@ -41,7 +41,7 @@ public class ShipFitTests
         // Phase 11: Polizei (Wächter) und Kaperschiffe (Korsar) gehören ebenfalls nicht zur Einheitsflotte
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Police), s => Assert.Equal("warden", s.ModelKey));
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Pirate), s => Assert.Equal("corsair", s.ModelKey));
-        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate)))
+        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Collector)))
         {
             var expectedModel = WorldBuilder.UnitModelFor(s.Role, s.Role == ShipRole.Miner ? 60f : 100f);
             Assert.Equal(expectedModel, s.ModelKey);
@@ -152,7 +152,7 @@ public class ShipFitTests
         // Slot-Content kam mit der Migration aus der Default-Welt-Registry
         Assert.True(loaded.ShipModels.ContainsKey("unit_trader_100"));
         Assert.All(loaded.Ships.Values.Where(s => s.Role == ShipRole.Builder), s => Assert.Equal("foreman", s.ModelKey));   // Phase 8: Bauschiff-Rolle → Foreman
-        foreach (var s in loaded.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate)))   // Phase 11: Polizei/Piraten eigene Modelle
+        foreach (var s in loaded.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Collector)))   // Phase 11: Polizei/Piraten eigene Modelle
         {
             var model = loaded.ShipModels[s.ModelKey];
             Assert.Equal(model.Fit, s.Fit);                            // Fit beim Laden aus dem Modell gefüllt

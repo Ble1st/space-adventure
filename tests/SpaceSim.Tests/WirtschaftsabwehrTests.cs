@@ -33,7 +33,14 @@ public class WirtschaftsabwehrTests
         r.EconomicStationHullFactor = 3f; r.EconomicEmergencyShieldTicks = 240;
     }
 
-    static Universe War(ulong seed = 1) => TestWorlds.Default(seed, fuel: false, research: false, startOption: "war");
+    /// <summary>Kriegstest-Welt der Kalibrierung. Gasernte und Nebel ändern keine Belagerungsregel, verschieben aber den Zufallsweg (Güteklassen der
+    /// Gasschöpfer-Gründer) — gemessen wurde die Kalibrierung auf der Welt davor, daher ohne den Gasinhalt.</summary>
+    static Universe War(ulong seed = 1)
+    {
+        var def = TestWorlds.Def(fuel: false, research: false);
+        GasNebulaTests.RevertGas(def);
+        return WorldBuilder.Build(def, seed, "war");
+    }
 
     static void Place(Universe u, Ship s, SectorId sector, Vec2 pos)
     {
@@ -146,6 +153,7 @@ public class WirtschaftsabwehrTests
     static Universe WarOld()
     {
         var def = TestWorlds.Def(fuel: false, research: false);
+        GasNebulaTests.RevertGas(def);
         RevertWirtschaftsabwehr(def);
         return WorldBuilder.Build(def, 1, "war");
     }

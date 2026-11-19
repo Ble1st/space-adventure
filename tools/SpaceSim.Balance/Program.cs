@@ -73,6 +73,7 @@ if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
 if (opts.TryGetValue("blackmarket", out var bmOpt)) u.Rules.BlackMarket = bmOpt == "on";
+if (opts.TryGetValue("nebula", out var nebOpt)) u.Rules.NebulaEffects = nebOpt == "on";   // Gasernte: Nebelwirkungen (Vergleichsläufe)
 if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc = bmnOpt == "on";   // Schwarzmarkt NPC: gesetzlose KI-Schiffe beim Hehler (Vergleichsläufe)   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
 // Kapitulation: --capitulation off = Phase-28-Regel (Regierungsstationen nur ausgeschaltet, keine Übernahme), --aicapture off = nur der Spieler übernimmt
 if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulation = capOpt == "on";
@@ -582,6 +583,7 @@ u.Events.Raised += e =>
 // Phase 19: Stilllegungen/Umwidmungen, Auslastung je Station (alle 200 Ticks), Knappheit ohne freien Platz
 var retiredStations = new List<string>();
 int buildersCommissioned = 0, discardCount = 0;
+float gasCollected = 0f, gasDelivered = 0f, gasDeliveredCr = 0f; int gasTrips = 0, ionTanks = 0; float ionTankUnits = 0f;   // Gasernte
 int bmnSales = 0, bmnBuys = 0; float bmnSoldUnits = 0f, bmnSoldCr = 0f, bmnBoughtUnits = 0f, bmnBoughtCr = 0f;   // Schwarzmarkt NPC
 var discarded = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: von KI-Händlern im All abgeworfen (kein Käufer nahm den Rest)
 var dumped = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: über die Annahme abgeladen (Station: Ware → Einheiten)
@@ -592,6 +594,9 @@ u.Events.Raised += e =>
 {
     if (e is CargoDumped cdu) { string dk = $"{u.Stations.GetValueOrDefault(cdu.Station)?.Name ?? "#" + cdu.Station.Value}: {u.Goods[cdu.Good].Name}"; dumped[dk] = dumped.GetValueOrDefault(dk) + cdu.Units; }
     if (e is BuilderCommissioned) buildersCommissioned++;
+    if (e is GasCollected gc && u.Ships.TryGetValue(gc.Ship, out var gcs) && gcs.Controller == Controller.Ai) gasCollected += gc.Units;
+    if (e is MineDelivered gmd && u.GoodOf(gmd.Good).Key == u.Rules.GasGoodKey) { gasDelivered += gmd.Amount; gasDeliveredCr += gmd.Revenue; gasTrips++; }
+    if (e is FuelBought fb && u.GoodOf(fb.Good).Key == "ion_gas") { ionTanks++; ionTankUnits += fb.Units; }
     if (e is BlackMarketNpcTrade bmt) { if (bmt.Sold) { bmnSales++; bmnSoldUnits += bmt.Units; bmnSoldCr += bmt.Credits; } else { bmnBuys++; bmnBoughtUnits += bmt.Units; bmnBoughtCr += bmt.Credits; } }
     if (e is CargoDiscarded cdi) { discardCount++; string gk = u.Goods[cdi.Good].Name; discarded[gk] = discarded.GetValueOrDefault(gk) + cdi.Units; }
     if (e is StationRetired sre)
@@ -1079,6 +1084,14 @@ if (u.Modules.Count > 0)
         int lawless = u.ShipsById().Count(s => (s.Role == ShipRole.Trader || s.Role == ShipRole.Miner) && SpaceSim.Core.Simulation.BlackMarketNpc.LawlessOwner(u, s) is not null);
         Console.WriteLine($"Schwarzmarkt NPC ({(SpaceSim.Core.Simulation.BlackMarketNpc.Active(u) ? "an" : "aus")}): Verkäufe {bmnSales} ({bmnSoldUnits:0.#} E., {bmnSoldCr:0} Cr), "
             + $"Käufe {bmnBuys} ({bmnBoughtUnits:0.#} E., {bmnBoughtCr:0} Cr); gesetzlose Händler/Schürfer jetzt {lawless}");
+    }
+    {
+        var gasG = u.FindGood(u.Rules.GasGoodKey); var ionG = u.FindGood("ion_gas");
+        string Price(Good? g) => g is null ? "–" : $"{(watch.AverageRatio(g.Id, ticks * 3 / 4) ?? 0f):0.00}";
+        int collectors = u.Ships.Values.Count(s => s.Role == ShipRole.Collector && s.Controller == Controller.Ai);
+        Console.WriteLine($"Gasernte (Nebel {(u.Rules.NebulaEffects ? "an" : "aus")}, Nebelsektoren {u.Sectors.Values.Count(s => s.Nebula)}, Gasfelder {u.Sectors.Values.Sum(s => s.GasFields.Count)}): "
+            + $"KI geschöpft {gasCollected:0} E., ausgeliefert {gasDelivered:0} E. in {gasTrips} Lieferungen ({gasDeliveredCr:0} Cr); Sammler jetzt {collectors}; "
+            + $"Ionengas getankt {ionTanks}× ({ionTankUnits:0.#} E.); Ø Preis/Basis letzte 25%: Gas {Price(gasG)}, Ionengas {Price(ionG)}");
     }
     // Phase 28: Raketen, Stationen, Krieg
     Console.WriteLine($"Kriegsführung (Phase 28: {(u.Rules.Warfare ? "an" : "aus")}): Raketen {missilesLaunched} ({(missileOutcomes.Count == 0 ? "–" : string.Join(", ", missileOutcomes.Select(kv => $"{kv.Key} {kv.Value}")))}); "

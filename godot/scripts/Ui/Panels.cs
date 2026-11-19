@@ -156,6 +156,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 			DrawCircle(p, 30f, new Color(0.03f, 0.05f, 0.1f, 1f));   // Gerätetest: deckender Knoten — die Torlinien laufen nicht mehr über ihn
 			DrawCircle(p, 30f, new Color(col, 0.35f));
 			DrawArc(p, 30f, 0, Mathf.Tau, 40, col, 3f);
+			if (s.Nebula) DrawArc(p, 33f, 0, Mathf.Tau, 40, new Color(0.75f, 0.55f, 1f, 0.8f), 3f);   // Gasernte: Nebelsektor
 			if (s.Id == _player) DrawArc(p, 38f, 0, Mathf.Tau, 40, Colors.White, 3f);
 			if (s.Id == _target) DrawArc(p, 46f, 0, Mathf.Tau, 40, Colors.Yellow, 3f);
 			if (_jumpTargets?.Contains(s.Id) == true) DrawArc(p, 44f, 0, Mathf.Tau, 40, new Color(0.45f, 0.9f, 1f), 4f);   // Sprungantrieb: in Reichweite

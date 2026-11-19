@@ -289,6 +289,14 @@ public static class WorldBuilder
                 {
                     ClassKey = u.AsteroidClasses.ContainsKey(fd.Class) ? fd.Class : throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Asteroidenklasse '{fd.Class}'"), Position = V(fd.Pos) * sd.Scale, TargetAsteroids = fd.Belt, RespawnTicks = fd.Respawn,
                 });
+            // Gasernte: Nebel und Gasfelder (Lage und Radius × Maßstab)
+            sector.Nebula = sd.Nebula;
+            foreach (var gf in sd.GasFields)
+            {
+                if (!float.IsFinite(gf.Radius) || gf.Radius <= 0f) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): Gasfeld braucht radius > 0");
+                if (!float.IsFinite(gf.Density) || gf.Density <= 0f) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): Gasfeld braucht density > 0");
+                sector.GasFields.Add(new GasField { Position = V(gf.Pos) * sd.Scale, Radius = gf.Radius * sd.Scale, Density = gf.Density });
+            }
         }
 
         // Phase 31: Torklassen

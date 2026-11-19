@@ -59,7 +59,7 @@ public sealed class ResourceModule : ISimModule
 {
     public string Name => "Resources";
     // Respawn ist ein seltenes Zufallsereignis → mit Intervall (Wahrscheinlichkeit skaliert mit dt)
-    public void Register(SimulationBuilder b) => b.Add(new AsteroidRespawnSystem(), interval: 10).Add(new MinerSystem());
+    public void Register(SimulationBuilder b) => b.Add(new AsteroidRespawnSystem(), interval: 10).Add(new MinerSystem()).Add(new GasCollectorSystem());   // Gasernte: Sammler nach den Schürfern
 }
 
 public sealed class TradeModule : ISimModule

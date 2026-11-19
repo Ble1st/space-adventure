@@ -25,7 +25,7 @@ public class FuelResearchDefaultTests
         var off = TestWorlds.DefaultOff();
         int Free(Universe w) => w.Rules.MaxStations - StationProtection.CountEconomic(w);
         Assert.Equal(Free(off), Free(u));
-        Assert.Equal(off.Rules.MaxStations + 5, u.Rules.MaxStations);
+        Assert.Equal(off.Rules.MaxStations + 7, u.Rules.MaxStations);   // Gasernte: + zwei Gasraffinerien (reine Treibstoffhersteller)
     }
 
     [Theory]

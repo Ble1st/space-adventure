@@ -20,7 +20,9 @@ public static class DemoUniverse
     public static readonly GoodId Ammo = new(26);   // Munition (Phase 23), angehängt
     /// <summary>Erste Modul-Ware: Modul-Waren folgen automatisch hinter den JSON-Waren, nach Modulschlüssel sortiert (Phase 5a; seit Phase 23 hinter der Munition).</summary>
     public static readonly GoodId Missile = new(27);   // Rakete (Phase 28), angehängt
-    public const int FirstModuleGoodId = 28;
+    public static readonly GoodId Gas = new(28);   // Nebelgas (Gasernte), angehängt
+    public static readonly GoodId IonGas = new(29);   // Ionengas (Gasernte), angehängt
+    public const int FirstModuleGoodId = 30;
 
     /// <summary>Kurzform: der Bausatz der Einheitsmodelle (leicht).</summary>
     public static GoodId ShipKit => ShipKitLight;

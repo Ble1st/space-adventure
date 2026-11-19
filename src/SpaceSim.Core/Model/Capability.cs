@@ -22,6 +22,8 @@ public enum Capability
     Jump = 32,
     /// <summary>Tarnfeld: verringerte Entdeckung an Kontrollpunkten (zurückgestellt, noch kein Modul nutzt sie).</summary>
     Stealth = 64,
+    /// <summary>Gassammler: Nebelgas in Kanister schöpfen (Aufgabe „gas“).</summary>
+    GasHarvest = 128,
 }
 
 /// <summary>Wer ein Schiff steuert: der Spieler selbst oder die KI.</summary>
@@ -43,6 +45,7 @@ public static class CapabilityDefaults
         ShipRole.Player => Capability.Cargo | Capability.Mining,
         ShipRole.Builder => Capability.Cargo | Capability.Construction,
         ShipRole.Police or ShipRole.Pirate => Capability.Combat,   // Phase 11
+        ShipRole.Collector => Capability.Cargo | Capability.GasHarvest,   // Gasernte
         _ => Capability.None,
     };
 

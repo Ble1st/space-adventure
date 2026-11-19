@@ -174,6 +174,7 @@ public class SchwarzmarktNpcTests
     public void SchalterAus_StandardweltHashWieVorher_20000Ticks()
     {
         var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        GasNebulaTests.RevertGas(def);   // Gasernte und Nebel kamen danach
         TestWorlds.RevertFuelResearchOn(def);   // die Referenz stammt von vor „Treibstoff und Forschung dauerhaft an“ (beide Schalter aus, vor dem Weltaufbau)
         def.Rules!.BlackMarketNpc = false;
         var u = WorldBuilder.Build(def);

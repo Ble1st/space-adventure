@@ -239,7 +239,7 @@ public class Phase23Tests
         Assert.Equal("Munition", ammo.Name);
         Assert.Equal("ammo", ammo.Category);
         Assert.Equal(GoodForm.Solid, ammo.Form);
-        Assert.Equal(DemoUniverse.FirstModuleGoodId - 2, ammo.Id.Value);   // Phase 28: vor der Rakete angehängt, Modul-Waren dahinter
+        Assert.Equal(DemoUniverse.Ammo.Value, ammo.Id.Value);   // Phase 28: vor der Rakete angehängt; Gasernte: Nebelgas/Ionengas dahinter, dann die Modul-Waren
         // keine Exportware
         foreach (var st in u.Stations.Values)
             if (ExportRules.ConfigOf(u, st) is { } cfg) Assert.DoesNotContain(DemoUniverse.Ammo, cfg.Goods);

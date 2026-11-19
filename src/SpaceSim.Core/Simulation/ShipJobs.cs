@@ -133,11 +133,51 @@ public sealed class BuildJob : IShipJob
     }
 }
 
+/// <summary>
+/// Gasernte: Nebelgas schöpfen und an Gasraffinerien/Schildwerke verkaufen (<see cref="GasCollectorSystem"/>). Eigene Aufgabe statt „mine“: Sammler
+/// brauchen weder Asteroiden noch Abbauwerkzeug, haben eine eigene Grenze (<see cref="EconomyRules.MaxCollectors"/>, 1 Einheit je Schiff) und nehmen den
+/// Schürfern keine Plätze weg. Kaufwert = Flüssigraum-Anteil (bis 60) × Sammelrate × Tempo, gewichtet mit dem noch nicht bedienten Gasbedarf.
+/// </summary>
+public sealed class GasJob : IShipJob
+{
+    public const string JobKey = "gas";
+    /// <summary>Flüssigraum, ab dem ein Sammler als voll ausgestattet gilt.</summary>
+    public const float ReferenceHold = 60f;
+    /// <summary>Sammelrate, die als Stufe 1 gilt (Gassammler S).</summary>
+    public const float ReferenceRate = 1.5f;
+    public string Key => JobKey;
+    public ShipRole Role => ShipRole.Collector;
+    public Capability Needs => Capability.GasHarvest;
+    public float Limit(EconomyRules rules) => rules.MaxCollectors;
+    public float Units(ShipStats stats, float cargoCapacity, EconomyRules rules) => 1f;
+    public float FleetValue(ShipStats stats, EconomyRules rules)
+    {
+        if (stats.GasCollect <= 0f) return 0f;
+        float hold = stats.CargoLiquid + stats.CargoAny;
+        return MathF.Min(1f, hold / ReferenceHold) * MathF.Min(1.5f, stats.GasCollect / ReferenceRate)
+               * (0.5f + 0.5f * MathF.Min(1.5f, stats.Speed / Travel.ShipSpeed));
+    }
+    public float Score(Universe u, Ship ship) => GasCollectorSystem.Best(u, ship).Score * ship.CapacityVolumeFor(GoodForm.Liquid);
+
+    /// <summary>Anteil des Flüssigraums, den der offene Gasbedarf (abzüglich dessen, was Sammler schon an Bord haben) füllt.</summary>
+    public float DemandFactor(Universe u, ShipStats stats)
+    {
+        if (Mining.GasHarvest.GasGood(u) is not { } gas) return 0f;
+        float hold = stats.CargoLiquid + stats.CargoAny;
+        if (hold <= 0f) return 0f;
+        var demand = ProductionDemand.OpenDemand(u, (float[]?)null);
+        float open = (uint)gas.Id.Value < (uint)demand.Length ? demand[gas.Id.Value] : 0f;
+        foreach (var o in u.ShipsById())
+            if (o.Role == ShipRole.Collector && o.Controller == Controller.Ai) open -= o.CapacityVolumeFor(GoodForm.Liquid) / gas.VolumePerUnit;
+        return Math.Clamp(open * gas.VolumePerUnit / hold, 0f, 1f);
+    }
+}
+
 /// <summary>Registry der KI-Aufgaben (feste Reihenfolge: Handel, Schürfen, Bauen) und gemeinsame Abfragen.</summary>
 public static class ShipJobs
 {
     /// <summary>Alle Aufgaben in fester Reihenfolge (Reihenfolge = Reihenfolge der Flottenerweiterung, wie vor Phase 6 erst Händler, dann Miner; Phase 8: dann Bauschiffe).</summary>
-    public static readonly IReadOnlyList<IShipJob> Default = new IShipJob[] { new TradeJob(), new MineJob(), new BuildJob() };
+    public static readonly IReadOnlyList<IShipJob> Default = new IShipJob[] { new TradeJob(), new MineJob(), new BuildJob(), new GasJob() };
 
     /// <summary>Aufgabe zum Content-Schlüssel (null = unbekannt).</summary>
     public static IShipJob? ByKey(string key) => Default.FirstOrDefault(j => j.Key == key);

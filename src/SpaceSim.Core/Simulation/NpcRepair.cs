@@ -176,7 +176,7 @@ public sealed class NpcRepairSystem : ISimSystem
                 NpcRepair.AtStation(u, ship, st);
                 if (!NpcRepair.Serious(u, ship)) continue;
             }
-            if (ship.IsEconomyAi && ship.Role is ShipRole.Trader or ShipRole.Miner && u.Tick >= ship.NextThinkTick && ship.MinePhase == MinePhase.Idle)
+            if (ship.IsEconomyAi && ship.Role is ShipRole.Trader or ShipRole.Miner or ShipRole.Collector && u.Tick >= ship.NextThinkTick && ship.MinePhase == MinePhase.Idle)
                 NpcRepair.Seek(u, ship);
         }
     }
