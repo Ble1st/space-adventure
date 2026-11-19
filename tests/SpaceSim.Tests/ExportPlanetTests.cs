@@ -390,4 +390,21 @@ public class ExportPlanetTests
 
     /// <summary>Phase 21: <c>maxStations</c> der Weltdatei (statt der festen Zahl der 4-Sektoren-Welt).</summary>
     static int FileMaxStations() => WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations;
+
+    /// <summary>
+    /// Luxusexport-Start (TODO-AUSBAU Punkt 11) zurücknehmen für die Referenz-Hash-Tests (Teil der Rücknahmekette über
+    /// <see cref="GasNebulaTests.RevertGas"/>): die zweite Luxuswerkstatt in Kalypso (Id 89) entfernen, das vergrößerte
+    /// Platin-/Elektronik-Eingangslager der Luxuswerkstatt auf den Rezept-Standard zurücksetzen und <c>maxStations</c> um 1 senken.
+    /// </summary>
+    internal static void RevertLuxuryStart(WorldDef def)
+    {
+        foreach (var s in def.Sectors)
+            s.Stations.RemoveAll(st => st.Type == "luxury_workshop" && st.Id >= 89);   // nur die angehängte Startstation (bestehende Ids bleiben)
+        if (def.StationTypes.FirstOrDefault(t => t.Key == "luxury_workshop") is { } lw && lw.Stocks is { } st)
+        {
+            st.Remove("platinum"); st.Remove("electronics");
+            if (st.Count == 0) lw.Stocks = null;
+        }
+        if (def.Rules is { } r && r.MaxStations == 74) r.MaxStations = 73;   // Lebenszyklus-Spielraum wie vorher
+    }
 }

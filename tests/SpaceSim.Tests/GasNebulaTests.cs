@@ -27,6 +27,7 @@ public class GasNebulaTests
     /// </summary>
     internal static void RevertGas(WorldDef def)
     {
+        ExportPlanetTests.RevertLuxuryStart(def);   // Luxusexport-Start kam danach (TODO-AUSBAU Punkt 11): zweite Luxuswerkstatt in Kalypso, größeres Eingangs lager, maxStations + 1
         FusionTankTests.RevertFusion(def);   // Fusionsbrennstoff kam danach
         StationsverschleissTests.RevertWear(def);   // Ausbau Punkt 8 (Stationsverschleiß) kam danach
         FirmensitzTests.RevertSeats(def);   // Ausbau Punkt 9 (Firmensitz und Büro) kam danach

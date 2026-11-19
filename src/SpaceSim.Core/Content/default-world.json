@@ -69,7 +69,7 @@
   "escortMinRemainingTicks": 200,
   "maxMiners": 55,
   "repairPlatesPerHull": 0.02,
-  "maxStations": 73,
+  "maxStations": 74,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": true,
@@ -695,6 +695,16 @@
    "buildCost": 10000,
    "upkeep": 0.14,
    "income": 2,
+   "stocks": {
+    "platinum": [
+     150,
+     300
+    ],
+    "electronics": [
+     150,
+     300
+    ]
+   },
    "recipes": [
     {
      "ticks": 12,
@@ -2720,6 +2730,16 @@
      ],
      "essential": true,
      "credits": 0
+    },
+    {
+     "id": 89,
+     "type": "luxury_workshop",
+     "name": "Luxuswerkstatt Kalypso",
+     "pos": [
+      -60,
+      160
+     ],
+     "essential": true
     }
    ]
   },
