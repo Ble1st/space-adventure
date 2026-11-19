@@ -137,7 +137,7 @@ public sealed partial class RepairFuelScreen : DockAreaScreen, ISessionScreen
 	/// <summary>Selbsttest: wurde der Abschnitt „Tanken“ gezeichnet (Phase 14: nur mit Treibstoff)?</summary>
 	public bool TestFuelSection => _fuelSection;
 	/// <summary>Selbsttest: Tankzeile und Hinweis ohne passendes Angebot.</summary>
-	public string TestTankLine => _tankLine;
+	public new string TestTankLine => _tankLine;
 	public string TestTankMissing => _tankMissing;
 	string _tankLine = "", _tankMissing = "";
 	bool _fuelSection;
