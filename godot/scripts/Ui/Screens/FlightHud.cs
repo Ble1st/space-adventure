@@ -111,6 +111,8 @@ public sealed class FlightHudData
 	public string GateAttackInfo = "";
 	/// <summary>Runde 14b: Tor gewählt, aber gerade nicht angreifbar (Schonfrist nach dem Wiederanlauf) — Taste gesperrt mit diesem Grund.</summary>
 	public string GateAttackBlocked = "";
+	/// <summary>Ausbau Punkt 1: „Verband greift an“ — Zahl der eigenen Schiffe, die das gewählte Ziel angreifen würden ("" = Taste aus).</summary>
+	public string WingAttack = "";
 	public string HitWarning = "";
 	/// <summary>Gerätetest Phase 28: Gegenwehr der Station (Geschütze, Reichweite, eigene Raketenreichweite) unter „Station angreifen“.</summary>
 	public string StationAttackInfo = "";
@@ -216,6 +218,11 @@ public partial class FlightHud : Control, IScreen
 	public event Action<PowerMode>? PowerModePressed;
 	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
 	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed, StationAttackPressed, AimAssistPressed, GateAttackPressed;
+	/// <summary>Ausbau Punkt 1: „Verband greift an“ (zwei Tipps).</summary>
+	public event Action? WingAttackPressed;
+	KitButton _wingAttack = null!;
+	/// <summary>Selbsttest: Taste „Verband greift an“.</summary>
+	public KitButton TestWingAttack => _wingAttack;
 	/// <summary>Phase 28: „Station angreifen“ (zwei Tipps über <see cref="KitConfirm"/>).</summary>
 	KitButton _stationAttack = null!, _gateAttack = null!;
 	public bool TestGateAttackVisible => _gateAttack.Visible;
@@ -579,6 +586,10 @@ public partial class FlightHud : Control, IScreen
 		_autoMineBtn.Pressed += () => AutoMinePressed?.Invoke();
 		_contextBtn = At(this, new KitButton("", new Vector2(330, 64)) { FontSize = 20 }, 800, 206);
 		_contextBtn.Pressed += () => ContextPressed?.Invoke();
+		// Ausbau Punkt 1: „Verband greift an“ rechts in der Zeile der Kontexttaste (die Kontexttaste rückt dann auf die linke Hälfte)
+		_wingAttack = At(this, _attackConfirm.Wire(new KitButton("", new Vector2(161, 64)) { FontSize = 16, State = KitButtonState.Warn }, "wing_attack", "Verband greift an",
+			() => WingAttackPressed?.Invoke()), 969, 206);
+		_wingAttack.Visible = false;
 
 		// ── rechte Spalte (Symboltasten 64 × 64): Leistung, Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff ──
 		_power = At(this, new KitButton("⚡", new Vector2(64, 64)) { FontSize = 22 }, 1140, 80);
@@ -759,7 +770,7 @@ public partial class FlightHud : Control, IScreen
 	{
 		if (Layout is not { } l) return;
 		foreach (var it in new[] { HudItem.Autopilot, HudItem.AutoMine }) _items[it].Visible = !l.Hidden(it);
-		if (l.Hidden(HudItem.Context)) _contextBtn.Visible = false;
+		if (l.Hidden(HudItem.Context)) { _contextBtn.Visible = false; _wingAttack.Visible = false; }
 		_expand.Visible = !l.Hidden(HudItem.Expand);
 		_allFire.Visible = !l.Hidden(HudItem.FireBtn) && _d.HasWeapons;
 		for (int i = 0; i < _groupButtons.Count; i++) if (l.Hidden(HudItem.Group0 + i)) _groupButtons[i].Visible = false;
@@ -935,6 +946,18 @@ public partial class FlightHud : Control, IScreen
 		_contextBtn.Visible = d.ContextLabel.Length > 0 || d.ContextVerb.Length > 0;
 		if (d.ContextVerb.Length > 0 && d.ContextNameOptions is { Count: > 0 } cno) SetContext(d.ContextVerb, cno);
 		else { _contextBtn.Text = d.ContextLabel; _contextBtn.Sub = ""; }
+		// Ausbau Punkt 1: „Verband greift an“ neben der Kontexttaste
+		bool wing = d.WingAttack.Length > 0;
+		_wingAttack.Visible = wing;
+		if (wing && _wingAttack.Text != "Wirklich?") _wingAttack.Sub = d.WingAttack;
+		if (Layout is { } wl)
+		{
+			var cr = wl[HudItem.Context];
+			float cw = wing ? MathF.Floor((cr.W - 8f) / 2f) : cr.W;
+			if (MathF.Abs(_contextBtn.Size.X - cw) > 0.5f) { _contextBtn.CustomMinimumSize = new Vector2(cw, cr.H); _contextBtn.Size = new Vector2(cw, cr.H); }
+			_wingAttack.Position = new Vector2(cr.X + cr.W - cw, cr.Y);
+			_wingAttack.CustomMinimumSize = new Vector2(cw, cr.H); _wingAttack.Size = new Vector2(cw, cr.H);
+		}
 
 		_slider.SetValue(d.SliderValue, notify: false);
 		_slider.SpeedText = $"{(int)d.Speed} m/s";

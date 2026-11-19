@@ -13,7 +13,7 @@ public abstract record ShipCommand
 }
 
 /// <summary>Schlüssel der Befehlstypen (Registry, Speicherformat, Oberfläche).</summary>
-public static class CommandKinds
+public static partial class CommandKinds
 {
     public const string GoTo = "goto";
     public const string Hold = "hold";
@@ -186,7 +186,7 @@ public static class CommandNames
         CommandKinds.Return => "Heimkehr",
         CommandKinds.Lurk => "Lauern",
         CommandKinds.Pursue => "Verfolgen",
-        _ => kind,
+        _ => FleetOpsNames.Kind(kind) ?? kind,   // Flottenbefehle (Punkt 1/1b)
     };
 
     public static string Rule(Engagement e) => e switch

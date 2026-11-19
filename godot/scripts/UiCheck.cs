@@ -69,6 +69,28 @@ public partial class UiCheck : Node
 	readonly List<(string Name, Action Setup, int Wait)> _plan = new();
 	int _sizeIdx, _factorIdx, _wait;
 	string _state = "";
+
+	/// <summary>Ausbau Punkt 1/1b: eigenes Kampfschiff (und ein Händler für die Konvoi-Gruppe) für die Flottenzustände — je Welt einmal angelegt.</summary>
+	ShipId? FleetCheckShip()
+	{
+		var u = _m.Session.U;
+		var own = u.ShipsById().FirstOrDefault(s => s.IsPlayer && s.Id != u.PlayerShip && s.ModelKey == "falcon");
+		if (own is not null) return own.Id;
+		var me = u.Ships[u.PlayerShip];
+		var at = u.StationsById().Where(s => !s.IsBuildSite && s.Sector == me.Sector).OrderBy(s => SpaceSim.Core.Model.Vec2.Distance(s.Position, me.Position)).FirstOrDefault()
+			?? u.StationsById().First(s => !s.IsBuildSite);
+		Ship Make(string key)
+		{
+			var m = u.ShipModels[key];
+			var s = SpaceSim.Core.Simulation.ShipPurchase.Create(u, u.NewShipId(), m.Key, u.ShipClasses[m.ClassKey].Slots, m.Fit, ShipRole.Player, Controller.Player, u.PlayerActor, at, 0f);
+			s.HomeBase = at.Id;
+			u.AddShip(s);
+			return s;
+		}
+		var f = Make("falcon");
+		Make("hauler");
+		return f.Id;
+	}
 	bool _shot;
 	bool Headless => DisplayServer.GetName() == "headless";
 
@@ -180,6 +202,9 @@ public partial class UiCheck : Node
 			Add("kz-comms-auftraege-meldung", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); var cs = _m.HudRef.CcComms; cs.TestSetTab("missions"); cs.TestShowMessage("Auftrag angenommen: Transport — versiegelte Fracht 20 m³ → Elektronikfabrik Kalypsо · noch 9:59 (zweite Zeile zum Messen des Umbruchs im Meldungsfach)"); }, 12);
 			// Runde 37b (A4): Fraktionsdetail (schmal: Detail statt Liste)
 			Add("kz-fraktionsdetail", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Factions); var fr = _m.HudRef.CcFactions; fr.Selected = fr.TestRows.FirstOrDefault()?.Id; fr.TestDetailOpen = true; }, 12);
+			// Ausbau Punkt 1/1b: Flotte mit gewähltem Kampfschiff und offener Zielwahl „Angreifen“ (Befehlsraster mit sechs Spalten, Karte nach Inhalt)
+			Add("kz-flotte-angriff", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.Attack); } }, 12);
+			Add("kz-flotte-konvoi", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.Convoy); } }, 12);
 			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
 		}
 		if (NoFlight) { Add("ende", () => { _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f); }, 5); return; }   // Runde 37b: der lange Prüfhinweis des Menüs gehört nicht in den Flug

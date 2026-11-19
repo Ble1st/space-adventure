@@ -21,7 +21,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 {
 	public override string Id => "cc.fleet";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
-	public void ResetSession() { _sel = null; _pending = null; _message = ""; _msgOk = true; _radius = -2; _allowLoss = false; }   // Runde 25: auch die Verlustsperre
+	public void ResetSession() { _sel = null; _pending = null; _message = ""; _msgOk = true; _radius = -2; _allowLoss = false; _group.Clear(); _deliverIdx = 0; }   // Runde 25: auch die Verlustsperre
 
 	/// <summary>Auto-Mining umschalten (echte Entsprechung: <see cref="MiningAutopilot"/> des Spielers in Main).</summary>
 	public event Action<bool>? AutoMiningToggled;
@@ -40,14 +40,45 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 	int _enabledCommands;
 
 	/// <summary>Wählt ein Schiff vor (Hangar „Befehle“, Besitz „Befehle“).</summary>
-	public void Select(ShipId id) { _sel = id; _pending = null; _message = ""; }
+	public void Select(ShipId id) { _sel = id; _pending = null; _message = ""; _group.Clear(); }
+
+	// Ausbau Punkt 1b: Gruppenwahl (Sammelpunkt, Konvoi) und Menge je Fahrt (Liefern)
+	readonly HashSet<int> _group = new();
+	int _deliverIdx;
+	static readonly int[] DeliverAmounts = { 0, 10, 25, 50, 100, 200 };
+	static bool IsGroupKind(string? k) => k is CommandKinds.Rally or CommandKinds.Convoy;
+	/// <summary>Selbsttest: Schiff für Sammelpunkt/Konvoi mitnehmen (wie der Tipp auf „mit“).</summary>
+	public void TestToggleGroup(ShipId id) { if (!_group.Add(id.Value)) _group.Remove(id.Value); Invalidate(); }
+	/// <summary>Selbsttest: Zieloptionen der laufenden Zielwahl (Beschriftung).</summary>
+	public IReadOnlyList<string> TestTargetLabels => _targetButtons.Select(b => b.Text).ToList();
+	/// <summary>Selbsttest: Zieltaste der laufenden Zielwahl.</summary>
+	public KitButton? TestTargetButton(int i) => i >= 0 && i < _targetButtons.Count && IsInstanceValid(_targetButtons[i]) ? _targetButtons[i] : null;
+	/// <summary>Selbsttest: Befehlstaste im Raster.</summary>
+	public KitButton? TestCommandButton(string kind) => _commandButtons.TryGetValue(kind, out var b) && IsInstanceValid(b) ? b : null;
+	/// <summary>Selbsttest: „mit“-Taste einer Listenzeile.</summary>
+	public KitButton? TestGroupButton(ShipId id) => _groupButtons.TryGetValue(id.Value, out var b) && IsInstanceValid(b) ? b : null;
+	/// <summary>Selbsttest: „Konvoi bilden“.</summary>
+	public KitButton? TestConvoyButton { get; private set; }
+	readonly List<KitButton> _targetButtons = new();
+	readonly Dictionary<string, KitButton> _commandButtons = new();
+	readonly Dictionary<int, KitButton> _groupButtons = new();
 	/// <summary>Für den Selbsttest: Zahl der freigegebenen Befehlsknöpfe des gewählten Schiffs.</summary>
 	public int TestEnabledCommands => _enabledCommands;
 	public string TestMessage => _message;
 	/// <summary>Für Selbsttest/Bildschirmfotos: Befehl wählen (wie ein Tipp im Raster; Befehle mit Ziel öffnen die Zielwahl).</summary>
 	public void TestChoose(string kind) { var u = Ctx.U; if (_sel is { } id && u.Ships.TryGetValue(id, out var s)) Choose(u, s, kind); }
 
-	static readonly string[] Targeted = { CommandKinds.GoTo, CommandKinds.Patrol, CommandKinds.Guard, CommandKinds.Escort, CommandKinds.Follow, CommandKinds.Build };
+	static readonly string[] Targeted = { CommandKinds.GoTo, CommandKinds.Patrol, CommandKinds.Guard, CommandKinds.Escort, CommandKinds.Follow, CommandKinds.Build,
+		CommandKinds.Attack, CommandKinds.Pursue, CommandKinds.Salvage, CommandKinds.Blockade, CommandKinds.Deliver, CommandKinds.Rally, CommandKinds.Convoy };   // Ausbau Punkt 1/1b
+
+	/// <summary>Kurze Beschriftung der Befehlstaste (94 px).</summary>
+	static string ButtonLabel(string kind) => kind switch
+	{
+		CommandKinds.Blockade => "Blockade",
+		CommandKinds.Rally => "Sammeln",
+		CommandKinds.Patrol => "Streife",
+		_ => CommandNames.Kind(kind),
+	};
 
 	protected override void BuildContent(Control inner)
 	{
@@ -67,6 +98,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		bool narrow = Narrow(inner);   // Runde 35: schmal — Liste oben, Detail darunter
 		// Runde 35b (Prüfung: schmal stand eine große Lücke zwischen Liste und Detail): Listenhöhe nach Inhalt, höchstens 220, das Detail folgt direkt darunter
 		float listH = narrow ? MathF.Min(220f, MathF.Max(1, ships.Count) * 70f - 6f) : 456f;
+		_groupButtons.Clear();
 		var scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 12, 56, narrow ? InnerW(inner) - 24f : 368, listH);
 		var list = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		list.AddThemeConstantOverride("separation", 6);
@@ -76,16 +108,25 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		foreach (var s in ships)
 		{
 			bool sel = s.Id == ship.Id, active = s.Id == u.PlayerShip;
-			bool escortHere = canEscort && !sel;
+			bool groupHere = IsGroupKind(_pending) && !sel && !active;   // Ausbau Punkt 1b: Gruppe für Sammelpunkt/Konvoi
+			bool escortHere = canEscort && !sel && !groupHere;
 			var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 			row.AddThemeConstantOverride("separation", 4);
-			var b = new KitButton($"#{s.Id.Value} {ModelName(u, s)}", new Vector2(escortHere ? 228 : 352, 64)) { AlignLeft = true, FontSize = 16, State = sel ? KitButtonState.On : KitButtonState.Normal };
+			var b = new KitButton($"#{s.Id.Value} {ModelName(u, s)}", new Vector2(escortHere || groupHere ? 228 : 352, 64)) { AlignLeft = true, FontSize = 16, State = sel ? KitButtonState.On : KitButtonState.Normal };
 			string sq = Squadrons.Get(u, s) is { } q ? $"[{q.Name}{(q.Leader == s.Id ? ", Anführer" : "")}] " : "";
-			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : "aktiv · von dir gesteuert") : Shorten(sq + Commands.Describe(u, s), escortHere ? 26 : 46);
+			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : "aktiv · von dir gesteuert") : Shorten(sq + Commands.Describe(u, s), escortHere || groupHere ? 26 : 46);
 			b.Detail = Where(u, s);
 			var id = s.Id;
 			b.Pressed += () => { Select(id); Invalidate(); };
 			row.AddChild(b);
+			if (groupHere)
+			{
+				bool inGroup = _group.Contains(s.Id.Value);
+				var g = new KitButton(inGroup ? "✓ mit" : "mit", new Vector2(120, 64)) { FontSize = 15, Sub = inGroup ? "dabei" : "mitnehmen", State = inGroup ? KitButtonState.On : KitButtonState.Normal };
+				g.Pressed += () => { if (!_group.Add(id.Value)) _group.Remove(id.Value); Invalidate(); };
+				_groupButtons[id.Value] = g;
+				row.AddChild(g);
+			}
 			if (escortHere)
 			{
 				// Runde 25 (Gerätetest: „Begleiten durch #x“ war missverständlich): wer wen begleitet, steht ausgeschrieben
@@ -119,48 +160,62 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			var bMine = At(det, new KitButton("Auto-Mining", new Vector2(220, 56)) { FontSize = 17, State = mining ? KitButtonState.On : KitButtonState.Normal }, 14, 112);
 			bMine.Pressed += () => AutoMiningToggled?.Invoke(!Ctx.AutoMiningOn());
 			BuildSquadronRow(det, u, ship, 398, cancel: false);
+			_messageY = 462f;
 			Message(det);
 			return;
 		}
 
-		// Befehlsraster (aus der Registry, gesperrt nach Fähigkeit/Ziel); Touch-Ziele 56 px
+		// Befehlsraster (aus der Registry, gesperrt nach Fähigkeit/Ziel); Touch-Ziele 56 px. Ausbau Punkt 1/1b: sechs Spalten, Höhe der Karte nach Inhalt
 		At(det, Text(_pending is null ? "Befehl geben" : $"{CommandNames.Kind(_pending)}: Ziel wählen (oder Befehl erneut tippen)", 15, Cyan), 14, 76, 590, 20);
 		_enabledCommands = 0;
+		_commandButtons.Clear();
 		var missing = new List<string>();
 		int i = 0;
-		foreach (var ex in OrderExecutors.Default.All.Where(e => e.ForPlayer))   // Phase 27: Lauern/Verfolgen nur für Fraktionen und Piraten
+		foreach (var ex in OrderExecutors.Default.All.Where(e => e.ForPlayer))   // Phase 27: Lauern nur für Piraten
 		{
 			string kind = ex.Kind;
 			bool capable = ex.Needs == Capability.None || ship.Has(ex.Needs);
 			bool ok = capable && (Targeted.Contains(kind) || Commands.Check(u, ship, Simple(u, ship, kind)!) is null);
 			if (ok) _enabledCommands++;
 			else if (!capable) missing.Add(CommandNames.Kind(kind));
-			var b = At(det, new KitButton(CommandNames.Kind(kind), new Vector2(112, 56)) { FontSize = 15,
-				State = !ok ? KitButtonState.Disabled : _pending == kind || ship.Command?.Kind == kind ? KitButtonState.On : KitButtonState.Normal }, 14 + (i % 5) * 118, 98 + (i / 5) * 60);
+			var b = At(det, new KitButton(ButtonLabel(kind), new Vector2(94, 56)) { FontSize = 14,
+				State = !ok ? KitButtonState.Disabled : _pending == kind || ship.Command?.Kind == kind ? KitButtonState.On : KitButtonState.Normal }, 14 + (i % 6) * 98, 98 + (i / 6) * 60);
 			if (ok) b.Pressed += () => Choose(u, ship, kind);
+			_commandButtons[kind] = b;
 			i++;
 		}
 
 		// Zielwahl (Schritt 3) oder Grenzen der Automatik
-		float ty = 222f;
-		if (_pending is { } pk) BuildTargets(det, u, ship, pk, ty);
-		else BuildLimits(det, u, ty);
+		float ty = 98f + (i + 5) / 6 * 60f + 4f;
+		ty = _pending is { } pk ? BuildTargets(det, u, ship, pk, ty) : BuildLimits(det, u, ty);
 
 		// Verhalten (Regeln des Verbands, wenn das Schiff in einem ist)
-		At(det, Text("Verhalten", 14, Cyan), 14, 354, 86, 20);
+		At(det, Text("Verhalten", 14, Cyan), 14, ty + 18, 86, 20);
 		float rx = 104;
 		var rules = Squadrons.RulesOf(u, ship);
 		foreach (var e in new[] { Engagement.Passive, Engagement.Defend, Engagement.Attack, Engagement.HoldFire })
 		{
-			var b = At(det, new KitButton(CommandNames.Rule(e), new Vector2(124, 56)) { FontSize = 14, State = rules == e ? KitButtonState.On : KitButtonState.Normal }, rx, 336);
+			var b = At(det, new KitButton(CommandNames.Rule(e), new Vector2(124, 56)) { FontSize = 14, State = rules == e ? KitButtonState.On : KitButtonState.Normal }, rx, ty);
 			var ee = e;
 			b.Pressed += () => { SetRules(u, ship, ee); Invalidate(); };
 			rx += 128;
 		}
-		BuildSquadronRow(det, u, ship, 398, cancel: true);
+		BuildSquadronRow(det, u, ship, ty + 62, cancel: true);
+		_messageY = ty + 126;
 		if (_message.Length == 0 && missing.Count > 0) { _message = "Gesperrt, Fähigkeit fehlt: " + string.Join(", ", missing); _msgOk = true; Message(det, dim: true); _message = ""; }
 		else Message(det);
+		FitCard(det, _messageY + 44f);
 	}
+
+	/// <summary>Ausbau Punkt 1/1b: Kartenhöhe nach Inhalt (der Bereich rollt als Ganzes, wenn sie über die Fläche reicht).</summary>
+	static void FitCard(Control det, float h)
+	{
+		var size = new Vector2(det.Size.X, MathF.Max(det.Size.Y, h));
+		det.CustomMinimumSize = size;
+		det.Size = size;
+	}
+
+	float _messageY = 462f;
 
 	// Runde 25 (Gerätetest: die Kapazitätsmeldung lief über das Zeilenende): bis zu zwei Zeilen, mit der Schrift gemessen umbrochen
 	void Message(Control det, bool dim = false)
@@ -169,7 +224,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		var lines = Wrap(_message, 13, 596);
 		_messageLines = lines.Count;
 		if (lines.Count > 2) lines = new List<string> { lines[0], Shorten(string.Join(" ", lines.Skip(1)), 90) };
-		for (int k = 0; k < lines.Count; k++) At(det, Text(lines[k], 13, dim ? new Color(Dim, 0.85f) : _msgOk ? Green : Red), 14, 462 + k * 19, 596, 19);
+		for (int k = 0; k < lines.Count; k++) At(det, Text(lines[k], 13, dim ? new Color(Dim, 0.85f) : _msgOk ? Green : Red), 14, _messageY + k * 19, 596, 19);
 	}
 
 	/// <summary>Für den Selbsttest: Zeilen der letzten Meldung nach dem Umbruch (gemessen, vor dem Kürzen).</summary>
@@ -197,7 +252,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 
 	void Choose(Universe u, Ship ship, string kind)
 	{
-		if (Targeted.Contains(kind)) { _pending = _pending == kind ? null : kind; _message = ""; Invalidate(); return; }
+		if (Targeted.Contains(kind)) { _pending = _pending == kind ? null : kind; _message = ""; _group.Clear(); Invalidate(); return; }
 		Give(u, ship, Simple(u, ship, kind)!);
 	}
 
@@ -215,53 +270,120 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 
 	void Say(string msg, bool ok) { _message = msg; _msgOk = ok; Invalidate(); }
 
-	void BuildTargets(Control det, Universe u, Ship ship, string kind, float y)
+	/// <summary>Zielwahl (Schritt 3). Liefert die Unterkante.</summary>
+	float BuildTargets(Control det, Universe u, Ship ship, string kind, float y)
 	{
-		var options = new List<(string Label, ShipCommand Cmd)>();
+		_targetButtons.Clear();
+		TestConvoyButton = null;
+		var options = new List<(string Label, string Sub, ShipCommand? Cmd)>();
 		switch (kind)
 		{
 			case CommandKinds.GoTo:
 			case CommandKinds.Guard:
 				// Phase 21: nach Sprüngen vom Schiff aus (bei 11 Sektoren stehen die nahen Ziele vorn), dann Sektor und Id
 				foreach (var st in u.Stations.Values.Where(s => !s.IsBuildSite).OrderBy(s => Hops(u, ship.Sector, s.Sector)).ThenBy(s => s.Sector.Value).ThenBy(s => s.Id.Value))
-					options.Add((Shorten(st.Name, 18), kind == CommandKinds.GoTo ? new GoToCommand(default, default, st.Id) : new GuardCommand(st.Id)));
+					options.Add((Shorten(st.Name, 18), "", kind == CommandKinds.GoTo ? new GoToCommand(default, default, st.Id) : new GuardCommand(st.Id)));
 				break;
 			case CommandKinds.Patrol:
-				foreach (var sec in u.Sectors.Values.OrderBy(s => Hops(u, ship.Sector, s.Id)).ThenBy(s => s.Id.Value)) options.Add((sec.Name.Replace("Sektor ", ""), new PatrolCommand(new[] { sec.Id })));
-				if (u.Sectors.Count > 1) options.Add(("Alle Sektoren", new PatrolCommand(u.Sectors.Keys.OrderBy(k => k.Value).ToList())));
+				foreach (var sec in u.Sectors.Values.OrderBy(s => Hops(u, ship.Sector, s.Id)).ThenBy(s => s.Id.Value)) options.Add((sec.Name.Replace("Sektor ", ""), "", new PatrolCommand(new[] { sec.Id })));
+				if (u.Sectors.Count > 1) options.Add(("Alle Sektoren", "", new PatrolCommand(u.Sectors.Keys.OrderBy(k => k.Value).ToList())));
 				break;
 			case CommandKinds.Escort:
 			case CommandKinds.Follow:
 				// Runde 24: Zieltexte unterscheidbar (Rolle bzw. Ort), nicht gleich wie die Schiffszeile links
 				foreach (var other in PlayerFleet.Owned(u).Where(s => s.Id != ship.Id))
-					options.Add(($"{ModelName(u, other)} #{other.Id.Value} · {(other.Id == u.PlayerShip ? "aktiv" : Shorten(Where(u, other), 12))}", kind == CommandKinds.Escort ? new EscortCommand(other.Id) : new FollowCommand(other.Id)));
+					options.Add(($"{ModelName(u, other)} #{other.Id.Value} · {(other.Id == u.PlayerShip ? "aktiv" : Shorten(Where(u, other), 12))}", "", kind == CommandKinds.Escort ? new EscortCommand(other.Id) : new FollowCommand(other.Id)));
 				break;
 			case CommandKinds.Build:
-				options.Add(("Nächste freie", new BuildCommand(default)));
+				options.Add(("Nächste freie", "", new BuildCommand(default)));
 				foreach (var site in u.Stations.Values.Where(s => s.Site is { Abandoned: false }).OrderBy(s => s.Id.Value))
-					options.Add((Shorten(site.Name, 18), new BuildCommand(site.Id)));
+					options.Add((Shorten(site.Name, 18), "", new BuildCommand(site.Id)));
 				break;
+			// Ausbau Punkt 1/1b
+			case CommandKinds.Attack: foreach (var t in FleetTargets.Attack(u, ship)) options.Add((t.Label, t.Sub, t.Command)); break;
+			case CommandKinds.Pursue: foreach (var t in FleetTargets.Pursue(u, ship)) options.Add((t.Label, t.Sub, t.Command)); break;
+			case CommandKinds.Salvage: foreach (var t in FleetTargets.Salvage(u, ship)) options.Add((t.Label, t.Sub, t.Command)); break;
+			case CommandKinds.Blockade:
+				foreach (var t in FleetTargets.Blockade(u, ship)) options.Add((t.Label, t.Sub, t.Command));
+				if (options.Count == 0) { At(det, Text("Tor blockieren geht nur im Krieg — kein Kriegsgegner.", 14, Dim), 14, y + 4, 590, 20); return y + 30f; }
+				break;
+			case CommandKinds.Deliver:
+			{
+				At(det, Text("Menge je Fahrt", 13, Dim), 14, y + 2, 132, 16);
+				var m = At(det, new KitButton("−", new Vector2(56, 56)) { FontSize = 20 }, 150, y);
+				m.Pressed += () => { _deliverIdx = Math.Max(0, _deliverIdx - 1); Invalidate(); };
+				int amount = DeliverAmounts[_deliverIdx];
+				At(det, Text(amount == 0 ? "voll" : $"{amount}", 15, White, HorizontalAlignment.Center), 206, y + 16, 60, 22);
+				var p = At(det, new KitButton("+", new Vector2(56, 56)) { FontSize = 20 }, 266, y);
+				p.Pressed += () => { _deliverIdx = Math.Min(DeliverAmounts.Length - 1, _deliverIdx + 1); Invalidate(); };
+				At(det, Text(_maxBuy <= 0f ? "Einkauf frei" : $"Einkauf ≤ {_maxBuy:0.0}× Basis", 13, Dim), 332, y + 20, 270, 18);
+				y += 62f;
+				foreach (var t in FleetTargets.Deliver(u, ship, amount, _maxBuy)) options.Add((t.Label, t.Sub, t.Command));
+				break;
+			}
+			case CommandKinds.Rally:
+			{
+				var group = GroupShips(u, ship);
+				At(det, Text($"Links „mit“ tippen: {group.Count} Schiff{(group.Count == 1 ? "" : "e")} · dann Treffpunkt wählen", 13, Dim), 14, y + 2, 590, 18);
+				y += 24f;
+				foreach (var t in FleetTargets.Rally(u, ship, group)) options.Add((t.Label, t.Sub, t.Command));
+				break;
+			}
+			case CommandKinds.Convoy:
+			{
+				var group = GroupShips(u, ship);
+				int traders = group.Count(s => s.Has(Capability.Cargo)), escorts = group.Count - traders;
+				At(det, Text($"Links „mit“ tippen: {traders} Händler, {escorts} Geleitschutz · Grenzen wie Handel", 13, Dim), 14, y + 2, 590, 18);
+				var go = At(det, new KitButton("Konvoi bilden", new Vector2(190, 56)) { FontSize = 15, State = group.Count >= 2 ? KitButtonState.Ready : KitButtonState.Disabled, Sub = group.Count >= 2 ? "" : "mind. 2 Schiffe" }, 14, y + 24);
+				if (group.Count >= 2) go.Pressed += () =>
+				{
+					bool ok = FleetFormations.StartConvoy(u, group, Limits(u, ship), out var msg);
+					if (ok) { _pending = null; _group.Clear(); }
+					Say(msg, ok);
+				};
+				TestConvoyButton = go;
+				return y + 86f;
+			}
 		}
-		var scroll = At(det, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 14, y, 596, 110);
-		var grid = new GridContainer { Columns = 4, MouseFilter = MouseFilterEnum.Ignore };
+		var scroll = At(det, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 14, y, 596, 124);
+		var grid = new GridContainer { Columns = 3, MouseFilter = MouseFilterEnum.Ignore };
 		grid.AddThemeConstantOverride("h_separation", 6);
 		grid.AddThemeConstantOverride("v_separation", 6);
 		scroll.AddChild(grid);
-		foreach (var (label, cmd) in options)
+		foreach (var (label, sub, cmd) in options)
 		{
-			bool ok = Commands.Check(u, ship, cmd) is null;
-			var b = new KitButton(label, new Vector2(142, 56)) { FontSize = 13, State = ok ? KitButtonState.Normal : KitButtonState.Disabled };
+			bool ok = cmd is not null && (kind == CommandKinds.Rally ? GroupShips(u, ship).Count >= 2 : Commands.Check(u, ship, cmd) is null);
+			var b = new KitButton(label, new Vector2(194, 56)) { FontSize = 13, Sub = sub, State = ok ? KitButtonState.Normal : KitButtonState.Disabled };
 			var c = cmd;
-			if (ok) b.Pressed += () => Give(u, ship, c);
+			if (ok && c is RallyCommand rc && u.Stations.TryGetValue(rc.At, out var at))
+				b.Pressed += () =>
+				{
+					var g = GroupShips(u, ship);
+					bool done = FleetFormations.StartRally(u, ship, g.Where(s => s.Id != ship.Id), at, out var msg);
+					if (done) { _pending = null; _group.Clear(); }
+					Say(msg, done);
+				};
+			else if (ok) b.Pressed += () => Give(u, ship, c!);
 			grid.AddChild(b);
+			_targetButtons.Add(b);
 		}
 		if (options.Count == 0) At(det, Text("Keine möglichen Ziele.", 14, Dim), 14, y, 400, 20);
+		return y + 130f;
+	}
+
+	/// <summary>Ausbau Punkt 1b: das gewählte Schiff und die mit „mit“ markierten (eigene, nicht aktive; Id-Reihenfolge nach dem gewählten).</summary>
+	List<Ship> GroupShips(Universe u, Ship ship)
+	{
+		var list = new List<Ship> { ship };
+		foreach (var id in _group.OrderBy(v => v))
+			if (u.Ships.TryGetValue(new ShipId(id), out var s) && s.IsPlayer && s.Id != u.PlayerShip && s.Id != ship.Id) list.Add(s);
+		return list;
 	}
 
 	/// <summary>Phase 21: Sprünge zwischen zwei Sektoren (physische Route; unerreichbar = ans Ende).</summary>
 	static int Hops(Universe u, SectorId from, SectorId to) => from == to ? 0 : u.FindRoute(from, to)?.Count ?? int.MaxValue;
 
-	void BuildLimits(Control det, Universe u, float y)
+	float BuildLimits(Control det, Universe u, float y)
 	{
 		At(det, Text("Automatik (Handel/Schürfen): Grenzen ab dem aktuellen Sektor", 14, Cyan), 14, y, 590, 18);
 		float x = 14;
@@ -283,6 +405,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		var guard = At(det, new KitButton(_allowLoss ? "erlaubt" : "gesperrt", new Vector2(92, 56)) { FontSize = 14, State = _allowLoss ? KitButtonState.Warn : KitButtonState.On }, 14 + 3 * 168, y + 38);
 		guard.Pressed += () => { _allowLoss = !_allowLoss; Invalidate(); };
 		TestLossGuardButton = guard;
+		return y + 100f;
 	}
 
 	void BuildSquadronRow(Control det, Universe u, Ship ship, float y, bool cancel)

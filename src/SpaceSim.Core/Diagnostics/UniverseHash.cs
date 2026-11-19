@@ -231,6 +231,7 @@ public static class UniverseHash
                     case LurkCommand lc: Mix((ulong)lc.Sector.Value); MixF(lc.Spot.X); MixF(lc.Spot.Y); Mix((ulong)lc.Until); break;   // Phase 27
                     case PursueCommand pc: Mix((ulong)pc.Target.Value); MixF(pc.Lead); Mix((ulong)pc.Until); break;
                     case AssaultCommand ac: Mix((ulong)ac.Sector.Value); Mix((ulong)ac.Station.Value); if (ac.Gate.Value != 0) Mix((ulong)ac.Gate.Value + 0x3105u); break;   // Phase 28
+                    default: FleetOpsHash.Mix(c, Mix, MixF); break;   // Flottenbefehle (nur Spielerschiffe tragen sie)
                 }
             }
         }

@@ -99,8 +99,8 @@ public class FleetCommandTests
     {
         var r = OrderExecutors.CreateDefault();
         // Phase 27: Lauern und Verfolgen am Ende (nur für Fraktionen/Piraten, nicht im Befehlsraster des Spielers)
-        Assert.Equal(new[] { "goto", "hold", "trade", "mine", "build", "patrol", "guard", "escort", "follow", "return", "lurk", "pursue", "assault" }, r.All.Select(e => e.Kind));   // Phase 28: + Angriff (Kriegsschiffe)
-        Assert.Equal(new[] { "lurk", "pursue", "assault" }, r.All.Where(e => !e.ForPlayer).Select(e => e.Kind));
+        Assert.Equal(new[] { "goto", "hold", "trade", "mine", "build", "patrol", "guard", "escort", "follow", "return", "lurk", "pursue", "assault", "attack", "salvage", "blockade", "deliver", "rally", "convoy" }, r.All.Select(e => e.Kind));   // Phase 28: + Angriff (Kriegsschiffe); Ausbau Punkt 1/1b: Flottenbefehle
+        Assert.Equal(new[] { "lurk", "assault" }, r.All.Where(e => !e.ForPlayer).Select(e => e.Kind));   // Ausbau Punkt 1: Verfolgen jetzt auch für die Spielerflotte
         Assert.Throws<ArgumentException>(() => r.Register(new HoldExecutor()));
         Assert.Equal(Capability.Combat, r.All.First(e => e.Kind == "patrol").Needs);
         Assert.Equal(Capability.Cargo, r.All.First(e => e.Kind == "trade").Needs);

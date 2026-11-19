@@ -67,6 +67,13 @@ public sealed class OrderExecutors
         r.Register(new LurkExecutor());      // Phase 27: Piratengruppen
         r.Register(new PursueExecutor());    // Phase 27: Polizei
         r.Register(new AssaultExecutor());   // Phase 28: Kriegsschiffe
+        // Ausbau Punkt 1/1b: Befehle der Spielerflotte
+        r.Register(new FleetAttackExecutor());
+        r.Register(new SalvageExecutor());
+        r.Register(new BlockadeExecutor());
+        r.Register(new DeliverExecutor());
+        r.Register(new RallyExecutor());
+        r.Register(new ConvoyExecutor());
         return r;
     }
 

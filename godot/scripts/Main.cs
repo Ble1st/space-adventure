@@ -156,6 +156,7 @@ public partial class Main : Node3D
 		};
 		_hud.Flight.StationAttackPressed += ArmStationAttack;   // Phase 28
 		_hud.Flight.GateAttackPressed += ArmGateAttack;   // Phase 31
+		_hud.Flight.WingAttackPressed += OrderWingAttack;   // Ausbau Punkt 1: „Verband greift an“
 		_hud.Flight.SurrenderPressed += Surrender;
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
 		_hud.Flight.PowerModePressed += m =>
@@ -1072,6 +1073,7 @@ public partial class Main : Node3D
 	{
 		if (JumpCloakEvent(e)) return;   // Sprungantrieb und Tarnfeld (Main.JumpCloak.cs)
 		if (BuildEvent(e)) return;   // eigene Stationen (Main.Build.cs)
+		if (FleetOpsEvent(e)) return;   // Flottenbefehle (Main.FleetOps.cs)
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
@@ -2614,6 +2616,16 @@ public partial class Main : Node3D
 		d.GateAttackBlocked = _docked is null && u.Rules.GateCombat && d.HasWeapons && navGate is not null && SpaceSim.Core.Combat.GateCombat.InGrace(u, navGate)
 			? $"Notbetrieb {SpaceSim.Core.Combat.GateCombat.GraceLeft(u, navGate) / SimClock.TicksPerSecond / 60}:{SpaceSim.Core.Combat.GateCombat.GraceLeft(u, navGate) / SimClock.TicksPerSecond % 60:00}" : "";   // Runde 14b: Schonfrist
 		d.EscapeStatus = SpaceSim.Core.Combat.PlayerCombat.EscapeStatus(u);
+		// Ausbau Punkt 1: „Verband greift an“ — Zielschiff, sonst gewählte Station bzw. gewähltes Tor; nur mit bewaffneten eigenen Schiffen in der Nähe
+		_wingCmd = null;
+		if (_docked is null)
+		{
+			if (_fight.Target.Value != 0 && u.Ships.TryGetValue(_fight.Target, out var wts) && !wts.IsPlayer)
+				_wingCmd = new SpaceSim.Core.Model.AttackCommand(wts.Id, default, default, SpaceSim.Core.Simulation.ThreatMap.Where(u, wts).Sector);
+			else if (navStation is not null) _wingCmd = new SpaceSim.Core.Model.AttackCommand(default, navStation.Id, default, navStation.Sector);
+			else if (navGate is not null && u.Rules.GateCombat) _wingCmd = new SpaceSim.Core.Model.AttackCommand(default, default, navGate.Id, navGate.Sector);
+		}
+		d.WingAttack = _wingCmd is not null ? SpaceSim.Core.Combat.FleetAttack.WingLabel(u, _wingCmd) ?? "" : "";
 		d.AimAssistVisible = _docked is null && AimTarget() is not null;
 		d.AimAssistOn = _aimAssist;
 		if (_fight.AtStation && u.Stations.TryGetValue(_fight.StationTarget, out var ast))
@@ -3059,6 +3071,16 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Phase 28: „Station angreifen“ bestätigt — die Waffen schießen auf die gewählte Station (bis ein Schiff gewählt wird oder das Ziel wechselt).</summary>
+	SpaceSim.Core.Model.AttackCommand? _wingCmd;
+
+	/// <summary>Ausbau Punkt 1: „Verband greift an“ — bewaffnete eigene Schiffe (Verband des aktiven Schiffs, freie im Sektor) bekommen den Angriffsbefehl.</summary>
+	void OrderWingAttack()
+	{
+		if (_session is null || _wingCmd is null) return;
+		int n = SpaceSim.Core.Combat.FleetAttack.OrderWing(_session.U, _wingCmd, out var msg);
+		if (n > 0) _hud.Alert(msg, 5f); else _hud.Toast(msg);
+	}
+
 	void ArmStationAttack()
 	{
 		if (_targetStation is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;

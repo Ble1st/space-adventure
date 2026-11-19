@@ -2784,6 +2784,7 @@ public partial class SelfTest : Node
 			case 143: if (PlayerBuildStage(_frame - _stageStart)) Next(); break;   // Eigene Stationen: „Bauen“ per Tipp auf die Leiste, Typ und „Bauplatz wählen“ per Tipp, Geist per ▶/↻ 45° bewegen und drehen, rot am Tor, grün am freien Platz, „Platzieren“ legt die Baustelle an (SelfTest.PlayerBuild.cs)
 			case 144: if (GasStage(_frame - _stageStart)) Next(); break;   // Gasernte und Nebel: Gassammler, Nebelsektor Borealis, „Gas“ per Tipp an (Gas im Laderaum) und aus, außerhalb „kein Gasfeld“, Tiefennebel nur im Nebel (SelfTest.Gas.cs)
 			case 145: if (TankStage(_frame - _stageStart)) Next(); break;   // Fusionsbrennstoff und Tankanzeige: Kriegstest-Bollwerk, HUD „Fusion“ mit Reichweite, rot bei fast leer, Raffinerie nennt Fusionsbrennstoff und Anreicherungsanlage, Tanken per Tipp (SelfTest.Tank.cs)
+			case 146: if (FleetOpsStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 1/1b: Flottenbefehle per Tipp (Angreifen, Verfolgen, Bergen, Liefern, Sammelpunkt, Konvoi, Blockade gesperrt) und „Verband greift an“ (SelfTest.FleetOps.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
@@ -2799,7 +2800,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 145;
+	const int LastStage = 146;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

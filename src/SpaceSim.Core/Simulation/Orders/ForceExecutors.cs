@@ -107,12 +107,44 @@ public sealed class PursueExecutor : IOrderExecutor
 
     public string Kind => CommandKinds.Pursue;
     public Capability Needs => Capability.Combat;
-    public bool ForPlayer => false;
+    /// <summary>Ausbau Punkt 1: auch die Spielerflotte verfolgt (eigener Zweig <see cref="StepPlayer"/>; NPC-Polizei unverändert).</summary>
+    public bool ForPlayer => true;
 
     public string? Check(Universe u, Ship ship, ShipCommand command)
     {
-        if (command is not PursueCommand p || !u.Ships.ContainsKey(p.Target)) return "Ziel unbekannt.";
-        return p.Target == ship.Id ? "Ein Schiff kann sich nicht selbst verfolgen." : null;
+        if (command is not PursueCommand p || !u.Ships.TryGetValue(p.Target, out var t)) return "Ziel unbekannt.";
+        if (p.Target == ship.Id) return "Ein Schiff kann sich nicht selbst verfolgen.";
+        if (!ship.IsPlayer) return null;
+        if (t.IsPlayer) return "Eigene Schiffe verfolgt die Flotte nicht.";
+        if (FleetAttack.RulesIssue(u, ship) is { } rules) return rules;
+        var ts = ThreatMap.Where(u, t).Sector;
+        return OrderMove.Reachable(u, ship, ts) || ThreatMap.Where(u, ship).Sector == ts ? null : "Ziel ist für dieses Schiff nicht erreichbar.";
+    }
+
+    /// <summary>
+    /// Ausbau Punkt 1: Verfolgen der Spielerflotte — folgt dem Ziel über Sektorgrenzen (Reiseziel des Ziels, <see cref="FleetAttack.Close"/>) und stellt es,
+    /// sobald es in Reichweite ist (<see cref="FleetAttack.EngageShip"/>: außerhalb eines Kriegs ein Verbrechen). Nach dem Gefecht geht die Verfolgung weiter.
+    /// Endet, wenn das Ziel weg ist, nach der Frist (<see cref="FleetAttack.PursuitTicks"/>) oder wenn der Sektor des Ziels für das Schiff gesperrt ist.
+    /// </summary>
+    CommandStatus StepPlayer(Universe u, Ship ship, PursueCommand c)
+    {
+        CommandStatus Over(string how)
+        {
+            u.Events.Publish(new PursuitEnded(ship.Id, c.Target, how));
+            return FleetAttack.BackToLeader(u, ship) ? CommandStatus.Running : CommandStatus.Done;
+        }
+        if (!u.Ships.TryGetValue(c.Target, out var t)) return Over("lost");
+        if (u.Tick >= c.Until) return Over("expired");
+        var ts = ThreatMap.Where(u, t).Sector;
+        if (ts != ThreatMap.Where(u, ship).Sector && !OrderMove.Reachable(u, ship, ts)) return Over("locked");
+        if (FleetAttack.Retreat(u, ship)) return CommandStatus.Running;
+        if (FleetAttack.InReach(u, ship, t))
+        {
+            if (FleetAttack.EngageShip(u, ship, t) is null) OrderMove.StepTransit(u, ship);
+            return CommandStatus.Running;
+        }
+        FleetAttack.Close(u, ship, t);
+        return CommandStatus.Running;
     }
 
     public void Start(Universe u, Ship ship, ShipCommand command) { ship.Order = null; ship.CommandStep = 0; ship.NextThinkTick = u.Tick; }
@@ -126,6 +158,7 @@ public sealed class PursueExecutor : IOrderExecutor
     public CommandStatus Step(Universe u, Ship ship, ShipCommand command, int dt)
     {
         var c = (PursueCommand)command;
+        if (ship.IsPlayer) return StepPlayer(u, ship, c);   // Ausbau Punkt 1: Spielerflotte
         if (!u.Ships.TryGetValue(c.Target, out var t)) return End(u, ship, c.Target, "lost");
         if (u.Tick >= c.Until) return End(u, ship, c.Target, "expired");
         // Ziel steckt in einem Gefecht: als Verstärkung gegen das Ziel beitreten

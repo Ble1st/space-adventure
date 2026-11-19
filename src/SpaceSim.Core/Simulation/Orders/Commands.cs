@@ -138,7 +138,7 @@ public static class Commands
 public static class AutoLimitRules
 {
     /// <summary>Grenzen des laufenden Automatikauftrags (null = keine).</summary>
-    public static AutoLimits? Of(Ship ship) => ship.Command switch { TradeCommand t => t.Limits, MineCommand m => m.Limits, _ => null };
+    public static AutoLimits? Of(Ship ship) => ship.Command switch { TradeCommand t => t.Limits, MineCommand m => m.Limits, ConvoyCommand c => c.Limits, _ => null };   // Punkt 1b: Konvoi handelt in seinen Grenzen
 
     /// <summary>Liegt der Sektor in der Reichweite (Sprünge vom Mittelpunkt)?</summary>
     public static bool InRange(Universe u, AutoLimits l, SectorId sector)

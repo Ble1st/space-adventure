@@ -364,7 +364,7 @@ public class FlottenTests
         }
         _o.WriteLine(sb.ToString());
         Assert.All(results, kv => Assert.True(kv.Value, $"Befehl {kv.Key} lief nicht wie erwartet"));
-        Assert.Empty(OrderExecutors.Default.All.Where(x => x.ForPlayer).Select(x => x.Kind).Except(results.Keys.Concat(new[] { "lurk", "pursue", "assault" })));
+        Assert.Empty(OrderExecutors.Default.All.Where(x => x.ForPlayer).Select(x => x.Kind).Except(results.Keys.Concat(new[] { "lurk", "pursue", "assault", "attack", "salvage", "blockade", "deliver", "rally", "convoy" })));   // Ausbau Punkt 1/1b: eigene Tests in FlottenbefehleTests
     }
 
     // ───────── 4b. Eskorte und Einsatzregeln im Überfall ─────────

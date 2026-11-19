@@ -820,13 +820,13 @@ public static class UniverseSerializer
         LurkCommand l => new OrderSave { Kind = CommandKinds.Lurk, A = l.Sector.Value, C = (int)l.Until, Values = new List<float> { l.Spot.X, l.Spot.Y } },
         PursueCommand q => new OrderSave { Kind = CommandKinds.Pursue, A = q.Target.Value, C = (int)q.Until, Values = new List<float> { q.Lead } },
         AssaultCommand a => new OrderSave { Kind = CommandKinds.Assault, A = a.Sector.Value, B = a.Station.Value, C = a.Gate.Value },   // Phase 28; Phase 31: Tor
-        _ => throw new InvalidOperationException($"Unbekannter Befehl {c.GetType().Name}"),
+        _ => FleetOpsCodec.ToSave(c) ?? throw new InvalidOperationException($"Unbekannter Befehl {c.GetType().Name}"),   // Flottenbefehle (Punkt 1/1b)
     };
 
-    static OrderSave LimitsSave(string kind, AutoLimits l) =>
+    internal static OrderSave LimitsSave(string kind, AutoLimits l) =>
         new() { Kind = kind, A = l.Center.Value, B = l.RadiusJumps, Values = l.AllowLoss ? new List<float> { l.MaxBuyFactor, l.Reserve, 1f } : new List<float> { l.MaxBuyFactor, l.Reserve } };   // Runde 24: dritter Wert nur bei erlaubtem Verlustkauf (additiv)
 
-    static AutoLimits LimitsFrom(OrderSave o) =>
+    internal static AutoLimits LimitsFrom(OrderSave o) =>
         new(new SectorId(o.A), o.B, o.Values is { Count: > 0 } v ? v[0] : 0f, o.Values is { Count: > 1 } w ? w[1] : 0f, o.Values is { Count: > 2 } x && x[2] > 0.5f);
 
     static ShipCommand CommandFromSave(OrderSave o) => o.Kind switch
@@ -844,7 +844,7 @@ public static class UniverseSerializer
         CommandKinds.Lurk => new LurkCommand(new SectorId(o.A), new Vec2(o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f), o.C),
         CommandKinds.Pursue => new PursueCommand(new ShipId(o.A), o.Values?.ElementAtOrDefault(0) ?? 0f, o.C),
         CommandKinds.Assault => new AssaultCommand(new SectorId(o.A), new StationId(o.B), new GateId(o.C)),
-        _ => throw new FormatException($"Unbekannter Befehl '{o.Kind}'"),
+        _ => FleetOpsCodec.FromSave(o) ?? throw new FormatException($"Unbekannter Befehl '{o.Kind}'"),
     };
 
     static OrderSave ToSave(ShipOrder o) => o switch
