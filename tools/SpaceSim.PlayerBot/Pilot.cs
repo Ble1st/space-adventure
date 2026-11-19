@@ -125,7 +125,7 @@ public sealed class Pilot
     // ───────── Dienste ─────────
 
     public ServiceResult Do(Station st, IStationService svc, string offer, GoodId good = default, float units = 0f) =>
-        Book(svc.Key + ":" + ((offer ?? "").Contains(':') ? offer![..offer.IndexOf(':')] : offer ?? ""), () => svc.Execute(U, st, Me, new ServiceRequest(offer, good, units)));
+        Book(svc.Key + ":" + (offer.Contains(':') ? offer[..offer.IndexOf(':')] : offer), () => svc.Execute(U, st, Me, new ServiceRequest(offer, good, units)));
 
     public ServiceOffer? Offer(Station st, IStationService svc, string key)
     {
