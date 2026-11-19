@@ -184,7 +184,7 @@ public class Phase28Tests
         foreach (var t in new[] { "headquarters", "sector_hq", "police_station", "shipyard" })
             Assert.True(u.StationTypes[t].Defense is { Guns.Count: > 0 }, t);
         Assert.Null(u.StationTypes["farm"].Defense);
-        Assert.Equal(u.Rules.StationBaseHull, StationCombat.MaxHull(u, u.StationsById().First(st => st.TypeKey == "farm")));
+        Assert.Equal(u.Rules.StationBaseHull * (u.Rules.EconomicStationDefense ? u.Rules.EconomicStationHullFactor : 1f), StationCombat.MaxHull(u, u.StationsById().First(st => st.TypeKey == "farm")));   // Ausgleich: Wirtschaftsstationen haben Hülle × Faktor
         Assert.Contains("missile_launcher_s", u.StationTypes["headquarters"].Defense!.Guns);
         // Hauptquartier nie erobern, nie zerstören (Regierung)
         var hq = u.StationsById().First(st => st.TypeKey == "headquarters");

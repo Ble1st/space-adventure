@@ -60,7 +60,29 @@
   "stationCapitulation": true,
   "raiderUpkeepPerTick": 0.03,
   "researchActive": true,
-  "ammoActive": true
+  "ammoActive": true,
+  "playerMaxSites": 0,
+  "playerMaxStations": 0,
+  "playerMaxStationsPerSector": 0,
+  "playerBuildForeignSectors": true,
+  "playerBuildHideoutSectors": true,
+  "playerGovernmentUpkeepShare": 0.15,
+  "playerUpkeepFloorActive": true,
+  "playerUpkeepFloor": 0,
+  "playerUpkeepResumeBuffer": 2000,
+  "playerLocksSourOnlyTarget": true,
+  "economicStationDefense": true,
+  "capitulationCooldownTicks": 480,
+  "playerSizeByStrength": true,
+  "playerShipPricing": true,
+  "playerFleetUpkeepBySize": [
+   1,
+   1.5,
+   2.5,
+   4
+  ],
+  "tributeDemandNeedsLosses": true,
+  "ownCourtAcceptsAll": true
  },
  "goods": [
   {
@@ -6651,7 +6673,7 @@
    "name": "Jäger",
    "size": "S",
    "baseHull": 70,
-   "baseMass": 5,
+   "baseMass": 2,
    "baseFuel": 150,
    "slots": [
     {

@@ -485,4 +485,46 @@ public class BalanceFixTests
         for (int i = 0; i < 300; i++) { r1.Step(u); r2.Step(copy); }
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(copy));
     }
+
+    /// <summary>
+    /// Bot-Fund: das Treuhandgeld einer Spieler-Baustelle war aufgebraucht, es fehlte nur noch 0,33 Hüllenplatten — der Spieler kann nur ganze Einheiten
+    /// verkaufen und die Baustelle blieb für immer unfertig. Seine Lieferung darf den Rest (&lt; 1 Einheit) abschließen; NPC-Lieferungen bleiben exakt.
+    /// </summary>
+    [Fact]
+    public void Baustelle_Bruchteilsrest_SpielerKannAbschliessen()
+    {
+        var u = World(3);
+        var p = Ready(u, "solar_plant", Alpha);
+        var site = PlayerBuilding.Start(u, u.StationTypes["solar_plant"], p, 0f);
+        var bs = site.Site!;
+        var good = bs.Required.Keys.OrderBy(g => g.Value).First();
+        foreach (var kv in bs.Required) site.Market[kv.Key].Amount = kv.Value;
+        site.Market[good].Amount = bs.Required[good] - 0.33f;
+        Assert.InRange(bs.Missing(site, good), 0.3f, 0.36f);
+        var ship = u.Ships[u.PlayerShip];
+        ship.Cargo[good] = 1f;
+        PlayerFleet.Undock(u, ship);
+        ship.Position = site.DockPoint(ship.Id);
+        PlayerFleet.Dock(u, ship, site);
+        var svc = StationServices.Default().ForStation(u, site).First(s => s.Key == "trade");
+        var res = svc.Execute(u, site, ship, new ServiceRequest($"sell:{good.Value}", good, 1f));
+        Assert.True(res.Success, res.Message);
+        Assert.True(bs.Complete(site));
+    }
+
+    /// <summary>Bot-Fund: Treuhandgeld aufgebraucht → Nachschuss aus der Spielerkasse ist möglich (Abheben bleibt gebunden), Summe aus Kasse + Treuhand bleibt gleich.</summary>
+    [Fact]
+    public void Baustelle_Nachschuss_EinzahlenJa_AbhebenNein()
+    {
+        var u = World(3);
+        var p = Ready(u, "solar_plant", Alpha);
+        var site = PlayerBuilding.Start(u, u.StationTypes["solar_plant"], p, 0f);
+        site.Credits = 0f;
+        Assert.Null(PlayerBuilding.TransferIssue(u, site.Id, 2500f));
+        float sum = u.Player.Treasury.Credits + site.Credits;
+        PlayerBuilding.Transfer(u, site.Id, 2500f);
+        Assert.Equal(2500f, site.Credits, 2);
+        Assert.Equal(sum, u.Player.Treasury.Credits + site.Credits, 2);
+        Assert.NotNull(PlayerBuilding.TransferIssue(u, site.Id, -100f));
+    }
 }

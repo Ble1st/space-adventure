@@ -30,7 +30,7 @@ public sealed class Empire
     float AvgRel() => U.NpcFactionIds().Select(f => Relations.Effective(U, U.PlayerActor, new ActorId(f.Value))).DefaultIfEmpty(0f).Average();
     long _lockT = -1; float _lockRel0; double _lockTrade0;
 
-    public Empire(Pilot p, Log l, Metrics m, Bot b, CommsActions c) { P = p; U = p.U; L = l; M = m; B = b; C = c; Book = new StationBook(U); Book.Built = id => MySites.Contains(id); U.Events.Raised += e => { if (e is PlayerSiteStarted ps) MySites.Add(ps.Site); }; }
+    public Empire(Pilot p, Log l, Metrics m, Bot b, CommsActions c) { P = p; U = p.U; L = l; M = m; B = b; C = c; Book = new StationBook(U); foreach (var ost in PlayerBuilding.OwnEconomic(U)) MySites.Add(ost.Id); Book.Built = id => MySites.Contains(id); U.Events.Raised += e => { if (e is PlayerSiteStarted ps) MySites.Add(ps.Site); }; }
 
     void Note(string s) { Notes.Add($"[{U.Tick,8}] {s}"); L.Event("EMPIRE: " + s); }
     void Mark(string k) { if (!Mile.ContainsKey(k)) { Mile[k] = U.Tick; Note($"MEILENSTEIN {k}"); } }
@@ -111,7 +111,12 @@ public sealed class Empire
 
     // ───────── Baufenster ─────────
 
-    static readonly string[] Plan = { "solar_plant", "steelworks", "water_plant", "copper_smelter", "wafer_fab", "electronics_fab", "goods_factory", "farm", "life_support_fab", "titanium_works" };
+    // Nutzerwunsch: mindestens 25 Handelsstationen (Erzeuger und Abnehmer wie Werft/Kolonie/Exportposten), jeder Typ höchstens zweimal
+    static readonly string[] Plan = { "solar_plant", "steelworks", "water_plant", "copper_smelter", "wafer_fab", "electronics_fab", "goods_factory", "farm", "life_support_fab", "titanium_works",
+        "solar_plant", "steelworks", "water_plant", "copper_smelter", "wafer_fab", "electronics_fab", "goods_factory", "farm", "life_support_fab", "titanium_works",
+        "plating_works", "fuel_cell_fab", "platinum_refinery", "trade_post", "colony", "shipyard", "warehouse", "luxury_workshop", "electrolysis", "powerplant", "trade_post", "drive_works", "trade_station" };
+    const int MaxPerType = 2;
+    static int Cap(int v) => v <= 0 ? int.MaxValue : v;
     int _planIdx; long _nextBuild; readonly HashSet<(SectorId, string)> _noSpot = new(); readonly HashSet<StationId> _funded = new();
     public readonly List<string> BuildLog = new();
 
@@ -147,18 +152,22 @@ public sealed class Empire
                     if (ok) Note($"Bauschiff #{f.Id.Value} baut {sit.TypeKey} (Baustelle {sit.Id.Value})"); else Note($"Bauschiff-Befehl: {msg}");
                     break;
                 }
+        if (Rescue(sites)) return true;
         if (U.Tick < _nextBuild || _planIdx >= Plan.Length) return false;
         var type = U.StationTypes[Plan[_planIdx]];
+        if (PlayerBuilding.OwnEconomic(U).Count(x => x.TypeKey == type.Key) >= MaxPerType) { _planIdx++; return false; }   // nie dreifach
         float cost = PlayerBuilding.Cost(U, type);
         if (Wallet < cost + 60000f) return false;
         var own = PlayerSeats.OwnSectors(U);
-        if (own.Count == 0) return false;
         if (Foremen().Count == 0) { BuyForeman(); _nextBuild = U.Tick + 600; return true; }
-        if (sites.Count >= Math.Min(U.Rules.PlayerMaxSites, Foremen().Count)) return false;
+        if (sites.Count >= Math.Min(Cap(U.Rules.PlayerMaxSites), Foremen().Count)) return false;
         // Sektor mit Platz (höchstens 4 eigene je Sektor), bevorzugt wenig belegt
         var perSec = PlayerBuilding.OwnEconomic(U).GroupBy(s => s.Sector).ToDictionary(g => g.Key, g => g.Count());
-        var cands = own.Where(s => perSec.GetValueOrDefault(s.Id) < U.Rules.PlayerMaxStationsPerSector && (type.Export is null || s.Planet is not null))
-            .OrderBy(s => perSec.GetValueOrDefault(s.Id)).ThenBy(s => U.Hops(P.Me.Sector, s.Id)).ToList();
+        // Kandidaten: alle Sektoren, in denen der Bau erlaubt ist (eigene, herrenlose, fremde, Piratensektor); jeder fünfte Bau bevorzugt Fremd-/Piratensektoren
+        bool foreignTurn = _planIdx % 5 == 4;
+        bool Foreign(Sector s) => U.IsNpcFaction(s.Owner) || s.Stations.Any(id => U.Stations.TryGetValue(id, out var hs) && StationProtection.IsHideout(U, hs));
+        var cands = U.Sectors.Values.Where(s => PlayerBuilding.SectorIssue(U, s.Id) is null && perSec.GetValueOrDefault(s.Id) < Math.Min(3, Cap(U.Rules.PlayerMaxStationsPerSector)) && (type.Export is null || s.Planet is not null))
+            .OrderBy(s => foreignTurn ? (Foreign(s) ? 0 : 1) : (own.Any(o => o.Id == s.Id) ? 0 : 1)).ThenBy(s => perSec.GetValueOrDefault(s.Id)).ThenBy(s => U.Hops(P.Me.Sector, s.Id)).ToList();
         if (cands.Count == 0) { Note($"Bau {type.Key}: kein eigener Sektor mit Platz (eigene Stationen {PlayerBuilding.OwnEconomic(U).Count})"); _nextBuild = U.Tick + 20000; return false; }
         var sec = cands.FirstOrDefault(c => !_noSpot.Contains((c.Id, type.Key)));
         if (sec is null) { Note($"Bau {type.Key}: in keinem eigenen Sektor ein freier Platz — überspringe Typ"); _planIdx++; _nextBuild = U.Tick + 300; return false; }
@@ -179,6 +188,46 @@ public sealed class Empire
         BuildLog.Add($"{type.Key};{sec.Name};{spot.Value.X:0};{spot.Value.Y:0};{U.Tick}");
         _planIdx++; _nextBuild = U.Tick + 300;
         return true;
+    }
+
+    long _nextRescue; public int Rescues;
+    /// <summary>
+    /// Hängt eine eigene Baustelle (Treuhandgeld aufgebraucht, ein Rest Material fehlt, seit &gt; 3000 Ticks kein Fortschritt), liefert der Bot den Rest selbst: beim
+    /// nächsten Lieferanten kaufen (Handelsdienst), zur Baustelle fliegen, dort verkaufen (Spielerpfad „Baustelle beliefern“). Kein Sonderweg.
+    /// </summary>
+    bool Rescue(List<Station> sites)
+    {
+        if (U.Tick < _nextRescue) return false;
+        foreach (var sit in sites)
+        {
+            var bs = sit.Site!;
+            if (U.Tick - bs.LastProgressTick < 3000) continue;
+            foreach (var kv in bs.Required.OrderBy(k => k.Key.Value))
+            {
+                float miss = bs.Missing(sit, kv.Key); if (miss < 0.001f) continue;
+                // erst Nachschuss ins Treuhandgeld (Spielerpfad „Umbuchung“): reicht es nicht für den Rest, kann das eigene Bauschiff nichts mehr kaufen
+                if (sit.Credits < 1500f && Wallet > 20000f && PlayerBuilding.TransferIssue(U, sit.Id, 3000f) is null)
+                {
+                    P.Book("Umbuchung Baustelle", () => { PlayerBuilding.Transfer(U, sit.Id, 3000f); return 0; });
+                    Rescues++; _nextRescue = U.Tick + 3000; Note($"Baustellen-Nachschuss {sit.TypeKey} {sit.Id.Value} in {U.Sectors[sit.Sector].Name}: 3000 Cr ins Treuhandgeld (fehlt {miss:0.00} {U.Goods[kv.Key].Name})");
+                    return false;
+                }
+                int units = (int)MathF.Ceiling(miss);
+                var sup = ConstructionRules.Suppliers(U, P.Me.Sector, kv.Key).Where(s => s.Market[kv.Key].Amount >= units + 1f).OrderBy(s => U.Hops(P.Me.Sector, s.Sector)).ThenBy(s => s.Id.Value).FirstOrDefault();
+                _nextRescue = U.Tick + 1500;
+                if (sup is null) { Note($"Baustellen-Rettung {sit.TypeKey} {sit.Id.Value}: kein Lieferant für {U.Goods[kv.Key].Name}"); return false; }
+                if (!P.GoToStation(sup, out var why)) { Note($"Baustellen-Rettung: Weg zu {sup.Name} verwehrt: {why}"); return true; }
+                var svc = P.Svc(sup, "trade"); if (svc is null) return false;
+                var r = P.Do(sup, svc, $"buy:{kv.Key.Value}", kv.Key, units);
+                if (!r.Success) { Note($"Baustellen-Rettung: Kauf {units} {U.Goods[kv.Key].Name} bei {sup.Name}: {r.Message}"); return true; }
+                if (!P.GoToStation(sit, out why)) { Note($"Baustellen-Rettung: Weg zur Baustelle verwehrt: {why}"); return true; }
+                var ssvc = P.Svc(sit, "trade"); if (ssvc is null) return false;
+                var r2 = P.Do(sit, ssvc, $"sell:{kv.Key.Value}", kv.Key, units);
+                Rescues++; Note($"Baustellen-Rettung {sit.TypeKey} {sit.Id.Value} in {U.Sectors[sit.Sector].Name}: {units} {U.Goods[kv.Key].Name} von {sup.Name} geliefert: {(r2.Success ? "ok" : r2.Message)}");
+                return true;
+            }
+        }
+        return false;
     }
 
     bool FreeSlot()
@@ -415,7 +464,7 @@ public sealed class Empire
         var mil = PlayerFleet.Owned(U).Where(s => s.Has(Capability.Combat) && U.ShipModels.TryGetValue(s.ModelKey, out var m) && m.Jobs.Count == 0).ToList();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
         if (mil.Count < 10 || big < 3 || Wallet < 150000f) return false;
-        if (_planIdx < Plan.Length && BuiltCount < 10 && U.Tick < 900_000) return false;   // erst die eigene Kette bauen (erobert Stationen zählen gegen die Obergrenze von 10)
+        if (_planIdx < Plan.Length && BuiltCount < 25 && U.Tick < 900_000) return false;   // erst die eigene Kette bauen (erobert Stationen zählen gegen die Obergrenze von 10)
         switch (_ws)
         {
             case WarState.Idle:

@@ -89,6 +89,7 @@ public partial class SelfTest
 				u.Actors[_r45Guild].Treasury.Credits = 200_000f;
 				var w = Wars.PlayerDeclare(u, _r45Guild);
 				w.Since = u.Tick - 13_000; w.Weariness = 0.33f;
+				if (w.A == _r45Guild) w.ShipsLostA = 1; else w.ShipsLostB = 1;   // Ausgleich nach dem Bot-Test: Tribut fordern setzt Verluste des Gegners voraus (Regel TributeDemandNeedsLosses) — das gealterte Kriegsszenario hat schon gekämpft
 				Check(Wars.DemandIssue(u, _r45Guild) is null, $"45: Tribut fordern möglich ({Wars.DemandIssue(u, _r45Guild)})");
 				hud.CcComms.TestSelectFaction(1);
 				hud.Screens.Current?.Refresh();

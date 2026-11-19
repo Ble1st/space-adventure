@@ -85,6 +85,7 @@ public class Runde16Tests
     public void LaufendeKosten_VerbandsunterhaltErklaertDieSinkendeKasse()
     {
         var u = TestWorlds.Default(fuel: false, research: false, startOption: "war");
+        u.Rules.PlayerFleetUpkeepBySize = new();   // Ausgleich nach dem Bot-Test: Unterhalt nach Größenklasse (Fregatten teurer) aus – der Test prüft den einheitlichen Satz je Schiff
         var me = u.Ships[u.PlayerShip];
         Assert.Equal(2, Hangar.UpkeepShips(u, u.PlayerActor));   // die zwei Bollwerke des Verbands
         float perMin = Hangar.RunningCostsPerMinute(u, u.PlayerActor);

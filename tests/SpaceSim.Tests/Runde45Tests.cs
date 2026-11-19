@@ -373,6 +373,7 @@ public class Runde45Tests
     public void Sektorbehoerde_GibtBesitz_SperreNachKiRegeln_ZollUndUnterhaltAusDerKasse()
     {
         var u = World();
+        u.Rules.PlayerLocksSourOnlyTarget = false;   // Ausgleich nach dem Bot-Test: neue Regel „Sperren ärgern nur das Ziel“ aus – der Test prüft den Groll nach den KI-Regeln (Union ist hier nicht Ziel der Sperre)
         var me = Me(u);
         ToNebelmark(u);
         var actions = CommsActions.Default();

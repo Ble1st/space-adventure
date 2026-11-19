@@ -62,7 +62,10 @@ public static class TradeActions
             pay += resCash / e.Price;
         }
         float cap = MathF.Min(pay, accept);
-        float allCap = accept > 0f && station.Site is null && u.Rules.SaleRestTolerance > 0f ? MathF.Min(pay, accept + u.Rules.SaleRestTolerance) : cap;
+        // Ausgleichstest: an einer Baustelle fehlt am Ende oft nur ein Bruchteil einer Einheit (Treuhandgeld aufgebraucht); der Spieler kann nur ganze Einheiten kaufen —
+        // seine Lieferung darf dort den Rest (< 1 Einheit Überhang) abschließen, sonst bliebe die Baustelle für immer unfertig (NPC unverändert).
+        bool playerSiteRest = station.Site is not null && ship is not null && ship.Owner == u.PlayerActor && accept > 0f && accept < 1f;
+        float allCap = accept > 0f && (station.Site is null || playerSiteRest) && u.Rules.SaleRestTolerance > 0f ? MathF.Min(pay, accept + u.Rules.SaleRestTolerance) : cap;
         return (MathF.Max(0f, cap), MathF.Max(0f, allCap));
     }
 

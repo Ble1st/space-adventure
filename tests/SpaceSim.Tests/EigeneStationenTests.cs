@@ -278,7 +278,9 @@ public class EigeneStationenTests
         var u = World();
         var p = Ready(u, "solar_plant");
         var site = PlayerBuilding.Start(u, u.StationTypes["solar_plant"], p, 0f);
-        Assert.Contains("Treuhandgeld", PlayerBuilding.TransferIssue(u, site.Id, 100f));
+        // Bot-Fund (Ausgleichstest): Nachschuss ins Treuhandgeld einer Baustelle ist erlaubt (aufgebrauchtes Treuhandgeld ließ sie sonst für immer stehen), Abheben bleibt gebunden
+        Assert.Null(PlayerBuilding.TransferIssue(u, site.Id, 100f));
+        Assert.Contains("Treuhandgeld", PlayerBuilding.TransferIssue(u, site.Id, -100f));
         ConstructionRules.Complete(u, site);
         var st = u.Stations[site.Id];
         Assert.Equal(0f, st.Credits);   // kein Startkapital

@@ -10,7 +10,7 @@ public sealed class StationBook
     sealed class Rec
     {
         public string Type = "", Name = ""; public SectorId Sector; public Vec2 Pos; public long Since; public double WorthStart; public double Transfers;
-        public double ActSum, StarveSum; public int Samples; public double InUnits, OutUnits, OutValue, InValue, Exported;
+        public double InFromOwn, OutToOwn; public double ActSum, StarveSum; public int Samples; public double InUnits, OutUnits, OutValue, InValue, Exported;
         public Dictionary<GoodId, float> Stock0 = new(); public float UpkeepTick, IncomeTick; public double ProfitRate;
     }
     readonly Universe U; readonly Dictionary<StationId, Rec> _r = new();
@@ -23,7 +23,7 @@ public sealed class StationBook
             {
                 case TraderBought b when _r.TryGetValue(b.Station, out var r): r.OutUnits += b.Units; r.OutValue += b.Cost; break;
                 case PlayerBought b when _r.TryGetValue(b.Station, out var r): r.OutUnits += b.Units; r.OutValue += b.Cost; break;
-                case TradeCompleted t when _r.TryGetValue(t.To, out var r): r.InUnits += t.Amount; r.InValue += t.Revenue; break;
+                case TradeCompleted t: { if (_r.TryGetValue(t.To, out var r)) { r.InUnits += t.Amount; r.InValue += t.Revenue; if (_r.ContainsKey(t.From)) r.InFromOwn += t.Amount; } if (_r.TryGetValue(t.From, out var r2) && _r.ContainsKey(t.To)) r2.OutToOwn += t.Amount; break; }
                 case MineDelivered m when _r.TryGetValue(m.To, out var r): r.InUnits += m.Amount; r.InValue += m.Revenue; break;
                 case PlayerSold s when _r.TryGetValue(s.Station, out var r): r.InUnits += s.Units; r.InValue += s.Revenue; break;
                 case GoodsExported g when _r.TryGetValue(g.Station, out var r): r.Exported += g.Amount; break;
@@ -55,13 +55,20 @@ public sealed class StationBook
             if (U.Stations.TryGetValue(id, out var st)) { r.ActSum += st.Activity; r.StarveSum += st.Starved; r.Samples++; r.ProfitRate = st.Profit.Rate; }
     }
 
+    string OwnerName(SectorId id)
+    {
+        var sec = U.Sectors[id];
+        if (sec.Stations.Any(x => U.Stations.TryGetValue(x, out var hs) && StationProtection.IsHideout(U, hs))) return "Piratenversteck";
+        if (sec.Owner.Value == 0) return "herrenlos";
+        return U.Factions.TryGetValue(sec.Owner, out var f) ? f.Name : "?";
+    }
     public int Count => _r.Count;
     public Func<StationId, bool>? Built;
 
     public string Report()
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Herkunft;Typ;Name;Sektor;x;y;seit Tick;Stunden;Aktiv%;Mangel%;Einsatz Einheiten;Abgabe Einheiten;Abgabe Cr;Ausstoß geschätzt;Zyklen geschätzt;Lager;Kasse;Einzahlungen;Wert Start;Wert jetzt;Gewinn gesamt;Gewinn Cr/h;Unterhalt Cr/h;Grundeinkommen Cr/h;Rate(Core) Cr/Tick");
+        sb.AppendLine("Herkunft;Typ;Name;Sektor;Sektorbesitzer;Einsatz aus eigenen Stationen %;Abgabe an eigene Stationen;x;y;seit Tick;Stunden;Aktiv%;Mangel%;Einsatz Einheiten;Abgabe Einheiten;Abgabe Cr;Ausstoß geschätzt;Zyklen geschätzt;Lager;Kasse;Einzahlungen;Wert Start;Wert jetzt;Gewinn gesamt;Gewinn Cr/h;Unterhalt Cr/h;Grundeinkommen Cr/h;Rate(Core) Cr/Tick");
         foreach (var (id, r) in _r.OrderBy(k => k.Value.Since))
         {
             if (!U.Stations.TryGetValue(id, out var st)) { sb.AppendLine($"{(Built?.Invoke(id) == true ? "gebaut" : "erobert")};{r.Type};{r.Name};{U.Sectors[r.Sector].Name};{r.Pos.X:0};{r.Pos.Y:0};{r.Since};(Station nicht mehr vorhanden)"); continue; }
@@ -72,7 +79,7 @@ public sealed class StationBook
             double cycles = perCycleOut > 0 ? Math.Max(0, producedUnits) / perCycleOut : 0;
             double worth = Worth(st); double profit = worth - r.WorthStart - r.Transfers;
             string stock = string.Join(" ", st.Market.Where(kv => kv.Value.Amount >= 1).OrderByDescending(kv => kv.Value.Amount * U.Goods[kv.Key].BasePrice).Take(4).Select(kv => $"{U.Goods[kv.Key].Name} {kv.Value.Amount:0}"));
-            sb.AppendLine($"{(Built?.Invoke(id) == true ? "gebaut" : "erobert")};{r.Type};{st.Name};{U.Sectors[st.Sector].Name};{r.Pos.X:0};{r.Pos.Y:0};{r.Since};{h:0.0};{(r.Samples > 0 ? r.ActSum / r.Samples * 100 : 0):0};{(r.Samples > 0 ? r.StarveSum / r.Samples * 100 : 0):0};{r.InUnits:0};{r.OutUnits:0};{r.OutValue:0};{Math.Max(0, producedUnits):0};{cycles:0};{stock};{st.Credits:0};{r.Transfers:0};{r.WorthStart:0};{worth:0};{profit:0};{profit / h:0};{r.UpkeepTick * 4 * 3600:0};{r.IncomeTick * 4 * 3600:0};{r.ProfitRate:0.000}");
+            sb.AppendLine($"{(Built?.Invoke(id) == true ? "gebaut" : "erobert")};{r.Type};{st.Name};{U.Sectors[st.Sector].Name};{OwnerName(st.Sector)};{(r.InUnits > 0 ? r.InFromOwn / r.InUnits * 100 : 0):0};{r.OutToOwn:0};{r.Pos.X:0};{r.Pos.Y:0};{r.Since};{h:0.0};{(r.Samples > 0 ? r.ActSum / r.Samples * 100 : 0):0};{(r.Samples > 0 ? r.StarveSum / r.Samples * 100 : 0):0};{r.InUnits:0};{r.OutUnits:0};{r.OutValue:0};{Math.Max(0, producedUnits):0};{cycles:0};{stock};{st.Credits:0};{r.Transfers:0};{r.WorthStart:0};{worth:0};{profit:0};{profit / h:0};{r.UpkeepTick * 4 * 3600:0};{r.IncomeTick * 4 * 3600:0};{r.ProfitRate:0.000}");
         }
         return sb.ToString();
     }

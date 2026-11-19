@@ -701,7 +701,7 @@ public class SecurityTests
         new SimulationRunner().Run(u, 500);
         var v13 = ToV13Json(SaveGameJson.Write(u, Now), full: true);
         Assert.Contains("\"Version\":13", v13);
-        Assert.DoesNotContain("weapon_laser_s", v13);
+        Assert.DoesNotContain("weapon_laser_s", v13.Replace("\"EconomicStationGun\":\"weapon_laser_s\"", ""));   // die gespeicherte Regel EconomicStationGun nennt das Modul, ist aber kein Inhalt
         Assert.DoesNotContain("pirate_hideout", v13);
         Assert.DoesNotContain("warden", v13);
         Assert.DoesNotContain("\"court\"", v13);

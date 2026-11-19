@@ -168,12 +168,12 @@ public static class PlayerBuilding
 
     /// <summary>
     /// Warum zwischen Spielerkasse und der Kasse der eigenen Station <paramref name="id"/> nicht <paramref name="amount"/> Cr umgebucht werden können
-    /// (positiv = einzahlen, negativ = auszahlen; null = es geht). Nur fertige eigene Stationen (das Treuhandgeld einer Baustelle bleibt gebunden).
+    /// (positiv = einzahlen, negativ = auszahlen; null = es geht). Fertige eigene Stationen; an einer Baustelle nur Einzahlen (Nachschuss ins Treuhandgeld — Abheben bleibt gebunden).
     /// </summary>
     public static string? TransferIssue(Universe u, StationId id, float amount)
     {
         if (!u.Stations.TryGetValue(id, out var st) || st.Owner != u.PlayerActor) return "Keine eigene Station.";
-        if (st.IsBuildSite) return "Treuhandgeld einer Baustelle ist gebunden.";
+        if (st.IsBuildSite && amount <= 0f) return "Treuhandgeld einer Baustelle ist gebunden (nur einzahlen).";   // Bot-Fund: ein aufgebrauchtes Treuhandgeld ließ die Baustelle für immer stehen — Nachschießen geht, Abheben nicht
         if (amount == 0f || float.IsNaN(amount)) return "Kein Betrag.";
         if (amount > 0f && u.Player.Treasury.Credits < amount) return "Kasse reicht nicht.";
         if (amount < 0f && st.Credits < -amount) return "Stationskasse reicht nicht.";

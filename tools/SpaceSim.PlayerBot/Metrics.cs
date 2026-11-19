@@ -98,7 +98,7 @@ public sealed class Metrics
         {
             if (e.Mile.ContainsKey("Krieg erklärt") && (e.Mile.ContainsKey("Station erobert") || e.Mile.ContainsKey("Station zerstört"))) Mark("Krieg", string.Join(", ", e.Mile.Where(k => k.Key.StartsWith("Krieg") || k.Key.StartsWith("Station") || k.Key.StartsWith("Frieden")).Select(k => k.Key)));
             int econ = e.BuiltCount;
-            if (econ >= 10) Mark("Handelsnetz", $"{econ} selbst gebaute Wirtschaftsstationen (fertig)");
+            if (econ >= 25) Mark("Handelsnetz", $"{econ} selbst gebaute Handelsstationen (fertig, je Typ höchstens 2)");
             if (e.Mile.ContainsKey("Gericht")) Mark("Gericht", "eigenes + fremdes Gericht getestet");
         }
     }
