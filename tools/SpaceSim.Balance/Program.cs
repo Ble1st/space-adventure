@@ -77,6 +77,8 @@ if (opts.TryGetValue("nebula", out var nebOpt)) u.Rules.NebulaEffects = nebOpt =
 if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc = bmnOpt == "on";   // Schwarzmarkt NPC: gesetzlose KI-Schiffe beim Hehler (Vergleichsläufe)   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
 // Kapitulation: --capitulation off = Phase-28-Regel (Regierungsstationen nur ausgeschaltet, keine Übernahme), --aicapture off = nur der Spieler übernimmt
 if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulation = capOpt == "on";
+// Ausbau Punkt 2: --navy off = Seeschlacht, gezielte Abwehr und Kriegsgeleit aus (alte Regel)
+if (opts.TryGetValue("navy", out var navyOpt)) u.Rules.NavalBattles = u.Rules.WarDefense = u.Rules.WarEscorts = navyOpt == "on";
 if (opts.TryGetValue("aicapture", out var aicOpt)) u.Rules.AiStationCapture = aicOpt == "on";
 // Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
 if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
@@ -429,6 +431,7 @@ int outpostsCalm = 0, outpostFights = 0, outpostShots = 0;
 double outpostCost = 0;
 var warLog = new List<string>();   // Runde 38: Kriegserklärungen mit Tick (Kaskaden sichtbar machen)
 var playerWarLog = new List<string>();   // Runde 40: Kriegserklärungen gegen den Spieler (AiWarOnPlayer)
+int navalBattles = 0, navalLost = 0, warDefenseOrders = 0, warEscortOrders = 0, warshipsDestroyed = 0;   // Ausbau Punkt 2
 int missilesLaunched = 0, stationShots = 0, stationHits = 0, shotsAtStations = 0, sieges = 0, warsDeclared = 0, warshipsBought = 0, warshipsGone = 0, stationRepairs = 0;
 double stationHullDmg = 0, stationRepairHull = 0, stationRepairPlates = 0, stationRepairCost = 0, navyCost = 0, stationGunDmg = 0;
 u.Events.Raised += e =>
@@ -477,6 +480,13 @@ u.Events.Raised += e =>
         case StandingChanged sc when sc.Reason.StartsWith(CrimeStanding.ReasonPrefix, StringComparison.Ordinal): crimeStandingLoss += sc.From - sc.To; break;
         case StandingChanged sc2 when sc2.Reason is CrimeStanding.RecoveryReason or CrimeStanding.FineReason: crimeStandingRecovered += sc2.To - sc2.From; break;
         case WarshipCommissioned: warshipsBought++; break;
+        case SpaceSim.Core.Combat.NavalBattleStarted: navalBattles++; break;
+        case SpaceSim.Core.Combat.WarDefenseAssigned: warDefenseOrders++; break;
+        case EscortAssigned ea when u.Ships.TryGetValue(ea.Police, out var eas) && Wars.IsWarship(eas): warEscortOrders++; break;
+        case ShipDeparted sd when sd.Reason == DepartureReason.Destroyed && (sd.Role == ShipRole.Warship || sd.Detail == "naval"):
+            if (sd.Role == ShipRole.Warship) warshipsDestroyed++;
+            if (sd.Detail == "naval") navalLost++;
+            break;
         case WarshipDecommissioned: warshipsGone++; break;
         case TraderBuyRefused br:
             buysRefused++;
@@ -1135,6 +1145,8 @@ if (u.Modules.Count > 0)
         + "Beziehungen " + string.Join(", ", u.NpcFactionIds().SelectMany(a => u.NpcFactionIds().Where(b => b.Value > a.Value)
             .Select(b => $"{u.Factions[a].Name}–{u.Factions[b].Name} {Relations.Effective(u, a, b):0.00}/{Relations.Effective(u, b, a):0.00}"))));
     if (warLog.Count > 0) Console.WriteLine("Kriegserklärungen: " + string.Join("; ", warLog));
+    Console.WriteLine($"KI-Kriegsschiffe (Punkt 2: Seeschlacht {(u.Rules.NavalBattles ? "an" : "aus")}, Abwehr {(u.Rules.WarDefense ? "an" : "aus")}, Geleit {(u.Rules.WarEscorts ? "an" : "aus")}): "
+        + $"Seeschlachten {navalBattles} (Schiffe zerstört {navalLost}); Kriegsschiffe zerstört {warshipsDestroyed}; Abwehrbefehle {warDefenseOrders}; Kriegsgeleite {warEscortOrders}");
     Console.WriteLine($"Bündnisse (Runde 45, {(u.Rules.AlliancesActive ? "an" : "aus")}): jetzt {u.Alliances.Count}"
         + (u.Alliances.Count > 0 ? " (" + string.Join(", ", u.Alliances.Select(al => $"{al.A.Value}–{al.B.Value} seit {al.Since}")) + ")" : "")
         + $"; Tributfrieden {tributePeaces} für {tributeMoney:0} Cr (Tributfrieden KI {(u.Rules.AiTributePeace ? "an" : "aus")})"

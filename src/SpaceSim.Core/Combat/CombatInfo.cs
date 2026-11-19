@@ -24,7 +24,8 @@ public static class CombatInfo
         foreach (var e in u.Fights.In(sector))
         {
             string who = u.ActorName(e.RaiderOwner);
-            string title = e.Cause == EncounterCause.Raid ? $"Überfall durch {who}" : e.Cause == EncounterCause.War ? $"Krieg: {who} stellt ein Schiff" : $"Streife stellt {who}";
+            string title = e.Cause == EncounterCause.Raid ? $"Überfall durch {who}" : e.Cause == EncounterCause.War ? $"Krieg: {who} stellt ein Schiff"
+                : e.Cause == EncounterCause.Naval ? "Seeschlacht" : $"Streife stellt {who}";
             var ships = e.Participants.Where(p => p.Active).Select(p => p.Ship).ToList();
             float seconds = (u.Tick - e.StartTick) * SimClock.TickInterval;
             string detail = $"{ships.Count} Schiffe · {seconds:0} s · {e.Shots} Schüsse, {e.Hits} Treffer";
@@ -40,6 +41,7 @@ public static class CombatInfo
             EncounterCause.Raid => $"Gefecht: {u.ActorName(raiderOwner)} überfällt ein Schiff in diesem Sektor",
             EncounterCause.Assault => "Gefecht: Du greifst an",   // Phase 25 (die genaue Meldung kommt mit EncounterStarted)
             EncounterCause.War => $"Gefecht: Krieg — {u.ActorName(raiderOwner)} greift dein Schiff an",   // Runde 40
+            EncounterCause.Naval => "Seeschlacht in diesem Sektor",   // Ausbau Punkt 2
             _ => "Gefecht: Die Polizei stellt ein Kaperschiff",
         };
 }

@@ -48,6 +48,7 @@ public sealed class CombatSystem : ISimSystem
         // Phase 27: Verstärkung (Eskorten, Wachen, Verband, Rudel), die inzwischen im Sektor ist
         if (r.FleetCombat && r.ReinforceTicks > 0 && (u.Tick - e.StartTick) % r.ReinforceTicks == 0) Reinforcements.Step(u, e);
         if (r.Warfare && e.Cause == EncounterCause.Siege && r.ReinforceTicks > 0 && (u.Tick - e.StartTick) % r.ReinforceTicks == 0) Siege.Reinforce(u, e);   // Phase 28
+        if (r.NavalBattles && e.Cause == EncounterCause.Naval && r.ReinforceTicks > 0 && (u.Tick - e.StartTick) % r.ReinforceTicks == 0) NavalBattle.Reinforce(u, e);   // Ausbau Punkt 2
 
         // 1) Entscheidungen (alle auf demselben Stand; das aktive Spielerschiff entscheidet selbst — Phase 25)
         _decisions.Clear();
@@ -127,7 +128,8 @@ public sealed class CombatSystem : ISimSystem
         // Runde 6: eine Belagerung, in der der Spieler noch kämpft, endet nicht nach der Höchstdauer (sie endet durch Rückzug, Fall oder Verlust) — vorher brach
         // sie nach 60 s ab und begann mit dem nächsten Schuss neu (neue Meldung, neue Anzeige)
         bool playerSiege = e.Cause == EncounterCause.Siege && e.Of(u.PlayerShip) is { Active: true };
-        if (u.Tick - e.StartTick >= r.CombatMaxTicks && !playerSiege) Finish(u, e, "timeout");
+        int maxTicks = e.Cause == EncounterCause.Naval && r.NavalBattleMaxTicks > 0 ? r.NavalBattleMaxTicks : r.CombatMaxTicks;   // Ausbau Punkt 2: Seeschlachten dauern länger
+        if (u.Tick - e.StartTick >= maxTicks && !playerSiege) Finish(u, e, "timeout");
     }
 
     ICombatTactic TacticFor(Universe u, CombatParticipant p) => _tactics.Get(p.Ship == u.PlayerShip ? CombatTactics.Player : p.Tactic);
@@ -452,6 +454,15 @@ public sealed class CombatSystem : ISimSystem
                 : victimP?.Exit == CombatExit.Surrendered ? "Ergeben — im Krieg nicht vorgesehen."
                 : victimP?.Exit == CombatExit.Fled ? "Du bist dem Kriegsgegner entkommen."
                 : killed > 0 ? "Die Kriegsschiffe sind zerstört." : "Die Kriegsschiffe brechen ab.";
+        }
+        else if (e.Cause == EncounterCause.Naval)
+        {
+            // Ausbau Punkt 2: Seeschlacht zwischen KI-Fraktionen — Verluste zählen über NavalBattle.OnDestroyed als Kriegsverlust
+            string where = sector?.Name ?? "?";
+            int lostA = e.Participants.Count(p => p.Side == 0 && p.Exit == CombatExit.Destroyed), lostB = e.Participants.Count(p => p.Side == 1 && p.Exit == CombatExit.Destroyed);
+            string na = NavalBattle.SideFaction(u, e, 0) is { } fa && u.Factions.TryGetValue(fa, out var faa) ? faa.Name : "?";
+            string nb = NavalBattle.SideFaction(u, e, 1) is { } fb && u.Factions.TryGetValue(fb, out var fbb) ? fbb.Name : "?";
+            msg = $"Seeschlacht in {where} vorbei: {na} verliert {lostA}, {nb} verliert {lostB} Schiff{(lostA + lostB == 1 ? "" : "e")}.";
         }
         else if (e.Cause == EncounterCause.Arrest)
         {

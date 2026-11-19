@@ -291,6 +291,12 @@ public sealed class DeliverExecutor : IOrderExecutor
             float want = (d.Amount > 0f ? d.Amount : float.MaxValue) - have;
             float units = MathF.Floor(MathF.Min(want, TradeActions.MaxBuyable(u, ship, a, d.Good)));
             bool priceOk = d.MaxBuyFactor <= 0f || !a.Market.TryGetValue(d.Good, out var e) || e.Price <= u.Goods[d.Good].BasePrice * d.MaxBuyFactor + 1e-4f;
+            // Nachtrag 1c: Verlustschutz (Standard an) — wie die Handelsautomatik: nicht kaufen, wenn B je Einheit nicht mehr zahlt, als A kostet
+            if (units >= 1f && priceOk && !d.AllowLoss && LossIssue(u, ship, a, b, d.Good, units) is { } loss)
+            {
+                u.Events.Publish(new TraderBuyRefused(ship.Id, a.Id, b.Id, d.Good, loss.Buy, loss.Sell));
+                priceOk = false;
+            }
             float got = units >= 1f && priceOk ? TradeActions.Buy(u, ship, a, d.Good, units).Units : 0f;
             ship.NextThinkTick = u.Tick + (got > 0f ? 1 : WaitTicks);
             return CommandStatus.Running;
@@ -299,13 +305,25 @@ public sealed class DeliverExecutor : IOrderExecutor
         return CommandStatus.Running;
     }
 
+    /// <summary>
+    /// Nachtrag 1c: Verlustschutz — wirksamer Stückpreis des Einkaufs an <paramref name="a"/> (mit Rückkaufboden) gegen den wirksamen Stückpreis des Verkaufs
+    /// an <paramref name="b"/> (mit Rückkaufdeckel), beide zum heutigen Marktpreis. null = kein sicherer Verlust (B zahlt mehr, als A kostet).
+    /// </summary>
+    public static (float Buy, float Sell)? LossIssue(Universe u, Ship ship, Station a, Station b, GoodId good, float units)
+    {
+        if (!a.Market.TryGetValue(good, out var ea) || !b.Market.TryGetValue(good, out var eb)) return null;
+        float buy = PlayerLedger.BuyUnitPrice(u, ship, a, good, units, ea.Price);
+        float sell = PlayerLedger.SaleUnitPrice(u, ship, b, good, units, eb.Price);
+        return sell > buy + 1e-4f ? null : (buy, sell);
+    }
+
     public void Stop(Universe u, Ship ship, ShipCommand command) => OrderMove.StopHere(u, ship);
 
     public string Describe(Universe u, Ship ship, ShipCommand command)
     {
         var d = (DeliverCommand)command;
         string good = u.Goods.TryGetValue(d.Good, out var g) ? g.Name : "?";
-        return $"Liefert {good}{(d.Amount > 0f ? $" ({d.Amount:0} je Fahrt)" : "")}: {OrderMove.StationName(u, d.From)} → {OrderMove.StationName(u, d.To)}";
+        return $"Liefert {good}{(d.Amount > 0f ? $" ({d.Amount:0} je Fahrt)" : "")}: {OrderMove.StationName(u, d.From)} → {OrderMove.StationName(u, d.To)}{(d.AllowLoss ? " · Verlust erlaubt" : "")}";
     }
 }
 
@@ -334,7 +352,7 @@ public sealed class RallyExecutor : IOrderExecutor
     public static Vec2 Spot(Universe u, Station st, Ship ship) =>
         CombatSpace.Clear(u, st.Sector, st.Position + Vec2.FromAngle(ship.Id.Value * 1.7f) * (st.Radius + 25f));
 
-    static bool There(Universe u, Station st, Ship s) => s.Transit is null && s.Sector == st.Sector && Vec2.Distance(s.Position, Spot(u, st, s)) <= 5f;
+    internal static bool There(Universe u, Station st, Ship s) => s.Transit is null && s.Sector == st.Sector && Vec2.Distance(s.Position, Spot(u, st, s)) <= 5f;
 
     public CommandStatus Step(Universe u, Ship ship, ShipCommand command, int dt)
     {
@@ -342,6 +360,13 @@ public sealed class RallyExecutor : IOrderExecutor
         if (!u.Stations.TryGetValue(r.At, out var st)) return CommandStatus.Failed;
         // ohne Anführer (weg oder Befehl beendet) löst sich der Treffpunkt auf
         if (!u.Ships.TryGetValue(r.Leader, out var lead) || lead.Command is not RallyCommand lr || lr.Leader != r.Leader) return CommandStatus.Done;
+        // Nachtrag 1c: Frist abgelaufen — wer da ist, bildet den Verband; wer fehlt, verliert den Sammelbefehl (nie dauerhaft über der Kapazität)
+        if (r.Until > 0 && u.Tick >= r.Until)
+        {
+            if (ship.Id != r.Leader) return There(u, st, ship) ? CommandStatus.Running : CommandStatus.Done;   // wartet auf die Bildung durch den Anführer
+            FleetFormations.FormAtDeadline(u, ship, st, r);
+            return CommandStatus.Done;
+        }
         if (!There(u, st, ship))
         {
             var s = OrderMove.MoveTo(u, ship, st.Sector, Spot(u, st, ship), default, out bool there);
@@ -357,7 +382,12 @@ public sealed class RallyExecutor : IOrderExecutor
     }
 
     public void Stop(Universe u, Ship ship, ShipCommand command) => OrderMove.StopHere(u, ship);
-    public string Describe(Universe u, Ship ship, ShipCommand command) => $"Sammelpunkt {OrderMove.StationName(u, ((RallyCommand)command).At)}";
+    public string Describe(Universe u, Ship ship, ShipCommand command)
+    {
+        var r = (RallyCommand)command;
+        string until = r.Until > 0 ? $" · Frist {SpaceSim.Core.Missions.MissionRules.Rest(r.Until - u.Tick)}" : "";
+        return $"Sammelpunkt {OrderMove.StationName(u, r.At)}{until}";
+    }
 }
 
 /// <summary>

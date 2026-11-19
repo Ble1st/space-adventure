@@ -97,7 +97,8 @@ public static class FleetTargets
     /// Liefern: Routen (Hersteller → Abnehmer). Zuerst der Bedarf eigener Stationen (Zutaten und Regale unter Ziel) vom nächsten Hersteller mit Lager, dann
     /// die besten Spannen bis zwei Sprünge um das Schiff. <paramref name="amount"/> Einheiten je Fahrt (0 = voll), Einkauf bis <paramref name="maxBuy"/> × Basis.
     /// </summary>
-    public static List<FleetTarget> Deliver(Universe u, Ship ship, float amount, float maxBuy)
+    /// <param name="allowLoss">Nachtrag 1c: Verlustschutz aus (Standard: an — an A wird nicht gekauft, wenn B nicht mehr zahlt).</param>
+    public static List<FleetTarget> Deliver(Universe u, Ship ship, float amount, float maxBuy, bool allowLoss = false)
     {
         var list = new List<FleetTarget>();
         var seen = new HashSet<(int, int, int)>();
@@ -105,7 +106,7 @@ public static class FleetTargets
         void Add(Station a, Station b, GoodId g, string sub)
         {
             if (!seen.Add((a.Id.Value, b.Id.Value, g.Value))) return;
-            var cmd = new DeliverCommand(a.Id, b.Id, g, amount, maxBuy);
+            var cmd = new DeliverCommand(a.Id, b.Id, g, amount, maxBuy, allowLoss);
             if (Commands.Check(u, ship, cmd) is not null) return;
             list.Add(new FleetTarget(u.Goods[g].Name, sub, cmd));
         }
@@ -134,7 +135,7 @@ public static class FleetTargets
         foreach (var r in routes.OrderByDescending(r => r.M).ThenBy(r => r.A.Id.Value).ThenBy(r => r.B.Id.Value).ThenBy(r => r.G.Value))
         {
             if (list.Count >= MaxRoutes) break;
-            Add(r.A, r.B, r.G, $"{Short(StationNames.Short(u, r.A), 12)} → {Short(StationNames.Short(u, r.B), 12)}");
+            Add(r.A, r.B, r.G, $"{Short(StationNames.WithoutOwner(u, r.A), 11)} → {Short(StationNames.WithoutOwner(u, r.B), 11)}");   // 1c: ohne Kürzel (passt in die Taste)
         }
         return list;
     }

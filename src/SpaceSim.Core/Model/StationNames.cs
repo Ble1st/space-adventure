@@ -26,7 +26,7 @@ public static class StationNames
         return list;
     }
 
-    static string WithoutOwner(Universe u, Station st)
+    public static string WithoutOwner(Universe u, Station st)
     {
         string owner = st.Owner.Value != 0 ? u.ActorName(st.Owner) : "";
         return Strip(st.Name, owner);

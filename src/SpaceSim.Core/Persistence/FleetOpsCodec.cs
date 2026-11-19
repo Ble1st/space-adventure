@@ -10,8 +10,8 @@ public static class FleetOpsCodec
         AttackCommand a => new OrderSave { Kind = CommandKinds.Attack, A = a.Ship.Value, B = a.Station.Value, C = a.Gate.Value, Ids = new List<int> { a.Sector.Value } },
         SalvageCommand s => new OrderSave { Kind = CommandKinds.Salvage, A = s.Sector.Value },
         BlockadeCommand b => new OrderSave { Kind = CommandKinds.Blockade, A = b.Gate.Value, B = b.Faction.Value },
-        DeliverCommand d => new OrderSave { Kind = CommandKinds.Deliver, A = d.From.Value, B = d.To.Value, C = d.Good.Value, Values = new List<float> { d.Amount, d.MaxBuyFactor } },
-        RallyCommand r => new OrderSave { Kind = CommandKinds.Rally, A = r.At.Value, B = r.Leader.Value },
+        DeliverCommand d => new OrderSave { Kind = CommandKinds.Deliver, A = d.From.Value, B = d.To.Value, C = d.Good.Value, Values = d.AllowLoss ? new List<float> { d.Amount, d.MaxBuyFactor, 1f } : new List<float> { d.Amount, d.MaxBuyFactor } },   // 1c: dritter Wert nur bei erlaubtem Verlust
+        RallyCommand r => new OrderSave { Kind = CommandKinds.Rally, A = r.At.Value, B = r.Leader.Value, C = r.Until },   // 1c: Frist (0 = keine)
         ConvoyCommand v => UniverseSerializer.LimitsSave(CommandKinds.Convoy, v.Limits),
         ExploreSectorCommand e => new OrderSave { Kind = CommandKinds.ExploreSector, A = e.Sector.Value },   // Ausbau Punkt 16
         ExploreUniverseCommand => new OrderSave { Kind = CommandKinds.ExploreUniverse },
@@ -23,8 +23,8 @@ public static class FleetOpsCodec
         CommandKinds.Attack => new AttackCommand(new ShipId(o.A), new StationId(o.B), new GateId(o.C), new SectorId(o.Ids?.ElementAtOrDefault(0) ?? 0)),
         CommandKinds.Salvage => new SalvageCommand(new SectorId(o.A)),
         CommandKinds.Blockade => new BlockadeCommand(new GateId(o.A), new FactionId(o.B)),
-        CommandKinds.Deliver => new DeliverCommand(new StationId(o.A), new StationId(o.B), new GoodId(o.C), o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f),
-        CommandKinds.Rally => new RallyCommand(new StationId(o.A), new ShipId(o.B)),
+        CommandKinds.Deliver => new DeliverCommand(new StationId(o.A), new StationId(o.B), new GoodId(o.C), o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f, (o.Values?.ElementAtOrDefault(2) ?? 0f) > 0.5f),
+        CommandKinds.Rally => new RallyCommand(new StationId(o.A), new ShipId(o.B), o.C),
         CommandKinds.Convoy => new ConvoyCommand(UniverseSerializer.LimitsFrom(o)),
         CommandKinds.ExploreSector => new ExploreSectorCommand(new SectorId(o.A)),
         CommandKinds.ExploreUniverse => new ExploreUniverseCommand(),

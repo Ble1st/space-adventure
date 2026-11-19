@@ -119,7 +119,8 @@ public sealed class CombatModule : ISimModule
 {
     public string Name => "Combat";
     public void Register(SimulationBuilder b) =>
-        b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.ShipSystemsSystem())
+        b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.NavalBattleSystem(), SpaceSim.Core.Combat.NavalBattleSystem.Interval)   // Ausbau Punkt 2: Seeschlachten auslösen
+         .Add(new SpaceSim.Core.Combat.ShipSystemsSystem())
          .Add(new SpaceSim.Core.Combat.FireSystem())                       // Phase 26: Brände über den Erholungsindex
          .Add(new JumpCloakSystem())                                       // Sprungantrieb laden/springen, Tarnfeld prüfen (nur Schiffe mit Zustand)
          .Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10)

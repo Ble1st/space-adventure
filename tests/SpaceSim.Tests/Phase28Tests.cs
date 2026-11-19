@@ -559,6 +559,7 @@ public class Phase28Tests
     public void Kriegsschiffe_KaufNurImKriegAusVerfuegbaremGeld_AngriffsbefehlUndAbbauNachDemFrieden()
     {
         var u = Standard();
+        u.Rules.WarDefense = false; u.Rules.WarEscorts = false;   // Ausbau Punkt 2: Abwehr/Geleit gehen dem Angriffsbefehl vor (eigener Test KiKriegsschiffeTests)
         Hostile(u);
         var navy = new NavySystem();
         foreach (var yard in u.StationsById().Where(st => st.TypeKey == "shipyard")) FillYard(u, yard, "bastion");

@@ -42,7 +42,9 @@ public static class FleetFormations
         var group = new List<Ship> { leader };
         group.AddRange(others.Where(s => s.Id != leader.Id).DistinctBy(s => s.Id.Value));
         if (GroupIssue(u, group) is { } issue) { message = issue; return false; }
-        var cmd = new RallyCommand(at.Id, leader.Id);
+        // Nachtrag 1c: Frist — nach EconomyRules.RallyDeadlineTicks (0 = keine) bilden die angekommenen Schiffe den Verband
+        int until = u.Rules.RallyDeadlineTicks > 0 ? (int)Math.Min(int.MaxValue, u.Tick + u.Rules.RallyDeadlineTicks) : 0;
+        var cmd = new RallyCommand(at.Id, leader.Id, until);
         foreach (var s in group) if (Commands.Check(u, s, cmd) is { } why) { message = $"{OrderMove.ShipName(u, s.Id)}: {why}"; return false; }
         foreach (var s in group) Commands.Give(u, s, cmd, out _, ignoreCapacity: true);   // vorübergehend; danach ein Verband
         message = $"Sammelpunkt {at.Name}: {group.Count} Schiffe fliegen hin und bilden dort einen Verband.";
@@ -67,6 +69,28 @@ public static class FleetFormations
             else if (s.Command is RallyCommand) Commands.Cancel(u, s, "Verband voll");
         }
         u.Events.Publish(new RallyFormed(leader.Id, sq.Id, n, $"{sq.Name} am Sammelpunkt gebildet ({n} Schiffe)."));
+    }
+
+    /// <summary>
+    /// Nachtrag 1c: Frist des Sammelpunkts abgelaufen. Angekommen ist, wer am Halteplatz steht und nicht kämpft. Der Anführer bildet den Verband mit den
+    /// Angekommenen, wenn er selbst da ist; sonst führt das erste angekommene Schiff (Id-Reihenfolge). Weniger als zwei angekommen: kein Verband. Alle übrigen
+    /// Sammelbefehle der Gruppe enden („Frist abgelaufen“) — so steht danach niemand mehr dauerhaft über der Befehlskapazität.
+    /// </summary>
+    public static void FormAtDeadline(Universe u, Ship leader, Station at, RallyCommand r)
+    {
+        var group = u.ShipsById().Where(s => s.Command is RallyCommand rc && rc.Leader == r.Leader).ToList();
+        var arrived = group.Where(s => RallyExecutor.There(u, at, s) && !u.Fights.IsEngaged(s.Id)).ToList();
+        var missing = group.Where(s => !arrived.Contains(s)).ToList();
+        foreach (var s in missing) if (s.Id != leader.Id) Commands.Cancel(u, s, "Sammelpunkt: Frist abgelaufen");
+        if (arrived.Count < 2)
+        {
+            foreach (var s in arrived) if (s.Id != leader.Id) Commands.Cancel(u, s, "Sammelpunkt: Frist abgelaufen");
+            u.Events.Publish(new RallyFormed(leader.Id, default, 0, $"Sammelpunkt {at.Name}: Frist abgelaufen — zu wenige Schiffe angekommen, kein Verband."));
+            return;
+        }
+        var head = arrived.Contains(leader) ? leader : arrived[0];
+        if (head.Id != leader.Id) Commands.Cancel(u, head, "Sammelpunkt: führt den Verband");   // der neue Anführer hält danach keinen Sammelbefehl
+        FormAtRally(u, head, arrived);
     }
 
     /// <summary>Langsamster Händler (Tempo, dann Id) — der Anführer eines Konvois.</summary>

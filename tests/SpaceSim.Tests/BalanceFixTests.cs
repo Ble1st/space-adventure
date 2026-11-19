@@ -30,6 +30,7 @@ public class BalanceFixTests
     {
         GasNebulaTests.RevertGas(def);   // Gasernte und Nebel (danach): Gas, Ionengas, Gasraffinerie, Nebel, Gassammler zurück
         WirtschaftsabwehrTests.RevertWirtschaftsabwehr(def);   // Wirtschaftsstationen halten stand (danach): Alarm/Notschild aus, Geschütze/Hülle wie vorher
+        KiKriegsschiffeTests.RevertWarNavy(def);   // Ausbau Punkt 2 (danach): Seeschlacht, Abwehr, Kriegsgeleit aus
         var r = def.Rules ??= new EconomyRules();
         r.PlayerMaxSites = 2; r.PlayerMaxStations = 10; r.PlayerMaxStationsPerSector = 4;
         r.PlayerBuildForeignSectors = false; r.PlayerBuildHideoutSectors = false;

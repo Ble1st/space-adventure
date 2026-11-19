@@ -697,6 +697,16 @@ public sealed class NavySystem : ISimSystem
             else if (s.Command is not null) Commands.Cancel(u, s, "Frieden");
             return;
         }
+        // Ausbau Punkt 2: gezielte Abwehr — ein angegriffenes eigenes Ziel (Station, Tor) in Reichweite geht dem eigenen Angriff und dem Geleit vor
+        if (Combat.WarNavy.DefenseSectorFor(u, s) is { } defend)
+        {
+            if (!(s.Command is PatrolCommand dpc && dpc.Sectors.Count == 1 && dpc.Sectors[0] == defend))
+            {
+                Commands.Give(u, s, new PatrolCommand(new[] { defend }), out _, ignoreCapacity: true);
+                u.Events.Publish(new Combat.WarDefenseAssigned(s.Id, f, defend, Combat.WarNavy.DefenseTargetName(u, s) ?? ""));
+            }
+            return;
+        }
         // Wirtschaftsstationen halten stand: ein Alarm einer eigenen/verbündeten Wirtschaftsstation in Reichweite geht dem eigenen Angriff vor
         if (Combat.EconomicHoldout.AlarmSectorFor(u, s) is { } alarm)
         {
@@ -704,7 +714,18 @@ public sealed class NavySystem : ISimSystem
                 Commands.Give(u, s, new PatrolCommand(new[] { alarm }), out _, ignoreCapacity: true);
             return;
         }
+        // Ausbau Punkt 2: Geleitschutz — ein laufendes Geleit bleibt; ein beendetes (Ankunft, Frieden, Höchstdauer) gibt das Schiff frei
+        if (s.Command is EscortCommand ec)
+        {
+            if (Combat.WarNavy.EscortStillValid(u, s, ec)) return;
+            Commands.Cancel(u, s, "Geleit beendet");
+        }
         if (s.Command is AssaultCommand ac && AssaultExecutor.TargetOf(u, ac) is { } cur && AssaultExecutor.StillTarget(u, s, cur)) return;
+        if (Combat.WarNavy.EscortWard(u, f, s) is { } ward && Commands.Give(u, s, new EscortCommand(ward.Id), out _, ignoreCapacity: true))
+        {
+            u.Events.Publish(new EscortAssigned(s.Id, ward.Id, ThreatMap.Where(u, ward).Sector));
+            return;
+        }
         // Phase 31: zuerst die Torblockade des Kriegs (höchstens eine je Krieg, nie kartenteilend, höchstens GateMaxDown weltweit), sonst eine Station
         if (Wars.PickGateTarget(u, f, s) is { } gate)
         {

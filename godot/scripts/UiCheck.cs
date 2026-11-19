@@ -205,6 +205,7 @@ public partial class UiCheck : Node
 			// Ausbau Punkt 1/1b: Flotte mit gewähltem Kampfschiff und offener Zielwahl „Angreifen“ (Befehlsraster mit sechs Spalten, Karte nach Inhalt)
 			Add("kz-flotte-angriff", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.Attack); } }, 12);
 			Add("kz-flotte-konvoi", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.Convoy); } }, 12);
+			Add("kz-flotte-liefern", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.Deliver); } }, 12);   // Nachtrag 1c: Liefern mit Verlustschutz-Schalter
 			// Ausbau Punkt 16: beschränktes Wissen — Universum mit „?“ und gewähltem unbekanntem Sektor, Comms-Diplomatie mit „Intel kaufen“, Behörde mit Intel
 			Add("kz-erkundung-universum", () =>
 			{

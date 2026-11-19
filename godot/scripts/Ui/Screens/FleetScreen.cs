@@ -37,6 +37,8 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 	bool _allowLoss;   // Runde 24: Verlustkauf-Sperre aus
 	/// <summary>Runde 24: Schalter der Verlustsperre (Selbsttest).</summary>
 	public KitButton? TestLossGuardButton { get; private set; }
+	/// <summary>Nachtrag 1c: Taste „Verlustschutz“ im Liefern-Bereich (Selbsttest).</summary>
+	public KitButton? TestDeliverLossButton { get; private set; }
 	int _enabledCommands;
 
 	/// <summary>Wählt ein Schiff vor (Hangar „Befehle“, Besitz „Befehle“).</summary>
@@ -321,9 +323,13 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 				At(det, Text(amount == 0 ? "voll" : $"{amount}", 15, White, HorizontalAlignment.Center), 206, y + 16, 60, 22);
 				var p = At(det, new KitButton("+", new Vector2(56, 56)) { FontSize = 20 }, 266, y);
 				p.Pressed += () => { _deliverIdx = Math.Min(DeliverAmounts.Length - 1, _deliverIdx + 1); Invalidate(); };
-				At(det, Text(_maxBuy <= 0f ? "Einkauf frei" : $"Einkauf ≤ {_maxBuy:0.0}× Basis", 13, Dim), 332, y + 20, 270, 18);
+				// Nachtrag 1c: Verlustschutz wie beim Handel (Standard an) — dieselbe Taste/Einstellung wie die Automatikgrenzen
+				var lossBtn = At(det, new KitButton(_allowLoss ? "Verlust erlaubt" : "Verlustschutz", new Vector2(136, 56)) { FontSize = 13, State = _allowLoss ? KitButtonState.Warn : KitButtonState.On, Sub = _allowLoss ? "Schutz aus" : "Schutz an" }, 332, y);
+				lossBtn.Pressed += () => { _allowLoss = !_allowLoss; Invalidate(); };
+				TestDeliverLossButton = lossBtn;
+				At(det, Text(_maxBuy <= 0f ? "Einkauf frei" : $"Einkauf ≤ {_maxBuy:0.0}×", 13, Dim), 474, y + 20, 130, 18);
 				y += 62f;
-				foreach (var t in FleetTargets.Deliver(u, ship, amount, _maxBuy)) options.Add((t.Label, t.Sub, t.Command));
+				foreach (var t in FleetTargets.Deliver(u, ship, amount, _maxBuy, _allowLoss)) options.Add((t.Label, t.Sub, t.Command));
 				break;
 			}
 			case CommandKinds.Rally:

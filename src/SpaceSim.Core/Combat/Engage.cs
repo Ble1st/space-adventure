@@ -116,7 +116,8 @@ public static class Engage
         u.Fights.Unmark(p.Ship);
         u.Events.Publish(new CombatExited(e.Id, p.Ship, ship.Role, CombatExit.Destroyed));
         Wars.OnShipLost(u, e, p, ship);   // Ausgleich (Punkt 7): Kriegsverlust für die Tributforderung
-        string detail = e.Cause switch { EncounterCause.Raid => "raid", EncounterCause.Intercept => "intercept", EncounterCause.War => "war", _ => "assault" };
+        NavalBattle.OnDestroyed(u, e, p, ship);   // Ausbau Punkt 2: Seeschlacht-Verlust zählt als Kriegsverlust
+        string detail = e.Cause switch { EncounterCause.Raid => "raid", EncounterCause.Intercept => "intercept", EncounterCause.War => "war", EncounterCause.Naval => "naval", _ => "assault" };
         // Phase 25: das aktive Spielerschiff geht wirklich verloren — vorher landet die Person an einer Station (ShipLoss), dann der Abgang
         if (ship.Id == u.PlayerShip)
         {
@@ -124,7 +125,7 @@ public static class Engage
             {
                 EncounterCause.Raid => "Piraten",
                 EncounterCause.Intercept or EncounterCause.Arrest => "Polizei",
-                EncounterCause.War => "Kriegsschiff",
+                EncounterCause.War or EncounterCause.Naval => "Kriegsschiff",
                 EncounterCause.Siege => "Stationsgeschütze",
                 _ => "Gefecht",
             };

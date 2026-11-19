@@ -42,14 +42,20 @@ public sealed record BlockadeCommand(GateId Gate, FactionId Faction) : ShipComma
 /// <summary>
 /// Liefern (Pendel): kauft an <paramref name="From"/> die Ware <paramref name="Good"/> (je Fahrt höchstens <paramref name="Amount"/> Einheiten, 0 = voller
 /// Laderaum; Einkauf höchstens <paramref name="MaxBuyFactor"/> × Basispreis, 0 = frei) und liefert sie an <paramref name="To"/>; dann von vorn.
+/// Nachtrag 1c: <paramref name="AllowLoss"/> false (Standard) = Verlustschutz wie die Handelsautomatik — an A wird nicht gekauft, wenn B je Einheit
+/// nicht mehr zahlt, als der Einkauf an A kostet.
 /// </summary>
-public sealed record DeliverCommand(StationId From, StationId To, GoodId Good, float Amount, float MaxBuyFactor) : ShipCommand
+public sealed record DeliverCommand(StationId From, StationId To, GoodId Good, float Amount, float MaxBuyFactor, bool AllowLoss = false) : ShipCommand
 {
     public override string Kind => CommandKinds.Deliver;
 }
 
-/// <summary>Sammelpunkt: zur Station <paramref name="At"/> fliegen (nicht andocken); sind alle Schiffe der Gruppe da, bildet <paramref name="Leader"/> den Verband.</summary>
-public sealed record RallyCommand(StationId At, ShipId Leader) : ShipCommand
+/// <summary>
+/// Sammelpunkt: zur Station <paramref name="At"/> fliegen (nicht andocken); sind alle Schiffe der Gruppe da, bildet <paramref name="Leader"/> den Verband.
+/// Nachtrag 1c: <paramref name="Until"/> = Frist (Tick; 0 = keine, alte Befehle) — danach bilden die angekommenen Schiffe den Verband, die übrigen verlieren
+/// ihren Sammelbefehl.
+/// </summary>
+public sealed record RallyCommand(StationId At, ShipId Leader, int Until = 0) : ShipCommand
 {
     public override string Kind => CommandKinds.Rally;
 }
