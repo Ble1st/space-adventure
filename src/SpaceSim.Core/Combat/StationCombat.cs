@@ -181,10 +181,12 @@ public static class StationCombat
         // ab und die Station lud ihn mitten im Beschuss wieder auf
         if (MaxShield(u, st) > 0f) c.ShieldPauseUntil = u.Tick + u.Rules.ShieldDelayTicks;
         float before = Hull(u, st);
-        c.HullMissing = MathF.Min(MaxHull(u, st), c.HullMissing + hit.HullDamage);
+        EconomicHoldout.OnAttacked(u, st);   // Wirtschaftsstationen halten stand: jeder Treffer hält den Alarm aufrecht
+        c.HullMissing = MathF.Min(MaxHull(u, st), c.HullMissing + EconomicHoldout.Damp(u, st, hit.HullDamage));
         float dealt = before - Hull(u, st);
         // Kapitulation (docs/KAMPF.md): unterschrittene Hüllenschwellen — die Station würfelt, ob sie aufgibt (sonst kämpft sie weiter)
         float max = MaxHull(u, st);
+        if (max > 0f && Hull(u, st) > 0f) EconomicHoldout.AfterHit(u, st, Hull(u, st) / max);   // Notschild unter der Schwelle
         if (u.Rules.StationCapitulation && max > 0f && Capitulation.Roll(u, e, st, attacker, before / max, Hull(u, st) / max)) return dealt;
         if (Hull(u, st) <= 0f) Fall(u, st, attacker);
         return dealt;
@@ -284,7 +286,7 @@ public sealed class StationRepairSystem : ISimSystem
             if (!sieged) for (int i = 0; i < c.Timers.Count; i++) c.Timers[i] = 0f;
             if (!sieged && c.HullMissing > 0f) Repair(u, st, c, dt, plates);
             if (c.Disabled && StationCombat.Hull(u, st) >= r.StationReenableShare * StationCombat.MaxHull(u, st)) c.Disabled = false;
-            if (c.IsDefault) st.Condition = null;
+            if (c.IsDefaultAt(u.Tick)) st.Condition = null;
         }
     }
 
@@ -499,6 +501,8 @@ public static class WarInfo
         string guns = def is { Guns.Count: > 0 } ? $" · {def.Guns.Count} Geschütz{(def.Guns.Count == 1 ? "" : "e")}" : " · keine Geschütze";
         string shield = StationCombat.MaxShield(u, st) > 0f ? $" · Schild {StationCombat.Shield(u, st):0}/{StationCombat.MaxShield(u, st):0}" : "";
         string state = StationCombat.IsDown(u, st) ? " · AUSGESCHALTET" : StationCombat.UnderSiege(u, st.Id) ? " · wird angegriffen" : "";
+        if (EconomicHoldout.ShieldUp(u, st)) state += " · Notschild";   // Wirtschaftsstationen halten stand
+        else if (EconomicHoldout.Alarmed(u, st)) state += " · Alarm";
         return $"Hülle {StationCombat.Hull(u, st):0}/{StationCombat.MaxHull(u, st):0}{shield}{guns}{state}";
     }
 

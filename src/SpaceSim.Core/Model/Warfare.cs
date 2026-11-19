@@ -25,8 +25,17 @@ public sealed class StationCondition
     public long ShieldPauseUntil;
     public List<float> Timers = new();
     public bool Disabled;
+    /// <summary>Wirtschaftsstationen halten stand: Alarm läuft bis zu diesem Takt (0 = keiner). Gespeichert und gehasht nur, wenn gesetzt.</summary>
+    public long AlarmUntil;
+    /// <summary>Notschild aktiv bis zu diesem Takt (0 = keiner); danach Abklingzeit bis <see cref="EmergencyCooldownUntil"/>. Gespeichert/gehasht nur, wenn gesetzt.</summary>
+    public long EmergencyUntil, EmergencyCooldownUntil;
 
-    public bool IsDefault => HullMissing <= 0f && ShieldMissing <= 0f && !Disabled && Timers.TrueForAll(t => t <= 0f);
+    public bool IsDefault => HullMissing <= 0f && ShieldMissing <= 0f && !Disabled && Timers.TrueForAll(t => t <= 0f)
+        && AlarmUntil == 0 && EmergencyUntil == 0 && EmergencyCooldownUntil == 0;
+
+    /// <summary>Unbeschädigt und alle Fristen (Alarm, Notschild, Abklingzeit) bis <paramref name="tick"/> abgelaufen — der Zustand darf entfallen.</summary>
+    public bool IsDefaultAt(long tick) => HullMissing <= 0f && ShieldMissing <= 0f && !Disabled && Timers.TrueForAll(t => t <= 0f)
+        && AlarmUntil <= tick && EmergencyUntil <= tick && EmergencyCooldownUntil <= tick;
 }
 
 /// <summary>

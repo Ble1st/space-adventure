@@ -52,7 +52,11 @@ public static class Siege
         }
         u.Events.Publish(new EncounterStarted(e.Id, t.Sector, EncounterCause.Siege, attacker.Id, default, msg));
         if (gate) u.Events.Publish(new GateAttacked(e.Id, t.Ref.Gate, t.Sector, attacker.Owner, msg));
-        else u.Events.Publish(new SiegeStarted(e.Id, t.Ref.Station, t.Sector, attacker.Owner, msg));
+        else
+        {
+            u.Events.Publish(new SiegeStarted(e.Id, t.Ref.Station, t.Sector, attacker.Owner, msg));
+            if (u.Stations.TryGetValue(t.Ref.Station, out var ast)) EconomicHoldout.OnAttacked(u, ast);   // Alarm: Verteidiger aus der Nähe
+        }
         Reinforce(u, e);
         return e;
     }
@@ -115,6 +119,9 @@ public static class Siege
         foreach (var q in e.Participants)   // nur KI-Angreifer (der Spieler ist Mitglied, aber nicht Teil seiner Fraktion im Krieg)
             if (q.Side == 0 && u.Ships.TryGetValue(q.Ship, out var qs) && !qs.IsPlayer && u.FactionOf(q.Owner) is { } af) attackers.Add(af.Value);
         var defenders = st.Defenders.Where(f => !attackers.Contains(f.Value)).ToList();
+        // Wirtschaftsstationen halten stand: beim Alarm verteidigen auch Verbündete des Besitzers
+        if (st.Ref.Kind == SiegeKind.Station && u.Stations.TryGetValue(st.Ref.Station, out var ownSt))
+            foreach (var a in EconomicHoldout.AlliedDefenders(u, ownSt)) if (!attackers.Contains(a.Value) && !defenders.Contains(a)) defenders.Add(a);
         if (defenders.Count == 0 && st.Ref.Kind == SiegeKind.Station) return;
         int n = 0;
         foreach (var id in u.Tracker.ParkedIn(e.Sector).Concat(u.Tracker.TransitIn(e.Sector)).Distinct().OrderBy(i => i.Value).ToList())

@@ -354,6 +354,7 @@ public static class UniverseSerializer
                 {
                     HullMissing = sc.HullMissing, ShieldMissing = sc.ShieldMissing, ShieldPauseUntil = sc.ShieldPauseUntil, Disabled = sc.Disabled,
                     Timers = sc.Timers.Count == 0 ? null : new List<float>(sc.Timers),
+                    AlarmUntil = sc.AlarmUntil, EmergencyUntil = sc.EmergencyUntil, EmergencyCooldownUntil = sc.EmergencyCooldownUntil,
                 } : null,
                 MaintenanceBacklog = st.MaintenanceBacklog.Count == 0 ? null : st.MaintenanceBacklog.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = ToSave(st.Profit),
@@ -706,6 +707,7 @@ public static class UniverseSerializer
                 {
                     HullMissing = sc.HullMissing, ShieldMissing = sc.ShieldMissing, ShieldPauseUntil = sc.ShieldPauseUntil, Disabled = sc.Disabled,
                     Timers = sc.Timers is null ? new List<float>() : new List<float>(sc.Timers),
+                    AlarmUntil = sc.AlarmUntil, EmergencyUntil = sc.EmergencyUntil, EmergencyCooldownUntil = sc.EmergencyCooldownUntil,
                 } : null,
                 MaintenanceBacklog = st.MaintenanceBacklog is null ? new Dictionary<GoodId, float>() : st.MaintenanceBacklog.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = FromSave(st.Profit),

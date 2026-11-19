@@ -118,6 +118,8 @@ public class KapitulationTests
         var st = GuildEconomic(u);
         ForceChance(u, 0f);
         u.Rules.CapitulationChanceMin = 0f;
+        // „Wirtschaftsstationen halten stand“: der Notschild unter 50 % dämpft die folgenden Treffer, HitTo träfe die Schwellen nicht mehr genau
+        u.Rules.EconomicEmergencyShield = false;
         var ev = Capture(u);
         SetShare(u, st, 0.6f);
         ulong before = u.Rng.State;

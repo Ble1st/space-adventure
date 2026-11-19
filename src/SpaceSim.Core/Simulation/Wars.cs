@@ -697,6 +697,13 @@ public sealed class NavySystem : ISimSystem
             else if (s.Command is not null) Commands.Cancel(u, s, "Frieden");
             return;
         }
+        // Wirtschaftsstationen halten stand: ein Alarm einer eigenen/verbündeten Wirtschaftsstation in Reichweite geht dem eigenen Angriff vor
+        if (Combat.EconomicHoldout.AlarmSectorFor(u, s) is { } alarm)
+        {
+            if (!(s.Command is PatrolCommand apc && apc.Sectors.Count == 1 && apc.Sectors[0] == alarm))
+                Commands.Give(u, s, new PatrolCommand(new[] { alarm }), out _, ignoreCapacity: true);
+            return;
+        }
         if (s.Command is AssaultCommand ac && AssaultExecutor.TargetOf(u, ac) is { } cur && AssaultExecutor.StillTarget(u, s, cur)) return;
         // Phase 31: zuerst die Torblockade des Kriegs (höchstens eine je Krieg, nie kartenteilend, höchstens GateMaxDown weltweit), sonst eine Station
         if (Wars.PickGateTarget(u, f, s) is { } gate)

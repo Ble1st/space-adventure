@@ -365,6 +365,10 @@ public sealed record SeatRelocated(FactionId Faction, StationId Station, SectorI
 public sealed record StationRepaired(StationId Station, float Hull, float Plates, float Cost) : SimEvent;
 /// <summary>Phase 28: Belagerung begonnen (Angreifer-Fraktion, Station).</summary>
 public sealed record SiegeStarted(int Encounter, StationId Station, SectorId Sector, ActorId Attacker, string Message) : SimEvent;
+/// <summary>Wirtschaftsstationen halten stand (docs/KAMPF.md): eine angegriffene Wirtschaftsstation löst Alarm aus; <paramref name="Responders"/> Polizei-/Kriegsschiffe der Besitzerfraktion und ihrer Verbündeten sind in Reichweite (Sektor und Nachbarsektoren).</summary>
+public sealed record StationAlarmRaised(StationId Station, SectorId Sector, ActorId Owner, int Responders, string Message) : SimEvent;
+/// <summary>Notschild einer Wirtschaftsstation hoch (<paramref name="Raised"/>) bzw. abgelaufen.</summary>
+public sealed record StationEmergencyShield(StationId Station, SectorId Sector, bool Raised, string Message) : SimEvent;
 /// <summary>Phase 28: Krieg erklärt (A erklärt B).</summary>
 public sealed record WarDeclared(FactionId A, FactionId B, float Relation, string Message) : SimEvent;
 /// <summary>Phase 28: Frieden (Grund „weary“, „broke“, „manual“).</summary>

@@ -41,6 +41,14 @@ public static class PoliceCommands
             return;
         }
         if (p.Command is PursueCommand) return;
+        // Wirtschaftsstationen halten stand: Alarm einer eigenen oder verbündeten Wirtschaftsstation in Reichweite geht vor Geleit und Streife
+        if (Combat.EconomicHoldout.AlarmSectorFor(u, p) is { } alarm)
+        {
+            if (p.Command is EscortCommand) Commands.Cancel(u, p, "Alarm");
+            if (p.Command is PatrolCommand apc && apc.Sectors.Count == 1 && apc.Sectors[0] == alarm) return;
+            Give(u, p, new PatrolCommand(new[] { alarm }));
+            return;
+        }
         if (p.Command is EscortCommand ec)
         {
             if (EscortStillValid(u, p, ec.Target) && u.Tick - p.CommandSince < u.Rules.PoliceEscortTicks) return;

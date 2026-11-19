@@ -23,8 +23,10 @@ public static class EconomicDefense
             || t.Size is not (StationSize.M or StationSize.L or StationSize.XL)) return null;
         int idx = t.Size switch { StationSize.M => 0, StationSize.L => 1, _ => 2 };
         int guns = r.EconomicStationGuns.Count == 0 ? 0 : r.EconomicStationGuns[Math.Min(idx, r.EconomicStationGuns.Count - 1)];
+        guns = Math.Clamp(guns, 0, StationSizes.MaxGuns(t.Size));   // Wirtschaftsstationen halten stand: höchstens die Stellplätze der Größe
+        float pd = r.EconomicStationPointDefense.Count == 0 ? 0f : MathF.Max(0f, r.EconomicStationPointDefense[Math.Min(idx, r.EconomicStationPointDefense.Count - 1)]);
         float baseHull = t.Size == StationSize.M ? r.StationBaseHull : StationSizes.BaseHull(t.Size);
-        var key = (baseHull, r.EconomicStationHullFactor, r.EconomicStationShieldShare, r.EconomicStationShieldRegenShare, r.EconomicStationArmor, r.EconomicStationGun, guns, 0f);
+        var key = (baseHull, r.EconomicStationHullFactor, r.EconomicStationShieldShare, r.EconomicStationShieldRegenShare, r.EconomicStationArmor, r.EconomicStationGun + "|" + string.Join(",", r.EconomicStationGunList), guns, pd);
         var c = Cache.GetValue(t, _ => new Cached());
         if (c.Config is not null && c.Key == key) return c.Config;
         float shield = baseHull * MathF.Max(0f, r.EconomicStationShieldShare);
@@ -34,8 +36,11 @@ public static class EconomicDefense
             Shield = shield,
             ShieldRegen = shield * MathF.Max(0f, r.EconomicStationShieldRegenShare),
             Armor = MathF.Max(0f, r.EconomicStationArmor),
+            PointDefense = pd,   // Wirtschaftsstationen halten stand: L/XL gegen Raketen
         };
-        if (u.Modules.ContainsKey(r.EconomicStationGun)) for (int i = 0; i < guns; i++) cfg.Guns.Add(r.EconomicStationGun);
+        if (r.EconomicStationGunList.Count > 0)   // Wirtschaftsstationen halten stand: Geschützmischung (erste n Einträge)
+        { for (int i = 0; i < guns && i < r.EconomicStationGunList.Count; i++) if (u.Modules.ContainsKey(r.EconomicStationGunList[i])) cfg.Guns.Add(r.EconomicStationGunList[i]); }
+        else if (u.Modules.ContainsKey(r.EconomicStationGun)) for (int i = 0; i < guns; i++) cfg.Guns.Add(r.EconomicStationGun);
         c.Key = key; c.Config = cfg;
         return cfg;
     }

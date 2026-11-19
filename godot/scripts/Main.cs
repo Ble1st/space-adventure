@@ -1153,6 +1153,15 @@ public partial class Main : Node3D
 				if (fell.How == "capitulated" && _fight.StationTarget == fell.Station) { _fight.ArmStation(default); _fight.AutoFire = false; }
 				if (fell.Sector == _session.U.PlayerSector) _hud.Alert(LastWarMessage, 6f); else _hud.Info(LastWarMessage, 3f);
 				break;
+			// Wirtschaftsstationen halten stand (docs/KAMPF.md): Alarm und Notschild — im eigenen Sektor als Meldung, eigene Stationen auch anderswo als Hinweis
+			case StationAlarmRaised al:
+				if (al.Sector == _session.U.PlayerSector) _hud.Toast(al.Message, 5f);
+				else if (al.Owner == _session.U.PlayerActor) _hud.Info(al.Message, 4f);
+				break;
+			case StationEmergencyShield es when es.Raised && es.Sector == _session.U.PlayerSector:
+				_hud.Toast(es.Message, 4f);
+				if (_session.U.Stations.TryGetValue(es.Station, out var esSt)) _fx.Burst(new Vector3(esSt.Position.X, 0, esSt.Position.Y), new Color(0.5f, 0.8f, 1f), 24, 12f, 0.6f);
+				break;
 			case StationCapitulationRolled cr when !cr.Capitulated && cr.Taker == _session.U.PlayerActor:
 				_hud.Info($"{cr.Name} hält stand (Kapitulation {cr.Chance * 100f:0} % verfehlt) — bei Hülle 0 wird sie zerstört.", 4f);
 				break;

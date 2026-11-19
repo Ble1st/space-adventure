@@ -54,6 +54,9 @@ public static class UniverseHash
             {
                 Mix(0x2800u); MixF(sc.HullMissing); MixF(sc.ShieldMissing); Mix((ulong)sc.ShieldPauseUntil); Mix(sc.Disabled ? 1UL : 0UL);
                 foreach (var t in sc.Timers) MixF(t);
+                // Wirtschaftsstationen halten stand: Alarm/Notschild nur, wenn gesetzt (sonst unverändert)
+                if (sc.AlarmUntil != 0 || sc.EmergencyUntil != 0 || sc.EmergencyCooldownUntil != 0)
+                { Mix(0x2810u); Mix((ulong)sc.AlarmUntil); Mix((ulong)sc.EmergencyUntil); Mix((ulong)sc.EmergencyCooldownUntil); }
             }
         }
         foreach (var f in u.Factions.Values.OrderBy(f => f.Id.Value))

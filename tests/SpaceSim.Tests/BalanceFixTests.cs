@@ -28,6 +28,7 @@ public class BalanceFixTests
     /// </summary>
     internal static void RevertBalanceFix(WorldDef def)
     {
+        WirtschaftsabwehrTests.RevertWirtschaftsabwehr(def);   // Wirtschaftsstationen halten stand (danach): Alarm/Notschild aus, Geschütze/Hülle wie vorher
         var r = def.Rules ??= new EconomyRules();
         r.PlayerMaxSites = 2; r.PlayerMaxStations = 10; r.PlayerMaxStationsPerSector = 4;
         r.PlayerBuildForeignSectors = false; r.PlayerBuildHideoutSectors = false;
@@ -255,13 +256,15 @@ public class BalanceFixTests
         var u = World();
         Station Of(string key) => u.StationsById().First(s => s.TypeKey == key);
         var farm = Of("farm");   // M
-        Assert.Equal(u.Rules.StationBaseHull * 3f, StationCombat.MaxHull(u, farm));
+        // „Wirtschaftsstationen halten stand“ (danach) setzt in der Standardwelt Hüllenfaktor und Geschützzahl höher — hier aus den Regeln gelesen
+        float factor = u.Rules.EconomicStationHullFactor;
+        Assert.Equal(u.Rules.StationBaseHull * factor, StationCombat.MaxHull(u, farm));
         Assert.Equal(80f, StationCombat.MaxShield(u, farm));
-        Assert.Single(StationCombat.DefenseOf(u, farm)!.Guns);
+        Assert.Equal(u.Rules.EconomicStationGuns[0], StationCombat.DefenseOf(u, farm)!.Guns.Count);
         Assert.True(StationCombat.SelfDefenseOnly(u, farm));
         var works = Of("drive_works");   // L
-        Assert.Equal(2, StationCombat.DefenseOf(u, works)!.Guns.Count);
-        Assert.Equal(1400f * 3f, StationCombat.MaxHull(u, works));
+        Assert.Equal(u.Rules.EconomicStationGuns[1], StationCombat.DefenseOf(u, works)!.Guns.Count);
+        Assert.Equal(1400f * factor, StationCombat.MaxHull(u, works));
         var solar = Of("solar_plant");   // S: unverändert
         Assert.Null(StationCombat.DefenseOf(u, solar));
         var hq = Of("sector_hq");   // Regierung: eigene Werte aus der Weltdatei

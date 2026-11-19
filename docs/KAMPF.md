@@ -217,3 +217,29 @@ Nutzerentscheidungen: „Übernehmen von Stationen mit Chance möglich, alle au�
 ## Ausgleich: Wirtschaftsstationen wehren sich
 
 Botbefund: ein Zerstörer (≈ 7 900 Cr) nahm geschützlose Wirtschaftsstationen in 70–300 Ticks ohne Gegenwehr. Mit `economicStationDefense` bekommen Wirtschaftsstationen M/L/XL ohne eigenen `defense`-Abschnitt Hülle × 3, einen kleinen Schild, Panzerung 10 und 1/2/2 Laserkanonen, die nur auf Angreifer der Station selbst feuern; nach einer Kapitulation 480 Ticks Kapitulationssperre (IP2: 120 s). Einzelheiten in docs/STATIONEN.md „Ausgleich nach dem Bot-Test“. Regierungsstationen (Kriegstest gegen Sektor-HQ) bleiben unverändert.
+
+## Wirtschaftsstationen halten stand (umgesetzt)
+
+Nutzerwunsch „Wirtschaftsstationen stärken gegen Flotten“: trotz Vorgabeverteidigung nahm ein Zerstörer oder ein kleiner Verband eine Wirtschaftsstation in rund drei Minuten. Ziel: ein typischer Verband braucht mit Verteidigern sechs bis zehn Minuten, ein einzelner Zerstörer/Jäger nimmt eine M-Station in zehn Minuten gar nicht; ohne Hilfe darf ein klar überlegener Gegner schneller sein. Vier Hebel, alle datengetrieben (Code-Vorgabe = alte Regel, Standardwelt an; `Model/EconomyRules.EconomicHoldout.cs`, `Combat/EconomicHoldout.cs`):
+
+1. **Alarm** (`economicStationAlarm`): Beginn der Belagerung und jeder Treffer halten den Alarm der Station 1 200 Ticks (`economicAlarmTicks`) aufrecht (`StationCondition.AlarmUntil`). Polizei und Kriegsschiffe der Besitzerfraktion und ihrer Verbündeten (Runde-45-Bündnisse) im Sektor und bis `economicAlarmJumps` (2) Sprünge entfernt — frei, nicht im Gefecht, ohne Versorgungsbedarf, Verbandsmitglieder folgen ihrem Anführer — bekommen eine Streife im Sektor der Station (`PoliceCommands.Step`, `NavySystem`; je Fraktion und Station höchstens `economicAlarmMaxResponders` 4, die nächsten nach Sprüngen, dann Id). Sie fliegen normal hin (kein Versetzen); im Sektor nimmt sie die Belagerungsverstärkung (`Siege.Reinforce`, jetzt auch mit den Verbündeten) ins Gefecht. Ereignis `StationAlarmRaised` (Zahl der Verteidiger); im Spielersektor Hinweis, bei eigenen Stationen auch anderswo.
+2. **Notschild** (`economicEmergencyShield`): fällt die Hülle unter 50 %, hält die Station 600 Ticks (2,5 min, `economicEmergencyShieldTicks`) 75 % des Hüllenschadens ab, danach 2 400 Ticks Abklingzeit (`StationCondition.EmergencyUntil/EmergencyCooldownUntil`, Ereignis `StationEmergencyShield`, Stationszeile „· Notschild“). Regierungsstationen, Verstecke, Kleinstationen: keiner.
+3. **Mehr Geschütze, schwerere Mischung, Punktabwehr** (`economicStationGuns` [3, 4, 5] innerhalb der Stellplätze der Größe, `economicStationGunList` Massetreiber, Laser M, Laser, Massetreiber, Laser M — leichte Laser allein richten gegen Panzerung 90 eines Zerstörers fast nichts aus; `economicStationPointDefense` [0, 0,2, 0,3] für M/L/XL). Die Geschütze feuern weiter nur auf Angreifer der Station selbst.
+4. **Hülle × 5** (`economicStationHullFactor`, vorher 3): M 4 000, L 7 000, XL 12 500.
+
+Alarm und Notschild greifen nur bei Angriffen auf Stationen — in einer Welt ohne Krieg ändert sich nichts.
+
+**Messung** (`WirtschaftsabwehrTests.Kalibrierung_ZeitBisZumFall`: Kriegstest-Startpaket, Angriff wie am Handy — heranfliegen auf 0,7 × kürzeste Geschützreichweite ab Außenhaut, Zielhilfe, Dauerfeuer, Verband mit Regel „Angriff“ — auf die Farm Beta (M, abseits des Sektor-HQ), Kapitulation aus, also Zeit bis Hülle 0; „ohne Verteidiger“ = Polizei/Kriegsschiffe der Fraktion und ihrer Verbündeten entfernt, Nachkauf gesperrt; Saat 1):
+
+| Angreifer | Verteidiger | vorher | jetzt |
+|---|---|---|---|
+| Zerstörer allein | mit (2 Streifen) | fällt nach 183 s | hält, Zerstörer nach 146 s zerstört (Station 62 %) |
+| Zerstörer allein | ohne | fällt nach 198 s | hält, Zerstörer nach 439 s zerstört (Station 9 %) |
+| Bollwerk allein | mit | hält (Bollwerk verloren) | hält, Bollwerk nach 92 s verloren (Station 86 %) |
+| Bollwerk allein | ohne | fällt nach 802 s | hält, Bollwerk nach 312 s verloren (Station 63 %) |
+| Zerstörer + 2 Hornissen | mit | fällt nach 108 s | hält, Zerstörer nach 229 s verloren (Station 44 %) |
+| Zerstörer + 2 Hornissen | ohne | fällt nach 78 s | fällt nach 293 s |
+| drei Bollwerke | mit | fällt nach 176 s | fällt nach 634 s |
+| drei Bollwerke | ohne | fällt nach 105 s | fällt nach 544 s |
+
+Mit Kapitulation (Standardwelt) kann die Station schon bei 25 % bzw. 10 % Hülle aufgeben; die Zeiten bis zur ersten Kapitulationsschwelle liegen entsprechend darunter. Offen: nur eine Saat gemessen; der Fall „Zerstörer allein ohne Verteidiger“ ist knapp (Station endet bei 9 %).

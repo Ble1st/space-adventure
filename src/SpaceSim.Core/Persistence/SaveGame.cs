@@ -267,6 +267,10 @@ public sealed class StationConditionSave
     public float HullMissing { get; set; } public float ShieldMissing { get; set; } public long ShieldPauseUntil { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? Timers { get; set; }
     public bool Disabled { get; set; }
+    /// <summary>Wirtschaftsstationen halten stand (additiv): Alarm und Notschild (Fristen, 0 = keine).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long AlarmUntil { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long EmergencyUntil { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long EmergencyCooldownUntil { get; set; }
 }
 
 /// <summary>Phase 28: Verteidigung eines Stationstyps.</summary>
