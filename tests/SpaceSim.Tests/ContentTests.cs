@@ -58,7 +58,7 @@ public class ContentTests
         {
             bool shipFuel = good.Key == "propellant";   // Treibstoff (Phase 4b): von der Raffinerie erzeugt, von Schiffen verbraucht (kein Rezept-Verbraucher)
             bool gasField = good.Key == u.Rules.GasGoodKey;   // Gasernte: aus Gasfeldern geschöpft (Rohware ohne Rezept, wie Erz aus Asteroiden)
-            if (good.Key == "ion_gas") shipFuel = true;   // Ionengas: von Schiffen verbrannt
+            if (good.Key is "ion_gas" or "fusion_fuel") shipFuel = true;   // Ionengas, Fusionsbrennstoff: von Schiffen verbrannt
             bool produced = gasField || raw.Contains(good.Id) || u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Outputs.ContainsKey(good.Id)));
             Assert.True(produced, $"{good.Key} wird nirgends erzeugt");
             bool used = u.StationTypes.Values.Any(t => t.Recipes.Any(r => r.Inputs.ContainsKey(good.Id)));

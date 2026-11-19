@@ -40,6 +40,9 @@ public sealed class FlightHudData
 	public float Fuel, FuelCapacity;
 	/// <summary>Phase 14: Treibstoff eingeschaltet (Regel fuelActive)? Aus = Tankzeile ausgeblendet.</summary>
 	public bool FuelActive = true;
+	/// <summary>Tankanzeige: Kurzname der verbrannten Treibstoffart (Zeilenbeschriftung), Infozeile „Inhalt/Tank · Reichweite · Sprünge“, knapp = rot.</summary>
+	public string FuelLabel = "Sprit", FuelInfo = "";
+	public bool FuelLow;
 	/// <summary>Phase 23: Schild (aktuell/Höchstwert; Höchstwert 0 = kein Schildmodul), Leistungsbilanz (Leistung, Dauerlast), Speicherbank und Leistungsverteilung — echt aus dem Core.</summary>
 	public float Shield, ShieldMax, PowerOutput, PowerDraw, Charge, ChargeMax;
 	public PowerMode PowerMode;
@@ -389,6 +392,11 @@ public partial class FlightHud : Control, IScreen
 	public float LeftColumnTop() => _status is null ? 160f : Layout is { ChipBelowStatus: true } cl ? cl[HudItem.Fire].Bottom + 12f : _status.Position.Y + _status.Size.Y + 12f;   // schmal: unter dem Chipblock
 	public Rect2 TestModeRect(PowerMode m) => new(_power.Position, _power.Size);   // HUD-Neu: eine Taste ⚡ für alle Stellungen
 	Control _fuelRow = null!;
+	Label _fuelName = null!, _fuelInfo = null!;
+	public string TestFuelInfo => _fuelInfo.Text;
+	public string TestFuelName => _fuelName.Text;
+	public bool TestFuelLow => _fuelLowShown;
+	bool _fuelLowShown;
 	/// <summary>Selbsttest: ist die Tankzeile sichtbar (Phase 14: nur mit eingeschaltetem Treibstoff)?</summary>
 	public bool TestFuelVisible => _fuelRow.Visible;
 	Label _hullVal = null!;
@@ -506,12 +514,17 @@ public partial class FlightHud : Control, IScreen
 
 		// ── Status oben links (HUD-Neu: schlank, Balken + Kasse; die Leistungsstellung zeigt ⚡ in der rechten Spalte) ──
 		var status = _status = Win(this, 12, 8, 300, 132, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
-		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 6, 280, 122);
-		sv.AddThemeConstantOverride("separation", 2);
+		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 4, 280, 126);
+		sv.AddThemeConstantOverride("separation", 0);   // Tankanzeige: Platz für die Tank-Infozeile (vorher 2)
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
 		_shieldBar = BarRow(sv, "Schild", UiKit.Cyan, out _shieldVal!);
 		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal!);
 		_fuelRow = (Control)sv.GetChild(sv.GetChildCount() - 1);
+		_fuelName = (Label)_fuelRow.GetChild(0);
+		// Tankanzeige: Inhalt/Tank, Restreichweite und grobe Sprünge der verbrannten Art (weitere Arten dahinter)
+		_fuelInfo = Text("", 12, new Color(UiKit.Dim, 0.9f));
+		_fuelInfo.ClipText = true; _fuelInfo.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _fuelInfo.CustomMinimumSize = new Vector2(1, 13);
+		sv.AddChild(_fuelInfo);
 		_powerBar = BarRow(sv, "Leistung", PowerColor, out _powerVal!);
 		_powerInfo = Text("", 12, new Color(UiKit.Dim, 0.85f));
 		_powerInfo.Visible = false;   // HUD-Neu: Stellung steht auf ⚡
@@ -867,9 +880,14 @@ public partial class FlightHud : Control, IScreen
 		_hullBar.Set(d.Hull, d.Hull > 60f ? UiKit.Green : UiKit.Orange);
 		_hullVal.Text = $"{(int)d.Hull}";
 		float fuelPct = d.FuelCapacity > 0f ? 100f * d.Fuel / d.FuelCapacity : 0f;
-		_fuelBar.Set(fuelPct, fuelPct < 20f ? UiKit.Red : UiKit.Orange);
+		_fuelLowShown = d.FuelLow || fuelPct < 20f;
+		_fuelBar.Set(fuelPct, _fuelLowShown ? UiKit.Red : UiKit.Orange);
 		_fuelVal.Text = d.FuelCapacity > 0f ? $"{(int)d.Fuel}" : "–";
 		_fuelRow.Visible = d.FuelActive;
+		_fuelName.Text = d.FuelLabel;
+		_fuelInfo.Text = d.FuelInfo;
+		_fuelInfo.Modulate = _fuelLowShown ? new Color(1f, 0.45f, 0.4f) : Colors.White;
+		_fuelInfo.Visible = d.FuelActive && d.FuelInfo.Length > 0;
 		float shieldPct = d.ShieldMax > 0f ? 100f * d.Shield / d.ShieldMax : 0f;
 		_shieldBar.Set(shieldPct, shieldPct < 30f ? UiKit.Orange : UiKit.Cyan);
 		_shieldVal.Text = d.ShieldMax > 0f ? $"{(int)d.Shield}" : "–";

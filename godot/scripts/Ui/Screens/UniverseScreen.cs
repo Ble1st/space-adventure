@@ -101,7 +101,8 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		float cardH = MathF.Max(inner.Size.Y - 56, 300f);
 		var frame = CardBg(inner, MapW(inner) + 12, 56, 300, cardH, Card);
 		const float footH = 3 * 54 + 10;
-		var bodyScroll = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 0, 4, 300, cardH - footH - 8);
+		// ui-check (Gasernte/Fusion): ein sichtbarer Rollbalken machte die Fläche schmaler als die 268-px-Zeilen — Balken aus, Wischen rollt weiter
+		var bodyScroll = At(frame, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever, MouseFilter = MouseFilterEnum.Pass }, 0, 4, 300, cardH - footH - 8);
 		var card = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(292, 10) };
 		bodyScroll.AddChild(card);
 

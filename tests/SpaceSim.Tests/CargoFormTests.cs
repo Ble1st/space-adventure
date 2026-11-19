@@ -297,7 +297,7 @@ public class CargoFormTests
     {
         var u = DemoUniverse.Create();
         Assert.All(u.Goods.Values, g => Assert.True(g.Form is GoodForm.Solid or GoodForm.Liquid));
-        Assert.Equal(5, u.Goods.Values.Count(g => g.Form == GoodForm.Liquid));   // water, hydrogen, propellant; Gasernte: gas, ion_gas
+        Assert.Equal(6, u.Goods.Values.Count(g => g.Form == GoodForm.Liquid));   // water, hydrogen, propellant; Gasernte: gas, ion_gas; Fusion: fusion_fuel
         foreach (var key in new[] { "unit_trader_100", "unit_trader_60", "unit_miner_100", "unit_miner_60" })
         {
             var ship = WorldBuilder.NewShip(u, u.NewShipId(), ShipRole.Trader, 1, new SectorId(1), 0f, 100f, key);

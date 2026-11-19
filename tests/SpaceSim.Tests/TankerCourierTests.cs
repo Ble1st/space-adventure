@@ -51,7 +51,7 @@ public class TankerCourierTests
         var courier = StatsOf(u, u.ShipModels["swift"]);
         Assert.Equal(30f, courier.CargoSolid);
         Assert.True(courier.Speed > 11f, $"Kurier schnell ({courier.Speed:0.0})");
-        Assert.Equal(new[] { "gas", "hydrogen", "ion_gas", "propellant", "water" },   // Gasernte: Nebelgas und Ionengas sind flüssig (Tanker fahren sie)
+        Assert.Equal(new[] { "fusion_fuel", "gas", "hydrogen", "ion_gas", "propellant", "water" },   // Gasernte: Nebelgas und Ionengas sind flüssig (Tanker fahren sie)
             u.Goods.Values.Where(g => g.Form == GoodForm.Liquid).Select(g => g.Key).OrderBy(k => k));
         Assert.Equal(3.6f, ShipJobs.Default.First(j => j.Key == "trade").Units(tanker, tanker.Cargo, u.Rules), 3);
     }

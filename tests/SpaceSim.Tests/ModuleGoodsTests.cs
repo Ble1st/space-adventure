@@ -37,7 +37,7 @@ public class ModuleGoodsTests
     {
         var def = DefaultDef();
         var u = WorldBuilder.Build(def);
-        Assert.Equal(29, def.Goods.Count);   // 23 bis Phase 4 + zwei Bausatzstufen + Munition (Phase 23) + Rakete (Phase 28) + Nebelgas, Ionengas (Gasernte)
+        Assert.Equal(30, def.Goods.Count);   // 23 bis Phase 4 + zwei Bausatzstufen + Munition (Phase 23) + Rakete (Phase 28) + Nebelgas, Ionengas (Gasernte) + Fusionsbrennstoff
         var keys = u.Modules.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
         for (int i = 0; i < keys.Count; i++)
         {

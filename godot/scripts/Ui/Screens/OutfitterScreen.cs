@@ -225,7 +225,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		At(row, Text(source, 13, Dim), 30, 28, tw, 20);
 		string effect = p is null ? "" : !p.Valid
 			? (p.Issue is { } issue ? FitRules.Describe(issue) : p.CargoProblem ?? "")
-			: Diff(p.Before, p.After);
+			: Diff(Ctx.U, p.Before, p.After);
 		// Phase 13: gesperrtes Modul (für die Fraktion der Station nicht erforscht) — sichtbar, aber nicht einbaubar
 		string? locked = moduleKey is null || o.Held >= 1f ? null : SpaceSim.Core.Simulation.Research.LockText(u, Ctx.Station, UnlockKind.Module, moduleKey);
 		if (locked is not null) { effect = $"Nicht erforscht ({u.Research.LockOf(UnlockKind.Module, moduleKey!)?.Name}) — " + effect; can = false; }
@@ -241,7 +241,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 	}
 
 	/// <summary>Wirkung als Text: nur geänderte Werte, „Name alt→neu“.</summary>
-	static string Diff(ShipStats a, ShipStats b)
+	static string Diff(SpaceSim.Core.Model.Universe u, ShipStats a, ShipStats b)
 	{
 		var parts = new List<string>();
 		void Add(string name, float x, float y, string fmt = "0")
@@ -257,6 +257,15 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		Add("Schildladung/s", a.ShieldRegen, b.ShieldRegen, "0.##");
 		Add("Magazin", a.AmmoCapacity, b.AmmoCapacity);
 		Add("Tank", a.FuelCapacity, b.FuelCapacity);
+		// Tankanzeige: andere Treibstoffart (Ionentriebwerk, Fusion) und Reichweite eines vollen Tanks
+		if (u.Rules.FuelActive)
+		{
+			string fa = SpaceSim.Core.Flight.TankInfo.FuelNames(u, a), fb = SpaceSim.Core.Flight.TankInfo.FuelNames(u, b);
+			if (fa != fb) parts.Add($"Treibstoff {(fa.Length > 0 ? fa : "–")} → {(fb.Length > 0 ? fb : "–")} (Tank wird geleert)");
+			float ra = SpaceSim.Core.Flight.TankInfo.FullRange(a), rb = SpaceSim.Core.Flight.TankInfo.FullRange(b);
+			if (MathF.Abs(ra - rb) > 1f && float.IsFinite(ra) && float.IsFinite(rb))
+				parts.Add($"Reichweite {SpaceSim.Core.Flight.DistanceText.Format(ra)} → {SpaceSim.Core.Flight.DistanceText.Format(rb)}");
+		}
 		bool mineA = a.Capabilities.HasFlag(Capability.Mining), mineB = b.Capabilities.HasFlag(Capability.Mining);
 		if (mineA != mineB) parts.Add(mineB ? "+Schürfen" : "−Schürfen");
 		bool cargoA = a.Capabilities.HasFlag(Capability.Cargo), cargoB = b.Capabilities.HasFlag(Capability.Cargo);

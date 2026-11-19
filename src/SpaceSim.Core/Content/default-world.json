@@ -56,7 +56,7 @@
   "escortMinRemainingTicks": 200,
   "maxMiners": 55,
   "repairPlatesPerHull": 0.02,
-  "maxStations": 71,
+  "maxStations": 73,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": true,
@@ -317,6 +317,15 @@
    "basePrice": 55,
    "volume": 1,
    "color": "#7fd8ff"
+  },
+  {
+   "key": "fusion_fuel",
+   "category": "fuel",
+   "name": "Fusionsbrennstoff",
+   "form": "liquid",
+   "basePrice": 120,
+   "volume": 1,
+   "color": "#ff7af0"
   }
  ],
  "asteroidClasses": [
@@ -807,6 +816,7 @@
     "gas_scoop_s": [1, 2],
     "ion_engine_s": [1, 2],
     "ion_engine_m": [1, 1],
+    "fusion_drive_l": [1, 2],
     "tractor_beam_s": [
      1,
      3
@@ -932,6 +942,18 @@
    "services": ["trade", "refuel", "hangar"],
    "recipes": [
     { "ticks": 10, "in": { "gas": 2, "energy": 1 }, "out": { "ion_gas": 1 } }
+   ]
+  },
+  {
+   "key": "enrichment_plant",
+   "name": "Anreicherungsanlage",
+   "size": "L",
+   "buildCost": 20000,
+   "upkeep": 0.2,
+   "income": 1.5,
+   "services": ["trade", "refuel", "hangar"],
+   "recipes": [
+    { "ticks": 20, "in": { "hydrogen": 2, "energy": 1, "platinum": 1 }, "out": { "fusion_fuel": 3 } }
    ]
   },
   {
@@ -2327,6 +2349,14 @@
    ],
    "stations": [
     {
+     "id": 88,
+     "type": "enrichment_plant",
+     "name": "Anreicherungsanlage Hephaistos",
+     "pos": [-160, -160],
+     "essential": true,
+     "stock": { "hydrogen": [20, 20], "energy": [20, 20], "platinum": [4, 4], "fusion_fuel": [60, 60] }
+    },
+    {
      "id": 86,
      "type": "gas_refinery",
      "name": "Gasraffinerie Hephaistos",
@@ -2589,6 +2619,14 @@
     }
    ],
    "stations": [
+    {
+     "id": 87,
+     "type": "enrichment_plant",
+     "name": "Anreicherungsanlage Kalypso",
+     "pos": [160, -160],
+     "essential": true,
+     "stock": { "hydrogen": [20, 20], "energy": [20, 20], "platinum": [4, 4], "fusion_fuel": [60, 60] }
+    },
     {
      "id": 67,
      "type": "colony",
@@ -3713,6 +3751,7 @@
   {"key": "cutting_drum_l", "name": "Schneidwalze L", "slot": "tool", "size": "L", "tier": 3, "grants": ["Mining"], "stats": {"contactMining": 10.2}, "powerDraw": 5, "mass": 4, "cost": {"steel": 6, "titanium": 4, "electronics": 3}},
   {"key": "gas_scoop_s", "name": "Gassammler S", "slot": "tool", "size": "S", "tier": 1, "grants": ["GasHarvest"], "stats": {"gasCollect": 1.5}, "powerDraw": 2, "mass": 1, "cost": {"steel": 2, "electronics": 1, "copper": 1}},
   {"key": "ion_engine_s", "name": "Ionentriebwerk S", "slot": "engine", "size": "S", "tier": 2, "stats": {"thrust": 128, "fuelUse": 0.001}, "fuel": [{"good": "ion_gas", "efficiency": 2.5}], "powerDraw": 4, "mass": 3, "cost": {"steel": 3, "electronics": 2, "wafers": 1}},
+  {"key": "fusion_drive_l", "name": "Fusionstriebwerk L", "slot": "engine", "size": "L", "tier": 2, "stats": {"thrust": 300, "fuelUse": 0.0015}, "fuel": [{"good": "fusion_fuel", "efficiency": 5}], "powerDraw": 4, "mass": 7, "cost": {"steel": 8, "electronics": 4, "titanium": 3, "platinum": 2}},
   {"key": "ion_engine_m", "name": "Ionentriebwerk M", "slot": "engine", "size": "M", "tier": 2, "stats": {"thrust": 192, "fuelUse": 0.0015}, "fuel": [{"good": "ion_gas", "efficiency": 2.5}], "powerDraw": 5, "mass": 5, "cost": {"steel": 5, "electronics": 3, "wafers": 1, "titanium": 1}}
  ],
  "shipClasses": [
@@ -4198,7 +4237,7 @@
    "baseHull": 520,
    "baseMass": 30,
    "baseFuel": 400,
-   "slots": [{"type": "reactor", "size": "M"}, {"type": "reactor", "size": "M"}, {"type": "engine", "size": "M"},
+   "slots": [{"type": "reactor", "size": "M"}, {"type": "reactor", "size": "M"}, {"type": "engine", "size": "L"},
     {"type": "weapon", "size": "M", "facing": "bow", "arc": 120}, {"type": "weapon", "size": "M", "facing": "bow", "arc": 120},
     {"type": "weapon", "size": "S"}, {"type": "weapon", "size": "S"}, {"type": "shield", "size": "M"}, {"type": "shield", "size": "M"},
     {"type": "armor", "size": "M"}, {"type": "armor", "size": "M"}, {"type": "utility", "size": "S"}, {"type": "utility", "size": "S"}, {"type": "storage", "size": "S"}],
@@ -4341,7 +4380,7 @@
     },
     {
      "type": "engine",
-     "size": "M"
+     "size": "L"
     },
     {
      "type": "weapon",
@@ -4400,11 +4439,11 @@
     },
     {
      "type": "engine",
-     "size": "M"
+     "size": "L"
     },
     {
      "type": "engine",
-     "size": "M"
+     "size": "L"
     },
     {
      "type": "weapon",
@@ -4903,7 +4942,7 @@
    "fit": [
     "reactor_mk2",
     "reactor_mk2",
-    "chem_engine_m",
+    "fusion_drive_l",
     "missile_launcher_s",
     "missile_launcher_s",
     "weapon_laser_s",
@@ -4988,7 +5027,7 @@
    "fit": [
     "reactor_m",
     "reactor_m",
-    "chem_engine_m",
+    "fusion_drive_l",
     "weapon_laser_m",
     "weapon_laser_m",
     "weapon_laser_m",
@@ -5007,8 +5046,8 @@
    "fit": [
     "reactor_m",
     "reactor_m",
-    "chem_engine_m",
-    "chem_engine_m",
+    "fusion_drive_l",
+    "fusion_drive_l",
     "missile_launcher_s_mk2",
     "missile_launcher_s_mk2",
     "weapon_laser_m",

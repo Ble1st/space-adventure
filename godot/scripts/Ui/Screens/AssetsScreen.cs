@@ -216,7 +216,14 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 		At(w, Text("Zustand", 17, Cyan), 30, 160, 200, 22);
 		Bar(w, 30, 188, "Hülle", s.Hull, s.MaxHull, s.Hull > s.MaxHull * 0.6f ? Green : Orange, $"{(int)s.Hull}");
 		if (u.Rules.FuelActive)   // Phase 14: Tankanzeige nur mit Treibstoff
-			Bar(w, 30, 216, "Sprit", s.TotalFuel, MathF.Max(1f, s.Stats.FuelCapacity), Cyan, $"{s.TotalFuel:0}/{s.Stats.FuelCapacity:0}");
+		{
+			// Tankanzeige: verbrannte Art, Inhalt/Tank und Restreichweite (Core TankInfo)
+			var tl = SpaceSim.Core.Flight.TankInfo.For(u, s);
+			if (tl.Count > 0)
+				Bar(w, 30, 216, tl[0].Short, tl[0].Amount, MathF.Max(1f, tl[0].Capacity), tl[0].Low ? Red : Cyan,
+					$"{tl[0].Amount:0}/{tl[0].Capacity:0}" + (float.IsPositiveInfinity(tl[0].Range) ? "" : $" · ~{SpaceSim.Core.Flight.DistanceText.Format(tl[0].Range)}"));
+			else Bar(w, 30, 216, "Sprit", s.TotalFuel, MathF.Max(1f, s.Stats.FuelCapacity), Cyan, $"{s.TotalFuel:0}/{s.Stats.FuelCapacity:0}");
+		}
 		At(w, Text(SystemsLine(u, s), 14, Dim), 30, u.Rules.FuelActive ? 236 : 216, 440, 20);
 
 		// Auftrag und Standort (echt)

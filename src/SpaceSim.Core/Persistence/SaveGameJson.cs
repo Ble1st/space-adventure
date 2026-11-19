@@ -28,7 +28,9 @@ public static class SaveGameJson
         "drill_head_s", "cutting_wheel_s", "cutting_wheel_m", "cutting_drum_l",
         "jump_drive_s", "cloak_s", "cloak_s_mk2",
         // Gasernte und Nebel: Gas, Ionengas, Gassammler, Ionentriebwerke, Gasraffinerie, Gasschöpfer
-        "gas", "ion_gas", "gas_scoop_s", "ion_engine_s", "ion_engine_m", "gas_refinery", "skimmer" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
+        "gas", "ion_gas", "gas_scoop_s", "ion_engine_s", "ion_engine_m", "gas_refinery", "skimmer",
+        // Fusionsbrennstoff: Ware, Fusionstriebwerk, Anreicherungsanlage
+        "fusion_fuel", "fusion_drive_l", "enrichment_plant" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {
@@ -199,7 +201,7 @@ public static class SaveGameJson
             RemoveWhere(so["stations"]?.AsArray(), st => Late((string?)st["type"]));
         }
         RemoveWhere(root["ships"]?.AsArray(), n => Late((string?)n["model"]));
-        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); if ((int?)rr["maxStations"] == 71) rr["maxStations"] = 69; }
+        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); if ((int?)rr["maxStations"] == 73) rr["maxStations"] = 69; }
         foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             if (m?["stats"] is System.Text.Json.Nodes.JsonObject fs && fs["fuelUse"] is not null)
                 switch ((string?)m["key"])

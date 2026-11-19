@@ -50,7 +50,19 @@ public sealed partial class RepairFuelScreen : DockAreaScreen, ISessionScreen
 			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 40);
 
 		float y = 48f;
-		if (fuel) y = Section(inner, "Tanken", RefuelService.ServiceKey, "Diese Station verkauft keinen Treibstoff für dein Schiff.", y, w) + 14f;
+		if (fuel)
+		{
+			// Tankanzeige: was im Tank ist (je Art, die die Antriebe verbrennen) und welche Art diese Station verkaufen müsste
+			var tank = SpaceSim.Core.Flight.TankInfo.For(Ctx.U, Ctx.Ship);
+			_tankLine = tank.Count == 0 ? "Tank: kein Treibstoffantrieb" : "Tank: " + string.Join(" · ", tank.Select(SpaceSim.Core.Flight.TankInfo.Line));
+			var tl = WrappedText(inner, _tankLine, 0, y, w, 15, tank.Any(t => t.Low) ? Red : White, 22);
+			y = tl + 6f;
+			string need = tank.Count > 0 ? tank[0].Name : "Treibstoff";
+			var seller = SpaceSim.Core.Flight.TankInfo.NearestSeller(Ctx.U, Ctx.Ship);
+			string missing = $"Diese Station verkauft kein {need} für dein Schiff." + (seller is not null && seller.Id != Ctx.Station.Id ? $" Nächste Tankstelle für {need}: {seller.Name}." : "");
+			_tankMissing = missing;
+			y = Section(inner, "Tanken", RefuelService.ServiceKey, missing, y, w) + 14f;
+		}
 		_fuelSection = fuel;
 		// Phase 26: Schadensliste (Hülle, Module, Brand) über der Reparatur
 		var dmg = SpaceSim.Core.Combat.DamageInfo.For(Ctx.U, Ctx.Ship);
@@ -80,8 +92,7 @@ public sealed partial class RepairFuelScreen : DockAreaScreen, ISessionScreen
 		{
 			string text = svc is null ? missing
 				: serviceKey == RepairService.ServiceKey ? "Hülle ist unbeschädigt." : missing;
-			At(inner, Text(text, 15, new Color(Dim, 0.8f)), 0, y, w, 24);
-			return y + 28f;
+			return WrappedText(inner, text, 0, y, w, 15, new Color(Dim, 0.8f), 22) + 6f;   // Tankanzeige: Hinweis auf die nächste passende Tankstelle bricht um
 		}
 		foreach (var o in offers)
 		{
@@ -125,6 +136,10 @@ public sealed partial class RepairFuelScreen : DockAreaScreen, ISessionScreen
 	public int TestRowCount => _rows;
 	/// <summary>Selbsttest: wurde der Abschnitt „Tanken“ gezeichnet (Phase 14: nur mit Treibstoff)?</summary>
 	public bool TestFuelSection => _fuelSection;
+	/// <summary>Selbsttest: Tankzeile und Hinweis ohne passendes Angebot.</summary>
+	public string TestTankLine => _tankLine;
+	public string TestTankMissing => _tankMissing;
+	string _tankLine = "", _tankMissing = "";
 	bool _fuelSection;
 	public string TestMessage => _message;
 	/// <summary>Phase 26: gezeichnete Zeilen der Schadensliste (beschädigte oder brennende Module).</summary>

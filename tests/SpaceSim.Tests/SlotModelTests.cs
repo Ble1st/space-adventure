@@ -38,7 +38,7 @@ public class SlotModelTests
     {
         var u = DemoUniverse.Create();
         Assert.Equal(9, u.SlotTypes.Count);
-        Assert.Equal(49, u.Modules.Count);   // Gasernte: + Gassammler, Ionentriebwerk S/M; Sprungantrieb/Tarnfeld: + Sprungantrieb, Tarnfeld Mk1/Mk2; Phase 29: + elf Module (Kampfmodule Mk2/M, Reaktor M) + vier Kontaktwerkzeuge (Bohrkopf, Schneidrad S/M, Schneidwalze L); Phase 28: + Raketenwerfer, Punktabwehr; Phase 26: + Löschanlage, Bergungsgreifer; Phase 24: + kinetisches Geschütz; Phase 23: + Munitionsmagazin; Phase 13: + Reaktor Mk3, Mining-Laser Mk3; Phase 11: + Laserkanone; Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
+        Assert.Equal(50, u.Modules.Count);   // Fusion: + Fusionstriebwerk L; Gasernte: + Gassammler, Ionentriebwerk S/M; Sprungantrieb/Tarnfeld: + Sprungantrieb, Tarnfeld Mk1/Mk2; Phase 29: + elf Module (Kampfmodule Mk2/M, Reaktor M) + vier Kontaktwerkzeuge (Bohrkopf, Schneidrad S/M, Schneidwalze L); Phase 28: + Raketenwerfer, Punktabwehr; Phase 26: + Löschanlage, Bergungsgreifer; Phase 24: + kinetisches Geschütz; Phase 23: + Munitionsmagazin; Phase 13: + Reaktor Mk3, Mining-Laser Mk3; Phase 11: + Laserkanone; Phase 8: + Bauausleger, Spaltlaser; Phase 5a: erster Modulsatz Mk1 (+ Speicherbank, Tank, Traktor, Schild, Panzerung); Phase 6: + Triebwerk M, Laser Mk2; Phase 7: + Reaktor Mk2, Triebwerk S Mk2
         Assert.Equal(22, u.ShipClasses.Count);   // Phase 29: + Korvette, Raketenboot, Bomber, Kanonenboot, Zerstörer, Schlachtkreuzer, Großschürfer; Phase 28: + Fregatte; Phase 25: + Jäger; Phase 11: + Patrouillenboot, Kaperschiff; Phase 8: + Bauschiff, Asteroidenbrecher; Phase 5c: + Skiff; Phase 6: + Kurier, leichter/schwerer Frachter, Bergbauer leicht/schwer, Tanker
         Assert.Equal(31, u.ShipModels.Count);   // Gasernte: + Gasschöpfer; Phase 29: + Hornisse, Lanze, Donner, Keiler, Sturmvogel, Leviathan, Maulwurf, − Einheitsspieler; Phase 28: + Bollwerk; Phase 25: + Falke, − Mule/Hauler bewaffnet (jeder Händler trägt jetzt eine Waffe); Phase 24: + Mule und Hauler bewaffnet; Phase 13: + Excavator; Phase 11: + Wächter, Korsar; Phase 8: + Foreman, Quarry, Rockbreaker II; Phase 5c: + Pip, Nomad, Prospector; Phase 6: + Swift, Mule, Hauler, Tinker, Behemoth, Pickaxe, Rockbreaker, Cistern
         Assert.True(u.SlotTypes["reactor"].Required);
@@ -241,7 +241,7 @@ public class SlotModelTests
         var u = DemoUniverse.Create();
         Assert.Equal(GoodForm.Liquid, u.FindGood("water")!.Form);
         Assert.Equal(GoodForm.Liquid, u.FindGood("hydrogen")!.Form);
-        Assert.All(u.Goods.Values.Where(g => g.Key is not ("water" or "hydrogen" or "propellant" or "gas" or "ion_gas")), g => Assert.Equal(GoodForm.Solid, g.Form));
+        Assert.All(u.Goods.Values.Where(g => g.Key is not ("water" or "hydrogen" or "propellant" or "gas" or "ion_gas" or "fusion_fuel")), g => Assert.Equal(GoodForm.Solid, g.Form));
 
         Invalid(d => d.Goods.First(g => g.Key == "water").Form = "gas", "Ware 'water': unbekannte Form 'gas'");
     }

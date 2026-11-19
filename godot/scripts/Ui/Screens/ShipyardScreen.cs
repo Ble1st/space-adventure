@@ -51,9 +51,10 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 		_locked = 0;
 		_scroll = null;
 		float assembly = u.StationTypes.TryGetValue(Ctx.Station.TypeKey, out var t) && t.ShipDealer is { } sd ? sd.Assembly : 0f;
-		At(inner, Text(_message.Length > 0 ? _message
+		// Tankanzeige-Runde (ui-check 2340×1080 bei 1,15: Kopfzeile gekürzt): zweizeilig umbrechen statt kürzen
+		WrappedText(inner, _message.Length > 0 ? _message
 			: $"Preis = Bausatz + Module + {assembly * 100f:0}\u00A0% Montage. Güteklasse wird gewürfelt: {QualityOdds(u)}",
-			15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f)), 0, 0, w, 36);
+			0, 0, w, 14, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.85f), 18);
 
 		var svc = Service;
 		if (svc is null) { At(inner, Text("Diese Station verkauft keine Schiffe.", 16, new Color(Dim, 0.8f)), 0, 48, w, 26); return; }

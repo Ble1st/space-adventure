@@ -205,7 +205,7 @@ public class CargoWaterOreTests
         // Treibstoff an (seit „Treibstoff und Forschung dauerhaft an“): die fünf Raffinerien stehen in der Welt, MaxStations wie in der Weltdatei (69; mit Treibstoff aus
         // −5); Spielraum für den Lebenszyklus mindestens 4 Plätze (Phase 21: größere Welt, mehr Plätze)
         Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations, u.Rules.MaxStations);
-        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations - 7, TestWorlds.DefaultOff().Rules.MaxStations);   // Gasernte: + zwei Gasraffinerien (reine Treibstoffhersteller)
+        Assert.Equal(WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations - 9, TestWorlds.DefaultOff().Rules.MaxStations);   // Gasernte: + zwei Gasraffinerien; Fusion: + zwei Anreicherungsanlagen (reine Treibstoffhersteller)
         Assert.True(u.Rules.MaxStations - StationProtection.CountEconomic(u) >= 4);
         var water = u.StationTypes["water_plant"].Recipes.Single();
         Assert.Equal(2f, water.Outputs[G(u, "water")]);

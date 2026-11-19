@@ -583,7 +583,7 @@ u.Events.Raised += e =>
 // Phase 19: Stilllegungen/Umwidmungen, Auslastung je Station (alle 200 Ticks), Knappheit ohne freien Platz
 var retiredStations = new List<string>();
 int buildersCommissioned = 0, discardCount = 0;
-float gasCollected = 0f, gasDelivered = 0f, gasDeliveredCr = 0f; int gasTrips = 0, ionTanks = 0; float ionTankUnits = 0f;   // Gasernte
+float gasCollected = 0f, gasDelivered = 0f, gasDeliveredCr = 0f; int gasTrips = 0, ionTanks = 0, fusionTanks = 0; float ionTankUnits = 0f, fusionTankUnits = 0f;   // Gasernte
 int bmnSales = 0, bmnBuys = 0; float bmnSoldUnits = 0f, bmnSoldCr = 0f, bmnBoughtUnits = 0f, bmnBoughtCr = 0f;   // Schwarzmarkt NPC
 var discarded = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: von KI-Händlern im All abgeworfen (kein Käufer nahm den Rest)
 var dumped = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: über die Annahme abgeladen (Station: Ware → Einheiten)
@@ -597,6 +597,7 @@ u.Events.Raised += e =>
     if (e is GasCollected gc && u.Ships.TryGetValue(gc.Ship, out var gcs) && gcs.Controller == Controller.Ai) gasCollected += gc.Units;
     if (e is MineDelivered gmd && u.GoodOf(gmd.Good).Key == u.Rules.GasGoodKey) { gasDelivered += gmd.Amount; gasDeliveredCr += gmd.Revenue; gasTrips++; }
     if (e is FuelBought fb && u.GoodOf(fb.Good).Key == "ion_gas") { ionTanks++; ionTankUnits += fb.Units; }
+    if (e is FuelBought fbf && u.GoodOf(fbf.Good).Key == "fusion_fuel") { fusionTanks++; fusionTankUnits += fbf.Units; }
     if (e is BlackMarketNpcTrade bmt) { if (bmt.Sold) { bmnSales++; bmnSoldUnits += bmt.Units; bmnSoldCr += bmt.Credits; } else { bmnBuys++; bmnBoughtUnits += bmt.Units; bmnBoughtCr += bmt.Credits; } }
     if (e is CargoDiscarded cdi) { discardCount++; string gk = u.Goods[cdi.Good].Name; discarded[gk] = discarded.GetValueOrDefault(gk) + cdi.Units; }
     if (e is StationRetired sre)
@@ -1092,6 +1093,14 @@ if (u.Modules.Count > 0)
         Console.WriteLine($"Gasernte (Nebel {(u.Rules.NebulaEffects ? "an" : "aus")}, Nebelsektoren {u.Sectors.Values.Count(s => s.Nebula)}, Gasfelder {u.Sectors.Values.Sum(s => s.GasFields.Count)}): "
             + $"KI geschöpft {gasCollected:0} E., ausgeliefert {gasDelivered:0} E. in {gasTrips} Lieferungen ({gasDeliveredCr:0} Cr); Sammler jetzt {collectors}; "
             + $"Ionengas getankt {ionTanks}× ({ionTankUnits:0.#} E.); Ø Preis/Basis letzte 25%: Gas {Price(gasG)}, Ionengas {Price(ionG)}");
+        var fusG = u.FindGood("fusion_fuel");
+        if (fusG is not null)
+        {
+            int capital = u.Ships.Values.Count(s => s.Controller == Controller.Ai && s.Stats.FuelTypes.Any(f => f.Good == fusG.Id));
+            int dry = u.Ships.Values.Count(s => s.Controller == Controller.Ai && s.Stats.FuelTypes.Any(f => f.Good == fusG.Id) && s.TotalFuel < 0.5f);
+            Console.WriteLine($"Fusionsbrennstoff: Anreicherungsanlagen {u.Stations.Values.Count(s => s.TypeKey == "enrichment_plant")}, an Stationen getankt {fusionTanks}× ({fusionTankUnits:0.#} E.); "
+                + $"KI-Schiffe mit Fusionsantrieb {capital} (leer {dry}); Ø Preis/Basis letzte 25%: {Price(fusG)}");
+        }
     }
     // Phase 28: Raketen, Stationen, Krieg
     Console.WriteLine($"Kriegsführung (Phase 28: {(u.Rules.Warfare ? "an" : "aus")}): Raketen {missilesLaunched} ({(missileOutcomes.Count == 0 ? "–" : string.Join(", ", missileOutcomes.Select(kv => $"{kv.Key} {kv.Value}")))}); "

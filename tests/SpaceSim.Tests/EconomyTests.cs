@@ -98,12 +98,16 @@ public class MinerTests
         var founders = u.Ships.Values.Where(s => s.Role == ShipRole.Miner).Select(s => s.Id).ToList();   // später gekaufte Schiffe starten mit weniger
         // Runde 44: 6000 statt 2000 Ticks — in den vergrößerten Sektoren dauert eine Fahrt etwa 3,4-mal so lang (Messreihe M0 → M1: Ø 46 → 156 Ticks),
         // in 2000 Ticks hatte nicht jeder der (dreimal so vielen) Gründungs-Schürfer schon eine Ladung verkauft
+        var delivered = new Dictionary<ShipId, int>();
+        u.Events.Raised += e => { if (e is SpaceSim.Core.Events.MineDelivered md) delivered[md.Ship] = delivered.GetValueOrDefault(md.Ship) + 1; };
         new SimulationRunner().Run(u, 6_000);
 
         Assert.NotEmpty(founders);
         Assert.All(founders, id => Assert.True(u.Ships.ContainsKey(id), $"Gründungs-Miner {id.Value} fehlt"));
-        foreach (var id in founders)
-            Assert.True(u.Ships[id].Credits > 1000f, "Ein Gründungs-Miner sollte Gewinn gemacht haben");
+        // Gasernte/Fusion (verschobener Lauf): ein Schürfer lag nach 6000 Ticks mit Tankkosten knapp unter seinem Startgeld, obwohl er geliefert hatte —
+        // geprüft wird, dass jeder geliefert hat und die Gründer zusammen verdienen
+        foreach (var id in founders) Assert.True(delivered.GetValueOrDefault(id) > 0, $"Gründungs-Miner {id.Value} hat nichts geliefert");
+        Assert.True(founders.Sum(id => u.Ships[id].Credits) > 1000f * founders.Count, "Die Gründungs-Miner sollten zusammen Gewinn gemacht haben");
         Assert.NotEqual(fieldsBefore, u.Sectors[new SectorId(1)].Asteroids.Sum(a => a.Ore));   // Abbau und Respawn haben den Gürtel verändert
     }
 

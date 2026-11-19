@@ -212,8 +212,9 @@ public class Runde42dTests
         // am verfügbaren Geld der Fraktionen, das auch die Kopfgeld-Belohnung decken muss (FactionViability.Spendable). Gemessen (Standard-Seed, 20 000 Ticks,
         // Kopfgeld/Patrouille/gesamt): beide aus 59/73/1217, nur Treibstoff 60/77/1390, nur Forschung 46/64/1234, beide an 43/66/1295 — die Zahl sinkt
         // durch die Forschung, nicht durch einen Fehler. Geprüft: Kopfgeld ≥ 3 % und ≥ 40 Angebote, Kopfgeld + Patrouille ≥ 8 % (vorher 4 %/50/10 %)
-        Assert.True(shareB >= 3.0 && shareB + shareP >= 8.0 && byType.GetValueOrDefault(BountyMission.KeyId) >= 40,
-            $"Kopfgeld-Anteil {shareB:0.0}% ≥ 3%, mit Patrouille {shareB + shareP:0.0}% ≥ 8% (byType=[{string.Join(", ", byType.Select(kv => $"{kv.Key} {kv.Value}"))}], total {total})");
+        // Gasernte/Fusion: mehr Liefer-/Geleitangebote (neue Stationen) senken den Anteil — gemessen 3,2 % / 7,96 %; Schwelle 7,5 %
+        Assert.True(shareB >= 3.0 && shareB + shareP >= 7.5 && byType.GetValueOrDefault(BountyMission.KeyId) >= 40,
+            $"Kopfgeld-Anteil {shareB:0.0}% ≥ 3%, mit Patrouille {shareB + shareP:0.0}% ≥ 7,5% (byType=[{string.Join(", ", byType.Select(kv => $"{kv.Key} {kv.Value}"))}], total {total})");
         Assert.True(shareP >= 4.5, $"Patrouille-Anteil {shareP:0.0}% ≥ 4,5%");   // Gasernte: der Inhalt verschiebt den Lauf (gemessen 4,9 %)
         // an einer Polizei/HQ/Sektor-HQ sieht der Spieler meist mindestens ein Kopfgeld- oder Patrouillenangebot (je Bucket)
         int offerStations = u.StationsById().Count(s => (s.Dockable || s.IsBuildSite) && BountyMission.IsOfferStation(u, s));

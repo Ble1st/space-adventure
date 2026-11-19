@@ -17,6 +17,8 @@ namespace SpaceAdventure.Ui.Screens;
 /// </summary>
 public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 {
+	/// <summary>Selbsttest: zuletzt gezeichnete Tankzeile der Schiffsspalte.</summary>
+	public static string TestTankLine { get; private set; } = "";
 	public abstract string Id { get; }
 	/// <summary>Id des angezeigten Bereichs; setzt der Aufrufer vor dem Öffnen (<see cref="DockAreas"/>).</summary>
 	public string AreaId { get; set; } = "";
@@ -236,14 +238,24 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		phRow.AddThemeConstantOverride("separation", 8);
 		var fuelRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
 		fuelRow.AddThemeConstantOverride("separation", 8);
-		var fl = Text("Sprit", 15, Dim); fl.CustomMinimumSize = new Vector2(58, 0);
+		// Tankanzeige: Beschriftung = verbrannte Treibstoffart, darunter Inhalt/Tank, Reichweite und Sprünge (Core TankInfo)
+		var tank = SpaceSim.Core.Flight.TankInfo.For(u, ship);
+		var fl = Text(tank.Count > 0 ? tank[0].Short : "Sprit", 15, Dim); fl.CustomMinimumSize = new Vector2(58, 0);
 		float fuelCap = ship.Stats.FuelCapacity;
+		bool fuelLow = tank.Count > 0 ? tank[0].Low : fuelCap > 0f && ship.TotalFuel < 0.2f * fuelCap;
 		var fuelBar = new KitBar(w - 150, 12, Orange);
-		fuelBar.Set(ship.TotalFuel, fuelCap > 0f && ship.TotalFuel < 0.2f * fuelCap ? Red : Orange, MathF.Max(1f, fuelCap));
+		fuelBar.Set(tank.Count > 0 ? tank[0].Amount : ship.TotalFuel, fuelLow ? Red : Orange, MathF.Max(1f, fuelCap));
 		fuelRow.AddChild(fl); fuelRow.AddChild(fuelBar);
-		fuelRow.AddChild(Text(fuelCap > 0f ? $"{(int)ship.TotalFuel}" : "–", 15, White));
+		fuelRow.AddChild(Text(fuelCap > 0f ? $"{(int)(tank.Count > 0 ? tank[0].Amount : ship.TotalFuel)}" : "–", 15, White));
 		fuelRow.Visible = u.Rules.FuelActive;   // Phase 14: Tankanzeige nur mit Treibstoff
 		sv.AddChild(fuelRow);
+		if (u.Rules.FuelActive && tank.Count > 0)
+		{
+			var ti = Text(SpaceSim.Core.Flight.TankInfo.HudLine(u, ship), 13, fuelLow ? Red : new Color(Dim, 0.9f));
+			ti.AutowrapMode = TextServer.AutowrapMode.WordSmart; ti.CustomMinimumSize = new Vector2(w - 20, 0);
+			sv.AddChild(ti);
+			TestTankLine = ti.Text;
+		}
 
 		// Phase 23: Schild echt (aktuell/Kapazität; „–“ ohne Schildmodul)
 		var pl = Text("Schild", 15, Dim); pl.CustomMinimumSize = new Vector2(58, 0);

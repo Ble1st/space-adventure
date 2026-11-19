@@ -22,7 +22,8 @@ public static class DemoUniverse
     public static readonly GoodId Missile = new(27);   // Rakete (Phase 28), angehängt
     public static readonly GoodId Gas = new(28);   // Nebelgas (Gasernte), angehängt
     public static readonly GoodId IonGas = new(29);   // Ionengas (Gasernte), angehängt
-    public const int FirstModuleGoodId = 30;
+    public static readonly GoodId FusionFuel = new(30);   // Fusionsbrennstoff, angehängt
+    public const int FirstModuleGoodId = 31;
 
     /// <summary>Kurzform: der Bausatz der Einheitsmodelle (leicht).</summary>
     public static GoodId ShipKit => ShipKitLight;

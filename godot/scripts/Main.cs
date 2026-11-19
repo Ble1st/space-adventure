@@ -2552,6 +2552,10 @@ public partial class Main : Node3D
 			Fuel = PlayerData.TotalFuel,
 			FuelCapacity = PlayerData.Stats.FuelCapacity,
 			FuelActive = u.Rules.FuelActive,   // Phase 14
+			// Tankanzeige: je angenommener Treibstoffart (Core TankInfo)
+			FuelLabel = SpaceSim.Core.Flight.TankInfo.For(u, PlayerData) is { Count: > 0 } tl0 ? tl0[0].Short : "Sprit",
+			FuelInfo = SpaceSim.Core.Flight.TankInfo.HudLine(u, PlayerData),
+			FuelLow = SpaceSim.Core.Flight.TankInfo.For(u, PlayerData) is { Count: > 0 } tl1 && tl1[0].Low,
 			// Phase 23: Schild, Leistungsbilanz, Speicherbank und Verteilung echt
 			Shield = PlayerData.ShieldNow, ShieldMax = PlayerData.Stats.Shield,
 			PowerOutput = PlayerData.Stats.PowerOutput, PowerDraw = PlayerData.Stats.PowerDraw,
