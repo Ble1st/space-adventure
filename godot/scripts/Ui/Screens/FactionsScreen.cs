@@ -56,7 +56,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		var stats = EconomyStats.Actors(u);
 		var all = stats.Where(a => a.Id != u.PlayerActor).ToList();
 		var me = u.PlayerFaction is not null ? stats.Where(a => a.Id == u.PlayerActor) : Enumerable.Empty<ActorStat>();
-		return me.Concat(all.Where(a => u.IsNpcFaction(new FactionId(a.Id.Value))).OrderBy(a => a.Id.Value))
+		return me.Concat(all.Where(a => u.IsNpcFaction(new FactionId(a.Id.Value)) && SpaceSim.Core.Intel.Knowledge.KnowsActor(u, a.Id)).OrderBy(a => a.Id.Value))   // Ausbau Punkt 16: nur bekannte Fraktionen
 			.Concat(all.Where(a => a.Kind == ActorKind.Independent).OrderByDescending(a => a.Size).ThenBy(a => a.Id.Value))
 			.Concat(all.Where(a => a.Kind == ActorKind.Free))
 			.ToList();
@@ -195,7 +195,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		// Beziehungen zu den Fraktionen und Gruppen (echt: gespeicherte Abweichung oder Vorgabe)
 		At(det, Text("Beziehungen", 16, Cyan), 356, 194, 226, 22);
 		// Runde 38: die Beziehung zu dir steht oben („Beziehung zu dir“); hier die KI-Fraktionen und die Freien
-		var others = u.NpcFactionIds().Select(f => (ActorId)f).Append(u.FreeActor).Where(o => o != sel).Take(5).ToList();
+		var others = u.NpcFactionIds().Where(f => SpaceSim.Core.Intel.Knowledge.KnowsFaction(u, f)).Select(f => (ActorId)f).Append(u.FreeActor).Where(o => o != sel).Take(5).ToList();
 		float oy = 220;
 		foreach (var o in others)
 		{

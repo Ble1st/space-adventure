@@ -485,6 +485,8 @@ public sealed class StartOptionDef
 /// </summary>
 public sealed class ScenarioDef
 {
+    /// <summary>Ausbau Punkt 16: Testszenarien kennen alles (fehlt = true); <c>false</c> = beschränktes Wissen wie die regulären Startpakete.</summary>
+    public bool? KnowAll { get; set; }
     /// <summary>Eigener Fit des Startschiffs (Modulschlüssel je Slot), geprüft mit <c>FitRules</c>.</summary>
     public List<string?>? Fit { get; set; }
     /// <summary>Stationstyp, neben dem das Schiff startet (im Startsektor, sonst irgendwo).</summary>

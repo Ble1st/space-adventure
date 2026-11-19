@@ -164,6 +164,20 @@ public sealed class ActorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ArrestCooldownUntil { get; set; }
     /// <summary>Spielersperre (additiv): durch Verbrechen verlorenes Ansehen je Fraktion; fehlt = keins.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CrimeStandingSave>? CrimeStanding { get; set; }
+    /// <summary>Ausbau Punkt 16 (additiv): Wissen des Spielerakteurs; fehlt = alles bekannt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IntelSave? Intel { get; set; }
+}
+
+/// <summary>Ausbau Punkt 16: <see cref="Intel.PlayerIntel"/> — Listen nach Id sortiert; Felder als [Sektor, Index].</summary>
+public sealed class IntelSave
+{
+    /// <summary>Sektor-Id → 1 = von fern gesehen, 2 = besucht.</summary>
+    public Dictionary<int, int> Sectors { get; set; } = new();
+    public List<int> Stations { get; set; } = new();
+    public List<int> Gates { get; set; } = new();
+    public List<int[]> Fields { get; set; } = new();
+    public List<int[]> GasFields { get; set; } = new();
+    public List<int> Factions { get; set; } = new();
 }
 
 /// <summary>Spielersperre: <see cref="Model.CrimeStandingRecord"/>.</summary>

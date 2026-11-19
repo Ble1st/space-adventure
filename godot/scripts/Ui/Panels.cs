@@ -48,6 +48,8 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 
 	/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole.</summary>
 	public int TestMissionSymbols;
+	/// <summary>Ausbau Punkt 16 (Selbsttest): gezeichnete unbekannte Sektoren („?“).</summary>
+	public int TestUnknownDrawn;
 	/// <summary>Runde 42d (Handytest): Legendentext für den Auftragsmarker (goldener Diamant am Sektorknoten).</summary>
 	public const string LegendText = "◆/★ = Auftrag";
 	/// <summary>Runde 42d (Selbsttest): Legende wurde gezeichnet.</summary>
@@ -112,6 +114,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 					_jumpTargets = null; Visible = false; JumpSelected?.Invoke(picked); Closed?.Invoke();
 					break;
 				}
+				if (!SpaceSim.Core.Intel.Knowledge.KnowsSector(_u, s.Id)) break;   // Ausbau Punkt 16: kein Autopilot zu Unbekanntem
 				SectorSelected?.Invoke(s.Id); Visible = false; Closed?.Invoke(); break;
 			}
 		AcceptEvent();
@@ -132,7 +135,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 
 		var player = _u.Ships.GetValueOrDefault(_u.PlayerShip);
 		foreach (var g in _u.Gates.Values)
-			if (g.Id.Value < g.Target.Value && _u.Gates.TryGetValue(g.Target, out var far))
+			if (g.Id.Value < g.Target.Value && _u.Gates.TryGetValue(g.Target, out var far) && SpaceSim.Core.Intel.Knowledge.KnowsGate(_u, g.Id))
 			{
 				// Phase 10: für dich gesperrt (Kontrollpunkt) rot, eingeschränkt orange, geschlossen blass
 				bool denied = player is not null && (SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, g, player).Denied || SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, far, player).Denied);
@@ -152,6 +155,19 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 		foreach (var s in _u.Sectors.Values)
 		{
 			var p = Place(s, center, scale);
+			// Ausbau Punkt 16: unbekannt = graues „?“, von fern gesehen = Name ohne Besitzerfarbe
+			var know = SpaceSim.Core.Intel.Knowledge.SectorState(_u, s.Id);
+			if (know < SpaceSim.Core.Intel.SectorKnowledge.Visited)
+			{
+				DrawCircle(p, 30f, new Color(0.03f, 0.05f, 0.1f, 1f));
+				DrawArc(p, 30f, 0, Mathf.Tau, 40, new Color(0.6f, 0.65f, 0.75f, know == SpaceSim.Core.Intel.SectorKnowledge.Seen ? 0.7f : 0.3f), 2f);
+				if (s.Id == _player) DrawArc(p, 38f, 0, Mathf.Tau, 40, Colors.White, 3f);
+				if (s.Id == _target) DrawArc(p, 46f, 0, Mathf.Tau, 40, Colors.Yellow, 3f);
+				if (_jumpTargets?.Contains(s.Id) == true) DrawArc(p, 44f, 0, Mathf.Tau, 40, new Color(0.45f, 0.9f, 1f), 4f);
+				layout.Draw(this, p, know == SpaceSim.Core.Intel.SectorKnowledge.Seen ? s.Name.Replace("Sektor ", "") + " · unerkundet" : "?", 14, new Color(0.75f, 0.78f, 0.85f), 40f, 160f);
+				TestUnknownDrawn += know == SpaceSim.Core.Intel.SectorKnowledge.Unknown ? 1 : 0;
+				continue;
+			}
 			var col = FactionColor(s.Owner);
 			DrawCircle(p, 30f, new Color(0.03f, 0.05f, 0.1f, 1f));   // Gerätetest: deckender Knoten — die Torlinien laufen nicht mehr über ihn
 			DrawCircle(p, 30f, new Color(col, 0.35f));

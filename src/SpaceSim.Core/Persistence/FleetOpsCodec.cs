@@ -13,6 +13,8 @@ public static class FleetOpsCodec
         DeliverCommand d => new OrderSave { Kind = CommandKinds.Deliver, A = d.From.Value, B = d.To.Value, C = d.Good.Value, Values = new List<float> { d.Amount, d.MaxBuyFactor } },
         RallyCommand r => new OrderSave { Kind = CommandKinds.Rally, A = r.At.Value, B = r.Leader.Value },
         ConvoyCommand v => UniverseSerializer.LimitsSave(CommandKinds.Convoy, v.Limits),
+        ExploreSectorCommand e => new OrderSave { Kind = CommandKinds.ExploreSector, A = e.Sector.Value },   // Ausbau Punkt 16
+        ExploreUniverseCommand => new OrderSave { Kind = CommandKinds.ExploreUniverse },
         _ => null,
     };
 
@@ -24,6 +26,8 @@ public static class FleetOpsCodec
         CommandKinds.Deliver => new DeliverCommand(new StationId(o.A), new StationId(o.B), new GoodId(o.C), o.Values?.ElementAtOrDefault(0) ?? 0f, o.Values?.ElementAtOrDefault(1) ?? 0f),
         CommandKinds.Rally => new RallyCommand(new StationId(o.A), new ShipId(o.B)),
         CommandKinds.Convoy => new ConvoyCommand(UniverseSerializer.LimitsFrom(o)),
+        CommandKinds.ExploreSector => new ExploreSectorCommand(new SectorId(o.A)),
+        CommandKinds.ExploreUniverse => new ExploreUniverseCommand(),
         _ => null,
     };
 }

@@ -74,6 +74,9 @@ public sealed class OrderExecutors
         r.Register(new DeliverExecutor());
         r.Register(new RallyExecutor());
         r.Register(new ConvoyExecutor());
+        // Ausbau Punkt 16: Erkunden (Sektor, Universum)
+        r.Register(new Intel.ExploreSectorExecutor());
+        r.Register(new Intel.ExploreUniverseExecutor());
         return r;
     }
 

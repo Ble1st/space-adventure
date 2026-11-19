@@ -44,7 +44,7 @@ public sealed class TaxiService : IStationService
     /// <summary>Angebot für ein Ziel (null = kein Ziel für das Taxi).</summary>
     public static TaxiQuote? Quote(Universe u, Station from, Ship ship, Station to)
     {
-        if (to.Id == from.Id || !Offers(u, to, HangarService.ServiceKey)) return null;
+        if (to.Id == from.Id || !Offers(u, to, HangarService.ServiceKey) || !Intel.Knowledge.KnowsStation(u, to)) return null;   // Ausbau Punkt 16: nur bekannte Ziele
         var r = u.Rules;
         var profile = GateAccess.ProfileOf(u, ship) with { Laden = false };   // die Person reist ohne Fracht
         var route = u.FindRoute(from.Sector, to.Sector, profile);

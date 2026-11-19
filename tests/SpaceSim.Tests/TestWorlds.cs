@@ -26,6 +26,7 @@ public static class TestWorlds
         def.Rules.FuelActive = fuel;
         def.Rules.ResearchActive = research;
         def.RandomNames = false;   // Phase 29: Tests behalten die festen Fraktionsnamen der Weltdatei (gewürfelte Namen: Phase29NamesTests)
+        def.Rules.PlayerIntel = false;   // Ausbau Punkt 16: ältere Tests setzen volles Wissen voraus (Erkundung: ErkundungTests mit Regel an)
         return def;
     }
 

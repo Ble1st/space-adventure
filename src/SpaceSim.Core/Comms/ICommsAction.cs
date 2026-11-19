@@ -103,6 +103,7 @@ public sealed class CommsActions
         r.Register(new SeatAction());              // Runde 45: Sektorbehörde gründen/schließen
         r.Register(new LockAction());              // Runde 45: eigene Sperrstufe
         r.Register(new HqAction());                // Eigenes Hauptquartier gründen/aufgeben
+        r.Register(new Intel.IntelAction());       // Ausbau Punkt 16: Intel kaufen
         return r;
     }
 

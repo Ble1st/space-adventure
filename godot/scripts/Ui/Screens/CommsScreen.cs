@@ -57,7 +57,13 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	/// <summary>Runde 45, Selbsttest: zuletzt gezeigte Bündniszeile im Diplomatie-Detail.</summary>
 	public string TestAllianceRow { get; private set; } = "";
 	/// <summary>Selbsttest: Zahl der Fraktionszeilen im Diplomatie-Reiter.</summary>
-	public int TestDiplomacyRows => Ctx.U.NpcFactionIds().Count;
+	public int TestDiplomacyRows => KnownFactions(Ctx.U).Count;
+	/// <summary>Ausbau Punkt 16 (Selbsttest): Schlüssel der Intel-Knöpfe im zuletzt gebauten Diplomatie-Detail.</summary>
+	public readonly System.Collections.Generic.List<string> TestIntelKeys = new();
+	/// <summary>Ausbau Punkt 16 (Selbsttest): Diplomatie-Auswahl auf eine Fraktion setzen.</summary>
+	public void TestSelectFaction(FactionId f) { int i = KnownFactions(Ctx.U).IndexOf(f); if (i >= 0) { _diplSel = i; _detailOpen = true; Invalidate(); } }
+	/// <summary>Ausbau Punkt 16: nur bekannte KI-Fraktionen stehen in der Diplomatie.</summary>
+	static System.Collections.Generic.List<FactionId> KnownFactions(Universe u) => u.NpcFactionIds().Where(f => SpaceSim.Core.Intel.Knowledge.KnowsFaction(u, f)).ToList();
 	/// <summary>Selbsttest: Fraktion wählen (Index) und Detail öffnen.</summary>
 	public void TestSelectFaction(int i) { _diplSel = i; _detailOpen = true; Invalidate(); }
 	/// <summary>Selbsttest: zuletzt gemeldetes Aktionsergebnis.</summary>
@@ -270,8 +276,8 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 
 	void BuildDiplomacy(Control inner, Universe u, float top)
 	{
-		var factions = u.NpcFactionIds().ToList();
-		if (factions.Count == 0) { At(inner, Text("Keine KI-Fraktionen.", 15, Dim), 24, top + 16, 400, 22); return; }
+		var factions = KnownFactions(u);
+		if (factions.Count == 0) { At(inner, Text("Noch keine Fraktion bekannt.", 15, Dim), 24, top + 16, 400, 22); return; }
 		if (_diplSel >= factions.Count) _diplSel = 0;
 		bool narrow = Narrow(inner);
 		if (narrow && _detailOpen) { BuildDiplomacyDetail(inner, u, factions[_diplSel], narrow: true, top); return; }
@@ -385,6 +391,20 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			else ActionButton($"alliance:propose:{f.Value}", "Bündnis vorschlagen", confirm: false);
 			foreach (var c in Alliances.Calls(u).Where(c => c.Ally == f).ToList())
 				ActionButton($"alliance:aid:{c.Attacker.Value}", $"Beistand: Krieg gegen {FactionNameOf(u, c.Attacker)}", confirm: true);
+		}
+		// Ausbau Punkt 16: Intel kaufen (Sektorkarten, Gebietskarte, Stationslisten; Geld an die Fraktionskasse)
+		TestIntelKeys.Clear();
+		if (SpaceSim.Core.Intel.Knowledge.Limited(u))
+		{
+			y += 4;
+			At(det, Text("Intel kaufen", 14, Cyan), 18, y, dw - 36, 20); y += 24;
+			var intel = SpaceSim.Core.Intel.IntelAction.OffersOf(u, f);
+			if (intel.Count == 0)
+			{
+				string why = SpaceSim.Core.Intel.IntelMarket.FactionIssue(u, f) ?? "Nichts Neues — du kennst ihr Gebiet.";
+				y = WrappedText(det, why, 24, y, dw - 60, 12, Orange, 15) + 6;
+			}
+			foreach (var o in intel) { TestIntelKeys.Add(o.Key); ActionButton(o.Key, o.Text, confirm: false); }
 		}
 		det.CustomMinimumSize = new Vector2(dw - 16f, y + 8);
 		// Runde 42c: die Meldung steht im eigenen Fach oben (BuildContent) — nie als Überlagerung über diesem Detail

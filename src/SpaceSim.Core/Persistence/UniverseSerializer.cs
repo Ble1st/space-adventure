@@ -147,6 +147,7 @@ public static class UniverseSerializer
                     Faction = kv.Key.Value, Debt = kv.Value.Debt, Base = kv.Value.Base, WindowStart = kv.Value.WindowStart, WindowLoss = kv.Value.WindowLoss,
                     Reason = kv.Value.LastReason, LastTick = kv.Value.LastTick, LastLoss = kv.Value.LastLoss,
                 }).ToList(),
+                Intel = IntelCodec.ToSave(a.Intel),
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
@@ -468,6 +469,7 @@ public static class UniverseSerializer
                     {
                         Debt = c.Debt, Base = c.Base, WindowStart = c.WindowStart, WindowLoss = c.WindowLoss, LastReason = c.Reason, LastTick = c.LastTick, LastLoss = c.LastLoss,
                     }),
+                Intel = IntelCodec.FromSave(a.Intel),
             };
         if (s.Encounters is not null)
             foreach (var e in s.Encounters)

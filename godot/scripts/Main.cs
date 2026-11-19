@@ -32,6 +32,10 @@ public partial class Main : Node3D
 	const float WheelZoomIn = 0.88f, WheelZoomOut = 1f / 0.88f;
 
 	GameSession _session = null!;
+	/// <summary>Ausbau Punkt 16: neue Spiele der Prüfläufe mit vollem Wissen.</summary>
+	internal bool TestKnowAll;
+	/// <summary>Ausbau Punkt 16: Erkundungs-Stufe — neue Spiele mit beschränktem Wissen wie im echten Spiel.</summary>
+	internal bool TestIntelOn;
 	bool _allSystems;   // Phase 14: Weltaufbau mit eingeschaltetem Treibstoff und Forschung (Selbsttest, Bildschirmfotos)
 	SectorView _view = null!;
 	MissionView _missions = null!;   // Runde 41: Leuchtfeuer der Missionsziele
@@ -287,6 +291,9 @@ public partial class Main : Node3D
 
 		var args = OS.GetCmdlineUserArgs();
 		bool selftest = args.Contains("--selftest");
+		// Ausbau Punkt 16: Prüfläufe (Selbsttest, Bildschirmfotos, ui-check) beginnen neue Spiele mit vollem Wissen, damit ältere Stufen unverändert laufen;
+		// die Erkundungs-Stufe schaltet es mit TestIntelOn für sich ein
+		TestKnowAll = args.Any(a => a is "--selftest" or "--ui-shots" or "--ui-check" or "--phone-shots" or "--model-shots");
 		_camDebug = args.Contains("--camdebug");   // Runde 16: Diagnosezeile der Gefechtskamera
 		int shotIdx = Array.IndexOf(args, "--ui-shots");
 		string? shotDir = shotIdx >= 0 && shotIdx + 1 < args.Length ? args[shotIdx + 1] : null;
@@ -710,7 +717,9 @@ public partial class Main : Node3D
 			{
 				string key = a[4..];
 				var name = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().FirstOrDefault(o => o.Key == key)?.Name ?? key;
-				_session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault(startOption: key));
+				var nu = SpaceSim.Core.Content.WorldBuilder.BuildDefault(startOption: key);
+				if (TestKnowAll && !TestIntelOn) nu.Player.Intel = null;   // Ausbau Punkt 16: Prüfläufe mit vollem Wissen (außer der Erkundungs-Stufe)
+				_session.Use(nu);
 				_orbit.Reset();   // Runde 19 (Handy-Test: der Gefechtstest begann mit der zuvor verstellten Kamera flach und weit weg); Andocken/Sprung behalten sie
 				AttachSession();
 				_hud.Toast($"Neues Spiel – Startpaket {name}");
@@ -1009,6 +1018,8 @@ public partial class Main : Node3D
 
 	/// <summary>Phase 20: letzter Hinweis einer Versorgungspanik (Selbsttest).</summary>
 	internal string? LastPanicMessage { get; private set; }
+	/// <summary>Ausbau Punkt 16 (Selbsttest): letzte Erkundungsmeldung.</summary>
+	internal string LastIntelMessage { get; private set; } = "";
 	/// <summary>Phase 22: letzter Hinweis „Station aufgegeben …“ (für den Selbsttest).</summary>
 	internal string? LastDepartureMessage { get; private set; }
 	/// <summary>Phase 24: letzter Gefechtshinweis im Spielersektor (Selbsttest).</summary>
@@ -1085,6 +1096,11 @@ public partial class Main : Node3D
 				LastPanicMessage = SpaceSim.Core.Simulation.SupplyPanic.Describe(_session.U, sp); _hud.Info(LastPanicMessage, 4f); break;
 			case EmergencyConstruction ec when _session.U.Stations.TryGetValue(ec.Site, out var es) && es.Sector == _session.U.PlayerSector: _hud.Info($"Notbau: {es.Name}"); break;
 			case PlayerSold: _sales++; break;
+			// Ausbau Punkt 16: Erkundung — neue Sektoren, Stationen, Fraktionen als kleiner Hinweis (Kauf meldet der Bildschirm selbst)
+			case IntelDiscovered idc when idc.Source != "intel" && (idc.Visited > 0 || idc.Stations > 0 || idc.Factions > 0):
+				LastIntelMessage = SpaceSim.Core.Intel.Knowledge.Text(_session.U, idc);
+				if (LastIntelMessage.Length > 0) _hud.Info(LastIntelMessage, 3f);
+				break;
 			case MinerShot shot when shot.Sector == _session.U.PlayerSector: OnMinerShot(shot); break;
 			case ContactMined cm when cm.Sector == _session.U.PlayerSector: OnContactMined(cm); break;
 			case AnchorReleased ar when ar.Sector == _session.U.PlayerSector: OnAnchorReleased(ar); break;   // Phase 32
@@ -2173,7 +2189,7 @@ public partial class Main : Node3D
 		var me = new Vec2(_player.Position.X, _player.Position.Z);
 		// Runde 4: Reihenfolge = Vorrang beim Zeichnen (nahe beieinander liegende Marker: der erste gewinnt) — Stationen mit Verteidigung (HQ, Polizei, Werft)
 		// zuerst, dann nach Abstand; höchstens 10
-		var order = u.Sectors[u.PlayerSector].Stations.Where(id => u.Stations.ContainsKey(id) && !(_targetStation is { } ts && ts == id))   // das gewählte Ziel hat seinen eigenen Pfeil
+		var order = u.Sectors[u.PlayerSector].Stations.Where(id => u.Stations.ContainsKey(id) && SpaceSim.Core.Intel.Knowledge.KnowsStation(u, id) && !(_targetStation is { } ts && ts == id))   // Ausbau Punkt 16: nur bekannte   // das gewählte Ziel hat seinen eigenen Pfeil
 			.Select(id => u.Stations[id])
 			.OrderBy(st => SpaceSim.Core.Combat.StationCombat.DefenseOf(u, st) is null ? 1 : 0).ThenBy(st => Vec2.Distance(st.Position, me)).ThenBy(st => st.Id.Value).Take(10);
 		foreach (var st in order)

@@ -8,6 +8,7 @@
   "alliancesActive": true,
   "playerSeats": true,
   "playerHq": true,
+  "playerIntel": true,
   "playerGovernmentDebt": true,
   "playerBuilding": true,
   "playerMaxSites": 0,

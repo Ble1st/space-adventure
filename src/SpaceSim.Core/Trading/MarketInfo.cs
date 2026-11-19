@@ -139,7 +139,7 @@ public static class MarketInfo
         float bestPrice = 0f;
         foreach (var st in u.StationsTrading(good))
         {
-            if (st.Id == exclude) continue;
+            if (st.Id == exclude || !Intel.Knowledge.KnowsStation(u, st)) continue;   // Ausbau Punkt 16: nur bekannte Stationen
             if (!st.Market.TryGetValue(good, out var e) || e.Price <= 0f) continue;
             if (!Acceptance(u, st, good).Accepts) continue;
             if (e.Price > bestPrice) { bestPrice = e.Price; best = st; }
@@ -242,7 +242,7 @@ public static class MarketInfo
     {
         var list = new List<BuyerQuote>();
         foreach (var st in u.StationsTrading(good))
-            if (st.Id != exclude && QuoteBuyer(u, st, good, qty, fromSector, fromPos, self, mem) is { } q) list.Add(q);
+            if (st.Id != exclude && Intel.Knowledge.KnowsStation(u, st) && QuoteBuyer(u, st, good, qty, fromSector, fromPos, self, mem) is { } q) list.Add(q);
         list.Sort((a, b) => b.Revenue != a.Revenue ? b.Revenue.CompareTo(a.Revenue) : b.PriceNow != a.PriceNow ? b.PriceNow.CompareTo(a.PriceNow)
             : a.Jumps != b.Jumps ? a.Jumps.CompareTo(b.Jumps) : a.Station.Id.Value.CompareTo(b.Station.Id.Value));
         return list;

@@ -18,6 +18,8 @@ public static class FleetOpsHash
                 mix(0xF106u); mix((ulong)v.Limits.Center.Value); mix((ulong)(uint)v.Limits.RadiusJumps); mixF(v.Limits.MaxBuyFactor); mixF(v.Limits.Reserve);
                 if (v.Limits.AllowLoss) mix(0xA110u);
                 break;
+            case ExploreSectorCommand e: mix(0xF116u); mix((ulong)e.Sector.Value); break;   // Ausbau Punkt 16
+            case ExploreUniverseCommand: mix(0xF117u); break;
         }
     }
 }

@@ -205,7 +205,22 @@ public partial class UiCheck : Node
 			// Ausbau Punkt 1/1b: Flotte mit gewähltem Kampfschiff und offener Zielwahl „Angreifen“ (Befehlsraster mit sechs Spalten, Karte nach Inhalt)
 			Add("kz-flotte-angriff", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.Attack); } }, 12);
 			Add("kz-flotte-konvoi", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.Convoy); } }, 12);
-			Add("startpakete", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
+			// Ausbau Punkt 16: beschränktes Wissen — Universum mit „?“ und gewähltem unbekanntem Sektor, Comms-Diplomatie mit „Intel kaufen“, Behörde mit Intel
+			Add("kz-erkundung-universum", () =>
+			{
+				SpaceSim.Core.Intel.Knowledge.Init(u(), u().PlayerSector);
+				_m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Universe);
+				var unk = u().Sectors.Keys.OrderBy(s => s.Value).FirstOrDefault(s => !SpaceSim.Core.Intel.Knowledge.KnowsSector(u(), s));
+				if (unk.Value != 0) _m.HudRef.CcUniverse.TestSelect(unk);
+			}, 12);
+			Add("kz-erkundung-intel", () =>
+			{
+				_m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms);
+				_m.HudRef.CcComms.TestSetTab("diplomacy");
+				_m.HudRef.CcComms.TestSelectFaction(u().Sectors[u().PlayerSector].Owner);
+			}, 12);
+			Add("kz-erkundung-flotte", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.ExploreSector); } }, 12);
+			Add("startpakete", () => { u().Player.Intel = null; _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
 		}
 		if (NoFlight) { Add("ende", () => { _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f); }, 5); return; }   // Runde 37b: der lange Prüfhinweis des Menüs gehört nicht in den Flug
 		Add("flug-automining", () => { _m.HudRef.HideAlert(); _m.HudRef.Map.Visible = false; _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);

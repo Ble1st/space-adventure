@@ -99,8 +99,8 @@ public class FleetCommandTests
     {
         var r = OrderExecutors.CreateDefault();
         // Phase 27: Lauern und Verfolgen am Ende (nur für Fraktionen/Piraten, nicht im Befehlsraster des Spielers)
-        Assert.Equal(new[] { "goto", "hold", "trade", "mine", "build", "patrol", "guard", "escort", "follow", "return", "lurk", "pursue", "assault", "attack", "salvage", "blockade", "deliver", "rally", "convoy" }, r.All.Select(e => e.Kind));   // Phase 28: + Angriff (Kriegsschiffe); Ausbau Punkt 1/1b: Flottenbefehle
-        Assert.Equal(new[] { "lurk", "assault" }, r.All.Where(e => !e.ForPlayer).Select(e => e.Kind));   // Ausbau Punkt 1: Verfolgen jetzt auch für die Spielerflotte
+        Assert.Equal(new[] { "goto", "hold", "trade", "mine", "build", "patrol", "guard", "escort", "follow", "return", "lurk", "pursue", "assault", "attack", "salvage", "blockade", "deliver", "rally", "convoy", "explore", "explore_far" }, r.All.Select(e => e.Kind));   // Phase 28: + Angriff (Kriegsschiffe); Ausbau Punkt 1/1b: Flottenbefehle; Ausbau Punkt 16: Erkunden
+        Assert.Equal(new[] { "lurk", "assault", "explore_far" }, r.All.Where(e => !e.ForPlayer).Select(e => e.Kind));   // Ausbau Punkt 1: Verfolgen jetzt auch für die Spielerflotte; Punkt 16: Universumsebene ist ein Ziel der Taste „Erkunden“
         Assert.Throws<ArgumentException>(() => r.Register(new HoldExecutor()));
         Assert.Equal(Capability.Combat, r.All.First(e => e.Kind == "patrol").Needs);
         Assert.Equal(Capability.Cargo, r.All.First(e => e.Kind == "trade").Needs);

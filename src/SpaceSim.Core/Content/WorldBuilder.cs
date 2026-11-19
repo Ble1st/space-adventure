@@ -442,6 +442,8 @@ public static class WorldBuilder
         // Phase 12: Liegeplatz der Startschiffe (am Andockpunkt einer Station = angedockt; das aktive Schiff dockt nur die Ansicht an); das Laden älterer Stände bestimmt ihn genauso
         foreach (var ship in u.Ships.Values.Where(x => x.Transit is null && x.Id != u.PlayerShip).OrderBy(x => x.Id.Value)) ship.DockedAt = u.StationAt(ship.Sector, ship.Position);
         u.AssignMissingTags();   // Phase 29: Kürzel aller Akteure
+        // Ausbau Punkt 16: reguläre Startpakete beginnen mit beschränktem Wissen; Welten ohne Startpaket und Testszenarien (außer "knowAll": false) kennen alles
+        if (u.Rules.PlayerIntel && chosen is not null && (chosen.Scenario is null || chosen.Scenario.KnowAll == false)) Intel.Knowledge.Init(u, u.PlayerSector);
         return u;
     }
 

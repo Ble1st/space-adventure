@@ -49,6 +49,9 @@ public sealed class StationServices
         // Runde 41: der Dienst „missions“ hängt an jeder andockbaren Station (nicht typgebunden; im Krieg oben schon leer)
         if (_byKey.TryGetValue(MissionService.ServiceKey, out var ms) && ms.IsAvailable(u, station) && !list.Contains(ms))
             list.Add(ms);
+        // Ausbau Punkt 16: Intel an Behörden (Gericht/Kopfgeldbüro), nur bei beschränktem Wissen
+        if (_byKey.TryGetValue(Intel.IntelService.ServiceKey, out var intel) && intel.IsAvailable(u, station) && !list.Contains(intel))
+            list.Add(intel);
         return list;
     }
 
@@ -72,6 +75,7 @@ public sealed class StationServices
         registry.Register(new RearmService());      // Phase 25
         registry.Register(new MissionService());    // Runde 41: Aufträge (Dock-Bereich „Aufträge“)
         registry.Register(new BlackMarketService()); // Schwarzmarkt (Hehler im Piratenversteck)
+        registry.Register(new Intel.IntelService());  // Ausbau Punkt 16: Intel an Behörden
         return registry;
     }
 }

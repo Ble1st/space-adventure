@@ -69,7 +69,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 	public void TestChoose(string kind) { var u = Ctx.U; if (_sel is { } id && u.Ships.TryGetValue(id, out var s)) Choose(u, s, kind); }
 
 	static readonly string[] Targeted = { CommandKinds.GoTo, CommandKinds.Patrol, CommandKinds.Guard, CommandKinds.Escort, CommandKinds.Follow, CommandKinds.Build,
-		CommandKinds.Attack, CommandKinds.Pursue, CommandKinds.Salvage, CommandKinds.Blockade, CommandKinds.Deliver, CommandKinds.Rally, CommandKinds.Convoy };   // Ausbau Punkt 1/1b
+		CommandKinds.Attack, CommandKinds.Pursue, CommandKinds.Salvage, CommandKinds.Blockade, CommandKinds.Deliver, CommandKinds.Rally, CommandKinds.Convoy, CommandKinds.ExploreSector };   // Ausbau Punkt 1/1b, 16
 
 	/// <summary>Kurze Beschriftung der Befehlstaste (94 px).</summary>
 	static string ButtonLabel(string kind) => kind switch
@@ -77,6 +77,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		CommandKinds.Blockade => "Blockade",
 		CommandKinds.Rally => "Sammeln",
 		CommandKinds.Patrol => "Streife",
+		CommandKinds.ExploreSector => "Erkunden",   // Ausbau Punkt 16: Ziele „Universum“ und Sektoren
 		_ => CommandNames.Kind(kind),
 	};
 
@@ -179,7 +180,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			if (ok) _enabledCommands++;
 			else if (!capable) missing.Add(CommandNames.Kind(kind));
 			var b = At(det, new KitButton(ButtonLabel(kind), new Vector2(94, 56)) { FontSize = 14,
-				State = !ok ? KitButtonState.Disabled : _pending == kind || ship.Command?.Kind == kind ? KitButtonState.On : KitButtonState.Normal }, 14 + (i % 6) * 98, 98 + (i / 6) * 60);
+								State = !ok ? KitButtonState.Disabled : _pending == kind || ship.Command?.Kind == kind ? KitButtonState.On : KitButtonState.Normal }, 14 + (i % 6) * 98, 98 + (i / 6) * 60);
 			if (ok) b.Pressed += () => Choose(u, ship, kind);
 			_commandButtons[kind] = b;
 			i++;
@@ -303,6 +304,10 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			case CommandKinds.Attack: foreach (var t in FleetTargets.Attack(u, ship)) options.Add((t.Label, t.Sub, t.Command)); break;
 			case CommandKinds.Pursue: foreach (var t in FleetTargets.Pursue(u, ship)) options.Add((t.Label, t.Sub, t.Command)); break;
 			case CommandKinds.Salvage: foreach (var t in FleetTargets.Salvage(u, ship)) options.Add((t.Label, t.Sub, t.Command)); break;
+			case CommandKinds.ExploreSector:   // Ausbau Punkt 16
+				foreach (var t in FleetTargets.ExploreSector(u, ship)) options.Add((t.Label, t.Sub, t.Command));
+				if (options.Count == 0) { At(det, Text("Nichts zu erkunden — alle erreichbaren Sektoren sind bekannt.", 14, Dim), 14, y + 4, 590, 20); return y + 30f; }
+				break;
 			case CommandKinds.Blockade:
 				foreach (var t in FleetTargets.Blockade(u, ship)) options.Add((t.Label, t.Sub, t.Command));
 				if (options.Count == 0) { At(det, Text("Tor blockieren geht nur im Krieg — kein Kriegsgegner.", 14, Dim), 14, y + 4, 590, 20); return y + 30f; }

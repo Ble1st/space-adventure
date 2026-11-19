@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
+using SpaceSim.Core.Intel;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 using static SpaceAdventure.Ui.Kit.UiKit;
@@ -173,8 +174,12 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			TestPlanet = s.Planet?.Name ?? "";
 			var pol = AccessInfo.ForSector(u, sel, u.Ships[u.PlayerShip]);
 			At(card, Text($"Besitzer: {pol.Owner} · {pol.Stage}", 14, MapOverlay.FactionColor(s.Owner)), 16, 40, 268, 20);
-			if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · {s.Stations.Count} Stationen · {s.Fields.Count} Gürtel", 13, White), 16, 64, 268, 20);
-			else At(card, Text($"{s.Stations.Count} Stationen · {s.Fields.Count} Gürtel · {s.Gates.Count} Gate{(s.Gates.Count == 1 ? "" : "s")}", 14, White), 16, 64, 268, 20);
+			// Ausbau Punkt 16: nur Bekanntes zählen; unerkundet sagt es
+			int kst = s.Stations.Count(id => Knowledge.KnowsStation(u, id)), kfl = Enumerable.Range(0, s.Fields.Count).Count(k => Knowledge.KnowsField(u, sel, k)), kgt = s.Gates.Count(x => Knowledge.KnowsGate(u, x));
+			int unk = Knowledge.UnknownIn(u, sel);
+			TestKnownLine = !Knowledge.Visited(u, sel) ? "Unerkundet — Inhalt unbekannt" : unk > 0 ? $"{unk} unbekannt — Erkunden deckt auf" : "";
+			if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · {kst} Stationen · {kfl} Gürtel", 13, White), 16, 64, 268, 20);
+			else At(card, Text($"{kst} Stationen · {kfl} Gürtel · {kgt} Gate{(kgt == 1 ? "" : "s")}", 14, White), 16, 64, 268, 20);
 			At(card, Text($"{npcs} fremde Schiffe im Sektor", 14, White), 16, 86, 268, 20);
 			// Phase 10: Sperrstufe statt Platzhalter-Sicherheit
 			Color lc = pol.PlayerDenied ? Red : pol.EntryLevel > 0 ? Orange : Green;
@@ -193,6 +198,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			int escorts = links.Count(l => l.Kind == "escort"), chases = links.Count(l => l.Kind == "pursuit");
 			TestFleet = squads + escorts + chases == 0 ? "" : $"Flotten: {squads} Verb{(squads == 1 ? "and" : "ände")} · {escorts} Geleit · {chases} Verfolgung";
 			if (TestFleet.Length > 0) py = WrappedText(card, TestFleet, 16, py + 2, 268, 13, Cyan, 16);
+			if (TestKnownLine.Length > 0) py = WrappedText(card, TestKnownLine, 16, py + 2, 268, 13, Orange, 16);   // Ausbau Punkt 16
 			At(card, Text("Tippe eine Station oder ein Gate an.", 13, new Color(Dim, 0.75f)), 16, py + 8, 268, 18);
 		}
 
@@ -231,6 +237,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	bool CanAutopilot(Universe u, SectorId sel, out NavTarget nav, out StationId? dock)
 	{
 		nav = default; dock = null;
+		if (!Knowledge.KnowsSector(u, sel)) return false;   // Ausbau Punkt 16: kein Autopilot zu Unbekanntem
 		if (_selStation is { } sid && u.Stations.TryGetValue(sid, out var st))
 		{
 			if (st.Sector != u.PlayerSector) { if (!u.IsReachable(u.PlayerSector, st.Sector, PlayerProfile(u))) return false; nav = Navigator.ForSector(u, st.Sector, u.PlayerShip); return true; }
@@ -282,7 +289,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		System.Collections.Generic.Dictionary<StationId, Vector2> Spots()
 		{
 			var s = _u.Sectors[_owner.Selected];
-			var ids = s.Stations.OrderBy(x => x.Value).ToList();
+			var ids = s.Stations.Where(id => Knowledge.KnowsStation(_u, id)).OrderBy(x => x.Value).ToList();   // Ausbau Punkt 16: nur bekannte
 			var pos = ids.Select(id => Place(_u.Stations[id].Position)).ToArray();
 			var half = ids.Select(id => SymbolHalf(_u.Stations[id])).ToArray();
 			for (int it = 0; it < 40; it++)
@@ -300,7 +307,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 						pos[i] -= push; pos[j] += push; moved = true;
 					}
 				// Tore bleiben, wo sie sind (Kreis 13): Stationssymbole weichen ihnen aus
-				foreach (var gid in s.Gates)
+				foreach (var gid in s.Gates.Where(x => Knowledge.KnowsGate(_u, x)))
 				{
 					var gp = Place(_u.Gates[gid].Position);
 					for (int i = 0; i < ids.Count; i++)
@@ -330,7 +337,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		(float Scale, Vector2 Origin, float Stretch) Fit()
 		{
 			var s = _u.Sectors[_owner.Selected];
-			var key = (Size, s.Id, s.Stations.Count, s.Fields.Count);   // Lagen von Stationen/Toren/Gürteln ändern sich nicht — je Größe und Sektor einmal
+			var key = (Size, s.Id, s.Stations.Count, s.Fields.Count + 1000 * (Knowledge.Of(_u)?.Count ?? 0));   // Ausbau Punkt 16: neu Entdecktes = neu einpassen   // Lagen von Stationen/Toren/Gürteln ändern sich nicht — je Größe und Sektor einmal
 			if (_fitKey == key) return _fit;
 			_fitKey = key;
 			return _fit = ComputeFit(s);
@@ -345,9 +352,9 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		{
 			float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
 			void Add(float x, float y, float r) { minX = MathF.Min(minX, x - r); maxX = MathF.Max(maxX, x + r); minY = MathF.Min(minY, y - r); maxY = MathF.Max(maxY, y + r); }
-			foreach (var sid in s.Stations) Add(_u.Stations[sid].Position.X, _u.Stations[sid].Position.Y, 10f);
-			foreach (var f in s.Fields) Add(f.Position.X, f.Position.Y, SpaceSim.Core.Mining.MiningRules.BeltRadius);
-			foreach (var gid in s.Gates) Add(_u.Gates[gid].Position.X, _u.Gates[gid].Position.Y, 10f);
+			foreach (var sid in s.Stations.Where(id => Knowledge.KnowsStation(_u, id))) Add(_u.Stations[sid].Position.X, _u.Stations[sid].Position.Y, 10f);
+			foreach (var f in s.Fields.Where((_, k) => Knowledge.KnowsField(_u, s.Id, k))) Add(f.Position.X, f.Position.Y, SpaceSim.Core.Mining.MiningRules.BeltRadius);
+			foreach (var gid in s.Gates.Where(x => Knowledge.KnowsGate(_u, x))) Add(_u.Gates[gid].Position.X, _u.Gates[gid].Position.Y, 10f);
 			if (minX > maxX) { minX = minY = -150f; maxX = maxY = 150f; }
 			// mindestens 160 Einheiten je Richtung (ein Sektor mit zwei nahen Stationen wird nicht riesig)
 			float cx = (minX + maxX) / 2f, cy = (minY + maxY) / 2f;
@@ -412,14 +419,14 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			var s = _u.Sectors[_owner.Selected];
 			StationId? st = null; float sd = 24f;
 			var spots = Spots();
-			foreach (var sid in s.Stations)
+			foreach (var sid in spots.Keys)
 			{
 				float d = spots[sid].DistanceTo(pos);
 				if (d < sd) { sd = d; st = sid; }
 			}
 			if (st is { } station) { StationTapped?.Invoke(station); AcceptEvent(); return; }
 			GateId? gate = null; float gd = 22f;
-			foreach (var gid in s.Gates)
+			foreach (var gid in s.Gates.Where(x => Knowledge.KnowsGate(_u, x)))
 			{
 				float d = Place(_u.Gates[gid].Position).DistanceTo(pos);
 				if (d < gd) { gd = d; gate = gid; }
@@ -449,7 +456,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			DrawScaleBar(font, layout, scale * Stretch);
 
 			// Rohstoffgürtel (Label unterhalb des Gürtels, damit es die Stationsnamen nicht verdeckt)
-			foreach (var f in s.Fields)
+			foreach (var f in s.Fields.Where((_, k) => Knowledge.KnowsField(_u, s.Id, k)))
 			{
 				var p = Place(f.Position);
 				float br = SpaceSim.Core.Mining.MiningRules.BeltRadius * scale;
@@ -460,7 +467,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			}
 
 			// Gasernte: Gasfelder als violette Kreise (Radius maßstäblich)
-			foreach (var gf in s.GasFields)
+			foreach (var gf in s.GasFields.Where((_, k) => Knowledge.KnowsGasField(_u, s.Id, k)))
 			{
 				var p = Place(gf.Position);
 				float gr = gf.Radius * scale;
@@ -470,7 +477,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			}
 
 			// Gates mit Zielsektor
-			foreach (var gid in s.Gates)
+			foreach (var gid in s.Gates.Where(x => Knowledge.KnowsGate(_u, x)))
 			{
 				var g = _u.Gates[gid];
 				var gp = Place(g.Position);
@@ -486,7 +493,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 			// Stationen: Label radial nach außen versetzt, damit die Namen sich nicht stapeln
 			var spots = Spots();
-			foreach (var sid in s.Stations)
+			foreach (var sid in spots.Keys)
 			{
 				var st = _u.Stations[sid];
 				var real = Place(st.Position);
@@ -657,6 +664,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 	/// <summary>Phase 24: Gefechtszeile der Sektorkarte (leer = kein Gefecht).</summary>
 	public string TestCombat { get; private set; } = "";
+	/// <summary>Ausbau Punkt 16 (Selbsttest): Zeile „n unbekannt“/„Unerkundet“ der Sektorkarte.</summary>
+	public string TestKnownLine { get; private set; } = "";
 	/// <summary>Runde 21: unterer Kreisrand und Oberkante der Legende der Draufsicht (Selbsttest: kein Überlappen).</summary>
 	public (float CircleBottom, float LegendTop) TestLegendGap => _map is null || !GodotObject.IsInstanceValid(_map) ? (0f, 1f) : _map.TestLegendGap;
 	/// <summary>Runde 44: Maßstabsleiste der Draufsicht (Text, Länge in Bildpunkten).</summary>

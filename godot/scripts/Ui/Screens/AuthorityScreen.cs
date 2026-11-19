@@ -87,7 +87,32 @@ public sealed partial class AuthorityScreen : DockAreaScreen
 			At(inner, Text($"{o.Price:0} Cr je Schiff", 14, Orange, HorizontalAlignment.Right), w - 170, y, 170, 22);
 			y += 26f;
 		}
+
+		// ── Ausbau Punkt 16: Intel kaufen (Sektorkarten, Gebietskarte, Stationslisten der Fraktion) ──
+		var intel = Service(SpaceSim.Core.Intel.IntelService.ServiceKey);
+		TestIntelKeys.Clear();
+		if (intel is null) return;
+		y += 12f;
+		At(inner, Text("Intel kaufen", 20, Cyan), 0, y, w, 28);
+		y += 32f;
+		var offers = intel.Offers(u, Ctx.Station, Ctx.Ship).ToList();
+		if (offers.Count == 0) { At(inner, Text("Nichts Neues — du kennst das Gebiet dieser Fraktion.", 15, new Color(Dim, 0.85f)), 0, y, w, 24); return; }
+		foreach (var o in offers)
+		{
+			bool can = o.Amount >= 1f;
+			float ey = WrappedText(inner, o.Text, 0, y + 4, tw, 14, White, 18);
+			At(inner, Text($"{o.Price:0} Cr · Geld an die Fraktionskasse", 13, Dim), 0, ey, tw, 18);
+			var b = At(inner, new KitButton("Kaufen", new Vector2(140, 56)) { FontSize = 16, State = can ? KitButtonState.Ready : KitButtonState.Disabled, Detail = can ? "" : "zu wenig Cr" }, w - 142, y);
+			string key = o.Key;
+			TestIntelKeys.Add(key);
+			if (can) b.Pressed += () => Execute(SpaceSim.Core.Intel.IntelService.ServiceKey, key);
+			y = MathF.Max(y + 62f, ey + 24f);
+			_rows++;
+		}
 	}
+
+	/// <summary>Ausbau Punkt 16 (Selbsttest): Schlüssel der Intel-Zeilen.</summary>
+	public readonly List<string> TestIntelKeys = new();
 
 	/// <summary>Führt ein Angebot eines Dienstes aus und zeigt dessen Meldung.</summary>
 	public ServiceResult Execute(string service, string offer)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
+using SpaceSim.Core.Intel;
 using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 using SpaceSim.Core.Trading;
@@ -24,6 +25,8 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 	public override string Id => "cc.universe";
 	/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole auf der Universumskarte.</summary>
 	public int TestMissionSymbols;
+	/// <summary>Ausbau Punkt 16 (Selbsttest): Zahl der gezeichneten unbekannten Sektoren („?“).</summary>
+	public int TestUnknownDrawn;
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { SelectedSector = null; }
 
@@ -106,6 +109,29 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		var card = new Control { MouseFilter = MouseFilterEnum.Pass, CustomMinimumSize = new Vector2(292, 10) };
 		bodyScroll.AddChild(card);
 
+		// Ausbau Punkt 16: unbekannter oder nur von fern gesehener Sektor — kaum Angaben, keine Route zu Unbekanntem
+		var know = Knowledge.SectorState(u, sel);
+		if (know < SectorKnowledge.Visited)
+		{
+			bool seen = know == SectorKnowledge.Seen;
+			At(card, Text(seen ? s.Name : "Unbekannter Sektor", 24, seen ? Cyan : Dim), 16, 10, 268, 32);
+			TestSizeLine = ""; TestPlanet = "";
+			float uy = WrappedText(card, seen
+				? "Unerkundet — Name und Tor bekannt, Inhalt nicht. Hinfliegen, „Erkunden“ befehlen oder eine Sektorkarte kaufen."
+				: "Noch nicht entdeckt — kein bekanntes Tor führt dorthin. Erkunde die Nachbarschaft oder kaufe eine Gebietskarte.", 16, 48, 268, 14, Dim, 18);
+			int uh = seen ? PlayerRoute(u, sel)?.Count ?? -1 : -1;
+			if (seen) uy = WrappedText(card, uh >= 0 ? $"Route: {uh} {(uh == 1 ? "Sprung" : "Sprünge")}" : "Route: nicht erreichbar", 16, uy + 8, 268, 14, uh >= 0 ? White : Red, 18);
+			card.CustomMinimumSize = new Vector2(292, uy + 8);
+			float ufy = cardH - footH + 2;
+			var bo = At(frame, new KitButton("Sektorkarte öffnen", new Vector2(268, 50)) { FontSize = 17, State = seen ? KitButtonState.Normal : KitButtonState.Disabled }, 16, ufy);
+			if (seen) bo.Pressed += () => OpenSectorMap?.Invoke(sel);
+			var br = At(frame, new KitButton("Route planen / Autopilot", new Vector2(268, 50)) { FontSize = 17 }, 16, ufy + 54);
+			if (uh >= 0) br.Pressed += () => PlanRoute?.Invoke(sel);
+			else { br.State = KitButtonState.Disabled; br.Detail = seen ? "nicht erreichbar" : "Ziel unbekannt"; }
+			At(frame, new KitButton("Taxi buchen", new Vector2(268, 50)) { FontSize = 16, State = KitButtonState.Disabled, Detail = "kein bekanntes Ziel", DetailColor = new Color(Dim, 0.9f) }, 16, ufy + 108);
+			return;
+		}
+
 		bool isPlayer = sel == u.PlayerSector;
 		string owner = FactionName(u, s.Owner);
 		Color ownerCol = MapOverlay.FactionColor(s.Owner);
@@ -117,8 +143,8 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		TestPlanet = s.Planet?.Name ?? "";
 		// Runde 35b (Prüfwerkzeug: „… · Dominanz · du hier“ bei 1,15 gekürzt): Besitzerzeile bricht um, der Rest rückt nach
 		float oy = WrappedText(card, $"{owner} · {pol.Stage}{(isPlayer ? " · du hier" : "")}", 16, 44, 268, 15, ownerCol, 20);
-		if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · Stationen {s.Stations.Count} · Schiffe {ships}", 13, White), 16, oy + 2, 268, 20);
-		else At(card, Text($"Stationen {s.Stations.Count} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, oy + 2, 268, 20);
+		if (s.Planet is { } planet) At(card, Text($"Planet {planet.Name} · Stationen {s.Stations.Count(id => Knowledge.KnowsStation(u, id))} · Schiffe {ships}", 13, White), 16, oy + 2, 268, 20);
+		else At(card, Text($"Stationen {s.Stations.Count(id => Knowledge.KnowsStation(u, id))} · Gates {s.Gates.Count} · Schiffe {ships}", 14, White), 16, oy + 2, 268, 20);
 		// Runde 44: Größe des Sektors und Flugzeit dorthin (echte Spielerflugzeit, gecacht)
 		TestSizeLine = SizeLine(u, s);
 		if (s.Nebula) TestSizeLine += s.GasFields.Count > 0 ? " · Nebel, Gas" : " · Nebel";   // Gasernte: Nebelsektor (schwächere Sensoren, Gasfelder)
@@ -281,6 +307,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			{
 				if (g.Id.Value >= g.Target.Value) continue;
 				if (!_u.Gates.TryGetValue(g.Target, out var far)) continue;
+				if (!Knowledge.KnowsGate(_u, g.Id)) continue;   // Ausbau Punkt 16: nur entdeckte Tore
 				var a = Place(_u.Sectors[g.Sector], center, scale);
 				var b = Place(_u.Sectors[far.Sector], center, scale);
 				// Phase 10: geschlossen/zerstört rot gestrichelt; für dich gesperrt (eine Richtung reicht) rot; eingeschränkt orange
@@ -295,6 +322,23 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			foreach (var s in _u.Sectors.Values)
 			{
 				var p = Place(s, center, scale);
+				// Ausbau Punkt 16: unbekannt = graues „?“, von fern gesehen = Name ohne Besitzerfarbe mit „unerkundet“
+				var know = Knowledge.SectorState(_u, s.Id);
+				if (know < SectorKnowledge.Visited)
+				{
+					DrawCircle(p, rNode, new Color(PanelSolid, know == SectorKnowledge.Seen ? 1f : 0.55f));
+					DrawArc(p, rNode, 0, Mathf.Tau, 32, new Color(Dim, know == SectorKnowledge.Seen ? 0.8f : 0.35f), s.Id == sel ? 4f : 2f, true);
+					if (s.Id == sel) DrawArc(p, rHalo - 4f, 0, Mathf.Tau, 32, Cyan, 2f, true);
+					if (s.Id == _u.PlayerSector) DrawArc(p, rNode + 8f, 0, Mathf.Tau, 32, White, 3f, true);
+					if (know == SectorKnowledge.Seen)
+					{
+						Queue(p + new Vector2(-colW / 2f, 6), s.Name.Replace("Sektor ", ""), 16, colW, new Color(White, 0.85f));
+						if (scale.Y - 2f * rHalo - 4f >= 15f) Queue(p + new Vector2(-colW / 2f, rHalo + 13f), "unerkundet", 11, colW, new Color(Dim, 0.8f), middle: true);
+					}
+					else Queue(p + new Vector2(-colW / 2f, 6), "?", 18, colW, new Color(Dim, 0.6f));
+					_owner.TestUnknownDrawn += know == SectorKnowledge.Unknown ? 1 : 0;
+					continue;
+				}
 				Color halo;
 				float haloA = 0.30f;
 				switch (layer)

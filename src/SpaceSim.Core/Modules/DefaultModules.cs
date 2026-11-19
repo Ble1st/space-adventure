@@ -189,3 +189,13 @@ public sealed class MissionModule : ISimModule
         b.Add(new SpaceSim.Core.Missions.MissionBoardSystem(), SpaceSim.Core.Missions.MissionBoardSystem.Interval)   // Angebote je Station
          .Add(new SpaceSim.Core.Missions.MissionSystem(), SpaceSim.Core.Missions.MissionSystem.Interval);             // Fortschritt, Fristen, Abschluss
 }
+
+/// <summary>
+/// Ausbau Punkt 16: Erkundung und Intel. Läuft zuletzt (die Schiffe stehen dann an ihrem Platz des Ticks); ohne Wissensstand des Spielers tut es nichts —
+/// es liest und schreibt nur Spielerwissen, die NPC-Welt ist bitgleich.
+/// </summary>
+public sealed class IntelModule : ISimModule
+{
+    public string Name => "Intel";
+    public void Register(SimulationBuilder b) => b.Add(new SpaceSim.Core.Intel.IntelSystem(), SpaceSim.Core.Intel.IntelSystem.Interval);
+}

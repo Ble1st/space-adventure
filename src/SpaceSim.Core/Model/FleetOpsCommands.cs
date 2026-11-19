@@ -71,6 +71,8 @@ public static class FleetOpsNames
         CommandKinds.Deliver => "Liefern",
         CommandKinds.Rally => "Sammelpunkt",
         CommandKinds.Convoy => "Konvoi",
+        CommandKinds.ExploreSector => "Erkunden: Sektor",
+        CommandKinds.ExploreUniverse => "Erkunden: Universum",
         _ => null,
     };
 }
