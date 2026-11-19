@@ -45,10 +45,11 @@ public sealed class Empire
         if (!Rich) return false;
         P.Where = "Empire:hq"; if (Hq()) return true;
         if (Only == "court") { P.Where = "Empire:court"; return Court(); }
+        if (Only == "bounty") { P.Where = "Empire:bounty"; return HuntRaider() || Bounty(); }
         P.Where = "Empire:build"; if (Build()) return true;
         P.Where = "Empire:court"; if (Court()) return true;
         P.Where = "Empire:war"; if (War()) return true;
-        P.Where = "Empire:bounty"; if (Bounty()) return true;
+        P.Where = "Empire:bounty"; if (HuntRaider() || Bounty()) return true;
         return false;
     }
 
@@ -331,13 +332,74 @@ public sealed class Empire
             var office = P.NearestWith("bounty", st => U.FactionOf(st) == f);
             if (office is null || !P.GoToStation(office, out _)) continue;
             var svc = P.Svc(office, "bounty"); if (svc is null) continue;
-            float before = Wallet;
+            float before = Wallet; float tb = U.Actors[new ActorId(f.Value)].Treasury.Credits;
+            var ownOff = PlayerHq.Current(U) is { } oh && P.Svc(oh, "bounty") is { } os ? P.Offer(oh, os, $"claim:{f.Value}") : null;
             var r = P.Do(office, svc, $"claim:{f.Value}");
-            Note($"Kopfgeld abholen Fraktion {f.Value} (Anspruch {amt:0}): {r.Message} Kasse {before:0}→{Wallet:0}");
+            Note($"Kopfgeld abholen Fraktion {f.Value} (Anspruch {amt:0}) bei {office.Name}: {r.Message} Kasse {before:0}→{Wallet:0}; Fraktionskasse {tb:0}→{U.Actors[new ActorId(f.Value)].Treasury.Credits:0}; Angebot am eigenen HQ für diese Fraktion: {(ownOff is null ? "keins" : "ja")}");
             if (r.Success) { BountyClaimed += Wallet - before; BountyClaims++; Mark("Kopfgeld"); }
             return true;
         }
         return false;
+    }
+
+    int _hunts; long _nextHunt;
+    public readonly List<string> HuntLog = new();
+    /// <summary>Kopfgeldjagd (echte Spielerpfade): ein Kaperschiff finden, das bei der Sektorfraktion Fahndung hat, abschießen; der Anspruch entsteht im Gefecht, abgeholt wird beim Büro dieser Fraktion.</summary>
+    bool HuntRaider()
+    {
+        if (_hunts >= 3 || U.Tick < _nextHunt || CampaignActive) return false;
+        var warship = PlayerFleet.Owned(U).Where(s => s.Has(Capability.Combat) && s.Id != U.PlayerShip || s.Id == U.PlayerShip && s.Has(Capability.Combat)).OrderByDescending(s => s.Stats.WeaponPower).FirstOrDefault();
+        if (warship is null) return false;
+        Ship? prey = null; FactionId pf = default; int bestHops = 99;
+        foreach (var s in U.ShipsById())
+        {
+            if (s.Role != ShipRole.Pirate || s.IsPlayer || s.Sector.Value == 0 || U.Fights.Of(s.Id) is not null || s.Hull <= 0) continue;
+            var sec = U.Sectors[s.Sector]; if (!U.IsNpcFaction(sec.Owner)) continue;
+            if (!U.Actors.TryGetValue(s.Owner, out var oa) || !oa.Wanted.ContainsKey(sec.Owner)) continue;
+            int h = U.Hops(P.Me.Sector, s.Sector); if (h < 0 || h >= bestHops) continue;
+            prey = s; pf = sec.Owner; bestHops = h;
+        }
+        _nextHunt = U.Tick + 2500;
+        if (prey is null) return false;
+        B.UseFlag(warship.Id);
+        try
+        {
+            float bounty = Wanted.BountyOn(U, prey.Owner, pf); float before = U.Actors[U.PlayerActor].BountyClaims.GetValueOrDefault(pf);
+            string line = $"Jagd {_hunts + 1}: Kaperschiff #{prey.Id.Value} ({prey.ModelKey}) in {U.Sectors[prey.Sector].Name}, Fraktion {pf.Value}, Kopfgeld laut Fahndung {bounty:0}; ";
+            int nf = 0; string hm = "";
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                if (!P.GoToSector(prey.Sector, out var why)) { hm = $"Weg verwehrt {why}"; break; }
+                var me0 = P.Me; if (me0.DockedAt.Value != 0) P.Undock();
+                var here = U.ShipsById().Where(x => x.Role == ShipRole.Pirate && !x.IsPlayer && x.Sector == me0.Sector && U.Fights.Of(x.Id) is null && x.Hull > 0).FirstOrDefault();
+                if (here is not null) { prey = here; break; }
+                // das Kaperschiff ist weitergezogen: das nächste Ziel suchen
+                Ship? nxt = null; int bh = 99;
+                foreach (var x in U.ShipsById())
+                {
+                    if (x.Role != ShipRole.Pirate || x.IsPlayer || U.Fights.Of(x.Id) is not null || x.Hull <= 0) continue;
+                    int h = U.Hops(P.Me.Sector, x.Sector); if (h < 0 || h >= bh) continue; nxt = x; bh = h;
+                }
+                if (nxt is null) break; prey = nxt;
+            }
+            var me = P.Me; if (me.DockedAt.Value != 0) P.Undock();
+            for (int round = 0; round < 12 && U.Ships.ContainsKey(prey.Id); round++)
+            {
+                var pos = PlayerCombat.PositionOf(U, prey.Id);
+                if (pos is null || pos.Value.Sector != me.Sector) { hm = $"kein Ziel: pos {(pos is null ? "null" : U.Sectors[pos.Value.Sector].Name)} ich {U.Sectors[me.Sector].Name}"; P.Run(100); continue; }
+                var dir = pos.Value.Pos - me.Position;
+                me.Position = pos.Value.Pos - dir.Normalized() * 22f;
+                foreach (var sl in PlayerGunnery.WeaponSlots(U, me)) { var gs = PlayerGunnery.TryFire(U, me, sl, prey.Id, FiringArc.Bearing(dir.Length > 0.01f ? dir.Normalized() : new Vec2(0, -1))); hm = $"{gs.Result}:{gs.Message}"; if (gs.Result == GunResult.Fired) nf++; }
+                P.Step(); P.Fight(300);
+            }
+            bool dead = !U.Ships.ContainsKey(prey.Id); line += $"[Schüsse {nf}, zuletzt {hm}, Raider-Hülle {(U.Ships.TryGetValue(prey.Id, out var pr) ? pr.Hull : 0):0}, eigene Hülle {P.Me.Hull:0}/{P.Me.MaxHull:0}] ";
+            float after = U.Actors[U.PlayerActor].BountyClaims.GetValueOrDefault(pf);
+            line += $"Raider {(dead ? "zerstört" : "nicht erledigt")}; Anspruch bei Fraktion {pf.Value} {before:0}→{after:0}";
+            HuntLog.Add(line); Note(line); _hunts++; _nextBounty = 0;
+            if (dead && after > before) Mark("Kopfgeld-Anspruch");
+        }
+        finally { B.RestoreFlag(); }
+        return true;
     }
 
     // ───────── Krieg ─────────
