@@ -174,7 +174,7 @@ public static class UniverseSerializer
             }).ToList();
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
-            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join }).ToList();
+            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB }).ToList();
         if (u.PeaceSince.Count > 0)
             s.PeaceSince = u.PeaceSince.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
         if (u.Alliances.Count > 0)   // Runde 45
@@ -359,6 +359,7 @@ public static class UniverseSerializer
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = ToSave(st.Profit),
                 CalmSince = st.CalmSince < 0 ? null : st.CalmSince,
                 Rotation = st.Rotation == 0f ? null : st.Rotation,
+                CapitulationLockUntil = st.CapitulationLockUntil, Unpaid = st.Unpaid,   // Ausgleich (additiv)
             });
         foreach (var sh in u.Ships.Values)
             s.Ships.Add(new ShipSave
@@ -483,7 +484,7 @@ public static class UniverseSerializer
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)
             foreach (var w in s.Wars)
-                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join });
+                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB });
         if (s.PeaceSince is not null)
             foreach (var p in s.PeaceSince) if (p.Length >= 3) u.PeaceSince[((int)p[0], (int)p[1])] = p[2];
         if (s.Alliances is not null)   // Runde 45
@@ -710,6 +711,7 @@ public static class UniverseSerializer
                 BuiltTick = st.BuiltTick, Activity = st.Activity, Starved = st.Starved, Panic = st.Panic, Profit = FromSave(st.Profit),
                 CalmSince = st.CalmSince ?? -1,
                 Rotation = st.Rotation ?? 0f,
+                CapitulationLockUntil = st.CapitulationLockUntil, Unpaid = st.Unpaid,   // Ausgleich (additiv)
             };
         // Phase 30: Radius und Andockbarkeit aus dem Typ (Baustelle: Zieltyp) — abgeleitet, nicht gespeichert
         foreach (var st in u.Stations.Values) Content.StationFactory.ApplySize(u, st);

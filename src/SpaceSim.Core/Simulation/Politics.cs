@@ -65,7 +65,7 @@ public static class SectorControl
         float none = 0f, total = 0f;
         foreach (var id in sector.Stations.OrderBy(i => i.Value))
         {
-            if (!u.Stations.TryGetValue(id, out var st) || st.IsBuildSite) continue;
+            if (!u.Stations.TryGetValue(id, out var st) || st.IsBuildSite || PlayerUpkeep.Unpaid(u, st)) continue;   // Ausgleich: unbezahlt = kein Einfluss
             float w = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? MathF.Max(0f, t.Influence) : 1f;
             if (w <= 0f) continue;
             total += w;
@@ -79,7 +79,7 @@ public static class SectorControl
 
     /// <summary>Hat die Fraktion im Sektor eine Station dieser Regierungsformen?</summary>
     static bool Has(Universe u, Sector sector, FactionId f, params GovernmentKind[] kinds) =>
-        sector.Stations.Any(id => u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && kinds.Contains(StationProtection.KindOf(u, st)));
+        sector.Stations.Any(id => u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && kinds.Contains(StationProtection.KindOf(u, st)) && !PlayerUpkeep.Unpaid(u, st));
 
     /// <summary>Sektorbehörde vor Ort (Hauptquartier oder Sektor-HQ der Fraktion).</summary>
     public static bool HasAuthority(Universe u, Sector sector, FactionId f) => Has(u, sector, f, GovernmentKind.Headquarters, GovernmentKind.SectorHq);
@@ -349,8 +349,18 @@ public sealed class FactionPolicySystem : ISimSystem
         if (u.PlayerFaction is { } me && u.Sectors.Values.Any(sec => sec.Owner == me && !sec.Access.IsOpen))
             foreach (var a in factions)
             {
-                int locks = LocksAgainst(u, me, a);
+                // Ausgleich (Punkt 3, Spielerbot: Stufe 5 trieb alle KI-Beziehungen in 15 000 Ticks auf −1): Sperren des Spielers ärgern nur die Fraktion,
+                // gegen die sie gerichtet sind — Dritte reagieren erst, wenn sie um Kriegsbeistand gebeten werden (wie in IP2)
+                int locks = rules.PlayerLocksSourOnlyTarget ? LocksAimedAt(u, me, a) : LocksAgainst(u, me, a);
                 if (locks > 0) PlayerStanding.Change(u, a, -rules.LockOpinionLoss * locks * 0.5f, "player_lock");
+            }
+        // Bau in fremden Sektoren (Regel PlayerBuildForeignSectors): ist ein Sektor zwischen Spieler und KI-Fraktion umkämpft, sinkt nur diese eine Beziehung
+        // (wie zwischen KI-Fraktionen, ContestOpinionLoss je umkämpftem Sektor) — Dritte bleiben unberührt
+        if (rules.PlayerBuildForeignSectors && u.PlayerFaction is { } me2)
+            foreach (var a in factions)
+            {
+                int contested = ContestedBetween(u, me2, a);
+                if (contested > 0) PlayerStanding.Change(u, a, -rules.ContestOpinionLoss * contested, "player_contest");
             }
     }
 
@@ -379,6 +389,19 @@ public sealed class FactionPolicySystem : ISimSystem
     /// <summary>Sektoren, die zwischen beiden Fraktionen umkämpft sind (beide über dem Schwellenanteil).</summary>
     public static int ContestedBetween(Universe u, FactionId a, FactionId b) =>
         u.Sectors.Values.Count(s => s.Contested && s.Influence.GetValueOrDefault(a) > u.Rules.ContestedShare && s.Influence.GetValueOrDefault(b) > u.Rules.ContestedShare);
+
+    /// <summary>
+    /// Ausgleich (Regel <see cref="EconomyRules.PlayerLocksSourOnlyTarget"/>): Summe der durchgesetzten Sperrstufen in Sektoren von <paramref name="owner"/>, deren
+    /// Sperre ausdrücklich gegen <paramref name="target"/> gerichtet ist (<see cref="SectorAccess.Against"/>); kein Bündnis.
+    /// </summary>
+    public static int LocksAimedAt(Universe u, FactionId owner, FactionId target)
+    {
+        if (Relations.Effective(u, owner, target) >= u.Rules.AllyRelation || Alliances.Allied(u, owner, target)) return 0;
+        int sum = 0;
+        foreach (var s in u.Sectors.Values)
+            if (s.Owner == owner && s.Access.Enforced && s.Access.Against == target) sum += s.Access.EntryLevel;
+        return sum;
+    }
 
     /// <summary>Summe der durchgesetzten Sperrstufen in Sektoren von <paramref name="owner"/>, die <paramref name="target"/> treffen (kein Bündnis).</summary>
     public static int LocksAgainst(Universe u, FactionId owner, FactionId target)

@@ -19,6 +19,7 @@ public class Runde44ScaleTests
     internal static void RevertRunde44(WorldDef def)
     {
         def.Rules ??= new EconomyRules();
+        BalanceFixTests.RevertBalanceFix(def);   // Ausgleich nach dem Bot-Test: neue Regeln aus, Jäger-Masse wie vorher (die Referenz-Hashes stammen von davor)
         SchwarzmarktTests.RevertSchwarzmarkt(def);   // Schwarzmarkt: Beute im Hehlerlager ist gespeicherter Zustand (die Referenz-Hashes stammen von davor)
         SprungTarnTests.RevertSprungTarn(def);   // Sprungantrieb/Tarnfeld: neue Modulwaren, Systemwerk-Rezepte und Werftregale (die Referenz-Hashes stammen von davor)
         foreach (var sd in def.Sectors) sd.Scale = 1f;

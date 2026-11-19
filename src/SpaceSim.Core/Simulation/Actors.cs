@@ -4,7 +4,9 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Core.Simulation;
 
 /// <summary>Besitz eines Akteurs, aus dem die Größenzahl folgt: Schiffe, Stationen (auch Baustellen), kontrollierte Sektoren, Geld.</summary>
-public readonly record struct Holdings(int Ships, int Stations, int Sectors, float Money);
+/// <remarks>Ausgleich (Punkt 5): <paramref name="ShipWeight"/> = Schiffe nach Kampfstärke gewichtet (nur der Spieler mit Regel
+/// <see cref="EconomyRules.PlayerSizeByStrength"/>; −1 = je Schiff 1 wie bisher).</remarks>
+public readonly record struct Holdings(int Ships, int Stations, int Sectors, float Money, float ShipWeight = -1f);
 
 /// <summary>
 /// Regeln der Akteure (Phase 9, POLITIK.md Abschnitt 6): Größenzahl und Größenklasse aus dem Besitz, Appetit beim Zukauf, gewürfelte
@@ -21,11 +23,14 @@ public static class ActorRules
     public static Dictionary<ActorId, Holdings> Index(Universe u)
     {
         var acc = new Dictionary<ActorId, (int ships, int stations, int sectors, float money)>();
+        bool weigh = u.Rules.PlayerSizeByStrength;
+        float playerWeight = 0f;
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value)) acc[a.Id] = (0, 0, 0, a.Treasury.Credits);
         foreach (var s in u.ShipsById())
         {
             if (s.Owner == u.FreeActor || !acc.TryGetValue(s.Owner, out var h)) continue;
             acc[s.Owner] = (h.ships + 1, h.stations, h.sectors, h.money + s.Credits);
+            if (weigh && s.Owner == u.PlayerActor) playerWeight += ShipSizeWeight(u.Rules, s.Stats);
         }
         foreach (var st in u.StationsById())
         {
@@ -38,7 +43,8 @@ public static class ActorRules
             if (!acc.TryGetValue(owner, out var h)) continue;
             acc[owner] = (h.ships, h.stations, h.sectors + 1, h.money);
         }
-        return acc.ToDictionary(kv => kv.Key, kv => new Holdings(kv.Value.ships, kv.Value.stations, kv.Value.sectors, kv.Value.money));
+        return acc.ToDictionary(kv => kv.Key, kv => new Holdings(kv.Value.ships, kv.Value.stations, kv.Value.sectors, kv.Value.money,
+            weigh && kv.Key == u.PlayerActor ? playerWeight : -1f));
     }
 
     /// <summary>Besitz eines freien Einzelschiffs (impliziter Akteur): ein Schiff, seine Betriebskasse.</summary>
@@ -46,7 +52,19 @@ public static class ActorRules
 
     /// <summary>Größenzahl = Schiffe × Gewicht + Stationen × Gewicht + Sektoren × Gewicht + Geld / Skala (POLITIK.md Abschnitt 6).</summary>
     public static float Size(EconomyRules r, Holdings h) =>
-        h.Ships * r.ActorShipWeight + h.Stations * r.ActorStationWeight + h.Sectors * r.ActorSectorWeight + MathF.Max(0f, h.Money) / MathF.Max(1f, r.ActorMoneyScale);
+        (h.ShipWeight >= 0f ? h.ShipWeight : h.Ships) * r.ActorShipWeight + h.Stations * r.ActorStationWeight + h.Sectors * r.ActorSectorWeight + MathF.Max(0f, h.Money) / MathF.Max(1f, r.ActorMoneyScale);
+
+    /// <summary>
+    /// Ausgleich (Punkt 5, Spielerbot: „Staat“ nach 1,44 h, weil jedes Schiff 1 zählte): Gewicht eines Spielerschiffs für die Größenklasse = Kampfstärke
+    /// (Waffenleistung + Schild/20 + Hülle/50 + 0,5, aus den Werten des Fits) ÷ <see cref="EconomyRules.PlayerSizeStrengthRef"/>, begrenzt auf
+    /// [<see cref="EconomyRules.PlayerSizeShipMin"/>, <see cref="EconomyRules.PlayerSizeShipMax"/>] — angelehnt an die Kampfwertung von IP2. Ein unbewaffneter
+    /// Schürfer zählt ¼, ein Händler mit Laser ≈ 0,4, ein Wächter ≈ 1,2, ein Zerstörer ≈ 3, ein Schlachtkreuzer 4.
+    /// </summary>
+    public static float ShipSizeWeight(EconomyRules r, ShipStats s)
+    {
+        float strength = s.WeaponPower + s.Shield / 20f + s.Hull / 50f + 0.5f;
+        return Math.Clamp(strength / MathF.Max(0.01f, r.PlayerSizeStrengthRef), r.PlayerSizeShipMin, MathF.Max(r.PlayerSizeShipMin, r.PlayerSizeShipMax));
+    }
 
     /// <summary>Größenklasse zur Größenzahl (Schwellen <see cref="EconomyRules.ActorSizeThresholds"/>).</summary>
     public static ActorSizeClass ClassOf(EconomyRules r, float size)

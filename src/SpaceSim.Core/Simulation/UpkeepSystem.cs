@@ -46,6 +46,19 @@ public sealed class UpkeepSystem : ISimSystem
                 if (type.Government != GovernmentKind.None && stUpkeep > 0f)
                 {
                     var cur = official.GetValueOrDefault(st.Owner.Value);
+                    // Ausgleich (Punkt 2): Spieler-Regierungsstationen zahlen nur einen Anteil; mit der Untergrenze wird eine Station unbezahlt statt Schulden zu machen
+                    if (PlayerUpkeep.IsPlayerGovernment(u, st, type))
+                    {
+                        stUpkeep = PlayerUpkeep.GovernmentPerTick(u, st, type) * dt;
+                        if (u.Rules.PlayerUpkeepFloorActive && u.Actors.TryGetValue(st.Owner, out var po))
+                        {
+                            bool ok = PlayerUpkeep.Charge(u, st, po, stUpkeep);
+                            official[st.Owner.Value] = ok ? (cur.paid + stUpkeep, cur.unpaid) : (cur.paid, cur.unpaid + stUpkeep);
+                            st.Credits += type.IncomePerTick * dt;
+                            Profitability.Transfer(st.Profit, type.IncomePerTick * dt);
+                            continue;
+                        }
+                    }
                     // Eigenes Hauptquartier: Regierungsstationen des Spielers buchen immer aus der Spielerkasse, notfalls ins Minus (sonst hielt eine leere
                     // Kasse Behörde und Hauptquartier umsonst); KI-Fraktionen unverändert
                     if (u.Actors.TryGetValue(st.Owner, out var owner)

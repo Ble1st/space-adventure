@@ -8,10 +8,10 @@ public sealed partial class EconomyRules
 {
     /// <summary>Der Spieler darf über das Baufenster Baustellen eigener Wirtschaftsstationen anlegen.</summary>
     public bool PlayerBuilding;
-    /// <summary>Höchstens so viele eigene Baustellen gleichzeitig.</summary>
+    /// <summary>Höchstens so viele eigene Baustellen gleichzeitig (0 = unbegrenzt; Standardwelt 0, Nutzer: „kein Baulimit“).</summary>
     public int PlayerMaxSites = 2;
-    /// <summary>Höchstens so viele eigene Wirtschaftsstationen (fertig + Baustellen) — eigene Obergrenze, zählt nicht gegen <see cref="MaxStations"/>.</summary>
+    /// <summary>Höchstens so viele eigene Wirtschaftsstationen (fertig + Baustellen) — eigene Obergrenze, zählt nicht gegen <see cref="MaxStations"/>; 0 = unbegrenzt (Standardwelt).</summary>
     public int PlayerMaxStations = 10;
-    /// <summary>Höchstens so viele eigene Wirtschaftsstationen (fertig + Baustellen) je Sektor.</summary>
+    /// <summary>Höchstens so viele eigene Wirtschaftsstationen (fertig + Baustellen) je Sektor; 0 = unbegrenzt (Standardwelt).</summary>
     public int PlayerMaxStationsPerSector = 4;
 }

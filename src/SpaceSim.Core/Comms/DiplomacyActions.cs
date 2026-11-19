@@ -166,7 +166,7 @@ public sealed class SeatAction : ICommsAction
             string? issue = PlayerSeats.FoundIssue(u, sector);
             var t = PlayerSeats.SeatType(u);
             float cost = t is null ? 0f : PlayerSeats.Cost(u, t);
-            float upkeep = t is null ? 0f : t.UpkeepPerTick * SimClock.TicksPerSecond * 60f;
+            float upkeep = t is null ? 0f : PlayerHq.UpkeepPerMinute(u, t);   // Ausgleich: Anteil des Spielers
             return new(offer, $"Sektorbehörde gründen – {name}",
                 issue ?? $"{cost:0} Cr einmalig, Unterhalt {upkeep:0} Cr/min aus deiner Kasse — der Sektor wird deiner (Dominanz): Zoll und Sperrstufe 1–2.",
                 -cost, issue is null, issue);
@@ -246,7 +246,7 @@ public sealed class LockAction : ICommsAction
         string? issue = PlayerSeats.LockIssue(u, sector, level);
         string text = level == 0
             ? $"Sperre in {name} aufheben — danach {u.Rules.LockCooldownTicks / 240} min Abkühlzeit."
-            : $"{name}: {AccessNames.Level(level)} — {PlayerSeats.UpkeepPerMinute(u, level):0} Cr/min aus deiner Kasse, höchstens {u.Rules.LockMaxTicks / 240} min; Zoll {level * u.Rules.GateTollPerLevel:0} Cr je Einreise in deine Kasse. KI-Fraktionen grollen wie bei jeder Sperre.";
+            : $"{name}: {AccessNames.Level(level)} — {PlayerSeats.UpkeepPerMinute(u, level):0} Cr/min aus deiner Kasse, höchstens {u.Rules.LockMaxTicks / 240} min; Zoll {level * u.Rules.GateTollPerLevel:0} Cr je Einreise in deine Kasse. " + (u.Rules.PlayerLocksSourOnlyTarget ? "Nur die Fraktion, gegen die sie gerichtet ist, grollt." : "KI-Fraktionen grollen wie bei jeder Sperre.");
         return new(offer, $"Sperrstufe {level} – {name}", issue ?? text, 0f, issue is null, issue);
     }
 
@@ -290,9 +290,9 @@ public sealed class HqAction : ICommsAction
             string? issue = PlayerHq.FoundIssue(u, sector);
             var t = PlayerHq.HqType(u);
             float cost = t is null ? 0f : PlayerHq.Cost(u, t);
-            float upkeep = t is null ? 0f : PlayerHq.UpkeepPerMinute(t);
+            float upkeep = t is null ? 0f : PlayerHq.UpkeepPerMinute(u, t);   // Ausgleich: Anteil des Spielers
             return new(offer, $"Hauptquartier gründen – {name}",
-                issue ?? $"{cost:0} Cr einmalig, Unterhalt {upkeep:0} Cr/min aus deiner Kasse (notfalls Schulden) — Einfluss 6, Gericht, Reparatur, Geschütze; der Sektor erreicht Kontrolle: Sperrstufe bis 5.",
+                issue ?? $"{cost:0} Cr einmalig, Unterhalt {upkeep:0} Cr/min aus deiner Kasse ({(u.Rules.PlayerUpkeepFloorActive ? "reicht sie nicht, ruht das Hauptquartier" : "notfalls Schulden")}) — Einfluss 6, Gericht, Reparatur, Geschütze; der Sektor erreicht Kontrolle: Sperrstufe bis 5.",
                 -cost, issue is null, issue);
         }
         if (CommsActions.TryId(offer, $"{KeyId}:close", out var stid))

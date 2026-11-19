@@ -106,13 +106,21 @@ public class EigeneStationenTests
         Assert.Contains("Kasse reicht nicht", PlayerBuilding.PlaceIssue(u, t, p));
         u.Player.Treasury.Credits = 300_000f;
         u.MoveShip(ship, Alpha);
+        // Nutzerentscheidung „Bau auch in Sektoren anderer Fraktionen“: in der Standardwelt erlaubt (Regel an); mit der Regel aus der alte Grund
+        Assert.True(u.Rules.PlayerBuildForeignSectors);
+        Assert.Null(PlayerBuilding.SectorIssue(u, Alpha));
+        u.Rules.PlayerBuildForeignSectors = false;
         Assert.Contains("nur eigene oder herrenlose", PlayerBuilding.TypeIssue(u, t));
+        u.Rules.PlayerBuildForeignSectors = true;
         ship.DockedAt = u.Sectors[Alpha].Stations[0];
         Assert.Contains("abdocken", PlayerBuilding.TypeIssue(u, t));
         u.Rules.PlayerBuilding = false;
         Assert.Contains("abgeschaltet", PlayerBuilding.TypeIssue(u, t));
-        // Abgrund hat ein Piratenversteck
+        // Abgrund hat ein Piratenversteck — Nutzerentscheidung „auch in Sektoren mit Piratenversteck“: erlaubt (Regel an); Regel aus = alter Grund
+        Assert.Null(PlayerBuilding.SectorIssue(u, new SectorId(11)));
+        u.Rules.PlayerBuildHideoutSectors = false;
         Assert.Contains("Piratenversteck", PlayerBuilding.SectorIssue(u, new SectorId(11)));
+        u.Rules.PlayerBuildHideoutSectors = true;
         // Exportstation ohne Planet
         u.Rules.PlayerBuilding = true;
         ship.DockedAt = default;
@@ -144,10 +152,15 @@ public class EigeneStationenTests
         Assert.Contains(events, e => e is PlayerSiteStarted ps && ps.Site == site.Id && Math.Abs(ps.Cost - cost) < 0.01f);
         Assert.Contains(events, e => e is ConstructionStarted);
         Assert.Equal(kiBefore, StationProtection.CountEconomic(u));   // zählt nicht gegen die KI-Obergrenze
-        // zweite Baustelle geht, dritte nicht (PlayerMaxSites 2)
+        // zweite Baustelle geht; die dritte auch — Nutzerentscheidung „Spieler soll kein Baulimit haben“ (Standardwelt playerMaxSites 0 = unbegrenzt);
+        // mit einer gesetzten Obergrenze 2 greift die alte Regel weiter
         var p2 = Ready(u, "solar_plant");
         PlayerBuilding.Start(u, u.StationTypes["solar_plant"], p2, 0f);
+        Assert.Equal(0, u.Rules.PlayerMaxSites);
+        Assert.DoesNotContain("Baustellen gleichzeitig", PlayerBuilding.TypeIssue(u, u.StationTypes["water_plant"]) ?? "");
+        u.Rules.PlayerMaxSites = 2;
         Assert.Contains("Baustellen gleichzeitig", PlayerBuilding.TypeIssue(u, u.StationTypes["water_plant"]));
+        u.Rules.PlayerMaxSites = 0;
         // Aufgeben: Treuhandgeld zurück, Baustelle weg
         float before = u.Player.Treasury.Credits;
         Assert.Null(PlayerBuilding.CancelIssue(u, site.Id));

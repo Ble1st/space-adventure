@@ -26,11 +26,15 @@ public static class Capitulation
         return !player && u.FactionOf(attacker) is { } fa && st.Owner == (ActorId)fa;
     }
 
+    /// <summary>Ausgleich (Regel <see cref="EconomyRules.CapitulationCooldownTicks"/>): Sperre nach einem Besitzerwechsel durch Kapitulation läuft noch.</summary>
+    public static bool Locked(Universe u, Station st) => u.Rules.CapitulationCooldownTicks > 0 && u.Tick < st.CapitulationLockUntil;
+
     /// <summary>Wem gehört die Station, wenn sie vor diesem Angreifer kapituliert? null = sie kann vor ihm nicht kapitulieren. Rein.</summary>
     public static ActorId? TakerFor(Universe u, Station st, ActorId attacker)
     {
         var r = u.Rules;
         if (!r.StationCapitulation || st.IsBuildSite || st.Immortal || IsPirate(u, st) || OwnedBy(u, st, attacker)) return null;
+        if (Locked(u, st)) return null;   // Ausgleich (Punkt 4): eben erst übernommen — keine erneute Kapitulation (IP2: 120 s)
         if (!u.Actors.TryGetValue(attacker, out var a)) return null;
         if (a.Kind == ActorKind.Player) return attacker;
         if (!r.AiStationCapture || a.Kind == ActorKind.Outlaw || u.FactionOf(attacker) is not { } fa || !u.IsNpcFaction(fa) || !u.Actors.ContainsKey(fa)) return null;
@@ -114,6 +118,7 @@ public static class Capitulation
         bool player = u.Actors.TryGetValue(taker, out var ta) && ta.Kind == ActorKind.Player;
         if (player && !Wars.AtWar(u, taker, old)) Wanted.ReportAssault(u, taker, st.Sector, old, "capture_station");
         st.Owner = taker;
+        if (u.Rules.CapitulationCooldownTicks > 0) st.CapitulationLockUntil = u.Tick + u.Rules.CapitulationCooldownTicks;   // Ausgleich: Kapitulationssperre
         var c = st.Condition ??= new StationCondition();
         c.Disabled = false;
         float max = StationCombat.MaxHull(u, st);

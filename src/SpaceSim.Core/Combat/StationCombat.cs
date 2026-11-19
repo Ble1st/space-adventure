@@ -16,7 +16,14 @@ namespace SpaceSim.Core.Combat;
 public static class StationCombat
 {
     public static StationDefenseConfig? DefenseOf(Universe u, Station st) =>
-        !st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Defense : null;
+        !st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.Defense ?? EconomicDefense.For(u, t) : null;
+
+    /// <summary>
+    /// Ausgleich (Punkt 4): Feuern die Geschütze dieser Station nur zur Selbstverteidigung (Vorgabeverteidigung einer Wirtschaftsstation mit
+    /// <see cref="EconomyRules.EconomicGunsSelfDefenseOnly"/>)? Dann zielen sie nur auf Angreifer der Station selbst und decken keine Nachbarn.
+    /// </summary>
+    public static bool SelfDefenseOnly(Universe u, Station st) =>
+        u.Rules.EconomicGunsSelfDefenseOnly && u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.Defense is null && EconomicDefense.For(u, t) is not null;
 
     /// <summary>Phase 30: ohne <c>defense</c> die Grundhülle der Größenklasse (S 600, M 800 = <see cref="EconomyRules.StationBaseHull"/>, L 1400, XL 2500).</summary>
     public static float MaxHull(Universe u, Station st) => DefenseOf(u, st)?.Hull
@@ -109,6 +116,8 @@ public static class StationCombat
         foreach (var id in sector.Stations.OrderBy(i => i.Value).ToList())
         {
             if (!u.Stations.TryGetValue(id, out var st) || DefenseOf(u, st) is not { Guns.Count: > 0 } def || IsDown(u, st)) continue;
+            bool selfOnly = SelfDefenseOnly(u, st);   // Ausgleich: Vorgabegeschütze der Wirtschaftsstationen nur gegen die eigenen Angreifer
+            if (selfOnly && e.Station != st.Id) continue;
             for (int g = 0; g < def.Guns.Count; g++)
             {
                 if (!u.Modules.TryGetValue(def.Guns[g], out var m)) continue;
@@ -337,7 +346,7 @@ public static class WarInfo
         {
             if (!u.Stations.TryGetValue(id, out var st) || u.FactionOf(st) != f || StationCombat.DefenseOf(u, st) is not { } def || StationCombat.IsDown(u, st)) continue;
             float reach = StationCombat.GunRange(u, st);
-            if (st.Id != target.Id && Vec2.Distance(st.Position, target.Position) > reach + target.Radius) continue;
+            if (st.Id != target.Id && (StationCombat.SelfDefenseOnly(u, st) || Vec2.Distance(st.Position, target.Position) > reach + target.Radius)) continue;
             foreach (var g in def.Guns)
                 if (u.Modules.TryGetValue(g, out var m)) { guns++; range = MathF.Max(range, m.Stat("range") + StationCombat.ReachOffset(st)); }   // Phase 30: ab Außenhaut
         }
@@ -438,7 +447,7 @@ public static class WarInfo
             foreach (var id in sector.Stations)
                 if (u.Stations.TryGetValue(id, out var st) && u.FactionOf(st) == f && StationCombat.DefenseOf(u, st) is { } d && !StationCombat.IsDown(u, st)
                     // Runde 14 (Handy-Test: Satellit „aussichtslos“): nur das Ziel selbst und Stationen, deren Geschütze bis zum Ziel reichen
-                    && (st.Id == target.Id || (d.Guns.Count > 0 && Vec2.Distance(st.Position, target.Position) <= StationCombat.GunRange(u, st) + target.Radius)))
+                    && (st.Id == target.Id || (d.Guns.Count > 0 && !StationCombat.SelfDefenseOnly(u, st) && Vec2.Distance(st.Position, target.Position) <= StationCombat.GunRange(u, st) + target.Radius)))
                 {
                     float part = 0f;
                     foreach (var g in d.Guns) if (u.Modules.TryGetValue(g, out var m)) part += ShipStats.WeaponPowerOf(m);

@@ -84,6 +84,7 @@ public class Runde31Tests
     public void Schiffskauf_MaterialMitMindestpreisAusSpiegelposten()
     {
         var u = World();
+        u.Rules.PlayerShipPricing = false;   // Ausgleich (Punkt 6): geprüft wird der Spiegelzuschlag auf den Materialpreis; Mindestpreis je Stärke und 250er-Rundung verdecken ihn
         var p = u.Ships[u.PlayerShip];
         var yard = u.StationsById().First(s => s.TypeKey == "shipyard");
         var model = u.ShipModels.Values.OrderBy(m => m.Key, StringComparer.Ordinal).First(m => ShipDealerService.Quote(u, yard, p, m.Key) is not null && ShipPurchase.Materials(u, m) is not null);

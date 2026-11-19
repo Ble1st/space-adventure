@@ -118,6 +118,7 @@ public class Runde45Tests
         Assert.False(actions.Execute(u, $"demand:{Guild.Value}").Success);
         Assert.Empty(ev);
         w.Since = u.Tick - 13_000; w.Weariness = 0.33f;
+        if (w.A == Guild) w.ShipsLostA = 1; else w.ShipsLostB = 1;   // Ausgleich (Punkt 7): Tribut erst nach echten Verlusten des Gegners
         float relUnion0 = Relations.Effective(u, Union, me);
         float wallet0 = u.Player.Treasury.Credits, guild0 = u.Actors[Guild].Treasury.Credits;
         var pre = actions.Preview(u, $"demand:{Guild.Value}");
@@ -147,6 +148,7 @@ public class Runde45Tests
             u.Actors[Guild].Treasury.Credits = 200_000f;
             var w = Wars.PlayerDeclare(u, Guild);
             w.Since = u.Tick - 13_000; w.Weariness = 0.33f;
+            if (w.A == Guild) w.ShipsLostA = 1; else w.ShipsLostB = 1;   // Ausgleich (Punkt 7): Tribut erst nach echten Verlusten des Gegners
             float start = u.Player.Treasury.Credits;
             if (payFirst > 0f) Wars.PayTribute(u, Guild, payFirst, w);
             Assert.True(Wars.Demand(u, Guild) is not null);
@@ -165,6 +167,7 @@ public class Runde45Tests
         u.Actors[Guild].Treasury.Credits = 2_000_000f;
         var w = Wars.PlayerDeclare(u, Guild);
         w.Since = u.Tick - 13_000; w.Weariness = 0.33f;
+        if (w.A == Guild) w.ShipsLostA = 1; else w.ShipsLostB = 1;   // Ausgleich (Punkt 7): Tribut erst nach echten Verlusten des Gegners
         Assert.Contains("überlegen", Wars.DemandIssue(u, Guild));
     }
 

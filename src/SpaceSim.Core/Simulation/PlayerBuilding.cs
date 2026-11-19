@@ -14,7 +14,7 @@ public sealed record BuildOption(StationType Type, float Cost, IReadOnlyDictiona
 /// <see cref="EconomyRules.StationBuildCostFactor"/> aus der Spielerkasse; Material bringen eigene Bauschiffe mit Befehl „Bauen“ (aus dem Treuhandgeld bezahlt)
 /// oder Händler über den normalen Handel; die Montage braucht ein eigenes Bauschiff vor Ort (KI-Bauschiffe übernehmen Spielerbaustellen nicht, es gibt keinen
 /// Notbau und keinen Verfall). Die fertige Station gehört dem Spieler, beginnt ohne Startkapital (kein neues Geld) und zählt nicht gegen die Obergrenzen der
-/// KI (<see cref="StationProtection.CountEconomic(Universe)"/>), sondern gegen eigene (<see cref="EconomyRules.PlayerMaxStations"/>, je Sektor, Baustellen).
+/// KI (<see cref="StationProtection.CountEconomic(Universe)"/>), sondern gegen eigene (<see cref="EconomyRules.PlayerMaxStations"/>, je Sektor, Baustellen; 0 = unbegrenzt — Standardwelt ohne Baulimit).
 /// </summary>
 public static class PlayerBuilding
 {
@@ -43,12 +43,36 @@ public static class PlayerBuilding
     /// <summary>Laufende eigene Baustellen.</summary>
     public static List<Station> OwnSites(Universe u) => u.StationsById().Where(s => s.Owner == u.PlayerActor && s.Site is { Abandoned: false }).ToList();
 
-    /// <summary>Warum der Spieler in diesem Sektor nicht bauen darf (null = er darf): eigener oder herrenloser Sektor ohne Piratenversteck.</summary>
+    /// <summary>Warum der Spieler in diesem Sektor nicht bauen darf (null = er darf): eigener oder herrenloser Sektor ohne Piratenversteck; mit Regel
+    /// <see cref="EconomyRules.PlayerBuildForeignSectors"/> auch der Sektor einer KI-Fraktion, die ihn lässt (<see cref="ForeignIssue"/>).</summary>
     public static string? SectorIssue(Universe u, SectorId sector)
     {
         if (!u.Sectors.TryGetValue(sector, out var sec)) return "Unbekannter Sektor.";
-        if (u.IsNpcFaction(sec.Owner)) return $"{sec.Name} gehört {u.Factions[sec.Owner].Name} — nur eigene oder herrenlose Sektoren.";
-        if (sec.Stations.Any(id => u.Stations.TryGetValue(id, out var st) && StationProtection.IsHideout(u, st))) return "Piratenversteck im Sektor.";
+        if (u.IsNpcFaction(sec.Owner))
+        {
+            if (!u.Rules.PlayerBuildForeignSectors) return $"{sec.Name} gehört {u.Factions[sec.Owner].Name} — nur eigene oder herrenlose Sektoren.";
+            if (ForeignIssue(u, sec) is { } fi) return fi;
+        }
+        // Nutzerentscheidung „auch in Sektoren mit Piratenversteck“ (Regel PlayerBuildHideoutSectors): die Station lebt dort mit Überfällen; Abstand zum
+        // Versteck regelt die gemeinsame Platzregel wie zu jeder Station
+        if (!u.Rules.PlayerBuildHideoutSectors && sec.Stations.Any(id => u.Stations.TryGetValue(id, out var st) && StationProtection.IsHideout(u, st))) return "Piratenversteck im Sektor.";
+        return null;
+    }
+
+    /// <summary>
+    /// Nutzerentscheidung „Bau auch möglich in Sektoren anderer Fraktionen“ (Regel <see cref="EconomyRules.PlayerBuildForeignSectors"/>): warum der Spieler im
+    /// Sektor einer KI-Fraktion nicht bauen darf (null = er darf) — Krieg, feindliche Beziehung oder eine durchgesetzte Sperre, die ihn ausschließt
+    /// (Stufe ≥ 4 schließt alle Fremden aus, Stufe ≥ 1 gegen ihn gerichtet ebenso). Rein.
+    /// </summary>
+    public static string? ForeignIssue(Universe u, Sector sec)
+    {
+        var owner = sec.Owner;
+        string name = u.Factions.TryGetValue(owner, out var fa) ? fa.Name : "die Fraktion";
+        if (u.PlayerFaction is { } me && Wars.AtWar(u, owner, me)) return $"Krieg mit {name} — kein Bau in {sec.Name}.";
+        if (Relations.Effective(u, (ActorId)owner, u.PlayerActor) <= u.Rules.HostileRelation) return $"{name} ist dir feindlich gesinnt — kein Bau in {sec.Name}.";
+        var acc = sec.Access;
+        if (acc.Enforced && (acc.EntryLevel >= 4 || (acc.EntryLevel >= 1 && u.PlayerFaction is { } pf && acc.Against == pf)))
+            return $"{name} sperrt {sec.Name} gegen dich (Stufe {acc.EntryLevel}) — kein Bau.";
         return null;
     }
 
@@ -68,10 +92,14 @@ public static class PlayerBuilding
         if (SectorIssue(u, ship.Sector) is { } si) return si;
         var sec = u.Sectors[ship.Sector];
         if (t.Export is not null && sec.Planet is null) return "Exportstation nur in einem Sektor mit Planet.";
-        var own = OwnEconomic(u);
-        if (OwnSites(u).Count >= r.PlayerMaxSites) return $"Höchstens {r.PlayerMaxSites} eigene Baustellen gleichzeitig.";
-        if (own.Count >= r.PlayerMaxStations) return $"Höchstens {r.PlayerMaxStations} eigene Stationen.";
-        if (own.Count(s => s.Sector == ship.Sector) >= r.PlayerMaxStationsPerSector) return $"Höchstens {r.PlayerMaxStationsPerSector} eigene Stationen je Sektor.";
+        // Nutzerentscheidung „Spieler soll kein Baulimit haben“: 0 = unbegrenzt (Standardwelt); Platzregel, Sektor und Kasse gelten weiter
+        if (r.PlayerMaxSites > 0 && OwnSites(u).Count >= r.PlayerMaxSites) return $"Höchstens {r.PlayerMaxSites} eigene Baustellen gleichzeitig.";
+        if (r.PlayerMaxStations > 0 || r.PlayerMaxStationsPerSector > 0)
+        {
+            var own = OwnEconomic(u);
+            if (r.PlayerMaxStations > 0 && own.Count >= r.PlayerMaxStations) return $"Höchstens {r.PlayerMaxStations} eigene Stationen.";
+            if (r.PlayerMaxStationsPerSector > 0 && own.Count(s => s.Sector == ship.Sector) >= r.PlayerMaxStationsPerSector) return $"Höchstens {r.PlayerMaxStationsPerSector} eigene Stationen je Sektor.";
+        }
         float cost = Cost(u, t);
         if (u.Player.Treasury.Credits < cost) return $"Kasse reicht nicht ({cost:0} Cr nötig).";
         return null;

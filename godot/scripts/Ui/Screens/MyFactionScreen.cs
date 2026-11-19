@@ -150,6 +150,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 	public string TestPolicyLine { get; private set; } = "";
 	/// <summary>Runde 45, Selbsttest: letzte Meldung einer Sektorpolitik-Aktion.</summary>
 	public string TestPolicyMessage => _policyMsg;
+	/// <summary>Ausgleich, Selbsttest: Zeile der unbezahlten Regierungsstationen (leer = alles bezahlt).</summary>
+	public string TestUnpaidLine = "";
 	/// <summary>Eigenes Hauptquartier, Selbsttest: Zeile des Hauptquartiers (Name und Unterhalt, oder Vorschau bzw. Grund).</summary>
 	public string TestHqLine { get; private set; } = "";
 
@@ -233,7 +235,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 			{
 				foreach (var hq in hqs)
 				{
-					float up = u.StationTypes.TryGetValue(hq.TypeKey, out var ht) ? PlayerHq.UpkeepPerMinute(ht) : 0f;
+					float up = u.StationTypes.TryGetValue(hq.TypeKey, out var ht) ? PlayerHq.UpkeepPerMinute(u, ht) : 0f;
 					TestHqLine = $"{hq.Name} ({u.Sectors[hq.Sector].Name}) · Unterhalt {up:0} Cr/min aus deiner Kasse";
 					y = WrappedText(card, TestHqLine, 20, y, width - 40, 14, White, 19) + 6;
 					PolicyButton(card, $"hq:close:{hq.Id.Value}", "Hauptquartier aufgeben", 20, y, MathF.Min(320f, width - 40), confirm: true);
@@ -253,6 +255,9 @@ public sealed partial class MyFactionScreen : CommandScreen
 				y += 64;
 			}
 		}
+		// Ausgleich (Punkt 2): Regierungsstationen, deren Unterhalt die Kasse nicht trägt, ruhen (kein Einfluss, keine Sperren, kein Gericht)
+		TestUnpaidLine = PlayerUpkeep.StatusText(u);
+		if (TestUnpaidLine.Length > 0) y = WrappedText(card, TestUnpaidLine, 20, y, width - 40, 13, Orange, 18) + 6;
 		if (_policyMsg.Length > 0) { y = WrappedText(card, _policyMsg, 20, y, width - 40, 13, Green, 18) + 6; }
 		h = MathF.Max(h, y + 12f);
 		card.CustomMinimumSize = new Vector2(width, h);

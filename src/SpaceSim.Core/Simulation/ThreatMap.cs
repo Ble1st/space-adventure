@@ -43,7 +43,7 @@ public static class ThreatMap
     {
         float sum = 0f;
         foreach (var id in sector.Stations)
-            if (u.Stations.TryGetValue(id, out var st) && !st.IsBuildSite && u.FactionOf(st) == f && u.StationTypes.TryGetValue(st.TypeKey, out var t))
+            if (u.Stations.TryGetValue(id, out var st) && !st.IsBuildSite && u.FactionOf(st) == f && !PlayerUpkeep.Unpaid(u, st) && u.StationTypes.TryGetValue(st.TypeKey, out var t))
                 sum += MathF.Max(0f, t.Security);
         return sum;
     }

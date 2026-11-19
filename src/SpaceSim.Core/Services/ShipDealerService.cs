@@ -59,7 +59,15 @@ public sealed class ShipDealerService : IStationService
         float price = ShipPurchase.Price(u, station, needs, assembly);
         // Runde 31 (Prüfung: erst ein Modul teuer an die Werft verkaufen, dann ein Schiff kaufen, das es verbraucht, +455 Cr je Zyklus): Material, das der
         // Spieler hier verkauft hat, zählt beim Schiffskauf mindestens zum erhaltenen Preis (Spiegelposten, PlayerLedger.BuyCost)
-        foreach (var n in needs) price += PlayerLedger.MaterialSurcharge(u, buyer, station, n.Good, n.Units) * (1f + MathF.Max(0f, assembly));
+        if (u.Rules.PlayerShipPricing && buyer.IsPlayer)
+        {
+            // Ausgleich (Punkt 6, „Schiffspreise wie im decomp“): Materialpreis bzw. Mindestpreis je Kampfstärke × (1 + Händleraufschlag ± Ansehen), auf 250 gerundet
+            float surcharge = 0f;
+            foreach (var n in needs) surcharge += PlayerLedger.MaterialSurcharge(u, buyer, station, n.Good, n.Units);
+            price = ShipPricing.PlayerPrice(u, station, buyer.Owner, ShipPurchase.Price(u, station, needs, 0f), stats, surcharge);
+        }
+        else
+            foreach (var n in needs) price += PlayerLedger.MaterialSurcharge(u, buyer, station, n.Good, n.Units) * (1f + MathF.Max(0f, assembly));
         // Phase 13: gesperrte Modelle bleiben sichtbar („nicht erforscht“), sind aber nicht kaufbar
         return new ShipQuote(model, cls, stats, price, needs, ShipPurchase.Missing(station, needs), u.WalletOf(buyer).Credits >= price,
             Research.LockText(u, station, UnlockKind.Model, model.Key));

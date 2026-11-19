@@ -80,6 +80,11 @@ public sealed class War
     public float TributePaid;
     /// <summary>Runde 45: Beitrittskrieg eines Verbündeten (Beistandspakt, Tiefe 1 — ruft niemanden weiter); gespeichert, gehasht nur wenn gesetzt.</summary>
     public bool Join;
+    /// <summary>
+    /// Ausgleich (Regel <see cref="EconomyRules.TributeDemandNeedsLosses"/>): im Gefecht zerstörte Schiffe von A bzw. B — gezählt nur in Kriegen mit der
+    /// Spielerfraktion (KI-Kriege unverändert). Gespeichert, gehasht nur wenn &gt; 0.
+    /// </summary>
+    public int ShipsLostA, ShipsLostB;
 
     public bool Involves(FactionId f) => A == f || B == f;
     public FactionId Other(FactionId f) => A == f ? B : A;

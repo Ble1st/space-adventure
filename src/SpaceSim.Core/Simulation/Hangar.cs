@@ -60,10 +60,14 @@ public static class Hangar
     public static int UpkeepShips(Universe u, ActorId owner) =>
         u.Ships.Values.Count(s => s.Owner == owner && s.IsPlayer && s.Id != u.PlayerShip && s.Command is not null && !s.IsRental);
 
+    /// <summary>Flottenunterhalt je Tick aller unterhaltspflichtigen Schiffe (Ausgleich Punkt 6: je Schiff nach Klassengröße, <see cref="ShipPricing.FleetUpkeepPerTick"/>).</summary>
+    public static float FleetUpkeepPerTick(Universe u, ActorId owner) =>
+        u.Ships.Values.Where(s => s.Owner == owner && s.IsPlayer && s.Id != u.PlayerShip && s.Command is not null && !s.IsRental).Sum(s => ShipPricing.FleetUpkeepPerTick(u, s));
+
     /// <summary>Runde 16: laufende Kosten der Person je Minute Spielzeit — Flottenunterhalt (<see cref="EconomyRules.ShipUpkeepPerTick"/> je Schiff mit Befehl) plus Liegegebühren.</summary>
     public static float RunningCostsPerMinute(Universe u, ActorId owner)
     {
-        float perTick = UpkeepShips(u, owner) * u.Rules.ShipUpkeepPerTick
+        float perTick = FleetUpkeepPerTick(u, owner)
             + (u.Rules.DayTicks > 0 ? BerthFeesPerDay(u, owner) / u.Rules.DayTicks : 0f);
         return perTick * SimClock.TicksPerSecond * 60f;
     }
@@ -75,7 +79,7 @@ public static class Hangar
         if (perMin <= 0.001f) return "";
         var de = System.Globalization.CultureInfo.GetCultureInfo("de-DE");
         int ships = UpkeepShips(u, owner);
-        float upkeep = ships * u.Rules.ShipUpkeepPerTick * SimClock.TicksPerSecond * 60f;
+        float upkeep = FleetUpkeepPerTick(u, owner) * SimClock.TicksPerSecond * 60f;
         float berth = perMin - upkeep;
         // Runde 17: aufgeschlüsselt, damit ein Sprung der Summe nachvollziehbar ist (Liegegebühr an fremden Stationen)
         var parts = new List<string>();

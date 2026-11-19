@@ -1156,6 +1156,11 @@ public partial class Main : Node3D
 			case StationCapitulationRolled cr when !cr.Capitulated && cr.Taker == _session.U.PlayerActor:
 				_hud.Info($"{cr.Name} hält stand (Kapitulation {cr.Chance * 100f:0} % verfehlt) — bei Hülle 0 wird sie zerstört.", 4f);
 				break;
+			// Ausgleich (Punkt 2): Regierungsunterhalt nicht bezahlt — die Station ruht statt Schulden zu machen
+			case PlayerGovernmentUnpaidChanged gu:
+				if (gu.Unpaid) _hud.Alert($"{gu.Name}: Unterhalt nicht bezahlt — außer Betrieb (kein Einfluss, keine Sperren, kein Gericht). Mehr unter „Meine Fraktion“.", 8f);
+				else _hud.Info($"{gu.Name}: Unterhalt wieder bezahlt — wieder in Betrieb.", 4f);
+				break;
 			case SeatRelocated seat:
 				_hud.Info($"{_session.U.ActorName((ActorId)seat.Faction)} verlegt ihren Sitz nach {(_session.U.Sectors.TryGetValue(seat.Sector, out var seatSec) ? seatSec.Name : "?")}.", 4f);
 				break;

@@ -141,7 +141,7 @@ public sealed class HangarSystem : ISimSystem
         foreach (var ship in u.ShipsById().Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Command is not null && !s.IsRental).ToList())
         {
             var wallet = u.WalletOf(ship);
-            float due = MathF.Min(u.Rules.ShipUpkeepPerTick * dt, MathF.Max(0f, wallet.Credits));
+            float due = MathF.Min(ShipPricing.FleetUpkeepPerTick(u, ship) * dt, MathF.Max(0f, wallet.Credits));   // Ausgleich (Punkt 6): nach Klassengröße
             wallet.Credits -= due;
             total += due;
             owner = ship.Owner;

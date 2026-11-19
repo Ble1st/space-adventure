@@ -367,6 +367,8 @@ public static class Wars
         if (u.Tick - w.Since < r.WarMinTicks) return $"Krieg zu jung (noch {(r.WarMinTicks - (u.Tick - w.Since)) / 240 + 1} min).";
         if (w.Weariness < r.TributePeaceWeariness) return $"Gegner noch nicht kriegsmüde ({w.Weariness:0.00} von {r.TributePeaceWeariness:0.00}).";
         if (OfferCooldownLeft(u, w) is > 0 and var left) return $"Angebot erst wieder in {left / 240 + 1} min möglich.";
+        // Ausgleich (Punkt 7, Spielerbot: Tribut ohne jeden Kampf): erst nach echten Verlusten des Gegners (Schiff, Station oder Tor)
+        if (r.TributeDemandNeedsLosses && !HasLosses(w, f)) return "Der Gegner hat in diesem Krieg noch nichts verloren — erst kämpfen, dann fordern.";
         if (TributeWinner(u, w) != me) return $"Nicht klar überlegen (Stärke {Strength(u, me):0.0} : {Strength(u, f):0.0}, nötig ×{r.TributeStrengthRatio:0.0}).";
         float demand = TributeFor(u, w, me);
         if (demand <= 0f) return "Keine Forderung offen.";
@@ -449,6 +451,25 @@ public static class Wars
     }
 
     /// <summary>Verlust (Materialwert) einer Seite im Krieg buchen; ohne Krieg nichts.</summary>
+    /// <summary>
+    /// Ausgleich (Punkt 7): ein Schiff wurde im Gefecht zerstört — gehört es einer Seite eines Kriegs mit der Spielerfraktion und stand ein Akteur der
+    /// Gegenseite im Gefecht gegenüber, zählt es als Kriegsverlust (<see cref="War.ShipsLostA"/>/<see cref="War.ShipsLostB"/>). Nur mit Regel
+    /// <see cref="EconomyRules.TributeDemandNeedsLosses"/>; kein Zufall.
+    /// </summary>
+    public static void OnShipLost(Universe u, Encounter e, CombatParticipant p, Ship ship)
+    {
+        if (!u.Rules.TributeDemandNeedsLosses || u.Wars.Count == 0 || u.PlayerFaction is not { } me || u.FactionOf(ship) is not { } f) return;
+        foreach (var q in e.Participants)
+        {
+            if (q.Side == p.Side || u.FactionOf(q.Owner) is not { } g || Between(u, f, g) is not { } w || (w.A != me && w.B != me)) continue;
+            if (w.A == f) w.ShipsLostA++; else w.ShipsLostB++;
+            return;
+        }
+    }
+
+    /// <summary>Ausgleich (Punkt 7): hat <paramref name="f"/> in diesem Krieg wirklich verloren (Schiff, Station oder Tor)?</summary>
+    public static bool HasLosses(War w, FactionId f) => w.A == f ? w.ShipsLostA > 0 || w.LossA > 0f : w.ShipsLostB > 0 || w.LossB > 0f;
+
     public static void OnLoss(Universe u, ActorId owner, ActorId attacker, float value)
     {
         if (u.Wars.Count == 0 || u.FactionOf(owner) is not { } f || u.FactionOf(attacker) is not { } g || Between(u, f, g) is not { } w) return;

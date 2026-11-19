@@ -18,7 +18,7 @@ public sealed class CourtService : IStationService
     public string Key => ServiceKey;
 
     /// <summary>Verfügbar an fertigen Stationen, deren Besitzer zu einer Fraktion gehört.</summary>
-    public bool IsAvailable(Universe u, Station station) => !station.IsBuildSite && u.FactionOf(station) is { } f && u.Factions.ContainsKey(f);
+    public bool IsAvailable(Universe u, Station station) => !station.IsBuildSite && !PlayerUpkeep.Unpaid(u, station) && u.FactionOf(station) is { } f && u.Factions.ContainsKey(f);   // Ausgleich: unbezahlte eigene Behörde ohne Gericht
 
     /// <summary>
     /// Gerätetest Phase 28 (Runde 4): nächste Station mit Kopfgeldbüro der Fraktion <paramref name="faction"/> (der Anspruch gilt dort), gezählt in Sprüngen
@@ -41,8 +41,12 @@ public sealed class CourtService : IStationService
         NearestOffice(u, from, faction) is { } st ? $" Kopfgeld {bounty:0} Cr abholen: Behörde in {st.Name}." : $" Kopfgeld {bounty:0} Cr beim Kopfgeldbüro abholen.";
 
     /// <summary>Nimmt das Gericht dieser Station Strafen der Fraktion an?</summary>
+    /// <remarks>Ausgleich (Regel <see cref="EconomyRules.OwnCourtAcceptsAll"/>): das Gericht an einer eigenen Station des Spielers (Behörde, Hauptquartier) nimmt
+    /// Strafen jeder Fraktion an — das Geld geht an deren Kasse, also keine Geldschleife; fremde Gerichte unverändert (Rechtshilfe ab
+    /// <see cref="EconomyRules.ExtraditionRelation"/>).</remarks>
     public static bool Accepts(Universe u, Station station, FactionId faction) =>
-        u.FactionOf(station) is { } own && (own == faction || Relations.Effective(u, faction, own) >= u.Rules.ExtraditionRelation);
+        u.FactionOf(station) is { } own && (own == faction || Relations.Effective(u, faction, own) >= u.Rules.ExtraditionRelation
+            || (u.Rules.OwnCourtAcceptsAll && station.Owner == u.PlayerActor && u.IsNpcFaction(faction)));
 
     public IReadOnlyList<ServiceOffer> Offers(Universe u, Station station, Ship ship)
     {
@@ -110,7 +114,7 @@ public sealed class BountyService : IStationService
 
     public string Key => ServiceKey;
 
-    public bool IsAvailable(Universe u, Station station) => !station.IsBuildSite && u.FactionOf(station) is { } f && u.Factions.ContainsKey(f);
+    public bool IsAvailable(Universe u, Station station) => !station.IsBuildSite && !PlayerUpkeep.Unpaid(u, station) && u.FactionOf(station) is { } f && u.Factions.ContainsKey(f);   // Ausgleich: unbezahlte eigene Behörde ohne Gericht
 
     public IReadOnlyList<ServiceOffer> Offers(Universe u, Station station, Ship ship)
     {

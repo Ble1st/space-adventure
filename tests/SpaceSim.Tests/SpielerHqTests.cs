@@ -136,7 +136,8 @@ public class SpielerHqTests
         Assert.DoesNotContain(new BountyService().Offers(u, hq, ship), o => o.Key.StartsWith("claim:"));
         var union = new FactionId(1);
         Wanted.Report(u, u.PlayerActor, union, "smuggling");
-        bool accepts = Relations.Effective(u, union, me) >= u.Rules.ExtraditionRelation;
+        // Ausgleich (Punkt 8, Regel OwnCourtAcceptsAll): das eigene Gericht nimmt Strafen jeder Fraktion an, sonst nach der Rechtshilferegel
+        bool accepts = u.Rules.OwnCourtAcceptsAll || Relations.Effective(u, union, me) >= u.Rules.ExtraditionRelation;
         Assert.Equal(accepts, new CourtService().Offers(u, hq, ship).Any(o => o.Key == $"pay:{union.Value}"));
     }
 
@@ -187,6 +188,7 @@ public class SpielerHqTests
             WithSeat(u);
             Assert.True(CommsActions.Default().Execute(u, $"hq:found:{Nebelmark.Value}").Success);
             u.Rules.PlayerGovernmentDebt = debt;
+            u.Rules.PlayerUpkeepFloorActive = false; u.Rules.PlayerGovernmentUpkeepShare = 1f;   // Ausgleich (Punkt 2): geprüft wird die alte Schuldenregel; Untergrenze und Anteil prüft BalanceFixTests
             var t = PlayerHq.HqType(u)!;
             var seat = PlayerSeats.SeatType(u)!;
             u.Player.Treasury.Credits = 1f;

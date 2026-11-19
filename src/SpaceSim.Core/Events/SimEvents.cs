@@ -436,3 +436,6 @@ public sealed record PlayerSiteStarted(StationId Site, SectorId Sector, string T
 public sealed record PlayerSiteCancelled(StationId Site, float Refund) : SimEvent;
 /// <summary>Eigene Stationen: Umbuchung zwischen Spielerkasse und Stationskasse (positiv = eingezahlt, negativ = ausgezahlt).</summary>
 public sealed record StationCashMoved(StationId Station, float Amount) : SimEvent;
+
+/// <summary>Ausgleich (Regel PlayerUpkeepFloorActive): eine Regierungsstation des Spielers ist unbezahlt (außer Betrieb) bzw. läuft wieder.</summary>
+public sealed record PlayerGovernmentUnpaidChanged(StationId Station, string Name, SectorId Sector, bool Unpaid) : SimEvent;

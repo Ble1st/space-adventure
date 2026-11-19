@@ -75,7 +75,7 @@ public sealed partial class BuildScreen : CommandScreen, ISessionScreen
 		var list = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		list.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(list);
-		if (sites.Count > 0) list.AddChild(Text($"Eigene Baustellen ({sites.Count}/{u.Rules.PlayerMaxSites})", 15, Orange));
+		if (sites.Count > 0) list.AddChild(Text(u.Rules.PlayerMaxSites > 0 ? $"Eigene Baustellen ({sites.Count}/{u.Rules.PlayerMaxSites})" : $"Eigene Baustellen ({sites.Count})", 15, Orange));   // Nutzer: kein Baulimit (0 = unbegrenzt)
 		foreach (var s in sites)
 		{
 			var info = ConstructionInfo.Of(u, s);

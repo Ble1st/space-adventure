@@ -234,6 +234,10 @@ public sealed class Station
     /// alte Spielstände). Gespeichert und gehasht nur, wenn gesetzt; die Baustelle trägt sie, die fertige Station übernimmt sie.
     /// </summary>
     public float Rotation;
+    /// <summary>Ausgleich (Regel <see cref="EconomyRules.CapitulationCooldownTicks"/>): bis zu diesem Tick kann die Station nicht erneut kapitulieren (0 = keine Sperre).</summary>
+    public long CapitulationLockUntil;
+    /// <summary>Ausgleich (Regel <see cref="EconomyRules.PlayerUpkeepFloorActive"/>): Regierungsstation des Spielers, deren Unterhalt nicht bezahlt ist — außer Betrieb.</summary>
+    public bool Unpaid;
 
     /// <summary>Parkposition eines Schiffs an der Station, knapp außerhalb des Körpers (Radius + 7; mittlere Station wie bisher 22).</summary>
     public Vec2 DockPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * (Radius + 7f);

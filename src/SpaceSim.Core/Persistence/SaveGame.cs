@@ -187,6 +187,9 @@ public sealed class WarSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastOfferTick { get; set; }
     /// <summary>Runde 40: bereits gezahlter Tribut (0 = keiner).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float TributePaid { get; set; }
+    /// <summary>Ausgleich (additiv): Schiffe, die A bzw. B in einem Krieg mit der Spielerfraktion verloren hat.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int ShipsLostA { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int ShipsLostB { get; set; }
     /// <summary>Runde 45: Beitrittskrieg eines Verbündeten.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Join { get; set; }
 }
@@ -599,6 +602,10 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? CalmSince { get; set; }
     /// <summary>Eigene Stationen: Drehung des Modells in Grad (additiv), null = 0.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Rotation { get; set; }
+    /// <summary>Ausgleich (additiv): Kapitulationssperre bis Tick.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long CapitulationLockUntil { get; set; }
+    /// <summary>Ausgleich (additiv): Regierungsunterhalt unbezahlt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Unpaid { get; set; }
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>

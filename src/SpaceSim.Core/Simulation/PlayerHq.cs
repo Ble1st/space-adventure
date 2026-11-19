@@ -98,4 +98,7 @@ public static class PlayerHq
 
     /// <summary>Unterhalt je Minute (Anzeige).</summary>
     public static float UpkeepPerMinute(StationType t) => t.UpkeepPerTick * SimClock.TicksPerSecond * 60f;
+
+    /// <summary>Unterhalt je Minute, den der Spieler zahlt (Ausgleich: × <see cref="EconomyRules.PlayerGovernmentUpkeepShare"/>).</summary>
+    public static float UpkeepPerMinute(Universe u, StationType t) => PlayerUpkeep.PlayerPerTick(u, t) * SimClock.TicksPerSecond * 60f;
 }

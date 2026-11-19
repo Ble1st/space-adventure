@@ -244,6 +244,7 @@ public class OutfitterShipyardTests
     {
         var (u, yard, player) = AtYard();
         u.Rules.QualityChances = new() { 1f, 0f, 0f, 0f };   // Phase 8: Güteklasse fest Standard — geprüft wird der Verbrauch der Grundregel (der Wurf hing sonst vom Zufallsstand ab, den die Bauschiffe der Startwelt verschieben)
+        u.Rules.PlayerShipPricing = false;   // Ausgleich (Punkt 6): geprüft wird die Materialpreisregel; die Spielerpreise (Aufschlag, Ansehen, Mindestpreis je Stärke, Rundung) prüft BalanceFixTests
         var model = u.ShipModels["prospector"];
         var needs = ShipPurchase.Materials(u, model)!;
         Assert.Contains(needs, n => u.Goods[n.Good].Key == "ship_kit_light" && n.Units == 1f);
@@ -340,6 +341,7 @@ public class OutfitterShipyardTests
     public void Handelsstation_MontiertSkiffAusLeichtemBausatz_MitMontagegebuehr()
     {
         var u = DemoUniverse.Create();
+        u.Rules.PlayerShipPricing = false;   // Ausgleich (Punkt 6): geprüft wird die Materialpreisregel; die Spielerpreise (Aufschlag, Ansehen, Mindestpreis je Stärke, Rundung) prüft BalanceFixTests
         new SimulationRunner().Run(u, 1);
         var trade = u.Stations.Values.First(s => s.TypeKey == "trade_station");
         var player = u.Ships[u.PlayerShip];

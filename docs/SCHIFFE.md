@@ -274,3 +274,13 @@ Drehende Werkzeuge an den Schiffsmodellen folgen, sobald die Blender-Modelle sie
 **Kaperer schonen die Beute (Regel `RaidersSpareLoot`).** Seit die Piraten Bomber kaufen, vernichtete eine Raketensalve leichte Schürfer (Skiff, Hülle 60) statt sie zur
 Aufgabe zu zwingen (300000 Ticks: 59 statt 6 zerstörte Schürfer). Im Überfall feuert ein Kaperer keine Waffe mehr, deren Höchstschaden mit den schon fliegenden Raketen
 Schild und Hülle eines beladenen Opfers aufbrauchen könnte (nicht beim aktiven Spielerschiff) — danach 7.
+
+## Ausgleich nach dem Bot-Test: Schiffspreise wie in IP2, Flottenunterhalt nach Größe, schneller Falke
+
+Nutzer: „Schiffspreise wie im decomp“. Schalter `playerShipPricing` (Code aus, Standardwelt an), **nur für den Spieler** — die KI-Flotte und die Polizei kaufen weiter zum Materialpreis × (1 + Montage), damit sich die NPC-Wirtschaft nicht verschiebt.
+
+- **Kaufpreis** = max(Materialpreis zu Marktpreisen, Kampfstärke × 210) × (1 + 0,2 Händleraufschlag − sign(rel) × rel² × 0,2), aufgerundet auf 250 Cr (IP2/OpenFrontier: Herstellkosten × (1 + 0,2 ± |Ansehen|² × 0,2), gerundet auf 250). rel = Beziehung der Werftfraktion zum Spieler: freundlich bis 20 % billiger, feindlich bis 20 % teurer, nie unter dem Materialpreis. Der Aufschlag ersetzt beim Spieler die Montagegebühr.
+- **Mindestpreis je Kampfstärke 210** (`playerShipMinPricePerStrength`): Kampfschiffe waren gemessen an ihrer Stärke billig (Material je Stärke: Zerstörer 163, Schlachtkreuzer 180, Bomber/Korsar 180–205, Händler 187–230, Schürfer 570–840). Jetzt kostet Stärke beim Spieler mindestens so viel wie bei zivilen Schiffen; zivile Schiffe ändern sich dadurch nicht.
+- **Wiederverkauf** bleibt bei 0,5 × Material (immer unter dem Kaufpreis — keine Schleife; die 2,5 % Abgabe von IP2 würde mit dem Ansehensrabatt eine Schleife öffnen).
+- **Flottenunterhalt nach Größe** (`playerFleetUpkeepBySize` [1, 1,5, 2,5, 4] für S/M/L/XL): statt flach 144 Cr/h je Schiff mit Befehl kostet ein Schlachtkreuzer 576 Cr/h. (IP2 hat keinen Unterhalt; ganz streichen hätte die letzte laufende Flottenkost genommen.)
+- **Falke schneller als der Korsar** (Botbefund: Kopfgeldjagd unmöglich, Korsaren waren so schnell wie der Falke und schneller als jedes andere Kampfschiff): Grundmasse des Jägers 5 → 2, Tempo 8,64 → 10,0 (Korsar 8,64, mit Antriebsmodus +10 % 9,5). Datenänderung in der Weltdatei; Polizei und Piraten wählen den Falken kaum (Stärke je Preis wie der Korsar). Hinweis zum Bot: Seine Jagd bewegt das aktive Schiff im Kopflos-Gefecht nicht (der Spieler fliegt sonst in der Ansicht), dort flieht ein Korsar auch vor einem schnelleren Schiff.
