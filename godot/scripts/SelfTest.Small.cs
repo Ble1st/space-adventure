@@ -107,6 +107,20 @@ public partial class SelfTest
 				}
 				return false;
 			}
+			case > 400 and < 520:
+			{
+				// Der Überfall-Hinweis („Ziel gewählt …“) sitzt unten mittig und verkleinert das freie Feld auf die obere Hälfte; die Kamera rahmt dann zu Recht nur das
+				// Schiff und zieht erst nach dem Verschwinden des Hinweises (≈ 6 s) nach — die Prüfung fiel je nach Pfad genau in diese Übergangszeit. Für eine
+				// deterministische Prüfung wird der Hinweis weggenommen, und der Kaperer (kreist sonst frei) steht jedes Bild 30 m vor dem Bug.
+				_m.HudRef.HideAlert();
+				if (u.Ships.TryGetValue(_smRaider, out var pin))
+				{
+					var p = _m.Player.Position;
+					pin.Position = new Vec2(p.X, p.Z) + new Vec2(0f, -30f);
+					if (u.Fights.Of(pin.Id) is { } pfe && pfe.Of(pin.Id) is { } pfp) { pfp.Pos = pin.Position; pfp.PrevPos = pin.Position; }
+				}
+				return false;
+			}
 			case 520: FramingCheck(u, 30); return false;
 			case 521:
 			{
