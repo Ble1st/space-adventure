@@ -4,7 +4,7 @@ Ablauf je Punkt: Opus-Agent setzt im Worktree um → Sonnet-Agent testet (Build 
 Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so lassen“, Tests nur Sonnet.
 
 ## Laufend
-- [ ] 0 Gas und Nebel (Gassammler, Gasfelder, Gasraffinerie, Ionengas, Ionentriebwerk S/M, Gas in Schilden, Nebelsektoren zufällig, Nebelwirkung) + Fusionstreibstoff (Anreicherungsanlage, Fusionsantrieb L/XL) + Tankanzeige
+- [x] 0 Gas und Nebel (Gassammler, Gasfelder, Gasraffinerie, Ionengas, Ionentriebwerk S/M, Gas in Schilden, Nebelsektoren zufällig, Nebelwirkung) + Fusionstreibstoff (Anreicherungsanlage, Fusionsantrieb L/XL) + Tankanzeige
 
 ## Reihenfolge
 - [ ] 1 Eigene Flotte: Befehle „Angreifen“ (Schiff/Station/Tor) und „Verfolgen“ (über Sektorgrenzen, Ende bei Ziel weg/2400 Ticks/Sperre), max. 3 Taps, Zielkarte „Verband greift an“, Verbrechen außerhalb Krieg, Befehlsstufe, Einsatzregeln
@@ -26,3 +26,4 @@ Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so l
 
 ## Erledigt
 (Commits hier eintragen)
+- 0 Gas/Nebel/Fusion/Tankanzeige: f3a107a, 9a218b0, eccfe81 — Sonnet: 1458/1458 Tests, Selftest OK, UI-Check OK, Balance 20000 48ECEC8C1781997D / 60000 8B66C504B54B9DA3
