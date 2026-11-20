@@ -167,6 +167,13 @@ public class Runde36Tests
         var st = u.StationsById().First(s => s.Name == "Werft Hephaistos");
         var p = u.Ships[u.PlayerShip];
         var svc = new ShipDealerService();
+        // Pfadunabhängig (Punkt 3 änderte den Weg: zu Tick 2000 fehlten der Werft die Module aller Modelle mit leichtem Bausatz):
+        // Material des ersten Modells mit leichtem Bausatz, das die Werft verkauft, auf Lager legen; Geld genug
+        u.PlayerWallet.Credits = 1_000_000f;
+        var light = svc.Offers(u, st, p).Select(o => u.ShipModels.GetValueOrDefault(o.Key[4..])).FirstOrDefault(m => m is not null && u.ShipClasses[m.ClassKey].Kit == "ship_kit_light");
+        Assert.NotNull(light);
+        foreach (var need in ShipPurchase.Materials(u, light!) ?? Array.Empty<MaterialNeed>())
+            if (st.Market.TryGetValue(need.Good, out var e)) e.Amount = MathF.Max(e.Amount, need.Units);
         var offer = svc.Offers(u, st, p).FirstOrDefault(o => o.Amount > 0 && u.ShipModels.TryGetValue(o.Key[4..], out var m) && u.ShipClasses[m.ClassKey].Kit == "ship_kit_light");
         Assert.True(offer.Amount > 0, "kein kaufbares Schiff mit leichtem Bausatz");
         var kit = u.FindGood("ship_kit_light")!.Id;

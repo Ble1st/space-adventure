@@ -63,12 +63,34 @@ public static class ConvoyRules
         if (c is null)
         {
             if (FreeEscorts(u, f, at.Sector).Count == 0) return false;
+            // keine Wartezeit auf Verdacht: nur sammeln, wenn genug weitere Händler derselben Strecke innerhalb der Frist hier einkaufen
+            if (Incoming(u, f, at.Sector, sell.Sector, ship.Id) < Math.Max(1, r.ConvoyMinTraders) - 1) return false;
             c = new Convoy { Id = u.NextConvoyId++, Faction = f, From = at.Sector, To = sell.Sector, Formed = u.Tick };
             u.Convoys.Add(c);
         }
         c.Traders.Add(ship.Id);
         if (c.Traders.Count >= Math.Max(1, r.ConvoyMaxTraders)) Release(u, c);
         return true;
+    }
+
+    /// <summary>
+    /// Weitere Händler, die innerhalb von <see cref="EconomyRules.ConvoyWaitTicks"/> im Sektor <paramref name="from"/> einkaufen und nach <paramref name="to"/>
+    /// verkaufen (auf dem Weg zum Einkauf mit Ankunft in der Frist oder schon dort). Gleiche Bedingungen wie für das Mitfahren.
+    /// </summary>
+    public static int Incoming(Universe u, FactionId f, SectorId from, SectorId to, ShipId except)
+    {
+        int n = 0;
+        long until = u.Tick + u.Rules.ConvoyWaitTicks;
+        foreach (var id in u.Tracker.ParkedIn(from).Concat(u.Tracker.TransitIn(from)).Distinct())
+        {
+            if (id == except || !u.Ships.TryGetValue(id, out var s) || s.Controller != Controller.Ai || !s.IsEconomyAi || s.Command is not null) continue;
+            if (s.Order is not TradeOrder o || s.Phase != TradePhase.GoingToBuy || !u.Stations.TryGetValue(o.Buy, out var buy) || buy.Sector != from) continue;
+            if (!u.Stations.TryGetValue(o.Sell, out var sell) || sell.Sector != to) continue;
+            if (s.Owner != u.FreeActor && u.FactionOf(s) != f) continue;
+            if (s.Transit is { } t && (t.ToSector != from || t.ArrivalTick > until)) continue;
+            n++;
+        }
+        return n;
     }
 
     static bool Waiting(Universe u, ShipId id, out Ship ship) =>
@@ -130,7 +152,8 @@ public static class ConvoyRules
             {
                 c.Traders.RemoveAll(id => !Waiting(u, id, out _));
                 if (c.Traders.Count == 0) { u.Convoys.Remove(c); u.Events.Publish(new ConvoyDisbanded(c.Id, "empty", (int)(u.Tick - c.Formed))); continue; }
-                if (!r.Convoys || c.Traders.Count >= Math.Max(1, r.ConvoyMaxTraders) || u.Tick - c.Formed >= r.ConvoyWaitTicks) Release(u, c);
+                if (!r.Convoys || c.Traders.Count >= Math.Max(1, r.ConvoyMaxTraders) || u.Tick - c.Formed >= r.ConvoyWaitTicks
+                    || Incoming(u, c.Faction, c.From, c.To, default) == 0) Release(u, c);   // niemand kommt mehr: sofort los (mit Geleit ab der Mindestzahl)
                 continue;
             }
             var active = c.Traders.Where(id => EnRoute(u, c, id)).ToList();

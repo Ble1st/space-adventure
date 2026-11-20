@@ -211,12 +211,17 @@ public class SchutzKonvoiTests
         Assert.True(ThreatMap.RouteRisk(u, from.Id, sell.Sector) >= r.ConvoyRouteRisk);
         var cop = Make(u, "warden", ShipRole.Police, Controller.Ai, new ActorId(1), at);
         var traders = new List<Ship>();
+        // drei Händler kaufen an derselben Station für dieselbe Strecke ein (nur dann wird gesammelt — kein Warten auf Verdacht)
         for (int i = 0; i < 3; i++)
         {
             var t = Make(u, "unit_trader_100", ShipRole.Trader, Controller.Ai, u.FreeActor, at);
-            t.Cargo[good] = 10f; t.Order = new TradeOrder(at.Id, sell.Id, good); t.Phase = TradePhase.GoingToSell;
-            Assert.True(ConvoyRules.Hold(u, t, at, (TradeOrder)t.Order));
+            t.Order = new TradeOrder(at.Id, sell.Id, good); t.Phase = TradePhase.GoingToBuy;
             traders.Add(t);
+        }
+        foreach (var t in traders)
+        {
+            t.Cargo[good] = 10f; t.Phase = TradePhase.GoingToSell;
+            Assert.True(ConvoyRules.Hold(u, t, at, (TradeOrder)t.Order!));
         }
         var c = Assert.Single(u.Convoys);
         Assert.Equal(0, c.Departed);
@@ -256,10 +261,17 @@ public class SchutzKonvoiTests
         Make(u, "warden", ShipRole.Police, Controller.Ai, new ActorId(1), at);
         var t = Make(u, "unit_trader_100", ShipRole.Trader, Controller.Ai, u.FreeActor, at);
         t.Cargo[good] = 10f; t.Order = new TradeOrder(at.Id, sell.Id, good); t.Phase = TradePhase.GoingToSell;
+        // allein (niemand sonst kauft hier für dieselbe Strecke): fährt sofort, kein Warten auf Verdacht
+        Assert.False(ConvoyRules.Hold(u, t, at, (TradeOrder)t.Order));
+        Assert.Empty(u.Convoys);
+        // ein zweiter Händler, der nie kommt: höchstens ConvoyWaitTicks gewartet
+        u.Rules.ConvoyMinTraders = 2;
+        var late = Make(u, "unit_trader_100", ShipRole.Trader, Controller.Ai, u.FreeActor, at);
+        late.Order = new TradeOrder(at.Id, sell.Id, good); late.Phase = TradePhase.GoingToBuy;
         Assert.True(ConvoyRules.Hold(u, t, at, (TradeOrder)t.Order));
         u.Tick += u.Rules.ConvoyWaitTicks - 5;
         ConvoyRules.Step(u);
-        Assert.Null(t.Transit);   // wartet noch
+        Assert.Null(t.Transit);   // wartet noch auf den angemeldeten Händler
         u.Tick += 5;
         ConvoyRules.Step(u);
         Assert.NotNull(t.Transit);   // höchstens ConvoyWaitTicks gewartet
