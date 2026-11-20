@@ -170,9 +170,11 @@ public sealed class ResearchSystem : ISimSystem
 
             // 2) Budget aus der Fraktionskasse (nur solange es etwas zu erforschen gibt)
             // Phase 22: Forschung ist freiwillig — nur aus dem Teil der Kasse über der Betriebsreserve
-            if (project is not null && cfg.FundTarget > 0f && st.Credits < cfg.FundTarget && u.Actors.TryGetValue(st.Owner, out var owner) && FactionViability.Spendable(u, owner) > 0f)
+            // Punkt 13: verfügbares Budget einmal ermittelt (vorher zweimal hintereinander ohne Änderung dazwischen)
+            float spendable = 0f;
+            if (project is not null && cfg.FundTarget > 0f && st.Credits < cfg.FundTarget && u.Actors.TryGetValue(st.Owner, out var owner) && (spendable = FactionViability.Spendable(u, owner)) > 0f)
             {
-                float pay = MathF.Min(MathF.Min(cfg.FundTarget - st.Credits, cfg.FundPerTick * dt), FactionViability.Spendable(u, owner));
+                float pay = MathF.Min(MathF.Min(cfg.FundTarget - st.Credits, cfg.FundPerTick * dt), spendable);
                 if (pay > 0f)
                 {
                     owner.Treasury.Credits -= pay;

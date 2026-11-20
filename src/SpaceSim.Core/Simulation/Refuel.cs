@@ -105,10 +105,15 @@ public static class Refuel
     }
 
     /// <summary>Stationen, die die Ware mit Bestand und Preis führen, fest nach Id geordnet.</summary>
-    public static List<Station> FuelStations(Universe u, GoodId good) =>
-        u.Stations.Values
-         .Where(s => s.Market.TryGetValue(good, out var e) && e.Amount > 0f && e.Price > 0f)
-         .OrderBy(s => s.Id.Value).ToList();
+    public static List<Station> FuelStations(Universe u, GoodId good)
+    {
+        var list = new List<Station>();
+        foreach (var s in u.StationsById()) if (SellsFuel(s, good)) list.Add(s);
+        return list;
+    }
+
+    /// <summary>Punkt 13: Bedingung von <see cref="FuelStations"/> (Bestand und Preis &gt; 0).</summary>
+    static bool SellsFuel(Station s, GoodId good) => s.Market.TryGetValue(good, out var e) && e.Amount > 0f && e.Price > 0f;
 
     /// <summary>
     /// Nächste Tankstelle für das Schiff (kürzeste geschätzte Reisezeit, dann Id), deren Anflug höchstens
@@ -118,8 +123,10 @@ public static class Refuel
     {
         Station? best = null;
         float bestTime = float.PositiveInfinity;
-        foreach (var st in FuelStations(u, good))
+        // Punkt 13: dieselbe Reihenfolge wie FuelStations (nach Id), ohne Liste und Sortierung je Aufruf
+        foreach (var st in u.StationsById())
         {
+            if (!SellsFuel(st, good)) continue;
             if (st.Id == exclude || !Docking.Allows(u, st, ship)) continue;   // Phase 30
             float time = Travel.Estimate(u, ship.Sector, ship.Position, st.Sector, st.DockPoint(ship.Id), ship);
             if (float.IsPositiveInfinity(time) || time >= bestTime) continue;
@@ -230,6 +237,19 @@ public static class Refuel
         if (good is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
         float d = distanceToBuy
                 + Travel.EstimateDistance(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), GateAccess.ProfileOf(u, ship) with { Laden = true });
+        return Consumption(ship, d, good) * fuelPrice;
+    }
+
+    /// <summary>
+    /// Punkt 13 (Rechenzeit): <see cref="TripFuelCost(Universe, Ship, Station, Station, float, float)"/> mit der schon bekannten Strecke Kauf → Verkauf
+    /// (beladenes Profil, <see cref="Travel.EstimateWithDistance"/>) — dieselbe Rechnung ohne die zweite Routen- und Streckenschätzung.
+    /// </summary>
+    internal static float TripFuelCostWithLeg(Universe u, Ship ship, float distanceToBuy, float buyToSell, float fuelPrice)
+    {
+        if (!Active(u)) return 0f;
+        var good = ActiveFuel(ship);
+        if (good is null || ship.Stats.FuelUsePerUnit <= 0f) return 0f;
+        float d = distanceToBuy + buyToSell;
         return Consumption(ship, d, good) * fuelPrice;
     }
 

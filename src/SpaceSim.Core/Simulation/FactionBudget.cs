@@ -66,9 +66,13 @@ public static class Maintenance
     /// Phase 17: der Typ-Teil von <see cref="IsPureEntry"/> (keine Exportware, kein Typ-Lagerposten) — für Aufrufer, die schon wissen, dass der Eintrag
     /// ein Lager ohne Rezept ist und die Ware ein Instandhaltungsmaterial (Markt-Takt über die aufgelösten Instandhaltungswaren).
     /// </summary>
-    public static bool IsPureTypeEntry(Universe u, Station st, GoodId g)
+    public static bool IsPureTypeEntry(Universe u, Station st, GoodId g) =>
+        IsPureTypeEntry(u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t : null, g);
+
+    /// <summary>Punkt 13: wie oben mit dem schon gesuchten Stationstyp (null = unbekannter Typ → false).</summary>
+    public static bool IsPureTypeEntry(StationType? t, GoodId g)
     {
-        if (!u.StationTypes.TryGetValue(st.TypeKey, out var t)) return false;
+        if (t is null) return false;
         if (t.Export is { } x && x.Goods.Contains(g)) return false;
         foreach (var stock in t.Stocks) if (stock.Good == g) return false;
         return true;
@@ -97,6 +101,7 @@ public sealed class MaintenanceSystem : ISimSystem
         if (u.Rules.MaintenanceShare <= 0f) return;
         if (!ReferenceEquals(_rulesFor, u.Rules)) { _needs.Clear(); _rulesFor = u.Rules; }
         var paid = new SortedDictionary<int, (float Paid, float Unpaid)>();
+        var parts = new Dictionary<int, FactionViability.SpendableParts>();
         bool touched = false;
         float day = MathF.Max(1f, u.Rules.DayTicks);
         foreach (var st in u.StationsById().ToList())
@@ -126,7 +131,13 @@ public sealed class MaintenanceSystem : ISimSystem
             if (value <= 0f) continue;
             // Kasse erstattet der Station das verbrauchte Material; reicht sie nicht, trägt die Station den Rest selbst
             // Phase 22: freiwillige Ausgabe — nur aus dem Teil der Kasse über der Betriebsreserve (FactionViability.Spendable)
-            float fromTreasury = u.Actors.TryGetValue(faction, out var actor) ? MathF.Min(value, FactionViability.Spendable(u, actor)) : 0f;
+            // Punkt 13: Reserve und Ersatzkosten je Akteur einmal je Schritt (in dieser Schleife fließen nur Kassen und Lager)
+            float fromTreasury = 0f;
+            if (u.Actors.TryGetValue(faction, out var actor))
+            {
+                if (!parts.TryGetValue(actor.Id.Value, out var pa)) parts[actor.Id.Value] = pa = FactionViability.PartsOf(u, actor);
+                fromTreasury = MathF.Min(value, FactionViability.Spendable(pa, actor));
+            }
             if (actor is not null) actor.Treasury.Credits -= fromTreasury;
             st.Credits += fromTreasury;
             var cur = paid.GetValueOrDefault(faction.Value);
@@ -155,10 +166,12 @@ public sealed class SubsidySystem : ISimSystem
         {
             if (!u.Actors.TryGetValue(f, out var actor)) continue;
             float spent = 0f;
+            // Punkt 13: Reserve und Ersatzkosten ändern sich in dieser Schleife nicht (nur Kassen fließen) — einmal je Fraktion statt je Station
+            var parts = FactionViability.PartsOf(u, actor);
             foreach (var st in stations)
             {
                 // Phase 22: freiwillige Ausgabe — Rücklage der Regel und Betriebsreserve der Fraktion bleiben
-                float budget = MathF.Min(actor.Treasury.Credits - u.Rules.SubsidyReserve, FactionViability.Spendable(u, actor));
+                float budget = MathF.Min(actor.Treasury.Credits - u.Rules.SubsidyReserve, FactionViability.Spendable(parts, actor));
                 if (budget <= 0f) break;
                 if (u.FactionOf(st) != f || !Eligible(u, st)) continue;
                 float floor = WorkingCapital.Of(u, st) * u.Rules.SubsidyFloorShare;

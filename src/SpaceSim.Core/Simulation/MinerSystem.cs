@@ -98,6 +98,9 @@ public sealed class MinerSystem : ISimSystem
                 foreach (var other in u.Ships.Values)
                     if (other != ship && other.Order is MineOrder mo && mo.Sector == sector.Id && mo.Field == fi) crowd++;
                 float crowding = 1f / (1f + CrowdPenalty * crowd);
+                // Punkt 13 (Rechenzeit): Anflug zum Feld und Arbeitspunkt hängen nicht an der Station — einmal je Feld (bei Bedarf) statt je Station
+                var workPoint = field.WorkPoint(ship.Id);
+                float toField = float.NaN;
                 foreach (var st in u.Stations.Values)
                 {
                     if (limits is not null && !AutoLimitRules.InRange(u, limits, st.Sector)) continue;
@@ -108,12 +111,13 @@ public sealed class MinerSystem : ISimSystem
                     if (value < basis * MinPriceFactor) continue;
                     if (!TraderSystem.CanAfford(st, value, ship.CapacityVolumeFor(GoodForm.Solid))) continue;
                     if (!u.IsReachable(sector.Id, st.Sector, laden)) continue;
-                    float time = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, field.WorkPoint(ship.Id), ship) + mineTicks
-                               + Travel.Estimate(u, sector.Id, field.WorkPoint(ship.Id), st.Sector, st.DockPoint(ship.Id), ship, laden);
+                    if (float.IsNaN(toField)) toField = Travel.Estimate(u, ship.Sector, ship.Position, sector.Id, workPoint, ship);
+                    float time = toField + mineTicks
+                               + Travel.Estimate(u, sector.Id, workPoint, st.Sector, st.DockPoint(ship.Id), ship, laden);
                     // Phase 11: Risikoabschlag aus der Lagekarte — Liegezeit im Feldsektor und beladene Fahrt zur Station
                     float risk = MathF.Min(0.5f, ThreatMap.RiskOf(u, sector.Id) + ThreatMap.RouteRisk(u, sector.Id, st.Sector));
                     float score = value / time * crowding * (1f - risk);
-                    if (score > bestScore) { bestScore = score; bestFieldPos = field.WorkPoint(ship.Id); best = new MineOrder(sector.Id, fi, st.Id); }
+                    if (score > bestScore) { bestScore = score; bestFieldPos = workPoint; best = new MineOrder(sector.Id, fi, st.Id); }
                 }
             }
         }
@@ -323,8 +327,15 @@ public sealed class MinerSystem : ISimSystem
             var current = sector.Asteroids.FirstOrDefault(a => a.Id == ship.MineAsteroid);
             if (current is { Minable: true }) return current;
         }
-        var rocks = Belt.AsteroidsOf(sector, field).OrderBy(a => Vec2.Distance(a.Position, ship.Position) - a.Radius).ThenBy(a => a.Id).ToList();
-        var pick = rocks.FirstOrDefault(a => Vec2.Distance(a.Position, ship.Position) - a.Radius <= MiningRules.LaserRange) ?? rocks.FirstOrDefault();
+        // Punkt 13 (Rechenzeit): vorher sortiert nach (Abstand zur Oberfläche, Id) und der erste in Laserreichweite, sonst der erste — beides ist das erste
+        // Element der Sortierung, also das Minimum nach (Abstand, Id); ohne Liste und Sortierung
+        Asteroid? pick = null;
+        float bestKey = 0f;
+        foreach (var a in Belt.AsteroidsOf(sector, field))
+        {
+            float key = Vec2.Distance(a.Position, ship.Position) - a.Radius;
+            if (pick is null || key < bestKey || (key == bestKey && a.Id < pick.Id)) { pick = a; bestKey = key; }
+        }
         ship.MineAsteroid = pick?.Id ?? 0;
         return pick;
     }

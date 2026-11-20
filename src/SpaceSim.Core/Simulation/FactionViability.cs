@@ -32,7 +32,8 @@ public static class FactionViability
     {
         var r = u.Rules;
         float sum = 0f;
-        foreach (var st in u.StationsById())
+        // Punkt 13: nur die Kandidaten (Stationen mit Regierungstyp, nach Id) statt aller Stationen; Bedingungen unverändert live geprüft
+        foreach (var st in u.GovernmentCandidates())
             if (!st.IsBuildSite && st.Owner == (ActorId)f && u.StationTypes.TryGetValue(st.TypeKey, out var t) && t.Government != GovernmentKind.None)
                 sum += MathF.Max(0f, t.UpkeepPerTick - t.IncomePerTick);
         if (r.SecurityActive) sum += r.PoliceMinPerFaction * r.PoliceUpkeepPerTick;
@@ -56,6 +57,20 @@ public static class FactionViability
         a.IsNpcFaction(u) ? MathF.Max(0f, a.Treasury.Credits - ReserveOf(u, a) - ReplacementCost(u, new FactionId(a.Id.Value))) : MathF.Max(0f, a.Treasury.Credits);
 
     /// <summary>
+    /// Punkt 13 (Rechenzeit): die Abzüge von <see cref="Spendable"/> (Reserve, Ersatzkosten) einmal ermittelt, für Schleifen, in denen sich nur die Kasse
+    /// ändert (Subventionen, Forschungsbudget). <see cref="Spendable(SpendableParts, Actor)"/> rechnet dann exakt wie <see cref="Spendable(Universe, Actor)"/>.
+    /// </summary>
+    public readonly record struct SpendableParts(bool Npc, float Reserve, float Replacement);
+
+    /// <inheritdoc cref="SpendableParts"/>
+    public static SpendableParts PartsOf(Universe u, Actor a) =>
+        a.IsNpcFaction(u) ? new SpendableParts(true, ReserveOf(u, a), ReplacementCost(u, new FactionId(a.Id.Value))) : new SpendableParts(false, 0f, 0f);
+
+    /// <inheritdoc cref="SpendableParts"/>
+    public static float Spendable(SpendableParts p, Actor a) =>
+        p.Npc ? MathF.Max(0f, a.Treasury.Credits - p.Reserve - p.Replacement) : MathF.Max(0f, a.Treasury.Credits);
+
+    /// <summary>
     /// Was der Ersatz eines fehlenden Mindestbestands ungefähr kostet (Material des Modells zum Basispreis, Bauschiff zuzüglich Startkapital); 0, wenn nichts fehlt
     /// oder die Regel aus ist. Freiwillige Ausgaben lassen diesen Betrag in der Kasse — der Ersatz hat Vorrang.
     /// </summary>
@@ -63,8 +78,8 @@ public static class FactionViability
     {
         if (!u.Rules.FactionKeepsReserve) return 0f;
         float cost = 0f;
-        if (PoliceRequired(u) && SecuritySystem.PoliceOf(u, f).Count < u.Rules.PoliceMinPerFaction) cost += BaseValue(u, u.Rules.PoliceModel);
-        if (BuildersRequired(u) && FactionBuilderSystem.Of(u, f).Count < u.Rules.MinBuildersPerFaction)
+        if (PoliceRequired(u) && PoliceBelow(u, f, u.Rules.PoliceMinPerFaction)) cost += BaseValue(u, u.Rules.PoliceModel);
+        if (BuildersRequired(u) && BuildersBelow(u, f, u.Rules.MinBuildersPerFaction))
         {
             var model = u.ShipModels.Values.Where(m => m.Jobs.Contains("build")).OrderBy(m => m.Key, StringComparer.Ordinal).FirstOrDefault();
             if (model is not null) cost += BaseValue(u, model.Key) + u.Rules.NewShipStartCredits;
@@ -82,8 +97,47 @@ public static class FactionViability
 
     /// <summary>Fehlt der Fraktion etwas vom Mindestbestand (Polizei oder Bauschiff)? Dann hat der Ersatz Vorrang vor allen freiwilligen Ausgaben.</summary>
     public static bool MinimumMissing(Universe u, FactionId f) =>
-        (PoliceRequired(u) && SecuritySystem.PoliceOf(u, f).Count < u.Rules.PoliceMinPerFaction)
-        || (BuildersRequired(u) && FactionBuilderSystem.Of(u, f).Count < u.Rules.MinBuildersPerFaction);
+        (PoliceRequired(u) && PoliceBelow(u, f, u.Rules.PoliceMinPerFaction))
+        || (BuildersRequired(u) && BuildersBelow(u, f, u.Rules.MinBuildersPerFaction));
+
+    /// <summary>
+    /// Punkt 13 (Rechenzeit): hat die Fraktion weniger als <paramref name="min"/> Polizeischiffe? Gleiche Auswahl wie <see cref="SecuritySystem.PoliceOf"/>
+    /// (dessen Anzahl), aber ohne Liste und mit Abbruch, sobald das Minimum erreicht ist — <see cref="Spendable"/> läuft je Forschungsstation und Tick.
+    /// </summary>
+    static bool PoliceBelow(Universe u, FactionId f, int min) =>
+        Below(u, 0, f, min, static (uu, s, ff) => ThreatMap.IsPolice(s) && uu.FactionOf(s) == ff);
+
+    /// <summary>Punkt 13: wie <see cref="PoliceBelow"/> für die Fraktions-Bauschiffe (<see cref="FactionBuilderSystem.Of"/>).</summary>
+    static bool BuildersBelow(Universe u, FactionId f, int min) =>
+        Below(u, 1, f, min, static (uu, s, ff) => FactionBuilderSystem.IsFactionBuilder(uu, s) && s.Owner.Value == ff.Value);
+
+    /// <summary>
+    /// Punkt 13: „weniger als <paramref name="min"/> Schiffe erfüllen <paramref name="match"/>?“ — exakt wie die Zählung über alle Schiffe. Gemerkt werden die
+    /// Schiffe, die das Minimum zuletzt erreicht haben (Zeugen): Sind sie noch dieselben Objekte unter ihrer Id im Universum und erfüllen die Bedingung noch
+    /// (live geprüft), sind es mindestens <paramref name="min"/> — ohne alle Schiffe zu durchsuchen. Sonst wird wie vorher gezählt und neu gemerkt.
+    /// </summary>
+    static bool Below(Universe u, int kind, FactionId f, int min, Func<Universe, Ship, FactionId, bool> match)
+    {
+        if (min <= 0) return false;
+        var key = (kind, f.Value, min);
+        if (u.PerfCaches && u.ViabilityWitness.TryGetValue(key, out var w))
+        {
+            bool ok = true;
+            foreach (var s in w)
+                if (!u.Ships.TryGetValue(s.Id, out var cur) || !ReferenceEquals(cur, s) || !match(u, s, f)) { ok = false; break; }
+            if (ok) return false;
+        }
+        var found = new Ship[min];
+        int n = 0;
+        foreach (var s in u.ShipsById())
+            if (match(u, s, f))
+            {
+                found[n++] = s;
+                if (n >= min) { u.ViabilityWitness[key] = found; return false; }
+            }
+        u.ViabilityWitness.Remove(key);
+        return true;
+    }
 
     static bool PoliceRequired(Universe u) =>
         u.Rules.SecurityActive && u.Rules.PoliceMinPerFaction > 0 && u.ShipModels.ContainsKey(u.Rules.PoliceModel);

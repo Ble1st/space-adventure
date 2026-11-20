@@ -184,9 +184,16 @@ public sealed class PirateSystem : ISimSystem
     {
         float reach = from is null ? 0f : u.Rules.RaidReach;   // Runde 44: nur Opfer in Reichweite des Kaperers
         var list = new List<(Ship, float)>();
-        var ids = u.Tracker.ParkedIn(sector).Concat(u.Tracker.TransitIn(sector)).Distinct().OrderBy(i => i.Value);
-        foreach (var id in ids)
+        // Punkt 13 (Rechenzeit): Ids sortiert und ohne Doppelte wie Concat/Distinct/OrderBy, ohne LINQ-Kette je Aufruf (läuft je lauerndem Kaperschiff und Tick)
+        var ids = t_policeIds ??= new List<ShipId>();
+        ids.Clear();
+        foreach (var id in u.Tracker.ParkedIn(sector)) ids.Add(id);
+        foreach (var id in u.Tracker.TransitIn(sector)) ids.Add(id);
+        ids.Sort(static (a, b) => a.Value.CompareTo(b.Value));
+        for (int ii = 0; ii < ids.Count; ii++)
         {
+            var id = ids[ii];
+            if (ii > 0 && ids[ii - 1] == id) continue;
             if (!u.Ships.TryGetValue(id, out var s) || ThreatMap.IsPolice(s) || ThreatMap.IsRaider(s) || u.Fights.IsEngaged(s.Id)) continue;
             bool player = s.IsPlayer;
             // Phase 12: nicht aktive Spielerschiffe (Flotte) nur mit FleetRaids, das aktive nur mit PlayerRaids im Spielersektor
@@ -204,6 +211,8 @@ public sealed class PirateSystem : ISimSystem
         }
         return list;
     }
+
+    [ThreadStatic] static List<ShipId>? t_policeIds;
 
     /// <summary>Polizeischiffe der Sektorfraktion, die gerade im Sektor sind (feste Reihenfolge).</summary>
     public static List<Ship> PoliceIn(Universe u, SectorId sector, Vec2? near = null)

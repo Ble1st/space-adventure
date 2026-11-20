@@ -94,7 +94,18 @@ public static class PathPlanner
                     float a = k * MathF.PI / 8f;
                     cand.Add(c + new Vec2(MathF.Cos(a), MathF.Sin(a)) * r);
                 }
-        cand.RemoveAll(w => obstacles.Any(o => Vec2.Distance(w, o.Position) < o.Radius + margin));
+        // Punkt 13 (Rechenzeit): Kandidaten in einem Hindernis entfernen — mit Rechteck-Vorprüfung (weiter als Radius + Abstand + 1 in einer Achse = sicher draußen)
+        cand.RemoveAll(w =>
+        {
+            for (int i = 0; i < obstacles.Count; i++)
+            {
+                var o = obstacles[i];
+                float r = o.Radius + margin;
+                if (MathF.Abs(w.X - o.Position.X) > r + 1f || MathF.Abs(w.Y - o.Position.Y) > r + 1f) continue;
+                if (Vec2.Distance(w, o.Position) < r) return true;
+            }
+            return false;
+        });
         List<Vec2>? best = null; float bestLen = float.MaxValue;
         var fromOk = new List<Vec2>();
         foreach (var w in cand)
@@ -165,9 +176,16 @@ public static class PathPlanner
         float bestT = float.MaxValue;
         var ab = b - a;
         float len2 = ab.Dot(ab);
-        foreach (var o in obs)
+        float m = M;
+        // Punkt 13 (Rechenzeit): Rechteck um die Strecke — ein Hindernis, dessen Kreis (mit Sicherheitsabstand und 1 Einheit Spiel gegen Rundung) es nicht
+        // berührt, kann die Strecke nicht blockieren (der nächste Streckenpunkt liegt im Rechteck). Überspringt nur Nicht-Blocker: Ergebnis unverändert.
+        float minX = MathF.Min(a.X, b.X), maxX = MathF.Max(a.X, b.X), minY = MathF.Min(a.Y, b.Y), maxY = MathF.Max(a.Y, b.Y);
+        for (int i = 0; i < obs.Count; i++)
         {
-            float r = o.Radius + M;
+            var o = obs[i];
+            float r = o.Radius + m;
+            float reach = r + 1f;
+            if (o.Position.X + reach < minX || o.Position.X - reach > maxX || o.Position.Y + reach < minY || o.Position.Y - reach > maxY) continue;
             // Ziel im Hindernis (z.B. Andockpunkt am Rand): ignorieren. Start im Hindernis: nur ignorieren, wenn man sich davon
             // wegbewegt – sonst wäre es genau das Hindernis, in das man hineinfliegt.
             if (Vec2.Distance(b, o.Position) < r) continue;

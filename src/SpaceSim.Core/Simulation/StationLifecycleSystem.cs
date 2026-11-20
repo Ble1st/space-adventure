@@ -70,22 +70,33 @@ public sealed class StationLifecycleSystem : ISimSystem
                 foreach (var r in st.Production) { foreach (var g in r.Outputs.Keys) produced.Add(g); foreach (var g in r.Inputs.Keys) consumed.Add(g); }
             }
         }
+        // Punkt 13 (Rechenzeit): Wunschbestand und Bestand je Ware in einem Durchgang über die Stationen (vorher je Ware alle Stationen durchsucht);
+        // je Ware dieselbe Summationsreihenfolge (Stationen in Dictionary-Reihenfolge), also dieselben Werte
+        int bound = u.GoodIdBound;
+        var targetSum = new double[bound];
+        var amountSum = new double[bound];
+        var anySeen = new bool[bound];
+        foreach (var st in u.Stations.Values)
+        {
+            if (st.IsBuildSite) continue;
+            foreach (var (g, e) in st.Market)
+            {
+                int gi = g.Value;
+                if ((uint)gi >= (uint)bound) continue;
+                anySeen[gi] = true;
+                targetSum[gi] += e.Target;
+                amountSum[gi] += e.Amount;
+            }
+        }
         foreach (var good in u.Goods.Values)
         {
             // Knappheit aus den Beständen (Wunschbestand / Bestand über alle Stationen), nicht aus Preisen: Preise sind durch die
             // Zahlungsbereitschaft der Fabriken gedeckelt und würden Überangebot vortäuschen.
             // Phase 8: Baustellen sind keine Märkte (ihr Wunschbestand ist eine Stückliste) und zählen nicht mit
             // Phase 14: Exportsenken zählen mit — ihre Nachfrage (leeres Ankauflager) lässt Hersteller von Endwaren entstehen
-            double target = 0, amount = 0;   // in double summiert wie LINQ Sum bis Phase 17
-            bool any = false;
-            foreach (var st in u.Stations.Values)
-            {
-                if (st.IsBuildSite || !st.Market.TryGetValue(good.Id, out var e)) continue;
-                any = true;
-                target += e.Target;
-                amount += e.Amount;
-            }
-            if (!any) continue;
+            int gid = good.Id.Value;   // in double summiert wie LINQ Sum bis Phase 17
+            if ((uint)gid >= (uint)bound || !anySeen[gid]) continue;
+            double target = targetSum[gid], amount = amountSum[gid];
             float ratio = (float)target / MathF.Max(1f, (float)amount);
             // nur Waren, die ein Stationstyp herstellen kann (Erze fördern Schürfer — für sie gilt die Lagermessung wie bisher)
             if (produced is not null && consumed!.Contains(good.Id) && !produced.Contains(good.Id)

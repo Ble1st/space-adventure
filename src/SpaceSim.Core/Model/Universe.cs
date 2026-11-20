@@ -184,6 +184,15 @@ public sealed class Universe
     /// </summary>
     public Combat.RecoveryIndex Recovering { get; } = new();
     /// <summary>
+    /// Punkt 13 (Rechenzeit): Schalter für die neuen Zwischenspeicher (Sektorpfade, Regierungsstationen, Zeugen des Mindestbestands). Aus = jedes Mal neu
+    /// gerechnet wie vorher — nur für Vergleichstests (gleicher Hash mit und ohne); nicht gespeichert, nicht im Hash.
+    /// </summary>
+    public bool PerfCaches { get; set; } = true;
+    /// <summary>Punkt 13 (Rechenzeit): Zwischenspeicher der NPC-Sektorpfade (<see cref="Simulation.SectorPathCache"/>) — abgeleitet, nicht gespeichert.</summary>
+    public Simulation.SectorPathCache PathCache { get; } = new();
+    /// <summary>Punkt 13: Zeugen der Mindestbestands-Prüfung (<see cref="Simulation.FactionViability"/>) — abgeleitet, nicht gespeichert.</summary>
+    public Dictionary<(int Kind, int Faction, int Min), Ship[]> ViabilityWitness { get; } = new();
+    /// <summary>
     /// Phase 24 (KAMPF.md 4.1): laufende Gefechte (gespeichert und gehasht) und der abgeleitete Index Schiff → Gefecht. Ausgeführt von
     /// <see cref="Combat.CombatSystem"/>; Schiffe im Gefecht sind für Handel, Bergbau und Befehle gesperrt.
     /// </summary>
@@ -617,6 +626,42 @@ public sealed class Universe
     {
         if (!SnapshotValid(_stationsById, Stations, s => s.Id)) _stationsById = Stations.Values.OrderBy(s => s.Id.Value).ToList();
         return _stationsById;
+    }
+
+    // Punkt 13 (Rechenzeit): Stationen, deren Typ eine Regierungsart hat (Kandidaten für FactionViability.ObligatoryPerTick), nach Id. Gültig, solange
+    // StationsById dieselbe Liste liefert (gleiche Stationsmenge) und jeder Stationstyp dasselbe Objekt mit derselben Regierungsart ist. Der Typ einer
+    // Station steht nur bei ihrer Erstellung fest (StationFactory, Fertigstellung ersetzt das Objekt).
+    List<Station> _govCandidates = new();
+    IReadOnlyList<Station>? _govFor;
+    StationType[] _govTypes = Array.Empty<StationType>();
+    GovernmentKind[] _govKinds = Array.Empty<GovernmentKind>();
+
+    /// <summary>Punkt 13: Stationen mit Regierungstyp nach Id (Obermenge für Prüfungen, die Typ und Besitzer selbst noch einmal ansehen).</summary>
+    public IReadOnlyList<Station> GovernmentCandidates()
+    {
+        var all = StationsById();
+        if (!PerfCaches) return all;
+        bool valid = ReferenceEquals(all, _govFor) && _govTypes.Length == StationTypes.Count;
+        if (valid)
+        {
+            int i = 0;
+            foreach (var t in StationTypes.Values)
+            {
+                if (!ReferenceEquals(t, _govTypes[i]) || t.Government != _govKinds[i]) { valid = false; break; }
+                i++;
+            }
+        }
+        if (!valid)
+        {
+            _govFor = all;
+            _govTypes = StationTypes.Values.ToArray();
+            _govKinds = _govTypes.Select(t => t.Government).ToArray();
+            var list = new List<Station>();
+            foreach (var st in all)
+                if (StationTypes.TryGetValue(st.TypeKey, out var t) && t.Government != GovernmentKind.None) list.Add(st);
+            _govCandidates = list;
+        }
+        return _govCandidates;
     }
 
     static bool SnapshotValid<TId, T>(List<T> list, Dictionary<TId, T> dict, Func<T, TId> id) where TId : notnull where T : class

@@ -22,6 +22,8 @@ public sealed class JobAssignmentSystem : ISimSystem
         foreach (var ship in u.ShipsById())   // Schnappschuss nach Id (Phase 17: zwischengespeichert statt je Tick sortiert)
         {
             if (!IsIdle(u, ship) || ship.Controller != Controller.Ai) continue;   // Phase 17: billige Prüfung vor der Aufgabenliste
+            // Punkt 13: ein Modell mit weniger als zwei Aufgaben-Schlüsseln ergibt nie zwei Aufgaben (Spezialisten) — ohne Listen je Schiff und Tick
+            if (!ship.HasModel || !u.ShipModels.TryGetValue(ship.ModelKey, out var shipModel) || shipModel.Jobs.Count < 2) continue;
             var jobs = ShipJobs.Of(u, ship).Where(_jobs.Contains).ToList();
             if (jobs.Count < 2) continue;
             var current = ShipJobs.ForRole(ship.Role);

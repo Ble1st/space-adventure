@@ -58,6 +58,7 @@ public sealed class TraderSystem : ISimSystem
     [ThreadStatic] static Dictionary<(StationId, GoodId), float>? t_reserved;
     [ThreadStatic] static Dictionary<StationId, (float ToBuy, float DistToBuy, float FuelPrice)>? t_buyLeg;
     [ThreadStatic] static Dictionary<(StationId, StationId), (float ToSell, float FuelCost, float Risk)>? t_sellLeg;
+    [ThreadStatic] static Dictionary<(SectorId, SectorId), (List<GateId>? Route, float Risk)>? t_risk;
 
     public static (TradeOrder? Order, float Score) BestTrade(Universe u, Ship ship)
     {
@@ -69,6 +70,8 @@ public sealed class TraderSystem : ISimSystem
         var buyLegs = t_buyLeg ??= new Dictionary<StationId, (float, float, float)>();
         var sellLegs = t_sellLeg ??= new Dictionary<(StationId, StationId), (float, float, float)>();
         buyLegs.Clear(); sellLegs.Clear();
+        var risks = t_risk ??= new Dictionary<(SectorId, SectorId), (List<GateId>? Route, float Risk)>();
+        risks.Clear();
         foreach (var o in u.Ships.Values)
             if (o.Order is TradeOrder to && o.Phase == TradePhase.GoingToBuy)
                 reserved[(to.Buy, to.Good)] = reserved.GetValueOrDefault((to.Buy, to.Good)) + o.CapacityVolumeFor(u, to.Good) / u.Goods[to.Good].VolumePerUnit;
@@ -103,7 +106,8 @@ public sealed class TraderSystem : ISimSystem
         float upkeepPerTick = u.Rules.TripCountsUpkeep ? u.Rules.ShipUpkeepPerTick : 0f;
         var fuelGood = Refuel.Active(u) ? Refuel.ActiveFuel(ship) : null;   // Phase 14: Treibstoff aus = keine Treibstoffkosten
         // Phase 10: Die Verkaufsfahrt geht beladen — mit diesem Profil schätzen, damit ein Embargo die Route schon hier ausschließt
-        var ladenProfile = GateAccess.ProfileOf(u, ship) with { Laden = true };
+        var shipProfile = GateAccess.ProfileOf(u, ship);   // Punkt 13: einmal je Aufruf (der Zustand des Schiffs ändert sich in der Bewertung nicht)
+        var ladenProfile = shipProfile with { Laden = true };
         // Treibstoffpreis wie Refuel.FuelPrice (aktuelle Station, sonst Kaufstation, sonst Durchschnitt), aber nur einmal je Suche ermittelt
         float fuelHere = 0f, fuelAvg = 0f;
         if (fuelGood is { } fg)
@@ -119,6 +123,9 @@ public sealed class TraderSystem : ISimSystem
             var traders = u.StationsTrading(good.Id);
             if (traders.Count < 2) continue;
             var entries = u.StationsTradingEntries(good.Id);   // Phase 17: Eintrag i = Markt der Station i (spart die Suche je Paar)
+            // Punkt 13: höchster Preis der Ware (obere Schranke jeder Spanne) für die Schranke je Kaufstation unten
+            float maxSell = float.NegativeInfinity;
+            for (int k = 0; k < entries.Count; k++) maxSell = MathF.Max(maxSell, entries[k].Price);
             for (int bi = 0; bi < traders.Count; bi++)
             {
                 var buy = traders[bi];
@@ -136,19 +143,26 @@ public sealed class TraderSystem : ISimSystem
                 if (b.Price <= 0f) continue;
                 units = MathF.Min(units, MathF.Floor(spendable / b.Price));
                 if (units < 1f) continue;
+                // Punkt 13 (Rechenzeit): Schranke wie je Paar unten, mit der höchsten Spanne der Ware und Fahrzeit ≥ 2 (Hin- und Weiterweg je ≥ 1 Tick) —
+                // kann keine Verkaufsstation diese Kaufstation über das bisher Beste heben, entfällt die Suche samt Hinweg-Schätzung
+                if (units * (maxSell - b.Price) / 2f * 1.001f + 0.01f - upkeepPerTick <= bestScore) continue;
                 if (!buyLegs.TryGetValue(buy.Id, out var leg))
                 {
-                    float tb = Travel.Estimate(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
+                    // Punkt 13: Reisezeit und Strecke des Hinwegs in einem Durchgang mit dem einmal ermittelten Profil des Schiffs (gleiche Route, gleiche Rechnung)
+                    float tb = Travel.EstimateWithDistance(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship, shipProfile, out float distBuy);
                     float fp = fuelHere > 0f ? fuelHere
                         : fuelGood is { } fgb && buy.Market.TryGetValue(fgb, out var be) && be.Price > 0f ? be.Price : fuelAvg;
-                    float db = fuelGood is null || float.IsPositiveInfinity(tb) ? 0f : Travel.EstimateDistance(u, ship.Sector, ship.Position, buy.Sector, buy.DockPoint(ship.Id), ship);
+                    float db = fuelGood is null || float.IsPositiveInfinity(tb) ? 0f : distBuy;
                     buyLegs[buy.Id] = leg = (tb, db, fp);
                 }
                 float toBuy = leg.ToBuy;
                 if (float.IsPositiveInfinity(toBuy)) continue;
                 float fuelPrice = leg.FuelPrice, distToBuy = leg.DistToBuy;
+                if (units * (maxSell - b.Price) / (toBuy + 1f) * 1.001f + 0.01f - upkeepPerTick <= bestScore) continue;   // Punkt 13: dieselbe Schranke mit dem Hinweg
                 for (int si = 0; si < traders.Count; si++)
                 {
+                    // Punkt 13: billigste Prüfung zuerst (reine Filter, Reihenfolge ohne Einfluss auf das Ergebnis)
+                    if (entries[si].Price - b.Price <= 0f) continue;
                     var sell = traders[si];
                     if (sell.Id == buy.Id) continue;
                     if (!Docking.Allows(sell, shipSize)) continue;   // Phase 30
@@ -156,6 +170,10 @@ public sealed class TraderSystem : ISimSystem
                     var s = entries[si];
                     float margin = s.Price - b.Price;
                     if (margin <= 0f) continue;
+                    // Punkt 13 (Rechenzeit): obere Schranke der Bewertung — Gewinn ≤ Menge × Spanne, Treibstoff und Risiko ≥ 0, Fahrzeit ≥ Hinweg + 1 (jede Schätzung
+                    // zählt mindestens einen Tick), Unterhalt je Tick fest. Kann das Paar selbst mit Spielraum gegen Rundung (0,1 % + 0,01) das bisher Beste nicht
+                    // übertreffen (gewählt wird nur bei „größer“), wird es übersprungen: dieselbe Wahl, nur ohne die teuren Schritte für aussichtslose Paare.
+                    if (units * margin / (toBuy + 1f) * 1.001f + 0.01f - upkeepPerTick <= bestScore) continue;
                     // Prüfung Runde 2 (Leerfahrten): schon beim Planen die Kaufschutz-Bedingung mit dem erwarteten Einkaufspreis bei Ankunft prüfen — Bestand des
                     // Herstellers nach den Käufen, die andere Händler dort schon vorhaben (Preisformel Ziel ÷ Bestand, als Verhältnis auf den heutigen Preis).
                     // Gemessen: die Abnehmerseite (unterwegs befindliche Lieferungen) zusätzlich einzurechnen senkte Umsatz und Exporte — nur die Verkäuferseite.
@@ -181,9 +199,22 @@ public sealed class TraderSystem : ISimSystem
                     if (acceptAll < MathF.Min(load, 5f)) continue;   // Lager voll: nimmt nichts mehr
                     if (!sellLegs.TryGetValue((buy.Id, sell.Id), out var sl))
                     {
-                        float ts = Travel.Estimate(u, buy.Sector, buy.DockPoint(ship.Id), sell.Sector, sell.DockPoint(ship.Id), ship, ladenProfile);
-                        sellLegs[(buy.Id, sell.Id)] = sl = float.IsPositiveInfinity(ts) ? (ts, 0f, 0f)
-                            : (ts, Refuel.TripFuelCost(u, ship, buy, sell, distToBuy, fuelPrice), ThreatMap.RouteRisk(u, buy.Sector, sell.Sector));
+                        // Punkt 13: Reisezeit und Strecke Kauf → Verkauf in einem Durchgang (vorher schätzte TripFuelCost dieselbe Route noch einmal);
+                        // Routenrisiko je Sektorpaar einmal je Aufruf (reine Funktion der Lagekarte, die sich in der Bewertung nicht ändert)
+                        // (beladene Route und Risiko je Sektorpaar einmal je Aufruf; Rechnung wie Travel.EstimateWithDistance)
+                        if (!risks.TryGetValue((buy.Sector, sell.Sector), out var lr))
+                        {
+                            var lroute = u.CachedRoute(buy.Sector, sell.Sector, ladenProfile);
+                            risks[(buy.Sector, sell.Sector)] = lr = (lroute, lroute is null ? 0f : ThreatMap.RouteRisk(u, buy.Sector, sell.Sector));
+                        }
+                        if (lr.Route is null) sl = (float.PositiveInfinity, 0f, 0f);
+                        else
+                        {
+                            float buyToSell = Travel.DistanceAlongRoute(u, lr.Route, buy.DockPoint(ship.Id), sell.DockPoint(ship.Id));
+                            float ts = buyToSell / Travel.SpeedOf(ship) + lr.Route.Count + 1;
+                            sl = (ts, Refuel.TripFuelCostWithLeg(u, ship, distToBuy, buyToSell, fuelPrice), lr.Risk);
+                        }
+                        sellLegs[(buy.Id, sell.Id)] = sl;
                     }
                     float toSell = sl.ToSell;
                     if (float.IsPositiveInfinity(toSell)) continue;

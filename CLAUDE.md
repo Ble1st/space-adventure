@@ -1659,3 +1659,35 @@ German rules and the measurement table: docs/KAMPF.md "KI-Kriegsschiffe: Seeschl
 - **Follow-up 1c**: `RallyCommand.Until` (saved as `C`, hashed when ≠ 0) from `rallyDeadlineTicks` (2400): after the deadline `FleetFormations.FormAtDeadline` forms the squadron from the arrived ships (leader if present, else first arrived), missing ships lose the rally command, fewer than two → no squadron. `DeliverCommand.AllowLoss` (default false, saved as third value, hashed when true): `DeliverExecutor.LossIssue` refuses buying at A when B's effective sale price ≤ A's effective buy price (`TraderBuyRefused`); fleet screen deliver row has a "Verlustschutz"/"Verlust erlaubt" toggle (shares `_allowLoss`).
 - Balance tool: line "KI-Kriegsschiffe" (naval battles, ships destroyed in them, warships destroyed, defence orders, war escorts), option `--navy on|off`. Measured 60000 ticks (`--treasury` + `--aiwar` at 4000): 2→1: naval 0 → 11 (8 destroyed), sieges 1073 → 1, loss rate 0.16 → 0.17 %, Quillon police-minimum violation 6.6 → 0 %; 1→3: naval 0 → 21 (16), warships destroyed 9 → 15, sieges 5453 → 1982, loss 0.26 → 0.22 %; wars end by tribute as before, no station falls either way.
 - Persistence additive (save v17). Tests `KiKriegsschiffeTests` (11); `KiKriegsschiffeTests.RevertWarNavy` is called by `BalanceFixTests.RevertBalanceFix`; `Phase28Tests.Kriegsschiffe_KaufNurImKrieg…` switches defence/escort off (they precede the assault command). Deliver route sub-labels drop the owner tag (`StationNames.WithoutOwner` now public) so they fit the button; ui-check state `kz-flotte-liefern`. Selftest stage 148 (`SelfTest.WarNavy.cs`: deliver toggle and route by taps, rally with deadline); `LastStage` 148.
+
+## Point 13 (English summary): computing time — exact caches and shortcuts, no behaviour change
+
+Measured first (`--systemtime all` prints every system in µs/tick plus the path-cache hit line; `dotnet-trace` sampled thread time). Every change is behaviour-neutral: `UniverseHash` and the whole balance output except timing lines are identical before/after for default seed 20000 (48ECEC8C1781997D) and 60000 (8B66C504B54B9DA3), seeds 1–3 at 20000, `--fuel off --research off` 20000 and the war run (`--treasury 1:2000000@3980,2:2000000@3980 --aiwar 2:1@4000 --ticks 30000`).
+- **Sector path cache** (`Simulation/SectorPathCache`, `Universe.PathCache`): NPC in-sector paths (`Travel.SectorPath`, used by `Travel.Plan`) keyed by the bit patterns of start/goal; per sector a snapshot of the obstacle list (rock positions/radii in list order, then stations, plus robust/plain planning) is compared exactly on every call — any change (mined-out, respawned, split or moved rock, station added/moved/removed, scale) drops that sector's paths. Max 4096 paths per sector. `Travel.SectorPath` returns a copy; `SectorPathUncached` for tests.
+- **Path planner**: `PathPlanner.FirstBlocker` and the `Detour` candidate filter skip obstacles whose circle cannot touch the segment's bounding box (pure skip of non-blockers).
+- **Faction viability**: police/builder minimum checks count without lists and stop at the minimum; the ships that reached it are kept as witnesses (`Universe.ViabilityWitness`, re-validated live: same object under its id, predicate still true); `Universe.GovernmentCandidates()` (stations whose type has a government kind, valid while `StationsById` is the same list and every station type object/kind is unchanged); subsidy and maintenance compute reserve + replacement cost once per faction (`FactionViability.PartsOf`), research once per station.
+- **Trader scoring** (`TraderSystem.BestTrade`): exact upper-bound pruning (profit ≤ units × margin, travel ≥ 1 tick per leg, fuel/risk ≥ 0, 0.1 % + 0.01 slack against rounding) per buy station and per pair; cheapest filter first; ship profile once per call; sell leg = route per sector pair once per call + distance once (`Travel.EstimateWithDistance`, `Refuel.TripFuelCostWithLeg`).
+- **Others**: `MinerSystem` (rock pick as argmin instead of sort, approach estimate once per field), `StationLifecycleSystem.Scan` (one pass over stations, same summation order), `MarketSystem` (shelf flag in the first pass, station type looked up once), `JobAssignmentSystem` (skip models with < 2 job keys before building lists), `OrderSystem`/`ConstructionSystem`/`PirateSystem.PoliceIn`/`Refuel.NearestFuelStation` without LINQ chains or per-tick lists, `PlayerTrip.Seconds` (route and obstacle list memo for one calculation, `PathFollower.StaticMemo`; braking only looks at obstacles within 31 per axis).
+- `Universe.PerfCaches` (default true, not saved/hashed) switches the new caches off for comparison tests. Caches are derived, never saved; after loading they start empty.
+- Tests `Punkt13RechenzeitTests` (6): path cache = replanning and dropped on every obstacle change, shared list unaffected by callers, government candidates follow stations and types, witnesses detect role change/removal, player flight time with and without memo, a world with and without caches bit-identical incl. save → load → continue.
+
+Measured (Release, A/B interleaved on the same machine, load ≈ 2–4, median of 3; before = 168af91):
+
+| System (µs/tick, 60000 ticks) | before | after |
+|---|---|---|
+| TraderSystem | 207.2 | 143.8 (−31 %) |
+| MinerSystem | 90.8 | 49.7 (−45 %) |
+| MarketSystem | 82.6 | 78.9 (−4 %) |
+| SubsidySystem | 28.3 | 1.1 (−96 %) |
+| MissionBoardSystem | 27.7 | 15.7 (−43 %) |
+| ResearchSystem | 21.6 | 7.6 (−65 %) |
+| ProductionSystem | 21.4 | 22.3 |
+| OrderSystem | 18.0 | 16.2 (−10 %) |
+| JobAssignmentSystem | 12.7 | 10.0 (−21 %) |
+| StationLifecycleSystem | 12.4 | 6.4 (−48 %) |
+| MaintenanceSystem | 8.8 | 1.7 (−81 %) |
+| GasCollectorSystem | 7.9 | 5.4 (−32 %) |
+| **ms/tick 60000** | **0.615** | **0.436 (−29 %)** |
+| **ms/tick 20000** | **0.696** | **0.528 (−24 %)** |
+
+Remaining hot spots: `TraderSystem.BestTrade` (pair loop is memory-bound, ~2400 pair checks per call), `MarketSystem` (three passes over every market entry per tick: open demand, buyer bids, prices), `ProductionDemand.OpenDemand` (twice per tick). With 3× the economy ships of the pre-Round-44 world (0.43 ms/tick at 60000 ticks then), the cost per economy ship is now well below the old level.

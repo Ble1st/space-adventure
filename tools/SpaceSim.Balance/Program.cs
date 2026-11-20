@@ -906,6 +906,11 @@ Console.WriteLine($"Hash ohne Spielerpolitik {UniverseHash.Compute(u, includeTag
     double simMs = bySystem.Sum(x => x.Ms);
     if (perSystem) Console.WriteLine("Rechenzeit je System (Top 5): " + string.Join(", ", bySystem.Take(5).Select(x => $"{x.Name} {100 * x.Ms / total:0.0}%"))
         + $"; alle Systeme {100 * simMs / total:0.0}%, Messprobe des Tools {100 * probeWatch.Elapsed.TotalMilliseconds / total:0.0}%");
+    // Punkt 13 (Rechenzeit): --systemtime all listet jedes System mit ms je Tick (nur Diagnose)
+    if (perSystem && stOpt == "all")
+        Console.WriteLine("Rechenzeit je System (alle, µs/Tick): " + string.Join(", ", bySystem.Select(x => $"{x.Name} {1000 * x.Ms / Math.Max(1, ticks):0.0}")));
+    if (perSystem && stOpt == "all")
+        Console.WriteLine($"Pfadspeicher (Punkt 13): {u.PathCache.Hits} Treffer, {u.PathCache.Misses} Neuplanungen, {u.PathCache.Refreshes} verworfene Sektorstände");
     // Phase 23: Schiffssysteme — wie viele Schiffe sich erholen und was das kostet
     double sysMs = bySystem.Where(x => x.Name == "ShipSystemsSystem").Sum(x => x.Ms);
     Console.WriteLine($"Schiffssysteme: Erholungsindex max {recoveringMax}, jetzt {u.Recovering.Count} Schiffe; Schilde jetzt {u.Ships.Values.Count(x => x.Stats.Shield > 0f && x.ShieldNow < x.Stats.Shield)} von {u.Ships.Values.Count(x => x.Stats.Shield > 0f)} nicht voll"

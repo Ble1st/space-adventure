@@ -42,27 +42,29 @@ public sealed class MarketSystem : ISimSystem
             }
             // Phase 17: Rollen je Ware aus dem Rollen-Cache der Station (Zutat/Produkt) statt zweier Puffer je Station und Tick
             var roles = st.Roles();
+            // Phase 15: Regal-Einträge (Lager ohne Rezept: Werft- und Handelsstationsregale, Lagerhaus) nehmen nur bis zum Wunschbestand × ShelfOverstockFactor
+            // an (vorher × OverstockFactor 3): Die reiche Handelsstation Beta horte sonst bis 9 Reaktoren, die der Werft fehlten, und unbenutzte Module
+            // fielen auf 0,27–0,33×. Exportwaren behalten den Überhang (ExportSystem setzt ihn nach dem Markt), sonst sänke die Exportmenge.
+            // Forschungsstationen verbrauchen ihr Lager (Takt-Güter) — kein Regal, sie behalten den Überhang als Puffer
+            // Punkt 13 (Rechenzeit): im ersten Durchgang über den Markt gesetzt statt in einem zweiten (gleiches Ergebnis: vorher erst 0, dann der Regalwert)
+            u.StationTypes.TryGetValue(st.TypeKey, out var stType);   // Punkt 13: Typ einmal je Station (vorher je Regal- und Instandhaltungsprüfung gesucht)
+            bool shelf = u.Rules.ShelfOverstockFactor < u.Rules.OverstockFactor && !(stType is not null && stType.Research is not null);
+            float shelfFactor = u.Rules.ShelfOverstockFactor;
             foreach (var (goodId, e) in st.Market)
             {
                 e.Price = StockPrice(u.GoodOf(goodId), e, e.Amount);
-                e.Overstock = 0f;
-                e.NoIntake = Station.RoleIn(roles, goodId) == Station.RoleOutput;   // Phase 15: Hersteller kaufen ihr eigenes Produkt nicht zu
+                int role = Station.RoleIn(roles, goodId);
+                e.Overstock = shelf && role == 0 ? shelfFactor : 0f;   // = Station.IsStockOnly
+                e.NoIntake = role == Station.RoleOutput;   // Phase 15: Hersteller kaufen ihr eigenes Produkt nicht zu
                 // Runde 25 (Messregel, Standard aus): ein Hersteller verkauft sein reines Produkt höchstens zu ProducerPriceCapShare × dem besten Gebot eines
                 // Abnehmers (Vortag) — die Spanne bleibt für den Händler
                 if (u.Rules.ProducerPriceCapShare > 0f && e.NoIntake && (uint)goodId.Value < (uint)_bid.Length && _bid[goodId.Value] > 0f)
                     e.Price = MathF.Max(u.GoodOf(goodId).BasePrice * 0.25f, MathF.Min(e.Price, _bid[goodId.Value] * u.Rules.ProducerPriceCapShare));
             }
-            // Phase 15: Regal-Einträge (Lager ohne Rezept: Werft- und Handelsstationsregale, Lagerhaus) nehmen nur bis zum Wunschbestand × ShelfOverstockFactor
-            // an (vorher × OverstockFactor 3): Die reiche Handelsstation Beta horte sonst bis 9 Reaktoren, die der Werft fehlten, und unbenutzte Module
-            // fielen auf 0,27–0,33×. Exportwaren behalten den Überhang (ExportSystem setzt ihn nach dem Markt), sonst sänke die Exportmenge.
-            // Forschungsstationen verbrauchen ihr Lager (Takt-Güter) — kein Regal, sie behalten den Überhang als Puffer
-            if (u.Rules.ShelfOverstockFactor < u.Rules.OverstockFactor && !(u.StationTypes.TryGetValue(st.TypeKey, out var stType) && stType.Research is not null))
-                foreach (var (goodId, e) in st.Market)
-                    if (Station.RoleIn(roles, goodId) == 0) e.Overstock = u.Rules.ShelfOverstockFactor;   // = Station.IsStockOnly
             // Phase 15: reine Instandhaltungs-Einträge bieten höchstens MaintenanceMaxBidFactor × Basispreis (sie sollen Fabriken nicht die Zutaten wegbieten)
             if (u.Rules.MaintenanceShare > 0f)
                 foreach (var goodId in MaintenanceGoods(u))
-                    if (st.Market.TryGetValue(goodId, out var e) && Station.RoleIn(roles, goodId) == 0 && Maintenance.IsPureTypeEntry(u, st, goodId))
+                    if (st.Market.TryGetValue(goodId, out var e) && Station.RoleIn(roles, goodId) == 0 && Maintenance.IsPureTypeEntry(stType, goodId))
                         e.Price = MathF.Min(e.Price, u.GoodOf(goodId).BasePrice * u.Rules.MaintenanceMaxBidFactor);
 
             // Zahlungsbereitschaft je Zutat: das höchste Gebot über alle Rezepte, die sie verwenden (Phase 5a). Eine Station mit

@@ -14,15 +14,21 @@ namespace SpaceSim.Core.Simulation;
 public sealed class OrderSystem : ISimSystem
 {
     readonly OrderExecutors _executors;
+    readonly List<Ship> _commanded = new();
     public OrderSystem(OrderExecutors? executors = null) => _executors = executors ?? OrderExecutors.Default;
 
     public void Step(Universe u, int dt)
     {
-        List<Ship>? commanded = null;
-        foreach (var s in u.Ships.Values) if (s.Command is not null) (commanded ??= new List<Ship>()).Add(s);
-        if (commanded is null) return;
-        foreach (var ship in commanded.OrderBy(s => s.Id.Value))
+        // Punkt 13 (Rechenzeit): wiederverwendete Liste statt einer neuen Liste und Sortierung je Tick (Ids eindeutig: gleiche Reihenfolge wie OrderBy)
+        var commanded = _commanded;
+        commanded.Clear();
+        foreach (var s in u.Ships.Values) if (s.Command is not null) commanded.Add(s);
+        if (commanded.Count == 0) return;
+        commanded.Sort(static (a, b) => a.Id.Value.CompareTo(b.Id.Value));
+        // die Liste ist ein Schnappschuss wie vorher (OrderBy pufferte vor der Schleife); nur dieser Schritt ändert sie
+        for (int ci = 0; ci < commanded.Count; ci++)
         {
+            var ship = commanded[ci];
             if (!u.Ships.ContainsKey(ship.Id) || ship.Command is not { } cmd) continue;
             if (ship.Id == u.PlayerShip) { Commands.Cancel(u, ship, "du steuerst selbst", _executors); continue; }
             if (!_executors.TryGet(cmd.Kind, out var ex)) { ship.Command = null; continue; }

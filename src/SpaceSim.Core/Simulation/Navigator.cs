@@ -60,13 +60,35 @@ public static class Navigator
     /// mit ihrem Sprungradius; ausgenommen das Zieltor und ein Tor, in dessen Radius das Schiff gerade steht (Ankunft nach einem Sprung).
     /// NPC-Reisen bleiben unverändert (sie springen nur am geplanten Tor).
     /// </summary>
-    public static IReadOnlyList<Obstacle> PlayerObstacles(Universe u, SectorId sector, Vec2 pos, GateId? goalGate)
+    public static IReadOnlyList<Obstacle> PlayerObstacles(Universe u, SectorId sector, Vec2 pos, GateId? goalGate) => PlayerObstacles(u, sector, pos, goalGate, null);
+
+    /// <summary>
+    /// Punkt 13 (Rechenzeit): wie oben, mit einem Gedächtnis des Aufrufers für eine Rechnung über einen unveränderten Weltstand (<see cref="Flight.PlayerTrip"/>
+    /// simuliert tausende Schritte in einem Aufruf): je (Sektor, Zieltor, ausgenommenes Tor) einmal ermittelt — dieselbe Liste wie ohne Gedächtnis.
+    /// </summary>
+    internal static IReadOnlyList<Obstacle> PlayerObstacles(Universe u, SectorId sector, Vec2 pos, GateId? goalGate, Dictionary<(SectorId, GateId, GateId), IReadOnlyList<Obstacle>>? memo)
     {
         if (!u.Sectors.TryGetValue(sector, out var sec)) return Array.Empty<Obstacle>();
         // ausgenommen: Zieltor und ein Tor, in dessen Radius das Schiff steht
         GateId skip = default;
         foreach (var gid in sec.Gates)
             if (u.Gates.TryGetValue(gid, out var g) && Vec2.Distance(pos, g.Position) <= GateJumpRadius + PathPlanner.Margin + Collision.ShipRadius + 2f) { skip = gid; break; }
+        if (memo is not null)
+        {
+            var mk = (sector, goalGate ?? default, skip);
+            if (!memo.TryGetValue(mk, out var ml))
+            {
+                // gleiche Liste wie unten (ohne den Zwischenspeicher je Thread: der Aufrufer hält sie selbst)
+                var nl = u.GetObstacles(sector);
+                foreach (var gid in sec.Gates)
+                {
+                    if (gid == goalGate || gid == skip || !u.Gates.TryGetValue(gid, out var gg)) continue;
+                    nl.Add(new Obstacle(gg.Position, GateJumpRadius));
+                }
+                memo[mk] = ml = nl;
+            }
+            return ml;
+        }
         // Runde 26 (Prüferhinweis): nicht jedes Bild neu kopieren — Zwischenspeicher je Universum, Tick, Sektor, Hindernisliste und ausgenommenen Toren
         var key = (sector, u.Tick, goalGate ?? default, skip);
         // Runde 27 (Prüferhinweis): auch die Radien gehören zum Schlüssel — Felsen schrumpfen beim Abbau in der Ansicht innerhalb eines Ticks
@@ -128,6 +150,17 @@ public sealed class PathFollower
 
     public void Reset() { _pts = null; _escapes = 0; }
 
+    /// <summary>
+    /// Punkt 13 (Rechenzeit): Gedächtnis für eine Rechnung über einen unveränderten Weltstand mit festem Ziel (nur <see cref="Flight.PlayerTrip"/>): Route je
+    /// Sektor und Hindernisliste je (Sektor, Zieltor, ausgenommenes Tor). null (Ansicht, Autopilot) = wie bisher jedes Mal neu.
+    /// </summary>
+    internal sealed class StaticMemo
+    {
+        public readonly Dictionary<SectorId, List<GateId>?> Routes = new();
+        public readonly Dictionary<(SectorId, GateId, GateId), IReadOnlyList<Obstacle>> Obstacles = new();
+    }
+    internal StaticMemo? Memo;
+
     public NavStep Next(Universe u, SectorId sector, Vec2 pos, NavTarget target, Ship? ship = null)
     {
         GateId? gate = null;
@@ -139,12 +172,14 @@ public sealed class PathFollower
         }
         else
         {
-            var route = u.FindRoute(sector, target.Sector, Travel.ProfileOf(u, ship));
+            List<GateId>? route;
+            if (Memo is null) route = u.FindRoute(sector, target.Sector, Travel.ProfileOf(u, ship));
+            else if (!Memo.Routes.TryGetValue(sector, out route)) Memo.Routes[sector] = route = u.FindRoute(sector, target.Sector, Travel.ProfileOf(u, ship));
             if (route is null || route.Count == 0) { Reset(); return new NavStep(NavStatus.Unreachable, pos, null); }
             gate = route[0];
             goal = u.Gates[route[0]].Position;
         }
-        var obs = Navigator.PlayerObstacles(u, sector, pos, gate);
+        var obs = Navigator.PlayerObstacles(u, sector, pos, gate, Memo?.Obstacles);
         if (_pts is null || sector != _sector || Vec2.Distance(goal, _goal) > 0.5f) Plan(pos, goal, obs, sector);
         while (_idx < _pts!.Count - 1 && Vec2.Distance(pos, _pts[_idx]) <= Reach) { _idx++; _best = float.MaxValue; _stall = 0; }
         float d = Vec2.Distance(pos, _pts[_idx]);

@@ -46,7 +46,7 @@ public static class Travel
     /// <summary>Eine Teilstrecke je Segment des ausweichenden Pfads innerhalb eines Sektors.</summary>
     static long AddSectorLegs(Universe u, List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start, float speed)
     {
-        var pts = SectorPath(u, sector, from, to);
+        var pts = u.PathCache.Get(u, sector, from, to);   // Punkt 13: geteilter, unveränderter Pfad aus dem Zwischenspeicher
         long t = start;
         for (int i = 1; i < pts.Count; i++) t = AddLeg(legs, sector, pts[i - 1], pts[i], t, speed);
         return t;
@@ -57,11 +57,12 @@ public static class Travel
     /// (<see cref="PathPlanner.PlanRobust"/>) — die längeren Strecken kreuzen mehr Gürtel und Stationen, die Umweg-Rekursion erschöpfte ihre Tiefe in
     /// Gürtelnischen und der Polygonzug lief durch Stationen. Im Grundmaßstab unverändert.
     /// </summary>
-    public static List<Vec2> SectorPath(Universe u, SectorId sector, Vec2 from, Vec2 to)
-    {
-        var obs = u.GetObstacles(sector);
-        return u.Sectors.TryGetValue(sector, out var s) && s.Scale > 1f ? PathPlanner.PlanRobust(from, to, obs, PathPlanner.Margin) : PathPlanner.Plan(from, to, obs);
-    }
+    public static List<Vec2> SectorPath(Universe u, SectorId sector, Vec2 from, Vec2 to) =>
+        new(u.PathCache.Get(u, sector, from, to));   // Punkt 13: aus dem Pfad-Zwischenspeicher (Kopie für den Aufrufer)
+
+    /// <summary>Punkt 13: dieselbe Planung ohne Zwischenspeicher (Vergleich in Tests).</summary>
+    public static List<Vec2> SectorPathUncached(Universe u, SectorId sector, Vec2 from, Vec2 to) =>
+        SectorPathCache.Plan(u, sector, u.Sectors.GetValueOrDefault(sector), from, to, null);
 
     static long AddLeg(List<Leg> legs, SectorId sector, Vec2 from, Vec2 to, long start, float speed)
     {
@@ -87,6 +88,22 @@ public static class Travel
         if (route is null) return float.PositiveInfinity;
         return DistanceAlong(u, route, fromPos, toPos) / SpeedOf(ship) + route.Count + 1;
     }
+
+    /// <summary>
+    /// Punkt 13 (Rechenzeit): <see cref="Estimate(Universe, SectorId, Vec2, SectorId, Vec2, Ship?, MobilityProfile)"/> und die zugehörige
+    /// <see cref="EstimateDistance(Universe, SectorId, Vec2, SectorId, Vec2, MobilityProfile)"/> in einem Durchgang (gleiche Route, gleiche Rechnung, also
+    /// bitgleiche Werte); <paramref name="distance"/> ist PositiveInfinity, wenn nicht erreichbar.
+    /// </summary>
+    internal static float EstimateWithDistance(Universe u, SectorId fromSector, Vec2 fromPos, SectorId toSector, Vec2 toPos, Ship? ship, MobilityProfile profile, out float distance)
+    {
+        var route = u.CachedRoute(fromSector, toSector, profile);
+        if (route is null) { distance = float.PositiveInfinity; return float.PositiveInfinity; }
+        distance = DistanceAlong(u, route, fromPos, toPos);
+        return distance / SpeedOf(ship) + route.Count + 1;
+    }
+
+    /// <summary>Punkt 13: <see cref="DistanceAlong"/> für Aufrufer, die die Route schon haben (Händlerbewertung).</summary>
+    internal static float DistanceAlongRoute(Universe u, List<GateId> route, Vec2 fromPos, Vec2 toPos) => DistanceAlong(u, route, fromPos, toPos);
 
     /// <summary>Luftlinien-Strecke entlang der Route innerhalb der Sektoren (Gate-Sprünge zählen nicht); PositiveInfinity wenn nicht erreichbar.</summary>
     static float DistanceAlong(Universe u, List<GateId> route, Vec2 fromPos, Vec2 toPos)

@@ -364,11 +364,19 @@ public sealed class ConstructionSystem : ISimSystem
         StepBuilders(u);
     }
 
+    [ThreadStatic] static List<Station>? t_sites;
+    [ThreadStatic] static List<Ship>? t_builders;
+
     static void StepSites(Universe u, int dt)
     {
         var rules = u.Rules;
-        foreach (var site in u.StationsById().Where(s => s.Site is not null).ToList())
+        // Punkt 13: wiederverwendeter Schnappschuss (gleiche Auswahl und Reihenfolge wie Where(...).ToList())
+        var sites = t_sites ??= new List<Station>();
+        sites.Clear();
+        foreach (var s in u.StationsById()) if (s.Site is not null) sites.Add(s);
+        for (int si = 0; si < sites.Count; si++)
         {
+            var site = sites[si];
             var bs = site.Site!;
             if (bs.Abandoned)
             {
@@ -411,8 +419,12 @@ public sealed class ConstructionSystem : ISimSystem
     static void StepBuilders(Universe u)
     {
         // feste Reihenfolge (Id), nicht die Einfügereihenfolge des Dictionarys: wer zuerst denkt, bekommt die freie Baustelle
-        foreach (var ship in u.ShipsById().Where(s => s.Role == ShipRole.Builder).ToList())
+        var builders = t_builders ??= new List<Ship>();   // Punkt 13: wiederverwendeter Schnappschuss
+        builders.Clear();
+        foreach (var s in u.ShipsById()) if (s.Role == ShipRole.Builder) builders.Add(s);
+        for (int bi = 0; bi < builders.Count; bi++)
         {
+            var ship = builders[bi];
             // Phase 12: auch Spielerschiffe mit Befehl „Bauen“ (Ausführer ist dieses System)
             if (ship.Role != ShipRole.Builder || (ship.Controller != Controller.Ai && ship.Command is not BuildCommand)) continue;
             if (u.Fights.IsEngaged(ship.Id)) continue;   // Phase 24: im Gefecht gesperrt
