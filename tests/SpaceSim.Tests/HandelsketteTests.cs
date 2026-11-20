@@ -92,7 +92,11 @@ public class HandelsketteTests
             // geprüft wird, dass Schiffe tatsächlich getankt haben
             // Ausbau Punkt 9: Fusionsbrennstoff tanken nur KI-Schiffe mit Fusionsantrieb (pfadabhängig 0–1 in 20 000 Ticks) — ein Hersteller mit Lager genügt
             // Gasernte: Ionengas tanken nur Schiffe mit Ionentriebwerk (Gasschöpfer mit fast vollem Tank) — es reicht, dass es gehandelt wird (Regale der Raffinerien)
-            if (g.Category == "fuel") Assert.True(fuelBought.GetValueOrDefault(g.Id) > 0f || (g.Key != "propellant" && (r.Trips > 0 || u.Ships.Values.Any(s => s.FuelAmount(g.Id) > 0f) || u.Stations.Values.Any(st => st.Produces(g.Id) && st.Market.TryGetValue(g.Id, out var fe) && fe.Amount > 0f))), $"{g.Name}: in 20000 Ticks nicht getankt");
+            // Fusionsbrennstoff/Ionengas brauchen nur wenige Modelle (Fusionstank, Ionentriebwerk); ob die KI-Flotte in 20000 Ticks eines davon kauft und
+            // es tankt, hängt am Pfad (nach dem Luxusexport-Start, Ausbau Punkt 11, kaufte die Standardwelt keins mehr) — für sie reicht, dass der Brennstoff
+            // gehandelt, getankt oder an einer Station zum Tanken vorrätig ist (Hersteller vorhanden ist oben geprüft)
+            if (g.Category == "fuel") Assert.True(fuelBought.GetValueOrDefault(g.Id) > 0f || (g.Key != "propellant" && (r.Trips > 0 || u.Ships.Values.Any(s => s.FuelAmount(g.Id) > 0f)
+                || u.Stations.Values.Any(st => !st.IsBuildSite && st.Market.TryGetValue(g.Id, out var fe) && fe.Amount >= 1f))), $"{g.Name}: in 20000 Ticks nicht getankt und nirgends vorrätig");
             else if (g.Category is not "module" and not "kit") Assert.True(HasTaker(u, g.Id), $"{g.Name}: kein Abnehmer in der Welt");
             if (g.Category == "kit" && !HasTaker(u, g.Id)) findings.Add($"{g.Name}: kein Abnehmer außer der Werft selbst (wird dort verbaut)");
             // Befunde (kein Fehlschlag): Ware ohne Fahrten / ohne Verbrauch

@@ -391,20 +391,45 @@ public class ExportPlanetTests
     /// <summary>Phase 21: <c>maxStations</c> der Weltdatei (statt der festen Zahl der 4-Sektoren-Welt).</summary>
     static int FileMaxStations() => WorldBuilder.Parse(WorldBuilder.DefaultWorldJson()).Rules!.MaxStations;
 
+    [Fact]
+    public void LuxusexportStart_ZweiWerkstaetten_GroessereLager_WasserwerkGamma_RuecknahmeStelltAltesHer()
+    {
+        // Ausbau Punkt 11: zweite Luxuswerkstatt nahe dem Planeten Tethys (Kalypso), Platin-/Elektroniklager 150/300 statt Rezept-Standard; die neue
+        // Werkstatt bindet Händler an Platin/Elektronik, also bringt ein Wasserwerk in Gamma (Eisfeld, Nachbar Kalypsos) die Wasserversorgung der Farmen
+        // zurück (gemessen: Farmen ohne Wasser 683/3604 → 471/3604, Standard-Seed; ohne Wasserwerk 683)
+        var u = DemoUniverse.Create();
+        var shops = u.Stations.Values.Where(st => st.TypeKey == "luxury_workshop").ToList();
+        Assert.Equal(2, shops.Count);
+        Assert.Contains(shops, st => u.Sectors[st.Sector].Name.EndsWith("Kalypso"));
+        foreach (var st in shops)
+        {
+            Assert.Equal(300f, st.Market[u.FindGood("platinum")!.Id].Target, 3);
+            Assert.Equal(300f, st.Market[u.FindGood("electronics")!.Id].Target, 3);
+        }
+        Assert.Contains(u.Stations.Values, st => st.TypeKey == "water_plant" && u.Sectors[st.Sector].Name.EndsWith("Gamma"));
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        int maxBefore = def.Rules!.MaxStations;
+        RevertLuxuryStart(def);
+        Assert.Equal(maxBefore - 2, def.Rules!.MaxStations);
+        var old = WorldBuilder.Build(def);
+        Assert.Single(old.Stations.Values, st => st.TypeKey == "luxury_workshop");
+        Assert.DoesNotContain(old.Stations.Values, st => st.TypeKey == "water_plant" && old.Sectors[st.Sector].Name.EndsWith("Gamma"));
+    }
+
     /// <summary>
     /// Luxusexport-Start (TODO-AUSBAU Punkt 11) zurücknehmen für die Referenz-Hash-Tests (Teil der Rücknahmekette über
-    /// <see cref="GasNebulaTests.RevertGas"/>): die zweite Luxuswerkstatt in Kalypso (Id 89) entfernen, das vergrößerte
-    /// Platin-/Elektronik-Eingangslager der Luxuswerkstatt auf den Rezept-Standard zurücksetzen und <c>maxStations</c> um 1 senken.
+    /// <see cref="GasNebulaTests.RevertGas"/>): die zweite Luxuswerkstatt in Kalypso (Id 89) und das Wasserwerk Gamma (Id 90) entfernen, das vergrößerte
+    /// Platin-/Elektronik-Eingangslager der Luxuswerkstatt auf den Rezept-Standard zurücksetzen und <c>maxStations</c> um 2 senken.
     /// </summary>
     internal static void RevertLuxuryStart(WorldDef def)
     {
         foreach (var s in def.Sectors)
-            s.Stations.RemoveAll(st => st.Type == "luxury_workshop" && st.Id >= 89);   // nur die angehängte Startstation (bestehende Ids bleiben)
+            s.Stations.RemoveAll(st => (st.Type == "luxury_workshop" && st.Id == 89) || (st.Type == "water_plant" && st.Id == 90));   // nur die angehängten Startstationen (bestehende Ids bleiben)
         if (def.StationTypes.FirstOrDefault(t => t.Key == "luxury_workshop") is { } lw && lw.Stocks is { } st)
         {
             st.Remove("platinum"); st.Remove("electronics");
             if (st.Count == 0) lw.Stocks = null;
         }
-        if (def.Rules is { } r && r.MaxStations == 74) r.MaxStations = 73;   // Lebenszyklus-Spielraum wie vorher
+        if (def.Rules is { } r && r.MaxStations == 75) r.MaxStations = 73;   // Lebenszyklus-Spielraum wie vorher (zwei Startstationen weniger)
     }
 }

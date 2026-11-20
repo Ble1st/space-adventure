@@ -69,7 +69,7 @@
   "escortMinRemainingTicks": 200,
   "maxMiners": 55,
   "repairPlatesPerHull": 0.02,
-  "maxStations": 74,
+  "maxStations": 75,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": true,
@@ -1936,6 +1936,13 @@
       "energy": [120, 150],
       "propellant": [150, 150]
      }
+    },
+    {
+     "id": 90,
+     "type": "water_plant",
+     "name": "Wasserwerk Gamma",
+     "pos": [-150, -130],
+     "essential": true
     }
    ]
   },

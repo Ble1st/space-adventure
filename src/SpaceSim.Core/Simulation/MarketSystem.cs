@@ -54,10 +54,9 @@ public sealed class MarketSystem : ISimSystem
             {
                 e.Price = StockPrice(u.GoodOf(goodId), e, e.Amount);
                 int role = Station.RoleIn(roles, goodId);
-                // Ausbau Punkt 12: ein Regal (stock-only), das IdleShelfTicks lang keine Bewegung hatte, verkauft günstiger — bis wieder eine
-                // Bewegung stattfindet (IdleShelfSystem.MarkMoved setzt LastMove); ohne Schalter ändert sich nichts
-                if (u.Rules.IdleShelfActive && role == 0 && u.Tick - (e.LastMove ?? 0) >= u.Rules.IdleShelfTicks)
-                    e.Price *= u.Rules.IdleShelfPriceFactor;
+                // Ausbau Punkt 12: ein Modulregal, das IdleShelfTicks lang keine Bewegung hatte, verkauft günstiger — bis sich sein Bestand wieder ändert
+                // (IdleShelfSystem); ohne Schalter ändert sich nichts
+                if (role == 0 && IdleShelfSystem.Discounted(u, st, goodId, e, roles)) e.Price *= u.Rules.IdleShelfPriceFactor;
                 e.Overstock = shelf && role == 0 ? shelfFactor : 0f;   // = Station.IsStockOnly
                 e.NoIntake = role == Station.RoleOutput;   // Phase 15: Hersteller kaufen ihr eigenes Produkt nicht zu
                 // Runde 25 (Messregel, Standard aus): ein Hersteller verkauft sein reines Produkt höchstens zu ProducerPriceCapShare × dem besten Gebot eines

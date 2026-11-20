@@ -26,6 +26,8 @@ public sealed class MarketWatch
     readonly Dictionary<(StationId, GoodId), (int N, int Up, int Low, double Sum)> _entries = new();
     readonly Dictionary<StationId, (int N, int Empty, float Min)> _cash = new();
     readonly Dictionary<GoodId, int> _trips = new();
+    // Ausbau Punkt 12: Messpunkte, in denen ein Modulregal absichtlich vergünstigt war (unbewegt, IdleShelfSystem.Discounted) — kein Deckelbefund
+    readonly Dictionary<(StationId, GoodId), int> _idleShelf = new();
     // Phase 16: Preis/Basis je Ware (Durchschnitt über alle fertigen Stationen mit Markteintrag, wie EconomyStats) je Messpunkt, für das rasterunabhängige Urteil
     readonly List<(long Tick, Dictionary<GoodId, float> Ratios)> _prices = new();
     int _samples;
@@ -55,6 +57,7 @@ public sealed class MarketWatch
             if (!st.IsBuildSite)
                 foreach (var (g, e) in st.Market) { var ps = sums.GetValueOrDefault(g); sums[g] = (ps.Sum + e.Price, ps.N + 1); }
             if (st.IsBuildSite || st.Market.Count == 0) continue;
+            var roles = st.Roles();
             foreach (var (g, e) in st.Market)
             {
                 float basis = u.Goods[g].BasePrice;
@@ -64,7 +67,11 @@ public sealed class MarketWatch
                 var key = (st.Id, g);
                 var cur = _entries.GetValueOrDefault(key);
                 bool upper = factor >= UpperFactor && ratio >= 0.98f * UpperCap(u, st, g);
-                _entries[key] = (cur.N + 1, cur.Up + (upper ? 1 : 0), cur.Low + (ratio <= LowerRatio || factor <= LowerRatio ? 1 : 0), cur.Sum + ratio);
+                // Ausbau Punkt 12: ein absichtlich vergünstigtes Modulregal (Ziel −1, halber Preis) liegt regelgemäß nahe am Boden — eigene Rubrik, kein Deckel
+                bool idleShelf = IdleShelfSystem.Discounted(u, st, g, e, roles);
+                if (idleShelf) _idleShelf[key] = _idleShelf.GetValueOrDefault(key) + 1;
+                bool lower = !idleShelf && (ratio <= LowerRatio || factor <= LowerRatio);
+                _entries[key] = (cur.N + 1, cur.Up + (upper ? 1 : 0), cur.Low + (lower ? 1 : 0), cur.Sum + ratio);
             }
             if (StationProtection.IsOfficial(u, st)) continue;   // Regierungsstationen zahlen aus der Fraktionskasse, ihre eigene Kasse ist kein Befund
             var c = _cash.TryGetValue(st.Id, out var cc) ? cc : (N: 0, Empty: 0, Min: float.MaxValue);
@@ -119,6 +126,15 @@ public sealed class MarketWatch
     /// </summary>
     public static bool IsExportDemand(Universe u, CapHint h) =>
         h.UpperShare >= h.LowerShare && u.Stations.TryGetValue(h.Station, out var st) && ExportRules.Buys(u, st, h.Good);
+
+    /// <summary>
+    /// Ausbau Punkt 12: Modulregale, die mehr als <paramref name="share"/> der Messpunkte absichtlich vergünstigt waren (unbewegt, <see cref="IdleShelfSystem"/>),
+    /// mit ihrem Anteil (Station-, dann Waren-Id-Reihenfolge). Rubrik des Balance-Werkzeugs, kein Hinweis.
+    /// </summary>
+    public IReadOnlyList<(StationId Station, GoodId Good, float Share)> IdleShelves(Universe u, float share = 0.5f) =>
+        _idleShelf.Where(kv => u.Stations.ContainsKey(kv.Key.Item1) && _entries.TryGetValue(kv.Key, out var en) && en.N > 0 && kv.Value > share * en.N)
+            .OrderBy(kv => kv.Key.Item1.Value).ThenBy(kv => kv.Key.Item2.Value)
+            .Select(kv => (kv.Key.Item1, kv.Key.Item2, (float)kv.Value / _entries[kv.Key].N)).ToList();
 
     /// <summary>Anteil der Messpunkte am oberen/unteren Deckel für einen Eintrag (0, wenn nie gemessen).</summary>
     public (float Upper, float Lower) Share(StationId station, GoodId good) =>

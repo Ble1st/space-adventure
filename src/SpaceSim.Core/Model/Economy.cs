@@ -45,11 +45,17 @@ public sealed class StockEntry
     /// </summary>
     public bool NoIntake;
     /// <summary>
-    /// Ausbau Punkt 12: Tick der letzten Bewegung (Kauf oder Lieferung) dieses Eintrags; null = seit Weltbeginn (Tick 0) keine. Wird nur gesetzt,
-    /// solange <see cref="EconomyRules.IdleShelfActive"/> an ist (sonst bleibt es null und der Hash ändert sich nicht), und nur für Regale
-    /// (stock-only, <see cref="Station.IsStockOnly"/>). Additiv gespeichert; im Hash nur gemischt, wenn gesetzt.
+    /// Ausbau Punkt 12: Tick der letzten Bewegung (Bestand hat sich geändert: Kauf, Lieferung, Verbrauch durch Schiffsbau, Reparatur, Upgrade …) dieses
+    /// Eintrags; null = seit Weltbeginn (Tick 0) keine. Wird nur gesetzt, solange <see cref="EconomyRules.IdleShelfActive"/> an ist, und nur für
+    /// Modulregale (<see cref="Simulation.IdleShelfSystem.Tracked"/>). Additiv gespeichert; im Hash nur gemischt, wenn gesetzt.
     /// </summary>
     public long? LastMove;
+    /// <summary>
+    /// Ausbau Punkt 12: zuletzt beobachteter Bestand eines Modulregals (<see cref="Simulation.IdleShelfSystem"/> vergleicht ihn alle 100 Ticks mit
+    /// <see cref="Amount"/> — jede Änderung, gleich über welchen Weg, zählt als Bewegung). null = noch nicht beobachtet. Additiv gespeichert,
+    /// im Hash nur gemischt, wenn gesetzt.
+    /// </summary>
+    public float? SeenAmount;
 }
 
 /// <summary>Phase 30: Größenklasse eines Stationstyps (wie bei Schiffen); XS = Kleinstation mit eigenem Radius (Satellit, Waffenstellung).</summary>

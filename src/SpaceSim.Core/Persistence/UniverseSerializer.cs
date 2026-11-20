@@ -345,7 +345,7 @@ public static class UniverseSerializer
                 Id = st.Id.Value, Type = st.TypeKey, Name = st.Name, Sector = st.Sector.Value, Owner = st.Owner.Value, Pos = st.Position,
                 Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected, BelowLimitSince = st.BelowLimitSince, Immortal = st.Immortal,
                 Recipes = st.Production.Select(ToSave).ToList(),
-                Market = st.Market.ToDictionary(kv => kv.Key.Value, kv => new StockSave { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price, LastMove = kv.Value.LastMove }),
+                Market = st.Market.ToDictionary(kv => kv.Key.Value, kv => new StockSave { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price, LastMove = kv.Value.LastMove, Seen = kv.Value.SeenAmount }),
                 Site = st.Site is { } bs ? new BuildSiteSave
                 {
                     Type = bs.TypeKey, Required = bs.Required.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
@@ -705,7 +705,7 @@ public static class UniverseSerializer
                 Position = st.Pos, Credits = st.Credits, BankruptcyProtected = st.BankruptcyProtected || st.Essential, BelowLimitSince = st.BelowLimitSince,
                 Immortal = st.Immortal,
                 Production = st.Recipes.Select(FromSave).ToList(),
-                Market = st.Market.ToDictionary(kv => new GoodId(kv.Key), kv => new StockEntry { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price, LastMove = kv.Value.LastMove }),
+                Market = st.Market.ToDictionary(kv => new GoodId(kv.Key), kv => new StockEntry { Amount = kv.Value.Amount, Target = kv.Value.Target, Price = kv.Value.Price, LastMove = kv.Value.LastMove, SeenAmount = kv.Value.Seen }),
                 Site = st.Site is { } bs ? new BuildSite
                 {
                     TypeKey = bs.Type, Required = bs.Required.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),

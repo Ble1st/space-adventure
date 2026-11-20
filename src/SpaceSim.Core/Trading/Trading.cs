@@ -261,9 +261,14 @@ public static class TradeActions
         Station? best = null;
         float bestScore = 0f;
         var shipSize = Simulation.Docking.SizeOf(u, ship);
+        // Flotten-Automatik: ein Schiff mit Automatikgrenzen (Handel/Schürfen/Konvoi) verkauft auch Reste nur im Umkreis — eine Regel für jeden Restverkauf
+        // (Tankstopp, weggefallener Abnehmer, gestrandete Fracht, nach dem Gefecht); vorher fuhr ein Flottenschiff nach einem Tankstopp aus dem Umkreis.
+        // KI-Schiffe haben keine Grenzen: unverändert.
+        var limits = Simulation.AutoLimitRules.Of(ship);
         foreach (var st in u.Stations.Values)
         {
             if (st.Id == exclude || !Simulation.Docking.Allows(st, shipSize)) continue;   // Phase 30: Station groß genug
+            if (limits is not null && !Simulation.AutoLimitRules.InRange(u, limits, st.Sector)) continue;
             float quote = Quote(u, ship, st);
             if (quote <= 0f) continue;
             float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id), ship);

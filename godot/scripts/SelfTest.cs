@@ -25,6 +25,7 @@ public partial class SelfTest : Node
 {
 	readonly Main _m;
 	int _frame, _stage;
+	SpaceSim.Core.Model.ShipId _raidRaider;   // Stufe 37–39: der Kaperer, der den Spieler überfällt
 	string _fail = "";
 	SectorId _startSector;
 	int _stageStart;
@@ -808,7 +809,11 @@ public partial class SelfTest : Node
 				_m.TestTeleportTo(spot);
 				foreach (var kv in pl.Cargo.ToList()) pl.Cargo.Remove(kv.Key);
 				pl.Cargo[uni.FindGood("food")!.Id] = 40f;
-				var raider = uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(s => s.Id.Value).First();
+				// Luxusexport-Start (verschobener Zufallsweg): der erste Kaperer steckte als Hauptangreifer in einem Gefecht in Alpha; nach dem Herauslösen
+				// beendete das Gefecht trotzdem mit ihm als Kaperer (RaidResolved → nach dem Gefecht heim) und die Vorwarnung lief ins Leere — einen Kaperer
+				// ohne Gefecht nehmen, wenn es einen gibt
+				var raider = uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(s => uni.Fights.Of(s.Id) is null ? 0 : 1).ThenBy(s => s.Id.Value).First();
+				_raidRaider = raider.Id;
 				// Gasernte/Fusion (verschobener Zufallsweg): der Kaperer steckte noch in einem fremden Gefecht und lauerte deshalb nicht
 				if (uni.Fights.Of(raider.Id) is { } busy0 && busy0.Of(raider.Id) is { Active: true } bp0) SpaceSim.Core.Combat.Engage.Leave(uni, busy0, bp0, SpaceSim.Core.Model.CombatExit.Fled);
 				raider.Hull = raider.MaxHull;
@@ -835,7 +840,8 @@ public partial class SelfTest : Node
 				if (_m.LastSecurityMessage.StartsWith("Piraten"))
 				{
 					var uni = _m.Session.U;
-					Check(uni.PendingEncounters.Any(e => e.Target == uni.PlayerShip), $"Vorwarnung vor dem Überfall angezeigt („{_m.LastSecurityMessage}“)");
+					Check(uni.PendingEncounters.Any(e => e.Target == uni.PlayerShip && e.Source == _raidRaider),
+						$"Vorwarnung vor dem Überfall angezeigt („{_m.LastSecurityMessage}“)");
 					var near = uni.Stations[uni.Sectors[uni.PlayerSector].Stations.OrderBy(id => id.Value).First()];
 					_m.TestDockAt(near.Id);
 					Check(_m.Docked, "Angedockt, um dem Überfall zu entgehen");
@@ -859,7 +865,12 @@ public partial class SelfTest : Node
 					_m.TestUndock();
 					Next();
 				}
-				else if (_frame - _stageStart > 3000) Fail($"Überfall nicht aufgelöst („{_m.LastSecurityMessage}“)");
+				else if (_frame - _stageStart > 3000)
+				{
+					var uni = _m.Session.U;
+					var rd = uni.Ships.TryGetValue(_raidRaider, out var rr) ? rr : uni.Ships.Values.Where(SpaceSim.Core.Simulation.ThreatMap.IsRaider).OrderBy(x => x.Id.Value).First();
+					Fail($"Überfall nicht aufgelöst („{_m.LastSecurityMessage}“; Kaperer #{rd.Id.Value} Sektor {rd.Sector.Value} Befehl {rd.Command} Notlage {rd.Emergency} Reise {rd.Transit is not null} Tank {rd.TotalFuel:0} Hülle {rd.Hull:0})");
+				}
 				break;
 			case 40: // Phase 12: Befehl an das eigene Zweitschiff (an der Werft gekaufter Prospector) über die Flotte der Kommandozentrale
 			{

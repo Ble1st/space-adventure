@@ -10,11 +10,11 @@ using Xunit;
 namespace SpaceSim.Tests;
 
 /// <summary>
-/// Ausbau Punkt 12 (docs/TODO-AUSBAU.md): ungenutzte Regale — stock-only Markteinträge (<see cref="Station.IsStockOnly"/>), besonders Modulwaren —
-/// werden günstiger, solange niemand an ihnen handelt. Regeln in <see cref="EconomyRules.IdleShelves"/> (eigene partial-Datei): pro Regaleintrag
-/// Tick der letzten Bewegung (Kauf oder Lieferung, <see cref="StockEntry.LastMove"/>); nach <see cref="EconomyRules.IdleShelfTicks"/> ohne Bewegung
-/// Ziel −1 (mindestens 1, <see cref="IdleShelfSystem"/>) und Verkaufspreis × <see cref="EconomyRules.IdleShelfPriceFactor"/> (<see cref="MarketSystem"/>),
-/// bis wieder eine Bewegung stattfindet. Code-Standard Schalter aus, Standardwelt an; additiv gespeichert, im Hash nur gemischt wenn gesetzt.
+/// Ausbau Punkt 12 (docs/TODO-AUSBAU.md): ungenutzte Modulregale — stock-only Markteinträge einer Modulware (<see cref="Station.IsStockOnly"/>,
+/// Kategorie „module“) — werden günstiger, solange sich ihr Bestand nicht ändert. Bewegung = jede Bestandsänderung (Handel, Schiffsbau, Upgrades …),
+/// erkannt vom <see cref="IdleShelfSystem"/> per Bestandsvergleich; nach <see cref="EconomyRules.IdleShelfTicks"/> ohne Bewegung Ziel −1 (mindestens 1)
+/// und Verkaufspreis × <see cref="EconomyRules.IdleShelfPriceFactor"/> (nur mit Bestand ≥ 1), bis sich der Bestand wieder ändert. Andere Regale
+/// (Export, Instandhaltung, Forschung, Lagerhaus, Munition) bleiben unberührt. Code-Standard aus, Standardwelt an; additiv gespeichert, im Hash nur gemischt wenn gesetzt.
 /// </summary>
 public class IdleShelfTests
 {
@@ -206,6 +206,93 @@ public class IdleShelfTests
         new SimulationRunner().Run(u, 1000);
         new SimulationRunner().Run(loaded, 1000);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));
+    }
+
+    [Fact]
+    public void VerbrauchOhneHandel_SchiffsbauAusDemRegal_ZähltAlsBewegung()
+    {
+        // Regalverbrauch, der nicht über das Rückkaufbuch läuft (ShipPurchase.Consume: KI-Flotte, Polizei, Kriegsschiffe, Spielerkauf; Upgrades,
+        // Reparatur …), setzt das Regal genauso zurück: das System vergleicht den Bestand alle 100 Ticks mit dem zuletzt beobachteten
+        var u = DemoUniverse.Create();
+        var (st, e, good) = Regal(u);
+        e.Amount = e.Target;
+        var sys = new IdleShelfSystem();
+        u.Tick = 100; sys.Step(u, IdleShelfSystem.Interval);   // erste Beobachtung
+        Assert.Null(e.LastMove);
+        Assert.Equal(e.Amount, e.SeenAmount);
+        u.Tick = 15000;
+        ShipPurchase.Consume(st, new[] { new MaterialNeed(good, 1f) });
+        u.Tick = 15100; sys.Step(u, IdleShelfSystem.Interval);
+        Assert.Equal(15100, e.LastMove);
+        // an der alten Schwelle (Tick 20000) also weder vergünstigt noch Ziel gesenkt
+        float target = e.Target;
+        u.Tick = 20000; sys.Step(u, IdleShelfSystem.Interval);
+        new MarketSystem().Step(u, 1);
+        Assert.Equal(target, e.Target, 3);
+        Assert.Equal(MarketSystem.StockPrice(u.Goods[good], e, e.Amount), e.Price, 2);
+    }
+
+    [Fact]
+    public void NurModulregale_AndereRegaleUndLeereRegaleBleibenUnberührt()
+    {
+        var u = DemoUniverse.Create();
+        var sys = new IdleShelfSystem();
+        // alle stock-only Einträge, die keine Modulwaren sind (Export, Instandhaltung, Forschungslager, Lagerhaus, Munition), auf vollen Bestand
+        var others = new List<(Station St, GoodId G, StockEntry E)>();
+        foreach (var st in u.StationsById())
+            foreach (var (g, e) in st.Market)
+                if (!st.IsBuildSite && st.IsStockOnly(g) && u.Goods[g].Category != ModuleGoods.ModuleCategory) { e.Amount = MathF.Max(1f, e.Target); others.Add((st, g, e)); }
+        Assert.NotEmpty(others);
+        var targets = others.Select(o => o.E.Target).ToList();
+        for (long t = 100; t <= 20100; t += 100) { u.Tick = t; sys.Step(u, IdleShelfSystem.Interval); }
+        new MarketSystem().Step(u, 1);
+        for (int i = 0; i < others.Count; i++)
+        {
+            var (st, g, e) = others[i];
+            Assert.Null(e.LastMove); Assert.Null(e.SeenAmount);
+            Assert.Equal(targets[i], e.Target, 3);
+            Assert.False(IdleShelfSystem.Discounted(u, st, g, e, st.Roles()), $"{st.Name}: {u.Goods[g].Name}");
+        }
+        // ein leeres Modulregal verkauft nichts und behält sein Gebot (sonst würde es noch seltener aufgefüllt)
+        var (rs, re, rg) = Regal(u);
+        re.Amount = 0f;
+        new MarketSystem().Step(u, 1);
+        Assert.False(IdleShelfSystem.Discounted(u, rs, rg, re, rs.Roles()));
+        Assert.Equal(MarketSystem.StockPrice(u.Goods[rg], re, 0f), re.Price, 2);
+    }
+
+    [Fact]
+    public void Missbrauch_UnberührtesRegalLeerkaufen_GewinnBegrenzt()
+    {
+        // Ein unberührtes Modulregal ganz zum halben Preis leerkaufen und anderswo verkaufen: der Gewinn ist höchstens der Rabatt auf den Regalbestand
+        // (Ziel klein, einmal je 20000 Ticks je Regal); an derselben Station deckelt das Rückkaufbuch den Rückverkauf auf den Kaufpreis (kein Kreislauf)
+        var u = DemoUniverse.Create();
+        new SimulationRunner().Run(u, 20);
+        var (st, e, good) = Regal(u);
+        e.Amount = MathF.Max(1f, e.Target);
+        u.Tick = 20000;
+        new MarketSystem().Step(u, 1);
+        Assert.True(IdleShelfSystem.Discounted(u, st, good, e, st.Roles()));
+        var ship = u.Ships[u.PlayerShip];
+        var wallet = u.WalletOf(ship);
+        wallet.Credits = 1_000_000f;
+        ship.Cargo.Clear();
+        float units = MathF.Floor(e.Amount);
+        float before = wallet.Credits;
+        var buy = TradeActions.Buy(u, ship, st, good, units);
+        Assert.Equal(BuyOutcome.Ok, buy.Outcome);
+        float paid = before - wallet.Credits;
+        float basePrice = u.Goods[good].BasePrice;
+        Assert.True(paid <= units * basePrice * u.Rules.IdleShelfPriceFactor * 1.0001f, $"bezahlt {paid}");
+        // Rückverkauf an derselben Station im nächsten Tick: höchstens der Kaufpreis (Rückkaufbuch)
+        u.Tick++;
+        new MarketSystem().Step(u, 1);
+        Assert.True(u.Tick - e.LastMove!.Value < u.Rules.IdleShelfTicks);   // die Bewegung hat den Rabatt beendet
+        float mid = wallet.Credits;
+        TradeActions.Sell(u, ship, st, good, units);
+        Assert.True(wallet.Credits - mid <= paid + 0.01f, $"Rückverkauf {wallet.Credits - mid} > Kauf {paid}");
+        // der höchstmögliche Gewinn anderswo ist durch Bestand × Basispreis × (Höchstpreisfaktor − Rabatt) begrenzt — klein gegen den Schiffspreis
+        Assert.True(units <= 8f, $"Regal mit {units} Einheiten");
     }
 
     [Fact]

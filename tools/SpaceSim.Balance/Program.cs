@@ -1320,6 +1320,11 @@ foreach (var ex in u.Stations.Values.Where(x => ExportRules.ConfigOf(u, x) is no
         + " | Gebot " + string.Join(", ", ExportRules.ConfigOf(u, ex)!.Goods.Select(g => $"{u.Goods[g].Name} {ExportRules.ConfigOf(u, ex)!.BidOf(g, u.Rules):0.00}×")));
 foreach (var h in exportDemand)
     Console.WriteLine($"EXPORTNACHFRAGE: {u.Stations[h.Station].Name}: {u.Goods[h.Good].Name} {100 * h.UpperShare:0}% der Messzeit leer am Gebotsdeckel — unbefriedigte Exportnachfrage, kein Fehler (Ø {h.AvgRatio:0.00}×)");
+// Ausbau Punkt 12: absichtlich vergünstigte Modulregale (lange unbewegt: Ziel −1, halber Preis) — eigene Rubrik, zählt nicht als Hinweis
+var idleShelves = watch.IdleShelves(u);
+if (idleShelves.Count > 0)
+    Console.WriteLine($"Ungenutzte Modulregale (Ausbau Punkt 12, > 50 % der Messzeit vergünstigt, kein Hinweis): {idleShelves.Count} — "
+        + string.Join(", ", idleShelves.Take(8).Select(x => $"{u.Stations[x.Station].Name}: {u.Goods[x.Good].Name} {100 * x.Share:0}%")) + (idleShelves.Count > 8 ? " …" : ""));
 foreach (var h in capHints)
     Console.WriteLine($"HINWEIS: {u.Stations[h.Station].Name}: {u.Goods[h.Good].Name} {(h.UpperShare >= h.LowerShare ? $"{100 * h.UpperShare:0}% der Messzeit am oberen Deckel (Bestand leer)" : $"{100 * h.LowerShare:0}% der Messzeit am unteren Deckel")} (Ø {h.AvgRatio:0.00}×)");
 foreach (var g in idleGoods)
