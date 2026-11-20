@@ -752,6 +752,64 @@
       ],
       "hardpoints": []
     },
+    "salvager": {
+      "name": "Bergeschiff",
+      "size": "M",
+      "scale": 1.5,
+      "jaws": [
+        {
+          "node": "Jaw_R",
+          "axis": "z",
+          "spin": "Gelenk senkrecht"
+        },
+        {
+          "node": "Jaw_L",
+          "axis": "z",
+          "spin": "Gelenk senkrecht"
+        }
+      ],
+      "hardpoints": [
+        {
+          "slot": 5,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.0478,
+            -0.58
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_5",
+          "module": "weapon_laser_s"
+        }
+      ]
+    },
+    "shadow": {
+      "name": "Schatten",
+      "size": "M",
+      "scale": 1.5,
+      "hardpoints": [
+        {
+          "slot": 6,
+          "kind": "turret",
+          "pos": [
+            0.0,
+            0.101,
+            -0.2656
+          ],
+          "dir": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "node": "Turret_6",
+          "module": "weapon_laser_s"
+        }
+      ]
+    },
     "warden": {
       "name": "Wächter",
       "size": "M",

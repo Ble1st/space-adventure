@@ -107,6 +107,7 @@ WIDEN = {
     "destroyer": 1.208,
     "battlecruiser": 1.265,
     "strip_miner": 1.495,
+    "salvager": 1.30,
 }
 
 # Abbauart und bewegliche Werkzeuge (Durchlauf 5)
@@ -509,7 +510,7 @@ def fin_pair(b, pts, t, x, y, z, cant=0.0, mat="Accent"):
         a = math.radians(cant * s)
         rot = Euler((0, a, 0)).to_matrix().to_4x4()
         base = Matrix.Translation(Vector((s * x, y, z)))
-        mi = b._mi(M(mat))
+        mi = b._mi(M(mat) if isinstance(mat, str) else mat)
         vs_b = [b.bm.verts.new(base @ rot @ Vector((-t / 2, py, pz))) for py, pz in pts]
         vs_t = [b.bm.verts.new(base @ rot @ Vector((t / 2, py, pz))) for py, pz in pts]
         n = len(pts)
@@ -1209,6 +1210,110 @@ def rockbreaker_ii(b):
     visor(b, S, 3.2, width=2.0)
     for x in (-1.1, 1.1):
         engine(b, (x, -6.9, 0.0), 0.85)
+
+
+@ship("salvager", "M", "Bergeschiff (Bergeschlepper, aus dem Werkrumpf des Polier/Lastkahn abgeleitet): Achtkantrumpf mit gepanzertem Bug, zwei bewegliche Bergungsgreifer-Arme (eigene Nodes Jaw_R/Jaw_L) mit nach innen gebogenen Klauen, dazwischen ein Traktoremitter mit Warnring, offene Schrottwiege auf dem Ruecken (5 Rahmensegmente mit Warnschienen, Schrott und Container darin, Ladekran), Seitenlager mit 5 Segmenten (200), Laserturm, Loeschmitteltanks, zwei beringte Duesen", cargo=200, role="Bergbau/Bau")
+def salvager(b):
+    S = [(6.2, 0.7, 0.5), (5.4, 1.4, 0.85), (4.0, 2.0, 1.1), (-5.6, 2.0, 1.1), (-7.0, 1.5, 0.85)]
+    b.loft(S, M("Hull"))
+    dress(b, S, seed=31.0, trench=False)
+    plate(b, S, 4.6, 2.6, mat="HullDark", g=1.05)   # Bugpanzer (dunkel; ShipArmor waere das elfte Material)
+    band(b, S, 4.4, mat="Hazard", t=0.3, g=1.07)
+    band(b, S, -5.0, mat="Accent", t=0.35, g=1.05)
+    visor(b, S, 5.0, width=1.8)
+    # Traktoremitter im Bug zwischen den Greifern
+    lens(b, (0, 6.3, -0.1), r=0.36, d=(0, 1, 0))
+    b.torus(0.62, 0.08, M("Hazard"), seg=12, minor=4, loc=(0, 6.22, -0.1), rot=(90, 0, 0))
+    # Bergungsgreifer: zwei Arme mit Gelenk am Bug, Klauen nach innen
+    for s in (1, -1):
+        J = [(7.5, 0.0, 0.0), (7.0, 0.28, 0.32), (6.2, 0.38, 0.42), (5.2, 0.45, 0.5)]
+        jb = jaw(b, "Jaw_" + ("R" if s > 0 else "L"), (s * 1.45, 5.4, 0.0), J, s * 1.45)
+        jb.box(0.12, 1.1, 0.42, M("Hazard"), loc=(s * 1.88, 6.3, 0.0))
+        jb.box(0.85, 0.24, 0.3, M("Hazard"), loc=(s * 1.12, 7.25, 0.0), rot=(0, 0, s * 38))
+        jb.box(0.55, 0.2, 0.22, M("HullDark"), loc=(s * 1.15, 6.6, 0.0), rot=(0, 0, s * 30))
+        b.box(0.7, 0.9, 0.7, M("HullDark"), loc=(s * 1.45, 5.0, 0.0))
+    # offene Schrottwiege auf dem Ruecken: 5 Rahmensegmente (100), Warnschienen, Schrott darin
+    top = 1.1
+    y0, n = 2.2, 5
+    b.box(2.6, n * SEG + 0.2, 0.08, M("Steel"), loc=(0, y0 - n * SEG / 2, top + 0.05))
+    for i in range(n + 1):
+        y = y0 - SEG * i
+        for s in (1, -1):
+            b.beam(V(s * 1.3, y, top), V(s * 1.3, y, top + 1.0), 0.16, M("HullDark"))
+    for s in (1, -1):
+        b.beam(V(s * 1.3, y0, top + 1.0), V(s * 1.3, y0 - n * SEG, top + 1.0), 0.2, M("Hazard"))
+        b.box(0.08, n * SEG, 0.35, M("Accent"), loc=(s * 1.38, y0 - n * SEG / 2, top + 0.45))
+    b.rock(0.55, M("Container"), seed=3, seg=6, rings=4, loc=(0.45, 1.3, top + 0.5), scale=(1.2, 0.9, 0.7), amp=0.35)
+    b.rock(0.45, M("Container"), seed=7, seg=6, rings=4, loc=(-0.5, -0.9, top + 0.45), scale=(1.0, 1.3, 0.8), amp=0.35)
+    b.box(0.8, 1.0, 0.6, M("Container"), loc=(-0.45, 1.0, top + 0.35), rot=(0, 0, 18))
+    b.cyl(0.32, 1.1, M("ShipPanel"), seg=6, loc=(0.4, -0.6, top + 0.38), rot=(-90, 0, 25))
+    # Ladekran hinter der Wiege, Haken ueber dem Schrott
+    c0, c1 = V(0, -2.4, top), V(0, -2.4, top + 1.7)
+    b.beam(c0, c1, 0.3, M("HullDark"))
+    c2 = V(0, 0.6, top + 2.0)
+    b.beam(c1, c2, 0.22, M("Hazard"))
+    b.strut(c2, c2 - V(0, 0, 0.55), 0.03, M("HullDark"), seg=4)
+    b.box(0.45, 0.2, 0.25, M("Hazard"), loc=c2 - V(0, 0, 0.65))
+    # Seitenlager: 5 Segmente (100) mit Toren beidseits und Bodenklappen
+    cargo_bay(b, S, 1.8, 5, bottom=True, rib=False)
+    # Laserturm vorn auf dem Ruecken (Waffenslot 5 der Klasse salvage_tug)
+    hp_turret(b, 5, (0, 3.5, 1.15), s=0.38)
+    sensor(b, (-1.1, 4.2, 1.0), r=0.24)
+    # Loeschmitteltanks am Heck (Loeschanlage)
+    for s in (1, -1):
+        b.cyl(0.26, 1.2, M("Container"), seg=6, loc=(s * 2.15, -4.2, 0.35), rot=(-90, 0, 0))
+        b.box(0.1, 1.4, 0.25, M("Hazard"), loc=(s * 2.05, -6.1, 0.0))
+    for x in (-1.1, 1.1):
+        engine(b, (x, -7.3, 0.0), 0.72)
+    thrusters(b, [(2.1, 4.6, 0.0), (-2.1, 4.6, 0.0)], s=0.45)
+    navl(b, 2.1, -3.6, 0.4)
+
+
+@ship("shadow", "M", "Blockadebrecher (Schattenpfeil, aus dem Klingenrumpf des Korsar und den Gondeln des Kurier abgeleitet): flacher dunkler Rautenpfeil mit facettierten Tarnplatten, Sprungspule als Ring um das Mittelschiff, zwei schraeg gestellte Tarnemitter-Finnen mit Leuchtkanten, in die Huelle versenkte Triebwerke in Heckschachten, zwei flache Schmuggelkapseln unter dem Bauch (je 3 Segmente = 120), versenkter Laserturm", name="Schatten", cargo=120)
+def shadow(b):
+    S = [(7.5, 0.0, 0.0), (5.0, 1.0, 0.45), (1.5, 1.9, 0.7), (-4.5, 2.2, 0.75), (-6.6, 1.7, 0.55), (-7.2, 1.2, 0.4)]
+    b.loft(S, M("HullDark"), shape="diamond")
+    dress(b, S, seed=33.0, shape="diamond", n=6)
+    # facettierte Tarnplatten (flache, schraeg gestellte Paneele in dunklem Stahlblau)
+    dark = _material("Steel")
+    for s in (1, -1):
+        b.prism([(0, 1.0), (2.6, 0.4), (2.4, -0.6), (0, -1.0)], 0.12, dark,
+                loc=(s * 1.0, 1.0, 0.2), rot=(0, s * -12, 0), scale=(s, 1, 1))
+        b.prism([(0, 1.0), (2.2, -1.2), (0, -1.8)], 0.12, dark,
+                loc=(s * 1.4, -3.0, 0.15), rot=(0, s * -10, 0), scale=(s, 1, 1))
+        b.prism([(1.8, 0.2), (2.6, 0.4), (2.5, -0.3)], 0.14, M("Accent"),
+                loc=(s * 1.0, 1.0, 0.24), rot=(0, s * -12, 0), scale=(s, 1, 1))
+    # Sprungspule: freistehender Ring um das Mittelschiff mit Spulenwicklungen und Haltestreben
+    R = 3.0
+    b.torus(R, 0.2, M("HullDark"), seg=20, minor=4, loc=(0, -1.6, 0.0), rot=(90, 0, 0))
+    b.torus(R, 0.09, M("Engine"), seg=20, minor=4, loc=(0, -1.38, 0.0), rot=(90, 0, 0))
+    for k in range(8):
+        a = math.radians(22.5 + 45 * k)
+        p = V(R * math.cos(a), -1.6, R * math.sin(a))
+        b.box(0.34, 0.6, 0.34, M("Accent") if k % 2 == 0 else dark, loc=p, rot=(0, -math.degrees(a), 0))
+    for a in (0.0, 180.0):
+        r = math.radians(a)
+        b.beam(V(1.9 * math.cos(r), -1.6, 0.0), V((R - 0.2) * math.cos(r), -1.6, 0.0), 0.18, M("HullDark"))
+    # Tarnemitter-Finnen, schraeg nach aussen, mit Leuchtkante oben
+    fin_pair(b, [(0.6, 0), (-2.4, 0), (-3.2, 1.7), (-1.6, 1.5)], 0.1, 0.9, -3.0, 0.6, cant=28, mat=dark)
+    fin_pair(b, [(-1.6, 1.42), (-3.25, 1.62), (-3.25, 1.82), (-1.6, 1.62)], 0.16, 0.9, -3.0, 0.6, cant=28,
+             mat="Light")
+    # zwei flache Schmuggelkapseln unter dem Bauch (je 3 Segmente)
+    y0 = 1.6
+    for s in (1, -1):
+        P = [(y0 + 0.5, 0.0, 0.0, -0.75), (y0, 0.55, 0.28, -0.8), (y0 - 3 * SEG, 0.55, 0.28, -0.8),
+             (y0 - 3 * SEG - 0.5, 0.2, 0.12, -0.75)]
+        b.loft(P, M("Steel"), x=s * 1.0)
+        cargo_bay(b, P, y0, 3, x=s * 1.0, sides=(), bottom=True)
+    # versenkter Laserturm auf dem Ruecken (Waffenslot 6)
+    b.box(1.2, 1.4, 0.1, M("HullDark"), loc=(0, 1.2, 0.62))
+    hp_turret(b, 6, (0, 1.2, 0.6), s=0.32)
+    visor(b, S, 4.0, width=0.7, length=1.2)
+    # versenkte Triebwerke in Heckschachten
+    for x in (-0.75, 0.75):
+        b.box(1.1, 0.9, 0.8, M("HullDark"), loc=(x, -6.9, 0.0))
+        engine(b, (x, -7.35, 0.0), 0.4, ring="HullDark", housing=False)
+    navl(b, 2.2, -4.6, 0.0, s=0.1)
 
 
 # =============================================================== M/L: Kampfschiffe

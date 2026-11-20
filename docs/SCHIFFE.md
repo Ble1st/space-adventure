@@ -284,3 +284,33 @@ Nutzer: „Schiffspreise wie im decomp“. Schalter `playerShipPricing` (Code au
 - **Wiederverkauf** bleibt bei 0,5 × Material (immer unter dem Kaufpreis — keine Schleife; die 2,5 % Abgabe von IP2 würde mit dem Ansehensrabatt eine Schleife öffnen).
 - **Flottenunterhalt nach Größe** (`playerFleetUpkeepBySize` [1, 1,5, 2,5, 4] für S/M/L/XL): statt flach 144 Cr/h je Schiff mit Befehl kostet ein Schlachtkreuzer 576 Cr/h. (IP2 hat keinen Unterhalt; ganz streichen hätte die letzte laufende Flottenkost genommen.)
 - **Falke schneller als der Korsar** (Botbefund: Kopfgeldjagd unmöglich, Korsaren waren so schnell wie der Falke und schneller als jedes andere Kampfschiff): Grundmasse des Jägers 5 → 2, Tempo 8,64 → 10,0 (Korsar 8,64, mit Antriebsmodus +10 % 9,5). Datenänderung in der Weltdatei; Polizei und Piraten wählen den Falken kaum (Stärke je Preis wie der Korsar). Hinweis zum Bot: Seine Jagd bewegt das aktive Schiff im Kopflos-Gefecht nicht (der Spieler fliegt sonst in der Ansicht), dort flieht ein Korsar auch vor einem schnelleren Schiff.
+
+## Bergeschiff (Bergeschlepper) und Schatten – eigene Modelle
+
+**Bergeschiff `salvager`, Klasse `salvage_tug` „Bergeschlepper“ (neu).** Das Bergeschiff stand bisher auf der Klasse des leichten
+Frachters (ein Werkzeugslot, kein Panzer); die NPC-Bergung braucht aber ein Arbeitsschiff, das an Wracks in umkämpften Sektoren
+länger aushält. Eigene Klasse M, Bausatz `ship_kit_medium`, Rumpf 160, Grundmasse 14, Tank 250, Slots: Reaktor S, Triebwerk M,
+**zwei** Werkzeug S, Panzer S, Waffe S (Drehturm — „jeder Händler bewaffnet“), zwei Fracht S, Utility S.
+Werks-Fit: `reactor_mk2`, `chem_engine_m`, `wreck_grapple_s` (Bergen), `tractor_beam_s` (Traktorstrahl für Fracht),
+`armor_plating_s`, `weapon_laser_s`, 2 × `cargo_universal_100` (200 universell), `wet_suppressor_s` (Löschanlage — brennende Wracks).
+Leistung 14 gegen Verbrauch 13 (Triebwerk 4, Greifer 2, Traktor 1, Laser 3, Löschanlage 1 … Spitze Laser 1 im Überschuss),
+mit dem Mk1-Reaktor ginge die Spitzenlast nicht auf. Masse 41 → Tempo ≈ 5,9 (zwischen Lastkahn 5,5 und Maultier 7,7), Hülle 160 + 40 Panzer.
+Werft (alle Klassen) verkauft es, die Handelsstation nicht; die KI kauft es über die Aufgabe `salvage`.
+`BergungTests.RevertSalvage` entfernt auch die Klasse, `SaveGameJson.AfterV17Keys` kennt `salvage_tug`.
+
+**3D-Modell** (`tools/blender/ship_models.py`, `salvager`): aus dem Werkrumpf von Polier/Lastkahn abgeleitet — Achtkantrumpf mit
+dunklem Bugpanzer und Warnring, **zwei bewegliche Greiferarme** (`Jaw_R`/`Jaw_L`, Gelenk senkrecht wie die Spaltbacken) mit nach innen
+gebogenen Klauen, dazwischen der **Traktoremitter** mit Warnring, auf dem Rücken eine **offene Schrottwiege** (5 Rahmensegmente
+mit Warnschienen, Schrott und Container darin, Ladekran), Seitenlager mit 5 Segmenten (zusammen 10 Segmente = 200), Laserturm
+(`Turret_5`, Hardpoint Slot 5), Löschmitteltanks am Heck, zwei beringte Düsen. 2358 Dreiecke, zehn Materialien (`Hazard`, `Accent`,
+`Engine` dabei), Box-UV (Oberflächentexturen greifen). Die Greifer klappen im Spiel bei jedem `WreckSalvaged` im Spielersektor
+(Spieler und NPC) einmal auf und zu (`Main` → `ShipVisual.SnapJaws`). `verify_ships.py`: Nutzlast in der Wiege darf asymmetrisch sein.
+
+**Schatten `shadow`** (Schmuggler-Blockadebrecher, Klasse `blockade_runner` M — Weltdaten auf einem anderen Zweig): hier nur das
+Modell. Flacher dunkler Rautenpfeil aus dem Klingenrumpf des Korsar, facettierte Tarnplatten in dunklem Stahlblau, **Sprungspule**
+als freistehender Ring mit leuchtender Wicklung um das Mittelschiff, zwei schräge **Tarnemitter-Finnen** mit Leuchtkante, versenkte
+Triebwerke in Heckschächten, zwei flache Schmuggelkapseln unter dem Bauch (je 3 Segmente = 120), versenkter Laserturm
+(`Turret_6`, Slot 6 laut Fit). 1734 Dreiecke. `build_ships.EXTRA_FITS` liefert den Fit für den Hardpoint-Eintrag, solange die
+Weltdatei das Modell nicht kennt; `ShipModels` lädt es per Schlüssel, sobald beide Zweige zusammen sind.
+`build_ships.py` bricht bei Modellen ohne Blender-Modell (z. B. `skimmer`) nicht mehr ab, sondern meldet sie.
+`--model-shots <dir> --model-shots-ships=a,b,c` rendert nur diese Schiffe (nah, Spielabstand, bei Backen/Greifern zusätzlich halb offen).

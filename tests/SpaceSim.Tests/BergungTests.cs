@@ -27,6 +27,7 @@ public class BergungTests
     internal static void RevertSalvage(WorldDef def)
     {
         def.ShipModels.RemoveAll(m => m.Key == "salvager");
+        def.ShipClasses.RemoveAll(c => c.Key == "salvage_tug");   // eigene Klasse Bergeschlepper
         def.Ships.RemoveAll(g => g.Model == "salvager");
         var r = def.Rules ??= new EconomyRules();
         r.NpcSalvage = false; r.MaxSalvagers = 0;
@@ -99,12 +100,20 @@ public class BergungTests
         var u = World();
         var m = u.ShipModels["salvager"];
         Assert.Equal("Bergeschiff", m.Name);
-        Assert.Equal("light_freighter", m.ClassKey);
+        Assert.Equal("salvage_tug", m.ClassKey);
         Assert.Equal(new[] { "salvage" }, m.Jobs);
-        var stats = ShipStats.Compute(u.ShipClasses[m.ClassKey], m.Fit.Select(k => k is not null ? u.Modules[k] : null).ToList());
+        var cls = u.ShipClasses[m.ClassKey];
+        Assert.Equal("Bergeschlepper", cls.Name);
+        Assert.Equal("ship_kit_medium", cls.Kit);
+        var stats = ShipStats.Compute(cls, m.Fit.Select(k => k is not null ? u.Modules[k] : null).ToList());
         Assert.True((stats.Capabilities & Capability.Salvage) != 0);   // Bergungsgreifer im Werks-Fit
         Assert.True((stats.Capabilities & Capability.Cargo) != 0);
+        Assert.True((stats.Capabilities & Capability.Combat) != 0);   // jeder Händler trägt eine Waffe
         Assert.True(stats.Cargo >= 200f);   // großer universeller Laderaum (2 × 100)
+        Assert.Contains("tractor_beam_s", m.Fit);
+        Assert.Contains("armor_plating_s", m.Fit);
+        Assert.Null(FitRules.Check(u.SlotTypes, u.Modules, cls, cls.Slots, m.Fit));   // Leistungsbilanz gültig
+        Assert.InRange(stats.Speed, 5.5f, 7.7f);   // zwischen Lastkahn und Maultier
         var job = ShipJobs.ByKey("salvage");
         Assert.NotNull(job);
         Assert.Equal(ShipRole.Salvager, job!.Role);
@@ -170,7 +179,7 @@ public class BergungTests
         var salvager = NewShip(u, "salvager", ShipRole.Salvager, u.FreeActor, 2000f);
         Place(u, salvager, Alpha, new Vec2(55f, 0f));
         var w = WrackAt(u, Alpha, new Vec2(50f, 0f), 7.5f);
-        runner.Run(u, 120);   // Bergeschiff unterwegs/am Bergen
+        runner.Run(u, 20);   // Bergeschiff unterwegs/am Bergen (Bergeschlepper: Wrack nach 120 Ticks schon leer)
         var (loaded, _) = SaveGameJson.Read(SaveGameJson.Write(u, Now));
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));
         Assert.Equal(u.Wrecks.Count, loaded.Wrecks.Count);   // das Wrack kann schon geborgen sein (Bergeschiff 5 Einheiten daneben)

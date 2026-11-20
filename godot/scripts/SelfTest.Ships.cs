@@ -11,7 +11,7 @@ namespace SpaceAdventure;
 /// <summary>Selbsttest-Stufe der Schiffsmodelle (Runde 11, eigene Datei).</summary>
 public partial class SelfTest
 {
-	ShipId _smGunner, _smBomber;
+	ShipId _smGunner, _smBomber, _smSalvager;
 	int _smShotSlot = -1;
 	float _smRotor;
 	bool _smGuns = true;
@@ -54,6 +54,49 @@ public partial class SelfTest
 				// Kontaktabbau: Bug an den Fels, das Werkzeug dreht
 				_m.TestTouchNearestRock();
 				_smRotor = pv?.RotorAngle ?? 0f;
+				// Bergeschiff (Bergeschlepper) als NPC neben dem Spieler: Modell, Greifer, Akzent
+				var sm = u.ShipModels["salvager"];
+				var syard = u.StationsById().First(s => !s.IsBuildSite);
+				var sv = ShipPurchase.Create(u, u.NewShipId(), "salvager", u.ShipClasses[sm.ClassKey].Slots, sm.Fit, ShipRole.Salvager, Controller.Ai, u.FreeActor, syard, 2000f);
+				u.AddShip(sv);
+				if (sv.Sector != u.PlayerSector) u.MoveShip(sv, u.PlayerSector);
+				sv.DockedAt = default; sv.Position = me.Position + new Vec2(-30f, 20f);
+				_smSalvager = sv.Id;
+				return false;
+			}
+			case 10:
+			{
+				// Spieler steht jetzt am Fels: Bergeschiff in seine Nähe (innerhalb der Modell-Entfernung, nicht als Grundkörper)
+				var sv = u.Ships[_smSalvager];
+				if (sv.Transit is not null) u.FinishTransit(sv);
+				if (sv.Sector != u.PlayerSector) u.MoveShip(sv, u.PlayerSector);
+				sv.Order = null; sv.NextThinkTick = u.Tick + 2000;   // nicht losfliegen, solange die Stufe prüft
+				sv.Position = u.Ships[u.PlayerShip].Position + new Vec2(-25f, 18f);
+				return false;
+			}
+			case 13:
+			{
+				var sv = u.Ships[_smSalvager];
+				var vis = _m.TestView.TestVisual(_smSalvager);
+				Check(vis is not null, $"Bergeschiff zeigt sein Modell ({sv.ModelKey}, Hülle {sv.Stats.Hull:0})");
+				if (vis is not null)
+				{
+					Check(Mathf.Abs(vis.Root.Scale.X - ShipModels.ScaleOf("salvager")) < 1e-3f && Mathf.Abs(ShipModels.ScaleOf("salvager") - ShipModels.ScaleOf("mule")) < 1e-3f,
+						$"Bergeschiff im Maßstab M wie der Maultier-Frachter ({vis.Root.Scale.X:0.00})");
+					Check(vis.Jaws.Count == 2, $"Bergeschiff hat zwei Greiferarme Jaw_* ({vis.Jaws.Count})");
+					Check(vis.Accents.Count > 0 && vis.Engines.Count > 0, $"Bergeschiff hat Akzent- und Triebwerksflächen ({vis.Accents.Count}/{vis.Engines.Count})");
+					var mi = vis.Accents.Select(a => a.Mesh.GetSurfaceOverrideMaterial(a.Surface)).OfType<BaseMaterial3D>().FirstOrDefault();
+					var want = ShipModels.AccentOf(u, sv.Owner);
+					Check(mi is not null && (want.S <= 0.2f ? mi.AlbedoColor.R == want.R : Mathf.Abs(mi.AlbedoColor.H - want.H) < 0.02f), "Bergeschiff-Akzent in der Besitzerfarbe");
+				}
+				// Bergen → die Greifer packen zu (WreckSalvaged im Spielersektor)
+				u.Events.Publish(new WreckSalvaged(0, _smSalvager, u.FindGood("food")!.Id, 1f, null, 0f, true));
+				return false;
+			}
+			case 15:   // zwei Bilder später: die Backenbewegung dauert nur eine halbe Sekunde (im Zeitraffer entsprechend kürzer)
+			{
+				var vis = _m.TestView.TestVisual(_smSalvager);
+				Check(vis is not null && vis.JawOpen > 0.05f, $"Greifer packen beim Bergen zu ({vis?.JawOpen:0.00} rad, sichtbar {vis?.Root.Visible}, Abstand {(u.Ships[_smSalvager].Position - u.Ships[u.PlayerShip].Position).Length:0}, Ereignis {_m.LastSalvageSnap})");
 				return false;
 			}
 			case 30:

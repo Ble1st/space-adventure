@@ -309,7 +309,8 @@ public partial class Main : Node3D
 		StartSession();
 		if (selftest) AddChild(new SelfTest(this));
 		int modelIdx = Array.IndexOf(args, "--model-shots");
-		if (modelIdx >= 0 && modelIdx + 1 < args.Length) AddChild(new ModelShots(args[modelIdx + 1], args.Contains("--model-shots-all")));
+		if (modelIdx >= 0 && modelIdx + 1 < args.Length) AddChild(new ModelShots(args[modelIdx + 1], args.Contains("--model-shots-all"),
+			args.FirstOrDefault(a => a.StartsWith("--model-shots-ships="))?["--model-shots-ships=".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries)));
 		// Runde 16: Handyformat-Fotos aus dem echten Spielablauf (PhoneShots)
 		// Runde 31 (UI-ANPASSUNG.md Etappe 0): Prüfwerkzeug aller Bildschirme in sechs Fenstergrößen und drei UI-Faktoren
 		int checkIdx = Array.IndexOf(args, "--ui-check");
@@ -1100,6 +1101,9 @@ public partial class Main : Node3D
 		return message;
 	}
 
+	/// <summary>Selbsttest: Schiff, dessen Greifer zuletzt beim Bergen zugepackt haben.</summary>
+	public ShipId LastSalvageSnap { get; private set; }
+
 	void OnSimEvent(SimEvent e)
 	{
 		if (JumpCloakEvent(e)) return;   // Sprungantrieb und Tarnfeld (Main.JumpCloak.cs)
@@ -1127,6 +1131,11 @@ public partial class Main : Node3D
 			case AnchorFired af when af.Ship == _session.U.PlayerShip: _anchorBrokeLeft = 0f; break;   // Runde 18: neues Ansetzen löscht den Rissgrund
 			case AsteroidSplit split when split.Sector == _session.U.PlayerSector:   // Runde 12: Spaltbacken klappen
 				if (split.Ship == _session.U.PlayerShip) _player.Visual?.SnapJaws(); else _view.SnapJaws(split.Ship);
+				break;
+			// Bergeschiff: Greiferarme (Jaw_*) packen beim Bergen zu — Spieler und NPC-Bergeschiffe im Spielersektor
+			case WreckSalvaged ws when _session.U.Ships.TryGetValue(ws.Ship, out var wsShip) && wsShip.Sector == _session.U.PlayerSector:
+				if (ws.Ship == _session.U.PlayerShip) _player.Visual?.SnapJaws(); else _view.SnapJaws(ws.Ship);
+				LastSalvageSnap = ws.Ship;
 				break;
 			// Phase 24: NPC-Gefechte im Spielersektor — Schüsse als Strahlen, Beginn als Hinweis
 			case ShotFired sf when sf.Sector == _session.U.PlayerSector:

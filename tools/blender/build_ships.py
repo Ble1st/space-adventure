@@ -49,7 +49,8 @@ def ship_list():
         out.append((key, names.get(key, name or key), size, idea))
     missing = [k for k in names if k != "unit_player" and k not in ship_models.SHIPS]
     if missing:
-        raise SystemExit("Kein Schiffsmodell fuer: " + ", ".join(missing))
+        # Modelle ohne eigenes Blender-Modell (z. B. skimmer) nutzen im Spiel die alte Primitivform
+        print("Hinweis: kein Schiffsmodell fuer: " + ", ".join(missing))
     return out
 
 
@@ -87,7 +88,15 @@ def link(scene, ob):
 def _fits():
     with open(WORLD, encoding="utf-8") as f:
         d = json.load(f)
-    return {m["key"]: m.get("fit", []) for m in d["shipModels"]}
+    fits = {m["key"]: m.get("fit", []) for m in d["shipModels"]}
+    # Modelle, deren Weltdaten auf einem anderen Zweig liegen (Schmugglerschiff „Schatten“)
+    for k, f in EXTRA_FITS.items():
+        fits.setdefault(k, f)
+    return fits
+
+
+EXTRA_FITS = {"shadow": ["reactor_mk2", "chem_engine_m", "cargo_universal_60", "cargo_universal_60",
+                         "jump_drive_s", "cloak_s", "weapon_laser_s"]}
 
 
 FITS = {}

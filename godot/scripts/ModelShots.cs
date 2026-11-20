@@ -23,7 +23,11 @@ public partial class ModelShots : Node
 	float _r;
 	Vector3 _center;
 
-	public ModelShots(string dir, bool all) { _dir = dir; _all = all; }
+	readonly string[]? _ships;
+	ShipVisual? _visual;
+
+	/// <param name="ships">Optional (<c>--model-shots-ships=a,b,c</c>): nur diese Schiffsmodelle, ohne Stationen und Tor.</param>
+	public ModelShots(string dir, bool all, string[]? ships = null) { _dir = dir; _all = all; _ships = ships; }
 
 	public override void _Ready()
 	{
@@ -51,7 +55,11 @@ public partial class ModelShots : Node
 		_stage = new Node3D();
 		_vp.AddChild(_stage);
 
-		if (_all)
+		if (_ships is { Length: > 0 })
+		{
+			foreach (var k in _ships) _todo.Add(("ship", k));
+		}
+		else if (_all)
 		{
 			foreach (var k in Glbs(ShipModels.Dir)) _todo.Add(("ship", k));
 			foreach (var k in Glbs(StationModels.Dir)) _todo.Add(("station", k));
@@ -65,7 +73,7 @@ public partial class ModelShots : Node
 			_todo.Add(("station", "solar_plant"));
 			_todo.Add(("station", "platform_medium"));
 		}
-		_todo.Add(("gate", "gate"));
+		if (_ships is not { Length: > 0 }) _todo.Add(("gate", "gate"));
 		Next();
 	}
 
@@ -86,10 +94,12 @@ public partial class ModelShots : Node
 		{
 			case "ship":
 				var v = ShipModels.Create(key, accent);
+				_visual = v;
 				model = v?.Root;
 				if (v != null) v.SetEngine(0.6f);
 				break;
 			case "station":
+				_visual = null;
 				float r = _radius.GetValueOrDefault(key, 15f);
 				model = StationModels.Create(key, r, accent, StationModels.Look.Normal, out _, out _);
 				break;
@@ -110,7 +120,8 @@ public partial class ModelShots : Node
 	void Place()
 	{
 		var dir = new Vector3(Mathf.Sin(Mathf.DegToRad(35f)), 0f, Mathf.Cos(Mathf.DegToRad(35f)));
-		if (_phase == 0)
+		if (_phase == 2) dir = new Vector3(dir.X, 0f, -dir.Z);   // Greifer/Backen von vorn
+		if (_phase != 1)
 		{
 			// nah: Modell füllt die Bildhöhe
 			float d = _r / Mathf.Tan(Mathf.DegToRad(25f)) * 0.75f;
@@ -152,8 +163,15 @@ public partial class ModelShots : Node
 		var (kind, key) = _todo[_i];
 		var img = _vp.GetTexture().GetImage();
 		string tag = SurfaceDetail.Enabled ? "" : "-ohne";
-		img.SavePng(System.IO.Path.Combine(_dir, $"{kind}-{key}-{(_phase == 0 ? "nah" : "spiel")}{tag}.png"));
+		img.SavePng(System.IO.Path.Combine(_dir, $"{kind}-{key}-{(_phase == 0 ? "nah" : _phase == 1 ? "spiel" : "offen")}{tag}.png"));
 		if (_phase == 0) { _phase = 1; Place(); _wait = 4; }
+		else if (_phase == 1 && _visual is { Jaws.Count: > 0 } jv)
+		{
+			// Backen/Greifer halb geöffnet (Mitte der Spalt-/Bergungsbewegung), nah
+			jv.SnapJaws();
+			jv.AnimateJaws(ShipVisual.JawSeconds * 0.5f);
+			_phase = 2; Place(); _wait = 4;
+		}
 		else Next();
 	}
 }

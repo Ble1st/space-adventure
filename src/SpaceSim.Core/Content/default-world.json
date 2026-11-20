@@ -4613,6 +4613,53 @@
     }
    ],
    "kit": "ship_kit_heavy"
+  },
+  {
+   "key": "salvage_tug",
+   "name": "Bergeschlepper",
+   "size": "M",
+   "baseHull": 160,
+   "baseMass": 14,
+   "baseFuel": 250,
+   "slots": [
+    {
+     "type": "reactor",
+     "size": "S"
+    },
+    {
+     "type": "engine",
+     "size": "M"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "tool",
+     "size": "S"
+    },
+    {
+     "type": "armor",
+     "size": "S"
+    },
+    {
+     "type": "weapon",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "cargo",
+     "size": "S"
+    },
+    {
+     "type": "utility",
+     "size": "S"
+    }
+   ],
+   "kit": "ship_kit_medium"
   }
  ],
  "shipModels": [
@@ -5133,16 +5180,18 @@
   },
   {
    "key": "salvager",
-   "class": "light_freighter",
+   "class": "salvage_tug",
    "name": "Bergeschiff",
    "fit": [
-    "reactor_mk1",
+    "reactor_mk2",
     "chem_engine_m",
     "wreck_grapple_s",
+    "tractor_beam_s",
+    "armor_plating_s",
     "weapon_laser_s",
     "cargo_universal_100",
     "cargo_universal_100",
-    null
+    "wet_suppressor_s"
    ],
    "jobs": [
     "salvage"

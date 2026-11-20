@@ -46,6 +46,7 @@ ASYM_OK = {
     "foreman": "Manipulatorarm einseitig",
     "corsair": "Bugwaffen je Slot verschieden (Laser/Massetreiber), Flickplatten",
     "warden": "Bugwaffen je Slot verschieden (Laser/Massetreiber)",
+    "salvager": "Schrott und Container in der offenen Wiege (Nutzlast), Sensor einseitig",
 }
 
 
