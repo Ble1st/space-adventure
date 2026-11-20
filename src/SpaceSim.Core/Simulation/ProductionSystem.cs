@@ -31,8 +31,20 @@ public sealed class ProductionSystem : ISimSystem
             if (_due.Count > 1) _due.Sort((a, b) => a.Demanded != b.Demanded ? b.Demanded.CompareTo(a.Demanded)
                 : a.Priority != b.Priority ? b.Priority.CompareTo(a.Priority) : a.Index.CompareTo(b.Index));
             bool ran = false, starved = false;
+            // Ausbau Punkt 8: Zustand der Station — Faktor auf Zutaten und Ausstoß je Takt (1 ohne Verschleiß; 0 = Stillstand, zählt als Pause)
+            float wear = st.Integrity < 1f ? StationWear.ProductionFactor(u, st) : 1f;
+            if (wear <= 0f) _due.Clear();
             foreach (var (r, _, _, _) in _due)
             {
+                if (wear < 1f)
+                {
+                    if (!HasInputs(st, r, wear)) { starved = true; continue; }
+                    if (ProductionDemand.Saturated(u, st, r, demand)) continue;
+                    foreach (var kv in r.Inputs) st.Stock(kv.Key).Amount -= kv.Value * wear;
+                    foreach (var kv in r.Outputs) st.Stock(kv.Key).Amount += kv.Value * wear;
+                    ran = true;
+                    continue;
+                }
                 if (!HasInputs(st, r)) { starved = true; continue; }
                 // Lager voll: nicht weiter auf Halde produzieren (wirkt wie ein Absatzdeckel, Angebot folgt der Nachfrage). Phase 15: ohne Abnehmer schon
                 // beim kleinen Puffer (ProductionDemand.Saturated)
@@ -41,7 +53,7 @@ public sealed class ProductionSystem : ISimSystem
                 foreach (var kv in r.Outputs) st.Stock(kv.Key).Amount += kv.Value;
                 ran = true;
             }
-            if (_due.Count > 0) Measure(u, st, ran, !ran && starved);
+            if (_due.Count > 0 || wear <= 0f && HasDue(u, st)) Measure(u, st, ran, !ran && starved);
         }
     }
 
@@ -58,6 +70,19 @@ public sealed class ProductionSystem : ISimSystem
         float a = MathF.Min(1f, (float)period / window);
         st.Activity += a * ((ran ? 1f : 0f) - st.Activity);
         st.Starved += a * ((starved ? 1f : 0f) - st.Starved);
+    }
+
+    static bool HasInputs(Station st, Recipe r, float factor)
+    {
+        foreach (var kv in r.Inputs) if (st.Stock(kv.Key).Amount < kv.Value * factor) return false;
+        return true;
+    }
+
+    /// <summary>Ausbau Punkt 8: hat die Station in diesem Tick einen fälligen Takt (für die Auslastung einer stillstehenden Station)?</summary>
+    static bool HasDue(Universe u, Station st)
+    {
+        foreach (var r in st.Production) if (r.TicksPerCycle > 0 && u.Tick % r.TicksPerCycle == 0) return true;
+        return false;
     }
 
     static bool HasInputs(Station st, Recipe r)

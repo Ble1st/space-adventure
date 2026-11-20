@@ -21,6 +21,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 {
 	/// <summary>Runde 15: Torzeile der Karte (Selbsttest).</summary>
 	public string TestGateLine { get; private set; } = "";
+	/// <summary>Ausbau Punkt 8: Zustandszeile der gewählten Station (Selbsttest).</summary>
+	public string TestWearLine { get; private set; } = "";
 	public override string Id => "cc.sector";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { SelectedSector = null; _selStation = null; _selGate = null; _showInfo = false; }
@@ -118,13 +120,24 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			At(card, Text(st.Name, 21, Cyan), 16, 10, 268, 28);
 			At(card, Text($"{type} · {SpaceSim.Core.Model.ActorNames.Tagged(u, st.Owner)}", 14, Dim), 16, 40, 268, 20);   // zweiter Gerätetest Phase 28: ohne Sektor (steht in der Kopfzeile), sonst gekürzt
 			At(card, Text($"Kasse {st.Credits:0} Cr · {st.Market.Count} Waren am Markt", 14, White), 16, 66, 268, 20);
+			// Ausbau Punkt 8: Zustand bei Verschleiß und bei eigenen Stationen (eine Zeile, die übrigen rücken nach unten)
+			float wy = 0f;
+			if ((st.Integrity < 1f || st.Owner == u.PlayerActor) && StationWear.Text(u, st) is { } wearLine)
+			{
+				TestWearLine = wearLine;
+				var wl = Text(wearLine, 13, st.Integrity < u.Rules.WearStopBelow ? Red : st.Integrity < u.Rules.WearSlowBelow ? Orange : White);
+				wl.ClipText = true; wl.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+				At(card, wl, 16, 90, 268, 18);
+				wy = 22f;
+			}
+			else TestWearLine = "";
 			if (ConstructionInfo.Of(u, st) is { } site)
 			{
 				// Phase 8: Baustelle — Zieltyp, Status und Material (echt aus ConstructionInfo)
-				At(card, Text($"Baut: {site.TypeName} · {100f * site.Progress:0} %", 15, Orange), 16, 94, 268, 20);
-				At(card, Text(site.State, 13, White), 16, 116, 268, 18);
-				At(card, Text($"Bauschiff: {site.Builder}", 13, Dim), 16, 136, 268, 18);
-				float sy = 160;
+				At(card, Text($"Baut: {site.TypeName} · {100f * site.Progress:0} %", 15, Orange), 16, 94 + wy, 268, 20);
+				At(card, Text(site.State, 13, White), 16, 116 + wy, 268, 18);
+				At(card, Text($"Bauschiff: {site.Builder}", 13, Dim), 16, 136 + wy, 268, 18);
+				float sy = 160 + wy;
 				foreach (var l in site.Lines)
 				{
 					At(card, Text($"{l.Name}  {l.Delivered:0}/{l.Required:0}", 13, l.Delivered >= l.Required ? Green : White), 24, sy, 268, 18);
@@ -134,8 +147,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			else if (_showInfo)
 			{
 				// „Info“: Marktübersicht der Station (echt aus Station.Market)
-				At(card, Text("Markt (Auswahl)", 14, Dim), 16, 94, 268, 18);
-				float my = 116;
+				At(card, Text("Markt (Auswahl)", 14, Dim), 16, 94 + wy, 268, 18);
+				float my = 116 + wy;
 				foreach (var (gid, e) in st.Market.OrderBy(kv => kv.Key.Value).Take(9))
 				{
 					At(card, Text($"{GoodName(u, gid)}  {e.Amount:0}/{e.Target:0} · {e.Price:0.0} Cr", 13, White), 24, my, 268, 18);
@@ -144,7 +157,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			}
 			else
 			{
-				At(card, Text("Tippe „Info“ für die Marktübersicht.", 13, new Color(Dim, 0.75f)), 16, 94, 268, 18);
+				At(card, Text("Tippe „Info“ für die Marktübersicht.", 13, new Color(Dim, 0.75f)), 16, 94 + wy, 268, 18);
 			}
 		}
 		else if (_selGate is { } gid && u.Gates.TryGetValue(gid, out var g))

@@ -65,7 +65,7 @@ public sealed class MarketSystem : ISimSystem
             if (u.Rules.MaintenanceShare > 0f)
                 foreach (var goodId in MaintenanceGoods(u))
                     if (st.Market.TryGetValue(goodId, out var e) && Station.RoleIn(roles, goodId) == 0 && Maintenance.IsPureTypeEntry(stType, goodId))
-                        e.Price = MathF.Min(e.Price, u.GoodOf(goodId).BasePrice * u.Rules.MaintenanceMaxBidFactor);
+                        e.Price = MathF.Min(e.Price, u.GoodOf(goodId).BasePrice * Maintenance.MaxBidFactor(u, st));   // Ausbau Punkt 8: verschlissene Station bietet mehr
 
             // Zahlungsbereitschaft je Zutat: das höchste Gebot über alle Rezepte, die sie verwenden (Phase 5a). Eine Station mit
             // mehreren Rezepten (Modulfabrik, Werft mit Bausatzstufen) bietet, was ihre lohnendste Verwendung trägt; mit dem

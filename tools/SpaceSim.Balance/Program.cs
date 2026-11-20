@@ -79,6 +79,13 @@ if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc =
 if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulation = capOpt == "on";
 // Ausbau Punkt 2: --navy off = Seeschlacht, gezielte Abwehr und Kriegsgeleit aus (alte Regel)
 if (opts.TryGetValue("navy", out var navyOpt)) u.Rules.NavalBattles = u.Rules.WarDefense = u.Rules.WarEscorts = navyOpt == "on";
+// Ausbau Punkt 8: --wear off = kein Stationsverschleiß (alte Regel); Nachtrag 2b: --navycool off = keine Abkühlzeit, Rücklage ohne kämpfende Schiffe
+if (opts.TryGetValue("wear", out var wearOpt)) u.Rules.StationWear = wearOpt == "on";
+// Messknöpfe des Verschleißes (Gebot, Wunschbestand in Tagen, Reparaturmaterial je Punkt)
+if (opts.TryGetValue("wearbid", out var wbOpt)) u.Rules.WearMaxBidFactor = float.Parse(wbOpt, System.Globalization.CultureInfo.InvariantCulture);
+if (opts.TryGetValue("weardays", out var wdOpt)) u.Rules.WearStockDays = float.Parse(wdOpt, System.Globalization.CultureInfo.InvariantCulture);
+if (opts.TryGetValue("wearrepair", out var wrOpt)) u.Rules.WearRepairNeedPerPoint = float.Parse(wrOpt, System.Globalization.CultureInfo.InvariantCulture);
+if (opts.TryGetValue("navycool", out var ncOpt)) { if (ncOpt == "off") { u.Rules.NavalBattleCooldownTicks = 0; u.Rules.WarDefenseCountsEngaged = false; } }
 if (opts.TryGetValue("aicapture", out var aicOpt)) u.Rules.AiStationCapture = aicOpt == "on";
 // Phase 27/28: --fleetcombat off und --warfare off schalten den Flottenkampf bzw. die Kriegsführung ab (Vergleichsläufe; Inhalte bleiben in der Welt)
 if (opts.TryGetValue("fleetcombat", out var fcOpt)) u.Rules.FleetCombat = fcOpt == "on";
@@ -579,6 +586,7 @@ u.Events.Raised += e =>
 };
 // Phase 15: Ausgaben der Fraktionskassen (Instandhaltung, Subventionen)
 double maintPaid = 0, maintUnpaid = 0, subsidyPaid = 0, retiredCredits = 0; int subsidies = 0, retired = 0;
+double wearRepairValue = 0, wearRepairPoints = 0, wearMeanSum = 0, wearEmergencyCost = 0; int wearEmergencies = 0; int wearSlowEvents = 0, wearStopEvents = 0, wearSamples = 0, wearSlowMax = 0, wearStopMax = 0;   // Ausbau Punkt 8
 var subsidized = new SortedDictionary<int, float>();
 u.Events.Raised += e =>
 {
@@ -587,6 +595,9 @@ u.Events.Raised += e =>
         case TreasuryUpkeep { Purpose: "maintenance" } mu: maintPaid += mu.Amount; maintUnpaid += mu.Unpaid; break;
         case TreasuryUpkeep { Purpose: "subsidy" } su: subsidyPaid += su.Amount; break;
         case ShipRetired sr: retired++; retiredCredits += sr.Credits; break;
+        case StationWearEmergency we: wearEmergencies++; wearEmergencyCost += we.Cost; break;
+        case StationWearRepaired wr: wearRepairValue += wr.MaterialValue; wearRepairPoints += wr.Points; break;
+        case StationWearChanged wc: if (wc.To == StationWearLevel.Slow && wc.From == StationWearLevel.Normal) wearSlowEvents++; if (wc.To == StationWearLevel.Stopped) wearStopEvents++; break;
         case StationSubsidized ss: subsidies++; subsidized[ss.Station.Value] = subsidized.GetValueOrDefault(ss.Station.Value) + ss.Amount; break;
     }
 };
@@ -817,6 +828,18 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                             utilSum[ust.Id.Value] = (ust.Name, ust.TypeKey, ust.BankruptcyProtected, cur.Act + ust.Activity, cur.Starved + ust.Starved, cur.N + 1);
                         }
                     capSamples++;
+                    if (u.Rules.StationWear)   // Ausbau Punkt 8: Zustand der instand gehaltenen Stationen
+                    {
+                        int slow = 0, stop = 0; double sum = 0; int n = 0;
+                        foreach (var ws in u.Stations.Values)
+                        {
+                            if (!Maintenance.Applies(u, ws)) continue;
+                            n++; sum += ws.Integrity;
+                            if (ws.Integrity < u.Rules.WearStopBelow) stop++; else if (ws.Integrity < u.Rules.WearSlowBelow) slow++;
+                        }
+                        if (n > 0) { wearMeanSum += sum / n; wearSamples++; }
+                        wearSlowMax = Math.Max(wearSlowMax, slow + stop); wearStopMax = Math.Max(wearStopMax, stop);
+                    }
                     // Phase 22: Invarianten der Handlungsfähigkeit je Fraktion und Piratengruppe
                     foreach (var va in u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw || a.IsNpcFaction(u)).OrderBy(a => a.Id.Value))
                     {
@@ -1018,6 +1041,17 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Kassenausgaben (Phase 15): Instandhaltung erstattet {maintPaid:0} Cr (ungedeckt {maintUnpaid:0}), offen jetzt {u.Stations.Values.Sum(x => Maintenance.BacklogValue(u, x)):0} Cr; "
         + $"Subventionen {subsidyPaid:0} Cr in {subsidies} Zahlungen"
         + (subsidized.Count == 0 ? "" : " (" + string.Join(", ", subsidized.OrderByDescending(kv => kv.Value).Take(6).Select(kv => $"{u.Stations.GetValueOrDefault(new StationId(kv.Key))?.Name ?? "#" + kv.Key} {kv.Value:0}")) + ")"));
+    if (u.Rules.StationWear)   // Ausbau Punkt 8
+    {
+        var maintained = u.Stations.Values.Where(x => Maintenance.Applies(u, x)).ToList();
+        int below70 = maintained.Count(x => x.Integrity < u.Rules.WearSlowBelow), below30 = maintained.Count(x => x.Integrity < u.Rules.WearStopBelow);
+        double mean = maintained.Count > 0 ? maintained.Average(x => x.Integrity) : 1;
+        Console.WriteLine($"Stationsverschleiß (Punkt 8): jetzt {maintained.Count} Stationen, Ø Zustand {mean * 100:0.0} % (Messmittel {(wearSamples > 0 ? wearMeanSum / wearSamples * 100 : 100):0.0} %), "
+            + $"unter 70 % {below70}, unter 30 % {below30} (höchstens {wearSlowMax}/{wearStopMax}); Wechsel in „langsamer“ {wearSlowEvents}, in „Stillstand“ {wearStopEvents}; "
+            + $"Reparatur {wearRepairPoints * 100:0} Zustandspunkte, Material {wearRepairValue:0} Cr (= zusätzliche Instandhaltungsnachfrage {(maintPaid + maintUnpaid > 0 ? 100 * wearRepairValue / (maintPaid + maintUnpaid) : 0):0.0} %); "
+            + $"Notinstandhaltung {wearEmergencies}× für {wearEmergencyCost:0} Cr (Geldsenke)"
+            + (maintained.Any(x => x.Integrity < 1f) ? "; schlechteste: " + string.Join(", ", maintained.Where(x => x.Integrity < 1f).OrderBy(x => x.Integrity).ThenBy(x => x.Id.Value).Take(5).Select(x => $"{x.Name} {x.Integrity * 100:0} % ({Maintenance.StatusText(u, x)})")) : ""));
+    }
     Console.WriteLine("Kassenanteil an der Geldmenge: " + string.Join(", ", history.Where(h => h.Tick > 0).Select(h => $"{h.Tick} {(h.TotalCredits > 0 ? 100.0 * h.TreasuryCredits / h.TotalCredits : 0):0}%")));
     var actors = snap.Actors ?? Array.Empty<ActorStat>();
     Console.WriteLine($"Akteure: {actors.Count} ({promoted} aufgestiegen, {removedActors} abgestiegen); Beziehungseinträge {Relations.StoredNpcEntries(u)}; "

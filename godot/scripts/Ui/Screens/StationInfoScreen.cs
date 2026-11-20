@@ -28,6 +28,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestSecurity { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Exportzeile (Phase 14; leer ohne Exportsenke).</summary>
 	public string TestBlackMarket = "";
+	/// <summary>Ausbau Punkt 8: Zustandszeile (Selbsttest).</summary>
+	public string TestWear = "";
 	public string TestExport { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Instandhaltung (Phase 15; leer, wenn die Station nicht instand gehalten wird).</summary>
 	public string TestMaintenance { get; private set; } = "";
@@ -97,6 +99,13 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 			int colon = TestMaintenance.IndexOf(": ", System.StringComparison.Ordinal);
 			if (colon > 0) { Row(v1, "Instandhaltung", TestMaintenance[..colon]); Row(v1, "", TestMaintenance[(colon + 2)..]); }
 			else Row(v1, "Instandhaltung", TestMaintenance);
+		}
+		// Ausbau Punkt 8: Zustand der Station (Verschleiß) und seine Wirkung — reine Core-Anzeige
+		TestWear = StationWear.Text(u, st) ?? "";
+		if (StationWear.Percent(u, st) is { } wp)
+		{
+			Row(v1, "Zustand", wp);
+			if (StationWear.Effect(u, st) is { } we) Row(v1, "", we);
 		}
 		// Phase 22: Rentabilität (gleitender Netto-Geldfluss, reine Core-Anzeige; Grund c für das Aufgeben einer Station)
 		TestProfit = st.IsBuildSite ? "" : Profitability.Text(u, st.Profit) ?? "";

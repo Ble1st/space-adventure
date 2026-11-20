@@ -190,6 +190,12 @@ public sealed class Station
     /// ohne Material verfällt nichts, die Station holt nach, sobald Material da ist. Gespeichert.
     /// </summary>
     public Dictionary<GoodId, float> MaintenanceBacklog = new();
+    /// <summary>
+    /// Ausbau Punkt 8: Zustand der Station (0..1, 1 = einwandfrei). Sinkt bei lange offener Instandhaltung, steigt mit Reparaturmaterial
+    /// (<see cref="Simulation.StationWear"/>); unter <see cref="EconomyRules.WearSlowBelow"/> langsamere, unter <see cref="EconomyRules.WearStopBelow"/> keine Produktion.
+    /// Gespeichert und gehasht nur, wenn ≠ 1.
+    /// </summary>
+    public float Integrity = 1f;
     public long BelowLimitSince = -1;
     /// <summary>Phase 19: Tick, an dem die Station fertig wurde (Startwelt 0); Schonfrist der Stilllegung. Gespeichert.</summary>
     public long BuiltTick;

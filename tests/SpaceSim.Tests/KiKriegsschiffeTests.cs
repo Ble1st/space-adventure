@@ -24,6 +24,7 @@ public class KiKriegsschiffeTests
     {
         var r = def.Rules ??= new EconomyRules();
         r.NavalBattles = false; r.WarDefense = false; r.WarEscorts = false;
+        r.NavalBattleCooldownTicks = 0; r.WarDefenseCountsEngaged = false;   // Nachtrag 2b
     }
 
     static Universe World()

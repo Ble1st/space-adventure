@@ -78,6 +78,33 @@ public static class Maintenance
         return true;
     }
 
+    /// <summary>
+    /// Höchstgebot (× Basispreis) der reinen Instandhaltungs-Einträge: <see cref="EconomyRules.MaintenanceMaxBidFactor"/>; Ausbau Punkt 8: eine Station mit
+    /// Verschleiß (Zustand unter 1) bietet bis <see cref="EconomyRules.WearMaxBidFactor"/>, damit Händler ihr Material auch gegen die Fabriken bringen.
+    /// </summary>
+    public static float MaxBidFactor(Universe u, Station st) =>
+        u.Rules.StationWear && st.Integrity < 1f ? MathF.Max(u.Rules.MaintenanceMaxBidFactor, u.Rules.WearMaxBidFactor) : u.Rules.MaintenanceMaxBidFactor;
+
+    /// <summary>
+    /// Wunschbestand der reinen Instandhaltungs-Einträge in Tagesbedarfen: <see cref="EconomyRules.MaintenanceStockDays"/>; Ausbau Punkt 8: mit Verschleiß
+    /// mindestens <see cref="EconomyRules.WearStockDays"/> (eine Lieferung von zwei Tagesbedarfen lohnt im großen Maßstab keine Fahrt).
+    /// </summary>
+    public static float StockDays(Universe u, Station st) =>
+        u.Rules.StationWear && st.Integrity < 1f ? MathF.Max(u.Rules.MaintenanceStockDays, u.Rules.WearStockDays) : u.Rules.MaintenanceStockDays;
+
+    /// <summary>
+    /// Wunschbestand eines reinen Instandhaltungs-Eintrags: Tagesbedarf × <see cref="StockDays"/>. Ausbau Punkt 8: ist die Station wieder einwandfrei, sinkt
+    /// der Wunsch nur mit dem Lager zurück (höchstens bis zum erhöhten Wunsch) — sonst stünde der Restbestand der Reparaturlieferung als Überschuss am unteren
+    /// Preisdeckel. Ohne Verschleißregel genau die alte Regel.
+    /// </summary>
+    public static float PureTarget(Universe u, Station st, float perDay, float amount)
+    {
+        float t = perDay * StockDays(u, st);
+        if (u.Rules.StationWear && st.Integrity >= 1f)
+            t = MathF.Max(t, MathF.Min(perDay * MathF.Max(u.Rules.MaintenanceStockDays, u.Rules.WearStockDays), amount));
+        return t;
+    }
+
     /// <summary>Offene Instandhaltung der Station zum Basispreis (Statuswert für Anzeige und Messung).</summary>
     public static float BacklogValue(Universe u, Station st) => st.MaintenanceBacklog.Sum(kv => kv.Value * u.Goods[kv.Key].BasePrice);
 
@@ -94,6 +121,7 @@ public static class Maintenance
 public sealed class MaintenanceSystem : ISimSystem
 {
     readonly Dictionary<string, List<(GoodId Good, float PerDay)>> _needs = new();
+    readonly SortedDictionary<int, float> _emergency = new();   // Ausbau Punkt 8: Notinstandhaltung je Fraktion in diesem Schritt
     EconomyRules? _rulesFor;
 
     public void Step(Universe u, int dt)
@@ -116,18 +144,34 @@ public sealed class MaintenanceSystem : ISimSystem
                 {
                     e = st.Stock(g);
                     e.Amount = 0f;
-                    e.Target = MathF.Max(1f, perDay * u.Rules.MaintenanceStockDays);
+                    e.Target = MathF.Max(1f, perDay * Maintenance.StockDays(u, st));
                     touched = true;
                 }
-                else if (Maintenance.IsPureEntry(u, st, g)) e.Target = MathF.Max(1f, perDay * u.Rules.MaintenanceStockDays);
+                else if (Maintenance.IsPureEntry(u, st, g)) e.Target = MathF.Max(1f, Maintenance.PureTarget(u, st, perDay, e.Amount));
                 float due = MathF.Min(perDay, perDay * dt / day + st.MaintenanceBacklog.GetValueOrDefault(g));
                 float take = MathF.Min(due, MathF.Max(0f, e.Amount));
                 e.Amount -= take;
                 float rest = due - take;
                 if (rest > 0.0001f) st.MaintenanceBacklog[g] = rest; else st.MaintenanceBacklog.Remove(g);
                 float price = e.Price > 0f ? e.Price : u.Goods[g].BasePrice;
-                value += take * MathF.Min(price, u.Goods[g].BasePrice * MathF.Max(1f, u.Rules.MaintenanceMaxBidFactor));
+                value += take * MathF.Min(price, u.Goods[g].BasePrice * MathF.Max(1f, Maintenance.MaxBidFactor(u, st)));
             }
+            // Ausbau Punkt 8: Notinstandhaltung — eine KI-Fraktion kauft den offenen Rückstand einer stark verschlissenen Station zum Aufpreis (Geldsenke)
+            if (StationWear.EmergencyDue(u, st, need) && u.IsNpcFaction(faction) && u.Actors.TryGetValue(faction, out var ea))
+            {
+                if (!parts.TryGetValue(ea.Id.Value, out var epa)) parts[ea.Id.Value] = epa = FactionViability.PartsOf(u, ea);
+                float cost = StationWear.EmergencyCost(u, st);
+                if (cost > 0f && FactionViability.Spendable(epa, ea) >= cost)
+                {
+                    ea.Treasury.Credits -= cost;
+                    st.MaintenanceBacklog.Clear();
+                    _emergency[faction.Value] = _emergency.GetValueOrDefault(faction.Value) + cost;
+                    u.Events.Publish(new StationWearEmergency(st.Id, ea.Id, cost));
+                }
+            }
+            // Ausbau Punkt 8: Verfall bei offenem Rückstand, Reparatur mit Material (erstattet wie Instandhaltung) — nach der Notinstandhaltung, damit eine
+            // bezahlte Station in diesem Schritt nicht weiter verfällt (sonst kröche sie unter die Schwelle)
+            value += StationWear.Step(u, st, need, dt);
             if (value <= 0f) continue;
             // Kasse erstattet der Station das verbrauchte Material; reicht sie nicht, trägt die Station den Rest selbst
             // Phase 22: freiwillige Ausgabe — nur aus dem Teil der Kasse über der Betriebsreserve (FactionViability.Spendable)
@@ -145,6 +189,8 @@ public sealed class MaintenanceSystem : ISimSystem
         }
         if (touched) u.TouchStructure();
         foreach (var (f, (p, unpaid)) in paid) u.Events.Publish(new TreasuryUpkeep(new ActorId(f), "maintenance", p, unpaid));
+        foreach (var (f, c) in _emergency) u.Events.Publish(new TreasuryUpkeep(new ActorId(f), "wear_emergency", c, 0f));   // Ausbau Punkt 8
+        _emergency.Clear();
     }
 }
 

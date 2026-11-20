@@ -462,6 +462,7 @@ public sealed class CombatSystem : ISimSystem
             int lostA = e.Participants.Count(p => p.Side == 0 && p.Exit == CombatExit.Destroyed), lostB = e.Participants.Count(p => p.Side == 1 && p.Exit == CombatExit.Destroyed);
             string na = NavalBattle.SideFaction(u, e, 0) is { } fa && u.Factions.TryGetValue(fa, out var faa) ? faa.Name : "?";
             string nb = NavalBattle.SideFaction(u, e, 1) is { } fb && u.Factions.TryGetValue(fb, out var fbb) ? fbb.Name : "?";
+            NavalBattle.OnEnded(u, e);   // Nachtrag 2b: Abkühlzeit je Paar und Sektor
             msg = $"Seeschlacht in {where} vorbei: {na} verliert {lostA}, {nb} verliert {lostB} Schiff{(lostA + lostB == 1 ? "" : "e")}.";
         }
         else if (e.Cause == EncounterCause.Arrest)

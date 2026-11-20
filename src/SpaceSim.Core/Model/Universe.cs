@@ -208,6 +208,9 @@ public sealed class Universe
     public List<War> Wars { get; } = new();
     /// <summary>Phase 28: Friedensschluss je Fraktionspaar (kleinere Id zuerst) → Tick; sperrt eine neue Kriegserklärung für <see cref="EconomyRules.PeaceCooldownTicks"/>.</summary>
     public Dictionary<(int A, int B), long> PeaceSince { get; } = new();
+    /// <summary>Nachtrag 2b: Ende der letzten Seeschlacht je (Sektor, Fraktionspaar mit kleinerer Id zuerst) → Tick; sperrt eine neue Seeschlacht desselben Paares im Sektor
+    /// für <see cref="EconomyRules.NavalBattleCooldownTicks"/>. Gespeichert und gehasht, wenn vorhanden; abgelaufene Einträge räumt <see cref="Combat.NavalBattle.Trigger"/> weg.</summary>
+    public Dictionary<(int Sector, int A, int B), long> NavalEnded { get; } = new();
     /// <summary>Runde 45: bestehende Bündnisse (Reihenfolge der Gründung; gespeichert, gehasht nur wenn vorhanden). Regeln in <see cref="Simulation.Alliances"/>.</summary>
     public List<Alliance> Alliances { get; } = new();
     /// <summary>Runde 45: Ende eines Bündnisses je Fraktionspaar (kleinere Id zuerst) → Tick; sperrt ein neues Bündnis für <see cref="EconomyRules.AllianceCooldownTicks"/>.</summary>

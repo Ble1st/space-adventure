@@ -48,6 +48,10 @@ public static class NavalBattle
         var r = u.Rules;
         if (!r.NavalBattles || !r.Warfare || !r.FleetCombat || u.Wars.Count == 0) return;
         float range = MathF.Max(1f, r.NavalBattleRange);
+        int cool = Math.Max(0, r.NavalBattleCooldownTicks);
+        if (u.NavalEnded.Count > 0)   // Nachtrag 2b: abgelaufene Abkühlzeiten wegräumen (feste Reihenfolge, gehashter Zustand)
+            foreach (var k in u.NavalEnded.Where(kv => u.Tick - kv.Value >= cool).Select(kv => kv.Key).OrderBy(k => k.Sector).ThenBy(k => k.A).ThenBy(k => k.B).ToList())
+                u.NavalEnded.Remove(k);
         foreach (var w in u.ShipsById().Where(Wars.IsWarship).ToList())
         {
             if (!Ready(u, w) || u.FactionOf(w) is not { } f) continue;
@@ -56,6 +60,7 @@ public static class NavalBattle
             foreach (var id in u.Tracker.ParkedIn(sec).Concat(u.Tracker.TransitIn(sec)).Distinct().OrderBy(i => i.Value))
             {
                 if (id == w.Id || !u.Ships.TryGetValue(id, out var o) || !Ready(u, o) || u.FactionOf(o) is not { } g || !Wars.Hostile(u, f, g)) continue;
+                if (Cooling(u, sec, f, g)) continue;   // Nachtrag 2b
                 var (os, op) = ThreatMap.Where(u, o);
                 if (os != sec) continue;
                 float d = Vec2.Distance(pos, op);
@@ -63,6 +68,21 @@ public static class NavalBattle
             }
             if (best is not null) Start(u, w, best, sec, bd);
         }
+    }
+
+    static (int, int, int) PairKey(SectorId sector, FactionId a, FactionId b) =>
+        (sector.Value, Math.Min(a.Value, b.Value), Math.Max(a.Value, b.Value));
+
+    /// <summary>Nachtrag 2b: läuft für das Paar im Sektor noch die Abkühlzeit nach der letzten Seeschlacht?</summary>
+    public static bool Cooling(Universe u, SectorId sector, FactionId a, FactionId b) =>
+        u.Rules.NavalBattleCooldownTicks > 0 && u.NavalEnded.TryGetValue(PairKey(sector, a, b), out var t) && u.Tick - t < u.Rules.NavalBattleCooldownTicks;
+
+    /// <summary>Nachtrag 2b: Seeschlacht beendet — Abkühlzeit für das Paar der beiden Seiten im Sektor beginnt (nur mit Regel).</summary>
+    public static void OnEnded(Universe u, Encounter e)
+    {
+        if (u.Rules.NavalBattleCooldownTicks <= 0 || e.Cause != EncounterCause.Naval) return;
+        if (SideFaction(u, e, 0) is not { } a || SideFaction(u, e, 1) is not { } b || a == b) return;
+        u.NavalEnded[PairKey(e.Sector, a, b)] = u.Tick;
     }
 
     /// <summary>Beginnt die Seeschlacht: Auslöser auf Seite 0, Gegner auf Seite 1, dann Verstärkung beider Seiten im Sektor.</summary>
@@ -206,6 +226,21 @@ public static class WarNavy
             var mine = Wars.WarshipsOf(u, f);
             if (mine.Count == 0) continue;
             int allowed = mine.Count >= 2 ? Math.Max(0, mine.Count - Math.Max(0, r.WarDefenseReserve)) : mine.Count;
+            // Nachtrag 2b: Kriegsschiffe, die schon als Verteidiger in einer Belagerung eines eigenen Ziels kämpfen, sind bereits abgestellt
+            var engagedAt = new Dictionary<(int Kind, int Id), int>();
+            if (r.WarDefenseCountsEngaged)
+            {
+                foreach (var e in u.Fights.Encounters)
+                {
+                    if (e.Done || e.Cause != EncounterCause.Siege || SiegeTargets.Of(u, e) is not { } st) continue;
+                    var key = ((int)st.Ref.Kind, st.Ref.Id);
+                    foreach (var p in e.Participants)
+                        if (p.Active && p.Side == 1 && u.Ships.TryGetValue(p.Ship, out var ps) && Wars.IsWarship(ps) && u.FactionOf(ps) == f)
+                            engagedAt[key] = engagedAt.GetValueOrDefault(key) + 1;
+                }
+                foreach (var n0 in engagedAt.Values) allowed -= n0;
+                if (allowed < 0) allowed = 0;
+            }
             var free = mine.Where(s => Free(u, s) && (Squadrons.Get(u, s) is not { } sq || sq.Leader == s.Id)).ToList();
             foreach (var (t, defenders) in threats)
             {
@@ -219,7 +254,7 @@ public static class WarNavy
                     int hops = from == t.Sector ? 0 : u.CachedRoute(from, t.Sector)?.Count ?? -1;
                     if (hops >= 0 && hops <= jumps) cands.Add((s, hops));
                 }
-                int n = 0;
+                int n = engagedAt.GetValueOrDefault(((int)t.Ref.Kind, t.Ref.Id));
                 foreach (var (s, _) in cands.OrderBy(c => c.Hops).ThenBy(c => c.S.Id.Value))
                 {
                     if (allowed <= 0 || (r.WarDefenseMaxResponders > 0 && n >= r.WarDefenseMaxResponders)) break;

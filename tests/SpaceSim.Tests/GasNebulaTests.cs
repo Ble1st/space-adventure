@@ -28,6 +28,7 @@ public class GasNebulaTests
     internal static void RevertGas(WorldDef def)
     {
         FusionTankTests.RevertFusion(def);   // Fusionsbrennstoff kam danach
+        StationsverschleissTests.RevertWear(def);   // Ausbau Punkt 8 (Stationsverschleiß) kam danach
         def.Goods.RemoveAll(g => g.Key is "gas" or "ion_gas");
         def.Modules.RemoveAll(m => Keys.Contains(m.Key));
         foreach (var m in def.Modules) { m.Cost.Remove("gas"); m.Upgrade?.Cost.Remove("gas"); }

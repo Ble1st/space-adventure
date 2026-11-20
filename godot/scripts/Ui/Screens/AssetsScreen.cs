@@ -122,6 +122,8 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 				var stock = st.Market.Where(kv => kv.Value.Amount >= 1f).OrderByDescending(kv => kv.Value.Amount).ThenBy(kv => kv.Key.Value).Take(5)
 					.Select(kv => $"{kv.Value.Amount:0} {GoodName(u, kv.Key)}").ToList();
 				l3 = stock.Count == 0 ? "Lager leer" : "Lager: " + string.Join(", ", stock);
+				// Ausbau Punkt 8: Zustand vorn, sobald die Station Verschleiß hat
+				if (st.Integrity < 1f && SpaceSim.Core.Simulation.StationWear.Text(u, st) is { } wear) l3 = wear + " · " + l3;
 			}
 			TestStationRows.Add($"{head} · {l2}");
 			foreach (var (txt, y, size, col) in new[] { (l2, 38f, 14, Orange), (l3, 64f, 13, Dim) })

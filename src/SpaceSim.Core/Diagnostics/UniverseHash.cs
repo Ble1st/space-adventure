@@ -31,6 +31,7 @@ public static class UniverseHash
         {
             Mix((ulong)st.Id.Value); MixF(st.Credits); Mix((ulong)st.Owner.Value);   // Phase 9: Besitzer (Akteur)
             if (st.CalmSince >= 0) Mix((ulong)st.CalmSince);   // Phase 30
+            if (st.Integrity != 1f) { Mix(0x0801UL); MixF(st.Integrity); }   // Ausbau Punkt 8: Zustand (nur wenn ≠ 1)
             if (st.Rotation != 0f) { Mix(0x2074UL); MixF(st.Rotation); }   // eigene Stationen: Drehung (nur wenn gesetzt)
             if (st.CapitulationLockUntil != 0) { Mix(0x2076UL); Mix((ulong)st.CapitulationLockUntil); }   // Ausgleich: Kapitulationssperre
             if (st.Unpaid) Mix(0x2077UL);   // Ausgleich: Regierungsunterhalt unbezahlt
@@ -202,6 +203,8 @@ public static class UniverseHash
         // Phase 28: Kriege und Friedensschlüsse (ohne Krieg mischt nichts). Runde 40: Waffenstillstand/Angebots-Tick/Tribut nur, wenn gesetzt.
         foreach (var w in u.Wars) { Mix(0x2805u); Mix((ulong)w.A.Value); Mix((ulong)w.B.Value); Mix((ulong)w.Since); MixF(w.Weariness); MixF(w.LossA); MixF(w.LossB); Mix((ulong)w.Sieges); if (w.Blockades != 0) Mix((ulong)w.Blockades + 0x3104u); if (w.CeasefireUntil != 0) Mix((ulong)w.CeasefireUntil + 0x4001u); if (w.LastOfferTick != 0) Mix((ulong)w.LastOfferTick + 0x4002u); if (w.TributePaid != 0f) MixF(w.TributePaid + 4000f); if (w.Join) Mix(0x4503u); if (w.ShipsLostA != 0 || w.ShipsLostB != 0) { Mix(0x7701u); Mix((ulong)w.ShipsLostA); Mix((ulong)w.ShipsLostB); } }
         foreach (var (k, t) in u.PeaceSince.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2806u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
+        // Nachtrag 2b: Ende der letzten Seeschlacht je Sektor und Paar (ohne Seeschlacht mischt nichts)
+        foreach (var (k, t) in u.NavalEnded.OrderBy(k => k.Key.Sector).ThenBy(k => k.Key.A).ThenBy(k => k.Key.B)) { Mix(0x2B01u); Mix((ulong)k.Sector); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         // Runde 45: Bündnisse und Bündnisenden (ohne Bündnis mischt nichts; ohne Spielerpolitik ohne die Paare mit der Spielerfraktion)
         foreach (var al in u.Alliances) { if (Skip(al.A) || Skip(al.B)) continue; Mix(0x4501u); Mix((ulong)al.A.Value); Mix((ulong)al.B.Value); Mix((ulong)al.Since); }
         foreach (var (k, t) in u.AllianceEnded.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { if (Skip(new FactionId(k.A)) || Skip(new FactionId(k.B))) continue; Mix(0x4502u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }

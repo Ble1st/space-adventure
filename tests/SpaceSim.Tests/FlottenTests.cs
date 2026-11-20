@@ -555,7 +555,8 @@ public class FlottenTests
             // Marktpreis); mit 4 Händlern geht dabei ein NPC-Händler pleite (ohne Deckel 0) — Pfadwirkung (NPCs haben keine Posten); höchstens einer
             // Schwarzmarkt NPC: gesetzlose Händler beim Hehler verschieben den Pfad erneut; gemessen gehen mit 2 Flottenhändlern zwei gesetzestreue NPC-Händler
             // (Einzelakteure, Ticks 5540/6480) in der Spirale dünner Ladungen pleite, mit abgeschaltetem Hehler für NPCs einer im 8er-Lauf — Pfadwirkung; höchstens zwei
-            Assert.True(r.NpcBankrupt <= 2, $"{n} Händler: {r.NpcBankrupt} NPC-Händler pleite");
+            // Ausbau Punkt 8: der Stationsverschleiß verschiebt den Pfad erneut — gemessen 8er-Lauf 3 statt 2 pleite (ohne Verschleiß 2/0/2 im 2er/4er/8er-Lauf) — Pfadwirkung; höchstens drei
+            Assert.True(r.NpcBankrupt <= 3, $"{n} Händler: {r.NpcBankrupt} NPC-Händler pleite");
             if (lastProfit is { } lp) Assert.True(profit >= 0.8f * lp, $"Gewinn gesamt sinkt mit mehr Händlern deutlich ({lp:0} → {profit:0})");
             lastProfit = profit;
         }

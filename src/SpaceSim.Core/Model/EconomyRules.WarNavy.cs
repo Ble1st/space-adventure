@@ -18,6 +18,11 @@ public sealed partial class EconomyRules
     public int NavalBattleMaxTicks = 1200;
     /// <summary>Ein in einer Seeschlacht zerstörtes Schiff zählt mit seinem Materialwert × diesem Anteil als Kriegsverlust (Müdigkeit, Tribut). 0 = nicht.</summary>
     public float NavalLossShare = 1f;
+    /// <summary>
+    /// Nachtrag 2b: Abkühlzeit (Ticks) nach dem Ende einer Seeschlacht, bevor dasselbe Fraktionspaar im selben Sektor eine neue beginnt (sonst entbrennt sie im
+    /// nächsten Takt neu, sobald die Rückzügler wieder einsatzbereit sind). 0 = keine (alte Regel).
+    /// </summary>
+    public int NavalBattleCooldownTicks;
 
     /// <summary>
     /// Gezielte Abwehr: eine Fraktion schickt freie Kriegsschiffe gegen feindliche Verbände, die gerade ihre Stationen oder Tore angreifen (Angriffsbefehl
@@ -30,6 +35,12 @@ public sealed partial class EconomyRules
     public int WarDefenseMaxResponders = 3;
     /// <summary>Rücklage: so viele Kriegsschiffe einer Fraktion bleiben bei ihrem Auftrag (Angriff, Geleit), wenn sie mindestens zwei hat (ein einzelnes verteidigt).</summary>
     public int WarDefenseReserve = 1;
+    /// <summary>
+    /// Nachtrag 2b: Kriegsschiffe, die schon als Verteidiger in der Belagerung eines eigenen Ziels kämpfen, zählen gegen die Rücklage und gegen
+    /// <see cref="WarDefenseMaxResponders"/> dieses Ziels (vorher zählten nur freie Schiffe — kämpfende fielen heraus und die Rücklage wurde mitgeschickt).
+    /// Aus = alte Regel.
+    /// </summary>
+    public bool WarDefenseCountsEngaged;
 
     /// <summary>
     /// Geleitschutz im Krieg: je Fraktion im Krieg begleiten bis zu <see cref="WarEscortsPerFaction"/> Kriegsschiffe den wertvollsten beladenen Händler, dessen

@@ -74,6 +74,8 @@ public sealed class SaveGame
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }
+    /// <summary>Nachtrag 2b (additiv): Ende der letzten Seeschlacht [Sektor, A, B, Tick]; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? NavalEnded { get; set; }
     /// <summary>Runde 45 (additiv): Bündnisse [A, B, Since] und Bündnisenden [A, B, Tick].</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Alliances { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? AllianceEnded { get; set; }
@@ -630,6 +632,8 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProfitMeterSave? Profit { get; set; }
     /// <summary>Phase 30: ruhig seit (Kleinstation), null = nicht ruhig.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? CalmSince { get; set; }
+    /// <summary>Ausbau Punkt 8 (additiv): Zustand der Station 0..1, null = 1.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Integrity { get; set; }
     /// <summary>Eigene Stationen: Drehung des Modells in Grad (additiv), null = 0.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Rotation { get; set; }
     /// <summary>Ausgleich (additiv): Kapitulationssperre bis Tick.</summary>
