@@ -454,3 +454,18 @@ public sealed record PlayerGovernmentUnpaidChanged(StationId Station, string Nam
 
 /// <summary>Gasernte: ein Gassammler hat Gas geschöpft (NPC je Tick, Spieler je Bild; Anzeige und Auswertung).</summary>
 public sealed record GasCollected(SectorId Sector, ShipId Ship, GoodId Good, float Units) : SimEvent;
+
+/// <summary>Ausbau Punkt 5: Eine gesetzlose Firma hat ein Schmugglerschiff gekauft (Preis an die Werft, aus dem reichsten Firmenschiff).</summary>
+public sealed record SmugglerBought(ActorId Firm, ShipId Ship, StationId Yard, float Price) : SimEvent;
+/// <summary>Ausbau Punkt 5: Schmuggelfahrt begonnen — Art „fence“ (Hehlerware) oder „embargo“ (Ware in einen gesperrten Sektor); <paramref name="Jump"/> = Ziel nur per Sprungantrieb.</summary>
+public sealed record SmugglerRunStarted(ShipId Ship, StationId From, StationId To, GoodId Good, string Kind, bool Jump) : SimEvent;
+/// <summary>Ausbau Punkt 5: Schmuggler hat geladen (Kosten) bzw. verkauft (Erlös).</summary>
+public sealed record SmugglerTraded(ShipId Ship, StationId Station, GoodId Good, float Units, float Credits, bool Sold) : SimEvent;
+/// <summary>Ausbau Punkt 5: Polizei hat einen Schmuggler erwischt — Fracht beschlagnahmt, Strafe an die Fraktion, Fahndung für den Besitzer.</summary>
+public sealed record SmugglerCaught(ShipId Ship, ActorId Owner, FactionId Faction, SectorId Sector, float Units, float CargoValue, float Fine) : SimEvent;
+/// <summary>Ausbau Punkte 10/14: Kontrolle hat Schmuggelware oder einen gesuchten Fahrgast des Spielers gefunden (Auftrag gescheitert, Verbrechen).</summary>
+public sealed record MissionContrabandFound(int Mission, ShipId Ship, FactionId Faction, SectorId Sector, string Where) : SimEvent;
+/// <summary>Ausbau Punkt 14: Flottentaxi hat Fahrgäste abgeliefert (Fahrgeld an die Spielerkasse).</summary>
+public sealed record PassengerFarePaid(ShipId Ship, StationId From, StationId To, int Passengers, float Fare) : SimEvent;
+/// <summary>Ausbau Punkt 14: Treffer am Schiff mit Fahrgästen — Trinkgeld sinkt (Betrag zurück an die Auftraggeber-Kasse).</summary>
+public sealed record PassengerTipLost(int Mission, ShipId Ship, float Amount) : SimEvent;

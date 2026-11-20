@@ -273,7 +273,7 @@ public class SchwarzmarktTests
     public void Beute_ImHehlerlager_OhneEinflussAufNpc()
     {
         var on = DemoUniverse.Create();
-        on.Rules.BlackMarketNpc = false;   // hier geht es nur um die Ablage der Beute; NPCs beim Hehler ändern das Verhalten absichtlich (SchwarzmarktNpcTests)
+        on.Rules.BlackMarketNpc = false; on.Rules.Smugglers = false;   // Ausbau Punkt 5: Schmuggler kaufen Hehlerware (eigene Tests); hier geht es nur um die Ablage der Beute; NPCs beim Hehler ändern das Verhalten absichtlich (SchwarzmarktNpcTests)
         var defOff = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
         RevertSchwarzmarkt(defOff);
         var off = WorldBuilder.Build(defOff);

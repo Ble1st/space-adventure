@@ -47,6 +47,7 @@ public static class CapabilityDefaults
         ShipRole.Police or ShipRole.Pirate => Capability.Combat,   // Phase 11
         ShipRole.Collector => Capability.Cargo | Capability.GasHarvest,   // Gasernte
         ShipRole.Salvager => Capability.Cargo | Capability.Salvage,   // Ausbau Punkt 4: NPC-Bergung
+        ShipRole.Smuggler => Capability.Cargo,   // Ausbau Punkt 5: Schmuggler (Tarnung/Sprung aus dem Rumpf)
         _ => Capability.None,
     };
 

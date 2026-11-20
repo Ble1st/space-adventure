@@ -101,6 +101,10 @@ public sealed class MissionTypes
         r.Register(new BountyMission());
         r.Register(new EscortMission());
         r.Register(new PatrolMission());
+        // Ausbau Punkte 10/14 (angehängt: die Würfe der älteren Arten im Missions-RNG bleiben gleich)
+        r.Register(new SmuggleMission());
+        r.Register(new ResearchMission());
+        r.Register(new PassengerMission());
         return r;
     }
 }

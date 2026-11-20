@@ -54,3 +54,51 @@ Gemessen (Standardwelt, Balance-Werkzeug, aus → an):
 Die Piratenkassen sinken (die Hehler zahlen Restfracht aus; die Hehlerkasse zahlt nur über 2000 Cr, Kassenstände darunter kommen von Unterhalt und Neubauten), beide Gruppen bleiben jagdfähig. Im Flottentest (`FlottenTests`) verschiebt der Hehler den Pfad: zwei gesetzestreue NPC-Händler gehen im 2er-Lauf in der Spirale dünner Ladungen pleite (Schalter aus: einer im 8er-Lauf); die Grenze dort ist jetzt zwei. Die übrigen Unterschiede sind Pfadrauschen (die Welt läuft ab dem ersten Hehlerverkauf einen anderen Weg).
 
 Umsetzung: `Simulation/BlackMarketNpc.cs` (Regeln, Hehlerverkauf/-kauf), Haken in `TraderSystem` (Restfracht, Kaufrunde, Ankunft) und `MinerSystem` (Rest ohne Käufer, Ankunft), Ereignis `BlackMarketNpcTrade`, Balance-Zeile „Schwarzmarkt NPC“ und Option `--blackmarketnpc on|off`. Tests `tests/SpaceSim.Tests/SchwarzmarktNpcTests.cs`.
+
+## Schmuggler-KI (Ausbau Punkt 5)
+
+**Entscheidungen.**
+- **Eigene Rolle statt Handelsaufgabe mit Merker.** Schmuggler tragen die Rolle `Smuggler` (Fähigkeit Fracht), nicht die Aufgabe „trade“. Begründung: sie zählen
+  dann weder in der Handelskapazität (`maxTraders`) noch im Kaufzug der Flotte (`FleetSystem`, Aufgabenwechsel), der `TraderSystem`-Pfad bleibt unverändert, und
+  ihr Höchstbestand ist die Firmengrenze (3 je Firma). Pleite (Grund b) gilt wie für jedes Wirtschaftsschiff (`FleetSystem.Abandon`).
+- **Wer:** gesetzlose Firmen = aufgestiegene unabhängige Akteure mit Gesetzestreue unter `blackMarketNpcLawfulness` (0,45). Freie Einzelschiffe nie.
+- **Kauf** (`SmugglerSystem.Purchase`, alle 200 Ticks, höchstens einer): Modell `shadow` „Schatten“ (Klasse `blockade_runner` „Blockadebrecher“, M:
+  Reaktor Mk2, Triebwerk M, 2 × Universalfrachtraum 60, Sprungantrieb, Tarnfeld Mk1, Laserkanone) über die gemeinsame Kaufregel an der nächsten Werft mit
+  Material. Bezahlt aus dem freien Geld der Firma (Firmenkasse + Schiffskassen über `firmShipKeep`), es muss danach `smugglerBuyReserve` (3000) übrig sein;
+  Startkapital `smugglerStartCredits` 3000; Abklingzeit `smugglerBuyCooldownTicks` (20000) je Firma (`Actor.LastSmugglerTick`, gespeichert, gehasht wenn gesetzt). Gekauft wird nur, wenn in den Verstecken
+  Hehlerware im Basiswert von mindestens `smugglerMinFenceValue` (1500) liegt oder irgendwo eine Sperre gilt.
+- **Fahrten** (`SmugglerSystem`, Intervall 5, Id-Reihenfolge): (a) **Hehlerware** — Einkauf im Versteck zu `smugglerFenceBuyShare` (0,6) × Basispreis
+  (Netzrabatt; Geld an die Piratenkasse, nicht wenn sie am Deckel ist), Verkauf an den ehrlichen Abnehmer mit dem besten Gewinn je Reisezeit (Mindestgewinn
+  `smugglerMinMargin` 25 % der Kosten nach Unterhalt); (b) **Embargo-Ware** — nur wenn eine Sperre gilt oder ein Tor zu ist: Kauf beim Erzeuger auf dem Torweg,
+  Abnehmer in einem Sektor, den das Schiff auf dem Torweg nicht erreicht. Solche Abnehmer bewertet der Schmuggler mit `smugglerLockBonus` (+50 %), weil dort Ware
+  fehlt. Der Schmuggler fliegt zum **Absprungpunkt** (Sektor in Antriebsreichweite, auf dem Torweg erreichbar; Stelle ohne Massenschatten) und springt mit der
+  Regel des Spielers (`JumpDrive`: Laden, Politik der Sprungprüfung, Zoll, Abklingen). Rest, den niemand nimmt: nächster Abnehmer, sonst Hehler, sonst über Bord.
+- **Tarnung:** mit Fracht und abgedockt schaltet er das Tarnfeld ein (Leistung vorausgesetzt), zum Laden des Sprungs aus. Tarnfeld Mk1 (1,5) schlägt Torsensor
+  und Kaperer (1), nicht die Polizei (2); im Nebel kommt der Nebelbonus dazu.
+- **Durchsuchung** (`SmuggleSearch`, eine Regel für KI-Schmuggler, Schmuggelaufträge und gesuchte Fahrgäste): eine Streife der Fraktion, der der Sektor gehört,
+  in `smugglerSearchRange` (120) und das Schiff für ihren Sensor sichtbar → je Prüfung (alle 5 Ticks) Wurf `smugglerSearchChance` (0,06) aus `Universe.Rng` —
+  gewürfelt wird nur, wenn wirklich eine Streife in Reichweite ist. Erwischt: Fracht beschlagnahmt, Strafe `smugglerFineShare` (0,5) × Basiswert aus der
+  Schiffskasse an die Fraktion (`TreasuryIncome` „smuggling_fine“), Verbrechen „smuggling“ für den Besitzer (`Wanted.Report`), Ereignis `SmugglerCaught`.
+
+## Schmuggel- und Forschungsaufträge (Ausbau Punkt 10)
+
+- **Schmuggel** (`SmuggleMission`, Schalter `missionSmuggle`): angeboten am Hehler (Dienst „blackmarket“) und an Stationen gesetzloser Firmen, nur am Dock
+  (Kanal „station“, nicht über Comms). Ziel: Station in einem Sektor mit Eintrittssperre (≥ 1, durchgesetzt); gibt es keine, ein Sektor einer Staatsfraktion
+  unter Polizeischutz (Sicherheit ≥ 1). Versiegelte Ware 15 m³ (`Ship.MissionCargo`), kein Pfand. Belohnung `missionSmuggleBaseReward` 600 + 80 je Flugminute
+  + 250 je Sperrstufe aus der Kasse des Auftraggebers (Piratengruppe/Firma). **Kontrolle:** (1) Tor in einen gesperrten Sektor — der Torsensor (1) findet ein
+  ungetarntes Schiff sicher (Tarnfeld Mk1 genügt); (2) Streife in Reichweite (Regel oben, alle 20 Ticks; Tarnfeld Mk2 schlägt den Polizeisensor). Gefunden:
+  Auftrag gescheitert (Ware beschlagnahmt), Verbrechen „smuggling“ mit Zusatzstrafe `missionSmuggleFine` 800 Cr, Ansehensverlust über `CrimeStanding`. Der
+  Sprungantrieb umgeht die Torkontrolle. Ablieferung durch Andocken an der Zielstation.
+- **Forschung** (`ResearchMission`, Schalter `missionResearch`): an Forschungsstationen, drei Aufgaben (Missions-RNG): zwei **Messpunkte** in einem Nebelsektor
+  der Reihe nach anfliegen (60 m), eine **Wrackprobe** aus einem bestimmten Wrack bergen und an der Station andocken, oder eine **seltene Ware** des
+  Stationsregals liefern (netto verkauft). Lohn: Geld (reserviert) + `missionResearchPoints` (300) FP auf das laufende Projekt der Fraktion (`Research.AddPoints`).
+- Beide Arten sind an die Registry angehängt (die Würfe der älteren Arten im Missions-RNG bleiben gleich), Angebote ohne Hash; Marker, Vorschau, Dock- und
+  Comms-Listen kommen aus der gemeinsamen Auftragsoberfläche. Ein angenommener Auftrag macht Zielstation/Zielsektor bekannt (`IntelSystem.RevealMission`).
+
+**Gemessen** (Release, Standard-Seed; vorher = a168d34): 20 000 Ticks Hash 9D6D0AD5906A7040 → F497580E12102265, 60 000 426643BEE164E802 → F7D94A44DD7BD033,
+300 000 D4D8541348E459C5 → A8D246F0497812D1; alle „Preise im Zielbereich“. Schmuggler: 20 000 2 gekauft / 21 Fahrten / 3 erwischt; 60 000 4 / 121 / 8
+(Einkauf 19 244 Cr, Verkauf 24 436 Cr, Strafen 1 313 Cr); 300 000 14 gekauft, 3 am Ende, 520 Fahrten, 23 erwischt, 11 pleite (Grund b). Erste Fassung (800 Cr
+Startkapital, 6000 Ticks Abklingzeit) kaufte 38 in 300 000 Ticks, 23 gingen pleite — daher 3000/20 000. Per Sprung: 0 in der Standardwelt (keine Sperre, kein
+geschlossenes Tor); im Test mit geschlossenem Tor 17 springt der Schmuggler nach Aurelia. Export Konsumgüter/Luxus 60 000 Ticks, drei Seeds vorher → nachher:
+Mittel 10 508 → 10 525 / 2 295 → 2 191 (Seed 1: 11 307 → 10 440 / 2 629 → 1 940; Seed 2: 10 255 → 9 794 / 2 014 → 2 066; Seed 3: 9 962 → 11 340 / 2 242 → 2 566)
+— im Rauschen; die neuen Modulwaren verschieben die Waren-Ids. Angebote je 60 000 Ticks: Schmuggel 38, Forschung 63, Fahrgast 1 472.

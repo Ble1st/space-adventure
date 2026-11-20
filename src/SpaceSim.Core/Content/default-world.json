@@ -9,6 +9,11 @@
   "playerSeats": true,
   "playerHq": true,
   "firmSeats": true,
+  "smugglers": true,
+  "missionSmuggle": true,
+  "missionResearch": true,
+  "missionPassengers": true,
+  "passengerTaxi": true,
   "firmSeatMinClass": 1,
   "playerFirmSeat": true,
   "offices": true,
@@ -841,6 +846,8 @@
      0,
      1
     ],
+    "passenger_cabin_s": [1, 1],
+    "passenger_cabin_m": [1, 1],
     "gas_scoop_s": [1, 2],
     "ion_engine_s": [1, 2],
     "ion_engine_m": [1, 1],
@@ -3733,6 +3740,40 @@
    }
   },
   {
+   "key": "passenger_cabin_s",
+   "name": "Passagierkabine S",
+   "slot": "utility",
+   "size": "S",
+   "tier": 1,
+   "stats": {
+    "passengers": 2
+   },
+   "powerDraw": 1,
+   "mass": 0,
+   "cost": {
+    "steel": 1,
+    "electronics": 1,
+    "hull_plates": 1
+   }
+  },
+  {
+   "key": "passenger_cabin_m",
+   "name": "Passagierkabine M",
+   "slot": "cargo",
+   "size": "M",
+   "tier": 1,
+   "stats": {
+    "passengers": 6
+   },
+   "powerDraw": 2,
+   "mass": 3,
+   "cost": {
+    "steel": 3,
+    "electronics": 2,
+    "hull_plates": 2
+   }
+  },
+  {
    "key": "missile_launcher_s",
    "name": "Raketenwerfer",
    "slot": "weapon",
@@ -3927,6 +3968,24 @@
     }
    ],
    "kit": "ship_kit_light"
+  },
+  {
+   "key": "blockade_runner",
+   "name": "Blockadebrecher",
+   "size": "M",
+   "baseHull": 120,
+   "baseMass": 12,
+   "baseFuel": 250,
+   "slots": [
+    { "type": "reactor", "size": "S" },
+    { "type": "engine", "size": "M" },
+    { "type": "cargo", "size": "S" },
+    { "type": "cargo", "size": "S" },
+    { "type": "utility", "size": "S" },
+    { "type": "utility", "size": "S" },
+    { "type": "weapon", "size": "S" }
+   ],
+   "kit": "ship_kit_medium"
   },
   {
    "key": "light_freighter",
@@ -4781,12 +4840,18 @@
     "reactor_mk1",
     "chem_engine_s",
     "cargo_solid_s",
-    null,
+    "passenger_cabin_s",
     "weapon_laser_s"
    ],
    "jobs": [
     "trade"
    ]
+  },
+  {
+   "key": "shadow",
+   "class": "blockade_runner",
+   "name": "Schatten",
+   "fit": ["reactor_mk2", "chem_engine_m", "cargo_universal_60", "cargo_universal_60", "jump_drive_s", "cloak_s", "weapon_laser_s"]
   },
   {
    "key": "mule",

@@ -96,6 +96,8 @@ public sealed class ShipStats
     public float Cloak;
     /// <summary>Tarnfeld: zusätzliche Leistung, solange es an ist (<c>cloakDraw</c>, aus dem Reaktorüberschuss).</summary>
     public float CloakDraw;
+    /// <summary>Ausbau Punkt 14: Fahrgastplätze (Modulstat <c>passengers</c>, Summe der Passagierkabinen); 0 = keine Kabine.</summary>
+    public int Passengers;
     /// <summary>Gasernte: Gassammler — Gas je Sekunde im Gasfeld (Modulstat <c>gasCollect</c>, Summe); 0 = kein Sammler.</summary>
     public float GasCollect;
     /// <summary>Phase 24: Waffenstärke je Schaden pro Sekunde (abgeleitete Kennzahl aus den Waffenwerten: Schaden × Treffsicherheit ÷ Nachladezeit × dieser Faktor).</summary>
@@ -149,6 +151,7 @@ public sealed class ShipStats
                 s.JumpRange = (int)jr;
                 s.JumpChargeTicks = m.Stat("jumpCharge"); s.JumpCooldownTicks = m.Stat("jumpCooldown"); s.JumpDraw = m.Stat("jumpDraw"); s.JumpFuel = m.Stat("jumpFuel");
             }
+            if (m.Stats.TryGetValue("passengers", out var pax)) s.Passengers += (int)pax;   // Ausbau Punkt 14: Passagierkabine
             if (m.Stats.TryGetValue("cloak", out var ck) && ck > s.Cloak) { s.Cloak = ck; s.CloakDraw = m.Stat("cloakDraw"); }   // Tarnfeld: das beste Modul zählt
             foreach (var f in m.FuelTypes)
             {

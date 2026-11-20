@@ -44,7 +44,8 @@ public static class MissionRules
 
     /// <summary>Tagesbudget für Aufträge eines Auftraggebers: <see cref="EconomyRules.MissionBudgetShare"/> der Kasse (Mindestbetrag <see cref="EconomyRules.MissionMinDailyBudget"/>).</summary>
     public static float BudgetOf(Universe u, Actor a) =>
-        u.Rules.MissionBudgetShare * MathF.Max(u.Rules.MissionMinDailyBudget, a.Treasury.Credits);
+        (a.Kind is ActorKind.Outlaw or ActorKind.Independent && u.Rules.MissionSmuggle ? MathF.Max(u.Rules.MissionBudgetShare, u.Rules.MissionOutlawBudgetShare) : u.Rules.MissionBudgetShare)
+        * MathF.Max(u.Rules.MissionMinDailyBudget, a.Treasury.Credits);   // Ausbau Punkt 10: gesetzlose Auftraggeber zahlen aus einem größeren Anteil
 
     /// <summary>Höchstens so viele aktive Aufträge: <see cref="EconomyRules.MissionMaxActive"/> plus eine je Größenklasse, gedeckelt auf <see cref="EconomyRules.MissionMaxActiveCap"/>.</summary>
     public static int MaxActive(Universe u) =>
@@ -248,6 +249,8 @@ public static class MissionRules
         if (u.FactionOf(m.Client) is { } f && u.IsNpcFaction(f))
         {
             PlayerStanding.Change(u, f, -u.Rules.MissionRelationLoss, "mission_fail");
+            if (m.Type == PassengerMission.KeyId && reason == "Schiff verloren" && u.Rules.PassengerLossStanding > 0f)   // Ausbau Punkt 14: Fahrgäste mit dem Schiff verloren
+                PlayerStanding.Change(u, f, -u.Rules.PassengerLossStanding, "passenger_lost");
             if (!u.MissionFactions.TryGetValue(m.Client.Value, out var fs)) u.MissionFactions[m.Client.Value] = fs = new MissionFactionState();
             fs.Day = u.Tick / Math.Max(1, u.Rules.DayTicks);
             fs.BlockedUntil = u.Tick + u.Rules.MissionBlockTicks;

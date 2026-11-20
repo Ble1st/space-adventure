@@ -97,7 +97,7 @@ public sealed class IntelSystem : ISimSystem, ISimEventListener
             d = default;
         }
         // Zielstation (Lieferung, Transport) und Zielsektoren (Eskorte, Patrouillen-Wegpunkte) — unabhängig vom Marker
-        if (m.Type is "delivery" or "transport" && m.Args.TryGetValue("target", out var v) && int.TryParse(v, out var id) && u.Stations.TryGetValue(new StationId(id), out var ts))
+        if (m.Type is "delivery" or "transport" or "smuggle" or "passenger" && m.Args.TryGetValue("target", out var v) && int.TryParse(v, out var id) && u.Stations.TryGetValue(new StationId(id), out var ts))
             Knowledge.Publish(u, ts.Sector, Knowledge.RevealStation(u, ts.Id), "mission");
         if (m.Args.TryGetValue("dest", out var ds) && int.TryParse(ds, out var dsec))
             Knowledge.Publish(u, new SectorId(dsec), Knowledge.See(u, new SectorId(dsec)), "mission");

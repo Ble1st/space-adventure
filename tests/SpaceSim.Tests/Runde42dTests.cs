@@ -203,8 +203,11 @@ public class Runde42dTests
         };
         for (int t = 0; t < 20000; t++) runner.Step(u);
         Assert.True(total > 500, $"genug Angebote ({total})");
-        double shareB = 100.0 * byType.GetValueOrDefault(BountyMission.KeyId) / total;
-        double shareP = 100.0 * byType.GetValueOrDefault(PatrolMission.KeyId) / total;
+        // Ausbau Punkte 10/14: Schmuggel-, Forschungs- und Fahrgastangebote kamen danach dazu — die Anteile gelten unter den Arten der Runden 41/42
+        int newer = byType.GetValueOrDefault("smuggle") + byType.GetValueOrDefault("research") + byType.GetValueOrDefault("passenger");
+        int total42 = total - newer;
+        double shareB = 100.0 * byType.GetValueOrDefault(BountyMission.KeyId) / total42;
+        double shareP = 100.0 * byType.GetValueOrDefault(PatrolMission.KeyId) / total42;
         // Runde 44: in den vergrößerten Sektoren entstehen mehr Liefer- und Eskorte-Angebote (längere Fahrten, größere Lager); die Zahl der Kopfgeld-
         // angebote bleibt (≈ 56 je 20 000 Ticks, vorher 59 — begrenzt durch die gesuchten Kaperschiffe, keine doppelten Angebote), ihr Anteil sank auf ≈ 4,3 %.
         // Geprüft wird jetzt: Kopfgeld ≥ 4 %, Kopfgeld + Patrouille ≥ 10 %, jedes einzeln mindestens 50 Angebote

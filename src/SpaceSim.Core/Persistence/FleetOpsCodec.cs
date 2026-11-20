@@ -15,6 +15,7 @@ public static class FleetOpsCodec
         ConvoyCommand v => UniverseSerializer.LimitsSave(CommandKinds.Convoy, v.Limits),
         ExploreSectorCommand e => new OrderSave { Kind = CommandKinds.ExploreSector, A = e.Sector.Value },   // Ausbau Punkt 16
         ExploreUniverseCommand => new OrderSave { Kind = CommandKinds.ExploreUniverse },
+        TaxiCommand t => Taxi(t),   // Ausbau Punkt 14
         _ => null,
     };
 
@@ -28,6 +29,14 @@ public static class FleetOpsCodec
         CommandKinds.Convoy => new ConvoyCommand(UniverseSerializer.LimitsFrom(o)),
         CommandKinds.ExploreSector => new ExploreSectorCommand(new SectorId(o.A)),
         CommandKinds.ExploreUniverse => new ExploreUniverseCommand(),
+        CommandKinds.Taxi => new TaxiCommand(UniverseSerializer.LimitsFrom(o), new StationId(o.Ids?.ElementAtOrDefault(0) ?? 0), new StationId(o.Ids?.ElementAtOrDefault(1) ?? 0), o.Ids?.ElementAtOrDefault(2) ?? 0),
         _ => null,
     };
+
+    static OrderSave Taxi(TaxiCommand t)
+    {
+        var o = UniverseSerializer.LimitsSave(CommandKinds.Taxi, t.Limits);
+        if (t.Dest.Value != 0 || t.From.Value != 0 || t.Pax != 0) o.Ids = new List<int> { t.Dest.Value, t.From.Value, t.Pax };
+        return o;
+    }
 }

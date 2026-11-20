@@ -74,6 +74,7 @@ if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
 if (opts.TryGetValue("blackmarket", out var bmOpt)) u.Rules.BlackMarket = bmOpt == "on";
 if (opts.TryGetValue("nebula", out var nebOpt)) u.Rules.NebulaEffects = nebOpt == "on";   // Gasernte: Nebelwirkungen (Vergleichsläufe)
+if (opts.TryGetValue("smugglers", out var smgOpt)) u.Rules.Smugglers = smgOpt == "on";   // Ausbau Punkt 5: Schmuggler-KI (Vergleichsläufe)
 if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc = bmnOpt == "on";   // Schwarzmarkt NPC: gesetzlose KI-Schiffe beim Hehler (Vergleichsläufe)   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
 // Kapitulation: --capitulation off = Phase-28-Regel (Regierungsstationen nur ausgeschaltet, keine Übernahme), --aicapture off = nur der Spieler übernimmt
 if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulation = capOpt == "on";
@@ -622,6 +623,7 @@ u.Events.Raised += e =>
 var retiredStations = new List<string>();
 int buildersCommissioned = 0, discardCount = 0;
 float gasCollected = 0f, gasDelivered = 0f, gasDeliveredCr = 0f; int gasTrips = 0, ionTanks = 0, fusionTanks = 0; float ionTankUnits = 0f, fusionTankUnits = 0f;   // Gasernte
+int smgBought = 0, smgRuns = 0, smgJumpRuns = 0, smgCaught = 0, smgBuys = 0, smgSales = 0; float smgCost = 0f, smgRevenue = 0f, smgFines = 0f, smgSeized = 0f, smgPrices = 0f;   // Ausbau Punkt 5
 int bmnSales = 0, bmnBuys = 0; float bmnSoldUnits = 0f, bmnSoldCr = 0f, bmnBoughtUnits = 0f, bmnBoughtCr = 0f;   // Schwarzmarkt NPC
 var discarded = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: von KI-Händlern im All abgeworfen (kein Käufer nahm den Rest)
 var dumped = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: über die Annahme abgeladen (Station: Ware → Einheiten)
@@ -636,6 +638,10 @@ u.Events.Raised += e =>
     if (e is MineDelivered gmd && u.GoodOf(gmd.Good).Key == u.Rules.GasGoodKey) { gasDelivered += gmd.Amount; gasDeliveredCr += gmd.Revenue; gasTrips++; }
     if (e is FuelBought fb && u.GoodOf(fb.Good).Key == "ion_gas") { ionTanks++; ionTankUnits += fb.Units; }
     if (e is FuelBought fbf && u.GoodOf(fbf.Good).Key == "fusion_fuel") { fusionTanks++; fusionTankUnits += fbf.Units; }
+    if (e is SmugglerBought sb) { smgBought++; smgPrices += sb.Price; }
+    if (e is SmugglerRunStarted srs) { smgRuns++; if (srs.Jump) smgJumpRuns++; }
+    if (e is SmugglerTraded st2) { if (st2.Sold) { smgSales++; smgRevenue += st2.Credits; } else { smgBuys++; smgCost += st2.Credits; } }
+    if (e is SmugglerCaught sc) { smgCaught++; smgFines += sc.Fine; smgSeized += sc.CargoValue; }
     if (e is BlackMarketNpcTrade bmt) { if (bmt.Sold) { bmnSales++; bmnSoldUnits += bmt.Units; bmnSoldCr += bmt.Credits; } else { bmnBuys++; bmnBoughtUnits += bmt.Units; bmnBoughtCr += bmt.Credits; } }
     if (e is CargoDiscarded cdi) { discardCount++; string gk = u.Goods[cdi.Good].Name; discarded[gk] = discarded.GetValueOrDefault(gk) + cdi.Units; }
     if (e is StationRetired sre)
@@ -1164,6 +1170,14 @@ if (u.Modules.Count > 0)
         int lawless = u.ShipsById().Count(s => (s.Role == ShipRole.Trader || s.Role == ShipRole.Miner) && SpaceSim.Core.Simulation.BlackMarketNpc.LawlessOwner(u, s) is not null);
         Console.WriteLine($"Schwarzmarkt NPC ({(SpaceSim.Core.Simulation.BlackMarketNpc.Active(u) ? "an" : "aus")}): Verkäufe {bmnSales} ({bmnSoldUnits:0.#} E., {bmnSoldCr:0} Cr), "
             + $"Käufe {bmnBuys} ({bmnBoughtUnits:0.#} E., {bmnBoughtCr:0} Cr); gesetzlose Händler/Schürfer jetzt {lawless}");
+    }
+    {
+        int smgNow = u.Ships.Values.Count(s => s.Role == ShipRole.Smuggler);
+        int firms = u.Actors.Values.Count(a => SpaceSim.Core.Simulation.SmugglerSystem.LawlessFirm(u, a));
+        float smgCash = u.Ships.Values.Where(s => s.Role == ShipRole.Smuggler).Sum(s => s.Credits);
+        Console.WriteLine($"Schmuggler (Punkt 5, {(u.Rules.Smugglers ? "an" : "aus")}): gesetzlose Firmen {firms}, Schmuggler jetzt {smgNow} (gekauft {smgBought} für {smgPrices:0} Cr), "
+            + $"Fahrten {smgRuns} (per Sprung {smgJumpRuns}), Einkäufe {smgBuys} ({smgCost:0} Cr), Verkäufe {smgSales} ({smgRevenue:0} Cr), erwischt {smgCaught} "
+            + $"(beschlagnahmt Basiswert {smgSeized:0} Cr, Strafen {smgFines:0} Cr), Schiffskassen {smgCash:0} Cr");
     }
     {
         var gasG = u.FindGood(u.Rules.GasGoodKey); var ionG = u.FindGood("ion_gas");

@@ -316,3 +316,19 @@ Neue Befehle der eigenen Flotte, jeweils ein eigener Ausführer in der Registry 
 - **Konvoi** (`ConvoyCommand`): links „mit“ tippen, „Konvoi bilden“. Händler (Frachtraum) und Geleitschutz (bewaffnet ohne Frachtraum) bilden einen Verband; Anführer ist der langsamste Händler, er handelt automatisch in den Grenzen; die übrigen Händler übernehmen seine Kaufrunde (gleiche Einkaufs- und Verkaufsstation, gleiche Ware) und fahren sie mit dem Tempo des Verbands; der Geleitschutz begleitet den Anführer und tritt jedem Gefecht eines Konvoi-Schiffs im selben Sektor bei.
 
 Bekannte Schwächen: Ein Schiffsangriff endet, sobald das Ziel den Sektor verlässt; „Verband greift an“ nimmt nur Schiffe im Sektor oder im eigenen Verband. Konvoi-Mitglieder fahren den Verkaufsweg mit eigenem Tempo (nur der Einkaufsweg nutzt das Verbandstempo). Bergen verkauft auch geborgene Module beim besten Abnehmer, nicht gezielt an einer Werft.
+
+## 13. Fahrgäste und Personentaxi (Ausbau Punkt 14)
+
+- **Passagierkabine** S (Utility-Slot, 2 Plätze, Leistung 1, Masse 1; Stahl, Elektronik, Hüllenplatten — Systemwerk) und M (Frachtslot M, 6 Plätze, Leistung 2,
+  Masse 3 — Antriebswerk); Werftregale [1, 1] (gemessen: [1, 2] zog so viel Stahl/Elektronik in die Modulwerke, dass die Farmen im 20000-Tick-Lauf 18–20 % statt 12 % der Zeit ohne Wasser waren). `ShipStats.Passengers` = Summe der Plätze.
+- **Mauersegler (Swift):** bekommt die Kabine S in seinen freien Utility-Slot (2 Plätze, Tempo bleibt über 10). Entscheidung: keine KI-Fahrgastaufgabe — die
+  NPC-Wirtschaft bleibt unberührt; die Rolle des Mauerseglers ist das schnelle Fahrgast- und Eilschiff des Spielers (Eilfahrten haben die Frist 1,5 × Flugzeit).
+- **Auftragsart „Fahrgast“** (`PassengerMission`, Schalter `missionPassengers`) an Stationen mit Taxi oder Hangar, nur am Dock: 1–3 Fahrgäste (selten 4–6), Lohn
+  (60 + 25 je Flugminute) × Fahrgäste × Art-Faktor; Arten: normal, **Eilfahrt** (× 1,5, knappe Frist), **VIP** (× 2, +0,02 Ansehen), **Flüchtling** (× 2,5, nur
+  an Stationen ohne Staatsfraktion; Kontrolle wie Schmuggel → Verbrechen „smuggling“), **Diplomat** (× 1,5, Ziel bei einer anderen Fraktion; +0,04 Ansehen bei
+  beiden). Annahme braucht freie Plätze (laufende Fahrgastaufträge belegen sie). Im Lohn steckt ein Trinkgeld (25 %); jeder Hüllentreffer kostet ein Viertel
+  davon — der Betrag geht an den Auftraggeber zurück (`PassengerTipLost`). Schiff verloren: gescheitert + zusätzlich −0,05 Ansehen. Ablieferung durch Andocken.
+- **Flottenbefehl „Taxi fahren“** (`TaxiCommand`, Ausführer `TaxiExecutor`, Schalter `passengerTaxi`): eigenes Schiff mit Kabine; Umkreis wie die
+  Handelsautomatik. Am Stand nimmt es so viele Fahrgäste wie Plätze, wählt das Ziel mit dem besten Fahrgeld je geschätzter Reisezeit und kassiert bei Ankunft
+  Plätze × (20 + 12 je Flugminute) — Geld der Fahrgäste, neu in der Welt, nur für die Spielerflotte. Ohne Kabine ist die Taste gesperrt. Gespeichert additiv im
+  Befehl (Ziel, Abfahrt, Fahrgäste).

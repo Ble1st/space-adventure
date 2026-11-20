@@ -162,7 +162,7 @@ public class Phase29Tests
             var st = StatsOf(u, m);
             Assert.Null(FitRules.Check(u.SlotTypes, u.Modules, cls, cls.Slots, m.Fit));   // Energiebilanz und Slots gültig
             string role = CombatModels.IsCombat(st) ? "Kampf" : m.Jobs.Contains("build") ? "Bau" : m.Jobs.Contains("trade") && m.Jobs.Contains("mine") ? "Mehrzweck"
-                : m.Jobs.Contains("trade") ? "Handel" : m.Jobs.Contains("gas") ? "Gasernte" : m.Jobs.Contains("salvage") ? "Bergung" : (st.Capabilities & Capability.Mining) != 0 || st.SplitPower > 0f ? "Bergbau" : "?";
+                : m.Jobs.Contains("trade") ? "Handel" : m.Jobs.Contains("gas") ? "Gasernte" : m.Jobs.Contains("salvage") ? "Bergung" : m.Key == "shadow" ? "Schmuggel" : (st.Capabilities & Capability.Mining) != 0 || st.SplitPower > 0f ? "Bergbau" : "?";
             Assert.True(role != "?", $"{m.Key}: keine Rolle");
             cells.Add($"{role}/{cls.Size}");
             string core = $"{st.Cargo}|{st.CargoSolid}|{st.CargoLiquid}|{st.Speed:0.0}|{st.Hull}|{st.WeaponPower:0.0}|{st.Shield}|{st.Armor}|{st.LaserChunkChanceMult}|{st.SplitPower}|{st.ContactMining}";
@@ -172,7 +172,7 @@ public class Phase29Tests
         }
         foreach (var need in new[] { "Handel/S", "Handel/M", "Handel/L", "Bergbau/S", "Bergbau/M", "Bergbau/L", "Mehrzweck/S", "Mehrzweck/M", "Kampf/S", "Kampf/M", "Kampf/L", "Kampf/XL", "Bau/M" })
             Assert.Contains(need, cells);
-        Assert.Equal(32, u.ShipModels.Count);   // 4 Einheitsmodelle + 27 benannte; Gasernte: + Gasschöpfer; Ausbau Punkt 4: + Bergeschiff
+        Assert.Equal(33, u.ShipModels.Count);   // 4 Einheitsmodelle + 27 benannte; Gasernte: + Gasschöpfer; Ausbau Punkt 4: + Bergeschiff; Ausbau Punkt 5: + Schatten (Schmuggler)
         // Skiffs sind Standardmodelle; jeder Händler bewaffnet
         Assert.Equal(new[] { "mine", "trade" }, u.ShipModels["pip"].Jobs.OrderBy(j => j));
         Assert.Contains("trade", u.ShipModels["nomad"].Jobs);

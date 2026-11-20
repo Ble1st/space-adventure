@@ -15,6 +15,17 @@ public static partial class CommandKinds
     public const string Rally = "rally";
     /// <summary>Konvoi: Händler fahren gemeinsam (Anführer = langsamster), Kampfschiffe begleiten.</summary>
     public const string Convoy = "convoy";
+    /// <summary>Ausbau Punkt 14: Taxi fahren — Schiffe mit Passagierkabine fahren automatisch Fahrgäste zwischen Taxi-/Hangarstationen im Umkreis.</summary>
+    public const string Taxi = "taxi";
+}
+
+/// <summary>
+/// Ausbau Punkt 14: Taxi fahren (Spielerflotte). <paramref name="Limits"/> wie die Handelsautomatik (nur der Umkreis zählt). Laufende Fahrt:
+/// <paramref name="Dest"/> (Ziel), <paramref name="From"/> (Abfahrt, für das Fahrgeld), <paramref name="Pax"/> (Fahrgäste an Bord); default = wartet.
+/// </summary>
+public sealed record TaxiCommand(AutoLimits Limits, StationId Dest = default, StationId From = default, int Pax = 0) : ShipCommand
+{
+    public override string Kind => CommandKinds.Taxi;
 }
 
 /// <summary>
@@ -77,6 +88,7 @@ public static class FleetOpsNames
         CommandKinds.Deliver => "Liefern",
         CommandKinds.Rally => "Sammelpunkt",
         CommandKinds.Convoy => "Konvoi",
+        CommandKinds.Taxi => "Taxi fahren",
         CommandKinds.ExploreSector => "Erkunden: Sektor",
         CommandKinds.ExploreUniverse => "Erkunden: Universum",
         _ => null,

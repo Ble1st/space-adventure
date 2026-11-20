@@ -272,6 +272,7 @@ public static class GateAccess
             }
             return new PlayerJump(false, 0f, $"Sprung verweigert: {pass.Reason}");
         }
+        Missions.MissionContraband.AtGate(u, ship, gate);   // Ausbau Punkte 10/14: Torsensor findet Schmuggelware/gesuchte Fahrgäste von Aufträgen
         if (pass.Toll > 0f)
         {
             string who = pass.TollTo is { } f && u.Factions.TryGetValue(f, out var fac) ? fac.Name : "Sektor";

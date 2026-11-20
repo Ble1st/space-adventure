@@ -32,7 +32,9 @@ public static class SaveGameJson
         // Fusionsbrennstoff: Ware, Fusionstriebwerk, Anreicherungsanlage
         "fusion_fuel", "fusion_drive_l", "enrichment_plant",
         // Ausbau Punkt 4: NPC-Bergung — Bergeschiff
-        "salvager", "salvage_tug" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
+        "salvager", "salvage_tug",
+        // Ausbau Punkte 5/14: Passagierkabinen, Blockadebrecher, Schatten
+        "passenger_cabin_s", "passenger_cabin_m", "blockade_runner", "shadow" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {

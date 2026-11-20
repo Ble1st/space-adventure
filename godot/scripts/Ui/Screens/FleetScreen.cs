@@ -79,7 +79,8 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		CommandKinds.Blockade => "Blockade",
 		CommandKinds.Rally => "Sammeln",
 		CommandKinds.Patrol => "Streife",
-		CommandKinds.ExploreSector => "Erkunden",   // Ausbau Punkt 16: Ziele „Universum“ und Sektoren
+		CommandKinds.ExploreSector => "Erkunden",
+		CommandKinds.Taxi => "Taxi",   // Ausbau Punkt 14   // Ausbau Punkt 16: Ziele „Universum“ und Sektoren
 		_ => CommandNames.Kind(kind),
 	};
 
@@ -243,6 +244,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		CommandKinds.Return => new ReturnCommand(),
 		CommandKinds.Trade => new TradeCommand(Limits(u, ship)),
 		CommandKinds.Mine => new MineCommand(Limits(u, ship)),
+		CommandKinds.Taxi => new TaxiCommand(Limits(u, ship)),   // Ausbau Punkt 14
 		CommandKinds.Build => new BuildCommand(default),
 		CommandKinds.GoTo => u.Stations.Values.Select(s => new GoToCommand(default, default, s.Id)).FirstOrDefault(),
 		CommandKinds.Patrol => new PatrolCommand(new[] { ship.Sector }),

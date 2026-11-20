@@ -106,7 +106,7 @@ public sealed class SecurityModule : ISimModule
 {
     public string Name => "Security";
     public void Register(SimulationBuilder b) =>
-        b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new WantedSystem(), interval: 50)
+        b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new SmugglerSystem(), SmugglerSystem.Interval).Add(new WantedSystem(), interval: 50)
          .Add(new NavySystem(), NavySystem.Interval)   // Phase 28: Kriegsschiffe der Fraktionen
          .Add(new OutpostDefenseSystem(), OutpostDefenseSystem.Interval)   // Phase 30: Waffenstellungen eröffnen das Feuer
          .Add(new OutpostBuilderSystem(), OutpostBuilderSystem.Interval);  // Phase 30: Fraktionen/Piraten stellen Kleinstationen auf

@@ -33,6 +33,7 @@ public class GasNebulaTests
         StationsverschleissTests.RevertWear(def);   // Ausbau Punkt 8 (Stationsverschleiß) kam danach
         FirmensitzTests.RevertSeats(def);   // Ausbau Punkt 9 (Firmensitz und Büro) kam danach
         BergungTests.RevertSalvage(def);   // Ausbau Punkt 4 (NPC-Bergung) kam danach
+        SchmugglerTests.RevertSmuggling(def);   // Ausbau Punkte 5/10/14 kamen danach
         def.Goods.RemoveAll(g => g.Key is "gas" or "ion_gas");
         def.Modules.RemoveAll(m => Keys.Contains(m.Key));
         foreach (var m in def.Modules) { m.Cost.Remove("gas"); m.Upgrade?.Cost.Remove("gas"); }

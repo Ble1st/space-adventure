@@ -96,7 +96,7 @@ public static class Cloak
     {
         if (!ship.Cloaked) return;
         string? why = !u.Rules.Cloaking || ship.Stats.Cloak <= 0f ? "module"
-            : ship.Id != u.PlayerShip ? "ship"
+            : ship.IsPlayer && ship.Id != u.PlayerShip ? "ship"   // Ausbau Punkt 5: KI-Schmuggler tarnen sich selbst
             : ship.DockedAt.Value != 0 ? "docked"
             : u.Fights.IsEngaged(ship.Id) ? "combat"
             : ship.AnchorRock != 0 ? "mining"

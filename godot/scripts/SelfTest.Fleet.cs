@@ -149,11 +149,12 @@ public partial class SelfTest
 				Check(_m.HudRef.CcFleet.TestLossGuardButton is { } lg && lg.Text == "gesperrt" && t.Command is TradeCommand tcg && !tcg.Limits.AllowLoss,
 					$"Runde 24: Schalter Verlustkauf bei den Grenzen, Standard gesperrt ({_m.HudRef.CcFleet.TestLossGuardButton?.Text})");
 				Check(FleetOverflow(cc).Length == 0, $"Flotte: keine Taste läuft über ({FleetOverflow(cc)})");
-				// Verband bilden mit dem Händler als Führer
-				PressButton(cc, "Bilden", true);
+				// Verband bilden mit dem Händler als Führer (Ausbau Punkt 14: das Befehlsraster hat eine Zeile mehr — erst in den sichtbaren Bereich rollen)
+				if (Buttons(cc).FirstOrDefault(b => b.Text == "Bilden" && b.IsVisibleInTree()) is { } bb) FoScrollTo(bb);
 				return false;
 			}
-			case 42: PressButton(cc, "Bilden", false); return false;
+			case 42: PressButton(cc, "Bilden", true); return false;
+			case 43: PressButton(cc, "Bilden", false); return false;
 			case 44:
 			{
 				Check(u.Ships[_flFirst].Squadron.Value != 0, $"Verband per Tipp gebildet ({_m.HudRef.CcFleet.TestMessage})");

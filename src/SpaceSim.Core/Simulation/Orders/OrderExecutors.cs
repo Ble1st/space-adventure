@@ -77,6 +77,7 @@ public sealed class OrderExecutors
         // Ausbau Punkt 16: Erkunden (Sektor, Universum)
         r.Register(new Intel.ExploreSectorExecutor());
         r.Register(new Intel.ExploreUniverseExecutor());
+        r.Register(new TaxiExecutor());   // Ausbau Punkt 14: Taxi fahren
         return r;
     }
 
