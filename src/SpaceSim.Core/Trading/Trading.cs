@@ -254,7 +254,7 @@ public static class TradeActions
     /// <summary>
     /// Beste Verkaufsstation für die Fracht: Erlös pro Reisezeit, nur erreichbare Stationen. Phase 16: zählt je Ware nur, was die Station in mindestens
     /// einer ganzen Einheit annimmt und bezahlen kann — sonst fuhr der Mining-Autopilot (und ein NPC-Miner mit Restfracht) für Bruchteile einer Einheit
-    /// zu einer vollen Station und wieder zurück.
+    /// zu einer vollen Station und wieder zurück. Ausbau Punkt 16b: Spielerschiffe nur mit vom Spieler bekannten Stationen (<see cref="Intel.Knowledge.KnowsStation(Universe, Station)"/>).
     /// </summary>
     public static Station? BestBuyer(Universe u, Ship ship, SectorId fromSector, Vec2 fromPos, StationId? exclude = null)
     {
@@ -264,11 +264,15 @@ public static class TradeActions
         // Flotten-Automatik: ein Schiff mit Automatikgrenzen (Handel/Schürfen/Konvoi) verkauft auch Reste nur im Umkreis — eine Regel für jeden Restverkauf
         // (Tankstopp, weggefallener Abnehmer, gestrandete Fracht, nach dem Gefecht); vorher fuhr ein Flottenschiff nach einem Tankstopp aus dem Umkreis.
         // KI-Schiffe haben keine Grenzen: unverändert.
+        // Ausbau Punkt 16b: Spielerschiffe (aktiv oder im Besitz des Spielers) fahren nur Stationen an, die der Spieler kennt.
+        // Ohne Intel (Actor.Intel null) kennt der Spieler alles, NPC-Schiffe sind nicht betroffen.
         var limits = Simulation.AutoLimitRules.Of(ship);
+        bool playerShip = ship.IsPlayer || ship.Owner == u.PlayerActor;
         foreach (var st in u.Stations.Values)
         {
             if (st.Id == exclude || !Simulation.Docking.Allows(st, shipSize)) continue;   // Phase 30: Station groß genug
             if (limits is not null && !Simulation.AutoLimitRules.InRange(u, limits, st.Sector)) continue;
+            if (playerShip && !Intel.Knowledge.KnowsStation(u, st)) continue;   // Punkt 16b: nur bekannte Stationen
             float quote = Quote(u, ship, st);
             if (quote <= 0f) continue;
             float time = Travel.Estimate(u, fromSector, fromPos, st.Sector, st.DockPoint(ship.Id), ship);

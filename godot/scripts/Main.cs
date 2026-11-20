@@ -1080,6 +1080,26 @@ public partial class Main : Node3D
 		if (what == NotificationWMGoBackRequest && _hud is not null) BackRequested("Benachrichtigung");   // Runde 37b/37c
 	}
 
+	/// <summary>
+	/// Ausbau Punkt 16b: Fraktionsnamen in einer Ereignis-Meldung maskieren, wenn der Spieler die Fraktion (oder Piratengruppe) nicht kennt —
+	/// „eine unbekannte Fraktion“. Ohne beschränktes Wissen (Regel playerIntel aus, <c>Actor.Intel</c> null) bleibt der Text unverändert;
+	/// die eigene Fraktion kennt der Spieler immer (<see cref="SpaceSim.Core.Intel.Knowledge.KnowsFaction"/>).
+	/// </summary>
+	string MaskUnknownFactions(string message)
+	{
+		var u = _session.U;
+		if (message.Length == 0 || !SpaceSim.Core.Intel.Knowledge.Limited(u)) return message;
+		foreach (var a in u.Actors.Values)
+		{
+			if (a.Name.Length == 0) continue;
+			var f = new FactionId(a.Id.Value);
+			if (!u.Factions.ContainsKey(f) && a.Kind != ActorKind.Outlaw) continue;   // nur Fraktionen und Piratengruppen, keine Einzelakteure
+			if (SpaceSim.Core.Intel.Knowledge.KnowsFaction(u, f)) continue;
+			message = message.Replace(a.Name, "eine unbekannte Fraktion");
+		}
+		return message;
+	}
+
 	void OnSimEvent(SimEvent e)
 	{
 		if (JumpCloakEvent(e)) return;   // Sprungantrieb und Tarnfeld (Main.JumpCloak.cs)
@@ -1136,19 +1156,19 @@ public partial class Main : Node3D
 				if (Time.GetTicksMsec() / 1000.0 - _lastWingToast > 20.0) { _lastWingToast = Time.GetTicksMsec() / 1000.0; _hud.Toast("Dein Verband greift mit an.", 3f); }
 				break;
 			case GateAttacked ga:
-				LastWarMessage = ga.Message;
-				if (ga.Sector == _session.U.PlayerSector) _hud.Toast(ga.Message, 4f);
+				LastWarMessage = MaskUnknownFactions(ga.Message);   // Punkt 16b: unbekannte Fraktion nicht beim Namen nennen
+				if (ga.Sector == _session.U.PlayerSector) _hud.Toast(LastWarMessage, 4f);
 				break;
 			case GateDisabled gd:
-				LastWarMessage = gd.Message;
-				if (_session.U.Gates.TryGetValue(gd.Gate, out var gdg) && (gdg.Sector == _session.U.PlayerSector || _session.U.Gates[gdg.Target].Sector == _session.U.PlayerSector)) _hud.Alert(gd.Message, 8f);
-				else _hud.Toast(gd.Message, 4f);
+				LastWarMessage = MaskUnknownFactions(gd.Message);
+				if (_session.U.Gates.TryGetValue(gd.Gate, out var gdg) && (gdg.Sector == _session.U.PlayerSector || _session.U.Gates[gdg.Target].Sector == _session.U.PlayerSector)) _hud.Alert(LastWarMessage, 8f);
+				else _hud.Toast(LastWarMessage, 4f);
 				break;
 			case GateRestored gr:
-				LastWarMessage = gr.Message;
+				LastWarMessage = MaskUnknownFactions(gr.Message);
 				// Runde 17 (Handy-Test: Wiederanlauf-Meldung nicht gesehen): im eigenen Sektor als Meldung wie der Ausfall, sonst Hinweis
-				if (_session.U.Gates.TryGetValue(gr.Gate, out var grg) && (grg.Sector == _session.U.PlayerSector || _session.U.Gates[grg.Target].Sector == _session.U.PlayerSector)) _hud.Alert(gr.Message, 6f);
-				else _hud.Toast(gr.Message, 4f);
+				if (_session.U.Gates.TryGetValue(gr.Gate, out var grg) && (grg.Sector == _session.U.PlayerSector || _session.U.Gates[grg.Target].Sector == _session.U.PlayerSector)) _hud.Alert(LastWarMessage, 6f);
+				else _hud.Toast(LastWarMessage, 4f);
 				break;
 			case MissileLaunched ml when ml.Sector == _session.U.PlayerSector:
 				_sfx.Play(SfxId.Zap);
@@ -1160,7 +1180,7 @@ public partial class Main : Node3D
 				if (mr.Target == _session.U.PlayerShip) { _hud.Flash(new Color(1f, 0.3f, 0.4f), 0.3f); _sfx.Play(SfxId.Hit); }
 				break;
 			case StationFell fell:
-				LastWarMessage = fell.How switch
+				LastWarMessage = MaskUnknownFactions(fell.How switch   // Punkt 16b: angreifende Fraktion ggf. maskieren
 				{
 					"destroyed" => $"{fell.Name} wurde zerstört.",
 					"captured" => $"{fell.Name} wurde erobert.",
@@ -1168,17 +1188,18 @@ public partial class Main : Node3D
 					"capitulated" when fell.Attacker == _session.U.PlayerActor => $"{fell.Name} kapituliert — die Station gehört jetzt dir. Andocken möglich.",
 					"capitulated" => $"{fell.Name} kapituliert vor {_session.U.ActorName(fell.Attacker)}.",
 					_ => $"{fell.Name} ist ausgeschaltet.",
-				};
+				});
 				if (fell.How == "capitulated" && _fight.StationTarget == fell.Station) { _fight.ArmStation(default); _fight.AutoFire = false; }
 				if (fell.Sector == _session.U.PlayerSector) _hud.Alert(LastWarMessage, 6f); else _hud.Info(LastWarMessage, 3f);
 				break;
 			// Wirtschaftsstationen halten stand (docs/KAMPF.md): Alarm und Notschild — im eigenen Sektor als Meldung, eigene Stationen auch anderswo als Hinweis
 			case StationAlarmRaised al:
-				if (al.Sector == _session.U.PlayerSector) _hud.Toast(al.Message, 5f);
-				else if (al.Owner == _session.U.PlayerActor) _hud.Info(al.Message, 4f);
+				var alMsg = MaskUnknownFactions(al.Message);   // Punkt 16b
+				if (al.Sector == _session.U.PlayerSector) _hud.Toast(alMsg, 5f);
+				else if (al.Owner == _session.U.PlayerActor) _hud.Info(alMsg, 4f);
 				break;
 			case StationEmergencyShield es when es.Raised && es.Sector == _session.U.PlayerSector:
-				_hud.Toast(es.Message, 4f);
+				_hud.Toast(MaskUnknownFactions(es.Message), 4f);   // Punkt 16b
 				if (_session.U.Stations.TryGetValue(es.Station, out var esSt)) _fx.Burst(new Vector3(esSt.Position.X, 0, esSt.Position.Y), new Color(0.5f, 0.8f, 1f), 24, 12f, 0.6f);
 				break;
 			case StationCapitulationRolled cr when !cr.Capitulated && cr.Taker == _session.U.PlayerActor:
@@ -1190,24 +1211,24 @@ public partial class Main : Node3D
 				else _hud.Info($"{gu.Name}: Unterhalt wieder bezahlt — wieder in Betrieb.", 4f);
 				break;
 			case SeatRelocated seat:
-				_hud.Info($"{_session.U.ActorName((ActorId)seat.Faction)} verlegt ihren Sitz nach {(_session.U.Sectors.TryGetValue(seat.Sector, out var seatSec) ? seatSec.Name : "?")}.", 4f);
+				_hud.Info(MaskUnknownFactions($"{_session.U.ActorName((ActorId)seat.Faction)} verlegt ihren Sitz nach {(_session.U.Sectors.TryGetValue(seat.Sector, out var seatSec) ? seatSec.Name : "?")}."), 4f);   // Punkt 16b
 				break;
-			case WarDeclared wd: LastWarMessage = wd.Message; _hud.Alert(wd.Message, 8f); _music.Sting("sting_war", Now); break;
-			case PeaceConcluded pc: LastWarMessage = pc.Message; _hud.Alert(pc.Message, 6f); _music.Sting("sting_peace", Now); break;
+			case WarDeclared wd: LastWarMessage = MaskUnknownFactions(wd.Message); _hud.Alert(LastWarMessage, 8f); _music.Sting("sting_war", Now); break;   // Punkt 16b
+			case PeaceConcluded pc: LastWarMessage = MaskUnknownFactions(pc.Message); _hud.Alert(LastWarMessage, 6f); _music.Sting("sting_peace", Now); break;   // Punkt 16b
 			case BountyEarned be when be.Hunter == _session.U.PlayerActor: _music.Sting("sting_victory", Now); break;   // Runde 12: Signale
 			case EncounterStarted siege when siege.Cause == EncounterCause.Siege && siege.Sector == _session.U.PlayerSector:
-				LastCombatMessage = siege.Message; _hud.Toast(siege.Message, 4f); break;
+				LastCombatMessage = MaskUnknownFactions(siege.Message); _hud.Toast(LastCombatMessage, 4f); break;   // Punkt 16b
 			// Gerätetest Phase 28: Überfall auf dich — das angreifende Schiff wird Ziel, Hinweis auf Dauerfeuer/Zielhilfe
 			case EncounterStarted raid when raid.Cause == EncounterCause.Raid && raid.Defender == _session.U.PlayerShip:
 				TakeShipTarget(raid.Attacker);   // Runde 21: räumt Tor-/Stationswahl samt Angriff ab
-				LastCombatMessage = $"Überfall! Ziel gewählt: {(_session.U.Ships.TryGetValue(raid.Attacker, out var ra) ? SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ra) : "Kaperschiff")} — " + (_fight.AutoFire ? "Dauerfeuer läuft." : "„Dauerfeuer“ an?") + " „Ziel folgen“ hält es im Bugwinkel.";   // Runde 22: je nach Zustand
+				LastCombatMessage = MaskUnknownFactions($"Überfall! Ziel gewählt: {(_session.U.Ships.TryGetValue(raid.Attacker, out var ra) ? SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ra) : "Kaperschiff")} — " + (_fight.AutoFire ? "Dauerfeuer läuft." : "„Dauerfeuer“ an?") + " „Ziel folgen“ hält es im Bugwinkel.");   // Runde 22: je nach Zustand; Punkt 16b: Fraktion ggf. maskiert
 				Danger("Überfall", LastCombatMessage, 8f);
 				break;
 			case EncounterStarted arrest when arrest.Cause == EncounterCause.Arrest:
-				LastCombatMessage = arrest.Message; Danger("Polizei greift an", arrest.Message, 8f); break;
+				LastCombatMessage = MaskUnknownFactions(arrest.Message); Danger("Polizei greift an", LastCombatMessage, 8f); break;   // Punkt 16b
 			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
-				LastCombatMessage = es.Cause == EncounterCause.Assault ? es.Message
-					: SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default);
+				LastCombatMessage = MaskUnknownFactions(es.Cause == EncounterCause.Assault ? es.Message   // Punkt 16b
+					: SpaceSim.Core.Combat.CombatInfo.StartToast(_session.U, es.Cause, _session.U.Fights.Of(es.Attacker)?.RaiderOwner ?? default));
 				// Runde 38a: fremdes Gefecht im Sektor = Info; dein eigenes (z. B. Angriff) wichtig
 				if (SpaceSim.Core.Ui.MessageRules.InMyFight(_session.U, es.Encounter)) _hud.Toast(LastCombatMessage, 4f); else _hud.Info(LastCombatMessage, 3f);
 				break;
@@ -1228,54 +1249,57 @@ public partial class Main : Node3D
 				break;
 			case CargoDropped drop when drop.Sector == _session.U.PlayerSector && !_session.U.Rules.DamageActive: CombatController.SpawnDrops(_chunks, drop, _dropSeq++); break;
 			case EncounterEnded end when end.Sector == _session.U.PlayerSector && end.Cause == EncounterCause.Assault:
-				_hud.Toast(end.Message, 4f); LastCombatMessage = end.Message; break;
+				LastCombatMessage = MaskUnknownFactions(end.Message); _hud.Toast(LastCombatMessage, 4f); break;   // Punkt 16b
 			// Phase 11: Vorwarnung, Ausgang von Überfall/Kontrolle, Überfälle in deinem Sektor, Verbrechen
 			case EncounterWarning w when w.Target == _session.U.PlayerShip:
 				// Runde 15/16: schon in der Warnphase Ziel (Kamera, Randpfeil) — auch wenn das Warnsignal gerade gesperrt ist (vorher hing alles am Signal);
 				// ein laufendes Gefechtsziel bleibt
 				if (w.Kind == EncounterKind.Raid && w.Source.Value != 0) { if (_fight.Target.Value == 0) TakeShipTarget(w.Source); _pendingTargeted = (w.Source, w.DueTick); }
 				Sting("sting_warning");
-				_sfx.Play(SfxId.Click); Danger("Überfall droht", w.Message, WarnSeconds(w.DueTick)); LastSecurityMessage = w.Message;
+				_sfx.Play(SfxId.Click); Danger("Überfall droht", MaskUnknownFactions(w.Message), WarnSeconds(w.DueTick)); LastSecurityMessage = MaskUnknownFactions(w.Message);   // Punkt 16b
 				StartCountdown(w.DueTick); break;
 			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip:
-				_hud.Toast(x.Message, 4f); LastSecurityMessage = x.Message;
+				LastSecurityMessage = MaskUnknownFactions(x.Message); _hud.Toast(LastSecurityMessage, 4f);   // Punkt 16b
 				// Runde 41 (A2): Warnung aufgehoben (z. B. Waffenstillstand) — die stehende Warnmeldung im Alert sofort entfernen
 				if (_warnShown is not null && _hud.TestAlert == _warnShown) { _hud.HideAlert(); _warnText = null; }
 				break;
-			case RaidResolved rr when rr.Player: _hud.Alert(rr.Message, 8f); LastSecurityMessage = rr.Message; break;
+			case RaidResolved rr when rr.Player: LastSecurityMessage = MaskUnknownFactions(rr.Message); _hud.Alert(LastSecurityMessage, 8f); break;   // Punkt 16b
 			case RaidResolved rn when rn.Sector == _session.U.PlayerSector:
-				_hud.Info($"Hier im Sektor: {rn.Message}", 3f); break;   // Runde 38a: fremder Überfall = Info   // Runde 4: welches Schiff (vorher klang es mitten im Stationsangriff nach dem eigenen Gefecht)
+				_hud.Info($"Hier im Sektor: {MaskUnknownFactions(rn.Message)}", 3f); break;   // Runde 38a: fremder Überfall = Info; Punkt 16b   // Runde 4: welches Schiff (vorher klang es mitten im Stationsangriff nach dem eigenen Gefecht)
 			case RaiderIntercepted ri when ri.Sector == _session.U.PlayerSector:
 				_hud.Info(ri.PoliceWon ? (ri.RaiderDestroyed ? "Polizei hat ein Kaperschiff zerstört" : "Polizei vertreibt ein Kaperschiff") : "Ein Kaperschiff entkommt der Polizei", 3f); break;
-			case PlayerIntercepted pi: _hud.Toast(pi.Message, 6f); LastSecurityMessage = pi.Message; break;
+			case PlayerIntercepted pi: LastSecurityMessage = MaskUnknownFactions(pi.Message); _hud.Toast(LastSecurityMessage, 6f); break;   // Punkt 16b
 			// Phase 27: Flottenkampf — Ergeben, Polizeigefecht, Verstärkung, Zuflucht, Verfolgung, Geleit im Spielersektor
-			case PlayerSurrendered ps: _hud.Alert(ps.Message, 6f); LastSecurityMessage = ps.Message; break;
+			case PlayerSurrendered ps: LastSecurityMessage = MaskUnknownFactions(ps.Message); _hud.Alert(LastSecurityMessage, 6f); break;   // Punkt 16b
 			// Runde 6: Rückzug aus der eigenen Belagerung bzw. ihr Ende — Angriff in der Zielkarte beenden, Dauerfeuer aus, Meldung
 			case SiegeWithdrawn sw when sw.Player == _session.U.PlayerShip:
 				_fight.ArmStation(default); _fight.AutoFire = false;
 				// Runde 7: Sieg als Meldung (ersetzt „… ist ausgeschaltet“ um den Verband); Rückzug als Hinweis — eine danach folgende Fahndungswarnung (Meldung)
 				// überdeckt ihn dann nicht, der Hinweis rückt unter sie
-				if (sw.Won) _hud.Alert(sw.Message, 6f); else _hud.Toast(sw.Message, 6f);
-				LastCombatMessage = sw.Message; break;
+				LastCombatMessage = MaskUnknownFactions(sw.Message);   // Punkt 16b
+				if (sw.Won) _hud.Alert(LastCombatMessage, 6f); else _hud.Toast(LastCombatMessage, 6f);
+				break;
 			case EncounterEnded se when se.Cause == EncounterCause.Siege && se.Sector == _session.U.PlayerSector:
 				if (_fight.AtStation && _session.U.Stations.TryGetValue(_fight.StationTarget, out var downSt) && SpaceSim.Core.Combat.StationCombat.IsDown(_session.U, downSt))
 				{ _fight.ArmStation(default); _fight.AutoFire = false; }
 				if (_fight.AtGate && _session.U.Gates.TryGetValue(_fight.GateTarget, out var downG) && SpaceSim.Core.Combat.GateCombat.IsDown(_session.U, downG))
 				{ _fight.ArmGate(default); _fight.AutoFire = false; }
-				_hud.Toast(se.Message, 4f); LastCombatMessage = se.Message; break;
-			case EncounterEnded ae when ae.Cause == EncounterCause.Arrest: _hud.Alert(ae.Message, 6f); LastCombatMessage = ae.Message; break;
-			case CombatJoined or RefugeReached or PursuitStarted or EscortAssigned or ForceSquadron when SpaceSim.Core.Combat.FleetInfo.Toast(_session.U, e) is { } ft:
+				LastCombatMessage = MaskUnknownFactions(se.Message); _hud.Toast(LastCombatMessage, 4f); break;   // Punkt 16b
+			case EncounterEnded ae when ae.Cause == EncounterCause.Arrest: LastCombatMessage = MaskUnknownFactions(ae.Message); _hud.Alert(LastCombatMessage, 6f); break;   // Punkt 16b
+			case CombatJoined or RefugeReached or PursuitStarted or EscortAssigned or ForceSquadron when SpaceSim.Core.Combat.FleetInfo.Toast(_session.U, e) is { } ft0:
+				var ft = MaskUnknownFactions(ft0);   // Punkt 16b
 				// Runde 38a (Handy-Abschlusstest z1/z2): fremde Flucht/Verstärkung/Verfolgung nur als Info; groß nur, was dich oder dein Gefecht betrifft
 				if (SpaceSim.Core.Ui.MessageRules.FleetWeight(_session.U, e) == SpaceSim.Core.Ui.MessageWeight.Important) _hud.Toast(ft, 3.5f); else _hud.Info(ft, 3f);
 				LastFleetMessage = ft; break;
 			// Runde 38a (Handy-Abschlusstest k7: der zweite Gegner verschwand ohne Meldung): jeder Ausgang eines Gegners in deinem Gefecht
-			case CombatExited cx when SpaceSim.Core.Ui.MessageRules.EnemyExit(_session.U, cx) is { } exitMsg:
+			case CombatExited cx when SpaceSim.Core.Ui.MessageRules.EnemyExit(_session.U, cx) is { } exitMsg0:
+				var exitMsg = MaskUnknownFactions(exitMsg0);   // Punkt 16b
 				_hud.Toast(exitMsg, 3.5f); LastCombatMessage = exitMsg; LastEnemyExit = exitMsg; break;
 			case CrimeReported cr when cr.Actor == _session.U.PlayerActor:
-				// Spielersperre: spürbarer Ansehensverlust steht mit im Hinweis (Sperren folgen der Beziehung)
-				_hud.Toast($"Fahndung bei {(_session.U.Factions.TryGetValue(cr.Faction, out var cf) ? cf.Name : "?")}: {SecurityNames.WantedLevel(cr.Level)} ({SecurityNames.Crime(cr.Crime)})"
-					+ (cr.StandingLoss >= 0.01f ? $" · Beziehung −{SpaceSim.Core.Simulation.CrimeStanding.Num(cr.StandingLoss)}" : ""), 4.5f);
+				// Spielersperre: spürbarer Ansehensverlust steht mit im Hinweis (Sperren folgen der Beziehung); Punkt 16b: Fraktion ggf. maskiert
+				_hud.Toast(MaskUnknownFactions($"Fahndung bei {(_session.U.Factions.TryGetValue(cr.Faction, out var cf) ? cf.Name : "?")}: {SecurityNames.WantedLevel(cr.Level)} ({SecurityNames.Crime(cr.Crime)})"
+					+ (cr.StandingLoss >= 0.01f ? $" · Beziehung −{SpaceSim.Core.Simulation.CrimeStanding.Num(cr.StandingLoss)}" : "")), 4.5f);
 				LastCrimeToast = cr.StandingLoss; break;
 		}
 	}

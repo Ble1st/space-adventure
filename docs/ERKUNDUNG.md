@@ -76,6 +76,8 @@ Jede Aufdeckung mit Neuem meldet das Ereignis `IntelDiscovered` (Quelle sensor/d
 - Randpfeile im Flug: nur bekannte Stationen.
 - Taxi: nur bekannte Ziele.
 - Handelshinweis (bester/ehrlicher Abnehmer): nur bekannte Stationen.
+- Auto-Verkauf der Flotte (`TradeActions.BestBuyer`: Auto-Mining, Bergen, Restverkauf im Konvoi): Spielerschiffe fahren nur bekannte Stationen an, NPC-Schiffe sind unverändert.
+- Toasts/Meldungen (Krieg, Frieden, Torangriff, Stationsfall, Überfall, Fahndung usw.): eine dem Spieler unbekannte Fraktion wird nicht beim Namen genannt, sondern als „eine unbekannte Fraktion“ (Ist Intel aus, bleibt alles wie bisher).
 - Zielwahl der Flottenbefehle (Angreifen, Bergen, Blockade, Liefern, Sammelpunkt): nur bekannte Stationen, Tore und Sektoren.
 - Fraktionen und Comms-Diplomatie: nur bekannte Fraktionen (die eigene immer).
 
