@@ -558,6 +558,8 @@ public class Runde41Tests
         for (int t = 0; t < 8 && m.Progress < units - 0.01f; t++)   // Deckel der Station: in Teilverkäufen liefern
         {
             ship.Cargo[good] += units;
+            if (st.AcceptableUnits(good, u.Rules) < units) st.Market[good].Amount = MathF.Max(0f, st.Market[good].Amount - (units - st.AcceptableUnits(good, u.Rules)) - 0.01f);   // Bergegeschiffe verschieben den Weltlauf: Annahme je Teilverkauf wieder herstellen; Hauptquartier-Kasse (Instandhaltungsregal) reicht sonst nicht
+            st.Credits = MathF.Max(st.Credits, 100_000f);
             var sr = TradeActions.Sell(u, ship, st, good, units);
             if (sr.Sold.TryGetValue(good, out var sn)) revenue += sr.Revenue;
             else break;

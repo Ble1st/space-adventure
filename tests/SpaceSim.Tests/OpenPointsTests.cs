@@ -304,7 +304,7 @@ public class OpenPointsTests
                 case TreasuryIncome ti: Add(ti.Actor, ti.Amount); purposes.Add("+" + ti.Purpose); break;
                 case TreasuryUpkeep k: Add(k.Actor, -k.Amount); purposes.Add("-" + k.Purpose); break;
                 case TollPaid p: Add(p.To, p.Amount); break;
-                case InvestorChosen { Source: InvestorSource.Treasury } c: Add(c.Holder, -c.Amount); break;
+                case InvestorChosen { Source: InvestorSource.Treasury, Purpose: not "ship" } c: Add(c.Holder, -c.Amount); break;   // Schiffskäufe aus der Kasse melden zusätzlich TreasuryUpkeep "fleet" (wie ActorTests)
                 case ShipRetired { ToOwner: true } sr: Add(sr.Owner, sr.Credits); break;
                 case ConstructionAbandoned ab when u.Stations.TryGetValue(ab.Site, out var st) && st.Site is { InvestorActor: > 0 } bs: Add(new ActorId(bs.InvestorActor), ab.Refund); break;
             }
