@@ -1,6 +1,7 @@
 # Ausbau-Liste (Auftrag vom 2026-11-19: „Alle Punkte, vollständig ausgearbeitet und getestet“)
 
 Ablauf je Punkt: Opus-Agent setzt im Worktree um → Sonnet-Agent testet (Build 0 Warnungen, `dotnet test`, Selftest, Balance 20000/60000, ui-check wo UI) → Merge `--ff-only` auf main, Push → Haken hier.
+Sparmodus (Nutzer 2026-11-20): Sonnet wiederholt bei Zeit-/Lastfehlern nur betroffene Testklassen, nicht die ganze Suite; Punkte 4 und 16b schreibt Vibe (nur Code, Bauen/Testen macht der Orchestrator bzw. Sonnet); Punkte 3 und 6 in einer Runde.
 Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so lassen“, Tests nur Sonnet.
 
 ## Laufend
