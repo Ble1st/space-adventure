@@ -1,7 +1,7 @@
 # Ausbau-Liste (Auftrag vom 2026-11-19: „Alle Punkte, vollständig ausgearbeitet und getestet“)
 
 Ablauf je Punkt: Opus-Agent setzt im Worktree um → Sonnet-Agent testet (Build 0 Warnungen, `dotnet test`, Selftest, Balance 20000/60000, ui-check wo UI) → Merge `--ff-only` auf main, Push → Haken hier.
-Sparmodus (Nutzer 2026-11-20): Sonnet wiederholt bei Zeit-/Lastfehlern nur betroffene Testklassen, nicht die ganze Suite; Punkte 4 und 16b schreibt Vibe (nur Code, Bauen/Testen macht der Orchestrator bzw. Sonnet); Punkte 3 und 6 in einer Runde.
+Sparmodus (Nutzer 2026-11-20): Sonnet wiederholt bei Zeit-/Lastfehlern nur betroffene Testklassen, nicht die ganze Suite; Punkte 4 und 16b schreibt Vibe (nur Code, Bauen/Testen macht der Orchestrator bzw. Sonnet); Punkte 3 und 7 zurückgestellt (Nutzer 2026-11-20).
 Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so lassen“, Tests nur Sonnet.
 
 ## Laufend
@@ -21,8 +21,8 @@ Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so l
 - [ ] 5 Schmuggler-KI: gesetzlose Firmen mit Tarnfeld + Sprungantrieb, verbotene Ware/Hehlerware/Embargo in gesperrte Sektoren, Sprung an Sperren vorbei, Tarnung bei Polizei, Durchsuchung mit Sensorstärke, max. 3 je Firma
 - [ ] 10 Missionen: Schmuggel (Hehler/gesetzlose Firma, versiegelt, Sperrsektor, hohe Belohnung, Strafe/Beschlagnahme/Ansehen) und Forschung (Messpunkte im Nebel, Wrackproben, seltene Waren; Geld + FP)
 - [ ] 6 Fehden (< −0,4 + umkämpfter Sektor, ~6000 Ticks, Überfälle/Sperren, keine Belagerung, Ende oder Krieg), Vermittlung (dritte Fraktion +0,1, Spieler über Comms gegen Geld), Regierungskrise nach HQ-Verlust (12000 Ticks: halbe Steuern, kein Polizeikauf, Sperren max. 1, leichteres Überlaufen)
-- [ ] 7 Forschung: ~12 neue Projekte (Rezepte, Ware „Medizin“, Verbesserungen Nachladen/Bohren/Schild/Werft), früher Zugang ab 25 % Finanzierung (6000 Ticks), Rückschritt laufendes Projekt bei Verlust der letzten Forschungsstation
-- [ ] 3 Polizei verfolgt 1 Sprung in befreundete/verbündete Sektoren, Schutzvertrag für Spieler über Comms (~200 Cr/Tag, sichere Hilfe), Konvois bei hoher Bedrohung (3–5 Händler + 1–2 Polizei)
+- [-] (zurückgestellt 2026-11-20) 7 Forschung: ~12 neue Projekte (Rezepte, Ware „Medizin“, Verbesserungen Nachladen/Bohren/Schild/Werft), früher Zugang ab 25 % Finanzierung (6000 Ticks), Rückschritt laufendes Projekt bei Verlust der letzten Forschungsstation
+- [-] (zurückgestellt 2026-11-20) 3 Polizei verfolgt 1 Sprung in befreundete/verbündete Sektoren, Schutzvertrag für Spieler über Comms (~200 Cr/Tag, sichere Hilfe), Konvois bei hoher Bedrohung (3–5 Händler + 1–2 Polizei)
 - [ ] 4 NPC-Bergung: Bergeschiffe holen Module (Zustand ≥ 0,5) aus Wracks und verkaufen sie; neues Bergeschiff-Modell
 - [ ] 11 Luxusexport Start: größeres Platin-/Elektroniklager der Luxuswerkstatt, zweite Luxuswerkstatt nahe Planet (Kalypso)
 - [ ] 14 Fahrgäste/Personentaxi (2026-11-19, zusammen mit 10): Missionstyp „Fahrgast“ an Taxi-/Hangarstationen, Modul Passagierkabine S/M (2/6 Plätze, Fracht- oder Utility-Slot), Lohn nach Flugzeit/Entfernung, Eilzuschlag, VIP, Trinkgeld sinkt bei Treffern, Verlust = gescheitert + Ansehen; Sonderfahrgäste Flüchtling/Gesuchter (Kontrollpunkt-Risiko, Verbrechen) und Diplomat (Ansehen); neuer Flottenbefehl „Taxi fahren“ (automatisch, Umkreisgrenzen wie Handel); Swift bekommt Rolle
