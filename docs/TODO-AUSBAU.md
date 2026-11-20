@@ -17,7 +17,7 @@ Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so l
 - [x] 2b Nachtrag Seeschlacht: Reserve zählt bereits kämpfende Kriegsschiffe mit; Abkühlzeit je Gegnerpaar gegen sofortigen Neustart einer Seeschlacht
 - [x] 13 Rechenzeit: messen, Pfadplanung/Andockprüfung zwischenspeichern, Index Station×Gut; Hash bitgleich, Ziel alter ms/Tick
 - [x] 8 Stationsverschleiß: Rückstand > 50 % Tagesbedarf → −1 %/Tag, < 70 % langsamere Produktion, < 30 % Stillstand, Erholung mit Material; Regierung/Startstationen min. 50 %
-- [ ] 9 Firmensitz (KI-Firmen ab Klasse 2, eigene Kasse/Investition; Spieler: Befehlsstufe + Fehden) und Büro (Außenstelle 1,5 Einfluss, Hangar, Auftragsbrett, Schutzverträge)
+- [x] 9 Firmensitz (KI-Firmen ab Klasse 2, eigene Kasse/Investition; Spieler: Befehlsstufe + Fehden) und Büro (Außenstelle 1,5 Einfluss, Hangar, Auftragsbrett, Schutzverträge)
 - [ ] 5 Schmuggler-KI: gesetzlose Firmen mit Tarnfeld + Sprungantrieb, verbotene Ware/Hehlerware/Embargo in gesperrte Sektoren, Sprung an Sperren vorbei, Tarnung bei Polizei, Durchsuchung mit Sensorstärke, max. 3 je Firma
 - [ ] 10 Missionen: Schmuggel (Hehler/gesetzlose Firma, versiegelt, Sperrsektor, hohe Belohnung, Strafe/Beschlagnahme/Ansehen) und Forschung (Messpunkte im Nebel, Wrackproben, seltene Waren; Geld + FP)
 - [ ] 6 Fehden (< −0,4 + umkämpfter Sektor, ~6000 Ticks, Überfälle/Sperren, keine Belagerung, Ende oder Krieg), Vermittlung (dritte Fraktion +0,1, Spieler über Comms gegen Geld), Regierungskrise nach HQ-Verlust (12000 Ticks: halbe Steuern, kein Polizeikauf, Sperren max. 1, leichteres Überlaufen)
@@ -36,3 +36,4 @@ Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so l
 - 2 KI-Kriegsschiffe + 1c: 168af91 — Sonnet: 1503/1504 (Zeittest ManyShips nur unter Last, einzeln grün), Selftest OK (Stufe 148), UI-Check OK, Balance 20000 48ECEC8C1781997D unverändert; Krieg 2→1: 11 Seeschlachten, Belagerungen 1073→1, alle Fraktionen handlungsfähig
 - 13 Rechenzeit: b60baf1 — Sonnet: 7 Läufe (bis 150000 Ticks, Krieg, fuel/research aus) bitgleich zu dff27ed, 60000 Ticks 0,871 → 0,583 ms/Tick (−33 %), 1509/1510 (Zeittest ManyShips nur unter Last), Selftest OK
 - 8 Stationsverschleiß + 2b: 4a0fe21 — Sonnet: 1522/1522, Selftest OK (Stufe 149), UI-Check OK (1 Messwackler, einzeln OK), Balance 20000 6D3C01B1ED7DEBCD, 300000: Ø Zustand 85 %, keine Station < 75 %, Notinstandhaltung 0,94 M Cr (4,3 % der Steuereinnahmen)
+- 9 Firmensitz/Büro: 09f7bcd — Sonnet: 1536/1536, Selftest OK (Stufe 150), UI-Check OK, Balance 20000 9D6D0AD5906A7040; 60000: 9 Sitze, 11 Büros, keine neue Geldquelle
