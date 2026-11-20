@@ -74,6 +74,9 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		Row(v1, "Typ", type);
 		Row(v1, "Besitzer", faction);
 		Row(v1, "Sektor", sector);
+		// Ausbau Punkt 17: Station einer etablierten Banditenfraktion — Sitz, Werke und Dauerzoll der Fraktion
+		if (SpaceSim.Core.Simulation.Bandits.IsEstablished(u, st.Owner))
+			Row(v1, "Banditen", SpaceSim.Core.Simulation.Bandits.Text(u, st.Owner));
 		if (sec?.Planet is { } planet) Row(v1, "Planet", planet.Name);   // Phase 14: Planet des Sektors
 		Row(v1, st.IsBuildSite ? "Treuhand" : "Kasse", $"{st.Credits:0} Cr");
 		// Phase 8: Baustelle — Zieltyp, Materialfortschritt, Bauschiff und Status (echt aus ConstructionInfo); Schutz/Kritikalität sonst

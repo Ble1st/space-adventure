@@ -19,7 +19,7 @@ namespace SpaceSim.Tests;
 public class BalanceFixTests
 {
     static readonly DateTimeOffset Now = new(2026, 11, 19, 12, 0, 0, TimeSpan.Zero);
-    static readonly SectorId Alpha = new(1), Nebelmark = new(9), Abgrund = new(11);
+    static readonly SectorId Alpha = new(1), Nebelmark = new(9), Abgrund = new(11), Delta = new(4);
     static readonly FactionId Union = new(1), Guild = new(2);
 
     /// <summary>
@@ -28,6 +28,7 @@ public class BalanceFixTests
     /// </summary>
     internal static void RevertBalanceFix(WorldDef def)
     {
+        BanditenTests.RevertBandits(def);   // Ausbau Punkt 17 kam danach (erste Zeile; idempotent — RevertGas ruft es ebenfalls)
         GasNebulaTests.RevertGas(def);   // Gasernte und Nebel (danach): Gas, Ionengas, Gasraffinerie, Nebel, Gassammler zurück
         WirtschaftsabwehrTests.RevertWirtschaftsabwehr(def);   // Wirtschaftsstationen halten stand (danach): Alarm/Notschild aus, Geschütze/Hülle wie vorher
         StationsverschleissTests.RevertWear(def);   // Ausbau Punkt 8 (danach): kein Stationsverschleiß
@@ -164,10 +165,12 @@ public class BalanceFixTests
     public void Piratensektor_BauErlaubt_LaeuftOhneAbsturz()
     {
         var u = World();
-        Assert.Contains(u.Sectors[Abgrund].Stations, id => StationProtection.IsHideout(u, u.Stations[id]));
-        var p = Ready(u, "solar_plant", Abgrund);
+        // Ausbau Punkt 17: Der Abgrund gehört den Banditen (feindlich) — Bauversuch dort greift die Fremdregel. Das Korsaren-Versteck liegt in Delta (Gilde, freundlich).
+        Assert.Contains(u.Sectors[Delta].Stations, id => StationProtection.IsHideout(u, u.Stations[id]));
+        Assert.Contains("feindlich", PlayerBuilding.SectorIssue(u, Abgrund));
+        var p = Ready(u, "solar_plant", Delta);
         var site = PlayerBuilding.Start(u, u.StationTypes["solar_plant"], p, 0f);
-        foreach (var id in u.Sectors[Abgrund].Stations.Where(i => i != site.Id))
+        foreach (var id in u.Sectors[Delta].Stations.Where(i => i != site.Id))
             Assert.True(Vec2.Distance(site.Position, u.Stations[id].Position) >= site.Radius + u.Stations[id].Radius);
         var runner = new SimulationRunner();
         for (int i = 0; i < 3000; i++) runner.Step(u);

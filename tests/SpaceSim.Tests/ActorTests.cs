@@ -90,9 +90,11 @@ public class ActorTests
             else if (s.Role == ShipRole.Pirate) Assert.Equal(ActorKind.Outlaw, u.Actors[s.Owner].Kind);   // Phase 11: Kaperschiffe gehören dem gesetzlosen Akteur
             else Assert.True(u.Factions.ContainsKey(new FactionId(s.Owner.Value)));
         }
-        // Phase 11: das Piratenversteck gehört dem gesetzlosen Akteur (ohne Fraktion), alle übrigen Stationen der Sektorfraktion
+        // Phase 11: das Piratenversteck gehört dem gesetzlosen Akteur (ohne Fraktion), alle übrigen Stationen der Sektorfraktion;
+        // Ausbau Punkt 17: die Freistatt (Versteck) der etablierten Banditenfraktion gehört ihrer Fraktion (Id 4)
         foreach (var st in u.Stations.Values)
-            if (StationProtection.IsHideout(u, st)) Assert.Null(u.FactionOf(st));
+            if (StationProtection.IsHideout(u, st))
+                Assert.Equal(Bandits.IsEstablished(u, st.Owner) ? new FactionId(st.Owner.Value) : (FactionId?)null, u.FactionOf(st));
             else Assert.Equal(u.Sectors[st.Sector].Owner, u.FactionOf(st));
         Assert.Null(u.FactionOf(u.Ships.Values.First(s => s.Role == ShipRole.Trader)));
     }
@@ -292,11 +294,14 @@ public class ActorTests
         var taxes = new List<TaxCollected>();
         double upkeep = 0;   // Phase 10: Unterhalt der Regierungsstationen und Sperren aus den Kassen
         double income = 0;   // Phase 11: Strafen fließen in Fraktionskassen; Polizei und Kopfgeld zahlen aus ihnen (Piratenkassen zählen hier nicht)
+        // Ausbau Punkt 17: die Banditenfraktion (Id 4) wird wie die Piratengruppen behandelt — eigene Kasse, nicht Teil des Steuervergleichs
+        bool political(FactionId f) => !Bandits.IsEstablished(a, f);
         a.Events.Raised += e =>
         {
-            if (e is TaxCollected t) taxes.Add(t);
-            else if (e is TreasuryUpkeep k && a.Factions.ContainsKey(new FactionId(k.Actor.Value))) upkeep += k.Amount;
-            else if (e is TreasuryIncome ti && a.Factions.ContainsKey(new FactionId(ti.Actor.Value))) income += ti.Amount;
+            if (e is TaxCollected t && political(new FactionId(t.Actor.Value))) taxes.Add(t);
+            else if (e is TollPaid p && a.Factions.ContainsKey(p.To) && political(p.To)) income += p.Amount;   // Zoll an die Sektorfraktion
+            else if (e is TreasuryUpkeep k && a.Factions.ContainsKey(new FactionId(k.Actor.Value)) && political(new FactionId(k.Actor.Value))) upkeep += k.Amount;
+            else if (e is TreasuryIncome ti && a.Factions.ContainsKey(new FactionId(ti.Actor.Value)) && political(new FactionId(ti.Actor.Value))) income += ti.Amount;
         };
         new SimulationRunner().Run(a, 3000);
         new SimulationRunner().Run(b, 3000);
@@ -304,14 +309,16 @@ public class ActorTests
         // (Phase 10: Regierungsstationen zahlen ihren Unterhalt aus der Kasse — ohne Kasse aus der eigenen; sie sind keine Abgabenzahler)
         foreach (var st in a.Stations.Values.Where(s => !StationProtection.IsOfficial(a, s))) Assert.Equal(b.Stations[st.Id].Credits, st.Credits);
         foreach (var s in a.Ships.Values) Assert.Equal(b.Ships[s.Id].Credits, s.Credits);
-        float treasuries = a.NpcFactionIds().Sum(f => a.Actors[f].Treasury.Credits);   // Runde 38: Kassen der KI-Fraktionen (die Spielerkasse ist keine Abgabenkasse)
+        // Runde 38: Kassen der politischen KI-Fraktionen (die Spielerkasse ist keine Abgabenkasse; Ausbau Punkt 17: die Banditenfraktion
+        // zählt wie die Piratengruppen dazu, nicht zu den politischen Kassen)
+        float treasuries = a.NpcFactionIds().Where(f => !Bandits.IsEstablished(a, f)).Sum(f => a.Actors[f].Treasury.Credits);
         Assert.True(treasuries > 0f);
-        Assert.Equal(0f, b.NpcFactionIds().Sum(f => b.Actors[f].Treasury.Credits));
+        Assert.Equal(0f, b.NpcFactionIds().Where(f => !Bandits.IsEstablished(b, f)).Sum(f => b.Actors[f].Treasury.Credits));
         // erklärbar: Kasse = Summe der gemeldeten Abgaben (Gleitkomma-Summen über viele kleine Buchungen: relative Toleranz)
         double net = taxes.Sum(t => (double)t.Amount) - upkeep + income;
         Assert.InRange(treasuries, net - 1e-4 * net - 1, net + 1e-4 * net + 1);
         var snap = EconomyStats.Snapshot(a);
-        // Phase 11: die Kassenspalte enthält auch die Kasse des gesetzlosen Akteurs (Piraten)
+        // Phase 11: die Kassenspalte enthält auch die Kasse der gesetzlosen Akteure (Piratengruppen und Banditenfraktion)
         Assert.Equal(treasuries + a.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw).Sum(x => x.Treasury.Credits), snap.TreasuryCredits, 1);
         Assert.Equal(snap.StationCredits + snap.ShipCredits + snap.PlayerCredits + snap.TreasuryCredits, snap.TotalCredits, 1);
     }
@@ -359,7 +366,10 @@ public class ActorTests
         var trader = u.Ships.Values.First(s => s.Role == ShipRole.Trader);
         Assert.Equal(u.Rules.RelationFree, Relations.OfShip(u, trader, union), 3);                    // freie Schiffe teilen die Sammelgruppe
         int stored = Relations.StoredEntries(u);
-        Assert.Equal(u.Factions.Count * (u.Factions.Count - 1), stored);   // Phase 21: drei Fraktionen, jede nennt die beiden anderen (vorher 2)
+        // Phase 21: drei Fraktionen, jede nennt die beiden anderen (vorher 2); Ausbau Punkt 17: die Banditenfraktion (gesetzlos)
+        // speichert keine Beziehungen — gezählt werden die politischen Fraktionspaare
+        int political = u.Factions.Keys.Count(f => !Bandits.IsEstablished(u, f));
+        Assert.Equal(political * (political - 1), stored);
 
         // persönliche Abweichung des Spielers zur Gilde, dann zurück auf die Vorgabe → Eintrag verschwindet wieder
         Relations.Set(u, u.PlayerActor, guild, -0.4f);

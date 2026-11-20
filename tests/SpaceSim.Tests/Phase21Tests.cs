@@ -72,41 +72,50 @@ public class Phase21Tests
     public void Welt_DritteFraktion_HerrenloseSektoren_ZweitePiratengruppe()
     {
         var u = TestWorlds.Default(null, fuel: false, research: false);   // Phase 29: feste Fraktionsnamen
-        Assert.Equal(3, u.NpcFactionIds().Count);   // Runde 38: dazu die Spielerfraktion
-        Assert.Equal(4, u.Factions.Count);
+        Assert.Equal(4, u.NpcFactionIds().Count);   // Runde 38: dazu die Spielerfraktion; Ausbau Punkt 17: dazu die Banditenfraktion 4
+        Assert.Equal(5, u.Factions.Count);
         var mb = u.Factions[new FactionId(3)];
         Assert.Equal("Montanbund", mb.Name);
         Assert.Equal(ActorKind.Guild, u.Actors[mb.Id].Kind);
         Assert.Equal(new[] { 7, 8 }, mb.Territory.Select(s => s.Value).OrderBy(x => x));
-        // jede KI-Fraktion: Hauptquartier, Polizei, Bauschiff, Gebiet (Runde 38: die Spielerfraktion beginnt ohne)
-        foreach (var f in u.NpcFactionIds().Select(id => u.Factions[id]))
+        // jede politische KI-Fraktion: Hauptquartier, Polizei, Bauschiff, Gebiet (Runde 38: die Spielerfraktion beginnt ohne;
+        // Ausbau Punkt 17: die Banditenfraktion hat keins davon — sie hat Sitz, Werke und Flotten, siehe BanditenTests)
+        foreach (var f in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)).Select(id => u.Factions[id]))
         {
             Assert.Contains(u.Stations.Values, st => st.TypeKey == "headquarters" && u.FactionOf(st) == f.Id);
             Assert.True(u.Ships.Values.Count(s => s.Role == ShipRole.Police && s.Owner == (ActorId)f.Id) >= 2, f.Name);
             Assert.Contains(u.Ships.Values, s => s.Role == ShipRole.Builder && s.Owner == (ActorId)f.Id);
             Assert.True(f.Territory.Count >= 2, f.Name);
         }
-        // herrenlos: Nebelmark und Abgrund — keine Fraktion, in keinem Gebiet, Stufe keine
-        foreach (int id in new[] { 9, 11 })
+        // herrenlos: Nebelmark — keine Fraktion, in keinem Gebiet, Stufe keine (Abgrund gehört den Banditen, siehe BanditenTests)
+        foreach (int id in new[] { 9 })
         {
             var s = u.Sectors[new SectorId(id)];
             Assert.Equal(0, s.Owner.Value);
             Assert.DoesNotContain(u.Factions.Values, f => f.Territory.Contains(s.Id));
             Assert.Equal(ControlStage.None, s.Control);
         }
-        // zwei Piratengruppen mit je einem Versteck und Kaperschiffen; das zweite Versteck liegt in einer Sackgasse
+        // Abgrund gehört der etablierten Banditenfraktion (Id 4)
+        Assert.Equal(new FactionId(4), u.Sectors[new SectorId(11)].Owner);
+        Assert.True(Bandits.IsEstablished(u, new FactionId(4)));
+        // zwei kleine Piratengruppen (ohne Fraktion) plus die etablierte Fraktion — je ein Versteck und Kaperschiffe;
+        // das Klingen-Versteck liegt in der Sackgasse Abgrund
         var outlaws = u.Actors.Values.Where(a => a.Kind == ActorKind.Outlaw).OrderBy(a => a.Id.Value).ToList();
-        Assert.Equal(2, outlaws.Count);
+        Assert.Equal(3, outlaws.Count);
         foreach (var o in outlaws)
         {
             var hideout = Assert.Single(u.Stations.Values, st => st.Owner == o.Id && u.StationTypes[st.TypeKey].Hideout);
             Assert.Contains(u.Ships.Values, s => s.Role == ShipRole.Pirate && s.Owner == o.Id);
             if (o.Name == "Schwarze Klingen") Assert.Equal(11, hideout.Sector.Value);
+            Assert.Equal(o.IsFaction(u), Bandits.IsEstablished(u, o.Id));
         }
-        // Beziehungen in der Startwelt freundlich (keine Sperre entsteht von selbst); Runde 38: zur Spielerfraktion 0,1/0,2 (Runde38Tests)
-        foreach (var a in u.NpcFactionIds())
-            foreach (var b in u.NpcFactionIds().Where(b => b != a))
+        // Beziehungen in der Startwelt freundlich (keine Sperre entsteht von selbst); zur Banditenfraktion gilt die Vorgabe −0,6;
+        // Runde 38: zur Spielerfraktion 0,1/0,2 (Runde38Tests)
+        foreach (var a in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)))
+            foreach (var b in u.NpcFactionIds().Where(b => b != a && !Bandits.IsEstablished(u, b)))
                 Assert.True(Relations.Effective(u, a, b) > 0.1f, $"{a.Value}→{b.Value}");
+        foreach (var a in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)))
+            Assert.Equal(u.Rules.RelationOutlaw, Relations.Effective(u, a, new ActorId(4)), 3);
     }
 
     [Fact]
@@ -267,7 +276,8 @@ public class Phase21Tests
         var exportedBy = new HashSet<StationId>();
         u.Events.Raised += e =>
         {
-            if (e is SpaceSim.Core.Events.SectorAccessChanged) locks++;
+            // Ausbau Punkt 17: der Dauerzoll der Banditen in Abgrund ist gewollt — Sperren außerhalb der Bandiensektoren zählen nicht
+            if (e is SpaceSim.Core.Events.SectorAccessChanged sac && !Bandits.HoldsSector(u, sac.Sector)) locks++;
             else if (e is SpaceSim.Core.Events.GoodsExported ge) exportedBy.Add(ge.Station);
         };
         var runner = new SimulationRunner();
@@ -297,17 +307,24 @@ public class Phase21Tests
             if (s.Order is TradeOrder to) Assert.True((u.Stations.ContainsKey(to.Buy) || (to.Buy.Value == 0 && s.Phase == TradePhase.GoingToSell)) && u.Stations.ContainsKey(to.Sell), $"Handelsauftrag ins Leere bei Schiff {s.Id.Value}");
             if (s.Transit is null) Assert.Contains(s.Id, u.Tracker.ParkedIn(s.Sector));
         }
-        // alle KI-Fraktionen leben: Gebiet, Stationen, Kasse, Polizei (Runde 38: die Spielerfraktion hat zu Beginn nichts davon)
-        foreach (var f in u.NpcFactionIds().Select(id => u.Factions[id]))
+        // alle politischen KI-Fraktionen leben: Gebiet, Stationen, Kasse, Polizei (Runde 38: die Spielerfraktion hat zu Beginn nichts
+        // davon; Ausbau Punkt 17: die Banditenfraktion hat keine Polizei — sie lebt von Sitz, Werken, Flotten und Zoll, siehe BanditenTests)
+        foreach (var f in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)).Select(id => u.Factions[id]))
         {
             Assert.True(f.Territory.Count >= 2, $"{f.Name}: Gebiet {f.Territory.Count}");
             Assert.True(u.Actors[f.Id].Treasury.Credits > 0f, $"{f.Name}: Kasse leer");
             Assert.Contains(u.Ships.Values, s => s.Role == ShipRole.Police && s.Owner == (ActorId)f.Id);
         }
-        // keine Sperren aus der Politik, Karte zusammenhängend, beide Piratengruppen da
+        // die Banditenfraktion lebt: Gebiet (Abgrund), Kasse, Kaperschiffe
+        var bandits = u.Factions[new FactionId(4)];
+        Assert.True(bandits.Territory.Count >= 1, bandits.Name);
+        Assert.True(u.Actors[bandits.Id].Treasury.Credits >= 0f);
+        Assert.Contains(u.Ships.Values, s => s.Role == ShipRole.Pirate && s.Owner == bandits.Id);
+        // keine Sperren aus der Politik außerhalb der Bandiensektoren, Karte zusammenhängend, Piratengruppen da
         Assert.Equal(0, locks);
         Assert.False(MapParts.Of(u).IsSplit);
-        Assert.Equal(2, u.Actors.Values.Count(a => a.Kind == ActorKind.Outlaw));
+        Assert.Equal(2, u.Actors.Values.Count(a => a.Kind == ActorKind.Outlaw && !Bandits.IsEstablished(u, a.Id)));
+        Assert.Equal(1, u.Actors.Values.Count(a => a.Kind == ActorKind.Outlaw && Bandits.IsEstablished(u, a.Id)));
         // jede Exportsenke hat exportiert
         foreach (var sink in u.Stations.Values.Where(s => ExportRules.ConfigOf(u, s) is not null))
             Assert.Contains(sink.Id, exportedBy);
@@ -322,7 +339,9 @@ public class Phase21Tests
         var (loaded, _) = SaveGameJson.Read(SaveGameJson.Write(a, DateTimeOffset.UnixEpoch));
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));
         Assert.Equal(11, loaded.Sectors.Count);
-        Assert.Equal(0, loaded.Sectors[new SectorId(9)].Owner.Value);
+        // Ausbau Punkt 17: Abgrund gehört der Banditenfraktion (Startwert aus der Weltdatei); Nebelmark ist Ausbauziel und kann im
+        // Lauf von ihr erobert worden sein — der Hash-Vergleich oben ist die eigentliche Prüfung
+        Assert.Equal(4, loaded.Sectors[new SectorId(11)].Owner.Value);
         new SimulationRunner().Run(a, 2000);
         new SimulationRunner().Run(loaded, 2000);
         Assert.Equal(UniverseHash.Compute(a), UniverseHash.Compute(loaded));

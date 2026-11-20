@@ -75,6 +75,9 @@ public static class StationCombat
     public static bool Hostile(Universe u, Station st, Encounter e, CombatParticipant p, Ship ship)
     {
         if (u.FactionOf(st) is not { } f) return false;
+        // Ausbau Punkt 17: die Geschütze einer Banditenstation treffen nur, wer sie oder ihre Schiffe angreift — nicht jeden
+        // Unbeteiligten (die Vorgabe −0,6 macht sonst jeden zum Feind; sonst gäbe es in jedem Gefecht in Abgrund Flächenbrand)
+        if (Bandits.IsEstablished(u, st.Owner) && e.Station != st.Id && !Wars.AtWar(u, st.Owner, ship.Owner)) return false;
         if (e.Station == st.Id && p.Side == 0) return true;
         // Phase 31: Angreifer eines Tors, das die Fraktion der Station verteidigt
         if (e.Gate.Value != 0 && p.Side == 0 && u.FactionOf(ship) != f && u.Gates.TryGetValue(e.Gate, out var bg) && GateCombat.DefendersOf(u, bg).Contains(f)) return true;

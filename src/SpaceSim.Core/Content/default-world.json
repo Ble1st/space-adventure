@@ -85,7 +85,24 @@
   "escortMinRemainingTicks": 200,
   "maxMiners": 55,
   "repairPlatesPerHull": 0.02,
-  "maxStations": 75,
+  "banditFactions": true,
+  "banditTollLevel": 1,
+  "banditTollUpkeepPerLevel": 0,
+  "banditMaxRaiderUnits": 3,
+  "banditWarships": 2,
+  "banditWarshipModel": "warden",
+  "banditFleetCooldownTicks": 3000,
+  "banditRebuildMoneyFactor": 1.5,
+  "banditRebuildCooldownTicks": 3000,
+  "banditEconomyTypes": { "steelworks": 1, "plating_works": 1, "electronics_fab": 1 },
+  "banditExpansion": true,
+  "banditExpansionSectors": [9],
+  "banditExpansionType": "warehouse",
+  "banditExpansionMoneyFactor": 4,
+  "banditTreasuryTarget": 40000,
+  "banditHoardShare": 0.0002,
+  "banditFenceCap": 0,
+  "maxStations": 78,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
   "fuelActive": true,
@@ -1432,6 +1449,21 @@
    "recipes": [],
    "capturable": false,
    "defense": { "hull": 2400, "shield": 400, "shieldRegen": 4, "armor": 90, "pointDefense": 0.45, "guns": ["weapon_laser_m", "weapon_laser_m", "weapon_massdriver_s", "missile_launcher_s", "missile_launcher_s"] }
+  },
+  {
+   "key": "bandit_seat",
+   "name": "Freistatt",
+   "size": "L",
+   "hideout": true,
+   "influence": 3,
+   "security": 1.2,
+   "buildCost": 18000,
+   "upkeep": 0,
+   "income": 0,
+   "services": ["trade", "blackmarket", "hangar"],
+   "recipes": [],
+   "capturable": false,
+   "defense": { "hull": 1800, "shield": 240, "shieldRegen": 2.5, "armor": 60, "pointDefense": 0, "guns": ["weapon_laser_s", "weapon_massdriver_s", "weapon_laser_s", "weapon_massdriver_s"] }
   }
  ],
  "factions": [
@@ -1463,6 +1495,13 @@
     "1": 0.2,
     "2": 0.2
    }
+  },
+  {
+   "id": 4,
+   "name": "Herren der Nebelmark",
+   "kind": "outlaw",
+   "personality": { "aggression": 0.85, "greed": 0.9, "cooperation": 0.1, "lawfulness": 0.0 },
+   "treasury": 22000
   }
  ],
  "actors": [
@@ -2776,7 +2815,7 @@
    "skybox": "red_local_star_no_nebulae",
    "skyboxYaw": 200,
    "scale": 7.9,
-   "owner": 0,
+   "owner": 4,
    "map": [
     1,
     2
@@ -2805,6 +2844,50 @@
      "essential": true,
      "owner": "blades",
      "credits": 0
+    },
+    {
+     "id": 91,
+     "type": "bandit_seat",
+     "name": "Freistatt – {owner}",
+     "pos": [
+      -115,
+      -75
+     ],
+     "essential": true,
+     "credits": 8000
+    },
+    {
+     "id": 92,
+     "type": "steelworks",
+     "name": "Beutewerk – {owner}",
+     "pos": [
+      45,
+      -85
+     ],
+     "essential": true,
+     "credits": 4000
+    },
+    {
+     "id": 93,
+     "type": "plating_works",
+     "name": "Panzerwerk – {owner}",
+     "pos": [
+      75,
+      25
+     ],
+     "essential": true,
+     "credits": 4000
+    },
+    {
+     "id": 94,
+     "type": "electronics_fab",
+     "name": "Elektronikwerk – {owner}",
+     "pos": [
+      -150,
+      -140
+     ],
+     "essential": true,
+     "credits": 4000
     }
    ]
   }
@@ -5503,7 +5586,9 @@
    "model": "corsair"
   },
   { "role": "collector", "owner": "free", "sector": 5, "credits": 1000, "count": 3, "model": "skimmer" },
-  { "role": "collector", "owner": "free", "sector": 7, "credits": 1000, "count": 3, "model": "skimmer" }
+  { "role": "collector", "owner": "free", "sector": 7, "credits": 1000, "count": 3, "model": "skimmer" },
+  { "role": "pirate", "faction": 4, "sector": 11, "credits": 0, "count": 2, "model": "corsair" },
+  { "role": "warship", "faction": 4, "sector": 11, "credits": 0, "count": 2, "model": "warden" }
  ],
  "player": {
   "faction": 1,

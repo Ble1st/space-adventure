@@ -122,7 +122,7 @@ public class FlottenbefehleTests
         var yard = St(u, 18);
         var falcon = Own(u, "falcon", yard);
         Park(falcon, yard.Position + new Vec2(80f, 0f));
-        var pirates = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw).Id;
+        var pirates = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw && !Bandits.IsEstablished(u, a.Id)).Id;   // Punkt 17: kleine Piratengruppe, nicht die etablierte Fraktion
         var raider = Npc(u, "corsair", yard, falcon.Position + new Vec2(40f, 0f), pirates);
         raider.Role = ShipRole.Pirate;
         var ev = Capture(u);

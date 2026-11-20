@@ -45,6 +45,8 @@ public sealed class FineAction : ICommsAction
     public static string? Issue(Universe u, FactionId f)
     {
         if (!u.Actors.TryGetValue(u.PlayerActor, out var me) || !me.Wanted.TryGetValue(f, out var w)) return "Keine Strafe offen.";
+        // Ausbau Punkt 17: gegen Banditen zahlt man nicht — sie haben kein Gericht; die Fahndung bleibt stehen (bewusst)
+        if (Bandits.IsEstablished(u, f)) return "Gesetzlose nehmen keine Strafen — die Fahndung bleibt.";
         if (CommsHelp.BusyWith(u, f)) return "Im Gefecht oder Festnahmewarnung bei dieser Fraktion — Strafe am Gericht/Ergeben dort.";
         float cost = CostOf(u, w);
         if (u.Player.Treasury.Credits < cost) return $"Kasse reicht nicht ({cost:0} Cr nötig).";
@@ -58,6 +60,7 @@ public sealed class FineAction : ICommsAction
         foreach (var (f, w) in me.Wanted.OrderBy(kv => kv.Key.Value))
         {
             if (!u.IsNpcFaction(f)) continue;
+            if (Bandits.IsEstablished(u, f)) continue;   // Ausbau Punkt 17: keine Strafzahlung an Banditen (kein Gericht dort)
             float cost = CostOf(u, w);
             string? issue = Issue(u, f);
             list.Add(new CommsOffer($"{KeyId}:{f.Value}", $"Strafe zahlen – {CommsHelp.FactionName(u, f)}",

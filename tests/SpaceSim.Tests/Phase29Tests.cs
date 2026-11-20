@@ -260,7 +260,7 @@ public class Phase29Tests
         Assert.True(CombatModels.IsCombat(StatsOf(u, u.ShipModels[ship!.ModelKey])));
         Assert.Equal(ShipRole.Police, ship.Role);
         // Piraten: ohne Kaperschiffe und mit Geld baut die Gruppe im Versteck
-        var outlaw = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw);
+        var outlaw = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw && !Bandits.IsEstablished(u, a.Id));   // Punkt 17: kleine Piratengruppe, nicht die etablierte Fraktion
         foreach (var r in u.ShipsById().Where(s => ThreatMap.IsRaider(s) && s.Owner == outlaw.Id).ToList()) Departures.RemoveShip(u, r, DepartureReason.Destroyed, "test");
         outlaw.Treasury.Credits = 9000f;
         outlaw.LastForceTick = -100_000;

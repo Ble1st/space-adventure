@@ -46,7 +46,8 @@ public class Runde38Tests
         var startOwner = u.Sectors[u.PlayerSector].Owner;
         foreach (var f in u.NpcFactionIds())
         {
-            float want = f == startOwner ? 0.2f : 0.1f;
+            // Ausbau Punkt 17: Etablierte Banditen (Fraktion mit Art Gesetzlos) haben keine Startbeziehung — Vorgabe „alle–Gesetzlose“
+            float want = Bandits.IsEstablished(u, f) ? u.Rules.RelationOutlaw : f == startOwner ? 0.2f : 0.1f;
             Assert.Equal(want, Relations.Effective(u, f, u.PlayerActor), 3);
             Assert.Equal(want, Relations.Effective(u, u.PlayerActor, f), 3);
         }
@@ -86,7 +87,7 @@ public class Runde38Tests
         var me = Me(on);
         var startOwner = on.Sectors[new SectorId(1)].Owner;
         foreach (var f in on.NpcFactionIds())
-            Assert.Equal(f == startOwner ? 0.2f : 0.1f, Relations.Effective(on, f, on.PlayerActor), 3);
+            Assert.Equal(Bandits.IsEstablished(on, f) ? on.Rules.RelationOutlaw : f == startOwner ? 0.2f : 0.1f, Relations.Effective(on, f, on.PlayerActor), 3);   // Banditen: Vorgabe Gesetzlos
         Assert.All(on.Actors.Values, a => Assert.False(a.Wanted.ContainsKey(me)));
         // Spielerfraktion ohne Polizei, Bauschiff, Kriegsschiff, Kleinstation
         Assert.DoesNotContain(on.Ships.Values, s => s.Owner == on.PlayerActor && s.Controller == Controller.Ai);
@@ -102,7 +103,7 @@ public class Runde38Tests
         // Fiskalbremse: Fraktionszahl ohne den Spieler
         var factors = UpkeepSystem.FiscalFactors(u);
         Assert.False(factors.ContainsKey(me.Value));
-        Assert.Equal(u.NpcFactionIds().Count, factors.Count);
+        Assert.Equal(u.NpcFactionIds().Count(f => !Bandits.IsEstablished(u, f)), factors.Count);   // Banditen zahlen keine Staatssteuer (Punkt 17)
         // Handlungsfähigkeit: keine Pflichten, keine Rücklage, freie Kasse = ganze Kasse
         Assert.Empty(FactionViability.Check(u, u.PlayerActor));
         Assert.Equal(0f, FactionViability.Reserve(u, me));
@@ -121,7 +122,7 @@ public class Runde38Tests
         Assert.Equal(-0.4f, Relations.Effective(u, new FactionId(1), u.PlayerActor), 4);
         // Diagnose: Beziehungseinträge der KI-Welt ohne die Spielereinträge
         Assert.Equal(Relations.StoredEntries(World(false)), Relations.StoredNpcEntries(u));
-        Assert.True(Relations.StoredPlayerEntries(u) >= 2 * u.NpcFactionIds().Count);
+        Assert.True(Relations.StoredPlayerEntries(u) >= 2 * u.NpcFactionIds().Count(f => !Bandits.IsEstablished(u, f)));   // Startbeziehungen nur zu Nicht-Banditen
     }
 
     [Fact]
@@ -288,8 +289,8 @@ public class Runde38Tests
         Assert.True(locked, "die Sperren gegen den Spieler (für alle) gibt es weiterhin");
         Assert.Empty(declared);
         Assert.Empty(npcLocks);
-        foreach (var a in u.NpcFactionIds())
-            foreach (var b in u.NpcFactionIds().Where(b => b != a))
+        foreach (var a in u.NpcFactionIds().Where(a => !Bandits.IsEstablished(u, a)))   // Punkt 17: Banditen sperren nicht (Vorgabe Gesetzlos −0,6)
+            foreach (var b in u.NpcFactionIds().Where(b => b != a && !Bandits.IsEstablished(u, b)))
                 Assert.True(Relations.Effective(u, a, b) > u.Rules.LockThresholds[0], $"{a.Value}→{b.Value} {Relations.Effective(u, a, b):0.00}");
     }
 }

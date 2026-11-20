@@ -303,8 +303,10 @@ public sealed class PirateSystem : ISimSystem
             fenced = lootValue * r.FenceShare;
             // Phase 22: der Hehler zahlt nur, bis die Kasse der Piraten PirateTreasuryCap erreicht (die Beute ist vernichtet, die Hehlerei schöpft Geld) — mit
             // weniger Verlusten an Kaperschiffen horteten die Piraten sonst linear wachsende Kassen (Lauf M: 267 000 Cr)
-            if (r.PirateTreasuryCap > 0f && u.Actors.TryGetValue(raider.Owner, out var capped))
-                fenced = MathF.Min(fenced, MathF.Max(0f, r.PirateTreasuryCap - capped.Treasury.Credits));
+            // Ausbau Punkt 17: etablierte Banditenfraktionen haben ihren eigenen Deckel (BanditFenceCap, 0 = ungedeckelt)
+            float cap = Bandits.FenceCap(u, u.Actors.TryGetValue(raider.Owner, out var capActor) ? capActor : null);
+            if (cap > 0f && u.Actors.TryGetValue(raider.Owner, out var capped))
+                fenced = MathF.Min(fenced, MathF.Max(0f, cap - capped.Treasury.Credits));
             if (fenced > 0f && u.Actors.TryGetValue(raider.Owner, out var pirates))
             {
                 pirates.Treasury.Credits += fenced;
@@ -324,7 +326,9 @@ public sealed class PirateSystem : ISimSystem
             raiderDestroyed = raider.Hull <= 0f || u.Rng.NextDouble() < destroyBase;
             ThreatMap.Report(u, sector.Id, r.RepelledThreat);
         }
-        Wanted.Report(u, raider.Owner, faction, "piracy");
+        // Ausbau Punkt 17: eine Bande meldet keine Piraterie gegen sich selbst, sobald sie den Sektor besitzt (sonst Fahndung bei sich
+        // selbst, Kopfgeld auf die eigenen Kaperer); in der heutigen Welt ist der Kaperer nie Sektorherr → verhaltensgleich
+        if (faction != new FactionId(raider.Owner.Value)) Wanted.Report(u, raider.Owner, faction, "piracy");
         string msg;
         if (player)
         {
@@ -515,7 +519,8 @@ public sealed class PirateSystem : ISimSystem
                 if (hideout is null || u.Tick - a.LastForceTick < r.RaiderRebuildTicks) continue;
                 float used = raiders.Sum(x => u.ShipModels.TryGetValue(x.ModelKey, out var xm) && u.ShipClasses.TryGetValue(xm.ClassKey, out var xc) ? CombatModels.Units(xc) : 1f);
                 float threat = u.Sectors.TryGetValue(hideout.Sector, out var hs) ? hs.Security : 0f;   // stärkerer Schutz in der Nähe → schwerere Schiffe
-                if (CombatModels.ForPirates(u, a.Treasury.Credits, r.MaxRaiderUnitsPerActor - used, CombatModels.Heavy(u, threat), restart) is not { } pick) continue;
+                // Ausbau Punkt 17: etablierte Banditenfraktionen haben die höhere Grenze BanditMaxRaiderUnits (statt MaxRaiderUnitsPerActor)
+                if (CombatModels.ForPirates(u, a.Treasury.Credits, Bandits.RaiderUnitsCap(u, a) - used, CombatModels.Heavy(u, threat), restart) is not { } pick) continue;
                 (model, cls, cost) = (pick.Model, pick.Class, pick.Cost);
             }
             else

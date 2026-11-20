@@ -210,6 +210,7 @@ public sealed class SubsidySystem : ISimSystem
         var stations = u.StationsById().Where(s => !s.IsBuildSite && s.Market.Count > 0).ToList();
         foreach (var f in u.NpcFactionIds())   // Runde 38: KI-Fraktionen
         {
+            if (Bandits.IsEstablished(u, f)) continue;   // Ausbau Punkt 17: die Banditen stützen ihre Stationen selbst (oder lassen sie verfallen)
             if (!u.Actors.TryGetValue(f, out var actor)) continue;
             float spent = 0f;
             // Punkt 13: Reserve und Ersatzkosten ändern sich in dieser Schleife nicht (nur Kassen fließen) — einmal je Fraktion statt je Station

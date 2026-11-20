@@ -66,6 +66,9 @@ public static class SectorControl
         foreach (var id in sector.Stations.OrderBy(i => i.Value))
         {
             if (!u.Stations.TryGetValue(id, out var st) || st.IsBuildSite || PlayerUpkeep.Unpaid(u, st)) continue;   // Ausgleich: unbezahlt = kein Einfluss
+            // Ausbau Punkt 17: ein ausgeschalteter Sitz zählt keinen Einfluss — nur so können Banditen einen Sektor verlieren
+            // (Verstecke werden bei Hülle 0 ausgeschaltet statt zerstört) und nach der Reparatur zurückgewinnen
+            if (st.Condition is { Disabled: true } && Bandits.IsEstablished(u, st.Owner)) continue;
             float w = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? MathF.Max(0f, t.Influence) : 1f;
             if (w <= 0f) continue;
             total += w;
@@ -130,6 +133,16 @@ public static class SectorControl
                 u.Events.Publish(new SectorOwnerChanged(sector.Id, old, leader.Key));
                 changed = true;
             }
+        }
+        else if (Bandits.IsEstablished(u, sector.Owner))
+        {
+            // Ausbau Punkt 17: keine eigene (aktive) Station mehr im Sektor → der Besitz einer Banditenfraktion fällt (herrenlos);
+            // ohne diese Zeile behielte ein Sektor ohne Stationen seinen Besitzer und die Banditen könnten nie verlieren
+            var old = sector.Owner;
+            sector.Owner = default;
+            if (u.Factions.TryGetValue(old, out var fo)) fo.Territory.Remove(sector.Id);
+            u.Events.Publish(new SectorOwnerChanged(sector.Id, old, default));
+            changed = true;
         }
         var stage = StageOf(u, sector, inf, sector.Owner);
         bool contested = IsContested(u, inf);
@@ -199,6 +212,9 @@ public sealed class FactionPolicySystem : ISimSystem
         foreach (var other in u.Factions.Keys.OrderBy(k => k.Value))
         {
             if (other == f) continue;
+            // Ausbau Punkt 17: etablierte Banditen sind kein politischer Partner — ohne diese Zeile stünde jede KI-Fraktion wegen der
+            // Vorgabe −0,6 auf Sperrstufe 3 gegen sie und würde alle ihre Sektoren gegen „Feinde" abschotten (auch gegen freie Händler)
+            if (Bandits.IsEstablished(u, other)) continue;
             float r = Relations.Effective(u, f, other);
             if (r < worst) { worst = r; against = other; }
         }
@@ -239,6 +255,19 @@ public sealed class FactionPolicySystem : ISimSystem
         var acc = sector.Access;
         var rules = u.Rules;
         int cur = acc.EntryLevel;
+        // Ausbau Punkt 17: Dauerzoll in Banditensektoren — Stufe BanditTollLevel, gedeckelt durch die Kontrollstufe, ohne Ablauf
+        // (ExpiresTick = -1; ganz oben vor der Ablaufprüfung, die eine Sperre mit ExpiresTick −1 sofort wieder aufheben würde).
+        // Ohne diesen Zweig liefe der Sektor durch Desired, und die schlechteste Beziehung der Banditen (−0,6 zu jeder Fraktion) ergäbe
+        // Stufe 3 — der Sektor wäre für den gesamten Nicht-Banditenverkehr dicht. Stufe 1 ist „Kontrolle und Zoll“: jeder darf hinein, 8 Cr.
+        if (Bandits.HoldsSector(u, sector))
+        {
+            int want = Math.Clamp(u.Rules.BanditTollLevel, 0, Math.Min(2, SectorControl.MaxLevel(u, sector)));
+            if (acc.EntryLevel == want && acc.ExpiresTick < 0) return false;      // steht schon, kein Ablauf
+            Apply(u, sector, want, want > 0 ? Desired(u, sector).Against : null, "bandit");
+            acc.ExpiresTick = -1;                                                 // Dauerzoll
+            acc.CooldownUntil = -1_000_000;
+            return true;
+        }
         if (cur > 0 && u.Tick >= acc.ExpiresTick)
         {
             Apply(u, sector, 0, acc.Against, "expired");
@@ -303,10 +332,14 @@ public sealed class FactionPolicySystem : ISimSystem
         {
             var acc = sector.Access;
             if (acc.IsOpen) continue;
-            float cost = u.Rules.LockUpkeepPerLevel * acc.EntryLevel * dt;
-            bool paid = false;
+            // Ausbau Punkt 17: der Dauerzoll der Banditen kostet keine Verwaltungskosten (BanditTollUpkeepPerLevel, Standard 0) — mit den
+            // normalen Kosten fraß die Durchsetzung jede Zolleinnahme auf und die Sperre fiel auf „Papier“
+            float perLevel = Bandits.IsEstablished(u, sector.Owner) ? u.Rules.BanditTollUpkeepPerLevel : u.Rules.LockUpkeepPerLevel;
+            float cost = perLevel * acc.EntryLevel * dt;
+            // die Bande setzt den Zoll mit ihren eigenen Schiffen durch: keine Kosten = durchgesetzt, ohne Buchung
+            bool paid = cost <= 0f && Bandits.IsEstablished(u, sector.Owner);
             // Phase 22: eine Sperre ist freiwillig — bezahlt nur aus dem Teil der Kasse über der Betriebsreserve (sonst Sperre auf dem Papier)
-            if (u.Actors.TryGetValue(sector.Owner, out var actor) && FactionViability.Spendable(u, actor) >= cost)
+            if (!paid && u.Actors.TryGetValue(sector.Owner, out var actor) && FactionViability.Spendable(u, actor) >= cost)
             {
                 actor.Treasury.Credits -= cost;
                 paid = true;
@@ -331,10 +364,12 @@ public sealed class FactionPolicySystem : ISimSystem
         bool any = false;
         foreach (var a in factions)
         {
+            // Ausbau Punkt 17: Beziehungen zu etablierten Banditen driften nicht (Vorgabe −0,6 bleibt; kein Hochdriften auf den Ruhewert)
+            if (Bandits.IsEstablished(u, a)) continue;
             var p = ActorRules.PersonalityOf(u, a);
             foreach (var b in factions)
             {
-                if (a == b) continue;
+                if (a == b || Bandits.IsEstablished(u, b)) continue;
                 float cur = Relations.Effective(u, a, b);
                 float s = share.GetValueOrDefault(Key(a, b));
                 float rest = rules.RelationRestBase + rules.RelationCooperationWeight * (p.Cooperation - 0.5f)
@@ -416,6 +451,8 @@ public sealed class FactionPolicySystem : ISimSystem
         foreach (var s in u.Sectors.Values)
         {
             if (s.Owner != owner || !s.Access.Enforced) continue;
+            // Ausbau Punkt 17: der Zoll der Banditen erzeugt keinen Groll bei Dritten (wie playerLocksSourOnlyTarget)
+            if (Bandits.IsEstablished(u, s.Owner)) continue;
             // Runde 38b (Entscheidung des Nutzers „nur Spieler-Sperren ärgern Dritte nicht“): eine Sperre gegen die Spielerfraktion gilt weiter für alle,
             // löst aber bei anderen KI-Fraktionen keinen Groll aus — kein KI-gegen-KI-Folgekrieg aus einem Spielerkrieg
             if (s.Access.Against is { } ag && ag != target && u.IsPlayerFaction(ag)) continue;

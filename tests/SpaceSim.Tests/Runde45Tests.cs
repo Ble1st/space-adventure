@@ -362,7 +362,7 @@ public class Runde45Tests
         u.MoveShip(ship, Alpha);
         Assert.Contains("herrenlos", PlayerSeats.FoundIssue(u, Alpha));
         u.MoveShip(ship, Abgrund);
-        Assert.Contains("Piratenversteck", PlayerSeats.FoundIssue(u, Abgrund));
+        Assert.Contains("nur herrenlose Sektoren", PlayerSeats.FoundIssue(u, Abgrund));   // Ausbau Punkt 17: Abgrund gehört den Banditen (NPC-Fraktion)
         Assert.Contains("aktives Schiff", PlayerSeats.FoundIssue(u, Nebelmark));
         ToNebelmark(u);
         u.Player.Treasury.Credits = 5_000f;

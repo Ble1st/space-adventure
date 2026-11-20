@@ -27,6 +27,7 @@ public class GasNebulaTests
     /// </summary>
     internal static void RevertGas(WorldDef def)
     {
+        BanditenTests.RevertBandits(def);   // Ausbau Punkt 17 kam danach: etablierte Banditenfraktion (zuerst — nur eigene Inhalte, Obergrenze 78→75)
         IdleShelfTests.RevertIdleShelf(def);   // Ausbau Punkt 12 kam danach: ungenutzte Regale (Schalter aus)
         ExportPlanetTests.RevertLuxuryStart(def);   // Luxusexport-Start kam danach (TODO-AUSBAU Punkt 11): zweite Luxuswerkstatt in Kalypso, größeres Eingangs lager, maxStations + 1
         FusionTankTests.RevertFusion(def);   // Fusionsbrennstoff kam danach

@@ -137,7 +137,7 @@ public class Phase27Tests
     public void Piraten_RudelAlsVerband_AnfuehrerLauert_MitgliedFolgt_UndAllesHeim()
     {
         var u = Standard();
-        var actor = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw && Raiders(u).Count(r => r.Owner == a.Id) >= 2);
+        var actor = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw && !Bandits.IsEstablished(u, a.Id) && Raiders(u).Count(r => r.Owner == a.Id) >= 2);   // Punkt 17: kleine Gruppen, nicht die etablierte Fraktion
         var pack = Raiders(u).Where(r => r.Owner == actor.Id).Take(2).ToList();
         var home = PirateSystem.Home(u, pack[0])!;
         foreach (var r in pack) { Place(u, r, home.Sector, home.DockPoint(r.Id)); r.NextThinkTick = 0; }
@@ -198,7 +198,7 @@ public class Phase27Tests
     public void Rudel_FaelltGemeinsamUeberDasOpferHer_FokusfeuerDerPolizei()
     {
         var u = Standard();
-        var actor = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw && Raiders(u).Count(r => r.Owner == a.Id) >= 2);
+        var actor = u.Actors.Values.First(a => a.Kind == ActorKind.Outlaw && !Bandits.IsEstablished(u, a.Id) && Raiders(u).Count(r => r.Owner == a.Id) >= 2);   // Punkt 17: kleine Gruppen, nicht die etablierte Fraktion
         var pack = Raiders(u).Where(r => r.Owner == actor.Id).Take(2).ToList();
         var pos = Far(u, Nebelmark);
         foreach (var r in pack) Place(u, r, Nebelmark, pos);

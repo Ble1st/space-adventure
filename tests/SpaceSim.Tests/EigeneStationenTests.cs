@@ -16,7 +16,7 @@ namespace SpaceSim.Tests;
 public class EigeneStationenTests
 {
     static readonly DateTimeOffset Now = new(2026, 11, 18, 12, 0, 0, TimeSpan.Zero);
-    static readonly SectorId Nebelmark = new(9), Alpha = new(1);
+    static readonly SectorId Nebelmark = new(9), Alpha = new(1), Delta = new(4);
 
     static Universe World(ulong seed = 1) => WorldBuilder.Build(TestWorlds.Def(fuel: false, research: false), seed);
 
@@ -116,10 +116,12 @@ public class EigeneStationenTests
         Assert.Contains("abdocken", PlayerBuilding.TypeIssue(u, t));
         u.Rules.PlayerBuilding = false;
         Assert.Contains("abgeschaltet", PlayerBuilding.TypeIssue(u, t));
-        // Abgrund hat ein Piratenversteck — Nutzerentscheidung „auch in Sektoren mit Piratenversteck“: erlaubt (Regel an); Regel aus = alter Grund
-        Assert.Null(PlayerBuilding.SectorIssue(u, new SectorId(11)));
+        // Ausbau Punkt 17: Abgrund gehört den Banditen (Beziehung −0,6 = feindlich) — Bau greift die Fremdregel, nicht die Versteckregel
+        Assert.Contains("feindlich", PlayerBuilding.SectorIssue(u, new SectorId(11)));
+        // Delta hat das Korsaren-Versteck — Nutzerentscheidung „auch in Sektoren mit Piratenversteck“: erlaubt (Regel an); Regel aus = alter Grund
+        Assert.Null(PlayerBuilding.SectorIssue(u, Delta));
         u.Rules.PlayerBuildHideoutSectors = false;
-        Assert.Contains("Piratenversteck", PlayerBuilding.SectorIssue(u, new SectorId(11)));
+        Assert.Contains("Piratenversteck", PlayerBuilding.SectorIssue(u, Delta));
         u.Rules.PlayerBuildHideoutSectors = true;
         // Exportstation ohne Planet
         u.Rules.PlayerBuilding = true;

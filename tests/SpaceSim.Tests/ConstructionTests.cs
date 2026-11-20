@@ -151,8 +151,8 @@ public class ConstructionTests
         Assert.Equal("ship_kit_medium", u.ShipClasses["construction_ship"].Kit);
         Assert.Equal(new List<string> { "mine" }, u.ShipModels["rockbreaker_ii"].Jobs);
         Assert.Empty(u.ShipModels["quarry"].Jobs);
-        // je KI-Fraktion ein KI-Bauschiff mit Fähigkeit Construction (und keinem Laser); Runde 38: die Spielerfraktion hat keins
-        foreach (var f in u.NpcFactionIds())
+        // je KI-Fraktion ein KI-Bauschiff mit Fähigkeit Construction (und keinem Laser); Runde 38: die Spielerfraktion hat keins; Punkt 17: Banditen bauen nicht mit Bauschiff
+        foreach (var f in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)))
         {
             var b = Assert.Single(u.Ships.Values, s => s.IsAiBuilder && s.Owner == f);   // Phase 9: Bauschiffe gehören dem Fraktionsakteur
             Assert.Equal(Capability.Cargo | Capability.Construction, b.Capabilities);

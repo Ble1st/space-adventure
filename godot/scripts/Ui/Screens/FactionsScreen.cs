@@ -151,15 +151,17 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		TestViability = FactionViability.Text(u, sel) ?? "";
 		// Phase 28: Kriegslage neben der Handlungsfähigkeit
 		TestWar = isFaction ? SpaceSim.Core.Combat.WarInfo.FactionLine(u, new FactionId(sel.Value)) : "";
+		// Ausbau Punkt 17: etablierte Banditenfraktion — Sitz, Werke und Dauerzoll in derselben Zeile
+		TestBandits = isFaction && SpaceSim.Core.Simulation.Bandits.IsEstablished(u, new FactionId(sel.Value)) ? SpaceSim.Core.Simulation.Bandits.Text(u, sel) : "";
 		// Runde 45: Bündnisse der Fraktion (auch mit dir) — eigene Zeile unter der Kriegslage
 		var allies = isFaction ? Alliances.AlliesOf(u, new FactionId(sel.Value)) : new List<FactionId>();
 		TestAlliance = allies.Count == 0 ? (isFaction ? "keine Bündnisse" : "") : "Bündnis mit " + string.Join(", ", allies.Select(x => u.IsPlayerFaction(x) ? "dir" : FactionName(u, x)));
-		if (TestViability.Length > 0 || TestWar.Length > 0)
+		if (TestViability.Length > 0 || TestWar.Length > 0 || TestBandits.Length > 0)
 		{
 			bool war = TestWar.StartsWith("Krieg", System.StringComparison.Ordinal);
 			// Prüfung Phase 28: im Krieg zuerst die Kriegszeile, die Handlungsfähigkeit nur kurz (vorher lief die Zeile über den Rand)
 			string viable = TestViability.StartsWith("handlungsfähig", System.StringComparison.Ordinal) ? "handlungsfähig" : TestViability;
-			string line = war ? $"{TestWar} · {viable}" : string.Join(" · ", new[] { TestViability, TestWar }.Where(x => x.Length > 0));
+			string line = war ? $"{TestWar} · {viable}" : string.Join(" · ", new[] { TestBandits, TestViability, TestWar }.Where(x => x.Length > 0));
 			At(det, Text(line, 12, war ? Red : TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
 		}
 		// Spielersperre: warum die Beziehung zu dir gefallen ist (letztes Verbrechen, offene Ansehensschuld) — in der Bündniszeile, kein neuer Platz nötig
@@ -319,4 +321,5 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// <summary>Selbsttest Phase 28: Kriegslage der gewählten Fraktion („Frieden“ / „Krieg mit …“).</summary>
 	public string TestWar { get; private set; } = "";
 	public string TestViability { get; private set; } = "";
+	public string TestBandits { get; private set; } = "";
 }

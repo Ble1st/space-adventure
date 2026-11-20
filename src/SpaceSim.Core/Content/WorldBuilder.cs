@@ -196,9 +196,14 @@ public static class WorldBuilder
         // Phase 13: Forschungsprojekte (nach Modulen, Modellen und Stationstypen: Freischaltungen verweisen darauf)
         LoadResearch(u, def, Good);
 
+        // Ausbau Punkt 17: Schalter BanditFactions aus → gesetzlose Fraktionen (und alles, was ihnen gehört: Sektorenbesitz, Stationen,
+        // Schiffsgruppen) fallen aus der Welt; die Bau-Obergrenze sinkt um die weggelassenen Wirtschaftsstationen (omittedEconomic)
+        var dropped = u.Rules.BanditFactions ? new HashSet<int>()
+            : def.Factions.Where(f => string.Equals(f.Kind, "outlaw", StringComparison.OrdinalIgnoreCase)).Select(f => f.Id).ToHashSet();
         // Phase 9: jede Fraktion ist zugleich ein Akteur (gleiche Id-Zahl) mit Art, Persönlichkeit und Kasse; Hauptbeziehungen nur als Abweichung
         foreach (var f in def.Factions)
         {
+            if (dropped.Contains(f.Id)) continue;
             if (f.Id <= 0 || f.Id >= ActorId.FirstGenerated) throw new WorldFormatException($"Fraktion '{f.Name}': Id {f.Id} muss zwischen 1 und {ActorId.FirstGenerated - 1} liegen");
             var id = new FactionId(f.Id);
             if (!u.Factions.TryAdd(id, new Faction { Id = id, Name = f.Name })) throw new WorldFormatException($"Fraktion {f.Id} doppelt");
@@ -214,8 +219,11 @@ public static class WorldBuilder
             };
         }
         foreach (var f in def.Factions)
+        {
+            if (dropped.Contains(f.Id)) continue;   // Ausbau Punkt 17: weggefallene Fraktionen haben keine Beziehungen
             foreach (var (other, v) in f.Relations ?? new Dictionary<int, float>())
             {
+                if (dropped.Contains(other)) continue;
                 if (!u.Factions.ContainsKey(new FactionId(other)) || other == f.Id) throw new WorldFormatException($"Fraktion '{f.Name}': Beziehung zu unbekannter Fraktion {other}");
                 u.Factions[new FactionId(f.Id)].Relations[new FactionId(other)] = Math.Clamp(v, -1f, 1f);
             }
@@ -259,9 +267,11 @@ public static class WorldBuilder
         foreach (var sd in def.Sectors)
         {
             // Phase 21: owner 0 (oder fehlend) = herrenloser Sektor — keine Fraktion, kein Gebiet; Besitz entsteht erst durch Einfluss (Stationen)
-            var owner = new FactionId(sd.Owner);
+            // Ausbau Punkt 17: eine weggefallene Fraktion (Schalter aus) besitzt keinen Sektor — der Sektor bleibt herrenlos
+            int ownerId = dropped.Contains(sd.Owner) ? 0 : sd.Owner;
+            var owner = new FactionId(ownerId);
             Faction? faction = null;
-            if (sd.Owner != 0 && !u.Factions.TryGetValue(owner, out faction)) throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Fraktion {sd.Owner}");
+            if (ownerId != 0 && !u.Factions.TryGetValue(owner, out faction)) throw new WorldFormatException($"Sektor {sd.Id}: unbekannte Fraktion {ownerId}");
             // Runde 44: Maßstab 1–10 (Koordinaten der Datei × Faktor)
             if (!float.IsFinite(sd.Scale) || sd.Scale < 1f || sd.Scale > 10f) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): scale muss zwischen 1 und 10 liegen ({sd.Scale})");
             var sector = new Sector { Id = new SectorId(sd.Id), Name = sd.Name, Owner = owner, MapPosition = V(sd.Map), Scale = sd.Scale };
@@ -351,6 +361,13 @@ public static class WorldBuilder
                     if (type.Government == GovernmentKind.None && !type.Hideout) omittedEconomic++;
                     continue;
                 }
+                // Ausbau Punkt 17: eine Station ohne eigenen Besitzer erbt den Sektorherrn — gehört der einer weggefallenen
+                // Fraktion, fällt die Station weg (und zählt als weggelassene Wirtschaftsstation, wenn sie wirtschaftlich ist)
+                if (st.Owner is not { Length: > 0 } && dropped.Contains(sd.Owner))
+                {
+                    if (type.Government == GovernmentKind.None && !type.Hideout) omittedEconomic++;
+                    continue;
+                }
                 ActorId stOwner = st.Owner is { Length: > 0 } ok ? ActorByKey(ok, $"Station {st.Id}") : u.Sectors[new SectorId(sd.Id)].Owner;
                 string stName = st.Name.Contains("{owner}") ? st.Name.Replace("{owner}", u.ActorName(stOwner)) : st.Name;   // Phase 29: Name des Besitzers
                 var station = StationFactory.Create(u, new StationId(st.Id), type, stName, new SectorId(sd.Id), V(st.Pos) * u.Sectors[new SectorId(sd.Id)].Scale, stOwner);
@@ -375,6 +392,7 @@ public static class WorldBuilder
         int nextShip = 1;
         foreach (var group in def.Ships)
         {
+            if (dropped.Contains(group.Faction) && group.Owner is null or "faction") continue;   // Ausbau Punkt 17: Schiffsgruppen weggefallener Fraktionen fallen weg
             var role = Enum.TryParse<ShipRole>(group.Role, ignoreCase: true, out var r) ? r : throw new WorldFormatException($"Unbekannte Schiffsrolle '{group.Role}'");
             // Phase 9: Besitzer der Gruppe — Fraktionsakteur oder die Sammelgruppe „Freie“ (freie Einzelschiffe, implizite Akteure)
             ActorId owner = (group.Owner?.ToLowerInvariant()) switch
@@ -391,7 +409,9 @@ public static class WorldBuilder
                 if (nextShip == 100) nextShip++;
                 var ship = NewShip(u, new ShipId(nextShip++), role, owner, new SectorId(group.Sector), group.Credits, group.Cargo, group.Model);
                 // Phase 11: Polizei und Kaperschiffe sind keine Gründerschiffe der Wirtschaft (keine Güteklasse); sie starten an ihrer Heimatbasis
-                if (role is ShipRole.Police or ShipRole.Pirate) PlaceAtHomeBase(u, ship);
+                // Ausbau Punkt 17: Kriegsschiffe eines gesetzlosen Besitzers ebenso (ihre Heimatbasis ist sein Versteck)
+                if (role is ShipRole.Police or ShipRole.Pirate
+                    || role == ShipRole.Warship && u.Actors.TryGetValue(owner, out var oa) && oa.Kind == ActorKind.Outlaw) PlaceAtHomeBase(u, ship);
                 else RollFounderQuality(u, ship);
                 u.AddShip(ship);
             }
@@ -585,11 +605,12 @@ public static class WorldBuilder
 
     /// <summary>
     /// Phase 11: Polizei- und Kaperschiffe der Startwelt bekommen ihre Heimatbasis (Wache/Hauptquartier der Fraktion bzw. Versteck des Akteurs, im
-    /// Startsektor zuerst) und liegen dort.
+    /// Startsektor zuerst) und liegen dort. Ausbau Punkt 17: auch Kriegsschiffe (Warship) eines gesetzlosen Besitzers — seine Heimatbasis ist
+    /// dessen Versteck (eine Gesetzlosenfraktion hat keine Regierungsstation).
     /// </summary>
     static void PlaceAtHomeBase(Universe u, Ship ship)
     {
-        Station? home = ship.Role == ShipRole.Pirate
+        Station? home = ship.Role is ShipRole.Pirate or ShipRole.Warship && u.Actors.TryGetValue(ship.Owner, out var oa) && oa.Kind == ActorKind.Outlaw
             ? u.Stations.Values.Where(st => st.Owner == ship.Owner && Simulation.StationProtection.IsHideout(u, st))
                 .OrderBy(st => st.Sector == ship.Sector ? 0 : 1).ThenBy(st => st.Id.Value).FirstOrDefault()
             : u.FactionOf(ship.Owner) is { } f ? Simulation.SecuritySystem.HomeBaseFor(u, f, ship.Sector) : null;

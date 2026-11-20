@@ -464,14 +464,14 @@ public class Phase22Tests
         }
         Assert.True(bad.Count == 0, string.Join("; ", bad.Take(5)));
         AssertEveryRemovalHasDecayReason(ev);
-        // Mindestbestand gilt am Ende für jede KI-Fraktion (Runde 38: die Spielerfraktion hat keine Pflichten)
-        foreach (var f in u.NpcFactionIds())
+        // Mindestbestand gilt am Ende für jede KI-Fraktion (Runde 38: die Spielerfraktion hat keine Pflichten; Punkt 17: etablierte Banditen haben weder Polizei noch Bauschiffe)
+        foreach (var f in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)))
         {
             Assert.True(SecuritySystem.PoliceOf(u, f).Count >= u.Rules.PoliceMinPerFaction, $"{world}: Polizei von {u.Factions[f].Name}");
             Assert.True(FactionBuilderSystem.Of(u, f).Count >= u.Rules.MinBuildersPerFaction, $"{world}: Bauschiff von {u.Factions[f].Name}");
         }
-        // die Kasse ist im Mittel über der Rücklage (Ausgaben halten sie; nur die Einnahmenseite kann sie unterschreiten)
-        foreach (var f in u.NpcFactionIds())
+        // die Kasse ist im Mittel über der Rücklage (Ausgaben halten sie; nur die Einnahmenseite kann sie unterschreiten; Banditen ohne Rücklage, Punkt 17)
+        foreach (var f in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)))
             Assert.True(u.Actors[f].Treasury.Credits >= FactionViability.Reserve(u, f) * 0.5f, $"{world}: Kasse {u.Factions[f].Name} {u.Actors[f].Treasury.Credits:0} / Rücklage {FactionViability.Reserve(u, f):0}");
     }
 

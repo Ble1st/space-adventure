@@ -113,6 +113,17 @@ public sealed class SecurityModule : ISimModule
 }
 
 /// <summary>
+/// Ausbau Punkt 17: etablierte Banditenfraktionen (docs/BANDITEN.md) — Schutzflotte, Nachbau der Werke, Vorposten, Beuteanteil.
+/// Läuft nach der Sicherheit (die Kaperflotte hat ihre Befehle) und vor dem Kampf; ohne Regel <see cref="Model.EconomyRules.BanditFactions"/>
+/// oder ohne solche Fraktion tut es nichts.
+/// </summary>
+public sealed class BanditModule : ISimModule
+{
+    public string Name => "Bandits";
+    public void Register(SimulationBuilder b) => b.Add(new BanditSystem(), BanditSystem.Interval);
+}
+
+/// <summary>
 /// Phase 23/24: Kampf und Schiffssysteme (KAMPF.md Abschnitte 3 und 4). Läuft nach der Sicherheit (Überfälle und Abfangen haben Gefechte eröffnet):
 /// zuerst das Rundengefecht (<see cref="SpaceSim.Core.Combat.CombatSystem"/>, nur aktive Gefechte), dann laden Schild und Speicherbank aus dem
 /// Reaktorüberschuss nach (nur Schiffe, denen etwas fehlt), zuletzt laden angedockte NPCs mit Geschützen Munition nach.

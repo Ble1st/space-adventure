@@ -171,6 +171,8 @@ public sealed class ActorSave
     /// <summary>Ausbau Punkt 5: letzter Schmugglerkauf (0 = nie).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastSmugglerTick { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastSmugglerRetireTick { get; set; }
+    /// <summary>Ausbau Punkt 17 (additiv): letzter Banditenbau (Wirtschaftsstation oder Vorposten); fehlt = nie.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastBanditTick { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? SeatArrearsSince { get; set; }
     /// <summary>Phase 28 (additiv): Festnahme-Sperre bis zu diesem Tick; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ArrestCooldownUntil { get; set; }

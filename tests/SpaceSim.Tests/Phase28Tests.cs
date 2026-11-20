@@ -739,12 +739,12 @@ public class Phase28Tests
         for (int i = 0; i < 40000; i++) runner.Step(u);
         Assert.Empty(u.Wars);
         Assert.Empty(ev.OfType<WarDeclared>());
-        Assert.DoesNotContain(u.ShipsById(), Wars.IsWarship);
+        Assert.DoesNotContain(u.ShipsById().Where(s => !Bandits.IsEstablished(u, s.Owner)), Wars.IsWarship);   // Punkt 17: die Banditenfraktion startet mit Kriegsschiffen
         Assert.Empty(ev.OfType<StationFell>());   // Runde 13b: wieder streng (Piraten bauen keine Stellungen mehr)
-        foreach (var f in u.NpcFactionIds())   // Runde 38: KI-Fraktionen (die Spielerfraktion hat keine Polizei)
+        foreach (var f in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)))   // Runde 38: KI-Fraktionen (die Spielerfraktion hat keine Polizei); Punkt 17: Banditen ohne Polizei und Krieg (Vorgabe Gesetzlos)
         {
             Assert.True(SecuritySystem.PoliceOf(u, f).Count >= u.Rules.PoliceMinPerFaction, $"Polizei {f.Value}");
-            Assert.True(Relations.Effective(u, f, u.NpcFactionIds().First(k => k != f)) > Wars.DeclareThreshold(u, f));
+            Assert.True(Relations.Effective(u, f, u.NpcFactionIds().First(k => k != f && !Bandits.IsEstablished(u, k))) > Wars.DeclareThreshold(u, f));
         }
         float revenue = ev.OfType<TradeCompleted>().Sum(t => t.Revenue);
         float loot = ev.OfType<RaidResolved>().Sum(r => r.LootValue);
@@ -939,7 +939,7 @@ public class Phase28Tests
     {
         var u = Standard();
         if (!patch) u.Rules.PirateBasePatchHull = 0f;
-        var a = u.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw).OrderBy(x => x.Id.Value).First();
+        var a = u.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw && !Bandits.IsEstablished(u, x.Id)).OrderBy(x => x.Id.Value).First();   // Punkt 17: nur die kleinen Piratengruppen, nicht die etablierte Fraktion
         var hideout = u.StationsById().First(st => st.Owner == a.Id && StationProtection.IsHideout(u, st));
         a.Treasury.Credits = 0f;
         var raiders = u.ShipsById().Where(r => ThreatMap.IsRaider(r) && r.Owner == a.Id).ToList();

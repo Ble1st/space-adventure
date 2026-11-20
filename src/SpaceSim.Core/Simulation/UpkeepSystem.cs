@@ -133,7 +133,10 @@ public sealed class UpkeepSystem : ISimSystem
     public static Dictionary<int, float> FiscalFactors(Universe u)
     {
         var result = new Dictionary<int, float>();
-        var npc = u.NpcFactionIds();   // Runde 38: nur KI-Fraktionen (die Spielerfraktion hat keine Steuern und zählt nicht zur Fraktionszahl)
+        // Runde 38: nur KI-Fraktionen (die Spielerfraktion hat keine Steuern und zählt nicht zur Fraktionszahl)
+        // Ausbau Punkt 17: etablierte Banditenfraktionen zählen nicht zum Deckel — er bleibt für Union/Gilde/Montanbund rechnerisch
+        // unverändert (gleiche Fraktionszahl, gleiche Zielsumme) und die Banditen nehmen ihre Abgaben voll ein
+        var npc = u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)).ToList();
         if (u.Rules.TreasuryTargetShare <= 0f || npc.Count == 0) return result;
         double money = 0;
         foreach (var st in u.Stations.Values) money += Math.Max(0f, st.Credits);

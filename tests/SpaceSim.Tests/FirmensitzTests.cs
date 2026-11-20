@@ -221,7 +221,7 @@ public class FirmensitzTests
         PlayerAt(u, Alpha, () => true);
         Assert.Contains("nur eigene oder herrenlose", PlayerSeatsOffices.SeatIssue(u, Alpha));
         PlayerAt(u, Abgrund, () => true);
-        Assert.Contains("Piratenversteck", PlayerSeatsOffices.SeatIssue(u, Abgrund));
+        Assert.Contains("nur eigene oder herrenlose", PlayerSeatsOffices.SeatIssue(u, Abgrund));   // Ausbau Punkt 17: Abgrund gehört den Banditen (NPC-Fraktion)
         // zu klein
         PlayerAt(u, Nebelmark, () => true, credits: 1000f);
         Assert.Contains("Größenklasse", PlayerSeatsOffices.SeatIssue(u, Nebelmark) ?? "");
