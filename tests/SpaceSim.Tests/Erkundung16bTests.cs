@@ -53,7 +53,7 @@ public class Erkundung16bTests
     {
         var size = Docking.SizeOf(u, p);
         var unk = u.Stations.Values
-            .Where(s => !s.IsBuildSite && !Knowledge.KnowsStation(u, s) && Docking.Allows(s, size))
+            .Where(s => !s.IsBuildSite && (!Knowledge.Limited(u) || !Knowledge.KnowsStation(u, s)) && Docking.Allows(s, size))
             .OrderBy(s => s.Id.Value)
             .First(s => !float.IsPositiveInfinity(Travel.Estimate(u, p.Sector, p.Position, s.Sector, s.DockPoint(p.Id), p)));
         unk.Market[good] = new StockEntry { Price = 1_000_000f, Amount = 0f, Target = 10_000f };

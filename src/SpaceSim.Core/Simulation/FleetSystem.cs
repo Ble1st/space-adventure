@@ -236,6 +236,9 @@ public sealed class FleetSystem : ISimSystem
         // Phase 20: Bauschiffe sind Bestand der Fraktionen (FactionBuilderSystem: Mindestbestand, Nachkauf für blockierte Baustellen) — kein Zukauf aus
         // Bauschiff-Kassen mehr (sonst kaufte ein reiches Bauschiff ein weiteres, das die Fraktion als überzählig wieder ausmusterte)
         if (job.Role == ShipRole.Builder && rules.MinBuildersPerFaction > 0) return;
+        // Ausbau Punkt 4 (Tester): Bergeschiffe nur bei Bedarf — ohne bergbares Wrack (mehr als Bergeschiffe vorhanden) kauft weder ein Schiff noch die
+        // Fraktionskasse eines; vorher wurden ohne Wracks Bergeschiffe gekauft und nach 20000 Ticks als unrentabel wieder ausgemustert (Kaufen/Ausmustern im Kreis).
+        if (job.Role == ShipRole.Salvager && SalvageSystem.Demand(u) <= ShipJobs.UsedUnits(u, job)) return;
         // Phase 20: Wachstum je Kartenteil (ohne Teilung ein Teil); billige Vorprüfung, bevor die Kandidatenliste gebaut wird
         var grow = new Dictionary<int, bool>();
         bool Grows(int key) { if (!grow.TryGetValue(key, out var ok)) grow[key] = ok = CanGrow(u, job, key); return ok; }

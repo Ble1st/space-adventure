@@ -173,7 +173,7 @@ public class BergungTests
         runner.Run(u, 120);   // Bergeschiff unterwegs/am Bergen
         var (loaded, _) = SaveGameJson.Read(SaveGameJson.Write(u, Now));
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(loaded));
-        Assert.Contains(loaded.Wrecks, x => x.Id == w.Id);
+        Assert.Equal(u.Wrecks.Count, loaded.Wrecks.Count);   // das Wrack kann schon geborgen sein (Bergeschiff 5 Einheiten daneben)
         var ls = loaded.Ships[salvager.Id];
         Assert.Equal(ShipRole.Salvager, ls.Role);
         Assert.Equal(salvager.Order?.GetType(), ls.Order?.GetType());

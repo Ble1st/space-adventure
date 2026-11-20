@@ -330,7 +330,7 @@ public class ActorTests
                 case TreasuryUpkeep k: upkeep += k.Amount; break;   // Phase 10: Regierungsstationen und Sperren zahlen aus der Kasse
                 case TollPaid p: tolls += p.Amount; break;           // Phase 10: Zoll fließt in die Kasse der Sektorfraktion
                 case TreasuryIncome ti: tolls += ti.Amount; break;   // Phase 11: Hehlerei der Piraten, Strafen
-                case InvestorChosen { Source: InvestorSource.Treasury } c: invested += c.Amount; break;
+                case InvestorChosen { Source: InvestorSource.Treasury, Purpose: not "ship" } c: invested += c.Amount; break;   // Tester: Schiffskäufe aus der Kasse (BuyFromTreasury) melden zusätzlich TreasuryUpkeep "fleet" — nicht doppelt abziehen
                 case ConstructionAbandoned ab when u.Stations.TryGetValue(ab.Site, out var st) && st.Site is { InvestorActor: > 0 }: refunded += ab.Refund; break;
             }
         };

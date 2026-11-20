@@ -73,6 +73,15 @@ public sealed class SalvageSystem : ISimSystem
         return (best, bestScore);
     }
 
+    /// <summary>Zahl der Wracks mit bergbarem Gut (Fracht oder Modul ab <see cref="EconomyRules.SalvageMinCondition"/>) — der Bedarf an Bergeschiffen.</summary>
+    public static int Demand(Universe u)
+    {
+        int n = 0;
+        foreach (var w in u.Wrecks)
+            if (w.Cargo.Values.Any(v => v >= 1f) || w.Modules.Any(m => m.Condition >= u.Rules.SalvageMinCondition)) n++;
+        return n;
+    }
+
     /// <summary>Basispreis der bergbaren Beute eines Wracks für dieses Schiff (Fracht, die passt, plus bergbare Module je 1 Einheit).</summary>
     static float LootValue(Universe u, Ship ship, Wreck w)
     {
