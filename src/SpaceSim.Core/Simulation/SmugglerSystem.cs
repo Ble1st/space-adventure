@@ -67,7 +67,7 @@ public sealed class SmugglerSystem : ISimSystem
         {
             if (ship.Role != ShipRole.Smuggler || ship.Controller != Controller.Ai || !u.Ships.ContainsKey(ship.Id)) continue;
             if (u.Fights.IsEngaged(ship.Id)) continue;
-            if (HasCargo(ship) && SmuggleSearch.Roll(u, ship) is { } f) { Caught(u, ship, f); continue; }
+            if (Smuggled(u, ship) && SmuggleSearch.Roll(u, ship) is { } f) { Caught(u, ship, f); continue; }
             UpdateCloak(u, ship);
             if (ship.Transit is { } t)
             {
@@ -82,6 +82,12 @@ public sealed class SmugglerSystem : ISimSystem
     }
 
     static bool HasCargo(Ship s) => s.Cargo.Values.Any(n => n > 0.001f);
+
+    /// <summary>
+    /// Trägt das Schiff gerade Schmuggelware (Hehlerware vom Versteck oder Embargo-Ware, die nur per Sprung ans Ziel kommt)? Gemerkt beim Laden in
+    /// <see cref="Ship.CommandStep"/> = −1 (KI-Schmuggler haben keinen Befehl); Tarnhandel ist legal (0).
+    /// </summary>
+    public static bool Smuggled(Universe u, Ship ship) => ship.CommandStep == -1 && HasCargo(ship);
 
     /// <summary>Gesetzlose Firma (eigener Akteur mit Charakter, Gesetzestreue unter der Schwelle)?</summary>
     public static bool LawlessFirm(Universe u, Actor a) =>
@@ -158,7 +164,9 @@ public sealed class SmugglerSystem : ISimSystem
     public static bool ShouldRetire(Universe u, Ship ship)
     {
         if (u.Rules.SmugglerRetireCredits <= 0f || ship.Order is not null || ship.Transit is not null || HasCargo(ship) || u.Fights.IsEngaged(ship.Id)) return false;
-        return ship.Credits < u.Rules.SmugglerRetireCredits || Profitability.Unprofitable(u, ship.Profit);
+        int wait = Math.Min(u.Rules.SmugglerRetireIdleTicks, u.Rules.ShipBankruptTicks / 2);   // vor der Pleite-Frist (FleetSystem)
+        bool idleLong = ship.IdleSince >= 0 && u.Tick - ship.IdleSince >= wait;   // Zeit für Aufstocken aus der Firma (FirmCapital)
+        return idleLong && (ship.Credits < u.Rules.SmugglerRetireCredits || Profitability.Unprofitable(u, ship.Profit));
     }
 
     /// <summary>
@@ -197,7 +205,7 @@ public sealed class SmugglerSystem : ISimSystem
     static void UpdateCloak(Universe u, Ship ship)
     {
         if (!Cloak.Fitted(u, ship)) return;
-        bool want = HasCargo(ship) && ship.DockedAt.Value == 0 && !JumpDrive.Charging(ship);
+        bool want = Smuggled(u, ship) && ship.DockedAt.Value == 0 && !JumpDrive.Charging(ship);
         if (want && !ship.Cloaked)
         {
             float surplus = ship.Stats.PowerOutput - ship.Stats.PowerDraw;
@@ -229,7 +237,7 @@ public sealed class SmugglerSystem : ISimSystem
         u.Events.Publish(new SmugglerCaught(ship.Id, ship.Owner, f, sec, units, value, fine));
         OrderMove.StopHere(u, ship);
         if (ship.Cloaked) Cloak.Break(u, ship, "off");
-        ship.CommandStep = 0;
+        ship.CommandStep = 0;   // nichts mehr an Bord
         ship.IdleSince = u.Tick;
         ship.NextThinkTick = u.Tick + 200;
     }
@@ -254,7 +262,7 @@ public sealed class SmugglerSystem : ISimSystem
         }
         ship.Order = null;
         if (HasCargo(ship)) { RestSale(u, ship); return; }
-        if (!Plan(u, ship)) { if (ship.IdleSince < 0) ship.IdleSince = u.Tick; ship.NextThinkTick = u.Tick + 100; }
+        if (!Plan(u, ship) && !CoverTrade(u, ship)) { if (ship.IdleSince < 0) ship.IdleSince = u.Tick; ship.NextThinkTick = u.Tick + 100; }
     }
 
     static void Drop(Universe u, Ship ship) { ship.Order = null; ship.Phase = TradePhase.Idle; ship.NextThinkTick = u.Tick + 50; }
@@ -394,6 +402,27 @@ public sealed class SmugglerSystem : ISimSystem
         return true;
     }
 
+    /// <summary>
+    /// Tarnhandel (<see cref="EconomyRules.SmugglerCoverTrade"/>): ohne Schmuggelfahrt fährt der Schmuggler eine gewöhnliche Handelsrunde (beste Runde wie ein
+    /// KI-Händler, <see cref="TraderSystem.BestTrade"/>) — so verdient er zwischen den Fahrten und bleibt im Geschäft. true = Fahrt begonnen.
+    /// </summary>
+    public static bool CoverTrade(Universe u, Ship ship)
+    {
+        if (!u.Rules.SmugglerCoverTrade || ship.Credits < 50f) return false;
+        var (order, score) = TraderSystem.BestTrade(u, ship);
+        if (order is null || score <= 0f || !u.Stations.TryGetValue(order.Buy, out var buy) || !u.Stations.TryGetValue(order.Sell, out var sell)) return false;
+        float units = MathF.Floor(MathF.Min(ship.FreeUnits(u, order.Good), MathF.Max(0f, sell.AcceptableUnits(order.Good, u.Rules) - TraderSystem.LadenTowards(u, ship, sell.Id, order.Good))));
+        if (units < 1f) return false;
+        ship.Order = order;
+        ship.Phase = TradePhase.GoingToBuy;
+        ship.IdleSince = -1;
+        ship.CommandStep = (int)units;
+        u.Events.Publish(new SmugglerRunStarted(ship.Id, buy.Id, sell.Id, order.Good, "cover", false));
+        if (ship.Transit is null && ship.DockedAt == buy.Id) { Load(u, ship, buy, order); return true; }
+        if (!Go(u, ship, buy.Sector, buy.DockPoint(ship.Id))) { ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick; return false; }
+        return true;
+    }
+
     static IEnumerable<Station> StationsBuying(Universe u, GoodId g)
     {
         foreach (var st in u.StationsById()) if (!st.IsBuildSite && st.Market.ContainsKey(g)) yield return st;
@@ -434,7 +463,7 @@ public sealed class SmugglerSystem : ISimSystem
         if (units < 1f) { Drop(u, ship); ship.IdleSince = u.Tick; ship.NextThinkTick = u.Tick + 200; return; }
         u.Events.Publish(new SmugglerTraded(ship.Id, st.Id, o.Good, units, cost, false));
         ship.Phase = TradePhase.GoingToSell;
-        ship.CommandStep = 0;
+        ship.CommandStep = BlackMarket.IsAt(u, st) || (u.Stations.TryGetValue(o.Sell, out var sl) && !ByGate(u, ship, sl.Sector)) ? -1 : 0;   // −1 = Schmuggelware an Bord
         if (u.Stations.TryGetValue(o.Sell, out var sell)) ToSell(u, ship, sell);
     }
 
@@ -449,7 +478,7 @@ public sealed class SmugglerSystem : ISimSystem
         ship.Order = null;
         ship.Phase = TradePhase.Idle;
         ship.NextThinkTick = u.Tick + 10;
-        if (!HasCargo(ship)) ship.IdleSince = u.Tick;
+        if (!HasCargo(ship)) { ship.IdleSince = u.Tick; ship.CommandStep = 0; }
     }
 
     /// <summary>Rest an Bord: zum nächsten Abnehmer, sonst zum Hehler, sonst über Bord.</summary>

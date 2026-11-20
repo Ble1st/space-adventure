@@ -110,7 +110,7 @@ public partial class SelfTest
 		{
 			case 35:
 				Check(u.Ships[_pxSwift].Command is TaxiCommand, $"151: „Taxi“ per Tipp gegeben ({fs.TestMessage})");
-				_m.Session.RunTicks(4000);
+				_m.Session.RunTicks(10000);
 				return false;
 			case 37:
 				Check(_pxTrips >= 1 && _pxFares > 0f, $"151: Flottentaxi fährt Fahrgäste ({_pxTrips} Fahrten, {_pxFares:0} Cr Fahrgeld)");

@@ -114,3 +114,9 @@ Beschlagnahme oder eine Leerfahrt reichte; (3) Wartezeiten, wenn die Verstecke l
 - `smugglerFenceValuePerShip` (1500): je Schmuggler auf der Karte müssen so viel Hehlerware (Basiswert) in den Verstecken liegen, sonst wird keiner gekauft.
 - Der Firmensitz schöpft bei Schmugglern nichts ab (ihr Betriebsgeld ist die nächste Ladung).
 Gemessen 300 000 Ticks: vorher 14 gekauft, 11 pleite; jetzt 0 pleite, 12–14 verkauft, im Mittel 2,1–2,5 Schmuggler gleichzeitig unterwegs.
+
+**Selbsttragend (zweiter Nachtrag).** Mit Verkauf statt Pleite starben die Schmuggler in 300 000 Ticks aus (14 gekauft, alle verkauft, 0 am Ende): Hehlerware
+allein trägt kein Schiff. Jetzt fahren Schmuggler ohne Schmuggelfahrt **Tarnhandel** (`smugglerCoverTrade`: beste gewöhnliche Handelsrunde wie ein KI-Händler;
+legal — nur Schmuggelware an Bord, gemerkt beim Laden, wird durchsucht und getarnt), verkauft wird erst nach `smugglerRetireIdleTicks` Leerlauf (höchstens
+die halbe Pleitefrist), die Sperre nach einem Verkauf ist 8 000 Ticks, je Schmuggler genügen 1 000 Cr Hehlerware. 300 000 Ticks: 15 gekauft, 0 pleite,
+13 verkauft, 2 am Ende, im Mittel 3,7 gleichzeitig; 1 103 Fahrten (757 Tarnhandel), 25 erwischt.

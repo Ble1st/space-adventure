@@ -148,39 +148,74 @@ public class FahrgastTests
     }
 
     [Fact]
-    public void Taxibefehl_FlottenschiffFaehrtFahrgaeste_FahrgeldErklaertDieKasse_OhneKabineGesperrt()
+    public void Taxibefehl_FaehrtEchteFahrgastangebote_LohnAusDemAuftraggeber_OhneKabineGesperrt()
     {
         var u = World();
         var stand = Stand(u);
-        // eigenes Flottenschiff: Mauersegler am Stand
         var swift = ShipPurchase.Create(u, u.NewShipId(), "swift", u.ShipClasses["courier"].Slots, u.ShipModels["swift"].Fit, ShipRole.Player, Controller.Player, u.PlayerActor, stand, 0f);
         u.AddShip(swift);
         var limits = new AutoLimits(stand.Sector, 2, 0f, 0f);
         Assert.Null(Commands.Check(u, swift, new TaxiCommand(limits)));
-        // ohne Kabine gesperrt
-        var miner = u.ShipsById().First(s => s.IsPlayer && s.Id != swift.Id);
         var noCabin = ShipPurchase.Create(u, u.NewShipId(), "mule", u.ShipClasses["light_freighter"].Slots, u.ShipModels["mule"].Fit, ShipRole.Player, Controller.Player, u.PlayerActor, stand, 0f);
         u.AddShip(noCabin);
         Assert.Contains("Passagierkabine", Commands.Check(u, noCabin, new TaxiCommand(limits)));
-        _ = miner;
         Assert.True(Commands.Give(u, swift, new TaxiCommand(limits), out var gm, ignoreCapacity: true), gm);
-        float w0 = u.Player.Treasury.Credits, fares = 0f, upkeep = 0f;
+        float fares = 0f, paid = 0f, reserved = 0f;
         int trips = 0;
+        var fleetMissions = new HashSet<int>();
         u.Events.Raised += e =>
         {
             if (e is PassengerFarePaid p && p.Ship == swift.Id) { fares += p.Fare; trips++; }
+            if (e is MissionAccepted ma && u.Missions.FirstOrDefault(m => m.Id == ma.Mission) is { } mm && MissionRules.IsFleet(mm)) { fleetMissions.Add(mm.Id); reserved += mm.Reserved; }
+            if (e is MissionPaid mp && fleetMissions.Contains(mp.Mission)) paid += mp.Amount;
         };
-        new SimulationRunner().Run(u, 6000);
-        Assert.True(trips >= 2, $"Fahrten {trips}");
-        Assert.True(fares > 0f);
+        new SimulationRunner().Run(u, 12000);
+        Assert.True(trips >= 1, $"Fahrten {trips}");
+        Assert.Equal(paid, fares, 1);                  // Fahrgeld = ausgezahlte Auftragslöhne, kein neues Geld
+        Assert.True(paid <= reserved + 0.5f);           // nie mehr als bei der Annahme aus der Kasse des Auftraggebers reserviert
         Assert.IsType<TaxiCommand>(swift.Command);
-        _ = upkeep; _ = w0;
-        // Speichern mitten in der Fahrt → bitgleich
+        Assert.Equal(0, MissionRules.ActiveCount(u));   // Flottenaufträge zählen nicht gegen die Höchstzahl des Spielers
         var (v, _) = SaveGameJson.Read(SaveGameJson.Write(u, Now));
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(v));
         Assert.Equal(swift.Command, v.Ships[swift.Id].Command);
         new SimulationRunner().Run(u, 400);
         new SimulationRunner().Run(v, 400);
         Assert.Equal(UniverseHash.Compute(u), UniverseHash.Compute(v));
+    }
+
+    [Fact]
+    public void Taxi_PingPongZwischenNahenStaenden_VerdientHoechstensDieAngebote()
+    {
+        // zwei Stände im selben Sektor, Umkreis 0: das Taxi darf nur, was die Fahrgastangebote dieser Stände hergeben (Mindeststrecke, Budget)
+        var u = World();
+        var sector = u.Sectors.Values.Where(s => u.StationsById().Count(st => st.Sector == s.Id && TaxiExecutor.IsStand(u, st)) >= 2).OrderBy(s => s.Id.Value).First();
+        var stands = u.StationsById().Where(st => st.Sector == sector.Id && TaxiExecutor.IsStand(u, st)).ToList();
+        var ships = new List<Ship>();
+        for (int i = 0; i < 3; i++)
+        {
+            var cabin = u.Modules["passenger_cabin_m"];
+            var s = ShipPurchase.Create(u, u.NewShipId(), "mule", u.ShipClasses["light_freighter"].Slots, u.ShipModels["mule"].Fit, ShipRole.Player, Controller.Player, u.PlayerActor, stands[0], 0f);
+            s.Slots.Add(new ClassSlot { Type = cabin.Slot, Size = cabin.Size }); s.Fit.Add(cabin.Key);
+            u.AddShip(s); s.RecomputeStats(u);
+            Assert.True(Commands.Give(u, s, new TaxiCommand(new AutoLimits(sector.Id, 0, 0f, 0f)), out var gm, ignoreCapacity: true), gm);
+            ships.Add(s);
+        }
+        var ids = ships.Select(s => s.Id).ToHashSet();
+        var standIds = stands.Select(s => s.Id).ToHashSet();
+        float fares = 0f, offered = 0f;
+        u.Events.Raised += e =>
+        {
+            if (e is PassengerFarePaid p && ids.Contains(p.Ship)) fares += p.Fare;
+            if (e is MissionOffered mo && mo.Type == PassengerMission.KeyId && u.MissionOffers.FirstOrDefault(o => o.Id == mo.Offer) is { } o && standIds.Contains(o.At)
+                && int.TryParse(o.Args["target"], out var tv) && u.Stations[new StationId(tv)].Sector == sector.Id) offered += o.Reward;
+        };
+        new SimulationRunner().Run(u, 20000);
+        Assert.True(fares <= offered + 0.5f, $"Fahrgeld {fares} ≤ angeboten {offered}");
+        // die Mindeststrecke verbietet Kurzstrecken: nur Ziele weiter als passengerMinDistance
+        Assert.All(u.MissionOffers.Where(o => o.Type == PassengerMission.KeyId), o =>
+        {
+            var at = u.Stations[o.At]; var to = u.Stations[new StationId(int.Parse(o.Args["target"]))];
+            Assert.True(at.Sector != to.Sector || Vec2.Distance(at.Position, to.Position) >= u.Rules.PassengerMinDistance);
+        });
     }
 }

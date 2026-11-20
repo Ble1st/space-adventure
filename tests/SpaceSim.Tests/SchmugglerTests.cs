@@ -211,6 +211,9 @@ public class SchmugglerTests
         var ship = BuySmuggler(u, firm);
         Assert.True(u.Rules.SmugglerRetireCredits > 0f);
         ship.Credits = 100f;
+        ship.IdleSince = u.Tick;
+        Assert.False(SmugglerSystem.ShouldRetire(u, ship));   // erst nach der Leerlaufzeit (die Firma kann aufstocken)
+        u.Tick += Math.Min(u.Rules.SmugglerRetireIdleTicks, u.Rules.ShipBankruptTicks / 2);
         Assert.True(SmugglerSystem.ShouldRetire(u, ship));
         float firmMoney = u.Ships.Values.Where(s => s.Owner == firm.Id && s.Id != ship.Id).Sum(s => s.Credits) + firm.Treasury.Credits;
         var retired = new List<SmugglerRetired>(); var departed = new List<ShipDeparted>();
@@ -223,11 +226,12 @@ public class SchmugglerTests
         float after = u.Ships.Values.Where(s => s.Owner == firm.Id).Sum(s => s.Credits) + firm.Treasury.Credits;
         Assert.Equal(firmMoney + r0.Sale + r0.Cash, after, 1);
         Assert.Equal(Math.Max(1L, u.Tick), firm.LastSmugglerRetireTick);
-        u.Tick += u.Rules.SmugglerBuyCooldownTicks + 1;
+        firm.LastSmugglerTick = 0;   // die Kauf-Abklingzeit ist hier kein Thema
+        u.Tick += u.Rules.SmugglerRetireBlockTicks - 1;
         Assert.Null(SmugglerSystem.Purchase(u));   // Sperre nach dem Verkauf
         // mit Fracht oder unterwegs wird nicht verkauft
         var other = BuySmugglerAfter(u, firm);
-        other.Credits = 100f; other.Cargo[u.FindGood("food")!.Id] = 5f;
+        other.Credits = 100f; other.IdleSince = 0; other.Cargo[u.FindGood("food")!.Id] = 5f;
         Assert.False(SmugglerSystem.ShouldRetire(u, other));
     }
 

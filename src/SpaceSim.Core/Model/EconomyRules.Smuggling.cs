@@ -29,6 +29,10 @@ public sealed partial class EconomyRules
     /// pleite zu gehen; das Geld geht an die Firma. 0 = aus (alte Regel: Pleite nach <see cref="ShipBankruptTicks"/>).
     /// </summary>
     public float SmugglerRetireCredits;
+    /// <summary>Ohne Schmuggelfahrt fahren Schmuggler gewöhnliche Handelsrunden (Tarnhandel) statt zu warten.</summary>
+    public bool SmugglerCoverTrade;
+    /// <summary>Verkauft wird erst nach so vielen untätigen Ticks (die Firma kann das Schiff vorher aufstocken).</summary>
+    public int SmugglerRetireIdleTicks = 2000;
     /// <summary>Je Schmuggler auf der Karte müssen in den Verstecken so viel Hehlerware (Basiswert) liegen, sonst kauft keine Firma einen weiteren (0 = aus).</summary>
     public float SmugglerFenceValuePerShip;
     /// <summary>Nach dem Verkauf eines Schmugglers kauft dieselbe Firma so lange keinen neuen (0 = nur die normale Abklingzeit).</summary>
@@ -85,8 +89,10 @@ public sealed partial class EconomyRules
     public bool MissionPassengers;
     /// <summary>Chance je Station und Angebotstakt.</summary>
     public float MissionPassengerChance = 0.7f;
-    /// <summary>Grundlohn je Fahrgast.</summary>
-    public float PassengerBaseFare = 60f;
+    /// <summary>Grundlohn je Fahrgast (klein: der Lohn wächst mit der Flugzeit).</summary>
+    public float PassengerBaseFare = 20f;
+    /// <summary>Mindestabstand des Fahrgastziels: anderer Sektor oder mindestens so weit (Einheiten) — keine Kurzstrecken.</summary>
+    public float PassengerMinDistance = 500f;
     /// <summary>Lohn je Fahrgast und geschätzter Flugminute.</summary>
     public float PassengerFarePerMinute = 25f;
     /// <summary>Eilfahrt: Frist = Flugzeit × dieser Faktor (statt mindestens 2×), Lohn × <see cref="PassengerRushFactor"/>.</summary>
@@ -107,7 +113,6 @@ public sealed partial class EconomyRules
     public float PassengerLossStanding = 0.05f;
     /// <summary>Flottenbefehl „Taxi fahren“ (eigene Schiffe mit Passagierkabine fahren automatisch Fahrgäste).</summary>
     public bool PassengerTaxi;
-    /// <summary>Fahrgeld des Flottentaxis je Platz und geschätzter Flugminute (Geld der Fahrgäste, kommt neu in die Welt) und Grundpreis je Platz.</summary>
-    public float TaxiFarePerSeatMinute = 12f;
-    public float TaxiFareBase = 20f;
+    /// <summary>Taxi: so viele Ticks wartet ein Flottentaxi an einem Stand ohne passendes Angebot, bevor es neu sucht.</summary>
+    public int TaxiIdleTicks = 200;
 }

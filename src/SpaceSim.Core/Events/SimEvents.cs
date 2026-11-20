@@ -465,7 +465,7 @@ public sealed record SmugglerTraded(ShipId Ship, StationId Station, GoodId Good,
 public sealed record SmugglerCaught(ShipId Ship, ActorId Owner, FactionId Faction, SectorId Sector, float Units, float CargoValue, float Fine) : SimEvent;
 /// <summary>Ausbau Punkte 10/14: Kontrolle hat Schmuggelware oder einen gesuchten Fahrgast des Spielers gefunden (Auftrag gescheitert, Verbrechen).</summary>
 public sealed record MissionContrabandFound(int Mission, ShipId Ship, FactionId Faction, SectorId Sector, string Where) : SimEvent;
-/// <summary>Ausbau Punkt 14: Flottentaxi hat Fahrgäste abgeliefert (Fahrgeld an die Spielerkasse).</summary>
+/// <summary>Ausbau Punkt 14: Flottentaxi hat einen Fahrgastauftrag abgeliefert (Lohn aus der Reservierung des Auftraggebers an die Spielerkasse).</summary>
 public sealed record PassengerFarePaid(ShipId Ship, StationId From, StationId To, int Passengers, float Fare) : SimEvent;
 /// <summary>Ausbau Punkt 14: Treffer am Schiff mit Fahrgästen — Trinkgeld sinkt (Betrag zurück an die Auftraggeber-Kasse).</summary>
 public sealed record PassengerTipLost(int Mission, ShipId Ship, float Amount) : SimEvent;

@@ -48,6 +48,7 @@ public sealed class PassengerMission : IMissionType
         bool state = u.FactionOf(st.Owner) is { } own && u.IsNpcFaction(own);
         string kind = roll < 0.6f ? "normal" : roll < 0.75f ? "rush" : roll < 0.85f ? "vip" : roll < 0.93f ? (state ? "normal" : "refugee") : (state ? "diplomat" : "normal");
         var targets = u.StationsById().Where(s => s.Id != st.Id && s.Dockable && !s.IsBuildSite && u.IsReachable(st.Sector, s.Sector)
+            && (s.Sector != st.Sector || Vec2.Distance(s.Position, st.Position) >= r.PassengerMinDistance)   // keine Kurzstrecken
             && (kind != "diplomat" || (u.FactionOf(s) is { } tf && u.IsNpcFaction(tf) && tf != u.FactionOf(st.Owner)))).ToList();
         if (targets.Count == 0) return null;
         var target = targets[MissionRng.NextInt(rng, targets.Count)];
@@ -185,6 +186,7 @@ public sealed class PassengerMission : IMissionType
             if (u.FactionOf(m.Client) is { } a && u.IsNpcFaction(a)) PlayerStanding.Change(u, a, u.Rules.PassengerDiplomatStanding, "diplomat");
             if (u.FactionOf(st) is { } b && u.IsNpcFaction(b) && u.FactionOf(m.Client) != b) PlayerStanding.Change(u, b, u.Rules.PassengerDiplomatStanding, "diplomat");
         }
+        if (MissionRules.IsFleet(m)) u.Events.Publish(new PassengerFarePaid(ship.Id, m.At, st.Id, PaxOf(m), m.Reserved));   // Flottentaxi: Lohn aus dem Auftrag
         MissionRules.Complete(u, m);
     }
 }

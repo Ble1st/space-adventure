@@ -329,6 +329,9 @@ Bekannte Schwächen: Ein Schiffsangriff endet, sobald das Ziel den Sektor verlä
   beiden). Annahme braucht freie Plätze (laufende Fahrgastaufträge belegen sie). Im Lohn steckt ein Trinkgeld (25 %); jeder Hüllentreffer kostet ein Viertel
   davon — der Betrag geht an den Auftraggeber zurück (`PassengerTipLost`). Schiff verloren: gescheitert + zusätzlich −0,05 Ansehen. Ablieferung durch Andocken.
 - **Flottenbefehl „Taxi fahren“** (`TaxiCommand`, Ausführer `TaxiExecutor`, Schalter `passengerTaxi`): eigenes Schiff mit Kabine; Umkreis wie die
-  Handelsautomatik. Am Stand nimmt es so viele Fahrgäste wie Plätze, wählt das Ziel mit dem besten Fahrgeld je geschätzter Reisezeit und kassiert bei Ankunft
-  Plätze × (20 + 12 je Flugminute) — Geld der Fahrgäste, neu in der Welt, nur für die Spielerflotte. Ohne Kabine ist die Taste gesperrt. Gespeichert additiv im
-  Befehl (Ziel, Abfahrt, Fahrgäste).
+  Handelsautomatik. Das Taxi fährt die **echte Fahrgastnachfrage**: es nimmt an Ständen im Umkreis die vorhandenen Fahrgast-Angebote an (Annahme als
+  Flottenauftrag, `MissionRules.Accept(…, fleet: true)` — Missions-RNG, feste Zahl je Angebotstakt, Lohn aus Tagesbudget und verfügbarem Geld des
+  Auftraggebers reserviert, keine Flüchtlinge) und liefert durch Andocken am Ziel ab. Kein neues Geld, kein Grundpreis je Sprung; Fahrgastziele haben
+  eine Mindeststrecke (`passengerMinDistance` 500 oder anderer Sektor), der Grundlohn je Fahrgast ist 20 (der Rest wächst mit der Flugzeit).
+  Flottenaufträge zählen nicht gegen die Höchstzahl laufender Aufträge des Spielers. Erste Fassung (Fahrgeld als neues Geld, Grundpreis 20 je Platz,
+  Ziel nach Fahrgeld je Zeit) brachte im Pendel zwischen zwei nahen Ständen 300–500 Cr/min je 6-Platz-Schiff — verworfen.

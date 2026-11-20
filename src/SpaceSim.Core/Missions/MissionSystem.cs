@@ -52,7 +52,10 @@ public static class MissionRules
         Math.Min(u.Rules.MissionMaxActiveCap, u.Rules.MissionMaxActive + (int)Commands.CapacityClass(u, u.PlayerActor));
 
     /// <summary>Zahl der aktiven Aufträge.</summary>
-    public static int ActiveCount(Universe u) => u.Missions.Count(m => m.State == MissionState.Active);
+    public static int ActiveCount(Universe u) => u.Missions.Count(m => m.State == MissionState.Active && !IsFleet(m));
+
+    /// <summary>Ausbau Punkt 14: Fahrgastauftrag, den ein Flottenschiff mit „Taxi fahren“ angenommen hat (zählt nicht gegen die Höchstzahl des Spielers).</summary>
+    public static bool IsFleet(Mission m) => m.Args.GetValueOrDefault("fleet") == "1";
 
     /// <summary>Erzeugt das Angebots-Tagesbudget mit (Reservierung schreibt erst bei Annahme).</summary>
     static void BumpSpent(Universe u, int clientActor, float amount)
@@ -69,10 +72,16 @@ public static class MissionRules
     /// Sperrgrund der Annahme eines Angebots (rein — keine Zustandsänderung), null = möglich. Dock: <paramref name="remote"/> false =
     /// Schiff muss an der Angebots-Station angedockt sein; Comms: remote.
     /// </summary>
-    public static string? AcceptIssue(Universe u, int offerId, Ship ship, bool remote)
+    public static string? AcceptIssue(Universe u, int offerId, Ship ship, bool remote) => AcceptIssue(u, offerId, ship, remote, fleet: false);
+
+    /// <summary>
+    /// Ausbau Punkt 14: <paramref name="fleet"/> = ein eigenes Flottenschiff nimmt an (Flottenbefehl „Taxi fahren“): nicht das aktive Schiff, angedockt an der
+    /// Angebots-Station, sonst dieselben Prüfungen (Budget, verfügbares Geld des Auftraggebers, Art) — außer der Höchstzahl laufender Aufträge des Spielers.
+    /// </summary>
+    public static string? AcceptIssue(Universe u, int offerId, Ship ship, bool remote, bool fleet)
     {
         if (!u.Rules.MissionsActive) return "Aufträge sind abgeschaltet.";
-        if (ship.Id != u.PlayerShip) return "Nur mit dem aktiven Schiff.";
+        if (fleet ? !ship.IsPlayer || ship.Id == u.PlayerShip : ship.Id != u.PlayerShip) return fleet ? "Nur für Flottenschiffe." : "Nur mit dem aktiven Schiff.";
         var offer = u.MissionOffers.FirstOrDefault(o => o.Id == offerId);
         if (offer is null) return "Angebot unbekannt.";
         if (offer.Expires > 0 && u.Tick >= offer.Expires) return "Angebot abgelaufen.";
@@ -82,7 +91,7 @@ public static class MissionRules
         if (Forbidden(u, offer.Client)) return "Kein Auftrag im Krieg oder bei Fahndung.";
         if (Blocked(u, offer.Client.Value)) return "Der Auftraggeber vergibt derzeit keine Aufträge.";
         int active = ActiveCount(u);
-        if (active >= MaxActive(u)) return $"Zu viele laufende Aufträge ({active}/{MaxActive(u)}).";
+        if (!fleet && active >= MaxActive(u)) return $"Zu viele laufende Aufträge ({active}/{MaxActive(u)}).";
         // Pfand: Kasse des Spielers reicht?
         if (offer.Deposit > 0f && u.WalletOf(ship).Credits < offer.Deposit - 0.0001f) return $"Kasse reicht nicht für das Pfand ({offer.Deposit:0} Cr).";
         // Belohnung: Budget und Spendable der Auftraggeber-Kasse
@@ -101,9 +110,9 @@ public static class MissionRules
     /// Liefert den Auftrag oder den Sperrgrund (gleiche Prüfung wie <see cref="AcceptIssue"/>). Reserviert die Belohnung aus
     /// <see cref="FactionViability.Spendable"/> der Auftraggeber-Kasse und hält das Pfand von der Spielerkasse.
     /// </summary>
-    public static (Mission? Mission, string? Issue) Accept(Universe u, int offerId, Ship ship, bool remote)
+    public static (Mission? Mission, string? Issue) Accept(Universe u, int offerId, Ship ship, bool remote, bool fleet = false)
     {
-        if (AcceptIssue(u, offerId, ship, remote) is { } issue) return (null, issue);
+        if (AcceptIssue(u, offerId, ship, remote, fleet) is { } issue) return (null, issue);
         var offer = u.MissionOffers.First(o => o.Id == offerId);
         var type = Types.Get(offer.Type)!;
         var client = u.Actors[offer.Client];
@@ -117,6 +126,7 @@ public static class MissionRules
             BumpSpent(u, offer.Client.Value, reward);
         }
         var m = type.Accept(u, offer, ship, remote);
+        if (fleet) m.Args["fleet"] = "1";
         m.Id = u.NextMissionId++;
         m.Reserved = reward;
         m.Deposit = offer.Deposit;
