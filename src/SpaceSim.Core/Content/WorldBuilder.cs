@@ -227,6 +227,7 @@ public static class WorldBuilder
                 if (!u.Factions.ContainsKey(new FactionId(other)) || other == f.Id) throw new WorldFormatException($"Fraktion '{f.Name}': Beziehung zu unbekannter Fraktion {other}");
                 u.Factions[new FactionId(f.Id)].Relations[new FactionId(other)] = Math.Clamp(v, -1f, 1f);
             }
+        }
 
         // Phase 11: Akteure ohne Fraktion (Piraten) mit Schlüssel; Ids fortlaufend nach Freien und Spieler
         var actorByKey = new Dictionary<string, ActorId>(StringComparer.Ordinal);
