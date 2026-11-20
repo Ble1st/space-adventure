@@ -170,6 +170,9 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			At(det, Text(TestCrimeStanding, 12, Orange), 252, ry + 38, 326, 16);
 		}
 		else if (TestAlliance.Length > 0) At(det, Text(TestAlliance, 12, allies.Count > 0 ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 560, 16);
+		// Ausbau Punkt 9: Firmensitz einer KI-Firma (Firmenkasse) — Firmen haben keine Bündniszeile, der Platz ist frei
+		TestFirmSeat = !isFaction && !isFree ? (FirmSeats.Text(u, sel) is { Length: > 0 } fs ? fs : "kein Firmensitz") : "";
+		if (TestFirmSeat.Length > 0) At(det, Text(TestFirmSeat, 12, TestFirmSeat.StartsWith("Firmensitz", System.StringComparison.Ordinal) ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 560, 16);
 
 		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte). Runde 38: die eigene Fraktion hat keine (der Spieler entscheidet selbst)
 		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 194, 280, 22);
@@ -181,6 +184,11 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			var hq = PlayerHq.Current(u);
 			TestHq = hq is null ? "kein Hauptquartier" : $"Hauptquartier: {hq.Name} ({u.Sectors[hq.Sector].Name})";
 			float hy = WrappedText(det, TestHq + ".", 18, py, 320, 13, hq is null ? new Color(Dim, 0.9f) : Green, 18);
+			// Ausbau Punkt 9: eigener Firmensitz (Befehlsstufe, Fehden) und Büros
+			string fseat = FirmSeats.Text(u, sel);
+			int offices = Offices.Of(u, sel).Count;
+			TestFirmSeat = (fseat.Length > 0 ? fseat : "kein Firmensitz") + (offices > 0 ? $" · {offices} Büro{(offices == 1 ? "" : "s")}" : "");
+			hy = WrappedText(det, TestFirmSeat + ".", 18, hy + 2, 320, 13, fseat.Length > 0 ? Green : new Color(Dim, 0.9f), 18);
 			WrappedText(det, "Du entscheidest selbst. Beziehungen ändern sich nur durch deine Handlungen (Krieg, später Aufträge und Diplomatie).", 18, hy + 4, 320, 13, new Color(Dim, 0.9f), 18);
 		}
 		foreach (var (name, v) in isMe ? Array.Empty<(string, float)>() : new[] { ("Aggression", p.Aggression), ("Gier", p.Greed), ("Kooperation", p.Cooperation), ("Gesetzestreue", p.Lawfulness) })
@@ -293,6 +301,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	public string TestAlliance { get; private set; } = "";
 	/// <summary>Eigenes Hauptquartier, Selbsttest: HQ-Zeile im Detail der eigenen Fraktion.</summary>
 	public string TestHq { get; private set; } = "";
+	/// <summary>Ausbau Punkt 9, Selbsttest: Firmensitz-Zeile (KI-Firma oder eigene Fraktion).</summary>
+	public string TestFirmSeat { get; private set; } = "";
 	/// <summary>Spielersperre (Selbsttest): Ansehenszeile der gewählten Fraktion („Ansehen −0,35 durch Angriff …“) oder leer.</summary>
 	public string TestCrimeStanding { get; private set; } = "";
 	/// <summary>Selbsttest Phase 28: Kriegslage der gewählten Fraktion („Frieden“ / „Krieg mit …“).</summary>

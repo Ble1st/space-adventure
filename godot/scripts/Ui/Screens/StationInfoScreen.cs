@@ -28,6 +28,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestSecurity { get; private set; } = "";
 	/// <summary>Selbsttest: zuletzt gezeigte Exportzeile (Phase 14; leer ohne Exportsenke).</summary>
 	public string TestBlackMarket = "";
+	/// <summary>Ausbau Punkt 9, Selbsttest: Zeile zu Firmensitz oder Büro ("" = keins).</summary>
+	public string TestSeatOffice = "";
 	/// <summary>Ausbau Punkt 8: Zustandszeile (Selbsttest).</summary>
 	public string TestWear = "";
 	public string TestExport { get; private set; } = "";
@@ -230,6 +232,9 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		// Schwarzmarkt: Hehler im Versteck (reine Core-Anzeige BlackMarket.InfoLine)
 		TestBlackMarket = SpaceSim.Core.Trading.BlackMarket.InfoLine(u, st) ?? "";
 		if (TestBlackMarket.Length > 0) Wrapped(v3, TestBlackMarket, tw, 15, Orange);
+		// Ausbau Punkt 9: Firmensitz (Firmenkasse) und Büro (Außenstelle; Schutzverträge folgen mit Punkt 3) — reine Core-Anzeige
+		TestSeatOffice = FirmSeats.InfoLine(u, st) ?? "";
+		if (TestSeatOffice.Length > 0) Wrapped(v3, TestSeatOffice, tw, 15, Cyan);
 		v3.AddChild(Text("Hinweise", 16, Dim));
 		foreach (var note in pol.Notes) Wrapped(v3, "· " + note, tw, 14, new Color(Dim, 0.95f));
 		// Prüfung Runde 2: die Dienste stehen in der Hinweis-Karte (viel Platz) — in „Allgemein“ war die unterste Chip-Reihe angeschnitten

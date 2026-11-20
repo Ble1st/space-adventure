@@ -81,6 +81,13 @@ if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulatio
 if (opts.TryGetValue("navy", out var navyOpt)) u.Rules.NavalBattles = u.Rules.WarDefense = u.Rules.WarEscorts = navyOpt == "on";
 // Ausbau Punkt 8: --wear off = kein Stationsverschleiß (alte Regel); Nachtrag 2b: --navycool off = keine Abkühlzeit, Rücklage ohne kämpfende Schiffe
 if (opts.TryGetValue("wear", out var wearOpt)) u.Rules.StationWear = wearOpt == "on";
+// Ausbau Punkt 9: --firmseats off = keine Firmensitze und keine KI-Büros (alte Regel)
+if (opts.TryGetValue("firmseats", out var fsOpt)) { u.Rules.FirmSeats = fsOpt == "on"; u.Rules.Offices = fsOpt == "on"; }
+if (opts.TryGetValue("firmclass", out var fclOpt)) u.Rules.FirmSeatMinClass = int.Parse(fclOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("firmcost", out var fcoOpt)) u.Rules.FirmSeatCostShare = float.Parse(fcoOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("firmupkeep", out var fuOpt)) u.Rules.FirmSeatUpkeepShare = float.Parse(fuOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("firmskim", out var fskOpt)) u.Rules.FirmSkimShare = float.Parse(fskOpt, CultureInfo.InvariantCulture);
+if (opts.TryGetValue("officetrade", out var otOpt)) u.Rules.OfficeMinTrade = int.Parse(otOpt, CultureInfo.InvariantCulture);
 // Messknöpfe des Verschleißes (Gebot, Wunschbestand in Tagen, Reparaturmaterial je Punkt)
 if (opts.TryGetValue("wearbid", out var wbOpt)) u.Rules.WearMaxBidFactor = float.Parse(wbOpt, System.Globalization.CultureInfo.InvariantCulture);
 if (opts.TryGetValue("weardays", out var wdOpt)) u.Rules.WearStockDays = float.Parse(wdOpt, System.Globalization.CultureInfo.InvariantCulture);
@@ -588,10 +595,20 @@ u.Events.Raised += e =>
 double maintPaid = 0, maintUnpaid = 0, subsidyPaid = 0, retiredCredits = 0; int subsidies = 0, retired = 0;
 double wearRepairValue = 0, wearRepairPoints = 0, wearMeanSum = 0, wearEmergencyCost = 0; int wearEmergencies = 0; int wearSlowEvents = 0, wearStopEvents = 0, wearSamples = 0, wearSlowMax = 0, wearStopMax = 0;   // Ausbau Punkt 8
 var subsidized = new SortedDictionary<int, float>();
+int seatsFounded = 0, seatsLost = 0, officesFounded = 0, officesClosed = 0, firmShipBuys = 0; double firmSkim = 0, firmTopUp = 0, firmShipSpent = 0, firmStationSpent = 0;   // Ausbau Punkt 9
+var seatLog = new List<string>();
 u.Events.Raised += e =>
 {
     switch (e)
     {
+        case CompanySeatFounded cf: seatsFounded++; if (seatLog.Count < 8) seatLog.Add($"{u.Tick} {u.ActorName(cf.Owner)} in {u.Sectors[cf.Sector].Name}"); break;
+        case CompanySeatLost cl: seatsLost++; if (seatLog.Count < 12) seatLog.Add($"{u.Tick} verloren ({cl.Reason})"); break;
+        case OfficeFounded of: officesFounded++; if (seatLog.Count < 16) seatLog.Add($"{u.Tick} Büro {u.ActorName(of.Owner)} in {u.Sectors[of.Sector].Name}"); break;
+        case OfficeClosed oc: officesClosed++; break;
+        case TreasuryIncome { Purpose: "firm_skim" } fk: firmSkim += fk.Amount; break;
+        case TreasuryUpkeep { Purpose: "firm_capital" } fcap: firmTopUp += fcap.Amount; break;
+        case InvestorChosen { Source: InvestorSource.Treasury } ic when u.Actors.TryGetValue(ic.Holder, out var ia) && FirmSeats.IsFirm(u, ia):
+            if (ic.Purpose == "ship") { firmShipBuys++; firmShipSpent += ic.Amount; } else firmStationSpent += ic.Amount; break;
         case TreasuryUpkeep { Purpose: "maintenance" } mu: maintPaid += mu.Amount; maintUnpaid += mu.Unpaid; break;
         case TreasuryUpkeep { Purpose: "subsidy" } su: subsidyPaid += su.Amount; break;
         case ShipRetired sr: retired++; retiredCredits += sr.Credits; break;
@@ -1051,6 +1068,19 @@ if (u.Modules.Count > 0)
             + $"Reparatur {wearRepairPoints * 100:0} Zustandspunkte, Material {wearRepairValue:0} Cr (= zusätzliche Instandhaltungsnachfrage {(maintPaid + maintUnpaid > 0 ? 100 * wearRepairValue / (maintPaid + maintUnpaid) : 0):0.0} %); "
             + $"Notinstandhaltung {wearEmergencies}× für {wearEmergencyCost:0} Cr (Geldsenke)"
             + (maintained.Any(x => x.Integrity < 1f) ? "; schlechteste: " + string.Join(", ", maintained.Where(x => x.Integrity < 1f).OrderBy(x => x.Integrity).ThenBy(x => x.Id.Value).Take(5).Select(x => $"{x.Name} {x.Integrity * 100:0} % ({Maintenance.StatusText(u, x)})")) : ""));
+    }
+    {   // Ausbau Punkt 9
+        var firms = u.Actors.Values.Where(a => FirmSeats.IsFirm(u, a)).ToList();
+        var idx = ActorRules.Index(u);
+        int firmClass = firms.Count(a => (int)ActorRules.ClassOf(u, idx, a.Id) >= u.Rules.FirmSeatMinClass);
+        var big = firms.OrderByDescending(a => ActorRules.Size(u.Rules, idx.GetValueOrDefault(a.Id))).FirstOrDefault();
+        if (big is not null) Console.WriteLine($"  größte Firma: {big.Name} {idx[big.Id].Ships} Schiffe, Größe {ActorRules.Size(u.Rules, idx[big.Id]):0.0}, verfügbar {FirmSeats.Liquid(u, big):0} Cr; "
+            + $"verfügbar Ø {(firms.Count > 0 ? firms.Average(a => FirmSeats.Liquid(u, a)) : 0):0} Cr, höchstens {(firms.Count > 0 ? firms.Max(a => FirmSeats.Liquid(u, a)) : 0):0} Cr");
+        int seatsNow = u.Stations.Values.Count(x => FirmSeats.IsSeat(u, x)), officesNow = u.Stations.Values.Count(x => Offices.IsOffice(u, x));
+        Console.WriteLine($"Firmensitze und Büros (Punkt 9): Firmen {firms.Count} (ab Mindestklasse {firmClass}), Sitze jetzt {seatsNow} (gegründet {seatsFounded}, verloren {seatsLost}), "
+            + $"Büros jetzt {officesNow} (gegründet {officesFounded}, geschlossen {officesClosed}); abgeschöpft {firmSkim:0} Cr, an arme Firmenschiffe zurück {firmTopUp:0} Cr, Firmenkassen jetzt {firms.Sum(a => a.Treasury.Credits):0} Cr; "
+            + $"aus Firmenkassen: {firmShipBuys} Schiffe für {firmShipSpent:0} Cr, Stationen {firmStationSpent:0} Cr"
+            + (seatLog.Count > 0 ? " — " + string.Join("; ", seatLog) : ""));
     }
     Console.WriteLine("Kassenanteil an der Geldmenge: " + string.Join(", ", history.Where(h => h.Tick > 0).Select(h => $"{h.Tick} {(h.TotalCredits > 0 ? 100.0 * h.TreasuryCredits / h.TotalCredits : 0):0}%")));
     var actors = snap.Actors ?? Array.Empty<ActorStat>();

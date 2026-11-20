@@ -160,6 +160,7 @@ public sealed class ViabilityModule : ISimModule
     public string Name => "Viability";
     public void Register(SimulationBuilder b) =>
         b.Add(new ProfitabilitySystem(), ProfitabilitySystem.Interval).Add(new FirmCapitalSystem(), interval: 50)
+         .Add(new FirmSeatSystem(), FirmSeatSystem.Interval)   // Ausbau Punkt 9: Firmensitze (Gründung, Abschöpfung in die Firmenkasse, Rückstand)
          .Add(new FactionViabilitySystem(), FactionViabilitySystem.Interval);
 }
 
@@ -175,6 +176,7 @@ public sealed class PoliticsModule : ISimModule
         b.Add(new SectorControlSystem(), interval: 50).Add(new FactionPolicySystem(), interval: 20)
          .Add(new WarSystem(), WarSystem.Interval)   // Phase 28: Krieg und Frieden
          .Add(new AllianceSystem(), AllianceSystem.Interval)   // Runde 45: Bündnisse
+         .Add(new OfficeSystem(), OfficeSystem.Interval)       // Ausbau Punkt 9: Büros (Gründung, Schließen ohne Zustimmung)
          .Add(new SpaceSim.Core.Comms.CommsSystem(), SpaceSim.Core.Comms.CommsSystem.Interval);   // Runde 40: Posteingang aus Ereignissen
 }
 

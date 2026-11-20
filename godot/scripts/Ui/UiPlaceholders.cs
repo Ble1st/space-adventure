@@ -38,16 +38,5 @@ public static class UiPlaceholders
 	// Phase 9: Größe, Fortschritt, Mitgliedschaft, Beziehungen und Persönlichkeit sind echt (Akteure im Core); hier bleibt der Rest.
 
 	// Runde 38: „Einnahmen/Tag“ ist echt (PlayerIncome aus Ereignissen), Beitreten/Gründen entfallen (der Spieler ist von Anbeginn eine eigene Fraktion).
-	/// <summary>
-	/// Fähigkeiten mit Schloss nach Größenstufe (Platzhalter). Runde 38: Büro, Fehde und Firmensitz erscheinen erst, wenn der Spieler eine Station besitzt
-	/// (<paramref name="hasStations"/>) — vorher kein „Bald“ für Dinge ohne Grundlage; „Zoll und Sperren“ bleibt mit Schloss, bis der Spieler einen Sektor dominiert.
-	/// </summary>
-	public static (string Name, bool Unlocked, string Note)[] MyFactionAbilities(bool hasStations) => hasStations
-		? new[]
-		{
-			("Büro an eigener Station", false, "ab Kleinfirma – " + Soon),
-			("Fehde erklären", false, "ab Kleinfirma – " + Soon),
-			("Firmensitz", false, "ab Firma – " + Soon),
-		}
-		: System.Array.Empty<(string, bool, string)>();   // Runde 45: „Zoll und Sperren“ ist echt (MyFactionScreen, Sektorpolitik)
+	// Ausbau Punkt 9: Büro, Fehde und Firmensitz sind echt (MyFactionScreen, Fähigkeiten und Karte „Sektorpolitik“) — der Platzhalter entfällt.
 }

@@ -90,8 +90,9 @@ public class HandelsketteTests
             // Bausätze werden an der Werft selbst verbaut (Schiffskauf aus dem Werftlager) — ein fremder Abnehmer ist kein Muss
             // Treibstoff (seit „Treibstoff und Forschung dauerhaft an“ in der Standardwelt): Abnehmer sind die Tanks der Schiffe, nicht Stationsmärkte —
             // geprüft wird, dass Schiffe tatsächlich getankt haben
+            // Ausbau Punkt 9: Fusionsbrennstoff tanken nur KI-Schiffe mit Fusionsantrieb (pfadabhängig 0–1 in 20 000 Ticks) — ein Hersteller mit Lager genügt
             // Gasernte: Ionengas tanken nur Schiffe mit Ionentriebwerk (Gasschöpfer mit fast vollem Tank) — es reicht, dass es gehandelt wird (Regale der Raffinerien)
-            if (g.Category == "fuel") Assert.True(fuelBought.GetValueOrDefault(g.Id) > 0f || (g.Key != "propellant" && (r.Trips > 0 || u.Ships.Values.Any(s => s.FuelAmount(g.Id) > 0f))), $"{g.Name}: in 20000 Ticks nicht getankt");
+            if (g.Category == "fuel") Assert.True(fuelBought.GetValueOrDefault(g.Id) > 0f || (g.Key != "propellant" && (r.Trips > 0 || u.Ships.Values.Any(s => s.FuelAmount(g.Id) > 0f) || u.Stations.Values.Any(st => st.Produces(g.Id) && st.Market.TryGetValue(g.Id, out var fe) && fe.Amount > 0f))), $"{g.Name}: in 20000 Ticks nicht getankt");
             else if (g.Category is not "module" and not "kit") Assert.True(HasTaker(u, g.Id), $"{g.Name}: kein Abnehmer in der Welt");
             if (g.Category == "kit" && !HasTaker(u, g.Id)) findings.Add($"{g.Name}: kein Abnehmer außer der Werft selbst (wird dort verbaut)");
             // Befunde (kein Fehlschlag): Ware ohne Fahrten / ohne Verbrauch

@@ -39,7 +39,9 @@ public static class Commands
         var h = ActorRules.Index(u).GetValueOrDefault(actor);
         var r = u.Rules;
         float size = h.Ships * r.CommandShipWeight + h.Stations * r.ActorStationWeight + h.Sectors * r.ActorSectorWeight + MathF.Max(0f, h.Money) / MathF.Max(1f, r.ActorMoneyScale);
-        return ActorRules.ClassOf(r, size);
+        // Ausbau Punkt 9: ein eigener Firmensitz hebt die Befehlsstufe um FirmSeatCommandBonus Klassen (höchstens Staat)
+        int cls = Math.Min((int)ActorRules.ClassOf(r, size) + PlayerSeatsOffices.CommandBonus(u, actor), (int)ActorSizeClass.State);
+        return (ActorSizeClass)cls;
     }
 
     /// <summary>Runde 24: „1 Verband“/„3 Verbände“, „1 Schiff“/„4 Schiffe“.</summary>

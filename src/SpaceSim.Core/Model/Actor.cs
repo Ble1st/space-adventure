@@ -104,6 +104,10 @@ public sealed class Actor
     public long LastRestoreTick = -1_000_000;
     /// <summary>Phase 30: Tick der letzten aufgestellten Kleinstation (0 = nie; Abklingzeit). Gespeichert, gehasht wenn gesetzt.</summary>
     public long LastOutpostTick;
+    /// <summary>Ausbau Punkt 9: Tick der letzten Gründung eines Firmensitzes/Büros (0 = nie; Abklingzeit). Gespeichert, gehasht wenn gesetzt.</summary>
+    public long LastFoundTick;
+    /// <summary>Ausbau Punkt 9: seit diesem Tick trägt die Firmenkasse den Unterhalt ihres Sitzes nicht (−1 = bezahlt). Gespeichert, gehasht wenn gesetzt.</summary>
+    public long SeatArrearsSince = -1;
     /// <summary>Phase 28 (Prüfung Phase 27): bis zu diesem Tick kündigt die Polizei keine neue Festnahme an (nach Flucht, Ergeben oder Ende eines Polizeigefechts); 0 = keine Sperre.</summary>
     public long ArrestCooldownUntil;
     /// <summary>Spielersperre: durch Verbrechen verlorenes Ansehen je KI-Fraktion (nur beim Spielerakteur). Gespeichert, gehasht wenn vorhanden.</summary>

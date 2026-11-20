@@ -162,6 +162,9 @@ public sealed class ActorSave
     /// <summary>Phase 22 (additiv): letzter Notkauf zur Wiederherstellung des Mindestbestands.</summary>
     public long LastRestoreTick { get; set; } = -1_000_000;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastOutpostTick { get; set; }
+    /// <summary>Ausbau Punkt 9 (additiv): letzte Gründung (Sitz/Büro) und Unterhaltsrückstand des Firmensitzes seit; fehlt = nie / bezahlt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastFoundTick { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? SeatArrearsSince { get; set; }
     /// <summary>Phase 28 (additiv): Festnahme-Sperre bis zu diesem Tick; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ArrestCooldownUntil { get; set; }
     /// <summary>Spielersperre (additiv): durch Verbrechen verlorenes Ansehen je Fraktion; fehlt = keins.</summary>

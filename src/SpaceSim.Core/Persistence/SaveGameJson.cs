@@ -153,6 +153,7 @@ public static class SaveGameJson
             {
                 RemoveWhere(svc, n => (string?)n == "rearm");
                 if (AfterV17RepairTypes.Contains((string?)t["key"])) RemoveWhere(svc, n => (string?)n == "repair");   // Phase 26
+                if ((string?)t["key"] == "office") RemoveWhere(svc, n => (string?)n == "hangar");   // Ausbau Punkt 9: Büro bekam den Hangar nach v17
             }
             if (t["stocks"] is System.Text.Json.Nodes.JsonObject st2 && st2.Count == 0) t.AsObject().Remove("stocks");
             t.AsObject().Remove("defense");   // Phase 28: Stationsverteidigung kam nach v17

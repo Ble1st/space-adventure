@@ -358,3 +358,44 @@ Ein skeptischer Spielerbot (tools/SpaceSim.PlayerBot, Lauf `spielerbot2/lauf4`) 
 - **Größenklasse nach Kampfstärke** (`playerSizeByStrength`, `playerSizeStrengthRef` 20, Gewicht 0,25–4): Schiffe zählten je 1, ein Schwarm billiger Schürfer machte schnell einen „Staat“. Nach IP2 (Kampfwertung) zählt ein Spielerschiff jetzt Stärke ÷ 20 (Waffenleistung + Schild/20 + Hülle/50 + 0,5): Schürfer ¼, Händler mit Laser ≈ 0,4, Wächter ≈ 1,2, Zerstörer ≈ 3,1, Schlachtkreuzer 4. Schwellen unverändert; 30 Schürfer sind jetzt eine Firma statt eines Staats. Nur der Spieler (KI-Akteure unverändert); die Befehlsstufe (Runde 24) rechnet weiter mit `commandShipWeight`.
 - **Tribut fordern erst nach echten Verlusten** (`tributeDemandNeedsLosses`): Die KI zahlte Tribut ohne jeden Kampf (Kriegsmüdigkeit entsteht auch aus der Dauer). Jetzt muss der Gegner im Krieg mit dem Spieler etwas verloren haben — ein im Gefecht zerstörtes Schiff (`War.ShipsLostA/B`, gezählt nur in Kriegen mit der Spielerfraktion) oder eine Station/ein Tor (`LossA/B`). Freikaufen durch Zahlung (Weg des Zahlers) bleibt.
 - **Eigenes Gericht nimmt jede Strafe** (`ownCourtAcceptsAll`): Das Gericht am eigenen Sitz lehnte bei Beziehung < 0 ab, und ein Verbrechen kostet ≈ 0,25 Beziehung. Wie IP2 (Kopfgeld 1:1 ohne Beziehungsbedingung) nimmt das Gericht an Behörde/Hauptquartier des Spielers Strafen jeder Fraktion an; das Geld geht an die Kasse dieser Fraktion (keine Geldschleife), der Ansehensbonus bleibt. Fremde Gerichte unverändert (Rechtshilfe ab Beziehung 0).
+
+## Firmensitz und Büro (Ausbau Punkt 9)
+
+Schalter `firmSeats`, `playerFirmSeat`, `offices`, `playerOffices` (Code aus, Standardwelt an; Regeln in `Model/EconomyRules.Seats.cs`, Logik `Simulation/Seats.cs`, Comms `Comms/SeatOfficeActions.cs`). Aus — oder an, solange niemand gründet — rechnet die Welt bitgleich wie vorher (20 000 Ticks 6D3C01B1ED7DEBCD, 60 000 C0FC1F81475E9B0D mit `--firmseats off`).
+
+### Firmensitz der KI-Firmen
+
+- **Wer:** aufgestiegene unabhängige Akteure (Firmen) ab Größenklasse `firmSeatMinClass` mit Mitgliedschaft; genau ein Sitz je Firma (Typ `company_seat`, Größe L, Einfluss 3). **Abweichung von der Vorgabe „ab Firma“:** gemessen erreicht in 300 000 Ticks keine Firma die Klasse Firma (höchstens 4 Schiffe, Größe 4,3; Schiffe sind arm, Ø 2 600 Cr). Die Standardwelt setzt deshalb `firmSeatMinClass` 1 (Kleinfirma); der Code-Standard bleibt 2. Mit dem Sitz (Station × 3) steigt die Firma dann auf Firma.
+- **Wo:** im Sektor ihrer **Mitgliedsfraktion** mit dem meisten eigenen Besitz (Stationen × 3 + Schiffe), höchstens `firmSeatsPerSector` 2 Sitze je Sektor. Begründung: der Einfluss 3 zählt für die Mitgliedsfraktion — in einem fremden oder herrenlosen Sektor würde ein Firmensitz Grenzen verschieben (Nebelmark bliebe dem Spieler nicht offen). Firmen ohne Mitgliedschaft gründen nicht.
+- **Kosten:** Baukosten × Baukostenfaktor × `firmSeatCostShare` 0,4 (≈ 8 800 Cr; die Firmen sind klein, der Rest entfällt — fertig gekauft wie eine Behörde, keine Baustelle). Die Firma gründet erst, wenn ihr verfügbares Geld (Kasse + Schiffskassen über `firmShipKeep` 1 000 + Stationskassen über dem Betriebskapital) mindestens Kosten × `firmSeatMoneyFactor` 1,5 beträgt; bezahlt wird aus Kasse, dann Stationen, dann Schiffen (Id-Reihenfolge, Rentabilität neutral). Abklingzeit `firmFoundCooldownTicks` 6 000 zwischen Gründungen (Sitz und Büro).
+- **Firmenkasse:** Der Sitz schöpft je 50 Ticks `firmSkimShare` 0,3 des positiven Gewinns jedes Firmenschiffs (Rentabilitätsmessung) über dem Rückhalt ab und `firmSkimPerTick` 0,2 %/Tick des Stationsüberschusses über dem Betriebskapital — nur solange die Kasse unter `firmTreasuryTarget` 15 000 liegt. Aus der Kasse stockt die Firma arme Schiffe bis zum Rückhalt auf (über einer Rücklage von einem Spieltag Sitz-Unterhalt) und kauft Schiffe (Kassen-Kandidat in der Zukaufziehung `Investors.ForShip`, Ort = erstes geparktes Schiff der Rolle) und Stationen (`Investors.ForStation`, wie bisher). Ereignisse `TreasuryIncome` „firm_skim“, `TreasuryUpkeep` „firm_capital“/„company_seat“, `InvestorChosen` (Kasse) — die Kassen bleiben aus Ereignissen erklärbar.
+- **Unterhalt:** `firmSeatUpkeepShare` 0,1 des Typ-Unterhalts (2,2 → 0,22 Cr/Tick) aus der Firmenkasse; die Mitgliedsfraktion subventioniert Sitz und Büros einer Firma nicht. Trägt die Kasse einen Unterhaltsschritt `firmSeatArrearsTicks` 4 800 lang nicht, wird der Sitz aufgegeben (Grund b, „Sitz unbezahlt“). **Sitz verloren** (unbezahlt oder zerstört) → keine Abschöpfung, kein Schiffskauf aus der Kasse; die Firma verhält sich wieder wie vorher (die Restkasse bleibt Stationsinvestor wie jede Akteurskasse).
+- **Gemessen:** Mit 0,5 Unterhaltsanteil fraß der Sitz fast alles Abgeschöpfte; mit `firmSkimShare` 0,5 sanken die Schiffskassen und zwei Händler gingen pleite. Ohne Kassenziel und Aufstocken lagen 80 000–140 000 Cr ungenutzt in Firmenkassen (die KI-Flotte steht an der Kapazitätsgrenze, Schiffskäufe aus der Kasse sind selten) — deshalb Ziel 15 000 und Rückfluss an arme Schiffe.
+
+### Büros
+
+- **Typ** `office` (Größe S, Einfluss 1,5, andockbar): Dienste Hangar und Auftragsbrett (Runde 41 hängt „Aufträge“ an jede andockbare Station; der Hangar kam neu in den Typ). **Schutzverträge** kommen mit Punkt 3 — Haken `Offices.ProtectionContracts` (heute immer nein), die Stationsinfo sagt es.
+- **Zustimmung des Gastgebers** (`Offices.HostIssue`, für KI und Spieler gleich): nur im Sektor einer **anderen** KI-Fraktion; Beziehung beider Richtungen ≥ `officeMinRelation` 0, kein Krieg, keine durchgesetzte Sperre gegen den Gründer (Stufe ≥ 4 oder ≥ 1 gegen ihn). Fällt die Zustimmung weg, schließt `OfficeSystem` das Büro (Grund c „unerwünscht“, auch Spielerbüros, nicht während einer Belagerung).
+- **KI:** Je Fraktion höchstens `officesPerFaction` 3 Büros, Abklingzeit `officeCooldownTicks` 12 000; Ort = fremder Sektor mit den meisten laufenden Handels- und Schürfaufträgen von Schiffen der Fraktion samt Mitgliedsfirmen (ab `officeMinTrade` 3), in dem sie noch keine Station hat; bezahlt aus `FactionViability.Spendable`. Firmen mit Sitz: höchstens ein Büro, ab 2 eigenen Aufträgen, aus der Firmenkasse.
+- 1,5 Einfluss verschiebt in den gemessenen Läufen keinen Besitz und macht keinen Sektor umkämpft.
+
+### Spieler
+
+- **Firmensitz** (Comms `firmseat:found:<Sektor>` / `firmseat:close:<Station>`, „Meine Fraktion“ → Karte „Sektorpolitik“, zwei Tipps): genau einer, im **eigenen oder herrenlosen** Sektor ohne Piratenversteck, aktives Schiff dort, ab Größenklasse `playerFirmSeatMinClass` 2 (Firma), volle Kosten 22 000 Cr (Senke), Unterhalt als Regierungsunterhalt mit Spieleranteil. Wirkung: **Befehlsstufe +`firmSeatCommandBonus` 1** (Befehlskapazität eine Klasse höher, höchstens Staat), **Fehden freigeschaltet** (`PlayerSeatsOffices.FeudUnlocked` — der Haken für Punkt 6; „Meine Fraktion“: „Fehde erklären · freigeschaltet (Punkt 6)“), Einfluss 3 (im herrenlosen Sektor wird er damit Besitzer, Stufe Einfluss — Sperren brauchen weiter eine Behörde). Aufgeben ohne Erlös.
+- **Büro** (Comms `office:found:<Sektor>` / `office:close:<Station>`): im fremden Sektor mit Zustimmung des Gastgebers, eines je Sektor, ab `playerOfficeMinClass` 1 (Kleinfirma), 4 500 Cr, Unterhalt mit Spieleranteil. Hangar und Auftragsbrett in fremden Sektoren.
+- **Anzeige:** Fähigkeiten in „Meine Fraktion“ (Firmensitz, Fehde, Büros) statt der Platzhalter; Fraktionen-Detail: Firmensitz und Firmenkasse einer KI-Firma, Sitz und Büros der eigenen Fraktion; Stationsinfo: „Firmensitz von … — Firmenkasse …“ bzw. „Büro von … — Hangar und Auftragsbrett; Schutzverträge folgen (Punkt 3)“.
+
+### Messung (Release, Standardwelt; vorher = Stand Punkt 8)
+
+| | 20 000 | 60 000 | 300 000 |
+|---|---|---|---|
+| Hash vorher → nachher | 6D3C01B1ED7DEBCD → 9D6D0AD5906A7040 | C0FC1F81475E9B0D → 426643BEE164E802 | 36FADEC9DA5EB827 → D4D8541348E459C5 |
+| Urteil | im Zielbereich | im Zielbereich | im Zielbereich |
+| Sitze / Büros (gegründet, verloren/geschlossen) | 7 / 6 (0/0) | 9 / 11 (0/0) | 13 / 13 (0/0) |
+| abgeschöpft, Firmenkassen am Ende | 40 652 / 16 009 Cr | 251 825 / 36 797 Cr | 1 824 303 / 35 917 Cr |
+| Geldmenge vorher → nachher | 1,83 M → 1,78 M | 2,31 M → 2,39 M | 2,27 M → 2,26 M |
+| Kassenanteil am Ende | 21 % → 22 % | 28 % → 28 % | 27 % → 26 % |
+| Händler/Schürfer pleite oder nicht rentabel | 0 → 0 | 0 → 1 | 0 → 1 |
+| Export Nahrung/KG/Luxus | 19 880/2 206/355 → 19 268/2 257/370 | 72 438/10 769/2 476 → 71 624/11 307/2 629 | 390 387/66 589/14 815 → 388 435/66 803/16 322 |
+
+Firmen 24–25 (vorher 24); Schiffskäufe aus Firmenkassen selten (0–1: die KI-Flotte steht an der Kapazitätsgrenze), das Geld fließt über das Aufstocken an die Schiffe zurück. Neue HINWEIS-Zeilen nur aus der bekannten Klasse (Werft-Regale, Stahlwerk Kalypso am Deckel bei 300 000).

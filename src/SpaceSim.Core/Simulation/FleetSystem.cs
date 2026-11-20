@@ -250,19 +250,27 @@ public sealed class FleetSystem : ISimSystem
         BuyFromTreasury(u, job, k => !withBuyers.Contains(k) && CanGrow(u, job, k, worldCap: false));
         var pick = Investors.Draw(u, candidates);
         if (pick?.Ship is not { } parent) return;
-        float before = parent.Credits;
+        // Ausbau Punkt 9: eine Firma mit Sitz zahlt aus der Firmenkasse (das Schiff ist nur der Ort des Kaufs)
+        ICreditAccount payer = pick.Source == InvestorSource.Treasury ? u.Actors[pick.Holder].Treasury : parent;
+        bool fromShip = pick.Source != InvestorSource.Treasury;
+        void Charge(float amount)
+        {
+            payer.Credits -= amount;
+            if (fromShip) Profitability.Transfer(parent.Profit, -amount);   // Phase 22: Investition, kein Geschäftsverlust
+        }
+        float before = payer.Credits;
         var (used, limit) = FleetCapacity.For(u, job, parent);
 
-        if (rules.FleetChoosesModels && ChooseModel(u, job, parent, used, limit) is { } choice)
+        if (rules.FleetChoosesModels && (fromShip ? ChooseModel(u, job, parent, used, limit)
+                : ChooseModel(u, job, parent.Sector, parent.Position, payer.Credits, parent, GateAccess.ProfileOf(u, parent), used, limit)) is { } choice)
         {
             // Phase 7: Güteklasse würfeln; bessere Module kommen zusätzlich aus dem Werftlager (Mehrkosten trägt die Werft)
             var q = ShipQualityRoll.Roll(u, choice.Class, choice.Class.Slots, choice.Model.Fit, choice.Yard, choice.Materials, Fits(u, job, choice.Class, used, limit));
             ShipPurchase.Consume(choice.Yard, q.Materials ?? choice.Materials);
             choice.Yard.Credits += choice.Price;
-            parent.Credits -= choice.Price + rules.NewShipStartCredits;
-            Profitability.Transfer(parent.Profit, -(choice.Price + rules.NewShipStartCredits));   // Phase 22: Investition, kein Geschäftsverlust
+            Charge(choice.Price + rules.NewShipStartCredits);
             var newId = u.NewShipId();
-            var owner = Bought(u, parent, pick, candidates.Count, before - parent.Credits);
+            var owner = Bought(u, parent, pick, candidates.Count, before - payer.Credits);
             var bought = ShipPurchase.Create(u, newId, choice.Model.Key, q.Slots, q.Fit, role, Controller.Ai, owner, choice.Yard, rules.NewShipStartCredits, q.Grade);
             bought.JobSince = u.Tick;
             u.AddShip(bought);
@@ -301,14 +309,14 @@ public sealed class FleetSystem : ISimSystem
         if (yard is null) return;   // keine Werft mit Bausatz: kein neues Schiff
 
         float price = withModules ? ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard)) : rules.NewShipCost;
+        if (!fromShip && payer.Credits < price + rules.NewShipStartCredits) return;   // Firmenkasse: Kopie nur, wenn sie sie tragen kann
         // Phase 7: Güteklasse würfeln (Mehrkosten aus dem Werftlager, sonst Rückfall auf die nächste Stufe)
         QualityOutcome? quality = parent.HasModel && cls is not null ? ShipQualityRoll.Roll(u, cls, baseSlots, baseFit, yard, needs, Fits(u, job, cls, used, limit)) : null;
         ShipPurchase.Consume(yard, quality?.Materials ?? needs);
         yard.Credits += price;
-        parent.Credits -= price + rules.NewShipStartCredits;
-        Profitability.Transfer(parent.Profit, -(price + rules.NewShipStartCredits));   // Phase 22: Investition, kein Geschäftsverlust
+        Charge(price + rules.NewShipStartCredits);
         var id = u.NewShipId();
-        var childOwner = Bought(u, parent, pick, candidates.Count, before - parent.Credits);
+        var childOwner = Bought(u, parent, pick, candidates.Count, before - payer.Credits);
         // Neukauf übernimmt das Modell des Elternschiffs (Phase 3), seit Phase 7 mit eigener Güteklasse
         Ship child;
         if (quality is not null)

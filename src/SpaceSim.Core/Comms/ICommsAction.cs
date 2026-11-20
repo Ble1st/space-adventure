@@ -104,6 +104,8 @@ public sealed class CommsActions
         r.Register(new LockAction());              // Runde 45: eigene Sperrstufe
         r.Register(new HqAction());                // Eigenes Hauptquartier gründen/aufgeben
         r.Register(new Intel.IntelAction());       // Ausbau Punkt 16: Intel kaufen
+        r.Register(new FirmSeatAction());          // Ausbau Punkt 9: eigener Firmensitz gründen/aufgeben
+        r.Register(new OfficeAction());            // Ausbau Punkt 9: eigenes Büro in fremdem Sektor gründen/schließen
         return r;
     }
 

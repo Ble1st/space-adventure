@@ -241,6 +241,7 @@ public sealed class SubsidySystem : ISimSystem
     /// </summary>
     public static bool Eligible(Universe u, Station st) =>
         !StationProtection.IsHideout(u, st) && st.Dockable   // Phase 30: Kleinstationen haben keine Kasse zu stützen
+        && !FirmSeats.IsFirmGovernment(u, st)   // Ausbau Punkt 9: Sitz und Büro einer Firma trägt die Firmenkasse, nicht ihre Mitgliedsfraktion
         && (StationProtection.IsOfficial(u, st) || st.BankruptcyProtected || MarketSystem.IsFinalConsumer(st) || ExportRules.ConfigOf(u, st) is not null
             || (StationCriticality.IsCritical(u, st) && !StationReview.Useless(u, st)));   // Phase 19: dauerhaft nutzlose Stationen nicht ewig stützen
 }

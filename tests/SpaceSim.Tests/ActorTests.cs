@@ -282,6 +282,7 @@ public class ActorTests
         // Für den Zahlervergleich ruht die Sicherheit in beiden Welten.
         foreach (var w in new[] { a, b }) w.Rules.SecurityActive = false;
         foreach (var w in new[] { a, b }) w.Rules.OutpostsBuild = false;   // Phase 30: Kleinstationen werden aus der Kasse gekauft
+        foreach (var w in new[] { a, b }) { w.Rules.Offices = false; w.Rules.FirmSeats = false; }   // Ausbau Punkt 9: Büros werden aus der Kasse gekauft (nur Welt a hat eine)
         // Phase 26: die Reparaturregale der Regierungsstationen (Hüllenplatten, Elektronik) kaufen aus der Stationskasse — die hängt ohne Fraktionskasse
         // am Unterhalt und wirkte über den Handel auf die Zahler zurück; für den Zahlervergleich ohne Regale (wie bis Phase 25)
         foreach (var w in new[] { a, b })

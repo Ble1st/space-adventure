@@ -200,6 +200,29 @@ public partial class UiCheck : Node
 			Add("kz-comms-diplomatie", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); _m.HudRef.CcComms.TestSetTab("diplomacy"); _m.HudRef.CcComms.TestSelectFaction(0); }, 12);
 			// Runde 42c (Handytest): Comms-Reiter „Aufträge“ mit aktiver Meldung — Meldungsfach oben, Liste beginnt darunter (nie über Listentext)
 			Add("kz-comms-auftraege-meldung", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); var cs = _m.HudRef.CcComms; cs.TestSetTab("missions"); cs.TestShowMessage("Auftrag angenommen: Transport — versiegelte Fracht 20 m³ → Elektronikfabrik Kalypsо · noch 9:59 (zweite Zeile zum Messen des Umbruchs im Meldungsfach)"); }, 12);
+			// Ausbau Punkt 9: „Meine Fraktion“ mit eigenem Firmensitz und Büro (Karte „Sektorpolitik“ mit Sitz-, Büro- und Schließen-Zeilen)
+			Add("kz-meinefraktion-sitz", () =>
+			{
+				var w = u();
+				w.Player.Treasury.Credits = 400_000f;
+				var ship = w.Ships[w.PlayerShip];
+				if (_m.TestDocked) _m.TestUndock();
+				var neb = w.Sectors.Values.First(s => s.Name.Contains("Nebelmark")).Id;
+				var alpha = w.Sectors.Values.First(s => s.Name.Contains("Alpha")).Id;
+				var spots = new[] { new SpaceSim.Core.Model.Vec2(0, 0), new(200, 200), new(-200, 200), new(200, -200), new(-200, -200), new(400, 0), new(-400, 0) };
+				if (SpaceSim.Core.Simulation.PlayerSeatsOffices.Seat(w) is null)
+				{
+					w.MoveShip(ship, neb);
+					foreach (var p in spots) { ship.Position = p; if (SpaceSim.Core.Simulation.PlayerSeatsOffices.SeatIssue(w, neb) is null) { SpaceSim.Core.Simulation.PlayerSeatsOffices.FoundSeat(w, neb); break; } }
+				}
+				if (!SpaceSim.Core.Simulation.Offices.Of(w, w.PlayerActor).Any())
+				{
+					w.MoveShip(ship, alpha);
+					foreach (var p in spots) { ship.Position = p; if (SpaceSim.Core.Simulation.PlayerSeatsOffices.OfficeIssue(w, alpha) is null) { SpaceSim.Core.Simulation.PlayerSeatsOffices.FoundOffice(w, alpha); break; } }
+				}
+				_m.TestEnterSector(ship.Sector);
+				_m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.MyFaction);
+			}, 20);
 			// Runde 37b (A4): Fraktionsdetail (schmal: Detail statt Liste)
 			Add("kz-fraktionsdetail", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Factions); var fr = _m.HudRef.CcFactions; fr.Selected = fr.TestRows.FirstOrDefault()?.Id; fr.TestDetailOpen = true; }, 12);
 			// Ausbau Punkt 1/1b: Flotte mit gewähltem Kampfschiff und offener Zielwahl „Angreifen“ (Befehlsraster mit sechs Spalten, Karte nach Inhalt)

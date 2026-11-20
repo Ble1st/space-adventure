@@ -2788,6 +2788,7 @@ public partial class SelfTest : Node
 			case 147: if (IntelStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 16: Erkundung und Intel — „?“ auf der Karte, Sektorkarte in Comms gekauft, Erkunden per Tipp (SelfTest.Intel.cs)
 			case 148: if (WarNavyStage(_frame - _stageStart)) Next(); break;   // Nachtrag 1c: Liefern mit Verlustschutz-Schalter, Sammelpunkt mit Frist (SelfTest.WarNavy.cs)
 			case 149: if (WearStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 8: Stationsverschleiß in Stationsinfo und Sektoransicht (SelfTest.Wear.cs)
+			case 150: if (FirmSeatStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 9: Firmensitz und Büro per Tipp (SelfTest.FirmSeat.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
@@ -2803,7 +2804,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 149;
+	const int LastStage = 150;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

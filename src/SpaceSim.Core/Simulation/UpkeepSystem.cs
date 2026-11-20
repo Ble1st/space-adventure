@@ -43,6 +43,8 @@ public sealed class UpkeepSystem : ISimSystem
             if (!st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var type))
             {
                 float stUpkeep = type.UpkeepPerTick * dt;
+                if (type.Government != GovernmentKind.None && stUpkeep > 0f && FirmSeats.IsFirmGovernment(u, st))
+                    stUpkeep = FirmSeats.UpkeepPerTick(u, st, type) * dt;   // Ausbau Punkt 9: KI-Firmensitz trägt einen Anteil aus der Firmenkasse
                 if (type.Government != GovernmentKind.None && stUpkeep > 0f)
                 {
                     var cur = official.GetValueOrDefault(st.Owner.Value);

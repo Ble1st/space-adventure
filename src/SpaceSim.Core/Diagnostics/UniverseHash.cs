@@ -148,6 +148,8 @@ public static class UniverseHash
             if (includeTags) MixString(a.Tag);   // Phase 29: Kürzel (Runde 12: abschaltbar für den Vergleichswert)
             Mix((ulong)a.LastRestoreTick);   // Phase 22
             if (a.LastOutpostTick != 0) Mix((ulong)a.LastOutpostTick);   // Phase 30
+            if (a.LastFoundTick != 0) Mix((ulong)a.LastFoundTick + 0x9001u);   // Ausbau Punkt 9: letzte Gründung (Sitz/Büro)
+            if (a.SeatArrearsSince >= 0) Mix((ulong)a.SeatArrearsSince + 0x9002u);   // Ausbau Punkt 9: Unterhaltsrückstand des Firmensitzes
             Mix((ulong)a.CreatedTick);       // Phase 27 (Prüfung Phase 26): Gründungszeit (Aufbauzeit der Rücklage hängt daran)
             if (a.ArrestCooldownUntil != 0) Mix((ulong)a.ArrestCooldownUntil + 0x2802u);   // Phase 28: Festnahme-Sperre
             foreach (var (f, w) in a.Wanted.OrderBy(k => k.Key.Value)) { Mix((ulong)f.Value); MixF(w.Heat); MixF(w.Fine); Mix((ulong)w.LastCrimeTick); }

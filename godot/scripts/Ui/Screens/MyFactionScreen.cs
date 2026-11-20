@@ -126,7 +126,11 @@ public sealed partial class MyFactionScreen : CommandScreen
 			("Taxi, Hangar, Leihschiff", true, "an Stationen mit Dienst"),
 			// Runde 45: echt — eigener Sektor über eine Sektorbehörde (Karte „Sektorpolitik“)
 			("Zoll und Sperren", PlayerSeats.OwnSectors(u).Count > 0, PlayerSeats.OwnSectors(u).Count > 0 ? (PlayerHq.Current(u) is not null ? "eigener Sektor, HQ (Stufe 1–5)" : "eigener Sektor (Stufe 1–2)") : "Sektorbehörde gründen"),
-		}.Concat(UiPlaceholders.MyFactionAbilities(me.Stations > 0));
+			// Ausbau Punkt 9: echt — Firmensitz (Befehlsstufe +1), Fehde (Hook für Punkt 6), Büros in fremden Sektoren
+			("Firmensitz", PlayerSeatsOffices.Seat(u) is not null, PlayerSeatsOffices.Seat(u) is not null ? $"Befehlsstufe +{u.Rules.FirmSeatCommandBonus}" : $"ab {ActorNames.Size((ActorSizeClass)u.Rules.PlayerFirmSeatMinClass)} · Karte unten"),
+			("Fehde erklären", PlayerSeatsOffices.FeudUnlocked(u), PlayerSeatsOffices.FeudUnlocked(u) ? "freigeschaltet (Punkt 6)" : "mit Firmensitz"),
+			("Büros (fremde Sektoren)", Offices.Of(u, u.PlayerActor).Count > 0, Offices.Of(u, u.PlayerActor).Count is var no and > 0 ? $"{no} Büro{(no == 1 ? "" : "s")}" : $"ab {ActorNames.Size((ActorSizeClass)u.Rules.PlayerOfficeMinClass)} · Zustimmung"),
+		};
 		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand
 		var list = abilities.ToList();
 		TestAbilityOverflow = "";
@@ -154,6 +158,9 @@ public sealed partial class MyFactionScreen : CommandScreen
 	public string TestUnpaidLine = "";
 	/// <summary>Eigenes Hauptquartier, Selbsttest: Zeile des Hauptquartiers (Name und Unterhalt, oder Vorschau bzw. Grund).</summary>
 	public string TestHqLine { get; private set; } = "";
+	/// <summary>Ausbau Punkt 9, Selbsttest: Zeile des Firmensitzes (Name oder Vorschau bzw. Grund) und der Büros.</summary>
+	public string TestFirmSeatLine { get; private set; } = "";
+	public string TestOfficeLine { get; private set; } = "";
 
 	void PolicyButton(Control card, string key, string label, float x, float y, float w, bool confirm)
 	{
@@ -254,6 +261,58 @@ public sealed partial class MyFactionScreen : CommandScreen
 				PolicyButton(card, key, "Hauptquartier gründen", 20, y, MathF.Min(320f, width - 40), confirm: true);
 				y += 64;
 			}
+		}
+		// Ausbau Punkt 9: Firmensitz (Befehlsstufe +1, Fehden) und Büros in fremden Sektoren — gründen/aufgeben über die Comms-Registry („firmseat:…“, „office:…“)
+		TestFirmSeatLine = ""; TestOfficeLine = "";
+		var shipNow = u.Ships.TryGetValue(u.PlayerShip, out var psNow) ? psNow : null;
+		if (u.Rules.PlayerFirmSeat)
+		{
+			At(card, Text("Firmensitz", 16, Cyan), 20, y, width - 40, 22);
+			y += 26;
+			if (PlayerSeatsOffices.Seat(u) is { } fs)
+			{
+				float up = u.StationTypes.TryGetValue(fs.TypeKey, out var ft) ? PlayerSeatsOffices.UpkeepPerMinute(u, ft) : 0f;
+				TestFirmSeatLine = $"{fs.Name} ({u.Sectors[fs.Sector].Name}) · Befehlsstufe +{u.Rules.FirmSeatCommandBonus} · Fehden freigeschaltet (Punkt 6) · Unterhalt {up:0} Cr/min";
+				y = WrappedText(card, TestFirmSeatLine, 20, y, width - 40, 14, White, 19) + 6;
+				PolicyButton(card, $"firmseat:close:{fs.Id.Value}", "Firmensitz aufgeben", 20, y, MathF.Min(320f, width - 40), confirm: true);
+				y += 64;
+			}
+			else
+			{
+				string key = shipNow is null ? "firmseat:found:0" : $"firmseat:found:{shipNow.Sector.Value}";
+				var offer = Ctx.Comms.Preview(u, key);
+				TestFirmSeatLine = offer.Possible ? offer.Preview : offer.Reason ?? "";
+				var ft = FirmSeats.SeatType(u);
+				string cond = ft is null ? "" : $"Bedingungen: eigener oder herrenloser Sektor ohne Versteck, dein Schiff dort, Größenklasse {ActorNames.Size((ActorSizeClass)u.Rules.PlayerFirmSeatMinClass)}, {FirmSeats.Cost(u, ft):0} Cr. ";
+				y = WrappedText(card, cond + TestFirmSeatLine, 20, y, width - 40, 13, offer.Possible ? new Color(Dim, 0.95f) : Orange, 18) + 6;
+				PolicyButton(card, key, "Firmensitz gründen", 20, y, MathF.Min(320f, width - 40), confirm: true);
+				y += 64;
+			}
+		}
+		if (u.Rules.PlayerOffices)
+		{
+			At(card, Text("Büros", 16, Cyan), 20, y, width - 40, 22);
+			y += 26;
+			var offices = Offices.Of(u, u.PlayerActor);
+			foreach (var of in offices)
+			{
+				string line = $"{of.Name} ({u.Sectors[of.Sector].Name}) · Hangar, Auftragsbrett";
+				y = WrappedText(card, line, 20, y, width - 40, 14, White, 19) + 4;
+				PolicyButton(card, $"office:close:{of.Id.Value}", "Büro schließen", 20, y, MathF.Min(260f, width - 40), confirm: true);
+				y += 64;
+			}
+			if (shipNow is not null && !offices.Any(o => o.Sector == shipNow.Sector))
+			{
+				string key = $"office:found:{shipNow.Sector.Value}";
+				var offer = Ctx.Comms.Preview(u, key);
+				TestOfficeLine = offer.Possible ? offer.Preview : offer.Reason ?? "";
+				var ot = Offices.OfficeType(u);
+				string cond = ot is null ? "" : $"Bedingungen: fremder Sektor, Gastgeber stimmt zu (Beziehung ab {u.Rules.OfficeMinRelation:0.00}, kein Krieg, keine Sperre gegen dich), Größenklasse {ActorNames.Size((ActorSizeClass)u.Rules.PlayerOfficeMinClass)}, {Offices.Cost(u, ot):0} Cr. ";
+				y = WrappedText(card, cond + TestOfficeLine, 20, y, width - 40, 13, offer.Possible ? new Color(Dim, 0.95f) : Orange, 18) + 6;
+				PolicyButton(card, key, "Büro gründen", 20, y, MathF.Min(320f, width - 40), confirm: true);
+				y += 64;
+			}
+			else if (offices.Count > 0) TestOfficeLine = string.Join(" | ", offices.Select(o => o.Name));
 		}
 		// Ausgleich (Punkt 2): Regierungsstationen, deren Unterhalt die Kasse nicht trägt, ruhen (kein Einfluss, keine Sperren, kein Gericht)
 		TestUnpaidLine = PlayerUpkeep.StatusText(u);

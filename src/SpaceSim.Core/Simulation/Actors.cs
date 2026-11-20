@@ -187,17 +187,26 @@ public static class Investors
     public static List<Investor> ForShip(Universe u, ShipRole role, float threshold)
     {
         var index = ActorRules.Index(u);
-        return u.Ships.Values
+        var list = new List<Investor>();
+        // Ausbau Punkt 9: Firmen mit Sitz kaufen aus der Firmenkasse; Ort des Kaufs = ihr erstes geparktes Schiff dieser Rolle (Id-Reihenfolge)
+        if (u.Rules.FirmSeats)
+            foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
+            {
+                if (a.Treasury.Credits < threshold || !FirmSeats.HasTreasury(u, a.Id)) continue;
+                var at = u.ShipsById().FirstOrDefault(s => s.Owner == a.Id && s.Role == role && s.Controller == Controller.Ai && s.Transit is null);
+                if (at is not null) list.Add(Make(u, index, InvestorSource.Treasury, a.Id, a.Treasury.Credits, threshold, null, at));
+            }
+        list.AddRange(u.Ships.Values
             .Where(s => s.Role == role && s.Controller == Controller.Ai && s.Transit is null && s.Credits >= threshold)
             .OrderBy(s => s.Id.Value)
-            .Select(s => Make(u, index, InvestorSource.Ship, s.Owner, s.Credits, threshold, null, s))
-            .ToList();
+            .Select(s => Make(u, index, InvestorSource.Ship, s.Owner, s.Credits, threshold, null, s)));
+        return list;
     }
 
     static Investor Make(Universe u, Dictionary<ActorId, Holdings> index, InvestorSource src, ActorId holder, float money, float need, Station? st, Ship? sh)
     {
         // Freie Einzelschiffe sind implizite Akteure: Größe aus dem Schiff selbst, Persönlichkeit der Sammelgruppe
-        var cls = sh is not null && holder == u.FreeActor
+        var cls = sh is not null && holder == u.FreeActor && src == InvestorSource.Ship
             ? ActorRules.ClassOf(u.Rules, ActorRules.Size(u.Rules, ActorRules.SingleShip(sh)))
             : ActorRules.ClassOf(u, index, holder);
         float weight = (money - need + 1f) * ActorRules.Appetite(u.Rules, cls, ActorRules.PersonalityOf(u, holder));

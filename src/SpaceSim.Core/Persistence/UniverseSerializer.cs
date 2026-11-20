@@ -142,6 +142,7 @@ public static class UniverseSerializer
                 BountyClaims = a.BountyClaims.Count == 0 ? null : a.BountyClaims.OrderBy(kv => kv.Key.Value).ToDictionary(kv => kv.Key.Value, kv => kv.Value),
                 LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick, LastOutpostTick = a.LastOutpostTick,
                 ArrestCooldownUntil = a.ArrestCooldownUntil,
+                LastFoundTick = a.LastFoundTick, SeatArrearsSince = a.SeatArrearsSince >= 0 ? a.SeatArrearsSince : null,
                 CrimeStanding = a.CrimeStanding.Count == 0 ? null : a.CrimeStanding.OrderBy(kv => kv.Key.Value).Select(kv => new CrimeStandingSave
                 {
                     Faction = kv.Key.Value, Debt = kv.Value.Debt, Base = kv.Value.Base, WindowStart = kv.Value.WindowStart, WindowLoss = kv.Value.WindowLoss,
@@ -467,6 +468,7 @@ public static class UniverseSerializer
                 BountyClaims = a.BountyClaims is null ? new Dictionary<FactionId, float>() : a.BountyClaims.ToDictionary(kv => new FactionId(kv.Key), kv => kv.Value),
                 LastForceTick = a.LastForceTick, PoliceNeed = a.PoliceNeed, PoliceSurplusSince = a.PoliceSurplusSince, LastRestoreTick = a.LastRestoreTick, LastOutpostTick = a.LastOutpostTick,
                 ArrestCooldownUntil = a.ArrestCooldownUntil,
+                LastFoundTick = a.LastFoundTick, SeatArrearsSince = a.SeatArrearsSince ?? -1,
                 CrimeStanding = a.CrimeStanding is null ? new Dictionary<FactionId, CrimeStandingRecord>()
                     : a.CrimeStanding.ToDictionary(c => new FactionId(c.Faction), c => new CrimeStandingRecord
                     {
