@@ -199,7 +199,7 @@ public sealed class FirmSeatSystem : ISimSystem
         {
             foreach (var s in u.ShipsById())
             {
-                if (s.Owner != a.Id || !s.IsEconomyAi || s.Credits <= r.FirmShipKeep || s.Profit.Rate <= 0f) continue;
+                if (s.Owner != a.Id || !s.IsEconomyAi || s.Role == ShipRole.Smuggler || s.Credits <= r.FirmShipKeep || s.Profit.Rate <= 0f) continue;   // Ausbau Punkt 5: Schmuggler behalten ihr Betriebsgeld (sonst fehlt das Geld für die nächste Ladung)
                 float take = MathF.Min(s.Profit.Rate * dt * profitShare, s.Credits - r.FirmShipKeep);
                 s.Credits -= take; total += take; Profitability.Transfer(s.Profit, -take);
             }

@@ -469,3 +469,5 @@ public sealed record MissionContrabandFound(int Mission, ShipId Ship, FactionId 
 public sealed record PassengerFarePaid(ShipId Ship, StationId From, StationId To, int Passengers, float Fare) : SimEvent;
 /// <summary>Ausbau Punkt 14: Treffer am Schiff mit Fahrgästen — Trinkgeld sinkt (Betrag zurück an die Auftraggeber-Kasse).</summary>
 public sealed record PassengerTipLost(int Mission, ShipId Ship, float Amount) : SimEvent;
+/// <summary>Ausbau Punkt 5: Schmuggler verkauft statt pleite (Werft zahlt <paramref name="Sale"/>, <paramref name="Cash"/> Restgeld an die Firma).</summary>
+public sealed record SmugglerRetired(ShipId Ship, ActorId Firm, StationId Yard, float Sale, float Cash) : SimEvent;

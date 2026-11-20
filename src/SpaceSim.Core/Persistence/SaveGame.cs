@@ -166,6 +166,7 @@ public sealed class ActorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastFoundTick { get; set; }
     /// <summary>Ausbau Punkt 5: letzter Schmugglerkauf (0 = nie).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastSmugglerTick { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastSmugglerRetireTick { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? SeatArrearsSince { get; set; }
     /// <summary>Phase 28 (additiv): Festnahme-Sperre bis zu diesem Tick; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ArrestCooldownUntil { get; set; }

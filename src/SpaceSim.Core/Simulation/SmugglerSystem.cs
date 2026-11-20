@@ -76,6 +76,7 @@ public sealed class SmugglerSystem : ISimSystem
                 if (ship.Order is GoToOrder g && ship.DockedAt == g.Target && u.Stations.TryGetValue(g.Target, out var fs)) { Refuel.TankUp(u, ship, fs); ship.Order = null; }
             }
             if (JumpDrive.Charging(ship) || u.Tick < ship.NextThinkTick) continue;
+            if (ShouldRetire(u, ship)) { Retire(u, ship); continue; }
             Proceed(u, ship);
         }
     }
@@ -101,10 +102,13 @@ public sealed class SmugglerSystem : ISimSystem
         float stash = 0f;
         foreach (var st in u.StationsById()) if (BlackMarket.IsAt(u, st)) foreach (var (g, n) in st.BlackStock) stash += n * u.GoodOf(g).BasePrice;
         if (stash < r.SmugglerMinFenceValue && !u.AccessRestricted) return null;
+        // nur so viele Schmuggler, wie Hehlerware zu fahren ist (sonst warten sie nur und verlieren Geld)
+        if (r.SmugglerFenceValuePerShip > 0f && !u.AccessRestricted && u.Ships.Values.Count(s => s.Role == ShipRole.Smuggler) + 1 > stash / r.SmugglerFenceValuePerShip) return null;
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
         {
             if (!LawlessFirm(u, a)) continue;
             if (a.LastSmugglerTick != 0 && u.Tick < a.LastSmugglerTick + r.SmugglerBuyCooldownTicks) continue;
+            if (a.LastSmugglerRetireTick != 0 && u.Tick < a.LastSmugglerRetireTick + r.SmugglerRetireBlockTicks) continue;
             if (CountOf(u, a.Id) >= r.SmugglersPerFirm) continue;
             // Geld der Firma: Kasse + Schiffskassen über dem Betriebsgeld (wie der Firmensitz es zählt)
             var fleet = u.ShipsById().Where(s => s.Owner == a.Id && s.IsEconomyAi && s.Role is ShipRole.Trader or ShipRole.Miner or ShipRole.Collector).ToList();
@@ -141,11 +145,50 @@ public sealed class SmugglerSystem : ISimSystem
             ship.JobSince = u.Tick;
             ship.IdleSince = u.Tick;
             u.AddShip(ship);
-            a.LastSmugglerTick = u.Tick;
+            a.LastSmugglerTick = Math.Max(1L, u.Tick);   // 0 heißt „nie“
             u.Events.Publish(new SmugglerBought(a.Id, ship.Id, yard.Id, price));
             return ship;
         }
         return null;
+    }
+
+    // ───────── Verkauf statt Pleite ─────────
+
+    /// <summary>Untätig (kein Auftrag, keine Reise, leer) und Betriebsgeld unter <see cref="EconomyRules.SmugglerRetireCredits"/> oder länger nicht rentabel.</summary>
+    public static bool ShouldRetire(Universe u, Ship ship)
+    {
+        if (u.Rules.SmugglerRetireCredits <= 0f || ship.Order is not null || ship.Transit is not null || HasCargo(ship) || u.Fights.IsEngaged(ship.Id)) return false;
+        return ship.Credits < u.Rules.SmugglerRetireCredits || Profitability.Unprofitable(u, ship.Profit);
+    }
+
+    /// <summary>
+    /// Verkauf (Grund c „nicht rentabel“): die nächste Werft, die das Modell führt, zahlt <see cref="Hangar.SellPrice"/> (Anteil am Material, höchstens ihre
+    /// Kasse); Erlös und Restgeld gehen an die Firma (Kasse, sonst ihr reichstes Schiff). Die Firma kauft danach eine Weile keinen neuen Schmuggler.
+    /// </summary>
+    public static void Retire(Universe u, Ship ship)
+    {
+        float money = MathF.Max(0f, ship.Credits);
+        Station? yard = null; int best = int.MaxValue;
+        if (u.ShipModels.TryGetValue(ship.ModelKey, out var model))
+            foreach (var st in u.StationsById())
+            {
+                if (st.IsBuildSite || !ShipPurchase.SellsModel(u, st, model)) continue;
+                int h = u.Hops(ship.Sector, st.Sector);
+                if (h >= 0 && h < best) { best = h; yard = st; }
+            }
+        float sale = 0f;
+        if (yard is not null) { sale = MathF.Min(MathF.Max(0f, yard.Credits), Hangar.SellPrice(u, ship)); yard.Credits -= sale; }
+        money += sale;
+        ship.Credits = 0f;
+        if (u.Actors.TryGetValue(ship.Owner, out var firm))
+        {
+            firm.LastSmugglerRetireTick = Math.Max(1L, u.Tick);   // 0 heißt „nie“
+            if (FirmSeats.SeatOf(u, firm.Id) is not null) { firm.Treasury.Credits += money; if (money > 0f) u.Events.Publish(new TreasuryIncome(firm.Id, "smuggler_sold", money)); }
+            else if (u.ShipsById().Where(s => s.Owner == firm.Id && s.Id != ship.Id && s.IsEconomyAi).OrderByDescending(s => s.Credits).ThenBy(s => s.Id.Value).FirstOrDefault() is { } heir)
+            { heir.Credits += money; Profitability.Transfer(heir.Profit, money); }
+        }
+        u.Events.Publish(new SmugglerRetired(ship.Id, ship.Owner, yard?.Id ?? default, sale, money - sale));
+        Departures.RemoveShip(u, ship, DepartureReason.Unprofitable, "smuggler_sold");
     }
 
     // ───────── Tarnung ─────────
@@ -300,7 +343,9 @@ public sealed class SmugglerSystem : ISimSystem
                 : Travel.Estimate(u, from.Sector, from.DockPoint(ship.Id), to.Sector, to.DockPoint(ship.Id), ship);
             if (!float.IsFinite(leg1) || !float.IsFinite(leg2)) return;
             float cost = units * buyPrice;
-            float profit = units * (e.Price * (jump ? 1f + r.SmugglerLockBonus : 1f) - buyPrice) - upkeep * (leg1 + leg2);
+            // Treibstoff wie bei den Händlern (Schiff → Einkauf → Abnehmer; Sprung: Sprungtreibstoff) — gemessen: ohne ihn fraß der Treibstoff den Gewinn auf
+            float fuel = Refuel.TripFuelCost(u, ship, from, to) + (jump && u.Rules.FuelActive ? ship.Stats.JumpFuel * (Refuel.ActiveFuel(ship) is { } fg ? u.GoodOf(fg).BasePrice : 0f) : 0f);
+            float profit = units * (e.Price * (jump ? 1f + r.SmugglerLockBonus : 1f) - buyPrice) - upkeep * (leg1 + leg2) - fuel;
             if (profit < cost * r.SmugglerMinMargin) return;
             float score = profit / MathF.Max(1f, leg1 + leg2);
             if (best is null || score > best.Value.Score + 1e-4f) best = (from, to, g, units, buyPrice, kind, jump, score);

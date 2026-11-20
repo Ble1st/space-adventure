@@ -24,6 +24,15 @@ public sealed partial class EconomyRules
     public float SmugglerStartCredits = 3000f;
     /// <summary>Auftragsbudget gesetzloser Auftraggeber (Piratengruppe, Firma) als Anteil ihrer Kasse — sie zahlen für Schmuggel mehr als Staaten.</summary>
     public float MissionOutlawBudgetShare = 0.5f;
+    /// <summary>
+    /// Ein untätiger Schmuggler mit weniger Betriebsgeld als diesem wird verkauft (Grund c, Werft zahlt <see cref="ShipSellShare"/> × Material), statt
+    /// pleite zu gehen; das Geld geht an die Firma. 0 = aus (alte Regel: Pleite nach <see cref="ShipBankruptTicks"/>).
+    /// </summary>
+    public float SmugglerRetireCredits;
+    /// <summary>Je Schmuggler auf der Karte müssen in den Verstecken so viel Hehlerware (Basiswert) liegen, sonst kauft keine Firma einen weiteren (0 = aus).</summary>
+    public float SmugglerFenceValuePerShip;
+    /// <summary>Nach dem Verkauf eines Schmugglers kauft dieselbe Firma so lange keinen neuen (0 = nur die normale Abklingzeit).</summary>
+    public int SmugglerRetireBlockTicks;
     /// <summary>Hehlerware kaufen Schmuggler beim Hehler zu diesem Anteil des Basispreises (Netzrabatt; der Spieler zahlt den Verkaufsfaktor).</summary>
     public float SmugglerFenceBuyShare = 0.6f;
     /// <summary>Mindestgewinn einer Fahrt als Anteil der Einkaufskosten.</summary>

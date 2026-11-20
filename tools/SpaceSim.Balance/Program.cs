@@ -623,7 +623,9 @@ u.Events.Raised += e =>
 var retiredStations = new List<string>();
 int buildersCommissioned = 0, discardCount = 0;
 float gasCollected = 0f, gasDelivered = 0f, gasDeliveredCr = 0f; int gasTrips = 0, ionTanks = 0, fusionTanks = 0; float ionTankUnits = 0f, fusionTankUnits = 0f;   // Gasernte
-int smgBought = 0, smgRuns = 0, smgJumpRuns = 0, smgCaught = 0, smgBuys = 0, smgSales = 0; float smgCost = 0f, smgRevenue = 0f, smgFines = 0f, smgSeized = 0f, smgPrices = 0f;   // Ausbau Punkt 5
+var smgLife = new SortedDictionary<int, (long Bought, int Runs, float Rev, float Cost, int Caught, float Fines, long End, string Why)>();
+var smgOut = new Dictionary<int, (float Fuel, float Firm, float Repair)>();
+int smgRetired = 0, smgBought = 0, smgRuns = 0, smgJumpRuns = 0, smgCaught = 0, smgBuys = 0, smgSales = 0; float smgCost = 0f, smgRevenue = 0f, smgFines = 0f, smgSeized = 0f, smgPrices = 0f;   // Ausbau Punkt 5
 int bmnSales = 0, bmnBuys = 0; float bmnSoldUnits = 0f, bmnSoldCr = 0f, bmnBoughtUnits = 0f, bmnBoughtCr = 0f;   // Schwarzmarkt NPC
 var discarded = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: von KI-Händlern im All abgeworfen (kein Käufer nahm den Rest)
 var dumped = new SortedDictionary<string, float>(StringComparer.Ordinal);   // Phase 19: über die Annahme abgeladen (Station: Ware → Einheiten)
@@ -638,9 +640,16 @@ u.Events.Raised += e =>
     if (e is MineDelivered gmd && u.GoodOf(gmd.Good).Key == u.Rules.GasGoodKey) { gasDelivered += gmd.Amount; gasDeliveredCr += gmd.Revenue; gasTrips++; }
     if (e is FuelBought fb && u.GoodOf(fb.Good).Key == "ion_gas") { ionTanks++; ionTankUnits += fb.Units; }
     if (e is FuelBought fbf && u.GoodOf(fbf.Good).Key == "fusion_fuel") { fusionTanks++; fusionTankUnits += fbf.Units; }
-    if (e is SmugglerBought sb) { smgBought++; smgPrices += sb.Price; }
+    if (e is SmugglerBought sb) { smgBought++; smgPrices += sb.Price; smgLife[sb.Ship.Value] = (u.Tick, 0, 0f, 0f, 0, 0f, -1L, ""); }
+    if (e is SmugglerTraded sl && smgLife.TryGetValue(sl.Ship.Value, out var lt)) smgLife[sl.Ship.Value] = sl.Sold ? lt with { Runs = lt.Runs + 1, Rev = lt.Rev + sl.Credits } : lt with { Cost = lt.Cost + sl.Credits };
+    if (e is SmugglerCaught scl && smgLife.TryGetValue(scl.Ship.Value, out var lc)) smgLife[scl.Ship.Value] = lc with { Caught = lc.Caught + 1, Fines = lc.Fines + scl.Fine + scl.CargoValue };
+    if (e is ShipDeparted sdp && smgLife.TryGetValue(sdp.Ship.Value, out var ld)) smgLife[sdp.Ship.Value] = ld with { End = u.Tick, Why = sdp.Detail };
     if (e is SmugglerRunStarted srs) { smgRuns++; if (srs.Jump) smgJumpRuns++; }
     if (e is SmugglerTraded st2) { if (st2.Sold) { smgSales++; smgRevenue += st2.Credits; } else { smgBuys++; smgCost += st2.Credits; } }
+    if (e is SmugglerRetired) smgRetired++;
+    if (e is FuelBought fbs && smgLife.ContainsKey(fbs.Ship.Value)) { var o = smgOut.GetValueOrDefault(fbs.Ship.Value); smgOut[fbs.Ship.Value] = o with { Fuel = o.Fuel + fbs.Cost }; }
+    if (e is FirmCapitalMoved fcm && smgLife.ContainsKey(fcm.From.Value)) { var o = smgOut.GetValueOrDefault(fcm.From.Value); smgOut[fcm.From.Value] = o with { Firm = o.Firm + fcm.Amount }; }
+    if (e is ShipRepaired srp && smgLife.ContainsKey(srp.Ship.Value)) { var o = smgOut.GetValueOrDefault(srp.Ship.Value); smgOut[srp.Ship.Value] = o with { Repair = o.Repair + srp.Cost }; }
     if (e is SmugglerCaught sc) { smgCaught++; smgFines += sc.Fine; smgSeized += sc.CargoValue; }
     if (e is BlackMarketNpcTrade bmt) { if (bmt.Sold) { bmnSales++; bmnSoldUnits += bmt.Units; bmnSoldCr += bmt.Credits; } else { bmnBuys++; bmnBoughtUnits += bmt.Units; bmnBoughtCr += bmt.Credits; } }
     if (e is CargoDiscarded cdi) { discardCount++; string gk = u.Goods[cdi.Good].Name; discarded[gk] = discarded.GetValueOrDefault(gk) + cdi.Units; }
@@ -1176,8 +1185,12 @@ if (u.Modules.Count > 0)
         int firms = u.Actors.Values.Count(a => SpaceSim.Core.Simulation.SmugglerSystem.LawlessFirm(u, a));
         float smgCash = u.Ships.Values.Where(s => s.Role == ShipRole.Smuggler).Sum(s => s.Credits);
         Console.WriteLine($"Schmuggler (Punkt 5, {(u.Rules.Smugglers ? "an" : "aus")}): gesetzlose Firmen {firms}, Schmuggler jetzt {smgNow} (gekauft {smgBought} für {smgPrices:0} Cr), "
-            + $"Fahrten {smgRuns} (per Sprung {smgJumpRuns}), Einkäufe {smgBuys} ({smgCost:0} Cr), Verkäufe {smgSales} ({smgRevenue:0} Cr), erwischt {smgCaught} "
+            + $"Fahrten {smgRuns} (per Sprung {smgJumpRuns}), Einkäufe {smgBuys} ({smgCost:0} Cr), Verkäufe {smgSales} ({smgRevenue:0} Cr), Schiffe verkauft {smgRetired}, erwischt {smgCaught} "
             + $"(beschlagnahmt Basiswert {smgSeized:0} Cr, Strafen {smgFines:0} Cr), Schiffskassen {smgCash:0} Cr");
+        if (opts.TryGetValue("probe", out var prb) && prb == "schmuggler")
+            foreach (var (id, l) in smgLife)
+                Console.WriteLine($"  Schmuggler #{id}: gekauft t{l.Bought}, Verkäufe {l.Runs}, Erlös {l.Rev:0}, Einkauf {l.Cost:0}, erwischt {l.Caught} (Verlust {l.Fines:0}), Treibstoff {smgOut.GetValueOrDefault(id).Fuel:0}, an Firmenschiffe {smgOut.GetValueOrDefault(id).Firm:0}, Reparatur {smgOut.GetValueOrDefault(id).Repair:0}, "
+                    + (l.End >= 0 ? $"Abgang t{l.End} ({l.Why}) nach {l.End - l.Bought} Ticks" : $"lebt, Kasse {(u.Ships.TryGetValue(new ShipId(id), out var sh) ? sh.Credits : 0f):0}"));
     }
     {
         var gasG = u.FindGood(u.Rules.GasGoodKey); var ionG = u.FindGood("ion_gas");

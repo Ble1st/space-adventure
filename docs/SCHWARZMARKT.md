@@ -102,3 +102,15 @@ Startkapital, 6000 Ticks Abklingzeit) kaufte 38 in 300 000 Ticks, 23 gingen plei
 geschlossenes Tor); im Test mit geschlossenem Tor 17 springt der Schmuggler nach Aurelia. Export Konsumgüter/Luxus 60 000 Ticks, drei Seeds vorher → nachher:
 Mittel 10 508 → 10 525 / 2 295 → 2 191 (Seed 1: 11 307 → 10 440 / 2 629 → 1 940; Seed 2: 10 255 → 9 794 / 2 014 → 2 066; Seed 3: 9 962 → 11 340 / 2 242 → 2 566)
 — im Rauschen; die neuen Modulwaren verschieben die Waren-Ids. Angebote je 60 000 Ticks: Schmuggel 38, Forschung 63, Fahrgast 1 472.
+
+**Verkauf statt Pleite (Nachtrag).** Gemessen mit `--probe schmuggler` (Lebenslauf je Schiff, 300 000 Ticks): 11 von 14 Schmugglern gingen pleite. Ursachen:
+(1) **Treibstoff** — die Planung zog ihn nicht ab; bei einzelnen Schiffen fraß er den ganzen Handelsgewinn (z. B. Erlös 27 269, Einkauf 13 414, Treibstoff
+10 837 Cr); (2) die Vermögensabgabe über `wealthTaxFree` und die Abschöpfung des Firmensitzes drücken das Betriebsgeld dauerhaft auf ≈ 1 000 Cr, sodass eine
+Beschlagnahme oder eine Leerfahrt reichte; (3) Wartezeiten, wenn die Verstecke leer sind. Regeln jetzt:
+- Die Planung zieht Treibstoff ab wie die Händler (`Refuel.TripFuelCost`, beim Sprung den Sprungtreibstoff).
+- `smugglerRetireCredits` (Standardwelt 300): ein untätiger, leerer Schmuggler unter diesem Betriebsgeld — oder länger nicht rentabel (Messung Phase 22) —
+  wird **verkauft** (Grund c, `SmugglerRetired`): die nächste Werft mit dem Modell zahlt `Hangar.SellPrice` (Anteil am Material, höchstens ihre Kasse), Erlös
+  und Restgeld gehen an die Firma (Kasse mit Firmensitz, sonst ihr reichstes Schiff). Danach kauft die Firma `smugglerRetireBlockTicks` (40 000) keinen neuen.
+- `smugglerFenceValuePerShip` (1500): je Schmuggler auf der Karte müssen so viel Hehlerware (Basiswert) in den Verstecken liegen, sonst wird keiner gekauft.
+- Der Firmensitz schöpft bei Schmugglern nichts ab (ihr Betriebsgeld ist die nächste Ladung).
+Gemessen 300 000 Ticks: vorher 14 gekauft, 11 pleite; jetzt 0 pleite, 12–14 verkauft, im Mittel 2,1–2,5 Schmuggler gleichzeitig unterwegs.

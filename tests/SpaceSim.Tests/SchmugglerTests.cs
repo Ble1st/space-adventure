@@ -202,6 +202,42 @@ public class SchmugglerTests
     }
 
     [Fact]
+    public void ArmerSchmuggler_WirdVerkauftStattPleite_GeldAnDieFirma_KeinNeukaufWaehrendDerSperre()
+    {
+        var u = World();
+        var firm = MakeFirm(u, 20000f);
+        foreach (var st in u.StationsById().Where(s => ShipPurchase.SellsModel(u, s, u.ShipModels["shadow"])))
+            foreach (var n in ShipPurchase.Materials(u, u.ShipModels["shadow"])!) st.Market[n.Good].Amount = 20f;
+        var ship = BuySmuggler(u, firm);
+        Assert.True(u.Rules.SmugglerRetireCredits > 0f);
+        ship.Credits = 100f;
+        Assert.True(SmugglerSystem.ShouldRetire(u, ship));
+        float firmMoney = u.Ships.Values.Where(s => s.Owner == firm.Id && s.Id != ship.Id).Sum(s => s.Credits) + firm.Treasury.Credits;
+        var retired = new List<SmugglerRetired>(); var departed = new List<ShipDeparted>();
+        u.Events.Raised += e => { if (e is SmugglerRetired r) retired.Add(r); if (e is ShipDeparted d) departed.Add(d); };
+        SmugglerSystem.Retire(u, ship);
+        var r0 = Assert.Single(retired);
+        Assert.False(u.Ships.ContainsKey(ship.Id));
+        Assert.Equal(DepartureReason.Unprofitable, Assert.Single(departed).Reason);   // Grund c, nicht pleite
+        Assert.True(r0.Sale > 0f, "die Werft kauft das Schiff zurück");
+        float after = u.Ships.Values.Where(s => s.Owner == firm.Id).Sum(s => s.Credits) + firm.Treasury.Credits;
+        Assert.Equal(firmMoney + r0.Sale + r0.Cash, after, 1);
+        Assert.Equal(Math.Max(1L, u.Tick), firm.LastSmugglerRetireTick);
+        u.Tick += u.Rules.SmugglerBuyCooldownTicks + 1;
+        Assert.Null(SmugglerSystem.Purchase(u));   // Sperre nach dem Verkauf
+        // mit Fracht oder unterwegs wird nicht verkauft
+        var other = BuySmugglerAfter(u, firm);
+        other.Credits = 100f; other.Cargo[u.FindGood("food")!.Id] = 5f;
+        Assert.False(SmugglerSystem.ShouldRetire(u, other));
+    }
+
+    static Ship BuySmugglerAfter(Universe u, Actor firm)
+    {
+        firm.LastSmugglerRetireTick = 0; firm.LastSmugglerTick = 0;
+        return BuySmuggler(u, firm);
+    }
+
+    [Fact]
     public void SpeichernLaden_MitSchmugglerUnterwegs_Bitgleich()
     {
         var u = World(3);
@@ -239,11 +275,12 @@ public class SchmugglerTests
     public void Standardwelt_20000Ticks_SchmugglerUnterwegs_WirtschaftImRahmen()
     {
         var u = WorldBuilder.BuildDefault();   // die echte Standardwelt (Treibstoff/Forschung an): gemessen 2 Käufe bis 20 000 Ticks
-        var bought = 0; var runs = 0;
-        u.Events.Raised += e => { if (e is SmugglerBought) bought++; if (e is SmugglerRunStarted) runs++; };
+        var bought = 0; var runs = 0; var broke = 0;
+        u.Events.Raised += e => { if (e is SmugglerBought) bought++; if (e is SmugglerRunStarted) runs++; if (e is ShipDeparted { Role: ShipRole.Smuggler, Reason: DepartureReason.Bankrupt }) broke++; };
         new SimulationRunner().Run(u, 20000);
         Assert.True(bought >= 1, $"gekauft {bought}");
         Assert.True(runs >= 1, $"Fahrten {runs}");
+        Assert.Equal(0, broke);   // arme Schmuggler werden verkauft, nicht pleite
         foreach (var f in u.Actors.Values.Where(a => SmugglerSystem.LawlessFirm(u, a))) Assert.True(SmugglerSystem.CountOf(u, f.Id) <= u.Rules.SmugglersPerFirm);
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Smuggler), s => Assert.True(s.UsedVolume(u) <= s.CargoCapacity + 0.01f));
         // keine Preise am Rand
