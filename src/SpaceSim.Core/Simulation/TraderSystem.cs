@@ -372,15 +372,8 @@ public sealed class TraderSystem : ISimSystem
                 ship.Cargo[order.Good] = ship.Cargo.GetValueOrDefault(order.Good) + amount;
                 u.Events.Publish(new TraderBought(ship.Id, st.Id, order.Good, amount, cost));   // Phase 28 (Nacharbeit): Diagnose der Händlerpleiten
                 ship.Phase = TradePhase.GoingToSell;
-                // Phase 4b: Treibstoff für die Fahrt zum Verkäufer sichern (Tankstopp verwirft den Auftrag, Ankunft hängt ihn neu)
-                var plan = Refuel.PrepareTrip(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
-                if (plan == Refuel.TripPlan.FuelStop) return;
-                if (plan == Refuel.TripPlan.Stuck)
-                {
-                    ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick;
-                    return;
-                }
-                Travel.Start(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
+                if (ConvoyRules.Hold(u, ship, st, order)) return;   // Ausbau Punkt 3: wartet auf den Konvoi (höchstens ConvoyWaitTicks)
+                DepartToSell(u, ship, order);
             }
             else { ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick; }
         }
@@ -447,6 +440,20 @@ public sealed class TraderSystem : ISimSystem
     }
 
     /// <summary>Runde 24: gilt die Verlustkauf-Sperre für dieses Schiff? KI-Händler immer, Spielerschiffe mit Automatikauftrag, solange er Verlust nicht erlaubt.</summary>
+    /// <summary>Abfahrt zum Verkäufer nach dem Einkauf (Phase 4b: Treibstoff sichern; Tankstopp verwirft den Auftrag, Ankunft hängt ihn neu). true = unterwegs.</summary>
+    internal static bool DepartToSell(Universe u, Ship ship, TradeOrder order)
+    {
+        var plan = Refuel.PrepareTrip(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
+        if (plan == Refuel.TripPlan.FuelStop) return false;
+        if (plan == Refuel.TripPlan.Stuck)
+        {
+            ship.Order = null; ship.Phase = TradePhase.Idle; ship.IdleSince = u.Tick;
+            return false;
+        }
+        Travel.Start(u, ship, u.Stations[order.Sell].Sector, u.Stations[order.Sell].DockPoint(ship.Id));
+        return ship.Transit is not null;
+    }
+
     static bool LossGuarded(Ship ship, AutoLimits? limits) => ship.Controller == Controller.Ai || limits is { AllowLoss: false };
 
     /// <summary>Phase 19: Ladung dieser Ware, die andere Händler gerade zu dieser Station fahren (unterwegs zum Verkauf).</summary>

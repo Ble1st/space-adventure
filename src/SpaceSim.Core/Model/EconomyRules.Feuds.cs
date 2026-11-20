@@ -27,6 +27,8 @@ public sealed partial class EconomyRules
     public float FeudRaidRelationLoss = 0.02f;
     /// <summary>Anteil des Werts der abgeworfenen Fracht, den die überfallende Fraktion in ihre Kasse nimmt (Beschlagnahme; der Rest ist verloren).</summary>
     public float FeudSeizeShare = 0.5f;
+    /// <summary>Nachtrag 6b: die Beschlagnahme ist Ware (Anteil der abgeworfenen Fracht ins Lager der Angreifer) statt Geld ohne Gegenbuchung. Aus = alte Regel.</summary>
+    public bool FeudSeizeAsGoods;
     /// <summary>Erklärt der Spieler eine Fehde, sinkt sein Ansehen bei allen anderen KI-Fraktionen um diesen Wert.</summary>
     public float FeudThirdPartyLoss = 0.02f;
 

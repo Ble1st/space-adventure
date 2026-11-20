@@ -421,6 +421,10 @@ var joinedBy = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var refugeBy = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var pursuitEnds = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int pursuits = 0, escortsAssigned = 0, squadsFormed = 0, packsFormed = 0, arrests = 0;
+// Ausbau Punkt 3: Verfolgung über die Grenze, Konvois, Schutzverträge
+var abroadPairs = new HashSet<(int, int)>();
+int convoysFormed = 0, convoyTraders = 0, convoyEscorts = 0, protStarted = 0, protEnded = 0; long convoyWait = 0;
+var convoyEnds = new SortedDictionary<string, int>(StringComparer.Ordinal);
 u.Events.Raised += e =>
 {
     switch (e)
@@ -430,6 +434,11 @@ u.Events.Raised += e =>
         case PursuitStarted: pursuits++; break;
         case PursuitEnded pe: pursuitEnds[pe.How] = pursuitEnds.GetValueOrDefault(pe.How) + 1; break;
         case EscortAssigned: escortsAssigned++; break;
+        case PursuitAbroad pa: abroadPairs.Add((pa.Hunter.Value, pa.Target.Value)); break;
+        case ConvoyFormed cf: convoysFormed++; convoyTraders += cf.Traders; convoyEscorts += cf.Escorts; break;
+        case ConvoyDisbanded cd: convoyEnds[cd.Reason] = convoyEnds.GetValueOrDefault(cd.Reason) + 1; if (cd.Reason is "small" or "noescort" or "empty") convoyWait += cd.WaitedTicks; break;
+        case ProtectionStarted: protStarted++; break;
+        case ProtectionEnded: protEnded++; break;
         case ForceSquadron fs when fs.Formed: if (fs.Kind == "pack") packsFormed++; else squadsFormed++; break;
         case EncounterStarted es2 when es2.Cause == EncounterCause.Arrest: arrests++; break;
     }
@@ -1228,6 +1237,9 @@ if (u.Modules.Count > 0)
         + $"Verstärkung {(joinedBy.Count == 0 ? "keine" : string.Join(", ", joinedBy.Select(kv => $"{kv.Key} {kv.Value}")))}; "
         + $"Zuflucht {(refugeBy.Count == 0 ? "keine" : string.Join(", ", refugeBy.Select(kv => $"{kv.Key} {kv.Value}")))}; "
         + $"Verfolgungen {pursuits} ({(pursuitEnds.Count == 0 ? "–" : string.Join(", ", pursuitEnds.Select(kv => $"{kv.Key} {kv.Value}")))}); Geleit {escortsAssigned}; Polizeigefechte gegen den Spieler {arrests}");
+    Console.WriteLine($"Grenzverfolgung/Konvois/Schutz (Punkt 3: Grenze {(u.Rules.PursuitCrossBorder ? "an" : "aus")}, Konvois {(u.Rules.Convoys ? "an" : "aus")}, Schutz {(u.Rules.ProtectionContracts ? "an" : "aus")}): "
+        + $"Verfolgungen über die Grenze {abroadPairs.Count}; Konvois gebildet {convoysFormed} (Händler {convoyTraders}, Geleit {convoyEscorts}; Enden {(convoyEnds.Count == 0 ? "–" : string.Join(", ", convoyEnds.Select(kv => $"{kv.Key} {kv.Value}")))}); "
+        + $"Schutzverträge begonnen {protStarted}, beendet {protEnded}, jetzt {u.Protections.Count}");
     Console.WriteLine("Piraten über die Zeit (je 20000 Ticks: Überfälle, je Gruppe Kaperschiffe/Kasse): " + (pirateTimeline.Count == 0 ? "–" : string.Join(" | ", pirateTimeline)));
     // Phase 28 (Prüfpunkt e): Piratenkassen nach Zweck — Einnahmen gegen Kosten
     Console.WriteLine($"Piratenkassen: Einnahmen {pirateIn.Values.Sum():0} Cr ({(pirateIn.Count == 0 ? "–" : string.Join(", ", pirateIn.Select(kv => $"{kv.Key} {kv.Value:0}")))}), "

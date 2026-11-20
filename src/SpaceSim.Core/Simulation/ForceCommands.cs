@@ -19,7 +19,7 @@ public static class PoliceCommands
         || u.Rules.AmmoActive && p.Stats.AmmoCapacity > 0f && p.AmmoLoaded < u.Rules.AmmoReturnShare * p.Stats.AmmoCapacity
         || u.Rules.DamageActive && NpcRepair.Crippled(u, p);
 
-    static bool Give(Universe u, Ship p, ShipCommand c)
+    internal static bool Give(Universe u, Ship p, ShipCommand c)
     {
         if (Squadrons.Get(u, p) is { } sq && sq.Leader == p.Id && sq.Members.Count > 1 && c is not ReturnCommand)
             return Squadrons.Command(u, sq, c, out _);
@@ -132,7 +132,9 @@ public static class PoliceCommands
             Ship? ward = null; float best = r.PoliceEscortMinValue;
             foreach (var id in u.Tracker.ParkedIn(sector.Id).Concat(u.Tracker.TransitIn(sector.Id)).Distinct().OrderBy(i => i.Value))
             {
-                if (!u.Ships.TryGetValue(id, out var s) || !s.IsEconomyAi || escorted.Contains(id) || u.Fights.IsEngaged(id)) continue;
+                if (!u.Ships.TryGetValue(id, out var s) || escorted.Contains(id) || u.Fights.IsEngaged(id)) continue;
+                // Ausbau Punkt 3: Schiffe des Spielers mit Schutzvertrag zählen wie eigene Händler
+                if (!s.IsEconomyAi && !(Protection.Covers(u, s, sector.Id) && s.DockedAt.Value == 0)) continue;
                 if (ThreatMap.Where(u, s).Sector != sector.Id) continue;
                 float v = ThreatMap.CargoValue(u, s);
                 if (v > best) { best = v; ward = s; }
@@ -157,7 +159,7 @@ public static class PoliceCommands
         foreach (var p in e.Participants)
         {
             if (p.Side == rp.Side || p.Exit is CombatExit.Destroyed or CombatExit.Lost or CombatExit.Fled || !u.Ships.TryGetValue(p.Ship, out var police)) continue;
-            if (!ThreatMap.IsPolice(police) || u.Fights.IsEngaged(police.Id) || PoliceCommands.NeedsBase(u, police) || !Jurisdiction.Covers(u, police, where)) continue;
+            if (!ThreatMap.IsPolice(police) || u.Fights.IsEngaged(police.Id) || PoliceCommands.NeedsBase(u, police) || !Jurisdiction.CoversPursuit(u, police, where)) continue;
             if (Squadrons.Get(u, police) is { } sq && sq.Leader != police.Id) continue;
             if (police.Command is PursueCommand) continue;
             if (Give(u, police, new PursueCommand(raider.Id, u.Rules.PursuitLead, u.Tick + u.Rules.PursuitTicks)))

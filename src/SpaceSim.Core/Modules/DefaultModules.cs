@@ -106,7 +106,7 @@ public sealed class SecurityModule : ISimModule
 {
     public string Name => "Security";
     public void Register(SimulationBuilder b) =>
-        b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new SmugglerSystem(), SmugglerSystem.Interval).Add(new WantedSystem(), interval: 50)
+        b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new ConvoySystem(), ConvoySystem.Interval).Add(new SmugglerSystem(), SmugglerSystem.Interval).Add(new WantedSystem(), interval: 50)
          .Add(new NavySystem(), NavySystem.Interval)   // Phase 28: Kriegsschiffe der Fraktionen
          .Add(new OutpostDefenseSystem(), OutpostDefenseSystem.Interval)   // Phase 30: Waffenstellungen eröffnen das Feuer
          .Add(new OutpostBuilderSystem(), OutpostBuilderSystem.Interval);  // Phase 30: Fraktionen/Piraten stellen Kleinstationen auf
@@ -191,6 +191,7 @@ public sealed class PoliticsModule : ISimModule
          .Add(new AllianceSystem(), AllianceSystem.Interval)   // Runde 45: Bündnisse
          .Add(new FeudSystem(), FeudSystem.Interval)           // Ausbau Punkt 6: Fehden, Vermittlung, Regierungskrise
          .Add(new OfficeSystem(), OfficeSystem.Interval)       // Ausbau Punkt 9: Büros (Gründung, Schließen ohne Zustimmung)
+         .Add(new ProtectionSystem(), ProtectionSystem.Interval)   // Ausbau Punkt 3: Schutzverträge des Spielers
          .Add(new SpaceSim.Core.Comms.CommsSystem(), SpaceSim.Core.Comms.CommsSystem.Interval);   // Runde 40: Posteingang aus Ereignissen
 }
 

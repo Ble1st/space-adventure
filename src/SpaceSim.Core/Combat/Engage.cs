@@ -187,7 +187,8 @@ public static class Engage
         foreach (var esc in FleetGuards.Escorts(u, victim, sector.Id))
             if (!u.Fights.IsEngaged(esc.Id)) Join(u, e, esc, 1, CombatTactics.Escort, r.CombatStartDistance, e.Spatial ? CombatSpace.Around(vPos, esc.Position, 8f) : null);
         var police = PirateSystem.PoliceIn(u, sector.Id, vPos);   // Runde 44: nur Streifen in Reichweite des Opfers
-        if (police.Count > 0 && u.Rng.NextDouble() < MathF.Min(r.PoliceResponseMax, r.PoliceResponseChance * police.Count))
+        // Ausbau Punkt 3: Schutzvertrag — Streife im Sektor hilft sicher (kein Zufallswurf)
+        if (police.Count > 0 && (Protection.Covers(u, victim, sector.Id) || u.Rng.NextDouble() < MathF.Min(r.PoliceResponseMax, r.PoliceResponseChance * police.Count)))
         {
             e.Police = police[0].Id;
             Join(u, e, police[0], 1, CombatTactics.Police, r.CombatStartDistance + r.CombatHelperDistance,

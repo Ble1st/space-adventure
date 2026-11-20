@@ -277,6 +277,10 @@ public static class FleetGuards
             };
             if (guards && InSector(u, s, sector)) list.Add(s);
         }
+        // Ausbau Punkt 3: das Geleit eines fahrenden Konvois steht jedem seiner Händler im Sektor bei
+        if (u.Convoys.Count > 0 && ConvoyRules.Of(u, victim.Id) is { Departed: > 0 } c)
+            foreach (var id in c.Escorts)
+                if (id != victim.Id && u.Ships.TryGetValue(id, out var e) && e.Has(Capability.Combat) && !list.Contains(e) && InSector(u, e, sector)) list.Add(e);
         return list.OrderBy(s => s.Id.Value).ToList();
     }
 

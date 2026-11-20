@@ -221,6 +221,11 @@ public sealed class Universe
     public Dictionary<(int A, int B), long> FeudEnded { get; } = new();
     /// <summary>Ausbau Punkt 6: Regierungskrise je KI-Fraktion (Id → Ende-Tick) nach Verlust des Hauptquartiers; gespeichert, gehasht nur wenn vorhanden.</summary>
     public Dictionary<int, long> Crises { get; } = new();
+    /// <summary>Ausbau Punkt 3: Schutzverträge des Spielers (gespeichert, gehasht nur mit Spielerpolitik). Regeln in <see cref="Simulation.Protection"/>.</summary>
+    public List<ProtectionContract> Protections { get; } = new();
+    /// <summary>Ausbau Punkt 3: KI-Konvois (sammelnd oder unterwegs; gespeichert, gehasht nur wenn vorhanden). Regeln in <see cref="Simulation.ConvoyRules"/>.</summary>
+    public List<Convoy> Convoys { get; } = new();
+    public int NextConvoyId { get; set; } = 1;
     /// <summary>
     /// Runde 40: Posteingang des Spielers (Nachrichten aus Simulationsereignissen, siehe <see cref="Comms.CommsSystem"/>). Additiv gespeichert,
     /// aber <b>nicht gehasht</b> — reine Anzeige für den Spieler, verbraucht keine Zufallszahl. Höchstes <see cref="Comms.Comms.MaxInbox"/> Einträge.

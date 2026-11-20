@@ -280,7 +280,7 @@ public sealed class PirateSystem : ISimSystem
         defenders.AddRange(escorts);
         var police = PoliceIn(u, sector.Id);
         ShipId helper = default;
-        if (police.Count > 0 && u.Rng.NextDouble() < MathF.Min(r.PoliceResponseMax, r.PoliceResponseChance * police.Count))
+        if (police.Count > 0 && (Protection.Covers(u, victim, sector.Id) || u.Rng.NextDouble() < MathF.Min(r.PoliceResponseMax, r.PoliceResponseChance * police.Count)))   // Ausbau Punkt 3
         {
             defenders.Add(police[0]);
             helper = police[0].Id;

@@ -104,10 +104,13 @@ public sealed class BanditSystem : ISimSystem
                 var stId = u.NewStationId();
                 var st = StationFactory.Create(u, stId, type, StationFactory.BuiltName(u, type, sec.Id), sec.Id, spot, id);
                 st.BankruptcyProtected = true;   // wie die Start-Werke (essential)
-                st.Credits = 4000f;              // Betriebskapital für den ersten Einkauf, wie die Werke der Weltdatei
+                // Betriebskapital für den ersten Einkauf (wie die Werke der Weltdatei) — Nachtrag 17b: aus der Bandenkasse, keine neue Geldquelle
+                float seed = MathF.Min(4000f, MathF.Max(0f, a.Treasury.Credits));
+                a.Treasury.Credits -= seed;
+                st.Credits = seed;
                 u.AddStation(st);
                 u.Events.Publish(new StationBuilt(stId, sec.Id, type.Key));
-                u.Events.Publish(new TreasuryUpkeep(id, "bandit_build", cost, 0f));
+                u.Events.Publish(new TreasuryUpkeep(id, "bandit_build", cost + seed, 0f));
                 break;
             }
         }

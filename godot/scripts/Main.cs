@@ -369,6 +369,8 @@ public partial class Main : Node3D
 		var u = _session.U;
 		if (_placeType is not null) EndPlacement(null);   // eigene Stationen: kein Geist aus der alten Sitzung
 		AttachedUniverses.Add(new WeakReference(u));
+		Ui.MapOverlay.BanditFactions.Clear();   // Nachtrag 17b: Banditenfraktionen rot auf den Karten
+		foreach (var bf in u.Factions.Keys) if (SpaceSim.Core.Simulation.Bandits.IsEstablished(u, bf)) Ui.MapOverlay.BanditFactions.Add(bf.Value);
 		AttachedLabels.Add($"#{++_attachCount} {u.Ships[u.PlayerShip].ModelKey}");
 		// Runde 17 (Speicher wächst mit „Neues Spiel“): keine Ansicht hält das alte Universum fest
 		_hud.CcCtx.U = u; _hud.CcCtx.Player = u.Ships[u.PlayerShip]; _hud.CcCtx.Comms = _session.Comms;   // Runde 40: Comms-Registry der Sitzung

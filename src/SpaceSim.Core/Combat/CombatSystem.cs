@@ -320,6 +320,20 @@ public sealed class CombatSystem : ISimSystem
     }
 
     /// <summary>
+    /// Nachtrag 6b: beschlagnahmte Fehdeware geht real ins Lager der überfallenden Seite — Heimatbasis des Schiffs, sonst die erste Station des Besitzers
+    /// (Id-Reihenfolge), die die Ware im Markt führt; sonst ist sie verloren. Kein Geld entsteht (vorher: Wert × Anteil als Einnahme ohne Gegenbuchung).
+    /// </summary>
+    static void SeizeGoods(Universe u, Ship raider, GoodId g, float units)
+    {
+        if (units <= 0f) return;
+        Station? st = u.Stations.TryGetValue(raider.HomeBase, out var h) && h.Market.ContainsKey(g) ? h : null;
+        st ??= u.StationsById().FirstOrDefault(x => x.Owner == raider.Owner && !x.IsBuildSite && x.Market.ContainsKey(g));
+        if (st is null) return;
+        st.Market[g].Amount += units;
+        u.Events.Publish(new FeudGoodsSeized(raider.Id, st.Id, g, units));
+    }
+
+    /// <summary>
     /// Aufgabe: Der Teilnehmer wirft seinen Abwurfanteil jeder Ware ab; der Kaperer der Gegenseite nimmt die Beute (Hehlerei in die Piratenkasse wie bisher,
     /// gedeckelt) und bricht ab. false = kein Kaperer da oder nichts abzuwerfen.
     /// </summary>
@@ -343,6 +357,7 @@ public sealed class CombatSystem : ISimSystem
             // Phase 25: dem Spieler wirft das Opfer die Fracht vor die Nase — seit Phase 26 als gespeicherter Frachtbehälter (Traktorstrahl)
             if (byPlayer) { u.Events.Publish(new CargoDropped(e.Id, e.Sector, ship.Id, pos, g, take)); dropped[g] = take; }
             else if (e.Cause != EncounterCause.Feud) Trading.BlackMarket.Stash(u, raider.Owner, g, take);   // Schwarzmarkt: die Beute landet beim Hehler des Verstecks
+            else if (e.Cause == EncounterCause.Feud && r.FeudSeizeAsGoods) SeizeGoods(u, raider, g, take * MathF.Max(0f, r.FeudSeizeShare));   // Nachtrag 6b: echte Ware statt neuem Geld
         }
         if (byPlayer && dropped.Count > 0) Wrecks.Drop(u, e.Sector, pos, dropped, ship.Id, "Frachtbehälter");
         if (value <= 0f) return false;
@@ -357,7 +372,7 @@ public sealed class CombatSystem : ISimSystem
         // Ausbau Punkt 6: Fehdeüberfall — die überfallende Fraktion beschlagnahmt einen Anteil des Werts (keine Hehlerei, kein Piratendeckel)
         if (e.Cause == EncounterCause.Feud)
         {
-            float seized = value * MathF.Max(0f, r.FeudSeizeShare);
+            float seized = r.FeudSeizeAsGoods ? 0f : value * MathF.Max(0f, r.FeudSeizeShare);   // Nachtrag 6b: mit Regel als Ware in ein eigenes Lager (oben)
             if (seized > 0f && u.Actors.TryGetValue(raider.Owner, out var seizer))
             {
                 seizer.Treasury.Credits += seized;

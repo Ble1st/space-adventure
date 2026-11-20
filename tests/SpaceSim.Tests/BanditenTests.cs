@@ -424,7 +424,9 @@ public class BanditenTests
         Assert.Equal(Abgrund, rebuilt!.Sector);
         Assert.Equal(u.Tick, a.LastBanditTick);
         Assert.True(kBefore - a.Treasury.Credits >= cost - 0.01f, $"Kasse {kBefore} → {a.Treasury.Credits}, Kosten {cost} (plus Unterhalt)");
-        Assert.Contains(ev, e => e is TreasuryUpkeep k && k.Purpose == "bandit_build" && MathF.Abs(k.Amount - cost) < 0.01f);
+        // Nachtrag 17b: das Betriebskapital der neuen Station (4000 Cr) kommt aus der Bandenkasse — eine Buchung über Bau + Startkasse
+        Assert.Equal(4000f, rebuilt.Credits, 1);
+        Assert.Contains(ev, e => e is TreasuryUpkeep k && k.Purpose == "bandit_build" && MathF.Abs(k.Amount - (cost + rebuilt.Credits)) < 0.01f);
         Assert.Contains(ev, e => e is StationBuilt b && b.Station == rebuilt.Id);
         // Cooldown: nächster Schritt baut nichts (auch nicht die entfernte Nr. 93)
         Departures.RemoveStation(u, u.Stations[new StationId(93)], DepartureReason.Destroyed, "test");

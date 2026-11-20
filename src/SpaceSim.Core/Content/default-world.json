@@ -85,6 +85,13 @@
   "escortMinRemainingTicks": 200,
   "maxMiners": 55,
   "repairPlatesPerHull": 0.02,
+  "pursuitCrossBorder": true,
+  "protectionContracts": true,
+  "protectionFeePerDay": 200,
+  "convoys": true,
+  "convoyRouteRisk": 0.006,
+  "pirateModelCostFactors": { "bomber": 3 },
+  "feudSeizeAsGoods": true,
   "banditFactions": true,
   "banditTollLevel": 1,
   "banditTollUpkeepPerLevel": 0,
@@ -608,6 +615,7 @@
    "buildCost": 3500,
    "upkeep": 0.05,
    "income": 0.8,
+   "stocks": { "water": [100, 200] },
    "recipes": [
     {
      "ticks": 5,
@@ -922,13 +930,13 @@
      0,
      1
     ],
-    "weapon_magazine_s": [1, 2],
+    "weapon_magazine_s": [2, 3],
     "weapon_massdriver_s": [1, 3],
     "power_bank_s": [1, 2],
     "ammo": [3, 8],
     "missile": [2, 6],
     "missile_launcher_s": [2, 2],
-    "point_defense_s": [1, 2]
+    "point_defense_s": [2, 3]
    },
    "shipDealer": {
     "assembly": 0.05
@@ -1115,6 +1123,8 @@
    "recipes": [],
    "stocks": {
     "platinum": [10, 10],
+    "weapon_magazine_s": [5, 8],
+    "point_defense_s": [5, 8],
     "mining_laser_2": [
      1,
      3

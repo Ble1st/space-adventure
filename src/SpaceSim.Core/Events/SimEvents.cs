@@ -330,6 +330,18 @@ public sealed record PursuitEnded(ShipId Hunter, ShipId Target, string How) : Si
 public sealed record ForceSquadron(ActorId Owner, SquadronId Squadron, string Kind, int Members, bool Formed) : SimEvent;
 /// <summary>Phase 27: Eine Streife gibt einem Handelsschiff Geleit.</summary>
 public sealed record EscortAssigned(ShipId Police, ShipId Ward, SectorId Sector) : SimEvent;
+/// <summary>Ausbau Punkt 3: eine Verfolgung führt in einen fremden (befreundeten/verbündeten) Sektor.</summary>
+public sealed record PursuitAbroad(ShipId Hunter, ShipId Target, SectorId Sector) : SimEvent;
+/// <summary>Ausbau Punkt 3: Schutzvertrag des Spielers mit einer Fraktion beginnt.</summary>
+public sealed record ProtectionStarted(FactionId Faction, float Fee) : SimEvent;
+/// <summary>Ausbau Punkt 3: Schutzvertrag endet (Grund: cancelled, war, feud, hostile, unpaid, rule).</summary>
+public sealed record ProtectionEnded(FactionId Faction, string Reason) : SimEvent;
+/// <summary>Ausbau Punkt 3: Tagesgebühr eines Schutzvertrags bezahlt.</summary>
+public sealed record ProtectionPaid(FactionId Faction, float Fee) : SimEvent;
+/// <summary>Ausbau Punkt 3: ein KI-Konvoi fährt los (mit Geleit).</summary>
+public sealed record ConvoyFormed(int Convoy, FactionId Faction, SectorId From, SectorId To, int Traders, int Escorts) : SimEvent;
+/// <summary>Ausbau Punkt 3: ein Konvoi löst sich auf (arrived, timeout, small = zu wenige Händler, ohne Geleit losgefahren).</summary>
+public sealed record ConvoyDisbanded(int Convoy, string Reason, int WaitedTicks) : SimEvent;
 /// <summary>
 /// Phase 27: Der Spieler hat sich ergeben — gegenüber der Polizei (<paramref name="ToPolice"/>: Strafe bezahlt, Schmuggelware beschlagnahmt) oder Kaperern
 /// (Fracht abgeworfen, die Kaperer drehen ab).
@@ -481,3 +493,6 @@ public sealed record PassengerFarePaid(ShipId Ship, StationId From, StationId To
 public sealed record PassengerTipLost(int Mission, ShipId Ship, float Amount) : SimEvent;
 /// <summary>Ausbau Punkt 5: Schmuggler verkauft statt pleite (Werft zahlt <paramref name="Sale"/>, <paramref name="Cash"/> Restgeld an die Firma).</summary>
 public sealed record SmugglerRetired(ShipId Ship, ActorId Firm, StationId Yard, float Sale, float Cash) : SimEvent;
+
+/// <summary>Nachtrag 6b: Fehdebeute als Ware ins Lager der überfallenden Seite.</summary>
+public sealed record FeudGoodsSeized(ShipId Raider, StationId Station, GoodId Good, float Units) : SimEvent;

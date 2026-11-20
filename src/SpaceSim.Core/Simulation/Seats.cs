@@ -339,11 +339,14 @@ public static class Offices
     }
 
     /// <summary>Hook für Punkt 3 (Schutzverträge): bietet das Büro schon Schutzverträge an? Noch nicht — die Zeile erklärt es.</summary>
-    public static bool ProtectionContracts(Universe u, Station st) => false;
+    public static bool ProtectionContracts(Universe u, Station st) =>
+        u.Rules.ProtectionContracts && u.FactionOf(st) is { } f && Protection.StandingIssue(u, f) is null;
 
     /// <summary>Anzeigezeile eines Büros (Stationsinfo).</summary>
     public static string InfoLine(Universe u, Station st) =>
-        $"Büro von {ActorNames.Tagged(u, st.Owner)} — Hangar und Auftragsbrett; Schutzverträge folgen (Punkt 3).";
+        ProtectionContracts(u, st) && u.FactionOf(st) is { } f
+            ? $"Büro von {ActorNames.Tagged(u, st.Owner)} — Hangar, Auftragsbrett, Schutzvertrag ({u.Rules.ProtectionFeePerDay:0} Cr/Tag, Comms){(Protection.Of(u, f) is not null ? " · läuft" : "")}."
+            : $"Büro von {ActorNames.Tagged(u, st.Owner)} — Hangar und Auftragsbrett.";
 }
 
 /// <summary>

@@ -108,6 +108,7 @@ public sealed class CommsActions
         r.Register(new OfficeAction());            // Ausbau Punkt 9: eigenes Büro in fremdem Sektor gründen/schließen
         r.Register(new FeudAction());              // Ausbau Punkt 6: Fehde erklären/beenden
         r.Register(new MediateAction());           // Ausbau Punkt 6: zwischen zwei KI-Fraktionen vermitteln
+        r.Register(new ProtectionAction());        // Ausbau Punkt 3: Schutzvertrag
         return r;
     }
 

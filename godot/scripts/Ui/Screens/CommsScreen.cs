@@ -62,6 +62,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public readonly System.Collections.Generic.List<string> TestIntelKeys = new();
 	/// <summary>Ausbau Punkt 6: Fehde-/Krisenzeile des Details und die Vermittlungs-Schlüssel (Selbsttest).</summary>
 	public string TestFeudRow { get; private set; } = "";
+	public string TestProtectionRow { get; private set; } = "";
 	public readonly System.Collections.Generic.List<string> TestMediateKeys = new();
 	/// <summary>Ausbau Punkt 16 (Selbsttest): Diplomatie-Auswahl auf eine Fraktion setzen.</summary>
 	public void TestSelectFaction(FactionId f) { int i = KnownFactions(Ctx.U).IndexOf(f); if (i >= 0) { _diplSel = i; _detailOpen = true; Invalidate(); } }
@@ -354,6 +355,13 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		string feudText = Feuds.FactionLine(u, f);
 		TestFeudRow = feudText;
 		if (feudText.Length > 0) { Row(det, 18, y, dw - 36, "Fehde/Krise", feudText, 14); y += 22; }
+		// Ausbau Punkt 3: laufender Schutzvertrag
+		if (Protection.Of(u, f) is { } pc)
+		{
+			TestProtectionRow = $"läuft seit {SpaceSim.Core.Comms.Comms.Ago(u, pc.Since)} · {u.Rules.ProtectionFeePerDay:0} Cr/Tag";
+			Row(det, 18, y, dw - 36, "Schutz", TestProtectionRow, 14); y += 22;
+		}
+		else TestProtectionRow = "";
 		if (war is not null && me is not null)
 		{
 			Row(det, 18, y, dw - 36, "Tribut", $"sie fordern {Wars.TributeFor(u, war, f):0} Cr · du kannst {Wars.DemandAmount(u, war, f):0} Cr fordern", 14); y += 22;
@@ -404,6 +412,12 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 		{
 			if (Feuds.InFeud(u, me.Value, f)) ActionButton($"feud:end:{f.Value}", "Fehde beenden", confirm: false);
 			else ActionButton($"feud:declare:{f.Value}", "Fehde erklären", confirm: true);
+		}
+		// Ausbau Punkt 3: Schutzvertrag (Tagesgebühr; Polizei hilft sicher, Geleit)
+		if (u.Rules.ProtectionContracts && me is not null && u.IsNpcFaction(f))
+		{
+			if (Protection.Of(u, f) is not null) ActionButton($"protection:end:{f.Value}", "Schutzvertrag kündigen", confirm: false);
+			else ActionButton($"protection:buy:{f.Value}", "Schutzvertrag schließen", confirm: true);
 		}
 		TestMediateKeys.Clear();
 		if (u.Rules.PlayerMediation)

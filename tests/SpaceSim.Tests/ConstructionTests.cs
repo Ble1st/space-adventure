@@ -731,7 +731,11 @@ public class ConstructionTests
     [Fact]
     public void Langlauf_20000Ticks_BauLaeuft_NotbauSelten_FlotteHaelt()
     {
-        var u = DemoUniverse.Create();
+        // Nachtrag 17b: mit dem größeren Wasserpuffer der Farmen ist Wasser am Anfang nicht mehr knapp — der Lebenszyklus beginnt in 20 000 Ticks
+        // nur noch eine Baustelle. Der Test prüft den Bauablauf, nicht die Farm-Kalibrierung: Farmen ohne eigenen Wasserpuffer wie vorher.
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        if (def.StationTypes.First(t => t.Key == "farm") is { Stocks: { } fs }) fs.Remove("water");
+        var u = WorldBuilder.Build(def);
         int started = 0, done = 0, emergency = 0;
         u.Events.Raised += e =>
         {
@@ -749,7 +753,7 @@ public class ConstructionTests
             }
             Assert.All(u.Ships.Values.Where(s => s.Order is BuildOrder), s => Assert.True(s.IsAiBuilder));
         }
-        Assert.True(started >= 2);
+        Assert.True(started >= 2, $"Baustellen begonnen {started}, fertig {done}");
         Assert.True(done >= 2);
         Assert.True(emergency * 2 <= done);   // Notbau ist nicht der Normalfall
         Assert.True(ShipJobs.UsedUnits(u, ShipJobs.ByKey("trade")!) >= 11f);

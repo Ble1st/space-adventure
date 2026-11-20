@@ -450,8 +450,9 @@ public sealed class SmugglerSystem : ISimSystem
                 if (left <= 0.0001f) st.BlackStock.Remove(o.Good); else st.BlackStock[o.Good] = left;
                 ship.Cargo[o.Good] = ship.Cargo.GetValueOrDefault(o.Good) + units;
                 ship.Credits -= cost;
-                pirates.Treasury.Credits += cost;
-                u.Events.Publish(new TreasuryIncome(pirates.Id, BlackMarket.ServiceKey, cost));
+                float toPirates = cost * Math.Clamp(u.Rules.SmugglerFencePirateShare, 0f, 1f);   // Nachtrag 5b: der Rest versickert (Geldsenke)
+                pirates.Treasury.Credits += toPirates;
+                if (toPirates > 0f) u.Events.Publish(new TreasuryIncome(pirates.Id, BlackMarket.ServiceKey, toPirates));
             }
             else units = 0f;
         }

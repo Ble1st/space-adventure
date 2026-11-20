@@ -222,6 +222,16 @@ public static class UniverseHash
         foreach (var fd in u.Feuds) { if (Skip(fd.A) || Skip(fd.B)) continue; Mix(0x6002u); Mix((ulong)fd.A.Value); Mix((ulong)fd.B.Value); Mix((ulong)fd.Since); Mix((ulong)fd.Until); Mix(fd.ByPlayer ? 1u : 0u); Mix((ulong)fd.LastRaidTick); Mix((ulong)fd.Raids); }
         foreach (var (k, t) in u.FeudEnded.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { if (Skip(new FactionId(k.A)) || Skip(new FactionId(k.B))) continue; Mix(0x6003u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         foreach (var (f, t) in u.Crises.OrderBy(k => k.Key)) { Mix(0x6004u); Mix((ulong)f); Mix((ulong)t); }
+        // Ausbau Punkt 3: Schutzverträge (Spielerpolitik), Konvois (ohne Konvoi mischt nichts)
+        if (includePlayerPolitics) foreach (var c in u.Protections) { Mix(0x0301u); Mix((ulong)c.Faction.Value); Mix((ulong)c.Since); Mix((ulong)c.PaidUntil); }
+        foreach (var c in u.Convoys)
+        {
+            Mix(0x0302u); Mix((ulong)c.Id); Mix((ulong)c.Faction.Value); Mix((ulong)c.From.Value); Mix((ulong)c.To.Value); Mix((ulong)c.Formed); Mix((ulong)c.Departed);
+            foreach (var t in c.Traders) Mix((ulong)t.Value);
+            Mix(0x0303u);
+            foreach (var e in c.Escorts) Mix((ulong)e.Value);
+        }
+        if (u.NextConvoyId != 1) Mix((ulong)u.NextConvoyId + 0x0304u);
         // Runde 30: Rückkauf-Posten (ohne Spielerhandel leer — mischt nichts)
         foreach (var (k, l) in u.Ledger.OrderBy(kv => kv.Key.Actor).ThenBy(kv => kv.Key.Station).ThenBy(kv => kv.Key.Good))
         { Mix(0x3001u); Mix((ulong)k.Actor); Mix((ulong)k.Station); Mix((ulong)k.Good); MixF(l.BoughtQty); MixF(l.BoughtPrice); MixF(l.BoughtStockBefore); MixF(l.SoldQty); MixF(l.SoldPrice); MixF(l.SoldStockBefore); Mix(l.BoughtOpen ? 1u : 0u); Mix(l.SoldOpen ? 1u : 0u); Mix((ulong)l.LastTick);

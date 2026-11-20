@@ -20,6 +20,45 @@ public static class Jurisdiction
 
     /// <summary>Zuständigkeit für ein Schiff (Fraktion seines Besitzers); ohne Fraktion nirgends.</summary>
     public static bool Covers(Universe u, Ship police, SectorId sector) => u.FactionOf(police) is { } f && Covers(u, f, sector);
+
+    /// <summary>
+    /// Ausbau Punkt 3: Darf die Polizei bis in den Sektor verfolgen? Mit <see cref="EconomyRules.PursuitCrossBorder"/>: eigenes Gebiet, oder ein Sektor einer
+    /// befreundeten/verbündeten Fraktion höchstens <see cref="EconomyRules.PursuitForeignJumps"/> Sprung vom eigenen Gebiet — nie Feindesgebiet (Krieg, Fehde,
+    /// feindlich), nie Gesetzlose/Banditen, nie herrenlos. Ohne Regel = <see cref="Covers(Universe, FactionId, SectorId)"/>.
+    /// </summary>
+    public static bool CoversPursuit(Universe u, FactionId f, SectorId sector)
+    {
+        if (!u.Rules.PursuitCrossBorder) return Covers(u, f, sector);
+        if (!u.Sectors.TryGetValue(sector, out var sec) || !u.Factions.ContainsKey(sec.Owner)) return false;
+        var owner = sec.Owner;
+        if (owner == f) return true;
+        if (Bandits.IsEstablished(u, owner) || u.Actors.TryGetValue(new ActorId(owner.Value), out var oa) && oa.Kind == ActorKind.Outlaw) return false;
+        if (Wars.AtWar(u, f, owner) || Feuds.InFeud(u, f, owner) || Relations.Effective(u, owner, f) <= u.Rules.HostileRelation) return false;
+        if (!(Relations.Effective(u, f, owner) >= u.Rules.AllyRelation || Alliances.Allied(u, f, owner))) return false;
+        return JumpsFromTerritory(u, f, sector, Math.Max(0, u.Rules.PursuitForeignJumps)) >= 0;
+    }
+
+    public static bool CoversPursuit(Universe u, Ship police, SectorId sector) => u.FactionOf(police) is { } f && CoversPursuit(u, f, sector);
+
+    /// <summary>Sprünge (über Tore, auch geschlossene) vom nächsten Sektor der Fraktion bis <paramref name="sector"/>, höchstens <paramref name="max"/>; −1 = weiter.</summary>
+    static int JumpsFromTerritory(Universe u, FactionId f, SectorId sector, int max)
+    {
+        var seen = new HashSet<SectorId> { sector };
+        var ring = new List<SectorId> { sector };
+        for (int d = 1; d <= max; d++)
+        {
+            var next = new List<SectorId>();
+            foreach (var s in ring)
+                foreach (var g in u.Gates.Values)
+                {
+                    if (g.Sector != s || !u.Gates.TryGetValue(g.Target, out var far) || !seen.Add(far.Sector)) continue;
+                    if (u.Sectors.TryGetValue(far.Sector, out var fs) && fs.Owner == f) return d;
+                    next.Add(far.Sector);
+                }
+            ring = next;
+        }
+        return -1;
+    }
 }
 
 /// <summary>
@@ -172,7 +211,10 @@ public sealed class PursueExecutor : IOrderExecutor
             }
         }
         var (ts, tpos) = ThreatMap.Where(u, t);
-        if (!Jurisdiction.Covers(u, ship, ts)) return End(u, ship, c.Target, "border");
+        if (!Jurisdiction.CoversPursuit(u, ship, ts)) return End(u, ship, c.Target, "border");
+        if (u.Rules.PursuitCrossBorder && u.FactionOf(ship) is { } pf && u.Sectors.TryGetValue(ts, out var tsec) && tsec.Owner != pf
+            && ThreatMap.Where(u, ship).Sector == ts)
+            u.Events.Publish(new PursuitAbroad(ship.Id, c.Target, ts));   // Diagnose: Verfolgung im fremden Sektor
         if (t.Transit is null && PirateSystem.AtHome(u, t)) return End(u, ship, c.Target, "safe");
         var (ms, mpos) = ThreatMap.Where(u, ship);
         // Runde 12: das Versteck hat Geschütze — die Streife verfolgt nicht in ihre Reichweite (Ziel oder Streife nahe am Versteck: abbrechen)

@@ -271,8 +271,8 @@ public class FirmensitzTests
         var keys = StationServices.Default().ForStation(u, office).Select(s => s.Key).ToList();
         Assert.Contains("hangar", keys);
         Assert.Contains(MissionService.ServiceKey, keys);
-        Assert.Contains("Schutzverträge", FirmSeats.InfoLine(u, office));
-        Assert.False(Offices.ProtectionContracts(u, office));   // Hook für Punkt 3
+        Assert.Contains("Büro", FirmSeats.InfoLine(u, office));
+        Assert.False(Offices.ProtectionContracts(u, office));   // Punkt 3: das eigene Büro bietet keinen Schutzvertrag an (nur Büros von KI-Fraktionen)
         Assert.Equal(host, u.Sectors[Alpha].Owner);   // 1,5 Einfluss verschiebt den Besitz nicht
         // Gastgeber wird feindlich: das Büro schließt
         Relations.Set(u, host, u.PlayerActor, -0.5f);

@@ -70,7 +70,11 @@ public static class CombatModels
     }
 
     /// <summary>Bau im Versteck: Materialwert (Basispreise) × <see cref="EconomyRules.PirateBuildFactor"/> × Kapazitätseinheiten (große Rümpfe brauchen mehr Schwarzmarkt).</summary>
-    public static float PirateCost(Universe u, ShipModel model, ShipClass cls) => MaterialValue(u, model) * MathF.Max(0f, u.Rules.PirateBuildFactor) * Units(cls);
+    public static float PirateCost(Universe u, ShipModel model, ShipClass cls) => MaterialValue(u, model) * MathF.Max(0f, u.Rules.PirateBuildFactor) * Units(cls) * ModelCostFactor(u, model);
+
+    /// <summary>Nachtrag 5b: Aufschlag je Modell auf den Piratenbau (<see cref="EconomyRules.PirateModelCostFactors"/>; fehlt = 1).</summary>
+    public static float ModelCostFactor(Universe u, ShipModel model) =>
+        u.Rules.PirateModelCostFactors is { Count: > 0 } f && f.TryGetValue(model.Key, out var x) ? MathF.Max(0f, x) : 1f;
 
     /// <summary>Günstigster Bau im Versteck; 0 = keins.</summary>
     public static float CheapestPirateCost(Universe u)

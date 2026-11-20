@@ -83,6 +83,10 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Feuds { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? FeudEnded { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Crises { get; set; }
+    /// <summary>Ausbau Punkt 3: Schutzverträge [Fraktion, Since, PaidUntil]; Konvois [Id, Fraktion, From, To, Formed, Departed, nHändler, Händler…, Geleit…]; nächste Konvoi-Id (fehlt = 1).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Protections { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Convoys { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public int? NextConvoyId { get; set; }
     /// <summary>Runde 40 (additiv, v17 bleibt): Posteingang des Spielers (reine Anzeige; gespeichert, aber nie gehasht); fehlt = leer.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CommsMessageSave>? Inbox { get; set; }
     /// <summary>Runde 40: nächste Nachrichten-Id des Posteingangs; fehlt (alte Stände) = 1.</summary>

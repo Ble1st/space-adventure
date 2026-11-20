@@ -191,6 +191,12 @@ public static class UniverseSerializer
             s.FeudEnded = u.FeudEnded.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
         if (u.Crises.Count > 0)
             s.Crises = u.Crises.OrderBy(kv => kv.Key).Select(kv => new[] { (long)kv.Key, kv.Value }).ToList();
+        if (u.Protections.Count > 0)   // Ausbau Punkt 3
+            s.Protections = u.Protections.Select(c => new[] { (long)c.Faction.Value, c.Since, c.PaidUntil }).ToList();
+        if (u.Convoys.Count > 0)
+            s.Convoys = u.Convoys.Select(c => new long[] { c.Id, c.Faction.Value, c.From.Value, c.To.Value, c.Formed, c.Departed, c.Traders.Count }
+                .Concat(c.Traders.Select(t => (long)t.Value)).Concat(c.Escorts.Select(e => (long)e.Value)).ToArray()).ToList();
+        if (u.NextConvoyId != 1) s.NextConvoyId = u.NextConvoyId;
         // Runde 40: Posteingang (gespeichert, nicht gehasht)
         if (u.Inbox.Count > 0)
             s.Inbox = u.Inbox.Select(m => new CommsMessageSave
@@ -516,6 +522,18 @@ public static class UniverseSerializer
             foreach (var p in s.FeudEnded) if (p.Length >= 3) u.FeudEnded[((int)p[0], (int)p[1])] = p[2];
         if (s.Crises is not null)
             foreach (var p in s.Crises) if (p.Length >= 2) u.Crises[(int)p[0]] = p[1];
+        if (s.Protections is not null)   // Ausbau Punkt 3
+            foreach (var p in s.Protections) if (p.Length >= 3) u.Protections.Add(new ProtectionContract { Faction = new FactionId((int)p[0]), Since = p[1], PaidUntil = p[2] });
+        if (s.Convoys is not null)
+            foreach (var p in s.Convoys)
+            {
+                if (p.Length < 7) continue;
+                var c = new Convoy { Id = (int)p[0], Faction = new FactionId((int)p[1]), From = new SectorId((int)p[2]), To = new SectorId((int)p[3]), Formed = p[4], Departed = p[5] };
+                int n = (int)p[6];
+                for (int i = 7; i < p.Length; i++) (i < 7 + n ? c.Traders : c.Escorts).Add(new ShipId((int)p[i]));
+                u.Convoys.Add(c);
+            }
+        if (s.NextConvoyId is { } nci) u.NextConvoyId = nci;
         // Runde 40: Posteingang (gespeichert, nicht gehasht)
         if (s.Inbox is not null)
             foreach (var m in s.Inbox)

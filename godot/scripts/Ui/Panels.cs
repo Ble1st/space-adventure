@@ -199,7 +199,9 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 
 	/// <summary>Farbe einer Fraktion; Phase 21: herrenlose Sektoren (Fraktion 0) grau.</summary>
 	// Runde 38: die Spielerfraktion (Id-Zahl des Spielerakteurs, ab ActorId.FirstGenerated — nur der Spieler ist eine Fraktion mit erzeugter Id) ist cyan
-	public static Color FactionColor(FactionId f) => f.Value == 0 ? new Color(0.6f, 0.6f, 0.65f) : f.Value >= ActorId.FirstGenerated ? new Color(0.3f, 0.95f, 1f) : (f.Value % 4) switch
+	// Nachtrag 17b: etablierte Banditenfraktionen rot (Ids beim Sitzungswechsel gesetzt — nur Zahlen, hält kein Universum fest)
+	public static System.Collections.Generic.HashSet<int> BanditFactions { get; } = new();
+	public static Color FactionColor(FactionId f) => BanditFactions.Contains(f.Value) ? new Color(1f, 0.3f, 0.25f) : f.Value == 0 ? new Color(0.6f, 0.6f, 0.65f) : f.Value >= ActorId.FirstGenerated ? new Color(0.3f, 0.95f, 1f) : (f.Value % 4) switch
 	{
 		1 => new Color(0.35f, 0.7f, 1f), 2 => new Color(1f, 0.7f, 0.3f), 3 => new Color(0.5f, 1f, 0.5f), _ => new Color(0.9f, 0.5f, 0.9f),
 	};
