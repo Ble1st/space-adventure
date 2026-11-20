@@ -765,11 +765,7 @@ public class Phase28Tests
         Assert.Contains(ev.OfType<WarDeclared>(), w => (w.A == Union && w.B == Guild) || (w.A == Guild && w.B == Union));
         Assert.Contains(ev.OfType<WarshipCommissioned>(), _ => true);
         Assert.Contains(ev.OfType<SiegeStarted>(), _ => true);
-        // Ausbau Punkte 5/10/14 (neue Modulwaren verschieben den Zufallsweg): je nach Pfad richtet sich die Belagerung gegen eine Wirtschaftsstation, deren
-        // Verteidiger (Alarm, Punkt „Wirtschaftsstationen halten stand“) das Gefecht zuerst gegen die Kriegsschiffe führen — geprüft wird, dass in einer
-        // Belagerung geschossen wurde (auf die Station oder zwischen Angreifern und Verteidigern)
-        var siegeFights = ev.OfType<SiegeStarted>().Select(x => x.Encounter).ToHashSet();
-        Assert.True(ev.OfType<ShotAtStation>().Any() || ev.OfType<ShotFired>().Any(f => siegeFights.Contains(f.Encounter)), "in keiner Belagerung geschossen");
+        Assert.Contains(ev.OfType<ShotAtStation>(), _ => true);
         // Gerätetest Phase 28: seit Belagerungen am Rand der Waffenreichweite nicht mehr sofort als Flucht enden, kosten sie länger — der Frieden kommt je nach
         // Pfad aus Kriegsmüdigkeit oder leerer Kriegskasse (beides ein regulärer Kriegsausgang)
         Assert.Contains(ev.OfType<PeaceConcluded>(), p => p.Reason is "weary" or "broke" or "tribute");   // Runde 45: auch Tributfrieden (Gasernte verschob den Zufallsweg)

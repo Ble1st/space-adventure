@@ -88,15 +88,7 @@ def link(scene, ob):
 def _fits():
     with open(WORLD, encoding="utf-8") as f:
         d = json.load(f)
-    fits = {m["key"]: m.get("fit", []) for m in d["shipModels"]}
-    # Modelle, deren Weltdaten auf einem anderen Zweig liegen (Schmugglerschiff „Schatten“)
-    for k, f in EXTRA_FITS.items():
-        fits.setdefault(k, f)
-    return fits
-
-
-EXTRA_FITS = {"shadow": ["reactor_mk2", "chem_engine_m", "cargo_universal_60", "cargo_universal_60",
-                         "jump_drive_s", "cloak_s", "weapon_laser_s"]}
+    return {m["key"]: m.get("fit", []) for m in d["shipModels"]}
 
 
 FITS = {}
