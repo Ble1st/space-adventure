@@ -227,7 +227,7 @@ public class ShipFitTests
         var u = DemoUniverse.Create();
         new SimulationRunner().Run(u, 20_000);   // Flottenwachstum erzeugt neue Schiffe (Ids ab 1000)
         // Phase 11: neue Polizei- und Kaperschiffe (Kasse statt Flottenwachstum) sind keine KI-Neubauten einer Aufgabe
-        var bought = u.Ships.Values.Where(s => s.Id.Value >= 1000 && s.Role is not (ShipRole.Police or ShipRole.Pirate)).ToList();
+        var bought = u.Ships.Values.Where(s => s.Id.Value >= 1000 && s.Role is not (ShipRole.Police or ShipRole.Pirate or ShipRole.Smuggler)).ToList();
         Assert.NotEmpty(bought);
         foreach (var s in u.Ships.Values)
         {
