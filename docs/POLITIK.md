@@ -428,7 +428,7 @@ Schalter `feudsActive`, `playerFeuds`, `mediation`, `playerMediation`, `governme
 
 | Lauf (60 000 Ticks, Standardwelt) | Ergebnis |
 |---|---|
-| Standardwelt 20 000 / 60 000, Schalter an gegen `--feuds off` | bitgleich: 12D6D4F32D86E79B / 70CBA501910FEFB7 — keine Fehde, keine Krise, keine Vermittlung (KI-Beziehungen +0,12…+0,25, nichts umkämpft); Preise im Zielbereich |
+| Standardwelt 20 000 / 60 000, Schalter an gegen `--feuds off` | bitgleich: 12D6D4F32D86E79B / 70CBA501910FEFB7 (Stand vor dem Rebase; nach dem Rebase auf main 43093e2: 20 000 Ticks EF98482620425E60 = Hash von main) — keine Fehde, keine Krise, keine Vermittlung (KI-Beziehungen +0,12…+0,25, nichts umkämpft); Preise im Zielbereich |
 | `--feud 1:2@2000` (Beziehung −0,5, Fehde erzwungen) | 9 Fehdeüberfälle, Fehde läuft ab (Tick 8000); die Beziehung sinkt weiter, die Union erklärt der Gilde bei Tick 9 900 den Krieg (−0,62), Tributfrieden bei 15 900 (11 686 Cr). Händlerabgänge Ø 0,08 je 5 000 Ticks, Verlustquote 0,20 %, Preise im Zielbereich |
 | `--aiwar 2:1@4000` + Kassen, ohne Vermittlerin | keine Vermittlung (Montanbund 0,2 zu beiden — unter 0,25); bitgleich mit `--feuds off`; Tributfrieden bei 10 000 für 7 274 Cr |
 | dasselbe mit `--mediator 3@5900` (Montanbund 0,5 zu allen) | Montanbund vermittelt bei Tick 6 000 (Müdigkeit +0,25); Tributfrieden bei 10 000 für 4 771 Cr (die höhere Müdigkeit senkt die Forderung) |

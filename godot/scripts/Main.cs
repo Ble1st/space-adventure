@@ -1233,6 +1233,19 @@ public partial class Main : Node3D
 				LastCombatMessage = MaskUnknownFactions($"Überfall! Ziel gewählt: {(_session.U.Ships.TryGetValue(raid.Attacker, out var ra) ? SpaceSim.Core.Combat.PlayerCombat.Describe(_session.U, ra) : "Kaperschiff")} — " + (_fight.AutoFire ? "Dauerfeuer läuft." : "„Dauerfeuer“ an?") + " „Ziel folgen“ hält es im Bugwinkel.");   // Runde 22: je nach Zustand; Punkt 16b: Fraktion ggf. maskiert
 				Danger("Überfall", LastCombatMessage, 8f);
 				break;
+			// Ausbau Punkt 6: Fehden, Vermittlung, Regierungskrise — mit dir als Hinweis, sonst Info; unbekannte Fraktionen maskiert (Punkt 16b)
+			case FeudStarted fs:
+				if (_session.U.IsPlayerFaction(fs.A) || _session.U.IsPlayerFaction(fs.B)) _hud.Toast(MaskUnknownFactions(fs.Message), 5f); else _hud.Info(MaskUnknownFactions(fs.Message), 3f);
+				break;
+			case FeudEnded fe:
+				if (_session.U.IsPlayerFaction(fe.A) || _session.U.IsPlayerFaction(fe.B)) _hud.Toast(MaskUnknownFactions(fe.Message), 4f); else _hud.Info(MaskUnknownFactions(fe.Message), 3f);
+				break;
+			case MediationConcluded mc when !_session.U.IsPlayerFaction(mc.Mediator):
+				_hud.Info(MaskUnknownFactions(mc.Message), 3f);
+				break;
+			case GovernmentCrisisChanged gc:
+				_hud.Info(MaskUnknownFactions(gc.Message), 4f);
+				break;
 			case EncounterStarted arrest when arrest.Cause == EncounterCause.Arrest:
 				LastCombatMessage = MaskUnknownFactions(arrest.Message); Danger("Polizei greift an", LastCombatMessage, 8f); break;   // Punkt 16b
 			case EncounterStarted es when es.Sector == _session.U.PlayerSector:
