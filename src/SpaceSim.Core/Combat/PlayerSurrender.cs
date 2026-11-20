@@ -120,7 +120,7 @@ public static class PlayerSurrender
         if (raider is not null && u.Actors.TryGetValue(raider.Owner, out var pirates))
         {
             float fenced = value * u.Rules.FenceShare;
-            if (u.Rules.PirateTreasuryCap > 0f) fenced = MathF.Min(fenced, MathF.Max(0f, u.Rules.PirateTreasuryCap - pirates.Treasury.Credits));
+            if (Simulation.Bandits.FenceCap(u, pirates) is > 0f and var fcap) fenced = MathF.Min(fenced, MathF.Max(0f, fcap - pirates.Treasury.Credits));   // Ausbau Punkt 17: Deckel je Akteur
             if (fenced > 0f)
             {
                 pirates.Treasury.Credits += fenced;

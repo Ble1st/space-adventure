@@ -23,6 +23,8 @@ if (opts.TryGetValue("research", out var resOpt)) worldDef.Rules.ResearchActive 
 if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelOpt == "on";
 // Runde 38: --playerfaction on|off — Spieler als eigene Fraktion (Vergleichslauf: der Hash ohne Spielerpolitik muss gleich sein)
 if (opts.TryGetValue("playerfaction", out var pfOpt)) worldDef.Rules.PlayerOwnFaction = pfOpt == "on";
+// Ausbau Punkt 17: --bandits on|off — etablierte Banditenfraktion (aus = WorldBuilder lässt sie mit allem, was ihr gehört, aus der Welt)
+if (opts.TryGetValue("bandits", out var banOpt)) worldDef.Rules.BanditFactions = banOpt == "on";
 if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
@@ -147,6 +149,10 @@ if (opts.TryGetValue("crisis", out var crOpt)) { var cat = crOpt.Split('@'); cri
 if (opts.TryGetValue("mediator", out var mdOpt)) { var mat = mdOpt.Split('@'); mediatorDriver = (int.Parse(mat[0], CultureInfo.InvariantCulture), long.Parse(mat[1], CultureInfo.InvariantCulture) / 20 * 20); }
 var feudLog = new List<string>();
 int feudsStarted = 0, feudRaids = 0, mediations = 0, crises = 0;
+// Ausbau Punkt 17: Kennzahlen der etablierten Banditenfraktion(en)
+int banditRaids = 0, banditRaidsWon = 0, banditBuilds = 0;
+double banditToll = 0, banditTaxes = 0, banditFence = 0, banditFleetCost = 0, banditBuildCost = 0, banditShare = 0;
+var banditLog = new List<string>();
 var feudEnds = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int tributePeaces = 0; double tributeMoney = 0;
 // Phase 31: Torkampf-Kennzahlen
@@ -155,6 +161,26 @@ var gateRestored = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var gateDownSince = new Dictionary<int, long>();
 var gateOutages = new List<long>();
 double gateRepairCost = 0;
+u.Events.Raised += e =>
+{
+    // Ausbau Punkt 17: Banditenfraktion — Zoll, Abgaben, Hehlerei, Flotte, Bauten, Beuteanteil, Überfälle, Gebietswechsel
+    switch (e)
+    {
+        case TollPaid tp when Bandits.IsEstablished(u, tp.To): banditToll += tp.Amount; break;
+        case TaxCollected tc when Bandits.IsEstablished(u, tc.Treasury): banditTaxes += tc.Amount; break;
+        case TreasuryIncome ti when Bandits.IsEstablished(u, ti.Actor): if (ti.Purpose == "fence") banditFence += ti.Amount; break;
+        case TreasuryUpkeep tk when Bandits.IsEstablished(u, tk.Actor):
+            if (tk.Purpose == "bandit_fleet") banditFleetCost += tk.Amount;
+            else if (tk.Purpose == "bandit_build") { banditBuilds++; banditBuildCost += tk.Amount; }
+            else if (tk.Purpose == "bandit_share") banditShare += tk.Amount;
+            break;
+        case RaidResolved rr when u.Ships.TryGetValue(rr.Raider, out var rs) && Bandits.IsEstablished(u, rs.Owner):
+            banditRaids++; if (rr.AttackerWon) banditRaidsWon++; break;
+        case SectorOwnerChanged soc when Bandits.IsEstablished(u, soc.From) || Bandits.IsEstablished(u, soc.To):
+            banditLog.Add($"Tick {u.Tick}: {u.Sectors[soc.Sector].Name} {(soc.From.Value == 0 ? "herrenlos" : u.Factions.TryGetValue(soc.From, out var ff) ? ff.Name : "?")} → {(soc.To.Value == 0 ? "herrenlos" : u.Factions.TryGetValue(soc.To, out var ft) ? ft.Name : "?")}");
+            break;
+    }
+};
 u.Events.Raised += e =>
 {
     switch (e)
@@ -1285,6 +1311,19 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Fehden (Punkt 6: KI {(u.Rules.FeudsActive ? "an" : "aus")}, Vermittlung {(u.Rules.Mediation ? "an" : "aus")}, Krise {(u.Rules.GovernmentCrisis ? "an" : "aus")}): begonnen {feudsStarted}, "
         + $"Überfälle {feudRaids}, Enden {(feudEnds.Count == 0 ? "keine" : string.Join(", ", feudEnds.Select(kv => $"{kv.Key} {kv.Value}")))}, Vermittlungen {mediations}, Regierungskrisen {crises}; jetzt {u.Feuds.Count} Fehden, {u.Crises.Count} Krisen"
         + (feudLog.Count > 0 ? " — " + string.Join("; ", feudLog.Take(30)) : ""));
+    // Ausbau Punkt 17: etablierte Banditenfraktion
+    foreach (var bf in u.Factions.Keys.Where(f => Bandits.IsEstablished(u, f)).OrderBy(f => f.Value))
+    {
+        var ba = new ActorId(bf.Value);
+        var bseat = Bandits.Seat(u, ba);
+        Console.WriteLine($"Banditen (Punkt 17, {(u.Rules.BanditFactions ? "an" : "aus")}): {u.Factions[bf].Name} — Sitz {(bseat is null ? "keiner" : bseat.Name + (bseat.Condition is { Disabled: true } ? " (ausgeschaltet)" : ""))}, "
+            + $"Sektoren {string.Join("/", u.Sectors.Values.Where(x => x.Owner == bf).OrderBy(x => x.Id.Value).Select(x => $"{x.Name} {x.Control} Zoll {x.Access.EntryLevel}"))}, "
+            + $"Werke {Bandits.Economic(u, ba).Count}, Stationen {u.Stations.Values.Count(x => x.Owner == ba)}, "
+            + $"Schutzflotte {u.Ships.Values.Count(x => Wars.IsWarship(x) && x.Owner == ba)}, Kaperflotte {u.Ships.Values.Count(x => ThreatMap.IsRaider(x) && x.Owner == ba)}, Kasse {u.Actors[ba].Treasury.Credits:0} Cr; "
+            + $"Zoll {banditToll:0}, Abgaben {banditTaxes:0}, Hehlerei {banditFence:0}, Flottenunterhalt {banditFleetCost:0}, Bauten {banditBuilds} für {banditBuildCost:0}, Beuteanteil {banditShare:0} Cr; "
+            + $"Überfälle {banditRaids} (erfolgreich {banditRaidsWon})"
+            + (banditLog.Count > 0 ? " — " + string.Join("; ", banditLog.Take(20)) : ""));
+    }
     Console.WriteLine($"Kriegserklärungen gegen den Spieler (AiWarOnPlayer {(u.Rules.AiWarOnPlayer ? "an" : "aus")}): {playerWarLog.Count}"
         + (playerWarLog.Count > 0 ? " — " + string.Join("; ", playerWarLog) : ""));
     Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "

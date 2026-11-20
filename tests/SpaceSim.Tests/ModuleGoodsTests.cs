@@ -84,7 +84,7 @@ public class ModuleGoodsTests
         Assert.Equal(10f, u.Modules["reactor_mk1"].Stats["powerOutput"]);
         Assert.Equal(160f, u.Modules["chem_engine_s"].Stats["thrust"]);
         Assert.Equal(100f, u.Modules["cargo_universal_100"].Stats["capacity"]);
-        Assert.All(u.Ships.Values.Where(s => s.HasModel && s.Quality == ShipQuality.Standard && s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Collector)), s => Assert.Equal(8f, s.Stats.Speed));   // Gasernte: Gasschöpfer sind keine Einheitsmodelle   // Phase 7: bessere Gründer sind schneller; Phase 8: Bauschiffe (Foreman) sind keine Einheitsmodelle; Phase 11: Polizei/Piraten auch nicht
+        Assert.All(u.Ships.Values.Where(s => s.HasModel && s.Quality == ShipQuality.Standard && s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship or ShipRole.Collector)), s => Assert.Equal(8f, s.Stats.Speed));   // Punkt 17: Schutzflotte der Banditen   // Gasernte: Gasschöpfer sind keine Einheitsmodelle   // Phase 7: bessere Gründer sind schneller; Phase 8: Bauschiffe (Foreman) sind keine Einheitsmodelle; Phase 11: Polizei/Piraten auch nicht
     }
 
     [Fact]

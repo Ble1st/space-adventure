@@ -69,7 +69,7 @@ public class BanditenTests
         Assert.False(off.Factions.ContainsKey(Bandits));
         Assert.DoesNotContain(off.Stations.Values, s => s.Id.Value is >= 91 and <= 94);
         Assert.DoesNotContain(off.Ships.Values, s => s.Owner == BanditActor);
-        Assert.Equal(75, off.Rules.MaxStations);
+        Assert.Equal(World().Rules.MaxStations - 3, off.Rules.MaxStations);   // 3 Werke weniger (Treibstoff aus: Raffinerien ebenfalls abgezogen)
         Assert.Equal(0, off.Sectors[Abgrund].Owner.Value);
         var ev = new List<SimEvent>(); off.Events.Raised += ev.Add;
         new SimulationRunner().Run(off, 6000);
@@ -84,7 +84,7 @@ public class BanditenTests
         Assert.DoesNotContain(off2.Stations.Values, s => s.Id.Value is >= 91 and <= 94);
         Assert.DoesNotContain(off2.Ships.Values, s => s.Owner == BanditActor);
         Assert.Equal(0, off2.Sectors[Abgrund].Owner.Value);
-        Assert.Equal(75, off2.Rules.MaxStations);   // 78 − 3 weggelassene Wirtschaftsstationen (der Sitz als Versteck zählt nicht)
+        Assert.Equal(World().Rules.MaxStations - 3, off2.Rules.MaxStations);   // 3 weggelassene Wirtschaftsstationen (der Sitz als Versteck zählt nicht)
     }
 
     // ───────── 2: Inhalt ─────────
@@ -98,8 +98,8 @@ public class BanditenTests
         Assert.Equal(ActorKind.Outlaw, a.Kind);
         Assert.Equal(Bandits, a.Membership);
         Assert.Equal(22000f, a.Treasury.Credits);
-        Assert.True(Simulation.Bandits.IsEstablished(u, a.Id));
-        Assert.True(Simulation.Bandits.IsEstablished(u, Bandits));
+        Assert.True(SpaceSim.Core.Simulation.Bandits.IsEstablished(u, a.Id));
+        Assert.True(SpaceSim.Core.Simulation.Bandits.IsEstablished(u, Bandits));
         var seatType = u.StationTypes["bandit_seat"];
         Assert.True(seatType.Hideout);
         Assert.Equal(1.2f, seatType.Security);
@@ -132,7 +132,7 @@ public class BanditenTests
         Assert.All(mine, s => Assert.Equal(Abgrund, s.Sector));
         // die kleinen Gruppen sind nicht etabliert
         foreach (var o in u.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw && !x.IsFaction(u)))
-            Assert.False(Simulation.Bandits.IsEstablished(u, o.Id), o.Name);
+            Assert.False(SpaceSim.Core.Simulation.Bandits.IsEstablished(u, o.Id), o.Name);
         Assert.Equal(2, u.Actors.Values.Count(x => x.Kind == ActorKind.Outlaw && !x.IsFaction(u)));
     }
 
@@ -146,14 +146,20 @@ public class BanditenTests
         foreach (var id in new[] { 91, 92, 93, 94 })
         {
             var st = u.Stations[new StationId(id)];
+            // die Station selbst aus dem Sektor nehmen, sonst steht sie sich selbst im Weg
+            int at = sec.Stations.IndexOf(st.Id);
+            sec.Stations.RemoveAt(at);
             var chk = StationPlacement.Check(u, sec, st.Position, st.Radius);
+            sec.Stations.Insert(at, st.Id);
             Assert.True(chk.Ok, $"Station {id}: {chk.Reason}");
         }
         // Gürtel behält seine 12 Asteroiden (Abstand Feldmitte–Station groß genug für jeden Felsen)
         Assert.Equal(12, Belt.AsteroidsOf(sec, sec.Fields[0]).Count());
         // Bau-Spielraum gleich: 78 − wirtschaftliche Stationen = 6 wie vorher 75 − 69
-        Assert.Equal(78, u.Rules.MaxStations);
-        Assert.Equal(6, u.Rules.MaxStations - StationProtection.CountEconomic(u));
+        var def = TestWorlds.Def(fuel: false, research: false);
+        RevertBandits(def);
+        var off = WorldBuilder.Build(def, 1);
+        Assert.Equal(off.Rules.MaxStations - StationProtection.CountEconomic(off), u.Rules.MaxStations - StationProtection.CountEconomic(u));
     }
 
     // ───────── 4: Sektorbesitz, Dominanz, Dauerzoll ─────────
@@ -184,8 +190,9 @@ public class BanditenTests
         var u = World();
         new SimulationRunner().Run(u, 40);
         var sec = u.Sectors[Abgrund];
-        var gate = u.Gates[sec.Gates[0]];   // einziges Tor des Abgrunds (Hauptroute)
-        Assert.Equal(Delta, u.Sectors[u.Gates[gate.Target].Sector].Id);
+        // Tor in Delta, das in den Abgrund führt (Evaluate prüft die Einreise auf der Gegenseite des Tors)
+        var gate = u.Gates[u.Gates[sec.Gates[0]].Target];
+        Assert.Equal(Delta, gate.Sector);
         // freier Händler zahlt Zoll an die Banditenkasse
         var trader = u.Ships.Values.First(s => s.Role == ShipRole.Trader && s.Owner == u.FreeActor);
         trader.Credits = 1000f;
@@ -221,10 +228,10 @@ public class BanditenTests
         new SimulationRunner().Run(u, 20_000);
         // Sperren nur in Bandiensektoren (Abgrund dauerhaft Stufe 1)
         foreach (var s in u.Sectors.Values)
-            if (s.Access.EntryLevel > 0) Assert.True(Simulation.Bandits.HoldsSector(u, s), s.Name);
-        Assert.All(locks, l => Assert.True(Simulation.Bandits.HoldsSector(u, l.Sector), $"Sperre in {l.Sector}"));
+            if (s.Access.EntryLevel > 0) Assert.True(SpaceSim.Core.Simulation.Bandits.HoldsSector(u, s), s.Name);
+        Assert.All(locks, l => Assert.True(SpaceSim.Core.Simulation.Bandits.IsEstablished(u, l.Authority), $"Sperre in {l.Sector}"));
         // WorstRelation der Staaten sieht nicht die Banditen
-        foreach (var f in u.NpcFactionIds().Where(f => !Simulation.Bandits.IsEstablished(u, f)))
+        foreach (var f in u.NpcFactionIds().Where(f => !SpaceSim.Core.Simulation.Bandits.IsEstablished(u, f)))
         {
             Assert.NotEqual(Bandits, FactionPolicySystem.WorstRelation(u, f).Against);
             Assert.Equal(u.Rules.RelationOutlaw, Relations.Effective(u, f, BanditActor), 3);   // keine Drift, auch nach 20000 Ticks
@@ -321,11 +328,11 @@ public class BanditenTests
     {
         var u = World();
         var a = u.Actors[BanditActor];
-        var small = u.Actors.Values.First(x => x.Kind == ActorKind.Outlaw && !Simulation.Bandits.IsEstablished(u, x.Id));
-        Assert.Equal(u.Rules.BanditMaxRaiderUnits, Simulation.Bandits.RaiderUnitsCap(u, a));
-        Assert.Equal(u.Rules.MaxRaiderUnitsPerActor, Simulation.Bandits.RaiderUnitsCap(u, small));
-        // die Grenze lässt 3 Einheiten zu (zwei Korsaren + Platz für einen dritten)
-        Assert.NotNull(CombatModels.ForPirates(u, 100_000f, Simulation.Bandits.RaiderUnitsCap(u, a), 0f));
+        var small = u.Actors.Values.First(x => x.Kind == ActorKind.Outlaw && !SpaceSim.Core.Simulation.Bandits.IsEstablished(u, x.Id));
+        Assert.Equal(u.Rules.BanditMaxRaiderUnits, SpaceSim.Core.Simulation.Bandits.RaiderUnitsCap(u, a));
+        Assert.Equal(u.Rules.MaxRaiderUnitsPerActor, SpaceSim.Core.Simulation.Bandits.RaiderUnitsCap(u, small));
+        // die Grenze der Bande (Standardwelt 2 Einheiten nach Messung der Verlustquote, Code-Vorgabe 3) lässt ein Kampfmodell zu
+        Assert.NotNull(CombatModels.ForPirates(u, 100_000f, SpaceSim.Core.Simulation.Bandits.RaiderUnitsCap(u, a), 0f));
         // Nachbau am Sitz nach Verlust
         foreach (var r in u.ShipsById().Where(s => ThreatMap.IsRaider(s) && s.Owner == BanditActor).ToList())
             Departures.RemoveShip(u, r, DepartureReason.Destroyed, "test");
@@ -358,8 +365,8 @@ public class BanditenTests
         victim.Position = seat.Position + new Vec2(30f, 0f);
         raider.Position = seat.Position + new Vec2(-30f, 0f);
         var e = new Encounter { Id = 1, Sector = Abgrund, Cause = EncounterCause.Raid, Raider = raider.Id, Victim = victim.Id };
-        e.Participants.Add(new CombatParticipant { Ship = raider.Id, Side = 0, Active = true });
-        e.Participants.Add(new CombatParticipant { Ship = victim.Id, Side = 1, Active = true });
+        e.Participants.Add(new CombatParticipant { Ship = raider.Id, Side = 0 });
+        e.Participants.Add(new CombatParticipant { Ship = victim.Id, Side = 1 });
         var ev = new List<SimEvent>(); u.Events.Raised += ev.Add;
         StationCombat.Fire(u, e, 10f);
         Assert.DoesNotContain(ev, x => x is StationShot ss && ss.Station.Value is 91 or 92 or 93 or 94);   // kein Flächenbrand
@@ -368,10 +375,33 @@ public class BanditenTests
             u.ShipModels["corsair"].Fit, ShipRole.Pirate, Controller.Ai, u.FreeActor, seat, 0f);
         u.AddShip(atk);
         var e2 = new Encounter { Id = 2, Sector = Abgrund, Cause = EncounterCause.Siege, Station = seat.Id };
-        e2.Participants.Add(new CombatParticipant { Ship = atk.Id, Side = 0, Active = true });
+        e2.Participants.Add(new CombatParticipant { Ship = atk.Id, Side = 0 });
         ev.Clear();
         StationCombat.Fire(u, e2, 10f);
         Assert.Contains(ev, x => x is StationShot ss && ss.Station == seat.Id && ss.Target == atk.Id);
+        // wer ein Schiff der Bande angreift (Polizei fängt einen Bandenkaperer ab, Seite 0 gegen Seite 1), wird beschossen;
+        // ein eigener Überfall der Bande lässt die Geschütze dagegen still (das Opfer greift niemanden an)
+        seat.Condition = null;   // Nachladezeiten aus der Belagerung oben zurücksetzen
+        var own = u.Ships.Values.First(s => ThreatMap.IsRaider(s) && s.Owner == BanditActor);
+        own.Position = seat.Position + new Vec2(25f, 0f);
+        var cop = ShipPurchase.Create(u, u.NewShipId(), "warden", u.ShipClasses[u.ShipModels["warden"].ClassKey].Slots,
+            u.ShipModels["warden"].Fit, ShipRole.Police, Controller.Ai, new ActorId(1), seat, 0f);
+        u.AddShip(cop);
+        cop.Position = seat.Position + new Vec2(-25f, 0f);
+        var e3 = new Encounter { Id = 3, Sector = Abgrund, Cause = EncounterCause.Intercept, Raider = own.Id };
+        e3.Participants.Add(new CombatParticipant { Ship = cop.Id, Side = 0 });
+        e3.Participants.Add(new CombatParticipant { Ship = own.Id, Side = 1 });
+        ev.Clear();
+        StationCombat.Fire(u, e3, 10f);
+        Assert.Contains(ev, x => x is StationShot ss && ss.Station == seat.Id && ss.Target == cop.Id);
+        Assert.DoesNotContain(ev, x => x is StationShot ss && ss.Target == own.Id);
+        var e4 = new Encounter { Id = 4, Sector = Abgrund, Cause = EncounterCause.Raid, Raider = own.Id, Victim = victim.Id };
+        e4.Participants.Add(new CombatParticipant { Ship = own.Id, Side = 0 });
+        e4.Participants.Add(new CombatParticipant { Ship = victim.Id, Side = 1 });
+        seat.Condition = null;
+        ev.Clear();
+        StationCombat.Fire(u, e4, 10f);
+        Assert.DoesNotContain(ev, x => x is StationShot ss && ss.Station == seat.Id);
     }
 
     // ───────── 12: Nachbau der Werke ─────────
@@ -419,6 +449,11 @@ public class BanditenTests
         var a = u.Actors[BanditActor];
         a.Treasury.Credits = 200_000f;
         a.LastBanditTick = -1_000_000;
+        // vor BanditExpansionAfterTicks kein Vorposten (Nebelmark bleibt dem Spieler für Sitz/HQ/Firmensitz)
+        Assert.True(u.Rules.BanditExpansionAfterTicks > 0);
+        new BanditSystem().Step(u, BanditSystem.Interval);
+        Assert.DoesNotContain(u.Stations.Values, s => s.Sector == Nebelmark && s.Owner == BanditActor);
+        u.Rules.BanditExpansionAfterTicks = 0;
         var ev = new List<SimEvent>(); u.Events.Raised += ev.Add;
         new BanditSystem().Step(u, BanditSystem.Interval);
         var outpost = u.StationsById().FirstOrDefault(s => s.Sector == Nebelmark && s.Owner == BanditActor);
@@ -486,8 +521,8 @@ public class BanditenTests
         };
         new SimulationRunner().Run(u, 20_000);
         Assert.True(u.Actors[BanditActor].Treasury.Credits >= 0f);
-        var known = new HashSet<string> { "bandit_fleet", "bandit_build", "bandit_share", "fence", "blackmarket", "maintenance", "wear_emergency", "government", "lock", "police", "fleet", "outpost", "subsidy" };
-        Assert.Subset(purposes, known);   // keine unbekannten Zwecke
+        var known = new HashSet<string> { "bandit_fleet", "bandit_build", "bandit_share", "fence", "blackmarket", "maintenance", "wear_emergency", "government", "lock", "police", "fleet", "outpost", "subsidy", "pirates", "ammo", "navy", "hideout" };   // Kaperflotte (Unterhalt/Neubau/Versorgung), Munition, Schutzflotte am Sitz
+        Assert.True(purposes.IsSubsetOf(known), "unbekannte Zwecke: " + string.Join(", ", purposes.Except(known)));   // keine unbekannten Zwecke
         Assert.Contains("bandit_fleet", purposes);   // die Schutzflotte kostet Unterhalt
     }
 
@@ -554,12 +589,12 @@ public class BanditenTests
     public void NurDieKleinenGruppen_VerhaltenUnveraendert_SchalterAlleinTutNichts()
     {
         var u = World();
-        var small = u.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw && !Simulation.Bandits.IsEstablished(u, x.Id)).ToList();
+        var small = u.Actors.Values.Where(x => x.Kind == ActorKind.Outlaw && !SpaceSim.Core.Simulation.Bandits.IsEstablished(u, x.Id)).ToList();
         Assert.Equal(2, small.Count);
-        foreach (var a in small)
+        foreach (var sa in small)
         {
-            Assert.Equal(u.Rules.MaxRaiderUnitsPerActor, Simulation.Bandits.RaiderUnitsCap(u, a));
-            Assert.Equal(u.Rules.PirateTreasuryCap, Simulation.Bandits.FenceCap(u, a));
+            Assert.Equal(u.Rules.MaxRaiderUnitsPerActor, SpaceSim.Core.Simulation.Bandits.RaiderUnitsCap(u, sa));
+            Assert.Equal(u.Rules.PirateTreasuryCap, SpaceSim.Core.Simulation.Bandits.FenceCap(u, sa));
         }
         Assert.Equal(0, u.Sectors[Delta].Access.EntryLevel);   // kein Zoll im Korsaren-Sektor Delta
         // in einer Welt ohne Fraktion 4 ändert der Schalter allein nichts (Hash gleich an/aus)

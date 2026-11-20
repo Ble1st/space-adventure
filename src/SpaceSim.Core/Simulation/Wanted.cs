@@ -45,6 +45,9 @@ public static class Wanted
     {
         // Runde 38: nur KI-Fraktionen führen Fahndung (die Spielerfraktion hat weder Polizei noch Gericht)
         if (!u.Actors.TryGetValue(actor, out var a) || !u.IsNpcFaction(faction)) return;
+        // Ausbau Punkt 17: eine etablierte Banditenfraktion fahndet nicht nach ihren eigenen Leuten (Rundengefecht-Überfall in eigenem Gebiet
+        // meldet sonst Piraterie bei sich selbst — Engage.StartRaid wie PirateSystem)
+        if (a.Membership == faction && Bandits.IsEstablished(u, faction)) return;
         var r = u.Rules;
         if (!a.Wanted.TryGetValue(faction, out var w)) a.Wanted[faction] = w = new WantedRecord();
         int before = Level(r, w.Heat);

@@ -145,7 +145,7 @@ public class ActorTests
 
         var u = Fresh();
         var stats = EconomyStats.Actors(u);
-        foreach (var f in u.NpcFactionIds())   // Runde 38: die Spielerfraktion ist so groß wie ihr Besitz (Einzelakteur)
+        foreach (var f in u.NpcFactionIds().Where(f => !Bandits.IsEstablished(u, f)))   // Runde 38: die Spielerfraktion ist so groß wie ihr Besitz (Einzelakteur); Punkt 17: die Banditenfraktion ist kein Staat
             Assert.Equal(ActorSizeClass.State, stats.Single(a => a.Id == f).Class);
         Assert.Equal(ActorSizeClass.Single, stats.Single(a => a.Id == u.PlayerActor).Class);
         Assert.Equal(u.Ships.Values.Count(s => s.Owner == u.FreeActor), stats.Single(a => a.Id == u.FreeActor).Ships);
@@ -298,7 +298,7 @@ public class ActorTests
         bool political(FactionId f) => !Bandits.IsEstablished(a, f);
         a.Events.Raised += e =>
         {
-            if (e is TaxCollected t && political(new FactionId(t.Actor.Value))) taxes.Add(t);
+            if (e is TaxCollected t && political(new FactionId(t.Treasury.Value))) taxes.Add(t);
             else if (e is TollPaid p && a.Factions.ContainsKey(p.To) && political(p.To)) income += p.Amount;   // Zoll an die Sektorfraktion
             else if (e is TreasuryUpkeep k && a.Factions.ContainsKey(new FactionId(k.Actor.Value)) && political(new FactionId(k.Actor.Value))) upkeep += k.Amount;
             else if (e is TreasuryIncome ti && a.Factions.ContainsKey(new FactionId(ti.Actor.Value)) && political(new FactionId(ti.Actor.Value))) income += ti.Amount;

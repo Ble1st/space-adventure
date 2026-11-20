@@ -277,7 +277,7 @@ public class Phase21Tests
         u.Events.Raised += e =>
         {
             // Ausbau Punkt 17: der Dauerzoll der Banditen in Abgrund ist gewollt — Sperren außerhalb der Bandiensektoren zählen nicht
-            if (e is SpaceSim.Core.Events.SectorAccessChanged sac && !Bandits.HoldsSector(u, sac.Sector)) locks++;
+            if (e is SpaceSim.Core.Events.SectorAccessChanged sac && !Bandits.IsEstablished(u, sac.Authority)) locks++;
             else if (e is SpaceSim.Core.Events.GoodsExported ge) exportedBy.Add(ge.Station);
         };
         var runner = new SimulationRunner();

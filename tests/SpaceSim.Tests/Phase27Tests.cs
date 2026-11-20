@@ -605,7 +605,7 @@ public class Phase27Tests
         Assert.True(loot / revenue < 0.01f, $"Verlustquote {100f * loot / revenue:0.00} %");
         Assert.True(refuge > 0, "niemand ist zu einer Zuflucht geflohen");
         Assert.Empty(removedNotDeparted);
-        foreach (var f in u.Factions.Keys)
+        foreach (var f in u.Factions.Keys.Where(f => !Bandits.IsEstablished(u, f)))   // Punkt 17: die Banditenfraktion hat keine Polizei (Schutzflotte statt Streifen)
         {
             Assert.True(SecuritySystem.PoliceOf(u, f).Count >= u.Rules.PoliceMinPerFaction || SecuritySystem.Territory(u, f).Count == 0, $"Fraktion {f.Value} unter Mindestpolizei");
         }

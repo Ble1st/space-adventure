@@ -245,7 +245,9 @@ public class CargoWaterOreTests
             if (u.Tick < 2000) continue;
             foreach (var f in farms) { samples++; if (u.Stations[f].Market[water].Amount < 1f) dry++; }
         }
-        Assert.True(dry < samples * 0.15f, $"Farmen ohne Wasser {dry}/{samples}");
+        // Ausbau Punkt 17: die drei Banditenwerke in der Sackgasse Abgrund binden Händlerfahrten und Energie (Stahlwerk) — gemessen über
+        // die Saaten Standard/1/2/3 ohne Banditen 12,2/13,1/14,1/12,5 %, mit 16,5/13,3/17,3/14,3 % der Proben; Grenze 15 % → 18 %
+        Assert.True(dry < samples * 0.18f, $"Farmen ohne Wasser {dry}/{samples}");
         Assert.True(exported.GetValueOrDefault(DemoUniverse.Food) > 5000f, $"Nahrungsexport {exported.GetValueOrDefault(DemoUniverse.Food):0}");
         Assert.True(exported.GetValueOrDefault(G(u, "consumer_goods")) > 900f, $"Konsumgüterexport {exported.GetValueOrDefault(G(u, "consumer_goods")):0}");
         Assert.True(exported.GetValueOrDefault(G(u, "luxury_goods")) > 200f, $"Luxusexport {exported.GetValueOrDefault(G(u, "luxury_goods")):0}");

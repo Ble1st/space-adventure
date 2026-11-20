@@ -41,7 +41,8 @@ public class ShipFitTests
         // Phase 11: Polizei (Wächter) und Kaperschiffe (Korsar) gehören ebenfalls nicht zur Einheitsflotte
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Police), s => Assert.Equal("warden", s.ModelKey));
         Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Pirate), s => Assert.Equal("corsair", s.ModelKey));
-        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Collector)))
+        Assert.All(u.Ships.Values.Where(s => s.Role == ShipRole.Warship), s => Assert.Equal("warden", s.ModelKey));   // Ausbau Punkt 17: Schutzflotte der Banditen
+        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship or ShipRole.Collector)))
         {
             var expectedModel = WorldBuilder.UnitModelFor(s.Role, s.Role == ShipRole.Miner ? 60f : 100f);
             Assert.Equal(expectedModel, s.ModelKey);

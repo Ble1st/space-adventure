@@ -173,7 +173,7 @@ public static class Wrecks
         if (value > 0f && u.Actors.TryGetValue(raider.Owner, out var pirates))
         {
             float fenced = value * r.FenceShare;
-            if (r.PirateTreasuryCap > 0f) fenced = MathF.Min(fenced, MathF.Max(0f, r.PirateTreasuryCap - pirates.Treasury.Credits));
+            if (Bandits.FenceCap(u, pirates) is > 0f and var fcap) fenced = MathF.Min(fenced, MathF.Max(0f, fcap - pirates.Treasury.Credits));   // Ausbau Punkt 17: Deckel je Akteur
             if (fenced > 0f)
             {
                 pirates.Treasury.Credits += fenced;

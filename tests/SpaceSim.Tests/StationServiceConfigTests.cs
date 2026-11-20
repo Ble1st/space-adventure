@@ -43,6 +43,7 @@ public class StationServiceConfigTests
             else if (t.Key is "headquarters" or "sector_hq") Assert.Equal(new[] { "court", "bounty", "repair", "hangar", "taxi" }, t.Services);   // Phase 11: Gericht, Kopfgeldbüro; Phase 26: Reparatur
             else if (t.Key is "police_station") Assert.Equal(new[] { "court", "bounty", "repair", "hangar", "rearm" }, t.Services);   // Phase 25: Munition; Phase 26: Reparatur
             else if (t.Key is "research_station") Assert.Equal(new[] { "trade", "research", "hangar" }, t.Services);   // Phase 13: Forschungsstation mit Lager
+            else if (t.Key is "bandit_seat") Assert.Equal(new[] { "trade", "blackmarket", "hangar" }, t.Services);   // Ausbau Punkt 17: Sitz der Banditenfraktion (Handel, Hehler, Liegeplätze)
             else if (t.Hideout) Assert.Equal(new[] { "blackmarket" }, t.Services);
             else if (t.Key is "office") Assert.Equal(new[] { "hangar" }, t.Services);   // Ausbau Punkt 9: Büro mit Hangar (Aufträge hängen an jeder andockbaren Station)   // Schwarzmarkt: Hehler im Versteck (docs/SCHWARZMARKT.md)
             else if (t.Government != SpaceSim.Core.Model.GovernmentKind.None) Assert.Empty(t.Services);              // Phase 10: Regierungsstationen ohne Markt              // Phase 10: Regierungsstationen ohne Markt

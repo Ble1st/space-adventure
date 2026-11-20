@@ -689,11 +689,12 @@ public class ConstructionTests
     {
         // Runde 38: ein v10-Stand kennt keine Spielerfraktion (die Kette legt aus jeder Fraktion einen Akteur an) — die Welt vor Runde 38 herabstufen
         var def = SpaceSim.Core.Content.WorldBuilder.Parse(SpaceSim.Core.Content.WorldBuilder.DefaultWorldJson());
+        BanditenTests.RevertBandits(def);   // Ausbau Punkt 17: die Banditenfraktion kam nach v17 (die eingefrorene Kette kennt sie nicht)
         Runde38Tests.RevertRunde38(def);
         var u = SpaceSim.Core.Content.WorldBuilder.Build(def);
         var v10 = ToV10Json(SaveGameJson.Write(u, Now));
         Assert.Contains("\"Version\":10", v10);
-        Assert.DoesNotContain("warehouse", v10);
+        Assert.DoesNotContain("warehouse", v10.Replace("\"BanditExpansionType\":\"warehouse\"", ""));   // Ausbau Punkt 17: die gespeicherte Regel nennt den Typ, ist aber kein Inhalt
         Assert.DoesNotContain("foreman", v10);
         Assert.DoesNotContain("construction_rig_s", v10);
         Assert.DoesNotContain("BankruptcyProtected", v10);
@@ -701,7 +702,8 @@ public class ConstructionTests
         var (loaded, _) = SaveGameJson.Read(v10);
         Assert.Equal(u.Rules.MaxStations, loaded.Rules.MaxStations);
         // Phase 30: Kleinstationen (Regierungsform outpost) kamen nach v17 — die eingefrorene Migrationskette kennt sie nicht
-        Assert.Equal(u.StationTypes.Values.Where(t => t.Government != GovernmentKind.Outpost).Select(t => t.Key).OrderBy(k => k), loaded.StationTypes.Keys.Where(k => loaded.StationTypes[k].Government != GovernmentKind.Outpost).OrderBy(k => k));
+        // Ausbau Punkt 17: der Typ bandit_seat kam ebenfalls nach v17 (SaveGameJson.AfterV17Keys)
+        Assert.Equal(u.StationTypes.Values.Where(t => t.Government != GovernmentKind.Outpost && t.Key != "bandit_seat").Select(t => t.Key).OrderBy(k => k), loaded.StationTypes.Keys.Where(k => loaded.StationTypes[k].Government != GovernmentKind.Outpost).OrderBy(k => k));
         Assert.Equal(u.ShipModels.Keys.OrderBy(k => k), loaded.ShipModels.Keys.OrderBy(k => k));
         // gleiche Waren (neue Modul-Waren hängt die Migration hinten an, bestehende GoodIds bleiben)
         Assert.Equal(u.Goods.Values.Select(g => g.Key).OrderBy(k => k, StringComparer.Ordinal), loaded.Goods.Values.Select(g => g.Key).OrderBy(k => k, StringComparer.Ordinal));

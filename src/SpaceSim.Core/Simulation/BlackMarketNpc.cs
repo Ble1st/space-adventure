@@ -199,7 +199,7 @@ public static class BlackMarketNpc
         units = MathF.Min(units, MathF.Max(0f, u.WalletOf(ship).Credits - u.Rules.TraderCashReserve) / price);
         units = MathF.Min(units, MathF.Max(0f, dest.AcceptableUnits(e, u.Rules) - TraderSystem.LadenTowards(u, ship, dest.Id, g)));   // was andere schon hinfahren
         units = MathF.Min(units, MathF.Max(0f, dest.Credits) / e.Price);
-        if (u.Rules.PirateTreasuryCap > 0f) units = MathF.Min(units, MathF.Max(0f, u.Rules.PirateTreasuryCap - pirates.Treasury.Credits) / price);
+        if (Bandits.FenceCap(u, pirates) is > 0f and var fcap) units = MathF.Min(units, MathF.Max(0f, fcap - pirates.Treasury.Credits) / price);   // Ausbau Punkt 17: Deckel je Akteur
         return MathF.Floor(units);
     }
 

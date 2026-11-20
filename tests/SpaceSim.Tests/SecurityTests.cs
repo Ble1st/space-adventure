@@ -703,7 +703,7 @@ public class SecurityTests
         Assert.Contains("\"Version\":13", v13);
         Assert.DoesNotContain("weapon_laser_s", v13.Replace("\"EconomicStationGun\":\"weapon_laser_s\"", ""));   // die gespeicherte Regel EconomicStationGun nennt das Modul, ist aber kein Inhalt
         Assert.DoesNotContain("pirate_hideout", v13);
-        Assert.DoesNotContain("warden", v13);
+        Assert.DoesNotContain("warden", v13.Replace("\"BanditWarshipModel\":\"warden\"", ""));   // Ausbau Punkt 17: die gespeicherte Regel nennt das Modell, ist aber kein Inhalt
         Assert.DoesNotContain("\"court\"", v13);
         Assert.DoesNotContain("\"Kind\":\"Outlaw\"", v13);
         var (loaded, _) = SaveGameJson.Read(v13);

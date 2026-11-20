@@ -189,8 +189,8 @@ public class FuelModelTests
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
         // Phase 8: Bauschiffe (Foreman, Klasse mit eigenem Rumpftank) starten ebenfalls voll, nur mit ihrer eigenen Kapazität
         // Phase 11: Polizei- und Kaperschiffe ebenso (eigene Klassen mit eigenem Rumpftank)
-        Assert.All(u.Ships.Values.Where(s => s.Role is ShipRole.Builder or ShipRole.Police or ShipRole.Pirate), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(DemoUniverse.Propellant)));
-        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Collector)))
+        Assert.All(u.Ships.Values.Where(s => s.Role is ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(DemoUniverse.Propellant)));
+        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship or ShipRole.Collector)))   // Punkt 17: Schutzflotte der Banditen (Kriegsschiffe)
         {
             Assert.Equal(200f, s.Stats.FuelCapacity);
             Assert.Equal(200f, s.FuelAmount(DemoUniverse.Propellant));
@@ -305,8 +305,8 @@ public class FuelModelTests
         Assert.All(loaded.Stations.Values.Where(st => st.TypeKey == "fuel_refinery"), st => Assert.True(st.Market.ContainsKey(prop.Id)));
         // jedes Schiff mit Modell hat einen vollen Tank propellant
         // Phase 8: die Kettenmigration (v10→v11) setzt je Fraktion ein Bauschiff mit vollem eigenen Tank dazu
-        Assert.All(loaded.Ships.Values.Where(s => s.Role is ShipRole.Builder or ShipRole.Police or ShipRole.Pirate), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(prop.Id)));   // Phase 11: Polizei/Piraten eigener Tank
-        foreach (var s in loaded.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Collector)))
+        Assert.All(loaded.Ships.Values.Where(s => s.Role is ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(prop.Id)));   // Phase 11: Polizei/Piraten eigener Tank
+        foreach (var s in loaded.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship or ShipRole.Collector)))   // Punkt 17: Schutzflotte der Banditen (Kriegsschiffe)
         {
             Assert.NotEmpty(s.ModelKey);
             Assert.Equal(200f, s.Stats.FuelCapacity);
@@ -368,8 +368,8 @@ public class FuelModelTests
         Assert.All(u.Ships.Values, s => Assert.NotEmpty(s.ModelKey));
         // Phase 8: Bauschiffe (Foreman, Klasse mit eigenem Rumpftank) starten ebenfalls voll, nur mit ihrer eigenen Kapazität
         // Phase 11: Polizei- und Kaperschiffe ebenso (eigene Klassen mit eigenem Rumpftank)
-        Assert.All(u.Ships.Values.Where(s => s.Role is ShipRole.Builder or ShipRole.Police or ShipRole.Pirate), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(prop.Id)));
-        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Collector)))
+        Assert.All(u.Ships.Values.Where(s => s.Role is ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship), s => Assert.Equal(s.Stats.FuelCapacity, s.FuelAmount(prop.Id)));
+        foreach (var s in u.Ships.Values.Where(s => s.Role is not (ShipRole.Builder or ShipRole.Police or ShipRole.Pirate or ShipRole.Warship or ShipRole.Collector)))   // Punkt 17: Schutzflotte der Banditen (Kriegsschiffe)
         {
             Assert.Equal(200f, s.Stats.FuelCapacity);
             Assert.Equal(200f, s.FuelAmount(prop.Id));

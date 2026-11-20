@@ -51,6 +51,12 @@ public sealed partial class EconomyRules
     public bool BanditExpansion;
     /// <summary>Sektoren, in denen ein Vorposten entstehen darf — nur solange herrenlos und ohne Spielerbesitz.</summary>
     public List<int> BanditExpansionSectors = new();
+    /// <summary>
+    /// Frühester Tick für einen Vorposten (0 = sofort). Standardwelt 60 000 (≈ 4 h Spielzeit): Nebelmark ist der einzige herrenlose Sektor
+    /// ohne Versteck, in dem der Spieler Sitz/Hauptquartier/Firmensitz gründen kann — ohne Wartezeit setzte die Bande dort schon nach
+    /// ≈ 3 000 Ticks einen Vorposten und sperrte jede Gründung (gemessen, Prüfung Punkt 17).
+    /// </summary>
+    public long BanditExpansionAfterTicks;
     /// <summary>Stationstyp des Vorpostens (muss einen Markt haben, damit er Einfluss zählt).</summary>
     public string BanditExpansionType = "warehouse";
     /// <summary>Kasse muss Baukosten × Faktor erreichen, bevor ein Vorposten gebaut wird.</summary>

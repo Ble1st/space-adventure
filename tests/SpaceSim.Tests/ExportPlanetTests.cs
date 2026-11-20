@@ -408,6 +408,7 @@ public class ExportPlanetTests
         }
         Assert.Contains(u.Stations.Values, st => st.TypeKey == "water_plant" && u.Sectors[st.Sector].Name.EndsWith("Gamma"));
         var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        BanditenTests.RevertBandits(def);   // Ausbau Punkt 17 kam danach (Rücknahmekette: erst Banditen, dann Luxusexport-Start)
         int maxBefore = def.Rules!.MaxStations;
         RevertLuxuryStart(def);
         Assert.Equal(maxBefore - 2, def.Rules!.MaxStations);

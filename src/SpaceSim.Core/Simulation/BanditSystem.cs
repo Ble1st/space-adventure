@@ -62,7 +62,9 @@ public sealed class BanditSystem : ISimSystem
                 warships.Add(ship);
             }
         }
-        foreach (var s in warships)
+        // Befehle nur mit Flottenkampf (Phase 27): ohne ihn führen auch Polizei und Kaperer keine Befehle; die Schutzflotte liegt dann am Sitz
+        // und verteidigt über Siege.Reinforce, was in ihrem Sektor angegriffen wird
+        foreach (var s in r.FleetCombat ? warships : new List<Ship>())
         {
             if (!u.Ships.ContainsKey(s.Id) || u.Fights.IsEngaged(s.Id) || s.Emergency || s.Command is ReturnCommand) continue;
             // Alarm einer Wirtschaftsstation geht vor (wie die Polizei)
@@ -111,7 +113,7 @@ public sealed class BanditSystem : ISimSystem
         }
 
         // ── 3. Vorposten in fremden, herrenlosen Sektoren (Sektor erobern; nie mit Spielerbesitz) ──
-        if (r.BanditExpansion && r.BanditExpansionSectors.Count > 0 && u.Tick - a.LastBanditTick >= r.BanditRebuildCooldownTicks
+        if (r.BanditExpansion && r.BanditExpansionSectors.Count > 0 && u.Tick >= r.BanditExpansionAfterTicks && u.Tick - a.LastBanditTick >= r.BanditRebuildCooldownTicks
             && u.StationTypes.TryGetValue(r.BanditExpansionType, out var expType))
         {
             foreach (var sid in r.BanditExpansionSectors)

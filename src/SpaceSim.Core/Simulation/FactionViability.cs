@@ -77,6 +77,9 @@ public static class FactionViability
     public static float ReplacementCost(Universe u, FactionId f)
     {
         if (!u.Rules.FactionKeepsReserve) return 0f;
+        // Ausbau Punkt 17: eine gesetzlose Fraktion hat keine Polizei- und Bauschiff-Pflicht (Check meldet für sie nur Versteck/Jagd) — also
+        // auch keine Ersatzkosten, die ihr verfügbares Geld (Spendable) künstlich senken
+        if (u.Actors.TryGetValue(f, out var fa) && fa.Kind == ActorKind.Outlaw) return 0f;
         float cost = 0f;
         if (PoliceRequired(u) && PoliceBelow(u, f, u.Rules.PoliceMinPerFaction)) cost += BaseValue(u, u.Rules.PoliceModel);
         if (BuildersRequired(u) && BuildersBelow(u, f, u.Rules.MinBuildersPerFaction))

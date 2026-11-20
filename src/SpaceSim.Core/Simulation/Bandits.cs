@@ -54,7 +54,7 @@ public static class Bandits
     public static Vec2? Spot(Universe u, Sector s, float radius, Vec2? anchor = null) =>
         Outposts.FreeSpot(u, s, anchor ?? new Vec2(0f, 0f), radius, radius + 18f, 70f);
 
-    /// <summary>Anzeigezeile einer etablierten Banditenfraktion: „Sitz, N Werke, Zoll Stufe X, Kasse …“.</summary>
+    /// <summary>Anzeigezeile einer etablierten Banditenfraktion: „Sitz Freistatt · N Werke · Zoll X · Kasse …“.</summary>
     public static string Text(Universe u, ActorId id)
     {
         var a = u.Actors[id];
@@ -63,7 +63,9 @@ public static class Bandits
         int toll = 0;
         foreach (var s in u.Sectors.Values.OrderBy(x => x.Id.Value))
             if (s.Owner.Value == id.Value) toll = Math.Max(toll, s.Access.EntryLevel);
-        string seatName = seat is null ? "kein Sitz" : seat.Name;
-        return $"{seatName} · {eco} Werk{(eco == 1 ? "" : "e")} · Zoll Stufe {toll} · Kasse {a.Treasury.Credits:0} Cr";
+        // kurz (Typname statt Stationsname — der trägt den Fraktionsnamen ohnehin): passt in die Fraktionszeile und die Stations-Info
+        string seatName = seat is null ? "kein Sitz" : "Sitz " + (u.StationTypes.TryGetValue(seat.TypeKey, out var st) ? st.Name : seat.Name)
+            + (seat.Condition is { Disabled: true } ? " (aus)" : "");
+        return $"{seatName} · {eco} Werk{(eco == 1 ? "" : "e")} · Zoll {toll} · Kasse {a.Treasury.Credits:0} Cr";
     }
 }

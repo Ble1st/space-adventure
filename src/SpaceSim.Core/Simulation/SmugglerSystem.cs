@@ -365,13 +365,13 @@ public sealed class SmugglerSystem : ISimSystem
             if (!BlackMarket.IsAt(u, fence) || fence.BlackStock.Count == 0 || !Docking.Allows(u, fence, ship)) continue;
             int hops = ship.Sector == fence.Sector ? 0 : u.CachedRoute(ship.Sector, fence.Sector, profile)?.Count ?? -1;
             if (hops < 0 || hops > r.SmugglerMaxJumps) continue;
-            if (BlackMarket.Fence(u, fence) is { } pirates && r.PirateTreasuryCap > 0f && pirates.Treasury.Credits >= r.PirateTreasuryCap) continue;
+            if (BlackMarket.Fence(u, fence) is { } pirates && Bandits.FenceCap(u, pirates) is > 0f and var fcap0 && pirates.Treasury.Credits >= fcap0) continue;   // Ausbau Punkt 17: Deckel je Akteur
             foreach (var (g, stock) in fence.BlackStock.OrderBy(kv => kv.Key.Value))
             {
                 if (stock < 1f || !u.Goods.ContainsKey(g)) continue;
                 float price = FenceBuyPrice(u, g);
                 float avail = stock;
-                if (r.PirateTreasuryCap > 0f && BlackMarket.Fence(u, fence) is { } pc) avail = MathF.Min(avail, MathF.Floor(MathF.Max(0f, r.PirateTreasuryCap - pc.Treasury.Credits) / price));
+                if (BlackMarket.Fence(u, fence) is { } pc && Bandits.FenceCap(u, pc) is > 0f and var fcap1) avail = MathF.Min(avail, MathF.Floor(MathF.Max(0f, fcap1 - pc.Treasury.Credits) / price));
                 if (avail < 1f) continue;
                 foreach (var to in StationsBuying(u, g)) Consider(fence, to, g, price, avail, "fence");
             }
@@ -441,8 +441,8 @@ public sealed class SmugglerSystem : ISimSystem
             float price = FenceBuyPrice(u, o.Good);
             float stock = st.BlackStock.GetValueOrDefault(o.Good);
             units = MathF.Floor(MathF.Min(MathF.Min(want, stock), MathF.Min(ship.Credits / price, ship.FreeUnits(u, o.Good))));
-            if (u.Rules.PirateTreasuryCap > 0f && BlackMarket.Fence(u, st) is { } p0)
-                units = MathF.Min(units, MathF.Floor(MathF.Max(0f, u.Rules.PirateTreasuryCap - p0.Treasury.Credits) / price));
+            if (BlackMarket.Fence(u, st) is { } p0 && Bandits.FenceCap(u, p0) is > 0f and var fcap2)
+                units = MathF.Min(units, MathF.Floor(MathF.Max(0f, fcap2 - p0.Treasury.Credits) / price));
             if (units >= 1f && BlackMarket.Fence(u, st) is { } pirates)
             {
                 cost = units * price;

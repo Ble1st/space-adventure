@@ -735,7 +735,8 @@ public partial class SelfTest : Node
 						SpaceSim.Core.Simulation.FactionPolicySystem.SetLevel(uni, gamma, 0);
 						SpaceSim.Core.Simulation.Relations.Set(uni, guild, union, 0.25f);
 						if (mine != union) SpaceSim.Core.Simulation.Relations.Set(uni, guild, mine, uni.Rules.PlayerStartRelationOther);
-						Check(gamma.Access.IsOpen && !uni.AccessRestricted, "Sperre aufgehoben, alle Gates wieder offen");
+						// Ausbau Punkt 17: der Dauerzoll der Banditen im Abgrund bleibt — sonst ist kein Sektor gesperrt
+						Check(gamma.Access.IsOpen && uni.Sectors.Values.All(x => x.Access.IsOpen || SpaceSim.Core.Simulation.Bandits.HoldsSector(uni, x)), "Sperre aufgehoben, alle Gates wieder offen");
 					}
 					catch (System.Exception ex) { Fail("Gate-Zugang warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }
 					Next();
@@ -1167,7 +1168,7 @@ public partial class SelfTest : Node
 						int want = uni.FindRoute(uni.PlayerSector, sec.Id, SpaceSim.Core.Simulation.GateAccess.ProfileOf(uni, _m.Session.Player))?.Count ?? -1;
 						Check(_m.HudRef.CcUniverse.TestRouteHops == want, $"Universum: Route nach {sec.Name} {_m.HudRef.CcUniverse.TestRouteHops} Sprünge (FindRoute {want})");
 					}
-					Check(uni.Sectors.Values.Count(x => !uni.Factions.ContainsKey(x.Owner)) == 2, "Zwei herrenlose Sektoren");
+					Check(uni.Sectors.Values.Count(x => !uni.Factions.ContainsKey(x.Owner)) == (uni.Rules.BanditFactions ? 1 : 2), "Herrenlose Sektoren (Nebelmark; Abgrund gehört mit Punkt 17 den Banditen)");
 					_m.TestCloseCommand();
 					_m.HudRef.Map.Open(uni, uni.PlayerSector, null);
 					Check(_m.HudRef.Map.Visible, "Sternenkarte öffnet");
@@ -2801,7 +2802,8 @@ public partial class SelfTest : Node
 			case 149: if (WearStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 8: Stationsverschleiß in Stationsinfo und Sektoransicht (SelfTest.Wear.cs)
 			case 150: if (FirmSeatStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 9: Firmensitz und Büro per Tipp (SelfTest.FirmSeat.cs)
 			case 151: if (PassengerStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkte 10/14: Fahrgast- und Schmuggelauftrag per Tipp angenommen und abgeliefert, Flottentaxi per Tipp (SelfTest.Passengers.cs)
-			case 152: if (FeudStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 6: Fehde erklären/beenden und Vermitteln per Tipp in Comms (SelfTest.Feud.cs)
+			case 152: if (FeudStage(_frame - _stageStart)) Next(); break;
+			case 153: if (BanditStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 17: Banditenfraktion — Fraktionen-Detail und Stations-Info am Sitz (SelfTest.Bandits.cs)   // Ausbau Punkt 6: Fehde erklären/beenden und Vermitteln per Tipp in Comms (SelfTest.Feud.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
 			case 109: if (Round33Stage(_frame - _stageStart)) Next(); break;   // Runde 33: Flug-HUD in Zonen mit UI-Faktor, Menüzeile „UI-Größe“ (SelfTest.Round33.cs)
 			case 108: if (Round31Stage(_frame - _stageStart)) Next(); break;   // Runde 31: UI-Größe und erzwungener UI-Faktor (SelfTest.Round31.cs)   // Runde 30: Rückkaufdeckel über den Handelsbildschirm (SelfTest.Round30.cs)   // Runde 28: Handelsliste über echte Tipps, Menge bleibt, Preis-Nachfrage (SelfTest.Round28.cs)   // Runde 27: Takt bei ×1, ein Preis im Handel, Abnehmer bleibt (SelfTest.Round27.cs)
@@ -2817,7 +2819,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 152;
+	const int LastStage = 153;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

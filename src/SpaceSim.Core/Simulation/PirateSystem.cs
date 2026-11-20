@@ -135,7 +135,10 @@ public sealed class PirateSystem : ISimSystem
     public static (Sector Sector, Vec2 Spot)? PickHunt(Universe u, Ship raider)
     {
         var profile = GateAccess.ProfileOf(u, raider);
-        var sectors = u.Sectors.Values.OrderBy(s => s.Id.Value).Where(s => s.Gates.Count > 0 && u.IsReachable(raider.Sector, s.Id, profile)).ToList();
+        // Ausbau Punkt 17: eine etablierte Bande jagt nicht im eigenen Gebiet (dort kassiert sie Zoll und schützt ihre Kundschaft)
+        bool own = Bandits.IsEstablished(u, raider.Owner);
+        var sectors = u.Sectors.Values.OrderBy(s => s.Id.Value).Where(s => s.Gates.Count > 0 && u.IsReachable(raider.Sector, s.Id, profile)
+            && !(own && s.Owner.Value == raider.Owner.Value)).ToList();
         float total = sectors.Sum(s => HuntWeight(u, s));
         if (sectors.Count == 0 || total <= 0f) return null;
         double pick = u.Rng.NextDouble() * total;

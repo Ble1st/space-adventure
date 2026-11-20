@@ -263,7 +263,7 @@ public sealed class FactionPolicySystem : ISimSystem
         {
             int want = Math.Clamp(u.Rules.BanditTollLevel, 0, Math.Min(2, SectorControl.MaxLevel(u, sector)));
             if (acc.EntryLevel == want && acc.ExpiresTick < 0) return false;      // steht schon, kein Ablauf
-            Apply(u, sector, want, want > 0 ? Desired(u, sector).Against : null, "bandit");
+            Apply(u, sector, want, null, "bandit");   // Zoll für alle Nicht-Mitglieder, gegen niemanden bestimmten (Against nur Anzeige/Gründungsregeln)
             acc.ExpiresTick = -1;                                                 // Dauerzoll
             acc.CooldownUntil = -1_000_000;
             return true;

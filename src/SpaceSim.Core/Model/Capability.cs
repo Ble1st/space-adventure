@@ -45,6 +45,7 @@ public static class CapabilityDefaults
         ShipRole.Player => Capability.Cargo | Capability.Mining,
         ShipRole.Builder => Capability.Cargo | Capability.Construction,
         ShipRole.Police or ShipRole.Pirate => Capability.Combat,   // Phase 11
+        ShipRole.Warship => Capability.Combat,   // Ausbau Punkt 17: Schutzflotte der Banditen steht in der Startwelt (Kriegsschiffe kommen sonst nur per Kauf, Fähigkeit aus dem Fit)
         ShipRole.Collector => Capability.Cargo | Capability.GasHarvest,   // Gasernte
         ShipRole.Salvager => Capability.Cargo | Capability.Salvage,   // Ausbau Punkt 4: NPC-Bergung
         ShipRole.Smuggler => Capability.Cargo,   // Ausbau Punkt 5: Schmuggler (Tarnung/Sprung aus dem Rumpf)

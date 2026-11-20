@@ -371,8 +371,9 @@ public sealed class CombatSystem : ISimSystem
             return true;
         }
         float fenced = value * r.FenceShare;
-        if (r.PirateTreasuryCap > 0f && u.Actors.TryGetValue(raider.Owner, out var capped))
-            fenced = MathF.Min(fenced, MathF.Max(0f, r.PirateTreasuryCap - capped.Treasury.Credits));
+        // Ausbau Punkt 17: Deckel je Akteur (etablierte Banditen BanditFenceCap, sonst PirateTreasuryCap) — wie PirateSystem
+        if (u.Actors.TryGetValue(raider.Owner, out var capped) && Simulation.Bandits.FenceCap(u, capped) is > 0f and var fcap)
+            fenced = MathF.Min(fenced, MathF.Max(0f, fcap - capped.Treasury.Credits));
         if (fenced > 0f && u.Actors.TryGetValue(raider.Owner, out var pirates))
         {
             pirates.Treasury.Credits += fenced;

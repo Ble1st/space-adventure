@@ -974,13 +974,82 @@ Detailansicht über `Bandits.Text`) und `StationInfoScreen.cs` (Zeile „Bandite
   Kaperflotte, Geschütze, Nachbau, Vorposten, Sektor verlieren/zurückgewinnen, Kasse erklärbar, Save-Roundtrip,
   Schwarzmarkt/Selbstanzeige, NPC-Welt bitgleich, kleine Gruppen unverändert).
 
-### Offen (in diesem Schritt bewusst nicht gemacht)
+### Prüfung und Abschluss (Opus, nach dem Vibe-Stand)
 
-- **§ 11.2 Selbsttest Stufe 151** (`SelfTest.Bandits.cs`, `LastStage` 151) und der `--ui-shots`-Zustand
-  `kz-banditen` — Godot-Lauf steht aus (bauen/testen übernimmt jemand anderes).
-- **§ 12 Balance-Tool:** Flag `--bandits on|off` und Ausgabezeile „Banditen (Punkt 17)" in
-  `tools/SpaceSim.Balance` — nicht implementiert; die 20 000/60 000-Läufe an/aus müssen manuell über die
-  Rücknahme (`RevertBandits`) oder den Regelschalter verglichen werden.
-- **§ 14 Schritt 15 Verweise** in `docs/TODO-AUSBAU.md` (Punkt 17 abhaken), `docs/POLITIK.md` und `docs/KAMPF.md`.
-- **Optionaler Rotton** für Fraktion 4 in `MapOverlay.FactionColor` (Konzept § 14 Schritt 12 „optional") —
-  unverändert (Id 4 fällt auf den vorhandenen Lila-Ton).
+Der Vibe-Stand war nie kompiliert und nie getestet. Gefunden und behoben:
+
+1. **Testprojekt kompilierte nicht** (19 Fehler): `Simulation.Bandits` kollidierte mit dem Feld `Bandits` der Testklasse,
+   `CombatParticipant.Active` ist nur lesbar (abgeleitet aus `Exit`), `TaxCollected` heißt `Treasury` statt `Actor`,
+   `Bandits.HoldsSector` nimmt einen `Sector`. Dazu Testfehler: der Zolltest prüfte das Tor **aus** dem Abgrund hinaus (die
+   Einreise wird am Tor auf der Gegenseite bewertet), der Platzierungstest prüfte jede Station gegen sich selbst, zwei Tests
+   rechneten mit `maxStations` 78/75 in einer Welt ohne Treibstoff (dort fehlen die Raffinerien).
+2. **Hehlerei-Deckel nur halb umgestellt:** `PirateSystem` (abstrakter Überfall) nutzte `Bandits.FenceCap`, aber das Rundengefecht
+   (`CombatSystem.Surrender` — der Normalfall), Wrack-Plünderung, Ergeben des Spielers, Schwarzmarkt-NPC und Schmuggler deckelten
+   die Banditenkasse weiter mit `PirateTreasuryCap` (10 000) — die Bande bekam aus ihren Überfällen praktisch nichts (191 Cr in
+   20 000 Ticks). Jetzt überall `Bandits.FenceCap` (für die kleinen Gruppen unverändert `PirateTreasuryCap`).
+3. **Selbstanzeige im Rundengefecht:** `Engage.StartRaid` meldet Piraterie beim Sektorherrn — überfiel ein Bandenkaperer in
+   eigenem Gebiet, fahndete die Bande nach sich selbst. Jetzt zentral in `Wanted.Report`: eine etablierte Bande zeigt ihre eigenen
+   Mitglieder nicht an. Zusätzlich jagt die Kaperflotte einer Bande nicht im eigenen Gebiet (`PirateSystem.PickHunt`) — dort
+   kassiert sie Zoll und Abgaben.
+4. **Geschütze der Banditenstationen:** der Vibe-Zweig ließ sie in **jedem** fremden Gefecht schweigen, auch wenn Polizei einen
+   Bandenkaperer abfängt oder der Spieler ein Schutzschiff angreift (der Kommentar versprach das Gegenteil). Jetzt: Ziel ist die
+   Seite 0 einer Belagerung einer eigenen Station oder eines Gefechts, in dem ein Schiff der Bande auf Seite 1 (angegriffen) steht;
+   Opfer eigener Überfälle bleiben unbeschossen (Test erweitert).
+5. **Ersatzkosten:** `FactionViability.ReplacementCost` zog für die Bande eine fehlende Polizei und ein fehlendes Bauschiff ab
+   (Pflichten, die Gesetzlose nicht haben) — `Spendable` war künstlich klein. Jetzt 0 für Gesetzlose.
+6. **Zoll „gegen die Union“:** der Dauerzoll trug `Against` = schlechteste Beziehung (Union); damit sah er in Anzeige,
+   Gründungsregeln (`PlayerBuilding`/Büros) und den Sperrtests wie eine Sperre gegen eine Fraktion aus. Jetzt `Against` = null
+   (Zoll für alle Nicht-Mitglieder).
+7. **Rolle `Warship` ohne Fähigkeit:** `CapabilityDefaults.ForRole(Warship)` lieferte `None`; mit Kriegsschiffen in der Startwelt
+   brachen die Fähigkeits-/Speicherprüfungen. Jetzt `Combat` (Schiffe mit Modell nehmen ihre Fähigkeit ohnehin aus dem Fit).
+8. **Vorposten nach 3 000 Ticks:** mit 22 000 Cr Startkasse und 4 × 6 000 Cr Schwelle nahm die Bande Nebelmark nach ≈ 3 000 Ticks
+   — danach gab es keinen herrenlosen Sektor ohne Versteck mehr, und Spielersitz, Hauptquartier und Firmensitz waren nicht mehr
+   gründbar. Neue Regel `banditExpansionAfterTicks` (Code 0, Standardwelt 60 000 ≈ 4 h Spielzeit).
+9. **Befehle ohne Flottenkampf:** die Schutzflotte bekam ihre Patrouillen-/Rückkehrbefehle auch mit `fleetCombat` aus — dort führen
+   Polizei und Kaperer bewusst keine Befehle (Phase 27, Vergleichswelt); `FleetCommandTests` (Befehlsebene ändert die NPC-Welt
+   nicht, v14→v15 hash-gleich) brachen. Jetzt nur mit Flottenkampf; sonst liegt die Schutzflotte am Sitz.
+10. **Kalibrierung:** `banditMaxRaiderUnits` 3 → 2 in der Standardwelt (Verlustquote 20 000 Ticks: aus 0,13 %, mit 3 Einheiten
+   0,47 %, mit 2 Einheiten 0,36 %).
+
+**Weitere Test-Anpassungen (Startwelt hat jetzt Kriegsschiffe und eine gesetzlose Fraktion):** `FuelModelTests`, `ModuleGoodsTests`,
+`ShipFitTests` nehmen die Rolle `Warship` aus der Einheitsflotte aus; `StationServiceConfigTests` kennt den Typ `bandit_seat`;
+`ActorTests` (Größenklasse „Staat“ nur für politische Fraktionen), `Phase27Tests` (Mindestpolizei nur für sie);
+`SecurityTests.Migration_V13ToV14…` (die gespeicherte Regel `BanditWarshipModel` nennt „warden“, ist aber kein Inhalt);
+`CargoWaterOreTests` (Grenze, siehe unten); `ExportPlanetTests`/`ConstructionTests.Migration_V10ToV11…` nehmen erst die Banditen
+zurück (Reihenfolge der Rücknahmekette, Typ `bandit_seat` kam nach v17); `Runde32Tests.Responsive` wählt einen Eintrag, dessen Preis
+nach einem Kauf wirklich steigt (die Banditen-Elektronikfabrik als neuer Waferabnehmer ließ den Zahlungsbereitschaftsdeckel greifen);
+`Runde42dTests` Patrouillenanteil ≥ 4 % statt 4,5 % (mehr Liefer-/Geleitangebote an den Banditenwerken). Die Vibe-Anpassungen an `ActorTests`/`Phase21Tests` waren nötig (Fraktion 4 und Sektor 11
+sind neu), nur die Feldnamen stimmten nicht.
+
+**Balance-Werkzeug:** `--bandits on|off` (setzt die Regel vor dem Aufbau) und Zeile „Banditen (Punkt 17, …)“ (Sitz, Sektoren mit
+Stufe und Zoll, Werke, Stationen, Schutz-/Kaperflotte, Kasse; Zoll, Abgaben, Hehlerei, Flottenunterhalt, Bauten, Beuteanteil,
+Überfälle; Gebietswechsel mit Tick).
+
+**Messung (Release, Standardsaat):**
+
+| Lauf | Hash | Verlustquote | Banditen |
+|---|---|---|---|
+| 20 000 aus (`--bandits off`) | EF98482620425E60 (= main) | 0,13 % | — |
+| 20 000 an (zweimal) | 73CB552B191051FE | 0,36 % | Abgrund Dominanz Zoll 1, 3 Werke, 2+2 Schiffe, Kasse 49 589, Zoll 1 392, Hehlerei 6 785, Überfälle 12 (7) |
+| 60 000 aus | 2C68708D1697D649 | 0,16 % | — |
+| 60 000 an | 379A35F26F45147A | 0,31 % | Kasse 59 251, Zoll 3 609, Beuteanteil 144 938, Überfälle 41 (21) |
+| 300 000 an | 2054444EBB8546CD | 0,24 % | Nebelmark ab Tick 60 000 (Einfluss, Zoll 0), Kasse 65 254, Zoll 21 632, Überfälle 195 (77) |
+
+Alle Läufe „Preise im Zielbereich“, Karte zusammenhängend für freie Händler, jede Fraktion und Gruppe in jeder Probe
+handlungsfähig, Export 60 000 Ticks Nahrung/Konsum/Luxus 69 976/11 366/3 308 (aus 71 290/11 438/2 881), Händlerpleiten 1 (20 000)
+und 2 (300 000). Die Kasse wächst nicht linear (Beuteanteil über dem Ziel 40 000). Die Abgaben (≈ 6 Cr/Tick) stammen aus der
+Vermögensabgabe der eigenen Werke und der freien Schiffe in Abgrund/Nebelmark (vorher ging die in herrenlosen Sektoren aus der
+Welt); der Beuteanteil nimmt sie wieder heraus.
+
+**Selbsttest Stufe 153** (`godot/scripts/SelfTest.Bandits.cs`, nicht 151 — die Nummern bis 152 waren vergeben): neues Spiel,
+Fraktionen → Banditenfraktion zeigt die Zeile „Sitz Freistatt · 3 Werke · Zoll 1 · Kasse …“ ungekürzt, Andocken an der Freistatt →
+Stations-Info hat die Zeile „Banditen“; Text-über-Text/beschnitten 0. `Bandits.Text` ist dafür kürzer (Typname statt Stationsname).
+
+### Offen (bewusst)
+
+- Der Spieler kann Nebelmark nach der Übernahme nur zurückgewinnen, indem er den Vorposten zerstört (in einem Banditensektor darf er
+  nicht bauen und keinen Sitz gründen).
+- Die Verlustquote liegt auch mit 2 Einheiten +0,15–0,23 pp über dem Lauf ohne Banditen (Erwartung § 12: ≤ +0,15).
+- Die drei Werke in der Sackgasse binden Händlerfahrten und Energie: die Farmen standen in 20 000 Ticks 13–17 % statt 12–14 % der
+  Proben ohne Wasser (Grenze des Tests `CargoWaterOreTests` 15 % → 18 %, gemessen über vier Saaten).
+- Verweise in `docs/TODO-AUSBAU.md`, `docs/POLITIK.md`, `docs/KAMPF.md`; optionaler Rotton der Karte.

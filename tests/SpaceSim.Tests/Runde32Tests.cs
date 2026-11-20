@@ -176,11 +176,26 @@ public class Runde32Tests
 
     /// <summary>Verbraucherware, deren Preis nach einem Kauf von 10 im nächsten Tick steigt (Bestand unter Wunschbestand, Annahme ≥ 40).</summary>
     /// <remarks>Nur Einträge, deren Preis die reine Bestandsformel ist (kein Zahlungsbereitschafts- oder Verbraucherdeckel), im ungeklemmten Bereich.</remarks>
-    static (Station St, GoodId G) Responsive(Universe u) =>
-        u.StationsById().Where(s => s.Dockable && !s.IsBuildSite).SelectMany(s => s.Market.Where(kv => kv.Value.Amount >= 30f
+    static (Station St, GoodId G) Responsive(Universe u)
+    {
+        var cands = u.StationsById().Where(s => s.Dockable && !s.IsBuildSite).SelectMany(s => s.Market.Where(kv => kv.Value.Amount >= 30f
             && kv.Value.Amount >= kv.Value.Target * 0.35f && kv.Value.Amount <= kv.Value.Target * 0.85f
             && kv.Value.Price > 0f && MathF.Abs(kv.Value.Price - MarketSystem.StockPrice(u.GoodOf(kv.Key), kv.Value, kv.Value.Amount)) < 0.01f
-            && !ExportRules.Buys(u, s, kv.Key) && !s.Produces(kv.Key) && TradeActions.SaleCap(u, s, kv.Key) >= 40f).Select(kv => (s, kv.Key))).First();
+            && !ExportRules.Buys(u, s, kv.Key) && !s.Produces(kv.Key) && TradeActions.SaleCap(u, s, kv.Key) >= 40f).Select(kv => (s, kv.Key))).ToList();
+        // Ausbau Punkt 17: bei Rezept-Eingängen kann im nächsten Tick die Zahlungsbereitschaft (Deckel aus den Abnehmergeboten) den Lagerpreis
+        // überstimmen — mit der Banditen-Elektronikfabrik als neuem Waferabnehmer stieg der Preis bei Elektronikfabrik Beta nach dem Kauf nicht.
+        // Gewählt wird deshalb der erste Eintrag, dessen Preis an einer Kopie nach 10 Einheiten weniger und einem Tick wirklich steigt.
+        foreach (var (s, g) in cands)
+        {
+            var c = World();
+            var e = c.Stations[s.Id].Market[g];
+            float before = e.Price;
+            e.Amount -= 10f;
+            Tick(c);
+            if (c.Stations[s.Id].Market[g].Price > before * 1.01f) return (s, g);
+        }
+        return cands[0];
+    }
 
     static void Tick(Universe u) => new SimulationRunner().Run(u, 1);
 
