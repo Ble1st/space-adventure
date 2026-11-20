@@ -32,6 +32,7 @@ public class BalanceFixTests
         WirtschaftsabwehrTests.RevertWirtschaftsabwehr(def);   // Wirtschaftsstationen halten stand (danach): Alarm/Notschild aus, Geschütze/Hülle wie vorher
         StationsverschleissTests.RevertWear(def);   // Ausbau Punkt 8 (danach): kein Stationsverschleiß
         FirmensitzTests.RevertSeats(def);   // Ausbau Punkt 9 (danach): keine Firmensitze und Büros, Büro ohne Hangar
+        BergungTests.RevertSalvage(def);   // Ausbau Punkt 4 (danach): keine NPC-Bergung, kein Bergeschiff
         KiKriegsschiffeTests.RevertWarNavy(def);   // Ausbau Punkt 2 (danach): Seeschlacht, Abwehr, Kriegsgeleit aus
         IdleShelfTests.RevertIdleShelf(def);   // Ausbau Punkt 12 (danach): ungenutzte Regale — Schalter aus
         var r = def.Rules ??= new EconomyRules();

@@ -176,8 +176,8 @@ public sealed class GasJob : IShipJob
 /// <summary>Registry der KI-Aufgaben (feste Reihenfolge: Handel, Schürfen, Bauen) und gemeinsame Abfragen.</summary>
 public static class ShipJobs
 {
-    /// <summary>Alle Aufgaben in fester Reihenfolge (Reihenfolge = Reihenfolge der Flottenerweiterung, wie vor Phase 6 erst Händler, dann Miner; Phase 8: dann Bauschiffe).</summary>
-    public static readonly IReadOnlyList<IShipJob> Default = new IShipJob[] { new TradeJob(), new MineJob(), new BuildJob(), new GasJob() };
+    /// <summary>Alle Aufgaben in fester Reihenfolge (Reihenfolge = Reihenfolge der Flottenerweiterung, wie vor Phase 6 erst Händler, dann Miner; Phase 8: dann Bauschiffe; Gasernte; Ausbau Punkt 4: dann Bergeschiffe).</summary>
+    public static readonly IReadOnlyList<IShipJob> Default = new IShipJob[] { new TradeJob(), new MineJob(), new BuildJob(), new GasJob(), new SalvageJob() };
 
     /// <summary>Aufgabe zum Content-Schlüssel (null = unbekannt).</summary>
     public static IShipJob? ByKey(string key) => Default.FirstOrDefault(j => j.Key == key);

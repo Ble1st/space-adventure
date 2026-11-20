@@ -43,6 +43,8 @@
   "wearEmergencyBelow": 0.75,
   "maxCollectors": 10,
   "nebulaEffects": true,
+  "maxSalvagers": 4,
+  "npcSalvage": true,
   "economicEmergencyShield": true,
   "playerSizeByStrength": true,
   "playerShipPricing": true,
@@ -5127,6 +5129,23 @@
    ],
    "jobs": [
     "mine"
+   ]
+  },
+  {
+   "key": "salvager",
+   "class": "light_freighter",
+   "name": "Bergeschiff",
+   "fit": [
+    "reactor_mk1",
+    "chem_engine_m",
+    "wreck_grapple_s",
+    "weapon_laser_s",
+    "cargo_universal_100",
+    "cargo_universal_100",
+    null
+   ],
+   "jobs": [
+    "salvage"
    ]
   }
  ],

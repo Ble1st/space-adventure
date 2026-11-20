@@ -46,6 +46,7 @@ public static class CapabilityDefaults
         ShipRole.Builder => Capability.Cargo | Capability.Construction,
         ShipRole.Police or ShipRole.Pirate => Capability.Combat,   // Phase 11
         ShipRole.Collector => Capability.Cargo | Capability.GasHarvest,   // Gasernte
+        ShipRole.Salvager => Capability.Cargo | Capability.Salvage,   // Ausbau Punkt 4: NPC-Bergung
         _ => Capability.None,
     };
 
