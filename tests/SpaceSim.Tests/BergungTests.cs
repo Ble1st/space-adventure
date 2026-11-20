@@ -153,7 +153,7 @@ public class BergungTests
         new SimulationRunner().Run(u, 500);
         // Wrack unberührt, Schiff untätig (kein Auftrag, keine Reise, keine Bergung)
         Assert.Contains(u.Wrecks, x => x.Id == w.Id);
-        Assert.Equal(1, w.Modules.Count);
+        Assert.Single(w.Modules);
         Assert.Equal(10f, w.Cargo[u.FindGood("food")!.Id], 3);
         Assert.Empty(salvager.Cargo);
         Assert.Null(salvager.Transit);
