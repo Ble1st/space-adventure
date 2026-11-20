@@ -286,7 +286,7 @@ public sealed class CombatSystem : ISimSystem
     static bool SparesLoot(Universe u, Encounter e, CombatParticipant p, Ship target, in WeaponProfile w)
     {
         var r = u.Rules;
-        if (!r.RaidersSpareLoot || e.Cause != EncounterCause.Raid || p.Tactic != CombatTactics.Raider || target.UsedVolume(u) < 1f
+        if (!r.RaidersSpareLoot || e.Cause is not (EncounterCause.Raid or EncounterCause.Feud) || p.Tactic != CombatTactics.Raider || target.UsedVolume(u) < 1f
             || target.Id == u.PlayerShip) return false;   // das aktive Spielerschiff bleibt in echter Gefahr (Phase 25)
         float incoming = 0f;
         foreach (var f in e.Missiles)
@@ -342,13 +342,29 @@ public sealed class CombatSystem : ISimSystem
             value += take * u.Goods[g].BasePrice;
             // Phase 25: dem Spieler wirft das Opfer die Fracht vor die Nase — seit Phase 26 als gespeicherter Frachtbehälter (Traktorstrahl)
             if (byPlayer) { u.Events.Publish(new CargoDropped(e.Id, e.Sector, ship.Id, pos, g, take)); dropped[g] = take; }
-            else Trading.BlackMarket.Stash(u, raider.Owner, g, take);   // Schwarzmarkt: die Beute landet beim Hehler des Verstecks
+            else if (e.Cause != EncounterCause.Feud) Trading.BlackMarket.Stash(u, raider.Owner, g, take);   // Schwarzmarkt: die Beute landet beim Hehler des Verstecks
         }
         if (byPlayer && dropped.Count > 0) Wrecks.Drop(u, e.Sector, pos, dropped, ship.Id, "Frachtbehälter");
         if (value <= 0f) return false;
         if (byPlayer)
         {
             e.Loot += value;
+            u.Events.Publish(new CargoSurrendered(e.Id, ship.Id, raider.Id, value));
+            Engage.Leave(u, e, p, CombatExit.Surrendered);
+            Engage.Leave(u, e, taker, CombatExit.Looted);
+            return true;
+        }
+        // Ausbau Punkt 6: Fehdeüberfall — die überfallende Fraktion beschlagnahmt einen Anteil des Werts (keine Hehlerei, kein Piratendeckel)
+        if (e.Cause == EncounterCause.Feud)
+        {
+            float seized = value * MathF.Max(0f, r.FeudSeizeShare);
+            if (seized > 0f && u.Actors.TryGetValue(raider.Owner, out var seizer))
+            {
+                seizer.Treasury.Credits += seized;
+                u.Events.Publish(new TreasuryIncome(seizer.Id, "feud", seized));
+            }
+            e.Loot += value;
+            e.Fenced += seized;
             u.Events.Publish(new CargoSurrendered(e.Id, ship.Id, raider.Id, value));
             Engage.Leave(u, e, p, CombatExit.Surrendered);
             Engage.Leave(u, e, taker, CombatExit.Looted);
@@ -464,6 +480,15 @@ public sealed class CombatSystem : ISimSystem
             string nb = NavalBattle.SideFaction(u, e, 1) is { } fb && u.Factions.TryGetValue(fb, out var fbb) ? fbb.Name : "?";
             NavalBattle.OnEnded(u, e);   // Nachtrag 2b: Abkühlzeit je Paar und Sektor
             msg = $"Seeschlacht in {where} vorbei: {na} verliert {lostA}, {nb} verliert {lostB} Schiff{(lostA + lostB == 1 ? "" : "e")}.";
+        }
+        else if (e.Cause == EncounterCause.Feud)
+        {
+            // Ausbau Punkt 6: Fehdeüberfall — Ausgang für die Meldung; ein zerstörtes Spielerschiff der Gegenseite ist ein Verlust, kein Verbrechen
+            string where = sector?.Name ?? "?";
+            msg = e.Loot > 0f ? $"Fehdeüberfall in {where}: Fracht im Wert von {e.Loot:0} Cr beschlagnahmt."
+                : victimDestroyed ? $"Fehdeüberfall in {where}: Schiff zerstört."
+                : $"Fehdeüberfall in {where} abgewehrt.";
+            if (sector is not null) ThreatMap.Report(u, sector.Id, e.Loot > 0f || victimDestroyed ? r.RepelledThreat : 0f);
         }
         else if (e.Cause == EncounterCause.Arrest)
         {

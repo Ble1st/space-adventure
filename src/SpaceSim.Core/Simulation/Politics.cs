@@ -119,7 +119,9 @@ public static class SectorControl
         {
             var leader = inf.Shares.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key.Value).First();
             float cur = inf.Shares.GetValueOrDefault(sector.Owner);
-            if (leader.Key != sector.Owner && (cur <= 0f || leader.Value >= cur + u.Rules.OwnerSwitchMargin))
+            // Ausbau Punkt 6: in der Regierungskrise läuft ein Sektor schon mit kleinerem Vorsprung über
+            float margin = u.Crises.Count > 0 && GovernmentCrisis.Active(u, sector.Owner) ? u.Rules.CrisisOwnerSwitchMargin : u.Rules.OwnerSwitchMargin;
+            if (leader.Key != sector.Owner && (cur <= 0f || leader.Value >= cur + margin))
             {
                 var old = sector.Owner;
                 sector.Owner = leader.Key;
@@ -147,6 +149,7 @@ public static class SectorControl
         var list = u.Rules.StageMaxLevel;
         int max = list.Count > (int)sector.Control ? list[(int)sector.Control] : 0;
         if (sector.Contested) max = Math.Min(max, u.Rules.ContestedMaxLevel);
+        if (u.Crises.Count > 0 && GovernmentCrisis.Active(u, sector.Owner)) max = Math.Min(max, u.Rules.CrisisMaxLockLevel);   // Ausbau Punkt 6: Regierungskrise
         return Math.Clamp(max, 0, 5);
     }
 }
@@ -222,6 +225,8 @@ public sealed class FactionPolicySystem : ISimSystem
         var (worst, against) = WorstRelation(u, sector.Owner);
         float aggression = ActorRules.PersonalityOf(u, sector.Owner).Aggression;
         int raw = LevelFor(u.Rules, worst, aggression);
+        // Ausbau Punkt 6: Fehdeparteien sperren sich gegenseitig mindestens auf FeudLockLevel (gedeckelt wie jede Sperre durch die Kontrollstufe)
+        if (u.Feuds.Count > 0 && Feuds.LockEnemy(u, sector.Owner) is { } fe && u.Rules.FeudLockLevel > raw) { raw = Math.Clamp(u.Rules.FeudLockLevel, 0, 5); against = fe; }
         int target = raw >= cur ? raw : Math.Min(cur, LevelFor(u.Rules, worst, aggression, u.Rules.LockHysteresis));
         int cap = SectorControl.MaxLevel(u, sector);
         bool forced = target > cap && cur > cap;

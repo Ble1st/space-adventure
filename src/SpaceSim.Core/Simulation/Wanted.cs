@@ -94,6 +94,8 @@ public static class Wanted
     /// Spielersperre: <paramref name="kill"/> = das Opfer wurde zerstört — zusätzlicher Ansehensverlust „kill“ (<see cref="CrimeStanding"/>).
     public static List<FactionId> ReportAssault(Universe u, ActorId actor, SectorId sector, ActorId victimOwner, string crime = "assault", bool kill = false)
     {
+        // Ausbau Punkt 6: ein Angriff des Spielers auf Schiffe seines Fehdegegners ist kein Verbrechen (wie im Krieg); Stationen bleiben geschützt
+        if (crime == "assault" && u.Feuds.Count > 0 && u.Actors.TryGetValue(actor, out var ac) && ac.Kind == ActorKind.Player && Feuds.PlayerFeudWith(u, victimOwner)) return new List<FactionId>();
         var list = AssaultAuthorities(u, sector, victimOwner);
         foreach (var f in list)
         {

@@ -79,6 +79,10 @@ public sealed class SaveGame
     /// <summary>Runde 45 (additiv): Bündnisse [A, B, Since] und Bündnisenden [A, B, Tick].</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Alliances { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? AllianceEnded { get; set; }
+    /// <summary>Ausbau Punkt 6: Fehden [A, B, Since, Until, ByPlayer 0/1, LastRaidTick, Raids], Fehdenenden [A, B, Tick], Regierungskrisen [Fraktion, Ende].</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Feuds { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? FeudEnded { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? Crises { get; set; }
     /// <summary>Runde 40 (additiv, v17 bleibt): Posteingang des Spielers (reine Anzeige; gespeichert, aber nie gehasht); fehlt = leer.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CommsMessageSave>? Inbox { get; set; }
     /// <summary>Runde 40: nächste Nachrichten-Id des Posteingangs; fehlt (alte Stände) = 1.</summary>
@@ -214,6 +218,9 @@ public sealed class WarSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int ShipsLostB { get; set; }
     /// <summary>Runde 45: Beitrittskrieg eines Verbündeten.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Join { get; set; }
+    /// <summary>Ausbau Punkt 6: Müdigkeitszuschlag aus Vermittlungen und Tick der letzten Vermittlung.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MediationBonus { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastMediationTick { get; set; }
 }
 
 /// <summary>Runde 40: eine Nachricht im Posteingang des Spielers (gespeichert, nicht gehasht).</summary>

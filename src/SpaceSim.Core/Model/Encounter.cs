@@ -9,7 +9,7 @@ public enum DamageType { Energy, Kinetic, Explosive }
 /// auf eine Station (<see cref="Encounter.Station"/>; Kriegsschiffe im Krieg, der Spieler); Runde 40: <see cref="War"/> = Polizei/Kriegsschiffe einer
 /// Kriegsfraktion stellen das Spielerschiff in ihrem Gebiet (nach Warnung; kein Ergeben gegen Geld); Ausbau Punkt 2: <see cref="Naval"/> = Seeschlacht —
 /// Kriegsschiffe (und Polizei) zweier KI-Fraktionen im Krieg treffen im selben Sektor aufeinander (gespeichert nach Namen, additiv).</summary>
-public enum EncounterCause { Raid, Intercept, Assault, Arrest, Siege, War, Naval }
+public enum EncounterCause { Raid, Intercept, Assault, Arrest, Siege, War, Naval, Feud }
 
 /// <summary>Phase 24: Bewegung eines Teilnehmers in einem Takt (Abstandszahl statt Physik, KAMPF.md 4.2).</summary>
 public enum CombatMove { Approach, Hold, Flee }

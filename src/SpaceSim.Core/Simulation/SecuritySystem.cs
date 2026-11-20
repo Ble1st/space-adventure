@@ -173,6 +173,7 @@ public sealed class SecuritySystem : ISimSystem
     public static Ship? Commission(Universe u, FactionId f, bool priority = false)
     {
         var r = u.Rules;
+        if (!priority && u.Crises.Count > 0 && GovernmentCrisis.Active(u, f)) return null;   // Ausbau Punkt 6: in der Regierungskrise kein freiwilliger Polizeikauf
         if (r.PoliceChoosesModels) return CommissionChosen(u, f, priority);
         if (!u.Actors.TryGetValue(f, out var actor) || !u.ShipModels.TryGetValue(r.PoliceModel, out var model)
             || !u.ShipClasses.TryGetValue(model.ClassKey, out var cls) || ShipPurchase.Materials(u, model) is not { } needs) return null;

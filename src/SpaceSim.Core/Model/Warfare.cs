@@ -94,7 +94,32 @@ public sealed class War
     /// Spielerfraktion (KI-Kriege unverändert). Gespeichert, gehasht nur wenn &gt; 0.
     /// </summary>
     public int ShipsLostA, ShipsLostB;
+    /// <summary>Ausbau Punkt 6 (Vermittlung): Zuschlag auf die Kriegsmüdigkeit aus Vermittlungen (Dritte oder Spieler); gespeichert, gehasht nur wenn &gt; 0.</summary>
+    public float MediationBonus;
+    /// <summary>Ausbau Punkt 6: Tick der letzten Vermittlung (0 = keine); gespeichert, gehasht nur wenn gesetzt. Sperrt <see cref="EconomyRules.MediationCooldownTicks"/>.</summary>
+    public long LastMediationTick;
 
+    public bool Involves(FactionId f) => A == f || B == f;
+    public FactionId Other(FactionId f) => A == f ? B : A;
+}
+
+/// <summary>
+/// Ausbau Punkt 6 (docs/POLITIK.md „Fehden“): ein Konflikt unterhalb des Kriegs zwischen zwei Fraktionen (kanonisch <see cref="A"/> &lt; <see cref="B"/>; auch die
+/// Spielerfraktion). Läuft bis <see cref="Until"/>; Überfälle der Polizei/Kriegsschiffe auf die Händler der Gegenseite in umkämpften Sektoren, Sperren gegeneinander,
+/// keine Belagerung. Gespeichert, gehasht nur wenn Fehden laufen (Paare mit der Spielerfraktion nur mit Spielerpolitik). Regeln in <see cref="Simulation.Feuds"/>.
+/// </summary>
+public sealed class Feud
+{
+    public FactionId A;
+    public FactionId B;
+    public long Since;
+    public long Until;
+    /// <summary>Hat der Spieler die Fehde erklärt (sonst die KI aus Beziehung + umkämpftem Sektor)?</summary>
+    public bool ByPlayer;
+    /// <summary>Tick des letzten Fehdeüberfalls (0 = keiner).</summary>
+    public long LastRaidTick;
+    /// <summary>Fehdeüberfälle bisher.</summary>
+    public int Raids;
     public bool Involves(FactionId f) => A == f || B == f;
     public FactionId Other(FactionId f) => A == f ? B : A;
 }

@@ -574,7 +574,7 @@ public sealed class WarSystem : ISimSystem
         {
             Wars.PinHostile(u, w);
             float ticks = u.Tick - w.Since;
-            w.Weariness = ticks / MathF.Max(1f, r.WarWearyTicks) + MathF.Max(w.LossA, w.LossB) / MathF.Max(1f, r.WarLossScale);
+            w.Weariness = ticks / MathF.Max(1f, r.WarWearyTicks) + MathF.Max(w.LossA, w.LossB) / MathF.Max(1f, r.WarLossScale) + w.MediationBonus;   // Ausbau Punkt 6: Vermittlung
             bool broke = Broke(u, w.A) || Broke(u, w.B);
             if (broke) { Wars.MakePeace(u, w, "broke"); continue; }
             // Runde 45: KI gegen KI — ein klarer Sieger nimmt Tribut, wenn der Verlierer genug aus seinem Budget zahlen kann (vor dem Müdigkeitsfrieden: der Sieger

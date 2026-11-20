@@ -176,7 +176,7 @@ public static class UniverseSerializer
             }).ToList();
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
-            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB }).ToList();
+            s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB, MediationBonus = w.MediationBonus, LastMediationTick = w.LastMediationTick }).ToList();
         if (u.PeaceSince.Count > 0)
             s.PeaceSince = u.PeaceSince.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
         if (u.NavalEnded.Count > 0)   // Nachtrag 2b
@@ -185,6 +185,12 @@ public static class UniverseSerializer
             s.Alliances = u.Alliances.Select(al => new[] { (long)al.A.Value, al.B.Value, al.Since }).ToList();
         if (u.AllianceEnded.Count > 0)
             s.AllianceEnded = u.AllianceEnded.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
+        if (u.Feuds.Count > 0)   // Ausbau Punkt 6
+            s.Feuds = u.Feuds.Select(fd => new[] { (long)fd.A.Value, fd.B.Value, fd.Since, fd.Until, fd.ByPlayer ? 1L : 0L, fd.LastRaidTick, fd.Raids }).ToList();
+        if (u.FeudEnded.Count > 0)
+            s.FeudEnded = u.FeudEnded.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
+        if (u.Crises.Count > 0)
+            s.Crises = u.Crises.OrderBy(kv => kv.Key).Select(kv => new[] { (long)kv.Key, kv.Value }).ToList();
         // Runde 40: Posteingang (gespeichert, nicht gehasht)
         if (u.Inbox.Count > 0)
             s.Inbox = u.Inbox.Select(m => new CommsMessageSave
@@ -494,7 +500,7 @@ public static class UniverseSerializer
         // Phase 28: Kriege und Friedensschlüsse
         if (s.Wars is not null)
             foreach (var w in s.Wars)
-                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB });
+                u.Wars.Add(new War { A = new FactionId(w.A), B = new FactionId(w.B), Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB, MediationBonus = w.MediationBonus, LastMediationTick = w.LastMediationTick });
         if (s.PeaceSince is not null)
             foreach (var p in s.PeaceSince) if (p.Length >= 3) u.PeaceSince[((int)p[0], (int)p[1])] = p[2];
         if (s.NavalEnded is not null)   // Nachtrag 2b
@@ -503,6 +509,13 @@ public static class UniverseSerializer
             foreach (var p in s.Alliances) if (p.Length >= 3) u.Alliances.Add(new Alliance { A = new FactionId((int)p[0]), B = new FactionId((int)p[1]), Since = p[2] });
         if (s.AllianceEnded is not null)
             foreach (var p in s.AllianceEnded) if (p.Length >= 3) u.AllianceEnded[((int)p[0], (int)p[1])] = p[2];
+        if (s.Feuds is not null)   // Ausbau Punkt 6
+            foreach (var p in s.Feuds)
+                if (p.Length >= 7) u.Feuds.Add(new Feud { A = new FactionId((int)p[0]), B = new FactionId((int)p[1]), Since = p[2], Until = p[3], ByPlayer = p[4] != 0, LastRaidTick = p[5], Raids = (int)p[6] });
+        if (s.FeudEnded is not null)
+            foreach (var p in s.FeudEnded) if (p.Length >= 3) u.FeudEnded[((int)p[0], (int)p[1])] = p[2];
+        if (s.Crises is not null)
+            foreach (var p in s.Crises) if (p.Length >= 2) u.Crises[(int)p[0]] = p[1];
         // Runde 40: Posteingang (gespeichert, nicht gehasht)
         if (s.Inbox is not null)
             foreach (var m in s.Inbox)

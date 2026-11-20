@@ -128,7 +128,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 			("Zoll und Sperren", PlayerSeats.OwnSectors(u).Count > 0, PlayerSeats.OwnSectors(u).Count > 0 ? (PlayerHq.Current(u) is not null ? "eigener Sektor, HQ (Stufe 1–5)" : "eigener Sektor (Stufe 1–2)") : "Sektorbehörde gründen"),
 			// Ausbau Punkt 9: echt — Firmensitz (Befehlsstufe +1), Fehde (Hook für Punkt 6), Büros in fremden Sektoren
 			("Firmensitz", PlayerSeatsOffices.Seat(u) is not null, PlayerSeatsOffices.Seat(u) is not null ? $"Befehlsstufe +{u.Rules.FirmSeatCommandBonus}" : $"ab {ActorNames.Size((ActorSizeClass)u.Rules.PlayerFirmSeatMinClass)} · Karte unten"),
-			("Fehde erklären", PlayerSeatsOffices.FeudUnlocked(u), PlayerSeatsOffices.FeudUnlocked(u) ? "freigeschaltet (Punkt 6)" : "mit Firmensitz"),
+			("Fehde erklären", PlayerSeatsOffices.FeudUnlocked(u), PlayerSeatsOffices.FeudUnlocked(u) ? (u.PlayerFaction is { } pfd && Feuds.Enemies(u, pfd).Any() ? "läuft · Comms" : "freigeschaltet · Comms") : "mit Firmensitz"),
 			("Büros (fremde Sektoren)", Offices.Of(u, u.PlayerActor).Count > 0, Offices.Of(u, u.PlayerActor).Count is var no and > 0 ? $"{no} Büro{(no == 1 ? "" : "s")}" : $"ab {ActorNames.Size((ActorSizeClass)u.Rules.PlayerOfficeMinClass)} · Zustimmung"),
 		};
 		// Gerätetest: Zeilenabstand passt sich der Kartenhöhe an (die letzten Zeilen liefen über den Rand); Notiz rechts mit Innenabstand

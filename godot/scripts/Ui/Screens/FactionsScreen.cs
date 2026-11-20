@@ -174,10 +174,19 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		TestFirmSeat = !isFaction && !isFree ? (FirmSeats.Text(u, sel) is { Length: > 0 } fs ? fs : "kein Firmensitz") : "";
 		if (TestFirmSeat.Length > 0) At(det, Text(TestFirmSeat, 12, TestFirmSeat.StartsWith("Firmensitz", System.StringComparison.Ordinal) ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 560, 16);
 
+		// Ausbau Punkt 6: Fehden und Regierungskrise — eigene Zeile; schiebt Persönlichkeit und Beziehungen um eine Zeile nach unten
+		TestFeud = isFaction ? Feuds.FactionLine(u, new FactionId(sel.Value)) : "";
+		float shift = 0f;
+		if (TestFeud.Length > 0)
+		{
+			At(det, Text(TestFeud, 12, Orange), 18, ry + 56, 560, 16);
+			shift = 18f;
+		}
+
 		// Persönlichkeit (echt; die Sammelgruppe teilt einen Satz Werte). Runde 38: die eigene Fraktion hat keine (der Spieler entscheidet selbst)
-		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 194, 280, 22);
+		At(det, Text(isMe ? "Deine Fraktion" : "Persönlichkeit", 16, Cyan), 18, 194 + shift, 280, 22);
 		var p = actor.Personality;
-		float py = 220;
+		float py = 220 + shift;
 		if (isMe)
 		{
 			// Eigenes Hauptquartier: Sitz der eigenen Fraktion (gegründet oder übernommen)
@@ -201,10 +210,10 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 		}
 
 		// Beziehungen zu den Fraktionen und Gruppen (echt: gespeicherte Abweichung oder Vorgabe)
-		At(det, Text("Beziehungen", 16, Cyan), 356, 194, 226, 22);
+		At(det, Text("Beziehungen", 16, Cyan), 356, 194 + shift, 226, 22);
 		// Runde 38: die Beziehung zu dir steht oben („Beziehung zu dir“); hier die KI-Fraktionen und die Freien
 		var others = u.NpcFactionIds().Where(f => SpaceSim.Core.Intel.Knowledge.KnowsFaction(u, f)).Select(f => (ActorId)f).Append(u.FreeActor).Where(o => o != sel).Take(5).ToList();
-		float oy = 220;
+		float oy = 220 + shift;
 		foreach (var o in others)
 		{
 			float v = Relations.Effective(u, sel, o);
@@ -299,6 +308,8 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 	/// <summary>Selbsttest: zuletzt gezeigte Handlungsfähigkeit (Phase 22; leer für Akteure ohne Invarianten).</summary>
 	/// <summary>Runde 45, Selbsttest: Bündniszeile der gewählten Fraktion.</summary>
 	public string TestAlliance { get; private set; } = "";
+	/// <summary>Ausbau Punkt 6: Fehde-/Krisenzeile der gewählten Fraktion (leer = keine).</summary>
+	public string TestFeud { get; private set; } = "";
 	/// <summary>Eigenes Hauptquartier, Selbsttest: HQ-Zeile im Detail der eigenen Fraktion.</summary>
 	public string TestHq { get; private set; } = "";
 	/// <summary>Ausbau Punkt 9, Selbsttest: Firmensitz-Zeile (KI-Firma oder eigene Fraktion).</summary>

@@ -76,9 +76,14 @@ public class Runde40Tests
         Assert.Contains("gesucht", body);   // Stufe 3
         Comms.MarkRead(u, offer.Id);
         Assert.Equal(4, Comms.Unread(u));
-        // Nachrichten anderer Fraktionen (KI–KI) landen nicht im Posteingang des Spielers
+        // Nachrichten anderer Fraktionen (KI–KI) landen nicht als Kriegserklärung im Posteingang des Spielers — seit Ausbau Punkt 6 (Vermittlung durch den
+        // Spieler) aber als „conflict_news“ mit dem Vermittlungsangebot; ohne Spielervermittlung gar nicht
         u.Events.Publish(new WarDeclared(Union, Guild, -0.9f, "KI-Krieg."));
-        Assert.Equal(5, u.Inbox.Count);
+        Assert.Equal(6, u.Inbox.Count);
+        Assert.Equal("conflict_news", u.Inbox.Last().Kind);
+        u.Rules.PlayerMediation = false;
+        u.Events.Publish(new WarDeclared(Union, Guild, -0.9f, "KI-Krieg."));
+        Assert.Equal(6, u.Inbox.Count);
     }
 
     [Fact]
@@ -131,7 +136,7 @@ public class Runde40Tests
         var u = World();
         var actions = CommsActions.Default();
         // Runde 41: mission_abandon dazu; Runde 45: Tribut fordern, Bündnis, Sektorbehörde, eigene Sperre hinten angehängt (Registrierungsreihenfolge)
-        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "mission_abandon", "contract", "demand", "alliance", "seat", "lock", "hq", "intel", "firmseat", "office" }, actions.Keys);   // Eigenes Hauptquartier: „hq“ angehängt; Ausbau Punkt 16: „intel“; Ausbau Punkt 9: „firmseat“, „office“
+        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "mission_abandon", "contract", "demand", "alliance", "seat", "lock", "hq", "intel", "firmseat", "office", "feud", "mediate" }, actions.Keys);   // Ausbau Punkt 6: „feud“, „mediate“   // Eigenes Hauptquartier: „hq“ angehängt; Ausbau Punkt 16: „intel“; Ausbau Punkt 9: „firmseat“, „office“
         int evts = 0;
         u.Events.Raised += _ => evts++;
         float wallet = u.Player.Treasury.Credits;

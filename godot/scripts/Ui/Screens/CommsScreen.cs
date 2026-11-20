@@ -60,6 +60,9 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public int TestDiplomacyRows => KnownFactions(Ctx.U).Count;
 	/// <summary>Ausbau Punkt 16 (Selbsttest): Schlüssel der Intel-Knöpfe im zuletzt gebauten Diplomatie-Detail.</summary>
 	public readonly System.Collections.Generic.List<string> TestIntelKeys = new();
+	/// <summary>Ausbau Punkt 6: Fehde-/Krisenzeile des Details und die Vermittlungs-Schlüssel (Selbsttest).</summary>
+	public string TestFeudRow { get; private set; } = "";
+	public readonly System.Collections.Generic.List<string> TestMediateKeys = new();
 	/// <summary>Ausbau Punkt 16 (Selbsttest): Diplomatie-Auswahl auf eine Fraktion setzen.</summary>
 	public void TestSelectFaction(FactionId f) { int i = KnownFactions(Ctx.U).IndexOf(f); if (i >= 0) { _diplSel = i; _detailOpen = true; Invalidate(); } }
 	/// <summary>Ausbau Punkt 16: nur bekannte KI-Fraktionen stehen in der Diplomatie.</summary>
@@ -347,6 +350,10 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			+ (theirAllies.Count > 0 ? $" · verbündet mit {string.Join(", ", theirAllies)}" : "");
 		Row(det, 18, y, dw - 36, "Bündnis", allianceText, 14); y += 22;
 		TestAllianceRow = allianceText;
+		// Ausbau Punkt 6: Fehden und Regierungskrise der Fraktion (auch mit dir)
+		string feudText = Feuds.FactionLine(u, f);
+		TestFeudRow = feudText;
+		if (feudText.Length > 0) { Row(det, 18, y, dw - 36, "Fehde/Krise", feudText, 14); y += 22; }
 		if (war is not null && me is not null)
 		{
 			Row(det, 18, y, dw - 36, "Tribut", $"sie fordern {Wars.TributeFor(u, war, f):0} Cr · du kannst {Wars.DemandAmount(u, war, f):0} Cr fordern", 14); y += 22;
@@ -392,6 +399,21 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			foreach (var c in Alliances.Calls(u).Where(c => c.Ally == f).ToList())
 				ActionButton($"alliance:aid:{c.Attacker.Value}", $"Beistand: Krieg gegen {FactionNameOf(u, c.Attacker)}", confirm: true);
 		}
+		// Ausbau Punkt 6: Fehde erklären/beenden (mit Firmensitz) und Vermittlung in Konflikten dieser Fraktion mit anderen KI-Fraktionen
+		if (u.Rules.PlayerFeuds && me is not null)
+		{
+			if (Feuds.InFeud(u, me.Value, f)) ActionButton($"feud:end:{f.Value}", "Fehde beenden", confirm: false);
+			else ActionButton($"feud:declare:{f.Value}", "Fehde erklären", confirm: true);
+		}
+		TestMediateKeys.Clear();
+		if (u.Rules.PlayerMediation)
+			foreach (var c in Mediation.Conflicts(u).Where(c => c.A == f || c.B == f).ToList())
+			{
+				var other = c.A == f ? c.B : c.A;
+				string mk = SpaceSim.Core.Comms.MediateAction.KeyFor(c.A, c.B);
+				TestMediateKeys.Add(mk);
+				ActionButton(mk, $"Vermitteln: {(c.War is not null ? "Krieg" : "Fehde")} mit {FactionNameOf(u, other)}", confirm: false);
+			}
 		// Ausbau Punkt 16: Intel kaufen (Sektorkarten, Gebietskarte, Stationslisten; Geld an die Fraktionskasse)
 		TestIntelKeys.Clear();
 		if (SpaceSim.Core.Intel.Knowledge.Limited(u))

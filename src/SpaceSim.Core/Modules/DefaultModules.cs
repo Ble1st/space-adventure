@@ -178,6 +178,7 @@ public sealed class PoliticsModule : ISimModule
         b.Add(new SectorControlSystem(), interval: 50).Add(new FactionPolicySystem(), interval: 20)
          .Add(new WarSystem(), WarSystem.Interval)   // Phase 28: Krieg und Frieden
          .Add(new AllianceSystem(), AllianceSystem.Interval)   // Runde 45: Bündnisse
+         .Add(new FeudSystem(), FeudSystem.Interval)           // Ausbau Punkt 6: Fehden, Vermittlung, Regierungskrise
          .Add(new OfficeSystem(), OfficeSystem.Interval)       // Ausbau Punkt 9: Büros (Gründung, Schließen ohne Zustimmung)
          .Add(new SpaceSim.Core.Comms.CommsSystem(), SpaceSim.Core.Comms.CommsSystem.Interval);   // Runde 40: Posteingang aus Ereignissen
 }

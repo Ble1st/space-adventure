@@ -164,6 +164,28 @@ public sealed class CommsSystem : ISimSystem, ISimEventListener
                 Comms.Add(u, other, "alliance_dissolved", new() { ["faction"] = other.Value.ToString(), ["reason"] = ad.Reason, ["message"] = ad.Message }, u.Rules.InboxMessageTicks);
                 break;
             }
+            // Ausbau Punkt 6: Fehden mit dem Spieler; Fehden und Kriege zwischen KI-Fraktionen als Nachricht mit Vermittlungsangebot; Regierungskrisen
+            case FeudStarted fs when fs.A == me || fs.B == me:
+            {
+                var other = fs.A == me ? fs.B : fs.A;
+                Comms.Add(u, other, "feud_started", new() { ["faction"] = other.Value.ToString(), ["message"] = fs.ByPlayer ? fs.Message : $"{fs.Message} Sie haben sie dir erklärt." }, u.Rules.InboxMessageTicks);
+                break;
+            }
+            case FeudEnded fe when fe.A == me || fe.B == me:
+            {
+                var other = fe.A == me ? fe.B : fe.A;
+                Comms.Add(u, other, "feud_ended", new() { ["faction"] = other.Value.ToString(), ["reason"] = fe.Reason, ["message"] = fe.Message }, u.Rules.InboxMessageTicks);
+                break;
+            }
+            case FeudStarted ns when u.Rules.PlayerMediation:
+                Comms.Add(u, ns.A, "conflict_news", new() { ["faction"] = ns.A.Value.ToString(), ["other"] = ns.B.Value.ToString(), ["message"] = $"{ns.Message} Du kannst vermitteln, sobald sie eine Weile läuft." }, u.Rules.FeudTicks);
+                break;
+            case WarDeclared nw when nw.A != me && nw.B != me && u.Rules.PlayerMediation:
+                Comms.Add(u, nw.A, "conflict_news", new() { ["faction"] = nw.A.Value.ToString(), ["other"] = nw.B.Value.ToString(), ["message"] = $"{nw.Message} Du kannst vermitteln, sobald der Krieg eine Weile läuft." }, u.Rules.InboxMessageTicks);
+                break;
+            case GovernmentCrisisChanged gc when gc.Started:
+                Comms.Add(u, gc.Faction, "crisis", new() { ["faction"] = gc.Faction.Value.ToString(), ["message"] = gc.Message }, u.Rules.InboxMessageTicks);
+                break;
             case AllyJoinedWar aj when aj.Defender == me:
                 Comms.Add(u, aj.Ally, "ally_joined", new() { ["faction"] = aj.Ally.Value.ToString(), ["message"] = aj.Message }, u.Rules.InboxMessageTicks);
                 break;
@@ -307,6 +329,10 @@ public static class CommsText
             "alliance_dissolved" => ($"Bündnis beendet – {F()}", Msg()),
             "ally_call" => ($"Beistandsruf – {F()}", Msg()),
             "ally_joined" => ($"Verbündeter tritt bei – {F()}", Msg()),
+            "feud_started" => ($"Fehde – {F()}", Msg()),
+            "feud_ended" => ($"Fehde vorbei – {F()}", Msg()),
+            "conflict_news" => ($"Konflikt – {F()}", Msg()),
+            "crisis" => ($"Regierungskrise – {F()}", Msg()),
             "wanted_up" => ($"Fahndung gestiegen – {F()}",
                 m.Args.TryGetValue("level", out var ls) && m.Args.TryGetValue("fine", out var fs)
                     ? $"Stufe {ls} ({SecurityNames.WantedLevel(int.Parse(ls))}) bei {F()} — offene Strafe {fs} Cr (bezahlen per Diplomatie oder am Gericht)."
@@ -361,6 +387,10 @@ public static class CommsText
                 "alliance_offer" => Alliances.ProposeIssue(u, new FactionId(fv)) is null ? new[] { $"alliance:propose:{fv}" } : Array.Empty<string>(),
                 "ally_call" => m.Args.TryGetValue("attacker", out var at) && int.TryParse(at, out var av) && Alliances.AidIssue(u, new FactionId(av)) is null
                     ? new[] { $"alliance:aid:{av}" } : Array.Empty<string>(),
+                // Ausbau Punkt 6: Vermitteln, sobald der Konflikt reif ist (live geprüft); Fehde beenden
+                "conflict_news" => m.Args.TryGetValue("other", out var ot) && int.TryParse(ot, out var ov2) && Mediation.PlayerIssue(u, new FactionId(fv), new FactionId(ov2)) is null
+                    ? new[] { MediateAction.KeyFor(new FactionId(fv), new FactionId(ov2)) } : Array.Empty<string>(),
+                "feud_started" => Feuds.PlayerEndIssue(u, new FactionId(fv)) is null ? new[] { $"feud:end:{fv}" } : Array.Empty<string>(),
                 _ => Array.Empty<string>(),
             };
         }

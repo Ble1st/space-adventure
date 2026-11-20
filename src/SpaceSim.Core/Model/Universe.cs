@@ -215,6 +215,12 @@ public sealed class Universe
     public List<Alliance> Alliances { get; } = new();
     /// <summary>Runde 45: Ende eines Bündnisses je Fraktionspaar (kleinere Id zuerst) → Tick; sperrt ein neues Bündnis für <see cref="EconomyRules.AllianceCooldownTicks"/>.</summary>
     public Dictionary<(int A, int B), long> AllianceEnded { get; } = new();
+    /// <summary>Ausbau Punkt 6: laufende Fehden (Reihenfolge des Beginns; gespeichert, gehasht nur wenn vorhanden). Regeln in <see cref="Simulation.Feuds"/>.</summary>
+    public List<Feud> Feuds { get; } = new();
+    /// <summary>Ausbau Punkt 6: Ende der letzten Fehde je Paar (kleinere Id zuerst) → Tick; sperrt eine neue für <see cref="EconomyRules.FeudCooldownTicks"/>.</summary>
+    public Dictionary<(int A, int B), long> FeudEnded { get; } = new();
+    /// <summary>Ausbau Punkt 6: Regierungskrise je KI-Fraktion (Id → Ende-Tick) nach Verlust des Hauptquartiers; gespeichert, gehasht nur wenn vorhanden.</summary>
+    public Dictionary<int, long> Crises { get; } = new();
     /// <summary>
     /// Runde 40: Posteingang des Spielers (Nachrichten aus Simulationsereignissen, siehe <see cref="Comms.CommsSystem"/>). Additiv gespeichert,
     /// aber <b>nicht gehasht</b> — reine Anzeige für den Spieler, verbraucht keine Zufallszahl. Höchstes <see cref="Comms.Comms.MaxInbox"/> Einträge.

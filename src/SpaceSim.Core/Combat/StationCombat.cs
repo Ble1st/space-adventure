@@ -242,9 +242,11 @@ public static class StationCombat
             return;
         }
         var oldFaction = u.FactionOf(old);
+        bool wasHq = StationProtection.KindOf(u, st) == GovernmentKind.Headquarters;
         u.Events.Publish(new StationFell(st.Id, st.Name, st.Sector, old, attacker, "destroyed"));
         Departures.RemoveStation(u, st, DepartureReason.Destroyed, "siege");
         // Sektorkontrolle wie bisher im Takt des SectorControlSystem (Zerstörungen durch Kaperer an Stellungen ändern den Stand der NPC-Welt nicht)
+        if (wasHq && oldFaction is { } cf) GovernmentCrisis.Start(u, cf);   // Ausbau Punkt 6: Regierungskrise
         if (oldFaction is { } of) SeatRelocation.Ensure(u, of);
     }
 

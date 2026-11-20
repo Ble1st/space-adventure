@@ -78,6 +78,8 @@ if (opts.TryGetValue("smugglers", out var smgOpt)) u.Rules.Smugglers = smgOpt ==
 if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc = bmnOpt == "on";   // Schwarzmarkt NPC: gesetzlose KI-Schiffe beim Hehler (Vergleichsläufe)   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
 // Kapitulation: --capitulation off = Phase-28-Regel (Regierungsstationen nur ausgeschaltet, keine Übernahme), --aicapture off = nur der Spieler übernimmt
 if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulation = capOpt == "on";
+// Ausbau Punkt 6: --feuds on|off schaltet Fehden, Vermittlung (KI und Spieler) und Regierungskrise zusammen
+if (opts.TryGetValue("feuds", out var feOpt)) { bool fon = feOpt == "on"; u.Rules.FeudsActive = fon; u.Rules.PlayerFeuds = fon; u.Rules.Mediation = fon; u.Rules.PlayerMediation = fon; u.Rules.GovernmentCrisis = fon; }
 // Ausbau Punkt 2: --navy off = Seeschlacht, gezielte Abwehr und Kriegsgeleit aus (alte Regel)
 if (opts.TryGetValue("navy", out var navyOpt)) u.Rules.NavalBattles = u.Rules.WarDefense = u.Rules.WarEscorts = navyOpt == "on";
 // Ausbau Punkt 8: --wear off = kein Stationsverschleiß (alte Regel); Nachtrag 2b: --navycool off = keine Abkühlzeit, Rücklage ohne kämpfende Schiffe
@@ -136,6 +138,16 @@ if (opts.TryGetValue("alliance", out var alOpt)) allianceDriver = ParsePairAt(al
 // --treasury F:Betrag@tick,F:Betrag@tick — Kasse einer Fraktion setzen (Kriegskasse für die Tribut-Vorführung)
 var treasuryDriver = opts.TryGetValue("treasury", out var trOpt) ? trOpt.Split(',').Select(ParsePairAt).ToList() : new List<(int, int, long)>();
 var allianceLog = new List<string>();
+// Ausbau Punkt 6: --feud A:B@tick (Beziehung beider auf −0,5, Fehde ohne umkämpften Sektor) und --crisis F@tick (Regierungskrise wie nach HQ-Verlust)
+(int A, int B, long Tick)? feudDriver = opts.TryGetValue("feud", out var fdOpt) ? ParsePairAt(fdOpt) : null;
+(int F, long Tick)? crisisDriver = null;
+if (opts.TryGetValue("crisis", out var crOpt)) { var cat = crOpt.Split('@'); crisisDriver = (int.Parse(cat[0], CultureInfo.InvariantCulture), long.Parse(cat[1], CultureInfo.InvariantCulture) / 20 * 20); }
+// --mediator F@tick: Beziehung von F zu allen anderen KI-Fraktionen (beide Richtungen) auf 0,5 — eine mögliche Vermittlerin
+(int F, long Tick)? mediatorDriver = null;
+if (opts.TryGetValue("mediator", out var mdOpt)) { var mat = mdOpt.Split('@'); mediatorDriver = (int.Parse(mat[0], CultureInfo.InvariantCulture), long.Parse(mat[1], CultureInfo.InvariantCulture) / 20 * 20); }
+var feudLog = new List<string>();
+int feudsStarted = 0, feudRaids = 0, mediations = 0, crises = 0;
+var feudEnds = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int tributePeaces = 0; double tributeMoney = 0;
 // Phase 31: Torkampf-Kennzahlen
 int gatesDisabled = 0, gatesDisabledSplit = 0, gatesAttacked = 0, gateShots = 0, gateDownMax = 0, tradersBrokeWhileDown = 0;
@@ -472,6 +484,11 @@ u.Events.Raised += e =>
             if (crimeDriver.Count > 0 && (u.IsPlayerFaction(wd.A) || u.IsPlayerFaction(wd.B))) crimeLog.Add($"Tick {u.Tick}: {wd.Message}");   // Spielersperre
             break;
         case AllianceFormed af: allianceLog.Add($"Tick {u.Tick}: {af.Message}"); break;
+        case FeudStarted fs: feudsStarted++; feudLog.Add($"Tick {u.Tick}: {fs.Message}"); break;
+        case FeudEnded fe: feudEnds[fe.Reason] = feudEnds.GetValueOrDefault(fe.Reason) + 1; feudLog.Add($"Tick {u.Tick}: {fe.Message}"); break;
+        case FeudRaid: feudRaids++; break;
+        case MediationConcluded mc: mediations++; feudLog.Add($"Tick {u.Tick}: {mc.Message}"); break;
+        case GovernmentCrisisChanged gcc: if (gcc.Started) crises++; feudLog.Add($"Tick {u.Tick}: {gcc.Message}"); break;
         case AllianceDissolved ad: allianceLog.Add($"Tick {u.Tick}: {ad.Message}"); break;
         case AllyJoinedWar aj: allianceLog.Add($"Tick {u.Tick}: {aj.Message}"); break;
         case TributePeace tp: tributePeaces++; tributeMoney += tp.Amount; allianceLog.Add($"Tick {u.Tick}: {tp.Message} (Forderung {tp.Demanded:0})"); break;
@@ -791,6 +808,24 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                     tda.Treasury.Credits = td.Item2;
                     Console.WriteLine($"   Testtreiber: Kasse von {tda.Name} bei Tick {u.Tick} auf {td.Item2} Cr");
                 }
+            if (feudDriver is { } fdd && u.Tick == fdd.Item3)
+            {
+                FactionId fa = new(fdd.Item1), fb = new(fdd.Item2);
+                Relations.Set(u, fa, fb, -0.5f); Relations.Set(u, fb, fa, -0.5f);
+                Feuds.Start(u, fa, fb);
+                Console.WriteLine($"   Testtreiber: Fehde {fdd.Item1}–{fdd.Item2} bei Tick {u.Tick}");
+            }
+            if (mediatorDriver is { } mdd && u.Tick == mdd.Tick)
+            {
+                var mf = new FactionId(mdd.F);
+                foreach (var of in u.NpcFactionIds()) if (of != mf) { Relations.Set(u, mf, of, 0.5f); Relations.Set(u, of, mf, 0.5f); }
+                Console.WriteLine($"   Testtreiber: Vermittlerin {mdd.F} (Beziehungen 0,5) bei Tick {u.Tick}");
+            }
+            if (crisisDriver is { } crd && u.Tick == crd.Tick)
+            {
+                GovernmentCrisis.Start(u, new FactionId(crd.F));
+                Console.WriteLine($"   Testtreiber: Regierungskrise {crd.F} bei Tick {u.Tick}");
+            }
             if (aiWarDriver is { } awd && u.Tick == awd.Item3)
             {
                 Wars.Declare(u, new FactionId(awd.Item1), new FactionId(awd.Item2));
@@ -1247,6 +1282,9 @@ if (u.Modules.Count > 0)
         + (u.Alliances.Count > 0 ? " (" + string.Join(", ", u.Alliances.Select(al => $"{al.A.Value}–{al.B.Value} seit {al.Since}")) + ")" : "")
         + $"; Tributfrieden {tributePeaces} für {tributeMoney:0} Cr (Tributfrieden KI {(u.Rules.AiTributePeace ? "an" : "aus")})"
         + (allianceLog.Count > 0 ? " — " + string.Join("; ", allianceLog) : ""));
+    Console.WriteLine($"Fehden (Punkt 6: KI {(u.Rules.FeudsActive ? "an" : "aus")}, Vermittlung {(u.Rules.Mediation ? "an" : "aus")}, Krise {(u.Rules.GovernmentCrisis ? "an" : "aus")}): begonnen {feudsStarted}, "
+        + $"Überfälle {feudRaids}, Enden {(feudEnds.Count == 0 ? "keine" : string.Join(", ", feudEnds.Select(kv => $"{kv.Key} {kv.Value}")))}, Vermittlungen {mediations}, Regierungskrisen {crises}; jetzt {u.Feuds.Count} Fehden, {u.Crises.Count} Krisen"
+        + (feudLog.Count > 0 ? " — " + string.Join("; ", feudLog.Take(30)) : ""));
     Console.WriteLine($"Kriegserklärungen gegen den Spieler (AiWarOnPlayer {(u.Rules.AiWarOnPlayer ? "an" : "aus")}): {playerWarLog.Count}"
         + (playerWarLog.Count > 0 ? " — " + string.Join("; ", playerWarLog) : ""));
     Console.WriteLine($"Munition: {(u.Rules.AmmoActive ? "an" : "aus")}; verbraucht {ammoUsed:0}, nachgeladen {ammoUnits:0} Einheiten für {ammoCost:0} Cr (aus Kassen {ammoTreasury:0}, davon Polizei {ammoPolice:0} = "

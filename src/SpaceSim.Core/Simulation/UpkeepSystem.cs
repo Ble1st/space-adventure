@@ -25,6 +25,7 @@ public sealed class UpkeepSystem : ISimSystem
             if (tax <= 0f) return;
             // Phase 15: Steuerbremse — eine volle Kasse nimmt nur noch einen Teil der Abgabe auf, der Rest verlässt die Welt (wie vor Phase 9)
             float share = Math.Clamp(u.Rules.TaxToTreasuryShare, 0f, 1f) * FactorOf(authority);
+            if (u.Crises.Count > 0 && authority is { } ca) share *= GovernmentCrisis.TaxFactor(u, ca);   // Ausbau Punkt 6: Regierungskrise — halbe Steuern
             if (authority is { } f && share > 0f && u.Actors.TryGetValue(f, out var actor))
             {
                 float paid = tax * share;

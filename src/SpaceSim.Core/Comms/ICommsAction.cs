@@ -106,6 +106,8 @@ public sealed class CommsActions
         r.Register(new Intel.IntelAction());       // Ausbau Punkt 16: Intel kaufen
         r.Register(new FirmSeatAction());          // Ausbau Punkt 9: eigener Firmensitz gründen/aufgeben
         r.Register(new OfficeAction());            // Ausbau Punkt 9: eigenes Büro in fremdem Sektor gründen/schließen
+        r.Register(new FeudAction());              // Ausbau Punkt 6: Fehde erklären/beenden
+        r.Register(new MediateAction());           // Ausbau Punkt 6: zwischen zwei KI-Fraktionen vermitteln
         return r;
     }
 

@@ -113,6 +113,7 @@ public static class Capitulation
     {
         var old = st.Owner;
         var oldFaction = u.FactionOf(old);
+        bool wasHq = StationProtection.KindOf(u, st) == GovernmentKind.Headquarters;
         float value = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? t.BuildCost : 0f;
         Wars.OnLoss(u, old, attacker, value);
         bool player = u.Actors.TryGetValue(taker, out var ta) && ta.Kind == ActorKind.Player;
@@ -131,6 +132,7 @@ public static class Capitulation
                 s.HomeBase = u.FactionOf(s) is { } sf ? SecuritySystem.HomeBaseFor(u, sf, st.Sector)?.Id ?? default : default;
         if (u.Sectors.TryGetValue(st.Sector, out var sec) && SectorControl.Update(u, sec)) u.TouchAccess();
         u.Events.Publish(new StationFell(st.Id, st.Name, st.Sector, old, taker, "capitulated"));
+        if (wasHq && oldFaction is { } cf) GovernmentCrisis.Start(u, cf);   // Ausbau Punkt 6: Regierungskrise
         if (oldFaction is { } of) SeatRelocation.Ensure(u, of);
     }
 }

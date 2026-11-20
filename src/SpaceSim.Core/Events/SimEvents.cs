@@ -387,6 +387,16 @@ public sealed record PeaceOffered(FactionId From, FactionId To, string Message) 
 public sealed record TributePaid(ActorId Payer, FactionId To, float Amount, string Message) : SimEvent;
 /// <summary>Runde 40: Comms-Aktion des Spielers ausgeführt (Strafe, Krieg, Waffenstillstand, Frieden, Tribut); nur bei Erfolg.</summary>
 public sealed record CommsActionPerformed(string Action, int Faction, float Credits, string Message) : SimEvent;
+/// <summary>Ausbau Punkt 6: Fehde begonnen (A &lt; B; <paramref name="ByPlayer"/> = der Spieler hat sie erklärt).</summary>
+public sealed record FeudStarted(FactionId A, FactionId B, long Until, bool ByPlayer, string Message) : SimEvent;
+/// <summary>Ausbau Punkt 6: Fehde beendet — Grund „expired“, „relation“, „war“, „mediated“, „ended“ (Spieler), „gone“.</summary>
+public sealed record FeudEnded(FactionId A, FactionId B, string Reason, string Message) : SimEvent;
+/// <summary>Ausbau Punkt 6: Fehdeüberfall — ein Polizei-/Kriegsschiff von <paramref name="Attacker"/> stellt ein Handelsschiff der Gegenseite <paramref name="Victim"/>.</summary>
+public sealed record FeudRaid(int Encounter, SectorId Sector, FactionId Attacker, FactionId Victim, ShipId Raider, ShipId Target, string Message) : SimEvent;
+/// <summary>Ausbau Punkt 6: Vermittlung in einem Krieg (<paramref name="Kind"/> „war“) oder einer Fehde („feud“); <paramref name="Mediator"/> = Fraktion der Vermittlerin (auch die Spielerfraktion), <paramref name="Fee"/> = Gebühr an den Spieler.</summary>
+public sealed record MediationConcluded(FactionId Mediator, FactionId A, FactionId B, string Kind, float Fee, string Message) : SimEvent;
+/// <summary>Ausbau Punkt 6: Regierungskrise begonnen (Hauptquartier verloren) bzw. beendet.</summary>
+public sealed record GovernmentCrisisChanged(FactionId Faction, bool Started, long Until, string Message) : SimEvent;
 /// <summary>Runde 45: Bündnis geschlossen (A &lt; B).</summary>
 public sealed record AllianceFormed(FactionId A, FactionId B, string Message) : SimEvent;
 /// <summary>Runde 45: Bündnis beendet — Grund „relation“, „betrayal“, „betrayal_ally“, „no_aid“, „left“, „gone“.</summary>
