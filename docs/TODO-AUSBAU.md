@@ -24,9 +24,9 @@ Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so l
 - [-] (zurückgestellt 2026-11-20) 7 Forschung: ~12 neue Projekte (Rezepte, Ware „Medizin“, Verbesserungen Nachladen/Bohren/Schild/Werft), früher Zugang ab 25 % Finanzierung (6000 Ticks), Rückschritt laufendes Projekt bei Verlust der letzten Forschungsstation
 - [-] (zurückgestellt 2026-11-20) 3 Polizei verfolgt 1 Sprung in befreundete/verbündete Sektoren, Schutzvertrag für Spieler über Comms (~200 Cr/Tag, sichere Hilfe), Konvois bei hoher Bedrohung (3–5 Händler + 1–2 Polizei)
 - [ ] 4 NPC-Bergung: Bergeschiffe holen Module (Zustand ≥ 0,5) aus Wracks und verkaufen sie; neues Bergeschiff-Modell
-- [ ] 11 Luxusexport Start: größeres Platin-/Elektroniklager der Luxuswerkstatt, zweite Luxuswerkstatt nahe Planet (Kalypso)
+- [x] 11 Luxusexport Start: größeres Platin-/Elektroniklager der Luxuswerkstatt, zweite Luxuswerkstatt nahe Planet (Kalypso)
 - [ ] 14 Fahrgäste/Personentaxi (2026-11-19, zusammen mit 10): Missionstyp „Fahrgast“ an Taxi-/Hangarstationen, Modul Passagierkabine S/M (2/6 Plätze, Fracht- oder Utility-Slot), Lohn nach Flugzeit/Entfernung, Eilzuschlag, VIP, Trinkgeld sinkt bei Treffern, Verlust = gescheitert + Ansehen; Sonderfahrgäste Flüchtling/Gesuchter (Kontrollpunkt-Risiko, Verbrechen) und Diplomat (Ansehen); neuer Flottenbefehl „Taxi fahren“ (automatisch, Umkreisgrenzen wie Handel); Swift bekommt Rolle
-- [ ] 12 Ungenutzte Modulregale: nach 20000 Ticks unberührt Ziel −1 und halber Preis
+- [x] 12 Ungenutzte Modulregale: nach 20000 Ticks unberührt Ziel −1 und halber Preis
 
 ## Erledigt
 (Commits hier eintragen)
@@ -37,3 +37,4 @@ Regeln: Save v17 additiv, Revert-Helfer für Referenz-Hash-Tests, „Handel so l
 - 13 Rechenzeit: b60baf1 — Sonnet: 7 Läufe (bis 150000 Ticks, Krieg, fuel/research aus) bitgleich zu dff27ed, 60000 Ticks 0,871 → 0,583 ms/Tick (−33 %), 1509/1510 (Zeittest ManyShips nur unter Last), Selftest OK
 - 8 Stationsverschleiß + 2b: 4a0fe21 — Sonnet: 1522/1522, Selftest OK (Stufe 149), UI-Check OK (1 Messwackler, einzeln OK), Balance 20000 6D3C01B1ED7DEBCD, 300000: Ø Zustand 85 %, keine Station < 75 %, Notinstandhaltung 0,94 M Cr (4,3 % der Steuereinnahmen)
 - 9 Firmensitz/Büro: 09f7bcd — Sonnet: 1536/1536, Selftest OK (Stufe 150), UI-Check OK, Balance 20000 9D6D0AD5906A7040; 60000: 9 Sitze, 11 Büros, keine neue Geldquelle
+- 11 + 12 (Vibe, von Opus überarbeitet): 7795708 — Sonnet voll grün auf altem Stand, nach Rebase 275/275 betroffene Tests, Selftest OK, Balance 20000 F9AE05746398CDE6; Luxusexport 60000 2870 (vor Punkt 9: 2476), bei 20000 nach Punkt 9 kein Zuwachs mehr (279 vs 370, Einzellauf); Fleet-Radius-Fehler bei Restverkäufen behoben, viertes Wasserwerk Gamma
