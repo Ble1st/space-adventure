@@ -96,7 +96,7 @@ public sealed class TaxiService : IStationService
         }
         // Das Schiff bleibt hier angedockt; die Person steigt am Ziel zu Fuß in der Station aus (kein automatisches Übernehmen, kein automatisches
         // Leihschiff): Sie wählt im Dock-Menü der Zielstation selbst — wartendes eigenes Schiff (Hangar) oder Leihschiff (Dienst „rental“).
-        PlayerFleet.Dock(u, ship, station);
+        if (!u.PlayerOnFoot) PlayerFleet.Dock(u, ship, station);   // an Bord: das Schiff bleibt hier angedockt; zu Fuß: es liegt (vielleicht woanders) und bleibt unberührt
         u.PlayerAtStation = to.Id;
         u.PlayerSector = to.Sector;
         string arrive = q.WaitingShip is { } waiting

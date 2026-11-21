@@ -24,7 +24,7 @@ public static class Materializer
         foreach (var id in u.Tracker.ParkedIn(sector))
         {
             var ship = u.Ships[id];
-            if (ship.Id == u.PlayerShip) continue;   // das aktive Spielerschiff rendert die Ansicht selbst; geparkte eigene Schiffe erscheinen (Phase 5c)
+            if (ship.Id == u.PlayerShip && !u.PlayerOnFoot) continue;   // das aktive Spielerschiff rendert die Ansicht selbst; geparkte eigene Schiffe erscheinen (Phase 5c) — zu Fuß (Person in der Station, Schiff geparkt) erscheint es auch
             // Phase 25: Teilnehmer eines räumlichen Gefechts stehen an ihrer echten Gefechtsposition (zwischen zwei Ticks interpoliert) und blicken, wohin sie zielen
             if (u.Fights.Of(id) is { Spatial: true } fight && fight.Of(id) is { } p)
             {

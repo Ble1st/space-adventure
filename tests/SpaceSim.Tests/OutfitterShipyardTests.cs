@@ -270,8 +270,7 @@ public class OutfitterShipyardTests
         Assert.Equal(wallet - quote.Price, u.PlayerWallet.Credits, 2);
         Assert.Equal(yardCredits + quote.Price, yard.Credits, 2);
         Assert.Equal(ships + 1, u.Ships.Count);
-        var bought = u.Ships[u.PlayerShip];
-        Assert.NotEqual(oldId, bought.Id);
+        var bought = PlayerFleet.Owned(u).Single(s => s.Id != oldId);
         Assert.Equal("prospector", bought.ModelKey);
         Assert.True(bought.IsPlayer);
         Assert.Equal(0f, bought.Credits);
@@ -279,25 +278,28 @@ public class OutfitterShipyardTests
         Assert.Equal(bought.MaxHull, bought.Hull);
         Assert.Equal(bought.Stats.FuelCapacity, bought.TotalFuel);
         Assert.Same(u.PlayerWallet, u.WalletOf(bought));
-        // altes Schiff: Spielerbesitz, an der Werft geparkt, im Index
+        // kein automatisches Einsteigen: das alte Schiff bleibt aktiv, das gekaufte liegt geparkt an der Werft (im Index)
         var old = u.Ships[oldId];
+        Assert.Equal(oldId, u.PlayerShip);
         Assert.True(old.IsPlayer);
-        Assert.Contains(old, PlayerFleet.ParkedAt(u, yard));
+        Assert.Contains(bought, PlayerFleet.ParkedAt(u, yard));
         Assert.Contains(oldId, u.Tracker.ParkedIn(yard.Sector));
         Assert.Contains(bought.Id, u.Tracker.ParkedIn(yard.Sector));
         Assert.Equal(2, PlayerFleet.Owned(u).Count);
         // geparkte eigene Schiffe erscheinen in der Momentaufnahme, das aktive nicht
         var snap = Materializer.Snapshot(u, yard.Sector, u.Tick);
-        Assert.Contains(snap, s => s.Id == oldId);
-        Assert.DoesNotContain(snap, s => s.Id == bought.Id);
+        Assert.Contains(snap, s => s.Id == bought.Id);
+        Assert.DoesNotContain(snap, s => s.Id == oldId);
         Assert.Contains(events, e => e is ShipPurchased p && p.Ship == bought.Id && p.ModelKey == "prospector");
-        Assert.Contains(events, e => e is ActiveShipChanged a && a.Old == oldId && a.New == bought.Id);
+        Assert.DoesNotContain(events, e => e is ActiveShipChanged);   // der Kauf wechselt das aktive Schiff nicht
 
-        // Wechsel zurück an derselben Station
-        Assert.True(PlayerFleet.SwitchTo(u, yard, oldId, out var msg), msg);
+        // Übernehmen im Hangar: ins gekaufte Schiff und zurück an derselben Station
+        Assert.True(PlayerFleet.SwitchTo(u, yard, bought.Id, out var msg), msg);
+        Assert.Equal(bought.Id, u.PlayerShip);
+        Assert.Contains(old, PlayerFleet.ParkedAt(u, yard));
+        Assert.False(PlayerFleet.SwitchTo(u, yard, bought.Id, out _));   // schon aktiv
+        Assert.True(PlayerFleet.SwitchTo(u, yard, oldId, out var back), back);
         Assert.Equal(oldId, u.PlayerShip);
-        Assert.Contains(bought, PlayerFleet.ParkedAt(u, yard));
-        Assert.False(PlayerFleet.SwitchTo(u, yard, oldId, out _));   // schon aktiv
         var npc = u.Ships.Values.First(s => !s.IsPlayer);
         Assert.False(PlayerFleet.SwitchTo(u, yard, npc.Id, out _));  // fremdes Schiff
     }

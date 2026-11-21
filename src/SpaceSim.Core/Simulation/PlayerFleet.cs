@@ -47,7 +47,8 @@ public static class PlayerFleet
         if (!u.Ships.TryGetValue(id, out var target) || !target.IsPlayer) { message = "Das Schiff gehört dir nicht."; return false; }
         if (!ParkedAt(u, st).Contains(target)) { message = "Das Schiff liegt nicht an dieser Station."; return false; }
         var old = u.Ships.GetValueOrDefault(u.PlayerShip);
-        if (old is not null && old.Transit is null) Dock(u, old, st);   // bleibt als Spielerbesitz an der Station angedockt
+        if (old is not null && old.Transit is null && old.Sector == st.Sector && (old.DockedAt.Value == 0 || old.DockedAt == st.Id))
+            Dock(u, old, st);   // bleibt als Spielerbesitz an der Station angedockt; liegt das bisherige aktive Schiff woanders (Person zu Fuß hier), bleibt es dort
         Activate(u, target, st.Id);
         message = $"Du fliegst jetzt Schiff #{target.Id.Value}" + (u.ShipModels.TryGetValue(target.ModelKey, out var m) ? $" ({m.Name})." : ".");
         return true;
