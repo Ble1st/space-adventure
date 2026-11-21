@@ -274,11 +274,27 @@ public sealed class ShipVisual
 	{
 		float z = MathF.Min(harpoonLocal.Z, TipLocal.Z + AnchorStartBack);
 		var p = OutsideDrill(new Vector3(harpoonLocal.X, harpoonLocal.Y, z), index);
-		// Runde 45: der Seilstart liegt in der Rumpfhülle (sichtbar am Rumpf), nie frei daneben
-		return new Vector3(
+		// Runde 45: der Seilstart soll in der Rumpfhülle liegen (sichtbar am Rumpf, keine Luft zwischen Trosse und Schiff) — aber nur,
+		// wenn die Klemmung ihn nicht zurückschiebt in den Bohrerbereich (OutsideDrill-Regel bleibt vorn)
+		var clamped = new Vector3(
 			Mathf.Clamp(p.X, HullLocal.Position.X, HullLocal.End.X),
 			Mathf.Clamp(p.Y, HullLocal.Position.Y, HullLocal.End.Y),
 			Mathf.Clamp(p.Z, HullLocal.Position.Z, HullLocal.End.Z));
+		return WithinDrill(clamped) ? p : clamped;
+	}
+
+	/// <summary>Runde 45: liegt dieser Modellraum-Punkt innerhalb des Bohrerbereichs (nächste Bohrerachse, Rand + 0,1)? Siehe <see cref="OutsideDrill"/>.</summary>
+	public bool WithinDrill(Vector3 local)
+	{
+		if (DrillAxes.Count == 0) return false;
+		float bestD = float.MaxValue;
+		float bestR = 0f;
+		foreach (var (axis, r) in DrillAxes)
+		{
+			float d = MathF.Sqrt((local.X - axis.X) * (local.X - axis.X) + (local.Y - axis.Y) * (local.Y - axis.Y));
+			if (d < bestD) { bestD = d; bestR = r; }
+		}
+		return bestD < bestR + 0.10f;
 	}
 
 	/// <summary>

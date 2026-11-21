@@ -63,12 +63,22 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 				bx += 128;
 			}
 			WrappedText(inner, UiScale.Describe(), 360, 452, 380, 13, Dim, 18);   // Runde 32: echte Tastengröße, ehrlicher Hinweis
+			if (!StartMenu)
+			{
+				// Runde 45 (Nutzerwunsch: unter Einstellungen das Spielergeld setzen): Debug-Zeile — setzt die Spielerkasse auf 100.000.000 Cr
+				var bMoney = At(inner, new KitButton("Guthaben", new Vector2(380, 56)) { FontSize = 17, Sub = "Debug: auf 100.000.000 Cr setzen" }, 360, 486);
+				bMoney.Pressed += () => RaiseSystemAction("money_cheat");
+				_testMoney = bMoney;
+			}
 		}
 	}
 
 	/// <summary>Runde 31, Selbsttest: Taste „groß“ der UI-Größe.</summary>
 	public KitButton? TestUiLarge => _testUiLarge;
 	KitButton? _testUiLarge;
+	/// <summary>Runde 45, Selbsttest: Debug-Taste „Guthaben“ unter den Einstellungen.</summary>
+	public KitButton? TestMoney => _testMoney;
+	KitButton? _testMoney;
 
 	/// <summary>Runde 12: eine Tonzeile „− | Musik 70 % | +“ (Mitte = stumm an/aus).</summary>
 	void AudioRow(Control inner, float y, string text, bool muted, Action down, Action up, Action toggle, string key)

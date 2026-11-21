@@ -38,7 +38,6 @@ public partial class CommandMenu : Control, IScreen
 		("Effekte", "an/aus (Lautstärke: System)", "effects_mute"),
 		("Kamera-Diagnose", "Zeile für den Gerätetest", "cam_debug"),   // Runde 16
 		("UI-Größe", "klein / normal / groß", "ui_size"),   // Runde 31
-		("Guthaben", "Debug: Spielerkasse auf 100.000.000 Cr", "money_cheat"),   // Runde 45: Nutzerwunsch, unter Einstellungen
 	};
 
 	readonly KitWindow _win;

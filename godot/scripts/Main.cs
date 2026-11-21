@@ -732,7 +732,8 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Click);
 		switch (action)
 		{
-			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); return;   // Runde 12; Runde 38a: Menü bleibt offen (wie „UI-Größe“)
+			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); return;   // Runde 12; Runde 38a: Menü bleibt offen (wie „UI-Größe")
+			case "money_cheat": _session.U.PlayerWallet.Credits = 100_000_000f; _hud.Toast("Spielerguthaben auf 100.000.000 Cr gesetzt (Debug)", 3f); return;   // Runde 45: Nutzerwunsch, unter Einstellungen im System-Bereich
 			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); return;   // Runde 38a: schloss das Menü
 			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
 			case "save": SaveNow(manual: true); break;
@@ -769,7 +770,7 @@ public partial class Main : Node3D
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
 			// Runde 45 (Nutzerwunsch: unter Einstellungen das Spielergeld setzen können): Debug-Zeile im Menü — setzt die Spielerkasse auf 100.000.000 Cr
-			case "money_cheat": _sfx.Play(SfxId.Pickup); _session.U.PlayerWallet.Credits = 100_000_000f; _hud.Toast("Spielerguthaben auf 100.000.000 Cr gesetzt (Debug)", 3f); break;
+			case "money_cheat": _sfx.Play(SfxId.Click); OnMenu(action); break;   // Runde 45: wie die Ton-Zeilen — behandelt in OnMenu
 			// Runde 33 (Handytest A15: „UI-Größe“ im Menü ohne Wirkung): dieselbe Ursache — die Aktion kam hier an und fiel in den default-Zweig (kein
 			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
 			case "ui_size": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("ui_size"); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
@@ -1423,8 +1424,11 @@ public partial class Main : Node3D
 
 	/// <summary>Runde 44: Zeitraffer-Faktor und Teilschritt des eigenen Autopilot-Flugs.</summary>
 	const float WarpFactor = 10f, WarpSubstep = 1f / 30f;
-	/// <summary>Runde 45: angedockt dreht die Kamera mit diesem Tempo um die Station (Grad je Sekunde) — Hintergrund des Dock-Menüs.</summary>
+	/// <summary>Runde 45: angedockt dreht die Ansicht mit diesem Tempo um die Station (Grad je Sekunde) — Hintergrund des rechts liegenden Dock-Menüs.
+	/// Rein darstellerisch: der Orbit-Zustand (Yaw/Neigung/Abstand, Selbsttest und Geräteeinstellungen) bleibt unberührt.</summary>
 	const float DockOrbitDegPerSec = 5f;
+	/// <summary>Runde 45: laufende Anzeige-Drehung des Kamera-Offsets im Angedockt-Zustand (Grad), 0 im Flug.</summary>
+	float _dockRot;
 	int _lastFlightSteps = 1;
 	/// <summary>Selbsttest: Zahl der Flug-Teilschritte im letzten Bild (1 = Echtzeit).</summary>
 	internal int TestFlightSteps => _lastFlightSteps;
@@ -1546,7 +1550,7 @@ public partial class Main : Node3D
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt && !LockHeldAtRock())
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
 		if (_orbit.Mode == CameraMode.Chase && _docked == null) _orbit.FollowHeading(_player.Heading, delta);   // Runde 44: Rückansicht hinter dem Bug (auch rückwärts)
-		if (_docked != null) _orbit.Orbit(DockOrbitDegPerSec * delta, 0f);   // Runde 45: angedockt rotiert die Ansicht langsam um die Station (Hintergrund des rechts liegenden Dock-Menüs)
+
 		// Runde 13 (Handy-Test): Gefechtskamera — mit Gefechtsziel bzw. angekündigtem Überfall rahmt sie Schiff und Ziel (Core: CombatFraming), weich, bis 140
 		var want = _orbit.Offset();
 		var focus = Vector3.Zero;
@@ -1601,6 +1605,14 @@ public partial class Main : Node3D
 		// Runde 15: Blickpunkt zügig zurück (vorher hing das Schiff nach dem Kampf sekundenlang am oberen Rand)
 		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-(_framingActive ? 3f : 5f) * delta));
 		var co = _camOffset;
+		if (_docked != null)
+		{
+			// Runde 45: angedockt rotiert die Ansicht um die Station — nur das Kamer-Offset wird gedreht (Orbit-Zustand unverändert), im Flug sofort aus
+			_dockRot = (_dockRot + DockOrbitDegPerSec * delta) % 360f;
+			float rad = _dockRot * Mathf.Pi / 180f;
+			co = new CamVec3(co.X * Mathf.Cos(rad) - co.Z * Mathf.Sin(rad), co.Y, co.X * Mathf.Sin(rad) + co.Z * Mathf.Cos(rad));
+		}
+		else _dockRot = 0f;
 		_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
 		_cam.LookAt(_player.Position + _camFocus);
 		FollowBackdrop();   // Runde 44: Sterne kacheln mit, Planet mit Parallaxe
