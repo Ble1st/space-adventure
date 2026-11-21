@@ -98,9 +98,7 @@ public static class Commands
         ex.Start(u, ship, command);
         message = ex.Describe(u, ship, command);
         if (ship.Id == u.PlayerShip && !u.PlayerOnFoot)
-            message += ship.DockedAt.Value != 0
-                ? " — es legt gleich ab (Spiel läuft normal weiter)."
-                : " — pausiert im Flug (Person am Steuer), angedockt/zu Fuß läuft es weiter.";
+            message += " — Befehlsstand: das Schiff führt ihn aus, du schaust zu (X unten links gibt die Steuerung zurück, der Befehl pausiert dann wie im Flug).";
         u.Events.Publish(new CommandGiven(ship.Id, command.Kind, message));
         return true;
     }
@@ -125,7 +123,7 @@ public static class Commands
         executors ??= OrderExecutors.Default;
         if (ship.Command is not { } cmd) return ship.IsPlayer ? (ship.Id == u.PlayerShip ? (u.PlayerOnFoot ? "zu Fuß in der Station — Schiff hält die Position" : "von dir gesteuert") : "kein Befehl — hält die Position") : "Automatik";
         string text = executors.TryGet(cmd.Kind, out var ex) ? ex.Describe(u, ship, cmd) : cmd.Kind;
-        text = ship.Id == u.PlayerShip && !u.PlayerOnFoot && ship.DockedAt.Value == 0 ? text + " (pausiert im Flug)" : text;
+        text = ship.Id == u.PlayerShip && !u.PlayerOnFoot && !u.PlayerSpectates && ship.DockedAt.Value == 0 ? text + " (pausiert im Flug)" : text;   // Runde 45: im Befehlsstand läuft der Befehl an Bord weiter
         return ship.Emergency ? "NOTFALL: zur Reparatur — danach " + text : text;
     }
 

@@ -58,6 +58,10 @@ public sealed class Universe
     public StationId PlayerAtStation;
     /// <summary>Wahr, wenn die Spielerperson zu Fuß in einer Station ist (nicht im aktiven Schiff).</summary>
     public bool PlayerOnFoot => PlayerAtStation.Value != 0;
+    /// <summary>Runde 45 (Befehlsstand): Die Person sitzt im aktiven Schiff, das seinen Befehl NPC-artig weiter ausführt — sie schaut nur zu.
+    /// Rein Ansichtszustand (nicht gespeichert, nicht im Hash): das Order-System pausiert den Befehl dann nicht, die Materialisierung zeigt das
+    /// aktive Schiff als normales Sektor-Schiff, und die Ansicht sperrt die Steuerung (Kamera bleibt frei).</summary>
+    public bool PlayerSpectates;
 
     /// <summary>
     /// Akteure (Phase 9): Fraktionsakteure (Id = Fraktions-Id), die Sammelgruppe „Freie“ (<see cref="FreeActor"/>), der Spieler

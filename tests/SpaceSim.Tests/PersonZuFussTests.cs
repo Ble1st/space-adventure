@@ -269,7 +269,43 @@ public class PersonZuFussTests
         Assert.True(miner.DockedAt.Value == 0 || miner.Transit is not null, $"MinePhase={miner.MinePhase}, Order={miner.Order?.GetType().Name}, DockedAt={miner.DockedAt.Value}");
     }
 
-    // ─────────────────────────── Testläufe: Spieler/Schiff-Trennung ───────────────────────────
+    [Fact]
+    public void Befehlsstand_AnBord_InDerLuft_LaeuftTrotzdem()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var beta = St(u, 30);
+        u.MoveShip(player, beta.Sector); u.PlayerSector = beta.Sector;
+        PlayerFleet.Undock(u, player);   // im Flug (nicht angedockt)
+        var target = St(u, 18);
+
+        // im Flug pausiert der Befehl (Person am Steuer) — im Befehlsstand (PlayerSpectates) läuft er: Reise beginnt
+        Assert.True(Commands.Give(u, player, new GoToCommand(default, default, target.Id), out var given), given);
+        Run(u, 60);
+        Assert.Null(player.Transit);   // Pause: nichts passiert
+        u.PlayerSpectates = true;
+        Run(u, 60);
+        Assert.NotNull(player.Transit);   // Befehlsstand: das Schiff fliegt NPC-artig
+        u.PlayerSpectates = false;
+    }
+
+    [Fact]
+    public void Befehlsstand_EigenesSchiff_ErscheintInDerSektoransicht()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var beta = St(u, 30);
+        u.MoveShip(player, beta.Sector); u.PlayerSector = beta.Sector;
+        PlayerFleet.Undock(u, player);
+        u.PlayerSpectates = true;
+
+        // im Befehlsstand rendert die Ansicht das eigene Schiff als Sektor-Schiff (nicht als manuell geflogenes)
+        Assert.Contains(Materializer.Snapshot(u, beta.Sector, u.Tick), s => s.Id == player.Id);
+        u.PlayerSpectates = false;
+        Assert.DoesNotContain(Materializer.Snapshot(u, beta.Sector, u.Tick), s => s.Id == player.Id);
+    }
+
+    // ──────────────────── Testläufe: Spieler/Schiff-Trennung ───────────────────────────
 
     [Fact]
     public void Testlauf_TaxiZhFuss_SchiffBleibtInAltenStation_KommandozentraleWeitEntfernt()

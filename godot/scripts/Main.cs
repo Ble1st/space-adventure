@@ -81,6 +81,9 @@ public partial class Main : Node3D
 	GateId? _targetGate;
 	StationId? _docked;
 	bool _autopilot, _fast;
+	/// <summary>Runde 45 (Befehlsstand): die Person sitzt im aktiven Schiff, das seinen Befehl NPC-artig ausführt — Steuerung gesperrt,
+	/// Kamera frei, X unten links (Hud.Spectate) hebt ihn auf (Steuerung zurück, Befehl pausiert wie im Flug). Core-Spiegel: Universe.PlayerSpectates.</summary>
+	bool _spectate;
 	float _jumpCooldown, _autosave, _dockRefresh, _ccRefresh;
 	float _hitFlash;
 
@@ -170,6 +173,7 @@ public partial class Main : Node3D
 			_hud.Toast(SpaceSim.Core.Combat.ShipSystems.ModeEffect(PlayerData.PowerMode, PlayerData.Stats.PowerStorage > 0f));   // Gerätetest: spürbare Rückmeldung
 		};
 		_hud.Command.Action += OnCommandAction;
+		_hud.Spectate.ExitPressed += ExitSpectate;   // Runde 45: X des Befehlsstands
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
 		_hud.Map.JumpSelected += StartJumpTo;   // Sprungantrieb: Ziel auf der Karte
 		// Runde 37b (Handytest r37 N1, Blocker: Dock → „≡ Menü“ → „Karte“ → „Schließen“ ließ nur die nackte 3D-Szene zurück — die Karte meldete das Schließen,
@@ -219,6 +223,7 @@ public partial class Main : Node3D
 		_hud.DockResearch.UndockPressed += Undock;
 		_hud.DockResearch.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockHangar.Executed += (svc, ok) => _sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		_hud.DockHangar.Executed += (svc, ok) => { if (ok && !_session.U.PlayerOnFoot && PlayerData.Command is not null) SetSpectate(true); };   // Runde 45: z. B. Heimkehr für das eigene Schiff — der Befehl läuft, die Person schaut zu
 		_hud.DockHangar.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
 		_hud.DockHangar.AreaSelected += OnDockArea;
 		// Phase 12: Taxi — die Fahrt ist gebucht (Spieler sitzt am Ziel im neuen Schiff), die Reisezeit vergeht im Zeitraffer
@@ -276,6 +281,7 @@ public partial class Main : Node3D
 		};
 		_hud.CcFleet.AutoMiningToggled += on => SetAutoMining(on);
 		_hud.CcFleet.SwitchRequested += SwitchRemote;
+		_hud.CcFleet.Given += (id, text) => { if (id == _session.U.PlayerShip && !_session.U.PlayerOnFoot) SetSpectate(true, text); };   // Runde 45: Befehl ans Schiff, in dem die Person sitzt
 		_hud.CcAssets.SwitchRequested += SwitchRemote;
 		_hud.CcAssets.StationVisitRequested += VisitStation;   // Runde 45: in die eigene Station wechseln
 		_hud.CcAssets.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
@@ -985,7 +991,7 @@ public partial class Main : Node3D
 	void SyncPlayerData()
 	{
 		if (_reenter) return;   // Phase 12: das aktive Schiff hat gewechselt — erst die Ansicht umsetzen, sonst bekäme das neue Schiff die alte Position
-		if (_session.U.PlayerOnFoot) return;   // zu Fuß fliegt nichts: Das geparkte Schiff behält seinen Liegeplatz (kein Positions-Schreiben aus der Kamera)
+		if (_session.U.PlayerOnFoot || _spectate) return;   // zu Fuß/Befehlsstand fliegt nichts von Hand: Das Schiff behält seine simulierte Position (kein Schreiben aus der Kamera)
 		PlayerData.Position = new Vec2(_player.Position.X, _player.Position.Z);
 		if (_docked == null && !_transition && PlayerData.DockedAt.Value != 0) PlayerFleet.Undock(_session.U, PlayerData);   // fliegt = nicht angedockt
 	}
@@ -999,6 +1005,7 @@ public partial class Main : Node3D
 	/// </summary>
 	void LeaveShip()
 	{
+		SetSpectate(false);   // Runde 45: der Befehlsstand endet mit dem Aussteigen (der Befehl läuft zu Fuß weiter)
 		SyncPlayerData();
 		CancelAutopilot();
 		SetAutoMining(false, announce: false);   // zu Fuß fährt nichts von selbst
@@ -1048,6 +1055,10 @@ public partial class Main : Node3D
 		_player.Position = new Vector3(p.Position.X, 0, p.Position.Y);
 		_camOffset = _orbit.Offset();
 		SnapCam();
+		// Runde 45 (Befehlsstand): übernimmt die Person ein Schiff mit laufendem Befehl (Fernwechsel, Hangar), schaut sie zu — das Schiff
+		// führt den Befehl NPC-artig aus; andockende Handelsstopps öffnen kein Menü, X gibt die Steuerung zurück
+		if (p.Command is not null) { SetSpectate(true); return; }
+		SetSpectate(false);
 		if (u.Stations.TryGetValue(p.DockedAt, out var st))
 		{
 			_docked = st.Id;
@@ -1074,6 +1085,95 @@ public partial class Main : Node3D
 		_sfx.Play(ok ? SfxId.Dock : SfxId.Click);
 		if (ok) { _hud.Screens.Hide(); EnterActiveShip(); }
 		_hud.Toast(message, 4f);
+	}
+
+	/// <summary>Runde 45 (Befehlsstand, siehe <c>docs/UI.md</c> „Befehlsstand“): Die Person sitzt im aktiven Schiff, das seinen Befehl NPC-artig ausführt —
+	/// sie schaut nur zu: Steuerung gesperrt (Flug-HUD aus, X unten links mit dem laufenden Befehl), Umschauen/Zoomen bleibt frei, der Zeitraffer ist
+	/// einschaltbar. X (<see cref="ExitSpectate"/>) hebt den Stand auf: Steuerung zurück, der Befehl pausiert (wie an Bord im Flug) und läuft weiter,
+	/// sobald die Person zu einem anderen Schiff wechselt oder aussteigt. Endet der Befehl (fertig/fehlgeschlagen), kehrt die Steuerung zurück —
+	/// liegt das Schiff dann an einer Station, öffnet das Dock-Menü.</summary>
+	void SetSpectate(bool on, string? commandText = null)
+	{
+		var u = _session.U;
+		if (u.PlayerOnFoot) on = false;
+		if (_spectate == on)
+		{
+			if (on && commandText is not null) _hud.Spectate.ShowSpectate(commandText);   // Befehl hat gewechselt: Text aktualisieren
+			return;
+		}
+		_spectate = on;
+		u.PlayerSpectates = on;
+		_sfx.Play(on ? SfxId.Jump : SfxId.Click);
+		if (on)
+		{
+			CancelAutopilot();
+			SetAutoMining(false, announce: false);
+			_target = null; _targetStation = null;
+			_docked = null;   // das Schiff handelt/dockt im Befehl — kein Dock-Menü, kein Andock-Zustand der Ansicht
+			_transition = false; _playerTween?.Kill();
+			if (_hud.Screens.Current is SpaceAdventure.Ui.Screens.CommandScreen) { }   // offene Kommandozentrale bleibt offen — dort werden die Befehle gegeben (Befehlsstand läuft dahinter weiter)
+			else { _hud.Screens.Hide(); _hud.Flight.Visible = false; }   // Kontrollen gesperrt; Kamera-Gesten bleiben frei
+
+			_hud.Spectate.ShowSpectate(commandText ?? SpaceSim.Core.Simulation.Commands.Describe(u, PlayerData));
+			_hud.Toast("Befehlsstand: das Schiff führt den Befehl aus — Zuschauen frei umschauen, X = Steuerung zurück.", 4.5f);
+		}
+		else
+		{
+			_hud.Spectate.HideSpectate();
+			_hud.Flight.Visible = true;
+			_player.Visible = true;
+			// X oder Befehlsende: liegt das Schiff gerade an einer Station (Handelsstopp des Befehls), öffnet das Dock-Menü
+			if (PlayerData.DockedAt.Value != 0 && u.Stations.ContainsKey(PlayerData.DockedAt))
+			{
+				_docked = PlayerData.DockedAt;
+			_player.Visible = false;
+			ShowDockMenu();
+			if (ResetFastOnDock()) _hud.Toast("Zeitraffer aus (angedockt)", 3.5f);
+			}
+		}
+	}
+
+	/// <summary>Runde 45: Ansicht im Befehlsstand — das eigene Schiff fliegt die abstrakte Reise (Travel-Legs) oder parkt; die Kamera folgt ihm
+	/// (unsichtbarer Spieler-Knoten als Anker), gerendert wird es als Sektor-Schiff (Materializer).</summary>
+	void StepSpectate(float delta)
+	{
+		var u = _session.U;
+		var ship = u.Ships[u.PlayerShip];
+		_player.Visible = false;   // gerendert wird das Schiff über die Sektor-Ansicht (NPC-artig)
+		_player.Velocity = Vector3.Zero;
+		var pos = ship.Position;
+		var heading = _player.Heading;
+		if (ship.Transit is { } t)
+		{
+			double tick = u.Tick + _session.FractionalTick;
+			foreach (var leg in t.Legs)
+			{
+				if (leg.Sector != u.PlayerSector || tick < leg.StartTick || tick >= leg.EndTick) continue;
+				float f = (float)((tick - leg.StartTick) / (double)(leg.EndTick - leg.StartTick));
+				pos = SpaceSim.Core.Model.Vec2.Lerp(leg.From, leg.To, f);
+				if ((leg.To - leg.From).Length > 0.001f) heading = MathF.Atan2(-(leg.To.X - leg.From.X), -(leg.To.Y - leg.From.Y));
+				break;
+			}
+		}
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Heading = heading;
+		_sfx.SetThrust(0f);
+	}
+
+	/// <summary>Runde 45: X des Befehlsstands — Steuerung zurück; der Befehl bleibt und pausiert im Flug (Core-Pause, läuft nach dem Wechsel/Aussteigen weiter).</summary>
+	void ExitSpectate()
+	{
+		if (!_spectate) return;
+		// läuft das Schiff gerade eine abstrakte Reise, hält es an Ort und Stelle an — die Person übernimmt dort die Steuerung
+		if (PlayerData.Transit is not null)
+		{
+			SpaceSim.Core.Simulation.OrderMove.StopHere(_session.U, PlayerData);
+			_player.Position = new Vector3(PlayerData.Position.X, 0, PlayerData.Position.Y);
+		}
+		SetSpectate(false);
+		_hud.Toast(PlayerData.Command is not null
+			? $"Steuerung zurück — {SpaceSim.Core.Simulation.Commands.Describe(_session.U, PlayerData)} (pausiert im Flug, läuft nach dem Wechsel weiter)"
+			: "Steuerung zurück.", 4f);
 	}
 
 	/// <summary>Phase 12: Fernwechsel (Flotte, Besitz): in das gewählte eigene Schiff, dort wo es ist (Core: <see cref="PlayerFleet.SwitchRemote"/>).</summary>
@@ -1343,6 +1443,10 @@ public partial class Main : Node3D
 			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
 				LastDepartureMessage = departed; _hud.Info(departed, 3.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
+			// Runde 45 (Befehlsstand): — der Befehlsstand wird von der Benutzereingabe ausgelöst (CcFleet.Given, Hangar-Aktionen in Main),
+			// nicht vom Core-Bus: dieselben Befehle laufen auch in Prüfläufen (NPC/Tests geben Befehle)
+			case SpaceSim.Core.Events.CommandEnded ce when ce.Ship == _session.U.PlayerShip && _spectate:
+				SetSpectate(false); _hud.Toast("Befehl beendet — du hast die Steuerung.", 3.5f); break;
 			// Phase 25: Verlust des aktiven Schiffs — Explosion, Meldung; die Ansicht setzt im nächsten Frame in das neue Schiff um (EnterActiveShip)
 			case PlayerShipLost lost when Sting("sting_loss"):
 				_fx.Burst(_player.Position, new Color(1f, 0.5f, 0.2f), 60, 28f, 1.2f);
@@ -1484,7 +1588,7 @@ public partial class Main : Node3D
 		_sinceHit += delta;
 		if (!_session.U.Rules.DamageActive && _sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull && !_session.U.Fights.IsEngaged(PlayerData.Id)) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
 
-		bool frozen = _hud.AnyModalOpen || _docked != null;
+		bool frozen = _hud.AnyModalOpen || _docked != null || _spectate;   // Runde 45: im Befehlsstand ist die Handsteuerung gesperrt (Kamera frei)
 		// Runde 44 (größere Sektoren): Zeitraffer auch für den eigenen Flug — seit 44g immer, nicht nur mit Autopilot (Nutzerwunsch „Zeitraffer auch immer für
 		// Spieler“): manueller Flug, Auto-Mining mit Anflug, Kontaktabbau, Anker, Traktor und Brocken laufen in Teilschritten (≤ 1/30 s, Kollision, Tore,
 		// Eingaben, Abbau je Teilschritt), so schnell wie die Simulation (×10). Gefahr, Warnung und Andocken schalten den Zeitraffer wie bisher ab; im Gefecht
@@ -1514,7 +1618,7 @@ public partial class Main : Node3D
 			_player.Heading = h;
 			if (throttle != 0f) dir = new Vector2(-Mathf.Sin(h), -Mathf.Cos(h));
 		}
-		_player.Locked = _docked != null || _transition;
+		_player.Locked = _docked != null || _transition || _spectate;
 		bool hold = _miner.Enabled && _miningStep is { Nav: null, Waypoint: null };   // Automatik arbeitet an Ort und Stelle
 		// Treibstoff (Phase 4c): leerer Tank deckelt das Tempo (Notantrieb), die geflogene Strecke wird abgebucht
 		float fuelCap = PlayerFuel.ThrottleCap(_session.U, PlayerData);
@@ -1535,6 +1639,7 @@ public partial class Main : Node3D
 		// Abbau je Teilschritt (Kontakt, Anker, Laser-Automatik, Brocken, Traktor) — im Sprung-Teilschritt nicht mehr (anderer Sektor)
 		if (flightU.PlayerSector == flightSector && _session.U == flightU) StepMining(dt, frozen, fs == 0);
 		}
+		if (_spectate) StepSpectate(delta);   // Runde 45: das eigene Schiff fliegt die abstrakte Reise — Ansichtsposition aus Core, Rendering als Sektor-Schiff
 		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
 		ShowMining(delta);
 		SyncPlayerData();
@@ -3775,6 +3880,7 @@ public partial class Main : Node3D
 	/// <summary>Phase 11: Teleport an einen Punkt im aktuellen Sektor (Überfall-Test abseits der Stationen).</summary>
 	internal void TestTeleportTo(Vec2 pos)
 	{
+		SetSpectate(false);   // Runde 45: Prüflauf-Positionierung will die Handsteuerung — ein vorher aktivierter Befehlsstand endet
 		// Runde 44: ein laufender Ab-/Andock-Tween überschrieb sonst den Teleport (Selbsttest Stufe 108 nach dem Handel der Vorstufe)
 		if (_playerTween is not null && _playerTween.IsValid() && _docked == null) { _playerTween.Kill(); _transition = false; _player.Scale = Vector3.One; _player.Visible = true; }
 		_player.Position = new Vector3(pos.X, 0, pos.Y);

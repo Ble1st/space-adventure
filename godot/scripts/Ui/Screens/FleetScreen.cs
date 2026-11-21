@@ -267,8 +267,12 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			: Commands.Give(u, ship, cmd, out msg);
 		_pending = null;
 		Say(ok ? msg : "Nicht möglich: " + msg, ok);
+		if (ok) Given?.Invoke(ship.Id, msg);   // Runde 45: Main startet den Befehlsstand, wenn das aktive Schiff (Person an Bord) den Befehl erhält
 		return ok;
 	}
+
+	/// <summary>Runde 45 (Befehlsstand): Befehl wurde per Bildschirm gegeben (Schiff, Befehlstext).</summary>
+	public event Action<SpaceSim.Core.Model.ShipId, string>? Given;
 
 	void Say(string msg, bool ok) { _message = msg; _msgOk = ok; Invalidate(); }
 
