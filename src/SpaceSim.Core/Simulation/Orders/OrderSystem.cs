@@ -30,7 +30,7 @@ public sealed class OrderSystem : ISimSystem
         {
             var ship = commanded[ci];
             if (!u.Ships.ContainsKey(ship.Id) || ship.Command is not { } cmd) continue;
-            if (ship.Id == u.PlayerShip) { Commands.Cancel(u, ship, "du steuerst selbst", _executors); continue; }
+            if (ship.Id == u.PlayerShip && !u.PlayerOnFoot) continue;   // an Bord hat die Person das Steuer: der Befehl pausiert (nicht beendet); zu Fuß/abwesend läuft er weiter
             if (!_executors.TryGet(cmd.Kind, out var ex)) { ship.Command = null; continue; }
             // Phase 24: Gefecht steht über dem Notfall — der Befehl ruht (Ausführer beim Eintritt gestoppt, beim Austritt neu gestartet)
             if (u.Fights.IsEngaged(ship.Id)) continue;
@@ -144,7 +144,7 @@ public sealed class HangarSystem : ISimSystem
         }
         float total = 0f;
         ActorId owner = default;
-        foreach (var ship in u.ShipsById().Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Command is not null && !s.IsRental).ToList())
+        foreach (var ship in u.ShipsById().Where(s => s.IsPlayer && (s.Id != u.PlayerShip || u.PlayerOnFoot) && s.Command is not null && !s.IsRental).ToList())
         {
             var wallet = u.WalletOf(ship);
             float due = MathF.Min(ShipPricing.FleetUpkeepPerTick(u, ship) * dt, MathF.Max(0f, wallet.Credits));   // Ausgleich (Punkt 6): nach Klassengröße

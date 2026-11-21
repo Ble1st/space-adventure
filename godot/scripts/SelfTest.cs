@@ -296,17 +296,21 @@ public partial class SelfTest : Node
 						$"Werft bietet alle {u.ShipModels.Count} Modelle an ({yardOffers.Count})");
 					var buy = _m.HudRef.DockShipyard.Execute("buy:prospector");
 					var now = _m.Session.Player;
-					Check(buy.Success && now.Id != old.Id && now.ModelKey == "prospector", "Schiff über die Werft-Oberfläche gekauft, neues Schiff ist aktiv");
-					Check(System.Enum.IsDefined(now.Quality) && (now.Quality == SpaceSim.Core.Model.ShipQuality.Standard || buy.Message.Contains(SpaceSim.Core.Model.ShipQualityNames.Name(now.Quality))),
-						$"Gekauftes Schiff hat eine Güteklasse ({SpaceSim.Core.Model.ShipQualityNames.Name(now.Quality)}), die Meldung nennt sie");
+					Check(buy.Success && now.Id == old.Id, "Schiff gekauft — der Kauf steigt nicht ein, du bleibst im alten Schiff");
+					var bought = SpaceSim.Core.Simulation.PlayerFleet.Owned(u).FirstOrDefault(s => s.Id != old.Id && s.ModelKey == "prospector");
+					Check(bought is not null && bought.DockedAt == st.Id && SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(bought),
+						"Gekauftes Schiff liegt geparkt im Hangar der Werft (kein automatisches Einsteigen)");
+					Check(System.Enum.IsDefined(bought.Quality) && (bought.Quality == SpaceSim.Core.Model.ShipQuality.Standard || buy.Message.Contains(SpaceSim.Core.Model.ShipQualityNames.Name(bought.Quality))),
+						$"Gekauftes Schiff hat eine Güteklasse ({SpaceSim.Core.Model.ShipQualityNames.Name(bought.Quality)}), die Meldung nennt sie");
 					Check(st.Market[kit].Amount == kits - 1f, "Kauf verbraucht einen leichten Bausatz aus dem Werftlager");
-					Check(old.IsPlayer && SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(old), "Altes Schiff bleibt als Spielerbesitz an der Werft");
-					Check(_m.HudRef.DockCtx.Ship == now, "Dock-Kontext zeigt das neue Schiff");
+					Check(old.IsPlayer && old.Id == u.PlayerShip, "Altes Schiff bleibt das aktive");
 					_m.TestOpenDockArea(Ui.Screens.DockAreas.Hangar);
-					Check(_m.HudRef.DockHangar.TestParkedRows >= 1, "Hangar zeigt das geparkte eigene Schiff");
+					Check(_m.HudRef.DockHangar.TestParkedRows >= 1, "Hangar zeigt das gekaufte Schiff als geparkt");
+					_m.TestSwitchShip(bought.Id);
+					Check(_m.Session.Player == bought && _m.HudRef.DockCtx.Ship == bought, "Hangar „Übernehmen“ setzt dich ins gekaufte Schiff");
 					_m.TestSwitchShip(old.Id);
-					Check(_m.Session.Player == old && _m.HudRef.DockCtx.Ship == old, "Hangar „Übernehmen“ wechselt zurück ins alte Schiff");
-					Check(SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(now), "Gekauftes Schiff liegt jetzt im Hangar der Werft");
+					Check(_m.Session.Player == old && _m.HudRef.DockCtx.Ship == old, "Zurück ins alte Schiff gewechselt");
+					Check(SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(bought), "Gekauftes Schiff liegt im Hangar der Werft");
 				}
 				Next(); break;
 			case 3: // Abdocken aus einem offenen Bereich heraus
@@ -906,7 +910,11 @@ public partial class SelfTest : Node
 				long tick = uni.Tick;
 				var r = _m.HudRef.DockTaxi.Book($"taxi:{tradeSt.Id.Value}");
 				Check(r.Success, $"Taxi gebucht: {r.Message}");
-				Check(uni.PlayerShip == _secondShip && _m.TestDockedStation == tradeSt.Id, "Am Ziel im wartenden eigenen Schiff, angedockt an der Handelsstation");
+				Check(uni.PlayerShip == _firstShip && uni.PlayerAtStation == tradeSt.Id && _m.TestDockedStation == tradeSt.Id, "Am Ziel zu Fuß in der Handelsstation — kein automatisches Übernehmen, kein Leihschiff");
+					{
+					var sw = _m.HudRef.DockHangar.Execute(SpaceSim.Core.Services.HangarService.ServiceKey, $"switch:{_secondShip.Value}");
+					Check(sw.Success && uni.PlayerShip == _secondShip && uni.PlayerAtStation.Value == 0, $"Im Hangar das wartende Zweitschiff übernommen ({sw.Message})");
+					}
 				Check(uni.Ships[_firstShip].DockedAt == yardSt.Id, "Das alte Schiff bleibt an der Werft angedockt");
 				Check(uni.PlayerWallet.Credits < cr && uni.Tick >= tick + _m.LastTaxiTicks && _m.LastTaxiTicks > 0, $"Fahrpreis bezahlt, Reisezeit {_m.LastTaxiTicks} Ticks im Zeitraffer vergangen");
 				Next(); break;

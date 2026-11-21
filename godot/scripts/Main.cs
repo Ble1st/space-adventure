@@ -177,6 +177,7 @@ public partial class Main : Node3D
 		_hud.Map.Closed += ShowBase;
 		_hud.DockMenu.AreaSelected += OnDockArea;
 		_hud.DockMenu.UndockPressed += Undock;
+		_hud.DockMenu.LeavePressed += LeaveShip;   // zu Fuß in der Station (das Schiff bleibt angedockt, Befehl läuft weiter)
 		_hud.DockMenu.MenuPressed += ToggleCommand;   // Runde 23
 		_hud.DockTrade.AreaSelected += OnDockArea;
 		_hud.DockTrade.BackToMenu += ShowDockMenu;
@@ -406,7 +407,7 @@ public partial class Main : Node3D
 		// Runde 19 („Ankertest“): startet ein Kontaktschürfer am Fels, zeigt der Bug zum Fels (er verankert ohne Eingabe)
 		if (p.Stats.UsesContact && _chunks.Nearest(u.Sectors[u.PlayerSector], p.Position, SpaceSim.Core.Mining.ContactMining.ContactRange + SpaceSim.Core.Mining.ContactMining.BowOffset + 1f) is { } startRock)
 			_player.Heading = AimAssist.Bearing(p.Position, startRock.Position);
-		if (u.Stations.ContainsKey(p.DockedAt)) EnterActiveShip();   // Phase 12: gespeichert angedockt (oder in ein angedocktes Schiff gewechselt) → Andock-Menü
+		if (u.PlayerOnFoot || u.Stations.ContainsKey(p.DockedAt)) EnterActiveShip();   // Phase 12: gespeichert angedockt bzw. zu Fuß in einer Station (oder in ein angedocktes Schiff gewechselt) → Andock-Menü
 		else AnnouncePending();
 	}
 
@@ -953,12 +954,28 @@ public partial class Main : Node3D
 	void SyncPlayerData()
 	{
 		if (_reenter) return;   // Phase 12: das aktive Schiff hat gewechselt — erst die Ansicht umsetzen, sonst bekäme das neue Schiff die alte Position
+		if (_session.U.PlayerOnFoot) return;   // zu Fuß fliegt nichts: Das geparkte Schiff behält seinen Liegeplatz (kein Positions-Schreiben aus der Kamera)
 		PlayerData.Position = new Vec2(_player.Position.X, _player.Position.Z);
 		if (_docked == null && !_transition && PlayerData.DockedAt.Value != 0) PlayerFleet.Undock(_session.U, PlayerData);   // fliegt = nicht angedockt
 	}
 
 	/// <summary>Phase 12: Das aktive Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff) — die Ansicht setzt es im nächsten Frame um.</summary>
 	bool _reenter;
+
+	/// <summary>
+	/// Der Person aussteigen: Sie ist zu Fuß in der angedockten Station (Core <see cref="PlayerFleet.LeaveShip"/>); das Schiff bleibt
+	/// geparkt, ein Befehl läuft als Flottenschiff weiter. Abdocken ist zu Fuß aus; an Bord kommt sie über den Hangar zurück.
+	/// </summary>
+	void LeaveShip()
+	{
+		SyncPlayerData();
+		CancelAutopilot();
+		SetAutoMining(false, announce: false);   // zu Fuß fährt nichts von selbst
+		bool ok = PlayerFleet.LeaveShip(_session.U, out var message);
+		_sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		if (ok) { _hud.Screens.Hide(); ShowDockMenu(); }
+		_hud.Toast(message, 4f);
+	}
 	/// <summary>Runde 43: laufender Dock-/Abdock-Tween des Spielerschiffs — wird bei Sitzungswechsel/Ansicht-Reset gekillt, sonst schreibt ein
 	/// Tween der alten Sitzung nach dem Reset weiter (Schiff blieb z. B. nach „Neues Spiel“ während des Andockens unsichtbar bei Maßstab 0,1).</summary>
 	Godot.Tween? _playerTween;
@@ -971,6 +988,25 @@ public partial class Main : Node3D
 	{
 		_reenter = false;
 		var u = _session.U; var p = PlayerData;
+		// Zu Fuß in einer Station: Die Person sitzt in keinem Schiff — die Ansicht zeigt die Station (Dock-Menü), ohne Schiff.
+		if (u.PlayerOnFoot && u.Stations.TryGetValue(u.PlayerAtStation, out var shore))
+		{
+			_hud.Screens.Hide();
+			_target = null; _targetStation = null; _autopilot = false; _hud.Flight.SetAutopilot(false);
+			SetAutoMining(false, announce: false);
+			_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.ClearTarget();
+			_transition = false; _playerTween?.Kill(); _player.Scale = Vector3.One; _player.Velocity = Vector3.Zero;
+			_player.Visible = false;
+			_lowestHull = p.Hull;
+			_view.Rebuild(u);
+			_player.Position = new Vector3(shore.Position.X, 0, shore.Position.Y);
+			_camOffset = _orbit.Offset();
+			SnapCam();
+			_docked = shore.Id;
+			ShowDockMenu();
+			if (ResetFastOnDock()) _hud.Toast("Zeitraffer aus (angedockt)", 3.5f);
+			return;
+		}
 		_hud.Screens.Hide();
 		_target = null; _targetStation = null; _autopilot = false; _hud.Flight.SetAutopilot(false);
 		SetAutoMining(false, announce: false);
@@ -1015,8 +1051,10 @@ public partial class Main : Node3D
 		if (!ok) return;
 		long ran = _session.RunTicks(ticks);
 		LastTaxiTicks = ran;
-		if (_reenter) EnterActiveShip();
-		_hud.Toast($"Taxi angekommen ({ran / SimClock.TicksPerSecond:0} s Reise): {(_session.U.Stations.TryGetValue(PlayerData.DockedAt, out var st) ? st.Name : "")}", 3.5f);
+		_reenter = false;   // am Ziel steigt die Person aus, ohne ein Schiff zu übernehmen: die Ansicht folgt der zu-Fuß-Station
+		EnterActiveShip();
+		var u = _session.U;
+		_hud.Toast($"Taxi angekommen ({ran / SimClock.TicksPerSecond:0} s Reise): Du stehst zu Fuß in {(u.Stations.TryGetValue(u.PlayerAtStation, out var st) ? st.Name : "?")} — im Hangar ein Schiff nehmen oder mieten.", 5f);
 	}
 
 	/// <summary>Phase 20: letzter Hinweis einer Versorgungspanik (Selbsttest).</summary>
@@ -2048,6 +2086,7 @@ public partial class Main : Node3D
 	void Undock()
 	{
 		if (_docked is not { } id || !_session.U.Stations.TryGetValue(id, out var st)) return;
+		if (_session.U.PlayerOnFoot) { _sfx.Play(SfxId.Click); _hud.Toast("Du bist zu Fuß in der Station — im Hangar ein Schiff übernehmen oder mieten.", 4f); return; }
 		_sfx.Play(SfxId.Click);
 		_docked = null;
 		PlayerFleet.Undock(_session.U, PlayerData);

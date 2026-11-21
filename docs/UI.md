@@ -54,7 +54,7 @@ Beim Andocken erscheint zuerst ein **kleines Auswahlmenü**:
 
 1. **Angedockte Schiffe** oben als Karten (aktives Schiff, weitere eigene, fremde).
 2. **Bereiche** darunter, je mit Untertitel: Handel, Reparatur und Tanken, Ausrüster, Werft, Hangar, Station-Info, Taxi, Aufträge.
-3. **Abdocken** als große Taste unten.
+3. **Abdocken** als große Taste unten, daneben **Schiff verlassen** (nur angedockt an Bord): Die Person ist dann zu Fuß in der Station; das Schiff bleibt geparkt und führt einen Befehl wie ein Flottenschiff weiter. Zu Fuß ist Abdocken gedämpft (erst im Hangar ein Schiff betreten oder mieten).
 
 Jeder Bereich öffnet im Vollbild mit linker Leiste (Wechsel zwischen den Bereichen), „← Menü“ und „Abdocken“ immer sichtbar; in Handel, Reparatur und Tanken zeigt eine rechte Spalte das Schiff mit Fracht.
 
@@ -75,7 +75,7 @@ Das **Taxi bringt den Spieler allein zu einer anderen Station, das Schiff bleibt
 - Die Liste zeigt je Ziel Preis, Dauer, Zoll und Lage, und ob dort ein eigenes Schiff wartet („Dort wartet: Spatz“) oder ein Leihschiff nötig ist („Kein eigenes Schiff · Leihschiff ab 180 Cr“).
 - Gesperrte Routen (Gate zu, Embargo) sind nicht buchbar und zeigen den Grund.
 - Das zurückbleibende Schiff kostet **Liegegebühr nur an fremden Stationen**, **abhängig von der Schiffsklasse** (kleine Schiffe wenig, schwere viel); an eigenen Stationen ist sie gratis (entschieden). Beispielwerte: Skiff und Kurier 12 Cr je Tag, leichter Frachter und Bergbauer 24, schwerer Frachter 60, später Kampfschiffe mehr.
-- Am Ziel wählt der Spieler im Andock-Menü ein dort wartendes eigenes Schiff oder mietet eines (`rental`).
+- **Am Ziel steigt die Person zu Fuß in der Station aus** (kein automatisches Übernehmen, kein automatisches Leihschiff): Sie wählt im Andock-Menü selbst — ein dort wartendes eigenes Schiff im Hangar „Übernehmen“ oder eines mieten (`rental`). Gebucht und bezahlt ist nur die Fahrt.
 - Die Routenkarte markiert die eigenen Schiffe an ihren Standorten.
 
 ## 4. Kommandozentrale
@@ -99,6 +99,7 @@ Der Knopf „Kommando“ oben rechts öffnet die Kommandozentrale im Vollbild, g
 Im Besitz öffnet Tippen auf ein Schiff ein **Detailfenster** (Zustand, Module, Auftrag, Standort, Unterhalt, Wert). Der Knopf **„In dieses Schiff wechseln“** setzt den Spieler in das gewählte Schiff, **dort, wo es ist**:
 
 - Das **alte Schiff bleibt an Ort und Stelle**: angedockt im Hangar (Liegegebühr nur an fremden Stationen), sonst gilt: **Hat es einen Befehl, führt es ihn weiter; hat es keinen, hält es die Position** (entschieden). Ein Schiff im freien Raum bleibt ungeschützt (Warnhinweis).
+- **Der Befehl des Zielschiffs endet beim Wechsel nicht**: An Bord pausiert er (die Person hat das Steuer), nach dem Aussteigen („Schiff verlassen“) oder dem nächsten Wechsel läuft er weiter — in der Flottenliste und im Hangar steht er mit dem Hinweis „pausiert“.
 - Das **Geld bleibt bei der Person** (POLITIK.md, „Spielerkasse“); Fracht und Treibstoff bleiben im jeweiligen Schiff.
 - Weitere Knöpfe im Fenster: Befehle, Heim schicken, Verkaufen.
 

@@ -124,6 +124,9 @@ public static class UniverseHash
         }
         Mix((ulong)u.PlayerActor.Value); Mix((ulong)u.FreeActor.Value); Mix((ulong)u.NextActorId);
         Mix((ulong)u.PlayerShip.Value);   // Phase 5c: aktives Schiff kann wechseln (Kauf, Hangar)
+        // Zu-Fuß-Station der Person: nur gemischt, wenn gesetzt — ohne den Zustand ältere Referenz-Hashes bitgleich (an Bord ist der Normalfall; das Feld
+        // wirkt über Liegegebühr/Flottenunterhalt des geparkten aktiven Schiffs in die Wirtschaft und muss in den Hash).
+        if (u.PlayerAtStation.Value != 0) { Mix(0x50415453UL); Mix((ulong)u.PlayerAtStation.Value); }
         // Phase 10: Gate-Zustände, Sektorbesitz, Sperren (Stufen, Zeiten, Durchsetzung), Einfluss, Kontrollstufe, umkämpft, unsterbliche Stationen
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
         {

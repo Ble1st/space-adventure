@@ -8,6 +8,8 @@ namespace SpaceSim.Core.Simulation;
 /// auf die Spielerkasse; genau eines davon ist das aktive (<see cref="Universe.PlayerShip"/>), das die Ansicht fliegt. Die übrigen liegen angedockt
 /// (<see cref="Ship.DockedAt"/>), halten ihre Position im Raum oder führen Befehle aus (<see cref="Commands"/>). Wechsel des aktiven Schiffs: an der
 /// Station, an der es liegt (<see cref="SwitchTo"/>), oder aus der Ferne (<see cref="SwitchRemote"/>, UI.md Abschnitt 4 „Schiff wechseln“).
+/// Die Person kann das aktive Schiff in einer Station verlassen (<see cref="LeaveShip"/>) und ist dann zu Fuß (<see cref="Universe.PlayerOnFoot"/>);
+/// ein Befehl des aktiven Schiffs läuft dabei und nach einem Wechsel weiter — das Boarden beendet ihn nicht mehr.
 /// </summary>
 public static class PlayerFleet
 {
@@ -17,9 +19,12 @@ public static class PlayerFleet
     /// <summary>Alle Spielerschiffe, nach Id.</summary>
     public static IReadOnlyList<Ship> Owned(Universe u) => u.ShipsById().Where(s => s.IsPlayer).ToList();
 
-    /// <summary>Eigene, nicht aktive Schiffe, die an dieser Station angedockt liegen.</summary>
+    /// <summary>
+    /// Eigene, nicht aktive Schiffe, die an dieser Station angedockt liegen. Ist die Person in dieser Station zu Fuß, zählt auch das aktive Schiff
+    /// (es liegt dort geparkt, die Person sitzt nicht darin — so lässt es sich über den Hangar wieder betreten).
+    /// </summary>
     public static IReadOnlyList<Ship> ParkedAt(Universe u, Station st) =>
-        u.ShipsById().Where(s => s.IsPlayer && s.Id != u.PlayerShip && s.Transit is null && s.DockedAt == st.Id).ToList();
+        u.ShipsById().Where(s => s.IsPlayer && (s.Id != u.PlayerShip || u.PlayerOnFoot) && s.Transit is null && s.DockedAt == st.Id).ToList();
 
     /// <summary>
     /// Macht ein eigenes, an dieser Station angedocktes Schiff zum aktiven Schiff. Das bisherige aktive Schiff (angedockt an derselben Station, das
@@ -27,7 +32,18 @@ public static class PlayerFleet
     /// </summary>
     public static bool SwitchTo(Universe u, Station st, ShipId id, out string message)
     {
-        if (id == u.PlayerShip) { message = "Dieses Schiff ist bereits aktiv."; return false; }
+        if (id == u.PlayerShip)
+        {
+            if (u.PlayerOnFoot && u.Ships.TryGetValue(id, out var back) && back.DockedAt == st.Id && back.Transit is null)
+            {
+                u.PlayerAtStation = default;   // zurück an Bord des geparkten eigenen Schiffs
+                u.Journal.Clear();
+                u.Events.Publish(new ActiveShipChanged(id, id, st.Id));
+                message = $"Du gehst an Bord von Schiff #{back.Id.Value}" + (u.ShipModels.TryGetValue(back.ModelKey, out var m) ? $" ({m.Name})." : ".");
+                return true;
+            }
+            message = "Dieses Schiff ist bereits aktiv."; return false;
+        }
         if (!u.Ships.TryGetValue(id, out var target) || !target.IsPlayer) { message = "Das Schiff gehört dir nicht."; return false; }
         if (!ParkedAt(u, st).Contains(target)) { message = "Das Schiff liegt nicht an dieser Station."; return false; }
         var old = u.Ships.GetValueOrDefault(u.PlayerShip);
@@ -38,17 +54,17 @@ public static class PlayerFleet
     }
 
     /// <summary>
-    /// Schiffwechsel aus der Ferne (UI.md Abschnitt 4, entschieden): Der Spieler übernimmt das gewählte eigene Schiff dort, wo es ist. Ein reisendes Schiff
-    /// hält an Ort und Stelle; sein Befehl endet (der Spieler steuert selbst). Das bisherige aktive Schiff bleibt, wo es ist (angedockt oder im Raum) und
-    /// hält ohne Befehl die Position. Leihschiffe gehen nur an ihrer Station. false (mit Grund) = nichts geändert.
+    /// Schiffwechsel aus der Ferne (UI.md Abschnitt 4): Der Spieler übernimmt das gewählte eigene Schiff dort, wo es ist. Ein reisendes Schiff
+    /// hält an Ort und Stelle; sein Befehl bleibt erhalten — an Bord pausiert er, nach dem Aussteigen läuft er weiter. Das bisherige aktive
+    /// Schiff bleibt, wo es ist (angedockt oder im Raum); hat es einen Befehl, führt es ihn weiter, sonst hält es die Position. Leihschiffe gehen nur
+    /// an ihrer Station. false (mit Grund) = nichts geändert.
     /// </summary>
     public static bool SwitchRemote(Universe u, ShipId id, out string message)
     {
         if (id == u.PlayerShip) { message = "Dieses Schiff ist bereits aktiv."; return false; }
         if (!u.Ships.TryGetValue(id, out var target) || !target.IsPlayer) { message = "Das Schiff gehört dir nicht."; return false; }
-        if (target.Command is not null) Commands.Cancel(u, target, "du übernimmst");
         if (target.Squadron.Value != 0 && Squadrons.Get(u, target) is { } sq && sq.Leader != target.Id) Squadrons.Leave(u, target);
-        OrderMove.StopHere(u, target);
+        OrderMove.StopHere(u, target);   // laufende Reise endet an Ort und Stelle; der Befehl selbst bleibt und läuft nach dem Aussteigen weiter
         target.Role = ShipRole.Player;
         Activate(u, target, target.DockedAt);
         message = $"Du fliegst jetzt Schiff #{target.Id.Value}" + (u.ShipModels.TryGetValue(target.ModelKey, out var m) ? $" ({m.Name})" : "")
@@ -66,21 +82,42 @@ public static class PlayerFleet
         u.Events.Publish(new ShipDocked(ship.Id, st.Id));   // Runde 42b: Andocken meldet der Bus (z. B. Transport-Ablieferung)
     }
 
-    /// <summary>Das aktive Schiff legt ab (Andocken endet; die Ansicht fliegt es). Runde 39: löscht die Rücknahme im Handel.</summary>
+    /// <summary>Das aktive Schiff legt ab (Andocken endet; die Ansicht fliegt es). Runde 39: löscht die Rücknahme im Handel. Zu Fuß: nichts.</summary>
     public static void Undock(Universe u, Ship ship)
     {
+        if (u.PlayerOnFoot && ship.Id == u.PlayerShip) return;   // die Person ist an Land — es legt niemand ab
         ship.DockedAt = default;
         if (u.Journal.Last is { } e && e.Ship == ship.Id) u.Journal.Clear();
     }
 
-    /// <summary>Macht ein eigenes Schiff zum aktiven (Sektor der Ansicht folgt) und veröffentlicht <see cref="ActiveShipChanged"/>. Runde 39: Schiffswechsel löscht die Rücknahme.</summary>
+    /// <summary>Macht ein eigenes Schiff zum aktiven (Sektor der Ansicht folgt) und veröffentlicht <see cref="ActiveShipChanged"/>. Runde 39: Schiffswechsel
+    /// löscht die Rücknahme. Das Betreten beendet einen laufenden Befehl nicht mehr (früher: „du übernimmst“): an Bord pausiert er, nach dem
+    /// Aussteigen läuft er weiter. Betreten beendet das Zu-Fuß-Sein.</summary>
     public static void Activate(Universe u, Ship target, StationId at)
     {
         var old = u.PlayerShip;
-        if (target.Command is not null) Commands.Cancel(u, target, "du übernimmst");
+        u.PlayerAtStation = default;   // Betreten eines Schiffs = nicht mehr zu Fuß
         u.PlayerShip = target.Id;
         u.PlayerSector = target.Sector;
         u.Journal.Clear();
         u.Events.Publish(new ActiveShipChanged(old, target.Id, at));
+    }
+
+    /// <summary>
+    /// Die Person verlässt das aktive Schiff in der Station, an der es angedockt liegt (nur angedockt, nicht unterwegs): Sie ist dann zu Fuß
+    /// (<see cref="Universe.PlayerAtStation"/>), das Schiff bleibt geparkt und führt einen laufenden Befehl wie ein Flottenschiff weiter. Zurück
+    /// an Bord geht es über den Hangar (<see cref="SwitchTo"/>) oder aus der Ferne (<see cref="SwitchRemote"/>). false (mit Grund) = nichts geändert.
+    /// </summary>
+    public static bool LeaveShip(Universe u, out string message)
+    {
+        var ship = u.Ships.GetValueOrDefault(u.PlayerShip);
+        if (u.PlayerOnFoot) { message = "Du bist schon zu Fuß in der Station."; return false; }
+        if (ship is null || !ship.IsPlayer) { message = "Kein aktives Schiff."; return false; }
+        if (ship.Transit is not null) { message = "Unterwegs geht das nicht — erst an einer Station andocken."; return false; }
+        if (ship.DockedAt.Value == 0 || !u.Stations.TryGetValue(ship.DockedAt, out var st)) { message = "Du liegst an keiner Station angedockt."; return false; }
+        u.PlayerAtStation = st.Id;
+        string name = OrderMove.ShipName(u, ship.Id);
+        message = $"Du verlässt {name} und bist zu Fuß in {st.Name}." + (ship.Command is null ? "" : " Sein Befehl läuft weiter.");
+        return true;
     }
 }

@@ -37,7 +37,9 @@ public static class Hangar
     /// <c>FollowExecutor</c> löscht ihn) und zahlen darum ohnehin nichts — auch in Ketten (Begleiter folgt Begleiter).
     /// </summary>
     public static bool PaysBerthFee(Universe u, Ship ship) =>
-        ship.IsPlayer && ship.Id != u.PlayerShip && ship.Transit is null && !ship.IsRental && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner;
+        // Ist die Person zu Fuß (oder in einem anderen Schiff), ist das aktive Schiff ein geparktes wie jedes andere und zahlt mit.
+        ship.IsPlayer && (ship.Id != u.PlayerShip || u.PlayerOnFoot) && ship.Transit is null && !ship.IsRental
+        && u.Stations.TryGetValue(ship.DockedAt, out var st) && st.Owner != ship.Owner;
 
     /// <summary>
     /// Runde 17 (Handy-Test: Credits sanken zeitweise mit −16,8 statt −4,8 Cr/min): ein Begleiter, der in Formation folgt (Befehl „Folgen“), liegt nicht am Liegeplatz,

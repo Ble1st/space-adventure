@@ -24,8 +24,10 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 
 	/// <summary>Bereich wurde angetippt (Id aus <see cref="DockAreas"/>; Platzhalter öffnen ihre Platzhalterseite).</summary>
 	public event Action<string>? AreaSelected;
-	/// <summary>Große Taste „Abdocken“ unten.</summary>
+	/// <summary>Große Taste „Abdocken“ unten (zu Fuß gedämpft — erst ein Schiff betreten).</summary>
 	public event Action? UndockPressed;
+	/// <summary>Taste „Schiff verlassen“ (an Bord, angedockt): Core <see cref="SpaceSim.Core.Simulation.PlayerFleet.LeaveShip"/>.</summary>
+	public event Action? LeavePressed;
 	/// <summary>Runde 23: „≡ Menü“ (Kamera, Ton, Speichern/Laden/Neues Spiel) auch angedockt.</summary>
 	public event Action? MenuPressed;
 
@@ -102,14 +104,16 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 		TestSubtitle = sub + cash;
 		At(card, Text(sub + cash, 15, Dim), 20, 50, 540, 22);
 
-		// Angedockte Schiffe oben als Karten (Phase 12: echt — das aktive Schiff, eigene im Hangar, fremde mit Besitzer)
-		var docked = SpaceSim.Core.Simulation.Hangar.DockedShips(u, st).Where(s => s.Id != ship.Id).ToList();
+		// Angedockte Schiffe oben als Karten (Phase 12: echt — das aktive Schiff, eigene im Hangar, fremde mit Besitzer).
+		// Zu Fuß gibt es keine aktiv-betrete-Karte: Alle hier liegenden Schiffe zählen gleich (das aktive liegt geparkt dabei oder woanders).
+		bool onFoot = u.PlayerOnFoot;
+		var docked = SpaceSim.Core.Simulation.Hangar.DockedShips(u, st).Where(s => onFoot || s.Id != ship.Id).ToList();
 		var own = docked.Where(s => s.IsPlayer).ToList();
 		var foreign = docked.Where(s => !s.IsPlayer).ToList();
-		At(card, Text($"ANGEDOCKT · {docked.Count + 1} Schiff{(docked.Count == 0 ? "" : "e")} ({own.Count} eigene im Hangar, {foreign.Count} fremde)", 12, Dim), 20, 80, 540, 18);
+		At(card, Text($"ANGEDOCKT · {docked.Count + (onFoot ? 0 : 1)} Schiff{(docked.Count + (onFoot ? 0 : 1) == 1 ? "" : "e")} ({own.Count} eigene im Hangar, {foreign.Count} fremde)", 12, Dim), 20, 80, 540, 18);
 		var chips = At(card, new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 20, 100, 540, 92);
 		chips.AddThemeConstantOverride("separation", 8);
-		chips.AddChild(new ShipChip(u, ship, true));
+		if (!onFoot) chips.AddChild(new ShipChip(u, ship, true));   // zu Fuß: keine aktiv-Karte (das Schiff liegt geparkt in der Liste)
 		var shown = own.Concat(foreign).Take(3).ToList();
 		foreach (var other in shown) chips.AddChild(new ShipChip(u, other, false));
 		if (docked.Count > shown.Count) chips.AddChild(new ShipChip(u, null, false, docked.Count - shown.Count));
@@ -131,15 +135,28 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 		}
 		TestTiles = defs.Count;
 
-		// Große Taste „Abdocken“ unten
-		var undock = At(card, new KitButton("Abdocken", new Vector2(540, 64)) { FontSize = 24, State = KitButtonState.Ready }, 20, ch - 106);
+		// Große Taste „Abdocken“ unten; daneben „Schiff verlassen“ (an Bord, angedockt). Zu Fuß ist Abdocken aus (— erst Schiff betreten).
+		var undock = At(card, onFoot
+			? new KitButton("Abdocken – du bist zu Fuß", new Vector2(540, 64)) { FontSize = 20, State = KitButtonState.Disabled, Sub = "im Hangar ein Schiff betreten" }
+			: new KitButton("Abdocken", new Vector2(348, 64)) { FontSize = 24, State = KitButtonState.Ready }, 20, ch - 106);
 		undock.Pressed += () => UndockPressed?.Invoke();
-		float fee = own.Sum(s => SpaceSim.Core.Simulation.Hangar.BerthFeeNow(u, s));
-		string berth = st.Owner == u.PlayerActor ? "eigene Station: Liegeplätze gratis"
-			: fee > 0f ? $"Liegegebühr hier {fee:0} Cr/Tag für {own.Count} Schiff{(own.Count == 1 ? "" : "e")}" : "Liegegebühr nur für geparkte Schiffe";
-		// Runde 4: zwei Zeilen (eine Zeile wurde am Rand gekürzt: „Liegegebühr nur für …“)
-		At(card, Text($"Hülle {(int)ship.Hull}/{(int)ship.MaxHull}{(SpaceSim.Core.Services.RepairService.NeedsRepair(ship) ? " – Reparatur im Dienst „Reparatur“" : "")} · {(int)u.WalletOf(ship).Credits} Credits", 13, Dim, HorizontalAlignment.Center), 20, ch - 38, 540, 18);
-		At(card, Text(berth, 13, Dim, HorizontalAlignment.Center), 20, ch - 22, 540, 18);
+		if (!onFoot)
+		{
+			var leave = At(card, new KitButton("Schiff verlassen", new Vector2(184, 64)) { FontSize = 15, Sub = "zu Fuß hier" }, 380, ch - 106);
+			leave.Pressed += () => LeavePressed?.Invoke();
+		}
+		if (onFoot)
+		{
+			At(card, Text("Du bist zu Fuß in der Station — im Hangar ein Schiff übernehmen oder mieten (Leihschiff).", 13, Cyan), 20, ch - 38, 540, 18);
+		}
+		else
+		{
+			float fee = own.Sum(s => SpaceSim.Core.Simulation.Hangar.BerthFeeNow(u, s));
+			string berth = st.Owner == u.PlayerActor ? "eigene Station: Liegeplätze gratis"
+				: fee > 0f ? $"Liegegebühr hier {fee:0} Cr/Tag für {own.Count} Schiff{(own.Count == 1 ? "" : "e")}" : "Liegegebühr nur für geparkte Schiffe";
+			At(card, Text($"Hülle {(int)ship.Hull}/{(int)ship.MaxHull}{(SpaceSim.Core.Services.RepairService.NeedsRepair(ship) ? " – Reparatur im Dienst „Reparatur“" : "")} · {(int)u.WalletOf(ship).Credits} Credits", 13, Dim, HorizontalAlignment.Center), 20, ch - 38, 540, 18);
+			At(card, Text(berth, 13, Dim, HorizontalAlignment.Center), 20, ch - 22, 540, 18);
+		}
 	}
 
 	/// <summary>Runde 23: Unterzeile des Titels (Selbsttest: Kasse sichtbar).</summary>

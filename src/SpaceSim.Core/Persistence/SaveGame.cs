@@ -28,6 +28,8 @@ public sealed class SaveGame
     public int NextAsteroidId { get; set; } = 1;
     public int PlayerSector { get; set; }
     public int PlayerShip { get; set; }
+    /// <summary>Additiv: Station, in der die Spielerperson zu Fuß ist (0 = an Bord des aktiven Schiffs; fehlt/ältere Stände = an Bord).</summary>
+    public int PlayerAtStation { get; set; }
     public EconomyRules Rules { get; set; } = new();
     /// <summary>
     /// Spielerkasse (Phase 5b, v7 bis v11); ältere Stände bekommen sie per Migration aus den Credits des Spielerschiffs. Seit v12 ist sie die Kasse

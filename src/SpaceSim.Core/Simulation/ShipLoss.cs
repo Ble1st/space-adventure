@@ -79,6 +79,26 @@ public static class ShipLoss
     /// </summary>
     public static Ship? LoseActive(Universe u, Ship lost, string detail, string? cause = null)
     {
+        if (u.PlayerOnFoot && lost.Id == u.PlayerShip)
+        {
+            // Zu Fuß verliert die Person nur ihr geparktes Schiff: Sie bleibt in ihrer Station. Neues aktives Schiff = geparktes eigenes dort,
+            // sonst Notfall-Leihschiff (am Andockpunkt) — aber ohne die Person zu versetzen: sie bleibt zu Fuß.
+            var shore = u.Stations.GetValueOrDefault(u.PlayerAtStation);
+            if (shore is null) return null;
+            var (ff, rp) = Hangar.SettleLostRental(u, lost);
+            Ship? next = PlayerFleet.ParkedAt(u, shore).Where(s => s.Id != lost.Id && !s.IsRental).OrderBy(s => s.Id.Value).FirstOrDefault()
+                         ?? EmergencyRental(u, shore, lost);
+            if (next is null) return null;
+            string model = u.ShipModels.TryGetValue(next.ModelKey, out var m2) ? m2.Name : "Schiff";
+            string msg = $"Schiff zerstört ({cause ?? CauseText(detail)}), Fracht verloren. Du bist zu Fuß in {shore.Name}.";
+            msg += next.IsRental ? $" Notfall-Leihschiff {model} (ohne Gebühr/Pfand) liegt bereit, Miete {u.Rules.RentalPerDay:0} Cr/Tag." : $" Übernimm {model} #{next.Id.Value} im Hangar.";
+            if (ff > 0f || rp > 0f) msg += $" Altes Leihschiff: Pfand {ff:0} Cr verfällt, offene Miete {rp:0} Cr.";
+            u.PlayerShip = next.Id;   // Person bleibt zu Fuß (kein Activate — sie wird nicht versetzt)
+            if (FineHint(u, shore) is { } fine2) msg += " " + fine2;
+            Departures.RemoveShip(u, lost, DepartureReason.Destroyed, detail);
+            u.Events.Publish(new PlayerShipLost(lost.Id, shore.Id, next.Id, next.IsRental ? Emergency : OwnShip, msg));
+            return next;
+        }
         var (sector, pos) = ThreatMap.Where(u, lost);
         var landing = Landing(u, sector, pos);
         if (landing is null) return null;

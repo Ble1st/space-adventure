@@ -9,19 +9,18 @@ public sealed record TaxiQuote(Station To, float Price, float Toll, long Ticks, 
     string Situation, string? Issue)
 {
     public bool Bookable => Issue is null;
-    /// <summary>Gesamtkosten inklusive Leihschiff am Ziel (Gebühr + Pfand + erster Tag), falls dort kein eigenes Schiff wartet — Runde 38a: = Abbuchung.</summary>
-    public float Total => Price + (WaitingShip is null && RentalThere ? RentalUpfront : 0f);
-    /// <summary>Runde 38a: Aufschlüsselung des Gesamtpreises („Fahrt 99 + Leihschiff 60 Gebühr + 400 Pfand + 120 erster Tag“).</summary>
-    public string Breakdown(EconomyRules r) => WaitingShip is null && RentalThere
-        ? $"Fahrt {Price:0}{(Toll > 0f ? $" (inkl. {Toll:0} Zoll)" : "")} + Leihschiff {r.RentalFee:0} + {r.RentalDeposit:0} Pfand + {r.RentalPerDay:0} 1. Tag = {Total:0} Cr"
-        : $"Fahrt {Price:0} Cr{(Toll > 0f ? $" (inkl. {Toll:0} Zoll)" : "")}";
+    /// <summary>Gesamtkosten = Fahrpreis (inkl. Zoll). Das Leihschiff am Ziel zahlt die Person erst dort selbst (Dienst „rental“ im Dock-Menü der Zielstation).</summary>
+    public float Total => Price;
+    /// <summary>Aufschlüsselung des Fahrpreises („Fahrt 99 (inkl. 12 Zoll)“); Leihschiff-Kosten nennt die Ansicht am Ziel (Hangar).</summary>
+    public string Breakdown(EconomyRules r) => $"Fahrt {Price:0} Cr{(Toll > 0f ? $" (inkl. {Toll:0} Zoll)" : "")}";
 }
 
 /// <summary>
 /// Phase 12, Dienst „taxi“ (UI.md Abschnitt 3 „Taxi“, entschieden): Das Taxi bringt den <b>Spieler allein</b> zu einer anderen Station; das Schiff bleibt
 /// hier angedockt (Liegegebühr an fremden Stationen). Ziele: Stationen mit Hangar, an denen ein eigenes Schiff wartet oder ein Leihschiff zu haben ist.
 /// Preis = Grundgebühr + je Sprung + je Streckeneinheit (an diese Station) + Zoll der Route (an die Sektorbesitzer). Gesperrte Routen sind nicht buchbar
-/// (Grund). Am Ziel übernimmt der Spieler das wartende eigene Schiff, sonst mietet er das Leihschiff (Gebühr + Pfand). Die Reisezeit liefert
+/// (Grund). Am Ziel steigt die Person zu Fuß in der Station aus (kein fertiges Schiff mehr): Wartet dort ein eigenes Schiff, übernimmt sie es im
+/// Hangar selbst, sonst mietet sie ein Leihschiff (Dienst „rental“). Die Reisezeit liefert
 /// <see cref="ServiceResult.Units"/> (Ticks); die Ansicht lässt die Zeit im Zeitraffer vergehen. Schlüssel streng: <c>taxi:&lt;StationId&gt;</c>.
 /// </summary>
 public sealed class TaxiService : IStationService
@@ -63,10 +62,10 @@ public sealed class TaxiService : IStationService
         float price = r.TaxiBaseFee + r.TaxiPerJump * route.Count + r.TaxiPerUnit * dist;
         long ticks = (long)MathF.Ceiling(dist / MathF.Max(0.1f, r.TaxiSpeed)) + route.Count * r.TaxiJumpTicks + 1;
         string? issue = null;
-        if (waiting is null && !rental) issue = "Dort wartet kein eigenes Schiff und es gibt kein Leihschiff.";
-        else if (waiting is null && Hangar.RentIssue(u, to, ship) is { } ri && !ri.StartsWith("Nicht genügend", StringComparison.Ordinal)) issue = ri;
-        float total = price + toll + (waiting is null ? Hangar.RentalUpfront(r) : 0f);
-        if (issue is null && u.WalletOf(ship).Credits < total) issue = $"Nicht genügend Credits ({total:0} Cr nötig).";
+        // Kein Ziel-Ausschluss mehr: Die Person steigt am Ziel zu Fuß in der Station aus und wählt dort selbst — wartendes eigenes Schiff übernehmen
+        // oder Leihschiff mieten (beides reine Anzeige, kein Buchungsgrund). Bezahlt wird nur die Fahrt.
+        float total = price + toll;
+        if (u.WalletOf(ship).Credits < total) issue = $"Nicht genügend Credits ({total:0} Cr nötig).";
         return new TaxiQuote(to, price + toll, toll, ticks, route.Count, waiting, rental, Hangar.RentalUpfront(r), situation, issue);
     }
 
@@ -95,22 +94,17 @@ public sealed class TaxiService : IStationService
                 if (pass.Toll > 0f) GateAccess.PayToll(u, ship, u.Gates[gid], pass);
             }
         }
-        // Das Schiff bleibt hier angedockt; die Person übernimmt am Ziel das wartende Schiff oder mietet eines
+        // Das Schiff bleibt hier angedockt; die Person steigt am Ziel zu Fuß in der Station aus (kein automatisches Übernehmen, kein automatisches
+        // Leihschiff): Sie wählt im Dock-Menü der Zielstation selbst — wartendes eigenes Schiff (Hangar) oder Leihschiff (Dienst „rental“).
         PlayerFleet.Dock(u, ship, station);
-        string arrive;
-        if (q.WaitingShip is { } waiting)
-        {
-            PlayerFleet.Activate(u, waiting, to.Id);
-            arrive = $"Du übernimmst {OrderMove.ShipName(u, waiting.Id)}.";
-        }
-        else
-        {
-            if (Hangar.Rent(u, to, ship, out var rm) is null) return new ServiceResult(true, q.Ticks, -q.Price, $"Taxi angekommen, aber kein Leihschiff: {rm}");
-            arrive = rm;
-        }
+        u.PlayerAtStation = to.Id;
+        u.PlayerSector = to.Sector;
+        string arrive = q.WaitingShip is { } waiting
+            ? $"Dort wartet {OrderMove.ShipName(u, waiting.Id)} — nimm es im Hangar."
+            : $"Nimm dort ein Schiff: Hangar oder Leihschiff ({u.Rules.RentalUpfront:0} Cr).";
         u.Events.Publish(new TaxiRide(station.Id, to.Id, q.Price, q.Ticks));
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Ride, default, 1f, -q.Price));
-        return new ServiceResult(true, q.Ticks, -q.Total, $"Taxi nach {to.Name} ({q.Breakdown(u.Rules)}, {q.Ticks / Simulation.SimClock.TicksPerSecond:0} s). {arrive}");
+        return new ServiceResult(true, q.Ticks, -q.Total, $"Taxi nach {to.Name} ({q.Breakdown(u.Rules)}, {q.Ticks / Simulation.SimClock.TicksPerSecond:0} s). Du stehst zu Fuß in {to.Name}. {arrive}");
     }
 
     static ServiceResult Fail(string m) => new(false, 0f, 0f, m);

@@ -61,15 +61,15 @@ public sealed partial class TaxiScreen : DockAreaScreen, ISessionScreen
 			int id = int.Parse(o.Key[(o.Key.IndexOf(':') + 1)..]);
 			var q = TaxiService.Quote(u, Ctx.Station, Ctx.Ship, u.Stations[new StationId(id)]);
 			if (q is null) continue;
-			if (q.WaitingShip is null && !q.RentalThere) { _hidden++; continue; }
+			// Kein Ausblenden mehr: Die Person steigt am Ziel zu Fuß in der Station aus — wartendes Schiff/Leihschiff ist nur ein Hinweis.
 			bool can = o.Amount >= 1f;
 			var row = new Control { CustomMinimumSize = new Vector2(rw, 76), MouseFilter = MouseFilterEnum.Pass };
 			list.AddChild(row);
 			CardBg(row, 0, 0, rw, 76, Card, can ? new Color(Cyan, 0.5f) : new Color(Edge, 0.5f), 10, 1);
 			string sector = u.Sectors.TryGetValue(q.To.Sector, out var sec) ? sec.Name : "?";
 			At(row, Text($"{q.To.Name} · {sector}", 18, can ? White : Dim), 12, 4, rw - 290, 24);
-			string there = q.WaitingShip is { } ws ? $"Dort wartet: #{ws.Id.Value} {(u.ShipModels.TryGetValue(ws.ModelKey, out var m) ? m.Name : "")}"
-				: q.RentalThere ? $"Kein eigenes Schiff · {q.Breakdown(u.Rules)}" : "Kein eigenes Schiff, kein Leihdienst";   // Runde 38a: aufgeschlüsselt = Abbuchung
+			string there = q.WaitingShip is { } ws ? $"Dort wartet: #{ws.Id.Value} {(u.ShipModels.TryGetValue(ws.ModelKey, out var m) ? m.Name : "")} (Hangar)"
+				: q.RentalThere ? "Zu Fuß am Ziel · Leihschiff dort mieten" : "Zu Fuß am Ziel";   // Ausstieg ohne Schiff: nehmen/mieten entscheidet die Person dort
 			string detail = q.Issue is null || q.Issue.StartsWith("Nicht genügend", StringComparison.Ordinal)
 				? $"{q.Jumps} {(q.Jumps == 1 ? "Sprung" : "Sprünge")} · {q.Ticks / SpaceSim.Core.Simulation.SimClock.TicksPerSecond:0} s · Zoll {q.Toll:0} Cr · {q.Situation}"
 				: q.Issue;

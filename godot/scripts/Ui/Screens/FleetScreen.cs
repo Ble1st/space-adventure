@@ -118,7 +118,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			row.AddThemeConstantOverride("separation", 4);
 			var b = new KitButton($"#{s.Id.Value} {ModelName(u, s)}", new Vector2(escortHere || groupHere ? 228 : 352, 64)) { AlignLeft = true, FontSize = 16, State = sel ? KitButtonState.On : KitButtonState.Normal };
 			string sq = Squadrons.Get(u, s) is { } q ? $"[{q.Name}{(q.Leader == s.Id ? ", Anführer" : "")}] " : "";
-			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : "aktiv · von dir gesteuert") : Shorten(sq + Commands.Describe(u, s), escortHere || groupHere ? 26 : 46);
+			b.Sub = active ? (Ctx.AutoMiningOn() ? "aktiv · Auto-Mining" : (s.Command is null ? "aktiv · von dir gesteuert" : Shorten("aktiv · " + Commands.Describe(u, s), 46))) : Shorten(sq + Commands.Describe(u, s), escortHere || groupHere ? 26 : 46);
 			b.Detail = Where(u, s);
 			var id = s.Id;
 			b.Pressed += () => { Select(id); Invalidate(); };
@@ -148,7 +148,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		At(det, Text($"#{ship.Id.Value} {ModelName(u, ship)}{(ship.IsRental ? " (Leihschiff)" : "")}", 20, White), 14, 6, 400, 26);
 		// Runde 25 (Gerätetest d06: „Handel automatisch (…)“ lief unter „Übernehmen“): neben der Taste nur bis zu ihr, mit der Schrift gekürzt
 		float descW = isActive ? 590f : 434f;
-		At(det, Text(KitButton.Fit(ThemeDB.FallbackFont, isActive ? "AKTIV – du steuerst selbst" : Commands.Describe(u, ship), 14, descW), 14, ship.Emergency ? Red : isActive ? Cyan : Orange), 14, 32, descW, 20);
+		At(det, Text(KitButton.Fit(ThemeDB.FallbackFont, isActive ? (u.PlayerOnFoot ? "AKTIV – du bist zu Fuß" : "AKTIV – du steuerst selbst") : Commands.Describe(u, ship), 14, descW), 14, ship.Emergency ? Red : isActive ? Cyan : Orange), 14, 32, descW, 20);
 		At(det, Text($"{Where(u, ship)} · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} {(u.Rules.FuelActive ? $"· Tank {ship.TotalFuel:0}/{ship.Stats.FuelCapacity:0} " : "")}· Regel {CommandNames.Rule(Squadrons.RulesOf(u, ship))}", 13, Dim), 14, 54, 590, 18);
 		if (!isActive)
 		{
@@ -159,18 +159,15 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 
 		if (isActive)
 		{
-			At(det, Text("Das aktive Schiff bekommt keine Befehle – du fliegst es. Automatik:", 15, Dim), 14, 84, 590, 22);
-			bool mining = Ctx.AutoMiningOn();
-			var bMine = At(det, new KitButton("Auto-Mining", new Vector2(220, 56)) { FontSize = 17, State = mining ? KitButtonState.On : KitButtonState.Normal }, 14, 112);
+			// Nutzerwunsch: Auch das Schiff, in dem man sitzt, bekommt Befehle wie ein Flottenschiff. An Bord pausiert der Befehl
+			// (die Person hat das Steuer), nach dem Aussteigen (Station "Schiff verlassen", Taxi) oder Wechsel läuft er weiter. Zu Fuß führt er sofort.
+			At(det, Text(u.PlayerOnFoot ? "Zu Fuß: Dein Schiff führt den Befehl wie ein Flottenschiff." : "Aktives Schiff: Befehl pausiert an Bord – nach dem Aussteigen (Station, Taxi) oder Wechsel läuft er weiter.", 14, Dim), 14, 76, 618, 36);
+			var bMine = At(det, new KitButton("Auto-Mining", new Vector2(150, 40)) { FontSize = 15, State = Ctx.AutoMiningOn() ? KitButtonState.On : KitButtonState.Normal }, 454, 4);
 			bMine.Pressed += () => AutoMiningToggled?.Invoke(!Ctx.AutoMiningOn());
-			BuildSquadronRow(det, u, ship, 398, cancel: false);
-			_messageY = 462f;
-			Message(det);
-			return;
 		}
 
 		// Befehlsraster (aus der Registry, gesperrt nach Fähigkeit/Ziel); Touch-Ziele 56 px. Ausbau Punkt 1/1b: sechs Spalten, Höhe der Karte nach Inhalt
-		At(det, Text(_pending is null ? "Befehl geben" : $"{CommandNames.Kind(_pending)}: Ziel wählen (oder Befehl erneut tippen)", 15, Cyan), 14, 76, 590, 20);
+		At(det, Text(_pending is null ? (isActive ? "Befehl geben (pausiert, solange du an Bord bist)" : "Befehl geben") : $"{CommandNames.Kind(_pending)}: Ziel wählen (oder Befehl erneut tippen)", 15, Cyan), 14, isActive ? 116 : 76, 590, 20);
 		_enabledCommands = 0;
 		_commandButtons.Clear();
 		var missing = new List<string>();
@@ -183,14 +180,14 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			if (ok) _enabledCommands++;
 			else if (!capable) missing.Add(CommandNames.Kind(kind));
 			var b = At(det, new KitButton(ButtonLabel(kind), new Vector2(94, 56)) { FontSize = 14,
-								State = !ok ? KitButtonState.Disabled : _pending == kind || ship.Command?.Kind == kind ? KitButtonState.On : KitButtonState.Normal }, 14 + (i % 6) * 98, 98 + (i / 6) * 60);
+								State = !ok ? KitButtonState.Disabled : _pending == kind || ship.Command?.Kind == kind ? KitButtonState.On : KitButtonState.Normal }, 14 + (i % 6) * 98, (isActive ? 138f : 98f) + (i / 6) * 60);
 			if (ok) b.Pressed += () => Choose(u, ship, kind);
 			_commandButtons[kind] = b;
 			i++;
 		}
 
 		// Zielwahl (Schritt 3) oder Grenzen der Automatik
-		float ty = 98f + (i + 5) / 6 * 60f + 4f;
+		float ty = (isActive ? 138f : 98f) + (i + 5) / 6 * 60f + 4f;
 		ty = _pending is { } pk ? BuildTargets(det, u, ship, pk, ty) : BuildLimits(det, u, ty);
 
 		// Verhalten (Regeln des Verbands, wenn das Schiff in einem ist)

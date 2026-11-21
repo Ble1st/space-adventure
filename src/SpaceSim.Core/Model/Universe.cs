@@ -48,6 +48,16 @@ public sealed class Universe
     /// <summary>Der einzige Sektor, der als Godot-Szene materialisiert ist.</summary>
     public SectorId PlayerSector;
     public ShipId PlayerShip;
+    /// <summary>
+    /// Station, in der die Spielerperson zu Fuß ist (0 = an Bord des aktiven Schiffs). „Schiff verlassen“ an einer Station
+    /// und die Taxifahrt setzen dieses Feld; es bleibt gesetzt, bis die Person ein Schiff betritt
+    /// (<see cref="Simulation.PlayerFleet.Activate"/>). Ist es gesetzt, ist die Person in dieser Station (nicht im aktiven
+    /// Schiff): Das aktive Schiff bleibt geparkt und führt Befehle wie ein Flottenschiff aus, Abdocken/Fliegen braucht ein
+    /// neues aktives Schiff. Gespeichert (additiv) und gehasht.
+    /// </summary>
+    public StationId PlayerAtStation;
+    /// <summary>Wahr, wenn die Spielerperson zu Fuß in einer Station ist (nicht im aktiven Schiff).</summary>
+    public bool PlayerOnFoot => PlayerAtStation.Value != 0;
 
     /// <summary>
     /// Akteure (Phase 9): Fraktionsakteure (Id = Fraktions-Id), die Sammelgruppe „Freie“ (<see cref="FreeActor"/>), der Spieler
