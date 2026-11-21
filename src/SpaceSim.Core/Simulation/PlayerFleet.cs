@@ -62,7 +62,20 @@ public static class PlayerFleet
     /// </summary>
     public static bool SwitchRemote(Universe u, ShipId id, out string message)
     {
-        if (id == u.PlayerShip) { message = "Dieses Schiff ist bereits aktiv."; return false; }
+        if (id == u.PlayerShip)
+        {
+            if (u.PlayerOnFoot && u.Ships.TryGetValue(id, out var back) && back.Transit is null)
+            {
+                var here = u.PlayerAtStation;
+                if (back.DockedAt != here) { message = "Das Schiff liegt nicht hier — im Hangar dieses Ortes liegt keins von dir."; return false; }
+                u.PlayerAtStation = default;   // zu Fuß in der Station an Bord des hier geparkten eigenen Schiffs (Kommandozentrale)
+                u.Journal.Clear();
+                u.Events.Publish(new ActiveShipChanged(id, id, here));
+                message = $"Du gehst an Bord von Schiff #{back.Id.Value}" + (u.ShipModels.TryGetValue(back.ModelKey, out var bm) ? $" ({bm.Name})." : ".");
+                return true;
+            }
+            message = "Dieses Schiff ist bereits aktiv."; return false;
+        }
         if (!u.Ships.TryGetValue(id, out var target) || !target.IsPlayer) { message = "Das Schiff gehört dir nicht."; return false; }
         if (target.Squadron.Value != 0 && Squadrons.Get(u, target) is { } sq && sq.Leader != target.Id) Squadrons.Leave(u, target);
         OrderMove.StopHere(u, target);   // laufende Reise endet an Ort und Stelle; der Befehl selbst bleibt und läuft nach dem Aussteigen weiter

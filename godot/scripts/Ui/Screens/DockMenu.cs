@@ -52,7 +52,12 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 
 	public override void _Draw()
 	{
-		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.62f));
+		if (!Visible) return;
+		// Runde 45: der Hintergrund zeigt die angedockte Station (Kamera rotiert) — links kaum Abdunklung, zur Karte (rechts) dichter
+		var from = new Color(0.01f, 0.02f, 0.05f, 0.10f);
+		var to = new Color(0.01f, 0.02f, 0.05f, 0.68f);
+		DrawPolygon(new[] { new Vector2(0, 0), new Vector2(Size.X, 0), new Vector2(Size.X, Size.Y), new Vector2(0, Size.Y) },
+			new[] { from.Lerp(to, 0.4f), to, to, from });
 	}
 
 	/// <summary>Runde 17 (Speicher wächst mit „Neues Spiel“): die Schiffskarten halten das alte Universum — beim Sitzungswechsel alles abbauen.</summary>

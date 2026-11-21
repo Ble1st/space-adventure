@@ -100,7 +100,7 @@ public static class DockLayout
         if ((a.W - cw) / 2f - 20f < MenuSideMin) ch = MathF.Min(ch, a.H - 58f - StripH - 6f);
         float y = a.Y + MathF.Max(4f, (a.H - ch) / 2f + 1f);
         if (y + ch > a.Bottom) ch = MathF.Max(0f, a.Bottom - y - 4f);
-        return new UiRect(a.X + (a.W - cw) / 2f, y, cw, ch);
+        return new UiRect(a.Right - cw - 10f, y, cw, ch);   // Runde 45: Karte ganz rechts — links bleibt die Stations-Ansicht frei
     }
 
     /// <summary>Runde 34b: Meldungsstreifen des Dock-Menüs — links der Karte, wenn dort ≥ 240 Platz ist, sonst unter der Karte.</summary>

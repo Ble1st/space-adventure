@@ -194,6 +194,11 @@ public partial class SectorView : Node3D
 	/// Gleicht die Asteroiden-Szene mit den Core-Daten ab: neue (Respawn) wachsen ein, abgebaute behalten ihren Radius (Runde 43: kein Schrumpfen),
 	/// leere zerbrechen sichtbar (Trümmer) und verschwinden. Aktualisiert außerdem die Kollisionskreise.
 	/// </summary>
+	/// <summary>Runde 45 (Gerätetest: Richtung Schiff war Luft zwischen Bohrer/Anker und Fels): der Fels ist ein Facetten-Mesh (8 Umlaufsegmente),
+	/// dessen Flächen bis ~7% inside des glatten Kernradius liegen (<c>rock.Radius</c>) — Bohrspitze, Anker und Trossen rechnen aber auf dem Kernradius.
+	/// Der Darstellungsmaßstab hebt die Facettenfläche auf den Kernradius (Faktor 1/cos(π/8) ≈ 1,082), damit der sichtbare Fels überall am Werkzeug anliegt.</summary>
+	public const float RockFacetFactor = 1.0824f;
+
 	public void SyncAsteroids(Universe u, float delta, bool instant = false)
 	{
 		var sector = u.Sectors[_sector];
@@ -206,7 +211,7 @@ public partial class SectorView : Node3D
 			if (!_rocks.TryGetValue(a.Id, out var rock))
 			{
 				var mat = Gfx.Mat(color, minable ? 0.5f : 0f, 0.1f);
-				var mesh = new SphereMesh { Radius = a.BaseRadius, Height = a.BaseRadius * 2f, RadialSegments = 8, Rings = 5 };
+				var mesh = new SphereMesh { Radius = a.BaseRadius * RockFacetFactor, Height = a.BaseRadius * 2f * RockFacetFactor, RadialSegments = 8, Rings = 5 };
 				var node = Gfx.Mesh(mesh, mat, new Vector3(a.Position.X, 0, a.Position.Y), _root);
 				var rng = new RandomNumberGenerator { Seed = (ulong)a.Id * 2654435761UL };
 				node.Rotation = new Vector3(rng.Randf() * Mathf.Tau, rng.Randf() * Mathf.Tau, 0);

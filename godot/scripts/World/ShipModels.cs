@@ -148,6 +148,9 @@ public sealed class ShipVisual
 	public float TipOffset { get; internal set; }
 	/// <summary>Runde 43: Bohrerachsen im Modellraum (Ursprung je Rotor, Radius = contactRadius aus ships.json bzw. Mesh-AABB) — für die Anker-Flankenprüfung.</summary>
 	public readonly List<(Vector3 Axis, float Radius)> DrillAxes = new();
+	/// <summary>Runde 45 (Gerätetest: zwischen Trosse und Schiff war Luft): Rumpfhülle im Modellraum (Vereinigung der Rumpf-Meshes, ohne Werkzeuge/Werfer).
+	/// Der Seilstart der Ankertrossen wird in diese Box geklemmt — das Seil beginnt sichtbar in/am Rumpf, nie frei daneben.</summary>
+	public Aabb HullLocal { get; internal set; } = new(new Vector3(-0.5f, -0.3f, -1f), new Vector3(1f, 0.6f, 2f));
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Engines = new();
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Accents = new();
 	int _engineLevel = -1;
@@ -270,7 +273,12 @@ public sealed class ShipVisual
 	public Vector3 AnchorStart(Vector3 harpoonLocal, int index)
 	{
 		float z = MathF.Min(harpoonLocal.Z, TipLocal.Z + AnchorStartBack);
-		return OutsideDrill(new Vector3(harpoonLocal.X, harpoonLocal.Y, z), index);
+		var p = OutsideDrill(new Vector3(harpoonLocal.X, harpoonLocal.Y, z), index);
+		// Runde 45: der Seilstart liegt in der Rumpfhülle (sichtbar am Rumpf), nie frei daneben
+		return new Vector3(
+			Mathf.Clamp(p.X, HullLocal.Position.X, HullLocal.End.X),
+			Mathf.Clamp(p.Y, HullLocal.Position.Y, HullLocal.End.Y),
+			Mathf.Clamp(p.Z, HullLocal.Position.Z, HullLocal.End.Z));
 	}
 
 	/// <summary>
@@ -483,6 +491,7 @@ public static class ShipModels
 		Walk(node);
 		foreach (var r in v.Rotors) AddRotorMarker(r);   // Runde 18
 		ComputeToolTip(v, info);   // Runde 43: Bohrerspitze und Bohrerachsen messen
+		ComputeHull(v);            // Runde 45: Rumpfhülle für die Ankertrossen (Seilstart am Rumpf)
 		v.Hardpoints = HardpointSet.Bind(node, info.Hardpoints);
 		v.SetAccent(accent);
 		v.SetEngine(0.2f);
@@ -490,6 +499,37 @@ public static class ShipModels
 	}
 
 	/// <summary>Runde 43: misst die Werkzeugspitze (vorderster Punkt aller Rotor-Meshes im Root-Raum) und die Bohrerachsen einer Modellinstanz.</summary>
+	/// <summary>Runde 45: Rumpfhülle im Modellraum — Vereinigung der Mesh-AABBs unterhalb von <c>Hull</c>, ohne Werkzeuge/Werfer/Türme und ohne Drehmarken.</summary>
+	static void ComputeHull(ShipVisual v)
+	{
+		Aabb box = new(new Vector3(-0.5f, -0.3f, -1f), new Vector3(1f, 0.6f, 2f));
+		bool any = false;
+		void Walk(Node n, Transform3D t)
+		{
+			foreach (var c in n.GetChildren())
+			{
+				if (c is not Node3D c3) continue;
+				string name = c3.Name;
+				if (name.StartsWith("Rotor_") || name.StartsWith("Jaw_") || name.StartsWith("Harpoon_") || name.StartsWith("Turret_") || name.StartsWith("RotorMark")) continue;
+				var ct = t * c3.Transform;
+				if (c3 is MeshInstance3D { Mesh: { } mesh })
+				{
+					var aabb = mesh.GetAabb();
+					for (int cx = 0; cx < 2; cx++) for (int cy = 0; cy < 2; cy++) for (int cz = 0; cz < 2; cz++)
+					{
+							var corner = new Vector3(cx == 0 ? aabb.Position.X : aabb.End.X, cy == 0 ? aabb.Position.Y : aabb.End.Y, cz == 0 ? aabb.Position.Z : aabb.End.Z);
+						var w = ct * corner;
+						box = any ? box.Expand(w) : new Aabb(w, Vector3.Zero);
+						any = true;
+					}
+				}
+				Walk(c3, ct);
+			}
+		}
+		Walk(v.Root, Transform3D.Identity);
+		if (any) v.HullLocal = box;
+	}
+
 	static void ComputeToolTip(ShipVisual v, ShipModelInfo info)
 	{
 		float minZ = -1f;

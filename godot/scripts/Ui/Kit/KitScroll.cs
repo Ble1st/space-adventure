@@ -88,9 +88,13 @@ public partial class KitScroll : ScrollContainer
 	/// <summary>Runde 37: zeigt der Bereich gerade den Hinweis „weiter unten“?</summary>
 	public bool MoreBelow => _hint.Visible;
 
+	float _hintShowBelow = 8f, _hintHideAbove = 3f;   // Hysterese — ansonsten flackert der Hinweis am unteren Rand (gerundete/fraktionierte Content-Höhe wechselt je Bild)
+
 	void UpdateHint()
 	{
-		bool more = CanScroll() && GetVScrollBar() is { } bar && ScrollVertical < bar.MaxValue - bar.Page - 2;
+		float remaining = CanScroll() && GetVScrollBar() is { } bar ? (float)(bar.MaxValue - bar.Page - ScrollVertical) : 0f;
+		// Hysterese: sichtbarer Hinweis bleibt, bis der Rand nah heran ist; unsichtbarer braucht mehr Rest — kein Flimmern unten
+		bool more = _hint.Visible ? remaining > _hintHideAbove : remaining > _hintShowBelow;
 		if (more) { _hint.Position = new Vector2(0, Size.Y - 22f); _hint.Size = new Vector2(Size.X, 22f); }
 		if (_hint.Visible != more) _hint.Visible = more;
 	}

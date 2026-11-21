@@ -307,7 +307,11 @@ public partial class Main : Node3D
 		// Oberflächen-Texturen: --no-surface-detail = Modelle ohne die gemeinsamen Texturen (Vergleichsbilder)
 		if (args.Contains("--no-surface-detail")) World.SurfaceDetail.Enabled = false;
 		if (args.Contains("--model-shots")) { SaveService.UseFile("model-shots.json"); UiScale.PinnedFactor = 1f; }   // eigener Spielstand, nie der echte
-		StartSession();
+		// Runde 45 (Nutzerwunsch: Start im Hauptmenü, kein Spiel im Hintergrund): normaler Start zeigt zuerst das Hauptmenü (System-Bereich)
+		// ohne laufende Welt — Prüfläufe (Selbsttest, Fotos, ui-check) starten wie bisher direkt
+		_startMenu = !TestKnowAll;
+		StartSession(menu: _startMenu);
+		if (_startMenu) EnterStartMenu();
 		if (selftest) AddChild(new SelfTest(this));
 		int modelIdx = Array.IndexOf(args, "--model-shots");
 		if (modelIdx >= 0 && modelIdx + 1 < args.Length) AddChild(new ModelShots(args[modelIdx + 1], args.Contains("--model-shots-all"),
@@ -340,9 +344,10 @@ public partial class Main : Node3D
 
 	// ───────── Spielstand ─────────
 
-	void StartSession()
+	void StartSession(bool menu = false)
 	{
-		if (SaveService.TryLoad(out var u, out var savedAt, out var error) && u != null)
+		SpaceSim.Core.Model.Universe? u = null; string? error = null; DateTimeOffset savedAt = default;
+		if (!menu && SaveService.TryLoad(out u, out savedAt, out error) && u != null)
 		{
 			_session = new GameSession();
 			_session.Use(u);
@@ -353,11 +358,30 @@ public partial class Main : Node3D
 		}
 		else
 		{
-			if (SaveService.Exists) GD.PushWarning("Spielstand nicht ladbar, starte neu: " + error);
+			if (SaveService.Exists && !menu) GD.PushWarning("Spielstand nicht ladbar, starte neu: " + error);
 			_session = GameSession.New(_allSystems ? def => { def.Rules ??= new EconomyRules(); def.Rules.FuelActive = true; def.Rules.ResearchActive = true; } : null);
 			AttachSession();
-			if (SaveService.Exists) _hud.Toast("Spielstand beschädigt – neues Spiel gestartet", 4f);
+			if (!menu && SaveService.Exists) _hud.Toast("Spielstand beschädigt – neues Spiel gestartet", 4f);
 		}
+	}
+
+	/// <summary>Runde 45: Start im Hauptmenü — System-Bereich als Menü ohne laufende Welt (nur Neues Spiel, Laden, Einstellungen); Main
+	/// ruht die Simulation und das Autospeichern, bis ein Spiel gewählt ist (kein Spiel im Hintergrund).</summary>
+	bool _startMenu;
+
+	void EnterStartMenu()
+	{
+		_hud.CcSystem.StartMenu = true;
+		_hud.CcSystem.TestChoosing = true;   // Startpaket-Auswahl gleich offen
+		OpenCcArea(CommandAreas.System);
+	}
+
+	/// <summary>Runde 45: Hauptmenü verlassen — ein Spiel beginnt (Neues Spiel/Laden).</summary>
+	void LeaveStartMenu()
+	{
+		if (!_startMenu) return;
+		_startMenu = false;
+		_hud.CcSystem.StartMenu = false;
 	}
 
 	/// <summary>Hängt Ansicht und Ereignisse an das aktuelle Universum und setzt das Spielerschiff.</summary>
@@ -713,16 +737,17 @@ public partial class Main : Node3D
 			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
 			case "save": SaveNow(manual: true); break;
 			case "load":
-				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
+				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { LeaveStartMenu(); _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
 				else _hud.Toast("Laden fehlgeschlagen: " + error, 4f);
 				break;
-			case "new": _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); _orbit.Reset(); AttachSession(); _hud.Toast("Neues Spiel"); break;   // Runde 19: neue Sitzung = Standardkamera
+			case "new": LeaveStartMenu(); _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); _orbit.Reset(); AttachSession(); _hud.Toast("Neues Spiel"); break;   // Runde 19: neue Sitzung = Standardkamera
 			case var a when a.StartsWith("new:", StringComparison.Ordinal):   // Phase 5c: Startpaket (player.startOptions)
 			{
 				string key = a[4..];
 				var name = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().FirstOrDefault(o => o.Key == key)?.Name ?? key;
 				var nu = SpaceSim.Core.Content.WorldBuilder.BuildDefault(startOption: key);
 				if (TestKnowAll && !TestIntelOn) nu.Player.Intel = null;   // Ausbau Punkt 16: Prüfläufe mit vollem Wissen (außer der Erkundungs-Stufe)
+				LeaveStartMenu();
 				_session.Use(nu);
 				_orbit.Reset();   // Runde 19 (Handy-Test: der Gefechtstest begann mit der zuvor verstellten Kamera flach und weit weg); Andocken/Sprung behalten sie
 				AttachSession();
@@ -743,6 +768,8 @@ public partial class Main : Node3D
 			case "save": case "load": OnMenu(action); break;
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
+			// Runde 45 (Nutzerwunsch: unter Einstellungen das Spielergeld setzen können): Debug-Zeile im Menü — setzt die Spielerkasse auf 100.000.000 Cr
+			case "money_cheat": _sfx.Play(SfxId.Pickup); _session.U.PlayerWallet.Credits = 100_000_000f; _hud.Toast("Spielerguthaben auf 100.000.000 Cr gesetzt (Debug)", 3f); break;
 			// Runde 33 (Handytest A15: „UI-Größe“ im Menü ohne Wirkung): dieselbe Ursache — die Aktion kam hier an und fiel in den default-Zweig (kein
 			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
 			case "ui_size": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("ui_size"); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
@@ -832,6 +859,7 @@ public partial class Main : Node3D
 	/// </summary>
 	void ShowBase()
 	{
+		if (_startMenu) { OpenCcArea(CommandAreas.System); return; }   // Runde 45: kein Rückweg aus dem Hauptmenü ins (nicht laufende) Spiel
 		if (_hud.Screens.Current is CommandScreen) CommandScreen.ForgetRailArea();   // Runde 37c (Prüfung M2): beim Schließen der Zentrale
 		_hud.Map.Visible = false;
 		_hud.Screens.Hide();
@@ -939,6 +967,7 @@ public partial class Main : Node3D
 
 	void SaveNow(bool manual)
 	{
+		if (_startMenu) return;   // Runde 45: im Hauptmenü keinen (Leer-)Spielstand überschreiben
 		SyncPlayerData();
 		bool ok = SaveService.Save(_session.U, out var error);
 		if (manual)
@@ -1394,6 +1423,8 @@ public partial class Main : Node3D
 
 	/// <summary>Runde 44: Zeitraffer-Faktor und Teilschritt des eigenen Autopilot-Flugs.</summary>
 	const float WarpFactor = 10f, WarpSubstep = 1f / 30f;
+	/// <summary>Runde 45: angedockt dreht die Kamera mit diesem Tempo um die Station (Grad je Sekunde) — Hintergrund des Dock-Menüs.</summary>
+	const float DockOrbitDegPerSec = 5f;
 	int _lastFlightSteps = 1;
 	/// <summary>Selbsttest: Zahl der Flug-Teilschritte im letzten Bild (1 = Echtzeit).</summary>
 	internal int TestFlightSteps => _lastFlightSteps;
@@ -1413,6 +1444,7 @@ public partial class Main : Node3D
 	public override void _Process(double deltaD)
 	{
 		if (_catchUp is { } catchUp) { StepCatchUp(catchUp); return; }
+		if (_startMenu) return;   // Runde 45: Hauptmenü ohne laufende Welt — nichts tickt, kein Spiel im Hintergrund
 		float delta = (float)deltaD;
 		if (_reenter) EnterActiveShip();   // Phase 12: aktives Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff)
 		_jumpCooldown = Mathf.Max(0f, _jumpCooldown - delta);
@@ -1514,6 +1546,7 @@ public partial class Main : Node3D
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt && !LockHeldAtRock())
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
 		if (_orbit.Mode == CameraMode.Chase && _docked == null) _orbit.FollowHeading(_player.Heading, delta);   // Runde 44: Rückansicht hinter dem Bug (auch rückwärts)
+		if (_docked != null) _orbit.Orbit(DockOrbitDegPerSec * delta, 0f);   // Runde 45: angedockt rotiert die Ansicht langsam um die Station (Hintergrund des rechts liegenden Dock-Menüs)
 		// Runde 13 (Handy-Test): Gefechtskamera — mit Gefechtsziel bzw. angekündigtem Überfall rahmt sie Schiff und Ziel (Core: CombatFraming), weich, bis 140
 		var want = _orbit.Offset();
 		var focus = Vector3.Zero;
