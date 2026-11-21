@@ -268,4 +268,93 @@ public class PersonZuFussTests
         Run(u, 300);
         Assert.True(miner.DockedAt.Value == 0 || miner.Transit is not null, $"MinePhase={miner.MinePhase}, Order={miner.Order?.GetType().Name}, DockedAt={miner.DockedAt.Value}");
     }
+
+    // ─────────────────────────── Testläufe: Spieler/Schiff-Trennung ───────────────────────────
+
+    [Fact]
+    public void Testlauf_TaxiZhFuss_SchiffBleibtInAltenStation_KommandozentraleWeitEntfernt()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+        var b = St(u, 1);
+
+        var taxi = new TaxiService();
+        var q = TaxiService.Quote(u, a, player, b)!;
+        Assert.True(q.Bookable);
+        Assert.True(taxi.Execute(u, a, player, new ServiceRequest($"taxi:{b.Id.Value}", default, 0f)).Success);
+
+        // die Fahrtzeit läuft als Simulation — kein System darf das geparkte Schiff verschieben
+        Run(u, (int)q.Ticks + 50);
+        Assert.Equal(a.Id, player.DockedAt);                 // Schiff bleibt an der alten Station
+        Assert.Equal(a.Sector, player.Sector);
+        Assert.Equal(b.Id, u.PlayerAtStation);               // Person steht zu Fuß am Ziel
+        Assert.Empty(PlayerFleet.ParkedAt(u, b).Where(s => s.Id == player.Id));   // am Ziel hängt es NICHT im Hangar
+        Assert.Single(PlayerFleet.ParkedAt(u, a).Where(s => s.Id == player.Id));
+
+        // Fernwechsel (Kommandozentrale) zum eigenen Schiff, das woanders liegt: geht nicht als Teleport — Person ist zu Fuß
+        Assert.False(PlayerFleet.SwitchRemote(u, player.Id, out var far), far);
+        Assert.Contains("nicht hier", far);
+        Assert.True(u.PlayerOnFoot);
+
+        // zurück per Taxi und an Bord gehen
+        Assert.True(taxi.Execute(u, b, player, new ServiceRequest($"taxi:{a.Id.Value}", default, 0f)).Success);
+        Assert.True(PlayerFleet.SwitchTo(u, a, player.Id, out var aboard), aboard);
+        Assert.False(u.PlayerOnFoot);
+    }
+
+    [Fact]
+    public void Testlauf_TaxiAnBord_AnkunftZhFuss_SchiffBleibtGeparkt()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        var b = St(u, 5);
+
+        // an Bord gebucht (kein Leaving): das Schiff parkt an A, die Person steigt am Ziel zu Fuß aus
+        var taxi = new TaxiService();
+        var q = TaxiService.Quote(u, a, player, b)!;
+        Assert.True(taxi.Execute(u, a, player, new ServiceRequest($"taxi:{b.Id.Value}", default, 0f)).Success);
+        Assert.Equal(b.Id, u.PlayerAtStation);
+        Assert.True(u.PlayerOnFoot);
+        Assert.Equal(a.Id, player.DockedAt);
+
+        Run(u, (int)q.Ticks + 50);
+        Assert.Equal(a.Id, player.DockedAt);                  // bleibt liegen, wandert nicht mit
+        Assert.Equal(b.Id, u.PlayerAtStation);
+
+        // am Ziel wartendes eigenes Schiff übernehmen: altes aktives Schiff bleibt in A
+        var parked = Own(u, "nomad", b);
+        Assert.True(PlayerFleet.SwitchTo(u, b, parked.Id, out var take), take);
+        Assert.False(u.PlayerOnFoot);
+        Assert.Equal(parked.Id, u.PlayerShip);
+        Assert.Equal(a.Id, player.DockedAt);
+    }
+
+    [Fact]
+    public void Testlauf_ZhFuss_FernwechselWeitEntfernt_AltesSchiffBleibt()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+
+        // Fernwechsel (Kommandozentrale) in ein eigenes Schiff, das an einer ANDEREN Station liegt: die Person übernimmt
+        // aus der Ferne — das ehemalige aktive Schiff bleibt an A geparkt (kein Mitwandern)
+        var other = Own(u, "nomad", St(u, 1));
+        Assert.True(PlayerFleet.SwitchRemote(u, other.Id, out var taken), taken);
+        Assert.False(u.PlayerOnFoot);
+        Assert.Equal(other.Id, u.PlayerShip);
+        Assert.Equal(other.Sector, u.PlayerSector);
+        Assert.Equal(a.Id, player.DockedAt);                    // das alte (nicht mehr aktive) Schiff bleibt an A angedockt
+        Assert.Contains(player, PlayerFleet.ParkedAt(u, a));    // und taucht dort im Hangar auf
+        Assert.Empty(PlayerFleet.ParkedAt(u, St(u, 1)).Where(s => s.Id == player.Id));
+    }
 }
