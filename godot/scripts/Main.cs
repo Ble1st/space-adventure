@@ -277,6 +277,7 @@ public partial class Main : Node3D
 		_hud.CcFleet.AutoMiningToggled += on => SetAutoMining(on);
 		_hud.CcFleet.SwitchRequested += SwitchRemote;
 		_hud.CcAssets.SwitchRequested += SwitchRemote;
+		_hud.CcAssets.StationVisitRequested += VisitStation;   // Runde 45: in die eigene Station wechseln
 		_hud.CcAssets.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
 		_hud.CcUniverse.TaxiRequested += to =>
 		{
@@ -1062,6 +1063,17 @@ public partial class Main : Node3D
 			_player.Visible = true;
 			_hud.Flight.Visible = true;
 		}
+	}
+
+	/// <summary>Runde 45 (Nutzeranweisung „in jedes eigene Schiff oder Station wechseln“): Die Person wechselt in ihre eigene Station und steht dort
+	/// zu Fuß (Core: <see cref="SpaceSim.Core.Simulation.PlayerFleet.SwitchToStation"/>); die Ansicht folgt dem Ort (Dock-Menü), das Schiff bleibt, wo es ist.</summary>
+	void VisitStation(StationId id)
+	{
+		SyncPlayerData();
+		bool ok = PlayerFleet.SwitchToStation(_session.U, id, out var message);
+		_sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		if (ok) { _hud.Screens.Hide(); EnterActiveShip(); }
+		_hud.Toast(message, 4f);
 	}
 
 	/// <summary>Phase 12: Fernwechsel (Flotte, Besitz): in das gewählte eigene Schiff, dort wo es ist (Core: <see cref="PlayerFleet.SwitchRemote"/>).</summary>

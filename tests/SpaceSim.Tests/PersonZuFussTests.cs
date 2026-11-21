@@ -295,15 +295,12 @@ public class PersonZuFussTests
         Assert.Empty(PlayerFleet.ParkedAt(u, b).Where(s => s.Id == player.Id));   // am Ziel hängt es NICHT im Hangar
         Assert.Single(PlayerFleet.ParkedAt(u, a).Where(s => s.Id == player.Id));
 
-        // Fernwechsel (Kommandozentrale) zum eigenen Schiff, das woanders liegt: geht nicht als Teleport — Person ist zu Fuß
-        Assert.False(PlayerFleet.SwitchRemote(u, player.Id, out var far), far);
-        Assert.Contains("nicht hier", far);
-        Assert.True(u.PlayerOnFoot);
-
-        // zurück per Taxi und an Bord gehen
-        Assert.True(taxi.Execute(u, b, player, new ServiceRequest($"taxi:{a.Id.Value}", default, 0f)).Success);
-        Assert.True(PlayerFleet.SwitchTo(u, a, player.Id, out var aboard), aboard);
-        Assert.False(u.PlayerOnFoot);
+        // Fernwechsel (Kommandozentrale) zum eigenen Schiff, das woanders liegt: Anweisung Runde 45 — möglich, die Person reist dorthin
+        // und steht an Bord des an A angedockten eigenen Schiffs (das war der Weg zurück, ohne Taxi)
+        Assert.True(PlayerFleet.SwitchRemote(u, player.Id, out var far), far);
+        Assert.False(u.PlayerOnFoot);                      // an Bord des eigenen Schiffs an der alten Station
+        Assert.Equal(a.Id, player.DockedAt);
+        Assert.Equal(a.Sector, u.PlayerSector);
     }
 
     [Fact]
@@ -356,5 +353,31 @@ public class PersonZuFussTests
         Assert.Equal(a.Id, player.DockedAt);                    // das alte (nicht mehr aktive) Schiff bleibt an A angedockt
         Assert.Contains(player, PlayerFleet.ParkedAt(u, a));    // und taucht dort im Hangar auf
         Assert.Empty(PlayerFleet.ParkedAt(u, St(u, 1)).Where(s => s.Id == player.Id));
+    }
+
+    [Fact]
+    public void Testlauf_ZhFuss_StationWechsel_NurEigeneStation()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+
+        // Station eines anderen Besitzers: geht nicht
+        Assert.False(PlayerFleet.SwitchToStation(u, St(u, 1).Id, out var foreign), foreign);
+        Assert.Contains("gehört dir nicht", foreign);
+        Assert.True(u.PlayerOnFoot);
+
+        // eigene Station (z. B. gebaut/Büro): die Person steht dort zu Fuß, das Schiff bleibt geparkt
+        var mine = St(u, 5);
+        mine.Owner = u.PlayerActor;
+        Assert.True(PlayerFleet.SwitchToStation(u, mine.Id, out var visit), visit);
+        Assert.True(u.PlayerOnFoot);
+        Assert.Equal(mine.Id, u.PlayerAtStation);
+        Assert.Equal(mine.Sector, u.PlayerSector);
+        Assert.Equal(player.Id, u.PlayerShip);              // aktive Schiff-Referenz bleibt
+        Assert.Equal(a.Id, player.DockedAt);                // und das Schiff bleibt an A geparkt
     }
 }

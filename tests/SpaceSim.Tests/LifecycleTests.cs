@@ -218,7 +218,11 @@ public class NavigatorTests
             pos += d.Normalized() * MathF.Min(2.5f, d.Length);
 
             foreach (var o in u.GetObstacles(sector))
+            {
+                // Runde 45: das Ziel des Flugs liegt mittig IN einer Station — die Ankunft am Stationsrand berührt dieses eine Hindernis
+                if (target.ArriveAt > 0f && o.Position == target.Position) continue;
                 minClear = MathF.Min(minClear, Vec2.Distance(pos, o.Position) - o.Radius);
+            }
 
             if (nav.Gate is { } g && Vec2.Distance(pos, u.Gates[g].Position) < 10f)
             {
