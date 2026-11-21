@@ -101,7 +101,7 @@ public sealed class TaxiService : IStationService
         u.PlayerSector = to.Sector;
         string arrive = q.WaitingShip is { } waiting
             ? $"Dort wartet {OrderMove.ShipName(u, waiting.Id)} — nimm es im Hangar."
-            : $"Nimm dort ein Schiff: Hangar oder Leihschiff ({u.Rules.RentalUpfront:0} Cr).";
+            : $"Nimm dort ein Schiff: Hangar oder Leihschiff ({Hangar.RentalUpfront(u.Rules):0} Cr).";
         u.Events.Publish(new TaxiRide(station.Id, to.Id, q.Price, q.Ticks));
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Ride, default, 1f, -q.Price));
         return new ServiceResult(true, q.Ticks, -q.Total, $"Taxi nach {to.Name} ({q.Breakdown(u.Rules)}, {q.Ticks / Simulation.SimClock.TicksPerSecond:0} s). Du stehst zu Fuß in {to.Name}. {arrive}");

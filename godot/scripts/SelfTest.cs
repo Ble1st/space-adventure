@@ -1185,8 +1185,8 @@ public partial class SelfTest : Node
 					_m.TestOpenDockArea(Ui.Screens.DockAreas.Taxi);
 					_m.HudRef.DockTaxi.TestRebuild();
 					int rentalStands = uni.Stations.Values.Count(s => s.Id.Value != 30 && !s.IsBuildSite && uni.StationTypes[s.TypeKey].Services.Contains("rental"));
-					Check(_m.HudRef.DockTaxi.TestRows == rentalStands && rentalStands >= 3, $"Taxi listet jedes Ziel mit Leihschiff ({_m.HudRef.DockTaxi.TestRows}/{rentalStands})");
-					Check(_m.HudRef.DockTaxi.TestHidden > 20, $"Taxi fasst Ziele ohne Schiff und Leihdienst zusammen ({_m.HudRef.DockTaxi.TestHidden})");
+					// Kein Ausblenden mehr: Die Person steigt am Ziel zu Fuß aus — jedes Hangar-Ziel ist buchbar (mit oder ohne wartendes Schiff/Leihdienst)
+					Check(_m.HudRef.DockTaxi.TestRows > rentalStands && _m.HudRef.DockTaxi.TestHidden == 0, $"Taxi listet jedes Hangar-Ziel ({_m.HudRef.DockTaxi.TestRows} Zeilen, {rentalStands} mit Leihdienst)");
 					_m.TestUndock();
 				}
 				catch (System.Exception ex) { Fail("11-Sektoren-Karte (Phase 21) warf eine Ausnahme: " + ex.GetType().Name + ": " + ex.Message); }

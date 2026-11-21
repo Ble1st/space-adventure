@@ -357,8 +357,10 @@ public class OutfitterShipyardTests
         var r = Exec(Dealer, u, trade, player, "buy:nomad");
         Assert.True(r.Success, r.Message);
         Assert.Equal(50_000f - price, u.PlayerWallet.Credits, 1);
-        Assert.Equal("nomad", u.Ships[u.PlayerShip].ModelKey);
-        Assert.False(u.Ships[u.PlayerShip].Has(Capability.Mining));
+        Assert.Equal(player.Id, u.PlayerShip);   // der Kauf steigt nicht ein — das Schiff liegt geparkt
+        var nomad = PlayerFleet.Owned(u).Single(x => x.ModelKey == "nomad");
+        Assert.Equal(trade.Id, nomad.DockedAt);
+        Assert.False(nomad.Has(Capability.Mining));
     }
 
     [Fact]
@@ -458,6 +460,9 @@ public class OutfitterShipyardTests
         Assert.True(Exec(Outfitter, u, yard, player, $"fit:{Slot(player, "cargo")}:cargo_universal_60").Success);
         foreach (var n in ShipPurchase.Materials(u, u.ShipModels["pip"])!) yard.Stock(n.Good).Amount = MathF.Max(yard.Stock(n.Good).Amount, 3f);
         Assert.True(Exec(Dealer, u, yard, player, "buy:pip").Success);
+        var boughtPip = u.Ships.Values.Single(s => s.IsPlayer && s.ModelKey == "pip");
+        Assert.Equal(player.Id, u.PlayerShip);   // der Kauf steigt nicht ein
+        Assert.True(PlayerFleet.SwitchTo(u, yard, boughtPip.Id, out var board), board);   // Übernehmen im Hangar wie im Spiel
         return u;
     }
 

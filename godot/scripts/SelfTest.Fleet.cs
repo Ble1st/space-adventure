@@ -105,9 +105,11 @@ public partial class SelfTest
 			case 11: case 19: Tap(_p28Press!.Value, false); return false;
 			case 13: case 21:
 			{
-				var cur = u.PlayerShip;
-				Check(cur != _flFirst && !_flBought.Contains(cur) && u.Ships[cur].IsPlayer, $"Werft: Schiff gekauft per Tipp (aktiv #{cur.Value} {u.Ships[cur].ModelKey}; {_m.HudRef.DockShipyard.TestMessage})");
-				if (!_flBought.Contains(cur) && cur != _flFirst) _flBought.Add(cur);
+				// Kein automatisches Einsteigen: Der Kauf wechselt das aktive Schiff nicht; das gekaufte ist das neueste eigene Schiff.
+				var cur = SpaceSim.Core.Simulation.PlayerFleet.Owned(u).OrderBy(s => s.Id.Value).Last();
+				Check(cur.Id != _flFirst && !_flBought.Contains(cur.Id) && u.Ships[cur.Id].IsPlayer && u.PlayerShip == _flFirst,
+					$"Werft: Schiff gekauft per Tipp (gekauft #{cur.Id.Value} {u.ShipModels[cur.ModelKey].Name}, aktiv bleibt #{u.PlayerShip.Value}; {_m.HudRef.DockShipyard.TestMessage})");
+				if (!_flBought.Contains(cur.Id) && cur.Id != _flFirst) _flBought.Add(cur.Id);
 				return false;
 			}
 			case 22: _m.TestUndock(); return false;
@@ -199,16 +201,17 @@ public partial class SelfTest
 					string stR25 = Ui.Screens.AssetsScreen.StateText(minerR25, false, false, u);
 					Check(stR25 != "geparkt" && (stR25.StartsWith("schürft") || minerR25.Command is not MineCommand), $"Besitz: Zustand folgt dem Schürfbefehl ({stR25})");
 				}
-				// Fernwechsel aus der Flotte und zurück
+				// Fernwechsel aus der Flotte: in ein gekauftes (nicht aktives) Schiff und zurück
+				_flSwTarget = _flBought.Count > 0 ? _flBought[0] : _flFirst;
 				PressButton(cc, "Flotte", true);
 				return false;
 			case 57: PressButton(cc, "Flotte", false); return false;
-			case 59: PressButton(cc, $"#{_flFirst.Value} {u.ShipModels[u.Ships[_flFirst].ModelKey].Name}", true); return false;
-			case 60: PressButton(cc, $"#{_flFirst.Value} {u.ShipModels[u.Ships[_flFirst].ModelKey].Name}", false); return false;
+			case 59: PressButton(cc, $"#{_flSwTarget.Value} {u.ShipModels[u.Ships[_flSwTarget].ModelKey].Name}", true); return false;
+			case 60: PressButton(cc, $"#{_flSwTarget.Value} {u.ShipModels[u.Ships[_flSwTarget].ModelKey].Name}", false); return false;
 			case 62: _flBefore = u.PlayerShip; PressButton(cc, "Übernehmen", true); return false;
 			case 63: PressButton(cc, "Übernehmen", false); return false;
 			case 70:
-				Check(u.PlayerShip == _flFirst, $"Fernwechsel per Tipp in #{_flFirst.Value} (aktiv #{u.PlayerShip.Value})");
+				Check(u.PlayerShip == _flSwTarget, $"Fernwechsel per Tipp in #{_flSwTarget.Value} (aktiv #{u.PlayerShip.Value})");
 				if (u.Ships.ContainsKey(_flBefore)) _m.TestSwitchRemote(_flBefore);
 				return false;
 			case 76:
@@ -240,6 +243,6 @@ public partial class SelfTest
 		}
 		return false;
 	}
-	ShipId _flMiner, _flEscort, _flBefore, _flEscTarget;
+	ShipId _flMiner, _flEscort, _flBefore, _flEscTarget, _flSwTarget;
 	Ui.Kit.KitButton? _flBuy;
 }

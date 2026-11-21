@@ -212,8 +212,8 @@ public class ErkundungTests
         Assert.True(reg.TryGet(CommandKinds.ExploreUniverse, out var b) && !b.ForPlayer);   // eine Taste „Erkunden“, Universum ist ihr erstes Ziel
         var u = World();
         var home = u.Stations.Values.Where(s => s.Sector == u.PlayerSector && !s.IsBuildSite).OrderBy(s => s.Id.Value).First();
-        // das aktive Schiff nimmt keine Befehle
-        Assert.False(Commands.Give(u, Player(u), new ExploreUniverseCommand(), out _));
+        // das aktive Schiff nimmt Befehle an (an Bord pausiert, siehe PersonZuFussTests); es zählt zur Kapazität
+        Assert.True(Commands.Give(u, Player(u), new ExploreUniverseCommand(), out _));
         var ships = Enumerable.Range(0, 40).Select(_ => Own(u, "pip", home)).ToList();
         int given = ships.Count(s => Commands.Give(u, s, new ExploreUniverseCommand(), out _));
         Assert.True(given < ships.Count, "Befehlskapazität begrenzt auch Erkunden");

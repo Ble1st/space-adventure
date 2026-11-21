@@ -39,7 +39,7 @@ public static class PlayerFleet
                 u.PlayerAtStation = default;   // zurück an Bord des geparkten eigenen Schiffs
                 u.Journal.Clear();
                 u.Events.Publish(new ActiveShipChanged(id, id, st.Id));
-                message = $"Du gehst an Bord von Schiff #{back.Id.Value}" + (u.ShipModels.TryGetValue(back.ModelKey, out var m) ? $" ({m.Name})." : ".");
+                message = $"Du gehst an Bord von Schiff #{back.Id.Value}" + (u.ShipModels.TryGetValue(back.ModelKey, out var bm) ? $" ({bm.Name})." : ".");
                 return true;
             }
             message = "Dieses Schiff ist bereits aktiv."; return false;

@@ -243,7 +243,7 @@ public class ResearchTests
         foreach (var k in new[] { Fusion, Lasers, Deep }) Complete(u, Guild, k);
         Assert.True(ShipDealerService.Quote(u, yard, player, "excavator")!.Buyable);
         Assert.True(Exec(dealer, u, yard, player, "buy:excavator").Success);
-        Assert.Equal("excavator", u.Ships[u.PlayerShip].ModelKey);
+        Assert.Equal("excavator", PlayerFleet.Owned(u).Single(x => x.ModelKey == "excavator").ModelKey);   // der Kauf steigt nicht ein
     }
 
     [Fact]

@@ -620,8 +620,8 @@ public class Phase25Tests
         u.WalletOf(player).Credits = 50000f;
         var r = dealer.Execute(u, yard, player, new ServiceRequest("buy:falcon", default, 0f));
         Assert.True(r.Success, r.Message);
-        var bought = u.Ships[u.PlayerShip];
-        Assert.Equal("falcon", bought.ModelKey);
+        var bought = PlayerFleet.Owned(u).Single(x => x.ModelKey == "falcon");   // der Kauf steigt nicht ein: das gekaufte Schiff
+        Assert.Equal(yard.Id, bought.DockedAt);
         Assert.True(bought.Stats.PowerStorage > 0f && bought.Stats.WeaponPower > 0f);
         // Startpaket „Jäger“
         var w = SpaceSim.Core.Content.WorldBuilder.Build(TestWorlds.Def(fuel: false, research: false), null, "fighter");

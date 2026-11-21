@@ -54,7 +54,7 @@ public class PersonZuFussTests
         PlayerFleet.Undock(u, player);
         player.DockedAt = default;
         Assert.False(PlayerFleet.LeaveShip(u, out var flying));
-        Assert.Contains("andocken", flying);
+        Assert.Contains("angedockt", flying);
         Assert.False(u.PlayerOnFoot);
 
         PlayerFleet.Dock(u, player, yard);
