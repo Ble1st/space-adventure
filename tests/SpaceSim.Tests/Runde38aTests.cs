@@ -25,7 +25,7 @@ public class Runde38aTests
     static Station St(Universe u, int id) => u.Stations[new StationId(id)];
 
     [Fact]
-    public void TaxiInsLeihschiff_AngezeigterPreisIstDieAbbuchung_AuchNachDerTaeglichenAbrechnung()
+    public void TaxiSteigtOhneSchiffAus_AngezeigterPreisIstDieAbbuchung_AuchNachDerTaeglichenAbrechnung()
     {
         var u = World();
         var player = u.Ships[u.PlayerShip];
@@ -34,7 +34,7 @@ public class Runde38aTests
         PlayerFleet.Dock(u, player, from);
         var taxi = new TaxiService();
         var q = TaxiService.Quotes(u, from, player).First(x => x.Bookable && x.WaitingShip is null && x.RentalThere);
-        Assert.Contains("1. Tag", q.Breakdown(u.Rules));
+        Assert.Contains("Fahrt", q.Breakdown(u.Rules));   // das Leihschiff mietet die Person am Ziel selbst: bezahlt ist nur die Fahrt
         float before = u.PlayerWallet.Credits;
         var res = taxi.Execute(u, from, player, new ServiceRequest($"taxi:{q.To.Id.Value}", default, 0f));
         Assert.True(res.Success, res.Message);

@@ -19,7 +19,8 @@ public sealed record ShipQuote(ShipModel Model, ShipClass Class, ShipStats Stats
 /// (<see cref="StationType.ShipDealer"/>: Klassen, Höchstgröße, Montagegebühr — die Werft alle Klassen, die Handelsstation nur Skiffs).
 /// Der Kauf folgt der gemeinsamen Regel <see cref="ShipPurchase"/>: Bausatz der Klasse plus je Modul des Werks-Fits eine Modul-Ware aus
 /// dem Stationslager; Preis = Marktpreis × (1 + Montagegebühr), Zahlung aus der Spielerkasse an die Station. Das neue Schiff gehört dem
-/// Spieler (Steuerer Player) und wird sofort das aktive Schiff; das bisherige bleibt als Spielerbesitz an der Station geparkt
+/// Spieler (Steuerer Player), liegt fertig angedockt am Andockpunkt (<see cref="Ship.DockedAt"/> dieser Station) und wird NICHT automatisch
+/// bestiegen — die Person bleibt im bisherigen aktiven Schiff (oder zu Fuß) und übernimmt das gekaufte Schiff über den Hangar
 /// (<see cref="PlayerFleet.SwitchTo"/>). Angebots-Schlüssel streng „buy:&lt;Modellschlüssel&gt;“.
 /// </summary>
 public sealed class ShipDealerService : IStationService
@@ -91,11 +92,11 @@ public sealed class ShipDealerService : IStationService
     }
 
     /// <summary>
-    /// Kauft das Modell: verbraucht Bausatz und Module aus dem Stationslager, bucht den Preis von der Spielerkasse an die Station, setzt das
-    /// neue Spielerschiff an den Andockpunkt und macht es zum aktiven Schiff. Nur Spielerschiffe kaufen hier (die KI kauft über
+    /// Kauft das Modell: verbraucht Bausatz und Module aus dem Stationslager, bucht den Preis von der Spielerkasse an die Station und setzt das
+    /// neue Spielerschiff an den Andockpunkt (angedockt, geparkt). Das aktive Schiff wechselt dabei nicht (kein automatisches Einsteigen —
+    /// auch nicht zu Fuß), dafür gibt es den Hangar-Dienst. Nur Spielerschiffe kaufen hier (die KI kauft über
     /// <see cref="FleetSystem"/> mit derselben Regel). Fehlschlag (unbekannter Schlüssel, Modell hier nicht verkauft, Material fehlt,
-    /// zu wenig Credits) ändert nichts und löst kein Event aus. Erfolg: <see cref="ServicePerformed"/>, <see cref="ShipPurchased"/>,
-    /// <see cref="ActiveShipChanged"/>.
+    /// zu wenig Credits) ändert nichts und löst kein Event aus. Erfolg: <see cref="ServicePerformed"/>, <see cref="ShipPurchased"/>.
     /// </summary>
     public ServiceResult Execute(Universe u, Station station, Ship ship, ServiceRequest request)
     {
@@ -127,11 +128,11 @@ public sealed class ShipDealerService : IStationService
         u.Events.Publish(new ShipQualityRolled(id, quality.Rolled, quality.Grade));
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Buy, u.FindGood(ShipPurchase.KitKeyOf(u, q.Class))!.Id, 1f, -q.Price));
         u.Events.Publish(new ShipPurchased(id, station.Id, modelKey, q.Price));
-        // Das gekaufte Schiff wird sofort aktiv; das bisherige bleibt geparkt an dieser Station
-        if (ship.Id == u.PlayerShip) PlayerFleet.SwitchTo(u, station, id, out _);
+        // Der Kauf steigt nicht selbst ein: Das gekaufte Schiff liegt fertig am Andockpunkt der Station (im Hangar); die Person bleibt, wo sie ist
+        // (im bisherigen aktiven Schiff oder zu Fuß in der Station). Übernehmen über den Hangar (Dienst "hangar").
         string grade = quality.Grade == ShipQuality.Standard ? "" : $" Güteklasse {ShipQualityNames.Name(quality.Grade)}!";
         return new ServiceResult(true, 1f, -q.Price,
-            $"{q.Model.Name} gekauft für {q.Price:0} Cr –{grade} du fliegst jetzt Schiff #{id.Value}; #{ship.Id.Value} bleibt hier im Hangar.");
+            $"{q.Model.Name} gekauft für {q.Price:0} Cr –{grade} Schiff #{id.Value} liegt hier im Hangar.");
     }
 
     static ServiceResult Fail(string message) => new(false, 0f, 0f, message);

@@ -9,11 +9,13 @@ namespace SpaceSim.Core.Simulation;
 /// </summary>
 public static class Commands
 {
-    /// <summary>Kann dieses Schiff den Befehl annehmen? null = ja, sonst der Grund (ohne Kapazität, siehe <see cref="CapacityIssue"/>).</summary>
+    /// <summary>Kann dieses Schiff den Befehl annehmen? null = ja, sonst der Grund (ohne Kapazität, siehe <see cref="CapacityIssue"/>). Auch das
+    /// aktive Schiff nimmt Befehle an: zu Fuß führt es sie sofort aus, an Bord pausiert der Befehl, bis die Person aussteigt.</summary>
     public static string? Check(Universe u, Ship ship, ShipCommand command, OrderExecutors? executors = null)
     {
         executors ??= OrderExecutors.Default;
-        if (ship.Id == u.PlayerShip) return "Das aktive Schiff steuerst du selbst.";
+        // Auch das aktive Schiff nimmt Befehle an (Nutzerwunsch: Befehl wie ein Flottenschiff): zu Fuß führt es ihn sofort aus, an Bord
+        // pausiert er, bis die Person aussteigt (<see cref="PlayerFleet.LeaveShip"/>) oder weiterwechselt — <see cref="OrderSystem"/> beendet ihn nicht.
         if (!executors.TryGet(command.Kind, out var ex)) return $"Unbekannter Befehl '{command.Kind}'.";
         if (ex.Needs != Capability.None && !ship.Has(ex.Needs)) return $"Dafür fehlt die Fähigkeit ({CapabilityName(ex.Needs)}).";
         return ex.Check(u, ship, command);
@@ -117,8 +119,9 @@ public static class Commands
     public static string Describe(Universe u, Ship ship, OrderExecutors? executors = null)
     {
         executors ??= OrderExecutors.Default;
-        if (ship.Command is not { } cmd) return ship.IsPlayer ? (ship.Id == u.PlayerShip ? "von dir gesteuert" : "kein Befehl — hält die Position") : "Automatik";
+        if (ship.Command is not { } cmd) return ship.IsPlayer ? (ship.Id == u.PlayerShip ? (u.PlayerOnFoot ? "zu Fuß in der Station — Schiff hält die Position" : "von dir gesteuert") : "kein Befehl — hält die Position") : "Automatik";
         string text = executors.TryGet(cmd.Kind, out var ex) ? ex.Describe(u, ship, cmd) : cmd.Kind;
+        text = ship.Id == u.PlayerShip && !u.PlayerOnFoot ? text + " (pausiert, solange du an Bord bist)" : text;
         return ship.Emergency ? "NOTFALL: zur Reparatur — danach " + text : text;
     }
 

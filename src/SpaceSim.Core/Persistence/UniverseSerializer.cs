@@ -126,7 +126,7 @@ public static class UniverseSerializer
             PanicSince = u.PanicSince.Count == 0 ? null : u.PanicSince.OrderBy(kv => kv.Key.Part).ThenBy(kv => kv.Key.Good.Value).Select(kv => new long[] { kv.Key.Part, kv.Key.Good.Value, kv.Value }).ToList(),
             IdleRetiredTick = u.IdleRetiredTick.Count == 0 ? null : u.IdleRetiredTick.OrderBy(kv => kv.Key.Job, StringComparer.Ordinal).ThenBy(kv => kv.Key.Part).ToDictionary(kv => $"{kv.Key.Job}@{kv.Key.Part}", kv => kv.Value),
             NextShipId = u.IdCounters.ship, NextStationId = u.IdCounters.station, NextAsteroidId = u.NextAsteroidId,
-            PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, Rules = u.Rules,
+            PlayerSector = u.PlayerSector.Value, PlayerShip = u.PlayerShip.Value, PlayerAtStation = u.PlayerAtStation.Value, Rules = u.Rules,
             PlayerActor = u.PlayerActor.Value, FreeActor = u.FreeActor.Value, NextActorId = u.NextActorId,
         };
         foreach (var a in u.Actors.Values.OrderBy(a => a.Id.Value))
@@ -461,7 +461,7 @@ public static class UniverseSerializer
             IdleRetiredTick = s.IdleRetiredTick is null ? new Dictionary<(string, int), long>()
                 : s.IdleRetiredTick.ToDictionary(kv => (kv.Key[..kv.Key.LastIndexOf('@')], int.Parse(kv.Key[(kv.Key.LastIndexOf('@') + 1)..], System.Globalization.CultureInfo.InvariantCulture)), kv => kv.Value),
             Rng = new DeterministicRng(s.Seed) { State = s.RngState },
-            PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip),
+            PlayerSector = new SectorId(s.PlayerSector), PlayerShip = new ShipId(s.PlayerShip), PlayerAtStation = new StationId(s.PlayerAtStation),
         };
         // Phase 9: Akteure (die Migration v11→v12 legt sie für ältere Stände an)
         u.Actors.Clear();

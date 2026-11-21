@@ -183,7 +183,7 @@ public class QualityUpgradeTests
         var r = Exec(Dealer, u, yard, player, "buy:unit_trader_100");
         Assert.True(r.Success, r.Message);
         Assert.Contains("Verbessert", r.Message);
-        var ship = u.Ships[u.PlayerShip];
+        var ship = PlayerFleet.Owned(u).Single(x => x.ModelKey == "unit_trader_100");   // der Kauf steigt nicht ein: das gekaufte Schiff
         Assert.Equal(ShipQuality.Improved, ship.Quality);
         Assert.Equal(ShipQuality.Improved, rolled.Single().Grade);
         Assert.Equal(wallet - quote.Price, u.PlayerWallet.Credits, 1);              // Mehrkosten trägt die Werft
@@ -201,7 +201,7 @@ public class QualityUpgradeTests
         u.Rules.QualityChances = new List<float> { 0f, 0f, 0f, 1f };   // immer „Meisterwerk“
         var cargo = Stock(u, yard, "cargo_universal_100");
         Assert.True(Exec(Dealer, u, yard, player, "buy:unit_trader_100").Success);
-        var ship = u.Ships[u.PlayerShip];
+        var ship = PlayerFleet.Owned(u).Single(x => x.ModelKey == "unit_trader_100");   // der Kauf steigt nicht ein: das gekaufte Schiff
         var cls = u.ShipClasses["unit_trader"];
         Assert.Equal(ShipQuality.Masterwork, ship.Quality);
         Assert.Equal(cls.Slots.Count + 1, ship.Slots.Count);                         // Bonusslot (Kopie des Frachtslots)
@@ -221,9 +221,10 @@ public class QualityUpgradeTests
         var rolled = new List<ShipQualityRolled>();
         u2.Events.Raised += e => { if (e is ShipQualityRolled q) rolled.Add(q); };
         Assert.True(Exec(Dealer, u2, yard2, player2, "buy:unit_trader_100").Success);
-        Assert.Equal(ShipQuality.Standard, u2.Ships[u2.PlayerShip].Quality);
-        Assert.Equal(new ShipQualityRolled(u2.PlayerShip, ShipQuality.Masterwork, ShipQuality.Standard), rolled.Single());
-        Assert.Equal(u2.ShipModels["unit_trader_100"].Fit, u2.Ships[u2.PlayerShip].Fit);
+        var bought2 = PlayerFleet.Owned(u2).Single(x => x.ModelKey == "unit_trader_100");   // der Kauf steigt nicht ein: das gekaufte Schiff
+        Assert.Equal(ShipQuality.Standard, bought2.Quality);
+        Assert.Equal(new ShipQualityRolled(bought2.Id, ShipQuality.Masterwork, ShipQuality.Standard), rolled.Single());
+        Assert.Equal(u2.ShipModels["unit_trader_100"].Fit, bought2.Fit);
     }
 
     [Fact]

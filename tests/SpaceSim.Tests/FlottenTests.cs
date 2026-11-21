@@ -105,8 +105,9 @@ public class FlottenTests
                 float kitBefore = yard.Market[kit].Amount, wallet = u.PlayerWallet.Credits, cash = yard.Credits;
                 var res = Dealer.Execute(u, yard, me, new ServiceRequest(o.Value.Key, default, 1f));
                 Assert.True(res.Success, res.Message);
-                var ship = u.Ships[u.PlayerShip];
-                Assert.Equal(key, ship.ModelKey);
+                var ship = PlayerFleet.Owned(u).Where(x => x.ModelKey == key).OrderBy(x => x.Id.Value).Last();   // der Kauf steigt nicht ein: das neueste Schiff des Modells
+                Assert.Equal(yard.Id, ship.DockedAt);
+                Assert.NotEqual(ship.Id, u.PlayerShip);
                 Assert.Equal(u.PlayerActor, ship.Owner);
                 Assert.True(ship.IsPlayer);
                 Assert.Equal(yard.Id, ship.HomeBase);
@@ -594,8 +595,8 @@ public class FlottenTests
         var first = u.PlayerShip;
         Assert.True(PlayerFleet.SwitchRemote(u, g.Id, out var sm), sm);
         Assert.Equal(g.Id, u.PlayerShip);
-        Assert.Null(g.Transit);
-        Assert.Null(g.Command);
+        Assert.Null(g.Transit);            // die laufende Reise endet an Ort und Stelle
+        Assert.NotNull(g.Command);         // der Befehl selbst bleibt (an Bord pausiert, nach dem Aussteigen läuft er weiter)
         Assert.True(PlayerFleet.SwitchRemote(u, first, out var sm2), sm2);
         Assert.Equal(first, u.PlayerShip);
         sb.AppendLine($"Fernwechsel: in fahrendes Schiff #{g.Id.Value} (hält an, Befehl endet) und zurück");

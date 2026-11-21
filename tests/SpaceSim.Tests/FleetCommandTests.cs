@@ -113,7 +113,7 @@ public class FleetCommandTests
     {
         var u = World();
         var nomad = Own(u, "nomad", St(u, 1));
-        Assert.NotNull(Commands.Check(u, u.Ships[u.PlayerShip], new HoldCommand()));                // aktives Schiff steuert der Spieler
+        Assert.Null(Commands.Check(u, u.Ships[u.PlayerShip], new HoldCommand()));                 // Befehl ans aktive Schiff ist erlaubt (an Bord pausiert er, siehe PersonZuFussTests)
         var prospector = Own(u, "prospector", St(u, 1));   // Phase 29: der Nomade trägt jetzt einen Laser — unbewaffnet ist der Goldsucher
         Assert.Contains("Waffen", Commands.Check(u, prospector, new PatrolCommand(new[] { Alpha }))!);   // keine Waffen
         Assert.Contains("Mining", Commands.Check(u, nomad, new MineCommand(AutoLimits.None))!);
@@ -432,7 +432,7 @@ public class FleetCommandTests
     }
 
     [Fact]
-    public void Fernwechsel_HaeltReisendesSchiffAn_BefehlEndet_AltesBleibt()
+    public void Fernwechsel_HaeltReisendesSchiffAn_BefehlBleibt_AltesBleibt()
     {
         var u = World();
         var player = u.Ships[u.PlayerShip];
@@ -445,13 +445,16 @@ public class FleetCommandTests
         Assert.True(PlayerFleet.SwitchRemote(u, nomad.Id, out _));
         Assert.Equal(nomad.Id, u.PlayerShip);
         Assert.Equal(nomad.Sector, u.PlayerSector);
-        Assert.Null(nomad.Transit);
-        Assert.Null(nomad.Command);
+        Assert.Null(nomad.Transit);   // die laufende Reise endet an Ort und Stelle
+        Assert.NotNull(nomad.Command);   // der Befehl selbst bleibt: an Bord pausiert er, nach dem Aussteigen läuft er weiter
+        Assert.IsType<GoToCommand>(nomad.Command);
         Assert.Equal(ShipRole.Player, nomad.Role);
         Assert.Equal(oldPos, player.Position);
         Assert.Contains(ev, e => e is ActiveShipChanged ac && ac.New == nomad.Id);
         Run(u, 100);
-        Assert.Equal(oldPos, player.Position);   // das alte Schiff hält ohne Befehl die Position
+        Assert.Equal(oldPos, player.Position);   // das alte Schiff hält die Position
+        Assert.Equal(nomad.Id, u.PlayerShip);
+        Assert.NotNull(nomad.Command);   // an Bord führt das Order-System den Befehl nicht aus (Pause statt Ende)
     }
 
     // ───────── Taxi und Leihschiff ─────────
@@ -472,14 +475,21 @@ public class FleetCommandTests
         Assert.Equal(1, q.Jumps);
         Assert.True(q.Price > u.Rules.TaxiBaseFee);
         var noShip = TaxiService.Quote(u, from, player, St(u, 1))!;   // Werk Alpha: kein Schiff, kein Leihdienst
-        Assert.False(noShip.Bookable);
+        Assert.True(noShip.Bookable);   // die Person steigt zu Fuß aus — warten/leihen entscheidet sie am Ziel selbst
         float wallet = u.PlayerWallet.Credits;
         var res = taxi.Execute(u, from, player, new ServiceRequest($"taxi:{St(u, 18).Id.Value}", default, 0f));
         Assert.True(res.Success, res.Message);
         Assert.Equal(q.Ticks, (long)res.Units);
-        Assert.Equal(waiting.Id, u.PlayerShip);
+        Assert.Equal(player.Id, u.PlayerShip);   // kein automatisches Übernehmen: die Person ist zu Fuß am Ziel
+        Assert.Equal(St(u, 18).Id, u.PlayerAtStation);
+        Assert.Equal(St(u, 18).Sector, u.PlayerSector);
         Assert.Equal(from.Id, player.DockedAt);   // das Schiff bleibt in Beta
         Assert.Equal(wallet - q.Price, u.PlayerWallet.Credits, 2);
+        // im Hangar des Ziels wartet das eigene Schiff (auch das aktive, geparkte): Übernehmen beendet das Zu-Fuß-Sein
+        Assert.Contains(waiting, PlayerFleet.ParkedAt(u, St(u, 18)));
+        Assert.True(new HangarService().Execute(u, St(u, 18), player, new ServiceRequest($"switch:{waiting.Id.Value}", default, 0f)).Success);
+        Assert.Equal(waiting.Id, u.PlayerShip);
+        Assert.False(u.PlayerOnFoot);
 
         // gesperrte Route: alle Tore Deltas geschlossen → nicht buchbar, mit Grund (Phase 21: Delta hat Ringverbindungen, ein Tor allein sperrt nicht mehr)
         foreach (var gid in u.Sectors[St(u, 18).Sector].Gates.ToList()) GateAccess.SetState(u, u.Gates[gid], GateState.Closed);
