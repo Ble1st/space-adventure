@@ -37,6 +37,15 @@ public partial class SelfTest
 			case 14: _m.Session.RunTicks(8); hud.DockMenu.Refresh(); return false;   // Ticks und Auffrischung unter dem Finger
 			case 18: PressButton(hud.DockMenu, "Schiff verlassen", false); return false;
 			case 22: Check(u.PlayerOnFoot && u.PlayerAtStation == _dfStation, $"DF: „Schiff verlassen“ wirkt mit einem Tipp trotz Ticks und Auffrischung (zu Fuß {u.PlayerOnFoot})"); return false;
+			case 23: _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade); hud.Screens.Current?.Refresh(); return false;
+			case 24:
+			{
+				// Nutzer: zu Fuß hängt das Schiff nicht mehr an der Person — die Schiffsspalte zeigt „Du bist zu Fuß“, auch wenn es hier liegt
+				var texts = hud.DockTrade.TestShipPanelTexts();
+				Check(texts.Contains("Du bist zu Fuß") && texts.Any(t => t.Contains("liegt gerade hier")), $"DF: zu Fuß zeigt die Schiffsspalte keine Bordansicht ({string.Join(" | ", texts.Take(4))})");
+				_m.TestCloseDockArea();
+				return false;
+			}
 			case 26: _m.TestMenu("new:miner"); return false;
 			case 32:
 			{

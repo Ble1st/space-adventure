@@ -56,7 +56,7 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		var card = CardBg(inner, 0, 28, w - 8, 78, new Color(0.12f, 0.22f, 0.4f, 0.95f), Cyan, 10, 2);
 		At(card, new ShipSketch { CustomMinimumSize = new Vector2(48, 40), Size = new Vector2(48, 40), MouseFilter = MouseFilterEnum.Ignore }, 12, 14);
 		At(card, Text($"Dein Schiff #{ship.Id.Value} · {ModelName(u, ship)} · {ShipQualityNames.Name(ship.Quality)}{(ship.IsRental ? " · Leihschiff" : "")}", 20, White), 72, 6, 640, 28);
-		At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive && SpaceSim.Core.Flight.TankInfo.ShortLine(u, ship) is { Length: > 0 } tline ? $" · {tline}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
+		At(card, Text($"{(u.PlayerOnFoot ? "Du bist zu Fuß – " + (ship.Transit is not null ? "Schiff unterwegs" : ship.DockedAt == st.Id ? "Schiff liegt hier" : "Schiff woanders") + " · " + Commands.Describe(u, ship) : "AKTIV – von dir gesteuert")} · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive && SpaceSim.Core.Flight.TankInfo.ShortLine(u, ship) is { Length: > 0 } tline ? $" · {tline}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
 
 		// ── Eigene Schiffe hier (Dienst „hangar“) ──
 		// Runde 34b (Prüfung B1): schmale Fläche (Handy bei „groß“) — die rechte Spalte (fremde Schiffe, Leihdienst) rückt unter die eigenen Schiffe

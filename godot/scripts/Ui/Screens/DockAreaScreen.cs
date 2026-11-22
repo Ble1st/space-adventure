@@ -110,7 +110,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", L.Compact ? 22 : 26, Orange, HorizontalAlignment.Right), cx, 0, L.Credits.W, 32);
 		// Runde 34b: eingeklappte Schiffsspalte (schmale Fläche) — der Laderaum steht dann hier statt der Stationskasse (die steht in der Stationsinfo)
 		// Runde 42c: versiegelte Auftragsfracht (Ship.MissionCargo) zählt zum belegten Laderaum
-		bool shipElsewhere = u.PlayerOnFoot && ship.DockedAt != st.Id;   // zu Fuß: das aktive Schiff liegt woanders — keine Schiffsdaten hier
+		bool shipElsewhere = u.PlayerOnFoot;   // zu Fuß: die Person ist nicht an Bord — keine Schiffsdaten hier, auch wenn das Schiff gerade hier anlegt (Nutzer: „Schiff hängt noch am Spieler“)
 		string second = L.ShipCollapsed && !shipElsewhere ? $"Laderaum {ship.UsedVolume(u) + ship.MissionCargo:0.#}/{ship.CargoCapacity:0} m³ · Hülle {(int)ship.Hull}/{(int)ship.MaxHull}" : $"Kasse der Station {st.Credits:0} Cr";
 		At(top, Text(second, L.Compact ? 14 : 16, Dim, HorizontalAlignment.Right), cx, L.Compact ? 34 : 38, L.Credits.W, 22);
 
@@ -215,16 +215,23 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 	{
 		var u = Ctx.U; var ship = Ctx.Ship;
 		var p = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, x, y, w, h);
-		if (u.PlayerOnFoot && Ctx.Station is { } here && ship.DockedAt != here.Id)
+		if (u.PlayerOnFoot && Ctx.Station is { } here)
 		{
-			// Zu Fuß in einer anderen Station (z. B. nach dem Taxi): das eigene Schiff liegt dort, wo es geparkt wurde — hier zeigt die Karte nur das an
+			// Zu Fuß: die Person sitzt in keinem Schiff — die Karte zeigt nur, wo das (aktive) Schiff gerade ist und was es tut, live aus dem Core.
+			// Legt es mit seinem Befehl hier an oder ab, wird es nicht zum „angedockten Schiff der Person“ (Nutzer: Schiff hing noch am Spieler).
 			p.AddThemeStyleboxOverride("panel", overlay ? Box(PanelSolid, Cyan, 10, 2, 12) : Box(PanelBg, null, 10, 0, 12));
 			var fv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 			fv.AddThemeConstantOverride("separation", 7);
 			p.AddChild(fv);
 			fv.AddChild(Text("Du bist zu Fuß", 20, Cyan));
-			string loc = u.Stations.TryGetValue(ship.DockedAt, out var at) ? $"{at.Name} ({(u.Sectors.TryGetValue(at.Sector, out var asec) ? asec.Name : "?")})" : "unterwegs";
-			var info = Text($"Dein Schiff liegt in {loc}. Im Hangar hier ein Schiff übernehmen oder mieten.", 14, Dim);
+			string sectorName = u.Sectors.TryGetValue(ship.Sector, out var ssec) ? ssec.Name : "?";
+			string where = ship.Transit is not null ? "ist unterwegs"
+				: ship.DockedAt == here.Id ? "liegt gerade hier im Hangar"
+				: u.Stations.TryGetValue(ship.DockedAt, out var at) ? $"liegt in {at.Name} ({(u.Sectors.TryGetValue(at.Sector, out var asec) ? asec.Name : "?")})"
+				: $"ist im Raum ({sectorName})";
+			string doing = ship.Command is null ? "" : $" Befehl: {SpaceSim.Core.Simulation.Commands.Describe(u, ship)}.";
+			string hint = ship.DockedAt == here.Id && ship.Transit is null ? " Im Hangar wieder an Bord gehen." : " Im Hangar hier ein Schiff übernehmen oder mieten.";
+			var info = Text($"Dein Schiff #{ship.Id.Value} {where}.{doing}{hint}", 14, Dim);
 			info.AutowrapMode = TextServer.AutowrapMode.WordSmart; info.CustomMinimumSize = new Vector2(w - 28, 0);
 			fv.AddChild(info);
 			fv.AddChild(Text($"{(int)u.WalletOf(ship).Credits} Credits", 15, White));
