@@ -1147,6 +1147,26 @@ public partial class Main : Node3D
 		return true;
 	}
 
+	Vector3 _dockFocus;
+	/// <summary>Runde 46f: Blickpunkt so nachführen, dass die Station (Spielerknoten = Stationsmitte) in der Mitte der freien Fläche links der Dock-Karte steht.</summary>
+	void DockFrame()
+	{
+		if (_hud.DockMenu.CardGlobal is not { } card) return;
+		var vs = GetViewport().GetVisibleRect().Size;
+		var target = _player.Position;
+		if (_cam.IsPositionBehind(target)) return;
+		var p = _cam.UnprojectPosition(target);
+		var want = new Vector2(Mathf.Max(80f, card.Position.X) * 0.5f, vs.Y * 0.5f);
+		var err = want - p;
+		float dist = (_cam.Position - (_player.Position + _camFocus)).Length();
+		float wpp = 2f * dist * Mathf.Tan(Mathf.DegToRad(_cam.Fov) * 0.5f) / Mathf.Max(1f, vs.Y);
+		var right = _cam.GlobalTransform.Basis.X; right.Y = 0f; right = right.Normalized();
+		var fwd = -_cam.GlobalTransform.Basis.Z; float sinP = Mathf.Max(0.3f, -fwd.Y); fwd.Y = 0f; fwd = fwd.Normalized();
+		// Station soll im Bild nach rechts (err.X > 0) → Blickpunkt nach links; nach unten (err.Y > 0) → Blickpunkt nach vorn
+		_dockFocus += (-right * err.X + fwd * (err.Y / sinP)) * wpp * 0.15f;
+		_dockFocus.Y = 0f;
+	}
+
 	void StepSpectate(float delta)
 	{
 		var u = _session.U;
@@ -1767,6 +1787,20 @@ public partial class Main : Node3D
 			var cf = SpaceSim.Core.Flight.CombatFraming.CenterShip(_player.Position.X, _player.Position.Z, _orbit.YawDeg, _orbit.PitchDeg, _cam.Fov, vsz.X / Mathf.Max(1f, vsz.Y), dist, ff);
 			focus = new Vector3(cf.FocusX - _player.Position.X, 0f, cf.FocusZ - _player.Position.Z);
 		}
+		// Runde 46f: angedockt mit Dock-Menü — Live-Ansicht der Station im freien Bereich links neben der Menükarte (Kamera kreist, Abstand nach
+		// Stationsgröße); der Blickpunkt wird unten nach dem Setzen der Kamera im Bild nachgeführt (DockFrame)
+		bool dockFrame = _docked != null && _hud.Screens.Current == _hud.DockMenu && _hud.DockMenu.CardGlobal is not null;
+		if (dockFrame)
+		{
+			float dist = Mathf.Sqrt(want.X * want.X + want.Y * want.Y + want.Z * want.Z);
+			if (_session.U.Stations.TryGetValue(_docked!.Value, out var dockSt) && dist > 1e-3f)
+			{
+				float k = Mathf.Max(1f, dockSt.Radius * 4.5f / dist);
+				want = new CamVec3(want.X * k, want.Y * k, want.Z * k);
+			}
+			focus = _dockFocus;
+		}
+		else _dockFocus = Vector3.Zero;
 		// Runde 44: Rückansicht — Vorausblick vor dem Bug statt der Mitte des freien Felds (Schutz ShipInFreeField bleibt)
 		if (!_framingActive && _docked == null && _orbit.Mode == CameraMode.Chase)
 		{
@@ -1798,6 +1832,7 @@ public partial class Main : Node3D
 		else _dockRot = 0f;
 		_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
 		_cam.LookAt(_player.Position + _camFocus);
+		if (dockFrame) DockFrame();
 		FollowBackdrop();   // Runde 44: Sterne kacheln mit, Planet mit Parallaxe
 		// Runde 15: das eigene Schiff verlässt nie das freie Feld — liegt es (im Übergang) außerhalb, rückt der Blickpunkt sofort zum Schiff
 		// Runde 33b: nur wenn die Bildmitte selbst frei ist — im Kompakt-HUD (Mitte unter Kampftasten) zog das Zurückziehen das Schiff genau unter die Tasten
