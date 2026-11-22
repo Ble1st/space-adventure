@@ -290,7 +290,7 @@ public class PersonZuFussTests
     }
 
     [Fact]
-    public void Befehlsstand_EigenesSchiff_ErscheintInDerSektoransicht()
+    public void Befehlsstand_EigenesSchiff_BleibtSpielerschiff_WieImFlug()
     {
         var u = World();
         var player = u.Ships[u.PlayerShip];
@@ -299,8 +299,9 @@ public class PersonZuFussTests
         PlayerFleet.Undock(u, player);
         u.PlayerSpectates = true;
 
-        // im Befehlsstand rendert die Ansicht das eigene Schiff als Sektor-Schiff (nicht als manuell geflogenes)
-        Assert.Contains(Materializer.Snapshot(u, beta.Sector, u.Tick), s => s.Id == player.Id);
+        // Runde 46 (Nutzerwunsch: Befehlsstand = nur X und gesperrte Steuerung): das eigene Schiff zeichnet die Ansicht wie im Flug selbst
+        // (Spielerknoten, gleiche Kamera) — es erscheint nie zusätzlich als Sektor-Schiff, sonst wich der Marker dem Kameraanker aus
+        Assert.DoesNotContain(Materializer.Snapshot(u, beta.Sector, u.Tick), s => s.Id == player.Id);
         u.PlayerSpectates = false;
         Assert.DoesNotContain(Materializer.Snapshot(u, beta.Sector, u.Tick), s => s.Id == player.Id);
     }

@@ -38,9 +38,16 @@ public partial class PhoneShots : Node
 		_m.TestSetSlider(0f);
 	}
 
+	void SpectLog()
+	{
+		var u = _m.Session.U; var me = u.Ships[u.PlayerShip];
+		GD.Print($"[r46] tick {u.Tick} spect {_m.TestSpectating} ship {me.Position} sector {me.Sector.Value}/{u.PlayerSector.Value} transit {me.Transit is not null} docked {me.DockedAt.Value} anchor {me.AnchorRock} node {_m.TestPlayerNodePos} vis {_m.TestPlayerNodeVisible} cmd {me.Command?.GetType().Name} order {me.Order?.GetType().Name}");
+	}
+
 	void MiningFrame()
 	{
 		var u = _m.Session.U;
+		if (_frame > 903 && _frame < 1500 && _frame % 60 == 0) SpectLog();
 		switch (_frame)
 		{
 			case 30: _m.TestMenu("new:miner"); break;
@@ -57,27 +64,35 @@ public partial class PhoneShots : Node
 			}
 			case 175: Capture("m01-anker-fliegt.png"); break;
 			case 330: Capture("m02-verankert-abbau.png"); break;
-			case 334: Capture("m02b-verankert-spaeter.png"); break;   // Runde 19: zweite Phase der Bohrerdrehung (4 Bilder später)
-			case 340: _m.TestSetSlider(0.7f); break;
+			case 334: Capture("m02b-verankert-spaeter.png"); break;
+			case 335: _m.TestSetCam(60f, 35f, 14f); break;
+			case 338: Capture("m02c-anker-nah.png"); break;
+			case 339: _m.TestSetCam(200f, 25f, 12f); break;   // Runde 19: zweite Phase der Bohrerdrehung (4 Bilder später)
+			case 340: Capture("m02d-anker-nah2.png"); _m.TestSetSlider(0.7f); break;
 			case 350: Capture("m03-abriss-schub.png"); break;
 			case 360: _m.TestSetSlider(0f); PlaceAtRock(); _m.TestStartMining(); break;
-			case 900: Capture("m04-automatik.png"); break;
+			case 900: Capture("m04-automatik.png"); _m.TestStartMining(); break;
+			case 902: _m.TestSpectateMine(); _m.TestSetFast(true); break;
+			case 903: SpectLog(); break;
+			case 960: SpectLog(); Capture("s01-befehlsstand.png"); break;
+			case 1200: SpectLog(); Capture("s02-befehlsstand-spaeter.png"); break;
+			case 1500: SpectLog(); Capture("s03-befehlsstand-noch-spaeter.png"); break;
 			// Runde 43: Nahaufnahmen Bergbau — Spieler mit M- und L-Werkzeug, NPC-Schürfer S/M/L am Fels, zwei Blickwinkel, zerbrechender Fels
-			case 905: Mining43Setup(); break;
-			case 915: Mining43PlayerAt("excavator", _r43RockM); _m.TestSetCam(25f, 22f, 24f); break;
-			case 995: Capture("m05-spieler-M-bohrer-am-fels.png"); break;
-			case 1000: Mining43PlayerAt("strip_miner", _r43RockL); _m.TestSetCam(140f, 30f, 36f); break;
-			case 1080: Capture("m06-spieler-L-bohrer-am-fels.png"); break;
-			case 1085: Mining43Npcs(); Mining43Overview(); break;
-			case 1090: _m.TestSetCam(_r43Yaw, 30f, 50f); break;
-			case 1170: Capture("m07-npc-S-M-L-anker-aussen.png"); break;
-			case 1175: _m.TestSetCam(_r43Yaw + 140f, 45f, 65f); break;
-			case 1255: Capture("m08-npc-anderer-blickwinkel.png"); break;
-			case 1260: Mining43LookAt(_r43NpcS, 16f, 18f); break;
-			case 1340: Capture("m09-npc-S-nah.png"); break;
-			case 1345: Mining43LookAt(_r43NpcL, 24f, 22f); break;
-			case 1425: Capture("m10-npc-L-nah.png"); break;
-			case 1430:
+			case 2105: Mining43Setup(); break;
+			case 1515: Mining43PlayerAt("excavator", _r43RockM); _m.TestSetCam(25f, 22f, 24f); break;
+			case 1595: Capture("m05-spieler-M-bohrer-am-fels.png"); break;
+			case 1600: Mining43PlayerAt("strip_miner", _r43RockL); _m.TestSetCam(140f, 30f, 36f); break;
+			case 1680: Capture("m06-spieler-L-bohrer-am-fels.png"); break;
+			case 1685: Mining43Npcs(); Mining43Overview(); break;
+			case 1690: _m.TestSetCam(_r43Yaw, 30f, 50f); break;
+			case 1770: Capture("m07-npc-S-M-L-anker-aussen.png"); break;
+			case 1775: _m.TestSetCam(_r43Yaw + 140f, 45f, 65f); break;
+			case 1855: Capture("m08-npc-anderer-blickwinkel.png"); break;
+			case 1860: Mining43LookAt(_r43NpcS, 16f, 18f); break;
+			case 1940: Capture("m09-npc-S-nah.png"); break;
+			case 1945: Mining43LookAt(_r43NpcL, 24f, 22f); break;
+			case 2025: Capture("m10-npc-L-nah.png"); break;
+			case 2030:
 			{
 				// der Fels direkt vor der Kamera (NPC-L) wird leer abgebaut → zerbricht sichtbar im Bild
 				// der NPC-Fels, der der Kamera (Spieler) am nächsten liegt — so liegt das Zerbrechen groß im Bild
@@ -88,9 +103,9 @@ public partial class PhoneShots : Node
 				_r43BreakRock = rb.Id;
 				break;
 			}
-			case 1440: Capture("m11-fels-zerbricht.png"); break;
-			case 1480: Capture("m12-fels-zerbricht-spaeter.png"); break;
-			case 1600: Finish(); break;
+			case 2040: Capture("m11-fels-zerbricht.png"); break;
+			case 2080: Capture("m12-fels-zerbricht-spaeter.png"); break;
+			case 2200: Finish(); break;
 		}
 	}
 

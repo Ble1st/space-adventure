@@ -1140,7 +1140,10 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		var ship = u.Ships[u.PlayerShip];
-		_player.Visible = false;   // gerendert wird das Schiff über die Sektor-Ansicht (NPC-artig)
+		// Runde 46 (Nutzerwunsch: Befehlsstand = nur X und gesperrte Steuerung): das Schiff wird wie im normalen Flug als Spielerschiff gezeichnet —
+		// gleicher Knoten, gleiches Modell, gleiche Kamera; nur die Position kommt aus dem Core (Reise, Abbau, Andocken)
+		bool dockedNow = ship.DockedAt.Value != 0 && ship.Transit is null;
+		_player.Visible = !dockedNow;
 		_player.Velocity = Vector3.Zero;
 		var pos = ship.Position;
 		var heading = _player.Heading;
@@ -1165,6 +1168,25 @@ public partial class Main : Node3D
 				break;
 			}
 		}
+		bool moving = false;
+		if (ship.Transit is not null && (pos - ship.Position).Length > 0.001f) moving = true;
+		// abbauender Kontaktschürfer: Bug zum Fels, Bohrerspitze an der Oberfläche (wie im Flug am Anker)
+		if (!moving && !dockedNow && u.Sectors.TryGetValue(u.PlayerSector, out var sec)
+			&& sec.Asteroids.FirstOrDefault(a => a.Id == (ship.AnchorRock != 0 ? ship.AnchorRock : ship.MineAsteroid)) is { } rock && (rock.Position - pos).Length > 1e-3f
+			&& ship.Stats.UsesContact && SpaceSim.Core.Mining.ContactMining.InContact(pos, (rock.Position - pos).Normalized(), rock, SpaceSim.Core.Mining.ContactMining.ToolReach(ship, u)))
+		{
+			float standoff = _player.Visual is { } pv ? pv.TipOffset : Collision.ShipRadius;
+			pos = SpaceSim.Core.Mining.MiningAnchor.HoldPosition(pos, rock, standoff);
+			heading = AimAssist.Bearing(pos, rock.Position);
+		}
+		else if (!moving && ship.Transit is null)
+		{
+			var step = pos - new Vec2(_player.Position.X, _player.Position.Z);
+			if (step.Length > 0.05f && step.Length < 60f) heading = MathF.Atan2(-step.X, -step.Y);   // kurzer Anflug im Feld (Core bewegt in Tick-Schritten)
+			if (step.Length < 60f) pos = new Vec2(_player.Position.X, _player.Position.Z) + step * (1f - MathF.Exp(-8f * delta));   // glätten wie die Sektor-Schiffe
+		}
+		if (dockedNow && u.Stations.TryGetValue(ship.DockedAt, out var dst)) pos = dst.Position;
+		_player.Visual?.SetEngine(moving ? 1f : 0.15f);
 		_player.Position = new Vector3(pos.X, 0, pos.Y);
 		_player.Heading = heading;
 		_sfx.SetThrust(0f);
@@ -3656,7 +3678,7 @@ public partial class Main : Node3D
 		if (u.Ships.TryGetValue(u.PlayerShip, out var me))
 		{
 			_player.SetModel(me.ModelKey, ShipModels.AccentOf(u, me.Owner));
-			_player.Animate(SpaceSim.Core.Mining.ContactMining.Spin(me.Stats, _chunks.LastContact), delta);
+			_player.Animate(SpaceSim.Core.Mining.ContactMining.Spin(me.Stats, _spectate ? (me.AnchorRock != 0 ? SpaceSim.Core.Mining.ContactState.Mining : SpaceSim.Core.Mining.ContactState.NoContact) : _chunks.LastContact), delta);   // Befehlsstand: Werkzeug dreht nach Core-Anker
 			if (_player.Visual is { Hardpoints.TurretCount: > 0 } pv && ShipWorld(_fight.Target) is { } aim) pv.Hardpoints.AimAll(aim, delta);
 			else if (_player.Visual is { Hardpoints.TurretCount: > 0 } sv && _fight.AtStation && _targetStation is { } ts && u.Stations.TryGetValue(ts, out var tst))
 				sv.Hardpoints.AimAll(new Vector3(tst.Position.X, 0, tst.Position.Y), delta);
@@ -3970,6 +3992,19 @@ public partial class Main : Node3D
 	// ── Hooks für die Kamera-Prüfungen (Selbsttest/Screenshots) ──
 
 	/// <summary>Setzt Kamera-Winkel/-Abstand direkt (geklemmt im Core) und schnappt die Kamera darauf.</summary>
+	/// <summary>Runde 46 (Prüfbilder): dem aktiven Schiff einen Schürfbefehl geben und den Befehlsstand starten (wie über die Kommandozentrale).</summary>
+	internal bool TestSpectateMine()
+	{
+		var u = _session.U;
+		bool ok = SpaceSim.Core.Simulation.Commands.Give(u, PlayerData, new SpaceSim.Core.Model.MineCommand(new SpaceSim.Core.Model.AutoLimits(u.PlayerSector, 0, 2f, 0f)), out var msg, ignoreCapacity: true);
+		GD.Print($"[r46] Befehl: {ok} {msg}");
+		if (ok) SetSpectate(true);
+		return ok;
+	}
+	internal bool TestSpectating => _spectate;
+	internal Vector3 TestPlayerNodePos => _player.Position;
+	internal bool TestPlayerNodeVisible => _player.Visible;
+
 	internal void TestSetCam(float yawDeg, float pitchDeg, float distance)
 	{
 		_orbit.SetAngles(yawDeg, pitchDeg, distance);

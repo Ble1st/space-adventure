@@ -64,7 +64,7 @@ public partial class SelfTest
 				var vis = _m.TestView.TestVisual(id);
 				float shipLen = vis is null ? 1f : 2f * vis.Root.Scale.X;
 				float rope = _m.TestAnchors.RopeLength(id);
-				Check(vis is not null && _m.TestAnchors.MuzzlesOf(id).Count > 0 && rope > 0.05f && rope <= AnchorView.MaxRopeShare * shipLen,
+				Check(vis is not null && _m.TestAnchors.MuzzlesOf(id).Count > 0 && rope > 0.05f && rope <= 0.6f * shipLen,
 					$"Bergbautest: {n.ModelKey} kurze Seile ({rope:0.00} von {shipLen:0.00})");
 				if (n.ModelKey == "strip_miner" && vis is not null) _r44hRotor0 = vis.RotorAngle;
 			}

@@ -157,22 +157,18 @@ public partial class AnchorView : Node3D
 		}
 		e.Muzzles = Muzzles(body.Visual, body.Body, e.Tethers.Count);
 		if (e.Impacts.Length != e.Tethers.Count) e.Impacts = new Vector3[e.Tethers.Count];
-		// Runde 44h: Einschlag seitlich neben dem Bohrpunkt — vom Oberflächenpunkt unter der Werkzeugspitze um den seitlichen Abstand der Mündung
-		// von der Bugachse plus einer kleinen Spreizung nach außen, auf die Oberfläche projiziert. So laufen die Seile kurz und schräg nach außen.
-		var tipW = body.Visual is { } tv ? tv.TipWorld() : body.Body.GlobalTransform * new Vector3(0f, 0f, -2f);
-		var fwd = body.Visual is { } fv ? -fv.Root.GlobalTransform.Basis.Z.Normalized() : -body.Body.GlobalTransform.Basis.Z.Normalized();
-		float scale = body.Visual is { } sv ? sv.Root.Scale.X : ShipModels.BaseHalfLength;
-		var toTip = tipW - center;
-		var contact = center + (toTip.LengthSquared() < 1e-4f ? Vector3.Back : toTip.Normalized()) * rock.Radius;
+		// Runde 46: die Harpune fliegt aus der Werfermündung in Werferrichtung und schlägt dort in den Fels ein (Strahl gegen die Felskugel);
+		// verfehlt der Strahl den Fels, trifft sie den nächsten Oberflächenpunkt — Seil und Werfer bleiben so sichtbar verbunden
+		var dirs = HarpoonDirs(body.Visual, body.Body, e.Tethers.Count);
+		if (e.Impacts.Length != e.Tethers.Count) e.Impacts = new Vector3[e.Tethers.Count];
+		float rr = rock.Radius * ImpactDepth;
 		for (int t = 0; t < e.Tethers.Count; t++)
 		{
-			var lat = e.Muzzles[t] - tipW;
-			lat -= fwd * lat.Dot(fwd);
-			float latLen = lat.Length();
-			var dirLat = latLen > 1e-4f ? lat / latLen : new Vector3(-fwd.Z, 0f, fwd.X) * (t % 2 == 0 ? 1f : -1f);
-			var target = contact + dirLat * (latLen + AnchorSpread * scale);
-			var d = target - center;
-			e.Impacts[t] = center + (d.LengthSquared() < 1e-4f ? Vector3.Back : d.Normalized()) * rock.Radius * ImpactDepth;
+			var o = e.Muzzles[t]; var dvec = dirs[t];
+			var oc = o - center;
+			float bq = oc.Dot(dvec), cq = oc.LengthSquared() - rr * rr, disc = bq * bq - cq;
+			if (disc >= 0f && -bq - Mathf.Sqrt(disc) > 0f) e.Impacts[t] = o + dvec * (-bq - Mathf.Sqrt(disc));
+			else { var dd = o - center; e.Impacts[t] = center + (dd.LengthSquared() < 1e-4f ? Vector3.Back : dd.Normalized()) * rr; }
 		}
 		for (int t = 0; t < e.Tethers.Count; t++) Place(e.Tethers[t], e.Muzzles[t], e.Muzzles[t].Lerp(e.Impacts[t], e.Shown));
 		// Abbau: Abraumfahne am Kontaktpunkt (nach hinten-seitlich weg vom Schiff), Stöße der Manövrierdüsen gegen die Werkzeugdrehung
@@ -222,6 +218,19 @@ public partial class AnchorView : Node3D
 		}
 		var tr = body.GlobalTransform;
 		for (int i = 0; i < count; i++) list[i] = tr * new Vector3(i % 2 == 0 ? 1.3f : -1.3f, 0.2f, -1.6f);
+		return list;
+	}
+
+	/// <summary>Runde 46: Schussrichtung je Harpune in Weltkoordinaten (lokal −Z des Harpunenknotens); ohne Knoten der Bug.</summary>
+	static Vector3[] HarpoonDirs(ShipVisual? v, Node3D body, int count)
+	{
+		var list = new Vector3[count];
+		for (int i = 0; i < count; i++)
+		{
+			var basis = v is { Harpoons.Count: > 0 } && v.Root.IsInsideTree() ? v.Harpoons[Math.Min(i, v.Harpoons.Count - 1)].GlobalTransform.Basis : body.GlobalTransform.Basis;
+			var d = -basis.Z; d.Y = 0f;
+			list[i] = d.LengthSquared() < 1e-6f ? -body.GlobalTransform.Basis.Z.Normalized() : d.Normalized();
+		}
 		return list;
 	}
 
