@@ -677,7 +677,9 @@ public partial class Hud : CanvasLayer
 			}
 		}
 		if (_toast.Text.Length > 0) ClampSafe(_toast);   // Runde 37c (Prüfung M3): Hinweis nie in der Aussparung
-		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight;
+		// Runde 46f (Gerätetest: angedockt keine Live-Ansicht der Station): das Dock-Menü ist eine Karte rechts — links bleibt das Spiel sichtbar
+		// (Kamera kreist um die Station); nur Vollbild-Bereiche decken den Hintergrund ab
+		_backdrop.Visible = Screens.Current != null && Screens.Current != Flight && Screens.Current != DockMenu;
 		// Runde 7: Beschuss- und Fluchtzeile unter einen mehrzeiligen Hinweis im Flug
 		bool toastShown = _toast.Modulate.A > 0.02f && !onScreen && Screens.Current != DockMenu;
 		Flight.AvoidToast(toastShown ? _toast.Position.Y + MathF.Max(_toast.Size.Y, _toast.GetCombinedMinimumSize().Y) : 0f);

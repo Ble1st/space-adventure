@@ -58,7 +58,10 @@ public partial class PhoneShots : Node
 		switch (_frame)
 		{
 			case 30: _m.TestMenu("new:miner"); break;
-			case 32: _m.TestUndock(); break;
+			case 40: { var st0 = u.Stations.Values.Where(x => x.Sector == u.PlayerSector && x.Dockable).OrderBy(x => Vec2.Distance(x.Position, u.Ships[u.PlayerShip].Position)).First(); _m.TestDockAt(st0.Id); break; }
+			case 60: Capture("d01-angedockt.png"); break;
+			case 140: Capture("d01b-angedockt-spaeter.png"); break;
+			case 145: _m.TestUndock(); break;
 			case 150:
 			{
 				var me = u.Ships[u.PlayerShip];
