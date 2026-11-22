@@ -33,6 +33,8 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 	public event Action<StationId>? StationVisitRequested;
 	/// <summary>„Befehle“: in die Flotte wechseln, dieses Schiff gewählt.</summary>
 	public event Action<ShipId>? CommandsRequested;
+	/// <summary>Kleines Schiffsmenü (Werte, Module, Inventar, Befehl, Verband).</summary>
+	public event Action<ShipId>? MenuRequested;
 
 	/// <summary>Test-Hook: Detailfenster eines Schiffs öffnen.</summary>
 	public void TestOpenShipDetail(ShipId? id = null) { _detailShip = id ?? Ctx.Player.Id; Invalidate(); }
@@ -218,7 +220,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 
 		// Schiffskarte links
 		At(w, new DockAreaScreen.ShipSketch { CustomMinimumSize = new Vector2(120, 100), Size = new Vector2(120, 100), MouseFilter = MouseFilterEnum.Ignore }, 30, 40);
-		At(w, Text($"Schiff #{s.Id.Value}{(active ? " (aktiv)" : "")}", 30, White), 170, 24, 400, 36);
+		At(w, Text($"Schiff #{s.Id.Value}{(active ? " (aktiv)" : "")}", 30, White), 170, 24, 390, 36);
 		At(w, Text($"{(u.ShipModels.TryGetValue(s.ModelKey, out var md) ? md.Name : "ohne Modell")} · Güteklasse {ShipQualityNames.Name(s.Quality)} · Besitzer {u.ActorName(s.Owner)}", 15, Dim), 170, 62, 600, 20);
 		string ort = OrtText(u, s, active ? Ctx.Docked : s.DockedAt);
 		At(w, Text(ort, 16, active ? Cyan : Orange), 170, 88, 500, 22);
@@ -271,6 +273,8 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			if (r.Success) _detailShip = null;
 			Invalidate();
 		};
+		var bMenu = At(w, new KitButton("Schiffsmenü", new Vector2(150, 44)) { FontSize = 15 }, 570, 16);
+		{ var mid = s.Id; bMenu.Pressed += () => MenuRequested?.Invoke(mid); }
 		var bClose = At(w, new KitButton("Schließen", new Vector2(150, 44)) { FontSize = 15 }, 730, 16);
 		bClose.Pressed += () => { _detailShip = null; _message = ""; Invalidate(); };
 	}

@@ -25,6 +25,8 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 
 	/// <summary>„Befehle“: die Flotte der Kommandozentrale mit diesem Schiff öffnen (Main).</summary>
 	public event Action<ShipId>? CommandsRequested;
+	/// <summary>Kleines Schiffsmenü (Werte, Module, Inventar, Befehl, Verband) — von dort auch „Befehle geben“.</summary>
+	public event Action<ShipId>? MenuRequested;
 	/// <summary>Nach jedem Execute (Dienst-Schlüssel, Erfolg) – Main spielt den Ton.</summary>
 	public event Action<string, bool>? Executed;
 
@@ -90,8 +92,8 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 				bx += action == HangarService.SellShip ? 158 : 132;
 			}
 			var id = other.Id;
-			var bc = At(row, new KitButton("Befehle", new Vector2(124, 56)) { FontSize = 15 }, bx, 48);
-			bc.Pressed += () => CommandsRequested?.Invoke(id);
+			var bc = At(row, new KitButton("Schiffsmenü", new Vector2(124, 56)) { FontSize = 15, Sub = "Befehle, Inventar" }, bx, 48);
+			bc.Pressed += () => MenuRequested?.Invoke(id);
 			y += 114f;
 			_parkedRows++;
 		}

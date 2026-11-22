@@ -25,12 +25,20 @@ public partial class SelfTest
 		return fwd.Dot(bow);
 	}
 
+	/// <summary>Rollt den nächsten Rollbereich so, dass die Taste sichtbar ist (gemerkte Rollpositionen aus früheren Stufen).</summary>
+	static void ScrollIntoView(Control b)
+	{
+		for (var n = b.GetParent(); n is not null; n = n.GetParent())
+			if (n is ScrollContainer sc) { sc.ScrollVertical = 0; sc.EnsureControlVisible(b); break; }
+	}
+
 	bool Round44Stage(int f)
 	{
 		var root = GetTree().Root;
 		var fl = _m.HudRef.Flight;
 		if (f == 0) { _m.TestMenu("new:fighter"); return false; }
 		if (f == 20) { _m.TestStopShip(); _m.TestOpenCommand(); return false; }
+		if (f == 22 || f == 24) { ScrollIntoView(_m.HudRef.Command.TestChaseButton); return false; }   // Menü-Rollposition ist gemerkt (z. B. unten nach den Ton-Zeilen) — erst ins Bild rollen
 		if (f == 26) { PressButton(_m.HudRef, "Rückansicht", true); return false; }
 		if (f == 28) { PressButton(_m.HudRef, "Rückansicht", false); return false; }
 		if (f == 32)
