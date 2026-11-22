@@ -178,6 +178,8 @@ public partial class PlayerShip : Node3D
 	}
 
 	void Show(bool thrust) { _flame.Visible = thrust && Visual is null; _trail.Emitting = thrust; }
+	/// <summary>Runde 46h (Befehlsstand): Schub von außen anzeigen (Schweif, Triebwerksglühen), wenn das Schiff gesperrt einer Core-Reise folgt.</summary>
+	public void ShowThrust(bool thrust) { Thrusting = thrust; Show(thrust); }
 
 	/// <summary>
 	/// Feste Hindernisse (Asteroiden, Stationen): Abprallen, bei hartem Aufprall Schaden (außer in der Schonfrist).
