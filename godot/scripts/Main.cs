@@ -138,16 +138,17 @@ public partial class Main : Node3D
 		_hud.TargetEdge = TargetEdge;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
 		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
-		_hud.Flight.AutopilotPressed += ToggleAutopilot;
-		_hud.Flight.AutoMinePressed += () => SetAutoMining(_hud.Flight.AutoMineOn);
-		_hud.Flight.ContextPressed += ContextAction;
+		_hud.Flight.AutopilotPressed += () => { if (SpectateBlocks()) { _hud.Flight.SetAutopilot(false); return; } ToggleAutopilot(); };
+		_hud.Flight.AutoMinePressed += () => { if (SpectateBlocks()) { _hud.Flight.SetAutoMine(false); return; } SetAutoMining(_hud.Flight.AutoMineOn); };
+		_hud.Flight.ContextPressed += () => { if (!SpectateBlocks()) ContextAction(); };
 		_hud.Flight.SetCommandBadge(0);   // Runde 40: echter Comms-Zähler folgt in UpdateHud je Bild
-		_hud.Flight.BayDown += OnBayDown;
-		_hud.Flight.AllFire += () => FireReadyBays();
-		_hud.Flight.GroupDown += OnGroupDown;   // HUD-Neu: Gruppenknopf im Daumenbogen
+		_hud.Flight.BayDown += b => { if (!SpectateBlocks()) OnBayDown(b); };
+		_hud.Flight.AllFire += () => { if (!SpectateBlocks()) FireReadyBays(); };
+		_hud.Flight.GroupDown += g => { if (!SpectateBlocks()) OnGroupDown(g); };   // HUD-Neu: Gruppenknopf im Daumenbogen
 		// Phase 25: Dauerfeuer und „Nächster Gegner“
 		_hud.Flight.AutoFirePressed += () =>
 		{
+			if (SpectateBlocks()) return;
 			_fight.AutoFire = !_fight.AutoFire;
 			if (_fight.AutoFire) EnableAimAssist();   // Gerätetest Phase 28: Dauerfeuer schaltet die Zielhilfe mit ein (nicht nach bewusstem Aus)
 			_sfx.Play(SfxId.Click);
@@ -156,15 +157,16 @@ public partial class Main : Node3D
 		_hud.Flight.NextEnemyPressed += SelectNextEnemy;
 		_hud.Flight.AimAssistPressed += () =>
 		{
+			if (SpectateBlocks()) return;
 			_aimAssist = !_aimAssist;
 			_aimOffFor = _aimAssist ? null : AimKey();   // Runde 4: bewusstes Aus gilt bis zum Zielwechsel
 			_sfx.Play(SfxId.Click);
 			_hud.Toast(_aimAssist ? "Ziel folgen an: die Nase folgt dem Ziel (◀ ▶ übersteuern)" : "Ziel folgen aus");
 		};
-		_hud.Flight.StationAttackPressed += ArmStationAttack;   // Phase 28
-		_hud.Flight.GateAttackPressed += ArmGateAttack;   // Phase 31
-		_hud.Flight.WingAttackPressed += OrderWingAttack;   // Ausbau Punkt 1: „Verband greift an“
-		_hud.Flight.SurrenderPressed += Surrender;
+		_hud.Flight.StationAttackPressed += () => { if (!SpectateBlocks()) ArmStationAttack(); };   // Phase 28
+		_hud.Flight.GateAttackPressed += () => { if (!SpectateBlocks()) ArmGateAttack(); };   // Phase 31
+		_hud.Flight.WingAttackPressed += () => { if (!SpectateBlocks()) OrderWingAttack(); };   // Ausbau Punkt 1: „Verband greift an“
+		_hud.Flight.SurrenderPressed += () => { if (!SpectateBlocks()) Surrender(); };
 		// Phase 23: Leistungsverteilung (Core-Regel; die Taste liefert schon die gewünschte Stellung, erneutes Tippen = ausgeglichen)
 		_hud.Flight.PowerModePressed += m =>
 		{
@@ -1113,7 +1115,7 @@ public partial class Main : Node3D
 			_docked = null;   // das Schiff handelt/dockt im Befehl — kein Dock-Menü, kein Andock-Zustand der Ansicht
 			_transition = false; _playerTween?.Kill();
 			if (_hud.Screens.Current is SpaceAdventure.Ui.Screens.CommandScreen) { }   // offene Kommandozentrale bleibt offen — dort werden die Befehle gegeben (Befehlsstand läuft dahinter weiter)
-			else { _hud.Screens.Hide(); _hud.Flight.Visible = false; }   // Kontrollen gesperrt; Kamera-Gesten bleiben frei
+			else { _hud.Screens.Hide(); _hud.Flight.Visible = true; }   // Runde 46: Flug-HUD bleibt sichtbar (Menü, Karte, Sektor, Status) — nur die Steuerung ist gesperrt (SpectateBlocks)
 
 			_hud.Spectate.ShowSpectate(commandText ?? SpaceSim.Core.Simulation.Commands.Describe(u, PlayerData));
 			_hud.Toast("Befehlsstand: das Schiff führt den Befehl aus — Zuschauen frei umschauen, X = Steuerung zurück.", 4.5f);
@@ -1136,6 +1138,15 @@ public partial class Main : Node3D
 
 	/// <summary>Runde 45: Ansicht im Befehlsstand — das eigene Schiff fliegt die abstrakte Reise (Travel-Legs) oder parkt; die Kamera folgt ihm
 	/// (unsichtbarer Spieler-Knoten als Anker), gerendert wird es als Sektor-Schiff (Materializer).</summary>
+	/// <summary>Runde 46: im Befehlsstand bleibt das Flug-HUD sichtbar, Steuer- und Waffentasten wirken aber nicht (Menü, Karte, Leistung, Gegnerwahl schon).</summary>
+	bool SpectateBlocks()
+	{
+		if (!_spectate) return false;
+		_sfx.Play(SfxId.Click);
+		_hud.Toast("Befehlsstand: das Schiff führt den Befehl aus — X unten links gibt die Steuerung zurück.", 3f);
+		return true;
+	}
+
 	void StepSpectate(float delta)
 	{
 		var u = _session.U;
@@ -1671,6 +1682,7 @@ public partial class Main : Node3D
 		// Abbau je Teilschritt (Kontakt, Anker, Laser-Automatik, Brocken, Traktor) — im Sprung-Teilschritt nicht mehr (anderer Sektor)
 		if (flightU.PlayerSector == flightSector && _session.U == flightU) StepMining(dt, frozen, fs == 0);
 		}
+		_hud.Flight.SetSteeringVisible(!_spectate);   // Runde 46: im Befehlsstand statt Regler/◀ ▶/RÜCK die Befehlsstand-Leiste mit X
 		if (_spectate) StepSpectate(delta);   // Runde 45: das eigene Schiff fliegt die abstrakte Reise — Ansichtsposition aus Core, Rendering als Sektor-Schiff
 		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
 		ShowMining(delta);
@@ -4002,6 +4014,7 @@ public partial class Main : Node3D
 		return ok;
 	}
 	internal bool TestSpectating => _spectate;
+	internal void TestEndSpectate() { SpaceSim.Core.Simulation.Commands.Cancel(_session.U, PlayerData); _fast = false; ExitSpectate(); if (_docked != null) Undock(); }
 	internal Vector3 TestPlayerNodePos => _player.Position;
 	internal bool TestPlayerNodeVisible => _player.Visible;
 

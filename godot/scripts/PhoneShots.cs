@@ -76,7 +76,7 @@ public partial class PhoneShots : Node
 			case 903: SpectLog(); break;
 			case 960: SpectLog(); Capture("s01-befehlsstand.png"); break;
 			case 1200: SpectLog(); Capture("s02-befehlsstand-spaeter.png"); break;
-			case 1500: SpectLog(); Capture("s03-befehlsstand-noch-spaeter.png"); break;
+			case 1500: SpectLog(); Capture("s03-befehlsstand-noch-spaeter.png"); _m.TestEndSpectate(); break;
 			// Runde 43: Nahaufnahmen Bergbau — Spieler mit M- und L-Werkzeug, NPC-Schürfer S/M/L am Fels, zwei Blickwinkel, zerbrechender Fels
 			case 2105: Mining43Setup(); break;
 			case 1515: Mining43PlayerAt("excavator", _r43RockM); _m.TestSetCam(25f, 22f, 24f); break;
@@ -105,9 +105,42 @@ public partial class PhoneShots : Node
 			}
 			case 2040: Capture("m11-fels-zerbricht.png"); break;
 			case 2080: Capture("m12-fels-zerbricht-spaeter.png"); break;
-			case 2200: Finish(); break;
+			case 2100: _ropeModels = World.ShipModels.ContactModels().Select(i => i.Key).OrderBy(k => k).ToList(); _ropeModels.Insert(0, "warmup:" + _ropeModels[0]); break;
+			default:
+				// Runde 46: Seil-Nahaufnahmen jedes Kontaktschürfers (verankert am Fels, zwei Blickwinkel)
+				if (_frame > 2100 && _ropeModels.Count > 0)
+				{
+					int k = (_frame - 2101) / 200, ph = (_frame - 2101) % 200;
+					if (k >= _ropeModels.Count) { if (ph == 0) Finish(); break; }
+					var me0 = u.Ships[u.PlayerShip];
+					string key = _ropeModels[k].Replace("warmup:", "");
+					bool warm = _ropeModels[k].StartsWith("warmup:");
+					var me = u.Ships[u.PlayerShip];
+					if (ph == 0 && key == "strip_miner")
+					{
+						// L-Schiff: freistehender großer Fels (kein Nachbar, der beim Anlegen anstößt)
+						var all = u.Sectors[u.PlayerSector].Asteroids;
+						var free = all.Where(a => a.Minable && a.Radius > 5f && !all.Any(b => b.Id != a.Id && Vec2.Distance(a.Position, b.Position) < a.Radius + b.Radius + 25f))
+							.OrderBy(a => Vec2.Distance(a.Position, me0.Position)).FirstOrDefault();
+						_ropeLRock = free?.Id ?? _r43RockL;
+					}
+					int rid = key == "strip_miner" ? _ropeLRock : _r43RockM;
+					var rock = u.Sectors[u.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == rid);
+					if (ph == 0 && rock is not null) rock.Ore = rock.MaxOre = Mathf.Max(rock.MaxOre, 5000f);   // der Maulwurf leert kleine Felsen in Sekunden (Anker löst „leer“)
+					if (ph == 0) Mining43PlayerAt(key, rid);
+					float yaw = rock is null ? 0f : Mathf.RadToDeg(Mathf.Atan2(rock.Position.X - me.Position.X, rock.Position.Y - me.Position.Y));
+					float dist = key is "strip_miner" ? 30f : key is "excavator" or "rockbreaker" or "rockbreaker_ii" or "quarry" ? 20f : 14f;
+					if (ph == 100) _m.TestSetCam(yaw + 70f, 35f, dist);
+					if (ph == 105) GD.Print($"[r46] {key} anker {me.AnchorRock} fels {rid} ships {me.Position} rock {rock?.Position} r {rock?.Radius} seil {_m.TestAnchors.RopeLength(me.Id):0.00}");
+					if (ph == 110 && !warm) Capture($"r-{key}-a.png");
+					if (ph == 120) _m.TestSetCam(yaw - 70f, 25f, dist);
+					if (ph == 130 && !warm) Capture($"r-{key}-b.png");
+				}
+				break;
 		}
 	}
+	System.Collections.Generic.List<string> _ropeModels = new();
+	int _ropeLRock;
 
 	int _r43RockM, _r43RockL, _r43NpcS, _r43NpcM, _r43NpcL, _r43BreakRock;
 	readonly System.Collections.Generic.List<SpaceSim.Core.Model.ShipId> _r43NpcIds = new();

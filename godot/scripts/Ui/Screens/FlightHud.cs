@@ -466,6 +466,13 @@ public partial class FlightHud : Control, IScreen
 	KitButton _turnL = null!, _turnR = null!, _reverse = null!, _hamburger = null!;
 	// Slider (HUD-Neu: senkrecht links)
 	KitVSlider _slider = null!;
+	/// <summary>Runde 46 (Befehlsstand): Steuerelemente (Regler, ◀ ▶, RÜCK) ausblenden — die Steuerung ist gesperrt, dort steht die Befehlsstand-Leiste mit X.</summary>
+	public void SetSteeringVisible(bool on)
+	{
+		if (_slider is null || _slider.Visible == on) return;
+		_slider.Visible = on; _turnL.Visible = on; _turnR.Visible = on; _reverse.Visible = on;
+		if (_reverseLabel is not null) _reverseLabel.Visible = on;
+	}
 	// Waffenschächte
 	readonly List<KitButton> _bayButtons = new();
 	KitButton _allFire = null!;
