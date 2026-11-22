@@ -1104,10 +1104,7 @@ public partial class Main : Node3D
 		_spectate = on;
 		u.PlayerSpectates = on;
 		_sfx.Play(on ? SfxId.Jump : SfxId.Click);
-		// Runde 45 (Nutzerwunsch „Kamera löst sich nicht vom Schiff“): der Befehlsstand ändert den Kameramodus nicht — die Kamera
-		// schaut weiterhin auf das Schiff, und während es reist, dreht der Yaw sanft hinter den Kurs (OrbitCamera.FollowCourse in StepSpectate)
-		// Runde 45 (Nutzerwunsch „Kamera löst sich nicht vom Schiff“): der Befehlsstand ändert den Kameramodus nicht — die Kamera
-		// schaut weiterhin auf das Schiff, und während es reist, dreht der Yaw sanft hinter den Kurs (OrbitCamera.FollowCourse in StepSpectate)
+		// Befehlsstand = nur Steuerungssperre plus X in der UI; die Kamera bleibt exakt die des normalen Flugs (keine eigene Kamerasteuerung)
 		if (on)
 		{
 			CancelAutopilot();
@@ -1165,7 +1162,6 @@ public partial class Main : Node3D
 				float f = (float)((tick - leg.StartTick) / (double)(leg.EndTick - leg.StartTick));
 				pos = SpaceSim.Core.Model.Vec2.Lerp(leg.From, leg.To, f);
 				if ((leg.To - leg.From).Length > 0.001f) heading = MathF.Atan2(-(leg.To.X - leg.From.X), -(leg.To.Y - leg.From.Y));
-				_orbit.FollowCourse(heading, delta);   // Runde 45: Kamera bleibt am Schiff — Yaw dreht sanft hinter den Kurs, ohne den Modus zu wechseln
 				break;
 			}
 		}
