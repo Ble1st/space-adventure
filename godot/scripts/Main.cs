@@ -1156,50 +1156,72 @@ public partial class Main : Node3D
 		bool dockedNow = ship.DockedAt.Value != 0 && ship.Transit is null;
 		_player.Visible = !dockedNow;
 		_player.Velocity = Vector3.Zero;
-		var pos = ship.Position;
-		var heading = _player.Heading;
 		// Kamera bleibt am Schiff, auch wenn der Befehl es über ein Tor in einen anderen Sektor führt: die Ansicht wechselt mit dem Schiff
 		// (vorher blieb PlayerSector im alten Sektor — die Kamera hing an der letzten Position, das Schiff flog woanders weiter)
 		if (ship.Transit is { } tr)
 		{
-			double now = u.Tick + _session.FractionalTick;
+			double now = _session.FractionalTick;   // schon absolut (Tick + Bruchteil)
 			foreach (var leg in tr.Legs)
 				if (now >= leg.StartTick && now < leg.EndTick) { if (leg.Sector != u.PlayerSector) u.PlayerSector = leg.Sector; break; }
 		}
 		else if (ship.Sector != u.PlayerSector) u.PlayerSector = ship.Sector;
+		// Runde 46e (Gerätetest: Schiff sprang im Befehlsstand von Stelle zu Stelle): Ziel-Lage aus dem Core bestimmen, das angezeigte Schiff fliegt
+		// ihr wie ein Autopilot hinterher (Höchsttempo, Drehrate) — keine Sprünge, auch nicht am Ende eines Reiseabschnitts, beim Ansetzen am Fels
+		// oder beim An-/Abdocken. Nur bei Sektorwechsel oder sehr großem Abstand (Laden, Fernwechsel) wird gesetzt.
+		var target = ship.Position;
+		float? wantHeading = null;
+		float coreSpeed = 0f;   // Tempo des Core-Abschnitts (Einheiten/s)
+		bool moving = false;
 		if (ship.Transit is { } t)
 		{
-			double tick = u.Tick + _session.FractionalTick;
+			double tick = _session.FractionalTick;   // Runde 46e: war doppelt gezählt → Anzeige immer am Reiseende (Teleport)
+			SpaceSim.Core.Model.Leg? last = null;
+			bool found = false;
 			foreach (var leg in t.Legs)
 			{
-				if (leg.Sector != u.PlayerSector || tick < leg.StartTick || tick >= leg.EndTick) continue;
+				if (leg.Sector != u.PlayerSector) continue;
+				if (tick >= leg.EndTick) { last = leg; continue; }
+				if (tick < leg.StartTick) { if (!found) { target = leg.From; found = true; } break; }
 				float f = (float)((tick - leg.StartTick) / (double)(leg.EndTick - leg.StartTick));
-				pos = SpaceSim.Core.Model.Vec2.Lerp(leg.From, leg.To, f);
-				if ((leg.To - leg.From).Length > 0.001f) heading = MathF.Atan2(-(leg.To.X - leg.From.X), -(leg.To.Y - leg.From.Y));
+				target = SpaceSim.Core.Model.Vec2.Lerp(leg.From, leg.To, f);
+				var dl = leg.To - leg.From;
+				if (dl.Length > 0.001f) { wantHeading = MathF.Atan2(-dl.X, -dl.Y); coreSpeed = dl.Length / MathF.Max(1e-3f, (float)(leg.EndTick - leg.StartTick)) * SimClock.TicksPerSecond; }
+				moving = true; found = true;
 				break;
 			}
+			if (!found && last is { } lg) target = lg.To;   // Abschnitt vorbei, Ankunft im nächsten Tick: am Ende bleiben (nicht zurück zum Start)
 		}
-		bool moving = false;
-		if (ship.Transit is not null && (pos - ship.Position).Length > 0.001f) moving = true;
-		// abbauender Kontaktschürfer: Bug zum Fels, Bohrerspitze an der Oberfläche (wie im Flug am Anker)
-		if (!moving && !dockedNow && u.Sectors.TryGetValue(u.PlayerSector, out var sec)
-			&& sec.Asteroids.FirstOrDefault(a => a.Id == (ship.AnchorRock != 0 ? ship.AnchorRock : ship.MineAsteroid)) is { } rock && (rock.Position - pos).Length > 1e-3f
-			&& ship.Stats.UsesContact && SpaceSim.Core.Mining.ContactMining.InContact(pos, (rock.Position - pos).Normalized(), rock, SpaceSim.Core.Mining.ContactMining.ToolReach(ship, u)))
+		var rock = !dockedNow && u.Sectors.TryGetValue(u.PlayerSector, out var sec)
+			? sec.Asteroids.FirstOrDefault(a => a.Id == (ship.AnchorRock != 0 ? ship.AnchorRock : ship.MineAsteroid)) : null;
+		if (!moving && rock is not null && ship.Stats.UsesContact && (ship.AnchorRock != 0
+			|| (rock.Position - target).Length < rock.Radius + SpaceSim.Core.Mining.ContactMining.ToolReach(ship, u) + 2f))
 		{
+			// abbauender Kontaktschürfer: Bug zum Fels, Bohrerspitze an der Oberfläche (wie im Flug am Anker)
 			float standoff = _player.Visual is { } pv ? pv.TipOffset : Collision.ShipRadius;
-			pos = SpaceSim.Core.Mining.MiningAnchor.HoldPosition(pos, rock, standoff);
-			heading = AimAssist.Bearing(pos, rock.Position);
+			target = SpaceSim.Core.Mining.MiningAnchor.HoldPosition(target, rock, standoff);
+			wantHeading = AimAssist.Bearing(target, rock.Position);
 		}
-		else if (!moving && ship.Transit is null)
+		if (dockedNow && u.Stations.TryGetValue(ship.DockedAt, out var dst)) target = dst.Position;
+
+		var cur = new Vec2(_player.Position.X, _player.Position.Z);
+		var gap = target - cur;
+		float warp = _fast ? WarpFactor : 1f;
+		if (gap.Length > 400f) { cur = target; }   // Laden/Fernwechsel/Sektorwechsel: setzen
+		else
 		{
-			var step = pos - new Vec2(_player.Position.X, _player.Position.Z);
-			if (step.Length > 0.05f && step.Length < 60f) heading = MathF.Atan2(-step.X, -step.Y);   // kurzer Anflug im Feld (Core bewegt in Tick-Schritten)
-			if (step.Length < 60f) pos = new Vec2(_player.Position.X, _player.Position.Z) + step * (1f - MathF.Exp(-8f * delta));   // glätten wie die Sektor-Schiffe
+			// Tempo: so schnell wie der Core-Abschnitt, plus Aufholen des Rückstands; nie schneller als das Schiff fliegen kann (× Zeitraffer)
+			float maxSpeed = MathF.Max(PlayerShip.MaxSpeed, coreSpeed) * 1.6f * warp;
+			float want = coreSpeed * warp + gap.Length * 3f;
+			float step = MathF.Min(MathF.Min(want, maxSpeed) * delta, gap.Length);
+			if (gap.Length > 1e-4f) cur += gap.Normalized() * step;
+			if (wantHeading is null && step > 0.02f && gap.Length > 0.5f) wantHeading = MathF.Atan2(-gap.X, -gap.Y);
 		}
-		if (dockedNow && u.Stations.TryGetValue(ship.DockedAt, out var dst)) pos = dst.Position;
-		_player.Visual?.SetEngine(moving ? 1f : 0.15f);
-		_player.Position = new Vector3(pos.X, 0, pos.Y);
-		_player.Heading = heading;
+		float h = _player.Heading;
+		if (wantHeading is { } wh) h = AimAssist.Turn(h, wh, AimAssist.PlayerTurnRate * warp, delta);
+		_player.Visual?.SetEngine(moving || gap.Length > 1f ? 1f : 0.15f);
+		_player.Position = new Vector3(cur.X, 0, cur.Y);
+		_player.Heading = h;
+		_player.Rotation = new Vector3(0f, h, 0f);   // gesperrt dreht PlayerShip.Step das Modell nicht mit (Kegel und Nase liefen auseinander)
 		_sfx.SetThrust(0f);
 	}
 

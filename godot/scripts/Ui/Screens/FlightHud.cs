@@ -478,7 +478,6 @@ public partial class FlightHud : Control, IScreen
 	KitButton _allFire = null!;
 	Label _ready = null!;
 	// Kegel um das Schiff
-	readonly ArcOverlay _arcs = new();
 
 	FlightHudData _d = new();
 	/// <summary>Phase 23: Farbe des Leistungsbalkens.</summary>
@@ -524,7 +523,6 @@ public partial class FlightHud : Control, IScreen
 
 	public override void _Ready()
 	{
-		AddChild(_arcs);
 
 		// ── Status oben links (HUD-Neu: schlank, Balken + Kasse; die Leistungsstellung zeigt ⚡ in der rechten Spalte) ──
 		var status = _status = Win(this, 12, 8, 300, 132, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
@@ -1054,55 +1052,11 @@ public partial class FlightHud : Control, IScreen
 		_escape.Text = FitEscape(d.EscapeStatus);
 		_escape.Visible = d.EscapeStatus.Length > 0;
 		ApplyHidden();
-		_arcs.Data = d;
-		_arcs.QueueRedraw();
 	}
 
 	/// <summary>HUD-Neu: Begründungen, die nicht mehr auf der kleinen Taste stehen (Selbsttest).</summary>
 	public string TestGateAttackInfo { get; private set; } = "";
 	public string TestSurrenderReason { get; private set; } = "";
-
-	/// <summary>Zeichnet die Feuerwinkel als Kegel um das Schiff (Bildschirmposition des Schiffs, 290 px Radius).</summary>
-	sealed partial class ArcOverlay : Control
-	{
-		public FlightHudData? Data;
-		public ArcOverlay() { MouseFilter = MouseFilterEnum.Ignore; SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); }
-		public override void _Draw()
-		{
-			var d = Data;
-			if (d == null || d.ShipScreen is not { } ship) return;
-			DrawSetTransformMatrix(GetGlobalTransform().AffineInverse());   // Runde 33: Schiffs-/Zielposition kommen in Bildpunkten, die Schicht ist skaliert
-			const float r = 290f;
-			for (int i = 0; i < d.Bays.Count; i++)
-			{
-				var bay = d.Bays[i];
-				var (fill, edge) = bay.State switch
-				{
-					BayState.Ready => (new Color(UiKit.Green, 0.10f), new Color(UiKit.Green, 0.6f)),
-					BayState.OutsideArc => (new Color(UiKit.Orange, 0.07f), new Color(UiKit.Orange, 0.45f)),
-					BayState.Reloading => (new Color(UiKit.Dim, 0.05f), new Color(UiKit.Dim, 0.3f)),
-					_ => (new Color(UiKit.Dim, 0.04f), new Color(UiKit.Dim, 0.25f)),
-				};
-				// Bildschirmwinkel: Nase ist direkt projiziert (Kamera kann gedreht sein); Backbord (+90°) liegt
-				// auf dem Bildschirm 90° gegen den Uhrzeigersinn (y nach unten) von der Nase
-				float center = d.ShipScreenNoseDeg - FiringArc.FacingOffset(bay.Facing);
-				if (bay.ArcDegrees >= 360f) continue;   // Rundum-Werkzeug (Laser, Traktor): keine Scheibe ums Schiff, sie sagt keine Richtung
-				float half = Math.Min(bay.ArcDegrees, 180f);
-				var pts = new List<Vector2> { ship };
-				const int n = 28;
-				for (int k = 0; k <= n; k++)
-				{
-					float a = Mathf.DegToRad(center - half + 2 * half * k / n);
-					pts.Add(ship + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
-				}
-				DrawColoredPolygon(pts.ToArray(), fill);
-				pts.Add(ship);
-				DrawPolyline(pts.ToArray(), edge, 1.5f, true);
-			}
-			if (d.TargetScreen is { } t && ship.DistanceTo(t) < r)
-				DrawLine(ship + (t - ship).Normalized() * 40, t, new Color(d.TargetInArc ? UiKit.Green : UiKit.Orange, 0.8f), 2f, true);
-		}
-	}
 
 	/// <summary>Mini-Radar in der Zielkarte: Schiff in der Mitte, Nase oben, Ziel als Punkt.</summary>
 	sealed partial class Radar : Control

@@ -38,6 +38,7 @@ public partial class PhoneShots : Node
 		_m.TestSetSlider(0f);
 	}
 
+	Vector3 _specLast; float _specMax;
 	void SpectLog()
 	{
 		var u = _m.Session.U; var me = u.Ships[u.PlayerShip];
@@ -47,7 +48,13 @@ public partial class PhoneShots : Node
 	void MiningFrame()
 	{
 		var u = _m.Session.U;
-		if (_frame > 903 && _frame < 1500 && _frame % 60 == 0) SpectLog();
+		if (_frame > 903 && _frame < 1500)
+		{
+			var np = _m.TestPlayerNodePos;
+			if (_frame > 904) { float d = np.DistanceTo(_specLast); if (d > _specMax) _specMax = d; }
+			_specLast = np;
+			if (_frame % 60 == 0) { GD.Print($"[r46] größter Bildschritt der letzten Sekunde {_specMax:0.00} (×10 Zeitraffer)"); _specMax = 0f; SpectLog(); }
+		}
 		switch (_frame)
 		{
 			case 30: _m.TestMenu("new:miner"); break;
