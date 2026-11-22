@@ -95,24 +95,17 @@ public partial class SelfTest
 		if (vis is null) return bad;
 		var muz = av.MuzzlesOf(id).ToList();
 		if (muz.Count == 0) { bad.Add("keine Trossen-Mündungen"); return bad; }
-		var axes = vis.DrillAxesWorld().ToList();
-		foreach (var m in muz)
-		{
-			foreach (var (axis, r) in axes)
-			{
-				var d = new Vector2(m.X - axis.X, m.Y - axis.Y).Length();
-				if (d <= r + 0.02f) { bad.Add($"Seilstart im Bohrerbereich (lateral {d:0.00} ≤ {r:0.00})"); break; }
-			}
-		}
 		float rope = av.RopeLength(id);
 		float shipLen = 2f * vis.Root.Scale.X;
 		Log($"[selftest] Seil {vis.Info.Key}: {rope:0.00} von Schiffslänge {shipLen:0.00} = {rope / shipLen:P0}");
-		if (rope >= 2f * Collision.ShipRadius) bad.Add($"Seillänge {rope:0.00} ≥ 2× Schiffsradius");
-		// Runde 44h (Handy-Test r44): kurze Seile — höchstens ein Viertel der Schiffslänge, Start im vorderen Drittel (Modellraum Z ≤ −1/3)
-		if (rope > AnchorView.MaxRopeShare * shipLen) bad.Add($"Seillänge {rope:0.00} > {AnchorView.MaxRopeShare:P0} der Schiffslänge {shipLen:0.00}");
+		// Runde 46 (Gerätetest: Lücke zwischen Seil und Schiff): jedes Seil beginnt an der Mündung seines Harpunenwerfers (sichtbar verbunden)
 		var inv = vis.Root.GlobalTransform.AffineInverse();
-		foreach (var m in muz)
-			if ((inv * m).Z > -1f / 3f) { bad.Add($"Seilstart nicht im vorderen Drittel (Modell-Z {(inv * m).Z:0.00})"); break; }
+		for (int i = 0; i < muz.Count && vis.Harpoons.Count > 0; i++)
+		{
+			var hm = vis.Harpoons[System.Math.Min(i, vis.Harpoons.Count - 1)].GlobalPosition;
+			if (muz[i].DistanceTo(hm) > 0.05f) { bad.Add($"Seil {i} beginnt nicht an der Werfermündung (Abstand {muz[i].DistanceTo(hm):0.00})"); break; }
+		}
+		if (rope > 0.6f * shipLen) bad.Add($"Seillänge {rope:0.00} > 60 % der Schiffslänge {shipLen:0.00}");
 		// Spitzen stecken seitlich des Bohrpunkts in der Oberfläche, nicht nach innen zur Bugachse (Felskrümmung bei kleinem Fels: 15 % Spiel)
 		var c = new Vector3(rock.Position.X, 0f, rock.Position.Y);
 		var tips = av.TipsOf(id).ToList();

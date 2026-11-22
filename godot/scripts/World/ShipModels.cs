@@ -273,14 +273,7 @@ public sealed class ShipVisual
 	/// Runde 44h: Seilstart im Modellraum für Harpune <paramref name="index"/> — seitliche Lage (X/Y) des Harpunenwerfers, längs aber nahe am Bug
 	/// (höchstens <see cref="AnchorStartBack"/> hinter der Werkzeugspitze), außerhalb des Bohrerbereichs (<see cref="OutsideDrill"/>).
 	/// </summary>
-	public Vector3 AnchorStart(Vector3 harpoonLocal, int index)
-	{
-		float z = MathF.Min(harpoonLocal.Z, TipLocal.Z + AnchorStartBack);
-		var p = OutsideDrill(new Vector3(harpoonLocal.X, harpoonLocal.Y, z), index);
-		// Runde 46: der Seilstart sitzt auf der echten Rumpffläche (nächster Punkt der Rumpfdreiecke, minimal nach innen) — die AABB-Klemmung
-		// ließ an schmalen Bugformen Luft zwischen Seil und Rumpf
-		return SnapToHull(p, index);
-	}
+	public Vector3 AnchorStart(Vector3 harpoonLocal, int index) => harpoonLocal;   // Runde 46 (Gerätetest: Seil hing frei neben dem Schiff): das Seil beginnt an der Mündung seines Werfers
 
 	/// <summary>Runde 46: nächster Punkt der Rumpfoberfläche zu <paramref name="p"/> (Modellraum), 0,02 zur Rumpfmitte hin versenkt; ohne Dreiecke unverändert.</summary>
 	public Vector3 SnapToHull(Vector3 p, int index)

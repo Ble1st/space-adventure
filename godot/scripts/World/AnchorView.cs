@@ -20,7 +20,7 @@ public partial class AnchorView : Node3D
 	sealed class Tether { public MeshInstance3D Line = null!; public MeshInstance3D Head = null!; }
 	sealed class Entry
 	{
-		public ShipId Ship; public int Rock;
+		public ShipId Ship; public int Rock; public float Thick = 1f;   // Runde 46: Seildicke nach Schiffsgröße
 		public readonly List<Tether> Tethers = new();
 		public CpuParticles3D Plume = null!, Puff = null!, Chunks = null!;
 		public float Shown;                 // angezeigter Flugfortschritt 0..1 (folgt dem Core weich)
@@ -37,6 +37,8 @@ public partial class AnchorView : Node3D
 	public const float ImpactDepth = 0.97f;
 	/// <summary>Runde 44h: zusätzliche Spreizung der Einschläge nach außen (Modellraum, mal Modellmaßstab).</summary>
 	public const float AnchorSpread = 0.12f;
+	/// <summary>Runde 46: Mindestlänge eines Ankerseils als Anteil der Schiffslänge (sonst verschwindet es an Walze/Fels großer Schürfer).</summary>
+	public const float MinRopeShare = 0.2f;
 	/// <summary>Runde 44h: Seile höchstens so lang (Anteil der Schiffslänge) — Selbsttest.</summary>
 	public const float MaxRopeShare = 0.25f;
 	readonly Dictionary<ShipId, Entry> _live = new();
@@ -128,7 +130,7 @@ public partial class AnchorView : Node3D
 			{
 				var a = t < muzzles.Length ? muzzles[t] : e.Muzzles[Math.Min(t, e.Muzzles.Length - 1)];
 				var tip = e.Impacts[t].Lerp(a, 1f - (1f - k) * (1f - k));   // schnappt schnell zurück
-				Place(e.Tethers[t], a, tip);
+				Place(e.Tethers[t], a, tip, e.Thick);
 			}
 			if (k >= 1f) { _snapping.RemoveAt(i); Recycle(e); }
 		}
@@ -157,24 +159,31 @@ public partial class AnchorView : Node3D
 		}
 		e.Muzzles = Muzzles(body.Visual, body.Body, e.Tethers.Count);
 		if (e.Impacts.Length != e.Tethers.Count) e.Impacts = new Vector3[e.Tethers.Count];
-		// Runde 44h: Einschlag seitlich neben dem Bohrpunkt — vom Oberflächenpunkt unter der Werkzeugspitze um den seitlichen Abstand der Mündung
-		// von der Bugachse plus einer kleinen Spreizung nach außen, auf die Oberfläche projiziert. So laufen die Seile kurz und schräg nach außen.
-		var tipW = body.Visual is { } tv ? tv.TipWorld() : body.Body.GlobalTransform * new Vector3(0f, 0f, -2f);
-		var fwd = body.Visual is { } fv ? -fv.Root.GlobalTransform.Basis.Z.Normalized() : -body.Body.GlobalTransform.Basis.Z.Normalized();
-		float scale = body.Visual is { } sv ? sv.Root.Scale.X : ShipModels.BaseHalfLength;
-		var toTip = tipW - center;
-		var contact = center + (toTip.LengthSquared() < 1e-4f ? Vector3.Back : toTip.Normalized()) * rock.Radius;
+		// Runde 46: die Harpune fliegt aus der Werfermündung in Werferrichtung und schlägt dort in den Fels ein (Strahl gegen die Felskugel);
+		// verfehlt der Strahl den Fels, trifft sie den nächsten Oberflächenpunkt — Seil und Werfer bleiben so sichtbar verbunden
+		var dirs = HarpoonDirs(body.Visual, body.Body, e.Tethers.Count);
+		if (e.Impacts.Length != e.Tethers.Count) e.Impacts = new Vector3[e.Tethers.Count];
+		float rr = rock.Radius * ImpactDepth;
+		float minLen = MinRopeShare * 2f * (body.Visual is { } mv ? mv.Root.Scale.X : ShipModels.BaseHalfLength);
 		for (int t = 0; t < e.Tethers.Count; t++)
 		{
-			var lat = e.Muzzles[t] - tipW;
-			lat -= fwd * lat.Dot(fwd);
-			float latLen = lat.Length();
-			var dirLat = latLen > 1e-4f ? lat / latLen : new Vector3(-fwd.Z, 0f, fwd.X) * (t % 2 == 0 ? 1f : -1f);
-			var target = contact + dirLat * (latLen + AnchorSpread * scale);
-			var d = target - center;
-			e.Impacts[t] = center + (d.LengthSquared() < 1e-4f ? Vector3.Back : d.Normalized()) * rock.Radius * ImpactDepth;
+			var o = e.Muzzles[t]; var dvec = dirs[t];
+			var oc = o - center;
+			float bq = oc.Dot(dvec), cq = oc.LengthSquared() - rr * rr, disc = bq * bq - cq;
+			if (disc >= 0f && -bq - Mathf.Sqrt(disc) > 0f) e.Impacts[t] = o + dvec * (-bq - Mathf.Sqrt(disc));
+			else { var dd = o - center; e.Impacts[t] = center + (dd.LengthSquared() < 1e-4f ? Vector3.Back : dd.Normalized()) * rr; }
+			// Runde 46 (Maulwurf: Werfer liegen direkt an der Walze am Fels — Seile kaum sichtbar): Mindestlänge nach Schiffsgröße; die Harpune fliegt
+			// dann weiter in Werferrichtung und seitlich nach außen und trifft die Felsoberfläche dort (oben/seitlich gut sichtbar)
+			if (e.Impacts[t].DistanceTo(o) < minLen)
+			{
+				var outward = o - center; outward -= dvec * outward.Dot(dvec);
+				var aimAt = o + dvec * minLen + (outward.LengthSquared() > 1e-6f ? outward.Normalized() : Vector3.Up) * (0.6f * minLen);
+				var w = aimAt - center;
+				e.Impacts[t] = center + (w.LengthSquared() < 1e-4f ? Vector3.Up : w.Normalized()) * rr;
+			}
 		}
-		for (int t = 0; t < e.Tethers.Count; t++) Place(e.Tethers[t], e.Muzzles[t], e.Muzzles[t].Lerp(e.Impacts[t], e.Shown));
+		e.Thick = Thickness(body.Visual);
+		for (int t = 0; t < e.Tethers.Count; t++) Place(e.Tethers[t], e.Muzzles[t], e.Muzzles[t].Lerp(e.Impacts[t], e.Shown), e.Thick);
 		// Abbau: Abraumfahne am Kontaktpunkt (nach hinten-seitlich weg vom Schiff), Stöße der Manövrierdüsen gegen die Werkzeugdrehung
 		var shipPos = body.Body.GlobalPosition;
 		var toShip = (shipPos - center); toShip.Y = 0f;
@@ -225,7 +234,23 @@ public partial class AnchorView : Node3D
 		return list;
 	}
 
-	static void Place(Tether t, Vector3 a, Vector3 b)
+	/// <summary>Runde 46: Schussrichtung je Harpune in Weltkoordinaten (lokal −Z des Harpunenknotens); ohne Knoten der Bug.</summary>
+	static Vector3[] HarpoonDirs(ShipVisual? v, Node3D body, int count)
+	{
+		var list = new Vector3[count];
+		for (int i = 0; i < count; i++)
+		{
+			var basis = v is { Harpoons.Count: > 0 } && v.Root.IsInsideTree() ? v.Harpoons[Math.Min(i, v.Harpoons.Count - 1)].GlobalTransform.Basis : body.GlobalTransform.Basis;
+			var d = -basis.Z;   // Runde 46: echte Werferrichtung (auch schräg nach oben/unten) — beim Maulwurf liegen die Werfer an der Walze, flach blieben die Seile unsichtbar
+			list[i] = d.LengthSquared() < 1e-6f ? -body.GlobalTransform.Basis.Z.Normalized() : d.Normalized();
+		}
+		return list;
+	}
+
+	/// <summary>Runde 46 (Gerätetest: beim Maulwurf keine Anker zu sehen): Seildicke und Harpunenkopf wachsen mit der Schiffsgröße (S = 1).</summary>
+	static float Thickness(ShipVisual? v) => v is null ? 1f : Mathf.Max(1f, v.Root.Scale.X / ShipModels.BaseHalfLength);
+
+	static void Place(Tether t, Vector3 a, Vector3 b, float thick = 1f)
 	{
 		var d = b - a;
 		float len = d.Length();
@@ -234,8 +259,8 @@ public partial class AnchorView : Node3D
 		if (len <= 0.05f) return;
 		var y = d / len;
 		var q = Mathf.Abs(y.Dot(Vector3.Up)) > 0.9999f ? (y.Y > 0 ? Quaternion.Identity : new Quaternion(Vector3.Right, Mathf.Pi)) : new Quaternion(Vector3.Up, y);
-		t.Line.GlobalTransform = new Transform3D(new Basis(q) * Basis.FromScale(new Vector3(1f, len, 1f)), (a + b) * 0.5f);
-		t.Head.GlobalTransform = new Transform3D(new Basis(q), b);
+		t.Line.GlobalTransform = new Transform3D(new Basis(q) * Basis.FromScale(new Vector3(thick, len, thick)), (a + b) * 0.5f);
+		t.Head.GlobalTransform = new Transform3D(new Basis(q) * Basis.FromScale(new Vector3(thick, thick, thick)), b);
 	}
 
 	Entry Take(ShipId id, int rock, ShipVisual? vis)
