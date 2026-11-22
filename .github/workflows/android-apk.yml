@@ -42,12 +42,24 @@ jobs:
           mv "$HOME/.local/share/godot/export_templates/4.7.2.stable.mono/tmp/templates/"* "$HOME/.local/share/godot/export_templates/4.7.2.stable.mono/"
           rm -rf "$HOME/.local/share/godot/export_templates/4.7.2.stable.mono/tmp"
 
+      # Gleicher Debug-Schlüssel für alle Builds: sonst ist jede APK anders signiert und Android lehnt das Update
+      # über eine installierte Version ab („App nicht installiert“). Der Schlüssel liegt im Actions-Cache, nicht im Repository.
+      - name: Restore debug keystore
+        id: keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/keystores/debug.keystore
+          key: android-debug-keystore-v1
+
       - name: Configure editor settings and keystore
         run: |
           mkdir -p "$HOME/.config/godot" "$HOME/.local/share/godot/keystores"
-          keytool -genkeypair -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
-            -storepass android -keypass android -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          if [ ! -f "$HOME/.local/share/godot/keystores/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          keytool -list -v -keystore "$HOME/.local/share/godot/keystores/debug.keystore" -storepass android | grep -E "SHA256:" | head -1
           {
             echo '[application]'
             echo 'config/features=PackedStringArray("4.7")'
