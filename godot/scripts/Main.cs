@@ -1161,10 +1161,8 @@ public partial class Main : Node3D
 		float dist = (_cam.Position - (_player.Position + _camFocus)).Length();
 		float wpp = 2f * dist * Mathf.Tan(Mathf.DegToRad(_cam.Fov) * 0.5f) / Mathf.Max(1f, vs.Y);
 		var right = _cam.GlobalTransform.Basis.X; right.Y = 0f; right = right.Normalized();
-		var fwd = -_cam.GlobalTransform.Basis.Z; float sinP = Mathf.Max(0.3f, -fwd.Y); fwd.Y = 0f; fwd = fwd.Normalized();
-		// Station soll im Bild nach rechts (err.X > 0) → Blickpunkt nach links; nach unten (err.Y > 0) → Blickpunkt nach vorn
-		_dockFocus += (-right * err.X + fwd * (err.Y / sinP)) * wpp * 0.15f;
-		_dockFocus.Y = 0f;
+		// Station soll im Bild nach rechts (err.X > 0) → Blickpunkt nach links; nach unten (err.Y > 0) → Blickpunkt nach oben (Seitenansicht)
+		_dockFocus += (-right * err.X + Vector3.Up * err.Y) * wpp * 0.15f;
 	}
 
 	void StepSpectate(float delta)
@@ -1628,6 +1626,8 @@ public partial class Main : Node3D
 	/// <summary>Runde 45: angedockt dreht die Ansicht mit diesem Tempo um die Station (Grad je Sekunde) — Hintergrund des rechts liegenden Dock-Menüs.
 	/// Rein darstellerisch: der Orbit-Zustand (Yaw/Neigung/Abstand, Selbsttest und Geräteeinstellungen) bleibt unberührt.</summary>
 	const float DockOrbitDegPerSec = 5f;
+	/// <summary>Runde 46g: angedockt Seitenansicht der Station (Grad über der Ebene).</summary>
+	const float DockViewPitchDeg = 12f;
 	/// <summary>Runde 45: laufende Anzeige-Drehung des Kamera-Offsets im Angedockt-Zustand (Grad), 0 im Flug.</summary>
 	float _dockRot;
 	int _lastFlightSteps = 1;
@@ -1795,8 +1795,12 @@ public partial class Main : Node3D
 			float dist = Mathf.Sqrt(want.X * want.X + want.Y * want.Y + want.Z * want.Z);
 			if (_session.U.Stations.TryGetValue(_docked!.Value, out var dockSt) && dist > 1e-3f)
 			{
-				float k = Mathf.Max(1f, dockSt.Radius * 4.5f / dist);
-				want = new CamVec3(want.X * k, want.Y * k, want.Z * k);
+				// Nutzerwunsch: Seitenansicht — flach über der Ebene (DockViewPitchDeg), Abstand nach Stationsradius; gedreht wird unten (_dockRot)
+				float dd = Mathf.Max(dist, dockSt.Radius * 4.5f);
+				var hz = new Vector2(want.X, want.Z);
+				hz = hz.LengthSquared() < 1e-6f ? new Vector2(0f, 1f) : hz.Normalized();
+				float pr = Mathf.DegToRad(DockViewPitchDeg);
+				want = new CamVec3(hz.X * dd * Mathf.Cos(pr), dd * Mathf.Sin(pr), hz.Y * dd * Mathf.Cos(pr));
 			}
 			focus = _dockFocus;
 		}
