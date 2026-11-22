@@ -1072,6 +1072,7 @@ public partial class Main : Node3D
 		// Zu Fuß in einer Station: Die Person sitzt in keinem Schiff — die Ansicht zeigt die Station (Dock-Menü), ohne Schiff.
 		if (u.PlayerOnFoot && u.Stations.TryGetValue(u.PlayerAtStation, out var shore))
 		{
+			EndSpectateOnFoot();   // aus dem Befehlsstand in eine Station gewechselt: das Schiff fliegt allein weiter, die Kamera folgt ihm nicht mehr
 			_hud.Screens.Hide();
 			_target = null; _targetStation = null; _autopilot = false; _hud.Flight.SetAutopilot(false);
 			SetAutoMining(false, announce: false);
@@ -1135,6 +1136,16 @@ public partial class Main : Node3D
 	/// einschaltbar. X (<see cref="ExitSpectate"/>) hebt den Stand auf: Steuerung zurück, der Befehl pausiert (wie an Bord im Flug) und läuft weiter,
 	/// sobald die Person zu einem anderen Schiff wechselt oder aussteigt. Endet der Befehl (fertig/fehlgeschlagen), kehrt die Steuerung zurück —
 	/// liegt das Schiff dann an einer Station, öffnet das Dock-Menü.</summary>
+	/// <summary>Die Person ist zu Fuß in einer Station: Befehlsstand aus, ohne Dock-Menü-Seiteneffekte (das Schiff liegt woanders und fliegt allein).</summary>
+	void EndSpectateOnFoot()
+	{
+		if (!_spectate) return;
+		_spectate = false;
+		_session.U.PlayerSpectates = false;
+		_hud.Spectate.HideSpectate();
+		_player.Visible = false;
+	}
+
 	void SetSpectate(bool on, string? commandText = null)
 	{
 		var u = _session.U;
@@ -1777,6 +1788,7 @@ public partial class Main : Node3D
 		if (flightU.PlayerSector == flightSector && _session.U == flightU) StepMining(dt, frozen, fs == 0);
 		}
 		_hud.Flight.SetSteeringVisible(!_spectate);   // Runde 46: im Befehlsstand statt Regler/◀ ▶/RÜCK die Befehlsstand-Leiste mit X
+		if (_spectate && _session.U.PlayerOnFoot) EndSpectateOnFoot();   // zu Fuß (Station besucht, ausgestiegen): kein Mitfliegen mehr — die Ansicht bleibt bei der Station
 		if (_spectate) StepSpectate(delta);   // Runde 45: das eigene Schiff fliegt die abstrakte Reise — Ansichtsposition aus Core, Rendering als Sektor-Schiff
 		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
 		ShowMining(delta);
@@ -4134,6 +4146,7 @@ public partial class Main : Node3D
 		return ok;
 	}
 	internal bool TestSpectating => _spectate;
+	internal void TestVisitStation(StationId id) => VisitStation(id);
 	internal void TestOpenShipMenu(ShipId id, SpaceAdventure.Ui.Screens.ShipMenuScreen.Tab tab) { _hud.ShipMenu.Current = tab; OpenShipMenu(id); }
 	internal void TestEndSpectate() { SpaceSim.Core.Simulation.Commands.Cancel(_session.U, PlayerData); _fast = false; ExitSpectate(); if (_docked != null) Undock(); }
 	internal Vector3 TestPlayerNodePos => _player.Position;
