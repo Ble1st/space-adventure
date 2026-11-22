@@ -18,18 +18,25 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 	public override string Id => "cc.system";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { _choosing = false; }
+	/// <summary>Runde 45 (Nutzerwunsch: Start im Hauptmenü, kein Spiel im Hintergrund): das Spiel startet in diesem Bereich — ohne laufende Welt:
+	/// nur Neues Spiel (Startpaket-Auswahl von Anfang an offen), Laden und die Einstellungen (Ton, Bedienung). Main lässt die Simulation und das
+	/// Autospeichern ruhen und blockiert den Rückweg ins Flug-HUD, bis ein Spiel gewählt ist. Nach dem Start setzt Main das Flag zurück.</summary>
+	public bool StartMenu { get; set; }
 
 	protected override void BuildContent(Control inner)
 	{
-		At(inner, Text("Spielstand", 22, Cyan), 20, 16, 400, 30);
-		var bSave = At(inner, new KitButton("Speichern", new Vector2(300, 56)) { FontSize = 19 }, 20, 56);
-		bSave.Pressed += () => RaiseSystemAction("save");
+		At(inner, Text(StartMenu ? "Hauptmenü" : "Spielstand", 22, Cyan), 20, 16, 400, 30);
+		if (!StartMenu)
+		{
+			var bSave = At(inner, new KitButton("Speichern", new Vector2(300, 56)) { FontSize = 19 }, 20, 56);
+			bSave.Pressed += () => RaiseSystemAction("save");
+		}
 		var bLoad = At(inner, new KitButton("Laden", new Vector2(300, 56)) { FontSize = 19 }, 20, 122);
 		bLoad.Pressed += () => RaiseSystemAction("load");
 		var bNew = At(inner, new KitButton("Neues Spiel", new Vector2(300, 56)) { FontSize = 19, State = _choosing ? KitButtonState.On : KitButtonState.Normal }, 20, 188);
 		bNew.Pressed += () => { _choosing = !_choosing; Invalidate(); };
 		if (_choosing) BuildStartChooser(inner);
-		float my = WrappedText(inner, "Autosave alle 30 s; Speichern/Laden legen den Spielstand wie bisher in Main ab.", 20, 256, 310, 14, Dim, 20);
+		float my = WrappedText(inner, StartMenu ? "Neues Spiel wählt ein Startpaket und startet die Welt; Laden setzt den letzten Spielstand fort. Die Einstellungen gelten sofort." : "Autosave alle 30 s; Speichern/Laden legen den Spielstand wie bisher in Main ab.", 20, 256, 310, 14, Dim, 20);
 		// Gerätetest Phase 27: sichtbare Rückmeldung im Bereich selbst (der Toast liegt unter der Kommandozentrale)
 		if (_message.Length > 0) At(inner, Text(_message, 16, _messageOk ? Green : Red), 20, my + 8f, 310, 24);   // Runde 4: Abstand zum Text darüber
 
@@ -56,12 +63,22 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 				bx += 128;
 			}
 			WrappedText(inner, UiScale.Describe(), 360, 452, 380, 13, Dim, 18);   // Runde 32: echte Tastengröße, ehrlicher Hinweis
+			if (!StartMenu)
+			{
+				// Runde 45 (Nutzerwunsch: unter Einstellungen das Spielergeld setzen): Debug-Zeile — setzt die Spielerkasse auf 100.000.000 Cr
+				var bMoney = At(inner, new KitButton("Guthaben", new Vector2(380, 56)) { FontSize = 17, Sub = "Debug: auf 100.000.000 Cr setzen" }, 360, 486);
+				bMoney.Pressed += () => RaiseSystemAction("money_cheat");
+				_testMoney = bMoney;
+			}
 		}
 	}
 
 	/// <summary>Runde 31, Selbsttest: Taste „groß“ der UI-Größe.</summary>
 	public KitButton? TestUiLarge => _testUiLarge;
 	KitButton? _testUiLarge;
+	/// <summary>Runde 45, Selbsttest: Debug-Taste „Guthaben“ unter den Einstellungen.</summary>
+	public KitButton? TestMoney => _testMoney;
+	KitButton? _testMoney;
 
 	/// <summary>Runde 12: eine Tonzeile „− | Musik 70 % | +“ (Mitte = stumm an/aus).</summary>
 	void AudioRow(Control inner, float y, string text, bool muted, Action down, Action up, Action toggle, string key)

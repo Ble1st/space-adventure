@@ -30,7 +30,7 @@ public sealed class OrderSystem : ISimSystem
         {
             var ship = commanded[ci];
             if (!u.Ships.ContainsKey(ship.Id) || ship.Command is not { } cmd) continue;
-            if (ship.Id == u.PlayerShip && !u.PlayerOnFoot) continue;   // an Bord hat die Person das Steuer: der Befehl pausiert (nicht beendet); zu Fuß/abwesend läuft er weiter
+            if (ship.Id == u.PlayerShip && !u.PlayerOnFoot && ship.DockedAt.Value == 0 && !u.PlayerSpectates) continue;   // an Bord im Flug hat die Person das Steuer: der Befehl pausiert (nicht beendet); angedockt/zu Fuß/abwesend — und im Befehlsstand (PlayerSpectates) — läuft er weiter
             if (!_executors.TryGet(cmd.Kind, out var ex)) { ship.Command = null; continue; }
             // Phase 24: Gefecht steht über dem Notfall — der Befehl ruht (Ausführer beim Eintritt gestoppt, beim Austritt neu gestartet)
             if (u.Fights.IsEngaged(ship.Id)) continue;

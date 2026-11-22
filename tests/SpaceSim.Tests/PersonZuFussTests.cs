@@ -98,7 +98,7 @@ public class PersonZuFussTests
     // ───────────────────────────── Befehl ans eigene Schiff ─────────────────────────────
 
     [Fact]
-    public void Befehl_AnsAktiveSchiff_AnBordPausiert_ZuFuss_LaeuftWeiter()
+    public void Befehl_AnsAktiveSchiff_AngedocktLegtAb_ImFlugPausiert()
     {
         var u = World();
         var player = u.Ships[u.PlayerShip];
@@ -110,28 +110,26 @@ public class PersonZuFussTests
         // Befehl ans Schiff, in dem man sitzt: erlaubt (früher „Das aktive Schiff steuerst du selbst.")
         Assert.Null(Commands.Check(u, player, new GoToCommand(default, default, target.Id)));
         Assert.True(Commands.Give(u, player, new GoToCommand(default, default, target.Id), out var given), given);
-        Assert.Contains("pausiert", Commands.Describe(u, player));   // Anzeige: pausiert, solange die Person an Bord ist
+        Assert.DoesNotContain("pausiert", Commands.Describe(u, player));   // Anzeige: angedockt läuft der Befehl sofort
 
+        // angedockt läuft das Spiel normal weiter: das Schiff legt mit der Person an Bord ab
         Run(u, 100);
-        Assert.Null(player.Transit);   // an Bord hat die Person das Steuer: das Order-System führt den Befehl nicht aus
-        Assert.NotNull(player.Command);
-
-        // aussteigen: zu Fuß läuft der Befehl wie ein Flottenschiff (Reise beginnt)
-        Assert.True(PlayerFleet.LeaveShip(u, out var left));
-        Assert.Contains("Befehl läuft weiter", left);
-        Run(u, 200);
         Assert.True(player.Transit is not null || player.DockedAt == target.Id || player.Sector == target.Sector,
             $"aktives Schiff ist losgeflogen (DockedAt {player.DockedAt.Value}, Sektor {player.Sector.Value}, Reise {player.Transit is not null})");
+        Assert.NotNull(player.Command);
 
-        // Betreten beendet den Befehl nicht (Pause statt Ende); nach dem erneuten Aussteigen läuft er weiter
-        Run(u, 4000);   // „Fliegen“-Befehl endet mit Ankunft (done) — dann dockt das Schiff am Ziel
-        if (player.DockedAt.Value != 0)
+        // im Flug endet beim Ersetzen die laufende Reise an Ort und Stelle (StopHere-Regeln); der neue Befehl pausiert an Bord
+        if (player.Transit is not null && player.DockedAt.Value == 0)
         {
-            Assert.True(PlayerFleet.SwitchTo(u, St(u, player.DockedAt.Value), player.Id, out var aboard), aboard);
-            Assert.True(Commands.Give(u, player, new GoToCommand(default, default, St(u, 30).Id), out var again2), again2);
-            Assert.True(PlayerFleet.LeaveShip(u, out _));
+            Assert.True(Commands.Give(u, player, new GoToCommand(default, default, St(u, 30).Id), out var mid), mid);
             Run(u, 60);
-            Assert.True(player.Transit is not null, "zu Fuß führt das Order-System den Befehl weiter aus");
+            Assert.Null(player.Transit);   // kein neuer Start: die Person sitzt am Steuer
+            Assert.Contains("pausiert", Commands.Describe(u, player));
+
+            // angedockt weiter: der Befehl läuft auch an Bord sofort wieder los
+            PlayerFleet.Dock(u, player, target);
+            Run(u, 60);
+            Assert.True(player.Transit is not null, "angedockt an Bord führt das Order-System den Befehl weiter aus");
         }
     }
 
@@ -237,5 +235,185 @@ public class PersonZuFussTests
         Assert.Equal(alpha.Id, u.PlayerAtStation);
         Assert.Equal(next!.Id, u.PlayerShip);           // das neue aktive Schiff liegt bereit (hier: das geparkte eigene)
         Assert.Equal(spare.Id, next.Id);
+    }
+
+    [Fact]
+    public void ZuFuss_FernwechselInsEigeneSchiff_BoardetWieder()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var alpha = St(u, 1);
+        u.MoveShip(player, alpha.Sector); u.PlayerSector = alpha.Sector;
+        PlayerFleet.Dock(u, player, alpha);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+
+        Assert.True(PlayerFleet.SwitchRemote(u, player.Id, out var msg), msg);
+        Assert.False(u.PlayerOnFoot);
+        Assert.Equal(player.Id, u.PlayerShip);
+    }
+
+    [Fact]
+    public void ZuFuss_Schuerfen_AktivesGeparktesSchiffDocktAb()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var alpha = St(u, 1);
+        u.MoveShip(player, alpha.Sector); u.PlayerSector = alpha.Sector;
+        PlayerFleet.Dock(u, player, alpha);
+        var miner = Own(u, "prospector", alpha);
+        Assert.True(PlayerFleet.SwitchTo(u, alpha, miner.Id, out var board), board);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+
+        Assert.True(Commands.Give(u, miner, new MineCommand(new AutoLimits(new SectorId(1), 1, 0f, 0f)), out var give), give);
+        Run(u, 300);
+        Assert.True(miner.DockedAt.Value == 0 || miner.Transit is not null, $"MinePhase={miner.MinePhase}, Order={miner.Order?.GetType().Name}, DockedAt={miner.DockedAt.Value}");
+    }
+
+    [Fact]
+    public void Befehlsstand_AnBord_InDerLuft_LaeuftTrotzdem()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var beta = St(u, 30);
+        u.MoveShip(player, beta.Sector); u.PlayerSector = beta.Sector;
+        PlayerFleet.Undock(u, player);   // im Flug (nicht angedockt)
+        var target = St(u, 18);
+
+        // im Flug pausiert der Befehl (Person am Steuer) — im Befehlsstand (PlayerSpectates) läuft er: Reise beginnt
+        Assert.True(Commands.Give(u, player, new GoToCommand(default, default, target.Id), out var given), given);
+        Run(u, 60);
+        Assert.Null(player.Transit);   // Pause: nichts passiert
+        u.PlayerSpectates = true;
+        Run(u, 60);
+        Assert.NotNull(player.Transit);   // Befehlsstand: das Schiff fliegt NPC-artig
+        u.PlayerSpectates = false;
+    }
+
+    [Fact]
+    public void Befehlsstand_EigenesSchiff_ErscheintInDerSektoransicht()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var beta = St(u, 30);
+        u.MoveShip(player, beta.Sector); u.PlayerSector = beta.Sector;
+        PlayerFleet.Undock(u, player);
+        u.PlayerSpectates = true;
+
+        // im Befehlsstand rendert die Ansicht das eigene Schiff als Sektor-Schiff (nicht als manuell geflogenes)
+        Assert.Contains(Materializer.Snapshot(u, beta.Sector, u.Tick), s => s.Id == player.Id);
+        u.PlayerSpectates = false;
+        Assert.DoesNotContain(Materializer.Snapshot(u, beta.Sector, u.Tick), s => s.Id == player.Id);
+    }
+
+    // ──────────────────── Testläufe: Spieler/Schiff-Trennung ───────────────────────────
+
+    [Fact]
+    public void Testlauf_TaxiZhFuss_SchiffBleibtInAltenStation_KommandozentraleWeitEntfernt()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+        var b = St(u, 1);
+
+        var taxi = new TaxiService();
+        var q = TaxiService.Quote(u, a, player, b)!;
+        Assert.True(q.Bookable);
+        Assert.True(taxi.Execute(u, a, player, new ServiceRequest($"taxi:{b.Id.Value}", default, 0f)).Success);
+
+        // die Fahrtzeit läuft als Simulation — kein System darf das geparkte Schiff verschieben
+        Run(u, (int)q.Ticks + 50);
+        Assert.Equal(a.Id, player.DockedAt);                 // Schiff bleibt an der alten Station
+        Assert.Equal(a.Sector, player.Sector);
+        Assert.Equal(b.Id, u.PlayerAtStation);               // Person steht zu Fuß am Ziel
+        Assert.Empty(PlayerFleet.ParkedAt(u, b).Where(s => s.Id == player.Id));   // am Ziel hängt es NICHT im Hangar
+        Assert.Single(PlayerFleet.ParkedAt(u, a).Where(s => s.Id == player.Id));
+
+        // Fernwechsel (Kommandozentrale) zum eigenen Schiff, das woanders liegt: Anweisung Runde 45 — möglich, die Person reist dorthin
+        // und steht an Bord des an A angedockten eigenen Schiffs (das war der Weg zurück, ohne Taxi)
+        Assert.True(PlayerFleet.SwitchRemote(u, player.Id, out var far), far);
+        Assert.False(u.PlayerOnFoot);                      // an Bord des eigenen Schiffs an der alten Station
+        Assert.Equal(a.Id, player.DockedAt);
+        Assert.Equal(a.Sector, u.PlayerSector);
+    }
+
+    [Fact]
+    public void Testlauf_TaxiAnBord_AnkunftZhFuss_SchiffBleibtGeparkt()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        var b = St(u, 5);
+
+        // an Bord gebucht (kein Leaving): das Schiff parkt an A, die Person steigt am Ziel zu Fuß aus
+        var taxi = new TaxiService();
+        var q = TaxiService.Quote(u, a, player, b)!;
+        Assert.True(taxi.Execute(u, a, player, new ServiceRequest($"taxi:{b.Id.Value}", default, 0f)).Success);
+        Assert.Equal(b.Id, u.PlayerAtStation);
+        Assert.True(u.PlayerOnFoot);
+        Assert.Equal(a.Id, player.DockedAt);
+
+        Run(u, (int)q.Ticks + 50);
+        Assert.Equal(a.Id, player.DockedAt);                  // bleibt liegen, wandert nicht mit
+        Assert.Equal(b.Id, u.PlayerAtStation);
+
+        // am Ziel wartendes eigenes Schiff übernehmen: altes aktives Schiff bleibt in A
+        var parked = Own(u, "nomad", b);
+        Assert.True(PlayerFleet.SwitchTo(u, b, parked.Id, out var take), take);
+        Assert.False(u.PlayerOnFoot);
+        Assert.Equal(parked.Id, u.PlayerShip);
+        Assert.Equal(a.Id, player.DockedAt);
+    }
+
+    [Fact]
+    public void Testlauf_ZhFuss_FernwechselWeitEntfernt_AltesSchiffBleibt()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+
+        // Fernwechsel (Kommandozentrale) in ein eigenes Schiff, das an einer ANDEREN Station liegt: die Person übernimmt
+        // aus der Ferne — das ehemalige aktive Schiff bleibt an A geparkt (kein Mitwandern)
+        var other = Own(u, "nomad", St(u, 1));
+        Assert.True(PlayerFleet.SwitchRemote(u, other.Id, out var taken), taken);
+        Assert.False(u.PlayerOnFoot);
+        Assert.Equal(other.Id, u.PlayerShip);
+        Assert.Equal(other.Sector, u.PlayerSector);
+        Assert.Equal(a.Id, player.DockedAt);                    // das alte (nicht mehr aktive) Schiff bleibt an A angedockt
+        Assert.Contains(player, PlayerFleet.ParkedAt(u, a));    // und taucht dort im Hangar auf
+        Assert.Empty(PlayerFleet.ParkedAt(u, St(u, 1)).Where(s => s.Id == player.Id));
+    }
+
+    [Fact]
+    public void Testlauf_ZhFuss_StationWechsel_NurEigeneStation()
+    {
+        var u = World();
+        var player = u.Ships[u.PlayerShip];
+        var a = St(u, 30);
+        u.MoveShip(player, a.Sector); u.PlayerSector = a.Sector;
+        PlayerFleet.Dock(u, player, a);
+        Assert.True(PlayerFleet.LeaveShip(u, out _));
+
+        // Station eines anderen Besitzers: geht nicht
+        Assert.False(PlayerFleet.SwitchToStation(u, St(u, 1).Id, out var foreign), foreign);
+        Assert.Contains("gehört dir nicht", foreign);
+        Assert.True(u.PlayerOnFoot);
+
+        // eigene Station (z. B. gebaut/Büro): die Person steht dort zu Fuß, das Schiff bleibt geparkt
+        var mine = St(u, 5);
+        mine.Owner = u.PlayerActor;
+        Assert.True(PlayerFleet.SwitchToStation(u, mine.Id, out var visit), visit);
+        Assert.True(u.PlayerOnFoot);
+        Assert.Equal(mine.Id, u.PlayerAtStation);
+        Assert.Equal(mine.Sector, u.PlayerSector);
+        Assert.Equal(player.Id, u.PlayerShip);              // aktive Schiff-Referenz bleibt
+        Assert.Equal(a.Id, player.DockedAt);                // und das Schiff bleibt an A geparkt
     }
 }

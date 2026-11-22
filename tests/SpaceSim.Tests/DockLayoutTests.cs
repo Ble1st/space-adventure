@@ -27,7 +27,7 @@ public class DockLayoutTests
         var n = DockLayout.Shell(1280, 720, None, ship: false);
         Assert.Equal(new UiRect(224, 84, 1040, 540), n.Center);
         Assert.Equal(658f, s.InnerW); Assert.Equal(520f, s.InnerH);
-        Assert.Equal(new UiRect(350, 30, 580, 662), DockLayout.MenuCard(1280, 720, None));
+        Assert.Equal(new UiRect(690, 30, 580, 662), DockLayout.MenuCard(1280, 720, None));   // Runde 45: Karte ganz rechts, Stations-Ansicht links
     }
 
     public static IEnumerable<object[]> Matrix()

@@ -81,6 +81,9 @@ public partial class Main : Node3D
 	GateId? _targetGate;
 	StationId? _docked;
 	bool _autopilot, _fast;
+	/// <summary>Runde 45 (Befehlsstand): die Person sitzt im aktiven Schiff, das seinen Befehl NPC-artig ausführt — Steuerung gesperrt,
+	/// Kamera frei, X unten links (Hud.Spectate) hebt ihn auf (Steuerung zurück, Befehl pausiert wie im Flug). Core-Spiegel: Universe.PlayerSpectates.</summary>
+	bool _spectate;
 	float _jumpCooldown, _autosave, _dockRefresh, _ccRefresh;
 	float _hitFlash;
 
@@ -170,6 +173,7 @@ public partial class Main : Node3D
 			_hud.Toast(SpaceSim.Core.Combat.ShipSystems.ModeEffect(PlayerData.PowerMode, PlayerData.Stats.PowerStorage > 0f));   // Gerätetest: spürbare Rückmeldung
 		};
 		_hud.Command.Action += OnCommandAction;
+		_hud.Spectate.ExitPressed += ExitSpectate;   // Runde 45: X des Befehlsstands
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
 		_hud.Map.JumpSelected += StartJumpTo;   // Sprungantrieb: Ziel auf der Karte
 		// Runde 37b (Handytest r37 N1, Blocker: Dock → „≡ Menü“ → „Karte“ → „Schließen“ ließ nur die nackte 3D-Szene zurück — die Karte meldete das Schließen,
@@ -219,6 +223,7 @@ public partial class Main : Node3D
 		_hud.DockResearch.UndockPressed += Undock;
 		_hud.DockResearch.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockHangar.Executed += (svc, ok) => _sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		_hud.DockHangar.Executed += (svc, ok) => { if (ok && !_session.U.PlayerOnFoot && PlayerData.Command is not null) SetSpectate(true); };   // Runde 45: z. B. Heimkehr für das eigene Schiff — der Befehl läuft, die Person schaut zu
 		_hud.DockHangar.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
 		_hud.DockHangar.AreaSelected += OnDockArea;
 		// Phase 12: Taxi — die Fahrt ist gebucht (Spieler sitzt am Ziel im neuen Schiff), die Reisezeit vergeht im Zeitraffer
@@ -276,7 +281,9 @@ public partial class Main : Node3D
 		};
 		_hud.CcFleet.AutoMiningToggled += on => SetAutoMining(on);
 		_hud.CcFleet.SwitchRequested += SwitchRemote;
+		_hud.CcFleet.Given += (id, text) => { if (id == _session.U.PlayerShip && !_session.U.PlayerOnFoot) SetSpectate(true, text); };   // Runde 45: Befehl ans Schiff, in dem die Person sitzt
 		_hud.CcAssets.SwitchRequested += SwitchRemote;
+		_hud.CcAssets.StationVisitRequested += VisitStation;   // Runde 45: in die eigene Station wechseln
 		_hud.CcAssets.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
 		_hud.CcUniverse.TaxiRequested += to =>
 		{
@@ -307,7 +314,11 @@ public partial class Main : Node3D
 		// Oberflächen-Texturen: --no-surface-detail = Modelle ohne die gemeinsamen Texturen (Vergleichsbilder)
 		if (args.Contains("--no-surface-detail")) World.SurfaceDetail.Enabled = false;
 		if (args.Contains("--model-shots")) { SaveService.UseFile("model-shots.json"); UiScale.PinnedFactor = 1f; }   // eigener Spielstand, nie der echte
-		StartSession();
+		// Runde 45 (Nutzerwunsch: Start im Hauptmenü, kein Spiel im Hintergrund): normaler Start zeigt zuerst das Hauptmenü (System-Bereich)
+		// ohne laufende Welt — Prüfläufe (Selbsttest, Fotos, ui-check) starten wie bisher direkt
+		_startMenu = !TestKnowAll;
+		StartSession(menu: _startMenu);
+		if (_startMenu) EnterStartMenu();
 		if (selftest) AddChild(new SelfTest(this));
 		int modelIdx = Array.IndexOf(args, "--model-shots");
 		if (modelIdx >= 0 && modelIdx + 1 < args.Length) AddChild(new ModelShots(args[modelIdx + 1], args.Contains("--model-shots-all"),
@@ -340,9 +351,10 @@ public partial class Main : Node3D
 
 	// ───────── Spielstand ─────────
 
-	void StartSession()
+	void StartSession(bool menu = false)
 	{
-		if (SaveService.TryLoad(out var u, out var savedAt, out var error) && u != null)
+		SpaceSim.Core.Model.Universe? u = null; string? error = null; DateTimeOffset savedAt = default;
+		if (!menu && SaveService.TryLoad(out u, out savedAt, out error) && u != null)
 		{
 			_session = new GameSession();
 			_session.Use(u);
@@ -353,11 +365,30 @@ public partial class Main : Node3D
 		}
 		else
 		{
-			if (SaveService.Exists) GD.PushWarning("Spielstand nicht ladbar, starte neu: " + error);
+			if (SaveService.Exists && !menu) GD.PushWarning("Spielstand nicht ladbar, starte neu: " + error);
 			_session = GameSession.New(_allSystems ? def => { def.Rules ??= new EconomyRules(); def.Rules.FuelActive = true; def.Rules.ResearchActive = true; } : null);
 			AttachSession();
-			if (SaveService.Exists) _hud.Toast("Spielstand beschädigt – neues Spiel gestartet", 4f);
+			if (!menu && SaveService.Exists) _hud.Toast("Spielstand beschädigt – neues Spiel gestartet", 4f);
 		}
+	}
+
+	/// <summary>Runde 45: Start im Hauptmenü — System-Bereich als Menü ohne laufende Welt (nur Neues Spiel, Laden, Einstellungen); Main
+	/// ruht die Simulation und das Autospeichern, bis ein Spiel gewählt ist (kein Spiel im Hintergrund).</summary>
+	bool _startMenu;
+
+	void EnterStartMenu()
+	{
+		_hud.CcSystem.StartMenu = true;
+		_hud.CcSystem.TestChoosing = true;   // Startpaket-Auswahl gleich offen
+		OpenCcArea(CommandAreas.System);
+	}
+
+	/// <summary>Runde 45: Hauptmenü verlassen — ein Spiel beginnt (Neues Spiel/Laden).</summary>
+	void LeaveStartMenu()
+	{
+		if (!_startMenu) return;
+		_startMenu = false;
+		_hud.CcSystem.StartMenu = false;
 	}
 
 	/// <summary>Hängt Ansicht und Ereignisse an das aktuelle Universum und setzt das Spielerschiff.</summary>
@@ -708,21 +739,23 @@ public partial class Main : Node3D
 		_sfx.Play(SfxId.Click);
 		switch (action)
 		{
-			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); return;   // Runde 12; Runde 38a: Menü bleibt offen (wie „UI-Größe“)
+			case "music_mute": SpaceAdventure.Audio.AudioSettings.ToggleMusicMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.MusicText); return;   // Runde 12; Runde 38a: Menü bleibt offen (wie „UI-Größe")
+			case "money_cheat": _session.U.PlayerWallet.Credits = 100_000_000f; _hud.Toast("Spielerguthaben auf 100.000.000 Cr gesetzt (Debug)", 3f); return;   // Runde 45: Nutzerwunsch, unter Einstellungen im System-Bereich
 			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); return;   // Runde 38a: schloss das Menü
 			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
 			case "save": SaveNow(manual: true); break;
 			case "load":
-				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
+				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { LeaveStartMenu(); _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
 				else _hud.Toast("Laden fehlgeschlagen: " + error, 4f);
 				break;
-			case "new": _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); _orbit.Reset(); AttachSession(); _hud.Toast("Neues Spiel"); break;   // Runde 19: neue Sitzung = Standardkamera
+			case "new": LeaveStartMenu(); _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); _orbit.Reset(); AttachSession(); _hud.Toast("Neues Spiel"); break;   // Runde 19: neue Sitzung = Standardkamera
 			case var a when a.StartsWith("new:", StringComparison.Ordinal):   // Phase 5c: Startpaket (player.startOptions)
 			{
 				string key = a[4..];
 				var name = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().FirstOrDefault(o => o.Key == key)?.Name ?? key;
 				var nu = SpaceSim.Core.Content.WorldBuilder.BuildDefault(startOption: key);
 				if (TestKnowAll && !TestIntelOn) nu.Player.Intel = null;   // Ausbau Punkt 16: Prüfläufe mit vollem Wissen (außer der Erkundungs-Stufe)
+				LeaveStartMenu();
 				_session.Use(nu);
 				_orbit.Reset();   // Runde 19 (Handy-Test: der Gefechtstest begann mit der zuvor verstellten Kamera flach und weit weg); Andocken/Sprung behalten sie
 				AttachSession();
@@ -743,6 +776,8 @@ public partial class Main : Node3D
 			case "save": case "load": OnMenu(action); break;
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
+			// Runde 45 (Nutzerwunsch: unter Einstellungen das Spielergeld setzen können): Debug-Zeile im Menü — setzt die Spielerkasse auf 100.000.000 Cr
+			case "money_cheat": _sfx.Play(SfxId.Click); OnMenu(action); break;   // Runde 45: wie die Ton-Zeilen — behandelt in OnMenu
 			// Runde 33 (Handytest A15: „UI-Größe“ im Menü ohne Wirkung): dieselbe Ursache — die Aktion kam hier an und fiel in den default-Zweig (kein
 			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
 			case "ui_size": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("ui_size"); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
@@ -832,6 +867,7 @@ public partial class Main : Node3D
 	/// </summary>
 	void ShowBase()
 	{
+		if (_startMenu) { OpenCcArea(CommandAreas.System); return; }   // Runde 45: kein Rückweg aus dem Hauptmenü ins (nicht laufende) Spiel
 		if (_hud.Screens.Current is CommandScreen) CommandScreen.ForgetRailArea();   // Runde 37c (Prüfung M2): beim Schließen der Zentrale
 		_hud.Map.Visible = false;
 		_hud.Screens.Hide();
@@ -939,6 +975,7 @@ public partial class Main : Node3D
 
 	void SaveNow(bool manual)
 	{
+		if (_startMenu) return;   // Runde 45: im Hauptmenü keinen (Leer-)Spielstand überschreiben
 		SyncPlayerData();
 		bool ok = SaveService.Save(_session.U, out var error);
 		if (manual)
@@ -954,7 +991,7 @@ public partial class Main : Node3D
 	void SyncPlayerData()
 	{
 		if (_reenter) return;   // Phase 12: das aktive Schiff hat gewechselt — erst die Ansicht umsetzen, sonst bekäme das neue Schiff die alte Position
-		if (_session.U.PlayerOnFoot) return;   // zu Fuß fliegt nichts: Das geparkte Schiff behält seinen Liegeplatz (kein Positions-Schreiben aus der Kamera)
+		if (_session.U.PlayerOnFoot || _spectate) return;   // zu Fuß/Befehlsstand fliegt nichts von Hand: Das Schiff behält seine simulierte Position (kein Schreiben aus der Kamera)
 		PlayerData.Position = new Vec2(_player.Position.X, _player.Position.Z);
 		if (_docked == null && !_transition && PlayerData.DockedAt.Value != 0) PlayerFleet.Undock(_session.U, PlayerData);   // fliegt = nicht angedockt
 	}
@@ -968,6 +1005,7 @@ public partial class Main : Node3D
 	/// </summary>
 	void LeaveShip()
 	{
+		SetSpectate(false);   // Runde 45: der Befehlsstand endet mit dem Aussteigen (der Befehl läuft zu Fuß weiter)
 		SyncPlayerData();
 		CancelAutopilot();
 		SetAutoMining(false, announce: false);   // zu Fuß fährt nichts von selbst
@@ -1017,6 +1055,10 @@ public partial class Main : Node3D
 		_player.Position = new Vector3(p.Position.X, 0, p.Position.Y);
 		_camOffset = _orbit.Offset();
 		SnapCam();
+		// Runde 45 (Befehlsstand): übernimmt die Person ein Schiff mit laufendem Befehl (Fernwechsel, Hangar), schaut sie zu — das Schiff
+		// führt den Befehl NPC-artig aus; andockende Handelsstopps öffnen kein Menü, X gibt die Steuerung zurück
+		if (p.Command is not null) { SetSpectate(true); return; }
+		SetSpectate(false);
 		if (u.Stations.TryGetValue(p.DockedAt, out var st))
 		{
 			_docked = st.Id;
@@ -1032,6 +1074,116 @@ public partial class Main : Node3D
 			_player.Visible = true;
 			_hud.Flight.Visible = true;
 		}
+	}
+
+	/// <summary>Runde 45 (Nutzeranweisung „in jedes eigene Schiff oder Station wechseln“): Die Person wechselt in ihre eigene Station und steht dort
+	/// zu Fuß (Core: <see cref="SpaceSim.Core.Simulation.PlayerFleet.SwitchToStation"/>); die Ansicht folgt dem Ort (Dock-Menü), das Schiff bleibt, wo es ist.</summary>
+	void VisitStation(StationId id)
+	{
+		SyncPlayerData();
+		bool ok = PlayerFleet.SwitchToStation(_session.U, id, out var message);
+		_sfx.Play(ok ? SfxId.Dock : SfxId.Click);
+		if (ok) { _hud.Screens.Hide(); EnterActiveShip(); }
+		_hud.Toast(message, 4f);
+	}
+
+	/// <summary>Runde 45 (Befehlsstand, siehe <c>docs/UI.md</c> „Befehlsstand“): Die Person sitzt im aktiven Schiff, das seinen Befehl NPC-artig ausführt —
+	/// sie schaut nur zu: Steuerung gesperrt (Flug-HUD aus, X unten links mit dem laufenden Befehl), Umschauen/Zoomen bleibt frei, der Zeitraffer ist
+	/// einschaltbar. X (<see cref="ExitSpectate"/>) hebt den Stand auf: Steuerung zurück, der Befehl pausiert (wie an Bord im Flug) und läuft weiter,
+	/// sobald die Person zu einem anderen Schiff wechselt oder aussteigt. Endet der Befehl (fertig/fehlgeschlagen), kehrt die Steuerung zurück —
+	/// liegt das Schiff dann an einer Station, öffnet das Dock-Menü.</summary>
+	void SetSpectate(bool on, string? commandText = null)
+	{
+		var u = _session.U;
+		if (u.PlayerOnFoot) on = false;
+		if (_spectate == on)
+		{
+			if (on && commandText is not null) _hud.Spectate.ShowSpectate(commandText);   // Befehl hat gewechselt: Text aktualisieren
+			return;
+		}
+		_spectate = on;
+		u.PlayerSpectates = on;
+		_sfx.Play(on ? SfxId.Jump : SfxId.Click);
+		// Befehlsstand = nur Steuerungssperre plus X in der UI; die Kamera bleibt exakt die des normalen Flugs (keine eigene Kamerasteuerung)
+		if (on)
+		{
+			CancelAutopilot();
+			SetAutoMining(false, announce: false);
+			_target = null; _targetStation = null;
+			_docked = null;   // das Schiff handelt/dockt im Befehl — kein Dock-Menü, kein Andock-Zustand der Ansicht
+			_transition = false; _playerTween?.Kill();
+			if (_hud.Screens.Current is SpaceAdventure.Ui.Screens.CommandScreen) { }   // offene Kommandozentrale bleibt offen — dort werden die Befehle gegeben (Befehlsstand läuft dahinter weiter)
+			else { _hud.Screens.Hide(); _hud.Flight.Visible = false; }   // Kontrollen gesperrt; Kamera-Gesten bleiben frei
+
+			_hud.Spectate.ShowSpectate(commandText ?? SpaceSim.Core.Simulation.Commands.Describe(u, PlayerData));
+			_hud.Toast("Befehlsstand: das Schiff führt den Befehl aus — Zuschauen frei umschauen, X = Steuerung zurück.", 4.5f);
+		}
+		else
+		{
+			_hud.Spectate.HideSpectate();
+			_hud.Flight.Visible = true;
+			_player.Visible = true;
+			// X oder Befehlsende: liegt das Schiff gerade an einer Station (Handelsstopp des Befehls), öffnet das Dock-Menü
+			if (PlayerData.DockedAt.Value != 0 && u.Stations.ContainsKey(PlayerData.DockedAt))
+			{
+				_docked = PlayerData.DockedAt;
+			_player.Visible = false;
+			ShowDockMenu();
+			if (ResetFastOnDock()) _hud.Toast("Zeitraffer aus (angedockt)", 3.5f);
+			}
+		}
+	}
+
+	/// <summary>Runde 45: Ansicht im Befehlsstand — das eigene Schiff fliegt die abstrakte Reise (Travel-Legs) oder parkt; die Kamera folgt ihm
+	/// (unsichtbarer Spieler-Knoten als Anker), gerendert wird es als Sektor-Schiff (Materializer).</summary>
+	void StepSpectate(float delta)
+	{
+		var u = _session.U;
+		var ship = u.Ships[u.PlayerShip];
+		_player.Visible = false;   // gerendert wird das Schiff über die Sektor-Ansicht (NPC-artig)
+		_player.Velocity = Vector3.Zero;
+		var pos = ship.Position;
+		var heading = _player.Heading;
+		// Kamera bleibt am Schiff, auch wenn der Befehl es über ein Tor in einen anderen Sektor führt: die Ansicht wechselt mit dem Schiff
+		// (vorher blieb PlayerSector im alten Sektor — die Kamera hing an der letzten Position, das Schiff flog woanders weiter)
+		if (ship.Transit is { } tr)
+		{
+			double now = u.Tick + _session.FractionalTick;
+			foreach (var leg in tr.Legs)
+				if (now >= leg.StartTick && now < leg.EndTick) { if (leg.Sector != u.PlayerSector) u.PlayerSector = leg.Sector; break; }
+		}
+		else if (ship.Sector != u.PlayerSector) u.PlayerSector = ship.Sector;
+		if (ship.Transit is { } t)
+		{
+			double tick = u.Tick + _session.FractionalTick;
+			foreach (var leg in t.Legs)
+			{
+				if (leg.Sector != u.PlayerSector || tick < leg.StartTick || tick >= leg.EndTick) continue;
+				float f = (float)((tick - leg.StartTick) / (double)(leg.EndTick - leg.StartTick));
+				pos = SpaceSim.Core.Model.Vec2.Lerp(leg.From, leg.To, f);
+				if ((leg.To - leg.From).Length > 0.001f) heading = MathF.Atan2(-(leg.To.X - leg.From.X), -(leg.To.Y - leg.From.Y));
+				break;
+			}
+		}
+		_player.Position = new Vector3(pos.X, 0, pos.Y);
+		_player.Heading = heading;
+		_sfx.SetThrust(0f);
+	}
+
+	/// <summary>Runde 45: X des Befehlsstands — Steuerung zurück; der Befehl bleibt und pausiert im Flug (Core-Pause, läuft nach dem Wechsel/Aussteigen weiter).</summary>
+	void ExitSpectate()
+	{
+		if (!_spectate) return;
+		// läuft das Schiff gerade eine abstrakte Reise, hält es an Ort und Stelle an — die Person übernimmt dort die Steuerung
+		if (PlayerData.Transit is not null)
+		{
+			SpaceSim.Core.Simulation.OrderMove.StopHere(_session.U, PlayerData);
+			_player.Position = new Vector3(PlayerData.Position.X, 0, PlayerData.Position.Y);
+		}
+		SetSpectate(false);
+		_hud.Toast(PlayerData.Command is not null
+			? $"Steuerung zurück — {SpaceSim.Core.Simulation.Commands.Describe(_session.U, PlayerData)} (pausiert im Flug, läuft nach dem Wechsel weiter)"
+			: "Steuerung zurück.", 4f);
 	}
 
 	/// <summary>Phase 12: Fernwechsel (Flotte, Besitz): in das gewählte eigene Schiff, dort wo es ist (Core: <see cref="PlayerFleet.SwitchRemote"/>).</summary>
@@ -1301,6 +1453,10 @@ public partial class Main : Node3D
 			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
 				LastDepartureMessage = departed; _hud.Info(departed, 3.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
+			// Runde 45 (Befehlsstand): — der Befehlsstand wird von der Benutzereingabe ausgelöst (CcFleet.Given, Hangar-Aktionen in Main),
+			// nicht vom Core-Bus: dieselben Befehle laufen auch in Prüfläufen (NPC/Tests geben Befehle)
+			case SpaceSim.Core.Events.CommandEnded ce when ce.Ship == _session.U.PlayerShip && _spectate:
+				SetSpectate(false); _hud.Toast("Befehl beendet — du hast die Steuerung.", 3.5f); break;
 			// Phase 25: Verlust des aktiven Schiffs — Explosion, Meldung; die Ansicht setzt im nächsten Frame in das neue Schiff um (EnterActiveShip)
 			case PlayerShipLost lost when Sting("sting_loss"):
 				_fx.Burst(_player.Position, new Color(1f, 0.5f, 0.2f), 60, 28f, 1.2f);
@@ -1394,6 +1550,11 @@ public partial class Main : Node3D
 
 	/// <summary>Runde 44: Zeitraffer-Faktor und Teilschritt des eigenen Autopilot-Flugs.</summary>
 	const float WarpFactor = 10f, WarpSubstep = 1f / 30f;
+	/// <summary>Runde 45: angedockt dreht die Ansicht mit diesem Tempo um die Station (Grad je Sekunde) — Hintergrund des rechts liegenden Dock-Menüs.
+	/// Rein darstellerisch: der Orbit-Zustand (Yaw/Neigung/Abstand, Selbsttest und Geräteeinstellungen) bleibt unberührt.</summary>
+	const float DockOrbitDegPerSec = 5f;
+	/// <summary>Runde 45: laufende Anzeige-Drehung des Kamera-Offsets im Angedockt-Zustand (Grad), 0 im Flug.</summary>
+	float _dockRot;
 	int _lastFlightSteps = 1;
 	/// <summary>Selbsttest: Zahl der Flug-Teilschritte im letzten Bild (1 = Echtzeit).</summary>
 	internal int TestFlightSteps => _lastFlightSteps;
@@ -1413,6 +1574,7 @@ public partial class Main : Node3D
 	public override void _Process(double deltaD)
 	{
 		if (_catchUp is { } catchUp) { StepCatchUp(catchUp); return; }
+		if (_startMenu) return;   // Runde 45: Hauptmenü ohne laufende Welt — nichts tickt, kein Spiel im Hintergrund
 		float delta = (float)deltaD;
 		if (_reenter) EnterActiveShip();   // Phase 12: aktives Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff)
 		_jumpCooldown = Mathf.Max(0f, _jumpCooldown - delta);
@@ -1436,7 +1598,7 @@ public partial class Main : Node3D
 		_sinceHit += delta;
 		if (!_session.U.Rules.DamageActive && _sinceHit > 5f && PlayerData.Hull < PlayerData.MaxHull && !_session.U.Fights.IsEngaged(PlayerData.Id)) PlayerData.Hull = Mathf.Min(PlayerData.MaxHull, PlayerData.Hull + 3f * delta);
 
-		bool frozen = _hud.AnyModalOpen || _docked != null;
+		bool frozen = _hud.AnyModalOpen || _docked != null || _spectate;   // Runde 45: im Befehlsstand ist die Handsteuerung gesperrt (Kamera frei)
 		// Runde 44 (größere Sektoren): Zeitraffer auch für den eigenen Flug — seit 44g immer, nicht nur mit Autopilot (Nutzerwunsch „Zeitraffer auch immer für
 		// Spieler“): manueller Flug, Auto-Mining mit Anflug, Kontaktabbau, Anker, Traktor und Brocken laufen in Teilschritten (≤ 1/30 s, Kollision, Tore,
 		// Eingaben, Abbau je Teilschritt), so schnell wie die Simulation (×10). Gefahr, Warnung und Andocken schalten den Zeitraffer wie bisher ab; im Gefecht
@@ -1466,7 +1628,7 @@ public partial class Main : Node3D
 			_player.Heading = h;
 			if (throttle != 0f) dir = new Vector2(-Mathf.Sin(h), -Mathf.Cos(h));
 		}
-		_player.Locked = _docked != null || _transition;
+		_player.Locked = _docked != null || _transition || _spectate;
 		bool hold = _miner.Enabled && _miningStep is { Nav: null, Waypoint: null };   // Automatik arbeitet an Ort und Stelle
 		// Treibstoff (Phase 4c): leerer Tank deckelt das Tempo (Notantrieb), die geflogene Strecke wird abgebucht
 		float fuelCap = PlayerFuel.ThrottleCap(_session.U, PlayerData);
@@ -1487,6 +1649,7 @@ public partial class Main : Node3D
 		// Abbau je Teilschritt (Kontakt, Anker, Laser-Automatik, Brocken, Traktor) — im Sprung-Teilschritt nicht mehr (anderer Sektor)
 		if (flightU.PlayerSector == flightSector && _session.U == flightU) StepMining(dt, frozen, fs == 0);
 		}
+		if (_spectate) StepSpectate(delta);   // Runde 45: das eigene Schiff fliegt die abstrakte Reise — Ansichtsposition aus Core, Rendering als Sektor-Schiff
 		if (!_miner.Enabled && _hud.Flight.AutoMineOn) { _hud.Flight.SetAutoMine(false); _hud.Toast(_miner.Status, 3.5f); }   // Automatik hat sich selbst beendet
 		ShowMining(delta);
 		SyncPlayerData();
@@ -1514,6 +1677,7 @@ public partial class Main : Node3D
 		if (_orbit.Mode == CameraMode.TargetLock && LockTargetPosition() is { } lt && !LockHeldAtRock())
 			_orbit.FollowTarget(lt.X - _player.Position.X, lt.Z - _player.Position.Z, delta);   // Yaw führt das Ziel vor das Schiff
 		if (_orbit.Mode == CameraMode.Chase && _docked == null) _orbit.FollowHeading(_player.Heading, delta);   // Runde 44: Rückansicht hinter dem Bug (auch rückwärts)
+
 		// Runde 13 (Handy-Test): Gefechtskamera — mit Gefechtsziel bzw. angekündigtem Überfall rahmt sie Schiff und Ziel (Core: CombatFraming), weich, bis 140
 		var want = _orbit.Offset();
 		var focus = Vector3.Zero;
@@ -1568,6 +1732,14 @@ public partial class Main : Node3D
 		// Runde 15: Blickpunkt zügig zurück (vorher hing das Schiff nach dem Kampf sekundenlang am oberen Rand)
 		_camFocus = _camFocus.Lerp(focus, 1f - Mathf.Exp(-(_framingActive ? 3f : 5f) * delta));
 		var co = _camOffset;
+		if (_docked != null)
+		{
+			// Runde 45: angedockt rotiert die Ansicht um die Station — nur das Kamer-Offset wird gedreht (Orbit-Zustand unverändert), im Flug sofort aus
+			_dockRot = (_dockRot + DockOrbitDegPerSec * delta) % 360f;
+			float rad = _dockRot * Mathf.Pi / 180f;
+			co = new CamVec3(co.X * Mathf.Cos(rad) - co.Z * Mathf.Sin(rad), co.Y, co.X * Mathf.Sin(rad) + co.Z * Mathf.Cos(rad));
+		}
+		else _dockRot = 0f;
 		_cam.Position = _player.Position + _camFocus + new Vector3(co.X, co.Y, co.Z);
 		_cam.LookAt(_player.Position + _camFocus);
 		FollowBackdrop();   // Runde 44: Sterne kacheln mit, Planet mit Parallaxe
@@ -3718,6 +3890,7 @@ public partial class Main : Node3D
 	/// <summary>Phase 11: Teleport an einen Punkt im aktuellen Sektor (Überfall-Test abseits der Stationen).</summary>
 	internal void TestTeleportTo(Vec2 pos)
 	{
+		SetSpectate(false);   // Runde 45: Prüflauf-Positionierung will die Handsteuerung — ein vorher aktivierter Befehlsstand endet
 		// Runde 44: ein laufender Ab-/Andock-Tween überschrieb sonst den Teleport (Selbsttest Stufe 108 nach dem Handel der Vorstufe)
 		if (_playerTween is not null && _playerTween.IsValid() && _docked == null) { _playerTween.Kill(); _transition = false; _player.Scale = Vector3.One; _player.Visible = true; }
 		_player.Position = new Vector3(pos.X, 0, pos.Y);

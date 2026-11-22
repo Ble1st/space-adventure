@@ -49,6 +49,8 @@ public partial class Hud : CanvasLayer
 	public BuildScreen CcBuild { get; } = new();
 	/// <summary>Eigene Stationen: Platzierungsmodus im Flug (ersetzt das Flug-HUD, gleicher UI-Faktor).</summary>
 	public PlacementHud Placement { get; } = new();
+	/// <summary>Runde 45 (Befehlsstand): Leiste unten links mit dem X — das aktive Schiff führt seinen Befehl NPC-artig aus, die Person schaut zu.</summary>
+	public Screens.SpectateBar Spectate { get; } = new();
 	public CommsScreen CcComms { get; } = new();
 	public SystemScreen CcSystem { get; } = new();
 	/// <summary>Registry aller Bildschirme; ein neuer Bildschirm ist eine Klasse plus ein Register-Aufruf.</summary>
@@ -137,6 +139,7 @@ public partial class Hud : CanvasLayer
 		root.AddChild(_marker);
 		root.AddChild(Flight);
 		root.AddChild(Placement);
+		root.AddChild(Spectate);
 		Flight.Extra = Placement.OccupiedGlobal;
 
 		// Hinweistext oben Mitte
@@ -282,6 +285,7 @@ public partial class Hud : CanvasLayer
 		var vp = GetViewport().GetVisibleRect().Size;
 		float f = UiScale.Factor;
 		Flight.ApplyScale(vp, f);
+		Spectate.ApplyScale(vp, Flight.Scale.X > 0f ? Flight.Scale.X : f, UiScale.SafeInsets1());
 		Placement.ApplyScale(vp, Flight.Scale.X > 0f ? Flight.Scale.X : f, UiScale.SafeInsets1());
 		// Runde 34: Dock-Schicht — ein Faktor für alle Dock-Bildschirme (Core: DockLayout.FitFactor), nur bei Änderung neu
 		var dkey = (vp, f, UiScale.SafeInsets1());

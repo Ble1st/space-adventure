@@ -55,13 +55,46 @@ public static class PlayerFleet
     }
 
     /// <summary>
-    /// Schiffwechsel aus der Ferne (UI.md Abschnitt 4): Der Spieler übernimmt das gewählte eigene Schiff dort, wo es ist. Ein reisendes Schiff
+    /// Schiffwechsel aus der Ferne (UI.md Abschnitt 4, Runde 45 Nutzeranweisung „in jedes eigene Schiff oder Station“): Der Spieler übernimmt das
+    /// gewählte eigene Schiff dort, wo es ist — auch zu Fuß: Die Person reist mit dem Fernwechsel dorthin (angedockt = steht sie in dessen Station,
+    /// unterwegs = an Bord); das Taxi bleibt die Alternative. Ein reisendes Schiff
     /// hält an Ort und Stelle; sein Befehl bleibt erhalten — an Bord pausiert er, nach dem Aussteigen läuft er weiter. Das bisherige aktive
     /// Schiff bleibt, wo es ist (angedockt oder im Raum); hat es einen Befehl, führt es ihn weiter, sonst hält es die Position. Leihschiffe gehen nur
     /// an ihrer Station. false (mit Grund) = nichts geändert.
     /// </summary>
     public static bool SwitchRemote(Universe u, ShipId id, out string message)
     {
+        // Runde 45 (Nutzeranweisung „in jedes eigene Schiff oder Station wechseln“): Der Fernwechsel kennt keine Personen-Sperre — auch zu Fuß
+        // übernimmt die Person jedes eigene Schiff dort, wo es ist: angedockt steht sie in dessen Station, unterwegs sitzt sie an Bord.
+        // Das bisherige aktive Schiff bleibt, wo es ist; ein Befehl läuft als Flottenschiff weiter. Das Taxi bleibt die Alternative, kein Muss.
+        if (u.PlayerOnFoot)
+        {
+            if (!u.Ships.TryGetValue(id, out var foot) || !foot.IsPlayer) { message = "Das Schiff gehört dir nicht."; return false; }
+            var here = u.PlayerAtStation;
+            if (id == u.PlayerShip && foot.Transit is null && foot.DockedAt == here)
+            {
+                u.PlayerAtStation = default;   // Schiff liegt hier: an Bord gehen (wie im Hangar)
+                u.Journal.Clear();
+                u.Events.Publish(new ActiveShipChanged(id, id, here));
+                message = $"Du gehst an Bord von Schiff #{foot.Id.Value}" + (u.ShipModels.TryGetValue(foot.ModelKey, out var fbm) ? $" ({fbm.Name})." : ".");
+                return true;
+            }
+            if (id != u.PlayerShip)
+            {
+                if (foot.Squadron.Value != 0 && Squadrons.Get(u, foot) is { } fsq && fsq.Leader != foot.Id) Squadrons.Leave(u, foot);
+                OrderMove.StopHere(u, foot);   // Reise endet an Ort und Stelle; der Befehl bleibt und läuft nach dem Aussteigen weiter
+                foot.Role = ShipRole.Player;
+                Activate(u, foot, foot.DockedAt);
+                message = $"Du übernimmst Schiff #{foot.Id.Value}" + (u.ShipModels.TryGetValue(foot.ModelKey, out var fm) ? $" ({fm.Name})" : "")
+                          + (u.Stations.TryGetValue(foot.DockedAt, out var fst) ? $", angedockt an {fst.Name}." : $" in {OrderMove.SectorName(u, foot.Sector)}.");
+                return true;
+            }
+            // das eigene aktive Schiff liegt woanders: die Person reist mit dem Fernwechsel dorthin (angedockt in seiner Station, sonst an Bord)
+            Activate(u, foot, foot.DockedAt);
+            message = $"Du gehst an Bord von Schiff #{foot.Id.Value}"
+                      + (u.Stations.TryGetValue(foot.DockedAt, out var ast) ? $" — angedockt an {ast.Name}." : " (unterwegs an Bord).");
+            return true;
+        }
         if (id == u.PlayerShip) { message = "Dieses Schiff ist bereits aktiv."; return false; }
         if (!u.Ships.TryGetValue(id, out var target) || !target.IsPlayer) { message = "Das Schiff gehört dir nicht."; return false; }
         if (target.Squadron.Value != 0 && Squadrons.Get(u, target) is { } sq && sq.Leader != target.Id) Squadrons.Leave(u, target);
@@ -70,6 +103,22 @@ public static class PlayerFleet
         Activate(u, target, target.DockedAt);
         message = $"Du fliegst jetzt Schiff #{target.Id.Value}" + (u.ShipModels.TryGetValue(target.ModelKey, out var m) ? $" ({m.Name})" : "")
                   + (u.Stations.TryGetValue(target.DockedAt, out var st) ? $", angedockt an {st.Name}." : $" in {OrderMove.SectorName(u, target.Sector)}.");
+        return true;
+    }
+
+    /// <summary>
+    /// Runde 45 (Nutzeranweisung „in jedes eigene Schiff oder Station wechseln“): Die Person wechselt in ihre eigene Station — Hauptquartier-
+    /// Sitz, Büro oder gebaute Station — und steht dort zu Fuß (<see cref="Universe.PlayerAtStation"/>). Das aktive Schiff bleibt die Referenz und
+    /// bleibt, wo es ist; die Ansicht setzt der Aufruf nach dem Wechsel um (Main). false (mit Grund) = nichts geändert.
+    /// </summary>
+    public static bool SwitchToStation(Universe u, StationId id, out string message)
+    {
+        if (!u.Stations.TryGetValue(id, out var st)) { message = "Diese Station gibt es nicht mehr."; return false; }
+        if (st.Owner != u.PlayerActor) { message = "Diese Station gehört dir nicht."; return false; }
+        u.PlayerAtStation = st.Id;
+        u.PlayerSector = st.Sector;
+        u.Journal.Clear();
+        message = $"Du stehst zu Fuß in {st.Name} ({OrderMove.SectorName(u, st.Sector)}).";
         return true;
     }
 

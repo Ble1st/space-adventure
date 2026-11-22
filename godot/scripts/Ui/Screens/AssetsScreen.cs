@@ -29,6 +29,8 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 
 	/// <summary>„In dieses Schiff wechseln“ (Phase 12: auch aus der Ferne; Main führt <see cref="SpaceSim.Core.Simulation.PlayerFleet.SwitchRemote"/> aus).</summary>
 	public event Action<ShipId>? SwitchRequested;
+	/// <summary>Runde 45 (Nutzeranweisung „in jedes eigene Schiff oder Station wechseln“): „Hingehen“ einer eigenen Stationskarte — Person steht dort zu Fuß.</summary>
+	public event Action<StationId>? StationVisitRequested;
 	/// <summary>„Befehle“: in die Flotte wechseln, dieses Schiff gewählt.</summary>
 	public event Action<ShipId>? CommandsRequested;
 
@@ -103,7 +105,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			panel.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			list.AddChild(row);
 			bool site = st.IsBuildSite;
-			float btnW = site ? 0f : 3 * 112f + 16f;
+			float btnW = site ? 0f : 4 * 112f + 16f;   // Runde 45: + „Hingehen“
 			float tw = rw - 28f - btnW;
 			string head = $"{st.Name} · {SectorName(u, st.Sector)}";
 			var title = Text(head, 17, White); title.ClipText = true; title.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
@@ -134,6 +136,13 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			if (site) continue;
 			var id = st.Id;
 			float bx = rw - 14f - btnW;
+			if (!site)
+			{
+				// Runde 45: in die eigene Station wechseln (Kommandozentrale) — die Person steht dort zu Fuß (Core: PlayerFleet.SwitchToStation)
+				var bGo = At(row, new KitButton("Hingehen", new Vector2(112, 56)) { FontSize = 16, Sub = "zu Fuß dorthin" }, bx, 22);
+				bGo.Pressed += () => StationVisitRequested?.Invoke(id);
+				bx += 120f;
+			}
 			foreach (var (label, sub, amount) in new[] { ("+1000", "einzahlen", 1000f), ("−1000", "auszahlen", -1000f), ("Alles", "auszahlen", -MathF.Floor(MathF.Max(0f, st.Credits))) })
 			{
 				var b = At(row, new KitButton(label, new Vector2(112, 56)) { FontSize = 17, Sub = sub }, bx, 22);

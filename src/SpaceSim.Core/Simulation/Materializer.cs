@@ -24,7 +24,7 @@ public static class Materializer
         foreach (var id in u.Tracker.ParkedIn(sector))
         {
             var ship = u.Ships[id];
-            if (ship.Id == u.PlayerShip && !u.PlayerOnFoot) continue;   // das aktive Spielerschiff rendert die Ansicht selbst; geparkte eigene Schiffe erscheinen (Phase 5c) — zu Fuß (Person in der Station, Schiff geparkt) erscheint es auch
+            if (ship.Id == u.PlayerShip && !u.PlayerOnFoot && (ship.DockedAt.Value != 0 || !u.PlayerSpectates)) continue;   // das aktive Spielerschiff rendert die Ansicht selbst — außer im Befehlsstand (Runde 45): dann fliegt es NPC-artig und erscheint wie ein Sektor-Schiff; geparkte eigene Schiffe erscheinen (Phase 5c) — zu Fuß (Person in der Station, Schiff geparkt) erscheint es auch
             // Phase 25: Teilnehmer eines räumlichen Gefechts stehen an ihrer echten Gefechtsposition (zwischen zwei Ticks interpoliert) und blicken, wohin sie zielen
             if (u.Fights.Of(id) is { Spatial: true } fight && fight.Of(id) is { } p)
             {
@@ -38,7 +38,7 @@ public static class Materializer
         foreach (var id in u.Tracker.TransitIn(sector))
         {
             var ship = u.Ships[id];
-            if (ship.Id == u.PlayerShip || ship.Transit is null) continue;
+            if ((ship.Id == u.PlayerShip && !u.PlayerSpectates) || ship.Transit is null) continue;
             foreach (var leg in ship.Transit.Legs)
             {
                 if (leg.Sector != sector || tick < leg.StartTick || tick >= leg.EndTick) continue;

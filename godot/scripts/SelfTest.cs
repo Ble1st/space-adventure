@@ -2270,7 +2270,8 @@ public partial class SelfTest : Node
 					Check(hud.TestAlert.Length > 0 && hud.TestAlertSticky, "stehende Meldung sichtbar");
 					Check(_m.TestScreenOpen("dock.menu"), "Dock-Menü offen unter der Meldung");
 					// Gerätetest Phase 28: über dem Dock-Menü links neben dem Fenster (oben verdeckte sie den Titel)
-					float winLeft = (_m.GetViewport().GetVisibleRect().Size.X - 580f) / 2f;
+					// Runde 45: die Karte liegt jetzt rechts (DockLayout.MenuCard) — linker Rand aus der echten Karte statt aus der Mitte gerechnet
+					float winLeft = hud.DockMenu.CardGlobal is { } card && card.Size.X > 0f ? card.Position.X : (_m.GetViewport().GetVisibleRect().Size.X - 580f) / 2f;
 					Check(a.End.X <= winLeft + 1f && a.Size.Y <= 160f, $"Meldung links neben dem Dock-Menü, verdeckt den Titel nicht ({a})");
 					// keine sichtbare Taste des Dock-Menüs unter der Meldung
 					var hidden = Buttons(hud.DockMenu).Where(b => b.IsVisibleInTree() && b.GetGlobalRect().Intersects(a)).Select(b => b.Text).ToList();

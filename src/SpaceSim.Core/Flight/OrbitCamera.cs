@@ -104,6 +104,15 @@ public sealed class OrbitCamera
         YawDeg = Wrap360(YawDeg + ShortestAngleDelta(YawDeg, want) * t);
     }
 
+    /// <summary>Runde 45 (Befehlsstand): Yaw folgt dem Kurs des verfolgten Schiffs, ohne den Kameramodus zu wechseln — die Kamera
+    /// löst sich nicht vom Schiff; Zoom/Schwenken/Modus des Spielers bleiben unverändert. Sanfter als die Rückansicht.</summary>
+    public void FollowCourse(float headingRad, float delta)
+    {
+        float want = Wrap360(headingRad * 180f / MathF.PI);
+        float t = 1f - MathF.Exp(-1.2f * MathF.Max(delta, 0f));
+        YawDeg = Wrap360(YawDeg + ShortestAngleDelta(YawDeg, want) * t);
+    }
+
     /// <summary>Runde 44: Yaw sofort auf den Kurs (Sprung, Abdocken, Respawn — kein Schwenk). Nur in der Rückansicht.</summary>
     public void SnapHeading(float headingRad)
     {

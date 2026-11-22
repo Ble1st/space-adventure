@@ -2,8 +2,10 @@ using SpaceSim.Core.Model;
 
 namespace SpaceSim.Core.Simulation;
 
-/// <summary>Ziel eines Autopiloten: Sektor + Position + Anzeigename.</summary>
-public readonly record struct NavTarget(SectorId Sector, Vec2 Position, string Label);
+/// <summary>Ziel eines Autopiloten: Sektor + Position + Anzeigename. <see cref="ArriveAt"/> = Abstand zum Ziel, ab dem es als erreicht gilt
+/// (0 = <see cref="Navigator.ArriveRadius"/>). Runde 45: Stationsziele liegen mittig IN der Station — erreicht ist das Ziel am Stationsrand
+/// (Radius + <see cref="Navigator.ArriveRadius"/>), nicht erst 6 Einheiten vor der Mitte.</summary>
+public readonly record struct NavTarget(SectorId Sector, Vec2 Position, string Label, float ArriveAt = 0f);
 
 public enum NavStatus { EnRoute, Arrived, Unreachable }
 
@@ -21,15 +23,17 @@ public static class Navigator
     public static NavTarget ForStation(Universe u, StationId id, ShipId ship)
     {
         var st = u.Stations[id];
-        return new NavTarget(st.Sector, st.DockPoint(ship), st.Name);
+        // Runde 45 (Nutzeranweisung): der Navpunkt einer Station liegt mittig IN der Station — nicht am Andockpunkt außen;
+        // "angekommen" gilt am Stationsrand (Andocken / Liegeplätze bleiben unverändert: Station.DockPoint)
+        return new NavTarget(st.Sector, st.Position, st.Name, st.Radius + ArriveRadius);
     }
 
-    /// <summary>Ziel "Sektor erreichen": Parkpunkt der ersten Station, sonst Sektormitte.</summary>
+    /// <summary>Ziel "Sektor erreichen": Mitte der ersten Station (Runde 45: wie ForStation mittig, Rand gilt als erreicht), sonst Sektormitte.</summary>
     public static NavTarget ForSector(Universe u, SectorId id, ShipId ship)
     {
         var s = u.Sectors[id];
         return s.Stations.Count > 0
-            ? new NavTarget(id, u.Stations[s.Stations[0]].DockPoint(ship), s.Name)
+            ? ForStation(u, s.Stations[0], ship) with { Label = s.Name }
             : new NavTarget(id, new Vec2(0, 0), s.Name);
     }
 
@@ -37,11 +41,14 @@ public static class Navigator
     /// Nächster Wegpunkt. Phase 10: Mit Schiff folgt die Route dessen Mobilitätsprofil (gesperrte Gates werden umflogen; ohne Weg
     /// <see cref="NavStatus.Unreachable"/>); ohne Schiff zählt nur der physische Gate-Zustand.
     /// </summary>
+    /// <summary>Abstand zum Zielpunkt, ab dem "angekommen" gilt: Ziel-eigene Reichweite (<see cref="NavTarget.ArriveAt"/>) oder der Standard.</summary>
+    public static float ReachOf(NavTarget target) => target.ArriveAt > 0f ? target.ArriveAt : ArriveRadius;
+
     public static NavStep Next(Universe u, SectorId sector, Vec2 pos, NavTarget target, Ship? ship = null)
     {
         if (sector == target.Sector)
         {
-            if (Vec2.Distance(pos, target.Position) <= ArriveRadius) return new NavStep(NavStatus.Arrived, pos, null);
+            if (Vec2.Distance(pos, target.Position) <= ReachOf(target)) return new NavStep(NavStatus.Arrived, pos, null);
             return new NavStep(NavStatus.EnRoute, FirstWaypoint(u, sector, pos, target.Position, null), null);
         }
 
@@ -167,7 +174,7 @@ public sealed class PathFollower
         Vec2 goal;
         if (sector == target.Sector)
         {
-            if (Vec2.Distance(pos, target.Position) <= Navigator.ArriveRadius) { Reset(); return new NavStep(NavStatus.Arrived, pos, null); }
+            if (Vec2.Distance(pos, target.Position) <= Navigator.ReachOf(target)) { Reset(); return new NavStep(NavStatus.Arrived, pos, null); }
             goal = target.Position;
         }
         else
