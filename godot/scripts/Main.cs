@@ -1148,6 +1148,7 @@ public partial class Main : Node3D
 	}
 
 	Vector3 _dockFocus;
+	bool _spectateAtTarget = true;
 	/// <summary>Runde 46f: Blickpunkt so nachführen, dass die Station (Spielerknoten = Stationsmitte) in der Mitte der freien Fläche links der Dock-Karte steht.</summary>
 	void DockFrame()
 	{
@@ -1225,6 +1226,7 @@ public partial class Main : Node3D
 		var gap = target - cur;
 		float warp = _fast ? WarpFactor : 1f;
 		if (gap.Length > 400f) { cur = target; }   // Laden/Fernwechsel/Sektorwechsel: setzen
+		else if (moving && gap.Length < coreSpeed * warp * delta * 0.5f + 0.3f) { cur = target; }   // Runde 46h: auf der Reise genau der Core-Lage folgen (sie ist pro Bild interpoliert) — kein Nachlauf
 		else
 		{
 			// Tempo: so schnell wie der Core-Abschnitt, plus Aufholen des Rückstands; nie schneller als das Schiff fliegen kann (× Zeitraffer)
@@ -1236,7 +1238,8 @@ public partial class Main : Node3D
 		}
 		float h = _player.Heading;
 		if (wantHeading is { } wh) h = AimAssist.Turn(h, wh, AimAssist.PlayerTurnRate * warp, delta);
-		_player.Visual?.SetEngine(moving || gap.Length > 1f ? 1f : 0.15f);
+		_spectateAtTarget = (target - cur).Length < 1f;
+		_player.ShowThrust(!dockedNow && (moving || gap.Length > 1f));   // Runde 46h: Antriebsschweif auch im Befehlsstand
 		_player.Position = new Vector3(cur.X, 0, cur.Y);
 		_player.Heading = h;
 		_player.Rotation = new Vector3(0f, h, 0f);   // gesperrt dreht PlayerShip.Step das Modell nicht mit (Kegel und Nase liefen auseinander)
@@ -3764,7 +3767,7 @@ public partial class Main : Node3D
 		foreach (var id in u.Tracker.ParkedIn(u.PlayerSector))
 			if (id != u.PlayerShip && u.Ships.TryGetValue(id, out var ns) && ns.AnchorRock != 0 && sec.Asteroids.FirstOrDefault(a => a.Id == ns.AnchorRock) is { } nr)
 				_view.FaceTo(id, new Vector3(nr.Position.X, 0f, nr.Position.Y), delta);
-		_anchors.Update(u, id => id == u.PlayerShip ? (_docked == null && !_transition ? (_player.Visual, (Node3D)_player) : null) : _view.BodyOf(id), delta);
+		_anchors.Update(u, id => id == u.PlayerShip ? (_docked == null && !_transition && (!_spectate || _spectateAtTarget) ? (_player.Visual, (Node3D)_player) : null) : _view.BodyOf(id), delta);   // Runde 46h: im Befehlsstand Anker erst nach Ankunft am Fels
 	}
 
 	/// <summary>Runde 12: Uhr des Musikreglers (Sekunden, Echtzeit).</summary>
