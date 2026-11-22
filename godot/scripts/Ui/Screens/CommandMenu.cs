@@ -38,6 +38,7 @@ public partial class CommandMenu : Control, IScreen
 		("Effekte", "an/aus (Lautstärke: System)", "effects_mute"),
 		("Kamera-Diagnose", "Zeile für den Gerätetest", "cam_debug"),   // Runde 16
 		("UI-Größe", "klein / normal / groß", "ui_size"),   // Runde 31
+		("Debug", "Schiffe, Stationen, Waren spawnen", "debug"),   // Nutzerwunsch: Testmenü
 	};
 
 	readonly KitWindow _win;

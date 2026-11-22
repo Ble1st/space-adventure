@@ -47,7 +47,20 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 	public void Refresh()
 	{
 		if (!Visible || Ctx == null) return;
-		if (Ctx.U.Tick != _builtTick) Rebuild();
+		if (Ctx.U.Tick == _builtTick) return;
+		// Nutzer: „Aussteigen klappte erst nach mehrfachen Tippen“ — das Menü wurde jede Sekunde komplett neu gebaut, auch unter dem Finger. Jetzt nur, wenn
+		// sich Angezeigtes ändert (angedockte Schiffe, Kasse, Hülle, zu Fuß), und nie während eine Taste gehalten wird.
+		if (KitButton.AnyHeld > 0) return;
+		if (Signature() == _sig) { _builtTick = Ctx.U.Tick; return; }
+		Rebuild();
+	}
+
+	string _sig = "";
+	string Signature()
+	{
+		var u = Ctx.U; var st = Ctx.Station; var ship = Ctx.Ship;
+		var docked = SpaceSim.Core.Simulation.Hangar.DockedShips(u, st).Select(s => s.Id.Value);
+		return $"{string.Join(",", docked)}|{u.PlayerOnFoot}|{u.PlayerShip.Value}|{ship.DockedAt.Value}|{(int)ship.Hull}|{(int)u.WalletOf(ship).Credits}|{(int)st.Credits}";
 	}
 
 	public override void _Draw()
@@ -78,6 +91,7 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 	void Rebuild()
 	{
 		_builtTick = Ctx.U.Tick;
+		_sig = Signature();
 		foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
 
 		var u = Ctx.U; var st = Ctx.Station; var ship = Ctx.Ship;

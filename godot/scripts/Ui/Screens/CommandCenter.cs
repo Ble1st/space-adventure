@@ -40,6 +40,7 @@ public static class CommandAreas
 	public const string Build = "build";
 	public const string Comms = "comms";
 	public const string System = "system";
+	public const string Debug = "debug";
 
 	/// <summary>Alle Bereiche in der Reihenfolge der Leiste („System“ zuletzt).</summary>
 	public static readonly (string Id, string Label, string Sub)[] All =
@@ -53,6 +54,7 @@ public static class CommandAreas
 		(Build, "Bauen", "Eigene Stationen"),
 		(Comms, "Comms", "Posteingang"),
 		(System, "System", "Spielstand"),
+		(Debug, "Debug", "Spawnen & Test"),   // Nutzerwunsch: Schiffe/Stationen/Waren für Tests
 	};
 
 	public static string LabelFor(string id) => id switch
@@ -66,6 +68,7 @@ public static class CommandAreas
 		Build => "Bauen",
 		Comms => "Comms",
 		System => "System",
+		Debug => "Debug",
 		_ => id,
 	};
 }

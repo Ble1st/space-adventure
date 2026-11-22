@@ -287,6 +287,16 @@ public partial class Main : Node3D
 		_hud.CcAssets.SwitchRequested += SwitchRemote;
 		_hud.CcAssets.StationVisitRequested += VisitStation;   // Runde 45: in die eigene Station wechseln
 		_hud.CcAssets.CommandsRequested += id => { _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
+		// Kleines Schiffsmenü (Nutzerwunsch): aus Hangar, Flotte und Besitz
+		_hud.CcAssets.MenuRequested += OpenShipMenu;
+		_hud.CcFleet.MenuRequested += OpenShipMenu;
+		_hud.DockHangar.MenuRequested += OpenShipMenu;
+		_hud.ShipMenu.Closed += CloseShipMenu;
+		_hud.ShipMenu.CommandsRequested += id => { _shipMenuReturn = null; _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
+		_hud.ShipMenu.SwitchRequested += id => { _shipMenuReturn = null; ShowBase(); SwitchRemote(id); };
+		_hud.ShipMenu.OtherShipRequested += id => { _hud.ShipMenu.Ship = id; _hud.ShipMenu.Open(); };
+		_hud.CcDebug.AreaSelected += OpenCcArea;
+		_hud.CcDebug.BackToFlight += CloseCommand;
 		_hud.CcUniverse.TaxiRequested += to =>
 		{
 			if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
@@ -824,6 +834,34 @@ public partial class Main : Node3D
 
 	/// <summary>Öffnet einen Bereich der Kommandozentrale im Vollbild (wie ein Tipp in der linken Leiste).</summary>
 	bool _sectorChosen;
+	/// <summary>Kleines Schiffsmenü öffnen; „✕ Zurück“ führt zum Bildschirm, von dem es geöffnet wurde.</summary>
+	void OpenShipMenu(ShipId id)
+	{
+		var u = _session.U;
+		_hud.CcCtx.U = u;
+		_hud.CcCtx.Player = PlayerData;
+		_hud.CcCtx.Docked = _docked;
+		_hud.CcCtx.Services = _session.Services;
+		var cur = _hud.Screens.Current;
+		if (cur != _hud.ShipMenu) _shipMenuReturn = cur;
+		_hud.ShipMenu.Ship = id;
+		_hud.Flight.Visible = false;
+		if (cur == _hud.ShipMenu) _hud.ShipMenu.Open(); else _hud.Screens.Show(_hud.ShipMenu);
+		_sfx.Play(SfxId.Click);
+	}
+	IScreen? _shipMenuReturn;
+	/// <summary>X im Befehlsstand, angedockt: Dock-Menü statt Mitfliegen, bis das Schiff ablegt oder der Befehl wechselt.</summary>
+	object? _spectateHoldCmd;
+	void CloseShipMenu()
+	{
+		_sfx.Play(SfxId.Click);
+		var back = _shipMenuReturn;
+		_shipMenuReturn = null;
+		if (back is CommandScreen cs) OpenCcArea(cs.AreaId);
+		else if (back is not null && back != _hud.Flight && _docked != null) { _hud.Screens.Show(back); }
+		else ShowBase();
+	}
+
 	void OpenCcArea(string areaId)
 	{
 		var u = _session.U;
@@ -848,6 +886,7 @@ public partial class Main : Node3D
 			CommandAreas.Build => _hud.CcBuild,
 			CommandAreas.Comms => _hud.CcComms,
 			CommandAreas.System => _hud.CcSystem,
+			CommandAreas.Debug => _hud.CcDebug,
 			_ => _hud.CcUniverse,
 		};
 		if (screen is CommandScreen cs) cs.AreaId = areaId;
@@ -934,6 +973,7 @@ public partial class Main : Node3D
 		if (cur == _hud.Command) { _sfx.Play(SfxId.Click); ShowBase(); return "menü"; }
 		if (cur == _hud.CcFactions && _hud.CcFactions.TestDetailOpen && _hud.CcFactions.IsNarrow) { _hud.CcFactions.TestDetailOpen = false; return "fraktionsliste"; }
 		if (cur == _hud.CcSystem && _hud.CcSystem.TestChoosing) { _hud.CcSystem.TestChoosing = false; return "startpakete"; }
+		if (cur == _hud.ShipMenu) { CloseShipMenu(); return "schiffsmenü"; }
 		if (cur is CommandScreen) { CloseCommand(); return "zentrale"; }
 		if (cur == _hud.DockTrade && _hud.DockTrade.CloseOpenRow()) return "handelszeile";
 		if (cur is not null && cur != _hud.DockMenu && cur != _hud.Flight && _docked != null) { _sfx.Play(SfxId.Click); ShowDockMenu(); return "dockbereich"; }
@@ -994,6 +1034,7 @@ public partial class Main : Node3D
 	{
 		if (_reenter) return;   // Phase 12: das aktive Schiff hat gewechselt — erst die Ansicht umsetzen, sonst bekäme das neue Schiff die alte Position
 		if (_session.U.PlayerOnFoot || _spectate) return;   // zu Fuß/Befehlsstand fliegt nichts von Hand: Das Schiff behält seine simulierte Position (kein Schreiben aus der Kamera)
+		if (_docked != null && PlayerData.Command is not null) return;   // angedockt mit Befehl: der Core fliegt (Befehlsstand folgt beim Schließen der Zentrale)
 		PlayerData.Position = new Vec2(_player.Position.X, _player.Position.Z);
 		if (_docked == null && !_transition && PlayerData.DockedAt.Value != 0) PlayerFleet.Undock(_session.U, PlayerData);   // fliegt = nicht angedockt
 	}
@@ -1250,6 +1291,14 @@ public partial class Main : Node3D
 	void ExitSpectate()
 	{
 		if (!_spectate) return;
+		if (PlayerData.DockedAt.Value != 0 && PlayerData.Transit is null && PlayerData.Command is not null)
+		{
+			// angedockt läuft der Befehl im Core weiter: X zeigt das Dock-Menü (dort „Schiff verlassen“); legt das Schiff ab, fliegst du wieder mit
+			_spectateHoldCmd = PlayerData.Command;
+			SetSpectate(false);
+			_hud.Toast("Angedockt — „Schiff verlassen“, dann fliegt das Schiff allein weiter. Sonst fliegst du beim Ablegen mit.", 4.5f);
+			return;
+		}
 		// läuft das Schiff gerade eine abstrakte Reise, hält es an Ort und Stelle an — die Person übernimmt dort die Steuerung
 		if (PlayerData.Transit is not null)
 		{
@@ -1854,6 +1903,13 @@ public partial class Main : Node3D
 
 		UpdateHud();
 		_hud.Economy.Refresh(_session);
+		// Nutzer: „Befehl in einer Station → Schiff soll alleine weitermachen“ — angedockt läuft ein Befehl im Core sofort; sitzt die Person an Bord, fliegt sie
+		// mit (Befehlsstand), egal über welchen Weg der Befehl kam (Flotte, Besitz, Hangar, Schiffsmenü). Vorher blieb die Ansicht angedockt und schrieb die
+		// Stationsposition jedes Bild ins Schiff zurück — es kam nicht weg. Zu Fuß fliegt es ohne die Person (nichts zu tun).
+		if (_spectateHoldCmd is not null && (PlayerData.DockedAt != (_docked ?? default) || !ReferenceEquals(PlayerData.Command, _spectateHoldCmd))) _spectateHoldCmd = null;
+		if (!_spectate && _docked != null && !_transition && _spectateHoldCmd is null && _session.U is { } su && !su.PlayerOnFoot && PlayerData.Command is not null
+			&& !(_hud.Screens.Current is CommandScreen || _hud.Screens.Current == _hud.ShipMenu))
+			SetSpectate(true);
 		if (_docked != null)   // Dock-Bildschirme aktualisieren sich selbst, gedrosselt (Marktpreise bewegen sich)
 		{
 			_dockRefresh += delta;
@@ -4078,6 +4134,7 @@ public partial class Main : Node3D
 		return ok;
 	}
 	internal bool TestSpectating => _spectate;
+	internal void TestOpenShipMenu(ShipId id, SpaceAdventure.Ui.Screens.ShipMenuScreen.Tab tab) { _hud.ShipMenu.Current = tab; OpenShipMenu(id); }
 	internal void TestEndSpectate() { SpaceSim.Core.Simulation.Commands.Cancel(_session.U, PlayerData); _fast = false; ExitSpectate(); if (_docked != null) Undock(); }
 	internal Vector3 TestPlayerNodePos => _player.Position;
 	internal bool TestPlayerNodeVisible => _player.Visible;

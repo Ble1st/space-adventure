@@ -27,6 +27,8 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 	public event Action<bool>? AutoMiningToggled;
 	/// <summary>„Übernehmen“: der Spieler wechselt aus der Ferne in dieses Schiff (Main führt <see cref="PlayerFleet.SwitchRemote"/> aus).</summary>
 	public event Action<ShipId>? SwitchRequested;
+	/// <summary>Kleines Schiffsmenü (Werte, Module, Inventar, Befehl, Verband).</summary>
+	public event Action<ShipId>? MenuRequested;
 
 	ShipId? _sel;
 	string? _pending;      // gewählter Befehl, der noch ein Ziel braucht
@@ -145,7 +147,9 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		// ── Rechts: Detail ──
 		var det = Narrow(inner) ? CardBg(inner, 12, 56 + listH + 10, MathF.Max(618f, InnerW(inner) - 24f), 506, Card) : CardBg(inner, 392, 6, 618, 506, Card);
 		bool isActive = ship.Id == u.PlayerShip;
-		At(det, Text($"#{ship.Id.Value} {ModelName(u, ship)}{(ship.IsRental ? " (Leihschiff)" : "")}", 20, White), 14, 6, 400, 26);
+		At(det, Text(KitButton.Fit(ThemeDB.FallbackFont, $"#{ship.Id.Value} {ModelName(u, ship)}{(ship.IsRental ? " (Leihschiff)" : "")}", 20, 330), 20, White), 14, 6, 330, 26);
+		var bMenu = At(det, new KitButton("Menü", new Vector2(90, 40)) { FontSize = 15, Sub = "" }, 356, 4);
+		{ var mid = ship.Id; bMenu.Pressed += () => MenuRequested?.Invoke(mid); }
 		// Runde 25 (Gerätetest d06: „Handel automatisch (…)“ lief unter „Übernehmen“): neben der Taste nur bis zu ihr, mit der Schrift gekürzt
 		float descW = isActive ? 590f : 434f;
 		At(det, Text(KitButton.Fit(ThemeDB.FallbackFont, isActive ? (u.PlayerOnFoot ? "AKTIV – du bist zu Fuß" : "AKTIV – du steuerst selbst") : Commands.Describe(u, ship), 14, descW), 14, ship.Emergency ? Red : isActive ? Cyan : Orange), 14, 32, descW, 20);
