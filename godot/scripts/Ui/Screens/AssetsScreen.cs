@@ -222,7 +222,7 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 		At(w, new DockAreaScreen.ShipSketch { CustomMinimumSize = new Vector2(120, 100), Size = new Vector2(120, 100), MouseFilter = MouseFilterEnum.Ignore }, 30, 40);
 		At(w, Text($"Schiff #{s.Id.Value}{(active ? " (aktiv)" : "")}", 30, White), 170, 24, 390, 36);
 		At(w, Text($"{(u.ShipModels.TryGetValue(s.ModelKey, out var md) ? md.Name : "ohne Modell")} · Güteklasse {ShipQualityNames.Name(s.Quality)} · Besitzer {u.ActorName(s.Owner)}", 15, Dim), 170, 62, 600, 20);
-		string ort = OrtText(u, s, active ? Ctx.Docked : s.DockedAt);
+		string ort = OrtText(u, s, active && !u.PlayerOnFoot ? Ctx.Docked : s.DockedAt);
 		At(w, Text(ort, 16, active ? Cyan : Orange), 170, 88, 500, 22);
 
 		// Zustand (Phase 12: Hülle, Sprit echt; Phase 23: Schild, Speicherbank, Magazin und Leistung echt aus den Bordsystemen)
@@ -452,11 +452,11 @@ public sealed partial class AssetsScreen : CommandScreen, ISessionScreen
 			var closed = new System.Collections.Generic.List<Vector2>(pts) { pts[0] };
 			DrawPolyline(closed.ToArray(), Cyan, 1.5f, true);
 
-			string ort = OrtText(_u, _s, _active ? _docked : _s.DockedAt);
+			string ort = OrtText(_u, _s, _active && !_u.PlayerOnFoot ? _docked : _s.DockedAt);
 			string model = _u.ShipModels.TryGetValue(_s.ModelKey, out var md) ? md.Name : "";
 			string name = $"Schiff #{_s.Id.Value} {model}{(_s.Quality == ShipQuality.Standard ? "" : " · " + ShipQualityNames.Name(_s.Quality))}";
-			string cmd = _active ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s);
-			string state = StateText(_s, _active, _docked is not null, _u);
+			string cmd = _active && !_u.PlayerOnFoot && !_u.PlayerSpectates ? "von dir gesteuert" : SpaceSim.Core.Simulation.Commands.Describe(_u, _s);
+			string state = StateText(_s, _active && !_u.PlayerOnFoot && !_u.PlayerSpectates, _docked is not null, _u);
 			string tag = _active ? "AKTIV" : "Tippen ▸";
 			Color tagCol = _active ? Cyan : Dim;
 			if (_narrow)

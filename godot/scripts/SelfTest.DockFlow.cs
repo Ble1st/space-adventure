@@ -16,6 +16,7 @@ public partial class SelfTest
 	StationId _dfStation;
 	int _dfShips;
 	ShipId _dfSpawned;
+	StationId _dfVisit;
 
 	bool DockFlowStage(int f)
 	{
@@ -53,13 +54,33 @@ public partial class SelfTest
 				return false;
 			}
 			case 140: Check(_m.TestSpectating, "DF: angedockt + Befehl an Bord → Befehlsstand (mitfliegen), auch ohne Flottenliste"); return false;
+			case 300:
+			{
+				// Nutzer: „von Schiff mit Befehl zu Station wechseln (ohne andocken) — Schiff im Hintergrund statt Station, als angedockt angezeigt“
+				var st = DebugSpawn.SpawnStation(u, "solar_plant", out var msg);
+				Check(st is not null, $"DF: eigene Station gespawnt ({msg})");
+				if (st is not null) { _dfVisit = st.Id; _m.TestVisitStation(st.Id); }
+				return false;
+			}
+			case 330:
+			{
+				var st = u.Stations[_dfVisit];
+				var me = u.Ships[u.PlayerShip];
+				Check(u.PlayerOnFoot && !_m.TestSpectating && !u.PlayerSpectates, "DF: Wechsel in die eigene Station beendet den Befehlsstand (zu Fuß)");
+				var p = _m.TestPlayerNodePos;
+				Check(Vec2.Distance(new Vec2(p.X, p.Z), st.Position) < 1f, $"DF: Ansicht bleibt bei der Station, nicht beim Schiff (Abstand {Vec2.Distance(new Vec2(p.X, p.Z), st.Position):0})");
+				Check(me.DockedAt != _dfVisit, "DF: das Schiff liegt nicht an der besuchten Station");
+				string state = Ui.Screens.AssetsScreen.StateText(me, false, true, u);
+				Check(!state.Contains("angedockt") || me.DockedAt.Value != 0, $"DF: Besitz zeigt das schürfende Schiff nicht als angedockt ({state})");
+				return false;
+			}
 			case 400:
 			{
 				var me = u.Ships[u.PlayerShip];
 				var st = u.Stations[_dfStation];
 				Check(me.DockedAt != _dfStation || me.Transit is not null || Vec2.Distance(me.Position, st.Position) > st.Radius + 20f,
-					$"DF: das Schiff legt ab und führt den Befehl aus (angedockt {me.DockedAt.Value}, Abstand {Vec2.Distance(me.Position, st.Position):0})");
-				_m.TestEndSpectate();
+					$"DF: das Schiff legt ab und führt den Befehl auch allein (Person zu Fuß) aus (angedockt {me.DockedAt.Value}, Abstand {Vec2.Distance(me.Position, st.Position):0})");
+				Commands.Cancel(u, me);
 				return false;
 			}
 			case 406:
