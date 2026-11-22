@@ -127,13 +127,15 @@ public partial class PhoneShots : Node
 					int rid = key == "strip_miner" ? _ropeLRock : _r43RockM;
 					var rock = u.Sectors[u.PlayerSector].Asteroids.FirstOrDefault(a => a.Id == rid);
 					if (ph == 0 && rock is not null) rock.Ore = rock.MaxOre = Mathf.Max(rock.MaxOre, 5000f);   // der Maulwurf leert kleine Felsen in Sekunden (Anker löst „leer“)
-					if (ph == 0) Mining43PlayerAt(key, rid);
+					if (ph == 0) { Mining43PlayerAt(key, rid); me.CargoCapacity = Mathf.Max(me.Stats.Cargo, 5000f); }   // Prüfbild: Laderaum nie voll (sonst löst „hold_full“)
 					float yaw = rock is null ? 0f : Mathf.RadToDeg(Mathf.Atan2(rock.Position.X - me.Position.X, rock.Position.Y - me.Position.Y));
 					float dist = key is "strip_miner" ? 30f : key is "excavator" or "rockbreaker" or "rockbreaker_ii" or "quarry" ? 20f : 14f;
 					if (ph == 100) _m.TestSetCam(yaw + 70f, 35f, dist);
-					if (ph == 105) GD.Print($"[r46] {key} anker {me.AnchorRock} fels {rid} ships {me.Position} rock {rock?.Position} r {rock?.Radius} seil {_m.TestAnchors.RopeLength(me.Id):0.00}");
+					if (ph == 105) GD.Print($"[r46] {key} anker {me.AnchorRock} fels {rid} ships {me.Position} rock {rock?.Position} r {rock?.Radius} seil {_m.TestAnchors.RopeLength(me.Id):0.00} muz [{string.Join(" ", _m.TestAnchors.MuzzlesOf(me.Id))}] tips [{string.Join(" ", _m.TestAnchors.TipsOf(me.Id))}] node {_m.Player.Position} head {_m.Player.Heading:0.00}");
 					if (ph == 110 && !warm) Capture($"r-{key}-a.png");
 					if (ph == 120) _m.TestSetCam(yaw - 70f, 25f, dist);
+					if (ph == 140 && key == "strip_miner") _m.TestSetCam(yaw + 20f, 60f, 18f);
+					if (ph == 150 && key == "strip_miner" && !warm) Capture("r-strip_miner-c.png");
 					if (ph == 130 && !warm) Capture($"r-{key}-b.png");
 				}
 				break;
