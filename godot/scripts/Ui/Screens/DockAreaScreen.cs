@@ -110,7 +110,8 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", L.Compact ? 22 : 26, Orange, HorizontalAlignment.Right), cx, 0, L.Credits.W, 32);
 		// Runde 34b: eingeklappte Schiffsspalte (schmale Fläche) — der Laderaum steht dann hier statt der Stationskasse (die steht in der Stationsinfo)
 		// Runde 42c: versiegelte Auftragsfracht (Ship.MissionCargo) zählt zum belegten Laderaum
-		string second = L.ShipCollapsed ? $"Laderaum {ship.UsedVolume(u) + ship.MissionCargo:0.#}/{ship.CargoCapacity:0} m³ · Hülle {(int)ship.Hull}/{(int)ship.MaxHull}" : $"Kasse der Station {st.Credits:0} Cr";
+		bool shipElsewhere = u.PlayerOnFoot && ship.DockedAt != st.Id;   // zu Fuß: das aktive Schiff liegt woanders — keine Schiffsdaten hier
+		string second = L.ShipCollapsed && !shipElsewhere ? $"Laderaum {ship.UsedVolume(u) + ship.MissionCargo:0.#}/{ship.CargoCapacity:0} m³ · Hülle {(int)ship.Hull}/{(int)ship.MaxHull}" : $"Kasse der Station {st.Credits:0} Cr";
 		At(top, Text(second, L.Compact ? 14 : 16, Dim, HorizontalAlignment.Right), cx, L.Compact ? 34 : 38, L.Credits.W, 22);
 
 		// ── Linke Leiste: Wechsel zwischen den Bereichen (Daten aus DockAreas) ──
@@ -124,7 +125,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		scroll.AddChild(rv);
 		// Runde 35b (Prüfung: bei eingeklappter Schiffsspalte fehlten Fracht „An Bord“ und Schild): oben in der Leiste „Dein Schiff“ — klappt die Schiffskarte
 		// über den Mittelteil auf (nochmal tippen oder ein Bereich schließt sie)
-		if (ShowShip && L.ShipCollapsed)
+		if (ShowShip && L.ShipCollapsed && !shipElsewhere)
 		{
 			var sb = new KitButton("Dein Schiff", new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, State = _shipOpen ? KitButtonState.On : KitButtonState.Normal,
 				Sub = $"Fracht {ship.UsedVolume(u) + ship.MissionCargo:0.#}/{ship.CargoCapacity:0} · Schild {(ship.Stats.Shield > 0f ? $"{(int)ship.ShieldNow}" : "–")}" };   // Runde 42c: versiegelte Fracht zählt mit
@@ -214,6 +215,21 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 	{
 		var u = Ctx.U; var ship = Ctx.Ship;
 		var p = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, x, y, w, h);
+		if (u.PlayerOnFoot && Ctx.Station is { } here && ship.DockedAt != here.Id)
+		{
+			// Zu Fuß in einer anderen Station (z. B. nach dem Taxi): das eigene Schiff liegt dort, wo es geparkt wurde — hier zeigt die Karte nur das an
+			p.AddThemeStyleboxOverride("panel", overlay ? Box(PanelSolid, Cyan, 10, 2, 12) : Box(PanelBg, null, 10, 0, 12));
+			var fv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			fv.AddThemeConstantOverride("separation", 7);
+			p.AddChild(fv);
+			fv.AddChild(Text("Du bist zu Fuß", 20, Cyan));
+			string loc = u.Stations.TryGetValue(ship.DockedAt, out var at) ? $"{at.Name} ({(u.Sectors.TryGetValue(at.Sector, out var asec) ? asec.Name : "?")})" : "unterwegs";
+			var info = Text($"Dein Schiff liegt in {loc}. Im Hangar hier ein Schiff übernehmen oder mieten.", 14, Dim);
+			info.AutowrapMode = TextServer.AutowrapMode.WordSmart; info.CustomMinimumSize = new Vector2(w - 28, 0);
+			fv.AddChild(info);
+			fv.AddChild(Text($"{(int)u.WalletOf(ship).Credits} Credits", 15, White));
+			return;
+		}
 		p.AddThemeStyleboxOverride("panel", overlay ? Box(PanelSolid, Cyan, 10, 2, 12) : Box(PanelBg, null, 10, 0, 12));
 		var sv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		sv.AddThemeConstantOverride("separation", 7);

@@ -151,6 +151,9 @@ public sealed class ShipVisual
 	/// <summary>Runde 45 (Gerätetest: zwischen Trosse und Schiff war Luft): Rumpfhülle im Modellraum (Vereinigung der Rumpf-Meshes, ohne Werkzeuge/Werfer).
 	/// Der Seilstart der Ankertrossen wird in diese Box geklemmt — das Seil beginnt sichtbar in/am Rumpf, nie frei daneben.</summary>
 	public Aabb HullLocal { get; internal set; } = new(new Vector3(-0.5f, -0.3f, -1f), new Vector3(1f, 0.6f, 2f));
+	/// <summary>Runde 46 (Gerätetest: Lücke zwischen Ankertrosse und Schiff): Dreiecke der Rumpf-Meshes im Modellraum (Dreiecksliste, je drei Punkte).</summary>
+	public Vector3[] HullTris { get; internal set; } = System.Array.Empty<Vector3>();
+	readonly Dictionary<(int, Vector3), Vector3> _hullSnap = new();
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Engines = new();
 	internal readonly List<(MeshInstance3D Mesh, int Surface, Material Source)> Accents = new();
 	int _engineLevel = -1;
@@ -274,13 +277,47 @@ public sealed class ShipVisual
 	{
 		float z = MathF.Min(harpoonLocal.Z, TipLocal.Z + AnchorStartBack);
 		var p = OutsideDrill(new Vector3(harpoonLocal.X, harpoonLocal.Y, z), index);
-		// Runde 45: der Seilstart soll in der Rumpfhülle liegen (sichtbar am Rumpf, keine Luft zwischen Trosse und Schiff) — aber nur,
-		// wenn die Klemmung ihn nicht zurückschiebt in den Bohrerbereich (OutsideDrill-Regel bleibt vorn)
-		var clamped = new Vector3(
-			Mathf.Clamp(p.X, HullLocal.Position.X, HullLocal.End.X),
-			Mathf.Clamp(p.Y, HullLocal.Position.Y, HullLocal.End.Y),
-			Mathf.Clamp(p.Z, HullLocal.Position.Z, HullLocal.End.Z));
-		return WithinDrill(clamped) ? p : clamped;
+		// Runde 46: der Seilstart sitzt auf der echten Rumpffläche (nächster Punkt der Rumpfdreiecke, minimal nach innen) — die AABB-Klemmung
+		// ließ an schmalen Bugformen Luft zwischen Seil und Rumpf
+		return SnapToHull(p, index);
+	}
+
+	/// <summary>Runde 46: nächster Punkt der Rumpfoberfläche zu <paramref name="p"/> (Modellraum), 0,02 zur Rumpfmitte hin versenkt; ohne Dreiecke unverändert.</summary>
+	public Vector3 SnapToHull(Vector3 p, int index)
+	{
+		if (HullTris.Length < 3) return p;
+		if (_hullSnap.TryGetValue((index, p), out var cached)) return cached;
+		var best = p; float bestD = float.MaxValue;
+		for (int i = 0; i + 2 < HullTris.Length; i += 3)
+		{
+			var q = ClosestOnTriangle(p, HullTris[i], HullTris[i + 1], HullTris[i + 2]);
+			float d = q.DistanceSquaredTo(p);
+			if (d < bestD) { bestD = d; best = q; }
+		}
+		var inward = HullLocal.GetCenter() - best;
+		if (inward.LengthSquared() > 1e-6f) best += inward.Normalized() * 0.02f;
+		_hullSnap[(index, p)] = best;
+		return best;
+	}
+
+	/// <summary>Nächster Punkt auf dem Dreieck abc (Ericson, Real-Time Collision Detection).</summary>
+	static Vector3 ClosestOnTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c)
+	{
+		var ab = b - a; var ac = c - a; var ap = p - a;
+		float d1 = ab.Dot(ap), d2 = ac.Dot(ap);
+		if (d1 <= 0f && d2 <= 0f) return a;
+		var bp = p - b; float d3 = ab.Dot(bp), d4 = ac.Dot(bp);
+		if (d3 >= 0f && d4 <= d3) return b;
+		float vc = d1 * d4 - d3 * d2;
+		if (vc <= 0f && d1 >= 0f && d3 <= 0f) return a + ab * (d1 / (d1 - d3));
+		var cp = p - c; float d5 = ab.Dot(cp), d6 = ac.Dot(cp);
+		if (d6 >= 0f && d5 <= d6) return c;
+		float vb = d5 * d2 - d1 * d6;
+		if (vb <= 0f && d2 >= 0f && d6 <= 0f) return a + ac * (d2 / (d2 - d6));
+		float va = d3 * d6 - d5 * d4;
+		if (va <= 0f && d4 - d3 >= 0f && d5 - d6 >= 0f) return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)));
+		float den = 1f / (va + vb + vc);
+		return a + ab * (vb * den) + ac * (vc * den);
 	}
 
 	/// <summary>Runde 45: liegt dieser Modellraum-Punkt innerhalb des Bohrerbereichs (nächste Bohrerachse, Rand + 0,1)? Siehe <see cref="OutsideDrill"/>.</summary>
@@ -520,6 +557,7 @@ public static class ShipModels
 	{
 		Aabb box = new(new Vector3(-0.5f, -0.3f, -1f), new Vector3(1f, 0.6f, 2f));
 		bool any = false;
+		var tris = new List<Vector3>();
 		void Walk(Node n, Transform3D t)
 		{
 			foreach (var c in n.GetChildren())
@@ -530,6 +568,7 @@ public static class ShipModels
 				var ct = t * c3.Transform;
 				if (c3 is MeshInstance3D { Mesh: { } mesh })
 				{
+					foreach (var f in mesh.GetFaces()) tris.Add(ct * f);   // Dreiecke im Modellraum: Seilstart auf der echten Rumpffläche (Runde 46)
 					var aabb = mesh.GetAabb();
 					for (int cx = 0; cx < 2; cx++) for (int cy = 0; cy < 2; cy++) for (int cz = 0; cz < 2; cz++)
 					{
@@ -544,6 +583,7 @@ public static class ShipModels
 		}
 		Walk(v.Root, Transform3D.Identity);
 		if (any) v.HullLocal = box;
+		v.HullTris = tris.ToArray();
 	}
 
 	static void ComputeToolTip(ShipVisual v, ShipModelInfo info)

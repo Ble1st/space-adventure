@@ -1147,6 +1147,15 @@ public partial class Main : Node3D
 		_player.Velocity = Vector3.Zero;
 		var pos = ship.Position;
 		var heading = _player.Heading;
+		// Kamera bleibt am Schiff, auch wenn der Befehl es über ein Tor in einen anderen Sektor führt: die Ansicht wechselt mit dem Schiff
+		// (vorher blieb PlayerSector im alten Sektor — die Kamera hing an der letzten Position, das Schiff flog woanders weiter)
+		if (ship.Transit is { } tr)
+		{
+			double now = u.Tick + _session.FractionalTick;
+			foreach (var leg in tr.Legs)
+				if (now >= leg.StartTick && now < leg.EndTick) { if (leg.Sector != u.PlayerSector) u.PlayerSector = leg.Sector; break; }
+		}
+		else if (ship.Sector != u.PlayerSector) u.PlayerSector = ship.Sector;
 		if (ship.Transit is { } t)
 		{
 			double tick = u.Tick + _session.FractionalTick;

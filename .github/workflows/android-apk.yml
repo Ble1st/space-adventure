@@ -69,8 +69,9 @@ jobs:
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs build/space-adventure.apk | head -2
           "$ANDROID_HOME/build-tools/34.0.0/zipalign" -c 4 build/space-adventure.apk
 
-      - uses: actions/upload-artifact@v4
+      # archive: false lädt die APK unverändert hoch (kein ZIP-Wrapper); der Artefaktname ist dann der Dateiname
+      - uses: actions/upload-artifact@v7
         with:
-          name: space-adventure-debug-apk
           path: build/space-adventure.apk
+          archive: false
           retention-days: 14
