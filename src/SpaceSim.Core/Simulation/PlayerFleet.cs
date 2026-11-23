@@ -129,6 +129,7 @@ public static class PlayerFleet
         if (ship.Sector != st.Sector) u.MoveShip(ship, st.Sector);
         ship.Position = st.DockPoint(ship.Id);
         ship.DockedAt = st.Id;
+        if (u.Rules.DockDwellTicks > 0 || u.Rules.DockDwellTicksPlayer > 0) ship.DockedSince = u.Tick;   // Liegezeit beginnt
         u.Events.Publish(new ShipDocked(ship.Id, st.Id));   // Runde 42b: Andocken meldet der Bus (z. B. Transport-Ablieferung)
     }
 

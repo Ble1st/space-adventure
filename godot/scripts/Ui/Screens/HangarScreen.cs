@@ -52,11 +52,16 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 			: $"Liegegebühr für geparkte Schiffe: {u.Rules.BerthFeeBySize.GetValueOrDefault("S"):0}–{u.Rules.BerthFeeBySize.GetValueOrDefault("L"):0} Cr/Tag je Klasse";
 		At(inner, Text(_message.Length > 0 ? _message : fee, 15, _message.Length > 0 ? (_msgOk ? Green : Red) : new Color(Dim, 0.9f)), 0, 0, w, 22);
 
-		// ── Aktives Schiff ──
-		var card = CardBg(inner, 0, 28, w - 8, 78, new Color(0.12f, 0.22f, 0.4f, 0.95f), Cyan, 10, 2);
-		At(card, new ShipSketch { CustomMinimumSize = new Vector2(48, 40), Size = new Vector2(48, 40), MouseFilter = MouseFilterEnum.Ignore }, 12, 14);
-		At(card, Text($"Dein Schiff #{ship.Id.Value} · {ModelName(u, ship)} · {ShipQualityNames.Name(ship.Quality)}{(ship.IsRental ? " · Leihschiff" : "")}", 20, White), 72, 6, 640, 28);
-		At(card, Text($"{(u.PlayerOnFoot ? "Du bist zu Fuß – " + (ship.Transit is not null ? "Schiff unterwegs" : ship.DockedAt == st.Id ? "Schiff liegt hier" : "Schiff woanders") + " · " + Commands.Describe(u, ship) : "AKTIV – von dir gesteuert")} · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive && SpaceSim.Core.Flight.TankInfo.ShortLine(u, ship) is { Length: > 0 } tline ? $" · {tline}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
+		// ── Aktives Schiff ── (zu Fuß keine Karte: die Person sitzt in keinem Schiff; liegt das Schiff hier, steht es unten bei „Deine Schiffe hier“)
+		if (u.PlayerOnFoot)
+			At(inner, Text("Du bist zu Fuß – ein Schiff hier übernehmen oder mieten.", 18, Cyan), 0, 50, w - 8, 28);
+		else
+		{
+			var card = CardBg(inner, 0, 28, w - 8, 78, new Color(0.12f, 0.22f, 0.4f, 0.95f), Cyan, 10, 2);
+			At(card, new ShipSketch { CustomMinimumSize = new Vector2(48, 40), Size = new Vector2(48, 40), MouseFilter = MouseFilterEnum.Ignore }, 12, 14);
+			At(card, Text($"Dein Schiff #{ship.Id.Value} · {ModelName(u, ship)} · {ShipQualityNames.Name(ship.Quality)}{(ship.IsRental ? " · Leihschiff" : "")}", 20, White), 72, 6, 640, 28);
+			At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive && SpaceSim.Core.Flight.TankInfo.ShortLine(u, ship) is { Length: > 0 } tline ? $" · {tline}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
+		}
 
 		// ── Eigene Schiffe hier (Dienst „hangar“) ──
 		// Runde 34b (Prüfung B1): schmale Fläche (Handy bei „groß“) — die rechte Spalte (fremde Schiffe, Leihdienst) rückt unter die eigenen Schiffe
@@ -65,6 +70,9 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		var hangar = Svc(HangarService.ServiceKey);
 		var offers = hangar?.Offers(u, st, ship) ?? Array.Empty<ServiceOffer>();
 		var parked = PlayerFleet.ParkedAt(u, st);
+		// Liegezeit: eben angekommene eigene Schiffe, deren Weiterreise schon geplant ist, liegen noch hier — anzeigen (Übernehmen erst, wenn sie bleiben)
+		var leaving = u.ShipsById().Where(s => s.IsPlayer && !parked.Contains(s) && (s.Id != u.PlayerShip || u.PlayerOnFoot) && Hangar.LeavingFrom(u, s) == st.Id).ToList();
+		parked = parked.Concat(leaving).ToList();
 		At(inner, Text(hangar is null ? "Diese Station hat keinen Hangar." : parked.Count > 0 ? "Deine Schiffe hier" : "Keine weiteren eigenen Schiffe an dieser Station", 17,
 			parked.Count > 0 ? Cyan : new Color(Dim, 0.8f)), 0, 114, lw, 24);
 		float y = 142f;
@@ -73,7 +81,7 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 			var row = CardBg(inner, 0, y, lw - 8, 108, Card, new Color(Edge, 0.6f), 10, 1);
 			At(row, Text($"#{other.Id.Value} · {ModelName(u, other)} · {ShipQualityNames.Name(other.Quality)}{(other.IsRental ? " · Leihschiff" : "")}", 17, White), 12, 4, 420, 24);
 			float berth = Hangar.BerthFeeNow(u, other);
-			At(row, Text($"{Commands.Describe(u, other)} · Hülle {(int)other.Hull}/{(int)other.MaxHull}{(u.Rules.FuelActive ? $" · Tank {other.TotalFuel:0}" : "")}" + (berth > 0f ? $" · {berth:0} Cr/Tag" : ""), 13, Dim), 12, 28, lw - 30, 20);
+			At(row, Text($"{(leaving.Contains(other) ? "legt gleich ab · " : "")}{Commands.Describe(u, other)} · Hülle {(int)other.Hull}/{(int)other.MaxHull}{(u.Rules.FuelActive ? $" · Tank {other.TotalFuel:0}" : "")}" + (berth > 0f ? $" · {berth:0} Cr/Tag" : ""), 13, Dim), 12, 28, lw - 30, 20);
 			float bx = 12;
 			foreach (var (action, label) in new[] { (HangarService.Switch, "Übernehmen"), (HangarService.Home, "Heim"), (HangarService.SellShip, "Verkaufen") })
 			{

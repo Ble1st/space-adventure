@@ -271,6 +271,8 @@ public sealed class Ship : ICreditAccount
     /// <see cref="EconomyRules.StrandedCargoTicks"/> wirft er sie im All ab. Gespeichert.
     /// </summary>
     public long StrandedSince = -1;
+    /// <summary>Liegezeit: Tick der letzten Ankunft an einer Station (-1 = keine/ausgeschaltet). Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public long DockedSince = -1;
     /// <summary>Phase 22: Rentabilitätsmessung (Grund c für das Ausmustern; <see cref="Simulation.Profitability"/>). Gespeichert und gehasht.</summary>
     public ProfitMeter Profit = new();
     /// <summary>Phase 6: Tick der letzten Aufgabenzuteilung (Kauf oder Wechsel); Mindestdauer der Aufgabe zählt ab hier (gespeichert).</summary>

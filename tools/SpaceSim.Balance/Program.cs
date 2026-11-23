@@ -86,6 +86,8 @@ if (opts.TryGetValue("feuds", out var feOpt)) { bool fon = feOpt == "on"; u.Rule
 if (opts.TryGetValue("navy", out var navyOpt)) u.Rules.NavalBattles = u.Rules.WarDefense = u.Rules.WarEscorts = navyOpt == "on";
 // Ausbau Punkt 8: --wear off = kein Stationsverschleiß (alte Regel); Nachtrag 2b: --navycool off = keine Abkühlzeit, Rücklage ohne kämpfende Schiffe
 if (opts.TryGetValue("wear", out var wearOpt)) u.Rules.StationWear = wearOpt == "on";
+// Liegezeit an Stationen: --dwell N = KI-Schiffe liegen N Ticks nach der Ankunft, bevor sie weiterfliegen (0 = sofort)
+if (opts.TryGetValue("dwell", out var dwellOpt) && int.TryParse(dwellOpt, out var dwellN)) u.Rules.DockDwellTicks = dwellN;
 // Ausbau Punkt 9: --firmseats off = keine Firmensitze und keine KI-Büros (alte Regel)
 if (opts.TryGetValue("firmseats", out var fsOpt)) { u.Rules.FirmSeats = fsOpt == "on"; u.Rules.Offices = fsOpt == "on"; }
 if (opts.TryGetValue("firmclass", out var fclOpt)) u.Rules.FirmSeatMinClass = int.Parse(fclOpt, CultureInfo.InvariantCulture);

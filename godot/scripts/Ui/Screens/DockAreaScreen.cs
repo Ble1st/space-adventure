@@ -224,14 +224,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 			fv.AddThemeConstantOverride("separation", 7);
 			p.AddChild(fv);
 			fv.AddChild(Text("Du bist zu Fuß", 20, Cyan));
-			string sectorName = u.Sectors.TryGetValue(ship.Sector, out var ssec) ? ssec.Name : "?";
-			string where = ship.Transit is not null ? "ist unterwegs"
-				: ship.DockedAt == here.Id ? "liegt gerade hier im Hangar"
-				: u.Stations.TryGetValue(ship.DockedAt, out var at) ? $"liegt in {at.Name} ({(u.Sectors.TryGetValue(at.Sector, out var asec) ? asec.Name : "?")})"
-				: $"ist im Raum ({sectorName})";
-			string doing = ship.Command is null ? "" : $" Befehl: {SpaceSim.Core.Simulation.Commands.Describe(u, ship)}.";
-			string hint = ship.DockedAt == here.Id && ship.Transit is null ? " Im Hangar wieder an Bord gehen." : " Im Hangar hier ein Schiff übernehmen oder mieten.";
-			var info = Text($"Dein Schiff #{ship.Id.Value} {where}.{doing}{hint}", 14, Dim);
+			var info = Text("Im Hangar ein eigenes Schiff übernehmen oder ein Leihschiff mieten.", 14, Dim);   // Nutzer: keine Schiffsdaten zu Fuß — das Schiff hängt nicht an der Person
 			info.AutowrapMode = TextServer.AutowrapMode.WordSmart; info.CustomMinimumSize = new Vector2(w - 28, 0);
 			fv.AddChild(info);
 			fv.AddChild(Text($"{(int)u.WalletOf(ship).Credits} Credits", 15, White));
