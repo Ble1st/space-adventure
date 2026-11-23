@@ -277,6 +277,7 @@ public class SchwarzmarktTests
         var defOff = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
         RevertSchwarzmarkt(defOff);
         var off = WorldBuilder.Build(defOff);
+        on.Rules.DockDwellTicks = off.Rules.DockDwellTicks = 0; on.Rules.DockDwellTicksPlayer = off.Rules.DockDwellTicksPlayer = 0;   // Liegezeit (danach) — hier nur die Beuteablage
         new SimulationRunner().Run(on, 6000);
         new SimulationRunner().Run(off, 6000);
         var stocked = on.StationsById().Where(s => s.BlackStock.Count > 0).ToList();
