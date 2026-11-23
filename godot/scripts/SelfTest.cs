@@ -477,7 +477,9 @@ public partial class SelfTest : Node
 					}
 				}
 				// Anker-Zoom gleitet nach dem Lösen 0,9 s zurück (Runde 43b) — erst danach vergleichen (der Weltpfad entscheidet, ob das Schiff gerade verankert war)
-				if (_frame - _stageStart > 30 && (_m.TestAnchorZoomNow >= 0.999f || _frame - _stageStart > 300))
+				// die Kamera gleitet weich (OrbitCamera.Follow) aus dem vorigen Zustand (Anker-Zoom, Dock-Ansicht …) heran — erst nach dem Einschwingen vergleichen
+				if (_frame - _stageStart > 30 && (_m.TestAnchorZoomNow >= 0.999f && _m.TestCamOffset.DistanceTo(new Vector3(0, OrbitCamera.LegacyOffsetY, OrbitCamera.LegacyOffsetZ)) < 0.5f
+					|| _frame - _stageStart > 600))
 				{
 					var (yaw, pitch, dist) = _m.TestCamAngles;
 					Check(System.Math.Abs(yaw - OrbitCamera.DefaultYawDeg) < 0.01f
