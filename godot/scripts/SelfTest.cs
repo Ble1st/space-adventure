@@ -476,7 +476,8 @@ public partial class SelfTest : Node
 						_m.TestTeleportTo(crk.Position + (cme.Position - crk.Position).Normalized() * (crk.Radius + 40f));
 					}
 				}
-				if (_frame - _stageStart > 30)
+				// Anker-Zoom gleitet nach dem Lösen 0,9 s zurück (Runde 43b) — erst danach vergleichen (der Weltpfad entscheidet, ob das Schiff gerade verankert war)
+				if (_frame - _stageStart > 30 && (_m.TestAnchorZoomNow >= 0.999f || _frame - _stageStart > 300))
 				{
 					var (yaw, pitch, dist) = _m.TestCamAngles;
 					Check(System.Math.Abs(yaw - OrbitCamera.DefaultYawDeg) < 0.01f

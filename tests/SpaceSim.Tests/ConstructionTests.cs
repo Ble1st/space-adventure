@@ -316,6 +316,7 @@ public class ConstructionTests
         RemoveBuilders(u);
         u.Rules.EmergencyBuildTicks = 1_000_000;   // kein Notbau: nur Händler liefern
         u.Rules.CommissionBuilders = false;        // Phase 19: und die Fraktion kauft kein Bauschiff nach
+        u.Rules.DockDwellTicks = 0; u.Rules.DockDwellTicksPlayer = 0;   // Liegezeit (danach) verschiebt den Weltpfad; geprüft wird die Händlerlieferung
         OnlyTestSites(u, 1);   // Runde 44: nur die Testbaustelle (der Lebenszyklus legte sonst im ersten Tick eigene an)
         var site = Site(u, "farm", 1);
         var delivered = new List<ConstructionDelivered>();
@@ -736,6 +737,7 @@ public class ConstructionTests
         var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
         if (def.StationTypes.First(t => t.Key == "farm") is { Stocks: { } fs }) fs.Remove("water");
         var u = WorldBuilder.Build(def);
+        u.Rules.DockDwellTicks = 0; u.Rules.DockDwellTicksPlayer = 0;   // Liegezeit (danach) verschiebt den Weltpfad; geprüft wird der Bauablauf
         int started = 0, done = 0, emergency = 0;
         u.Events.Raised += e =>
         {
