@@ -41,6 +41,7 @@ public class IdleShelfTests
         r.IdleShelfActive = false;
         r.IdleShelfTicks = code.IdleShelfTicks;
         r.IdleShelfPriceFactor = code.IdleShelfPriceFactor;
+        r.DockDwellTicks = 0; r.DockDwellTicksPlayer = 0;   // Liegezeit an Stationen (danach): aus
     }
 
     [Fact]

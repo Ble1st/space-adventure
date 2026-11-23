@@ -39,6 +39,13 @@ public static class Materializer
         {
             var ship = u.Ships[id];
             if ((ship.Id == u.PlayerShip && !u.PlayerOnFoot) || ship.Transit is null) continue;   // zu Fuß fliegt das aktive Schiff seinen Befehl und erscheint wie ein Sektor-Schiff
+            if (ship.Transit.Legs.Count > 0 && tick < ship.Transit.Legs[0].StartTick)
+            {
+                // Liegezeit: Reise geplant, Ablegen später — das Schiff liegt bis dahin am Startpunkt (Andockpunkt)
+                var first = ship.Transit.Legs[0];
+                if (first.Sector == sector) result.Add(new ShipSnapshot(ship.Id, ship.Role, first.From, (first.To - first.From).Normalized(), false));
+                continue;
+            }
             foreach (var leg in ship.Transit.Legs)
             {
                 if (leg.Sector != sector || tick < leg.StartTick || tick >= leg.EndTick) continue;

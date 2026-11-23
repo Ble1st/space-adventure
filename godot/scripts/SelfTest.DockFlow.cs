@@ -42,7 +42,7 @@ public partial class SelfTest
 			{
 				// Nutzer: zu Fuß hängt das Schiff nicht mehr an der Person — die Schiffsspalte zeigt „Du bist zu Fuß“, auch wenn es hier liegt
 				var texts = hud.DockTrade.TestShipPanelTexts();
-				Check(texts.Contains("Du bist zu Fuß") && texts.Any(t => t.Contains("liegt gerade hier")), $"DF: zu Fuß zeigt die Schiffsspalte keine Bordansicht ({string.Join(" | ", texts.Take(4))})");
+				Check(texts.Contains("Du bist zu Fuß") && !texts.Any(t => t.StartsWith("Dein Schiff")), $"DF: zu Fuß zeigt die Schiffsspalte keine Schiffsdaten ({string.Join(" | ", texts.Take(4))})");
 				_m.TestCloseDockArea();
 				return false;
 			}

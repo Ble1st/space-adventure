@@ -828,6 +828,8 @@ public sealed class ShipSave
     public long JobSince { get; set; }
     /// <summary>Phase 19 (additiv): seit wann unverkäufliche Fracht an Bord ist; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? StrandedSince { get; set; }
+    /// <summary>Liegezeit: Tick der Ankunft an einer Station (additiv).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? DockedSince { get; set; }
     /// <summary>Phase 22 (additiv): Rentabilitätsmessung; fehlt = noch nicht gemessen.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProfitMeterSave? Profit { get; set; }
     /// <summary>Güteklasse (Phase 7, v10: Standard/Improved/Elite/Masterwork); fehlt = Standard.</summary>

@@ -1224,7 +1224,7 @@ public partial class Main : Node3D
 		var ship = u.Ships[u.PlayerShip];
 		// Runde 46 (Nutzerwunsch: Befehlsstand = nur X und gesperrte Steuerung): das Schiff wird wie im normalen Flug als Spielerschiff gezeichnet —
 		// gleicher Knoten, gleiches Modell, gleiche Kamera; nur die Position kommt aus dem Core (Reise, Abbau, Andocken)
-		bool dockedNow = ship.DockedAt.Value != 0 && ship.Transit is null;
+		bool dockedNow = ship.DockedAt.Value != 0 && ship.Transit is null || SpaceSim.Core.Simulation.Hangar.LeavingFrom(u, ship).Value != 0;   // Liegezeit: liegt noch an, legt gleich ab
 		_player.Visible = !dockedNow;
 		_player.Velocity = Vector3.Zero;
 		// Kamera bleibt am Schiff, auch wenn der Befehl es über ein Tor in einen anderen Sektor führt: die Ansicht wechselt mit dem Schiff

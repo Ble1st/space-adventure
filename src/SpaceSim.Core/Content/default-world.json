@@ -134,6 +134,8 @@
   "researchActive": true,
   "ammoActive": true,
   "idleShelfActive": true,
+  "dockDwellTicks": 20,
+  "dockDwellTicksPlayer": 40,
   "idleShelfTicks": 20000,
   "idleShelfPriceFactor": 0.5
  },

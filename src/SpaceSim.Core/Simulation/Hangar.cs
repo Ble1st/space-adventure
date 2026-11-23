@@ -12,7 +12,14 @@ public static class Hangar
 {
     /// <summary>Alle Schiffe, die an dieser Station angedockt liegen (nicht unterwegs), nach Id — eigene wie fremde.</summary>
     public static IReadOnlyList<Ship> DockedShips(Universe u, Station st) =>
-        u.ShipsById().Where(s => s.Transit is null && s.DockedAt == st.Id).ToList();
+        u.ShipsById().Where(s => s.Transit is null ? s.DockedAt == st.Id : LeavingFrom(u, s) == st.Id).ToList();
+
+    /// <summary>
+    /// Liegezeit: Station, von der ein Schiff gleich ablegt — seine Reise ist geplant, beginnt aber erst nach der Liegezeit (erste Teilstrecke startet
+    /// später, Startpunkt am Andockpunkt). default = keine. Zählt in der Anzeige als angedockt (Hangar, Dock-Menü).
+    /// </summary>
+    public static StationId LeavingFrom(Universe u, Ship s) =>
+        s.Transit is { Legs.Count: > 0 } t && t.Legs[0].StartTick > u.Tick ? u.StationAt(t.Legs[0].Sector, t.Legs[0].From) : default;
 
     /// <summary>Fremde (nicht eigene) Schiffe an dieser Station.</summary>
     public static IReadOnlyList<Ship> ForeignDocked(Universe u, Station st, ActorId me) =>

@@ -359,11 +359,29 @@ public sealed class Universe
 
     public void StartTransit(Ship s, Transit t)
     {
-        if (s.Transit is { } old) Tracker.RemoveTransit(old, s.Id); else Tracker.RemoveParked(s.Sector, s.Id);
+        if (s.Transit is { } old) Tracker.RemoveTransit(old, s.Id); else
+        {
+            Tracker.RemoveParked(s.Sector, s.Id);
+            // Liegezeit: wer gerade erst angedockt hat, legt erst nach der Frist ab — die Reise beginnt später (Lage bis dahin = Andockpunkt)
+            if (s.DockedAt.Value != 0 && s.DockedSince >= 0 && s.Sector == PlayerSector)   // nur wo die Person ist (dort sichtbar) — die übrige Wirtschaft läuft ungebremst
+            {
+                int dwell = s.IsPlayer ? Rules.DockDwellTicksPlayer : Rules.DockDwellTicks;
+                long wait = s.DockedSince + dwell - Tick;
+                if (dwell > 0 && wait > 0) Delay(t, wait);
+            }
+            s.DockedSince = -1;
+        }
         s.Transit = t;
         s.DockedAt = default;   // Phase 12: wer abfliegt, liegt nicht mehr angedockt
         if (Journal.Last is { } je && je.Ship == s.Id) Journal.Clear();   // Runde 39: Abflug löscht die Rücknahme
         Tracker.AddTransit(t, s.Id);
+    }
+
+    /// <summary>Verschiebt eine geplante Reise als Ganzes um <paramref name="ticks"/> (Liegezeit vor dem Ablegen).</summary>
+    static void Delay(Transit t, long ticks)
+    {
+        t.StartTick += ticks; t.ArrivalTick += ticks;
+        for (int i = 0; i < t.Legs.Count; i++) { var l = t.Legs[i]; t.Legs[i] = l with { StartTick = l.StartTick + ticks, EndTick = l.EndTick + ticks }; }
     }
 
     /// <summary>Ankunft: Schiff wird am Zielort geparkt.</summary>
@@ -375,6 +393,7 @@ public sealed class Universe
         s.Sector = t.ToSector;
         s.Position = t.ToPosition;
         s.DockedAt = StationAt(s.Sector, s.Position);   // Phase 12: Ankunft am Andockpunkt = angedockt
+        if (s.DockedAt.Value != 0 && (Rules.DockDwellTicks > 0 || Rules.DockDwellTicksPlayer > 0)) s.DockedSince = Tick;   // Liegezeit beginnt
         Tracker.AddParked(s.Sector, s.Id);
         Events.Publish(new ShipArrived(s.Id, s.Sector, s.Position));   // Runde 42: reine Meldung (z. B. Eskorte), nicht gespeichert/gehasht
         if (s.DockedAt != default) Events.Publish(new ShipDocked(s.Id, s.DockedAt));   // Runde 42b: Andocken an einer Station (z. B. Transport-Ablieferung)
