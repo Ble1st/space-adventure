@@ -87,6 +87,7 @@ public static class UniverseHash
             foreach (var f in s.Fit) { if (f is null) Mix(0UL); else MixString(f); }
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
             if (s.MissionCargo > 0f) { Mix(0x4101u); MixF(s.MissionCargo); }
+            if (s.DerelictUntil != 0) { Mix(0xDE1Eu); Mix((ulong)s.DerelictUntil); }   // herrenloses Schiff verfällt (nur wenn gesetzt)
             if (s.DockedSince >= 0) { Mix(0xD0C5u); Mix((ulong)s.DockedSince); }   // Liegezeit (nur wenn gesetzt)   // Runde 41: versiegelte Fracht (nur wenn gesetzt)
             foreach (var (g, a) in s.Fuel.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }   // Phase 4: Tank gehört zum Spielstand
             MixF(s.Profit.Rate); MixF(s.Profit.Worth); Mix((ulong)s.Profit.LossTicks); Mix((ulong)s.Profit.Since);   // Phase 22: Rentabilität

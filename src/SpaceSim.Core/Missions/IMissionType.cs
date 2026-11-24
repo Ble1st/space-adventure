@@ -105,6 +105,9 @@ public sealed class MissionTypes
         r.Register(new SmuggleMission());
         r.Register(new ResearchMission());
         r.Register(new PassengerMission());
+        // Herrenlose Schiffe: Panne und Schiff liefern (angehängt — die Würfe der älteren Arten bleiben gleich)
+        r.Register(new BreakdownMission());
+        r.Register(new ShipDeliveryMission());
         return r;
     }
 }

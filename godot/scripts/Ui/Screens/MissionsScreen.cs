@@ -30,6 +30,7 @@ public sealed partial class MissionsScreen : DockAreaScreen
 	ulong _msgAt;                 // Runde 42d: Zeitpunkt der Meldung (Eigenuhr, Test überschreibbar)
 	int _offers;
 	readonly Dictionary<int, KitButton> _acceptButtons = new();   // Runde 42 (Selbsttest): Annehmen-Knopf je Angebots-Id
+	readonly Dictionary<int, KitButton> _missionButtons = new();   // Selbsttest: Abliefern/Abbrechen je aktivem Auftrag
 
 	/// <summary>Runde 42d: Uhr für die Meldungs-Lebensdauer (Selbsttest stellt um) — wie im Comms-Bereich.</summary>
 	internal static Func<ulong> MsgNow = () => (ulong)Time.GetTicksMsec();
@@ -68,6 +69,7 @@ public sealed partial class MissionsScreen : DockAreaScreen
 	protected override void BuildContent(Control inner)
 	{
 		_acceptButtons.Clear();
+		_missionButtons.Clear();
 		float w = inner.Size.X > 0 ? inner.Size.X : 670f;
 		float tw = w - 160f;
 		_offers = 0;
@@ -113,17 +115,28 @@ public sealed partial class MissionsScreen : DockAreaScreen
 			bool deliverHere = here && m.Type == TransportMission.KeyId
 				&& m.Args.TryGetValue("target", out var ts) && int.TryParse(ts, out var tv) && tv == st.Id.Value;
 			// Runde 42b: Höhe aus dem gemessenen Inhalt (WrappedText-End-Y minus Anfang)
+			// Schiff liefern: hier abliefern, sobald ein passendes eigenes Schiff (nicht das aktive) angedockt liegt; sonst der Grund
+			bool shipDeliver = here && m.Type == ShipDeliveryMission.KeyId;
+			string? shipIssue = shipDeliver ? type.DeliverIssue(u, m, ship, st) : null;
 			float mh = WrappedText(inner, type.Describe(u, m), 0, y, tw, 15, Orange, 19) - y;
 			string folge = deliverHere
 				? $"Fracht abliefern: Belohnung {m.Reserved:0} Cr + Pfand {m.Deposit:0} Cr zurück"
-				: $"Abbrechen: Pfand {m.Deposit:0} Cr verfällt · Beziehung −{u.Rules.MissionRelationLoss:0.00} · {MissionRules.Rest(u.Rules.MissionBlockTicks)} keine neuen Aufträge";
-			float fh = WrappedText(inner, folge, 0, y + mh + 2, tw, 13, Dim, 17) - (y + mh + 2);
+				: shipDeliver
+					? shipIssue ?? $"Schiff übergeben: Belohnung {m.Reserved:0} Cr"
+					: $"Abbrechen: Pfand {m.Deposit:0} Cr verfällt · Beziehung −{u.Rules.MissionRelationLoss:0.00} · {MissionRules.Rest(u.Rules.MissionBlockTicks)} keine neuen Aufträge";
+			float fh = WrappedText(inner, folge, 0, y + mh + 2, tw, 13, shipIssue is not null ? Red : Dim, 17) - (y + mh + 2);
 			if (here)
 			{
-				string label = deliverHere ? "Abliefern" : "Abbrechen";
-				var b = At(inner, new KitButton(label, new Vector2(148, 56)) { FontSize = 16, State = KitButtonState.Ready, Detail = deliverHere ? "" : "Pfand verfällt" }, w - 150, y);
-				string key = $"{(deliverHere ? MissionService.Deliver : MissionService.Abandon)}:{m.Id}";
-				b.Pressed += () => Execute(key);
+				bool deliver = deliverHere || shipDeliver;
+				string label = deliver ? "Abliefern" : "Abbrechen";
+				var b = At(inner, new KitButton(label, new Vector2(148, 56))
+				{
+					FontSize = 16, State = shipIssue is null ? KitButtonState.Ready : KitButtonState.Disabled,
+					Detail = deliver ? (shipIssue is null ? "" : "nicht möglich") : "Pfand verfällt",
+				}, w - 150, y);
+				string key = $"{(deliver ? MissionService.Deliver : MissionService.Abandon)}:{m.Id}";
+				if (shipIssue is null) b.Pressed += () => Execute(key);
+				_missionButtons[m.Id] = b;
 			}
 			y += MathF.Max(52f, mh + fh + 8f);
 		}
@@ -147,6 +160,8 @@ public sealed partial class MissionsScreen : DockAreaScreen
 	// ── Zugriff für Selbsttest/Bildschirmfotos ──
 	public int TestOfferCount => _offers;
 	public string TestMessage => _message;
+	/// <summary>Knopf „Abliefern“/„Abbrechen“ eines aktiven Auftrags an dieser Station (Selbsttest).</summary>
+	public KitButton? TestMissionButton(int missionId) => _missionButtons.TryGetValue(missionId, out var b) && !b.IsQueuedForDeletion() ? b : null;
 	/// <summary>Runde 42 (Selbsttest): Annehmen-Knopf des Angebots mit dieser Id (null = nicht in der Liste).</summary>
 	public KitButton? TestAcceptButton(int offerId) => _acceptButtons.TryGetValue(offerId, out var b) && !b.IsQueuedForDeletion() ? b : null;
 }

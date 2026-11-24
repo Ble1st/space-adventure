@@ -140,6 +140,7 @@ public static class Hangar
         if (!ship.IsPlayer) return "Nicht dein Schiff.";
         if (ship.Id == u.PlayerShip) return "Das aktive Schiff kannst du nicht verkaufen.";
         if (ship.IsRental) return "Leihschiffe gibst du am Leihdienst zurück.";
+        if (Derelicts.BreakdownOf(u, ship.Id) is not null) return "Gehört der Fraktion (Pannenauftrag) — zur Auftragsstation bringen.";
         if (ship.Transit is not null || ship.DockedAt != st.Id) return "Das Schiff liegt nicht hier.";
         if (ship.Cargo.Values.Sum() > 0.001f) return "Erst die Fracht verkaufen oder einlagern.";
         float price = SellPrice(u, ship);

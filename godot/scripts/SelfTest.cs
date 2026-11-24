@@ -2817,6 +2817,7 @@ public partial class SelfTest : Node
 			case 152: if (FeudStage(_frame - _stageStart)) Next(); break;
 			case 155: if (DockFlowStage(_frame - _stageStart)) Next(); break;
 			case 156: if (HailStage(_frame - _stageStart)) Next(); break;   // Funk Stufe 1: Scanliste → 📡 Funk → Gespräch mit Kaperer und Station (SelfTest.Hail.cs)   // Nutzerwünsche: Aussteigen mit einem Tipp, Befehl angedockt, Debug-Spawn, Schiffsmenü (SelfTest.DockFlow.cs)
+			case 159: if (DerelictStage(_frame - _stageStart)) Next(); break;   // Herrenlose Schiffe: Pannenauftrag per Tipp angenommen, Pannenschiff per Funk übernommen und zur Station gebracht, Schiff liefern per Tipp, herrenloses Schiff übernommen (SelfTest.Derelict.cs)
 			case 154: if (ProtectionStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 3: Schutzvertrag per Tipp in Comms (SelfTest.Protection.cs)
 			case 153: if (BanditStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 17: Banditenfraktion — Fraktionen-Detail und Stations-Info am Sitz (SelfTest.Bandits.cs)   // Ausbau Punkt 6: Fehde erklären/beenden und Vermitteln per Tipp in Comms (SelfTest.Feud.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
@@ -2834,7 +2835,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 156;
+	const int LastStage = 159;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

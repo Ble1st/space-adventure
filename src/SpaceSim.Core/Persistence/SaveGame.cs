@@ -862,6 +862,8 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RentPaidDays { get; set; }
     /// <summary>Runde 41 (additiv): versiegelte Fracht eines Transportauftrags (Laderaum-Volumen, keine Ware); fehlt = 0.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MissionCargo { get; set; }
+    /// <summary>Herrenlose Schiffe (additiv): verfällt bei diesem Tick; fehlt = 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long DerelictUntil { get; set; }
     /// <summary>Phase 23 (additiv): Laufzeitzustand der Bordsysteme; fehlt = voll, ausgeglichen, unbeschädigt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipSystemsSave? Systems { get; set; }
 }

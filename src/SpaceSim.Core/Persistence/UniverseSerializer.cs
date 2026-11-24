@@ -402,7 +402,7 @@ public static class UniverseSerializer
                 HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
                 Command = sh.Command is null ? null : ToSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
-                RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit, RentPaidDays = sh.RentPaidDays,
+                RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit, RentPaidDays = sh.RentPaidDays, DerelictUntil = sh.DerelictUntil,
                 MissionCargo = sh.MissionCargo,   // Runde 41
                 JumpTarget = sh.JumpTarget.Value, JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpTarget.Value != 0 ? sh.JumpFrom : null,   // Sprungantrieb
                 JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
@@ -788,7 +788,7 @@ public static class UniverseSerializer
                 Command = sh.Command is null ? null : CommandFromSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
                 Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
                 DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
-                RentPaidDays = sh.RentPaidDays, MissionCargo = sh.MissionCargo,   // Runde 41
+                RentPaidDays = sh.RentPaidDays, MissionCargo = sh.MissionCargo, DerelictUntil = sh.DerelictUntil,   // Runde 41
                 JumpTarget = new SectorId(sh.JumpTarget), JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpFrom ?? default,   // Sprungantrieb
                 JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
                 Systems = FromSave(sh.Systems),

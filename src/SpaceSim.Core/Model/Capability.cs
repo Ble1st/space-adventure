@@ -27,7 +27,7 @@ public enum Capability
 }
 
 /// <summary>Wer ein Schiff steuert: der Spieler selbst oder die KI.</summary>
-public enum Controller { Ai, Player }
+public enum Controller { Ai, Player, None }
 
 /// <summary>
 /// Standard-Ableitung von Fähigkeiten und Steuerer aus der Rolle. Reine Funktion; läuft überall, wo Schiffe entstehen
@@ -53,5 +53,5 @@ public static class CapabilityDefaults
     };
 
     /// <summary>Nur die Spielerrolle wird vom Spieler gesteuert, alle anderen von der KI.</summary>
-    public static Controller ControllerFor(ShipRole role) => role == ShipRole.Player ? Controller.Player : Controller.Ai;
+    public static Controller ControllerFor(ShipRole role) => role == ShipRole.Player ? Controller.Player : role == ShipRole.Derelict ? Controller.None : Controller.Ai;
 }

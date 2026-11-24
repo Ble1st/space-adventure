@@ -197,7 +197,7 @@ public sealed class PirateSystem : ISimSystem
         {
             var id = ids[ii];
             if (ii > 0 && ids[ii - 1] == id) continue;
-            if (!u.Ships.TryGetValue(id, out var s) || ThreatMap.IsPolice(s) || ThreatMap.IsRaider(s) || u.Fights.IsEngaged(s.Id)) continue;
+            if (!u.Ships.TryGetValue(id, out var s) || s.IsDerelict || ThreatMap.IsPolice(s) || ThreatMap.IsRaider(s) || u.Fights.IsEngaged(s.Id)) continue;
             bool player = s.IsPlayer;
             // Phase 12: nicht aktive Spielerschiffe (Flotte) nur mit FleetRaids, das aktive nur mit PlayerRaids im Spielersektor
             if (player && s.Id == u.PlayerShip && (!u.Rules.PlayerRaids || u.PlayerSector != sector)) continue;

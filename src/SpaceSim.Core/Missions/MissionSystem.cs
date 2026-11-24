@@ -256,6 +256,7 @@ public static class MissionRules
         if (m.CargoVolume > 0f && m.Args.TryGetValue("ship", out var ss) && int.TryParse(ss, out var shipId)
             && u.Ships.TryGetValue(new ShipId(shipId), out var sh))
             sh.MissionCargo = MathF.Max(0f, sh.MissionCargo - m.CargoVolume);
+        if (m.Type == BreakdownMission.KeyId) BreakdownMission.Recall(u, m);   // Panne: die Fraktion holt ihr Schiff zurück
         if (u.FactionOf(m.Client) is { } f && u.IsNpcFaction(f))
         {
             PlayerStanding.Change(u, f, -u.Rules.MissionRelationLoss, "mission_fail");

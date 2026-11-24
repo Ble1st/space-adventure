@@ -34,6 +34,7 @@ public sealed record HailPerformed(HailTarget Target, string Topic, bool Success
 /// <item>Polizei, die dich kontrollieren will: <c>submit</c> (= Ergeben bei der Polizei); jede Polizei: <c>news</c> (Lage im Sektor).</item>
 /// <item>Andere fremde Schiffe: <c>news</c>.</item>
 /// <item>Stationen: <c>dock</c> (Andockerlaubnis = Andockregel), <c>fine</c> (offene Strafe bei der Stationsfraktion per Funk zahlen, <see cref="FineAction"/>), <c>news</c>.</item>
+/// <item>Herrenlose Schiffe: <c>claim</c> (übernehmen, <see cref="Derelicts.Claim"/>).</item>
 /// <item>Eigene Schiffe: <c>menu</c> (Schiffsmenü), <c>follow</c> (folge mir), <c>hold</c> (Position halten), <c>home</c> (zur Heimatbasis) — über <see cref="Commands.Give"/>.</item>
 /// </list>
 /// </summary>
@@ -94,6 +95,13 @@ public static class Hail
         if (!u.Ships.TryGetValue(t.Ship, out var s) || s.Id == me.Id || s.Sector != me.Sector)
             return new HailView("—", "Keine Verbindung.", Array.Empty<HailTopic>());
         var topics = new List<HailTopic>();
+        if (s.IsDerelict)   // herrenloses Schiff: niemand antwortet — nah genug heran und übernehmen
+        {
+            string? claim = Derelicts.ClaimIssue(u, me, s);
+            topics.Add(new HailTopic("claim", "Übernehmen", claim ?? $"Hülle {s.Hull / MathF.Max(1f, s.MaxHull) * 100f:0} % — das Schiff gehört danach dir.", claim is null, claim));
+            string who = s.Owner == u.FreeActor ? $"{Derelicts.Name(u, s)} (herrenlos)" : Name(u, s);
+            return new HailView(who, "Keine Antwort — an Bord ist niemand.", topics);
+        }
         if (s.Owner == u.PlayerActor)
         {
             topics.Add(new HailTopic("menu", "Schiffsmenü", "Werte, Module, Fracht, Befehl.", true, null));
@@ -167,6 +175,7 @@ public static class Hail
             "dock" => new HailResult(true, topic.Detail),
             "fine" => Fine(u, t),
             "menu" => new HailResult(true, "Schiffsmenü geöffnet.", true),
+            "claim" => Claim(u, t, me),
             "follow" or "hold" or "home" => Own(u, t, key, me),
             "bribe" => Bribe(u, t, me),
             "threaten" => Threaten(u, t, me),
@@ -193,6 +202,12 @@ public static class Hail
         var f = u.FactionOf(st)!.Value;
         var res = new FineAction().Execute(u, $"{FineAction.KeyId}:{f.Value}");
         return new HailResult(res.Success, res.Message);
+    }
+
+    static HailResult Claim(Universe u, HailTarget t, Ship me)
+    {
+        bool ok = Derelicts.Claim(u, me, u.Ships[t.Ship], out var msg);
+        return new HailResult(ok, msg);
     }
 
     static HailResult Own(Universe u, HailTarget t, string key, Ship me)
