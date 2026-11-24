@@ -36,8 +36,8 @@ public partial class SelfTest
 				var vis = GetViewport().GetVisibleRect().Size;
 				Check(fl.Scale.X == 1f && fl.Layout is { Compact: false }, $"E2: Faktor 1 bei {vis} → klassische Anordnung (Schicht {fl.Scale.X}, kompakt {fl.Layout?.Compact})");
 				if (Mathf.Abs(vis.X - 1280f) < 1f && Mathf.Abs(vis.Y - 720f) < 1f)
-					// HUD-Neu: Regler senkrecht links unter dem Status, RÜCK unten links zwischen den Wendetasten (Core: FlightHudLayout)
-					Check(fl.TestSliderRect == new Rect2(12, 152, 88, 556) && fl.TestReverseRect == new Rect2(336, 636, 96, 72),
+					// UI-Umbau: Regler waagerecht unten rechts, RÜCK links daneben (Core: FlightHudLayout)
+					Check(fl.TestSliderRect == new Rect2(910, 624, 360, 86) && fl.TestReverseRect == new Rect2(830, 642, 72, 68),
 						$"E2: 1280 × 720 Grundanordnung (Regler {fl.TestSliderRect}, RÜCK {fl.TestReverseRect})");
 				// Menüzeile „UI-Größe“
 				UiScale.TestPpi = 396f;
@@ -89,7 +89,7 @@ public partial class SelfTest
 		if (f is 40 or 80)
 		{
 			float factor = f == 40 ? 1.3f : 1.15f;
-			Check(Mathf.Abs(fl.Scale.X - factor) < 0.001f && root.ContentScaleFactor == 1f && fl.Layout is { Compact: true },
+			Check(fl.Scale.X <= factor + 0.001f && fl.Scale.X >= factor - 0.05f && root.ContentScaleFactor == 1f && fl.Layout is { Compact: true },
 				$"E2: Flug-Schicht {fl.Scale.X} (soll {factor}), Wurzel {root.ContentScaleFactor}, kompakt {fl.Layout?.Compact}");
 			CheckFlightRects($"Faktor {factor}", new Rect2(Vector2.Zero, GetViewport().GetVisibleRect().Size));
 			var al = _m.HudRef.TestAlertRect;

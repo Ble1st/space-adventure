@@ -141,8 +141,8 @@ public partial class Main
 	static string ShortIssue(string why) => why switch
 	{
 		var w when w.StartsWith("Massenschatten") => "Massenschatten",
-		var w when w.StartsWith("zu wenig Leistung") => "Leistung fehlt",
-		var w when w.StartsWith("zu wenig Treibstoff") => "Treibstoff fehlt",
+		var w when w.StartsWith("zu wenig Leistung") => "Strom fehlt",
+		var w when w.StartsWith("zu wenig Treibstoff") => "kein Treibst.",
 		var w when w.StartsWith("kühlt ab") => "kühlt ab",
 		_ => why,
 	};

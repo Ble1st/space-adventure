@@ -122,7 +122,7 @@ public partial class SelfTest
 		_inScript.Add((t, () =>
 		{
 			var ap = DevRect(FlightKitByItem(HudItem.Autopilot)!);
-			var map = DevRect(FlightKitByItem(HudItem.Map)!);
+			var map = DevRect(FlightKitByItem(HudItem.Command)!);
 			var menu = DevRect(FlightKitByItem(HudItem.Hamburger)!);
 			var sl = DevRect((Control)fl.TestItem(HudItem.Slider)!);
 			GD.Print($"[eingabe] Geräterechtecke (Fenster {GetWindow().Size}, Faktor {UiScale.Factor:0.00}): Autopilot {ap}, Karte {map}, Menü {menu}, Regler {sl}");
@@ -203,7 +203,7 @@ public partial class SelfTest
 			_inScript.Add((t, () => { UiScale.TestInsets = insets; UiScale.Apply(); }));
 			t += 20;
 			var spots = new (float, float)[] { (0.5f, 0.5f), (0.5f, 0.1f), (0.1f, 0.1f), (0.9f, 0.9f), (0.5f, 0.9f) };
-			foreach (var item in new[] { HudItem.Map, HudItem.Hamburger })
+			foreach (var item in new[] { HudItem.Command, HudItem.Hamburger })
 			{
 				var it = item;
 				foreach (var (fx, fy) in spots)
@@ -213,24 +213,24 @@ public partial class SelfTest
 					InTap(t, () => { var r = DevRect(FlightKitByItem(it)!); var p = r.Position + new Vector2(r.Size.X * fx0, r.Size.Y * fy0); where = $"{p.X:0},{p.Y:0} in {r}"; return p; });
 					_inScript.Add((t + 14, () =>
 					{
-						bool open = it == HudItem.Map ? hud.Map.Visible : hud.Screens.Current == hud.Command;
-						Check(open, $"Eingabe ({(insets.Top > 0 ? "d" : "a")}): Tipp auf „{(it == HudItem.Map ? "Karte" : "Menü")}“ bei {where} öffnet");
-						hud.Map.Visible = false; _m.TestMenu("close");
+						bool open = it == HudItem.Command ? hud.Screens.Current == hud.CcFleet : hud.Screens.Current == hud.Command;
+						Check(open, $"Eingabe ({(insets.Top > 0 ? "d" : "a")}): Tipp auf „{(it == HudItem.Command ? "Befehle" : "Menü")}“ bei {where} öffnet");
+						hud.Map.Visible = false; _m.TestMenu("close"); _m.TestCloseCommand();
 					}));
 					t += 30;
 				}
 			}
 			// Gerätepunkt y = 70 (Handytest) — liegt er im gezeichneten Rechteck, muss der Tipp öffnen
-			foreach (var item in new[] { HudItem.Map, HudItem.Hamburger })
+			foreach (var item in new[] { HudItem.Command, HudItem.Hamburger })
 			{
 				var it = item;
 				InTap(t, () => { var r = DevRect(FlightKitByItem(it)!); return new Vector2(r.GetCenter().X, Math.Max(70f, r.Position.Y + 4f)); });
 				_inScript.Add((t + 14, () =>
 				{
-					bool open = it == HudItem.Map ? hud.Map.Visible : hud.Screens.Current == hud.Command;
+					bool open = it == HudItem.Command ? hud.Screens.Current == hud.CcFleet : hud.Screens.Current == hud.Command;
 					var r = DevRect(FlightKitByItem(it)!);
-					Check(open, $"Eingabe ({(insets.Top > 0 ? "d" : "a")}): „{(it == HudItem.Map ? "Karte" : "Menü")}“ öffnet bei y = {Math.Max(70f, r.Position.Y + 4f):0} (Rechteck {r})");
-					hud.Map.Visible = false; _m.TestMenu("close");
+					Check(open, $"Eingabe ({(insets.Top > 0 ? "d" : "a")}): „{(it == HudItem.Command ? "Befehle" : "Menü")}“ öffnet bei y = {Math.Max(70f, r.Position.Y + 4f):0} (Rechteck {r})");
+					hud.Map.Visible = false; _m.TestMenu("close"); _m.TestCloseCommand();
 				}));
 				t += 30;
 			}

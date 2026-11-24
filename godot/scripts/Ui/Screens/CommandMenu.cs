@@ -311,11 +311,13 @@ public partial class CommandMenu : Control, IScreen
 		// Runde 37c (Prüfung M3): innerhalb der sicheren Fläche
 		var si = UiScale.Div(UiScale.SafeInsets1(), IsInsideTree() ? MathF.Max(1f, GetGlobalTransform().Scale.X) : 1f);
 		float uw = Size.X - si.Left - si.Right, uh = Size.Y - si.Top - si.Bottom;
-		float h = MathF.Min(688f, uh - 24f);
+		// UI-Umbau: unter der Kopfleiste (die Taste „Pause“ oben rechts bleibt frei und schließt das Menü wieder — Umschalter)
+		const float topBar = 80f;
+		float h = MathF.Min(688f, uh - topBar - 8f);
 		_win.CustomMinimumSize = new Vector2(580, h);
 		_win.Size = new Vector2(580, h);
 		// UI-Umbau: Seitenleiste rechts über dem laufenden Spiel (das Schiff bleibt links sichtbar)
-		_win.Position = new Vector2(si.Left + MathF.Max(8f, uw - 580f - 8f), si.Top + MathF.Max(8f, (uh - h) / 2f));
+		_win.Position = new Vector2(si.Left + MathF.Max(8f, uw - 580f - 8f), si.Top + topBar);
 	}
 
 	public override void _Notification(int what)

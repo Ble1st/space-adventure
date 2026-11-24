@@ -83,21 +83,11 @@ public partial class SelfTest
 				CheckButtons("37 Fraktionsdetail 1,3", hud.CcFactions, GetViewport().GetVisibleRect());
 				hud.CcFactions.TestDetailOpen = false;
 				return false;
-			case 50:
-			{
-				// (3) Leiste ganz nach unten rollen, dann „Comms“ antippen
-				var rail = RailScroll(hud.CcFactions);
-				if (rail is null) { Check(false, "37: Leiste der Zentrale ohne Rollbereich"); return false; }
-				_r37Rail = (int)(rail.GetVScrollBar().MaxValue - rail.GetVScrollBar().Page);
-				Check(_r37Rail > 10, $"37: Leiste rollt bei 1,3 ({_r37Rail})");
-				rail.ScrollVertical = _r37Rail;
-				_r37Wait = 0; _r37Rect = default;
-				return false;
-			}
+			case 50: _r37Wait = 0; _r37Rect = default; return false;   // UI-Umbau: keine rollende Leiste mehr — (3) Reiter „Nachrichten“ antippen
 			case 54:
 			{
-				var b = Buttons(hud.CcFactions).FirstOrDefault(x => x.Text == "Comms" && x.IsVisibleInTree());
-				if (b is null) { Check(false, "37: Leisteneintrag „Comms“ fehlt"); return false; }
+				var b = Buttons(hud.CcFactions).FirstOrDefault(x => x.Text == "Nachrichten" && x.IsVisibleInTree());
+				if (b is null) { Check(false, "37: Reiter „Nachrichten“ fehlt"); return false; }
 				var br = b.GetGlobalRect();
 				if (br != _r37Rect && _r37Wait++ < 30) { _r37Rect = br; _stageStart += 1; return false; }
 				_r37At = br.GetCenter();
@@ -107,11 +97,7 @@ public partial class SelfTest
 			case 56: Tap(_r37At, false); return false;
 			case 70:
 			{
-				var rail = RailScroll(hud.CcComms);
-				var b = Buttons(hud.CcComms).FirstOrDefault(x => x.Text == "Comms" && x.IsVisibleInTree());
-				bool visible = rail is not null && b is not null && rail.GetGlobalRect().Grow(1f).Encloses(b.GetGlobalRect());
-				Check(hud.Screens.Current == hud.CcComms && rail is not null && rail.ScrollVertical > 10 && visible,
-					$"37: nach Rollen und Tipp bleibt die Leiste gerollt ({rail?.ScrollVertical} von {_r37Rail}), „Comms“ sichtbar ({visible})");
+				Check(hud.Screens.Current == hud.CcComms, $"37: Tipp auf den Reiter „Nachrichten“ öffnet den Posteingang ({hud.Screens.Current?.Id})");
 				_m.TestCloseCommand();
 				var yard = _m.Session.U.StationsById().FirstOrDefault(x => x.Name == "Werft Delta");
 				if (yard is not null) { _m.TestDockAt(yard.Id); _m.TestOpenDockArea(Ui.Screens.DockAreas.Trade); }

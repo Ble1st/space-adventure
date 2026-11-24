@@ -41,7 +41,7 @@ public partial class SelfTest
 				var vis = GetViewport().GetVisibleRect().Size;
 				Check(hud.CcFactor == 1f && hud.CcUniverse.Shell is { Compact: false }, $"E4: Faktor 1 → klassisches Gerüst (Schicht {hud.CcFactor}, kompakt {hud.CcUniverse.Shell?.Compact})");
 				if (Mathf.Abs(vis.X - 1280f) < 1f && Mathf.Abs(vis.Y - 720f) < 1f)
-					Check(hud.CcUniverse.Shell is { } sh && sh.InnerW == 1022f && sh.InnerH == 520f && Mathf.Abs(hud.CcUniverse.TestMapRect.Size.X - 700f) < 1f,
+					Check(hud.CcUniverse.Shell is { } sh && sh.InnerW == 1240f && sh.InnerH == 498f && Mathf.Abs(hud.CcUniverse.TestMapRect.Size.X - 918f) < 1f,
 						$"E4: 1280 × 720 wie bisher (Innen {hud.CcUniverse.Shell?.InnerW}×{hud.CcUniverse.Shell?.InnerH}, Karte {hud.CcUniverse.TestMapRect.Size})");
 				UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply();
 				_r35Area = 0;
@@ -93,8 +93,8 @@ public partial class SelfTest
 			case 0:
 			{
 				// echter Tipp auf „Flotte“ in der Leiste
-				var b = Buttons(hud.Screens.Current as Node ?? hud).FirstOrDefault(x => x.Text == "Flotte" && x.IsVisibleInTree());
-				if (b is null) { Check(false, "E4: Leisteneintrag „Flotte“ fehlt"); return false; }
+				var b = Buttons(hud.Screens.Current as Node ?? hud).FirstOrDefault(x => x.Text == "Besitz" && x.IsVisibleInTree());   // UI-Umbau: Reiter „Besitz“ öffnet „Schiffe & Befehle“
+				if (b is null) { Check(false, "E4: Reiter „Besitz“ fehlt"); return false; }
 				var br = b.GetGlobalRect();
 				if (br != _r35Rect && _r35Wait++ < 30) { _r35Rect = br; _stageStart += 1; return false; }   // erst tippen, wenn das Layout steht
 				_r35At = br.GetCenter();

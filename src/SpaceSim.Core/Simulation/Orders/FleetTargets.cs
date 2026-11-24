@@ -135,7 +135,7 @@ public static class FleetTargets
         foreach (var r in routes.OrderByDescending(r => r.M).ThenBy(r => r.A.Id.Value).ThenBy(r => r.B.Id.Value).ThenBy(r => r.G.Value))
         {
             if (list.Count >= MaxRoutes) break;
-            Add(r.A, r.B, r.G, $"{Short(StationNames.WithoutOwner(u, r.A), 11)} → {Short(StationNames.WithoutOwner(u, r.B), 11)}");   // 1c: ohne Kürzel (passt in die Taste)
+            Add(r.A, r.B, r.G, $"{Short(StationNames.WithoutOwner(u, r.A), 10)} → {Short(StationNames.WithoutOwner(u, r.B), 10)}");   // 1c: ohne Kürzel (passt in die Taste)
         }
         return list;
     }

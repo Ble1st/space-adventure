@@ -37,9 +37,9 @@ public partial class SelfTest
 		var fl = hud.Flight;
 		Func<Vector2> ap = () => DevRect(FlightKitByItem(HudItem.Autopilot)!).GetCenter();
 		Func<Vector2> menu = () => { var r = DevRect(FlightKitByItem(HudItem.Hamburger)!); return new Vector2(r.GetCenter().X, r.Position.Y + r.Size.Y * 0.4f); };
-		Func<Vector2> map = () => DevRect(FlightKitByItem(HudItem.Map)!).GetCenter();
+		Func<Vector2> map = () => DevRect(FlightKitByItem(HudItem.Command)!).GetCenter();
 		bool MenuOpen() => hud.Screens.Current == hud.Command && hud.Command.Visible;
-		void Base() { hud.Map.Visible = false; if (hud.Screens.Current != null) _m.TestMenu("close"); hud.HideAlert(); }
+		void Base() { hud.Map.Visible = false; if (hud.Screens.Current != null) _m.TestMenu("close"); _m.TestCloseCommand(); hud.HideAlert(); }
 
 		_inScript.Add((t, () => { Base(); _m.TestStopAutomation(); fl.SetSlider(0f); GD.Print("[eingabe] Teil 7: adb-Muster"); }));
 		t += 10;
@@ -54,7 +54,7 @@ public partial class SelfTest
 			_inScript.Add((t + 42, Base));
 			t += 50;
 			AdbTap(t, map, g);
-			_inScript.Add((t + 12, () => Check(hud.Map.Visible, $"adb: Tipp auf „Karte“ (Abstand {g} Bilder) öffnet die Karte")));
+			_inScript.Add((t + 12, () => Check(hud.Screens.Current == hud.CcFleet, $"adb: Tipp auf „Befehle“ (Abstand {g} Bilder) öffnet die Befehle")));
 			_inScript.Add((t + 14, Base));
 			t += 30;
 		}

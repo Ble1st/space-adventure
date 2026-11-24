@@ -86,12 +86,12 @@ public partial class SelfTest
 			{
 				// Runde 33: Faktor je Schicht — Flug-Schicht skaliert, Wurzel bei 1, logische Fläche der Schicht = sichtbare Fläche ÷ Faktor
 				var fl = _m.HudRef.Flight;
-				Check(Mathf.Abs(UiScale.Factor - _r31Factor) < 0.001f && Mathf.Abs(fl.Scale.X - _r31Factor) < 0.001f && root.ContentScaleFactor == 1f,
+				Check(Mathf.Abs(UiScale.Factor - _r31Factor) < 0.001f && fl.Scale.X <= _r31Factor + 0.001f && fl.Scale.X >= _r31Factor - 0.05f && root.ContentScaleFactor == 1f,   // UI-Umbau: die Flug-Schicht passt den Faktor an (FitFactor)
 					$"UI-Größe: erzwungener Faktor {_r31Factor} auf der Flug-Schicht ({UiScale.Factor}, Schicht {fl.Scale.X}, Wurzel {root.ContentScaleFactor})");
 				var win = root.Size;
 				var vis = GetViewport().GetVisibleRect().Size;
 				float stretch = UiLayout.StretchScale(win.X, win.Y);
-				Check(Mathf.Abs(fl.Size.Y - win.Y / (stretch * _r31Factor)) < 2f && fl.Layout is { Compact: true },
+				Check(Mathf.Abs(fl.Size.Y - win.Y / (stretch * fl.Scale.X)) < 2f && fl.Layout is { Compact: true },
 					$"UI-Größe: Fläche der Flug-Schicht {fl.Size} bei Fenster {win} und Faktor {_r31Factor} (kompakt {fl.Layout?.Compact})");
 				// Kamera: Bild ↔ Welt um das eigene Schiff
 				var ship = _m.Player.GlobalPosition;

@@ -122,7 +122,8 @@ public sealed class FlightHudLayout
         Set(HudItem.Security, x0 + 10, ly, lw, 20);
         Set(HudItem.Wanted, x0 + 10, ly + 22, lw, 20);
         Set(HudItem.Fire, x0 + 10, ly + 44, lw, 20);
-        Set(HudItem.Mission, x0 + 10, ly + 66, lw, 18);
+        // Auftragszeile breiter als der Status (Ziel und Restzeit lesbar), höchstens bis vor die Zielkarte
+        Set(HudItem.Mission, x0 + 10, ly + 66, MathF.Max(lw, MathF.Min(440f, x1 - 10 - 330 - 12 - (x0 + 10))), 18);
 
         // ── rechts unter der Leiste: Zielkarte ──
         Set(HudItem.Card, x1 - 10 - 330, sy, 330, 118);

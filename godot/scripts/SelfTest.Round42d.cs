@@ -150,7 +150,7 @@ public partial class SelfTest
 			}
 			case 7:
 			{
-				_m.TestCommand("map");   // Sternenkarte im Flug öffnen
+				_m.HudRef.Map.Open(_m.Session.U, _m.Session.U.PlayerSector, null);   // UI-Umbau: „Karte“ öffnet das Kartenfenster — die Sternenkarte (Sprungzielwahl) direkt
 				return false;
 			}
 			case 8:

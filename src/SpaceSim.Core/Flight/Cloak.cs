@@ -82,7 +82,7 @@ public static class Cloak
         "combat" => "Gefecht",
         "hit" => "Treffer",
         "module" => "Modul aus",
-        "power" => "Leistung fehlt",
+        "power" => "Strom fehlt",
         "ship" => "Schiffswechsel",
         "jump" => "Sprung",
         _ => reason,

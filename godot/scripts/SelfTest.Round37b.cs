@@ -131,14 +131,17 @@ public partial class SelfTest
 		TapSteps("≡ Menü", () => ButtonRect(hud.DockMenu, "≡ Menü"));
 		Step("Menü offen", 0, () => Check(hud.Screens.Current == hud.Command, $"37b N1: „≡ Menü“ öffnet das Menü ({hud.Screens.Current?.Id})"));
 		TapSteps("Karte", () => ButtonRect(hud.Command, "Karte"));
-		Step("Karte offen", 0, () => Check(hud.Map.Visible, "37b N1: „Karte“ öffnet die Sternenkarte"));
-		TapSteps("Karte schließen", () => hud.Map.GetChildren().OfType<Ui.TouchButton>().FirstOrDefault(b => b.Text == "Schließen")?.GetGlobalRect());
-		Step("nach Karte schließen", 0, () => ExpectBase("Dock → Menü → Karte → Schließen"));
-		// Karte → Sektor antippen
+		// UI-Umbau: „Karte“ öffnet das Kartenfenster (Universum/Sektor), „← Flug“ schließt es
+		Step("Karte offen", 0, () => Check(hud.Screens.Current == hud.CcUniverse, $"37b N1: „Karte“ öffnet das Kartenfenster ({hud.Screens.Current?.Id})"));
+		TapSteps("Karte schließen", () => hud.Screens.Current is Node mc ? ButtonRect(mc, "← Flug") : null);
+		Step("nach Karte schließen", 0, () => ExpectBase("Dock → Menü → Karte → ← Flug"));
+		// Karte → Reiter „Sektor“ → ← Flug
 		TapSteps("≡ Menü 2", () => ButtonRect(hud.DockMenu, "≡ Menü"));
 		TapSteps("Karte 2", () => ButtonRect(hud.Command, "Karte"));
-		TapSteps("Sektor auf der Karte", () => hud.Map.TestSectorScreen(u().Sectors.Values.First(s => s.Id != u().PlayerSector).Id) is { } p ? new Rect2(p - Vector2.One, Vector2.One * 2f) : null);
-		Step("nach Sektorwahl", 0, () => ExpectBase("Dock → Menü → Karte → Sektor antippen"));
+		TapSteps("Reiter Sektor", () => hud.Screens.Current is Node mc2 ? ButtonRect(mc2, "Sektor") : null);
+		Step("Sektor offen", 0, () => Check(hud.Screens.Current == hud.CcSector, $"37b N1: Reiter „Sektor“ im Kartenfenster ({hud.Screens.Current?.Id})"));
+		TapSteps("Sektor schließen", () => hud.Screens.Current is Node mc3 ? ButtonRect(mc3, "← Flug") : null);
+		Step("nach Sektorwahl", 0, () => ExpectBase("Dock → Menü → Karte → Sektor → ← Flug"));
 		// Menü schließen, Menü-Hintergrund
 		TapSteps("≡ Menü 3", () => ButtonRect(hud.DockMenu, "≡ Menü"));
 		TapSteps("Schließen", () => ButtonRect(hud.Command, "Schließen"));
@@ -177,8 +180,8 @@ public partial class SelfTest
 		Step("Zurück schließt Menü", 10, () => Back());
 		Step("nach Zurück Menü Flug", 0, () => ExpectBase("Flug → Menü → Zurück-Taste"));
 		Step("Karte im Flug", 10, () => _m.TestCommand("map"));
-		TapSteps("Karte schließen Flug", () => hud.Map.GetChildren().OfType<Ui.TouchButton>().FirstOrDefault(b => b.Text == "Schließen")?.GetGlobalRect());
-		Step("nach Karte Flug", 0, () => ExpectBase("Flug → Karte → Schließen"));
+		TapSteps("Karte schließen Flug", () => hud.Screens.Current is Node mc4 ? ButtonRect(mc4, "← Flug") : null);
+		Step("nach Karte Flug", 0, () => ExpectBase("Flug → Karte → ← Flug"));
 		Step("Karte im Flug 2", 10, () => _m.TestCommand("map"));
 		Step("Escape Karte Flug", 10, () => Escape());
 		Step("nach Escape Karte Flug", 0, () => ExpectBase("Flug → Karte → Escape"));
@@ -264,34 +267,12 @@ public partial class SelfTest
 		Step("nach der Animation", 0, () => ExpectBase("nach der Andock-Animation"));
 		Step("abdocken 37d", 40, () => _m.TestUndock());
 
-		// ── N2: Leiste der Zentrale bei 1,3 in beide Richtungen wischen — zuerst aus „System“ (aktiver Eintrag unten) nach oben, dann wieder nach unten ──
-		Step("Zentrale 1,3 System", 24, () => { UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply(); Ui.Screens.CommandScreen.RailPos = 0; Ui.Screens.CommandScreen.ForgetRailArea(); _m.TestOpenCcArea(Ui.Screens.CommandAreas.System); });
-		Step("System: Leiste unten", 0, () =>
-		{
-			var rail = RailScroll(hud.CcSystem);
-			_r37bRail = rail is null ? 0 : (int)(rail.GetVScrollBar().MaxValue - rail.GetVScrollBar().Page);
-			Check(rail is not null && _r37bRail > 20 && rail.ScrollVertical > 20, $"37b N2: „System“ holt seinen Eintrag ins Bild (Leiste {rail?.ScrollVertical}/{rail?.WantedScroll} von {_r37bRail}, RailPos {Ui.Screens.CommandScreen.RailPos}, Höhe {rail?.Size.Y}, Bereich {hud.CcSystem.AreaId})");
-		});
-		RailSwipe("nach oben", () => hud.CcSystem, +1);
-		Step("oben nach Neuaufbau", 0, () =>
-		{
-			var rail = RailScroll(hud.CcSystem);
-			Check(rail is not null && rail.ScrollVertical <= 2, $"37b N2: Leiste lässt sich aus „System“ nach oben wischen und bleibt dort über Neuaufbauten ({rail?.ScrollVertical})");
-		});
-		TapSteps("Universum in der Leiste", () => ButtonRect(hud.CcSystem, "Universum"));
-		Step("Universum offen", 0, () => Check(hud.Screens.Current == hud.CcUniverse, $"37b N2: nach dem Zurückrollen ist „Universum“ erreichbar ({hud.Screens.Current?.Id})"));
-		RailSwipe("nach unten", () => hud.CcUniverse, -1);
-		Step("unten nach Neuaufbau", 0, () =>
-		{
-			var rail = RailScroll(hud.CcUniverse);
-			Check(rail is not null && rail.ScrollVertical >= _r37bRail - 2, $"37b N2: Leiste bleibt unten über Neuaufbauten ({rail?.ScrollVertical} von {_r37bRail})");
-		});
-		RailSwipe("wieder nach oben", () => hud.CcUniverse, +1);
-		Step("wieder oben", 0, () =>
-		{
-			var rail = RailScroll(hud.CcUniverse);
-			Check(rail is not null && rail.ScrollVertical <= 2, $"37b N2: Leiste wieder ganz oben ({rail?.ScrollVertical})");
-		});
+		// ── N2 (UI-Umbau: Reiter statt rollender Leiste): bei 1,3 öffnen die Reiter ihren ersten Bereich ──
+		Step("Zentrale 1,3 System", 24, () => { UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply(); _m.TestOpenCcArea(Ui.Screens.CommandAreas.System); });
+		TapSteps("Reiter Besitz", () => ButtonRect(hud.CcSystem, "Besitz"));
+		Step("Besitz offen", 0, () => Check(hud.Screens.Current == hud.CcFleet, $"37b N2: Reiter „Besitz“ öffnet „Schiffe & Befehle“ ({hud.Screens.Current?.Id})"));
+		TapSteps("Reiter Politik", () => ButtonRect(hud.CcFleet, "Politik"));
+		Step("Politik offen", 0, () => Check(hud.Screens.Current == hud.CcMyFaction, $"37b N2: Reiter „Politik“ öffnet „Deine Fraktion“ ({hud.Screens.Current?.Id})"));
 		// ── N3: Rahmen des Mittelteils in jedem Bereich ──
 		foreach (var (id, _, _) in Ui.Screens.CommandAreas.All)
 		{
