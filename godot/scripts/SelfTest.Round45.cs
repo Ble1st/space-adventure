@@ -28,6 +28,8 @@ public partial class SelfTest
 		var view = sc.GetGlobalRect();
 		var r = b.GetGlobalRect();
 		if (view.Encloses(r)) return r.GetCenter();
+		// UI-Umbau (Mittelteil niedriger): ganz unten gerollt reicht es, wenn die Mitte der Taste sichtbar ist
+		if (sc.ScrollVertical >= (int)(sc.GetVScrollBar().MaxValue - sc.GetVScrollBar().Page) - 1 && view.HasPoint(r.GetCenter())) return r.GetCenter();
 		float dy = r.Position.Y - view.Position.Y - 40f;
 		sc.ScrollVertical = (int)Mathf.Clamp(sc.ScrollVertical + dy / Mathf.Max(0.01f, sc.GetGlobalTransform().Scale.Y), 0f, (float)sc.GetVScrollBar().MaxValue);
 		return null;

@@ -28,7 +28,7 @@ public partial class SelfTest
 		if (k == 4)
 		{
 			var b = FdButton(hud, prefix);
-			if (b is null || R45Visible(hud, b) is not { } at) { Fail($"FD: „{prefix}“ fehlt oder nicht sichtbar ({what})"); return false; }
+			if (b is null || R45Visible(hud, b) is not { } at) { Fail($"FD: „{prefix}“ fehlt oder nicht sichtbar ({what}; Taste {(b is null ? "fehlt" : b.GetGlobalRect().ToString())}, Ansicht {hud.CcComms.TestDetailScroll?.GetGlobalRect()}, Tasten {string.Join(",", Buttons(hud.CcComms).Where(x => x.IsVisibleInTree()).Select(x => x.Text))})"); return false; }
 			_fdAt = at;
 			Tap(_fdAt, true);
 		}
