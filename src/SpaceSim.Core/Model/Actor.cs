@@ -123,6 +123,8 @@ public sealed class Actor
     public Intel.PlayerIntel? Intel;
     /// <summary>Lücken gegenüber IP2: Spielerstatistik (null = nichts gezählt). Gespeichert additiv, gehasht nur mit Spielerpolitik.</summary>
     public PlayerStats? Stats;
+    /// <summary>Mehrpunkt-Route des Spielerautopiloten (nur beim Spielerakteur; null = keine). Gespeichert additiv, gehasht nur mit Spielerpolitik.</summary>
+    public Flight.PlayerRoute? Route;
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>
     public bool IsFaction(Universe u) => u.Factions.ContainsKey(new FactionId(Id.Value));
     /// <summary>Runde 38: ist der Akteur eine KI-Fraktion (Fraktion, aber nicht der Spieler)? Die KI-Fraktionsregeln (Rücklage, Mindestbestand, Kleinstationen) fragen dies.</summary>

@@ -150,6 +150,7 @@ public static class UniverseSerializer
                 }).ToList(),
                 Intel = IntelCodec.ToSave(a.Intel),
                 Stats = PlayerStatsCodec.ToSave(a.Stats),
+                Route = RouteCodec.ToSave(a.Route),
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
@@ -490,6 +491,7 @@ public static class UniverseSerializer
                     }),
                 Intel = IntelCodec.FromSave(a.Intel),
                 Stats = PlayerStatsCodec.FromSave(a.Stats),
+                Route = RouteCodec.FromSave(a.Route),
             };
         if (s.Encounters is not null)
             foreach (var e in s.Encounters)

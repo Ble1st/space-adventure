@@ -92,6 +92,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 
 		// ── Detailkarte rechts ──
 		BuildDetail(inner, Selected);
+		BuildRoute(inner);   // Mehrpunkt-Route: Taste „Route“ über der Detailkarte
 	}
 
 	void BuildDetail(Control inner, SectorId sel)
@@ -265,7 +266,18 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 
 		public override void _GuiInput(InputEvent @event)
 		{
-			if (!Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion) || motion || pressed) return;
+			if (!Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion)) return;
+			// Mehrpunkt-Route: langes Drücken öffnet das Kartenmenü; das Loslassen danach ist kein Tipp
+			if (_owner._lp.Input(pressed, motion, pos)) { AcceptEvent(); return; }
+			if (motion || pressed) return;
+			if (HitAt(pos) is { } sid) { Tapped?.Invoke(sid); AcceptEvent(); }
+		}
+
+		public override void _Process(double delta) => _owner?._lp.Process((float)delta);
+
+		/// <summary>Sektor unter einem Kartenpunkt (wie der Tipp ihn sucht); null = keiner.</summary>
+		public SectorId? HitAt(Vector2 pos)
+		{
 			var center = Size / 2f + new Vector2(0, 10f);
 			var scale = MapScale();
 			SectorId? best = null; float bestD = HaloRadius(Mathf.Min(scale.X, scale.Y)) + 2f;
@@ -274,7 +286,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 				float d = Place(s, center, scale).DistanceTo(pos);
 				if (d < bestD) { bestD = d; best = s.Id; }
 			}
-			if (best is { } sid) { Tapped?.Invoke(sid); AcceptEvent(); }
+			return best;
 		}
 
 		/// <summary>Phase 21: Halo- und Knotengröße folgen dem Feldabstand, damit sich bei 11 Sektoren (4 Zeilen) die Halos nicht überlappen.</summary>
@@ -316,6 +328,11 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 				else if (g.State == GateState.Restricted || far.State == GateState.Restricted) DrawLine(a, b, new Color(Orange, 0.85f), 3f);
 				else DrawLine(a, b, new Color(Dim, 0.7f), 2.5f);
 			}
+
+			// Mehrpunkt-Route: Linie der restlichen Route über die durchflogenen Sektoren (unter den Knoten), Nummern nach den Knoten
+			var routePath = SpaceSim.Core.Flight.PlayerRoutes.MapPath(_u);
+			for (int i = 1; i < routePath.Count; i++)
+				DrawLine(Place(_u.Sectors[routePath[i - 1].Sector], center, scale), Place(_u.Sectors[routePath[i].Sector], center, scale), new Color(Cyan, 0.85f), 5f, true);
 
 			foreach (var s in _u.Sectors.Values)
 			{
@@ -444,6 +461,25 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 					var sp = p + new Vector2(-rNode - 12f, -rNode * 0.5f);
 					DrawShip(sp, 9f, Cyan);
 				}
+			}
+
+			// Mehrpunkt-Route: Haltnummern links unten am Knoten (mehrere Halte im selben Sektor nebeneinander)
+			{
+				var nf = ThemeDB.FallbackFont;
+				var perSector = new Dictionary<SectorId, int>();
+				int numbers = 0;
+				foreach (var (rs, stop) in routePath)
+				{
+					if (stop <= 0) continue;
+					int k = perSector.GetValueOrDefault(rs);
+					perSector[rs] = k + 1;
+					var c = Place(_u.Sectors[rs], center, scale) + new Vector2(-rNode * 0.8f + k * 20f, rNode * 0.8f);
+					DrawCircle(c, 10f, Cyan);
+					DrawArc(c, 10f, 0, Mathf.Tau, 20, new Color(0.02f, 0.04f, 0.09f), 2f, true);
+					UiKit.DrawText(this, slot++, nf, c + new Vector2(-10f, 5f), stop.ToString(), 13, new Color(0.02f, 0.04f, 0.09f), HorizontalAlignment.Center, 20f);
+					numbers++;
+				}
+				_owner.TestRouteNumbers = numbers;
 			}
 
 			// Beschriftungen zuletzt, je auf einer Plakette (mittig über ihrer Breite)

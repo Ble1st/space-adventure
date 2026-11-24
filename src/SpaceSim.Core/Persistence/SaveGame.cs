@@ -188,6 +188,8 @@ public sealed class ActorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IntelSave? Intel { get; set; }
     /// <summary>Lücken gegenüber IP2 (additiv): Spielerstatistik; fehlt = nichts gezählt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PlayerStatsSave? Stats { get; set; }
+    /// <summary>Mehrpunkt-Route (additiv): Halte des Spielerautopiloten; fehlt = keine Route.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public RouteSave? Route { get; set; }
 }
 
 /// <summary>Lücken gegenüber IP2: <see cref="Model.PlayerStats"/>.</summary>
@@ -212,6 +214,23 @@ public sealed class PlayerStatsSave
     public int Bounties { get; set; }
     public double BountyCredits { get; set; }
     public double Transferred { get; set; }
+}
+
+/// <summary>Mehrpunkt-Route: Halte als [Art, Id, Sektor] mit Punkt (x, y), nächster Halt, Andock-Schalter.</summary>
+public sealed class RouteSave
+{
+    public List<RouteStopSave> Stops { get; set; } = new();
+    public int Next { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Dock { get; set; }
+}
+
+public sealed class RouteStopSave
+{
+    public int Kind { get; set; }
+    public int Id { get; set; }
+    public int Sector { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float X { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Y { get; set; }
 }
 
 /// <summary>Ausbau Punkt 16: <see cref="Intel.PlayerIntel"/> — Listen nach Id sortiert; Felder als [Sektor, Index].</summary>
