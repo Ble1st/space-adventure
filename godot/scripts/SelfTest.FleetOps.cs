@@ -57,6 +57,24 @@ public partial class SelfTest
 		return null;
 	}
 
+	/// <summary>Sorgt für eine Lieferroute nahe dem Händler M: Hersteller A mit vollem Lager, Abnehmer B leer und teurer (die Zielliste prüft Spannen).</summary>
+	void FoEnsureRoute(Universe u)
+	{
+		var m = u.Ships[_foM];
+		var near = u.StationsById().Where(s => !s.IsBuildSite && s.Sector == m.Sector).ToList();
+		foreach (var b in near)
+			foreach (var (g, e) in b.Market.OrderBy(kv => kv.Key.Value))
+			{
+				if (!b.Consumes(g) || b.Produces(g)) continue;
+				var a = near.FirstOrDefault(x => x.Id != b.Id && x.Produces(g) && x.Market.ContainsKey(g));
+				if (a is null) continue;
+				var ea = a.Market[g];
+				ea.Amount = System.MathF.Max(ea.Target, 20f); ea.Price = u.Goods[g].BasePrice * 0.5f;
+				e.Amount = 0f; e.Price = u.Goods[g].BasePrice * 2f;
+				return;
+			}
+	}
+
 	bool FleetOpsStage(int f)
 	{
 		var u = _m.Session.U;
@@ -132,6 +150,7 @@ public partial class SelfTest
 		if (f == s3 + 15) { Check(u.Ships[_foS].Command is SalvageCommand, $"Bergen per Tipp ({fs.TestMessage})"); return false; }
 		// ── Liefern: M → „Liefern“ → erste Route ──
 		int s4 = s3 + 17;
+		if (f == s4 - 1) FoEnsureRoute(u);   // neues Spiel mit Zufallsseed: mindestens eine lohnende Route in der Nähe sicherstellen
 		if (f >= s4 && f < s4 + 4) { FoTap(f, s4, () => FoRowButton(cc, FoRow(u, _foM)), "Händler"); return false; }
 		if (f >= s4 + 5 && f < s4 + 9) { FoTap(f, s4 + 5, () => fs.TestCommandButton(CommandKinds.Deliver), "Liefern"); return false; }
 		if (f >= s4 + 10 && f < s4 + 14) { FoTap(f, s4 + 10, () => FoTarget(_ => true), "Lieferroute"); return false; }

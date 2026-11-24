@@ -106,7 +106,10 @@ public partial class SelfTest
 				_m.TestClearTarget();
 				var st = u.StationsById().Where(s => s.Sector == u.PlayerSector && s.Dockable).Select(s => (s, p: BodyPoint(s, ship)))
 					.Where(x => !_m.TestCam.IsPositionBehind(x.p) && new Rect2(vis * 0.1f, vis * 0.8f).HasPoint(_m.TestCam.UnprojectPosition(x.p))
-						&& !_m.HudRef.Flight.OccupiedRects().Any(r => r.Grow(8f).HasPoint(_m.TestCam.UnprojectPosition(x.p))))
+						&& !_m.HudRef.Flight.OccupiedRects().Any(r => r.Grow(8f).HasPoint(_m.TestCam.UnprojectPosition(x.p)))
+						// eindeutig: keine andere Station liegt im Bild nahe am Tippunkt (sonst wählt die Bildschirmauswahl zu Recht die vordere)
+						&& !u.StationsById().Any(o => o.Id != x.s.Id && o.Sector == u.PlayerSector && !_m.TestCam.IsPositionBehind(new Vector3(o.Position.X, 0f, o.Position.Y))
+							&& _m.TestCam.UnprojectPosition(new Vector3(o.Position.X, 0f, o.Position.Y)).DistanceTo(_m.TestCam.UnprojectPosition(x.p)) < 140f))
 					.OrderBy(x => x.p.DistanceTo(ship)).Select(x => x.s).FirstOrDefault();
 				if (st is null)
 				{
