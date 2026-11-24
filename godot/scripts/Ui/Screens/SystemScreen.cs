@@ -34,7 +34,7 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 		// UI-Umbau: „Laden“ und „Neues Spiel“ gibt es nur noch auf dem Startbildschirm (über „Zum Hauptmenü“)
 		var bMain = At(inner, new KitButton("Zum Hauptmenü", new Vector2(300, 56)) { FontSize = 19, Sub = "speichert vorher" }, 20, 122);
 		bMain.Pressed += () => RaiseSystemAction("mainmenu");
-		float my = WrappedText(inner, "Autosave alle 30 s. Neues Spiel und Fortsetzen findest du im Hauptmenü.", 20, 196, 310, 14, Dim, 20);
+		float my = WrappedText(inner, Game.SaveSettings.Text + " · Neues Spiel, Laden und Einstellungen im Hauptmenü.", 20, 196, 310, 14, Dim, 20);
 		// Gerätetest Phase 27: sichtbare Rückmeldung im Bereich selbst (der Toast liegt unter der Kommandozentrale)
 		if (_message.Length > 0) At(inner, Text(_message, 16, _messageOk ? Green : Red), 20, my + 8f, 310, 24);   // Runde 4: Abstand zum Text darüber
 

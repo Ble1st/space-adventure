@@ -28,7 +28,6 @@ namespace SpaceAdventure;
 public partial class Main : Node3D
 {
 	const float GateRadius = 10f;
-	const float AutosaveSeconds = 30f;
 	const float WheelZoomIn = 0.88f, WheelZoomOut = 1f / 0.88f;
 
 	GameSession _session = null!;
@@ -177,6 +176,9 @@ public partial class Main : Node3D
 		};
 		_hud.Command.Action += OnCommandAction;
 		_hud.Start.Action += OnStartAction;
+		// Mehrere Spielstände: Laden / Speichern unter
+		_hud.Saves.LoadRequested += id => OnMenu("loadslot:" + id);
+		_hud.Saves.SaveRequested += SaveAs;
 		_hud.Spectate.ExitPressed += ExitSpectate;   // Runde 45: X des Befehlsstands
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
 		_hud.Map.JumpSelected += StartJumpTo;   // Sprungantrieb: Ziel auf der Karte
@@ -334,8 +336,11 @@ public partial class Main : Node3D
 		{
 			_allSystems = true;   // Phase 14: Selbsttest/Bildschirmfotos mit Treibstoff und Forschung (Standardwelt: beide aus); der Selbsttest prüft die Standardwelt am Ende
 			SaveService.UseFile(selftest ? "selftest.json" : "ui-shots.json");
-			DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(selftest ? "user://selftest.json" : "user://ui-shots.json"));   // immer frisch beginnen
+			SaveService.ClearDir();   // immer frisch beginnen (eigenes Verzeichnis user://test-saves/…)
 		}
+		// Mehrere Spielstände: ui-check und Handyfotos nutzen eigene Verzeichnisse schon vor dem Start der Sitzung (vorher lud ihr Start den echten Stand)
+		if (args.Contains("--ui-check")) { SaveService.UseFile("ui-check.json"); SaveService.ClearDir(); }
+		if (args.Contains("--phone-shots")) { SaveService.UseFile("phone-shots.json"); SaveService.ClearDir(); }
 		// Oberflächen-Texturen: --no-surface-detail = Modelle ohne die gemeinsamen Texturen (Vergleichsbilder)
 		if (args.Contains("--no-surface-detail")) World.SurfaceDetail.Enabled = false;
 		if (args.Contains("--model-shots")) { SaveService.UseFile("model-shots.json"); UiScale.PinnedFactor = 1f; }   // eigener Spielstand, nie der echte
@@ -353,7 +358,6 @@ public partial class Main : Node3D
 		int checkIdx = Array.IndexOf(args, "--ui-check");
 		if (checkIdx >= 0 && checkIdx + 1 < args.Length)
 		{
-			SaveService.UseFile("ui-check.json");
 			string dir = args[checkIdx + 1];
 			if (!System.IO.Path.IsPathRooted(dir)) dir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), dir);
 			string? Opt(string k) => args.FirstOrDefault(a => a.StartsWith(k + "="))?[(k.Length + 1)..];
@@ -366,7 +370,7 @@ public partial class Main : Node3D
 			AddChild(check);
 		}
 		int phoneIdx = Array.IndexOf(args, "--phone-shots");
-		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { SaveService.UseFile("phone-shots.json"); AddChild(new PhoneShots(this, args[phoneIdx + 1]) { Mining = Array.IndexOf(args, "--phone-mining") >= 0 }); }
+		if (phoneIdx >= 0 && phoneIdx + 1 < args.Length) { AddChild(new PhoneShots(this, args[phoneIdx + 1]) { Mining = Array.IndexOf(args, "--phone-mining") >= 0 }); }
 		if (shotDir != null)
 		{
 			if (!System.IO.Path.IsPathRooted(shotDir)) shotDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), shotDir);
@@ -379,7 +383,7 @@ public partial class Main : Node3D
 	void StartSession(bool menu = false)
 	{
 		SpaceSim.Core.Model.Universe? u = null; string? error = null; DateTimeOffset savedAt = default;
-		if (!menu && SaveService.TryLoad(out u, out savedAt, out error) && u != null)
+		if (!menu && SaveService.TryLoadNewest(out u, out savedAt, out error) && u != null)
 		{
 			_session = new GameSession();
 			_session.Use(u);
@@ -391,6 +395,7 @@ public partial class Main : Node3D
 		else
 		{
 			if (SaveService.Exists && !menu) GD.PushWarning("Spielstand nicht ladbar, starte neu: " + error);
+			SaveService.BeginNewGame("", "");   // Mehrere Spielstände: eigener Autosave-Stand
 			_session = GameSession.New(_allSystems ? def => { def.Rules ??= new EconomyRules(); def.Rules.FuelActive = true; def.Rules.ResearchActive = true; } : null);
 			AttachSession();
 			if (!menu && SaveService.Exists) _hud.Toast("Spielstand beschädigt – neues Spiel gestartet", 4f);
@@ -410,6 +415,7 @@ public partial class Main : Node3D
 		_hud.Command.Close();
 		_hud.Flight.Visible = false;
 		_hud.HideAlert();
+		_hud.Saves.Close();
 		_hud.Start.Open();
 	}
 
@@ -427,6 +433,7 @@ public partial class Main : Node3D
 		switch (a)
 		{
 			case "continue": OnMenu("load"); break;
+			case "loadlist": _hud.Saves.Open(Ui.Screens.SavesScreen.Mode.Load); break;   // Mehrere Spielstände
 			case "quit": GetTree().Quit(); break;
 			default: if (a.StartsWith("new:", StringComparison.Ordinal)) OnMenu(a); break;
 		}
@@ -809,15 +816,28 @@ public partial class Main : Node3D
 			case "save": SaveNow(manual: true); break;
 			case "mainmenu": GoToStartMenu(); return;   // UI-Umbau
 			case "load":
-				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { LeaveStartMenu(); _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
+				if (SaveService.TryLoadNewest(out var u, out _, out var error) && u != null) { LeaveStartMenu(); _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
 				else _hud.Toast("Laden fehlgeschlagen: " + error, 4f);
 				break;
-			case "new": LeaveStartMenu(); _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); _orbit.Reset(); AttachSession(); _hud.Toast("Neues Spiel"); break;   // Runde 19: neue Sitzung = Standardkamera
+			case var ls when ls.StartsWith("loadslot:", StringComparison.Ordinal):   // Mehrere Spielstände: Stand aus der Liste
+			{
+				string id = ls["loadslot:".Length..];
+				if (SaveService.TryLoad(id, out var lu, out _, out var lerr) && lu != null)
+				{
+					_hud.Saves.Close();
+					LeaveStartMenu(); _session.Use(lu); AttachSession();
+					_hud.Toast("Spielstand geladen: " + (SaveService.List().Find(m => m.Id == id)?.Name ?? id));
+				}
+				else { _hud.Saves.ShowMessage("Laden fehlgeschlagen: " + lerr, false); return; }
+				break;
+			}
+			case "new": SaveService.BeginNewGame("", ""); LeaveStartMenu(); _session.Use(SpaceSim.Core.Content.WorldBuilder.BuildDefault()); _orbit.Reset(); AttachSession(); _hud.Toast("Neues Spiel"); break;   // Runde 19: neue Sitzung = Standardkamera
 			case var a when a.StartsWith("new:", StringComparison.Ordinal):   // Phase 5c: Startpaket (player.startOptions)
 			{
 				string key = a[4..];
 				var name = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().FirstOrDefault(o => o.Key == key)?.Name ?? key;
 				var nu = SpaceSim.Core.Content.WorldBuilder.BuildDefault(startOption: key);
+				SaveService.BeginNewGame(key, name);   // Mehrere Spielstände: neues Spiel = eigener Autosave-Stand
 				if (TestKnowAll && !TestIntelOn) nu.Player.Intel = null;   // Ausbau Punkt 16: Prüfläufe mit vollem Wissen (außer der Erkundungs-Stufe)
 				LeaveStartMenu();
 				_session.Use(nu);
@@ -838,6 +858,7 @@ public partial class Main : Node3D
 			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); OpenMapWindow(); break;
 			case "economy": _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); ShowBase(); break;
 			case "save": case "load": OnMenu(action); break;
+			case "saveas": _sfx.Play(SfxId.Click); OpenSaveAs(); break;   // Mehrere Spielstände
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
 			case "music_mute": case "effects_mute": _sfx.Play(SfxId.Click); OnMenu(action); break;
 			// Runde 45 (Nutzerwunsch: unter Einstellungen das Spielergeld setzen können): Debug-Zeile im Menü — setzt die Spielerkasse auf 100.000.000 Cr
@@ -1024,6 +1045,7 @@ public partial class Main : Node3D
 		var cur = _hud.Screens.Current;
 		// Runde 37c: innerste Ebene zuerst — offene Meldung, Fraktionsdetail (→ Liste), Startpaket-Auswahl, offene Handelszeile
 		if (_hud.TestAlert.Length > 0) { _hud.HideAlert(); return "meldung"; }
+		if (_hud.Saves.Visible) { _sfx.Play(SfxId.Click); _hud.Saves.Close(); return "spielstände"; }   // Mehrere Spielstände
 		if (_startMenu) return "hauptmenü";
 		if (_hud.Flight.HailOpen && _hud.Flight.IsVisibleInTree()) { CloseHail(); return "funk"; }   // Funk: innerste Ebene im Flug
 		if (_hud.Flight.ScanOpen && _hud.Flight.IsVisibleInTree()) { _hud.Flight.SetScanOpen(false); return "scan"; }   // UI-Umbau: der Startbildschirm bleibt (die App beendet sich nie über Zurück)
@@ -1085,6 +1107,24 @@ public partial class Main : Node3D
 				ss.ShowMessage(ok ? $"Gespeichert ({DateTime.Now:HH:mm:ss})" : "Speichern fehlgeschlagen: " + error, ok);
 		}
 		else if (!ok) GD.PushWarning("Autosave fehlgeschlagen: " + error);
+	}
+
+	/// <summary>Mehrere Spielstände: „Speichern unter“ öffnen, Vorschlag aus Sektor und Datum.</summary>
+	void OpenSaveAs()
+	{
+		if (_startMenu) return;
+		var u = _session.U;
+		string sector = u.Sectors.TryGetValue(u.PlayerSector, out var sec) ? sec.Name : "";
+		_hud.Saves.Open(Ui.Screens.SavesScreen.Mode.SaveAs, SpaceSim.Core.Persistence.SaveSlots.SuggestName(sector, DateTime.Now));
+	}
+
+	void SaveAs(string name, string? overwriteId)
+	{
+		if (_startMenu) return;
+		SyncPlayerData();
+		var id = SaveService.SaveAs(_session.U, name, overwriteId, out var error);
+		_hud.Saves.ShowMessage(id != null ? $"Gespeichert: {SpaceSim.Core.Persistence.SaveSlots.CleanName(name)} ({DateTime.Now:HH:mm:ss})" : "Speichern fehlgeschlagen: " + error, id != null);
+		if (id != null) _hud.Toast("Gespeichert: " + SpaceSim.Core.Persistence.SaveSlots.CleanName(name));
 	}
 
 	void SyncPlayerData()
@@ -1990,7 +2030,8 @@ public partial class Main : Node3D
 			if (_ccRefresh >= 0.5f) { _ccRefresh = 0f; cc.Refresh(); }
 		}
 		_autosave += delta;
-		if (_autosave >= AutosaveSeconds) { _autosave = 0f; SaveNow(manual: false); }
+		int every = SaveSettings.AutosaveSeconds;   // Mehrere Spielstände: einstellbar (0 = aus)
+		if (every > 0 && _autosave >= every) { _autosave = 0f; SaveNow(manual: false); }
 	}
 
 	/// <summary>

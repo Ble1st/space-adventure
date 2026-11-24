@@ -32,7 +32,8 @@ public partial class CommandMenu : Control, IScreen
 		("Zeitraffer", "×1 · antippen = ×10", "fast", ""),  // HUD-Neu: vorher Taste „Zeit ×1“ im Flug
 		("Karte", "Sternenkarte öffnen", "map", ""),
 		("Notruf", "Treibstoff zum Aufpreis bei leerem Tank", "emergency", ""),
-		("Speichern", "", "save", ""),
+		("Speichern", "Autosave dieses Spiels", "save", ""),
+		("Speichern unter", "eigener Name · überschreiben", "saveas", ""),   // Mehrere Spielstände
 		("Zum Hauptmenü", "speichert vorher", "mainmenu", ""),
 		("Einstellungen", "Ton · Bedienung  ▸", "settings", ""),
 		("Musik", "an/aus (Lautstärke: Hauptmenü)", "music_mute", "settings"),   // Runde 12
@@ -75,6 +76,8 @@ public partial class CommandMenu : Control, IScreen
 	/// <summary>Selbsttest: Moduskasten „Rückansicht“ und die Höhe-Tasten.</summary>
 	public KitButton TestChaseButton => _chase;
 	public KitButton? TestHeightUp { get; private set; }
+	/// <summary>Selbsttest: Menüzeile mit diesem Aktionsschlüssel.</summary>
+	public KitButton? TestEntry(string key) => _byKey.TryGetValue(key, out var b) ? b : null;
 	public bool TestHeightRowVisible => _heightRow.Visible;
 	KitButton? _emergency, _music, _effects, _uiSize, _fast, _command;
 	/// <summary>HUD-Neu: Zeitraffer-Zeile zeigt den Zustand.</summary>
