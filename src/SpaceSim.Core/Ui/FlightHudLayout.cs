@@ -33,6 +33,8 @@ public enum HudItem
     TopBar, Credits, Comms, Command, Fast,
     /// <summary>UI-Umbau: Taste „☰ Sektor“ unten links und die Fläche der Scanliste (offen).</summary>
     Scan, ScanPanel,
+    /// <summary>Mehrpunkt-Route: Zeile „Route 2/4 → …“ unter der Auftragszeile (leer = ausgeblendet).</summary>
+    Route,
 }
 
 /// <summary>
@@ -76,7 +78,7 @@ public sealed class FlightHudLayout
 
     /// <summary>Tasten (antippbar) — für Überlappungs- und Größenprüfungen.</summary>
     public static bool IsInteractive(HudItem i) => i is not (HudItem.Status or HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire
-        or HudItem.Card or HudItem.ReverseLabel or HudItem.HitWarning or HudItem.Escape or HudItem.Mission or HudItem.TopBar or HudItem.Credits or HudItem.ScanPanel);
+        or HudItem.Card or HudItem.ReverseLabel or HudItem.HitWarning or HudItem.Escape or HudItem.Mission or HudItem.Route or HudItem.TopBar or HudItem.Credits or HudItem.ScanPanel);
 
     FlightHudLayout() { }
 
@@ -124,6 +126,7 @@ public sealed class FlightHudLayout
         Set(HudItem.Fire, x0 + 10, ly + 44, lw, 20);
         // Auftragszeile breiter als der Status (Ziel und Restzeit lesbar), höchstens bis vor die Zielkarte
         Set(HudItem.Mission, x0 + 10, ly + 66, MathF.Max(lw, MathF.Min(440f, x1 - 10 - 330 - 12 - (x0 + 10))), 18);
+        Set(HudItem.Route, x0 + 10, ly + 86, _rects[HudItem.Mission].W, 18);   // Mehrpunkt-Route
 
         // ── rechts unter der Leiste: Zielkarte ──
         Set(HudItem.Card, x1 - 10 - 330, sy, 330, 118);

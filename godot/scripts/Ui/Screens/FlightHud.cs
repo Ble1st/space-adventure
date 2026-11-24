@@ -62,6 +62,8 @@ public sealed class FlightHudData
 	public string Fire = "";
 	/// <summary>Runde 41: Auftragszeile des aktiven Auftrags (Gold; leer = ausgeblendet) — Text aus <see cref="SpaceSim.Core.Missions.MissionMarkers"/>.</summary>
 	public string Mission = "";
+	/// <summary>Mehrpunkt-Route: „Route 2/4 → …“ (leer = keine Route) — Text aus <see cref="SpaceSim.Core.Flight.PlayerRoutes.HudLine"/>.</summary>
+	public string Route = "";
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
 	/// <summary>Runde 44i: kürzere Formen des Zielnamens (längste zuerst, z. B. aus <see cref="SpaceSim.Core.Model.StationNames.Candidates"/>);
@@ -150,6 +152,33 @@ public partial class FlightHud : Control, IScreen
 	public string TestFire => _fire.Visible ? _fire.Text : "";
 	/// <summary>Runde 41: sichtbare Auftragszeile (leer = kein aktiver Auftrag).</summary>
 	public string TestMission => _mission.Visible ? _mission.Text : "";
+	/// <summary>Mehrpunkt-Route (Selbsttest): sichtbare Routenzeile.</summary>
+	public string TestRoute => _route.Visible ? _route.Text : "";
+	/// <summary>Mehrpunkt-Route (Selbsttest): passt die Routenzeile ohne Kürzung mit „…“?</summary>
+	public bool TestRouteFits => !_route.Visible || _route.GetThemeFont("font").GetStringSize(_route.Text, HorizontalAlignment.Left, -1, _route.GetThemeFontSize("font_size")).X <= _route.Size.X - 2f;
+
+	/// <summary>Mehrpunkt-Route: Zeile nach gemessener Breite — erst „· angehalten“ kürzen, dann den Haltnamen; „Route n/m“ bleibt immer.</summary>
+	static string FitRouteLine(string full, Label label)
+	{
+		if (full.Length == 0) return full;
+		var font = label.GetThemeFont("font");
+		int size = label.GetThemeFontSize("font_size");
+		float maxW = label.Size.X - 4f;
+		float W(string x) => font.GetStringSize(x, HorizontalAlignment.Left, -1, size).X;
+		if (maxW <= 10f || W(full) <= maxW) return full;
+		string tail = full.EndsWith(" · angehalten", StringComparison.Ordinal) ? " · halt" : "";
+		string body = tail.Length > 0 ? full[..^" · angehalten".Length] : full;
+		if (W(body + tail) <= maxW) return body + tail;
+		int arrow = body.IndexOf(" → ", StringComparison.Ordinal);
+		if (arrow < 0) return body;
+		string head = body[..(arrow + 3)], name = body[(arrow + 3)..];
+		for (int c = name.Length - 1; c >= 3; c--)
+		{
+			string cand = head + name[..c].TrimEnd() + "…" + tail;
+			if (W(cand) <= maxW) return cand;
+		}
+		return body[..arrow];
+	}
 
 	/// <summary>
 	/// Runde 42d (Handytest): Auftragszeile nach gemessener Breite kürzen (vorher abgeschnitten „…· noch…“) — zuerst der
@@ -416,7 +445,7 @@ public partial class FlightHud : Control, IScreen
 	public bool TestFuelVisible => _fuelRow.Visible;
 	Label _hullVal = null!;
 	Label _powerInfo = null!;
-	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!, _fire = null!, _mission = null!;
+	Label _credits = null!, _sector = null!, _factionChip = null!, _wanted = null!, _security = null!, _fire = null!, _mission = null!, _route = null!;
 	KitButton _mapBtn = null!;
 	bool _fastOn;
 	int _menuBadge;
@@ -584,7 +613,8 @@ public partial class FlightHud : Control, IScreen
 		_wanted = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 74, 430, 20);
 		_fire = At(this, Text("", 15, UiKit.Red, HorizontalAlignment.Center), 420, 96, 430, 20);
 		_mission = At(this, Text("", 13, MissionGold, HorizontalAlignment.Center), 420, 118, 430, 18);   // Runde 41: Auftragszeile
-		foreach (var l in new[] { _security, _wanted, _fire, _mission }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
+		_route = At(this, Text("", 13, UiKit.Cyan, HorizontalAlignment.Center), 420, 138, 430, 18);   // Mehrpunkt-Route
+		foreach (var l in new[] { _security, _wanted, _fire, _mission, _route }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
 
 		// ── oben rechts: Karte und Menü (Symboltasten), Zielkarte links daneben ──
 		_mapBtn = At(this, new KitButton("", new Vector2(72, 64)), 1140, 8);
@@ -741,10 +771,10 @@ public partial class FlightHud : Control, IScreen
 		_escape = At(this, Text("", 14, UiKit.Orange, HorizontalAlignment.Center), 452, 688, 400, 22);
 		_escape.ClipText = true; _escape.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		_escape.Visible = false;
-		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape, _mission }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));
+		foreach (var l in new[] { _security, _wanted, _hitWarning, _escape, _mission, _route }) l.AddThemeStyleboxOverride("normal", UiKit.Box(new Color(0.02f, 0.04f, 0.09f, 0.82f), null, 8, 0, 2));
 		_items = new()
 		{
-			[HudItem.Status] = _status, [HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire, [HudItem.Mission] = _mission,
+			[HudItem.Status] = _status, [HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire, [HudItem.Mission] = _mission, [HudItem.Route] = _route,
 			[HudItem.Map] = _mapBtn, [HudItem.Hamburger] = _hamburger, [HudItem.Card] = _card,
 			[HudItem.Autopilot] = _autopilotBtn, [HudItem.AutoMine] = _autoMineBtn, [HudItem.Context] = _contextBtn,
 			[HudItem.Power] = _power, [HudItem.NextEnemy] = _nextEnemy, [HudItem.AimAssist] = _aimAssist, [HudItem.AutoFire] = _autoFire, [HudItem.Surrender] = _surrender,
@@ -985,7 +1015,7 @@ public partial class FlightHud : Control, IScreen
 		if (_reverseLabel is not null) _reverseLabel.Visible = !l.Hidden(HudItem.ReverseLabel);
 		_mapBtn.Visible = !l.Hidden(HudItem.Map); _commsBtn.Visible = !l.Hidden(HudItem.Comms);   // Nutzerwunsch: im Regal unten links
 		LayoutShelf();
-		if (_scanOpen || _hailOpen) foreach (var lab in new Control[] { _status, _security, _wanted, _fire, _mission }) lab.Visible = false;   // UI-Umbau: die Scanliste deckt die linke Spalte
+		if (_scanOpen || _hailOpen) foreach (var lab in new Control[] { _status, _security, _wanted, _fire, _mission, _route }) lab.Visible = false;   // UI-Umbau: die Scanliste deckt die linke Spalte
 		foreach (var it in new[] { HudItem.HitWarning, HudItem.Escape }) if (l.Hidden(it)) _items[it].Visible = false;
 		if (l.Hidden(HudItem.Context)) { _contextBtn.Visible = false; _wingAttack.Visible = false; }
 		_expand.Visible = !l.Hidden(HudItem.Expand);
@@ -1150,6 +1180,8 @@ public partial class FlightHud : Control, IScreen
 		// Restzeit („· noch m:ss“) bleibt immer sichtbar (sonst „…· noch…“ abgeschnitten)
 		_mission.Text = FitMissionLine(d.Mission, _mission);
 		_mission.Visible = d.Mission.Length > 0;
+		_route.Text = FitRouteLine(d.Route, _route);
+		_route.Visible = d.Route.Length > 0;
 		// HUD-Neu: der Zeitraffer steht im Menü — läuft er, zeigt der Sektorchip „×10“
 		_sector.Text = d.SectorName;   // UI-Umbau: Zeitraffer zeigt die Taste „Zeit“ in der Kopfleiste
 		{

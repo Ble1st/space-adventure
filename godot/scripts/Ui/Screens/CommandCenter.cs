@@ -152,10 +152,14 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 	void SafeRebuild()
 	{
 		if ((KitScroll.Dragging || KitButton.AnyHeld > 0) && GetChildCount() > 0) { _dirty = true; return; }   // zweiter Gerätetest Phase 28: auch nicht bei gedrückter Taste
+		if (HoldRebuild && GetChildCount() > 0) { _dirty = true; return; }   // Mehrpunkt-Route: Kartenmenü offen oder Finger auf der Karte
 		var keep = KitScroll.Capture(this);
 		Rebuild();
 		KitScroll.Restore(this, keep);
 	}
+
+	/// <summary>Mehrpunkt-Route: solange true, baut der Bereich nicht neu (offenes Kartenmenü, langes Drücken läuft).</summary>
+	protected virtual bool HoldRebuild => false;
 
 	/// <summary>Setzt die Anzeige nach einer Aktion (z. B. Sektorauswahl) sofort neu auf.</summary>
 	protected void Invalidate() { _dirty = true; SafeRebuild(); }

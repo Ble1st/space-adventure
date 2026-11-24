@@ -186,6 +186,25 @@ public sealed class ActorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CrimeStandingSave>? CrimeStanding { get; set; }
     /// <summary>Ausbau Punkt 16 (additiv): Wissen des Spielerakteurs; fehlt = alles bekannt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IntelSave? Intel { get; set; }
+    /// <summary>Mehrpunkt-Route (additiv): Halte des Spielerautopiloten; fehlt = keine Route.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public RouteSave? Route { get; set; }
+}
+
+/// <summary>Mehrpunkt-Route: Halte als [Art, Id, Sektor] mit Punkt (x, y), nächster Halt, Andock-Schalter.</summary>
+public sealed class RouteSave
+{
+    public List<RouteStopSave> Stops { get; set; } = new();
+    public int Next { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Dock { get; set; }
+}
+
+public sealed class RouteStopSave
+{
+    public int Kind { get; set; }
+    public int Id { get; set; }
+    public int Sector { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float X { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Y { get; set; }
 }
 
 /// <summary>Ausbau Punkt 16: <see cref="Intel.PlayerIntel"/> — Listen nach Id sortiert; Felder als [Sektor, Index].</summary>

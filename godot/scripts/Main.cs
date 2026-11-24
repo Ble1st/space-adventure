@@ -139,6 +139,7 @@ public partial class Main : Node3D
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); OpenMapWindow(); };   // Nutzerwunsch: große Karte als eigenes Fenster (Universum/Sektor), die kleine Sternenkarte entfällt
 		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
 		WireScanAndBar();   // UI-Umbau: Kopfleiste, Scanliste, Frachtzeile
+		WireRoute();        // Mehrpunkt-Route: Kartenmenü und Routenliste
 		_hud.Flight.AutopilotPressed += () => { if (SpectateBlocks()) { _hud.Flight.SetAutopilot(false); return; } ToggleAutopilot(); };
 		_hud.Flight.AutoMinePressed += () => { if (SpectateBlocks()) { _hud.Flight.SetAutoMine(false); return; } SetAutoMining(_hud.Flight.AutoMineOn); };
 		_hud.Flight.ContextPressed += () => { if (!SpectateBlocks()) ContextAction(); };
@@ -477,6 +478,7 @@ public partial class Main : Node3D
 			else if (sc is Ui.Screens.DockAreaScreen ds) ds.DropContent();
 		}
 		u.Events.Raised += OnSimEvent;
+		ResetRoute();   // Mehrpunkt-Route: kein Routenflug aus der alten Sitzung
 		_target = null; _targetStation = null; _targetGate = null; _docked = null; _autopilot = false;   // Runde 16: auch das Tor (Taste „Tor angreifen“ blieb nach „Neues Spiel“)
 		_hud.Flight.SetAutopilot(false);
 		_hud.Flight.SetSlider(0f);
@@ -1031,6 +1033,7 @@ public partial class Main : Node3D
 		if (cur == _hud.Command) { _sfx.Play(SfxId.Click); ShowBase(); return "menü"; }
 		if (cur == _hud.CcFactions && _hud.CcFactions.TestDetailOpen && _hud.CcFactions.IsNarrow) { _hud.CcFactions.TestDetailOpen = false; return "fraktionsliste"; }
 		if (cur == _hud.ShipMenu) { CloseShipMenu(); return "schiffsmenü"; }
+		if (cur is Ui.Screens.IMapPopupHost mph && mph.ClosePopup()) { _sfx.Play(SfxId.Click); return "kartenmenü"; }   // Mehrpunkt-Route: Kartenmenü zuerst
 		if (cur is CommandScreen) { CloseCommand(); return "zentrale"; }
 		if (cur == _hud.DockTrade && _hud.DockTrade.CloseOpenRow()) return "handelszeile";
 		if (cur is not null && cur != _hud.DockMenu && cur != _hud.Flight && _docked != null) { _sfx.Play(SfxId.Click); ShowDockMenu(); return "dockbereich"; }
@@ -2092,6 +2095,9 @@ public partial class Main : Node3D
 
 	(Vector2, float, float) Autopilot(NavTarget target)
 	{
+		// Mehrpunkt-Route: erreichter Halt gibt den nächsten frei (oder dockt an / beendet die Route)
+		if (RouteTick()) return (Vector2.Zero, 0f, 1f);
+		if (_target is { } routeTarget) target = routeTarget;
 		var u = _session.U;
 		// Phase 10: Route nach dem Mobilitätsprofil des Spielerschiffs (gesperrte Gates werden umflogen, sonst Meldung mit Grund)
 		// Gerätetest Phase 28: Autopilot mit Gedächtnis (plant einmal, fliegt die Punkte ab, löst sich aus Sackgassen) — vorher kreiste er vor dem HQ Alpha
@@ -2207,6 +2213,7 @@ public partial class Main : Node3D
 		_fight.ArmGate(default); _targetGate = null;   // Phase 31
 		_fight.SetTarget(default);   // Runde 5: das neue Ziel ersetzt ein gewähltes Schiff (vorher zeigte die Zielkarte noch den alten Gegner)
 		_target = target; _targetStation = station;
+		_routeFlying = false;   // Mehrpunkt-Route: ein anderes Ziel hält die Route an
 		_sfx.Play(SfxId.Click);
 		// Runde 44i (Handytest u18: dreizeiliger Hinweis über dem Spielfeld): Kurzname mit Kürzel, ohne den Zusatz zum Andocken (die Kontexttaste zeigt ihn)
 		string tl = station is { } sid && _session?.U.Stations.TryGetValue(sid, out var tst) == true ? SpaceSim.Core.Model.StationNames.Short(_session.U, tst) : target.Label;
@@ -2220,6 +2227,7 @@ public partial class Main : Node3D
 		_fight.ArmGate(default); _targetGate = null;   // Phase 31
 		_fight.SetTarget(default);   // Runde 5: auch ein gewähltes Schiff
 		_target = target; _targetStation = station;
+		_routeFlying = false;   // Mehrpunkt-Route: FlyRoute setzt es danach wieder
 		_follower.Reset();   // Prüfer-Empfehlung Phase 28: neuer Plan für das neue Ziel
 		_autopilot = true; _hud.Flight.SetAutopilot(true);
 		Ui.InputLog.Log($"autopilot AN: {target.Label} (Regler {_hud.Flight.SliderValue:0.00} → 0, Aufrufer {Ui.InputLog.Caller()})");
@@ -2235,12 +2243,15 @@ public partial class Main : Node3D
 		_autopilot = _hud.Flight.AutopilotOn;
 		Ui.InputLog.Log($"autopilot {(_autopilot ? "AN" : "AUS")} per Taste: {_target.Value.Label} (Regler {_hud.Flight.SliderValue:0.00})");
 		if (_autopilot) _follower.Reset();   // Prüfer-Empfehlung Phase 28: Wiedereinschalten plant von der jetzigen Position
+		if (_autopilot) ResumeRouteIfTarget();   // Mehrpunkt-Route: Autopilot auf das Routenziel setzt die Route fort
 		if (_autopilot) { _hud.Flight.SetSlider(0f); _hud.Toast($"Autopilot an: {_target.Value.Label}"); }   // Gerätetest: übernimmt den Regler
 		else _hud.Toast("Autopilot aus");
 	}
 
 	void CancelAutopilot(string why = "", [System.Runtime.CompilerServices.CallerMemberName] string caller = "", [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
 	{
+		if (_routeFlying && why == "manuelle Steuerung") _hud.Toast("Autopilot aus (manuelle Steuerung) · Route angehalten");
+		_routeFlying = false;   // Mehrpunkt-Route: angehalten, die Route bleibt
 		if (!_autopilot) return;
 		if (why != "manuelle Steuerung") Ui.InputLog.Log($"autopilot AUS{(why.Length > 0 ? ": " + why : "")} ({caller}:{line})");
 		_autopilot = false; _hud.Flight.SetAutopilot(false);
@@ -2502,7 +2513,7 @@ public partial class Main : Node3D
 		var tw = _playerTween = CreateTween();
 		tw.TweenProperty(_player, "position", new Vector3(spot.X, 0, spot.Y), 0.7);
 		tw.Parallel().TweenProperty(_player, "scale", Vector3.One, 0.7);
-		tw.TweenCallback(Callable.From(() => { _transition = false; _player.Velocity = outward * 8f; _player.GiveGrace(2.5f); }));
+		tw.TweenCallback(Callable.From(() => { _transition = false; _player.Velocity = outward * 8f; _player.GiveGrace(2.5f); ResumeRouteAfterUndock(); }));
 	}
 
 	// ───────── Zeiger in der Welt und Kamera-Gesten ─────────
@@ -3071,6 +3082,7 @@ public partial class Main : Node3D
 			WantedSevere = SpaceSim.Core.Simulation.Wanted.MaxLevel(u, u.PlayerActor) >= 3,
 			Fire = SpaceSim.Core.Combat.DamageInfo.FireWarning(u, PlayerData) ?? "",   // Phase 26
 			Mission = SpaceSim.Core.Missions.MissionMarkers.First(u) is { } mk ? mk.Label : "",   // Runde 41: Auftragszeile (Gold)
+			Route = RouteHudLine(),   // Mehrpunkt-Route
 			AutopilotOn = _autopilot,
 			AutoMineOn = _miner.Enabled,
 			TractorOn = _tractorOn,

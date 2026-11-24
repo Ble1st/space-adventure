@@ -149,6 +149,7 @@ public static class UniverseSerializer
                     Reason = kv.Value.LastReason, LastTick = kv.Value.LastTick, LastLoss = kv.Value.LastLoss,
                 }).ToList(),
                 Intel = IntelCodec.ToSave(a.Intel),
+                Route = RouteCodec.ToSave(a.Route),
             });
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
@@ -487,6 +488,7 @@ public static class UniverseSerializer
                         Debt = c.Debt, Base = c.Base, WindowStart = c.WindowStart, WindowLoss = c.WindowLoss, LastReason = c.Reason, LastTick = c.LastTick, LastLoss = c.LastLoss,
                     }),
                 Intel = IntelCodec.FromSave(a.Intel),
+                Route = RouteCodec.FromSave(a.Route),
             };
         if (s.Encounters is not null)
             foreach (var e in s.Encounters)

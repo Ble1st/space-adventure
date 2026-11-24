@@ -98,6 +98,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 		// ── Info-Karte rechts ──
 		BuildDetail(inner, sel);
+		BuildRoute(inner);   // Mehrpunkt-Route: Taste „Route“ über der Detailkarte
 	}
 
 	void BuildDetail(Control inner, SectorId sel)
@@ -426,7 +427,10 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 
 		public override void _GuiInput(InputEvent @event)
 		{
-			if (!Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion) || motion || pressed) return;
+			if (!Pointer.TryRead(@event, out _, out var pos, out bool pressed, out bool motion)) return;
+			// Mehrpunkt-Route: langes Drücken öffnet das Kartenmenü; das Loslassen danach ist kein Tipp
+			if (_owner._lp.Input(pressed, motion, pos)) { AcceptEvent(); return; }
+			if (motion || pressed) return;
 			var s = _u.Sectors[_owner.Selected];
 			StationId? st = null; float sd = 24f;
 			var spots = Spots();
@@ -611,6 +615,12 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				};
 				DrawColoredPolygon(pts, col);
 				if (_u.Fights.IsEngaged(sh.Id)) DrawArc(p, 10f, 0, Mathf.Tau, 16, Red, 2f, true);   // Phase 24: im Gefecht
+			}
+
+			// Mehrpunkt-Route: Linie und Nummern der Halte in diesem Sektor
+			{
+				int routeSlot = 960;
+				DrawRoute(ref routeSlot);
 			}
 
 			// Spieler
