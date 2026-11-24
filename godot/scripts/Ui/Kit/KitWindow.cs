@@ -16,7 +16,7 @@ public partial class KitWindow : PanelContainer
 
 	public KitWindow(string title, Vector2? size = null)
 	{
-		AddThemeStyleboxOverride("panel", UiKit.Box(UiKit.PanelSolid, UiKit.Edge, 16, 2, 16));   // Gerätetest: Innenabstand 16 (Inhalte klebten am Rahmen)
+		AddThemeStyleboxOverride("panel", UiKit.Box(new Color(UiKit.PanelSolid, 0.84f), UiKit.Edge, 16, 2, 16));   // UI-Umbau: Glas; Gerätetest: Innenabstand 16 (Inhalte klebten am Rahmen)
 		if (size is { } s) { CustomMinimumSize = s; Size = s; }
 		var outer = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
 		outer.AddThemeConstantOverride("separation", 10);

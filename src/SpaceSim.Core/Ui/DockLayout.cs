@@ -155,6 +155,8 @@ public static class DockLayout
 /// <summary>Runde 35 (E4): Gerüst der Kommandozentrale — Kopfleiste, Bereichsleiste, Inhalt, „← Flug“, Meldungsstreifen.</summary>
 public sealed record CommandShell(bool Compact, UiRect Area, UiRect Top, UiRect Rail, UiRect Center, UiRect Back, UiRect Credits, UiRect MessageStrip)
 {
+    /// <summary>UI-Umbau: Zeile der Unterreiter (Universum/Sektor, Schiffe/Übersicht/Bauen …) zwischen Reiterleiste und Inhalt.</summary>
+    public UiRect SubRail { get; init; }
     /// <summary>Innenfläche des Inhalts (Rand 10 rundum).</summary>
     public float InnerW => Center.W - 20f;
     public float InnerH => Center.H - 20f;
@@ -169,37 +171,28 @@ public sealed record CommandShell(bool Compact, UiRect Area, UiRect Top, UiRect 
 /// </summary>
 public static class CommandLayout
 {
-    public const float MinInnerW = 740f, MinInnerH = 380f, StripH = 50f, RailCompactW = 170f;
+    public const float MinInnerW = 740f, MinInnerH = 340f, StripH = 50f, RailCompactW = 170f;   // UI-Umbau: 340 (Reiter oben; höhere Inhalte rollen als Ganzes)
 
+    /// <summary>UI-Umbau (vom Nutzer genehmigt: vier Reiter oben statt zehn Bereiche links): Kopfleiste mit „← Flug“, Reiterleiste (<see cref="CommandShell.Rail"/>,
+    /// waagerecht) und Kasse; darunter die Unterreiter, darunter der Inhalt über die ganze Breite, unten der Meldungsstreifen.</summary>
     public static CommandShell Shell(float w, float h, UiInsets safe)
     {
         var a = new UiRect(safe.Left, safe.Top, MathF.Max(0f, w - safe.Left - safe.Right), MathF.Max(0f, h - safe.Top - safe.Bottom));
         bool compact = a.W < UiLayout.BaseWidth - 0.5f || a.H < UiLayout.BaseHeight - 0.5f;
         if (a.W > DockLayout.MaxWidth) a = new UiRect(a.X + (a.W - DockLayout.MaxWidth) / 2f, a.Y, DockLayout.MaxWidth, a.H);
         float x0 = a.X, y0 = a.Y, x1 = a.Right, y1 = a.Bottom;
-        if (!compact)
-        {
-            var top = new UiRect(x0 + 20, y0 + 10, a.W - 40, 64);
-            float bodyH = a.H - 180f;
-            var rail = new UiRect(x0 + 14, y0 + 84, 200, bodyH);
-            var center = new UiRect(x0 + 224, y0 + 84, a.W - 238f, bodyH);
-            var back = new UiRect(x0 + 14, y1 - 72, 160, 58);
-            var credits = new UiRect(top.Right - 300, top.Y, 300, 60);
-            var strip = new UiRect(back.Right + 10, y1 - 72, x1 - 14 - (back.Right + 10), 58);
-            return new CommandShell(false, a, top, rail, center, back, credits, strip);
-        }
-        else
-        {
-            var top = new UiRect(x0 + 14, y0 + 6, a.W - 28, 60);
-            var credits = new UiRect(top.Right - 280, top.Y, 280, 60);
-            var back = new UiRect(x0 + 14, y1 - 14 - 58, RailCompactW, 58);
-            var rail = new UiRect(x0 + 14, y0 + 74, RailCompactW, DockLayout.SnapRail(back.Y - 8 - (y0 + 74)));
-            float cx = x0 + 14 + RailCompactW + 10;
-            float bodyH = y1 - 14 - (y0 + 74) - StripH - 6f;
-            var center = new UiRect(cx, y0 + 74, MathF.Max(0f, x1 - 14 - cx), bodyH);
-            var strip = new UiRect(cx, y1 - 14 - StripH, x1 - 14 - cx, StripH);
-            return new CommandShell(true, a, top, rail, center, back, credits, strip);
-        }
+        // kompakt (UI-Faktor > 1): flachere Kopf- und Unterreiterzeile und schmalerer Meldungsstreifen, damit der Inhalt ≥ 340 hoch bleibt
+        float th = compact ? 56f : 64f, bh = compact ? 48f : 56f, sh = compact ? 44f : 50f, mh = compact ? 40f : StripH;
+        var top = new UiRect(x0 + 10, y0 + 8, a.W - 20, th);
+        var back = new UiRect(x0 + 16, y0 + 12, 120, bh);
+        float cw = compact ? 170f : 220f;
+        var credits = new UiRect(x1 - 16 - cw, y0 + 12, cw, bh);
+        var rail = new UiRect(back.Right + 10, y0 + 12, MathF.Max(0f, credits.X - 10 - (back.Right + 10)), bh);
+        var sub = new UiRect(x0 + 10, top.Bottom + 8, a.W - 20, sh);
+        float cy = sub.Bottom + 6f;
+        var strip = new UiRect(x0 + 10, y1 - 10 - mh, a.W - 20, mh);
+        var center = new UiRect(x0 + 10, cy, a.W - 20, MathF.Max(0f, strip.Y - 6f - cy));
+        return new CommandShell(compact, a, top, rail, center, back, credits, strip) { SubRail = sub };
     }
 
     public static bool Fits(float w, float h, UiInsets safe)

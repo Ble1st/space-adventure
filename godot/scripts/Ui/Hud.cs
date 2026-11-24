@@ -17,6 +17,8 @@ public partial class Hud : CanvasLayer
 {
 	public FlightHud Flight { get; } = new();
 	public CommandMenu Command { get; } = new();
+	/// <summary>UI-Umbau: eigener Startbildschirm (Hauptmenü) beim App-Start und über „Zum Hauptmenü“.</summary>
+	public StartScreen Start { get; } = new();
 	public MapOverlay Map { get; } = new();
 	public EconomyPanel Economy { get; } = new();
 	// Dock (UI.md Abschnitt 3): Auswahlmenü plus Vollbild-Bereiche; der Kontext hält Main aktuell
@@ -227,7 +229,7 @@ public partial class Hud : CanvasLayer
 		root.AddChild(Economy);
 		// Gerätetest (breite Displays): Vollbild-Bildschirme sind für 1280 × 720 gebaut — sie liegen mittig in einer 1280 breiten Fläche, die Ränder deckt
 		// ein dunkler Hintergrund ab (statt schwarzer Balken über das ganze Spiel); Flug-HUD, Karte und Meldungen nutzen die volle Breite
-		_backdrop.Color = new Color(0.01f, 0.02f, 0.05f, 1f);
+		_backdrop.Color = new Color(0.01f, 0.02f, 0.05f, 0.2f);   // UI-Umbau: das laufende Spiel bleibt hinter jeder Ebene sichtbar (Glas statt Schwarz)
 		_backdrop.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		_backdrop.Visible = false;
@@ -242,6 +244,7 @@ public partial class Hud : CanvasLayer
 		root.AddChild(_menuLayer);
 		_menuLayer.AddChild(Map);
 		_menuLayer.AddChild(Command);
+		_menuLayer.AddChild(Start);
 		// Runde 34 (UI-ANPASSUNG.md E3): Dock-Menü und Dock-Bereiche liegen in einer eigenen Schicht über die ganze Fläche (statt mittig in 1280 Breite), mit
 		// dem Faktor der Dock-Schicht (DockLayout.FitFactor) — gleiche Idee wie das Flug-HUD
 		_dockLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -816,7 +819,7 @@ public partial class Hud : CanvasLayer
 		{
 			Hud.EdgeMarkers.Clear();
 			_labelBoxes.Clear();
-			if (Hud.StationScreenPositions?.Invoke() is not { } list || Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight) return;
+			if (Hud.Start.Visible || Hud.StationScreenPositions?.Invoke() is not { } list || Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight) return;   // UI-Umbau: nicht hinter dem Startbildschirm
 			var font = ThemeDB.FallbackFont;
 			var col = new Color(0.45f, 0.85f, 1f, 0.9f);
 			var field = Field();

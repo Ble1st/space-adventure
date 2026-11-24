@@ -107,7 +107,7 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 		_card = cr;
 		_strip = SpaceSim.Core.Ui.DockLayout.MenuStrip(Size.X, Size.Y, UiScale.Div(UiScale.SafeInsets1(), k0));
 		float ch = cr.H;
-		var card = CardBg(this, cr.X, cr.Y, cr.W, ch, PanelSolid, Edge, 16, 2);   // Runde 23: Fußzeilen berührten den Rahmen
+		var card = CardBg(this, cr.X, cr.Y, cr.W, ch, new Color(PanelSolid, 0.86f), Edge, 16, 2);   // UI-Umbau: Glas   // Runde 23: Fußzeilen berührten den Rahmen
 
 		// Titel: Station, Sektor, Fraktion, Typ
 		At(card, Text(st.Name, 26, Cyan), 20, 14, 460, 32);
@@ -139,26 +139,39 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 
 		// Bereiche darunter, je mit Untertitel; bis zu neun Kacheln — das Raster rollt bei Bedarf
 		var defs = DockAreas.Build(u, st, Ctx.Services, ship);
-		var scroll = At(card, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 20, 198, 552, ch - 314);
+		var scroll = At(card, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass }, 20, 198, 552, ch - 314 - (onFoot ? 0 : 66));
 		var grid = new GridContainer { Columns = 2, MouseFilter = MouseFilterEnum.Ignore };
 		grid.AddThemeConstantOverride("h_separation", 10);
 		grid.AddThemeConstantOverride("v_separation", 8);
 		scroll.AddChild(grid);
 		foreach (var def in defs)
 		{
+			if (!def.Available) continue;   // UI-Umbau: nur Dienste, die es hier gibt (vorher graue „Nicht hier“-Kacheln)
 			var b = new KitButton(def.Label, new Vector2(262, 62)) { AlignLeft = true, FontSize = 19, Sub = def.Sub };
 			string id = def.Id;
 			b.Pressed += () => AreaSelected?.Invoke(id);   // auch Platzhalter öffnen ihre „Bald“-Seite
 			if (!def.Available) b.Modulate = new Color(1f, 1f, 1f, 0.5f);   // Sub trägt schon „Bald“/„Nicht hier“
 			grid.AddChild(b);
 		}
-		TestTiles = defs.Count;
+		TestTiles = defs.Count(d => d.Available);
 
 		// Große Taste „Abdocken“ unten; daneben „Schiff verlassen“ (an Bord, angedockt). Zu Fuß ist Abdocken aus (— erst Schiff betreten).
 		var undock = At(card, onFoot
 			? new KitButton("Abdocken – du bist zu Fuß", new Vector2(540, 64)) { FontSize = 20, State = KitButtonState.Disabled, Sub = "im Hangar ein Schiff betreten" }
 			: new KitButton("Abdocken", new Vector2(348, 64)) { FontSize = 24, State = KitButtonState.Ready }, 20, ch - 106);
 		undock.Pressed += () => UndockPressed?.Invoke();
+		// UI-Umbau: Frachtband über „Abdocken“ — Füllstand, Farbleiste je Ware, größte Posten; Tipp öffnet das Inventar
+		if (!onFoot)
+		{
+			float cap = MathF.Max(1f, ship.CargoCapacity), used = ship.UsedVolume(u) + ship.MissionCargo;
+			var parts = ship.Cargo.Where(kv => kv.Value > 0.01f && u.Goods.ContainsKey(kv.Key)).Select(kv => (G: u.Goods[kv.Key], A: kv.Value)).OrderByDescending(p => p.A * p.G.VolumePerUnit).ToList();
+			string cargoSub = parts.Count == 0 && ship.MissionCargo <= 0.01f ? "leer" : string.Join(" · ", parts.Take(3).Select(p => $"{p.G.Name} {p.A:0}")) + (ship.MissionCargo > 0.01f ? (parts.Count > 0 ? " · " : "") + "versiegelt" : "");
+			var band = At(card, new KitButton($"Fracht {used:0}/{ship.CargoCapacity:0} m³", new Vector2(552, 58)) { AlignLeft = true, FontSize = 16, Sub = cargoSub + "  ▸ Inventar" }, 20, ch - 172);
+			var bar = At(band, new FlightHud.CargoBar(), 300, 22, 236, 14);
+			foreach (var p in parts) bar.Segments.Add((Color.FromHtml(p.G.Color), p.A * p.G.VolumePerUnit / cap));
+			if (ship.MissionCargo > 0.01f) bar.Segments.Add((FlightHud.MissionGold, ship.MissionCargo / cap));
+			band.Pressed += () => InventoryPressed?.Invoke();
+		}
 		if (!onFoot)
 		{
 			var leave = At(card, new KitButton("Schiff verlassen", new Vector2(184, 64)) { FontSize = 15, Sub = "zu Fuß hier" }, 380, ch - 106);
@@ -180,6 +193,9 @@ public sealed partial class DockMenu : Control, IScreen, ISessionScreen, IMessag
 
 	/// <summary>Runde 23: Unterzeile des Titels (Selbsttest: Kasse sichtbar).</summary>
 	public string TestSubtitle { get; private set; } = "";
+
+	/// <summary>UI-Umbau: Frachtband angetippt (Inventar öffnen).</summary>
+	public event Action? InventoryPressed;
 
 	/// <summary>Für den Selbsttest: Zahl der Bereichskacheln.</summary>
 	public int TestTiles { get; private set; }

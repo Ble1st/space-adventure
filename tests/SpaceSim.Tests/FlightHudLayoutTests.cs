@@ -44,7 +44,7 @@ public class FlightHudLayoutTests
         var (w1, h1) = UiLayout.Logical(w, h, 1f);
         var safe1 = insets ? new UiInsets(53, 0, 0, 0) : None;
         foreach (int groups in new[] { 0, 1, 3, 6 })
-            foreach (int bays in new[] { 0, 2, 4, 10, 15 })
+            foreach (int bays in new[] { 0, 2, 4, 10 })   // UI-Umbau: höchstens 10 Einzelschächte (Leviathan)
                 foreach (bool exp in new[] { false, true })
                 {
                     float f = FlightHudLayout.FitFactor(w1, h1, safe1, groups, bays, factor);
@@ -72,23 +72,33 @@ public class FlightHudLayoutTests
         Assert.True(UiLayout.Millimetres(FlightHudLayout.Tap, 2340, 1080, f, 396f) >= 7f);
         var l = FlightHudLayout.Compute(1560 / f, 720 / f, new UiInsets(53 / f, 0, 0, 0), 3, 10, expanded: true);
         for (int b = 0; b < 10; b++) Assert.False(l.Hidden(HudItem.Bay0 + b));
-        Assert.True(l.Hidden(HudItem.Context) && l.Hidden(HudItem.Autopilot));
+        Assert.True(l.Hidden(HudItem.Context));
         Assert.False(l.Hidden(HudItem.Expand));
     }
 
+    /// <summary>UI-Umbau (Nutzerwunsch nach Interstellar Pilot 2): Kopfleiste oben, Regler waagerecht unten rechts, „☰ Sektor“ unten links, Geräte am rechten Rand.</summary>
     [Fact]
-    public void Anordnung_LinksReglerRechtsDaumenbogen()
+    public void Anordnung_KopfleisteReglerUntenRechtsSektorUntenLinks()
     {
         var l = FlightHudLayout.Compute(1280, 720, None, 3, 0, false);
-        Assert.True(l[HudItem.Slider].X < 200f && l[HudItem.Slider].H > l[HudItem.Slider].W);   // senkrecht links
-        Assert.True(l[HudItem.FireBtn].Right > 1240f && l[HudItem.FireBtn].Bottom > 680f);       // FEUER unten rechts
-        Assert.True(l[HudItem.Hamburger].Right > 1240f && l[HudItem.Hamburger].Y < 20f);        // Menü oben rechts
-        Assert.True(l[HudItem.Group0].Right <= l[HudItem.FireBtn].X);
-        Assert.True(l.Hidden(HudItem.Expand));                                                  // ohne Einzelschächte kein Aufklappen
-        Assert.True(l.Hidden(HudItem.Bay0));
+        Assert.Equal(0f, l[HudItem.TopBar].Y);
+        Assert.Equal(1280f, l[HudItem.TopBar].W);
+        foreach (var it in new[] { HudItem.Hamburger, HudItem.Map, HudItem.Comms, HudItem.Command, HudItem.Fast })
+            Assert.True(l[it].Bottom <= FlightHudLayout.BarH + 0.01f, $"{it} in der Kopfleiste");
+        var s = l[HudItem.Slider];
+        Assert.True(s.W > s.H && s.Right > 1240f && s.Bottom > 690f, $"Regler waagerecht unten rechts {s}");
+        Assert.True(l[HudItem.Scan].X < 40f && l[HudItem.Scan].Bottom > 690f, "„☰ Sektor“ unten links");
+        Assert.True(l[HudItem.TurnLeft].X > l[HudItem.Scan].Right && l[HudItem.TurnRight].X > l[HudItem.TurnLeft].Right);
+        Assert.True(l[HudItem.Reverse].Right <= s.X);
+        Assert.True(l[HudItem.FireBtn].Right > 1100f && l[HudItem.FireBtn].Bottom <= s.Y);   // FEUER am rechten Rand über dem Regler
+        Assert.True(l[HudItem.Power].Right > 1260f && l[HudItem.Power].Y >= l[HudItem.Card].Bottom);
+        var c = l[HudItem.Context];
+        Assert.True(c.X > l[HudItem.TurnRight].Right && c.Right < l[HudItem.Reverse].X, $"Kontexttaste unten Mitte {c}");
+        Assert.True(l.Hidden(HudItem.Expand) && l.Hidden(HudItem.Bay0));
+        Assert.Equal(0, l.Overflow);
         var none = FlightHudLayout.Compute(1280, 720, None, 2, 2, false, fire: false);
         Assert.True(none.Hidden(HudItem.FireBtn));
-        Assert.Equal(1280f - 12f, none[HudItem.Group0].Right);                                // ohne FEUER rückt der Bogen in die Ecke
+        Assert.Equal(0, none.Overflow);
     }
 
     [Fact]

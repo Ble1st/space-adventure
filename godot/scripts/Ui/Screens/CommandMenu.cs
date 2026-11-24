@@ -24,22 +24,48 @@ public partial class CommandMenu : Control, IScreen
 	public event Action<string>? Action;
 
 	// (Anzeige, Untertitel, Aktionsschlüssel)
-	static readonly (string Label, string Sub, string Key)[] Entries =
+	// UI-Umbau (Nutzerwunsch „Neues Spiel hat im aktiven Spiel nichts zu suchen“): kein „Neues Spiel“/„Laden“ mehr (Startbildschirm über „Zum Hauptmenü“);
+	// Ton und UI-Größe eingeklappt unter „Einstellungen“, Werkzeuge eingeklappt unter „Entwickler“ (nur im Debug-Build)
+	static readonly (string Label, string Sub, string Key, string Group)[] Entries =
 	{
-		("Kommando", "Kommandozentrale", "command"),   // HUD-Neu: vorher Taste oben rechts im Flug
-		("Zeitraffer", "×1 · antippen = ×10", "fast"),  // HUD-Neu: vorher Taste „Zeit ×1“ im Flug
-		("Karte", "Sternenkarte öffnen", "map"),
-		("Wirtschaft", "Debug-Übersicht", "economy"),
-		("Notruf", "Treibstoff zum Aufpreis bei leerem Tank", "emergency"),
-		("Speichern", "", "save"),
-		("Laden", "", "load"),
-		("Neues Spiel", "", "new"),
-		("Musik", "an/aus (Lautstärke: System)", "music_mute"),   // Runde 12
-		("Effekte", "an/aus (Lautstärke: System)", "effects_mute"),
-		("Kamera-Diagnose", "Zeile für den Gerätetest", "cam_debug"),   // Runde 16
-		("UI-Größe", "klein / normal / groß", "ui_size"),   // Runde 31
-		("Debug", "Schiffe, Stationen, Waren spawnen", "debug"),   // Nutzerwunsch: Testmenü
+		("Kommando", "Kommandozentrale", "command", ""),   // HUD-Neu: vorher Taste oben rechts im Flug
+		("Zeitraffer", "×1 · antippen = ×10", "fast", ""),  // HUD-Neu: vorher Taste „Zeit ×1“ im Flug
+		("Karte", "Sternenkarte öffnen", "map", ""),
+		("Notruf", "Treibstoff zum Aufpreis bei leerem Tank", "emergency", ""),
+		("Speichern", "", "save", ""),
+		("Zum Hauptmenü", "speichert vorher", "mainmenu", ""),
+		("Einstellungen", "Ton · Bedienung  ▸", "settings", ""),
+		("Musik", "an/aus (Lautstärke: Hauptmenü)", "music_mute", "settings"),   // Runde 12
+		("Effekte", "an/aus (Lautstärke: Hauptmenü)", "effects_mute", "settings"),
+		("UI-Größe", "klein / normal / groß", "ui_size", "settings"),   // Runde 31
+		("Entwickler", "Werkzeuge zum Prüfen  ▸", "dev", "debugbuild"),
+		("Wirtschaft", "Debug-Übersicht", "economy", "dev"),
+		("Kamera-Diagnose", "Zeile für den Gerätetest", "cam_debug", "dev"),   // Runde 16
+		("Debug", "Schiffe, Stationen, Waren spawnen", "debug", "dev"),   // Nutzerwunsch: Testmenü
 	};
+	readonly System.Collections.Generic.Dictionary<string, string> _groupOf = new();
+	readonly System.Collections.Generic.HashSet<string> _openGroups = new();
+	/// <summary>UI-Umbau: eingeklappte Gruppe auf- oder zuklappen (Tasten „Einstellungen“ und „Entwickler“).</summary>
+	public void ToggleGroup(string g) { if (!_openGroups.Remove(g)) _openGroups.Add(g); ApplyGroups(); }
+	/// <summary>Selbsttest: Gruppe einer Taste öffnen, damit sie sichtbar ist.</summary>
+	public void OpenGroupFor(string key)
+	{
+		if (!_groupOf.TryGetValue(key, out var g) || g.Length == 0 || g == "debugbuild") return;
+		if (_openGroups.Add(g)) ApplyGroups();
+	}
+	void ApplyGroups()
+	{
+		foreach (var (_, _, key, group) in Entries)
+		{
+			if (!_byKey.TryGetValue(key, out var b) || key == "emergency") continue;
+			bool vis = group switch { "" => true, "debugbuild" => OS.IsDebugBuild(), _ => _openGroups.Contains(group) };
+			b.Visible = vis;
+			if (key is "settings" or "dev") b.State = _openGroups.Contains(key) ? KitButtonState.On : KitButtonState.Normal;
+			if (key == "settings") b.Sub = _openGroups.Contains(key) ? "Ton · Bedienung  ▾" : "Ton · Bedienung  ▸";
+			if (key == "dev") b.Sub = _openGroups.Contains(key) ? "Werkzeuge zum Prüfen  ▾" : "Werkzeuge zum Prüfen  ▸";
+		}
+		if (_list is not null) LayoutSystemRows();
+	}
 
 	readonly KitWindow _win;
 	KitButton _free = null!, _lock = null!, _chase = null!, _invert = null!;
@@ -137,7 +163,7 @@ public partial class CommandMenu : Control, IScreen
 	/// <summary>Selbsttest: ist der Menüpunkt „Notruf“ sichtbar?</summary>
 	public bool TestEmergencyVisible => _emergency?.Visible ?? false;
 	/// <summary>Runde 33 (Handytest): Menüzeile „UI-Größe“ — Text, Unterzeile, Überlauf (leer = passt) und Bildschirmmitte für einen echten Tipp.</summary>
-	public KitButton? TestUiSizeButton => _uiSize;
+	public KitButton? TestUiSizeButton { get { OpenGroupFor("ui_size"); return _uiSize; } }
 	/// <summary>Runde 34b: Fenster in Bildpunkten (der Hinweis steht links daneben).</summary>
 	public Rect2? WindowGlobal => Visible ? _win.GetGlobalRect() : null;
 	Label _zoomText = null!, _modeHint = null!;
@@ -210,12 +236,13 @@ public partial class CommandMenu : Control, IScreen
 		list.AddChild(miscRow);
 
 		// ── System ──
-		list.AddChild(Text("SYSTEM", 15, Cyan));
+		list.AddChild(Text("SPIEL", 15, Cyan));
 		// Gerätetest Phase 28: zwei Tasten je Zeile — „Neues Spiel“ ist ohne Rollen erreichbar
 		// Runde 37 (Handytest r35: „Speichern“ stand allein in einer Zeile — der ausgeblendete „Notruf“ belegte ihren Nachbarplatz): die Zeilen werden aus den
 		// sichtbaren Tasten gelegt (LayoutSystemRows), ausgeblendete zählen nicht
-		foreach (var (label, sub, key) in Entries)
+		foreach (var (label, sub, key, group) in Entries)
 		{
+			_groupOf[key] = group;
 			var b = new KitButton(label, new Vector2(240, 52)) { AlignLeft = true, FontSize = 19, Sub = sub, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 			string k = key;
 			b.Pressed += () => Action?.Invoke(k);
@@ -229,7 +256,7 @@ public partial class CommandMenu : Control, IScreen
 			_systemButtons.Add(b);
 		}
 		_list = list;
-		LayoutSystemRows();
+		ApplyGroups();
 		// Runde 44h (Handy-Test r44 s02: „Rückansicht“/„Zurücksetzen“ lagen an der Scrollleiste): Inhalt mit Abstand zur Leiste, Tasten füllen die
 		// verfügbare Breite statt fester 540 (die Leiste nimmt der Liste die Breite)
 		var pad = new MarginContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
@@ -262,8 +289,11 @@ public partial class CommandMenu : Control, IScreen
 			: "Freie Kamera: Mit einem Finger wischen schwenkt, mit zwei Fingern zoomt (Mausrad am Desktop).";
 	}
 
+	/// <summary>Selbsttest: eingeklappte Gruppen beim Öffnen aufklappen (ältere Stufen tippen „Musik“, „UI-Größe“ … direkt an).</summary>
+	public static bool TestOpenGroups;
 	public void Open()
 	{
+		if (TestOpenGroups && (_openGroups.Add("settings") | (OS.IsDebugBuild() && _openGroups.Add("dev")))) ApplyGroups();
 		Visible = true; LayoutWindow(); QueueRedraw();
 		_openFrame = Engine.GetProcessFrames(); _backdropFinger = -1;
 		InputLog.Log($"menü AUF (Aufrufer {InputLog.Caller()})");
@@ -284,7 +314,8 @@ public partial class CommandMenu : Control, IScreen
 		float h = MathF.Min(688f, uh - 24f);
 		_win.CustomMinimumSize = new Vector2(580, h);
 		_win.Size = new Vector2(580, h);
-		_win.Position = new Vector2(si.Left + MathF.Max(8f, (uw - 580f) / 2f), si.Top + MathF.Max(8f, (uh - h) / 2f));
+		// UI-Umbau: Seitenleiste rechts über dem laufenden Spiel (das Schiff bleibt links sichtbar)
+		_win.Position = new Vector2(si.Left + MathF.Max(8f, uw - 580f - 8f), si.Top + MathF.Max(8f, (uh - h) / 2f));
 	}
 
 	public override void _Notification(int what)
@@ -300,7 +331,7 @@ public partial class CommandMenu : Control, IScreen
 
 	public override void _Draw()
 	{
-		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.45f));
+		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.18f));
 	}
 
 	/// <summary>

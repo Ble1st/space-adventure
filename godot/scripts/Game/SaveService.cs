@@ -10,6 +10,8 @@ public static class SaveService
 {
 	static string _name = "savegame.json";
 	static string File => "user://" + _name;
+	/// <summary>UI-Umbau: Zeitpunkt des letzten Speicherns (Datei), null ohne Spielstand — für „Fortsetzen“ auf dem Startbildschirm, ohne den Stand zu laden.</summary>
+	public static DateTimeOffset? SavedAt => Exists ? DateTimeOffset.FromUnixTimeSeconds((long)FileAccess.GetModifiedTime(File)) : null;
 	static string Temp => "user://" + _name + ".tmp";
 
 	/// <summary>Selbsttest und Werkzeuge schreiben in eine eigene Datei und lassen den echten Spielstand unberührt.</summary>

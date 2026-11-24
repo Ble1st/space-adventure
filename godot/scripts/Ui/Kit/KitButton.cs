@@ -34,6 +34,8 @@ public partial class KitButton : Control
 	public int FontSize { get; set; } = 20;
 	/// <summary>Text linksbündig statt zentriert (Listenreihen, Tasten mit Symbol).</summary>
 	public bool AlignLeft;
+	/// <summary>UI-Umbau: unsichtbare Tippfläche über einer Karte (zeichnet nichts, nur ein leichter Rahmen beim Drücken).</summary>
+	public bool Flat;
 	/// <summary>Eigenes Symbol links; zeichnet mit den Draw-Methoden dieser Taste.</summary>
 	public Action<KitButton>? Symbol;
 
@@ -190,6 +192,7 @@ public partial class KitButton : Control
 
 	public override void _Draw()
 	{
+		if (Flat) { DrawnText.Clear(this); if (Held) DrawRect(new Rect2(Vector2.Zero, Size), new Color(UiKit.Cyan, 0.15f)); return; }
 		DrawStyleBox(Style(), new Rect2(Vector2.Zero, Size));
 		var font = ThemeDB.FallbackFont;
 		DrawnText.Clear(this);

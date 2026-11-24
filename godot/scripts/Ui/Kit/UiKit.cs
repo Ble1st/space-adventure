@@ -10,9 +10,9 @@ namespace SpaceAdventure.Ui.Kit;
 /// </summary>
 public static class UiKit
 {
-	public static readonly Color PanelBg = new(0.04f, 0.07f, 0.13f, 0.84f);
+	public static readonly Color PanelBg = new(0.04f, 0.07f, 0.13f, 0.74f);   // UI-Umbau: Glas — das Spiel scheint durch
 	public static readonly Color PanelSolid = new(0.05f, 0.08f, 0.15f, 0.97f);
-	public static readonly Color Card = new(0.02f, 0.04f, 0.09f, 0.88f);
+	public static readonly Color Card = new(0.02f, 0.04f, 0.09f, 0.8f);
 	public static readonly Color Edge = new(0.35f, 0.6f, 0.95f, 0.7f);
 	public static readonly Color Cyan = new(0.35f, 0.8f, 1f);
 	public static readonly Color Orange = new(1f, 0.7f, 0.2f);

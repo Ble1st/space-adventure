@@ -182,23 +182,64 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		return y;
 	}
 
+	/// <summary>UI-Umbau (Nutzerwunsch „im eigenen Schiff sehen, was geladen ist“): Inventar mit Farbleiste, je Ware Menge, Wert, bester bekannter Abnehmer
+	/// (Tipp = Autopilot dorthin, nur für das aktive Schiff) und „Abwerfen“ (zwei Tipps); versiegelte Auftragsfracht und Tank darunter.</summary>
 	float BuildCargo(Control p, Universe u, Ship s, float w)
 	{
 		float y = 0f;
-		y = Line(p, y, w, "Belegt", $"{s.UsedVolume(u) + s.MissionCargo:0.#} von {s.CargoCapacity:0} m³");
+		float used = s.UsedVolume(u) + s.MissionCargo, cap = MathF.Max(1f, s.CargoCapacity);
+		float worth = s.Cargo.Where(kv => kv.Value > 0.01f && u.Goods.ContainsKey(kv.Key)).Sum(kv => u.Goods[kv.Key].BasePrice * kv.Value);
+		y = Line(p, y, w, "Laderaum", $"{used:0.#} von {s.CargoCapacity:0} m³ · Wert ≈ {worth:0} Cr");
+		var bar = At(p, new FlightHud.CargoBar(), 0, y + 2, w, 14);
+		foreach (var (gid, amount) in s.Cargo.Where(kv => kv.Value > 0.01f && u.Goods.ContainsKey(kv.Key)).OrderByDescending(kv => kv.Value * u.Goods[kv.Key].VolumePerUnit))
+			bar.Segments.Add((Color.FromHtml(u.Goods[gid].Color), amount * u.Goods[gid].VolumePerUnit / cap));
+		if (s.MissionCargo > 0.01f) bar.Segments.Add((FlightHud.MissionGold, s.MissionCargo / cap));
+		y += 26f;
+		bool active = s.Id == u.PlayerShip;
 		bool any = false;
-		foreach (var (gid, amount) in s.Cargo.Where(kv => kv.Value > 0.01f).OrderBy(kv => kv.Key.Value))
+		foreach (var (gid, amount) in s.Cargo.Where(kv => kv.Value > 0.01f).OrderBy(kv => kv.Key.Value).ToList())
 		{
 			any = true;
-			string gname = u.Goods.TryGetValue(gid, out var g) ? g.Name : $"Ware {gid.Value}";
-			y = Line(p, y, w, gname, $"{amount:0.#} · Wert ≈ {(g?.BasePrice ?? 0f) * amount:0} Cr");
+			var g = u.Goods.TryGetValue(gid, out var gg) ? gg : null;
+			string gname = g?.Name ?? $"Ware {gid.Value}";
+			var buyer = SpaceSim.Core.Trading.MarketInfo.BestBuyerForGood(u, gid);
+			string where = buyer is null ? "kein bekannter Abnehmer" : $"{SpaceSim.Core.Model.StationNames.WithoutOwner(u, buyer)} · {buyer.Market.GetValueOrDefault(gid)?.Price ?? 0f:0.0} Cr"
+				+ (u.Sectors.TryGetValue(buyer.Sector, out var bs) && buyer.Sector != s.Sector ? $" · {bs.Name}" : " · hier im Sektor");
+			var row = At(p, new KitButton(gname, new Vector2(w - 150f, 60)) { AlignLeft = true, FontSize = 17, Sub = $"{amount:0.#} · ≈ {(g?.BasePrice ?? 0f) * amount:0} Cr · {where}" }, 0, y);
+			var col = g is null ? Dim : Color.FromHtml(g.Color);
+			row.Symbol = k => k.DrawRect(new Rect2(12, k.Size.Y / 2f - 7f, 14, 14), col);
+			if (buyer is not null && active)
+			{
+				var bid = buyer.Id;
+				row.Pressed += () => BuyerRequested?.Invoke(bid);
+			}
+			else row.State = KitButtonState.Normal;
+			string? issue = SpaceSim.Core.Trading.CargoJettison.Issue(u, s, gid);
+			var drop = At(p, new KitButton("Abwerfen", new Vector2(140, 60)) { FontSize = 16 }, w - 140f, y);
+			if (issue is not null) { drop.State = KitButtonState.Disabled; drop.Sub = "gesperrt"; }
+			else
+			{
+				var sid = s.Id;
+				_confirm.Wire(drop, $"drop:{sid.Value}:{gid.Value}", "Abwerfen", () =>
+				{
+					if (u.Ships.TryGetValue(sid, out var sh)) SpaceSim.Core.Trading.CargoJettison.Jettison(u, sh, gid, 0f);
+					Rebuild();
+				});
+			}
+			y += 68f;
 		}
 		if (s.MissionCargo > 0.01f) { any = true; y = Line(p, y, w, "Versiegelte Fracht", $"{s.MissionCargo:0.#} m³ (Auftrag)", FlightHud.MissionGold); }
 		if (!any) y = Line(p, y, w, "An Bord", "leer");
-		foreach (var (gid, amount) in s.Fuel.Where(kv => kv.Value > 0.01f))
-			y = Line(p, y, w, "Tank: " + (u.Goods.TryGetValue(gid, out var fg) ? fg.Name : "?"), $"{amount:0.#}");
+		y += 6f;
+		foreach (var line in SpaceSim.Core.Flight.TankInfo.For(u, s))
+			y = Line(p, y, w, "Tank: " + line.Name, SpaceSim.Core.Flight.TankInfo.Line(line));
+		if (active && s.Cargo.Count > 0) y = Line(p, y + 4, w, "Tipp", "Ware antippen: Autopilot zum besten Abnehmer", Dim);
 		return y;
 	}
+
+	/// <summary>UI-Umbau: Inventar-Zeile angetippt — Autopilot zum besten Abnehmer dieser Ware.</summary>
+	public event Action<StationId>? BuyerRequested;
+	readonly KitConfirm _confirm = new();
 
 	float BuildCommand(Control p, Universe u, Ship s, float w, bool active)
 	{

@@ -74,11 +74,9 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		var u = Ctx.U;
 
 		// ── Oben: Umschalter Universum/Sektor und die Ebenen ──
-		var segU = At(inner, new KitButton("Universum", new Vector2(120, 40)) { FontSize = 17, State = KitButtonState.On }, 12, 10);
-		var segS = At(inner, new KitButton("Sektor", new Vector2(120, 40)) { FontSize = 17 }, 138, 10);
-		segS.Pressed += () => OpenSectorMap?.Invoke(Selected);
-		At(inner, Text("Ebene:", 14, Dim), 280, 18);
-		float lx = 330;
+		// UI-Umbau: Universum/Sektor stehen als Unterreiter über dem Inhalt — hier nur die Ebenen
+		At(inner, Text("Ebene:", 14, Dim), 12, 18);
+		float lx = 62;
 		foreach (var (layer, label) in new[] { (Layer.Faction, "Fraktion"), (Layer.Ships, "Schiffe"), (Layer.Prices, "Preise"), (Layer.Security, "Sicherheit") })
 		{
 			var b = At(inner, new KitButton(label, new Vector2(96, 36)) { FontSize = 13, State = layer == CurrentLayer ? KitButtonState.On : KitButtonState.Normal }, lx, 12);

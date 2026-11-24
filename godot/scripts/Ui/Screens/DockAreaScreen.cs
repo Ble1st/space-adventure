@@ -80,7 +80,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 
 	public override void _Draw()
 	{
-		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.82f));
+		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.25f));   // UI-Umbau: Glas — das Spiel bleibt sichtbar
 	}
 
 	/// <summary>Baut das gesamte Gerüst neu auf (Top-Leiste, Seitenleiste, Mittelteil, Fußleiste).</summary>
@@ -135,6 +135,7 @@ public abstract partial class DockAreaScreen : Control, IScreen, IMessageStrip
 		else _shipOpen = false;
 		foreach (var def in DockAreas.Build(u, st, Ctx.Services))
 		{
+			if (!def.Available && def.Id != AreaId) continue;   // UI-Umbau: nur Dienste, die es hier gibt
 			var b = new KitButton(DockAreas.ShortLabelFor(def.Id), new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, Sub = def.Sub };
 			string id = def.Id;
 			b.Pressed += () => { _shipOpen = false; AreaSelected?.Invoke(id); };   // auch Platzhalter-Bereiche öffnen ihre „Bald“-Seite

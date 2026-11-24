@@ -138,6 +138,7 @@ public partial class Main : Node3D
 		_hud.TargetEdge = TargetEdge;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
 		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
+		WireScanAndBar();   // UI-Umbau: Kopfleiste, Scanliste, Frachtzeile
 		_hud.Flight.AutopilotPressed += () => { if (SpectateBlocks()) { _hud.Flight.SetAutopilot(false); return; } ToggleAutopilot(); };
 		_hud.Flight.AutoMinePressed += () => { if (SpectateBlocks()) { _hud.Flight.SetAutoMine(false); return; } SetAutoMining(_hud.Flight.AutoMineOn); };
 		_hud.Flight.ContextPressed += () => { if (!SpectateBlocks()) ContextAction(); };
@@ -175,6 +176,7 @@ public partial class Main : Node3D
 			_hud.Toast(SpaceSim.Core.Combat.ShipSystems.ModeEffect(PlayerData.PowerMode, PlayerData.Stats.PowerStorage > 0f));   // Gerätetest: spürbare Rückmeldung
 		};
 		_hud.Command.Action += OnCommandAction;
+		_hud.Start.Action += OnStartAction;
 		_hud.Spectate.ExitPressed += ExitSpectate;   // Runde 45: X des Befehlsstands
 		_hud.Map.SectorSelected += sector => SetTarget(Navigator.ForSector(_session.U, sector, _session.U.PlayerShip), null);
 		_hud.Map.JumpSelected += StartJumpTo;   // Sprungantrieb: Ziel auf der Karte
@@ -183,6 +185,7 @@ public partial class Main : Node3D
 		_hud.Map.Closed += ShowBase;
 		_hud.DockMenu.AreaSelected += OnDockArea;
 		_hud.DockMenu.UndockPressed += Undock;
+		_hud.DockMenu.InventoryPressed += () => { _sfx.Play(SfxId.Click); OpenInventory(); };   // UI-Umbau: Frachtband im Dock-Menü
 		_hud.DockMenu.LeavePressed += LeaveShip;   // zu Fuß in der Station (das Schiff bleibt angedockt, Befehl läuft weiter)
 		_hud.DockMenu.MenuPressed += ToggleCommand;   // Runde 23
 		_hud.DockTrade.AreaSelected += OnDockArea;
@@ -291,6 +294,16 @@ public partial class Main : Node3D
 		_hud.CcAssets.MenuRequested += OpenShipMenu;
 		_hud.CcFleet.MenuRequested += OpenShipMenu;
 		_hud.DockHangar.MenuRequested += OpenShipMenu;
+		// UI-Umbau: Inventar — Ware antippen = Autopilot zum besten Abnehmer
+		_hud.ShipMenu.BuyerRequested += sid =>
+		{
+			var uu = _session.U;
+			if (!uu.Stations.ContainsKey(sid)) return;
+			CloseShipMenu();
+			ShowBase();
+			SelectTarget(Navigator.ForStation(uu, sid, uu.PlayerShip), sid);
+			if (_docked == null) { _hud.Flight.SetAutopilot(true); ToggleAutopilot(); }
+		};
 		_hud.ShipMenu.Closed += CloseShipMenu;
 		_hud.ShipMenu.CommandsRequested += id => { _shipMenuReturn = null; _hud.CcFleet.Select(id); OpenCcArea(CommandAreas.Fleet); };
 		_hud.ShipMenu.SwitchRequested += id => { _shipMenuReturn = null; ShowBase(); SwitchRemote(id); };
@@ -331,7 +344,7 @@ public partial class Main : Node3D
 		_startMenu = !TestKnowAll;
 		StartSession(menu: _startMenu);
 		if (_startMenu) EnterStartMenu();
-		if (selftest) AddChild(new SelfTest(this));
+		if (selftest) { Ui.Screens.CommandMenu.TestOpenGroups = true; Ui.Screens.FleetScreen.TestAllCommands = true; AddChild(new SelfTest(this)); }
 		int modelIdx = Array.IndexOf(args, "--model-shots");
 		if (modelIdx >= 0 && modelIdx + 1 < args.Length) AddChild(new ModelShots(args[modelIdx + 1], args.Contains("--model-shots-all"),
 			args.FirstOrDefault(a => a.StartsWith("--model-shots-ships="))?["--model-shots-ships=".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries)));
@@ -390,9 +403,45 @@ public partial class Main : Node3D
 
 	void EnterStartMenu()
 	{
-		_hud.CcSystem.StartMenu = true;
-		_hud.CcSystem.TestChoosing = true;   // Startpaket-Auswahl gleich offen
-		OpenCcArea(CommandAreas.System);
+		// UI-Umbau: eigener Startbildschirm statt des System-Bereichs der Kommandozentrale
+		_startMenu = true;
+		_hud.Screens.Hide();
+		_hud.Map.Visible = false;
+		_hud.Command.Close();
+		_hud.Flight.Visible = false;
+		_hud.HideAlert();
+		_hud.Start.Open();
+	}
+
+	/// <summary>UI-Umbau: Pause-Menü „Zum Hauptmenü“ — speichert, hält die Welt an und zeigt den Startbildschirm (dort Neues Spiel/Fortsetzen).</summary>
+	void GoToStartMenu()
+	{
+		SaveNow(manual: false);
+		_fast = false;
+		EnterStartMenu();
+	}
+
+	void OnStartAction(string a)
+	{
+		_sfx.Play(SfxId.Click);
+		switch (a)
+		{
+			case "continue": OnMenu("load"); break;
+			case "quit": GetTree().Quit(); break;
+			default: if (a.StartsWith("new:", StringComparison.Ordinal)) OnMenu(a); break;
+		}
+	}
+
+	float _startOrbit;
+	/// <summary>UI-Umbau: Kamera kreist langsam um das (ruhende) Schiff hinter dem Startbildschirm.</summary>
+	void StartMenuCamera(float delta)
+	{
+		_startOrbit += delta * 0.06f;
+		float d = 90f, pitch = 0.42f;
+		var off = new Vector3(MathF.Sin(_startOrbit) * MathF.Cos(pitch), MathF.Sin(pitch), MathF.Cos(_startOrbit) * MathF.Cos(pitch)) * d;
+		_cam.Position = _player.Position + off;
+		_cam.LookAt(_player.Position);
+		foreach (var l in _view.Labels()) l.Visible = false;   // keine Stationsnamen über dem Startbildschirm
 	}
 
 	/// <summary>Runde 45: Hauptmenü verlassen — ein Spiel beginnt (Neues Spiel/Laden).</summary>
@@ -401,6 +450,7 @@ public partial class Main : Node3D
 		if (!_startMenu) return;
 		_startMenu = false;
 		_hud.CcSystem.StartMenu = false;
+		_hud.Start.Close();
 	}
 
 	/// <summary>Hängt Ansicht und Ereignisse an das aktuelle Universum und setzt das Spielerschiff.</summary>
@@ -756,6 +806,7 @@ public partial class Main : Node3D
 			case "effects_mute": SpaceAdventure.Audio.AudioSettings.ToggleEffectsMute(); _hud.Command.SetAudioState(); _hud.Toast(SpaceAdventure.Audio.AudioSettings.EffectsText); return;   // Runde 38a: schloss das Menü
 			case "ui_size": Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); return;   // Runde 31/32: echte Tastengröße; Menü bleibt offen
 			case "save": SaveNow(manual: true); break;
+			case "mainmenu": GoToStartMenu(); return;   // UI-Umbau
 			case "load":
 				if (SaveService.TryLoad(out var u, out _, out var error) && u != null) { LeaveStartMenu(); _session.Use(u); AttachSession(); _hud.Toast("Spielstand geladen"); }
 				else _hud.Toast("Laden fehlgeschlagen: " + error, 4f);
@@ -798,7 +849,7 @@ public partial class Main : Node3D
 			case "fast": _sfx.Play(SfxId.Click); _fast = !_fast; _hud.Command.SetFast(_fast); _hud.Toast(_fast ? "Zeitraffer ×10 an" : "Zeitraffer aus (×1)"); break;
 			case "cam_debug": _camDebug = !_camDebug; _hud.SetDebugLine(_camDebug ? CameraDebugLine() : null); _hud.Toast(_camDebug ? "Kamera-Diagnose an" : "Kamera-Diagnose aus"); break;   // Runde 16
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)
-			case "new": _sfx.Play(SfxId.Click); OpenCcArea(CommandAreas.System); _hud.CcSystem.TestChoosing = true; break;
+			case "new": _sfx.Play(SfxId.Click); GoToStartMenu(); break;   // UI-Umbau: Neues Spiel nur über den Startbildschirm
 			// Kamera-Einstellungen: Menü bleibt offen, damit man die Wirkung sieht
 			case "zoom_in": _sfx.Play(SfxId.Click); _orbit.ZoomStep(-1); ManualZoom(); PersistCamera(); RefreshCameraMenu(); break;   // Runde 12: gleichmäßige Stufen
 			case "zoom_out": _sfx.Play(SfxId.Click); _orbit.ZoomStep(+1); ManualZoom(); PersistCamera(); RefreshCameraMenu(); break;
@@ -813,6 +864,9 @@ public partial class Main : Node3D
 			case "cam_invert": _sfx.Play(SfxId.Click); _orbit.InvertDrag = !_orbit.InvertDrag; PersistCamera(); RefreshCameraMenu(); break;
 			case "cam_reset": ResetCamera(); RefreshCameraMenu(); break;
 			case "emergency": CallEmergency(); break;
+			// UI-Umbau: eingeklappte Gruppen im Pause-Menü, „Zum Hauptmenü“ statt „Neues Spiel“/„Laden“
+			case "settings": case "dev": _sfx.Play(SfxId.Click); _hud.Command.ToggleGroup(action); break;
+			case "mainmenu": _sfx.Play(SfxId.Click); GoToStartMenu(); break;
 			case "close": _sfx.Play(SfxId.Click); ShowBase(); break;   // Runde 23: angedockt zurück ins Dock-Menü
 			default:
 				if (CommandAreas.All.Any(a => a.Id == action)) OpenCcArea(action);
@@ -908,7 +962,7 @@ public partial class Main : Node3D
 	/// </summary>
 	void ShowBase()
 	{
-		if (_startMenu) { OpenCcArea(CommandAreas.System); return; }   // Runde 45: kein Rückweg aus dem Hauptmenü ins (nicht laufende) Spiel
+		if (_startMenu) { _hud.Screens.Hide(); _hud.Map.Visible = false; _hud.Start.Open(); return; }   // Runde 45 / UI-Umbau: kein Rückweg aus dem Hauptmenü ins (nicht laufende) Spiel
 		if (_hud.Screens.Current is CommandScreen) CommandScreen.ForgetRailArea();   // Runde 37c (Prüfung M2): beim Schließen der Zentrale
 		_hud.Map.Visible = false;
 		_hud.Screens.Hide();
@@ -969,10 +1023,10 @@ public partial class Main : Node3D
 		var cur = _hud.Screens.Current;
 		// Runde 37c: innerste Ebene zuerst — offene Meldung, Fraktionsdetail (→ Liste), Startpaket-Auswahl, offene Handelszeile
 		if (_hud.TestAlert.Length > 0) { _hud.HideAlert(); return "meldung"; }
+		if (_startMenu) return "hauptmenü";   // UI-Umbau: der Startbildschirm bleibt (die App beendet sich nie über Zurück)
 		if (_hud.Map.Visible) { _hud.Map.Visible = false; ShowBase(); return "karte"; }
 		if (cur == _hud.Command) { _sfx.Play(SfxId.Click); ShowBase(); return "menü"; }
 		if (cur == _hud.CcFactions && _hud.CcFactions.TestDetailOpen && _hud.CcFactions.IsNarrow) { _hud.CcFactions.TestDetailOpen = false; return "fraktionsliste"; }
-		if (cur == _hud.CcSystem && _hud.CcSystem.TestChoosing) { _hud.CcSystem.TestChoosing = false; return "startpakete"; }
 		if (cur == _hud.ShipMenu) { CloseShipMenu(); return "schiffsmenü"; }
 		if (cur is CommandScreen) { CloseCommand(); return "zentrale"; }
 		if (cur == _hud.DockTrade && _hud.DockTrade.CloseOpenRow()) return "handelszeile";
@@ -1712,7 +1766,7 @@ public partial class Main : Node3D
 	public override void _Process(double deltaD)
 	{
 		if (_catchUp is { } catchUp) { StepCatchUp(catchUp); return; }
-		if (_startMenu) return;   // Runde 45: Hauptmenü ohne laufende Welt — nichts tickt, kein Spiel im Hintergrund
+		if (_startMenu) { StartMenuCamera((float)deltaD); return; }   // Runde 45: Hauptmenü ohne laufende Welt — nichts tickt; UI-Umbau: die ruhende Welt dreht sich langsam hinter dem Startbildschirm
 		float delta = (float)deltaD;
 		if (_reenter) EnterActiveShip();   // Phase 12: aktives Schiff liegt woanders (Fernwechsel, Taxi, Leihschiff)
 		_jumpCooldown = Mathf.Max(0f, _jumpCooldown - delta);
@@ -3222,6 +3276,7 @@ public partial class Main : Node3D
 			gv.Add(new GroupView { Label = g.Label, Sub = $"{rdy}/{g.Members.Count} bereit", State = st, Reload = rel, Combat = true });
 		}
 		d.Groups = gv;
+		FillCargoAndScan(d);   // UI-Umbau: Fracht im Status, Zähler in Kopfleiste und an „☰ Sektor“, Scanliste
 
 		_hud.Flight.Refresh(d);
 	}
@@ -4116,6 +4171,10 @@ public partial class Main : Node3D
 
 	/// <summary>Öffnet einen Kommandozentralen-Bereich wie ein Tipp in der Leiste (Selbsttest/Screenshots).</summary>
 	internal void TestOpenCcArea(string areaId) => OpenCcArea(areaId);
+	/// <summary>UI-Umbau, Prüfläufe: Startbildschirm zeigen (Welt ruht) bzw. wieder ins laufende Spiel.</summary>
+	internal void TestShowStart() { EnterStartMenu(); _hud.Start.TestRebuild(); }
+	internal void TestLeaveStart() { LeaveStartMenu(); ShowBase(); }
+	internal bool TestInStartMenu => _startMenu;
 	/// <summary>„← Flug“: schließt die Kommandozentrale (Selbsttest).</summary>
 	internal void TestCloseCommand() => CloseCommand();
 	/// <summary>Sektor in der Universumskarte wählen (Selbsttest/Screenshots).</summary>

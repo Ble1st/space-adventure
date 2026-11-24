@@ -191,9 +191,7 @@ public partial class SelfTest
 		Step("Meldung offen", 4, () => hud.Alert("Prüfmeldung für die Zurück-Taste", 30f));
 		Step("Zurück schließt die Meldung", 12, () => Back());
 		Step("nur die Meldung zu", 0, () => { CheckSingleBack("Meldung"); Check(hud.TestAlert.Length == 0 && hud.Screens.Current != hud.Command, $"37c: Zurück schließt zuerst die Meldung ({hud.Screens.Current?.Id ?? "-"})"); });
-		Step("Startpakete", 16, () => { _m.TestOpenCcArea(Ui.Screens.CommandAreas.System); hud.CcSystem.TestChoosing = true; });
-		Step("Zurück aus Startpaketen", 12, () => Back());
-		Step("Startpakete zu, System bleibt", 0, () => { CheckSingleBack("Startpakete"); Check(hud.Screens.Current == hud.CcSystem && !hud.CcSystem.TestChoosing, $"37c: Zurück schließt die Startpaket-Auswahl, „System“ bleibt ({hud.Screens.Current?.Id})"); });
+		Step("System", 16, () => _m.TestOpenCcArea(Ui.Screens.CommandAreas.System));   // UI-Umbau: Startpakete nur noch auf dem Startbildschirm
 		Step("Zurück aus System", 12, () => Back());
 		Step("nach Zurück System", 0, () => ExpectBase("System → Zurück"));
 		Step("Fraktionsdetail schmal", 20, () => { UiScale.TestPpi = 396f; UiScale.TestForce = 1.3f; UiScale.Apply(); _m.TestOpenCcArea(Ui.Screens.CommandAreas.Factions); hud.CcFactions.Selected = hud.CcFactions.TestRows[0].Id; hud.CcFactions.TestDetailOpen = true; });

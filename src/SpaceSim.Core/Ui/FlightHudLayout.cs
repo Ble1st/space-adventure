@@ -29,6 +29,10 @@ public enum HudItem
     HitWarning, Escape,
     /// <summary>Runde 41: Auftragszeile unter der Lagezeile (Gold, leer = ausgeblendet).</summary>
     Mission,
+    /// <summary>UI-Umbau (Interstellar-Pilot-2-Aufbau): Kopfleiste über die ganze Breite, Kasse darin, Symboltasten Nachrichten/Befehle/Zeitraffer.</summary>
+    TopBar, Credits, Comms, Command, Fast,
+    /// <summary>UI-Umbau: Taste „☰ Sektor“ unten links und die Fläche der Scanliste (offen).</summary>
+    Scan, ScanPanel,
 }
 
 /// <summary>
@@ -72,7 +76,7 @@ public sealed class FlightHudLayout
 
     /// <summary>Tasten (antippbar) — für Überlappungs- und Größenprüfungen.</summary>
     public static bool IsInteractive(HudItem i) => i is not (HudItem.Status or HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire
-        or HudItem.Card or HudItem.ReverseLabel or HudItem.HitWarning or HudItem.Escape or HudItem.Mission);
+        or HudItem.Card or HudItem.ReverseLabel or HudItem.HitWarning or HudItem.Escape or HudItem.Mission or HudItem.TopBar or HudItem.Credits or HudItem.ScanPanel);
 
     FlightHudLayout() { }
 
@@ -91,119 +95,145 @@ public sealed class FlightHudLayout
 
     void Set(HudItem i, float x, float y, float rw, float rh) => _rects[i] = new UiRect(x, y, rw, rh);
 
+    /// <summary>UI-Umbau: Höhe der Kopfleiste, Breite/Höhe der Randzellen.</summary>
+    public const float BarH = 70f, RailW = 96f, RailH = 66f, RailStep = 72f, RailColStep = 104f;
+
     void Fill(UiRect a, int groups, int bays, bool expanded, bool fire)
     {
         float x0 = a.X, y0 = a.Y, x1 = a.Right, y1 = a.Bottom;
-        // ── links: Status, senkrechter Schubregler, ◀ ▶ und RÜCK unten ──
-        Set(HudItem.Status, x0 + 12, y0 + 8, 300, 132);
-        Set(HudItem.Slider, x0 + 12, y0 + 152, 88, MathF.Max(Tap * 2f, y1 - 12 - (y0 + 152)));
-        Set(HudItem.TurnLeft, x0 + 112, y1 - 112, 104, 100);
-        Set(HudItem.TurnRight, x0 + 224, y1 - 112, 104, 100);
-        Set(HudItem.ReverseLabel, x0 + 332, y1 - 108, 112, 18);
-        Set(HudItem.Reverse, x0 + 336, y1 - 84, 96, 72);
-        // ── oben rechts: Menü, Karte; Zielkarte links daneben; darunter Autopilot, Auto-Mining, Kontexttaste ──
-        Set(HudItem.Hamburger, x1 - 12 - IconW, y0 + 8, IconW, IconW);
-        Set(HudItem.Map, x1 - 12 - 2 * IconW - 8, y0 + 8, IconW, IconW);
-        float cardX = x1 - 12 - 2 * IconW - 8 - 8 - 330;
-        Set(HudItem.Card, cardX, y0 + 8, 330, 118);
-        Set(HudItem.Autopilot, cardX, y0 + 134, 161, Tap);
-        Set(HudItem.AutoMine, cardX + 169, y0 + 134, 161, Tap);
-        Set(HudItem.Context, cardX, y0 + 206, 330, Tap);
-        // rechte Spalte (2 × 3 Symboltasten) unter Karte/Menü: Leistung, Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff
-        float cx0 = x1 - 12 - 2 * IconW - 8, cx1 = x1 - 12 - IconW;
-        Set(HudItem.Power, cx0, y0 + 80, IconW, IconW);
-        Set(HudItem.NextEnemy, cx1, y0 + 80, IconW, IconW);
-        Set(HudItem.AimAssist, cx0, y0 + 152, IconW, IconW);
-        Set(HudItem.AutoFire, cx1, y0 + 152, IconW, IconW);
-        Set(HudItem.Surrender, cx0, y0 + 224, IconW, IconW);
-        Set(HudItem.Attack, cx1, y0 + 224, IconW, IconW);
-        // ── oben Mitte: Sektorchip und Zeilen zwischen Status und Zielkarte ──
-        float lo = x0 + 324f, hi = cardX - 8f;
-        float cw = MathF.Max(0f, MathF.Min(430f, hi - lo));
-        float chipY = y0 + 8;
-        float chipX = Math.Clamp((x0 + x1) / 2f - cw / 2f, lo, MathF.Max(lo, hi - cw));
-        // schmal (UI-Faktor 1,3 auf 16:9 und schmaler): oben zwischen Status und Zielkarte ist kein Platz für Sektorname, Fraktion und Lagezeile — der Block
-        // rückt unter den Status rechts neben den Regler (dort ist bis zur Zielkarten-Spalte Platz)
-        ChipBelowStatus = cw < ChipMinW;
-        if (ChipBelowStatus)
+        ChipBelowStatus = false;
+        // ── Kopfleiste: links Sektor/Lage, rechts Kasse und fünf Symboltasten (Nachrichten, Karte, Befehle, Zeit, Pause) ──
+        Set(HudItem.TopBar, x0, y0, a.W, BarH);
+        const float iw = 72f, ih = Tap, ig = 6f;
+        float ix = x1 - 6f - iw;
+        foreach (var it in new[] { HudItem.Hamburger, HudItem.Fast, HudItem.Command, HudItem.Map, HudItem.Comms })
+        { Set(it, ix, y0 + 3, iw, ih); ix -= iw + ig; }
+        float creditsW = 170f;
+        Set(HudItem.Credits, ix + iw + ig - 12f - creditsW, y0 + 14, creditsW, 42);
+        float chipX = x0 + 12f, chipW = MathF.Max(0f, _rects[HudItem.Credits].X - 8f - chipX);
+        Set(HudItem.Chip, chipX, y0 + 14, chipW, 42);
+
+        // ── links unter der Leiste: Status mit Fracht, darunter die Lagezeilen ──
+        float sy = y0 + BarH + 8f;
+        Set(HudItem.Status, x0 + 10, sy, 260, 140);
+        float ly = sy + 148f, lw = 260f;
+        Set(HudItem.Security, x0 + 10, ly, lw, 20);
+        Set(HudItem.Wanted, x0 + 10, ly + 22, lw, 20);
+        Set(HudItem.Fire, x0 + 10, ly + 44, lw, 20);
+        Set(HudItem.Mission, x0 + 10, ly + 66, lw, 18);
+
+        // ── rechts unter der Leiste: Zielkarte ──
+        Set(HudItem.Card, x1 - 10 - 330, sy, 330, 118);
+
+        // ── unten: links „☰ Sektor“ + ◀ ▶, rechts RÜCK + waagerechter Regler ──
+        float by = y1 - 10 - 68;
+        Set(HudItem.Scan, x0 + 10, by, 84, 68);
+        Set(HudItem.TurnLeft, x0 + 102, by, 76, 68);
+        Set(HudItem.TurnRight, x0 + 184, by, 76, 68);
+        float sliderW = MathF.Min(360f, MathF.Max(240f, a.W * 0.3f));
+        Set(HudItem.Slider, x1 - 10 - sliderW, y1 - 10 - 86, sliderW, 86);
+        Set(HudItem.Reverse, _rects[HudItem.Slider].X - 8 - 72, by, 72, 68);
+        Set(HudItem.ReverseLabel, 0, 0, 0, 0); _hidden.Add(HudItem.ReverseLabel);
+
+        // ── rechter Rand: Zellen (76 × 66) in Spalten von rechts nach links zwischen Zielkarte und Regler ──
+        float railTop = _rects[HudItem.Card].Bottom + 8f, railBottom = _rects[HudItem.Slider].Y - 8f;
+        int rows = Math.Max(1, (int)MathF.Floor((railBottom - railTop + (RailStep - RailH)) / RailStep));
+        var taken = new HashSet<(int Col, int Row)>();
+        float ColX(int c) => x1 - 10 - RailW - c * RailColStep;
+        float RowY(int r) => railTop + r * RailStep;
+        int maxCol = 0;
+        (int, int) TakeDown(int startCol)
         {
-            chipX = x0 + 112f; chipY = y0 + 148f;
-            cw = MathF.Max(0f, MathF.Min(430f, cardX - 8f - chipX));
+            for (int c = startCol; c < 40; c++)
+                for (int r = 0; r < rows; r++)
+                    if (taken.Add((c, r))) { maxCol = Math.Max(maxCol, c); return (c, r); }
+            return (0, 0);
         }
-        Set(HudItem.Chip, chipX, chipY, cw, 42);
-        Set(HudItem.Security, chipX, chipY + 46, cw, 18);
-        Set(HudItem.Wanted, chipX, chipY + 66, cw, 20);
-        Set(HudItem.Fire, chipX, chipY + 88, cw, 20);
-        Set(HudItem.Mission, chipX, chipY + 110, cw, 18);   // Runde 41: Auftragszeile (Gold) unter der Brandzeile
-        // ── unten rechts: Daumenbogen — FEUER in der Ecke, Gruppen im Bogen darum, „Einzeln“ in der nächsten freien Stelle ──
-        float fx = x1 - 12 - FireSize, fy = y1 - 12 - FireSize;
-        Set(HudItem.FireBtn, fx, fy, FireSize, FireSize);
-        if (!fire) _hidden.Add(HudItem.FireBtn);
-        var slots = new List<UiRect>
+        (int, int) TakeUp(int startCol)
         {
-            new(fx - 8 - GroupW, y1 - 12 - GroupH, GroupW, GroupH),                    // links unten neben FEUER
-            new(fx - 8 - GroupW, y1 - 12 - 2 * GroupH - 8, GroupW, GroupH),            // links oben neben FEUER
-            new(x1 - 12 - GroupW, fy - 8 - GroupH, GroupW, GroupH),                    // über FEUER
-            new(fx - 16 - 2 * GroupW, y1 - 12 - GroupH, GroupW, GroupH),               // zweiter Ring links unten
-            new(fx - 16 - 2 * GroupW, y1 - 12 - 2 * GroupH - 8, GroupW, GroupH),       // zweiter Ring links oben
-            new(fx - 8 - GroupW, fy - 8 - GroupH, GroupW, GroupH),                     // links über dem ersten Ring
-            new(fx - 16 - 2 * GroupW, fy - 8 - GroupH, GroupW, GroupH),
-        };
-        // ohne FEUER rückt der Bogen in die Ecke (erste Stelle = FEUER-Platz unten rechts)
-        if (!fire) slots.Insert(0, new UiRect(x1 - 12 - GroupW, y1 - 12 - GroupH, GroupW, GroupH));
-        int si = 0;
+            for (int c = startCol; c < 40; c++)
+                for (int r = rows - 1; r >= 0; r--)
+                    if (taken.Add((c, r))) { maxCol = Math.Max(maxCol, c); return (c, r); }
+            return (0, 0);
+        }
+        void Cell(HudItem it, (int C, int R) p) => Set(it, ColX(p.C), RowY(p.R), RailW, RailH);
+        // Symboltasten außen von oben (Leistung, Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff); ohne Kampfwaffen stehen die Geräte
+        // (Bohrer, Traktor …) direkt unter ⚡ und die übrigen Symbole danach
+        Cell(HudItem.Power, TakeDown(0));
+        if (!fire)
+        {
+            for (int g = 0; g < MaxGroups; g++)
+                if (g < groups) Cell(HudItem.Group0 + g, TakeDown(0));
+        }
+        foreach (var it in new[] { HudItem.NextEnemy, HudItem.AimAssist, HudItem.AutoFire, HudItem.Surrender, HudItem.Attack })
+            Cell(it, TakeDown(0));
+        // FEUER (zwei Zellen hoch) innen unten, Gruppen darüber von unten nach oben, dann „Einzeln“
+        int fireCol = Math.Max(1, maxCol + (taken.Count(t => t.Col == maxCol) >= rows ? 1 : 0));
+        if (fire && rows >= 2)
+        {
+            int fc = fireCol;
+            while (taken.Contains((fc, rows - 1)) || taken.Contains((fc, rows - 2))) fc++;
+            taken.Add((fc, rows - 1)); taken.Add((fc, rows - 2)); maxCol = Math.Max(maxCol, fc);
+            Set(HudItem.FireBtn, ColX(fc), RowY(rows - 2), RailW, RowY(rows - 1) + RailH - RowY(rows - 2));
+            fireCol = fc;
+        }
+        else { Set(HudItem.FireBtn, 0, 0, 0, 0); _hidden.Add(HudItem.FireBtn); }
         for (int g = 0; g < MaxGroups; g++)
         {
-            if (g < groups && si < slots.Count) Set(HudItem.Group0 + g, slots[si].X, slots[si].Y, slots[si].W, slots[si].H);
+            if (g < groups) { if (fire) Cell(HudItem.Group0 + g, TakeUp(fireCol)); }
             else { Set(HudItem.Group0 + g, 0, 0, 0, 0); _hidden.Add(HudItem.Group0 + g); }
-            if (g < groups) si++;
         }
-        if (bays >= 2 && si < slots.Count) Set(HudItem.Expand, slots[si].X, slots[si].Y, slots[si].W, slots[si].H);
+        if (bays >= 2) Cell(HudItem.Expand, TakeUp(fireCol));
         else { Set(HudItem.Expand, 0, 0, 0, 0); _hidden.Add(HudItem.Expand); }
-        // Beschuss- und Fluchtzeile unten Mitte zwischen RÜCK und Daumenbogen
-        float arcLeft = MathF.Min(fx, _rects.Where(kv => kv.Key is >= HudItem.Group0 and <= HudItem.Expand && !_hidden.Contains(kv.Key)).Select(kv => kv.Value.X).DefaultIfEmpty(fx).Min());
-        float wl = x0 + 452f, wr = arcLeft - 12f;
-        if (wr - wl >= WarnMinW)
-        {
-            Set(HudItem.HitWarning, wl, y1 - 64, MathF.Max(0f, wr - wl), 28);
-            Set(HudItem.Escape, wl, y1 - 32, MathF.Max(0f, wr - wl), 22);
-        }
-        else
-        {
-            // schmal (Bogen mit mehreren Gruppen bei großem UI-Faktor): die Zeilen rücken über die Wendetasten, dort reichen sie vom Regler bis zum Bogen
-            wl = x0 + 112f;
-            Set(HudItem.HitWarning, wl, y1 - 178, MathF.Max(0f, wr - wl), 28);
-            Set(HudItem.Escape, wl, y1 - 146, MathF.Max(0f, wr - wl), 22);
-        }
+        float railLeft = ColX(maxCol);
 
-        // ── Einzelschächte (aufgeklappt): Raster 176 × 64, von rechts (links der Symbolspalte) nach links, von oben (unter der Zielkarte) nach unten bis über
-        // den Daumenbogen; solange offen, sind Autopilot, Auto-Mining und Kontexttaste verdeckt ──
-        float arcTop = _rects.Where(kv => kv.Key is >= HudItem.FireBtn and <= HudItem.Expand && !_hidden.Contains(kv.Key)).Select(kv => kv.Value.Y).DefaultIfEmpty(fy).Min();
+        // ── unten Mitte: Kontexttaste, darunter Autopilot und Auto-Mining; darüber Beschuss- und Fluchtzeile ──
+        float lo = x0 + 268f, hi = MathF.Min(_rects[HudItem.Reverse].X - 10f, railLeft - 8f + 0f);
+        hi = _rects[HudItem.Reverse].X - 10f;
+        float cw = MathF.Max(0f, MathF.Min(340f, hi - lo));
+        float cx = Math.Clamp((x0 + x1) / 2f - cw / 2f, lo, MathF.Max(lo, hi - cw));
+        float cy = y1 - 10 - 64 - 8 - 64;
+        // die Mitte darf nicht in die rechten Spalten ragen (sie reichen bis über den Regler)
+        if (cx + cw > railLeft - 8f && cy < railBottom) cy = MathF.Min(cy, y1 - 10 - 64 - 8 - 64);
+        Set(HudItem.Context, cx, cy, cw, Tap);
+        float half = MathF.Max(0f, (cw - 8f) / 2f);
+        Set(HudItem.Autopilot, cx, y1 - 10 - Tap, half, Tap);
+        Set(HudItem.AutoMine, cx + half + 8f, y1 - 10 - Tap, half, Tap);
+        if (cw < 200f) Overflow++;
+        float wl = lo, wr = MathF.Min(hi, railLeft - 8f);
+        Set(HudItem.HitWarning, wl, cy - 62, MathF.Max(0f, wr - wl), 28);
+        Set(HudItem.Escape, wl, cy - 32, MathF.Max(0f, wr - wl), 22);
+
+        // ── Scanliste (offen): links zwischen Leiste und „☰ Sektor“ ──
+        Set(HudItem.ScanPanel, x0 + 10, sy, MathF.Min(450f, MathF.Max(300f, a.W * 0.38f)), by - 8f - sy);
+
+        // ── Einzelschächte (aufgeklappt): Zellen links der rechten Spalten zwischen Status und Spalten, über der unteren Reihe ──
         if (expanded && bays > 0)
         {
-            _hidden.Add(HudItem.Autopilot); _hidden.Add(HudItem.AutoMine); _hidden.Add(HudItem.Context);
-            _hidden.Add(HudItem.Mission); Set(HudItem.Mission, 0, 0, 0, 0);   // Runde 41: Schächte verdecken die Auftragszeile
-            float top = y0 + 134, bottom = arcTop - 8f, right = cx0 - 8f;
-            int rows = Math.Max(1, (int)MathF.Floor((bottom - top + 8f) / CellStepY));
+            _hidden.Add(HudItem.Context); _hidden.Add(HudItem.HitWarning); _hidden.Add(HudItem.Escape);
+            float left = x0 + 10 + 260 + 8, right = MathF.Min(railLeft, _rects[HudItem.Card].X) - 8f, top = sy, bottom = by - 8f;
+            int brows = Math.Max(1, (int)MathF.Floor((bottom - top + 8f) / CellStepY));
+            int cols = (int)MathF.Ceiling(bays / (float)brows);
+            float cellW = MathF.Min(CellW, (right - left - (cols - 1) * 8f) / Math.Max(1, cols));
+            if (cellW < 120f) { Overflow++; cellW = 120f; }
             for (int b = 0; b < MaxBays; b++)
             {
                 if (b >= bays) { Set(HudItem.Bay0 + b, 0, 0, 0, 0); _hidden.Add(HudItem.Bay0 + b); continue; }
-                int col = b / rows, row = b % rows;
-                Set(HudItem.Bay0 + b, right - CellW - col * CellStepX, top + row * CellStepY, CellW, CellH);
+                int col = b / brows, row = b % brows;
+                Set(HudItem.Bay0 + b, right - cellW - col * (cellW + 8f), top + row * CellStepY, cellW, CellH);
             }
         }
         else
             for (int b = 0; b < MaxBays; b++) { Set(HudItem.Bay0 + b, 0, 0, 0, 0); _hidden.Add(HudItem.Bay0 + b); }
 
-        // Überlauf: sichtbare Tasten, die sich überlappen oder aus der Fläche ragen
-        var vis = _rects.Where(kv => !_hidden.Contains(kv.Key) && kv.Value.W > 0f).ToList();
+        // Überlauf: sichtbare Tasten, die sich überlappen oder aus der Fläche ragen (Scanliste ist eine Überlagerung und zählt nicht)
+        var vis = _rects.Where(kv => !_hidden.Contains(kv.Key) && kv.Value.W > 0f && kv.Key != HudItem.ScanPanel).ToList();
         for (int i = 0; i < vis.Count; i++)
         {
             if (!vis[i].Value.Inside(a, 0.5f)) { Overflow++; continue; }
-            // jede Taste gegen jede andere Fläche (auch Texte wie Chip und Lagezeilen, die vor ihr in der Liste stehen)
             if (!IsInteractive(vis[i].Key)) continue;
             for (int j = 0; j < vis.Count; j++)
-                if (j != i && (j > i || !IsInteractive(vis[j].Key)) && vis[i].Value.Intersects(vis[j].Value, -0.5f)) { Overflow++; break; }
+                if (j != i && (j > i || !IsInteractive(vis[j].Key)) && vis[j].Key != HudItem.TopBar && vis[i].Value.Intersects(vis[j].Value, -0.5f)) { Overflow++; break; }
         }
     }
 

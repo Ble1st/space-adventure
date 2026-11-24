@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
 using SpaceSim.Core.Model;
@@ -56,6 +58,19 @@ public static class CommandAreas
 		(System, "System", "Spielstand"),
 		(Debug, "Debug", "Spawnen & Test"),   // Nutzerwunsch: Schiffe/Stationen/Waren für Tests
 	};
+
+	/// <summary>UI-Umbau (genehmigt: vier Reiter statt zehn Bereiche): Reiter und ihre Unterreiter. „System“ steht nicht mehr in der Zentrale (Speichern und
+	/// Einstellungen im Pause-Menü, Neues Spiel/Fortsetzen auf dem Startbildschirm); „Debug“ nur im Debug-Build.</summary>
+	public static readonly (string Key, string Label, (string Id, string Label)[] Subs)[] Groups =
+	{
+		("map", "Karte", new[] { (Universe, "Universum"), (Sector, "Sektor") }),
+		("own", "Besitz", new[] { (Fleet, "Schiffe & Befehle"), (Assets, "Übersicht"), (Build, "Bauen") }),
+		("politics", "Politik", new[] { (MyFaction, "Deine Fraktion"), (Factions, "Fraktionen") }),
+		("news", "Nachrichten", new[] { (Comms, "Posteingang & Diplomatie") }),
+		("dev", "Debug", new[] { (Debug, "Spawnen & Test"), (System, "System") }),
+	};
+	/// <summary>Reiter, zu dem ein Bereich gehört („" = keiner).</summary>
+	public static string GroupOf(string id) { foreach (var g in Groups) foreach (var s in g.Subs) if (s.Id == id) return g.Key; return ""; }
 
 	public static string LabelFor(string id) => id switch
 	{
@@ -147,7 +162,7 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 
 	public override void _Draw()
 	{
-		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.82f));
+		if (Visible) DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.01f, 0.02f, 0.05f, 0.25f));   // UI-Umbau: Glas — das Spiel bleibt sichtbar
 	}
 
 	/// <summary>Baut das gesamte Gerüst neu auf (Top-Leiste, Seitenleiste, Mittelteil, Fußleiste).</summary>
@@ -159,6 +174,7 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		// Rollposition — vorher wurde sie nur beim Tipp gemerkt, jeder Neuaufbau (je Tick) setzte die Leiste auf den alten Wert zurück
 		if (_railScroll is { } rs && IsInstanceValid(rs) && rs.IsInsideTree()) RailPos = rs.WantedScroll;
 		foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); }
+		_tabs.Clear();
 
 		var u = Ctx.U; var ship = Ctx.Player;
 		string sector = u.Sectors.TryGetValue(u.PlayerSector, out var sec) ? sec.Name : "?";
@@ -167,58 +183,39 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		float k0 = GetParent() is Control lp && lp.Scale.X > 0f ? lp.Scale.X : 1f;
 		var L = Shell = SpaceSim.Core.Ui.CommandLayout.Shell(Size.X, Size.Y, UiScale.Div(UiScale.SafeInsets1(), k0));
 
-		// ── Top-Leiste: Titel links, Credits und Schiff rechts ──
-		var top = At(this, new Control { MouseFilter = MouseFilterEnum.Ignore }, L.Top.X, L.Top.Y, L.Top.W, L.Top.H);
-		float cxr = L.Credits.X - L.Top.X;
-		At(top, Text("Kommandozentrale", L.Compact ? 24 : 28, Cyan), 0, L.Compact ? 2 : 6, cxr - 10, 34);
-		At(top, Text(HeaderInfo(u, sector), L.Compact ? 14 : 16, Dim), 0, L.Compact ? 36 : 42, cxr - 10, 22);
-		At(top, Text($"{(int)u.WalletOf(ship).Credits} Credits", L.Compact ? 22 : 26, Orange, HorizontalAlignment.Right), cxr, 0, L.Credits.W, 32);
-		At(top, Text($"Schiff #{ship.Id.Value} · {sector}", L.Compact ? 14 : 15, Dim, HorizontalAlignment.Right), cxr, L.Compact ? 34 : 38, L.Credits.W, 22);
-
-		// ── Linke Leiste: Wechsel zwischen den Bereichen (Runde 35: rollt, wenn die Leiste niedriger ist als acht Bereiche) ──
-		var rail = At(this, new PanelContainer { MouseFilter = MouseFilterEnum.Stop }, L.Rail.X, L.Rail.Y, L.Rail.W, L.Rail.H);
-		rail.AddThemeStyleboxOverride("panel", Box(PanelBg, null, 10, 0, 8));
-		var railScroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever, MouseFilter = MouseFilterEnum.Pass, OwnPosition = true };   // Runde 37b: Position über RailPos   // Runde 44h: ohne sichtbare Scrollleiste (Hinweis „weiter unten“)
-		rail.AddChild(railScroll);
-		var rv = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
-		rv.AddThemeConstantOverride("separation", 6);
-		railScroll.AddChild(rv);
-		int activeIdx = 0, ii = 0;
-		foreach (var (id, label, sub) in CommandAreas.All)
+		// ── UI-Umbau: Kopfleiste — „← Flug“, vier Reiter, Kasse; darunter die Unterreiter des aktiven Reiters ──
+		var topBg = At(this, new Panel { MouseFilter = MouseFilterEnum.Ignore }, L.Top.X, L.Top.Y, L.Top.W, L.Top.H);
+		topBg.AddThemeStyleboxOverride("panel", Box(PanelBg, new Color(Edge, 0.5f), 12, 1, 0));
+		var back = At(this, new KitButton("← Flug", new Vector2(L.Back.W, L.Back.H)) { FontSize = 18 }, L.Back.X, L.Back.Y);
+		back.Pressed += () => BackToFlight?.Invoke();
+		At(this, Text($"{(int)u.WalletOf(ship).Credits} Cr", L.Compact ? 20 : 24, Orange, HorizontalAlignment.Right), L.Credits.X, L.Credits.Y, L.Credits.W, 32);
+		At(this, Text($"#{ship.Id.Value} · {sector}", 14, Dim, HorizontalAlignment.Right), L.Credits.X, L.Credits.Y + 32, L.Credits.W, 22);
+		string activeGroup = CommandAreas.GroupOf(AreaId);
+		var groups = CommandAreas.Groups.Where(g => g.Key != "dev" || OS.IsDebugBuild()).ToList();
+		float gap = 8f, tw = MathF.Min(200f, (L.Rail.W - gap * (groups.Count - 1)) / groups.Count);
+		int unread = SpaceSim.Core.Comms.Comms.Unread(u);   // Runde 40: echter Zähler aus dem Posteingang
+		for (int gi = 0; gi < groups.Count; gi++)
 		{
-			var b = new KitButton(label, new Vector2(L.Rail.W - 16, 56)) { AlignLeft = true, FontSize = 16, Sub = sub };
-			string key = id;
-			if (id == AreaId) activeIdx = ii;
-			ii++;
-			b.Pressed += () => { RailPos = railScroll.ScrollVertical; AreaSelected?.Invoke(key); };
-			if (id == AreaId) b.State = KitButtonState.On;
-			int unread = SpaceSim.Core.Comms.Comms.Unread(u);   // Runde 40: echter Zähler aus dem Posteingang
-			if (id == CommandAreas.Comms && unread > 0)
-			{
-				b.Detail = unread.ToString();
-				b.DetailColor = Orange;
-			}
-			rv.AddChild(b);
+			var g = groups[gi];
+			var b = At(this, new KitButton(g.Label, new Vector2(tw, L.Rail.H)) { FontSize = L.Compact ? 17 : 19 }, L.Rail.X + gi * (tw + gap), L.Rail.Y);
+			if (g.Key == activeGroup) b.State = KitButtonState.On;
+			if (g.Key == "news" && unread > 0) { b.Detail = unread.ToString(); b.DetailColor = Orange; }
+			string first = g.Subs[0].Id;
+			b.Pressed += () => AreaSelected?.Invoke(first);
+			_tabs[g.Key] = b;
 		}
-		rv.AddChild(new Control { SizeFlagsVertical = Control.SizeFlags.ExpandFill });
-		rv.AddChild(Text($"Schiff: #{ship.Id.Value} (aktiv)", 13, Dim));
-		// Runde 37 (Handytest r35 g16–g18: nach Rollen der Leiste und Antippen sprang sie nach oben, „System“ war bei „groß“ kaum erreichbar): jeder Bereich ist
-		// ein eigener Bildschirm mit eigener Leiste — die Rollposition gilt für alle gemeinsam, und der aktive Eintrag bleibt sichtbar
-		float view = MathF.Max(56f, L.Rail.H - 16f);
-		float top0 = activeIdx * 62f, bot0 = top0 + 56f + 26f;   // + Platz für den Hinweis „weiter unten“ (KitScroll), der sonst den Eintrag verdeckt
-		int pos = RailPos;
-		// Runde 37b (N2): nur beim Wechsel des Bereichs den aktiven Eintrag ins Bild holen — nicht bei jedem Neuaufbau (sonst holt jeder Tick die Leiste zurück,
-		// nachdem man sie weggewischt hat)
-		string shownKey = $"{AreaId}@{view:0}";   // auch neu, wenn sich die Leistenhöhe ändert (UI-Größe, Drehen)
-		if (_railShownFor != shownKey)
+		var subs = CommandAreas.Groups.FirstOrDefault(g => g.Key == activeGroup).Subs ?? Array.Empty<(string, string)>();
+		float sx = L.SubRail.X;
+		foreach (var (sid, slabel) in subs)
 		{
-			if (top0 < pos) pos = (int)top0;
-			else if (bot0 > pos + view) pos = (int)MathF.Ceiling(bot0 - view);
-			_railShownFor = shownKey;
+			float sw = MathF.Max(150f, Measure(slabel, 16) + 40f);
+			var sb = At(this, new KitButton(slabel, new Vector2(sw, L.SubRail.H)) { FontSize = 16, State = sid == AreaId ? KitButtonState.On : KitButtonState.Normal }, sx, L.SubRail.Y);
+			string k = sid;
+			sb.Pressed += () => AreaSelected?.Invoke(k);
+			_tabs["sub:" + sid] = sb;
+			sx += sw + 8f;
 		}
-		RailPos = pos;
-		railScroll.ScrollTo(pos);
-		_railScroll = railScroll;
+		_railScroll = null;
 
 		// ── Mittelteil (Runde 35: Innenfläche aus dem Gerüst; ist der Inhalt höher, rollt der Bereich als Ganzes) ──
 		var center = At(this, new PanelContainer(), L.Center.X, L.Center.Y, L.Center.W, L.Center.H);
@@ -234,12 +231,13 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		float bottom = ContentBottom(inner);   // Runde 35: rekursiv (Tasten in Karten zählen mit)
 		if (bottom > L.InnerH + 1f) inner.CustomMinimumSize = new Vector2(L.InnerW, bottom + 8f);
 
-		// ── Fußleiste: „← Flug“ immer sichtbar ──
-		var back = At(this, new KitButton("← Flug", new Vector2(L.Back.W, L.Back.H)) { FontSize = 20 }, L.Back.X, L.Back.Y);
-		back.Pressed += () => BackToFlight?.Invoke();
 	}
 
 	/// <summary>Runde 37: gemeinsame Rollposition der Bereichsleiste aller Kommandozentralen-Bildschirme.</summary>
+	readonly Dictionary<string, KitButton> _tabs = new();
+	/// <summary>Selbsttest: Reiter („map“, „own“, „politics“, „news“) bzw. Unterreiter („sub:&lt;Bereich&gt;“).</summary>
+	public KitButton? TestTab(string key) => _tabs.TryGetValue(key, out var b) && IsInstanceValid(b) && b.IsInsideTree() ? b : null;
+	static float Measure(string s, int size) => ThemeDB.FallbackFont.GetStringSize(s, HorizontalAlignment.Left, -1, size).X;
 	public static int RailPos;
 	static string _railShownFor = "";
 	/// <summary>Runde 37b: beim Schließen der Zentrale vergessen, für welchen Bereich der aktive Eintrag zuletzt ins Bild geholt wurde.</summary>

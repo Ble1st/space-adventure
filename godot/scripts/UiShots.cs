@@ -178,8 +178,8 @@ public partial class UiShots : Node
 			case 43: Capture("21-cc-schiffsdetail.png"); _stage = 44; _wait = 10; break;
 			case 44: _m.TestOpenCcArea("comms"); _stage = 45; _wait = 20; break;
 			case 45: Capture("22-cc-comms.png"); _stage = 450; _wait = 10; break;
-			case 450: _m.TestOpenCcArea("system"); _m.HudRef.CcSystem.TestChoosing = true; _stage = 451; _wait = 20; break;   // Phase 5c: Startpakete
-			case 451: Capture("22b-cc-system-startpakete.png"); _stage = 46; _wait = 10; break;
+			case 450: _m.TestCloseCommand(); _m.TestShowStart(); _stage = 451; _wait = 20; break;   // UI-Umbau: Startbildschirm mit Startpaketen
+			case 451: Capture("22b-startbildschirm.png"); _m.TestLeaveStart(); _stage = 46; _wait = 10; break;
 			case 46: _m.TestCloseCommand(); _stage = 47; _wait = 10; break;
 			case 47: _m.TestSetCam(60f, 40f, 55f); _stage = 48; _wait = 20; break;   // Kamera drehen (HUD bleibt sichtbar)
 			case 48: Capture("23-hud-kamera-gedreht.png"); _stage = 480; _wait = 5; break;
@@ -611,9 +611,9 @@ public partial class UiShots : Node
 				_stage = 589_2; _wait = 30; break;
 			}
 			case 589_2: Capture("73-sektor-verband.png"); _stage = 589_3; _wait = 10; break;
-			case 589_3: _m.TestOpenCcArea("system"); _m.HudRef.CcSystem.TestChoosing = true; _stage = 589_4; _wait = 20; break;
+			case 589_3: _m.TestOpenCcArea("system"); _stage = 589_4; _wait = 20; break;
 			case 589_4: Capture("74-system-startpakete.png"); _stage = 589_5; _wait = 10; break;
-			case 589_5: _m.HudRef.CcSystem.TestChoosing = false; _m.TestOpenCcArea("comms"); _stage = 589_6; _wait = 20; break;
+			case 589_5: _m.TestOpenCcArea("comms"); _stage = 589_6; _wait = 20; break;
 			case 589_6: Capture("75-comms.png"); _stage = 589_7; _wait = 10; break;
 			case 589_7:
 			{

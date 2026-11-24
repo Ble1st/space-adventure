@@ -249,10 +249,10 @@ public partial class UiCheck : Node
 				_m.HudRef.CcComms.TestSelectFaction(u().Sectors[u().PlayerSector].Owner);
 			}, 12);
 			Add("kz-erkundung-flotte", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.ExploreSector); } }, 12);
-			Add("startpakete", () => { u().Player.Intel = null; _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.System); _m.HudRef.CcSystem.TestChoosing = true; }, 12);
+			Add("startpakete", () => { u().Player.Intel = null; _m.TestCloseCommand(); _m.TestShowStart(); }, 12);   // UI-Umbau: eigener Startbildschirm
 		}
-		if (NoFlight) { Add("ende", () => { _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f); }, 5); return; }   // Runde 37b: der lange Prüfhinweis des Menüs gehört nicht in den Flug
-		Add("flug-automining", () => { _m.HudRef.HideAlert(); _m.HudRef.Map.Visible = false; _m.HudRef.CcSystem.TestChoosing = false; _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);
+		if (NoFlight) { Add("ende", () => { _m.TestLeaveStart(); _m.TestCloseCommand(); _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f); }, 5); return; }   // Runde 37b: der lange Prüfhinweis des Menüs gehört nicht in den Flug
+		Add("flug-automining", () => { _m.HudRef.HideAlert(); _m.HudRef.Map.Visible = false; _m.TestLeaveStart(); _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);
 		Add("flug-automining2", () => { _m.TestStartMining(); }, 90);
 		Add("flug-warnung", () => { _m.TestMenu("new:combat"); }, 40);
 		Add("flug-gefecht", () => { _m.TestSetFast(true); }, 120);

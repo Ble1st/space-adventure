@@ -1748,9 +1748,9 @@ public partial class SelfTest : Node
 			// ───────── Phase 27: Flottenkampf und Gerätetest-Befunde ─────────
 			case 68: // Wisch-Rollen (Gerätetest): Startpaket-Liste in „System“, Finger- und Mauszug über eine Taste rollt und löst nichts aus
 			{
-				if (_frame - _stageStart == 1) { _m.TestOpenCommand(); _m.TestOpenCcArea("system"); _m.HudRef.CcSystem.TestChoosing = true; break; }
+				if (_frame - _stageStart == 1) { _m.TestShowStart(); _m.HudRef.Start.ShowTests = true; _m.HudRef.Start.TestRebuild(); break; }   // UI-Umbau: Startpakete auf dem Startbildschirm
 				if (_frame - _stageStart < 4) break;
-				var scroll = _m.HudRef.CcSystem.TestChooserScroll;
+				var scroll = _m.HudRef.Start.TestChooserScroll;
 				if (scroll is null) { Fail("Startpaket-Liste hat keinen Rollbereich"); break; }
 				var rect = scroll.GetGlobalRect();
 				if (_frame - _stageStart == 4) Log($"Rollbereich {rect}, rollbar {(scroll.GetVScrollBar().MaxValue - scroll.GetVScrollBar().Page):0}, mit Canvas {scroll.GetGlobalTransformWithCanvas().Origin}");
@@ -1759,8 +1759,8 @@ public partial class SelfTest : Node
 					// Runde 11: genau drei reguläre Startpakete (Jäger, Händler, Schürfer), kein „Standard“ in der Liste
 					var regular = SpaceSim.Core.Content.WorldBuilder.DefaultStartOptions().Where(o => o.Scenario is null).Select(o => o.Key).ToList();
 					Check(string.Join(",", regular) == "fighter,trader,miner", $"Startpakete regulär: {string.Join(",", regular)}");
-					Check(!_m.HudRef.CcSystem.TestChooserTexts().Any(t => t.StartsWith("Standard")), "keine Karte „Standard“ in der Startauswahl");
-					Check(_m.HudRef.CcSystem.TestChooserTexts().Any(t => t.StartsWith("Testszenarien")), "Testszenarien abgesetzt");
+					Check(!_m.HudRef.Start.TestChooserTexts().Any(t => t.StartsWith("Standard")), "keine Karte „Standard“ in der Startauswahl");
+					Check(_m.HudRef.Start.TestChooserTexts().Any(t => t.Contains("Testszenarien")), "Testszenarien abgesetzt");
 					_p27Universe = _m.Session.U;
 					scroll.ScrollVertical = 0;
 					var a = rect.Position + new Vector2(rect.Size.X * 0.4f, rect.Size.Y * 0.7f);
@@ -1785,11 +1785,10 @@ public partial class SelfTest : Node
 				Check(scroll.ScrollVertical > 60, $"Mauszug über eine Taste rollt die Liste ({scroll.ScrollVertical} px)");
 				Check(ReferenceEquals(_p27Universe, _m.Session.U), "Zug über „Starten“ startet kein neues Spiel");
 				_p27Universe = null;   // Runde 17: Stufe 97 zählt die lebenden Universen
+				_m.TestLeaveStart();   // UI-Umbau: zurück ins laufende Spiel (im Hauptmenü wird nicht gespeichert)
 				// Speichern gibt sichtbare Rückmeldung im System-Bereich
 				_m.TestMenu("save");
 				Check(_m.HudRef.CcSystem.TestMessage.StartsWith("Gespeichert"), $"Speichern meldet sich im System-Bereich ({_m.HudRef.CcSystem.TestMessage})");
-				_m.HudRef.CcSystem.TestChoosing = false;
-				_m.TestCloseCommand();
 				Next(); break;
 			}
 			case 69: // Polizeigefecht gegen den gesuchten Spieler: Vorwarnung, „Ergeben“ sichtbar, Gefecht, Ergeben zahlt die Strafe
@@ -2146,12 +2145,11 @@ public partial class SelfTest : Node
 				if (_frame - _stageStart < 56) break;
 				Check(SpaceAdventure.Ui.Kit.KitScroll.PositionOf(screen.Node, "ShipyardScreen.cs") > _p28Scroll + 40, "erster Wisch nach dem Aufsetzen rollt");
 				_m.TestUndock();
-				// Hamburger „Neues Spiel“: führt zur Startpaket-Auswahl, startet nicht sofort
+				// UI-Umbau: „Zum Hauptmenü“ öffnet den Startbildschirm, startet kein neues Spiel
 				var before = _m.Session.U;
-				_m.TestCommand("new");
-				Check(ReferenceEquals(before, _m.Session.U) && _m.HudRef.CcSystem.TestChoosing, "„Neues Spiel“ im Menü öffnet die Startpaket-Auswahl");
-				_m.HudRef.CcSystem.TestChoosing = false;
-				_m.TestCloseCommand();
+				_m.TestCommand("mainmenu");
+				Check(ReferenceEquals(before, _m.Session.U) && _m.TestInStartMenu && _m.HudRef.Start.Visible, "„Zum Hauptmenü“ öffnet den Startbildschirm");
+				_m.TestLeaveStart();
 				Next(); break;
 			}
 			case 79: // Gerätetest Phase 28: Autopilot zum Hauptquartier der Union (Alpha) von mehreren Startpunkten kommt an und dockt (vorher kreiste er zwischen Asteroiden)

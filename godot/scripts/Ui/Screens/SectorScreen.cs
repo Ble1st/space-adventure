@@ -86,11 +86,9 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		var sel = Selected;
 
 		// ── Oben: Umschalter Universum/Sektor ──
-		var segU = At(inner, new KitButton("Universum", new Vector2(120, 40)) { FontSize = 17 }, 12, 10);
-		segU.Pressed += () => RaiseAreaSelected(CommandAreas.Universe);
-		At(inner, new KitButton("Sektor", new Vector2(120, 40)) { FontSize = 17, State = KitButtonState.On }, 138, 10);
+		// UI-Umbau: Universum/Sektor stehen als Unterreiter über dem Inhalt
 		var s = u.Sectors[sel];
-		At(inner, Text($"{s.Name} · {FactionName(u, s.Owner)}", 17, MapOverlay.FactionColor(s.Owner)), 280, 18, 400, 24);
+		At(inner, Text($"{s.Name} · {FactionName(u, s.Owner)}", 17, MapOverlay.FactionColor(s.Owner)), 12, 18, 500, 24);
 
 		// ── Karte links ──
 		_map = At(inner, new SectorMapCanvas { MouseFilter = MouseFilterEnum.Stop }, 0, 56, MapW(inner), inner.Size.Y - 56);   // Runde 35: Karte nutzt die gewonnene Fläche

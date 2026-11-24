@@ -11,16 +11,18 @@ public class CommandLayoutTests
     public CommandLayoutTests(ITestOutputHelper o) => _out = o;
     static readonly UiInsets None = new(0, 0, 0, 0);
 
+    /// <summary>UI-Umbau (genehmigt): Reiterleiste oben mit „← Flug“ links und Kasse rechts, Unterreiter darunter, Inhalt über die ganze Breite.</summary>
     [Fact]
-    public void Klassisch_1280x720_LagenWieBisher()
+    public void Reiter_1280x720_KopfleisteUnterreiterInhaltVolleBreite()
     {
         var s = CommandLayout.Shell(1280, 720, None);
         Assert.False(s.Compact);
-        Assert.Equal(new UiRect(20, 10, 1240, 64), s.Top);
-        Assert.Equal(new UiRect(14, 84, 200, 540), s.Rail);
-        Assert.Equal(new UiRect(224, 84, 1042, 540), s.Center);
-        Assert.Equal(new UiRect(14, 648, 160, 58), s.Back);
-        Assert.Equal(1022f, s.InnerW); Assert.Equal(520f, s.InnerH);
+        Assert.Equal(new UiRect(10, 8, 1260, 64), s.Top);
+        Assert.Equal(new UiRect(16, 12, 120, 56), s.Back);
+        Assert.True(s.Rail.X > s.Back.Right && s.Rail.Right < s.Credits.X && s.Rail.W > s.Rail.H, $"Reiter waagerecht {s.Rail}");
+        Assert.Equal(new UiRect(10, 80, 1260, 50), s.SubRail);
+        Assert.Equal(new UiRect(10, 136, 1260, 518), s.Center);
+        Assert.Equal(1240f, s.InnerW); Assert.Equal(498f, s.InnerH);
     }
 
     public static IEnumerable<object[]> Matrix()
@@ -41,8 +43,11 @@ public class CommandLayoutTests
         Assert.InRange(f, 1f, wanted + 1e-4f);
         var s = CommandLayout.Shell(w1 / f, h1 / f, new UiInsets(i1.Left / f, i1.Top / f, i1.Right / f, i1.Bottom / f));
         Assert.True(s.InnerW >= CommandLayout.MinInnerW - 0.01f && s.InnerH >= CommandLayout.MinInnerH - 0.01f, $"{w}×{h} {f:0.00}: Innen {s.InnerW}×{s.InnerH}");
-        var parts = new[] { ("Top", s.Top), ("Rail", s.Rail), ("Center", s.Center), ("Back", s.Back), ("Streifen", s.MessageStrip) };
+        // UI-Umbau: „← Flug“, Reiter und Kasse liegen in der Kopfleiste
+        foreach (var (n, r) in new[] { ("Back", s.Back), ("Rail", s.Rail), ("Credits", s.Credits) }) Assert.True(r.Inside(s.Top), $"{n} {r} außerhalb der Kopfleiste {s.Top}");
+        var parts = new[] { ("Top", s.Top), ("Unterreiter", s.SubRail), ("Center", s.Center), ("Streifen", s.MessageStrip) };
         foreach (var (n, r) in parts) Assert.True(r.Inside(s.Area), $"{n} {r} außerhalb {s.Area}");
+        Assert.False(s.Back.Intersects(s.Rail) || s.Rail.Intersects(s.Credits), "Kopfleiste überlappt");
         for (int a = 0; a < parts.Length; a++)
             for (int b = a + 1; b < parts.Length; b++)
                 Assert.False(parts[a].Item2.Intersects(parts[b].Item2), $"{w}×{h} {f:0.00}: {parts[a].Item1} × {parts[b].Item1}");

@@ -31,12 +31,10 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 			var bSave = At(inner, new KitButton("Speichern", new Vector2(300, 56)) { FontSize = 19 }, 20, 56);
 			bSave.Pressed += () => RaiseSystemAction("save");
 		}
-		var bLoad = At(inner, new KitButton("Laden", new Vector2(300, 56)) { FontSize = 19 }, 20, 122);
-		bLoad.Pressed += () => RaiseSystemAction("load");
-		var bNew = At(inner, new KitButton("Neues Spiel", new Vector2(300, 56)) { FontSize = 19, State = _choosing ? KitButtonState.On : KitButtonState.Normal }, 20, 188);
-		bNew.Pressed += () => { _choosing = !_choosing; Invalidate(); };
-		if (_choosing) BuildStartChooser(inner);
-		float my = WrappedText(inner, StartMenu ? "Neues Spiel wählt ein Startpaket und startet die Welt; Laden setzt den letzten Spielstand fort. Die Einstellungen gelten sofort." : "Autosave alle 30 s; Speichern/Laden legen den Spielstand wie bisher in Main ab.", 20, 256, 310, 14, Dim, 20);
+		// UI-Umbau: „Laden“ und „Neues Spiel“ gibt es nur noch auf dem Startbildschirm (über „Zum Hauptmenü“)
+		var bMain = At(inner, new KitButton("Zum Hauptmenü", new Vector2(300, 56)) { FontSize = 19, Sub = "speichert vorher" }, 20, 122);
+		bMain.Pressed += () => RaiseSystemAction("mainmenu");
+		float my = WrappedText(inner, "Autosave alle 30 s. Neues Spiel und Fortsetzen findest du im Hauptmenü.", 20, 196, 310, 14, Dim, 20);
 		// Gerätetest Phase 27: sichtbare Rückmeldung im Bereich selbst (der Toast liegt unter der Kommandozentrale)
 		if (_message.Length > 0) At(inner, Text(_message, 16, _messageOk ? Green : Red), 20, my + 8f, 310, 24);   // Runde 4: Abstand zum Text darüber
 
@@ -102,74 +100,7 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 	/// <summary>Für den Selbsttest: zuletzt gezeigte Meldung.</summary>
 	public string TestMessage => _message;
 
-	/// <summary>
-	/// Auswahl des Startpakets (Phase 5c, Content <c>player.startOptions</c>): je Paket Schiff, Startgeld und Idee. Runde 11: nur die regulären Pakete
-	/// (Jäger, Händler, Schürfer) und abgesetzt die Testszenarien; „Standard“ entfällt (der Code-Standard ohne Paket bleibt für Tests). „Starten“ meldet „new:&lt;Paket&gt;“.
-	/// </summary>
-	void BuildStartChooser(Control inner)
-	{
-		float x = 350f, w = InnerW(inner) - x - 10f;   // Runde 35: Breite aus der Fläche
-		At(inner, Text("Startpaket wählen", 22, Cyan), x, 16, w, 30);
-		// Gerätetest Phase 27: Liste rollt (KitScroll) — „Standard“ lief über den Rahmen
-		var scroll = At(inner, new KitScroll(), x, 56, w, InnerH(inner) - 56 - 8);
-		var box = new VBoxContainer();
-		box.AddThemeConstantOverride("separation", 8);
-		scroll.AddChild(box);
-		float cw = w - 14f;
-		// Zweiter Gerätetest Phase 28: die Standardwelt nur einmal lesen (vorher bei jedem Neuaufbau, viermal je Sekunde — lange Bilder am Gerät)
-		var def = _defaultWorld ??= SpaceSim.Core.Content.WorldBuilder.Parse(SpaceSim.Core.Content.WorldBuilder.DefaultWorldJson());
-		string ModelName(string key) => def.ShipModels.Find(m => m.Key == key)?.Name ?? key;
-		// Runde 11 (Wunsch: „Standardschiff ein Jäger, Händler oder Miner“): genau die regulären Pakete oben, Testszenarien abgesetzt darunter, kein „Standard“ mehr
-		bool testHeader = false;
-		foreach (var o in def.Player.StartOptions.OrderBy(x => x.Scenario is null ? 0 : 1))
-		{
-			if (o.Scenario is not null && !testHeader)
-			{
-				testHeader = true;
-				var gap = new Control { CustomMinimumSize = new Vector2(cw, 44), MouseFilter = MouseFilterEnum.Pass };
-				box.AddChild(gap);
-				At(gap, Text("Testszenarien (nur zum Prüfen)", 16, Dim), 4, 14, cw - 8, 26);
-			}
-			// Gerätetest Phase 28: Kartenhöhe nach der Länge der Beschreibung (lange Testpaket-Texte liefen über den Kartenrand); ≈ 6,8 px je Zeichen bei 13 px
-			// zweiter Gerätetest Phase 28: Zeilen gemessen statt geschätzt (der Festnahmetest wurde in der dritten Zeile gekürzt)
-			int lines = Math.Max(2, Wrap(o.Description, 13, cw - 210f).Count);
-			// Runde 35b (Prüfwerkzeug: „Händler · Nomade · 1500 Cr“ bei 1,3 gekürzt): der Titel bricht um statt gekürzt zu werden
-			string title = $"{o.Name} · {ModelName(o.Model)} · {o.Credits:0} Cr";
-			int tl = Math.Max(1, Wrap(title, 18, cw - 200f).Count);
-			float ch = Math.Max(100f, 40f + (tl - 1) * 24f + lines * 18f);
-			var holder = new Control { CustomMinimumSize = new Vector2(cw, ch), MouseFilter = MouseFilterEnum.Pass };
-			box.AddChild(holder);
-			var card = CardBg(holder, 0, 0, cw, ch, Card, new Color(Edge, 0.6f), 10, 1);
-			float ty = WrappedText(card, title, 14, 6, cw - 200, 18, White, 24);
-			WrappedText(card, o.Description, 14, ty + 4, cw - 210, 13, Dim, 18);
-			var b = At(card, new KitButton("Starten", new Vector2(160, 56)) { FontSize = 17, State = KitButtonState.Ready }, cw - 172, 22);
-			string key = o.Key;
-			_startButtons[key] = b;
-			b.Pressed += () => { _choosing = false; RaiseSystemAction("new:" + key); };
-		}
-		_chooserScroll = scroll;
-	}
-
-	KitScroll? _chooserScroll;
-	readonly Dictionary<string, KitButton> _startButtons = new();
-	/// <summary>Für den Selbsttest: „Starten“-Taste des Startpakets (null = nicht in der offenen Auswahl).</summary>
-	public KitButton? TestStartButton(string key) => _choosing && _startButtons.TryGetValue(key, out var b) && IsInstanceValid(b) && b.IsInsideTree() ? b : null;
 	KitButton? _testMusicMinus, _testMusicMute, _testEffectsMute;
 	/// <summary>Selbsttest: Tontasten (Musik leiser, Musik stumm, Effekte stumm).</summary>
 	public (KitButton? MusicMinus, KitButton? MusicMute, KitButton? EffectsMute) TestAudioButtons => (_testMusicMinus, _testMusicMute, _testEffectsMute);
-	static SpaceSim.Core.Content.WorldDef? _defaultWorld;
-	/// <summary>Für den Selbsttest: Rollbereich der Startpakete (null = zu).</summary>
-	public KitScroll? TestChooserScroll => _choosing ? _chooserScroll : null;
-
-	/// <summary>Für den Selbsttest: alle Texte der Startauswahl (Karten-Titel, Zwischenüberschrift).</summary>
-	public List<string> TestChooserTexts()
-	{
-		var list = new List<string>();
-		void Walk(Node n) { foreach (var c in n.GetChildren()) { if (c is Label l) list.Add(l.Text); Walk(c); } }
-		if (_chooserScroll is not null) Walk(_chooserScroll);
-		return list;
-	}
-
-	/// <summary>Für den Selbsttest: Startpaket-Auswahl offen?</summary>
-	public bool TestChoosing { get => _choosing; set { _choosing = value; Invalidate(); } }
 }

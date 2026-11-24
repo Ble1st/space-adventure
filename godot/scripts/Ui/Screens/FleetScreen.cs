@@ -19,6 +19,12 @@ namespace SpaceAdventure.Ui.Screens;
 /// </summary>
 public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 {
+	/// <summary>UI-Umbau: die häufigen Befehle (Reihenfolge im Raster); alles andere hinter „Mehr …“.</summary>
+	static readonly string[] MainKinds = { CommandKinds.GoTo, CommandKinds.Trade, CommandKinds.Mine, CommandKinds.Escort, CommandKinds.Return };
+	static bool _moreCommands;
+	/// <summary>Selbsttest: alle Befehle im Raster zeigen (ältere Stufen tippen seltene Befehle direkt an).</summary>
+	public static bool TestAllCommands;
+
 	public override string Id => "cc.fleet";
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
 	public void ResetSession() { _sel = null; _pending = null; _message = ""; _msgOk = true; _radius = -2; _allowLoss = false; _group.Clear(); _deliverIdx = 0; }   // Runde 25: auch die Verlustsperre
@@ -176,9 +182,12 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		_commandButtons.Clear();
 		var missing = new List<string>();
 		int i = 0;
-		foreach (var ex in OrderExecutors.Default.All.Where(e => e.ForPlayer))   // Phase 27: Lauern nur für Piraten
+		// UI-Umbau (genehmigt): fünf häufige Befehle plus „Mehr“ — die übrigen erst nach „Mehr“ (oder wenn einer davon läuft/gewählt ist)
+		bool showAll = _moreCommands || TestAllCommands || (_pending is { } pp && !MainKinds.Contains(pp)) || (ship.Command is { } sc && !MainKinds.Contains(sc.Kind));
+		foreach (var ex in OrderExecutors.Default.All.Where(e => e.ForPlayer).OrderBy(e => MainKinds.Contains(e.Kind) ? Array.IndexOf(MainKinds, e.Kind) : 99))   // Phase 27: Lauern nur für Piraten
 		{
 			string kind = ex.Kind;
+			if (!showAll && !MainKinds.Contains(kind)) continue;
 			bool capable = ex.Needs == Capability.None || ship.Has(ex.Needs);
 			bool ok = capable && (Targeted.Contains(kind) || Commands.Check(u, ship, Simple(u, ship, kind)!) is null);
 			if (ok) _enabledCommands++;
@@ -190,6 +199,11 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 			i++;
 		}
 
+		{
+			var more = At(det, new KitButton(showAll ? "Weniger" : "Mehr …", new Vector2(94, 56)) { FontSize = 14, State = showAll && _moreCommands ? KitButtonState.On : KitButtonState.Normal }, 14 + (i % 6) * 98, (isActive ? 138f : 98f) + (i / 6) * 60);
+			more.Pressed += () => { _moreCommands = !showAll; Invalidate(); };
+			i++;
+		}
 		// Zielwahl (Schritt 3) oder Grenzen der Automatik
 		float ty = (isActive ? 138f : 98f) + (i + 5) / 6 * 60f + 4f;
 		ty = _pending is { } pk ? BuildTargets(det, u, ship, pk, ty) : BuildLimits(det, u, ty);

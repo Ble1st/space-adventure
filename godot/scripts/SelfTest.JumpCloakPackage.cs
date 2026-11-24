@@ -26,15 +26,15 @@ public partial class SelfTest
 		int Group(string label) => fl.TestGroupLabels.IndexOf(label);
 		switch (f)
 		{
-			case 1: _m.TestOpenCommand(); _m.TestOpenCcArea("system"); hud.CcSystem.TestChoosing = true; return false;
+			case 1: _m.TestShowStart(); hud.Start.ShowTests = true; hud.Start.TestRebuild(); return false;   // UI-Umbau: Startbildschirm
 			case 5:
 			{
-				var texts = hud.CcSystem.TestChooserTexts();
-				int header = texts.FindIndex(t => t.StartsWith("Testszenarien"));
+				var texts = hud.Start.TestChooserTexts();
+				int header = texts.FindIndex(t => t.Contains("Testszenarien"));
 				int card = texts.FindIndex(t => t.Contains("Sprung- und Tarntest"));
 				Check(header >= 0 && card > header, $"SJ: „Sprung- und Tarntest (Test)“ unter den Testszenarien (Kopf {header}, Karte {card})");
-				var b = hud.CcSystem.TestStartButton("jumpcloak");
-				var scroll = hud.CcSystem.TestChooserScroll;
+				var b = hud.Start.TestStartButton("jumpcloak");
+				var scroll = hud.Start.TestChooserScroll;
 				if (b is null || scroll is null) { Fail("SJ: keine Starttaste für „jumpcloak“"); return false; }
 				// Karte in den sichtbaren Bereich rollen, dann echt tippen
 				scroll.ScrollVertical = Mathf.Max(0, (int)(b.GlobalPosition.Y - scroll.GlobalPosition.Y + scroll.ScrollVertical - 60f));
@@ -42,10 +42,10 @@ public partial class SelfTest
 			}
 			case 10:
 			{
-				var b = hud.CcSystem.TestStartButton("jumpcloak");
+				var b = hud.Start.TestStartButton("jumpcloak");
 				if (b is null) { Fail("SJ: Starttaste verschwunden"); return false; }
 				_jpAt = b.GetGlobalRect().GetCenter();
-				Check(hud.CcSystem.TestChooserScroll!.GetGlobalRect().HasPoint(_jpAt), $"SJ: Starttaste im sichtbaren Bereich ({_jpAt})");
+				Check(hud.Start.TestChooserScroll!.GetGlobalRect().HasPoint(_jpAt), $"SJ: Starttaste im sichtbaren Bereich ({_jpAt})");
 				Tap(_jpAt, true);
 				return false;
 			}
@@ -56,7 +56,7 @@ public partial class SelfTest
 				var me = u.Ships[u.PlayerShip];
 				Check(me.ModelKey == "nomad" && me.Fit.Contains("jump_drive_s") && me.Fit.Contains("cloak_s_mk2"),
 					$"SJ: Paket gestartet — Nomade mit Sprungantrieb und Tarnfeld Mk2 ({me.ModelKey}: {string.Join(",", me.Fit.Select(x => x ?? "-"))})");
-				Check(!hud.CcSystem.TestChoosing, "SJ: Startauswahl nach dem Start zu");
+				Check(!hud.Start.Visible && !_m.TestInStartMenu, "SJ: Startbildschirm nach dem Start zu");
 				Check(u.Rules.FuelActive && me.TotalFuel >= me.Stats.FuelCapacity - 0.5f, $"SJ: Treibstoff an, voller Tank ({me.TotalFuel:0}/{me.Stats.FuelCapacity:0})");
 				Check(u.ShipsById().Any(r => ThreatMap.IsRaider(r) && r.Sector == me.Sector && Vec2.Distance(r.Position, me.Position) < 100f), "SJ: Kaperer in Sichtweite");
 				u.Rules.PlayerRaids = false;   // erst tarnen, dann die Kaperer wieder zulassen (eine Vorwarnung würde das Einschalten sperren)

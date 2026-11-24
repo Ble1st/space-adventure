@@ -34,6 +34,12 @@ public sealed class GroupView
 public sealed class FlightHudData
 {
 	public float Hull, Credits;
+	/// <summary>UI-Umbau: Laderaum (belegt/gesamt in m³), Farbstücke je Ware (Farbe, Anteil am Laderaum) und Kurztext der größten Posten; versiegelte Auftragsfracht in Gold.</summary>
+	public float CargoUsed, CargoCap;
+	public List<(Color Color, float Share)> CargoSegments = new();
+	public string CargoText = "";
+	/// <summary>UI-Umbau: ungelesene Nachrichten (Kopfleiste), Zahl der gescannten Objekte und der Feinde darunter (Taste „☰ Sektor“).</summary>
+	public int CommsUnread, ScanCount, ScanHostile;
 	/// <summary>Runde 16: laufende Kosten je Minute (Flottenunterhalt + Liegegebühr; 0 = keine) — erklärt, warum die Kasse ohne Kauf sinkt.</summary>
 	public float CostsPerMinute;
 	/// <summary>Tankinhalt und Tankgröße des Spielerschiffs (echt, Phase 4c); Kapazität 0 = kein Treibstoffsystem.</summary>
@@ -197,6 +203,8 @@ public partial class FlightHud : Control, IScreen
 	public bool IsOpen => Visible;
 
 	public event Action? HamburgerPressed, MapPressed, AutopilotPressed, AutoMinePressed, ContextPressed, AllFire;
+	/// <summary>UI-Umbau: Kopfleiste (Nachrichten, Befehle = Kommandozentrale, Zeitraffer), „☰ Sektor“ unten links, Frachtzeile (Inventar).</summary>
+	public event Action? CommsPressed, CommandPressed, FastPressed, ScanPressed, CargoPressed;
 	/// <summary>Finger auf einer Waffenschacht-Taste (Index in <see cref="FlightHudData.Bays"/>).</summary>
 	public event Action<int>? BayDown;
 	/// <summary>HUD-Neu: Zahl der Gruppen/Schächte, nach der gerade gelegt ist (im Gefecht fest).</summary>
@@ -503,7 +511,7 @@ public partial class FlightHud : Control, IScreen
 	public bool FastOn => _fastOn;
 
 	/// <summary>Zähler ungelesener Comms-Nachrichten — HUD-Neu: am Menüknopf („Menü · 2“; die Kommandozentrale steht im Menü).</summary>
-	public void SetCommandBadge(int unread) { _menuBadge = unread; _hamburger?.QueueRedraw(); }
+	public void SetCommandBadge(int unread) { _menuBadge = unread; _commsBtn?.QueueRedraw(); }
 
 	public void SetSlider(float v) => _slider.SetValue(v, notify: false);
 	bool _sliderTouched;
@@ -523,9 +531,11 @@ public partial class FlightHud : Control, IScreen
 
 	public override void _Ready()
 	{
+		// UI-Umbau (Interstellar-Pilot-2-Aufbau): eine Kopfleiste über die ganze Breite — zuerst gelegt, damit sie hinter allem liegt
+		_topBar = Win(this, 0, 0, 1280, FlightHudLayout.BarH, new Color(0.03f, 0.05f, 0.1f, 0.74f), new Color(0.3f, 0.5f, 0.8f, 0.35f), 0);
 
 		// ── Status oben links (HUD-Neu: schlank, Balken + Kasse; die Leistungsstellung zeigt ⚡ in der rechten Spalte) ──
-		var status = _status = Win(this, 12, 8, 300, 132, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
+		var status = _status = Win(this, 10, 78, 260, 140, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
 		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 4, 280, 126);
 		sv.AddThemeConstantOverride("separation", 0);   // Tankanzeige: Platz für die Tank-Infozeile (vorher 2)
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
@@ -540,12 +550,29 @@ public partial class FlightHud : Control, IScreen
 		_powerBar = BarRow(sv, "Leistung", PowerColor, out _powerVal!);
 		_powerInfo = Text("", 12, new Color(UiKit.Dim, 0.85f));
 		_powerInfo.Visible = false;   // HUD-Neu: Stellung steht auf ⚡
-		_credits = Text("", 18, UiKit.Orange);
-		_credits.ClipText = true; _credits.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _credits.CustomMinimumSize = new Vector2(1, 24);
-		sv.AddChild(_credits);
+		// UI-Umbau: Fracht im Status (Farbleiste je Ware + größte Posten); Tipp öffnet das Inventar
+		var cargoRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		cargoRow.AddThemeConstantOverride("separation", 8);
+		var cl = Text("Fracht", 14, UiKit.Dim); cl.CustomMinimumSize = new Vector2(66, 0);
+		cargoRow.AddChild(cl);
+		_cargoBar = new CargoBar { CustomMinimumSize = new Vector2(110, 10), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+		cargoRow.AddChild(_cargoBar);
+		_cargoVal = Text("", 13, new Color(UiKit.Dim, 0.85f));
+		_cargoVal.ClipText = true; _cargoVal.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _cargoVal.CustomMinimumSize = new Vector2(52, 0);
+		cargoRow.AddChild(_cargoVal);
+		sv.AddChild(cargoRow);
+		_cargoText = Text("", 13, new Color(UiKit.Dim, 0.9f));
+		_cargoText.ClipText = true; _cargoText.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _cargoText.CustomMinimumSize = new Vector2(1, 16);
+		sv.AddChild(_cargoText);
+		// ganze Statuskarte ist die Taste zum Inventar
+		_cargoTap = At(status, new KitButton("", new Vector2(260, 140)) { Flat = true }, 0, 0);
+		_cargoTap.Pressed += () => CargoPressed?.Invoke();
+		// Kasse in der Kopfleiste
+		_credits = Text("", 19, UiKit.Orange, HorizontalAlignment.Right);
+		_credits.ClipText = true; _credits.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 
 		// ── Sektorchip oben Mitte mit Lage-, Fahndungs- und Brandzeile ──
-		var chip = _chip = Win(this, 420, 8, 430, 42, new Color(0.03f, 0.05f, 0.1f, 0.68f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 20);
+		var chip = _chip = Win(this, 12, 14, 430, 42, new Color(0, 0, 0, 0), null, 20);   // UI-Umbau: in der Kopfleiste ohne eigenen Kasten
 		var cr = _chipRow = At(chip, new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 14, 0, 402, 42);
 		cr.AddThemeConstantOverride("separation", 12);
 		_sector = Text("", 18, UiKit.Cyan);
@@ -560,14 +587,38 @@ public partial class FlightHud : Control, IScreen
 		foreach (var l in new[] { _security, _wanted, _fire, _mission }) { l.ClipText = true; l.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
 
 		// ── oben rechts: Karte und Menü (Symboltasten), Zielkarte links daneben ──
-		_mapBtn = At(this, new KitButton("", new Vector2(64, 64)), 1140, 8);
-		_mapBtn.Symbol = g => { var c = new Vector2(32, 24); g.DrawArc(c, 13, 0, Mathf.Tau, 24, UiKit.White, 2f); g.DrawLine(c + new Vector2(-13, 0), c + new Vector2(13, 0), UiKit.White, 1.5f); g.DrawLine(c + new Vector2(0, -13), c + new Vector2(0, 13), UiKit.White, 1.5f);
-			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), "Karte", 12, UiKit.Dim, HorizontalAlignment.Center, 60); };
+		_mapBtn = At(this, new KitButton("", new Vector2(72, 64)), 1140, 8);
+		_mapBtn.Symbol = g => { var c = new Vector2(36, 24); g.DrawArc(c, 13, 0, Mathf.Tau, 24, UiKit.White, 2f); g.DrawLine(c + new Vector2(-13, 0), c + new Vector2(13, 0), UiKit.White, 1.5f); g.DrawLine(c + new Vector2(0, -13), c + new Vector2(0, 13), UiKit.White, 1.5f);
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), "Karte", 13, UiKit.Dim, HorizontalAlignment.Center, 68); };
 		_mapBtn.Pressed += () => MapPressed?.Invoke();
-		_hamburger = At(this, new KitButton("", new Vector2(64, 64)), 1208, 8);
-		_hamburger.Symbol = g => { foreach (var yy in new[] { 12f, 21f, 30f }) g.DrawRect(new Rect2(18, yy, 28, 4), UiKit.White);
-			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), _menuBadge > 0 ? $"Menü · {_menuBadge}" : "Menü", 12, _menuBadge > 0 ? UiKit.Orange : UiKit.Dim, HorizontalAlignment.Center, 60); };
+		_hamburger = At(this, new KitButton("", new Vector2(72, 64)), 1208, 8);
+		_hamburger.Symbol = g => { g.DrawRect(new Rect2(26, 12, 7, 26), UiKit.White); g.DrawRect(new Rect2(39, 12, 7, 26), UiKit.White);
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), "Pause", 13, UiKit.Dim, HorizontalAlignment.Center, 68); };   // UI-Umbau: Pause-Menü
 		_hamburger.Pressed += () => HamburgerPressed?.Invoke();
+		// UI-Umbau: Kopfleiste — Nachrichten (Zähler), Befehle (Kommandozentrale), Zeitraffer; Kasse links davon
+		_commsBtn = At(this, new KitButton("", new Vector2(72, 64)), 900, 3);
+		_commsBtn.Symbol = g => { var r = new Rect2(22, 12, 28, 20); g.DrawRect(r, UiKit.White, false, 2.5f); g.DrawLine(r.Position, r.Position + new Vector2(14, 11), UiKit.White, 2f); g.DrawLine(r.Position + new Vector2(28, 0), r.Position + new Vector2(14, 11), UiKit.White, 2f);
+			if (_menuBadge > 0) { g.DrawCircle(new Vector2(54, 12), 10, UiKit.Orange); UiKit.DrawText(g, 11, ThemeDB.FallbackFont, new Vector2(44, 17), _menuBadge.ToString(), 13, new Color(0.1f, 0.05f, 0f), HorizontalAlignment.Center, 20); }
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), "Nachr.", 13, UiKit.Dim, HorizontalAlignment.Center, 68); };
+		_commsBtn.Pressed += () => CommsPressed?.Invoke();
+		_commandBtn = At(this, new KitButton("", new Vector2(72, 64)), 980, 3);
+		_commandBtn.Symbol = g => { g.DrawColoredPolygon(new[] { new Vector2(36, 8), new Vector2(52, 22), new Vector2(20, 22) }, UiKit.White); g.DrawRect(new Rect2(24, 22, 24, 14), UiKit.White, false, 2.5f);
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), "Befehle", 13, UiKit.Dim, HorizontalAlignment.Center, 68); };
+		_commandBtn.Pressed += () => CommandPressed?.Invoke();
+		_fastBtn = At(this, new KitButton("", new Vector2(72, 64)), 1060, 3);
+		_fastBtn.Symbol = g => { UiKit.DrawText(g, 12, ThemeDB.FallbackFont, new Vector2(2, 34), _fastOn ? "×10" : "×1", 22, _fastOn ? UiKit.Green : UiKit.White, HorizontalAlignment.Center, 68);
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 56), "Zeit", 13, UiKit.Dim, HorizontalAlignment.Center, 68); };
+		_fastBtn.Pressed += () => FastPressed?.Invoke();
+		_credits = At(this, _credits, 700, 14, 170, 42);
+		_credits.VerticalAlignment = VerticalAlignment.Center;
+		// UI-Umbau: „☰ Sektor“ unten links — öffnet die Scanliste
+		_scanBtn = At(this, new KitButton("", new Vector2(84, 68)), 10, 642);
+		_scanBtn.Symbol = g => { foreach (var yy in new[] { 12f, 20f, 28f }) g.DrawRect(new Rect2(28, yy, 28, 4), UiKit.White);
+			if (_scanHostile > 0) { g.DrawCircle(new Vector2(70, 12), 10, UiKit.Red); UiKit.DrawText(g, 11, ThemeDB.FallbackFont, new Vector2(60, 17), _scanHostile.ToString(), 13, UiKit.White, HorizontalAlignment.Center, 20); }
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 58), _scanOpen ? "Schließen" : "Sektor", 14, UiKit.White, HorizontalAlignment.Center, 80); };
+		_scanBtn.Pressed += () => { SetScanOpen(!_scanOpen); ScanPressed?.Invoke(); };
+		_scanPanel = new ScanPanel();
+		AddChild(_scanPanel);
 
 		var card = Win(this, 800, 8, 330, 118, new Color(0.03f, 0.05f, 0.1f, 0.72f), UiKit.Green, 12);
 		_card = card;
@@ -622,7 +673,7 @@ public partial class FlightHud : Control, IScreen
 		_turnL = At(this, new KitButton("◀", new Vector2(104, 100)) { FontSize = 44 }, 112, 608);
 		_turnR = At(this, new KitButton("▶", new Vector2(104, 100)) { FontSize = 44 }, 224, 608);
 		_reverseLabel = At(this, Text("RÜCK · max 20 %", 12, UiKit.Dim, HorizontalAlignment.Center), 332, 612, 112, 18);
-		_reverse = At(this, new KitButton("RÜCK", new Vector2(96, 72)) { FontSize = 20 }, 336, 636);
+		_reverse = At(this, new KitButton("RÜCK", new Vector2(96, 72)) { FontSize = 18, Sub = "max 20 %" }, 336, 636);
 
 		// ── unten rechts: Daumenbogen — FEUER (Tipp = alle bereiten, halten = Dauerfeuer), Gruppen nach Waffentyp, „Einzeln“ ──
 		_allFire = At(this, new KitButton("FEUER", new Vector2(128, 128)) { FontSize = 26, State = KitButtonState.Warn }, 1140, 580);
@@ -663,6 +714,8 @@ public partial class FlightHud : Control, IScreen
 			[HudItem.Power] = _power, [HudItem.NextEnemy] = _nextEnemy, [HudItem.AimAssist] = _aimAssist, [HudItem.AutoFire] = _autoFire, [HudItem.Surrender] = _surrender,
 			[HudItem.Slider] = _slider, [HudItem.TurnLeft] = _turnL, [HudItem.TurnRight] = _turnR, [HudItem.Reverse] = _reverse, [HudItem.ReverseLabel] = _reverseLabel!,
 			[HudItem.FireBtn] = _allFire, [HudItem.Expand] = _expand, [HudItem.HitWarning] = _hitWarning, [HudItem.Escape] = _escape,
+			[HudItem.TopBar] = _topBar, [HudItem.Credits] = _credits, [HudItem.Comms] = _commsBtn, [HudItem.Command] = _commandBtn, [HudItem.Fast] = _fastBtn,
+			[HudItem.Scan] = _scanBtn, [HudItem.ScanPanel] = _scanPanel,
 		};
 		for (int i = 0; i < _groupButtons.Count; i++) _items[HudItem.Group0 + i] = _groupButtons[i];
 		for (int i = 0; i < _bayButtons.Count; i++) _items[HudItem.Bay0 + i] = _bayButtons[i];
@@ -693,7 +746,53 @@ public partial class FlightHud : Control, IScreen
 		}
 	}
 
-	Control _status = null!, _chip = null!, _chipRow = null!;
+	Control _status = null!, _chip = null!, _chipRow = null!, _topBar = null!;
+	KitButton _commsBtn = null!, _commandBtn = null!, _fastBtn = null!, _scanBtn = null!, _cargoTap = null!;
+	CargoBar _cargoBar = null!;
+	Label _cargoVal = null!, _cargoText = null!;
+	ScanPanel _scanPanel = null!;
+	bool _scanOpen;
+	int _scanHostile;
+	/// <summary>UI-Umbau: Scanliste („☰ Sektor“) offen? Solange offen, deckt sie Status und Lagezeilen.</summary>
+	public bool ScanOpen => _scanOpen;
+	public ScanPanel Scan => _scanPanel;
+	public void SetScanOpen(bool open)
+	{
+		_scanOpen = open;
+		if (_scanPanel is null) return;
+		_scanPanel.Visible = open;
+		_status.Visible = !open;
+		_scanBtn.State = open ? KitButtonState.On : KitButtonState.Normal;
+		_scanBtn.QueueRedraw();
+		ApplyHidden();
+	}
+	/// <summary>Selbsttest/Prüfwerkzeug: Tasten der Kopfleiste und unten links.</summary>
+	public KitButton TestCommsButton => _commsBtn;
+	public KitButton TestCommandButton => _commandBtn;
+	public KitButton TestFastButton => _fastBtn;
+	public KitButton TestScanButton => _scanBtn;
+	public KitButton TestCargoTap => _cargoTap;
+	public string TestCargoText => _cargoText.Text;
+
+	/// <summary>UI-Umbau: Frachtleiste — Farbstücke je Ware, Rest dunkel.</summary>
+	public sealed partial class CargoBar : Control
+	{
+		public List<(Color Color, float Share)> Segments = new();
+		public CargoBar() { MouseFilter = MouseFilterEnum.Ignore; }
+		public override void _Draw()
+		{
+			DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.07f, 0.1f, 0.17f));
+			float x = 0f;
+			foreach (var (c, s) in Segments)
+			{
+				float w = Mathf.Clamp(s, 0f, 1f) * Size.X;
+				if (x + w > Size.X) w = Size.X - x;
+				if (w <= 0f) continue;
+				DrawRect(new Rect2(x, 0, w, Size.Y), c);
+				x += w;
+			}
+		}
+	}
 	Dictionary<HudItem, Control> _items = new();
 	KitButton _power = null!, _expand = null!;
 	readonly List<KitButton> _groupButtons = new();
@@ -761,8 +860,8 @@ public partial class FlightHud : Control, IScreen
 		{
 			var r = layout[item];
 			c.Position = new Vector2(r.X, r.Y);
-			if (item is HudItem.Chip or HudItem.Security or HudItem.Wanted or HudItem.Fire or HudItem.Mission or HudItem.Slider or HudItem.HitWarning or HudItem.Escape or HudItem.ReverseLabel)
-			{ c.CustomMinimumSize = new Vector2(r.W, r.H); c.Size = new Vector2(r.W, r.H); }
+			// UI-Umbau: jede Zone bekommt ihre Größe aus der Anordnung (Randzellen 76 × 66, Kopfleiste über die ganze Breite)
+			if (r.W > 0f && r.H > 0f && item is not (HudItem.Status or HudItem.Card)) { c.CustomMinimumSize = new Vector2(r.W, r.H); c.Size = new Vector2(r.W, r.H); }
 		}
 		_chipRow.CustomMinimumSize = Vector2.Zero;
 		_chipRow.Size = new Vector2(MathF.Max(0f, layout[HudItem.Chip].W - 28f), 42f);
@@ -775,6 +874,9 @@ public partial class FlightHud : Control, IScreen
 	{
 		if (Layout is not { } l) return;
 		foreach (var it in new[] { HudItem.Autopilot, HudItem.AutoMine }) _items[it].Visible = !l.Hidden(it);
+		if (_reverseLabel is not null) _reverseLabel.Visible = !l.Hidden(HudItem.ReverseLabel);
+		if (_scanOpen) foreach (var lab in new Control[] { _status, _security, _wanted, _fire, _mission }) lab.Visible = false;   // UI-Umbau: die Scanliste deckt die linke Spalte
+		foreach (var it in new[] { HudItem.HitWarning, HudItem.Escape }) if (l.Hidden(it)) _items[it].Visible = false;
 		if (l.Hidden(HudItem.Context)) { _contextBtn.Visible = false; _wingAttack.Visible = false; }
 		_expand.Visible = !l.Hidden(HudItem.Expand);
 		_allFire.Visible = !l.Hidden(HudItem.FireBtn) && _d.HasWeapons;
@@ -918,6 +1020,13 @@ public partial class FlightHud : Control, IScreen
 		_credits.Text = (d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits")
 			+ (d.CostsPerMinute > 0.001f ? $" · −{d.CostsPerMinute.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))}/min" : "");
 		_credits.AddThemeColorOverride("font_color", d.Credits < 0f ? UiKit.Red : UiKit.Orange);
+		// UI-Umbau: Fracht im Status, Zähler in Kopfleiste und an „☰ Sektor“
+		_cargoBar.Segments = d.CargoSegments; _cargoBar.QueueRedraw();
+		_cargoVal.Text = d.CargoCap > 0f ? $"{d.CargoUsed:0}/{d.CargoCap:0}" : "–";
+		_cargoText.Text = d.CargoText.Length > 0 ? d.CargoText + " ▸" : "leer ▸";
+		if (_menuBadge != d.CommsUnread) { _menuBadge = d.CommsUnread; _commsBtn.QueueRedraw(); }
+		if (_scanHostile != d.ScanHostile) { _scanHostile = d.ScanHostile; _scanBtn.QueueRedraw(); }
+		if (_fastOn != d.FastOn) _fastBtn.QueueRedraw();
 		_fire.Text = d.Fire;
 		_fire.Visible = d.Fire.Length > 0;
 		// Runde 41: Auftragszeile (Gold); Runde 42d (Handytest): nach gemessener Breite gekürzt — Ziel kürzen,
@@ -925,7 +1034,7 @@ public partial class FlightHud : Control, IScreen
 		_mission.Text = FitMissionLine(d.Mission, _mission);
 		_mission.Visible = d.Mission.Length > 0;
 		// HUD-Neu: der Zeitraffer steht im Menü — läuft er, zeigt der Sektorchip „×10“
-		_sector.Text = d.FastOn ? $"{d.SectorName} · ×10" : d.SectorName;
+		_sector.Text = d.SectorName;   // UI-Umbau: Zeitraffer zeigt die Taste „Zeit“ in der Kopfleiste
 		{
 			var font = _factionChip.GetThemeFont("font");
 			float room = _chipRow.Size.X - 12f - _sector.GetThemeFont("font").GetStringSize(_sector.Text, HorizontalAlignment.Left, -1, _sector.GetThemeFontSize("font_size")).X;
