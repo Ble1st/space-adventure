@@ -267,6 +267,7 @@ public static class PlayerCombat
     public static TargetBlock TargetBlockOf(Universe u, Ship player, Ship target)
     {
         if (target.IsPlayer) return TargetBlock.Own;
+        if (target.IsDerelict) return TargetBlock.Derelict;   // herrenlos: übernehmen statt beschießen
         if (target.DockedAt.Value != 0 && !u.Fights.IsEngaged(target.Id)) return TargetBlock.Docked;
         if (u.Fights.Of(player.Id) is { } mine && mine.Of(target.Id) is { Active: true } t && mine.Of(player.Id) is { } me && t.Side == me.Side)
             return TargetBlock.Ally;
@@ -281,6 +282,7 @@ public static class PlayerCombat
         TargetBlock.Docked => "Das Schiff liegt angedockt.",
         TargetBlock.Ally => "Das Schiff kämpft auf deiner Seite.",
         TargetBlock.OtherFight => "Das Schiff steckt in einem anderen Gefecht.",
+        TargetBlock.Derelict => "Das Schiff ist herrenlos — übernimm es per Funk.",
         _ => null,
     };
 
@@ -291,6 +293,7 @@ public static class PlayerCombat
         TargetBlock.Docked => "Ziel angedockt",
         TargetBlock.Ally => "kämpft mit dir",
         TargetBlock.OtherFight => "anderes Gefecht",
+        TargetBlock.Derelict => "herrenlos",
         _ => null,
     };
 
@@ -467,4 +470,4 @@ public static class PlayerCombat
 }
 
 /// <summary>Runde 21: Grund, aus dem der Spieler ein Schiff nicht angreifen kann.</summary>
-public enum TargetBlock { None, Own, Docked, Ally, OtherFight }
+public enum TargetBlock { None, Own, Docked, Ally, OtherFight, Derelict }

@@ -6,7 +6,7 @@ namespace SpaceSim.Core.Model;
 /// gesetzlosen Akteurs (<see cref="Simulation.PirateSystem"/>).
 /// </summary>
 /// <summary>Aufgabe (Etikett). Phase 28: <see cref="Warship"/> = Kriegsschiff einer Fraktion (nur im Krieg gekauft).</summary>
-public enum ShipRole { Trader, Miner, Fighter, Player, Builder, Police, Pirate, Warship, Collector, Salvager, Smuggler }
+public enum ShipRole { Trader, Miner, Fighter, Player, Builder, Police, Pirate, Warship, Collector, Salvager, Smuggler, Derelict }
 public enum TradePhase { Idle, GoingToBuy, GoingToSell }
 public enum MinePhase { Idle, GoingToField, Mining, GoingToStation }
 
@@ -168,6 +168,12 @@ public sealed class Ship : ICreditAccount
 
     /// <summary>Steuert der Spieler dieses Schiff selbst?</summary>
     public bool IsPlayer => Controller == Controller.Player;
+
+    /// <summary>Herrenlos (verlassen oder liegengeblieben): niemand steuert es (<see cref="Controller.None"/>), kein System bewegt es; übernehmen über <see cref="Simulation.Derelicts.Claim"/>.</summary>
+    public bool IsDerelict => Role == ShipRole.Derelict;
+
+    /// <summary>Herrenlos bis zu diesem Tick, dann verfällt es (0 = kein Verfall, z. B. Pannenschiff eines Auftrags). Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public long DerelictUntil;
 
     /// <summary>Wirtschaftlich aktives KI-Schiff (Händler oder Miner): Fracht- oder Schürffähigkeit, von der KI gesteuert.</summary>
     public bool IsEconomyAi => Controller == Controller.Ai && (Has(Capability.Cargo) || Has(Capability.Mining));

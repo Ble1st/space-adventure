@@ -55,7 +55,7 @@ public static class ThreatMap
         foreach (var sec in u.Sectors.Values) result[sec.Id] = (BaseSecurity(u, sec, sec.Owner), 0f);
         foreach (var s in u.ShipsById())
         {
-            if (s.IsPlayer) continue;
+            if (s.IsPlayer || s.IsDerelict) continue;   // herrenlose Schiffe sind kein Verkehr
             var (where, _) = Where(u, s);
             if (!result.TryGetValue(where, out var cur)) continue;
             if (IsPolice(s))

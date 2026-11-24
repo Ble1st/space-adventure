@@ -42,6 +42,12 @@ public sealed class MissionService : IStationService
                 string? issue = type.DeliverIssue(u, m, ship, station);
                 list.Add(new ServiceOffer($"{Deliver}:{m.Id}", $"Abliefern: {label}", m.Reserved, 1f, default, 0f, 0f, issue ?? "Fracht abliefern"));
             }
+            else if (m.Type == ShipDeliveryMission.KeyId)
+            {
+                // Schiff liefern: Angebot nur mit passendem eigenem Schiff hier (Menge 1), sonst mit Grund (Menge 0)
+                string? issue = type.DeliverIssue(u, m, ship, station);
+                list.Add(new ServiceOffer($"{Deliver}:{m.Id}", $"Abliefern: {label}", m.Reserved, issue is null ? 1f : 0f, default, 0f, 0f, issue ?? "Schiff übergeben"));
+            }
             else
             {
                 list.Add(new ServiceOffer($"{Abandon}:{m.Id}", $"Abbrechen: {label}", 0f, 1f, default, 0f, 0f,
@@ -78,10 +84,12 @@ public sealed class MissionService : IStationService
                 var m = MissionRules.Active(u, id);
                 if (m is null) return new ServiceResult(false, 0f, 0f, "Kein laufender Auftrag mit dieser Id.");
                 var type = MissionRules.Types.Get(m.Type);
-                if (type is null || m.Type != TransportMission.KeyId) return new ServiceResult(false, 0f, 0f, "Nur Transportaufträge werden abgeliefert.");
+                if (type is null || m.Type is not (TransportMission.KeyId or ShipDeliveryMission.KeyId)) return new ServiceResult(false, 0f, 0f, "Nur Transport- und Schiffsaufträge werden abgeliefert.");
                 if (type.DeliverIssue(u, m, ship, station) is { } issue) return new ServiceResult(false, 0f, 0f, issue);
                 type.Deliver(u, m, ship, station);
                 u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, Deliver, default, 1f, m.Reserved + m.Deposit));
+                if (m.Type == ShipDeliveryMission.KeyId)
+                    return new ServiceResult(true, 1f, m.Reserved, $"Schiff übergeben — Belohnung {m.Reserved:0} Cr.");
                 return new ServiceResult(true, 1f, m.Reserved + m.Deposit, $"Fracht abgeliefert: {type.Describe(u, m)} Belohnung {m.Reserved:0} Cr, Pfand {m.Deposit:0} Cr zurück.");
             }
             default:

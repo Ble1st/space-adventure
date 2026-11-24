@@ -41,7 +41,7 @@ public static class FleetTargets
         foreach (var sid in sectors)
             foreach (var id in u.Tracker.ParkedIn(sid).Concat(u.Tracker.TransitIn(sid)))
             {
-                if (!seen.Add(id.Value) || !u.Ships.TryGetValue(id, out var s) || s.IsPlayer || s.DockedAt.Value != 0) continue;
+                if (!seen.Add(id.Value) || !u.Ships.TryGetValue(id, out var s) || s.IsPlayer || s.IsDerelict || s.DockedAt.Value != 0) continue;
                 var (ts, tp) = ThreatMap.Where(u, s);
                 if (!sectors.Contains(ts)) continue;
                 all.Add((s, Rank(u, s), ts == ms ? Vec2.Distance(mp, tp) : 1e6f + Hops(u, ms, ts)));

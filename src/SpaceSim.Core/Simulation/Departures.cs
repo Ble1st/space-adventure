@@ -16,7 +16,9 @@ public static class Departures
     {
         if (!u.Ships.ContainsKey(ship.Id)) return;
         u.Events.Publish(new ShipDeparted(ship.Id, ship.Role, ship.Owner, ship.Transit?.ToSector ?? ship.Sector, reason, detail));
-        if (reason == DepartureReason.Destroyed) Wrecks.FromShip(u, ship);   // Phase 26: ein zerstörtes Schiff hinterlässt ein Wrack
+        // Phase 26: ein zerstörtes Schiff hinterlässt ein Wrack — oder (herrenlose Schiffe) die Besatzung steigt aus und das Schiff bleibt herrenlos;
+        // ein herrenloses Schiff, das verfällt, hinterlässt nichts
+        if (reason == DepartureReason.Destroyed && !ship.IsDerelict && Derelicts.TryAbandon(u, ship) is null) Wrecks.FromShip(u, ship);
         u.RemoveShip(ship.Id, DepartureNames.Key(reason));
     }
 

@@ -232,7 +232,7 @@ public class FuelModelTests
         var spawnFuel = new List<float>();
         u.Events.Raised += e =>
         {
-            if (e is ShipSpawned sp && u.Ships.TryGetValue(sp.Ship, out var s) && s.HasModel)
+            if (e is ShipSpawned sp && u.Ships.TryGetValue(sp.Ship, out var s) && s.HasModel && !s.IsDerelict)   // herrenlose Schiffe behalten den Tank des zerstörten Schiffs
                 spawnFuel.Add(s.TotalFuel - s.Stats.FuelCapacity);
         };
         new SimulationRunner().Run(u, 20_000);   // Flottenwachstum erzeugt neue Schiffe (Ids ab 1000)

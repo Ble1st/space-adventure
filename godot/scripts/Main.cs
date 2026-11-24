@@ -1452,6 +1452,8 @@ public partial class Main : Node3D
 	internal string LastIntelMessage { get; private set; } = "";
 	/// <summary>Phase 22: letzter Hinweis „Station aufgegeben …“ (für den Selbsttest).</summary>
 	internal string? LastDepartureMessage { get; private set; }
+	/// <summary>Letzte Meldung zu herrenlosen Schiffen (Notsignal, Aussteigen, Übernahme; Selbsttest).</summary>
+	internal string LastDerelictMessage { get; private set; } = "";
 	/// <summary>Phase 24: letzter Gefechtshinweis im Spielersektor (Selbsttest).</summary>
 	internal string? LastCombatMessage { get; private set; }
 	/// <summary>Spielersperre: Ansehensverlust des letzten gemeldeten Verbrechens (Selbsttest).</summary>
@@ -1690,6 +1692,10 @@ public partial class Main : Node3D
 			case StationDeparted sd when sd.Sector == _session.U.PlayerSector && SpaceSim.Core.Simulation.Departures.StationToast(sd) is { } departed:
 				LastDepartureMessage = departed; _hud.Info(departed, 3.5f); break;
 			case ActiveShipChanged changed: OnActiveShipChanged(changed); break;
+			// Herrenlose Schiffe: Notsignal (Zufallsereignis, überall), Aussteigen der Besatzung im Spielersektor, Übernahme
+			case SpaceSim.Core.Simulation.DerelictCreated dc when dc.Cause != "abandoned" || dc.Sector == _session.U.PlayerSector:
+				LastDerelictMessage = dc.Message; if (dc.Cause == "abandoned") _hud.Info(dc.Message, 4f); else _hud.Toast(dc.Message, 5f); break;
+			case SpaceSim.Core.Simulation.DerelictClaimed claimed: LastDerelictMessage = claimed.Message; _hud.Toast(claimed.Message, 4f); break;
 			// Runde 45 (Befehlsstand): — der Befehlsstand wird von der Benutzereingabe ausgelöst (CcFleet.Given, Hangar-Aktionen in Main),
 			// nicht vom Core-Bus: dieselben Befehle laufen auch in Prüfläufen (NPC/Tests geben Befehle)
 			case SpaceSim.Core.Events.CommandEnded ce when ce.Ship == _session.U.PlayerShip && _spectate:

@@ -138,6 +138,7 @@ public sealed class CombatModule : ISimModule
          .Add(new JumpCloakSystem())                                       // Sprungantrieb laden/springen, Tarnfeld prüfen (nur Schiffe mit Zustand)
          .Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10)
          .Add(new WreckSystem(), interval: 50)                             // Phase 26: Wracks verfallen
+         .Add(new DerelictSystem(), interval: DerelictSystem.Interval)       // herrenlose Schiffe verfallen, Zufallsereignis
          .Add(new SpaceSim.Core.Combat.StationRepairSystem(), interval: 50)   // Phase 28: Stationen reparieren (Materialsenke)
          .Add(new SpaceSim.Core.Combat.GateRepairSystem(), interval: SpaceSim.Core.Combat.GateRepairSystem.Interval);   // Phase 31: Tore reparieren, Notregel
 }

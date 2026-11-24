@@ -123,7 +123,7 @@ public sealed class OutpostDefenseSystem : ISimSystem
             Ship? best = null; float bd = reach;
             foreach (var id in u.Tracker.ParkedIn(sector.Id))
             {
-                if (!u.Ships.TryGetValue(id, out var s) || s.DockedAt.Value != 0 || u.Fights.IsEngaged(s.Id) || !s.Has(Capability.Combat) && !s.IsPlayer) continue;
+                if (!u.Ships.TryGetValue(id, out var s) || s.DockedAt.Value != 0 || u.Fights.IsEngaged(s.Id) || s.IsDerelict || !s.Has(Capability.Combat) && !s.IsPlayer) continue;
                 if (s.IsPlayer && s.Id != u.PlayerShip) continue;   // geparkte eigene Flottenschiffe nicht von sich aus
                 if (Flight.Cloak.HiddenFrom(u, s, u.Rules.StationSensorStrength)) continue;   // Tarnfeld: die Plattform bemerkt das Schiff nicht
                 if (PirateSystem.AtHome(u, s) || !Outposts.Hostile(u, st, s)) continue;

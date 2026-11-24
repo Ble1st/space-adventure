@@ -51,7 +51,7 @@ public static class SectorScan
             string role = s.Role switch
             {
                 ShipRole.Pirate => "Pirat", ShipRole.Police => "Polizei", ShipRole.Warship => "Kriegsschiff", ShipRole.Trader => "Händler", ShipRole.Miner => "Schürfer",
-                ShipRole.Builder => "Bauschiff", ShipRole.Salvager => "Bergung", ShipRole.Collector => "Gassammler", ShipRole.Smuggler => "Frachter", _ => own ? "eigenes Schiff" : "Schiff",
+                ShipRole.Builder => "Bauschiff", ShipRole.Salvager => "Bergung", ShipRole.Collector => "Gassammler", ShipRole.Smuggler => "Frachter", ShipRole.Derelict => "herrenlos", _ => own ? "eigenes Schiff" : "Schiff",
             };
             string owner = own ? "Du" : u.Actors.ContainsKey(s.Owner) ? u.ActorName(s.Owner) : "";
             string name = ActorNames.Tagged(u, s.Owner, OrderMove.ShipName(u, s.Id));

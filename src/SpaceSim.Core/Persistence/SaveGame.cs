@@ -890,6 +890,8 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MissionCargo { get; set; }
     /// <summary>Lücken gegenüber IP2 (additiv): vom Spieler vergebener Schiffsname; fehlt = Modellname.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Name { get; set; }
+    /// <summary>Herrenlose Schiffe (additiv): verfällt bei diesem Tick; fehlt = 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long DerelictUntil { get; set; }
     /// <summary>Phase 23 (additiv): Laufzeitzustand der Bordsysteme; fehlt = voll, ausgeglichen, unbeschädigt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipSystemsSave? Systems { get; set; }
 }

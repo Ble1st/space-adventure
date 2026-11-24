@@ -373,6 +373,7 @@ public class Phase26Tests
     public void Wrack_InhaltFristBergung_MitUndOhneBergungsgreifer_TraktorNurFracht()
     {
         var u = Standard();
+        u.Rules.DerelictShips = false;   // prüft die Wrackregel (Züge je Modul); herrenlose Schiffe (danach) ziehen sonst eine Zahl mehr
         var victim = NewShip(u, "unit_trader_100", ShipRole.Trader, u.FreeActor);
         Place(u, victim, Nebelmark, new Vec2(50f, 0f));
         var food = u.FindGood("food")!.Id;
