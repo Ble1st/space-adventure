@@ -38,6 +38,7 @@ public partial class SelfTest
 				var raider = u.ShipsById().First(ThreatMap.IsRaider);
 				if (raider.Transit is not null) u.FinishTransit(raider);
 				raider.Order = null;
+				raider.DockedAt = default;   // je nach Weltverlauf liegt der Kaperer angedockt im Versteck — angedockte Schiffe stehen nicht in der Scanliste
 				if (raider.Sector != me.Sector) u.MoveShip(raider, me.Sector);
 				raider.Position = me.Position + new Vec2(45f, 0f);
 				_hlRaider = raider.Id;
