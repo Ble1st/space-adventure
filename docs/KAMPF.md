@@ -303,3 +303,21 @@ Lücken gegenüber Interstellar Pilot 2. Schalter `derelictShips`, `derelictEven
 - **Panne** (Sektor-HQ, HQ, Polizei, Werft; Comms und Dock): Angebot nennt Ort und Modell; die Annahme legt das Schiff der Fraktion herrenlos an (nur mit diesem Auftrag übernehmbar, nicht verkäuflich). Übernommen folgt es dir; liegt es an der Auftragsstation angedockt, ist der Auftrag erfüllt (Belohnung 400 + 40 je Flugminute hin und zurück) und das Schiff geht an die Fraktion zurück. Fliegst du es selbst hin, stehst du danach zu Fuß in der Station (voriges Schiff wieder aktiv). Scheitern/Abbruch: die Fraktion holt das Schiff zurück.
 - **Schiff liefern** (Stationen mit Schiffshändler): gewünschtes Modell, Belohnung = Materialwert × 0,8 (über dem Hangar-Verkaufspreis 0,5 × Material); ein eigenes, dort angedocktes, nicht aktives Schiff ohne Fracht, Hülle ≥ 50 % über „Abliefern“ (`deliver:<id>`) übergeben.
 - Messung (Balance 20000 Ticks, Release): Hash 1099FCA5A206E3D8 → CC974841BE35485E (Zufallszahl beim Zerstören, Notsignal-Schiffe), Preise im Zielbereich, Verlustquote 0,28 % → 0,23 %.
+
+## Raketenlenkung und Gegenmaßnahmen
+
+Schalter `rules.missileGuidance` (Code aus = Phase-28-Verhalten, Standardwelt an). Aus lässt `WorldBuilder` alle Inhalte weg (`Content/GuidanceContent.Strip`: Ware `flare`, die vier neuen Module, die Fits von Donner/Lanze/Leviathan, die Lenkart der alten Werfer) — die Welt ist dann bitgleich zur Welt davor (Balance 20000 Ticks `--guidance off`: 13CBAFCC9C3470C4).
+
+**Lenkarten** (Modulfeld `guidance` am Raketenwerfer, reine Regeln in `Combat/Guidance.cs`):
+- **optisch** (`missile_launcher_optical_s`, billig): Start nur mit Sichtkontakt — Ziel nicht getarnt, kein Nebel, im räumlichen Gefecht höchstens 45° vor dem Bug; wird das Ziel während des Flugs verborgen, verfällt die Rakete („blind“, kein Zug). Im Nebel startet keine optische Rakete.
+- **Infrarot** (`missile_launcher_s`): Treffsicherheit × Wärmefaktor (0,6 ohne Schub … 1 bei voller Fahrt, +0,15 im Antriebsmodus); aktive Täuschkörper lenken sie mit 60 % ab („decoyed“).
+- **halbaktives Radar** (`missile_launcher_radar_s`): der Schütze muss das Ziel bis zum Einschlag in Waffenreichweite und (räumlich) 90° vor dem Bug halten; verliert er es oder verlässt das Gefecht, verfällt die Rakete („lock_lost“, kein Zug).
+- **aktives Radar** (`missile_launcher_s_mk2`): abfeuern und vergessen; ein laufender Störsender lenkt sie mit 50 % ab („jammed“).
+
+**Zufallszüge je Raketenauflösung:** höchstens einer für die Gegenmaßnahme (nur wenn eine zur Lenkart passende läuft), dann wie bisher Punktabwehr (1) und Trefferwurf (2) — höchstens vier. Start- und Erfassungsprüfungen ziehen nie.
+
+**Gegenmaßnahmen** (`Combat/Countermeasures.cs`): `flare_launcher_s` (Utility S, Magazin 6, eigene Ware „Täuschkörper“ aus dem Waffenwerk, Regale [2, 4] an Werft und Polizeiwache, Dienst „rearm:flares“, NPC-Einheiten laden an der Basis aus der Kasse) — ein Ausstoß wirkt 3 s; `jammer_s` (Utility S, Umschalter, kostet 3 Leistung solange er läuft). NPCs (und Flottenschiffe des Spielers) reagieren nach festen Regeln: Täuschkörper, wenn eine Infrarotrakete höchstens 2 s vor dem Einschlag ist; Störsender an, solange eine aktive Radarrakete anfliegt, sonst aus. KI-Modelle: Donner (Infrarot + optisch, Täuschkörper), Lanze (Infrarot + halbaktiv), Leviathan (Störsender statt Magazin). Werftregale klein (Täuschkörperwerfer [1, 1], übrige neue Module [0, 1]): mit [1, 2] fehlte den Farmen über die Saaten 0–3 in 15,9 % der Proben Wasser statt 13,0 % (Händlerfahrten für Modulzutaten), mit den kleinen Regalen 13,0 %.
+
+**Spieler:** Raketenwarnung als große Meldung, solange eine Rakete anfliegt („RAKETE! Infrarot · 2,0 s · ▲ von vorn — Täuschkörper!“, Restzeit läuft mit); Schächte „Täusch.“ (ein Ausstoß je Tipp) und „Störer“ (Umschalter) im Daumenbogen als eigene Gruppen (nicht von FEUER ausgelöst).
+
+**Messung** (Standardwelt, 20000 Ticks): Hash 13CBAFCC9C3470C4 → 8E072D5EDD08D01C, Preise im Zielbereich, Verlustquote 0,28 → 0,36 % (60000 Ticks: 0,41 %, Preise im Zielbereich). Ohne Krieg fliegen kaum Raketen (0–12 je Lauf), Täuschkörper und Störsender der KI kamen in diesen Läufen nicht zum Einsatz.

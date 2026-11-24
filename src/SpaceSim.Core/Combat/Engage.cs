@@ -96,6 +96,7 @@ public static class Engage
         u.Fights.Unmark(p.Ship);
         if (u.Ships.TryGetValue(p.Ship, out var ship))
         {
+            Countermeasures.OnLeave(u, ship);   // Raketenlenkung: NPC-Störsender aus
             // die Leistungsverteilung zurück (NPC-Taktik hatte sie verstellt); das aktive Spielerschiff behält, was die Person gewählt hat
             if (ship.Systems.Mode != p.PrevMode && ship.Id != u.PlayerShip) ShipSystems.SetMode(u, ship, p.PrevMode);
             // Phase 25 (Korrektur): räumlich bewegte NPCs stehen nach dem Gefecht nicht in einem Hindernis

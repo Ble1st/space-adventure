@@ -352,8 +352,11 @@ public sealed record PlayerSurrendered(bool ToPolice, SectorId Sector, float Val
 /// <summary>Phase 28: Rakete abgefeuert (Schiff oder Station <paramref name="FromStation"/>), Ziel Schiff oder Station; <paramref name="FlightTicks"/> = erwartete Flugzeit.</summary>
 /// <remarks>Runde 11: <c>Slot</c> = Werferslot des Schiffs bzw. Geschützindex der Station (Darstellung: Start am Schacht; −1 = unbekannt).</remarks>
 public sealed record MissileLaunched(int Encounter, SectorId Sector, ShipId Shooter, StationId FromStation, ShipId Target, StationId TargetStation, string Weapon, float FlightTicks, int Slot = -1) : SimEvent;
-/// <summary>Phase 28: Rakete am Ziel — <paramref name="Outcome"/> „hit“, „miss“, „intercepted“ (Punktabwehr) oder „lost“ (Ziel weg/entkommen).</summary>
+/// <summary>Phase 28: Rakete am Ziel — <paramref name="Outcome"/> „hit“, „miss“, „intercepted“ (Punktabwehr) oder „lost“ (Ziel weg/entkommen); mit Raketenlenkung
+/// auch „decoyed“ (Täuschkörper), „jammed“ (Störsender), „blind“ (optisch, Ziel verborgen), „lock_lost“ (halbaktiv, Schütze verlor die Erfassung).</summary>
 public sealed record MissileResolved(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, StationId TargetStation, string Outcome, float ShieldDamage, float HullDamage) : SimEvent;
+/// <summary>Raketenlenkung: Gegenmaßnahme benutzt — <paramref name="Kind"/> „flares“ (Täuschkörper ausgestoßen) oder „jammer“ (Störsender <paramref name="On"/>).</summary>
+public sealed record CountermeasureUsed(ShipId Ship, SectorId Sector, string Kind, bool On) : SimEvent;
 /// <summary>
 /// Gerätetest Phase 28 (Runde 6): der Spieler hat seine Belagerung verlassen; seine eigenen Schiffe brechen ab und folgen ihm. Runde 7: <paramref name="Won"/> =
 /// die Station ist ausgeschaltet bzw. gefallen (Siegmeldung statt „Rückzug“).

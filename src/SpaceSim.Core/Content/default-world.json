@@ -116,6 +116,7 @@
   "banditTreasuryTarget": 40000,
   "banditHoardShare": 0.0002,
   "banditFenceCap": 0,
+  "missileGuidance": true,
   "maxStations": 78,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
@@ -391,6 +392,15 @@
    "basePrice": 120,
    "volume": 1,
    "color": "#ff7af0"
+  },
+  {
+   "key": "flare",
+   "category": "flare",
+   "name": "Täuschkörper",
+   "form": "solid",
+   "basePrice": 10,
+   "volume": 1,
+   "color": "#ffb347"
   }
  ],
  "asteroidClasses": [
@@ -944,7 +954,12 @@
     "ammo": [3, 8],
     "missile": [2, 6],
     "missile_launcher_s": [2, 2],
-    "point_defense_s": [2, 3]
+    "point_defense_s": [2, 3],
+    "flare": [2, 4],
+    "flare_launcher_s": [1, 1],
+    "jammer_s": [0, 1],
+    "missile_launcher_optical_s": [1, 1],
+    "missile_launcher_radar_s": [1, 1]
    },
    "shipDealer": {
     "assembly": 0.05
@@ -1102,13 +1117,19 @@
      "ticks": 40,
      "in": { "steel": 2, "electronics": 1, "fuel_cells": 1 },
      "out": { "missile": 6 }
+    },
+    {
+     "ticks": 20,
+     "in": { "steel": 1, "copper": 1 },
+     "out": { "flare": 8 }
     }
    ],
    "stocks": {
     "platinum": [10, 10],
     "ammo": [10, 10],
     "steel": [5, 5],
-    "missile": [8, 8]
+    "missile": [8, 8],
+    "flare": [4, 4]
    }
   },
   {
@@ -1342,7 +1363,8 @@
     "ammo": [3, 8],
     "hull_plates": [8, 8],
     "electronics": [4, 4],
-    "missile": [2, 6]
+    "missile": [2, 6],
+    "flare": [2, 4]
    },
    "defense": { "hull": 1800, "shield": 300, "shieldRegen": 3, "armor": 60, "pointDefense": 0.25, "guns": ["weapon_laser_s", "weapon_laser_s", "weapon_massdriver_s"] }
   },
@@ -3902,6 +3924,7 @@
     "missileCapacity": 6
    },
    "damageType": "explosive",
+   "guidance": "infrared",
    "powerDraw": 2,
    "peakDraw": 1,
    "mass": 3,
@@ -3938,7 +3961,7 @@
   {"key": "weapon_laser_s_mk2", "name": "Laserkanone Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 9, "reload": 2, "range": 65, "accuracy": 0.87, "tracking": 0.8, "ammoPerShot": 0}, "damageType": "energy", "powerDraw": 4, "peakDraw": 1.5, "mass": 2, "cost": {"electronics": 3, "copper": 2, "titanium": 2}},
   {"key": "weapon_laser_m", "name": "Laserkanone M", "slot": "weapon", "size": "M", "tier": 2, "grants": ["Combat"], "stats": {"damage": 14, "reload": 2.5, "range": 70, "accuracy": 0.85, "tracking": 0.65, "ammoPerShot": 0}, "damageType": "energy", "powerDraw": 6, "peakDraw": 2, "mass": 4, "cost": {"electronics": 4, "copper": 3, "titanium": 3}},
   {"key": "weapon_massdriver_s_mk2", "name": "Kinetisches Geschütz Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 13, "reload": 3, "range": 50, "accuracy": 0.78, "tracking": 0.45, "ammoPerShot": 1, "ammoCapacity": 40}, "damageType": "kinetic", "powerDraw": 1.5, "peakDraw": 0.5, "mass": 3, "cost": {"steel": 3, "electronics": 2, "titanium": 2}},
-  {"key": "missile_launcher_s_mk2", "name": "Raketenwerfer Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 38, "reload": 8, "range": 120, "accuracy": 0.87, "tracking": 0.78, "ammoPerShot": 0, "missileSpeed": 38, "missileCapacity": 8}, "damageType": "explosive", "powerDraw": 2, "peakDraw": 1, "mass": 3, "cost": {"steel": 3, "electronics": 3, "fuel_cells": 1}},
+  {"key": "missile_launcher_s_mk2", "name": "Raketenwerfer Mk2", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 38, "reload": 8, "range": 120, "accuracy": 0.87, "tracking": 0.78, "ammoPerShot": 0, "missileSpeed": 38, "missileCapacity": 8}, "damageType": "explosive", "guidance": "radar_active", "powerDraw": 2, "peakDraw": 1, "mass": 3, "cost": {"steel": 3, "electronics": 3, "fuel_cells": 1}},
   {"key": "power_bank_s_mk2", "name": "Energiespeicher S Mk2", "slot": "storage", "size": "S", "tier": 2, "stats": {"powerStorage": 35}, "mass": 2, "cost": {"steel": 2, "copper": 3, "fuel_cells": 2}},
   {"key": "point_defense_s_mk2", "name": "Punktabwehr Mk2", "slot": "utility", "size": "S", "tier": 2, "grants": [], "stats": {"pointDefense": 0.5}, "powerDraw": 3, "mass": 2, "cost": {"electronics": 3, "copper": 1, "titanium": 2}},
   {"key": "reactor_m", "name": "Fusionsreaktor M", "slot": "reactor", "size": "M", "tier": 2, "stats": {"powerOutput": 24}, "mass": 7, "cost": {"steel": 6, "electronics": 4, "titanium": 3}},
@@ -3949,7 +3972,11 @@
   {"key": "gas_scoop_s", "name": "Gassammler S", "slot": "tool", "size": "S", "tier": 1, "grants": ["GasHarvest"], "stats": {"gasCollect": 1.5}, "powerDraw": 2, "mass": 1, "cost": {"steel": 2, "electronics": 1, "copper": 1}},
   {"key": "ion_engine_s", "name": "Ionentriebwerk S", "slot": "engine", "size": "S", "tier": 2, "stats": {"thrust": 128, "fuelUse": 0.001}, "fuel": [{"good": "ion_gas", "efficiency": 2.5}], "powerDraw": 4, "mass": 3, "cost": {"steel": 3, "electronics": 2, "wafers": 1}},
   {"key": "fusion_drive_l", "name": "Fusionstriebwerk L", "slot": "engine", "size": "L", "tier": 2, "stats": {"thrust": 300, "fuelUse": 0.0015}, "fuel": [{"good": "fusion_fuel", "efficiency": 5}], "powerDraw": 4, "mass": 7, "cost": {"steel": 8, "electronics": 4, "titanium": 3, "platinum": 2}},
-  {"key": "ion_engine_m", "name": "Ionentriebwerk M", "slot": "engine", "size": "M", "tier": 2, "stats": {"thrust": 192, "fuelUse": 0.0015}, "fuel": [{"good": "ion_gas", "efficiency": 2.5}], "powerDraw": 5, "mass": 5, "cost": {"steel": 5, "electronics": 3, "wafers": 1, "titanium": 1}}
+  {"key": "ion_engine_m", "name": "Ionentriebwerk M", "slot": "engine", "size": "M", "tier": 2, "stats": {"thrust": 192, "fuelUse": 0.0015}, "fuel": [{"good": "ion_gas", "efficiency": 2.5}], "powerDraw": 5, "mass": 5, "cost": {"steel": 5, "electronics": 3, "wafers": 1, "titanium": 1}},
+  {"key": "missile_launcher_optical_s", "name": "Optischer Raketenwerfer", "slot": "weapon", "size": "S", "tier": 1, "grants": ["Combat"], "stats": {"damage": 26, "reload": 7, "range": 90, "accuracy": 0.88, "tracking": 0.7, "ammoPerShot": 0, "missileSpeed": 40, "missileCapacity": 6}, "damageType": "explosive", "guidance": "optical", "powerDraw": 1, "peakDraw": 1, "mass": 2, "cost": {"steel": 2, "electronics": 1}},
+  {"key": "missile_launcher_radar_s", "name": "Radarwerfer (halbaktiv)", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 36, "reload": 8, "range": 130, "accuracy": 0.92, "tracking": 0.85, "ammoPerShot": 0, "missileSpeed": 45, "missileCapacity": 6}, "damageType": "explosive", "guidance": "radar_semi", "powerDraw": 3, "peakDraw": 1, "mass": 3, "cost": {"steel": 3, "electronics": 3, "wafers": 1}},
+  {"key": "flare_launcher_s", "name": "Täuschkörperwerfer", "slot": "utility", "size": "S", "tier": 1, "stats": {"flareCapacity": 6}, "mass": 1, "cost": {"steel": 1, "electronics": 1}},
+  {"key": "jammer_s", "name": "Störsender", "slot": "utility", "size": "S", "tier": 2, "stats": {"jamming": 1, "jamDraw": 3}, "mass": 1, "cost": {"electronics": 3, "wafers": 1}}
  ],
  "shipClasses": [
   {
@@ -5251,7 +5278,7 @@
     "reactor_mk2",
     "chem_engine_m",
     "missile_launcher_s",
-    "missile_launcher_s",
+    "missile_launcher_radar_s",
     "weapon_laser_s",
     "shield_mk1",
     "point_defense_s",
@@ -5266,9 +5293,9 @@
     "reactor_mk2",
     "chem_engine_s",
     "missile_launcher_s",
-    "missile_launcher_s",
+    "missile_launcher_optical_s",
     "shield_mk1",
-    null,
+    "flare_launcher_s",
     "power_bank_s"
    ]
   },
@@ -5327,7 +5354,7 @@
     "armor_plating_m",
     "armor_plating_m",
     "point_defense_s_mk2",
-    "weapon_magazine_s",
+    "jammer_s",
     "point_defense_s_mk2",
     "power_bank_s_mk2",
     "weapon_laser_m",

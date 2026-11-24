@@ -736,6 +736,7 @@ public class ConstructionTests
         // nur noch eine Baustelle. Der Test prüft den Bauablauf, nicht die Farm-Kalibrierung: Farmen ohne eigenen Wasserpuffer wie vorher.
         var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
         if (def.StationTypes.First(t => t.Key == "farm") is { Stocks: { } fs }) fs.Remove("water");
+        RaketenlenkungTests.RevertGuidance(def);   // Raketenlenkung (danach): ihre kleinen Werftregale verschieben den Weltpfad, der Lebenszyklus beginnt dann nur eine Baustelle — geprüft wird der Bauablauf
         var u = WorldBuilder.Build(def);
         u.Rules.DockDwellTicks = 0; u.Rules.DockDwellTicksPlayer = 0;   // Liegezeit (danach) verschiebt den Weltpfad; geprüft wird der Bauablauf
         int started = 0, done = 0, emergency = 0;

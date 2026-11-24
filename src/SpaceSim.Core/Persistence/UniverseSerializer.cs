@@ -63,6 +63,7 @@ public static class UniverseSerializer
         Fuel = m.FuelTypes.Select(f => new FuelSave { Good = u.Goods[f.Good].Key, Efficiency = f.Efficiency }).ToList(),
         UpgradeTo = m.UpgradeTo, UpgradeCost = m.UpgradeTo is null ? null : new Dictionary<string, float>(m.UpgradeCost),
         DamageType = m.IsWeapon ? m.DamageType.ToString().ToLowerInvariant() : null,
+        Guidance = m.Guidance == MissileGuidance.None ? null : Combat.Guidance.Key(m.Guidance),
     };
 
     static Module FromSave(ModuleSave m, Dictionary<string, GoodId> goodId) => new()
@@ -77,6 +78,7 @@ public static class UniverseSerializer
             f.Efficiency)).ToList(),
         UpgradeTo = m.UpgradeTo, UpgradeCost = m.UpgradeCost is null ? new Dictionary<string, float>() : new Dictionary<string, float>(m.UpgradeCost),
         DamageType = m.DamageType is { } dt && Enum.TryParse<DamageType>(dt, ignoreCase: true, out var d) ? d : DamageType.Energy,
+        Guidance = Combat.Guidance.TryParse(m.Guidance),
     };
 
     static ShipClassSave ToSave(ShipClass c) => new()
@@ -411,6 +413,7 @@ public static class UniverseSerializer
                 Name = sh.CustomName.Length > 0 ? sh.CustomName : null,
                 JumpTarget = sh.JumpTarget.Value, JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpTarget.Value != 0 ? sh.JumpFrom : null,   // Sprungantrieb
                 JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
+                FlaresMissing = sh.FlaresMissing, FlaresUntil = sh.FlaresUntil, JammerOn = sh.JammerOn,   // Raketenlenkung: Gegenmaßnahmen
                 Systems = ToSave(sh.Systems),
             });
         if (u.Squadrons.Count > 0)
@@ -801,6 +804,7 @@ public static class UniverseSerializer
                 CustomName = sh.Name ?? "",
                 JumpTarget = new SectorId(sh.JumpTarget), JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpFrom ?? default,   // Sprungantrieb
                 JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
+                FlaresMissing = sh.FlaresMissing, FlaresUntil = sh.FlaresUntil, JammerOn = sh.JammerOn,   // Raketenlenkung: Gegenmaßnahmen
                 Systems = FromSave(sh.Systems),
             };
             // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)

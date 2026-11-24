@@ -85,6 +85,12 @@ public static class WeaponBays
     /// <summary>Gasernte: Gassammler als eigener Schacht (Umschalter „Gas“: schöpft, solange das Schiff in einem Gasfeld steht).</summary>
     public static WeaponBay Gas { get; } = new() { Key = "gas", Name = "Gas", Facing = Facing.Bow, ArcDegrees = 360f, Range = 0f };
 
+    /// <summary>Raketenlenkung: Täuschkörperwerfer als eigener Schacht (Taste „Täusch.“: ein Ausstoß je Tippen, wirkt gegen Infrarotraketen).</summary>
+    public static WeaponBay Flares { get; } = new() { Key = "flares", Name = "Täusch.", Facing = Facing.Bow, ArcDegrees = 360f, Range = 0f };
+
+    /// <summary>Raketenlenkung: Störsender als eigener Schacht (Umschalter „Störer“, wirkt gegen aktive Radarraketen, kostet Leistung).</summary>
+    public static WeaponBay Jammer { get; } = new() { Key = "jammer", Name = "Störer", Facing = Facing.Bow, ArcDegrees = 360f, Range = 0f };
+
     /// <summary>Anzeigetext des Kontaktschachts.</summary>
     /// <summary>Phase 32: Text mit Ankerzustand — „verankert · Abbau läuft“ / „Anker fliegt“; kurz nach einem Abriss dessen Grund.</summary>
     public static string ContactText(ContactState state, bool anchors, string? broke = null) =>
@@ -135,11 +141,15 @@ public static class WeaponBays
         // Sprungantrieb und Tarnfeld: eigene Schächte am Ende (eigene Gruppen im Daumenbogen)
         bool jump = SpaceSim.Core.Flight.JumpDrive.Fitted(u, ship), cloak = SpaceSim.Core.Flight.Cloak.Fitted(u, ship);
         bool gas = SpaceSim.Core.Mining.GasHarvest.HasTool(ship);   // Gasernte: Umschalter „Gas“
-        if (!jump && !cloak && !gas) return bays;
+        bool guided = SpaceSim.Core.Combat.Guidance.Active(u);   // Raketenlenkung: Täuschkörper, Störsender
+        bool flares = guided && SpaceSim.Core.Combat.Countermeasures.HasFlares(ship), jammer = guided && SpaceSim.Core.Combat.Countermeasures.HasJammer(ship);
+        if (!jump && !cloak && !gas && !flares && !jammer) return bays;
         var list = bays.ToList();
         if (gas) list.Add(Gas);
         if (jump) list.Add(Jump);
         if (cloak) list.Add(Cloak);
+        if (flares) list.Add(Flares);
+        if (jammer) list.Add(Jammer);
         return list;
     }
 

@@ -3,6 +3,9 @@ namespace SpaceSim.Core.Model;
 /// <summary>Phase 24: Schadensart einer Waffe (KAMPF.md 3.4): Energie ist stark gegen Schild und schwach gegen Panzerung, kinetisch umgekehrt.</summary>
 public enum DamageType { Energy, Kinetic, Explosive }
 
+/// <summary>Raketenlenkung (KAMPF.md „Raketenlenkung“): keine (Phase 28), optisch, Infrarot, halbaktives Radar, aktives Radar.</summary>
+public enum MissileGuidance { None, Optical, Infrared, SemiActive, ActiveRadar }
+
 
 /// <summary>Phase 24: Anlass eines Gefechts (KAMPF.md 4.1); Phase 25: <see cref="Assault"/> = der Spieler greift ein Schiff an (Schuss auf ein fremdes Schiff);
 /// Phase 27: <see cref="Arrest"/> = die Polizei stellt einen gesuchten Spieler (Fahndungsstufe ≥ 3) als echtes Gefecht; Phase 28: <see cref="Siege"/> = Angriff

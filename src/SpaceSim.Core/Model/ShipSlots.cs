@@ -58,6 +58,8 @@ public sealed class Module
     /// Ein Modul ist eine Waffe, wenn <c>damage</c> &gt; 0 (<see cref="IsWeapon"/>).
     /// </summary>
     public DamageType DamageType;
+    /// <summary>Raketenlenkung (JSON <c>guidance</c>: optical/infrared/radar_semi/radar_active; fehlt = keine Lenkart, altes Verhalten). Nur bei Raketenwerfern.</summary>
+    public MissileGuidance Guidance;
 
     /// <summary>Phase 24: Waffe mit Waffenwerten (stats damage &gt; 0)?</summary>
     public bool IsWeapon => Stats.TryGetValue("damage", out var d) && d > 0f;

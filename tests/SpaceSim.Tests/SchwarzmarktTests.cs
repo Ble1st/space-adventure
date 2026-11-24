@@ -272,10 +272,14 @@ public class SchwarzmarktTests
     [Fact]
     public void Beute_ImHehlerlager_OhneEinflussAufNpc()
     {
-        var on = DemoUniverse.Create();
+        // Raketenlenkung (danach) in beiden Welten aus: ihr Zufallspfad führt Kaperer anders zum Versteck, wo „Schwarzmarkt an/aus“ (BlackMarket.IsAt) mitspielt — hier geht es nur um die Beuteablage
+        var defOn = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        RaketenlenkungTests.RevertGuidance(defOn);
+        var on = WorldBuilder.Build(defOn);
         on.Rules.BlackMarketNpc = false; on.Rules.Smugglers = false;   // Ausbau Punkt 5: Schmuggler kaufen Hehlerware (eigene Tests); hier geht es nur um die Ablage der Beute; NPCs beim Hehler ändern das Verhalten absichtlich (SchwarzmarktNpcTests)
         var defOff = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
         RevertSchwarzmarkt(defOff);
+        RaketenlenkungTests.RevertGuidance(defOff);
         var off = WorldBuilder.Build(defOff);
         on.Rules.DockDwellTicks = off.Rules.DockDwellTicks = 0; on.Rules.DockDwellTicksPlayer = off.Rules.DockDwellTicksPlayer = 0;   // Liegezeit (danach) — hier nur die Beuteablage
         new SimulationRunner().Run(on, 6000);

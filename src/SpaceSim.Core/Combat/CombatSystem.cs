@@ -265,6 +265,7 @@ public sealed class CombatSystem : ISimSystem
             // Munition sparen: Waffen mit Munition schießen erst ab einer Mindest-Trefferchance (Regel, rein — kein Zufallszug)
             if ((w.AmmoPerShot > 0f || missile) && r.AmmoActive && Hit.Chance(w, tProfile, dist, factor, r) < r.AmmoMinHitChance) continue;
             if (SparesLoot(u, e, p, target, w)) continue;   // Phase 29: Kaperer vernichten ihre Beute nicht
+            if (missile && Guidance.LaunchIssue(u, e, p, m, target, tp.Pos) is not null) continue;   // Raketenlenkung: optisch ohne Sichtkontakt nicht
             if (!Gunnery.DrawPower(u, ship, w, out float reload)) continue;   // keine Leistung: die Waffe schweigt
             if (missile)
             {
@@ -308,6 +309,7 @@ public sealed class CombatSystem : ISimSystem
             if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), FiringArc.Bearing(p.Dir), p.Pos, st.Position)) return;
         }
         else factor = Hit.ArcFactor(r, slot < ship.Slots.Count ? ship.Slots[slot] : new ClassSlot());
+        if (missile && Guidance.LaunchIssue(u, e, p, m, null, st.Position) is not null) return;   // Raketenlenkung
         if (!Gunnery.DrawPower(u, ship, w, out float reload)) return;
         if (missile)
         {

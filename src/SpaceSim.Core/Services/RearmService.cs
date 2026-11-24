@@ -16,6 +16,8 @@ public sealed class RearmService : IStationService
     public const string Fill = "fill";
     /// <summary>Phase 28: Raketenmagazin füllen („rearm:missiles“; nur Schiffe mit Raketenwerfer, nur mit Kriegsführung).</summary>
     public const string MissilesKey = "missiles";
+    /// <summary>Raketenlenkung: Täuschkörper nachladen („rearm:flares“; nur Schiffe mit Täuschkörperwerfer, nur mit Raketenlenkung).</summary>
+    public const string FlaresKey = "flares";
     public static readonly int[] Tiers = { 10, 30 };
 
     public string Key => ServiceKey;
@@ -45,6 +47,7 @@ public sealed class RearmService : IStationService
         foreach (int t in Tiers)
             list.Add(new ServiceOffer($"{ServiceKey}:{t}", $"{t} {g.Name} laden", price, Deliverable(u, station, ship, t), g.Id, e.Amount, held) { Note = note });
         if (MissileOffer(u, station, ship) is { } mo) list.Add(mo);   // Phase 28
+        if (FlareOffer(u, station, ship) is { } fo) list.Add(fo);   // Raketenlenkung
         return list;
     }
 
@@ -59,9 +62,36 @@ public sealed class RearmService : IStationService
         return new ServiceOffer($"{ServiceKey}:{MissilesKey}", $"Raketen laden ({mg.Name})", mprice, MathF.Max(0f, units), mg.Id, me.Amount, Missiles.Loaded(u, ship)) { Note = note };
     }
 
+    /// <summary>Raketenlenkung: Angebot „Täuschkörper laden“ (null = kein Werfer, Schalter aus oder Station ohne Täuschkörper).</summary>
+    static ServiceOffer? FlareOffer(Universe u, Station st, Ship ship)
+    {
+        if (!Guidance.Active(u) || !Countermeasures.HasFlares(ship) || Countermeasures.FlareGood(u) is not { } fg || !st.Market.TryGetValue(fg.Id, out var fe)) return null;
+        float price = Price(u, fe, fg);
+        float missing = Countermeasures.FlaresMissingNow(u, ship);
+        float units = MathF.Floor(MathF.Min(missing, fe.Amount));
+        if (price > 0f) units = MathF.Min(units, MathF.Floor(MathF.Max(0f, u.WalletOf(ship).Credits) / price));
+        string? note = missing < 1f ? "Täuschkörpermagazin ist voll." : fe.Amount < 1f ? "Keine Täuschkörper im Lager." : null;
+        return new ServiceOffer($"{ServiceKey}:{FlaresKey}", $"Täuschkörper laden ({fg.Name})", price, MathF.Max(0f, units), fg.Id, fe.Amount, Countermeasures.FlaresLoaded(u, ship)) { Note = note };
+    }
+
+    ServiceResult ExecuteFlares(Universe u, Station station, Ship ship)
+    {
+        if (!IsAvailable(u, station) || FlareOffer(u, station, ship) is not { } offer) return Fail("Hier gibt es keine Täuschkörper für dieses Schiff.");
+        if (!ship.IsPlayer) return Fail("Nur für den Spieler.");
+        if (offer.Amount < 1f) return Fail(offer.Note ?? "Nicht genügend Credits.");
+        var wallet = u.WalletOf(ship);
+        float before = wallet.Credits;
+        float got = Countermeasures.AtStation(u, ship, station, wallet, offer.Amount);
+        if (got <= 0f) return Fail("Nachladen fehlgeschlagen.");
+        float paid = before - wallet.Credits;
+        u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, $"{ServiceKey}:{FlaresKey}", offer.Good, got, -paid));
+        return new ServiceResult(true, got, -paid, $"{got:0} Täuschkörper geladen für {paid:0} Cr (Magazin {Countermeasures.FlaresLoaded(u, ship):0}/{ship.Stats.FlareCapacity:0}).");
+    }
+
     public ServiceResult Execute(Universe u, Station station, Ship ship, ServiceRequest request)
     {
         float want;
+        if (request.Offer == $"{ServiceKey}:{FlaresKey}") return ExecuteFlares(u, station, ship);   // Raketenlenkung
         if (request.Offer == $"{ServiceKey}:{MissilesKey}") return ExecuteMissiles(u, station, ship, request);   // Phase 28
         if (request.Offer == $"{ServiceKey}:{Fill}") want = float.MaxValue;
         else if (request.Offer.StartsWith($"{ServiceKey}:", StringComparison.Ordinal) && int.TryParse(request.Offer[(ServiceKey.Length + 1)..], out int v)
