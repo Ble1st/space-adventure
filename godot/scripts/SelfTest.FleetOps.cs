@@ -41,9 +41,9 @@ public partial class SelfTest
 	}
 
 	/// <summary>Tippt eine Taste: Bild 0 hineinrollen, Bild 2 drücken, Bild 3 loslassen. Liefert true, wenn fertig.</summary>
-	bool FoTap(int f, int at, System.Func<Ui.Kit.KitButton?> pick, string what)
+	bool FoTap(int f, int at, System.Func<Ui.Kit.KitButton?> pick, string what, bool quiet = false)
 	{
-		if (f == at) { if (pick() is { } b) FoScrollTo(b); else Fail($"Flottenbefehle: Taste {what} fehlt ({_m.HudRef.CcFleet.TestMessage}; Ziele {string.Join(",", _m.HudRef.CcFleet.TestTargetLabels)}; T #{_foT.Value})"); }
+		if (f == at) { if (pick() is { } b) FoScrollTo(b); else if (!quiet) Fail($"Flottenbefehle: Taste {what} fehlt ({_m.HudRef.CcFleet.TestMessage}; Ziele {string.Join(",", _m.HudRef.CcFleet.TestTargetLabels)}; T #{_foT.Value})"); }
 		else if (f == at + 2) { if (pick() is { } b) TapNode(b, true); }
 		else if (f == at + 3 && _p28Press is { } p) Tap(p, false);
 		return f >= at + 3;
@@ -153,16 +153,17 @@ public partial class SelfTest
 		if (f == s4 - 1) FoEnsureRoute(u);   // neues Spiel mit Zufallsseed: mindestens eine lohnende Route in der Nähe sicherstellen
 		if (f >= s4 && f < s4 + 4) { FoTap(f, s4, () => FoRowButton(cc, FoRow(u, _foM)), "Händler"); return false; }
 		if (f >= s4 + 5 && f < s4 + 9) { FoTap(f, s4 + 5, () => fs.TestCommandButton(CommandKinds.Deliver), "Liefern"); return false; }
-		if (f == s4 + 9)
+		// Wiederholung: im langen Lauf kam der erste Tipp auf „Liefern“ nicht an (Taste blieb aus) — ein zweiter echter Tipp, wenn nötig
+		if (f >= s4 + 9 && f < s4 + 13)
 		{
-			var db = fs.TestCommandButton(CommandKinds.Deliver);
-			var routes = FleetTargets.Deliver(u, u.Ships[_foM], 0f, 1.3f);
-			GD.Print($"[selftest] Liefern-Diagnose: Taste {(db is null ? "fehlt" : db.State.ToString())}, Routen {routes.Count}, AllCmds {Ui.Screens.FleetScreen.TestAllCommands}, Befehl M {u.Ships[_foM].Command?.Kind}");
+			if (f == s4 + 9) GD.Print($"[selftest] Liefern: Taste nach dem Tipp {fs.TestCommandButton(CommandKinds.Deliver)?.State}");
+			if (fs.TestCommandButton(CommandKinds.Deliver)?.State != Ui.Kit.KitButtonState.On || f > s4 + 9) FoTap(f, s4 + 9, () => fs.TestCommandButton(CommandKinds.Deliver)?.State == Ui.Kit.KitButtonState.On ? null : fs.TestCommandButton(CommandKinds.Deliver), "Liefern (2)", quiet: true);
+			return false;
 		}
-		if (f >= s4 + 10 && f < s4 + 14) { FoTap(f, s4 + 10, () => FoTarget(_ => true), "Lieferroute"); return false; }
-		if (f == s4 + 15) { Check(u.Ships[_foM].Command is DeliverCommand, $"Liefern per Tipp ({fs.TestMessage})"); return false; }
+		if (f >= s4 + 14 && f < s4 + 18) { FoTap(f, s4 + 14, () => FoTarget(_ => true), "Lieferroute"); return false; }
+		if (f == s4 + 19) { Check(u.Ships[_foM].Command is DeliverCommand, $"Liefern per Tipp ({fs.TestMessage})"); return false; }
 		// ── Sammelpunkt: C → „Sammeln“ → D „mit“ → Station ──
-		int s5 = s4 + 17;
+		int s5 = s4 + 21;
 		if (f >= s5 && f < s5 + 4) { FoTap(f, s5, () => FoRowButton(cc, FoRow(u, _foC)), "Schiff C"); return false; }
 		if (f >= s5 + 5 && f < s5 + 9) { FoTap(f, s5 + 5, () => fs.TestCommandButton(CommandKinds.Rally), "Sammeln"); return false; }
 		if (f >= s5 + 10 && f < s5 + 14) { FoTap(f, s5 + 10, () => fs.TestGroupButton(_foD), "„mit“ D"); return false; }
