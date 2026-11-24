@@ -108,7 +108,7 @@ public sealed partial class ScanPanel : Control
 		if (selected is not null) _selected = selected;
 		// Entfernungen ändern sich ständig — neu aufbauen nur bei anderer Zusammensetzung oder grob anderen Abständen (alle 50 m)
 		string sig = _filter + "|" + string.Join(";", items.Where(c => Pass(_filter, c)).Select(c => $"{(int)c.Kind}:{c.Id}:{(int)(c.Distance / 50f)}:{c.Hostile}")) + "|" + _selected;
-		if (sig == _sig) return;
+		if (sig == _sig && _box is not null && _box.GetChildCount() > 0 || _box is null) return;   // vor _Ready nichts merken (sonst bleibt die Liste leer)
 		_sig = sig;
 		Rebuild();
 	}
@@ -157,6 +157,9 @@ public sealed partial class ScanPanel : Control
 			default: g.DrawLine(p + new Vector2(-7, -7), p + new Vector2(7, 7), col, 3); g.DrawLine(p + new Vector2(7, -7), p + new Vector2(-7, 7), col, 3); break;
 		}
 	}
+
+	/// <summary>Beim Öffnen sofort neu aufbauen.</summary>
+	public void Invalidate() => _sig = "";
 
 	// Selbsttest
 	public int TestRowCount => _box?.GetChildCount() ?? 0;

@@ -81,7 +81,14 @@ public partial class UiShots : Node
 			case 1: _m.TestAimAtNearestRock(); _stage = 2; _wait = 15; break;
 			case 2: Capture("02-hud-ziel-in-laserreichweite.png"); _stage = 3; _wait = 15; break;
 			case 3: _m.TestTeleportNearStation(); _stage = 4; _wait = 15; break;
-			case 4: Capture("03-hud-nahe-station-kontext.png"); _stage = 5; _wait = 15; break;
+			case 4: Capture("03-hud-nahe-station-kontext.png"); _m.HudRef.Flight.SetShelfOpen(true); _stage = 4001; _wait = 10; break;
+			// Nutzerwunsch: Regal über „☰“ unten links, mit offenem Kamerafeld, danach die Scanliste
+			case 4001: Capture("03a-hud-regal.png"); _stage = 4005; _wait = 3; break;
+			case 4005: _m.HudRef.Flight.SetCamOpen(true); _stage = 4002; _wait = 10; break;
+			case 4002: Capture("03b-hud-regal-kamera.png"); _stage = 4006; _wait = 3; break;
+			case 4006: _m.HudRef.Flight.SetShelfOpen(false); _m.HudRef.Flight.SetScanOpen(true); _stage = 4003; _wait = 20; break;
+			case 4003: Capture("03c-hud-scanliste.png"); _stage = 4004; _wait = 3; break;   // erst nach dem Bild schließen (Capture zeichnet im nächsten Bild)
+			case 4004: _m.HudRef.Flight.SetScanOpen(false); _stage = 5; _wait = 10; break;
 			case 5: _m.TestOpenCommand(); _stage = 6; _wait = 15; break;
 			case 6: Capture("04-hamburger-menue.png"); _stage = 60; _wait = 10; break;
 			case 60: _m.HudRef.Screens.Hide(); _stage = 7; _wait = 10; break;   // Schließen erst im Folgeframe, sonst fehlt das Menü im Bild

@@ -106,8 +106,10 @@ public sealed class FlightHudLayout
         Set(HudItem.TopBar, x0, y0, a.W, BarH);
         const float iw = 72f, ih = Tap, ig = 6f;
         float ix = x1 - 6f - iw;
-        foreach (var it in new[] { HudItem.Hamburger, HudItem.Fast, HudItem.Command, HudItem.Map, HudItem.Comms })
+        // Nutzerwunsch: Karte und Nachrichten stehen im Regal über „☰“ unten links — in der Kopfleiste nur noch Befehle, Zeit und Pause
+        foreach (var it in new[] { HudItem.Hamburger, HudItem.Fast, HudItem.Command })
         { Set(it, ix, y0 + 3, iw, ih); ix -= iw + ig; }
+        foreach (var it in new[] { HudItem.Map, HudItem.Comms }) { Set(it, 0, 0, 0, 0); _hidden.Add(it); }
         float creditsW = 170f;
         Set(HudItem.Credits, ix + iw + ig - 12f - creditsW, y0 + 14, creditsW, 42);
         float chipX = x0 + 12f, chipW = MathF.Max(0f, _rects[HudItem.Credits].X - 8f - chipX);

@@ -670,8 +670,10 @@ public partial class SelfTest : Node
 					Check(_m.Docked, "Am Lagerhaus angedockt");
 					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Storage && a.Available), "Andock-Menü zeigt den Bereich „Lager“");
 					// Phase 12: Lager verdrängt das Taxi nicht mehr — neun Kacheln im rollbaren Raster
-					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Taxi && a.Available) && _m.TestDockAreas().Count == 9 && _m.HudRef.DockMenu.TestTiles == 9,
-						$"Lagerhaus: Lager und Taxi nebeneinander, {_m.HudRef.DockMenu.TestTiles} Kacheln im Andock-Menü");
+					// UI-Umbau: nur verfügbare Dienste als Kacheln (keine grauen „Nicht hier“)
+					int availTiles = _m.TestDockAreas().Count(a => a.Available);
+					Check(_m.TestDockAreas().Any(a => a.Id == Ui.Screens.DockAreas.Taxi && a.Available) && _m.HudRef.DockMenu.TestTiles == availTiles && availTiles < _m.TestDockAreas().Count,
+						$"Lagerhaus: Lager und Taxi nebeneinander, {_m.HudRef.DockMenu.TestTiles} Kacheln = {availTiles} verfügbare von {_m.TestDockAreas().Count}");
 					var pl = _m.Session.Player;
 					var ice = uni.FindGood("ice")!.Id;
 					pl.Cargo[ice] = 7f;
@@ -2881,11 +2883,21 @@ public partial class SelfTest : Node
 	/// <summary>Drückt bzw. lässt die erste sichtbare Kit-Taste mit dieser Beschriftung unter <paramref name="root"/> los (über einen simulierten Tipp).</summary>
 	void PressButton(Node root, string label, bool down)
 	{
-		if (down) _p28Press = Buttons(root).FirstOrDefault(b => b.Text == label && b.IsVisibleInTree())?.GetGlobalRect().GetCenter();
+		if (down)
+		{
+			// UI-Umbau (vier Reiter mit Unterreitern): alte Leistennamen auf die neuen Unterreiter abbilden — der Unterreiter hat Vorrang (der Reiter „Besitz“
+			// hieße sonst gleich wie der frühere Bereich „Besitz“ = heute „Übersicht“)
+			string want = CcAlias.TryGetValue(label, out var al) && Buttons(root).Any(b => b.Text == al && b.IsVisibleInTree()) ? al : label;
+			_p28Press = Buttons(root).FirstOrDefault(b => b.Text == want && b.IsVisibleInTree())?.GetGlobalRect().GetCenter();
+		}
 		if (_p28Press is { } at) Tap(at, down);
 		else Fail($"Taste „{label}“ nicht gefunden (Bildschirm {_m.HudRef.Screens.Current?.Id ?? "-"}; Tasten {string.Join(",", Buttons(root).Where(b => b.IsVisibleInTree()).Select(b => b.Text))}; alle {string.Join(",", Buttons(root).Select(b => b.Text))}; wischt {Ui.Kit.KitScroll.Dragging}, gedrückt {Ui.Kit.KitButton.AnyHeld}, Zeilen {_m.HudRef.DockTrade.TestRowCount}, Station {_m.HudRef.DockCtx.Station?.Name}, gleiche Welt {ReferenceEquals(_m.HudRef.DockCtx.U, _m.Session.U)}, Meldung {_m.HudRef.DockTrade.TestMessage})");
 	}
 	Vector2? _p28Press;
+	static readonly Dictionary<string, string> CcAlias = new()
+	{
+		["Flotte"] = "Schiffe & Befehle", ["Besitz"] = "Übersicht", ["Meine Fraktion"] = "Deine Fraktion", ["Comms"] = "Nachrichten", ["Universum"] = "Universum",
+	};
 	/// <summary>Runde 28: Beschriftung der Kauftaste im Handels-Editor — „Kaufen“ oder „n kaufen“, wenn die gewählte Menge nicht ganz kaufbar ist.</summary>
 	static string BuyLabel(Node root) => Buttons(root).FirstOrDefault(b => (b.Text == "Kaufen" || b.Text.EndsWith(" kaufen")) && b.IsVisibleInTree())?.Text ?? "Kaufen";
 	bool _p30Engage = true;

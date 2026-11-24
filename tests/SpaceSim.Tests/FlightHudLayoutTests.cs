@@ -83,8 +83,9 @@ public class FlightHudLayoutTests
         var l = FlightHudLayout.Compute(1280, 720, None, 3, 0, false);
         Assert.Equal(0f, l[HudItem.TopBar].Y);
         Assert.Equal(1280f, l[HudItem.TopBar].W);
-        foreach (var it in new[] { HudItem.Hamburger, HudItem.Map, HudItem.Comms, HudItem.Command, HudItem.Fast })
+        foreach (var it in new[] { HudItem.Hamburger, HudItem.Command, HudItem.Fast })
             Assert.True(l[it].Bottom <= FlightHudLayout.BarH + 0.01f, $"{it} in der Kopfleiste");
+        Assert.True(l.Hidden(HudItem.Map) && l.Hidden(HudItem.Comms), "Karte und Nachrichten im Regal unten links");
         var s = l[HudItem.Slider];
         Assert.True(s.W > s.H && s.Right > 1240f && s.Bottom > 690f, $"Regler waagerecht unten rechts {s}");
         Assert.True(l[HudItem.Scan].X < 40f && l[HudItem.Scan].Bottom > 690f, "„☰ Sektor“ unten links");

@@ -136,7 +136,7 @@ public partial class Main : Node3D
 		_hud.MissionEdges = MissionScreenPositions;   // Runde 41: Gold-Randpfeile der Missionsziele
 		_hud.FreeField = () => _session != null ? FreeFieldPixels() : new Rect2();   // Runde 16
 		_hud.TargetEdge = TargetEdge;
-		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); };
+		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); OpenMapWindow(); };   // Nutzerwunsch: große Karte als eigenes Fenster (Universum/Sektor), die kleine Sternenkarte entfällt
 		_hud.Flight.HamburgerPressed += () => { _sfx.Play(SfxId.Click); ToggleCommand(); };
 		WireScanAndBar();   // UI-Umbau: Kopfleiste, Scanliste, Frachtzeile
 		_hud.Flight.AutopilotPressed += () => { if (SpectateBlocks()) { _hud.Flight.SetAutopilot(false); return; } ToggleAutopilot(); };
@@ -834,7 +834,7 @@ public partial class Main : Node3D
 	{
 		switch (action)
 		{
-			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); _hud.Map.Open(_session.U, _session.U.PlayerSector, _target?.Sector); break;
+			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); OpenMapWindow(); break;
 			case "economy": _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); ShowBase(); break;
 			case "save": case "load": OnMenu(action); break;
 			// Runde 13 (Handy-Test „Musik reagiert nicht“): die Ton-Schalter des Hamburger-Menüs kamen hier an, behandelt wurden sie nur in OnMenu
@@ -845,7 +845,7 @@ public partial class Main : Node3D
 			// Kommandozentralen-Bereich); jetzt umgeschaltet, Menü bleibt offen (Beschriftung zeigt die neue Stufe), Hinweis liegt über dem Menü
 			case "ui_size": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("ui_size"); Ui.Kit.UiScale.Cycle(); _hud.UpdateLayerScales(); _hud.Command.SetAudioState(); _hud.Toast(Ui.Kit.UiScale.ShortText(), 4f); break;   // Runde 34: kurz (Handytest r33)
 			// HUD-Neu: Kommandozentrale und Zeitraffer stehen im Menü (vorher eigene Tasten oben rechts)
-			case "command": _sfx.Play(SfxId.Click); _hud.Map.Visible = false; OpenCcArea(CommandAreas.Universe); break;
+			case "command": _sfx.Play(SfxId.Click); _hud.Map.Visible = false; OpenCcArea(CommandAreas.Fleet); break;
 			case "fast": _sfx.Play(SfxId.Click); _fast = !_fast; _hud.Command.SetFast(_fast); _hud.Toast(_fast ? "Zeitraffer ×10 an" : "Zeitraffer aus (×1)"); break;
 			case "cam_debug": _camDebug = !_camDebug; _hud.SetDebugLine(_camDebug ? CameraDebugLine() : null); _hud.Toast(_camDebug ? "Kamera-Diagnose an" : "Kamera-Diagnose aus"); break;   // Runde 16
 			// Gerätetest Phase 27: „Neues Spiel“ startet nicht sofort ein Standardspiel — es führt zur Startpaket-Auswahl (System)

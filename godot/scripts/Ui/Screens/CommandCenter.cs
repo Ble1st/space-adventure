@@ -191,20 +191,25 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 		At(this, Text($"{(int)u.WalletOf(ship).Credits} Cr", L.Compact ? 20 : 24, Orange, HorizontalAlignment.Right), L.Credits.X, L.Credits.Y, L.Credits.W, 32);
 		At(this, Text($"#{ship.Id.Value} · {sector}", 14, Dim, HorizontalAlignment.Right), L.Credits.X, L.Credits.Y + 32, L.Credits.W, 22);
 		string activeGroup = CommandAreas.GroupOf(AreaId);
-		var groups = CommandAreas.Groups.Where(g => g.Key != "dev" || OS.IsDebugBuild()).ToList();
+		// Nutzerwunsch: die Karte ist ein eigenes Fenster — dort nur Universum/Sektor als Reiter; in der Zentrale fehlt der Reiter „Karte“
+		bool mapWindow = activeGroup == "map";
+		var groups = mapWindow
+			? CommandAreas.Groups.First(g => g.Key == "map").Subs.Select(s => (Key: "sub:" + s.Id, s.Label, Subs: new[] { (s.Id, s.Label) })).ToList()
+			: CommandAreas.Groups.Where(g => g.Key != "map" && (g.Key != "dev" || OS.IsDebugBuild())).Select(g => (g.Key, g.Label, g.Subs)).ToList();
 		float gap = 8f, tw = MathF.Min(200f, (L.Rail.W - gap * (groups.Count - 1)) / groups.Count);
 		int unread = SpaceSim.Core.Comms.Comms.Unread(u);   // Runde 40: echter Zähler aus dem Posteingang
 		for (int gi = 0; gi < groups.Count; gi++)
 		{
 			var g = groups[gi];
 			var b = At(this, new KitButton(g.Label, new Vector2(tw, L.Rail.H)) { FontSize = L.Compact ? 17 : 19 }, L.Rail.X + gi * (tw + gap), L.Rail.Y);
-			if (g.Key == activeGroup) b.State = KitButtonState.On;
+			if (g.Key == activeGroup || mapWindow && g.Subs[0].Id == AreaId) b.State = KitButtonState.On;
 			if (g.Key == "news" && unread > 0) { b.Detail = unread.ToString(); b.DetailColor = Orange; }
 			string first = g.Subs[0].Id;
 			b.Pressed += () => AreaSelected?.Invoke(first);
 			_tabs[g.Key] = b;
 		}
-		var subs = CommandAreas.Groups.FirstOrDefault(g => g.Key == activeGroup).Subs ?? Array.Empty<(string, string)>();
+		var subs = mapWindow ? Array.Empty<(string, string)>() : CommandAreas.Groups.FirstOrDefault(g => g.Key == activeGroup).Subs ?? Array.Empty<(string, string)>();
+		if (mapWindow) At(this, Text("Karte", 22, Cyan), L.SubRail.X + 8, L.SubRail.Y + 8, 300, 32);
 		float sx = L.SubRail.X;
 		foreach (var (sid, slabel) in subs)
 		{

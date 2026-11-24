@@ -22,10 +22,12 @@ public partial class Main
 	void WireScanAndBar()
 	{
 		_hud.Flight.CommsPressed += () => { _sfx.Play(SfxId.Click); OpenCcArea(Ui.Screens.CommandAreas.Comms); };
-		_hud.Flight.CommandPressed += () => { _sfx.Play(SfxId.Click); OpenCcArea(Ui.Screens.CommandAreas.Universe); };
+		_hud.Flight.CommandPressed += () => { _sfx.Play(SfxId.Click); OpenCcArea(Ui.Screens.CommandAreas.Fleet); };   // Karte ist ein eigenes Fenster — die Zentrale beginnt bei „Besitz“
 		_hud.Flight.FastPressed += () => OnCommandAction("fast");
 		_hud.Flight.CargoPressed += () => { _sfx.Play(SfxId.Click); OpenInventory(); };
 		_hud.Flight.ScanPressed += () => { _sfx.Play(SfxId.Click); _scanAt = -1; };
+		// Nutzerwunsch: Kameraoptionen im Regal unten links (dieselben Aktionen wie im Pause-Menü)
+		_hud.Flight.CameraAction += k => { OnCommandAction(k); _hud.Flight.SetCameraMode(_orbit.Mode); };
 		var p = _hud.Flight.Scan;
 		p.Select += c => { ScanSelect(c); _hud.Flight.SetScanOpen(false); };
 		p.Autopilot += c =>
@@ -37,6 +39,17 @@ public partial class Main
 			ToggleAutopilot();
 		};
 		p.Hail += c => { ScanSelect(c); _hud.Flight.SetScanOpen(false); OpenHail(c); };
+	}
+
+	/// <summary>Nutzerwunsch: „Karte“ öffnet die große Karte als eigenes Fenster (Universum/Sektor umschaltbar), nicht mehr Teil der Kommandozentrale.
+	/// Vorgewählt ist der Sektor des Ziels, sonst der eigene.</summary>
+	void OpenMapWindow()
+	{
+		var u = _session.U;
+		_hud.Map.Visible = false;
+		var sel = _target?.Sector ?? u.PlayerSector;
+		if (u.Sectors.ContainsKey(sel)) _hud.CcUniverse.SelectedSector = sel;
+		OpenCcArea(Ui.Screens.CommandAreas.Universe);
 	}
 
 	/// <summary>UI-Umbau: Inventar = Schiffsmenü des aktiven Schiffs, Reiter „Inventar“.</summary>

@@ -615,8 +615,42 @@ public partial class FlightHud : Control, IScreen
 		_scanBtn = At(this, new KitButton("", new Vector2(84, 68)), 10, 642);
 		_scanBtn.Symbol = g => { foreach (var yy in new[] { 12f, 20f, 28f }) g.DrawRect(new Rect2(28, yy, 28, 4), UiKit.White);
 			if (_scanHostile > 0) { g.DrawCircle(new Vector2(70, 12), 10, UiKit.Red); UiKit.DrawText(g, 11, ThemeDB.FallbackFont, new Vector2(60, 17), _scanHostile.ToString(), 13, UiKit.White, HorizontalAlignment.Center, 20); }
-			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 58), _scanOpen ? "Schließen" : "Sektor", 14, UiKit.White, HorizontalAlignment.Center, 80); };
-		_scanBtn.Pressed += () => { SetScanOpen(!_scanOpen); ScanPressed?.Invoke(); };
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 58), _scanOpen || _shelfOpen ? "Schließen" : "Menü", 14, UiKit.White, HorizontalAlignment.Center, 80); };
+		// Nutzerwunsch: „☰“ unten links ist ein Regal — ein Tipp klappt darüber Scan, Nachrichten, Karte und Kamera auf
+		_scanBtn.Pressed += () =>
+		{
+			if (_scanOpen || _camOpen) { SetScanOpen(false); SetCamOpen(false); SetShelfOpen(false); return; }
+			SetShelfOpen(!_shelfOpen);
+		};
+		foreach (var (key, label) in new[] { ("scan", "Scan"), ("comms", "Nachrichten"), ("map", "Karte"), ("cam", "Kamera") })
+		{
+			var b = new KitButton(label, new Vector2(170, 60)) { FontSize = 18, AlignLeft = true, Visible = false };
+			string k = key;
+			b.Pressed += () => ShelfPressed(k);
+			AddChild(b);
+			_shelf[key] = b;
+		}
+		_camPanel = new Control { Visible = false, MouseFilter = MouseFilterEnum.Stop };
+		var cbg = new Panel { MouseFilter = MouseFilterEnum.Ignore };
+		cbg.AddThemeStyleboxOverride("panel", Box(new Color(0.03f, 0.06f, 0.12f, 0.85f), new Color(UiKit.Cyan, 0.6f), 12, 2, 0));
+		_camPanel.AddChild(cbg); cbg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		At(_camPanel, Text("Kamera", 18, UiKit.Cyan), 14, 8, 200, 26);
+		float cy = 40;
+		foreach (var row in new[] { new[] { ("cam_free", "Frei"), ("cam_lock", "Zielfolge"), ("cam_chase", "Rückansicht") }, new[] { ("zoom_out", "Weiter weg"), ("zoom_in", "Näher"), ("cam_reset", "Zurücksetzen") } })
+		{
+			float cx = 12;
+			foreach (var (key, label) in row)
+			{
+				var b = At(_camPanel, new KitButton(label, new Vector2(126, 60)) { FontSize = 15 }, cx, cy);
+				string k = key;
+				b.Pressed += () => CameraAction?.Invoke(k);
+				_camButtons[key] = b;
+				cx += 132;
+			}
+			cy += 66;
+		}
+		_camPanel.Size = new Vector2(12 + 3 * 132, cy + 6);
+		AddChild(_camPanel);
 		_scanPanel = new ScanPanel();
 		AddChild(_scanPanel);
 
@@ -755,11 +789,67 @@ public partial class FlightHud : Control, IScreen
 	int _scanHostile;
 	/// <summary>UI-Umbau: Scanliste („☰ Sektor“) offen? Solange offen, deckt sie Status und Lagezeilen.</summary>
 	public bool ScanOpen => _scanOpen;
+	readonly Dictionary<string, KitButton> _shelf = new();
+	readonly Dictionary<string, KitButton> _camButtons = new();
+	Control _camPanel = null!;
+	bool _shelfOpen, _camOpen;
+	/// <summary>Nutzerwunsch: Kameraoptionen aus dem Regal (Schlüssel wie im Pause-Menü: cam_free, cam_lock, cam_chase, zoom_in, zoom_out, cam_reset).</summary>
+	public event Action<string>? CameraAction;
+	public bool ShelfOpen => _shelfOpen;
+	public bool CamOpen => _camOpen;
+	/// <summary>Kamera-Modus fürs Regal (aktive Taste grün).</summary>
+	public void SetCameraMode(SpaceSim.Core.Flight.CameraMode m)
+	{
+		if (_camButtons.Count == 0) return;
+		_camButtons["cam_free"].State = m == SpaceSim.Core.Flight.CameraMode.Free ? KitButtonState.On : KitButtonState.Normal;
+		_camButtons["cam_lock"].State = m == SpaceSim.Core.Flight.CameraMode.TargetLock ? KitButtonState.On : KitButtonState.Normal;
+		_camButtons["cam_chase"].State = m == SpaceSim.Core.Flight.CameraMode.Chase ? KitButtonState.On : KitButtonState.Normal;
+	}
+	void ShelfPressed(string k)
+	{
+		switch (k)
+		{
+			case "scan": SetShelfOpen(false); SetScanOpen(true); ScanPressed?.Invoke(); break;
+			case "comms": SetShelfOpen(false); CommsPressed?.Invoke(); break;
+			case "map": SetShelfOpen(false); MapPressed?.Invoke(); break;
+			case "cam": SetCamOpen(!_camOpen); break;
+		}
+	}
+	public void SetShelfOpen(bool open)
+	{
+		_shelfOpen = open;
+		if (!open) SetCamOpen(false);
+		LayoutShelf();
+		_scanBtn?.QueueRedraw();
+		if (_scanBtn is not null) _scanBtn.State = open || _scanOpen ? KitButtonState.On : KitButtonState.Normal;
+	}
+	public void SetCamOpen(bool open) { _camOpen = open; if (_shelf.TryGetValue("cam", out var b)) b.State = open ? KitButtonState.On : KitButtonState.Normal; LayoutShelf(); }
+	/// <summary>Regal über „☰“: Tasten von unten nach oben, Kamerafeld rechts neben dem Regal.</summary>
+	void LayoutShelf()
+	{
+		if (_scanBtn is null || _shelf.Count == 0) return;
+		var r = new Rect2(_scanBtn.Position, _scanBtn.Size);
+		float y = r.Position.Y - 8f;
+		foreach (var key in new[] { "scan", "comms", "map", "cam" })
+		{
+			var b = _shelf[key];
+			y -= 60f;
+			b.Position = new Vector2(r.Position.X, y);
+			b.Visible = _shelfOpen;
+			y -= 6f;
+		}
+		var cam = _shelf["cam"];
+		_camPanel.Position = new Vector2(cam.Position.X + 178f, MathF.Max(80f, cam.Position.Y));
+		_camPanel.Visible = _shelfOpen && _camOpen;
+	}
+	public KitButton? TestShelf(string key) => _shelf.TryGetValue(key, out var b) ? b : null;
+	public KitButton? TestCamButton(string key) => _camButtons.TryGetValue(key, out var b) ? b : null;
 	public ScanPanel Scan => _scanPanel;
 	public void SetScanOpen(bool open)
 	{
 		_scanOpen = open;
 		if (_scanPanel is null) return;
+		if (open) { _scanPanel.Invalidate(); _shelfOpen = false; LayoutShelf(); }
 		_scanPanel.Visible = open;
 		_status.Visible = !open;
 		_scanBtn.State = open ? KitButtonState.On : KitButtonState.Normal;
@@ -823,9 +913,9 @@ public partial class FlightHud : Control, IScreen
 	public Rect2 TestTurnLeftRect => _turnL.GetGlobalRect();
 	public Rect2 TestAutoFireGlobal => _autoFire.GetGlobalRect();
 	/// <summary>Bildschirmpunkt auf dem (senkrechten) Schubregler beim Wert <paramref name="v"/>.</summary>
-	public Vector2 TestSliderPoint(float v) => _slider.GetGlobalTransform() * new Vector2(_slider.Size.X * 0.5f, _slider.YOf(v));
+	public Vector2 TestSliderPoint(float v) => _slider.GetGlobalTransform() * _slider.PointOf(v);   // UI-Umbau: waagerecht
 	/// <summary>Geräte-Eingabe (Selbsttest 131): derselbe Punkt in Fensterpunkten (= Gerätepunkte am Handy).</summary>
-	public Vector2 TestSliderScreenPoint(float v) => _slider.GetScreenTransform() * new Vector2(_slider.Size.X * 0.5f, _slider.YOf(v));
+	public Vector2 TestSliderScreenPoint(float v) => _slider.GetScreenTransform() * _slider.PointOf(v);
 	/// <summary>Geräte-Eingabe (Selbsttest 131): Steuerelement einer HUD-Zone.</summary>
 	public Control? TestItem(HudItem item) => _items.TryGetValue(item, out var c) ? c : null;
 
@@ -875,6 +965,8 @@ public partial class FlightHud : Control, IScreen
 		if (Layout is not { } l) return;
 		foreach (var it in new[] { HudItem.Autopilot, HudItem.AutoMine }) _items[it].Visible = !l.Hidden(it);
 		if (_reverseLabel is not null) _reverseLabel.Visible = !l.Hidden(HudItem.ReverseLabel);
+		_mapBtn.Visible = !l.Hidden(HudItem.Map); _commsBtn.Visible = !l.Hidden(HudItem.Comms);   // Nutzerwunsch: im Regal unten links
+		LayoutShelf();
 		if (_scanOpen) foreach (var lab in new Control[] { _status, _security, _wanted, _fire, _mission }) lab.Visible = false;   // UI-Umbau: die Scanliste deckt die linke Spalte
 		foreach (var it in new[] { HudItem.HitWarning, HudItem.Escape }) if (l.Hidden(it)) _items[it].Visible = false;
 		if (l.Hidden(HudItem.Context)) { _contextBtn.Visible = false; _wingAttack.Visible = false; }
@@ -1025,6 +1117,13 @@ public partial class FlightHud : Control, IScreen
 		_cargoVal.Text = d.CargoCap > 0f ? $"{d.CargoUsed:0}/{d.CargoCap:0}" : "–";
 		_cargoText.Text = d.CargoText.Length > 0 ? d.CargoText + " ▸" : "leer ▸";
 		if (_menuBadge != d.CommsUnread) { _menuBadge = d.CommsUnread; _commsBtn.QueueRedraw(); }
+		if (_shelf.Count > 0)
+		{
+			_shelf["scan"].Sub = d.ScanHostile > 0 ? $"{d.ScanCount} Objekte · {d.ScanHostile} feindlich" : $"{d.ScanCount} Objekte";
+			_shelf["comms"].Sub = d.CommsUnread > 0 ? $"{d.CommsUnread} ungelesen" : "Posteingang";
+			_shelf["map"].Sub = "Sternenkarte";
+			_shelf["cam"].Sub = "Ansicht · Zoom";
+		}
 		if (_scanHostile != d.ScanHostile) { _scanHostile = d.ScanHostile; _scanBtn.QueueRedraw(); }
 		if (_fastOn != d.FastOn) _fastBtn.QueueRedraw();
 		_fire.Text = d.Fire;
