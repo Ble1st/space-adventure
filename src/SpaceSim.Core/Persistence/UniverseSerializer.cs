@@ -153,7 +153,7 @@ public static class UniverseSerializer
         if (u.PendingEncounters.Count > 0)
             s.Encounters = u.PendingEncounters.Select(e => new PendingEncounterSave
             {
-                Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick, Station = e.Station.Value,
+                Kind = e.Kind.ToString(), Source = e.Source.Value, Target = e.Target.Value, Sector = e.Sector.Value, Due = e.DueTick, Station = e.Station.Value, Stalled = e.Stalled,
             }).ToList();
         // Runde 30: Rückkauf-Posten (sortiert, nur wenn vorhanden)
         if (u.Ledger.Count > 0)
@@ -493,7 +493,7 @@ public static class UniverseSerializer
                 u.PendingEncounters.Add(new PendingEncounter
                 {
                     Kind = Enum.Parse<EncounterKind>(e.Kind), Source = new ShipId(e.Source), Target = new ShipId(e.Target), Sector = new SectorId(e.Sector), DueTick = e.Due,
-                    Station = new StationId(e.Station),
+                    Station = new StationId(e.Station), Stalled = e.Stalled,
                 });
         if (s.Ledger is not null)   // Runde 30
             foreach (var l in s.Ledger)

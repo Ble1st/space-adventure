@@ -244,7 +244,9 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 	public KitButton? TestTab(string key) => _tabs.TryGetValue(key, out var b) && IsInstanceValid(b) && b.IsInsideTree() ? b : null;
 	static float Measure(string s, int size) => ThemeDB.FallbackFont.GetStringSize(s, HorizontalAlignment.Left, -1, size).X;
 	public static int RailPos;
+#pragma warning disable CS0414   // UI-Umbau: Reiterleiste ohne Mitlauf; ForgetRailArea bleibt als Schnittstelle
 	static string _railShownFor = "";
+#pragma warning restore CS0414
 	/// <summary>Runde 37b: beim Schließen der Zentrale vergessen, für welchen Bereich der aktive Eintrag zuletzt ins Bild geholt wurde.</summary>
 	public static void ForgetRailArea() => _railShownFor = "";
 	KitScroll? _railScroll;

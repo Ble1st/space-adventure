@@ -462,6 +462,7 @@ public partial class Main : Node3D
 	{
 		var u = _session.U;
 		if (_placeType is not null) EndPlacement(null);   // eigene Stationen: kein Geist aus der alten Sitzung
+		if (_hailTarget is not null) CloseHail();   // Funk: kein Gespräch aus der alten Sitzung
 		AttachedUniverses.Add(new WeakReference(u));
 		Ui.MapOverlay.BanditFactions.Clear();   // Nachtrag 17b: Banditenfraktionen rot auf den Karten
 		foreach (var bf in u.Factions.Keys) if (SpaceSim.Core.Simulation.Bandits.IsEstablished(u, bf)) Ui.MapOverlay.BanditFactions.Add(bf.Value);
@@ -1023,7 +1024,9 @@ public partial class Main : Node3D
 		var cur = _hud.Screens.Current;
 		// Runde 37c: innerste Ebene zuerst — offene Meldung, Fraktionsdetail (→ Liste), Startpaket-Auswahl, offene Handelszeile
 		if (_hud.TestAlert.Length > 0) { _hud.HideAlert(); return "meldung"; }
-		if (_startMenu) return "hauptmenü";   // UI-Umbau: der Startbildschirm bleibt (die App beendet sich nie über Zurück)
+		if (_startMenu) return "hauptmenü";
+		if (_hud.Flight.HailOpen && _hud.Flight.IsVisibleInTree()) { CloseHail(); return "funk"; }   // Funk: innerste Ebene im Flug
+		if (_hud.Flight.ScanOpen && _hud.Flight.IsVisibleInTree()) { _hud.Flight.SetScanOpen(false); return "scan"; }   // UI-Umbau: der Startbildschirm bleibt (die App beendet sich nie über Zurück)
 		if (_hud.Map.Visible) { _hud.Map.Visible = false; ShowBase(); return "karte"; }
 		if (cur == _hud.Command) { _sfx.Play(SfxId.Click); ShowBase(); return "menü"; }
 		if (cur == _hud.CcFactions && _hud.CcFactions.TestDetailOpen && _hud.CcFactions.IsNarrow) { _hud.CcFactions.TestDetailOpen = false; return "fraktionsliste"; }

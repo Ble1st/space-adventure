@@ -24,7 +24,9 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 	public HangarScreen() => AreaId = DockAreas.Hangar;
 
 	/// <summary>„Befehle“: die Flotte der Kommandozentrale mit diesem Schiff öffnen (Main).</summary>
+#pragma warning disable CS0067   // UI-Umbau: Befehle laufen jetzt über das Schiffsmenü; Ereignis bleibt für Main verdrahtet
 	public event Action<ShipId>? CommandsRequested;
+#pragma warning restore CS0067
 	/// <summary>Kleines Schiffsmenü (Werte, Module, Inventar, Befehl, Verband) — von dort auch „Befehle geben“.</summary>
 	public event Action<ShipId>? MenuRequested;
 	/// <summary>Nach jedem Execute (Dienst-Schlüssel, Erfolg) – Main spielt den Ton.</summary>

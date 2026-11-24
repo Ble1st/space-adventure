@@ -46,6 +46,8 @@ public sealed class PendingEncounter
     public long DueTick;
     /// <summary>Runde 13b: Warnung einer Waffenstellung (Kleinstation) an einen Gesuchten — <see cref="Source"/> bleibt leer; default = keine.</summary>
     public StationId Station;
+    /// <summary>Funk (Stufe 1): der Spieler hat die Kaperer schon einmal hingehalten — nur einmal je Warnung; default = nein.</summary>
+    public bool Stalled;
 }
 
 /// <summary>Deutsche Anzeigenamen für Lagekarte und Fahndung.</summary>

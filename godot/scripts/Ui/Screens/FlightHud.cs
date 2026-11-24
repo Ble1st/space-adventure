@@ -615,11 +615,11 @@ public partial class FlightHud : Control, IScreen
 		_scanBtn = At(this, new KitButton("", new Vector2(84, 68)), 10, 642);
 		_scanBtn.Symbol = g => { foreach (var yy in new[] { 12f, 20f, 28f }) g.DrawRect(new Rect2(28, yy, 28, 4), UiKit.White);
 			if (_scanHostile > 0) { g.DrawCircle(new Vector2(70, 12), 10, UiKit.Red); UiKit.DrawText(g, 11, ThemeDB.FallbackFont, new Vector2(60, 17), _scanHostile.ToString(), 13, UiKit.White, HorizontalAlignment.Center, 20); }
-			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 58), _scanOpen || _shelfOpen ? "Schließen" : "Menü", 14, UiKit.White, HorizontalAlignment.Center, 80); };
+			UiKit.DrawText(g, 10, ThemeDB.FallbackFont, new Vector2(2, 58), _scanOpen || _shelfOpen || _hailOpen ? "Schließen" : "Menü", 14, UiKit.White, HorizontalAlignment.Center, 80); };
 		// Nutzerwunsch: „☰“ unten links ist ein Regal — ein Tipp klappt darüber Scan, Nachrichten, Karte und Kamera auf
 		_scanBtn.Pressed += () =>
 		{
-			if (_scanOpen || _camOpen) { SetScanOpen(false); SetCamOpen(false); SetShelfOpen(false); return; }
+			if (_scanOpen || _camOpen || _hailOpen) { SetScanOpen(false); SetCamOpen(false); SetHailOpen(false); SetShelfOpen(false); return; }
 			SetShelfOpen(!_shelfOpen);
 		};
 		foreach (var (key, label) in new[] { ("scan", "Scan"), ("comms", "Nachrichten"), ("map", "Karte"), ("cam", "Kamera") })
@@ -653,6 +653,8 @@ public partial class FlightHud : Control, IScreen
 		AddChild(_camPanel);
 		_scanPanel = new ScanPanel();
 		AddChild(_scanPanel);
+		_hailPanel = new HailPanel();   // Funk Stufe 1: an der Stelle der Scanliste
+		AddChild(_hailPanel);
 
 		var card = Win(this, 800, 8, 330, 118, new Color(0.03f, 0.05f, 0.1f, 0.72f), UiKit.Green, 12);
 		_card = card;
@@ -845,6 +847,20 @@ public partial class FlightHud : Control, IScreen
 	public KitButton? TestShelf(string key) => _shelf.TryGetValue(key, out var b) ? b : null;
 	public KitButton? TestCamButton(string key) => _camButtons.TryGetValue(key, out var b) ? b : null;
 	public ScanPanel Scan => _scanPanel;
+	HailPanel _hailPanel = null!;
+	bool _hailOpen;
+	public HailPanel Hail => _hailPanel;
+	public bool HailOpen => _hailOpen;
+	/// <summary>Funk Stufe 1: Gesprächsfenster an der Stelle der Scanliste (schließt die Scanliste).</summary>
+	public void SetHailOpen(bool open)
+	{
+		_hailOpen = open;
+		if (_hailPanel is null) return;
+		if (open) { _hailPanel.Invalidate(); if (_scanOpen) SetScanOpen(false); _shelfOpen = false; LayoutShelf(); }
+		_hailPanel.Visible = open;
+		_status.Visible = !open && !_scanOpen;
+		ApplyHidden();
+	}
 	public void SetScanOpen(bool open)
 	{
 		_scanOpen = open;
@@ -956,6 +972,8 @@ public partial class FlightHud : Control, IScreen
 		_chipRow.CustomMinimumSize = Vector2.Zero;
 		_chipRow.Size = new Vector2(MathF.Max(0f, layout[HudItem.Chip].W - 28f), 42f);
 		_gateAttack.Position = _stationAttack.Position = new Vector2(layout[HudItem.Attack].X, layout[HudItem.Attack].Y);
+		var sp = layout[HudItem.ScanPanel];
+		_hailPanel.Position = new Vector2(sp.X, sp.Y); _hailPanel.Size = new Vector2(sp.W, sp.H);
 		ApplyHidden();
 	}
 
@@ -967,7 +985,7 @@ public partial class FlightHud : Control, IScreen
 		if (_reverseLabel is not null) _reverseLabel.Visible = !l.Hidden(HudItem.ReverseLabel);
 		_mapBtn.Visible = !l.Hidden(HudItem.Map); _commsBtn.Visible = !l.Hidden(HudItem.Comms);   // Nutzerwunsch: im Regal unten links
 		LayoutShelf();
-		if (_scanOpen) foreach (var lab in new Control[] { _status, _security, _wanted, _fire, _mission }) lab.Visible = false;   // UI-Umbau: die Scanliste deckt die linke Spalte
+		if (_scanOpen || _hailOpen) foreach (var lab in new Control[] { _status, _security, _wanted, _fire, _mission }) lab.Visible = false;   // UI-Umbau: die Scanliste deckt die linke Spalte
 		foreach (var it in new[] { HudItem.HitWarning, HudItem.Escape }) if (l.Hidden(it)) _items[it].Visible = false;
 		if (l.Hidden(HudItem.Context)) { _contextBtn.Visible = false; _wingAttack.Visible = false; }
 		_expand.Visible = !l.Hidden(HudItem.Expand);

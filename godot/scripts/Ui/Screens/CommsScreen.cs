@@ -47,7 +47,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	/// <summary>Selbsttest: ungelesene Nachrichten.</summary>
 	public int TestUnread => SpaceSim.Core.Comms.Comms.Unread(Ctx.U);
 	/// <summary>Selbsttest: aktiver Reiter.</summary>
-	public string TestTab => _tab;
+	public new string TestTab => _tab;
 	/// <summary>Selbsttest: Reiter setzen (Meldung wird dabei zurückgesetzt, wie beim Tippen).</summary>
 	public void TestSetTab(string t) { _tab = t; _message = ""; _msgAt = 0; Invalidate(); }
 	/// <summary>Selbsttest (Runde 42c): Meldung setzen, als hätte eine Aktion sie gemeldet.</summary>

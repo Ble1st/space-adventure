@@ -126,6 +126,7 @@ public partial class Main
 			_scanAt = now;
 			_scan = SectorScan.For(u, u.PlayerShip, new Vec2(_player.Position.X, _player.Position.Z));
 		}
+		RefreshHail();
 		d.ScanCount = _scan.Count;
 		d.ScanHostile = _scan.Count(c => c.Hostile);
 		if (_hud.Flight.ScanOpen)

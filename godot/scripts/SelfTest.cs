@@ -300,7 +300,7 @@ public partial class SelfTest : Node
 					var bought = SpaceSim.Core.Simulation.PlayerFleet.Owned(u).FirstOrDefault(s => s.Id != old.Id && s.ModelKey == "prospector");
 					Check(bought is not null && bought.DockedAt == st.Id && SpaceSim.Core.Simulation.PlayerFleet.ParkedAt(u, st).Contains(bought),
 						"Gekauftes Schiff liegt geparkt im Hangar der Werft (kein automatisches Einsteigen)");
-					Check(System.Enum.IsDefined(bought.Quality) && (bought.Quality == SpaceSim.Core.Model.ShipQuality.Standard || buy.Message.Contains(SpaceSim.Core.Model.ShipQualityNames.Name(bought.Quality))),
+					Check(System.Enum.IsDefined(bought!.Quality) && (bought.Quality == SpaceSim.Core.Model.ShipQuality.Standard || buy.Message.Contains(SpaceSim.Core.Model.ShipQualityNames.Name(bought.Quality))),
 						$"Gekauftes Schiff hat eine Güteklasse ({SpaceSim.Core.Model.ShipQualityNames.Name(bought.Quality)}), die Meldung nennt sie");
 					Check(st.Market[kit].Amount == kits - 1f, "Kauf verbraucht einen leichten Bausatz aus dem Werftlager");
 					Check(old.IsPlayer && old.Id == u.PlayerShip, "Altes Schiff bleibt das aktive");
@@ -2815,7 +2815,8 @@ public partial class SelfTest : Node
 			case 150: if (FirmSeatStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 9: Firmensitz und Büro per Tipp (SelfTest.FirmSeat.cs)
 			case 151: if (PassengerStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkte 10/14: Fahrgast- und Schmuggelauftrag per Tipp angenommen und abgeliefert, Flottentaxi per Tipp (SelfTest.Passengers.cs)
 			case 152: if (FeudStage(_frame - _stageStart)) Next(); break;
-			case 155: if (DockFlowStage(_frame - _stageStart)) Next(); break;   // Nutzerwünsche: Aussteigen mit einem Tipp, Befehl angedockt, Debug-Spawn, Schiffsmenü (SelfTest.DockFlow.cs)
+			case 155: if (DockFlowStage(_frame - _stageStart)) Next(); break;
+			case 156: if (HailStage(_frame - _stageStart)) Next(); break;   // Funk Stufe 1: Scanliste → 📡 Funk → Gespräch mit Kaperer und Station (SelfTest.Hail.cs)   // Nutzerwünsche: Aussteigen mit einem Tipp, Befehl angedockt, Debug-Spawn, Schiffsmenü (SelfTest.DockFlow.cs)
 			case 154: if (ProtectionStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 3: Schutzvertrag per Tipp in Comms (SelfTest.Protection.cs)
 			case 153: if (BanditStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 17: Banditenfraktion — Fraktionen-Detail und Stations-Info am Sitz (SelfTest.Bandits.cs)   // Ausbau Punkt 6: Fehde erklären/beenden und Vermitteln per Tipp in Comms (SelfTest.Feud.cs)
 			case 110: if (Round34Stage(_frame - _stageStart)) Next(); break;   // Runde 34: Dock-Schicht adaptiv, Handel (Handytest r33) (SelfTest.Round34.cs)
@@ -2833,7 +2834,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 155;
+	const int LastStage = 156;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

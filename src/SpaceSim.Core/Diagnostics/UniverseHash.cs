@@ -240,7 +240,7 @@ public static class UniverseHash
         foreach (var (k, l) in u.Ledger.OrderBy(kv => kv.Key.Actor).ThenBy(kv => kv.Key.Station).ThenBy(kv => kv.Key.Good))
         { Mix(0x3001u); Mix((ulong)k.Actor); Mix((ulong)k.Station); Mix((ulong)k.Good); MixF(l.BoughtQty); MixF(l.BoughtPrice); MixF(l.BoughtStockBefore); MixF(l.SoldQty); MixF(l.SoldPrice); MixF(l.SoldStockBefore); Mix(l.BoughtOpen ? 1u : 0u); Mix(l.SoldOpen ? 1u : 0u); Mix((ulong)l.LastTick);
           if (l.MissingQty > 0f) { Mix(0x3601u); MixF(l.MissingQty); MixF(l.MissingSeen); } }   // Runde 36: nur wenn gesetzt
-        foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); if (e.Station.Value != 0) Mix((ulong)e.Station.Value); }
+        foreach (var e in u.PendingEncounters) { Mix((ulong)e.Kind); Mix((ulong)e.Source.Value); Mix((ulong)e.Target.Value); Mix((ulong)e.Sector.Value); Mix((ulong)e.DueTick); if (e.Station.Value != 0) Mix((ulong)e.Station.Value); if (e.Stalled) Mix(0x4A11UL); }
         // Phase 12: Befehle (Art, Parameter, Fortschritt, Notfall), Verhaltensregel, Verband, Liegeplatz, Leihschiff; Verbände
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
         {

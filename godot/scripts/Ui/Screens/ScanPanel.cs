@@ -16,7 +16,6 @@ namespace SpaceAdventure.Ui.Screens;
 public sealed partial class ScanPanel : Control
 {
 	public event Action<ScanContact>? Select, Autopilot, Hail;
-	public event Action? CloseRequested;
 	List<ScanContact> _items = new();
 	string _sig = "";
 	string _filter = "all";

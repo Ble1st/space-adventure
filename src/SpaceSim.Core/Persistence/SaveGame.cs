@@ -362,6 +362,8 @@ public sealed class PendingEncounterSave
     public string Kind { get; set; } = ""; public int Source { get; set; } public int Target { get; set; } public int Sector { get; set; } public long Due { get; set; }
     /// <summary>Runde 13b (additiv): warnende Waffenstellung; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Station { get; set; }
+    /// <summary>Funk (additiv): schon hingehalten; fehlt = nein.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Stalled { get; set; }
 }
 
 /// <summary>Phase 24: laufendes Gefecht (Rundengefecht).</summary>
