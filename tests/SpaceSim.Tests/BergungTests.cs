@@ -132,6 +132,7 @@ public class BergungTests
     public void KiBergeschiff_HoltModulUndFrachtAusWrack_VerkauftAnAbnehmer()
     {
         var u = World();
+        u.Rules.UniverseEvents = false;   // Universumsereignisse (danach): ein Wrackfeld anderswo lenkt das Bergeschiff vom Testwrack ab
         var runner = new SimulationRunner();
         runner.Run(u, 10);   // Markt warm laufen lassen (Preise)
         var salvager = NewShip(u, "salvager", ShipRole.Salvager, u.FreeActor, 2000f);

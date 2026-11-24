@@ -68,7 +68,8 @@ public static class Wrecks
         return Add(u, w);
     }
 
-    static Wreck Add(Universe u, Wreck w)
+    /// <summary>Fertig gebautes Wrack/Behälter ins All setzen (vergibt die Id, meldet <see cref="WreckCreated"/>) — auch für Universumsereignisse.</summary>
+    public static Wreck Add(Universe u, Wreck w)
     {
         w.Id = u.NextWreckId++;
         u.Wrecks.Add(w);

@@ -56,6 +56,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	public StationId? TestSelStation => _selStation;
 	/// <summary>Runde 41 (Selbsttest): Zahl der Missionssymbole auf der Sektorkarte.</summary>
 	public int TestMissionSymbols => _map is null ? 0 : _map.TestMissionSymbols;
+	/// <summary>Universumsereignisse: Symbole auf der Sektorkarte (Selbsttest).</summary>
+	public int TestEventSymbols => _map is null ? 0 : _map.TestEventSymbols;
 	public Vector2? TestStationScreen(StationId id) => _map is not null && IsInstanceValid(_map) ? _map.GlobalOf(id) : null;
 
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
@@ -275,6 +277,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	{
 		/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole.</summary>
 		public int TestMissionSymbols;
+		public int TestEventSymbols;
 		SectorScreen _owner = null!;
 		Universe _u = null!;
 		public event Action<StationId>? StationTapped;
@@ -569,6 +572,18 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				layout.ReserveCircle(p, d + 2f);
 				labels.Add((0, p + new Vector2(0, d + 9f), mk.Label, 11, FlightHud.MissionGold, 4f));
 				TestMissionSymbols++;
+			}
+
+			// Universumsereignisse: türkiser Doppelring am Ereignisort mit Beschriftung (nur bekannte Sektoren; höchstens 2)
+			TestEventSymbols = 0;
+			foreach (var em in SpaceSim.Core.Simulation.UniverseEventInfo.Markers(_u).Where(m => m.Sector == s.Id).Take(2))
+			{
+				var p = Place(em.Position);
+				DrawArc(p, 11f, 0, Mathf.Tau, 24, UniverseScreen.EventColor, 2.5f, true);
+				DrawArc(p, 6f, 0, Mathf.Tau, 16, UniverseScreen.EventColor, 2f, true);
+				layout.ReserveCircle(p, 13f);
+				labels.Add((0, p + new Vector2(0, 20f), em.Label, 11, UniverseScreen.EventColor, 4f));
+				TestEventSymbols++;
 			}
 
 			// Phase 26: Wracks (graues Kreuz) und Frachtbehälter (oranges Quadrat), echt aus Universe.Wrecks

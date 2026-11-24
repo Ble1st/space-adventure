@@ -25,6 +25,11 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 	public override string Id => "cc.universe";
 	/// <summary>Runde 41 (Selbsttest): Zahl der gezeichneten Missionssymbole auf der Universumskarte.</summary>
 	public int TestMissionSymbols;
+	/// <summary>Universumsereignisse: Symbole auf der Karte (Selbsttest) und die Ereigniszeile der Detailkarte.</summary>
+	public int TestEventSymbols;
+	public string TestEventLine = "";
+	/// <summary>Farbe der Universumsereignisse (Türkis, eigene Farbe neben dem Auftragsgold).</summary>
+	public static readonly Color EventColor = new(0.35f, 0.95f, 0.85f);
 	/// <summary>Ausbau Punkt 16 (Selbsttest): Zahl der gezeichneten unbekannten Sektoren („?“).</summary>
 	public int TestUnknownDrawn;
 	/// <summary>Gerätetest Phase 27: Auswahl und Meldung bei neuer Sitzung zurücksetzen.</summary>
@@ -157,6 +162,9 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		py = WrappedText(card, $"Lage: {sec.Summary} · {sec.Patrols} Streife{(sec.Patrols == 1 ? "" : "n")}{(sec.RiskPercent >= 0.5f ? $" · Risiko {sec.RiskPercent:0} %" : "")}", 16, py, 268, 12,
 			sec.Threat >= 2.5f ? Red : sec.Threat >= 1f ? Orange : new Color(Dim, 0.95f), 16);
 		if (sec.PlayerLevel > 0) py = WrappedText(card, $"Fahndung hier: {sec.PlayerWanted}", 16, py, 268, 12, sec.PlayerLevel >= 3 ? Red : Orange, 16);
+		// Universumsereignisse: laufende Ereignisse im (bekannten) Sektor
+		TestEventLine = SpaceSim.Core.Simulation.UniverseEventInfo.Line(u, sel);
+		if (TestEventLine.Length > 0) py = WrappedText(card, TestEventLine, 16, py, 268, 12, EventColor, 16);
 
 		// Gates mit Ziel, Zustand und Urteil des Kontrollpunkts für dich
 		float gy = py + 6;
@@ -285,6 +293,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		public override void _Draw()
 		{
 			if (_u == null) return;
+			_owner.TestEventSymbols = 0;
 			var center = Size / 2f + new Vector2(0, 10f);
 			var scale = MapScale();
 			float rHalo = HaloRadius(Mathf.Min(scale.X, scale.Y)), rNode = NodeRadius(Mathf.Min(scale.X, scale.Y));
@@ -391,6 +400,18 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 					mmi++;
 				}
 				_owner.TestMissionSymbols += mmi;
+				// Universumsereignisse: türkiser Ring mit Punkt links oben am Knoten (nur bekannte Sektoren — UniverseEventInfo.Markers filtert)
+				int emi = 0;
+				foreach (var _em in SpaceSim.Core.Simulation.UniverseEventInfo.Markers(_u).Where(m => m.Sector == s.Id))
+				{
+					if (emi >= 2) break;
+					var c = p + new Vector2(-rNode * 0.75f - emi * 14f, -rNode * 0.75f);
+					DrawCircle(c, 6.5f, new Color(0.02f, 0.08f, 0.08f, 0.95f));
+					DrawArc(c, 6.5f, 0, Mathf.Tau, 16, EventColor, 2.5f, true);
+					DrawCircle(c, 2.5f, EventColor);
+					emi++;
+				}
+				_owner.TestEventSymbols += emi;
 				var font = ThemeDB.FallbackFont;
 				// Phase 21: ohne „Sektor “, damit lange Namen (Hephaistos) in die Spalte passen
 				// Gerätetest: Name im Knoten, Unterzeile unter dem Halo, beide auf ihren Platz gekürzt (überlappten auf dem Handy die Nachbarn)

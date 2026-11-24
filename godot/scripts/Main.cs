@@ -1494,6 +1494,7 @@ public partial class Main : Node3D
 		if (JumpCloakEvent(e)) return;   // Sprungantrieb und Tarnfeld (Main.JumpCloak.cs)
 		if (BuildEvent(e)) return;   // eigene Stationen (Main.Build.cs)
 		if (FleetOpsEvent(e)) return;   // Flottenbefehle (Main.FleetOps.cs)
+		if (UniverseEventEvent(e)) return;   // Universumsereignisse (Main.UniverseEvents.cs)
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden

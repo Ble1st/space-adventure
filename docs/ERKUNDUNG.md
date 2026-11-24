@@ -93,3 +93,29 @@ Jede Aufdeckung mit Neuem meldet das Ereignis `IntelDiscovered` (Quelle sensor/d
 - Die 3D-Ansicht zeigt im Flug alles, was in Sichtweite liegt; die Sensorreichweite (450 m) deckt es ohnehin schnell auf.
 - Missionsangebote nennen ihre Ziele auch vor der Annahme (Text); erst die Annahme deckt sie auf den Karten auf.
 - Sprungantrieb: das Sprungziel darf auch ein unbekannter Sektor sein (Erkundung per Sprung).
+
+## Universumsereignisse
+
+Lücke gegenüber Interstellar Pilot 2: im Universum geschieht zufällig etwas, das man finden und nutzen kann. Schalter `rules.universeEvents`
+(Code aus, Standardwelt an; Werte in `Model/EconomyRules.UniverseEvents.cs`).
+
+- **Ablauf** (`Simulation/UniverseEvents.cs`, `UniverseEventSystem` im eigenen Modul am Ende des Ticks, Intervall 50): alle 1200 Ticks (5 min) wird mit
+  Wahrscheinlichkeit 0,5 ein Ereignis gewürfelt, höchstens 3 gleichzeitig, eines je Sektor; Art nach Gewicht, Sektor gleichverteilt unter den möglichen,
+  Dauer 6000–9600 Ticks (25–40 min). Zufall aus einem eigenen RNG aus Welt-Seed und Takt (wie die Auftrags-RNGs) — `Universe.Rng` wird nie gezogen.
+  Ein Ereignis endet nach seiner Frist („expired“) oder sobald alles genutzt ist („exhausted“).
+- **Arten** (je eigene Klasse hinter `IUniverseEventType`, Registry `UniverseEventTypes.Default`): *Erzschwemme* — 3–5 zusätzliche Felsen mit 2,5-fachem
+  Erz in einem Gürtel (über `BeltPlacement`, nie neben dem Spieler); am Ende verschwinden die unberührten, angebrochene bleiben Gürtelfelsen.
+  *Frachtfund* — 1–3 treibende Frachtbehälter (Wracks der Art Container) mit einer zufälligen Ware im Wert von 1500–4000 Cr. *Wrackfeld* — 3–5 Wracks
+  mit je 1–3 Modulen (Restzustand 0,4–0,95; unter 0,5 Schrott) und manchmal etwas Fracht. Herrenlose Schiffe sind keine eigene Art (gibt es schon).
+- **Nutzung**: alles sind gewöhnliche Felsen und Wracks — der Spieler baut ab, zieht mit dem Traktor, birgt mit dem Greifer; NPC-Schürfer und
+  NPC-Bergeschiffe nutzen sie mit ihren eigenen Regeln.
+- **Anzeige** (`Simulation/UniverseEventInfo.cs`): nur in Sektoren, die der Spieler kennt (Spielerwissen). Beginn im eigenen Sektor = wichtige Meldung
+  (Toast), in einem anderen bekannten Sektor = Info, sonst still; Ende im eigenen Sektor = Info. Türkiser Ring am Sektorknoten der Universumskarte,
+  Doppelring mit Beschriftung („Frachtfund · noch 25:00“) auf der Sektorkarte, Zeile „Ereignis: …“ in der Detailkarte.
+- **Speicher/Hash**: `Universe.UniverseEvents` additiv gespeichert (`SaveGame.UniverseEvents`, `Persistence/UniverseEventCodec.cs`), gehasht nur wenn je
+  eines lief. Mit Schalter aus bleibt die Welt bitgleich (20000 Ticks 1099FCA5A206E3D8). Mit Schalter an ändert sich der Hash, weil die Ereignisse die
+  Welt verändern (neue Felsen und Wracks, die NPCs nutzen): 20000 Ticks 1FF1C44226010C8C, Preise im Zielbereich, Verlustquote 0,28 → 0,45 %; 60000 Ticks
+  65A94E179F3D2323, 0,31 → 0,37 % (Kaperer finden mehr beladene Schürfer/Bergeschiffe; unter 1 %), 19 Ereignisse, 23 von 28 Schwemme-Felsen abgebaut,
+  NPC-Bergeschiffe bargen 712 E. und 49 Module, Exporte Nahrung −1 %, Konsumgüter +6 %, Luxus +4 %. Ort eines Frachtfunds/Wrackfelds aus den Positionen von
+  Stationen, Toren und Feldern (nicht `Sector.Extent` — abgeleitet und nach dem Laden anders; sonst wäre Laden → Weiterlaufen nicht bitgleich).
+  Balance: Zeile „Universumsereignisse“, Option `--universeevents on|off`.
