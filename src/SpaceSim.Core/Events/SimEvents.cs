@@ -496,3 +496,10 @@ public sealed record SmugglerRetired(ShipId Ship, ActorId Firm, StationId Yard, 
 
 /// <summary>Nachtrag 6b: Fehdebeute als Ware ins Lager der überfallenden Seite.</summary>
 public sealed record FeudGoodsSeized(ShipId Raider, StationId Station, GoodId Good, float Units) : SimEvent;
+
+/// <summary>Lücken gegenüber IP2: Fracht zwischen zwei eigenen Schiffen umgeladen (<see cref="Trading.CargoTransfer"/>).</summary>
+public sealed record CargoTransferred(ShipId From, ShipId To, GoodId Good, float Units) : SimEvent;
+/// <summary>Lücken gegenüber IP2: eigenes Schiff umbenannt (leer = Modellname).</summary>
+public sealed record ShipRenamed(ShipId Ship, string Name) : SimEvent;
+/// <summary>Lücken gegenüber IP2: eigene Fraktion umbenannt (Name und dreistelliges Kürzel).</summary>
+public sealed record PlayerFactionRenamed(string Name, string Tag) : SimEvent;

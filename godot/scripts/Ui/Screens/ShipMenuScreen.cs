@@ -46,7 +46,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		Visible = false;
 	}
 
-	public void ResetSession() { Current = Tab.Overview; foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } }
+	public void ResetSession() { Current = Tab.Overview; ResetExtras(); foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } }
 	public void Open() { Visible = true; Rebuild(); }
 	public void Close() => Visible = false;
 
@@ -56,6 +56,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		if (!Visible || Ctx?.U is null) return;
 		if (Ctx.U.Tick == _builtTick) return;
 		if (KitButton.AnyHeld > 0 || KitScroll.Dragging) return;
+		if (GetViewport()?.GuiGetFocusOwner() is LineEdit) return;   // Umbenennen: nicht unter dem Tippen neu aufbauen
 		if (Signature() == _sig) { _builtTick = Ctx.U.Tick; return; }
 		var keep = KitScroll.Capture(this);
 		Rebuild();
@@ -75,7 +76,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		var u = Ctx.U;
 		if (!u.Ships.TryGetValue(Ship, out var s)) return "weg";
 		string cargo = string.Join(",", s.Cargo.Where(kv => kv.Value > 0.01f).OrderBy(kv => kv.Key.Value).Select(kv => $"{kv.Key.Value}:{kv.Value:0.0}"));
-		return $"{s.Sector.Value}|{s.DockedAt.Value}|{s.Transit is not null}|{(int)s.Hull}|{(int)s.ShieldNow}|{s.TotalFuel:0}|{cargo}|{Commands.Describe(u, s)}|{s.Squadron.Value}|{(int)u.WalletOf(s).Credits}|{u.PlayerShip.Value}|{u.PlayerOnFoot}|{Current}";
+		return $"{s.Sector.Value}|{s.DockedAt.Value}|{s.Transit is not null}|{(int)s.Hull}|{(int)s.ShieldNow}|{s.TotalFuel:0}|{cargo}|{Commands.Describe(u, s)}|{s.Squadron.Value}|{(int)u.WalletOf(s).Credits}|{u.PlayerShip.Value}|{u.PlayerOnFoot}|{Current}|{s.CustomName}|{TransferSig(u, s)}";
 	}
 
 	void Rebuild()
@@ -100,7 +101,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		bool active = s.Id == u.PlayerShip;
 		string model = u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : s.ModelKey;
 		string cls = m is not null && u.ShipClasses.TryGetValue(m.ClassKey, out var c0) ? c0.Name : "";
-		At(card, Text(KitButton.Fit(ThemeDB.FallbackFont, $"#{s.Id.Value} {model}", 24, pw - 200), 24, Cyan), 20, 12, pw - 200, 32);
+		At(card, Text(KitButton.Fit(ThemeDB.FallbackFont, s.CustomName.Length > 0 ? $"{ShipNames.Display(u, s)} · {model}" : $"#{s.Id.Value} {model}", 24, pw - 200), 24, Cyan), 20, 12, pw - 200, 32);
 		At(card, Text(KitButton.Fit(ThemeDB.FallbackFont, $"{cls} · {ShipQualityNames.Name(s.Quality)} · {Where(u, s)}{(active ? (u.PlayerOnFoot ? " · aktiv (du bist zu Fuß)" : " · aktiv (du bist an Bord)") : "")}", 15, pw - 200), 15, Dim), 20, 46, pw - 200, 22);
 
 		// Reiter
@@ -162,7 +163,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		y = Line(p, y, w, "Fähigkeiten", s.Capabilities.ToString());
 		y = Line(p, y, w, "Unterhalt", $"{st.Upkeep:0.##} Cr/Tick");
 		y = Line(p, y, w, "Kasse", $"{(int)u.WalletOf(s).Credits} Cr");
-		return y;
+		return BuildRename(p, u, s, y + 8f, w);
 	}
 
 	float BuildModules(Control p, Universe u, Ship s, float w)
@@ -234,7 +235,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		foreach (var line in SpaceSim.Core.Flight.TankInfo.For(u, s))
 			y = Line(p, y, w, "Tank: " + line.Name, SpaceSim.Core.Flight.TankInfo.Line(line));
 		if (active && s.Cargo.Count > 0) y = Line(p, y + 4, w, "Tipp", "Ware antippen: Autopilot zum besten Abnehmer", Dim);
-		return y;
+		return BuildTransfer(p, u, s, y + 12f, w);
 	}
 
 	/// <summary>UI-Umbau: Inventar-Zeile angetippt — Autopilot zum besten Abnehmer dieser Ware.</summary>
@@ -285,8 +286,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 	float ShipRow(Control p, Universe u, ShipId id, float y, float w, string role)
 	{
 		if (!u.Ships.TryGetValue(id, out var o)) return y;
-		string model = u.ShipModels.TryGetValue(o.ModelKey, out var m) ? m.Name : o.ModelKey;
-		var b = At(p, new KitButton(KitButton.Fit(ThemeDB.FallbackFont, $"#{o.Id.Value} {model}{(role.Length > 0 ? " · " + role : "")}", 16, w - 40), new Vector2(w, 56))
+		var b = At(p, new KitButton(KitButton.Fit(ThemeDB.FallbackFont, $"{ShipNames.Display(u, o)}{(role.Length > 0 ? " · " + role : "")}", 16, w - 40), new Vector2(w, 56))
 		{ AlignLeft = true, FontSize = 16, Sub = KitButton.Fit(ThemeDB.FallbackFont, $"{Where(u, o)} · {Commands.Describe(u, o)}", 13, w - 40) }, 0, y);
 		var oid = o.Id;
 		b.Pressed += () => OtherShipRequested?.Invoke(oid);

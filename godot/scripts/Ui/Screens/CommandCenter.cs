@@ -43,6 +43,7 @@ public static class CommandAreas
 	public const string Comms = "comms";
 	public const string System = "system";
 	public const string Debug = "debug";
+	public const string Stats = "stats";
 
 	/// <summary>Alle Bereiche in der Reihenfolge der Leiste („System“ zuletzt).</summary>
 	public static readonly (string Id, string Label, string Sub)[] All =
@@ -56,6 +57,7 @@ public static class CommandAreas
 		(Build, "Bauen", "Eigene Stationen"),
 		(Comms, "Comms", "Posteingang"),
 		(System, "System", "Spielstand"),
+		(Stats, "Statistik", "Deine Zahlen"),   // Lücken IP2: Spielerstatistik
 		(Debug, "Debug", "Spawnen & Test"),   // Nutzerwunsch: Schiffe/Stationen/Waren für Tests
 	};
 
@@ -65,7 +67,7 @@ public static class CommandAreas
 	{
 		("map", "Karte", new[] { (Universe, "Universum"), (Sector, "Sektor") }),
 		("own", "Besitz", new[] { (Fleet, "Schiffe & Befehle"), (Assets, "Übersicht"), (Build, "Bauen") }),
-		("politics", "Politik", new[] { (MyFaction, "Deine Fraktion"), (Factions, "Fraktionen") }),
+		("politics", "Politik", new[] { (MyFaction, "Deine Fraktion"), (Factions, "Fraktionen"), (Stats, "Statistik") }),
 		("news", "Nachrichten", new[] { (Comms, "Posteingang & Diplomatie") }),
 		("dev", "Debug", new[] { (Debug, "Spawnen & Test"), (System, "System") }),
 	};
@@ -84,6 +86,7 @@ public static class CommandAreas
 		Comms => "Comms",
 		System => "System",
 		Debug => "Debug",
+		Stats => "Statistik",
 		_ => id,
 	};
 }
@@ -151,7 +154,8 @@ public abstract partial class CommandScreen : Control, IScreen, IMessageStrip
 
 	void SafeRebuild()
 	{
-		if ((KitScroll.Dragging || KitButton.AnyHeld > 0) && GetChildCount() > 0) { _dirty = true; return; }   // zweiter Gerätetest Phase 28: auch nicht bei gedrückter Taste
+		if ((KitScroll.Dragging || KitButton.AnyHeld > 0) && GetChildCount() > 0) { _dirty = true; return; }
+		if (GetViewport()?.GuiGetFocusOwner() is LineEdit le && IsAncestorOf(le)) { _dirty = true; return; }   // Lücken IP2: nicht unter dem Tippen neu aufbauen   // zweiter Gerätetest Phase 28: auch nicht bei gedrückter Taste
 		var keep = KitScroll.Capture(this);
 		Rebuild();
 		KitScroll.Restore(this, keep);

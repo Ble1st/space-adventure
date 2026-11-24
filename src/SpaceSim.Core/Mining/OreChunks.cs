@@ -115,7 +115,11 @@ public sealed class OreChunks
         }
         var cls = u.AsteroidClasses[rock.ClassKey];
         Flight.Cloak.Break(u, ship, "mining");   // Tarnfeld: Abbau bricht die Tarnung
-        foreach (var (good, units) in ContactMining.Step(u, _rng, ship, sector, rock, cls, ref _contactProgress, seconds)) Contacted?.Invoke(rock, good, units);
+        foreach (var (good, units) in ContactMining.Step(u, _rng, ship, sector, rock, cls, ref _contactProgress, seconds))
+        {
+            Contacted?.Invoke(rock, good, units);
+            u.Events.Publish(new OreCollected(ship.Id, good, units));   // Spielerstatistik: Kontaktabbau zählt wie eingesammelte Brocken
+        }
         if (!rock.Minable || !sector.Asteroids.Contains(rock)) MiningAnchor.Release(u, ship, sector.Id, "depleted");
         return LastContact = ContactState.Mining;
     }

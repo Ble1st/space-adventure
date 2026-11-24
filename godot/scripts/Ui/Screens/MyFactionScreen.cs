@@ -40,8 +40,10 @@ public sealed partial class MyFactionScreen : CommandScreen
 		var a = CardBg(inner, 12, 12, 500, 250, Card);
 		// Runde 38: der Spieler ist von Anbeginn eine eigene Fraktion („Deine Fraktion [SPL]“); ohne Regel weiter „Du“
 		var ownFaction = u.PlayerFaction;
-		At(a, Text(ownFaction is not null ? $"{PlayerFaction.DisplayName} {ActorNames.Tag(u, u.PlayerActor)}".Trim() : "Du", 26, White), 20, 14, 460, 34);
-		At(a, Text($"{ActorNames.Size(me.Class)} · Größe {me.Size:0.0}", 15, Dim), 20, 52, 460, 22);
+		string ownName = u.Player.Name is { Length: > 0 } pn && pn != "Du" ? pn : PlayerFaction.DisplayName;   // Lücken IP2: eigener Name, sonst „Deine Fraktion“
+		At(a, Text(ownFaction is not null ? $"{ownName} {ActorNames.Tag(u, u.PlayerActor)}".Trim() : "Du", 26, White), 20, 14, 270, 34);
+		At(a, Text($"{ActorNames.Size(me.Class)} · Größe {me.Size:0.0}", 15, Dim), 20, 52, 270, 22);
+		BuildRenameButton(a, 296, 8);
 		string next = ci < thresholds.Count
 			? $"Nächste Stufe {ActorNames.Size((ActorSizeClass)(ci + 1))} ab Größe {thresholds[ci]:0} (noch {thresholds[ci] - me.Size:0.0})"
 			: "Höchste Stufe erreicht";
@@ -146,6 +148,7 @@ public sealed partial class MyFactionScreen : CommandScreen
 
 		// ── Karte 5 (unten, ganze Breite): Sektorpolitik — Runde 45: Sektorbehörde gründen und eigene Sperren setzen (nur über die Comms-Registry) ──
 		BuildPolicyCard(inner, u, narrow ? 1028f : 520f, narrow ? 486f : 998f);
+		BuildRenameEditor(inner);   // Lücken IP2: Eingabe Name/Kürzel über allen Karten
 	}
 
 	readonly KitConfirm _confirm = new();

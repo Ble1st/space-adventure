@@ -294,6 +294,7 @@ public partial class Main : Node3D
 		_hud.CcAssets.MenuRequested += OpenShipMenu;
 		_hud.CcFleet.MenuRequested += OpenShipMenu;
 		_hud.DockHangar.MenuRequested += OpenShipMenu;
+		_hud.DockHangar.TransferRequested += id => { _hud.ShipMenu.Current = SpaceAdventure.Ui.Screens.ShipMenuScreen.Tab.Cargo; OpenShipMenu(id); };   // Lücken IP2: Umladen
 		// UI-Umbau: Inventar — Ware antippen = Autopilot zum besten Abnehmer
 		_hud.ShipMenu.BuyerRequested += sid =>
 		{
@@ -310,6 +311,8 @@ public partial class Main : Node3D
 		_hud.ShipMenu.OtherShipRequested += id => { _hud.ShipMenu.Ship = id; _hud.ShipMenu.Open(); };
 		_hud.CcDebug.AreaSelected += OpenCcArea;
 		_hud.CcDebug.BackToFlight += CloseCommand;
+		_hud.CcStats.AreaSelected += OpenCcArea;   // Lücken IP2: Statistik
+		_hud.CcStats.BackToFlight += CloseCommand;
 		_hud.CcUniverse.TaxiRequested += to =>
 		{
 			if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
@@ -942,6 +945,7 @@ public partial class Main : Node3D
 			CommandAreas.Comms => _hud.CcComms,
 			CommandAreas.System => _hud.CcSystem,
 			CommandAreas.Debug => _hud.CcDebug,
+			CommandAreas.Stats => _hud.CcStats,
 			_ => _hud.CcUniverse,
 		};
 		if (screen is CommandScreen cs) cs.AreaId = areaId;

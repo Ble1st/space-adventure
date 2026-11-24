@@ -29,6 +29,10 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 #pragma warning restore CS0067
 	/// <summary>Kleines Schiffsmenü (Werte, Module, Inventar, Befehl, Verband) — von dort auch „Befehle geben“.</summary>
 	public event Action<ShipId>? MenuRequested;
+	/// <summary>Lücken gegenüber IP2: „Fracht umladen“ — Schiffsmenü des aktiven Schiffs im Reiter Inventar (Umladen-Ansicht).</summary>
+	public event Action<ShipId>? TransferRequested;
+	/// <summary>Selbsttest: die Taste „Fracht umladen“ (null = nicht gezeigt).</summary>
+	public KitButton? TestTransferButton { get; private set; }
 	/// <summary>Nach jedem Execute (Dienst-Schlüssel, Erfolg) – Main spielt den Ton.</summary>
 	public event Action<string, bool>? Executed;
 
@@ -60,9 +64,19 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		else
 		{
 			var card = CardBg(inner, 0, 28, w - 8, 78, new Color(0.12f, 0.22f, 0.4f, 0.95f), Cyan, 10, 2);
+			// Lücken gegenüber IP2: liegt hier ein zweites eigenes Schiff, kann Fracht umgeladen werden (Schiffsmenü → Inventar)
+			bool xfer = SpaceSim.Core.Trading.CargoTransfer.Partners(u, ship).Count > 0;
+			TestTransferButton = null;
+			if (xfer)
+			{
+				var bx = At(card, new KitButton("Fracht umladen", new Vector2(190, 56)) { FontSize = 16, Sub = "zu eigenem Schiff" }, w - 8 - 202, 11);
+				var sid = ship.Id;
+				bx.Pressed += () => TransferRequested?.Invoke(sid);
+				TestTransferButton = bx;
+			}
 			At(card, new ShipSketch { CustomMinimumSize = new Vector2(48, 40), Size = new Vector2(48, 40), MouseFilter = MouseFilterEnum.Ignore }, 12, 14);
-			At(card, Text($"Dein Schiff #{ship.Id.Value} · {ModelName(u, ship)} · {ShipQualityNames.Name(ship.Quality)}{(ship.IsRental ? " · Leihschiff" : "")}", 20, White), 72, 6, 640, 28);
-			At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive && SpaceSim.Core.Flight.TankInfo.ShortLine(u, ship) is { Length: > 0 } tline ? $" · {tline}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, w - 100, 22);
+			At(card, Text($"Dein Schiff {(ship.CustomName.Length > 0 ? ship.CustomName + " " : "")}#{ship.Id.Value} · {ModelName(u, ship)} · {ShipQualityNames.Name(ship.Quality)}{(ship.IsRental ? " · Leihschiff" : "")}", 20, White), 72, 6, xfer ? MathF.Min(640f, w - 300f) : 640, 28);
+			At(card, Text($"AKTIV – von dir gesteuert · Hülle {(int)ship.Hull}/{(int)ship.MaxHull} · Fracht {ship.UsedVolume(u):0.#}/{ship.CargoCapacity:0} m³{(u.Rules.FuelActive && SpaceSim.Core.Flight.TankInfo.ShortLine(u, ship) is { Length: > 0 } tline ? $" · {tline}" : "")} · Besitzer {u.ActorName(ship.Owner)}", 14, Cyan), 72, 40, xfer ? w - 300 : w - 100, 22);
 		}
 
 		// ── Eigene Schiffe hier (Dienst „hangar“) ──
@@ -81,7 +95,7 @@ public sealed partial class HangarScreen : DockAreaScreen, ISessionScreen
 		foreach (var other in parked.Take(3))
 		{
 			var row = CardBg(inner, 0, y, lw - 8, 108, Card, new Color(Edge, 0.6f), 10, 1);
-			At(row, Text($"#{other.Id.Value} · {ModelName(u, other)} · {ShipQualityNames.Name(other.Quality)}{(other.IsRental ? " · Leihschiff" : "")}", 17, White), 12, 4, 420, 24);
+			At(row, Text($"{(other.CustomName.Length > 0 ? other.CustomName + " · " : "")}#{other.Id.Value} · {ModelName(u, other)} · {ShipQualityNames.Name(other.Quality)}{(other.IsRental ? " · Leihschiff" : "")}", 17, White), 12, 4, 420, 24);
 			float berth = Hangar.BerthFeeNow(u, other);
 			At(row, Text($"{(leaving.Contains(other) ? "legt gleich ab · " : "")}{Commands.Describe(u, other)} · Hülle {(int)other.Hull}/{(int)other.MaxHull}{(u.Rules.FuelActive ? $" · Tank {other.TotalFuel:0}" : "")}" + (berth > 0f ? $" · {berth:0} Cr/Tag" : ""), 13, Dim), 12, 28, lw - 30, 20);
 			float bx = 12;

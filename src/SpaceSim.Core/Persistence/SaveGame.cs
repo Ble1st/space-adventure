@@ -186,6 +186,32 @@ public sealed class ActorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<CrimeStandingSave>? CrimeStanding { get; set; }
     /// <summary>Ausbau Punkt 16 (additiv): Wissen des Spielerakteurs; fehlt = alles bekannt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IntelSave? Intel { get; set; }
+    /// <summary>Lücken gegenüber IP2 (additiv): Spielerstatistik; fehlt = nichts gezählt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PlayerStatsSave? Stats { get; set; }
+}
+
+/// <summary>Lücken gegenüber IP2: <see cref="Model.PlayerStats"/>.</summary>
+public sealed class PlayerStatsSave
+{
+    public double Earned { get; set; }
+    public double Spent { get; set; }
+    public double MaxWallet { get; set; }
+    public double LastWallet { get; set; }
+    public int LastSector { get; set; }
+    public double TradeRevenue { get; set; }
+    public double TradeSpent { get; set; }
+    public double TradeUnits { get; set; }
+    public int Sales { get; set; }
+    public int Purchases { get; set; }
+    public double OreMined { get; set; }
+    public int Kills { get; set; }
+    public int ShipsLost { get; set; }
+    public int MissionsDone { get; set; }
+    public int MissionsFailed { get; set; }
+    public int Jumps { get; set; }
+    public int Bounties { get; set; }
+    public double BountyCredits { get; set; }
+    public double Transferred { get; set; }
 }
 
 /// <summary>Ausbau Punkt 16: <see cref="Intel.PlayerIntel"/> — Listen nach Id sortiert; Felder als [Sektor, Index].</summary>
@@ -862,6 +888,8 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RentPaidDays { get; set; }
     /// <summary>Runde 41 (additiv): versiegelte Fracht eines Transportauftrags (Laderaum-Volumen, keine Ware); fehlt = 0.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MissionCargo { get; set; }
+    /// <summary>Lücken gegenüber IP2 (additiv): vom Spieler vergebener Schiffsname; fehlt = Modellname.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Name { get; set; }
     /// <summary>Phase 23 (additiv): Laufzeitzustand der Bordsysteme; fehlt = voll, ausgeglichen, unbeschädigt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ShipSystemsSave? Systems { get; set; }
 }

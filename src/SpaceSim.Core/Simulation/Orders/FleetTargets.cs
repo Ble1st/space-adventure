@@ -15,7 +15,7 @@ public static class FleetTargets
     /// <summary>Höchstzahl der Ziele je Liste (Raster mit Rollen).</summary>
     public const int MaxShips = 12, MaxStations = 8, MaxGates = 6, MaxRoutes = 10;
 
-    static string ShipLabel(Universe u, Ship s) => $"{(u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : "Schiff")} #{s.Id.Value}";
+    static string ShipLabel(Universe u, Ship s) => s.CustomName.Length > 0 ? ShipNames.Display(u, s) : $"{(u.ShipModels.TryGetValue(s.ModelKey, out var m) ? m.Name : "Schiff")} #{s.Id.Value}";
     static string Short(string s, int n) => s.Length <= n ? s : s[..(n - 1)] + "…";
     static int Hops(Universe u, SectorId a, SectorId b) => a == b ? 0 : u.FindRoute(a, b)?.Count ?? int.MaxValue;
 

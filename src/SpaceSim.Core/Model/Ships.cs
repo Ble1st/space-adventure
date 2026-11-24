@@ -33,6 +33,8 @@ public sealed class Ship : ICreditAccount
     public Controller Controller { get => _controller; set { _controller = value; ControllerSet = true; } }
     /// <summary>Schiffsmodell-Schlüssel ("" = kein Modell, dann gelten die Pauschalwerte).</summary>
     public string ModelKey = "";
+    /// <summary>Lücken gegenüber IP2: vom Spieler vergebener Name ("" = Modellname und Nummer, <see cref="ShipNames.Display"/>). Gespeichert, nicht gehasht (nur Anzeige).</summary>
+    public string CustomName = "";
     /// <summary>Slotliste dieses Schiffs (Art, Größe, optional facing/arc); leer = die der Klasse des Modells.</summary>
     public List<ClassSlot> Slots = new();
     /// <summary>Modul-Schlüssel je Slot (null = leer); Länge = Slotanzahl.</summary>

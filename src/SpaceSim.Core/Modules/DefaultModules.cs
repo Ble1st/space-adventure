@@ -217,3 +217,13 @@ public sealed class IntelModule : ISimModule
     public string Name => "Intel";
     public void Register(SimulationBuilder b) => b.Add(new SpaceSim.Core.Intel.IntelSystem(), SpaceSim.Core.Intel.IntelSystem.Interval);
 }
+
+/// <summary>
+/// Lücken gegenüber IP2: Spielerstatistik. Läuft zuletzt; liest nur Spielerereignisse und Kasse/Sektor des Spielers und schreibt nur
+/// <see cref="Model.PlayerStats"/> — die NPC-Welt ist bitgleich.
+/// </summary>
+public sealed class PlayerStatsModule : ISimModule
+{
+    public string Name => "PlayerStats";
+    public void Register(SimulationBuilder b) => b.Add(new PlayerStatsSystem(), PlayerStatsSystem.Interval);
+}

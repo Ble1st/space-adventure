@@ -170,6 +170,7 @@ public static class UniverseHash
                 foreach (var (f, c) in a.CrimeStanding.OrderBy(k => k.Key.Value))
                 { Mix((ulong)f.Value + 0x5e11u); MixF(c.Debt); MixF(c.Base); Mix((ulong)c.WindowStart); MixF(c.WindowLoss); }
             if (includePlayerPolitics && a.Intel is { } intel) Persistence.IntelCodec.Mix(intel, Mix);   // Ausbau Punkt 16: Spielerwissen (nur wenn beschränkt)
+            if (includePlayerPolitics && a.Stats is { } pst) Persistence.PlayerStatsCodec.Mix(pst, Mix);   // Spielerstatistik (nur wenn gezählt)
         }
         foreach (var sh in u.Ships.Values.OrderBy(x => x.Id.Value))
         { Mix((ulong)sh.Id.Value); Mix((ulong)sh.HomeBase.Value); Mix((ulong)sh.DutySector.Value); MixF(sh.Hull); }   // Hülle: Überfälle, Rückzug

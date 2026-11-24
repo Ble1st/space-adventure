@@ -86,7 +86,7 @@ public static class OrderMove
     public static string StationName(Universe u, StationId id) => u.Stations.TryGetValue(id, out var s) ? s.Name : "?";
     public static string SectorName(Universe u, SectorId id) => u.Sectors.TryGetValue(id, out var s) ? s.Name : "?";
     public static string ShipName(Universe u, ShipId id) =>
-        u.Ships.TryGetValue(id, out var s) ? $"#{s.Id.Value}" + (u.ShipModels.TryGetValue(s.ModelKey, out var m) ? $" {m.Name}" : "") : "?";
+        u.Ships.TryGetValue(id, out var s) ? (s.CustomName.Length > 0 ? ShipNames.Display(u, s) : $"#{s.Id.Value}" + (u.ShipModels.TryGetValue(s.ModelKey, out var m) ? $" {m.Name}" : "")) : "?";
 
     /// <summary>Erreichbar für das Schiff (Mobilitätsprofil)?</summary>
     public static bool Reachable(Universe u, Ship ship, SectorId to) => u.IsReachable(ship.Sector, to, GateAccess.ProfileOf(u, ship));
