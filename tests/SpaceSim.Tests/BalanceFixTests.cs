@@ -28,6 +28,7 @@ public class BalanceFixTests
     /// </summary>
     internal static void RevertBalanceFix(WorldDef def)
     {
+        BlueprintMercTests.RevertMerc(def);   // Söldner (danach): aus
         SchutzKonvoiTests.RevertSchutz(def);   // Ausbau Punkt 3 kam danach: Grenzverfolgung, Schutzvertrag, Konvois aus
         BanditenTests.RevertBandits(def);   // Ausbau Punkt 17 kam danach (erste Zeile; idempotent — RevertGas ruft es ebenfalls)
         GasNebulaTests.RevertGas(def);   // Gasernte und Nebel (danach): Gas, Ionengas, Gasraffinerie, Nebel, Gassammler zurück

@@ -237,6 +237,8 @@ public sealed class Universe
     public Dictionary<int, long> Crises { get; } = new();
     /// <summary>Ausbau Punkt 3: Schutzverträge des Spielers (gespeichert, gehasht nur mit Spielerpolitik). Regeln in <see cref="Simulation.Protection"/>.</summary>
     public List<ProtectionContract> Protections { get; } = new();
+    /// <summary>Söldnerverträge des Spielers (gespeichert, gehasht nur wenn vorhanden). Regeln in <see cref="Simulation.Mercenaries"/>.</summary>
+    public List<MercContract> Mercenaries { get; } = new();
     /// <summary>Ausbau Punkt 3: KI-Konvois (sammelnd oder unterwegs; gespeichert, gehasht nur wenn vorhanden). Regeln in <see cref="Simulation.ConvoyRules"/>.</summary>
     public List<Convoy> Convoys { get; } = new();
     public int NextConvoyId { get; set; } = 1;

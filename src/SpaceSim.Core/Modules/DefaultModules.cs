@@ -35,7 +35,7 @@ public sealed class ExportModule : ISimModule
 public sealed class OrderModule : ISimModule
 {
     public string Name => "Orders";
-    public void Register(SimulationBuilder b) => b.Add(new OrderSystem()).Add(new HangarSystem(), interval: 50);
+    public void Register(SimulationBuilder b) => b.Add(new OrderSystem()).Add(new HangarSystem(), interval: 50).Add(new MercenarySystem(), MercenarySystem.Interval);   // Söldner: ohne Vertrag nichts
 }
 
 /// <summary>

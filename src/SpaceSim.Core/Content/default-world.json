@@ -87,6 +87,7 @@
   "repairPlatesPerHull": 0.02,
   "pursuitCrossBorder": true,
   "protectionContracts": true,
+  "mercenaries": true,
   "protectionFeePerDay": 200,
   "convoys": true,
   "convoyRouteRisk": 0.006,

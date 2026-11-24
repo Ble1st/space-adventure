@@ -2816,6 +2816,7 @@ public partial class SelfTest : Node
 			case 151: if (PassengerStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkte 10/14: Fahrgast- und Schmuggelauftrag per Tipp angenommen und abgeliefert, Flottentaxi per Tipp (SelfTest.Passengers.cs)
 			case 152: if (FeudStage(_frame - _stageStart)) Next(); break;
 			case 155: if (DockFlowStage(_frame - _stageStart)) Next(); break;
+			case 162: if (BlueprintMercStage(_frame - _stageStart)) Next(); break;   // Lücken IP2: Bauplan speichern/kaufen, Söldner anheuern (SelfTest.BlueprintMerc.cs)
 			case 156: if (HailStage(_frame - _stageStart)) Next(); break;   // Funk Stufe 1: Scanliste → 📡 Funk → Gespräch mit Kaperer und Station (SelfTest.Hail.cs)   // Nutzerwünsche: Aussteigen mit einem Tipp, Befehl angedockt, Debug-Spawn, Schiffsmenü (SelfTest.DockFlow.cs)
 			case 154: if (ProtectionStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 3: Schutzvertrag per Tipp in Comms (SelfTest.Protection.cs)
 			case 153: if (BanditStage(_frame - _stageStart)) Next(); break;   // Ausbau Punkt 17: Banditenfraktion — Fraktionen-Detail und Stations-Info am Sitz (SelfTest.Bandits.cs)   // Ausbau Punkt 6: Fehde erklären/beenden und Vermitteln per Tipp in Comms (SelfTest.Feud.cs)
@@ -2834,7 +2835,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 156;
+	const int LastStage = 162;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;
