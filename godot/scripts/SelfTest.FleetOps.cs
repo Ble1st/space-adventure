@@ -153,6 +153,12 @@ public partial class SelfTest
 		if (f == s4 - 1) FoEnsureRoute(u);   // neues Spiel mit Zufallsseed: mindestens eine lohnende Route in der Nähe sicherstellen
 		if (f >= s4 && f < s4 + 4) { FoTap(f, s4, () => FoRowButton(cc, FoRow(u, _foM)), "Händler"); return false; }
 		if (f >= s4 + 5 && f < s4 + 9) { FoTap(f, s4 + 5, () => fs.TestCommandButton(CommandKinds.Deliver), "Liefern"); return false; }
+		if (f == s4 + 9)
+		{
+			var db = fs.TestCommandButton(CommandKinds.Deliver);
+			var routes = FleetTargets.Deliver(u, u.Ships[_foM], 0f, 1.3f);
+			GD.Print($"[selftest] Liefern-Diagnose: Taste {(db is null ? "fehlt" : db.State.ToString())}, Routen {routes.Count}, AllCmds {Ui.Screens.FleetScreen.TestAllCommands}, Befehl M {u.Ships[_foM].Command?.Kind}");
+		}
 		if (f >= s4 + 10 && f < s4 + 14) { FoTap(f, s4 + 10, () => FoTarget(_ => true), "Lieferroute"); return false; }
 		if (f == s4 + 15) { Check(u.Ships[_foM].Command is DeliverCommand, $"Liefern per Tipp ({fs.TestMessage})"); return false; }
 		// ── Sammelpunkt: C → „Sammeln“ → D „mit“ → Station ──
