@@ -10,6 +10,7 @@
   "playerHq": true,
   "firmSeats": true,
   "feudsActive": true,
+  "universeEvents": true,
   "playerFeuds": true,
   "mediation": true,
   "playerMediation": true,

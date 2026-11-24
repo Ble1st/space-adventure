@@ -2819,6 +2819,7 @@ public partial class SelfTest : Node
 			case 157: if (Ip2Stage(_frame - _stageStart)) Next(); break;   // Lücken IP2: Umladen, Umbenennen, Statistik per Tipp (SelfTest.Ip2.cs)
 			case 158: if (SavesStage(_frame - _stageStart)) Next(); break;   // Mehrere Spielstände: Speichern unter, Laden, Löschen, Autosave-Intervall (SelfTest.Saves.cs)
 			case 162: if (BlueprintMercStage(_frame - _stageStart)) Next(); break;   // Lücken IP2: Bauplan speichern/kaufen, Söldner anheuern (SelfTest.BlueprintMerc.cs)
+			case 160: if (UniverseEventStage(_frame - _stageStart)) Next(); break;   // Universumsereignisse: Frachtfund erzwungen, Toast/Marker, Behälter per Traktor-Tipp (SelfTest.UniverseEvents.cs)
 			case 156: if (HailStage(_frame - _stageStart)) Next(); break;   // Funk Stufe 1: Scanliste → 📡 Funk → Gespräch mit Kaperer und Station (SelfTest.Hail.cs)   // Nutzerwünsche: Aussteigen mit einem Tipp, Befehl angedockt, Debug-Spawn, Schiffsmenü (SelfTest.DockFlow.cs)
 			case 159: if (DerelictStage(_frame - _stageStart)) Next(); break;   // Herrenlose Schiffe: Pannenauftrag per Tipp angenommen, Pannenschiff per Funk übernommen und zur Station gebracht, Schiff liefern per Tipp, herrenloses Schiff übernommen (SelfTest.Derelict.cs)
 			case 161: if (RouteStage(_frame - _stageStart)) Next(); break;   // Mehrpunkt-Route: Halte per langem Drücken, Kartenmenü, Abflug im Zeitraffer (SelfTest.Route.cs)

@@ -75,7 +75,8 @@ if (opts.TryGetValue("gatelist", out var glOpt) && glOpt == "on")
 // Phase 11: --security off schaltet Polizei und Piraten ab (Vergleichslauf ohne Phase-11-Wirkung)
 if (opts.TryGetValue("security", out var secOpt) && secOpt == "off") u.Rules.SecurityActive = false;
 if (opts.TryGetValue("blackmarket", out var bmOpt)) u.Rules.BlackMarket = bmOpt == "on";
-if (opts.TryGetValue("nebula", out var nebOpt)) u.Rules.NebulaEffects = nebOpt == "on";   // Gasernte: Nebelwirkungen (Vergleichsläufe)
+if (opts.TryGetValue("nebula", out var nebOpt)) u.Rules.NebulaEffects = nebOpt == "on";
+if (opts.TryGetValue("universeevents", out var ueOpt)) u.Rules.UniverseEvents = ueOpt == "on";   // Universumsereignisse (Vergleichsläufe)   // Gasernte: Nebelwirkungen (Vergleichsläufe)
 if (opts.TryGetValue("smugglers", out var smgOpt)) u.Rules.Smugglers = smgOpt == "on";   // Ausbau Punkt 5: Schmuggler-KI (Vergleichsläufe)
 if (opts.TryGetValue("blackmarketnpc", out var bmnOpt)) u.Rules.BlackMarketNpc = bmnOpt == "on";   // Schwarzmarkt NPC: gesetzlose KI-Schiffe beim Hehler (Vergleichsläufe)   // Schwarzmarkt: Beute beim Hehler ablegen (Vergleichsläufe)
 // Kapitulation: --capitulation off = Phase-28-Regel (Regierungsstationen nur ausgeschaltet, keine Übernahme), --aicapture off = nur der Spieler übernimmt
@@ -163,6 +164,8 @@ var gateRestored = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var gateDownSince = new Dictionary<int, long>();
 var gateOutages = new List<long>();
 double gateRepairCost = 0;
+var ueStats = new UniverseEventStats();   // Universumsereignisse
+u.Events.Raised += e => ueStats.On(u, e);
 u.Events.Raised += e =>
 {
     // Ausbau Punkt 17: Banditenfraktion — Zoll, Abgaben, Hehlerei, Flotte, Bauten, Beuteanteil, Überfälle, Gebietswechsel
@@ -1271,6 +1274,7 @@ if (u.Modules.Count > 0)
         var gasG = u.FindGood(u.Rules.GasGoodKey); var ionG = u.FindGood("ion_gas");
         string Price(Good? g) => g is null ? "–" : $"{(watch.AverageRatio(g.Id, ticks * 3 / 4) ?? 0f):0.00}";
         int collectors = u.Ships.Values.Count(s => s.Role == ShipRole.Collector && s.Controller == Controller.Ai);
+        Console.WriteLine(ueStats.Line(u));
         Console.WriteLine($"Gasernte (Nebel {(u.Rules.NebulaEffects ? "an" : "aus")}, Nebelsektoren {u.Sectors.Values.Count(s => s.Nebula)}, Gasfelder {u.Sectors.Values.Sum(s => s.GasFields.Count)}): "
             + $"KI geschöpft {gasCollected:0} E., ausgeliefert {gasDelivered:0} E. in {gasTrips} Lieferungen ({gasDeliveredCr:0} Cr); Sammler jetzt {collectors}; "
             + $"Ionengas getankt {ionTanks}× ({ionTankUnits:0.#} E.); Ø Preis/Basis letzte 25%: Gas {Price(gasG)}, Ionengas {Price(ionG)}");

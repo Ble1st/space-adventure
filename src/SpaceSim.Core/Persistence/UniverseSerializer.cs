@@ -176,6 +176,7 @@ public static class UniverseSerializer
                 Cargo = w.Cargo.Count == 0 ? null : w.Cargo.OrderBy(k => k.Key.Value).ToDictionary(k => k.Key.Value, k => k.Value),
                 Modules = w.Modules.Count == 0 ? null : w.Modules.Select(m => new WreckModuleSave { Key = m.Key, Condition = m.Condition }).ToList(),
             }).ToList();
+        UniverseEventCodec.Save(u, s);   // Universumsereignisse
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
             s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB, MediationBonus = w.MediationBonus, LastMediationTick = w.LastMediationTick }).ToList();
@@ -589,6 +590,7 @@ public static class UniverseSerializer
                 if (w.Modules is not null) foreach (var m in w.Modules) wr.Modules.Add(new WreckModule { Key = m.Key, Condition = m.Condition });
                 u.Wrecks.Add(wr);
             }
+        UniverseEventCodec.Load(s, u);   // Universumsereignisse
         // Phase 24: laufende Gefechte (der Index Schiff → Gefecht ist abgeleitet)
         u.Fights.NextId = Math.Max(1, s.NextEncounterId);
         if (s.Fights is not null)

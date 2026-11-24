@@ -187,6 +187,7 @@ public static class UniverseHash
                 foreach (var m in w.Modules) { MixString(m.Key); MixF(m.Condition); }
             }
         }
+        Persistence.UniverseEventCodec.Mix(u, Mix, MixF, MixString);   // Universumsereignisse (nur wenn je eines lief)
         // Phase 24: laufende Gefechte
         Mix((ulong)u.Fights.NextId);
         foreach (var e in u.Fights.Encounters)

@@ -73,6 +73,9 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WreckSave>? Wrecks { get; set; }
     /// <summary>Phase 26: nächste freie Wrack-Id.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextWreckId { get; set; }
+    /// <summary>Universumsereignisse (additiv, v17 bleibt): laufende Ereignisse; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<UniverseEventSave>? UniverseEvents { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextUniverseEventId { get; set; }
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }

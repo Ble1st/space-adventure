@@ -24,6 +24,7 @@ public class SchutzKonvoiTests
         var r = def.Rules ??= new EconomyRules();
         HerrenlosTests.RevertDerelict(def);   // herrenlose Schiffe, Panne, Schiff liefern (danach): aus
         r.DockDwellTicks = 0; r.DockDwellTicksPlayer = 0;   // Liegezeit an Stationen (danach): aus
+        r.UniverseEvents = false;   // Universumsereignisse (danach): aus (UniverseEventTests)
         r.PursuitCrossBorder = false;
         r.ProtectionContracts = false;
         r.Convoys = false;
