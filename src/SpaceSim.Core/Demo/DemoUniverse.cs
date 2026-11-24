@@ -23,7 +23,8 @@ public static class DemoUniverse
     public static readonly GoodId Gas = new(28);   // Nebelgas (Gasernte), angehängt
     public static readonly GoodId IonGas = new(29);   // Ionengas (Gasernte), angehängt
     public static readonly GoodId FusionFuel = new(30);   // Fusionsbrennstoff, angehängt
-    public const int FirstModuleGoodId = 31;
+    public static readonly GoodId Flare = new(31);   // Täuschkörper (Raketenlenkung), angehängt — nur mit Schalter missileGuidance (aus: fehlt, Modul-Waren ab 31)
+    public const int FirstModuleGoodId = 32;
 
     /// <summary>Kurzform: der Bausatz der Einheitsmodelle (leicht).</summary>
     public static GoodId ShipKit => ShipKitLight;

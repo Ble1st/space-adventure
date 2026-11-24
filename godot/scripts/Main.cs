@@ -1541,6 +1541,7 @@ public partial class Main : Node3D
 	void OnSimEvent(SimEvent e)
 	{
 		if (JumpCloakEvent(e)) return;   // Sprungantrieb und Tarnfeld (Main.JumpCloak.cs)
+		if (CounterEvent(e)) return;   // Raketenlenkung (Main.Guidance.cs)
 		if (BuildEvent(e)) return;   // eigene Stationen (Main.Build.cs)
 		if (FleetOpsEvent(e)) return;   // Flottenbefehle (Main.FleetOps.cs)
 		if (UniverseEventEvent(e)) return;   // Universumsereignisse (Main.UniverseEvents.cs)
@@ -3091,6 +3092,7 @@ public partial class Main : Node3D
 	void UpdateHud()
 	{
 		TickCountdown();
+		TickMissileWarning();   // Raketenlenkung: Raketenwarnung (Main.Guidance.cs)
 		int commsUnread = SpaceSim.Core.Comms.Comms.Unread(_session.U);   // Runde 40: Comms-Zähler echt (Hamburger-Menü + Kommando-Knopf)
 		_hud.Flight.SetCommandBadge(commsUnread);
 		_hud.Command.SetCommsBadge(commsUnread);
@@ -3333,7 +3335,7 @@ public partial class Main : Node3D
 			if (!g.Combat)
 			{
 				var v = _bayViews[g.Members[0]];
-				gv.Add(new GroupView { Label = v.Name, Sub = v.Detail, State = v.State, Reload = v.Reload, Combat = false, On = bays[g.Members[0]].Key == "tractor" && _tractorOn || bays[g.Members[0]].Key == WeaponBays.Cloak.Key && PlayerData.Cloaked });
+				gv.Add(new GroupView { Label = v.Name, Sub = v.Detail, State = v.State, Reload = v.Reload, Combat = false, On = bays[g.Members[0]].Key == "tractor" && _tractorOn || bays[g.Members[0]].Key == WeaponBays.Cloak.Key && PlayerData.Cloaked || bays[g.Members[0]].Key == WeaponBays.Jammer.Key && PlayerData.JammerOn });
 				continue;
 			}
 			int rdy = g.Members.Count(m => _bayStates[m] == BayState.Ready);
@@ -3398,6 +3400,7 @@ public partial class Main : Node3D
 			}
 			if (JumpCloakBay(i, bay)) continue;   // Sprungantrieb, Tarnfeld (Main.JumpCloak.cs)
 			if (GasBay(i, bay)) continue;   // Gasernte (Main.Gas.cs)
+			if (CounterBay(i, bay)) continue;   // Raketenlenkung: Täuschkörper, Störsender (Main.Guidance.cs)
 			if (bay.Key == WeaponBays.Contact.Key)
 			{
 				// Phase 29: Kontaktwerkzeug — reine Anzeige, Zustand aus der Core-Regel (OreChunks.Contact im selben Bild)
@@ -3501,6 +3504,7 @@ public partial class Main : Node3D
 		if (_docked != null || _hud.AnyModalOpen) return;
 		if (bays[index].Key == WeaponBays.Jump.Key || bays[index].Key == WeaponBays.Cloak.Key) { JumpCloakDown(bays[index].Key); return; }   // Sprungantrieb, Tarnfeld
 		if (bays[index].Key == WeaponBays.Gas.Key) { GasDown(); return; }   // Gasernte: Umschalter
+		if (bays[index].Key == WeaponBays.Flares.Key || bays[index].Key == WeaponBays.Jammer.Key) { CounterDown(bays[index].Key); return; }   // Raketenlenkung
 		if (bays[index].Key == WeaponBays.Splitter.Key) { FireSplitter(index); return; }
 		if (bays[index].Key == WeaponBays.Salvager.Key) { GrabSalvage(); return; }
 		if (bays[index].Key == WeaponBays.Contact.Key)

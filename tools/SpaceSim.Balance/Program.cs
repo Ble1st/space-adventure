@@ -25,7 +25,9 @@ if (opts.TryGetValue("fuel", out var fuelOpt)) worldDef.Rules.FuelActive = fuelO
 if (opts.TryGetValue("playerfaction", out var pfOpt)) worldDef.Rules.PlayerOwnFaction = pfOpt == "on";
 // Ausbau Punkt 17: --bandits on|off — etablierte Banditenfraktion (aus = WorldBuilder lässt sie mit allem, was ihr gehört, aus der Welt)
 if (opts.TryGetValue("bandits", out var banOpt)) worldDef.Rules.BanditFactions = banOpt == "on";
-if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
+if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";
+// Raketenlenkung: --guidance on|off (aus = WorldBuilder lässt Täuschkörper, neue Werfer und Störsender weg)
+if (opts.TryGetValue("guidance", out var guidOpt)) worldDef.Rules.MissileGuidance = guidOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
 // Runde 25: Varianten für die Handelsmargen ohne Neubau — Exportgebot der Senken für Konsum-/Luxusgüter, Betriebskapitalanteil der Stationen
@@ -484,6 +486,7 @@ if (probeBroke)
     };
 // Phase 28: Raketen, Stationsgeschütze, Belagerungen, Krieg, Kriegsschiffe; dazu die Piratenkassen nach Zweck (Prüfpunkt e)
 var missileOutcomes = new SortedDictionary<string, int>(StringComparer.Ordinal);
+int flaresUsed = 0, jammerOn = 0;
 var stationFalls = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var fallLog = new List<string>();   // Kapitulation: zerstörte/übernommene Stationen und Not-Sitze mit Tick
 int capRolls = 0, capYes = 0, seatsRelocated = 0; double capChanceSum = 0;
@@ -506,6 +509,7 @@ u.Events.Raised += e =>
     switch (e)
     {
         case MissileLaunched: missilesLaunched++; break;
+        case CountermeasureUsed cm: if (cm.Kind == "flares") flaresUsed++; else if (cm.On) jammerOn++; break;
         case MissileResolved mr: missileOutcomes[mr.Outcome] = missileOutcomes.GetValueOrDefault(mr.Outcome) + 1; if (mr.TargetStation.Value != 0) stationHullDmg += mr.HullDamage; break;
         case StationShot ss: stationShots++; if (ss.Hit) { stationHits++; stationGunDmg += ss.ShieldDamage + ss.HullDamage; } break;
         case ShotAtStation sa: shotsAtStations++; stationHullDmg += sa.HullDamage; break;
@@ -1292,6 +1296,7 @@ if (u.Modules.Count > 0)
         + $"Stationsgeschütze {stationShots} Schüsse ({stationHits} Treffer, Schaden {stationGunDmg:0}); Schüsse auf Stationen {shotsAtStations}, Hüllenschaden an Stationen {stationHullDmg:0}; "
         + $"Belagerungen {sieges}; Stationen gefallen {(stationFalls.Count == 0 ? "keine" : string.Join(", ", stationFalls.Select(kv => $"{kv.Key} {kv.Value}")))}; "
         + $"beschädigt jetzt {u.Stations.Values.Count(x => x.Condition is not null)}; Reparaturen {stationRepairs} ({stationRepairHull:0} Hülle, {stationRepairPlates:0.#} Hüllenplatten, {stationRepairCost:0} Cr)");
+    Console.WriteLine($"Raketenlenkung ({(u.Rules.MissileGuidance ? "an" : "aus")}): Täuschkörper ausgestoßen {flaresUsed}, Störsender eingeschaltet {jammerOn}");
     Console.WriteLine($"Kapitulation ({(u.Rules.StationCapitulation ? "an" : "aus")}, KI übernimmt {(u.Rules.AiStationCapture ? "ja" : "nein")}): Würfe {capRolls}, kapituliert {capYes}"
         + $"{(capRolls > 0 ? $" (Ø Chance {capChanceSum / capRolls:0.00})" : "")}; Not-Sitze {seatsRelocated}"
         + (fallLog.Count == 0 ? "" : " | " + string.Join(" | ", fallLog.Take(30))));

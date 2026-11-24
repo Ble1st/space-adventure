@@ -51,6 +51,7 @@ public static class WorldBuilder
     /// </summary>
     public static Universe Build(WorldDef def, ulong? seedOverride = null, string? startOption = null)
     {
+        if (def.Rules?.MissileGuidance != true) GuidanceContent.Strip(def);   // Raketenlenkung aus: ihre Inhalte fehlen (Welt bitgleich zu davor)
         var u = new Universe { Seed = seedOverride ?? def.Seed };
         u.Rng = new DeterministicRng(u.Seed);
         if (def.Rules is not null) u.Rules = def.Rules;
@@ -714,6 +715,7 @@ public static class WorldBuilder
                 PowerDraw = md.PowerDraw, PeakDraw = md.PeakDraw, Mass = md.Mass, Upkeep = md.Upkeep,
                 Holds = ParseHolds(md.Holds, $"Modul '{md.Key}'"), Cost = cost, FuelTypes = fuel,
                 DamageType = ParseWeapon(md),
+                Guidance = Combat.Guidance.Parse(md.Guidance, $"Modul '{md.Key}'"),
             };
             if (!u.Modules.TryAdd(md.Key, module)) throw new WorldFormatException($"Modul '{md.Key}' doppelt");
         }

@@ -116,6 +116,9 @@ public static class PlayerGunnery
         if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, tp.Pos)) return Fail(GunResult.OutsideArc, "Ziel außerhalb des Feuerwinkels — drehen.");
         if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
         if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
+        if (u.Rules.Warfare && Missiles.IsMissile(m)
+            && Guidance.LaunchIssue(u, ship.Sector, m, victim, true, ship.Position, CombatAutopilot.FromBearing(headingDeg), tp.Pos) is { } blind)
+            return Fail(GunResult.NotAllowed, $"Rakete: {blind}.");   // Raketenlenkung: optisch braucht Sichtkontakt
         var (e, me, them) = PlayerCombat.Engage(u, ship, victim);
         if (e is null || me is null || them is null) return Fail(GunResult.NotAllowed, "Dieses Schiff kannst du nicht angreifen.");
         me.Pos = ship.Position;
@@ -219,6 +222,8 @@ public static class PlayerGunnery
         if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, st.Position)) return Fail(GunResult.OutsideArc, $"{what} außerhalb des Feuerwinkels — drehen.");
         if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
         if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
+        if (Missiles.IsMissile(m) && Guidance.LaunchIssue(u, ship.Sector, m, null, true, ship.Position, CombatAutopilot.FromBearing(headingDeg), st.Position) is { } blind)
+            return Fail(GunResult.NotAllowed, $"Rakete: {blind}.");
         var e = SiegeTargets.SiegeOf(u, st.Ref) ?? Siege.Start(u, ship, st);
         // Gerätetest Phase 28 (Runde 6): wer die Belagerung verlassen hat (geflohen), tritt wieder bei — vorher galt der alte, abgelaufene Eintrag weiter: keine
         // Nachladeuhr (Dauerfeuer schoss jedes Bild, ≈ 70 Schüsse je Sekunde) und kein Ziel für Geschütze und Verteidiger

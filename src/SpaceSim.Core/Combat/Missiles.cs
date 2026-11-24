@@ -63,6 +63,17 @@ public static class Missiles
     public static void Step(Universe u, Encounter e, float seconds)
     {
         if (e.Missiles.Count == 0) return;
+        if (Guidance.Active(u))
+        {
+            Countermeasures.React(u, e);   // Raketenlenkung: NPC-Gegenmaßnahmen (feste Regeln, kein Zufall)
+            // Halbaktives Radar: verliert der Schütze die Erfassung, verfällt die Rakete (kein Zug)
+            foreach (var f in e.Missiles.ToList())
+                if (u.Modules.TryGetValue(f.Module, out var gm) && !Guidance.HoldsLock(u, e, f, gm))
+                {
+                    e.Missiles.Remove(f);
+                    u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, f.Station, "lock_lost", 0f, 0f));
+                }
+        }
         foreach (var f in e.Missiles.ToList())
         {
             f.Left -= f.Speed * seconds;
@@ -92,6 +103,10 @@ public static class Missiles
         var tp = e.Of(f.Target);
         if (tp is not { Active: true } || !u.Ships.TryGetValue(f.Target, out var target))
         { u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, default, "lost", 0f, 0f)); return; }
+        var g = Guidance.Of(u, m);
+        if (g != MissileGuidance.None && Countermeasures.Defeats(u, g, target) is { } beaten)   // Raketenlenkung: höchstens ein Zug für die Gegenmaßnahme
+        { u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, default, beaten, 0f, 0f)); return; }
+        if (g == MissileGuidance.Infrared) w = w with { Accuracy = Math.Clamp(w.Accuracy * Guidance.HeatFactor(u, target, tp.Speed), 0f, 1f) };   // Wärmefaktor
         float pdShip = Math.Clamp(target.Stats.PointDefense, 0f, r.PointDefenseMax);
         if (u.Rng.NextDouble() < pdShip) { u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, default, "intercepted", 0f, 0f)); return; }
         var profile = new TargetProfile(target.ShieldNow, target.Stats.Armor, tp.Speed, Gunnery.Signature(u, target));

@@ -22,6 +22,7 @@ public class SchutzKonvoiTests
     internal static void RevertSchutz(WorldDef def)
     {
         var r = def.Rules ??= new EconomyRules();
+        RaketenlenkungTests.RevertGuidance(def);   // Raketenlenkung und Gegenmaßnahmen (danach): aus — WorldBuilder lässt ihre Inhalte weg
         HerrenlosTests.RevertDerelict(def);   // herrenlose Schiffe, Panne, Schiff liefern (danach): aus
         r.DockDwellTicks = 0; r.DockDwellTicksPlayer = 0;   // Liegezeit an Stationen (danach): aus
         r.UniverseEvents = false;   // Universumsereignisse (danach): aus (UniverseEventTests)

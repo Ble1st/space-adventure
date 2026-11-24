@@ -98,6 +98,7 @@ public sealed class Ship : ICreditAccount
             // JumpCloakSystem den Zustand mit Ereignis (hier nur keine Last mehr).
             if (Cloaked && Stats.Cloak > 0f) Stats.PowerDraw += Stats.CloakDraw;
             if (JumpTarget.Value != 0 && Stats.JumpRange > 0) Stats.PowerDraw += Stats.JumpDraw;
+            if (JammerOn && Stats.Jamming > 0f) Stats.PowerDraw += Stats.JamDraw;   // Raketenlenkung: Störsender an
             ClampFuel();
             ClampSystems();
             Combat.ShipSystems.Wake(u, this);   // Phase 24: nach einem Modulwechsel kann sich ein bisher erholungsloses Schiff wieder erholen
@@ -269,6 +270,12 @@ public sealed class Ship : ICreditAccount
     public long JumpCooldownUntil;
     /// <summary>Tarnfeld: eingeschaltet (<see cref="Flight.Cloak"/>). Gespeichert, gehasht nur wenn gesetzt.</summary>
     public bool Cloaked;
+    /// <summary>Raketenlenkung: fehlende Täuschkörper im Magazin (0 = voll); siehe <see cref="Combat.Countermeasures"/>. Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public float FlaresMissing;
+    /// <summary>Raketenlenkung: ausgestoßene Täuschkörper wirken bis zu diesem Tick (ausschließlich).</summary>
+    public long FlaresUntil;
+    /// <summary>Raketenlenkung: Störsender eingeschaltet (kostet <see cref="ShipStats.JamDraw"/> Leistung).</summary>
+    public bool JammerOn;
 
     /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     public long NextThinkTick;

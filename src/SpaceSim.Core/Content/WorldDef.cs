@@ -128,6 +128,8 @@ public sealed class ModuleDef
     public List<FuelEntryDef> Fuel { get; set; } = new();
     /// <summary>Phase 7: Verbesserung dieses Moduls (Dienst „upgrade“, Güteklassen); fehlt = keine.</summary>
     public ModuleUpgradeDef? Upgrade { get; set; }
+    /// <summary>Raketenlenkung des Raketenwerfers: optical, infrared, radar_semi, radar_active; fehlt = keine (altes Verhalten).</summary>
+    public string? Guidance { get; set; }
     /// <summary>
     /// Phase 24: Schadensart einer Waffe (energy/kinetic). Waffenwerte stehen in <see cref="Stats"/>: damage, reload, range, accuracy, tracking, ammoPerShot.
     /// </summary>
