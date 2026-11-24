@@ -19,6 +19,8 @@ public partial class Hud : CanvasLayer
 	public CommandMenu Command { get; } = new();
 	/// <summary>UI-Umbau: eigener Startbildschirm (Hauptmenü) beim App-Start und über „Zum Hauptmenü“.</summary>
 	public StartScreen Start { get; } = new();
+	/// <summary>Mehrere Spielstände: „Laden“ und „Speichern unter“ (über Startbildschirm bzw. Spiel).</summary>
+	public SavesScreen Saves { get; } = new();
 	public MapOverlay Map { get; } = new();
 	public EconomyPanel Economy { get; } = new();
 	// Dock (UI.md Abschnitt 3): Auswahlmenü plus Vollbild-Bereiche; der Kontext hält Main aktuell
@@ -249,6 +251,7 @@ public partial class Hud : CanvasLayer
 		_menuLayer.AddChild(Map);
 		_menuLayer.AddChild(Command);
 		_menuLayer.AddChild(Start);
+		_menuLayer.AddChild(Saves);
 		// Runde 34 (UI-ANPASSUNG.md E3): Dock-Menü und Dock-Bereiche liegen in einer eigenen Schicht über die ganze Fläche (statt mittig in 1280 Breite), mit
 		// dem Faktor der Dock-Schicht (DockLayout.FitFactor) — gleiche Idee wie das Flug-HUD
 		_dockLayer.MouseFilter = Control.MouseFilterEnum.Ignore;

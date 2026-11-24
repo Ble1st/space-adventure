@@ -249,6 +249,17 @@ public partial class UiCheck : Node
 				_m.HudRef.CcComms.TestSelectFaction(u().Sectors[u().PlayerSector].Owner);
 			}, 12);
 			Add("kz-erkundung-flotte", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Fleet); var fl = _m.HudRef.CcFleet; if (FleetCheckShip() is { } fid) { fl.Select(fid); fl.TestChoose(SpaceSim.Core.Model.CommandKinds.ExploreSector); } }, 12);
+			// Mehrere Spielstände: Laden-Liste (mit zwei Ständen, einer mit langem Namen), Speichern unter, Einstellungen mit Autosave
+			Add("start-laden", () =>
+			{
+				_m.TestCloseCommand();
+				SpaceAdventure.Game.SaveService.SaveAs(u(), "Prüfstand Alpha", null, out _);
+				SpaceAdventure.Game.SaveService.SaveAs(u(), "Ein sehr langer Spielstandname bis 40 Z", null, out _);
+				_m.TestShowStart();
+				_m.HudRef.Saves.Open(SpaceAdventure.Ui.Screens.SavesScreen.Mode.Load);
+			}, 12);
+			Add("speichern-unter", () => _m.HudRef.Saves.Open(SpaceAdventure.Ui.Screens.SavesScreen.Mode.SaveAs, "Sektor Beta 24.11. 16:24"), 12);
+			Add("start-einstellungen", () => { _m.HudRef.Saves.Close(); _m.TestShowStart(); _m.HudRef.Start.ShowSettings(); }, 12);
 			Add("startpakete", () => { u().Player.Intel = null; _m.TestCloseCommand(); _m.TestShowStart(); }, 12);   // UI-Umbau: eigener Startbildschirm
 		}
 		if (NoFlight) { Add("ende", () => { _m.TestLeaveStart(); _m.TestCloseCommand(); _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f); }, 5); return; }   // Runde 37b: der lange Prüfhinweis des Menüs gehört nicht in den Flug
@@ -518,6 +529,7 @@ public partial class UiCheck : Node
 	/// <summary>Offener Vollbild-Bildschirm, Menü oder Sternenkarte: nur dessen Elemente zählen (das Flug-HUD darunter ist verdeckt).</summary>
 	Control? Modal()
 	{
+		if (_m.HudRef.Saves.Visible) return _m.HudRef.Saves;   // Mehrere Spielstände: liegt über Startbildschirm bzw. Spiel
 		if (_m.HudRef.Map.Visible) return _m.HudRef.Map;
 		return _m.HudRef.Screens.Current is Control sc && sc.IsVisibleInTree() && sc != (Control)_m.HudRef.Flight ? sc : null;
 	}

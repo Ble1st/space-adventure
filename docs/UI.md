@@ -108,3 +108,21 @@ Im Besitz öffnet Tippen auf ein Schiff ein **Detailfenster** (Zustand, Module, 
 - Leihschiff: welches Standardmodell, welche Miete und welches Pfand?
 - Liegegebühr an fremden Stationen: genaue Staffel je Klasse, mit oder ohne Freitage, Rabatt bei gutem Ruf?
 - Aufträge im Andock-Menü sind Platzhalter, bis es Missionen gibt.
+
+## Mehrere Spielstände und Autosave-Einstellung
+
+- **Speicherplätze:** je Stand `user://saves/<id>.json` plus kleine Metadaten `<id>.meta.json` (Name, Zeitpunkt, Tick/Spielzeit, Sektor, Kasse,
+  Schiffsmodell, Startpaket, Spielkennung, Autosave ja/nein). Reine Regeln in `SpaceSim.Core/Persistence/SaveSlots.cs` (Namensregel, Kennung aus dem Namen,
+  Sortierung „neuester zuerst“, Vorschlag „Sektor + Datum“, Metadaten aus dem Universum, Autosave-Stufen); Datei-IO in `godot/scripts/Game/SaveService.cs`.
+- **Ein Autosave je laufendem Spiel:** „Neues Spiel“ vergibt eine Spielkennung, Autosave und „Speichern“ schreiben in `auto-<Kennung>`; wer einen benannten
+  Stand lädt, setzt dessen Spiel fort (Autosave in dessen Autosave-Stand).
+- **Startbildschirm:** „Fortsetzen“ lädt den neuesten Stand (Name und Zeit in der Unterzeile), „Laden“ öffnet die Liste (Name, Zeit, Sektor · Kasse · Schiff ·
+  Spielzeit · Startpaket; „Laden“, „Löschen“ mit Zwei-Tipp). Pause-Menü: „Speichern unter“ (Eingabefeld mit Vorschlag, „Speichern“; vorhandene benannte
+  Stände „Überschreiben“ mit Zwei-Tipp). Zurück-Taste schließt den Bildschirm.
+- **Autosave-Intervall** in den Einstellungen des Startbildschirms: aus / 30 s / 1 min / 5 min, gespeichert in `user://settings.cfg` (Abschnitt `save`;
+  Prüfläufe `settings-test.cfg`). „aus“ beendet nur das regelmäßige Speichern — beim Schließen/Pausieren und „Zum Hauptmenü“ wird weiter gespeichert.
+- **Übernahme:** die alte Einzeldatei `user://savegame.json` wird beim ersten Zugriff als Stand „Übernommener Spielstand“ übernommen und bleibt als
+  `savegame.json.migrated` liegen (nur die Datei, das Format bleibt v17).
+- **Prüfläufe** (Selbsttest, UI-Bilder, ui-check, Handy- und Modellfotos) nutzen eigene Verzeichnisse `user://test-saves/<lauf>/` und leeren sie beim Start
+  (ui-check und Handyfotos jetzt schon vor dem Sitzungsstart — vorher lud deren Start den echten Stand). Selbsttest-Stufe 158 (`SelfTest.Saves.cs`),
+  ui-check-Zustände `start-laden`, `speichern-unter`, `start-einstellungen`. Simulation unverändert.

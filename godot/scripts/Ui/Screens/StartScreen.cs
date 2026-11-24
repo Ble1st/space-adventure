@@ -32,6 +32,8 @@ public sealed partial class StartScreen : Control
 
 	public void Open() { Visible = true; _panel = Panel.Packages; _dirty = true; }
 	public void Close() { Visible = false; }
+	/// <summary>ui-check/Selbsttest: Einstellungen rechts zeigen.</summary>
+	public void ShowSettings() { _panel = Panel.Settings; _dirty = true; }
 	public void Invalidate() => _dirty = true;
 
 	public override void _Notification(int what) { if (what == NotificationResized) _dirty = true; }
@@ -63,19 +65,24 @@ public sealed partial class StartScreen : Control
 		At(this, Text("Elf Sektoren · eine Wirtschaft, die ohne dich weiterläuft", 17, Dim), x0 + 4, y0 + 64, 0, 0);
 
 		float bx = x0, by = y0 + 120, bw = 360;
-		var saved = Game.SaveService.SavedAt;
-		if (saved is { } at)
+		// Mehrere Spielstände: „Fortsetzen“ lädt den neuesten Stand (Autosave oder benannt), „Laden“ öffnet die Liste
+		var newest = Game.SaveService.Newest;
+		if (newest is { } nm)
 		{
-			var cont = At(this, new KitButton("Fortsetzen", new Vector2(bw, 76)) { FontSize = 24, AlignLeft = true, State = KitButtonState.Ready, Sub = "Spielstand vom " + at.ToLocalTime().ToString("dd.MM. HH:mm") }, bx, by);
+			var cont = At(this, new KitButton("Fortsetzen", new Vector2(bw, 76)) { FontSize = 24, AlignLeft = true, State = KitButtonState.Ready, Sub = nm.Name + " · " + nm.SavedAt.ToLocalTime().ToString("dd.MM. HH:mm") }, bx, by);
 			cont.Pressed += () => Action?.Invoke("continue");
 			TestContinue = cont;
 			by += 88;
+			var load = At(this, new KitButton("Laden", new Vector2(bw, 64)) { FontSize = 21, AlignLeft = true, Sub = "Spielstand wählen" }, bx, by);
+			load.Pressed += () => Action?.Invoke("loadlist");
+			TestLoad = load;
+			by += 76;
 		}
-		else TestContinue = null;
+		else { TestContinue = null; TestLoad = null; }
 		var nw = At(this, new KitButton("Neues Spiel", new Vector2(bw, 64)) { FontSize = 21, AlignLeft = true, State = _panel == Panel.Packages ? KitButtonState.On : KitButtonState.Normal, Sub = "Startpaket wählen" }, bx, by);
 		nw.Pressed += () => { _panel = Panel.Packages; _dirty = true; };
 		by += 76;
-		var st = At(this, new KitButton("Einstellungen", new Vector2(bw, 64)) { FontSize = 21, AlignLeft = true, State = _panel == Panel.Settings ? KitButtonState.On : KitButtonState.Normal, Sub = "Ton · Bedienung" }, bx, by);
+		var st = At(this, new KitButton("Einstellungen", new Vector2(bw, 64)) { FontSize = 21, AlignLeft = true, State = _panel == Panel.Settings ? KitButtonState.On : KitButtonState.Normal, Sub = "Ton · Bedienung · Autosave" }, bx, by);
 		st.Pressed += () => { _panel = Panel.Settings; _dirty = true; };
 		TestSettings = st;
 		by += 76;
@@ -131,7 +138,11 @@ public sealed partial class StartScreen : Control
 	void BuildSettings(Control panel, float pw, float ph)
 	{
 		At(panel, Text("Einstellungen", 24, Cyan), 20, 14, pw - 40, 32);
-		float y = 64;
+		// Mehrere Spielstände: mit dem Autosave-Block rollt der Inhalt (bei großer UI höher als die Fläche)
+		var scroll = At(panel, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 52, pw - 4, ph - 56);
+		panel = new Control { MouseFilter = MouseFilterEnum.Pass };
+		scroll.AddChild(panel);
+		float y = 8;
 		At(panel, Text("Ton", 19, White), 20, y, 200, 28); y += 34;
 		SettingsRow(panel, ref y, Audio.AudioSettings.MusicText, Audio.AudioSettings.MusicMuted, () => Audio.AudioSettings.ChangeMusic(-Audio.AudioSettings.Step), () => Audio.AudioSettings.ChangeMusic(Audio.AudioSettings.Step), Audio.AudioSettings.ToggleMusicMute);
 		SettingsRow(panel, ref y, Audio.AudioSettings.EffectsText, Audio.AudioSettings.EffectsMuted, () => Audio.AudioSettings.ChangeEffects(-Audio.AudioSettings.Step), () => Audio.AudioSettings.ChangeEffects(Audio.AudioSettings.Step), Audio.AudioSettings.ToggleEffectsMute);
@@ -146,8 +157,27 @@ public sealed partial class StartScreen : Control
 			bx += 138;
 		}
 		y += 70;
-		WrappedText(panel, UiScale.Describe(), 20, y, pw - 40, 15, Dim, 20);
+		y = WrappedText(panel, UiScale.Describe(), 20, y, pw - 60, 15, Dim, 20) + 12;
+		// Mehrere Spielstände: Autosave-Intervall (gespeichert in den Einstellungen)
+		At(panel, Text("Autosave", 19, White), 20, y, 300, 28); y += 34;
+		bx = 20;
+		_autosaveButtons.Clear();
+		foreach (int sec in SpaceSim.Core.Persistence.SaveSlots.AutosaveOptions)
+		{
+			var b = At(panel, new KitButton(SpaceSim.Core.Persistence.SaveSlots.AutosaveText(sec), new Vector2(110, 60)) { FontSize = 18, State = Game.SaveSettings.AutosaveSeconds == sec ? KitButtonState.On : KitButtonState.Normal }, bx, y);
+			int s2 = sec;
+			b.Pressed += () => { Game.SaveSettings.SetAutosave(s2); _dirty = true; };
+			_autosaveButtons[sec] = b;
+			bx += 118;
+		}
+		y += 66;
+		y = WrappedText(panel, "„aus“: kein regelmäßiges Speichern — beim Schließen, Pausieren und „Zum Hauptmenü“ wird trotzdem gespeichert.", 20, y, pw - 60, 14, Dim, 19);
+		panel.CustomMinimumSize = new Vector2(pw - 24, y + 12);
 	}
+	readonly Dictionary<int, KitButton> _autosaveButtons = new();
+	/// <summary>Selbsttest: Taste des Autosave-Intervalls (Sekunden).</summary>
+	public KitButton? TestAutosave(int seconds) => Visible && _autosaveButtons.TryGetValue(seconds, out var b) && IsInstanceValid(b) && b.IsInsideTree() ? b : null;
+	public KitButton? TestLoad { get; private set; }
 
 	void SettingsRow(Control panel, ref float y, string text, bool muted, System.Action down, System.Action up, System.Action toggle)
 	{
