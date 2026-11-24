@@ -314,3 +314,10 @@ Triebwerke in Heckschächten, zwei flache Schmuggelkapseln unter dem Bauch (je 3
 Weltdatei das Modell nicht kennt; `ShipModels` lädt es per Schlüssel, sobald beide Zweige zusammen sind.
 `build_ships.py` bricht bei Modellen ohne Blender-Modell (z. B. `skimmer`) nicht mehr ab, sondern meldet sie.
 `--model-shots <dir> --model-shots-ships=a,b,c` rendert nur diese Schiffe (nah, Spielabstand, bei Backen/Greifern zusätzlich halb offen).
+
+## Baupläne (eigene Schiffsvarianten, Lücke gegenüber Interstellar Pilot 2)
+
+- **Speichern:** Schiffsmenü → Reiter „Module“ → Namensfeld + „Als Bauplan speichern“. Gespeichert werden Modell (Klasse und Werks-Steckplätze) und das Fit der Werks-Steckplätze; Module in Zusatzsteckplätzen aus Upgrades fallen weg (Meldung nennt es). Gleicher Name ersetzt; höchstens 20 Baupläne, Name ≤ 32 Zeichen. Löschen mit zwei Tipps. Nur eigene Schiffe. Das Fit muss auf den Werks-Steckplätzen nach `FitRules` gültig sein.
+- **Kaufen:** Werft (Dienst `shipdealer`) listet Baupläne als Angebot `blueprint:<Id>` neben den Modellen — gleiche Kaufregel `ShipPurchase` (Bausatz + Module aus dem Lager, Preis an die Station, Spiegelboden des Rückkaufdeckels, Ausgleichspreis für Spielerschiffe), die Werft muss die Klasse verkaufen; gesperrt, wenn Modell oder ein Modul für die Fraktion der Werft nicht erforscht ist. Kein Güteklassen-Wurf (der Bauplan legt die Module fest). Das Schiff liegt danach im Hangar (kein automatisches Einsteigen).
+- **Anwenden:** Ausrüster → Abschnitt „Baupläne“ (gleiches Modell): „Anwenden“ baut je abweichendem Steckplatz das Modul des Bauplans über `OutfitterService.Execute` ein (aus der Fracht kostenlos, sonst aus dem Lager zum Preis; Fit-, Fracht- und Schadensregeln wie beim Einzeleinbau; zwei Durchgänge wegen der Leistungsbilanz). Was fehlt, bleibt.
+- Zustand `Actor.Blueprints` (Spielerakteur), additiv gespeichert (`SaveGame.Blueprints`), gehasht nur mit Spielerpolitik und nur wenn vorhanden. Reine Spieleraktion — die NPC-Welt bleibt bitgleich.

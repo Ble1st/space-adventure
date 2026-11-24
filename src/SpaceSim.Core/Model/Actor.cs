@@ -125,6 +125,8 @@ public sealed class Actor
     public PlayerStats? Stats;
     /// <summary>Mehrpunkt-Route des Spielerautopiloten (nur beim Spielerakteur; null = keine). Gespeichert additiv, gehasht nur mit Spielerpolitik.</summary>
     public Flight.PlayerRoute? Route;
+    /// <summary>Eigene Schiffsvarianten (Baupläne, nur beim Spielerakteur). Gespeichert additiv, gehasht nur mit Spielerpolitik und nur wenn vorhanden.</summary>
+    public List<ShipBlueprint> Blueprints = new();
     /// <summary>Ist der Akteur eine Fraktion (hat Politik)?</summary>
     public bool IsFaction(Universe u) => u.Factions.ContainsKey(new FactionId(Id.Value));
     /// <summary>Runde 38: ist der Akteur eine KI-Fraktion (Fraktion, aber nicht der Spieler)? Die KI-Fraktionsregeln (Rücklage, Mindestbestand, Kleinstationen) fragen dies.</summary>

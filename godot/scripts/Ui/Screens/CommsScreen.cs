@@ -255,6 +255,7 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			if (folge.Length > 0) y += WrappedText(box, folge, 0, y, w - 8, 12, offer.Possible ? new Color(Dim, 0.95f) : Orange, 15) - y + 10;
 		}
 
+		y = BuildMercs(box, u, y, w);   // Söldner anheuern/entlassen (vor der langen Angebotsliste)
 		// offene Comms-Angebote (Lieferverträge): annehmen / nachverhandeln
 		y += 6f;
 		At(box, Text("Offene Angebote (Comms)", 20, Cyan), 0, y, w - 20, 28);

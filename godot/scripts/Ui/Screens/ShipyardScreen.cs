@@ -49,6 +49,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 		float w = inner.Size.X > 0 ? inner.Size.X : 1020f;
 		_rows = 0;
 		_locked = 0;
+		_buy.Clear();
 		_scroll = null;
 		float assembly = u.StationTypes.TryGetValue(Ctx.Station.TypeKey, out var t) && t.ShipDealer is { } sd ? sd.Assembly : 0f;
 		// Tankanzeige-Runde (ui-check 2340×1080 bei 1,15: Kopfzeile gekürzt): zweizeilig umbrechen statt kürzen
@@ -64,7 +65,10 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 		_scroll.AddChild(box);
 		foreach (var o in svc.Offers(u, Ctx.Station, Ctx.Ship))
 		{
-			if (ShipDealerService.ModelKeyOf(o.Key) is not { } key || ShipDealerService.Quote(u, Ctx.Station, Ctx.Ship, key) is not { } q) continue;
+			// Baupläne des Spielers („blueprint:<Id>“) stehen wie Modelle in der Liste — gleiche Kaufregel, nur der Fit kommt aus dem Bauplan
+			var q = ShipDealerService.BlueprintIdOf(o.Key) is int bpId and > 0 ? ShipDealerService.QuoteBlueprint(u, Ctx.Station, Ctx.Ship, bpId)
+				: ShipDealerService.ModelKeyOf(o.Key) is { } key ? ShipDealerService.Quote(u, Ctx.Station, Ctx.Ship, key) : null;
+			if (q is null) continue;
 			box.AddChild(ModelRow(o, q, w - 14));
 			_rows++;
 		}
@@ -83,7 +87,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 		At(row, Text(o.Text, 18, White), 84, 4, w - 420, 26);
 		var s = q.Stats;
 		// Gerätetest Phase 27: „kein Laser“ meinte den Bergbaulaser — bei Kampfschiffen missverständlich; Waffen werden genannt
-		int weapons = q.Model.Fit.Count(k => k is not null && Ctx.U.Modules.TryGetValue(k, out var wm) && wm.IsWeapon);
+		int weapons = q.Fit.Count(k => k is not null && Ctx.U.Modules.TryGetValue(k, out var wm) && wm.IsWeapon);
 		string caps = (s.Capabilities.HasFlag(Capability.Mining) ? "Bergbaulaser" : weapons > 0 ? "" : "kein Bergbaulaser")
 			+ (weapons > 0 ? $"{(s.Capabilities.HasFlag(Capability.Mining) ? " · " : "")}{weapons} {(weapons == 1 ? "Waffe" : "Waffen")}" : "") + (s.CargoSolid > 0f || s.CargoLiquid > 0f
 			? $" · fest {s.CargoSolid + s.CargoAny:0}/flüssig {s.CargoLiquid + s.CargoAny:0}" : "")
@@ -102,6 +106,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 		if (q.Locked is not null) _locked++;
 		string key = o.Key;
 		if (can) b.Pressed += () => Execute(key);
+		_buy[key] = b;
 		return row;
 	}
 
@@ -126,6 +131,9 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 
 	// ── Zugriff für Selbsttest/Bildschirmfotos ──
 	public int TestRowCount => _rows;
+	readonly System.Collections.Generic.Dictionary<string, KitButton> _buy = new();
+	/// <summary>Selbsttest: „Kaufen“-Taste eines Angebots (Modell oder Bauplan).</summary>
+	public KitButton? TestBuyButton(string offerKey) => _buy.TryGetValue(offerKey, out var b) && IsInstanceValid(b) ? b : null;
 	/// <summary>Bildschirmfotos: zu den gesperrten Modellen rollen (Excavator steht in der Schlüsselreihenfolge weit oben, sonst ans Ende).</summary>
 	public void TestScrollToEnd() { if (_scroll != null) { _scrollV = 112 * 2; _scroll.ScrollVertical = _scrollV; } }
 	/// <summary>Phase 13: Zeilen mit gesperrtem (nicht erforschtem) Modell.</summary>

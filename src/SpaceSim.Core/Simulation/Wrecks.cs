@@ -48,6 +48,7 @@ public static class Wrecks
             if (ship.Fit[slot] is not { } key) continue;
             double survive = u.Rng.NextDouble(), rest = u.Rng.NextDouble();
             if (survive >= r.WreckModuleChance || !u.Modules.ContainsKey(key)) continue;
+            if (Mercenaries.IsMerc(u, ship.Id)) continue;   // Söldner: Schiff des Anbieters auf Zeit — kein Gratis-Material durch Abschuss (Ziehungen bleiben gleich)
             float cond = ship.ConditionOf(slot) * (r.WreckConditionMin + (1f - r.WreckConditionMin) * (float)rest);
             w.Modules.Add(new WreckModule { Key = key, Condition = Math.Clamp(cond, 0f, 1f) });
         }

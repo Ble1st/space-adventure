@@ -230,6 +230,7 @@ public static class UniverseHash
         foreach (var (k, t) in u.FeudEnded.OrderBy(k => k.Key.A).ThenBy(k => k.Key.B)) { if (Skip(new FactionId(k.A)) || Skip(new FactionId(k.B))) continue; Mix(0x6003u); Mix((ulong)k.A); Mix((ulong)k.B); Mix((ulong)t); }
         foreach (var (f, t) in u.Crises.OrderBy(k => k.Key)) { Mix(0x6004u); Mix((ulong)f); Mix((ulong)t); }
         // Ausbau Punkt 3: Schutzverträge (Spielerpolitik), Konvois (ohne Konvoi mischt nichts)
+        Persistence.BlueprintMercCodec.Mix(u, includePlayerPolitics, Mix, MixF, MixString);   // Baupläne (Spielerpolitik), Söldner — nur wenn vorhanden
         if (includePlayerPolitics) foreach (var c in u.Protections) { Mix(0x0301u); Mix((ulong)c.Faction.Value); Mix((ulong)c.Since); Mix((ulong)c.PaidUntil); }
         foreach (var c in u.Convoys)
         {

@@ -133,6 +133,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		Label Head(string t, int size, Color col) { var l = Text(t, size, col); l.AutowrapMode = TextServer.AutowrapMode.WordSmart; l.CustomMinimumSize = new Vector2(rw - 14, 0); return l; }
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);
+		AddBlueprintRows(box, rw - 14);   // Baupläne: fehlende Module des Bauplans einbauen
 		// Phase 7: Abschnitt „Verbessern“ (Dienst „upgrade“): Modul dieses Slots, Slot vergrößern, Bonusslot dieser Slotart
 		_upRows = 0;
 		var slotUps = upOffers.Where(o => OfferSlot(o.Key) == _slot || o.Key == $"bonus:{cur.Type}").ToList();

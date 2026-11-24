@@ -109,6 +109,7 @@ public sealed class CommsActions
         r.Register(new FeudAction());              // Ausbau Punkt 6: Fehde erklären/beenden
         r.Register(new MediateAction());           // Ausbau Punkt 6: zwischen zwei KI-Fraktionen vermitteln
         r.Register(new ProtectionAction());        // Ausbau Punkt 3: Schutzvertrag
+        r.Register(new MercenaryAction());         // Söldner anheuern/entlassen
         return r;
     }
 

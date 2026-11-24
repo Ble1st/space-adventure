@@ -47,7 +47,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 	}
 
 	public void ResetSession() { Current = Tab.Overview; ResetExtras(); foreach (var c in GetChildren()) { RemoveChild(c); c.QueueFree(); } }
-	public void Open() { Visible = true; Rebuild(); }
+	public void Open() { Visible = true; _bpName = ""; _bpMsg = ""; Rebuild(); }   // Baupläne: Name/Meldung je Öffnen neu
 	public void Close() => Visible = false;
 
 	/// <summary>Neu aufbauen, wenn sich die angezeigten Werte geändert haben (nie bei gedrückter Taste oder laufendem Wisch).</summary>
@@ -55,7 +55,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 	{
 		if (!Visible || Ctx?.U is null) return;
 		if (Ctx.U.Tick == _builtTick) return;
-		if (KitButton.AnyHeld > 0 || KitScroll.Dragging) return;
+		if (KitButton.AnyHeld > 0 || KitScroll.Dragging || EditingBlueprintName) return;   // Baupläne: nie beim Tippen des Namens
 		if (GetViewport()?.GuiGetFocusOwner() is LineEdit) return;   // Umbenennen: nicht unter dem Tippen neu aufbauen
 		if (Signature() == _sig) { _builtTick = Ctx.U.Tick; return; }
 		var keep = KitScroll.Capture(this);
@@ -180,7 +180,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 			y = Line(p, y, w, $"{i + 1}. {slot.Type} {slot.Size}", name + state, burning || cond < u.Rules.ModuleFailCondition ? Red : cond < 0.75f ? Orange : null);
 		}
 		if (s.Slots.Count == 0) y = Line(p, y, w, "Module", "keine Steckplätze (Schiff ohne Modell)");
-		return y;
+		return BuildBlueprints(p, u, s, w, y + 8f);   // Baupläne: als Bauplan speichern, Liste, Löschen
 	}
 
 	/// <summary>UI-Umbau (Nutzerwunsch „im eigenen Schiff sehen, was geladen ist“): Inventar mit Farbleiste, je Ware Menge, Wert, bester bekannter Abnehmer

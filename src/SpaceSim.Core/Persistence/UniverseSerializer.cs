@@ -193,6 +193,7 @@ public static class UniverseSerializer
             s.FeudEnded = u.FeudEnded.OrderBy(kv => kv.Key.A).ThenBy(kv => kv.Key.B).Select(kv => new[] { (long)kv.Key.A, kv.Key.B, kv.Value }).ToList();
         if (u.Crises.Count > 0)
             s.Crises = u.Crises.OrderBy(kv => kv.Key).Select(kv => new[] { (long)kv.Key, kv.Value }).ToList();
+        BlueprintMercCodec.ToSave(u, s);   // Baupläne, Söldner
         if (u.Protections.Count > 0)   // Ausbau Punkt 3
             s.Protections = u.Protections.Select(c => new[] { (long)c.Faction.Value, c.Since, c.PaidUntil }).ToList();
         if (u.Convoys.Count > 0)
@@ -527,6 +528,7 @@ public static class UniverseSerializer
             foreach (var p in s.FeudEnded) if (p.Length >= 3) u.FeudEnded[((int)p[0], (int)p[1])] = p[2];
         if (s.Crises is not null)
             foreach (var p in s.Crises) if (p.Length >= 2) u.Crises[(int)p[0]] = p[1];
+        BlueprintMercCodec.FromSave(s, u);   // Baupläne, Söldner
         if (s.Protections is not null)   // Ausbau Punkt 3
             foreach (var p in s.Protections) if (p.Length >= 3) u.Protections.Add(new ProtectionContract { Faction = new FactionId((int)p[0]), Since = p[1], PaidUntil = p[2] });
         if (s.Convoys is not null)
