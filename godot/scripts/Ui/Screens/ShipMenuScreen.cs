@@ -76,7 +76,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		var u = Ctx.U;
 		if (!u.Ships.TryGetValue(Ship, out var s)) return "weg";
 		string cargo = string.Join(",", s.Cargo.Where(kv => kv.Value > 0.01f).OrderBy(kv => kv.Key.Value).Select(kv => $"{kv.Key.Value}:{kv.Value:0.0}"));
-		return $"{s.Sector.Value}|{s.DockedAt.Value}|{s.Transit is not null}|{(int)s.Hull}|{(int)s.ShieldNow}|{s.TotalFuel:0}|{cargo}|{Commands.Describe(u, s)}|{s.Squadron.Value}|{(int)u.WalletOf(s).Credits}|{u.PlayerShip.Value}|{u.PlayerOnFoot}|{Current}|{s.CustomName}|{TransferSig(u, s)}";
+		return $"{s.Sector.Value}|{s.DockedAt.Value}|{s.Transit is not null}|{(int)s.Hull}|{(int)s.ShieldNow}|{s.TotalFuel:0}|{cargo}|{Commands.Describe(u, s)}|{s.Squadron.Value}|{(int)u.WalletOf(s).Credits}|{u.PlayerShip.Value}|{u.PlayerOnFoot}|{Current}|{s.CustomName}|{TransferSig(u, s)}|{CarrierSig(u, s)}";
 	}
 
 	void Rebuild()
@@ -274,7 +274,7 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 
 	float BuildFleet(Control p, Universe u, Ship s, float w)
 	{
-		float y = 0f;
+		float y = BuildCarrier(p, u, s, w);   // Träger: Hangar (ShipMenuScreen.Carrier.cs)
 		var sq = Squadrons.Get(u, s);
 		if (sq is not null)
 		{

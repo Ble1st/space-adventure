@@ -64,6 +64,7 @@ public static class PlayerFleet
     /// </summary>
     public static bool SwitchRemote(Universe u, ShipId id, out string message)
     {
+        if (u.Ships.TryGetValue(id, out var bf) && bf.CarrierHome.Value != 0) { message = "Bordjäger fliegt der Träger — „Jäger zurück“, dann den Träger übernehmen."; return false; }   // Träger
         // Runde 45 (Nutzeranweisung „in jedes eigene Schiff oder Station wechseln“): Der Fernwechsel kennt keine Personen-Sperre — auch zu Fuß
         // übernimmt die Person jedes eigene Schiff dort, wo es ist: angedockt steht sie in dessen Station, unterwegs sitzt sie an Bord.
         // Das bisherige aktive Schiff bleibt, wo es ist; ein Befehl läuft als Flottenschiff weiter. Das Taxi bleibt die Alternative, kein Muss.

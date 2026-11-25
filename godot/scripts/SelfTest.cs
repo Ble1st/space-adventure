@@ -2831,7 +2831,8 @@ public partial class SelfTest : Node
 			case 166: if (WormholeStage(_frame - _stageStart)) Next(); break;   // Wurmlöcher: Flug durch stabiles und instabiles, Karten, Scanliste (SelfTest.Wormholes.cs)
 			case 167: if (PilotsStage(_frame - _stageStart)) Next(); break;   // Piloten: Kapitän in Zielkarte/Funk, Rangliste per Tipp, Wertung steigt nach Abschuss (SelfTest.Pilots.cs)
 			case 168: if (HelpStage(_frame - _stageStart)) Next(); break;   // Hilfe und Tutorial: Tutorial per Tipp starten, Schritte, Hinweis einmal, Kodex (SelfTest.Help.cs)
-			case 169: if (BarStage(_frame - _stageStart)) Next(); break;   // Bars: Rubbellos per Tipp kaufen, aufdecken, abholen; Gerüchte (SelfTest.Bar.cs)
+			case 169: if (BarStage(_frame - _stageStart)) Next(); break;
+			case 170: if (CarrierStage(_frame - _stageStart)) Next(); break;   // Träger: „Jäger“ starten/zurückrufen per Tipp, Schiffsmenü starten/einschleusen (SelfTest.Carrier.cs)   // Bars: Rubbellos per Tipp kaufen, aufdecken, abholen; Gerüchte (SelfTest.Bar.cs)
 			case 162: if (BlueprintMercStage(_frame - _stageStart)) Next(); break;   // Lücken IP2: Bauplan speichern/kaufen, Söldner anheuern (SelfTest.BlueprintMerc.cs)
 			case 160: if (UniverseEventStage(_frame - _stageStart)) Next(); break;   // Universumsereignisse: Frachtfund erzwungen, Toast/Marker, Behälter per Traktor-Tipp (SelfTest.UniverseEvents.cs)
 			case 156: if (HailStage(_frame - _stageStart)) Next(); break;   // Funk Stufe 1: Scanliste → 📡 Funk → Gespräch mit Kaperer und Station (SelfTest.Hail.cs)   // Nutzerwünsche: Aussteigen mit einem Tipp, Befehl angedockt, Debug-Spawn, Schiffsmenü (SelfTest.DockFlow.cs)
@@ -2854,7 +2855,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 169;
+	const int LastStage = 170;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

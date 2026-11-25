@@ -67,6 +67,7 @@ public static class StartScenario
         }
         ApplyRock(u, player, sc, key);
         ApplyWingmen(u, player, sc, key);
+        ApplyCarrierFighters(u, player, sc, key);
         ApplyCombat(u, player, sc, key);
         if (sc.Outlaw && sc.Raiders <= 0 && u.ShipsById().FirstOrDefault(ThreatMap.IsRaider) is { } raider)
         {
@@ -206,6 +207,23 @@ public static class StartScenario
     /// Gerätetest Phase 28 (Runde 5, „Kriegstest“): eigene Begleitschiffe neben dem Spieler (gehören der Person, voll ausgerüstet), ein Verband mit dem aktiven
     /// Schiff als Anführer und Regel „Angriff“ — die Mitglieder folgen ihm und treten seinen Gefechten bei (<c>Reinforcements</c>). Feste Abstände, kein Zufall.
     /// </summary>
+    /// <summary>Träger: Bordjäger im Hangar des Startschiffs (eigener Besitz, Hangarplätze und Klasse S geprüft).</summary>
+    static void ApplyCarrierFighters(Universe u, Ship player, ScenarioDef sc, string key)
+    {
+        if (sc.CarrierFighters is not { Count: > 0 } models || !u.Rules.Carriers) return;
+        if (!Combat.Carriers.IsCarrier(player)) throw new WorldFormatException($"Startpaket '{key}': Bordjäger brauchen einen Träger als Startschiff");
+        var at = u.StationsById().First(s => !s.IsBuildSite);
+        foreach (var k in models)
+        {
+            if (!u.ShipModels.TryGetValue(k, out var model)) throw new WorldFormatException($"Startpaket '{key}': unbekanntes Jägermodell '{k}'");
+            var cls = u.ShipClasses[model.ClassKey];
+            var f = Simulation.ShipPurchase.Create(u, u.NewShipId(), model.Key, cls.Slots, model.Fit, ShipRole.Player, Controller.Player, player.Owner, at, 0f);
+            if (Combat.Carriers.FighterIssue(u, f) is { } fi) throw new WorldFormatException($"Startpaket '{key}': '{k}' — {fi}");
+            if (Combat.Carriers.FreeBays(u, player) <= 0) throw new WorldFormatException($"Startpaket '{key}': Hangar voll");
+            Combat.Carriers.AddToHangar(u, player, f);
+        }
+    }
+
     static void ApplyWingmen(Universe u, Ship player, ScenarioDef sc, string key)
     {
         if (sc.Wingmen is not { Count: > 0 } models) return;

@@ -86,13 +86,13 @@ public static class UniverseSerializer
     static ShipClassSave ToSave(ShipClass c) => new()
     {
         Key = c.Key, Name = c.Name, Size = c.Size.ToString(), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, KitCount = c.KitCount == 1 ? 0 : c.KitCount, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades, Restricted = c.Restricted, BerthFee = c.BerthFee,
+        Slots = c.Slots.Select(ToSave).ToList(), Kit = c.Kit, KitCount = c.KitCount == 1 ? 0 : c.KitCount, HangarBays = c.HangarBays, ToolEfficiency = c.ToolEfficiency, MaxSlotUpgrades = c.MaxSlotUpgrades, Restricted = c.Restricted, BerthFee = c.BerthFee,
     };
 
     static ShipClass FromSave(ShipClassSave c) => new()
     {
         Key = c.Key, Name = c.Name, Size = Enum.Parse<SlotSize>(c.Size, ignoreCase: true), BaseHull = c.BaseHull, BaseMass = c.BaseMass, BaseFuel = c.BaseFuel,
-        Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit, KitCount = c.KitCount > 0 ? c.KitCount : 1, ToolEfficiency = c.ToolEfficiency > 0f ? c.ToolEfficiency : 1f, MaxSlotUpgrades = Math.Max(0, c.MaxSlotUpgrades),
+        Slots = c.Slots.Select(FromSave).ToList(), Kit = c.Kit, KitCount = c.KitCount > 0 ? c.KitCount : 1, HangarBays = Math.Max(0, c.HangarBays), ToolEfficiency = c.ToolEfficiency > 0f ? c.ToolEfficiency : 1f, MaxSlotUpgrades = Math.Max(0, c.MaxSlotUpgrades),
         Restricted = c.Restricted, BerthFee = MathF.Max(0f, c.BerthFee),
     };
 
@@ -395,35 +395,8 @@ public static class UniverseSerializer
                 Rotation = st.Rotation == 0f ? null : st.Rotation,
                 CapitulationLockUntil = st.CapitulationLockUntil, Unpaid = st.Unpaid,   // Ausgleich (additiv)
             });
-        foreach (var sh in u.Ships.Values)
-            s.Ships.Add(new ShipSave
-            {
-                Id = sh.Id.Value, Owner = sh.Owner.Value, Role = sh.Role.ToString(), Capabilities = (int)sh.Capabilities, Controller = sh.Controller.ToString(),
-                ModelKey = sh.ModelKey.Length > 0 ? sh.ModelKey : null,
-                Slots = sh.Slots.Count > 0 ? sh.Slots.Select(ToSave).ToList() : null,
-                Fit = sh.Fit.Count > 0 ? new List<string?>(sh.Fit) : null,
-                CargoCapacity = sh.CargoCapacity,
-                Credits = sh.Credits, Hull = sh.Hull, Sector = sh.Sector.Value, Pos = sh.Position,
-                Order = sh.Order is null ? null : ToSave(sh.Order),
-                Phase = sh.Phase.ToString(), MinePhase = sh.MinePhase.ToString(),
-                Transit = sh.Transit is null ? null : ToSave(sh.Transit),
-                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid, AnchorRock = sh.AnchorRock, AnchorProgress = sh.AnchorProgress,
-                Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                Fuel = sh.Fuel.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
-                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince < 0 ? null : sh.StrandedSince, DockedSince = sh.DockedSince < 0 ? null : sh.DockedSince, Profit = ToSave(sh.Profit),
-                Quality = sh.Quality == ShipQuality.Standard ? null : sh.Quality.ToString(),
-                UpgradePity = sh.UpgradePity.Count == 0 ? null : new Dictionary<int, int>(sh.UpgradePity),
-                HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
-                Command = sh.Command is null ? null : ToSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
-                Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
-                RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit, RentPaidDays = sh.RentPaidDays, DerelictUntil = sh.DerelictUntil,
-                MissionCargo = sh.MissionCargo,   // Runde 41
-                Name = sh.CustomName.Length > 0 ? sh.CustomName : null,
-                JumpTarget = sh.JumpTarget.Value, JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpTarget.Value != 0 ? sh.JumpFrom : null,   // Sprungantrieb
-                JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
-                FlaresMissing = sh.FlaresMissing, FlaresUntil = sh.FlaresUntil, JammerOn = sh.JammerOn,   // Raketenlenkung: Gegenmaßnahmen
-                Systems = ToSave(sh.Systems),
-            });
+        foreach (var sh in u.Ships.Values) s.Ships.Add(ShipToSave(sh));
+        s.Hangars = CarrierCodec.ToSave(u);   // Träger: eingeschleuste Bordjäger (additiv)
         if (u.Squadrons.Count > 0)
             s.Squadrons = u.Squadrons.Values.OrderBy(q => q.Id.Value).Select(q => new SquadronSave
             {
@@ -432,6 +405,91 @@ public static class UniverseSerializer
             }).ToList();
         s.NextSquadronId = u.NextSquadronId;
         return s;
+    }
+
+    /// <summary>Ein Schiff als Speicherzustand (auch für eingeschleuste Bordjäger der Träger).</summary>
+    public static ShipSave ShipToSave(Ship sh) => new ShipSave
+    {
+            Id = sh.Id.Value, Owner = sh.Owner.Value, Role = sh.Role.ToString(), Capabilities = (int)sh.Capabilities, Controller = sh.Controller.ToString(),
+            ModelKey = sh.ModelKey.Length > 0 ? sh.ModelKey : null,
+            Slots = sh.Slots.Count > 0 ? sh.Slots.Select(ToSave).ToList() : null,
+            Fit = sh.Fit.Count > 0 ? new List<string?>(sh.Fit) : null,
+            CargoCapacity = sh.CargoCapacity,
+            Credits = sh.Credits, Hull = sh.Hull, Sector = sh.Sector.Value, Pos = sh.Position,
+            Order = sh.Order is null ? null : ToSave(sh.Order),
+            Phase = sh.Phase.ToString(), MinePhase = sh.MinePhase.ToString(),
+            Transit = sh.Transit is null ? null : ToSave(sh.Transit),
+            NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid, AnchorRock = sh.AnchorRock, AnchorProgress = sh.AnchorProgress,
+            Cargo = sh.Cargo.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+            Fuel = sh.Fuel.ToDictionary(kv => kv.Key.Value, kv => kv.Value),
+            JobSince = sh.JobSince, StrandedSince = sh.StrandedSince < 0 ? null : sh.StrandedSince, DockedSince = sh.DockedSince < 0 ? null : sh.DockedSince, Profit = ToSave(sh.Profit),
+            Quality = sh.Quality == ShipQuality.Standard ? null : sh.Quality.ToString(),
+            UpgradePity = sh.UpgradePity.Count == 0 ? null : new Dictionary<int, int>(sh.UpgradePity),
+            HomeBase = sh.HomeBase.Value, DutySector = sh.DutySector.Value,
+            Command = sh.Command is null ? null : ToSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
+            Engagement = sh.Engagement == Engagement.Defend ? null : sh.Engagement.ToString(), Squadron = sh.Squadron.Value, DockedAt = sh.DockedAt.Value,
+            RentedFrom = sh.RentedFrom.Value, RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit, RentPaidDays = sh.RentPaidDays, DerelictUntil = sh.DerelictUntil,
+            MissionCargo = sh.MissionCargo,   // Runde 41
+            Name = sh.CustomName.Length > 0 ? sh.CustomName : null,
+            JumpTarget = sh.JumpTarget.Value, JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpTarget.Value != 0 ? sh.JumpFrom : null,   // Sprungantrieb
+            JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
+            FlaresMissing = sh.FlaresMissing, FlaresUntil = sh.FlaresUntil, JammerOn = sh.JammerOn,   // Raketenlenkung: Gegenmaßnahmen
+            Systems = ToSave(sh.Systems),
+            CarrierHome = sh.CarrierHome.Value, CarrierReturnSince = sh.CarrierReturnSince < 0 ? null : sh.CarrierReturnSince, CarrierFought = sh.CarrierFought,   // Träger
+        };
+
+    /// <summary>Ein Schiff aus dem Speicherzustand (Modell auflösen, Werte neu berechnen); ohne Eintrag ins Universum.</summary>
+    public static Ship ShipFromSave(Universe u, ShipSave sh)
+    {
+        var role = Enum.Parse<ShipRole>(sh.Role);
+        var ship = new Ship
+        {
+            Id = new ShipId(sh.Id), Owner = new ActorId(sh.Owner ?? sh.Faction), Role = role,
+            // gespeichert; alte Spielstände ohne die Felder: aus der Rolle ableiten
+            Controller = sh.Controller is { } ctl ? Enum.Parse<Controller>(ctl) : CapabilityDefaults.ControllerFor(role),
+            ModelKey = sh.ModelKey ?? "",
+            Slots = sh.Slots is null ? new List<ClassSlot>() : sh.Slots.Select(FromSave).ToList(),
+            Fit = sh.Fit is null ? new List<string?>() : new List<string?>(sh.Fit),
+            CargoCapacity = sh.CargoCapacity,
+            Credits = sh.Credits, Hull = sh.Hull, Sector = new SectorId(sh.Sector), Position = sh.Pos,
+            Order = sh.Order is null ? null : FromSave(sh.Order),
+            Phase = Enum.Parse<TradePhase>(sh.Phase), MinePhase = Enum.Parse<MinePhase>(sh.MinePhase),
+            Transit = sh.Transit is null ? null : FromSave(sh.Transit),
+            NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid, AnchorRock = sh.AnchorRock, AnchorProgress = sh.AnchorProgress,
+            Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+            Fuel = sh.Fuel.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
+            JobSince = sh.JobSince, StrandedSince = sh.StrandedSince ?? -1, DockedSince = sh.DockedSince ?? -1, Profit = FromSave(sh.Profit),
+            Quality = sh.Quality is { } ql ? Enum.Parse<ShipQuality>(ql) : ShipQuality.Standard,
+            UpgradePity = sh.UpgradePity is null ? new Dictionary<int, int>() : new Dictionary<int, int>(sh.UpgradePity),
+            HomeBase = new StationId(sh.HomeBase), DutySector = new SectorId(sh.DutySector),
+            Command = sh.Command is null ? null : CommandFromSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
+            Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
+            DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
+            RentPaidDays = sh.RentPaidDays, MissionCargo = sh.MissionCargo, DerelictUntil = sh.DerelictUntil,   // Runde 41
+            CustomName = sh.Name ?? "",
+            JumpTarget = new SectorId(sh.JumpTarget), JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpFrom ?? default,   // Sprungantrieb
+            JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
+            FlaresMissing = sh.FlaresMissing, FlaresUntil = sh.FlaresUntil, JammerOn = sh.JammerOn,   // Raketenlenkung: Gegenmaßnahmen
+            Systems = FromSave(sh.Systems),
+            CarrierHome = new ShipId(sh.CarrierHome), CarrierReturnSince = sh.CarrierReturnSince ?? -1, CarrierFought = sh.CarrierFought,   // Träger
+        };
+        // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
+        ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;
+        bool modelOk = false;
+        if (model is not null && u.ShipClasses.TryGetValue(model.ClassKey, out var cls))
+        {
+            modelOk = true;
+            if (ship.Slots.Count == 0)
+                foreach (var sl in cls.Slots)
+                    ship.Slots.Add(new ClassSlot { Type = sl.Type, Size = sl.Size, Facing = sl.Facing, Arc = sl.Arc });
+            if (ship.Fit.Count == 0) ship.Fit = new List<string?>(model.Fit);
+        }
+        ship.RecomputeStats(u);
+        if (modelOk) ship.CargoCapacity = ship.Stats.Cargo;   // Laderaum aus dem Modell
+        // Fähigkeiten: mit Modell hat RecomputeStats sie aus dem Fit abgeleitet; ohne Modell gilt der gespeicherte Wert, sonst die Rolle
+        if (!modelOk)
+            ship.Capabilities = sh.Capabilities is { } caps ? (Capability)caps : CapabilityDefaults.ForRole(role);
+        return ship;
     }
 
     /// <summary>Himmel der eingebetteten Standardwelt je Sektor-Id (einmal gelesen).</summary>
@@ -790,55 +848,10 @@ public static class UniverseSerializer
         foreach (var st in u.Stations.Values) Content.StationFactory.ApplySize(u, st);
         foreach (var sh in s.Ships)
         {
-            var role = Enum.Parse<ShipRole>(sh.Role);
-            var ship = new Ship
-            {
-                Id = new ShipId(sh.Id), Owner = new ActorId(sh.Owner ?? sh.Faction), Role = role,
-                // gespeichert; alte Spielstände ohne die Felder: aus der Rolle ableiten
-                Controller = sh.Controller is { } ctl ? Enum.Parse<Controller>(ctl) : CapabilityDefaults.ControllerFor(role),
-                ModelKey = sh.ModelKey ?? "",
-                Slots = sh.Slots is null ? new List<ClassSlot>() : sh.Slots.Select(FromSave).ToList(),
-                Fit = sh.Fit is null ? new List<string?>() : new List<string?>(sh.Fit),
-                CargoCapacity = sh.CargoCapacity,
-                Credits = sh.Credits, Hull = sh.Hull, Sector = new SectorId(sh.Sector), Position = sh.Pos,
-                Order = sh.Order is null ? null : FromSave(sh.Order),
-                Phase = Enum.Parse<TradePhase>(sh.Phase), MinePhase = Enum.Parse<MinePhase>(sh.MinePhase),
-                Transit = sh.Transit is null ? null : FromSave(sh.Transit),
-                NextThinkTick = sh.NextThinkTick, IdleSince = sh.IdleSince, ShotTimer = sh.ShotTimer, MineAsteroid = sh.MineAsteroid, AnchorRock = sh.AnchorRock, AnchorProgress = sh.AnchorProgress,
-                Cargo = sh.Cargo.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
-                Fuel = sh.Fuel.ToDictionary(kv => new GoodId(kv.Key), kv => kv.Value),
-                JobSince = sh.JobSince, StrandedSince = sh.StrandedSince ?? -1, DockedSince = sh.DockedSince ?? -1, Profit = FromSave(sh.Profit),
-                Quality = sh.Quality is { } ql ? Enum.Parse<ShipQuality>(ql) : ShipQuality.Standard,
-                UpgradePity = sh.UpgradePity is null ? new Dictionary<int, int>() : new Dictionary<int, int>(sh.UpgradePity),
-                HomeBase = new StationId(sh.HomeBase), DutySector = new SectorId(sh.DutySector),
-                Command = sh.Command is null ? null : CommandFromSave(sh.Command), CommandSince = sh.CommandSince, CommandStep = sh.CommandStep, Emergency = sh.Emergency,
-                Engagement = sh.Engagement is { } eg ? Enum.Parse<Engagement>(eg) : Engagement.Defend, Squadron = new SquadronId(sh.Squadron),
-                DockedAt = new StationId(sh.DockedAt), RentedFrom = new StationId(sh.RentedFrom), RentedSince = sh.RentedSince, RentalDeposit = sh.RentalDeposit,
-                RentPaidDays = sh.RentPaidDays, MissionCargo = sh.MissionCargo, DerelictUntil = sh.DerelictUntil,   // Runde 41
-                CustomName = sh.Name ?? "",
-                JumpTarget = new SectorId(sh.JumpTarget), JumpCharge = sh.JumpCharge, JumpFrom = sh.JumpFrom ?? default,   // Sprungantrieb
-                JumpCooldownUntil = sh.JumpCooldownUntil, Cloaked = sh.Cloaked,   // Tarnfeld
-                FlaresMissing = sh.FlaresMissing, FlaresUntil = sh.FlaresUntil, JammerOn = sh.JammerOn,   // Raketenlenkung: Gegenmaßnahmen
-                Systems = FromSave(sh.Systems),
-            };
-            // Modell auflösen: Slots/Fit aus dem Modell füllen, wenn das Save sie nicht enthält (v3-Migration)
-            ShipModel? model = ship.HasModel ? u.ShipModels.GetValueOrDefault(ship.ModelKey) : null;
-            bool modelOk = false;
-            if (model is not null && u.ShipClasses.TryGetValue(model.ClassKey, out var cls))
-            {
-                modelOk = true;
-                if (ship.Slots.Count == 0)
-                    foreach (var sl in cls.Slots)
-                        ship.Slots.Add(new ClassSlot { Type = sl.Type, Size = sl.Size, Facing = sl.Facing, Arc = sl.Arc });
-                if (ship.Fit.Count == 0) ship.Fit = new List<string?>(model.Fit);
-            }
-            ship.RecomputeStats(u);
-            if (modelOk) ship.CargoCapacity = ship.Stats.Cargo;   // Laderaum aus dem Modell
-            // Fähigkeiten: mit Modell hat RecomputeStats sie aus dem Fit abgeleitet; ohne Modell gilt der gespeicherte Wert, sonst die Rolle
-            if (!modelOk)
-                ship.Capabilities = sh.Capabilities is { } caps ? (Capability)caps : CapabilityDefaults.ForRole(role);
+            var ship = ShipFromSave(u, sh);
             u.Ships[ship.Id] = ship;   // AddShip würde ein ShipSpawned-Ereignis auslösen
         }
+        CarrierCodec.FromSave(u, s.Hangars);   // Träger: eingeschleuste Bordjäger
         u.IdCounters = (s.NextShipId, s.NextStationId);
         SectorExtent.Recompute(u);   // Runde 44: abgeleitet (Gefechtsfläche, Sektorkarte)
         u.RebuildTracker();

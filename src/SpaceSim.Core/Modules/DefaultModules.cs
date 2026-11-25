@@ -132,7 +132,8 @@ public sealed class CombatModule : ISimModule
 {
     public string Name => "Combat";
     public void Register(SimulationBuilder b) =>
-        b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.NavalBattleSystem(), SpaceSim.Core.Combat.NavalBattleSystem.Interval)   // Ausbau Punkt 2: Seeschlachten auslösen
+        b.Add(new SpaceSim.Core.Combat.CombatSystem()).Add(new SpaceSim.Core.Combat.CarrierSystem())   // Träger: Bordjäger starten, landen, versorgen
+         .Add(new SpaceSim.Core.Combat.NavalBattleSystem(), SpaceSim.Core.Combat.NavalBattleSystem.Interval)   // Ausbau Punkt 2: Seeschlachten auslösen
          .Add(new SpaceSim.Core.Combat.ShipSystemsSystem())
          .Add(new SpaceSim.Core.Combat.FireSystem())                       // Phase 26: Brände über den Erholungsindex
          .Add(new SpaceSim.Core.Combat.HeatSystem(), SpaceSim.Core.Combat.HeatSystem.Interval)   // Hitze: Quellen, Abfuhr, Sperre, Überhitzung

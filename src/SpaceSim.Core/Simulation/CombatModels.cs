@@ -17,12 +17,14 @@ public static class CombatModels
         (s.Capabilities & Capability.Combat) != 0 && (s.Capabilities & (Capability.Cargo | Capability.Mining | Capability.Construction)) == 0;
 
     /// <summary>Alle Kampfmodelle (nach Schlüssel) mit Klasse und Werten.</summary>
-    public static IEnumerable<(ShipModel Model, ShipClass Class, ShipStats Stats)> All(Universe u)
+    /// <param name="carriers">Träger zulassen (nur die Marine im Krieg, <see cref="EconomyRules.CarrierNavy"/>); sonst fehlen sie — Polizei und Piraten kaufen nie Träger.</param>
+    public static IEnumerable<(ShipModel Model, ShipClass Class, ShipStats Stats)> All(Universe u, bool carriers = false)
     {
         foreach (var m in u.ShipModels.Values.OrderBy(m => m.Key, StringComparer.Ordinal))
         {
             if (!u.ShipClasses.TryGetValue(m.ClassKey, out var cls)) continue;
             var stats = ShipStats.Compute(cls, m.Fit.Select(k => k is not null && u.Modules.TryGetValue(k, out var mod) ? mod : null).ToList());
+            if (stats.HangarBays > 0 && !carriers) continue;   // Träger: nur auf ausdrücklichen Wunsch
             if (IsCombat(stats)) yield return (m, cls, stats);
         }
     }
@@ -30,18 +32,20 @@ public static class CombatModels
     /// <summary>Gewicht der Lage 0..1: Bedrohung ÷ <see cref="EconomyRules.CombatHeavyThreat"/>.</summary>
     public static float Heavy(Universe u, float threat) => u.Rules.CombatHeavyThreat <= 0f ? 0f : Math.Clamp(threat / u.Rules.CombatHeavyThreat, 0f, 1f);
 
-    static float Score(ShipStats s, float price, float heavy) => price <= 0f ? 0f : MathF.Pow(Strength(s), 1f + Math.Clamp(heavy, 0f, 1f)) / price;
+    static float Score(ShipStats s, float price, float heavy) => Score(Strength(s), price, heavy);
+    static float Score(float strength, float price, float heavy) => price <= 0f ? 0f : MathF.Pow(strength, 1f + Math.Clamp(heavy, 0f, 1f)) / price;
 
     /// <summary>
     /// Kauf an einer Werft (Polizei, Marine): bestes Kampfmodell, das eine von <paramref name="home"/> erreichbare Werft mit allem Material liefern kann und
     /// das <paramref name="budget"/> bezahlt. null = keins.
     /// </summary>
-    public static (ShipModel Model, ShipClass Class, Station Yard, IReadOnlyList<MaterialNeed> Needs, float Price)? AtYard(Universe u, SectorId home, float budget, float heavy)
+    public static (ShipModel Model, ShipClass Class, Station Yard, IReadOnlyList<MaterialNeed> Needs, float Price)? AtYard(Universe u, SectorId home, float budget, float heavy, bool carriers = false)
     {
+        float fighter = carriers ? Combat.Carriers.FighterStrength(u) : 0f;   // Träger: Stärke mit vollen Hangars
         (ShipModel, ShipClass, Station, IReadOnlyList<MaterialNeed>, float)? best = null;
         float bestScore = 0f;
         var yards = u.StationsById().Where(st => !st.IsBuildSite && st.Market.Count > 0 && u.IsReachable(st.Sector, home)).ToList();
-        foreach (var (model, cls, stats) in All(u))
+        foreach (var (model, cls, stats) in All(u, carriers))
         {
             if (ShipPurchase.Materials(u, model) is not { } needs) continue;
             foreach (var yard in yards)
@@ -49,7 +53,7 @@ public static class CombatModels
                 if (!ShipPurchase.SellsModel(u, yard, model) || !Research.Available(u, yard, UnlockKind.Model, model.Key) || ShipPurchase.Missing(yard, needs).Count > 0) continue;
                 float price = ShipPurchase.Price(u, yard, needs, ShipPurchase.AssemblyOf(u, yard));
                 if (price > budget) continue;
-                float score = Score(stats, price, heavy);
+                float score = stats.HangarBays > 0 ? Score(Strength(stats) + stats.HangarBays * fighter, price, heavy) : Score(stats, price, heavy);
                 if (score > bestScore) { bestScore = score; best = (model, cls, yard, needs, price); }
                 break;   // die erste passende Werft (Id-Reihenfolge) je Modell
             }

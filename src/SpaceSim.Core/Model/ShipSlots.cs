@@ -95,6 +95,8 @@ public sealed class ShipClass
     public string? Kit;
     /// <summary>Phase 29: so viele Bausätze verbraucht ein Schiff dieser Klasse (Schlachtkreuzer: drei schwere); Standard 1.</summary>
     public int KitCount = 1;
+    /// <summary>Träger: Hangarplätze des Rumpfs für Bordjäger der Klasse S (JSON <c>hangarBays</c>; 0 = kein Träger). Module können mit dem Wert <c>hangarBays</c> weitere Plätze geben.</summary>
+    public int HangarBays;
     /// <summary>
     /// Phase 6: Wirkungsgrad der Werkzeug-Slots dieses Rumpfs (Multiplikator auf die Trefferchance des Mining-Lasers); Standard 1.
     /// Mehrzweckrümpfe (leichter Frachter, Tinker) haben weniger, damit ein Generalist nie so gut schürft wie ein Spezialist

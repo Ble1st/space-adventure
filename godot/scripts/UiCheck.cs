@@ -299,6 +299,19 @@ public partial class UiCheck : Node
 		}, 40);
 		Add("flug-leviathan-einzeln", () => { _m.HudRef.Flight.TestExpanded = true; }, 20);
 		Add("flug-leviathan-einzeln2", () => { }, 6);
+		// Träger: Albatros mit zwei Falken — Gruppe „Jäger“ (an Bord, dann draußen) und der Hangar im Schiffsmenü (Reiter „Verband“)
+		Add("flug-traeger", () => { _m.HudRef.Flight.TestExpanded = false; _m.TestMenu("new:carrier"); }, 40);
+		Add("flug-traeger-draussen", () =>
+		{
+			u().Rules.PlayerRaids = false;
+			if (u().Ships.TryGetValue(u().PlayerShip, out var c)) SpaceSim.Core.Combat.Carriers.TryLaunch(u(), c, out _);
+		}, 20);
+		Add("schiffsmenue-traeger", () =>
+		{
+			_m.HudRef.Toast("", 0.01f);   // die Startmeldung der Flugtaste gehört nicht zum Schiffsmenü
+			_m.TestOpenShipMenu(u().PlayerShip, SpaceAdventure.Ui.Screens.ShipMenuScreen.Tab.Fleet);
+		}, 12);
+		Add("schiffsmenue-traeger2", () => _m.TestCloseShipMenu(), 6);
 		Add("flug-stationsangriff", () =>
 		{
 			_m.HudRef.Flight.TestExpanded = false;

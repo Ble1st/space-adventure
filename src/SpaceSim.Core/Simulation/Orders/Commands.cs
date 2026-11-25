@@ -17,6 +17,8 @@ public static class Commands
         // Auch das aktive Schiff nimmt Befehle an (Nutzerwunsch: Befehl wie ein Flottenschiff): zu Fuß führt es ihn sofort aus, an Bord
         // pausiert er, bis die Person aussteigt (<see cref="PlayerFleet.LeaveShip"/>) oder weiterwechselt — <see cref="OrderSystem"/> beendet ihn nicht.
         if (!executors.TryGet(command.Kind, out var ex)) return $"Unbekannter Befehl '{command.Kind}'.";
+        // Träger: ein gestarteter Bordjäger begleitet nur seinen Träger (Start/Rückruf am Träger)
+        if (ship.CarrierHome.Value != 0 && !(command is EscortCommand ce && ce.Target == ship.CarrierHome)) return "Bordjäger: folgt seinem Träger („Jäger zurück“ am Träger).";
         if (ex.Needs != Capability.None && !ship.Has(ex.Needs)) return $"Dafür fehlt die Fähigkeit ({CapabilityName(ex.Needs)}).";
         return ex.Check(u, ship, command);
     }
@@ -51,7 +53,7 @@ public static class Commands
 
     /// <summary>Schiffe eines Akteurs mit Einzelbefehl (außerhalb von Verbänden; Verbände zählen gegen ihre eigene Grenze).</summary>
     public static int Commanded(Universe u, ActorId actor) =>
-        u.Ships.Values.Count(s => s.Owner == actor && s.Command is not null && s.Squadron.Value == 0);
+        u.Ships.Values.Count(s => s.Owner == actor && s.Command is not null && s.Squadron.Value == 0 && s.CarrierHome.Value == 0);   // Träger: Bordjäger führt der Träger
 
     /// <summary>
     /// Runde 25 (Gerätetest „Befehle 5/4“ nach Auflösen eines Verbands): Einzelbefehle über der Kapazität. Regel: laufende Befehle bleiben (Auflösen oder

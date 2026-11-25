@@ -106,6 +106,8 @@ public sealed class ShipStats
     public float JamDraw;
     /// <summary>Ausbau Punkt 14: Fahrgastplätze (Modulstat <c>passengers</c>, Summe der Passagierkabinen); 0 = keine Kabine.</summary>
     public int Passengers;
+    /// <summary>Träger: Hangarplätze für Bordjäger (Klasse <see cref="ShipClass.HangarBays"/> + Modulwert <c>hangarBays</c>).</summary>
+    public int HangarBays;
     /// <summary>Gasernte: Gassammler — Gas je Sekunde im Gasfeld (Modulstat <c>gasCollect</c>, Summe); 0 = kein Sammler.</summary>
     public float GasCollect;
     /// <summary>Phase 24: Waffenstärke je Schaden pro Sekunde (abgeleitete Kennzahl aus den Waffenwerten: Schaden × Treffsicherheit ÷ Nachladezeit × dieser Faktor).</summary>
@@ -125,7 +127,7 @@ public sealed class ShipStats
     /// </summary>
     public static ShipStats Compute(ShipClass cls, IReadOnlyList<Module?> fit, IReadOnlyList<float>? condition, float failBelow)
     {
-        var s = new ShipStats { Mass = cls.BaseMass, FuelCapacity = cls.BaseFuel };
+        var s = new ShipStats { Mass = cls.BaseMass, FuelCapacity = cls.BaseFuel, HangarBays = cls.HangarBays };
         for (int slot = 0; slot < fit.Count; slot++)
         {
             var m = fit[slot];
@@ -160,6 +162,7 @@ public sealed class ShipStats
                 s.JumpChargeTicks = m.Stat("jumpCharge"); s.JumpCooldownTicks = m.Stat("jumpCooldown"); s.JumpDraw = m.Stat("jumpDraw"); s.JumpFuel = m.Stat("jumpFuel");
             }
             if (m.Stats.TryGetValue("passengers", out var pax)) s.Passengers += (int)pax;   // Ausbau Punkt 14: Passagierkabine
+            if (m.Stats.TryGetValue("hangarBays", out var hb)) s.HangarBays += (int)hb;   // Träger: Hangarmodul
             if (m.Stats.TryGetValue("cloak", out var ck) && ck > s.Cloak) { s.Cloak = ck; s.CloakDraw = m.Stat("cloakDraw"); }   // Tarnfeld: das beste Modul zählt
             if (m.Stats.TryGetValue("heatDissipation", out var hd)) s.HeatDissipation += hd;   // Hitze: Kühler
             if (m.Stats.TryGetValue("flareCapacity", out var fc)) s.FlareCapacity += fc;   // Raketenlenkung: Täuschkörper

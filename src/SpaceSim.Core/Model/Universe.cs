@@ -12,6 +12,11 @@ public sealed class Universe
     public Dictionary<GateId, Gate> Gates = new();
     public Dictionary<StationId, Station> Stations = new();
     public Dictionary<ShipId, Ship> Ships = new();
+    /// <summary>
+    /// Träger: eingeschleuste Bordjäger je Träger (Schiffe außerhalb von <see cref="Ships"/> — nicht im Raum, nicht gezeichnet, von keinem System bewegt).
+    /// Gespeichert, gehasht nur wenn vorhanden; Regeln in <see cref="Combat.Carriers"/>. Geht ein Träger verloren, gehen sie mit (<see cref="RemoveShip"/>).
+    /// </summary>
+    public Dictionary<ShipId, List<Ship>> Hangars { get; } = new();
     public Dictionary<FactionId, Faction> Factions = new();
     public Dictionary<GoodId, Good> Goods = new();
     public Dictionary<string, StationType> StationTypes = new();
@@ -369,6 +374,8 @@ public sealed class Universe
         Simulation.Squadrons.OnShipRemoved(this, s);   // Phase 12: Verband verlassen, Anführer folgt nach
         Fights.OnShipRemoved(id);   // Phase 24: aus dem Gefecht ausscheiden
         Events.Publish(new ShipRemoved(id, reason));
+        // Träger: eingeschleuste Bordjäger gehen mit ihrem Träger verloren (Verkauf ist gesperrt, solange Jäger an Bord sind)
+        if (Hangars.Remove(id, out var lost) && lost.Count > 0) Events.Publish(new Events.CarrierFightersLost(id, lost.Count, reason));
     }
 
     public void StartTransit(Ship s, Transit t)

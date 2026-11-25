@@ -744,7 +744,7 @@ public sealed class NavySystem : ISimSystem
         {
             // Phase 29: Wahl unter allen Kampfmodellen, im Krieg voll auf Kampfstärke gewichtet
             if (!u.Actors.TryGetValue(f, out var a) || SecuritySystem.HomeBaseFor(u, f, null) is not { } h
-                || CombatModels.AtYard(u, h.Sector, FactionViability.Spendable(u, a), 1f) is not { } pick) return null;
+                || CombatModels.AtYard(u, h.Sector, FactionViability.Spendable(u, a), 1f, carriers: r.Carriers && r.CarrierNavy) is not { } pick) return null;
             var q = ShipQualityRoll.Roll(u, pick.Class, pick.Class.Slots, pick.Model.Fit, pick.Yard, pick.Needs);
             ShipPurchase.Consume(pick.Yard, q.Materials ?? pick.Needs);
             pick.Yard.Credits += pick.Price;
@@ -754,6 +754,7 @@ public sealed class NavySystem : ISimSystem
             w.JobSince = u.Tick;
             u.AddShip(w);
             u.Events.Publish(new TreasuryUpkeep(a.Id, "navy", pick.Price, 0f));
+            if (Combat.Carriers.IsCarrier(w)) Combat.Carriers.EquipNpc(u, w, a);   // Träger: Bordjäger aus der Kasse
             u.Events.Publish(new WarshipCommissioned(f, w.Id, pick.Yard.Id, pick.Price));
             return w;
         }

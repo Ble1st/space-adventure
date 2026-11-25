@@ -143,6 +143,8 @@ public static class Hangar
         if (Derelicts.BreakdownOf(u, ship.Id) is not null) return "Gehört der Fraktion (Pannenauftrag) — zur Auftragsstation bringen.";
         if (ship.Transit is not null || ship.DockedAt != st.Id) return "Das Schiff liegt nicht hier.";
         if (ship.Cargo.Values.Sum() > 0.001f) return "Erst die Fracht verkaufen oder einlagern.";
+        if (u.Hangars.TryGetValue(ship.Id, out var bay) && bay.Count > 0) return "Erst die Jäger aus dem Hangar holen.";   // Träger
+        if (ship.CarrierHome.Value != 0) return "Bordjäger gehören zum Träger.";
         float price = SellPrice(u, ship);
         if (price <= 0f) return "Dieses Schiff hat keinen Marktwert.";
         if (st.Credits < price) return $"Die Station kann den Preis nicht zahlen (Kasse {MathF.Max(0f, st.Credits):0} von {price:0} Cr).";   // Runde 25: Betrag nennen

@@ -52,7 +52,8 @@ public static class WorldBuilder
     public static Universe Build(WorldDef def, ulong? seedOverride = null, string? startOption = null)
     {
         if (def.Rules?.MissileGuidance != true) GuidanceContent.Strip(def);
-        if (def.Rules?.ShipHeat != true) HeatContent.Strip(def);   // Hitze aus: Kühlermodule fehlen (Welt bitgleich zu davor)   // Raketenlenkung aus: ihre Inhalte fehlen (Welt bitgleich zu davor)
+        if (def.Rules?.ShipHeat != true) HeatContent.Strip(def);
+        if (def.Rules?.Carriers != true) CarrierContent.Strip(def);   // Träger aus: Trägerklasse und -modell fehlen (Welt bitgleich zu davor)   // Hitze aus: Kühlermodule fehlen (Welt bitgleich zu davor)   // Raketenlenkung aus: ihre Inhalte fehlen (Welt bitgleich zu davor)
         var u = new Universe { Seed = seedOverride ?? def.Seed };
         u.Rng = new DeterministicRng(u.Seed);
         if (def.Rules is not null) u.Rules = def.Rules;
@@ -778,7 +779,7 @@ public static class WorldBuilder
             if (cd.ToolEfficiency <= 0f || cd.ToolEfficiency > 1f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': toolEfficiency {cd.ToolEfficiency} muss in (0, 1] liegen");
             if (cd.MaxSlotUpgrades < 0) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': maxSlotUpgrades muss >= 0 sein");
             if (cd.BerthFee < 0f) throw new WorldFormatException($"Schiffsklasse '{cd.Key}': berthFee muss >= 0 sein");
-            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, KitCount = Math.Max(1, cd.KitCount), ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades, Restricted = cd.Restricted, BerthFee = cd.BerthFee };
+            var cls = new ShipClass { Key = cd.Key, Name = cd.Name, Size = ParseSize(cd.Size, $"Schiffsklasse '{cd.Key}'"), BaseHull = cd.BaseHull, BaseMass = cd.BaseMass, BaseFuel = cd.BaseFuel, Slots = slots, Kit = cd.Kit, KitCount = Math.Max(1, cd.KitCount), HangarBays = Math.Max(0, cd.HangarBays), ToolEfficiency = cd.ToolEfficiency, MaxSlotUpgrades = cd.MaxSlotUpgrades, Restricted = cd.Restricted, BerthFee = cd.BerthFee };
             if (!u.ShipClasses.TryAdd(cd.Key, cls)) throw new WorldFormatException($"Schiffsklasse '{cd.Key}' doppelt");
         }
 

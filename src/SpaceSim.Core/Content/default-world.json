@@ -12,6 +12,7 @@
   "feudsActive": true,
   "universeEvents": true,
   "bars": true,
+  "carriers": true,
   "barStationTypes": ["colony", "trade_station", "trade_post", "shipyard", "sector_hq", "headquarters", "police_station"],
   "playerFeuds": true,
   "mediation": true,
@@ -4882,6 +4883,31 @@
     }
    ],
    "kit": "ship_kit_medium"
+  },
+  {
+   "key": "carrier",
+   "name": "Träger",
+   "size": "XL",
+   "baseHull": 1500,
+   "baseMass": 60,
+   "baseFuel": 700,
+   "hangarBays": 4,
+   "slots": [
+    {"type": "reactor", "size": "L"},
+    {"type": "reactor", "size": "L"},
+    {"type": "engine", "size": "L"},
+    {"type": "weapon", "size": "M"},
+    {"type": "weapon", "size": "M"},
+    {"type": "weapon", "size": "S"},
+    {"type": "weapon", "size": "S"},
+    {"type": "shield", "size": "L"},
+    {"type": "armor", "size": "L"},
+    {"type": "utility", "size": "S"},
+    {"type": "utility", "size": "S"},
+    {"type": "storage", "size": "S"}
+   ],
+   "kit": "ship_kit_heavy",
+   "kitCount": 2
   }
  ],
  "shipModels": [
@@ -5424,6 +5450,25 @@
    "jobs": [
     "salvage"
    ]
+  },
+  {
+   "key": "carrier",
+   "class": "carrier",
+   "name": "Albatros",
+   "fit": [
+    "reactor_m",
+    "reactor_m",
+    "fusion_drive_l",
+    "weapon_laser_m",
+    "weapon_laser_m",
+    "weapon_laser_s",
+    "weapon_laser_s",
+    "shield_m",
+    "armor_plating_m",
+    "point_defense_s",
+    "point_defense_s",
+    "power_bank_s"
+   ]
   }
  ],
  "ships": [
@@ -5822,6 +5867,22 @@
      "distance": 140,
      "calm": true,
      "tutorial": true
+    }
+   },
+   {
+    "key": "carrier",
+    "name": "Trägertest (Test)",
+    "description": "NUR ZUM TESTEN: Träger „Albatros“ mit zwei Falken im Hangar (vier Plätze), 140 m vor der Werft Delta. Nach 60 s kündigt ein Kaperschiff den Überfall an. „Jäger“ im Daumenbogen startet die Bordjäger (sie begleiten den Träger und greifen in seine Gefechte ein), ein zweites Tippen ruft sie zurück; nach dem Gefecht landen sie von selbst und werden im Hangar langsam repariert. Im Schiffsmenü (Verband) stehen Start, Rückruf und das Einschleusen eigener S-Schiffe in der Nähe. Verlässt der Träger den Sektor oder legt er an, landen alle Jäger sofort; geht er verloren, gehen die Jäger im Hangar mit.",
+    "model": "carrier",
+    "credits": 20000,
+    "sector": 4,
+    "scenario": {
+     "station": "shipyard",
+     "distance": 140,
+     "carrierFighters": ["falcon", "falcon"],
+     "raiders": 1,
+     "raidAfterTicks": 240,
+     "cargo": { "food": 10 }
     }
    }
   ]

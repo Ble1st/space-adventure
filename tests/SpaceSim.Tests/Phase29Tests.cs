@@ -172,7 +172,7 @@ public class Phase29Tests
         }
         foreach (var need in new[] { "Handel/S", "Handel/M", "Handel/L", "Bergbau/S", "Bergbau/M", "Bergbau/L", "Mehrzweck/S", "Mehrzweck/M", "Kampf/S", "Kampf/M", "Kampf/L", "Kampf/XL", "Bau/M" })
             Assert.Contains(need, cells);
-        Assert.Equal(33, u.ShipModels.Count);   // 4 Einheitsmodelle + 27 benannte; Gasernte: + Gasschöpfer; Ausbau Punkt 4: + Bergeschiff; Ausbau Punkt 5: + Schatten (Schmuggler)
+        Assert.Equal(34, u.ShipModels.Count);   // Träger: + Albatros; 4 Einheitsmodelle + 27 benannte; Gasernte: + Gasschöpfer; Ausbau Punkt 4: + Bergeschiff; Ausbau Punkt 5: + Schatten (Schmuggler)
         // Skiffs sind Standardmodelle; jeder Händler bewaffnet
         Assert.Equal(new[] { "mine", "trade" }, u.ShipModels["pip"].Jobs.OrderBy(j => j));
         Assert.Contains("trade", u.ShipModels["nomad"].Jobs);

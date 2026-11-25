@@ -276,6 +276,12 @@ public sealed class Ship : ICreditAccount
     public long FlaresUntil;
     /// <summary>Raketenlenkung: Störsender eingeschaltet (kostet <see cref="ShipStats.JamDraw"/> Leistung).</summary>
     public bool JammerOn;
+    /// <summary>Träger: Heimatträger eines Bordjägers (gestartet: im Raum; eingeschleust: liegt in <see cref="Universe.Hangars"/>). default = kein Bordjäger. Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public ShipId CarrierHome;
+    /// <summary>Träger: gestarteter Bordjäger kehrt seit diesem Tick zum Träger zurück (-1 = nein).</summary>
+    public long CarrierReturnSince = -1;
+    /// <summary>Träger: gestarteter Bordjäger hat seit dem Start gekämpft (nach dem Gefecht kehrt er von selbst zurück).</summary>
+    public bool CarrierFought;
 
     /// <summary>KI denkt erst ab diesem Tick wieder nach (spart Rechenzeit bei untätigen Schiffen).</summary>
     public long NextThinkTick;

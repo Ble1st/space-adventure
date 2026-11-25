@@ -86,6 +86,7 @@ public static class UniverseHash
             if (s.FlaresMissing != 0f) { Mix(0x6E01UL); MixF(s.FlaresMissing); }   // Raketenlenkung: Täuschkörpermagazin
             if (s.FlaresUntil != 0) { Mix(0x6E02UL); Mix((ulong)s.FlaresUntil); }
             if (s.JammerOn) Mix(0x6E03UL);   // Störsender an
+            if (s.CarrierHome.Value != 0) { Mix(0xCA01UL); Mix((ulong)s.CarrierHome.Value); Mix((ulong)s.CarrierReturnSince); Mix(s.CarrierFought ? 1UL : 0UL); }   // Träger: Bordjäger (nur wenn gesetzt)
             MixString(s.ModelKey);                                   // Phase 3: Modell und Fit gehören zum Spielstand
             foreach (var f in s.Fit) { if (f is null) Mix(0UL); else MixString(f); }
             foreach (var (g, a) in s.Cargo.OrderBy(k => k.Key.Value)) { Mix((ulong)g.Value); MixF(a); }
@@ -105,6 +106,12 @@ public static class UniverseHash
             foreach (var b in sys.Burning) Mix((ulong)(b + 1000));   // Phase 26: Brand (Slots); unbeschädigte Schiffe mischen nichts
             if (sys.MissilesMissing != 0f) { Mix(0x2801u); MixF(sys.MissilesMissing); }   // Phase 28: Raketenmagazin
             if (sys.Heat != 0f || sys.HeatLocked) { Mix(0x4E47u); MixF(sys.Heat); Mix(sys.HeatLocked ? 1UL : 0UL); }   // Hitze: nur wenn gesetzt
+        }
+        // Träger: eingeschleuste Bordjäger (nur wenn vorhanden)
+        foreach (var (c, list) in u.Hangars.OrderBy(kv => kv.Key.Value))
+        {
+            Mix(0xCA02UL); Mix((ulong)c.Value);
+            foreach (var f in list) { Mix((ulong)f.Id.Value); Mix((ulong)f.Owner.Value); MixString(f.ModelKey); MixF(f.Hull); foreach (var k in f.Fit) { if (k is null) Mix(0UL); else MixString(k); } }
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
             foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); MixF(a.BaseRadius); }

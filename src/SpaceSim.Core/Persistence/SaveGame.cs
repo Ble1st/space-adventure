@@ -118,6 +118,8 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<MissionFactionSave>? MissionFactions { get; set; }
     /// <summary>Phase 12 (v15): Verbände; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<SquadronSave>? Squadrons { get; set; }
+    /// <summary>Träger (additiv): eingeschleuste Bordjäger je Träger; fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<HangarSave>? Hangars { get; set; }
     /// <summary>Phase 12 (v15): nächste freie Verbands-Id.</summary>
     public int NextSquadronId { get; set; } = 1;
     /// <summary>Phase 13 (v16): Forschungsprojekte (Content wie Rezepte und Module); fehlt = keine Forschung, alles frei.</summary>
@@ -842,6 +844,8 @@ public sealed class ShipClassSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Kit { get; set; }
     /// <summary>Phase 29: Bausätze je Schiff (fehlt = 1).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int KitCount { get; set; }
+    /// <summary>Träger (additiv): Hangarplätze des Rumpfs; fehlt = 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int HangarBays { get; set; }
     /// <summary>Wirkungsgrad der Werkzeug-Slots (Phase 6); fehlt in älteren Spielständen = 1.</summary>
     public float ToolEfficiency { get; set; } = 1f;
     /// <summary>Höchstzahl der Slot-Upgrades je Schiff (Phase 7, v10); fehlt in älteren Spielständen = 1.</summary>
@@ -906,6 +910,10 @@ public sealed class ShipSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float FlaresMissing { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long FlaresUntil { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool JammerOn { get; set; }
+    /// <summary>Träger (additiv): Heimatträger eines Bordjägers, Rückkehr seit Tick, hat gekämpft.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int CarrierHome { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? CarrierReturnSince { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool CarrierFought { get; set; }
     public Dictionary<int, float> Cargo { get; set; } = new();
     /// <summary>Treibstoff an Bord je Ware (GoodId → Menge); fehlt in v4-Saves (die Migration trägt einen vollen Tank nach).</summary>
     public Dictionary<int, float> Fuel { get; set; } = new();

@@ -175,6 +175,8 @@ public sealed class ShipClassDef
     public string? Kit { get; set; }
     /// <summary>Phase 29: Bausätze je Schiff (Standard 1).</summary>
     public int KitCount { get; set; } = 1;
+    /// <summary>Träger: Hangarplätze für Bordjäger (Klasse S); fehlt = 0.</summary>
+    public int HangarBays { get; set; }
     /// <summary>Phase 6: Wirkungsgrad der Werkzeug-Slots (Laser-Trefferchance × Wert); fehlt = 1. Muss in (0, 1] liegen.</summary>
     public float ToolEfficiency { get; set; } = 1f;
     /// <summary>Phase 7: Höchstzahl der Slot-Upgrades (Bonusslots + vergrößerte Slots) je Schiff; fehlt = 1, muss ≥ 0 sein.</summary>
@@ -582,6 +584,8 @@ public sealed class ScenarioDef
     /// „Angriff“; sie treten jedem Gefecht des Spielers bei (auch einem Stationsangriff).
     /// </summary>
     public List<string>? Wingmen { get; set; }
+    /// <summary>Träger: Bordjäger (Modellschlüssel, Klasse S), die das Startschiff — ein Träger — im Hangar hat.</summary>
+    public List<string>? CarrierFighters { get; set; }
     /// <summary>Hilfe und Tutorial: das Paket ist das Tutorial — Schritte aus <c>help.json</c>, Tutorialstation = <see cref="Station"/>; erscheint bei den regulären Paketen.</summary>
     public bool Tutorial { get; set; }
 }
