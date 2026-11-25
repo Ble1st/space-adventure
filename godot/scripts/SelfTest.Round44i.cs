@@ -33,7 +33,8 @@ public partial class SelfTest
 				.OrderByDescending(s => ActorNames.Tagged(u, s.Owner, s.Name).Length).ThenBy(s => s.Id.Value).Take(3).Select(s => s.Id).ToList();
 			Check(_r44iStations.Count == 3, $"R44i: drei lange Stationsnamen ({_r44iStations.Count})");
 			// Runde 44j: das Tor mit dem längsten angezeigten Namen (Ziel-Hinweis ohne Angriffshinweis, höchstens zwei Zeilen)
-			_r44iGate = u.Gates.Values.OrderByDescending(g => SpaceSim.Core.Combat.GateCombat.NameOf(u, g).Length).ThenBy(g => g.Id.Value).First().Id;
+			// (nur echte Sprungtore: stabile Wurmlöcher sind auch Torpaare, ihr Ziel-Hinweis lautet „Ziel: Wurmloch …“)
+			_r44iGate = u.Gates.Values.Where(g => !g.Wormhole).OrderByDescending(g => SpaceSim.Core.Combat.GateCombat.NameOf(u, g).Length).ThenBy(g => g.Id.Value).First().Id;
 			return false;
 		}
 		if (f < 6) return false;

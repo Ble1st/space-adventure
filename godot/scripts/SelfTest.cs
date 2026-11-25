@@ -1536,12 +1536,15 @@ public partial class SelfTest : Node
 				{
 					var pl = uni.Ships[uni.PlayerShip];
 					_p25Money = uni.WalletOf(pl).Credits;
-					var raider = uni.ShipsById().FirstOrDefault(SpaceSim.Core.Simulation.ThreatMap.IsRaider);
+					var raider = uni.ShipsById().FirstOrDefault(r => SpaceSim.Core.Simulation.ThreatMap.IsRaider(r) && uni.Fights.Of(r.Id) is null);   // nicht in einem fremden Gefecht
 					if (raider is null) { Fail("kein Kaperschiff für den Verlusttest"); Next(); break; }
 					if (raider.Transit is not null) uni.FinishTransit(raider);
 					if (raider.Sector != uni.PlayerSector) uni.MoveShip(raider, uni.PlayerSector);
 					raider.Position = pl.Position + new Vec2(0f, -20f); raider.DockedAt = default;
 					raider.Hull = raider.MaxHull; raider.Systems.ShieldMissing = 0f; raider.Systems.AmmoMissing = 0f;   // kampfbereit (flieht nicht)
+					// Hält bis zum Abschuss durch: mit Polizei im Sektor ist die Spielerseite stärker und der Kaperer würde sonst sofort fliehen
+					// (RaiderFleeRatio); kalt und mit vollem Magazin, damit die Hitzesperre das Feuer nicht anhält.
+					raider.Engagement = Engagement.Attack; _p60Raider = raider.Id; raider.Systems.Heat = 0f; raider.Systems.HeatLocked = false; raider.Systems.MissilesMissing = 0f;
 					pl.Cargo[uni.FindGood("electronics")!.Id] = 5f;
 					SpaceSim.Core.Combat.Engage.StartRaid(uni, raider, pl, uni.Sectors[uni.PlayerSector]);
 				}
@@ -1552,7 +1555,11 @@ public partial class SelfTest : Node
 					if (_frame - _stageStart < 2000) break;
 					Fail("Spielerschiff nach 2000 Frames im Gefecht nicht verloren"); Next(); break;
 				}
-				if (_p25LostFrame < 0) _p25LostFrame = _frame;
+				if (_p25LostFrame < 0)
+				{
+					_p25LostFrame = _frame;
+					if (uni.Ships.TryGetValue(_p60Raider, out var rd)) rd.Engagement = Engagement.Defend;   // Testeinstellung zurück (NPC-Kaperer greifen sonst nie mit „Angriff“ an)
+				}
 				if (_frame - _p25LostFrame < 6) break;
 				var now = uni.Ships[uni.PlayerShip];
 				Check(_m.LastLossMessage is { Length: > 0 }, $"Verlustmeldung („{_m.LastLossMessage}“)");
@@ -2875,6 +2882,7 @@ public partial class SelfTest : Node
 	int _p25Shots;
 	float _p25Charge, _p25Ammo, _p25Money;
 	ulong _p25Rng;
+	ShipId _p60Raider;
 	ShipId _p25Trader;
 	int _p25LostFrame = -1;
 	/// <summary>Phase 27: Stufen 68–72.</summary>
