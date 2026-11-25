@@ -357,6 +357,10 @@ public sealed record MissileLaunched(int Encounter, SectorId Sector, ShipId Shoo
 public sealed record MissileResolved(int Encounter, SectorId Sector, ShipId Shooter, ShipId Target, StationId TargetStation, string Outcome, float ShieldDamage, float HullDamage) : SimEvent;
 /// <summary>Raketenlenkung: Gegenmaßnahme benutzt — <paramref name="Kind"/> „flares“ (Täuschkörper ausgestoßen) oder „jammer“ (Störsender <paramref name="On"/>).</summary>
 public sealed record CountermeasureUsed(ShipId Ship, SectorId Sector, string Kind, bool On) : SimEvent;
+/// <summary>Hitze: Hitzesperre eines Schiffs gesetzt (<paramref name="Locked"/> = Waffen gesperrt, Schild lädt nicht) oder aufgehoben.</summary>
+public sealed record HeatLockChanged(ShipId Ship, SectorId Sector, bool Locked) : SimEvent;
+/// <summary>Hitze: bei 100 % hat die Hitze ein Modul beschädigt.</summary>
+public sealed record HeatDamage(ShipId Ship, SectorId Sector) : SimEvent;
 /// <summary>
 /// Gerätetest Phase 28 (Runde 6): der Spieler hat seine Belagerung verlassen; seine eigenen Schiffe brechen ab und folgen ihm. Runde 7: <paramref name="Won"/> =
 /// die Station ist ausgeschaltet bzw. gefallen (Siegmeldung statt „Rückzug“).

@@ -160,6 +160,9 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		if (st.Passengers > 0) y = Line(p, y, w, "Passagiere", $"{st.Passengers} Plätze");
 		if (st.JumpRange > 0) y = Line(p, y, w, "Sprungantrieb", $"{st.JumpRange} Sprünge");
 		if (st.Cloak > 0f) y = Line(p, y, w, "Tarnfeld", $"Stärke {st.Cloak:0.#}");
+		if (SpaceSim.Core.Combat.Heat.Active(u))   // Hitze: aktuelle Hitze, Kapazität und Abfuhr (Klasse + Kühler)
+			y = Line(p, y, w, "Hitze", $"{SpaceSim.Core.Combat.Heat.Share(u, s) * 100f:0} % · Kapazität {SpaceSim.Core.Combat.Heat.Capacity(u, s):0} · Abfuhr {SpaceSim.Core.Combat.Heat.Dissipation(u, s):0.#}/s (Kühler {st.HeatDissipation:0.#})",
+				s.Systems.HeatLocked ? Orange : null);
 		y = Line(p, y, w, "Fähigkeiten", s.Capabilities.ToString());
 		y = Line(p, y, w, "Unterhalt", $"{st.Upkeep:0.##} Cr/Tick");
 		y = Line(p, y, w, "Kasse", $"{(int)u.WalletOf(s).Credits} Cr");

@@ -117,6 +117,7 @@
   "banditHoardShare": 0.0002,
   "banditFenceCap": 0,
   "missileGuidance": true,
+  "shipHeat": true,
   "maxStations": 78,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
@@ -959,7 +960,9 @@
     "flare_launcher_s": [1, 1],
     "jammer_s": [0, 1],
     "missile_launcher_optical_s": [1, 1],
-    "missile_launcher_radar_s": [1, 1]
+    "missile_launcher_radar_s": [1, 1],
+    "heat_sink_s": [1, 1],
+    "heat_sink_m": [0, 1]
    },
    "shipDealer": {
     "assembly": 0.05
@@ -3976,7 +3979,9 @@
   {"key": "missile_launcher_optical_s", "name": "Optischer Raketenwerfer", "slot": "weapon", "size": "S", "tier": 1, "grants": ["Combat"], "stats": {"damage": 26, "reload": 7, "range": 90, "accuracy": 0.88, "tracking": 0.7, "ammoPerShot": 0, "missileSpeed": 40, "missileCapacity": 6}, "damageType": "explosive", "guidance": "optical", "powerDraw": 1, "peakDraw": 1, "mass": 2, "cost": {"steel": 2, "electronics": 1}},
   {"key": "missile_launcher_radar_s", "name": "Radarwerfer (halbaktiv)", "slot": "weapon", "size": "S", "tier": 2, "grants": ["Combat"], "stats": {"damage": 36, "reload": 8, "range": 130, "accuracy": 0.92, "tracking": 0.85, "ammoPerShot": 0, "missileSpeed": 45, "missileCapacity": 6}, "damageType": "explosive", "guidance": "radar_semi", "powerDraw": 3, "peakDraw": 1, "mass": 3, "cost": {"steel": 3, "electronics": 3, "wafers": 1}},
   {"key": "flare_launcher_s", "name": "Täuschkörperwerfer", "slot": "utility", "size": "S", "tier": 1, "stats": {"flareCapacity": 6}, "mass": 1, "cost": {"steel": 1, "electronics": 1}},
-  {"key": "jammer_s", "name": "Störsender", "slot": "utility", "size": "S", "tier": 2, "stats": {"jamming": 1, "jamDraw": 3}, "mass": 1, "cost": {"electronics": 3, "wafers": 1}}
+  {"key": "jammer_s", "name": "Störsender", "slot": "utility", "size": "S", "tier": 2, "stats": {"jamming": 1, "jamDraw": 3}, "mass": 1, "cost": {"electronics": 3, "wafers": 1}},
+  {"key": "heat_sink_s", "name": "Kühler S", "slot": "utility", "size": "S", "tier": 1, "stats": {"heatDissipation": 1.5}, "mass": 1, "cost": {"copper": 2}},
+  {"key": "heat_sink_m", "name": "Kühlplatten M", "slot": "armor", "size": "M", "tier": 2, "stats": {"heatDissipation": 3.5}, "mass": 4, "cost": {"copper": 4}}
  ],
  "shipClasses": [
   {

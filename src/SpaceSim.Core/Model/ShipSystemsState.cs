@@ -39,6 +39,14 @@ public sealed class ShipSystemsState
     /// </summary>
     public List<int> Burning = new();
 
+    /// <summary>
+    /// Hitze (KAMPF.md „Hitze und Wärmeabfuhr“): angestaute Hitzeeinheiten (0 = kalt, höchstens die Wärmekapazität aus <see cref="Combat.Heat.Capacity"/>).
+    /// Nur mit <see cref="EconomyRules.ShipHeat"/>; gespeichert und gehasht nur, wenn gesetzt.
+    /// </summary>
+    public float Heat;
+    /// <summary>Hitzesperre: ab <see cref="EconomyRules.HeatLockShare"/> gesetzt, erst unter <see cref="EconomyRules.HeatResumeShare"/> wieder frei (Waffen gesperrt, Schild lädt nicht).</summary>
+    public bool HeatLocked;
+
     /// <summary>Brennt das Modul in diesem Slot?</summary>
     public bool IsBurning(int slot) => Burning.Contains(slot);
 
@@ -47,7 +55,7 @@ public sealed class ShipSystemsState
 
     /// <summary>Alles auf Standard (voll, ausgeglichen, unbeschädigt)? Dann wird nichts gespeichert.</summary>
     public bool IsDefault =>
-        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && MissilesMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact && Burning.Count == 0;
+        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && MissilesMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact && Burning.Count == 0 && Heat == 0f && !HeatLocked;
 
     /// <summary>Alle Slots im Zustand 1?</summary>
     public bool AllIntact

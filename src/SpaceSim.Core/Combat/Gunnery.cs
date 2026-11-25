@@ -37,6 +37,7 @@ public static class Gunnery
     /// <summary>Reicht die Leistung für einen Schuss (rein, ohne Entnahme)? Bank mit Spitzenlast oder Überschuss mit Waffenanteil.</summary>
     public static bool HasPower(Universe u, Ship ship, in WeaponProfile w)
     {
+        if (Heat.Locked(u, ship)) return false;   // Hitze: gesperrt (Schalter aus: nie)
         if (w.PeakDraw <= 0f || ship.Charge >= w.PeakDraw) return true;
         return ShipSystems.Split(ship.Systems.Mode, u.Rules.PowerFocusShare).Weapons * ShipSystems.Surplus(ship.Stats) > 0f;
     }
@@ -50,6 +51,22 @@ public static class Gunnery
     /// Waffe im Takt des Überschusses (Waffenanteil). false = keine Leistung (nichts entnommen).
     /// </summary>
     public static bool DrawPower(Universe u, Ship ship, in WeaponProfile w, out float reload)
+    {
+        if (Heat.Active(u))
+        {
+            // Hitze: gesperrt → kein Schuss; sonst Nachladefaktor und Schusshitze (gebucht, weil auf ein true immer ein Schuss folgt)
+            if (Heat.Locked(u, ship)) { reload = w.Reload; return false; }
+            float slow = Heat.ReloadFactor(u, ship);
+            bool ok = DrawPowerCore(u, ship, w, out reload);
+            if (!ok) return false;
+            reload *= slow;
+            Heat.Add(u, ship, Heat.ShotHeat(u, w));
+            return true;
+        }
+        return DrawPowerCore(u, ship, w, out reload);
+    }
+
+    static bool DrawPowerCore(Universe u, Ship ship, in WeaponProfile w, out float reload)
     {
         var r = u.Rules;
         reload = w.Reload;

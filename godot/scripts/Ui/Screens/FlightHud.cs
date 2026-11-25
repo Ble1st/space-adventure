@@ -60,6 +60,11 @@ public sealed class FlightHudData
 	public bool WantedSevere;
 	/// <summary>Phase 26: Brandwarnung (leer = kein Brand) — rot unter der Fahndungszeile.</summary>
 	public string Fire = "";
+	/// <summary>Hitze (KAMPF.md „Hitze und Wärmeabfuhr“): Schalter an (Zeile sichtbar), Anteil 0..1, Sperre und Warnzeile (leer = keine).</summary>
+	public bool HeatActive;
+	public float HeatShare;
+	public bool HeatLocked;
+	public string HeatWarning = "";
 	/// <summary>Runde 41: Auftragszeile des aktiven Auftrags (Gold; leer = ausgeblendet) — Text aus <see cref="SpaceSim.Core.Missions.MissionMarkers"/>.</summary>
 	public string Mission = "";
 	/// <summary>Mehrpunkt-Route: „Route 2/4 → …“ (leer = keine Route) — Text aus <see cref="SpaceSim.Core.Flight.PlayerRoutes.HudLine"/>.</summary>
@@ -384,7 +389,15 @@ public partial class FlightHud : Control, IScreen
 	public void TestPressAutoFire() => AutoFirePressed?.Invoke();
 
 	// oben
-	KitBar _hullBar = null!, _fuelBar = null!, _shieldBar = null!, _powerBar = null!;
+	KitBar _hullBar = null!, _fuelBar = null!, _shieldBar = null!, _powerBar = null!, _heatBar = null!;
+	Label _heatVal = null!;
+	Control _heatRow = null!;
+	/// <summary>Selbsttest: Hitzezeile (sichtbar, Wert, Farbe rot = gesperrt/kritisch) und Status-/Zeilenrechteck.</summary>
+	public bool TestHeatVisible => _heatRow.Visible;
+	public string TestHeatText => _heatVal.Text;
+	public Rect2 TestHeatRowRect => _heatRow.GetGlobalRect();
+	public Rect2 TestStatusRect => _status.GetGlobalRect();
+	public Rect2 TestCargoTextRect => _cargoText.GetGlobalRect();
 	Label _fuelVal = null!, _shieldVal = null!, _powerVal = null!;
 	// Phase 23: Leistungsverteilung
 	/// <summary>Selbsttest: angezeigte Schild- und Leistungswerte, aktive Stellung.</summary>
@@ -577,6 +590,10 @@ public partial class FlightHud : Control, IScreen
 		_fuelInfo.ClipText = true; _fuelInfo.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _fuelInfo.CustomMinimumSize = new Vector2(1, 13);
 		sv.AddChild(_fuelInfo);
 		_powerBar = BarRow(sv, "Leistung", PowerColor, out _powerVal!);
+		// Hitze: eigene Zeile unter der Leistung (nur mit Schalter shipHeat; der Status wird dann um FlightHudLayout.HeatRowH höher)
+		_heatBar = BarRow(sv, "Hitze", UiKit.Orange, out _heatVal!);
+		_heatRow = (Control)sv.GetChild(sv.GetChildCount() - 1);
+		_heatRow.Visible = false;
 		_powerInfo = Text("", 12, new Color(UiKit.Dim, 0.85f));
 		_powerInfo.Visible = false;   // HUD-Neu: Stellung steht auf ⚡
 		// UI-Umbau: Fracht im Status (Farbleiste je Ware + größte Posten); Tipp öffnet das Inventar
@@ -935,6 +952,7 @@ public partial class FlightHud : Control, IScreen
 	bool _expanded;
 	int _layoutGroups = -1, _layoutBays = -1;
 	bool _layoutFire = true;
+	bool _layoutHeat;
 	/// <summary>HUD-Neu: Gruppenknopf gedrückt (Index in <see cref="FlightHudData.Groups"/>).</summary>
 	public event Action<int>? GroupDown;
 	/// <summary>Selbsttest: Einzelschächte aufgeklappt, Gruppentexte, Lage einer Gruppe/des FEUER-Knopfs.</summary>
@@ -975,7 +993,7 @@ public partial class FlightHud : Control, IScreen
 	{
 		_wantFactor = factor; _viewport = viewport;
 		// nie zwei Tasten übereinander — der Faktor sinkt (Core: FitFactor), bis Gruppen, FEUER und die aufgeklappten Schächte ihren Platz haben
-		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), factor);
+		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), factor, _layoutHeat);
 		var size = viewport / factor;
 		var insets = SafeInsets1();
 		if (Mathf.Abs(Scale.X - factor) < 1e-4f && (Size - size).LengthSquared() < 0.01f && Position == Vector2.Zero && insets == _laidInsets) return;
@@ -990,7 +1008,7 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>HUD-Neu: Lagen aus <see cref="FlightHudLayout"/> (Core) — Gruppen, FEUER und aufgeklappte Schächte nach den aktuellen Daten.</summary>
 	void Relayout()
 	{
-		var layout = FlightHudLayout.Compute(Size.X, Size.Y, SafeInsets(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), _expanded, _layoutFire);
+		var layout = FlightHudLayout.Compute(Size.X, Size.Y, SafeInsets(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), _expanded, _layoutFire, _layoutHeat);
 		Layout = layout;
 		foreach (var (item, c) in _items)
 		{
@@ -999,6 +1017,10 @@ public partial class FlightHud : Control, IScreen
 			// UI-Umbau: jede Zone bekommt ihre Größe aus der Anordnung (Randzellen 76 × 66, Kopfleiste über die ganze Breite)
 			if (r.W > 0f && r.H > 0f && item is not (HudItem.Status or HudItem.Card)) { c.CustomMinimumSize = new Vector2(r.W, r.H); c.Size = new Vector2(r.W, r.H); }
 		}
+		// Hitze: Statusfeld und seine Taste (Inventar) folgen der Höhe aus der Anordnung
+		var stR = layout[HudItem.Status];
+		if (stR.H > 0f) { _status.Size = new Vector2(_status.Size.X, stR.H); _cargoTap.Size = new Vector2(_cargoTap.Size.X, stR.H); _cargoTap.CustomMinimumSize = new Vector2(_cargoTap.CustomMinimumSize.X, stR.H); }
+		_heatRow.Visible = _layoutHeat;
 		_chipRow.CustomMinimumSize = Vector2.Zero;
 		_chipRow.Size = new Vector2(MathF.Max(0f, layout[HudItem.Chip].W - 28f), 42f);
 		_gateAttack.Position = _stationAttack.Position = new Vector2(layout[HudItem.Attack].X, layout[HudItem.Attack].Y);
@@ -1031,8 +1053,9 @@ public partial class FlightHud : Control, IScreen
 		int groups = Math.Min(_d.Groups.Count, MaxGroups), bays = _d.Bays.Count > _d.Groups.Count || _d.Groups.Count > MaxGroups ? Math.Min(_d.Bays.Count, MaxBays) : 0;
 		if (_d.InCombat) { groups = Math.Max(groups, _layoutGroups); bays = Math.Max(bays, _layoutBays); }
 		bool fire = _d.HasWeapons;
-		if (!force && groups == _layoutGroups && bays == _layoutBays && fire == _layoutFire) return;
-		_layoutGroups = groups; _layoutBays = bays; _layoutFire = fire;
+		bool heat = _d.HeatActive;
+		if (!force && groups == _layoutGroups && bays == _layoutBays && fire == _layoutFire && heat == _layoutHeat) return;
+		_layoutGroups = groups; _layoutBays = bays; _layoutFire = fire; _layoutHeat = heat;
 		if (bays < 2 && _expanded) { _expanded = false; _expand.On = false; }
 		if (_viewport != Vector2.Zero) { Scale = Vector2.Zero; ApplyScale(_viewport, _wantFactor); }
 		Relayout();
@@ -1174,8 +1197,14 @@ public partial class FlightHud : Control, IScreen
 		}
 		if (_scanHostile != d.ScanHostile) { _scanHostile = d.ScanHostile; _scanBtn.QueueRedraw(); }
 		if (_fastOn != d.FastOn) _fastBtn.QueueRedraw();
-		_fire.Text = d.Fire;
-		_fire.Visible = d.Fire.Length > 0;
+		// Hitze: Balken (orange ab „langsamer“, rot gesperrt/kritisch); die Warnzeile teilt sich die rote Brandzeile (Brand geht vor)
+		bool hot = d.HeatLocked || d.HeatShare >= 0.999f;
+		_heatBar.Set(d.HeatShare * 100f, hot ? UiKit.Red : d.HeatShare >= 0.7f ? UiKit.Orange : new Color(0.95f, 0.75f, 0.35f));
+		_heatVal.Text = d.HeatActive ? $"{d.HeatShare * 100f:0} %" : "";
+		_heatVal.AddThemeColorOverride("font_color", hot ? UiKit.Red : new Color(UiKit.Dim, 0.7f));
+		string fireLine = d.Fire.Length > 0 ? d.Fire : d.HeatWarning;
+		_fire.Text = fireLine;
+		_fire.Visible = fireLine.Length > 0;
 		// Runde 41: Auftragszeile (Gold); Runde 42d (Handytest): nach gemessener Breite gekürzt — Ziel kürzen,
 		// Restzeit („· noch m:ss“) bleibt immer sichtbar (sonst „…· noch…“ abgeschnitten)
 		_mission.Text = FitMissionLine(d.Mission, _mission);

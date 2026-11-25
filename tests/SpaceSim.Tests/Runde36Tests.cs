@@ -21,7 +21,9 @@ public class Runde36Tests
 {
     static readonly Lazy<string> Saved = new(() =>
     {
-        var u = WorldBuilder.BuildDefault(11, "trader");
+        var def = WorldBuilder.Parse(WorldBuilder.DefaultWorldJson());
+        HitzeTests.RevertHeat(def);   // die Kühlmodule (Hitzesystem) verschieben die Werftmärkte; der gemessene Plattenfall stammt aus der Welt davor
+        var u = WorldBuilder.Build(def, 11, "trader");
         u.Rules.DockDwellTicks = 0; u.Rules.DockDwellTicksPlayer = 0;   // Liegezeit (danach) verschiebt den Weltpfad; hier geht es um den Rückkaufdeckel
         new SimulationRunner().Run(u, 2000);
         return SaveGameJson.Write(u, DateTimeOffset.UnixEpoch);

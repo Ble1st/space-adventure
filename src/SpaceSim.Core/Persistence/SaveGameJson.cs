@@ -38,7 +38,9 @@ public static class SaveGameJson
         // Ausbau Punkt 17: zwei Banditenarten — Sitz (Freistatt) der etablierten Banditenfraktion
         "bandit_seat",
         // Raketenlenkung: Täuschkörper, optischer und halbaktiver Werfer, Täuschkörperwerfer, Störsender
-        "flare", "missile_launcher_optical_s", "missile_launcher_radar_s", "flare_launcher_s", "jammer_s" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
+        "flare", "missile_launcher_optical_s", "missile_launcher_radar_s", "flare_launcher_s", "jammer_s",
+        // Hitze: Kühlermodule
+        "heat_sink_s", "heat_sink_m" };   // Sprungantrieb und Tarnfeld   // Phase 29: Kontaktabbau   // Phase 28: Rakete, Raketenwerfer, Punktabwehr, Fregatte
     /// <summary>Phase 24: Modelle, deren Fit sich nach v17 geändert hat (Geschütz, Magazin) — für die Migrationskette der Fit im Stand v17.</summary>
     static readonly (string Model, string?[] Fit)[] AfterV17Fits =
     {
@@ -210,7 +212,7 @@ public static class SaveGameJson
             RemoveWhere(so["stations"]?.AsArray(), st => Late((string?)st["type"]));
         }
         RemoveWhere(root["ships"]?.AsArray(), n => Late((string?)n["model"]));
-        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); rr.Remove("maxSalvagers"); rr.Remove("npcSalvage"); rr.Remove("derelictShips"); rr.Remove("derelictEventTicks"); rr.Remove("missionBreakdownChance"); rr.Remove("missionShipDeliveryChance"); rr.Remove("missileGuidance"); if ((int?)rr["maxStations"] == 73) rr["maxStations"] = 69; }
+        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); rr.Remove("maxSalvagers"); rr.Remove("npcSalvage"); rr.Remove("derelictShips"); rr.Remove("derelictEventTicks"); rr.Remove("missionBreakdownChance"); rr.Remove("missionShipDeliveryChance"); rr.Remove("missileGuidance"); rr.Remove("shipHeat"); if ((int?)rr["maxStations"] == 73) rr["maxStations"] = 69; }
         foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             if (m?["stats"] is System.Text.Json.Nodes.JsonObject fs && fs["fuelUse"] is not null)
                 switch ((string?)m["key"])

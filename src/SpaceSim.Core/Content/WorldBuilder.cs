@@ -51,7 +51,8 @@ public static class WorldBuilder
     /// </summary>
     public static Universe Build(WorldDef def, ulong? seedOverride = null, string? startOption = null)
     {
-        if (def.Rules?.MissileGuidance != true) GuidanceContent.Strip(def);   // Raketenlenkung aus: ihre Inhalte fehlen (Welt bitgleich zu davor)
+        if (def.Rules?.MissileGuidance != true) GuidanceContent.Strip(def);
+        if (def.Rules?.ShipHeat != true) HeatContent.Strip(def);   // Hitze aus: Kühlermodule fehlen (Welt bitgleich zu davor)   // Raketenlenkung aus: ihre Inhalte fehlen (Welt bitgleich zu davor)
         var u = new Universe { Seed = seedOverride ?? def.Seed };
         u.Rng = new DeterministicRng(u.Seed);
         if (def.Rules is not null) u.Rules = def.Rules;

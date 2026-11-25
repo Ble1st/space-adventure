@@ -1724,6 +1724,10 @@ public partial class Main : Node3D
 				Sting("sting_warning");
 				_sfx.Play(SfxId.Click); Danger("Überfall droht", MaskUnknownFactions(w.Message), WarnSeconds(w.DueTick)); LastSecurityMessage = MaskUnknownFactions(w.Message);   // Punkt 16b
 				StartCountdown(w.DueTick); break;
+			case HeatLockChanged hl when hl.Ship == _session.U.PlayerShip:
+				if (hl.Locked) Danger("Überhitzt", SpaceSim.Core.Combat.Heat.Warning(_session.U, PlayerData));
+				else _hud.Toast("Abgekühlt — Waffen wieder frei.", 3f);
+				break;
 			case FireStarted fs when fs.Ship == _session.U.PlayerShip: Danger("Brand an Bord", SpaceSim.Core.Combat.DamageInfo.FireWarning(_session.U, PlayerData) ?? "Brand an Bord"); break;
 			case EncounterEscaped x when x.Target == _session.U.PlayerShip:
 				LastSecurityMessage = MaskUnknownFactions(x.Message); _hud.Toast(LastSecurityMessage, 4f);   // Punkt 16b
@@ -1890,6 +1894,7 @@ public partial class Main : Node3D
 		if (!_player.Locked)
 		{
 			PlayerFuel.ConsumeFlown(_session.U, PlayerData, new Vector2(_player.Position.X - before.X, _player.Position.Z - before.Z).Length());
+			if (_player.Thrusting) SpaceSim.Core.Combat.Heat.AddThrust(_session.U, PlayerData, Mathf.Abs(throttle), dt);   // Hitze: Schub wärmt (Schalter aus: nichts)
 			if (fuelCap >= 1f && PlayerFuel.ThrottleCap(_session.U, PlayerData) < 1f)
 				_hud.Toast("Tank leer – Notantrieb. Notruf im Menü oder zur nächsten Tankstelle schleichen.", 5f);
 		}
@@ -3135,6 +3140,9 @@ public partial class Main : Node3D
 			Wanted = SecurityInfo.HudLine(u) ?? "",
 			WantedSevere = SpaceSim.Core.Simulation.Wanted.MaxLevel(u, u.PlayerActor) >= 3,
 			Fire = SpaceSim.Core.Combat.DamageInfo.FireWarning(u, PlayerData) ?? "",   // Phase 26
+			// Hitze (Core Heat): Balken im Status, Warnzeile
+			HeatActive = SpaceSim.Core.Combat.Heat.Active(u), HeatShare = SpaceSim.Core.Combat.Heat.Share(u, PlayerData),
+			HeatLocked = SpaceSim.Core.Combat.Heat.Locked(u, PlayerData), HeatWarning = SpaceSim.Core.Combat.Heat.Warning(u, PlayerData),
 			Mission = SpaceSim.Core.Missions.MissionMarkers.First(u) is { } mk ? mk.Label : "",   // Runde 41: Auftragszeile (Gold)
 			Route = RouteHudLine(),   // Mehrpunkt-Route
 			AutopilotOn = _autopilot,
@@ -3381,7 +3389,7 @@ public partial class Main : Node3D
 					BayState.Ready => "FEUER",
 					BayState.OutsideArc when tpos is { } tp => TurnHintText(bay, headingDeg, pos, tp),
 					BayState.Reloading => "lädt nach",
-					BayState.NoPower => "keine Leistung",
+					BayState.NoPower => SpaceSim.Core.Combat.Heat.Locked(_session.U, PlayerData) ? "überhitzt" : "keine Leistung",
 					BayState.NoAmmo => "keine Munition",
 					_ => _fight.Target.Value == 0 && !_fight.AtStation && !_fight.AtGate ? "kein Ziel"
 						: !_fight.AtStation && _session.U.Ships.TryGetValue(_fight.Target, out var tgs) && SpaceSim.Core.Combat.PlayerCombat.TargetIssueShort(_session.U, PlayerData, tgs) is { } why

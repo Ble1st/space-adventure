@@ -259,7 +259,7 @@ public class Phase31Tests
         var combat = new CombatSystem();
         for (int i = 0; i < 20000 && !ev.OfType<GateDisabled>().Any(); i++)
         {
-            u.Tick++; combat.Step(u, 1); new ShipSystemsSystem().Step(u, 1);
+            u.Tick++; combat.Step(u, 1); new ShipSystemsSystem().Step(u, 1); new HeatSystem().Step(u, 1);   // ohne Wärmeabfuhr hielten die heißen Fregatten für immer das Feuer
             foreach (var w in ships) if (u.Ships.ContainsKey(w.Id) && !u.Fights.IsEngaged(w.Id) && w.Command is { } c) exec.Step(u, w, c, 1);   // Gefecht endet nach CombatMaxTicks — der Befehl belagert weiter
         }
         Assert.True(ev.OfType<GateDisabled>().Any(), $"hull {GateCombat.Hull(u, target):0} sh {GateCombat.Shield(u, target):0} shots {ev.OfType<ShotAtGate>().Count()} hits {ev.OfType<ShotAtGate>().Count(x => x.Hit)} dmg {ev.OfType<ShotAtGate>().Sum(x => x.HullDamage):0} msl {ev.OfType<MissileResolved>().Count()} e {Siege.OfGate(u, target.Id) is not null} parts {string.Join(",", e.Participants.Select(p => $"{p.Ship.Value}:{p.Side}:{p.Active}:{p.Exit}:x{p.X:0}"))} stX {e.StationX}");

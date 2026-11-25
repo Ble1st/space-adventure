@@ -940,6 +940,9 @@ public sealed class ShipSystemsSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long ShieldPauseUntil { get; set; }
     /// <summary>Phase 26 (additiv): brennende Slots; fehlt = kein Brand.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<int>? Burning { get; set; }
+    /// <summary>Hitze (additiv): angestaute Hitze und Sperre; fehlt = kalt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Heat { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool HeatLocked { get; set; }
 }
 
 /// <summary>Phase 26: ein Wrack oder Frachtbehälter (Art, Sektor, Position, Name, Herkunft, Zeiten, Fracht je Ware, Module mit Restzustand).</summary>

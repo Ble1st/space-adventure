@@ -104,6 +104,7 @@ public static class UniverseHash
             foreach (var c in sys.Condition) MixF(c);
             foreach (var b in sys.Burning) Mix((ulong)(b + 1000));   // Phase 26: Brand (Slots); unbeschädigte Schiffe mischen nichts
             if (sys.MissilesMissing != 0f) { Mix(0x2801u); MixF(sys.MissilesMissing); }   // Phase 28: Raketenmagazin
+            if (sys.Heat != 0f || sys.HeatLocked) { Mix(0x4E47u); MixF(sys.Heat); Mix(sys.HeatLocked ? 1UL : 0UL); }   // Hitze: nur wenn gesetzt
         }
         foreach (var sec in u.Sectors.Values.OrderBy(s => s.Id.Value))
             foreach (var a in sec.Asteroids.OrderBy(a => a.Id)) { Mix((ulong)a.Id); MixF(a.Ore); MixF(a.Position.X); MixF(a.Position.Y); MixF(a.BaseRadius); }

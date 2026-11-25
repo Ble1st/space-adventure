@@ -42,6 +42,7 @@ public static class UniverseSerializer
         Condition = st.Condition.Count == 0 || st.AllIntact ? null : new List<float>(st.Condition),
         Mode = st.Mode == PowerMode.Balanced ? null : st.Mode.ToString(), ShieldPauseUntil = st.ShieldPauseUntil,
         Burning = st.Burning.Count == 0 ? null : new List<int>(st.Burning),
+        Heat = st.Heat, HeatLocked = st.HeatLocked,
     };
     static ShipSystemsState FromSave(ShipSystemsSave? s) => s is null ? new ShipSystemsState() : new ShipSystemsState
     {
@@ -49,6 +50,7 @@ public static class UniverseSerializer
         Condition = s.Condition is null ? new List<float>() : new List<float>(s.Condition),
         Mode = s.Mode is { } m && Enum.TryParse<PowerMode>(m, out var pm) ? pm : PowerMode.Balanced, ShieldPauseUntil = s.ShieldPauseUntil,
         Burning = s.Burning is null ? new List<int>() : new List<int>(s.Burning),
+        Heat = s.Heat, HeatLocked = s.HeatLocked,
     };
     static ProfitMeter FromSave(ProfitMeterSave? m) => m is null ? new ProfitMeter() : new ProfitMeter { Rate = m.Rate, Worth = m.Worth, LossTicks = m.Loss, Since = m.Since };
 

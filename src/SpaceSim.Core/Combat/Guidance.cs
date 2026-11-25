@@ -120,6 +120,7 @@ public static class Guidance
         float share = Math.Clamp(speed / max, 0f, 1f);
         float heat = r.HeatMin + (1f - r.HeatMin) * share;
         if (target.PowerMode == PowerMode.Engine) heat += r.HeatEngineBonus;
-        return Math.Clamp(heat, 0.05f, 1f + r.HeatEngineBonus);
+        float ir = Heat.IrBonus(u, target);   // Hitze: ein heißes Schiff zieht Infrarotraketen an (Schalter aus: 0)
+        return Math.Clamp(heat + ir, 0.05f, 1f + r.HeatEngineBonus + ir);
     }
 }

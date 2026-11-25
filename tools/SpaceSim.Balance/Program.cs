@@ -28,6 +28,8 @@ if (opts.TryGetValue("bandits", out var banOpt)) worldDef.Rules.BanditFactions =
 if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";
 // Raketenlenkung: --guidance on|off (aus = WorldBuilder lässt Täuschkörper, neue Werfer und Störsender weg)
 if (opts.TryGetValue("guidance", out var guidOpt)) worldDef.Rules.MissileGuidance = guidOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
+// Hitze: --heat on|off (aus = keine Hitze, WorldBuilder lässt die Kühlermodule weg)
+if (opts.TryGetValue("heat", out var heatOpt)) worldDef.Rules.ShipHeat = heatOpt == "on";
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
 // Runde 25: Varianten für die Handelsmargen ohne Neubau — Exportgebot der Senken für Konsum-/Luxusgüter, Betriebskapitalanteil der Stationen
@@ -55,6 +57,10 @@ if (opts.TryGetValue("policerange", out var prOpt)) worldDef.Rules.PoliceRespons
 // Runde 29: --probe rueckkauf misst die Kauf-/Rückverkaufsschleife an einer Station (eigene Welten, eigener Bericht) und endet
 if (opts.TryGetValue("probe", out var rkOpt) && rkOpt == "rueckkauf") { Console.WriteLine(ExploitProbe.Run(worldDef, seed ?? 1)); return 0; }
 var u = WorldBuilder.Build(worldDef, seed, opts.TryGetValue("start", out var startOpt) ? startOpt : null);   // Runde 26: --start trader wie „Neues Spiel“
+// Hitze: --heatrules off — Kühlermodule bleiben in der Welt, die Hitzeregeln sind aus (trennt Inhaltsverschiebung von Regelwirkung); --heathold X (NPC-Feuerpause)
+if (opts.TryGetValue("heatrules", out var hrOpt)) u.Rules.ShipHeat = hrOpt == "on";
+if (opts.TryGetValue("heatdiss", out var hdOpt)) u.Rules.HeatDissipationBySize = hdOpt.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+if (opts.TryGetValue("heathold", out var hhOpt)) u.Rules.HeatNpcHoldShare = float.Parse(hhOpt, System.Globalization.CultureInfo.InvariantCulture);
 // Phase 21: Torliste (Id, von → nach, Zustand, Hauptroute) am Anfang, damit --gates nachvollziehbar ist; je Verbindung wird die kleinere Id genannt
 // (--gates schließt immer beide Enden). --gatelist on: zusätzlich je Verbindung, ob ihre Sperrung die Karte zerteilt (und welcher Teil abfällt), dann Ende.
 var gateLinks = u.Gates.Values.Where(g => g.Id.Value < g.Target.Value).OrderBy(g => g.Id.Value).ToList();
@@ -487,6 +493,7 @@ if (probeBroke)
 // Phase 28: Raketen, Stationsgeschütze, Belagerungen, Krieg, Kriegsschiffe; dazu die Piratenkassen nach Zweck (Prüfpunkt e)
 var missileOutcomes = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int flaresUsed = 0, jammerOn = 0;
+int heatLocks = 0, heatDamage = 0; float heatMaxShare = 0f;
 var stationFalls = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var fallLog = new List<string>();   // Kapitulation: zerstörte/übernommene Stationen und Not-Sitze mit Tick
 int capRolls = 0, capYes = 0, seatsRelocated = 0; double capChanceSum = 0;
@@ -510,6 +517,8 @@ u.Events.Raised += e =>
     {
         case MissileLaunched: missilesLaunched++; break;
         case CountermeasureUsed cm: if (cm.Kind == "flares") flaresUsed++; else if (cm.On) jammerOn++; break;
+        case HeatLockChanged hl: if (hl.Locked) heatLocks++; break;
+        case HeatDamage: heatDamage++; break;
         case MissileResolved mr: missileOutcomes[mr.Outcome] = missileOutcomes.GetValueOrDefault(mr.Outcome) + 1; if (mr.TargetStation.Value != 0) stationHullDmg += mr.HullDamage; break;
         case StationShot ss: stationShots++; if (ss.Hit) { stationHits++; stationGunDmg += ss.ShieldDamage + ss.HullDamage; } break;
         case ShotAtStation sa: shotsAtStations++; stationHullDmg += sa.HullDamage; break;
@@ -1297,6 +1306,8 @@ if (u.Modules.Count > 0)
         + $"Belagerungen {sieges}; Stationen gefallen {(stationFalls.Count == 0 ? "keine" : string.Join(", ", stationFalls.Select(kv => $"{kv.Key} {kv.Value}")))}; "
         + $"beschädigt jetzt {u.Stations.Values.Count(x => x.Condition is not null)}; Reparaturen {stationRepairs} ({stationRepairHull:0} Hülle, {stationRepairPlates:0.#} Hüllenplatten, {stationRepairCost:0} Cr)");
     Console.WriteLine($"Raketenlenkung ({(u.Rules.MissileGuidance ? "an" : "aus")}): Täuschkörper ausgestoßen {flaresUsed}, Störsender eingeschaltet {jammerOn}");
+    foreach (var hs in u.Ships.Values) heatMaxShare = MathF.Max(heatMaxShare, SpaceSim.Core.Combat.Heat.Share(u, hs));
+    Console.WriteLine($"Hitze ({(u.Rules.ShipHeat ? "an" : "aus")}): Hitzesperren {heatLocks}, Überhitzungsschäden {heatDamage}, heißestes Schiff jetzt {heatMaxShare * 100f:0} %, Schiffe mit Hitze jetzt {u.Ships.Values.Count(x => x.Systems.Heat > 0f)}");
     Console.WriteLine($"Kapitulation ({(u.Rules.StationCapitulation ? "an" : "aus")}, KI übernimmt {(u.Rules.AiStationCapture ? "ja" : "nein")}): Würfe {capRolls}, kapituliert {capYes}"
         + $"{(capRolls > 0 ? $" (Ø Chance {capChanceSum / capRolls:0.00})" : "")}; Not-Sitze {seatsRelocated}"
         + (fallLog.Count == 0 ? "" : " | " + string.Join(" | ", fallLog.Take(30))));

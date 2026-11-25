@@ -23,7 +23,7 @@ public sealed class ShipSystemsSystem : ISimSystem
             if (!u.Ships.TryGetValue(id, out var ship)) { u.Recovering.Remove(id); continue; }
             bool paused = u.Tick < ship.Systems.ShieldPauseUntil;
             bool burning = ship.Systems.Burning.Count > 0;   // Phase 26: brennende Schiffe bleiben im Index (FireSystem)
-            if (ShipSystems.Advance(ship.Stats, ship.Systems, seconds, paused, u.Rules, Nebula.ShieldRegenFactor(u, ship.Sector)))
+            if (ShipSystems.Advance(ship.Stats, ship.Systems, seconds, paused, u.Rules, Nebula.ShieldRegenFactor(u, ship.Sector) * Heat.ShieldRegenFactor(u, ship)))
             {
                 // Phase 24 (Prüfung Phase 23): ohne mögliche Erholung (kein Überschuss, Schild ohne Regeneration) aus dem Index — ein Modulwechsel weckt es wieder
                 if (!ShipSystems.CanRecover(ship.Stats, ship.Systems) && !burning) u.Recovering.Remove(id);

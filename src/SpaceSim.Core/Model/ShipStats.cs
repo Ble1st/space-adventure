@@ -100,6 +100,8 @@ public sealed class ShipStats
     public float FlareCapacity;
     /// <summary>Raketenlenkung: Störsender (<c>jamming</c>, das beste Modul zählt); 0 = keiner.</summary>
     public float Jamming;
+    /// <summary>Hitze: zusätzliche Wärmeabfuhr der Kühlermodule (Modulwert <c>heatDissipation</c>, je Sekunde); die Grundabfuhr kommt aus der Klassengröße (<see cref="Combat.Heat.Dissipation"/>).</summary>
+    public float HeatDissipation;
     /// <summary>Raketenlenkung: zusätzliche Leistung, solange der Störsender läuft (<c>jamDraw</c>).</summary>
     public float JamDraw;
     /// <summary>Ausbau Punkt 14: Fahrgastplätze (Modulstat <c>passengers</c>, Summe der Passagierkabinen); 0 = keine Kabine.</summary>
@@ -159,6 +161,7 @@ public sealed class ShipStats
             }
             if (m.Stats.TryGetValue("passengers", out var pax)) s.Passengers += (int)pax;   // Ausbau Punkt 14: Passagierkabine
             if (m.Stats.TryGetValue("cloak", out var ck) && ck > s.Cloak) { s.Cloak = ck; s.CloakDraw = m.Stat("cloakDraw"); }   // Tarnfeld: das beste Modul zählt
+            if (m.Stats.TryGetValue("heatDissipation", out var hd)) s.HeatDissipation += hd;   // Hitze: Kühler
             if (m.Stats.TryGetValue("flareCapacity", out var fc)) s.FlareCapacity += fc;   // Raketenlenkung: Täuschkörper
             if (m.Stats.TryGetValue("jamming", out var jm) && jm > s.Jamming) { s.Jamming = jm; s.JamDraw = m.Stat("jamDraw"); }   // Störsender
             foreach (var f in m.FuelTypes)

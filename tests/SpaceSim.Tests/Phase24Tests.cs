@@ -205,6 +205,7 @@ public class Phase24Tests
         // Phase 25: jeder Händler trägt eine Laserkanone — für den unbewaffneten Fall wird sie hier ausgebaut
         for (int i = 0; i < victim.Fit.Count; i++) if (victim.Fit[i] is { } k && u.Modules[k].IsWeapon) victim.Fit[i] = null;
         victim.RecomputeStats(u);
+        u.Rules.ShipHeat = false;   // Hitze (danach): der Kaperer hielte nach ~40 s das Feuer zurück — geprüft wird die Aufgabe innerhalb der Höchstdauer, nicht die Hitze (HitzeTests)
         var ev = Capture(u);
         var e = Engage.StartRaid(u, raider, victim, u.Sectors[Nebelmark]);
         e.Of(victim.Id)!.Courage = 0.6f;   // gibt früh auf (sonst gewürfelt)

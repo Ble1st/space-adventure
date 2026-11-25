@@ -115,6 +115,7 @@ public static class PlayerGunnery
         if (ReloadLeft(u, ship, slot) > 0f) return Fail(GunResult.Reloading, "lädt nach");
         if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, tp.Pos)) return Fail(GunResult.OutsideArc, "Ziel außerhalb des Feuerwinkels — drehen.");
         if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
+        if (Heat.Locked(u, ship)) return Fail(GunResult.NoPower, $"Überhitzt — Waffen gesperrt, bis die Hitze unter {u.Rules.HeatResumeShare * 100f:0} % fällt.");
         if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
         if (u.Rules.Warfare && Missiles.IsMissile(m)
             && Guidance.LaunchIssue(u, ship.Sector, m, victim, true, ship.Position, CombatAutopilot.FromBearing(headingDeg), tp.Pos) is { } blind)
@@ -221,6 +222,7 @@ public static class PlayerGunnery
         if (ReloadLeft(u, ship, slot) > 0f) return Fail(GunResult.Reloading, "lädt nach");
         if (!FiringArc.Contains(Gunnery.BayOf(ship, slot, m), headingDeg, ship.Position, st.Position)) return Fail(GunResult.OutsideArc, $"{what} außerhalb des Feuerwinkels — drehen.");
         if (!HasRound(u, ship, m, w)) return Fail(GunResult.NoAmmo, NoRoundText(u, m));
+        if (Heat.Locked(u, ship)) return Fail(GunResult.NoPower, $"Überhitzt — Waffen gesperrt, bis die Hitze unter {u.Rules.HeatResumeShare * 100f:0} % fällt.");
         if (!Gunnery.HasPower(u, ship, w)) return Fail(GunResult.NoPower, "Keine Leistung für die Waffe.");
         if (Missiles.IsMissile(m) && Guidance.LaunchIssue(u, ship.Sector, m, null, true, ship.Position, CombatAutopilot.FromBearing(headingDeg), st.Position) is { } blind)
             return Fail(GunResult.NotAllowed, $"Rakete: {blind}.");

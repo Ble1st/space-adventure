@@ -119,6 +119,8 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		// Phase 26: Zusammenfassung der Schäden (beschädigte Module erst reparieren, dann aus-/umbauen)
 		if (_damaged > 0 || ship.Systems.Burning.Count > 0)
 			At(inner, Text(SpaceSim.Core.Combat.DamageInfo.For(u, ship).Summary, 12, Orange), 0, py + 66, 340, 20);
+		else if (SpaceSim.Core.Combat.Heat.Active(u))   // Hitze: Wärmeabfuhr (Klasse + Kühler) und aktuelle Hitze
+			At(inner, Text(KitButton.Fit(ThemeDB.FallbackFont, $"Wärmeabfuhr {SpaceSim.Core.Combat.Heat.Dissipation(u, ship):0.#}/s (Kühler {s.HeatDissipation:0.#}) · Hitze {SpaceSim.Core.Combat.Heat.Share(u, ship) * 100f:0} %", 12, 340), 12, new Color(Dim, 0.9f)), 0, py + 66, 340, 20);
 
 		// ── rechts: Angebote für den gewählten Slot ──
 		float rx = 345f, rw = w - rx;
@@ -257,6 +259,7 @@ public sealed partial class OutfitterScreen : DockAreaScreen, ISessionScreen
 		Add("Schild", a.Shield, b.Shield);              // Phase 23
 		Add("Schildladung/s", a.ShieldRegen, b.ShieldRegen, "0.##");
 		Add("Magazin", a.AmmoCapacity, b.AmmoCapacity);
+		if (u.Rules.ShipHeat) Add("Kühlung/s", a.HeatDissipation, b.HeatDissipation, "0.#");   // Hitze: Kühlermodule
 		Add("Tank", a.FuelCapacity, b.FuelCapacity);
 		// Tankanzeige: andere Treibstoffart (Ionentriebwerk, Fusion) und Reichweite eines vollen Tanks
 		if (u.Rules.FuelActive)
