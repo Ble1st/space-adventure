@@ -38,6 +38,7 @@ public partial class SelfTest
 					foreach (var sh in u.ShipsById().Where(x => x.Owner == u.FreeActor && x.IsEconomyAi).Take(10).ToList()) SpaceSim.Core.Simulation.ActorRules.Promote(u, sh);
 				}
 				_m.TestOpenCcArea(Ui.Screens.CommandAreas.Factions);
+				_r37Wait = 0;
 				return false;
 			case 20:
 			{
@@ -46,6 +47,9 @@ public partial class SelfTest
 				// die Fraktionsliste selbst (Schlüssel aus FactionsScreen.cs), nicht die Leiste
 				var list = FactionList(hud);
 				float room = list is null ? 0f : (float)(list.GetVScrollBar().MaxValue - list.GetVScrollBar().Page);
+				// Die Bereiche bauen sich je Tick neu auf; im Bild direkt nach einem Neuaufbau ist die neue Liste noch nicht ausgelegt (Rollbereich 0) —
+				// erst nach dem Layout messen (Lage des Ticktakts hängt von den Bildzahlen früherer Stufen ab)
+				if ((list is null || list.GetVScrollBar().MaxValue <= 0) && _r37Wait++ < 30) { _stageStart += 1; return false; }
 				Check(!hud.CcFactions.TestDetailOpen && list is not null && room > 100f, $"37b: schmal zeigt „Fraktionen“ die Liste über die ganze Höhe, rollbar ({room:0} px, Detail offen {hud.CcFactions.TestDetailOpen})");
 				if (list is null) return false;
 				list.ScrollTo(0);
@@ -60,7 +64,8 @@ public partial class SelfTest
 			case 24: PushMouse(_r37At - new Vector2(0, 120), true, true); return false;
 			case 26: PushMouse(_r37At - new Vector2(0, 120), false, false); return false;
 			case 34:
-				Check(FactionList(hud) is { } fl && fl.ScrollVertical > _r37Scroll0 + 40, $"37b: der Wisch rollte die Fraktionsliste ({FactionList(hud)?.ScrollVertical} statt {_r37Scroll0})");
+				// WantedScroll: fällt der Prüfzeitpunkt auf das Bild nach einem Neuaufbau, trägt die neue Liste die übernommene Lage noch als ausstehend
+				Check(FactionList(hud) is { } fl && fl.WantedScroll > _r37Scroll0 + 40, $"37b: der Wisch rollte die Fraktionsliste ({FactionList(hud)?.WantedScroll} statt {_r37Scroll0})");
 				Check(hud.CcFactions.Selected is null && !hud.CcFactions.TestDetailOpen, $"37: Wisch über die Fraktionsliste wählt nichts (gewählt {hud.CcFactions.Selected?.Value}, Detail {hud.CcFactions.TestDetailOpen})");
 				_r37Wait = 0; _r37Rect = default;
 				return false;

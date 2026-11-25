@@ -151,7 +151,7 @@ public partial class SelfTest
 				if (t == 40)
 				{
 					var sc = h.TestAreaScroll;
-					Check(sc is not null && sc.ScrollVertical >= 250, $"HP: Kodex gerollt und Lage gehalten ({sc?.ScrollVertical})");
+					Check(sc is not null && sc.WantedScroll >= 250, $"HP: Kodex gerollt und Lage gehalten ({sc?.WantedScroll})");   // direkt nach einem Neuaufbau steht die Lage noch aus (KitScroll.WantedScroll)
 					var b = h.TestTopic("hitze");
 					if (b is null) { Fail("HP: Thema „Hitze“ fehlt"); return true; }
 					if (sc is not null) sc.ScrollVertical = Mathf.Max(0, (int)(b.GlobalPosition.Y - sc.GlobalPosition.Y + sc.ScrollVertical - 60f));

@@ -171,14 +171,15 @@ public sealed class DeliveryMission : IMissionType
 
     public string DescribeOffer(Universe u, MissionOffer o)
     {
-        var st = u.Stations[o.At];
         string g = u.GoodOf(GoodOf(o)).Name;
         float units = UnitsOf(u, o);
+        // die Station kann zwischen Angebot und Anzeige verschwunden sein (zerstört, aufgegeben) — Posteingang zeichnet das Angebot trotzdem
+        if (!u.Stations.TryGetValue(o.At, out var st)) return $"Lieferung: {units:0.#} {g} — die Zielstation existiert nicht mehr.";
         // Runde 42c: eine Frist je Angebot — der Vertrag hat keine eigene „Frist“ im Titel mehr (die Angebots-Lebensdauer
         // steht in der Posteingangszeile); die Annahme-Frist (bei Annahme ab jetzt) steht in der Vorschauzeile
         string base_ = Contract(u, o)
             ? $"Liefervertrag: {units:0.#} {g} an {st.Name} zum Festpreis {PriceOf(o):0.0} Cr — Annahme und Kasse der Station reserviert, Pfand {o.Deposit:0} Cr."
-            : $"Lieferung: {units:0.#} {g} an {st.Name} — Belohnung {o.Reward:0} Cr, Frist {MissionRules.Rest(MissionRules.DeadlineFrom(u, u.Ships[u.PlayerShip], st) - u.Tick)}.";
+            : $"Lieferung: {units:0.#} {g} an {st.Name} — Belohnung {o.Reward:0} Cr, Frist {(u.Ships.TryGetValue(u.PlayerShip, out var ps) ? MissionRules.Rest(MissionRules.DeadlineFrom(u, ps, st) - u.Tick) : "?")}.";
         return base_;
     }
 
