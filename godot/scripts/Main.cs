@@ -177,6 +177,13 @@ public partial class Main : Node3D
 			SpaceSim.Core.Combat.ShipSystems.SetMode(_session.U, PlayerData, m);
 			_hud.Toast(SpaceSim.Core.Combat.ShipSystems.ModeEffect(PlayerData.PowerMode, PlayerData.Stats.PowerStorage > 0f));   // Gerätetest: spürbare Rückmeldung
 		};
+		// Richtungsschilde: Taste „Schild ausrichten“ (Core-Regel ShieldSectors.SetFocus; Umlenken pausiert kurz die Regeneration)
+		_hud.Flight.ShieldFocusPressed += f =>
+		{
+			_sfx.Play(SfxId.Click);
+			if (SpaceSim.Core.Combat.ShieldSectors.SetFocus(_session.U, PlayerData, f))
+				_hud.Toast(f == SpaceSim.Core.Model.ShieldFocus.Balanced ? "Schild ausgeglichen" : $"Schild nach {SpaceSim.Core.Combat.ShieldSectors.FocusName(f)} — Ladung umgelenkt");
+		};
 		_hud.Command.Action += OnCommandAction;
 		_hud.Start.Action += OnStartAction;
 		// Mehrere Spielstände: Laden / Speichern unter
@@ -3142,6 +3149,7 @@ public partial class Main : Node3D
 		var sector = u.Sectors[u.PlayerSector];
 		var pos = new Vec2(_player.Position.X, _player.Position.Z);
 		float headingDeg = Mathf.RadToDeg(_player.Heading);
+		SpaceSim.Core.Combat.ShieldSectors.SetPlayerBow(u, headingDeg);   // Richtungsschilde: Treffer kommen relativ zum echten Bug
 		UpdateBays(sector, pos, headingDeg);
 
 		var d = new FlightHudData
@@ -3156,6 +3164,7 @@ public partial class Main : Node3D
 			FuelLow = SpaceSim.Core.Flight.TankInfo.For(u, PlayerData) is { Count: > 0 } tl1 && tl1[0].Low,
 			// Phase 23: Schild, Leistungsbilanz, Speicherbank und Verteilung echt
 			Shield = PlayerData.ShieldNow, ShieldMax = PlayerData.Stats.Shield,
+			ShieldSectors = SpaceSim.Core.Combat.ShieldSectors.Fill(u, PlayerData), ShieldFocus = PlayerData.Systems.Focus,   // Richtungsschilde
 			PowerOutput = PlayerData.Stats.PowerOutput, PowerDraw = PlayerData.Stats.PowerDraw,
 			Charge = PlayerData.Charge, ChargeMax = PlayerData.Stats.PowerStorage, PowerMode = PlayerData.PowerMode,
 			Credits = _session.U.WalletOf(PlayerData).Credits,   // Phase 5b: Spielerkasse

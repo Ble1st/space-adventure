@@ -43,6 +43,8 @@ public static class UniverseSerializer
         Mode = st.Mode == PowerMode.Balanced ? null : st.Mode.ToString(), ShieldPauseUntil = st.ShieldPauseUntil,
         Burning = st.Burning.Count == 0 ? null : new List<int>(st.Burning),
         Heat = st.Heat, HeatLocked = st.HeatLocked,
+        ShieldSectors = st.SectorMissing is null ? null : new List<float>(st.SectorMissing),
+        ShieldFocus = st.Focus == ShieldFocus.Balanced ? null : st.Focus.ToString(),
     };
     static ShipSystemsState FromSave(ShipSystemsSave? s) => s is null ? new ShipSystemsState() : new ShipSystemsState
     {
@@ -51,6 +53,8 @@ public static class UniverseSerializer
         Mode = s.Mode is { } m && Enum.TryParse<PowerMode>(m, out var pm) ? pm : PowerMode.Balanced, ShieldPauseUntil = s.ShieldPauseUntil,
         Burning = s.Burning is null ? new List<int>() : new List<int>(s.Burning),
         Heat = s.Heat, HeatLocked = s.HeatLocked,
+        SectorMissing = s.ShieldSectors is { Count: 4 } sm ? sm.ToArray() : null,
+        Focus = s.ShieldFocus is { } sf && Enum.TryParse<ShieldFocus>(sf, out var fv) ? fv : ShieldFocus.Balanced,
     };
     static ProfitMeter FromSave(ProfitMeterSave? m) => m is null ? new ProfitMeter() : new ProfitMeter { Rate = m.Rate, Worth = m.Worth, LossTicks = m.Loss, Since = m.Since };
 

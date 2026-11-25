@@ -35,6 +35,8 @@ public enum HudItem
     Scan, ScanPanel,
     /// <summary>Mehrpunkt-Route: Zeile „Route 2/4 → …“ unter der Auftragszeile (leer = ausgeblendet).</summary>
     Route,
+    /// <summary>Richtungsschilde: Taste „Schild ausrichten“ mit Rautenanzeige in der rechten Spalte unter ⚡ (nur mit Sektoren und Schild).</summary>
+    ShieldFocus,
 }
 
 /// <summary>
@@ -87,11 +89,11 @@ public sealed class FlightHudLayout
     /// (ohne FEUER), <paramref name="bays"/> Einzelschächten und dem Zustand der Leiste (<paramref name="expanded"/>). <paramref name="fire"/>: FEUER sichtbar
     /// (Schiff hat Kampfwaffen). <paramref name="heat"/>: Hitzezeile im Status (Schalter <c>shipHeat</c>; der Status wird um <see cref="HeatRowH"/> höher).
     /// </summary>
-    public static FlightHudLayout Compute(float w, float h, UiInsets safe, int groups, int bays, bool expanded, bool fire = true, bool heat = false)
+    public static FlightHudLayout Compute(float w, float h, UiInsets safe, int groups, int bays, bool expanded, bool fire = true, bool heat = false, bool shield = false)
     {
         var area = new UiRect(safe.Left, safe.Top, MathF.Max(0f, w - safe.Left - safe.Right), MathF.Max(0f, h - safe.Top - safe.Bottom));
         var l = new FlightHudLayout { Compact = area.W < BaseW - 0.5f || area.H < BaseH - 0.5f, Area = area, Expanded = expanded };
-        l.Fill(area, Math.Clamp(groups, 0, MaxGroups), Math.Clamp(bays, 0, MaxBays), expanded, fire, heat);
+        l.Fill(area, Math.Clamp(groups, 0, MaxGroups), Math.Clamp(bays, 0, MaxBays), expanded, fire, heat, shield);
         return l;
     }
 
@@ -102,7 +104,7 @@ public sealed class FlightHudLayout
     /// <summary>Höhe des Statusfelds; mit Hitzezeile um <see cref="HeatRowH"/> höher.</summary>
     public const float StatusH = 140f, HeatRowH = 20f;
 
-    void Fill(UiRect a, int groups, int bays, bool expanded, bool fire, bool heat)
+    void Fill(UiRect a, int groups, int bays, bool expanded, bool fire, bool heat, bool shield)
     {
         float x0 = a.X, y0 = a.Y, x1 = a.Right, y1 = a.Bottom;
         ChipBelowStatus = false;
@@ -169,6 +171,8 @@ public sealed class FlightHudLayout
         // Symboltasten außen von oben (Leistung, Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff); ohne Kampfwaffen stehen die Geräte
         // (Bohrer, Traktor …) direkt unter ⚡ und die übrigen Symbole danach
         Cell(HudItem.Power, TakeDown(0));
+        if (shield) Cell(HudItem.ShieldFocus, TakeDown(0));   // Richtungsschilde: direkt unter ⚡
+        else { Set(HudItem.ShieldFocus, 0, 0, 0, 0); _hidden.Add(HudItem.ShieldFocus); }
         if (!fire)
         {
             for (int g = 0; g < MaxGroups; g++)
@@ -252,14 +256,14 @@ public sealed class FlightHudLayout
     /// Größter UI-Faktor ≤ <paramref name="wanted"/>, bei dem auf der Fläche <paramref name="w1"/> × <paramref name="h1"/> (logisch bei Faktor 1) mit den Rändern
     /// <paramref name="safe1"/> jede Taste ihren Platz hat — geprüft im ungünstigsten Fall (Einzelschächte aufgeklappt). Schritte 0,01, nie unter 1.
     /// </summary>
-    public static float FitFactor(float w1, float h1, UiInsets safe1, int groups, int bays, float wanted, bool heat = false)
+    public static float FitFactor(float w1, float h1, UiInsets safe1, int groups, int bays, float wanted, bool heat = false, bool shield = false)
     {
         if (wanted <= 1f) return MathF.Max(1f, wanted <= 0f ? 1f : wanted);
         for (int k = (int)MathF.Round(wanted * 100f); k > 100; k--)
         {
             float f = k / 100f;
             var s = new UiInsets(safe1.Left / f, safe1.Top / f, safe1.Right / f, safe1.Bottom / f);
-            if (Compute(w1 / f, h1 / f, s, groups, bays, expanded: true, heat: heat).Overflow == 0 && Compute(w1 / f, h1 / f, s, groups, bays, expanded: false, heat: heat).Overflow == 0) return f;
+            if (Compute(w1 / f, h1 / f, s, groups, bays, expanded: true, heat: heat, shield: shield).Overflow == 0 && Compute(w1 / f, h1 / f, s, groups, bays, expanded: false, heat: heat, shield: shield).Overflow == 0) return f;
         }
         return 1f;
     }

@@ -98,12 +98,13 @@ public static class Gunnery
     {
         var r = u.Rules;
         if (w.AmmoPerShot > 0f && r.AmmoActive) shooter.Systems.AmmoMissing = MathF.Min(shooter.Stats.AmmoCapacity, shooter.Systems.AmmoMissing + w.AmmoPerShot);
-        var tProfile = new TargetProfile(target.ShieldNow, target.Stats.Armor, targetP.Speed, Signature(u, target));
+        int sector = ShieldSectors.Incoming(u, e, targetP, shooterP.InSpace ? shooterP.Pos : null);   // Richtungsschilde (−1 = aus)
+        var tProfile = new TargetProfile(ShieldSectors.Facing(u, target, sector), target.Stats.Armor, targetP.Speed, Signature(u, target));
         var hit = Hit.Roll(u.Rng, w, tProfile, distance, factor, r);
         while (shooterP.Timers.Count <= slot) shooterP.Timers.Add(0f);
         shooterP.Timers[slot] = reload;
         e.Shots++;
-        float hull = Hit.Apply(u, target, hit);
+        float hull = Hit.Apply(u, target, hit, 0f, sector);
         if (hull > 0f) ModuleDamage.OnHullHit(u, target, hull);   // Phase 26: unter 50 % Hülle Modulschaden und Brand (genau drei Züge, siehe ModuleDamage)
         if (hit.Hit) e.Hits++;
         u.Events.Publish(new ShotFired(e.Id, e.Sector, shooter.Id, target.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull, slot));

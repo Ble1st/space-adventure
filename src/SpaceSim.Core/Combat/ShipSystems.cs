@@ -65,7 +65,11 @@ public static class ShipSystems
         if (shieldNeeds || bankNeeds)
         {
             var flow = Flow(s, st.Mode, shieldNeeds, bankNeeds, r, regenFactor);
-            if (shieldNeeds) st.ShieldMissing = MathF.Max(0f, st.ShieldMissing - flow.ShieldRate * seconds);
+            if (shieldNeeds)
+            {
+                if (r.ShieldSectors && st.SectorMissing is not null) ShieldSectors.Regen(st, s, r, flow.ShieldRate * seconds);   // Richtungsschilde: je Sektor
+                else st.ShieldMissing = MathF.Max(0f, st.ShieldMissing - flow.ShieldRate * seconds);
+            }
             if (bankNeeds) st.ChargeMissing = MathF.Max(0f, st.ChargeMissing - flow.ChargeRate * seconds);
         }
         return NeedsRecovery(s, st);
@@ -99,9 +103,16 @@ public static class ShipSystems
     }
 
     /// <summary>Phase 24: Schaden am Schild (aus der Trefferregel, schon nach Schadensart umgerechnet): Fehlbetrag steigt, Pause beginnt, Erholung angemeldet.</summary>
-    public static void TakeShield(Universe u, Ship ship, float amount)
+    public static void TakeShield(Universe u, Ship ship, float amount, int sector = -1)
     {
         if (amount <= 0f || ship.Stats.Shield <= 0f) return;
+        if (u.Rules.ShieldSectors)   // Richtungsschilde: der Sektor des Treffers (−1 = verteilt nach Ladung)
+        {
+            if (!ShieldSectors.Take(u, ship, sector, amount)) ShieldSectors.TakeSpread(u, ship, amount);
+            ship.Systems.ShieldPauseUntil = u.Tick + u.Rules.ShieldDelayTicks;
+            Wake(u, ship);
+            return;
+        }
         ship.Systems.ShieldMissing = MathF.Min(ship.Stats.Shield, ship.Systems.ShieldMissing + amount);
         ship.Systems.ShieldPauseUntil = u.Tick + u.Rules.ShieldDelayTicks;
         Wake(u, ship);
@@ -117,7 +128,8 @@ public static class ShipSystems
         float shield = ship.ShieldNow;
         if (shield <= 0f) return damage;
         float taken = MathF.Min(shield, damage);
-        ship.Systems.ShieldMissing = MathF.Min(ship.Stats.Shield, ship.Systems.ShieldMissing + taken);
+        if (u.Rules.ShieldSectors) taken = ShieldSectors.TakeSpread(u, ship, taken);   // Richtungsschilde: ungerichtet, nach Ladung verteilt
+        else ship.Systems.ShieldMissing = MathF.Min(ship.Stats.Shield, ship.Systems.ShieldMissing + taken);
         ship.Systems.ShieldPauseUntil = u.Tick + u.Rules.ShieldDelayTicks;
         Wake(u, ship);
         return damage - taken;

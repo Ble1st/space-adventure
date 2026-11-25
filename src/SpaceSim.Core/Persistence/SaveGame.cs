@@ -977,6 +977,9 @@ public sealed class ShipSystemsSave
     /// <summary>Hitze (additiv): angestaute Hitze und Sperre; fehlt = kalt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float Heat { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool HeatLocked { get; set; }
+    /// <summary>Richtungsschilde (additiv): Fehlbetrag je Sektor (vorne, rechts, hinten, links) und Ausrichtung; fehlt = Normalverteilung, ausgeglichen.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<float>? ShieldSectors { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ShieldFocus { get; set; }
 }
 
 /// <summary>Phase 26: ein Wrack oder Frachtbehälter (Art, Sektor, Position, Name, Herkunft, Zeiten, Fracht je Ware, Module mit Restzustand).</summary>

@@ -312,6 +312,15 @@ public partial class UiCheck : Node
 			_m.TestOpenShipMenu(u().PlayerShip, SpaceAdventure.Ui.Screens.ShipMenuScreen.Tab.Fleet);
 		}, 12);
 		Add("schiffsmenue-traeger2", () => _m.TestCloseShipMenu(), 6);
+		// Richtungsschilde: Taste „Schild“ unter ⚡ und Raute im Status — ausgerichtet nach vorne, hinterer Sektor angeschossen
+		Add("flug-schildsektoren", () => { _m.HudRef.Flight.TestExpanded = false; _m.TestMenu("new:fighter"); }, 40);
+		Add("flug-schildsektoren2", () =>
+		{
+			u().Rules.PlayerRaids = false;
+			if (!u().Ships.TryGetValue(u().PlayerShip, out var s)) return;
+			SpaceSim.Core.Combat.ShieldSectors.SetFocus(u(), s, SpaceSim.Core.Model.ShieldFocus.Front);
+			SpaceSim.Core.Combat.ShipSystems.TakeShield(u(), s, s.Stats.Shield * 0.08f, SpaceSim.Core.Combat.ShieldSectors.Back);
+		}, 12);
 		Add("flug-stationsangriff", () =>
 		{
 			_m.HudRef.Flight.TestExpanded = false;

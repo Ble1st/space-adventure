@@ -208,9 +208,10 @@ public static class GateCombat
                 cond.Timers[k] = w.Reload;
                 var tShip = u.Ships[target.Ship];
                 if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, null, null, target.Side == 0 ? 1 : 0, m, w, target.Ship, default, best, e.Spatial ? g.Position : default, k); continue; }
-                var hit = Hit.Roll(u.Rng, w, new TargetProfile(tShip.ShieldNow, tShip.Stats.Armor, target.Speed, Gunnery.Signature(u, tShip)), best, 1f, r);
+                int shSec = ShieldSectors.Incoming(u, e, target, g.Position);   // Richtungsschilde: aus Richtung des Tors
+                var hit = Hit.Roll(u.Rng, w, new TargetProfile(ShieldSectors.Facing(u, tShip, shSec), tShip.Stats.Armor, target.Speed, Gunnery.Signature(u, tShip)), best, 1f, r);
                 e.Shots++;
-                float hull = Hit.Apply(u, tShip, hit);
+                float hull = Hit.Apply(u, tShip, hit, 0f, shSec);
                 if (hull > 0f) ModuleDamage.OnHullHit(u, tShip, hull);
                 if (hit.Hit) e.Hits++;
                 u.Events.Publish(new GateShot(e.Id, e.Sector, g.Id, tShip.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull, k));

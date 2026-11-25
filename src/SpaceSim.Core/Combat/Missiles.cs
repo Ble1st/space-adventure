@@ -109,9 +109,10 @@ public static class Missiles
         if (g == MissileGuidance.Infrared) w = w with { Accuracy = Math.Clamp(w.Accuracy * Guidance.HeatFactor(u, target, tp.Speed), 0f, 1f) };   // Wärmefaktor
         float pdShip = Math.Clamp(target.Stats.PointDefense, 0f, r.PointDefenseMax);
         if (u.Rng.NextDouble() < pdShip) { u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, default, "intercepted", 0f, 0f)); return; }
-        var profile = new TargetProfile(target.ShieldNow, target.Stats.Armor, tp.Speed, Gunnery.Signature(u, target));
+        int sector = ShieldSectors.Incoming(u, e, tp, e.Of(f.Shooter) is { InSpace: true } sp ? sp.Pos : f.From);   // Richtungsschilde: aus Richtung des Werfers
+        var profile = new TargetProfile(ShieldSectors.Facing(u, target, sector), target.Stats.Armor, tp.Speed, Gunnery.Signature(u, target));
         var res = Hit.Roll(u.Rng, w, profile, 0f, 1f, r);
-        float dealt = Hit.Apply(u, target, res);
+        float dealt = Hit.Apply(u, target, res, 0f, sector);
         if (dealt > 0f) ModuleDamage.OnHullHit(u, target, dealt);
         if (res.Hit) e.Hits++;
         u.Events.Publish(new MissileResolved(e.Id, e.Sector, f.Shooter, f.Target, default, res.Hit ? "hit" : "miss", res.ShieldDamage, dealt));

@@ -106,6 +106,8 @@ public static class UniverseHash
             foreach (var b in sys.Burning) Mix((ulong)(b + 1000));   // Phase 26: Brand (Slots); unbeschädigte Schiffe mischen nichts
             if (sys.MissilesMissing != 0f) { Mix(0x2801u); MixF(sys.MissilesMissing); }   // Phase 28: Raketenmagazin
             if (sys.Heat != 0f || sys.HeatLocked) { Mix(0x4E47u); MixF(sys.Heat); Mix(sys.HeatLocked ? 1UL : 0UL); }   // Hitze: nur wenn gesetzt
+            if (sys.SectorMissing is { } secs) { Mix(0x5EC7u); foreach (var v in secs) MixF(v); }   // Richtungsschilde: nur wenn gesetzt
+            if (sys.Focus != ShieldFocus.Balanced) { Mix(0xF0C5u); Mix((ulong)sys.Focus); }
         }
         // Träger: eingeschleuste Bordjäger (nur wenn vorhanden)
         foreach (var (c, list) in u.Hangars.OrderBy(kv => kv.Key.Value))

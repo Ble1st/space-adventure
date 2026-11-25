@@ -351,3 +351,16 @@ Lücke gegenüber Interstellar Pilot 2, eigener Entwurf. Schalter `rules.carrier
 - **Testpaket** „Trägertest (Test)“: Albatros mit zwei Falken, 140 m vor der Werft Delta, ein Kaperschiff kündigt nach 60 s an.
 - **Messung** (Balance 20000 Takte, Release): Hash 9987D125373CCE46 vorher und nachher gleich (ohne Krieg kauft keine KI einen Träger; Klasse und Modell allein ändern nichts), Preise im Zielbereich. Keine neuen Regale: Farmen und Exporte unverändert.
 
+
+## Richtungsschilde (Schildsektoren)
+
+Lücke gegenüber Interstellar Pilot 2, eigener Entwurf. Schalter `rules.shieldSectors` (Code aus = ein Schildbetrag wie vorher, Welt bitgleich; Standardwelt an). Regeln in `Combat/ShieldSectors.cs`, Stellschrauben in `Model/EconomyRules.ShieldSectors.cs`.
+
+- **Sektoren:** vier je Schiff (vorne, rechts, hinten, links, relativ zum Bug). Kapazität je Sektor = Schildkapazität × Anteil der Ausrichtung: ausgeglichen je ¼; ausgerichtet bekommt der Sektor `shieldFocusShare` 0,4, der gegenüberliegende `shieldFocusOppositeShare` 0,1, die Seiten je 0,25.
+- **Treffer:** belastet den Sektor, aus dessen Richtung er kommt — räumlich aus der Lage des Schützen (Schiff, Station, Tor, Raketenwerfer) zur Bugrichtung des Ziels, auf der Gefechtslinie hinten bei Flucht, sonst vorne. Die Trefferregel rechnet mit der Ladung dieses Sektors (`ShieldSectors.Facing`): ist er leer, geht der Schaden auf Panzer und Hülle, auch wenn die anderen Sektoren voll sind. Ungerichteter Schaden (abstrakte Begegnung) verteilt sich nach der Ladung.
+- **Zustand:** Fehlbetrag je Sektor (`ShipSystemsState.SectorMissing`, null = nach Anteilen verteilt) und Ausrichtung (`Focus`); die Summe ist immer `ShieldMissing`, darum bleiben Stärke (`CombatRules.Strength`), Erholungsindex, Anzeige und alle anderen Leser unverändert. Wer den Gesamtwert ändert (Träger füllt auf, Modulwechsel kappt), wird beim nächsten Zugriff anteilig abgeglichen. Gespeichert additiv (`ShipSystemsSave.ShieldSectors/ShieldFocus`), gehasht nur wenn gesetzt.
+- **Erholung:** die Regeneration (Leistungsanteil, Nebelfaktor, Pause nach Treffer — alles wie bisher) verteilt sich auf die Sektoren, denen etwas fehlt, gewichtet nach ihrem Anteil.
+- **Umlenken:** neue Ausrichtung verteilt die vorhandene Ladung sofort nach den neuen Anteilen (Summe bleibt); Preis: die Regeneration pausiert wie nach einem Treffer. Spieler: Taste „Schild“ unter ⚡ in der rechten Spalte (96 × 66, nur mit Sektoren und Schild), Tipp schaltet ausgeglichen → vorne → hinten; Rautenanzeige auf der Taste und klein hinter dem Schildwert im Status. Der Bug im räumlichen Gefecht kommt aus der Ansicht (`ShieldSectors.SetPlayerBow`).
+- **NPC:** deterministisch, kein Zufall — jedes NPC-Schiff im Gefecht richtet den Schild zum ersten Gegner aus, der es anvisiert (sonst zum eigenen Ziel); auf der Linie hinten bei Flucht, sonst vorne.
+- **Stationen** und Tore behalten ihren einen Schild.
+- **Messung** (Balance Release, Standardwelt): Schalter aus = Hash 9987D125373CCE46 wie vorher (20000 Takte). An: 20000 Takte CC5CE00206FFD345, Preise im Zielbereich, Verlustquote 0,44 → 0,24 % (Schilde der Opfer halten Treffer von vorne länger, Kaperer kommen von hinten seltener durch); 60000 Takte 0,28 → 0,21 %, Preise im Zielbereich, 186 Ausrichtungen. Die Hash-Änderung kommt allein aus den Gefechten (Schaden je Sektor, NPC-Ausrichtung).

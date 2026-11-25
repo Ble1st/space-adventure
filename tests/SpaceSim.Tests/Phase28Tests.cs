@@ -913,6 +913,8 @@ public class Phase28Tests
             if (start < 0) start = u.Tick;
             if (!u.Ships.ContainsKey(lead) && leadDown < 0) leadDown = u.Tick;
             if (u.Tick < react) continue;
+            // Richtungsschilde: der Mensch richtet mit „Schild“ den Schild nach vorne aus (die Nase folgt dem Ziel) — ein Tipp, wie „Dauerfeuer“
+            if (u.Tick == react) SpaceSim.Core.Combat.ShieldSectors.SetFocus(u, me, ShieldFocus.Front);
             if (target.Value == 0 || !u.Ships.ContainsKey(target)) target = PlayerCombat.NextEnemy(u, me, default);
             if (target.Value == 0 || PlayerCombat.PositionOf(u, target) is not { } tp) continue;
             heading = SpaceSim.Core.Flight.AimAssist.Turn(heading, SpaceSim.Core.Flight.AimAssist.Bearing(me.Position, tp.Pos), SpaceSim.Core.Flight.AimAssist.PlayerTurnRate, 1f / SimClock.TicksPerSecond);

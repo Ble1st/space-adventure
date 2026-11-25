@@ -151,10 +151,11 @@ public static class StationCombat
                 cond.Timers[g] = w.Reload;
                 var tShip = u.Ships[target.Ship];
                 if (Missiles.IsMissile(m)) { Missiles.Launch(u, e, default, st, target.Side == 0 ? 1 : 0, m, w, target.Ship, default(SiegeRef), MathF.Max(0f, best - ReachOffset(st)), e.Spatial ? st.Position : default, g); continue; }
-                var tProfile = new TargetProfile(tShip.ShieldNow, tShip.Stats.Armor, target.Speed, Gunnery.Signature(u, tShip));
+                int shSec = ShieldSectors.Incoming(u, e, target, st.Position);   // Richtungsschilde: aus Richtung der Station
+                var tProfile = new TargetProfile(ShieldSectors.Facing(u, tShip, shSec), tShip.Stats.Armor, target.Speed, Gunnery.Signature(u, tShip));
                 var hit = Hit.Roll(u.Rng, w, tProfile, MathF.Max(0f, best - ReachOffset(st)), 1f, r);   // Phase 30: ab der Außenhaut
                 e.Shots++;
-                float hull = Hit.Apply(u, tShip, hit);
+                float hull = Hit.Apply(u, tShip, hit, 0f, shSec);
                 if (hull > 0f) ModuleDamage.OnHullHit(u, tShip, hull);
                 if (hit.Hit) e.Hits++;
                 u.Events.Publish(new StationShot(e.Id, e.Sector, st.Id, tShip.Id, m.Key, m.DamageType, hit.Hit, hit.ShieldDamage, hull, g));

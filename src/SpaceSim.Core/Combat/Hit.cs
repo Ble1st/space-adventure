@@ -95,10 +95,10 @@ public static class Hit
     /// Wendet einen Treffer auf ein Schiff an: Schildschaden über <see cref="ShipSystems.TakeShield"/> (Pause, Erholung), Hüllenschaden mit optionalem Boden
     /// (<paramref name="minHull"/> absolut; Spielerschiffe in Phase 24). Liefert den tatsächlich angerichteten Hüllenschaden.
     /// </summary>
-    public static float Apply(Universe u, Ship target, in HitResult hit, float minHull = 0f)
+    public static float Apply(Universe u, Ship target, in HitResult hit, float minHull = 0f, int sector = -1)
     {
         if (!hit.Hit) return 0f;
-        if (hit.ShieldDamage > 0f) ShipSystems.TakeShield(u, target, hit.ShieldDamage);
+        if (hit.ShieldDamage > 0f) ShipSystems.TakeShield(u, target, hit.ShieldDamage, sector);   // Richtungsschilde: Sektor des Treffers
         float before = target.Hull;
         target.Hull = MathF.Max(MathF.Min(target.Hull, MathF.Max(minHull, target.Hull - hit.HullDamage)), 0f);
         if (hit.HullDamage > 0f) Mining.MiningAnchor.OnHullHit(u, target);   // Phase 32: ein Hüllentreffer reißt die Trossen

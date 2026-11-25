@@ -8,6 +8,12 @@ namespace SpaceSim.Core.Model;
 public enum PowerMode { Balanced, Weapons, Shield, Engine }
 
 /// <summary>
+/// Richtungsschilde: Ausrichtung des Schilds. <see cref="Balanced"/> = alle vier Sektoren gleich; sonst bekommt der genannte Sektor mehr Kapazität, der
+/// gegenüberliegende weniger (<see cref="EconomyRules.ShieldFocusShare"/>). Die Zahlenwerte − 1 sind die Sektorindizes (0 vorne, 1 rechts, 2 hinten, 3 links).
+/// </summary>
+public enum ShieldFocus { Balanced, Front, Right, Back, Left }
+
+/// <summary>
 /// Phase 23 (KAMPF.md Abschnitt 3.1): Laufzeitzustand der Bordsysteme eines Schiffs, getrennt von Laderaum und Tank. Gespeichert werden die
 /// <b>Fehlbeträge</b> gegenüber dem Höchstwert aus <see cref="ShipStats"/> (Schild, Speicherbank, Magazin): 0 = voll. So ist jedes neue Schiff ohne
 /// weiteres Zutun voll, und ein unbeschädigtes Schiff hat nur Standardwerte (nichts im Spielstand, keine Rechenzeit).
@@ -47,6 +53,14 @@ public sealed class ShipSystemsState
     /// <summary>Hitzesperre: ab <see cref="EconomyRules.HeatLockShare"/> gesetzt, erst unter <see cref="EconomyRules.HeatResumeShare"/> wieder frei (Waffen gesperrt, Schild lädt nicht).</summary>
     public bool HeatLocked;
 
+    /// <summary>
+    /// Richtungsschilde: fehlender Schild je Sektor (vorne, rechts, hinten, links; Summe = <see cref="ShieldMissing"/>). null = der Fehlbetrag verteilt sich
+    /// nach den Kapazitätsanteilen der Ausrichtung (der Normalfall; nichts gespeichert). Nur mit <see cref="EconomyRules.ShieldSectors"/>.
+    /// </summary>
+    public float[]? SectorMissing;
+    /// <summary>Richtungsschilde: Ausrichtung des Schilds (Standard: ausgeglichen).</summary>
+    public ShieldFocus Focus;
+
     /// <summary>Brennt das Modul in diesem Slot?</summary>
     public bool IsBurning(int slot) => Burning.Contains(slot);
 
@@ -55,7 +69,8 @@ public sealed class ShipSystemsState
 
     /// <summary>Alles auf Standard (voll, ausgeglichen, unbeschädigt)? Dann wird nichts gespeichert.</summary>
     public bool IsDefault =>
-        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && MissilesMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact && Burning.Count == 0 && Heat == 0f && !HeatLocked;
+        ShieldMissing == 0f && ChargeMissing == 0f && AmmoMissing == 0f && MissilesMissing == 0f && Mode == PowerMode.Balanced && ShieldPauseUntil == 0 && AllIntact && Burning.Count == 0 && Heat == 0f && !HeatLocked
+        && SectorMissing is null && Focus == ShieldFocus.Balanced;
 
     /// <summary>Alle Slots im Zustand 1?</summary>
     public bool AllIntact

@@ -65,6 +65,7 @@ public sealed class CombatSystem : ISimSystem
             var ship = u.Ships[p.Ship];
             if (ship.Systems.Mode != d.Mode) ShipSystems.SetMode(u, ship, d.Mode);
         }
+        if (r.ShieldSectors) ShieldSectors.AlignNpc(u, e);   // Richtungsschilde: NPCs richten den Schild zum Angreifer aus
 
         // 2) Aufgabe: Fracht abwerfen, der Kaperer nimmt sie und bricht ab
         for (int i = 0; i < e.Participants.Count; i++)
@@ -172,7 +173,7 @@ public sealed class CombatSystem : ISimSystem
             {
                 var moved = ship.Position - p.Pos;
                 p.Speed = seconds > 0f ? moved.Length / seconds : 0f;
-                if (moved.Length > 1e-3f) p.Dir = moved.Normalized();
+                if (moved.Length > 1e-3f && !u.Rules.ShieldSectors) p.Dir = moved.Normalized();   // Richtungsschilde: den Bug setzt die Ansicht (SetPlayerBow)
                 p.Pos = ship.Position;
                 continue;
             }

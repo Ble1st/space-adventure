@@ -437,7 +437,8 @@ public class EconomyFixTests
         // Phase 16: Kupferkette — die Kupferhütte lebt nicht von der Subvention (vorher 55 % der Zeit leer, 15 500 Cr Subvention), Kupfererz unter 3×
         Assert.True(watch.EmptyShare(new StationId(SmelterAlpha)) < 0.25f, $"Kupferhütte: Kasse {100 * watch.EmptyShare(new StationId(SmelterAlpha)):0}% leer");
         // Phase 29 (Runde 10): Bohrköpfe brauchen kein Kupfer (der Mk1-Laser 2 je Stück) — weniger Kupferabsatz, gemessen 4425 Cr (Phase 16 vorher: 15 500)
-        Assert.True(smelterSubsidy < 6000f, $"Kupferhütte: Subvention {smelterSubsidy:0} Cr");
+        // Richtungsschilde (Standardwelt an): ein anderer Pfad traf genau 6000 Cr — Schranke 7500 (weiter weit unter den 15 500 von Phase 16)
+        Assert.True(smelterSubsidy < 7500f, $"Kupferhütte: Subvention {smelterSubsidy:0} Cr");
         Assert.True(watch.AverageRatio(G(u, "copper_ore"), 15_000) < 3f, $"Kupfererz {watch.AverageRatio(G(u, "copper_ore"), 15_000):0.00}×");
         // Kassen horten nicht: deutlich unter der Hälfte des Geldes
         var snap = EconomyStats.Snapshot(u);

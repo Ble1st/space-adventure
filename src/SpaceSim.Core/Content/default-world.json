@@ -121,6 +121,7 @@
   "banditFenceCap": 0,
   "missileGuidance": true,
   "shipHeat": true,
+  "shieldSectors": true,
   "suns": true,
   "wormholes": true,
   "pilotRanks": true,

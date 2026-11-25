@@ -30,6 +30,8 @@ if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoO
 if (opts.TryGetValue("guidance", out var guidOpt)) worldDef.Rules.MissileGuidance = guidOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
 // Hitze: --heat on|off (aus = keine Hitze, WorldBuilder lässt die Kühlermodule weg)
 if (opts.TryGetValue("heat", out var heatOpt)) worldDef.Rules.ShipHeat = heatOpt == "on";
+// Richtungsschilde: --shieldsectors on|off
+if (opts.TryGetValue("shieldsectors", out var shSecOpt)) worldDef.Rules.ShieldSectors = shSecOpt == "on";
 // Sonnen: --suns on|off (aus = WorldBuilder lässt die Sonnen weg, Welt bitgleich)
 if (opts.TryGetValue("suns", out var sunOpt)) worldDef.Rules.Suns = sunOpt == "on";
 // Wurmlöcher: --wormholes on|off (aus = keine stabilen Paare, keine instabilen; Welt bitgleich)
@@ -501,7 +503,7 @@ if (probeBroke)
 // Phase 28: Raketen, Stationsgeschütze, Belagerungen, Krieg, Kriegsschiffe; dazu die Piratenkassen nach Zweck (Prüfpunkt e)
 var missileOutcomes = new SortedDictionary<string, int>(StringComparer.Ordinal);
 int flaresUsed = 0, jammerOn = 0;
-int heatLocks = 0, heatDamage = 0; float heatMaxShare = 0f;
+int shieldRefocus = 0; int heatLocks = 0, heatDamage = 0; float heatMaxShare = 0f;
 int sunScorch = 0; float sunHull = 0f;   // Sonnen: Koronaschäden
 var stationFalls = new SortedDictionary<string, int>(StringComparer.Ordinal);
 var fallLog = new List<string>();   // Kapitulation: zerstörte/übernommene Stationen und Not-Sitze mit Tick
@@ -528,6 +530,7 @@ u.Events.Raised += e =>
         case CountermeasureUsed cm: if (cm.Kind == "flares") flaresUsed++; else if (cm.On) jammerOn++; break;
         case HeatLockChanged hl: if (hl.Locked) heatLocks++; break;
         case HeatDamage: heatDamage++; break;
+        case ShieldFocusChanged: shieldRefocus++; break;
         case SunScorched ss: sunScorch++; sunHull += ss.Hull; break;
         case MissileResolved mr: missileOutcomes[mr.Outcome] = missileOutcomes.GetValueOrDefault(mr.Outcome) + 1; if (mr.TargetStation.Value != 0) stationHullDmg += mr.HullDamage; break;
         case StationShot ss: stationShots++; if (ss.Hit) { stationHits++; stationGunDmg += ss.ShieldDamage + ss.HullDamage; } break;
@@ -1320,6 +1323,7 @@ if (u.Modules.Count > 0)
     Console.WriteLine($"Raketenlenkung ({(u.Rules.MissileGuidance ? "an" : "aus")}): Täuschkörper ausgestoßen {flaresUsed}, Störsender eingeschaltet {jammerOn}");
     foreach (var hs in u.Ships.Values) heatMaxShare = MathF.Max(heatMaxShare, SpaceSim.Core.Combat.Heat.Share(u, hs));
     Console.WriteLine($"Hitze ({(u.Rules.ShipHeat ? "an" : "aus")}): Hitzesperren {heatLocks}, Überhitzungsschäden {heatDamage}, heißestes Schiff jetzt {heatMaxShare * 100f:0} %, Schiffe mit Hitze jetzt {u.Ships.Values.Count(x => x.Systems.Heat > 0f)}");
+    Console.WriteLine($"Richtungsschilde ({(u.Rules.ShieldSectors ? "an" : "aus")}): Schildausrichtungen {shieldRefocus}, Schiffe mit ungleichen Sektoren jetzt {u.Ships.Values.Count(x => x.Systems.SectorMissing is not null)}");
     Console.WriteLine($"Sonnen ({(u.Rules.Suns ? "an" : "aus")}): {u.Sectors.Values.Count(x => x.Sun is not null)} Sonnen; Koronaschäden {sunScorch} ({sunHull:0} Hülle); Schiffe in einer Sonnenatmosphäre jetzt {u.Ships.Values.Count(x => SpaceSim.Core.Simulation.Suns.HeatRate(u, x) > 0f)}");
     Console.WriteLine($"Kapitulation ({(u.Rules.StationCapitulation ? "an" : "aus")}, KI übernimmt {(u.Rules.AiStationCapture ? "ja" : "nein")}): Würfe {capRolls}, kapituliert {capYes}"
         + $"{(capRolls > 0 ? $" (Ø Chance {capChanceSum / capRolls:0.00})" : "")}; Not-Sitze {seatsRelocated}"

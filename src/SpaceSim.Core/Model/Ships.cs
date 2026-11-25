@@ -114,6 +114,7 @@ public sealed class Ship : ICreditAccount
     void ClampSystems()
     {
         Systems.ShieldMissing = Math.Clamp(Systems.ShieldMissing, 0f, Stats.Shield);
+        if (Systems.SectorMissing is not null && (Systems.ShieldMissing <= 0f || Stats.Shield <= 0f)) Systems.SectorMissing = null;   // Richtungsschilde
         Systems.ChargeMissing = Math.Clamp(Systems.ChargeMissing, 0f, Stats.PowerStorage);
         Systems.AmmoMissing = Math.Clamp(Systems.AmmoMissing, 0f, Stats.AmmoCapacity);
     }

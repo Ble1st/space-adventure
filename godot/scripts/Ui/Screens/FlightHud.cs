@@ -62,6 +62,9 @@ public sealed class FlightHudData
 	public string Fire = "";
 	/// <summary>Hitze (KAMPF.md „Hitze und Wärmeabfuhr“): Schalter an (Zeile sichtbar), Anteil 0..1, Sperre und Warnzeile (leer = keine).</summary>
 	public bool HeatActive;
+	/// <summary>Richtungsschilde: Ladung je Sektor 0..1 (vorne, rechts, hinten, links; null = ohne Sektoren) und Ausrichtung.</summary>
+	public float[]? ShieldSectors;
+	public ShieldFocus ShieldFocus;
 	public float HeatShare;
 	public bool HeatLocked;
 	public string HeatWarning = "";
@@ -284,6 +287,8 @@ public partial class FlightHud : Control, IScreen
 	}
 	/// <summary>Phase 23: Taste der Leistungsverteilung gedrückt — gewünschte Stellung (erneutes Tippen auf die aktive Stellung = ausgeglichen).</summary>
 	public event Action<PowerMode>? PowerModePressed;
+	/// <summary>Richtungsschilde: Taste „Schild ausrichten“ gedrückt — gewünschte nächste Ausrichtung (ausgeglichen → vorne → hinten).</summary>
+	public event Action<ShieldFocus>? ShieldFocusPressed;
 	/// <summary>Phase 25: Dauerfeuer umschalten, „Nächster Gegner“ wählen.</summary>
 	public event Action? AutoFirePressed, NextEnemyPressed, SurrenderPressed, StationAttackPressed, AimAssistPressed, GateAttackPressed;
 	/// <summary>Ausbau Punkt 1: „Verband greift an“ (zwei Tipps).</summary>
@@ -630,6 +635,9 @@ public partial class FlightHud : Control, IScreen
 		sv.AddThemeConstantOverride("separation", 0);   // Tankanzeige: Platz für die Tank-Infozeile (vorher 2)
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
 		_shieldBar = BarRow(sv, "Schild", UiKit.Cyan, out _shieldVal!);
+		// Richtungsschilde: kleine Raute hinter dem Wert (Wert 32 + Abstand 6 + Raute 14 = die bisherigen 52)
+		_shieldRowDiamond = new ShieldDiamond(14) { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkCenter };
+		_shieldVal!.GetParent().AddChild(_shieldRowDiamond);
 		_fuelBar = BarRow(sv, "Sprit", UiKit.Orange, out _fuelVal!);
 		_fuelRow = (Control)sv.GetChild(sv.GetChildCount() - 1);
 		_fuelName = (Label)_fuelRow.GetChild(0);
@@ -779,6 +787,12 @@ public partial class FlightHud : Control, IScreen
 		// ── rechte Spalte (Symboltasten 64 × 64): Leistung, Nächster Gegner, Ziel folgen, Dauerfeuer, Ergeben, Angriff ──
 		_power = At(this, new KitButton("⚡", new Vector2(64, 64)) { FontSize = 22 }, 1140, 80);
 		_power.Pressed += () => PowerModePressed?.Invoke(NextMode(_d.PowerMode));
+		// Richtungsschilde: Taste unter ⚡ mit großer Raute; Tipp schaltet ausgeglichen → vorne → hinten → ausgeglichen
+		_shieldFocus = At(this, new KitButton("", new Vector2(64, 64)) { FontSize = 14, Sub = "Schild" }, 1140, 80);
+		_shieldFocus.Pressed += () => ShieldFocusPressed?.Invoke(SpaceSim.Core.Combat.ShieldSectors.NextPlayerFocus(_d.ShieldFocus));
+		_shieldDiamond = new ShieldDiamond(26);
+		_shieldFocus.AddChild(_shieldDiamond);
+		_shieldFocus.Visible = false;
 		_nextEnemy = At(this, new KitButton("⊕", new Vector2(64, 64)) { FontSize = 24, Sub = "Gegner" }, 1208, 80);
 		_nextEnemy.Pressed += () => NextEnemyPressed?.Invoke();
 		_aimAssist = At(this, new KitButton("◎", new Vector2(64, 64)) { FontSize = 24, Sub = "folgen", Toggle = true }, 1140, 152);
@@ -840,7 +854,7 @@ public partial class FlightHud : Control, IScreen
 			[HudItem.Status] = _status, [HudItem.Chip] = _chip, [HudItem.Security] = _security, [HudItem.Wanted] = _wanted, [HudItem.Fire] = _fire, [HudItem.Mission] = _mission, [HudItem.Route] = _route,
 			[HudItem.Map] = _mapBtn, [HudItem.Hamburger] = _hamburger, [HudItem.Card] = _card,
 			[HudItem.Autopilot] = _autopilotBtn, [HudItem.AutoMine] = _autoMineBtn, [HudItem.Context] = _contextBtn,
-			[HudItem.Power] = _power, [HudItem.NextEnemy] = _nextEnemy, [HudItem.AimAssist] = _aimAssist, [HudItem.AutoFire] = _autoFire, [HudItem.Surrender] = _surrender,
+			[HudItem.Power] = _power, [HudItem.ShieldFocus] = _shieldFocus, [HudItem.NextEnemy] = _nextEnemy, [HudItem.AimAssist] = _aimAssist, [HudItem.AutoFire] = _autoFire, [HudItem.Surrender] = _surrender,
 			[HudItem.Slider] = _slider, [HudItem.TurnLeft] = _turnL, [HudItem.TurnRight] = _turnR, [HudItem.Reverse] = _reverse, [HudItem.ReverseLabel] = _reverseLabel!,
 			[HudItem.FireBtn] = _allFire, [HudItem.Expand] = _expand, [HudItem.HitWarning] = _hitWarning, [HudItem.Escape] = _escape,
 			[HudItem.TopBar] = _topBar, [HudItem.Credits] = _credits, [HudItem.Comms] = _commsBtn, [HudItem.Command] = _commandBtn, [HudItem.Fast] = _fastBtn,
@@ -993,7 +1007,9 @@ public partial class FlightHud : Control, IScreen
 		}
 	}
 	Dictionary<HudItem, Control> _items = new();
-	KitButton _power = null!, _expand = null!;
+	KitButton _power = null!, _expand = null!, _shieldFocus = null!;
+	ShieldDiamond _shieldDiamond = null!, _shieldRowDiamond = null!;
+	bool _layoutShield;
 	readonly List<KitButton> _groupButtons = new();
 	bool _expanded;
 	int _layoutGroups = -1, _layoutBays = -1;
@@ -1012,6 +1028,14 @@ public partial class FlightHud : Control, IScreen
 	public KitButtonState TestGroupState(int i) => _groupButtons[i].State;
 	public Rect2 TestFireRect => _allFire.GetGlobalRect();
 	public Rect2 TestPowerRect => _power.GetGlobalRect();
+	/// <summary>Selbsttest Richtungsschilde: Taste, ihre Unterzeile, die Rauten (Taste und Statuszeile) und ob sie sichtbar sind.</summary>
+	public Rect2 TestShieldFocusRect => _shieldFocus.GetGlobalRect();
+	public bool TestShieldFocusVisible => _shieldFocus.Visible && _shieldFocus.IsVisibleInTree();
+	public string TestShieldFocusSub => _shieldFocus.Sub;
+	public bool TestShieldRowDiamondVisible => _shieldRowDiamond.Visible && _shieldRowDiamond.IsVisibleInTree();
+	public Rect2 TestShieldRowDiamondRect => _shieldRowDiamond.GetGlobalRect();
+	public float TestShieldDiamondFill(int sector) => _shieldDiamond.FillOf(sector);
+	public int TestShieldDiamondFocus => _shieldDiamond.Focus;
 	public bool TestExpandVisible => _expand.Visible;
 	public int TestVisibleBays => _bayButtons.Count(b => b.Visible);
 	/// <summary>Runde 33: zuletzt gerechnete Anordnung (Selbsttest, Prüfwerkzeug).</summary>
@@ -1039,7 +1063,7 @@ public partial class FlightHud : Control, IScreen
 	{
 		_wantFactor = factor; _viewport = viewport;
 		// nie zwei Tasten übereinander — der Faktor sinkt (Core: FitFactor), bis Gruppen, FEUER und die aufgeklappten Schächte ihren Platz haben
-		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), factor, _layoutHeat);
+		factor = FlightHudLayout.FitFactor(viewport.X, viewport.Y, SafeInsets1(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), factor, _layoutHeat, _layoutShield);
 		var size = viewport / factor;
 		var insets = SafeInsets1();
 		if (Mathf.Abs(Scale.X - factor) < 1e-4f && (Size - size).LengthSquared() < 0.01f && Position == Vector2.Zero && insets == _laidInsets) return;
@@ -1054,7 +1078,7 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>HUD-Neu: Lagen aus <see cref="FlightHudLayout"/> (Core) — Gruppen, FEUER und aufgeklappte Schächte nach den aktuellen Daten.</summary>
 	void Relayout()
 	{
-		var layout = FlightHudLayout.Compute(Size.X, Size.Y, SafeInsets(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), _expanded, _layoutFire, _layoutHeat);
+		var layout = FlightHudLayout.Compute(Size.X, Size.Y, SafeInsets(), Math.Max(0, _layoutGroups), Math.Max(0, _layoutBays), _expanded, _layoutFire, _layoutHeat, _layoutShield);
 		Layout = layout;
 		foreach (var (item, c) in _items)
 		{
@@ -1067,6 +1091,8 @@ public partial class FlightHud : Control, IScreen
 		var stR = layout[HudItem.Status];
 		if (stR.H > 0f) { _status.Size = new Vector2(_status.Size.X, stR.H); _cargoTap.Size = new Vector2(_cargoTap.Size.X, stR.H); _cargoTap.CustomMinimumSize = new Vector2(_cargoTap.CustomMinimumSize.X, stR.H); }
 		_heatRow.Visible = _layoutHeat;
+		_shieldFocus.Visible = !layout.Hidden(HudItem.ShieldFocus);
+		_shieldDiamond.Position = new Vector2((_shieldFocus.Size.X - _shieldDiamond.Size.X) / 2f, 5f);
 		_chipRow.CustomMinimumSize = Vector2.Zero;
 		_chipRow.Size = new Vector2(MathF.Max(0f, layout[HudItem.Chip].W - 28f), 42f);
 		_gateAttack.Position = _stationAttack.Position = new Vector2(layout[HudItem.Attack].X, layout[HudItem.Attack].Y);
@@ -1163,8 +1189,9 @@ public partial class FlightHud : Control, IScreen
 		if (_d.InCombat) { groups = Math.Max(groups, _layoutGroups); bays = Math.Max(bays, _layoutBays); }
 		bool fire = _d.HasWeapons;
 		bool heat = _d.HeatActive;
-		if (!force && groups == _layoutGroups && bays == _layoutBays && fire == _layoutFire && heat == _layoutHeat) return;
-		_layoutGroups = groups; _layoutBays = bays; _layoutFire = fire; _layoutHeat = heat;
+		bool shield = _d.ShieldSectors is not null;
+		if (!force && groups == _layoutGroups && bays == _layoutBays && fire == _layoutFire && heat == _layoutHeat && shield == _layoutShield) return;
+		_layoutGroups = groups; _layoutBays = bays; _layoutFire = fire; _layoutHeat = heat; _layoutShield = shield;
 		if (bays < 2 && _expanded) { _expanded = false; _expand.On = false; }
 		if (_viewport != Vector2.Zero) { Scale = Vector2.Zero; ApplyScale(_viewport, _wantFactor); }
 		Relayout();
@@ -1282,6 +1309,18 @@ public partial class FlightHud : Control, IScreen
 		float shieldPct = d.ShieldMax > 0f ? 100f * d.Shield / d.ShieldMax : 0f;
 		_shieldBar.Set(shieldPct, shieldPct < 30f ? UiKit.Orange : UiKit.Cyan);
 		_shieldVal.Text = d.ShieldMax > 0f ? $"{(int)d.Shield}" : "–";
+		// Richtungsschilde: Raute in der Statuszeile und auf der Taste; der Wert wird schmaler (32 statt 52)
+		bool sectors = d.ShieldSectors is not null;
+		_shieldRowDiamond.Visible = sectors;
+		_shieldVal.CustomMinimumSize = new Vector2(sectors ? 32 : 52, 0);
+		if (d.ShieldSectors is { } fill)
+		{
+			int focus = d.ShieldFocus == ShieldFocus.Balanced ? -1 : (int)d.ShieldFocus - 1;
+			_shieldRowDiamond.Set(fill, focus);
+			_shieldDiamond.Set(fill, focus);
+			_shieldFocus.Sub = SpaceSim.Core.Combat.ShieldSectors.FocusName(d.ShieldFocus) is var fn && fn == "ausgeglichen" ? "ausgegl." : fn;
+			_shieldFocus.On = d.ShieldFocus != ShieldFocus.Balanced;
+		}
 		float loadPct = d.PowerOutput > 0f ? 100f * d.PowerDraw / d.PowerOutput : 100f;
 		_powerBar.Set(Math.Min(100f, loadPct), d.PowerDraw > d.PowerOutput ? UiKit.Red : PowerColor);
 		_powerVal.Text = $"{d.PowerDraw:0}/{d.PowerOutput:0}";
