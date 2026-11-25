@@ -762,6 +762,6 @@ public partial class UiCheck : Node
 	/// <summary>Runde 37b (A3): begründete Ausnahmen — gekürzte Texte, die bewusst so bleiben (Muster im Hinweis, Begründung).</summary>
 	public static readonly (string State, string Pattern, string Why)[] AllowedTruncations =
 	{
-		("dockmenue-trade_station", "Einheitsf…", "Schiffs-Chip im Dock-Menü (126 px, vier je Zeile): lange NPC-Schiffsnamen in der Mitte gekürzt, voller Name im Hangar (Runde 35b)"),
+		("dockmenue-trade_station", "Einheit", "Schiffs-Chip im Dock-Menü (126 px, vier je Zeile): lange NPC-Schiffsnamen in der Mitte gekürzt, voller Name im Hangar (Runde 35b; das Muster deckt jede Mittelkürzung „Einheit…“/„Einheitsf…“ — die Kürzungsstelle hängt an der Id-Länge)"),
 	};
 }

@@ -220,7 +220,9 @@ public sealed class FlightHudLayout
         if (expanded && bays > 0)
         {
             _hidden.Add(HudItem.Context); _hidden.Add(HudItem.HitWarning); _hidden.Add(HudItem.Escape);
-            float left = x0 + 10 + 260 + 8, right = MathF.Min(railLeft, _rects[HudItem.Card].X) - 8f, top = sy, bottom = by - 8f;
+            float left = x0 + 10 + 260 + 8, right = MathF.Min(railLeft, _rects[HudItem.Card].X) - 8f, top = sy;
+            // ui-check (2340×1080 mit oberem Rand, Leviathan): die unterste Zeile reichte bis 8 über die untere Reihe und damit in den höheren Regler
+            float bottom = MathF.Min(by, _rects[HudItem.Slider].X < right ? _rects[HudItem.Slider].Y : by) - 8f;
             int brows = Math.Max(1, (int)MathF.Floor((bottom - top + 8f) / CellStepY));
             int cols = (int)MathF.Ceiling(bays / (float)brows);
             float cellW = MathF.Min(CellW, (right - left - (cols - 1) * 8f) / Math.Max(1, cols));

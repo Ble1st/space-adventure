@@ -64,9 +64,12 @@ public sealed partial class StartScreen : Control
 		title.AddThemeConstantOverride("outline_size", 0);
 		At(this, Text("Elf Sektoren · eine Wirtschaft, die ohne dich weiterläuft", 17, Dim), x0 + 4, y0 + 64, 0, 0);
 
-		float bx = x0, by = y0 + 120, bw = 360;
 		// Mehrere Spielstände: „Fortsetzen“ lädt den neuesten Stand (Autosave oder benannt), „Laden“ öffnet die Liste
 		var newest = Game.SaveService.Newest;
+		// ui-check (A15 mit oberem Rand, Faktor 1,3): die Tastenspalte endete unter dem Bildrand — sie rückt bis unter den Untertitel hoch
+		float needed = (newest is not null ? 88f + 76f : 0f) + 76f + 76f + 56f;
+		float bx = x0, by = MathF.Max(y0 + 92f, MathF.Min(y0 + 120f, Size.Y - si.Bottom - 10f - needed)), bw = 360;
+		float colTop = by;
 		if (newest is { } nm)
 		{
 			var cont = At(this, new KitButton("Fortsetzen", new Vector2(bw, 76)) { FontSize = 24, AlignLeft = true, State = KitButtonState.Ready, Sub = nm.Name + " · " + nm.SavedAt.ToLocalTime().ToString("dd.MM. HH:mm") }, bx, by);
@@ -90,7 +93,7 @@ public sealed partial class StartScreen : Control
 		quit.Pressed += () => Action?.Invoke("quit");
 
 		// rechte Fläche
-		float px = bx + bw + 40f, py = y0 + 120, pw = MathF.Max(380f, w + si.Left - px - 30f), ph = MathF.Max(300f, h + si.Top - py - 24f);
+		float px = bx + bw + 40f, py = colTop, pw = MathF.Max(380f, w + si.Left - px - 30f), ph = MathF.Max(300f, h + si.Top - py - 24f);
 		var panel = CardBg(this, px, py, pw, ph, new Color(0.03f, 0.06f, 0.12f, 0.72f), new Color(Cyan, 0.45f), 14, 2);
 		if (_panel == Panel.Packages) BuildPackages(panel, pw, ph); else BuildSettings(panel, pw, ph);
 	}

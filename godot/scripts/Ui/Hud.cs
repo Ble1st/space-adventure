@@ -489,8 +489,9 @@ public partial class Hud : CanvasLayer
 		var key = (vp, _alertText.Text.GetHashCode(), occ.Count, occ.Aggregate(0f, (a, r) => a + r.Position.X * 3f + r.Position.Y * 7f + r.Size.X + r.Size.Y * 5f));
 		// gleiche Meldung und die bisherige Lage ist noch frei: bleiben (kein Springen, wenn sich das Schiff bewegt)
 		bool keep = key.Item2 == _flightAlertKey.Item2 && key.Item1 == _flightAlertKey.Item1 && _flightAlert.R.W > 0f
-			&& !Flight.OccupiedLocal(importantOnly: true).Concat(Flight.ShipRectLocal() is { } sk ? new[] { sk } : System.Array.Empty<Rect2>())
-				.Any(r => r.Intersects(new Rect2(_flightAlert.R.X, _flightAlert.R.Y, _flightAlert.R.W, _flightAlert.R.H)));
+			// ui-check (A15 mit Rändern, Leviathan): gegen alles prüfen (auch die Lagezeile) — eine Lage aus einer Notstufe blieb sonst stehen, obwohl sich
+			// das HUD inzwischen so verschoben hatte, dass eine freie Lage neben allem bestand
+			&& !occ.Any(r => r.Intersects(new Rect2(_flightAlert.R.X, _flightAlert.R.Y, _flightAlert.R.W, _flightAlert.R.H)));
 		if (key != _flightAlertKey && !keep)
 		{
 			_flightAlertKey = key;
@@ -505,7 +506,7 @@ public partial class Hud : CanvasLayer
 			var important = Flight.OccupiedLocal(importantOnly: true);
 			if (Flight.ShipRectLocal() is { } shipR3) important.Add(shipR3);
 			if (Flight.ReverseLabelLocal is { Size.Y: > 0f } rl2) important.Add(rl2.Grow(6f));
-			foreach (var (rects, maxLines, minW) in new[] { (occ, 3, 300f), (occ, 6, 216f), (important, 6, 216f), (taps, 5, 300f) })
+			foreach (var (rects, maxLines, minW) in new[] { (occ, 3, 300f), (occ, 6, 216f), (occ, 10, 216f), (important, 6, 216f), (taps, 5, 300f) })   // ui-check (A15 mit Rändern, Leviathan aufgeklappt): lieber schmal und hoch neben allem als über der Lagezeile
 			{
 				var list = rects.Select(r => new SpaceSim.Core.Ui.UiRect(r.Position.X, r.Position.Y, r.Size.X, r.Size.Y)).ToList();
 				for (float w = FlightAlertWidth; w >= minW && pick is null; w -= 40f)
@@ -804,7 +805,7 @@ public partial class Hud : CanvasLayer
 		void DrawTargetArrow()
 		{
 			Hud.TargetArrowShown = false;
-			if (Hud.TargetEdge?.Invoke() is not { } t || Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight) return;
+			if (Hud.Start.Visible || Hud.TargetEdge?.Invoke() is not { } t || Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight) return;
 			var field = Field();
 			if (field.HasPoint(t.Screen)) return;
 			var c = field.GetCenter();
@@ -907,7 +908,7 @@ public partial class Hud : CanvasLayer
 		void DrawMissionEdges()
 		{
 			Hud.MissionEdgeMarkers.Clear();
-			if (Hud.MissionEdges?.Invoke() is not { } list || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
+			if (Hud.Start.Visible || Hud.MissionEdges?.Invoke() is not { } list || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
 			var font = ThemeDB.FallbackFont;
 			var col = FlightHud.MissionGold;
 			var field = Field();
@@ -951,9 +952,10 @@ public partial class Hud : CanvasLayer
 		void DrawSunEdge()
 		{
 			Hud.SetSunEdgeMarker(null);
-			if (Hud.SunEdge?.Invoke() is not { } sun || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
+			if (Hud.Start.Visible || Hud.SunEdge?.Invoke() is not { } sun || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
 			var field = Field();
 			var occupied = Occupied();
+			if (_arrowBox is { } ab) occupied.Add(ab.Grow(12f));   // nie über dem Zielpfeil samt Namen
 			if (field.Grow(24f).HasPoint(sun.Screen) && !occupied.Exists(r => r.HasPoint(sun.Screen))) return;
 			var c = field.GetCenter();
 			var dir = (sun.Screen - c).Normalized();
@@ -984,9 +986,10 @@ public partial class Hud : CanvasLayer
 		void DrawWormholeEdges()
 		{
 			Hud.WormholeEdgeMarkers.Clear();
-			if (Hud.WormholeEdges?.Invoke() is not { Count: > 0 } list || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
+			if (Hud.Start.Visible || Hud.WormholeEdges?.Invoke() is not { Count: > 0 } list || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
 			var field = Field();
 			var occupied = Occupied();
+			if (_arrowBox is { } ab) occupied.Add(ab.Grow(12f));   // nie über dem Zielpfeil samt Namen
 			var font = ThemeDB.FallbackFont;
 			var col = new Color(0.78f, 0.55f, 1f);
 			foreach (var (screen, text) in list)
@@ -1010,7 +1013,7 @@ public partial class Hud : CanvasLayer
 				{
 					_labelBoxes.Add(box);
 					DrawRect(box, new Color(0.08f, 0.02f, 0.14f, 0.8f));
-					UiKit.DrawText(this, 300, font, lp, label, lfs, col, full: text);
+					UiKit.DrawText(this, 320 + Hud.WormholeEdgeMarkers.Count, font, lp, label, lfs, col, full: text);
 				}
 				Hud.WormholeEdgeMarkers.Add(tip - dir * 20f);
 			}

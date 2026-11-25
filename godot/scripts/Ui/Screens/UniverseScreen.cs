@@ -458,7 +458,9 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 				string subShort = layer != UniverseScreen.Layer.Faction ? sub
 					: _u.Factions.ContainsKey(s.Owner) ? $"{SpaceSim.Core.Model.ActorNames.Tag(_u, s.Owner)} {AccessNames.Stage(s.Control)}{(s.Contested ? " · umk." : "")}"
 					: "herrenlos";
-				float subW = colW;
+				// ui-check (1920×1200 und 4:3): die Spalte eines Randknotens ragt über die Kartenfläche — dort nur so breit, wie mittig Platz ist
+				// (dann greift die Kurzform; Verschieben legte die Unterzeile auf die des Nachbarn)
+				float subW = MathF.Min(colW, 2f * MathF.Max(0f, MathF.Min(p.X, Size.X - p.X) - 4f));
 				// Runde 35b: Platz bis zum Halo der nächsten Zeile entscheidet — zwei Zeilen, eine Zeile (Kurzform) oder keine (steht in der Detailkarte)
 				float below = scale.Y - 2f * rHalo - 4f;
 				int lines = below >= 30f ? 2 : below >= 15f ? 1 : 0;
@@ -520,9 +522,10 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 				{
 					var (shown, fs) = UiKit.FitText(this, lf, q.Full, q.Size, q.W, q.Middle);
 					float tw = lf.GetStringSize(shown, HorizontalAlignment.Left, -1, fs).X;
-					var plate = new Rect2(q.Pos.X + (q.W - tw) / 2f - 3f, q.Pos.Y - fs * 0.85f - 1f, tw + 6f, fs * 1.15f + 2f);
+					var pos = q.Pos;
+					var plate = new Rect2(pos.X + (q.W - tw) / 2f - 3f, pos.Y - fs * 0.85f - 1f, tw + 6f, fs * 1.15f + 2f);
 					DrawRect(plate, new Color(0.02f, 0.04f, 0.09f, 0.82f));
-					UiKit.DrawFit(this, slot++, lf, q.Pos, q.Full, q.Size, q.W, q.Col, HorizontalAlignment.Center, q.Middle);
+					UiKit.DrawFit(this, slot++, lf, pos, q.Full, q.Size, q.W, q.Col, HorizontalAlignment.Center, q.Middle);
 				}
 			}
 

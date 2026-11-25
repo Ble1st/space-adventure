@@ -60,11 +60,11 @@ public sealed partial class SystemScreen : CommandScreen, ISessionScreen
 				if (size == SpaceSim.Core.Ui.UiSize.Large) _testUiLarge = b;
 				bx += 128;
 			}
-			WrappedText(inner, UiScale.Describe(), 360, 452, 380, 13, Dim, 18);   // Runde 32: echte Tastengröße, ehrlicher Hinweis
+			float dy = WrappedText(inner, UiScale.Describe(), 360, 452, 380, 13, Dim, 18);   // Runde 32: echte Tastengröße, ehrlicher Hinweis
 			if (!StartMenu)
 			{
 				// Runde 45 (Nutzerwunsch: unter Einstellungen das Spielergeld setzen): Debug-Zeile — setzt die Spielerkasse auf 100.000.000 Cr
-				var bMoney = At(inner, new KitButton("Guthaben", new Vector2(380, 56)) { FontSize = 17, Sub = "Debug: auf 100.000.000 Cr setzen" }, 360, 486);
+				var bMoney = At(inner, new KitButton("Guthaben", new Vector2(380, 56)) { FontSize = 17, Sub = "Debug: auf 100.000.000 Cr setzen" }, 360, MathF.Max(486f, dy + 8f));   // unter dem (mehrzeiligen) Hinweis
 				bMoney.Pressed += () => RaiseSystemAction("money_cheat");
 				_testMoney = bMoney;
 			}

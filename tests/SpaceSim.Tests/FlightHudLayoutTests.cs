@@ -63,6 +63,33 @@ public class FlightHudLayoutTests
                 }
     }
 
+    /// <summary>ui-check-Befund (2340×1080 mit den Rändern des A15 aus dumpsys — links 53, oben 56, rechts 90 logisch —, Faktor 1, Leviathan aufgeklappt): die unterste Zeile der Einzelschächte lag auf dem
+    /// waagerechten Regler. Mit allen vier Rändern, Hitzezeile, 0–6 Gruppen und bis zu 10 Schächten: nach FitFactor keine Taste über einer anderen.</summary>
+    [Theory]
+    [InlineData(2340, 1080, 1f)]
+    [InlineData(2340, 1080, 1.15f)]
+    [InlineData(2340, 1080, 1.3f)]
+    [InlineData(1560, 720, 1f)]
+    [InlineData(2048, 1536, 1.3f)]
+    public void AlleVierRaender_MitHitze_EinzelschaechteNieAufDemRegler(int w, int h, float factor)
+    {
+        var (w1, h1) = UiLayout.Logical(w, h, 1f);
+        var safe1 = new UiInsets(53, 56, 90, 0);
+        foreach (int groups in new[] { 0, 1, 3, 6 })
+            foreach (int bays in new[] { 0, 2, 4, 10 })
+                foreach (bool exp in new[] { false, true })
+                    foreach (bool heat in new[] { false, true })
+                    {
+                        float f = FlightHudLayout.FitFactor(w1, h1, safe1, groups, bays, factor, heat);
+                        var l = FlightHudLayout.Compute(w1 / f, h1 / f, new UiInsets(safe1.Left / f, safe1.Top / f, safe1.Right / f, 0), groups, bays, exp, heat: heat);
+                        Assert.True(l.Overflow == 0, $"{w}×{h} f{f:0.00} g{groups} b{bays} auf {exp} Hitze {heat}: Überlauf {l.Overflow}");
+                        var taps = Visible(l).Where(v => FlightHudLayout.IsInteractive(v.Item)).ToList();
+                        for (int a = 0; a < taps.Count; a++)
+                            for (int b = a + 1; b < taps.Count; b++)
+                                Assert.False(taps[a].R.Intersects(taps[b].R, -0.5f), $"{taps[a].Item} {taps[a].R} × {taps[b].Item} {taps[b].R} ({w}×{h} f{f:0.00} g{groups} b{bays} {exp} Hitze {heat})");
+                    }
+    }
+
     [Fact]
     public void A15_Normal_KeinSenken_Mit3GruppenUnd10Schaechten_Tasten7mm()
     {

@@ -156,7 +156,7 @@ public partial class FlightHud : Control, IScreen
 
 	public string Id => "flight";
 	/// <summary>Selbsttest: angezeigte Fahndungs- und Lagezeile (Phase 11).</summary>
-	public string TestWanted => _wanted.Visible ? _wanted.Text : "";
+	public string TestWanted => _wanted.Visible ? _d.Wanted : "";   // volle Fassung (die Zeile kürzt nach Breite)
 	/// <summary>Phase 26: sichtbare Brandwarnung (leer = keine) und Kassenanzeige (zeigt „Schulden“ bei negativer Kasse).</summary>
 	public string TestFire => _fire.Visible ? _fire.Text : "";
 	/// <summary>Runde 41: sichtbare Auftragszeile (leer = kein aktiver Auftrag).</summary>
@@ -253,8 +253,9 @@ public partial class FlightHud : Control, IScreen
 		foreach (var h in heads) yield return h + restShort;
 		foreach (var h in heads) yield return h + rest;
 	}
-	public string TestCredits => _credits.Text;
-	public string TestSecurity => _security.Text;
+	public string TestCredits => _creditsFull;   // volle Fassung (die Anzeige kürzt nach Breite)
+	string _creditsFull = "";
+	public string TestSecurity => _d.Security;
 	/// <summary>Selbsttest (Gerätetest Phase 27): angezeigter Sektorname im Chip.</summary>
 	public string TestSectorChip => _sector.Text.Replace(" · ×10", "");   // HUD-Neu: „×10“ zeigt den Zeitraffer
 	public string Title => "Flug";
@@ -395,7 +396,7 @@ public partial class FlightHud : Control, IScreen
 		foreach (var o in options) if (font.GetStringSize(o, HorizontalAlignment.Left, -1, size).X <= width) return o;
 		return options[^1];
 	}
-	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
+	public string TestHitWarning => _hitWarning.Visible ? _d.HitWarning : "";   // volle Fassung (die Zeile kürzt nach Breite)
 	Control? _reverseLabel;
 	/// <summary>Runde 19 (Handy-Test B_4: der Warnkasten verdeckte „RÜCK · max 20 %“): Bildschirmfläche der Beschriftung über der Rücktaste.</summary>
 	public Rect2 ReverseLabelRect => _reverseLabel is { } l ? l.GetGlobalRect() : new Rect2();
@@ -479,8 +480,18 @@ public partial class FlightHud : Control, IScreen
 	/// <summary>Selbsttest: Größe und Lage einer Verteilungstaste (Mindest-Trefferfläche, keine Überdeckung).</summary>
 	/// <summary>Runde 17: linke Spalte unter den Leistungstasten (Platz für Hinweise im Gefecht) — Bildschirmkoordinaten.</summary>
 	/// <summary>Runde 33: in Einheiten der Schicht (wie Meldung/Hinweis im Flug).</summary>
-	public float LeftColumnX() => _slider is null ? 112f : _slider.Position.X + _slider.Size.X + 12f;   // HUD-Neu: rechts neben dem Regler, unter dem Status
-	public float LeftColumnTop() => _status is null ? 160f : Layout is { ChipBelowStatus: true } cl ? cl[HudItem.Fire].Bottom + 12f : _status.Position.Y + _status.Size.Y + 12f;   // schmal: unter dem Chipblock
+	// UI-Umbau: der Regler liegt jetzt waagrecht unten rechts — die linke Spalte beginnt am Status (vorher „rechts neben dem Regler“: der Hinweis lag am rechten
+	// Rand über der Randleiste); oben unter der letzten sichtbaren Zeile unter dem Status (Lage, Fahndung, Brand, Auftrag, Route), nicht über ihnen
+	public float LeftColumnX() => _status is null ? 112f : _status.Position.X;
+	public float LeftColumnTop()
+	{
+		if (_status is null) return 160f;
+		float y = _status.Position.Y + _status.Size.Y;
+		if (Layout is { ChipBelowStatus: true } cl) y = MathF.Max(y, cl[HudItem.Fire].Bottom);
+		foreach (var c in new Control[] { _security, _wanted, _fire, _mission, _route })
+			if (c is not null && c.Visible && ((c as Label)?.Text.Length ?? 1) > 0) y = MathF.Max(y, c.Position.Y + c.Size.Y);
+		return y + 12f;
+	}
 	public Rect2 TestModeRect(PowerMode m) => new(_power.Position, _power.Size);   // HUD-Neu: eine Taste ⚡ für alle Stellungen
 	Control _fuelRow = null!;
 	Label _fuelName = null!, _fuelInfo = null!;
@@ -612,7 +623,10 @@ public partial class FlightHud : Control, IScreen
 
 		// ── Status oben links (HUD-Neu: schlank, Balken + Kasse; die Leistungsstellung zeigt ⚡ in der rechten Spalte) ──
 		var status = _status = Win(this, 10, 78, 260, 140, new Color(0.03f, 0.05f, 0.1f, 0.78f), new Color(0.3f, 0.5f, 0.8f, 0.4f), 10);
-		var sv = At(status, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 4, 280, 126);
+		// ganze Statuskarte ist die Taste zum Inventar; der Inhalt liegt IN der Taste (nicht darüber), damit Text und Taste eins sind
+		_cargoTap = At(status, new KitButton("", new Vector2(260, 140)) { Flat = true }, 0, 0);
+		_cargoTap.Pressed += () => CargoPressed?.Invoke();
+		var sv = At(_cargoTap, new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }, 10, 4, 240, 126);   // innerhalb der 260 breiten Karte (vorher 280: Werte ragten über den Rand)
 		sv.AddThemeConstantOverride("separation", 0);   // Tankanzeige: Platz für die Tank-Infozeile (vorher 2)
 		_hullBar = BarRow(sv, "Hülle", UiKit.Green, out _hullVal!);
 		_shieldBar = BarRow(sv, "Schild", UiKit.Cyan, out _shieldVal!);
@@ -632,8 +646,8 @@ public partial class FlightHud : Control, IScreen
 		_powerInfo.Visible = false;   // HUD-Neu: Stellung steht auf ⚡
 		// UI-Umbau: Fracht im Status (Farbleiste je Ware + größte Posten); Tipp öffnet das Inventar
 		var cargoRow = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		cargoRow.AddThemeConstantOverride("separation", 8);
-		var cl = Text("Fracht", 14, UiKit.Dim); cl.CustomMinimumSize = new Vector2(66, 0);
+		cargoRow.AddThemeConstantOverride("separation", 6);
+		var cl = Text("Fracht", 14, UiKit.Dim); cl.CustomMinimumSize = new Vector2(60, 0);
 		cargoRow.AddChild(cl);
 		_cargoBar = new CargoBar { CustomMinimumSize = new Vector2(110, 10), SizeFlagsVertical = SizeFlags.ShrinkCenter };
 		cargoRow.AddChild(_cargoBar);
@@ -644,9 +658,7 @@ public partial class FlightHud : Control, IScreen
 		_cargoText = Text("", 13, new Color(UiKit.Dim, 0.9f));
 		_cargoText.ClipText = true; _cargoText.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; _cargoText.CustomMinimumSize = new Vector2(1, 16);
 		sv.AddChild(_cargoText);
-		// ganze Statuskarte ist die Taste zum Inventar
-		_cargoTap = At(status, new KitButton("", new Vector2(260, 140)) { Flat = true }, 0, 0);
-		_cargoTap.Pressed += () => CargoPressed?.Invoke();
+		IgnoreMouse(sv);   // der Inhalt liegt in der Inventar-Taste: Balken und Beschriftungen dürfen den Tipp nicht schlucken
 		// Kasse in der Kopfleiste
 		_credits = Text("", 19, UiKit.Orange, HorizontalAlignment.Right);
 		_credits.ClipText = true; _credits.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
@@ -1063,6 +1075,69 @@ public partial class FlightHud : Control, IScreen
 		ApplyHidden();
 	}
 
+	static void IgnoreMouse(Node n)
+	{
+		if (n is Control c) c.MouseFilter = MouseFilterEnum.Ignore;
+		foreach (var ch in n.GetChildren()) IgnoreMouse(ch);
+	}
+
+	/// <summary>Kurzformen der Zustandszeilen eines Schachts (gleiche Bedeutung, weniger Platz).</summary>
+	static readonly Dictionary<string, string[]> BayShort = new()
+	{
+		["außer Reichweite"] = new[] { "zu weit" },
+		["Ziel angedockt"] = new[] { "angedockt" },
+		["anderes Gefecht"] = new[] { "and. Gefecht" },
+		["kämpft mit dir"] = new[] { "Verbündeter" },
+		["eigenes Schiff"] = new[] { "eigenes" },
+	};
+
+	/// <summary>Unter- und Zustandszeile eines Schachts so wählen, dass sie (mit der Schrift gemessen, <see cref="KitButton.Overflow"/>) in die Taste passen:
+	/// Ort ohne mittlere „ · “-Teile, Zustand in der Kurzform; erst danach bleibt „…“.</summary>
+	static void FitBayLines(KitButton b)
+	{
+		string sub = b.Sub, det = b.Detail;
+		if (b.Overflow() is not { Length: > 0 } over) return;
+		if (over == sub && sub.Contains(" · "))
+		{
+			var parts = sub.Split(" · ");
+			foreach (var alt in new[] { parts[0] + " · " + parts[^1], parts[^1] })
+			{ b.Sub = alt; if (b.Overflow() != alt) break; }
+			over = b.Overflow();
+		}
+		if (over == det && BayShort.TryGetValue(det, out var shorts))
+			foreach (var alt in shorts) { b.Detail = alt; if (b.Overflow() != alt) break; }
+	}
+
+	/// <summary>Kürzere Fassungen einer HUD-Zeile: hintere „ · “-Teile weg, zuletzt eine Klammer am Ende weg.</summary>
+	static string[] Shorter(string full)
+	{
+		var list = new List<string> { full };
+		var parts = full.Split(" · ");
+		for (int n = parts.Length - 1; n >= 1; n--) list.Add(string.Join(" · ", parts, 0, n));
+		foreach (var t in list.ToArray()) { int k = t.LastIndexOf(" ("); if (k > 0 && t.EndsWith(')')) list.Add(t[..k]); }
+		return list.ToArray();
+	}
+
+	/// <summary>Setzt die erste Fassung, die (Schrift bis zur Untergrenze der Ebene verkleinert) in die Breite des Labels passt; sonst die letzte mit „…“.</summary>
+	static void SetFitted(Label l, int baseSize, params string[] options)
+	{
+		float w = l.Size.X;
+		if (w <= 1f || options.Length == 0) { l.Text = options.Length > 0 ? options[0] : ""; return; }
+		var font = l.GetThemeFont("font");
+		(string Shown, int Size) pick = default;
+		foreach (var o in options) { pick = UiKit.FitText(l, font, o, baseSize, w - 2f); if (pick.Shown == o) break; }
+		l.Text = pick.Shown;
+		l.AddThemeFontSizeOverride("font_size", pick.Size);
+	}
+
+	/// <summary>Erste Fassung, die in <paramref name="room"/> Pixel bei <paramref name="size"/> passt (gemessen mit der Schrift der Tasten); sonst die letzte.</summary>
+	static string FirstFitting(string[] options, int size, float room)
+	{
+		var font = ThemeDB.FallbackFont;
+		foreach (var o in options) if (font.GetStringSize(o, HorizontalAlignment.Left, -1, size).X <= room) return o;
+		return options[^1];
+	}
+
 	/// <summary>Ausblendungen der Anordnung (verdeckte Autopilot-Zeile bei aufgeklappter Leiste, leere Gruppen-/Schachtplätze).</summary>
 	void ApplyHidden()
 	{
@@ -1126,12 +1201,13 @@ public partial class FlightHud : Control, IScreen
 
 	KitBar BarRow(Control parent, string name, Color fill, out Label? valueLabel, float value = 0f, bool placeholder = false)
 	{
+		// Zeile = 60 + 6 + 116 + 6 + 52 = 240 (Innenbreite der 260 breiten Statuskarte)
 		var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-		row.AddThemeConstantOverride("separation", 8);
+		row.AddThemeConstantOverride("separation", 6);
 		var l = Text(name, 14, placeholder ? new Color(UiKit.Dim, 0.75f) : UiKit.Dim);
-		l.CustomMinimumSize = new Vector2(66, 0);
+		l.CustomMinimumSize = new Vector2(60, 0);
 		row.AddChild(l);
-		var bar = new KitBar(140, 10, fill);
+		var bar = new KitBar(116, 10, fill);
 		if (placeholder) bar.Modulate = new Color(1, 1, 1, 0.45f);
 		bar.Set(value, fill);
 		row.AddChild(bar);
@@ -1214,8 +1290,14 @@ public partial class FlightHud : Control, IScreen
 		_power.On = d.PowerMode != PowerMode.Balanced;
 		_powerInfo.Text = "Stellung " + (d.PowerMode == PowerMode.Balanced ? "ausgeglichen" : SpaceSim.Core.Combat.ShipSystems.ModeName(d.PowerMode))
 			+ (d.ChargeMax > 0f ? $" · Bank {(int)d.Charge}/{(int)d.ChargeMax}" : "");
-		_credits.Text = (d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits")
-			+ (d.CostsPerMinute > 0.001f ? $" · −{d.CostsPerMinute.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))}/min" : "");
+		{
+			string cost = d.CostsPerMinute > 0.001f ? $" · −{d.CostsPerMinute.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("de-DE"))}/min" : "";
+			string money = d.Credits < 0f ? $"Schulden: {(int)-d.Credits} Cr" : $"{(int)d.Credits} Credits", shortMoney = d.Credits < 0f ? $"−{(int)-d.Credits} Cr" : $"{(int)d.Credits} Cr";
+			// nach Breite gemessen: erst „Credits“ → „Cr“, dann die laufenden Kosten weglassen (statt „…“)
+			_creditsFull = money + cost;
+			if (d.Credits < 0f) SetFitted(_credits, 19, money + cost, money, shortMoney);
+			else SetFitted(_credits, 19, money + cost, shortMoney + cost, shortMoney);
+		}
 		_credits.AddThemeColorOverride("font_color", d.Credits < 0f ? UiKit.Red : UiKit.Orange);
 		// UI-Umbau: Fracht im Status, Zähler in Kopfleiste und an „☰ Sektor“
 		_cargoBar.Segments = d.CargoSegments; _cargoBar.QueueRedraw();
@@ -1265,8 +1347,8 @@ public partial class FlightHud : Control, IScreen
 			bool fits = font.GetStringSize(d.FactionName, HorizontalAlignment.Left, -1, _factionChip.GetThemeFontSize("font_size")).X <= room;
 			_factionChip.Text = fits || d.FactionTag.Length == 0 ? d.FactionName : d.FactionTag;
 		}
-		_security.Text = d.Security;
-		_wanted.Text = d.Wanted;
+		SetFitted(_security, 13, Shorter(d.Security));   // nach Breite: hintere „ · “-Teile fallen weg statt „…“
+		SetFitted(_wanted, 15, Shorter(d.Wanted));
 		_wanted.Visible = d.Wanted.Length > 0;
 		_wanted.AddThemeColorOverride("font_color", d.WantedSevere ? UiKit.Red : UiKit.Orange);
 		_fastOn = d.FastOn;
@@ -1339,14 +1421,15 @@ public partial class FlightHud : Control, IScreen
 				BayState.NoPower or BayState.NoAmmo => (KitButtonState.Disabled, bay.Detail, UiKit.Red),
 				_ => (KitButtonState.Disabled, bay.Detail, new Color(UiKit.Dim, 0.7f)),
 			};
+			FitBayLines(b);   // schmale Zellen (4:3, Faktor 1,3): kürzere Fassungen gemessen statt „…“
 			b.Progress = bay.Reload;
 			b.QueueRedraw();
 		}
 		_expand.Sub = $"{d.Bays.Count} Schächte";
 		// FEUER: alle bereiten; halten = Dauerfeuer (Zustand in der Unterzeile)
 		_allFire.Visible = d.HasWeapons && !(Layout?.Hidden(HudItem.FireBtn) ?? false);
-		_allFire.Sub = d.AutoFireOn ? "Dauerfeuer AN" : d.FireBays > 0 ? $"{d.ReadyBays}/{d.FireBays} bereit" : "";
-		_allFire.Detail = d.AutoFireOn ? "" : "halten = Dauer";
+		_allFire.Sub = d.AutoFireOn ? FirstFitting(new[] { "Dauerfeuer AN", "Dauer AN", "AN" }, 13, _allFire.Size.X - 12f) : d.FireBays > 0 ? $"{d.ReadyBays}/{d.FireBays} bereit" : "";
+		_allFire.Detail = d.AutoFireOn ? "" : FirstFitting(new[] { "halten = Dauer", "halten: Dauer", "halten" }, 12, _allFire.Size.X - 12f);   // Randzelle 96 px: gemessen statt „…“
 		_allFire.State = d.ReadyBays > 0 || d.AutoFireOn ? KitButtonState.Warn : KitButtonState.Busy;
 		_autoFire.Visible = d.HasWeapons;
 		_autoFire.On = d.AutoFireOn;
@@ -1375,7 +1458,8 @@ public partial class FlightHud : Control, IScreen
 		_tCombat.Text = d.TargetCombat;
 		_tCombat.Visible = d.TargetCombat.Length > 0;
 		if (d.TargetCombat.Length > 0) _tName.AddThemeColorOverride("font_color", d.TargetHostile ? UiKit.Red : UiKit.Orange);
-		_hitWarning.Text = d.HitWarning;
+		// ui-check (A15 mit Rändern, Faktor 1,3): die Zeile ist schmaler als der volle Text — Schütze in Klammern fällt weg, dann kleinere Schrift
+		SetFitted(_hitWarning, 17, d.HitWarning, System.Text.RegularExpressions.Regex.Replace(d.HitWarning, @" \([^)]*\)", ""));
 		_hitWarning.Visible = d.HitWarning.Length > 0;
 		// HUD-Neu: Gegenwehr der gewählten Station bzw. Sperrgrund des Tors stehen in der Kräftezeile der Zielkarte (die Taste ist dafür zu klein)
 		string odds = d.StationOdds.Length > 0 ? d.StationOdds : (d.CanAttackStation && d.StationAttackInfo.Length > 0 ? d.StationAttackInfo : d.CanAttackGate || d.GateAttackBlocked.Length > 0 ? TestGateAttackInfo : "");

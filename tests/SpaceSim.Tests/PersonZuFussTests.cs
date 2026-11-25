@@ -329,8 +329,8 @@ public class PersonZuFussTests
         Assert.Equal(a.Id, player.DockedAt);                 // Schiff bleibt an der alten Station
         Assert.Equal(a.Sector, player.Sector);
         Assert.Equal(b.Id, u.PlayerAtStation);               // Person steht zu Fuß am Ziel
-        Assert.Empty(PlayerFleet.ParkedAt(u, b).Where(s => s.Id == player.Id));   // am Ziel hängt es NICHT im Hangar
-        Assert.Single(PlayerFleet.ParkedAt(u, a).Where(s => s.Id == player.Id));
+        Assert.DoesNotContain(PlayerFleet.ParkedAt(u, b), s => s.Id == player.Id);   // am Ziel hängt es NICHT im Hangar
+        Assert.Single(PlayerFleet.ParkedAt(u, a), s => s.Id == player.Id);
 
         // Fernwechsel (Kommandozentrale) zum eigenen Schiff, das woanders liegt: Anweisung Runde 45 — möglich, die Person reist dorthin
         // und steht an Bord des an A angedockten eigenen Schiffs (das war der Weg zurück, ohne Taxi)
@@ -389,7 +389,7 @@ public class PersonZuFussTests
         Assert.Equal(other.Sector, u.PlayerSector);
         Assert.Equal(a.Id, player.DockedAt);                    // das alte (nicht mehr aktive) Schiff bleibt an A angedockt
         Assert.Contains(player, PlayerFleet.ParkedAt(u, a));    // und taucht dort im Hangar auf
-        Assert.Empty(PlayerFleet.ParkedAt(u, St(u, 1)).Where(s => s.Id == player.Id));
+        Assert.DoesNotContain(PlayerFleet.ParkedAt(u, St(u, 1)), s => s.Id == player.Id);
     }
 
     [Fact]

@@ -171,7 +171,9 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		{
 			// Nutzerwunsch: Auch das Schiff, in dem man sitzt, bekommt Befehle wie ein Flottenschiff. An Bord pausiert der Befehl
 			// (die Person hat das Steuer), nach dem Aussteigen (Station "Schiff verlassen", Taxi) oder Wechsel läuft er weiter. Zu Fuß führt er sofort.
-			At(det, Text(u.PlayerOnFoot ? "Zu Fuß: Dein Schiff führt den Befehl wie ein Flottenschiff." : "Aktives Schiff: Befehl pausiert an Bord – nach dem Aussteigen (Station, Taxi) oder Wechsel läuft er weiter.", 14, Dim), 14, 76, 618, 36);
+			var pauseNote = Text(u.PlayerOnFoot ? "Zu Fuß: Dein Schiff führt den Befehl wie ein Flottenschiff." : "Aktives Schiff: Befehl pausiert an Bord – nach dem Aussteigen (Station, Taxi) oder Wechsel läuft er weiter.", 14, Dim);
+			pauseNote.AutowrapMode = TextServer.AutowrapMode.WordSmart;   // zwei Zeilen innerhalb der Karte (nicht über ihren Rand)
+			At(det, pauseNote, 14, 76, 590, 36);
 			var bMine = At(det, new KitButton("Auto-Mining", new Vector2(150, 40)) { FontSize = 15, State = Ctx.AutoMiningOn() ? KitButtonState.On : KitButtonState.Normal }, 454, 4);
 			bMine.Pressed += () => AutoMiningToggled?.Invoke(!Ctx.AutoMiningOn());
 		}

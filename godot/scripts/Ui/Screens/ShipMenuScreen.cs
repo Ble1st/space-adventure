@@ -87,8 +87,11 @@ public sealed partial class ShipMenuScreen : Control, IScreen, ISessionScreen, I
 		_builtTick = u.Tick;
 		_sig = Signature();
 		float W = Size.X > 0 ? Size.X : 1280f, H = Size.Y > 0 ? Size.Y : 720f;
-		float pw = MathF.Min(980f, W - 32f), ph = MathF.Min(660f, H - 24f);
-		float px = (W - pw) * 0.5f, py = (H - ph) * 0.5f;
+		// ui-check (A15 mit Kameraaussparung oben/rechts): Karte nur in der sicheren Fläche („✕ Zurück“ lag im Rand)
+		var si = UiScale.Div(UiScale.SafeInsets1(), IsInsideTree() ? MathF.Max(1f, GetGlobalTransform().Scale.X) : 1f);
+		float aw = W - si.Left - si.Right, ah = H - si.Top - si.Bottom;
+		float pw = MathF.Min(980f, aw - 32f), ph = MathF.Min(660f, ah - 24f);
+		float px = si.Left + (aw - pw) * 0.5f, py = si.Top + (ah - ph) * 0.5f;
 		var card = CardBg(this, px, py, pw, ph, PanelSolid, Edge, 16, 2);
 
 		var back = At(card, new KitButton("✕ Zurück", new Vector2(150, 56)) { FontSize = 18 }, pw - 166, 12);
