@@ -11,6 +11,7 @@ public static class PlayerStatsCodec
         TradeRevenue = s.TradeRevenue, TradeSpent = s.TradeSpent, TradeUnits = s.TradeUnits, Sales = s.Sales, Purchases = s.Purchases,
         OreMined = s.OreMined, Kills = s.Kills, ShipsLost = s.ShipsLost, MissionsDone = s.MissionsDone, MissionsFailed = s.MissionsFailed,
         Jumps = s.Jumps, Bounties = s.Bounties, BountyCredits = s.BountyCredits, Transferred = s.Transferred,
+        KillPoints = s.KillPoints, Crimes = s.Crimes, RankSeen = s.RankSeen, PilotName = s.PilotName,
     };
 
     public static PlayerStats? FromSave(PlayerStatsSave? s) => s is null ? null : new PlayerStats
@@ -19,6 +20,7 @@ public static class PlayerStatsCodec
         TradeRevenue = s.TradeRevenue, TradeSpent = s.TradeSpent, TradeUnits = s.TradeUnits, Sales = s.Sales, Purchases = s.Purchases,
         OreMined = s.OreMined, Kills = s.Kills, ShipsLost = s.ShipsLost, MissionsDone = s.MissionsDone, MissionsFailed = s.MissionsFailed,
         Jumps = s.Jumps, Bounties = s.Bounties, BountyCredits = s.BountyCredits, Transferred = s.Transferred,
+        KillPoints = s.KillPoints, Crimes = s.Crimes, RankSeen = s.RankSeen, PilotName = s.PilotName,
     };
 
     /// <summary>Hashbeitrag (nur mit Spielerpolitik und nur, wenn es eine Statistik gibt).</summary>
@@ -29,5 +31,12 @@ public static class PlayerStatsCodec
             mix((ulong)BitConverter.DoubleToInt64Bits(d));
         foreach (var i in new[] { s.LastSector, s.Sales, s.Purchases, s.Kills, s.ShipsLost, s.MissionsDone, s.MissionsFailed, s.Jumps, s.Bounties })
             mix((ulong)(long)i);
+        // Piloten: nur wenn gesetzt (ältere Statistiken behalten ihren Hashbeitrag)
+        if (s.KillPoints != 0 || s.Crimes != 0 || s.RankSeen != 0 || s.PilotName is not null)
+        {
+            mix(0x9117u);
+            mix((ulong)BitConverter.DoubleToInt64Bits(s.KillPoints)); mix((ulong)(long)s.Crimes); mix((ulong)(long)s.RankSeen);
+            foreach (char c in s.PilotName ?? "") mix(c);
+        }
     }
 }

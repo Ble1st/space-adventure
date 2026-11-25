@@ -33,4 +33,10 @@ public sealed class PlayerStats
     public double BountyCredits;
     /// <summary>Umgeladene Einheiten zwischen eigenen Schiffen.</summary>
     public double Transferred;
+    /// <summary>Piloten: gewichtete Abschusspunkte, gezählte Verbrechen (je Tick und Art einmal), zuletzt gemeldeter Rang und eigener Pilotenname
+    /// (null = aus dem Welt-Seed). Geführt von <see cref="Pilots.PilotSystem"/>; gespeichert/gehasht nur, wenn gesetzt.</summary>
+    public double KillPoints;
+    public int Crimes;
+    public int RankSeen;
+    public string? PilotName;
 }

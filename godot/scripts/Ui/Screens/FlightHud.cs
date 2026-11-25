@@ -107,6 +107,8 @@ public sealed class FlightHudData
 	public bool TargetInArc;
 	/// <summary>Phase 25: Kampf — Schild/Hülle des gewählten Schiffs („“ = kein Schiffsziel), feindlich, Dauerfeuer, Beschusswarnung mit Richtung, hat Kampfwaffen.</summary>
 	public string TargetCombat = "";
+	/// <summary>Piloten: Kapitän des Zielschiffs in kürzer werdenden Formen (leer = keiner); steht in der Kräftezeile, wenn diese frei ist.</summary>
+	public IReadOnlyList<string> TargetCaptain = System.Array.Empty<string>();
 	public bool TargetHostile, AutoFireOn, HasWeapons;
 	/// <summary>Runde 15: Überfall läuft (oder angekündigt) und Dauerfeuer ist aus — die Taste pulsiert.</summary>
 	public bool AutoFireHint;
@@ -360,6 +362,15 @@ public partial class FlightHud : Control, IScreen
 			if (_tOdds.Visible && _tOdds.GetGlobalRect().End.Y > _card.GetGlobalRect().End.Y + 1f) return $"Kräftezeile unter dem Kartenrand ({_tOdds.GetGlobalRect().End.Y:0} > {_card.GetGlobalRect().End.Y:0})";
 			return "";
 		}
+	}
+	/// <summary>Selbsttest: angezeigte Kapitänszeile der Zielkarte ("" = keine).</summary>
+	public string TestTargetCaptain { get; private set; } = "";
+	/// <summary>Piloten: erste Form, die in die Breite passt (mit der Schrift gemessen), sonst die kürzeste.</summary>
+	static string FitTo(Label l, IReadOnlyList<string> options, float width)
+	{
+		var font = l.GetThemeFont("font"); int size = l.GetThemeFontSize("font_size");
+		foreach (var o in options) if (font.GetStringSize(o, HorizontalAlignment.Left, -1, size).X <= width) return o;
+		return options[^1];
 	}
 	public string TestHitWarning => _hitWarning.Visible ? _hitWarning.Text : "";
 	Control? _reverseLabel;
@@ -1333,9 +1344,12 @@ public partial class FlightHud : Control, IScreen
 		_hitWarning.Visible = d.HitWarning.Length > 0;
 		// HUD-Neu: Gegenwehr der gewählten Station bzw. Sperrgrund des Tors stehen in der Kräftezeile der Zielkarte (die Taste ist dafür zu klein)
 		string odds = d.StationOdds.Length > 0 ? d.StationOdds : (d.CanAttackStation && d.StationAttackInfo.Length > 0 ? d.StationAttackInfo : d.CanAttackGate || d.GateAttackBlocked.Length > 0 ? TestGateAttackInfo : "");
+		bool captain = odds.Length == 0 && d.TargetCaptain.Count > 0;
+		if (captain) odds = FitTo(_tOdds, d.TargetCaptain, 306f);
 		_tOdds.Text = odds;
 		_tOdds.Visible = odds.Length > 0;
-		_tOdds.AddThemeColorOverride("font_color", d.StationHopeless || d.GateAttackBlocked.Length > 0 ? UiKit.Red : odds.StartsWith("Knapp") ? UiKit.Orange : UiKit.Green);
+		_tOdds.AddThemeColorOverride("font_color", captain ? UiKit.Orange : d.StationHopeless || d.GateAttackBlocked.Length > 0 ? UiKit.Red : odds.StartsWith("Knapp") ? UiKit.Orange : UiKit.Green);
+		TestTargetCaptain = captain ? odds : "";
 		_escape.Text = FitEscape(d.EscapeStatus);
 		_escape.Visible = d.EscapeStatus.Length > 0;
 		ApplyHidden();

@@ -318,6 +318,8 @@ public partial class Main : Node3D
 		_hud.CcDebug.BackToFlight += CloseCommand;
 		_hud.CcStats.AreaSelected += OpenCcArea;   // Lücken IP2: Statistik
 		_hud.CcStats.BackToFlight += CloseCommand;
+		_hud.CcPilots.AreaSelected += OpenCcArea;   // Piloten: Rangliste
+		_hud.CcPilots.BackToFlight += CloseCommand;
 		_hud.CcUniverse.TaxiRequested += to =>
 		{
 			if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
@@ -971,6 +973,7 @@ public partial class Main : Node3D
 			CommandAreas.System => _hud.CcSystem,
 			CommandAreas.Debug => _hud.CcDebug,
 			CommandAreas.Stats => _hud.CcStats,
+			CommandAreas.Pilots => _hud.CcPilots,
 			_ => _hud.CcUniverse,
 		};
 		if (screen is CommandScreen cs) cs.AreaId = areaId;
@@ -1548,6 +1551,7 @@ public partial class Main : Node3D
 		if (FleetOpsEvent(e)) return;   // Flottenbefehle (Main.FleetOps.cs)
 		if (UniverseEventEvent(e)) return;   // Universumsereignisse (Main.UniverseEvents.cs)
 		if (WormholeEvent(e)) return;   // Wurmlöcher (Main.Wormholes.cs)
+		if (PilotEvent(e)) return;   // Piloten: Rangwechsel (Main.Pilots.cs)
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
@@ -3244,6 +3248,7 @@ public partial class Main : Node3D
 			d.TargetDistance = Vec2.Distance(pos, shown);
 			d.TargetInfo = $"Entfernung {d.TargetDistance:0} m" + (hostile ? " · feindlich" : "");
 			d.TargetCombat = CombatController.TargetLine(u, ts);
+			d.TargetCaptain = SpaceSim.Core.Pilots.PilotBook.CaptainLineOptions(u, ts);   // Piloten: Kapitän mit Rang
 		}
 		else if (_target is { } t)
 		{

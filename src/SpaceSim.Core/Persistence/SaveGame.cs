@@ -79,6 +79,8 @@ public sealed class SaveGame
     /// <summary>Wurmlöcher: offene instabile (additiv).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<UnstableWormholeSave>? UnstableWormholes { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextWormholeId { get; set; }
+    /// <summary>Piloten: Bilanz benannter NPC-Kapitäne (additiv; nur Anzeige, nicht gehasht).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<Pilots.CaptainSave>? Captains { get; set; }
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }
@@ -223,6 +225,10 @@ public sealed class PlayerStatsSave
     public int Bounties { get; set; }
     public double BountyCredits { get; set; }
     public double Transferred { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public double KillPoints { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Crimes { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RankSeen { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PilotName { get; set; }
 }
 
 /// <summary>Mehrpunkt-Route: Halte als [Art, Id, Sektor] mit Punkt (x, y), nächster Halt, Andock-Schalter.</summary>

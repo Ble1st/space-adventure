@@ -17,7 +17,7 @@ public sealed partial class HailPanel : Control
 	public event Action<string>? Topic;
 	public event Action? CloseRequested;
 	Control _bg = null!;
-	Label _who = null!, _greet = null!, _reply = null!;
+	Label _who = null!, _greet = null!, _reply = null!, _captain = null!;
 	KitScroll _scroll = null!;
 	VBoxContainer _box = null!;
 	KitButton _close = null!;
@@ -33,6 +33,8 @@ public sealed partial class HailPanel : Control
 		AddChild(_bg);
 		_who = At(this, Text("", 19, Cyan), 16, 8, 300, 26);
 		_who.ClipText = true; _who.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_captain = At(this, Text("", 14, Orange), 16, 34, 300, 20);   // Piloten: Kapitän mit Rang
+		_captain.Visible = false;
 		_greet = At(this, Text("", 15, White), 16, 36, 300, 44);
 		_greet.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_scroll = new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
@@ -54,13 +56,16 @@ public sealed partial class HailPanel : Control
 	{
 		_bg.Position = Vector2.Zero; _bg.Size = Size;
 		float w = Size.X - 32f;
-		_who.Size = new Vector2(w, 26); _greet.Size = new Vector2(w, 44);
+		bool cap = _captain.Visible;
+		_who.Size = new Vector2(w, 26); _captain.Size = new Vector2(w, 20);
+		_greet.Position = new Vector2(16, cap ? 56 : 36); _greet.Size = new Vector2(w, 44);
+		float top = cap ? 104 : 84;
 		float bottom = Size.Y - 8f - 56f;
 		_close.Position = new Vector2(Size.X - 130f, bottom);
 		_close.CustomMinimumSize = new Vector2(120, 56); _close.Size = new Vector2(120, 56);
 		_reply.Position = new Vector2(16, bottom - 50f); _reply.Size = new Vector2(w, 46);
-		_scroll.Position = new Vector2(10, 84);
-		_scroll.Size = new Vector2(Size.X - 20, MathF.Max(60f, bottom - 54f - 84f));
+		_scroll.Position = new Vector2(10, top);
+		_scroll.Size = new Vector2(Size.X - 20, MathF.Max(60f, bottom - 54f - top));
 	}
 
 	/// <summary>Neue Ansicht (jede HUD-Aktualisierung, solange offen) — neu aufbauen nur bei geänderten Themen.</summary>
@@ -88,6 +93,10 @@ public sealed partial class HailPanel : Control
 		foreach (var c in _box.GetChildren()) { _box.RemoveChild(c); c.QueueFree(); }
 		_who.Text = "📡 " + _view.Who;
 		_greet.Text = "„" + _view.Greeting + "“";
+		bool hadCap = _captain.Visible;
+		_captain.Visible = _view.Captain is { Count: > 0 };
+		if (_captain.Visible) _captain.Text = FitOption(_captain, _view.Captain!, Size.X - 32f);
+		if (hadCap != _captain.Visible) LayoutParts();
 		float w = MathF.Max(100f, _scroll.Size.X - 14f);
 		foreach (var t in _view.Topics)
 		{
@@ -99,7 +108,16 @@ public sealed partial class HailPanel : Control
 		}
 	}
 
+	/// <summary>Erste Form, die in die Breite passt (gemessen mit der Schrift), sonst die kürzeste.</summary>
+	static string FitOption(Label l, IReadOnlyList<string> options, float width)
+	{
+		var font = l.GetThemeFont("font"); int size = l.GetThemeFontSize("font_size");
+		foreach (var o in options) if (font.GetStringSize(o, HorizontalAlignment.Left, -1, size).X <= width) return o;
+		return options[^1];
+	}
+
 	// Selbsttest
+	public string TestCaptain => _captain is { Visible: true } ? _captain.Text : "";
 	public KitButton? TestTopic(string textPart) => _box?.GetChildren().OfType<KitButton>().FirstOrDefault(b => b.Text.Contains(textPart));
 	public string TestReply => _reply?.Text ?? "";
 	public string TestWho => _who?.Text ?? "";

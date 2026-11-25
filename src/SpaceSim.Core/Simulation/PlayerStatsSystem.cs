@@ -33,6 +33,14 @@ public sealed class PlayerStatsSystem : ISimSystem, ISimEventListener
         _sector = u.PlayerSector.Value;
     }
 
+    /// <summary>Piloten: Statistik anlegen bzw. holen — über den angemeldeten Läufer (gleiche Kassen-/Sektor-Grundlage), sonst mit dem aktuellen Stand.</summary>
+    public static PlayerStats EnsureStats(Universe u)
+    {
+        if (Owner.TryGetValue(u, out var o)) return o.Ensure(u);
+        var me = u.Player;
+        return me.Stats ??= new PlayerStats { LastWallet = me.Treasury.Credits, MaxWallet = me.Treasury.Credits, LastSector = u.PlayerSector.Value };
+    }
+
     PlayerStats Ensure(Universe u)
     {
         var me = u.Player;

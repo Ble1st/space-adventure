@@ -230,3 +230,10 @@ public sealed class PlayerStatsModule : ISimModule
     public string Name => "PlayerStats";
     public void Register(SimulationBuilder b) => b.Add(new PlayerStatsSystem(), PlayerStatsSystem.Interval);
 }
+
+/// <summary>Piloten: Ränge, Kampfwertung, NPC-Kapitäne. Läuft nach der Spielerstatistik; reine Anzeige/Statistik — die NPC-Welt ist bitgleich.</summary>
+public sealed class PilotModule : ISimModule
+{
+    public string Name => "Pilots";
+    public void Register(SimulationBuilder b) => b.Add(new SpaceSim.Core.Pilots.PilotSystem(), SpaceSim.Core.Pilots.PilotSystem.Interval);
+}

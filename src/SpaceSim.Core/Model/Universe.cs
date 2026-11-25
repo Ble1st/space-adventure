@@ -223,6 +223,8 @@ public sealed class Universe
     public int NextUniverseEventId { get; set; } = 1;
     /// <summary>Wurmlöcher: offene instabile Wurmlöcher (Reihenfolge des Aufreißens; gespeichert, gehasht nur wenn je eines lief). Regeln in <see cref="Simulation.Wormholes"/>.</summary>
     public List<UnstableWormhole> UnstableWormholes { get; } = new();
+    /// <summary>Piloten: Bilanz benannter NPC-Kapitäne (Schiff → Abschüsse, Wertung). Nur Anzeige/Statistik: gespeichert, nie gehasht, von keinem System gelesen.</summary>
+    public Dictionary<ShipId, Pilots.CaptainRecord> Captains { get; } = new();
     public int NextWormholeId { get; set; } = 1;
     /// <summary>Phase 28: laufende Kriege zwischen Fraktionen (Reihenfolge der Erklärung; gespeichert und gehasht, wenn welche laufen). Regeln in <see cref="Simulation.Wars"/>.</summary>
     public List<War> Wars { get; } = new();

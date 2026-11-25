@@ -34,6 +34,8 @@ if (opts.TryGetValue("heat", out var heatOpt)) worldDef.Rules.ShipHeat = heatOpt
 if (opts.TryGetValue("suns", out var sunOpt)) worldDef.Rules.Suns = sunOpt == "on";
 // Wurmlöcher: --wormholes on|off (aus = keine stabilen Paare, keine instabilen; Welt bitgleich)
 if (opts.TryGetValue("wormholes", out var whOpt)) worldDef.Rules.Wormholes = whOpt == "on";
+// Piloten: --pilots on|off (reine Anzeige/Statistik; Hash muss gleich bleiben)
+if (opts.TryGetValue("pilots", out var plOpt)) worldDef.Rules.PilotRanks = plOpt == "on";
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
 // Runde 25: Varianten für die Handelsmargen ohne Neubau — Exportgebot der Senken für Konsum-/Luxusgüter, Betriebskapitalanteil der Stationen

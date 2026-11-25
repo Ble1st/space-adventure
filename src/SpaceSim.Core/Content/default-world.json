@@ -120,6 +120,7 @@
   "shipHeat": true,
   "suns": true,
   "wormholes": true,
+  "pilotRanks": true,
   "maxStations": 78,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,

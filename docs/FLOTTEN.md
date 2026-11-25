@@ -349,3 +349,26 @@ Bekannte Schwächen: Ein Schiffsangriff endet, sobald das Ziel den Sektor verlä
 - **Sold:** `mercenaryFeePerDay` 400 Cr je angefangenem Spieltag im Voraus aus der Spielerkasse in die Kasse des Anbieters (`TreasuryIncome` „mercenary“). Entscheidung: **keine Schulden** — reicht die Kasse für den nächsten Tag nicht, endet der Vertrag („broke“). Begründung: ein Söldner arbeitet nicht auf Pump, und laufende Kosten sollen den Spieler nicht unbemerkt ins Minus ziehen (anders als Liegegebühr/Miete, die an ein eigenes Schiff gebunden sind).
 - **Ende** (Ablauf, Kasse leer, Entlassen): `ReturnCommand` zur Startstation, danach verlässt das Schiff die Welt (`DepartureReason.Returned`, Detail „mercenary“). Zerstört: Vertrag endet, bezahlte Tage verfallen.
 - `MercenarySystem` (Orders-Modul, Intervall 10): ohne Vertrag nichts, kein Zufall — die NPC-Welt bleibt bitgleich. Verträge additiv gespeichert (`SaveGame.Mercenaries`), gehasht nur wenn vorhanden.
+
+## 15. Piloten, Ränge und Rangliste (Lücke gegenüber Interstellar Pilot 2; eigener Entwurf)
+
+Schalter `rules.pilotRanks` (Code aus, Standardwelt an; `Model/EconomyRules.Pilots.cs`). **Entscheidung:** reine Anzeige/Statistik — Rang und Wertung
+wirken auf nichts in der Simulation (keine Boni, keine Preise, keine Freischaltungen); die NPC-Welt bleibt bitgleich (Balance 20000 Ticks mit und ohne
+Schalter gleicher Hash).
+
+- **Spielerpilot** (`Pilots/PilotBook`): Name aus dem Welt-Seed (eigener Name `PlayerStats.PilotName` gewinnt), prozedurales Porträt (`PortraitSpec`, in
+  Godot `Ui/Kit/PilotPortrait` als Schichten gezeichnet: Hintergrund, Anzug, Gesicht, Haare, Augen, Narbe, Helm, Abzeichen — keine Bilddateien).
+  Wertung = Abschusspunkte + 5 je erfülltem Auftrag + 10 je Kopfgeld − 15 je Verbrechen − 20 je verlorenem Schiff (nie unter 0). Abschusspunkte =
+  Stärke des Ziels bei voller Hülle/Schild × 2, Gesetzlose und Gesuchte × 1,5. Abschüsse, Verluste, Aufträge und Kopfgelder kommen aus der bestehenden
+  Spielerstatistik (`Actor.Stats`); neu dort nur `KillPoints`, `Crimes` (ein Vergehen bei mehreren Behörden im selben Tick zählt einmal), `RankSeen`
+  und `PilotName` (gespeichert additiv, gehasht nur mit Spielerpolitik und nur wenn gesetzt).
+- **Ränge** (allein aus der Wertung): Anwärter 0, Kadett 25, Fähnrich 75, Leutnant 150, Oberleutnant 300, Hauptmann 500, Kommandant 800,
+  Geschwaderführer 1200, Kommodore 1800, Admiral 2600. Aufstieg = großer Hinweis „Beförderung: …“, Abstieg kleiner Hinweis (`PilotRankChanged`).
+- **NPC-Kapitäne**: KI-Polizei, Kriegsschiffe, Kaperer und Söldner haben einen benannten Kapitän; Name, Porträt und Grundwertung (nach Rolle + feste
+  Streuung) folgen rein aus Welt-Seed und Schiffs-Id (kein `Universe.Rng`). Abschüsse zählt `PilotSystem` (eigenes `PilotModule`, zuletzt) aus
+  `CombatExited` — Schütze = letzter Treffer (flüchtig), sonst erster aktiver Gegner — in `Universe.Captains` (gespeichert, **nicht** gehasht: kein
+  System liest es). Gefallene/ausgemusterte Kapitäne mit Abschüssen bleiben (höchstens 60) in der Rangliste.
+- **Oberfläche**: Kommandozentrale „Politik → Rangliste“ (`PilotsScreen`): Profilkarte (Porträt, Name, Rang, Punkte, Fortschritt, Platz, Abschüsse,
+  Abschusspunkte, Verluste, K:D, Aufträge, Kopfgelder, Verbrechen) und die obersten 12 Plätze (der Spieler zusätzlich, wenn weiter unten). Zielkarte
+  (Kräftezeile, wenn frei) und Funkfenster nennen bei Schiffen mit Kapitän „Kpt. Rang Name“ (kürzere Formen, mit der Schrift gemessen).
+- Tests `PilotenTests` (9), Selbsttest-Stufe 167 (`SelfTest.Pilots.cs`).

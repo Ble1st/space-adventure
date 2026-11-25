@@ -16,7 +16,8 @@ public readonly record struct HailTarget(ShipId Ship, StationId Station)
 public readonly record struct HailTopic(string Key, string Text, string Detail, bool Possible, string? Reason);
 
 /// <summary>Funk: Gesprächsansicht — wer spricht, sein Gruß und die Themen.</summary>
-public sealed record HailView(string Who, string Greeting, IReadOnlyList<HailTopic> Topics);
+/// <param name="Captain">Piloten: Kapitänszeile in kürzer werdenden Formen (null = kein benannter Kapitän).</param>
+public sealed record HailView(string Who, string Greeting, IReadOnlyList<HailTopic> Topics, IReadOnlyList<string>? Captain = null);
 
 /// <summary>Funk: Ergebnis eines Themas. <see cref="OpenShipMenu"/> = die Ansicht soll das Schiffsmenü des angerufenen eigenen Schiffs öffnen.</summary>
 public readonly record struct HailResult(bool Success, string Message, bool OpenShipMenu = false);
@@ -73,6 +74,15 @@ public static class Hail
 
     /// <summary>Gesprächsansicht für ein Ziel (rein). Unbekanntes oder nicht erreichbares Ziel = Ansicht ohne Themen.</summary>
     public static HailView View(Universe u, HailTarget t)
+    {
+        var v = ViewCore(u, t);
+        // Piloten: benannte Kapitäne melden sich mit Rang und Namen (nur Anzeige)
+        if (t.Station.Value == 0 && u.Ships.TryGetValue(t.Ship, out var cs) && Pilots.PilotBook.CaptainLineOptions(u, cs) is { Count: > 0 } cap && v.Topics.Count > 0)
+            return v with { Captain = cap };
+        return v;
+    }
+
+    static HailView ViewCore(Universe u, HailTarget t)
     {
         var me = Me(u);
         if (me is null) return new HailView("—", "Kein Schiff.", Array.Empty<HailTopic>());
