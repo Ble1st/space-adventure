@@ -1,0 +1,83 @@
+{
+  "hints": [
+    { "key": "first_dock", "trigger": "dock", "text": "Angedockt. Wähle einen Bereich wie „Handel“ oder „Reparatur“ — „Abdocken“ bringt dich zurück in den Flug." },
+    { "key": "first_trade", "trigger": "trade", "text": "Handel: Ware antippen, Menge wählen, dann Kaufen oder Verkaufen. Die Zeile „Abnehmer“ nennt, wer die Ware anderswo nimmt." },
+    { "key": "first_mining", "trigger": "mining", "text": "Bohrkopf am Fels: Die Harpunen verankern das Schiff, dann fließt Erz in den Laderaum. Schub oder Wenden reißt die Anker." },
+    { "key": "first_raid", "trigger": "raid_warning", "text": "Überfall angekündigt! Andocken oder den Sektor verlassen rettet dich — oder funke den Kaperer an, oder kämpfe mit „Dauerfeuer“." },
+    { "key": "first_fuel_low", "trigger": "fuel_low", "text": "Tank fast leer: Tanken kannst du an Raffinerien („Reparatur & Tanken“). Mit leerem Tank fliegt das Schiff nur im Notantrieb." },
+    { "key": "first_heat", "trigger": "heat", "text": "Das Schiff ist heiß: ab 70 % laden die Waffen langsamer, ab 90 % sperren sie. Feuerpause einlegen oder Kühler einbauen." },
+    { "key": "first_missile", "trigger": "missile", "text": "Rakete im Anflug! Täuschkörper wirken gegen Infrarot, Störsender gegen aktives Radar — oder ausweichen und Abstand gewinnen." },
+    { "key": "first_wormhole", "trigger": "wormhole", "text": "Ein Wurmloch in der Nähe: Hineinfliegen bringt dich ohne Tor in einen fernen Sektor. Instabile verschwinden nach einer Weile." },
+    { "key": "first_sun", "trigger": "sun", "text": "Sonnenatmosphäre: Das Schiff heizt sich auf. In der Korona leidet die Hülle — halte Abstand." },
+    { "key": "first_command", "trigger": "command", "text": "Kommandozentrale: Oben die Reiter Besitz, Politik und Nachrichten, darunter die Unterbereiche. „← Flug“ führt zurück." },
+    { "key": "first_fleet", "trigger": "fleet", "text": "Flottenbefehle: Ein Schiff in der Liste wählen, dann den Befehl im Raster und das Ziel. Mehrere Schiffe bündelst du als Verband." }
+  ],
+  "topics": [
+    {
+      "key": "steuerung", "title": "Steuerung", "keywords": "fliegen schub regler wenden kamera autopilot",
+      "text": "Mit den Pfeiltasten ◀ ▶ unten links wendest du das Schiff, der Schubregler unten rechts setzt die Geschwindigkeit; „RÜCK“ fliegt langsam rückwärts.\n\nEin Tipp auf eine Station, ein Tor oder einen Asteroiden wählt ihn als Ziel. „Autopilot“ fliegt dann von selbst hin und dockt an Stationen an. Wischen schwenkt die Kamera, zwei Finger zoomen; im Menü findest du Rückansicht und Zielfolge.\n\nJede eigene Eingabe am Regler oder an den Wendetasten schaltet den Autopiloten ab."
+    },
+    {
+      "key": "andocken", "title": "Andocken und Stationen", "keywords": "station dienste reparatur werft hangar abdocken",
+      "text": "Nahe einer Station erscheint die Taste „Andocken“. Angedockt zeigt das Menü nur die Dienste, die diese Station anbietet: Handel, Reparatur und Tanken, Ausrüster, Werft, Hangar, Aufträge und mehr.\n\nAngedockt bist du sicher vor Überfällen. „Abdocken“ bringt dich zurück in den Flug, das Schiff legt auf einer freien Bahn ab."
+    },
+    {
+      "key": "handel", "title": "Handel", "keywords": "kaufen verkaufen preis ware abnehmer gewinn",
+      "text": "Stationen kaufen, was sie verarbeiten, und verkaufen, was sie herstellen. Der Preis hängt vom Lager ab: knappe Ware ist teuer, volle Lager zahlen wenig.\n\nIm Handelsbereich tippst du eine Ware an, wählst die Menge und kaufst oder verkaufst. Die Zeile „Abnehmer“ nennt eine Station, die die Ware nimmt, mit dem Preis jetzt und der Spanne der letzten Zeit — die Ampel zeigt, ob sich die Fahrt auch im schlechten Fall lohnt.\n\nEine Buchung lässt sich kurz danach mit „Rückgängig“ zurücknehmen, solange du noch angedockt bist."
+    },
+    {
+      "key": "abbau", "title": "Bergbau", "keywords": "erz asteroid bohrkopf laser anker traktor",
+      "text": "Mit einem Bohrkopf fliegst du mit dem Bug an einen Asteroiden. Die Harpunen verankern das Schiff, dann fließt das Erz direkt in den Laderaum. Schub über 30 % oder Wenden reißt die Anker, „Lösen“ gibt den Fels frei.\n\nMit einem Bergbaulaser schießt du Brocken ab und holst sie mit dem Traktorstrahl ein. „Auto-Mining“ erledigt Suchen, Abbauen und Verkaufen von selbst.\n\nErz verkaufst du an Hütten und Werke, die es verarbeiten."
+    },
+    {
+      "key": "kampf", "title": "Kampf", "keywords": "waffen feuer dauerfeuer schild überfall kaperer polizei",
+      "text": "„FEUER“ schießt alle bereiten Waffen auf das Ziel; Halten schaltet „Dauerfeuer“. „Ziel folgen“ dreht die Nase zum Gegner, „Nächster Gegner“ wechselt das Ziel.\n\nDer Schild fängt Treffer zuerst ab und lädt sich wieder auf; danach trifft es die Hülle und die Module. Brände und Schäden repariert eine Station mit Reparaturdienst.\n\nKaperer kündigen einen Überfall an: Andocken oder ein Sprung retten dich, Funk erlaubt Bestechen oder Hinhalten. Wer Unbeteiligte angreift, wird gesucht."
+    },
+    {
+      "key": "hitze", "title": "Hitze", "keywords": "überhitzt kühler wärme sperre",
+      "text": "Schüsse, Schub, Sprungantrieb, Tarnfeld und Sonnen heizen das Schiff auf; die Anzeige steht im Statusfeld.\n\nAb 70 % laden die Waffen langsamer, ab 90 % sperren sie, bis das Schiff unter 75 % abgekühlt ist. Bei 100 % leidet die Hülle, und Module können Schaden nehmen.\n\nKühler und Kühlplatten beim Ausrüster führen mehr Wärme ab."
+    },
+    {
+      "key": "raketen", "title": "Raketen und Gegenmaßnahmen", "keywords": "rakete täuschkörper störsender radar infrarot optisch",
+      "text": "Raketen fliegen einige Sekunden bis ins Ziel. Ihre Lenkung entscheidet, was hilft: Infrarot lässt sich mit Täuschkörpern ablenken, aktives Radar mit einem Störsender, halbaktives Radar verliert das Ziel, wenn der Schütze es aus der Reichweite verliert, optische Lenkung braucht freie Sicht.\n\nWährend eine Rakete auf dich zufliegt, nennt die Warnung Lenkung, Restzeit und Richtung. Punktverteidigung fängt manche Raketen von selbst ab."
+    },
+    {
+      "key": "flotte", "title": "Flotte", "keywords": "schiffe befehle verband handel automatik eskorte",
+      "text": "Weitere Schiffe kaufst du an Werften. In der Kommandozentrale unter „Besitz → Schiffe & Befehle“ gibst du ihnen Befehle: Handeln, Schürfen, Begleiten, Angreifen, Liefern, Erkunden und mehr.\n\nAutomatische Händler und Schürfer arbeiten innerhalb der Grenzen, die du setzt (Umkreis, Höchstpreis, Rücklage). Mehrere Schiffe bündelst du als Verband; die Zahl der Einzelbefehle und Verbände wächst mit deiner Befehlsstufe."
+    },
+    {
+      "key": "politik", "title": "Politik und Fraktionen", "keywords": "beziehung krieg frieden sperre zoll bündnis",
+      "text": "Du bist von Anfang an deine eigene Fraktion. Beziehungen zu den anderen ändern sich durch deine Taten: Verbrechen kosten Ansehen, Aufträge bringen es zurück.\n\nSchlechte Beziehungen führen zu Sektorsperren und Zöllen an den Toren, im Krieg auch zu Angriffen. Diplomatie — Bündnis, Tribut, Waffenstillstand — findest du unter „Nachrichten“."
+    },
+    {
+      "key": "auftraege", "title": "Aufträge", "keywords": "mission lieferung transport kopfgeld eskorte patrouille belohnung",
+      "text": "Stationen bieten Aufträge an: Lieferungen, Transporte mit versiegelter Fracht, Kopfgeld auf Piraten, Begleitschutz und Patrouillen. Sie stehen im Dockbereich „Aufträge“ und teilweise unter „Nachrichten“.\n\nDie Belohnung ist beim Annehmen reserviert; jeder Auftrag hat eine Frist. Ein goldener Pfeil und eine Zeile im Flug zeigen das Ziel."
+    },
+    {
+      "key": "treibstoff", "title": "Treibstoff", "keywords": "tank tanken raffinerie reichweite notruf",
+      "text": "Jeder Flug innerhalb eines Sektors verbraucht Treibstoff; Torsprünge sind frei. Die Anzeige nennt Vorrat und Reichweite.\n\nTanken kannst du an Raffinerien und Anreicherungsanlagen. Ist der Tank leer, fliegt das Schiff nur noch im Notantrieb — der „Notruf“ im Menü liefert teuren Treibstoff."
+    },
+    {
+      "key": "wurmloecher", "title": "Wurmlöcher", "keywords": "wurmloch sprung instabil portal",
+      "text": "Stabile Wurmlöcher verbinden ferne Sektoren dauerhaft, ohne Tor, Zoll oder Sperre. Instabile öffnen sich zufällig, führen in einen beliebigen Sektor und brechen nach einer Weile zusammen.\n\nZum Durchqueren fliegst du einfach hinein. Auf den Karten erkennst du sie an violetten (stabil) und orangen (instabil) Zeichen."
+    },
+    {
+      "key": "sonnen", "title": "Sonnen", "keywords": "sonne korona atmosphäre hitze hülle",
+      "text": "Jeder Sektor hat eine Sonne. In ihrer Atmosphäre heizt sich das Schiff auf, in der Korona nimmt die Hülle Schaden. Ein oranger Randpfeil zeigt die Sonne und ihren Abstand.\n\nAutopilot und Händler fliegen um die Sonne herum; wer selbst steuert, sollte Abstand halten."
+    },
+    {
+      "key": "kommando", "title": "Kommandozentrale", "keywords": "zentrale besitz politik nachrichten karte menü",
+      "text": "Die Kommandozentrale öffnest du über das Menü ☰ → „Kommando“. Die Reiter: Besitz (Schiffe, Übersicht, Bauen), Politik (Fraktionen, Statistik, Rangliste), Nachrichten (Posteingang, Diplomatie, Hilfe).\n\nDie Karte mit Universum und Sektor öffnest du über ☰ → „Karte“. „← Flug“ bringt dich zurück ins Cockpit."
+    }
+  ],
+  "tutorial": [
+    { "key": "fly", "check": "near", "goal": "Fliege zu: {station} — Ziel antippen, dann „Autopilot“" },
+    { "key": "dock", "check": "dock", "goal": "Docke an: {station} — Taste „Andocken“" },
+    { "key": "buy", "check": "buy", "goal": "Kaufe im „Handel“ eine Ware" },
+    { "key": "undock", "check": "undock", "goal": "Lege ab („Abdocken“)" },
+    { "key": "mine", "check": "mine", "amount": 3, "goal": "Fliege mit dem Bug an einen Fels und baue Erz ab" },
+    { "key": "sell", "check": "sell", "goal": "Docke an und verkaufe das Erz im „Handel“" },
+    { "key": "command", "check": "command", "goal": "Öffne die Kommandozentrale (☰ → Kommando)" },
+    { "key": "help", "check": "help", "goal": "Öffne die Hilfe (☰ → Hilfe)" }
+  ]
+}

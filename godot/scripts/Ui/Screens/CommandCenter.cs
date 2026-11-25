@@ -45,6 +45,7 @@ public static class CommandAreas
 	public const string Debug = "debug";
 	public const string Stats = "stats";
 	public const string Pilots = "pilots";
+	public const string Help = "help";
 
 	/// <summary>Alle Bereiche in der Reihenfolge der Leiste („System“ zuletzt).</summary>
 	public static readonly (string Id, string Label, string Sub)[] All =
@@ -60,6 +61,7 @@ public static class CommandAreas
 		(System, "System", "Spielstand"),
 		(Stats, "Statistik", "Deine Zahlen"),   // Lücken IP2: Spielerstatistik
 		(Pilots, "Rangliste", "Piloten & Ränge"),   // Piloten: Rang, Kampfwertung, Rangliste
+		(Help, "Hilfe", "Kodex"),   // Hilfe und Tutorial
 		(Debug, "Debug", "Spawnen & Test"),   // Nutzerwunsch: Schiffe/Stationen/Waren für Tests
 	};
 
@@ -70,7 +72,7 @@ public static class CommandAreas
 		("map", "Karte", new[] { (Universe, "Universum"), (Sector, "Sektor") }),
 		("own", "Besitz", new[] { (Fleet, "Schiffe & Befehle"), (Assets, "Übersicht"), (Build, "Bauen") }),
 		("politics", "Politik", new[] { (MyFaction, "Deine Fraktion"), (Factions, "Fraktionen"), (Stats, "Statistik"), (Pilots, "Rangliste") }),
-		("news", "Nachrichten", new[] { (Comms, "Posteingang & Diplomatie") }),
+		("news", "Nachrichten", new[] { (Comms, "Posteingang & Diplomatie"), (Help, "Hilfe") }),   // Hilfe und Tutorial: Kodex
 		("dev", "Debug", new[] { (Debug, "Spawnen & Test"), (System, "System") }),
 	};
 	/// <summary>Reiter, zu dem ein Bereich gehört („" = keiner).</summary>
@@ -90,6 +92,7 @@ public static class CommandAreas
 		Debug => "Debug",
 		Stats => "Statistik",
 		Pilots => "Rangliste",
+		Help => "Hilfe",
 		_ => id,
 	};
 }

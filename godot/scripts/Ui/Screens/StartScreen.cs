@@ -106,8 +106,9 @@ public sealed partial class StartScreen : Control
 		box.AddThemeConstantOverride("separation", 10);
 		scroll.AddChild(box);
 		float cw = pw - 44f;
-		var regular = def.Player.StartOptions.Where(o => o.Scenario is null).ToList();
-		var tests = def.Player.StartOptions.Where(o => o.Scenario is not null).ToList();
+		// Hilfe und Tutorial: das Tutorial (Szenario mit tutorial = true) steht vorn bei den regulären Paketen, nicht unter den Testszenarien
+		var regular = def.Player.StartOptions.Where(o => o.Scenario is { Tutorial: true }).Concat(def.Player.StartOptions.Where(o => o.Scenario is null)).ToList();
+		var tests = def.Player.StartOptions.Where(o => o.Scenario is { Tutorial: false }).ToList();
 		void Card(SpaceSim.Core.Content.StartOptionDef o, bool test)
 		{
 			string titleText = $"{o.Name} · {ModelName(o.Model)} · {o.Credits:0} Cr";
@@ -172,6 +173,17 @@ public sealed partial class StartScreen : Control
 		}
 		y += 66;
 		y = WrappedText(panel, "„aus“: kein regelmäßiges Speichern — beim Schließen, Pausieren und „Zum Hauptmenü“ wird trotzdem gespeichert.", 20, y, pw - 60, 14, Dim, 19);
+		// Hilfe und Tutorial: Kontexthinweise an/aus und zurücksetzen (gespeichert in den Einstellungen)
+		y += 14;
+		At(panel, Text("Hinweise", 19, White), 20, y, 300, 28); y += 34;
+		var hintsOn = At(panel, new KitButton(Game.HintSettings.Text, new Vector2(220, 60)) { FontSize = 18, State = Game.HintSettings.Enabled ? KitButtonState.On : KitButtonState.Normal, Sub = "Tipps beim ersten Mal" }, 20, y);
+		hintsOn.Pressed += () => { Game.HintSettings.Toggle(); _dirty = true; };
+		TestHintsToggle = hintsOn;
+		var hintsReset = At(panel, new KitButton("Zurücksetzen", new Vector2(200, 60)) { FontSize = 18, Sub = $"{Game.HintSettings.Seen.Count} gesehen" }, 252, y);
+		hintsReset.Pressed += () => { Game.HintSettings.Reset(); _dirty = true; };
+		TestHintsReset = hintsReset;
+		y += 70;
+		y = WrappedText(panel, "Kurze Tipps erscheinen einmal, wenn eine Lage zum ersten Mal auftritt. Die Hilfe (☰ → Hilfe) erklärt alles ausführlich.", 20, y, pw - 60, 14, Dim, 19);
 		panel.CustomMinimumSize = new Vector2(pw - 24, y + 12);
 	}
 	readonly Dictionary<int, KitButton> _autosaveButtons = new();
@@ -194,6 +206,8 @@ public sealed partial class StartScreen : Control
 	public KitButton? TestContinue { get; private set; }
 	public KitButton? TestSettings { get; private set; }
 	public KitButton? TestScenarioToggle { get; private set; }
+	public KitButton? TestHintsToggle { get; private set; }
+	public KitButton? TestHintsReset { get; private set; }
 	public KitScroll? TestChooserScroll => Visible ? _scroll : null;
 	/// <summary>„Starten“-Taste eines Pakets (Testszenarien nur, wenn aufgeklappt — <see cref="ShowTests"/>).</summary>
 	public KitButton? TestStartButton(string key) => Visible && _startButtons.TryGetValue(key, out var b) && IsInstanceValid(b) && b.IsInsideTree() ? b : null;

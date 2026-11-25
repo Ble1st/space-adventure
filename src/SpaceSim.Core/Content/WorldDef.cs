@@ -582,6 +582,8 @@ public sealed class ScenarioDef
     /// „Angriff“; sie treten jedem Gefecht des Spielers bei (auch einem Stationsangriff).
     /// </summary>
     public List<string>? Wingmen { get; set; }
+    /// <summary>Hilfe und Tutorial: das Paket ist das Tutorial — Schritte aus <c>help.json</c>, Tutorialstation = <see cref="Station"/>; erscheint bei den regulären Paketen.</summary>
+    public bool Tutorial { get; set; }
 }
 
 public sealed class PlayerDef

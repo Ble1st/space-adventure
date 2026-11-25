@@ -55,6 +55,8 @@ public partial class Hud : CanvasLayer
 	/// <summary>Lücken gegenüber IP2: Spielerstatistik („Politik → Statistik“).</summary>
 	public StatsScreen CcStats { get; } = new();
 	public PilotsScreen CcPilots { get; } = new();
+	/// <summary>Hilfe und Tutorial: Kodex („Nachrichten → Hilfe“).</summary>
+	public HelpScreen CcHelp { get; } = new();
 	/// <summary>Kleines Schiffsmenü (Werte, Module, Inventar, Befehl, Verband), getrennt von der Kommandozentrale.</summary>
 	public ShipMenuScreen ShipMenu { get; } = new();
 	/// <summary>Eigene Stationen: Platzierungsmodus im Flug (ersetzt das Flug-HUD, gleicher UI-Faktor).</summary>
@@ -143,6 +145,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(CcDebug);
 		Screens.Register(CcStats);
 		Screens.Register(CcPilots);
+		Screens.Register(CcHelp);
 		Screens.Register(ShipMenu);
 		Screens.Register(CcComms);
 		Screens.Register(CcSystem);
@@ -156,6 +159,7 @@ public partial class Hud : CanvasLayer
 		CcDebug.Ctx = CcCtx;
 		CcStats.Ctx = CcCtx;
 		CcPilots.Ctx = CcCtx;
+		CcHelp.Ctx = CcCtx;
 		ShipMenu.Ctx = CcCtx;
 		CcComms.Ctx = CcCtx;
 		CcSystem.Ctx = CcCtx;
@@ -271,7 +275,7 @@ public partial class Hud : CanvasLayer
 		// Runde 35 (E4): Kommandozentrale in eigener, ganzflächiger Schicht mit eigenem Faktor (CommandLayout.FitFactor)
 		_ccLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
 		root.AddChild(_ccLayer);
-		foreach (var sc in new Control[] { CcUniverse, CcSector, CcFactions, CcMyFaction, CcFleet, CcAssets, CcBuild, CcComms, CcSystem, CcDebug, CcStats, CcPilots, ShipMenu }) _ccLayer.AddChild(sc);
+		foreach (var sc in new Control[] { CcUniverse, CcSector, CcFactions, CcMyFaction, CcFleet, CcAssets, CcBuild, CcComms, CcSystem, CcDebug, CcStats, CcPilots, CcHelp, ShipMenu }) _ccLayer.AddChild(sc);
 
 		_flash.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		root.AddChild(_flash);

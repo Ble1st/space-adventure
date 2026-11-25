@@ -5807,6 +5807,20 @@
      "policeSquadron": true,
      "cargo": { "food": 20 }
     }
+   },
+   {
+    "key": "tutorial",
+    "name": "Tutorial",
+    "description": "Geführter Einstieg: Goldsucher mit Bohrkopf vor dem Stahlwerk Alpha. Schritt für Schritt hinfliegen, andocken, kaufen, ablegen, Erz bohren, verkaufen und die Kommandozentrale kennenlernen — das Ziel steht jeweils oben im Flug. Ruhige Lage ohne Überfälle.",
+    "model": "prospector",
+    "credits": 600,
+    "sector": 1,
+    "scenario": {
+     "station": "steelworks",
+     "distance": 140,
+     "calm": true,
+     "tutorial": true
+    }
    }
   ]
  },

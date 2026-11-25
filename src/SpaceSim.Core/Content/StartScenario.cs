@@ -39,7 +39,9 @@ public static class StartScenario
             u.PlayerSector = st.Sector;
             player.Position = st.DockPoint(player.Id) + (st.DockPoint(player.Id) - st.Position).Normalized() * (sc.Distance ?? 20f);
             player.Position = Combat.CombatSpace.Clear(u, player.Sector, player.Position);
+            if (sc.Tutorial) Help.TutorialRules.Start(u, st.Id);   // Hilfe und Tutorial: Tutorial mit dieser Station
         }
+        else if (sc.Tutorial) throw new WorldFormatException($"Startpaket '{key}': Tutorial braucht eine Station");
         int SlotOf(string module) => player.Fit.IndexOf(module) is var i and >= 0 ? i
             : throw new WorldFormatException($"Startpaket '{key}': Modul '{module}' ist nicht eingebaut");
         if (sc.Damage is { } dmg)

@@ -197,6 +197,8 @@ public partial class UiCheck : Node
 			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
 				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
 			// Runde 40: Comms mit Diplomatie-Reiter und ausgewählter Fraktion (Knöpfe mit Vorschau)
+			Add("kz-hilfe-artikel", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Help); _m.HudRef.CcHelp.ShowTopic("raketen"); }, 12);   // Hilfe und Tutorial: Kodex-Artikel
+			Add("kz-hilfe-suche", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Help); _m.HudRef.CcHelp.ShowTopic("-"); _m.HudRef.CcHelp.TestSetQuery("hitze"); }, 12);
 			Add("kz-comms-diplomatie", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); _m.HudRef.CcComms.TestSetTab("diplomacy"); _m.HudRef.CcComms.TestSelectFaction(0); }, 12);
 			// Runde 42c (Handytest): Comms-Reiter „Aufträge“ mit aktiver Meldung — Meldungsfach oben, Liste beginnt darunter (nie über Listentext)
 			Add("kz-comms-auftraege-meldung", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Comms); var cs = _m.HudRef.CcComms; cs.TestSetTab("missions"); cs.TestShowMessage("Auftrag angenommen: Transport — versiegelte Fracht 20 m³ → Elektronikfabrik Kalypsо · noch 9:59 (zweite Zeile zum Messen des Umbruchs im Meldungsfach)"); }, 12);
@@ -265,6 +267,7 @@ public partial class UiCheck : Node
 		if (NoFlight) { Add("ende", () => { _m.TestLeaveStart(); _m.TestCloseCommand(); _m.HudRef.HideAlert(); _m.HudRef.Toast("", 0.01f); }, 5); return; }   // Runde 37b: der lange Prüfhinweis des Menüs gehört nicht in den Flug
 		Add("flug-automining", () => { _m.HudRef.HideAlert(); _m.HudRef.Map.Visible = false; _m.TestLeaveStart(); _m.TestCloseCommand(); _m.TestMenu("new:miner"); }, 40);
 		Add("flug-automining2", () => { _m.TestStartMining(); }, 90);
+		Add("flug-tutorial", () => { _m.TestMenu("new:tutorial"); }, 40);   // Hilfe und Tutorial: Tutorialzeile im Flug
 		Add("flug-warnung", () => { _m.TestMenu("new:combat"); }, 40);
 		Add("flug-gefecht", () => { _m.TestSetFast(true); }, 120);
 		Add("flug-gefecht2", () => { _m.TestSetFast(false); }, 20);

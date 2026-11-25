@@ -69,6 +69,8 @@ public sealed class FlightHudData
 	public string Mission = "";
 	/// <summary>Mehrpunkt-Route: „Route 2/4 → …“ (leer = keine Route) — Text aus <see cref="SpaceSim.Core.Flight.PlayerRoutes.HudLine"/>.</summary>
 	public string Route = "";
+	/// <summary>Hilfe und Tutorial: Ziel des laufenden Tutorialschritts („Tutorial 2/8: …“; leer = keins) — steht in der Auftragszeile, sonst in der Routenzeile.</summary>
+	public string Tutorial = "";
 	// Zielkarte
 	public string TargetName = "Kein Ziel";
 	/// <summary>Runde 44i: kürzere Formen des Zielnamens (längste zuerst, z. B. aus <see cref="SpaceSim.Core.Model.StationNames.Candidates"/>);
@@ -161,8 +163,29 @@ public partial class FlightHud : Control, IScreen
 	public string TestMission => _mission.Visible ? _mission.Text : "";
 	/// <summary>Mehrpunkt-Route (Selbsttest): sichtbare Routenzeile.</summary>
 	public string TestRoute => _route.Visible ? _route.Text : "";
+	/// <summary>Hilfe und Tutorial (Selbsttest): sichtbare Tutorialzeile ("" = keine) und ob sie ohne Kürzung passt.</summary>
+	public string TestTutorial { get; private set; } = "";
+	public bool TestTutorialFits { get; private set; } = true;
 	/// <summary>Mehrpunkt-Route (Selbsttest): passt die Routenzeile ohne Kürzung mit „…“?</summary>
 	public bool TestRouteFits => !_route.Visible || _route.GetThemeFont("font").GetStringSize(_route.Text, HorizontalAlignment.Left, -1, _route.GetThemeFontSize("font_size")).X <= _route.Size.X - 2f;
+
+	/// <summary>Hilfe und Tutorial: Ziel nach gemessener Breite — erst die Erklärung nach „ — “ weglassen (sie steht im Schritt-Toast), notfalls kürzen.</summary>
+	static string FitTutorialLine(string full, Label label, out bool fits)
+	{
+		var font = label.GetThemeFont("font");
+		int size = label.GetThemeFontSize("font_size");
+		float maxW = label.Size.X - 4f;
+		float W(string x) => font.GetStringSize(x, HorizontalAlignment.Left, -1, size).X;
+		fits = true;
+		if (maxW <= 10f || W(full) <= maxW) return full;
+		int dash = full.IndexOf(" — ", StringComparison.Ordinal);
+		string head = dash > 0 ? full[..dash] : full;
+		if (W(head) <= maxW) return head;
+		fits = false;
+		for (int c = head.Length - 1; c > 8; c--)
+			if (W(head[..c].TrimEnd() + "…") <= maxW) return head[..c].TrimEnd() + "…";
+		return head;
+	}
 
 	/// <summary>Mehrpunkt-Route: Zeile nach gemessener Breite — erst „· angehalten“ kürzen, dann den Haltnamen; „Route n/m“ bleibt immer.</summary>
 	static string FitRouteLine(string full, Label label)
@@ -1222,6 +1245,18 @@ public partial class FlightHud : Control, IScreen
 		_mission.Visible = d.Mission.Length > 0;
 		_route.Text = FitRouteLine(d.Route, _route);
 		_route.Visible = d.Route.Length > 0;
+		// Hilfe und Tutorial: Tutorialziel in der freien Zeile (Auftragszeile, sonst Routenzeile), grün statt gold
+		TestTutorial = ""; TestTutorialFits = true;
+		_mission.AddThemeColorOverride("font_color", MissionGold);
+		if (d.Tutorial.Length > 0 && (d.Mission.Length == 0 || d.Route.Length == 0))
+		{
+			var line = d.Mission.Length == 0 ? _mission : _route;
+			line.Text = FitTutorialLine(d.Tutorial, line, out bool fits);
+			line.Visible = true;
+			line.AddThemeColorOverride("font_color", UiKit.Green);
+			TestTutorial = line.Text; TestTutorialFits = fits;
+		}
+		else if (_route.Visible) _route.AddThemeColorOverride("font_color", UiKit.Cyan);
 		// HUD-Neu: der Zeitraffer steht im Menü — läuft er, zeigt der Sektorchip „×10“
 		_sector.Text = d.SectorName;   // UI-Umbau: Zeitraffer zeigt die Taste „Zeit“ in der Kopfleiste
 		{

@@ -320,6 +320,8 @@ public partial class Main : Node3D
 		_hud.CcStats.BackToFlight += CloseCommand;
 		_hud.CcPilots.AreaSelected += OpenCcArea;   // Piloten: Rangliste
 		_hud.CcPilots.BackToFlight += CloseCommand;
+		_hud.CcHelp.AreaSelected += OpenCcArea;   // Hilfe und Tutorial: Kodex
+		_hud.CcHelp.BackToFlight += CloseCommand;
 		_hud.CcUniverse.TaxiRequested += to =>
 		{
 			if (_docked is not { } sid || !_session.U.Stations.TryGetValue(sid, out var st)) return;
@@ -501,7 +503,8 @@ public partial class Main : Node3D
 		_fast = false;      // Runde 4: neue Sitzung beginnt mit Zeit ×1 (der Zeitraffer blieb über „Neues Spiel“ erhalten)
 		_aimAssist = true; _aimOffFor = null; _fight.AutoFire = false; _lastDepleted = "";
 		_gasOn = false;   // Gasernte: Sammler aus in der neuen Sitzung
-		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();   // Gerätetest Phase 27: kein Zustand der alten Sitzung
+		foreach (var sc in _hud.Screens.All.OfType<ISessionScreen>()) sc.ResetSession();
+		ResetHelpSession();   // Hilfe und Tutorial   // Gerätetest Phase 27: kein Zustand der alten Sitzung
 		SetAutoMining(false, announce: false);
 		_chunks.Clear(); _mineTarget = null; _mining.ClearPlayer(); _mining.ResetNpc(); _combat.Reset(); _fight.Reset(); _anchors.Clear();
 		_transition = false; _playerTween?.Kill(); _player.Visible = true; _player.Scale = Vector3.One; _player.GiveGrace(2f);
@@ -865,6 +868,9 @@ public partial class Main : Node3D
 		switch (action)
 		{
 			case "map": _hud.Screens.Hide(); _sfx.Play(SfxId.Click); OpenMapWindow(); break;
+			case "help": _sfx.Play(SfxId.Click); _hud.Map.Visible = false; OpenCcArea(CommandAreas.Help); break;   // Hilfe und Tutorial: Kodex
+			case "hints_toggle": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("hints_toggle"); Game.HintSettings.Toggle(); _hud.Command.SetAudioState(); _hud.Toast(Game.HintSettings.Enabled ? "Hinweise an" : "Hinweise aus"); break;
+			case "hints_reset": _sfx.Play(SfxId.Click); _hud.Command.HoldRow("hints_reset"); Game.HintSettings.Reset(); _hud.Toast("Hinweise zurückgesetzt — jeder erscheint wieder einmal."); break;
 			case "economy": _sfx.Play(SfxId.Click); _hud.Economy.Visible = !_hud.Economy.Visible; _hud.Economy.Refresh(_session, force: true); ShowBase(); break;
 			case "save": case "load": OnMenu(action); break;
 			case "saveas": _sfx.Play(SfxId.Click); OpenSaveAs(); break;   // Mehrere Spielstände
@@ -974,6 +980,7 @@ public partial class Main : Node3D
 			CommandAreas.Debug => _hud.CcDebug,
 			CommandAreas.Stats => _hud.CcStats,
 			CommandAreas.Pilots => _hud.CcPilots,
+			CommandAreas.Help => _hud.CcHelp,
 			_ => _hud.CcUniverse,
 		};
 		if (screen is CommandScreen cs) cs.AreaId = areaId;
@@ -1064,6 +1071,7 @@ public partial class Main : Node3D
 		if (cur == _hud.Command) { _sfx.Play(SfxId.Click); ShowBase(); return "menü"; }
 		if (cur == _hud.CcFactions && _hud.CcFactions.TestDetailOpen && _hud.CcFactions.IsNarrow) { _hud.CcFactions.TestDetailOpen = false; return "fraktionsliste"; }
 		if (cur == _hud.ShipMenu) { CloseShipMenu(); return "schiffsmenü"; }
+		if (cur == _hud.CcHelp && _hud.CcHelp.CloseArticle()) { _sfx.Play(SfxId.Click); return "hilfethema"; }   // Hilfe: Artikel → Themenliste
 		if (cur is Ui.Screens.IMapPopupHost mph && mph.ClosePopup()) { _sfx.Play(SfxId.Click); return "kartenmenü"; }   // Mehrpunkt-Route: Kartenmenü zuerst
 		if (cur is CommandScreen) { CloseCommand(); return "zentrale"; }
 		if (cur == _hud.DockTrade && _hud.DockTrade.CloseOpenRow()) return "handelszeile";
@@ -1854,6 +1862,7 @@ public partial class Main : Node3D
 		GateSparks(delta);   // Phase 31: beschädigte Tore sprühen Funken
 		_view.SyncStations(_session.U);   // Runde 8: Besitzerfarbe und Zustand der Stationsmodelle
 		_missions.Sync(_session.U, delta);   // Runde 41: Leuchtfeuer der Missionsziele im Sektor
+		HelpTick(delta);   // Hilfe und Tutorial: Kontexthinweise und Tutorialschritte (Main.Help.cs)
 		UpdateJumpCloak(delta);   // Sprungantrieb: Ladeleuchten, Stillhalten; Tarnfeld: Durchsichtigkeit
 
 		// Phase 26: keine Gratis-Regeneration der Hülle mehr (Reparatur nur über den Dienst „repair“); ohne Schadensmodell wie bisher
@@ -3158,6 +3167,7 @@ public partial class Main : Node3D
 			HeatLocked = SpaceSim.Core.Combat.Heat.Locked(u, PlayerData), HeatWarning = SunHudWarning(u) is { Length: > 0 } sw ? sw : SpaceSim.Core.Combat.Heat.Warning(u, PlayerData),
 			Mission = SpaceSim.Core.Missions.MissionMarkers.First(u) is { } mk ? mk.Label : "",   // Runde 41: Auftragszeile (Gold)
 			Route = RouteHudLine(),   // Mehrpunkt-Route
+			Tutorial = SpaceSim.Core.Help.TutorialRules.HudLine(u),   // Hilfe und Tutorial: Ziel des Schritts
 			AutopilotOn = _autopilot,
 			AutoMineOn = _miner.Enabled,
 			TractorOn = _tractorOn,

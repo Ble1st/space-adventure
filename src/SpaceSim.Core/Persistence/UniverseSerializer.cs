@@ -183,6 +183,7 @@ public static class UniverseSerializer
         UniverseEventCodec.Save(u, s);   // Universumsereignisse
         WormholeCodec.Save(u, s);   // Wurmlöcher
         Pilots.CaptainCodec.Save(u, s);   // Piloten (nicht gehasht)
+        Help.TutorialCodec.Save(u, s);   // Tutorial (nicht gehasht)
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
             s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB, MediationBonus = w.MediationBonus, LastMediationTick = w.LastMediationTick }).ToList();
@@ -602,6 +603,7 @@ public static class UniverseSerializer
         UniverseEventCodec.Load(s, u);   // Universumsereignisse
         WormholeCodec.Load(s, u);   // Wurmlöcher
         Pilots.CaptainCodec.Load(s, u);   // Piloten
+        Help.TutorialCodec.Load(s, u);   // Tutorial
         // Phase 24: laufende Gefechte (der Index Schiff → Gefecht ist abgeleitet)
         u.Fights.NextId = Math.Max(1, s.NextEncounterId);
         if (s.Fights is not null)

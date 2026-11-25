@@ -225,6 +225,8 @@ public sealed class Universe
     public List<UnstableWormhole> UnstableWormholes { get; } = new();
     /// <summary>Piloten: Bilanz benannter NPC-Kapitäne (Schiff → Abschüsse, Wertung). Nur Anzeige/Statistik: gespeichert, nie gehasht, von keinem System gelesen.</summary>
     public Dictionary<ShipId, Pilots.CaptainRecord> Captains { get; } = new();
+    /// <summary>Hilfe und Tutorial: laufendes Tutorial (null = keins). Gespeichert, nie gehasht, von keinem System gelesen (<see cref="Help.TutorialRules"/>).</summary>
+    public Help.TutorialState? Tutorial { get; set; }
     public int NextWormholeId { get; set; } = 1;
     /// <summary>Phase 28: laufende Kriege zwischen Fraktionen (Reihenfolge der Erklärung; gespeichert und gehasht, wenn welche laufen). Regeln in <see cref="Simulation.Wars"/>.</summary>
     public List<War> Wars { get; } = new();

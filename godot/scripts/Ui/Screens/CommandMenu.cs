@@ -31,6 +31,7 @@ public partial class CommandMenu : Control, IScreen
 		("Kommando", "Kommandozentrale", "command", ""),   // HUD-Neu: vorher Taste oben rechts im Flug
 		("Zeitraffer", "×1 · antippen = ×10", "fast", ""),  // HUD-Neu: vorher Taste „Zeit ×1“ im Flug
 		("Karte", "Sternenkarte öffnen", "map", ""),
+		("Hilfe", "Kodex: alle Themen", "help", ""),   // Hilfe und Tutorial
 		("Notruf", "Treibstoff zum Aufpreis bei leerem Tank", "emergency", ""),
 		("Speichern", "Autosave dieses Spiels", "save", ""),
 		("Speichern unter", "eigener Name · überschreiben", "saveas", ""),   // Mehrere Spielstände
@@ -39,6 +40,8 @@ public partial class CommandMenu : Control, IScreen
 		("Musik", "an/aus (Lautstärke: Hauptmenü)", "music_mute", "settings"),   // Runde 12
 		("Effekte", "an/aus (Lautstärke: Hauptmenü)", "effects_mute", "settings"),
 		("UI-Größe", "klein / normal / groß", "ui_size", "settings"),   // Runde 31
+		("Hinweise", "Tipps beim ersten Mal an/aus", "hints_toggle", "settings"),   // Hilfe und Tutorial
+		("Hinweise neu", "alle Tipps wieder zeigen", "hints_reset", "settings"),
 		("Entwickler", "Werkzeuge zum Prüfen  ▸", "dev", "debugbuild"),
 		("Wirtschaft", "Debug-Übersicht", "economy", "dev"),
 		("Kamera-Diagnose", "Zeile für den Gerätetest", "cam_debug", "dev"),   // Runde 16
@@ -79,7 +82,7 @@ public partial class CommandMenu : Control, IScreen
 	/// <summary>Selbsttest: Menüzeile mit diesem Aktionsschlüssel.</summary>
 	public KitButton? TestEntry(string key) => _byKey.TryGetValue(key, out var b) ? b : null;
 	public bool TestHeightRowVisible => _heightRow.Visible;
-	KitButton? _emergency, _music, _effects, _uiSize, _fast, _command;
+	KitButton? _emergency, _music, _effects, _uiSize, _fast, _command, _hints;
 	/// <summary>HUD-Neu: Zeitraffer-Zeile zeigt den Zustand.</summary>
 	public void SetFast(bool on) { if (_fast is null) return; _fast.Text = on ? "Zeitraffer ×10" : "Zeitraffer"; _fast.Sub = on ? "läuft · antippen = ×1" : "×1 · antippen = ×10"; _fast.State = on ? KitButtonState.On : KitButtonState.Normal; }
 	/// <summary>HUD-Neu: ungelesene Comms an der Zeile „Kommando“.</summary>
@@ -90,6 +93,7 @@ public partial class CommandMenu : Control, IScreen
 	{
 		if (_music is not null) { _music.Text = SpaceAdventure.Audio.AudioSettings.MusicText; _music.State = SpaceAdventure.Audio.AudioSettings.MusicMuted ? KitButtonState.Normal : KitButtonState.On; }
 		if (_uiSize is not null) { _uiSize.Text = UiScale.Text; _uiSize.Sub = UiScale.SubText; _uiSize.QueueRedraw(); }   // Runde 31; Runde 33: kurz, Faktor/mm in der Unterzeile
+		if (_hints is not null) { _hints.Text = SpaceAdventure.Game.HintSettings.Text; _hints.State = SpaceAdventure.Game.HintSettings.Enabled ? KitButtonState.On : KitButtonState.Normal; }   // Hilfe und Tutorial
 		if (_effects is not null) { _effects.Text = SpaceAdventure.Audio.AudioSettings.EffectsText; _effects.State = SpaceAdventure.Audio.AudioSettings.EffectsMuted ? KitButtonState.Normal : KitButtonState.On; }
 	}
 
@@ -253,6 +257,7 @@ public partial class CommandMenu : Control, IScreen
 			if (k == "music_mute") _music = b;
 			if (k == "effects_mute") _effects = b;
 			if (k == "ui_size") _uiSize = b;
+			if (k == "hints_toggle") _hints = b;
 			if (k == "fast") _fast = b;
 			if (k == "command") _command = b;
 			_byKey[k] = b;
