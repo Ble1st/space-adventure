@@ -72,7 +72,7 @@ public partial class SectorView : Node3D
 		foreach (var b in _breakups) if (IsInstanceValid(b.Mat)) b.Mat.Dispose();
 		_breakups.Clear();
 		_debrisPool.Clear();
-		_gateRings.Clear(); _gateNodes.Clear(); _gateStatus.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
+		_gateRings.Clear(); _gateNodes.Clear(); _unstable.Clear(); _portals.Clear(); Unstable.Clear(); _gateStatus.Clear(); _rocks.Clear(); _markers.Clear(); _wrecks.Clear(); _stations.Clear(); Gates.Clear(); Targets.Clear();
 
 		var sector = u.Sectors[_sector];
 		foreach (var sid in sector.Stations) BuildStation(u.Stations[sid]);
@@ -560,6 +560,7 @@ public partial class SectorView : Node3D
 
 	void BuildGate(Universe u, Gate g)
 	{
+		if (g.Wormhole) { BuildWormholeGate(u, g); return; }   // Wurmlöcher: Portal statt Tormodell
 		var pos = new Vector3(g.Position.X, 0, g.Position.Y);
 		var root = new Node3D { Position = pos };
 		_root.AddChild(root);

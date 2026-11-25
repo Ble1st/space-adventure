@@ -32,6 +32,8 @@ if (opts.TryGetValue("guidance", out var guidOpt)) worldDef.Rules.MissileGuidanc
 if (opts.TryGetValue("heat", out var heatOpt)) worldDef.Rules.ShipHeat = heatOpt == "on";
 // Sonnen: --suns on|off (aus = WorldBuilder lässt die Sonnen weg, Welt bitgleich)
 if (opts.TryGetValue("suns", out var sunOpt)) worldDef.Rules.Suns = sunOpt == "on";
+// Wurmlöcher: --wormholes on|off (aus = keine stabilen Paare, keine instabilen; Welt bitgleich)
+if (opts.TryGetValue("wormholes", out var whOpt)) worldDef.Rules.Wormholes = whOpt == "on";
 // Phase 19: --retire off schaltet die Stilllegung/Umwidmung ab (Vergleichslauf mit der Regel bis Phase 18)
 if (opts.TryGetValue("retire", out var retOpt)) worldDef.Rules.StationRetireActive = retOpt == "on";
 // Runde 25: Varianten für die Handelsmargen ohne Neubau — Exportgebot der Senken für Konsum-/Luxusgüter, Betriebskapitalanteil der Stationen
@@ -176,6 +178,8 @@ var gateOutages = new List<long>();
 double gateRepairCost = 0;
 var ueStats = new UniverseEventStats();   // Universumsereignisse
 u.Events.Raised += e => ueStats.On(u, e);
+var whStats = new WormholeStats();   // Wurmlöcher
+u.Events.Raised += whStats.On;
 u.Events.Raised += e =>
 {
     // Ausbau Punkt 17: Banditenfraktion — Zoll, Abgaben, Hehlerei, Flotte, Bauten, Beuteanteil, Überfälle, Gebietswechsel
@@ -926,6 +930,7 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             {
                 probeWatch.Start();
                 watch.Sample(u);
+                whStats.Sample(u);   // Wurmlöcher
                 foreach (var ts in u.Ships.Values)   // Runde 44: Fahrten
                 {
                     if (!ts.IsEconomyAi || ts.Role is not (ShipRole.Trader or ShipRole.Miner)) continue;
@@ -1292,6 +1297,7 @@ if (u.Modules.Count > 0)
         string Price(Good? g) => g is null ? "–" : $"{(watch.AverageRatio(g.Id, ticks * 3 / 4) ?? 0f):0.00}";
         int collectors = u.Ships.Values.Count(s => s.Role == ShipRole.Collector && s.Controller == Controller.Ai);
         Console.WriteLine(ueStats.Line(u));
+        Console.WriteLine(whStats.Line(u));
         Console.WriteLine($"Gasernte (Nebel {(u.Rules.NebulaEffects ? "an" : "aus")}, Nebelsektoren {u.Sectors.Values.Count(s => s.Nebula)}, Gasfelder {u.Sectors.Values.Sum(s => s.GasFields.Count)}): "
             + $"KI geschöpft {gasCollected:0} E., ausgeliefert {gasDelivered:0} E. in {gasTrips} Lieferungen ({gasDeliveredCr:0} Cr); Sammler jetzt {collectors}; "
             + $"Ionengas getankt {ionTanks}× ({ionTankUnits:0.#} E.); Ø Preis/Basis letzte 25%: Gas {Price(gasG)}, Ionengas {Price(ionG)}");

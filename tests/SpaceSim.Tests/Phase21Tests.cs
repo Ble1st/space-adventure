@@ -213,7 +213,7 @@ public class Phase21Tests
     {
         var u = DemoUniverse.Create();
         Assert.False(MapParts.Of(u).IsSplit);
-        var links = u.Gates.Values.Where(g => g.Id.Value < g.Target.Value).OrderBy(g => g.Id.Value).ToList();
+        var links = u.Gates.Values.Where(g => g.Id.Value < g.Target.Value && !g.Wormhole).OrderBy(g => g.Id.Value).ToList();   // Wurmlöcher sind keine Tore (eigene Tests)
         Assert.Equal(14, links.Count);
         var splitting = links.Where(g => MapParts.SplitsWhenClosed(u, g.Id)).ToList();
         // genau die Tore zu den beiden Sackgassen zerteilen die Karte; abgetrennt wird jeweils nur die Sackgasse

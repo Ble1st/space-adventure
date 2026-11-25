@@ -6,7 +6,7 @@ using SpaceSim.Core.Simulation;
 namespace SpaceSim.Core.Flight;
 
 /// <summary>UI-Umbau: Art eines Eintrags der Scanliste („☰ Sektor“).</summary>
-public enum ScanKind { Station, Ship, Gate, Rock, Wreck }
+public enum ScanKind { Station, Ship, Gate, Rock, Wreck, Wormhole }
 
 /// <summary>Ein Objekt der Scanliste: Art, Id (Station-/Schiffs-/Tor-/Asteroiden-/Wrack-Id), Name, Infozeile, Entfernung, feindlich, andockbar.</summary>
 public sealed record ScanContact(ScanKind Kind, int Id, string Name, string Info, float Distance, bool Hostile, bool Dockable);
@@ -39,6 +39,7 @@ public static class SectorScan
             if (!u.Gates.TryGetValue(gid, out var g) || !Knowledge.KnowsGate(u, gid)) continue;
             string to = u.Gates.TryGetValue(g.Target, out var t2) && u.Sectors.TryGetValue(t2.Sector, out var ts) ? ts.Name : "?";
             string state = g.State switch { GateState.Open => "offen", GateState.Restricted => "eingeschränkt", GateState.Closed => "geschlossen", _ => "zerstört" };
+            if (g.Wormhole) { list.Add(new ScanContact(ScanKind.Gate, gid.Value, "Wurmloch → " + to, "stabil · ohne Kontrollpunkt", Vec2.Distance(at, g.Position), false, false)); continue; }   // Wurmlöcher
             list.Add(new ScanContact(ScanKind.Gate, gid.Value, "Tor → " + to, state + (g.MainRoute ? " · Hauptroute" : ""), Vec2.Distance(at, g.Position), false, false));
         }
         foreach (var s in u.ShipsById())
@@ -65,6 +66,8 @@ public static class SectorScan
             string info = (units > 0.01f ? $"{units:0} Einheiten Fracht" : "keine Fracht") + (w.Modules.Count > 0 ? $" · {w.Modules.Count} Modul{(w.Modules.Count == 1 ? "" : "e")}" : "");
             list.Add(new ScanContact(ScanKind.Wreck, w.Id, what, info, Vec2.Distance(at, w.Position), false, false));
         }
+        foreach (var w in Wormholes.In(u, sec.Id))   // Wurmlöcher: instabile (Ziel erst nach dem Durchflug bekannt)
+            list.Add(new ScanContact(ScanKind.Wormhole, w.Id, "Instabiles Wurmloch → " + Wormholes.TargetText(u, w), $"fällt in {Wormholes.Clock(w.EndTick - u.Tick)} zusammen", Vec2.Distance(at, w.Position), false, false));
         var rocks = new List<(Asteroid A, float D)>();
         foreach (var a in sec.Asteroids)
         {

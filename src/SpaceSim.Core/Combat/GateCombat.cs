@@ -54,6 +54,8 @@ public static class GateCombat
     /// <summary>„Tor Alpha–Beta“ (Kurznamen der beiden Sektoren, die Hälfte zuerst).</summary>
     public static string NameOf(Universe u, Gate g)
     {
+        if (g.Wormhole) return Simulation.Wormholes.NameOf(u, g);   // Wurmlöcher: eigener Name
+
         string Short(SectorId s) => u.Sectors.TryGetValue(s, out var sec) ? sec.Name.Split(' ').Last() : "?";
         var far = u.Gates.GetValueOrDefault(g.Target);
         return $"Tor {Short(g.Sector)}–{(far is null ? "?" : Short(far.Sector))}";

@@ -96,7 +96,7 @@ public sealed partial class ScanPanel : Control
 
 	static bool Pass(string f, ScanContact c) => f switch
 	{
-		"station" => c.Kind == ScanKind.Station, "ship" => c.Kind == ScanKind.Ship, "gate" => c.Kind == ScanKind.Gate,
+		"station" => c.Kind == ScanKind.Station, "ship" => c.Kind == ScanKind.Ship, "gate" => c.Kind is ScanKind.Gate or ScanKind.Wormhole,
 		"rock" => c.Kind == ScanKind.Rock, "wreck" => c.Kind == ScanKind.Wreck, _ => true,
 	};
 
@@ -146,13 +146,14 @@ public sealed partial class ScanPanel : Control
 	static void DrawKind(KitButton g, ScanContact c)
 	{
 		var p = new Vector2(22, g.Size.Y / 2f);
-		var col = c.Hostile ? Red : c.Kind switch { ScanKind.Station => Cyan, ScanKind.Rock => new Color(0.79f, 0.55f, 0.35f), ScanKind.Gate => new Color(0.7f, 0.55f, 1f), ScanKind.Wreck => Dim, _ => Green };
+		var col = c.Hostile ? Red : c.Kind switch { ScanKind.Station => Cyan, ScanKind.Rock => new Color(0.79f, 0.55f, 0.35f), ScanKind.Gate => new Color(0.7f, 0.55f, 1f), ScanKind.Wreck => Dim, ScanKind.Wormhole => new Color(1f, 0.55f, 0.3f), _ => Green };
 		switch (c.Kind)
 		{
 			case ScanKind.Station: g.DrawColoredPolygon(new[] { p + new Vector2(0, -9), p + new Vector2(9, 0), p + new Vector2(0, 9), p + new Vector2(-9, 0) }, col); break;
 			case ScanKind.Ship: g.DrawColoredPolygon(new[] { p + new Vector2(0, -9), p + new Vector2(8, 8), p + new Vector2(-8, 8) }, col); break;
 			case ScanKind.Rock: g.DrawCircle(p, 8, col); break;
 			case ScanKind.Gate: g.DrawArc(p, 9, 0, Mathf.Tau, 6, col, 2.5f); break;
+			case ScanKind.Wormhole: g.DrawArc(p, 9, 0, Mathf.Tau, 16, col, 2.5f); g.DrawArc(p, 4, 0, Mathf.Tau * 0.75f, 10, col, 2f); break;   // Wurmloch: Wirbel
 			default: g.DrawLine(p + new Vector2(-7, -7), p + new Vector2(7, 7), col, 3); g.DrawLine(p + new Vector2(7, -7), p + new Vector2(-7, 7), col, 3); break;
 		}
 	}

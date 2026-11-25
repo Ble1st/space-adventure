@@ -76,6 +76,9 @@ public sealed class SaveGame
     /// <summary>Universumsereignisse (additiv, v17 bleibt): laufende Ereignisse; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<UniverseEventSave>? UniverseEvents { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextUniverseEventId { get; set; }
+    /// <summary>Wurmlöcher: offene instabile (additiv).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<UnstableWormholeSave>? UnstableWormholes { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int NextWormholeId { get; set; }
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }
@@ -660,6 +663,8 @@ public sealed class GateSave
     /// <summary>Phase 31: Torklasse und Kampfzustand des Paars (am Tor mit der kleineren Id); fehlen = keine/unbeschädigt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Type { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public GateConditionSave? Condition { get; set; }
+    /// <summary>Wurmlöcher: Hälfte eines stabilen Wurmlochs (additiv).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Wormhole { get; set; }
 }
 
 /// <summary>Phase 31: Torklasse.</summary>

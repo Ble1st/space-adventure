@@ -2821,6 +2821,7 @@ public partial class SelfTest : Node
 			case 163: if (GuidanceStage(_frame - _stageStart)) Next(); break;   // Raketenlenkung: Raketenwarnung, Täuschkörper und Störsender per Tipp (SelfTest.Guidance.cs)
 			case 164: if (HeatStage(_frame - _stageStart)) Next(); break;   // Hitze: FEUER bis heiß, Warnung, Sperre, Abkühlen (SelfTest.Heat.cs)
 			case 165: if (SunStage(_frame - _stageStart)) Next(); break;   // Sonnen: Flug in Atmosphäre und Korona, Hitze, Warnung, Karte (SelfTest.Sun.cs)
+			case 166: if (WormholeStage(_frame - _stageStart)) Next(); break;   // Wurmlöcher: Flug durch stabiles und instabiles, Karten, Scanliste (SelfTest.Wormholes.cs)
 			case 162: if (BlueprintMercStage(_frame - _stageStart)) Next(); break;   // Lücken IP2: Bauplan speichern/kaufen, Söldner anheuern (SelfTest.BlueprintMerc.cs)
 			case 160: if (UniverseEventStage(_frame - _stageStart)) Next(); break;   // Universumsereignisse: Frachtfund erzwungen, Toast/Marker, Behälter per Traktor-Tipp (SelfTest.UniverseEvents.cs)
 			case 156: if (HailStage(_frame - _stageStart)) Next(); break;   // Funk Stufe 1: Scanliste → 📡 Funk → Gespräch mit Kaperer und Station (SelfTest.Hail.cs)   // Nutzerwünsche: Aussteigen mit einem Tipp, Befehl angedockt, Debug-Spawn, Schiffsmenü (SelfTest.DockFlow.cs)
@@ -2843,7 +2844,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 165;
+	const int LastStage = 166;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

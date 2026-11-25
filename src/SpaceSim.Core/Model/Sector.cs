@@ -106,6 +106,8 @@ public sealed class Gate
     public string TypeKey = "";
     /// <summary>Phase 31: Kampfzustand des Paars — nur am Tor mit der kleineren Id gesetzt (null = unbeschädigt). Gespeichert, gehasht nur wenn gesetzt.</summary>
     public GateCondition? Condition;
+    /// <summary>Wurmlöcher: Hälfte eines stabilen Wurmlochs (kein Tor: kein Kontrollpunkt, kein Zoll, nicht angreifbar; Kante im Torgraphen). Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public bool Wormhole;
     /// <summary>Physisch passierbar (offen oder eingeschränkt)? Früher ein eigener Schalter; ein Setzen schließt bzw. öffnet das Gate.</summary>
     public bool Open
     {

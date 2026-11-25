@@ -82,6 +82,9 @@ public partial class Hud : CanvasLayer
 	public Func<(Vector2 Screen, string Label)?>? SunEdge { get; set; }
 	public Vector2? SunEdgeMarker { get; private set; }
 	internal void SetSunEdgeMarker(Vector2? p) => SunEdgeMarker = p;
+	/// <summary>Wurmlöcher: Bildschirmlage und Beschriftung der Wurmlöcher im Spielersektor; zuletzt gezeichnete Randpfeile (Selbsttest).</summary>
+	public Func<IReadOnlyList<(Vector2 Screen, string Label)>>? WormholeEdges { get; set; }
+	public List<Vector2> WormholeEdgeMarkers { get; } = new();
 	/// <summary>Runde 16: freies Feld (Bildpunkte) für Randpfeile; Zielpfeil (Bildposition, Name, feindlich) — gesetzt von Main.</summary>
 	public Func<Rect2>? FreeField { get; set; }
 	public Func<(Vector2 Screen, string Label, bool Hostile)?>? TargetEdge { get; set; }
@@ -970,6 +973,42 @@ public partial class Hud : CanvasLayer
 			Hud.SetSunEdgeMarker(tip - dir * 22f);
 		}
 
+		/// <summary>Wurmlöcher: violette Randpfeile mit Entfernung (wie die Sonne), solange das Wurmloch außerhalb des freien Felds liegt.</summary>
+		void DrawWormholeEdges()
+		{
+			Hud.WormholeEdgeMarkers.Clear();
+			if (Hud.WormholeEdges?.Invoke() is not { Count: > 0 } list || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
+			var field = Field();
+			var occupied = Occupied();
+			var font = ThemeDB.FallbackFont;
+			var col = new Color(0.78f, 0.55f, 1f);
+			foreach (var (screen, text) in list)
+			{
+				if (field.Grow(24f).HasPoint(screen) && !occupied.Exists(r => r.HasPoint(screen))) continue;
+				var c = field.GetCenter();
+				var dir = (screen - c).Normalized();
+				if (dir == Vector2.Zero) continue;
+				float t = Mathf.Min(Mathf.Abs(field.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(field.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));
+				var tip = c + dir * t;
+				if (occupied.Exists(r => r.HasPoint(tip))) continue;
+				var side = new Vector2(-dir.Y, dir.X) * 10f;
+				DrawColoredPolygon(new[] { tip, tip - dir * 20f + side, tip - dir * 20f - side }, new Color(col, 0.95f));
+				var (label, lfs) = UiKit.FitText(this, font, text, 13, 200f);
+				float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
+				var lp = tip - dir * 32f - new Vector2(w / 2f, -4f);
+				var si = UiScale.SafeInsets1(); var vs = GetViewportRect().Size;
+				lp.X = Mathf.Clamp(lp.X, si.Left + 6f, MathF.Max(si.Left + 6f, vs.X - si.Right - 6f - w));
+				var box = new Rect2(lp - new Vector2(4f, 13f), new Vector2(w + 8f, 18f));
+				if (!_labelBoxes.Exists(b => b.Intersects(box)) && !occupied.Exists(r => r.Intersects(box)))
+				{
+					_labelBoxes.Add(box);
+					DrawRect(box, new Color(0.08f, 0.02f, 0.14f, 0.8f));
+					UiKit.DrawText(this, 300, font, lp, label, lfs, col, full: text);
+				}
+				Hud.WormholeEdgeMarkers.Add(tip - dir * 20f);
+			}
+		}
+
 		public Hud Hud = null!;
 		public TargetMarker() { MouseFilter = MouseFilterEnum.Ignore; SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); }
 		public override void _Process(double delta) => QueueRedraw();
@@ -982,6 +1021,7 @@ public partial class Hud : CanvasLayer
 			DrawEdgeStations();
 			DrawMissionEdges();   // Runde 41: Gold-Randpfeile der Missionsziele (höchstens 3)
 			DrawSunEdge();   // Sonnen: Randpfeil zur Sonne, wenn sie nicht im Bild ist
+			DrawWormholeEdges();   // Wurmlöcher: violette Randpfeile
 			var p = Hud.TargetScreenPosition?.Invoke();
 			if (p is not { } pos) return;
 			var rect = new Rect2(Vector2.Zero, Size).Grow(-30f);

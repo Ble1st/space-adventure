@@ -55,7 +55,7 @@ public class Phase31Tests
         Assert.Equal((2000f, 300f, 30f, 0.2f), (side.Hull, side.Shield, side.Armor, side.PointDefense));   // Runde 15: Panzerung 70 → 30
         Assert.Equal((3500f, 500f, 25f, 0.35f), (main.Hull, main.Shield, main.Armor, main.PointDefense));   // Runde 15: 4000/100 → 3500/25
         Assert.Empty(side.Guns); Assert.Empty(main.Guns);
-        foreach (var g in u.Gates.Values) Assert.Equal(g.MainRoute ? "main" : "side", g.TypeKey);
+        foreach (var g in u.Gates.Values) Assert.Equal(g.Wormhole ? "" : g.MainRoute ? "main" : "side", g.TypeKey);   // Wurmlöcher: keine Torklasse (nicht angreifbar)
         Assert.Equal(3500f, GateCombat.MaxHull(u, G(u, 17)));
         // Schalter aus: keine Kampfwerte
         u.Rules.GateCombat = false;
@@ -196,7 +196,7 @@ public class Phase31Tests
         Assert.False(MapParts.SplitsWhenClosed(u, pick!.Id));
         Assert.Contains(Guild, GateCombat.DefendersOf(u, pick));
         // Theorie über alle Paare: mit jedem schon ausgefallenen Tor wählt die KI keins mehr (GateMaxDown 1)
-        foreach (var g in u.Gates.Values.Where(g => g.Id.Value < g.Target.Value).ToList())
+        foreach (var g in u.Gates.Values.Where(g => g.Id.Value < g.Target.Value && !g.Wormhole).ToList())   // Wurmlöcher fallen nicht aus
         {
             var w = Standard();
             Wars.Declare(w, Union, Guild);

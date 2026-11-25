@@ -354,6 +354,20 @@ public static class WorldBuilder
             u.Sectors[a.Sector].Gates.Add(a.Id);
             u.Sectors[b.Sector].Gates.Add(b.Id);
         }
+        // Wurmlöcher: stabile Paare als Kanten im Torgraphen (ohne Torklasse, ohne Hauptroute) — nur mit Regel (aus = Welt bitgleich zu davor)
+        if (u.Rules.Wormholes)
+            foreach (var wh in def.Wormholes)
+            {
+                if (u.Gates.ContainsKey(new GateId(wh.A.Id)) || u.Gates.ContainsKey(new GateId(wh.B.Id)) || wh.A.Id == wh.B.Id)
+                    throw new WorldFormatException($"Wurmloch {wh.A.Id}–{wh.B.Id}: Id doppelt");
+                if (wh.A.Sector == wh.B.Sector) throw new WorldFormatException($"Wurmloch {wh.A.Id}–{wh.B.Id}: beide Enden im selben Sektor");
+                var a = AddGate(u, wh.A, new GateId(wh.B.Id));
+                var b = AddGate(u, wh.B, new GateId(wh.A.Id));
+                a.Wormhole = b.Wormhole = true;
+                u.Gates[a.Id] = a; u.Gates[b.Id] = b;
+                u.Sectors[a.Sector].Gates.Add(a.Id);
+                u.Sectors[b.Sector].Gates.Add(b.Id);
+            }
 
         int omittedEconomic = 0;
         foreach (var sd in def.Sectors)

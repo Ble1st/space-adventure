@@ -73,6 +73,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	SectorMapCanvas _map = null!;
 	/// <summary>Selbsttest (Sonnen): Sonne in der Draufsicht gezeichnet.</summary>
 	internal bool TestSunDrawn => _map.SunDrawn;
+	/// <summary>Selbsttest (Wurmlöcher): gezeichnete Wurmloch-Symbole.</summary>
+	internal int TestWormholesDrawn => _map.WormholesDrawn;
 
 	/// <summary>Test-Hook: Sektor wechseln.</summary>
 	public void TestSelectSector(SectorId s) { SelectedSector = s; _selStation = null; _selGate = null; Invalidate(); }
@@ -416,6 +418,17 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		internal string ScaleBarText = "";
 		/// <summary>Selbsttest: die Sonne wurde zuletzt gezeichnet.</summary>
 		internal bool SunDrawn;
+		/// <summary>Selbsttest: Zahl der zuletzt gezeichneten Wurmlöcher (stabile Hälften + instabile).</summary>
+		internal int WormholesDrawn;
+
+		/// <summary>Wurmloch-Symbol: dunkle Scheibe, Ring und ein Wirbelbogen.</summary>
+		void DrawWormholeSymbol(Vector2 p, Color c)
+		{
+			DrawCircle(p, 13f, new Color(0.05f, 0.0f, 0.1f, 0.95f));
+			DrawArc(p, 13f, 0, Mathf.Tau, 28, c, 3f, true);
+			DrawArc(p, 8f, 0.4f, 0.4f + Mathf.Tau * 0.7f, 16, c, 2f, true);
+			DrawArc(p, 4f, 2.4f, 2.4f + Mathf.Tau * 0.6f, 10, c, 2f, true);
+		}
 		internal float ScaleBarPixels;
 
 		/// <summary>Runde 37: Kreis nur so weit zeichnen, wie er in der Kartenfläche liegt (der Sektorrand ist oft größer als die Fläche).</summary>
@@ -515,12 +528,31 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			}
 			else SunDrawn = false;
 
+			// Wurmlöcher: instabile (rot-orange, mit Restzeit)
+			WormholesDrawn = 0;
+			foreach (var w in SpaceSim.Core.Simulation.Wormholes.In(_u, s.Id))
+			{
+				var wp = Place(w.Position);
+				DrawWormholeSymbol(wp, new Color(1f, 0.5f, 0.25f));
+				layout.ReserveCircle(wp, 14f);
+				labels.Add((2, wp, $"Instabil → {SpaceSim.Core.Simulation.Wormholes.TargetText(_u, w)} · {SpaceSim.Core.Simulation.Wormholes.Clock(w.EndTick - _u.Tick)}", 12, new Color(1f, 0.62f, 0.4f), 16f));
+				WormholesDrawn++;
+			}
+
 			// Gates mit Zielsektor
 			foreach (var gid in s.Gates.Where(x => Knowledge.KnowsGate(_u, x)))
 			{
 				var g = _u.Gates[gid];
 				var gp = Place(g.Position);
 				var target = _u.Sectors[_u.Gates[g.Target].Sector];
+				if (g.Wormhole)   // Wurmlöcher: violetter Wirbel statt Torring
+				{
+					DrawWormholeSymbol(gp, new Color(0.75f, 0.5f, 1f));
+					layout.ReserveCircle(gp, 14f);
+					labels.Add((2, gp, $"Wurmloch → {Knowledge.SectorName(_u, target.Id)}", 12, new Color(0.8f, 0.62f, 1f), 16f));
+					WormholesDrawn++;
+					continue;
+				}
 				DrawCircle(gp, 13f, PanelSolid);
 				// Phase 10: rot = geschlossen oder für dich gesperrt, orange = eingeschränkt (Zoll/Kontrolle)
 				var gpol = AccessInfo.ForGate(_u, g, _u.Ships[_u.PlayerShip]);

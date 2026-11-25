@@ -82,6 +82,7 @@ public partial class Main
 					_hud.Toast($"Ziel: {c.Name} ({rock.Ore:0} Erz) · „Autopilot“ fliegt hin");
 				}
 				break;
+			case ScanKind.Wormhole: SelectUnstableWormhole(c.Id); break;   // Wurmlöcher
 			case ScanKind.Wreck:
 				var w = u.Wrecks.FirstOrDefault(x => x.Id == c.Id);
 				if (w is not null) { SelectTarget(new NavTarget(u.PlayerSector, w.Position, c.Name, 12f), null, quiet: true); _hud.Toast($"Ziel: {c.Name} · {c.Info}"); }

@@ -119,6 +119,7 @@
   "missileGuidance": true,
   "shipHeat": true,
   "suns": true,
+  "wormholes": true,
   "maxStations": 78,
   "maxStationsPerSector": 10,
   "fleetFlexWeight": 0.75,
@@ -3223,6 +3224,10 @@
    },
    "mainRoute": true
   }
+ ],
+ "wormholes": [
+  { "a": { "id": 29, "sector": 5, "pos": [160, -150] }, "b": { "id": 30, "sector": 10, "pos": [160, 150] } },
+  { "a": { "id": 31, "sector": 9, "pos": [-150, 160] }, "b": { "id": 32, "sector": 7, "pos": [-190, 200] } }
  ],
  "slotTypes": [
   {

@@ -141,6 +141,7 @@ public partial class MapOverlay : Control, SpaceAdventure.Ui.Kit.IMessageStrip
 				bool denied = player is not null && (SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, g, player).Denied || SpaceSim.Core.Simulation.AccessInfo.ForGate(_u, far, player).Denied);
 				var col = !g.Open ? new Color(0.3f, 0.6f, 1f, 0.2f) : denied ? new Color(1f, 0.35f, 0.3f, 0.9f)
 					: g.State == GateState.Restricted ? new Color(1f, 0.7f, 0.2f, 0.85f) : new Color(0.3f, 0.6f, 1f, 0.8f);
+				if (g.Wormhole) col = new Color(0.75f, 0.5f, 1f, 0.85f);   // Wurmlöcher: violett
 				DrawLine(Place(_u.Sectors[g.Sector], center, scale), Place(_u.Sectors[far.Sector], center, scale), col, 3f);
 			}
 

@@ -19,6 +19,8 @@ public sealed class WorldDef
     public List<ActorDef> Actors { get; set; } = new();
     public List<SectorDef> Sectors { get; set; } = new();
     public List<GateLinkDef> Gates { get; set; } = new();
+    /// <summary>Wurmlöcher: stabile Paare (zwei Enden mit Tor-Id, Sektor, Lage im Grundmaßstab); nur mit Regel <c>wormholes</c> in der Welt.</summary>
+    public List<WormholeDef> Wormholes { get; set; } = new();
     /// <summary>Phase 31: Torklassen (Kampfwerte der Tore); fehlt = Tore ohne Kampfwerte.</summary>
     public List<GateTypeDef> GateTypes { get; set; } = new();
     /// <summary>Slotarten; fehlt der Abschnitt, bleibt die Registry leer und die Welt gültig.</summary>
@@ -441,6 +443,9 @@ public sealed class StationDef
 }
 
 public sealed class GateEndDef { public int Id { get; set; } public int Sector { get; set; } public float[] Pos { get; set; } = { 0, 0 }; }
+/// <summary>Stabiles Wurmloch: zwei Enden (Ids wie Tore, eindeutig über alle Tore; Lage × Sektormaßstab).</summary>
+public sealed class WormholeDef { public GateEndDef A { get; set; } = new(); public GateEndDef B { get; set; } = new(); }
+
 public sealed class GateLinkDef
 {
     public GateEndDef A { get; set; } = new(); public GateEndDef B { get; set; } = new();

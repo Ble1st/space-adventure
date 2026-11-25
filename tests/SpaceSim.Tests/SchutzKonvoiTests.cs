@@ -22,6 +22,7 @@ public class SchutzKonvoiTests
     internal static void RevertSchutz(WorldDef def)
     {
         var r = def.Rules ??= new EconomyRules();
+        WurmlochTests.RevertWormholes(def);   // Wurmlöcher (danach): aus — keine stabilen Paare, keine instabilen
         SonnenTests.RevertSuns(def);   // Sonnen (danach): aus — WorldBuilder lässt die Sonnen weg
         HitzeTests.RevertHeat(def);   // Hitze und Wärmeabfuhr (danach): aus — WorldBuilder lässt die Kühlermodule weg
         RaketenlenkungTests.RevertGuidance(def);   // Raketenlenkung und Gegenmaßnahmen (danach): aus — WorldBuilder lässt ihre Inhalte weg

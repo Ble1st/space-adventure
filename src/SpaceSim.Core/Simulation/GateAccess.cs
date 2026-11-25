@@ -201,7 +201,7 @@ public static class GateAccess
         if (gate.State == GateState.Destroyed) return new GatePassage(AccessPolicy.Deny, 0f, "Gate zerstört", null);
         if (!u.Gates.TryGetValue(gate.Target, out var far)) return new GatePassage(AccessPolicy.Deny, 0f, "Gate ohne Gegenstelle", null);
         if (far.State is GateState.Closed or GateState.Destroyed) return new GatePassage(AccessPolicy.Deny, 0f, "Gegenstelle geschlossen", null);
-        if (profile.IsPhysical) return new GatePassage(AccessPolicy.Allow, 0f, "", null);
+        if (profile.IsPhysical || gate.Wormhole) return new GatePassage(AccessPolicy.Allow, 0f, "", null);   // Wurmlöcher: kein Kontrollpunkt, kein Zoll
         checks ??= AccessChecks.Standard;
         var exit = CheckSide(u, gate, u.Sectors[gate.Sector], AccessDirection.Exit, profile, ship, checks);
         if (exit.Policy == AccessPolicy.Deny) return new GatePassage(AccessPolicy.Deny, 0f, exit.Reason, null, exit.Crime, u.Sectors[gate.Sector].Owner);
@@ -262,6 +262,8 @@ public static class GateAccess
     public static PlayerJump TryPlayerJump(Universe u, Ship ship, Gate gate)
     {
         var pass = Evaluate(u, gate, ProfileOf(u, ship), ship);
+        // Wurmlöcher: kein Kontrollpunkt (kein Sensor, kein Zoll) — nur der physische Zustand zählt
+        if (gate.Wormhole) return pass.Allowed ? new PlayerJump(true, 0f, "") : new PlayerJump(false, 0f, $"Sprung verweigert: {pass.Reason}");
         if (!pass.Allowed)
         {
             if (pass.Crime is { } crime && pass.Authority is { } auth && u.Rules.SecurityActive)
@@ -334,7 +336,7 @@ public static class GateAccess
     {
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
         {
-            if (g.State is GateState.Closed or GateState.Destroyed) continue;
+            if (g.State is GateState.Closed or GateState.Destroyed || g.Wormhole) continue;   // Wurmlöcher bleiben offen
             var sector = u.Sectors[g.Sector];
             bool restricted = EffectiveLevel(u, g, sector, AccessDirection.Entry) > 0 || EffectiveLevel(u, g, sector, AccessDirection.Exit) > 0;
             var want = restricted ? GateState.Restricted : GateState.Open;

@@ -170,7 +170,8 @@ public class WorldBuilderTests
     {
         var u = WorldBuilder.BuildDefault();
         Assert.Equal(11, u.Sectors.Count);   // Phase 21: elf Sektoren, 14 Torverbindungen (vorher 4/3)
-        Assert.Equal(28, u.Gates.Count);
+        Assert.Equal(28, u.Gates.Values.Count(g => !g.Wormhole));
+        Assert.Equal(4, u.Gates.Values.Count(g => g.Wormhole));   // Wurmlöcher: zwei stabile Paare
         foreach (var g in u.Gates.Values) Assert.Equal(g.Id, u.Gates[g.Target].Target);
         foreach (var st in u.Stations.Values) Assert.Contains(st.Id, u.Sectors[st.Sector].Stations);
         Assert.Equal(u.PlayerSector, u.Ships[u.PlayerShip].Sector);

@@ -134,6 +134,7 @@ public partial class Main : Node3D
 		_hud.StationScreenPositions = StationScreenPositions;
 		_hud.MissionEdges = MissionScreenPositions;   // Runde 41: Gold-Randpfeile der Missionsziele
 		_hud.SunEdge = SunScreenPosition;   // Sonnen: Randpfeil zur Sonne
+		_hud.WormholeEdges = WormholeScreenPositions;   // Wurmlöcher: violette Randpfeile
 		_hud.FreeField = () => _session != null ? FreeFieldPixels() : new Rect2();   // Runde 16
 		_hud.TargetEdge = TargetEdge;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); OpenMapWindow(); };   // Nutzerwunsch: große Karte als eigenes Fenster (Universum/Sektor), die kleine Sternenkarte entfällt
@@ -1546,6 +1547,7 @@ public partial class Main : Node3D
 		if (BuildEvent(e)) return;   // eigene Stationen (Main.Build.cs)
 		if (FleetOpsEvent(e)) return;   // Flottenbefehle (Main.FleetOps.cs)
 		if (UniverseEventEvent(e)) return;   // Universumsereignisse (Main.UniverseEvents.cs)
+		if (WormholeEvent(e)) return;   // Wurmlöcher (Main.Wormholes.cs)
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
@@ -1844,6 +1846,7 @@ public partial class Main : Node3D
 		if (_view.NeedsRebuild(_session.U)) { _view.Rebuild(_session.U); _mining.ResetNpc(); _combat.Reset(); _chunks.Clear(); _mineTarget = null; _anchors.Clear(); }
 		_view.SyncAsteroids(_session.U, delta);
 		_view.SyncWrecks(_session.U);   // Phase 26: Wracks und Frachtbehälter
+		_view.SyncWormholes(_session.U, _cam.GlobalPosition);   // Wurmlöcher: instabile kommen und gehen
 		GateSparks(delta);   // Phase 31: beschädigte Tore sprühen Funken
 		_view.SyncStations(_session.U);   // Runde 8: Besitzerfarbe und Zustand der Stationsmodelle
 		_missions.Sync(_session.U, delta);   // Runde 41: Leuchtfeuer der Missionsziele im Sektor
@@ -2196,6 +2199,7 @@ public partial class Main : Node3D
 		if (_jumpCooldown > 0f) return;
 		foreach (var (id, pos) in _view.Gates)
 			if (_player.Position.DistanceTo(pos) < GateRadius) { Jump(id); return; }
+		CheckUnstableWormholes();   // Wurmlöcher: instabile (die stabilen stehen in _view.Gates)
 	}
 
 	/// <summary>Sprung: Core hängt das Schiff um, Szene des alten Sektors wird verworfen, der Zielsektor neu aufgebaut.</summary>
@@ -2240,9 +2244,11 @@ public partial class Main : Node3D
 		_jumpCooldown = 2f;
 		_camOffset = _orbit.Offset();   // gewählte Ansicht bleibt nach dem Sprung erhalten
 		SnapCam();
-		_hud.Flash(new Color(0.6f, 0.85f, 1f));
+		bool wormhole = u.Gates[gateId].Wormhole;   // Wurmlöcher: violetter Blitz, eigene Meldung
+		_hud.Flash(wormhole ? new Color(0.85f, 0.5f, 1f) : new Color(0.6f, 0.85f, 1f));
 		_sfx.Play(SfxId.Jump);
-		_hud.Toast(u.Sectors[far.Sector].Name);
+		_hud.Toast(wormhole ? $"Wurmloch → {u.Sectors[far.Sector].Name}" : u.Sectors[far.Sector].Name);
+		if (wormhole) LastWormholeMessage = $"Wurmloch → {u.Sectors[far.Sector].Name}";
 	}
 
 	// ───────── Ziele, Autopilot, Andocken ─────────
@@ -2914,6 +2920,7 @@ public partial class Main : Node3D
 			// hinfliegen über „Autopilot“, andocken über die Kontexttaste
 			SelectTarget(Navigator.ForStation(u, sid, u.PlayerShip), sid);
 		}
+		else if (best.Kind == "wormhole") SelectUnstableWormhole(best.Id);   // Wurmlöcher: instabiles als Ziel
 		else
 		{
 			SelectGate(new GateId(best.Id));

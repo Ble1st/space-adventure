@@ -142,3 +142,32 @@ Hintergrundfelsen dort fallen weg, Bauplätze und Kleinstationen prüfen die Son
   die Sonnen liegen außerhalb der Wege der NPCs, Verlustquote 0,25 %, Preise im Zielbereich.
 - **Schwächen:** Atmosphäre und Korona schaden nur Schiffen, die hineinfliegen — NPCs meiden sie, es gibt keine Sonnen-Ereignisse (Flares) und keine
   Sonnenenergie. Alte Spielstände bekommen keine Sonnen.
+
+## Wurmlöcher
+
+Lücke zu Interstellar Pilot 2, eigener Entwurf. Schalter `rules.wormholes` (Code aus, Standardwelt an); aus = keine Wurmlöcher, Welt bitgleich
+(`--wormholes off`: 89133FDF47B8EAA7). Regeln in `Simulation/Wormholes.cs`, Werte in `Model/EconomyRules.Wormholes.cs`.
+
+- **Stabile Wurmlöcher** (`wormholes[]` in der Weltdatei, zwei Enden mit Tor-Id, Sektor, Lage im Grundmaßstab): Borealis ↔ Kalypso (Tore 29/30) und
+  Nebelmark ↔ Hephaistos (31/32) — Sektoren, die über Tore nicht benachbart sind, keine Sackgasse (Gate 17/27 teilt weiter nur Aurelia/Abgrund ab).
+  **Entscheidung:** technisch Torpaare mit `Gate.Wormhole`, damit Routensuche (`FindRoute`), Reiseplanung der NPCs, Kartenteile (`MapParts`, physische
+  Kanten), Aufklärung und der Torsprung des Spielers ohne Sonderweg gelten. Aber **kein Tor:** kein Kontrollpunkt, kein Zoll, keine Sperre (auch bei
+  Abriegelung offen; `GateAccess.Evaluate`, `SyncRestricted`), keine Torklasse (nicht angreifbar, keine Blockade), nie geschlossen, eigener Name
+  („Wurmloch Borealis–Kalypso“). NPCs nutzen sie wie Tore — gemessen ohne Schaden für die Wirtschaft, darum keine eigene NPC-Regel.
+- **Instabile Wurmlöcher** (`UnstableWormhole`, `Universe.UnstableWormholes`): alle 2400 Takte reißt mit 40 % eines auf (höchstens 2 gleichzeitig, ein
+  Sektor höchstens eines), Ort frei im Sektor, Ziel ein zufälliger anderer Sektor (auch unbekannte), Lebensdauer 3600–7200 Takte. Zufall aus eigenem RNG
+  (Welt-Seed ⊕ Takt, nie `Universe.Rng`). Einseitig, **nur der Spieler** fliegt hinein (`Wormholes.Traverse`: aktives Schiff, im Einflugradius 10, nicht
+  angedockt, nicht im Gefecht); NPCs kennen sie nicht (keine Graphkante). Beim Durchflug wird der Zielsektor besucht (Aufklärung); das Ziel zeigt die
+  Anzeige erst danach (sonst „?“). Ereignisse `WormholeOpened/Collapsed/Traversed`.
+- **Ansicht:** `World/WormholeView` — flache, wirbelnde Scheibe (unbeleuchteter Shader mit Spiralarmen und dunklem Kern, ein Quad) plus Ring und
+  aufrechter Schimmer; stabil violett, instabil rot-orange flackernd. Schilder „Wurmloch → Kalypso“ / „Instabiles Wurmloch → ? · noch 4:10“,
+  violette Randpfeile mit Entfernung, Symbole auf Sektorkarte (Wirbel) und Universumskarte (violett gestrichelte Verbindung, oranger Wirbel am Knoten),
+  Zeile in der Detailkarte, Scanliste (stabile als Tor-Eintrag „Wurmloch →“, instabile eigene Art), Meldung beim Aufreißen und Zusammenfallen im
+  Spielersektor. Antippen/Scanliste wählt das Wurmloch, „Autopilot“ fliegt hinein.
+- **Speichern/Hash:** `GateSave.Wormhole`, `SaveGame.UnstableWormholes/NextWormholeId` additiv (v17 bleibt), im Hash nur gemischt, wenn gesetzt bzw. je eines aufriss.
+- **Gemessen** (Release, an gegen aus): 20000 Takte Standard-Seed Hash 89133FDF47B8EAA7 → 9987D125373CCE46, Preise im Zielbereich, 8,5 % der NPC-Reisen
+  durch ein Wurmloch, Handelsumsatz +0,9 %, Verlustquote 0,25 → 0,44 %, Export Nahrung/Konsumgüter/Luxus 19776/1955/417 → 18650/1906/382; Seeds 1/2:
+  Umsatz +5,5 %/+6,1 %, Verlustquote 0,47 → 0,30 % / 0,31 → 0,41 %, Export Konsumgüter +24 %/+46 %; 60000 Takte (Seed 0): Umsatz +2,7 %, Verlustquote
+  0,31 → 0,44 %, Export Konsumgüter +6 %, Luxus +8 %, keine Pleiten. Balance-Zeile „Wurmlöcher“, Option `--wormholes on|off`.
+- **Schwächen:** Wurmlöcher umgehen Sektorsperren (gewollt: natürliche Erscheinung ohne Kontrollpunkt); der Sprungantrieb zählt stabile Wurmlöcher als
+  Sprünge mit. Instabile Wurmlöcher sind nur für den Spieler, die Wirtschaft merkt sie nicht. Alte Spielstände bekommen keine stabilen Wurmlöcher.

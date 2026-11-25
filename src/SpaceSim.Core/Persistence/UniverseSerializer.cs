@@ -181,6 +181,7 @@ public static class UniverseSerializer
                 Modules = w.Modules.Count == 0 ? null : w.Modules.Select(m => new WreckModuleSave { Key = m.Key, Condition = m.Condition }).ToList(),
             }).ToList();
         UniverseEventCodec.Save(u, s);   // Universumsereignisse
+        WormholeCodec.Save(u, s);   // Wurmlöcher
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
             s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB, MediationBonus = w.MediationBonus, LastMediationTick = w.LastMediationTick }).ToList();
@@ -345,6 +346,7 @@ public static class UniverseSerializer
                 Id = g.Id.Value, Sector = g.Sector.Value, Pos = g.Position, Target = g.Target.Value, Open = g.Open,
                 State = g.State == GateState.Open ? null : g.State.ToString(), MainRoute = g.MainRoute,
                 Type = g.TypeKey.Length == 0 ? null : g.TypeKey,
+                Wormhole = g.Wormhole,
                 Condition = g.Condition is { } gc ? new GateConditionSave
                 {
                     HullMissing = gc.HullMissing, ShieldMissing = gc.ShieldMissing, ShieldPauseUntil = gc.ShieldPauseUntil,
@@ -597,6 +599,7 @@ public static class UniverseSerializer
                 u.Wrecks.Add(wr);
             }
         UniverseEventCodec.Load(s, u);   // Universumsereignisse
+        WormholeCodec.Load(s, u);   // Wurmlöcher
         // Phase 24: laufende Gefechte (der Index Schiff → Gefecht ist abgeleitet)
         u.Fights.NextId = Math.Max(1, s.NextEncounterId);
         if (s.Fights is not null)
@@ -738,6 +741,7 @@ public static class UniverseSerializer
                 State = g.State is { } gs ? Enum.Parse<GateState>(gs) : g.Open ? GateState.Open : GateState.Closed,
                 MainRoute = g.MainRoute,
                 TypeKey = g.Type ?? "",
+                Wormhole = g.Wormhole,
                 Condition = g.Condition is { } gc ? new GateCondition
                 {
                     HullMissing = gc.HullMissing, ShieldMissing = gc.ShieldMissing, ShieldPauseUntil = gc.ShieldPauseUntil,

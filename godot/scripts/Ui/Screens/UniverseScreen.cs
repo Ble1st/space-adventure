@@ -55,6 +55,8 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 	/// <summary>Runde 35b (Selbsttest): Bildpunkt eines Sektors auf der Karte (wie der Tipp ihn sucht).</summary>
 	public Vector2? TestSectorScreen(SectorId id) => _map is not null && IsInstanceValid(_map) ? _map.GlobalOf(id) : null;
 	public Rect2 TestMapRect => _map is not null && IsInstanceValid(_map) ? _map.GetGlobalRect() : new Rect2();
+	/// <summary>Selbsttest (Wurmlöcher): gezeichnete stabile Verbindungen und Sektoren mit instabilem Wurmloch.</summary>
+	internal (int Links, int Unstable) TestWormholeMarks => _map is not null && IsInstanceValid(_map) ? (_map.WormholeLinks, _map.UnstableMarks) : (0, 0);
 
 	/// <summary>Gewählter Sektor (null aufgelöst auf den Spielersektor).</summary>
 	SectorId Selected => SelectedSector ?? Ctx.U.PlayerSector;
@@ -166,6 +168,9 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 		// Universumsereignisse: laufende Ereignisse im (bekannten) Sektor
 		TestEventLine = SpaceSim.Core.Simulation.UniverseEventInfo.Line(u, sel);
 		if (TestEventLine.Length > 0) py = WrappedText(card, TestEventLine, 16, py, 268, 12, EventColor, 16);
+		// Wurmlöcher: instabile im Sektor (Ziel erst nach dem Durchflug bekannt)
+		foreach (var w in SpaceSim.Core.Simulation.Wormholes.In(u, sel))
+			py = WrappedText(card, SpaceSim.Core.Simulation.Wormholes.Label(u, w), 16, py, 268, 12, new Color(1f, 0.62f, 0.4f), 16);
 
 		// Gates mit Ziel, Zustand und Urteil des Kontrollpunkts für dich
 		float gy = py + 6;
@@ -176,7 +181,8 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			var target = u.Sectors[u.Gates[g.Target].Sector];
 			var gp = AccessInfo.ForGate(u, g, u.Ships[u.PlayerShip]);
 			Color gc = gp.Denied || !g.Open ? Red : gp.Toll > 0f ? Orange : White;
-			At(card, Text($"→ {target.Name} · {gp.State}{(gp.Denied ? " · gesperrt" : gp.Toll > 0f ? $" · Zoll {gp.Toll:0}" : "")}", 13, gc), 24, gy, 260, 18);
+			if (g.Wormhole) At(card, Text($"→ {target.Name} · Wurmloch", 13, new Color(0.8f, 0.62f, 1f)), 24, gy, 260, 18);   // Wurmlöcher: ohne Kontrollpunkt
+			else At(card, Text($"→ {target.Name} · {gp.State}{(gp.Denied ? " · gesperrt" : gp.Toll > 0f ? $" · Zoll {gp.Toll:0}" : "")}", 13, gc), 24, gy, 260, 18);
 			gy += 18;
 		}
 		if (s.Gates.Count > maxGates) { At(card, Text($"+ {s.Gates.Count - maxGates} weitere Gates", 12, Dim), 24, gy, 268, 16); gy += 16; }
@@ -322,6 +328,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 			float colW = Mathf.Max(2f * rHalo + 12f, scale.X - 8f);
 
 			// Gates als Linien (jedes Paar einmal)
+			WormholeLinks = 0; UnstableMarks = 0;
 			foreach (var g in _u.Gates.Values)
 			{
 				if (g.Id.Value >= g.Target.Value) continue;
@@ -330,6 +337,7 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 				var a = Place(_u.Sectors[g.Sector], center, scale);
 				var b = Place(_u.Sectors[far.Sector], center, scale);
 				// Phase 10: geschlossen/zerstört rot gestrichelt; für dich gesperrt (eine Richtung reicht) rot; eingeschränkt orange
+				if (g.Wormhole) { Dashed(a, b, new Color(0.72f, 0.48f, 1f, 0.9f), 3f); Swirl((a + b) / 2f, 7f, new Color(0.78f, 0.55f, 1f)); WormholeLinks++; continue; }   // Wurmlöcher: violett gestrichelt mit Wirbel
 				var player = _u.Ships[_u.PlayerShip];
 				bool denied = AccessInfo.ForGate(_u, g, player).Denied || AccessInfo.ForGate(_u, far, player).Denied;
 				if (!g.Open) Dashed(a, b, Red, 3f);
@@ -392,6 +400,8 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 				DrawArc(p, rNode, 0, Mathf.Tau, 32, halo, s.Id == sel ? 5f : 3f, true);
 				if (s.Id == _u.PlayerSector) DrawArc(p, rNode + 8f, 0, Mathf.Tau, 32, White, 3f, true);
 				if (s.Id == sel) DrawArc(p, rHalo - 4f, 0, Mathf.Tau, 32, Cyan, 2f, true);
+				// Wurmlöcher: instabiles im Sektor — oranger Wirbel links oben am Knoten
+				if (SpaceSim.Core.Simulation.Wormholes.In(_u, s.Id).Any()) { Swirl(p + new Vector2(-rNode * 0.8f, -rNode * 0.8f), 6f, new Color(1f, 0.55f, 0.25f)); UnstableMarks++; }
 				// Phase 24: laufendes Gefecht im Sektor — rotes Kreuz am Knoten (in allen Ebenen)
 				if (SpaceSim.Core.Combat.CombatInfo.CountIn(_u, s.Id) > 0)
 				{
@@ -531,6 +541,17 @@ public sealed partial class UniverseScreen : CommandScreen, ISessionScreen
 					? "★ = Auftrag · Preise: grün günstig · rot teuer"
 					: "★ = Auftrag — Missionsziel im Sektor";
 			UiKit.DrawFit(this, slot++, font2, new Vector2(12, 46), leg2, 13, lw, new Color(Dim, 0.8f));
+		}
+
+		/// <summary>Selbsttest (Wurmlöcher): gezeichnete stabile Verbindungen und Sektoren mit instabilem Wurmloch.</summary>
+		internal int WormholeLinks, UnstableMarks;
+
+		/// <summary>Wurmloch-Wirbel: dunkle Scheibe mit Ring und Spiralbogen.</summary>
+		void Swirl(Vector2 p, float r, Color c)
+		{
+			DrawCircle(p, r, new Color(0.05f, 0f, 0.1f, 0.95f));
+			DrawArc(p, r, 0, Mathf.Tau, 20, c, 2f, true);
+			DrawArc(p, r * 0.55f, 0.5f, 0.5f + Mathf.Tau * 0.7f, 12, c, 1.5f, true);
 		}
 
 		void Dashed(Vector2 a, Vector2 b, Color c, float w)

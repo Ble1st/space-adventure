@@ -137,6 +137,7 @@ public static class UniverseHash
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
         {
             Mix((ulong)g.Id.Value); Mix((ulong)g.State); Mix(g.MainRoute ? 1UL : 0UL);
+            if (g.Wormhole) Mix(0x574F524Du);   // Wurmlöcher: nur wenn gesetzt
             if (g.Condition is { } gc)   // Phase 31: Torkampf — nur wenn gesetzt (Referenz-Hashes bleiben)
             {
                 Mix(0x3101u); MixF(gc.HullMissing); MixF(gc.ShieldMissing); Mix((ulong)gc.ShieldPauseUntil); foreach (var t in gc.Timers) MixF(t);
@@ -191,7 +192,9 @@ public static class UniverseHash
                 foreach (var m in w.Modules) { MixString(m.Key); MixF(m.Condition); }
             }
         }
-        Persistence.UniverseEventCodec.Mix(u, Mix, MixF, MixString);   // Universumsereignisse (nur wenn je eines lief)
+        Persistence.UniverseEventCodec.Mix(u, Mix, MixF, MixString);
+        Persistence.WormholeCodec.Mix(u, Mix, MixF);   // Wurmlöcher (nur wenn je eines lief)
+   // Universumsereignisse (nur wenn je eines lief)
         // Phase 24: laufende Gefechte
         Mix((ulong)u.Fights.NextId);
         foreach (var e in u.Fights.Encounters)
