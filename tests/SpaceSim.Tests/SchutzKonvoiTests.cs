@@ -29,6 +29,7 @@ public class SchutzKonvoiTests
         HerrenlosTests.RevertDerelict(def);   // herrenlose Schiffe, Panne, Schiff liefern (danach): aus
         r.DockDwellTicks = 0; r.DockDwellTicksPlayer = 0;   // Liegezeit an Stationen (danach): aus
         r.UniverseEvents = false;   // Universumsereignisse (danach): aus (UniverseEventTests)
+        r.Bars = false;   // Bars (danach): aus (BarTests) — reine Spieleraktion, ändert ohne Spieler nichts
         r.PursuitCrossBorder = false;
         r.ProtectionContracts = false;
         r.Convoys = false;

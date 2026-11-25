@@ -220,6 +220,10 @@ public partial class Main : Node3D
 		_hud.DockBlackMarket.BackToMenu += ShowDockMenu;
 		_hud.DockBlackMarket.UndockPressed += Undock;
 		_hud.DockBlackMarket.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
+		_hud.DockBar.AreaSelected += OnDockArea;
+		_hud.DockBar.BackToMenu += ShowDockMenu;
+		_hud.DockBar.UndockPressed += Undock;
+		_hud.DockBar.Executed += ok => _sfx.Play(ok ? SfxId.Pickup : SfxId.Click);
 		_hud.DockAuthority.AreaSelected += OnDockArea;
 		_hud.DockAuthority.BackToMenu += ShowDockMenu;
 		_hud.DockAuthority.UndockPressed += Undock;
@@ -2441,6 +2445,7 @@ public partial class Main : Node3D
 			DockAreas.Shipyard => _hud.DockShipyard,
 			DockAreas.Storage => _hud.DockStorage,
 			DockAreas.BlackMarket => _hud.DockBlackMarket,
+			DockAreas.Bar => _hud.DockBar,
 			DockAreas.Authority => _hud.DockAuthority,
 			DockAreas.Missions => _hud.DockMissions,
 			DockAreas.Research => _hud.DockResearch,

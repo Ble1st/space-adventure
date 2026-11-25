@@ -227,6 +227,8 @@ public sealed class Universe
     public Dictionary<ShipId, Pilots.CaptainRecord> Captains { get; } = new();
     /// <summary>Hilfe und Tutorial: laufendes Tutorial (null = keins). Gespeichert, nie gehasht, von keinem System gelesen (<see cref="Help.TutorialRules"/>).</summary>
     public Help.TutorialState? Tutorial { get; set; }
+    /// <summary>Bars: Losverkauf und offenes Rubbellos des Spielers (null = nie benutzt; <see cref="Bars.Bars"/>). Gespeichert, gehasht (Spielerpolitik) nur wenn vorhanden.</summary>
+    public Bars.BarState? Bar { get; set; }
     public int NextWormholeId { get; set; } = 1;
     /// <summary>Phase 28: laufende Kriege zwischen Fraktionen (Reihenfolge der Erklärung; gespeichert und gehasht, wenn welche laufen). Regeln in <see cref="Simulation.Wars"/>.</summary>
     public List<War> Wars { get; } = new();

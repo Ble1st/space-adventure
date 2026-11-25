@@ -36,6 +36,8 @@ public partial class Hud : CanvasLayer
 	public ShipyardScreen DockShipyard { get; } = new();
 	public StorageScreen DockStorage { get; } = new();
 	public BlackMarketScreen DockBlackMarket { get; } = new();
+	/// <summary>Bars: Gerüchte, Söldner, Rubbellos (Dienst „bar“).</summary>
+	public BarScreen DockBar { get; } = new();
 	public AuthorityScreen DockAuthority { get; } = new();
 	/// <summary>Runde 41: Aufträge (Dienst „missions“).</summary>
 	public MissionsScreen DockMissions { get; } = new();
@@ -117,6 +119,7 @@ public partial class Hud : CanvasLayer
 		Screens.Register(DockShipyard);
 		Screens.Register(DockStorage);
 		Screens.Register(DockBlackMarket);
+		Screens.Register(DockBar);
 		Screens.Register(DockAuthority);
 		Screens.Register(DockMissions);
 		Screens.Register(DockResearch);
@@ -131,6 +134,7 @@ public partial class Hud : CanvasLayer
 		DockShipyard.Ctx = DockCtx;
 		DockStorage.Ctx = DockCtx;
 		DockBlackMarket.Ctx = DockCtx;
+		DockBar.Ctx = DockCtx;
 		DockAuthority.Ctx = DockCtx;
 		DockMissions.Ctx = DockCtx;
 		DockResearch.Ctx = DockCtx;
@@ -270,7 +274,7 @@ public partial class Hud : CanvasLayer
 		// dem Faktor der Dock-Schicht (DockLayout.FitFactor) — gleiche Idee wie das Flug-HUD
 		_dockLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
 		root.AddChild(_dockLayer);
-		foreach (var sc in new Control[] { DockMenu, DockTrade, DockInfo, DockHangar, DockTaxi, DockRepair, DockOutfitter, DockShipyard, DockStorage, DockBlackMarket, DockAuthority, DockMissions, DockResearch, DockPlaceholder })
+		foreach (var sc in new Control[] { DockMenu, DockTrade, DockInfo, DockHangar, DockTaxi, DockRepair, DockOutfitter, DockShipyard, DockStorage, DockBlackMarket, DockBar, DockAuthority, DockMissions, DockResearch, DockPlaceholder })
 			_dockLayer.AddChild(sc);
 		// Runde 35 (E4): Kommandozentrale in eigener, ganzflächiger Schicht mit eigenem Faktor (CommandLayout.FitFactor)
 		_ccLayer.MouseFilter = Control.MouseFilterEnum.Ignore;

@@ -72,7 +72,7 @@ public class OutfitterShipyardTests
         Assert.Empty(trade.Production);   // nur Lager, keine Rezepte
         Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental", "rearm" }, u.StationTypes["trade_station"].Services);   // Phase 12, Phase 25
         var services = StationServices.Default();
-        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental", "rearm", "missions" }, services.ForStation(u, trade).Select(s => s.Key));   // Runde 41: +missions
+        Assert.Equal(new[] { "trade", "outfitter", "shipdealer", "hangar", "taxi", "rental", "rearm", "missions", "bar" }, services.ForStation(u, trade).Select(s => s.Key));   // Runde 41: +missions; Bars: +bar
         // Handelsstation montiert nur Skiffs, die Werft alle Klassen außer den nicht frei gehandelten (Phase 11: Kaperschiff)
         Assert.All(ShipDealerService.Models(u, trade), m => Assert.Equal("skiff", m.ClassKey));
         Assert.Equal(3, ShipDealerService.Models(u, trade).Count);

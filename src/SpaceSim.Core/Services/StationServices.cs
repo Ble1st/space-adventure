@@ -52,6 +52,9 @@ public sealed class StationServices
         // Ausbau Punkt 16: Intel an Behörden (Gericht/Kopfgeldbüro), nur bei beschränktem Wissen
         if (_byKey.TryGetValue(Intel.IntelService.ServiceKey, out var intel) && intel.IsAvailable(u, station) && !list.Contains(intel))
             list.Add(intel);
+        // Bars: Dienst „bar“ an bewohnten Stationen (Typliste in den Regeln, nicht in der Dienstliste des Typs)
+        if (_byKey.TryGetValue(Bars.Bars.ServiceKey, out var bar) && bar.IsAvailable(u, station) && !list.Contains(bar))
+            list.Add(bar);
         return list;
     }
 
@@ -76,6 +79,7 @@ public sealed class StationServices
         registry.Register(new MissionService());    // Runde 41: Aufträge (Dock-Bereich „Aufträge“)
         registry.Register(new BlackMarketService()); // Schwarzmarkt (Hehler im Piratenversteck)
         registry.Register(new Intel.IntelService());  // Ausbau Punkt 16: Intel an Behörden
+        registry.Register(new Bars.BarService());     // Bars: Gerüchte, Söldner, Rubbellos
         return registry;
     }
 }

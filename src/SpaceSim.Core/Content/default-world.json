@@ -11,6 +11,8 @@
   "firmSeats": true,
   "feudsActive": true,
   "universeEvents": true,
+  "bars": true,
+  "barStationTypes": ["colony", "trade_station", "trade_post", "shipyard", "sector_hq", "headquarters", "police_station"],
   "playerFeuds": true,
   "mediation": true,
   "playerMediation": true,

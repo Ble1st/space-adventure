@@ -168,6 +168,21 @@ public partial class UiCheck : Node
 						if (seenAreas.Add(def)) _plan.Insert(at++, ("dock-" + def, () => _m.TestOpenDockArea(def), 12));
 				}, 20);
 			}
+			// Bars: Rubbellos mit offenem Los (drei Felder aufgedeckt) und Gerüchten — die Kachel „Bar“ selbst misst die Schleife oben ohne Los
+			Add("dock-bar-los", () =>
+			{
+				_m.HudRef.Map.Visible = false;
+				if (_m.TestDocked) _m.TestUndock();
+				var yard = u().StationsById().FirstOrDefault(s => s.TypeKey == "shipyard" && SpaceSim.Core.Bars.Bars.IsAt(u(), s));
+				if (yard is null || !u().Ships.TryGetValue(u().PlayerShip, out var me)) return;
+				yard.Credits = System.Math.Max(yard.Credits, 50_000f);
+				u().WalletOf(me).Credits = System.Math.Max(u().WalletOf(me).Credits, 5000f);
+				_m.TestDockAt(yard.Id);
+				_m.TestOpenDockArea(SpaceAdventure.Ui.Screens.DockAreas.Bar);
+				if (SpaceSim.Core.Bars.Bars.OpenTicket(u()) is null) _m.HudRef.DockBar.Execute(SpaceSim.Core.Bars.BarService.Ticket);
+				foreach (var k in new[] { "reveal:0", "reveal:4", "reveal:8" }) _m.HudRef.DockBar.Execute(k);
+			}, 20);
+			Add("dock-bar-aufgedeckt", () => { _m.HudRef.DockBar.Execute("reveal:all"); }, 12);
 			// Runde 35c (Prüfung W5): die aufgeklappte Schiffskarte („Dein Schiff“ bei eingeklappter Schiffsspalte) — ohne Einklappen zeigt der Handel die Spalte
 			Add("dock-schiff", () =>
 			{
@@ -193,7 +208,7 @@ public partial class UiCheck : Node
 				tr.TestOpenRow(g);
 			}, 20);
 			Add("dock-menue-toast", () => { _m.HudRef.DockTrade.TestShipOpen = false;  _m.TestOpenCommand(); _m.HudRef.Toast(UiScale.ShortText() + " — zweite Zeile zum Messen des Umbruchs über dem offenen Menü", 30f); }, 12);
-			Add("kz-open", () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); }, 20);
+			Add("kz-open", () => { _m.TestCloseCommand(); if (_m.TestDocked) _m.TestUndock(); _m.HudRef.Toast("", 0.01f); }, 20);   // der 30-s-Prüftoast aus „dock-menue-toast“ gilt nur dort (lief je nach Bildrate bis ins Schiffsmenü/den Ladebildschirm)
 			foreach (var (id, _, _) in SpaceAdventure.Ui.Screens.CommandAreas.All)
 				Add("kz-" + id, () => { _m.TestOpenCcArea(id); }, 12);
 			// Runde 40: Comms mit Diplomatie-Reiter und ausgewählter Fraktion (Knöpfe mit Vorschau)
@@ -255,6 +270,7 @@ public partial class UiCheck : Node
 			Add("start-laden", () =>
 			{
 				_m.TestCloseCommand();
+				_m.HudRef.Toast("", 0.01f);   // Intel-Hinweis der Erkundungszustände („Neu entdeckt …“) gehört nicht zur Ladeliste (lief je nach Bildrate noch)
 				SpaceAdventure.Game.SaveService.SaveAs(u(), "Prüfstand Alpha", null, out _);
 				SpaceAdventure.Game.SaveService.SaveAs(u(), "Ein sehr langer Spielstandname bis 40 Z", null, out _);
 				_m.TestShowStart();

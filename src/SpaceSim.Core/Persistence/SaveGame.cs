@@ -83,6 +83,8 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<Pilots.CaptainSave>? Captains { get; set; }
     /// <summary>Hilfe und Tutorial (additiv; nicht gehasht): laufendes Tutorial; fehlt = keins.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Help.TutorialSave? Tutorial { get; set; }
+    /// <summary>Bars (additiv): Losverkauf je Station und offenes Rubbellos; fehlt = nie benutzt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Bars.BarSave? Bar { get; set; }
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }

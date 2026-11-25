@@ -56,6 +56,8 @@ public static class DockAreas
 	public const string Research = "research";
 	/// <summary>Schwarzmarkt (Dienst „blackmarket“, Piratenversteck).</summary>
 	public const string BlackMarket = "blackmarket";
+	/// <summary>Bars: Gerüchte, Söldner, Rubbellos (Dienst „bar“).</summary>
+	public const string Bar = "bar";
 
 	/// <summary>Anzeige-Label je Bereichs-Id (auch für Dienst-Schlüssel der Station-Info).</summary>
 	public static string LabelFor(string id, Universe? u = null) => id switch
@@ -72,6 +74,7 @@ public static class DockAreas
 		Authority => "Behörde",
 		Research => "Forschung",
 		BlackMarket => "Schwarzmarkt",
+		Bar => "Bar",
 		CourtService.ServiceKey => "Gericht",          // Dienst-Schlüssel (Station-Info)
 		BountyService.ServiceKey => "Kopfgeldbüro",
 		_ => id,
@@ -82,7 +85,7 @@ public static class DockAreas
 	{
 		"trade" => "Handel", "repair" => "Reparatur", "refuel" => "Tanken", "outfitter" => "Ausrüster", "shipdealer" => "Schiffshändler",
 		"upgrade" => "Verbessern", "storage" => "Lager", "court" => "Gericht", "bounty" => "Kopfgeldbüro", "hangar" => "Hangar", "taxi" => "Taxi",
-		"rental" => "Verleih", "research" => "Forschung", "rearm" => "Munition", "blackmarket" => "Schwarzmarkt",
+		"rental" => "Verleih", "research" => "Forschung", "rearm" => "Munition", "blackmarket" => "Schwarzmarkt", "bar" => "Bar",
 		_ => LabelFor(key, u),
 	};
 
@@ -140,6 +143,13 @@ public static class DockAreas
 		{
 			int wares = st.BlackStock.Count(kv => kv.Value >= 0.01f);
 			list.Add(new DockAreaDef { Id = BlackMarket, Label = LabelFor(BlackMarket), Sub = wares > 0 ? $"{wares} Ware{(wares == 1 ? "" : "n")} · kauft alles" : "Kauft alles", Available = true });
+		}
+		// Bars: Gerüchte, Söldner, Rubbellos (eigene Kachel)
+		if (offered.Contains(SpaceSim.Core.Bars.Bars.ServiceKey))
+		{
+			var open = SpaceSim.Core.Bars.Bars.OpenTicket(u);
+			string barSub = open is not null && open.Station == st.Id ? "Los offen" : "Gerüchte · Rubbellos";
+			list.Add(new DockAreaDef { Id = Bar, Label = LabelFor(Bar), Sub = barSub, Available = true });
 		}
 		// Phase 11: Gericht und Kopfgeldbüro an Regierungsstationen (zusätzliche Kachel)
 		if (offered.Contains(CourtService.ServiceKey) || offered.Contains(BountyService.ServiceKey))
