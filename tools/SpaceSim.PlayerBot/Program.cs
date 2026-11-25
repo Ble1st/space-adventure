@@ -37,8 +37,39 @@ if (args.Contains("--sites"))
     foreach (var f in PlayerFleet.Owned(u).Where(x => x.ModelKey == "foreman")) Console.WriteLine($"Bauschiff {f.Id.Value} in {u.Sectors[f.Sector].Name} Befehl {f.Command?.GetType().Name} Ladung {f.UsedVolume(u):0} Kasse {f.Credits:0} Tick {u.Tick} Pos {f.Position.X:0},{f.Position.Y:0} Transit {(f.Transit is null ? "nein" : "ja")} Order {f.Order?.GetType().Name} Treibstoff {f.TotalFuel:0}/{f.Stats.FuelCapacity:0} Bauplatz-Abstand {PlayerBuilding.OwnSites(u).Select(x => Vec2.Distance(f.Position, x.Position)).DefaultIfEmpty(-1).Min():0}");
     return;
 }
+if (args.Contains("--fuelreport"))
+{
+    foreach (var g in u.Goods.Values.Where(g => g.Category == "fuel"))
+    {
+        Console.WriteLine($"Treibstoff {g.Name} (id {g.Id.Value}, Basis {g.BasePrice})");
+        foreach (var st in u.StationsById().Where(s => s.Market.ContainsKey(g.Id)))
+        { var e = st.Market[g.Id]; Console.WriteLine($"  {st.Name} [{u.Sectors[st.Sector].Name}] Bestand {e.Amount:0}/{e.Target:0} Preis {e.Price:0.0} Kasse {st.Credits:0} verkauft:{st.Produces(g.Id)}"); }
+    }
+    foreach (var sh in PlayerFleet.Owned(u).OrderBy(s => s.Id.Value))
+        Console.WriteLine($"Schiff #{sh.Id.Value} {sh.ModelKey} {sh.Role} Befehl {sh.Command?.GetType().Name} Sektor {u.Sectors[sh.Sector].Name} Tank {sh.TotalFuel:0}/{sh.Stats.FuelCapacity:0} Kasse {sh.Credits:0} angedockt {sh.DockedAt.Value}");
+    return;
+}
+if (args.Contains("--fightreport"))
+{
+    Console.WriteLine($"Tick {u.Tick} Aktives Schiff #{u.PlayerShip.Value} Kriege: {string.Join(", ", u.Wars.Select(w => w.A.Value + "-" + w.B.Value))}");
+    foreach (var f in u.Fights.Encounters) { Console.WriteLine($"Gefecht {f.Id} {f.Cause} Sektor {u.Sectors[f.Sector].Name} seit {f.StartTick} Station {f.Station.Value} Teilnehmer {string.Join(",", f.Participants.Select(p => (p.Side == 0 ? "A" : "B") + p.Ship.Value + (p.Active ? "" : "(raus)")))}"); }
+    foreach (var p in u.PendingEncounters) Console.WriteLine($"Warnung gegen {p.Target.Value}");
+    return;
+}
+if (args.Contains("--sectorreport"))
+{
+    foreach (var sec in u.Sectors.Values.OrderBy(x => x.Id.Value))
+        Console.WriteLine($"Sektor {sec.Id.Value} {sec.Name} Besitzer {(sec.Owner == u.PlayerFaction ? "SPIELER" : sec.Owner.Value.ToString())} Stufe {sec.Control} Sperrstufe {sec.Access.EntryLevel} gegen {sec.Access.Against?.Value} Einfluss {string.Join(" ", sec.Influence.Select(kv => $"{kv.Key.Value}:{kv.Value:0.00}"))} Stationen {sec.Stations.Count(id => u.Stations.TryGetValue(id, out var st) && st.Owner == u.PlayerActor)}/{sec.Stations.Count}");
+    var own = PlayerFleet.Owned(u);
+    Console.WriteLine($"Schiffe {own.Count}; ohne Befehl {own.Count(x => x.Command is null)}; nach Modell/Befehl:");
+    foreach (var g in own.GroupBy(x => x.ModelKey + " / " + (x.Command?.GetType().Name ?? "-")).OrderByDescending(g => g.Count())) Console.WriteLine($"  {g.Key}: {g.Count()}");
+    Console.WriteLine($"Befehlskapazität {Commands.Capacity(u, u.PlayerActor)}");
+    return;
+}
 if (args.Contains("--catalog")) { Catalog.Dump(u); return; }
 if (args.Contains("--shiptable")) { Catalog.ShipTable(u); return; }
+var emerg = new Dictionary<string, (int n, float units, float cost)>();
+u.Events.Raised += e => { if (e is SpaceSim.Core.Events.EmergencyRefuel er && u.Ships.TryGetValue(er.Ship, out var es) && es.Owner == u.PlayerActor) { var k = $"{es.ModelKey} {u.Goods[er.Good].Name} cmd={es.Command?.GetType().Name} in {u.Sectors[es.Sector].Name}"; var o = emerg.GetValueOrDefault(k); emerg[k] = (o.n + 1, o.units + er.Units, o.cost + er.Cost); } };
 var log = new Log(Path.Combine(outDir, "ereignisse.log"), () => u.Tick);
 var pilot = new Pilot(u, log, seed);
 var metrics = new Metrics(u, pilot, Path.Combine(outDir, "zeitleiste.csv"), Path.Combine(outDir, "zeitleiste.txt"), every);
@@ -88,3 +119,4 @@ if (pilot.Led is { } led2)
 File.WriteAllText(Path.Combine(outDir, "stationen.csv"), bot.Emp.Book.Report());
 File.WriteAllText(Path.Combine(outDir, "empire.txt"), string.Join("\n", bot.Emp.Notes) + "\n--- Gericht ---\n" + string.Join("\n", bot.Emp.CourtLog) + "\n--- Krieg ---\n" + string.Join("\n", bot.Emp.WarLog) + "\n--- Bau ---\n" + string.Join("\n", bot.Emp.BuildLog) + $"\nKopfgeld abgeholt {bot.Emp.BountyClaimed:0} in {bot.Emp.BountyClaims} Abholungen\n");
 File.WriteAllText(Path.Combine(outDir, "zusammenfassung.txt"), summary);
+File.WriteAllText(Path.Combine(outDir, "notbetankung.txt"), string.Join("\n", emerg.OrderByDescending(k => k.Value.cost).Select(k => $"{k.Key}: {k.Value.n}x {k.Value.units:0} E {k.Value.cost:0} Cr")));

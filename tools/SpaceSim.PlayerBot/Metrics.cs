@@ -16,7 +16,7 @@ public sealed class Metrics
     public int PlayerCrimes; public float EarnedSales, EarnedTrade; public int Purchases, Seats, Exceptions;
     public bool AllGoals => GoalNames.All(Reached.ContainsKey);
     public Empire? Emp;
-    public static readonly string[] GoalNames = { "HQ eigen", "10 Sektoren", "Polizei", "Militär", "Supermacht", "Krieg", "Handelsnetz", "Gericht", "Geld" };
+    public static readonly string[] GoalNames = { "HQ eigen", "10 Sektoren", "Alle Sektoren", "Polizei", "Militär", "Supermacht", "Krieg", "Handelsnetz", "Gericht", "Geld" };
 
     public Metrics(Universe u, Pilot p, string csv, string txt, long every)
     {
@@ -88,6 +88,7 @@ public sealed class Metrics
         if (PlayerHq.Current(U) is { } hq) Mark("HQ eigen", $"{hq.TypeKey} „{hq.Name}“");
         int secs = PlayerSeats.OwnSectors(U).Count;
         if (secs >= 10) Mark("10 Sektoren", $"{secs} Sektoren mit Besitzer Spielerfraktion");
+        if (secs >= U.Sectors.Count) Mark("Alle Sektoren", $"{secs} von {U.Sectors.Count} Sektoren");
         var (patrol, combat, big, _, _) = Counts();
         if (patrol >= 6) Mark("Polizei", $"{patrol} bewaffnete Eigenschiffe auf Streife/Wache");
         if (P.Wallet >= 9_999_999f) Mark("Geld", $"Kasse {P.Wallet:0}");
@@ -116,7 +117,7 @@ public sealed class Metrics
         long ms = _sw.ElapsedMilliseconds; double msTick = (double)(ms - _lastMs) / Math.Max(1, U.Tick - _lastMsTick); _lastMs = ms; _lastMsTick = U.Tick;
         _csv.WriteLine($"{U.Tick};{U.Tick / 4.0 / 3600:0.0};{P.Wallet:0};{own.Count};{tr};{mi};{patrol};{combat};{big};{stations};{secs};{cls};{wars};{crimes};{lost};{Exceptions};{msTick:0.000}");
         var rel = string.Join(" ", U.NpcFactionIds().Select(n => $"{n.Value}:{Relations.Effective(U, U.PlayerActor, new ActorId(n.Value)):0.00}"));
-        _txt.WriteLine($"[{U.Tick,8}] {U.Tick / 4.0 / 3600,5:0.0} h | Kasse {P.Wallet,9:0} | Schiffe {own.Count,3} (H{tr} S{mi} Streife{patrol} Kampf{combat}/{big}) | Stationen {stations} Sektoren {secs} | {cls} | Kriege {wars} Verbrechen {crimes} Verluste {lost} | Bez {rel} | {msTick:0.00} ms/Tick | {Phase}");
+        _txt.WriteLine($"[{U.Tick,8}] {U.Tick / 4.0 / 3600,5:0.0} h | Kasse {P.Wallet,9:0} | Schiffe {own.Count,3} (H{tr} S{mi} Streife{patrol} Kampf{combat}/{big}) | Stationen {stations} Sektoren {secs} | {cls} | Kriege {wars} Weltstationen {U.Stations.Count} (NPC-Wirtschaft {U.Stations.Values.Count(x => x.Owner != U.PlayerActor && !x.IsBuildSite)}) Verbrechen {crimes} Verluste {lost} | Bez {rel} | {msTick:0.00} ms/Tick | {Phase} | {P.Where}");
     }
 
     public void Final(double ms) { CheckGoals(); Line(); }

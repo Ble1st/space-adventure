@@ -463,7 +463,8 @@ public sealed class Empire
         if (_ws == WarState.Done || U.Tick < _nextWar || PlayerHq.Current(U) is null) return false;
         var mil = PlayerFleet.Owned(U).Where(s => s.Has(Capability.Combat) && U.ShipModels.TryGetValue(s.ModelKey, out var m) && m.Jobs.Count == 0).ToList();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
-        if (mil.Count < 10 || big < 3 || Wallet < 150000f) return false;
+        if (CampaignActive && (mil.Count < 3 || Wallet < 0f)) { Note($"Kampagne abgebrochen: nur noch {mil.Count} Kampfschiffe (davon {big} L/XL), Kasse {Wallet:0}"); EndWar(); return true; }
+        if (!CampaignActive && (mil.Count < 10 || big < 3 || Wallet < 150000f)) return false;
         if (_planIdx < Plan.Length && BuiltCount < 25 && U.Tick < 900_000) return false;   // erst die eigene Kette bauen (erobert Stationen zählen gegen die Obergrenze von 10)
         switch (_ws)
         {
@@ -523,6 +524,13 @@ public sealed class Empire
             foreach (var s in sorted.Where(s => s.Id != lead.Id && s.Squadron.Value == 0).Take(U.Rules.SquadronMaxMembers - sq.Members.Count))
                 if (Squadrons.Join(U, sq, s, out _)) joined++;
             Squadrons.SetRules(U, sq, Engagement.Attack);
+            int sent = 0;
+            foreach (var s2 in sorted.Where(x => x.Id != lead.Id && x.Squadron.Value == 0 && x.Command is null or PatrolCommand or GuardCommand))
+            {
+                if (s2.Command is not null) Commands.Cancel(U, s2, "Kriegseinsatz");
+                if (Commands.Give(U, s2, new GoToCommand(st.Sector, st.Position + new Vec2(70f + sent * 6f, 20f), default), out _)) sent++;
+            }
+            if (sent > 0) Note($"{sent} weitere Kampfschiffe fliegen als Verstärkung in den Zielsektor");
             Note($"Verband {sq.Members.Count} Schiffe (Anführer #{lead.Id.Value}, {lead.ModelKey}, Waffenkraft {lead.Stats.WeaponPower:0})");
             _ws = WarState.Marching; _wsSince = U.Tick; return true;
         }
@@ -553,6 +561,17 @@ public sealed class Empire
     ShipId _leaderId(Ship l) => l.Id;
 
     /// <summary>Führungsschiff reparieren lassen (eigenes Hauptquartier zuerst, sonst die nächste Werkstatt), bevor es in den Kampf geht.</summary>
+    void Rearm()
+    {
+        var st = P.NearestWith("rearm", x => x.Owner == U.PlayerActor) ?? P.NearestWith("rearm");
+        if (st is null) { Note("Munition: keine Station mit Nachladedienst"); return; }
+        if (!P.GoToStation(st, out _)) return;
+        var svc = P.Svc(st, "rearm"); if (svc is null) return;
+        foreach (var k in new[] { "rearm:fill", "rearm:missiles" })
+            if (P.Offer(st, svc, k) is { Amount: > 0f }) { var r = P.Do(st, svc, k); Note($"Munition {k} bei {st.Name}: {(r.Success ? "ok" : r.Message)}"); }
+        if (P.Me.DockedAt.Value != 0) P.Undock();
+    }
+
     void Heal()
     {
         var me = P.Me;
@@ -568,7 +587,7 @@ public sealed class Empire
         }
     }
 
-    long _siegeStart = -1; int _siegeRounds;
+    long _siegeStart = -1; int _siegeRounds, _retreats;
     bool Siege(Station st)
     {
         var me = P.Me;
@@ -576,11 +595,12 @@ public sealed class Empire
         var slots = PlayerGunnery.WeaponSlots(U, me);
         if (slots.Count == 0) { Note("Flaggschiff ohne Waffen"); EndWar(); return true; }
         float reach = slots.Select(s => Gunnery.WeaponAt(U, me, s)).Where(m => m is not null).Select(m => WeaponProfile.Of(m!).Range).DefaultIfEmpty(40f).Min();
-        int ticks = 0; long start = U.Tick; var cnt = new Dictionary<string, int>(); string lastMsg = ""; float hull0 = StationCombat.Hull(U, st);
+        bool retreat = false; int ticks = 0; long start = U.Tick; var cnt = new Dictionary<string, int>(); string lastMsg = ""; float hull0 = StationCombat.Hull(U, st);
         while (ticks++ < 800 && U.Stations.TryGetValue(st.Id, out var cur) && cur.Owner != U.PlayerActor && U.FactionOf(cur) == _enemy)
         {
             me = P.Me;
-            if (me.Hull < me.MaxHull * 0.25f) { Note($"Belagerung abgebrochen: Hülle {me.Hull:0}/{me.MaxHull:0}"); WarLog.Add($"[{U.Tick}] Rückzug Hülle niedrig"); _siegeRounds += 99; break; }
+            if (me.Hull < me.MaxHull * 0.25f) { Note($"Belagerung unterbrochen: Hülle {me.Hull:0}/{me.MaxHull:0} — Rückzug zur Reparatur"); WarLog.Add($"[{U.Tick}] Rückzug Hülle niedrig"); retreat = true; break; }
+            if (ticks % 100 == 1 && PlayerCombat.PositionOf(U, me.Id) is not null) { var wing = FleetAttack.OrderWing(U, new AttackCommand(default, st.Id, default, st.Sector), out var wm); if (ticks == 1 && wing > 0) Note($"Verband greift an: {wm}"); }
             var dir = st.Position - me.Position; float d = dir.Length;
             float want = reach * 0.7f + st.Radius;
             if (d > want) me.Position += dir.Normalized() * MathF.Min(d - want, 11f);
@@ -593,6 +613,7 @@ public sealed class Empire
         Note($"Belagerungsrunde {_siegeRounds}: Schüsse {string.Join(" ", cnt.Select(k => $"{k.Key}={k.Value}"))}; Stationshülle {hull0:0}→{(U.Stations.TryGetValue(st.Id, out var sc) ? StationCombat.Hull(U, sc) : 0):0}; Abstand {Vec2.Distance(P.Me.Position, st.Position):0} (Radius {st.Radius}); Schiff #{P.Me.Id.Value} {P.Me.ModelKey} Sektor {U.Sectors[P.Me.Sector].Name} (PlayerSector {U.Sectors[U.PlayerSector].Name}), Station in {U.Sectors[st.Sector].Name}, andocken {P.Me.DockedAt.Value}, Transit {(P.Me.Transit is null ? "nein" : "ja")}; eigene Hülle {P.Me.Hull:0}/{P.Me.MaxHull:0}; letzte Weigerung: {lastMsg}");
         if (U.Stations.TryGetValue(st.Id, out var after) && (after.Owner == U.PlayerActor || U.FactionOf(after) != _enemy)) return true;
         float hp = U.Stations.TryGetValue(st.Id, out var a2) ? StationCombat.Hull(U, a2) : 0;
+        if (retreat || cnt.GetValueOrDefault("NoAmmo") > cnt.GetValueOrDefault("Fired")) { _retreats++; Heal(); Rearm(); if (_retreats > 8) { Note($"Belagerung ohne Erfolg nach {_retreats} Rückzügen (Stationshülle {hp:0}) — Frieden/Tribut"); EndWar(); } return true; }
         if (_siegeRounds > 12) { Note($"Belagerung ohne Erfolg nach {_siegeRounds} Runden (Stationshülle {hp:0}) — Frieden/Tribut"); EndWar(); }
         return true;
     }
@@ -614,11 +635,12 @@ public sealed class Empire
             }
             if (Wars.PlayerWar(U, _enemy) is null) Mark("Frieden/Tribut");
         }
+        foreach (var a in PlayerFleet.Owned(U).Where(x => x.Command is AttackCommand).ToList()) { Commands.Cancel(U, a, "Krieg beendet"); }
         var lead = PlayerFleet.Owned(U).Where(s => s.Squadron.Value != 0 && Squadrons.Get(U, s)?.Leader == s.Id).FirstOrDefault();
         if (lead is not null && Squadrons.Get(U, lead) is { } sq) Squadrons.Disband(U, sq, out _);
         Heal();
         B.RestoreFlag();
-        _siegeStart = -1; _siegeRounds = 0; _warTry = 0; _wars++; _chain = 0;
-        _ws = (PlayerSeats.OwnSectors(U).Count >= 10 || _wars >= 8) ? WarState.Done : WarState.Idle; _nextWar = U.Tick + 14000;
+        _siegeStart = -1; _siegeRounds = 0; _retreats = 0; _warTry = 0; _wars++; _chain = 0;
+        _ws = (PlayerSeats.OwnSectors(U).Count >= 10 || _wars >= 30) ? WarState.Done : WarState.Idle; _nextWar = U.Tick + 14000;
     }
 }

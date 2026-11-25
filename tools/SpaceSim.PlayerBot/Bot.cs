@@ -262,6 +262,8 @@ public sealed class Bot
     {
         int own = OwnedShips;
         var owned = PlayerFleet.Owned(U);
+        // Kein Kauf, solange Schiffe ohne Befehl liegen (Befehlskapazität erschöpft)
+        if (owned.Count(s => s.Id != U.PlayerShip && s.Id != _flagship && s.Command is null && s.Squadron.Value == 0 && !s.IsRental()) >= 3) return null;
         int traders = owned.Count(s => s.Command is TradeCommand || (s.Squadron.Value != 0 && IsRole(s, "trade")));
         int miners = owned.Count(s => s.Command is MineCommand || (s.Squadron.Value != 0 && IsRole(s, "mine")));
         int ownedSec = PlayerSeats.OwnSectors(U).Count;
@@ -367,8 +369,8 @@ public sealed class Bot
         var policeNow = PlayerFleet.Owned(U).Count(s => s.Id != U.PlayerShip && s.Has(Capability.Combat) && s.Command is PatrolCommand or GuardCommand);
         var mil = MilitaryShips();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
-        bool needPolice = policeNow < 6 + 2 && mil.Count < 40;
-        bool needMil = (mil.Count < 12 || big < 4) && mil.Count < 40;
+        bool needPolice = policeNow < 6 + 2 && mil.Count < 70;
+        bool needMil = (mil.Count < 40 || big < 10) && mil.Count < 70;
         if (!needPolice && !needMil) return false;
         if (P.Wallet < 150000f) return false;
         _nextMil = U.Tick + 600;
@@ -385,7 +387,7 @@ public sealed class Bot
             if (q.Price > P.Wallet - 8000f) continue;
             bool large = q.Class.Size >= SlotSize.L;
             double val;
-            if (needMil && big < 4 && large) val = q.Stats.WeaponPower / q.Price * 3.0;    // erst die großen
+            if (needMil && big < 10 && large) val = q.Stats.WeaponPower / q.Price * 3.0;    // erst die großen
             else if (needPolice) val = q.Stats.WeaponPower / q.Price * (large ? 0.5 : 1.0);
             else val = q.Stats.WeaponPower / q.Price * (large ? 2.0 : 1.0);
             if (val > pickVal) { pickVal = val; pick = q; }
