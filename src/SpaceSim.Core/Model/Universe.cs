@@ -508,6 +508,7 @@ public sealed class Universe
         var list = new List<Obstacle>(s.Asteroids.Count + s.Stations.Count);
         foreach (var a in s.Asteroids) list.Add(a.ToObstacle());
         foreach (var id in s.Stations) list.Add(new Obstacle(Stations[id].Position, Stations[id].Radius));   // Phase 30: Radius der Größenklasse
+        if (Simulation.Suns.AvoidObstacle(this, s) is { } sun) list.Add(sun);   // Sonnen: Wegplanung meidet Körper und Korona
         return list;
     }
 

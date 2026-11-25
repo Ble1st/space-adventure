@@ -62,7 +62,7 @@ public static class Outposts
         }
         foreach (var f in s.Fields) if (Vec2.Distance(p, f.Position) < r + 20f) return false;
         foreach (var a in s.Asteroids) if (Vec2.Distance(p, a.Position) < r + a.Radius + 4f) return false;
-        return true;
+        return !Suns.TooClose(u, s, p, r);   // Sonnen: nicht in die Atmosphäre
     }
 
     static float Dot(Vec2 a, Vec2 b) => a.X * b.X + a.Y * b.Y;

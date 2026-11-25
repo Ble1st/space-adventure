@@ -78,6 +78,10 @@ public partial class Hud : CanvasLayer
 	public Func<IReadOnlyList<(Vector2 Screen, string Label, int MissionId)>>? MissionEdges { get; set; }
 	/// <summary>Runde 41: zuletzt gezeichnete Missions-Randpfeile (Bildschirmposition, Auftrags-Id).</summary>
 	public List<(Vector2 Pos, int MissionId)> MissionEdgeMarkers { get; } = new();
+	/// <summary>Sonnen: Bildschirmlage und Beschriftung der Sonne des Spielersektors (null = keine); zuletzt gezeichneter Randpfeil (Selbsttest).</summary>
+	public Func<(Vector2 Screen, string Label)?>? SunEdge { get; set; }
+	public Vector2? SunEdgeMarker { get; private set; }
+	internal void SetSunEdgeMarker(Vector2? p) => SunEdgeMarker = p;
 	/// <summary>Runde 16: freies Feld (Bildpunkte) für Randpfeile; Zielpfeil (Bildposition, Name, feindlich) — gesetzt von Main.</summary>
 	public Func<Rect2>? FreeField { get; set; }
 	public Func<(Vector2 Screen, string Label, bool Hostile)?>? TargetEdge { get; set; }
@@ -933,6 +937,39 @@ public partial class Hud : CanvasLayer
 			}
 		}
 
+		/// <summary>Sonnen: ein orangefarbener Randpfeil mit Entfernung zur Sonne, solange ihr Mittelpunkt außerhalb des freien Felds liegt.</summary>
+		void DrawSunEdge()
+		{
+			Hud.SetSunEdgeMarker(null);
+			if (Hud.SunEdge?.Invoke() is not { } sun || (Hud.Screens.Current != null && Hud.Screens.Current != Hud.Flight)) return;
+			var field = Field();
+			var occupied = Occupied();
+			if (field.Grow(24f).HasPoint(sun.Screen) && !occupied.Exists(r => r.HasPoint(sun.Screen))) return;
+			var c = field.GetCenter();
+			var dir = (sun.Screen - c).Normalized();
+			if (dir == Vector2.Zero) return;
+			float t = Mathf.Min(Mathf.Abs(field.Size.X / 2f / (dir.X == 0 ? 0.0001f : dir.X)), Mathf.Abs(field.Size.Y / 2f / (dir.Y == 0 ? 0.0001f : dir.Y)));
+			var tip = c + dir * t;
+			if (occupied.Exists(r => r.HasPoint(tip))) return;
+			var col = new Color(1f, 0.62f, 0.25f);
+			var side = new Vector2(-dir.Y, dir.X) * 11f;
+			DrawColoredPolygon(new[] { tip, tip - dir * 22f + side, tip - dir * 22f - side }, new Color(col, 0.95f));
+			var font = ThemeDB.FallbackFont;
+			var (label, lfs) = UiKit.FitText(this, font, sun.Label, 13, 190f);
+			float w = font.GetStringSize(label, HorizontalAlignment.Left, -1, lfs).X;
+			var lp = tip - dir * 34f - new Vector2(w / 2f, -4f);
+			var si = UiScale.SafeInsets1(); var vs = GetViewportRect().Size;
+			lp.X = Mathf.Clamp(lp.X, si.Left + 6f, MathF.Max(si.Left + 6f, vs.X - si.Right - 6f - w));
+			var box = new Rect2(lp - new Vector2(4f, 13f), new Vector2(w + 8f, 18f));
+			if (!_labelBoxes.Exists(b => b.Intersects(box)) && !occupied.Exists(r => r.Intersects(box)))
+			{
+				_labelBoxes.Add(box);
+				DrawRect(box, new Color(0.12f, 0.05f, 0.01f, 0.8f));
+				UiKit.DrawText(this, 300, font, lp, label, lfs, col, full: sun.Label);
+			}
+			Hud.SetSunEdgeMarker(tip - dir * 22f);
+		}
+
 		public Hud Hud = null!;
 		public TargetMarker() { MouseFilter = MouseFilterEnum.Ignore; SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); }
 		public override void _Process(double delta) => QueueRedraw();
@@ -944,6 +981,7 @@ public partial class Hud : CanvasLayer
 			DrawTargetArrow();   // Runde 16 (Runde 17: zuerst — die Stationspfeile weichen ihm aus)
 			DrawEdgeStations();
 			DrawMissionEdges();   // Runde 41: Gold-Randpfeile der Missionsziele (höchstens 3)
+			DrawSunEdge();   // Sonnen: Randpfeil zur Sonne, wenn sie nicht im Bild ist
 			var p = Hud.TargetScreenPosition?.Invoke();
 			if (p is not { } pos) return;
 			var rect = new Rect2(Vector2.Zero, Size).Grow(-30f);

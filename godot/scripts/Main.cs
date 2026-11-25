@@ -133,6 +133,7 @@ public partial class Main : Node3D
 		_hud.TargetScreenPosition = ScreenPositionOfTarget;
 		_hud.StationScreenPositions = StationScreenPositions;
 		_hud.MissionEdges = MissionScreenPositions;   // Runde 41: Gold-Randpfeile der Missionsziele
+		_hud.SunEdge = SunScreenPosition;   // Sonnen: Randpfeil zur Sonne
 		_hud.FreeField = () => _session != null ? FreeFieldPixels() : new Rect2();   // Runde 16
 		_hud.TargetEdge = TargetEdge;
 		_hud.Flight.MapPressed += () => { _sfx.Play(SfxId.Click); OpenMapWindow(); };   // Nutzerwunsch: große Karte als eigenes Fenster (Universum/Sektor), die kleine Sternenkarte entfällt
@@ -2019,6 +2020,7 @@ public partial class Main : Node3D
 		_cam.LookAt(_player.Position + _camFocus);
 		if (dockFrame) DockFrame();
 		FollowBackdrop();   // Runde 44: Sterne kacheln mit, Planet mit Parallaxe
+		SunTick();   // Sonnen: Warnung beim Eintritt in Atmosphäre und Korona
 		// Runde 15: das eigene Schiff verlässt nie das freie Feld — liegt es (im Übergang) außerhalb, rückt der Blickpunkt sofort zum Schiff
 		// Runde 33b: nur wenn die Bildmitte selbst frei ist — im Kompakt-HUD (Mitte unter Kampftasten) zog das Zurückziehen das Schiff genau unter die Tasten
 		var gf = FramingField();
@@ -3142,7 +3144,7 @@ public partial class Main : Node3D
 			Fire = SpaceSim.Core.Combat.DamageInfo.FireWarning(u, PlayerData) ?? "",   // Phase 26
 			// Hitze (Core Heat): Balken im Status, Warnzeile
 			HeatActive = SpaceSim.Core.Combat.Heat.Active(u), HeatShare = SpaceSim.Core.Combat.Heat.Share(u, PlayerData),
-			HeatLocked = SpaceSim.Core.Combat.Heat.Locked(u, PlayerData), HeatWarning = SpaceSim.Core.Combat.Heat.Warning(u, PlayerData),
+			HeatLocked = SpaceSim.Core.Combat.Heat.Locked(u, PlayerData), HeatWarning = SunHudWarning(u) is { Length: > 0 } sw ? sw : SpaceSim.Core.Combat.Heat.Warning(u, PlayerData),
 			Mission = SpaceSim.Core.Missions.MissionMarkers.First(u) is { } mk ? mk.Label : "",   // Runde 41: Auftragszeile (Gold)
 			Route = RouteHudLine(),   // Mehrpunkt-Route
 			AutopilotOn = _autopilot,
@@ -3770,7 +3772,9 @@ public partial class Main : Node3D
 		AddChild(new WorldEnvironment { Environment = env });
 		AddChild(new World.SkyboxView(env, () => _session?.U, ChaseSkyForward));
 		AddChild(_nebula = new World.NebulaView(env, () => _session?.U));   // Gasernte: Nebelsektor (Tiefennebel) und Gasfelder   // Himmelskugel je Sektor (eigene Komponente, folgt dem Spielersektor; in der Rückansicht dreht sie mit der Kamera)
-		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-50, 30, 0), LightEnergy = 1.3f });
+		var mainLight = new DirectionalLight3D { RotationDegrees = new Vector3(-50, 30, 0), LightEnergy = 1.3f };
+		AddChild(mainLight);
+		AddChild(_sunView = new World.SunView(() => _session?.U, mainLight));   // Sonnen: Kugel, Korona, Atmosphäre, Licht (eigene Komponente)
 		// Runde 8: schwaches, kühles Fülllicht von der Gegenseite (ohne Schatten, mobil billig) — die abgewandten Seiten der Modelle versinken sonst
 		AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-25, 210, 0), LightEnergy = 0.45f, LightColor = new Color(0.7f, 0.8f, 1f), ShadowEnabled = false });
 	}
@@ -3788,7 +3792,7 @@ public partial class Main : Node3D
 			_starTiles[i].Position = new Vector3(cx + (i % 3 - 1) * StarTile, 0f, cz + (i / 3 - 1) * StarTile);
 		_view.FollowBackdrop(c);
 		if (_session != null && _session.U.Sectors.TryGetValue(_session.U.PlayerSector, out var sec))
-			_cam.Far = Mathf.Max(4000f, sec.Extent * 2f + 1500f);
+			_cam.Far = Mathf.Max(Mathf.Max(4000f, sec.Extent * 2f + 1500f), SunFar(c));   // Sonnen: die Sonne liegt außerhalb der Ausdehnung
 	}
 
 	/// <summary>Kantenlänge eines Sternwürfels (vor den Himmelskugeln: kleiner als in Runde 44 — 0,5 —, damit es feiner Staub und keine Klötze sind).</summary>

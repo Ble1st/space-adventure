@@ -136,6 +136,7 @@ public sealed class CombatModule : ISimModule
          .Add(new SpaceSim.Core.Combat.ShipSystemsSystem())
          .Add(new SpaceSim.Core.Combat.FireSystem())                       // Phase 26: Brände über den Erholungsindex
          .Add(new SpaceSim.Core.Combat.HeatSystem(), SpaceSim.Core.Combat.HeatSystem.Interval)   // Hitze: Quellen, Abfuhr, Sperre, Überhitzung
+         .Add(new SunSystem(), SunSystem.Interval)                         // Sonnen: Hüllenschaden in der Korona
          .Add(new JumpCloakSystem())                                       // Sprungantrieb laden/springen, Tarnfeld prüfen (nur Schiffe mit Zustand)
          .Add(new SpaceSim.Core.Combat.RearmSystem(), interval: 10)
          .Add(new WreckSystem(), interval: 50)                             // Phase 26: Wracks verfallen

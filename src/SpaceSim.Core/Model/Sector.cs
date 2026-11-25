@@ -61,6 +61,8 @@ public sealed class Sector
     public bool Nebula;
     /// <summary>Gasernte: Gasfelder des Sektors (leer = keine). Gespeichert, gehasht nur wenn vorhanden.</summary>
     public List<GasField> GasFields = new();
+    /// <summary>Sonne des Sektors (nur mit Regel <see cref="EconomyRules.Suns"/> aus der Weltdatei); null = keine. Gespeichert, gehasht nur wenn gesetzt.</summary>
+    public Sun? Sun;
 
     /// <summary>Gasfeld an einer Position (das erste, das sie enthält), sonst null.</summary>
     public GasField? GasFieldAt(Vec2 p)

@@ -10,7 +10,7 @@ namespace SpaceSim.Core.Combat;
 /// <list type="bullet">
 /// <item>Quellen: jeder Schuss (Modulwert <c>heat</c>, sonst Schaden × Faktor nach Schadensart — Laser heiß, Massetreiber mäßig, Raketen kühl), Leistungsstellung
 /// „Antrieb“, Schub (Spielerflug über die Ansicht, NPC im Gefecht über ihr Tempo), Sprungantrieb beim Laden, Tarnfeld und Störsender (je Lastpunkt) und die
-/// Umgebung (<see cref="Environment"/> — Haken für Sonnen, noch 0).</item>
+/// Umgebung (<see cref="Environment"/> — Sonnenatmosphäre).</item>
 /// <item>Abfuhr: Grundabfuhr der Klassengröße + Kühlermodule (<c>heatDissipation</c>).</item>
 /// <item>Wirkung: ab <see cref="EconomyRules.HeatSlowShare"/> laden Waffen langsamer; ab <see cref="EconomyRules.HeatLockShare"/> Sperre (Waffen schweigen, Schild
 /// lädt nicht) bis unter <see cref="EconomyRules.HeatResumeShare"/>; bei 100 % Hüllenschaden je Sekunde (nie unter 1 Hülle) und je Hitzerunde genau ein Zufallszug
@@ -47,8 +47,8 @@ public static class Heat
         return MathF.Max(0f, w.Damage * f);
     }
 
-    /// <summary>Haken für die Umgebung (Sonnen, später): zusätzliche Hitze je Sekunde. Noch 0.</summary>
-    public static float Environment(Universe u, Ship ship) => 0f;
+    /// <summary>Haken für die Umgebung: zusätzliche Hitze je Sekunde — Sonnenatmosphäre (<see cref="Simulation.Suns.HeatRate"/>; Regel <c>suns</c> aus: 0).</summary>
+    public static float Environment(Universe u, Ship ship) => Simulation.Suns.HeatRate(u, ship);
 
     /// <summary>Dauerquellen je Sekunde ohne Schub (Leistungsstellung „Antrieb“, Sprungantrieb, Tarnfeld, Störsender, Umgebung). Rein.</summary>
     public static float SourceRate(Universe u, Ship ship)

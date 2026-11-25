@@ -119,3 +119,26 @@ Lücke gegenüber Interstellar Pilot 2: im Universum geschieht zufällig etwas, 
   NPC-Bergeschiffe bargen 712 E. und 49 Module, Exporte Nahrung −1 %, Konsumgüter +6 %, Luxus +4 %. Ort eines Frachtfunds/Wrackfelds aus den Positionen von
   Stationen, Toren und Feldern (nicht `Sector.Extent` — abgeleitet und nach dem Laden anders; sonst wäre Laden → Weiterlaufen nicht bitgleich).
   Balance: Zeile „Universumsereignisse“, Option `--universeevents on|off`.
+
+## Sonnen
+
+Jeder Sektor hat eine sichtbare Sonne (`sectors[].sun { pos, radius, color, kind }`, Lage und Radius im Grundmaßstab, × Sektormaßstab). Schalter
+`rules.suns` (Code aus, Standardwelt an); aus lässt der Weltaufbau die Sonnen weg (Welt bitgleich). Sternart passend zum Himmel: weiß (Alpha, Nebelmark,
+Kalypso blassblau), blau (Delta, Borealis, Vesta), rot (Hephaistos, Abgrund), gelb (Gamma, Aurelia), orange (Beta). Lage: in der größten Lücke zwischen den
+Inhalten, außerhalb der Bau- und Felsfläche — kein Station, Tor, Feld oder Gürtelfels liegt in der Atmosphäre (Weltprüfung mit `WorldFormatException`,
+Hintergrundfelsen dort fallen weg, Bauplätze und Kleinstationen prüfen die Sonne mit).
+
+- **Zonen** (× Sonnenradius, Regeln in `Model/EconomyRules.Suns.cs`): Körper 1 (Hindernis; das Spielerschiff prallt am Körper ab), Korona bis 1,35
+  (Hüllenschaden 3 %/s der Höchsthülle am Rand, bis 6 % an der Oberfläche, nie unter 1 Hülle; `SunSystem`, unabhängig von der Hitzeregel), Atmosphäre bis 2,2
+  (Hitze über den Haken `Heat.Environment`: 0 am Rand, 30/s am Koronarand, bis 60/s an der Oberfläche).
+- **Wegplanung:** `Universe.GetObstacles` enthält die Sonne mit 1,5 × Radius — NPC-Reisen und der Spielerautopilot fliegen außen herum; der Wegspeicher
+  (Punkt 13) vergleicht die Sonne mit. Von Hand kann man bis an die Oberfläche fliegen.
+- **Ansicht** (`World/SunView.cs`): Kugel mit bewegter Oberfläche (unbeleuchteter Shader, Randverdunklung, Leuchten), zwei additive Hüllen (Korona, Atmosphäre),
+  dünner Ring am Atmosphärenrand, ein farbiges Punktlicht; das Hauptlicht nimmt Farbe und Richtung der Sonne an. Orangefarbener Randpfeil „Sonne · 1,2 km“,
+  Sonne mit Korona und Atmosphärenring auf der Sektorkarte. Warnzeile im Flug-HUD („Sonnenatmosphäre: +12/s Hitze“, „SONNENKORONA! Hülle −3 %/s“), Hinweis
+  beim Eintritt in die Atmosphäre, Meldung beim Eintritt in die Korona (Zeitraffer aus).
+- **Speichern/Hash:** `SectorSave.Sun` additiv (Save bleibt v17), im Hash nur gemischt, wenn gesetzt.
+- **Gemessen** (20000 Takte Release): Hash 3342316DBA142070 → 89133FDF47B8EAA7 (`--suns off` = alter Hash); die Ausgabe ist bis auf die Hashzeilen gleich —
+  die Sonnen liegen außerhalb der Wege der NPCs, Verlustquote 0,25 %, Preise im Zielbereich.
+- **Schwächen:** Atmosphäre und Korona schaden nur Schiffen, die hineinfliegen — NPCs meiden sie, es gibt keine Sonnen-Ereignisse (Flares) und keine
+  Sonnenenergie. Alte Spielstände bekommen keine Sonnen.

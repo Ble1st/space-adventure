@@ -68,6 +68,8 @@ public partial class UiShots : Node
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-sky")) _stage = SkyShotsStart;
 		// Tarnfeld: --ui-shots-cloak nur die Bilder ohne/mit Tarnung (UiShots.Cloak.cs)
 		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-cloak")) _stage = CloakShotsStart;
+		// Sonnen: --ui-shots-sun nur die Sonnenbilder (UiShots.Sun.cs)
+		if (OS.GetCmdlineUserArgs().Contains("--ui-shots-sun")) _stage = SunShotsStart;
 		_wait = 30;   // erst einmal die Szene stehen lassen
 	}
 
@@ -791,6 +793,7 @@ public partial class UiShots : Node
 			case >= ShipShotsStart and < 598_000: ShipShots(); break;   // Runde 11: Schiffsmodelle 97–98
 			case >= SkyShotsStart and < 600_000: SkyShots(); break;
 			case >= CloakShotsStart and < 600_200: CloakShots(); break;   // Tarnfeld ohne/mit
+			case >= SunShotsStart and < 600_400: SunShots(); break;   // Sonnen
 			default:
 				GD.Print($"[ui-shots] fertig: {_dir}");
 				GetTree().Quit(0);

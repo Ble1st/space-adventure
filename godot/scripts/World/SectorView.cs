@@ -80,7 +80,7 @@ public partial class SectorView : Node3D
 		SyncAsteroids(u, 1f, instant: true);
 		foreach (var f in sector.Fields) BuildFieldMarker(u, f);
 		BuildPlanet(sector);
-		Obstacles = u.GetObstacles(_sector);
+		Obstacles = SpaceSim.Core.Simulation.Suns.CollisionObstacles(u, _sector, u.GetObstacles(_sector));   // Sonnen: Kollision nur mit dem Körper
 	}
 
 	/// <summary>Phase 14: Kulissen-Planet des Sektors (nur Darstellung, keine Kollision); null ohne Planet.</summary>
@@ -234,7 +234,7 @@ public partial class SectorView : Node3D
 			r.Node.QueueFree();
 			_rocks.Remove(id);
 		}
-		Obstacles = u.GetObstacles(_sector);
+		Obstacles = SpaceSim.Core.Simulation.Suns.CollisionObstacles(u, _sector, u.GetObstacles(_sector));   // Sonnen: Kollision nur mit dem Körper
 	}
 
 	/// <summary>Angezeigte Position eines NPC-Schiffs; null, wenn es nicht im Sektor ist.</summary>

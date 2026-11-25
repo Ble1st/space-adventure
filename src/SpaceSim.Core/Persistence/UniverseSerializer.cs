@@ -337,6 +337,7 @@ public static class UniverseSerializer
                 SkyboxYaw = sec.SkyboxYaw == 0f ? null : sec.SkyboxYaw,
                 Nebula = sec.Nebula,
                 GasFields = sec.GasFields.Count == 0 ? null : sec.GasFields.Select(f => new GasFieldSave { Pos = f.Position, Radius = f.Radius, Density = f.Density }).ToList(),
+                Sun = sec.Sun is { } sun ? new SunSave { Pos = sun.Position, Radius = sun.Radius, Color = sun.Color, Kind = sun.Kind } : null,
             });
         foreach (var g in u.Gates.Values.OrderBy(g => g.Id.Value))
             s.Gates.Add(new GateSave
@@ -727,6 +728,7 @@ public static class UniverseSerializer
                 SkyboxYaw = sec.SkyboxYaw is { } yaw && float.IsFinite(yaw) ? yaw : 0f,
                 Nebula = sec.Nebula,
                 GasFields = sec.GasFields?.Select(f => new GasField { Position = f.Pos, Radius = f.Radius, Density = f.Density }).ToList() ?? new List<GasField>(),
+                Sun = sec.Sun is { } sun && float.IsFinite(sun.Radius) && sun.Radius > 0f ? new Sun { Position = sun.Pos, Radius = sun.Radius, Color = sun.Color ?? "#ffe6a8", Kind = sun.Kind ?? "yellow" } : null,
             };
         foreach (var g in s.Gates)
             u.Gates[new GateId(g.Id)] = new Gate

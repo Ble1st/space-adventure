@@ -301,6 +301,7 @@ public static class UniverseHash
         {
             if (sec.Nebula) { Mix(0x6E6Bu); Mix((ulong)sec.Id.Value); }
             foreach (var f in sec.GasFields) { Mix(0x6A5Fu); Mix((ulong)sec.Id.Value); MixF(f.Position.X); MixF(f.Position.Y); MixF(f.Radius); MixF(f.Density); }
+            if (sec.Sun is { } sun) { Mix(0x5D11u); Mix((ulong)sec.Id.Value); MixF(sun.Position.X); MixF(sun.Position.Y); MixF(sun.Radius); }   // Sonnen: nur wenn gesetzt
         }
         foreach (var q in u.Squadrons.Values.OrderBy(q => q.Id.Value))
         {

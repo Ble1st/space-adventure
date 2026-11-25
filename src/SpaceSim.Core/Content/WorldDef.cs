@@ -387,6 +387,17 @@ public sealed class SectorDef
     public bool Nebula { get; set; }
     /// <summary>Gasernte: Gasfelder (Lage im Grundmaßstab wie Felder; Radius × Maßstab); fehlt = keine.</summary>
     public List<GasFieldDef> GasFields { get; set; } = new();
+    /// <summary>Sonne des Sektors (ERKUNDUNG.md „Sonnen“; nur mit Regel <c>suns</c> in der Welt); fehlt = keine.</summary>
+    public SunDef? Sun { get; set; }
+}
+
+/// <summary>Sonne eines Sektors: Lage und Radius im Grundmaßstab (beide × Sektormaßstab), Farbe #RRGGBB, Sternart (Anzeige).</summary>
+public sealed class SunDef
+{
+    public float[] Pos { get; set; } = { 0, 0 };
+    public float Radius { get; set; } = 30f;
+    public string Color { get; set; } = "#ffe6a8";
+    public string Kind { get; set; } = "yellow";
 }
 
 /// <summary>Gasfeld eines Sektors (Gasernte).</summary>

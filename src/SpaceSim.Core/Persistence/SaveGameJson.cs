@@ -208,11 +208,11 @@ public static class SaveGameJson
         foreach (var sec in root["sectors"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
         {
             if (sec is not System.Text.Json.Nodes.JsonObject so) continue;
-            so.Remove("nebula"); so.Remove("gasFields");
+            so.Remove("nebula"); so.Remove("gasFields"); so.Remove("sun");
             RemoveWhere(so["stations"]?.AsArray(), st => Late((string?)st["type"]));
         }
         RemoveWhere(root["ships"]?.AsArray(), n => Late((string?)n["model"]));
-        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); rr.Remove("maxSalvagers"); rr.Remove("npcSalvage"); rr.Remove("derelictShips"); rr.Remove("derelictEventTicks"); rr.Remove("missionBreakdownChance"); rr.Remove("missionShipDeliveryChance"); rr.Remove("missileGuidance"); rr.Remove("shipHeat"); if ((int?)rr["maxStations"] == 73) rr["maxStations"] = 69; }
+        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); rr.Remove("maxSalvagers"); rr.Remove("npcSalvage"); rr.Remove("derelictShips"); rr.Remove("derelictEventTicks"); rr.Remove("missionBreakdownChance"); rr.Remove("missionShipDeliveryChance"); rr.Remove("missileGuidance"); rr.Remove("shipHeat"); rr.Remove("suns"); if ((int?)rr["maxStations"] == 73) rr["maxStations"] = 69; }
         foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             if (m?["stats"] is System.Text.Json.Nodes.JsonObject fs && fs["fuelUse"] is not null)
                 switch ((string?)m["key"])

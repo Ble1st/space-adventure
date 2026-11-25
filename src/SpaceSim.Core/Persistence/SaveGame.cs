@@ -618,6 +618,17 @@ public sealed class SectorSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Nebula { get; set; }
     /// <summary>Gasernte: Gasfelder (additiv); fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<GasFieldSave>? GasFields { get; set; }
+    /// <summary>Sonne (additiv); fehlt = keine.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SunSave? Sun { get; set; }
+}
+
+/// <summary>Sonne eines Sektors: Lage, Radius (Welteinheiten), Farbe, Sternart.</summary>
+public sealed class SunSave
+{
+    public Vec2 Pos { get; set; }
+    public float Radius { get; set; }
+    public string Color { get; set; } = "#ffe6a8";
+    public string Kind { get; set; } = "yellow";
 }
 
 /// <summary>Gasfeld (Gasernte): Lage, Radius, Dichte.</summary>

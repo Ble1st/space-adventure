@@ -310,6 +310,13 @@ public static class WorldBuilder
                 if (!float.IsFinite(gf.Density) || gf.Density <= 0f) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): Gasfeld braucht density > 0");
                 sector.GasFields.Add(new GasField { Position = V(gf.Pos) * sd.Scale, Radius = gf.Radius * sd.Scale, Density = gf.Density });
             }
+            // Sonnen: nur mit Regel (aus = Welt bitgleich zu davor); Lage und Radius × Maßstab
+            if (u.Rules.Suns && sd.Sun is { } sun)
+            {
+                if (!float.IsFinite(sun.Radius) || sun.Radius <= 0f) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): Sonne braucht radius > 0");
+                if (!Simulation.Suns.ValidColor(sun.Color)) throw new WorldFormatException($"Sektor {sd.Id} ({sd.Name}): Sonnenfarbe '{sun.Color}' ungültig (#RRGGBB)");
+                sector.Sun = new Sun { Position = V(sun.Pos) * sd.Scale, Radius = sun.Radius * sd.Scale, Color = sun.Color, Kind = string.IsNullOrEmpty(sun.Kind) ? "yellow" : sun.Kind };
+            }
         }
 
         // Phase 31: Torklassen
@@ -391,6 +398,7 @@ public static class WorldBuilder
 
         foreach (var sd in def.Sectors)
             AsteroidGenerator.Populate(u, u.Sectors[new SectorId(sd.Id)], seed: sd.Id * 7919, backgroundCount: AsteroidGenerator.BackgroundCount(sd.Asteroids, sd.Scale));
+        ValidateSuns(u);   // Sonnen: nichts in der Atmosphäre, Hintergrundfelsen dort fallen weg
 
         int nextShip = 1;
         foreach (var group in def.Ships)
@@ -587,6 +595,30 @@ public static class WorldBuilder
     }
 
     /// <summary>Phase 13: Startschiffe, Startpakete, Spielermodell und Stationen der Startwelt dürfen nichts Gesperrtes nutzen.</summary>
+    /// <summary>
+    /// Sonnen: Stationen, Tore, Erz- und Gasfelder müssen außerhalb der Atmosphäre (+ <see cref="EconomyRules.SunClearance"/>) liegen, sonst
+    /// <see cref="WorldFormatException"/> mit Sektor und Objekt. Hintergrundfelsen (ohne Klasse) in der Atmosphäre fallen weg (kein Zufallszug).
+    /// </summary>
+    static void ValidateSuns(Universe u)
+    {
+        var r = u.Rules;
+        foreach (var sec in u.Sectors.Values.OrderBy(x => x.Id.Value))
+        {
+            if (sec.Sun is not { } sun) continue;
+            float atm = Simulation.Suns.AtmosphereRadius(r, sun) + r.SunClearance;
+            void Need(Vec2 p, float rad, string what)
+            {
+                if (Vec2.Distance(p, sun.Position) < atm + rad) throw new WorldFormatException($"Sektor {sec.Id.Value} ({sec.Name}): {what} liegt in der Sonnenatmosphäre");
+            }
+            foreach (var id in sec.Stations) Need(u.Stations[id].Position, u.Stations[id].Radius, $"Station {u.Stations[id].Name}");
+            foreach (var gid in sec.Gates) Need(u.Gates[gid].Position, 10f, $"Tor {gid.Value}");
+            foreach (var f in sec.Fields) Need(f.Position, Mining.MiningRules.BeltRadius, $"Feld {f.ClassKey}");
+            foreach (var g in sec.GasFields) Need(g.Position, g.Radius, "Gasfeld");
+            foreach (var a in sec.Asteroids) if (a.ClassKey.Length > 0) Need(a.Position, a.Radius, $"Gürtelfels ({a.ClassKey})");
+            sec.Asteroids.RemoveAll(a => a.ClassKey.Length == 0 && Vec2.Distance(a.Position, sun.Position) < Simulation.Suns.AtmosphereRadius(r, sun) + a.Radius + 10f);
+        }
+    }
+
     static void ValidateResearchStart(Universe u, WorldDef def)
     {
         if (u.Research.Count == 0) return;

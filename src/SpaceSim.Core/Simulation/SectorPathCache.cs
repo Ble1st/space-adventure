@@ -56,7 +56,8 @@ public sealed class SectorPathCache
     static bool Matches(Universe u, Sector s, Entry e, bool robust)
     {
         var snap = e.Snapshot;
-        if (e.Robust != robust || snap.Length != s.Asteroids.Count + s.Stations.Count) return false;
+        var sun = Suns.AvoidObstacle(u, s);   // Sonnen: letztes Hindernis der Liste (wie Universe.GetObstacles)
+        if (e.Robust != robust || snap.Length != s.Asteroids.Count + s.Stations.Count + (sun is null ? 0 : 1)) return false;
         int i = 0;
         foreach (var a in s.Asteroids)
         {
@@ -68,6 +69,7 @@ public sealed class SectorPathCache
             ref readonly var o = ref snap[i++];
             if (!u.Stations.TryGetValue(id, out var st) || !Same(o, st.Position, st.Radius)) return false;
         }
+        if (sun is { } so && !Same(snap[i], so.Position, so.Radius)) return false;
         return true;
     }
 

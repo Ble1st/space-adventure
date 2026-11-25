@@ -71,6 +71,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 	bool _showInfo;
 
 	SectorMapCanvas _map = null!;
+	/// <summary>Selbsttest (Sonnen): Sonne in der Draufsicht gezeichnet.</summary>
+	internal bool TestSunDrawn => _map.SunDrawn;
 
 	/// <summary>Test-Hook: Sektor wechseln.</summary>
 	public void TestSelectSector(SectorId s) { SelectedSector = s; _selStation = null; _selGate = null; Invalidate(); }
@@ -370,6 +372,7 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 			foreach (var sid in s.Stations.Where(id => Knowledge.KnowsStation(_u, id))) Add(_u.Stations[sid].Position.X, _u.Stations[sid].Position.Y, 10f);
 			foreach (var f in s.Fields.Where((_, k) => Knowledge.KnowsField(_u, s.Id, k))) Add(f.Position.X, f.Position.Y, SpaceSim.Core.Mining.MiningRules.BeltRadius);
 			foreach (var gid in s.Gates.Where(x => Knowledge.KnowsGate(_u, x))) Add(_u.Gates[gid].Position.X, _u.Gates[gid].Position.Y, 10f);
+			if (minX <= maxX && SpaceSim.Core.Simulation.Suns.Of(_u, s.Id) is { } sunFit) Add(sunFit.Position.X, sunFit.Position.Y, sunFit.Radius);   // Sonnen: Körper passt in die Karte
 			if (minX > maxX) { minX = minY = -150f; maxX = maxY = 150f; }
 			// mindestens 160 Einheiten je Richtung (ein Sektor mit zwei nahen Stationen wird nicht riesig)
 			float cx = (minX + maxX) / 2f, cy = (minY + maxY) / 2f;
@@ -411,6 +414,8 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 		}
 		/// <summary>Runde 44 (Selbsttest/ui-check): Beschriftung und Länge der Maßstabsleiste.</summary>
 		internal string ScaleBarText = "";
+		/// <summary>Selbsttest: die Sonne wurde zuletzt gezeichnet.</summary>
+		internal bool SunDrawn;
 		internal float ScaleBarPixels;
 
 		/// <summary>Runde 37: Kreis nur so weit zeichnen, wie er in der Kartenfläche liegt (der Sektorrand ist oft größer als die Fläche).</summary>
@@ -493,6 +498,22 @@ public sealed partial class SectorScreen : CommandScreen, ISessionScreen
 				DrawArc(p, gr, 0, Mathf.Tau, 48, new Color(0.75f, 0.55f, 1f, 0.6f), 2f, true);
 				labels.Add((4, p + new Vector2(0, gr), "Gasfeld", 12, new Color(0.8f, 0.65f, 1f, 0.95f), 6f));
 			}
+
+			// Sonnen: Körper in Sternfarbe, Korona und Atmosphäre als Ringe (Gefahrenzone; die Atmosphäre nur so weit sie in der Fläche liegt)
+			if (SpaceSim.Core.Simulation.Suns.Of(_u, s.Id) is { } sun)
+			{
+				var p = Place(sun.Position);
+				var sc = Color.FromString(sun.Color, new Color(1f, 0.9f, 0.6f));
+				float sr = MathF.Max(6f, sun.Radius * scale);
+				DrawCircle(p, SpaceSim.Core.Simulation.Suns.CoronaRadius(_u.Rules, sun) * scale, new Color(sc, 0.18f));
+				DrawClippedCircle(p, SpaceSim.Core.Simulation.Suns.AtmosphereRadius(_u.Rules, sun) * scale, new Color(1f, 0.55f, 0.25f, 0.55f), 1.5f);
+				DrawCircle(p, sr, sc);
+				DrawArc(p, sr, 0, Mathf.Tau, 40, new Color(1f, 1f, 1f, 0.6f), 1.5f, true);
+				layout.Reserve(new Rect2(p - new Vector2(sr, sr), new Vector2(sr * 2f, sr * 2f)));
+				labels.Add((3, p + new Vector2(0, sr), $"Sonne · {SpaceSim.Core.Simulation.Suns.KindName(sun.Kind)}", 12, new Color(sc, 0.95f), 6f));
+				SunDrawn = true;
+			}
+			else SunDrawn = false;
 
 			// Gates mit Zielsektor
 			foreach (var gid in s.Gates.Where(x => Knowledge.KnowsGate(_u, x)))

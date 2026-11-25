@@ -3,7 +3,7 @@ using SpaceSim.Core.Model;
 namespace SpaceSim.Core.Simulation;
 
 /// <summary>Warum ein Platz für eine Station nicht frei ist (Art für Anzeige und Tests).</summary>
-public enum PlacementBlock { None, OutsideSector, Gate, Station, Belt, Rock }
+public enum PlacementBlock { None, OutsideSector, Gate, Station, Belt, Rock, Sun }
 
 /// <summary>Ergebnis der Platzprüfung: <see cref="Ok"/>, sonst Art und Text des ersten Hindernisses.</summary>
 public readonly record struct PlacementCheck(PlacementBlock Block, string Reason)
@@ -39,6 +39,7 @@ public static class StationPlacement
             if (!(Vec2.Distance(p, f.Position) > radius + 30f)) return new(PlacementBlock.Belt, "zu nah am Asteroidengürtel");
         foreach (var a in sector.Asteroids)
             if (!(Vec2.Distance(p, a.Position) > a.Radius + radius + 6f)) return new(PlacementBlock.Rock, "zu nah an einem Felsen");
+        if (Suns.TooClose(u, sector, p, radius)) return new(PlacementBlock.Sun, "zu nah an der Sonne");
         return PlacementCheck.Free;
     }
 }

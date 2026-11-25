@@ -361,6 +361,8 @@ public sealed record CountermeasureUsed(ShipId Ship, SectorId Sector, string Kin
 public sealed record HeatLockChanged(ShipId Ship, SectorId Sector, bool Locked) : SimEvent;
 /// <summary>Hitze: bei 100 % hat die Hitze ein Modul beschädigt.</summary>
 public sealed record HeatDamage(ShipId Ship, SectorId Sector) : SimEvent;
+/// <summary>Sonnen: die Korona hat einem Schiff <paramref name="Hull"/> Hülle genommen.</summary>
+public sealed record SunScorched(ShipId Ship, SectorId Sector, float Hull) : SimEvent;
 /// <summary>
 /// Gerätetest Phase 28 (Runde 6): der Spieler hat seine Belagerung verlassen; seine eigenen Schiffe brechen ab und folgen ihm. Runde 7: <paramref name="Won"/> =
 /// die Station ist ausgeschaltet bzw. gefallen (Siegmeldung statt „Rückzug“).
