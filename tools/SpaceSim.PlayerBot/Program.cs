@@ -36,6 +36,10 @@ for (int i = 0; i < args.Length; i++)
         case "--supply": Empire.Supply = true; break;
         case "--needbig": Empire.NeedBig = int.Parse(args[++i]); break;
         case "--noflood": Empire.NoFlood = true; break;
+        case "--refinery": Empire.Refinery = true; break;
+        case "--haulerfb": Empire.HaulerFallback = true; break;
+        case "--flagswaps": Empire.FlagSwapMax = int.Parse(args[++i]); break;
+        case "--stripcap": Empire.StripCap = int.Parse(args[++i]); break;
         case "--hunter": Hunter.On = true; break;
         case "--mix": Hunter.Mix = true; Hunter.MixAt = long.Parse(args[++i]); break;
     }

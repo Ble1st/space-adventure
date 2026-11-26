@@ -18,7 +18,8 @@ public sealed partial class Empire
 {
     public static bool Dom, DomWar, Mixed, NoFlood; readonly Dictionary<FactionId, long> _donTry = new(); public static double DomShare = 2.4; public static int DomForemen = 24;
     public readonly List<string> DomLog = new();
-    static readonly string[] Flood = { "solar_plant", "water_plant", "electrolysis", "powerplant", "farm" };
+    public static bool Refinery, NoStrip; public static int StripCap = 1000, FlagSwapMax = 100000;
+    static string[] Flood => Refinery ? new[] { "solar_plant", "water_plant", "electrolysis", "powerplant", "fuel_refinery", "farm" } : new[] { "solar_plant", "water_plant", "electrolysis", "powerplant", "farm" };
     SectorId? _cur; long _curSince; readonly HashSet<SectorId> _done = new();
     int _floodIdx; long _domNext, _nextMapLine, _nextDiplo; readonly Dictionary<SectorId, long> _domFail = new(); readonly Dictionary<SectorId, string> _domWhy = new();
     readonly Dictionary<FactionId, long> _allyTry = new();

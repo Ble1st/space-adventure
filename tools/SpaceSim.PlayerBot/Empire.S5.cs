@@ -11,7 +11,7 @@ namespace SpaceSim.PlayerBot;
 /// </summary>
 public sealed partial class Empire
 {
-    public static bool Supply;
+    public static bool Supply, HaulerFallback;
     public readonly List<string> SupNotes = new();
     long _supNext; public int ModHauls, ModHaulFails, ModUnits, AmmoHauls, PlateHauls;
     readonly Dictionary<string, long> _supBlock = new();
@@ -19,8 +19,12 @@ public sealed partial class Empire
 
     Ship? Hauler(float needVol, IEnumerable<GoodId>? goods = null)
     {
-        return PlayerFleet.Owned(U).Where(x => !x.IsRental() && x.Id != U.PlayerShip && x.Stats.Cargo >= needVol && (goods == null || goods.All(g => x.FreeUnits(U, g) >= 1f)) && x.UsedVolume(U) < 1f && (x.Command is TradeCommand || x.Command is MineCommand || x.Command is null) && x.Transit is null && x.Role != ShipRole.Builder)
+        var h = PlayerFleet.Owned(U).Where(x => !x.IsRental() && x.Id != U.PlayerShip && x.Stats.Cargo >= needVol && (goods == null || goods.All(g => x.FreeUnits(U, g) >= 1f)) && x.UsedVolume(U) < 1f && (x.Command is TradeCommand || x.Command is MineCommand || x.Command is null) && x.Transit is null && x.Role != ShipRole.Builder)
             .OrderBy(x => x.Command is null ? 0 : 1).ThenByDescending(x => x.Stats.Cargo).FirstOrDefault();
+        if (h is not null || !HaulerFallback) return h;
+        // Test 8: bei kleiner Flotte (stripcap) gibt es keinen Frachter mit leerem Feststoff-Laderaum im Stand — dann auch ein Schiff unterwegs nehmen (Fernwechsel hält es an)
+        return PlayerFleet.Owned(U).Where(x => !x.IsRental() && x.Id != U.PlayerShip && x.Stats.Cargo >= needVol && (goods == null || goods.All(g => x.FreeUnits(U, g) >= 1f)) && x.UsedVolume(U) < 1f && (x.Command is TradeCommand || x.Command is MineCommand || x.Command is null) && x.Role != ShipRole.Builder)
+            .OrderByDescending(x => x.Stats.Cargo).FirstOrDefault();
     }
 
     /// <summary>Kauft good (units) beim besten Werk und liefert es bei dest ab. Gibt gelieferte Menge zurück.</summary>

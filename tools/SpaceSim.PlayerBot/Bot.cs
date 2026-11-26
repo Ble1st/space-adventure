@@ -221,11 +221,11 @@ public sealed class Bot
     }
 
     /// <summary>Kauft Schiffe, wenn Geld da ist, und hängt sie an die Automatik; verteilt Streifen für die Polizei.</summary>
-    long _nextFlagCheck;
+    long _nextFlagCheck; int _flagSwaps;
     /// <summary>Handarbeit lohnt: das Flaggschiff gegen den besten bezahlbaren Schürfer tauschen (höchste Abbaurate), das alte bleibt in der Flotte.</summary>
     void UpgradeFlagship()
     {
-        if (U.Tick < _nextFlagCheck || Emp.CampaignActive || Hunter.On) return;
+        if (U.Tick < _nextFlagCheck || Emp.CampaignActive || Hunter.On || _flagSwaps >= Empire.FlagSwapMax) return;
         _nextFlagCheck = U.Tick + 3000;
         var flag = Flag; double cur = flag.Stats.ContactMining * Math.Min(1.0, flag.Stats.Cargo / 60.0);
         if (P.Wallet < 6000f) return;
@@ -243,7 +243,7 @@ public sealed class Bot
         if (!P.GoToStation(yard, out _)) return;
         var r = P.Do(yard, svc, $"buy:{best.Model.Key}");
         L.Event($"Flaggschiff-Tausch {best.Model.Name} {best.Price:0} Cr (Rate {best.Stats.ContactMining:0.0}/s, Hold {best.Stats.Cargo:0}): {(r.Success ? "ok" : r.Message)}");
-        if (r.Success) { _flagship = U.PlayerShip; Purchases++; M.Purchases++; }
+        if (r.Success) { _flagship = U.PlayerShip; Purchases++; M.Purchases++; _flagSwaps++; }
     }
 
     void Fleet()
@@ -300,6 +300,7 @@ public sealed class Bot
             if (ShipDealerService.Quote(U, yard, me, m.Key) is not { Buyable: true } q) continue;
             if (!m.Jobs.Contains(role)) continue;
             if (!m.Jobs.Contains(role) || q.Price > P.Wallet - Reserve) continue;
+            if (m.Key == "strip_miner" && PlayerFleet.Owned(U).Count(x => x.ModelKey == "strip_miner") >= Empire.StripCap) continue;
             double val = role == "trade" ? q.Stats.Cargo * Math.Min(1.5, q.Stats.Speed / 8.0) : q.Stats.MiningTier * Math.Min(1.0, q.Stats.Cargo / 60.0);
             val /= q.Price;
             if (val > bestVal) { bestVal = val; best = q; }
