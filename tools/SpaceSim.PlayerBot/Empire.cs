@@ -589,6 +589,21 @@ public sealed partial class Empire
         }
     }
 
+    public static float RetreatHull = 0.25f;
+    /// <summary>Gemischter Weg: nur Mitglieder des Kriegsverbands (Kampfmodelle ohne Handelsauftrag) bekommen den Angriffsbefehl, nie bewaffnete Händler.</summary>
+    int OrderMilWing(Station st)
+    {
+        int n = 0;
+        foreach (var s in PlayerFleet.Owned(U))
+        {
+            if (s.Id == U.PlayerShip || s.IsRental() || s.Squadron.Value == 0 || s.Command is AttackCommand) continue;
+            if (!s.Has(Capability.Combat) || !U.ShipModels.TryGetValue(s.ModelKey, out var m) || m.Jobs.Count > 0 || s.Role == ShipRole.Trader || s.Role == ShipRole.Miner) continue;
+            if (s.Hull < s.MaxHull * RetreatHull || s.Sector != st.Sector) continue;
+            if (Commands.Give(U, s, new AttackCommand(default, st.Id, default, st.Sector), out _, ignoreCapacity: true)) n++;
+        }
+        return n;
+    }
+
     long _siegeStart = -1; int _siegeRounds, _retreats;
     bool Siege(Station st)
     {
@@ -602,8 +617,8 @@ public sealed partial class Empire
         while (ticks++ < 800 && U.Stations.TryGetValue(st.Id, out var cur) && cur.Owner != U.PlayerActor && U.FactionOf(cur) == _enemy)
         {
             me = P.Me;
-            if (me.Hull < me.MaxHull * 0.25f) { Note($"Belagerung unterbrochen: Hülle {me.Hull:0}/{me.MaxHull:0} — Rückzug zur Reparatur"); WarLog.Add($"[{U.Tick}] Rückzug Hülle niedrig"); retreat = true; break; }
-            if (ticks % 100 == 1 && PlayerCombat.PositionOf(U, me.Id) is not null) { var wing = FleetAttack.OrderWing(U, new AttackCommand(default, st.Id, default, st.Sector), out var wm); if (ticks == 1 && wing > 0) Note($"Verband greift an: {wm}"); }
+            if (me.Hull < me.MaxHull * RetreatHull) { Note($"Belagerung unterbrochen: Hülle {me.Hull:0}/{me.MaxHull:0} — Rückzug zur Reparatur"); WarLog.Add($"[{U.Tick}] Rückzug Hülle niedrig"); retreat = true; break; }
+            if (ticks % 100 == 1 && PlayerCombat.PositionOf(U, me.Id) is not null) { int wing = OrderMilWing(st); if (ticks == 1 && wing > 0) Note($"Kampfverband greift an: {wing} Schiffe (nur Kampfschiffe, keine Händler)"); }
             var dir = st.Position - me.Position; float d = dir.Length;
             float want = reach * 0.7f + st.Radius;
             if (d > want) me.Position += dir.Normalized() * MathF.Min(d - want, 11f);
@@ -631,10 +646,9 @@ public sealed partial class Empire
             Note($"Tribut fordern: {d.Message}");
             if (Wars.PlayerWar(U, _enemy) is not null)
             {
-                var c = P.Book("Waffenstillstand", () => C.Execute(U, $"ceasefire:{_enemy.Value}"));
-                Note($"Waffenstillstand: {c.Message}");
                 var pz = P.Book("Frieden", () => C.Execute(U, $"peace:{_enemy.Value}"));
                 Note($"Frieden: {pz.Message}");
+                if (Wars.PlayerWar(U, _enemy) is not null) { var c = P.Book("Waffenstillstand", () => C.Execute(U, $"ceasefire:{_enemy.Value}")); Note($"Waffenstillstand: {c.Message}"); }
             }
             if (Wars.PlayerWar(U, _enemy) is null) Mark("Frieden/Tribut");
         }

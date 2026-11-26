@@ -27,6 +27,8 @@ for (int i = 0; i < args.Length; i++)
         case "--banditfirst": Empire.BanditFirst = true; break;
         case "--domshare": Empire.DomShare = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
         case "--domforemen": Empire.DomForemen = int.Parse(args[++i]); break;
+        case "--mixed": Empire.Dom = true; Empire.DomWar = true; Empire.MilOn = true; Empire.Mixed = true; Empire.RetreatHull = 0.5f; break;
+        case "--noflood": Empire.NoFlood = true; break;
         case "--hunter": Hunter.On = true; break;
         case "--mix": Hunter.Mix = true; Hunter.MixAt = long.Parse(args[++i]); break;
     }

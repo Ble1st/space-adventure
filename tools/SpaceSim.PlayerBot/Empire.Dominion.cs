@@ -16,7 +16,7 @@ namespace SpaceSim.PlayerBot;
 /// </summary>
 public sealed partial class Empire
 {
-    public static bool Dom, DomWar; public static double DomShare = 2.4; public static int DomForemen = 24;
+    public static bool Dom, DomWar, Mixed, NoFlood; readonly Dictionary<FactionId, long> _donTry = new(); public static double DomShare = 2.4; public static int DomForemen = 24;
     public readonly List<string> DomLog = new();
     static readonly string[] Flood = { "solar_plant", "water_plant", "electrolysis", "powerplant", "farm" };
     SectorId? _cur; long _curSince; readonly HashSet<SectorId> _done = new();
@@ -79,6 +79,7 @@ public sealed partial class Empire
             foreach (var sec in U.Sectors.Values.OrderBy(s => s.Id.Value))
             {
                 if (sec.Owner == me || _done.Contains(sec.Id)) continue;
+                if (NoFlood && U.IsNpcFaction(sec.Owner)) continue;
                 if (_domFail.TryGetValue(sec.Id, out var ft) && U.Tick - ft < 15000) continue;
                 if (U.IsNpcFaction(sec.Owner) && (!Bandit(sec.Owner) || !_banditPeaceFail) && Math.Min(Relations.Effective(U, U.PlayerActor, new ActorId(sec.Owner.Value)), Relations.Effective(U, new ActorId(sec.Owner.Value), U.PlayerActor)) < 0.02f) { blocked[sec.Owner] = blocked.GetValueOrDefault(sec.Owner) + 1; continue; }
                 if (PlayerBuilding.SectorIssue(U, sec.Id) is { } why) { if (!_domWhy.TryGetValue(sec.Id, out var old) || old != why) { _domWhy[sec.Id] = why; DNote($"Bau in {sec.Name} gesperrt: {why}"); } continue; }
@@ -139,12 +140,23 @@ public sealed partial class Empire
         {
             var f = w.Other(me);
             if (CampaignActive) break;
-            var c = P.Book("Waffenstillstand", () => C.Execute(U, $"ceasefire:{f.Value}"));
-            DNote($"Krieg mit {f.Value} seit {w.Since}: Waffenstillstand: {c.Message}");
             var pz = P.Book("Frieden", () => C.Execute(U, $"peace:{f.Value}"));
-            DNote($"Frieden {f.Value}: {pz.Message}");
+            DNote($"Krieg mit {f.Value} seit {w.Since}: Frieden: {pz.Message}");
+            if (Wars.PlayerWar(U, f) is not null) { var c = P.Book("Waffenstillstand", () => C.Execute(U, $"ceasefire:{f.Value}")); DNote($"Waffenstillstand {f.Value}: {c.Message}"); }
             acted = true;
         }
+        if (Mixed && Wallet > 300000f)
+            foreach (var f in U.NpcFactionIds())
+            {
+                if (Bandit(f)) continue;
+                float rr = Math.Min(Relations.Effective(U, U.PlayerActor, new ActorId(f.Value)), Relations.Effective(U, new ActorId(f.Value), U.PlayerActor));
+                if (rr >= 0.45f || rr < -0.3f || (_donTry.TryGetValue(f, out var dt) && U.Tick - dt < 2400)) continue;
+                _donTry[f] = U.Tick;
+                var amt = U.Rules.DonationAmounts.Where(a => a <= Wallet * 0.05f).DefaultIfEmpty(0f).Max(); if (amt <= 0) continue;
+                var dr = P.Book("Spende", () => C.Execute(U, $"donate:{f.Value}:{amt:0}"));
+                DNote($"Spende {amt:0} an {f.Value} (Beziehung {rr:0.00}): {dr.Message}");
+                acted = true;
+            }
         foreach (var f in U.NpcFactionIds())
         {
             if (Bandit(f) || Alliances.Allied(U, me, f)) continue;
