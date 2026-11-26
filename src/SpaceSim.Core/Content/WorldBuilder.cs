@@ -54,6 +54,7 @@ public static class WorldBuilder
         if (def.Rules?.MissileGuidance != true) GuidanceContent.Strip(def);
         if (def.Rules?.ShipHeat != true) HeatContent.Strip(def);
         if (def.Rules?.Carriers != true) CarrierContent.Strip(def);   // Träger aus: Trägerklasse und -modell fehlen (Welt bitgleich zu davor)   // Hitze aus: Kühlermodule fehlen (Welt bitgleich zu davor)   // Raketenlenkung aus: ihre Inhalte fehlen (Welt bitgleich zu davor)
+        WelleBContent.Apply(def);   // Welle B: größere Werftziele großer Module (Regel 0 = nichts)
         var u = new Universe { Seed = seedOverride ?? def.Seed };
         u.Rng = new DeterministicRng(u.Seed);
         if (def.Rules is not null) u.Rules = def.Rules;

@@ -93,7 +93,7 @@ public static class MarketInfo
     {
         if (!st.Market.TryGetValue(good, out var e) || e.Price <= 0f)
             return new Intake(0f, IntakeLimit.NotTraded, ExportRules.ConfigOf(u, st) is not null ? "Nimmt nur Endwaren" : "Handelt diese Ware nicht");
-        float accept = st.AcceptableUnits(good, u.Rules);
+        float accept = PlayerShelf.Accept(u, st, good, e, ship, st.AcceptableUnits(good, u.Rules));   // Welle B: Modulregal für Spielerschiffe
         float pay = MathF.Max(0f, st.Credits) / e.Price;
         // Runde 42b: Liefervertrag-Reservierung des Spielerschiffs — dieselbe Regel wie die Ausführung (SaleCaps): die Station nimmt die
         // reservierte Menge auch bei vollem Lager an und kann sie aus der reservierten Kasse bezahlen

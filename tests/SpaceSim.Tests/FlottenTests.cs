@@ -483,6 +483,7 @@ public class FlottenTests
                     { var c = perShip[rf.Ship]; perShip[rf.Ship] = (c.Rev, c.Cost, c.Trips, c.Refused + 1); run.Refused++; if (rf.Reason == "price_limit") run.RefusedPrice++; else run.RefusedLoss++; break; }
                 case BerthFeePaid bf when bf.Actor == u.PlayerActor: outSum += bf.Amount; run.Berth += bf.Amount; break;
                 case FleetUpkeepPaid fu when fu.Actor == u.PlayerActor: outSum += fu.Amount; run.Upkeep += fu.Amount; break;
+                case FleetLevyPaid fl: outSum += fl.Levy; break;   // Welle B: Abgabe auf den Flottengewinn (aus der Spielerkasse)
                 case ShipRepaired sr when own.Contains(sr.Ship) && !sr.AtBase: outSum += sr.Cost; run.Repairs += sr.Cost; break;
                 case FuelBought fb when own.Contains(fb.Ship): outSum += fb.Cost; break;
                 case TollPaid tp when own.Contains(tp.Ship): outSum += tp.Amount; break;

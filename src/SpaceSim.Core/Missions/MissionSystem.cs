@@ -421,6 +421,37 @@ public sealed class MissionBoardSystem : ISimSystem
             u.MissionOffers.Add(offer);
             u.Events.Publish(new MissionOffered(offer.Id, offer.Client, offer.Type, type.DescribeOffer(u, offer)));   // Runde 42b: alle Arten (Comms filtert den Kanal für Post)
         }
+        ExtraForLowStanding(u, st, rng, bucket);
+    }
+
+    /// <summary>
+    /// Welle B (5): ein Auftraggeber, der dem Spieler gegenüber unter 0 steht oder eine etablierte Banditenfraktion ist, bietet mit Chance
+    /// <see cref="EconomyRules.MissionLowStandingExtraChance"/> je ein weiteres Transport- und Lieferangebot (derselbe Missions-RNG, nie
+    /// <see cref="Universe.Rng"/>; Angebote sind nicht gehasht). Gleiche Angebote (Art und Argumente) werden nicht doppelt erzeugt.
+    /// </summary>
+    static void ExtraForLowStanding(Universe u, Station st, DeterministicRng rng, long bucket)
+    {
+        float chance = u.Rules.MissionLowStandingExtraChance;
+        if (chance <= 0f || u.PlayerFaction is not { } me) return;
+        if (u.FactionOf(st.Owner) is not { } f || !u.IsNpcFaction(f)) return;
+        bool low = Relations.Effective(u, f, me) < 0f || Bandits.IsEstablished(u, st.Owner);
+        if (!low) return;
+        foreach (var key in new[] { TransportMission.KeyId, DeliveryMission.KeyId })
+        {
+            if (MissionRules.Types.All.FirstOrDefault(t => t.Key == key) is not { } type) continue;
+            if (MissionRng.NextFloat(rng) >= chance) continue;
+            var offer = type.Generate(u, st, rng, bucket);
+            if (offer is null || AlreadyAccepted(u, st, offer)) continue;
+            if (u.MissionOffers.Any(o => o.At == st.Id && o.Type == offer.Type && o.Args.Count == offer.Args.Count
+                && offer.Args.All(kv => o.Args.TryGetValue(kv.Key, out var v) && v == kv.Value))) continue;
+            offer.Id = u.NextMissionId++;
+            offer.At = st.Id;
+            offer.Client = st.Owner;
+            offer.Created = u.Tick;
+            offer.Expires = u.Tick + Math.Max(Interval, u.Rules.MissionOfferTicks);
+            u.MissionOffers.Add(offer);
+            u.Events.Publish(new MissionOffered(offer.Id, offer.Client, offer.Type, type.DescribeOffer(u, offer)));
+        }
     }
 
     /// <summary>

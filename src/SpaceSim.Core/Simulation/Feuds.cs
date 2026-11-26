@@ -42,13 +42,14 @@ public static class Feuds
         u.FeudEnded.TryGetValue(Key(a, b), out var t) && u.Tick - t < u.Rules.FeudCooldownTicks;
 
     /// <summary>Warum <paramref name="a"/> und <paramref name="b"/> jetzt keine KI-Fehde beginnen (null = sie würden). Rein.</summary>
-    public static string? StartIssue(Universe u, FactionId a, FactionId b)
+    public static string? StartIssue(Universe u, FactionId a, FactionId b, bool playerContest = false)
     {
         var r = u.Rules;
         if (!r.FeudsActive) return "Fehden sind abgeschaltet.";
         if (a == b || !Wars.CanWage(u, a)) return "Keine Fehdeparteien.";
         bool player = u.IsPlayerFaction(b);
-        if (player ? !r.PlayerFeuds || !PlayerSeatsOffices.FeudUnlocked(u) : !Wars.CanWage(u, b)) return "Keine Fehdeparteien.";
+        // Welle B (2b): eine KI, deren Sektor der Spieler mit Stationen umkämpft, beginnt die Fehde auch ohne seinen Firmensitz
+        if (player ? !r.PlayerFeuds || (!playerContest && !PlayerSeatsOffices.FeudUnlocked(u)) : !Wars.CanWage(u, b)) return "Keine Fehdeparteien.";
         if (Wars.AtWar(u, a, b)) return "Krieg.";
         if (InFeud(u, a, b)) return "Fehde läuft schon.";
         if (Alliances.Allied(u, a, b)) return "Bündnis.";

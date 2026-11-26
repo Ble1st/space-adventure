@@ -327,6 +327,7 @@ public static class PlayerLedger
         payer.Credits -= cost;
         if (floored > 0f) u.Events.Publish(new Events.LedgerApplied(ship.Id, st.Id, good, floored, cost - units * p, false));
         OnBought(u, ship, st, good, units, EffectivePrice(u, p, cost, units), before);
+        Simulation.FleetLevy.Note(u, ship, st, -cost);   // Welle B (3): Saldo der Flottenabgabe
         return new Booking(units, cost, floored, floorPrice);
     }
 
@@ -347,6 +348,7 @@ public static class PlayerLedger
         payee.Credits += revenue;
         if (capped > 0f) u.Events.Publish(new Events.LedgerApplied(ship.Id, st.Id, good, capped, paid * p - revenue, true));
         OnSold(u, ship, st, good, paid, EffectivePrice(u, p, revenue, paid), before);
+        Simulation.FleetLevy.Note(u, ship, st, revenue);   // Welle B (3)
         return new Booking(paid, revenue, capped, capPrice);
     }
 

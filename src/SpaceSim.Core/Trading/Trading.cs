@@ -57,6 +57,7 @@ public static class TradeActions
         // Runde 41/42b: Liefervertrag — die reservierte Annahme und Kasse gelten für das Spielerschiff (Anzeige = Ausführung, siehe ContractReserve)
         if (acceptOverride is null)
         {
+            accept = PlayerShelf.Accept(u, station, good, e, ship, accept);   // Welle B: Spieler liefert Module über das Regal-Limit hinaus
             var (resAccept, resCash) = ContractReserve(u, station, good, ship);
             accept += resAccept;
             pay += resCash / e.Price;

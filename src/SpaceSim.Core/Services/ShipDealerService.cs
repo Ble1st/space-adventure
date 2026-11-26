@@ -114,12 +114,13 @@ public sealed class ShipDealerService : IStationService
     public IReadOnlyList<ServiceOffer> Offers(Universe u, Station station, Ship ship)
     {
         var offers = new List<ServiceOffer>();
+        string? warn = ShipyardWarning.For(u, ship);   // Welle B (7): Hinweis, kein Verbot
         foreach (var model in Models(u, station))
         {
             if (Quote(u, station, ship, model.Key) is not { } q) continue;
             var kit = u.FindGood(ShipPurchase.KitKeyOf(u, q.Class))!.Id;   // Materials hat den Bausatz aufgelöst
             offers.Add(new ServiceOffer($"{Buy}:{model.Key}", $"{model.Name} ({q.Class.Name})", q.Price, q.Buyable ? 1f : 0f,
-                kit, station.Market.TryGetValue(kit, out var e) ? e.Amount : 0f, 0f));
+                kit, station.Market.TryGetValue(kit, out var e) ? e.Amount : 0f, 0f, warn));
         }
         // Baupläne des Spielers (nur Spielerschiffe; KI kauft nie hier)
         if (ship.IsPlayer)
@@ -128,7 +129,7 @@ public sealed class ShipDealerService : IStationService
                 if (QuoteBlueprint(u, station, ship, bp.Id) is not { } q) continue;
                 var kit = u.FindGood(ShipPurchase.KitKeyOf(u, q.Class))!.Id;
                 offers.Add(new ServiceOffer($"{BlueprintKey}:{bp.Id}", $"Bauplan „{bp.Name}“ ({q.Model.Name})", q.Price, q.Buyable ? 1f : 0f,
-                    kit, station.Market.TryGetValue(kit, out var e) ? e.Amount : 0f, 0f));
+                    kit, station.Market.TryGetValue(kit, out var e) ? e.Amount : 0f, 0f, warn));
             }
         return offers;
     }
@@ -154,6 +155,7 @@ public sealed class ShipDealerService : IStationService
         var wallet = u.WalletOf(ship);
         if (!q.Affordable) return Fail($"Nicht genügend Credits ({q.Price:0} Cr nötig).");
 
+        string? warn = ShipyardWarning.For(u, ship);   // Welle B (7): vor dem Kauf ermittelt (danach zählt das neue Schiff schon)
         // Phase 7: Güteklasse würfeln — bessere Module, Bonusmodul und Slot-Material kommen zusätzlich aus dem Werftlager (der Preis bleibt)
         var quality = ShipQualityRoll.Roll(u, q.Class, q.Class.Slots, q.Model.Fit, station, q.Materials);
         var mats = quality.Materials ?? q.Materials;
@@ -175,7 +177,7 @@ public sealed class ShipDealerService : IStationService
         // (im bisherigen aktiven Schiff oder zu Fuß in der Station). Übernehmen über den Hangar (Dienst "hangar").
         string grade = quality.Grade == ShipQuality.Standard ? "" : $" Güteklasse {ShipQualityNames.Name(quality.Grade)}!";
         return new ServiceResult(true, 1f, -q.Price,
-            $"{q.Model.Name} gekauft für {q.Price:0} Cr –{grade} Schiff #{id.Value} liegt hier im Hangar.");
+            $"{q.Model.Name} gekauft für {q.Price:0} Cr –{grade} Schiff #{id.Value} liegt hier im Hangar." + (warn is null ? "" : $" Achtung: {warn}"));
     }
 
     /// <summary>
@@ -192,6 +194,7 @@ public sealed class ShipDealerService : IStationService
         if (q.Missing.Count > 0)
             return Fail("Nicht lieferbar, im Lager fehlt: " + string.Join(", ", q.Missing.Select(m => $"{m.Units:0}× {u.Goods[m.Good].Name}")) + ".");
         if (!q.Affordable) return Fail($"Nicht genügend Credits ({q.Price:0} Cr nötig).");
+        string? warn = ShipyardWarning.For(u, ship);   // Welle B (7)
         var wallet = u.WalletOf(ship);
         var before = q.Materials.Select(m => (Stock: station.Market[m.Good].Amount, Price: station.Market[m.Good].Price)).ToList();
         ShipPurchase.Consume(station, q.Materials);
@@ -205,7 +208,7 @@ public sealed class ShipDealerService : IStationService
         u.Events.Publish(new ServicePerformed(ship.Id, station.Id, Key, BlueprintKey, u.FindGood(ShipPurchase.KitKeyOf(u, q.Class))!.Id, 1f, -q.Price));
         u.Events.Publish(new ShipPurchased(id, station.Id, q.Model.Key, q.Price));
         u.Events.Publish(new BlueprintPurchased(id, station.Id, bpId, q.Price));
-        return new ServiceResult(true, 1f, -q.Price, $"Bauplan „{q.Blueprint.Name}“ gebaut für {q.Price:0} Cr – Schiff #{id.Value} liegt hier im Hangar.");
+        return new ServiceResult(true, 1f, -q.Price, $"Bauplan „{q.Blueprint.Name}“ gebaut für {q.Price:0} Cr – Schiff #{id.Value} liegt hier im Hangar." + (warn is null ? "" : $" Achtung: {warn}"));
     }
 
     static ServiceResult Fail(string message) => new(false, 0f, 0f, message);

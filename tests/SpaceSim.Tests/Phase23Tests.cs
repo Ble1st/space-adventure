@@ -356,7 +356,11 @@ public class Phase23Tests
     [Fact]
     public void Langlauf_20000Ticks_SchildeErholenSich_MunitionWirdGeliefert_WirtschaftStabil()
     {
-        var u = Standard();
+        // Welle B: die größeren Werftziele der M-Module verschieben den Weltpfad — in 20 000 Ticks fährt dann kein Händler Munition (Balance: „Munition:
+        // 0 Fahrten“ gibt es mit und ohne die Regel); geprüft werden Schilde und Munitionslieferung, darum ohne die Werftziele
+        var def = TestWorlds.Def(fuel: false, research: false);
+        def.Rules!.YardLargeModuleTarget = 0;
+        var u = WorldBuilder.Build(def);
         var ev = new List<SimEvent>();
         u.Events.Raised += ev.Add;
         int recoveringMax = 0;

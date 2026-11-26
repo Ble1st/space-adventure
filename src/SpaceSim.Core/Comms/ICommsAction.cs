@@ -110,6 +110,7 @@ public sealed class CommsActions
         r.Register(new MediateAction());           // Ausbau Punkt 6: zwischen zwei KI-Fraktionen vermitteln
         r.Register(new ProtectionAction());        // Ausbau Punkt 3: Schutzvertrag
         r.Register(new MercenaryAction());         // Söldner anheuern/entlassen
+        r.Register(new DonationAction());          // Welle B: Spende gegen Ansehen
         return r;
     }
 

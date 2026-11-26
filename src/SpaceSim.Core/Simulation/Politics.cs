@@ -63,6 +63,9 @@ public static class SectorControl
     {
         var weights = new SortedDictionary<int, float>();
         float none = 0f, total = 0f;
+        // Welle B (2a): abnehmender Einfluss je Besitzer und Stationstyp — die ersten InfluenceFullStations zählen voll, jede weitere InfluenceExtraFactor
+        int full = u.Rules.InfluenceFullStations;
+        Dictionary<(int, string), int>? seen = full > 0 ? new() : null;
         foreach (var id in sector.Stations.OrderBy(i => i.Value))
         {
             if (!u.Stations.TryGetValue(id, out var st) || st.IsBuildSite || PlayerUpkeep.Unpaid(u, st)) continue;   // Ausgleich: unbezahlt = kein Einfluss
@@ -71,6 +74,14 @@ public static class SectorControl
             if (st.Condition is { Disabled: true } && Bandits.IsEstablished(u, st.Owner)) continue;
             float w = u.StationTypes.TryGetValue(st.TypeKey, out var t) ? MathF.Max(0f, t.Influence) : 1f;
             if (w <= 0f) continue;
+            if (seen is not null)
+            {
+                var key = (st.Owner.Value, st.TypeKey);
+                int n = seen.GetValueOrDefault(key);
+                seen[key] = n + 1;
+                if (n >= full) w *= MathF.Max(0f, u.Rules.InfluenceExtraFactor);
+                if (w <= 0f) continue;
+            }
             total += w;
             if (u.FactionOf(st) is { } f && u.Factions.ContainsKey(f)) weights[f.Value] = weights.GetValueOrDefault(f.Value) + w;
             else none += w;
@@ -243,6 +254,9 @@ public sealed class FactionPolicySystem : ISimSystem
         int raw = LevelFor(u.Rules, worst, aggression);
         // Ausbau Punkt 6: Fehdeparteien sperren sich gegenseitig mindestens auf FeudLockLevel (gedeckelt wie jede Sperre durch die Kontrollstufe)
         if (u.Feuds.Count > 0 && Feuds.LockEnemy(u, sector.Owner) is { } fe && u.Rules.FeudLockLevel > raw) { raw = Math.Clamp(u.Rules.FeudLockLevel, 0, 5); against = fe; }
+        // Welle B (2b): vom Spieler umkämpfter Sektor — mindestens PlayerContestLockLevel gegen ihn (gedeckelt wie jede Sperre)
+        if (PlayerContest.ContestedByPlayer(u, sector) && u.Rules.PlayerContestLockLevel > raw && u.PlayerFaction is { } pf)
+        { raw = Math.Clamp(u.Rules.PlayerContestLockLevel, 0, 5); against = pf; }
         int target = raw >= cur ? raw : Math.Min(cur, LevelFor(u.Rules, worst, aggression, u.Rules.LockHysteresis));
         int cap = SectorControl.MaxLevel(u, sector);
         bool forced = target > cap && cur > cap;

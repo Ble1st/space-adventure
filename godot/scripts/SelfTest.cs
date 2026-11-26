@@ -2833,6 +2833,7 @@ public partial class SelfTest : Node
 			case 168: if (HelpStage(_frame - _stageStart)) Next(); break;   // Hilfe und Tutorial: Tutorial per Tipp starten, Schritte, Hinweis einmal, Kodex (SelfTest.Help.cs)
 			case 169: if (BarStage(_frame - _stageStart)) Next(); break;
 			case 170: if (CarrierStage(_frame - _stageStart)) Next(); break;   // Träger: „Jäger“ starten/zurückrufen per Tipp, Schiffsmenü starten/einschleusen (SelfTest.Carrier.cs)   // Bars: Rubbellos per Tipp kaufen, aufdecken, abholen; Gerüchte (SelfTest.Bar.cs)
+			case 173: if (WelleBStage(_frame - _stageStart)) Next(); break;   // Welle B: Spende per Tipp, Kaufwarnung der Werft, Großmodul über das Regalziel verkauft (SelfTest.WelleB.cs)
 			case 172: if (WelleAStage(_frame - _stageStart)) Next(); break;   // Welle A: Angriffsbefehl per Tipp → ein Verbrechen je Angriff, Frieden beendet den Kriegsangriff (SelfTest.WelleA.cs)
 			case 171: if (ShieldSectorStage(_frame - _stageStart)) Next(); break;   // Richtungsschilde: „Schild“ per Tipp ausrichten, Treffer von hinten, Rauten (SelfTest.ShieldSectors.cs)
 			case 162: if (BlueprintMercStage(_frame - _stageStart)) Next(); break;   // Lücken IP2: Bauplan speichern/kaufen, Söldner anheuern (SelfTest.BlueprintMerc.cs)
@@ -2857,7 +2858,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 172;
+	const int LastStage = 173;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

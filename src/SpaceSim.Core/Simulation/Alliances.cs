@@ -77,7 +77,9 @@ public static class Alliances
             return $"Bündnis erst wieder in {(r.AllianceCooldownTicks - (u.Tick - ended)) / 240 + 1} min möglich.";
         if (Wars.CountOf(u, a) > 0 || Wars.CountOf(u, b) > 0) return "Kein Bündnis während eines Kriegs.";
         float ab = Relations.Effective(u, a, b), ba = Relations.Effective(u, b, a);
-        if (MathF.Min(ab, ba) < r.AllianceMinRelation) return $"Beziehung zu niedrig ({MathF.Min(ab, ba):0.00}, nötig {r.AllianceMinRelation:0.00}).";
+        // Welle B (6): Paare mit dem Spieler brauchen nur PlayerAllianceMinRelation (wenn gesetzt)
+        float need = r.PlayerAllianceMinRelation > 0f && (u.IsPlayerFaction(a) || u.IsPlayerFaction(b)) ? r.PlayerAllianceMinRelation : r.AllianceMinRelation;
+        if (MathF.Min(ab, ba) < need) return $"Beziehung zu niedrig ({MathF.Min(ab, ba):0.00}, nötig {need:0.00}).";
         foreach (var f in new[] { a, b })
             if (u.IsNpcFaction(f) && ActorRules.PersonalityOf(u, f).Cooperation < r.AllianceMinCooperation)
                 return $"{Name(u, f)} ist zu wenig kooperativ für ein Bündnis.";

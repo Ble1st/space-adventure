@@ -251,7 +251,9 @@ public class CargoWaterOreTests
         Assert.True(dry < samples * 0.15f, $"Farmen ohne Wasser {dry}/{samples}");
         Assert.True(exported.GetValueOrDefault(DemoUniverse.Food) > 5000f, $"Nahrungsexport {exported.GetValueOrDefault(DemoUniverse.Food):0}");
         Assert.True(exported.GetValueOrDefault(G(u, "consumer_goods")) > 900f, $"Konsumgüterexport {exported.GetValueOrDefault(G(u, "consumer_goods")):0}");
-        Assert.True(exported.GetValueOrDefault(G(u, "luxury_goods")) > 200f, $"Luxusexport {exported.GetValueOrDefault(G(u, "luxury_goods")):0}");
+        // Welle B: die größeren Werftziele der M-Module ziehen am Anfang Elektronik (Laser M, Reaktor M, Schild M) — Luxusexport nach 20 000 Ticks 271 → 194
+        // (Standardsaat; Saaten 2/3 −15 %/−19 %, Saat 1 gleich; nach 60 000 Ticks −2 %)
+        Assert.True(exported.GetValueOrDefault(G(u, "luxury_goods")) > 150f, $"Luxusexport {exported.GetValueOrDefault(G(u, "luxury_goods")):0}");
         Assert.DoesNotContain(built, k => k is "shipyard" or "drive_works" or "weapons_works" or "systems_works");
     }
 }

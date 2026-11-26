@@ -85,6 +85,7 @@ public sealed class SaveGame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Help.TutorialSave? Tutorial { get; set; }
     /// <summary>Bars (additiv): Losverkauf je Station und offenes Rubbellos; fehlt = nie benutzt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Bars.BarSave? Bar { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Simulation.WelleBSave? WelleB { get; set; }   // Welle B: Flottenabgabe, Spenden
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }

@@ -106,24 +106,72 @@ public static class PathPlanner
             }
             return false;
         });
+        // Welle B (8, Rechenzeit): bis zu 192 × 192 Streckenprüfungen über alle Hindernisse des Sektors waren mit vielen Stationen die teuerste Rechnung
+        // (NPC-Wegplanung, Spielerflugzeit der Auftragsbörse). Jetzt über einen nach X sortierten Index mit Abbruch beim ersten Blocker — dieselbe Frage
+        // „frei oder nicht“ (gleiche Prüfungen je Hindernis wie FirstBlocker), also dasselbe Ergebnis.
+        var idx = new BlockIndex(obstacles, margin);
         List<Vec2>? best = null; float bestLen = float.MaxValue;
         var fromOk = new List<Vec2>();
         foreach (var w in cand)
         {
-            if (!Clear(from, w, obstacles, margin)) continue;
+            if (idx.Blocked(from, w)) continue;
             fromOk.Add(w);
             float len = Vec2.Distance(from, w) + Vec2.Distance(w, to);
-            if (len < bestLen && Clear(w, to, obstacles, margin)) { bestLen = len; best = new List<Vec2> { from, w, to }; }
+            if (len < bestLen && !idx.Blocked(w, to)) { bestLen = len; best = new List<Vec2> { from, w, to }; }
         }
         if (best is not null) return best;
-        var toOk = cand.Where(w => Clear(w, to, obstacles, margin)).ToList();
+        var toOk = cand.Where(w => !idx.Blocked(w, to)).ToList();
         foreach (var w1 in fromOk)
             foreach (var w2 in toOk)
             {
                 float len = Vec2.Distance(from, w1) + Vec2.Distance(w1, w2) + Vec2.Distance(w2, to);
-                if (len < bestLen && Clear(w1, w2, obstacles, margin)) { bestLen = len; best = new List<Vec2> { from, w1, w2, to }; }
+                if (len < bestLen && !idx.Blocked(w1, w2)) { bestLen = len; best = new List<Vec2> { from, w1, w2, to }; }
             }
         return best;
+    }
+
+    /// <summary>
+    /// Welle B (8): Hindernisse nach X sortiert für viele Streckenprüfungen mit festem Sicherheitsabstand. <see cref="Blocked"/> beantwortet genau
+    /// <c>FirstBlocker(a, b) is not null</c> (gleiche Prüfungen je Hindernis), prüft aber nur das X-Fenster der Strecke und endet beim ersten Blocker.
+    /// </summary>
+    sealed class BlockIndex
+    {
+        readonly Obstacle[] _items;
+        readonly float _maxReach, _m;
+
+        public BlockIndex(IReadOnlyList<Obstacle> obs, float margin)
+        {
+            _m = margin > 0f ? margin : Margin;   // wie Clear: _margin > 0 ? _margin : Margin
+            _items = new Obstacle[obs.Count];
+            for (int i = 0; i < obs.Count; i++) _items[i] = obs[i];
+            Array.Sort(_items, (x, y) => x.Position.X.CompareTo(y.Position.X));
+            float mr = 0f;
+            foreach (var o in _items) mr = MathF.Max(mr, o.Radius + _m + 1f);
+            _maxReach = mr;
+        }
+
+        public bool Blocked(Vec2 a, Vec2 b)
+        {
+            var ab = b - a;
+            float len2 = ab.Dot(ab);
+            float minX = MathF.Min(a.X, b.X), maxX = MathF.Max(a.X, b.X), minY = MathF.Min(a.Y, b.Y), maxY = MathF.Max(a.Y, b.Y);
+            float lo = minX - _maxReach, hi = maxX + _maxReach;
+            int s = 0, e = _items.Length;
+            while (s < e) { int mid = (s + e) >> 1; if (_items[mid].Position.X < lo) s = mid + 1; else e = mid; }
+            for (int i = s; i < _items.Length; i++)
+            {
+                var o = _items[i];
+                if (o.Position.X > hi) break;
+                float r = o.Radius + _m;
+                float reach = r + 1f;
+                if (o.Position.X + reach < minX || o.Position.X - reach > maxX || o.Position.Y + reach < minY || o.Position.Y - reach > maxY) continue;
+                if (Vec2.Distance(b, o.Position) < r) continue;
+                if (Vec2.Distance(a, o.Position) < r && ab.Dot(a - o.Position) >= 0f) continue;
+                float t = len2 > 1e-6f ? Math.Clamp((o.Position - a).Dot(ab) / len2, 0f, 1f) : 0f;
+                if (Vec2.Distance(a + ab * t, o.Position) < r) return true;
+            }
+            return false;
+        }
     }
 
     [ThreadStatic] static float _margin;

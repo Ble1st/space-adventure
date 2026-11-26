@@ -89,6 +89,8 @@ public partial class SelfTest
 				Check(hud.CcComms.TestAllianceRow.StartsWith("mit dir"), $"45: Detailzeile „Bündnis“ ({hud.CcComms.TestAllianceRow})");
 				// Krieg mit der Gilde, gealtert; Spieler klar überlegen (Kasse), Gilde zahlungsfähig
 				u.Actors[_r45Guild].Treasury.Credits = 200_000f;
+				// Welle A (Kriegsstärke: nur ein Fünftel der Spielerkasse, höchstens 200 000 Cr) — dieses Szenario setzt die Überlegenheit per Kasse voraus: alte Regel
+				u.Rules.PlayerWarMoneyShare = 0f; u.Rules.PlayerWarMoneyCap = 0f;
 				var w = Wars.PlayerDeclare(u, _r45Guild);
 				w.Since = u.Tick - 13_000; w.Weariness = 0.33f;
 				if (w.A == _r45Guild) w.ShipsLostA = 1; else w.ShipsLostB = 1;   // Ausgleich nach dem Bot-Test: Tribut fordern setzt Verluste des Gegners voraus (Regel TributeDemandNeedsLosses) — das gealterte Kriegsszenario hat schon gekämpft

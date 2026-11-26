@@ -59,7 +59,11 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 
 		var svc = Service;
 		if (svc is null) { At(inner, Text("Diese Station verkauft keine Schiffe.", 16, new Color(Dim, 0.8f)), 0, 48, w, 26); return; }
-		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, 42, w, (inner.Size.Y > 0 ? inner.Size.Y : 520f) - 42 - 4);   // Runde 34: Höhe des Bereichs
+		// Welle B (7): Kaufwarnung über der Befehlskapazität (Hinweis, kein Verbot) — aus dem Core (ShipyardWarning)
+		float top = 42f;
+		_warning = ShipyardWarning.For(u, Ctx.Ship) ?? "";
+		if (_warning.Length > 0) top = WrappedText(inner, "Hinweis: " + _warning, 0, 42, w, 14, Orange, 18) + 4f;
+		_scroll = At(inner, new KitScroll { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }, 0, top, w, (inner.Size.Y > 0 ? inner.Size.Y : 520f) - top - 4);   // Runde 34: Höhe des Bereichs
 		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		box.AddThemeConstantOverride("separation", 6);
 		_scroll.AddChild(box);
@@ -139,4 +143,7 @@ public sealed partial class ShipyardScreen : DockAreaScreen, ISessionScreen
 	/// <summary>Phase 13: Zeilen mit gesperrtem (nicht erforschtem) Modell.</summary>
 	public int TestLockedRows => _locked;
 	public string TestMessage => _message;
+	string _warning = "";
+	/// <summary>Selbsttest Welle B: angezeigte Kaufwarnung („“ = keine).</summary>
+	public string TestWarning => _warning;
 }

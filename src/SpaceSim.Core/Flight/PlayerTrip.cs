@@ -33,7 +33,7 @@ public static class PlayerTrip
         var sector = fromSector;
         var pos = fromPos;
         float v = 0f, t = DockSeconds + StartSeconds;
-        var obsBy = new Dictionary<SectorId, List<Obstacle>>();
+        var obsBy = new Dictionary<SectorId, SortedObstacles>();
         for (int i = 0; i < MaxSteps; i++)
         {
             var step = f.Next(u, sector, pos, target, ship);
@@ -41,11 +41,16 @@ public static class PlayerTrip
             if (step.Status == NavStatus.Unreachable) return float.PositiveInfinity;
             float final = sector == toSector ? Vec2.Distance(pos, toPos) : 999f;
             float edge = float.MaxValue;
-            if (!obsBy.TryGetValue(sector, out var rocks)) obsBy[sector] = rocks = u.GetObstacles(sector);
+            if (!obsBy.TryGetValue(sector, out var rocks)) obsBy[sector] = rocks = new SortedObstacles(u.GetObstacles(sector));
             // Punkt 13 (Rechenzeit): nur Hindernisse, die näher als die Bremsgrenze (30) liegen können, verändern die Geschwindigkeit (darüber gilt 1) — ein
-            // Hindernis, das schon in einer Achse mehr als 31 entfernt ist, kann das Minimum unter 30 nicht bestimmen; gleiche Geschwindigkeit wie vorher
-            foreach (var o in rocks)
+            // Hindernis, das schon in einer Achse mehr als 31 entfernt ist, kann das Minimum unter 30 nicht bestimmen; gleiche Geschwindigkeit wie vorher.
+            // Welle B (8): nach X sortiert, nur das Fenster pos.X ± (größte Reichweite) wird geprüft — dieselbe Menge, dasselbe Minimum (MathF.Min ist
+            // reihenfolgeunabhängig); vorher lief jeder Schritt über alle Hindernisse des Sektors (mit vielen Stationen die teuerste Zeile der Auftragsbörse)
+            var arr = rocks.Items;
+            for (int k = rocks.First(pos.X); k < arr.Length; k++)
             {
+                var o = arr[k];
+                if (o.Position.X > pos.X + rocks.MaxReach) break;
                 float reach = o.Radius + Collision.ShipRadius + 31f;
                 if (MathF.Abs(pos.X - o.Position.X) > reach || MathF.Abs(pos.Y - o.Position.Y) > reach) continue;
                 edge = MathF.Min(edge, Vec2.Distance(pos, o.Position) - o.Radius - Collision.ShipRadius);
@@ -64,6 +69,30 @@ public static class PlayerTrip
             }
         }
         return float.PositiveInfinity;
+    }
+
+    /// <summary>Welle B (8): Hindernisse eines Sektors nach X sortiert, mit der größten Bremsreichweite (Radius + Schiff + 31) für die Fenstersuche.</summary>
+    sealed class SortedObstacles
+    {
+        public readonly Obstacle[] Items;
+        public readonly float MaxReach;
+        public SortedObstacles(List<Obstacle> list)
+        {
+            Items = list.ToArray();
+            Array.Sort(Items, (a, b) => a.Position.X.CompareTo(b.Position.X));
+            float m = 0f;
+            foreach (var o in Items) m = MathF.Max(m, o.Radius + Collision.ShipRadius + 31f);
+            MaxReach = m;
+        }
+
+        /// <summary>Erster Index mit Position.X ≥ x − <see cref="MaxReach"/> (binäre Suche).</summary>
+        public int First(float x)
+        {
+            float lo = x - MaxReach;
+            int a = 0, b = Items.Length;
+            while (a < b) { int mid = (a + b) >> 1; if (Items[mid].Position.X < lo) a = mid + 1; else b = mid; }
+            return a;
+        }
     }
 
     /// <summary>Wie <see cref="Seconds"/>, zum Andockpunkt einer Station.</summary>

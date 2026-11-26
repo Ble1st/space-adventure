@@ -249,6 +249,7 @@ public static class UniverseHash
         // Ausbau Punkt 3: Schutzverträge (Spielerpolitik), Konvois (ohne Konvoi mischt nichts)
         Persistence.BlueprintMercCodec.Mix(u, includePlayerPolitics, Mix, MixF, MixString);   // Baupläne (Spielerpolitik), Söldner — nur wenn vorhanden
         if (includePlayerPolitics) Bars.BarCodec.Mix(u, Mix, MixF);   // Bars: Rubbellos und Losverkauf (Spieleraktion; nur wenn vorhanden)
+        if (includePlayerPolitics) Simulation.WelleBCodec.Mix(u, Mix, MixF);   // Welle B: Flottenabgabe, Spenden (nur wenn vorhanden)
         if (includePlayerPolitics) foreach (var c in u.Protections) { Mix(0x0301u); Mix((ulong)c.Faction.Value); Mix((ulong)c.Since); Mix((ulong)c.PaidUntil); }
         foreach (var c in u.Convoys)
         {

@@ -64,6 +64,8 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 	public string TestFeudRow { get; private set; } = "";
 	public string TestProtectionRow { get; private set; } = "";
 	public readonly System.Collections.Generic.List<string> TestMediateKeys = new();
+	/// <summary>Selbsttest Welle B: Spendenschlüssel der Diplomatie-Detailansicht.</summary>
+	public readonly System.Collections.Generic.List<string> TestDonationKeys = new();
 	/// <summary>Ausbau Punkt 16 (Selbsttest): Diplomatie-Auswahl auf eine Fraktion setzen.</summary>
 	public void TestSelectFaction(FactionId f) { int i = KnownFactions(Ctx.U).IndexOf(f); if (i >= 0) { _diplSel = i; _detailOpen = true; Invalidate(); } }
 	/// <summary>Ausbau Punkt 16: nur bekannte KI-Fraktionen stehen in der Diplomatie.</summary>
@@ -420,6 +422,15 @@ public sealed partial class CommsScreen : CommandScreen, ISessionScreen
 			if (Protection.Of(u, f) is not null) ActionButton($"protection:end:{f.Value}", "Schutzvertrag kündigen", confirm: false);
 			else ActionButton($"protection:buy:{f.Value}", "Schutzvertrag schließen", confirm: true);
 		}
+		// Welle B (4): Spende gegen Ansehen (Geld an ihre Kasse; Tagesgrenze, Obergrenze der Beziehung)
+		TestDonationKeys.Clear();
+		if (u.Rules.Donations && me is not null && u.IsNpcFaction(f) && !Bandits.IsEstablished(u, f))
+			foreach (var amount in u.Rules.DonationAmounts)
+			{
+				string dk = SpaceSim.Core.Comms.DonationAction.KeyFor(f, amount);
+				TestDonationKeys.Add(dk);
+				ActionButton(dk, $"Spende {amount:0} Cr", confirm: false);
+			}
 		TestMediateKeys.Clear();
 		if (u.Rules.PlayerMediation)
 			foreach (var c in Mediation.Conflicts(u).Where(c => c.A == f || c.B == f).ToList())

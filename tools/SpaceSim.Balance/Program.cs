@@ -31,6 +31,15 @@ if (opts.TryGetValue("guidance", out var guidOpt)) worldDef.Rules.MissileGuidanc
 if (opts.TryGetValue("playerwarmoney", out var pwmOpt) && pwmOpt == "off") { worldDef.Rules.PlayerWarMoneyShare = 0f; worldDef.Rules.PlayerWarMoneyCap = 0f; }   // Welle A: ganze Spielerkasse zählt in der Kriegsstärke (alte Regel)
 // Hitze: --heat on|off (aus = keine Hitze, WorldBuilder lässt die Kühlermodule weg)
 if (opts.TryGetValue("heat", out var heatOpt)) worldDef.Rules.ShipHeat = heatOpt == "on";
+// Welle B: --influence off (jede Station zählt voll), --yardtarget off (alte Werftziele), --welleb off (alle Welle-B-Regeln aus)
+if (opts.TryGetValue("influence", out var infOpt) && infOpt == "off") worldDef.Rules.InfluenceFullStations = 0;
+if (opts.TryGetValue("yardtarget", out var ytOpt) && ytOpt == "off") worldDef.Rules.YardLargeModuleTarget = 0;
+if (opts.TryGetValue("welleb", out var welleBOpt) && welleBOpt == "off")
+{
+    var wr = worldDef.Rules;
+    wr.PlayerModuleShelfFactor = 0f; wr.YardLargeModuleTarget = 0; wr.InfluenceFullStations = 0; wr.InfluenceExtraFactor = 1f; wr.PlayerContestReaction = false;
+    wr.PlayerFleetLevyShare = 0f; wr.Donations = false; wr.MissionLowStandingExtraChance = 0f; wr.PlayerAllianceMinRelation = 0f; wr.ShipyardCapacityWarning = false;
+}
 // Richtungsschilde: --shieldsectors on|off
 if (opts.TryGetValue("shieldsectors", out var shSecOpt)) worldDef.Rules.ShieldSectors = shSecOpt == "on";
 // Sonnen: --suns on|off (aus = WorldBuilder lässt die Sonnen weg, Welt bitgleich)
@@ -66,6 +75,8 @@ if (opts.TryGetValue("policerange", out var prOpt)) worldDef.Rules.PoliceRespons
 // Runde 29: --probe rueckkauf misst die Kauf-/Rückverkaufsschleife an einer Station (eigene Welten, eigener Bericht) und endet
 if (opts.TryGetValue("probe", out var rkOpt) && rkOpt == "rueckkauf") { Console.WriteLine(ExploitProbe.Run(worldDef, seed ?? 1)); return 0; }
 var u = WorldBuilder.Build(worldDef, seed, opts.TryGetValue("start", out var startOpt) ? startOpt : null);   // Runde 26: --start trader wie „Neues Spiel“
+// Welle B (8): --playerstations N legt N fertige Spieler-Wirtschaftsstationen an (Rechenzeit-Messung mit vielen Stationen, wie der Bot mit 460)
+if (opts.TryGetValue("playerstations", out var psOpt)) Console.WriteLine($"Spielerstationen angelegt: {StationFlood.Spawn(u, int.Parse(psOpt, CultureInfo.InvariantCulture))}");
 // Hitze: --heatrules off — Kühlermodule bleiben in der Welt, die Hitzeregeln sind aus (trennt Inhaltsverschiebung von Regelwirkung); --heathold X (NPC-Feuerpause)
 if (opts.TryGetValue("heatrules", out var hrOpt)) u.Rules.ShipHeat = hrOpt == "on";
 if (opts.TryGetValue("heatdiss", out var hdOpt)) u.Rules.HeatDissipationBySize = hdOpt.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToList();
