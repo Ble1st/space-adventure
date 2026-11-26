@@ -467,7 +467,7 @@ public sealed partial class Empire
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
         if (CampaignActive && (mil.Count < 2 || Wallet < 0f)) { Note($"Feldzug beendet: {mil.Count} Kampfschiffe, Kasse {Wallet:0}"); EndWar(); return true; }
         if (!CampaignActive && (Hunter.On ? (mil.Count < 5 || big < 1 || Wallet < 20000f) : (mil.Count < 10 || big < 3 || Wallet < 150000f))) return false;
-        if (!Hunter.On && _planIdx < Plan.Length && BuiltCount < 25 && U.Tick < 900_000) return false;   // erst die eigene Kette bauen (erobert Stationen zählen gegen die Obergrenze von 10)
+        if (!Hunter.On && !Mixed && _planIdx < Plan.Length && BuiltCount < 25 && U.Tick < 900_000) return false;   // erst die eigene Kette bauen (erobert Stationen zählen gegen die Obergrenze von 10)
         switch (_ws)
         {
             case WarState.Idle:

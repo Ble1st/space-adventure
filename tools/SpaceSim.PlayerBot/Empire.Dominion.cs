@@ -191,7 +191,7 @@ public sealed partial class Empire
     }
 
     // ───────── Banditen: Stationen belagern, bis sie ausgeschaltet sind (Banditen-Sitz kapituliert nie; Abgrund wird erst dann herrenlos) ─────────
-    public static bool MilOn, BanditFirst; bool _banditDone, _banditPeaceFail; int _repFails; long _nextBandit; int _banditRounds; public readonly List<string> BanditLog = new();
+    public static bool MilOn, BanditFirst; bool _banditDone = NoFlood, _banditPeaceFail; int _repFails; long _nextBandit; int _banditRounds; public readonly List<string> BanditLog = new();
     bool BanditCampaign()
     {
         if (_banditDone || U.Tick < _nextBandit) return false;
