@@ -240,6 +240,15 @@ public partial class UiCheck : Node
 				_m.TestEnterSector(ship.Sector);
 				_m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.MyFaction);
 			}, 20);
+			// Welle C: „Meine Fraktion“ mit Behördenliste (Firmensitz und Büro aus dem Zustand davor), eine ruht — ohne neue Station, ohne Ereignis und ohne
+			// niedrige Kasse (sonst lägen Vorwarnung/Meldung und ein längerer Stationsname über den folgenden Zuständen; Warnzeile prüft Selbsttest 174)
+			Add("kz-meinefraktion-unterhalt", () =>
+			{
+				var w = u();
+				var gov = SpaceSim.Core.Simulation.PlayerUpkeepOrder.Governments(w);
+				if (gov.Count > 1 && !gov.Any(g => g.Dormant)) gov[^1].Dormant = true;
+				_m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.MyFaction);
+			}, 20);
 			// Runde 37b (A4): Fraktionsdetail (schmal: Detail statt Liste)
 			Add("kz-fraktionsdetail", () => { _m.TestOpenCcArea(SpaceAdventure.Ui.Screens.CommandAreas.Factions); var fr = _m.HudRef.CcFactions; fr.Selected = fr.TestRows.FirstOrDefault()?.Id; fr.TestDetailOpen = true; }, 12);
 			// Ausbau Punkt 1/1b: Flotte mit gewähltem Kampfschiff und offener Zielwahl „Angreifen“ (Befehlsraster mit sechs Spalten, Karte nach Inhalt)

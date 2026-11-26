@@ -159,6 +159,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 	public string TestPolicyMessage => _policyMsg;
 	/// <summary>Ausgleich, Selbsttest: Zeile der unbezahlten Regierungsstationen (leer = alles bezahlt).</summary>
 	public string TestUnpaidLine = "";
+	/// <summary>Welle C, Selbsttest: Zeile Regierungsunterhalt (Tage Reichweite, ruhende Behörden, Warnung).</summary>
+	public string TestUpkeepLine { get; private set; } = "";
 	/// <summary>Eigenes Hauptquartier, Selbsttest: Zeile des Hauptquartiers (Name und Unterhalt, oder Vorschau bzw. Grund).</summary>
 	public string TestHqLine { get; private set; } = "";
 	/// <summary>Ausbau Punkt 9, Selbsttest: Zeile des Firmensitzes (Name oder Vorschau bzw. Grund) und der Büros.</summary>
@@ -316,6 +318,29 @@ public sealed partial class MyFactionScreen : CommandScreen
 				y += 64;
 			}
 			else if (offices.Count > 0) TestOfficeLine = string.Join(" | ", offices.Select(o => o.Name));
+		}
+		// Welle C (2): Regierungsunterhalt in Rangfolge — Reichweite der Kasse, jede eigene Behörde ruhen lassen (zwei Tipps) oder wieder anschalten
+		TestUpkeepLine = PlayerUpkeepOrder.StatusLine(u);
+		if (TestUpkeepLine.Length > 0)
+		{
+			At(card, Text("Behörden und Unterhalt", 16, Cyan), 20, y, width - 40, 22);
+			y += 26;
+			y = WrappedText(card, TestUpkeepLine, 20, y, width - 40, 13, PlayerUpkeepOrder.Warn(u) ? Orange : new Color(Dim, 0.95f), 18) + 6;
+			var order = PlayerUpkeepOrder.Order(u);
+			float bw = MathF.Min(200f, width - 40);
+			bool stacked = width - 40 - bw - 12 < 220f;   // schmal: Knopf unter den Text
+			foreach (var st in PlayerUpkeepOrder.Governments(u))
+			{
+				int rank = order.FindIndex(s => s.Id == st.Id);
+				float perDay = u.StationTypes.TryGetValue(st.TypeKey, out var gt) ? PlayerUpkeep.PlayerPerTick(u, gt) * u.Rules.DayTicks : 0f;
+				string state = st.Dormant ? "ruht" : PlayerUpkeep.Unpaid(u, st) ? "unbezahlt" : "bezahlt";
+				string line = $"{(rank >= 0 ? $"{rank + 1}." : "–")} {st.Name} ({u.Sectors[st.Sector].Name}) · {perDay:0} Cr/Tag · {state}";
+				var color = st.Dormant ? new Color(Dim, 0.9f) : state == "unbezahlt" ? Orange : White;
+				float ty = WrappedText(card, line, 20, y + (stacked ? 0 : 16), stacked ? width - 40 : width - 40 - bw - 12, 13, color, 18);
+				float by = stacked ? ty + 4 : y;
+				PolicyButton(card, $"rest:{(st.Dormant ? "off" : "on")}:{st.Id.Value}", st.Dormant ? "Wieder an" : "Ruhen lassen", stacked ? 20 : width - 20 - bw, by, bw, confirm: !st.Dormant);
+				y = MathF.Max(ty, by + 56f) + 8;
+			}
 		}
 		// Ausgleich (Punkt 2): Regierungsstationen, deren Unterhalt die Kasse nicht trägt, ruhen (kein Einfluss, keine Sperren, kein Gericht)
 		TestUnpaidLine = PlayerUpkeep.StatusText(u);

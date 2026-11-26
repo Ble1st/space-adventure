@@ -22,6 +22,7 @@ public class SchutzKonvoiTests
     internal static void RevertSchutz(WorldDef def)
     {
         var r = def.Rules ??= new EconomyRules();
+        WelleCTests.RevertWelleC(def);   // Welle C (danach): Spielerreich-Regeln aus
         WelleBTests.RevertWelleB(def);   // Welle B (danach): Spielerbot-Befunde aus
         WelleATests.RevertWelleA(def);   // Welle A (danach): Spieltest-Korrekturen aus
         ShieldSectorTests.RevertShieldSectors(def);   // Richtungsschilde (danach): aus — ein Schildbetrag wie vorher

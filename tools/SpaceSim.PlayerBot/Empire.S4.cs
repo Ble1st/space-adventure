@@ -153,7 +153,6 @@ public sealed partial class Empire
         return n;
     }
 
-    long _lastWarDon;
     // ───────── Messreihe ─────────
     StreamWriter? _s4csv; long _s4csvNext;
     public void S4Csv()

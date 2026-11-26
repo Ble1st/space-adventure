@@ -197,6 +197,7 @@ public sealed class PoliticsModule : ISimModule
          .Add(new OfficeSystem(), OfficeSystem.Interval)       // Ausbau Punkt 9: Büros (Gründung, Schließen ohne Zustimmung)
          .Add(new ProtectionSystem(), ProtectionSystem.Interval)   // Ausbau Punkt 3: Schutzverträge des Spielers
          .Add(new PlayerContestSystem(), PlayerContestSystem.Interval)   // Welle B (2b): KI reagiert auf Spieler-Stationsflut
+         .Add(new WelleCSystem(), WelleCSystem.Interval)                 // Welle C (3): weiches Ansehen erholt sich
          .Add(new FleetLevySystem(), FleetLevySystem.Interval)           // Welle B (3): Abgabe auf den Flottengewinn
          .Add(new SpaceSim.Core.Comms.CommsSystem(), SpaceSim.Core.Comms.CommsSystem.Interval);   // Runde 40: Posteingang aus Ereignissen
 }

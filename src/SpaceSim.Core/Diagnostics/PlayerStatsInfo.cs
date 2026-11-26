@@ -37,6 +37,7 @@ public static class PlayerStatsInfo
             ("Abschüsse", s.Kills.ToString(De)),
             ("Eigene Schiffe verloren", s.ShipsLost.ToString(De)),
             ("Kopfgelder", $"{s.Bounties} · {Cr(s.BountyCredits)}"),
+            ("Steuern aus eigenem Gebiet", Cr(s.TaxCredits)),   // Welle C (1)
             ("Aufträge erfüllt / gescheitert", $"{s.MissionsDone} / {s.MissionsFailed}"),
             ("Sektorwechsel", s.Jumps.ToString(De)),
         };

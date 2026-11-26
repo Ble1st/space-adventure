@@ -39,4 +39,6 @@ public sealed class PlayerStats
     public int Crimes;
     public int RankSeen;
     public string? PilotName;
+    /// <summary>Welle C (1): Steuern aus eigenem Gebiet (Cr); gespeichert/gehasht nur, wenn gesetzt.</summary>
+    public double TaxCredits;
 }

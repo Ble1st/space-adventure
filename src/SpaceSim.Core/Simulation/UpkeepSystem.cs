@@ -17,21 +17,25 @@ public sealed class UpkeepSystem : ISimSystem
     {
         var collected = new SortedDictionary<int, float>();
         float sunk = 0f;
+        float playerForeign = 0f;   // Welle C (1): Abgaben fremder Zahler an die Spielerfraktion
         // Phase 15: Steuerbremse — je größer der Anteil einer Fraktionskasse an der Geldmenge, desto weniger der Abgabe behält sie (FiscalFactors)
         var factors = FiscalFactors(u);
         float FactorOf(FactionId? authority) => authority is { } fa && factors.TryGetValue(fa.Value, out var x) ? x : 1f;
-        void Route(FactionId? authority, float tax)
+        void Route(FactionId? authority, float tax, bool foreign = false)
         {
             if (tax <= 0f) return;
             // Phase 15: Steuerbremse — eine volle Kasse nimmt nur noch einen Teil der Abgabe auf, der Rest verlässt die Welt (wie vor Phase 9)
             float share = Math.Clamp(u.Rules.TaxToTreasuryShare, 0f, 1f) * FactorOf(authority);
             if (u.Crises.Count > 0 && authority is { } ca) share *= GovernmentCrisis.TaxFactor(u, ca);   // Ausbau Punkt 6: Regierungskrise — halbe Steuern
+            // Welle C (1): fremde Zahler im Spielergebiet — die Spielerfraktion behält ihren Anteil (statt der Steuerbremse der KI), der Rest versinkt
+            if (foreign && authority is { } pa && u.IsPlayerFaction(pa)) share *= Math.Clamp(u.Rules.PlayerSectorTaxShare, 0f, 1f);
             if (authority is { } f && share > 0f && u.Actors.TryGetValue(f, out var actor))
             {
                 float paid = tax * share;
                 actor.Treasury.Credits += paid;
                 collected[f.Value] = collected.GetValueOrDefault(f.Value) + paid;
                 sunk += tax - paid;
+                if (foreign && u.IsPlayerFaction(f)) playerForeign += paid;
             }
             else sunk += tax;
         }
@@ -40,8 +44,10 @@ public sealed class UpkeepSystem : ISimSystem
         // Phase 10: Regierungsstationen und Wachen zahlen ihren Unterhalt aus der Kasse des Besitzers (Senke für die Fraktionskassen);
         // reicht die Kasse nicht, zahlt die Station, soweit sie Geld hat — der Rest bleibt unbezahlt (gemeldet, keine Schulden)
         var official = new SortedDictionary<int, (float paid, float unpaid)>();
+        // Welle C (2): Spielerbehörden zuerst in Rangfolge (wichtigste zuerst, ruhende zahlen nichts) — die Schleife überspringt sie danach
+        var ordered = PlayerUpkeepOrder.Active(u) ? PlayerUpkeepOrder.ChargeAll(u, dt, official) : null;
         foreach (var st in u.Stations.Values)
-            if (!st.IsBuildSite && u.StationTypes.TryGetValue(st.TypeKey, out var type))
+            if (!st.IsBuildSite && (ordered is null || !ordered.Contains(st.Id)) && u.StationTypes.TryGetValue(st.TypeKey, out var type))
             {
                 float stUpkeep = type.UpkeepPerTick * dt;
                 if (type.Government != GovernmentKind.None && stUpkeep > 0f && FirmSeats.IsFirmGovernment(u, st))
@@ -102,7 +108,7 @@ public sealed class UpkeepSystem : ISimSystem
                 float tax = taxable * u.Rules.StationWealthTax * dt;
                 st.Credits -= tax;
                 Profitability.Transfer(st.Profit, -tax);   // Phase 22: Vermögensabgabe zählt nicht zum Geschäftsergebnis (sie trifft Reichtum, nicht Verlust)
-                Route(u.FactionOf(st), tax);
+                Route(StationTaxAuthority(u, st), tax, st.Owner != u.PlayerActor);
             }
 
         float upkeep = u.Rules.ShipUpkeepPerTick * dt;
@@ -115,12 +121,13 @@ public sealed class UpkeepSystem : ISimSystem
                     float tax = (ship.Credits - u.Rules.WealthTaxFree) * u.Rules.ShipWealthTax * dt;
                     ship.Credits -= tax;
                     Profitability.Transfer(ship.Profit, -tax);   // Phase 22: Rentabilität = Erlös − Einkauf − Unterhalt, ohne Vermögensabgabe
-                    Route(TaxAuthority(u, ship), tax);
+                    Route(TaxAuthority(u, ship), tax, foreign: true);
                 }
             }
 
         foreach (var (f, amount) in collected) u.Events.Publish(new TaxCollected(new ActorId(f), amount));
         if (sunk > 0f) u.Events.Publish(new TaxSunk(sunk));
+        if (playerForeign > 0f) u.Events.Publish(new PlayerSectorTaxCollected(playerForeign));
     }
 
     /// <summary>
@@ -152,6 +159,15 @@ public sealed class UpkeepSystem : ISimSystem
     }
 
     /// <summary>Wer die Abgabe eines Schiffs bekommt: die Fraktion seines Besitzers, für freie Einzelschiffe die Fraktion, der der Sektor gehört.</summary>
-    public static FactionId? TaxAuthority(Universe u, Ship ship) =>
-        u.FactionOf(ship) is { } own && !u.IsPlayerFaction(own) ? own : (u.Sectors.TryGetValue(ship.Sector, out var sec) && u.IsNpcFaction(sec.Owner) ? sec.Owner : null);
+    public static FactionId? TaxAuthority(Universe u, Ship ship)
+    {
+        // Welle C (1): mit PlayerSectorTaxes ist die Spielerfraktion Steuerbehörde ihrer Mitglieder und freier Schiffe in ihren Sektoren
+        if (u.Rules.PlayerSectorTaxes && u.PlayerFaction is { } me && ship.Owner != u.PlayerActor && u.Sectors.TryGetValue(ship.Sector, out var ps)   // eigene Schiffe zahlen sich nicht selbst
+            && (u.FactionOf(ship) == me || (u.FactionOf(ship) is null && ps.Owner == me))) return me;
+        return u.FactionOf(ship) is { } own && !u.IsPlayerFaction(own) ? own : (u.Sectors.TryGetValue(ship.Sector, out var sec) && u.IsNpcFaction(sec.Owner) ? sec.Owner : null);
+    }
+
+    /// <summary>Wer die Abgabe einer Station bekommt: die Fraktion ihres Besitzers; fraktionslose Stationen in Spielersektoren mit Welle C (1) die Spielerfraktion.</summary>
+    public static FactionId? StationTaxAuthority(Universe u, Station st) =>
+        u.FactionOf(st) ?? (u.Rules.PlayerSectorTaxes && u.PlayerFaction is { } me && u.Sectors.TryGetValue(st.Sector, out var sec) && sec.Owner == me ? me : null);
 }

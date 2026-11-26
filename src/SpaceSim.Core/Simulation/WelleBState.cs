@@ -56,6 +56,15 @@ public static class FleetLevy
         float profit = s.FleetPending;
         if (profit <= 0f) { s.FleetSales.Clear(); return 0f; }   // Verlust bleibt als Vortrag stehen
         float levy = profit * MathF.Min(1f, u.Rules.PlayerFleetLevyShare);
+        // Welle C (2): die Abgabe nimmt der Kasse nicht den Vorrat der eigenen Behörden — sonst riss die Abrechnung (alle 2400 Ticks ein Klumpen) die Kasse
+        // ins Minus und alle Behörden fielen im selben Schritt aus (Spielerbot). Der nicht bezahlte Teil bleibt als Gewinn stehen (gestundet).
+        float carry = 0f;
+        if (PlayerUpkeepOrder.Active(u))
+        {
+            float room = MathF.Max(0f, u.Player.Treasury.Credits - PlayerUpkeepOrder.Reserve(u));
+            if (levy > room) { carry = (levy - room) / MathF.Max(1e-6f, MathF.Min(1f, u.Rules.PlayerFleetLevyShare)); levy = room; }
+            if (levy <= 0f) { s.FleetPending = profit; return 0f; }
+        }
         float sales = s.FleetSales.Values.Sum();
         float toFactions = 0f;
         foreach (var (f, v) in s.FleetSales)
@@ -67,7 +76,7 @@ public static class FleetLevy
             u.Events.Publish(new TreasuryIncome(a.Id, "fleet_levy", part));
         }
         u.Player.Treasury.Credits -= levy;
-        s.FleetPending = 0f;
+        s.FleetPending = carry;
         s.FleetSales.Clear();
         u.Events.Publish(new FleetLevyPaid(profit, levy, toFactions, levy - toFactions,
             $"Flottenabgabe: {levy:0} Cr ({u.Rules.PlayerFleetLevyShare:P0} von {profit:0} Cr Flottengewinn)."));

@@ -188,6 +188,7 @@ public class SpielerHqTests
             WithSeat(u);
             Assert.True(CommsActions.Default().Execute(u, $"hq:found:{Nebelmark.Value}").Success);
             u.Rules.PlayerGovernmentDebt = debt;
+            u.Rules.PlayerSectorTaxes = false;   // Welle C: Steuern aus Nebelmark kämen hinzu — hier wird nur der Unterhalt gerechnet
             u.Rules.PlayerUpkeepFloorActive = false; u.Rules.PlayerGovernmentUpkeepShare = 1f;   // Ausgleich (Punkt 2): geprüft wird die alte Schuldenregel; Untergrenze und Anteil prüft BalanceFixTests
             var t = PlayerHq.HqType(u)!;
             var seat = PlayerSeats.SeatType(u)!;

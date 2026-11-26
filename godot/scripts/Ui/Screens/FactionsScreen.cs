@@ -165,7 +165,7 @@ public sealed partial class FactionsScreen : CommandScreen, ISessionScreen
 			At(det, Text(line, 12, war ? Red : TestViability == "handlungsfähig" ? Dim : Orange), 18, ry + 20, 560, 16);
 		}
 		// Spielersperre: warum die Beziehung zu dir gefallen ist (letztes Verbrechen, offene Ansehensschuld) — in der Bündniszeile, kein neuer Platz nötig
-		TestCrimeStanding = isFaction && !isMe ? CrimeStanding.Text(u, new FactionId(sel.Value)) ?? "" : "";
+		TestCrimeStanding = isFaction && !isMe ? CrimeStanding.Text(u, new FactionId(sel.Value)) ?? PlayerSoftStanding.Text(u, new FactionId(sel.Value)) ?? "" : "";   // Welle C: weicher Verlust (Streit/Fehde)
 		if (TestCrimeStanding.Length > 0)
 		{
 			At(det, Text(TestAlliance, 12, allies.Count > 0 ? Green : new Color(Dim, 0.85f)), 18, ry + 38, 230, 16);

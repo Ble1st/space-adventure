@@ -52,6 +52,7 @@ public static class PlayerStanding
     public static void Change(Universe u, FactionId faction, float delta, string reason)
     {
         if (u.PlayerFaction is not { } me || !u.IsNpcFaction(faction) || delta == 0f) return;
+        if (delta < 0f) { delta = PlayerSoftStanding.Limit(u, faction, delta, reason); if (delta == 0f) return; }   // Welle C (3): Boden weicher Verluste
         float from = Relations.Effective(u, faction, u.PlayerActor);
         float to = Math.Clamp(from + delta, -1f, 1f);
         Relations.Set(u, faction, me, to);

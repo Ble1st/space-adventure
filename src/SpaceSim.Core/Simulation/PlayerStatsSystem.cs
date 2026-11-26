@@ -95,6 +95,7 @@ public sealed class PlayerStatsSystem : ISimSystem, ISimEventListener
             case MissionFailed: Ensure(u).MissionsFailed++; break;
             case BountyEarned be when be.Hunter == u.PlayerActor: { var s = Ensure(u); s.Bounties++; s.BountyCredits += be.Amount; break; }
             case CargoTransferred ct: Ensure(u).Transferred += ct.Units; break;
+            case PlayerSectorTaxCollected tax: Ensure(u).TaxCredits += tax.Amount; break;   // Welle C (1)
         }
     }
 }

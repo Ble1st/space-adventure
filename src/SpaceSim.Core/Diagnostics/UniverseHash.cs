@@ -35,6 +35,7 @@ public static class UniverseHash
             if (st.Rotation != 0f) { Mix(0x2074UL); MixF(st.Rotation); }   // eigene Stationen: Drehung (nur wenn gesetzt)
             if (st.CapitulationLockUntil != 0) { Mix(0x2076UL); Mix((ulong)st.CapitulationLockUntil); }   // Ausgleich: Kapitulationssperre
             if (st.Unpaid) Mix(0x2077UL);   // Ausgleich: Regierungsunterhalt unbezahlt
+            if (st.Dormant) Mix(0x2078UL);   // Welle C: ruhende eigene Behörde
             foreach (var (g, e) in st.Market.OrderBy(k => k.Key.Value))
             {
                 Mix((ulong)g.Value); MixF(e.Amount); MixF(e.Price);
@@ -249,6 +250,7 @@ public static class UniverseHash
         // Ausbau Punkt 3: Schutzverträge (Spielerpolitik), Konvois (ohne Konvoi mischt nichts)
         Persistence.BlueprintMercCodec.Mix(u, includePlayerPolitics, Mix, MixF, MixString);   // Baupläne (Spielerpolitik), Söldner — nur wenn vorhanden
         if (includePlayerPolitics) Bars.BarCodec.Mix(u, Mix, MixF);   // Bars: Rubbellos und Losverkauf (Spieleraktion; nur wenn vorhanden)
+        if (includePlayerPolitics) Simulation.WelleCCodec.Mix(u, Mix, MixF);   // Welle C: weiches Ansehen (nur wenn vorhanden)
         if (includePlayerPolitics) Simulation.WelleBCodec.Mix(u, Mix, MixF);   // Welle B: Flottenabgabe, Spenden (nur wenn vorhanden)
         if (includePlayerPolitics) foreach (var c in u.Protections) { Mix(0x0301u); Mix((ulong)c.Faction.Value); Mix((ulong)c.Since); Mix((ulong)c.PaidUntil); }
         foreach (var c in u.Convoys)

@@ -38,6 +38,14 @@ for (int i = 0; i < args.Length; i++)
 Directory.CreateDirectory(outDir); Empire.S4Out = outDir;
 var def = WorldBuilder.Parse(File.ReadAllText(world));
 var u = loadFile is null ? WorldBuilder.Build(def, seed, start) : SaveGameJson.Read(File.ReadAllText(loadFile)).Universe;
+// Welle C: ein älterer Spielstand trägt seine gespeicherten Regeln (ohne Welle C) — mit --wellec gelten die Welle-C-Regeln der Welt-Datei
+if (args.Contains("--wellec") && def.Rules is { } wr)
+{
+    var ur = u.Rules;
+    ur.PlayerSectorTaxes = wr.PlayerSectorTaxes; ur.PlayerSectorTaxShare = wr.PlayerSectorTaxShare; ur.PlayerUpkeepPriority = wr.PlayerUpkeepPriority; ur.PlayerUpkeepReserveTicks = wr.PlayerUpkeepReserveTicks;
+    ur.PlayerUpkeepWarnDays = wr.PlayerUpkeepWarnDays; ur.PlayerStandingFloor = wr.PlayerStandingFloor; ur.PlayerStandingRecoveryPerDay = wr.PlayerStandingRecoveryPerDay;
+    ur.PlayerStandingSoftReasons = new List<string>(wr.PlayerStandingSoftReasons); ur.PlayerSeatContested = wr.PlayerSeatContested;
+}
 if (Array.IndexOf(args, "--probe3") is var p3 && p3 >= 0) { Probe3.Run(u, args[p3 + 1], seed, outDir); return; }
 if (args.Contains("--sites"))
 {

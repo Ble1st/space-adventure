@@ -86,6 +86,7 @@ public sealed class SaveGame
     /// <summary>Bars (additiv): Losverkauf je Station und offenes Rubbellos; fehlt = nie benutzt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Bars.BarSave? Bar { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Simulation.WelleBSave? WelleB { get; set; }   // Welle B: Flottenabgabe, Spenden
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Simulation.WelleCSave? WelleC { get; set; }   // Welle C: weiches Ansehen
     /// <summary>Phase 28 (additiv, v17 bleibt): laufende Kriege und Friedensschlüsse je Fraktionspaar; fehlt = keine.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<WarSave>? Wars { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public List<long[]>? PeaceSince { get; set; }
@@ -236,6 +237,7 @@ public sealed class PlayerStatsSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Crimes { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int RankSeen { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PilotName { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public double TaxCredits { get; set; }   // Welle C
 }
 
 /// <summary>Mehrpunkt-Route: Halte als [Art, Id, Sektor] mit Punkt (x, y), nächster Halt, Andock-Schalter.</summary>
@@ -750,6 +752,7 @@ public sealed class StationSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long CapitulationLockUntil { get; set; }
     /// <summary>Ausgleich (additiv): Regierungsunterhalt unbezahlt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Unpaid { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Dormant { get; set; }   // Welle C: ruhende eigene Behörde
 }
 
 /// <summary>Baustelle (Phase 8): Zieltyp, Stückliste, Investor, Treuhand-Bausumme, Bauschiff, Zeiten und Zustand.</summary>

@@ -491,6 +491,7 @@ public partial class Main : Node3D
 		var u = _session.U;
 		if (_placeType is not null) EndPlacement(null);   // eigene Stationen: kein Geist aus der alten Sitzung
 		if (_hailTarget is not null) CloseHail();   // Funk: kein Gespräch aus der alten Sitzung
+		_upkeepWarned = false; TestUpkeepWarning = "";   // Welle C: Vorwarnung je Sitzung neu
 		AttachedUniverses.Add(new WeakReference(u));
 		Ui.MapOverlay.BanditFactions.Clear();   // Nachtrag 17b: Banditenfraktionen rot auf den Karten
 		foreach (var bf in u.Factions.Keys) if (SpaceSim.Core.Simulation.Bandits.IsEstablished(u, bf)) Ui.MapOverlay.BanditFactions.Add(bf.Value);
@@ -1682,6 +1683,9 @@ public partial class Main : Node3D
 				if (gu.Unpaid) _hud.Alert($"{gu.Name}: Unterhalt nicht bezahlt — außer Betrieb (kein Einfluss, keine Sperren, kein Gericht). Mehr unter „Meine Fraktion“.", 8f);
 				else _hud.Info($"{gu.Name}: Unterhalt wieder bezahlt — wieder in Betrieb.", 4f);
 				break;
+			case PlayerGovernmentRested gr:   // Welle C: Behörde ruht / läuft wieder
+				_hud.Info(gr.Dormant ? $"{gr.Name} ruht — kein Unterhalt, kein Einfluss." : $"{gr.Name} wieder angeschaltet.", 4f);
+				break;
 			case SeatRelocated seat:
 				_hud.Info(MaskUnknownFactions($"{_session.U.ActorName((ActorId)seat.Faction)} verlegt ihren Sitz nach {(_session.U.Sectors.TryGetValue(seat.Sector, out var seatSec) ? seatSec.Name : "?")}."), 4f);   // Punkt 16b
 				break;
@@ -1875,6 +1879,7 @@ public partial class Main : Node3D
 		_view.SyncStations(_session.U);   // Runde 8: Besitzerfarbe und Zustand der Stationsmodelle
 		_missions.Sync(_session.U, delta);   // Runde 41: Leuchtfeuer der Missionsziele im Sektor
 		HelpTick(delta);   // Hilfe und Tutorial: Kontexthinweise und Tutorialschritte (Main.Help.cs)
+		UpkeepWarnTick(delta);   // Welle C: Vorwarnung Regierungsunterhalt (Main.WelleC.cs)
 		UpdateJumpCloak(delta);   // Sprungantrieb: Ladeleuchten, Stillhalten; Tarnfeld: Durchsichtigkeit
 
 		// Phase 26: keine Gratis-Regeneration der Hülle mehr (Reparatur nur über den Dienst „repair“); ohne Schadensmodell wie bisher

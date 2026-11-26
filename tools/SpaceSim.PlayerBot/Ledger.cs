@@ -48,6 +48,8 @@ public sealed class Ledger
             case TradeCompleted tc when Mine(tc.Ship): Add("Flotte Handel Verkauf", tc.Revenue); break;
             case TreasuryUpkeep t when t.Actor == me: Add("Kosten " + t.Purpose, -t.Amount); break;
             case TaxCollected tx when tx.Treasury == me: Add("Einnahme Vermögensabgabe eigener Stationen", tx.Amount); break;
+            // Welle C (1): der fremde Anteil derselben Buchung (TaxCollected enthält ihn schon) — umgebucht, nicht doppelt
+            case SpaceSim.Core.Simulation.PlayerSectorTaxCollected ptx: Add("Einnahme Steuern aus eigenem Gebiet (Welle C)", ptx.Amount); Add("Einnahme Vermögensabgabe eigener Stationen", -ptx.Amount); break;
             case TreasuryIncome t when t.Actor == me: Add("Einnahme " + t.Purpose, t.Amount); break;
             case FleetLevyPaid fl: Add("Kosten Flottenabgabe (Welle B)", -fl.Levy); break;
             case FleetUpkeepPaid f when f.Actor == me: Add("Kosten Flottenunterhalt", -f.Amount); break;

@@ -136,7 +136,7 @@ public class Runde40Tests
         var u = World();
         var actions = CommsActions.Default();
         // Runde 41: mission_abandon dazu; Runde 45: Tribut fordern, Bündnis, Sektorbehörde, eigene Sperre hinten angehängt (Registrierungsreihenfolge)
-        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "mission_abandon", "contract", "demand", "alliance", "seat", "lock", "hq", "intel", "firmseat", "office", "feud", "mediate", "protection", "merc", "donate" }, actions.Keys);   // Ausbau Punkt 3: „protection“   // Ausbau Punkt 6: „feud“, „mediate“   // Eigenes Hauptquartier: „hq“ angehängt; Ausbau Punkt 16: „intel“; Ausbau Punkt 9: „firmseat“, „office“   // Söldner: „merc“
+        Assert.Equal(new[] { "fine", "war", "ceasefire", "peace", "tribute", "mission", "mission_abandon", "contract", "demand", "alliance", "seat", "lock", "hq", "intel", "firmseat", "office", "feud", "mediate", "protection", "merc", "donate", "rest" }, actions.Keys);   // Welle C: „rest“   // Ausbau Punkt 3: „protection“   // Ausbau Punkt 6: „feud“, „mediate“   // Eigenes Hauptquartier: „hq“ angehängt; Ausbau Punkt 16: „intel“; Ausbau Punkt 9: „firmseat“, „office“   // Söldner: „merc“
         int evts = 0;
         u.Events.Raised += _ => evts++;
         float wallet = u.Player.Treasury.Credits;

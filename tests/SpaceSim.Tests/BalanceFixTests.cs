@@ -209,6 +209,7 @@ public class BalanceFixTests
         var u = World();
         var seat = FoundSeat(u);
         var t = u.StationTypes[seat.TypeKey];
+        u.Rules.PlayerSectorTaxes = false;   // Welle C: Steuern aus Nebelmark kämen hinzu — hier wird nur der Unterhalt gerechnet
         u.Player.Treasury.Credits = 100_000f;
         new UpkeepSystem().Step(u, 10);
         Assert.Equal(100_000f - t.UpkeepPerTick * 0.15f * 10f, u.Player.Treasury.Credits, 1);

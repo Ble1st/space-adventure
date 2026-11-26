@@ -236,6 +236,8 @@ public sealed class Universe
     public Bars.BarState? Bar { get; set; }
     /// <summary>Welle B: Flottenabgabe und Spenden des Spielers (null = nie benutzt). Gespeichert, gehasht (Spielerpolitik) nur wenn vorhanden.</summary>
     public Simulation.WelleBState? WelleB { get; set; }
+    /// <summary>Welle C: weiches Ansehen des Spielers (Ausgangswert und offener Verlust je KI-Fraktion; null = nie benutzt). Gespeichert, gehasht (Spielerpolitik) nur wenn vorhanden.</summary>
+    public Simulation.WelleCState? WelleC { get; set; }
     public int NextWormholeId { get; set; } = 1;
     /// <summary>Phase 28: laufende Kriege zwischen Fraktionen (Reihenfolge der Erklärung; gespeichert und gehasht, wenn welche laufen). Regeln in <see cref="Simulation.Wars"/>.</summary>
     public List<War> Wars { get; } = new();

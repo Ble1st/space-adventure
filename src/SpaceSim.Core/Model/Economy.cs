@@ -256,6 +256,8 @@ public sealed class Station
     public long CapitulationLockUntil;
     /// <summary>Ausgleich (Regel <see cref="EconomyRules.PlayerUpkeepFloorActive"/>): Regierungsstation des Spielers, deren Unterhalt nicht bezahlt ist — außer Betrieb.</summary>
     public bool Unpaid;
+    /// <summary>Welle C (Regel <see cref="EconomyRules.PlayerUpkeepPriority"/>): vom Spieler ruhen gelassene eigene Behörde — kein Unterhalt, kein Einfluss, kein Gericht.</summary>
+    public bool Dormant;
 
     /// <summary>Parkposition eines Schiffs an der Station, knapp außerhalb des Körpers (Radius + 7; mittlere Station wie bisher 22).</summary>
     public Vec2 DockPoint(ShipId ship) => Position + Vec2.FromAngle(ship.Value * 2.4f) * (Radius + 7f);

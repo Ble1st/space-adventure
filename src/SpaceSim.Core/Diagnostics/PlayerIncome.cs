@@ -33,6 +33,7 @@ public sealed class PlayerIncome
             case BountyPaid bp when bp.Hunter == _u.PlayerActor: Add(bp.Amount, "Kopfgeld"); break;
             case TreasuryIncome { Purpose: "tribute" } ti when ti.Actor == _u.PlayerActor: Add(ti.Amount, "Tribut"); break;   // Runde 45: geforderter Tribut
             case ShipSold sold: Add(sold.Price, "Schiffsverkauf"); break;
+            case Simulation.PlayerSectorTaxCollected tax: Add(tax.Amount, "Steuern"); break;   // Welle C (1): Abgaben aus eigenem Gebiet
         }
     }
 

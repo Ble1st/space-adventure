@@ -27,16 +27,17 @@ public static class PlayerUpkeep
     public static float PlayerPerTick(Universe u, StationType t) => t.UpkeepPerTick * MathF.Max(0f, u.Rules.PlayerGovernmentUpkeepShare);
 
     /// <summary>Außer Betrieb, weil der Unterhalt nicht bezahlt ist (nur mit der Regel).</summary>
-    public static bool Unpaid(Universe u, Station st) => st.Unpaid && u.Rules.PlayerUpkeepFloorActive;
+    public static bool Unpaid(Universe u, Station st) => (st.Unpaid && u.Rules.PlayerUpkeepFloorActive) || (st.Dormant && u.Rules.PlayerUpkeepPriority);   // Welle C: ruhend zählt wie unbezahlt
 
     /// <summary>
     /// Bucht den Unterhalt einer Regierungsstation des Spielers mit der Untergrenze (Regel an). true = bezahlt. Eine unbezahlte Station läuft erst wieder,
     /// wenn danach noch <see cref="EconomyRules.PlayerUpkeepResumeBuffer"/> über der Untergrenze bleibt. Wechsel → <see cref="PlayerGovernmentUnpaidChanged"/>.
     /// </summary>
-    public static bool Charge(Universe u, Station st, Actor owner, float cost)
+    public static bool Charge(Universe u, Station st, Actor owner, float cost, float reserve = 0f)
     {
         var r = u.Rules;
-        float need = r.PlayerUpkeepFloor + (st.Unpaid ? MathF.Max(0f, r.PlayerUpkeepResumeBuffer) : 0f);
+        // Welle C: reserve = Vorrat für die wichtigeren Stationen (PlayerUpkeepOrder), 0 = alte Regel
+        float need = r.PlayerUpkeepFloor + reserve + (st.Unpaid ? MathF.Max(0f, r.PlayerUpkeepResumeBuffer) : 0f);
         bool pay = owner.Treasury.Credits - cost >= need;
         if (pay) owner.Treasury.Credits -= cost;
         if (st.Unpaid == pay)
@@ -49,7 +50,7 @@ public static class PlayerUpkeep
     }
 
     /// <summary>Unbezahlte Regierungsstationen des Spielers (Id-Reihenfolge).</summary>
-    public static List<Station> UnpaidStations(Universe u) => u.StationsById().Where(s => s.Owner == u.PlayerActor && Unpaid(u, s)).ToList();
+    public static List<Station> UnpaidStations(Universe u) => u.StationsById().Where(s => s.Owner == u.PlayerActor && s.Unpaid && u.Rules.PlayerUpkeepFloorActive && !s.Dormant).ToList();
 
     /// <summary>Zeile für „Meine Fraktion“ (leer, wenn alles bezahlt ist).</summary>
     public static string StatusText(Universe u)

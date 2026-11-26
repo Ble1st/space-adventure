@@ -189,6 +189,7 @@ public static class UniverseSerializer
         Pilots.CaptainCodec.Save(u, s);   // Piloten (nicht gehasht)
         Help.TutorialCodec.Save(u, s);   // Tutorial (nicht gehasht)
         Bars.BarCodec.Save(u, s);        // Bars (Rubbellos, Losverkauf)
+        Simulation.WelleCCodec.Save(u, s);   // Welle C (weiches Ansehen)
         Simulation.WelleBCodec.Save(u, s);   // Welle B (Flottenabgabe, Spenden)
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
@@ -398,7 +399,7 @@ public static class UniverseSerializer
                 CalmSince = st.CalmSince < 0 ? null : st.CalmSince,
                 Integrity = st.Integrity == 1f ? null : st.Integrity,   // Ausbau Punkt 8
                 Rotation = st.Rotation == 0f ? null : st.Rotation,
-                CapitulationLockUntil = st.CapitulationLockUntil, Unpaid = st.Unpaid,   // Ausgleich (additiv)
+                CapitulationLockUntil = st.CapitulationLockUntil, Unpaid = st.Unpaid, Dormant = st.Dormant,   // Ausgleich, Welle C (additiv)
             });
         foreach (var sh in u.Ships.Values) s.Ships.Add(ShipToSave(sh));
         s.Hangars = CarrierCodec.ToSave(u);   // Träger: eingeschleuste Bordjäger (additiv)
@@ -669,6 +670,7 @@ public static class UniverseSerializer
         Pilots.CaptainCodec.Load(s, u);   // Piloten
         Help.TutorialCodec.Load(s, u);   // Tutorial
         Bars.BarCodec.Load(s, u);        // Bars
+        Simulation.WelleCCodec.Load(s, u);   // Welle C
         Simulation.WelleBCodec.Load(s, u);   // Welle B
         // Phase 24: laufende Gefechte (der Index Schiff → Gefecht ist abgeleitet)
         u.Fights.NextId = Math.Max(1, s.NextEncounterId);
@@ -848,7 +850,7 @@ public static class UniverseSerializer
                 CalmSince = st.CalmSince ?? -1,
                 Integrity = st.Integrity ?? 1f,   // Ausbau Punkt 8
                 Rotation = st.Rotation ?? 0f,
-                CapitulationLockUntil = st.CapitulationLockUntil, Unpaid = st.Unpaid,   // Ausgleich (additiv)
+                CapitulationLockUntil = st.CapitulationLockUntil, Unpaid = st.Unpaid, Dormant = st.Dormant,   // Ausgleich, Welle C (additiv)
             };
         // Phase 30: Radius und Andockbarkeit aus dem Typ (Baustelle: Zieltyp) — abgeleitet, nicht gespeichert
         foreach (var st in u.Stations.Values) Content.StationFactory.ApplySize(u, st);

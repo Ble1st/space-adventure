@@ -441,7 +441,8 @@ public static class PlayerSeatsOffices
         if (Seat(u) is { } have) return $"Du hast schon einen Firmensitz ({have.Name}).";
         if (!u.Sectors.TryGetValue(sector, out var sec)) return "Unbekannter Sektor.";
         if (ActiveShipIn(u, sector) is not { } ship) return "Dein aktives Schiff muss im Sektor sein.";
-        if (u.IsNpcFaction(sec.Owner)) return $"{sec.Name} gehört {u.Factions[sec.Owner].Name} — nur eigene oder herrenlose Sektoren.";
+        if (u.IsNpcFaction(sec.Owner) && !PlayerSeatContest.Allows(u, sec))   // Welle C (4): auch im vom Spieler umkämpften Fremdsektor
+            return $"{sec.Name} gehört {u.Factions[sec.Owner].Name} — nur eigene oder herrenlose Sektoren{(u.Rules.PlayerSeatContested ? " oder solche, in denen du umkämpft bist (ohne Krieg)" : "")}.";
         if (sec.Stations.Any(id => u.Stations.TryGetValue(id, out var st) && StationProtection.IsHideout(u, st))) return "Piratenversteck im Sektor — kein Firmensitz.";
         if (ClassIssue(u, r.PlayerFirmSeatMinClass) is { } ci) return ci;
         float cost = FirmSeats.Cost(u, t);

@@ -11,7 +11,7 @@ public static class PlayerStatsCodec
         TradeRevenue = s.TradeRevenue, TradeSpent = s.TradeSpent, TradeUnits = s.TradeUnits, Sales = s.Sales, Purchases = s.Purchases,
         OreMined = s.OreMined, Kills = s.Kills, ShipsLost = s.ShipsLost, MissionsDone = s.MissionsDone, MissionsFailed = s.MissionsFailed,
         Jumps = s.Jumps, Bounties = s.Bounties, BountyCredits = s.BountyCredits, Transferred = s.Transferred,
-        KillPoints = s.KillPoints, Crimes = s.Crimes, RankSeen = s.RankSeen, PilotName = s.PilotName,
+        KillPoints = s.KillPoints, Crimes = s.Crimes, RankSeen = s.RankSeen, PilotName = s.PilotName, TaxCredits = s.TaxCredits,
     };
 
     public static PlayerStats? FromSave(PlayerStatsSave? s) => s is null ? null : new PlayerStats
@@ -20,7 +20,7 @@ public static class PlayerStatsCodec
         TradeRevenue = s.TradeRevenue, TradeSpent = s.TradeSpent, TradeUnits = s.TradeUnits, Sales = s.Sales, Purchases = s.Purchases,
         OreMined = s.OreMined, Kills = s.Kills, ShipsLost = s.ShipsLost, MissionsDone = s.MissionsDone, MissionsFailed = s.MissionsFailed,
         Jumps = s.Jumps, Bounties = s.Bounties, BountyCredits = s.BountyCredits, Transferred = s.Transferred,
-        KillPoints = s.KillPoints, Crimes = s.Crimes, RankSeen = s.RankSeen, PilotName = s.PilotName,
+        KillPoints = s.KillPoints, Crimes = s.Crimes, RankSeen = s.RankSeen, PilotName = s.PilotName, TaxCredits = s.TaxCredits,
     };
 
     /// <summary>Hashbeitrag (nur mit Spielerpolitik und nur, wenn es eine Statistik gibt).</summary>
@@ -38,5 +38,6 @@ public static class PlayerStatsCodec
             mix((ulong)BitConverter.DoubleToInt64Bits(s.KillPoints)); mix((ulong)(long)s.Crimes); mix((ulong)(long)s.RankSeen);
             foreach (char c in s.PilotName ?? "") mix(c);
         }
+        if (s.TaxCredits != 0) { mix(0xC7A1u); mix((ulong)BitConverter.DoubleToInt64Bits(s.TaxCredits)); }   // Welle C: nur wenn gesetzt
     }
 }
