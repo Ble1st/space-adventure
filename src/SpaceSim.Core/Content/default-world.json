@@ -120,6 +120,12 @@
   "banditHoardShare": 0.0002,
   "banditFenceCap": 0,
   "missileGuidance": true,
+  "fleetAttackOnce": true,
+  "playerTributeOnlyIfAiAhead": true,
+  "playerWarMoneyShare": 0.2,
+  "playerWarMoneyCap": 200000,
+  "gateBrokeNoEvasion": true,
+  "bountyReachableTargets": true,
   "shipHeat": true,
   "shieldSectors": true,
   "suns": true,
@@ -5715,10 +5721,12 @@
    {
     "key": "fighter",
     "name": "Jäger",
-    "description": "Falke: Laserkanone und kinetisches Geschütz, Schild und Speicherbank, kein Frachtraum. Start an der Werft Delta, nahe am Abgrund mit dem Piratenversteck — du lebst vom Kopfgeld auf Piraten (abholen bei der Behörde).",
+    "description": "Falke: Laserkanone und kinetisches Geschütz, Schild und Speicherbank, dazu ein kleiner Frachtraum (60 m³) für Beute aus Wracks statt des Zusatzmagazins (das Geschütz hat 30 Schuss). Start an der Werft Delta, nahe am Abgrund mit dem Piratenversteck — du lebst vom Kopfgeld auf Piraten (abholen bei der Behörde) und vom Bergen.",
     "model": "falcon",
-    "credits": 600,
-    "sector": 4
+    "credits": 2000,
+    "sector": 4,
+    "fit": ["reactor_mk2", "chem_engine_s_mk2", "weapon_laser_s", "weapon_massdriver_s", "shield_mk1", "power_bank_s", null],
+    "extraModules": ["cargo_universal_60"]
    },
    {
     "key": "trader",

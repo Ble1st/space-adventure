@@ -1,3 +1,4 @@
+using SpaceSim.Core.Combat;
 using SpaceSim.Core.Events;
 using SpaceSim.Core.Model;
 
@@ -33,6 +34,7 @@ public sealed class OrderSystem : ISimSystem
             if (ship.Id == u.PlayerShip && !u.PlayerOnFoot && ship.DockedAt.Value == 0 && !u.PlayerSpectates) continue;   // an Bord im Flug hat die Person das Steuer: der Befehl pausiert (nicht beendet); angedockt/zu Fuß/abwesend — und im Befehlsstand (PlayerSpectates) — läuft er weiter
             if (!_executors.TryGet(cmd.Kind, out var ex)) { ship.Command = null; continue; }
             // Phase 24: Gefecht steht über dem Notfall — der Befehl ruht (Ausführer beim Eintritt gestoppt, beim Austritt neu gestartet)
+            if (FleetAttack.EndFinishedWar(u, ship)) continue;   // Welle A: Kriegsangriff endet mit Frieden/Waffenstillstand (auch im Gefecht oder auf dem Rückzug)
             if (u.Fights.IsEngaged(ship.Id)) continue;
 
             // Ebene 1: Notfall

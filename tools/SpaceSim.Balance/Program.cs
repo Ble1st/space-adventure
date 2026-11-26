@@ -28,6 +28,7 @@ if (opts.TryGetValue("bandits", out var banOpt)) worldDef.Rules.BanditFactions =
 if (opts.TryGetValue("ammo", out var ammoOpt)) worldDef.Rules.AmmoActive = ammoOpt == "on";
 // Raketenlenkung: --guidance on|off (aus = WorldBuilder lässt Täuschkörper, neue Werfer und Störsender weg)
 if (opts.TryGetValue("guidance", out var guidOpt)) worldDef.Rules.MissileGuidance = guidOpt == "on";   // Phase 23: Munition (Rezept, Lagerware) an/aus
+if (opts.TryGetValue("playerwarmoney", out var pwmOpt) && pwmOpt == "off") { worldDef.Rules.PlayerWarMoneyShare = 0f; worldDef.Rules.PlayerWarMoneyCap = 0f; }   // Welle A: ganze Spielerkasse zählt in der Kriegsstärke (alte Regel)
 // Hitze: --heat on|off (aus = keine Hitze, WorldBuilder lässt die Kühlermodule weg)
 if (opts.TryGetValue("heat", out var heatOpt)) worldDef.Rules.ShipHeat = heatOpt == "on";
 // Richtungsschilde: --shieldsectors on|off

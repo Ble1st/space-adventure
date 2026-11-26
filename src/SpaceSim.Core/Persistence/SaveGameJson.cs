@@ -215,7 +215,7 @@ public static class SaveGameJson
         }
         RemoveWhere(root["ships"]?.AsArray(), n => Late((string?)n["model"]));
         (root as System.Text.Json.Nodes.JsonObject)?.Remove("wormholes");   // Wurmlöcher
-        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); rr.Remove("maxSalvagers"); rr.Remove("npcSalvage"); rr.Remove("derelictShips"); rr.Remove("derelictEventTicks"); rr.Remove("missionBreakdownChance"); rr.Remove("missionShipDeliveryChance"); rr.Remove("missileGuidance"); rr.Remove("shipHeat"); rr.Remove("suns"); rr.Remove("wormholes"); rr.Remove("pilotRanks"); rr.Remove("bars"); rr.Remove("barStationTypes"); rr.Remove("carriers"); if ((int?)rr["maxStations"] == 73) rr["maxStations"] = 69; }
+        if (root["rules"] is System.Text.Json.Nodes.JsonObject rr) { rr.Remove("maxCollectors"); rr.Remove("nebulaEffects"); rr.Remove("maxSalvagers"); rr.Remove("npcSalvage"); rr.Remove("derelictShips"); rr.Remove("derelictEventTicks"); rr.Remove("missionBreakdownChance"); rr.Remove("missionShipDeliveryChance"); rr.Remove("missileGuidance"); rr.Remove("shipHeat"); rr.Remove("suns"); rr.Remove("wormholes"); rr.Remove("pilotRanks"); rr.Remove("bars"); rr.Remove("barStationTypes"); rr.Remove("carriers"); foreach (var k in new[] { "fleetAttackOnce", "playerTributeOnlyIfAiAhead", "playerWarMoneyShare", "playerWarMoneyCap", "gateBrokeNoEvasion", "bountyReachableTargets" }) rr.Remove(k); if ((int?)rr["maxStations"] == 73) rr["maxStations"] = 69; }
         foreach (var m in root["modules"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray())
             if (m?["stats"] is System.Text.Json.Nodes.JsonObject fs && fs["fuelUse"] is not null)
                 switch ((string?)m["key"])

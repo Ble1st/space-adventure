@@ -176,6 +176,8 @@ public sealed class CeasefireAction : ICommsAction
         if (Wars.CeasefireFree(u, w, f))
             return $"Die KI nimmt an — Waffenstillstand für {u.Rules.CeasefireTicks / 240} min ({u.Rules.CeasefireTicks} Ticks): keine Kriegsangriffe, Handel bleibt gesperrt.";
         float t = Wars.TributeFor(u, w, f);
+        if (t <= 0f && u.Rules.PlayerTributeOnlyIfAiAhead && !Wars.AiAhead(u, w, f))
+            return $"Du liegst nicht zurück — die KI nimmt ohne Tribut an: Waffenstillstand für {u.Rules.CeasefireTicks / 240} min.";
         return t > 0f
             ? $"Die KI verlangt einen Tribut von {t:0} Cr — dann Waffenstillstand für {u.Rules.CeasefireTicks / 240} min."
             : $"Tribut bereits gedeckt — Waffenstillstand für {u.Rules.CeasefireTicks / 240} min ohne weitere Zahlung.";

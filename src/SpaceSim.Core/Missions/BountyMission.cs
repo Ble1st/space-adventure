@@ -45,6 +45,34 @@ public sealed class BountyMission : IMissionType
         return false;
     }
 
+    /// <summary>
+    /// Welle A: liegt das Kaperschiff unerreichbar — angedockt in seinem Versteck oder in Geschützreichweite + <see cref="EconomyRules.HideoutGunMargin"/>
+    /// davon (mindestens im Schutzradius)? Rein; ändert nichts (auch nicht die Heimatbasis).
+    /// </summary>
+    public static bool Sheltered(Universe u, Ship s)
+    {
+        var home = u.Stations.TryGetValue(s.HomeBase, out var h) ? h : u.StationsById().FirstOrDefault(st => st.Owner == s.Owner && PirateSystem.IsHideout(u, st));
+        if (home is null) return false;
+        if (s.DockedAt == home.Id) return true;
+        var (sec, pos) = ThreatMap.Where(u, s);
+        if (sec != home.Sector) return false;
+        float guard = MathF.Max(home.Radius + (u.Rules.StationSafeRadius - Station.BodyRadius), Combat.StationCombat.GunRange(u, home) + u.Rules.HideoutGunMargin);
+        return Vec2.Distance(pos, home.Position) <= guard;
+    }
+
+    /// <summary>Welle A: hat das Ziel seit der Annahme das Versteck verlassen (Args „left“)?</summary>
+    static void NoteLeft(Universe u, Mission m, Ship t)
+    {
+        if (u.Rules.BountyReachableTargets && !m.Args.ContainsKey("left") && !Sheltered(u, t)) m.Args["left"] = "1";
+    }
+
+    /// <summary>Scheitern; nie aus dem Versteck gekommen (Welle A) = nur Rückgabe ohne Ansehensverlust.</summary>
+    static void FailBounty(Universe u, Mission m, string reason)
+    {
+        bool sheltered = u.Rules.BountyReachableTargets && !m.Args.ContainsKey("left");
+        MissionRules.Fail(u, m, sheltered ? reason + " (Ziel verließ das Versteck nie — kein Ansehensverlust)" : reason, penalty: !sheltered);
+    }
+
     public MissionOffer? Generate(Universe u, Station st, DeterministicRng rng, long bucket)
     {
         var r = u.Rules;
@@ -58,6 +86,7 @@ public sealed class BountyMission : IMissionType
         // Kandidaten: Kaperschiffe von Outlaw-Akteuren, auf die die Fraktion ein Kopfgeld hat
         var cands = u.Ships.Values
             .Where(s => ThreatMap.IsRaider(s) && u.Actors.TryGetValue(s.Owner, out var a) && a.Kind == ActorKind.Outlaw && Wanted.BountyOn(u, s.Owner, f) > 0f)
+            .Where(s => !r.BountyReachableTargets || !Sheltered(u, s))   // Welle A: kein Ziel, das im Versteck/unter dessen Geschützen liegt
             .OrderBy(s => s.Id.Value).ToList();
         if (cands.Count == 0) return null;
         var pick = cands[MissionRng.NextInt(rng, cands.Count)];
@@ -90,12 +119,14 @@ public sealed class BountyMission : IMissionType
         var (ts, tp) = ThreatMap.Where(u, tgt);
         float t = Travel.Ticks(u, ship.Sector, ship.Position, ts, tp, ship);
         if (float.IsInfinity(t) || float.IsNaN(t)) t = u.Rules.MissionMinDeadlineTicks;
-        return new Mission
+        var m = new Mission
         {
             Type = KeyId, Client = o.Client, At = o.At,
             Args = new Dictionary<string, string>(o.Args),
             Deadline = u.Tick + Math.Max(u.Rules.MissionMinDeadlineTicks, (long)(t * u.Rules.MissionDeadlineFactor)),
         };
+        NoteLeft(u, m, tgt);
+        return m;
     }
 
     public void OnEvent(Universe u, Mission m, SimEvent e)
@@ -105,10 +136,10 @@ public sealed class BountyMission : IMissionType
             case CombatExited ce when ce.Exit == CombatExit.Destroyed && ce.Ship == TargetOf(m):
                 // nur Zerstörung NACH Annahme durch den Spieler erfüllt (aktives Schiff oder eigene Flotte auf der Gegenseite)
                 if (PlayerInvolved(u, ce.Ship)) MissionRules.Complete(u, m);
-                else MissionRules.Fail(u, m, "Ziel anders zerstört");
+                else FailBounty(u, m, "Ziel anders zerstört");
                 break;
             case ShipRemoved sr when sr.Ship == TargetOf(m):
-                MissionRules.Fail(u, m, "Ziel verschwunden");   // ohne Spieler-Kill: anders verschwunden (z. B. Polizei, Aufgabe)
+                FailBounty(u, m, "Ziel verschwunden");   // ohne Spieler-Kill: anders verschwunden (z. B. Polizei, Aufgabe)
                 break;
         }
     }
@@ -169,8 +200,9 @@ public sealed class BountyMission : IMissionType
 
     public void Check(Universe u, Mission m)
     {
-        if (u.Tick >= m.Deadline) { MissionRules.Fail(u, m, "Frist abgelaufen"); return; }
-        if (!u.Ships.TryGetValue(TargetOf(m), out var t)) { MissionRules.Fail(u, m, "Ziel verschwunden"); return; }
+        if (u.Ships.TryGetValue(TargetOf(m), out var seen)) NoteLeft(u, m, seen);
+        if (u.Tick >= m.Deadline) { FailBounty(u, m, "Frist abgelaufen"); return; }
+        if (!u.Ships.TryGetValue(TargetOf(m), out var t)) { FailBounty(u, m, "Ziel verschwunden"); return; }
         // letzte bekannte Position merken (Marker, falls das Ziel den Sektor verlässt)
         var (sec, pos) = ThreatMap.Where(u, t);
         m.Args["lastSector"] = sec.Value.ToString(Inv);

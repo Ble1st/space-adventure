@@ -26,7 +26,7 @@ public static class Siege
     /// Phase 31: Belagerung eines beliebigen Ziels (Station oder Tor-Hälfte). Greift der Spieler an, ist das ein schweres Verbrechen bei den Verteidigern
     /// („assault_station“ bzw. „assault_gate“ bei beiden Endfraktionen eines Tors).
     /// </summary>
-    public static Encounter Start(Universe u, Ship attacker, ISiegeTarget t)
+    public static Encounter Start(Universe u, Ship attacker, ISiegeTarget t, bool reportCrime = true)
     {
         var r = u.Rules;
         var e = Engage.Begin(u, EncounterCause.Siege, t.Sector);
@@ -40,7 +40,7 @@ public static class Siege
         bool gate = t.Ref.Kind == SiegeKind.Gate;
         string msg = attacker.IsPlayer ? (gate ? $"Du greifst {t.Name} an — schweres Verbrechen bei beiden Endfraktionen." : $"Du greifst {t.Name} an — die Station wehrt sich.")
             : $"Gefecht in {where}: {u.ActorName(attacker.Owner)} greift {t.Name} an";
-        if (attacker.IsPlayer && sec is not null)
+        if (attacker.IsPlayer && sec is not null && reportCrime)
         {
             // Runde 40: Angriffe auf Stationen/Tore des Kriegsgegners sind kein Verbrechen
             bool atWar = gate ? t.Defenders.Any(d => Wars.AtWar(u, u.PlayerActor, d)) : Wars.AtWar(u, u.PlayerActor, t.Owner);

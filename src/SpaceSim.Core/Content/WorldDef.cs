@@ -495,6 +495,13 @@ public sealed class StartOptionDef
     public string Model { get; set; } = "";
     public float Credits { get; set; } = 500;
     public int? Sector { get; set; }
+    /// <summary>
+    /// Welle A: zusätzliche Module des Startschiffs — je Modul ein Bonus-Slot seiner Slotart und Größe, gleich bestückt (z. B. ein kleiner Frachtraum für
+    /// den Jäger). Geprüft mit <c>FitRules</c>; fehlt = keine.
+    /// </summary>
+    public List<string>? ExtraModules { get; set; }
+    /// <summary>Welle A: eigener Fit der Klassen-Slots des Startschiffs (vor den Zusatzmodulen; null-Einträge = leer); fehlt = Modell-Fit.</summary>
+    public List<string?>? Fit { get; set; }
     /// <summary>Gerätetest (Phase 26): Testszenario — klar als Test markierter Start mit vorbereiteter Lage (siehe <see cref="ScenarioDef"/>); null = normales Paket.</summary>
     public ScenarioDef? Scenario { get; set; }
 }

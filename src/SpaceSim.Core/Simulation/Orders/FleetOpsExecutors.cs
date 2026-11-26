@@ -26,14 +26,29 @@ public sealed class FleetAttackExecutor : IOrderExecutor
         return OrderMove.Reachable(u, ship, sector) || ThreatMap.Where(u, ship).Sector == sector ? null : "Ziel ist für dieses Schiff nicht erreichbar.";
     }
 
-    public void Start(Universe u, Ship ship, ShipCommand command) { ship.Order = null; ship.CommandStep = 0; ship.NextThinkTick = u.Tick; }
+    public void Start(Universe u, Ship ship, ShipCommand command)
+    {
+        ship.Order = null; ship.CommandStep = 0; ship.NextThinkTick = u.Tick;
+        // Welle A: beim Erteilen (nicht beim Wiederanlauf nach Gefecht/Notfall) merken, ob der Befehl im Krieg mit dem Ziel beginnt
+        if (u.Rules.FleetAttackOnce && command is AttackCommand { War: false, Reported: false } a && ship.CommandSince == u.Tick && FleetAttack.HostileNow(u, a))
+            ship.Command = a with { War = true };
+    }
 
     CommandStatus Done(Universe u, Ship ship) => FleetAttack.BackToLeader(u, ship) ? CommandStatus.Running : CommandStatus.Done;
+
+    /// <summary>Welle A: Verbrechen/Meldung dieses Angriffs erfolgt — im Befehl merken (je Befehl einmal).</summary>
+    static void MarkReported(Universe u, Ship ship, AttackCommand a)
+    {
+        if (u.Rules.FleetAttackOnce && !a.Reported && ship.Command is AttackCommand cur && cur == a) ship.Command = a with { Reported = true };
+    }
 
     public CommandStatus Step(Universe u, Ship ship, ShipCommand command, int dt)
     {
         var a = (AttackCommand)command;
+        bool once = u.Rules.FleetAttackOnce;
+        if (once && a.War && !FleetAttack.HostileNow(u, a)) return Done(u, ship);   // Welle A: Krieg vorbei oder Waffenstillstand — Befehl endet
         if (FleetAttack.Retreat(u, ship)) return CommandStatus.Running;
+        bool report = !once || !a.Reported;
         if (a.Ship.Value != 0)
         {
             if (!u.Ships.TryGetValue(a.Ship, out var t)) return Done(u, ship);
@@ -41,7 +56,8 @@ public sealed class FleetAttackExecutor : IOrderExecutor
             if (a.Sector.Value != 0 && ts != a.Sector) return Done(u, ship);   // entkommen
             if (FleetAttack.InReach(u, ship, t))
             {
-                if (FleetAttack.EngageShip(u, ship, t) is null) OrderMove.StepTransit(u, ship);   // Ziel angedockt oder auf Spielerseite: warten
+                if (FleetAttack.EngageShip(u, ship, t, report) is null) OrderMove.StepTransit(u, ship);   // Ziel angedockt oder auf Spielerseite: warten
+                else MarkReported(u, ship, a);
                 return CommandStatus.Running;
             }
             FleetAttack.Close(u, ship, t);
@@ -55,7 +71,8 @@ public sealed class FleetAttackExecutor : IOrderExecutor
             if (!there) return s;
         }
         if (ship.IsPlayer) ship.DockedAt = default;
-        FleetAttack.Besiege(u, ship, target);
+        FleetAttack.Besiege(u, ship, target, report);
+        MarkReported(u, ship, a);
         return CommandStatus.Running;
     }
 

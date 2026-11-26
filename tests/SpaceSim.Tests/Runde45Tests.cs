@@ -107,6 +107,7 @@ public class Runde45Tests
     {
         var u = World();
         var me = Me(u);
+        u.Rules.PlayerWarMoneyShare = 0f; u.Rules.PlayerWarMoneyCap = 0f;   // Welle A: Überlegenheit hier aus der ganzen Kasse (Test der Tributregel, nicht der Stärke)
         u.Player.Treasury.Credits = 2_000_000f;
         u.Actors[Guild].Treasury.Credits = 200_000f;
         Assert.Null(Wars.PlayerDeclareIssue(u, Guild));
@@ -144,6 +145,7 @@ public class Runde45Tests
         float Saldo(float payFirst)
         {
             var u = World();
+            u.Rules.PlayerWarMoneyShare = 0f; u.Rules.PlayerWarMoneyCap = 0f;   // Welle A: Überlegenheit hier aus der ganzen Kasse (Test der Tributregel, nicht der Stärke)
             u.Player.Treasury.Credits = 2_000_000f;
             u.Actors[Guild].Treasury.Credits = 200_000f;
             var w = Wars.PlayerDeclare(u, Guild);

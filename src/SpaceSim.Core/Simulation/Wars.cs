@@ -67,12 +67,25 @@ public static class Wars
         {
             foreach (var ship in u.ShipsById())
                 if (ship.Owner == u.PlayerActor && ship.Has(Capability.Combat)) s += CombatRules.Strength(ship);
-            return s + MathF.Max(0f, u.Player.Treasury.Credits) / MathF.Max(1f, u.Rules.WarStrengthMoneyScale);
+            return s + PlayerWarMoney(u) / MathF.Max(1f, u.Rules.WarStrengthMoneyScale);
         }
         foreach (var ship in u.ShipsById())
             if ((ThreatMap.IsPolice(ship) || IsWarship(ship)) && u.FactionOf(ship) == f) s += CombatRules.Strength(ship);
         if (u.Actors.TryGetValue(f, out var a)) s += FactionViability.Spendable(u, a) / MathF.Max(1f, u.Rules.WarStrengthMoneyScale);
         return s;
+    }
+
+    /// <summary>
+    /// Welle A: Geld der Spielerfraktion, das für die Kriegsstärke zählt — Kasse × <see cref="EconomyRules.PlayerWarMoneyShare"/> (0 = ganze Kasse), höchstens
+    /// <see cref="EconomyRules.PlayerWarMoneyCap"/> (0 = ohne Deckel). Die KI zählt nur ihr verfügbares Geld über der Rücklage; ohne Deckel machte eine
+    /// große Spielerkasse ihn unangreifbar („Klar unterlegen“).
+    /// </summary>
+    public static float PlayerWarMoney(Universe u)
+    {
+        float m = MathF.Max(0f, u.Player.Treasury.Credits);
+        if (u.Rules.PlayerWarMoneyShare > 0f) m *= u.Rules.PlayerWarMoneyShare;
+        if (u.Rules.PlayerWarMoneyCap > 0f) m = MathF.Min(m, u.Rules.PlayerWarMoneyCap);
+        return m;
     }
 
     /// <summary>Schwelle des Kriegsgrunds für eine Fraktion (Aggression senkt die Hemmschwelle). Rein.</summary>
@@ -163,9 +176,22 @@ public static class Wars
     /// </summary>
     public static float TributeFor(Universe u, War w, FactionId ai)
     {
+        // Welle A: im Spielerkrieg verlangt die KI nur Tribut, wenn sie vorne liegt — sonst sind Waffenstillstand und Frieden kostenlos
+        if (u.Rules.PlayerTributeOnlyIfAiAhead && u.IsNpcFaction(ai) && u.IsPlayerFaction(w.Other(ai)) && !AiAhead(u, w, ai)) return 0f;
         float lossAi = w.A == ai ? w.LossA : w.LossB;
         float raw = MathF.Max(0f, u.Rules.TributeBase * (1f - MathF.Min(1f, w.Weariness))) + lossAi * u.Rules.TributeLossShare;
         return MathF.Max(0f, raw - w.TributePaid);
+    }
+
+    /// <summary>
+    /// Welle A: liegt die KI-Seite <paramref name="ai"/> in ihrem Krieg mit dem Spieler vorne? Klarer Sieger nach <see cref="TributeWinner"/> (Stärke ×
+    /// <see cref="EconomyRules.TributeStrengthRatio"/>) und höchstens so viele eigene Verluste (Materialwert) wie der Spieler. Rein.
+    /// </summary>
+    public static bool AiAhead(Universe u, War w, FactionId ai)
+    {
+        if (TributeWinner(u, w) != ai) return false;
+        float lossAi = w.A == ai ? w.LossA : w.LossB, lossPlayer = w.A == ai ? w.LossB : w.LossA;
+        return lossAi <= lossPlayer;
     }
 
     /// <summary>Nimmt die Seite <paramref name="ai"/> einen Waffenstillstand ohne Zahlung an (deterministisch: Müdigkeit oder klare Unterlegenheit)?</summary>

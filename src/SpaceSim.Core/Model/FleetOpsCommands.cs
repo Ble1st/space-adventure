@@ -32,8 +32,10 @@ public sealed record TaxiCommand(AutoLimits Limits, StationId Dest = default, St
 /// Angreifen (Spielerflotte): genau ein Ziel — ein Schiff (<paramref name="Ship"/>), eine Station (<paramref name="Station"/>) oder eine Tor-Hälfte
 /// (<paramref name="Gate"/>). <paramref name="Sector"/> ist der Sektor, in dem das Ziel beim Befehl stand (ein Schiffsziel, das ihn verlässt, ist entkommen).
 /// Außerhalb eines Kriegs ist der Angriff ein Verbrechen wie ein eigener Schuss.
+/// Welle A (<see cref="EconomyRules.FleetAttackOnce"/>): <paramref name="War"/> = der Befehl begann im Krieg mit dem Ziel (endet mit Frieden oder
+/// Waffenstillstand); <paramref name="Reported"/> = Verbrechen und Meldung dieses Angriffs sind schon erfolgt (je Befehl einmal). Beide additiv gespeichert.
 /// </summary>
-public sealed record AttackCommand(ShipId Ship, StationId Station, GateId Gate, SectorId Sector) : ShipCommand
+public sealed record AttackCommand(ShipId Ship, StationId Station, GateId Gate, SectorId Sector, bool War = false, bool Reported = false) : ShipCommand
 {
     public override string Kind => CommandKinds.Attack;
 }

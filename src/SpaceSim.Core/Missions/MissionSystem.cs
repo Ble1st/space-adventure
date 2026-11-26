@@ -232,7 +232,13 @@ public static class MissionRules
     /// wird frei, Beziehung −<see cref="EconomyRules.MissionRelationLoss"/>, der Auftraggeber vergibt
     /// <see cref="EconomyRules.MissionBlockTicks"/> keine neuen Aufträge. Entfernt den Auftrag aus <see cref="Universe.Missions"/>.
     /// </summary>
-    public static void Fail(Universe u, Mission m, string reason)
+    public static void Fail(Universe u, Mission m, string reason) => Fail(u, m, reason, penalty: true);
+
+    /// <summary>
+    /// Wie oben; <paramref name="penalty"/> false (Welle A: Kopfgeldziel hat sein Versteck nie verlassen) = nur Rückgabe — Reservierung an den Auftraggeber,
+    /// Pfand zurück an den Spieler, kein Ansehensverlust, keine Sperre.
+    /// </summary>
+    public static void Fail(Universe u, Mission m, string reason, bool penalty)
     {
         if (m.State != MissionState.Active) return;
         m.State = MissionState.Failed;
@@ -244,6 +250,7 @@ public static class MissionRules
                 u.Events.Publish(new TreasuryIncome(client.Id, "mission_return", m.Reserved));
             }
         }
+        if (!penalty && m.Deposit > 0f) { u.Player.Treasury.Credits += m.Deposit; m.Deposit = 0f; }   // Welle A: Pfand zurück
         if (u.Stations.TryGetValue(m.At, out var st))
         {
             if (m.Deposit > 0f)
@@ -257,7 +264,7 @@ public static class MissionRules
             && u.Ships.TryGetValue(new ShipId(shipId), out var sh))
             sh.MissionCargo = MathF.Max(0f, sh.MissionCargo - m.CargoVolume);
         if (m.Type == BreakdownMission.KeyId) BreakdownMission.Recall(u, m);   // Panne: die Fraktion holt ihr Schiff zurück
-        if (u.FactionOf(m.Client) is { } f && u.IsNpcFaction(f))
+        if (penalty && u.FactionOf(m.Client) is { } f && u.IsNpcFaction(f))
         {
             PlayerStanding.Change(u, f, -u.Rules.MissionRelationLoss, "mission_fail");
             if (m.Type == PassengerMission.KeyId && reason == "Schiff verloren" && u.Rules.PassengerLossStanding > 0f)   // Ausbau Punkt 14: Fahrgäste mit dem Schiff verloren

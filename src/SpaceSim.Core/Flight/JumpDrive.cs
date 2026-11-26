@@ -199,7 +199,7 @@ public static class JumpDrive
         {
             float due = pass.Toll;
             string who = pass.TollTo is { } f && u.Factions.TryGetValue(f, out var fac) ? fac.Name : "Sektor";
-            if (!u.Rules.SecurityActive && u.WalletOf(ship).Credits < due)
+            if ((!u.Rules.SecurityActive && u.WalletOf(ship).Credits < due) || GateAccess.BrokeAtToll(u, ship))
             {
                 Abort(u, ship, "denied", $"Zoll {due:0} Cr, zu wenig Credits");
                 return new JumpResult(false, to, ship.Position, 0f, $"Sprung verweigert: Zoll {due:0} Cr, zu wenig Credits");

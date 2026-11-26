@@ -22,6 +22,7 @@ public class SchutzKonvoiTests
     internal static void RevertSchutz(WorldDef def)
     {
         var r = def.Rules ??= new EconomyRules();
+        WelleATests.RevertWelleA(def);   // Welle A (danach): Spieltest-Korrekturen aus
         ShieldSectorTests.RevertShieldSectors(def);   // Richtungsschilde (danach): aus — ein Schildbetrag wie vorher
         CarrierTests.RevertCarriers(def);   // Träger (danach): aus — WorldBuilder lässt Trägerklasse, -modell und Testpaket weg
         WurmlochTests.RevertWormholes(def);   // Wurmlöcher (danach): aus — keine stabilen Paare, keine instabilen

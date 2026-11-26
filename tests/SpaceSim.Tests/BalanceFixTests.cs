@@ -419,6 +419,7 @@ public class BalanceFixTests
     public void Tribut_ErstNachEchtenVerlustenDesGegners()
     {
         var u = World();
+        u.Rules.PlayerWarMoneyShare = 0f; u.Rules.PlayerWarMoneyCap = 0f;   // Welle A: Überlegenheit hier aus der ganzen Kasse (Test der Verlustregel, nicht der Stärke)
         u.Player.Treasury.Credits = 2_000_000f;
         u.Actors[Guild].Treasury.Credits = 200_000f;
         var w = Wars.PlayerDeclare(u, Guild);

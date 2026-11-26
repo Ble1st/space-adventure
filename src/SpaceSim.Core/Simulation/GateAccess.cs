@@ -280,6 +280,8 @@ public static class GateAccess
             string who = pass.TollTo is { } f && u.Factions.TryGetValue(f, out var fac) ? fac.Name : "Sektor";
             float due = pass.Toll;
             if (!u.Rules.SecurityActive && u.WalletOf(ship).Credits < due) return new PlayerJump(false, 0f, $"Sprung verweigert: Zoll {due:0} Cr, zu wenig Credits");
+            // Welle A: leere Kasse — Durchflug verweigert, kein Verbrechen (sonst Zollflucht → Polizei → Schiffsverlust → Schulden)
+            if (BrokeAtToll(u, ship)) return new PlayerJump(false, 0f, $"Sprung verweigert: Zoll {due:0} Cr an {who}, deine Kasse ist leer — erst Geld verdienen");
             float paid = PayToll(u, ship, gate, pass);
             if (paid + 0.01f < due && pass.TollTo is { } authority && u.Rules.SecurityActive)
             {
@@ -291,6 +293,10 @@ public static class GateAccess
         }
         return new PlayerJump(true, 0f, "");
     }
+
+    /// <summary>Welle A (<see cref="EconomyRules.GateBrokeNoEvasion"/>): hat die Kasse des Schiffs beim Zoll nichts (≤ 0)? Dann kein Durchflug, kein Verbrechen.</summary>
+    public static bool BrokeAtToll(Universe u, Ship ship) =>
+        u.Rules.GateBrokeNoEvasion && (ship.IsPlayer || ship.Owner == u.PlayerActor) && u.WalletOf(ship).Credits <= 0.0001f;   // nur Spielerschiffe (KI-Schmuggler unverändert)
 
     /// <summary>
     /// Warum ist ein Ziel für dieses Schiff nicht erreichbar? Erstes Gate auf dem physischen Weg, das das Schiff abweist, mit Grund; null wenn der Weg

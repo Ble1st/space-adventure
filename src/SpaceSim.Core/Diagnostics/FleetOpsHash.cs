@@ -9,7 +9,7 @@ public static class FleetOpsHash
     {
         switch (c)
         {
-            case AttackCommand a: mix(0xF101u); mix((ulong)a.Ship.Value); mix((ulong)a.Station.Value); mix((ulong)a.Gate.Value); mix((ulong)a.Sector.Value); break;
+            case AttackCommand a: mix(0xF101u); mix((ulong)a.Ship.Value); mix((ulong)a.Station.Value); mix((ulong)a.Gate.Value); mix((ulong)a.Sector.Value); if (a.War || a.Reported) { mix(0xF1A0u); mix(a.War ? 1ul : 0ul); mix(a.Reported ? 1ul : 0ul); } break;
             case SalvageCommand s: mix(0xF102u); mix((ulong)s.Sector.Value); break;
             case BlockadeCommand b: mix(0xF103u); mix((ulong)b.Gate.Value); mix((ulong)b.Faction.Value); break;
             case DeliverCommand d: mix(0xF104u); mix((ulong)d.From.Value); mix((ulong)d.To.Value); mix((ulong)d.Good.Value); mixF(d.Amount); mixF(d.MaxBuyFactor); if (d.AllowLoss) mix(0xA110u); break;

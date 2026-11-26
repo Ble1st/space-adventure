@@ -91,7 +91,7 @@ public static class FleetAttack
     /// Begleit-Taktik, Ziel Seite 1). Außerhalb eines Kriegs Verbrechen bei Opferfraktion und Sektorbesitzer; eine Streife der Sektorfraktion greift mit der
     /// Antwortchance der Überfälle ein (eine Zufallszahl, nur bei einem Verbrechen). null = nicht möglich.
     /// </summary>
-    public static Encounter? EngageShip(Universe u, Ship ship, Ship target)
+    public static Encounter? EngageShip(Universe u, Ship ship, Ship target, bool report = true)
     {
         if (u.Fights.IsEngaged(ship.Id) || target.IsPlayer || (target.DockedAt.Value != 0 && !u.Fights.IsEngaged(target.Id))) return null;
         var (sid, spos) = ThreatMap.Where(u, ship);
@@ -130,6 +130,7 @@ public static class FleetAttack
                 $"Gefecht in {sector.Name}: dein Schiff #{ship.Id.Value} greift {PlayerCombat.Describe(u, target)} an"));
             Reinforcements.Step(u, e);   // Verband des Angreifers, Rudel/Streife des Ziels
         }
+        if (!report) return e;   // Welle A: Verbrechen und Meldung dieses Angriffs sind schon erfolgt
         if (crime) Wanted.ReportAssault(u, u.PlayerActor, sid, target.Owner, PlayerCombat.GuardOf(u, sid, tpos) is not null ? "assault_station" : "assault");
         u.Events.Publish(new FleetAttackStarted(ship.Id, target.Id, default, default, crime,
             crime ? $"Schiff #{ship.Id.Value} greift {PlayerCombat.Describe(u, target)} an — Verbrechen (Fahndung)." : $"Schiff #{ship.Id.Value} greift {PlayerCombat.Describe(u, target)} an."));
@@ -140,20 +141,49 @@ public static class FleetAttack
     /// Belagert eine Station oder ein Tor: tritt einer laufenden Belagerung auf der Angreiferseite bei, sonst beginnt es sie (<see cref="Siege.Start"/> meldet
     /// das Verbrechen). Beim Beitritt zu einer fremden Belagerung meldet es das Verbrechen selbst (dieselbe Regel).
     /// </summary>
-    public static Encounter Besiege(Universe u, Ship ship, ISiegeTarget t)
+    public static Encounter Besiege(Universe u, Ship ship, ISiegeTarget t, bool report = true)
     {
         Encounter e;
         if (SiegeTargets.SiegeOf(u, t.Ref) is { } running)
         {
+            // Welle A: schon aktiver Teilnehmer dieser Belagerung — nichts tun (kein zweiter Beitritt, keine Meldung)
+            if (u.Rules.FleetAttackOnce && running.Of(ship.Id) is { Active: true }) return running;
             bool playerThere = running.Participants.Any(q => q.Active && q.Side == 0 && u.Ships.TryGetValue(q.Ship, out var qs) && qs.IsPlayer);
             Engage.Join(u, running, ship, 0, CombatTactics.Siege, 0f, running.Spatial ? ship.Position : null);
-            if (!playerThere) ReportSiegeCrime(u, t);
+            if (!playerThere && report) ReportSiegeCrime(u, t);
             e = running;
         }
-        else e = Siege.Start(u, ship, t);
+        else e = Siege.Start(u, ship, t, report);
+        if (!report) return e;
         u.Events.Publish(new FleetAttackStarted(ship.Id, default, t.Ref.Kind == SiegeKind.Station ? t.Ref.Station : default, t.Ref.Kind == SiegeKind.Gate ? t.Ref.Gate : default,
             !SiegeIsWar(u, t), $"Schiff #{ship.Id.Value} greift {t.Name} an."));
         return e;
+    }
+
+    /// <summary>
+    /// Welle A: ist das Ziel eines Angriffsbefehls gerade feindlich im Krieg mit dem Spieler (Krieg und kein Waffenstillstand)? Schiffsziel: Besitzer des
+    /// Schiffs; Station: Besitzer; Tor: eine Verteidigerfraktion. Ziel weg = false.
+    /// </summary>
+    public static bool HostileNow(Universe u, AttackCommand a)
+    {
+        if (u.PlayerFaction is not { } me) return false;
+        if (a.Ship.Value != 0) return u.Ships.TryGetValue(a.Ship, out var t) && Wars.Hostile(u, u.PlayerActor, t.Owner);
+        if (SiegeTargetOf(u, a) is not { } st) return false;
+        return st.Ref.Kind == SiegeKind.Gate ? st.Defenders.Any(d => Wars.Hostile(u, me, d)) : Wars.Hostile(u, u.PlayerActor, st.Owner);
+    }
+
+    /// <summary>
+    /// Welle A: ein im Krieg erteilter Angriffsbefehl, dessen Krieg vorbei ist (Frieden oder Waffenstillstand), endet sofort — auch mitten im Gefecht (das
+    /// Schiff verlässt es als Rückzug) oder auf dem Rückzug zur Reparatur. Verbandsmitglieder folgen danach wieder ihrem Anführer. true = beendet.
+    /// Ohne Regel oder ohne solchen Befehl nichts (NPC-Schiffe haben keinen).
+    /// </summary>
+    public static bool EndFinishedWar(Universe u, Ship ship)
+    {
+        if (!u.Rules.FleetAttackOnce || ship.Command is not AttackCommand { War: true } a || HostileNow(u, a)) return false;
+        if (u.Fights.Of(ship.Id) is { } e && e.Of(ship.Id) is { Active: true } p) { Engage.Leave(u, e, p, CombatExit.Fled); Engage.Resume(u, ship); }
+        Commands.Cancel(u, ship, "Krieg vorbei — Angriff beendet");
+        BackToLeader(u, ship);
+        return true;
     }
 
     static bool SiegeIsWar(Universe u, ISiegeTarget t) =>

@@ -475,6 +475,8 @@ public static class WorldBuilder
         u.AddShip(player);
         u.PlayerShip = player.Id;
         u.PlayerSector = player.Sector;
+        // Welle A: Zusatzmodule des Startpakets (Bonus-Slots, z. B. Frachtraum des Jägers)
+        if (chosen is not null && (chosen.Fit is not null || chosen.ExtraModules is { Count: > 0 })) ApplyExtraModules(u, player, chosen.Fit, chosen.ExtraModules ?? new(), chosen.Key);
         // Gerätetest (Phase 26): Testszenario vorbereiten (Fit, Station, Schaden, Brand, Wrack, Gesetzloser, Fracht)
         if (chosen?.Scenario is { } scenario) StartScenario.Apply(u, player, scenario, chosen.Key);
         // Phase 13: die Startwelt darf nichts brauchen, was erst erforscht werden muss (FORSCHUNG.md „Totlauf“)
@@ -651,6 +653,28 @@ public static class WorldBuilder
         foreach (var st in u.Stations.Values.OrderBy(x => x.Id.Value))
             if (u.Research.LockOf(UnlockKind.StationType, st.TypeKey) is { } p)
                 throw new WorldFormatException($"Station {st.Id.Value}: Typ '{st.TypeKey}' ist erst mit Forschung '{p.Key}' verfügbar");
+    }
+
+    /// <summary>Welle A: je Zusatzmodul ein Bonus-Slot (Slotart und Größe des Moduls), bestückt; Fit muss gültig bleiben, sonst <see cref="WorldFormatException"/>.</summary>
+    static void ApplyExtraModules(Universe u, Ship player, List<string?>? baseFit, List<string> modules, string key)
+    {
+        var slots = new List<ClassSlot>(player.Slots);
+        if (baseFit is not null && baseFit.Count != slots.Count) throw new WorldFormatException($"Startpaket '{key}': Fit hat {baseFit.Count} statt {slots.Count} Einträge");
+        var fit = new List<string?>(baseFit ?? player.Fit);
+        foreach (var k in modules)
+        {
+            if (!u.Modules.TryGetValue(k, out var m)) throw new WorldFormatException($"Startpaket '{key}': unbekanntes Zusatzmodul '{k}'");
+            slots.Add(new ClassSlot { Type = m.Slot, Size = m.Size });
+            fit.Add(k);
+        }
+        var cls = u.ShipClasses[u.ShipModels[player.ModelKey].ClassKey];
+        if (FitRules.Check(u.SlotTypes, u.Modules, cls, slots, fit) is { } issue)
+            throw new WorldFormatException($"Startpaket '{key}': Zusatzmodule ungültig — {FitRules.Describe(issue)}: {issue.Message}");
+        player.Slots = slots;
+        player.Fit = fit;
+        player.RecomputeStats(u);
+        player.CargoCapacity = player.Stats.Cargo;
+        player.Hull = player.MaxHull;
     }
 
     /// <summary>
