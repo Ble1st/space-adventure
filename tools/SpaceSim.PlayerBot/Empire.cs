@@ -14,7 +14,7 @@ namespace SpaceSim.PlayerBot;
 /// Zweiter Spielbogen des Bots (nur Spielerpfade): eigenes Hauptquartier, Baufenster mit eigenen Bauschiffen, Gericht/Kopfgeld mit echten Verbrechen,
 /// Krieg (Erklärung, Belagerung, Kapitulation, Tribut/Frieden). Jede Teilfunktion meldet, ob sie Spielzeit verbraucht hat.
 /// </summary>
-public sealed class Empire
+public sealed partial class Empire
 {
     readonly Pilot P; readonly Universe U; readonly Log L; readonly Metrics M; readonly Bot B; readonly CommsActions C;
     public readonly Dictionary<string, long> Mile = new();
@@ -46,6 +46,7 @@ public sealed class Empire
         P.Where = "Empire:hq"; if (Hq()) return true;
         if (Only == "court") { P.Where = "Empire:court"; return Court(); }
         if (Only == "bounty") { P.Where = "Empire:bounty"; return HuntRaider() || Bounty(); }
+        if (Dom) { P.Where = "Empire:diplo"; if (Diplo()) return true; P.Where = "Empire:dominion"; if (Dominion()) return true; if (DomWar && (P.Where = "Empire:war") != null && War()) return true; return false; }
         P.Where = "Empire:build"; if (Build()) return true;
         P.Where = "Empire:court"; if (Court()) return true;
         P.Where = "Empire:war"; if (War()) return true;

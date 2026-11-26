@@ -35,7 +35,7 @@ public sealed class Metrics
                 case SpaceSim.Core.Events.PlayerShipLost l: P.Log.Event($"SCHIFF VERLOREN #{l.Lost.Value}: {l.How} — {l.Message}"); break;
                 case SpaceSim.Core.Events.WarDeclared w: P.Log.Event($"Krieg {w.A.Value}↔{w.B.Value}: {w.Message}"); break;
                 case SpaceSim.Core.Events.ShipDeparted d when d.Owner == u.PlayerActor: P.Log.Event($"Schiff #{d.Ship.Value} ({d.Role}) abgegangen: {d.Reason} {d.Detail}"); break;
-                case SpaceSim.Core.Simulation.StandingChanged sc: if (Math.Abs(sc.To - sc.From) >= 0.02f) P.Log.Event($"Ansehen Fraktion {sc.Faction.Value}: {sc.From:0.00}→{sc.To:0.00} ({sc.Reason})"); break;
+                case SpaceSim.Core.Simulation.StandingChanged sc: if (Math.Abs(sc.To - sc.From) >= 0.0049f) P.Log.Event($"Ansehen Fraktion {sc.Faction.Value}: {sc.From:0.00}→{sc.To:0.00} ({sc.Reason})"); break;
             }
         };
     }

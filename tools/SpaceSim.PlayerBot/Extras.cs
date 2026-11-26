@@ -12,7 +12,7 @@ namespace SpaceSim.PlayerBot;
 public sealed class Extras
 {
     readonly Pilot P; readonly Universe U; readonly Log L;
-    public int MissionsDone, MissionsAccepted;
+    public int MissionsDone, MissionsAccepted; public double MinRate = 6.0; public int MissionsFailedFlight;
     readonly HashSet<string> _sampled = new();
     public Extras(Pilot p, Log l) { P = p; U = p.U; L = l; }
 
@@ -21,7 +21,7 @@ public sealed class Extras
     {
         var st = P.Here; var me = P.Me;
         if (st is null || P.Svc(st, "missions") is not { } svc) return false;
-        MissionOffer? best = null; double bestRate = 6.0;   // mindestens 6 Cr je Sekunde
+        MissionOffer? best = null; double bestRate = MinRate;   // mindestens 6 Cr je Sekunde (Beziehungsarbeit: weniger)
         foreach (var o in U.MissionOffers.Where(o => o.At == st.Id && o.Type == TransportMission.KeyId))
         {
             if (!U.Stations.TryGetValue(TransportMission.TargetOf(o), out var tgt)) continue;
@@ -29,6 +29,7 @@ public sealed class Extras
             if (me.CargoCapacity - me.UsedVolume(U) < vol) continue;
             float sec = PlayerTrip.Seconds(U, me.Sector, me.Position, tgt.Sector, tgt.DockPoint(me.Id), me);
             if (float.IsInfinity(sec)) continue;
+            if (U.FindRoute(me.Sector, tgt.Sector, GateAccess.ProfileOf(U, me)) is null && me.Sector != tgt.Sector) continue;
             double rate = o.Reward / Math.Max(10.0, sec);
             if (rate > bestRate) { bestRate = rate; best = o; }
         }
@@ -45,7 +46,7 @@ public sealed class Extras
             L.Event($"Auftrag {best.Id}: Ziel {tgt2.Name} erreicht, Kasse {before:0}→{P.Wallet:0}");
             if (P.Wallet > before) MissionsDone++;
         }
-        else L.Event($"Auftrag {best.Id}: Flug gescheitert ({why})");
+        else { MissionsFailedFlight++; L.Event($"Auftrag {best.Id}: Flug gescheitert ({why})"); }
         return true;
     }
 
