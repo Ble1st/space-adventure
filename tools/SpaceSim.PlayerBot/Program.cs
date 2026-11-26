@@ -35,6 +35,7 @@ for (int i = 0; i < args.Length; i++)
 Directory.CreateDirectory(outDir);
 var def = WorldBuilder.Parse(File.ReadAllText(world));
 var u = loadFile is null ? WorldBuilder.Build(def, seed, start) : SaveGameJson.Read(File.ReadAllText(loadFile)).Universe;
+if (Array.IndexOf(args, "--probe3") is var p3 && p3 >= 0) { Probe3.Run(u, args[p3 + 1], seed, outDir); return; }
 if (args.Contains("--sites"))
 {
     if (args.Contains("--run")) new SimulationRunner().Run(u, 60);
