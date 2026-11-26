@@ -91,6 +91,7 @@ public static class FleetOpsNames
         CommandKinds.Rally => "Sammelpunkt",
         CommandKinds.Convoy => "Konvoi",
         CommandKinds.Taxi => "Taxi fahren",
+        CommandKinds.Supply => "Versorgen",
         CommandKinds.ExploreSector => "Erkunden: Sektor",
         CommandKinds.ExploreUniverse => "Erkunden: Universum",
         _ => null,

@@ -46,6 +46,16 @@ if (args.Contains("--wellec") && def.Rules is { } wr)
     ur.PlayerUpkeepWarnDays = wr.PlayerUpkeepWarnDays; ur.PlayerStandingFloor = wr.PlayerStandingFloor; ur.PlayerStandingRecoveryPerDay = wr.PlayerStandingRecoveryPerDay;
     ur.PlayerStandingSoftReasons = new List<string>(wr.PlayerStandingSoftReasons); ur.PlayerSeatContested = wr.PlayerSeatContested;
 }
+// Welle D: wie --wellec die Welle-D-Regeln der Welt-Datei auf einen älteren Spielstand
+if (args.Contains("--welled") && def.Rules is { } wdr)
+{
+    var ur = u.Rules;
+    ur.IdleShelfKeepLargeYard = wdr.IdleShelfKeepLargeYard; ur.IdleShelfKeepKeys = new List<string>(wdr.IdleShelfKeepKeys);
+    ur.PlayerStationFunding = wdr.PlayerStationFunding; ur.PlayerStationFundPerDay = wdr.PlayerStationFundPerDay;
+    ur.PlayerStationAmmoTarget = wdr.PlayerStationAmmoTarget; ur.PlayerStationMissileTarget = wdr.PlayerStationMissileTarget;
+    ur.FleetSupply = wdr.FleetSupply; ur.FleetSupplyRange = wdr.FleetSupplyRange; ur.FleetSupplyTicks = wdr.FleetSupplyTicks;
+    ur.PlayerMinerFuelCost = wdr.PlayerMinerFuelCost; ur.PlayerTankReserve = wdr.PlayerTankReserve; ur.PlayerWaitForSupplier = wdr.PlayerWaitForSupplier;
+}
 if (Array.IndexOf(args, "--probe3") is var p3 && p3 >= 0) { Probe3.Run(u, args[p3 + 1], seed, outDir); return; }
 if (args.Contains("--sites"))
 {
@@ -76,6 +86,17 @@ if (args.Contains("--fightreport"))
     Console.WriteLine($"Tick {u.Tick} Aktives Schiff #{u.PlayerShip.Value} Kriege: {string.Join(", ", u.Wars.Select(w => w.A.Value + "-" + w.B.Value))}");
     foreach (var f in u.Fights.Encounters) { Console.WriteLine($"Gefecht {f.Id} {f.Cause} Sektor {u.Sectors[f.Sector].Name} seit {f.StartTick} Station {f.Station.Value} Teilnehmer {string.Join(",", f.Participants.Select(p => (p.Side == 0 ? "A" : "B") + p.Ship.Value + (p.Active ? "" : "(raus)")))}"); }
     foreach (var p in u.PendingEncounters) Console.WriteLine($"Warnung gegen {p.Target.Value}");
+    return;
+}
+if (args.Contains("--shelfreport"))   // Welle D: Regalwaren eigener Stationen (Bestand/Ziel/Preis/Kasse)
+{
+    if (args.Contains("--run")) new SimulationRunner().Run(u, 2000);
+    foreach (var st in u.StationsById().Where(x => !x.IsBuildSite && x.Owner == u.PlayerActor))
+    {
+        var shelves = st.Market.Where(kv => st.IsStockOnly(kv.Key)).Select(kv => $"{u.Goods[kv.Key].Key} {kv.Value.Amount:0.#}/{kv.Value.Target:0.#} @{kv.Value.Price:0.0}");
+        Console.WriteLine($"{st.Name} [{st.TypeKey}] {u.Sectors[st.Sector].Name} Kasse {st.Credits:0} Dienste {string.Join(",", u.StationTypes[st.TypeKey].Services)} | {string.Join("; ", shelves)}");
+    }
+    Console.WriteLine($"Kasse Spieler {u.PlayerWallet.Credits:0}");
     return;
 }
 if (args.Contains("--sectorreport"))
@@ -145,6 +166,16 @@ if (args.Contains("--catalog")) { Catalog.Dump(u); return; }
 if (args.Contains("--shiptable")) { Catalog.ShipTable(u); return; }
 var emerg = new Dictionary<string, (int n, float units, float cost)>();
 u.Events.Raised += e => { if (e is SpaceSim.Core.Events.EmergencyRefuel er && u.Ships.TryGetValue(er.Ship, out var es) && es.Owner == u.PlayerActor) { var k = $"{es.ModelKey} {u.Goods[er.Good].Name} cmd={es.Command?.GetType().Name} in {u.Sectors[es.Sector].Name}"; var o = emerg.GetValueOrDefault(k); emerg[k] = (o.n + 1, o.units + er.Units, o.cost + er.Cost); } };
+// Welle D: Treibstoffkäufe der Spielerflotte nach Modell, Befehl, Sorte (Messung der Flotten-Treibstoffkosten)
+var fuelBuys = new Dictionary<string, (int n, float units, float cost)>();
+var fuelHour = new Dictionary<long, (float cost, float units, float emerg)>();
+u.Events.Raised += e =>
+{
+    if (e is SpaceSim.Core.Events.FuelBought fb && u.Ships.TryGetValue(fb.Ship, out var fs) && fs.Owner == u.PlayerActor)
+    { var k = $"{fs.ModelKey} {u.Goods[fb.Good].Name} cmd={fs.Command?.GetType().Name} role={fs.Role}"; var o = fuelBuys.GetValueOrDefault(k); fuelBuys[k] = (o.n + 1, o.units + fb.Units, o.cost + fb.Cost); var h = u.Tick / 14400; var oh = fuelHour.GetValueOrDefault(h); fuelHour[h] = (oh.cost + fb.Cost, oh.units + fb.Units, oh.emerg); }
+    if (e is SpaceSim.Core.Events.EmergencyRefuel er2 && u.Ships.TryGetValue(er2.Ship, out var es2) && es2.Owner == u.PlayerActor)
+    { var h = u.Tick / 14400; var oh = fuelHour.GetValueOrDefault(h); fuelHour[h] = (oh.cost, oh.units, oh.emerg + er2.Cost); }
+};
 var log = new Log(Path.Combine(outDir, "ereignisse.log"), () => u.Tick);
 if (args.Contains("--evlog")) { var evNames = new HashSet<string> { "StationFell", "StationDeparted", "WarDeclared", "PeaceConcluded", "SectorOwnerChanged", "PlayerGovernmentUnpaidChanged", "AllianceFormed", "TributePaid", "SupplyPanicRaised", "SectorControlChanged", "SectorAccessChanged", "StationCapitulationRolled" }; u.Events.Raised += e => { if (evNames.Contains(e.GetType().Name)) log.Event("KERN " + e.GetType().Name + " " + e); }; }
 var pilot = new Pilot(u, log, seed);
@@ -195,4 +226,5 @@ if (pilot.Led is { } led2)
 File.WriteAllText(Path.Combine(outDir, "stationen.csv"), bot.Emp.Book.Report());
 File.WriteAllText(Path.Combine(outDir, "empire.txt"), string.Join("\n", bot.Emp.Notes) + "\n--- Gericht ---\n" + string.Join("\n", bot.Emp.CourtLog) + "\n--- Krieg ---\n" + string.Join("\n", bot.Emp.WarLog) + "\n--- Nachschub (S5) ---\n" + string.Join("\n", bot.Emp.SupNotes) + "\n--- Bau ---\n" + string.Join("\n", bot.Emp.BuildLog) + $"\nKopfgeld abgeholt {bot.Emp.BountyClaimed:0} in {bot.Emp.BountyClaims} Abholungen\n");
 File.WriteAllText(Path.Combine(outDir, "zusammenfassung.txt"), summary);
+File.WriteAllText(Path.Combine(outDir, "treibstoff.txt"), string.Join("\n", fuelBuys.OrderByDescending(k => k.Value.cost).Select(k => $"{k.Key}: {k.Value.n}x {k.Value.units:0} E {k.Value.cost:0} Cr (Ø {k.Value.cost / Math.Max(1, k.Value.units):0.0} Cr/E)")) + "\n--- je Stunde ---\n" + string.Join("\n", fuelHour.OrderBy(k => k.Key).Select(k => $"Stunde {k.Key}: Treibstoff {k.Value.cost:0} Cr ({k.Value.units:0} E, Ø {k.Value.cost / Math.Max(1, k.Value.units):0.0}) Notbetankung {k.Value.emerg:0} Cr")));
 File.WriteAllText(Path.Combine(outDir, "notbetankung.txt"), string.Join("\n", emerg.OrderByDescending(k => k.Value.cost).Select(k => $"{k.Key}: {k.Value.n}x {k.Value.units:0} E {k.Value.cost:0} Cr")));

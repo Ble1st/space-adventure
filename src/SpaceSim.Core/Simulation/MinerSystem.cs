@@ -80,6 +80,10 @@ public sealed class MinerSystem : ISimSystem
         var profile = GateAccess.ProfileOf(u, ship);   // Phase 10: Gate-Zugang des Schiffs
         var laden = profile with { Laden = true };     // ausgeliefert wird beladen (Embargo)
         var limits = AutoLimitRules.Of(ship);          // Phase 12: Reichweite eines Automatikauftrags (KI ohne Befehl: keine)
+        // Welle D (1): Treibstoffpreis für eigene Schiffe (0 = ohne Treibstoffrechnung, wie bisher)
+        float fuelPrice = 0f; GoodId? fuelGood = null;
+        if (u.Rules.PlayerMinerFuelCost && u.PlayerActor.Value != 0 && ship.Owner == u.PlayerActor && Refuel.Active(u) && Refuel.ActiveFuel(ship) is { } fg && ship.Stats.FuelUsePerUnit > 0f)
+        { fuelGood = fg; fuelPrice = Refuel.FuelPrice(u, ship, fg); }
         foreach (var sector in u.Sectors.Values)
         {
             if (!u.IsReachable(ship.Sector, sector.Id, profile)) continue;
@@ -117,6 +121,15 @@ public sealed class MinerSystem : ISimSystem
                     // Phase 11: Risikoabschlag aus der Lagekarte — Liegezeit im Feldsektor und beladene Fahrt zur Station
                     float risk = MathF.Min(0.5f, ThreatMap.RiskOf(u, sector.Id) + ThreatMap.RouteRisk(u, sector.Id, st.Sector));
                     float score = value / time * crowding * (1f - risk);
+                    // Welle D (1): eigene Schiffe rechnen die Treibstoffkosten der Runde mit (KI unverändert)
+                    //   value ist der Wert je Einheit; eine Runde bringt eine Laderaumfüllung — Treibstoffkosten je Einheit der Ladung abziehen
+                    if (fuelPrice > 0f)
+                    {
+                        float hold = MathF.Max(1f, ship.CapacityVolumeFor(GoodForm.Solid));
+                        float fuelCost = Refuel.Consumption(ship, Travel.EstimateDistance(u, ship.Sector, ship.Position, sector.Id, workPoint, ship)
+                            + Travel.EstimateDistance(u, sector.Id, workPoint, st.Sector, st.DockPoint(ship.Id), laden), fuelGood) * fuelPrice;
+                        score = (value * crowding * (1f - risk) - fuelCost / hold) / time;
+                    }
                     if (score > bestScore) { bestScore = score; bestFieldPos = workPoint; best = new MineOrder(sector.Id, fi, st.Id); }
                 }
             }

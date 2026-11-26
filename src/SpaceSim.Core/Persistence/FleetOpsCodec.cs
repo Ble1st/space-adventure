@@ -17,6 +17,7 @@ public static class FleetOpsCodec
         ExploreSectorCommand e => new OrderSave { Kind = CommandKinds.ExploreSector, A = e.Sector.Value },   // Ausbau Punkt 16
         ExploreUniverseCommand => new OrderSave { Kind = CommandKinds.ExploreUniverse },
         TaxiCommand t => Taxi(t),   // Ausbau Punkt 14
+        SupplyCommand v => new OrderSave { Kind = CommandKinds.Supply, A = v.Sector.Value },   // Welle D
         _ => null,
     };
 
@@ -32,6 +33,7 @@ public static class FleetOpsCodec
         CommandKinds.ExploreSector => new ExploreSectorCommand(new SectorId(o.A)),
         CommandKinds.ExploreUniverse => new ExploreUniverseCommand(),
         CommandKinds.Taxi => new TaxiCommand(UniverseSerializer.LimitsFrom(o), new StationId(o.Ids?.ElementAtOrDefault(0) ?? 0), new StationId(o.Ids?.ElementAtOrDefault(1) ?? 0), o.Ids?.ElementAtOrDefault(2) ?? 0),
+        CommandKinds.Supply => new SupplyCommand(new SectorId(o.A)),   // Welle D
         _ => null,
     };
 

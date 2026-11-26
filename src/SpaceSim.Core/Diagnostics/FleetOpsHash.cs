@@ -20,6 +20,7 @@ public static class FleetOpsHash
                 break;
             case ExploreSectorCommand e: mix(0xF116u); mix((ulong)e.Sector.Value); break;   // Ausbau Punkt 16
             case ExploreUniverseCommand: mix(0xF117u); break;
+            case SupplyCommand v: mix(0xF119u); mix((ulong)v.Sector.Value); break;   // Welle D
             case TaxiCommand t:   // Ausbau Punkt 14
                 mix(0xF118u); mix((ulong)t.Limits.Center.Value); mix((ulong)(uint)t.Limits.RadiusJumps); mixF(t.Limits.MaxBuyFactor); mixF(t.Limits.Reserve);
                 mix((ulong)t.Dest.Value); mix((ulong)t.From.Value); mix((ulong)(uint)t.Pax);

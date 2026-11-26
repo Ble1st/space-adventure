@@ -164,7 +164,8 @@ public sealed class ActorModule : ISimModule
 {
     public string Name => "Actors";
     // Phase 15: Ausgaben der Fraktionskassen — Stationsinstandhaltung (Material über den Handel, Kasse erstattet) und Subvention notleidender Stationen
-    public void Register(SimulationBuilder b) => b.Add(new ActorSystem(), interval: 20).Add(new MaintenanceSystem(), interval: 50).Add(new SubsidySystem(), interval: 50);
+    public void Register(SimulationBuilder b) => b.Add(new ActorSystem(), interval: 20).Add(new MaintenanceSystem(), interval: 50).Add(new SubsidySystem(), interval: 50)
+        .Add(new PlayerStationFundingSystem(), PlayerStationFundingSystem.Interval);   // Welle D (4): eigene Stationen bezahlen Regalware aus der Spielerkasse
 }
 
 /// <summary>

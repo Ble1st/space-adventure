@@ -262,6 +262,7 @@ public sealed partial class FleetScreen : CommandScreen, ISessionScreen
 		CommandKinds.Trade => new TradeCommand(Limits(u, ship)),
 		CommandKinds.Mine => new MineCommand(Limits(u, ship)),
 		CommandKinds.Taxi => new TaxiCommand(Limits(u, ship)),   // Ausbau Punkt 14
+		CommandKinds.Supply => new SupplyCommand(ThreatMap.Where(u, ship).Sector),   // Welle D: Versorgen im aktuellen Sektor bzw. im Verband
 		CommandKinds.Build => new BuildCommand(default),
 		CommandKinds.GoTo => u.Stations.Values.Select(s => new GoToCommand(default, default, s.Id)).FirstOrDefault(),
 		CommandKinds.Patrol => new PatrolCommand(new[] { ship.Sector }),

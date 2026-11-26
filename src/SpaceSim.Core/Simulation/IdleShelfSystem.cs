@@ -40,9 +40,26 @@ public sealed class IdleShelfSystem : ISimSystem
                 long last = e.LastMove ?? 0;
                 bool idle = u.Tick - last >= ticks;
                 if (idle && u.Tick - dt - last < ticks)   // Schwelle in diesem Intervall überschritten: Ziel einmal senken
-                    e.Target = MathF.Max(1f, e.Target - 1f);
+                    e.Target = MathF.Max(Floor(u, st, good), e.Target - 1f);
             }
         }
+    }
+
+    /// <summary>
+    /// Welle D (Punkte 2/3): Untergrenze des Ziels — 1; an Stationen mit Schiffshändler für die großen Module (<see cref="EconomyRules.YardLargeModuleKeys"/>,
+    /// mit <see cref="EconomyRules.IdleShelfKeepLargeYard"/>) und die Module in <see cref="EconomyRules.IdleShelfKeepKeys"/> der Wunschbestand des Stationstyps
+    /// (bei den großen Modulen also der Welle-B-Wert).
+    /// </summary>
+    public static float Floor(Universe u, Station st, GoodId good)
+    {
+        var r = u.Rules;
+        if (!r.IdleShelfKeepLargeYard && r.IdleShelfKeepKeys.Count == 0) return 1f;
+        if (!u.StationTypes.TryGetValue(st.TypeKey, out var t) || t.ShipDealer is null || u.GoodOf(good) is not { } g) return 1f;
+        bool keep = r.IdleShelfKeepKeys.Contains(g.Key) || (r.IdleShelfKeepLargeYard && r.YardLargeModuleKeys.Contains(g.Key));
+        if (!keep) return 1f;
+        foreach (var s in t.Stocks)
+            if (s.Good == good) return MathF.Max(1f, s.Target);
+        return 1f;
     }
 
     /// <summary>Wird dieser Eintrag als Modulregal verfolgt? (Schalter an, keine Baustelle, stock-only, Modulware.)</summary>

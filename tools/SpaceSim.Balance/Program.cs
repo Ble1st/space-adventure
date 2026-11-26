@@ -482,6 +482,7 @@ u.Events.Raised += e =>
 bool probeBroke = opts.TryGetValue("probe", out var probeOpt) && probeOpt == "pleite";
 var tradeProbe = opts.TryGetValue("probe", out var tpOpt) && tpOpt == "spielerhandel" ? new PlayerTradeProbe() : null;
 var cashProbe = opts.TryGetValue("probe", out var cpOpt) && cpOpt == "kassen" ? new CashProbe() : null;   // Runde 25
+var yardProbe = opts.TryGetValue("probe", out var ypOpt) && ypOpt == "werft" ? new YardProbe() : null;   // Welle D
 var hintProbe = opts.TryGetValue("probe", out var hpOpt) && hpOpt == "hinweis" ? new HintProbe(u) : null;   // Runde 25
 var probeLog = new Dictionary<int, List<string>>();
 var probeOut = new List<string>();
@@ -932,6 +933,7 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
             done += step;
             if (tradeProbe is not null && u.Tick % PlayerTradeProbe.Every == 0) tradeProbe.Sample(u);   // Runde 23: --probe spielerhandel
             if (cashProbe is not null && u.Tick % CashProbe.Every == 0) cashProbe.Sample(u);
+            if (yardProbe is not null && u.Tick % YardProbe.Every == 0) yardProbe.Sample(u);
             if (hintProbe is not null && u.Tick % 20 == 0) hintProbe.Sample(u);
             if (u.Tick % 20000 == 0)   // Phase 24 (Korrektur): Piratenbestand und -kasse über die Zeit
             {
@@ -1404,6 +1406,7 @@ if (u.Modules.Count > 0)
         + $"Hülle fehlt jetzt (KI) {u.Ships.Values.Where(x => !x.IsPlayer).Sum(x => MathF.Max(0f, x.MaxHull - x.Hull)):0}");
     Console.WriteLine($"Hüllenzustand KI (Händler/Schürfer, Probe ab 10 %): mittlere Hüllenquote {(hullFracN > 0 ? hullFracSum / hullFracN : 1):0.000}, schwer beschädigt {(hullFracN > 0 ? 100.0 * hullSerious / hullFracN : 0):0.0} %, Reparaturflüge {repairTrips}");
     foreach (var line in probeOut) Console.WriteLine("SONDE " + line);
+    if (yardProbe is not null) Console.WriteLine(yardProbe.Report());
     Console.WriteLine($"Händler-Einkäufe verweigert: {buysRefused}" + (refusedBy.Count > 0 ? " (" + string.Join(", ", refusedBy.Select(kv => $"{kv.Key} {kv.Value}")) + ")" : ""));
     Console.WriteLine($"Händlerpleiten und Reparatur: {brokeTraders} pleite, davon {brokeWithRepair} hatten repariert (zusammen {brokeRepairSum:0} Cr), {brokeDamaged} mit Hüllenschaden, {brokeFailed} mit ausgefallenem Modul");
     Console.WriteLine($"Wracks: {wrecksMade} entstanden + {containersMade} Frachtbehälter (Fracht {wreckCargoMade:0.#}, Module {wreckModulesMade}); geborgen Fracht {salvagedCargoNpc:0.#} (Kaperer) + {salvagedCargoPlayer:0.#} (Spieler), Module {salvagedModules}; "

@@ -372,3 +372,45 @@ Schalter gleicher Hash).
   Abschusspunkte, Verluste, K:D, Aufträge, Kopfgelder, Verbrechen) und die obersten 12 Plätze (der Spieler zusätzlich, wenn weiter unten). Zielkarte
   (Kräftezeile, wenn frei) und Funkfenster nennen bei Schiffen mit Kapitän „Kpt. Rang Name“ (kürzere Formen, mit der Schrift gemessen).
 - Tests `PilotenTests` (9), Selbsttest-Stufe 167 (`SelfTest.Pilots.cs`).
+
+## 16. Welle D: Versorgung der Spielerflotte und Nachschub an eigenen Stationen
+
+Anlass: Spielerbot (`--s4 --supply --wellec`, Schürfer, Seed 9, Spielstand bei Tick 260 000) erreichte nach Welle C 9 Sektoren und brach bei Tick ≈ 660 000
+auf 2 Sektoren ein; die Kasse fiel in sechs Spielstunden von 2,4 Mio. auf 0. Schalter in `Model/EconomyRules.WelleD.cs` (Code aus, Standardwelt an,
+`WelleDTests.RevertWelleD`).
+
+**Ursache Treibstoff (gemessen, Bot-Auswertung `treibstoff.txt` je Modell/Befehl/Stunde).** Nicht die Kampfschiffe: 98 % der Treibstoffkäufe der Flotte
+fielen bei Handels- und Schürfautomatik an (Großschürfer allein 62 %), zum normalen Preis (Ø 33–48 Cr/E, Treibstoff ≈ 1×). Ab Stunde 40 verdreifachte sich
+die getankte Menge (4 000 → 12 000–16 000 E/h) bei gleicher Schiffszahl: die Schürfautomatik (`MinerSystem.BestMine`) rechnete den Treibstoff gar nicht und
+fuhr mit Großschürfern (Radius unbegrenzt) quer über das gewachsene Reich. Als die Kasse leer war, tankten die Schiffe je Fahrt nur noch den Bedarf (30 % der
+Kasse als Vorratsbudget), kamen leer an und kauften zum doppelten Preis nach — Notkauf bis 280 000 Cr/h, die Einnahmen gingen vollständig darin auf.
+
+**Abhilfe (Spielerwege, KI unverändert).**
+- `playerMinerFuelCost`: eigene Schürfschiffe ziehen die Treibstoffkosten der Runde (Anflug + beladene Fahrt × Treibstoffpreis, je Einheit der Ladung) vom
+  Wert ab, wie die Handelsautomatik.
+- `playerTankReserve`: eigene Schiffe tanken an einer Tankstelle mindestens bis zur Reserve (75 % des Tanks), auch mit kleiner Kasse.
+- Befehl **„Versorgen“** (`fleetSupply`, `SupplyCommand`, `Simulation/Orders/SupplyExecutor.cs`): ein eigenes Schiff mit Frachtraum (Tanker Zisterne,
+  360 flüssig) gibt aus seiner Fracht Treibstoff in den Tank, Munition ins Magazin und Raketen in den Schacht der eigenen Schiffe seines Verbands (folgt dem
+  Anführer) bzw. seines Sektors (Reichweite 60, alle 20 Ticks, Ereignis `FleetSupplied`); fehlt ihm, was die Flotte braucht, kauft er an der nächsten
+  Station nach (Spielerkasse, Marktpreis) und kehrt zurück. Logistik statt geschenktem Treibstoff: der Tanker kauft zum Marktpreis.
+- `playerWaitForSupplier`: hat ein eigener Versorger im Sektor die Sorte an Bord, wartet ein eigenes Schiff, statt doppelt teuer nachzukaufen.
+- Anzeige „Treibstoff Flotte“ in „Meine Fraktion“: Kosten des letzten Spieltags je Spielstunde, davon Notkauf (`PlayerIncome.FuelText`).
+- Nicht gewählt: Tanken zum Grundpreis an eigenen Behörden. Die Messung zeigte, dass nicht die Kampfflotte tankt; Grundpreis aus dem Nichts wäre geschenkter
+  Treibstoff.
+
+**Großkampfschiff-Regale (Punkt 2).** `idleShelfKeepLargeYard`: ungenutzte Werftregale der großen Module (`yardLargeModuleKeys`) senken ihr Ziel nicht unter
+den Welle-B-Wert 2. Damit nimmt die Werft vom Spieler 6 Laserkanonen M an (3 × Ziel); der Schlachtkreuzer ist über Spielerlieferung baubar (Test).
+Die KI liefert ihn nie von selbst (0 % lieferbar über 400 000 Ticks, zwei Raketenwerfer Mk2/Punktabwehr Mk2 mit Ziel 1 fehlen) — das bleibt Spielerweg.
+
+**Schatten kaufbar (Punkt 3).** `idleShelfKeepKeys` (Reaktor Mk2, Triebwerk M, Universalfrachtraum 60, Sprungantrieb, Tarnfeld): auch diese Werftregale
+bleiben am Typziel. Werft-Sonde (`--probe werft`, 400 000 Ticks NPC-Welt): Schatten lieferbar vorher Delta 30 %, Hephaistos 56 %, Vesta 55 % der Proben
+(meist fehlte Reaktor Mk2, Ziel durch Ungenutztheit auf 1 gesunken) → nachher 96 % / 97 % / 98 %. Ändert die NPC-Welt erst nach 20 000 unbewegten Ticks
+(20 000-Tick-Hash unverändert; 60 000 Ticks Preise im Zielbereich, Verlustquote 0,25 → 0,29 %, keine Pleiten).
+
+**Nachschub an eigenen Stationen (Punkt 4).** Gemessen am Spielstand: alle eigenen Behörden hatten 0/8 Hüllenplatten, Kasse 19–271 Cr, Regalpreis 400 Cr
+(Knappheitsdeckel) — Händler meiden Spielerstationen nicht, die Station kann nur nicht zahlen (KI-Behörden stützt `SubsidySystem`). `playerStationFunding`:
+alle 50 Ticks füllt die Spielerkasse die Kasse eigener Versorgungsstationen (Typ mit Reparatur oder Nachladen) bis zum Wert der fehlenden Regalware auf
+(höchstens 6 000 Cr je Station und Tag, nie unter den Behördenvorrat der Welle C, Umbuchung `StationCashMoved`). Nach 2 000 Ticks hatten die Behörden
+5–7 von 8 Hüllenplatten. Eigene Stationen ohne Handelsdienst nehmen Lieferungen des Spielers über „trade“ an. Munitions-/Raketenregale eigener Stationen mit
+Nachladedienst: Ziel mindestens 120 / 30 (`playerStationAmmoTarget`/`MissileTarget`; ein großes Schiff fasst ein Vielfaches des alten Regalziels 8) — nur an Spielerstationen, die KI-Regale
+(Ziel 8) bleiben, weil höhere Ziele die Munitionsherstellung der ganzen Welt anheben würden.

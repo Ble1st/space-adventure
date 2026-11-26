@@ -49,7 +49,8 @@ public sealed partial class Empire
         if (!P.GoToStation(dest, out var why2)) { SupNote($"{tag}: Weg zu {dest.Name} verwehrt ({why2})"); return 0f; }
         float have = P.Me.Cargo.TryGetValue(gid, out var h) ? h : 0f;
         { var ac = SpaceSim.Core.Trading.MarketInfo.Acceptance(U, dest, gid, P.Me); var de = dest.Market[gid]; SupNote($"{tag}: VOR Verkauf {good.Name} bei {dest.Name}: Bestand {de.Amount:0.0} Ziel {de.Target:0.0} Annahme {ac.Units:0.0} (Grund {ac.Reason}, Cap {ac.Cap:0.0}), Kasse Station {dest.Credits:0}, an Bord {have:0}"); }
-        var rs = P.Do(dest, P.Svc(dest, "trade")!, $"sell:{gid.Value}", gid, have);
+        if (P.Svc(dest, "trade") is not { } dtr) { SupNote($"{tag}: {dest.Name} hat keinen Handelsdienst"); return 0f; }
+        var rs = P.Do(dest, dtr, $"sell:{gid.Value}", gid, have);
         SupNote($"{tag}: {good.Name} {n:0} bei {src.Name} für {-r.Credits:0} gekauft; bei {dest.Name} (Ziel {dest.Market[gid].Target:0}, Bestand jetzt {dest.Market[gid].Amount:0.0}) verkauft: {(rs.Success ? $"ok {rs.Credits:0}" : rs.Message)}");
         return rs.Success ? have : 0f;
     }

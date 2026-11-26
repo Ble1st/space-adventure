@@ -78,6 +78,7 @@ public sealed class OrderExecutors
         r.Register(new Intel.ExploreSectorExecutor());
         r.Register(new Intel.ExploreUniverseExecutor());
         r.Register(new TaxiExecutor());   // Ausbau Punkt 14: Taxi fahren
+        r.Register(new SupplyExecutor());   // Welle D: Versorgen (Tanker)
         return r;
     }
 

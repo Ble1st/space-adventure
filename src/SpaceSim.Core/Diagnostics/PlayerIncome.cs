@@ -34,7 +34,44 @@ public sealed class PlayerIncome
             case TreasuryIncome { Purpose: "tribute" } ti when ti.Actor == _u.PlayerActor: Add(ti.Amount, "Tribut"); break;   // Runde 45: geforderter Tribut
             case ShipSold sold: Add(sold.Price, "Schiffsverkauf"); break;
             case Simulation.PlayerSectorTaxCollected tax: Add(tax.Amount, "Steuern"); break;   // Welle C (1): Abgaben aus eigenem Gebiet
+            // Welle D (1): Treibstoffkosten der eigenen Flotte (Kauf an Stationen und Notkauf) — eigene Reihe, keine Einnahme
+            case FuelBought fb when Mine(fb.Ship): AddFuel(fb.Cost, false); break;
+            case EmergencyRefuel er when Mine(er.Ship): AddFuel(er.Cost, true); break;
         }
+    }
+
+    bool Mine(ShipId id) => _u.Ships.TryGetValue(id, out var s) && s.Owner == _u.PlayerActor;
+
+    readonly Queue<(long Tick, float Amount, bool Emergency)> _fuel = new();
+
+    void AddFuel(float cost, bool emergency)
+    {
+        if (!(cost > 0f) || !float.IsFinite(cost)) return;
+        _fuel.Enqueue((_u.Tick, cost, emergency));
+    }
+
+    /// <summary>
+    /// Welle D (1): Treibstoffkosten der eigenen Flotte im letzten Spieltag, hochgerechnet auf eine Spielstunde (14 400 Ticks), davon Notkauf; und über wie
+    /// viele Ticks gemessen wurde.
+    /// </summary>
+    public (float PerHour, float EmergencyPerHour, long Ticks) FuelPerHour()
+    {
+        long now = _u.Tick, from = now - Math.Max(1, _u.Rules.DayTicks);
+        while (_fuel.Count > 0 && _fuel.Peek().Tick <= from) _fuel.Dequeue();
+        float sum = 0f, em = 0f;
+        foreach (var (_, a, e) in _fuel) { sum += a; if (e) em += a; }
+        long ticks = Math.Min(Math.Max(1, _u.Rules.DayTicks), now - _since);
+        float scale = 14400f / Math.Max(1, ticks);
+        return (sum * scale, em * scale, ticks);
+    }
+
+    /// <summary>Anzeigetext der Treibstoffkosten: „−12345 Cr/h (Notkauf 2000)“ bzw. „keine“.</summary>
+    public string FuelText()
+    {
+        var (h, em, t) = FuelPerHour();
+        string since = t >= Math.Max(1, _u.Rules.DayTicks) ? "" : $" (seit {Math.Max(0, t) / 240} min)";
+        if (h <= 0f) return $"keine{since}";
+        return $"−{h:0} Cr/h" + (em > 0f ? $" (Notkauf {em:0})" : "") + since;
     }
 
     void Add(float amount, string source)

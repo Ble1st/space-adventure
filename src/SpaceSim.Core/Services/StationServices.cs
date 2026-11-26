@@ -55,6 +55,10 @@ public sealed class StationServices
         // Bars: Dienst „bar“ an bewohnten Stationen (Typliste in den Regeln, nicht in der Dienstliste des Typs)
         if (_byKey.TryGetValue(Bars.Bars.ServiceKey, out var bar) && bar.IsAvailable(u, station) && !list.Contains(bar))
             list.Add(bar);
+        // Welle D (4): eigene Stationen mit Regalware (z. B. Behörden mit Hüllenplatten) nehmen Lieferungen des Spielers über „trade“ an, auch ohne
+        // Handelsdienst im Typ — sonst konnte der Spieler seine eigenen Reparaturstationen nicht beliefern
+        if (Simulation.PlayerStationFunding.TradeOpen(u, station) && _byKey.TryGetValue(TradeService.ServiceKey, out var tr) && !list.Contains(tr) && tr.IsAvailable(u, station))
+            list.Insert(0, tr);
         return list;
     }
 

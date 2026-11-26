@@ -173,6 +173,9 @@ public static class Refuel
         var good = ActiveFuel(ship);
         if (!Active(u) || good is null || !st.Market.TryGetValue(good.Value, out var e) || e.Price <= 0f) return 0f;
         float budget = MathF.Floor(FuelBudgetShare * MathF.Max(0f, u.WalletOf(ship).Credits) / e.Price);
+        // Welle D (1): eigene Schiffe tanken mindestens bis zur Reserve — sonst kommen sie mit kleiner Spielerkasse leer an und kaufen doppelt teuer nach
+        if (u.Rules.PlayerTankReserve && ship.Owner == u.PlayerActor && u.PlayerActor.Value != 0)
+            minUnits = MathF.Max(minUnits, MinFuelReserveFraction * ship.Stats.FuelCapacity - ship.TotalFuel);
         float want = MathF.Min(ship.FuelSpace, MathF.Max(MathF.Ceiling(minUnits), budget));
         return BuyFuel(u, ship, st, good.Value, want);
     }
@@ -291,6 +294,8 @@ public static class Refuel
         }
         if (ship.FuelAmount(good.Value) >= trip) return TripPlan.Depart;   // keine Tankstelle in Reichweite, aber die Reise selbst geht
 
+        // Welle D (1): ein eigener Versorger im Sektor hat die Sorte an Bord — warten statt doppelt teuer nachkaufen
+        if (FleetSupply.WaitFor(u, ship, good.Value)) return TripPlan.Stuck;
         // 3) Notkauf: so viel Treibstoff, dass die nächste Tankstelle erreichbar ist (Aufpreis, Geldsenke);
         //    danach wird diese Tankstelle angesteuert (dort volltanken), erst dann geht es weiter
         var any = NearestFuelStation(u, ship, good.Value, float.PositiveInfinity);

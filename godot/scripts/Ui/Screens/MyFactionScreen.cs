@@ -28,6 +28,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 	public string TestCostsText { get; private set; } = "";
 	/// <summary>Runde 38, Selbsttest: zuletzt gezeigte Einnahmen/Tag.</summary>
 	public string TestIncomeText { get; private set; } = "";
+	/// <summary>Welle D, für den Selbsttest: Text der Zeile „Treibstoff Flotte“.</summary>
+	public string TestFuelText { get; private set; } = "";
 
 	protected override void BuildContent(Control inner)
 	{
@@ -88,7 +90,10 @@ public sealed partial class MyFactionScreen : CommandScreen
 		// Runde 38: echt — Verkäufe, Flottenhandel, Kopfgeld und Schiffsverkauf des letzten Spieltags (Ereignisse, SpaceSim.Core.Diagnostics.PlayerIncome)
 		{ string income = Ctx.Income() is { } inc ? inc.Text() : "–";
 		  Row(b, 20, 174, 446, "Einnahmen/Tag", income, 14); TestIncomeText = income; }
-		WrappedText(b, "Einnahmen: Verkäufe, Flottenhandel, Kopfgeld und Schiffsverkauf im letzten Spieltag (10 min).", 20, 204, 446, 12, new Color(Dim, 0.75f), 16);
+		// Welle D (1): Treibstoffkosten der eigenen Flotte je Spielstunde (Kauf an Stationen und Notkauf, letzter Spieltag hochgerechnet)
+		{ string fuel = u.Rules.FuelActive && Ctx.Income() is { } inc2 ? inc2.FuelText() : "–";
+		  Row(b, 20, 198, 446, "Treibstoff Flotte", fuel, 14); TestFuelText = fuel; }
+		WrappedText(b, "Einnahmen und Treibstoff: letzter Spieltag (10 min).", 20, 224, 446, 12, new Color(Dim, 0.75f), 16);
 
 		// ── Karte 3 (links unten): Beziehungen der Fraktionen zu dir und Fahndung (echt) ──
 		var rep = narrow ? CardBg(inner, 12, 536, 500, 234, Card) : CardBg(inner, 12, 274, 500, 234, Card);
