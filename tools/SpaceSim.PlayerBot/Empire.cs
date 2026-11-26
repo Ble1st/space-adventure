@@ -45,6 +45,7 @@ public sealed partial class Empire
         LockRevert();
         if (!Rich) return false;
         P.Where = "Empire:hq"; if (Hq()) return true;
+        P.Where = "Empire:supply"; if (SupplyStep()) return true;
         if (Only == "court") { P.Where = "Empire:court"; return Court(); }
         if (Only == "bounty") { P.Where = "Empire:bounty"; return HuntRaider() || Bounty(); }
         if (Dom) { P.Where = "Empire:diplo"; if (Diplo()) return true; P.Where = "Empire:dominion"; if (Dominion()) return true; if (DomWar && (P.Where = "Empire:war") != null && War()) return true; return false; }
@@ -459,10 +460,11 @@ public sealed partial class Empire
     public bool CampaignActive => _ws is WarState.Declared or WarState.Marching or WarState.Siege;
     enum WarState { Idle, Declared, Marching, Siege, Done }
     WarState _ws; FactionId _enemy; StationId _target; long _wsSince; int _warTry; public readonly List<string> WarLog = new();
-    long _nextWar; int _wars, _chain; SectorId _targetSector;
+    long _diagNext; long _nextWar; int _wars, _chain; SectorId _targetSector;
 
     bool War()
     {
+        if (S4 && _ws != WarState.Done && U.Tick >= _nextWar && U.Tick >= _diagNext && !CampaignActive) { _diagNext = U.Tick + 30000; var m0 = PlayerFleet.Owned(U).Where(s => s.Has(Capability.Combat) && U.ShipModels.TryGetValue(s.ModelKey, out var mm) && mm.Jobs.Count == 0).ToList(); Note($"Kriegslage: Zustand {_ws}, Kampfschiffe {m0.Count}, groß {m0.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L)}, Kasse {Wallet:0}, HQ {(PlayerHq.Current(U) is null ? "nein" : "ja")}, nächster Krieg ab {_nextWar}"); }
         if (_ws == WarState.Done || U.Tick < _nextWar || PlayerHq.Current(U) is null) return false;
         var mil = PlayerFleet.Owned(U).Where(s => s.Has(Capability.Combat) && U.ShipModels.TryGetValue(s.ModelKey, out var m) && m.Jobs.Count == 0).ToList();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
@@ -476,8 +478,12 @@ public sealed partial class Empire
                 // Ziel: schwächste kriegsfähige Fraktion mit einer fangbaren Station (Sektor-HQ/Wirtschaftsstation), nicht im Bündnis
                 var me = U.PlayerFaction!.Value;
                 var cands = U.NpcFactionIds().Where(f => Wars.PlayerDeclareIssue(U, f) is null).ToList();
-                if (cands.Count == 0) { _nextWar = U.Tick + 6000; return false; }
-                var f0 = cands.OrderBy(f => Wars.Strength(U, f)).First();
+                if (cands.Count == 0) { _nextWar = U.Tick + 6000; Note("Kein Kriegsziel: " + string.Join(" | ", U.NpcFactionIds().Select(f => $"F{f.Value}: {Wars.PlayerDeclareIssue(U, f)}"))); return false; }
+                FactionId? f0n = null;
+                foreach (var cf in cands.OrderBy(f => Wars.Strength(U, f)))
+                    if (!S4 || U.StationsById().Any(s => !s.IsBuildSite && U.FactionOf(s) == cf && U.Sectors[s.Sector].Owner == cf && !StationProtection.IsHideout(U, s) && U.StationTypes[s.TypeKey].Government != GovernmentKind.Outpost && s.Owner != U.PlayerActor && !StationCombat.IsDown(U, s))) { f0n = cf; break; }
+                if (f0n is null) { _nextWar = U.Tick + 6000; if (S4) Note("Kein Kriegsziel: keine kriegsfähige Fraktion mit angreifbarer Station in eigenem Sektor"); return false; }
+                var f0 = f0n.Value;
                 _enemy = f0;
                 var st = U.StationsById().Where(s => !s.IsBuildSite && U.FactionOf(s) == f0 && U.Sectors[s.Sector].Owner == f0 && !StationProtection.IsHideout(U, s))
                     .OrderBy(s => IsHq(s) ? 1 : 0).ThenBy(s => U.StationTypes[s.TypeKey].Defense?.Hull ?? 0f)

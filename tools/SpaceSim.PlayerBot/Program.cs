@@ -29,6 +29,7 @@ for (int i = 0; i < args.Length; i++)
         case "--domforemen": Empire.DomForemen = int.Parse(args[++i]); break;
         case "--mixed": Empire.Dom = true; Empire.DomWar = true; Empire.MilOn = true; Empire.Mixed = true; Empire.RetreatHull = 0.5f; break;
         case "--s4": Empire.S4 = true; Empire.Dom = true; Empire.DomWar = true; Empire.MilOn = true; Empire.Mixed = true; Empire.RetreatHull = 0.5f; break;
+        case "--supply": Empire.Supply = true; break;
         case "--needbig": Empire.NeedBig = int.Parse(args[++i]); break;
         case "--noflood": Empire.NoFlood = true; break;
         case "--hunter": Hunter.On = true; break;
@@ -137,6 +138,7 @@ if (args.Contains("--shiptable")) { Catalog.ShipTable(u); return; }
 var emerg = new Dictionary<string, (int n, float units, float cost)>();
 u.Events.Raised += e => { if (e is SpaceSim.Core.Events.EmergencyRefuel er && u.Ships.TryGetValue(er.Ship, out var es) && es.Owner == u.PlayerActor) { var k = $"{es.ModelKey} {u.Goods[er.Good].Name} cmd={es.Command?.GetType().Name} in {u.Sectors[es.Sector].Name}"; var o = emerg.GetValueOrDefault(k); emerg[k] = (o.n + 1, o.units + er.Units, o.cost + er.Cost); } };
 var log = new Log(Path.Combine(outDir, "ereignisse.log"), () => u.Tick);
+if (args.Contains("--evlog")) { var evNames = new HashSet<string> { "StationFell", "StationDeparted", "WarDeclared", "PeaceConcluded", "SectorOwnerChanged", "PlayerGovernmentUnpaidChanged", "AllianceFormed", "TributePaid", "SupplyPanicRaised", "SectorControlChanged", "SectorAccessChanged", "StationCapitulationRolled" }; u.Events.Raised += e => { if (evNames.Contains(e.GetType().Name)) log.Event("KERN " + e.GetType().Name + " " + e); }; }
 var pilot = new Pilot(u, log, seed);
 var metrics = new Metrics(u, pilot, Path.Combine(outDir, "zeitleiste.csv"), Path.Combine(outDir, "zeitleiste.txt"), every);
 pilot.OnTick = metrics.OnTick;
@@ -183,6 +185,6 @@ if (pilot.Led is { } led2)
     File.WriteAllText(Path.Combine(outDir, "baufenster.txt"), sbT.ToString());
 }
 File.WriteAllText(Path.Combine(outDir, "stationen.csv"), bot.Emp.Book.Report());
-File.WriteAllText(Path.Combine(outDir, "empire.txt"), string.Join("\n", bot.Emp.Notes) + "\n--- Gericht ---\n" + string.Join("\n", bot.Emp.CourtLog) + "\n--- Krieg ---\n" + string.Join("\n", bot.Emp.WarLog) + "\n--- Bau ---\n" + string.Join("\n", bot.Emp.BuildLog) + $"\nKopfgeld abgeholt {bot.Emp.BountyClaimed:0} in {bot.Emp.BountyClaims} Abholungen\n");
+File.WriteAllText(Path.Combine(outDir, "empire.txt"), string.Join("\n", bot.Emp.Notes) + "\n--- Gericht ---\n" + string.Join("\n", bot.Emp.CourtLog) + "\n--- Krieg ---\n" + string.Join("\n", bot.Emp.WarLog) + "\n--- Nachschub (S5) ---\n" + string.Join("\n", bot.Emp.SupNotes) + "\n--- Bau ---\n" + string.Join("\n", bot.Emp.BuildLog) + $"\nKopfgeld abgeholt {bot.Emp.BountyClaimed:0} in {bot.Emp.BountyClaims} Abholungen\n");
 File.WriteAllText(Path.Combine(outDir, "zusammenfassung.txt"), summary);
 File.WriteAllText(Path.Combine(outDir, "notbetankung.txt"), string.Join("\n", emerg.OrderByDescending(k => k.Value.cost).Select(k => $"{k.Key}: {k.Value.n}x {k.Value.units:0} E {k.Value.cost:0} Cr")));

@@ -29,6 +29,7 @@ public static class Probe3
         {
             case "wing": Wing(u, pilot, P); break;
             case "shadow": Shadow(u, pilot, P); break;
+            case "jumpfit": JumpFit(u, P); break;
             case "supply": Supply(u, pilot, P); break;
             case "fleetammo": FleetAmmo(u, pilot, P); break;
             case "reach": foreach (var g in u.StationsById().Where(x => !x.IsBuildSite).GroupBy(x => x.TypeKey)) { var st0 = g.First(); var gm = (Guns: StationCombat.DefenseOf(u, st0)?.Guns.Count ?? 0, Range: StationCombat.GunRange(u, st0)); bool rk = StationCombat.DefenseOf(u, st0)?.Guns.Any(k => u.Modules.TryGetValue(k, out var mm) && mm.Stat("missileSpeed") > 0) == true; P($"{g.Key,-22} Radius {st0.Radius:0} Geschütze {gm.Guns} Reichweite {gm.Range:0} (ab Außenhaut), Hülle {StationCombat.MaxHull(u, st0):0} Schild {StationCombat.MaxShield(u, st0):0} Raketen {rk}"); } break;
@@ -227,5 +228,30 @@ public static class Probe3
             p.Step();
         }
         P("Ereignisse: " + string.Join(", ", seen.OrderByDescending(k => k.Value).Take(25).Select(k => k.Key + " " + k.Value)));
+    }
+
+    // ───────── Sprungantrieb/Tarnfeld in den Nutzplätzen der Großkampfschiffe (reine Rechnung mit FitRules/ShipStats) ─────────
+    static void JumpFit(Universe u, Action<string> P)
+    {
+        foreach (var gk in new[] { "ammo", "missile", "hull_plates" })
+        {
+            var g = u.Goods.Values.FirstOrDefault(x => x.Key == gk); if (g is null) continue;
+            foreach (var st in u.StationsById().Where(x => !x.IsBuildSite && x.Market.ContainsKey(g.Id) && (u.StationTypes[x.TypeKey].Services.Contains("rearm") || u.StationTypes[x.TypeKey].Services.Contains("repair") || x.Produces(g.Id))))
+            { var e = st.Market[g.Id]; P($"Regal {gk} {st.Name} [{u.Sectors[st.Sector].Name}] Besitzer {(st.Owner == u.PlayerActor ? "ICH" : (u.FactionOf(st)?.Value.ToString() ?? "-"))}: {e.Amount:0.0}/{e.Target:0.0} {(st.Produces(g.Id) ? "(Hersteller)" : "")} Dienste {string.Join(",", u.StationTypes[st.TypeKey].Services.Where(x => x is "rearm" or "repair"))}"); }
+        }
+        foreach (var key in new[] { "destroyer", "carrier", "bastion", "frigate", "battlecruiser", "corvette", "gunboat" })
+        {
+            if (!u.ShipModels.TryGetValue(key, out var m) || !u.ShipClasses.TryGetValue(m.ClassKey, out var cls)) continue;
+            var util = Enumerable.Range(0, cls.Slots.Count).Where(i => u.SlotTypes.TryGetValue(cls.Slots[i].Type, out var st) && cls.Slots[i].Type == "utility").ToList();
+            foreach (var combo in new[] { new[] { "jump_drive_s" }, new[] { "jump_drive_s", "cloak_s_mk2" }, new[] { "jump_drive_s", "cloak_s" } })
+            {
+                var fit = m.Fit.Select(x => x is null ? null : u.Modules[x]).ToList();
+                var names = new List<string>();
+                for (int k = 0; k < combo.Length && k < util.Count; k++) { fit[util[k]] = u.Modules[combo[k]]; names.Add($"{m.Fit[util[k]]}->{combo[k]}"); }
+                var issue = FitRules.Check(u.SlotTypes, u.Modules, cls, cls.Slots.ToList(), fit.Select(x => x?.Key).ToList());
+                var st2 = ShipStats.Compute(cls, fit);
+                P($"{key}: Nutzplätze {util.Count}; {string.Join(" + ", names)}: {(issue is null ? "gültig" : "UNGÜLTIG: " + FitRules.Describe(issue))}; Leistung {st2.PowerOutput:0.#}/{st2.PowerDraw:0.#} Sprung {st2.JumpRange} Tarnung {st2.Cloak}");
+            }
+        }
     }
 }
