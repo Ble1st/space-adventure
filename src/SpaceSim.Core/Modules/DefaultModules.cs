@@ -108,6 +108,7 @@ public sealed class SecurityModule : ISimModule
     public void Register(SimulationBuilder b) =>
         b.Add(new ThreatMapSystem(), interval: 20).Add(new PirateSystem(), interval: 5).Add(new SecuritySystem(), interval: 5).Add(new ConvoySystem(), ConvoySystem.Interval).Add(new SmugglerSystem(), SmugglerSystem.Interval).Add(new WantedSystem(), interval: 50)
          .Add(new NavySystem(), NavySystem.Interval)   // Phase 28: Kriegsschiffe der Fraktionen
+         .Add(new CapitalOrderSystem(), CapitalOrderSystem.Interval)   // Welle E: Großkampfschiff-Aufträge an Werften (ohne Regel nichts)
          .Add(new OutpostDefenseSystem(), OutpostDefenseSystem.Interval)   // Phase 30: Waffenstellungen eröffnen das Feuer
          .Add(new OutpostBuilderSystem(), OutpostBuilderSystem.Interval);  // Phase 30: Fraktionen/Piraten stellen Kleinstationen auf
 }

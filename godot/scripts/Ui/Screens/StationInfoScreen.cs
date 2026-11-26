@@ -30,6 +30,8 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 	public string TestBlackMarket = "";
 	/// <summary>Ausbau Punkt 9, Selbsttest: Zeile zu Firmensitz oder Büro ("" = keins).</summary>
 	public string TestSeatOffice = "";
+	/// <summary>Selbsttest: Welle-E-Zeile (Großkampfschiff-Auftrag) der zuletzt gezeigten Station.</summary>
+	public string TestCapitalOrder = "";
 	/// <summary>Ausbau Punkt 8: Zustandszeile (Selbsttest).</summary>
 	public string TestWear = "";
 	public string TestExport { get; private set; } = "";
@@ -240,6 +242,9 @@ public sealed partial class StationInfoScreen : DockAreaScreen
 		// Ausbau Punkt 9: Firmensitz (Firmenkasse) und Büro (Außenstelle; Schutzverträge folgen mit Punkt 3) — reine Core-Anzeige
 		TestSeatOffice = FirmSeats.InfoLine(u, st) ?? "";
 		if (TestSeatOffice.Length > 0) Wrapped(v3, TestSeatOffice, tw, 15, Cyan);
+		// Welle E: Großkampfschiff-Auftrag an einer Werft (reine Core-Anzeige CapitalOrders.InfoLine)
+		TestCapitalOrder = CapitalOrders.InfoLine(u, st) ?? "";
+		if (TestCapitalOrder.Length > 0) Wrapped(v3, TestCapitalOrder, tw, 15, Orange);
 		v3.AddChild(Text("Hinweise", 16, Dim));
 		foreach (var note in pol.Notes) Wrapped(v3, "· " + note, tw, 14, new Color(Dim, 0.95f));
 		// Prüfung Runde 2: die Dienste stehen in der Hinweis-Karte (viel Platz) — in „Allgemein“ war die unterste Chip-Reihe angeschnitten

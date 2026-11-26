@@ -191,6 +191,7 @@ public static class UniverseSerializer
         Bars.BarCodec.Save(u, s);        // Bars (Rubbellos, Losverkauf)
         Simulation.WelleCCodec.Save(u, s);   // Welle C (weiches Ansehen)
         Simulation.WelleBCodec.Save(u, s);   // Welle B (Flottenabgabe, Spenden)
+        Simulation.CapitalOrderCodec.Save(u, s);   // Welle E (Großkampfschiff-Aufträge)
         // Phase 28: Kriege und Friedensschlüsse
         if (u.Wars.Count > 0)
             s.Wars = u.Wars.Select(w => new WarSave { A = w.A.Value, B = w.B.Value, Since = w.Since, Weariness = w.Weariness, LossA = w.LossA, LossB = w.LossB, Sieges = w.Sieges, Blockades = w.Blockades, CeasefireUntil = w.CeasefireUntil, LastOfferTick = w.LastOfferTick, TributePaid = w.TributePaid, Join = w.Join, ShipsLostA = w.ShipsLostA, ShipsLostB = w.ShipsLostB, MediationBonus = w.MediationBonus, LastMediationTick = w.LastMediationTick }).ToList();
@@ -672,6 +673,7 @@ public static class UniverseSerializer
         Bars.BarCodec.Load(s, u);        // Bars
         Simulation.WelleCCodec.Load(s, u);   // Welle C
         Simulation.WelleBCodec.Load(s, u);   // Welle B
+        Simulation.CapitalOrderCodec.Load(s, u);   // Welle E
         // Phase 24: laufende Gefechte (der Index Schiff → Gefecht ist abgeleitet)
         u.Fights.NextId = Math.Max(1, s.NextEncounterId);
         if (s.Fights is not null)

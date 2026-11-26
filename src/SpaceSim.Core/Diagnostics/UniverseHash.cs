@@ -252,6 +252,7 @@ public static class UniverseHash
         if (includePlayerPolitics) Bars.BarCodec.Mix(u, Mix, MixF);   // Bars: Rubbellos und Losverkauf (Spieleraktion; nur wenn vorhanden)
         if (includePlayerPolitics) Simulation.WelleCCodec.Mix(u, Mix, MixF);   // Welle C: weiches Ansehen (nur wenn vorhanden)
         if (includePlayerPolitics) Simulation.WelleBCodec.Mix(u, Mix, MixF);   // Welle B: Flottenabgabe, Spenden (nur wenn vorhanden)
+        Simulation.CapitalOrderCodec.Mix(u, Mix, MixF);   // Welle E: Großkampfschiff-Aufträge (nur wenn je einer erteilt wurde)
         if (includePlayerPolitics) foreach (var c in u.Protections) { Mix(0x0301u); Mix((ulong)c.Faction.Value); Mix((ulong)c.Since); Mix((ulong)c.PaidUntil); }
         foreach (var c in u.Convoys)
         {

@@ -112,6 +112,8 @@ if (opts.TryGetValue("capitulation", out var capOpt)) u.Rules.StationCapitulatio
 // Ausbau Punkt 6: --feuds on|off schaltet Fehden, Vermittlung (KI und Spieler) und Regierungskrise zusammen
 if (opts.TryGetValue("feuds", out var feOpt)) { bool fon = feOpt == "on"; u.Rules.FeudsActive = fon; u.Rules.PlayerFeuds = fon; u.Rules.Mediation = fon; u.Rules.PlayerMediation = fon; u.Rules.GovernmentCrisis = fon; }
 // Ausbau Punkt 2: --navy off = Seeschlacht, gezielte Abwehr und Kriegsgeleit aus (alte Regel)
+if (opts.TryGetValue("capital", out var capOpt2)) u.Rules.CapitalOrders = capOpt2 == "on";   // Welle E: Großkampfschiff-Aufträge (Vergleichsläufe)
+if (opts.TryGetValue("capitalpeace", out var capPOpt)) u.Rules.CapitalKeepInPeace = capPOpt == "on";   // Welle E: Großkampfschiff bleibt im Frieden (Vergleichsläufe)
 if (opts.TryGetValue("navy", out var navyOpt)) u.Rules.NavalBattles = u.Rules.WarDefense = u.Rules.WarEscorts = navyOpt == "on";
 // Ausbau Punkt 8: --wear off = kein Stationsverschleiß (alte Regel); Nachtrag 2b: --navycool off = keine Abkühlzeit, Rücklage ohne kämpfende Schiffe
 if (opts.TryGetValue("wear", out var wearOpt)) u.Rules.StationWear = wearOpt == "on";
@@ -164,9 +166,10 @@ double crimeStandingLoss = 0, crimeStandingRecovered = 0, tollsAtFirstCrime = -1
 long firstCrimeTick = -1, firstPlayerLockTick = -1;
 int maxPlayerLock = 0;
 // Runde 45: Testtreiber --aiwar A:B@tick (KI A erklärt KI B den Krieg, ohne Kriegsgrund) und --alliance A:B@tick (Beziehung beider auf 0,7, Bündnis)
-(int A, int B, long Tick)? aiWarDriver = null, allianceDriver = null;
+(int A, int B, long Tick)? allianceDriver = null;
+var aiWarDrivers = new List<(int A, int B, long Tick)>();   // Welle E: --aiwar auch als Liste A:B@tick,A:B@tick (zweiter Krieg nach dem Frieden)
 static (int, int, long) ParsePairAt(string s) { var at = s.Split('@'); var ab = at[0].Split(':'); return (int.Parse(ab[0], CultureInfo.InvariantCulture), int.Parse(ab[1], CultureInfo.InvariantCulture), long.Parse(at[1], CultureInfo.InvariantCulture) / 20 * 20); }
-if (opts.TryGetValue("aiwar", out var awOpt)) aiWarDriver = ParsePairAt(awOpt);
+if (opts.TryGetValue("aiwar", out var awOpt)) aiWarDrivers = awOpt.Split(',').Select(ParsePairAt).ToList();
 if (opts.TryGetValue("alliance", out var alOpt)) allianceDriver = ParsePairAt(alOpt);
 // --treasury F:Betrag@tick,F:Betrag@tick — Kasse einer Fraktion setzen (Kriegskasse für die Tribut-Vorführung)
 var treasuryDriver = opts.TryGetValue("treasury", out var trOpt) ? trOpt.Split(',').Select(ParsePairAt).ToList() : new List<(int, int, long)>();
@@ -196,6 +199,8 @@ var ueStats = new UniverseEventStats();   // Universumsereignisse
 u.Events.Raised += e => ueStats.On(u, e);
 var whStats = new WormholeStats();   // Wurmlöcher
 u.Events.Raised += whStats.On;
+var capStats = new CapitalStats();   // Welle E: Großkampfschiff-Aufträge
+u.Events.Raised += e => capStats.On(u, e);
 u.Events.Raised += e =>
 {
     // Ausbau Punkt 17: Banditenfraktion — Zoll, Abgaben, Hehlerei, Flotte, Bauten, Beuteanteil, Überfälle, Gebietswechsel
@@ -573,7 +578,7 @@ u.Events.Raised += e =>
         case TributePeace tp: tributePeaces++; tributeMoney += tp.Amount; allianceLog.Add($"Tick {u.Tick}: {tp.Message} (Forderung {tp.Demanded:0})"); break;
         case PeaceConcluded pc:
             peaceReasons[pc.Reason] = peaceReasons.GetValueOrDefault(pc.Reason) + 1;
-            if (allianceDriver is not null || aiWarDriver is not null) allianceLog.Add($"Tick {u.Tick}: {pc.Message}");   // Runde 45: Testtreiber — Friedensschlüsse mit Tick
+            if (allianceDriver is not null || aiWarDrivers.Count > 0) allianceLog.Add($"Tick {u.Tick}: {pc.Message}");   // Runde 45: Testtreiber — Friedensschlüsse mit Tick
             if (u.IsPlayerFaction(pc.A) || u.IsPlayerFaction(pc.B)) playerPeace = $"Frieden bei Tick {u.Tick} ({pc.Reason})";
             break;
         case SectorAccessChanged sac when sac.Against is { } sag && u.IsPlayerFaction(sag) && sac.ToEntry > 0:
@@ -905,7 +910,7 @@ for (int t = 0, chunk = 0; t <= ticks; chunk = Math.Min(every, ticks - t), t += 
                 GovernmentCrisis.Start(u, new FactionId(crd.F));
                 Console.WriteLine($"   Testtreiber: Regierungskrise {crd.F} bei Tick {u.Tick}");
             }
-            if (aiWarDriver is { } awd && u.Tick == awd.Item3)
+            foreach (var awd in aiWarDrivers) if (u.Tick == awd.Item3)
             {
                 Wars.Declare(u, new FactionId(awd.Item1), new FactionId(awd.Item2));
                 Console.WriteLine($"   Testtreiber: KI-Krieg {awd.Item1} → {awd.Item2} bei Tick {u.Tick}");
@@ -1317,6 +1322,7 @@ if (u.Modules.Count > 0)
         int collectors = u.Ships.Values.Count(s => s.Role == ShipRole.Collector && s.Controller == Controller.Ai);
         Console.WriteLine(ueStats.Line(u));
         Console.WriteLine(whStats.Line(u));
+        Console.WriteLine(capStats.Line(u));
         Console.WriteLine($"Gasernte (Nebel {(u.Rules.NebulaEffects ? "an" : "aus")}, Nebelsektoren {u.Sectors.Values.Count(s => s.Nebula)}, Gasfelder {u.Sectors.Values.Sum(s => s.GasFields.Count)}): "
             + $"KI geschöpft {gasCollected:0} E., ausgeliefert {gasDelivered:0} E. in {gasTrips} Lieferungen ({gasDeliveredCr:0} Cr); Sammler jetzt {collectors}; "
             + $"Ionengas getankt {ionTanks}× ({ionTankUnits:0.#} E.); Ø Preis/Basis letzte 25%: Gas {Price(gasG)}, Ionengas {Price(ionG)}");

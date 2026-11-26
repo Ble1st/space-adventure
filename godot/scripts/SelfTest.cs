@@ -2836,6 +2836,7 @@ public partial class SelfTest : Node
 			case 173: if (WelleBStage(_frame - _stageStart)) Next(); break;   // Welle B: Spende per Tipp, Kaufwarnung der Werft, Großmodul über das Regalziel verkauft (SelfTest.WelleB.cs)
 			case 174: if (WelleCStage(_frame - _stageStart)) Next(); break;   // Welle C: Vorwarnung Regierungsunterhalt, Behörde ruhen lassen / wieder an (SelfTest.WelleC.cs)
 			case 175: if (WelleDStage(_frame - _stageStart)) Next(); break;   // Welle D: Versorgen-Befehl per Tipp, Tanker betankt Bollwerk, Zeile Treibstoffkosten (SelfTest.WelleD.cs)
+			case 176: if (WelleEStage(_frame - _stageStart)) Next(); break;   // Welle E: Großkampfschiff-Auftrag, Stationsinfo-Zeile, Fertigmeldung, Schiff in Sicht (SelfTest.WelleE.cs)
 			case 172: if (WelleAStage(_frame - _stageStart)) Next(); break;   // Welle A: Angriffsbefehl per Tipp → ein Verbrechen je Angriff, Frieden beendet den Kriegsangriff (SelfTest.WelleA.cs)
 			case 171: if (ShieldSectorStage(_frame - _stageStart)) Next(); break;   // Richtungsschilde: „Schild“ per Tipp ausrichten, Treffer von hinten, Rauten (SelfTest.ShieldSectors.cs)
 			case 162: if (BlueprintMercStage(_frame - _stageStart)) Next(); break;   // Lücken IP2: Bauplan speichern/kaufen, Söldner anheuern (SelfTest.BlueprintMerc.cs)
@@ -2860,7 +2861,7 @@ public partial class SelfTest : Node
 
 	void Next() { _stage++; _stageStart = _frame; }
 	/// <summary>Letzte Stufennummer (Lücken davor werden übersprungen).</summary>
-	const int LastStage = 175;
+	const int LastStage = 176;
 	string _p25RaiderEnd = "";
 	int _p25RaiderFight;
 	List<SectorId> _p8Sectors = new(); readonly HashSet<string> _p8Types = new(); int _p8Over;

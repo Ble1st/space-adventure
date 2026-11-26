@@ -677,9 +677,14 @@ public sealed class NavySystem : ISimSystem
             int wars = Wars.CountOf(u, f);
             int desired = wars > 0 ? Math.Min(r.MaxWarshipsPerFaction, r.WarshipsPerWar * wars) : 0;
             bool belowReserve = !FactionViability.ReserveBuilding(u, actor) && actor.Treasury.Credits < FactionViability.Reserve(u, f);
-            if (ships.Count > 0 && (belowReserve || (ships.Count > desired && PeaceLongEnough(u, f))))
+            // Welle E: Großkampfschiffe kommen zum Soll hinzu (eigene Obergrenze), das Soll zählt nur die übrigen Kriegsschiffe
+            int regular = r.CapitalOrders ? ships.Count(s => !CapitalOrders.IsCapital(u, s)) : ships.Count;
+            int surplus = r.CapitalOrders && (r.CapitalKeepInPeace || wars > 0) ? regular : ships.Count;   // ohne „bleibt im Frieden“ zählt es im Frieden mit
+            if (ships.Count > 0 && (belowReserve || (surplus > desired && PeaceLongEnough(u, f))))
             {
-                var gone = ships.Where(s => !u.Fights.IsEngaged(s.Id)).OrderByDescending(s => s.Id.Value).FirstOrDefault();
+                // Welle E: ein Großkampfschiff bleibt im Frieden (abgebaut nur, wenn die Kasse unter die Rücklage fällt)
+                bool keepCapital = !belowReserve && r.CapitalKeepInPeace;
+                var gone = ships.Where(s => !u.Fights.IsEngaged(s.Id) && !(keepCapital && CapitalOrders.IsCapital(u, s))).OrderByDescending(s => s.Id.Value).FirstOrDefault();
                 if (gone is not null)
                 {
                     ships.Remove(gone);
@@ -688,7 +693,7 @@ public sealed class NavySystem : ISimSystem
                 }
             }
             // Runde 24: eine Startszenario-Sperre (LastForceTick in der Zukunft, ScenarioDef.PoliceHoldTicks) gilt auch für Kriegsschiffe; im normalen Spiel nie in der Zukunft
-            else if (ships.Count < desired && u.Tick >= actor.LastForceTick && Commission(u, f) is { } bought) ships.Add(bought);
+            else if (regular < desired && u.Tick >= actor.LastForceTick && Commission(u, f) is { } bought) ships.Add(bought);
             foreach (var s in ships) Command(u, f, s);
         }
     }

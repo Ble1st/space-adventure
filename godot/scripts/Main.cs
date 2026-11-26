@@ -1573,6 +1573,7 @@ public partial class Main : Node3D
 		if (UniverseEventEvent(e)) return;   // Universumsereignisse (Main.UniverseEvents.cs)
 		if (WormholeEvent(e)) return;   // Wurmlöcher (Main.Wormholes.cs)
 		if (PilotEvent(e)) return;   // Piloten: Rangwechsel (Main.Pilots.cs)
+		if (CapitalEvent(e)) return;   // Welle E: Großkampfschiff-Aufträge (Main.Capital.cs)
 		switch (e)
 		{
 			// Runde 12 (Handy-Test): nur Stationen im eigenen Sektor melden
