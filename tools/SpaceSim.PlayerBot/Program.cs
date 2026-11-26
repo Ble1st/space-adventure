@@ -1,3 +1,4 @@
+using SpaceSim.Core.Combat;
 using SpaceSim.Core.Persistence;
 using System.Diagnostics;
 using SpaceSim.Core.Content;
@@ -21,6 +22,8 @@ for (int i = 0; i < args.Length; i++)
         case "--save-at": saveAt = long.Parse(args[++i]); saveFile = args[++i]; break;
         case "--richgate": Empire.RichGate = double.Parse(args[++i]); break;
         case "--only": Empire.Only = args[++i]; break;
+        case "--hunter": Hunter.On = true; break;
+        case "--mix": Hunter.Mix = true; Hunter.MixAt = long.Parse(args[++i]); break;
     }
 Directory.CreateDirectory(outDir);
 var def = WorldBuilder.Parse(File.ReadAllText(world));
@@ -35,6 +38,59 @@ if (args.Contains("--sites"))
         foreach (var kv in site.Required) Console.WriteLine($"   {u.Goods[kv.Key].Name}: {st.Stock(kv.Key).Amount:0.0000}/{kv.Value:0.0000} fehlt {site.Missing(st, kv.Key):0.0000}");
     }
     foreach (var f in PlayerFleet.Owned(u).Where(x => x.ModelKey == "foreman")) Console.WriteLine($"Bauschiff {f.Id.Value} in {u.Sectors[f.Sector].Name} Befehl {f.Command?.GetType().Name} Ladung {f.UsedVolume(u):0} Kasse {f.Credits:0} Tick {u.Tick} Pos {f.Position.X:0},{f.Position.Y:0} Transit {(f.Transit is null ? "nein" : "ja")} Order {f.Order?.GetType().Name} Treibstoff {f.TotalFuel:0}/{f.Stats.FuelCapacity:0} Bauplatz-Abstand {PlayerBuilding.OwnSites(u).Select(x => Vec2.Distance(f.Position, x.Position)).DefaultIfEmpty(-1).Min():0}");
+    return;
+}
+if (args.Contains("--atkprobe"))
+{
+    var comms = SpaceSim.Core.Comms.CommsActions.Default();
+    var runner = new SimulationRunner(); runner.Run(u, 10);
+    var f = u.NpcFactionIds().First(x => x.Value == 3);
+    var st = u.StationsById().First(x => !x.IsBuildSite && u.FactionOf(x) == f && u.Sectors[x.Sector].Owner == f && u.StationTypes[x.TypeKey].Government == GovernmentKind.None && !StationProtection.IsHideout(u, x));
+    var ships = PlayerFleet.Owned(u).Where(x => x.Id != u.PlayerShip && x.Has(Capability.Combat) && u.ShipModels.TryGetValue(x.ModelKey, out var m) && m.Jobs.Count == 0).OrderByDescending(x => x.Stats.WeaponPower).Take(3).ToList();
+    Console.WriteLine($"Ziel {st.Name} ({u.Sectors[st.Sector].Name}), Schiffe {string.Join(",", ships.Select(x => x.ModelKey))}");
+    var crimes = new List<string>();
+    u.Events.Raised += e => { if (e is SpaceSim.Core.Events.CrimeReported c && c.Actor == u.PlayerActor) crimes.Add($"[{u.Tick}] {c.Crime} F{c.Faction.Value}"); if (e is SpaceSim.Core.Combat.FleetAttackStarted fa) crimes.Add($"[{u.Tick}] FleetAttackStarted crime={fa.Crime}"); };
+    Console.WriteLine("Krieg: " + comms.Execute(u, "war:3").Message);
+    foreach (var sh in ships) { var ok = Commands.Give(u, sh, new AttackCommand(default, st.Id, default, st.Sector), out var msg, ignoreCapacity: true); Console.WriteLine($"Befehl #{sh.Id.Value}: {ok} {msg}"); }
+    for (int i = 0; i < 6000; i++) { runner.Step(u); if (i % 1000 == 999) Console.WriteLine($"[{u.Tick}] Hülle Ziel {StationCombat.Hull(u, u.Stations[st.Id]):0}; Schiffe {string.Join(" ", ships.Where(x => u.Ships.ContainsKey(x.Id)).Select(x => $"{x.ModelKey}:{u.Sectors[x.Sector].Name}:{x.Command?.GetType().Name}:{x.Hull:0}"))}"); }
+    Console.WriteLine("Waffenstillstand: " + comms.Execute(u, "ceasefire:3").Message + " | im Krieg: " + (SpaceSim.Core.Simulation.Wars.PlayerWar(u, f) is not null));
+    int c0 = crimes.Count;
+    for (int i = 0; i < 6000; i++) { runner.Step(u); if (i % 1000 == 999) Console.WriteLine($"[{u.Tick}] nach Waffenstillstand: Hülle Ziel {StationCombat.Hull(u, u.Stations[st.Id]):0}; Krieg {(SpaceSim.Core.Simulation.Wars.PlayerWar(u, f) is not null)}; Befehle {string.Join(" ", ships.Where(x => u.Ships.ContainsKey(x.Id)).Select(x => x.Command?.GetType().Name ?? "-"))}; Verbrechen seit Waffenstillstand {crimes.Count - c0}; Beziehung {SpaceSim.Core.Simulation.Relations.Effective(u, u.PlayerActor, new ActorId(3)):0.00}"); }
+    Console.WriteLine("Frieden: " + comms.Execute(u, "peace:3").Message + " | im Krieg: " + (SpaceSim.Core.Simulation.Wars.PlayerWar(u, f) is not null));
+    int c1 = crimes.Count(x => !x.Contains("FleetAttackStarted"));
+    for (int i = 0; i < 4000; i++) { runner.Step(u); if (i % 1000 == 999) Console.WriteLine($"[{u.Tick}] nach Frieden: Hülle Ziel {StationCombat.Hull(u, u.Stations[st.Id]):0}; Krieg {(SpaceSim.Core.Simulation.Wars.PlayerWar(u, f) is not null)}; Befehle {string.Join(" ", ships.Where(x => u.Ships.ContainsKey(x.Id)).Select(x => (x.Command?.GetType().Name ?? "-") + "@" + u.Sectors[x.Sector].Name))}; Verbrechen {crimes.Count(x => !x.Contains("FleetAttackStarted")) - c1}; Beziehung {SpaceSim.Core.Simulation.Relations.Effective(u, u.PlayerActor, new ActorId(3)):0.00}; Fahndung {u.Actors[u.PlayerActor].Wanted.GetValueOrDefault(new FactionId(3))?.Heat:0.0}"); }
+    foreach (var c in crimes.Where(x => !x.Contains("FleetAttackStarted")).Take(20)) Console.WriteLine(c);
+    return;
+}
+if (args.Contains("--yardprobe"))
+{
+    var me2 = u.Ships[u.PlayerShip];
+    foreach (var yard in u.StationsById().Where(x => x.TypeKey == "shipyard"))
+        foreach (var g in u.Goods.Values.Where(g => g.Category == "module" && new[] { "reactor_m", "shield_m", "weapon_laser_m", "fusion_drive_l", "weapon_massdriver_s", "armor_plating_m" }.Contains(g.Key)))
+            Console.WriteLine($"  Regal {yard.Name} {g.Key}: {(yard.Market.TryGetValue(g.Id, out var me3) ? $"Bestand {me3.Amount:0.0} Ziel {me3.Target:0.0} akzeptiert {yard.AcceptableUnits(g.Id, u.Rules):0.0} Preis {me3.Price:0.0}" : "KEIN Marktplatz")}");
+    foreach (var yard in u.StationsById().Where(x => x.TypeKey == "shipyard"))
+        foreach (var key in new[] { "battlecruiser", "destroyer", "bastion", "carrier", "gunboat" })
+            if (SpaceSim.Core.Services.ShipDealerService.Quote(u, yard, me2, key) is { } q)
+                Console.WriteLine($"{yard.Name}: {key} Preis {q.Price:0} {(q.Buyable ? "LIEFERBAR" : "fehlt: " + string.Join(", ", q.Missing.Select(m => u.Goods[m.Good].Name + " " + m.Units.ToString("0.#"))))}");
+    return;
+}
+if (args.Contains("--warprobe"))
+{
+    foreach (var f in u.NpcFactionIds())
+        Console.WriteLine($"Fraktion {f.Value}: Beziehung zum Spieler {SpaceSim.Core.Simulation.Relations.Effective(u, new ActorId(f.Value), u.PlayerActor):0.00}/{SpaceSim.Core.Simulation.Relations.Effective(u, u.PlayerActor, new ActorId(f.Value)):0.00}; Schwelle {SpaceSim.Core.Simulation.Wars.DeclareThreshold(u, f):0.00}; DeclareIssue(KI→Spieler) = {SpaceSim.Core.Simulation.Wars.DeclareIssue(u, f, u.PlayerFaction!.Value) ?? "ja"}; Stärke KI {SpaceSim.Core.Simulation.Wars.Strength(u, f):0.0} Spieler {SpaceSim.Core.Simulation.Wars.Strength(u, u.PlayerFaction!.Value):0.0}; Kasse spendable {SpaceSim.Core.Simulation.FactionViability.Spendable(u, u.Actors[new ActorId(f.Value)]):0}");
+    foreach (var f in u.NpcFactionIds()) SpaceSim.Core.Simulation.Relations.Set(u, new ActorId(f.Value), u.PlayerActor, -1f);
+    foreach (var f in u.NpcFactionIds()) Console.WriteLine($"[Probe, Beziehung künstlich -1,0 nur zur Diagnose] Fraktion {f.Value}: {SpaceSim.Core.Simulation.Wars.DeclareIssue(u, f, u.PlayerFaction!.Value) ?? "würde erklären"}");
+    Console.WriteLine($"WarChest {u.Rules.WarChest} MinStrengthRatio {u.Rules.WarMinStrengthRatio}");
+    return;
+}
+if (args.Contains("--probe"))
+{
+    new SimulationRunner().Run(u, 400);
+    var me = u.Ships[u.PlayerShip];
+    Console.WriteLine($"Schiff {me.ModelKey} Sektor {u.Sectors[me.Sector].Name} Station {me.DockedAt.Value} Hülle {me.Hull}/{me.MaxHull} Cargo {me.Stats.Cargo} Speed {me.Stats.Speed} WP {me.Stats.WeaponPower} Shield {me.Stats.Shield} Fuel {me.Stats.FuelCapacity} Kasse {u.PlayerWallet.Credits}");
+    foreach (var s in u.Ships.Values.Where(s => s.Role == ShipRole.Pirate)) Console.WriteLine($"Pirat #{s.Id.Value} {s.ModelKey} {u.Sectors[s.Sector].Name} owner {s.Owner.Value} hull {s.Hull}");
+    foreach (var o in u.MissionOffers.OrderBy(o => o.Id)) Console.WriteLine($"Offer {o.Id} {o.Type} at {u.Stations[o.At].Name} reward {o.Reward}");
+    foreach (var f in u.NpcFactionIds()) Console.WriteLine($"Fraktion {f.Value} {u.Actors[new ActorId(f.Value)].Name} rel {SpaceSim.Core.Simulation.Relations.Effective(u, u.PlayerActor, new ActorId(f.Value)):0.00}");
     return;
 }
 if (args.Contains("--catalog")) { Catalog.Dump(u); return; }

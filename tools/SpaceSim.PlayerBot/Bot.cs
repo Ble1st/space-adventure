@@ -31,7 +31,8 @@ public sealed class Bot
     readonly Extras _x;
     public Empire Emp = null!;
     ShipId _realFlag;
-    public Bot(Pilot p, Log log, Metrics m) { P = p; U = p.U; L = log; M = m; _flagship = U.PlayerShip; _realFlag = _flagship; _x = new Extras(p, log); Emp = new Empire(p, log, m, this, _comms); m.Emp = Emp; }
+    public Hunter Hun = null!; public Metrics Metrics => M;
+    public Bot(Pilot p, Log log, Metrics m) { P = p; U = p.U; L = log; M = m; _flagship = U.PlayerShip; _realFlag = _flagship; _x = new Extras(p, log); Emp = new Empire(p, log, m, this, _comms); m.Emp = Emp; Hun = new Hunter(p, log, this, Emp); }
     public void UseFlag(ShipId id) { _flagship = id; SwitchToFlag(); }
     public void RestoreFlag() { if (U.Ships.ContainsKey(_realFlag)) _flagship = _realFlag; SwitchToFlag(); }
     public Extras X => _x;
@@ -49,7 +50,14 @@ public sealed class Bot
         if (U.PlayerShip != _flagship && U.Ships.ContainsKey(_flagship) && P.Me.Id != _flagship) SwitchToFlag();
         if (P.Danger()) { P.Fight(); return; }
 
-        if (Emp.CampaignActive) { P.Where = "Campaign"; ManageCommands(); Emp.Step(); return; }
+        if (Emp.CampaignActive) { P.Where = "Campaign"; if (!Hunter.On) ManageCommands(); Emp.Step(); return; }
+        if (Hunter.On)
+        {
+            P.Where = "Founding"; if (Founding()) return;
+            P.Where = "Empire"; if (Emp.Step()) return;
+            if (Hunter.Mix && U.Tick > Hunter.MixAt) { P.Where = "Fleet"; Fleet(); }
+            P.Where = "Hunter"; Hun.Step(); return;
+        }
         P.Where = "Fleet"; Fleet();
         P.Where = "Founding"; if (Founding()) return;
         P.Where = "Empire"; if (Emp.Step()) return;
@@ -217,7 +225,7 @@ public sealed class Bot
     /// <summary>Handarbeit lohnt: das Flaggschiff gegen den besten bezahlbaren Schürfer tauschen (höchste Abbaurate), das alte bleibt in der Flotte.</summary>
     void UpgradeFlagship()
     {
-        if (U.Tick < _nextFlagCheck || Emp.CampaignActive) return;
+        if (U.Tick < _nextFlagCheck || Emp.CampaignActive || Hunter.On) return;
         _nextFlagCheck = U.Tick + 3000;
         var flag = Flag; double cur = flag.Stats.ContactMining * Math.Min(1.0, flag.Stats.Cargo / 60.0);
         if (P.Wallet < 6000f) return;

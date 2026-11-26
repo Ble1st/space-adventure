@@ -46,6 +46,7 @@ public sealed class Empire
         P.Where = "Empire:hq"; if (Hq()) return true;
         if (Only == "court") { P.Where = "Empire:court"; return Court(); }
         if (Only == "bounty") { P.Where = "Empire:bounty"; return HuntRaider() || Bounty(); }
+        if (Only == "war") { P.Where = "Empire:war"; if (War()) return true; P.Where = "Empire:court"; return Court() || Bounty(); }
         P.Where = "Empire:build"; if (Build()) return true;
         P.Where = "Empire:court"; if (Court()) return true;
         P.Where = "Empire:war"; if (War()) return true;
@@ -463,8 +464,9 @@ public sealed class Empire
         if (_ws == WarState.Done || U.Tick < _nextWar || PlayerHq.Current(U) is null) return false;
         var mil = PlayerFleet.Owned(U).Where(s => s.Has(Capability.Combat) && U.ShipModels.TryGetValue(s.ModelKey, out var m) && m.Jobs.Count == 0).ToList();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
-        if (mil.Count < 10 || big < 3 || Wallet < 150000f) return false;
-        if (_planIdx < Plan.Length && BuiltCount < 25 && U.Tick < 900_000) return false;   // erst die eigene Kette bauen (erobert Stationen zählen gegen die Obergrenze von 10)
+        if (CampaignActive && mil.Count < 2) { Note("Feldzug beendet: keine Kampfschiffe mehr"); EndWar(); return true; }
+        if (!CampaignActive && (Hunter.On ? (mil.Count < 5 || big < 1 || Wallet < 20000f) : (mil.Count < 10 || big < 3 || Wallet < 150000f))) return false;
+        if (!Hunter.On && _planIdx < Plan.Length && BuiltCount < 25 && U.Tick < 900_000) return false;   // erst die eigene Kette bauen (erobert Stationen zählen gegen die Obergrenze von 10)
         switch (_ws)
         {
             case WarState.Idle:
@@ -571,6 +573,7 @@ public sealed class Empire
     long _siegeStart = -1; int _siegeRounds;
     bool Siege(Station st)
     {
+        if (P.Me.DockedAt.Value != 0) P.Undock();
         var me = P.Me;
         if (_siegeStart < 0) { _siegeStart = U.Tick; Note($"Belagerung beginnt: {st.Name} Hülle {StationCombat.Hull(U, st):0}"); }
         var slots = PlayerGunnery.WeaponSlots(U, me);
