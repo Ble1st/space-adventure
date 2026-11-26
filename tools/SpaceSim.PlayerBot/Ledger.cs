@@ -49,6 +49,7 @@ public sealed class Ledger
             case TreasuryUpkeep t when t.Actor == me: Add("Kosten " + t.Purpose, -t.Amount); break;
             case TaxCollected tx when tx.Treasury == me: Add("Einnahme Vermögensabgabe eigener Stationen", tx.Amount); break;
             case TreasuryIncome t when t.Actor == me: Add("Einnahme " + t.Purpose, t.Amount); break;
+            case FleetLevyPaid fl: Add("Kosten Flottenabgabe (Welle B)", -fl.Levy); break;
             case FleetUpkeepPaid f when f.Actor == me: Add("Kosten Flottenunterhalt", -f.Amount); break;
             case BerthFeePaid f when f.Actor == me: Add("Kosten Liegegebühr", -f.Amount); break;
             case RentCharged r: Add("Kosten Miete", -(r.Amount - r.Debt)); break;
