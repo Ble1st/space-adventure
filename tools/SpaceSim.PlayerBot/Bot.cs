@@ -53,7 +53,7 @@ public sealed class Bot
         P.Where = "Fleet"; Fleet();
         P.Where = "Founding"; if (Founding()) return;
         P.Where = "Empire"; if (Emp.Step()) return;
-        P.Where = "Military"; if (Military()) return;
+        P.Where = "Military"; if ((!Empire.Dom || Empire.MilOn) && Military()) return;
         P.Where = "Earn"; Earn();
     }
 

@@ -21,6 +21,11 @@ for (int i = 0; i < args.Length; i++)
         case "--save-at": saveAt = long.Parse(args[++i]); saveFile = args[++i]; break;
         case "--richgate": Empire.RichGate = double.Parse(args[++i]); break;
         case "--only": Empire.Only = args[++i]; break;
+        case "--dominion": Empire.Dom = true; break;
+        case "--domwar": Empire.DomWar = true; break;
+        case "--banditfirst": Empire.BanditFirst = true; break;
+        case "--domshare": Empire.DomShare = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+        case "--domforemen": Empire.DomForemen = int.Parse(args[++i]); break;
     }
 Directory.CreateDirectory(outDir);
 var def = WorldBuilder.Parse(File.ReadAllText(world));
