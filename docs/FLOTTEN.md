@@ -414,3 +414,10 @@ alle 50 Ticks füllt die Spielerkasse die Kasse eigener Versorgungsstationen (Ty
 5–7 von 8 Hüllenplatten. Eigene Stationen ohne Handelsdienst nehmen Lieferungen des Spielers über „trade“ an. Munitions-/Raketenregale eigener Stationen mit
 Nachladedienst: Ziel mindestens 120 / 30 (`playerStationAmmoTarget`/`MissileTarget`; ein großes Schiff fasst ein Vielfaches des alten Regalziels 8) — nur an Spielerstationen, die KI-Regale
 (Ziel 8) bleiben, weil höhere Ziele die Munitionsherstellung der ganzen Welt anheben würden.
+
+**Bot-Lauf (Spielstand bei Tick 260 000 → 900 000, `--s4 --supply --wellec --welled`, Schürfer Seed 9).** Vorher (Welle C): Spitze 9 Sektoren, ab Tick
+≈ 660 000 Einbruch auf 2, Kasse 0; Flottentreibstoff 420 000–700 000 Cr/h, Notkauf bis 280 000 Cr/h (2,3 Mio. gesamt). Nachher: 10 Sektoren ab Tick
+733 200 und bis zum Ende gehalten (Ziel „10 Sektoren“ erreicht), Flottentreibstoff 70 000–160 000 Cr/h in jeder Stunde, Notkauf 128 Cr über den ganzen Lauf,
+Kasse am Ende 71 000 Cr (der Bot baut weiter Handelsstationen, 315 eigene am Ende — der Rückgang kommt aus Bau, Behörden und Flottenabgabe, nicht aus Treibstoff).
+Ab Start (900 000 Ticks): Treibstoff 60 000–130 000 Cr/h, Notkauf 8 400 Cr gesamt; Spitze 7 Sektoren, am Ende 4 (Kriegsverluste und Behördenunterhalt).
+Offen: der Bot nutzt „Versorgen“ noch nicht; die Kampfflotte brauchte ihn im Lauf nicht (kein Treibstoffmangel an der Front).
