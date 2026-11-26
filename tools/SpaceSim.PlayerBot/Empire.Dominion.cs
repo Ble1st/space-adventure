@@ -145,7 +145,7 @@ public sealed partial class Empire
             if (Wars.PlayerWar(U, f) is not null) { var c = P.Book("Waffenstillstand", () => C.Execute(U, $"ceasefire:{f.Value}")); DNote($"Waffenstillstand {f.Value}: {c.Message}"); }
             acted = true;
         }
-        if (Mixed && Wallet > 300000f)
+        if (Mixed && !NoDonate && Wallet > 300000f)
             foreach (var f in U.NpcFactionIds())
             {
                 if (Bandit(f)) continue;
@@ -191,16 +191,34 @@ public sealed partial class Empire
     }
 
     // ───────── Banditen: Stationen belagern, bis sie ausgeschaltet sind (Banditen-Sitz kapituliert nie; Abgrund wird erst dann herrenlos) ─────────
-    public static bool MilOn, BanditFirst; bool _banditDone = NoFlood, _banditPeaceFail; int _repFails; long _nextBandit; int _banditRounds; public readonly List<string> BanditLog = new();
+    public static bool MilOn, BanditFirst, BanditOnly; int _banditEmpty; bool _banditDone = NoFlood, _banditPeaceFail; int _repFails; long _nextBandit; int _banditRounds; public readonly List<string> BanditLog = new();
     bool BanditCampaign()
     {
         if (_banditDone || U.Tick < _nextBandit) return false;
-        if (S4 && U.Sectors.Values.Any(sc9 => U.IsNpcFaction(sc9.Owner) && !Bandits.IsEstablished(U, sc9.Owner))) return false;
+        if (S4 && !BanditOnly && U.Sectors.Values.Any(sc9 => U.IsNpcFaction(sc9.Owner) && !Bandits.IsEstablished(U, sc9.Owner))) return false;
         if (U.PlayerFaction is { } mf0 && U.Sectors.Values.All(sc0 => sc0.Owner == mf0)) { _banditDone = true; return false; }
         var bf = U.NpcFactionIds().Where(f => Bandits.IsEstablished(U, f)).Select(f => (FactionId?)f).FirstOrDefault();
         if (bf is null) { _banditDone = true; return false; }
         var targets = U.StationsById().Where(s => !s.IsBuildSite && U.FactionOf(s) == bf && !StationCombat.IsDown(U, s) && U.StationTypes[s.TypeKey].Government != GovernmentKind.Outpost).ToList();
-        if (targets.Count == 0) { _banditDone = true; DNote("Banditenstationen alle ausgeschaltet"); return false; }
+        if (targets.Count == 0)
+        {
+            // Test 7: ausgeschaltet heißt nicht erledigt — der Sitz repariert sich (ab 25 % Hülle ohne Belagerung, ≈ 1800 Ticks), die Banditen bauen nach.
+            // Fenster nutzen: solange alles aus ist, Baustellen im Sektor setzen (laufende Baustellen bleiben auch nach der Rückkehr der Banditen gültig).
+            var abg = U.Sectors.Values.FirstOrDefault(sc => sc.Stations.Any(id => U.Stations.TryGetValue(id, out var hs) && U.FactionOf(hs) == bf && hs.TypeKey == "bandit_seat"));
+            ++_banditEmpty;
+            var me0 = U.PlayerFaction;
+            if (abg is null || (me0 is { } mm && abg.Owner == mm) || _banditEmpty > 600) { _banditDone = true; DNote($"Banditen: erledigt (Prüfung {_banditEmpty}, Sektor {abg?.Name} Besitzer {abg?.Owner.Value})"); return false; }
+            int pend = PlayerBuilding.OwnSites(U).Count(s2 => s2.Sector == abg.Id), fin = PlayerBuilding.OwnEconomic(U).Count(s2 => s2.Sector == abg.Id);
+            if (_banditEmpty % 10 == 1) DNote($"Banditenstationen aus (Prüfung {_banditEmpty}): Sektor {abg.Name} Besitzer {abg.Owner.Value}, Einfluss {string.Join(" ", abg.Influence.Select(kv => $"{kv.Key.Value}:{kv.Value:0.00}"))}, eigene Baustellen {pend}, eigene Stationen {fin}");
+            if (PlayerBuilding.SectorIssue(U, abg.Id) is null && pend + fin < 14 && Wallet > 400000f)
+            {
+                if (P.Me.Sector != abg.Id && !P.GoToSector(abg.Id, out _)) { _nextBandit = U.Tick + 600; return true; }
+                if (P.Me.DockedAt.Value != 0) P.Undock();
+                int placed = PlaceFlood(abg, 14 - pend - fin);
+                if (placed > 0) DNote($"Banditen-Fenster: {placed} Baustellen in {abg.Name} gesetzt (Besitzer {abg.Owner.Value})");
+            }
+            P.Run(200); _nextBandit = U.Tick + 300; return true;
+        }
         var mil = PlayerFleet.Owned(U).Where(s => s.Has(Capability.Combat) && U.ShipModels.TryGetValue(s.ModelKey, out var m) && m.Jobs.Count == 0 && !s.IsRental()).ToList();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
         // Großkampfschiffe (Hülle ≥ 600) statt vieler Kleiner: Stationsgeschütze töten kleine Schiffe, der Bot-Standardkauf (Waffenkraft je Preis) kauft nur Wächter/Korsaren
@@ -232,6 +250,7 @@ public sealed partial class Empire
             {
                 me = P.Me;
                 if (me.Hull < me.MaxHull * 0.25f) { _banditRounds += 3; break; }
+                if (BanditOnly && ticks % 100 == 1 && PlayerCombat.PositionOf(U, me.Id) is not null) { int wing = OrderMilWing(st); if (ticks == 1 && wing > 0) DNote($"Banditen: {wing} Schiffe des Verbands greifen {st.Name} an"); }
                 var dir = st.Position - me.Position; float d = dir.Length; float want = reach * 0.7f + st.Radius;
                 if (d > want) me.Position += dir.Normalized() * MathF.Min(d - want, 11f);
                 float bearing = FiringArc.Bearing(dir.Length > 0.01f ? dir.Normalized() : new Vec2(0, -1));
@@ -244,7 +263,7 @@ public sealed partial class Empire
             string line = $"Banditenbelagerung Runde {_banditRounds}: {st.Name} ({st.TypeKey}) Schüsse {string.Join(" ", cnt.Select(k => $"{k.Key}={k.Value}"))}; Hülle {hull0:0}→{(U.Stations.TryGetValue(st.Id, out var a3) ? StationCombat.Hull(U, a3) : 0):0}; {(down ? "AUSGESCHALTET" : "steht noch")}; letzte Meldung: {lastMsg}; Schiff {P.Me.ModelKey} Hülle {P.Me.Hull:0}/{P.Me.MaxHull:0}; Beziehung zu Fraktion {bf.Value.Value}: {Relations.Effective(U, U.PlayerActor, new ActorId(bf.Value.Value)):0.00}";
             BanditLog.Add(line); DNote(line);
             _nextBandit = U.Tick + (down ? 200 : 1500);
-            if (_banditRounds > 40) { _banditDone = true; DNote("Banditenkampagne aufgegeben"); }
+            if (_banditRounds > (BanditOnly ? 200 : 40)) { _banditDone = true; DNote("Banditenkampagne aufgegeben"); }
         }
         finally { B.RestoreFlag(); }
         return true;
@@ -299,6 +318,25 @@ public sealed partial class Empire
         DNote($"Behörde {tgt.Name}: {r.Message} -> Stufe {sc.Control}, Einfluss {string.Join(" ", sc.Influence.Select(kv => $"{kv.Key.Value}:{kv.Value:0.00}"))}, MaxSperrstufe {SectorControl.MaxLevel(U, sc)}");
         _nextSeat = U.Tick + 300;
         return true;
+    }
+
+    int PlaceFlood(Sector tgt, int n)
+    {
+        int placed = 0;
+        for (int k = 0; k < n && Wallet > 60000f; k++)
+        {
+            var type = U.StationTypes[Flood[_floodIdx % Flood.Length]]; _floodIdx++;
+            if (PlayerBuilding.TypeIssue(U, type) is { } ti) { DNote($"Flut {type.Key} in {tgt.Name}: {ti}"); break; }
+            var me2 = P.Me; Vec2? spot = null;
+            float half = StationPlacement.HalfArea(U.Sectors[tgt.Id]) - 20f, step = 20f;
+            var pts = new List<(float d, Vec2 p)>();
+            for (float gx = -half; gx <= half; gx += step) for (float gy = -half; gy <= half; gy += step) { var p = new Vec2(gx, gy); pts.Add((Vec2.Distance(p, me2.Position), p)); }
+            foreach (var (_, p) in pts.OrderBy(t => t.d)) if (PlayerBuilding.PlaceIssue(U, type, p) is null) { spot = p; break; }
+            if (spot is null) { DNote($"Flut {type.Key}: kein freier Platz in {tgt.Name}"); break; }
+            P.Book("Baustelle", () => PlayerBuilding.Start(U, type, spot.Value, 0f)); placed++;
+            me2.Position = spot.Value + new Vec2(type.Radius + 14f, 0f);
+        }
+        return placed;
     }
 
     bool Bandit(FactionId f) => Bandits.IsEstablished(U, f);

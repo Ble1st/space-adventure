@@ -32,6 +32,8 @@ public static class Probe3
             case "jumpfit": JumpFit(u, P); break;
             case "supply": Supply(u, pilot, P); break;
             case "fleetammo": FleetAmmo(u, pilot, P); break;
+            case "heavy": Heavy(u, pilot, P, false); break;
+            case "heavytank": Heavy(u, pilot, P, true); break;
             case "reach": foreach (var g in u.StationsById().Where(x => !x.IsBuildSite).GroupBy(x => x.TypeKey)) { var st0 = g.First(); var gm = (Guns: StationCombat.DefenseOf(u, st0)?.Guns.Count ?? 0, Range: StationCombat.GunRange(u, st0)); bool rk = StationCombat.DefenseOf(u, st0)?.Guns.Any(k => u.Modules.TryGetValue(k, out var mm) && mm.Stat("missileSpeed") > 0) == true; P($"{g.Key,-22} Radius {st0.Radius:0} Geschütze {gm.Guns} Reichweite {gm.Range:0} (ab Außenhaut), Hülle {StationCombat.MaxHull(u, st0):0} Schild {StationCombat.MaxShield(u, st0):0} Raketen {rk}"); } break;
         }
         w.Dispose();
@@ -253,5 +255,37 @@ public static class Probe3
                 P($"{key}: Nutzplätze {util.Count}; {string.Join(" + ", names)}: {(issue is null ? "gültig" : "UNGÜLTIG: " + FitRules.Describe(issue))}; Leistung {st2.PowerOutput:0.#}/{st2.PowerDraw:0.#} Sprung {st2.JumpRange} Tarnung {st2.Cloak}");
             }
         }
+    }
+
+    // ───────── Test 7: schwere Belagerung — Großkampfschiffe allein gegen Großkampfschiffe + Versorger (SupplyCommand) ─────────
+    static void Heavy(Universe u, Pilot p, Action<string> P, bool tanker)
+    {
+        var comms = CommsActions.Default();
+        var st = u.StationsById().Where(x => !x.IsBuildSite && u.FactionOf(x) is { } ff && u.IsNpcFaction(ff) && !Bandits.IsEstablished(u, ff) && !StationProtection.IsHideout(u, x) && u.StationTypes[x.TypeKey].Government != GovernmentKind.Outpost && Wars.PlayerDeclareIssue(u, ff) is null)
+            .OrderByDescending(x => StationCombat.MaxHull(u, x)).First();
+        var f = u.FactionOf(st)!.Value;
+        var ws = PlayerFleet.Owned(u).Where(s => s.Id != u.PlayerShip && s.Has(Capability.Combat) && u.ShipModels.TryGetValue(s.ModelKey, out var m) && m.Jobs.Count == 0 && !s.IsRental() && s.Stats.Hull >= 600f).OrderByDescending(s => s.Stats.Hull * s.Stats.WeaponPower).Take(8).ToList();
+        P($"Ziel {st.Name} [{st.TypeKey}] Sektor {u.Sectors[st.Sector].Name} Fraktion {f.Value} Hülle {StationCombat.Hull(u, st):0}/{StationCombat.MaxHull(u, st):0} Schild {StationCombat.MaxShield(u, st):0} Geschütze {StationCombat.DefenseOf(u, st)?.Guns.Count}");
+        P($"Verband {ws.Count}: " + string.Join(" ", ws.Select(s => $"#{s.Id.Value}:{s.ModelKey}:H{s.MaxHull:0}:WP{s.Stats.WeaponPower:0}:Mag{s.AmmoLoaded:0}/{s.Stats.AmmoCapacity:0}:Rak{s.Stats.MissileCapacity - s.Systems.MissilesMissing:0}")));
+        foreach (var s in ws) { u.MoveShip(s, st.Sector); s.Position = st.Position + new Vec2(-(st.Radius + 55f), 0); s.Transit = null; s.DockedAt = default; s.Command = null; if (s.Squadron.Value != 0) { var sq0 = Squadrons.Get(u, s); if (sq0 is not null) Squadrons.Disband(u, sq0, out _); } }
+        var tankers = new List<Ship>();
+        if (tanker)
+        {
+            foreach (var t in PlayerFleet.Owned(u).Where(s => s.Id != u.PlayerShip && !s.Has(Capability.Combat) | s.Stats.WeaponPower <= 6f).Where(s => s.Stats.Cargo >= 250f && s.Command is TradeCommand or MineCommand && !ws.Contains(s)).Take(2))
+            { u.MoveShip(t, st.Sector); t.Position = st.Position + new Vec2(-(st.Radius + 140f), 30f); t.Transit = null; t.DockedAt = default; Commands.Cancel(u, t); tankers.Add(t); }
+            foreach (var t in tankers) { bool ok = Commands.Give(u, t, new SupplyCommand(st.Sector), out var msg, ignoreCapacity: true); P($"Versorger #{t.Id.Value} {t.ModelKey} Fracht {t.Stats.Cargo:0}: Versorgen {ok} {msg}"); }
+        }
+        P($"[künstlich] {ws.Count} Kampfschiffe{(tankers.Count > 0 ? $" + {tankers.Count} Versorger" : "")} in {u.Sectors[st.Sector].Name} gestellt");
+        P("Krieg: " + comms.Execute(u, $"war:{f.Value}").Message);
+        foreach (var s in ws) Commands.Give(u, s, new AttackCommand(default, st.Id, default, st.Sector), out _, ignoreCapacity: true);
+        int supplied = 0, fell = 0; u.Events.Raised += e => { if (e is FleetSupplied) supplied++; if (e is StationFell sf && sf.Station == st.Id) fell++; };
+        long t0 = u.Tick; bool taken = false;
+        for (int i = 0; i <= 12000; i++)
+        {
+            if (i % 600 == 0) P($"[+{u.Tick - t0}] Hülle Ziel {(u.Stations.TryGetValue(st.Id, out var c) ? StationCombat.Hull(u, c) : 0):0} {(u.Stations.TryGetValue(st.Id, out var c2) && StationCombat.IsDown(u, c2) ? "AUS" : "")} Besitzer {(u.Stations.TryGetValue(st.Id, out var c3) ? (c3.Owner == u.PlayerActor ? "ICH" : c3.Owner.Value.ToString()) : "weg")}; Versorgt {supplied}; " + string.Join(" ", ws.Select(s => u.Ships.ContainsKey(s.Id) ? $"#{s.Id.Value}:{s.ModelKey[..Math.Min(4, s.ModelKey.Length)]}:H{s.Hull / s.MaxHull:0.00}:M{s.AmmoLoaded:0}:R{s.Stats.MissileCapacity - s.Systems.MissilesMissing:0}:{Cmd(s)}" : $"#{s.Id.Value}:tot")));
+            p.Step();
+            if (!taken && (!u.Stations.TryGetValue(st.Id, out var cc) || cc.Owner == u.PlayerActor || StationCombat.IsDown(u, cc))) { taken = true; P($"[+{u.Tick - t0}] Ziel gefallen/ausgeschaltet (Fell-Ereignisse {fell})"); break; }
+        }
+        P($"Ende nach {u.Tick - t0} Ticks: Ziel gefallen {taken}; Verband lebt {ws.Count(s => u.Ships.ContainsKey(s.Id))}/{ws.Count}; Versorgungen {supplied}");
     }
 }

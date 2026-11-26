@@ -39,7 +39,7 @@ public sealed partial class Empire
 
     public bool Step()
     {
-        S4Tick(); S4Csv();
+        S4Tick(); S4Csv(); AusStep();
         if (U.Tick < 2000) return false;
         if (CampaignActive) { P.Where = "Empire:campaign"; if (S4) Diplo(); return War(); }
         LockRevert();
@@ -48,7 +48,7 @@ public sealed partial class Empire
         P.Where = "Empire:supply"; if (SupplyStep()) return true;
         if (Only == "court") { P.Where = "Empire:court"; return Court(); }
         if (Only == "bounty") { P.Where = "Empire:bounty"; return HuntRaider() || Bounty(); }
-        if (Dom) { P.Where = "Empire:diplo"; if (Diplo()) return true; P.Where = "Empire:dominion"; if (Dominion()) return true; if (DomWar && (P.Where = "Empire:war") != null && War()) return true; return false; }
+        if (Dom) { P.Where = "Empire:diplo"; if (Diplo()) return true; P.Where = "Empire:dominion"; if (Dominion()) return true; if (DomWar && !(BanditOnly && !_banditDone) && (P.Where = "Empire:war") != null && War()) return true; return false; }
         if (Only == "war") { P.Where = "Empire:war"; if (War()) return true; P.Where = "Empire:court"; return Court() || Bounty(); }
         P.Where = "Empire:build"; if (Build()) return true;
         P.Where = "Empire:court"; if (Court()) return true;

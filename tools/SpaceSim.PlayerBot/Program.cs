@@ -6,7 +6,7 @@ using SpaceSim.Core.Model;
 using SpaceSim.Core.Simulation;
 using SpaceSim.PlayerBot;
 
-string? loadFile = null, saveFile = null; long saveAt = -1;
+string? loadFile = null, saveFile = null, savePrefix = null; long saveAt = -1, saveEvery = 0, nextSave = 0;
 string world = "tools/SpaceSim.PlayerBot/Content/world24.json", start = "miner", outDir = "spielerbot-out";
 ulong seed = 11; long ticks = 2_000_000, every = 20_000;
 for (int i = 0; i < args.Length; i++)
@@ -20,10 +20,14 @@ for (int i = 0; i < args.Length; i++)
         case "--every": every = long.Parse(args[++i]); break;
         case "--load": loadFile = args[++i]; break;
         case "--save-at": saveAt = long.Parse(args[++i]); saveFile = args[++i]; break;
+        case "--save-every": saveEvery = long.Parse(args[++i]); savePrefix = args[++i]; break;
         case "--richgate": Empire.RichGate = double.Parse(args[++i]); break;
         case "--only": Empire.Only = args[++i]; break;
         case "--dominion": Empire.Dom = true; break;
         case "--domwar": Empire.DomWar = true; break;
+        case "--banditonly": Empire.BanditOnly = true; Empire.BanditFirst = true; break;
+        case "--austerity": Empire.Aus = true; Empire.AusMin = int.Parse(args[++i]); break;
+        case "--nodonate": Empire.NoDonate = true; break;
         case "--banditfirst": Empire.BanditFirst = true; break;
         case "--domshare": Empire.DomShare = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
         case "--domforemen": Empire.DomForemen = int.Parse(args[++i]); break;
@@ -202,6 +206,7 @@ wd.Start();
 long lastTick = -1; int stuck = 0;
 while (u.Tick < ticks && !metrics.AllGoals)
 {
+    if (saveEvery > 0 && savePrefix is not null && u.Tick >= nextSave) { nextSave = (u.Tick / saveEvery + 1) * saveEvery; File.WriteAllText($"{savePrefix}{u.Tick / saveEvery * saveEvery}.json", SaveGameJson.Write(u, DateTimeOffset.UtcNow)); }
     if (saveAt >= 0 && u.Tick >= saveAt && saveFile is not null) { File.WriteAllText(saveFile, SaveGameJson.Write(u, DateTimeOffset.UtcNow)); saveAt = -1; log.Event("Spielstand gespeichert " + saveFile); }
     try { bot.Step(); }
     catch (Exception ex) { log.Event("AUSNAHME: " + ex); metrics.Exceptions++; pilot.Run(100); }
