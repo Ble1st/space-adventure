@@ -177,10 +177,12 @@ u.Events.Raised += e =>
     { var h = u.Tick / 14400; var oh = fuelHour.GetValueOrDefault(h); fuelHour[h] = (oh.cost, oh.units, oh.emerg + er2.Cost); }
 };
 var log = new Log(Path.Combine(outDir, "ereignisse.log"), () => u.Tick);
-if (args.Contains("--evlog")) { var evNames = new HashSet<string> { "StationFell", "StationDeparted", "WarDeclared", "PeaceConcluded", "SectorOwnerChanged", "PlayerGovernmentUnpaidChanged", "AllianceFormed", "TributePaid", "SupplyPanicRaised", "SectorControlChanged", "SectorAccessChanged", "StationCapitulationRolled" }; u.Events.Raised += e => { if (evNames.Contains(e.GetType().Name)) log.Event("KERN " + e.GetType().Name + " " + e); }; }
+if (args.Contains("--evlog")) { var evNames = new HashSet<string> { "StationFell", "StationDeparted", "WarDeclared", "PeaceConcluded", "SectorOwnerChanged", "PlayerGovernmentUnpaidChanged", "AllianceFormed", "TributePaid", "SupplyPanicRaised", "SectorControlChanged", "SectorAccessChanged", "StationCapitulationRolled", "CapitalOrderPlaced", "CapitalShipCompleted", "CapitalOrderEnded" }; u.Events.Raised += e => { if (evNames.Contains(e.GetType().Name)) log.Event("KERN " + e.GetType().Name + " " + e); }; }
 var pilot = new Pilot(u, log, seed);
 var metrics = new Metrics(u, pilot, Path.Combine(outDir, "zeitleiste.csv"), Path.Combine(outDir, "zeitleiste.txt"), every);
-pilot.OnTick = metrics.OnTick;
+var levOut = new StreamWriter(Path.Combine(outDir, "leviathane.csv")) { AutoFlush = true }; levOut.WriteLine("tick;eigene_leviathane;npc_leviathane_je_fraktion;eigene_grosse;krieg_paare;sektoren_eigen;sperren");
+long nextLev = 0;
+pilot.OnTick = uu => { metrics.OnTick(uu); if (u.Tick >= nextLev) { nextLev = u.Tick + 10000; var all = u.Ships.Values.Where(s => s.ModelKey == "battlecruiser" || s.ModelKey == "carrier"); levOut.WriteLine($"{u.Tick};{all.Count(s => s.Owner == u.PlayerActor && s.ModelKey == "battlecruiser")};{string.Join(" ", all.Where(s => s.Owner != u.PlayerActor && s.ModelKey == "battlecruiser").GroupBy(s => s.Owner.Value).Select(g => g.Key + ":" + g.Count()))};{all.Count(s => s.Owner == u.PlayerActor)};{string.Join(" ", u.Wars.Select(w => w.A.Value + "-" + w.B.Value))};{u.Sectors.Values.Count(x => x.Owner == u.PlayerFaction)};{u.Sectors.Values.Count(x => x.Access.EntryLevel > 0)}"); } };
 var bot = new Bot(pilot, log, metrics);
 pilot.Runner.Run(u, 200);   // Preise stehen erst nach dem ersten Takt
 pilot.Led = new Ledger(u);
