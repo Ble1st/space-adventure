@@ -378,10 +378,11 @@ public sealed class Bot
         var mil = MilitaryShips();
         int big = mil.Count(s => U.ShipClasses.TryGetValue(s.ClassKeyOf(U), out var c) && c.Size >= SlotSize.L);
         bool needPolice = policeNow < 6 + 2 && mil.Count < 70;
-        bool needMil = (mil.Count < 40 || big < 10) && mil.Count < 70;
+        bool needMil = Empire.S4 ? (big < 12 && mil.Count < 130) : (mil.Count < 40 || big < 10) && mil.Count < 70;
         if (!needPolice && !needMil) return false;
         if (P.Wallet < 150000f) return false;
         _nextMil = U.Tick + 600;
+        if (Empire.S4 && big < 12 && policeNow >= 8) { Emp.BuyCapital(); return true; }
         var yard = P.NearestWith("shipdealer", st => st.TypeKey == "shipyard");
         if (yard is null) return false;
         if (!P.GoToStation(yard, out _)) return true;

@@ -28,11 +28,13 @@ for (int i = 0; i < args.Length; i++)
         case "--domshare": Empire.DomShare = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
         case "--domforemen": Empire.DomForemen = int.Parse(args[++i]); break;
         case "--mixed": Empire.Dom = true; Empire.DomWar = true; Empire.MilOn = true; Empire.Mixed = true; Empire.RetreatHull = 0.5f; break;
+        case "--s4": Empire.S4 = true; Empire.Dom = true; Empire.DomWar = true; Empire.MilOn = true; Empire.Mixed = true; Empire.RetreatHull = 0.5f; break;
+        case "--needbig": Empire.NeedBig = int.Parse(args[++i]); break;
         case "--noflood": Empire.NoFlood = true; break;
         case "--hunter": Hunter.On = true; break;
         case "--mix": Hunter.Mix = true; Hunter.MixAt = long.Parse(args[++i]); break;
     }
-Directory.CreateDirectory(outDir);
+Directory.CreateDirectory(outDir); Empire.S4Out = outDir;
 var def = WorldBuilder.Parse(File.ReadAllText(world));
 var u = loadFile is null ? WorldBuilder.Build(def, seed, start) : SaveGameJson.Read(File.ReadAllText(loadFile)).Universe;
 if (Array.IndexOf(args, "--probe3") is var p3 && p3 >= 0) { Probe3.Run(u, args[p3 + 1], seed, outDir); return; }

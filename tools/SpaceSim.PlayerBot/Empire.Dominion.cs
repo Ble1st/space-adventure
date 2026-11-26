@@ -79,7 +79,7 @@ public sealed partial class Empire
             foreach (var sec in U.Sectors.Values.OrderBy(s => s.Id.Value))
             {
                 if (sec.Owner == me || _done.Contains(sec.Id)) continue;
-                if (NoFlood && U.IsNpcFaction(sec.Owner)) continue;
+                if ((NoFlood || S4) && U.IsNpcFaction(sec.Owner) && !(S4 && PlayerOwnIn(sec) > 0 && Wars.PlayerWar(U, sec.Owner) is null)) continue;
                 if (_domFail.TryGetValue(sec.Id, out var ft) && U.Tick - ft < 15000) continue;
                 if (U.IsNpcFaction(sec.Owner) && (!Bandit(sec.Owner) || !_banditPeaceFail) && Math.Min(Relations.Effective(U, U.PlayerActor, new ActorId(sec.Owner.Value)), Relations.Effective(U, new ActorId(sec.Owner.Value), U.PlayerActor)) < 0.02f) { blocked[sec.Owner] = blocked.GetValueOrDefault(sec.Owner) + 1; continue; }
                 if (PlayerBuilding.SectorIssue(U, sec.Id) is { } why) { if (!_domWhy.TryGetValue(sec.Id, out var old) || old != why) { _domWhy[sec.Id] = why; DNote($"Bau in {sec.Name} gesperrt: {why}"); } continue; }
@@ -139,7 +139,7 @@ public sealed partial class Empire
         foreach (var w in U.Wars.Where(w => w.Involves(me) && U.IsNpcFaction(w.Other(me))).ToList())
         {
             var f = w.Other(me);
-            if (CampaignActive) break;
+            if (CampaignActive && (!S4 || f == _enemy)) continue;
             var pz = P.Book("Frieden", () => C.Execute(U, $"peace:{f.Value}"));
             DNote($"Krieg mit {f.Value} seit {w.Since}: Frieden: {pz.Message}");
             if (Wars.PlayerWar(U, f) is not null) { var c = P.Book("Waffenstillstand", () => C.Execute(U, $"ceasefire:{f.Value}")); DNote($"Waffenstillstand {f.Value}: {c.Message}"); }
@@ -150,7 +150,7 @@ public sealed partial class Empire
             {
                 if (Bandit(f)) continue;
                 float rr = Math.Min(Relations.Effective(U, U.PlayerActor, new ActorId(f.Value)), Relations.Effective(U, new ActorId(f.Value), U.PlayerActor));
-                if (rr >= 0.45f || rr < -0.3f || (_donTry.TryGetValue(f, out var dt) && U.Tick - dt < 2400)) continue;
+                if (rr >= 0.45f || (rr < -0.3f && !(S4 && Wars.PlayerWar(U, f) is null)) || (_donTry.TryGetValue(f, out var dt) && U.Tick - dt < 2400)) continue;
                 _donTry[f] = U.Tick;
                 var amt = U.Rules.DonationAmounts.Where(a => a <= Wallet * 0.05f).DefaultIfEmpty(0f).Max(); if (amt <= 0) continue;
                 var dr = P.Book("Spende", () => C.Execute(U, $"donate:{f.Value}:{amt:0}"));
@@ -195,6 +195,7 @@ public sealed partial class Empire
     bool BanditCampaign()
     {
         if (_banditDone || U.Tick < _nextBandit) return false;
+        if (S4 && U.Sectors.Values.Any(sc9 => U.IsNpcFaction(sc9.Owner) && !Bandits.IsEstablished(U, sc9.Owner))) return false;
         if (U.PlayerFaction is { } mf0 && U.Sectors.Values.All(sc0 => sc0.Owner == mf0)) { _banditDone = true; return false; }
         var bf = U.NpcFactionIds().Where(f => Bandits.IsEstablished(U, f)).Select(f => (FactionId?)f).FirstOrDefault();
         if (bf is null) { _banditDone = true; return false; }
@@ -250,30 +251,32 @@ public sealed partial class Empire
     }
 
     public static int CapitalWanted = 8; long _lastGather;
-    void BuyCapital()
+    public bool BuyCapital()
     {
-        var yard = P.NearestWith("shipdealer", st => st.TypeKey == "shipyard"); if (yard is null || P.Svc(yard, "shipdealer") is not { } svc) return;
-        if (!P.GoToStation(yard, out _)) return;
+        var yards = U.StationsById().Where(x => !x.IsBuildSite && x.TypeKey == "shipyard" && Docking.Issue(U, x, P.Me) is null && U.FindRoute(P.Me.Sector, x.Sector, GateAccess.ProfileOf(U, P.Me)) is not null)
+            .OrderBy(x => U.FindRoute(P.Me.Sector, x.Sector, GateAccess.ProfileOf(U, P.Me))!.Count).ToList();
+        Station? yard = null; ShipQuote? pick = null; double pv = 0; var why = new List<string>();
+        foreach (var y in yards)
+        {
+            double bestV = 0; ShipQuote? bp = null;
+            foreach (var m in ShipDealerService.Models(U, y))
+            {
+                if (m.Jobs.Count > 0 || ShipDealerService.Quote(U, y, P.Me, m.Key) is not { Buyable: true } q) continue;
+                if (!q.Stats.Capabilities.HasFlag(Capability.Combat) || q.Stats.WeaponPower <= 0f || q.Stats.Hull < 600f || q.Price > Wallet * (S4 ? 0.3f : 0.2f)) continue;
+                double v = q.Stats.WeaponPower * (q.Stats.Hull + q.Stats.Shield * 2);
+                if (v > bestV) { bestV = v; bp = q; }
+            }
+            if (bp is not null) { yard = y; pick = bp; pv = bestV; break; }
+            why.Add(y.Name);
+        }
+        if (yard is null || pick is null) { DNote($"Großkampfschiff: bei keiner Werft lieferbar ({string.Join(", ", why)})"); return false; }
+        if (P.Svc(yard, "shipdealer") is not { } svc) return false;
+        if (!P.GoToStation(yard, out _)) return false;
         P.Refuel(); P.RepairHere();
-        ShipQuote? pick = null; double pv = 0;
-        foreach (var m in ShipDealerService.Models(U, yard))
-        {
-            if (m.Jobs.Count > 0 || ShipDealerService.Quote(U, yard, P.Me, m.Key) is not { Buyable: true } q) continue;
-            if (!q.Stats.Capabilities.HasFlag(Capability.Combat) || q.Stats.WeaponPower <= 0f || q.Stats.Hull < 600f || q.Price > Wallet * 0.2f) continue;
-            double v = q.Stats.WeaponPower * (q.Stats.Hull + q.Stats.Shield * 2);
-            if (v > pv) { pv = v; pick = q; }
-        }
-        if (pick is null)
-        {
-            var why = new List<string>();
-            foreach (var m in ShipDealerService.Models(U, yard))
-                if (m.Jobs.Count == 0 && ShipDealerService.Quote(U, yard, P.Me, m.Key) is { } q && q.Stats.Capabilities.HasFlag(Capability.Combat) && q.Stats.Hull >= 600f)
-                    why.Add($"{m.Key} Hülle {q.Stats.Hull:0} {q.Price:0} Cr: " + (q.Locked ?? (q.Missing.Count > 0 ? "fehlt " + string.Join("+", q.Missing.Select(x => $"{x.Units:0}×{U.Goods[x.Good].Name}")) : q.Affordable ? "Preisgrenze" : "zu teuer")));
-            DNote($"Großkampfschiff: nichts lieferbar bei {yard.Name}: " + string.Join(" | ", why)); _nextBandit = U.Tick + 3000; return;
-        }
         var r = P.Do(yard, svc, $"buy:{pick.Model.Key}");
-        DNote($"Großkampfschiff {pick.Model.Name} {pick.Price:0} Cr (Hülle {pick.Stats.Hull:0}, Waffenkraft {pick.Stats.WeaponPower:0}): {(r.Success ? "ok" : r.Message)}");
+        DNote($"Großkampfschiff {pick.Model.Name} {pick.Price:0} Cr bei {yard.Name} (Hülle {pick.Stats.Hull:0}, Waffenkraft {pick.Stats.WeaponPower:0}): {(r.Success ? "ok" : r.Message)}");
         B.RestoreFlag();
+        return r.Success;
     }
 
     // ───────── Sektorbehörden in allen eigenen Sektoren (Kontrollstufe Dominanz/Kontrolle, Sperrrechte) ─────────
