@@ -298,6 +298,9 @@ public sealed class WarSave
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool Join { get; set; }
     /// <summary>Ausbau Punkt 6: Müdigkeitszuschlag aus Vermittlungen und Tick der letzten Vermittlung.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public float MediationBonus { get; set; }
+    /// <summary>Welle F (3): Beginn der ununterbrochenen Pleite von A bzw. B (0 = keine).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long BrokeSinceA { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long BrokeSinceB { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public long LastMediationTick { get; set; }
 }
 

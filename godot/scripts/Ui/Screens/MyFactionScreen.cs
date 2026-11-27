@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using SpaceAdventure.Ui.Kit;
@@ -171,6 +172,8 @@ public sealed partial class MyFactionScreen : CommandScreen
 	/// <summary>Ausbau Punkt 9, Selbsttest: Zeile des Firmensitzes (Name oder Vorschau bzw. Grund) und der Büros.</summary>
 	public string TestFirmSeatLine { get; private set; } = "";
 	public string TestOfficeLine { get; private set; } = "";
+	/// <summary>Welle F, Selbsttest: Zeilen „Reich je Sektor“ (je Sektor eine, zuletzt die Summe).</summary>
+	public readonly List<string> TestEmpireLines = new();
 
 	void PolicyButton(Control card, string key, string label, float x, float y, float w, bool confirm)
 	{
@@ -324,6 +327,27 @@ public sealed partial class MyFactionScreen : CommandScreen
 			}
 			else if (offices.Count > 0) TestOfficeLine = string.Join(" | ", offices.Select(o => o.Name));
 		}
+		// Welle F (1): Steuer gegen Kosten je eigenem Sektor (Cr je Spielstunde, Momentaufnahme der Regeln), dazu laufende Kriegspleite (3)
+		var balances = EmpireBalance.All(u);
+		TestEmpireLines.Clear();
+		if (balances.Count > 0)
+		{
+			At(card, Text("Reich je Sektor (Cr/h)", 16, Cyan), 20, y, width - 40, 22);
+			y += 26;
+			foreach (var b in balances)
+			{
+				string line = EmpireBalance.Line(b);
+				TestEmpireLines.Add(line);
+				y = WrappedText(card, line, 20, y, width - 40, 13, b.Net >= 0f ? new Color(Dim, 0.95f) : Orange, 18) + 4;
+			}
+			float inc = balances.Sum(b => b.Income), cost = balances.Sum(b => b.Costs);
+			string sum = $"Summe: Einnahmen {inc:0} · Kosten {cost:0} · netto {inc - cost:+0;−0} Cr/h (Instandhaltung bei voller Versorgung)";
+			TestEmpireLines.Add(sum);
+			y = WrappedText(card, sum, 20, y, width - 40, 13, inc >= cost ? Green : Orange, 18) + 8;
+		}
+		if (u.PlayerFaction is { } wf)
+			foreach (var w in u.Wars.Where(x => x.Involves(wf)))
+				if (WarBroke.Text(u, w, wf) is { Length: > 0 } wt) y = WrappedText(card, $"Krieg mit {u.ActorName(w.Other(wf))}: {wt}", 20, y, width - 40, 13, Orange, 18) + 6;
 		// Welle C (2): Regierungsunterhalt in Rangfolge — Reichweite der Kasse, jede eigene Behörde ruhen lassen (zwei Tipps) oder wieder anschalten
 		TestUpkeepLine = PlayerUpkeepOrder.StatusLine(u);
 		if (TestUpkeepLine.Length > 0)

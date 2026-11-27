@@ -35,6 +35,8 @@ public static class Probe3
             case "heavy": Heavy(u, pilot, P, false); break;
             case "heavytank": Heavy(u, pilot, P, true); break;
             case "fuelwhy": ProbeFuel.Run(u, pilot, P, 6000); break;
+            case "fueltrace": ProbeFuel.Trace(u, pilot, P, 1500); break;
+            case "reich": ProbeEmpire.Run(u, pilot, P, 14400); break;
             case "siegefly": ProbeSiege.Run(u, pilot, P, false, 3, 8); break;
             case "siegerally": ProbeSiege.Run(u, pilot, P, true, 3, 8); break;
             case "reach": foreach (var g in u.StationsById().Where(x => !x.IsBuildSite).GroupBy(x => x.TypeKey)) { var st0 = g.First(); var gm = (Guns: StationCombat.DefenseOf(u, st0)?.Guns.Count ?? 0, Range: StationCombat.GunRange(u, st0)); bool rk = StationCombat.DefenseOf(u, st0)?.Guns.Any(k => u.Modules.TryGetValue(k, out var mm) && mm.Stat("missileSpeed") > 0) == true; P($"{g.Key,-22} Radius {st0.Radius:0} Geschütze {gm.Guns} Reichweite {gm.Range:0} (ab Außenhaut), Hülle {StationCombat.MaxHull(u, st0):0} Schild {StationCombat.MaxShield(u, st0):0} Raketen {rk}"); } break;

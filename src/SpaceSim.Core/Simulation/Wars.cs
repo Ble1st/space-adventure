@@ -601,7 +601,8 @@ public sealed class WarSystem : ISimSystem
             Wars.PinHostile(u, w);
             float ticks = u.Tick - w.Since;
             w.Weariness = ticks / MathF.Max(1f, r.WarWearyTicks) + MathF.Max(w.LossA, w.LossB) / MathF.Max(1f, r.WarLossScale) + w.MediationBonus;   // Ausbau Punkt 6: Vermittlung
-            bool broke = Broke(u, w.A) || Broke(u, w.B);
+            // Welle F (3): mit WarBrokeTicks erst nach anhaltender Pleite und nicht während einer Belagerung durch die zahlungsfähige Seite (WarBroke)
+            bool broke = r.WarBrokeTicks > 0 ? WarBroke.Due(u, w, Broke(u, w.A), Broke(u, w.B)) : Broke(u, w.A) || Broke(u, w.B);
             if (broke) { Wars.MakePeace(u, w, "broke"); continue; }
             // Runde 45: KI gegen KI — ein klarer Sieger nimmt Tribut, wenn der Verlierer genug aus seinem Budget zahlen kann (vor dem Müdigkeitsfrieden: der Sieger
             // lässt sich nicht umsonst abspeisen); sonst ein Angebot je Abkühlzeit. Die leere Kasse („broke“) bleibt vorrangig.
@@ -643,7 +644,7 @@ public sealed class WarSystem : ISimSystem
     }
 
     /// <summary>Kasse unter der Rücklage (nach deren Aufbauzeit) — dann ist Frieden Pflicht.</summary>
-    static bool Broke(Universe u, FactionId f) =>
+    internal static bool Broke(Universe u, FactionId f) =>
         u.Actors.TryGetValue(f, out var a) && !FactionViability.ReserveBuilding(u, a) && a.Treasury.Credits < FactionViability.Reserve(u, f);
 }
 

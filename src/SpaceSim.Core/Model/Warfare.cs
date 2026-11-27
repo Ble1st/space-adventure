@@ -98,6 +98,11 @@ public sealed class War
     public float MediationBonus;
     /// <summary>Ausbau Punkt 6: Tick der letzten Vermittlung (0 = keine); gespeichert, gehasht nur wenn gesetzt. Sperrt <see cref="EconomyRules.MediationCooldownTicks"/>.</summary>
     public long LastMediationTick;
+    /// <summary>
+    /// Welle F (3): seit diesem Tick liegt die Kasse von A bzw. B ununterbrochen unter ihrer Rücklage (0 = nicht pleite). Frieden „leere Kasse“ erst nach
+    /// <see cref="EconomyRules.WarBrokeTicks"/>; gespeichert, gehasht nur wenn gesetzt.
+    /// </summary>
+    public long BrokeSinceA, BrokeSinceB;
 
     public bool Involves(FactionId f) => A == f || B == f;
     public FactionId Other(FactionId f) => A == f ? B : A;

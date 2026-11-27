@@ -100,7 +100,7 @@ public static class StationWear
     public static bool Decaying(Universe u, Station st)
     {
         if (!u.Rules.StationWear || !Maintenance.Applies(u, st) || !u.StationTypes.TryGetValue(st.TypeKey, out var t)) return false;
-        return BacklogShare(u, st, Maintenance.NeedPerDay(u, t)) > u.Rules.WearBacklogShare && st.Integrity > Floor(u, st);
+        return BacklogShare(u, st, Maintenance.NeedFor(u, st, t)) > u.Rules.WearBacklogShare && st.Integrity > Floor(u, st);
     }
 
     /// <summary>

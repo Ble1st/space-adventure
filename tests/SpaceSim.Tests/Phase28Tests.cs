@@ -550,7 +550,16 @@ public class Phase28Tests
         u.Tick = u.Rules.FactionReserveBuildTicks + 100;
         u.Actors[Guild].Treasury.Credits = 0f;
         var ev = Capture(u);
-        new WarSystem().Step(u, WarSystem.Interval);
+        var sys = new WarSystem();
+        sys.Step(u, WarSystem.Interval);
+        // Welle F (3): Frieden „leere Kasse“ erst nach anhaltender Pleite (WarBrokeTicks), dann aber Pflicht
+        Assert.Empty(ev.OfType<PeaceConcluded>());
+        for (int t = 0; t <= u.Rules.WarBrokeTicks && u.Wars.Count > 0; t += WarSystem.Interval)
+        {
+            u.Tick += WarSystem.Interval;
+            u.Actors[Guild].Treasury.Credits = 0f;
+            sys.Step(u, WarSystem.Interval);
+        }
         Assert.Equal("broke", Assert.Single(ev.OfType<PeaceConcluded>()).Reason);
         Assert.Empty(u.Wars);
     }

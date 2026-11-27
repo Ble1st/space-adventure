@@ -142,11 +142,12 @@ public static class Refuel
     /// begrenzt durch Stationsbestand, Credits der Kasse (<see cref="Universe.WalletOf(Ship)"/>) und freien Tankplatz (ganze Einheiten).
     /// Bucht Bestand, Stationskasse und Kasse des Schiffs und veröffentlicht <see cref="FuelBought"/>. Liefert die gekauften Einheiten.
     /// </summary>
-    public static float BuyFuel(Universe u, Ship ship, Station st, GoodId good, float wantUnits)
+    public static float BuyFuel(Universe u, Ship ship, Station st, GoodId good, float wantUnits, float debt = 0f)
     {
         if (!Active(u) || wantUnits <= 0f || !st.Market.TryGetValue(good, out var e) || e.Price <= 0f) return 0f;
         var wallet = u.WalletOf(ship);
-        float stock = MathF.Floor(e.Amount), afford = MathF.Floor(wallet.Credits / e.Price), space = MathF.Floor(ship.FuelSpace);
+        // Welle F (2): Pflichttreibstoff des Spielers darf die Kasse bis zur Schuldgrenze ins Minus ziehen (debt > 0 nur von TankUp)
+        float stock = MathF.Floor(e.Amount), afford = MathF.Floor(MathF.Max(0f, wallet.Credits + debt) / e.Price), space = MathF.Floor(ship.FuelSpace);
         float n = MathF.Min(MathF.Min(MathF.Floor(wantUnits), stock), MathF.Min(afford, space));
         if (n <= 0f) return 0f;
         float cost = n * e.Price;
@@ -177,6 +178,13 @@ public static class Refuel
         if (u.Rules.PlayerTankReserve && ship.Owner == u.PlayerActor && u.PlayerActor.Value != 0)
             minUnits = MathF.Max(minUnits, MinFuelReserveFraction * ship.Stats.FuelCapacity - ship.TotalFuel);
         float want = MathF.Min(ship.FuelSpace, MathF.Max(MathF.Ceiling(minUnits), budget));
+        // Welle F (2): Spielerschiffe tanken das Pflichtmaß (nächste andere Tankstelle mit Aufschlag, Reserve) notfalls auf Schuld — erst das, dann den Vorrat
+        if (FuelPriority.Applies(u, ship))
+        {
+            float must = MathF.Min(ship.FuelSpace, MathF.Ceiling(MathF.Max(minUnits, FuelPriority.MinimumAt(u, ship, st, good.Value))));
+            float got = must > 0f ? BuyFuel(u, ship, st, good.Value, must, u.Rules.PlayerFuelDebtLimit) : 0f;
+            return got + BuyFuel(u, ship, st, good.Value, want - got);
+        }
         return BuyFuel(u, ship, st, good.Value, want);
     }
 
@@ -192,6 +200,13 @@ public static class Refuel
         // aufrunden: so viel, dass die anvisierte Tankstelle mit Sicherheit erreichbar ist (ganze Einheiten bezahlbar/Tankplatz)
         var wallet = u.WalletOf(ship);
         float n = MathF.Min(MathF.Min(MathF.Ceiling(wantUnits), MathF.Floor(wallet.Credits / price)), MathF.Floor(ship.FuelSpace));
+        // Welle F (2): Spielerschiffe kaufen ganz oder gar nicht (mit Schuldgrenze) — sonst rinnt die Kasse in Ein-Einheiten-Notkäufen weg
+        if (FuelPriority.Applies(u, ship))
+        {
+            float want = MathF.Min(MathF.Ceiling(wantUnits), MathF.Floor(ship.FuelSpace));
+            if (want * price > wallet.Credits + u.Rules.PlayerFuelDebtLimit) return 0f;
+            n = want;
+        }
         if (n <= 0f) return 0f;
         float cost = n * price;
         wallet.Credits -= cost;   // Geldsenke: keine Station erhält den Erlös
@@ -304,12 +319,16 @@ public static class Refuel
             // Nirgends Treibstoff im erreichbaren Raum (z. B. alle Raffinerien leer oder Welt ohne Raffinerie): Notkauf direkt
             // für diese Reise, ohne Reserve. So bleibt die Flotte beweglich; liegen bleibt nur, wer den Aufpreis nicht zahlen kann.
             float lack = trip - ship.FuelAmount(good.Value);
-            if (lack > 0f) EmergencyBuy(u, ship, good.Value, lack);
+            if (lack > 0f && EmergencyBuy(u, ship, good.Value, lack) <= 0f && FuelPriority.Applies(u, ship))
+                return FuelPriority.Strand(u, ship, good.Value, lack);
             return ship.FuelAmount(good.Value) >= trip ? TripPlan.Depart : TripPlan.Stuck;
         }
         float needToStop = Consumption(ship, Travel.EstimateDistance(u, ship.Sector, ship.Position, any.Sector, any.DockPoint(ship.Id), ship), good);
+        // Welle F (2): Spielerschiffe rechnen mit der geplanten Strecke (Umwege) und Aufschlag, damit ein Notkauf bis zur Tankstelle reicht
+        if (FuelPriority.Applies(u, ship)) needToStop = FuelPriority.WithMargin(Consumption(ship, Travel.PlannedDistance(u, ship.Sector, ship.Position, any.Sector, any.DockPoint(ship.Id), ship), good));
         float missing = MathF.Max(0f, needToStop - ship.FuelAmount(good.Value));
-        if (missing > 0f) EmergencyBuy(u, ship, good.Value, missing);
+        if (missing > 0f && EmergencyBuy(u, ship, good.Value, missing) <= 0f && FuelPriority.Applies(u, ship))
+            return FuelPriority.Strand(u, ship, good.Value, missing);
         stop = NearestFuelStation(u, ship, good.Value, ship.FuelAmount(good.Value), exclude: here?.Id);
         if (stop is not null)
         {

@@ -1570,6 +1570,7 @@ public partial class Main : Node3D
 		if (CarrierEvent(e)) return;   // Träger (Main.Carrier.cs)
 		if (BuildEvent(e)) return;   // eigene Stationen (Main.Build.cs)
 		if (FleetOpsEvent(e)) return;   // Flottenbefehle (Main.FleetOps.cs)
+		if (WelleFEvent(e)) return;   // Welle F (Main.WelleF.cs)
 		if (UniverseEventEvent(e)) return;   // Universumsereignisse (Main.UniverseEvents.cs)
 		if (WormholeEvent(e)) return;   // Wurmlöcher (Main.Wormholes.cs)
 		if (PilotEvent(e)) return;   // Piloten: Rangwechsel (Main.Pilots.cs)

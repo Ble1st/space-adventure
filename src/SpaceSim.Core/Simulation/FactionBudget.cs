@@ -50,6 +50,30 @@ public static class Maintenance
         return list.OrderBy(x => x.Item1.Value).ToList();
     }
 
+    /// <summary>
+    /// Welle F (1): Anteil des Tagesbedarfs dieser Station — Regierungsstationen des Spielers mit <see cref="EconomyRules.PlayerGovernmentMaintenanceShare"/>
+    /// (wie ihr Unterhalt mit <see cref="EconomyRules.PlayerGovernmentUpkeepShare"/>), sonst 1.
+    /// </summary>
+    public static float StationFactor(Universe u, Station st, StationType type) =>
+        u.Rules.PlayerGovernmentMaintenanceShare > 0f && u.Rules.PlayerGovernmentMaintenanceShare < 1f && PlayerUpkeep.IsPlayerGovernment(u, st, type)
+            ? u.Rules.PlayerGovernmentMaintenanceShare : 1f;
+
+    /// <summary>Tagesbedarf dieser Station (Typbedarf × <see cref="StationFactor"/>).</summary>
+    public static List<(GoodId Good, float PerDay)> NeedFor(Universe u, Station st, StationType type)
+    {
+        var need = NeedPerDay(u, type);
+        float f = StationFactor(u, st, type);
+        return f < 1f ? Scaled(need, f) : need;
+    }
+
+    /// <summary>Kopie des Bedarfs mit Faktor.</summary>
+    public static List<(GoodId Good, float PerDay)> Scaled(List<(GoodId Good, float PerDay)> need, float f)
+    {
+        var list = new List<(GoodId, float)>(need.Count);
+        foreach (var (g, d) in need) list.Add((g, d * f));
+        return list;
+    }
+
     /// <summary>Wird die Station instand gehalten? Fertig, kein Versteck, Typ mit Baukosten, Besitzer gehört zu einer Fraktion, Regel an.</summary>
     public static bool Applies(Universe u, Station st) =>
         !st.IsBuildSite && u.Rules.MaintenanceShare > 0f && u.StationTypes.TryGetValue(st.TypeKey, out var t) && !t.Hideout && t.BuildCost > 0f && t.Dockable   // Phase 30: Kleinstationen ohne Markt
@@ -137,6 +161,7 @@ public sealed class MaintenanceSystem : ISimSystem
             if (!Maintenance.Applies(u, st) || u.FactionOf(st) is not { } faction) continue;
             var type = u.StationTypes[st.TypeKey];
             if (!_needs.TryGetValue(type.Key, out var need)) _needs[type.Key] = need = Maintenance.NeedPerDay(u, type);
+            if (Maintenance.StationFactor(u, st, type) is var mf && mf < 1f) need = Maintenance.Scaled(need, mf);   // Welle F (1): Spielerbehörden mit Anteil
             float value = 0f;
             foreach (var (g, perDay) in need)
             {

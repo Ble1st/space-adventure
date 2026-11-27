@@ -194,7 +194,10 @@ public class Runde38Tests
         Assert.True(Wars.AtWar(u, me, new FactionId(2)));
         u.Player.Treasury.Credits = -10f;
         runner.Run(u, 200);
-        Assert.False(Wars.AtWar(u, me, new FactionId(2)), "Schulden beenden den Krieg (leere Kasse)");
+        // Welle F (3): kurze Schulden beenden den Krieg nicht mehr sofort, erst anhaltende (WarBrokeTicks)
+        Assert.True(Wars.AtWar(u, me, new FactionId(2)), "kurze Schulden: Krieg läuft weiter");
+        for (int i = 0; i < u.Rules.WarBrokeTicks / 100 + 3 && Wars.AtWar(u, me, new FactionId(2)); i++) { u.Player.Treasury.Credits = -10f; runner.Run(u, 100); }
+        Assert.False(Wars.AtWar(u, me, new FactionId(2)), "anhaltende Schulden beenden den Krieg (leere Kasse)");
     }
 
     [Fact]

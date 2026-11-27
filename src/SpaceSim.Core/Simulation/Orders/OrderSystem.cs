@@ -48,8 +48,18 @@ public sealed class OrderSystem : ISimSystem
             }
             if (ship.Emergency)
             {
+                if (ship.CommandStep < 0 && u.Tick < ship.NextThinkTick) continue;   // Welle F (2): wartet nach ungelöstem Notfall
                 if (StepEmergency(u, ship))
                 {
+                    // Welle F (2): Spielerschiff, dessen Notfall sich nicht lösen ließ (kein Geld für Reparatur/Treibstoff): warten statt den Befehl neu zu starten
+                    // (vorher: jeden Tick Notfall an, Befehl neu, Notbenzin, Abflug, wieder angehalten)
+                    if (u.Rules.PlayerFuelPriority && ship.Owner == u.PlayerActor && EmergencyReason(u, ship) is { } still)
+                    {
+                        if (ship.CommandStep >= 0) u.Events.Publish(new FleetShipStranded(ship.Id, still, 0f, 0f));
+                        ship.CommandStep = -1;
+                        ship.NextThinkTick = u.Tick + Math.Max(1, u.Rules.PlayerStrandedWaitTicks);
+                        continue;
+                    }
                     ship.Emergency = false;
                     ship.CommandStep = 0;
                     ex.Start(u, ship, cmd);

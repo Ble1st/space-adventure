@@ -483,3 +483,35 @@ Befund (Sonnet-Test 5, Spielerbot): Kassenabgleich über 600 000 Ticks netto ≈
 4. **Behörde im umkämpften Fremdsektor** (`playerSeatContested`): Sektorbehörde und Firmensitz auch im Sektor einer KI-Fraktion, wenn der Spieler dort umkämpft ist (Einfluss > `ContestedShare`) und nicht im Krieg mit dem Besitzer; Kosten wie bisher, die Reaktion des Besitzers (Gegenbau, Welle B) bleibt.
 
 Ohne Spielerreich ist die NPC-Welt bitgleich (Balance 20 000 Ticks: Hash unverändert). Tests `WelleCTests`; Selbsttest-Stufe 174 (Vorwarnung als Alarm und Zeile, „Ruhen lassen“ mit zwei Tipps, „Wieder an“ mit einem Tipp). Spielerbot: `--wellec` setzt die Welle-C-Regeln der Welt-Datei auch für einen älteren Spielstand.
+
+## Welle F: Reichskosten, Kriegspleite (drei Spieltests „alle elf Sektoren erobern und halten“)
+
+**1. Das Reich trägt sich.** Gemessen mit der Probe `reich` des Spielerbots (`--probe3 reich`, eine Spielstunde ohne Bot-Aktionen; Spielstände Test 8,
+4–8 Sektoren): Steuern fremder Zahler ≈ 23 000 Cr/h je Sektor (Anteil 0,6; stark schwankend, 0–80 000), Kosten je Sektor ≈ 30 000 Cr/h bei voller
+Instandhaltung. Größter Posten nach dem Regierungsunterhalt war die **Instandhaltung der Spielerbehörden**: ihr Unterhalt zahlt seit dem Ausgleich nur 15 %
+(`playerGovernmentUpkeepShare`), ihre Instandhaltung aber den vollen Typbedarf (Hauptquartier, Sektor-HQ, Polizeiwache — Gebäude mit hohen Baukosten).
+Gemessen (8 Sektoren, Test 8 K/L): Instandhaltung real −70 000 bis −80 000 Cr/h, davon ≈ 90 % Behörden; Steuern +183 000 bis +207 000.
+Hebel: `playerGovernmentMaintenanceShare` 0,25 (Tagesbedarf der Spielerbehörden × 0,25 — weniger Materialverbrauch, keine Geldquelle) und
+`playerSectorTaxShare` 0,6 → 0,75 (die NPC-Zahler zahlen dieselbe Abgabe, nur versinkt weniger; keine Schleife, weil der Spieler fremden Zahlern erst Geld
+geben müsste, um 0,03 %/Tick davon zurückzubekommen). Nachher (gleiche Spielstände, eine Stunde, `--wellef`): Steuern K/L/A 183 000/207 000/105 000 → 223 000/243 000/132 000 Cr/h,
+Instandhaltung 70 000/80 000/30 000 → 21 000/22 000/14 000, Kassenzuwachs ohne Bot-Aktionen K +38 000 → +157 000, L +45 000 → +174 000,
+A (4 Sektoren, 279 eigene Leerlaufstationen) +16 000 → +10 000 Cr/h (Rauschen; die Flut bleibt teuer). Rechnung je Sektor ohne Flut ≈ ausgeglichen bis
+positiv (z. B. Alpha mit erobertem HQ +24 000 / −23 000 Cr/h); nach Abzug der Flottenkosten des Bots (≈ 45 000 Cr/h bei 8 Sektoren) bleibt ein
+8-Sektoren-Reich leicht positiv. Sektoren voller eigener Leerlaufstationen (Bot-Flut, Aktivität 0) bleiben ein Minus — gewollt, eine Station ohne Absatz erzeugt kein Geld.
+Abgewogen und verworfen: Steueranteil 0,9 (8 Sektoren deutlich über „leicht positiv“), niedrigere Kosten für Leerlaufstationen (macht Einflussflut billig).
+Eigene Wirtschaftsstationen führen weiter nur ihre Kasse über dem Betriebskapital ab (Vermögensabgabe) — echter Absatz, kein Sockel.
+Anzeige: „Meine Fraktion“ → Karte „Sektorpolitik“ → **Reich je Sektor (Cr/h)** (`EmpireBalance`, rein): je Sektor Steuer, Stationsertrag, Behörden,
+Instandhaltung (bei voller Versorgung), Betrieb, Sperren, dazu die Summe.
+
+**3. Krieg endet „leere Kasse“ erst nach anhaltender Pleite.** Ursache (Bot-Lauf ab Test-8-Spielstand 200 000, Diagnosezeile im Ereignislog): stets
+die **KI-Seite** — ihre Kasse liegt im Frieden genau an der Rücklage (jede freiwillige Ausgabe nimmt nur `Spendable`), ein Pflichtposten oder eine
+neue Behörde schiebt sie kurz darunter (43 779 bei Rücklage 44 040; 48 654 bei 56 520) → Frieden nach 1 928 bzw. 140 Ticks, mitten in Belagerungen.
+Regel (`warBrokeTicks` 2400, `warBrokeMaxTicks` 9600): eine Seite gilt erst als pleite, wenn ihre Kasse 2 400 Ticks ununterbrochen unter der Rücklage
+(Spieler: unter 0) liegt (`War.BrokeSinceA/B`, gespeichert, gehasht nur wenn gesetzt; ein Tick darüber setzt zurück); solange die zahlungsfähige Seite
+eine Station/ein Tor der pleiten Seite belagert, wartet der Frieden, spätestens nach 9 600 Ticks Pleite ist er Pflicht. Die Handlungsfähigkeit bleibt:
+Kriegsausgaben kommen nur aus dem Verfügbaren, Kriegsschiffe werden unter der Rücklage abgebaut. Meldung beim Beginn der Pleite (`WarBrokeNoticed`),
+Restzeit in „Meine Fraktion“. Gleicher Bot-Lauf nachher: diese zwei Kriege dauerten 5 296 und 2 193 Ticks (Frieden ausgehandelt), ein Krieg endete nach
+genau 2 400 Ticks „leere Kasse“ ohne laufende Belagerung.
+
+Schalter Code aus, Standardwelt an; ohne Spielerreich und Krieg ist die NPC-Welt bitgleich (Balance 20 000 Ticks Hash 468C12C868FC081D vorher und
+nachher). Tests `WelleFTests`; Selbsttest-Stufe 177.

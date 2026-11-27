@@ -43,4 +43,22 @@ public static class ProbeFuel
         P("Erste Notbetankungen:"); foreach (var l in emer.Take(25)) P("  " + l);
         P("Raffinerien (Treibstoff): " + string.Join("; ", u.StationsById().Where(x => x.TypeKey == "fuel_refinery").Select(x => $"{x.Name} [{u.Sectors[x.Sector].Name}, {(x.Owner == u.PlayerActor ? "eigen" : "fremd")}]")));
     }
+
+    /// <summary>Welle F: Ablauf je Schiff — die ersten Schiffe mit Notkauf werden Tick für Tick verfolgt (Ereignisse, Order, Transit, Tank, Station).</summary>
+    public static void Trace(Universe u, Pilot p, Action<string> P, long ticks)
+    {
+        var watch = new HashSet<ShipId>(); var lines = new List<string>();
+        u.Events.Raised += e =>
+        {
+            if (e is EmergencyRefuel er && u.Ships.TryGetValue(er.Ship, out var s) && s.Owner == u.PlayerActor && watch.Count < 3) watch.Add(er.Ship);
+            var prop = e.GetType().GetProperty("Ship");
+            if (prop?.GetValue(e) is ShipId sid && watch.Contains(sid) && lines.Count < 400)
+            {
+                var sh = u.Ships.GetValueOrDefault(sid);
+                lines.Add($"[{u.Tick}] #{sid.Value} {e.GetType().Name} {e} | tank {sh?.TotalFuel:0.0}/{sh?.Stats.FuelCapacity:0} pos {sh?.Position.X:0},{sh?.Position.Y:0} {(sh is null ? "" : u.Sectors[sh.Sector].Name)} order {sh?.Order} transit {(sh?.Transit is null ? "-" : sh.Transit.ArrivalTick.ToString())} dock {sh?.DockedAt.Value} here {(sh is null ? "" : Refuel.CurrentStation(u, sh)?.Name)} Kasse {u.PlayerWallet.Credits:0}");
+            }
+        };
+        for (long i = 0; i < ticks; i++) p.Step();
+        foreach (var l in lines) P(l);
+    }
 }

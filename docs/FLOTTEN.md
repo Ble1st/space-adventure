@@ -421,3 +421,26 @@ Nachladedienst: Ziel mindestens 120 / 30 (`playerStationAmmoTarget`/`MissileTarg
 Kasse am Ende 71 000 Cr (der Bot baut weiter Handelsstationen, 315 eigene am Ende — der Rückgang kommt aus Bau, Behörden und Flottenabgabe, nicht aus Treibstoff).
 Ab Start (900 000 Ticks): Treibstoff 60 000–130 000 Cr/h, Notkauf 8 400 Cr gesamt; Spitze 7 Sektoren, am Ende 4 (Kriegsverluste und Behördenunterhalt).
 Offen: der Bot nutzt „Versorgen“ noch nicht; die Kampfflotte brauchte ihn im Lauf nicht (kein Treibstoffmangel an der Front).
+
+## 17. Welle F: Treibstoffvorrang der Spielerflotte
+
+Befund (Probe `fueltrace`, Spielstand Test 8 A bei Tick 700 000, Kasse ≈ 0): ein Frachter mit kritischer Hülle lag an einer Reparaturstation, konnte
+nicht zahlen; die Notfall-Ebene beendete sich sofort, der Handelsbefehl startete neu, der Händler kaufte 1–2 Einheiten Notbenzin zum doppelten Preis,
+flog los und wurde im nächsten Tick vom Notfall wieder angehalten — jeden Tick. Dazu reichte ein Notkauf nur für die Luftlinie (die geplante Strecke
+ist länger) und das Tanken nahm nur 30 % des Bargelds. Probe `fuelwhy` (6 000 Ticks): 1 390 Notkäufe, 114 000 Cr Notbenzin.
+
+Regeln (`playerFuelPriority`, `playerFuelDebtLimit` 5 000 Cr, `playerStrandedWaitTicks` 200; nur Spielerschiffe, NPCs unverändert):
+- An einer Tankstelle tankt ein Spielerschiff mindestens bis zur nächsten anderen Tankstelle (geplante Strecke × 1,25 + 2) bzw. zur Reserve der Welle D —
+  dieses Pflichtmaß notfalls auf Schuld bis zur Grenze; erst danach der Vorrat aus dem Tankbudget.
+- Ein Notkauf kauft auf einmal genug bis zur nächsten Tankstelle (geplante Strecke mit Aufschlag) oder gar nichts; geht nichts, wartet das Schiff
+  200 Ticks (`FleetShipStranded`, Meldung höchstens einmal je Spieltag und Schiff).
+- Lässt sich ein Notfall nicht lösen (Reparatur/Treibstoff unbezahlbar), bleibt das Schiff im Notfall und wartet; Handel und Schürfen ruhen, der Befehl
+  wird nicht jeden Tick neu gestartet.
+
+Gemessen (`fuelwhy`, gleicher Spielstand): Notkäufe 1 390 → 2 (114 000 → 576 Cr in 6 000 Ticks), normale Käufe 19 000 → 94 000 Cr, Kasse min −4 985
+(Schuldgrenze). Tests `WelleFTests`.
+
+**Bot-Lauf (Spielstand Test 8 A bei Tick 600 000 → 820 000, `--s4 --supply --evlog --richgate 1000000 --austerity 4 --nodonate`, nachher mit `--wellef`).**
+Vorher: Notbenzin 3,14 Mio Cr (≈ 205 000 Cr/h), normaler Flottentreibstoff 1,24 Mio (≈ 81 000 Cr/h), Kasse am Ende 16 Cr, 3–4 Sektoren gehalten,
+1,39 ms/Tick. Nachher: Notbenzin 0 Cr, Flottentreibstoff 1,16 Mio (≈ 76 000 Cr/h), Steuern 1,62 → 1,94 Mio, Kasse am Ende 629 635 Cr, 4 Sektoren
+durchgehend, 0,71 ms/Tick (die Notkauf-Schleife kostete auch Rechenzeit).

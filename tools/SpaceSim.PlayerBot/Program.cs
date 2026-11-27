@@ -64,6 +64,14 @@ if (args.Contains("--welled") && def.Rules is { } wdr)
     ur.FleetSupply = wdr.FleetSupply; ur.FleetSupplyRange = wdr.FleetSupplyRange; ur.FleetSupplyTicks = wdr.FleetSupplyTicks;
     ur.PlayerMinerFuelCost = wdr.PlayerMinerFuelCost; ur.PlayerTankReserve = wdr.PlayerTankReserve; ur.PlayerWaitForSupplier = wdr.PlayerWaitForSupplier;
 }
+// Welle F: wie --welled die Welle-F-Regeln (und den Steueranteil) der Welt-Datei auf einen älteren Spielstand
+if (args.Contains("--wellef") && def.Rules is { } wfr)
+{
+    var ur = u.Rules;
+    ur.PlayerSectorTaxShare = wfr.PlayerSectorTaxShare; ur.PlayerGovernmentMaintenanceShare = wfr.PlayerGovernmentMaintenanceShare;
+    ur.PlayerFuelPriority = wfr.PlayerFuelPriority; ur.PlayerFuelDebtLimit = wfr.PlayerFuelDebtLimit; ur.PlayerStrandedWaitTicks = wfr.PlayerStrandedWaitTicks;
+    ur.WarBrokeTicks = wfr.WarBrokeTicks; ur.WarBrokeMaxTicks = wfr.WarBrokeMaxTicks;
+}
 if (Array.IndexOf(args, "--probe3") is var p3 && p3 >= 0) { Probe3.Run(u, args[p3 + 1], seed, outDir); return; }
 if (args.Contains("--sites"))
 {
@@ -185,7 +193,9 @@ u.Events.Raised += e =>
     { var h = u.Tick / 14400; var oh = fuelHour.GetValueOrDefault(h); fuelHour[h] = (oh.cost, oh.units, oh.emerg + er2.Cost); }
 };
 var log = new Log(Path.Combine(outDir, "ereignisse.log"), () => u.Tick);
-if (args.Contains("--evlog")) { var evNames = new HashSet<string> { "StationFell", "StationDeparted", "WarDeclared", "PeaceConcluded", "SectorOwnerChanged", "PlayerGovernmentUnpaidChanged", "AllianceFormed", "TributePaid", "SupplyPanicRaised", "SectorControlChanged", "SectorAccessChanged", "StationCapitulationRolled", "CapitalOrderPlaced", "CapitalShipCompleted", "CapitalOrderEnded" }; u.Events.Raised += e => { if (evNames.Contains(e.GetType().Name)) log.Event("KERN " + e.GetType().Name + " " + e); }; }
+if (args.Contains("--evlog")) { var evNames = new HashSet<string> { "StationFell", "StationDeparted", "WarDeclared", "PeaceConcluded", "SectorOwnerChanged", "PlayerGovernmentUnpaidChanged", "AllianceFormed", "TributePaid", "SupplyPanicRaised", "SectorControlChanged", "SectorAccessChanged", "StationCapitulationRolled", "CapitalOrderPlaced", "CapitalShipCompleted", "CapitalOrderEnded" }; u.Events.Raised += e => { if (evNames.Contains(e.GetType().Name)) log.Event("KERN " + e.GetType().Name + " " + e); };
+    // Welle F: bei Frieden „broke“ beide Kassen gegen ihre Rücklage (welche Seite ist pleite?)
+    u.Events.Raised += e => { if (e is SpaceSim.Core.Events.PeaceConcluded pc && pc.Reason == "broke") foreach (var f in new[] { pc.A, pc.B }) if (u.Actors.TryGetValue(f, out var a)) log.Event($"KERN broke-Seite {f.Value} {a.Name}: Kasse {a.Treasury.Credits:0} Rücklage {FactionViability.Reserve(u, f):0} Spieler {u.IsPlayerFaction(f)}"); }; }
 var pilot = new Pilot(u, log, seed);
 var metrics = new Metrics(u, pilot, Path.Combine(outDir, "zeitleiste.csv"), Path.Combine(outDir, "zeitleiste.txt"), every);
 var levOut = new StreamWriter(Path.Combine(outDir, "leviathane.csv")) { AutoFlush = true }; levOut.WriteLine("tick;eigene_leviathane;npc_leviathane_je_fraktion;eigene_grosse;krieg_paare;sektoren_eigen;sperren");

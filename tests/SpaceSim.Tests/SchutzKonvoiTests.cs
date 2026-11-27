@@ -22,6 +22,7 @@ public class SchutzKonvoiTests
     internal static void RevertSchutz(WorldDef def)
     {
         var r = def.Rules ??= new EconomyRules();
+        WelleFTests.RevertWelleF(def);   // Welle F (danach): Reich, Flottentreibstoff, Kriegspleite aus
         WelleETests.RevertWelleE(def);   // Welle E (danach): Großkampfschiff-Aufträge aus
         WelleDTests.RevertWelleD(def);   // Welle D (danach): Flottenversorgung, Regale, Nachschub aus
         WelleCTests.RevertWelleC(def);   // Welle C (danach): Spielerreich-Regeln aus

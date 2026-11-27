@@ -404,7 +404,10 @@ public sealed class ReturnExecutor : IOrderExecutor
     {
         if (UnitSupport.Serve(u, ship, st)) return;   // Phase 27: Polizei/Piraten an ihrer Basis aus der Kasse des Besitzers
         if (Refuel.ActiveFuel(ship) is { } fuel && st.Market.TryGetValue(fuel, out var e) && e.Amount > 0f && e.Price > 0f && ship.FuelSpace > 0.5f)
+        {
             Refuel.BuyFuel(u, ship, st, fuel, ship.FuelSpace);
+            if (FuelPriority.Applies(u, ship)) Refuel.TankUp(u, ship, st);   // Welle F (2): was zum Pflichtmaß fehlt, notfalls auf Schuld
+        }
         // Phase 26: Hülle und Module (repair:all), sobald etwas beschädigt ist
         if (RepairService.NeedsRepair(ship) && u.StationTypes.TryGetValue(st.TypeKey, out var type) && type.Services.Contains(RepairService.ServiceKey))
         {
